@@ -1090,15 +1090,15 @@ shapeCanvas.addEventListener('pointermove', e=>{
   sctx.restore();
 });
 shapeCanvas.addEventListener('pointerup', e=>{
-  if(state.tool!=='penmove'||!pmSelRect) { pmSelStart=null; sctx.clearRect(0,0,W,H); return; }
+  if(state.tool!=='penmove'||!pmSelRect) { pmSelStart=null; renderShapes(); return; }
   e.preventDefault();
   const {x,y,w,h} = pmSelRect;
-  if(w<10||h<10){ pmSelStart=null; pmSelRect=null; sctx.clearRect(0,0,W,H); return; }
+  if(w<10||h<10){ pmSelStart=null; pmSelRect=null; renderShapes(); return; }
   // Capture region from drawCanvas
   const imageData = ctx.getImageData(x,y,w,h);
   ctx.clearRect(x,y,w,h);
   snapshot();
-  sctx.clearRect(0,0,W,H);
+  renderShapes();
   pmSelStart=null; pmSelRect=null;
   createPenMoveOverlay(imageData,x,y,w,h);
 });
