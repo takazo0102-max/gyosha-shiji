@@ -968,7 +968,11 @@ shapeCanvas.addEventListener('pointerup', endShapePointer);
 shapeCanvas.addEventListener('pointercancel', endShapePointer);
 
 /* Make shapeCanvas pass-through for pen/eraser */
-shapeCanvas.style.pointerEvents = 'auto';
+function restoreShapeCanvas(){
+  shapeCanvas.style.pointerEvents = 'auto';
+  drawCanvas.style.pointerEvents = 'none';
+}
+restoreShapeCanvas();
 shapeCanvas.addEventListener('pointerdown', function handler(e){
   if (e.pointerType==='touch' && isPinching) return;
   if (state.tool === 'pen' || state.tool === 'eraser') {
@@ -977,13 +981,14 @@ shapeCanvas.addEventListener('pointerdown', function handler(e){
     // re-dispatch to drawCanvas
     const newE = new PointerEvent(e.type, e);
     drawCanvas.dispatchEvent(newE);
-    // restore after up
+    // restore after up or cancel
     const restore = () => {
-      shapeCanvas.style.pointerEvents = 'auto';
-      drawCanvas.style.pointerEvents = 'none';
+      restoreShapeCanvas();
       document.removeEventListener('pointerup', restore);
+      document.removeEventListener('pointercancel', restore);
     };
     document.addEventListener('pointerup', restore);
+    document.addEventListener('pointercancel', restore);
   }
 }, true);
 
@@ -1244,12 +1249,15 @@ document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',()=>{
     state.tool = '';
     selectShape(null);
     sctx.clearRect(0,0,W,H); pmSelStart=null; pmSelRect=null;
+    restoreShapeCanvas();
     return;
   }
   el.classList.add('active'); state.tool=el.dataset.tool;
   if (state.tool !== 'select') selectShape(null);
   // Clean up penmove overlay if switching away
   if (state.tool !== 'penmove') { sctx.clearRect(0,0,W,H); pmSelStart=null; pmSelRect=null; }
+  // ペン→図形など切り替え時にshapeCanvasのpointerEventsを必ず復元
+  restoreShapeCanvas();
 }));
 document.querySelectorAll('.color[data-color]').forEach(el=>el.addEventListener('click',()=>{
   document.querySelectorAll('.color[data-color]').forEach(e=>e.classList.remove('active'));
