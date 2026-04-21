@@ -708,8 +708,12 @@ document.getElementById('mainArea').addEventListener('wheel', e => {
 
 // Pinch-to-zoom (iPad)
 let pinchDist0 = null, pinchZoom0 = null;
+let isPinching = false;
 document.getElementById('mainArea').addEventListener('touchstart', e => {
   if(e.touches.length === 2){
+    isPinching = true;
+    // ピンチ開始時に描画中断
+    state.drawing = false;
     pinchDist0 = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
     pinchZoom0 = userZoom;
   }
@@ -721,7 +725,13 @@ document.getElementById('mainArea').addEventListener('touchmove', e => {
     zoomTo(pinchZoom0 * (d / pinchDist0));
   }
 }, { passive: false });
-document.getElementById('mainArea').addEventListener('touchend', () => { pinchDist0 = null; });
+document.getElementById('mainArea').addEventListener('touchend', e => {
+  if(e.touches.length < 2){
+    pinchDist0 = null;
+    // 指が離れてから少し待ってピンチ解除（誤描画防止）
+    setTimeout(() => { isPinching = false; }, 150);
+  }
+});
 
 /* =================== helpers =================== */
 function hexToRgba(hex, a){ const h=hex.replace('#',''); return 'rgba('+parseInt(h.substring(0,2),16)+','+parseInt(h.substring(2,4),16)+','+parseInt(h.substring(4,6),16)+','+a+')'; }
@@ -841,6 +851,7 @@ window.addEventListener('keyup',e=>{if(e.key==='Shift')shiftDown=false;});
 
 shapeCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType==='touch' && !e.isPrimary) return;
+  if (e.pointerType==='touch' && isPinching) return;
   e.preventDefault();
   const p = getPos(e);
 
@@ -959,6 +970,7 @@ shapeCanvas.addEventListener('pointercancel', endShapePointer);
 /* Make shapeCanvas pass-through for pen/eraser */
 shapeCanvas.style.pointerEvents = 'auto';
 shapeCanvas.addEventListener('pointerdown', function handler(e){
+  if (e.pointerType==='touch' && isPinching) return;
   if (state.tool === 'pen' || state.tool === 'eraser') {
     shapeCanvas.style.pointerEvents = 'none';
     drawCanvas.style.pointerEvents = 'auto';
@@ -978,6 +990,7 @@ shapeCanvas.addEventListener('pointerdown', function handler(e){
 /* =================== drawCanvas (pen/eraser) =================== */
 drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType==='touch' && !e.isPrimary) return;
+  if (e.pointerType==='touch' && isPinching) return;
   e.preventDefault();
   drawCanvas.setPointerCapture(e.pointerId);
   state.drawing = true;
@@ -1224,7 +1237,15 @@ document.addEventListener('keydown', e => {
 
 /* =================== Sidebar interactions =================== */
 document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',()=>{
+  const already = el.classList.contains('active');
   document.querySelectorAll('.tool').forEach(e=>e.classList.remove('active'));
+  if(already){
+    // 同じボタンを再度押したら解除
+    state.tool = '';
+    selectShape(null);
+    sctx.clearRect(0,0,W,H); pmSelStart=null; pmSelRect=null;
+    return;
+  }
   el.classList.add('active'); state.tool=el.dataset.tool;
   if (state.tool !== 'select') selectShape(null);
   // Clean up penmove overlay if switching away
