@@ -1248,14 +1248,17 @@ document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',()=>{
     // 同じボタンを再度押したら解除
     state.tool = '';
     selectShape(null);
-    sctx.clearRect(0,0,W,H); pmSelStart=null; pmSelRect=null;
+    pmSelStart=null; pmSelRect=null;
+    renderShapes(); // 解除後も図形を再描画
     restoreShapeCanvas();
     return;
   }
   el.classList.add('active'); state.tool=el.dataset.tool;
   if (state.tool !== 'select') selectShape(null);
   // Clean up penmove overlay if switching away
-  if (state.tool !== 'penmove') { sctx.clearRect(0,0,W,H); pmSelStart=null; pmSelRect=null; }
+  if (state.tool !== 'penmove') { pmSelStart=null; pmSelRect=null; }
+  // ツール切り替え後も図形を再描画（clearRectしない）
+  renderShapes();
   // ペン→図形など切り替え時にshapeCanvasのpointerEventsを必ず復元
   restoreShapeCanvas();
 }));
