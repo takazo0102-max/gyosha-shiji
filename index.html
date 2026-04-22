@@ -735,8 +735,47 @@ document.getElementById('mainArea').addEventListener('wheel', e => {
   if(e.ctrlKey || e.metaKey){
     e.preventDefault();
     if(e.deltaY < 0) zoomIn(); else zoomOut();
+  } else if(e.shiftKey){
+    // Shift + ホイール → 横スクロール
+    e.preventDefault();
+    document.getElementById('mainArea').scrollLeft += e.deltaY;
   }
 }, { passive: false });
+
+// Shift + マウスドラッグ → パン
+(()=>{
+  const ma = document.getElementById('mainArea');
+  let panning = false, panSX = 0, panSY = 0, panSL = 0, panST = 0;
+
+  ma.addEventListener('mousedown', e => {
+    if(!e.shiftKey) return;
+    e.preventDefault();
+    panning = true;
+    panSX = e.clientX; panSY = e.clientY;
+    panSL = ma.scrollLeft; panST = ma.scrollTop;
+    ma.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', e => {
+    if(!panning) return;
+    ma.scrollLeft = panSL - (e.clientX - panSX);
+    ma.scrollTop  = panST - (e.clientY - panSY);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if(!panning) return;
+    panning = false;
+    ma.style.cursor = '';
+  });
+
+  // Shift押下中はカーソルをgrabに
+  window.addEventListener('keydown', e => {
+    if(e.key === 'Shift' && !panning) ma.style.cursor = 'grab';
+  });
+  window.addEventListener('keyup', e => {
+    if(e.key === 'Shift' && !panning) ma.style.cursor = '';
+  });
+})();
 
 // Pinch-to-zoom & 2本指パン (iPad)
 let pinchDist0 = null, pinchZoom0 = null;
