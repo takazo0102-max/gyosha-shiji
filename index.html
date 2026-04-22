@@ -354,11 +354,8 @@
   .task-insert-item:last-child { border-bottom: none; }
   .task-insert-item:hover { background: #eff6ff; }
   .task-insert-item.done-item .ti-text { color: #9ca3af; text-decoration: line-through; }
-  .task-insert-item .ti-text { flex: 1; font-size: 12px; color: #111; line-height: 1.4; }
-  .task-insert-item .ti-btn {
-    flex-shrink: 0; padding: 3px 8px; font-size: 11px; font-weight: 600;
-    background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer;
-  }
+  .task-insert-item .ti-text { flex: 1; font-size: 12px; color: #1d4ed8; font-weight: 600; line-height: 1.4; }
+  .task-insert-item.done-item .ti-text { color: #9ca3af; }
   #taskInsertToggle {
     width: 100%; text-align: left; padding: 8px 10px;
     background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
@@ -1693,49 +1690,55 @@ function addTextBox(x,y,text,opts){
   const toggle = document.getElementById('taskInsertToggle');
   const panel  = document.getElementById('taskInsertPanel');
 
-  function refreshPanel(){
-    const vendor = document.getElementById('vendorName').value;
-    const tasks  = getTasks();
-    const items  = vendor ? (tasks[vendor] || []) : [];
+  function insertTaskText(text){
+    const main = document.getElementById('mainArea');
+    const wr   = document.getElementById('canvasWrap').getBoundingClientRect();
+    const cx   = (main.clientWidth / 2 + main.scrollLeft - wr.left) * (W / wr.width);
+    const cy   = (main.clientHeight / 2 + main.scrollTop  - wr.top)  * (H / wr.height);
+    const offset = (textLayer.querySelectorAll('.textbox-wrap').length % 6) * 30;
+    addTextBox(
+      Math.max(20, Math.min(W - 250, cx - 100 + offset)),
+      Math.max(20, Math.min(H - 80,  cy - 20  + offset)),
+      text
+    );
+  }
 
-    if(!vendor){
-      panel.innerHTML = '<div class="task-insert-empty">業者を選択してください</div>';
-      return;
+  function refreshPanel(){
+    const tasks   = getTasks();
+    const vendor  = document.getElementById('vendorName').value;
+    // 選択業者があればその業者のタスク、なければ全業者
+    let entries = [];
+    if(vendor && tasks[vendor] && tasks[vendor].length){
+      entries = tasks[vendor].map(t => ({...t, _vendor: vendor}));
+    } else {
+      Object.entries(tasks).forEach(([v, list]) => {
+        list.forEach(t => entries.push({...t, _vendor: v}));
+      });
     }
-    if(!items.length){
-      panel.innerHTML = '<div class="task-insert-empty">タスクがありません</div>';
+
+    if(!entries.length){
+      panel.innerHTML = '<div class="task-insert-empty">タスクがありません<br><small>タスクボタンから先に登録してください</small></div>';
       return;
     }
 
     panel.innerHTML = '';
-    items.forEach(t => {
+    entries.forEach(t => {
       const row = document.createElement('div');
       row.className = 'task-insert-item' + (t.done ? ' done-item' : '');
+      row.title = 'タップして挿入';
 
       const txt = document.createElement('div');
       txt.className = 'ti-text';
-      txt.textContent = t.text;
-
-      const btn = document.createElement('button');
-      btn.className = 'ti-btn';
-      btn.textContent = '挿入';
-      btn.addEventListener('pointerup', e => {
-        e.stopPropagation();
-        // キャンバス中央付近に挿入（少しずつずらす）
-        const main = document.getElementById('mainArea');
-        const wr   = document.getElementById('canvasWrap').getBoundingClientRect();
-        const cx   = (main.clientWidth / 2 + main.scrollLeft - wr.left) * (W / wr.width);
-        const cy   = (main.clientHeight / 2 + main.scrollTop  - wr.top)  * (H / wr.height);
-        const offset = (textLayer.querySelectorAll('.textbox-wrap').length % 6) * 30;
-        addTextBox(
-          Math.max(20, Math.min(W - 250, cx - 100 + offset)),
-          Math.max(20, Math.min(H - 80,  cy - 20  + offset)),
-          t.text
-        );
-      });
+      txt.textContent = '＋ ' + t.text;
 
       row.appendChild(txt);
-      row.appendChild(btn);
+      row.addEventListener('pointerup', e => {
+        e.stopPropagation();
+        insertTaskText(t.text);
+        // タップフィードバック
+        row.style.background = '#bfdbfe';
+        setTimeout(() => row.style.background = '', 300);
+      });
       panel.appendChild(row);
     });
   }
