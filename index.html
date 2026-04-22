@@ -742,31 +742,40 @@ document.getElementById('mainArea').addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-// Shift + マウスドラッグ → パン
+// Shift + マウスドラッグ → パン（キャプチャフェーズでcanvasより先に処理）
 (()=>{
   const ma = document.getElementById('mainArea');
   let panning = false, panSX = 0, panSY = 0, panSL = 0, panST = 0;
 
-  ma.addEventListener('mousedown', e => {
-    if(!e.shiftKey) return;
+  // capture:true でcanvasのイベントより先に取得
+  ma.addEventListener('pointerdown', e => {
+    if(!e.shiftKey || e.pointerType === 'touch') return;
     e.preventDefault();
+    e.stopPropagation();
     panning = true;
     panSX = e.clientX; panSY = e.clientY;
     panSL = ma.scrollLeft; panST = ma.scrollTop;
     ma.style.cursor = 'grabbing';
-  });
+    ma.setPointerCapture(e.pointerId);
+  }, true); // ← capture phase
 
-  window.addEventListener('mousemove', e => {
+  ma.addEventListener('pointermove', e => {
     if(!panning) return;
+    e.preventDefault();
+    e.stopPropagation();
     ma.scrollLeft = panSL - (e.clientX - panSX);
     ma.scrollTop  = panST - (e.clientY - panSY);
-  });
+  }, true);
 
-  window.addEventListener('mouseup', () => {
+  ma.addEventListener('pointerup', e => {
     if(!panning) return;
     panning = false;
-    ma.style.cursor = '';
-  });
+    ma.style.cursor = e.shiftKey ? 'grab' : '';
+  }, true);
+
+  ma.addEventListener('pointercancel', () => {
+    panning = false; ma.style.cursor = '';
+  }, true);
 
   // Shift押下中はカーソルをgrabに
   window.addEventListener('keydown', e => {
