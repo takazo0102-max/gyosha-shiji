@@ -365,6 +365,35 @@
   #taskInsertToggle .ti-arrow { font-size: 10px; transition: transform .2s; }
   #taskInsertToggle.open .ti-arrow { transform: rotate(180deg); }
 
+  /* ===== A3枠 ===== */
+  .a3-frame {
+    position: absolute;
+    border: 2.5px dashed #f59e0b;
+    box-sizing: border-box;
+    pointer-events: auto;
+    z-index: 6;
+  }
+  .a3-frame .a3-label {
+    position: absolute; top: -1px; left: -1px;
+    background: #f59e0b; color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 1px 7px; border-radius: 0 0 5px 0;
+    white-space: nowrap; user-select: none; -webkit-user-select: none;
+    cursor: move;
+  }
+  .a3-frame .a3-close {
+    position: absolute; top: -12px; right: -12px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #ef4444; color: #fff; font-size: 13px;
+    border: none; cursor: pointer; line-height: 22px; text-align: center;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .a3-frame .a3-resize {
+    position: absolute; bottom: -6px; right: -6px;
+    width: 16px; height: 16px; background: #f59e0b;
+    border-radius: 3px; cursor: se-resize;
+  }
+
   /* ===== PDF gallery ===== */
   .pdf-gallery { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
   .pdf-item {
@@ -441,6 +470,7 @@
       <button class="file-label" type="button" id="pdfAddBtn">📄 PDFを追加</button>
       <input class="file-input" type="file" id="pdfFile" accept="application/pdf" multiple />
       <button class="action-btn ghost" id="newBtn">🆕 新規作成</button>
+      <button class="action-btn ghost" id="addA3FrameBtn" style="border-color:#f59e0b;color:#b45309;">🟧 A3枠を追加</button>
     </div>
 
     <div class="section">
@@ -1824,6 +1854,86 @@ function addTextBox(x,y,text,opts){
     if(panel.classList.contains('open')) refreshPanel();
   });
 })();
+
+/* =================== A3枠 =================== */
+function addA3Frame(){
+  // A3 比率 (420:297) でキャンバスの60%幅
+  const fw = Math.round(W * 0.6);
+  const fh = Math.round(fw * 297 / 420);
+  const fx = Math.round((W - fw) / 2);
+  const fy = Math.round((H - fh) / 2);
+
+  const frame = document.createElement('div');
+  frame.className = 'a3-frame';
+  frame.style.left   = fx + 'px';
+  frame.style.top    = fy + 'px';
+  frame.style.width  = fw + 'px';
+  frame.style.height = fh + 'px';
+
+  const label = document.createElement('div');
+  label.className = 'a3-label';
+  label.textContent = 'A3';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'a3-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); frame.remove(); });
+
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'a3-resize';
+
+  frame.appendChild(label);
+  frame.appendChild(closeBtn);
+  frame.appendChild(resizeHandle);
+  textLayer.appendChild(frame);
+  textLayer.style.pointerEvents = 'none';
+  frame.style.pointerEvents = 'auto';
+
+  // ドラッグ（ラベルまたは枠本体）
+  let dragging = false, sx = 0, sy = 0, fl = 0, ft = 0, sc = 1;
+  function startDrag(e){
+    if(e.target === closeBtn || e.target === resizeHandle) return;
+    e.preventDefault(); e.stopPropagation();
+    dragging = true;
+    frame.setPointerCapture(e.pointerId);
+    sc = W / textLayer.getBoundingClientRect().width;
+    sx = e.clientX; sy = e.clientY;
+    fl = parseFloat(frame.style.left);
+    ft = parseFloat(frame.style.top);
+  }
+  frame.addEventListener('pointerdown', startDrag);
+  frame.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    frame.style.left = (fl + (e.clientX - sx) * sc) + 'px';
+    frame.style.top  = (ft + (e.clientY - sy) * sc) + 'px';
+  });
+  const endDrag = e => { if(!dragging) return; dragging = false; try{ frame.releasePointerCapture(e.pointerId); }catch(_){} };
+  frame.addEventListener('pointerup', endDrag);
+  frame.addEventListener('pointercancel', endDrag);
+
+  // リサイズ
+  let resizing = false, rsx = 0, rsy = 0, rw = 0, rh = 0, rsc = 1;
+  resizeHandle.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault();
+    resizing = true;
+    resizeHandle.setPointerCapture(e.pointerId);
+    rsc = W / textLayer.getBoundingClientRect().width;
+    rsx = e.clientX; rsy = e.clientY;
+    rw = frame.offsetWidth; rh = frame.offsetHeight;
+  });
+  resizeHandle.addEventListener('pointermove', e => {
+    if(!resizing) return;
+    const nw = Math.max(100, rw + (e.clientX - rsx) * rsc);
+    const nh = Math.max(70,  rh + (e.clientY - rsy) * rsc);
+    frame.style.width  = nw + 'px';
+    frame.style.height = nh + 'px';
+  });
+  const endResize = e => { if(!resizing) return; resizing = false; try{ resizeHandle.releasePointerCapture(e.pointerId); }catch(_){} };
+  resizeHandle.addEventListener('pointerup', endResize);
+  resizeHandle.addEventListener('pointercancel', endResize);
+}
+
+document.getElementById('addA3FrameBtn').addEventListener('click', addA3Frame);
 
 /* =================== AI =================== */
 document.getElementById('aiBtn').addEventListener('click',async()=>{
