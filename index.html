@@ -1,2314 +1,1205 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>業者への指示書</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    width: 100%; height: 100%; overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-    background: #f2f3f5; color: #222;
-    touch-action: none; -webkit-user-select: none; user-select: none;
-  }
-  header {
-    height: 56px; background: #1f2937; color: #fff;
-    display: flex; align-items: center;
-    padding: 0 16px; gap: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,.15);
-    z-index: 20; position: relative;
-    touch-action: auto; -webkit-user-select: auto; user-select: auto;
-  }
-  header .logo { font-size: 16px; font-weight: 700; margin-right: 6px; white-space: nowrap; }
-  header input[type="text"], header input[type="date"] {
-    height: 34px; border: none; border-radius: 6px;
-    padding: 0 10px; font-size: 13px;
-    background: #374151; color: #fff; outline: none;
-  }
-  header input::placeholder { color: #9ca3af; }
-  header input[type="text"] { width: 140px; }
-  header select.hdr-select {
-    height: 34px; border: none; border-radius: 6px 0 0 6px;
-    padding: 0 8px; font-size: 13px; width: 160px;
-    color: #fff; outline: none;
-    cursor: pointer; -webkit-appearance: none; appearance: none;
-    background-repeat: no-repeat; background-position: right 8px center;
-    padding-right: 24px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='white'/%3E%3C/svg%3E");
-  }
-  header select.hdr-select option { background: #1f2937; color: #fff; }
-  header select#vendorName { background-color: #065f46; }
-  header select#siteName { background-color: #1e40af; }
-  header button.hdr-manage {
-    height: 34px; padding: 0 8px; font-size: 14px; margin-left: -4px;
-    border-radius: 0 6px 6px 0;
-  }
-  header button#vendorManageBtn { background: #047857; }
-  header button#siteManageBtn { background: #1d4ed8; }
-  .vendor-manage-list { max-height: 300px; overflow-y: auto; }
-  .vendor-manage-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
-  .vendor-manage-row .vname { flex: 1; font-size: 14px; color: #111; }
-  .vendor-manage-row .vdel { background: #fee2e2; color: #b91c1c; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-  header .spacer { flex: 1; }
-  header button {
-    height: 36px; padding: 0 12px; border: none; border-radius: 6px;
-    background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;
-    cursor: pointer; white-space: nowrap;
-  }
-  header button:hover { background: #1d4ed8; }
-  header button.secondary { background: #4b5563; }
-  header button.save { background: #059669; }
-  .app { display: flex; width: 100%; height: calc(100% - 56px); }
-  aside {
-    width: 240px; flex-shrink: 0; background: #fff;
-    border-right: 1px solid #e5e7eb;
-    padding: 14px 12px; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: auto; -webkit-user-select: auto; user-select: auto;
-  }
-  .section { margin-bottom: 16px; }
-  .section h3 {
-    font-size: 11px; font-weight: 700; color: #6b7280;
-    letter-spacing: 1px; text-transform: uppercase;
-    margin-bottom: 8px; padding-left: 2px;
-  }
-  .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .tool {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 4px; padding: 10px 4px;
-    border: 1.5px solid #e5e7eb; border-radius: 8px;
-    background: #fff; cursor: pointer;
-    font-size: 11px; color: #374151; transition: all .12s;
-  }
-  .tool .icon { font-size: 20px; line-height: 1; }
-  .tool.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-  .colors { display: flex; gap: 8px; padding: 4px 2px; flex-wrap: wrap; }
-  .color {
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 3px solid #fff; box-shadow: 0 0 0 1.5px #e5e7eb;
-    cursor: pointer; transition: transform .12s;
-  }
-  .color.active { box-shadow: 0 0 0 2.5px #2563eb; transform: scale(1.1); }
-  .size-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-  .size-row.five { grid-template-columns: repeat(5, 1fr); }
-  .size-btn {
-    padding: 7px 0; border: 1.5px solid #e5e7eb; border-radius: 6px;
-    background: #fff; font-size: 12px; cursor: pointer; color: #374151;
-  }
-  .size-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 700; }
-  .action-btn {
-    width: 100%; padding: 11px; border: none; border-radius: 8px;
-    font-size: 13px; font-weight: 600; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    gap: 6px; margin-bottom: 6px;
-  }
-  .action-btn.primary { background: #7c3aed; color: #fff; }
-  .action-btn.primary:disabled { background: #c4b5fd; cursor: wait; }
-  .action-btn.ghost { background: #f3f4f6; color: #374151; }
-  .action-btn.amber { background: #f59e0b; color: #fff; }
-  .action-btn.danger { background: #ef4444; color: #fff; }
-  .file-input { display: none; }
-  .file-label {
-    display: block; width: 100%; padding: 11px;
-    text-align: center; background: #10b981; color: #fff;
-    border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-    cursor: pointer; margin-bottom: 8px;
-    touch-action: manipulation;
-  }
-  .undo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-
-  main {
-    flex: 1; position: relative;
-    overflow: auto; -webkit-overflow-scrolling: touch;
-    background: #e5e7eb;
-  }
-  .canvas-scroll-area {
-    position: relative;
-  }
-  .canvas-scale-wrapper {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-  }
-  .canvas-wrap {
-    position: relative; width: 1587px; height: 1123px;
-    background: #fff;
-    box-shadow: 0 6px 20px rgba(0,0,0,.15);
-    transform-origin: top left;
-    flex-shrink: 0;
-  }
-  /* Zoom controls */
-  .zoom-bar {
-    position: fixed; bottom: 16px; right: 16px;
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(31,41,55,.85); color: #fff;
-    border-radius: 24px; padding: 6px 12px;
-    z-index: 100; backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,.3);
-    touch-action: manipulation;
-  }
-  .zoom-bar button {
-    width: 30px; height: 30px; border: none; border-radius: 50%;
-    background: rgba(255,255,255,.15); color: #fff;
-    font-size: 18px; line-height: 1; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    touch-action: manipulation;
-  }
-  .zoom-bar button:hover { background: rgba(255,255,255,.3); }
-  .zoom-bar .zoom-pct { font-size: 13px; font-weight: 700; min-width: 44px; text-align: center; }
-  .zoom-bar .zoom-fit { font-size: 11px; padding: 4px 8px; border-radius: 12px; width: auto; }
-  .canvas-wrap canvas {
-    position: absolute; top: 0; left: 0;
-    width: 1587px; height: 1123px; pointer-events: none;
-  }
-  #pdfCanvas { z-index: 1; background: #fff; }
-  #drawCanvas { z-index: 2; }
-  #shapeCanvas { z-index: 3; pointer-events: auto; touch-action: none; }
-  #textLayer {
-    position: absolute; top: 0; left: 0;
-    width: 1587px; height: 1123px;
-    z-index: 4; pointer-events: none;
-  }
-  #eraserCursor {
-    position: absolute; pointer-events: none; z-index: 10;
-    border: 2px solid rgba(255,0,0,0.6); border-radius: 50%;
-    background: rgba(255,255,255,0.25);
-    display: none; transform: translate(-50%,-50%);
-  }
-  .empty-hint {
-    position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    color: #9ca3af; font-size: 18px; text-align: center; z-index: 0;
-  }
-  .empty-hint .big { font-size: 48px; margin-bottom: 8px; }
-  .drop-overlay {
-    position: absolute; inset: 0;
-    background: rgba(37,99,235,.08); border: 3px dashed #2563eb;
-    display: none; align-items: center; justify-content: center;
-    font-size: 24px; color: #1d4ed8; font-weight: 700;
-    z-index: 50; pointer-events: none;
-  }
-  main.drag-over .drop-overlay { display: flex; }
-
-  .textbox-wrap { position: absolute; pointer-events: auto; touch-action: none; }
-  .textbox {
-    min-width: 220px; min-height: 36px;
-    background: rgba(255,255,240,.92); border: 1.5px dashed #d97706;
-    padding: 8px 12px; font-size: 14px; color: #111; line-height: 1.5;
-    white-space: pre-wrap; word-wrap: break-word;
-    cursor: text; -webkit-user-select: text; user-select: text;
-    box-shadow: 0 2px 6px rgba(0,0,0,.08); border-radius: 3px; outline: none;
-  }
-  .textbox:focus { outline: 2px solid #2563eb; background: #fff; }
-  .textbox-wrap .close-btn, .photobox .close-btn {
-    position: absolute; top: -10px; right: -10px;
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #ef4444; color: #fff; border: 2px solid #fff;
-    font-size: 14px; line-height: 20px; text-align: center;
-    cursor: pointer; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); z-index: 2;
-  }
-  .textbox-wrap .drag-handle {
-    position: absolute; top: -10px; left: -10px;
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #6b7280; color: #fff; border: 2px solid #fff;
-    font-size: 13px; line-height: 20px; text-align: center;
-    cursor: move; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2);
-    z-index: 2; touch-action: none;
-  }
-  .photobox {
-    position: absolute; pointer-events: auto; cursor: move;
-    touch-action: none; border: 2px solid transparent;
-    box-shadow: 0 2px 6px rgba(0,0,0,.15); background: #fff;
-  }
-  .photobox:hover, .photobox.selected { border-color: #2563eb; }
-  .photobox img { width: 100%; height: 100%; display: block; pointer-events: none; }
-  .photobox .resize-handle {
-    position: absolute; right: -8px; bottom: -8px;
-    width: 22px; height: 22px; background: #2563eb;
-    border: 2px solid #fff; border-radius: 4px;
-    cursor: nwse-resize; box-shadow: 0 1px 3px rgba(0,0,0,.25);
-    touch-action: none; z-index: 2;
-  }
-  .photobox .caption {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,.6); color: #fff; font-size: 13px;
-    padding: 4px 8px; text-align: center;
-    pointer-events: auto; -webkit-user-select: text; user-select: text;
-    min-height: 18px;
-  }
-  .photobox .caption:empty::before { content: attr(data-placeholder); color: rgba(255,255,255,.5); }
-  .loader {
-    position: fixed; inset: 0; background: rgba(0,0,0,.55);
-    display: none; align-items: center; justify-content: center;
-    z-index: 1000; color: #fff; font-size: 16px;
-    flex-direction: column; gap: 14px;
-  }
-  .loader.show { display: flex; }
-  .spinner {
-    width: 44px; height: 44px;
-    border: 4px solid rgba(255,255,255,.25);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .modal {
-    position: fixed; inset: 0; background: rgba(0,0,0,.5);
-    display: none; align-items: center; justify-content: center; z-index: 2000;
-    touch-action: auto; -webkit-user-select: auto; user-select: auto;
-  }
-  .modal.show { display: flex; }
-  .modal .box {
-    background: #fff; border-radius: 10px;
-    width: 92%; max-width: 880px; max-height: 86vh;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  .modal .box.small { max-width: 440px; }
-  .modal header.mhead {
-    height: 52px; background: #1f2937; padding: 0 18px; color: #fff;
-    display: flex; align-items: center; justify-content: space-between; box-shadow: none;
-  }
-  .modal header.mhead h2 { font-size: 16px; font-weight: 700; }
-  .modal .close-x { background: transparent; border: none; color: #fff; font-size: 22px; cursor: pointer; }
-  .modal .body { padding: 18px; overflow-y: auto; flex: 1; user-select: text; -webkit-user-select: text; }
-  .modal .footer { padding: 12px 18px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end; }
-  .modal button.mbtn { padding: 9px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .modal button.primary { background: #2563eb; color: #fff; }
-  .modal button.ghost { background: #e5e7eb; color: #374151; }
-  .modal input.txt, .modal textarea.txt {
-    width: 100%; padding: 9px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit;
-  }
-  /* PDF page selector */
-  .pdf-page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; padding: 4px; }
-  .pdf-page-card {
-    border: 2px solid #e5e7eb; border-radius: 8px; padding: 8px;
-    background: #fff; cursor: pointer; transition: all .15s; position: relative;
-  }
-  .pdf-page-card.selected { border-color: #2563eb; background: #eff6ff; }
-  .pdf-page-card .page-thumb { width: 100%; aspect-ratio: 1587/1123; object-fit: contain; border-radius: 4px; background: #f9fafb; border: 1px solid #e5e7eb; }
-  .pdf-page-card .page-num { font-size: 11px; color: #6b7280; text-align: center; margin: 6px 0 4px; }
-  .pdf-page-card .page-name-input {
-    width: 100%; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px;
-    font-size: 12px; text-align: center; outline: none;
-  }
-  .pdf-page-card .page-name-input:focus { border-color: #2563eb; }
-  .pdf-page-card .check-mark {
-    position: absolute; top: 6px; right: 6px; width: 22px; height: 22px;
-    border-radius: 50%; background: #2563eb; color: #fff; font-size: 14px;
-    display: none; align-items: center; justify-content: center; line-height: 1;
-  }
-  .pdf-page-card.selected .check-mark { display: flex; }
-  .pdf-select-actions { display: flex; gap: 8px; margin-bottom: 12px; }
-  .pdf-select-actions button {
-    padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px;
-    background: #fff; font-size: 12px; cursor: pointer; color: #374151;
-  }
-  .pdf-select-actions button:hover { background: #f3f4f6; }
-
-  .vendor-group { margin-bottom: 18px; }
-  .vendor-group h3 { font-size: 14px; font-weight: 700; background: #eff6ff; color: #1d4ed8; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; }
-  .saved-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; background: #fafafa; }
-  .saved-row .thumb { width: 64px; height: 44px; object-fit: cover; border: 1px solid #e5e7eb; border-radius: 3px; background: #fff; }
-  .saved-row .meta { flex: 1; font-size: 13px; color: #374151; line-height: 1.5; }
-  .saved-row .meta .date { font-weight: 700; color: #111; }
-  .saved-row .meta .sub { color: #6b7280; font-size: 12px; }
-  .saved-row button { padding: 7px 12px; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .saved-row .view-btn { background: #2563eb; color: #fff; }
-  .saved-row .load-btn { background: #059669; color: #fff; }
-  .saved-row .del-btn { background: #ef4444; color: #fff; }
-  .task-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
-  .task-row input[type="checkbox"] { width: 18px; height: 18px; }
-  .task-row .txt-wrap { flex: 1; font-size: 14px; color: #111; }
-  .task-row.done .txt-wrap { color: #9ca3af; text-decoration: line-through; }
-  .task-row .due { font-size: 11px; color: #6b7280; margin-left: 4px; }
-  .task-row .del { background: #fee2e2; color: #b91c1c; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
-  .task-add-row { display: flex; gap: 6px; margin-top: 10px; }
-  .task-add-row input.txt { flex: 1; }
-  .task-add-row input[type="date"] { padding: 8px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 13px; }
-  .task-add-row button { padding: 0 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
-  .section-label { font-size: 13px; font-weight: 700; color: #374151; margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
-  .section-label:first-child { margin-top: 0; }
-  .preview-img { width: 100%; border: 1px solid #e5e7eb; border-radius: 4px; }
-  .empty-msg { text-align: center; color: #9ca3af; padding: 40px 0; font-size: 14px; }
-  .tab-row { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 14px; }
-  .tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; }
-  .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
-
-  /* ===== タスク挿入パネル ===== */
-  #taskInsertPanel {
-    display: none; margin-top: 6px;
-    border: 1.5px solid #e5e7eb; border-radius: 8px;
-    background: #f9fafb; overflow: hidden;
-  }
-  #taskInsertPanel.open { display: block; }
-  .task-insert-empty { padding: 10px 12px; font-size: 12px; color: #9ca3af; text-align: center; }
-  .task-insert-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
-    cursor: pointer; transition: background .1s;
-  }
-  .task-insert-item:last-child { border-bottom: none; }
-  .task-insert-item:hover { background: #eff6ff; }
-  .task-insert-item.done-item .ti-text { color: #9ca3af; text-decoration: line-through; }
-  .task-insert-item .ti-text { flex: 1; font-size: 12px; color: #1d4ed8; font-weight: 600; line-height: 1.4; }
-  .task-insert-item.done-item .ti-text { color: #9ca3af; }
-  #taskInsertToggle {
-    width: 100%; text-align: left; padding: 8px 10px;
-    background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
-    font-size: 12px; font-weight: 700; color: #1d4ed8; cursor: pointer;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  #taskInsertToggle .ti-arrow { font-size: 10px; transition: transform .2s; }
-  #taskInsertToggle.open .ti-arrow { transform: rotate(180deg); }
-
-  /* ===== PDF gallery ===== */
-  .pdf-gallery { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
-  .pdf-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px; border: 2px solid #e5e7eb; border-radius: 6px;
-    cursor: pointer; background: #fafafa; transition: all .12s;
-  }
-  .pdf-item:hover { background: #f0f0f0; }
-  .pdf-item.active { border-color: #2563eb; background: #eff6ff; }
-  .pdf-item .thumb {
-    width: 64px; height: 45px; object-fit: contain;
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 3px; flex-shrink: 0;
-  }
-  .pdf-item .info { flex: 1; min-width: 0; }
-  .pdf-item .info .name {
-    font-size: 12px; font-weight: 600; color: #111;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .pdf-item .info .page { font-size: 10px; color: #6b7280; }
-  .pdf-item .del-btn {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: #ef4444; color: #fff; border: none;
-    font-size: 12px; line-height: 20px; text-align: center;
-    cursor: pointer; flex-shrink: 0;
-  }
-  .pdf-empty { font-size: 12px; color: #9ca3af; text-align: center; padding: 12px 0; }
-
-  /* ===== Shape property panel ===== */
-  #shapePropPanel {
-    display: none; background: #fef9c3; border: 1.5px solid #eab308;
-    border-radius: 8px; padding: 10px; margin-bottom: 10px;
-  }
-  #shapePropPanel.show { display: block; }
-  #shapePropPanel h3 { font-size: 12px; color: #92400e; margin-bottom: 8px; font-weight: 700; }
-  #shapePropPanel label { font-size: 11px; color: #78716c; display: block; margin-top: 6px; margin-bottom: 2px; }
-  #textPropPanel {
-    display: none; background: #eff6ff; border: 1.5px solid #3b82f6;
-    border-radius: 8px; padding: 10px; margin-bottom: 10px;
-  }
-  #textPropPanel.show { display: block; }
-  #textPropPanel h3 { font-size: 12px; color: #1e40af; margin-bottom: 8px; font-weight: 700; }
-  #textPropPanel label { font-size: 11px; color: #3b82f6; display: block; margin-top: 6px; margin-bottom: 2px; }
-  .text-color-row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .text-color-swatch {
-    width: 24px; height: 24px; border-radius: 50%;
-    border: 2px solid #fff; box-shadow: 0 0 0 1.5px #cbd5e1;
-    cursor: pointer; transition: transform .1s;
-  }
-  .text-color-swatch.active { box-shadow: 0 0 0 2.5px #2563eb; transform: scale(1.15); }
-  .text-size-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 4px; }
-  .text-size-btn { padding: 5px 0; border: 1.5px solid #e5e7eb; border-radius: 5px; background: #fff; font-size: 11px; cursor: pointer; color: #374151; }
-  .text-size-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 700; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskFlow - タスク管理</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          animation: {
+            'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'slide-in': 'slideIn 0.3s cubic-bezier(0.32,0.72,0,1)',
+            'fade-in': 'fadeIn 0.2s ease-out',
+          },
+          keyframes: {
+            slideIn: { '0%': { transform: 'translateX(100%)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } },
+            fadeIn: { '0%': { opacity: '0', transform: 'translateY(-4px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #374151; }
+    .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.32,0.72,0,1); }
+    .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
-<header>
-  <div class="logo">📋 業者への指示書</div>
-  <select id="vendorName" class="hdr-select"><option value="">-- 業者選択 --</option></select><button class="hdr-manage" id="vendorManageBtn" title="業者管理">⚙</button>
-  <select id="siteName" class="hdr-select"><option value="">-- 現場選択 --</option></select><button class="hdr-manage" id="siteManageBtn" title="現場管理">⚙</button>
-  <input type="date" id="dateInput" />
-  <div class="spacer"></div>
-  <button class="secondary" id="archiveBtn">📚 履歴</button>
-  <button class="secondary" id="taskBtn">✅ タスク</button>
-  <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
-  <button class="save" id="saveBtn">💾 保存</button>
-  <button id="exportBtn">📥 PDF出力</button>
-</header>
+// ==================== Utils ====================
+const generateId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+const getTodayString = () => new Date().toISOString().split('T')[0];
 
-<div class="app">
-  <aside>
-    <div class="section">
-      <h3>ファイル</h3>
-      <button class="file-label" type="button" id="pdfAddBtn">📄 PDFを追加</button>
-      <input class="file-input" type="file" id="pdfFile" accept="application/pdf" multiple />
-      <button class="action-btn ghost" id="newBtn">🆕 新規作成</button>
-    </div>
-
-    <div class="section">
-      <h3>図面一覧</h3>
-      <div class="pdf-gallery" id="pdfGallery">
-        <div class="pdf-empty" id="pdfEmpty">PDFを読み込んでください</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <button id="taskInsertToggle">📋 タスクを挿入 <span class="ti-arrow">▼</span></button>
-      <div id="taskInsertPanel"></div>
-    </div>
-
-    <div class="section">
-      <h3>ツール</h3>
-      <div class="tool-row">
-        <div class="tool active" data-tool="pen"><div class="icon">✏️</div><div>ペン</div></div>
-        <div class="tool" data-tool="eraser"><div class="icon">🧽</div><div>消しゴム</div></div>
-        <div class="tool" data-tool="select"><div class="icon">👆</div><div>選択</div></div>
-        <div class="tool" data-tool="penmove"><div class="icon">✂️</div><div>ペン移動</div></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>図形</h3>
-      <div class="tool-row">
-        <div class="tool" data-tool="line"><div class="icon">／</div><div>直線</div></div>
-        <div class="tool" data-tool="arrow"><div class="icon">➤</div><div>矢印</div></div>
-        <div class="tool" data-tool="rect"><div class="icon">▭</div><div>長方形</div></div>
-        <div class="tool" data-tool="ellipse"><div class="icon">◯</div><div>円</div></div>
-        <div class="tool" data-tool="rectfill"><div class="icon">▬</div><div>塗り矩形</div></div>
-        <div class="tool" data-tool="ellipsefill"><div class="icon">●</div><div>塗り円</div></div>
-      </div>
-      <div style="margin-top:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#6b7280;margin-bottom:3px;">
-          <span>塗り透明度</span>
-          <span id="fillAlphaLabel" style="font-weight:700;color:#111;">40%</span>
-        </div>
-        <input type="range" id="fillAlpha" min="0" max="100" step="5" value="40" style="width:100%;" />
-        <div class="size-row five" style="margin-top:4px;">
-          <button class="size-btn" data-alpha="0">0%</button>
-          <button class="size-btn" data-alpha="20">20%</button>
-          <button class="size-btn active" data-alpha="40">40%</button>
-          <button class="size-btn" data-alpha="60">60%</button>
-          <button class="size-btn" data-alpha="100">100%</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Shape property panel (appears when shape selected) -->
-    <div id="shapePropPanel">
-      <h3>📐 選択中の図形</h3>
-      <label>色</label>
-      <div class="colors" id="shapeColors">
-        <div class="color" data-sc="#000000" style="background:#000"></div>
-        <div class="color" data-sc="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-sc="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-sc="#16a34a" style="background:#16a34a"></div>
-        <div class="color" data-sc="#f59e0b" style="background:#f59e0b"></div>
-      </div>
-      <label>塗り透明度</label>
-      <input type="range" id="shapeFillAlpha" min="0" max="100" step="5" value="40" style="width:100%;" />
-      <label>線の太さ</label>
-      <input type="range" id="shapeLineWidth" min="1" max="12" step="1" value="2" style="width:100%;" />
-      <div style="margin-top:8px;display:flex;gap:6px;">
-        <button class="action-btn ghost" id="shapeDuplicate" style="flex:1;">📋 複製</button>
-        <button class="action-btn danger" id="shapeDelete" style="flex:1;">🗑 削除</button>
-      </div>
-    </div>
-
-    <div id="textPropPanel">
-      <h3>📝 選択中のテキスト</h3>
-      <label>文字サイズ　<span id="textFontSizeVal" style="font-weight:700;color:#1e40af;">14</span>px</label>
-      <input type="range" id="textFontSizeSlider" min="0" max="18" step="1" value="3" style="width:100%;margin-bottom:4px;" />
-      <label>文字色</label>
-      <div class="text-color-row" id="textPropColors">
-        <div class="text-color-swatch" data-tc="#111111" style="background:#111;"></div>
-        <div class="text-color-swatch" data-tc="#dc2626" style="background:#dc2626;"></div>
-        <div class="text-color-swatch" data-tc="#2563eb" style="background:#2563eb;"></div>
-        <div class="text-color-swatch" data-tc="#16a34a" style="background:#16a34a;"></div>
-        <div class="text-color-swatch" data-tc="#f59e0b" style="background:#f59e0b;"></div>
-        <div class="text-color-swatch" data-tc="#ffffff" style="background:#fff;"></div>
-      </div>
-      <label style="margin-top:8px;">背景色</label>
-      <div class="text-color-row" id="textBgColors">
-        <div class="text-color-swatch active" data-bg="rgba(255,255,240,0.92)" style="background:#fffef0;border:1.5px solid #d97706;" title="薄黄（デフォルト）"></div>
-        <div class="text-color-swatch" data-bg="rgba(255,255,255,0.95)" style="background:#fff;border:1.5px solid #e5e7eb;" title="白"></div>
-        <div class="text-color-swatch" data-bg="rgba(254,226,226,0.92)" style="background:#fee2e2;" title="薄赤"></div>
-        <div class="text-color-swatch" data-bg="rgba(219,234,254,0.92)" style="background:#dbeafe;" title="薄青"></div>
-        <div class="text-color-swatch" data-bg="rgba(220,252,231,0.92)" style="background:#dcfce7;" title="薄緑"></div>
-        <div class="text-color-swatch" data-bg="rgba(31,41,55,0.9)" style="background:#1f2937;" title="黒"></div>
-        <div class="text-color-swatch" data-bg="transparent" style="background:transparent;border:1.5px dashed #9ca3af;position:relative;" title="透明">
-          <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#9ca3af;">∅</span>
-        </div>
-      </div>
-      <button class="action-btn danger" id="textDelete" style="margin-top:8px;">🗑 削除</button>
-    </div>
-
-    <div class="section">
-      <h3>色</h3>
-      <div class="colors">
-        <div class="color active" data-color="#000000" style="background:#000"></div>
-        <div class="color" data-color="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-color="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-color="#16a34a" style="background:#16a34a"></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>線の太さ</h3>
-      <div class="size-row">
-        <button class="size-btn" data-size="1">細</button>
-        <button class="size-btn active" data-size="2">中</button>
-        <button class="size-btn" data-size="4">太</button>
-        <button class="size-btn" data-size="8">極</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>操作</h3>
-      <div class="undo-row">
-        <button class="action-btn ghost" id="undoBtn">↶ 戻す</button>
-        <button class="action-btn ghost" id="redoBtn">↷ やり直し</button>
-      </div>
-      <button class="action-btn ghost" id="clearBtn">🗑 全消去</button>
-    </div>
-
-    <div class="section">
-      <h3>追加</h3>
-      <button class="action-btn amber" id="addTextBtn">📝 テキスト追加</button>
-      <label class="file-label" for="photoFile" style="background:#0ea5e9;">📷 写真を追加</label>
-      <input class="file-input" type="file" id="photoFile" accept="image/*" multiple />
-    </div>
-
-    <div class="section">
-      <h3>文字サイズ</h3>
-      <div class="size-row">
-        <button class="size-btn" data-fontsize="12">12</button>
-        <button class="size-btn active" data-fontsize="14">14</button>
-        <button class="size-btn" data-fontsize="16">16</button>
-        <button class="size-btn" data-fontsize="20">20</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>文字色</h3>
-      <div class="colors" id="textColors">
-        <div class="color active" data-textcolor="#111111" style="background:#111"></div>
-        <div class="color" data-textcolor="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-textcolor="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-textcolor="#16a34a" style="background:#16a34a"></div>
-        <div class="color" data-textcolor="#f59e0b" style="background:#f59e0b"></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>AI指示生成</h3>
-      <button class="action-btn primary" id="aiBtn">✨ AIで指示書生成</button>
-    </div>
-  </aside>
-
-  <main id="mainArea">
-    <div class="canvas-scroll-area" id="canvasScrollArea">
-    <div class="canvas-scale-wrapper" id="canvasScaleWrapper">
-      <div class="canvas-wrap" id="canvasWrap">
-        <div class="empty-hint" id="emptyHint">
-          <div class="big">📄</div>
-          <div>PDFを読み込んでください</div>
-          <div style="font-size:13px;margin-top:6px;">（ドラッグ＆ドロップ可）</div>
-        </div>
-        <canvas id="pdfCanvas" width="1587" height="1123"></canvas>
-        <canvas id="drawCanvas" width="1587" height="1123"></canvas>
-        <canvas id="shapeCanvas" width="1587" height="1123"></canvas>
-        <div id="textLayer"></div>
-        <div id="eraserCursor"></div>
-      </div>
-    </div>
-    </div><!-- /canvas-scroll-area -->
-    <div class="drop-overlay">PDFをドロップ</div>
-  </main>
-</div>
-<!-- Zoom bar -->
-<div class="zoom-bar" id="zoomBar">
-  <button id="zoomOut" title="縮小">−</button>
-  <span class="zoom-pct" id="zoomPct">100%</span>
-  <button id="zoomIn" title="拡大">＋</button>
-  <button class="zoom-fit" id="zoomFit" title="全体表示">全体</button>
-</div>
-
-<div class="loader" id="loader"><div class="spinner"></div><div id="loaderText">処理中...</div></div>
-
-<div class="modal" id="archiveModal"><div class="box"><header class="mhead"><h2>📚 保存された指示書</h2><button class="close-x" data-close="archiveModal">×</button></header><div class="body" id="archiveBody"></div></div></div>
-<div class="modal" id="previewModal"><div class="box"><header class="mhead"><h2 id="previewTitle">プレビュー</h2><button class="close-x" data-close="previewModal">×</button></header><div class="body"><img id="previewImg" class="preview-img" alt="preview"/><div id="previewMeta" style="margin-top:12px;font-size:13px;color:#374151;"></div></div><div class="footer"><button class="mbtn ghost" data-close="previewModal">閉じる</button><button class="mbtn primary" id="previewDownload">📥 PDFダウンロード</button></div></div></div>
-<div class="modal" id="taskModal"><div class="box"><header class="mhead"><h2>✅ 業者別タスク管理</h2><button class="close-x" data-close="taskModal">×</button></header><div class="body" id="taskBody"></div></div></div>
-<div class="modal" id="vendorModal"><div class="box small"><header class="mhead"><h2>⚙ 業者管理</h2><button class="close-x" data-close="vendorModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newVendorInput" placeholder="新しい業者名..." /><button id="addVendorBtn">追加</button></div><div class="vendor-manage-list" id="vendorManageList"></div></div></div></div>
-<div class="modal" id="pdfSelectModal"><div class="box" style="max-width:800px;"><header class="mhead"><h2>📄 読み込むページを選択</h2><button class="close-x" data-close="pdfSelectModal">×</button></header><div class="body"><div class="pdf-select-actions"><button id="pdfSelectAll">全選択</button><button id="pdfDeselectAll">全解除</button><span style="flex:1;"></span><span id="pdfSelectCount" style="font-size:13px;color:#6b7280;line-height:32px;">0ページ選択中</span></div><div class="pdf-page-grid" id="pdfPageGrid"></div></div><div class="footer"><button class="mbtn ghost" data-close="pdfSelectModal">キャンセル</button><button class="mbtn primary" id="pdfSelectImport">📥 選択したページを読み込む</button></div></div></div>
-<div class="modal" id="siteModal"><div class="box small"><header class="mhead"><h2>⚙ 現場管理</h2><button class="close-x" data-close="siteModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newSiteInput" placeholder="新しい現場名..." /><button id="addSiteBtn">追加</button></div><div class="vendor-manage-list" id="siteManageList"></div></div></div></div>
-<div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Claude APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うにはAnthropic APIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="sk-ant-..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
-
-<script>
-const W = 1587, H = 1123;
-const STORE_INST = 'instructions_v2', STORE_TASKS = 'vendor_tasks_v1', STORE_VENDORS = 'vendor_list_v1', STORE_SITES = 'site_list_v1';
-const SHAPE_TOOLS = ['line','arrow','rect','ellipse','rectfill','ellipsefill'];
-
-const state = {
-  tool: 'pen', color: '#000000', size: 2, fontSize: 14,
-  textColor: '#111111', fillAlpha: 0.4,
-  drawing: false, lastX: 0, lastY: 0,
-  history: [], historyIndex: -1, maxHistory: 30,
-  pdfLoaded: false,
-  pdfPages: [],       // { id, name, pageNum, imageDataUrl, thumbDataUrl }
-  activePdfId: null,
-  apiKey: localStorage.getItem('claude_api_key') || '',
-  activeTextbox: null,
-  // Shapes (vector objects)
-  shapes: [],
-  selectedShapeId: null,
-  // shape interaction
-  shapeStart: null, tentativeShape: null,
-  shapeDrag: null, shapeResize: null
+const getDeadlineStatus = (dueDate) => {
+  if (!dueDate) return 'ok';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  const diff = Math.round((due - today) / 86400000);
+  if (diff < 0) return 'overdue';
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  if (diff <= 3) return 'soon';
+  return 'ok';
 };
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-(function(){ const d=new Date(); document.getElementById('dateInput').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+const getDaysRemaining = (dueDate) => {
+  if (!dueDate) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  return Math.round((due - today) / 86400000);
+};
 
-const pdfCanvas = document.getElementById('pdfCanvas');
-const drawCanvas = document.getElementById('drawCanvas');
-const shapeCanvas = document.getElementById('shapeCanvas');
-const pdfCtx = pdfCanvas.getContext('2d');
-const ctx = drawCanvas.getContext('2d');
-const sctx = shapeCanvas.getContext('2d');
-ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-const textLayer = document.getElementById('textLayer');
-const canvasWrap = document.getElementById('canvasWrap');
+const formatDeadlineBadge = (dueDate) => {
+  const days = getDaysRemaining(dueDate);
+  if (days === null) return '';
+  if (days < 0) return `${Math.abs(days)}日超過`;
+  if (days === 0) return '今日まで';
+  if (days === 1) return '明日まで';
+  return `残り${days}日`;
+};
 
-/* =================== Zoom & fit =================== */
-const scaleWrapper = document.getElementById('canvasScaleWrapper');
-const scrollArea = document.getElementById('canvasScrollArea');
-let baseFitScale = 1;
-let userZoom = 1;
-const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-
-function calcFitScale(){
-  const pad = 24;
-  // Use the sidebar width (240) + main's available space
-  const availW = (window.innerWidth - 240) - pad;
-  const availH = (window.innerHeight - 56) - pad;
-  return Math.min(availW / W, availH / H, 1);
-}
-function applyZoom(){
-  const scale = baseFitScale * userZoom;
-  canvasWrap.style.transform = 'scale(' + scale + ')';
-  const dispW = W * scale + 32, dispH = H * scale + 32;
-  scaleWrapper.style.width  = (W * scale) + 'px';
-  scaleWrapper.style.height = (H * scale) + 'px';
-  // Size the scroll area so scrolling works when zoomed in
-  const main = document.getElementById('mainArea');
-  scrollArea.style.width  = Math.max(dispW, main.clientWidth)  + 'px';
-  scrollArea.style.height = Math.max(dispH, main.clientHeight) + 'px';
-  document.getElementById('zoomPct').textContent = Math.round(scale * 100) + '%';
-}
-function fitCanvas(){
-  baseFitScale = calcFitScale();
-  userZoom = 1;
-  applyZoom();
-}
-function zoomTo(newUserZoom){
-  userZoom = Math.max(0.25, Math.min(5, newUserZoom));
-  applyZoom();
-}
-function zoomIn(){
-  const cur = baseFitScale * userZoom;
-  const next = ZOOM_STEPS.find(s => s > cur + 0.01);
-  if(next) zoomTo(next / baseFitScale); else zoomTo(userZoom * 1.2);
-}
-function zoomOut(){
-  const cur = baseFitScale * userZoom;
-  const prev = [...ZOOM_STEPS].reverse().find(s => s < cur - 0.01);
-  if(prev) zoomTo(prev / baseFitScale); else zoomTo(userZoom * 0.8);
-}
-// Init after layout settles
-requestAnimationFrame(() => { fitCanvas(); });
-window.addEventListener('resize', fitCanvas);
-
-document.getElementById('zoomIn').addEventListener('click', zoomIn);
-document.getElementById('zoomOut').addEventListener('click', zoomOut);
-document.getElementById('zoomFit').addEventListener('click', () => { userZoom = 1; applyZoom(); });
-
-// Wheel zoom
-document.getElementById('mainArea').addEventListener('wheel', e => {
-  if(e.ctrlKey || e.metaKey){
-    e.preventDefault();
-    if(e.deltaY < 0) zoomIn(); else zoomOut();
-  } else if(e.shiftKey){
-    // Shift + ホイール → 横スクロール
-    e.preventDefault();
-    document.getElementById('mainArea').scrollLeft += e.deltaY;
+const getDeadlineBadgeClass = (status) => {
+  switch(status) {
+    case 'overdue': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+    case 'today': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
+    case 'tomorrow': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300';
+    case 'soon': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
   }
-}, { passive: false });
+};
 
-// Shift + マウスドラッグ → パン（キャプチャフェーズでcanvasより先に処理）
-(()=>{
-  const ma = document.getElementById('mainArea');
-  let panning = false, panSX = 0, panSY = 0, panSL = 0, panST = 0;
+const getDeadlineBgClass = (status) => {
+  switch(status) {
+    case 'overdue': return 'bg-red-50 dark:bg-red-900/20';
+    case 'today': return 'bg-orange-50 dark:bg-orange-900/20';
+    case 'tomorrow': return 'bg-yellow-50 dark:bg-yellow-900/20';
+    case 'soon': return 'bg-blue-50 dark:bg-blue-900/20';
+    default: return '';
+  }
+};
 
-  // capture:true でcanvasのイベントより先に取得
-  ma.addEventListener('pointerdown', e => {
-    if(!e.shiftKey || e.pointerType === 'touch') return;
-    e.preventDefault();
-    e.stopPropagation();
-    panning = true;
-    panSX = e.clientX; panSY = e.clientY;
-    panSL = ma.scrollLeft; panST = ma.scrollTop;
-    ma.style.cursor = 'grabbing';
-    ma.setPointerCapture(e.pointerId);
-  }, true); // ← capture phase
+const formatMinutes = (min) => {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h === 0) return `${m}分`;
+  if (m === 0) return `${h}時間`;
+  return `${h}時間${m}分`;
+};
 
-  ma.addEventListener('pointermove', e => {
-    if(!panning) return;
-    e.preventDefault();
-    e.stopPropagation();
-    ma.scrollLeft = panSL - (e.clientX - panSX);
-    ma.scrollTop  = panST - (e.clientY - panSY);
-  }, true);
+const parseTimeToMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+};
 
-  ma.addEventListener('pointerup', e => {
-    if(!panning) return;
-    panning = false;
-    ma.style.cursor = e.shiftKey ? 'grab' : '';
-  }, true);
+const formatDateShort = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+};
 
-  ma.addEventListener('pointercancel', () => {
-    panning = false; ma.style.cursor = '';
-  }, true);
+// ==================== Storage ====================
+const STORAGE = {
+  tasks: () => { try { return JSON.parse(localStorage.getItem('tf_tasks') || '[]'); } catch { return []; } },
+  saveTasks: (t) => localStorage.setItem('tf_tasks', JSON.stringify(t)),
+  cats: () => { try { const d = localStorage.getItem('tf_cats'); return d ? JSON.parse(d) : DEFAULT_CATS; } catch { return DEFAULT_CATS; } },
+  saveCats: (c) => localStorage.setItem('tf_cats', JSON.stringify(c)),
+  settings: () => { try { const d = localStorage.getItem('tf_settings'); return d ? JSON.parse(d) : DEFAULT_SETTINGS; } catch { return DEFAULT_SETTINGS; } },
+  saveSettings: (s) => localStorage.setItem('tf_settings', JSON.stringify(s)),
+};
 
-  // Shift押下中はカーソルをgrabに
-  window.addEventListener('keydown', e => {
-    if(e.key === 'Shift' && !panning) ma.style.cursor = 'grab';
+const DEFAULT_CATS = [
+  { id: 'cat-1', name: '仕事', color: '#3B82F6' },
+  { id: 'cat-2', name: '個人', color: '#10B981' },
+  { id: 'cat-3', name: '学習', color: '#8B5CF6' },
+];
+const DEFAULT_SETTINGS = { warningDays: 3, showBanner: true, browserNotifications: false };
+
+// ==================== Tree Utils ====================
+const buildTree = (flatTasks) => {
+  const map = new Map(flatTasks.map(t => [t.id, { ...t, children: [] }]));
+  const roots = [];
+  [...flatTasks].sort((a, b) => a.order - b.order).forEach(t => {
+    const node = map.get(t.id);
+    if (t.parentId && map.has(t.parentId)) map.get(t.parentId).children.push(node);
+    else roots.push(node);
   });
-  window.addEventListener('keyup', e => {
-    if(e.key === 'Shift' && !panning) ma.style.cursor = '';
-  });
-})();
+  return roots.sort((a, b) => a.order - b.order);
+};
 
-// Pinch-to-zoom & 2本指パン (iPad)
-let pinchDist0 = null, pinchZoom0 = null;
-let pinchMid0 = null, pinchScroll0 = null;
-let isPinching = false;
-const _mainArea = document.getElementById('mainArea');
-
-_mainArea.addEventListener('touchstart', e => {
-  if(e.touches.length === 2){
-    isPinching = true;
-    state.drawing = false;
-    pinchDist0 = Math.hypot(
-      e.touches[1].clientX - e.touches[0].clientX,
-      e.touches[1].clientY - e.touches[0].clientY
-    );
-    pinchZoom0 = userZoom;
-    pinchMid0 = {
-      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
-    };
-    pinchScroll0 = { left: _mainArea.scrollLeft, top: _mainArea.scrollTop };
-  }
-}, { passive: true });
-
-_mainArea.addEventListener('touchmove', e => {
-  if(e.touches.length === 2 && pinchDist0 !== null){
-    e.preventDefault();
-    const t0 = e.touches[0], t1 = e.touches[1];
-
-    // ズーム
-    const d = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
-    zoomTo(pinchZoom0 * (d / pinchDist0));
-
-    // パン（指の中心点の移動量をスクロールに反映）
-    const midX = (t0.clientX + t1.clientX) / 2;
-    const midY = (t0.clientY + t1.clientY) / 2;
-    _mainArea.scrollLeft = pinchScroll0.left - (midX - pinchMid0.x);
-    _mainArea.scrollTop  = pinchScroll0.top  - (midY - pinchMid0.y);
-  }
-}, { passive: false });
-
-_mainArea.addEventListener('touchend', e => {
-  if(e.touches.length < 2){
-    pinchDist0 = null;
-    pinchMid0 = null;
-    // 指が離れてから少し待ってピンチ解除（誤描画防止）
-    setTimeout(() => { isPinching = false; }, 150);
-  }
-});
-
-/* =================== helpers =================== */
-function hexToRgba(hex, a){ const h=hex.replace('#',''); return 'rgba('+parseInt(h.substring(0,2),16)+','+parseInt(h.substring(2,4),16)+','+parseInt(h.substring(4,6),16)+','+a+')'; }
-function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function showLoader(m){ document.getElementById('loaderText').textContent=m||'処理中...'; document.getElementById('loader').classList.add('show'); }
-function hideLoader(){ document.getElementById('loader').classList.remove('show'); }
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click',()=>closeModal(el.dataset.close)));
-
-function getPos(e, cv){
-  cv = cv || shapeCanvas;
-  const r = cv.getBoundingClientRect();
-  return { x: (e.clientX-r.left)*(W/r.width), y: (e.clientY-r.top)*(H/r.height) };
-}
-
-/* =================== Undo/Redo (pen strokes) =================== */
-function snapshot(){ const img=ctx.getImageData(0,0,W,H); state.history=state.history.slice(0,state.historyIndex+1); state.history.push(img); if(state.history.length>state.maxHistory)state.history.shift(); state.historyIndex=state.history.length-1; }
-function undo(){ if(state.historyIndex<=0){if(state.historyIndex===0){ctx.clearRect(0,0,W,H);state.historyIndex=-1;}return;} state.historyIndex--; ctx.putImageData(state.history[state.historyIndex],0,0); }
-function redo(){ if(state.historyIndex>=state.history.length-1)return; state.historyIndex++; ctx.putImageData(state.history[state.historyIndex],0,0); }
-snapshot();
-
-/* =================== Shape rendering =================== */
-function renderShapes(tentative){
-  sctx.clearRect(0,0,W,H);
-  state.shapes.forEach(s => drawShapeObj(sctx, s, s.id === state.selectedShapeId));
-  if (tentative) drawShapeObj(sctx, tentative, false);
-}
-
-function drawShapeObj(c, s, selected){
-  let {type,x1,y1,x2,y2,color,fillAlpha,lineWidth} = s;
-  c.save();
-  c.globalCompositeOperation = 'source-over';
-  c.strokeStyle = color;
-  c.lineWidth = lineWidth || 2;
-  c.lineCap = 'round'; c.lineJoin = 'round';
-
-  if (type === 'line') {
-    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
-  } else if (type === 'arrow') {
-    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
-    const ang = Math.atan2(y2-y1,x2-x1), head = Math.max(14, lineWidth*6);
-    c.beginPath(); c.moveTo(x2,y2);
-    c.lineTo(x2-head*Math.cos(ang-Math.PI/7), y2-head*Math.sin(ang-Math.PI/7));
-    c.lineTo(x2-head*Math.cos(ang+Math.PI/7), y2-head*Math.sin(ang+Math.PI/7));
-    c.closePath(); c.fillStyle = color; c.fill();
-  } else if (type === 'rect' || type === 'rectfill') {
-    const x=Math.min(x1,x2),y=Math.min(y1,y2),w=Math.abs(x2-x1),h=Math.abs(y2-y1);
-    if (type==='rectfill' && fillAlpha > 0) { c.fillStyle = hexToRgba(color, fillAlpha); c.fillRect(x,y,w,h); }
-    c.strokeRect(x,y,w,h);
-  } else if (type === 'ellipse' || type === 'ellipsefill') {
-    const cx=(x1+x2)/2, cy=(y1+y2)/2, rx=Math.abs(x2-x1)/2, ry=Math.abs(y2-y1)/2;
-    c.beginPath(); c.ellipse(cx,cy,Math.max(1,rx),Math.max(1,ry),0,0,Math.PI*2);
-    if (type==='ellipsefill' && fillAlpha > 0) { c.fillStyle = hexToRgba(color, fillAlpha); c.fill(); }
-    c.stroke();
-  }
-
-  // selection handles
-  if (selected) {
-    const bx=Math.min(x1,x2)-6, by=Math.min(y1,y2)-6;
-    const bw=Math.abs(x2-x1)+12, bh=Math.abs(y2-y1)+12;
-    c.setLineDash([6,4]); c.strokeStyle='#2563eb'; c.lineWidth=2;
-    c.strokeRect(bx,by,bw,bh);
-    c.setLineDash([]);
-    // corner handles
-    const corners = [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]];
-    corners.forEach(([hx,hy])=>{
-      c.fillStyle='#fff'; c.strokeStyle='#2563eb'; c.lineWidth=2;
-      c.beginPath(); c.arc(hx,hy,7,0,Math.PI*2); c.fill(); c.stroke();
-    });
-  }
-  c.restore();
-}
-
-/* =================== Shape hit test =================== */
-function hitTestShapes(px, py){
-  for (let i = state.shapes.length-1; i >= 0; i--) {
-    if (hitShape(state.shapes[i], px, py)) return state.shapes[i];
-  }
-  return null;
-}
-
-function hitShape(s, px, py){
-  const margin = 10;
-  const x = Math.min(s.x1,s.x2)-margin, y = Math.min(s.y1,s.y2)-margin;
-  const w = Math.abs(s.x2-s.x1)+margin*2, h = Math.abs(s.y2-s.y1)+margin*2;
-  if (px < x || px > x+w || py < y || py > y+h) return false;
-  if (s.type === 'line' || s.type === 'arrow') {
-    const d = distToSegment(px,py,s.x1,s.y1,s.x2,s.y2);
-    return d < 12;
-  }
-  return true;
-}
-
-function hitResizeHandle(s, px, py){
-  const bx=Math.min(s.x1,s.x2)-6, by=Math.min(s.y1,s.y2)-6;
-  const bw=Math.abs(s.x2-s.x1)+12, bh=Math.abs(s.y2-s.y1)+12;
-  const corners = [[bx,by,0],[bx+bw,by,1],[bx,by+bh,2],[bx+bw,by+bh,3]];
-  for (const [hx,hy,idx] of corners) {
-    if (Math.hypot(px-hx, py-hy) < 14) return idx;
-  }
-  return -1;
-}
-
-function distToSegment(px,py,x1,y1,x2,y2){
-  const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy;
-  if(l2===0)return Math.hypot(px-x1,py-y1);
-  let t=((px-x1)*dx+(py-y1)*dy)/l2;
-  t=Math.max(0,Math.min(1,t));
-  return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
-}
-
-/* =================== shapeCanvas pointer events =================== */
-let shiftDown = false;
-window.addEventListener('keydown',e=>{if(e.key==='Shift')shiftDown=true;});
-window.addEventListener('keyup',e=>{if(e.key==='Shift')shiftDown=false;});
-
-shapeCanvas.addEventListener('pointerdown', e => {
-  if (e.pointerType==='touch' && !e.isPrimary) return;
-  if (e.pointerType==='touch' && isPinching) return;
-  e.preventDefault();
-  const p = getPos(e);
-
-  // select tool
-  if (state.tool === 'select') {
-    const sel = state.selectedShapeId ? state.shapes.find(s=>s.id===state.selectedShapeId) : null;
-    // check resize handle first
-    if (sel) {
-      const ci = hitResizeHandle(sel, p.x, p.y);
-      if (ci >= 0) {
-        shapeCanvas.setPointerCapture(e.pointerId);
-        state.shapeResize = { id: sel.id, corner: ci, ox: p.x, oy: p.y, orig: {...sel} };
-        return;
-      }
-    }
-    const hit = hitTestShapes(p.x, p.y);
-    if (hit) {
-      selectShape(hit.id);
-      shapeCanvas.setPointerCapture(e.pointerId);
-      state.shapeDrag = { id: hit.id, ox: p.x, oy: p.y, origX1: hit.x1, origY1: hit.y1, origX2: hit.x2, origY2: hit.y2 };
-    } else {
-      selectShape(null);
-    }
-    return;
-  }
-
-  // shape drawing tools
-  if (SHAPE_TOOLS.includes(state.tool)) {
-    shapeCanvas.setPointerCapture(e.pointerId);
-    state.shapeStart = { x: p.x, y: p.y };
-    state.drawing = true;
-    return;
-  }
-
-  // pen/eraser → pass through to drawCanvas
-  // We handle pen on drawCanvas directly
-});
-
-shapeCanvas.addEventListener('pointermove', e => {
-  const p = getPos(e);
-
-  // resize
-  if (state.shapeResize) {
-    const r = state.shapeResize;
-    const s = state.shapes.find(x=>x.id===r.id);
-    if (!s) return;
-    const dx = p.x - r.ox, dy = p.y - r.oy;
-    const o = r.orig;
-    if (r.corner===0) { s.x1=o.x1+dx; s.y1=o.y1+dy; }
-    else if (r.corner===1) { s.x2=o.x2+dx; s.y1=o.y1+dy; }
-    else if (r.corner===2) { s.x1=o.x1+dx; s.y2=o.y2+dy; }
-    else { s.x2=o.x2+dx; s.y2=o.y2+dy; }
-    renderShapes(); return;
-  }
-
-  // drag
-  if (state.shapeDrag) {
-    const d = state.shapeDrag;
-    const s = state.shapes.find(x=>x.id===d.id);
-    if (!s) return;
-    const dx = p.x-d.ox, dy = p.y-d.oy;
-    s.x1=d.origX1+dx; s.y1=d.origY1+dy;
-    s.x2=d.origX2+dx; s.y2=d.origY2+dy;
-    renderShapes(); return;
-  }
-
-  // shape drawing preview
-  if (state.drawing && SHAPE_TOOLS.includes(state.tool) && state.shapeStart) {
-    let x2=p.x, y2=p.y;
-    if (shiftDown) {
-      const dx=x2-state.shapeStart.x, dy=y2-state.shapeStart.y;
-      const sz = Math.max(Math.abs(dx), Math.abs(dy));
-      x2=state.shapeStart.x+Math.sign(dx||1)*sz;
-      y2=state.shapeStart.y+Math.sign(dy||1)*sz;
-    }
-    const tentative = {
-      type: state.tool, x1: state.shapeStart.x, y1: state.shapeStart.y,
-      x2, y2, color: state.color, fillAlpha: state.fillAlpha, lineWidth: state.size
-    };
-    renderShapes(tentative);
-  }
-});
-
-function endShapePointer(e){
-  if (state.shapeResize) { state.shapeResize = null; updateShapePropPanel(); return; }
-  if (state.shapeDrag) { state.shapeDrag = null; return; }
-  if (state.drawing && SHAPE_TOOLS.includes(state.tool) && state.shapeStart) {
-    const p = getPos(e);
-    let x2=p.x, y2=p.y;
-    if (shiftDown) {
-      const dx=x2-state.shapeStart.x, dy=y2-state.shapeStart.y;
-      const sz=Math.max(Math.abs(dx),Math.abs(dy));
-      x2=state.shapeStart.x+Math.sign(dx||1)*sz;
-      y2=state.shapeStart.y+Math.sign(dy||1)*sz;
-    }
-    // min size check
-    if (Math.abs(x2-state.shapeStart.x)>3 || Math.abs(y2-state.shapeStart.y)>3) {
-      const s = {
-        id: 's_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-        type: state.tool, x1: state.shapeStart.x, y1: state.shapeStart.y,
-        x2, y2, color: state.color, fillAlpha: state.fillAlpha,
-        lineWidth: state.size
-      };
-      state.shapes.push(s);
-      selectShape(s.id);
-    }
-    state.drawing = false; state.shapeStart = null;
-    renderShapes();
-    return;
-  }
-  state.drawing = false;
-}
-shapeCanvas.addEventListener('pointerup', endShapePointer);
-shapeCanvas.addEventListener('pointercancel', endShapePointer);
-
-/* Make shapeCanvas pass-through for pen/eraser */
-function restoreShapeCanvas(){
-  shapeCanvas.style.pointerEvents = 'auto';
-  drawCanvas.style.pointerEvents = 'none';
-}
-restoreShapeCanvas();
-shapeCanvas.addEventListener('pointerdown', function handler(e){
-  if (e.pointerType==='touch' && isPinching) return;
-  if (state.tool === 'pen' || state.tool === 'eraser') {
-    shapeCanvas.style.pointerEvents = 'none';
-    drawCanvas.style.pointerEvents = 'auto';
-    // re-dispatch to drawCanvas
-    const newE = new PointerEvent(e.type, e);
-    drawCanvas.dispatchEvent(newE);
-    // restore after up or cancel
-    const restore = () => {
-      restoreShapeCanvas();
-      document.removeEventListener('pointerup', restore);
-      document.removeEventListener('pointercancel', restore);
-    };
-    document.addEventListener('pointerup', restore);
-    document.addEventListener('pointercancel', restore);
-  }
-}, true);
-
-/* =================== drawCanvas (pen/eraser) =================== */
-drawCanvas.addEventListener('pointerdown', e => {
-  if (e.pointerType==='touch' && !e.isPrimary) return;
-  if (e.pointerType==='touch' && isPinching) return;
-  e.preventDefault();
-  drawCanvas.setPointerCapture(e.pointerId);
-  state.drawing = true;
-  const p = getPos(e, drawCanvas);
-  state.lastX = p.x; state.lastY = p.y;
-  ctx.beginPath(); ctx.lineWidth=lineWidthFor(e); applyStroke();
-  ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+.1,p.y+.1); ctx.stroke();
-});
-drawCanvas.addEventListener('pointermove', e => {
-  if (!state.drawing) return;
-  e.preventDefault();
-  const p = getPos(e, drawCanvas);
-  ctx.lineWidth=lineWidthFor(e); applyStroke();
-  ctx.beginPath(); ctx.moveTo(state.lastX,state.lastY); ctx.lineTo(p.x,p.y); ctx.stroke();
-  state.lastX=p.x; state.lastY=p.y;
-});
-function endPenDraw(e){
-  if (!state.drawing) return;
-  state.drawing=false;
-  try{drawCanvas.releasePointerCapture(e.pointerId);}catch(_){}
-  snapshot();
-}
-drawCanvas.addEventListener('pointerup', endPenDraw);
-drawCanvas.addEventListener('pointercancel', endPenDraw);
-drawCanvas.addEventListener('pointerleave', endPenDraw);
-
-function applyStroke(){
-  if(state.tool==='eraser'){ctx.globalCompositeOperation='destination-out';ctx.strokeStyle='rgba(0,0,0,1)';}
-  else{ctx.globalCompositeOperation='source-over';ctx.strokeStyle=state.color;}
-}
-function lineWidthFor(e){
-  const base=state.tool==='eraser'?Math.max(state.size*10,30):state.size;
-  const p=e.pressure;
-  if(e.pointerType==='pen'&&p>0)return Math.max(.5,base*(.3+p*1.8));
-  if(p&&p!==.5)return Math.max(.5,base*(.6+p*.8));
-  return base;
-}
-
-/* =================== Eraser cursor =================== */
-const eraserCursor = document.getElementById('eraserCursor');
-function updateEraserCursor(e){
-  if(state.tool!=='eraser'){eraserCursor.style.display='none';return;}
-  const rect = canvasWrap.getBoundingClientRect();
-  const visualX = e.clientX - rect.left;
-  const visualY = e.clientY - rect.top;
-  if(visualX<0||visualY<0||visualX>rect.width||visualY>rect.height){
-    eraserCursor.style.display='none';return;
-  }
-  // Convert from visual (scaled) coords to logical canvas coords
-  const logX = visualX * W / rect.width;
-  const logY = visualY * H / rect.height;
-  const base = Math.max(state.size*10, 30);
-  eraserCursor.style.display='block';
-  eraserCursor.style.width  = base + 'px';
-  eraserCursor.style.height = base + 'px';
-  eraserCursor.style.left   = logX + 'px';
-  eraserCursor.style.top    = logY + 'px';
-}
-function hideEraserCursor(){eraserCursor.style.display='none';}
-shapeCanvas.addEventListener('pointermove',updateEraserCursor);
-shapeCanvas.addEventListener('pointerenter',updateEraserCursor);
-shapeCanvas.addEventListener('pointerleave',hideEraserCursor);
-drawCanvas.addEventListener('pointermove',updateEraserCursor);
-drawCanvas.addEventListener('pointerenter',updateEraserCursor);
-drawCanvas.addEventListener('pointerleave',hideEraserCursor);
-
-/* =================== Pen move (cut & move drawn content) =================== */
-let pmSelStart=null, pmSelRect=null, pmOverlay=null;
-
-shapeCanvas.addEventListener('pointerdown', e=>{
-  if(state.tool!=='penmove') return;
-  e.preventDefault();
-  shapeCanvas.setPointerCapture(e.pointerId);
-  pmSelStart = getPos(e, shapeCanvas);
-  pmSelRect = null;
-});
-shapeCanvas.addEventListener('pointermove', e=>{
-  if(state.tool!=='penmove'||!pmSelStart) return;
-  e.preventDefault();
-  const p = getPos(e, shapeCanvas);
-  pmSelRect = {
-    x: Math.round(Math.min(pmSelStart.x,p.x)), y: Math.round(Math.min(pmSelStart.y,p.y)),
-    w: Math.round(Math.abs(p.x-pmSelStart.x)), h: Math.round(Math.abs(p.y-pmSelStart.y))
+const calculateProgress = (task) => {
+  if (!task.children || task.children.length === 0) return { completed: 0, total: 0 };
+  const countAll = (t) => {
+    if (!t.children || t.children.length === 0) return { completed: t.status === 'done' ? 1 : 0, total: 1 };
+    const r = t.children.map(countAll);
+    return { completed: r.reduce((s, x) => s + x.completed, 0), total: r.reduce((s, x) => s + x.total, 0) };
   };
-  // Draw selection rectangle on shapeCanvas
-  sctx.clearRect(0,0,W,H);
-  sctx.save();
-  sctx.setLineDash([8,4]); sctx.lineWidth=2; sctx.strokeStyle='#2563eb';
-  sctx.fillStyle='rgba(37,99,235,0.06)';
-  sctx.fillRect(pmSelRect.x,pmSelRect.y,pmSelRect.w,pmSelRect.h);
-  sctx.strokeRect(pmSelRect.x,pmSelRect.y,pmSelRect.w,pmSelRect.h);
-  sctx.restore();
-});
-shapeCanvas.addEventListener('pointerup', e=>{
-  if(state.tool!=='penmove'||!pmSelRect) { pmSelStart=null; renderShapes(); return; }
-  e.preventDefault();
-  const {x,y,w,h} = pmSelRect;
-  if(w<10||h<10){ pmSelStart=null; pmSelRect=null; renderShapes(); return; }
-  // Capture region from drawCanvas
-  const imageData = ctx.getImageData(x,y,w,h);
-  ctx.clearRect(x,y,w,h);
-  snapshot();
-  renderShapes();
-  pmSelStart=null; pmSelRect=null;
-  createPenMoveOverlay(imageData,x,y,w,h);
-});
+  const r = task.children.map(countAll);
+  return { completed: r.reduce((s, x) => s + x.completed, 0), total: r.reduce((s, x) => s + x.total, 0) };
+};
 
-function createPenMoveOverlay(imageData,x,y,w,h){
-  if(pmOverlay) pmOverlay.remove();
-  // Create a small canvas with the captured content
-  const cv = document.createElement('canvas');
-  cv.width=w; cv.height=h;
-  cv.getContext('2d').putImageData(imageData,0,0);
+const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const days = [];
+  for (let i = firstDay.getDay() - 1; i >= 0; i--) days.push({ date: new Date(year, month, -i), cur: false });
+  for (let i = 1; i <= lastDay.getDate(); i++) days.push({ date: new Date(year, month, i), cur: true });
+  const rem = 42 - days.length;
+  for (let i = 1; i <= rem; i++) days.push({ date: new Date(year, month + 1, i), cur: false });
+  return days;
+};
 
-  const wrap = document.createElement('div');
-  wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;z-index:8;cursor:move;box-shadow:0 2px 12px rgba(0,0,0,.25);`;
-  cv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;display:block;';
+const dateToStr = (d) => d.toISOString().split('T')[0];
 
-  // Dashed border overlay (doesn't affect captured image)
-  const border = document.createElement('div');
-  border.style.cssText = `position:absolute;inset:0;border:2px dashed #2563eb;pointer-events:none;box-sizing:border-box;`;
+// ==================== Icons (inline SVG) ====================
+const Icon = ({ d, size=16, className='' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d={d} />
+  </svg>
+);
+const Icons = {
+  Menu: (p) => <Icon {...p} d="M3 12h18M3 6h18M3 18h18" />,
+  X: (p) => <Icon {...p} d="M18 6L6 18M6 6l12 12" />,
+  Plus: (p) => <Icon {...p} d="M12 5v14M5 12h14" />,
+  Check: (p) => <Icon {...p} d="M20 6L9 17l-5-5" />,
+  ChevronDown: (p) => <Icon {...p} d="M6 9l6 6 6-6" />,
+  ChevronRight: (p) => <Icon {...p} d="M9 18l6-6-6-6" />,
+  ChevronLeft: (p) => <Icon {...p} d="M15 18l-6-6 6-6" />,
+  Edit2: (p) => <Icon {...p} d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
+  Trash2: (p) => <Icon {...p} d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />,
+  Search: (p) => <Icon {...p} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
+  Filter: (p) => <Icon {...p} d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />,
+  Flag: (p) => <Icon {...p} d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" />,
+  Calendar: (p) => <Icon {...p} d="M3 4h18v18H3zM16 2v4M8 2v4M3 10h18" />,
+  Clock: (p) => <Icon {...p} d="M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2" />,
+  Sun: (p) => <Icon {...p} d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42M12 5a7 7 0 100 14A7 7 0 0012 5z" />,
+  Moon: (p) => <Icon {...p} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />,
+  Bell: (p) => <Icon {...p} d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />,
+  AlertTriangle: (p) => <Icon {...p} d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />,
+  Tags: (p) => <Icon {...p} d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01" />,
+  Layout: (p) => <Icon {...p} d="M3 3h18v7H3zM3 14h8v7H3zM15 14h6v7h-6z" />,
+  Circle: (p) => <Icon {...p} d="M12 22a10 10 0 100-20 10 10 0 000 20z" />,
+  CheckCircle: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  PlayCircle: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
+  AlignLeft: (p) => <Icon {...p} d="M3 6h18M3 12h12M3 18h15" />,
+};
 
-  // Confirm button
-  const okBtn = document.createElement('button');
-  okBtn.textContent = '✓ 確定';
-  okBtn.style.cssText = 'position:absolute;top:-30px;right:0;background:#2563eb;color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;';
-  // Cancel button
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = '✕';
-  cancelBtn.style.cssText = 'position:absolute;top:-30px;right:60px;background:#ef4444;color:#fff;border:none;border-radius:5px;padding:3px 8px;font-size:12px;font-weight:700;cursor:pointer;';
+// ==================== ColorPicker ====================
+const PRESET_COLORS = [
+  '#EF4444','#F97316','#EAB308','#22C55E',
+  '#10B981','#14B8A6','#3B82F6','#6366F1',
+  '#8B5CF6','#A855F7','#EC4899','#F43F5E',
+  '#64748B','#78716C','#0EA5E9','#84CC16',
+];
 
-  wrap.appendChild(cv); wrap.appendChild(border); wrap.appendChild(okBtn); wrap.appendChild(cancelBtn);
+const ColorPicker = ({ value, onChange }) => (
+  <div className="space-y-2">
+    <div className="grid grid-cols-8 gap-1.5">
+      {PRESET_COLORS.map(c => (
+        <button key={c} type="button" onClick={() => onChange(c)}
+          className="w-7 h-7 rounded-full transition-transform hover:scale-110 focus:outline-none flex items-center justify-center"
+          style={{ backgroundColor: c }}>
+          {value === c && <Icons.Check size={12} className="text-white drop-shadow" />}
+        </button>
+      ))}
+    </div>
+    <div className="flex items-center gap-2">
+      <input type="color" value={value} onChange={e => onChange(e.target.value)}
+        className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+      <span className="text-xs text-gray-500 dark:text-gray-400">カスタム:</span>
+      <span className="text-xs font-mono text-gray-600 dark:text-gray-300">{value}</span>
+    </div>
+  </div>
+);
 
-  let dragging=false, ox=0,oy=0, curL=x, curT=y;
-  wrap.addEventListener('pointerdown', e=>{
-    if(e.target===okBtn||e.target===cancelBtn) return;
-    e.stopPropagation(); e.preventDefault();
-    dragging=true; wrap.setPointerCapture(e.pointerId);
-    const sc = W/canvasWrap.getBoundingClientRect().width;
-    ox=e.clientX; oy=e.clientY;
-    curL=parseFloat(wrap.style.left); curT=parseFloat(wrap.style.top);
-    wrap._sc=sc;
+// ==================== DeadlineBadge ====================
+const DeadlineBadge = ({ dueDate, status }) => {
+  if (!dueDate || status === 'ok') return null;
+  const label = formatDeadlineBadge(dueDate);
+  if (!label) return null;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getDeadlineBadgeClass(status)}`}>
+      {label}
+    </span>
+  );
+};
+
+// ==================== AlertBanner ====================
+const AlertBanner = ({ tasks, categories, onTaskClick }) => {
+  const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const overdue = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'overdue');
+  const today = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'today');
+  const tomorrow = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'tomorrow');
+  const total = overdue.length + today.length + tomorrow.length;
+  if (total === 0) return null;
+  if (dismissed) return (
+    <div className="flex justify-end px-4 pt-1.5 pb-0.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+      <button onClick={() => setDismissed(false)} className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline">
+        <Icons.AlertTriangle size={11} /> 期限アラートを表示
+      </button>
+    </div>
+  );
+  const alertTasks = [...overdue, ...today, ...tomorrow];
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <Icons.AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+        <div className="flex items-center gap-3 flex-1 flex-wrap">
+          {overdue.length > 0 && <span className="text-sm font-medium text-red-600 dark:text-red-400">🔴 期限切れ {overdue.length}件</span>}
+          {today.length > 0 && <span className="text-sm font-medium text-orange-600 dark:text-orange-400">🟠 今日期限 {today.length}件</span>}
+          {tomorrow.length > 0 && <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">🟡 明日期限 {tomorrow.length}件</span>}
+        </div>
+        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 transition-colors">
+          {expanded ? <Icons.ChevronDown size={13} /> : <Icons.ChevronRight size={13} />}
+          {expanded ? '閉じる' : '詳細'}
+        </button>
+        <button onClick={() => setDismissed(true)} className="text-amber-600 hover:text-amber-800 dark:text-amber-400">
+          <Icons.X size={15} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="px-4 pb-3 space-y-1 animate-fade-in">
+          {alertTasks.map(task => {
+            const s = getDeadlineStatus(task.dueDate);
+            const cat = catMap[task.categoryId];
+            const cc = s === 'overdue' ? 'text-red-600 dark:text-red-400' : s === 'today' ? 'text-orange-600 dark:text-orange-400' : 'text-yellow-600 dark:text-yellow-400';
+            return (
+              <button key={task.id} onClick={() => onTaskClick(task.id)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-800/30 text-left transition-colors">
+                {cat && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />}
+                <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate">{task.title}</span>
+                <span className={`text-xs font-medium ${cc}`}>{task.dueDate && formatDateShort(task.dueDate)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== CategoryManager ====================
+const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCategory }) => {
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('#3B82F6');
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState('#3B82F6');
+  const [showNew, setShowNew] = useState(false);
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">カテゴリ管理</h2>
+        <button onClick={() => setShowNew(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+          <Icons.Plus size={15} /> 新規カテゴリ
+        </button>
+      </div>
+      {showNew && (
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: newColor }} />
+            <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } if (e.key === 'Escape') setShowNew(false); }}
+              placeholder="カテゴリ名" className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button onClick={() => { if (newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } }} className="text-green-600 hover:text-green-700"><Icons.Check size={17} /></button>
+            <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><Icons.X size={17} /></button>
+          </div>
+          <ColorPicker value={newColor} onChange={setNewColor} />
+        </div>
+      )}
+      <div className="space-y-2">
+        {categories.map(cat => (
+          <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {editId === cat.id ? (
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: editColor }} />
+                  <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); } if (e.key === 'Escape') setEditId(null); }}
+                    className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <button onClick={() => { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); }} className="text-green-600"><Icons.Check size={17} /></button>
+                  <button onClick={() => setEditId(null)} className="text-gray-400"><Icons.X size={17} /></button>
+                </div>
+                <ColorPicker value={editColor} onChange={setEditColor} />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-3 h-8 rounded-full" style={{ backgroundColor: cat.color }} />
+                <span className="flex-1 font-medium text-gray-900 dark:text-white">{cat.name}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">{taskCountByCategory[cat.id] ?? 0}件</span>
+                <button onClick={() => { setEditId(cat.id); setEditName(cat.name); setEditColor(cat.color); }}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Edit2 size={14} /></button>
+                <button onClick={() => onDelete(cat.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Trash2 size={14} /></button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ==================== TaskPanel ====================
+const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+const STATUS_LABELS = { todo: '未着手', in_progress: '進行中', done: '完了' };
+
+const TaskPanel = ({ task, parentTask, categories, onSave, onClose }) => {
+  const defaultCat = categories[0]?.id ?? '';
+  const [form, setForm] = useState({
+    title: task?.title ?? '',
+    description: task?.description ?? '',
+    categoryId: task?.categoryId ?? defaultCat,
+    priority: task?.priority ?? 'medium',
+    status: task?.status ?? 'todo',
+    dueDate: task?.dueDate ?? '',
+    isTodayTask: task?.isTodayTask ?? false,
+    scheduledStart: task?.scheduledTime?.start ?? '',
+    scheduledEnd: task?.scheduledTime?.end ?? '',
+    estimatedMinutes: task?.estimatedMinutes ?? '',
+    parentId: task?.parentId ?? parentTask?.id,
   });
-  wrap.addEventListener('pointermove', e=>{
-    if(!dragging) return; e.preventDefault();
-    wrap.style.left = (curL+(e.clientX-ox)*wrap._sc)+'px';
-    wrap.style.top  = (curT+(e.clientY-oy)*wrap._sc)+'px';
-  });
-  wrap.addEventListener('pointerup', e=>{
-    dragging=false;
-    try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
-  });
 
-  okBtn.addEventListener('click', ()=>{
-    const fx=Math.round(parseFloat(wrap.style.left));
-    const fy=Math.round(parseFloat(wrap.style.top));
-    ctx.drawImage(cv,0,0,w,h,fx,fy,w,h);
-    snapshot();
-    wrap.remove(); pmOverlay=null;
-  });
-  cancelBtn.addEventListener('click', ()=>{
-    // Put back original
-    ctx.putImageData(imageData,x,y);
-    snapshot();
-    wrap.remove(); pmOverlay=null;
-  });
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
 
-  canvasWrap.appendChild(wrap);
-  pmOverlay=wrap;
-}
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-/* =================== Shape selection & property panel =================== */
-function selectShape(id){
-  state.selectedShapeId = id;
-  renderShapes();
-  updateShapePropPanel();
-  // auto switch to select tool
-  if (id) {
-    document.querySelectorAll('.tool').forEach(e=>e.classList.remove('active'));
-    document.querySelector('.tool[data-tool="select"]').classList.add('active');
-    state.tool = 'select';
-  }
-}
-
-function updateShapePropPanel(){
-  const panel = document.getElementById('shapePropPanel');
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) { panel.classList.remove('show'); return; }
-  panel.classList.add('show');
-  document.getElementById('shapeFillAlpha').value = Math.round((s.fillAlpha||0)*100);
-  document.getElementById('shapeLineWidth').value = s.lineWidth||2;
-  // highlight active color
-  document.querySelectorAll('#shapeColors .color').forEach(c => {
-    c.classList.toggle('active', c.dataset.sc === s.color);
-  });
-}
-
-document.querySelectorAll('#shapeColors .color').forEach(el => {
-  el.addEventListener('click', () => {
-    const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-    if (!s) return;
-    s.color = el.dataset.sc;
-    renderShapes(); updateShapePropPanel();
-  });
-});
-
-document.getElementById('shapeFillAlpha').addEventListener('input', e => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  s.fillAlpha = parseInt(e.target.value,10)/100;
-  renderShapes();
-});
-
-document.getElementById('shapeLineWidth').addEventListener('input', e => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  s.lineWidth = parseInt(e.target.value,10);
-  renderShapes();
-});
-
-document.getElementById('shapeDelete').addEventListener('click', () => {
-  if (!state.selectedShapeId) return;
-  state.shapes = state.shapes.filter(s=>s.id!==state.selectedShapeId);
-  selectShape(null);
-});
-
-document.getElementById('shapeDuplicate').addEventListener('click', () => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  const dup = {...s, id: 's_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), x1:s.x1+20, y1:s.y1+20, x2:s.x2+20, y2:s.y2+20 };
-  state.shapes.push(dup);
-  selectShape(dup.id);
-});
-
-/* Delete key */
-document.addEventListener('keydown', e => {
-  if ((e.key==='Delete'||e.key==='Backspace') && state.selectedShapeId && document.activeElement===document.body) {
-    state.shapes = state.shapes.filter(s=>s.id!==state.selectedShapeId);
-    selectShape(null);
-  }
-  if ((e.metaKey||e.ctrlKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
-  else if((e.metaKey||e.ctrlKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();}
-});
-
-/* =================== Sidebar interactions =================== */
-document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',()=>{
-  const already = el.classList.contains('active');
-  document.querySelectorAll('.tool').forEach(e=>e.classList.remove('active'));
-  if(already){
-    // 同じボタンを再度押したら解除
-    state.tool = '';
-    selectShape(null);
-    pmSelStart=null; pmSelRect=null;
-    renderShapes(); // 解除後も図形を再描画
-    restoreShapeCanvas();
-    return;
-  }
-  el.classList.add('active'); state.tool=el.dataset.tool;
-  if (state.tool !== 'select') selectShape(null);
-  // Clean up penmove overlay if switching away
-  if (state.tool !== 'penmove') { pmSelStart=null; pmSelRect=null; }
-  // ツール切り替え後も図形を再描画（clearRectしない）
-  renderShapes();
-  // ペン→図形など切り替え時にshapeCanvasのpointerEventsを必ず復元
-  restoreShapeCanvas();
-}));
-document.querySelectorAll('.color[data-color]').forEach(el=>el.addEventListener('click',()=>{
-  document.querySelectorAll('.color[data-color]').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.color=el.dataset.color;
-  if(state.tool==='eraser'){document.querySelectorAll('.tool').forEach(e=>e.classList.remove('active'));document.querySelector('.tool[data-tool="pen"]').classList.add('active');state.tool='pen';}
-}));
-document.querySelectorAll('.size-btn[data-size]').forEach(el=>el.addEventListener('click',()=>{
-  document.querySelectorAll('.size-btn[data-size]').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.size=parseFloat(el.dataset.size);
-}));
-document.querySelectorAll('.size-btn[data-fontsize]').forEach(el=>el.addEventListener('click',()=>{
-  document.querySelectorAll('.size-btn[data-fontsize]').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.fontSize=parseInt(el.dataset.fontsize,10);
-  if(state.activeTextbox)state.activeTextbox.style.fontSize=state.fontSize+'px';
-}));
-document.querySelectorAll('#textColors .color').forEach(el=>el.addEventListener('click',ev=>{
-  ev.preventDefault();
-  document.querySelectorAll('#textColors .color').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.textColor=el.dataset.textcolor;
-  const t=state.activeTextbox; if(t){const sel=window.getSelection();if(sel&&sel.rangeCount&&t.contains(sel.anchorNode)&&!sel.isCollapsed){document.execCommand('styleWithCSS',false,true);document.execCommand('foreColor',false,state.textColor);}else{t.style.color=state.textColor;}}
-}));
-/* =================== Text property panel =================== */
-const textPropPanel = document.getElementById('textPropPanel');
-// Keep panel alive while user interacts with it
-// Prevent blur only for non-input elements (buttons, swatches) — allow sliders to work normally
-textPropPanel.addEventListener('mousedown', e => {
-  if(e.target.tagName !== 'INPUT') e.preventDefault();
-});
-textPropPanel.addEventListener('pointerdown', e => { e.stopPropagation(); });
-function showTextPropPanel(box){
-  if(!box){ textPropPanel.classList.remove('show'); return; }
-  textPropPanel.classList.add('show');
-  // Sync size slider
-  const curSize = parseInt(box.style.fontSize)||state.fontSize;
-  const slider = document.getElementById('textFontSizeSlider');
-  slider.value = fontSizeToSlider(curSize);
-  document.getElementById('textFontSizeVal').textContent = curSize;
-  // Sync text color swatches
-  const curColor = box.style.color||state.textColor;
-  document.querySelectorAll('#textPropColors .text-color-swatch').forEach(s=>{
-    s.classList.toggle('active', rgbToHex(curColor)===s.dataset.tc || curColor===s.dataset.tc);
-  });
-  // Sync bg color swatches
-  const curBg = box.style.background||'';
-  let matched = false;
-  document.querySelectorAll('#textBgColors .text-color-swatch').forEach(s=>{
-    const match = s.dataset.bg === curBg || (curBg==='' && s.dataset.bg==='rgba(255,255,240,0.92)');
-    s.classList.toggle('active', match);
-    if(match) matched = true;
-  });
-}
-function hideTextPropPanel(){ textPropPanel.classList.remove('show'); }
-
-function rgbToHex(rgb){
-  const m=rgb.match(/\d+/g); if(!m||m.length<3)return rgb;
-  return '#'+[m[0],m[1],m[2]].map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');
-}
-
-const FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 160];
-function sliderToFontSize(idx){ return FONT_SIZES[Math.max(0,Math.min(idx,FONT_SIZES.length-1))]; }
-function fontSizeToSlider(sz){
-  let best=0, bestDiff=9999;
-  FONT_SIZES.forEach((s,i)=>{ if(Math.abs(s-sz)<bestDiff){bestDiff=Math.abs(s-sz);best=i;} });
-  return best;
-}
-document.getElementById('textFontSizeSlider').addEventListener('input', e=>{
-  const sz = sliderToFontSize(parseInt(e.target.value));
-  document.getElementById('textFontSizeVal').textContent = sz;
-  state.fontSize = sz;
-  if(state.activeTextbox) state.activeTextbox.style.fontSize = sz + 'px';
-});
-document.querySelectorAll('#textPropColors .text-color-swatch').forEach(swatch=>{
-  swatch.addEventListener('click',()=>{
-    const col=swatch.dataset.tc;
-    if(state.activeTextbox){ state.activeTextbox.style.color=col; }
-    document.querySelectorAll('#textPropColors .text-color-swatch').forEach(s=>s.classList.remove('active'));
-    swatch.classList.add('active');
-    state.textColor=col;
-  });
-});
-document.querySelectorAll('#textBgColors .text-color-swatch').forEach(swatch=>{
-  swatch.addEventListener('click',()=>{
-    const bg=swatch.dataset.bg;
-    if(state.activeTextbox){ state.activeTextbox.style.background=bg; }
-    document.querySelectorAll('#textBgColors .text-color-swatch').forEach(s=>s.classList.remove('active'));
-    swatch.classList.add('active');
-  });
-});
-document.getElementById('textDelete').addEventListener('click',()=>{
-  if(state.activeTextbox){
-    state.activeTextbox.closest('.textbox-wrap')?.remove();
-    state.activeTextbox=null;
-    hideTextPropPanel();
-  }
-});
-
-document.getElementById('undoBtn').addEventListener('click',undo);
-document.getElementById('redoBtn').addEventListener('click',redo);
-document.getElementById('clearBtn').addEventListener('click',()=>{
-  if(!confirm('手書き・図形をすべて消去しますか？'))return;
-  ctx.clearRect(0,0,W,H); snapshot();
-  state.shapes=[]; selectShape(null);
-});
-document.getElementById('newBtn').addEventListener('click',()=>{
-  if(!confirm('現在の内容を破棄して新規作成しますか？'))return; resetCanvas();
-});
-function resetCanvas(){
-  pdfCtx.clearRect(0,0,W,H); ctx.clearRect(0,0,W,H);
-  textLayer.innerHTML=''; state.shapes=[]; selectShape(null);
-  state.history=[]; state.historyIndex=-1; snapshot();
-  state.pdfLoaded=false; state.pdfPages=[]; state.activePdfId=null;
-  document.getElementById('emptyHint').style.display='';
-  renderPdfGallery();
-}
-
-const fillAlphaInput=document.getElementById('fillAlpha'), fillAlphaLabel=document.getElementById('fillAlphaLabel');
-function setFillAlpha(p){p=Math.max(0,Math.min(100,p|0));state.fillAlpha=p/100;fillAlphaInput.value=p;fillAlphaLabel.textContent=p+'%';document.querySelectorAll('.size-btn[data-alpha]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.alpha,10)===p));}
-fillAlphaInput.addEventListener('input',e=>setFillAlpha(parseInt(e.target.value,10)));
-document.querySelectorAll('.size-btn[data-alpha]').forEach(b=>b.addEventListener('click',()=>setFillAlpha(parseInt(b.dataset.alpha,10))));
-
-/* =================== PDF load (multi-page, multi-file) =================== */
-document.getElementById('pdfAddBtn').addEventListener('pointerup',()=>{
-  document.getElementById('pdfFile').click();
-});
-document.getElementById('pdfFile').addEventListener('change',e=>{
-  const files = e.target.files;
-  if(!files||!files.length) return;
-  [...files].forEach(f => loadPdfFile(f));
-  e.target.value = '';
-});
-const mainArea=document.getElementById('mainArea');
-['dragenter','dragover'].forEach(ev=>mainArea.addEventListener(ev,e=>{e.preventDefault();mainArea.classList.add('drag-over');}));
-['dragleave','drop'].forEach(ev=>mainArea.addEventListener(ev,e=>{e.preventDefault();mainArea.classList.remove('drag-over');}));
-mainArea.addEventListener('drop',e=>{
-  const files=e.dataTransfer.files;if(!files)return;
-  [...files].forEach(f=>{if(f.type==='application/pdf')loadPdfFile(f);});
-});
-
-async function loadPdfFile(file){
-  showLoader('PDFを解析中: '+file.name);
-  try{
-    const buf=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-    const totalPages = pdf.numPages;
-    const baseName = file.name.replace(/\.pdf$/i,'');
-
-    // Render all pages to get thumbnails for selection
-    const pageData = [];
-    for (let i=1; i<=totalPages; i++){
-      showLoader('ページ '+i+'/'+totalPages+' を処理中...');
-      const page=await pdf.getPage(i);
-      const v1=page.getViewport({scale:1});
-      const scale=Math.min(W/v1.width,H/v1.height);
-      const vp=page.getViewport({scale});
-
-      const offC=document.createElement('canvas'); offC.width=W; offC.height=H;
-      const offCtx=offC.getContext('2d');
-      offCtx.fillStyle='#fff'; offCtx.fillRect(0,0,W,H);
-      offCtx.save(); offCtx.translate((W-vp.width)/2,(H-vp.height)/2);
-      await page.render({canvasContext:offCtx,viewport:vp}).promise;
-      offCtx.restore();
-
-      const thumbC=document.createElement('canvas'); thumbC.width=180; thumbC.height=Math.round(180*H/W);
-      thumbC.getContext('2d').drawImage(offC,0,0,thumbC.width,thumbC.height);
-
-      pageData.push({
-        pageNum: i,
-        imageDataUrl: offC.toDataURL('image/png'),
-        thumbDataUrl: thumbC.toDataURL('image/jpeg',.7),
-        name: baseName,
-        selected: true
-      });
-    }
-    hideLoader();
-
-    if (totalPages === 1) {
-      // Single page: import directly
-      importPdfPages(pageData, totalPages);
-    } else {
-      // Multi page: show selection modal
-      showPdfSelectModal(pageData, totalPages);
-    }
-  }catch(err){console.error(err);alert('PDF読込失敗: '+err.message);hideLoader();}
-}
-
-function showPdfSelectModal(pageData, totalPages){
-  const grid = document.getElementById('pdfPageGrid');
-  grid.innerHTML = '';
-  pageData.forEach((p, idx) => {
-    const card = document.createElement('div');
-    card.className = 'pdf-page-card selected';
-    card.dataset.idx = idx;
-    card.innerHTML =
-      '<div class="check-mark">✓</div>' +
-      '<img class="page-thumb" src="'+p.thumbDataUrl+'" />' +
-      '<div class="page-num">ページ '+p.pageNum+' / '+totalPages+'</div>' +
-      '<input class="page-name-input" type="text" value="'+escapeHtml(p.name)+'" placeholder="名前..." />';
-    // Toggle selection on card click (not on input)
-    card.addEventListener('click', e => {
-      if(e.target.tagName==='INPUT') return;
-      card.classList.toggle('selected');
-      p.selected = card.classList.contains('selected');
-      updatePdfSelectCount(pageData);
+  const handleSubmit = () => {
+    if (!form.title.trim()) return;
+    onSave({
+      title: form.title.trim(),
+      description: form.description || undefined,
+      categoryId: form.categoryId,
+      priority: form.priority,
+      status: form.status,
+      dueDate: form.dueDate || undefined,
+      isTodayTask: form.isTodayTask,
+      scheduledTime: (form.scheduledStart && form.scheduledEnd) ? { start: form.scheduledStart, end: form.scheduledEnd } : undefined,
+      estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined,
+      parentId: form.parentId,
     });
-    // Sync name
-    card.querySelector('.page-name-input').addEventListener('input', e => { p.name = e.target.value; });
-    grid.appendChild(card);
-  });
-  updatePdfSelectCount(pageData);
-
-  // Select all / deselect all
-  document.getElementById('pdfSelectAll').onclick = () => {
-    pageData.forEach(p => p.selected = true);
-    grid.querySelectorAll('.pdf-page-card').forEach(c => c.classList.add('selected'));
-    updatePdfSelectCount(pageData);
-  };
-  document.getElementById('pdfDeselectAll').onclick = () => {
-    pageData.forEach(p => p.selected = false);
-    grid.querySelectorAll('.pdf-page-card').forEach(c => c.classList.remove('selected'));
-    updatePdfSelectCount(pageData);
   };
 
-  // Import button
-  document.getElementById('pdfSelectImport').onclick = () => {
-    const selected = pageData.filter(p => p.selected);
-    if(!selected.length){ alert('ページを選択してください。'); return; }
-    closeModal('pdfSelectModal');
-    importPdfPages(selected, totalPages);
+  const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all";
+  const lc = "text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5";
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-slide-in h-full">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{task ? 'タスクを編集' : 'タスクを追加'}</h2>
+            {parentTask && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">親: {parentTask.title}</p>}
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.X size={19} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          <div>
+            <div className={lc}>タイトル *</div>
+            <input autoFocus value={form.title} onChange={e => set('title', e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              placeholder="タスクのタイトルを入力..." className={ic} />
+          </div>
+          <div>
+            <div className={lc}>説明</div>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)}
+              placeholder="詳細な説明（任意）" rows={3} className={`${ic} resize-none`} />
+          </div>
+          <div>
+            <div className={lc}>カテゴリ</div>
+            <div className="grid grid-cols-2 gap-2">
+              {categories.map(cat => (
+                <button key={cat.id} type="button" onClick={() => set('categoryId', cat.id)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${form.categoryId === cat.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-300'}`}>
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="truncate">{cat.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className={lc}>優先度</div>
+              {['high','medium','low'].map(p => (
+                <button key={p} type="button" onClick={() => set('priority', p)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.priority === p ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                  {PRIORITY_LABELS[p]}
+                  {form.priority === p && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </button>
+              ))}
+            </div>
+            <div>
+              <div className={lc}>ステータス</div>
+              {['todo','in_progress','done'].map(s => (
+                <button key={s} type="button" onClick={() => set('status', s)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.status === s ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                  {STATUS_LABELS[s]}
+                  {form.status === s && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className={lc}>期限日</div>
+              <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={ic} />
+            </div>
+            <div>
+              <div className={lc}>見積（分）</div>
+              <input type="number" min={0} step={5} value={form.estimatedMinutes} onChange={e => set('estimatedMinutes', e.target.value)} placeholder="60" className={ic} />
+            </div>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.isTodayTask} onChange={e => set('isTodayTask', e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">今日やるタスクに追加</span>
+            </label>
+            {form.isTodayTask && (
+              <div className="animate-fade-in">
+                <div className={lc}>予定時刻（任意）</div>
+                <div className="flex items-center gap-2">
+                  <input type="time" value={form.scheduledStart} onChange={e => set('scheduledStart', e.target.value)} className={`${ic} flex-1`} />
+                  <span className="text-gray-400 text-sm">〜</span>
+                  <input type="time" value={form.scheduledEnd} onChange={e => set('scheduledEnd', e.target.value)} className={`${ic} flex-1`} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">キャンセル</button>
+          <button onClick={handleSubmit} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+            <Icons.Plus size={15} /> {task ? '更新する' : '追加する'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== TaskNode ====================
+const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onStatusChange, onTodayToggle }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const cat = categories.find(c => c.id === task.categoryId);
+  const deadlineStatus = getDeadlineStatus(task.dueDate);
+  const progress = calculateProgress(task);
+  const isDone = task.status === 'done';
+  const hasChildren = task.children && task.children.length > 0;
+
+  const nextStatus = () => {
+    const cycle = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
+    onStatusChange(task.id, cycle[task.status]);
   };
 
-  openModal('pdfSelectModal');
-}
+  const StatusIcon = isDone ? Icons.CheckCircle : task.status === 'in_progress' ? Icons.PlayCircle : Icons.Circle;
+  const statusColor = isDone ? 'text-green-500' : task.status === 'in_progress' ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500';
+  const priorityColor = task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-green-500';
+  const deadlineBg = !isDone ? getDeadlineBgClass(deadlineStatus) : '';
+  const deadlineBorder = !isDone && deadlineStatus !== 'ok' ? (
+    deadlineStatus === 'overdue' ? 'border border-red-200 dark:border-red-800' :
+    deadlineStatus === 'today' ? 'border border-orange-200 dark:border-orange-800' : ''
+  ) : '';
 
-function updatePdfSelectCount(pageData){
-  const cnt = pageData.filter(p => p.selected).length;
-  document.getElementById('pdfSelectCount').textContent = cnt + 'ページ選択中';
-}
+  return (
+    <div>
+      <div
+        className={`group relative flex items-start gap-2 px-3 py-2.5 rounded-xl mb-1 transition-all hover:shadow-sm ${isDone ? 'opacity-60' : ''} ${deadlineBg || 'bg-white dark:bg-gray-800/40'} ${deadlineBorder || 'border border-gray-100 dark:border-gray-700/50'}`}
+        style={{ marginLeft: `${depth * 20}px` }}
+      >
+        {cat && <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: cat.color }} />}
+        <button onClick={() => hasChildren && setCollapsed(c => !c)}
+          className={`flex-shrink-0 mt-0.5 transition-colors ${hasChildren ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' : 'text-transparent'}`}>
+          {hasChildren ? (collapsed ? <Icons.ChevronRight size={15} /> : <Icons.ChevronDown size={15} />) : <span className="inline-block w-4 h-4" />}
+        </button>
+        <button onClick={nextStatus} className={`flex-shrink-0 mt-0.5 transition-all hover:scale-110 ${statusColor}`} title="ステータス変更">
+          <StatusIcon size={17} />
+        </button>
+        <div className="flex-1 min-w-0 pl-0.5">
+          <div className="flex items-start gap-2 flex-wrap">
+            <span className={`text-sm font-medium text-gray-900 dark:text-white ${isDone ? 'line-through' : ''} flex-1 min-w-0`}>{task.title}</span>
+            <Icons.Flag size={11} className={`flex-shrink-0 mt-1 ${priorityColor}`} />
+            {task.dueDate && !isDone && <DeadlineBadge dueDate={task.dueDate} status={deadlineStatus} />}
+            {task.isTodayTask && !isDone && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">今日</span>}
+          </div>
+          {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{task.description}</p>}
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+            {cat && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />{cat.name}</span>}
+            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate)}</span>}
+            {task.estimatedMinutes && <span className="text-xs text-gray-400 dark:text-gray-500">⏱ {task.estimatedMinutes}分</span>}
+          </div>
+          {progress.total > 0 && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${(progress.completed / progress.total) * 100}%` }} />
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{progress.completed}/{progress.total}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onTodayToggle(task.id, !task.isTodayTask)}
+            className={`p-1 rounded transition-colors ${task.isTodayTask ? 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}
+            title="今日やるに追加/削除"><Icons.Check size={12} /></button>
+          <button onClick={() => onAddChild(task.id)} className="p-1 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="サブタスクを追加"><Icons.Plus size={12} /></button>
+          <button onClick={() => onEdit(task)} className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={12} /></button>
+          <button onClick={() => onDelete(task.id)} className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Icons.Trash2 size={12} /></button>
+        </div>
+      </div>
+      {hasChildren && !collapsed && task.children.map(child => (
+        <TaskNode key={child.id} task={child} categories={categories} depth={depth + 1}
+          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddChild} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+      ))}
+    </div>
+  );
+};
 
-function importPdfPages(pages, totalPages){
-  pages.forEach(p => {
-    const entry = {
-      id: 'pdf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-      name: p.name || 'PDF',
-      pageNum: p.pageNum,
-      totalPages: totalPages,
-      imageDataUrl: p.imageDataUrl,
-      thumbDataUrl: p.thumbDataUrl
-    };
-    state.pdfPages.push(entry);
-    if (!state.activePdfId) {
-      switchToPdf(entry.id);
-    }
-  });
-  renderPdfGallery();
-}
+// ==================== TaskTree ====================
+const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle }) => {
+  const [search, setSearch] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [groupBy, setGroupBy] = useState('category');
 
-function switchToPdf(id){
-  const entry = state.pdfPages.find(p=>p.id===id);
-  if(!entry) return;
-  state.activePdfId = id;
-  const img = new Image();
-  img.onload = () => {
-    pdfCtx.fillStyle='#fff'; pdfCtx.fillRect(0,0,W,H);
-    pdfCtx.drawImage(img,0,0,W,H);
-    state.pdfLoaded=true;
-    document.getElementById('emptyHint').style.display='none';
+  const sc = "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  const matchTask = (t) => {
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterCat && t.categoryId !== filterCat) return false;
+    if (filterStatus && t.status !== filterStatus) return false;
+    if (filterPriority && t.priority !== filterPriority) return false;
+    return true;
   };
-  img.src = entry.imageDataUrl;
-  renderPdfGallery();
-}
 
-function removePdfPage(id){
-  state.pdfPages = state.pdfPages.filter(p=>p.id!==id);
-  if (state.activePdfId === id) {
-    if (state.pdfPages.length > 0) {
-      switchToPdf(state.pdfPages[0].id);
-    } else {
-      state.activePdfId = null;
-      state.pdfLoaded = false;
-      pdfCtx.clearRect(0,0,W,H);
-      document.getElementById('emptyHint').style.display='';
-    }
-  }
-  renderPdfGallery();
-}
+  const hasFilters = !!(search || filterCat || filterStatus || filterPriority);
 
-function renderPdfGallery(){
-  const gallery = document.getElementById('pdfGallery');
-  const empty = document.getElementById('pdfEmpty');
-  if (state.pdfPages.length === 0) {
-    gallery.innerHTML = '';
-    gallery.appendChild(empty); empty.style.display='';
-    return;
-  }
-  gallery.innerHTML = '';
-  state.pdfPages.forEach(p => {
-    const item = document.createElement('div');
-    item.className = 'pdf-item' + (p.id === state.activePdfId ? ' active' : '');
-    item.innerHTML =
-      '<img class="thumb" src="'+p.thumbDataUrl+'" />' +
-      '<div class="info">' +
-        '<div class="name">'+escapeHtml(p.name)+'</div>' +
-        '<div class="page">ページ '+p.pageNum+(p.totalPages>1?' / '+p.totalPages:'')+'</div>' +
-      '</div>';
+  const filterTree = (list) => {
+    if (!hasFilters) return list;
+    const filteredIds = new Set(flatTasks.filter(matchTask).map(t => t.id));
+    const filter = (ts) => ts.map(t => ({ ...t, children: filter(t.children || []) })).filter(t => filteredIds.has(t.id) || (t.children && t.children.length > 0));
+    return filter(list);
+  };
 
-    const del = document.createElement('button');
-    del.className = 'del-btn'; del.textContent = '×';
-    del.addEventListener('pointerdown', ev => {
-      ev.stopPropagation(); ev.preventDefault();
-      removePdfPage(p.id);
+  const filtered = filterTree(tasks);
+
+  const grouped = useMemo(() => {
+    if (groupBy === 'none') return [{ cat: null, tasks: filtered }];
+    const map = new Map();
+    const add = (list) => list.forEach(t => {
+      if (!map.has(t.categoryId)) map.set(t.categoryId, []);
+      map.get(t.categoryId).push(t);
     });
-    item.appendChild(del);
+    add(filtered);
+    return categories.map(cat => ({ cat, tasks: map.get(cat.id) || [] })).filter(g => g.tasks.length > 0);
+  }, [filtered, categories, groupBy]);
 
-    item.addEventListener('click', () => switchToPdf(p.id));
-    gallery.appendChild(item);
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 space-y-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <Icons.Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="タスクを検索..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 border border-transparent rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all" />
+          </div>
+          <button onClick={() => setShowFilters(s => !s)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters || hasFilters ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+            <Icons.Filter size={13} /> フィルター {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+          </button>
+          <button onClick={() => onAddTask()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+            <Icons.Plus size={13} /> 追加
+          </button>
+        </div>
+        {showFilters && (
+          <div className="flex items-center gap-2 flex-wrap animate-fade-in">
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={sc}>
+              <option value="">全カテゴリ</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={sc}>
+              <option value="">全ステータス</option>
+              <option value="todo">未着手</option>
+              <option value="in_progress">進行中</option>
+              <option value="done">完了</option>
+            </select>
+            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={sc}>
+              <option value="">全優先度</option>
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} className={sc}>
+              <option value="category">カテゴリ別</option>
+              <option value="none">グループなし</option>
+            </select>
+            {hasFilters && <button onClick={() => { setSearch(''); setFilterCat(''); setFilterStatus(''); setFilterPriority(''); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">クリア</button>}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        {grouped.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4"><Icons.Search size={26} /></div>
+            <p className="text-base font-medium">{hasFilters ? '条件に一致するタスクがありません' : 'タスクがありません'}</p>
+            <p className="text-sm mt-1">{hasFilters ? 'フィルターを変更してください' : '「追加」ボタンで新しいタスクを作成してください'}</p>
+          </div>
+        ) : (
+          grouped.map(({ cat, tasks: gt }) => (
+            <CategoryGroup key={cat?.id || 'all'} cat={cat} tasks={gt} categories={categories}
+              onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const doneCount = tasks.filter(t => t.status === 'done').length;
+  return (
+    <div>
+      {cat && (
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+          <button onClick={() => setCollapsed(c => !c)} className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+            {cat.name}
+            <Icons.ChevronDown size={13} className={`text-gray-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+          </button>
+          <span className="text-xs text-gray-400 dark:text-gray-500">{doneCount}/{tasks.length}</span>
+          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          <button onClick={() => onAddTask()} className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">+ 追加</button>
+        </div>
+      )}
+      {!collapsed && tasks.map(task => (
+        <TaskNode key={task.id} task={task} categories={categories} depth={0}
+          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+      ))}
+    </div>
+  );
+};
+
+// ==================== Timeline / TodayView ====================
+const HOUR_H = 56;
+const START_H = 6;
+const END_H = 24;
+
+const Timeline = ({ tasks, categories, onStatusChange }) => {
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
+  const unscheduled = tasks.filter(t => !t.scheduledTime?.start);
+  const totalMin = tasks.reduce((s, t) => s + (t.estimatedMinutes || 0), 0);
+  const totalH = (END_H - START_H) * HOUR_H;
+  const hours = Array.from({ length: END_H - START_H }, (_, i) => i + START_H);
+  const now = new Date();
+  const nowTop = ((now.getHours() + now.getMinutes() / 60) - START_H) * HOUR_H;
+  const showNow = now.getHours() >= START_H && now.getHours() < END_H;
+
+  const getTop = (t) => ((parseTimeToMinutes(t) / 60) - START_H) * HOUR_H;
+  const getH = (s, e) => Math.max((parseTimeToMinutes(e) - parseTimeToMinutes(s)) / 60 * HOUR_H, 28);
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      {totalMin > 0 && (
+        <div className="mb-4 inline-flex items-center bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-2.5">
+          <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">今日の合計: {formatMinutes(totalMin)}</span>
+        </div>
+      )}
+      {scheduled.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">タイムライン</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex">
+              <div className="w-14 flex-shrink-0 relative" style={{ height: totalH }}>
+                {hours.map(h => (
+                  <div key={h} className="absolute left-0 right-0 flex items-start justify-end pr-2" style={{ top: (h - START_H) * HOUR_H - 7 }}>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{String(h).padStart(2,'0')}:00</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1 relative border-l border-gray-200 dark:border-gray-700" style={{ height: totalH }}>
+                {hours.map(h => <div key={h} className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-700/50" style={{ top: (h - START_H) * HOUR_H }} />)}
+                {showNow && (
+                  <div className="absolute left-0 right-0 border-t-2 border-red-400 z-10" style={{ top: nowTop }}>
+                    <div className="absolute -left-1 -top-1.5 w-3 h-3 rounded-full bg-red-400" />
+                  </div>
+                )}
+                {scheduled.map(task => {
+                  const cat = catMap[task.categoryId];
+                  const isDone = task.status === 'done';
+                  const top = getTop(task.scheduledTime.start);
+                  const h = getH(task.scheduledTime.start, task.scheduledTime.end);
+                  return (
+                    <div key={task.id} onClick={() => !isDone && onStatusChange(task.id, 'done')}
+                      className={`absolute left-2 right-2 rounded-lg px-2.5 py-1.5 cursor-pointer transition-all hover:shadow-md ${isDone ? 'opacity-50' : ''}`}
+                      style={{ top, height: Math.max(h, 28), backgroundColor: cat ? `${cat.color}22` : '#E5E7EB', borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
+                      <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through' : ''}`} style={{ color: cat?.color || '#374151' }}>{task.title}</p>
+                      {h > 36 && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{task.scheduledTime.start} 〜 {task.scheduledTime.end}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {unscheduled.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">時刻未設定 ({unscheduled.length}件)</h3>
+          <div className="space-y-2">
+            {unscheduled.map(task => {
+              const cat = catMap[task.categoryId];
+              const isDone = task.status === 'done';
+              return (
+                <div key={task.id} onClick={() => !isDone && onStatusChange(task.id, 'done')}
+                  className={`flex items-center gap-3 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-sm transition-all ${isDone ? 'opacity-50' : ''}`}
+                  style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium text-gray-900 dark:text-white ${isDone ? 'line-through' : ''}`}>{task.title}</p>
+                    {task.estimatedMinutes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p>}
+                  </div>
+                  {cat && <span className="text-xs px-2 py-1 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {tasks.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+          <div className="text-4xl mb-4">✅</div>
+          <p className="text-base font-medium">今日のタスクはありません</p>
+          <p className="text-sm mt-1">タスクに「今日やる」フラグを設定してください</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask }) => {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
+  const totalToday = allTasks.filter(t => t.isTodayTask).length;
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Today</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr}</p>
+          </div>
+          <button onClick={onAddTask} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">+ タスク追加</button>
+        </div>
+        {totalToday > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>完了率</span><span>{completedToday}/{totalToday}</span>
+            </div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500" style={{ width: `${totalToday ? (completedToday / totalToday) * 100 : 0}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
+      <Timeline tasks={todayTasks} categories={categories} onStatusChange={onStatusChange} />
+    </div>
+  );
+};
+
+// ==================== DeadlineView ====================
+const DEADLINE_GROUPS = [
+  { key: 'overdue', label: '期限切れ', emoji: '🔴' },
+  { key: 'today', label: '今日まで', emoji: '🟠' },
+  { key: 'tomorrow', label: '明日まで', emoji: '🟡' },
+  { key: 'soon', label: '今週中（3日以内）', emoji: '🔵' },
+  { key: 'ok', label: 'それ以降', emoji: '✅' },
+];
+
+const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
+  const [collapsed, setCollapsed] = useState({});
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const withDue = tasks.filter(t => t.dueDate && t.status !== 'done');
+  const grouped = DEADLINE_GROUPS.map(g => ({ ...g, tasks: withDue.filter(t => getDeadlineStatus(t.dueDate) === g.key) }));
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">⚠️ 期限管理</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">期限のあるタスクをステータス別に管理します</p>
+      </div>
+      <div className="space-y-4">
+        {grouped.map(group => {
+          if (group.tasks.length === 0 && group.key !== 'overdue') return null;
+          const isCol = collapsed[group.key];
+          return (
+            <div key={group.key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <span className="text-base">{group.emoji}</span>
+                <span className="font-semibold text-gray-900 dark:text-white flex-1 text-left">{group.label}</span>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{group.tasks.length}件</span>
+                {isCol ? <Icons.ChevronRight size={15} className="text-gray-400" /> : <Icons.ChevronDown size={15} className="text-gray-400" />}
+              </button>
+              {!isCol && (
+                <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+                  {group.tasks.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">該当するタスクはありません</div>
+                  ) : group.tasks.map(task => {
+                    const cat = catMap[task.categoryId];
+                    const status = getDeadlineStatus(task.dueDate);
+                    return (
+                      <div key={task.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
+                        style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}} onClick={() => onEdit(task)}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {cat && <span className="text-xs text-gray-500 dark:text-gray-400">{cat.name}</span>}
+                            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate)}</span>}
+                          </div>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDeadlineBadgeClass(status)}`}>{formatDeadlineBadge(task.dueDate)}</span>
+                        <select value={task.status} onChange={e => { e.stopPropagation(); onStatusChange(task.id, e.target.value); }} onClick={e => e.stopPropagation()}
+                          className="text-xs bg-gray-100 dark:bg-gray-700 border-0 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="todo">未着手</option>
+                          <option value="in_progress">進行中</option>
+                          <option value="done">完了</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {withDue.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+          <div className="text-4xl mb-4">🎉</div>
+          <p className="text-base font-medium">期限切れのタスクはありません</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== CalendarView ====================
+const CalendarView = ({ tasks, categories, onEdit }) => {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [selDate, setSelDate] = useState(null);
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const todayStr = getTodayString();
+  const days = getCalendarDays(year, month);
+  const tasksByDate = tasks.reduce((acc, t) => {
+    if (t.dueDate) { if (!acc[t.dueDate]) acc[t.dueDate] = []; acc[t.dueDate].push(t); }
+    return acc;
+  }, {});
+  const prev = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
+  const next = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
+  const DOW = ['日','月','火','水','木','金','土'];
+  const selTasks = selDate ? (tasksByDate[selDate] || []) : [];
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">📅 カレンダー</h2>
+        <div className="flex-1" />
+        <button onClick={prev} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft size={17} className="text-gray-600 dark:text-gray-400" /></button>
+        <span className="text-base font-semibold text-gray-800 dark:text-gray-200 min-w-28 text-center">{year}年{month + 1}月</span>
+        <button onClick={next} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronRight size={17} className="text-gray-600 dark:text-gray-400" /></button>
+        <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }} className="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 transition-colors">今月</button>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
+        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+          {DOW.map((d, i) => (
+            <div key={d} className={`py-2.5 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map(({ date, cur }, idx) => {
+            const ds = dateToStr(date);
+            const dt = tasksByDate[ds] || [];
+            const isToday = ds === todayStr;
+            const isSel = ds === selDate;
+            const dow = date.getDay();
+            const isPast = cur && ds < todayStr;
+            return (
+              <div key={idx} onClick={() => dt.length > 0 && setSelDate(ds === selDate ? null : ds)}
+                className={`min-h-14 p-1.5 border-b border-r border-gray-100 dark:border-gray-700/50 transition-colors ${!cur ? 'bg-gray-50 dark:bg-gray-800/50' : ''} ${dt.length > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''} ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${isPast && dt.some(t => t.status !== 'done') ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                <div className={`text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : !cur ? 'text-gray-300 dark:text-gray-600' : dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                  {date.getDate()}
+                </div>
+                {dt.length > 0 && (
+                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                    {dt.slice(0, 4).map(t => { const cat = catMap[t.categoryId]; return <div key={t.id} className="w-2 h-2 rounded-full opacity-80" style={{ backgroundColor: cat?.color || '#9CA3AF' }} title={t.title} />; })}
+                    {dt.length > 4 && <span className="text-gray-400 text-xs">+{dt.length - 4}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {selDate && selTasks.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              {new Date(selDate + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}件</span>
+            </h3>
+            <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {selTasks.map(task => {
+              const cat = catMap[task.categoryId];
+              const s = getDeadlineStatus(task.dueDate);
+              return (
+                <button key={task.id} onClick={() => onEdit(task)} style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium text-gray-900 dark:text-white ${task.status === 'done' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
+                    {cat && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{cat.name}</p>}
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${task.status === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : s === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    {STATUS_LABELS[task.status]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== Sidebar ====================
+const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter }) => {
+  const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
+  const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
+  const navItems = [
+    { id: 'tasks', label: 'タスク一覧', Icon: Icons.Layout },
+    { id: 'today', label: 'Today', Icon: Icons.Sun, badge: todayCount },
+    { id: 'deadline', label: '期限管理', Icon: Icons.AlertTriangle, badge: urgentCount, red: true },
+    { id: 'calendar', label: 'カレンダー', Icon: Icons.Calendar },
+    { id: 'categories', label: 'カテゴリ管理', Icon: Icons.Tags },
+  ];
+
+  const Content = () => (
+    <div className="flex flex-col h-full bg-gray-950 text-white">
+      <div className="flex items-center justify-between px-5 py-5 border-b border-gray-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-lg font-bold select-none">T</div>
+          <span className="font-bold text-lg tracking-tight text-white">TaskFlow</span>
+        </div>
+        <button onClick={onMobileClose} className="lg:hidden text-gray-400 hover:text-white transition-colors"><Icons.X size={19} /></button>
+      </div>
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {navItems.map(item => {
+          const isActive = view === item.id;
+          return (
+            <button key={item.id} onClick={() => { onViewChange(item.id); onMobileClose(); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              <item.Icon size={17} />
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.badge > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${item.red ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>{item.badge}</span>}
+            </button>
+          );
+        })}
+        <div className="pt-4 pb-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">カテゴリ</p>
+          <button onClick={() => onCategoryFilter('')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
+            <span className="w-3 h-3 rounded-full bg-gray-500" />
+            <span className="flex-1 text-left">すべて</span>
+            <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
+          </button>
+          {categories.map(cat => {
+            const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
+            const isActive = activeCatFilter === cat.id;
+            return (
+              <button key={cat.id} onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                <span className="flex-1 text-left truncate">{cat.name}</span>
+                {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+      <div className="px-3 py-4 border-t border-gray-800">
+        <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
+          {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
+          <span>{darkMode ? 'ライトモード' : 'ダークモード'}</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="hidden lg:flex w-60 flex-shrink-0 h-full"><Content /></div>
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
+          <div className="relative w-64 h-full"><Content /></div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ==================== App ====================
+const App = () => {
+  const [darkMode, setDarkMode] = useState(() => {
+    const s = localStorage.getItem('tf_dark');
+    return s ? s === 'true' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
-}
+  const [view, setView] = useState('tasks');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [panel, setPanel] = useState(null); // { task?, parentId? }
+  const [catFilter, setCatFilter] = useState('');
 
-/* =================== Text boxes =================== */
-let lastTap=0,lastTapPos={x:0,y:0};
-shapeCanvas.addEventListener('pointerup',e=>{
-  if(state.tool!=='pen')return;
-  const now=Date.now(),r=shapeCanvas.getBoundingClientRect();
-  const x=(e.clientX-r.left)*(W/r.width),y=(e.clientY-r.top)*(H/r.height);
-  const dx=x-lastTapPos.x,dy=y-lastTapPos.y;
-  if(now-lastTap<350&&(dx*dx+dy*dy)<900){addTextBox(x,y,'');lastTap=0;undo();undo();}
-  else{lastTap=now;lastTapPos={x,y};}
-});
+  // Categories state
+  const [categories, setCategories] = useState(() => STORAGE.cats());
+  const [flatTasks, setFlatTasks] = useState(() => STORAGE.tasks());
 
-document.getElementById('addTextBtn').addEventListener('click',()=>{
-  const m=document.getElementById('mainArea'),wr=document.getElementById('canvasWrap').getBoundingClientRect();
-  const cx=(m.clientWidth/2+m.scrollLeft-wr.left)*(W/wr.width),cy=(m.clientHeight/2+m.scrollTop-wr.top)*(H/wr.height);
-  addTextBox(Math.max(20,Math.min(W-200,cx)),Math.max(20,Math.min(H-60,cy)),'');
-});
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('tf_dark', String(darkMode));
+  }, [darkMode]);
 
-document.getElementById('photoFile').addEventListener('change',e=>{
-  const files=e.target.files;if(!files||!files.length)return;let off=0;
-  [...files].forEach(f=>{const r=new FileReader();r.onload=ev=>{addPhoto(60+off,60+off,ev.target.result);off+=30;};r.readAsDataURL(f);});
-  e.target.value='';
-});
+  const persistTasks = (tasks) => { setFlatTasks(tasks); STORAGE.saveTasks(tasks); };
+  const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
 
-function addPhoto(x,y,src,opts){
-  opts=opts||{};const box=document.createElement('div');box.className='photobox';
-  box.style.left=(x|0)+'px';box.style.top=(y|0)+'px';
-  const img=new Image();img.onload=()=>{const mW=360;const ratio=img.naturalHeight/img.naturalWidth;const w=opts.width||Math.min(mW,img.naturalWidth);box.style.width=w+'px';box.style.height=(opts.height||(w*ratio))+'px';};
-  img.src=src;box.appendChild(img);
-  const caption=document.createElement('div');caption.className='caption';caption.setAttribute('data-placeholder','キャプション');caption.contentEditable='true';caption.addEventListener('pointerdown',e=>e.stopPropagation());box.appendChild(caption);
-  const close=document.createElement('div');close.className='close-btn';close.textContent='×';close.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();box.remove();});box.appendChild(close);
-  const handle=document.createElement('div');handle.className='resize-handle';box.appendChild(handle);
-  let dragging=false,sx=0,sy=0,bL=0,bT=0,sc=1;
-  box.addEventListener('pointerdown',e=>{if(e.target===close||e.target===handle||e.target===caption)return;e.preventDefault();dragging=true;box.setPointerCapture(e.pointerId);sc=W/textLayer.getBoundingClientRect().width;sx=e.clientX;sy=e.clientY;bL=parseFloat(box.style.left);bT=parseFloat(box.style.top);});
-  box.addEventListener('pointermove',e=>{if(!dragging)return;box.style.left=(bL+(e.clientX-sx)*sc)+'px';box.style.top=(bT+(e.clientY-sy)*sc)+'px';});
-  const endD=e=>{if(!dragging)return;dragging=false;try{box.releasePointerCapture(e.pointerId);}catch(_){}};
-  box.addEventListener('pointerup',endD);box.addEventListener('pointercancel',endD);
-  let resizing=false,rX=0,rY=0,rW=0,rH=0,rS=1;
-  handle.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();resizing=true;handle.setPointerCapture(e.pointerId);rS=W/textLayer.getBoundingClientRect().width;rX=e.clientX;rY=e.clientY;rW=box.offsetWidth;rH=box.offsetHeight;});
-  handle.addEventListener('pointermove',e=>{if(!resizing)return;const dx=(e.clientX-rX)*rS;const ratio=rH/rW;let nw=Math.max(60,rW+dx);box.style.width=nw+'px';box.style.height=(nw*ratio)+'px';});
-  const endR=e=>{if(!resizing)return;resizing=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}};
-  handle.addEventListener('pointerup',endR);handle.addEventListener('pointercancel',endR);
-  textLayer.appendChild(box);textLayer.style.pointerEvents='none';box.style.pointerEvents='auto';return box;
-}
+  const addCategory = (name, color) => {
+    const id = generateId('cat');
+    persistCats([...categories, { id, name, color }]);
+  };
+  const updateCategory = (id, updates) => persistCats(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+  const deleteCategory = (id) => persistCats(categories.filter(c => c.id !== id));
 
-function addTextBox(x,y,text,opts){
-  opts=opts||{};const wrap=document.createElement('div');wrap.className='textbox-wrap';wrap.style.left=x+'px';wrap.style.top=y+'px';
-  const box=document.createElement('div');box.className='textbox';box.style.fontSize=(opts.fontSize||state.fontSize)+'px';box.style.color=opts.color||state.textColor;
-  if(opts.width)box.style.width=opts.width+'px';box.setAttribute('contenteditable','true');box.setAttribute('spellcheck','false');
-  if(text)box.textContent=text;else box.appendChild(document.createElement('br'));
-  const handle=document.createElement('div');handle.className='drag-handle';handle.textContent='✥';
-  const close=document.createElement('div');close.className='close-btn';close.textContent='×';close.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();wrap.remove();if(state.activeTextbox===box)state.activeTextbox=null;});
-  wrap.appendChild(handle);wrap.appendChild(close);wrap.appendChild(box);
-  box.addEventListener('focus',()=>{ state.activeTextbox=box; showTextPropPanel(box); });
-  box.addEventListener('blur',()=>{
-    setTimeout(()=>{
-      const focus = document.activeElement;
-      // Don't hide if focus went to the text prop panel, its children, or stayed on box
-      if(focus && (focus === box || focus.closest('#textPropPanel'))) return;
-      // Also don't hide if a slider in the panel is being dragged
-      if(document.getElementById('textFontSizeSlider') === focus) return;
-      if(state.activeTextbox === box) hideTextPropPanel();
-    }, 250);
-  });
-  box.addEventListener('pointerdown',e=>{ state.activeTextbox=box; showTextPropPanel(box); e.stopPropagation(); },true);
-  let dragging=false,sx=0,sy=0,bL=0,bT=0,sc=1;
-  handle.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();state.activeTextbox=box;showTextPropPanel(box);dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}sc=W/textLayer.getBoundingClientRect().width;sx=e.clientX;sy=e.clientY;bL=parseFloat(wrap.style.left);bT=parseFloat(wrap.style.top);});
-  handle.addEventListener('pointermove',e=>{if(!dragging)return;e.preventDefault();wrap.style.left=(bL+(e.clientX-sx)*sc)+'px';wrap.style.top=(bT+(e.clientY-sy)*sc)+'px';});
-  const endD=e=>{if(!dragging)return;dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}};
-  handle.addEventListener('pointerup',endD);handle.addEventListener('pointercancel',endD);
-  textLayer.appendChild(wrap);textLayer.style.pointerEvents='none';wrap.style.pointerEvents='auto';
-  setTimeout(()=>{box.focus();try{const r=document.createRange();r.selectNodeContents(box);r.collapse(false);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(_){}state.activeTextbox=box;showTextPropPanel(box);},30);
-  return box;
-}
+  const addTask = (data) => {
+    const siblings = flatTasks.filter(t => t.parentId === data.parentId);
+    const maxOrder = siblings.length ? Math.max(...siblings.map(t => t.order)) : -1;
+    const newTask = { id: generateId('task'), ...data, order: maxOrder + 1, createdAt: new Date().toISOString() };
+    persistTasks([...flatTasks, newTask]);
+    return newTask.id;
+  };
 
-/* =================== タスク挿入パネル =================== */
-(function(){
-  const toggle = document.getElementById('taskInsertToggle');
-  const panel  = document.getElementById('taskInsertPanel');
+  const updateTask = (id, updates) => persistTasks(flatTasks.map(t => t.id === id ? { ...t, ...updates } : t));
 
-  function insertTaskText(text){
-    const main = document.getElementById('mainArea');
-    const wr   = document.getElementById('canvasWrap').getBoundingClientRect();
-    const cx   = (main.clientWidth / 2 + main.scrollLeft - wr.left) * (W / wr.width);
-    const cy   = (main.clientHeight / 2 + main.scrollTop  - wr.top)  * (H / wr.height);
-    const offset = (textLayer.querySelectorAll('.textbox-wrap').length % 6) * 30;
-    addTextBox(
-      Math.max(20, Math.min(W - 250, cx - 100 + offset)),
-      Math.max(20, Math.min(H - 80,  cy - 20  + offset)),
-      text
-    );
-  }
+  const deleteTask = (id) => {
+    const toDelete = new Set();
+    const collect = (tid) => { toDelete.add(tid); flatTasks.filter(t => t.parentId === tid).forEach(c => collect(c.id)); };
+    collect(id);
+    persistTasks(flatTasks.filter(t => !toDelete.has(t.id)));
+  };
 
-  function refreshPanel(){
-    const tasks   = getTasks();
-    const vendor  = document.getElementById('vendorName').value;
-    // 選択業者があればその業者のタスク、なければ全業者
-    let entries = [];
-    if(vendor && tasks[vendor] && tasks[vendor].length){
-      entries = tasks[vendor].map(t => ({...t, _vendor: vendor}));
-    } else {
-      Object.entries(tasks).forEach(([v, list]) => {
-        list.forEach(t => entries.push({...t, _vendor: v}));
-      });
-    }
+  const tasks = useMemo(() => buildTree(flatTasks), [flatTasks]);
+  const todayTasks = useMemo(() => flatTasks.filter(t => t.isTodayTask && t.status !== 'done'), [flatTasks]);
 
-    if(!entries.length){
-      panel.innerHTML = '<div class="task-insert-empty">タスクがありません<br><small>タスクボタンから先に登録してください</small></div>';
-      return;
-    }
+  const filteredTasks = useMemo(() => {
+    if (!catFilter) return tasks;
+    const filter = (list) => list.map(t => ({ ...t, children: filter(t.children || []) })).filter(t => t.categoryId === catFilter || (t.children && t.children.length > 0));
+    return filter(tasks);
+  }, [tasks, catFilter]);
 
-    panel.innerHTML = '';
-    entries.forEach(t => {
-      const row = document.createElement('div');
-      row.className = 'task-insert-item' + (t.done ? ' done-item' : '');
-      row.title = 'タップして挿入';
+  const taskCountByCat = useMemo(() => Object.fromEntries(categories.map(c => [c.id, flatTasks.filter(t => t.categoryId === c.id).length])), [categories, flatTasks]);
 
-      const txt = document.createElement('div');
-      txt.className = 'ti-text';
-      txt.textContent = '＋ ' + t.text;
+  const openAdd = (parentId) => setPanel({ parentId });
+  const openEdit = (task) => setPanel({ task });
+  const closePanel = () => setPanel(null);
 
-      row.appendChild(txt);
-      row.addEventListener('pointerup', e => {
-        e.stopPropagation();
-        insertTaskText(t.text);
-        // タップフィードバック
-        row.style.background = '#bfdbfe';
-        setTimeout(() => row.style.background = '', 300);
-      });
-      panel.appendChild(row);
-    });
-  }
+  const handleSave = (data) => {
+    if (panel?.task) updateTask(panel.task.id, data);
+    else addTask({ ...data, parentId: panel?.parentId });
+    closePanel();
+  };
 
-  toggle.addEventListener('click', () => {
-    const isOpen = panel.classList.toggle('open');
-    toggle.classList.toggle('open', isOpen);
-    if(isOpen) refreshPanel();
-  });
+  const parentTask = panel?.parentId ? flatTasks.find(t => t.id === panel.parentId) : undefined;
 
-  // 業者変更時にパネルが開いていれば更新
-  document.getElementById('vendorName').addEventListener('change', () => {
-    if(panel.classList.contains('open')) refreshPanel();
-  });
-})();
+  return (
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
+      <Sidebar view={view} onViewChange={setView} categories={categories} tasks={flatTasks}
+        darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)}
+        mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}
+        onCategoryFilter={setCatFilter} activeCatFilter={catFilter} />
 
-/* =================== AI =================== */
-document.getElementById('aiBtn').addEventListener('click',async()=>{
-  if(!state.apiKey){openModal('apiModal');return;}
-  if(!state.pdfLoaded&&!confirm('PDFが未読込です。現在のキャンバスで生成しますか？'))return;
-  showLoader('AIが指示書を生成中...');document.getElementById('aiBtn').disabled=true;
-  try{
-    const merge=document.createElement('canvas');merge.width=W;merge.height=H;const mc=merge.getContext('2d');
-    mc.fillStyle='#fff';mc.fillRect(0,0,W,H);mc.drawImage(pdfCanvas,0,0);mc.drawImage(drawCanvas,0,0);mc.drawImage(shapeCanvas,0,0);
-    const b64=merge.toDataURL('image/png').split(',')[1];
-    const vendor=document.getElementById('vendorName').value||'';
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data:b64}},{type:'text',text:(vendor?'対象業者:'+vendor+'。':'')+'この建設図面を見て、工程・段取りの指示書テキストを日本語で生成してください。工種・作業手順（番号付き）・注意事項・必要資材を含めてください。'}]}]})});
-    if(!res.ok)throw new Error('APIエラー:'+res.status);const data=await res.json();
-    const txt=(data.content&&data.content[0]&&data.content[0].text)||'(出力なし)';
-    addTextBox(60,60,txt,{width:420,fontSize:14});
-  }catch(err){console.error(err);alert('AI生成失敗:'+err.message);}
-  finally{hideLoader();document.getElementById('aiBtn').disabled=false;}
-});
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Mobile topbar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.Menu size={19} /></button>
+          <span className="font-bold text-gray-900 dark:text-white flex-1">TaskFlow</span>
+          <button onClick={() => { if ('Notification' in window) Notification.requestPermission(); }}
+            className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.Bell size={19} /></button>
+        </div>
 
-document.getElementById('apiKeyBtn').addEventListener('click',()=>{document.getElementById('apiKeyInput').value=state.apiKey||'';openModal('apiModal');});
-document.getElementById('apiSave').addEventListener('click',()=>{const v=document.getElementById('apiKeyInput').value.trim();if(v){state.apiKey=v;localStorage.setItem('claude_api_key',v);}closeModal('apiModal');});
+        <AlertBanner tasks={flatTasks} categories={categories} onTaskClick={id => { const t = flatTasks.find(x => x.id === id); if (t) openEdit(t); }} />
 
-/* =================== Save / Archive (per-vendor editable state) =================== */
-function getInstructions(){try{return JSON.parse(localStorage.getItem(STORE_INST)||'[]');}catch(e){return[];}}
-function setInstructions(arr){localStorage.setItem(STORE_INST,JSON.stringify(arr));}
+        <div className="flex-1 overflow-hidden">
+          {view === 'tasks' && (
+            <TaskTree tasks={filteredTasks} flatTasks={flatTasks} categories={categories}
+              onEdit={openEdit} onDelete={deleteTask} onAddTask={openAdd}
+              onStatusChange={(id, s) => updateTask(id, { status: s })}
+              onTodayToggle={(id, v) => updateTask(id, { isTodayTask: v })} />
+          )}
+          {view === 'today' && (
+            <TodayView todayTasks={todayTasks} allTasks={flatTasks} categories={categories}
+              onStatusChange={(id, s) => updateTask(id, { status: s })} onAddTask={() => openAdd()} />
+          )}
+          {view === 'deadline' && (
+            <DeadlineView tasks={flatTasks} categories={categories} onEdit={openEdit}
+              onStatusChange={(id, s) => updateTask(id, { status: s })} />
+          )}
+          {view === 'calendar' && (
+            <CalendarView tasks={flatTasks} categories={categories} onEdit={openEdit} />
+          )}
+          {view === 'categories' && (
+            <CategoryManager categories={categories} onAdd={addCategory} onUpdate={updateCategory}
+              onDelete={deleteCategory} taskCountByCategory={taskCountByCat} />
+          )}
+        </div>
+      </div>
 
-/* =================== Vendor registry =================== */
-function getVendors(){try{return JSON.parse(localStorage.getItem(STORE_VENDORS)||'[]');}catch(e){return[];}}
-function setVendors(arr){localStorage.setItem(STORE_VENDORS,JSON.stringify(arr));}
-function refreshVendorSelect(selected){
-  const sel=document.getElementById('vendorName');
-  const cur=selected!==undefined?selected:sel.value;
-  const vendors=getVendors();
-  sel.innerHTML='<option value="">-- 業者選択 --</option>';
-  vendors.sort((a,b)=>a.localeCompare(b,'ja')).forEach(v=>{
-    const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);
-  });
-  if(cur&&vendors.includes(cur))sel.value=cur;
-}
-function renderVendorManage(){
-  const list=document.getElementById('vendorManageList');
-  const vendors=getVendors().sort((a,b)=>a.localeCompare(b,'ja'));
-  if(!vendors.length){list.innerHTML='<div class="empty-msg" style="padding:20px 0;">業者が登録されていません</div>';return;}
-  let html='';
-  vendors.forEach(v=>{
-    html+='<div class="vendor-manage-row"><div class="vname">🏢 '+escapeHtml(v)+'</div><button class="vdel" data-v="'+escapeHtml(v)+'">削除</button></div>';
-  });
-  list.innerHTML=html;
-  list.querySelectorAll('.vdel').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const name=btn.dataset.v;
-      if(!confirm('「'+name+'」を業者一覧から削除しますか？\n※保存済みの指示書やタスクは残ります。'))return;
-      setVendors(getVendors().filter(x=>x!==name));
-      renderVendorManage();
-      refreshVendorSelect();
-    });
-  });
-}
-document.getElementById('vendorManageBtn').addEventListener('click',()=>{renderVendorManage();openModal('vendorModal');});
-document.getElementById('addVendorBtn').addEventListener('click',()=>{
-  const inp=document.getElementById('newVendorInput');
-  const name=inp.value.trim();if(!name)return;
-  const vendors=getVendors();
-  if(vendors.includes(name)){alert('「'+name+'」は既に登録されています。');return;}
-  vendors.push(name);setVendors(vendors);
-  inp.value='';
-  renderVendorManage();
-  refreshVendorSelect(name);
-});
-document.getElementById('newVendorInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){document.getElementById('addVendorBtn').click();}
-});
-refreshVendorSelect();
+      {panel && (
+        <TaskPanel task={panel.task} parentTask={parentTask} categories={categories}
+          onSave={handleSave} onClose={closePanel} />
+      )}
+    </div>
+  );
+};
 
-/* =================== Site registry =================== */
-function getSites(){try{return JSON.parse(localStorage.getItem(STORE_SITES)||'[]');}catch(e){return[];}}
-function setSites(arr){localStorage.setItem(STORE_SITES,JSON.stringify(arr));}
-function refreshSiteSelect(selected){
-  const sel=document.getElementById('siteName');
-  const cur=selected!==undefined?selected:sel.value;
-  const sites=getSites();
-  sel.innerHTML='<option value="">-- 現場選択 --</option>';
-  sites.sort((a,b)=>a.localeCompare(b,'ja')).forEach(v=>{
-    const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);
-  });
-  if(cur&&sites.includes(cur))sel.value=cur;
-}
-function renderSiteManage(){
-  const list=document.getElementById('siteManageList');
-  const sites=getSites().sort((a,b)=>a.localeCompare(b,'ja'));
-  if(!sites.length){list.innerHTML='<div class="empty-msg" style="padding:20px 0;">現場が登録されていません</div>';return;}
-  let html='';
-  sites.forEach(v=>{
-    html+='<div class="vendor-manage-row"><div class="vname">📍 '+escapeHtml(v)+'</div><button class="vdel" data-v="'+escapeHtml(v)+'">削除</button></div>';
-  });
-  list.innerHTML=html;
-  list.querySelectorAll('.vdel').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const name=btn.dataset.v;
-      if(!confirm('「'+name+'」を現場一覧から削除しますか？'))return;
-      setSites(getSites().filter(x=>x!==name));
-      renderSiteManage();
-      refreshSiteSelect();
-    });
-  });
-}
-document.getElementById('siteManageBtn').addEventListener('click',()=>{renderSiteManage();openModal('siteModal');});
-document.getElementById('addSiteBtn').addEventListener('click',()=>{
-  const inp=document.getElementById('newSiteInput');
-  const name=inp.value.trim();if(!name)return;
-  const sites=getSites();
-  if(sites.includes(name)){alert('「'+name+'」は既に登録されています。');return;}
-  sites.push(name);setSites(sites);
-  inp.value='';
-  renderSiteManage();
-  refreshSiteSelect(name);
-});
-document.getElementById('newSiteInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){document.getElementById('addSiteBtn').click();}
-});
-refreshSiteSelect();
-
-async function buildMergedDataUrl(){
-  document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
-  const oldSel=state.selectedShapeId; selectShape(null);
-  const merge=document.createElement('canvas');merge.width=W;merge.height=H;const mc=merge.getContext('2d');
-  mc.fillStyle='#fff';mc.fillRect(0,0,W,H);mc.drawImage(pdfCanvas,0,0);mc.drawImage(drawCanvas,0,0);mc.drawImage(shapeCanvas,0,0);
-  const tl=await html2canvas(textLayer,{backgroundColor:null,width:W,height:H,scale:1,useCORS:true,allowTaint:true});mc.drawImage(tl,0,0);
-  if(oldSel)selectShape(oldSel);
-  const thumb=document.createElement('canvas');thumb.width=256;thumb.height=Math.round(256*H/W);thumb.getContext('2d').drawImage(merge,0,0,thumb.width,thumb.height);
-  return{full:merge.toDataURL('image/jpeg',.75),thumb:thumb.toDataURL('image/jpeg',.6)};
-}
-
-/* Serialize textboxes & photos from textLayer */
-function serializeTextLayer(){
-  const items = [];
-  textLayer.querySelectorAll('.textbox-wrap').forEach(wrap => {
-    const box = wrap.querySelector('.textbox');
-    if (!box) return;
-    items.push({
-      type: 'text',
-      x: parseFloat(wrap.style.left) || 0,
-      y: parseFloat(wrap.style.top) || 0,
-      html: box.innerHTML.replace(/<br\s*\/?>/g, '\n').replace(/<[^>]*>/g, ''),
-      fontSize: parseInt(box.style.fontSize) || 14,
-      color: box.style.color || '#111',
-      width: box.style.width ? parseInt(box.style.width) : null
-    });
-  });
-  textLayer.querySelectorAll('.photobox').forEach(pb => {
-    const img = pb.querySelector('img');
-    const cap = pb.querySelector('.caption');
-    if (!img) return;
-    items.push({
-      type: 'photo',
-      x: parseFloat(pb.style.left) || 0,
-      y: parseFloat(pb.style.top) || 0,
-      src: img.src,
-      width: parseInt(pb.style.width) || 200,
-      height: parseInt(pb.style.height) || 140,
-      caption: cap ? cap.textContent : ''
-    });
-  });
-  return items;
-}
-
-function restoreTextLayer(items){
-  textLayer.innerHTML = '';
-  if (!items || !items.length) return;
-  items.forEach(it => {
-    if (it.type === 'text') {
-      addTextBox(it.x, it.y, it.html, {
-        fontSize: it.fontSize, color: it.color,
-        width: it.width
-      });
-    } else if (it.type === 'photo') {
-      addPhoto(it.x, it.y, it.src, {
-        width: it.width, height: it.height, caption: it.caption
-      });
-    }
-  });
-}
-
-/* Full save: editable state per vendor */
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  const vendor = document.getElementById('vendorName').value.trim();
-  if (!vendor) { alert('業者名を入力してください'); return; }
-  const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
-  showLoader('保存中...');
-  try {
-    const imgs = await buildMergedDataUrl();
-    const drawDataUrl = drawCanvas.toDataURL('image/png');
-    const rec = {
-      id: 'i_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-      vendor,
-      date,
-      siteName: document.getElementById('siteName').value,
-      createdAt: new Date().toISOString(),
-      // preview
-      image: imgs.full,
-      thumb: imgs.thumb,
-      // editable state
-      drawImage: drawDataUrl,
-      shapes: JSON.parse(JSON.stringify(state.shapes)),
-      textItems: serializeTextLayer(),
-      pdfPages: state.pdfPages.map(p => ({
-        id: p.id, name: p.name, pageNum: p.pageNum,
-        totalPages: p.totalPages,
-        imageDataUrl: p.imageDataUrl,
-        thumbDataUrl: p.thumbDataUrl
-      })),
-      activePdfId: state.activePdfId
-    };
-    const arr = getInstructions();
-    arr.push(rec);
-    try { setInstructions(arr); }
-    catch(e) {
-      // try saving without full PDF data to save space
-      rec.pdfPages = rec.pdfPages.map(p => ({...p, imageDataUrl: null}));
-      const arr2 = getInstructions(); arr2.push(rec);
-      try { setInstructions(arr2); }
-      catch(e2) { alert('容量超過です。古い履歴を削除してください。'); throw e2; }
-    }
-    alert('保存しました: ' + vendor + ' / ' + date);
-  } catch(err) { console.error(err); alert('保存失敗: ' + err.message); }
-  finally { hideLoader(); }
-});
-
-document.getElementById('archiveBtn').addEventListener('click', () => { renderArchive(); openModal('archiveModal'); });
-
-function renderArchive(){
-  const body = document.getElementById('archiveBody');
-  const arr = getInstructions();
-  if (!arr.length) { body.innerHTML = '<div class="empty-msg">保存された指示書はありません</div>'; return; }
-  const groups = {};
-  arr.forEach(r => { if(!groups[r.vendor]) groups[r.vendor] = []; groups[r.vendor].push(r); });
-  let html = '';
-  Object.keys(groups).sort((a,b) => a.localeCompare(b,'ja')).forEach(v => {
-    const list = groups[v].slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
-    html += '<div class="vendor-group">';
-    html += '<h3>🏢 ' + escapeHtml(v) + '（' + list.length + '件）</h3>';
-    list.forEach(r => {
-      const hasState = r.shapes || r.drawImage;
-      html += '<div class="saved-row" data-id="'+r.id+'">'
-        + '<img class="thumb" src="'+(r.thumb||'')+'" />'
-        + '<div class="meta">'
-        +   '<div class="date">' + escapeHtml(r.date) + '</div>'
-        +   '<div class="sub">' + escapeHtml(r.siteName||'-') + (hasState ? ' 📐' : '') + '</div>'
-        + '</div>'
-        + '<button class="view-btn" data-act="view" title="プレビュー">👁</button>'
-        + (hasState ? '<button class="load-btn" data-act="restore" title="編集状態を復元">✏️ 復元</button>' : '')
-        + '<button class="load-btn" data-act="load" title="画像として読込">📂</button>'
-        + '<button class="del-btn" data-act="del" title="削除">🗑</button>'
-        + '</div>';
-    });
-    html += '</div>';
-  });
-  body.innerHTML = html;
-
-  body.querySelectorAll('.saved-row').forEach(row => {
-    const id = row.dataset.id;
-    row.querySelector('[data-act="view"]').addEventListener('click', () => viewInstruction(id));
-    const restoreBtn = row.querySelector('[data-act="restore"]');
-    if (restoreBtn) restoreBtn.addEventListener('click', () => restoreInstruction(id));
-    row.querySelector('[data-act="load"]').addEventListener('click', () => loadInstruction(id));
-    row.querySelector('[data-act="del"]').addEventListener('click', () => deleteInstruction(id));
-  });
-}
-
-function viewInstruction(id){
-  const r = getInstructions().find(x => x.id === id); if (!r) return;
-  document.getElementById('previewTitle').textContent = '📋 ' + r.vendor + ' / ' + r.date;
-  document.getElementById('previewImg').src = r.image;
-  const shapes = r.shapes ? r.shapes.length : 0;
-  const texts = r.textItems ? r.textItems.length : 0;
-  const pdfs = r.pdfPages ? r.pdfPages.length : 0;
-  document.getElementById('previewMeta').innerHTML =
-    '<b>業者:</b> ' + escapeHtml(r.vendor) + ' ／ <b>日付:</b> ' + escapeHtml(r.date) + '<br>' +
-    '<b>現場:</b> ' + escapeHtml(r.siteName||'-') + '<br>' +
-    (r.shapes ? '<span style="color:#6b7280;font-size:12px;">図形: '+shapes+'個 ／ テキスト: '+texts+'個 ／ 図面: '+pdfs+'ページ ── ✏️復元で編集再開可</span>' : '');
-  document.getElementById('previewDownload').onclick = () => exportArchivedPdf(r);
-  openModal('previewModal');
-}
-
-/* Load as flat image (legacy compat) */
-function loadInstruction(id){
-  const r = getInstructions().find(x => x.id === id);
-  if (!r || !confirm('画像として読み込みます（編集不可）。よろしいですか？')) return;
-  resetCanvas();
-  fillHeaderFromRecord(r);
-  const img = new Image();
-  img.onload = () => { pdfCtx.drawImage(img,0,0,W,H); state.pdfLoaded=true; document.getElementById('emptyHint').style.display='none'; };
-  img.src = r.image;
-  closeModal('archiveModal'); closeModal('taskModal');
-}
-
-/* Restore full editable state */
-function restoreInstruction(id){
-  const r = getInstructions().find(x => x.id === id);
-  if (!r || !confirm('この指示書の編集状態を復元しますか？\n現在の作業内容は置き換えられます。')) return;
-  showLoader('復元中...');
-
-  // Reset everything
-  pdfCtx.clearRect(0,0,W,H); ctx.clearRect(0,0,W,H);
-  textLayer.innerHTML = '';
-  state.shapes = []; selectShape(null);
-  state.history = []; state.historyIndex = -1;
-  state.pdfPages = []; state.activePdfId = null;
-
-  // Fill header
-  fillHeaderFromRecord(r);
-
-  // Restore PDF pages
-  if (r.pdfPages && r.pdfPages.length) {
-    r.pdfPages.forEach(p => {
-      if (p.imageDataUrl) {
-        state.pdfPages.push({...p});
-      }
-    });
-    if (state.pdfPages.length > 0) {
-      const activeId = r.activePdfId && state.pdfPages.find(p => p.id === r.activePdfId)
-        ? r.activePdfId : state.pdfPages[0].id;
-      switchToPdf(activeId);
-    }
-    renderPdfGallery();
-  }
-
-  // Restore draw canvas
-  if (r.drawImage) {
-    const dImg = new Image();
-    dImg.onload = () => {
-      ctx.clearRect(0,0,W,H);
-      ctx.drawImage(dImg, 0, 0);
-      snapshot();
-    };
-    dImg.src = r.drawImage;
-  } else {
-    snapshot();
-  }
-
-  // Restore shapes
-  if (r.shapes) {
-    state.shapes = JSON.parse(JSON.stringify(r.shapes));
-    renderShapes();
-  }
-
-  // Restore text/photos
-  if (r.textItems) {
-    restoreTextLayer(r.textItems);
-  }
-
-  state.pdfLoaded = state.pdfPages.length > 0;
-  if (state.pdfLoaded) document.getElementById('emptyHint').style.display = 'none';
-
-  closeModal('archiveModal'); closeModal('taskModal');
-  setTimeout(hideLoader, 300);
-}
-
-function fillHeaderFromRecord(r){
-  if(r.vendor){
-    const vendors=getVendors();
-    if(!vendors.includes(r.vendor)){vendors.push(r.vendor);setVendors(vendors);}
-    refreshVendorSelect(r.vendor);
-  }
-  if(r.siteName){
-    const sites=getSites();
-    if(!sites.includes(r.siteName)){sites.push(r.siteName);setSites(sites);}
-    refreshSiteSelect(r.siteName);
-  }
-  document.getElementById('dateInput').value = r.date || '';
-}
-
-function deleteInstruction(id){
-  if (!confirm('この指示書を削除しますか？')) return;
-  setInstructions(getInstructions().filter(r => r.id !== id));
-  renderArchive();
-}
-
-async function exportArchivedPdf(r){
-  showLoader('PDF生成中...');
-  try {
-    const{jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
-    const pW=420,pH=297,hH=14;
-    const hi=await renderHeaderImage(r);
-    pdf.addImage(hi,'PNG',0,0,pW,hH);
-    const rH=pH-hH,asp=W/H;
-    let dW=pW,dH=dW/asp; if(dH>rH){dH=rH;dW=dH*asp;}
-    pdf.addImage(r.image,'JPEG',(pW-dW)/2,hH+(rH-dH)/2,dW,dH);
-    pdf.save((r.vendor||'指示書')+'_'+(r.date||'')+'.pdf');
-  } catch(err){ alert('出力失敗:'+err.message); }
-  finally { hideLoader(); }
-}
-
-/* =================== Tasks =================== */
-function getTasks(){try{return JSON.parse(localStorage.getItem(STORE_TASKS)||'{}');}catch(e){return {};}}
-function setTasks(obj){localStorage.setItem(STORE_TASKS,JSON.stringify(obj));}
-document.getElementById('taskBtn').addEventListener('click',()=>{renderTasks();openModal('taskModal');});
-function renderTasks(){
-  const body=document.getElementById('taskBody'),tasks=getTasks();
-  const vendors=new Set(Object.keys(tasks));getInstructions().forEach(r=>vendors.add(r.vendor));
-  const cur=document.getElementById('vendorName').value.trim();if(cur)vendors.add(cur);
-  const list=[...vendors].sort((a,b)=>a.localeCompare(b,'ja'));
-  if(!list.length){body.innerHTML='<div class="empty-msg">業者がありません</div>';return;}
-  let html='<div class="tab-row" id="vendorTabs">';
-  list.forEach((v,i)=>{html+='<button class="tab-btn'+(i===0?' active':'')+'" data-v="'+escapeHtml(v)+'">'+escapeHtml(v)+' ('+((tasks[v]||[]).filter(t=>!t.done).length)+')</button>';});
-  html+='</div><div id="vendorTaskList"></div>';body.innerHTML=html;
-  body.querySelectorAll('.tab-btn').forEach(b=>{b.addEventListener('click',()=>{body.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderTaskListFor(b.dataset.v);});});
-  renderTaskListFor(list[0]);
-}
-function renderTaskListFor(vendor){
-  const tasks=getTasks(),items=tasks[vendor]||[],wrap=document.getElementById('vendorTaskList');let html='';
-  /* --- Task section --- */
-  html+='<div class="section-label">📋 タスク</div>';
-  if(!items.length)html+='<div class="empty-msg" style="padding:16px 0;">タスクなし</div>';
-  else items.slice().sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;return(a.due||'9999').localeCompare(b.due||'9999');}).forEach(t=>{html+='<div class="task-row'+(t.done?' done':'')+'" data-id="'+t.id+'"><input type="checkbox" '+(t.done?'checked':'')+' data-act="toggle" /><div class="txt-wrap">'+escapeHtml(t.text)+(t.due?'<span class="due">🗓 '+escapeHtml(t.due)+'</span>':'')+'</div><button class="del" data-act="del">削除</button></div>';});
-  html+='<div class="task-add-row"><input type="text" class="txt" id="newTaskText" placeholder="新しいタスク..." /><input type="date" id="newTaskDue" /><button id="addTaskBtn">追加</button></div>';
-  /* --- Saved instructions section --- */
-  const instructions = getInstructions().filter(r => r.vendor === vendor).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
-  html+='<div class="section-label" style="margin-top:24px;">📚 保存された指示書（'+instructions.length+'件）</div>';
-  if(!instructions.length) html+='<div class="empty-msg" style="padding:16px 0;">保存された指示書はありません</div>';
-  else instructions.forEach(r=>{
-    const hasState = r.shapes || r.drawImage;
-    html+='<div class="saved-row" data-id="'+r.id+'">'
-      +'<img class="thumb" src="'+(r.thumb||'')+'" />'
-      +'<div class="meta">'
-      +  '<div class="date">'+escapeHtml(r.date)+'</div>'
-      +  '<div class="sub">'+escapeHtml(r.siteName||'-')+(hasState?' 📐':'')+'</div>'
-      +'</div>'
-      +'<button class="view-btn" data-act="view" title="プレビュー">👁</button>'
-      +(hasState?'<button class="load-btn" data-act="restore" title="編集状態を復元">✏️ 復元</button>':'')
-      +'<button class="load-btn" data-act="load" title="画像として読込">📂</button>'
-      +'<button class="del-btn" data-act="del" title="削除">🗑</button>'
-      +'</div>';
-  });
-  wrap.innerHTML=html;
-  /* Task event listeners */
-  wrap.querySelectorAll('.task-row').forEach(row=>{const id=row.dataset.id;row.querySelector('[data-act="toggle"]').addEventListener('change',e=>toggleTask(vendor,id,e.target.checked));row.querySelector('[data-act="del"]').addEventListener('click',()=>deleteTask(vendor,id));});
-  document.getElementById('addTaskBtn').addEventListener('click',()=>{const t=document.getElementById('newTaskText').value.trim();if(t)addTask(vendor,t,document.getElementById('newTaskDue').value);});
-  document.getElementById('newTaskText').addEventListener('keydown',e=>{if(e.key==='Enter'){const t=e.target.value.trim();if(t)addTask(vendor,t,document.getElementById('newTaskDue').value);}});
-  /* Instruction event listeners */
-  wrap.querySelectorAll('.saved-row').forEach(row=>{
-    const id=row.dataset.id;
-    row.querySelector('[data-act="view"]').addEventListener('click',()=>{ closeModal('taskModal'); viewInstruction(id); });
-    const restoreBtn=row.querySelector('[data-act="restore"]');
-    if(restoreBtn) restoreBtn.addEventListener('click',()=>{ closeModal('taskModal'); restoreInstruction(id); });
-    row.querySelector('[data-act="load"]').addEventListener('click',()=>{ closeModal('taskModal'); loadInstruction(id); });
-    row.querySelector('[data-act="del"]').addEventListener('click',()=>{ deleteInstruction(id); renderTaskListFor(vendor); });
-  });
-}
-function addTask(vendor,text,due){const tasks=getTasks();if(!tasks[vendor])tasks[vendor]=[];tasks[vendor].push({id:'t_'+Date.now(),text,due:due||'',done:false});setTasks(tasks);renderTasks();const tab=document.querySelector('#vendorTabs .tab-btn[data-v="'+vendor.replace(/"/g,'\\"')+'"]');if(tab){document.querySelectorAll('#vendorTabs .tab-btn').forEach(x=>x.classList.remove('active'));tab.classList.add('active');renderTaskListFor(vendor);}}
-function toggleTask(v,id,done){const tasks=getTasks();const t=(tasks[v]||[]).find(x=>x.id===id);if(t){t.done=done;setTasks(tasks);renderTaskListFor(v);}}
-function deleteTask(v,id){const tasks=getTasks();tasks[v]=(tasks[v]||[]).filter(x=>x.id!==id);setTasks(tasks);renderTaskListFor(v);}
-
-/* =================== PDF export =================== */
-document.getElementById('exportBtn').addEventListener('click',exportPdf);
-async function renderHeaderImage(r){
-  const div=document.createElement('div');
-  div.style.cssText='position:fixed;left:-9999px;top:0;width:1587px;height:70px;background:#1f2937;color:#fff;display:flex;align-items:center;padding:0 24px;font-family:-apple-system,sans-serif;gap:24px;font-size:19px;';
-  div.innerHTML='<div style="font-size:21px;font-weight:700;">業者への指示書</div><div>業者: <b>'+escapeHtml(r.vendor||'')+'</b></div><div>現場: <b>'+escapeHtml(r.siteName||'')+'</b></div><div style="margin-left:auto;">日付: <b>'+escapeHtml(r.date||'')+'</b></div>';
-  document.body.appendChild(div);const cv=await html2canvas(div,{scale:1,backgroundColor:'#1f2937'});document.body.removeChild(div);return cv.toDataURL('image/png');
-}
-async function exportPdf(){
-  showLoader('PDF生成中...');try{
-    const{jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
-    const pW=420,pH=297,hH=14;const r={vendor:document.getElementById('vendorName').value,siteName:document.getElementById('siteName').value,date:document.getElementById('dateInput').value};
-    const hi=await renderHeaderImage(r);pdf.addImage(hi,'PNG',0,0,pW,hH);
-    document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
-    const oldSel=state.selectedShapeId;selectShape(null);
-    const bc=await html2canvas(document.getElementById('canvasWrap'),{scale:1,backgroundColor:'#fff',useCORS:true,allowTaint:true});
-    if(oldSel)selectShape(oldSel);
-    const rH=pH-hH,asp=bc.width/bc.height;let dW=pW,dH=dW/asp;if(dH>rH){dH=rH;dW=dH*asp;}
-    pdf.addImage(bc.toDataURL('image/png'),'PNG',(pW-dW)/2,hH+(rH-dH)/2,dW,dH);
-    pdf.save((r.vendor||'指示書')+'_'+(r.date||'')+'.pdf');
-  }catch(err){console.error(err);alert('PDF出力失敗:'+err.message);}finally{hideLoader();}
-}
-
-/* iPad gesture lock — allow 2-finger pinch for zoom, block single-touch scroll on canvas */
-document.addEventListener('gesturestart',e=>e.preventDefault());
-document.addEventListener('touchmove',e=>{
-  if(e.touches.length < 2 && e.target.closest('.canvas-wrap')) e.preventDefault();
-},{passive:false});
-
-/* Initial render */
-renderShapes();
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
