@@ -738,28 +738,50 @@ document.getElementById('mainArea').addEventListener('wheel', e => {
   }
 }, { passive: false });
 
-// Pinch-to-zoom (iPad)
+// Pinch-to-zoom & 2本指パン (iPad)
 let pinchDist0 = null, pinchZoom0 = null;
+let pinchMid0 = null, pinchScroll0 = null;
 let isPinching = false;
-document.getElementById('mainArea').addEventListener('touchstart', e => {
+const _mainArea = document.getElementById('mainArea');
+
+_mainArea.addEventListener('touchstart', e => {
   if(e.touches.length === 2){
     isPinching = true;
-    // ピンチ開始時に描画中断
     state.drawing = false;
-    pinchDist0 = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+    pinchDist0 = Math.hypot(
+      e.touches[1].clientX - e.touches[0].clientX,
+      e.touches[1].clientY - e.touches[0].clientY
+    );
     pinchZoom0 = userZoom;
+    pinchMid0 = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
+    pinchScroll0 = { left: _mainArea.scrollLeft, top: _mainArea.scrollTop };
   }
 }, { passive: true });
-document.getElementById('mainArea').addEventListener('touchmove', e => {
-  if(e.touches.length === 2 && pinchDist0){
+
+_mainArea.addEventListener('touchmove', e => {
+  if(e.touches.length === 2 && pinchDist0 !== null){
     e.preventDefault();
-    const d = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+    const t0 = e.touches[0], t1 = e.touches[1];
+
+    // ズーム
+    const d = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
     zoomTo(pinchZoom0 * (d / pinchDist0));
+
+    // パン（指の中心点の移動量をスクロールに反映）
+    const midX = (t0.clientX + t1.clientX) / 2;
+    const midY = (t0.clientY + t1.clientY) / 2;
+    _mainArea.scrollLeft = pinchScroll0.left - (midX - pinchMid0.x);
+    _mainArea.scrollTop  = pinchScroll0.top  - (midY - pinchMid0.y);
   }
 }, { passive: false });
-document.getElementById('mainArea').addEventListener('touchend', e => {
+
+_mainArea.addEventListener('touchend', e => {
   if(e.touches.length < 2){
     pinchDist0 = null;
+    pinchMid0 = null;
     // 指が離れてから少し待ってピンチ解除（誤描画防止）
     setTimeout(() => { isPinching = false; }, 150);
   }
