@@ -131,6 +131,138 @@ const DEFAULT_CATS = [
 ];
 const DEFAULT_SETTINGS = { warningDays: 3, showBanner: true, browserNotifications: false };
 
+// ==================== JSONBin ====================
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
+const JB = {
+  key: () => localStorage.getItem('tf_jb_key') || '',
+  binId: () => localStorage.getItem('tf_jb_id') || '',
+  lastSynced: () => localStorage.getItem('tf_jb_synced') || '',
+  saveKey: (k) => localStorage.setItem('tf_jb_key', k),
+  saveBinId: (id) => localStorage.setItem('tf_jb_id', id),
+  saveSynced: () => localStorage.setItem('tf_jb_synced', new Date().toISOString()),
+};
+
+const jbHeaders = (key) => ({
+  'Content-Type': 'application/json',
+  'X-Master-Key': key,
+  'X-Bin-Private': 'false',
+});
+
+const jbSave = async (key, binId, data) => {
+  if (binId) {
+    const r = await fetch(`${JSONBIN_BASE}/${binId}`, { method: 'PUT', headers: jbHeaders(key), body: JSON.stringify(data) });
+    if (!r.ok) throw new Error(`更新失敗: ${r.status}`);
+    return binId;
+  } else {
+    const r = await fetch(JSONBIN_BASE, { method: 'POST', headers: { ...jbHeaders(key), 'X-Bin-Name': 'TaskFlow' }, body: JSON.stringify(data) });
+    if (!r.ok) throw new Error(`作成失敗: ${r.status}`);
+    const json = await r.json();
+    return json.metadata.id;
+  }
+};
+
+const jbLoad = async (key, binId) => {
+  const r = await fetch(`${JSONBIN_BASE}/${binId}/latest`, { headers: { 'X-Master-Key': key } });
+  if (!r.ok) throw new Error(`読み込み失敗: ${r.status}`);
+  const json = await r.json();
+  return json.record;
+};
+
+// ==================== CloudSyncModal ====================
+const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync }) => {
+  const [apiKey, setApiKey] = useState(JB.key());
+  const [binId, setBinId] = useState(JB.binId());
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const handleSave = () => {
+    JB.saveKey(apiKey.trim());
+    JB.saveBinId(binId.trim());
+    setMsg('設定を保存しました');
+    onSaved(apiKey.trim(), binId.trim());
+  };
+
+  const fmtTime = (iso) => {
+    if (!iso) return '未同期';
+    return new Date(iso).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const statusColor = syncStatus === 'synced' ? 'text-green-400' : syncStatus === 'syncing' ? 'text-blue-400' : syncStatus === 'error' ? 'text-red-400' : 'text-gray-400';
+  const statusLabel = syncStatus === 'synced' ? '✓ 同期済み' : syncStatus === 'syncing' ? '同期中...' : syncStatus === 'error' ? '⚠ エラー' : '未設定';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 animate-fade-in mx-4">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Icons.Cloud size={20} className="text-blue-500" />
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">クラウド同期（JSONBin）</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={19} /></button>
+        </div>
+
+        {/* Status */}
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 mb-5 flex items-center justify-between">
+          <div>
+            <span className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</span>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">最終同期: {fmtTime(lastSynced)}</p>
+          </div>
+          {JB.key() && JB.binId() && (
+            <button onClick={onManualSync} disabled={syncStatus === 'syncing'}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
+              <Icons.RefreshCw size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+              今すぐ同期
+            </button>
+          )}
+        </div>
+
+        {/* Setup guide */}
+        <div className="mb-4 text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 space-y-1">
+          <p className="font-semibold text-blue-700 dark:text-blue-300">📋 セットアップ手順</p>
+          <p>1. <a href="https://jsonbin.io" target="_blank" className="underline text-blue-600 dark:text-blue-400">jsonbin.io</a> で無料アカウントを作成</p>
+          <p>2. ダッシュボード → API Keys → 「+ CREATE KEY」</p>
+          <p>3. 生成された Master Key を下に貼り付け</p>
+          <p>4. 「保存して同期」を押すと自動でBinが作られます</p>
+        </div>
+
+        {/* API Key */}
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Master Key</label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            placeholder="$2a$10$..."
+            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          />
+        </div>
+
+        {/* Bin ID */}
+        <div className="mb-5">
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Bin ID（自動設定）</label>
+          <input
+            value={binId}
+            onChange={e => setBinId(e.target.value)}
+            placeholder="初回保存時に自動入力されます"
+            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          />
+        </div>
+
+        {msg && <p className="text-sm text-green-600 dark:text-green-400 mb-3">{msg}</p>}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">閉じる</button>
+          <button onClick={handleSave} disabled={!apiKey.trim()}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+            保存して同期
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== Recurring Tasks ====================
 const DAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
 const DAYS_EN = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -239,6 +371,10 @@ const Icons = {
   Repeat: (p) => <Icon {...p} d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" />,
   Download: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />,
   Upload: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />,
+  Cloud: (p) => <Icon {...p} d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />,
+  CloudOff: (p) => <Icon {...p} d="M22.61 16.95A5 5 0 0018 10h-1.26a8 8 0 00-7.05-6M5 5a8 8 0 004 15h9a5 5 0 001.7-.3M1 1l22 22" />,
+  Settings2: (p) => <Icon {...p} d="M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4z" />,
+  RefreshCw: (p) => <Icon {...p} d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />,
 };
 
 // ==================== ColorPicker ====================
@@ -1192,7 +1328,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
 };
 
 // ==================== Sidebar ====================
-const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport }) => {
+const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus }) => {
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
   const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
   const navItems = [
@@ -1248,6 +1384,26 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
         </div>
       </nav>
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        {/* Cloud sync */}
+        <button onClick={onSyncClick}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+            syncStatus === 'synced' ? 'text-green-400 hover:text-green-300 hover:bg-gray-800'
+            : syncStatus === 'syncing' ? 'text-blue-400 hover:bg-gray-800'
+            : syncStatus === 'error' ? 'text-red-400 hover:bg-gray-800'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          }`}>
+          {syncStatus === 'synced' ? <Icons.Cloud size={17} />
+            : syncStatus === 'syncing' ? <Icons.RefreshCw size={17} className="animate-spin" />
+            : syncStatus === 'error' ? <Icons.CloudOff size={17} />
+            : <Icons.Cloud size={17} />}
+          <span className="flex-1 text-left">
+            {syncStatus === 'synced' ? 'クラウド同期済み'
+              : syncStatus === 'syncing' ? '同期中...'
+              : syncStatus === 'error' ? '同期エラー'
+              : 'クラウド同期'}
+          </span>
+          {!JB.key() && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">未設定</span>}
+        </button>
         <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
           {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
           <span>{darkMode ? 'ライトモード' : 'ダークモード'}</span>
@@ -1295,11 +1451,53 @@ const App = () => {
   const [categories, setCategories] = useState(() => STORAGE.cats());
   const [flatTasks, setFlatTasks] = useState(() => STORAGE.tasks());
   const [recurring, setRecurring] = useState(() => loadRecurring());
+  const [syncStatus, setSyncStatus] = useState(() => JB.key() && JB.binId() ? 'idle' : 'none');
+  const [lastSynced, setLastSynced] = useState(() => JB.lastSynced());
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const syncTimer = useRef(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
     localStorage.setItem('tf_dark', String(darkMode));
   }, [darkMode]);
+
+  // 起動時にクラウドからロード
+  useEffect(() => {
+    if (!JB.key() || !JB.binId()) return;
+    setSyncStatus('syncing');
+    jbLoad(JB.key(), JB.binId()).then(data => {
+      if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+      if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+      if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+      const synced = new Date().toISOString();
+      JB.saveSynced(); setLastSynced(synced); setSyncStatus('synced');
+    }).catch(() => setSyncStatus('error'));
+  }, []);
+
+  // データ変更時に自動同期（3秒デバウンス）
+  useEffect(() => {
+    if (!JB.key()) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => doSync(), 3000);
+    return () => clearTimeout(syncTimer.current);
+  }, [flatTasks, categories, recurring]);
+
+  const doSync = async (tasksArg, catsArg, recArg) => {
+    const key = JB.key();
+    if (!key) return;
+    const payload = {
+      version: 1, syncedAt: new Date().toISOString(),
+      tasks: tasksArg ?? flatTasks,
+      categories: catsArg ?? categories,
+      recurring: recArg ?? recurring,
+    };
+    setSyncStatus('syncing');
+    try {
+      const newId = await jbSave(key, JB.binId(), payload);
+      if (newId !== JB.binId()) { JB.saveBinId(newId); }
+      JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+    } catch (e) { console.error(e); setSyncStatus('error'); }
+  };
 
   // 起動時に定期タスクを自動追加
   useEffect(() => {
@@ -1318,6 +1516,12 @@ const App = () => {
   const persistTasks = (tasks) => { setFlatTasks(tasks); STORAGE.saveTasks(tasks); };
   const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
   const persistRecurring = (r) => { setRecurring(r); saveRecurring(r); };
+
+  const handleSyncSettingsSaved = (key, id) => {
+    if (key && id) doSync();
+    else if (key && !id) doSync();
+    setSyncStatus(key ? 'idle' : 'none');
+  };
 
   const addRecurring = (data) => persistRecurring([...recurring, { id: generateId('rec'), ...data, lastAddedDate: null }]);
   const updateRecurring = (id, data) => persistRecurring(recurring.map(r => r.id === id ? { ...r, ...data } : r));
@@ -1414,7 +1618,8 @@ const App = () => {
         darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)}
         mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}
         onCategoryFilter={setCatFilter} activeCatFilter={catFilter}
-        onExport={handleExport} onImport={handleImport} />
+        onExport={handleExport} onImport={handleImport}
+        onSyncClick={() => setShowSyncModal(true)} syncStatus={syncStatus} />
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Mobile topbar */}
@@ -1459,6 +1664,15 @@ const App = () => {
       {panel && (
         <TaskPanel task={panel.task} parentTask={parentTask} categories={categories}
           onSave={handleSave} onClose={closePanel} />
+      )}
+      {showSyncModal && (
+        <CloudSyncModal
+          onClose={() => setShowSyncModal(false)}
+          onSaved={handleSyncSettingsSaved}
+          syncStatus={syncStatus}
+          lastSynced={lastSynced}
+          onManualSync={() => doSync()}
+        />
       )}
     </div>
   );
