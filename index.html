@@ -598,7 +598,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose }) => {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <div>
             <div className={lc}>タイトル *</div>
-            <input autoFocus value={form.title} onChange={e => set('title', e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            <input autoFocus value={form.title} onChange={e => set('title', e.target.value)}
               placeholder="タスクのタイトルを入力..." className={ic} />
           </div>
           <div>
