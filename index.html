@@ -237,6 +237,8 @@ const Icons = {
   PlayCircle: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
   AlignLeft: (p) => <Icon {...p} d="M3 6h18M3 12h12M3 18h15" />,
   Repeat: (p) => <Icon {...p} d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" />,
+  Download: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />,
+  Upload: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />,
 };
 
 // ==================== ColorPicker ====================
@@ -1190,7 +1192,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
 };
 
 // ==================== Sidebar ====================
-const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter }) => {
+const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport }) => {
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
   const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
   const navItems = [
@@ -1245,11 +1247,22 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
           })}
         </div>
       </nav>
-      <div className="px-3 py-4 border-t border-gray-800">
+      <div className="px-3 py-4 border-t border-gray-800 space-y-1">
         <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
           {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
           <span>{darkMode ? 'ライトモード' : 'ダークモード'}</span>
         </button>
+        <div className="flex gap-1.5 pt-1">
+          <button onClick={onExport} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600">
+            <Icons.Download size={14} />
+            <span>エクスポート</span>
+          </button>
+          <label className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600 cursor-pointer">
+            <Icons.Upload size={14} />
+            <span>インポート</span>
+            <input type="file" accept=".json" className="hidden" onChange={onImport} />
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -1357,12 +1370,51 @@ const App = () => {
 
   const parentTask = panel?.parentId ? flatTasks.find(t => t.id === panel.parentId) : undefined;
 
+  const handleExport = () => {
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tasks: flatTasks,
+      categories,
+      recurring,
+      settings: STORAGE.settings(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `taskflow-backup-${getTodayString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.tasks || !data.categories) { alert('無効なファイルです。TaskFlowのバックアップJSONを選択してください。'); return; }
+        if (!window.confirm(`インポートすると現在のデータが上書きされます。\nタスク: ${data.tasks.length}件 / カテゴリ: ${data.categories.length}件\n続けますか？`)) return;
+        persistTasks(data.tasks);
+        persistCats(data.categories);
+        if (data.recurring) persistRecurring(data.recurring);
+        if (data.settings) STORAGE.saveSettings(data.settings);
+        alert('インポートが完了しました！');
+      } catch { alert('ファイルの読み込みに失敗しました。'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
       <Sidebar view={view} onViewChange={setView} categories={categories} tasks={flatTasks}
         darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)}
         mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}
-        onCategoryFilter={setCatFilter} activeCatFilter={catFilter} />
+        onCategoryFilter={setCatFilter} activeCatFilter={catFilter}
+        onExport={handleExport} onImport={handleImport} />
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Mobile topbar */}
