@@ -969,7 +969,7 @@ const HOUR_H = 56;
 const START_H = 6;
 const END_H = 24;
 
-const Timeline = ({ tasks, categories, onStatusChange, onMoveUp, onMoveDown }) => {
+const Timeline = ({ tasks, categories, allTasks, onStatusChange, onMoveUp, onMoveDown }) => {
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
   const unscheduled = tasks.filter(t => !t.scheduledTime?.start);
@@ -1035,6 +1035,7 @@ const Timeline = ({ tasks, categories, onStatusChange, onMoveUp, onMoveDown }) =
             {unscheduled.map((task, idx) => {
               const cat = catMap[task.categoryId];
               const isDone = task.status === 'done';
+              const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
               return (
                 <div key={task.id}
                   className={`flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 transition-all ${isDone ? 'opacity-50' : 'hover:shadow-sm'}`}
@@ -1045,11 +1046,14 @@ const Timeline = ({ tasks, categories, onStatusChange, onMoveUp, onMoveDown }) =
                     <button onClick={() => onMoveDown?.(task.id)} disabled={idx === unscheduled.length - 1}
                       className="p-0.5 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-20 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.ArrowDown size={13} /></button>
                   </div>
-                  <div className="flex-1 cursor-pointer" onClick={() => !isDone && onStatusChange(task.id, 'done')}>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => !isDone && onStatusChange(task.id, 'done')}>
                     <p className={`text-sm font-medium text-gray-900 dark:text-white ${isDone ? 'line-through' : ''}`}>{task.title}</p>
                     {task.estimatedMinutes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p>}
                   </div>
-                  {cat && <span className="text-xs px-2 py-1 rounded-full text-white flex-shrink-0" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {cat && <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                    {parentTask && <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[96px]" title={parentTask.title}>↑ {parentTask.title}</span>}
+                  </div>
                 </div>
               );
             })}
@@ -1102,7 +1106,7 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
           </div>
         )}
       </div>
-      <Timeline tasks={todayTasks} categories={categories} onStatusChange={handleStatusChange} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
       {showCompletion && <CompletionModal onClose={() => setShowCompletion(false)} />}
     </div>
   );
