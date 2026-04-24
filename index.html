@@ -1076,7 +1076,9 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
 
   const handleStatusChange = (id, status) => {
     onStatusChange(id, status);
-    if (status === 'done') setShowCompletion(true);
+    if (status === 'done' && todayTasks.filter(t => t.id !== id).length === 0) {
+      setShowCompletion(true);
+    }
   };
 
   return (
@@ -1468,27 +1470,25 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
             </button>
           );
         })}
-        <div className="pt-4 pb-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">カテゴリ</p>
-          <button onClick={() => onCategoryFilter('')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
-            <span className="w-3 h-3 rounded-full bg-gray-500" />
-            <span className="flex-1 text-left">すべて</span>
-            <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
-          </button>
-          {categories.map(cat => {
-            const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
-            const isActive = activeCatFilter === cat.id;
-            return (
-              <button key={cat.id} onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/60'}`}>
-                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="flex-1 text-left truncate">{cat.name}</span>
-                {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
-              </button>
-            );
-          })}
-        </div>
+        <div className="mt-3 mb-1 border-t border-gray-800" />
+        <button onClick={() => onCategoryFilter('')}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+          <span className="w-[17px] h-[17px] rounded-full bg-gray-500 flex-shrink-0" />
+          <span className="flex-1 text-left">すべて</span>
+          <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
+        </button>
+        {categories.map(cat => {
+          const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
+          const isActive = activeCatFilter === cat.id;
+          return (
+            <button key={cat.id} onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              <span className="w-[17px] h-[17px] rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+              <span className="flex-1 text-left truncate">{cat.name}</span>
+              {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
+            </button>
+          );
+        })}
       </nav>
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
         {/* Cloud sync */}
