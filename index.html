@@ -375,6 +375,54 @@ const Icons = {
   CloudOff: (p) => <Icon {...p} d="M22.61 16.95A5 5 0 0018 10h-1.26a8 8 0 00-7.05-6M5 5a8 8 0 004 15h9a5 5 0 001.7-.3M1 1l22 22" />,
   Settings2: (p) => <Icon {...p} d="M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4z" />,
   RefreshCw: (p) => <Icon {...p} d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />,
+  ArrowUp: (p) => <Icon {...p} d="M12 19V5M5 12l7-7 7 7" />,
+  ArrowDown: (p) => <Icon {...p} d="M12 5v14M19 12l-7 7-7-7" />,
+  GripVertical: (p) => <Icon {...p} d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01" />,
+};
+
+// ==================== Quotes ====================
+const PRAISE = ['素晴らしい！🎉', 'よくやった！✨', '完璧です！🌟', '最高！🚀', 'お見事！👏', 'やったね！🎊', '一歩前進！💪'];
+const QUOTES = [
+  { text: '千里の道も一歩から。', author: '老子' },
+  { text: '継続は力なり。', author: '格言' },
+  { text: '夢なき者に成功なし。', author: '吉田松陰' },
+  { text: '今日という日は、残りの人生の最初の日である。', author: 'アメリカの格言' },
+  { text: 'できると思えばできる、できないと思えばできない。', author: 'パブロ・ピカソ' },
+  { text: '成功とは、熱意を失わずに失敗から失敗へと進む能力である。', author: 'チャーチル' },
+  { text: '人生は自転車に乗ることに似ている。走り続けなければバランスを保てない。', author: 'アインシュタイン' },
+  { text: '行動しなければ何も始まらない。', author: '格言' },
+  { text: '諦めなければ失敗ではない。', author: '格言' },
+  { text: '一日一日を大切に。', author: '格言' },
+  { text: '小さな一歩が、大きな変化を生む。', author: '格言' },
+  { text: '努力は必ず報われる。報われない努力があるとすれば、それはまだ努力が足りないからだ。', author: '王貞治' },
+];
+const randomPraise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)];
+const randomQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
+
+// ==================== CompletionModal ====================
+const CompletionModal = ({ onClose }) => {
+  const [praise] = useState(randomPraise);
+  const [quote] = useState(randomQuote);
+  useEffect(() => {
+    const t = setTimeout(onClose, 6000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4 pointer-events-none">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full pointer-events-auto animate-fade-in border border-gray-100 dark:border-gray-700">
+        <div className="text-center mb-4">
+          <div className="text-4xl mb-2">🎯</div>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{praise}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">タスク完了！</p>
+        </div>
+        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">「{quote.text}」</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-right">— {quote.author}</p>
+        </div>
+        <button onClick={onClose} className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">閉じる</button>
+      </div>
+    </div>
+  );
 };
 
 // ==================== ColorPicker ====================
@@ -541,15 +589,15 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
 const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
 const STATUS_LABELS = { todo: '未着手', in_progress: '進行中', done: '完了' };
 
-const TaskPanel = ({ task, parentTask, categories, onSave, onClose }) => {
-  const defaultCat = categories[0]?.id ?? '';
+const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCategoryId, defaultDueDate }) => {
+  const defaultCat = defaultCategoryId ?? task?.categoryId ?? categories[0]?.id ?? '';
   const [form, setForm] = useState({
     title: task?.title ?? '',
     description: task?.description ?? '',
-    categoryId: task?.categoryId ?? defaultCat,
+    categoryId: defaultCat,
     priority: task?.priority ?? 'medium',
     status: task?.status ?? 'todo',
-    dueDate: task?.dueDate ?? '',
+    dueDate: task?.dueDate ?? defaultDueDate ?? '',
     isTodayTask: task?.isTodayTask ?? false,
     scheduledStart: task?.scheduledTime?.start ?? '',
     scheduledEnd: task?.scheduledTime?.end ?? '',
@@ -679,13 +727,14 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose }) => {
 };
 
 // ==================== TaskNode ====================
-const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onStatusChange, onTodayToggle }) => {
+const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onStatusChange, onTodayToggle, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) => {
   const [collapsed, setCollapsed] = useState(false);
   const cat = categories.find(c => c.id === task.categoryId);
   const deadlineStatus = getDeadlineStatus(task.dueDate);
   const progress = calculateProgress(task);
   const isDone = task.status === 'done';
   const hasChildren = task.children && task.children.length > 0;
+  const isToday = task.isTodayTask && !isDone;
 
   const nextStatus = () => {
     const cycle = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
@@ -693,34 +742,47 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
   };
 
   const StatusIcon = isDone ? Icons.CheckCircle : task.status === 'in_progress' ? Icons.PlayCircle : Icons.Circle;
-  const statusColor = isDone ? 'text-green-500' : task.status === 'in_progress' ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500';
+  const statusColor = isDone ? 'text-green-500' : task.status === 'in_progress' ? 'text-blue-400' : 'text-gray-400 dark:text-gray-500';
   const priorityColor = task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-green-500';
-  const deadlineBg = !isDone ? getDeadlineBgClass(deadlineStatus) : '';
-  const deadlineBorder = !isDone && deadlineStatus !== 'ok' ? (
-    deadlineStatus === 'overdue' ? 'border border-red-200 dark:border-red-800' :
-    deadlineStatus === 'today' ? 'border border-orange-200 dark:border-orange-800' : ''
-  ) : '';
+  const deadlineBg = !isDone && !isToday ? getDeadlineBgClass(deadlineStatus) : '';
+
+  // 今日タスクは全塗り
+  const cardStyle = isToday && cat
+    ? { background: `linear-gradient(135deg, ${cat.color}22 0%, ${cat.color}18 100%)`, borderLeft: `4px solid ${cat.color}`, border: `1.5px solid ${cat.color}44` }
+    : cat ? { borderLeft: `4px solid ${cat.color}` } : {};
+
+  const cardBase = isDone
+    ? 'opacity-50 bg-white dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/30'
+    : isToday
+      ? 'border shadow-sm'
+      : deadlineBg || 'bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/50';
 
   return (
     <div>
       <div
-        className={`group relative flex items-start gap-2 px-3 py-2.5 rounded-xl mb-1 transition-all hover:shadow-sm ${isDone ? 'opacity-60' : ''} ${deadlineBg || 'bg-white dark:bg-gray-800/40'} ${deadlineBorder || 'border border-gray-100 dark:border-gray-700/50'}`}
-        style={{ marginLeft: `${depth * 20}px` }}
+        className={`group relative flex items-start gap-2 px-3 py-3 rounded-xl mb-1.5 transition-all hover:shadow-md ${cardBase}`}
+        style={{ marginLeft: `${depth * 24}px`, ...cardStyle }}
       >
-        {cat && <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: cat.color }} />}
+        {/* collapse toggle */}
         <button onClick={() => hasChildren && setCollapsed(c => !c)}
           className={`flex-shrink-0 mt-0.5 transition-colors ${hasChildren ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' : 'text-transparent'}`}>
-          {hasChildren ? (collapsed ? <Icons.ChevronRight size={15} /> : <Icons.ChevronDown size={15} />) : <span className="inline-block w-4 h-4" />}
+          {hasChildren ? (collapsed ? <Icons.ChevronRight size={16} /> : <Icons.ChevronDown size={16} />) : <span className="inline-block w-4 h-4" />}
         </button>
+
+        {/* status */}
         <button onClick={nextStatus} className={`flex-shrink-0 mt-0.5 transition-all hover:scale-110 ${statusColor}`} title="ステータス変更">
-          <StatusIcon size={17} />
+          <StatusIcon size={20} />
         </button>
+
+        {/* content */}
         <div className="flex-1 min-w-0 pl-0.5">
           <div className="flex items-start gap-2 flex-wrap">
-            <span className={`text-sm font-medium text-gray-900 dark:text-white ${isDone ? 'line-through' : ''} flex-1 min-w-0`}>{task.title}</span>
-            <Icons.Flag size={11} className={`flex-shrink-0 mt-1 ${priorityColor}`} />
+            <span className={`text-sm font-semibold ${isDone ? 'line-through text-gray-400 dark:text-gray-500' : isToday ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'} flex-1 min-w-0`}>{task.title}</span>
+            <Icons.Flag size={13} className={`flex-shrink-0 mt-0.5 ${priorityColor}`} />
             {task.dueDate && !isDone && <DeadlineBadge dueDate={task.dueDate} status={deadlineStatus} />}
-            {task.isTodayTask && !isDone && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">今日</span>}
+            {isToday && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: cat?.color || '#8B5CF6' }}>今日</span>
+            )}
           </div>
           {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{task.description}</p>}
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -731,31 +793,49 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
           {progress.total > 0 && (
             <div className="mt-1.5 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${(progress.completed / progress.total) * 100}%` }} />
+                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(progress.completed / progress.total) * 100}%`, backgroundColor: cat?.color || '#3B82F6' }} />
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{progress.completed}/{progress.total}</span>
             </div>
           )}
         </div>
-        <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => onTodayToggle(task.id, !task.isTodayTask)}
-            className={`p-1 rounded transition-colors ${task.isTodayTask ? 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}
-            title="今日やるに追加/削除"><Icons.Check size={12} /></button>
-          <button onClick={() => onAddChild(task.id)} className="p-1 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="サブタスクを追加"><Icons.Plus size={12} /></button>
-          <button onClick={() => onEdit(task)} className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={12} /></button>
-          <button onClick={() => onDelete(task.id)} className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Icons.Trash2 size={12} /></button>
+
+        {/* action buttons - 常時表示で大きめ */}
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {/* up/down */}
+          <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => onMoveUp?.(task.id)} disabled={!canMoveUp}
+              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.ArrowUp size={13} /></button>
+            <button onClick={() => onMoveDown?.(task.id)} disabled={!canMoveDown}
+              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-0 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.ArrowDown size={13} /></button>
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            <button onClick={() => onTodayToggle(task.id, !task.isTodayTask)}
+              className={`p-1.5 rounded-lg transition-colors ${isToday ? 'text-white shadow-sm' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}
+              style={isToday ? { backgroundColor: cat?.color || '#8B5CF6' } : {}}
+              title="今日やるに追加/削除"><Icons.Sun size={15} /></button>
+            <button onClick={() => onAddChild(task.id)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="サブタスクを追加"><Icons.Plus size={15} /></button>
+            <button onClick={() => onEdit(task)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={15} /></button>
+            <button onClick={() => onDelete(task.id)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Icons.Trash2 size={15} /></button>
+          </div>
         </div>
       </div>
-      {hasChildren && !collapsed && task.children.map(child => (
+
+      {hasChildren && !collapsed && task.children.map((child, idx) => (
         <TaskNode key={child.id} task={child} categories={categories} depth={depth + 1}
-          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddChild} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddChild} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+          onMoveUp={onMoveUp} onMoveDown={onMoveDown}
+          canMoveUp={idx > 0} canMoveDown={idx < task.children.length - 1} />
       ))}
     </div>
   );
 };
 
 // ==================== TaskTree ====================
-const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle }) => {
+const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onMoveUp, onMoveDown }) => {
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -848,7 +928,8 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
         ) : (
           grouped.map(({ cat, tasks: gt }) => (
             <CategoryGroup key={cat?.id || 'all'} cat={cat} tasks={gt} categories={categories}
-              onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+              onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+              onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
           ))
         )}
       </div>
@@ -856,7 +937,7 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
   );
 };
 
-const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle }) => {
+const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onMoveUp, onMoveDown }) => {
   const [collapsed, setCollapsed] = useState(false);
   const doneCount = tasks.filter(t => t.status === 'done').length;
   return (
@@ -873,9 +954,11 @@ const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, on
           <button onClick={() => onAddTask()} className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">+ 追加</button>
         </div>
       )}
-      {!collapsed && tasks.map(task => (
+      {!collapsed && tasks.map((task, idx) => (
         <TaskNode key={task.id} task={task} categories={categories} depth={0}
-          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle} />
+          onEdit={onEdit} onDelete={onDelete} onAddChild={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+          onMoveUp={onMoveUp} onMoveDown={onMoveDown}
+          canMoveUp={idx > 0} canMoveDown={idx < tasks.length - 1} />
       ))}
     </div>
   );
@@ -886,7 +969,7 @@ const HOUR_H = 56;
 const START_H = 6;
 const END_H = 24;
 
-const Timeline = ({ tasks, categories, onStatusChange }) => {
+const Timeline = ({ tasks, categories, onStatusChange, onMoveUp, onMoveDown }) => {
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
   const unscheduled = tasks.filter(t => !t.scheduledTime?.start);
@@ -949,18 +1032,24 @@ const Timeline = ({ tasks, categories, onStatusChange }) => {
         <div>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">時刻未設定 ({unscheduled.length}件)</h3>
           <div className="space-y-2">
-            {unscheduled.map(task => {
+            {unscheduled.map((task, idx) => {
               const cat = catMap[task.categoryId];
               const isDone = task.status === 'done';
               return (
-                <div key={task.id} onClick={() => !isDone && onStatusChange(task.id, 'done')}
-                  className={`flex items-center gap-3 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-sm transition-all ${isDone ? 'opacity-50' : ''}`}
+                <div key={task.id}
+                  className={`flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 transition-all ${isDone ? 'opacity-50' : 'hover:shadow-sm'}`}
                   style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
-                  <div className="flex-1">
+                  <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <button onClick={() => onMoveUp?.(task.id)} disabled={idx === 0}
+                      className="p-0.5 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-20 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.ArrowUp size={13} /></button>
+                    <button onClick={() => onMoveDown?.(task.id)} disabled={idx === unscheduled.length - 1}
+                      className="p-0.5 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-20 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.ArrowDown size={13} /></button>
+                  </div>
+                  <div className="flex-1 cursor-pointer" onClick={() => !isDone && onStatusChange(task.id, 'done')}>
                     <p className={`text-sm font-medium text-gray-900 dark:text-white ${isDone ? 'line-through' : ''}`}>{task.title}</p>
                     {task.estimatedMinutes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p>}
                   </div>
-                  {cat && <span className="text-xs px-2 py-1 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                  {cat && <span className="text-xs px-2 py-1 rounded-full text-white flex-shrink-0" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
                 </div>
               );
             })}
@@ -978,11 +1067,18 @@ const Timeline = ({ tasks, categories, onStatusChange }) => {
   );
 };
 
-const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask }) => {
+const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onMoveUp, onMoveDown }) => {
+  const [showCompletion, setShowCompletion] = useState(false);
   const now = new Date();
   const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
   const totalToday = allTasks.filter(t => t.isTodayTask).length;
+
+  const handleStatusChange = (id, status) => {
+    onStatusChange(id, status);
+    if (status === 'done') setShowCompletion(true);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
@@ -1004,7 +1100,8 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
           </div>
         )}
       </div>
-      <Timeline tasks={todayTasks} categories={categories} onStatusChange={onStatusChange} />
+      <Timeline tasks={todayTasks} categories={categories} onStatusChange={handleStatusChange} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+      {showCompletion && <CompletionModal onClose={() => setShowCompletion(false)} />}
     </div>
   );
 };
@@ -1087,7 +1184,7 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
 };
 
 // ==================== CalendarView ====================
-const CalendarView = ({ tasks, categories, onEdit }) => {
+const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -1129,8 +1226,8 @@ const CalendarView = ({ tasks, categories, onEdit }) => {
             const dow = date.getDay();
             const isPast = cur && ds < todayStr;
             return (
-              <div key={idx} onClick={() => dt.length > 0 && setSelDate(ds === selDate ? null : ds)}
-                className={`min-h-14 p-1.5 border-b border-r border-gray-100 dark:border-gray-700/50 transition-colors ${!cur ? 'bg-gray-50 dark:bg-gray-800/50' : ''} ${dt.length > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''} ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${isPast && dt.some(t => t.status !== 'done') ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+              <div key={idx} onClick={() => cur && setSelDate(ds === selDate ? null : ds)}
+                className={`min-h-14 p-1.5 border-b border-r border-gray-100 dark:border-gray-700/50 transition-colors ${!cur ? 'bg-gray-50 dark:bg-gray-800/50' : 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20'} ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${isPast && dt.some(t => t.status !== 'done') ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                 <div className={`text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : !cur ? 'text-gray-300 dark:text-gray-600' : dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-300'}`}>
                   {date.getDate()}
                 </div>
@@ -1145,33 +1242,43 @@ const CalendarView = ({ tasks, categories, onEdit }) => {
           })}
         </div>
       </div>
-      {selDate && selTasks.length > 0 && (
+      {selDate && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white">
               {new Date(selDate + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
-              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}件</span>
+              {selTasks.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}件</span>}
             </h3>
-            <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onAddTask?.(selDate)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors">
+                <Icons.Plus size={13} /> タスク追加
+              </button>
+              <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
+            </div>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {selTasks.map(task => {
-              const cat = catMap[task.categoryId];
-              const s = getDeadlineStatus(task.dueDate);
-              return (
-                <button key={task.id} onClick={() => onEdit(task)} style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium text-gray-900 dark:text-white ${task.status === 'done' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
-                    {cat && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{cat.name}</p>}
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${task.status === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : s === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    {STATUS_LABELS[task.status]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {selTasks.length > 0 ? (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {selTasks.map(task => {
+                const cat = catMap[task.categoryId];
+                const s = getDeadlineStatus(task.dueDate);
+                return (
+                  <button key={task.id} onClick={() => onEdit(task)} style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium text-gray-900 dark:text-white ${task.status === 'done' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
+                      {cat && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{cat.name}</p>}
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${task.status === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : s === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                      {STATUS_LABELS[task.status]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">この日のタスクはありません</div>
+          )}
         </div>
       )}
     </div>
@@ -1551,8 +1658,50 @@ const App = () => {
     persistTasks(flatTasks.filter(t => !toDelete.has(t.id)));
   };
 
+  const reorderTask = (id, direction) => {
+    const task = flatTasks.find(t => t.id === id);
+    if (!task) return;
+    const siblings = flatTasks.filter(t => t.parentId === task.parentId).sort((a, b) => a.order - b.order);
+    const idx = siblings.findIndex(t => t.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) return;
+    const swap = siblings[swapIdx];
+    persistTasks(flatTasks.map(t => {
+      if (t.id === id) return { ...t, order: swap.order };
+      if (t.id === swap.id) return { ...t, order: task.order };
+      return t;
+    }));
+  };
+
+  const reorderTodayTask = (id, direction) => {
+    const sorted = [...flatTasks].filter(t => t.isTodayTask).sort((a, b) => (a.todayOrder ?? 9999) - (b.todayOrder ?? 9999));
+    const idx = sorted.findIndex(t => t.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const swap = sorted[swapIdx];
+    const aOrder = sorted[idx].todayOrder ?? idx;
+    const bOrder = swap.todayOrder ?? swapIdx;
+    persistTasks(flatTasks.map(t => {
+      if (t.id === id) return { ...t, todayOrder: bOrder };
+      if (t.id === swap.id) return { ...t, todayOrder: aOrder };
+      return t;
+    }));
+  };
+
+  const handleTodayToggle = (id, value) => {
+    if (value) {
+      const maxOrder = Math.max(-1, ...flatTasks.filter(t => t.isTodayTask && t.todayOrder != null).map(t => t.todayOrder));
+      updateTask(id, { isTodayTask: true, todayOrder: maxOrder + 1 });
+    } else {
+      updateTask(id, { isTodayTask: false });
+    }
+  };
+
   const tasks = useMemo(() => buildTree(flatTasks), [flatTasks]);
-  const todayTasks = useMemo(() => flatTasks.filter(t => t.isTodayTask && t.status !== 'done'), [flatTasks]);
+  const todayTasks = useMemo(() =>
+    [...flatTasks].filter(t => t.isTodayTask && t.status !== 'done')
+      .sort((a, b) => (a.todayOrder ?? 9999) - (b.todayOrder ?? 9999)),
+    [flatTasks]);
 
   const filteredTasks = useMemo(() => {
     if (!catFilter) return tasks;
@@ -1562,7 +1711,10 @@ const App = () => {
 
   const taskCountByCat = useMemo(() => Object.fromEntries(categories.map(c => [c.id, flatTasks.filter(t => t.categoryId === c.id).length])), [categories, flatTasks]);
 
-  const openAdd = (parentId) => setPanel({ parentId });
+  const openAdd = (parentId, opts = {}) => {
+    const parent = parentId ? flatTasks.find(t => t.id === parentId) : undefined;
+    setPanel({ parentId, defaultCategoryId: opts.defaultCategoryId ?? parent?.categoryId, defaultDueDate: opts.defaultDueDate });
+  };
   const openEdit = (task) => setPanel({ task });
   const closePanel = () => setPanel(null);
 
@@ -1637,18 +1789,23 @@ const App = () => {
             <TaskTree tasks={filteredTasks} flatTasks={flatTasks} categories={categories}
               onEdit={openEdit} onDelete={deleteTask} onAddTask={openAdd}
               onStatusChange={(id, s) => updateTask(id, { status: s })}
-              onTodayToggle={(id, v) => updateTask(id, { isTodayTask: v })} />
+              onTodayToggle={handleTodayToggle}
+              onMoveUp={(id) => reorderTask(id, 'up')}
+              onMoveDown={(id) => reorderTask(id, 'down')} />
           )}
           {view === 'today' && (
             <TodayView todayTasks={todayTasks} allTasks={flatTasks} categories={categories}
-              onStatusChange={(id, s) => updateTask(id, { status: s })} onAddTask={() => openAdd()} />
+              onStatusChange={(id, s) => updateTask(id, { status: s })} onAddTask={() => openAdd()}
+              onMoveUp={(id) => reorderTodayTask(id, 'up')}
+              onMoveDown={(id) => reorderTodayTask(id, 'down')} />
           )}
           {view === 'deadline' && (
             <DeadlineView tasks={flatTasks} categories={categories} onEdit={openEdit}
               onStatusChange={(id, s) => updateTask(id, { status: s })} />
           )}
           {view === 'calendar' && (
-            <CalendarView tasks={flatTasks} categories={categories} onEdit={openEdit} />
+            <CalendarView tasks={flatTasks} categories={categories} onEdit={openEdit}
+              onAddTask={(date) => openAdd(null, { defaultDueDate: date })} />
           )}
           {view === 'recurring' && (
             <RecurringView recurring={recurring} categories={categories}
@@ -1663,7 +1820,9 @@ const App = () => {
 
       {panel && (
         <TaskPanel task={panel.task} parentTask={parentTask} categories={categories}
-          onSave={handleSave} onClose={closePanel} />
+          onSave={handleSave} onClose={closePanel}
+          defaultCategoryId={panel.defaultCategoryId}
+          defaultDueDate={panel.defaultDueDate} />
       )}
       {showSyncModal && (
         <CloudSyncModal
