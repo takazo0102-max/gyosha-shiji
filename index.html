@@ -1052,7 +1052,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onMoveUp, onMov
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     {cat && <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-                    {parentTask && <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[96px]" title={parentTask.title}>↑ {parentTask.title}</span>}
+                    {parentTask && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 max-w-[96px] truncate block" title={parentTask.title}>↑ {parentTask.title}</span>}
                   </div>
                 </div>
               );
