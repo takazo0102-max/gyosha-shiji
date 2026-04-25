@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>業者への指示書</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -430,6 +431,7 @@
   <button class="secondary" id="archiveBtn">📚 履歴</button>
   <button class="secondary" id="taskBtn">✅ タスク</button>
   <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
+  <button class="secondary" id="sbConfigBtn" title="クラウド同期設定">☁️ <span id="sbStatus">未接続</span></button>
   <button class="save" id="saveBtn">💾 保存</button>
   <button id="exportBtn">📥 PDF出力</button>
 </header>
@@ -640,6 +642,16 @@
 <div class="modal" id="pdfSelectModal"><div class="box" style="max-width:800px;"><header class="mhead"><h2>📄 読み込むページを選択</h2><button class="close-x" data-close="pdfSelectModal">×</button></header><div class="body"><div class="pdf-select-actions"><button id="pdfSelectAll">全選択</button><button id="pdfDeselectAll">全解除</button><span style="flex:1;"></span><span id="pdfSelectCount" style="font-size:13px;color:#6b7280;line-height:32px;">0ページ選択中</span></div><div class="pdf-page-grid" id="pdfPageGrid"></div></div><div class="footer"><button class="mbtn ghost" data-close="pdfSelectModal">キャンセル</button><button class="mbtn primary" id="pdfSelectImport">📥 選択したページを読み込む</button></div></div></div>
 <div class="modal" id="siteModal"><div class="box small"><header class="mhead"><h2>⚙ 現場管理</h2><button class="close-x" data-close="siteModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newSiteInput" placeholder="新しい現場名..." /><button id="addSiteBtn">追加</button></div><div class="vendor-manage-list" id="siteManageList"></div></div></div></div>
 <div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Claude APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うにはAnthropic APIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="sk-ant-..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
+<div class="modal" id="sbModal"><div class="box small"><header class="mhead"><h2>☁️ クラウド同期設定</h2><button class="close-x" data-close="sbModal">×</button></header><div class="body">
+  <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6;">Supabaseと接続するとデータがクラウドに自動保存され、<br>どの端末からでもアクセスできます。</p>
+  <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Supabase Anon Key</label>
+  <input type="password" class="txt" id="sbKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="font-size:11px;" />
+  <p style="font-size:11px;color:#9ca3af;margin-top:6px;">Supabase → Settings → API → anon / public</p>
+  <div id="sbTestResult" style="margin-top:10px;font-size:12px;"></div>
+</div><div class="footer">
+  <button class="mbtn ghost" data-close="sbModal">キャンセル</button>
+  <button class="mbtn primary" id="sbSaveBtn">接続・保存</button>
+</div></div></div>
 
 <script>
 const W = 1587, H = 1123;
@@ -1827,6 +1839,152 @@ function addTextBox(x,y,text,opts){
   });
 })();
 
+/* =================== Supabase クラウド同期 =================== */
+const SB_URL = 'https://joexvyxvdidtuxtkzmkd.supabase.co';
+const SB_KEY_STORE = 'sb_anon_key';
+let sbClient = null;
+let sbSyncTimer = null;
+
+function sbUpdateStatus(text, color){
+  const el = document.getElementById('sbStatus');
+  if(el){ el.textContent = text; el.style.color = color||''; }
+}
+
+function initSupabase(anonKey){
+  if(!anonKey) return false;
+  try {
+    sbClient = supabase.createClient(SB_URL, anonKey);
+    sbUpdateStatus('同期中…','#86efac');
+    return true;
+  } catch(e){ sbClient=null; return false; }
+}
+
+async function sbGet(key){
+  if(!sbClient) return null;
+  try {
+    const {data,error} = await sbClient.from('app_data').select('value').eq('key',key).maybeSingle();
+    if(error) return null;
+    return data?.value ?? null;
+  } catch(e){ return null; }
+}
+
+async function sbSet(key, value){
+  if(!sbClient) return false;
+  try {
+    const {error} = await sbClient.from('app_data')
+      .upsert({key, value, updated_at: new Date().toISOString()},{onConflict:'key'});
+    return !error;
+  } catch(e){ return false; }
+}
+
+// クラウドから全データを取得してlocalStorageとマージ
+async function sbPullAll(){
+  if(!sbClient) return;
+  sbUpdateStatus('取得中…','#fde68a');
+  try {
+    const {data,error} = await sbClient.from('app_data').select('key,value');
+    if(error || !data) { sbUpdateStatus('接続エラー','#fca5a5'); return; }
+    data.forEach(row => {
+      if(!row.key || row.value == null) return;
+      // localStorageにないか、クラウドの方が新しければ上書き
+      const storeKey = {
+        vendors: STORE_VENDORS,
+        sites:   STORE_SITES,
+        tasks:   STORE_TASKS,
+        instructions: STORE_INST
+      }[row.key];
+      if(storeKey) localStorage.setItem(storeKey, JSON.stringify(row.value));
+      // draft は別処理
+      if(row.key === 'draft') localStorage.setItem(STORE_DRAFT, JSON.stringify(row.value));
+    });
+    sbUpdateStatus('✓ 同期済','#86efac');
+  } catch(e){ sbUpdateStatus('エラー','#fca5a5'); }
+}
+
+// ローカルデータをクラウドへ送信
+async function sbPushAll(){
+  if(!sbClient) return;
+  sbUpdateStatus('保存中…','#fde68a');
+  const rows = [
+    {key:'vendors',     value: JSON.parse(localStorage.getItem(STORE_VENDORS)||'[]')},
+    {key:'sites',       value: JSON.parse(localStorage.getItem(STORE_SITES)||'[]')},
+    {key:'tasks',       value: JSON.parse(localStorage.getItem(STORE_TASKS)||'{}')},
+    {key:'instructions',value: (()=>{
+      // instructionsは画像データを省いて軽量化
+      const arr = JSON.parse(localStorage.getItem(STORE_INST)||'[]');
+      return arr.map(r=>({...r, image:null, thumb:r.thumb||null,
+        drawImage:null, pdfPages: (r.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))
+      }));
+    })()},
+  ];
+  // draft（ペン・図形・テキスト のみ、PDF画像は除く）
+  try {
+    const draft = JSON.parse(localStorage.getItem(STORE_DRAFT)||'null');
+    if(draft){
+      const lightDraft = {...draft,
+        pdfPages:(draft.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))
+      };
+      rows.push({key:'draft', value:lightDraft});
+    }
+  } catch(e){}
+
+  try {
+    const {error} = await sbClient.from('app_data')
+      .upsert(rows.map(r=>({...r, updated_at:new Date().toISOString()})),{onConflict:'key'});
+    sbUpdateStatus(error ? 'エラー' : '✓ 同期済', error ? '#fca5a5' : '#86efac');
+  } catch(e){ sbUpdateStatus('エラー','#fca5a5'); }
+}
+
+function scheduleSbSync(){
+  clearTimeout(sbSyncTimer);
+  sbSyncTimer = setTimeout(sbPushAll, 4000);
+}
+
+// 各データ変更時にクラウドへ自動同期
+const _origSetVendors = setVendors||null;
+const _origSetSites   = setSites||null;
+const _origSetTasks   = setTasks||null;
+const _origSetInst    = setInstructions||null;
+
+// ボタン処理
+document.getElementById('sbConfigBtn').addEventListener('click',()=>{
+  const saved = localStorage.getItem(SB_KEY_STORE)||'';
+  document.getElementById('sbKeyInput').value = saved;
+  document.getElementById('sbTestResult').textContent = '';
+  openModal('sbModal');
+});
+
+document.getElementById('sbSaveBtn').addEventListener('click', async()=>{
+  const key = document.getElementById('sbKeyInput').value.trim();
+  if(!key){ alert('Anon Keyを入力してください'); return; }
+  localStorage.setItem(SB_KEY_STORE, key);
+  const ok = initSupabase(key);
+  if(!ok){ document.getElementById('sbTestResult').innerHTML='<span style="color:#ef4444">初期化失敗</span>'; return; }
+  document.getElementById('sbTestResult').innerHTML='<span style="color:#fde68a">接続確認中…</span>';
+  // 接続テスト
+  const {error} = await sbClient.from('app_data').select('key').limit(1);
+  if(error){
+    document.getElementById('sbTestResult').innerHTML=`<span style="color:#ef4444">接続失敗: ${error.message}</span>`;
+    sbUpdateStatus('未接続','');
+    return;
+  }
+  document.getElementById('sbTestResult').innerHTML='<span style="color:#86efac">✓ 接続成功！データを取得中…</span>';
+  await sbPullAll();
+  // ローカルUIを更新
+  loadVendors(); loadSites();
+  closeModal('sbModal');
+});
+
+// 起動時に保存済みキーで自動接続
+(async()=>{
+  const saved = localStorage.getItem(SB_KEY_STORE);
+  if(saved && typeof supabase !== 'undefined'){
+    initSupabase(saved);
+    await sbPullAll();
+    loadVendors(); loadSites();
+  }
+})();
+
 /* =================== 自動保存（下書き） =================== */
 let autoSaveTimer = null;
 
@@ -1860,7 +2018,7 @@ function autoSaveState(){
 
 function scheduleAutoSave(){
   clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(autoSaveState, 3000); // 操作停止3秒後に保存
+  autoSaveTimer = setTimeout(() => { autoSaveState(); scheduleSbSync(); }, 3000);
 }
 
 async function autoRestoreDraft(){
@@ -1947,11 +2105,11 @@ document.getElementById('apiSave').addEventListener('click',()=>{const v=documen
 
 /* =================== Save / Archive (per-vendor editable state) =================== */
 function getInstructions(){try{return JSON.parse(localStorage.getItem(STORE_INST)||'[]');}catch(e){return[];}}
-function setInstructions(arr){localStorage.setItem(STORE_INST,JSON.stringify(arr));}
+function setInstructions(arr){localStorage.setItem(STORE_INST,JSON.stringify(arr)); scheduleSbSync();}
 
 /* =================== Vendor registry =================== */
 function getVendors(){try{return JSON.parse(localStorage.getItem(STORE_VENDORS)||'[]');}catch(e){return[];}}
-function setVendors(arr){localStorage.setItem(STORE_VENDORS,JSON.stringify(arr));}
+function setVendors(arr){localStorage.setItem(STORE_VENDORS,JSON.stringify(arr)); scheduleSbSync();}
 function refreshVendorSelect(selected){
   const sel=document.getElementById('vendorName');
   const cur=selected!==undefined?selected:sel.value;
@@ -1999,7 +2157,7 @@ refreshVendorSelect();
 
 /* =================== Site registry =================== */
 function getSites(){try{return JSON.parse(localStorage.getItem(STORE_SITES)||'[]');}catch(e){return[];}}
-function setSites(arr){localStorage.setItem(STORE_SITES,JSON.stringify(arr));}
+function setSites(arr){localStorage.setItem(STORE_SITES,JSON.stringify(arr)); scheduleSbSync();}
 function refreshSiteSelect(selected){
   const sel=document.getElementById('siteName');
   const cur=selected!==undefined?selected:sel.value;
@@ -2319,7 +2477,7 @@ async function exportArchivedPdf(r){
 
 /* =================== Tasks =================== */
 function getTasks(){try{return JSON.parse(localStorage.getItem(STORE_TASKS)||'{}');}catch(e){return {};}}
-function setTasks(obj){localStorage.setItem(STORE_TASKS,JSON.stringify(obj));}
+function setTasks(obj){localStorage.setItem(STORE_TASKS,JSON.stringify(obj)); scheduleSbSync();}
 document.getElementById('taskBtn').addEventListener('click',()=>{renderTasks();openModal('taskModal');});
 function renderTasks(){
   const body=document.getElementById('taskBody'),tasks=getTasks();
