@@ -658,6 +658,9 @@ const W = 1587, H = 1123;
 const STORE_INST = 'instructions_v2', STORE_TASKS = 'vendor_tasks_v1', STORE_VENDORS = 'vendor_list_v1', STORE_SITES = 'site_list_v1';
 const STORE_DRAFT = 'autosave_draft_v1';
 const SHAPE_TOOLS = ['line','arrow','rect','ellipse','rectfill','ellipsefill'];
+// タイマー変数を先に宣言（TDZエラー防止）
+let autoSaveTimer = null;
+let sbSyncTimer = null;
 
 const state = {
   tool: 'pen', color: '#000000', size: 2, fontSize: 14,
@@ -1843,7 +1846,6 @@ function addTextBox(x,y,text,opts){
 const SB_URL = 'https://joexvyxvdidtuxtkzmkd.supabase.co';
 const SB_KEY_STORE = 'sb_anon_key';
 let sbClient = null;
-let sbSyncTimer = null;
 
 function sbUpdateStatus(text, color){
   const el = document.getElementById('sbStatus');
@@ -1986,8 +1988,6 @@ document.getElementById('sbSaveBtn').addEventListener('click', async()=>{
 })();
 
 /* =================== 自動保存（下書き） =================== */
-let autoSaveTimer = null;
-
 function autoSaveState(){
   try {
     const draft = {
