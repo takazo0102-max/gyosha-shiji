@@ -418,9 +418,59 @@
   .text-size-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 4px; }
   .text-size-btn { padding: 5px 0; border: 1.5px solid #e5e7eb; border-radius: 5px; background: #fff; font-size: 11px; cursor: pointer; color: #374151; }
   .text-size-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+
+  /* ===== ログイン画面 ===== */
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    display: flex; align-items: center; justify-content: center;
+    touch-action: auto;
+  }
+  #loginScreen.hidden { display: none; }
+  .login-box {
+    background: #fff; border-radius: 16px;
+    padding: 40px 36px; width: 340px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  .login-box h1 { font-size: 20px; font-weight: 800; color: #1f2937; margin-bottom: 4px; }
+  .login-box p  { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+  .login-box label { font-size: 12px; font-weight: 700; color: #374151; display: block; margin-bottom: 4px; }
+  .login-box input {
+    width: 100%; padding: 11px 12px; border: 1.5px solid #d1d5db;
+    border-radius: 8px; font-size: 14px; margin-bottom: 14px;
+    outline: none; touch-action: auto; -webkit-user-select: auto; user-select: auto;
+  }
+  .login-box input:focus { border-color: #2563eb; }
+  .login-btn {
+    width: 100%; padding: 13px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 10px;
+  }
+  .login-btn.primary { background: #2563eb; color: #fff; }
+  .login-btn.secondary { background: #f3f4f6; color: #374151; }
+  .login-msg { font-size: 12px; text-align: center; min-height: 18px; margin-top: 4px; }
+  .login-msg.error { color: #ef4444; }
+  .login-msg.success { color: #059669; }
+  #userInfo { font-size: 11px; color: #9ca3af; display: flex; align-items: center; gap: 6px; }
+  #userInfo span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d1fae5; }
+  #logoutBtn { padding: 3px 8px; font-size: 11px; background: #374151; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
 </style>
 </head>
 <body>
+
+<!-- ログイン画面 -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>📋 業者への指示書</h1>
+    <p>ログインしてクラウド同期を開始</p>
+    <label>メールアドレス</label>
+    <input type="email" id="loginEmail" placeholder="example@email.com" autocomplete="email" />
+    <label>パスワード</label>
+    <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
+    <button class="login-btn primary" id="loginBtn">ログイン</button>
+    <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
 
 <header>
   <div class="logo">📋 業者への指示書</div>
@@ -431,6 +481,7 @@
   <button class="secondary" id="archiveBtn">📚 履歴</button>
   <button class="secondary" id="taskBtn">✅ タスク</button>
   <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
+  <div id="userInfo"><span id="userEmail"></span><button id="logoutBtn">ログアウト</button></div>
   <button class="save" id="saveBtn">💾 保存</button>
   <button id="exportBtn">📥 PDF出力</button>
 </header>
@@ -1842,10 +1893,11 @@ function addTextBox(x,y,text,opts){
   });
 })();
 
-/* =================== Supabase クラウド同期 =================== */
+/* =================== Supabase クラウド同期 + 認証 =================== */
 const SB_URL = 'https://joexvyxvdidtuxtkzmkd.supabase.co';
 const SB_KEY_STORE = 'sb_anon_key';
 let sbClient = null;
+let sbCurrentUser = null;
 
 function sbUpdateStatus(text, color){
   const el = document.getElementById('sbStatus');
@@ -1855,40 +1907,49 @@ function sbUpdateStatus(text, color){
 function initSupabase(anonKey){
   if(!anonKey) return false;
   try {
-    sbClient = supabase.createClient(SB_URL, anonKey);
-    sbUpdateStatus('同期中…','#86efac');
+    sbClient = supabase.createClient(SB_URL, anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    });
     return true;
   } catch(e){ sbClient=null; return false; }
 }
 
-async function sbGet(key){
-  if(!sbClient) return null;
-  try {
-    const {data,error} = await sbClient.from('app_data').select('value').eq('key',key).maybeSingle();
-    if(error) return null;
-    return data?.value ?? null;
-  } catch(e){ return null; }
+/* ---------- 認証UI ---------- */
+function showLoginScreen(){
+  const s = document.getElementById('loginScreen');
+  if(s){ s.classList.remove('hidden'); }
+  document.getElementById('userInfo').style.display = 'none';
 }
 
-async function sbSet(key, value){
-  if(!sbClient) return false;
-  try {
-    const {error} = await sbClient.from('app_data')
-      .upsert({key, value, updated_at: new Date().toISOString()},{onConflict:'key'});
-    return !error;
-  } catch(e){ return false; }
+function hideLoginScreen(){
+  const s = document.getElementById('loginScreen');
+  if(s){ s.classList.add('hidden'); }
+  document.getElementById('userInfo').style.display = '';
 }
 
-// クラウドから全データを取得してlocalStorageとマージ
+function setLoginMsg(msg, isError){
+  const el = document.getElementById('loginMsg');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'login-msg ' + (isError ? 'error' : 'success');
+}
+
+function setLoginLoading(loading){
+  const lb = document.getElementById('loginBtn');
+  const sb2 = document.getElementById('signupBtn');
+  if(lb) lb.disabled = loading;
+  if(sb2) sb2.disabled = loading;
+}
+
+/* ---------- クラウドデータ操作 ---------- */
 async function sbPullAll(){
-  if(!sbClient) return;
+  if(!sbClient || !sbCurrentUser) return;
   sbUpdateStatus('取得中…','#fde68a');
   try {
     const {data,error} = await sbClient.from('app_data').select('key,value');
     if(error || !data) { sbUpdateStatus('接続エラー','#fca5a5'); return; }
     data.forEach(row => {
       if(!row.key || row.value == null) return;
-      // localStorageにないか、クラウドの方が新しければ上書き
       const storeKey = {
         vendors: STORE_VENDORS,
         sites:   STORE_SITES,
@@ -1896,59 +1957,131 @@ async function sbPullAll(){
         instructions: STORE_INST
       }[row.key];
       if(storeKey) localStorage.setItem(storeKey, JSON.stringify(row.value));
-      // draft は別処理
       if(row.key === 'draft') localStorage.setItem(STORE_DRAFT, JSON.stringify(row.value));
     });
     sbUpdateStatus('✓ 同期済','#86efac');
   } catch(e){ sbUpdateStatus('エラー','#fca5a5'); }
 }
 
-// ローカルデータをクラウドへ送信
 async function sbPushAll(){
-  if(!sbClient) return;
+  if(!sbClient || !sbCurrentUser) return;
   sbUpdateStatus('保存中…','#fde68a');
+  const uid = sbCurrentUser.id;
   const rows = [
-    {key:'vendors',     value: JSON.parse(localStorage.getItem(STORE_VENDORS)||'[]')},
-    {key:'sites',       value: JSON.parse(localStorage.getItem(STORE_SITES)||'[]')},
-    {key:'tasks',       value: JSON.parse(localStorage.getItem(STORE_TASKS)||'{}')},
-    {key:'instructions',value: (()=>{
-      // instructionsは画像データを省いて軽量化
+    {user_id:uid, key:'vendors',      value: JSON.parse(localStorage.getItem(STORE_VENDORS)||'[]')},
+    {user_id:uid, key:'sites',        value: JSON.parse(localStorage.getItem(STORE_SITES)||'[]')},
+    {user_id:uid, key:'tasks',        value: JSON.parse(localStorage.getItem(STORE_TASKS)||'{}')},
+    {user_id:uid, key:'instructions', value: (()=>{
       const arr = JSON.parse(localStorage.getItem(STORE_INST)||'[]');
       return arr.map(r=>({...r, image:null, thumb:r.thumb||null,
-        drawImage:null, pdfPages: (r.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))
+        drawImage:null, pdfPages:(r.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))
       }));
     })()},
   ];
-  // draft（ペン・図形・テキスト のみ、PDF画像は除く）
   try {
     const draft = JSON.parse(localStorage.getItem(STORE_DRAFT)||'null');
     if(draft){
-      const lightDraft = {...draft,
-        pdfPages:(draft.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))
-      };
-      rows.push({key:'draft', value:lightDraft});
+      const lightDraft = {...draft, pdfPages:(draft.pdfPages||[]).map(p=>({...p,imageDataUrl:null}))};
+      rows.push({user_id:uid, key:'draft', value:lightDraft});
     }
   } catch(e){}
-
   try {
     const {error} = await sbClient.from('app_data')
-      .upsert(rows.map(r=>({...r, updated_at:new Date().toISOString()})),{onConflict:'key'});
+      .upsert(rows.map(r=>({...r, updated_at:new Date().toISOString()})),{onConflict:'user_id,key'});
     sbUpdateStatus(error ? 'エラー' : '✓ 同期済', error ? '#fca5a5' : '#86efac');
   } catch(e){ sbUpdateStatus('エラー','#fca5a5'); }
 }
 
 function scheduleSbSync(){
+  if(!sbCurrentUser) return;
   clearTimeout(sbSyncTimer);
   sbSyncTimer = setTimeout(sbPushAll, 4000);
 }
 
-// 各データ変更時にクラウドへ自動同期
-const _origSetVendors = setVendors||null;
-const _origSetSites   = setSites||null;
-const _origSetTasks   = setTasks||null;
-const _origSetInst    = setInstructions||null;
+/* ---------- 認証状態変化ハンドラ ---------- */
+function onUserSignedIn(user){
+  sbCurrentUser = user;
+  const emailEl = document.getElementById('userEmail');
+  if(emailEl) emailEl.textContent = user.email;
+  hideLoginScreen();
+  sbUpdateStatus('同期中…','#86efac');
+  // クラウドからデータを取得してUIを更新
+  sbPullAll().then(()=>{ refreshVendorSelect(); refreshSiteSelect(); });
+}
 
-// ボタン処理
+function onUserSignedOut(){
+  sbCurrentUser = null;
+  const emailEl = document.getElementById('userEmail');
+  if(emailEl) emailEl.textContent = '';
+  showLoginScreen();
+  sbUpdateStatus('未ログイン','#9ca3af');
+}
+
+/* ---------- ログイン画面ボタン ---------- */
+document.getElementById('loginBtn').addEventListener('click', async()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
+  setLoginLoading(true); setLoginMsg('ログイン中…', false);
+  const {error} = await sbClient.auth.signInWithPassword({email, password:pass});
+  setLoginLoading(false);
+  if(error){ setLoginMsg('ログイン失敗: ' + error.message, true); }
+});
+
+document.getElementById('signupBtn').addEventListener('click', async()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
+  if(pass.length < 6){ setLoginMsg('パスワードは6文字以上で入力してください', true); return; }
+  setLoginLoading(true); setLoginMsg('アカウント作成中…', false);
+  const {data, error} = await sbClient.auth.signUp({email, password:pass});
+  setLoginLoading(false);
+  if(error){
+    setLoginMsg('登録失敗: ' + error.message, true);
+  } else if(data.user && !data.session){
+    setLoginMsg('確認メールを送信しました。メール内のリンクをクリックしてください。', false);
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async()=>{
+  if(!sbClient) return;
+  await sbClient.auth.signOut();
+});
+
+/* ---------- Supabase起動・認証状態監視 ---------- */
+(()=>{
+  const saved = localStorage.getItem(SB_KEY_STORE);
+  if(!saved || typeof supabase === 'undefined'){
+    // Anon Keyが未設定の場合はキー入力ダイアログを表示
+    showLoginScreen();
+    // sbConfigBtn でAnon Keyを設定してもらう（後方互換）
+    const msg = document.getElementById('loginMsg');
+    if(msg) msg.innerHTML = '<small style="color:#6b7280">初回利用時はAnon Keyの設定が必要です。<br>サイドバーの ☁️ ボタンから設定してください。</small>';
+    return;
+  }
+  const ok = initSupabase(saved);
+  if(!ok){ showLoginScreen(); return; }
+
+  // 認証状態変化を監視
+  sbClient.auth.onAuthStateChange((event, session) => {
+    if(session && session.user){
+      onUserSignedIn(session.user);
+    } else {
+      onUserSignedOut();
+    }
+  });
+
+  // 起動時に現在のセッションを確認
+  sbClient.auth.getSession().then(({data:{session}})=>{
+    if(session && session.user){
+      onUserSignedIn(session.user);
+    } else {
+      showLoginScreen();
+    }
+  });
+})();
+
+// sbConfigBtn（Anon Key設定モーダル）
 document.getElementById('sbConfigBtn').addEventListener('click',()=>{
   const saved = localStorage.getItem(SB_KEY_STORE)||'';
   document.getElementById('sbKeyInput').value = saved;
@@ -1963,29 +2096,24 @@ document.getElementById('sbSaveBtn').addEventListener('click', async()=>{
   const ok = initSupabase(key);
   if(!ok){ document.getElementById('sbTestResult').innerHTML='<span style="color:#ef4444">初期化失敗</span>'; return; }
   document.getElementById('sbTestResult').innerHTML='<span style="color:#fde68a">接続確認中…</span>';
-  // 接続テスト
-  const {error} = await sbClient.from('app_data').select('key').limit(1);
-  if(error){
-    document.getElementById('sbTestResult').innerHTML=`<span style="color:#ef4444">接続失敗: ${error.message}</span>`;
-    sbUpdateStatus('未接続','');
-    return;
-  }
-  document.getElementById('sbTestResult').innerHTML='<span style="color:#86efac">✓ 接続成功！データを取得中…</span>';
-  await sbPullAll();
-  // ローカルUIを更新
-  loadVendors(); loadSites();
-  closeModal('sbModal');
-});
-
-// 起動時に保存済みキーで自動接続
-(async()=>{
-  const saved = localStorage.getItem(SB_KEY_STORE);
-  if(saved && typeof supabase !== 'undefined'){
-    initSupabase(saved);
+  // 認証状態監視を再設定
+  sbClient.auth.onAuthStateChange((event, session) => {
+    if(session && session.user){ onUserSignedIn(session.user); }
+    else { onUserSignedOut(); }
+  });
+  const {data:{session}} = await sbClient.auth.getSession();
+  if(session && session.user){
+    document.getElementById('sbTestResult').innerHTML='<span style="color:#86efac">✓ 接続・ログイン済！</span>';
+    onUserSignedIn(session.user);
     await sbPullAll();
-    loadVendors(); loadSites();
+    refreshVendorSelect(); refreshSiteSelect();
+    closeModal('sbModal');
+  } else {
+    document.getElementById('sbTestResult').innerHTML='<span style="color:#86efac">✓ 接続成功。ログインしてください。</span>';
+    closeModal('sbModal');
+    showLoginScreen();
   }
-})();
+});
 
 /* =================== 自動保存（下書き） =================== */
 function autoSaveState(){
