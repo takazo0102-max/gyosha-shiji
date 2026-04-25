@@ -1906,6 +1906,7 @@ function addTextBox(x,y,text,opts){
 
 /* =================== Supabase クラウド同期 + 認証 =================== */
 const SB_URL = 'https://joexvyxvdidtuxtkzmkd.supabase.co';
+const SB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvZXh2eXh2ZGlkdHV4dGt6bWtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzQyOTAsImV4cCI6MjA5MjY1MDI5MH0.N0vMAnsJ3IGuc9KFVODqwCkV_7Y3yIvnj00yG2Z-ksY';
 const SB_KEY_STORE = 'sb_anon_key';
 let sbClient = null;
 let sbCurrentUser = null;
@@ -2097,14 +2098,10 @@ document.getElementById('logoutBtn').addEventListener('click', async()=>{
 
 /* ---------- Supabase起動・認証状態監視 ---------- */
 (()=>{
-  const saved = localStorage.getItem(SB_KEY_STORE);
-  if(!saved || typeof supabase === 'undefined'){
-    // Anon Keyが未設定 → ログイン画面のAnon Key入力欄を表示
-    // （showAnonKeySectionはこのIIFEより後に定義されるのでsetTimeoutで呼ぶ）
-    setTimeout(()=>{ showLoginScreen(); showAnonKeySection(); }, 0);
-    return;
-  }
-  const ok = initSupabase(saved);
+  if(typeof supabase === 'undefined'){ setTimeout(()=>{ showLoginScreen(); }, 0); return; }
+  // 常にコード内のキーで自動接続（localStorageのキーより優先）
+  const ok = initSupabase(SB_ANON_KEY);
+  localStorage.setItem(SB_KEY_STORE, SB_ANON_KEY);
   if(!ok){ showLoginScreen(); return; }
 
   // 認証状態変化を監視
