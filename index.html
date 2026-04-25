@@ -852,7 +852,7 @@ function getPos(e, cv){
 }
 
 /* =================== Undo/Redo (pen strokes) =================== */
-function snapshot(){ const img=ctx.getImageData(0,0,W,H); state.history=state.history.slice(0,state.historyIndex+1); state.history.push(img); if(state.history.length>state.maxHistory)state.history.shift(); state.historyIndex=state.history.length-1; }
+function snapshot(){ const img=ctx.getImageData(0,0,W,H); state.history=state.history.slice(0,state.historyIndex+1); state.history.push(img); if(state.history.length>state.maxHistory)state.history.shift(); state.historyIndex=state.history.length-1; scheduleAutoSave(); }
 function undo(){ if(state.historyIndex<=0){if(state.historyIndex===0){ctx.clearRect(0,0,W,H);state.historyIndex=-1;}return;} state.historyIndex--; ctx.putImageData(state.history[state.historyIndex],0,0); }
 function redo(){ if(state.historyIndex>=state.history.length-1)return; state.historyIndex++; ctx.putImageData(state.history[state.historyIndex],0,0); }
 snapshot();
@@ -1914,13 +1914,6 @@ async function autoRestoreDraft(){
     if (draft.textItems) restoreTextLayer(draft.textItems);
 
   } catch(e) {}
-}
-
-// 操作のたびに自動保存をスケジュール（snapshotにフック）
-const _origSnapshot = snapshot;
-function snapshot(){
-  _origSnapshot();
-  scheduleAutoSave();
 }
 
 // ページを閉じる直前にも保存
