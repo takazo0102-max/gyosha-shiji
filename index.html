@@ -462,12 +462,23 @@
   <div class="login-box">
     <h1>📋 業者への指示書</h1>
     <p>ログインしてクラウド同期を開始</p>
-    <label>メールアドレス</label>
-    <input type="email" id="loginEmail" placeholder="example@email.com" autocomplete="email" />
-    <label>パスワード</label>
-    <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
-    <button class="login-btn primary" id="loginBtn">ログイン</button>
-    <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
+    <!-- Anon Key セクション（未設定時のみ表示） -->
+    <div id="anonKeySection" style="display:none; background:#fef3c7; border-radius:8px; padding:12px; margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px;">⚠️ 初回設定が必要です</div>
+      <div style="font-size:11px; color:#78350f; margin-bottom:8px;">
+        <a href="https://supabase.com/dashboard/project/joexvyxvdidtuxtkzmkd/settings/api" target="_blank" style="color:#2563eb;">Supabaseダッシュボード</a>の「anon public」キーを入力してください
+      </div>
+      <input type="text" id="anonKeyInput" placeholder="eyJhbGciOi..." style="width:100%;padding:8px;border:1.5px solid #d97706;border-radius:6px;font-size:12px;margin-bottom:8px;" />
+      <button class="login-btn primary" id="anonKeySaveBtn" style="margin-bottom:0;font-size:13px;padding:10px;">接続する</button>
+    </div>
+    <div id="loginForm">
+      <label>メールアドレス</label>
+      <input type="email" id="loginEmail" placeholder="example@email.com" autocomplete="email" />
+      <label>パスワード</label>
+      <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
+      <button class="login-btn primary" id="loginBtn">ログイン</button>
+      <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
+    </div>
     <div class="login-msg" id="loginMsg"></div>
   </div>
 </div>
@@ -2018,29 +2029,65 @@ function onUserSignedOut(){
 }
 
 /* ---------- ログイン画面ボタン ---------- */
+function showAnonKeySection(){
+  document.getElementById('anonKeySection').style.display = '';
+  document.getElementById('loginForm').style.display = 'none';
+}
+function hideAnonKeySection(){
+  document.getElementById('anonKeySection').style.display = 'none';
+  document.getElementById('loginForm').style.display = '';
+}
+
+document.getElementById('anonKeySaveBtn').addEventListener('click', async()=>{
+  const key = document.getElementById('anonKeyInput').value.trim();
+  if(!key){ setLoginMsg('Anon Keyを入力してください', true); return; }
+  const btn = document.getElementById('anonKeySaveBtn');
+  btn.disabled = true; btn.textContent = '接続中…';
+  const ok = initSupabase(key);
+  if(!ok){ setLoginMsg('初期化失敗。キーを確認してください', true); btn.disabled=false; btn.textContent='接続する'; return; }
+  // 接続テスト
+  const {error} = await sbClient.from('app_data').select('key').limit(1);
+  if(error){ setLoginMsg('接続失敗: ' + error.message, true); btn.disabled=false; btn.textContent='接続する'; sbClient=null; return; }
+  localStorage.setItem(SB_KEY_STORE, key);
+  // 認証状態監視を設定
+  sbClient.auth.onAuthStateChange((event, session) => {
+    if(session && session.user){ onUserSignedIn(session.user); }
+    else { onUserSignedOut(); }
+  });
+  btn.disabled=false; btn.textContent='接続する';
+  hideAnonKeySection();
+  setLoginMsg('✓ 接続成功！ログインしてください', false);
+});
+
 document.getElementById('loginBtn').addEventListener('click', async()=>{
+  if(!sbClient){ showAnonKeySection(); setLoginMsg('先にAnon Keyで接続してください', true); return; }
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPass').value;
   if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
   setLoginLoading(true); setLoginMsg('ログイン中…', false);
-  const {error} = await sbClient.auth.signInWithPassword({email, password:pass});
+  try {
+    const {error} = await sbClient.auth.signInWithPassword({email, password:pass});
+    if(error){ setLoginMsg('ログイン失敗: ' + error.message, true); }
+  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
   setLoginLoading(false);
-  if(error){ setLoginMsg('ログイン失敗: ' + error.message, true); }
 });
 
 document.getElementById('signupBtn').addEventListener('click', async()=>{
+  if(!sbClient){ showAnonKeySection(); setLoginMsg('先にAnon Keyで接続してください', true); return; }
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPass').value;
   if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
   if(pass.length < 6){ setLoginMsg('パスワードは6文字以上で入力してください', true); return; }
   setLoginLoading(true); setLoginMsg('アカウント作成中…', false);
-  const {data, error} = await sbClient.auth.signUp({email, password:pass});
+  try {
+    const {data, error} = await sbClient.auth.signUp({email, password:pass});
+    if(error){
+      setLoginMsg('登録失敗: ' + error.message, true);
+    } else if(data.user && !data.session){
+      setLoginMsg('確認メールを送信しました。メール内のリンクをクリックしてください。', false);
+    }
+  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
   setLoginLoading(false);
-  if(error){
-    setLoginMsg('登録失敗: ' + error.message, true);
-  } else if(data.user && !data.session){
-    setLoginMsg('確認メールを送信しました。メール内のリンクをクリックしてください。', false);
-  }
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async()=>{
@@ -2052,11 +2099,9 @@ document.getElementById('logoutBtn').addEventListener('click', async()=>{
 (()=>{
   const saved = localStorage.getItem(SB_KEY_STORE);
   if(!saved || typeof supabase === 'undefined'){
-    // Anon Keyが未設定の場合はキー入力ダイアログを表示
-    showLoginScreen();
-    // sbConfigBtn でAnon Keyを設定してもらう（後方互換）
-    const msg = document.getElementById('loginMsg');
-    if(msg) msg.innerHTML = '<small style="color:#6b7280">初回利用時はAnon Keyの設定が必要です。<br>サイドバーの ☁️ ボタンから設定してください。</small>';
+    // Anon Keyが未設定 → ログイン画面のAnon Key入力欄を表示
+    // （showAnonKeySectionはこのIIFEより後に定義されるのでsetTimeoutで呼ぶ）
+    setTimeout(()=>{ showLoginScreen(); showAnonKeySection(); }, 0);
     return;
   }
   const ok = initSupabase(saved);
