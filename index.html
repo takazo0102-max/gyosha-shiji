@@ -644,6 +644,7 @@
 <script>
 const W = 1587, H = 1123;
 const STORE_INST = 'instructions_v2', STORE_TASKS = 'vendor_tasks_v1', STORE_VENDORS = 'vendor_list_v1', STORE_SITES = 'site_list_v1';
+const STORE_DRAFT = 'autosave_draft_v1';
 const SHAPE_TOOLS = ['line','arrow','rect','ellipse','rectfill','ellipsefill'];
 
 const state = {
@@ -1751,6 +1752,7 @@ function addTextBox(x,y,text,opts){
   const endD=e=>{if(!dragging)return;dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}};
   handle.addEventListener('pointerup',endD);handle.addEventListener('pointercancel',endD);
   textLayer.appendChild(wrap);textLayer.style.pointerEvents='none';wrap.style.pointerEvents='auto';
+  scheduleAutoSave();
   setTimeout(()=>{box.focus();try{const r=document.createRange();r.selectNodeContents(box);r.collapse(false);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(_){}state.activeTextbox=box;showTextPropPanel(box);},30);
   return box;
 }
@@ -1824,6 +1826,110 @@ function addTextBox(x,y,text,opts){
     if(panel.classList.contains('open')) refreshPanel();
   });
 })();
+
+/* =================== 自動保存（下書き） =================== */
+let autoSaveTimer = null;
+
+function autoSaveState(){
+  try {
+    const draft = {
+      savedAt:    new Date().toISOString(),
+      vendor:     document.getElementById('vendorName').value,
+      site:       document.getElementById('siteName').value,
+      date:       document.getElementById('dateInput').value,
+      drawImage:  drawCanvas.toDataURL('image/png'),
+      shapes:     JSON.parse(JSON.stringify(state.shapes)),
+      textItems:  serializeTextLayer(),
+      activePdfId: state.activePdfId,
+      pdfPages:   state.pdfPages.map(p => ({
+        id: p.id, name: p.name, pageNum: p.pageNum,
+        totalPages: p.totalPages,
+        imageDataUrl: p.imageDataUrl,
+        thumbDataUrl: p.thumbDataUrl
+      }))
+    };
+    try {
+      localStorage.setItem(STORE_DRAFT, JSON.stringify(draft));
+    } catch(e) {
+      // 容量超過時はPDF画像を省いて再試行
+      draft.pdfPages = draft.pdfPages.map(p => ({...p, imageDataUrl: null}));
+      try { localStorage.setItem(STORE_DRAFT, JSON.stringify(draft)); } catch(_){}
+    }
+  } catch(e) {}
+}
+
+function scheduleAutoSave(){
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSaveState, 3000); // 操作停止3秒後に保存
+}
+
+async function autoRestoreDraft(){
+  try {
+    const raw = localStorage.getItem(STORE_DRAFT);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (!draft || !draft.savedAt) return;
+
+    const savedAt = new Date(draft.savedAt);
+    const min = Math.round((Date.now() - savedAt) / 60000);
+    const timeLabel = min < 1 ? 'たった今' : min < 60 ? min + '分前' : Math.round(min/60) + '時間前';
+
+    const ok = confirm(`前回の作業（${timeLabel}）を復元しますか？\n業者: ${draft.vendor||'未設定'} / 現場: ${draft.site||'未設定'}`);
+    if (!ok) { localStorage.removeItem(STORE_DRAFT); return; }
+
+    // 業者・現場・日付を復元
+    if (draft.vendor) document.getElementById('vendorName').value = draft.vendor;
+    if (draft.site)   document.getElementById('siteName').value   = draft.site;
+    if (draft.date)   document.getElementById('dateInput').value  = draft.date;
+
+    // PDF復元
+    if (draft.pdfPages && draft.pdfPages.length) {
+      state.pdfPages = draft.pdfPages.filter(p => p.imageDataUrl).map(p => ({
+        ...p,
+        offscreen: (() => {
+          const c = document.createElement('canvas'); c.width=W; c.height=H;
+          const img = new Image(); img.src = p.imageDataUrl;
+          img.onload = () => c.getContext('2d').drawImage(img,0,0,W,H);
+          return c;
+        })()
+      }));
+      renderPdfGallery();
+      if (draft.activePdfId) {
+        const pg = state.pdfPages.find(p => p.id === draft.activePdfId);
+        if (pg) { state.activePdfId = pg.id; pdfCtx.clearRect(0,0,W,H); pdfCtx.drawImage(pg.offscreen,0,0); }
+      }
+    }
+
+    // ペン描画復元
+    if (draft.drawImage) {
+      const img = new Image();
+      img.onload = () => { ctx.clearRect(0,0,W,H); ctx.drawImage(img,0,0); snapshot(); };
+      img.src = draft.drawImage;
+    }
+
+    // 図形復元
+    if (draft.shapes) { state.shapes = draft.shapes; renderShapes(); }
+
+    // テキスト復元
+    if (draft.textItems) restoreTextLayer(draft.textItems);
+
+  } catch(e) {}
+}
+
+// 操作のたびに自動保存をスケジュール（snapshotにフック）
+const _origSnapshot = snapshot;
+function snapshot(){
+  _origSnapshot();
+  scheduleAutoSave();
+}
+
+// ページを閉じる直前にも保存
+window.addEventListener('beforeunload', () => { autoSaveState(); });
+
+// ページ読み込み時に復元チェック
+window.addEventListener('load', () => {
+  setTimeout(autoRestoreDraft, 800); // UIが安定してから
+});
 
 /* =================== AI =================== */
 document.getElementById('aiBtn').addEventListener('click',async()=>{
