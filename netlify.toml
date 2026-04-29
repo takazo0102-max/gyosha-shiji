@@ -1,3 +1,2 @@
 [build]
-  command = "mkdir -p dist && sed 's|__SB_ANON_KEY__|'\"$SB_ANON_KEY\"'|g' index.html > dist/index.html"
-  publish = "dist"
+  publish = "."
