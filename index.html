@@ -471,6 +471,7 @@
       <input type="text" id="anonKeyInput" placeholder="eyJhbGciOi..." style="width:100%;padding:8px;border:1.5px solid #d97706;border-radius:6px;font-size:12px;margin-bottom:8px;" />
       <button class="login-btn primary" id="anonKeySaveBtn" style="margin-bottom:0;font-size:13px;padding:10px;">接続する</button>
     </div>
+    <!-- ログインフォーム -->
     <div id="loginForm">
       <label>メールアドレス</label>
       <input type="email" id="loginEmail" placeholder="example@email.com" autocomplete="email" />
@@ -478,6 +479,26 @@
       <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
       <button class="login-btn primary" id="loginBtn">ログイン</button>
       <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
+      <div style="text-align:center; margin-top:4px;">
+        <button id="forgotPassBtn" style="background:none;border:none;color:#2563eb;font-size:12px;cursor:pointer;text-decoration:underline;">パスワードをお忘れの方</button>
+      </div>
+    </div>
+    <!-- パスワードリセット送信フォーム -->
+    <div id="resetRequestForm" style="display:none;">
+      <div style="font-size:13px;color:#374151;margin-bottom:12px;">登録済みのメールアドレスを入力してください。リセット用リンクを送信します。</div>
+      <label>メールアドレス</label>
+      <input type="email" id="resetEmail" placeholder="example@email.com" autocomplete="email" />
+      <button class="login-btn primary" id="sendResetBtn">リセットメールを送信</button>
+      <button class="login-btn secondary" id="backToLoginBtn">ログイン画面に戻る</button>
+    </div>
+    <!-- 新パスワード設定フォーム（メールリンクから戻った時） -->
+    <div id="resetPasswordForm" style="display:none;">
+      <div style="font-size:13px;color:#374151;margin-bottom:12px;">新しいパスワードを設定してください。</div>
+      <label>新しいパスワード</label>
+      <input type="password" id="newPass" placeholder="6文字以上" autocomplete="new-password" />
+      <label>パスワード確認</label>
+      <input type="password" id="newPassConfirm" placeholder="もう一度入力" autocomplete="new-password" />
+      <button class="login-btn primary" id="updatePassBtn">パスワードを変更する</button>
     </div>
     <div class="login-msg" id="loginMsg"></div>
   </div>
@@ -2096,6 +2117,68 @@ document.getElementById('logoutBtn').addEventListener('click', async()=>{
   await sbClient.auth.signOut();
 });
 
+/* ---------- パスワードリセット ---------- */
+function showLoginForm(){
+  document.getElementById('loginForm').style.display='';
+  document.getElementById('resetRequestForm').style.display='none';
+  document.getElementById('resetPasswordForm').style.display='none';
+}
+function showResetRequestForm(){
+  document.getElementById('loginForm').style.display='none';
+  document.getElementById('resetRequestForm').style.display='';
+  document.getElementById('resetPasswordForm').style.display='none';
+  setLoginMsg('','');
+}
+function showResetPasswordForm(){
+  document.getElementById('loginForm').style.display='none';
+  document.getElementById('resetRequestForm').style.display='none';
+  document.getElementById('resetPasswordForm').style.display='';
+  setLoginMsg('新しいパスワードを設定してください', false);
+}
+
+document.getElementById('forgotPassBtn').addEventListener('click', ()=>{
+  showResetRequestForm();
+});
+
+document.getElementById('backToLoginBtn').addEventListener('click', ()=>{
+  showLoginForm();
+  setLoginMsg('','');
+});
+
+document.getElementById('sendResetBtn').addEventListener('click', async()=>{
+  const email = document.getElementById('resetEmail').value.trim();
+  if(!email){ setLoginMsg('メールアドレスを入力してください', true); return; }
+  if(!sbClient){ setLoginMsg('接続エラー。ページを再読み込みしてください', true); return; }
+  const btn = document.getElementById('sendResetBtn');
+  btn.disabled = true; btn.textContent = '送信中…';
+  try {
+    const {error} = await sbClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if(error){ setLoginMsg('送信失敗: ' + error.message, true); }
+    else { setLoginMsg('✓ リセットメールを送信しました。メールをご確認ください。', false); }
+  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
+  btn.disabled = false; btn.textContent = 'リセットメールを送信';
+});
+
+document.getElementById('updatePassBtn').addEventListener('click', async()=>{
+  const newPass = document.getElementById('newPass').value;
+  const confirm = document.getElementById('newPassConfirm').value;
+  if(!newPass || newPass.length < 6){ setLoginMsg('6文字以上のパスワードを入力してください', true); return; }
+  if(newPass !== confirm){ setLoginMsg('パスワードが一致しません', true); return; }
+  const btn = document.getElementById('updatePassBtn');
+  btn.disabled = true; btn.textContent = '変更中…';
+  try {
+    const {error} = await sbClient.auth.updateUser({ password: newPass });
+    if(error){ setLoginMsg('変更失敗: ' + error.message, true); }
+    else {
+      setLoginMsg('✓ パスワードを変更しました！', false);
+      setTimeout(()=>{ showLoginForm(); hideLoginScreen(); }, 1500);
+    }
+  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
+  btn.disabled = false; btn.textContent = 'パスワードを変更する';
+});
+
 /* ---------- Supabase起動・認証状態監視 ---------- */
 (()=>{
   if(typeof supabase === 'undefined'){ setTimeout(()=>{ showLoginScreen(); }, 0); return; }
@@ -2106,7 +2189,11 @@ document.getElementById('logoutBtn').addEventListener('click', async()=>{
 
   // 認証状態変化を監視
   sbClient.auth.onAuthStateChange((event, session) => {
-    if(session && session.user){
+    if(event === 'PASSWORD_RECOVERY'){
+      // パスワードリセットメールのリンクからアクセス → 新パスワード設定画面を表示
+      showLoginScreen();
+      setTimeout(showResetPasswordForm, 0);
+    } else if(session && session.user){
       onUserSignedIn(session.user);
     } else {
       onUserSignedOut();
