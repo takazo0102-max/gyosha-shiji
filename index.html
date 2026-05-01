@@ -970,9 +970,11 @@ const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, on
 };
 
 // ==================== Timeline / TodayView ====================
-const HOUR_H = 64;
 const START_H = 6;
 const END_H = 24;
+// 画面高さから利用可能なピクセルを計算し、1時間あたりの高さを動的に決定
+const calcHourH = () => Math.max(28, Math.floor((window.innerHeight - 220) / (END_H - START_H)));
+const HOUR_H = calcHourH();
 const SNAP_MIN = 15;
 
 const minToStr = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
