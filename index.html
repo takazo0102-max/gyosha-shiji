@@ -527,18 +527,46 @@ const AlertBanner = ({ tasks, categories, onTaskClick }) => {
 };
 
 // ==================== CategoryManager ====================
-const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCategory }) => {
+const PRIORITY_LABELS_CAT = { high: '高', medium: '中', low: '低' };
+
+const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCategory, recurring, onAddRecurring, onUpdateRecurring, onDeleteRecurring }) => {
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#3B82F6');
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3B82F6');
   const [showNew, setShowNew] = useState(false);
+  const [expandedCat, setExpandedCat] = useState(null);
+  // recurring form per category: { catId, editRecId, form }
+  const [recForm, setRecForm] = useState(null);
+
+  const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  const openRecAdd = (catId) => {
+    setExpandedCat(catId);
+    setRecForm({ catId, editRecId: null, form: { title: '', days: [], priority: 'medium', estimatedMinutes: '' } });
+  };
+  const openRecEdit = (catId, rt) => {
+    setExpandedCat(catId);
+    setRecForm({ catId, editRecId: rt.id, form: { title: rt.title, days: [...rt.days], priority: rt.priority, estimatedMinutes: rt.estimatedMinutes || '' } });
+  };
+  const cancelRecForm = () => setRecForm(null);
+  const saveRec = () => {
+    if (!recForm.form.title.trim() || recForm.form.days.length === 0) return;
+    const data = { title: recForm.form.title.trim(), categoryId: recForm.catId, priority: recForm.form.priority, days: recForm.form.days, estimatedMinutes: recForm.form.estimatedMinutes ? Number(recForm.form.estimatedMinutes) : undefined };
+    if (recForm.editRecId) onUpdateRecurring(recForm.editRecId, data);
+    else onAddRecurring(data);
+    setRecForm(null);
+  };
+  const toggleRecDay = (d) => setRecForm(f => ({ ...f, form: { ...f.form, days: f.form.days.includes(d) ? f.form.days.filter(x => x !== d) : [...f.form.days, d].sort() } }));
 
   return (
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">カテゴリ管理</h2>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">カテゴリ管理</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">カテゴリごとに定期タスクを設定できます</p>
+        </div>
         <button onClick={() => setShowNew(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
           <Icons.Plus size={15} /> 新規カテゴリ
@@ -557,34 +585,117 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
           <ColorPicker value={newColor} onChange={setNewColor} />
         </div>
       )}
-      <div className="space-y-2">
-        {categories.map(cat => (
-          <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            {editId === cat.id ? (
-              <div className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: editColor }} />
-                  <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); } if (e.key === 'Escape') setEditId(null); }}
-                    className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <button onClick={() => { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); }} className="text-green-600"><Icons.Check size={17} /></button>
-                  <button onClick={() => setEditId(null)} className="text-gray-400"><Icons.X size={17} /></button>
+      <div className="space-y-3">
+        {categories.map(cat => {
+          const catRecurring = (recurring || []).filter(r => r.categoryId === cat.id);
+          const isExpanded = expandedCat === cat.id;
+          return (
+            <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" style={{ borderLeft: `4px solid ${cat.color}` }}>
+              {/* Category header row */}
+              {editId === cat.id ? (
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: editColor }} />
+                    <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); } if (e.key === 'Escape') setEditId(null); }}
+                      className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <button onClick={() => { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); }} className="text-green-600"><Icons.Check size={17} /></button>
+                    <button onClick={() => setEditId(null)} className="text-gray-400"><Icons.X size={17} /></button>
+                  </div>
+                  <ColorPicker value={editColor} onChange={setEditColor} />
                 </div>
-                <ColorPicker value={editColor} onChange={setEditColor} />
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="w-3 h-8 rounded-full" style={{ backgroundColor: cat.color }} />
-                <span className="flex-1 font-medium text-gray-900 dark:text-white">{cat.name}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">{taskCountByCategory[cat.id] ?? 0}件</span>
-                <button onClick={() => { setEditId(cat.id); setEditName(cat.name); setEditColor(cat.color); }}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Edit2 size={14} /></button>
-                <button onClick={() => onDelete(cat.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Trash2 size={14} /></button>
-              </div>
-            )}
-          </div>
-        ))}
+              ) : (
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button onClick={() => setExpandedCat(isExpanded ? null : cat.id)} className="flex-1 flex items-center gap-3 text-left">
+                    <span className="font-medium text-gray-900 dark:text-white">{cat.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">タスク {taskCountByCategory[cat.id] ?? 0}件</span>
+                    {catRecurring.length > 0 && (
+                      <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+                        <Icons.Repeat size={10} /> {catRecurring.length}
+                      </span>
+                    )}
+                    <Icons.ChevronDown size={14} className={`text-gray-400 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  <button onClick={() => { setEditId(cat.id); setEditName(cat.name); setEditColor(cat.color); }}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Edit2 size={14} /></button>
+                  <button onClick={() => onDelete(cat.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Trash2 size={14} /></button>
+                </div>
+              )}
+
+              {/* Expanded: recurring tasks */}
+              {isExpanded && (
+                <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                      <Icons.Repeat size={11} /> 定期タスク
+                    </span>
+                    <button onClick={() => openRecAdd(cat.id)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                      <Icons.Plus size={11} /> 追加
+                    </button>
+                  </div>
+
+                  {/* Recurring form */}
+                  {recForm?.catId === cat.id && (
+                    <div className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3 animate-fade-in">
+                      <input autoFocus value={recForm.form.title} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, title: e.target.value } }))}
+                        placeholder="定期タスク名 *" className={ic} />
+                      <div className="flex gap-1.5 flex-wrap">
+                        {DAYS_JP.map((d, i) => (
+                          <button key={i} type="button" onClick={() => toggleRecDay(i)}
+                            className={`w-9 h-9 rounded-lg text-xs font-bold transition-all border-2 ${
+                              recForm.form.days.includes(i)
+                                ? i === 0 ? 'bg-red-500 border-red-500 text-white' : i === 6 ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-800 dark:bg-white border-gray-800 dark:border-white text-white dark:text-gray-900'
+                                : i === 0 ? 'border-red-200 text-red-400 hover:border-red-400' : i === 6 ? 'border-blue-200 text-blue-400 hover:border-blue-400' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                            }`}>{d}</button>
+                        ))}
+                      </div>
+                      {recForm.form.days.length === 0 && <p className="text-xs text-red-500">曜日を1つ以上選択してください</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={recForm.form.priority} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, priority: e.target.value } }))} className={ic}>
+                          {['high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS_CAT[p]}</option>)}
+                        </select>
+                        <input type="number" min={0} step={5} value={recForm.form.estimatedMinutes} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, estimatedMinutes: e.target.value } }))} placeholder="見積(分)" className={ic} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={cancelRecForm} className="flex-1 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                        <button onClick={saveRec} disabled={!recForm.form.title.trim() || recForm.form.days.length === 0}
+                          className="flex-1 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors">
+                          {recForm.editRecId ? '更新' : '追加'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recurring list */}
+                  {catRecurring.length === 0 && !recForm ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">定期タスクなし — 「追加」で設定できます</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {catRecurring.map(rt => (
+                        <div key={rt.id} className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+                          <Icons.Repeat size={12} className="text-purple-400 flex-shrink-0" />
+                          <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{rt.title}</span>
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            {DAYS_JP.map((d, i) => (
+                              <span key={i} className={`w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${
+                                rt.days.includes(i) ? i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : i === 6 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : 'text-gray-200 dark:text-gray-700'
+                              }`}>{d}</span>
+                            ))}
+                          </div>
+                          {rt.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{rt.estimatedMinutes}分</span>}
+                          <button onClick={() => openRecEdit(cat.id, rt)} className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors flex-shrink-0"><Icons.Edit2 size={12} /></button>
+                          <button onClick={() => onDeleteRecurring(rt.id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors flex-shrink-0"><Icons.Trash2 size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1954,7 +2065,8 @@ const App = () => {
           )}
           {view === 'categories' && (
             <CategoryManager categories={categories} onAdd={addCategory} onUpdate={updateCategory}
-              onDelete={deleteCategory} taskCountByCategory={taskCountByCat} />
+              onDelete={deleteCategory} taskCountByCategory={taskCountByCat}
+              recurring={recurring} onAddRecurring={addRecurring} onUpdateRecurring={updateRecurring} onDeleteRecurring={deleteRecurring} />
           )}
         </div>
       </div>
