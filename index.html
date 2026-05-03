@@ -705,8 +705,9 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
 const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
 const STATUS_LABELS = { todo: '未着手', in_progress: '進行中', done: '完了' };
 
-const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCategoryId, defaultDueDate }) => {
+const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCategoryId, defaultDueDate, recurring, onAddRecurring, onUpdateRecurring, onDeleteRecurring }) => {
   const defaultCat = defaultCategoryId ?? task?.categoryId ?? categories[0]?.id ?? '';
+  const existingRec = recurring?.find(r => r.id === task?.recurringId);
   const [form, setForm] = useState({
     title: task?.title ?? '',
     description: task?.description ?? '',
@@ -719,6 +720,8 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
     scheduledEnd: task?.scheduledTime?.end ?? '',
     estimatedMinutes: task?.estimatedMinutes ?? '',
     parentId: task?.parentId ?? parentTask?.id,
+    isRecurring: !!existingRec,
+    recurringDays: existingRec ? [...existingRec.days] : [],
   });
 
   useEffect(() => {
@@ -728,9 +731,25 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
   }, [onClose]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const toggleRecDay = (i) => set('recurringDays', form.recurringDays.includes(i) ? form.recurringDays.filter(x => x !== i) : [...form.recurringDays, i].sort((a,b)=>a-b));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
+    // Handle recurring task
+    let recurringId = task?.recurringId;
+    if (form.isRecurring && form.recurringDays.length > 0) {
+      const recData = { title: form.title.trim(), categoryId: form.categoryId, priority: form.priority, estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined, days: form.recurringDays };
+      if (existingRec) {
+        onUpdateRecurring?.(existingRec.id, recData);
+      } else {
+        const newId = generateId('rec');
+        onAddRecurring?.({ id: newId, ...recData, lastAddedDate: null });
+        recurringId = newId;
+      }
+    } else if (!form.isRecurring && existingRec) {
+      onDeleteRecurring?.(existingRec.id);
+      recurringId = undefined;
+    }
     onSave({
       title: form.title.trim(),
       description: form.description || undefined,
@@ -742,6 +761,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
       scheduledTime: (form.scheduledStart && form.scheduledEnd) ? { start: form.scheduledStart, end: form.scheduledEnd } : undefined,
       estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined,
       parentId: form.parentId,
+      recurringId,
     });
   };
 
@@ -827,6 +847,31 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
                   <span className="text-gray-400 text-sm">〜</span>
                   <input type="time" value={form.scheduledEnd} onChange={e => set('scheduledEnd', e.target.value)} className={`${ic} flex-1`} />
                 </div>
+              </div>
+            )}
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.isRecurring} onChange={e => set('isRecurring', e.target.checked)} className="w-4 h-4 rounded accent-purple-600" />
+              <Icons.Repeat size={15} className="text-purple-500 flex-shrink-0" />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">定期タスクに設定</span>
+              {existingRec && <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">設定済み</span>}
+            </label>
+            {form.isRecurring && (
+              <div className="animate-fade-in space-y-2">
+                <div className={lc}>繰り返す曜日 *</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {DAYS_JP.map((d, i) => (
+                    <button key={i} type="button" onClick={() => toggleRecDay(i)}
+                      className={`w-9 h-9 rounded-xl text-xs font-bold transition-all border-2 ${
+                        form.recurringDays.includes(i)
+                          ? i === 0 ? 'bg-red-500 border-red-500 text-white' : i === 6 ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-800 dark:bg-white border-gray-800 dark:border-white text-white dark:text-gray-900'
+                          : i === 0 ? 'border-red-200 text-red-400 hover:border-red-400' : i === 6 ? 'border-blue-200 text-blue-400 hover:border-blue-400' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                      }`}>{d}</button>
+                  ))}
+                </div>
+                {form.recurringDays.length === 0 && <p className="text-xs text-red-500 mt-1">曜日を1つ以上選択してください</p>}
+                <p className="text-xs text-purple-600 dark:text-purple-400">設定した曜日に毎週タスクが自動追加されます</p>
               </div>
             )}
           </div>
@@ -2075,7 +2120,8 @@ const App = () => {
         <TaskPanel task={panel.task} parentTask={parentTask} categories={categories}
           onSave={handleSave} onClose={closePanel}
           defaultCategoryId={panel.defaultCategoryId}
-          defaultDueDate={panel.defaultDueDate} />
+          defaultDueDate={panel.defaultDueDate}
+          recurring={recurring} onAddRecurring={addRecurring} onUpdateRecurring={updateRecurring} onDeleteRecurring={deleteRecurring} />
       )}
       {showSyncModal && (
         <CloudSyncModal
