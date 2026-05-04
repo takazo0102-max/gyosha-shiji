@@ -176,7 +176,7 @@ const AIKeyInput = () => {
   return (
     <div className="flex gap-2">
       <input type="password" value={val} onChange={e => { setVal(e.target.value); setSaved(false); }}
-        placeholder="sk-ant-..."
+        placeholder="AIzaSy..."
         className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono" />
       <button onClick={save} disabled={!val.trim()}
         className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${saved ? 'bg-green-600 text-white' : 'bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white'}`}>
@@ -271,15 +271,16 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
         <div className="mb-5 border-t border-gray-200 dark:border-gray-700 pt-5">
           <div className="flex items-center gap-2 mb-3">
             <Icons.Sparkles size={16} className="text-purple-500" />
-            <span className="text-sm font-bold text-gray-900 dark:text-white">Claude AI 連携</span>
+            <span className="text-sm font-bold text-gray-900 dark:text-white">Gemini AI 連携（無料）</span>
           </div>
           <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 space-y-1">
-            <p className="font-semibold text-purple-700 dark:text-purple-300">📋 APIキーの取得方法</p>
-            <p>1. <a href="https://console.anthropic.com" target="_blank" className="underline text-purple-600 dark:text-purple-400">console.anthropic.com</a> でアカウント作成</p>
-            <p>2. API Keys → 「Create Key」で生成</p>
+            <p className="font-semibold text-purple-700 dark:text-purple-300">📋 APIキーの取得方法（無料）</p>
+            <p>1. <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-purple-600 dark:text-purple-400">Google AI Studio</a> にアクセス</p>
+            <p>2. 「APIキーを作成」をクリック</p>
             <p>3. 生成されたキーを下に貼り付け</p>
+            <p className="text-green-600 dark:text-green-400 font-medium">✓ 無料枠: 1日1,500リクエストまで</p>
           </div>
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Anthropic API Key</label>
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Gemini API Key</label>
           <AIKeyInput />
         </div>
 
@@ -427,29 +428,23 @@ const AI = {
   saveKey: (k) => localStorage.setItem('tf_ai_key', k),
 };
 
-const callClaude = async (userPrompt, maxTokens = 1500) => {
+const callClaude = async (userPrompt) => {
   const key = AI.key();
-  if (!key) throw new Error('Claude APIキーが未設定です。設定から追加してください。');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-ipc': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
-  });
+  if (!key) throw new Error('Gemini APIキーが未設定です。設定から追加してください。');
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }] }] }),
+    }
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error?.message || `APIエラー (${res.status})`);
   }
   const data = await res.json();
-  return data.content[0].text;
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 };
 
 // ==================== Quotes ====================
@@ -1837,8 +1832,8 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
 
         {!hasAiKey && (
           <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">⚠️ Claude APIキーが未設定です</p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">サイドバー下部の「クラウド同期」設定からAnthropicのAPIキーを登録してください。</p>
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">⚠️ Gemini APIキーが未設定です</p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">サイドバー下部の「クラウド同期」設定からGemini APIキーを登録してください（無料）。</p>
           </div>
         )}
 
