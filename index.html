@@ -750,6 +750,7 @@
     <div class="section">
       <h3>AI指示生成</h3>
       <button class="action-btn primary" id="aiBtn">✨ AIで指示書生成</button>
+      <button class="action-btn" id="voiceBtn" style="margin-top:8px;background:#10b981;color:#fff;border:none;">🎤 音声で指示書作成</button>
     </div>
   </aside>
 
@@ -789,6 +790,36 @@
 <div class="modal" id="vendorModal"><div class="box small"><header class="mhead"><h2>⚙ 業者管理</h2><button class="close-x" data-close="vendorModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newVendorInput" placeholder="新しい業者名..." /><button id="addVendorBtn">追加</button></div><div class="vendor-manage-list" id="vendorManageList"></div></div></div></div>
 <div class="modal" id="pdfSelectModal"><div class="box" style="max-width:800px;"><header class="mhead"><h2>📄 読み込むページを選択</h2><button class="close-x" data-close="pdfSelectModal">×</button></header><div class="body"><div class="pdf-select-actions"><button id="pdfSelectAll">全選択</button><button id="pdfDeselectAll">全解除</button><span style="flex:1;"></span><span id="pdfSelectCount" style="font-size:13px;color:#6b7280;line-height:32px;">0ページ選択中</span></div><div class="pdf-page-grid" id="pdfPageGrid"></div></div><div class="footer"><button class="mbtn ghost" data-close="pdfSelectModal">キャンセル</button><button class="mbtn primary" id="pdfSelectImport">📥 選択したページを読み込む</button></div></div></div>
 <div class="modal" id="siteModal"><div class="box small"><header class="mhead"><h2>⚙ 現場管理</h2><button class="close-x" data-close="siteModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newSiteInput" placeholder="新しい現場名..." /><button id="addSiteBtn">追加</button></div><div class="vendor-manage-list" id="siteManageList"></div></div></div></div>
+<!-- 音声入力モーダル -->
+<div class="modal" id="voiceModal">
+  <div class="box small">
+    <header class="mhead"><h2>🎤 音声で指示書作成</h2><button class="close-x" data-close="voiceModal">×</button></header>
+    <div class="body" style="text-align:center;">
+      <!-- 録音エリア -->
+      <div id="voiceRecordArea">
+        <div id="voiceMicBtn" style="width:80px;height:80px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;cursor:pointer;font-size:36px;transition:all .2s;box-shadow:0 4px 16px rgba(16,185,129,.4);">🎤</div>
+        <p id="voiceStatus" style="font-size:14px;color:#6b7280;margin-bottom:12px;">ボタンを押して話してください</p>
+        <div id="voiceLiveText" style="min-height:40px;background:#f9fafb;border-radius:8px;padding:12px;font-size:13px;color:#374151;text-align:left;line-height:1.6;"></div>
+      </div>
+      <!-- 整形エリア -->
+      <div id="voiceResultArea" style="display:none;text-align:left;">
+        <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">認識テキスト：</div>
+        <div id="voiceRawText" style="background:#f9fafb;border-radius:8px;padding:10px;font-size:13px;color:#374151;margin-bottom:12px;line-height:1.6;"></div>
+        <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">✨ AI整形後：</div>
+        <textarea id="voiceFormattedText" style="width:100%;min-height:120px;padding:10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;line-height:1.7;resize:vertical;" placeholder="AIが整形中..."></textarea>
+      </div>
+    </div>
+    <div class="footer" id="voiceFooter">
+      <button class="mbtn ghost" data-close="voiceModal">キャンセル</button>
+      <button class="mbtn primary" id="voiceFormatBtn" style="background:#8b5cf6;">✨ AIで整形</button>
+    </div>
+    <div class="footer" id="voiceResultFooter" style="display:none;">
+      <button class="mbtn ghost" id="voiceRetryBtn">🎤 録り直す</button>
+      <button class="mbtn primary" id="voiceAddBtn">📝 テキストボックスに追加</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Claude APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うにはAnthropic APIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="sk-ant-..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
 <div class="modal" id="sbModal"><div class="box small"><header class="mhead"><h2>☁️ クラウド同期設定</h2><button class="close-x" data-close="sbModal">×</button></header><div class="body">
   <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6;">Supabaseと接続するとデータがクラウドに自動保存され、<br>どの端末からでもアクセスできます。</p>
@@ -2415,6 +2446,159 @@ window.addEventListener('beforeunload', () => { autoSaveState(); });
 window.addEventListener('load', () => {
   setTimeout(autoRestoreDraft, 800); // UIが安定してから
 });
+
+/* =================== 音声入力 =================== */
+(()=>{
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
+  let rawText = '';
+
+  const micBtn      = document.getElementById('voiceMicBtn');
+  const statusEl    = document.getElementById('voiceStatus');
+  const liveTextEl  = document.getElementById('voiceLiveText');
+  const recordArea  = document.getElementById('voiceRecordArea');
+  const resultArea  = document.getElementById('voiceResultArea');
+  const rawTextEl   = document.getElementById('voiceRawText');
+  const fmtTextEl   = document.getElementById('voiceFormattedText');
+  const footer      = document.getElementById('voiceFooter');
+  const resultFooter= document.getElementById('voiceResultFooter');
+
+  function resetVoiceModal(){
+    isRecording = false; rawText = '';
+    recordArea.style.display = ''; resultArea.style.display = 'none';
+    footer.style.display = ''; resultFooter.style.display = 'none';
+    liveTextEl.textContent = ''; statusEl.textContent = 'ボタンを押して話してください';
+    micBtn.style.background = '#10b981';
+    micBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,.4)';
+    if(recognition) try{ recognition.stop(); }catch(e){}
+  }
+
+  // 音声モーダルを開く
+  document.getElementById('voiceBtn').addEventListener('click', ()=>{
+    if(!SpeechRecognition){
+      alert('お使いのブラウザは音声認識に対応していません。\nSafari（iOS16以上）またはChromeをご利用ください。');
+      return;
+    }
+    resetVoiceModal();
+    openModal('voiceModal');
+  });
+
+  // モーダルを閉じたら停止
+  document.querySelector('[data-close="voiceModal"]').addEventListener('click', ()=>{
+    if(recognition) try{ recognition.stop(); }catch(e){}
+  });
+
+  // マイクボタン：録音開始/停止
+  micBtn.addEventListener('click', ()=>{
+    if(!SpeechRecognition) return;
+    if(isRecording){
+      isRecording = false;
+      try{ recognition.stop(); }catch(e){}
+      return;
+    }
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ja-JP';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = ()=>{
+      isRecording = true;
+      statusEl.textContent = '🔴 録音中… 話し終わったらもう一度タップ';
+      micBtn.style.background = '#ef4444';
+      micBtn.style.boxShadow = '0 4px 20px rgba(239,68,68,.5)';
+      micBtn.textContent = '⏹';
+    };
+
+    recognition.onresult = (e)=>{
+      let interim = '', final = '';
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        if(e.results[i].isFinal) final += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      rawText += final;
+      liveTextEl.textContent = rawText + interim;
+    };
+
+    recognition.onend = ()=>{
+      isRecording = false;
+      micBtn.textContent = '🎤';
+      micBtn.style.background = '#10b981';
+      micBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,.4)';
+      if(!rawText.trim()){
+        statusEl.textContent = '音声が検出されませんでした。もう一度お試しください。';
+        return;
+      }
+      statusEl.textContent = '✓ 録音完了';
+    };
+
+    recognition.onerror = (e)=>{
+      isRecording = false;
+      micBtn.textContent = '🎤';
+      micBtn.style.background = '#10b981';
+      statusEl.textContent = 'エラー: ' + (e.error === 'not-allowed' ? 'マイクの許可が必要です' : e.error);
+    };
+
+    recognition.start();
+  });
+
+  // AIで整形ボタン
+  document.getElementById('voiceFormatBtn').addEventListener('click', async()=>{
+    if(!rawText.trim()){ alert('先に音声を録音してください'); return; }
+    if(!state.apiKey){ openModal('apiModal'); return; }
+
+    const btn = document.getElementById('voiceFormatBtn');
+    btn.disabled = true; btn.textContent = '整形中…';
+
+    // 結果エリアに切り替え
+    recordArea.style.display = 'none';
+    resultArea.style.display = '';
+    footer.style.display = 'none';
+    resultFooter.style.display = '';
+    rawTextEl.textContent = rawText;
+    fmtTextEl.value = '整形中…';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
+          messages:[{role:'user', content:
+            `以下は建設現場監督が音声で話した内容です。これを業者への指示書テキストとして整形してください。\n`+
+            `・箇条書きや番号付きリストを使って見やすく\n`+
+            `・建設業の専門用語を適切に使用\n`+
+            `・曖昧な表現は具体的に補足\n`+
+            `・余計な説明は不要、指示内容のみ出力\n\n`+
+            `【音声内容】\n${rawText}`
+          }]
+        })
+      });
+      if(!res.ok) throw new Error('API error: '+res.status);
+      const data = await res.json();
+      fmtTextEl.value = data.content?.[0]?.text || rawText;
+    } catch(e){
+      fmtTextEl.value = rawText; // 失敗時はそのまま
+      console.error(e);
+    }
+    btn.disabled = false; btn.textContent = '✨ AIで整形';
+  });
+
+  // 録り直すボタン
+  document.getElementById('voiceRetryBtn').addEventListener('click', ()=>{
+    resetVoiceModal();
+  });
+
+  // テキストボックスに追加ボタン
+  document.getElementById('voiceAddBtn').addEventListener('click', ()=>{
+    const text = fmtTextEl.value.trim();
+    if(!text) return;
+    closeModal('voiceModal');
+    addTextBox(80, 80, text, { width: 420, fontSize: 14 });
+    snapshot();
+  });
+})();
 
 /* =================== AI =================== */
 document.getElementById('aiBtn').addEventListener('click',async()=>{
