@@ -820,7 +820,7 @@
   </div>
 </div>
 
-<div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Claude APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うにはAnthropic APIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="sk-ant-..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
+<div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Gemini APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うには<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#2563eb;">Google AI Studio</a>のAPIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="AIza..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
 <div class="modal" id="sbModal"><div class="box small"><header class="mhead"><h2>☁️ クラウド同期設定</h2><button class="close-x" data-close="sbModal">×</button></header><div class="body">
   <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6;">Supabaseと接続するとデータがクラウドに自動保存され、<br>どの端末からでもアクセスできます。</p>
   <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Supabase Anon Key</label>
@@ -849,7 +849,7 @@ const state = {
   pdfLoaded: false,
   pdfPages: [],       // { id, name, pageNum, imageDataUrl, thumbDataUrl }
   activePdfId: null,
-  apiKey: localStorage.getItem('claude_api_key') || '',
+  apiKey: localStorage.getItem('gemini_api_key') || localStorage.getItem('claude_api_key') || '',
   activeTextbox: null,
   // Shapes (vector objects)
   shapes: [],
@@ -2559,25 +2559,21 @@ window.addEventListener('load', () => {
     fmtTextEl.value = '整形中…';
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
+      const prompt =
+        `以下は建設現場監督が音声で話した内容です。これを業者への指示書テキストとして整形してください。\n`+
+        `・箇条書きや番号付きリストを使って見やすく\n`+
+        `・建設業の専門用語を適切に使用\n`+
+        `・曖昧な表現は具体的に補足\n`+
+        `・余計な説明は不要、指示内容のみ出力\n\n`+
+        `【音声内容】\n${rawText}`;
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`,{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          messages:[{role:'user', content:
-            `以下は建設現場監督が音声で話した内容です。これを業者への指示書テキストとして整形してください。\n`+
-            `・箇条書きや番号付きリストを使って見やすく\n`+
-            `・建設業の専門用語を適切に使用\n`+
-            `・曖昧な表現は具体的に補足\n`+
-            `・余計な説明は不要、指示内容のみ出力\n\n`+
-            `【音声内容】\n${rawText}`
-          }]
-        })
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({contents:[{parts:[{text:prompt}]}]})
       });
       if(!res.ok) throw new Error('API error: '+res.status);
       const data = await res.json();
-      fmtTextEl.value = data.content?.[0]?.text || rawText;
+      fmtTextEl.value = data.candidates?.[0]?.content?.parts?.[0]?.text || rawText;
     } catch(e){
       fmtTextEl.value = rawText; // 失敗時はそのまま
       console.error(e);
@@ -2610,16 +2606,25 @@ document.getElementById('aiBtn').addEventListener('click',async()=>{
     mc.fillStyle='#fff';mc.fillRect(0,0,W,H);mc.drawImage(pdfCanvas,0,0);mc.drawImage(drawCanvas,0,0);mc.drawImage(shapeCanvas,0,0);
     const b64=merge.toDataURL('image/png').split(',')[1];
     const vendor=document.getElementById('vendorName').value||'';
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data:b64}},{type:'text',text:(vendor?'対象業者:'+vendor+'。':'')+'この建設図面を見て、工程・段取りの指示書テキストを日本語で生成してください。工種・作業手順（番号付き）・注意事項・必要資材を含めてください。'}]}]})});
-    if(!res.ok)throw new Error('APIエラー:'+res.status);const data=await res.json();
-    const txt=(data.content&&data.content[0]&&data.content[0].text)||'(出力なし)';
+    const prompt=(vendor?'対象業者:'+vendor+'。':'')+'この建設図面を見て、工程・段取りの指示書テキストを日本語で生成してください。工種・作業手順（番号付き）・注意事項・必要資材を含めてください。';
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[
+        {inline_data:{mime_type:'image/png',data:b64}},
+        {text:prompt}
+      ]}]})
+    });
+    if(!res.ok)throw new Error('APIエラー:'+res.status);
+    const data=await res.json();
+    const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||'(出力なし)';
     addTextBox(60,60,txt,{width:420,fontSize:14});
   }catch(err){console.error(err);alert('AI生成失敗:'+err.message);}
   finally{hideLoader();document.getElementById('aiBtn').disabled=false;}
 });
 
 document.getElementById('apiKeyBtn').addEventListener('click',()=>{document.getElementById('apiKeyInput').value=state.apiKey||'';openModal('apiModal');});
-document.getElementById('apiSave').addEventListener('click',()=>{const v=document.getElementById('apiKeyInput').value.trim();if(v){state.apiKey=v;localStorage.setItem('claude_api_key',v);}closeModal('apiModal');});
+document.getElementById('apiSave').addEventListener('click',()=>{const v=document.getElementById('apiKeyInput').value.trim();if(v){state.apiKey=v;localStorage.setItem('gemini_api_key',v);}closeModal('apiModal');});
 
 /* =================== Save / Archive (per-vendor editable state) =================== */
 function getInstructions(){try{return JSON.parse(localStorage.getItem(STORE_INST)||'[]');}catch(e){return[];}}
