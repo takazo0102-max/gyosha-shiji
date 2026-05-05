@@ -432,7 +432,7 @@ const callClaude = async (userPrompt) => {
   const key = AI.key();
   if (!key) throw new Error('Gemini APIキーが未設定です。設定から追加してください。');
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
