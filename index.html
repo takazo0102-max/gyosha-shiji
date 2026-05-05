@@ -2367,7 +2367,7 @@ const App = () => {
 
         <AlertBanner tasks={flatTasks} categories={categories} onTaskClick={id => { const t = flatTasks.find(x => x.id === id); if (t) openEdit(t); }} />
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {view === 'tasks' && (
             <TaskTree tasks={filteredTasks} flatTasks={flatTasks} categories={categories}
               onEdit={openEdit} onDelete={deleteTask} onAddTask={openAdd}
