@@ -2393,12 +2393,10 @@ async function autoRestoreDraft(){
     const draft = JSON.parse(raw);
     if (!draft || !draft.savedAt) return;
 
-    const savedAt = new Date(draft.savedAt);
-    const min = Math.round((Date.now() - savedAt) / 60000);
-    const timeLabel = min < 1 ? 'たった今' : min < 60 ? min + '分前' : Math.round(min/60) + '時間前';
+    // ログイン中はクラウドからデータを取得するのでローカルドラフトは使わない
+    if (sbCurrentUser) { localStorage.removeItem(STORE_DRAFT); return; }
 
-    const ok = confirm(`前回の作業（${timeLabel}）を復元しますか？\n業者: ${draft.vendor||'未設定'} / 現場: ${draft.site||'未設定'}`);
-    if (!ok) { localStorage.removeItem(STORE_DRAFT); return; }
+    // 未ログインの場合は確認なしで自動復元
 
     // 業者・現場・日付を復元
     if (draft.vendor) document.getElementById('vendorName').value = draft.vendor;
@@ -2640,31 +2638,7 @@ window.addEventListener('load', () => {
 })();
 
 /* =================== AI =================== */
-document.getElementById('aiBtn').addEventListener('click',async()=>{
-  if(!state.apiKey){openModal('apiModal');return;}
-  if(!state.pdfLoaded&&!confirm('PDFが未読込です。現在のキャンバスで生成しますか？'))return;
-  showLoader('AIが指示書を生成中...');document.getElementById('aiBtn').disabled=true;
-  try{
-    const merge=document.createElement('canvas');merge.width=W;merge.height=H;const mc=merge.getContext('2d');
-    mc.fillStyle='#fff';mc.fillRect(0,0,W,H);mc.drawImage(pdfCanvas,0,0);mc.drawImage(drawCanvas,0,0);mc.drawImage(shapeCanvas,0,0);
-    const b64=merge.toDataURL('image/png').split(',')[1];
-    const vendor=document.getElementById('vendorName').value||'';
-    const prompt=(vendor?'対象業者:'+vendor+'。':'')+'この建設図面を見て、工程・段取りの指示書テキストを日本語で生成してください。工種・作業手順（番号付き）・注意事項・必要資材を含めてください。';
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.apiKey}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[
-        {inline_data:{mime_type:'image/png',data:b64}},
-        {text:prompt}
-      ]}]})
-    });
-    if(!res.ok)throw new Error('APIエラー:'+res.status);
-    const data=await res.json();
-    const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||'(出力なし)';
-    addTextBox(60,60,txt,{width:420,fontSize:14});
-  }catch(err){console.error(err);alert('AI生成失敗:'+err.message);}
-  finally{hideLoader();document.getElementById('aiBtn').disabled=false;}
-});
+// (AIで指示書生成ボタンは削除済みのため、このセクションは無効)
 
 document.getElementById('apiKeyBtn').addEventListener('click',()=>{document.getElementById('apiKeyInput').value=state.apiKey||'';openModal('apiModal');});
 document.getElementById('apiSave').addEventListener('click',()=>{const v=document.getElementById('apiKeyInput').value.trim();if(v){state.apiKey=v;localStorage.setItem('gemini_api_key',v);}closeModal('apiModal');});
