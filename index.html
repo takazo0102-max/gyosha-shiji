@@ -1069,8 +1069,10 @@ function drawShapeObj(c, s, selected){
   if (type === 'line') {
     c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
   } else if (type === 'arrow') {
-    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
     const ang = Math.atan2(y2-y1,x2-x1), head = Math.max(14, lineWidth*6);
+    // 線の終点を三角の底辺まで後退させて突き抜けを防ぐ
+    const baseDepth = head * Math.cos(Math.PI/7);
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2 - baseDepth*Math.cos(ang), y2 - baseDepth*Math.sin(ang)); c.stroke();
     c.beginPath(); c.moveTo(x2,y2);
     c.lineTo(x2-head*Math.cos(ang-Math.PI/7), y2-head*Math.sin(ang-Math.PI/7));
     c.lineTo(x2-head*Math.cos(ang+Math.PI/7), y2-head*Math.sin(ang+Math.PI/7));
