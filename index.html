@@ -2010,8 +2010,113 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
   );
 };
 
+// ==================== TermsModal ====================
+const TermsModal = ({ onClose }) => {
+  const [tab, setTab] = useState('terms');
+  const Section = ({ title, children }) => (
+    <div className="mb-6">
+      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">{title}</h3>
+      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2 leading-relaxed">{children}</div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">法的情報</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={19} /></button>
+        </div>
+        <div className="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          {[['terms','利用規約'],['privacy','プライバシーポリシー']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${tab === id ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {tab === 'terms' ? (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">最終更新日：2026年5月　　本規約はTaskFlowのご利用条件を定めるものです。</p>
+              <Section title="第1条（サービスの概要）">
+                <p>TaskFlow（以下「本サービス」）は、個人のタスク管理を目的としたWebアプリケーションです。タスクの作成・管理・スケジュール設定・AI支援機能を提供します。</p>
+              </Section>
+              <Section title="第2条（利用条件）">
+                <p>本サービスは、利用者がこれらの規約に同意した上でご利用いただけます。13歳未満の方はご利用いただけません。</p>
+              </Section>
+              <Section title="第3条（APIキーの取り扱い）">
+                <p>本サービスでは、以下のサードパーティAPIキーをご利用の端末に保存する場合があります：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>Google Gemini API キー（AI機能・任意）</li>
+                  <li>JSONBin.io API キー（クラウド同期・任意）</li>
+                </ul>
+                <p className="mt-2">これらのキーはお客様自身のブラウザ（localStorage）にのみ保存されます。当サービスの運営者がキーを収集・閲覧することはありません。APIキーの管理はお客様自身の責任において行ってください。</p>
+              </Section>
+              <Section title="第4条（禁止事項）">
+                <p>以下の行為を禁止します：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>本サービスの不正利用・過度な負荷をかける行為</li>
+                  <li>他者のAPIキーの不正使用</li>
+                  <li>法令に違反する目的での利用</li>
+                  <li>本サービスのソースコードを無断で商用転用する行為</li>
+                </ul>
+              </Section>
+              <Section title="第5条（免責事項）">
+                <p>本サービスは現状有姿で提供されます。運営者は以下について一切責任を負いません：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>データの消失・破損</li>
+                  <li>サービスの中断・停止</li>
+                  <li>AIの生成内容の正確性</li>
+                  <li>サードパーティサービス（Google・JSONBin）の障害</li>
+                </ul>
+              </Section>
+              <Section title="第6条（規約の変更）">
+                <p>本規約は予告なく変更される場合があります。継続してご利用いただいた場合は、変更後の規約に同意したものとみなします。</p>
+              </Section>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">最終更新日：2026年5月　　本ポリシーはTaskFlowにおける個人情報の取り扱いを定めるものです。</p>
+              <Section title="収集する情報">
+                <p>本サービスは、以下の情報をお客様の端末内にのみ保存します：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>タスク・カテゴリ・定期タスクのデータ</li>
+                  <li>表示設定（ダークモード等）</li>
+                  <li>APIキー（Gemini・JSONBin）</li>
+                </ul>
+                <p className="mt-2 font-medium text-gray-700 dark:text-gray-300">これらの情報は運営者のサーバーへは送信されません。</p>
+              </Section>
+              <Section title="サードパーティサービスへのデータ送信">
+                <p>以下の機能をご利用の場合、データが外部サービスに送信されます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li><strong>クラウド同期（任意）：</strong>タスクデータがJSONBin.io（米国）に送信されます</li>
+                  <li><strong>AI機能（任意）：</strong>タスクのタイトル・説明がGoogle Gemini API（米国）に送信されます</li>
+                </ul>
+                <p className="mt-2">これらの機能はいずれも任意であり、使用しない場合はデータは端末外に出ません。</p>
+              </Section>
+              <Section title="Cookieおよびトラッキング">
+                <p>本サービスはCookieやトラッキング技術を使用しません。広告・解析ツールも一切導入していません。</p>
+              </Section>
+              <Section title="データの削除">
+                <p>ブラウザの設定から「サイトデータを削除」することで、本サービスのすべてのデータを削除できます。クラウド同期データはJSONBin.ioのダッシュボードから削除してください。</p>
+              </Section>
+              <Section title="お問い合わせ">
+                <p>プライバシーに関するお問い合わせは、GitHubリポジトリのIssueよりご連絡ください。</p>
+              </Section>
+            </>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">閉じる</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== Sidebar ====================
-const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus }) => {
+const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus, onTermsClick }) => {
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
   const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
   const navItems = [
@@ -2101,6 +2206,9 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
             <input type="file" accept=".json" className="hidden" onChange={onImport} />
           </label>
         </div>
+        <button onClick={onTermsClick} className="w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors pt-1">
+          利用規約・プライバシーポリシー
+        </button>
       </div>
     </div>
   );
@@ -2136,6 +2244,7 @@ const App = () => {
   const [syncStatus, setSyncStatus] = useState(() => JB.key() && JB.binId() ? 'idle' : 'none');
   const [lastSynced, setLastSynced] = useState(() => JB.lastSynced());
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const syncTimer = useRef(null);
 
   useEffect(() => {
@@ -2354,7 +2463,8 @@ const App = () => {
         mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}
         onCategoryFilter={setCatFilter} activeCatFilter={catFilter}
         onExport={handleExport} onImport={handleImport}
-        onSyncClick={() => setShowSyncModal(true)} syncStatus={syncStatus} />
+        onSyncClick={() => setShowSyncModal(true)} syncStatus={syncStatus}
+        onTermsClick={() => setShowTerms(true)} />
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Mobile topbar */}
@@ -2422,6 +2532,7 @@ const App = () => {
           onManualSync={() => doSync()}
         />
       )}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 };
