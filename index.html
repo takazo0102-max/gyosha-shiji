@@ -1256,6 +1256,7 @@ function endShapePointer(e){
       };
       state.shapes.push(s);
       selectShape(s.id);
+      scheduleAutoSave();
     }
     state.drawing = false; state.shapeStart = null;
     renderShapes();
@@ -1519,6 +1520,7 @@ document.getElementById('shapeDelete').addEventListener('click', () => {
   if (!state.selectedShapeId) return;
   state.shapes = state.shapes.filter(s=>s.id!==state.selectedShapeId);
   selectShape(null);
+  scheduleAutoSave();
 });
 
 document.getElementById('shapeDuplicate').addEventListener('click', () => {
@@ -1527,6 +1529,7 @@ document.getElementById('shapeDuplicate').addEventListener('click', () => {
   const dup = {...s, id: 's_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), x1:s.x1+20, y1:s.y1+20, x2:s.x2+20, y2:s.y2+20 };
   state.shapes.push(dup);
   selectShape(dup.id);
+  scheduleAutoSave();
 });
 
 /* Delete key */
@@ -1814,6 +1817,7 @@ function importPdfPages(pages, totalPages){
     }
   });
   renderPdfGallery();
+  autoSaveState(); // PDF読込は即座に保存（debounceなし）
 }
 
 function switchToPdf(id){
@@ -2466,19 +2470,25 @@ async function autoRestoreDraft(){
   } catch(e){ console.error('Draft restore error:',e); }
 }
 
-// ページを閉じる直前: メタデータのみ同期的に更新（画像はIndexedDBに保存済）
+// ページを閉じる直前: メタデータ同期更新 + IndexedDB非同期保存を開始
 window.addEventListener('beforeunload', () => {
+  // メタデータをlocalStorageに同期保存
   try {
-    const raw = localStorage.getItem(STORE_DRAFT);
-    const draft = raw ? JSON.parse(raw) : {};
-    draft.savedAt = new Date().toISOString();
-    draft.vendor = document.getElementById('vendorName').value;
-    draft.site   = document.getElementById('siteName').value;
-    draft.date   = document.getElementById('dateInput').value;
-    draft.shapes = JSON.parse(JSON.stringify(state.shapes));
-    draft.activePdfId = state.activePdfId;
+    const pdfPageMeta = state.pdfPages.map(p=>({id:p.id,name:p.name,pageNum:p.pageNum,totalPages:p.totalPages,thumbDataUrl:p.thumbDataUrl}));
+    const draft = {
+      savedAt: new Date().toISOString(),
+      vendor: document.getElementById('vendorName').value,
+      site:   document.getElementById('siteName').value,
+      date:   document.getElementById('dateInput').value,
+      shapes: JSON.parse(JSON.stringify(state.shapes)),
+      textItems: serializeTextLayer(),
+      activePdfId: state.activePdfId,
+      pdfPages: pdfPageMeta
+    };
     localStorage.setItem(STORE_DRAFT, JSON.stringify(draft));
   } catch(e){}
+  // IndexedDBへの書き込みも開始（ブラウザが許す範囲で完了する）
+  autoSaveState();
 });
 
 // ページ読み込み時に復元チェック
