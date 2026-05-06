@@ -2393,10 +2393,7 @@ async function autoRestoreDraft(){
     const draft = JSON.parse(raw);
     if (!draft || !draft.savedAt) return;
 
-    // ログイン中はクラウドからデータを取得するのでローカルドラフトは使わない
-    if (sbCurrentUser) { localStorage.removeItem(STORE_DRAFT); return; }
-
-    // 未ログインの場合は確認なしで自動復元
+    // 確認なしで自動復元（ログイン・未ログインどちらも）
 
     // 業者・現場・日付を復元
     if (draft.vendor) document.getElementById('vendorName').value = draft.vendor;
