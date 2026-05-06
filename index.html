@@ -386,15 +386,23 @@
   }
   .pdf-item .info .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .pdf-item .info .name-edit-btn {
-    flex-shrink: 0; background: none; border: none; cursor: pointer;
-    font-size: 11px; color: #9ca3af; padding: 0 2px; line-height: 1;
-    touch-action: manipulation;
+    flex-shrink: 0; background: #e5e7eb; border: none; border-radius: 5px;
+    cursor: pointer; font-size: 14px; color: #4b5563;
+    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
   }
-  .pdf-item .info .name-edit-btn:hover { color: #2563eb; }
+  .pdf-item .info .name-edit-btn:active { background: #d1d5db; }
+  .pdf-item .info .name-confirm-btn {
+    flex-shrink: 0; background: #2563eb; border: none; border-radius: 5px;
+    cursor: pointer; font-size: 14px; color: #fff;
+    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  }
+  .pdf-item .info .name-confirm-btn:active { background: #1d4ed8; }
   .pdf-item .info .name-input {
     font-size: 12px; font-weight: 600; color: #111;
     border: 1.5px solid #2563eb; border-radius: 4px;
-    padding: 1px 4px; width: 100%; outline: none;
+    padding: 2px 6px; width: 100%; outline: none; min-width: 0;
     touch-action: auto; -webkit-user-select: auto; user-select: auto;
   }
   .pdf-item .info .page { font-size: 10px; color: #6b7280; }
@@ -1893,13 +1901,18 @@ function renderPdfGallery(){
     editBtn.className = 'name-edit-btn'; editBtn.textContent = '✎';
     editBtn.title = '名前を編集';
 
-    editBtn.addEventListener('pointerdown', ev => {
-      ev.stopPropagation(); ev.preventDefault();
+    editBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
       // 編集モードへ切り替え
       const input = document.createElement('input');
       input.className = 'name-input'; input.type = 'text'; input.value = p.name;
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'name-confirm-btn'; confirmBtn.textContent = '✓';
+      confirmBtn.title = '確定';
+
       nameRow.replaceChild(input, nameEl);
-      editBtn.style.display = 'none';
+      nameRow.replaceChild(confirmBtn, editBtn);
       input.focus(); input.select();
 
       const commit = () => {
@@ -1907,15 +1920,19 @@ function renderPdfGallery(){
         p.name = val;
         nameEl.textContent = val;
         nameRow.replaceChild(nameEl, input);
-        editBtn.style.display = '';
+        nameRow.replaceChild(editBtn, confirmBtn);
         scheduleAutoSave();
       };
-      input.addEventListener('blur', commit);
+      const cancel = () => {
+        nameRow.replaceChild(nameEl, input);
+        nameRow.replaceChild(editBtn, confirmBtn);
+      };
+
+      confirmBtn.addEventListener('click', ev2 => { ev2.stopPropagation(); commit(); });
       input.addEventListener('keydown', ev2 => {
-        if (ev2.key === 'Enter') { ev2.preventDefault(); input.blur(); }
-        if (ev2.key === 'Escape') { input.value = p.name; input.blur(); }
+        if (ev2.key === 'Enter') { ev2.preventDefault(); commit(); }
+        if (ev2.key === 'Escape') { ev2.preventDefault(); cancel(); }
       });
-      // inputのクリックがitem全体に伝播しないように
       input.addEventListener('pointerdown', ev2 => ev2.stopPropagation());
       input.addEventListener('click', ev2 => ev2.stopPropagation());
     });
