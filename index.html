@@ -2354,38 +2354,63 @@ document.getElementById('sbSaveBtn').addEventListener('click', async()=>{
   }
 });
 
+/* =================== IndexedDB（大容量メディア保存） =================== */
+let _mediaDB = null;
+function openMediaDB(){
+  if(_mediaDB) return Promise.resolve(_mediaDB);
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open('gyosha_media_v1',1);
+    req.onupgradeneeded = e => {
+      if(!e.target.result.objectStoreNames.contains('media'))
+        e.target.result.createObjectStore('media');
+    };
+    req.onsuccess = e => { _mediaDB = e.target.result; resolve(_mediaDB); };
+    req.onerror = () => reject(req.error);
+  });
+}
+function dbPut(key,val){
+  return openMediaDB().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction('media','readwrite');
+    tx.objectStore('media').put(val,key);
+    tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+  }));
+}
+function dbGet(key){
+  return openMediaDB().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction('media','readonly');
+    const req=tx.objectStore('media').get(key);
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  }));
+}
+
 /* =================== 自動保存（下書き） =================== */
-function autoSaveState(){
+async function autoSaveState(){
   try {
+    // 大きな画像データはIndexedDBへ（localStorageの5MB制限を回避）
+    await dbPut('drawImage', drawCanvas.toDataURL('image/png'));
+    const pdfPageMeta = [];
+    for(const p of state.pdfPages){
+      if(p.imageDataUrl) await dbPut('pdf_'+p.id, p.imageDataUrl);
+      pdfPageMeta.push({id:p.id, name:p.name, pageNum:p.pageNum, totalPages:p.totalPages, thumbDataUrl:p.thumbDataUrl});
+    }
+    // メタデータのみlocalStorageへ
     const draft = {
       savedAt:    new Date().toISOString(),
       vendor:     document.getElementById('vendorName').value,
       site:       document.getElementById('siteName').value,
       date:       document.getElementById('dateInput').value,
-      drawImage:  drawCanvas.toDataURL('image/png'),
       shapes:     JSON.parse(JSON.stringify(state.shapes)),
       textItems:  serializeTextLayer(),
       activePdfId: state.activePdfId,
-      pdfPages:   state.pdfPages.map(p => ({
-        id: p.id, name: p.name, pageNum: p.pageNum,
-        totalPages: p.totalPages,
-        imageDataUrl: p.imageDataUrl,
-        thumbDataUrl: p.thumbDataUrl
-      }))
+      pdfPages:   pdfPageMeta
     };
-    try {
-      localStorage.setItem(STORE_DRAFT, JSON.stringify(draft));
-    } catch(e) {
-      // 容量超過時はPDF画像を省いて再試行
-      draft.pdfPages = draft.pdfPages.map(p => ({...p, imageDataUrl: null}));
-      try { localStorage.setItem(STORE_DRAFT, JSON.stringify(draft)); } catch(_){}
-    }
-  } catch(e) {}
+    try { localStorage.setItem(STORE_DRAFT, JSON.stringify(draft)); } catch(e){}
+  } catch(e){ console.error('autoSave error:',e); }
 }
 
 function scheduleAutoSave(){
   clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(() => { autoSaveState(); scheduleSbSync(); }, 3000);
+  autoSaveTimer = setTimeout(() => { autoSaveState().then(()=>scheduleSbSync()); }, 3000);
 }
 
 async function autoRestoreDraft(){
@@ -2395,36 +2420,41 @@ async function autoRestoreDraft(){
     const draft = JSON.parse(raw);
     if (!draft || !draft.savedAt) return;
 
-    // 確認なしで自動復元（ログイン・未ログインどちらも）
-
     // 業者・現場・日付を復元
     if (draft.vendor) document.getElementById('vendorName').value = draft.vendor;
     if (draft.site)   document.getElementById('siteName').value   = draft.site;
     if (draft.date)   document.getElementById('dateInput').value  = draft.date;
 
-    // PDF復元
+    // PDF復元（IndexedDBから画像を取得）
     if (draft.pdfPages && draft.pdfPages.length) {
-      state.pdfPages = draft.pdfPages.filter(p => p.imageDataUrl).map(p => ({
-        ...p,
-        offscreen: (() => {
-          const c = document.createElement('canvas'); c.width=W; c.height=H;
-          const img = new Image(); img.src = p.imageDataUrl;
-          img.onload = () => c.getContext('2d').drawImage(img,0,0,W,H);
-          return c;
-        })()
-      }));
+      const restored = [];
+      for(const p of draft.pdfPages){
+        const imageDataUrl = await dbGet('pdf_'+p.id);
+        if(!imageDataUrl) continue;
+        const offscreen = document.createElement('canvas'); offscreen.width=W; offscreen.height=H;
+        await new Promise(resolve=>{
+          const img=new Image(); img.src=imageDataUrl;
+          img.onload=()=>{ offscreen.getContext('2d').drawImage(img,0,0,W,H); resolve(); };
+          img.onerror=resolve;
+        });
+        restored.push({...p, imageDataUrl, offscreen});
+      }
+      state.pdfPages = restored;
       renderPdfGallery();
-      if (draft.activePdfId) {
-        const pg = state.pdfPages.find(p => p.id === draft.activePdfId);
-        if (pg) { state.activePdfId = pg.id; pdfCtx.clearRect(0,0,W,H); pdfCtx.drawImage(pg.offscreen,0,0); }
+      if(draft.activePdfId){
+        const pg=state.pdfPages.find(p=>p.id===draft.activePdfId);
+        if(pg){ state.activePdfId=pg.id; pdfCtx.clearRect(0,0,W,H); pdfCtx.drawImage(pg.offscreen,0,0); }
       }
     }
 
-    // ペン描画復元
-    if (draft.drawImage) {
-      const img = new Image();
-      img.onload = () => { ctx.clearRect(0,0,W,H); ctx.drawImage(img,0,0); snapshot(); };
-      img.src = draft.drawImage;
+    // ペン描画復元（IndexedDBから）
+    const drawDataUrl = await dbGet('drawImage');
+    if(drawDataUrl){
+      await new Promise(resolve=>{
+        const img=new Image();
+        img.onload=()=>{ ctx.clearRect(0,0,W,H); ctx.drawImage(img,0,0); snapshot(); resolve(); };
+        img.onerror=resolve; img.src=drawDataUrl;
+      });
     }
 
     // 図形復元
@@ -2433,11 +2463,23 @@ async function autoRestoreDraft(){
     // テキスト復元
     if (draft.textItems) restoreTextLayer(draft.textItems);
 
-  } catch(e) {}
+  } catch(e){ console.error('Draft restore error:',e); }
 }
 
-// ページを閉じる直前にも保存
-window.addEventListener('beforeunload', () => { autoSaveState(); });
+// ページを閉じる直前: メタデータのみ同期的に更新（画像はIndexedDBに保存済）
+window.addEventListener('beforeunload', () => {
+  try {
+    const raw = localStorage.getItem(STORE_DRAFT);
+    const draft = raw ? JSON.parse(raw) : {};
+    draft.savedAt = new Date().toISOString();
+    draft.vendor = document.getElementById('vendorName').value;
+    draft.site   = document.getElementById('siteName').value;
+    draft.date   = document.getElementById('dateInput').value;
+    draft.shapes = JSON.parse(JSON.stringify(state.shapes));
+    draft.activePdfId = state.activePdfId;
+    localStorage.setItem(STORE_DRAFT, JSON.stringify(draft));
+  } catch(e){}
+});
 
 // ページ読み込み時に復元チェック
 window.addEventListener('load', () => {
