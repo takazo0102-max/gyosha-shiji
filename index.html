@@ -384,6 +384,19 @@
     font-size: 12px; font-weight: 600; color: #111;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .pdf-item .info .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .pdf-item .info .name-edit-btn {
+    flex-shrink: 0; background: none; border: none; cursor: pointer;
+    font-size: 11px; color: #9ca3af; padding: 0 2px; line-height: 1;
+    touch-action: manipulation;
+  }
+  .pdf-item .info .name-edit-btn:hover { color: #2563eb; }
+  .pdf-item .info .name-input {
+    font-size: 12px; font-weight: 600; color: #111;
+    border: 1.5px solid #2563eb; border-radius: 4px;
+    padding: 1px 4px; width: 100%; outline: none;
+    touch-action: auto; -webkit-user-select: auto; user-select: auto;
+  }
   .pdf-item .info .page { font-size: 10px; color: #6b7280; }
   .pdf-item .del-btn {
     width: 20px; height: 20px; border-radius: 50%;
@@ -1862,12 +1875,60 @@ function renderPdfGallery(){
   state.pdfPages.forEach(p => {
     const item = document.createElement('div');
     item.className = 'pdf-item' + (p.id === state.activePdfId ? ' active' : '');
-    item.innerHTML =
-      '<img class="thumb" src="'+p.thumbDataUrl+'" />' +
-      '<div class="info">' +
-        '<div class="name">'+escapeHtml(p.name)+'</div>' +
-        '<div class="page">ページ '+p.pageNum+(p.totalPages>1?' / '+p.totalPages:'')+'</div>' +
-      '</div>';
+
+    const thumb = document.createElement('img');
+    thumb.className = 'thumb'; thumb.src = p.thumbDataUrl;
+
+    const info = document.createElement('div');
+    info.className = 'info';
+
+    // 名前行（名前 + 編集ボタン）
+    const nameRow = document.createElement('div');
+    nameRow.className = 'name-row';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name'; nameEl.textContent = p.name;
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'name-edit-btn'; editBtn.textContent = '✎';
+    editBtn.title = '名前を編集';
+
+    editBtn.addEventListener('pointerdown', ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      // 編集モードへ切り替え
+      const input = document.createElement('input');
+      input.className = 'name-input'; input.type = 'text'; input.value = p.name;
+      nameRow.replaceChild(input, nameEl);
+      editBtn.style.display = 'none';
+      input.focus(); input.select();
+
+      const commit = () => {
+        const val = input.value.trim() || p.name;
+        p.name = val;
+        nameEl.textContent = val;
+        nameRow.replaceChild(nameEl, input);
+        editBtn.style.display = '';
+        scheduleAutoSave();
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', ev2 => {
+        if (ev2.key === 'Enter') { ev2.preventDefault(); input.blur(); }
+        if (ev2.key === 'Escape') { input.value = p.name; input.blur(); }
+      });
+      // inputのクリックがitem全体に伝播しないように
+      input.addEventListener('pointerdown', ev2 => ev2.stopPropagation());
+      input.addEventListener('click', ev2 => ev2.stopPropagation());
+    });
+
+    nameRow.appendChild(nameEl);
+    nameRow.appendChild(editBtn);
+
+    const pageEl = document.createElement('div');
+    pageEl.className = 'page';
+    pageEl.textContent = 'ページ ' + p.pageNum + (p.totalPages > 1 ? ' / ' + p.totalPages : '');
+
+    info.appendChild(nameRow);
+    info.appendChild(pageEl);
 
     const del = document.createElement('button');
     del.className = 'del-btn'; del.textContent = '×';
@@ -1875,8 +1936,10 @@ function renderPdfGallery(){
       ev.stopPropagation(); ev.preventDefault();
       removePdfPage(p.id);
     });
-    item.appendChild(del);
 
+    item.appendChild(thumb);
+    item.appendChild(info);
+    item.appendChild(del);
     item.addEventListener('click', () => switchToPdf(p.id));
     gallery.appendChild(item);
   });
