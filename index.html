@@ -447,6 +447,68 @@ const callClaude = async (userPrompt) => {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 };
 
+// ==================== i18n ====================
+const TRANSLATIONS = {
+  ja: {
+    nav_tasks:'タスク一覧', nav_today:'Today', nav_deadline:'期限管理',
+    nav_calendar:'カレンダー', nav_recurring:'定期タスク', nav_categories:'カテゴリ管理', nav_report:'AIレポート',
+    btn_add:'追加する', btn_update:'更新する', btn_cancel:'キャンセル', btn_close:'閉じる', btn_save:'保存',
+    btn_delete:'削除', btn_edit:'編集',
+    task_add:'タスクを追加', task_edit:'タスクを編集', parent_prefix:'親:',
+    field_title:'タイトル *', field_title_ph:'タスクのタイトルを入力...',
+    field_desc:'説明', field_desc_ph:'詳細な説明（任意）',
+    field_category:'カテゴリ', field_priority:'優先度', field_status:'ステータス',
+    field_due:'期限日', field_est:'見積（分）',
+    field_today:'今日やるタスクに追加', field_time:'予定時刻（任意）',
+    field_recurring:'定期タスクに設定', rec_configured:'設定済み',
+    rec_days:'繰り返す曜日 *', rec_hint:'設定した曜日に毎週タスクが自動追加されます',
+    priority_high:'高', priority_medium:'中', priority_low:'低',
+    status_todo:'未着手', status_progress:'進行中', status_done:'完了',
+    today_add:'+ タスク追加', today_rate:'完了率', today_empty:'今日のタスクはありません',
+    today_unscheduled:'時刻未設定',
+    sync_synced:'クラウド同期済み', sync_ing:'同期中...', sync_error:'同期エラー', sync_none:'クラウド同期',
+    dark_mode:'ダークモード', light_mode:'ライトモード',
+    export:'エクスポート', import:'インポート', terms:'利用規約・プライバシーポリシー',
+    language:'言語',
+    ai_title:'AIサブタスク生成', ai_btn:'生成', ai_loading:'生成中...',
+    ai_hint:'チェックしたものをサブタスクとして追加します',
+    ai_all:'全選択', ai_none:'全解除', ai_clear:'クリア',
+    report_title:'AIレポート', report_desc:'タスクデータをAIが分析して振り返りレポートを生成します',
+    report_btn:'レポートを生成', report_this_week:'今週', report_last_week:'先週', report_this_month:'今月',
+    report_tasks:'対象タスク', report_done:'完了', report_rate:'完了率',
+  },
+  en: {
+    nav_tasks:'Tasks', nav_today:'Today', nav_deadline:'Deadlines',
+    nav_calendar:'Calendar', nav_recurring:'Recurring', nav_categories:'Categories', nav_report:'AI Report',
+    btn_add:'Add', btn_update:'Update', btn_cancel:'Cancel', btn_close:'Close', btn_save:'Save',
+    btn_delete:'Delete', btn_edit:'Edit',
+    task_add:'Add Task', task_edit:'Edit Task', parent_prefix:'Parent:',
+    field_title:'Title *', field_title_ph:'Enter task title...',
+    field_desc:'Description', field_desc_ph:'Details (optional)',
+    field_category:'Category', field_priority:'Priority', field_status:'Status',
+    field_due:'Due Date', field_est:'Estimated (min)',
+    field_today:'Add to Today', field_time:'Scheduled Time (optional)',
+    field_recurring:'Set as Recurring', rec_configured:'Configured',
+    rec_days:'Repeat on *', rec_hint:'Task will be auto-added on selected days every week',
+    priority_high:'High', priority_medium:'Medium', priority_low:'Low',
+    status_todo:'To Do', status_progress:'In Progress', status_done:'Done',
+    today_add:'+ Add Task', today_rate:'Completion', today_empty:'No tasks for today',
+    today_unscheduled:'Unscheduled',
+    sync_synced:'Cloud Synced', sync_ing:'Syncing...', sync_error:'Sync Error', sync_none:'Cloud Sync',
+    dark_mode:'Dark Mode', light_mode:'Light Mode',
+    export:'Export', import:'Import', terms:'Terms & Privacy Policy',
+    language:'Language',
+    ai_title:'AI Subtask Generator', ai_btn:'Generate', ai_loading:'Generating...',
+    ai_hint:'Check items to add as subtasks',
+    ai_all:'Select All', ai_none:'Deselect', ai_clear:'Clear',
+    report_title:'AI Report', report_desc:'AI analyzes your tasks and generates a review report',
+    report_btn:'Generate Report', report_this_week:'This Week', report_last_week:'Last Week', report_this_month:'This Month',
+    report_tasks:'Tasks', report_done:'Done', report_rate:'Completion',
+  },
+};
+const LangContext = React.createContext({ lang:'ja', t:(k)=>k });
+const useLang = () => React.useContext(LangContext);
+
 // ==================== Quotes ====================
 const PRAISE = ['素晴らしい！🎉', 'よくやった！✨', '完璧です！🌟', '最高！🚀', 'お見事！👏', 'やったね！🎊', '一歩前進！💪'];
 const QUOTES = [
@@ -786,6 +848,8 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
     recurringDays: existingRec ? [...existingRec.days] : [],
   });
 
+  const { t } = useLang();
+
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
@@ -861,38 +925,38 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
       <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-slide-in h-full">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{task ? 'タスクを編集' : 'タスクを追加'}</h2>
-            {parentTask && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">親: {parentTask.title}</p>}
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{task ? t('task_edit') : t('task_add')}</h2>
+            {parentTask && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('parent_prefix')} {parentTask.title}</p>}
           </div>
           <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.X size={19} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <div>
-            <div className={lc}>タイトル *</div>
+            <div className={lc}>{t('field_title')}</div>
             <input autoFocus value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="タスクのタイトルを入力..." className={ic} />
+              placeholder={t('field_title_ph')} className={ic} />
           </div>
           <div>
-            <div className={lc}>説明</div>
+            <div className={lc}>{t('field_desc')}</div>
             <textarea value={form.description} onChange={e => set('description', e.target.value)}
-              placeholder="詳細な説明（任意）" rows={3} className={`${ic} resize-none`} />
+              placeholder={t('field_desc_ph')} rows={3} className={`${ic} resize-none`} />
           </div>
           {/* AI サブタスク生成 */}
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Icons.Sparkles size={15} className="text-purple-500" />
-                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">AIサブタスク生成</span>
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('ai_title')}</span>
               </div>
               <button onClick={generateSubtasks} disabled={!form.title.trim() || aiLoading}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
-                {aiLoading ? <><Icons.RefreshCw size={11} className="animate-spin" /> 生成中...</> : <><Icons.Sparkles size={11} /> 生成</>}
+                {aiLoading ? <><Icons.RefreshCw size={11} className="animate-spin" /> {t('ai_loading')}</> : <><Icons.Sparkles size={11} /> {t('ai_btn')}</>}
               </button>
             </div>
             {aiError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{aiError}</p>}
             {aiSubs.length > 0 && (
               <div className="space-y-1.5 animate-fade-in">
-                <p className="text-xs text-gray-500 dark:text-gray-400">チェックしたものをサブタスクとして追加します</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('ai_hint')}</p>
                 {aiSubs.map((s, i) => (
                   <label key={i} className="flex items-center gap-2.5 p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-purple-400 transition-colors">
                     <input type="checkbox" checked={s.selected} onChange={() => setAiSubs(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))} className="w-4 h-4 rounded accent-purple-600 flex-shrink-0" />
@@ -901,15 +965,15 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
                   </label>
                 ))}
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: true })))} className="text-xs text-purple-600 hover:underline">全選択</button>
-                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: false })))} className="text-xs text-gray-400 hover:underline">全解除</button>
-                  <button onClick={() => setAiSubs([])} className="text-xs text-gray-400 hover:underline ml-auto">クリア</button>
+                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: true })))} className="text-xs text-purple-600 hover:underline">{t('ai_all')}</button>
+                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: false })))} className="text-xs text-gray-400 hover:underline">{t('ai_none')}</button>
+                  <button onClick={() => setAiSubs([])} className="text-xs text-gray-400 hover:underline ml-auto">{t('ai_clear')}</button>
                 </div>
               </div>
             )}
           </div>
           <div>
-            <div className={lc}>カテゴリ</div>
+            <div className={lc}>{t('field_category')}</div>
             <div className="grid grid-cols-2 gap-2">
               {categories.map(cat => (
                 <button key={cat.id} type="button" onClick={() => set('categoryId', cat.id)}
@@ -922,21 +986,21 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className={lc}>優先度</div>
+              <div className={lc}>{t('field_priority')}</div>
               {['high','medium','low'].map(p => (
                 <button key={p} type="button" onClick={() => set('priority', p)}
                   className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.priority === p ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-                  {PRIORITY_LABELS[p]}
+                  {t(`priority_${p}`)}
                   {form.priority === p && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
                 </button>
               ))}
             </div>
             <div>
-              <div className={lc}>ステータス</div>
+              <div className={lc}>{t('field_status')}</div>
               {['todo','in_progress','done'].map(s => (
                 <button key={s} type="button" onClick={() => set('status', s)}
                   className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.status === s ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-                  {STATUS_LABELS[s]}
+                  {t(`status_${s === 'in_progress' ? 'progress' : s}`)}
                   {form.status === s && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
                 </button>
               ))}
@@ -959,7 +1023,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
             </label>
             {form.isTodayTask && (
               <div className="animate-fade-in">
-                <div className={lc}>予定時刻（任意）</div>
+                <div className={lc}>{t('field_time')}</div>
                 <div className="flex items-center gap-2">
                   <input type="time" value={form.scheduledStart} onChange={e => set('scheduledStart', e.target.value)} className={`${ic} flex-1`} />
                   <span className="text-gray-400 text-sm">〜</span>
@@ -972,12 +1036,12 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
             <label className="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" checked={form.isRecurring} onChange={e => set('isRecurring', e.target.checked)} className="w-4 h-4 rounded accent-purple-600" />
               <Icons.Repeat size={15} className="text-purple-500 flex-shrink-0" />
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">定期タスクに設定</span>
-              {existingRec && <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">設定済み</span>}
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('field_recurring')}</span>
+              {existingRec && <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">{t('rec_configured')}</span>}
             </label>
             {form.isRecurring && (
               <div className="animate-fade-in space-y-2">
-                <div className={lc}>繰り返す曜日 *</div>
+                <div className={lc}>{t('rec_days')}</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {DAYS_JP.map((d, i) => (
                     <button key={i} type="button" onClick={() => toggleRecDay(i)}
@@ -995,9 +1059,9 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
           </div>
         </div>
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">キャンセル</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_cancel')}</button>
           <button onClick={handleSubmit} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
-            <Icons.Plus size={15} /> {task ? '更新する' : '追加する'}
+            <Icons.Plus size={15} /> {task ? t('btn_update') : t('btn_add')}
           </button>
         </div>
       </div>
@@ -1482,9 +1546,10 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onMoveUp, onMov
 };
 
 const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onMoveUp, onMoveDown, onUpdateSchedule }) => {
+  const { t, lang } = useLang();
   const [showCompletion, setShowCompletion] = useState(false);
   const now = new Date();
-  const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const dateStr = now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
   const totalToday = allTasks.filter(t => t.isTodayTask).length;
 
@@ -1500,15 +1565,15 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
       <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Today</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('nav_today')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr}</p>
           </div>
-          <button onClick={onAddTask} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">+ タスク追加</button>
+          <button onClick={onAddTask} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">{t('today_add')}</button>
         </div>
         {totalToday > 0 && (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-              <span>完了率</span><span>{completedToday}/{totalToday}</span>
+              <span>{t('today_rate')}</span><span>{completedToday}/{totalToday}</span>
             </div>
             <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500" style={{ width: `${totalToday ? (completedToday / totalToday) * 100 : 0}%` }} />
@@ -1709,6 +1774,7 @@ const REPORT_RANGES = [
 ];
 
 const ReportView = ({ tasks, categories }) => {
+  const { t, lang } = useLang();
   const [range, setRange] = useState('week');
   const [report, setReport] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1800,9 +1866,9 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Icons.Sparkles size={20} className="text-purple-500" /> AIレポート
+              <Icons.Sparkles size={20} className="text-purple-500" /> {t('report_title')}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">タスクデータをAIが分析して振り返りレポートを生成します</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('report_desc')}</p>
           </div>
         </div>
 
@@ -1819,9 +1885,9 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-5">
           {[
-            { label: '対象タスク', value: target.length, color: 'text-blue-600 dark:text-blue-400' },
-            { label: '完了', value: done.length, color: 'text-green-600 dark:text-green-400' },
-            { label: '完了率', value: target.length > 0 ? `${Math.round(done.length / target.length * 100)}%` : '-', color: 'text-purple-600 dark:text-purple-400' },
+            { label: t('report_tasks'), value: target.length, color: 'text-blue-600 dark:text-blue-400' },
+            { label: t('report_done'), value: done.length, color: 'text-green-600 dark:text-green-400' },
+            { label: t('report_rate'), value: target.length > 0 ? `${Math.round(done.length / target.length * 100)}%` : '-', color: 'text-purple-600 dark:text-purple-400' },
           ].map(s => (
             <div key={s.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 text-center">
               <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -2117,16 +2183,17 @@ const TermsModal = ({ onClose }) => {
 
 // ==================== Sidebar ====================
 const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus, onTermsClick }) => {
+  const { lang, t, setLang } = useLang();
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
   const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
   const navItems = [
-    { id: 'tasks', label: 'タスク一覧', Icon: Icons.Layout },
-    { id: 'today', label: 'Today', Icon: Icons.Sun, badge: todayCount },
-    { id: 'deadline', label: '期限管理', Icon: Icons.AlertTriangle, badge: urgentCount, red: true },
-    { id: 'calendar', label: 'カレンダー', Icon: Icons.Calendar },
-    { id: 'recurring', label: '定期タスク', Icon: Icons.Repeat },
-    { id: 'report', label: 'AIレポート', Icon: Icons.Sparkles },
-    { id: 'categories', label: 'カテゴリ管理', Icon: Icons.Tags },
+    { id: 'tasks', label: t('nav_tasks'), Icon: Icons.Layout },
+    { id: 'today', label: t('nav_today'), Icon: Icons.Sun, badge: todayCount },
+    { id: 'deadline', label: t('nav_deadline'), Icon: Icons.AlertTriangle, badge: urgentCount, red: true },
+    { id: 'calendar', label: t('nav_calendar'), Icon: Icons.Calendar },
+    { id: 'recurring', label: t('nav_recurring'), Icon: Icons.Repeat },
+    { id: 'report', label: t('nav_report'), Icon: Icons.Sparkles },
+    { id: 'categories', label: t('nav_categories'), Icon: Icons.Tags },
   ];
 
   const Content = () => (
@@ -2171,6 +2238,19 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
         })}
       </nav>
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        {/* Language switcher */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Icons.FileText size={17} className="text-gray-400 flex-shrink-0" />
+          <span className="text-sm text-gray-400 flex-1">{t('language')}</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-700">
+            {['ja','en'].map(l => (
+              <button key={l} onClick={() => setLang(l)}
+                className={`px-2.5 py-1 text-xs font-bold transition-colors ${lang === l ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+                {l === 'ja' ? '日本語' : 'EN'}
+              </button>
+            ))}
+          </div>
+        </div>
         {/* Cloud sync */}
         <button onClick={onSyncClick}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
@@ -2184,30 +2264,25 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
             : syncStatus === 'error' ? <Icons.CloudOff size={17} />
             : <Icons.Cloud size={17} />}
           <span className="flex-1 text-left">
-            {syncStatus === 'synced' ? 'クラウド同期済み'
-              : syncStatus === 'syncing' ? '同期中...'
-              : syncStatus === 'error' ? '同期エラー'
-              : 'クラウド同期'}
+            {syncStatus === 'synced' ? t('sync_synced') : syncStatus === 'syncing' ? t('sync_ing') : syncStatus === 'error' ? t('sync_error') : t('sync_none')}
           </span>
           {!JB.key() && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">未設定</span>}
         </button>
         <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
           {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
-          <span>{darkMode ? 'ライトモード' : 'ダークモード'}</span>
+          <span>{darkMode ? t('light_mode') : t('dark_mode')}</span>
         </button>
         <div className="flex gap-1.5 pt-1">
           <button onClick={onExport} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600">
-            <Icons.Download size={14} />
-            <span>エクスポート</span>
+            <Icons.Download size={14} /><span>{t('export')}</span>
           </button>
           <label className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600 cursor-pointer">
-            <Icons.Upload size={14} />
-            <span>インポート</span>
+            <Icons.Upload size={14} /><span>{t('import')}</span>
             <input type="file" accept=".json" className="hidden" onChange={onImport} />
           </label>
         </div>
         <button onClick={onTermsClick} className="w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors pt-1">
-          利用規約・プライバシーポリシー
+          {t('terms')}
         </button>
       </div>
     </div>
@@ -2245,6 +2320,9 @@ const App = () => {
   const [lastSynced, setLastSynced] = useState(() => JB.lastSynced());
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [lang, setLangState] = useState(() => localStorage.getItem('tf_lang') || 'ja');
+  const setLang = (l) => { localStorage.setItem('tf_lang', l); setLangState(l); };
+  const t = (key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['ja'][key] ?? key;
   const syncTimer = useRef(null);
 
   useEffect(() => {
@@ -2457,6 +2535,7 @@ const App = () => {
   };
 
   return (
+    <LangContext.Provider value={{ lang, t, setLang }}>
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
       <Sidebar view={view} onViewChange={setView} categories={categories} tasks={flatTasks}
         darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)}
@@ -2534,6 +2613,7 @@ const App = () => {
       )}
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
+    </LangContext.Provider>
   );
 };
 
