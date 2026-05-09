@@ -1331,12 +1331,123 @@ const minToStr = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%
 const strToMin = (t) => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+(m||0); };
 const snapTo = (m) => Math.round(m / SNAP_MIN) * SNAP_MIN;
 
+// ===== Todayタスクカード =====
+const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, unscheduledList, idx, onMoveUp, onMoveDown, showParent = true }) => {
+  const isDone = task.status === 'done';
+  const isPlacing = placing === task.id;
+  return (
+    <div className={`rounded-lg p-2 border transition-all ${isPlacing ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}`}
+      style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
+      <div className="flex items-start gap-1">
+        {!scheduled && (
+          <div className="flex flex-col flex-shrink-0 mt-0.5">
+            <button onClick={() => onMoveUp?.(task.id)} disabled={idx === 0} className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors"><Icons.ArrowUp size={11} /></button>
+            <button onClick={() => onMoveDown?.(task.id)} disabled={idx === (unscheduledList?.length ?? 1) - 1} className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors"><Icons.ArrowDown size={11} /></button>
+          </div>
+        )}
+        {scheduled && (
+          <button onClick={() => onStatusChange(task.id, isDone ? 'todo' : 'done')} className={`mt-0.5 flex-shrink-0 transition-colors ${isDone ? 'text-green-500' : 'text-gray-300 hover:text-green-500'}`}>
+            {isDone ? <Icons.CheckCircle size={14} /> : <Icons.Circle size={14} />}
+          </button>
+        )}
+        <div className={`flex-1 min-w-0 ${!scheduled ? 'cursor-pointer' : ''}`} onClick={() => !scheduled && !isDone && onStatusChange(task.id, 'done')}>
+          <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{task.title}</p>
+          {scheduled
+            ? <p className="text-xs text-blue-500 dark:text-blue-400 font-mono mt-0.5">{task.scheduledTime.start}〜{task.scheduledTime.end}</p>
+            : task.estimatedMinutes ? <p className="text-xs text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p> : null
+          }
+          <div className="flex flex-wrap gap-1 mt-1">
+            {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+            {showParent && parentTask && (
+              <span className="text-xs px-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 leading-5">
+                📁 {parentTask.title}
+              </span>
+            )}
+          </div>
+        </div>
+        {!scheduled && !isDone && (
+          <button onClick={() => setPlacing(isPlacing ? null : task.id)} title="タイムラインに配置"
+            className={`p-1 rounded flex-shrink-0 transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
+            <Icons.Clock size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ===== 親タスク別グループ =====
+const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, placing, setPlacing, onStatusChange, onMoveUp, onMoveDown }) => {
+  const [collapsed, setCollapsed] = useState({});
+  const taskMap = Object.fromEntries((allTasks || []).map(t => [t.id, t]));
+
+  const groups = useMemo(() => {
+    const map = {};
+    tasks.forEach(task => {
+      const parentId = task.parentId || '__root__';
+      if (!map[parentId]) map[parentId] = { scheduled: [], unscheduled: [] };
+      if (task.scheduledTime?.start && task.scheduledTime?.end)
+        map[parentId].scheduled.push(task);
+      else
+        map[parentId].unscheduled.push(task);
+    });
+    return Object.entries(map).map(([parentId, { scheduled: s, unscheduled: u }]) => {
+      const parent = parentId !== '__root__' ? taskMap[parentId] : null;
+      return { key: parentId, label: parent ? parent.title : '親タスクなし', parent, scheduled: s, unscheduled: u };
+    }).sort((a, b) => {
+      if (a.key === '__root__') return 1;
+      if (b.key === '__root__') return -1;
+      return a.label.localeCompare(b.label, 'ja');
+    });
+  }, [tasks, allTasks]);
+
+  const toggle = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  return (
+    <div className="space-y-2">
+      {groups.map(({ key, label, parent, scheduled: gs, unscheduled: gu }) => (
+        <div key={key} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* グループヘッダー */}
+          <button onClick={() => toggle(key)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
+            <Icons.ChevronRight size={13} className={`text-gray-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
+            <Icons.Layout size={12} className="text-blue-400 flex-shrink-0" />
+            <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-300 leading-snug">{label}</span>
+            <span className="text-xs text-gray-400 flex-shrink-0">{gs.length + gu.length}件</span>
+          </button>
+          {/* タスク */}
+          {!collapsed[key] && (
+            <div className="p-1.5 space-y-1">
+              {gs.map(task => (
+                <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                  parentTask={null} scheduled={true} showParent={false}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                  unscheduledList={gu} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+              ))}
+              {gu.length > 0 && gs.length > 0 && <div className="border-t border-gray-100 dark:border-gray-700 my-0.5" />}
+              {gu.length > 0 && <p className="text-xs text-gray-400 px-1">時刻未設定</p>}
+              {gu.map((task, idx) => (
+                <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                  parentTask={null} scheduled={false} showParent={false}
+                  idx={idx} unscheduledList={gu}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                  onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Timeline = ({ tasks, categories, allTasks, onStatusChange, onMoveUp, onMoveDown, onUpdateSchedule }) => {
   const timelineRef = useRef(null);
   const [drag, setDrag] = useState(null);
   // drag: { taskId, type:'move'|'resize', startMin, endMin, offsetMin, curStartMin, curEndMin }
   const [placing, setPlacing] = useState(null); // taskId being placed
   const [hoverMin, setHoverMin] = useState(null);
+  const [todayGroupBy, setTodayGroupBy] = useState('flat'); // 'flat' | 'parent'
 
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
@@ -1408,89 +1519,68 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onMoveUp, onMov
 
       {/* ===== 左: タスク一覧 ===== */}
       <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
-        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">タスク</span>
-          {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">合計 {formatMinutes(totalMin)}</span>}
+        {/* ヘッダー */}
+        <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">タスク</span>
+            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">合計 {formatMinutes(totalMin)}</span>}
+          </div>
+          {/* グループ切り替え */}
+          <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
+            {[['flat','フラット'],['parent','親タスク別']].map(([id, label]) => (
+              <button key={id} onClick={() => setTodayGroupBy(id)}
+                className={`flex-1 py-1 font-medium transition-colors ${todayGroupBy === id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* 配置中ガイド */}
         {placing && (
-          <div className="mx-2 mt-2 flex items-start gap-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2.5 py-2 animate-fade-in flex-shrink-0">
+          <div className="mx-2 mt-2 flex items-start gap-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2.5 py-2 flex-shrink-0">
             <Icons.Clock size={12} className="text-blue-500 mt-0.5 flex-shrink-0" />
             <span className="text-xs text-blue-700 dark:text-blue-300 leading-snug">右のタイムラインをクリックして配置</span>
             <button onClick={() => setPlacing(null)} className="ml-auto text-blue-400 hover:text-blue-600 flex-shrink-0"><Icons.X size={12} /></button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+
+        <div className="flex-1 overflow-y-auto px-2 py-2">
           {tasks.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
               <div className="text-3xl mb-3">✅</div>
               <p className="text-xs font-medium text-center">今日のタスクはありません</p>
             </div>
           )}
-          {scheduled.map(task => {
-            const cat = catMap[task.categoryId];
-            const isDone = task.status === 'done';
-            const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
-            return (
-              <div key={task.id}
-                className={`rounded-lg p-2 border transition-all ${isDone ? 'opacity-50 bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}`}
-                style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
-                <div className="flex items-start gap-1.5">
-                  <button onClick={() => onStatusChange(task.id, isDone ? 'todo' : 'done')} className={`mt-0.5 flex-shrink-0 transition-colors ${isDone ? 'text-green-500' : 'text-gray-300 hover:text-green-500'}`}>
-                    {isDone ? <Icons.CheckCircle size={15} /> : <Icons.Circle size={15} />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{task.title}</p>
-                    <p className="text-xs text-blue-500 dark:text-blue-400 font-mono mt-0.5">{task.scheduledTime.start}〜{task.scheduledTime.end}</p>
-                    {(cat || parentTask) && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-                        {parentTask && <span className="text-xs px-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 leading-5 truncate max-w-[80px]" title={parentTask.title}>↑ {parentTask.title}</span>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {unscheduled.length > 0 && (
-            <>
-              {scheduled.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-1" />}
-              <p className="text-xs text-gray-400 dark:text-gray-500 px-1">時刻未設定</p>
-              {unscheduled.map((task, idx) => {
+
+          {todayGroupBy === 'flat' ? (
+            /* ===== フラット表示 ===== */
+            <div className="space-y-1.5">
+              {scheduled.map(task => {
                 const cat = catMap[task.categoryId];
-                const isDone = task.status === 'done';
                 const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
-                const isPlacing = placing === task.id;
-                return (
-                  <div key={task.id}
-                    className={`rounded-lg p-2 border transition-all ${isPlacing ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : isDone ? 'opacity-50 bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}`}
-                    style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
-                    <div className="flex items-start gap-1">
-                      <div className="flex flex-col flex-shrink-0 mt-0.5">
-                        <button onClick={() => onMoveUp?.(task.id)} disabled={idx === 0} className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors"><Icons.ArrowUp size={11} /></button>
-                        <button onClick={() => onMoveDown?.(task.id)} disabled={idx === unscheduled.length - 1} className="text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors"><Icons.ArrowDown size={11} /></button>
-                      </div>
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => !isDone && onStatusChange(task.id, 'done')}>
-                        <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{task.title}</p>
-                        {task.estimatedMinutes && <p className="text-xs text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p>}
-                        {(cat || parentTask) && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-                            {parentTask && <span className="text-xs px-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 leading-5 truncate max-w-[80px]" title={parentTask.title}>↑ {parentTask.title}</span>}
-                          </div>
-                        )}
-                      </div>
-                      {!isDone && (
-                        <button onClick={() => setPlacing(isPlacing ? null : task.id)} title="タイムラインに配置"
-                          className={`p-1 rounded flex-shrink-0 transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
-                          <Icons.Clock size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
+                return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={true}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                  unscheduledList={unscheduled} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />;
               })}
-            </>
+              {unscheduled.length > 0 && <>
+                {scheduled.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-1" />}
+                <p className="text-xs text-gray-400 dark:text-gray-500 px-1 mb-1">時刻未設定</p>
+                {unscheduled.map((task, idx) => {
+                  const cat = catMap[task.categoryId];
+                  const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
+                  return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={false}
+                    placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                    unscheduledList={unscheduled} idx={idx} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />;
+                })}
+              </>}
+            </div>
+          ) : (
+            /* ===== 親タスク別グループ表示 ===== */
+            <TodayGroupedList tasks={tasks} allTasks={allTasks} catMap={catMap}
+              scheduled={scheduled} unscheduled={unscheduled}
+              placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+              onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
           )}
         </div>
       </div>
