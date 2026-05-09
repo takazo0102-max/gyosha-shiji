@@ -476,6 +476,10 @@ const TRANSLATIONS = {
     report_title:'AIレポート', report_desc:'タスクデータをAIが分析して振り返りレポートを生成します',
     report_btn:'レポートを生成', report_this_week:'今週', report_last_week:'先週', report_this_month:'今月',
     report_tasks:'対象タスク', report_done:'完了', report_rate:'完了率',
+    nav_completed:'完了ボックス',
+    completed_title:'完了ボックス', completed_empty:'完了したタスクはありません',
+    completed_restore:'元に戻す', completed_all:'すべて', completed_clear:'完了タスクを全削除',
+    completed_done_at:'完了日',
   },
   en: {
     nav_tasks:'Tasks', nav_today:'Today', nav_deadline:'Deadlines',
@@ -504,6 +508,9 @@ const TRANSLATIONS = {
     report_title:'AI Report', report_desc:'AI analyzes your tasks and generates a review report',
     report_btn:'Generate Report', report_this_week:'This Week', report_last_week:'Last Week', report_this_month:'This Month',
     report_tasks:'Tasks', report_done:'Done', report_rate:'Completion',
+    nav_completed:'Completed', completed_title:'Completed Box', completed_empty:'No completed tasks',
+    completed_restore:'Restore', completed_all:'All', completed_clear:'Delete All Completed',
+    completed_done_at:'Completed',
   },
 };
 const LangContext = React.createContext({ lang:'ja', t:(k)=>k });
@@ -1205,7 +1212,12 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
     return filter(list);
   };
 
-  const filtered = filterTree(tasks);
+  // 完了タスクを除外（完了ボックスに移動）
+  const removeDone = (list) => list
+    .filter(t => t.status !== 'done')
+    .map(t => ({ ...t, children: removeDone(t.children || []) }));
+  const activeTasks = hasFilters ? tasks : removeDone(tasks);
+  const filtered = filterTree(activeTasks);
 
   const grouped = useMemo(() => {
     if (groupBy === 'none') return [{ cat: null, tasks: filtered }];
@@ -1773,6 +1785,140 @@ const REPORT_RANGES = [
   { id: 'month', label: '今月', days: 30 },
 ];
 
+// ==================== CompletedView ====================
+const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
+  const { t } = useLang();
+  const [filterCat, setFilterCat] = useState('');
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+
+  const doneTasks = tasks
+    .filter(t => t.status === 'done' && (!filterCat || t.categoryId === filterCat))
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const grouped = categories.reduce((acc, cat) => {
+    const items = doneTasks.filter(t => t.categoryId === cat.id);
+    if (items.length) acc[cat.id] = { cat, items };
+    return acc;
+  }, {});
+  const uncategorized = doneTasks.filter(t => !t.categoryId || !catMap[t.categoryId]);
+
+  const handleClearAll = () => {
+    if (window.confirm(t('completed_clear') + `（${doneTasks.length}件）？`)) {
+      doneTasks.forEach(t => onDelete(t.id));
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="max-w-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Icons.CheckCircle size={22} className="text-green-500" /> {t('completed_title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{doneTasks.length} タスク完了</p>
+          </div>
+          {doneTasks.length > 0 && (
+            <button onClick={handleClearAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+              <Icons.Trash2 size={13} /> {t('completed_clear')}
+            </button>
+          )}
+        </div>
+
+        {/* Category filter */}
+        {categories.length > 0 && (
+          <div className="flex gap-2 flex-wrap mb-4">
+            <button onClick={() => setFilterCat('')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${!filterCat ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400'}`}>
+              {t('completed_all')}
+            </button>
+            {categories.map(cat => {
+              const count = tasks.filter(t => t.status === 'done' && t.categoryId === cat.id).length;
+              if (!count) return null;
+              return (
+                <button key={cat.id} onClick={() => setFilterCat(cat.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${filterCat === cat.id ? 'text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400'}`}
+                  style={filterCat === cat.id ? { backgroundColor: cat.color } : {}}>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                  {cat.name} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {doneTasks.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+            <div className="text-5xl mb-4">✅</div>
+            <p className="text-sm font-medium">{t('completed_empty')}</p>
+          </div>
+        )}
+
+        {/* Task list grouped by category */}
+        <div className="space-y-6">
+          {Object.values(grouped).map(({ cat, items }) => (
+            <div key={cat.id}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{cat.name}</span>
+                <span className="text-xs text-gray-400">({items.length})</span>
+              </div>
+              <div className="space-y-2">
+                {items.map(task => (
+                  <CompletedTaskCard key={task.id} task={task} cat={cat} onRestore={onRestore} onDelete={onDelete} t={t} />
+                ))}
+              </div>
+            </div>
+          ))}
+          {uncategorized.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">未分類</p>
+              <div className="space-y-2">
+                {uncategorized.map(task => (
+                  <CompletedTaskCard key={task.id} task={task} cat={null} onRestore={onRestore} onDelete={onDelete} t={t} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CompletedTaskCard = ({ task, cat, onRestore, onDelete, t }) => {
+  const parentTitle = task._parentTitle;
+  const dateStr = task.updatedAt || task.createdAt
+    ? new Date(task.updatedAt || task.createdAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })
+    : '';
+  return (
+    <div className="flex items-center gap-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3 group hover:border-green-300 dark:hover:border-green-700 transition-all">
+      <Icons.CheckCircle size={18} className="text-green-500 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-gray-500 dark:text-gray-400 line-through leading-tight truncate">{task.title}</p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+          {dateStr && <span className="text-xs text-gray-400">{dateStr}</span>}
+          {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱{task.estimatedMinutes}分</span>}
+        </div>
+      </div>
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <button onClick={() => onRestore(task.id)} title={t('completed_restore')}
+          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+          <Icons.RefreshCw size={14} />
+        </button>
+        <button onClick={() => onDelete(task.id)} title={t('btn_delete')}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+          <Icons.Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const ReportView = ({ tasks, categories }) => {
   const { t, lang } = useLang();
   const [range, setRange] = useState('week');
@@ -2186,9 +2332,11 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
   const { lang, t, setLang } = useLang();
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
   const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
+  const doneCount = tasks.filter(t => t.status === 'done').length;
   const navItems = [
     { id: 'tasks', label: t('nav_tasks'), Icon: Icons.Layout },
     { id: 'today', label: t('nav_today'), Icon: Icons.Sun, badge: todayCount },
+    { id: 'completed', label: t('nav_completed'), Icon: Icons.CheckCircle, badge: doneCount, green: true },
     { id: 'deadline', label: t('nav_deadline'), Icon: Icons.AlertTriangle, badge: urgentCount, red: true },
     { id: 'calendar', label: t('nav_calendar'), Icon: Icons.Calendar },
     { id: 'recurring', label: t('nav_recurring'), Icon: Icons.Repeat },
@@ -2213,7 +2361,7 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
               <item.Icon size={17} />
               <span className="flex-1 text-left">{item.label}</span>
-              {item.badge > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${item.red ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>{item.badge}</span>}
+              {item.badge > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${item.red ? 'bg-red-500 text-white' : item.green ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>{item.badge}</span>}
             </button>
           );
         })}
@@ -2411,7 +2559,7 @@ const App = () => {
     return newTask.id;
   };
 
-  const updateTask = (id, updates) => persistTasks(flatTasks.map(t => t.id === id ? { ...t, ...updates } : t));
+  const updateTask = (id, updates) => persistTasks(flatTasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t));
 
   const deleteTask = (id) => {
     const toDelete = new Set();
@@ -2579,6 +2727,11 @@ const App = () => {
           {view === 'calendar' && (
             <CalendarView tasks={flatTasks} categories={categories} onEdit={openEdit}
               onAddTask={(date) => openAdd(null, { defaultDueDate: date })} />
+          )}
+          {view === 'completed' && (
+            <CompletedView tasks={flatTasks} categories={categories}
+              onRestore={(id) => updateTask(id, { status: 'todo', isTodayTask: false })}
+              onDelete={deleteTask} />
           )}
           {view === 'report' && (
             <ReportView tasks={flatTasks} categories={categories} />
