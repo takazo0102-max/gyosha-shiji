@@ -1184,6 +1184,129 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
   );
 };
 
+// ==================== RecurringTasksSection ====================
+const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
+  const [collapsed, setCollapsed] = useState({});
+  const [sectionOpen, setSectionOpen] = useState(true);
+  const [groupBy, setGroupBy] = useState('parent'); // 'parent' | 'category'
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const taskMap = Object.fromEntries(flatTasks.map(t => [t.id, t]));
+
+  const toggleCollapse = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  const groups = useMemo(() => {
+    if (groupBy === 'parent') {
+      const g = {};
+      recurringItems.forEach(task => {
+        const parentId = task.parentId || '__root__';
+        if (!g[parentId]) g[parentId] = [];
+        g[parentId].push(task);
+      });
+      return Object.entries(g).map(([parentId, items]) => {
+        const parent = parentId !== '__root__' ? taskMap[parentId] : null;
+        return { key: parentId, label: parent ? parent.title : '親タスクなし', items };
+      }).sort((a, b) => {
+        if (a.key === '__root__') return 1;
+        if (b.key === '__root__') return -1;
+        return a.label.localeCompare(b.label, 'ja');
+      });
+    } else {
+      const g = {};
+      recurringItems.forEach(task => {
+        const catId = task.categoryId || '__none__';
+        if (!g[catId]) g[catId] = [];
+        g[catId].push(task);
+      });
+      return Object.entries(g).map(([catId, items]) => {
+        const cat = catId !== '__none__' ? catMap[catId] : null;
+        return { key: catId, label: cat ? cat.name : '未分類', cat, items };
+      });
+    }
+  }, [recurringItems, taskMap, catMap, groupBy]);
+
+  if (recurringItems.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      {/* Section header */}
+      <button onClick={() => setSectionOpen(o => !o)}
+        className="w-full flex items-center gap-2 mb-3 text-left">
+        <Icons.RefreshCw size={14} className="text-purple-500 flex-shrink-0" />
+        <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">定期タスク</span>
+        <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-medium">{recurringItems.length}件</span>
+        <div className="flex-1 h-px bg-purple-200 dark:bg-purple-800/50" />
+        <Icons.ChevronDown size={13} className={`text-purple-400 transition-transform duration-200 ${sectionOpen ? '' : '-rotate-90'}`} />
+      </button>
+
+      {sectionOpen && (
+        <div className="animate-fade-in">
+          {/* Group by toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-gray-500 dark:text-gray-400">グループ：</span>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+              {[['parent','親タスク別'],['category','カテゴリ別']].map(([id, label]) => (
+                <button key={id} onClick={() => setGroupBy(id)}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${groupBy === id ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {groups.map(({ key, label, cat, items }) => (
+              <div key={key} className="bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-200 dark:border-purple-800/50 overflow-hidden">
+                <button onClick={() => toggleCollapse(key)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-colors text-left">
+                  <Icons.ChevronRight size={13} className={`text-purple-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
+                  {groupBy === 'parent' ? (
+                    <Icons.Layout size={13} className="text-purple-400 flex-shrink-0" />
+                  ) : (
+                    cat ? <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} /> : <span className="w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0" />
+                  )}
+                  <span className="font-semibold text-xs text-purple-800 dark:text-purple-200 flex-1">{label}</span>
+                  <span className="text-xs bg-purple-200 dark:bg-purple-800/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
+                </button>
+                {!collapsed[key] && (
+                  <div className="border-t border-purple-200 dark:border-purple-800/30 divide-y divide-purple-100 dark:divide-purple-800/20">
+                    {items.map(task => {
+                      const cat = catMap[task.categoryId];
+                      const parent = task.parentId ? taskMap[task.parentId] : null;
+                      const priorityColor = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-blue-400' }[task.priority] || 'text-gray-400';
+                      return (
+                        <div key={task.id} className="flex items-start gap-2 px-3 py-2.5">
+                          <Icons.RefreshCw size={12} className="text-purple-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">{task.title}</p>
+                            {groupBy === 'category' && parent && (
+                              <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 mt-1">
+                                📁 {parent.title}
+                              </span>
+                            )}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                              {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱ {formatMinutes(task.estimatedMinutes)}</span>}
+                            </div>
+                          </div>
+                          {task.priority && task.priority !== 'medium' && (
+                            <span className={`text-xs flex-shrink-0 font-bold ${priorityColor}`}>
+                              {task.priority === 'high' ? '高' : '低'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ==================== TaskTree ====================
 const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onMoveUp, onMoveDown }) => {
   const [search, setSearch] = useState('');
@@ -1212,12 +1335,18 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
     return filter(list);
   };
 
-  // 完了タスクを除外（完了ボックスに移動）
+  // 完了タスク・定期タスクを除外（完了ボックス・定期タスクセクションに移動）
   const removeDone = (list) => list
-    .filter(t => t.status !== 'done')
+    .filter(t => t.status !== 'done' && !t.recurringId)
     .map(t => ({ ...t, children: removeDone(t.children || []) }));
   const activeTasks = hasFilters ? tasks : removeDone(tasks);
   const filtered = filterTree(activeTasks);
+
+  // 定期タスク（recurringId あり・未完了）
+  const recurringItems = useMemo(() =>
+    flatTasks.filter(t => t.recurringId && t.status !== 'done'),
+    [flatTasks]
+  );
 
   const grouped = useMemo(() => {
     if (groupBy === 'none') return [{ cat: null, tasks: filtered }];
@@ -1274,18 +1403,21 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
         )}
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
-        {grouped.length === 0 ? (
+        {grouped.length === 0 && recurringItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4"><Icons.Search size={26} /></div>
             <p className="text-base font-medium">{hasFilters ? '条件に一致するタスクがありません' : 'タスクがありません'}</p>
             <p className="text-sm mt-1">{hasFilters ? 'フィルターを変更してください' : '「追加」ボタンで新しいタスクを作成してください'}</p>
           </div>
         ) : (
-          grouped.map(({ cat, tasks: gt }) => (
-            <CategoryGroup key={cat?.id || 'all'} cat={cat} tasks={gt} categories={categories}
-              onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
-              onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
-          ))
+          <>
+            {grouped.map(({ cat, tasks: gt }) => (
+              <CategoryGroup key={cat?.id || 'all'} cat={cat} tasks={gt} categories={categories}
+                onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+                onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
+            ))}
+            <RecurringTasksSection recurringItems={recurringItems} flatTasks={flatTasks} categories={categories} />
+          </>
         )}
       </div>
     </div>
