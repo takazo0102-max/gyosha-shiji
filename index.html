@@ -2627,6 +2627,76 @@ const TermsModal = ({ onClose }) => {
   );
 };
 
+// ==================== CatDndList ====================
+const CatDndList = ({ categories, tasks, activeCatFilter, onCategoryFilter, onViewChange, onMobileClose, onReorderCategory }) => {
+  const dragIdx = useRef(null);
+  const [overIdx, setOverIdx] = useState(null);
+
+  const handleDragStart = (e, idx) => {
+    dragIdx.current = idx;
+    e.dataTransfer.effectAllowed = 'move';
+    // 透明なゴースト画像（デフォルトを非表示にしない）
+    e.dataTransfer.setData('text/plain', idx);
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (idx !== dragIdx.current) setOverIdx(idx);
+  };
+
+  const handleDrop = (e, idx) => {
+    e.preventDefault();
+    const from = dragIdx.current;
+    if (from == null || from === idx) { setOverIdx(null); return; }
+    // fromをidxの位置に移動
+    const next = [...categories];
+    const [moved] = next.splice(from, 1);
+    next.splice(idx, 0, moved);
+    onReorderCategory?.(null, null, next); // 配列ごと渡す
+    dragIdx.current = null;
+    setOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIdx.current = null;
+    setOverIdx(null);
+  };
+
+  return (
+    <>
+      {categories.map((cat, idx) => {
+        const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
+        const isActive = activeCatFilter === cat.id;
+        const isOver = overIdx === idx;
+        const isDragging = dragIdx.current === idx;
+        return (
+          <div key={cat.id}
+            draggable
+            onDragStart={e => handleDragStart(e, idx)}
+            onDragOver={e => handleDragOver(e, idx)}
+            onDrop={e => handleDrop(e, idx)}
+            onDragEnd={handleDragEnd}
+            className={`group relative flex items-center rounded-xl transition-all cursor-grab active:cursor-grabbing
+              ${isOver && dragIdx.current !== idx ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-gray-950' : ''}
+              ${isDragging ? 'opacity-40' : 'opacity-100'}`}>
+            {/* ドラッグハンドル */}
+            <span className="pl-2 py-3 text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing">
+              <Icons.GripVertical size={13} />
+            </span>
+            <button onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
+              className={`flex-1 flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              <span className="w-[17px] h-[17px] rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+              <span className="flex-1 text-left truncate">{cat.name}</span>
+              {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
 // ==================== Sidebar ====================
 const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus, onTermsClick, onReorderCategory }) => {
   const { lang, t, setLang } = useLang();
@@ -2672,34 +2742,9 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
           <span className="flex-1 text-left">すべて</span>
           <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
         </button>
-        {categories.map((cat, idx) => {
-          const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
-          const isActive = activeCatFilter === cat.id;
-          return (
-            <div key={cat.id} className="group relative flex items-center">
-              <button onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
-                className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
-                <span className="w-[17px] h-[17px] rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="flex-1 text-left truncate">{cat.name}</span>
-                {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
-              </button>
-              {onReorderCategory && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={e => { e.stopPropagation(); onReorderCategory(cat.id, 'up'); }}
-                    disabled={idx === 0}
-                    className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors">
-                    <Icons.ArrowUp size={11} />
-                  </button>
-                  <button onClick={e => { e.stopPropagation(); onReorderCategory(cat.id, 'down'); }}
-                    disabled={idx === categories.length - 1}
-                    className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors">
-                    <Icons.ArrowDown size={11} />
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        <CatDndList categories={categories} tasks={tasks} activeCatFilter={activeCatFilter}
+          onCategoryFilter={onCategoryFilter} onViewChange={onViewChange} onMobileClose={onMobileClose}
+          onReorderCategory={onReorderCategory} />
       </nav>
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
         {/* Language switcher */}
@@ -2856,7 +2901,8 @@ const App = () => {
   const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
   const persistRecurring = (r) => { setRecurring(r); saveRecurring(r); };
 
-  const reorderCategory = (id, direction) => {
+  const reorderCategory = (id, direction, newArray) => {
+    if (newArray) { persistCats(newArray); return; } // DnD: 配列ごと渡される
     const idx = categories.findIndex(c => c.id === id);
     if (idx < 0) return;
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
