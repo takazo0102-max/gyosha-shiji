@@ -2995,8 +2995,8 @@ function renderArchive(){
     html += '<h3>🏢 ' + escapeHtml(v) + '（' + list.length + '件）</h3>';
     list.forEach(r => {
       const hasState = r.shapes || r.drawImage;
-      html += '<div class="saved-row" data-id="'+r.id+'">'
-        + '<img class="thumb" src="'+(r.thumb||'')+'" />'
+      html += '<div class="saved-row" data-id="'+escapeHtml(r.id)+'">'
+        + '<img class="thumb" src="'+(r.thumb ? escapeHtml(r.thumb) : '')+'" />'
         + '<div class="meta">'
         +   '<div class="date">' + escapeHtml(r.date) + '</div>'
         +   '<div class="sub">' + escapeHtml(r.siteName||'-') + (hasState ? ' 📐' : '') + '</div>'
@@ -3167,7 +3167,7 @@ function renderTaskListFor(vendor){
   /* --- Task section --- */
   html+='<div class="section-label">📋 タスク</div>';
   if(!items.length)html+='<div class="empty-msg" style="padding:16px 0;">タスクなし</div>';
-  else items.slice().sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;return(a.due||'9999').localeCompare(b.due||'9999');}).forEach(t=>{html+='<div class="task-row'+(t.done?' done':'')+'" data-id="'+t.id+'"><input type="checkbox" '+(t.done?'checked':'')+' data-act="toggle" /><div class="txt-wrap">'+escapeHtml(t.text)+(t.due?'<span class="due">🗓 '+escapeHtml(t.due)+'</span>':'')+'</div><button class="del" data-act="del">削除</button></div>';});
+  else items.slice().sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;return(a.due||'9999').localeCompare(b.due||'9999');}).forEach(t=>{html+='<div class="task-row'+(t.done?' done':'')+'" data-id="'+escapeHtml(String(t.id))+'"><input type="checkbox" '+(t.done?'checked':'')+' data-act="toggle" /><div class="txt-wrap">'+escapeHtml(t.text)+(t.due?'<span class="due">🗓 '+escapeHtml(t.due)+'</span>':'')+'</div><button class="del" data-act="del">削除</button></div>';});
   html+='<div class="task-add-row"><input type="text" class="txt" id="newTaskText" placeholder="新しいタスク..." /><input type="date" id="newTaskDue" /><button id="addTaskBtn">追加</button></div>';
   /* --- Saved instructions section --- */
   const instructions = getInstructions().filter(r => r.vendor === vendor).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
@@ -3175,8 +3175,8 @@ function renderTaskListFor(vendor){
   if(!instructions.length) html+='<div class="empty-msg" style="padding:16px 0;">保存された指示書はありません</div>';
   else instructions.forEach(r=>{
     const hasState = r.shapes || r.drawImage;
-    html+='<div class="saved-row" data-id="'+r.id+'">'
-      +'<img class="thumb" src="'+(r.thumb||'')+'" />'
+    html+='<div class="saved-row" data-id="'+escapeHtml(r.id)+'">'
+      +'<img class="thumb" src="'+(r.thumb ? escapeHtml(r.thumb) : '')+'" />'
       +'<div class="meta">'
       +  '<div class="date">'+escapeHtml(r.date)+'</div>'
       +  '<div class="sub">'+escapeHtml(r.siteName||'-')+(hasState?' 📐':'')+'</div>'
