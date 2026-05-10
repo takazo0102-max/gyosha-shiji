@@ -2772,32 +2772,38 @@ const App = () => {
   const setLang = (l) => { localStorage.setItem('tf_lang', l); setLangState(l); };
   const t = (key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['ja'][key] ?? key;
   const syncTimer = useRef(null);
+  // クラウドからの初期ロードが完了するまでアップロードを禁止するフラグ
+  const [initCloudDone, setInitCloudDone] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
     localStorage.setItem('tf_dark', String(darkMode));
   }, [darkMode]);
 
-  // 起動時にクラウドからロード
+  // 起動時にクラウドからロード（完了するまでアップロード禁止）
   useEffect(() => {
-    if (!JB.key() || !JB.binId()) return;
+    if (!JB.key() || !JB.binId()) {
+      setInitCloudDone(true); // クラウド未設定ならすぐ許可
+      return;
+    }
     setSyncStatus('syncing');
     jbLoad(JB.key(), JB.binId()).then(data => {
       if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
       if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
       if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
-      const synced = new Date().toISOString();
-      JB.saveSynced(); setLastSynced(synced); setSyncStatus('synced');
-    }).catch(() => setSyncStatus('error'));
+      JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+    }).catch(() => setSyncStatus('error'))
+    .finally(() => setInitCloudDone(true));
   }, []);
 
   // データ変更時に自動同期（3秒デバウンス）
+  // 初期クラウドロード完了後のみ実行（古いローカルデータで上書き防止）
   useEffect(() => {
-    if (!JB.key()) return;
+    if (!JB.key() || !initCloudDone) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => doSync(), 3000);
     return () => clearTimeout(syncTimer.current);
-  }, [flatTasks, categories, recurring]);
+  }, [flatTasks, categories, recurring, initCloudDone]);
 
   const doSync = async (tasksArg, catsArg, recArg) => {
     const key = JB.key();
@@ -2834,10 +2840,25 @@ const App = () => {
   const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
   const persistRecurring = (r) => { setRecurring(r); saveRecurring(r); };
 
-  const handleSyncSettingsSaved = (key, id) => {
-    if (key && id) doSync();
-    else if (key && !id) doSync();
-    setSyncStatus(key ? 'idle' : 'none');
+  const handleSyncSettingsSaved = async (key, id) => {
+    if (!key) { setSyncStatus('none'); return; }
+    if (id) {
+      // BIN IDがある場合：まずクラウドからダウンロード（古いローカルデータで上書き防止）
+      setSyncStatus('syncing');
+      try {
+        const data = await jbLoad(key, id);
+        if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+        if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+        if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+        JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+        setInitCloudDone(true);
+      } catch(e) { console.error(e); setSyncStatus('error'); setInitCloudDone(true); }
+    } else {
+      // BIN IDがない場合：新規作成（ローカルデータをアップロード）
+      setInitCloudDone(true);
+      doSync();
+      setSyncStatus('idle');
+    }
   };
 
   const addRecurring = (data) => persistRecurring([...recurring, { id: generateId('rec'), ...data, lastAddedDate: null }]);
