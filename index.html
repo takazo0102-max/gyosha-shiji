@@ -2933,11 +2933,14 @@ const App = () => {
     } catch (e) { console.error(e); setSyncStatus('error'); }
   };
 
-  // 起動時に定期タスクを自動追加
+  // クラウド読み込み完了後に定期タスクを自動追加
+  // （initCloudDone が true になってから実行することで、クラウドデータへの上書きを防ぐ）
   useEffect(() => {
-    if (recurring.length === 0) return;
+    if (!initCloudDone) return;
+    const currentRecurring = JSON.parse(localStorage.getItem('tf_recurring') || '[]');
+    if (currentRecurring.length === 0) return;
     const current = STORAGE.tasks();
-    const { newTasks, updatedRecurring } = applyRecurringTasks(current, recurring);
+    const { newTasks, updatedRecurring } = applyRecurringTasks(current, currentRecurring);
     if (newTasks.length > 0) {
       const merged = [...current, ...newTasks];
       setFlatTasks(merged);
@@ -2945,7 +2948,7 @@ const App = () => {
     }
     setRecurring(updatedRecurring);
     saveRecurring(updatedRecurring);
-  }, []); // eslint-disable-line
+  }, [initCloudDone]); // eslint-disable-line
 
   const persistTasks = (tasks) => { setFlatTasks(tasks); STORAGE.saveTasks(tasks); };
   const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
