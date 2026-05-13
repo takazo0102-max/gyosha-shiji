@@ -326,6 +326,7 @@ const applyRecurringTasks = (flatTasks, recurring) => {
       priority: rt.priority,
       status: 'todo',
       isTodayTask: true,
+      todayDate: today,
       estimatedMinutes: rt.estimatedMinutes || undefined,
       order: maxOrder + 1 + newTasks.length,
       createdAt: today + 'T00:00:00.000Z',
@@ -1872,8 +1873,11 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
   const [showCompletion, setShowCompletion] = useState(false);
   const now = new Date();
   const dateStr = now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
-  const totalToday = allTasks.filter(t => t.isTodayTask).length;
+  const today = getTodayString();
+  // todayDate が今日のタスクのみカウント（毎日リセット）
+  const todayAll = allTasks.filter(t => t.isTodayTask && t.todayDate === today);
+  const completedToday = todayAll.filter(t => t.status === 'done').length;
+  const totalToday = todayAll.length;
 
   const handleStatusChange = (id, status) => {
     onStatusChange(id, status);
@@ -3038,9 +3042,9 @@ const App = () => {
   const handleTodayToggle = (id, value) => {
     if (value) {
       const maxOrder = Math.max(-1, ...flatTasks.filter(t => t.isTodayTask && t.todayOrder != null).map(t => t.todayOrder));
-      updateTask(id, { isTodayTask: true, todayOrder: maxOrder + 1 });
+      updateTask(id, { isTodayTask: true, todayOrder: maxOrder + 1, todayDate: getTodayString() });
     } else {
-      updateTask(id, { isTodayTask: false });
+      updateTask(id, { isTodayTask: false, todayDate: null });
     }
   };
 
