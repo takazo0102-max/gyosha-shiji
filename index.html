@@ -313,9 +313,12 @@ const applyRecurringTasks = (flatTasks, recurring) => {
   const updatedRecurring = recurring.map(rt => {
     if (!rt.days.includes(todayDow)) return rt;
     if (rt.lastAddedDate === today) return rt;
-    // 同じタイトル・同日のタスクが既にあれば追加しない
-    const exists = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today));
-    if (exists) return { ...rt, lastAddedDate: today };
+    // 未完了の同日タスクが既にあれば追加しない（完了済みは除外して次の曜日に再生成）
+    const activeToday = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today) && t.status !== 'done');
+    if (activeToday) return { ...rt, lastAddedDate: today };
+    // 完了済みタスクが今日あった場合も lastAddedDate を更新（同日再追加防止）
+    const completedToday = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today) && t.status === 'done');
+    if (completedToday) return { ...rt, lastAddedDate: today };
     const siblings = flatTasks.filter(t => !t.parentId);
     const maxOrder = siblings.length ? Math.max(...siblings.map(t => t.order)) : -1;
     newTasks.push({
