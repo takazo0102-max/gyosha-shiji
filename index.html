@@ -310,10 +310,20 @@ const applyRecurringTasks = (flatTasks, recurring) => {
   const today = getTodayString();
   const todayDow = new Date().getDay();
   const newTasks = [];
+  // 前日以前の未完了定期タスクを削除するIDセット
+  const removeIds = new Set();
+
   const updatedRecurring = recurring.map(rt => {
+    // 前日以前の未完了定期タスクを削除対象に追加
+    flatTasks.forEach(t => {
+      if (t.recurringId === rt.id && !t.createdAt?.startsWith(today) && t.status !== 'done') {
+        removeIds.add(t.id);
+      }
+    });
+
     if (!rt.days.includes(todayDow)) return rt;
     if (rt.lastAddedDate === today) return rt;
-    // 未完了の同日タスクが既にあれば追加しない（完了済みは除外して次の曜日に再生成）
+    // 未完了の同日タスクが既にあれば追加しない
     const activeToday = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today) && t.status !== 'done');
     if (activeToday) return { ...rt, lastAddedDate: today };
     // 完了済みタスクが今日あった場合も lastAddedDate を更新（同日再追加防止）
@@ -337,7 +347,7 @@ const applyRecurringTasks = (flatTasks, recurring) => {
     });
     return { ...rt, lastAddedDate: today };
   });
-  return { newTasks, updatedRecurring };
+  return { newTasks, updatedRecurring, removeIds };
 };
 
 // ==================== Tree Utils ====================
@@ -2941,9 +2951,10 @@ const App = () => {
     const currentRecurring = JSON.parse(localStorage.getItem('tf_recurring') || '[]');
     if (currentRecurring.length === 0) return;
     const current = STORAGE.tasks();
-    const { newTasks, updatedRecurring } = applyRecurringTasks(current, currentRecurring);
-    if (newTasks.length > 0) {
-      const merged = [...current, ...newTasks];
+    const { newTasks, updatedRecurring, removeIds } = applyRecurringTasks(current, currentRecurring);
+    if (newTasks.length > 0 || removeIds.size > 0) {
+      // 前日以前の未完了定期タスクを除去し、今日分を追加
+      const merged = [...current.filter(t => !removeIds.has(t.id)), ...newTasks];
       setFlatTasks(merged);
       STORAGE.saveTasks(merged);
     }
