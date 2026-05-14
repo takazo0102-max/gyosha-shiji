@@ -1876,11 +1876,9 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
   const [showCompletion, setShowCompletion] = useState(false);
   const now = new Date();
   const dateStr = now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const today = getTodayString();
-  // todayDate が今日のタスクのみカウント（毎日リセット）
-  const todayAll = allTasks.filter(t => t.isTodayTask && t.todayDate === today);
-  const completedToday = todayAll.filter(t => t.status === 'done').length;
-  const totalToday = todayAll.length;
+  // isTodayTask が true のタスク全体を分母にする
+  const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
+  const totalToday = allTasks.filter(t => t.isTodayTask).length;
 
   const handleStatusChange = (id, status) => {
     onStatusChange(id, status);
