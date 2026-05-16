@@ -1515,13 +1515,14 @@ const strToMin = (t) => { if (!t) return 0; const [h,m] = t.split(':').map(Numbe
 const snapTo = (m) => Math.round(m / SNAP_MIN) * SNAP_MIN;
 
 // ===== Todayタスクカード =====
-const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, dragProps, showParent = true }) => {
+const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, onRemoveToday, dragProps, showParent = true }) => {
   const isDone = task.status === 'done';
   const isPlacing = placing === task.id;
+  const isRecurring = !!task.recurringId;
   const { isDragging, isOver, ...divDragProps } = dragProps || {};
   return (
     <div {...(!scheduled ? divDragProps : {})}
-      className={`rounded-lg p-2 border transition-all
+      className={`group rounded-lg p-2 border transition-all
         ${isPlacing ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}
         ${!scheduled ? 'cursor-grab active:cursor-grabbing' : ''}
         ${isDragging ? 'opacity-40' : ''}
@@ -1551,19 +1552,28 @@ const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, 
             )}
           </div>
         </div>
-        {!scheduled && !isDone && (
-          <button onClick={() => setPlacing(isPlacing ? null : task.id)} title="タイムラインに配置"
-            className={`p-1 rounded flex-shrink-0 transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
-            <Icons.Clock size={13} />
-          </button>
-        )}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {!scheduled && !isDone && (
+            <button onClick={e => { e.stopPropagation(); setPlacing(isPlacing ? null : task.id); }} title="タイムラインに配置"
+              className={`p-1 rounded transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
+              <Icons.Clock size={13} />
+            </button>
+          )}
+          {/* 定期タスク以外は Today から外せる */}
+          {!isRecurring && onRemoveToday && (
+            <button onClick={e => { e.stopPropagation(); onRemoveToday(task.id); }} title="Todayから外す"
+              className="p-1 rounded text-gray-300 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 opacity-0 group-hover:opacity-100 transition-all">
+              <Icons.X size={13} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 // ===== 親タスク別グループ =====
-const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, placing, setPlacing, onStatusChange, onReorderTodayDrop }) => {
+const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, placing, setPlacing, onStatusChange, onReorderTodayDrop, onRemoveToday }) => {
   const [collapsed, setCollapsed] = useState({});
   const taskMap = Object.fromEntries((allTasks || []).map(t => [t.id, t]));
 
@@ -1615,7 +1625,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
               {gs.map(task => (
                 <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
                   parentTask={null} scheduled={true} showParent={false}
-                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} />
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} />
               ))}
               {gu.length > 0 && gs.length > 0 && <div className="border-t border-gray-100 dark:border-gray-700 my-0.5" />}
               {gu.length > 0 && <p className="text-xs text-gray-400 px-1">時刻未設定</p>}
@@ -1625,7 +1635,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
                 renderItem={(task, dragProps) => (
                   <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
                     parentTask={null} scheduled={false} showParent={false}
-                    placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                    placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday}
                     dragProps={dragProps} />
                 )}
               />
@@ -1673,7 +1683,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
   );
 };
 
-const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayDrop, onUpdateSchedule }) => {
+const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayDrop, onRemoveToday, onUpdateSchedule }) => {
   const timelineRef = useRef(null);
   const [drag, setDrag] = useState(null);
   // drag: { taskId, type:'move'|'resize', startMin, endMin, offsetMin, curStartMin, curEndMin }
@@ -1792,7 +1802,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                 const cat = catMap[task.categoryId];
                 const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
                 return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={true}
-                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} />;
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} />;
               })}
               {unscheduled.length > 0 && <>
                 {scheduled.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-1" />}
@@ -1804,7 +1814,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     const cat = catMap[task.categoryId];
                     const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
                     return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={false}
-                      placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} dragProps={dragProps} />;
+                      placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} dragProps={dragProps} />;
                   }}
                 />
               </>}
@@ -1814,7 +1824,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
             <TodayGroupedList tasks={tasks} allTasks={allTasks} catMap={catMap}
               scheduled={scheduled} unscheduled={unscheduled}
               placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
-              onReorderTodayDrop={onReorderTodayDrop} />
+              onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} />
           )}
         </div>
       </div>
@@ -1881,7 +1891,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   );
 };
 
-const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onReorderTodayDrop, onUpdateSchedule }) => {
+const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onReorderTodayDrop, onRemoveToday, onUpdateSchedule }) => {
   const { t, lang } = useLang();
   const [showCompletion, setShowCompletion] = useState(false);
   const now = new Date();
@@ -1918,7 +1928,7 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
           </div>
         )}
       </div>
-      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onReorderTodayDrop={onReorderTodayDrop} onUpdateSchedule={onUpdateSchedule} />
+      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} onUpdateSchedule={onUpdateSchedule} />
       {showCompletion && <CompletionModal onClose={() => setShowCompletion(false)} />}
     </div>
   );
@@ -3173,6 +3183,7 @@ const App = () => {
             <TodayView todayTasks={todayTasks} allTasks={flatTasks} categories={categories}
               onStatusChange={(id, s) => updateTask(id, { status: s })} onAddTask={() => openAdd()}
               onReorderTodayDrop={reorderTodayTaskDrop}
+              onRemoveToday={(id) => updateTask(id, { isTodayTask: false, scheduledTime: undefined })}
               onUpdateSchedule={(id, scheduledTime) => updateTask(id, { scheduledTime })} />
           )}
           {view === 'deadline' && (
