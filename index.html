@@ -2913,17 +2913,25 @@ const App = () => {
   }, [darkMode]);
 
   // 起動時にクラウドからロード（完了するまでアップロード禁止）
+  // クラウドが「前回同期より新しい」場合のみ上書き。
+  // ローカルに未同期の変更がある場合（リロード直後など）はローカルを優先する。
   useEffect(() => {
     if (!JB.key() || !JB.binId()) {
-      setInitCloudDone(true); // クラウド未設定ならすぐ許可
+      setInitCloudDone(true);
       return;
     }
     setSyncStatus('syncing');
     jbLoad(JB.key(), JB.binId()).then(data => {
-      if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
-      if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
-      if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
-      JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+      const cloudSyncedAt = data?.syncedAt || '';
+      const localSyncedAt = JB.lastSynced() || '';
+      // クラウドの syncedAt がローカルより新しい場合のみ上書き（別端末から更新された場合）
+      if (cloudSyncedAt > localSyncedAt) {
+        if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+        if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+        if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+        JB.saveSynced(); setLastSynced(new Date().toISOString());
+      }
+      setSyncStatus('synced');
     }).catch(() => setSyncStatus('error'))
     .finally(() => setInitCloudDone(true));
   }, []);
