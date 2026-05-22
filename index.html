@@ -1890,7 +1890,8 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     cursor: isDragging ? 'grabbing' : 'grab',
                     ringColor: cat?.color,
                   }}
-                  onMouseDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}>
+                  onMouseDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
+                  onClick={(e) => e.stopPropagation()}>
                   {/* 選択時: 浮いた時刻バブル */}
                   {isSelected && !isDone && (
                     <div className="absolute -top-6 left-0 flex items-center gap-1 pointer-events-none">
