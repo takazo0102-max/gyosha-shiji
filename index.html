@@ -494,6 +494,29 @@ const TRANSLATIONS = {
     completed_title:'完了ボックス', completed_empty:'完了したタスクはありません',
     completed_restore:'元に戻す', completed_all:'すべて', completed_clear:'完了タスクを全削除',
     completed_done_at:'完了日',
+    rec_page_title:'定期タスク', rec_page_desc:'曜日を設定すると、その曜日に自動でタスクが追加されます',
+    rec_new:'新規', rec_edit_title:'定期タスクを編集', rec_add_title:'定期タスクを追加',
+    rec_field_title:'タイトル *', rec_field_title_ph:'タスク名',
+    rec_field_days:'繰り返す曜日 *', rec_field_cat:'カテゴリ', rec_field_pri:'優先度',
+    rec_field_est:'見積時間（分）', rec_days_required:'曜日を1つ以上選択してください',
+    rec_empty:'定期タスクはありません', rec_empty_hint:'「新規」ボタンで定期タスクを作成してください',
+    rec_last_added:'最終追加:', rec_est_unit:'分',
+    timeline_tasks:'タスク', timeline_total:'合計', timeline_flat:'フラット', timeline_byparent:'親タスク別',
+    timeline_place_hint:'右のタイムラインをクリックして配置',
+    timeline_empty:'今日のタスクはありません',
+    timeline_unscheduled:'時刻未設定', timeline_place_btn:'タイムラインに配置',
+    tree_search_ph:'タスクを検索...', tree_no_parent:'親タスクなし',
+    tree_empty_filter:'条件に一致するタスクがありません', tree_empty:'タスクがありません',
+    tree_empty_filter_hint:'フィルターを変更してください', tree_empty_hint:'「追加」ボタンで新しいタスクを作成してください',
+    tree_recurring:'定期タスク', tree_add_subtask:'サブタスクを追加',
+    cat_rec_desc:'カテゴリごとに定期タスクを設定できます',
+    cat_rec_label:'定期タスク', cat_rec_name_ph:'定期タスク名 *',
+    cat_rec_empty:'定期タスクなし — 「追加」で設定できます',
+    cat_task_count:'タスク', cat_task_unit:'件',
+    today_add_task:'今日やるタスクに追加',
+    rec_auto_hint:'設定した曜日に毎週タスクが自動追加されます',
+    btn_filter:'フィルター', filter_all_cat:'全カテゴリ', filter_all_status:'全ステータス', filter_all_pri:'全優先度',
+    filter_by_cat:'カテゴリ別', filter_no_group:'グループなし',
   },
   en: {
     nav_tasks:'Tasks', nav_today:'Today', nav_deadline:'Deadlines',
@@ -525,6 +548,29 @@ const TRANSLATIONS = {
     nav_completed:'Completed', completed_title:'Completed Box', completed_empty:'No completed tasks',
     completed_restore:'Restore', completed_all:'All', completed_clear:'Delete All Completed',
     completed_done_at:'Completed',
+    rec_page_title:'Recurring Tasks', rec_page_desc:'Tasks are auto-added on the days you select each week',
+    rec_new:'New', rec_edit_title:'Edit Recurring Task', rec_add_title:'Add Recurring Task',
+    rec_field_title:'Title *', rec_field_title_ph:'Task name',
+    rec_field_days:'Repeat on *', rec_field_cat:'Category', rec_field_pri:'Priority',
+    rec_field_est:'Estimated (min)', rec_days_required:'Select at least one day',
+    rec_empty:'No recurring tasks', rec_empty_hint:'Click "New" to create a recurring task',
+    rec_last_added:'Last added:', rec_est_unit:'min',
+    timeline_tasks:'Tasks', timeline_total:'Total', timeline_flat:'Flat', timeline_byparent:'By Parent',
+    timeline_place_hint:'Click on the timeline to place',
+    timeline_empty:'No tasks for today',
+    timeline_unscheduled:'Unscheduled', timeline_place_btn:'Place on timeline',
+    tree_search_ph:'Search tasks...', tree_no_parent:'No parent',
+    tree_empty_filter:'No tasks match the filter', tree_empty:'No tasks',
+    tree_empty_filter_hint:'Try changing the filter', tree_empty_hint:'Click "Add" to create a new task',
+    tree_recurring:'Recurring', tree_add_subtask:'Add subtask',
+    cat_rec_desc:'Set recurring tasks per category',
+    cat_rec_label:'Recurring', cat_rec_name_ph:'Recurring task name *',
+    cat_rec_empty:'No recurring tasks — click "Add" to set up',
+    cat_task_count:'Tasks', cat_task_unit:'',
+    today_add_task:'Add to Today',
+    rec_auto_hint:'Task is auto-added every week on selected days',
+    btn_filter:'Filter', filter_all_cat:'All Categories', filter_all_status:'All Statuses', filter_all_pri:'All Priorities',
+    filter_by_cat:'By Category', filter_no_group:'No Grouping',
   },
 };
 const LangContext = React.createContext({ lang:'ja', t:(k)=>k });
@@ -672,9 +718,10 @@ const AlertBanner = ({ tasks, categories, onTaskClick }) => {
 };
 
 // ==================== CategoryManager ====================
-const PRIORITY_LABELS_CAT = { high: '高', medium: '中', low: '低' };
-
 const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCategory, recurring, onAddRecurring, onUpdateRecurring, onDeleteRecurring }) => {
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
+  const PRIORITY_LABELS_CAT = { high: t('priority_high'), medium: t('priority_medium'), low: t('priority_low') };
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#3B82F6');
@@ -709,12 +756,12 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">カテゴリ管理</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">カテゴリごとに定期タスクを設定できます</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('nav_categories')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('cat_rec_desc')}</p>
         </div>
         <button onClick={() => setShowNew(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-          <Icons.Plus size={15} /> 新規カテゴリ
+          <Icons.Plus size={15} /> {t('rec_new')} {t('field_category')}
         </button>
       </div>
       {showNew && (
@@ -723,7 +770,7 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
             <div className="w-4 h-4 rounded-full" style={{ backgroundColor: newColor }} />
             <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } if (e.key === 'Escape') setShowNew(false); }}
-              placeholder="カテゴリ名" className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              placeholder={t('field_category')} className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <button onClick={() => { if (newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } }} className="text-green-600 hover:text-green-700"><Icons.Check size={17} /></button>
             <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><Icons.X size={17} /></button>
           </div>
@@ -753,7 +800,7 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button onClick={() => setExpandedCat(isExpanded ? null : cat.id)} className="flex-1 flex items-center gap-3 text-left">
                     <span className="font-medium text-gray-900 dark:text-white">{cat.name}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">タスク {taskCountByCategory[cat.id] ?? 0}件</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('cat_task_count')} {taskCountByCategory[cat.id] ?? 0}{t('cat_task_unit')}</span>
                     {catRecurring.length > 0 && (
                       <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
                         <Icons.Repeat size={10} /> {catRecurring.length}
@@ -773,11 +820,11 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
                 <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                      <Icons.Repeat size={11} /> 定期タスク
+                      <Icons.Repeat size={11} /> {t('cat_rec_label')}
                     </span>
                     <button onClick={() => openRecAdd(cat.id)}
                       className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
-                      <Icons.Plus size={11} /> 追加
+                      <Icons.Plus size={11} /> {t('btn_add')}
                     </button>
                   </div>
 
@@ -785,9 +832,9 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
                   {recForm?.catId === cat.id && (
                     <div className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3 animate-fade-in">
                       <input autoFocus value={recForm.form.title} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, title: e.target.value } }))}
-                        placeholder="定期タスク名 *" className={ic} />
+                        placeholder={t('cat_rec_name_ph')} className={ic} />
                       <div className="flex gap-1.5 flex-wrap">
-                        {DAYS_JP.map((d, i) => (
+                        {DAYS.map((d, i) => (
                           <button key={i} type="button" onClick={() => toggleRecDay(i)}
                             className={`w-9 h-9 rounded-lg text-xs font-bold transition-all border-2 ${
                               recForm.form.days.includes(i)
@@ -796,18 +843,18 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
                             }`}>{d}</button>
                         ))}
                       </div>
-                      {recForm.form.days.length === 0 && <p className="text-xs text-red-500">曜日を1つ以上選択してください</p>}
+                      {recForm.form.days.length === 0 && <p className="text-xs text-red-500">{t('rec_days_required')}</p>}
                       <div className="grid grid-cols-2 gap-2">
                         <select value={recForm.form.priority} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, priority: e.target.value } }))} className={ic}>
                           {['high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS_CAT[p]}</option>)}
                         </select>
-                        <input type="number" min={0} step={5} value={recForm.form.estimatedMinutes} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, estimatedMinutes: e.target.value } }))} placeholder="見積(分)" className={ic} />
+                        <input type="number" min={0} step={5} value={recForm.form.estimatedMinutes} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, estimatedMinutes: e.target.value } }))} placeholder={t('rec_field_est')} className={ic} />
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={cancelRecForm} className="flex-1 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                        <button onClick={cancelRecForm} className="flex-1 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{t('btn_cancel')}</button>
                         <button onClick={saveRec} disabled={!recForm.form.title.trim() || recForm.form.days.length === 0}
                           className="flex-1 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors">
-                          {recForm.editRecId ? '更新' : '追加'}
+                          {recForm.editRecId ? t('btn_update') : t('btn_add')}
                         </button>
                       </div>
                     </div>
@@ -815,7 +862,7 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
 
                   {/* Recurring list */}
                   {catRecurring.length === 0 && !recForm ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">定期タスクなし — 「追加」で設定できます</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">{t('cat_rec_empty')}</p>
                   ) : (
                     <div className="space-y-2">
                       {catRecurring.map(rt => (
@@ -823,13 +870,13 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
                           <Icons.Repeat size={12} className="text-purple-400 flex-shrink-0" />
                           <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{rt.title}</span>
                           <div className="flex gap-0.5 flex-shrink-0">
-                            {DAYS_JP.map((d, i) => (
+                            {DAYS.map((d, i) => (
                               <span key={i} className={`w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${
                                 rt.days.includes(i) ? i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : i === 6 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : 'text-gray-200 dark:text-gray-700'
                               }`}>{d}</span>
                             ))}
                           </div>
-                          {rt.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{rt.estimatedMinutes}分</span>}
+                          {rt.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{rt.estimatedMinutes}{t('rec_est_unit')}</span>}
                           <button onClick={() => openRecEdit(cat.id, rt)} className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors flex-shrink-0"><Icons.Edit2 size={12} /></button>
                           <button onClick={() => onDeleteRecurring(rt.id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors flex-shrink-0"><Icons.Trash2 size={12} /></button>
                         </div>
@@ -869,7 +916,8 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
     recurringDays: existingRec ? [...existingRec.days] : [],
   });
 
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
 
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose(); };
@@ -1033,14 +1081,14 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
               <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={ic} />
             </div>
             <div>
-              <div className={lc}>見積（分）</div>
+              <div className={lc}>{t('field_est')}</div>
               <input type="number" min={0} step={5} value={form.estimatedMinutes} onChange={e => set('estimatedMinutes', e.target.value)} placeholder="60" className={ic} />
             </div>
           </div>
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" checked={form.isTodayTask} onChange={e => set('isTodayTask', e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">今日やるタスクに追加</span>
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('field_today')}</span>
             </label>
             {form.isTodayTask && (
               <div className="animate-fade-in">
@@ -1064,7 +1112,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
               <div className="animate-fade-in space-y-2">
                 <div className={lc}>{t('rec_days')}</div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {DAYS_JP.map((d, i) => (
+                  {DAYS.map((d, i) => (
                     <button key={i} type="button" onClick={() => toggleRecDay(i)}
                       className={`w-9 h-9 rounded-xl text-xs font-bold transition-all border-2 ${
                         form.recurringDays.includes(i)
@@ -1073,8 +1121,8 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
                       }`}>{d}</button>
                   ))}
                 </div>
-                {form.recurringDays.length === 0 && <p className="text-xs text-red-500 mt-1">曜日を1つ以上選択してください</p>}
-                <p className="text-xs text-purple-600 dark:text-purple-400">設定した曜日に毎週タスクが自動追加されます</p>
+                {form.recurringDays.length === 0 && <p className="text-xs text-red-500 mt-1">{t('rec_days_required')}</p>}
+                <p className="text-xs text-purple-600 dark:text-purple-400">{t('rec_auto_hint')}</p>
               </div>
             )}
           </div>
@@ -1232,6 +1280,7 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
 
 // ==================== RecurringTasksSection ====================
 const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
+  const { t } = useLang();
   const [collapsed, setCollapsed] = useState({});
   const [sectionOpen, setSectionOpen] = useState(true);
   const [groupBy, setGroupBy] = useState('parent'); // 'parent' | 'category'
@@ -1250,7 +1299,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
       });
       return Object.entries(g).map(([parentId, items]) => {
         const parent = parentId !== '__root__' ? taskMap[parentId] : null;
-        return { key: parentId, label: parent ? parent.title : '親タスクなし', items };
+        return { key: parentId, label: parent ? parent.title : t('tree_no_parent'), items };
       }).sort((a, b) => {
         if (a.key === '__root__') return 1;
         if (b.key === '__root__') return -1;
@@ -1265,7 +1314,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
       });
       return Object.entries(g).map(([catId, items]) => {
         const cat = catId !== '__none__' ? catMap[catId] : null;
-        return { key: catId, label: cat ? cat.name : '未分類', cat, items };
+        return { key: catId, label: cat ? cat.name : t('tree_no_parent'), cat, items };
       });
     }
   }, [recurringItems, taskMap, catMap, groupBy]);
@@ -1278,8 +1327,8 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
       <button onClick={() => setSectionOpen(o => !o)}
         className="w-full flex items-center gap-2 mb-3 text-left">
         <Icons.RefreshCw size={14} className="text-purple-500 flex-shrink-0" />
-        <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">定期タスク</span>
-        <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-medium">{recurringItems.length}件</span>
+        <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">{t('tree_recurring')}</span>
+        <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-medium">{recurringItems.length}</span>
         <div className="flex-1 h-px bg-purple-200 dark:bg-purple-800/50" />
         <Icons.ChevronDown size={13} className={`text-purple-400 transition-transform duration-200 ${sectionOpen ? '' : '-rotate-90'}`} />
       </button>
@@ -1288,9 +1337,9 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
         <div className="animate-fade-in">
           {/* Group by toggle */}
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs text-gray-500 dark:text-gray-400">グループ：</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('timeline_byparent').replace('By ', '')}:</span>
             <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              {[['parent','親タスク別'],['category','カテゴリ別']].map(([id, label]) => (
+              {[['parent', t('timeline_byparent')],['category', t('field_category')]].map(([id, label]) => (
                 <button key={id} onClick={() => setGroupBy(id)}
                   className={`px-3 py-1 text-xs font-medium transition-colors ${groupBy === id ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
                   {label}
@@ -1336,7 +1385,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
                           </div>
                           {task.priority && task.priority !== 'medium' && (
                             <span className={`text-xs flex-shrink-0 font-bold ${priorityColor}`}>
-                              {task.priority === 'high' ? '高' : '低'}
+                              {task.priority === 'high' ? t('priority_high') : t('priority_low')}
                             </span>
                           )}
                         </div>
@@ -1355,6 +1404,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
 
 // ==================== TaskTree ====================
 const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onReorderDrop }) => {
+  const { t } = useLang();
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -1411,40 +1461,40 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
             <Icons.Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="タスクを検索..."
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('tree_search_ph')}
               className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 border border-transparent rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all" />
           </div>
           <button onClick={() => setShowFilters(s => !s)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters || hasFilters ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-            <Icons.Filter size={13} /> フィルター {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+            <Icons.Filter size={13} /> {t('btn_filter')} {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
           </button>
           <button onClick={() => onAddTask()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
-            <Icons.Plus size={13} /> 追加
+            <Icons.Plus size={13} /> {t('btn_add')}
           </button>
         </div>
         {showFilters && (
           <div className="flex items-center gap-2 flex-wrap animate-fade-in">
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={sc}>
-              <option value="">全カテゴリ</option>
+              <option value="">{t('filter_all_cat')}</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={sc}>
-              <option value="">全ステータス</option>
-              <option value="todo">未着手</option>
-              <option value="in_progress">進行中</option>
-              <option value="done">完了</option>
+              <option value="">{t('filter_all_status')}</option>
+              <option value="todo">{t('status_todo')}</option>
+              <option value="in_progress">{t('status_progress')}</option>
+              <option value="done">{t('status_done')}</option>
             </select>
             <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={sc}>
-              <option value="">全優先度</option>
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
+              <option value="">{t('filter_all_pri')}</option>
+              <option value="high">{t('priority_high')}</option>
+              <option value="medium">{t('priority_medium')}</option>
+              <option value="low">{t('priority_low')}</option>
             </select>
             <select value={groupBy} onChange={e => setGroupBy(e.target.value)} className={sc}>
-              <option value="category">カテゴリ別</option>
-              <option value="none">グループなし</option>
+              <option value="category">{t('filter_by_cat')}</option>
+              <option value="none">{t('filter_no_group')}</option>
             </select>
-            {hasFilters && <button onClick={() => { setSearch(''); setFilterCat(''); setFilterStatus(''); setFilterPriority(''); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">クリア</button>}
+            {hasFilters && <button onClick={() => { setSearch(''); setFilterCat(''); setFilterStatus(''); setFilterPriority(''); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">{t('ai_clear')}</button>}
           </div>
         )}
       </div>
@@ -1452,8 +1502,8 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
         {grouped.length === 0 && recurringItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4"><Icons.Search size={26} /></div>
-            <p className="text-base font-medium">{hasFilters ? '条件に一致するタスクがありません' : 'タスクがありません'}</p>
-            <p className="text-sm mt-1">{hasFilters ? 'フィルターを変更してください' : '「追加」ボタンで新しいタスクを作成してください'}</p>
+            <p className="text-base font-medium">{hasFilters ? t('tree_empty_filter') : t('tree_empty')}</p>
+            <p className="text-sm mt-1">{hasFilters ? t('tree_empty_filter_hint') : t('tree_empty_hint')}</p>
           </div>
         ) : (
           <>
@@ -1516,6 +1566,7 @@ const snapTo = (m) => Math.round(m / SNAP_MIN) * SNAP_MIN;
 
 // ===== Todayタスクカード =====
 const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, onRemoveToday, dragProps, showParent = true }) => {
+  const { t } = useLang();
   const isDone = task.status === 'done';
   const isPlacing = placing === task.id;
   const isRecurring = !!task.recurringId;
@@ -1554,7 +1605,7 @@ const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, 
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {!scheduled && !isDone && (
-            <button onClick={e => { e.stopPropagation(); setPlacing(isPlacing ? null : task.id); }} title="タイムラインに配置"
+            <button onClick={e => { e.stopPropagation(); setPlacing(isPlacing ? null : task.id); }} title={t('timeline_place_btn')}
               className={`p-1 rounded transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
               <Icons.Clock size={13} />
             </button>
@@ -1574,6 +1625,7 @@ const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, 
 
 // ===== 親タスク別グループ =====
 const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, placing, setPlacing, onStatusChange, onReorderTodayDrop, onRemoveToday }) => {
+  const { t } = useLang();
   const [collapsed, setCollapsed] = useState({});
   const taskMap = Object.fromEntries((allTasks || []).map(t => [t.id, t]));
 
@@ -1593,7 +1645,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
     });
     return Object.entries(map).map(([parentId, { scheduled: s, unscheduled: u }]) => {
       const parent = parentId !== '__root__' ? taskMap[parentId] : null;
-      return { key: parentId, label: parent ? parent.title : '親タスクなし', parent, scheduled: s, unscheduled: u };
+      return { key: parentId, label: parent ? parent.title : t('tree_no_parent'), parent, scheduled: s, unscheduled: u };
     }).sort((a, b) => {
       if (a.key === '__root__') return 1;
       if (b.key === '__root__') return -1;
@@ -1628,7 +1680,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
                   placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} />
               ))}
               {gu.length > 0 && gs.length > 0 && <div className="border-t border-gray-100 dark:border-gray-700 my-0.5" />}
-              {gu.length > 0 && <p className="text-xs text-gray-400 px-1">時刻未設定</p>}
+              {gu.length > 0 && <p className="text-xs text-gray-400 px-1">{t('timeline_unscheduled')}</p>}
               <DndSiblingList
                 items={gu}
                 onReorderDrop={onReorderTodayDrop}
@@ -1651,8 +1703,8 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
             className="w-full flex items-center gap-2 px-2 py-1.5 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors text-left">
             <Icons.ChevronRight size={13} className={`text-purple-400 flex-shrink-0 transition-transform ${collapsed['__recurring__'] ? '' : 'rotate-90'}`} />
             <Icons.RefreshCw size={12} className="text-purple-500 flex-shrink-0" />
-            <span className="flex-1 text-xs font-semibold text-purple-700 dark:text-purple-300 leading-snug">定期タスク</span>
-            <span className="text-xs text-purple-500 dark:text-purple-400 flex-shrink-0">{recurringTodayTasks.length}件</span>
+            <span className="flex-1 text-xs font-semibold text-purple-700 dark:text-purple-300 leading-snug">{t('tree_recurring')}</span>
+            <span className="text-xs text-purple-500 dark:text-purple-400 flex-shrink-0">{recurringTodayTasks.length}</span>
           </button>
           {!collapsed['__recurring__'] && (
             <div className="p-1.5 space-y-1 bg-purple-50/30 dark:bg-purple-900/10">
@@ -1663,7 +1715,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
                   placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} />
               ))}
               {recurringUnscheduled.length > 0 && recurringScheduled.length > 0 && <div className="border-t border-purple-100 dark:border-purple-800/30 my-0.5" />}
-              {recurringUnscheduled.length > 0 && <p className="text-xs text-purple-400 px-1">時刻未設定</p>}
+              {recurringUnscheduled.length > 0 && <p className="text-xs text-purple-400 px-1">{t('timeline_unscheduled')}</p>}
               <DndSiblingList
                 items={recurringUnscheduled}
                 onReorderDrop={onReorderTodayDrop}
@@ -1691,6 +1743,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   const [hoverMin, setHoverMin] = useState(null);
   const [todayGroupBy, setTodayGroupBy] = useState('flat'); // 'flat' | 'parent'
 
+  const { t } = useLang();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
@@ -1769,12 +1822,12 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
         {/* ヘッダー */}
         <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">タスク</span>
-            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">合計 {formatMinutes(totalMin)}</span>}
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('timeline_tasks')}</span>
+            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('timeline_total')} {formatMinutes(totalMin)}</span>}
           </div>
           {/* グループ切り替え */}
           <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
-            {[['flat','フラット'],['parent','親タスク別']].map(([id, label]) => (
+            {[['flat', t('timeline_flat')],['parent', t('timeline_byparent')]].map(([id, label]) => (
               <button key={id} onClick={() => setTodayGroupBy(id)}
                 className={`flex-1 py-1 font-medium transition-colors ${todayGroupBy === id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
                 {label}
@@ -1787,7 +1840,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
         {placing && (
           <div className="mx-2 mt-2 flex items-start gap-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2.5 py-2 flex-shrink-0">
             <Icons.Clock size={12} className="text-blue-500 mt-0.5 flex-shrink-0" />
-            <span className="text-xs text-blue-700 dark:text-blue-300 leading-snug">右のタイムラインをクリックして配置</span>
+            <span className="text-xs text-blue-700 dark:text-blue-300 leading-snug">{t('timeline_place_hint')}</span>
             <button onClick={() => setPlacing(null)} className="ml-auto text-blue-400 hover:text-blue-600 flex-shrink-0"><Icons.X size={12} /></button>
           </div>
         )}
@@ -1796,7 +1849,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
           {tasks.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
               <div className="text-3xl mb-3">✅</div>
-              <p className="text-xs font-medium text-center">今日のタスクはありません</p>
+              <p className="text-xs font-medium text-center">{t('timeline_empty')}</p>
             </div>
           )}
 
@@ -1811,7 +1864,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
               })}
               {unscheduled.length > 0 && <>
                 {scheduled.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-1" />}
-                <p className="text-xs text-gray-400 dark:text-gray-500 px-1 mb-1">時刻未設定</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 px-1 mb-1">{t('timeline_unscheduled')}</p>
                 <DndSiblingList
                   items={unscheduled}
                   onReorderDrop={onReorderTodayDrop}
@@ -2477,6 +2530,8 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
 
 // ==================== RecurringView ====================
 const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => {
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', categoryId: categories[0]?.id || '', priority: 'medium', estimatedMinutes: '', days: [] });
@@ -2502,35 +2557,35 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
   const toggleDay = (d) => setForm(f => ({ ...f, days: f.days.includes(d) ? f.days.filter(x => x !== d) : [...f.days, d].sort() }));
 
   const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+  const PRIORITY_LABELS = { high: t('priority_high'), medium: t('priority_medium'), low: t('priority_low') };
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4">
       <div className="flex items-center justify-between mb-6 max-w-2xl">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">🔁 定期タスク</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">曜日を設定すると、その曜日に自動でタスクが追加されます</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">🔁 {t('rec_page_title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('rec_page_desc')}</p>
         </div>
         <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-          <Icons.Plus size={15} /> 新規
+          <Icons.Plus size={15} /> {t('rec_new')}
         </button>
       </div>
 
       {/* Form */}
       {showForm && (
         <div className="max-w-2xl mb-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 animate-fade-in">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{editId ? '定期タスクを編集' : '定期タスクを追加'}</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{editId ? t('rec_edit_title') : t('rec_add_title')}</h3>
           <div className="space-y-4">
             {/* Title */}
             <div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">タイトル *</div>
-              <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="タスク名" className={ic} />
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_title')}</div>
+              <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={t('rec_field_title_ph')} className={ic} />
             </div>
             {/* Days */}
             <div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">繰り返す曜日 *</div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_days')}</div>
               <div className="flex gap-2 flex-wrap">
-                {DAYS_JP.map((d, i) => (
+                {DAYS.map((d, i) => (
                   <button key={i} type="button" onClick={() => toggleDay(i)}
                     className={`w-10 h-10 rounded-xl text-sm font-bold transition-all border-2 ${
                       form.days.includes(i)
@@ -2539,18 +2594,18 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
                     }`}>{d}</button>
                 ))}
               </div>
-              {form.days.length === 0 && <p className="text-xs text-red-500 mt-1">曜日を1つ以上選択してください</p>}
+              {form.days.length === 0 && <p className="text-xs text-red-500 mt-1">{t('rec_days_required')}</p>}
             </div>
             {/* Category & Priority */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">カテゴリ</div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_cat')}</div>
                 <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))} className={ic}>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">優先度</div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_pri')}</div>
                 <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={ic}>
                   {['high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
                 </select>
@@ -2558,15 +2613,15 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
             </div>
             {/* Estimated */}
             <div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">見積時間（分）</div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_est')}</div>
               <input type="number" min={0} step={5} value={form.estimatedMinutes} onChange={e => setForm(f => ({ ...f, estimatedMinutes: e.target.value }))} placeholder="30" className={ic} />
             </div>
           </div>
           <div className="flex gap-3 mt-5">
-            <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+            <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{t('btn_cancel')}</button>
             <button onClick={handleSave} disabled={!form.title.trim() || form.days.length === 0}
               className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
-              {editId ? '更新する' : '追加する'}
+              {editId ? t('btn_update') : t('btn_add')}
             </button>
           </div>
         </div>
@@ -2577,8 +2632,8 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
         {recurring.length === 0 && !showForm && (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
             <div className="text-4xl mb-4">🔁</div>
-            <p className="text-base font-medium">定期タスクはありません</p>
-            <p className="text-sm mt-1">「新規」ボタンで定期タスクを作成してください</p>
+            <p className="text-base font-medium">{t('rec_empty')}</p>
+            <p className="text-sm mt-1">{t('rec_empty_hint')}</p>
           </div>
         )}
         {recurring.map(rt => {
@@ -2593,11 +2648,11 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
                     <span className="font-semibold text-gray-900 dark:text-white">{rt.title}</span>
                     <Icons.Flag size={11} className={priorityColor} />
                     {cat && <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-                    {rt.estimatedMinutes && <span className="text-xs text-gray-500 dark:text-gray-400">⏱ {rt.estimatedMinutes}分</span>}
+                    {rt.estimatedMinutes && <span className="text-xs text-gray-500 dark:text-gray-400">⏱ {rt.estimatedMinutes}{t('rec_est_unit')}</span>}
                   </div>
                   {/* Day badges */}
                   <div className="flex gap-1.5 mt-2 flex-wrap">
-                    {DAYS_JP.map((d, i) => (
+                    {DAYS.map((d, i) => (
                       <span key={i} className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold ${
                         rt.days.includes(i)
                           ? i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
@@ -2608,7 +2663,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
                     ))}
                   </div>
                   {rt.lastAddedDate && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">最終追加: {rt.lastAddedDate}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{t('rec_last_added')} {rt.lastAddedDate}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
