@@ -1555,9 +1555,7 @@ const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, on
 // ==================== Timeline / TodayView ====================
 const START_H = 0;
 const END_H = 24;
-// 画面高さから利用可能なピクセルを計算し、1時間あたりの高さを動的に決定
-const calcHourH = () => Math.max(28, Math.floor((window.innerHeight - 220) / (END_H - START_H)));
-const HOUR_H = calcHourH();
+const HOUR_H = 64; // 1時間あたり64px（スクロール前提の固定値）
 const SNAP_MIN = 15;
 
 const minToStr = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
@@ -1745,6 +1743,15 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
 
   const { t } = useLang();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const scrollRef = useRef(null);
+
+  // 起動時に現在時刻付近へスクロール
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const now = new Date();
+    const nowY = ((now.getHours() + now.getMinutes() / 60) - START_H) * HOUR_H;
+    scrollRef.current.scrollTop = Math.max(0, nowY - scrollRef.current.clientHeight / 3);
+  }, []);
 
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
@@ -1888,7 +1895,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
       </div>
 
       {/* ===== 右: タイムライン ===== */}
-      <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
         <div className="flex" style={{ height: totalH }}>
           {/* 時刻ラベル */}
           <div className="w-10 flex-shrink-0 relative bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700" style={{ height: totalH }}>
