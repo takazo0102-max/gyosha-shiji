@@ -38,6 +38,10 @@
     .animate-fade-in { animation: fadeIn 0.2s ease-out; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    /* モバイル: ボトムナビ分の余白 (lg以上では不要) */
+    @media (max-width: 1023px) {
+      [data-scrollable] { padding-bottom: 56px; }
+    }
   </style>
 </head>
 <body>
@@ -1498,7 +1502,7 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6" data-scrollable="1">
         {grouped.length === 0 && recurringItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4"><Icons.Search size={26} /></div>
@@ -1733,7 +1737,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
   );
 };
 
-const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayDrop, onRemoveToday, onUpdateSchedule }) => {
+const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayDrop, onRemoveToday, onUpdateSchedule, mobileSide }) => {
   const timelineRef = useRef(null);
   const [drag, setDrag] = useState(null);
   // drag: { taskId, type:'move'|'resize', startMin, endMin, offsetMin, curStartMin, curEndMin }
@@ -1772,6 +1776,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
 
   const onTaskPointerDown = (e, task, type) => {
     e.preventDefault(); e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedTaskId(task.id);
     const sMin = strToMin(task.scheduledTime.start);
     const eMin = strToMin(task.scheduledTime.end);
@@ -1779,7 +1784,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
     setDrag({ taskId: task.id, type, startMin: sMin, endMin: eMin, offsetMin: type === 'move' ? clickMin - sMin : 0, curStartMin: sMin, curEndMin: eMin });
   };
 
-  const onMouseMove = (e) => {
+  const onPointerMove = (e) => {
     const y = getRelY(e);
     const m = yToMin(y);
     setHoverMin(m);
@@ -1794,11 +1799,10 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
     }
   };
 
-  const onMouseUp = () => {
+  const onPointerUp = () => {
     if (drag) {
       onUpdateSchedule?.(drag.taskId, { start: minToStr(drag.curStartMin), end: minToStr(drag.curEndMin) });
       setDrag(null);
-      // keep selectedTaskId so user can still see/adjust after drop
     }
   };
 
@@ -1820,12 +1824,12 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
 
   return (
     <div className="flex-1 flex overflow-hidden"
-      onMouseMove={onMouseMove} onMouseUp={onMouseUp}
-      onMouseLeave={() => { onMouseUp(); setHoverMin(null); }}
-      style={{ userSelect: drag ? 'none' : 'auto' }}>
+      onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      onPointerLeave={() => { onPointerUp(); setHoverMin(null); }}
+      style={{ userSelect: drag ? 'none' : 'auto', touchAction: drag ? 'none' : 'auto' }}>
 
       {/* ===== 左: タスク一覧 ===== */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+      <div className={`${mobileSide === 'timeline' ? 'hidden' : mobileSide === 'list' ? 'flex-1' : 'w-64 flex-shrink-0'} border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden`}>
         {/* ヘッダー */}
         <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between">
@@ -1852,7 +1856,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        <div className="flex-1 overflow-y-auto px-2 py-2" data-scrollable="1">
           {tasks.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
               <div className="text-3xl mb-3">✅</div>
@@ -1895,7 +1899,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
       </div>
 
       {/* ===== 右: タイムライン ===== */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+      <div ref={scrollRef} data-scrollable="1" className={`${mobileSide === 'list' ? 'hidden' : 'flex-1'} overflow-y-auto bg-white dark:bg-gray-900`}>
         <div className="flex" style={{ height: totalH }}>
           {/* 時刻ラベル */}
           <div className="w-10 flex-shrink-0 relative bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700" style={{ height: totalH }}>
@@ -1948,9 +1952,9 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     borderLeft: `${isSelected ? '4px' : '3px'} solid ${cat?.color || '#9CA3AF'}`,
                     boxShadow: isSelected && !isDragging ? `0 8px 24px ${cat?.color || '#9CA3AF'}44, 0 2px 8px rgba(0,0,0,0.12)` : undefined,
                     cursor: isDragging ? 'grabbing' : 'grab',
-                    ringColor: cat?.color,
+                    touchAction: 'none',
                   }}
-                  onMouseDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
+                  onPointerDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
                   onClick={(e) => e.stopPropagation()}>
                   {/* 選択時: 浮いた時刻バブル */}
                   {isSelected && !isDone && (
@@ -1967,7 +1971,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                   </div>
                   {!isDone && (
                     <div className={`absolute bottom-0 left-0 right-0 flex items-center justify-center cursor-ns-resize group/resize transition-all ${isSelected ? 'h-5' : 'h-3'}`}
-                      onMouseDown={(e) => { e.stopPropagation(); onTaskPointerDown(e, task, 'resize'); }}>
+                      onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); onTaskPointerDown(e, task, 'resize'); }}>
                       <div className={`rounded-full transition-all ${isSelected ? 'w-10 h-1 opacity-70' : 'w-6 h-0.5 opacity-40 group-hover/resize:opacity-80'}`}
                         style={{ backgroundColor: cat?.color || '#9CA3AF' }} />
                     </div>
@@ -1985,6 +1989,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
 const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onReorderTodayDrop, onRemoveToday, onUpdateSchedule }) => {
   const { t, lang } = useLang();
   const [showCompletion, setShowCompletion] = useState(false);
+  const [mobileTab, setMobileTab] = useState('list'); // 'list' | 'timeline'
   const now = new Date();
   const dateStr = now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   // isTodayTask が true のタスク全体を分母にする
@@ -2019,7 +2024,17 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
           </div>
         )}
       </div>
-      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} onUpdateSchedule={onUpdateSchedule} />
+      {/* モバイル: リスト/タイムライン タブ切り替え */}
+      <div className="lg:hidden flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900">
+        {[['list', t('timeline_tasks'), Icons.List], ['timeline', 'Timeline', Icons.Clock]].map(([id, label, Icon]) => (
+          <button key={id} onClick={() => setMobileTab(id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium border-b-2 transition-colors
+              ${mobileTab === id ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'}`}>
+            <Icon size={15} />{label}
+          </button>
+        ))}
+      </div>
+      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} onUpdateSchedule={onUpdateSchedule} mobileSide={mobileTab} />
       {showCompletion && <CompletionModal onClose={() => setShowCompletion(false)} />}
     </div>
   );
@@ -2041,7 +2056,7 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
   const grouped = DEADLINE_GROUPS.map(g => ({ ...g, tasks: withDue.filter(t => getDeadlineStatus(t.dueDate) === g.key) }));
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="mb-4">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">⚠️ 期限管理</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">期限のあるタスクをステータス別に管理します</p>
@@ -2121,7 +2136,7 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
   const selTasks = selDate ? (tasksByDate[selDate] || []) : [];
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="flex items-center gap-3 mb-4">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">📅 カレンダー</h2>
         <div className="flex-1" />
@@ -2266,7 +2281,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
   const groups = groupBy === 'parent' ? groupByParent() : groupByCategory();
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="max-w-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -2469,7 +2484,7 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
   const hasAiKey = !!AI.key();
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="max-w-2xl">
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -2567,7 +2582,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
   const PRIORITY_LABELS = { high: t('priority_high'), medium: t('priority_medium'), low: t('priority_low') };
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="flex items-center justify-between mb-6 max-w-2xl">
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">🔁 {t('rec_page_title')}</h2>
@@ -2858,6 +2873,46 @@ const CatDndList = ({ categories, tasks, activeCatFilter, onCategoryFilter, onVi
         );
       })}
     </>
+  );
+};
+
+// ==================== MobileBottomNav ====================
+const MobileBottomNav = ({ view, onViewChange, tasks, onMenuOpen }) => {
+  const { t } = useLang();
+  const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
+  const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
+  const navItems = [
+    { id: 'tasks',    Icon: Icons.Layout,        label: t('nav_tasks') },
+    { id: 'today',    Icon: Icons.Sun,            label: t('nav_today'),    badge: todayCount },
+    { id: 'deadline', Icon: Icons.AlertTriangle,  label: t('nav_deadline'), badge: urgentCount, red: true },
+    { id: 'calendar', Icon: Icons.Calendar,       label: t('nav_calendar') },
+    { id: 'menu',     Icon: Icons.Menu,           label: 'Menu' },
+  ];
+  return (
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex safe-bottom"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {navItems.map(item => {
+        const isActive = item.id !== 'menu' && view === item.id;
+        return (
+          <button key={item.id}
+            onClick={() => item.id === 'menu' ? onMenuOpen() : onViewChange(item.id)}
+            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative
+              ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 active:text-gray-600'}`}>
+            <div className="relative">
+              <item.Icon size={22} />
+              {item.badge > 0 && (
+                <span className={`absolute -top-1 -right-1.5 text-xs min-w-[16px] h-4 px-0.5 rounded-full font-bold flex items-center justify-center text-white
+                  ${item.red ? 'bg-red-500' : 'bg-blue-500'}`}>
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-medium leading-none">{item.label}</span>
+            {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
+          </button>
+        );
+      })}
+    </div>
   );
 };
 
@@ -3266,8 +3321,7 @@ const App = () => {
         <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.Menu size={19} /></button>
           <span className="font-bold text-gray-900 dark:text-white flex-1">TaskFlow</span>
-          <button onClick={() => { if ('Notification' in window) Notification.requestPermission(); }}
-            className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.Bell size={19} /></button>
+          <button onClick={() => openAdd()} className="p-2 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Plus size={20} /></button>
         </div>
 
         <AlertBanner tasks={flatTasks} categories={categories} onTaskClick={id => { const t = flatTasks.find(x => x.id === id); if (t) openEdit(t); }} />
@@ -3313,6 +3367,9 @@ const App = () => {
               recurring={recurring} onAddRecurring={addRecurring} onUpdateRecurring={updateRecurring} onDeleteRecurring={deleteRecurring} />
           )}
         </div>
+
+        {/* ===== ボトムナビゲーション (スマホ専用) ===== */}
+        <MobileBottomNav view={view} onViewChange={setView} tasks={flatTasks} onMenuOpen={() => setMobileOpen(true)} />
       </div>
 
       {panel && (
