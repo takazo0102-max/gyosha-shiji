@@ -1829,7 +1829,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
       style={{ userSelect: drag ? 'none' : 'auto', touchAction: drag ? 'none' : 'auto' }}>
 
       {/* ===== 左: タスク一覧 ===== */}
-      <div className={`${mobileSide === 'timeline' ? 'hidden' : mobileSide === 'list' ? 'flex-1' : 'w-64 flex-shrink-0'} border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden`}>
+      <div className={`${mobileSide === 'timeline' ? 'hidden lg:flex lg:flex-col' : mobileSide === 'list' ? 'flex-1 lg:flex-none lg:w-64' : ''} w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden`}>
         {/* ヘッダー */}
         <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between">
@@ -1899,7 +1899,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
       </div>
 
       {/* ===== 右: タイムライン ===== */}
-      <div ref={scrollRef} data-scrollable="1" className={`${mobileSide === 'list' ? 'hidden' : 'flex-1'} overflow-y-auto bg-white dark:bg-gray-900`}>
+      <div ref={scrollRef} data-scrollable="1" className={`${mobileSide === 'list' ? 'hidden lg:flex lg:flex-1' : 'flex-1'} overflow-y-auto bg-white dark:bg-gray-900`}>
         <div className="flex" style={{ height: totalH }}>
           {/* 時刻ラベル */}
           <div className="w-10 flex-shrink-0 relative bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700" style={{ height: totalH }}>
