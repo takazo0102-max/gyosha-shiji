@@ -77,13 +77,14 @@ const getDaysRemaining = (dueDate) => {
   return Math.round((due - today) / 86400000);
 };
 
-const formatDeadlineBadge = (dueDate) => {
+const formatDeadlineBadge = (dueDate, t) => {
   const days = getDaysRemaining(dueDate);
   if (days === null) return '';
-  if (days < 0) return `${Math.abs(days)}日超過`;
-  if (days === 0) return '今日まで';
-  if (days === 1) return '明日まで';
-  return `残り${days}日`;
+  const _t = t || ((k) => ({ deadline_overdue_suffix:'日超過', deadline_today_label:'今日まで', deadline_tomorrow_label:'明日まで', deadline_remaining:'残り', deadline_days_unit:'日' }[k] || k));
+  if (days < 0) return `${Math.abs(days)}${_t('deadline_overdue_suffix')}`;
+  if (days === 0) return _t('deadline_today_label');
+  if (days === 1) return _t('deadline_tomorrow_label');
+  return `${_t('deadline_remaining')}${days}${_t('deadline_days_unit')}`;
 };
 
 const getDeadlineBadgeClass = (status) => {
@@ -106,8 +107,13 @@ const getDeadlineBgClass = (status) => {
   }
 };
 
-const formatMinutes = (min) => {
+const formatMinutes = (min, lang) => {
   const h = Math.floor(min / 60), m = min % 60;
+  if (lang === 'en') {
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
+  }
   if (h === 0) return `${m}分`;
   if (m === 0) return `${h}時間`;
   return `${h}時間${m}分`;
@@ -118,9 +124,9 @@ const parseTimeToMinutes = (t) => {
   return h * 60 + (m || 0);
 };
 
-const formatDateShort = (dateStr) => {
+const formatDateShort = (dateStr, lang) => {
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric' });
 };
 
 // ==================== Storage ====================
@@ -179,6 +185,7 @@ const jbLoad = async (key, binId) => {
 
 // ==================== AIKeyInput ====================
 const AIKeyInput = () => {
+  const { t } = useLang();
   const [val, setVal] = useState(AI.key());
   const [saved, setSaved] = useState(false);
   const save = () => { AI.saveKey(val.trim()); setSaved(true); setTimeout(() => setSaved(false), 2000); };
@@ -189,7 +196,7 @@ const AIKeyInput = () => {
         className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono" />
       <button onClick={save} disabled={!val.trim()}
         className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${saved ? 'bg-green-600 text-white' : 'bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white'}`}>
-        {saved ? '✓' : '保存'}
+        {saved ? '✓' : t('btn_save')}
       </button>
     </div>
   );
@@ -197,6 +204,7 @@ const AIKeyInput = () => {
 
 // ==================== CloudSyncModal ====================
 const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync }) => {
+  const { t, lang } = useLang();
   const [apiKey, setApiKey] = useState(JB.key());
   const [binId, setBinId] = useState(JB.binId());
   const [saving, setSaving] = useState(false);
@@ -205,17 +213,17 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
   const handleSave = () => {
     JB.saveKey(apiKey.trim());
     JB.saveBinId(binId.trim());
-    setMsg('設定を保存しました');
+    setMsg(t('btn_save') + ' ✓');
     onSaved(apiKey.trim(), binId.trim());
   };
 
   const fmtTime = (iso) => {
-    if (!iso) return '未同期';
-    return new Date(iso).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    if (!iso) return t('not_synced');
+    return new Date(iso).toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const statusColor = syncStatus === 'synced' ? 'text-green-400' : syncStatus === 'syncing' ? 'text-blue-400' : syncStatus === 'error' ? 'text-red-400' : 'text-gray-400';
-  const statusLabel = syncStatus === 'synced' ? '✓ 同期済み' : syncStatus === 'syncing' ? '同期中...' : syncStatus === 'error' ? '⚠ エラー' : '未設定';
+  const statusLabel = syncStatus === 'synced' ? `✓ ${t('sync_synced')}` : syncStatus === 'syncing' ? t('sync_ing') : syncStatus === 'error' ? `⚠ ${t('sync_error')}` : t('sync_not_configured');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -224,7 +232,7 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Icons.Cloud size={20} className="text-blue-500" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">クラウド同期（JSONBin）</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('sync_none')} (JSONBin)</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={19} /></button>
         </div>
@@ -233,13 +241,13 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
         <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 mb-5 flex items-center justify-between">
           <div>
             <span className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</span>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">最終同期: {fmtTime(lastSynced)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('sync_last')} {fmtTime(lastSynced)}</p>
           </div>
           {JB.key() && JB.binId() && (
             <button onClick={onManualSync} disabled={syncStatus === 'syncing'}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
               <Icons.RefreshCw size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-              今すぐ同期
+              {t('sync_now')}
             </button>
           )}
         </div>
@@ -296,10 +304,10 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
         {msg && <p className="text-sm text-green-600 dark:text-green-400 mb-3">{msg}</p>}
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">閉じる</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_close')}</button>
           <button onClick={handleSave} disabled={!apiKey.trim()}
             className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
-            保存して同期
+            {t('btn_save')} & {t('sync_now')}
           </button>
         </div>
       </div>
@@ -527,6 +535,27 @@ const TRANSLATIONS = {
     rec_auto_hint:'設定した曜日に毎週タスクが自動追加されます',
     btn_filter:'フィルター', filter_all_cat:'全カテゴリ', filter_all_status:'全ステータス', filter_all_pri:'全優先度',
     filter_by_cat:'カテゴリ別', filter_no_group:'グループなし',
+    fmt_h:'時間', fmt_min:'分',
+    deadline_overdue_suffix:'日超過', deadline_today_label:'今日まで',
+    deadline_tomorrow_label:'明日まで', deadline_remaining:'残り', deadline_days_unit:'日',
+    deadline_group_overdue:'期限切れ', deadline_group_today:'今日まで',
+    deadline_group_tomorrow:'明日まで', deadline_group_soon:'今週中（3日以内）', deadline_group_ok:'それ以降',
+    deadline_count_unit:'件', deadline_no_match:'該当するタスクはありません',
+    deadline_none:'期限切れのタスクはありません', deadline_title:'期限管理',
+    deadline_desc:'期限のあるタスクをステータス別に管理します',
+    alert_show:'期限アラートを表示', alert_overdue:'🔴 期限切れ', alert_today_due:'🟠 今日期限',
+    alert_tomorrow_due:'🟡 明日期限', alert_expand_close:'閉じる', alert_expand_detail:'詳細',
+    task_completed_msg:'タスク完了！', color_custom:'カスタム:',
+    calendar_title:'カレンダー', calendar_this_month:'今月', calendar_add_task:'タスク追加',
+    calendar_no_tasks:'この日のタスクはありません', calendar_count_unit:'件',
+    completed_count_fmt:'件完了', completed_group_label:'グループ：',
+    completed_by_parent:'親タスク別', completed_by_cat:'カテゴリ別',
+    completed_no_parent:'親タスクなし', completed_uncategorized:'未分類',
+    completed_items_unit:'件', completed_confirm_delete:'完了タスクを全削除しますか？',
+    sidebar_all:'すべて', sync_not_configured:'未設定', sync_last:'最終同期:', sync_now:'今すぐ同期',
+    today_badge:'今日', est_min_suffix:'分',
+    status_change_tip:'ステータス変更', today_toggle_tip:'今日やるに追加/削除', add_subtask_tip:'サブタスクを追加',
+    count_unit:'件', not_synced:'未同期',
   },
   en: {
     nav_tasks:'Tasks', nav_today:'Today', nav_deadline:'Deadlines',
@@ -581,6 +610,27 @@ const TRANSLATIONS = {
     rec_auto_hint:'Task is auto-added every week on selected days',
     btn_filter:'Filter', filter_all_cat:'All Categories', filter_all_status:'All Statuses', filter_all_pri:'All Priorities',
     filter_by_cat:'By Category', filter_no_group:'No Grouping',
+    fmt_h:'h', fmt_min:'min',
+    deadline_overdue_suffix:' days overdue', deadline_today_label:'Due today',
+    deadline_tomorrow_label:'Due tomorrow', deadline_remaining:'', deadline_days_unit:' days left',
+    deadline_group_overdue:'Overdue', deadline_group_today:'Due Today',
+    deadline_group_tomorrow:'Due Tomorrow', deadline_group_soon:'Within 3 Days', deadline_group_ok:'Later',
+    deadline_count_unit:'', deadline_no_match:'No matching tasks',
+    deadline_none:'No overdue tasks', deadline_title:'Deadlines',
+    deadline_desc:'Manage tasks with deadlines by status',
+    alert_show:'Show deadline alerts', alert_overdue:'🔴 Overdue', alert_today_due:'🟠 Due today',
+    alert_tomorrow_due:'🟡 Due tomorrow', alert_expand_close:'Close', alert_expand_detail:'Details',
+    task_completed_msg:'Task Complete!', color_custom:'Custom:',
+    calendar_title:'Calendar', calendar_this_month:'This Month', calendar_add_task:'Add Task',
+    calendar_no_tasks:'No tasks for this day', calendar_count_unit:'',
+    completed_count_fmt:' completed', completed_group_label:'Group:',
+    completed_by_parent:'By Parent', completed_by_cat:'By Category',
+    completed_no_parent:'No Parent', completed_uncategorized:'Uncategorized',
+    completed_items_unit:'', completed_confirm_delete:'Delete all completed tasks?',
+    sidebar_all:'All', sync_not_configured:'Not configured', sync_last:'Last synced:', sync_now:'Sync now',
+    today_badge:'Today', est_min_suffix:'min',
+    status_change_tip:'Change status', today_toggle_tip:'Toggle today task', add_subtask_tip:'Add subtask',
+    count_unit:'', not_synced:'Never synced',
   },
 };
 const LangContext = React.createContext({ lang:'ja', t:(k)=>k });
@@ -607,11 +657,12 @@ const randomQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 
 // ==================== CompletionModal ====================
 const CompletionModal = ({ onClose }) => {
+  const { t } = useLang();
   const [praise] = useState(randomPraise);
   const [quote] = useState(randomQuote);
   useEffect(() => {
-    const t = setTimeout(onClose, 6000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onClose, 6000);
+    return () => clearTimeout(timer);
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4 pointer-events-none">
@@ -619,13 +670,13 @@ const CompletionModal = ({ onClose }) => {
         <div className="text-center mb-4">
           <div className="text-4xl mb-2">🎯</div>
           <p className="text-xl font-bold text-gray-900 dark:text-white">{praise}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">タスク完了！</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('task_completed_msg')}</p>
         </div>
         <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">「{quote.text}」</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-right">— {quote.author}</p>
         </div>
-        <button onClick={onClose} className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">閉じる</button>
+        <button onClick={onClose} className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">{t('btn_close')}</button>
       </div>
     </div>
   );
@@ -639,30 +690,34 @@ const PRESET_COLORS = [
   '#64748B','#78716C','#0EA5E9','#84CC16',
 ];
 
-const ColorPicker = ({ value, onChange }) => (
-  <div className="space-y-2">
-    <div className="grid grid-cols-8 gap-1.5">
-      {PRESET_COLORS.map(c => (
-        <button key={c} type="button" onClick={() => onChange(c)}
-          className="w-7 h-7 rounded-full transition-transform hover:scale-110 focus:outline-none flex items-center justify-center"
-          style={{ backgroundColor: c }}>
-          {value === c && <Icons.Check size={12} className="text-white drop-shadow" />}
-        </button>
-      ))}
+const ColorPicker = ({ value, onChange }) => {
+  const { t } = useLang();
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-8 gap-1.5">
+        {PRESET_COLORS.map(c => (
+          <button key={c} type="button" onClick={() => onChange(c)}
+            className="w-7 h-7 rounded-full transition-transform hover:scale-110 focus:outline-none flex items-center justify-center"
+            style={{ backgroundColor: c }}>
+            {value === c && <Icons.Check size={12} className="text-white drop-shadow" />}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="color" value={value} onChange={e => onChange(e.target.value)}
+          className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+        <span className="text-xs text-gray-500 dark:text-gray-400">{t('color_custom')}</span>
+        <span className="text-xs font-mono text-gray-600 dark:text-gray-300">{value}</span>
+      </div>
     </div>
-    <div className="flex items-center gap-2">
-      <input type="color" value={value} onChange={e => onChange(e.target.value)}
-        className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
-      <span className="text-xs text-gray-500 dark:text-gray-400">カスタム:</span>
-      <span className="text-xs font-mono text-gray-600 dark:text-gray-300">{value}</span>
-    </div>
-  </div>
-);
+  );
+};
 
 // ==================== DeadlineBadge ====================
 const DeadlineBadge = ({ dueDate, status }) => {
+  const { t } = useLang();
   if (!dueDate || status === 'ok') return null;
-  const label = formatDeadlineBadge(dueDate);
+  const label = formatDeadlineBadge(dueDate, t);
   if (!label) return null;
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getDeadlineBadgeClass(status)}`}>
@@ -673,6 +728,7 @@ const DeadlineBadge = ({ dueDate, status }) => {
 
 // ==================== AlertBanner ====================
 const AlertBanner = ({ tasks, categories, onTaskClick }) => {
+  const { t, lang } = useLang();
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
@@ -684,23 +740,24 @@ const AlertBanner = ({ tasks, categories, onTaskClick }) => {
   if (dismissed) return (
     <div className="flex justify-end px-4 pt-1.5 pb-0.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <button onClick={() => setDismissed(false)} className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline">
-        <Icons.AlertTriangle size={11} /> 期限アラートを表示
+        <Icons.AlertTriangle size={11} /> {t('alert_show')}
       </button>
     </div>
   );
   const alertTasks = [...overdue, ...today, ...tomorrow];
+  const countUnit = t('count_unit');
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
       <div className="flex items-center gap-3 px-4 py-2.5">
         <Icons.AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
         <div className="flex items-center gap-3 flex-1 flex-wrap">
-          {overdue.length > 0 && <span className="text-sm font-medium text-red-600 dark:text-red-400">🔴 期限切れ {overdue.length}件</span>}
-          {today.length > 0 && <span className="text-sm font-medium text-orange-600 dark:text-orange-400">🟠 今日期限 {today.length}件</span>}
-          {tomorrow.length > 0 && <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">🟡 明日期限 {tomorrow.length}件</span>}
+          {overdue.length > 0 && <span className="text-sm font-medium text-red-600 dark:text-red-400">{t('alert_overdue')} {overdue.length}{countUnit}</span>}
+          {today.length > 0 && <span className="text-sm font-medium text-orange-600 dark:text-orange-400">{t('alert_today_due')} {today.length}{countUnit}</span>}
+          {tomorrow.length > 0 && <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{t('alert_tomorrow_due')} {tomorrow.length}{countUnit}</span>}
         </div>
         <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 transition-colors">
           {expanded ? <Icons.ChevronDown size={13} /> : <Icons.ChevronRight size={13} />}
-          {expanded ? '閉じる' : '詳細'}
+          {expanded ? t('alert_expand_close') : t('alert_expand_detail')}
         </button>
         <button onClick={() => setDismissed(true)} className="text-amber-600 hover:text-amber-800 dark:text-amber-400">
           <Icons.X size={15} />
@@ -717,7 +774,7 @@ const AlertBanner = ({ tasks, categories, onTaskClick }) => {
                 className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-800/30 text-left transition-colors">
                 {cat && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />}
                 <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate">{task.title}</span>
-                <span className={`text-xs font-medium ${cc}`}>{task.dueDate && formatDateShort(task.dueDate)}</span>
+                <span className={`text-xs font-medium ${cc}`}>{task.dueDate && formatDateShort(task.dueDate, lang)}</span>
               </button>
             );
           })}
@@ -1040,7 +1097,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
                   <label key={i} className="flex items-center gap-2.5 p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-purple-400 transition-colors">
                     <input type="checkbox" checked={s.selected} onChange={() => setAiSubs(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))} className="w-4 h-4 rounded accent-purple-600 flex-shrink-0" />
                     <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">{s.title}</span>
-                    {s.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{s.estimatedMinutes}分</span>}
+                    {s.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{s.estimatedMinutes}{t('est_min_suffix')}</span>}
                   </label>
                 ))}
                 <div className="flex gap-2 pt-1">
@@ -1087,7 +1144,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className={lc}>期限日</div>
+              <div className={lc}>{t('field_due')}</div>
               <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={ic} />
             </div>
             <div>
@@ -1175,6 +1232,7 @@ const DndSiblingList = ({ items, onReorderDrop, renderItem }) => {
 };
 
 const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onStatusChange, onTodayToggle, onReorderDrop, dragProps }) => {
+  const { t, lang } = useLang();
   const [collapsed, setCollapsed] = useState(false);
   const cat = categories.find(c => c.id === task.categoryId);
   const deadlineStatus = getDeadlineStatus(task.dueDate);
@@ -1228,7 +1286,7 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
         </button>
 
         {/* status */}
-        <button onClick={e => { e.stopPropagation(); nextStatus(); }} className={`flex-shrink-0 mt-0.5 transition-all hover:scale-110 ${statusColor}`} title="ステータス変更">
+        <button onClick={e => { e.stopPropagation(); nextStatus(); }} className={`flex-shrink-0 mt-0.5 transition-all hover:scale-110 ${statusColor}`} title={t('status_change_tip')}>
           <StatusIcon size={20} />
         </button>
 
@@ -1239,14 +1297,14 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
             <Icons.Flag size={13} className={`flex-shrink-0 mt-0.5 ${priorityColor}`} />
             {task.dueDate && !isDone && <DeadlineBadge dueDate={task.dueDate} status={deadlineStatus} />}
             {isToday && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: cat?.color || '#8B5CF6' }}>今日</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: cat?.color || '#8B5CF6' }}>{t('today_badge')}</span>
             )}
           </div>
           {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{task.description}</p>}
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             {cat && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />{cat.name}</span>}
-            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate)}</span>}
-            {task.estimatedMinutes && <span className="text-xs text-gray-400 dark:text-gray-500">⏱ {task.estimatedMinutes}分</span>}
+            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate, lang)}</span>}
+            {task.estimatedMinutes && <span className="text-xs text-gray-400 dark:text-gray-500">⏱ {task.estimatedMinutes}{t('est_min_suffix')}</span>}
           </div>
           {progress.total > 0 && (
             <div className="mt-1.5 flex items-center gap-2">
@@ -1263,9 +1321,9 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
           <button onClick={e => { e.stopPropagation(); onTodayToggle(task.id, !task.isTodayTask); }}
             className={`p-2.5 rounded-xl transition-colors ${isToday ? 'text-white shadow-sm' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}
             style={isToday ? { backgroundColor: cat?.color || '#8B5CF6' } : {}}
-            title="今日やるに追加/削除"><Icons.Sun size={18} /></button>
+            title={t('today_toggle_tip')}><Icons.Sun size={18} /></button>
           <button onClick={e => { e.stopPropagation(); onAddChild(task.id); }}
-            className="p-2.5 rounded-xl text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="サブタスクを追加"><Icons.Plus size={18} /></button>
+            className="p-2.5 rounded-xl text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title={t('add_subtask_tip')}><Icons.Plus size={18} /></button>
           <button onClick={e => { e.stopPropagation(); onEdit(task); }}
             className="p-2.5 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={18} /></button>
           <button onClick={e => { e.stopPropagation(); onDelete(task.id); }}
@@ -1290,7 +1348,7 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
 
 // ==================== RecurringTasksSection ====================
 const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [collapsed, setCollapsed] = useState({});
   const [sectionOpen, setSectionOpen] = useState(true);
   const [groupBy, setGroupBy] = useState('parent'); // 'parent' | 'category'
@@ -1390,7 +1448,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
                             )}
                             <div className="flex flex-wrap gap-1 mt-1">
                               {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-                              {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱ {formatMinutes(task.estimatedMinutes)}</span>}
+                              {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱ {formatMinutes(task.estimatedMinutes, lang)}</span>}
                             </div>
                           </div>
                           {task.priority && task.priority !== 'medium' && (
@@ -1531,6 +1589,7 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
 };
 
 const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onReorderDrop }) => {
+  const { t } = useLang();
   const [collapsed, setCollapsed] = useState(false);
   const doneCount = tasks.filter(t => t.status === 'done').length;
   return (
@@ -1544,7 +1603,7 @@ const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, on
           </button>
           <span className="text-xs text-gray-400 dark:text-gray-500">{doneCount}/{tasks.length}</span>
           <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-          <button onClick={() => onAddTask()} className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">+ 追加</button>
+          <button onClick={() => onAddTask()} className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">+ {t('btn_add').replace('する','')}</button>
         </div>
       )}
       {!collapsed && (
@@ -1574,7 +1633,7 @@ const snapTo = (m) => Math.round(m / SNAP_MIN) * SNAP_MIN;
 
 // ===== Todayタスクカード =====
 const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, onRemoveToday, dragProps, showParent = true }) => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const isDone = task.status === 'done';
   const isPlacing = placing === task.id;
   const isRecurring = !!task.recurringId;
@@ -1600,7 +1659,7 @@ const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, 
           <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{task.title}</p>
           {scheduled
             ? <p className="text-xs text-blue-500 dark:text-blue-400 font-mono mt-0.5">{task.scheduledTime.start}〜{task.scheduledTime.end}</p>
-            : task.estimatedMinutes ? <p className="text-xs text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes)}</p> : null
+            : task.estimatedMinutes ? <p className="text-xs text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes, lang)}</p> : null
           }
           <div className="flex flex-wrap gap-1 mt-1">
             {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
@@ -1677,7 +1736,7 @@ const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, pla
             <Icons.ChevronRight size={13} className={`text-gray-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
             <Icons.Layout size={12} className="text-blue-400 flex-shrink-0" />
             <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-300 leading-snug">{label}</span>
-            <span className="text-xs text-gray-400 flex-shrink-0">{gs.length + gu.length}件</span>
+            <span className="text-xs text-gray-400 flex-shrink-0">{gs.length + gu.length}{t('count_unit')}</span>
           </button>
           {/* タスク */}
           {!collapsed[key] && (
@@ -1751,7 +1810,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   const [hoverMin, setHoverMin] = useState(null);
   const [todayGroupBy, setTodayGroupBy] = useState('flat'); // 'flat' | 'parent'
 
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const scrollRef = useRef(null);
 
@@ -1840,7 +1899,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
         <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('timeline_tasks')}</span>
-            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('timeline_total')} {formatMinutes(totalMin)}</span>}
+            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('timeline_total')} {formatMinutes(totalMin, lang)}</span>}
           </div>
           {/* グループ切り替え */}
           <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
@@ -2047,15 +2106,15 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
 };
 
 // ==================== DeadlineView ====================
-const DEADLINE_GROUPS = [
-  { key: 'overdue', label: '期限切れ', emoji: '🔴' },
-  { key: 'today', label: '今日まで', emoji: '🟠' },
-  { key: 'tomorrow', label: '明日まで', emoji: '🟡' },
-  { key: 'soon', label: '今週中（3日以内）', emoji: '🔵' },
-  { key: 'ok', label: 'それ以降', emoji: '✅' },
-];
-
 const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
+  const { t, lang } = useLang();
+  const DEADLINE_GROUPS = [
+    { key: 'overdue', label: t('deadline_group_overdue'), emoji: '🔴' },
+    { key: 'today', label: t('deadline_group_today'), emoji: '🟠' },
+    { key: 'tomorrow', label: t('deadline_group_tomorrow'), emoji: '🟡' },
+    { key: 'soon', label: t('deadline_group_soon'), emoji: '🔵' },
+    { key: 'ok', label: t('deadline_group_ok'), emoji: '✅' },
+  ];
   const [collapsed, setCollapsed] = useState({});
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const withDue = tasks.filter(t => t.dueDate && t.status !== 'done');
@@ -2064,8 +2123,8 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">⚠️ 期限管理</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">期限のあるタスクをステータス別に管理します</p>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">⚠️ {t('deadline_title')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('deadline_desc')}</p>
       </div>
       <div className="space-y-4">
         {grouped.map(group => {
@@ -2077,13 +2136,13 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <span className="text-base">{group.emoji}</span>
                 <span className="font-semibold text-gray-900 dark:text-white flex-1 text-left">{group.label}</span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{group.tasks.length}件</span>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{group.tasks.length}{t('deadline_count_unit')}</span>
                 {isCol ? <Icons.ChevronRight size={15} className="text-gray-400" /> : <Icons.ChevronDown size={15} className="text-gray-400" />}
               </button>
               {!isCol && (
                 <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
                   {group.tasks.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">該当するタスクはありません</div>
+                    <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('deadline_no_match')}</div>
                   ) : group.tasks.map(task => {
                     const cat = catMap[task.categoryId];
                     const status = getDeadlineStatus(task.dueDate);
@@ -2094,15 +2153,15 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             {cat && <span className="text-xs text-gray-500 dark:text-gray-400">{cat.name}</span>}
-                            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate)}</span>}
+                            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate, lang)}</span>}
                           </div>
                         </div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDeadlineBadgeClass(status)}`}>{formatDeadlineBadge(task.dueDate)}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDeadlineBadgeClass(status)}`}>{formatDeadlineBadge(task.dueDate, t)}</span>
                         <select value={task.status} onChange={e => { e.stopPropagation(); onStatusChange(task.id, e.target.value); }} onClick={e => e.stopPropagation()}
                           className="text-xs bg-gray-100 dark:bg-gray-700 border-0 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="todo">未着手</option>
-                          <option value="in_progress">進行中</option>
-                          <option value="done">完了</option>
+                          <option value="todo">{t('status_todo')}</option>
+                          <option value="in_progress">{t('status_progress')}</option>
+                          <option value="done">{t('status_done')}</option>
                         </select>
                       </div>
                     );
@@ -2116,7 +2175,7 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
       {withDue.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
           <div className="text-4xl mb-4">🎉</div>
-          <p className="text-base font-medium">期限切れのタスクはありません</p>
+          <p className="text-base font-medium">{t('deadline_none')}</p>
         </div>
       )}
     </div>
@@ -2125,6 +2184,7 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
 
 // ==================== CalendarView ====================
 const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
+  const { t, lang } = useLang();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -2138,18 +2198,22 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
   }, {});
   const prev = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const next = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
-  const DOW = ['日','月','火','水','木','金','土'];
+  const DOW = lang === 'en' ? DAYS_EN.map(d => d.slice(0,1).toUpperCase() + d.slice(1)) : DAYS_JP;
   const selTasks = selDate ? (tasksByDate[selDate] || []) : [];
+  const statusLabel = (s) => s === 'done' ? t('status_done') : s === 'in_progress' ? t('status_progress') : t('status_todo');
+  const monthLabel = lang === 'en'
+    ? new Date(year, month, 1).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    : `${year}年${month + 1}月`;
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">📅 カレンダー</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">📅 {t('calendar_title')}</h2>
         <div className="flex-1" />
         <button onClick={prev} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft size={17} className="text-gray-600 dark:text-gray-400" /></button>
-        <span className="text-base font-semibold text-gray-800 dark:text-gray-200 min-w-28 text-center">{year}年{month + 1}月</span>
+        <span className="text-base font-semibold text-gray-800 dark:text-gray-200 min-w-28 text-center">{monthLabel}</span>
         <button onClick={next} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronRight size={17} className="text-gray-600 dark:text-gray-400" /></button>
-        <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }} className="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 transition-colors">今月</button>
+        <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }} className="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 transition-colors">{t('calendar_this_month')}</button>
       </div>
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
         <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
@@ -2186,13 +2250,13 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white">
-              {new Date(selDate + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
-              {selTasks.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}件</span>}
+              {new Date(selDate + 'T00:00:00').toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+              {selTasks.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}{t('calendar_count_unit')}</span>}
             </h3>
             <div className="flex items-center gap-2">
               <button onClick={() => onAddTask?.(selDate)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors">
-                <Icons.Plus size={13} /> タスク追加
+                <Icons.Plus size={13} /> {t('calendar_add_task')}
               </button>
               <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
             </div>
@@ -2210,14 +2274,14 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
                       {cat && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{cat.name}</p>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${task.status === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : s === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-                      {STATUS_LABELS[task.status]}
+                      {statusLabel(task.status)}
                     </span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">この日のタスクはありません</div>
+            <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('calendar_no_tasks')}</div>
           )}
         </div>
       )}
@@ -2226,11 +2290,6 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
 };
 
 // ==================== ReportView ====================
-const REPORT_RANGES = [
-  { id: 'week', label: '今週', days: 7 },
-  { id: 'last_week', label: '先週', days: 14, offset: 7 },
-  { id: 'month', label: '今月', days: 30 },
-];
 
 // ==================== CompletedView ====================
 const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
@@ -2245,7 +2304,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
 
   const handleClearAll = () => {
-    if (window.confirm(`完了タスクを全削除しますか？（${doneTasks.length}件）`)) {
+    if (window.confirm(`${t('completed_confirm_delete')}（${doneTasks.length}${t('completed_items_unit')}）`)) {
       doneTasks.forEach(tt => onDelete(tt.id));
     }
   };
@@ -2262,7 +2321,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
     });
     return Object.entries(groups).map(([parentId, items]) => {
       const parent = parentId !== '__root__' ? taskMap[parentId] : null;
-      return { key: parentId, label: parent ? parent.title : '親タスクなし', parent, items };
+      return { key: parentId, label: parent ? parent.title : t('completed_no_parent'), parent, items };
     }).sort((a, b) => {
       if (a.key === '__root__') return 1;
       if (b.key === '__root__') return -1;
@@ -2280,7 +2339,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
     });
     return Object.entries(groups).map(([catId, items]) => {
       const cat = catId !== '__none__' ? catMap[catId] : null;
-      return { key: catId, label: cat ? cat.name : '未分類', cat, items };
+      return { key: catId, label: cat ? cat.name : t('completed_uncategorized'), cat, items };
     });
   };
 
@@ -2295,7 +2354,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Icons.CheckCircle size={22} className="text-green-500" /> {t('completed_title')}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{doneTasks.length} 件完了</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{doneTasks.length}{t('completed_count_fmt')}</p>
           </div>
           {doneTasks.length > 0 && (
             <button onClick={handleClearAll}
@@ -2307,9 +2366,9 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
 
         {/* Group by toggle */}
         <div className="flex items-center gap-2 mb-5">
-          <span className="text-xs text-gray-500 dark:text-gray-400">グループ：</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t('completed_group_label')}</span>
           <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-            {[['parent','親タスク別'],['category','カテゴリ別']].map(([id, label]) => (
+            {[['parent', t('completed_by_parent')], ['category', t('completed_by_cat')]].map(([id, label]) => (
               <button key={id} onClick={() => setGroupBy(id)}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${groupBy === id ? 'bg-green-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
                 {label}
@@ -2345,7 +2404,7 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
                     <span className="font-semibold text-sm text-gray-800 dark:text-gray-200 flex-1">{label}</span>
                   </>
                 )}
-                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">{items.length}件</span>
+                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">{items.length}{t('completed_items_unit')}</span>
               </button>
               {/* Tasks */}
               {!collapsed[key] && (
@@ -2368,8 +2427,9 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
 };
 
 const CompletedTaskCard = ({ task, cat, parentTask, groupBy, onRestore, onDelete, t }) => {
+  const { lang } = useLang();
   const dateStr = task.updatedAt || task.createdAt
-    ? new Date(task.updatedAt || task.createdAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    ? new Date(task.updatedAt || task.createdAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
   return (
     <div className="flex items-start gap-3 px-4 py-3 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
@@ -2378,14 +2438,13 @@ const CompletedTaskCard = ({ task, cat, parentTask, groupBy, onRestore, onDelete
         <p className="text-sm text-gray-500 dark:text-gray-400 line-through leading-snug">{task.title}</p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
-          {/* 親タスク名を全表示（カテゴリ別グループ時のみ） */}
           {groupBy === 'category' && parentTask && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
               📁 {parentTask.title}
             </span>
           )}
           {dateStr && <span className="text-xs text-gray-400">{dateStr}</span>}
-          {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱{task.estimatedMinutes}分</span>}
+          {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱{task.estimatedMinutes}{t('est_min_suffix')}</span>}
         </div>
       </div>
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -2404,6 +2463,11 @@ const CompletedTaskCard = ({ task, cat, parentTask, groupBy, onRestore, onDelete
 
 const ReportView = ({ tasks, categories }) => {
   const { t, lang } = useLang();
+  const REPORT_RANGES = [
+    { id: 'week', label: t('report_this_week'), days: 7 },
+    { id: 'last_week', label: t('report_last_week'), days: 14, offset: 7 },
+    { id: 'month', label: t('report_this_month'), days: 30 },
+  ];
   const [range, setRange] = useState('week');
   const [report, setReport] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2527,14 +2591,14 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
 
         {!hasAiKey && (
           <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">⚠️ Gemini APIキーが未設定です</p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">サイドバー下部の「クラウド同期」設定からGemini APIキーを登録してください（無料）。</p>
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">⚠️ {lang === 'en' ? 'Gemini API key not set' : 'Gemini APIキーが未設定です'}</p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">{lang === 'en' ? 'Add your Gemini API key via the Cloud Sync settings at the bottom of the sidebar (free).' : 'サイドバー下部の「クラウド同期」設定からGemini APIキーを登録してください（無料）。'}</p>
           </div>
         )}
 
         <button onClick={generateReport} disabled={loading || !hasAiKey}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors mb-5">
-          {loading ? <><Icons.RefreshCw size={16} className="animate-spin" /> レポート生成中...</> : <><Icons.Sparkles size={16} /> レポートを生成</>}
+          {loading ? <><Icons.RefreshCw size={16} className="animate-spin" /> {t('ai_loading')}</> : <><Icons.Sparkles size={16} /> {t('report_btn')}</>}
         </button>
 
         {error && <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">{error}</div>}
@@ -2544,9 +2608,9 @@ ${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
               <Icons.FileText size={15} className="text-purple-500" />
               <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
-                {REPORT_RANGES.find(r => r.id === range)?.label}の振り返りレポート
+                {REPORT_RANGES.find(r => r.id === range)?.label} {t('report_title')}
               </span>
-              <span className="ml-auto text-xs text-gray-400">{new Date().toLocaleDateString('ja-JP')}</span>
+              <span className="ml-auto text-xs text-gray-400">{new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP')}</span>
             </div>
             <div>{renderMarkdown(report)}</div>
           </div>
@@ -2964,7 +3028,7 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
         <button onClick={() => onCategoryFilter('')}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
           <span className="w-[17px] h-[17px] rounded-full bg-gray-500 flex-shrink-0" />
-          <span className="flex-1 text-left">すべて</span>
+          <span className="flex-1 text-left">{t('sidebar_all')}</span>
           <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
         </button>
         <CatDndList categories={categories} tasks={tasks} activeCatFilter={activeCatFilter}
@@ -3000,7 +3064,7 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
           <span className="flex-1 text-left">
             {syncStatus === 'synced' ? t('sync_synced') : syncStatus === 'syncing' ? t('sync_ing') : syncStatus === 'error' ? t('sync_error') : t('sync_none')}
           </span>
-          {!JB.key() && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">未設定</span>}
+          {!JB.key() && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">{t('sync_not_configured')}</span>}
         </button>
         <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
           {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
@@ -3297,14 +3361,14 @@ const App = () => {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (!data.tasks || !data.categories) { alert('無効なファイルです。TaskFlowのバックアップJSONを選択してください。'); return; }
-        if (!window.confirm(`インポートすると現在のデータが上書きされます。\nタスク: ${data.tasks.length}件 / カテゴリ: ${data.categories.length}件\n続けますか？`)) return;
+        if (!data.tasks || !data.categories) { alert(lang === 'en' ? 'Invalid file. Please select a TaskFlow backup JSON.' : '無効なファイルです。TaskFlowのバックアップJSONを選択してください。'); return; }
+        if (!window.confirm(lang === 'en' ? `Import will overwrite current data.\nTasks: ${data.tasks.length} / Categories: ${data.categories.length}\nContinue?` : `インポートすると現在のデータが上書きされます。\nタスク: ${data.tasks.length}件 / カテゴリ: ${data.categories.length}件\n続けますか？`)) return;
         persistTasks(data.tasks);
         persistCats(data.categories);
         if (data.recurring) persistRecurring(data.recurring);
         if (data.settings) STORAGE.saveSettings(data.settings);
-        alert('インポートが完了しました！');
-      } catch { alert('ファイルの読み込みに失敗しました。'); }
+        alert(lang === 'en' ? 'Import complete!' : 'インポートが完了しました！');
+      } catch { alert(lang === 'en' ? 'Failed to read file.' : 'ファイルの読み込みに失敗しました。'); }
     };
     reader.readAsText(file);
     e.target.value = '';
