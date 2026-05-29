@@ -47,6 +47,10 @@
       [data-tl-left] { display: flex !important; flex: none !important; width: 16rem !important; }
       [data-tl-right] { display: block !important; flex: 1 1 0% !important; }
     }
+    /* タイムラインタスクブロック: タッチ操作でスクロール禁止 */
+    [data-task-block] { touch-action: none; -webkit-user-select: none; user-select: none; }
+    /* ドラッグ中はスクロールコンテナもロック */
+    [data-tl-right].dragging { overflow: hidden !important; }
   </style>
 </head>
 <body>
@@ -1839,9 +1843,24 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   const minToY = (m) => ((m - START_H * 60) / 60) * HOUR_H;
   const getRelY = (e) => e.clientY - (timelineRef.current?.getBoundingClientRect().top || 0);
 
+  // スクロールロック/アンロック（スマホDrag中にスクロール防止）
+  const lockScroll = () => {
+    if (scrollRef.current) {
+      scrollRef.current.style.overflow = 'hidden';
+      scrollRef.current.classList.add('dragging');
+    }
+  };
+  const unlockScroll = () => {
+    if (scrollRef.current) {
+      scrollRef.current.style.overflow = '';
+      scrollRef.current.classList.remove('dragging');
+    }
+  };
+
   const onTaskPointerDown = (e, task, type) => {
     e.preventDefault(); e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
+    lockScroll(); // スマホ: ドラッグ開始時にスクロール禁止
     setSelectedTaskId(task.id);
     const sMin = strToMin(task.scheduledTime.start);
     const eMin = strToMin(task.scheduledTime.end);
@@ -1865,6 +1884,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   };
 
   const onPointerUp = () => {
+    unlockScroll(); // スマホ: ドラッグ終了後にスクロール再開
     if (drag) {
       onUpdateSchedule?.(drag.taskId, { start: minToStr(drag.curStartMin), end: minToStr(drag.curEndMin) });
       setDrag(null);
@@ -1890,7 +1910,8 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   return (
     <div className="flex-1 flex overflow-hidden"
       onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-      onPointerLeave={() => { onPointerUp(); setHoverMin(null); }}
+      onPointerLeave={() => { unlockScroll(); onPointerUp(); setHoverMin(null); }}
+      onPointerCancel={() => { unlockScroll(); setDrag(null); setHoverMin(null); }}
       style={{ userSelect: drag ? 'none' : 'auto', touchAction: drag ? 'none' : 'auto' }}>
 
       {/* ===== 左: タスク一覧 ===== */}
@@ -2001,10 +2022,11 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
               const { top, height, sMin, eMin } = getTaskBounds(task);
               const isDragging = drag?.taskId === task.id;
               const isSelected = selectedTaskId === task.id;
-              const floatLeft = isSelected ? '-2px' : '4px';
-              const floatRight = isSelected ? '-2px' : '4px';
+              const floatLeft = isSelected ? '2px' : '8px';
+              const floatRight = isSelected ? '2px' : '6px';
               return (
                 <div key={task.id}
+                  data-task-block="1"
                   className={`absolute rounded-lg select-none transition-all duration-150
                     ${isDone ? 'opacity-40' : ''}
                     ${isDragging ? 'shadow-2xl z-40 ring-2 scale-[1.03]' : isSelected ? 'shadow-2xl z-35 ring-2' : 'hover:shadow-md z-20'}`}
@@ -2017,7 +2039,6 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     borderLeft: `${isSelected ? '4px' : '3px'} solid ${cat?.color || '#9CA3AF'}`,
                     boxShadow: isSelected && !isDragging ? `0 8px 24px ${cat?.color || '#9CA3AF'}44, 0 2px 8px rgba(0,0,0,0.12)` : undefined,
                     cursor: isDragging ? 'grabbing' : 'grab',
-                    touchAction: 'none',
                   }}
                   onPointerDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
                   onClick={(e) => e.stopPropagation()}>
@@ -2036,7 +2057,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                   </div>
                   {!isDone && (
                     <div className={`absolute bottom-0 left-0 right-0 flex items-center justify-center cursor-ns-resize group/resize transition-all ${isSelected ? 'h-5' : 'h-3'}`}
-                      onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); onTaskPointerDown(e, task, 'resize'); }}>
+                      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); lockScroll(); onTaskPointerDown(e, task, 'resize'); }}>
                       <div className={`rounded-full transition-all ${isSelected ? 'w-10 h-1 opacity-70' : 'w-6 h-0.5 opacity-40 group-hover/resize:opacity-80'}`}
                         style={{ backgroundColor: cat?.color || '#9CA3AF' }} />
                     </div>
