@@ -1232,11 +1232,11 @@ const DndSiblingList = ({ items, onReorderDrop, renderItem }) => {
     }
   };
 
-  // iOS Safari: タッチ開始時にスクロールを防止（non-passive）
+  // iOS Safari: グリップハンドルをタッチした時だけスクロールを防止（non-passive）
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    const onTouch = (e) => { if (e.target.closest('[data-dnd-handle]')) e.preventDefault(); };
+    const onTouch = (e) => { if (e.target.closest('[data-grip]')) e.preventDefault(); };
     el.addEventListener('touchstart', onTouch, { passive: false });
     return () => el.removeEventListener('touchstart', onTouch);
   }, []);
@@ -1335,20 +1335,23 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
       ? 'border shadow-sm'
       : deadlineBg || 'bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/50';
 
-  const { isDragging, isOver, ...divDragProps } = dragProps || {};
+  const { isDragging, isOver, onPointerDown: gripPointerDown } = dragProps || {};
 
   return (
     <div>
       <div
-        {...divDragProps}
-        className={`group relative flex items-start gap-2 px-3 py-3 rounded-xl mb-1.5 transition-all hover:shadow-md cursor-grab active:cursor-grabbing
+        className={`group relative flex items-start gap-2 px-3 py-3 rounded-xl mb-1.5 transition-all hover:shadow-md
           ${cardBase}
           ${isDragging ? 'opacity-40' : ''}
           ${isOver ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
         style={{ marginLeft: `${depth * 24}px`, ...cardStyle }}
       >
-        {/* grip handle */}
-        <span className="flex-shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition-colors select-none">
+        {/* grip handle - ここだけがドラッグトリガー */}
+        <span
+          data-grip="1"
+          onPointerDown={gripPointerDown}
+          className="flex-shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition-colors select-none"
+          style={{ touchAction: 'none', cursor: gripPointerDown ? 'grab' : 'default' }}>
           <Icons.GripVertical size={16} />
         </span>
 
@@ -1710,18 +1713,23 @@ const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, 
   const isDone = task.status === 'done';
   const isPlacing = placing === task.id;
   const isRecurring = !!task.recurringId;
-  const { isDragging, isOver, ...divDragProps } = dragProps || {};
+  const { isDragging, isOver, onPointerDown: gripPointerDown } = dragProps || {};
   return (
-    <div {...(!scheduled ? divDragProps : {})}
+    <div
       className={`group rounded-lg p-2 border transition-all
         ${isPlacing ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}
-        ${!scheduled ? 'cursor-grab active:cursor-grabbing' : ''}
         ${isDragging ? 'opacity-40' : ''}
         ${isOver ? 'ring-2 ring-blue-400' : ''}`}
       style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
       <div className="flex items-start gap-1">
         {!scheduled && (
-          <span className="flex-shrink-0 mt-0.5 text-gray-300 select-none"><Icons.GripVertical size={13} /></span>
+          <span
+            data-grip="1"
+            onPointerDown={gripPointerDown}
+            className="flex-shrink-0 mt-0.5 text-gray-300 hover:text-gray-500 select-none"
+            style={{ touchAction: 'none', cursor: 'grab', padding: '4px', margin: '-4px' }}>
+            <Icons.GripVertical size={13} />
+          </span>
         )}
         {scheduled && (
           <button onClick={() => onStatusChange(task.id, isDone ? 'todo' : 'done')} className={`mt-0.5 flex-shrink-0 transition-colors ${isDone ? 'text-green-500' : 'text-gray-300 hover:text-green-500'}`}>
