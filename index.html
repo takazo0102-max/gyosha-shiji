@@ -50,7 +50,7 @@
     /* タイムラインタスクブロック: タッチ操作でスクロール禁止 */
     [data-task-block] { touch-action: none; -webkit-user-select: none; user-select: none; }
     /* ドラッグ中はスクロールコンテナもロック */
-    [data-tl-right].dragging { overflow: hidden !important; }
+    [data-tl-right].dragging { overflow: hidden !important; touch-action: none !important; }
   </style>
 </head>
 <body>
@@ -1826,6 +1826,20 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
     scrollRef.current.scrollTop = Math.max(0, nowY - scrollRef.current.clientHeight / 3);
   }, []);
 
+  // iOS Safari対応: タスクブロックをタッチした瞬間にスクロールをキャンセル
+  // (React合成イベントのpreventDefaultは遅すぎるため、ネイティブリスナーで対処)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onTouchStart = (e) => {
+      if (e.target.closest('[data-task-block]')) {
+        e.preventDefault(); // スクロール防止（passive:falseが必要）
+      }
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    return () => el.removeEventListener('touchstart', onTouchStart);
+  }, []);
+
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
   const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
   const unscheduled = tasks.filter(t => !t.scheduledTime?.start);
@@ -1841,7 +1855,13 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
     return Math.max(START_H * 60, Math.min(snapTo(raw), END_H * 60));
   };
   const minToY = (m) => ((m - START_H * 60) / 60) * HOUR_H;
-  const getRelY = (e) => e.clientY - (timelineRef.current?.getBoundingClientRect().top || 0);
+  // clientYからタイムライングリッド内の相対Y座標を計算
+  // getBoundingClientRect()はビューポート座標（スクロール済み）なのでそのまま差分でOK
+  const getRelY = (e) => {
+    const rect = timelineRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    return e.clientY - rect.top;
+  };
 
   // スクロールロック/アンロック（スマホDrag中にスクロール防止）
   const lockScroll = () => {
@@ -1869,6 +1889,7 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
   };
 
   const onPointerMove = (e) => {
+    if (drag) e.preventDefault(); // ドラッグ中はスクロールを確実に防止
     const y = getRelY(e);
     const m = yToMin(y);
     setHoverMin(m);
@@ -2041,6 +2062,9 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     cursor: isDragging ? 'grabbing' : 'grab',
                   }}
                   onPointerDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={onPointerUp}
+                  onPointerCancel={() => { unlockScroll(); setDrag(null); }}
                   onClick={(e) => e.stopPropagation()}>
                   {/* 選択時: 浮いた時刻バブル */}
                   {isSelected && !isDone && (
