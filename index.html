@@ -1211,27 +1211,96 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
 
 // ==================== TaskNode ====================
 // ==================== DndSiblingList ====================
-// 兄弟タスクリストのDnD並び替えラッパー
+// 兄弟タスクリストのDnD並び替えラッパー（マウス・タッチ共通ポインターイベント版）
 const DndSiblingList = ({ items, onReorderDrop, renderItem }) => {
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
+  const wrapperRef = useRef(null);
+  const itemRefs = useRef({});
+
+  // 最寄りのスクロール可能な祖先をロック/アンロック（iOS Safari対策）
+  const setScrollLock = (lock) => {
+    if (!wrapperRef.current) return;
+    let el = wrapperRef.current.parentElement;
+    while (el && el !== document.body) {
+      const oy = window.getComputedStyle(el).overflowY;
+      if (el.scrollHeight > el.clientHeight && (oy === 'auto' || oy === 'scroll')) {
+        el.style.overflow = lock ? 'hidden' : '';
+        break;
+      }
+      el = el.parentElement;
+    }
+  };
+
+  // iOS Safari: タッチ開始時にスクロールを防止（non-passive）
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const onTouch = (e) => { if (e.target.closest('[data-dnd-handle]')) e.preventDefault(); };
+    el.addEventListener('touchstart', onTouch, { passive: false });
+    return () => el.removeEventListener('touchstart', onTouch);
+  }, []);
+
+  const findOverId = (clientY) => {
+    for (const item of items) {
+      if (item.id === dragId) continue;
+      const el = itemRefs.current[item.id];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return item.id;
+    }
+    return null;
+  };
+
+  const handlePointerDown = (e, itemId) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // ラッパーにポインターをキャプチャして全ての移動イベントをここで受け取る
+    if (wrapperRef.current) wrapperRef.current.setPointerCapture(e.pointerId);
+    setScrollLock(true);
+    setDragId(itemId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    setOverId(findOverId(e.clientY));
+  };
+
+  const handlePointerUp = (e) => {
+    setScrollLock(false);
+    if (dragId) {
+      const target = overId || findOverId(e?.clientY || 0);
+      if (target && target !== dragId) onReorderDrop(dragId, target);
+    }
+    setDragId(null);
+    setOverId(null);
+  };
+
   return (
-    <>
+    <div ref={wrapperRef}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      style={{ touchAction: dragId ? 'none' : 'auto' }}>
       {items.map(item => {
         const isDragging = dragId === item.id;
         const isOver = overId === item.id && dragId !== item.id;
         const dragProps = {
-          draggable: true,
-          onDragStart: e => { e.stopPropagation(); setDragId(item.id); e.dataTransfer.setData('text/plain', item.id); },
-          onDragOver: e => { e.preventDefault(); e.stopPropagation(); setOverId(item.id); },
-          onDrop: e => { e.preventDefault(); e.stopPropagation(); if (dragId && dragId !== item.id) onReorderDrop(dragId, item.id); setDragId(null); setOverId(null); },
-          onDragEnd: () => { setDragId(null); setOverId(null); },
           isDragging,
           isOver,
+          // data-dnd-handle属性を持つ要素(グリップ)またはカード全体がトリガー
+          onPointerDown: (e) => handlePointerDown(e, item.id),
         };
-        return renderItem(item, dragProps);
+        return (
+          <div key={item.id} data-dnd-handle="1"
+            ref={el => { if (el) itemRefs.current[item.id] = el; else delete itemRefs.current[item.id]; }}>
+            {renderItem(item, dragProps)}
+          </div>
+        );
       })}
-    </>
+    </div>
   );
 };
 
