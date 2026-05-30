@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TaskFlow - タスク管理</title>
+  <!-- Airtable DESIGN.md: Inter as Haas Grotesk substitute -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,6 +17,28 @@
       darkMode: 'class',
       theme: {
         extend: {
+          // Airtable DESIGN.md color tokens
+          colors: {
+            at: {
+              ink: '#181d26',        // primary / near-black
+              body: '#333840',       // body text
+              muted: '#41454d',      // muted / footer text
+              hairline: '#dddddd',   // border
+              canvas: '#ffffff',
+              'surface-soft': '#f8fafc',
+              'surface-strong': '#e0e2e6',
+              'surface-dark': '#181d26',
+              coral: '#aa2d00',      // signature coral
+              forest: '#0a2e0e',     // signature forest
+              cream: '#f5e9d4',      // signature cream
+              peach: '#fcab79',      // demo-grid peach
+              mint: '#a8d8c4',       // demo-grid mint
+              yellow: '#f4d35e',     // demo-grid yellow
+              mustard: '#d9a441',    // demo-grid mustard
+              link: '#1b61c9',
+              success: '#006400',
+            }
+          },
           animation: {
             'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             'slide-in': 'slideIn 0.3s cubic-bezier(0.32,0.72,0,1)',
@@ -28,7 +54,10 @@
   </script>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif; }
+    /* Airtable DESIGN.md: Inter as primary typeface, modest weights */
+    body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif; color: #333840; }
+    /* Airtable: surface-soft as page background */
+    #root { background: #f8fafc; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
@@ -143,10 +172,11 @@ const STORAGE = {
   saveSettings: (s) => localStorage.setItem('tf_settings', JSON.stringify(s)),
 };
 
+// Airtable DESIGN.md: signature palette for categories
 const DEFAULT_CATS = [
-  { id: 'cat-1', name: '仕事', color: '#3B82F6' },
-  { id: 'cat-2', name: '個人', color: '#10B981' },
-  { id: 'cat-3', name: '学習', color: '#8B5CF6' },
+  { id: 'cat-1', name: '仕事', color: '#aa2d00' },   // signature-coral
+  { id: 'cat-2', name: '個人', color: '#0a2e0e' },   // signature-forest
+  { id: 'cat-3', name: '学習', color: '#1b61c9' },   // link blue
 ];
 const DEFAULT_SETTINGS = { warningDays: 3, showBanner: true, browserNotifications: false };
 
@@ -249,7 +279,7 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
           </div>
           {JB.key() && JB.binId() && (
             <button onClick={onManualSync} disabled={syncStatus === 'syncing'}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
               <Icons.RefreshCw size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
               {t('sync_now')}
             </button>
@@ -310,7 +340,7 @@ const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_close')}</button>
           <button onClick={handleSave} disabled={!apiKey.trim()}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+            className="flex-1 px-4 py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 text-white text-sm font-medium transition-colors">
             {t('btn_save')} & {t('sync_now')}
           </button>
         </div>
@@ -687,11 +717,12 @@ const CompletionModal = ({ onClose }) => {
 };
 
 // ==================== ColorPicker ====================
+// Airtable DESIGN.md: signature palette + semantic colors
 const PRESET_COLORS = [
-  '#EF4444','#F97316','#EAB308','#22C55E',
-  '#10B981','#14B8A6','#3B82F6','#6366F1',
-  '#8B5CF6','#A855F7','#EC4899','#F43F5E',
-  '#64748B','#78716C','#0EA5E9','#84CC16',
+  '#aa2d00','#0a2e0e','#1b61c9','#181d26',  // signature: coral, forest, link, ink
+  '#fcab79','#a8d8c4','#f4d35e','#d9a441',  // demo-grid: peach, mint, yellow, mustard
+  '#f5e9d4','#006400','#254fad','#aa2d00',  // cream, success, info, coral-dark
+  '#6B7280','#374151','#0ea5e9','#7c3aed',  // neutral variants
 ];
 
 const ColorPicker = ({ value, onChange }) => {
@@ -831,7 +862,7 @@ const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCat
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('cat_rec_desc')}</p>
         </div>
         <button onClick={() => setShowNew(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">
           <Icons.Plus size={15} /> {t('rec_new')} {t('field_category')}
         </button>
       </div>
@@ -1200,7 +1231,7 @@ const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCateg
         </div>
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_cancel')}</button>
-          <button onClick={handleSubmit} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+          <button onClick={handleSubmit} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] text-white text-sm font-medium transition-colors">
             <Icons.Plus size={15} /> {task ? t('btn_update') : t('btn_add')}
           </button>
         </div>
@@ -1354,11 +1385,12 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
     ? { background: `linear-gradient(135deg, ${cat.color}22 0%, ${cat.color}18 100%)`, borderLeft: `4px solid ${cat.color}`, border: `1.5px solid ${cat.color}44` }
     : cat ? { borderLeft: `4px solid ${cat.color}` } : {};
 
+  // Airtable DESIGN.md: white canvas cards with hairline borders (dddddd)
   const cardBase = isDone
-    ? 'opacity-50 bg-white dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/30'
+    ? 'opacity-50 bg-white dark:bg-gray-800/30 border border-[#dddddd] dark:border-gray-700/30'
     : isToday
       ? 'border shadow-sm'
-      : deadlineBg || 'bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/50';
+      : deadlineBg || 'bg-white dark:bg-gray-800/40 border border-[#dddddd] dark:border-gray-700/50';
 
   const { isDragging, isOver, onPointerDown: gripPointerDown } = dragProps || {};
 
@@ -1645,7 +1677,7 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters || hasFilters ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
             <Icons.Filter size={13} /> {t('btn_filter')} {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
           </button>
-          <button onClick={() => onAddTask()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+          <button onClick={() => onAddTask()} className="flex items-center gap-1.5 px-3 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-xl text-sm font-medium transition-colors">
             <Icons.Plus size={13} /> {t('btn_add')}
           </button>
         </div>
@@ -1704,15 +1736,18 @@ const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, on
   return (
     <div>
       {cat && (
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-          <button onClick={() => setCollapsed(c => !c)} className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+        /* Airtable: signature card strip — category color bar with clean editorial type */
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-lg"
+          style={{ backgroundColor: `${cat.color}12`, borderLeft: `3px solid ${cat.color}` }}>
+          <button onClick={() => setCollapsed(c => !c)} className="flex items-center gap-1.5 text-sm font-semibold hover:opacity-80 transition-opacity"
+            style={{ color: cat.color }}>
             {cat.name}
-            <Icons.ChevronDown size={13} className={`text-gray-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+            <Icons.ChevronDown size={12} className={`transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
           </button>
-          <span className="text-xs text-gray-400 dark:text-gray-500">{doneCount}/{tasks.length}</span>
-          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-          <button onClick={() => onAddTask()} className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">+ {t('btn_add').replace('する','')}</button>
+          <span className="text-xs text-[#41454d] dark:text-gray-500">{doneCount}/{tasks.length}</span>
+          <div className="flex-1 h-px" style={{ backgroundColor: `${cat.color}30` }} />
+          <button onClick={() => onAddTask()} className="text-xs font-medium transition-opacity hover:opacity-70"
+            style={{ color: cat.color }}>+ {t('btn_add').replace('する','')}</button>
         </div>
       )}
       {!collapsed && (
@@ -2296,7 +2331,7 @@ const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('nav_today')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr}</p>
           </div>
-          <button onClick={onAddTask} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">{t('today_add')}</button>
+          <button onClick={onAddTask} className="px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">{t('today_add')}</button>
         </div>
         {totalToday > 0 && (
           <div className="mt-3">
@@ -2475,7 +2510,7 @@ const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
             </h3>
             <div className="flex items-center gap-2">
               <button onClick={() => onAddTask?.(selDate)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-medium rounded-lg transition-colors">
                 <Icons.Plus size={13} /> {t('calendar_add_task')}
               </button>
               <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
@@ -2878,7 +2913,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">🔁 {t('rec_page_title')}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('rec_page_desc')}</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+        <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">
           <Icons.Plus size={15} /> {t('rec_new')}
         </button>
       </div>
@@ -2932,7 +2967,7 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
           <div className="flex gap-3 mt-5">
             <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{t('btn_cancel')}</button>
             <button onClick={handleSave} disabled={!form.title.trim() || form.days.length === 0}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
+              className="flex-1 px-4 py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
               {editId ? t('btn_update') : t('btn_add')}
             </button>
           </div>
@@ -3089,7 +3124,7 @@ const TermsModal = ({ onClose }) => {
           )}
         </div>
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">閉じる</button>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] text-white text-sm font-medium transition-colors">閉じる</button>
         </div>
       </div>
     </div>
