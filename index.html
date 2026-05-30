@@ -120,23 +120,24 @@ const formatDeadlineBadge = (dueDate, t) => {
   return `${_t('deadline_remaining')}${days}${_t('deadline_days_unit')}`;
 };
 
+// Airtable DESIGN.md palette: coral=overdue, peach=today, yellow=tomorrow, link=soon
 const getDeadlineBadgeClass = (status) => {
   switch(status) {
-    case 'overdue': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
-    case 'today': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
-    case 'tomorrow': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300';
-    case 'soon': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
-    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+    case 'overdue':  return 'text-[#aa2d00] bg-[#aa2d00]/10 dark:bg-[#aa2d00]/20';
+    case 'today':    return 'text-[#aa2d00] bg-[#fcab79]/25 dark:bg-[#fcab79]/15';
+    case 'tomorrow': return 'text-[#d9a441] bg-[#f4d35e]/25 dark:bg-[#f4d35e]/15';
+    case 'soon':     return 'text-[#1b61c9] bg-[#1b61c9]/10 dark:bg-[#1b61c9]/20';
+    default:         return 'text-[#41454d] bg-[#dddddd]/60 dark:bg-gray-700 dark:text-gray-300';
   }
 };
 
 const getDeadlineBgClass = (status) => {
   switch(status) {
-    case 'overdue': return 'bg-red-50 dark:bg-red-900/20';
-    case 'today': return 'bg-orange-50 dark:bg-orange-900/20';
-    case 'tomorrow': return 'bg-yellow-50 dark:bg-yellow-900/20';
-    case 'soon': return 'bg-blue-50 dark:bg-blue-900/20';
-    default: return '';
+    case 'overdue':  return 'bg-[#aa2d00]/5 dark:bg-[#aa2d00]/10';
+    case 'today':    return 'bg-[#fcab79]/10 dark:bg-[#fcab79]/10';
+    case 'tomorrow': return 'bg-[#f4d35e]/10 dark:bg-[#f4d35e]/10';
+    case 'soon':     return 'bg-[#1b61c9]/5 dark:bg-[#1b61c9]/10';
+    default:         return '';
   }
 };
 
@@ -489,6 +490,88 @@ const Icons = {
 };
 
 // ==================== AI (Claude API) ====================
+// ==================== Illustrations (Airtable palette SVGs) ====================
+const Illust = {
+  // Empty task list — document + search in coral/peach
+  EmptyTasks: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f5e9d4"/>
+      <rect x="26" y="20" width="38" height="50" rx="6" fill="#fcab79" opacity="0.6"/>
+      <rect x="26" y="20" width="38" height="12" rx="6" fill="#aa2d00" opacity="0.5"/>
+      <rect x="26" y="26" width="38" height="6" fill="#aa2d00" opacity="0.5"/>
+      <rect x="34" y="40" width="22" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <rect x="34" y="48" width="16" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <rect x="34" y="56" width="20" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <circle cx="66" cy="66" r="14" fill="#aa2d00"/>
+      <circle cx="66" cy="64" r="7" fill="none" stroke="white" strokeWidth="2.5"/>
+      <line x1="71" y1="69" x2="77" y2="75" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  ),
+  // All done — checkmark in mint/forest
+  AllDone: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.3"/>
+      <circle cx="48" cy="48" r="30" fill="#a8d8c4" opacity="0.7"/>
+      <polyline points="33,48 43,58 63,38" stroke="#0a2e0e" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="22" cy="22" r="4" fill="#f4d35e"/>
+      <circle cx="74" cy="26" r="3" fill="#d9a441"/>
+      <circle cx="76" cy="72" r="4" fill="#f4d35e"/>
+      <circle cx="20" cy="70" r="2.5" fill="#d9a441"/>
+    </svg>
+  ),
+  // No overdue — celebration in yellow/coral
+  NoOverdue: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f4d35e" opacity="0.2"/>
+      <circle cx="48" cy="52" r="24" fill="#f4d35e" opacity="0.6"/>
+      <path d="M36 44 L48 28 L60 44" stroke="#d9a441" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <circle cx="48" cy="52" r="8" fill="#d9a441"/>
+      <circle cx="48" cy="52" r="4" fill="white"/>
+      <line x1="26" y1="70" x2="70" y2="70" stroke="#aa2d00" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 4"/>
+      <circle cx="30" cy="24" r="3" fill="#aa2d00" opacity="0.5"/>
+      <circle cx="72" cy="32" r="2" fill="#aa2d00" opacity="0.4"/>
+    </svg>
+  ),
+  // Calendar empty — calendar in cream/coral
+  CalendarEmpty: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f5e9d4"/>
+      <rect x="18" y="28" width="60" height="46" rx="8" fill="#fcab79" opacity="0.5"/>
+      <rect x="18" y="28" width="60" height="18" rx="8" fill="#aa2d00" opacity="0.6"/>
+      <rect x="18" y="38" width="60" height="8" fill="#aa2d00" opacity="0.6"/>
+      <circle cx="34" cy="24" r="5" fill="#181d26"/>
+      <circle cx="34" cy="24" r="2.5" fill="#f5e9d4"/>
+      <circle cx="62" cy="24" r="5" fill="#181d26"/>
+      <circle cx="62" cy="24" r="2.5" fill="#f5e9d4"/>
+      {[0,1,2,3,4,5].map(i => (
+        <circle key={i} cx={30 + (i % 3) * 18} cy={56 + Math.floor(i / 3) * 14} r="4" fill="#aa2d00" opacity="0.2"/>
+      ))}
+    </svg>
+  ),
+  // Completed box — open box in mint
+  CompletedBox: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.25"/>
+      <rect x="22" y="46" width="52" height="36" rx="6" fill="#a8d8c4" opacity="0.7"/>
+      <path d="M22 54 L48 42 L74 54" fill="#0a2e0e" opacity="0.25"/>
+      <polyline points="22,46 48,34 74,46" fill="none" stroke="#0a2e0e" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="38" y="46" width="20" height="10" rx="3" fill="#0a2e0e" opacity="0.2"/>
+      <circle cx="72" cy="26" r="4" fill="#f4d35e"/>
+      <circle cx="24" cy="30" r="3" fill="#d9a441"/>
+    </svg>
+  ),
+  // Recurring — refresh arrows in forest green
+  Recurring: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.25"/>
+      <path d="M28 48 C28 36 36 26 48 26 C57 26 64 31 67 38" stroke="#0a2e0e" strokeWidth="4" strokeLinecap="round" fill="none"/>
+      <polygon points="70,30 68,42 58,37" fill="#0a2e0e"/>
+      <path d="M68 48 C68 60 60 70 48 70 C39 70 32 65 29 58" stroke="#aa2d00" strokeWidth="4" strokeLinecap="round" fill="none"/>
+      <polygon points="26,66 28,54 38,59" fill="#aa2d00"/>
+    </svg>
+  ),
+};
+
 const AI = {
   key: () => localStorage.getItem('tf_ai_key') || '',
   saveKey: (k) => localStorage.setItem('tf_ai_key', k),
@@ -702,7 +785,7 @@ const CompletionModal = ({ onClose }) => {
     <div className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4 pointer-events-none">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full pointer-events-auto animate-fade-in border border-gray-100 dark:border-gray-700">
         <div className="text-center mb-4">
-          <div className="text-4xl mb-2">🎯</div>
+          <Illust.AllDone size={64} />
           <p className="text-xl font-bold text-gray-900 dark:text-white">{praise}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('task_completed_msg')}</p>
         </div>
@@ -1376,8 +1459,10 @@ const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onSta
   };
 
   const StatusIcon = isDone ? Icons.CheckCircle : task.status === 'in_progress' ? Icons.PlayCircle : Icons.Circle;
-  const statusColor = isDone ? 'text-green-500' : task.status === 'in_progress' ? 'text-blue-400' : 'text-gray-400 dark:text-gray-500';
-  const priorityColor = task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-green-500';
+  // Airtable palette: success=forest-inspired green, in-progress=link blue, todo=muted
+  const statusColor = isDone ? 'text-[#006400]' : task.status === 'in_progress' ? 'text-[#1b61c9]' : 'text-[#9297a0] dark:text-gray-500';
+  // priority: coral=high, mustard=medium, forest=low
+  const priorityColor = task.priority === 'high' ? 'text-[#aa2d00]' : task.priority === 'medium' ? 'text-[#d9a441]' : 'text-[#0a2e0e]';
   const deadlineBg = !isDone && !isToday ? getDeadlineBgClass(deadlineStatus) : '';
 
   // 今日タスクは全塗り
@@ -1576,7 +1661,7 @@ const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
                     {items.map(task => {
                       const cat = catMap[task.categoryId];
                       const parent = task.parentId ? taskMap[task.parentId] : null;
-                      const priorityColor = { high: 'text-red-500', medium: 'text-yellow-500', low: 'text-blue-400' }[task.priority] || 'text-gray-400';
+                      const priorityColor = { high: 'text-[#aa2d00]', medium: 'text-[#d9a441]', low: 'text-[#0a2e0e]' }[task.priority] || 'text-[#9297a0]';
                       return (
                         <div key={task.id} className="flex items-start gap-2 px-3 py-2.5">
                           <Icons.RefreshCw size={12} className="text-purple-400 flex-shrink-0 mt-0.5" />
@@ -1709,10 +1794,10 @@ const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, o
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6" data-scrollable="1">
         {grouped.length === 0 && recurringItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4"><Icons.Search size={26} /></div>
-            <p className="text-base font-medium">{hasFilters ? t('tree_empty_filter') : t('tree_empty')}</p>
-            <p className="text-sm mt-1">{hasFilters ? t('tree_empty_filter_hint') : t('tree_empty_hint')}</p>
+          <div className="flex flex-col items-center justify-center py-16 text-[#41454d]">
+            <Illust.EmptyTasks size={100} />
+            <p className="text-base font-medium mt-4">{hasFilters ? t('tree_empty_filter') : t('tree_empty')}</p>
+            <p className="text-sm mt-1 text-[#9297a0]">{hasFilters ? t('tree_empty_filter_hint') : t('tree_empty_hint')}</p>
           </div>
         ) : (
           <>
@@ -2149,8 +2234,8 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
         <div className="flex-1 overflow-y-auto px-2 py-2" data-scrollable="1">
           {tasks.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
-              <div className="text-3xl mb-3">✅</div>
-              <p className="text-xs font-medium text-center">{t('timeline_empty')}</p>
+              <Illust.AllDone size={72} />
+              <p className="text-xs font-medium text-center text-[#41454d] mt-3">{t('timeline_empty')}</p>
             </div>
           )}
 
@@ -2429,8 +2514,8 @@ const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
       </div>
       {withDue.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-          <div className="text-4xl mb-4">🎉</div>
-          <p className="text-base font-medium">{t('deadline_none')}</p>
+          <Illust.NoOverdue size={88} />
+          <p className="text-base font-medium text-[#41454d] mt-3">{t('deadline_none')}</p>
         </div>
       )}
     </div>
@@ -2635,8 +2720,8 @@ const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
         {/* Empty state */}
         {doneTasks.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-            <div className="text-5xl mb-4">✅</div>
-            <p className="text-sm font-medium">{t('completed_empty')}</p>
+            <Illust.CompletedBox size={88} />
+            <p className="text-sm font-medium text-[#41454d] mt-3">{t('completed_empty')}</p>
           </div>
         )}
 
@@ -2977,10 +3062,10 @@ const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => 
       {/* List */}
       <div className="max-w-2xl space-y-3">
         {recurring.length === 0 && !showForm && (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-            <div className="text-4xl mb-4">🔁</div>
-            <p className="text-base font-medium">{t('rec_empty')}</p>
-            <p className="text-sm mt-1">{t('rec_empty_hint')}</p>
+          <div className="flex flex-col items-center justify-center py-16 text-[#41454d]">
+            <Illust.Recurring size={96} />
+            <p className="text-base font-medium mt-4">{t('rec_empty')}</p>
+            <p className="text-sm mt-1 text-[#9297a0]">{t('rec_empty_hint')}</p>
           </div>
         )}
         {recurring.map(rt => {
