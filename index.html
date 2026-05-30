@@ -2240,17 +2240,27 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                       </span>
                     </div>
                   )}
-                  <div className="px-1.5 py-0.5 flex flex-col h-full overflow-hidden">
-                    <p className={`text-xs font-semibold leading-tight truncate ${isDone ? 'line-through' : ''}`} style={{ color: cat?.color || '#374151' }}>{task.title}</p>
-                    {(height > 36 || isSelected) && !isSelected && <p className="text-xs text-gray-400 font-mono">{minToStr(sMin)}〜{minToStr(eMin)}</p>}
-                  </div>
-                  {!isDone && (
-                    <div className={`absolute bottom-0 left-0 right-0 flex items-center justify-center cursor-ns-resize group/resize transition-all ${isSelected ? 'h-5' : 'h-3'}`}
-                      onPointerDown={(e) => { e.stopPropagation(); onTaskPointerDown(e, task, 'resize'); }}>
-                      <div className={`rounded-full transition-all ${isSelected ? 'w-10 h-1 opacity-70' : 'w-6 h-0.5 opacity-40 group-hover/resize:opacity-80'}`}
-                        style={{ backgroundColor: cat?.color || '#9CA3AF' }} />
+                  <div className="px-1 py-0.5 flex items-start gap-1 h-full overflow-hidden">
+                    {/* 完了ボタン: タップで完了/未完了切り替え（長押しDragとは独立） */}
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, isDone ? 'todo' : 'done'); }}
+                      className="flex-shrink-0 mt-0.5 transition-all hover:scale-110 active:scale-95"
+                      title={isDone ? t('status_todo') : t('status_done')}
+                      style={{ color: isDone ? '#22C55E' : cat?.color || '#9CA3AF', opacity: isDone ? 1 : 0.7 }}>
+                      {isDone ? <Icons.CheckCircle size={13} /> : <Icons.Circle size={13} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-semibold leading-tight truncate ${isDone ? 'line-through opacity-60' : ''}`} style={{ color: isDone ? '#9CA3AF' : cat?.color || '#374151' }}>{task.title}</p>
+                      {height > 36 && !isSelected && <p className="text-xs text-gray-400 font-mono">{minToStr(sMin)}〜{minToStr(eMin)}</p>}
                     </div>
-                  )}
+                  </div>
+                  {/* リサイズハンドル（下部） */}
+                  <div className={`absolute bottom-0 left-0 right-0 flex items-center justify-center cursor-ns-resize group/resize transition-all ${isSelected ? 'h-5' : 'h-3'}`}
+                    onPointerDown={(e) => { e.stopPropagation(); onTaskPointerDown(e, task, 'resize'); }}>
+                    <div className={`rounded-full transition-all ${isSelected ? 'w-10 h-1 opacity-70' : 'w-6 h-0.5 opacity-40 group-hover/resize:opacity-80'}`}
+                      style={{ backgroundColor: cat?.color || '#9CA3AF' }} />
+                  </div>
                 </div>
               );
             })}
