@@ -2193,16 +2193,22 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
               const isDragging = drag?.taskId === task.id;
               const isSelected = selectedTaskId === task.id;
               const isPending = pendingTaskId === task.id && !isDragging;
+              const isOtherDuringDrag = drag && !isDragging; // 他のタスクがドラッグ中
               const floatLeft = isSelected ? '2px' : '8px';
               const floatRight = isSelected ? '2px' : '6px';
+              // z-index: ドラッグ中=最前面(50)、選択中=手前(30)、通常=標準(10)、他ドラッグ中=後ろ(5)
+              const zIdx = isDragging ? 50 : isSelected ? 30 : isOtherDuringDrag ? 5 : 10;
               return (
                 <div key={task.id}
                   data-task-block="1"
                   className={`absolute rounded-lg select-none
                     ${isDone ? 'opacity-40' : ''}
-                    ${isDragging ? 'shadow-2xl z-40 ring-2 scale-[1.03] transition-none' : isSelected ? 'shadow-2xl z-35 ring-2 transition-all duration-150' : 'hover:shadow-md z-20 transition-all duration-150'}
-                    ${isPending ? 'animate-pulse-slow' : ''}`}
+                    ${isDragging ? 'shadow-2xl ring-2 scale-[1.03]' : isSelected ? 'shadow-xl ring-2' : 'hover:shadow-md'}
+                    ${isOtherDuringDrag ? 'opacity-50' : ''}
+                    ${isPending ? 'animate-pulse-slow' : ''}
+                    transition-all duration-150`}
                   style={{
+                    zIndex: zIdx,
                     top: isSelected && !isDragging ? top - 2 : top,
                     height: isSelected && !isDragging ? height + 4 : height,
                     left: floatLeft,
@@ -2212,6 +2218,8 @@ const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayD
                     boxShadow: isSelected && !isDragging ? `0 8px 24px ${cat?.color || '#9CA3AF'}44, 0 2px 8px rgba(0,0,0,0.12)` : undefined,
                     cursor: isDragging ? 'grabbing' : 'grab',
                     touchAction: 'none',
+                    // ドラッグ中の他タスクはポインターイベント無効→干渉しない
+                    pointerEvents: isOtherDuringDrag ? 'none' : 'auto',
                   }}
                   onPointerDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
                   onClick={(e) => e.stopPropagation()}>
