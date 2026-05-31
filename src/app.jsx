@@ -1,0 +1,4414 @@
+import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+
+// ==================== Utils ====================
+const generateId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+const getTodayString = () => new Date().toISOString().split('T')[0];
+
+const getDeadlineStatus = (dueDate) => {
+  if (!dueDate) return 'ok';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  const diff = Math.round((due - today) / 86400000);
+  if (diff < 0) return 'overdue';
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  if (diff <= 3) return 'soon';
+  return 'ok';
+};
+
+const getDaysRemaining = (dueDate) => {
+  if (!dueDate) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  return Math.round((due - today) / 86400000);
+};
+
+const formatDeadlineBadge = (dueDate, t) => {
+  const days = getDaysRemaining(dueDate);
+  if (days === null) return '';
+  const _t = t || ((k) => ({ deadline_overdue_suffix:'日超過', deadline_today_label:'今日まで', deadline_tomorrow_label:'明日まで', deadline_remaining:'残り', deadline_days_unit:'日' }[k] || k));
+  if (days < 0) return `${Math.abs(days)}${_t('deadline_overdue_suffix')}`;
+  if (days === 0) return _t('deadline_today_label');
+  if (days === 1) return _t('deadline_tomorrow_label');
+  return `${_t('deadline_remaining')}${days}${_t('deadline_days_unit')}`;
+};
+
+// Airtable DESIGN.md palette: coral=overdue, peach=today, yellow=tomorrow, link=soon
+const getDeadlineBadgeClass = (status) => {
+  switch(status) {
+    case 'overdue':  return 'text-[#aa2d00] bg-[#aa2d00]/10 dark:bg-[#aa2d00]/20';
+    case 'today':    return 'text-[#aa2d00] bg-[#fcab79]/25 dark:bg-[#fcab79]/15';
+    case 'tomorrow': return 'text-[#d9a441] bg-[#f4d35e]/25 dark:bg-[#f4d35e]/15';
+    case 'soon':     return 'text-[#1b61c9] bg-[#1b61c9]/10 dark:bg-[#1b61c9]/20';
+    default:         return 'text-[#41454d] dark:text-gray-300 bg-[#dddddd]/60 dark:bg-gray-700 dark:text-gray-300';
+  }
+};
+
+const getDeadlineBgClass = (status) => {
+  switch(status) {
+    case 'overdue':  return 'bg-[#aa2d00]/5 dark:bg-[#aa2d00]/10';
+    case 'today':    return 'bg-[#fcab79]/10 dark:bg-[#fcab79]/10';
+    case 'tomorrow': return 'bg-[#f4d35e]/10 dark:bg-[#f4d35e]/10';
+    case 'soon':     return 'bg-[#1b61c9]/5 dark:bg-[#1b61c9]/10';
+    default:         return '';
+  }
+};
+
+const formatMinutes = (min, lang) => {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (lang === 'en') {
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
+  }
+  if (h === 0) return `${m}分`;
+  if (m === 0) return `${h}時間`;
+  return `${h}時間${m}分`;
+};
+
+const parseTimeToMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+};
+
+const formatDateShort = (dateStr, lang) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric' });
+};
+
+// ==================== Storage ====================
+const STORAGE = {
+  tasks: () => { try { return JSON.parse(localStorage.getItem('tf_tasks') || '[]'); } catch { return []; } },
+  saveTasks: (t) => localStorage.setItem('tf_tasks', JSON.stringify(t)),
+  cats: () => { try { const d = localStorage.getItem('tf_cats'); return d ? JSON.parse(d) : DEFAULT_CATS; } catch { return DEFAULT_CATS; } },
+  saveCats: (c) => localStorage.setItem('tf_cats', JSON.stringify(c)),
+  settings: () => { try { const d = localStorage.getItem('tf_settings'); return d ? JSON.parse(d) : DEFAULT_SETTINGS; } catch { return DEFAULT_SETTINGS; } },
+  saveSettings: (s) => localStorage.setItem('tf_settings', JSON.stringify(s)),
+  weeklyGoals: () => { try { return JSON.parse(localStorage.getItem('tf_weekly_goals') || '[]'); } catch { return []; } },
+  saveWeeklyGoals: (g) => localStorage.setItem('tf_weekly_goals', JSON.stringify(g)),
+};
+
+// Airtable DESIGN.md: signature palette for categories
+const DEFAULT_CATS = [
+  { id: 'cat-1', name: '仕事', color: '#aa2d00' },   // signature-coral
+  { id: 'cat-2', name: '個人', color: '#0a2e0e' },   // signature-forest
+  { id: 'cat-3', name: '学習', color: '#1b61c9' },   // link blue
+];
+const DEFAULT_SETTINGS = { warningDays: 3, showBanner: true, browserNotifications: false };
+
+// ==================== JSONBin ====================
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
+const JB = {
+  key: () => localStorage.getItem('tf_jb_key') || '',
+  binId: () => localStorage.getItem('tf_jb_id') || '',
+  lastSynced: () => localStorage.getItem('tf_jb_synced') || '',
+  saveKey: (k) => localStorage.setItem('tf_jb_key', k),
+  saveBinId: (id) => localStorage.setItem('tf_jb_id', id),
+  saveSynced: () => localStorage.setItem('tf_jb_synced', new Date().toISOString()),
+};
+
+const jbHeaders = (key) => ({
+  'Content-Type': 'application/json',
+  'X-Master-Key': key,
+  'X-Bin-Private': 'false',
+});
+
+const jbSave = async (key, binId, data) => {
+  if (binId) {
+    const r = await fetch(`${JSONBIN_BASE}/${binId}`, { method: 'PUT', headers: jbHeaders(key), body: JSON.stringify(data) });
+    if (!r.ok) throw new Error(`更新失敗: ${r.status}`);
+    return binId;
+  } else {
+    const r = await fetch(JSONBIN_BASE, { method: 'POST', headers: { ...jbHeaders(key), 'X-Bin-Name': 'TaskFlow' }, body: JSON.stringify(data) });
+    if (!r.ok) throw new Error(`作成失敗: ${r.status}`);
+    const json = await r.json();
+    return json.metadata.id;
+  }
+};
+
+const jbLoad = async (key, binId) => {
+  const r = await fetch(`${JSONBIN_BASE}/${binId}/latest`, { headers: { 'X-Master-Key': key } });
+  if (!r.ok) throw new Error(`読み込み失敗: ${r.status}`);
+  const json = await r.json();
+  return json.record;
+};
+
+// ==================== Supabase ====================
+import { createClient } from '@supabase/supabase-js';
+
+const SB_CONFIG = {
+  url: () => localStorage.getItem('tf_sb_url') || '',
+  key: () => localStorage.getItem('tf_sb_key') || '',
+  saveUrl: (u) => localStorage.setItem('tf_sb_url', u),
+  saveKey: (k) => localStorage.setItem('tf_sb_key', k),
+  enabled: () => !!(localStorage.getItem('tf_sb_url') && localStorage.getItem('tf_sb_key')),
+  lastSynced: () => localStorage.getItem('tf_sb_synced') || '',
+  saveSynced: () => localStorage.setItem('tf_sb_synced', new Date().toISOString()),
+};
+
+let _sbClient = null;
+const getSbClient = () => {
+  const url = SB_CONFIG.url();
+  const key = SB_CONFIG.key();
+  if (!url || !key) return null;
+  if (!_sbClient || _sbClient._url !== url) {
+    _sbClient = createClient(url, key);
+    _sbClient._url = url;
+  }
+  return _sbClient;
+};
+
+const sbSave = async (data) => {
+  const sb = getSbClient();
+  if (!sb) throw new Error('Supabase未設定');
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('未ログイン');
+  const payload = { user_id: user.id, tasks: data.tasks, categories: data.categories, recurring: data.recurring, settings: data.settings || {} };
+  const { error } = await sb.from('taskflow_data').upsert(payload, { onConflict: 'user_id' });
+  if (error) throw error;
+};
+
+const sbLoad = async () => {
+  const sb = getSbClient();
+  if (!sb) throw new Error('Supabase未設定');
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('未ログイン');
+  const { data, error } = await sb.from('taskflow_data').select('*').eq('user_id', user.id).single();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+};
+
+// ==================== AIKeyInput ====================
+const AIKeyInput = () => {
+  const { t } = useLang();
+  const [val, setVal] = useState(AI.key());
+  const [saved, setSaved] = useState(false);
+  const save = () => { AI.saveKey(val.trim()); setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  return (
+    <div className="flex gap-2">
+      <input type="password" value={val} onChange={e => { setVal(e.target.value); setSaved(false); }}
+        placeholder="AIzaSy..."
+        className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono" />
+      <button onClick={save} disabled={!val.trim()}
+        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${saved ? 'bg-green-600 text-white' : 'bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white'}`}>
+        {saved ? '✓' : t('btn_save')}
+      </button>
+    </div>
+  );
+};
+
+// ==================== CloudSyncModal ====================
+const CloudSyncModal = ({ onClose, onSaved, syncStatus, lastSynced, onManualSync, onSupabaseSaved, sbUser, onSbLogout }) => {
+  const { t, lang } = useLang();
+  const [syncTab, setSyncTab] = useState(SB_CONFIG.enabled() ? 'supabase' : 'jsonbin');
+
+  // JSONBin state
+  const [apiKey, setApiKey] = useState(JB.key());
+  const [binId, setBinId] = useState(JB.binId());
+  const [msg, setMsg] = useState('');
+
+  // Supabase state
+  const [sbUrl, setSbUrl] = useState(SB_CONFIG.url());
+  const [sbKey, setSbKey] = useState(SB_CONFIG.key());
+  const [sbEmail, setSbEmail] = useState('');
+  const [sbPass, setSbPass] = useState('');
+  const [sbLoading, setSbLoading] = useState(false);
+  const [sbMsg, setSbMsg] = useState('');
+  const [sbIsSignup, setSbIsSignup] = useState(false);
+
+  const handleJbSave = () => {
+    JB.saveKey(apiKey.trim());
+    JB.saveBinId(binId.trim());
+    setMsg(t('btn_save') + ' ✓');
+    onSaved(apiKey.trim(), binId.trim());
+  };
+
+  const handleSbConnect = async () => {
+    if (!sbUrl.trim() || !sbKey.trim()) return;
+    SB_CONFIG.saveUrl(sbUrl.trim());
+    SB_CONFIG.saveKey(sbKey.trim());
+    _sbClient = null;
+    setSbMsg('接続設定を保存しました ✓');
+  };
+
+  const handleSbAuth = async () => {
+    if (!sbEmail.trim() || !sbPass.trim()) return;
+    setSbLoading(true); setSbMsg('');
+    try {
+      const sb = getSbClient();
+      if (!sb) throw new Error('Supabase接続設定を先に入力してください');
+      let result;
+      if (sbIsSignup) {
+        result = await sb.auth.signUp({ email: sbEmail.trim(), password: sbPass.trim() });
+      } else {
+        result = await sb.auth.signInWithPassword({ email: sbEmail.trim(), password: sbPass.trim() });
+      }
+      if (result.error) throw result.error;
+      setSbMsg(sbIsSignup ? 'アカウント作成成功！確認メールを確認してください' : 'ログイン成功 ✓');
+      onSupabaseSaved?.();
+    } catch (e) {
+      setSbMsg('⚠ ' + (e.message || 'エラーが発生しました'));
+    }
+    setSbLoading(false);
+  };
+
+  const fmtTime = (iso) => {
+    if (!iso) return t('not_synced');
+    return new Date(iso).toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const statusColor = syncStatus === 'synced' ? 'text-green-400' : syncStatus === 'syncing' ? 'text-blue-400' : syncStatus === 'error' ? 'text-red-400' : 'text-gray-400';
+  const statusLabel = syncStatus === 'synced' ? `✓ ${t('sync_synced')}` : syncStatus === 'syncing' ? t('sync_ing') : syncStatus === 'error' ? `⚠ ${t('sync_error')}` : t('sync_not_configured');
+
+  const ic = "w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl animate-fade-in mx-4 flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 pt-5 pb-3">
+          <div className="flex items-center gap-2">
+            <Icons.Cloud size={20} className="text-blue-500" />
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('sync_none')}</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={19} /></button>
+        </div>
+
+        {/* Status bar */}
+        <div className="mx-6 mb-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <span className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</span>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('sync_last')} {fmtTime(lastSynced)}</p>
+          </div>
+          <button onClick={onManualSync} disabled={syncStatus === 'syncing'}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
+            <Icons.RefreshCw size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+            {t('sync_now')}
+          </button>
+        </div>
+
+        {/* Tab selector */}
+        <div className="flex mx-6 mb-4 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+          {[['supabase', 'Supabase（推奨）'], ['jsonbin', 'JSONBin']].map(([id, label]) => (
+            <button key={id} onClick={() => setSyncTab(id)}
+              className={`flex-1 py-2 text-xs font-medium transition-colors ${syncTab === id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
+          {syncTab === 'supabase' ? (
+            <>
+              {/* Supabase: ログイン済み */}
+              {sbUser ? (
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icons.CheckCircle size={16} className="text-green-500" />
+                    <span className="text-sm font-semibold text-green-700 dark:text-green-300">ログイン中</span>
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-400 mb-3">{sbUser.email}</p>
+                  <button onClick={onSbLogout}
+                    className="text-xs text-red-500 hover:text-red-600 hover:underline">ログアウト</button>
+                </div>
+              ) : (
+                <>
+                  {/* Supabase接続設定 */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                    <p className="font-semibold text-blue-700 dark:text-blue-300">📋 Supabase接続</p>
+                    <p>Supabase → Settings → API から URL と anon key を入力</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Supabase URL</label>
+                    <input type="text" value={sbUrl} onChange={e => setSbUrl(e.target.value)} placeholder="https://xxxxx.supabase.co" className={ic} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Anon Key</label>
+                    <input type="password" value={sbKey} onChange={e => setSbKey(e.target.value)} placeholder="eyJhbGci..." className={ic} />
+                  </div>
+                  <button onClick={handleSbConnect} disabled={!sbUrl.trim() || !sbKey.trim()}
+                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+                    接続設定を保存
+                  </button>
+
+                  {/* ログイン/サインアップ */}
+                  {SB_CONFIG.enabled() && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {sbIsSignup ? 'アカウント作成' : 'ログイン'}
+                        </span>
+                        <button onClick={() => setSbIsSignup(s => !s)} className="text-xs text-blue-500 hover:underline">
+                          {sbIsSignup ? 'ログインに切り替え' : '新規作成'}
+                        </button>
+                      </div>
+                      <input type="email" value={sbEmail} onChange={e => setSbEmail(e.target.value)}
+                        placeholder="メールアドレス" className={ic.replace('font-mono', '')} />
+                      <input type="password" value={sbPass} onChange={e => setSbPass(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSbAuth()}
+                        placeholder="パスワード（6文字以上）" className={ic.replace('font-mono', '')} />
+                      <button onClick={handleSbAuth} disabled={sbLoading || !sbEmail.trim() || !sbPass.trim()}
+                        className="w-full py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                        {sbLoading ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 処理中...</> : sbIsSignup ? 'アカウント作成' : 'ログイン'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+              {sbMsg && <p className={`text-xs ${sbMsg.startsWith('⚠') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>{sbMsg}</p>}
+            </>
+          ) : (
+            <>
+              {/* JSONBin */}
+              <div className="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 space-y-1">
+                <p className="font-semibold text-blue-700 dark:text-blue-300">📋 セットアップ手順</p>
+                <p>1. <a href="https://jsonbin.io" target="_blank" className="underline text-blue-600 dark:text-blue-400">jsonbin.io</a> で無料アカウントを作成</p>
+                <p>2. ダッシュボード → API Keys → 「+ CREATE KEY」</p>
+                <p>3. 生成された Master Key を下に貼り付け</p>
+                <p>4. 「保存して同期」を押すと自動でBinが作られます</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Master Key</label>
+                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="$2a$10$..." className={ic} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Bin ID（自動設定）</label>
+                <input value={binId} onChange={e => setBinId(e.target.value)} placeholder="初回保存時に自動入力されます" className={ic} />
+              </div>
+              {msg && <p className="text-sm text-green-600 dark:text-green-400">{msg}</p>}
+              <button onClick={handleJbSave} disabled={!apiKey.trim()}
+                className="w-full py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 text-white text-sm font-medium transition-colors">
+                {t('btn_save')} & {t('sync_now')}
+              </button>
+            </>
+          )}
+
+          {/* AI Section (shared) */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Icons.Sparkles size={16} className="text-purple-500" />
+              <span className="text-sm font-bold text-gray-900 dark:text-white">Gemini AI 連携（無料）</span>
+            </div>
+            <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 space-y-1">
+              <p className="font-semibold text-purple-700 dark:text-purple-300">📋 APIキーの取得方法（無料）</p>
+              <p>1. <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-purple-600 dark:text-purple-400">Google AI Studio</a> にアクセス</p>
+              <p>2. 「APIキーを作成」をクリック</p>
+              <p>3. 生成されたキーを下に貼り付け</p>
+              <p className="text-green-600 dark:text-green-400 font-medium">✓ 無料枠: 1日1,500リクエストまで</p>
+            </div>
+            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Gemini API Key</label>
+            <AIKeyInput />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button onClick={onClose} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_close')}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== Recurring Tasks ====================
+const DAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
+const DAYS_EN = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+const loadRecurring = () => { try { return JSON.parse(localStorage.getItem('tf_recurring') || '[]'); } catch { return []; } };
+const saveRecurring = (r) => localStorage.setItem('tf_recurring', JSON.stringify(r));
+
+// アプリ起動時に今日が該当曜日の定期タスクを追加する
+const applyRecurringTasks = (flatTasks, recurring) => {
+  const today = getTodayString();
+  const todayDow = new Date().getDay();
+  const newTasks = [];
+  // 前日以前の未完了定期タスクを削除するIDセット
+  const removeIds = new Set();
+
+  const updatedRecurring = recurring.map(rt => {
+    // 前日以前の未完了定期タスクを削除対象に追加
+    flatTasks.forEach(t => {
+      if (t.recurringId === rt.id && !t.createdAt?.startsWith(today) && t.status !== 'done') {
+        removeIds.add(t.id);
+      }
+    });
+
+    if (!rt.days.includes(todayDow)) return rt;
+    if (rt.lastAddedDate === today) return rt;
+    // 未完了の同日タスクが既にあれば追加しない
+    const activeToday = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today) && t.status !== 'done');
+    if (activeToday) return { ...rt, lastAddedDate: today };
+    // 完了済みタスクが今日あった場合も lastAddedDate を更新（同日再追加防止）
+    const completedToday = flatTasks.some(t => t.recurringId === rt.id && t.createdAt?.startsWith(today) && t.status === 'done');
+    if (completedToday) return { ...rt, lastAddedDate: today };
+    const siblings = flatTasks.filter(t => !t.parentId);
+    const maxOrder = siblings.length ? Math.max(...siblings.map(t => t.order)) : -1;
+    newTasks.push({
+      id: generateId('task'),
+      title: rt.title,
+      description: rt.description || undefined,
+      categoryId: rt.categoryId,
+      priority: rt.priority,
+      status: 'todo',
+      isTodayTask: true,
+      todayDate: today,
+      estimatedMinutes: rt.estimatedMinutes || undefined,
+      order: maxOrder + 1 + newTasks.length,
+      createdAt: today + 'T00:00:00.000Z',
+      recurringId: rt.id,
+    });
+    return { ...rt, lastAddedDate: today };
+  });
+  return { newTasks, updatedRecurring, removeIds };
+};
+
+// ==================== Tree Utils ====================
+const buildTree = (flatTasks) => {
+  const map = new Map(flatTasks.map(t => [t.id, { ...t, children: [] }]));
+  const roots = [];
+  [...flatTasks].sort((a, b) => a.order - b.order).forEach(t => {
+    const node = map.get(t.id);
+    if (t.parentId && map.has(t.parentId)) map.get(t.parentId).children.push(node);
+    else roots.push(node);
+  });
+  return roots.sort((a, b) => a.order - b.order);
+};
+
+const calculateProgress = (task) => {
+  if (!task.children || task.children.length === 0) return { completed: 0, total: 0 };
+  const countAll = (t) => {
+    if (!t.children || t.children.length === 0) return { completed: t.status === 'done' ? 1 : 0, total: 1 };
+    const r = t.children.map(countAll);
+    return { completed: r.reduce((s, x) => s + x.completed, 0), total: r.reduce((s, x) => s + x.total, 0) };
+  };
+  const r = task.children.map(countAll);
+  return { completed: r.reduce((s, x) => s + x.completed, 0), total: r.reduce((s, x) => s + x.total, 0) };
+};
+
+const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const days = [];
+  for (let i = firstDay.getDay() - 1; i >= 0; i--) days.push({ date: new Date(year, month, -i), cur: false });
+  for (let i = 1; i <= lastDay.getDate(); i++) days.push({ date: new Date(year, month, i), cur: true });
+  const rem = 42 - days.length;
+  for (let i = 1; i <= rem; i++) days.push({ date: new Date(year, month + 1, i), cur: false });
+  return days;
+};
+
+const dateToStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// ==================== Icons (inline SVG) ====================
+const Icon = ({ d, size=16, className='' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d={d} />
+  </svg>
+);
+const Icons = {
+  Menu: (p) => <Icon {...p} d="M3 12h18M3 6h18M3 18h18" />,
+  List: (p) => <Icon {...p} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  X: (p) => <Icon {...p} d="M18 6L6 18M6 6l12 12" />,
+  Plus: (p) => <Icon {...p} d="M12 5v14M5 12h14" />,
+  Check: (p) => <Icon {...p} d="M20 6L9 17l-5-5" />,
+  ChevronDown: (p) => <Icon {...p} d="M6 9l6 6 6-6" />,
+  ChevronRight: (p) => <Icon {...p} d="M9 18l6-6-6-6" />,
+  ChevronLeft: (p) => <Icon {...p} d="M15 18l-6-6 6-6" />,
+  Edit2: (p) => <Icon {...p} d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
+  Trash2: (p) => <Icon {...p} d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />,
+  Search: (p) => <Icon {...p} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
+  Filter: (p) => <Icon {...p} d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />,
+  Flag: (p) => <Icon {...p} d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" />,
+  Calendar: (p) => <Icon {...p} d="M3 4h18v18H3zM16 2v4M8 2v4M3 10h18" />,
+  Clock: (p) => <Icon {...p} d="M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2" />,
+  Sun: (p) => <Icon {...p} d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42M12 5a7 7 0 100 14A7 7 0 0012 5z" />,
+  Moon: (p) => <Icon {...p} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />,
+  Bell: (p) => <Icon {...p} d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />,
+  AlertTriangle: (p) => <Icon {...p} d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />,
+  Tags: (p) => <Icon {...p} d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01" />,
+  Layout: (p) => <Icon {...p} d="M3 3h18v7H3zM3 14h8v7H3zM15 14h6v7h-6z" />,
+  Circle: (p) => <Icon {...p} d="M12 22a10 10 0 100-20 10 10 0 000 20z" />,
+  CheckCircle: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  PlayCircle: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
+  AlignLeft: (p) => <Icon {...p} d="M3 6h18M3 12h12M3 18h15" />,
+  Repeat: (p) => <Icon {...p} d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" />,
+  Download: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />,
+  Upload: (p) => <Icon {...p} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />,
+  Cloud: (p) => <Icon {...p} d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />,
+  CloudOff: (p) => <Icon {...p} d="M22.61 16.95A5 5 0 0018 10h-1.26a8 8 0 00-7.05-6M5 5a8 8 0 004 15h9a5 5 0 001.7-.3M1 1l22 22" />,
+  Settings2: (p) => <Icon {...p} d="M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4z" />,
+  RefreshCw: (p) => <Icon {...p} d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />,
+  ArrowUp: (p) => <Icon {...p} d="M12 19V5M5 12l7-7 7 7" />,
+  ArrowDown: (p) => <Icon {...p} d="M12 5v14M19 12l-7 7-7-7" />,
+  GripVertical: (p) => <Icon {...p} d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01" />,
+  Sparkles: (p) => <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className||''}><path d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z"/><path d="M5 14l.75 1.75L7.5 17l-1.75.75L5 19.5l-.75-1.75L2.5 17l1.75-.75L5 14z"/><path d="M19 14l.75 1.75L21.5 17l-1.75.75L19 19.5l-.75-1.75L16.5 17l1.75-.75L19 14z"/></svg>,
+  FileText: (p) => <Icon {...p} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" />,
+};
+
+// ==================== AI (Claude API) ====================
+// ==================== Illustrations (Airtable palette SVGs) ====================
+const Illust = {
+  // Empty task list — document + search in coral/peach
+  EmptyTasks: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f5e9d4"/>
+      <rect x="26" y="20" width="38" height="50" rx="6" fill="#fcab79" opacity="0.6"/>
+      <rect x="26" y="20" width="38" height="12" rx="6" fill="#aa2d00" opacity="0.5"/>
+      <rect x="26" y="26" width="38" height="6" fill="#aa2d00" opacity="0.5"/>
+      <rect x="34" y="40" width="22" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <rect x="34" y="48" width="16" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <rect x="34" y="56" width="20" height="3" rx="1.5" fill="#aa2d00" opacity="0.35"/>
+      <circle cx="66" cy="66" r="14" fill="#aa2d00"/>
+      <circle cx="66" cy="64" r="7" fill="none" stroke="white" strokeWidth="2.5"/>
+      <line x1="71" y1="69" x2="77" y2="75" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  ),
+  // All done — checkmark in mint/forest
+  AllDone: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.3"/>
+      <circle cx="48" cy="48" r="30" fill="#a8d8c4" opacity="0.7"/>
+      <polyline points="33,48 43,58 63,38" stroke="#0a2e0e" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="22" cy="22" r="4" fill="#f4d35e"/>
+      <circle cx="74" cy="26" r="3" fill="#d9a441"/>
+      <circle cx="76" cy="72" r="4" fill="#f4d35e"/>
+      <circle cx="20" cy="70" r="2.5" fill="#d9a441"/>
+    </svg>
+  ),
+  // No overdue — celebration in yellow/coral
+  NoOverdue: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f4d35e" opacity="0.2"/>
+      <circle cx="48" cy="52" r="24" fill="#f4d35e" opacity="0.6"/>
+      <path d="M36 44 L48 28 L60 44" stroke="#d9a441" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <circle cx="48" cy="52" r="8" fill="#d9a441"/>
+      <circle cx="48" cy="52" r="4" fill="white"/>
+      <line x1="26" y1="70" x2="70" y2="70" stroke="#aa2d00" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 4"/>
+      <circle cx="30" cy="24" r="3" fill="#aa2d00" opacity="0.5"/>
+      <circle cx="72" cy="32" r="2" fill="#aa2d00" opacity="0.4"/>
+    </svg>
+  ),
+  // Calendar empty — calendar in cream/coral
+  CalendarEmpty: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#f5e9d4"/>
+      <rect x="18" y="28" width="60" height="46" rx="8" fill="#fcab79" opacity="0.5"/>
+      <rect x="18" y="28" width="60" height="18" rx="8" fill="#aa2d00" opacity="0.6"/>
+      <rect x="18" y="38" width="60" height="8" fill="#aa2d00" opacity="0.6"/>
+      <circle cx="34" cy="24" r="5" fill="#181d26"/>
+      <circle cx="34" cy="24" r="2.5" fill="#f5e9d4"/>
+      <circle cx="62" cy="24" r="5" fill="#181d26"/>
+      <circle cx="62" cy="24" r="2.5" fill="#f5e9d4"/>
+      {[0,1,2,3,4,5].map(i => (
+        <circle key={i} cx={30 + (i % 3) * 18} cy={56 + Math.floor(i / 3) * 14} r="4" fill="#aa2d00" opacity="0.2"/>
+      ))}
+    </svg>
+  ),
+  // Completed box — open box in mint
+  CompletedBox: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.25"/>
+      <rect x="22" y="46" width="52" height="36" rx="6" fill="#a8d8c4" opacity="0.7"/>
+      <path d="M22 54 L48 42 L74 54" fill="#0a2e0e" opacity="0.25"/>
+      <polyline points="22,46 48,34 74,46" fill="none" stroke="#0a2e0e" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="38" y="46" width="20" height="10" rx="3" fill="#0a2e0e" opacity="0.2"/>
+      <circle cx="72" cy="26" r="4" fill="#f4d35e"/>
+      <circle cx="24" cy="30" r="3" fill="#d9a441"/>
+    </svg>
+  ),
+  // Recurring — refresh arrows in forest green
+  Recurring: ({ size = 96 }) => (
+    <svg width={size} height={size} viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="48" cy="48" r="44" fill="#a8d8c4" opacity="0.25"/>
+      <path d="M28 48 C28 36 36 26 48 26 C57 26 64 31 67 38" stroke="#0a2e0e" strokeWidth="4" strokeLinecap="round" fill="none"/>
+      <polygon points="70,30 68,42 58,37" fill="#0a2e0e"/>
+      <path d="M68 48 C68 60 60 70 48 70 C39 70 32 65 29 58" stroke="#aa2d00" strokeWidth="4" strokeLinecap="round" fill="none"/>
+      <polygon points="26,66 28,54 38,59" fill="#aa2d00"/>
+    </svg>
+  ),
+};
+
+const AI = {
+  key: () => localStorage.getItem('tf_ai_key') || '',
+  saveKey: (k) => localStorage.setItem('tf_ai_key', k),
+};
+
+const callClaude = async (userPrompt) => {
+  const key = AI.key();
+  if (!key) throw new Error('Gemini APIキーが未設定です。設定から追加してください。');
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }] }] }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `APIエラー (${res.status})`);
+  }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+};
+
+// ==================== i18n ====================
+const TRANSLATIONS = {
+  ja: {
+    nav_tasks:'タスク一覧', nav_today:'Today', nav_deadline:'期限管理',
+    nav_calendar:'カレンダー', nav_recurring:'定期タスク', nav_categories:'カテゴリ管理', nav_report:'AIレポート',
+    btn_add:'追加する', btn_update:'更新する', btn_cancel:'キャンセル', btn_close:'閉じる', btn_save:'保存',
+    btn_delete:'削除', btn_edit:'編集',
+    task_add:'タスクを追加', task_edit:'タスクを編集', parent_prefix:'親:',
+    field_title:'タイトル *', field_title_ph:'タスクのタイトルを入力...',
+    field_desc:'説明', field_desc_ph:'詳細な説明（任意）',
+    field_category:'カテゴリ', field_priority:'優先度', field_status:'ステータス',
+    field_due:'期限日', field_est:'見積（分）',
+    field_today:'今日やるタスクに追加', field_time:'予定時刻（任意）',
+    field_recurring:'定期タスクに設定', rec_configured:'設定済み',
+    rec_days:'繰り返す曜日 *', rec_hint:'設定した曜日に毎週タスクが自動追加されます',
+    priority_high:'高', priority_medium:'中', priority_low:'低',
+    status_todo:'未着手', status_progress:'進行中', status_done:'完了',
+    today_add:'+ タスク追加', today_rate:'完了率', today_empty:'今日のタスクはありません',
+    today_unscheduled:'時刻未設定',
+    sync_synced:'クラウド同期済み', sync_ing:'同期中...', sync_error:'同期エラー', sync_none:'クラウド同期',
+    dark_mode:'ダークモード', light_mode:'ライトモード',
+    export:'エクスポート', import:'インポート', terms:'利用規約・プライバシーポリシー',
+    language:'言語',
+    ai_title:'AIサブタスク生成', ai_btn:'生成', ai_loading:'生成中...',
+    ai_hint:'チェックしたものをサブタスクとして追加します',
+    ai_all:'全選択', ai_none:'全解除', ai_clear:'クリア',
+    report_title:'AIレポート', report_desc:'タスクデータをAIが分析して振り返りレポートを生成します',
+    report_btn:'レポートを生成', report_this_week:'今週', report_last_week:'先週', report_this_month:'今月',
+    report_tasks:'対象タスク', report_done:'完了', report_rate:'完了率',
+    nav_completed:'完了ボックス',
+    completed_title:'完了ボックス', completed_empty:'完了したタスクはありません',
+    completed_restore:'元に戻す', completed_all:'すべて', completed_clear:'完了タスクを全削除',
+    completed_done_at:'完了日',
+    rec_page_title:'定期タスク', rec_page_desc:'曜日を設定すると、その曜日に自動でタスクが追加されます',
+    rec_new:'新規', rec_edit_title:'定期タスクを編集', rec_add_title:'定期タスクを追加',
+    rec_field_title:'タイトル *', rec_field_title_ph:'タスク名',
+    rec_field_days:'繰り返す曜日 *', rec_field_cat:'カテゴリ', rec_field_pri:'優先度',
+    rec_field_est:'見積時間（分）', rec_days_required:'曜日を1つ以上選択してください',
+    rec_empty:'定期タスクはありません', rec_empty_hint:'「新規」ボタンで定期タスクを作成してください',
+    rec_last_added:'最終追加:', rec_est_unit:'分',
+    timeline_tasks:'タスク', timeline_total:'合計', timeline_flat:'フラット', timeline_byparent:'親タスク別',
+    timeline_place_hint:'右のタイムラインをクリックして配置',
+    timeline_empty:'今日のタスクはありません',
+    timeline_unscheduled:'時刻未設定', timeline_place_btn:'タイムラインに配置',
+    tree_search_ph:'タスクを検索...', tree_no_parent:'親タスクなし',
+    tree_empty_filter:'条件に一致するタスクがありません', tree_empty:'タスクがありません',
+    tree_empty_filter_hint:'フィルターを変更してください', tree_empty_hint:'「追加」ボタンで新しいタスクを作成してください',
+    tree_recurring:'定期タスク', tree_add_subtask:'サブタスクを追加',
+    cat_rec_desc:'カテゴリごとに定期タスクを設定できます',
+    cat_rec_label:'定期タスク', cat_rec_name_ph:'定期タスク名 *',
+    cat_rec_empty:'定期タスクなし — 「追加」で設定できます',
+    cat_task_count:'タスク', cat_task_unit:'件',
+    today_add_task:'今日やるタスクに追加',
+    rec_auto_hint:'設定した曜日に毎週タスクが自動追加されます',
+    btn_filter:'フィルター', filter_all_cat:'全カテゴリ', filter_all_status:'全ステータス', filter_all_pri:'全優先度',
+    filter_by_cat:'カテゴリ別', filter_no_group:'グループなし',
+    fmt_h:'時間', fmt_min:'分',
+    deadline_overdue_suffix:'日超過', deadline_today_label:'今日まで',
+    deadline_tomorrow_label:'明日まで', deadline_remaining:'残り', deadline_days_unit:'日',
+    deadline_group_overdue:'期限切れ', deadline_group_today:'今日まで',
+    deadline_group_tomorrow:'明日まで', deadline_group_soon:'今週中（3日以内）', deadline_group_ok:'それ以降',
+    deadline_count_unit:'件', deadline_no_match:'該当するタスクはありません',
+    deadline_none:'期限切れのタスクはありません', deadline_title:'期限管理',
+    deadline_desc:'期限のあるタスクをステータス別に管理します',
+    alert_show:'期限アラートを表示', alert_overdue:'🔴 期限切れ', alert_today_due:'🟠 今日期限',
+    alert_tomorrow_due:'🟡 明日期限', alert_expand_close:'閉じる', alert_expand_detail:'詳細',
+    task_completed_msg:'タスク完了！', color_custom:'カスタム:',
+    calendar_title:'カレンダー', calendar_this_month:'今月', calendar_add_task:'タスク追加',
+    calendar_no_tasks:'この日のタスクはありません', calendar_count_unit:'件',
+    completed_count_fmt:'件完了', completed_group_label:'グループ：',
+    completed_by_parent:'親タスク別', completed_by_cat:'カテゴリ別',
+    completed_no_parent:'親タスクなし', completed_uncategorized:'未分類',
+    completed_items_unit:'件', completed_confirm_delete:'完了タスクを全削除しますか？',
+    sidebar_all:'すべて', sync_not_configured:'未設定', sync_last:'最終同期:', sync_now:'今すぐ同期',
+    today_badge:'今日', est_min_suffix:'分',
+    status_change_tip:'ステータス変更', today_toggle_tip:'今日やるに追加/削除', add_subtask_tip:'サブタスクを追加',
+    count_unit:'件', not_synced:'未同期',
+  },
+  en: {
+    nav_tasks:'Tasks', nav_today:'Today', nav_deadline:'Deadlines',
+    nav_calendar:'Calendar', nav_recurring:'Recurring', nav_categories:'Categories', nav_report:'AI Report',
+    btn_add:'Add', btn_update:'Update', btn_cancel:'Cancel', btn_close:'Close', btn_save:'Save',
+    btn_delete:'Delete', btn_edit:'Edit',
+    task_add:'Add Task', task_edit:'Edit Task', parent_prefix:'Parent:',
+    field_title:'Title *', field_title_ph:'Enter task title...',
+    field_desc:'Description', field_desc_ph:'Details (optional)',
+    field_category:'Category', field_priority:'Priority', field_status:'Status',
+    field_due:'Due Date', field_est:'Estimated (min)',
+    field_today:'Add to Today', field_time:'Scheduled Time (optional)',
+    field_recurring:'Set as Recurring', rec_configured:'Configured',
+    rec_days:'Repeat on *', rec_hint:'Task will be auto-added on selected days every week',
+    priority_high:'High', priority_medium:'Medium', priority_low:'Low',
+    status_todo:'To Do', status_progress:'In Progress', status_done:'Done',
+    today_add:'+ Add Task', today_rate:'Completion', today_empty:'No tasks for today',
+    today_unscheduled:'Unscheduled',
+    sync_synced:'Cloud Synced', sync_ing:'Syncing...', sync_error:'Sync Error', sync_none:'Cloud Sync',
+    dark_mode:'Dark Mode', light_mode:'Light Mode',
+    export:'Export', import:'Import', terms:'Terms & Privacy Policy',
+    language:'Language',
+    ai_title:'AI Subtask Generator', ai_btn:'Generate', ai_loading:'Generating...',
+    ai_hint:'Check items to add as subtasks',
+    ai_all:'Select All', ai_none:'Deselect', ai_clear:'Clear',
+    report_title:'AI Report', report_desc:'AI analyzes your tasks and generates a review report',
+    report_btn:'Generate Report', report_this_week:'This Week', report_last_week:'Last Week', report_this_month:'This Month',
+    report_tasks:'Tasks', report_done:'Done', report_rate:'Completion',
+    nav_completed:'Completed', completed_title:'Completed Box', completed_empty:'No completed tasks',
+    completed_restore:'Restore', completed_all:'All', completed_clear:'Delete All Completed',
+    completed_done_at:'Completed',
+    rec_page_title:'Recurring Tasks', rec_page_desc:'Tasks are auto-added on the days you select each week',
+    rec_new:'New', rec_edit_title:'Edit Recurring Task', rec_add_title:'Add Recurring Task',
+    rec_field_title:'Title *', rec_field_title_ph:'Task name',
+    rec_field_days:'Repeat on *', rec_field_cat:'Category', rec_field_pri:'Priority',
+    rec_field_est:'Estimated (min)', rec_days_required:'Select at least one day',
+    rec_empty:'No recurring tasks', rec_empty_hint:'Click "New" to create a recurring task',
+    rec_last_added:'Last added:', rec_est_unit:'min',
+    timeline_tasks:'Tasks', timeline_total:'Total', timeline_flat:'Flat', timeline_byparent:'By Parent',
+    timeline_place_hint:'Click on the timeline to place',
+    timeline_empty:'No tasks for today',
+    timeline_unscheduled:'Unscheduled', timeline_place_btn:'Place on timeline',
+    tree_search_ph:'Search tasks...', tree_no_parent:'No parent',
+    tree_empty_filter:'No tasks match the filter', tree_empty:'No tasks',
+    tree_empty_filter_hint:'Try changing the filter', tree_empty_hint:'Click "Add" to create a new task',
+    tree_recurring:'Recurring', tree_add_subtask:'Add subtask',
+    cat_rec_desc:'Set recurring tasks per category',
+    cat_rec_label:'Recurring', cat_rec_name_ph:'Recurring task name *',
+    cat_rec_empty:'No recurring tasks — click "Add" to set up',
+    cat_task_count:'Tasks', cat_task_unit:'',
+    today_add_task:'Add to Today',
+    rec_auto_hint:'Task is auto-added every week on selected days',
+    btn_filter:'Filter', filter_all_cat:'All Categories', filter_all_status:'All Statuses', filter_all_pri:'All Priorities',
+    filter_by_cat:'By Category', filter_no_group:'No Grouping',
+    fmt_h:'h', fmt_min:'min',
+    deadline_overdue_suffix:' days overdue', deadline_today_label:'Due today',
+    deadline_tomorrow_label:'Due tomorrow', deadline_remaining:'', deadline_days_unit:' days left',
+    deadline_group_overdue:'Overdue', deadline_group_today:'Due Today',
+    deadline_group_tomorrow:'Due Tomorrow', deadline_group_soon:'Within 3 Days', deadline_group_ok:'Later',
+    deadline_count_unit:'', deadline_no_match:'No matching tasks',
+    deadline_none:'No overdue tasks', deadline_title:'Deadlines',
+    deadline_desc:'Manage tasks with deadlines by status',
+    alert_show:'Show deadline alerts', alert_overdue:'🔴 Overdue', alert_today_due:'🟠 Due today',
+    alert_tomorrow_due:'🟡 Due tomorrow', alert_expand_close:'Close', alert_expand_detail:'Details',
+    task_completed_msg:'Task Complete!', color_custom:'Custom:',
+    calendar_title:'Calendar', calendar_this_month:'This Month', calendar_add_task:'Add Task',
+    calendar_no_tasks:'No tasks for this day', calendar_count_unit:'',
+    completed_count_fmt:' completed', completed_group_label:'Group:',
+    completed_by_parent:'By Parent', completed_by_cat:'By Category',
+    completed_no_parent:'No Parent', completed_uncategorized:'Uncategorized',
+    completed_items_unit:'', completed_confirm_delete:'Delete all completed tasks?',
+    sidebar_all:'All', sync_not_configured:'Not configured', sync_last:'Last synced:', sync_now:'Sync now',
+    today_badge:'Today', est_min_suffix:'min',
+    status_change_tip:'Change status', today_toggle_tip:'Toggle today task', add_subtask_tip:'Add subtask',
+    count_unit:'', not_synced:'Never synced',
+  },
+};
+const LangContext = createContext({ lang:'ja', t:(k)=>k });
+const useLang = () => useContext(LangContext);
+
+// ==================== Quotes ====================
+const PRAISE = ['素晴らしい！🎉', 'よくやった！✨', '完璧です！🌟', '最高！🚀', 'お見事！👏', 'やったね！🎊', '一歩前進！💪'];
+const QUOTES = [
+  { text: '千里の道も一歩から。', author: '老子' },
+  { text: '継続は力なり。', author: '格言' },
+  { text: '夢なき者に成功なし。', author: '吉田松陰' },
+  { text: '今日という日は、残りの人生の最初の日である。', author: 'アメリカの格言' },
+  { text: 'できると思えばできる、できないと思えばできない。', author: 'パブロ・ピカソ' },
+  { text: '成功とは、熱意を失わずに失敗から失敗へと進む能力である。', author: 'チャーチル' },
+  { text: '人生は自転車に乗ることに似ている。走り続けなければバランスを保てない。', author: 'アインシュタイン' },
+  { text: '行動しなければ何も始まらない。', author: '格言' },
+  { text: '諦めなければ失敗ではない。', author: '格言' },
+  { text: '一日一日を大切に。', author: '格言' },
+  { text: '小さな一歩が、大きな変化を生む。', author: '格言' },
+  { text: '努力は必ず報われる。報われない努力があるとすれば、それはまだ努力が足りないからだ。', author: '王貞治' },
+];
+const randomPraise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)];
+const randomQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
+
+// ==================== CompletionModal ====================
+const CompletionModal = ({ onClose }) => {
+  const { t } = useLang();
+  const [praise] = useState(randomPraise);
+  const [quote] = useState(randomQuote);
+  useEffect(() => {
+    const timer = setTimeout(onClose, 6000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4 pointer-events-none">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full pointer-events-auto animate-fade-in border border-gray-100 dark:border-gray-700">
+        <div className="text-center mb-4">
+          <Illust.AllDone size={64} />
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{praise}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('task_completed_msg')}</p>
+        </div>
+        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">「{quote.text}」</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-right">— {quote.author}</p>
+        </div>
+        <button onClick={onClose} className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">{t('btn_close')}</button>
+      </div>
+    </div>
+  );
+};
+
+// ==================== ColorPicker ====================
+// Airtable DESIGN.md: signature palette + semantic colors
+const PRESET_COLORS = [
+  '#aa2d00','#0a2e0e','#1b61c9','#181d26',  // signature: coral, forest, link, ink
+  '#fcab79','#a8d8c4','#f4d35e','#d9a441',  // demo-grid: peach, mint, yellow, mustard
+  '#f5e9d4','#006400','#254fad','#aa2d00',  // cream, success, info, coral-dark
+  '#6B7280','#374151','#0ea5e9','#7c3aed',  // neutral variants
+];
+
+const ColorPicker = ({ value, onChange }) => {
+  const { t } = useLang();
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-8 gap-1.5">
+        {PRESET_COLORS.map(c => (
+          <button key={c} type="button" onClick={() => onChange(c)}
+            className="w-7 h-7 rounded-full transition-transform hover:scale-110 focus:outline-none flex items-center justify-center"
+            style={{ backgroundColor: c }}>
+            {value === c && <Icons.Check size={12} className="text-white drop-shadow" />}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="color" value={value} onChange={e => onChange(e.target.value)}
+          className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+        <span className="text-xs text-gray-500 dark:text-gray-400">{t('color_custom')}</span>
+        <span className="text-xs font-mono text-gray-600 dark:text-gray-300">{value}</span>
+      </div>
+    </div>
+  );
+};
+
+// ==================== DeadlineBadge ====================
+const DeadlineBadge = ({ dueDate, status }) => {
+  const { t } = useLang();
+  if (!dueDate || status === 'ok') return null;
+  const label = formatDeadlineBadge(dueDate, t);
+  if (!label) return null;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getDeadlineBadgeClass(status)}`}>
+      {label}
+    </span>
+  );
+};
+
+// ==================== AlertBanner ====================
+const AlertBanner = ({ tasks, categories, onTaskClick }) => {
+  const { t, lang } = useLang();
+  const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const overdue = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'overdue');
+  const today = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'today');
+  const tomorrow = tasks.filter(t => t.status !== 'done' && getDeadlineStatus(t.dueDate) === 'tomorrow');
+  const total = overdue.length + today.length + tomorrow.length;
+  if (total === 0) return null;
+  if (dismissed) return (
+    <div className="flex justify-end px-4 pt-1.5 pb-0.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+      <button onClick={() => setDismissed(false)} className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline">
+        <Icons.AlertTriangle size={11} /> {t('alert_show')}
+      </button>
+    </div>
+  );
+  const alertTasks = [...overdue, ...today, ...tomorrow];
+  const countUnit = t('count_unit');
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <Icons.AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+        <div className="flex items-center gap-3 flex-1 flex-wrap">
+          {overdue.length > 0 && <span className="text-sm font-medium text-red-600 dark:text-red-400">{t('alert_overdue')} {overdue.length}{countUnit}</span>}
+          {today.length > 0 && <span className="text-sm font-medium text-orange-600 dark:text-orange-400">{t('alert_today_due')} {today.length}{countUnit}</span>}
+          {tomorrow.length > 0 && <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{t('alert_tomorrow_due')} {tomorrow.length}{countUnit}</span>}
+        </div>
+        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 transition-colors">
+          {expanded ? <Icons.ChevronDown size={13} /> : <Icons.ChevronRight size={13} />}
+          {expanded ? t('alert_expand_close') : t('alert_expand_detail')}
+        </button>
+        <button onClick={() => setDismissed(true)} className="text-amber-600 hover:text-amber-800 dark:text-amber-400">
+          <Icons.X size={15} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="px-4 pb-3 space-y-1 animate-fade-in">
+          {alertTasks.map(task => {
+            const s = getDeadlineStatus(task.dueDate);
+            const cat = catMap[task.categoryId];
+            const cc = s === 'overdue' ? 'text-red-600 dark:text-red-400' : s === 'today' ? 'text-orange-600 dark:text-orange-400' : 'text-yellow-600 dark:text-yellow-400';
+            return (
+              <button key={task.id} onClick={() => onTaskClick(task.id)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-800/30 text-left transition-colors">
+                {cat && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />}
+                <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate">{task.title}</span>
+                <span className={`text-xs font-medium ${cc}`}>{task.dueDate && formatDateShort(task.dueDate, lang)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== CategoryManager ====================
+const CategoryManager = ({ categories, onAdd, onUpdate, onDelete, taskCountByCategory, recurring, onAddRecurring, onUpdateRecurring, onDeleteRecurring }) => {
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
+  const PRIORITY_LABELS_CAT = { high: t('priority_high'), medium: t('priority_medium'), low: t('priority_low') };
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('#3B82F6');
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState('#3B82F6');
+  const [showNew, setShowNew] = useState(false);
+  const [expandedCat, setExpandedCat] = useState(null);
+  // recurring form per category: { catId, editRecId, form }
+  const [recForm, setRecForm] = useState(null);
+
+  const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  const openRecAdd = (catId) => {
+    setExpandedCat(catId);
+    setRecForm({ catId, editRecId: null, form: { title: '', days: [], priority: 'medium', estimatedMinutes: '' } });
+  };
+  const openRecEdit = (catId, rt) => {
+    setExpandedCat(catId);
+    setRecForm({ catId, editRecId: rt.id, form: { title: rt.title, days: [...rt.days], priority: rt.priority, estimatedMinutes: rt.estimatedMinutes || '' } });
+  };
+  const cancelRecForm = () => setRecForm(null);
+  const saveRec = () => {
+    if (!recForm.form.title.trim() || recForm.form.days.length === 0) return;
+    const data = { title: recForm.form.title.trim(), categoryId: recForm.catId, priority: recForm.form.priority, days: recForm.form.days, estimatedMinutes: recForm.form.estimatedMinutes ? Number(recForm.form.estimatedMinutes) : undefined };
+    if (recForm.editRecId) onUpdateRecurring(recForm.editRecId, data);
+    else onAddRecurring(data);
+    setRecForm(null);
+  };
+  const toggleRecDay = (d) => setRecForm(f => ({ ...f, form: { ...f.form, days: f.form.days.includes(d) ? f.form.days.filter(x => x !== d) : [...f.form.days, d].sort() } }));
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('nav_categories')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('cat_rec_desc')}</p>
+        </div>
+        <button onClick={() => setShowNew(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">
+          <Icons.Plus size={15} /> {t('rec_new')} {t('field_category')}
+        </button>
+      </div>
+      {showNew && (
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: newColor }} />
+            <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } if (e.key === 'Escape') setShowNew(false); }}
+              placeholder={t('field_category')} className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button onClick={() => { if (newName.trim()) { onAdd(newName.trim(), newColor); setNewName(''); setNewColor('#3B82F6'); setShowNew(false); } }} className="text-green-600 hover:text-green-700"><Icons.Check size={17} /></button>
+            <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><Icons.X size={17} /></button>
+          </div>
+          <ColorPicker value={newColor} onChange={setNewColor} />
+        </div>
+      )}
+      <div className="space-y-3">
+        {categories.map(cat => {
+          const catRecurring = (recurring || []).filter(r => r.categoryId === cat.id);
+          const isExpanded = expandedCat === cat.id;
+          return (
+            <div key={cat.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" style={{ borderLeft: `4px solid ${cat.color}` }}>
+              {/* Category header row */}
+              {editId === cat.id ? (
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: editColor }} />
+                    <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); } if (e.key === 'Escape') setEditId(null); }}
+                      className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <button onClick={() => { onUpdate(cat.id, { name: editName.trim(), color: editColor }); setEditId(null); }} className="text-green-600"><Icons.Check size={17} /></button>
+                    <button onClick={() => setEditId(null)} className="text-gray-400"><Icons.X size={17} /></button>
+                  </div>
+                  <ColorPicker value={editColor} onChange={setEditColor} />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button onClick={() => setExpandedCat(isExpanded ? null : cat.id)} className="flex-1 flex items-center gap-3 text-left">
+                    <span className="font-medium text-gray-900 dark:text-white">{cat.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('cat_task_count')} {taskCountByCategory[cat.id] ?? 0}{t('cat_task_unit')}</span>
+                    {catRecurring.length > 0 && (
+                      <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+                        <Icons.Repeat size={10} /> {catRecurring.length}
+                      </span>
+                    )}
+                    <Icons.ChevronDown size={14} className={`text-gray-400 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  <button onClick={() => { setEditId(cat.id); setEditName(cat.name); setEditColor(cat.color); }}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Edit2 size={14} /></button>
+                  <button onClick={() => onDelete(cat.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Icons.Trash2 size={14} /></button>
+                </div>
+              )}
+
+              {/* Expanded: recurring tasks */}
+              {isExpanded && (
+                <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                      <Icons.Repeat size={11} /> {t('cat_rec_label')}
+                    </span>
+                    <button onClick={() => openRecAdd(cat.id)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                      <Icons.Plus size={11} /> {t('btn_add')}
+                    </button>
+                  </div>
+
+                  {/* Recurring form */}
+                  {recForm?.catId === cat.id && (
+                    <div className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3 animate-fade-in">
+                      <input autoFocus value={recForm.form.title} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, title: e.target.value } }))}
+                        placeholder={t('cat_rec_name_ph')} className={ic} />
+                      <div className="flex gap-1.5 flex-wrap">
+                        {DAYS.map((d, i) => (
+                          <button key={i} type="button" onClick={() => toggleRecDay(i)}
+                            className={`w-9 h-9 rounded-lg text-xs font-bold transition-all border-2 ${
+                              recForm.form.days.includes(i)
+                                ? i === 0 ? 'bg-red-500 border-red-500 text-white' : i === 6 ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-800 dark:bg-white border-gray-800 dark:border-white text-white dark:text-gray-900'
+                                : i === 0 ? 'border-red-200 text-red-400 hover:border-red-400' : i === 6 ? 'border-blue-200 text-blue-400 hover:border-blue-400' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                            }`}>{d}</button>
+                        ))}
+                      </div>
+                      {recForm.form.days.length === 0 && <p className="text-xs text-red-500">{t('rec_days_required')}</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={recForm.form.priority} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, priority: e.target.value } }))} className={ic}>
+                          {['high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS_CAT[p]}</option>)}
+                        </select>
+                        <input type="number" min={0} step={5} value={recForm.form.estimatedMinutes} onChange={e => setRecForm(f => ({ ...f, form: { ...f.form, estimatedMinutes: e.target.value } }))} placeholder={t('rec_field_est')} className={ic} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={cancelRecForm} className="flex-1 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{t('btn_cancel')}</button>
+                        <button onClick={saveRec} disabled={!recForm.form.title.trim() || recForm.form.days.length === 0}
+                          className="flex-1 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium transition-colors">
+                          {recForm.editRecId ? t('btn_update') : t('btn_add')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recurring list */}
+                  {catRecurring.length === 0 && !recForm ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">{t('cat_rec_empty')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {catRecurring.map(rt => (
+                        <div key={rt.id} className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+                          <Icons.Repeat size={12} className="text-purple-400 flex-shrink-0" />
+                          <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{rt.title}</span>
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            {DAYS.map((d, i) => (
+                              <span key={i} className={`w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${
+                                rt.days.includes(i) ? i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : i === 6 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : 'text-gray-200 dark:text-gray-700'
+                              }`}>{d}</span>
+                            ))}
+                          </div>
+                          {rt.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{rt.estimatedMinutes}{t('rec_est_unit')}</span>}
+                          <button onClick={() => openRecEdit(cat.id, rt)} className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors flex-shrink-0"><Icons.Edit2 size={12} /></button>
+                          <button onClick={() => onDeleteRecurring(rt.id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors flex-shrink-0"><Icons.Trash2 size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ==================== TaskPanel ====================
+const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+const STATUS_LABELS = { todo: '未着手', in_progress: '進行中', done: '完了' };
+
+const TaskPanel = ({ task, parentTask, categories, onSave, onClose, defaultCategoryId, defaultDueDate, recurring, onAddRecurring, onUpdateRecurring, onDeleteRecurring }) => {
+  const defaultCat = defaultCategoryId ?? task?.categoryId ?? categories[0]?.id ?? '';
+  const existingRec = recurring?.find(r => r.id === task?.recurringId);
+  const [form, setForm] = useState({
+    title: task?.title ?? '',
+    description: task?.description ?? '',
+    categoryId: defaultCat,
+    priority: task?.priority ?? 'medium',
+    status: task?.status ?? 'todo',
+    dueDate: task?.dueDate ?? defaultDueDate ?? '',
+    isTodayTask: task?.isTodayTask ?? false,
+    scheduledStart: task?.scheduledTime?.start ?? '',
+    scheduledEnd: task?.scheduledTime?.end ?? '',
+    estimatedMinutes: task?.estimatedMinutes ?? '',
+    parentId: task?.parentId ?? parentTask?.id,
+    isRecurring: !!existingRec,
+    recurringDays: existingRec ? [...existingRec.days] : [],
+  });
+
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const [aiSubs, setAiSubs] = useState([]); // [{title, estimatedMinutes, selected}]
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+
+  const generateSubtasks = async () => {
+    if (!form.title.trim()) return;
+    setAiLoading(true); setAiError(''); setAiSubs([]);
+    try {
+      const prompt = `タスク「${form.title.trim()}」${form.description ? `\n説明: ${form.description}` : ''}\n\nこのタスクを実行するためのサブタスクを5〜7個提案してください。\nJSON配列のみを返してください（説明不要）:\n[{"title":"...","estimatedMinutes":数値}, ...]`;
+      const text = await callClaude(prompt, 800);
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error('レスポンスの解析に失敗しました');
+      const parsed = JSON.parse(match[0]);
+      setAiSubs(parsed.map(s => ({ ...s, selected: true })));
+    } catch (e) { setAiError(e.message); }
+    setAiLoading(false);
+  };
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const toggleRecDay = (i) => set('recurringDays', form.recurringDays.includes(i) ? form.recurringDays.filter(x => x !== i) : [...form.recurringDays, i].sort((a,b)=>a-b));
+
+  const handleSubmit = () => {
+    if (!form.title.trim()) return;
+    // Handle recurring task
+    let recurringId = task?.recurringId;
+    if (form.isRecurring && form.recurringDays.length > 0) {
+      const recData = { title: form.title.trim(), categoryId: form.categoryId, priority: form.priority, estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined, days: form.recurringDays };
+      if (existingRec) {
+        onUpdateRecurring?.(existingRec.id, recData);
+      } else {
+        const newId = generateId('rec');
+        onAddRecurring?.({ id: newId, ...recData, lastAddedDate: null });
+        recurringId = newId;
+      }
+    } else if (!form.isRecurring && existingRec) {
+      onDeleteRecurring?.(existingRec.id);
+      recurringId = undefined;
+    }
+    const selectedSubs = aiSubs.filter(s => s.selected).map(s => ({
+      title: s.title,
+      estimatedMinutes: s.estimatedMinutes || undefined,
+      categoryId: form.categoryId,
+      priority: form.priority,
+      status: 'todo',
+    }));
+    onSave({
+      title: form.title.trim(),
+      description: form.description || undefined,
+      categoryId: form.categoryId,
+      priority: form.priority,
+      status: form.status,
+      dueDate: form.dueDate || undefined,
+      isTodayTask: form.isTodayTask,
+      scheduledTime: (form.scheduledStart && form.scheduledEnd) ? { start: form.scheduledStart, end: form.scheduledEnd } : undefined,
+      estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined,
+      parentId: form.parentId,
+      recurringId,
+    }, selectedSubs);
+  };
+
+  const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all";
+  const lc = "text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5";
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-slide-in h-full">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{task ? t('task_edit') : t('task_add')}</h2>
+            {parentTask && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('parent_prefix')} {parentTask.title}</p>}
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.X size={19} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          <div>
+            <div className={lc}>{t('field_title')}</div>
+            <input autoFocus value={form.title} onChange={e => set('title', e.target.value)}
+              placeholder={t('field_title_ph')} className={ic} />
+          </div>
+          <div>
+            <div className={lc}>{t('field_desc')}</div>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)}
+              placeholder={t('field_desc_ph')} rows={3} className={`${ic} resize-none`} />
+          </div>
+          {/* AI サブタスク生成 */}
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Icons.Sparkles size={15} className="text-purple-500" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('ai_title')}</span>
+              </div>
+              <button onClick={generateSubtasks} disabled={!form.title.trim() || aiLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors">
+                {aiLoading ? <><Icons.RefreshCw size={11} className="animate-spin" /> {t('ai_loading')}</> : <><Icons.Sparkles size={11} /> {t('ai_btn')}</>}
+              </button>
+            </div>
+            {aiError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{aiError}</p>}
+            {aiSubs.length > 0 && (
+              <div className="space-y-1.5 animate-fade-in">
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('ai_hint')}</p>
+                {aiSubs.map((s, i) => (
+                  <label key={i} className="flex items-center gap-2.5 p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-purple-400 transition-colors">
+                    <input type="checkbox" checked={s.selected} onChange={() => setAiSubs(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))} className="w-4 h-4 rounded accent-purple-600 flex-shrink-0" />
+                    <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">{s.title}</span>
+                    {s.estimatedMinutes && <span className="text-xs text-gray-400 flex-shrink-0">⏱{s.estimatedMinutes}{t('est_min_suffix')}</span>}
+                  </label>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: true })))} className="text-xs text-purple-600 hover:underline">{t('ai_all')}</button>
+                  <button onClick={() => setAiSubs(p => p.map(s => ({ ...s, selected: false })))} className="text-xs text-gray-400 hover:underline">{t('ai_none')}</button>
+                  <button onClick={() => setAiSubs([])} className="text-xs text-gray-400 hover:underline ml-auto">{t('ai_clear')}</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <div className={lc}>{t('field_category')}</div>
+            <div className="grid grid-cols-2 gap-2">
+              {categories.map(cat => (
+                <button key={cat.id} type="button" onClick={() => set('categoryId', cat.id)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${form.categoryId === cat.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-300'}`}>
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="truncate">{cat.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className={lc}>{t('field_priority')}</div>
+              {['high','medium','low'].map(p => (
+                <button key={p} type="button" onClick={() => set('priority', p)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.priority === p ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                  {t(`priority_${p}`)}
+                  {form.priority === p && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </button>
+              ))}
+            </div>
+            <div>
+              <div className={lc}>{t('field_status')}</div>
+              {['todo','in_progress','done'].map(s => (
+                <button key={s} type="button" onClick={() => set('status', s)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg border text-sm transition-all ${form.status === s ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                  {t(`status_${s === 'in_progress' ? 'progress' : s}`)}
+                  {form.status === s && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className={lc}>{t('field_due')}</div>
+              <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={ic} />
+            </div>
+            <div>
+              <div className={lc}>{t('field_est')}</div>
+              <input type="number" min={0} step={5} value={form.estimatedMinutes} onChange={e => set('estimatedMinutes', e.target.value)} placeholder="60" className={ic} />
+            </div>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.isTodayTask} onChange={e => set('isTodayTask', e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('field_today')}</span>
+            </label>
+            {form.isTodayTask && (
+              <div className="animate-fade-in">
+                <div className={lc}>{t('field_time')}</div>
+                <div className="flex items-center gap-2">
+                  <input type="time" value={form.scheduledStart} onChange={e => set('scheduledStart', e.target.value)} className={`${ic} flex-1`} />
+                  <span className="text-gray-400 text-sm">〜</span>
+                  <input type="time" value={form.scheduledEnd} onChange={e => set('scheduledEnd', e.target.value)} className={`${ic} flex-1`} />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.isRecurring} onChange={e => set('isRecurring', e.target.checked)} className="w-4 h-4 rounded accent-purple-600" />
+              <Icons.Repeat size={15} className="text-purple-500 flex-shrink-0" />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('field_recurring')}</span>
+              {existingRec && <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">{t('rec_configured')}</span>}
+            </label>
+            {form.isRecurring && (
+              <div className="animate-fade-in space-y-2">
+                <div className={lc}>{t('rec_days')}</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {DAYS.map((d, i) => (
+                    <button key={i} type="button" onClick={() => toggleRecDay(i)}
+                      className={`w-9 h-9 rounded-xl text-xs font-bold transition-all border-2 ${
+                        form.recurringDays.includes(i)
+                          ? i === 0 ? 'bg-red-500 border-red-500 text-white' : i === 6 ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-800 dark:bg-white border-gray-800 dark:border-white text-white dark:text-gray-900'
+                          : i === 0 ? 'border-red-200 text-red-400 hover:border-red-400' : i === 6 ? 'border-blue-200 text-blue-400 hover:border-blue-400' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                      }`}>{d}</button>
+                  ))}
+                </div>
+                {form.recurringDays.length === 0 && <p className="text-xs text-red-500 mt-1">{t('rec_days_required')}</p>}
+                <p className="text-xs text-purple-600 dark:text-purple-400">{t('rec_auto_hint')}</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">{t('btn_cancel')}</button>
+          <button onClick={handleSubmit} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] text-white text-sm font-medium transition-colors">
+            <Icons.Plus size={15} /> {task ? t('btn_update') : t('btn_add')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== useSwipe hook ====================
+const useSwipe = ({ onSwipeLeft, onSwipeRight, threshold = 80 }) => {
+  const ref = useRef(null);
+  const startX = useRef(0);
+  const currentX = useRef(0);
+  const swiping = useRef(false);
+  const [offset, setOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const onStart = (e) => {
+      if (e.touches?.length > 1) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      startX.current = clientX;
+      currentX.current = clientX;
+      swiping.current = false;
+    };
+
+    const onMove = (e) => {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const dx = clientX - startX.current;
+      if (!swiping.current && Math.abs(dx) > 10) {
+        swiping.current = true;
+        setIsSwiping(true);
+      }
+      if (swiping.current) {
+        currentX.current = clientX;
+        setOffset(dx);
+      }
+    };
+
+    const onEnd = () => {
+      if (!swiping.current) return;
+      const dx = currentX.current - startX.current;
+      if (dx > threshold && onSwipeRight) {
+        setOffset(300);
+        setTimeout(() => { onSwipeRight(); setOffset(0); setIsSwiping(false); }, 200);
+      } else if (dx < -threshold && onSwipeLeft) {
+        setOffset(-300);
+        setTimeout(() => { onSwipeLeft(); setOffset(0); setIsSwiping(false); }, 200);
+      } else {
+        setOffset(0);
+        setIsSwiping(false);
+      }
+      swiping.current = false;
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [onSwipeLeft, onSwipeRight, threshold]);
+
+  return { ref, offset, isSwiping };
+};
+
+// ==================== InstallBanner ====================
+const InstallBanner = ({ onInstall, onDismiss }) => {
+  const { t, lang } = useLang();
+  return (
+    <div className="install-banner fixed bottom-16 left-4 right-4 lg:bottom-4 lg:left-auto lg:right-4 lg:w-80 z-50
+      bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0">T</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 dark:text-white">
+            {lang === 'en' ? 'Install TaskFlow' : 'TaskFlowをインストール'}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {lang === 'en' ? 'Add to home screen for quick access & offline use' : 'ホーム画面に追加してオフラインでも使えます'}
+          </p>
+        </div>
+        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0">
+          <Icons.X size={16} />
+        </button>
+      </div>
+      <div className="flex gap-2 mt-3">
+        <button onClick={onDismiss}
+          className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+          {lang === 'en' ? 'Later' : 'あとで'}
+        </button>
+        <button onClick={onInstall}
+          className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5">
+          <Icons.Download size={13} />
+          {lang === 'en' ? 'Install' : 'インストール'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ==================== TaskNode ====================
+// ==================== DndSiblingList ====================
+// 兄弟タスクリストのDnD並び替えラッパー
+// useRefで即時状態管理 + documentレベルリスナーで確実にタッチドラッグ対応
+const DndSiblingList = ({ items, onReorderDrop, renderItem }) => {
+  const [dragId, setDragId] = useState(null);   // 表示用（再描画トリガー）
+  const [overId, setOverId] = useState(null);
+  const wrapperRef = useRef(null);
+  const itemRefs = useRef({});
+  // 即時アクセス用ref（stateの非同期反映を待たない）
+  const ds = useRef(null); // { itemId, overId }
+
+  // スクロールロック
+  const lockScroll = () => {
+    let el = wrapperRef.current?.parentElement;
+    while (el && el !== document.body) {
+      const oy = window.getComputedStyle(el).overflowY;
+      if (el.scrollHeight > el.clientHeight && (oy === 'auto' || oy === 'scroll')) {
+        el._dndOverflow = el.style.overflow;
+        el.style.overflow = 'hidden';
+        break;
+      }
+      el = el.parentElement;
+    }
+  };
+  const unlockScroll = () => {
+    let el = wrapperRef.current?.parentElement;
+    while (el && el !== document.body) {
+      if (el._dndOverflow !== undefined) {
+        el.style.overflow = el._dndOverflow || '';
+        delete el._dndOverflow;
+        break;
+      }
+      el = el.parentElement;
+    }
+  };
+
+  // Y座標からどのアイテム上にあるかを返す
+  const findOverId = (clientY) => {
+    const curId = ds.current?.itemId;
+    for (const [id, el] of Object.entries(itemRefs.current)) {
+      if (id === curId || !el) continue;
+      const r = el.getBoundingClientRect();
+      if (clientY >= r.top && clientY <= r.bottom) return id;
+    }
+    return null;
+  };
+
+  // documentレベルのポインターハンドラーをuseEffectで登録
+  // （Reactの合成イベントはstate更新が非同期なため、ネイティブで直接制御する）
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!ds.current) return;
+      e.preventDefault();
+      const newOver = findOverId(e.clientY);
+      if (newOver !== ds.current.overId) {
+        ds.current.overId = newOver;
+        setOverId(newOver);
+      }
+    };
+    const onUp = (e) => {
+      if (!ds.current) return;
+      const { itemId, overId: finalOver } = ds.current;
+      ds.current = null;
+      unlockScroll();
+      setDragId(null);
+      setOverId(null);
+      if (itemId && finalOver && itemId !== finalOver) {
+        onReorderDrop(itemId, finalOver);
+      }
+    };
+    // passive:false でスクロールを確実にキャンセル
+    document.addEventListener('pointermove', onMove, { passive: false });
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+    };
+  }, [onReorderDrop]); // onReorderDropが変わった時だけ再登録
+
+  // iOS Safari: グリップをタッチした瞬間にスクロール防止
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const onTouch = (e) => { if (e.target.closest('[data-grip]')) e.preventDefault(); };
+    el.addEventListener('touchstart', onTouch, { passive: false });
+    return () => el.removeEventListener('touchstart', onTouch);
+  }, []);
+
+  const handlePointerDown = (e, itemId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ds.current = { itemId, overId: null }; // 即時設定
+    setDragId(itemId);
+    lockScroll();
+  };
+
+  return (
+    <div ref={wrapperRef}>
+      {items.map(item => {
+        const isDragging = dragId === item.id;
+        const isOver = overId === item.id && dragId !== item.id;
+        const dragProps = {
+          isDragging,
+          isOver,
+          onPointerDown: (e) => handlePointerDown(e, item.id),
+        };
+        return (
+          <div key={item.id}
+            ref={el => { if (el) itemRefs.current[item.id] = el; else delete itemRefs.current[item.id]; }}>
+            {renderItem(item, dragProps)}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const TaskNode = ({ task, categories, depth, onEdit, onDelete, onAddChild, onStatusChange, onTodayToggle, onReorderDrop, dragProps }) => {
+  const { t, lang } = useLang();
+  const [collapsed, setCollapsed] = useState(false);
+  const cat = categories.find(c => c.id === task.categoryId);
+  const deadlineStatus = getDeadlineStatus(task.dueDate);
+  const progress = calculateProgress(task);
+  const isDone = task.status === 'done';
+  const hasChildren = task.children && task.children.length > 0;
+  const isToday = task.isTodayTask && !isDone;
+
+  const nextStatus = () => {
+    const cycle = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
+    onStatusChange(task.id, cycle[task.status]);
+  };
+
+  // Swipe gestures (mobile)
+  const handleSwipeRight = useCallback(() => {
+    if (!isDone) onStatusChange(task.id, 'done');
+  }, [task.id, isDone, onStatusChange]);
+  const handleSwipeLeft = useCallback(() => {
+    onDelete(task.id);
+  }, [task.id, onDelete]);
+  const { ref: swipeRef, offset: swipeOffset, isSwiping: isSwipingCard } = useSwipe({
+    onSwipeRight: handleSwipeRight,
+    onSwipeLeft: handleSwipeLeft,
+    threshold: 80,
+  });
+
+  const StatusIcon = isDone ? Icons.CheckCircle : task.status === 'in_progress' ? Icons.PlayCircle : Icons.Circle;
+  // Airtable palette: success=forest-inspired green, in-progress=link blue, todo=muted
+  const statusColor = isDone ? 'text-[#006400] dark:text-[#4ade80]' : task.status === 'in_progress' ? 'text-[#1b61c9] dark:text-[#60a5fa]' : 'text-[#9297a0] dark:text-gray-500 dark:text-gray-500';
+  // priority: coral=high, mustard=medium, forest=low (dark mode: brighter variants)
+  const priorityColor = task.priority === 'high' ? 'text-[#aa2d00] dark:text-[#fb923c]' : task.priority === 'medium' ? 'text-[#d9a441] dark:text-[#fbbf24]' : 'text-[#0a2e0e] dark:text-[#86efac]';
+  const deadlineBg = !isDone && !isToday ? getDeadlineBgClass(deadlineStatus) : '';
+
+  // 今日タスクは全塗り
+  const cardStyle = isToday && cat
+    ? { background: `linear-gradient(135deg, ${cat.color}22 0%, ${cat.color}18 100%)`, borderLeft: `4px solid ${cat.color}`, border: `1.5px solid ${cat.color}44` }
+    : cat ? { borderLeft: `4px solid ${cat.color}` } : {};
+
+  // Airtable DESIGN.md: white canvas cards with hairline borders
+  const cardBase = isDone
+    ? 'opacity-50 bg-white dark:bg-gray-800/50 border border-[#dddddd] dark:border-gray-600/40'
+    : isToday
+      ? 'border shadow-sm bg-white dark:bg-gray-800/60'
+      : deadlineBg || 'bg-white dark:bg-gray-800/60 border border-[#dddddd] dark:border-gray-600/50';
+
+  const { isDragging, isOver, onPointerDown: gripPointerDown } = dragProps || {};
+
+  return (
+    <div>
+      {/* Swipe container (mobile) */}
+      <div ref={swipeRef} className="swipe-container lg:pointer-events-auto" style={{ marginLeft: `${depth * 20}px` }}>
+        {/* Swipe backgrounds */}
+        <div className={`swipe-bg swipe-bg-done ${swipeOffset > 30 ? 'active' : ''}`}>
+          <Icons.Check size={16} /> <span className="ml-1.5">{t('status_done')}</span>
+        </div>
+        <div className={`swipe-bg swipe-bg-delete ${swipeOffset < -30 ? 'active' : ''}`}>
+          <span className="mr-1.5">{t('btn_delete')}</span> <Icons.Trash2 size={16} />
+        </div>
+      <div
+        className={`swipe-card group relative flex items-start gap-1.5 px-2.5 py-2.5 rounded-xl transition-all hover:shadow-md
+          ${cardBase}
+          ${isDragging ? 'opacity-40' : ''}
+          ${isOver ? 'ring-2 ring-blue-400 ring-offset-1' : ''}
+          ${isSwipingCard ? 'swiping' : ''}`}
+        style={{ ...cardStyle, transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
+      >
+        {/* grip handle */}
+        <span
+          data-grip="1"
+          onPointerDown={gripPointerDown}
+          className="flex-shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition-colors select-none"
+          style={{ touchAction: 'none', cursor: gripPointerDown ? 'grab' : 'default' }}>
+          <Icons.GripVertical size={14} />
+        </span>
+
+        {/* collapse toggle */}
+        <button onClick={e => { e.stopPropagation(); hasChildren && setCollapsed(c => !c); }}
+          className={`flex-shrink-0 mt-0.5 transition-colors ${hasChildren ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' : 'text-transparent pointer-events-none'}`}>
+          {hasChildren ? (collapsed ? <Icons.ChevronRight size={14} /> : <Icons.ChevronDown size={14} />) : <span className="inline-block w-3.5 h-3.5" />}
+        </button>
+
+        {/* status */}
+        <button onClick={e => { e.stopPropagation(); nextStatus(); }} className={`flex-shrink-0 mt-0.5 transition-all hover:scale-110 ${statusColor}`} title={t('status_change_tip')}>
+          <StatusIcon size={18} />
+        </button>
+
+        {/* content - タップで編集（モバイル） */}
+        <div className="flex-1 min-w-0 pl-0.5" onClick={e => { e.stopPropagation(); onEdit(task); }} style={{ cursor: 'pointer' }}>
+          <div className="flex items-start gap-1.5 flex-wrap">
+            <span className={`text-sm font-semibold leading-snug ${isDone ? 'line-through text-gray-400 dark:text-gray-500' : isToday ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'} flex-1 min-w-0`}>{task.title}</span>
+            <Icons.Flag size={12} className={`flex-shrink-0 mt-0.5 ${priorityColor}`} />
+            {task.dueDate && !isDone && <DeadlineBadge dueDate={task.dueDate} status={deadlineStatus} />}
+            {isToday && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold text-white" style={{ backgroundColor: cat?.color || '#8B5CF6' }}>{t('today_badge')}</span>
+            )}
+          </div>
+          {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{task.description}</p>}
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {cat && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />{cat.name}</span>}
+            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={9} />{formatDateShort(task.dueDate, lang)}</span>}
+            {task.estimatedMinutes && <span className="text-xs text-gray-400 dark:text-gray-500">⏱{task.estimatedMinutes}{t('est_min_suffix')}</span>}
+          </div>
+          {progress.total > 0 && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(progress.completed / progress.total) * 100}%`, backgroundColor: cat?.color || '#3B82F6' }} />
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{progress.completed}/{progress.total}</span>
+            </div>
+          )}
+        </div>
+
+        {/* モバイル: 今日に追加ボタンのみ表示（コンパクト）*/}
+        <div className="flex lg:hidden items-center flex-shrink-0">
+          <button onClick={e => { e.stopPropagation(); onTodayToggle(task.id, !task.isTodayTask); }}
+            className={`p-1.5 rounded-lg transition-colors ${isToday ? 'text-white' : 'text-gray-300 hover:text-purple-500'}`}
+            style={isToday ? { backgroundColor: cat?.color || '#8B5CF6' } : {}}
+            title={t('today_toggle_tip')}><Icons.Sun size={15} /></button>
+        </div>
+
+        {/* デスクトップ: フルアクションボタン（ホバー時表示） */}
+        <div className="hidden lg:flex opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 flex-shrink-0">
+          <button onClick={e => { e.stopPropagation(); onTodayToggle(task.id, !task.isTodayTask); }}
+            className={`p-2.5 rounded-xl transition-colors ${isToday ? 'text-white shadow-sm' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}
+            style={isToday ? { backgroundColor: cat?.color || '#8B5CF6' } : {}}
+            title={t('today_toggle_tip')}><Icons.Sun size={18} /></button>
+          <button onClick={e => { e.stopPropagation(); onAddChild(task.id); }}
+            className="p-2.5 rounded-xl text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title={t('add_subtask_tip')}><Icons.Plus size={18} /></button>
+          <button onClick={e => { e.stopPropagation(); onEdit(task); }}
+            className="p-2.5 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={18} /></button>
+          <button onClick={e => { e.stopPropagation(); onDelete(task.id); }}
+            className="p-2.5 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Icons.Trash2 size={18} /></button>
+        </div>
+      </div>{/* /swipe-card */}
+      </div>{/* /swipe-container */}
+
+      {hasChildren && !collapsed && (
+        <DndSiblingList
+          items={task.children}
+          onReorderDrop={onReorderDrop}
+          renderItem={(child, childDragProps) => (
+            <TaskNode key={child.id} task={child} categories={categories} depth={depth + 1}
+              onEdit={onEdit} onDelete={onDelete} onAddChild={onAddChild} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+              onReorderDrop={onReorderDrop} dragProps={childDragProps} />
+          )}
+        />
+      )}
+    </div>
+  );
+};
+
+// ==================== RecurringTasksSection ====================
+const RecurringTasksSection = ({ recurringItems, flatTasks, categories }) => {
+  const { t, lang } = useLang();
+  const [collapsed, setCollapsed] = useState({});
+  const [sectionOpen, setSectionOpen] = useState(true);
+  const [groupBy, setGroupBy] = useState('parent'); // 'parent' | 'category'
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const taskMap = Object.fromEntries(flatTasks.map(t => [t.id, t]));
+
+  const toggleCollapse = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  const groups = useMemo(() => {
+    if (groupBy === 'parent') {
+      const g = {};
+      recurringItems.forEach(task => {
+        const parentId = task.parentId || '__root__';
+        if (!g[parentId]) g[parentId] = [];
+        g[parentId].push(task);
+      });
+      return Object.entries(g).map(([parentId, items]) => {
+        const parent = parentId !== '__root__' ? taskMap[parentId] : null;
+        return { key: parentId, label: parent ? parent.title : t('tree_no_parent'), items };
+      }).sort((a, b) => {
+        if (a.key === '__root__') return 1;
+        if (b.key === '__root__') return -1;
+        return a.label.localeCompare(b.label, 'ja');
+      });
+    } else {
+      const g = {};
+      recurringItems.forEach(task => {
+        const catId = task.categoryId || '__none__';
+        if (!g[catId]) g[catId] = [];
+        g[catId].push(task);
+      });
+      return Object.entries(g).map(([catId, items]) => {
+        const cat = catId !== '__none__' ? catMap[catId] : null;
+        return { key: catId, label: cat ? cat.name : t('tree_no_parent'), cat, items };
+      });
+    }
+  }, [recurringItems, taskMap, catMap, groupBy]);
+
+  if (recurringItems.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      {/* Section header */}
+      <button onClick={() => setSectionOpen(o => !o)}
+        className="w-full flex items-center gap-2 mb-3 text-left">
+        <Icons.RefreshCw size={14} className="text-purple-500 flex-shrink-0" />
+        <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">{t('tree_recurring')}</span>
+        <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full font-medium">{recurringItems.length}</span>
+        <div className="flex-1 h-px bg-purple-200 dark:bg-purple-800/50" />
+        <Icons.ChevronDown size={13} className={`text-purple-400 transition-transform duration-200 ${sectionOpen ? '' : '-rotate-90'}`} />
+      </button>
+
+      {sectionOpen && (
+        <div className="animate-fade-in">
+          {/* Group by toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('timeline_byparent').replace('By ', '')}:</span>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+              {[['parent', t('timeline_byparent')],['category', t('field_category')]].map(([id, label]) => (
+                <button key={id} onClick={() => setGroupBy(id)}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${groupBy === id ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {groups.map(({ key, label, cat, items }) => (
+              <div key={key} className="bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-200 dark:border-purple-800/50 overflow-hidden">
+                <button onClick={() => toggleCollapse(key)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-colors text-left">
+                  <Icons.ChevronRight size={13} className={`text-purple-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
+                  {groupBy === 'parent' ? (
+                    <Icons.Layout size={13} className="text-purple-400 flex-shrink-0" />
+                  ) : (
+                    cat ? <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} /> : <span className="w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0" />
+                  )}
+                  <span className="font-semibold text-xs text-purple-800 dark:text-purple-200 flex-1">{label}</span>
+                  <span className="text-xs bg-purple-200 dark:bg-purple-800/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
+                </button>
+                {!collapsed[key] && (
+                  <div className="border-t border-purple-200 dark:border-purple-800/30 divide-y divide-purple-100 dark:divide-purple-800/20">
+                    {items.map(task => {
+                      const cat = catMap[task.categoryId];
+                      const parent = task.parentId ? taskMap[task.parentId] : null;
+                      const priorityColor = { high: 'text-[#aa2d00] dark:text-[#fb923c]', medium: 'text-[#d9a441] dark:text-[#fbbf24]', low: 'text-[#0a2e0e] dark:text-[#86efac]' }[task.priority] || 'text-[#9297a0] dark:text-gray-500';
+                      return (
+                        <div key={task.id} className="flex items-start gap-2 px-3 py-2.5">
+                          <Icons.RefreshCw size={12} className="text-purple-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">{task.title}</p>
+                            {groupBy === 'category' && parent && (
+                              <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 mt-1">
+                                📁 {parent.title}
+                              </span>
+                            )}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                              {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱ {formatMinutes(task.estimatedMinutes, lang)}</span>}
+                            </div>
+                          </div>
+                          {task.priority && task.priority !== 'medium' && (
+                            <span className={`text-xs flex-shrink-0 font-bold ${priorityColor}`}>
+                              {task.priority === 'high' ? t('priority_high') : t('priority_low')}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== TaskTree ====================
+const TaskTree = ({ tasks, flatTasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onReorderDrop }) => {
+  const { t } = useLang();
+  const [search, setSearch] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [groupBy, setGroupBy] = useState('category');
+
+  const sc = "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  const matchTask = (t) => {
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterCat && t.categoryId !== filterCat) return false;
+    if (filterStatus && t.status !== filterStatus) return false;
+    if (filterPriority && t.priority !== filterPriority) return false;
+    return true;
+  };
+
+  const hasFilters = !!(search || filterCat || filterStatus || filterPriority);
+
+  const filterTree = (list) => {
+    if (!hasFilters) return list;
+    const filteredIds = new Set(flatTasks.filter(matchTask).map(t => t.id));
+    const filter = (ts) => ts.map(t => ({ ...t, children: filter(t.children || []) })).filter(t => filteredIds.has(t.id) || (t.children && t.children.length > 0));
+    return filter(list);
+  };
+
+  // 完了タスク・定期タスクを除外（完了ボックス・定期タスクセクションに移動）
+  const removeDone = (list) => list
+    .filter(t => t.status !== 'done' && !t.recurringId)
+    .map(t => ({ ...t, children: removeDone(t.children || []) }));
+  const activeTasks = hasFilters ? tasks : removeDone(tasks);
+  const filtered = filterTree(activeTasks);
+
+  // 定期タスク（recurringId あり・未完了）
+  const recurringItems = useMemo(() =>
+    flatTasks.filter(t => t.recurringId && t.status !== 'done'),
+    [flatTasks]
+  );
+
+  const grouped = useMemo(() => {
+    if (groupBy === 'none') return [{ cat: null, tasks: filtered }];
+    const map = new Map();
+    const add = (list) => list.forEach(t => {
+      if (!map.has(t.categoryId)) map.set(t.categoryId, []);
+      map.get(t.categoryId).push(t);
+    });
+    add(filtered);
+    return categories.map(cat => ({ cat, tasks: map.get(cat.id) || [] })).filter(g => g.tasks.length > 0);
+  }, [filtered, categories, groupBy]);
+
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 space-y-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <Icons.Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('tree_search_ph')}
+              className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 border border-transparent rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all" />
+          </div>
+          <button onClick={() => setShowFilters(s => !s)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters || hasFilters ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+            <Icons.Filter size={13} /> {t('btn_filter')} {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+          </button>
+          <button onClick={() => onAddTask()} className="flex items-center gap-1.5 px-3 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-xl text-sm font-medium transition-colors">
+            <Icons.Plus size={13} /> {t('btn_add')}
+          </button>
+        </div>
+        {showFilters && (
+          <div className="flex items-center gap-2 flex-wrap animate-fade-in">
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={sc}>
+              <option value="">{t('filter_all_cat')}</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={sc}>
+              <option value="">{t('filter_all_status')}</option>
+              <option value="todo">{t('status_todo')}</option>
+              <option value="in_progress">{t('status_progress')}</option>
+              <option value="done">{t('status_done')}</option>
+            </select>
+            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={sc}>
+              <option value="">{t('filter_all_pri')}</option>
+              <option value="high">{t('priority_high')}</option>
+              <option value="medium">{t('priority_medium')}</option>
+              <option value="low">{t('priority_low')}</option>
+            </select>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} className={sc}>
+              <option value="category">{t('filter_by_cat')}</option>
+              <option value="none">{t('filter_no_group')}</option>
+            </select>
+            {hasFilters && <button onClick={() => { setSearch(''); setFilterCat(''); setFilterStatus(''); setFilterPriority(''); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">{t('ai_clear')}</button>}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6" data-scrollable="1">
+        {grouped.length === 0 && recurringItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-[#41454d] dark:text-gray-300">
+            <Illust.EmptyTasks size={100} />
+            <p className="text-base font-medium mt-4">{hasFilters ? t('tree_empty_filter') : t('tree_empty')}</p>
+            <p className="text-sm mt-1 text-[#9297a0] dark:text-gray-500">{hasFilters ? t('tree_empty_filter_hint') : t('tree_empty_hint')}</p>
+          </div>
+        ) : (
+          <>
+            {grouped.map(({ cat, tasks: gt }) => (
+              <CategoryGroup key={cat?.id || 'all'} cat={cat} tasks={gt} categories={categories}
+                onEdit={onEdit} onDelete={onDelete} onAddTask={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+                onReorderDrop={onReorderDrop} />
+            ))}
+            <RecurringTasksSection recurringItems={recurringItems} flatTasks={flatTasks} categories={categories} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CategoryGroup = ({ cat, tasks, categories, onEdit, onDelete, onAddTask, onStatusChange, onTodayToggle, onReorderDrop }) => {
+  const { t } = useLang();
+  const [collapsed, setCollapsed] = useState(false);
+  const doneCount = tasks.filter(t => t.status === 'done').length;
+  return (
+    <div>
+      {cat && (
+        /* Airtable: signature card strip — category color bar with clean editorial type */
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-lg"
+          style={{ backgroundColor: `${cat.color}12`, borderLeft: `3px solid ${cat.color}` }}>
+          <button onClick={() => setCollapsed(c => !c)} className="flex items-center gap-1.5 text-sm font-semibold hover:opacity-80 transition-opacity"
+            style={{ color: cat.color }}>
+            {cat.name}
+            <Icons.ChevronDown size={12} className={`transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+          </button>
+          <span className="text-xs text-[#41454d] dark:text-gray-300 dark:text-gray-500">{doneCount}/{tasks.length}</span>
+          <div className="flex-1 h-px" style={{ backgroundColor: `${cat.color}30` }} />
+          <button onClick={() => onAddTask()} className="text-xs font-medium transition-opacity hover:opacity-70"
+            style={{ color: cat.color }}>+ {t('btn_add').replace('する','')}</button>
+        </div>
+      )}
+      {!collapsed && (
+        <DndSiblingList
+          items={tasks}
+          onReorderDrop={onReorderDrop}
+          renderItem={(task, dragProps) => (
+            <TaskNode key={task.id} task={task} categories={categories} depth={0}
+              onEdit={onEdit} onDelete={onDelete} onAddChild={onAddTask} onStatusChange={onStatusChange} onTodayToggle={onTodayToggle}
+              onReorderDrop={onReorderDrop} dragProps={dragProps} />
+          )}
+        />
+      )}
+    </div>
+  );
+};
+
+// ==================== Timeline / TodayView ====================
+const START_H = 0;
+const END_H = 24;
+const HOUR_H = 64; // 1時間あたり64px（スクロール前提の固定値）
+const SNAP_MIN = 15;
+
+const minToStr = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const strToMin = (t) => { if (!t) return 0; const [h,m] = t.split(':').map(Number); return h*60+(m||0); };
+const snapTo = (m) => Math.round(m / SNAP_MIN) * SNAP_MIN;
+
+// ===== Todayタスクカード =====
+const TodayTaskCard = ({ task, cat, parentTask, scheduled, placing, setPlacing, onStatusChange, onRemoveToday, dragProps, showParent = true }) => {
+  const { t, lang } = useLang();
+  const isDone = task.status === 'done';
+  const isPlacing = placing === task.id;
+  const isRecurring = !!task.recurringId;
+  const { isDragging, isOver, onPointerDown: gripPointerDown } = dragProps || {};
+  return (
+    <div
+      className={`group rounded-lg p-2 border transition-all
+        ${isPlacing ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-sm'}
+        ${isDragging ? 'opacity-40' : ''}
+        ${isOver ? 'ring-2 ring-blue-400' : ''}`}
+      style={{ borderLeft: `3px solid ${cat?.color || '#9CA3AF'}` }}>
+      <div className="flex items-start gap-1">
+        {!scheduled && (
+          <span
+            data-grip="1"
+            onPointerDown={gripPointerDown}
+            className="flex-shrink-0 mt-0.5 text-gray-300 hover:text-gray-500 select-none"
+            style={{ touchAction: 'none', cursor: 'grab', padding: '4px', margin: '-4px' }}>
+            <Icons.GripVertical size={13} />
+          </span>
+        )}
+        {scheduled && (
+          <button onClick={() => onStatusChange(task.id, isDone ? 'todo' : 'done')} className={`mt-0.5 flex-shrink-0 transition-colors ${isDone ? 'text-green-500' : 'text-gray-300 hover:text-green-500'}`}>
+            {isDone ? <Icons.CheckCircle size={14} /> : <Icons.Circle size={14} />}
+          </button>
+        )}
+        <div className={`flex-1 min-w-0 ${!scheduled ? 'cursor-pointer' : ''}`} onClick={() => !scheduled && !isDone && onStatusChange(task.id, 'done')}>
+          <p className={`text-xs font-medium leading-tight ${isDone ? 'line-through text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{task.title}</p>
+          {scheduled
+            ? <p className="text-xs text-blue-500 dark:text-blue-400 font-mono mt-0.5">{task.scheduledTime.start}〜{task.scheduledTime.end}</p>
+            : task.estimatedMinutes ? <p className="text-xs text-gray-400 mt-0.5">⏱ {formatMinutes(task.estimatedMinutes, lang)}</p> : null
+          }
+          <div className="flex flex-wrap gap-1 mt-1">
+            {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+            {showParent && parentTask && (
+              <span className="text-xs px-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 leading-5">
+                📁 {parentTask.title}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {!scheduled && !isDone && (
+            <button onClick={e => { e.stopPropagation(); setPlacing(isPlacing ? null : task.id); }} title={t('timeline_place_btn')}
+              className={`p-1 rounded transition-colors ${isPlacing ? 'bg-blue-500 text-white' : 'text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
+              <Icons.Clock size={13} />
+            </button>
+          )}
+          {/* 定期タスク以外は Today から外せる */}
+          {!isRecurring && onRemoveToday && (
+            <button onClick={e => { e.stopPropagation(); onRemoveToday(task.id); }} title="Todayから外す"
+              className="p-1 rounded text-gray-300 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 opacity-0 group-hover:opacity-100 transition-all">
+              <Icons.X size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== 親タスク別グループ =====
+const TodayGroupedList = ({ tasks, allTasks, catMap, scheduled, unscheduled, placing, setPlacing, onStatusChange, onReorderTodayDrop, onRemoveToday }) => {
+  const { t } = useLang();
+  const [collapsed, setCollapsed] = useState({});
+  const taskMap = Object.fromEntries((allTasks || []).map(t => [t.id, t]));
+
+  // 定期タスクと通常タスクを分離
+  const regularTasks = tasks.filter(t => !t.recurringId);
+  const recurringTodayTasks = tasks.filter(t => t.recurringId);
+
+  const groups = useMemo(() => {
+    const map = {};
+    regularTasks.forEach(task => {
+      const parentId = task.parentId || '__root__';
+      if (!map[parentId]) map[parentId] = { scheduled: [], unscheduled: [] };
+      if (task.scheduledTime?.start && task.scheduledTime?.end)
+        map[parentId].scheduled.push(task);
+      else
+        map[parentId].unscheduled.push(task);
+    });
+    return Object.entries(map).map(([parentId, { scheduled: s, unscheduled: u }]) => {
+      const parent = parentId !== '__root__' ? taskMap[parentId] : null;
+      return { key: parentId, label: parent ? parent.title : t('tree_no_parent'), parent, scheduled: s, unscheduled: u };
+    }).sort((a, b) => {
+      if (a.key === '__root__') return 1;
+      if (b.key === '__root__') return -1;
+      return a.label.localeCompare(b.label, 'ja');
+    });
+  }, [regularTasks, allTasks]);
+
+  const toggle = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  // 定期タスクの時刻あり/なし分離
+  const recurringScheduled = recurringTodayTasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
+  const recurringUnscheduled = recurringTodayTasks.filter(t => !t.scheduledTime?.start);
+
+  return (
+    <div className="space-y-2">
+      {groups.map(({ key, label, parent, scheduled: gs, unscheduled: gu }) => (
+        <div key={key} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* グループヘッダー */}
+          <button onClick={() => toggle(key)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
+            <Icons.ChevronRight size={13} className={`text-gray-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
+            <Icons.Layout size={12} className="text-blue-400 flex-shrink-0" />
+            <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-300 leading-snug">{label}</span>
+            <span className="text-xs text-gray-400 flex-shrink-0">{gs.length + gu.length}{t('count_unit')}</span>
+          </button>
+          {/* タスク */}
+          {!collapsed[key] && (
+            <div className="p-1.5 space-y-1">
+              {gs.map(task => (
+                <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                  parentTask={null} scheduled={true} showParent={false}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} />
+              ))}
+              {gu.length > 0 && gs.length > 0 && <div className="border-t border-gray-100 dark:border-gray-700 my-0.5" />}
+              {gu.length > 0 && <p className="text-xs text-gray-400 px-1">{t('timeline_unscheduled')}</p>}
+              <DndSiblingList
+                items={gu}
+                onReorderDrop={onReorderTodayDrop}
+                renderItem={(task, dragProps) => (
+                  <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                    parentTask={null} scheduled={false} showParent={false}
+                    placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday}
+                    dragProps={dragProps} />
+                )}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* ===== 定期タスク グループ ===== */}
+      {recurringTodayTasks.length > 0 && (
+        <div className="rounded-xl border border-purple-200 dark:border-purple-800/50 overflow-hidden">
+          <button onClick={() => toggle('__recurring__')}
+            className="w-full flex items-center gap-2 px-2 py-1.5 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors text-left">
+            <Icons.ChevronRight size={13} className={`text-purple-400 flex-shrink-0 transition-transform ${collapsed['__recurring__'] ? '' : 'rotate-90'}`} />
+            <Icons.RefreshCw size={12} className="text-purple-500 flex-shrink-0" />
+            <span className="flex-1 text-xs font-semibold text-purple-700 dark:text-purple-300 leading-snug">{t('tree_recurring')}</span>
+            <span className="text-xs text-purple-500 dark:text-purple-400 flex-shrink-0">{recurringTodayTasks.length}</span>
+          </button>
+          {!collapsed['__recurring__'] && (
+            <div className="p-1.5 space-y-1 bg-purple-50/30 dark:bg-purple-900/10">
+              {recurringScheduled.map(task => (
+                <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                  parentTask={task.parentId ? taskMap[task.parentId] : null}
+                  scheduled={true} showParent={!!task.parentId}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} />
+              ))}
+              {recurringUnscheduled.length > 0 && recurringScheduled.length > 0 && <div className="border-t border-purple-100 dark:border-purple-800/30 my-0.5" />}
+              {recurringUnscheduled.length > 0 && <p className="text-xs text-purple-400 px-1">{t('timeline_unscheduled')}</p>}
+              <DndSiblingList
+                items={recurringUnscheduled}
+                onReorderDrop={onReorderTodayDrop}
+                renderItem={(task, dragProps) => (
+                  <TodayTaskCard key={task.id} task={task} cat={catMap[task.categoryId]}
+                    parentTask={task.parentId ? taskMap[task.parentId] : null}
+                    scheduled={false} showParent={!!task.parentId}
+                    placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+                    dragProps={dragProps} />
+                )}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== WeeklyGoals ====================
+const getWeekKey = () => {
+  const now = new Date();
+  const d = new Date(now); d.setDate(d.getDate() - d.getDay()); // Sunday start
+  return d.toISOString().split('T')[0];
+};
+
+const WeeklyGoals = () => {
+  const { lang } = useLang();
+  const weekKey = getWeekKey();
+  const [goals, setGoals] = useState(() => {
+    const all = STORAGE.weeklyGoals();
+    const current = all.find(w => w.week === weekKey);
+    return current ? current.items : [];
+  });
+  const [adding, setAdding] = useState(false);
+  const [newText, setNewText] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
+
+  const persist = (items) => {
+    setGoals(items);
+    const all = STORAGE.weeklyGoals().filter(w => w.week !== weekKey);
+    all.push({ week: weekKey, items });
+    // 4週以上前のデータは削除
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
+    const cutoffKey = cutoff.toISOString().split('T')[0];
+    STORAGE.saveWeeklyGoals(all.filter(w => w.week >= cutoffKey));
+  };
+
+  const addGoal = () => {
+    if (!newText.trim()) return;
+    persist([...goals, { id: generateId('wg'), text: newText.trim(), done: false }]);
+    setNewText(''); setAdding(false);
+  };
+
+  const toggleGoal = (id) => persist(goals.map(g => g.id === id ? { ...g, done: !g.done } : g));
+  const deleteGoal = (id) => persist(goals.filter(g => g.id !== id));
+
+  const doneCount = goals.filter(g => g.done).length;
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = (d) => d.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric' });
+
+  return (
+    <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+      <button onClick={() => setCollapsed(c => !c)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+        <Icons.Flag size={13} className="text-amber-500 flex-shrink-0" />
+        <span className="text-xs font-bold text-gray-700 dark:text-gray-200 flex-1">
+          {lang === 'en' ? 'Weekly Goals' : '今週の目標'}
+        </span>
+        {goals.length > 0 && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">{doneCount}/{goals.length}</span>
+        )}
+        <Icons.ChevronDown size={12} className={`text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+      </button>
+
+      {!collapsed && (
+        <div className="px-2 pb-2 space-y-1 animate-fade-in">
+          {/* Week range */}
+          <p className="text-xs text-gray-400 dark:text-gray-500 px-1">{fmt(weekStart)} 〜 {fmt(weekEnd)}</p>
+
+          {/* Progress bar */}
+          {goals.length > 0 && (
+            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mx-1">
+              <div className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                style={{ width: `${goals.length ? (doneCount / goals.length) * 100 : 0}%` }} />
+            </div>
+          )}
+
+          {/* Goal items */}
+          {goals.map(g => (
+            <div key={g.id} className="group flex items-start gap-1.5 px-1 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <button onClick={() => toggleGoal(g.id)}
+                className={`flex-shrink-0 mt-0.5 transition-colors ${g.done ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'}`}>
+                {g.done ? <Icons.CheckCircle size={14} /> : <Icons.Circle size={14} />}
+              </button>
+              <span className={`flex-1 text-xs leading-snug ${g.done ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                {g.text}
+              </span>
+              <button onClick={() => deleteGoal(g.id)}
+                className="flex-shrink-0 text-gray-300 dark:text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                <Icons.X size={12} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add goal */}
+          {adding ? (
+            <div className="flex items-center gap-1 px-1">
+              <input
+                autoFocus
+                value={newText}
+                onChange={e => setNewText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addGoal(); if (e.key === 'Escape') { setAdding(false); setNewText(''); } }}
+                placeholder={lang === 'en' ? 'Goal...' : '目標を入力...'}
+                className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <button onClick={addGoal} className="text-amber-500 hover:text-amber-600 p-0.5"><Icons.Check size={14} /></button>
+              <button onClick={() => { setAdding(false); setNewText(''); }} className="text-gray-400 hover:text-gray-600 p-0.5"><Icons.X size={14} /></button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding(true)}
+              className="flex items-center gap-1.5 px-1 py-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors w-full">
+              <Icons.Plus size={12} />
+              {lang === 'en' ? 'Add goal' : '目標を追加'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Timeline = ({ tasks, categories, allTasks, onStatusChange, onReorderTodayDrop, onRemoveToday, onUpdateSchedule, mobileSide }) => {
+  const timelineRef = useRef(null);
+  const [drag, setDrag] = useState(null);       // 描画用（非同期OK）
+  const dragRef = useRef(null);                  // 即時アクセス用
+  const [placing, setPlacing] = useState(null);
+  const [hoverMin, setHoverMin] = useState(null);
+  const [todayGroupBy, setTodayGroupBy] = useState('flat');
+  const [pendingTaskId, setPendingTaskId] = useState(null); // 長押し待機中のタスクID
+
+  const { t, lang } = useLang();
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const scrollRef = useRef(null);
+  const longPressTimer = useRef(null);
+  const pendingRef = useRef(null); // { task, type, startX, startY }
+
+  // 起動時に現在時刻付近へスクロール
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const now = new Date();
+    const nowY = ((now.getHours() + now.getMinutes() / 60) - START_H) * HOUR_H;
+    scrollRef.current.scrollTop = Math.max(0, nowY - scrollRef.current.clientHeight / 3);
+  }, []);
+
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const scheduled = tasks.filter(t => t.scheduledTime?.start && t.scheduledTime?.end);
+  const unscheduled = tasks.filter(t => !t.scheduledTime?.start);
+  const totalMin = tasks.reduce((s, t) => s + (t.estimatedMinutes || 0), 0);
+  const totalH = (END_H - START_H) * HOUR_H;
+  const hours = Array.from({ length: END_H - START_H }, (_, i) => i + START_H);
+  const now = new Date();
+  const nowTop = ((now.getHours() + now.getMinutes() / 60) - START_H) * HOUR_H;
+  const showNow = now.getHours() >= START_H && now.getHours() < END_H;
+
+  const yToMin = (y) => {
+    const raw = (y / HOUR_H) * 60 + START_H * 60;
+    return Math.max(START_H * 60, Math.min(snapTo(raw), END_H * 60));
+  };
+  const minToY = (m) => ((m - START_H * 60) / 60) * HOUR_H;
+  const getRelY = (clientY) => {
+    const rect = timelineRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    return clientY - rect.top;
+  };
+
+  const lockScroll = () => {
+    if (scrollRef.current) { scrollRef.current.style.overflow = 'hidden'; scrollRef.current.classList.add('dragging'); }
+  };
+  const unlockScroll = () => {
+    if (scrollRef.current) { scrollRef.current.style.overflow = ''; scrollRef.current.classList.remove('dragging'); }
+  };
+
+  const cancelPending = () => {
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    pendingRef.current = null;
+    setPendingTaskId(null);
+  };
+
+  // documentレベルのポインターハンドラー（DndSiblingListと同じパターン）
+  useEffect(() => {
+    const onDocMove = (e) => {
+      // 長押し待機中：指が動いたらキャンセル（スクロール意図）
+      if (pendingRef.current) {
+        const { startX, startY } = pendingRef.current;
+        if (Math.abs(e.clientX - startX) > 6 || Math.abs(e.clientY - startY) > 6) {
+          cancelPending();
+        }
+        return;
+      }
+      // ドラッグ中
+      if (!dragRef.current) return;
+      e.preventDefault();
+      const y = getRelY(e.clientY);
+      const m = yToMin(y);
+      const d = dragRef.current;
+      if (d.type === 'move') {
+        const dur = d.endMin - d.startMin;
+        const ns = Math.max(START_H * 60, Math.min(snapTo(m - d.offsetMin), END_H * 60 - dur));
+        dragRef.current = { ...d, curStartMin: ns, curEndMin: ns + dur };
+      } else {
+        const ne = Math.max(d.startMin + SNAP_MIN, Math.min(m, END_H * 60));
+        dragRef.current = { ...d, curEndMin: ne };
+      }
+      setDrag({ ...dragRef.current });
+    };
+
+    const onDocUp = (e) => {
+      cancelPending();
+      if (dragRef.current) {
+        const state = dragRef.current;
+        dragRef.current = null;
+        unlockScroll();
+        setDrag(null);
+        onUpdateSchedule?.(state.taskId, { start: minToStr(state.curStartMin), end: minToStr(state.curEndMin) });
+      }
+    };
+
+    document.addEventListener('pointermove', onDocMove, { passive: false });
+    document.addEventListener('pointerup', onDocUp);
+    document.addEventListener('pointercancel', onDocUp);
+    return () => {
+      document.removeEventListener('pointermove', onDocMove);
+      document.removeEventListener('pointerup', onDocUp);
+      document.removeEventListener('pointercancel', onDocUp);
+    };
+  }, [onUpdateSchedule]);
+
+  // 長押し → ドラッグ起動
+  const startDrag = (task, type, startClientY) => {
+    navigator.vibrate?.(40); // 触覚フィードバック（対応端末のみ）
+    lockScroll();
+    setSelectedTaskId(task.id);
+    setPendingTaskId(null);
+    const sMin = strToMin(task.scheduledTime.start);
+    const eMin = strToMin(task.scheduledTime.end);
+    const clickMin = yToMin(getRelY(startClientY));
+    const state = {
+      taskId: task.id, type,
+      startMin: sMin, endMin: eMin,
+      offsetMin: type === 'move' ? clickMin - sMin : 0,
+      curStartMin: sMin, curEndMin: eMin,
+    };
+    dragRef.current = state;
+    setDrag({ ...state });
+  };
+
+  // タスクブロックのポインターダウン：長押し開始
+  const onTaskPointerDown = (e, task, type) => {
+    if (dragRef.current) return; // 既にドラッグ中
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    pendingRef.current = { task, type, startX, startY };
+    setPendingTaskId(task.id);
+    setSelectedTaskId(task.id); // タップで選択はすぐ反映
+
+    longPressTimer.current = setTimeout(() => {
+      if (pendingRef.current?.task.id === task.id) {
+        pendingRef.current = null;
+        startDrag(task, type, startY);
+      }
+    }, 350);
+  };
+
+  const onTimelineClick = (e) => {
+    if (!placing) { setSelectedTaskId(null); }
+    if (dragRef.current || !placing) return;
+    const m = yToMin(getRelY(e.clientY));
+    const task = tasks.find(t => t.id === placing);
+    const dur = task?.estimatedMinutes || 60;
+    onUpdateSchedule?.(placing, { start: minToStr(m), end: minToStr(Math.min(m + dur, END_H * 60)) });
+    setPlacing(null);
+  };
+
+  const onHoverMove = (e) => {
+    if (placing) setHoverMin(yToMin(getRelY(e.clientY)));
+  };
+
+  const getTaskBounds = (task) => {
+    const sMin = dragRef.current?.taskId === task.id ? dragRef.current.curStartMin : strToMin(task.scheduledTime.start);
+    const eMin = dragRef.current?.taskId === task.id ? dragRef.current.curEndMin : strToMin(task.scheduledTime.end);
+    return { top: minToY(sMin), height: Math.max(((eMin - sMin) / 60) * HOUR_H, 28), sMin, eMin };
+  };
+
+  return (
+    <div className="flex-1 flex overflow-hidden" style={{ userSelect: drag ? 'none' : 'auto' }}>
+
+      {/* ===== 左: タスク一覧 ===== */}
+      <div data-tl-left="1" className={`${mobileSide === 'timeline' ? 'hidden' : mobileSide === 'list' ? 'flex-1' : 'w-64 flex-shrink-0'} border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden`}>
+        {/* ヘッダー */}
+        <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('timeline_tasks')}</span>
+            {totalMin > 0 && <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">{t('timeline_total')} {formatMinutes(totalMin, lang)}</span>}
+          </div>
+          {/* グループ切り替え */}
+          <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
+            {[['flat', t('timeline_flat')],['parent', t('timeline_byparent')]].map(([id, label]) => (
+              <button key={id} onClick={() => setTodayGroupBy(id)}
+                className={`flex-1 py-1 font-medium transition-colors ${todayGroupBy === id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 今週の目標 */}
+        <WeeklyGoals />
+
+        {/* 配置中ガイド */}
+        {placing && (
+          <div className="mx-2 mt-2 flex items-start gap-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2.5 py-2 flex-shrink-0">
+            <Icons.Clock size={12} className="text-blue-500 mt-0.5 flex-shrink-0" />
+            <span className="text-xs text-blue-700 dark:text-blue-300 leading-snug">{t('timeline_place_hint')}</span>
+            <button onClick={() => setPlacing(null)} className="ml-auto text-blue-400 hover:text-blue-600 flex-shrink-0"><Icons.X size={12} /></button>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-2 py-2" data-scrollable="1">
+          {tasks.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
+              <Illust.AllDone size={72} />
+              <p className="text-xs font-medium text-center text-[#41454d] dark:text-gray-300 mt-3">{t('timeline_empty')}</p>
+            </div>
+          )}
+
+          {todayGroupBy === 'flat' ? (
+            /* ===== フラット表示 ===== */
+            <div className="space-y-1.5">
+              {scheduled.map(task => {
+                const cat = catMap[task.categoryId];
+                const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
+                return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={true}
+                  placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} />;
+              })}
+              {unscheduled.length > 0 && <>
+                {scheduled.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-1" />}
+                <p className="text-xs text-gray-400 dark:text-gray-500 px-1 mb-1">{t('timeline_unscheduled')}</p>
+                <DndSiblingList
+                  items={unscheduled}
+                  onReorderDrop={onReorderTodayDrop}
+                  renderItem={(task, dragProps) => {
+                    const cat = catMap[task.categoryId];
+                    const parentTask = task.parentId ? allTasks?.find(t => t.id === task.parentId) : null;
+                    return <TodayTaskCard key={task.id} task={task} cat={cat} parentTask={parentTask} scheduled={false}
+                      placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange} onRemoveToday={onRemoveToday} dragProps={dragProps} />;
+                  }}
+                />
+              </>}
+            </div>
+          ) : (
+            /* ===== 親タスク別グループ表示 ===== */
+            <TodayGroupedList tasks={tasks} allTasks={allTasks} catMap={catMap}
+              scheduled={scheduled} unscheduled={unscheduled}
+              placing={placing} setPlacing={setPlacing} onStatusChange={onStatusChange}
+              onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} />
+          )}
+        </div>
+      </div>
+
+      {/* ===== 右: タイムライン ===== */}
+      <div ref={scrollRef} data-scrollable="1" data-tl-right="1" className={`${mobileSide === 'list' ? 'hidden' : 'flex-1'} overflow-y-auto bg-white dark:bg-gray-900`}>
+        <div className="flex" style={{ height: totalH }}>
+          {/* 時刻ラベル */}
+          <div className="w-10 flex-shrink-0 relative bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700" style={{ height: totalH }}>
+            {hours.map(h => (
+              <div key={h} className="absolute left-0 right-0 flex items-center justify-end pr-1.5" style={{ top: (h - START_H) * HOUR_H - 7 }}>
+                <span className="text-xs text-gray-400 dark:text-gray-500 font-mono leading-none">{String(h).padStart(2,'0')}</span>
+              </div>
+            ))}
+          </div>
+          {/* グリッド + タスクブロック */}
+          <div ref={timelineRef}
+            className={`flex-1 relative ${placing ? 'cursor-crosshair' : ''}`}
+            style={{ height: totalH }}
+            onPointerMove={onHoverMove}
+            onClick={onTimelineClick}>
+            {hours.map(h => (
+              <div key={h} className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-700/50" style={{ top: (h - START_H) * HOUR_H }} />
+            ))}
+            {hours.map(h => (
+              <div key={`${h}h`} className="absolute left-0 right-0 border-t border-dashed border-gray-50 dark:border-gray-800" style={{ top: (h - START_H) * HOUR_H + HOUR_H / 2 }} />
+            ))}
+            {showNow && (
+              <div className="absolute left-0 right-0 border-t-2 border-red-400 z-10 pointer-events-none" style={{ top: nowTop }}>
+                <div className="absolute -left-1 -top-1.5 w-3 h-3 rounded-full bg-red-400" />
+              </div>
+            )}
+            {placing && hoverMin != null && (
+              <div className="absolute left-0 right-0 border-t-2 border-dashed border-blue-400 z-20 pointer-events-none" style={{ top: minToY(hoverMin) }}>
+                <span className="absolute left-1 -top-5 text-xs bg-blue-500 text-white rounded px-1.5 py-0.5 font-mono">{minToStr(hoverMin)}</span>
+              </div>
+            )}
+            {scheduled.map(task => {
+              const cat = catMap[task.categoryId];
+              const parentTask = task.parentId ? tasks.find(t => t.id === task.parentId) || allTasks?.find(t => t.id === task.parentId) : null;
+              const isDone = task.status === 'done';
+              const { top, height, sMin, eMin } = getTaskBounds(task);
+              const isDragging = drag?.taskId === task.id;
+              const isSelected = selectedTaskId === task.id;
+              const isPending = pendingTaskId === task.id && !isDragging;
+              const isOtherDuringDrag = drag && !isDragging; // 他のタスクがドラッグ中
+              const floatLeft = isSelected ? '2px' : '8px';
+              const floatRight = isSelected ? '2px' : '6px';
+              // z-index: ドラッグ中=最前面(50)、選択中=手前(30)、通常=標準(10)、他ドラッグ中=後ろ(5)
+              const zIdx = isDragging ? 50 : isSelected ? 30 : isOtherDuringDrag ? 5 : 10;
+              return (
+                <div key={task.id}
+                  data-task-block="1"
+                  className={`absolute rounded-lg select-none
+                    ${isDone ? 'opacity-40' : ''}
+                    ${isDragging ? 'shadow-2xl ring-2 scale-[1.03]' : isSelected ? 'shadow-xl ring-2' : 'hover:shadow-md'}
+                    ${isOtherDuringDrag ? 'opacity-50' : ''}
+                    ${isPending ? 'animate-pulse-slow' : ''}
+                    transition-all duration-150`}
+                  style={{
+                    zIndex: zIdx,
+                    top: isSelected && !isDragging ? top - 2 : top,
+                    height: isSelected && !isDragging ? height + 4 : height,
+                    left: floatLeft,
+                    right: floatRight,
+                    backgroundColor: cat ? `${cat.color}${isSelected ? '33' : isPending ? '30' : '22'}` : '#E5E7EB',
+                    borderLeft: `${isSelected ? '4px' : '3px'} solid ${cat?.color || '#9CA3AF'}`,
+                    boxShadow: isSelected && !isDragging ? `0 8px 24px ${cat?.color || '#9CA3AF'}44, 0 2px 8px rgba(0,0,0,0.12)` : undefined,
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    touchAction: 'none',
+                    // ドラッグ中の他タスクはポインターイベント無効→干渉しない
+                    pointerEvents: isOtherDuringDrag ? 'none' : 'auto',
+                  }}
+                  onPointerDown={(e) => !isDone && onTaskPointerDown(e, task, 'move')}
+                  onClick={(e) => e.stopPropagation()}>
+                  {/* 長押し中ヒント */}
+                  {isPending && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+                      <span className="text-xs font-bold rounded-full px-2 py-0.5 text-white shadow" style={{ backgroundColor: cat?.color || '#6B7280', opacity: 0.85 }}>
+                        {lang === 'en' ? 'Hold…' : '長押し中…'}
+                      </span>
+                    </div>
+                  )}
+                  {/* 選択時: 浮いた時刻バブル */}
+                  {isSelected && !isDone && !isPending && (
+                    <div className="absolute -top-6 left-0 flex items-center gap-1 pointer-events-none">
+                      <span className="text-xs font-mono font-bold text-white rounded px-1.5 py-0.5 shadow-md"
+                        style={{ backgroundColor: cat?.color || '#6B7280' }}>
+                        {minToStr(sMin)}〜{minToStr(eMin)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="px-1 py-0.5 flex items-start gap-1 h-full overflow-hidden">
+                    {/* 完了ボタン: タップで完了/未完了切り替え（長押しDragとは独立） */}
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, isDone ? 'todo' : 'done'); }}
+                      className="flex-shrink-0 mt-0.5 transition-all hover:scale-110 active:scale-95"
+                      title={isDone ? t('status_todo') : t('status_done')}
+                      style={{ color: isDone ? '#22C55E' : cat?.color || '#9CA3AF', opacity: isDone ? 1 : 0.7 }}>
+                      {isDone ? <Icons.CheckCircle size={13} /> : <Icons.Circle size={13} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-semibold leading-tight truncate ${isDone ? 'line-through opacity-60' : ''}`} style={{ color: isDone ? '#9CA3AF' : cat?.color || '#374151' }}>{task.title}</p>
+                      {height > 28 && (
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          {parentTask && (
+                            <span className="text-gray-500 dark:text-gray-400 truncate leading-tight" style={{ fontSize: '10px' }}>📁 {parentTask.title}</span>
+                          )}
+                          {cat && (
+                            <span className="text-white rounded-sm px-1 leading-4 flex-shrink-0" style={{ fontSize: '9px', backgroundColor: cat.color }}>{cat.name}</span>
+                          )}
+                        </div>
+                      )}
+                      {height > 52 && !isSelected && <p className="text-xs text-gray-400 font-mono">{minToStr(sMin)}〜{minToStr(eMin)}</p>}
+                    </div>
+                  </div>
+                  {/* リサイズハンドル（下部） */}
+                  <div className={`absolute bottom-0 left-0 right-0 flex items-center justify-center cursor-ns-resize group/resize transition-all ${isSelected ? 'h-5' : 'h-3'}`}
+                    onPointerDown={(e) => { e.stopPropagation(); onTaskPointerDown(e, task, 'resize'); }}>
+                    <div className={`rounded-full transition-all ${isSelected ? 'w-10 h-1 opacity-70' : 'w-6 h-0.5 opacity-40 group-hover/resize:opacity-80'}`}
+                      style={{ backgroundColor: cat?.color || '#9CA3AF' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TodayView = ({ todayTasks, allTasks, categories, onStatusChange, onAddTask, onReorderTodayDrop, onRemoveToday, onUpdateSchedule }) => {
+  const { t, lang } = useLang();
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [mobileTab, setMobileTab] = useState('list'); // 'list' | 'timeline'
+  const now = new Date();
+  const dateStr = now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  // isTodayTask が true のタスク全体を分母にする
+  const completedToday = allTasks.filter(t => t.isTodayTask && t.status === 'done').length;
+  const totalToday = allTasks.filter(t => t.isTodayTask).length;
+
+  const handleStatusChange = (id, status) => {
+    onStatusChange(id, status);
+    if (status === 'done' && todayTasks.filter(t => t.id !== id).length === 0) {
+      setShowCompletion(true);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('nav_today')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr}</p>
+          </div>
+          <button onClick={onAddTask} className="px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">{t('today_add')}</button>
+        </div>
+        {totalToday > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>{t('today_rate')}</span><span>{completedToday}/{totalToday}</span>
+            </div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500" style={{ width: `${totalToday ? (completedToday / totalToday) * 100 : 0}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
+      {/* モバイル: リスト/タイムライン タブ切り替え */}
+      <div className="lg:hidden flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900">
+        {[['list', t('timeline_tasks'), Icons.List], ['timeline', 'Timeline', Icons.Clock]].map(([id, label, Icon]) => (
+          <button key={id} onClick={() => setMobileTab(id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium border-b-2 transition-colors
+              ${mobileTab === id ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400'}`}>
+            <Icon size={15} />{label}
+          </button>
+        ))}
+      </div>
+      <Timeline tasks={todayTasks} categories={categories} allTasks={allTasks} onStatusChange={handleStatusChange} onReorderTodayDrop={onReorderTodayDrop} onRemoveToday={onRemoveToday} onUpdateSchedule={onUpdateSchedule} mobileSide={mobileTab} />
+      {showCompletion && <CompletionModal onClose={() => setShowCompletion(false)} />}
+    </div>
+  );
+};
+
+// ==================== DeadlineView ====================
+const DeadlineView = ({ tasks, categories, onEdit, onStatusChange }) => {
+  const { t, lang } = useLang();
+  const DEADLINE_GROUPS = [
+    { key: 'overdue', label: t('deadline_group_overdue'), emoji: '🔴' },
+    { key: 'today', label: t('deadline_group_today'), emoji: '🟠' },
+    { key: 'tomorrow', label: t('deadline_group_tomorrow'), emoji: '🟡' },
+    { key: 'soon', label: t('deadline_group_soon'), emoji: '🔵' },
+    { key: 'ok', label: t('deadline_group_ok'), emoji: '✅' },
+  ];
+  const [collapsed, setCollapsed] = useState({});
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const withDue = tasks.filter(t => t.dueDate && t.status !== 'done');
+  const grouped = DEADLINE_GROUPS.map(g => ({ ...g, tasks: withDue.filter(t => getDeadlineStatus(t.dueDate) === g.key) }));
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">⚠️ {t('deadline_title')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('deadline_desc')}</p>
+      </div>
+      <div className="space-y-4">
+        {grouped.map(group => {
+          if (group.tasks.length === 0 && group.key !== 'overdue') return null;
+          const isCol = collapsed[group.key];
+          return (
+            <div key={group.key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button onClick={() => setCollapsed(c => ({ ...c, [group.key]: !c[group.key] }))}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <span className="text-base">{group.emoji}</span>
+                <span className="font-semibold text-gray-900 dark:text-white flex-1 text-left">{group.label}</span>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{group.tasks.length}{t('deadline_count_unit')}</span>
+                {isCol ? <Icons.ChevronRight size={15} className="text-gray-400" /> : <Icons.ChevronDown size={15} className="text-gray-400" />}
+              </button>
+              {!isCol && (
+                <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+                  {group.tasks.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('deadline_no_match')}</div>
+                  ) : group.tasks.map(task => {
+                    const cat = catMap[task.categoryId];
+                    const status = getDeadlineStatus(task.dueDate);
+                    return (
+                      <div key={task.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
+                        style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}} onClick={() => onEdit(task)}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {cat && <span className="text-xs text-gray-500 dark:text-gray-400">{cat.name}</span>}
+                            {task.dueDate && <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"><Icons.Clock size={10} />{formatDateShort(task.dueDate, lang)}</span>}
+                          </div>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getDeadlineBadgeClass(status)}`}>{formatDeadlineBadge(task.dueDate, t)}</span>
+                        <select value={task.status} onChange={e => { e.stopPropagation(); onStatusChange(task.id, e.target.value); }} onClick={e => e.stopPropagation()}
+                          className="text-xs bg-gray-100 dark:bg-gray-700 border-0 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="todo">{t('status_todo')}</option>
+                          <option value="in_progress">{t('status_progress')}</option>
+                          <option value="done">{t('status_done')}</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {withDue.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+          <Illust.NoOverdue size={88} />
+          <p className="text-base font-medium text-[#41454d] dark:text-gray-300 mt-3">{t('deadline_none')}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== CalendarView ====================
+const CalendarView = ({ tasks, categories, onEdit, onAddTask }) => {
+  const { t, lang } = useLang();
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [selDate, setSelDate] = useState(null);
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const todayStr = getTodayString();
+  const days = getCalendarDays(year, month);
+  const tasksByDate = tasks.reduce((acc, t) => {
+    if (t.dueDate) { if (!acc[t.dueDate]) acc[t.dueDate] = []; acc[t.dueDate].push(t); }
+    return acc;
+  }, {});
+  const prev = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
+  const next = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
+  const DOW = lang === 'en' ? DAYS_EN.map(d => d.slice(0,1).toUpperCase() + d.slice(1)) : DAYS_JP;
+  const selTasks = selDate ? (tasksByDate[selDate] || []) : [];
+  const statusLabel = (s) => s === 'done' ? t('status_done') : s === 'in_progress' ? t('status_progress') : t('status_todo');
+  const monthLabel = lang === 'en'
+    ? new Date(year, month, 1).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    : `${year}年${month + 1}月`;
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">📅 {t('calendar_title')}</h2>
+        <div className="flex-1" />
+        <button onClick={prev} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft size={17} className="text-gray-600 dark:text-gray-400" /></button>
+        <span className="text-base font-semibold text-gray-800 dark:text-gray-200 min-w-28 text-center">{monthLabel}</span>
+        <button onClick={next} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronRight size={17} className="text-gray-600 dark:text-gray-400" /></button>
+        <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }} className="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 transition-colors">{t('calendar_this_month')}</button>
+      </div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
+        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+          {DOW.map((d, i) => (
+            <div key={d} className={`py-2.5 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map(({ date, cur }, idx) => {
+            const ds = dateToStr(date);
+            const dt = tasksByDate[ds] || [];
+            const isToday = ds === todayStr;
+            const isSel = ds === selDate;
+            const dow = date.getDay();
+            const isPast = cur && ds < todayStr;
+            return (
+              <div key={idx} onClick={() => cur && setSelDate(ds === selDate ? null : ds)}
+                className={`min-h-14 p-1.5 border-b border-r border-gray-100 dark:border-gray-700/50 transition-colors ${!cur ? 'bg-gray-50 dark:bg-gray-800/50' : 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20'} ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${isPast && dt.some(t => t.status !== 'done') ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                <div className={`text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : !cur ? 'text-gray-300 dark:text-gray-600' : dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                  {date.getDate()}
+                </div>
+                {dt.length > 0 && (
+                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                    {dt.slice(0, 4).map(t => { const cat = catMap[t.categoryId]; return <div key={t.id} className="w-2 h-2 rounded-full opacity-80" style={{ backgroundColor: cat?.color || '#9CA3AF' }} title={t.title} />; })}
+                    {dt.length > 4 && <span className="text-gray-400 text-xs">+{dt.length - 4}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {selDate && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              {new Date(selDate + 'T00:00:00').toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+              {selTasks.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{selTasks.length}{t('calendar_count_unit')}</span>}
+            </h3>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onAddTask?.(selDate)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-medium rounded-lg transition-colors">
+                <Icons.Plus size={13} /> {t('calendar_add_task')}
+              </button>
+              <button onClick={() => setSelDate(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={15} /></button>
+            </div>
+          </div>
+          {selTasks.length > 0 ? (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {selTasks.map(task => {
+                const cat = catMap[task.categoryId];
+                const s = getDeadlineStatus(task.dueDate);
+                return (
+                  <button key={task.id} onClick={() => onEdit(task)} style={cat ? { borderLeft: `3px solid ${cat.color}` } : {}}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium text-gray-900 dark:text-white ${task.status === 'done' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
+                      {cat && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{cat.name}</p>}
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${task.status === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : s === 'overdue' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                      {statusLabel(task.status)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('calendar_no_tasks')}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==================== ReportView ====================
+
+// ==================== CompletedView ====================
+const CompletedView = ({ tasks, categories, onRestore, onDelete }) => {
+  const { t } = useLang();
+  const [groupBy, setGroupBy] = useState('parent'); // 'parent' | 'category'
+  const [collapsed, setCollapsed] = useState({});
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+  const taskMap = Object.fromEntries(tasks.map(t => [t.id, t]));
+
+  const doneTasks = tasks
+    .filter(t => t.status === 'done')
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const handleClearAll = () => {
+    if (window.confirm(`${t('completed_confirm_delete')}（${doneTasks.length}${t('completed_items_unit')}）`)) {
+      doneTasks.forEach(tt => onDelete(tt.id));
+    }
+  };
+
+  const toggleCollapse = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }));
+
+  // 親タスク別グループ
+  const groupByParent = () => {
+    const groups = {};
+    doneTasks.forEach(task => {
+      const parentId = task.parentId || '__root__';
+      if (!groups[parentId]) groups[parentId] = [];
+      groups[parentId].push(task);
+    });
+    return Object.entries(groups).map(([parentId, items]) => {
+      const parent = parentId !== '__root__' ? taskMap[parentId] : null;
+      return { key: parentId, label: parent ? parent.title : t('completed_no_parent'), parent, items };
+    }).sort((a, b) => {
+      if (a.key === '__root__') return 1;
+      if (b.key === '__root__') return -1;
+      return a.label.localeCompare(b.label, 'ja');
+    });
+  };
+
+  // カテゴリ別グループ
+  const groupByCategory = () => {
+    const groups = {};
+    doneTasks.forEach(task => {
+      const catId = task.categoryId || '__none__';
+      if (!groups[catId]) groups[catId] = [];
+      groups[catId].push(task);
+    });
+    return Object.entries(groups).map(([catId, items]) => {
+      const cat = catId !== '__none__' ? catMap[catId] : null;
+      return { key: catId, label: cat ? cat.name : t('completed_uncategorized'), cat, items };
+    });
+  };
+
+  const groups = groupBy === 'parent' ? groupByParent() : groupByCategory();
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
+      <div className="max-w-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Icons.CheckCircle size={22} className="text-green-500" /> {t('completed_title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{doneTasks.length}{t('completed_count_fmt')}</p>
+          </div>
+          {doneTasks.length > 0 && (
+            <button onClick={handleClearAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+              <Icons.Trash2 size={13} /> {t('completed_clear')}
+            </button>
+          )}
+        </div>
+
+        {/* Group by toggle */}
+        <div className="flex items-center gap-2 mb-5">
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t('completed_group_label')}</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            {[['parent', t('completed_by_parent')], ['category', t('completed_by_cat')]].map(([id, label]) => (
+              <button key={id} onClick={() => setGroupBy(id)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${groupBy === id ? 'bg-green-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Empty state */}
+        {doneTasks.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+            <Illust.CompletedBox size={88} />
+            <p className="text-sm font-medium text-[#41454d] dark:text-gray-300 mt-3">{t('completed_empty')}</p>
+          </div>
+        )}
+
+        {/* Grouped list */}
+        <div className="space-y-4">
+          {groups.map(({ key, label, cat, parent, items }) => (
+            <div key={key} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {/* Group header */}
+              <button onClick={() => toggleCollapse(key)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left">
+                <Icons.ChevronRight size={15} className={`text-gray-400 flex-shrink-0 transition-transform ${collapsed[key] ? '' : 'rotate-90'}`} />
+                {groupBy === 'parent' ? (
+                  <>
+                    <Icons.Layout size={15} className="text-blue-400 flex-shrink-0" />
+                    <span className="font-semibold text-sm text-gray-800 dark:text-gray-200 flex-1">{label}</span>
+                  </>
+                ) : (
+                  <>
+                    {cat ? <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} /> : <span className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0" />}
+                    <span className="font-semibold text-sm text-gray-800 dark:text-gray-200 flex-1">{label}</span>
+                  </>
+                )}
+                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">{items.length}{t('completed_items_unit')}</span>
+              </button>
+              {/* Tasks */}
+              {!collapsed[key] && (
+                <div className="border-t border-gray-100 dark:border-gray-700/50 divide-y divide-gray-100 dark:divide-gray-700/50">
+                  {items.map(task => (
+                    <CompletedTaskCard key={task.id} task={task}
+                      cat={catMap[task.categoryId]}
+                      parentTask={task.parentId ? taskMap[task.parentId] : null}
+                      groupBy={groupBy}
+                      onRestore={onRestore} onDelete={onDelete} t={t} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CompletedTaskCard = ({ task, cat, parentTask, groupBy, onRestore, onDelete, t }) => {
+  const { lang } = useLang();
+  const dateStr = task.updatedAt || task.createdAt
+    ? new Date(task.updatedAt || task.createdAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+      <Icons.CheckCircle size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-gray-500 dark:text-gray-400 line-through leading-snug">{task.title}</p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {cat && <span className="text-xs px-1.5 rounded-full text-white leading-5" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+          {groupBy === 'category' && parentTask && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+              📁 {parentTask.title}
+            </span>
+          )}
+          {dateStr && <span className="text-xs text-gray-400">{dateStr}</span>}
+          {task.estimatedMinutes && <span className="text-xs text-gray-400">⏱{task.estimatedMinutes}{t('est_min_suffix')}</span>}
+        </div>
+      </div>
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <button onClick={() => onRestore(task.id)} title={t('completed_restore')}
+          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+          <Icons.RefreshCw size={14} />
+        </button>
+        <button onClick={() => onDelete(task.id)} title={t('btn_delete')}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+          <Icons.Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ReportView = ({ tasks, categories }) => {
+  const { t, lang } = useLang();
+  const REPORT_RANGES = [
+    { id: 'week', label: t('report_this_week'), days: 7 },
+    { id: 'last_week', label: t('report_last_week'), days: 14, offset: 7 },
+    { id: 'month', label: t('report_this_month'), days: 30 },
+  ];
+  const [range, setRange] = useState('week');
+  const [report, setReport] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+
+  const getTargetTasks = () => {
+    const now = new Date();
+    const sel = REPORT_RANGES.find(r => r.id === range);
+    const end = new Date(now);
+    const start = new Date(now);
+    if (range === 'last_week') {
+      end.setDate(now.getDate() - sel.offset + sel.days);
+      start.setDate(now.getDate() - sel.offset);
+    } else {
+      start.setDate(now.getDate() - sel.days);
+    }
+    return tasks.filter(t => {
+      if (!t.createdAt && !t.dueDate) return false;
+      const d = new Date(t.createdAt || t.dueDate);
+      return d >= start && d <= end;
+    });
+  };
+
+  const generateReport = async () => {
+    setLoading(true); setError(''); setReport('');
+    try {
+      const target = getTargetTasks();
+      const done = target.filter(t => t.status === 'done');
+      const inProgress = target.filter(t => t.status === 'in_progress');
+      const todo = target.filter(t => t.status === 'todo');
+
+      const formatTask = (t) => {
+        const cat = catMap[t.categoryId];
+        return `- ${t.title}${cat ? ` [${cat.name}]` : ''}${t.estimatedMinutes ? ` (${t.estimatedMinutes}分)` : ''}`;
+      };
+
+      const sel = REPORT_RANGES.find(r => r.id === range);
+      const prompt = `あなたは優秀なタスク管理コーチです。以下の${sel.label}のタスクデータを元に、日本語で振り返りレポートを作成してください。
+
+【完了タスク (${done.length}件)】
+${done.length > 0 ? done.map(formatTask).join('\n') : 'なし'}
+
+【進行中タスク (${inProgress.length}件)】
+${inProgress.length > 0 ? inProgress.map(formatTask).join('\n') : 'なし'}
+
+【未着手タスク (${todo.length}件)】
+${todo.length > 0 ? todo.map(formatTask).join('\n') : 'なし'}
+
+以下のフォーマットで出力してください:
+
+## 📊 ${sel.label}のサマリー
+（全体の進捗を2〜3文で）
+
+## ✅ 成果・よかった点
+（具体的に箇条書き）
+
+## ⚠️ 課題・改善点
+（率直に箇条書き）
+
+## 🚀 次のアクション提案
+（具体的に3つ）
+
+## 💬 コーチからひとこと
+（励ましや気づきを1〜2文で）`;
+
+      const text = await callClaude(prompt, 1500);
+      setReport(text);
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const renderMarkdown = (text) => {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('## ')) return <h3 key={i} className="text-base font-bold text-gray-900 dark:text-white mt-5 mb-2 first:mt-0">{line.replace('## ', '')}</h3>;
+      if (line.startsWith('- ')) return <li key={i} className="text-sm text-gray-700 dark:text-gray-300 ml-4 mb-1 list-disc">{line.replace('- ', '')}</li>;
+      if (line.trim() === '') return <div key={i} className="h-1" />;
+      return <p key={i} className="text-sm text-gray-700 dark:text-gray-300 mb-1">{line}</p>;
+    });
+  };
+
+  const target = getTargetTasks();
+  const done = target.filter(t => t.status === 'done');
+  const hasAiKey = !!AI.key();
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
+      <div className="max-w-2xl">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Icons.Sparkles size={20} className="text-purple-500" /> {t('report_title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('report_desc')}</p>
+          </div>
+        </div>
+
+        {/* Period selector */}
+        <div className="flex gap-2 mb-5">
+          {REPORT_RANGES.map(r => (
+            <button key={r.id} onClick={() => { setRange(r.id); setReport(''); }}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${range === r.id ? 'bg-purple-600 text-white shadow-sm' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-purple-400'}`}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            { label: t('report_tasks'), value: target.length, color: 'text-blue-600 dark:text-blue-400' },
+            { label: t('report_done'), value: done.length, color: 'text-green-600 dark:text-green-400' },
+            { label: t('report_rate'), value: target.length > 0 ? `${Math.round(done.length / target.length * 100)}%` : '-', color: 'text-purple-600 dark:text-purple-400' },
+          ].map(s => (
+            <div key={s.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 text-center">
+              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {!hasAiKey && (
+          <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">⚠️ {lang === 'en' ? 'Gemini API key not set' : 'Gemini APIキーが未設定です'}</p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">{lang === 'en' ? 'Add your Gemini API key via the Cloud Sync settings at the bottom of the sidebar (free).' : 'サイドバー下部の「クラウド同期」設定からGemini APIキーを登録してください（無料）。'}</p>
+          </div>
+        )}
+
+        <button onClick={generateReport} disabled={loading || !hasAiKey}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors mb-5">
+          {loading ? <><Icons.RefreshCw size={16} className="animate-spin" /> {t('ai_loading')}</> : <><Icons.Sparkles size={16} /> {t('report_btn')}</>}
+        </button>
+
+        {error && <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">{error}</div>}
+
+        {report && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 animate-fade-in">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+              <Icons.FileText size={15} className="text-purple-500" />
+              <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                {REPORT_RANGES.find(r => r.id === range)?.label} {t('report_title')}
+              </span>
+              <span className="ml-auto text-xs text-gray-400">{new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'ja-JP')}</span>
+            </div>
+            <div>{renderMarkdown(report)}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== RecurringView ====================
+const RecurringView = ({ recurring, categories, onAdd, onUpdate, onDelete }) => {
+  const { t, lang } = useLang();
+  const DAYS = lang === 'en' ? DAYS_EN : DAYS_JP;
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ title: '', description: '', categoryId: categories[0]?.id || '', priority: 'medium', estimatedMinutes: '', days: [] });
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+
+  const resetForm = () => setForm({ title: '', description: '', categoryId: categories[0]?.id || '', priority: 'medium', estimatedMinutes: '', days: [] });
+
+  const openAdd = () => { resetForm(); setEditId(null); setShowForm(true); };
+  const openEdit = (rt) => {
+    setForm({ title: rt.title, description: rt.description || '', categoryId: rt.categoryId, priority: rt.priority, estimatedMinutes: rt.estimatedMinutes || '', days: [...rt.days] });
+    setEditId(rt.id);
+    setShowForm(true);
+  };
+
+  const handleSave = () => {
+    if (!form.title.trim() || form.days.length === 0) return;
+    const data = { title: form.title.trim(), description: form.description || undefined, categoryId: form.categoryId, priority: form.priority, estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : undefined, days: form.days };
+    if (editId) onUpdate(editId, data);
+    else onAdd(data);
+    setShowForm(false);
+  };
+
+  const toggleDay = (d) => setForm(f => ({ ...f, days: f.days.includes(d) ? f.days.filter(x => x !== d) : [...f.days, d].sort() }));
+
+  const ic = "w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const PRIORITY_LABELS = { high: t('priority_high'), medium: t('priority_medium'), low: t('priority_low') };
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4" data-scrollable="1">
+      <div className="flex items-center justify-between mb-6 max-w-2xl">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">🔁 {t('rec_page_title')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('rec_page_desc')}</p>
+        </div>
+        <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white rounded-lg text-sm font-medium transition-colors">
+          <Icons.Plus size={15} /> {t('rec_new')}
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="max-w-2xl mb-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 animate-fade-in">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{editId ? t('rec_edit_title') : t('rec_add_title')}</h3>
+          <div className="space-y-4">
+            {/* Title */}
+            <div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_title')}</div>
+              <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={t('rec_field_title_ph')} className={ic} />
+            </div>
+            {/* Days */}
+            <div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_days')}</div>
+              <div className="flex gap-2 flex-wrap">
+                {DAYS.map((d, i) => (
+                  <button key={i} type="button" onClick={() => toggleDay(i)}
+                    className={`w-10 h-10 rounded-xl text-sm font-bold transition-all border-2 ${
+                      form.days.includes(i)
+                        ? i === 0 ? 'bg-red-500 border-red-500 text-white' : i === 6 ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-800 dark:bg-white border-gray-800 dark:border-white text-white dark:text-gray-900'
+                        : i === 0 ? 'border-red-200 text-red-400 hover:border-red-400' : i === 6 ? 'border-blue-200 text-blue-400 hover:border-blue-400' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                    }`}>{d}</button>
+                ))}
+              </div>
+              {form.days.length === 0 && <p className="text-xs text-red-500 mt-1">{t('rec_days_required')}</p>}
+            </div>
+            {/* Category & Priority */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_cat')}</div>
+                <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))} className={ic}>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_pri')}</div>
+                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={ic}>
+                  {['high','medium','low'].map(p => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
+                </select>
+              </div>
+            </div>
+            {/* Estimated */}
+            <div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">{t('rec_field_est')}</div>
+              <input type="number" min={0} step={5} value={form.estimatedMinutes} onChange={e => setForm(f => ({ ...f, estimatedMinutes: e.target.value }))} placeholder="30" className={ic} />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{t('btn_cancel')}</button>
+            <button onClick={handleSave} disabled={!form.title.trim() || form.days.length === 0}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">
+              {editId ? t('btn_update') : t('btn_add')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="max-w-2xl space-y-3">
+        {recurring.length === 0 && !showForm && (
+          <div className="flex flex-col items-center justify-center py-16 text-[#41454d] dark:text-gray-300">
+            <Illust.Recurring size={96} />
+            <p className="text-base font-medium mt-4">{t('rec_empty')}</p>
+            <p className="text-sm mt-1 text-[#9297a0] dark:text-gray-500">{t('rec_empty_hint')}</p>
+          </div>
+        )}
+        {recurring.map(rt => {
+          const cat = catMap[rt.categoryId];
+          const priorityColor = rt.priority === 'high' ? 'text-[#aa2d00] dark:text-[#fb923c]' : rt.priority === 'medium' ? 'text-[#d9a441] dark:text-[#fbbf24]' : 'text-[#0a2e0e] dark:text-[#86efac]';
+          return (
+            <div key={rt.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4"
+              style={cat ? { borderLeft: `4px solid ${cat.color}` } : {}}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900 dark:text-white">{rt.title}</span>
+                    <Icons.Flag size={11} className={priorityColor} />
+                    {cat && <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: cat.color }}>{cat.name}</span>}
+                    {rt.estimatedMinutes && <span className="text-xs text-gray-500 dark:text-gray-400">⏱ {rt.estimatedMinutes}{t('rec_est_unit')}</span>}
+                  </div>
+                  {/* Day badges */}
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {DAYS.map((d, i) => (
+                      <span key={i} className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold ${
+                        rt.days.includes(i)
+                          ? i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                            : i === 6 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
+                            : 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-800'
+                          : 'bg-gray-100 text-gray-300 dark:bg-gray-700 dark:text-gray-600'
+                      }`}>{d}</span>
+                    ))}
+                  </div>
+                  {rt.lastAddedDate && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{t('rec_last_added')} {rt.lastAddedDate}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(rt)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Edit2 size={14} /></button>
+                  <button onClick={() => onDelete(rt.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Icons.Trash2 size={14} /></button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ==================== TermsModal ====================
+const TermsModal = ({ onClose }) => {
+  const [tab, setTab] = useState('terms');
+  const Section = ({ title, children }) => (
+    <div className="mb-6">
+      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">{title}</h3>
+      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2 leading-relaxed">{children}</div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">法的情報</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icons.X size={19} /></button>
+        </div>
+        <div className="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          {[['terms','利用規約'],['privacy','プライバシーポリシー'],['law','特商法表記']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${tab === id ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {tab === 'terms' ? (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">最終更新日：2026年5月　　本規約はTaskFlowのご利用条件を定めるものです。</p>
+              <Section title="第1条（サービスの概要）">
+                <p>TaskFlow（以下「本サービス」）は、とめいとDX（以下「運営者」）が提供する、個人のタスク管理を目的とした有料Webアプリケーションです。タスクの作成・管理・スケジュール設定・AI支援機能を提供します。</p>
+              </Section>
+              <Section title="第2条（ライセンス）">
+                <p>本サービスはGumroadを通じて販売される買い切り型のデジタル商品です。購入者には以下のライセンスが付与されます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>購入者本人による個人利用（端末数の制限なし）</li>
+                  <li>ライセンスキー1つにつき1ユーザー</li>
+                </ul>
+                <p className="mt-2">以下の行為は禁止されます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>ライセンスキーの第三者への譲渡・共有・転売</li>
+                  <li>本ソフトウェアの複製・再配布・リバースエンジニアリング</li>
+                  <li>本ソフトウェアの改変物の商用販売</li>
+                </ul>
+              </Section>
+              <Section title="第3条（返金ポリシー）">
+                <p>デジタルコンテンツの性質上、購入後の返金は原則としてお受けできません。ただし、以下の場合には返金に応じます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>購入後7日以内に、重大な不具合が確認され、修正の見込みがない場合</li>
+                  <li>商品説明と著しく異なる場合</li>
+                </ul>
+                <p className="mt-2">返金のご請求は tomeitodx@gmail.com までご連絡ください。</p>
+              </Section>
+              <Section title="第4条（APIキーの取り扱い）">
+                <p>本サービスでは、以下のサードパーティAPIキーをご利用の端末に保存する場合があります：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>Google Gemini API キー（AI機能・任意・無料）</li>
+                  <li>JSONBin.io API キー（クラウド同期・任意・無料）</li>
+                </ul>
+                <p className="mt-2">これらのキーはお客様自身のブラウザ（localStorage）にのみ保存されます。運営者がキーを収集・閲覧することはありません。APIキーの管理はお客様自身の責任において行ってください。</p>
+              </Section>
+              <Section title="第5条（免責事項）">
+                <p>本サービスは現状有姿（as-is）で提供されます。運営者は以下について一切責任を負いません：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>データの消失・破損（定期的なバックアップを推奨します）</li>
+                  <li>サービスの中断・停止</li>
+                  <li>AIの生成内容の正確性</li>
+                  <li>サードパーティサービス（Google・JSONBin・Gumroad）の障害</li>
+                  <li>本サービスの利用により生じた損害</li>
+                </ul>
+              </Section>
+              <Section title="第6条（アップデート）">
+                <p>購入者は、購入時点のバージョンのソフトウェアを永続的に利用できます。将来のアップデートの提供は運営者の裁量によるものであり、保証するものではありません。</p>
+              </Section>
+              <Section title="第7条（規約の変更）">
+                <p>本規約は予告なく変更される場合があります。重要な変更がある場合はサービス上でお知らせします。</p>
+              </Section>
+              <Section title="第8条（準拠法・管轄裁判所）">
+                <p>本規約の解釈には日本法を準拠法とし、紛争が生じた場合は運営者所在地を管轄する裁判所を専属的合意管轄とします。</p>
+              </Section>
+            </>
+          ) : tab === 'privacy' ? (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">最終更新日：2026年5月　　本ポリシーはTaskFlowにおける個人情報の取り扱いを定めるものです。</p>
+              <Section title="運営者情報">
+                <p>運営者：とめいとDX<br />連絡先：tomeitodx@gmail.com</p>
+              </Section>
+              <Section title="収集する情報">
+                <p>本サービスは、以下の情報をお客様の端末内（localStorage）にのみ保存します：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>タスク・カテゴリ・定期タスクのデータ</li>
+                  <li>表示設定（ダークモード・言語等）</li>
+                  <li>APIキー（Gemini・JSONBin）</li>
+                  <li>ライセンスキー（Gumroad）</li>
+                </ul>
+                <p className="mt-2 font-medium text-gray-700 dark:text-gray-300">これらの情報は運営者のサーバーへは送信されません。</p>
+              </Section>
+              <Section title="ライセンス検証時の通信">
+                <p>ライセンスキーの検証時に、以下のデータがGumroad社（米国）のAPIに送信されます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li>ライセンスキー</li>
+                  <li>商品ID</li>
+                </ul>
+                <p className="mt-2">検証は初回起動時および定期的（7日ごと）に行われます。Gumroadのプライバシーポリシーは <a href="https://gumroad.com/privacy" target="_blank" className="text-blue-500 hover:underline">こちら</a> をご確認ください。</p>
+              </Section>
+              <Section title="サードパーティサービスへのデータ送信">
+                <p>以下の機能をご利用の場合、データが外部サービスに送信されます：</p>
+                <ul className="list-disc list-inside space-y-1 mt-1">
+                  <li><strong>クラウド同期（任意）：</strong>タスクデータがJSONBin.io（米国）に送信されます</li>
+                  <li><strong>AI機能（任意）：</strong>タスクのタイトル・説明がGoogle Gemini API（米国）に送信されます</li>
+                </ul>
+                <p className="mt-2">これらの機能はいずれも任意であり、使用しない場合はデータは端末外に出ません。</p>
+              </Section>
+              <Section title="Cookieおよびトラッキング">
+                <p>本サービスはCookieやトラッキング技術を使用しません。広告・解析ツールも一切導入していません。</p>
+              </Section>
+              <Section title="データの削除">
+                <p>ブラウザの設定から「サイトデータを削除」することで、本サービスのすべてのデータを削除できます。クラウド同期データはJSONBin.ioのダッシュボードから削除してください。</p>
+              </Section>
+              <Section title="お問い合わせ">
+                <p>個人情報の取り扱いに関するお問い合わせは以下までご連絡ください。<br /><strong>運営者：とめいとDX</strong><br /><strong>メール：tomeitodx@gmail.com</strong></p>
+              </Section>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">特定商取引法に基づく表記</p>
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {[
+                  ['販売業者', 'とめいとDX'],
+                  ['運営責任者', 'とめいとDX 代表'],
+                  ['所在地', 'お問い合わせいただいた場合に遅滞なく開示します'],
+                  ['電話番号', 'お問い合わせいただいた場合に遅滞なく開示します'],
+                  ['メールアドレス', 'tomeitodx@gmail.com'],
+                  ['販売URL', 'Gumroad商品ページ'],
+                  ['販売価格', '商品ページに表示する金額（税込）'],
+                  ['商品代金以外の費用', 'インターネット接続料金等はお客様のご負担となります'],
+                  ['支払方法', 'Gumroadが提供する決済手段（クレジットカード等）'],
+                  ['支払時期', '購入時に即時決済'],
+                  ['商品の引渡し時期', '決済完了後、即時ダウンロード可能'],
+                  ['返品・返金', 'デジタル商品の性質上、原則不可。重大な不具合がある場合は購入後7日以内にご連絡ください'],
+                  ['動作環境', 'モダンブラウザ（Chrome / Safari / Firefox / Edge 最新版）、インターネット接続環境'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex py-3 gap-3">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-32 flex-shrink-0">{label}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">制定日：2026年5月</p>
+            </>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-[#181d26] hover:bg-[#0d1218] text-white text-sm font-medium transition-colors">閉じる</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== CatDndList ====================
+const CatDndList = ({ categories, tasks, activeCatFilter, onCategoryFilter, onViewChange, onMobileClose, onReorderCategory }) => {
+  const dragIdx = useRef(null);
+  const [overIdx, setOverIdx] = useState(null);
+
+  const handleDragStart = (e, idx) => {
+    dragIdx.current = idx;
+    e.dataTransfer.effectAllowed = 'move';
+    // 透明なゴースト画像（デフォルトを非表示にしない）
+    e.dataTransfer.setData('text/plain', idx);
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (idx !== dragIdx.current) setOverIdx(idx);
+  };
+
+  const handleDrop = (e, idx) => {
+    e.preventDefault();
+    const from = dragIdx.current;
+    if (from == null || from === idx) { setOverIdx(null); return; }
+    // fromをidxの位置に移動
+    const next = [...categories];
+    const [moved] = next.splice(from, 1);
+    next.splice(idx, 0, moved);
+    onReorderCategory?.(null, null, next); // 配列ごと渡す
+    dragIdx.current = null;
+    setOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIdx.current = null;
+    setOverIdx(null);
+  };
+
+  return (
+    <>
+      {categories.map((cat, idx) => {
+        const count = tasks.filter(t => t.categoryId === cat.id && t.status !== 'done').length;
+        const isActive = activeCatFilter === cat.id;
+        const isOver = overIdx === idx;
+        const isDragging = dragIdx.current === idx;
+        return (
+          <div key={cat.id}
+            draggable
+            onDragStart={e => handleDragStart(e, idx)}
+            onDragOver={e => handleDragOver(e, idx)}
+            onDrop={e => handleDrop(e, idx)}
+            onDragEnd={handleDragEnd}
+            className={`group relative flex items-center rounded-xl transition-all cursor-grab active:cursor-grabbing
+              ${isOver && dragIdx.current !== idx ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-gray-950' : ''}
+              ${isDragging ? 'opacity-40' : 'opacity-100'}`}>
+            {/* ドラッグハンドル */}
+            <span className="pl-2 py-3 text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing">
+              <Icons.GripVertical size={13} />
+            </span>
+            <button onClick={() => { onCategoryFilter(cat.id); onViewChange('tasks'); onMobileClose(); }}
+              className={`flex-1 flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              <span className="w-[17px] h-[17px] rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+              <span className="flex-1 text-left truncate">{cat.name}</span>
+              {count > 0 && <span className="text-xs text-gray-500">{count}</span>}
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
+// ==================== MobileBottomNav ====================
+const MobileBottomNav = ({ view, onViewChange, tasks, onMenuOpen }) => {
+  const { t } = useLang();
+  const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
+  const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
+  const navItems = [
+    { id: 'tasks',    Icon: Icons.Layout,        label: t('nav_tasks') },
+    { id: 'today',    Icon: Icons.Sun,            label: t('nav_today'),    badge: todayCount },
+    { id: 'deadline', Icon: Icons.AlertTriangle,  label: t('nav_deadline'), badge: urgentCount, red: true },
+    { id: 'calendar', Icon: Icons.Calendar,       label: t('nav_calendar') },
+    { id: 'menu',     Icon: Icons.Menu,           label: 'Menu' },
+  ];
+  return (
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex safe-bottom"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {navItems.map(item => {
+        const isActive = item.id !== 'menu' && view === item.id;
+        return (
+          <button key={item.id}
+            onClick={() => item.id === 'menu' ? onMenuOpen() : onViewChange(item.id)}
+            className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative
+              ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 active:text-gray-600'}`}>
+            <div className="relative">
+              <item.Icon size={22} />
+              {item.badge > 0 && (
+                <span className={`absolute -top-1 -right-1.5 text-xs min-w-[16px] h-4 px-0.5 rounded-full font-bold flex items-center justify-center text-white
+                  ${item.red ? 'bg-red-500' : 'bg-blue-500'}`}>
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-medium leading-none">{item.label}</span>
+            {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+// ==================== Sidebar ====================
+const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus, onTermsClick, onReorderCategory }) => {
+  const { lang, t, setLang } = useLang();
+  const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
+  const urgentCount = tasks.filter(t => { const s = getDeadlineStatus(t.dueDate); return t.status !== 'done' && (s === 'overdue' || s === 'today'); }).length;
+  const doneCount = tasks.filter(t => t.status === 'done').length;
+  const navItems = [
+    { id: 'tasks', label: t('nav_tasks'), Icon: Icons.Layout },
+    { id: 'today', label: t('nav_today'), Icon: Icons.Sun, badge: todayCount },
+    { id: 'completed', label: t('nav_completed'), Icon: Icons.CheckCircle, badge: doneCount, green: true },
+    { id: 'deadline', label: t('nav_deadline'), Icon: Icons.AlertTriangle, badge: urgentCount, red: true },
+    { id: 'calendar', label: t('nav_calendar'), Icon: Icons.Calendar },
+    { id: 'recurring', label: t('nav_recurring'), Icon: Icons.Repeat },
+    { id: 'report', label: t('nav_report'), Icon: Icons.Sparkles },
+    { id: 'categories', label: t('nav_categories'), Icon: Icons.Tags },
+  ];
+
+  const Content = () => (
+    <div className="flex flex-col h-full bg-gray-950 text-white">
+      <div className="flex items-center justify-between px-5 py-5 border-b border-gray-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-lg font-bold select-none">T</div>
+          <span className="font-bold text-lg tracking-tight text-white">TaskFlow</span>
+        </div>
+        <button onClick={onMobileClose} className="lg:hidden text-gray-400 hover:text-white transition-colors"><Icons.X size={19} /></button>
+      </div>
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {navItems.map(item => {
+          const isActive = view === item.id;
+          return (
+            <button key={item.id} onClick={() => { onViewChange(item.id); onMobileClose(); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              <item.Icon size={17} />
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.badge > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${item.red ? 'bg-red-500 text-white' : item.green ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>{item.badge}</span>}
+            </button>
+          );
+        })}
+        <div className="mt-3 mb-1 border-t border-gray-800" />
+        <button onClick={() => onCategoryFilter('')}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+          <span className="w-[17px] h-[17px] rounded-full bg-gray-500 flex-shrink-0" />
+          <span className="flex-1 text-left">{t('sidebar_all')}</span>
+          <span className="text-xs text-gray-500">{tasks.filter(t => t.status !== 'done').length}</span>
+        </button>
+        <CatDndList categories={categories} tasks={tasks} activeCatFilter={activeCatFilter}
+          onCategoryFilter={onCategoryFilter} onViewChange={onViewChange} onMobileClose={onMobileClose}
+          onReorderCategory={onReorderCategory} />
+      </nav>
+      <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        {/* Language switcher */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Icons.FileText size={17} className="text-gray-400 flex-shrink-0" />
+          <span className="text-sm text-gray-400 flex-1">{t('language')}</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-700">
+            {['ja','en'].map(l => (
+              <button key={l} onClick={() => setLang(l)}
+                className={`px-2.5 py-1 text-xs font-bold transition-colors ${lang === l ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+                {l === 'ja' ? '日本語' : 'EN'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Cloud sync */}
+        <button onClick={onSyncClick}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+            syncStatus === 'synced' ? 'text-green-400 hover:text-green-300 hover:bg-gray-800'
+            : syncStatus === 'syncing' ? 'text-blue-400 hover:bg-gray-800'
+            : syncStatus === 'error' ? 'text-red-400 hover:bg-gray-800'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          }`}>
+          {syncStatus === 'synced' ? <Icons.Cloud size={17} />
+            : syncStatus === 'syncing' ? <Icons.RefreshCw size={17} className="animate-spin" />
+            : syncStatus === 'error' ? <Icons.CloudOff size={17} />
+            : <Icons.Cloud size={17} />}
+          <span className="flex-1 text-left">
+            {syncStatus === 'synced' ? t('sync_synced') : syncStatus === 'syncing' ? t('sync_ing') : syncStatus === 'error' ? t('sync_error') : t('sync_none')}
+          </span>
+          {!JB.key() && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">{t('sync_not_configured')}</span>}
+        </button>
+        <button onClick={onToggleDark} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all">
+          {darkMode ? <Icons.Sun size={17} /> : <Icons.Moon size={17} />}
+          <span>{darkMode ? t('light_mode') : t('dark_mode')}</span>
+        </button>
+        <div className="flex gap-1.5 pt-1">
+          <button onClick={onExport} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600">
+            <Icons.Download size={14} /><span>{t('export')}</span>
+          </button>
+          <label className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-all border border-gray-700 hover:border-gray-600 cursor-pointer">
+            <Icons.Upload size={14} /><span>{t('import')}</span>
+            <input type="file" accept=".json" className="hidden" onChange={onImport} />
+          </label>
+        </div>
+        <button onClick={onTermsClick} className="w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors pt-1">
+          {t('terms')}
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="hidden lg:flex w-60 flex-shrink-0 h-full"><Content /></div>
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
+          <div className="relative w-64 h-full"><Content /></div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ==================== App ====================
+// ==================== License Verification (Gumroad) ====================
+const LICENSE_STORAGE_KEY = 'tf_license';
+const LICENSE_VERIFIED_AT = 'tf_license_verified';
+const REVERIFY_DAYS = 7;
+
+const LICENSE_CONFIG = {
+  productId: '', // Gumroad product permalink — set before release
+};
+
+const verifyLicense = async (key) => {
+  const res = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      product_id: LICENSE_CONFIG.productId,
+      license_key: key.trim(),
+      increment_uses_count: 'false',
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.message || 'Invalid license');
+  return data;
+};
+
+const getSavedLicense = () => {
+  try {
+    const raw = localStorage.getItem(LICENSE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+
+const saveLicense = (key, data) => {
+  localStorage.setItem(LICENSE_STORAGE_KEY, JSON.stringify({ key, email: data.purchase?.email, at: new Date().toISOString() }));
+  localStorage.setItem(LICENSE_VERIFIED_AT, new Date().toISOString());
+};
+
+const needsReverify = () => {
+  const last = localStorage.getItem(LICENSE_VERIFIED_AT);
+  if (!last) return true;
+  const diff = (Date.now() - new Date(last).getTime()) / 86400000;
+  return diff > REVERIFY_DAYS;
+};
+
+const LicenseGate = ({ children }) => {
+  const [status, setStatus] = useState('checking'); // checking | input | verified | error
+  const [key, setKey] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Skip license check if productId not configured (dev mode)
+    if (!LICENSE_CONFIG.productId) { setStatus('verified'); return; }
+
+    const saved = getSavedLicense();
+    if (!saved) { setStatus('input'); return; }
+
+    if (needsReverify()) {
+      verifyLicense(saved.key)
+        .then(data => { saveLicense(saved.key, data); setStatus('verified'); })
+        .catch(() => { setStatus('verified'); }); // offline grace
+    } else {
+      setStatus('verified');
+    }
+  }, []);
+
+  const handleVerify = async () => {
+    if (!key.trim()) return;
+    setLoading(true); setError('');
+    try {
+      const data = await verifyLicense(key);
+      saveLicense(key, data);
+      setStatus('verified');
+    } catch (e) {
+      setError(e.message || 'ライセンスの検証に失敗しました');
+    }
+    setLoading(false);
+  };
+
+  if (status === 'checking') {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-950">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (status === 'verified') return children;
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-950 px-4">
+      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-lg font-bold text-white">T</div>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">TaskFlow</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">ライセンスキーを入力してください</p>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">License Key</label>
+          <input
+            type="text"
+            value={key}
+            onChange={e => { setKey(e.target.value); setError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleVerify()}
+            placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX"
+            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            autoFocus
+          />
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <button
+          onClick={handleVerify}
+          disabled={!key.trim() || loading}
+          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 検証中...</>
+          ) : 'アクティベート'}
+        </button>
+
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Gumroadで購入時に届いたライセンスキーを入力してください
+          </p>
+          <a href="https://gumroad.com" target="_blank" rel="noopener noreferrer"
+            className="inline-block text-xs text-blue-500 hover:text-blue-600 hover:underline">
+            購入はこちら →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
+  const [darkMode, setDarkMode] = useState(() => {
+    const s = localStorage.getItem('tf_dark');
+    return s ? s === 'true' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  const [view, setView] = useState('tasks');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [panel, setPanel] = useState(null);
+  const [catFilter, setCatFilter] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  // Categories state
+  const [categories, setCategories] = useState(() => STORAGE.cats());
+  const [flatTasks, setFlatTasks] = useState(() => STORAGE.tasks());
+  const [recurring, setRecurring] = useState(() => loadRecurring());
+  const [syncStatus, setSyncStatus] = useState(() => (JB.key() && JB.binId()) || SB_CONFIG.enabled() ? 'idle' : 'none');
+  const [lastSynced, setLastSynced] = useState(() => SB_CONFIG.lastSynced() || JB.lastSynced());
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [sbUser, setSbUser] = useState(null);
+  const [showTerms, setShowTerms] = useState(false);
+  const [lang, setLangState] = useState(() => localStorage.getItem('tf_lang') || 'ja');
+  const setLang = (l) => { localStorage.setItem('tf_lang', l); setLangState(l); };
+  const t = (key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['ja'][key] ?? key;
+  const syncTimer = useRef(null);
+  const [initCloudDone, setInitCloudDone] = useState(false);
+
+  // PWA: Service Worker登録
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+    // インストールプロンプトをキャプチャ
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      // 初回訪問から3秒後に表示（UXに配慮）
+      setTimeout(() => setShowInstallBanner(true), 3000);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    // インストール完了時に非表示
+    window.addEventListener('appinstalled', () => {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+    });
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('tf_dark', String(darkMode));
+  }, [darkMode]);
+
+  // Supabase: 認証状態監視
+  useEffect(() => {
+    if (!SB_CONFIG.enabled()) return;
+    const sb = getSbClient();
+    if (!sb) return;
+    sb.auth.getUser().then(({ data: { user } }) => { if (user) setSbUser(user); });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+      setSbUser(session?.user || null);
+    });
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  // 起動時にクラウドからロード（完了するまでアップロード禁止）
+  useEffect(() => {
+    const loadFromCloud = async () => {
+      // Supabase優先
+      if (SB_CONFIG.enabled()) {
+        try {
+          const sb = getSbClient();
+          const { data: { user } } = await sb.auth.getUser();
+          if (user) {
+            setSyncStatus('syncing');
+            const data = await sbLoad();
+            if (data) {
+              const cloudAt = data.updated_at || '';
+              const localAt = SB_CONFIG.lastSynced() || '';
+              if (cloudAt > localAt) {
+                if (data.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+                if (data.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+                if (data.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+                SB_CONFIG.saveSynced(); setLastSynced(new Date().toISOString());
+              }
+            }
+            setSyncStatus('synced');
+            setInitCloudDone(true);
+            return;
+          }
+        } catch (e) { console.error('Supabase load error:', e); }
+      }
+
+      // JSONBin fallback
+      if (!JB.key() || !JB.binId()) { setInitCloudDone(true); return; }
+      setSyncStatus('syncing');
+      try {
+        const data = await jbLoad(JB.key(), JB.binId());
+        const cloudSyncedAt = data?.syncedAt || '';
+        const localSyncedAt = JB.lastSynced() || '';
+        if (cloudSyncedAt > localSyncedAt) {
+          if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+          if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+          if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+          JB.saveSynced(); setLastSynced(new Date().toISOString());
+        }
+        setSyncStatus('synced');
+      } catch { setSyncStatus('error'); }
+      setInitCloudDone(true);
+    };
+    loadFromCloud();
+  }, [sbUser]);
+
+  // データ変更時に自動同期（3秒デバウンス）
+  useEffect(() => {
+    if ((!JB.key() && !SB_CONFIG.enabled()) || !initCloudDone) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => doSync(), 3000);
+    return () => clearTimeout(syncTimer.current);
+  }, [flatTasks, categories, recurring, initCloudDone]);
+
+  const doSync = async (tasksArg, catsArg, recArg) => {
+    const data = {
+      tasks: tasksArg ?? flatTasks,
+      categories: catsArg ?? categories,
+      recurring: recArg ?? recurring,
+    };
+    setSyncStatus('syncing');
+
+    // Supabase sync (優先)
+    if (SB_CONFIG.enabled() && sbUser) {
+      try {
+        await sbSave(data);
+        SB_CONFIG.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+        return;
+      } catch (e) { console.error('Supabase sync error:', e); }
+    }
+
+    // JSONBin fallback
+    const key = JB.key();
+    if (!key) { setSyncStatus(SB_CONFIG.enabled() ? 'error' : 'none'); return; }
+    try {
+      const payload = { version: 1, syncedAt: new Date().toISOString(), ...data };
+      const newId = await jbSave(key, JB.binId(), payload);
+      if (newId !== JB.binId()) { JB.saveBinId(newId); }
+      JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+    } catch (e) { console.error(e); setSyncStatus('error'); }
+  };
+
+  // クラウド読み込み完了後に定期タスクを自動追加
+  // （initCloudDone が true になってから実行することで、クラウドデータへの上書きを防ぐ）
+  useEffect(() => {
+    if (!initCloudDone) return;
+    const currentRecurring = JSON.parse(localStorage.getItem('tf_recurring') || '[]');
+    if (currentRecurring.length === 0) return;
+    const current = STORAGE.tasks();
+    const { newTasks, updatedRecurring, removeIds } = applyRecurringTasks(current, currentRecurring);
+    if (newTasks.length > 0 || removeIds.size > 0) {
+      // 前日以前の未完了定期タスクを除去し、今日分を追加
+      const merged = [...current.filter(t => !removeIds.has(t.id)), ...newTasks];
+      setFlatTasks(merged);
+      STORAGE.saveTasks(merged);
+    }
+    setRecurring(updatedRecurring);
+    saveRecurring(updatedRecurring);
+  }, [initCloudDone]); // eslint-disable-line
+
+  const persistTasks = (tasks) => { setFlatTasks(tasks); STORAGE.saveTasks(tasks); };
+  const persistCats = (cats) => { setCategories(cats); STORAGE.saveCats(cats); };
+  const persistRecurring = (r) => { setRecurring(r); saveRecurring(r); };
+
+  const reorderCategory = (id, direction, newArray) => {
+    if (newArray) { persistCats(newArray); return; } // DnD: 配列ごと渡される
+    const idx = categories.findIndex(c => c.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= categories.length) return;
+    const next = [...categories];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    persistCats(next);
+  };
+
+  const handleSyncSettingsSaved = async (key, id) => {
+    if (!key) { setSyncStatus('none'); return; }
+    if (id) {
+      // BIN IDがある場合：まずクラウドからダウンロード（古いローカルデータで上書き防止）
+      setSyncStatus('syncing');
+      try {
+        const data = await jbLoad(key, id);
+        if (data?.tasks) { setFlatTasks(data.tasks); STORAGE.saveTasks(data.tasks); }
+        if (data?.categories) { setCategories(data.categories); STORAGE.saveCats(data.categories); }
+        if (data?.recurring) { setRecurring(data.recurring); saveRecurring(data.recurring); }
+        JB.saveSynced(); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+        setInitCloudDone(true);
+      } catch(e) { console.error(e); setSyncStatus('error'); setInitCloudDone(true); }
+    } else {
+      // BIN IDがない場合：新規作成（ローカルデータをアップロード）
+      setInitCloudDone(true);
+      doSync();
+      setSyncStatus('idle');
+    }
+  };
+
+  const addRecurring = (data) => persistRecurring([...recurring, { id: generateId('rec'), ...data, lastAddedDate: null }]);
+  const updateRecurring = (id, data) => persistRecurring(recurring.map(r => r.id === id ? { ...r, ...data } : r));
+  const deleteRecurring = (id) => persistRecurring(recurring.filter(r => r.id !== id));
+
+  const addCategory = (name, color) => {
+    const id = generateId('cat');
+    persistCats([...categories, { id, name, color }]);
+  };
+  const updateCategory = (id, updates) => persistCats(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+  const deleteCategory = (id) => persistCats(categories.filter(c => c.id !== id));
+
+  const addTask = (data) => {
+    const siblings = flatTasks.filter(t => t.parentId === data.parentId);
+    const maxOrder = siblings.length ? Math.max(...siblings.map(t => t.order)) : -1;
+    const newTask = { id: generateId('task'), ...data, order: maxOrder + 1, createdAt: new Date().toISOString() };
+    persistTasks([...flatTasks, newTask]);
+    return newTask.id;
+  };
+
+  const updateTask = (id, updates) => persistTasks(flatTasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t));
+
+  const deleteTask = (id) => {
+    const toDelete = new Set();
+    const collect = (tid) => { toDelete.add(tid); flatTasks.filter(t => t.parentId === tid).forEach(c => collect(c.id)); };
+    collect(id);
+    persistTasks(flatTasks.filter(t => !toDelete.has(t.id)));
+  };
+
+  // DnD: 兄弟タスクをドロップ先の位置に移動（order を連番で再割り当て）
+  const reorderTaskDrop = (fromId, toId) => {
+    const fromTask = flatTasks.find(t => t.id === fromId);
+    const toTask = flatTasks.find(t => t.id === toId);
+    if (!fromTask || !toTask || fromTask.parentId !== toTask.parentId) return;
+    const siblings = flatTasks.filter(t => t.parentId === fromTask.parentId).sort((a, b) => a.order - b.order);
+    const fromIdx = siblings.findIndex(t => t.id === fromId);
+    const toIdx = siblings.findIndex(t => t.id === toId);
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const orderMap = new Map(reordered.map((t, i) => [t.id, i]));
+    persistTasks(flatTasks.map(t => orderMap.has(t.id) ? { ...t, order: orderMap.get(t.id) } : t));
+  };
+
+  // DnD: Today タスクをドロップ先の位置に移動（todayOrder を連番で再割り当て）
+  const reorderTodayTaskDrop = (fromId, toId) => {
+    const sorted = [...flatTasks].filter(t => t.isTodayTask).sort((a, b) => (a.todayOrder ?? 9999) - (b.todayOrder ?? 9999));
+    const fromIdx = sorted.findIndex(t => t.id === fromId);
+    const toIdx = sorted.findIndex(t => t.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const reordered = [...sorted];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const orderMap = new Map(reordered.map((t, i) => [t.id, i]));
+    persistTasks(flatTasks.map(t => orderMap.has(t.id) ? { ...t, todayOrder: orderMap.get(t.id) } : t));
+  };
+
+  const handleTodayToggle = (id, value) => {
+    if (value) {
+      const maxOrder = Math.max(-1, ...flatTasks.filter(t => t.isTodayTask && t.todayOrder != null).map(t => t.todayOrder));
+      updateTask(id, { isTodayTask: true, todayOrder: maxOrder + 1, todayDate: getTodayString() });
+    } else {
+      updateTask(id, { isTodayTask: false, todayDate: null });
+    }
+  };
+
+  const tasks = useMemo(() => buildTree(flatTasks), [flatTasks]);
+  const todayTasks = useMemo(() =>
+    [...flatTasks].filter(t => t.isTodayTask && t.status !== 'done')
+      .sort((a, b) => (a.todayOrder ?? 9999) - (b.todayOrder ?? 9999)),
+    [flatTasks]);
+
+  const filteredTasks = useMemo(() => {
+    if (!catFilter) return tasks;
+    const filter = (list) => list.map(t => ({ ...t, children: filter(t.children || []) })).filter(t => t.categoryId === catFilter || (t.children && t.children.length > 0));
+    return filter(tasks);
+  }, [tasks, catFilter]);
+
+  const taskCountByCat = useMemo(() => Object.fromEntries(categories.map(c => [c.id, flatTasks.filter(t => t.categoryId === c.id).length])), [categories, flatTasks]);
+
+  const openAdd = (parentId, opts = {}) => {
+    const parent = parentId ? flatTasks.find(t => t.id === parentId) : undefined;
+    setPanel({ parentId, defaultCategoryId: opts.defaultCategoryId ?? parent?.categoryId, defaultDueDate: opts.defaultDueDate });
+  };
+  const openEdit = (task) => setPanel({ task });
+  const closePanel = () => setPanel(null);
+
+  const handleSave = (data, aiSubtasks) => {
+    let taskId;
+    if (panel?.task) { updateTask(panel.task.id, data); taskId = panel.task.id; }
+    else { taskId = addTask({ ...data, parentId: panel?.parentId }); }
+    if (aiSubtasks?.length > 0) {
+      const current = JSON.parse(localStorage.getItem('tf_tasks') || '[]');
+      const children = current.filter(t => t.parentId === taskId);
+      const maxOrd = children.length ? Math.max(...children.map(t => t.order)) : -1;
+      const newSubs = aiSubtasks.map((s, i) => ({ id: generateId('task'), ...s, parentId: taskId, order: maxOrd + 1 + i, createdAt: new Date().toISOString() }));
+      persistTasks([...current, ...newSubs]);
+    }
+    closePanel();
+  };
+
+  const parentTask = panel?.parentId ? flatTasks.find(t => t.id === panel.parentId) : undefined;
+
+  const handleExport = () => {
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tasks: flatTasks,
+      categories,
+      recurring,
+      settings: STORAGE.settings(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `taskflow-backup-${getTodayString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.tasks || !data.categories) { alert(lang === 'en' ? 'Invalid file. Please select a TaskFlow backup JSON.' : '無効なファイルです。TaskFlowのバックアップJSONを選択してください。'); return; }
+        if (!window.confirm(lang === 'en' ? `Import will overwrite current data.\nTasks: ${data.tasks.length} / Categories: ${data.categories.length}\nContinue?` : `インポートすると現在のデータが上書きされます。\nタスク: ${data.tasks.length}件 / カテゴリ: ${data.categories.length}件\n続けますか？`)) return;
+        persistTasks(data.tasks);
+        persistCats(data.categories);
+        if (data.recurring) persistRecurring(data.recurring);
+        if (data.settings) STORAGE.saveSettings(data.settings);
+        alert(lang === 'en' ? 'Import complete!' : 'インポートが完了しました！');
+      } catch { alert(lang === 'en' ? 'Failed to read file.' : 'ファイルの読み込みに失敗しました。'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  return (
+    <LangContext.Provider value={{ lang, t, setLang }}>
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
+      <Sidebar view={view} onViewChange={setView} categories={categories} tasks={flatTasks}
+        darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)}
+        mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}
+        onCategoryFilter={setCatFilter} activeCatFilter={catFilter}
+        onExport={handleExport} onImport={handleImport}
+        onSyncClick={() => setShowSyncModal(true)} syncStatus={syncStatus}
+        onTermsClick={() => setShowTerms(true)}
+        onReorderCategory={reorderCategory} />
+
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Mobile topbar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.Menu size={19} /></button>
+          <span className="font-bold text-gray-900 dark:text-white flex-1">TaskFlow</span>
+          <button onClick={() => openAdd()} className="p-2 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Icons.Plus size={20} /></button>
+        </div>
+
+        <AlertBanner tasks={flatTasks} categories={categories} onTaskClick={id => { const t = flatTasks.find(x => x.id === id); if (t) openEdit(t); }} />
+
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {view === 'tasks' && (
+            <TaskTree tasks={filteredTasks} flatTasks={flatTasks} categories={categories}
+              onEdit={openEdit} onDelete={deleteTask} onAddTask={openAdd}
+              onStatusChange={(id, s) => updateTask(id, { status: s })}
+              onTodayToggle={handleTodayToggle}
+              onReorderDrop={reorderTaskDrop} />
+          )}
+          {view === 'today' && (
+            <TodayView todayTasks={todayTasks} allTasks={flatTasks} categories={categories}
+              onStatusChange={(id, s) => updateTask(id, { status: s })} onAddTask={() => openAdd()}
+              onReorderTodayDrop={reorderTodayTaskDrop}
+              onRemoveToday={(id) => updateTask(id, { isTodayTask: false, scheduledTime: undefined })}
+              onUpdateSchedule={(id, scheduledTime) => updateTask(id, { scheduledTime })} />
+          )}
+          {view === 'deadline' && (
+            <DeadlineView tasks={flatTasks} categories={categories} onEdit={openEdit}
+              onStatusChange={(id, s) => updateTask(id, { status: s })} />
+          )}
+          {view === 'calendar' && (
+            <CalendarView tasks={flatTasks} categories={categories} onEdit={openEdit}
+              onAddTask={(date) => openAdd(null, { defaultDueDate: date })} />
+          )}
+          {view === 'completed' && (
+            <CompletedView tasks={flatTasks} categories={categories}
+              onRestore={(id) => updateTask(id, { status: 'todo', isTodayTask: false })}
+              onDelete={deleteTask} />
+          )}
+          {view === 'report' && (
+            <ReportView tasks={flatTasks} categories={categories} />
+          )}
+          {view === 'recurring' && (
+            <RecurringView recurring={recurring} categories={categories}
+              onAdd={addRecurring} onUpdate={updateRecurring} onDelete={deleteRecurring} />
+          )}
+          {view === 'categories' && (
+            <CategoryManager categories={categories} onAdd={addCategory} onUpdate={updateCategory}
+              onDelete={deleteCategory} taskCountByCategory={taskCountByCat}
+              recurring={recurring} onAddRecurring={addRecurring} onUpdateRecurring={updateRecurring} onDeleteRecurring={deleteRecurring} />
+          )}
+        </div>
+
+        {/* ===== ボトムナビゲーション (スマホ専用) ===== */}
+        <MobileBottomNav view={view} onViewChange={setView} tasks={flatTasks} onMenuOpen={() => setMobileOpen(true)} />
+      </div>
+
+      {panel && (
+        <TaskPanel task={panel.task} parentTask={parentTask} categories={categories}
+          onSave={handleSave} onClose={closePanel}
+          defaultCategoryId={panel.defaultCategoryId}
+          defaultDueDate={panel.defaultDueDate}
+          recurring={recurring} onAddRecurring={addRecurring} onUpdateRecurring={updateRecurring} onDeleteRecurring={deleteRecurring} />
+      )}
+      {showSyncModal && (
+        <CloudSyncModal
+          onClose={() => setShowSyncModal(false)}
+          onSaved={handleSyncSettingsSaved}
+          syncStatus={syncStatus}
+          lastSynced={lastSynced}
+          onManualSync={() => doSync()}
+          sbUser={sbUser}
+          onSupabaseSaved={() => {
+            const sb = getSbClient();
+            if (sb) sb.auth.getUser().then(({ data: { user } }) => { if (user) { setSbUser(user); doSync(); } });
+          }}
+          onSbLogout={async () => {
+            const sb = getSbClient();
+            if (sb) await sb.auth.signOut();
+            setSbUser(null);
+            setSyncStatus('none');
+          }}
+        />
+      )}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+      {showInstallBanner && installPrompt && (
+        <InstallBanner onInstall={handleInstall} onDismiss={() => setShowInstallBanner(false)} />
+      )}
+    </div>
+    </LangContext.Provider>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <LicenseGate><App /></LicenseGate>
+);
