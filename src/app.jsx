@@ -3695,7 +3695,7 @@ const MobileBottomNav = ({ view, onViewChange, tasks, onMenuOpen }) => {
   );
 };
 
-// ==================== Sidebar ====================
+
 const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark, mobileOpen, onMobileClose, onCategoryFilter, activeCatFilter, onExport, onImport, onSyncClick, syncStatus, onTermsClick, onReorderCategory }) => {
   const { lang, t, setLang } = useLang();
   const todayCount = tasks.filter(t => t.isTodayTask && t.status !== 'done').length;
@@ -3733,7 +3733,11 @@ const Sidebar = ({ view, onViewChange, categories, tasks, darkMode, onToggleDark
             </button>
           );
         })}
-        <div className="mt-3 mb-1 border-t border-gray-800" />
+        {/* Weekly Goals */}
+        <div className="mt-1 mb-1">
+          <WeeklyGoals />
+        </div>
+        <div className="mb-1 border-t border-gray-800" />
         <button onClick={() => onCategoryFilter('')}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeCatFilter === '' ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
           <span className="w-[17px] h-[17px] rounded-full bg-gray-500 flex-shrink-0" />
