@@ -2239,15 +2239,13 @@ function initSupabase(anonKey){
 
 /* ---------- 認証UI ---------- */
 function showLoginScreen(){
-  const s = document.getElementById('loginScreen');
-  if(s){ s.classList.remove('hidden'); }
-  document.getElementById('userInfo').style.display = 'none';
+  // ログイン機能停止中 — 何もしない
 }
 
 function hideLoginScreen(){
   const s = document.getElementById('loginScreen');
   if(s){ s.classList.add('hidden'); }
-  document.getElementById('userInfo').style.display = '';
+  document.getElementById('userInfo').style.display = 'none';
 }
 
 function setLoginMsg(msg, isError){
@@ -2484,34 +2482,23 @@ document.getElementById('updatePassBtn').addEventListener('click', async()=>{
 });
 
 /* ---------- Supabase起動・認証状態監視 ---------- */
+/* ログイン機能停止中: ログイン画面をスキップしてアプリを直接起動 */
 (()=>{
-  if(typeof supabase === 'undefined'){ setTimeout(()=>{ showLoginScreen(); }, 0); return; }
-  // 常にコード内のキーで自動接続（localStorageのキーより優先）
-  const ok = initSupabase(SB_ANON_KEY);
-  localStorage.setItem(SB_KEY_STORE, SB_ANON_KEY);
-  if(!ok){ showLoginScreen(); return; }
+  // ログイン画面を非表示にしてアプリを表示
+  hideLoginScreen();
 
-  // 認証状態変化を監視
-  sbClient.auth.onAuthStateChange((event, session) => {
-    if(event === 'PASSWORD_RECOVERY'){
-      // パスワードリセットメールのリンクからアクセス → 新パスワード設定画面を表示
-      showLoginScreen();
-      setTimeout(showResetPasswordForm, 0);
-    } else if(session && session.user){
-      onUserSignedIn(session.user);
-    } else {
-      onUserSignedOut();
+  // Supabaseが使えれば認証なしでバックグラウンド接続（クラウド同期は無効）
+  if(typeof supabase !== 'undefined'){
+    const ok = initSupabase(SB_ANON_KEY);
+    if(ok){
+      sbClient.auth.onAuthStateChange((event, session) => {
+        if(session && session.user){ onUserSignedIn(session.user); }
+      });
+      sbClient.auth.getSession().then(({data:{session}})=>{
+        if(session && session.user){ onUserSignedIn(session.user); }
+      });
     }
-  });
-
-  // 起動時に現在のセッションを確認
-  sbClient.auth.getSession().then(({data:{session}})=>{
-    if(session && session.user){
-      onUserSignedIn(session.user);
-    } else {
-      showLoginScreen();
-    }
-  });
+  }
 })();
 
 // sbConfigBtn（Anon Key設定モーダル）
