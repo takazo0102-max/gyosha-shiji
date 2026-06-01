@@ -514,7 +514,7 @@
       <label>パスワード</label>
       <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
       <button class="login-btn primary" id="loginBtn">ログイン</button>
-      <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
+      <button class="login-btn secondary" id="signupBtn" style="display:none;">新規アカウント作成</button>
       <div style="text-align:center; margin-top:4px;">
         <button id="forgotPassBtn" style="background:none;border:none;color:#2563eb;font-size:12px;cursor:pointer;text-decoration:underline;">パスワードをお忘れの方</button>
       </div>
@@ -2382,22 +2382,9 @@ document.getElementById('loginBtn').addEventListener('click', async()=>{
   setLoginLoading(false);
 });
 
-document.getElementById('signupBtn').addEventListener('click', async()=>{
-  if(!sbClient){ showAnonKeySection(); setLoginMsg('先にAnon Keyで接続してください', true); return; }
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass  = document.getElementById('loginPass').value;
-  if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
-  if(pass.length < 6){ setLoginMsg('パスワードは6文字以上で入力してください', true); return; }
-  setLoginLoading(true); setLoginMsg('アカウント作成中…', false);
-  try {
-    const {data, error} = await sbClient.auth.signUp({email, password:pass});
-    if(error){
-      setLoginMsg('登録失敗: ' + error.message, true);
-    } else if(data.user && !data.session){
-      setLoginMsg('確認メールを送信しました。メール内のリンクをクリックしてください。', false);
-    }
-  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
-  setLoginLoading(false);
+document.getElementById('signupBtn').addEventListener('click', ()=>{
+  // 新規登録停止中
+  setLoginMsg('現在、新規登録は受け付けていません。', true);
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async()=>{
