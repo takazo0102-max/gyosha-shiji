@@ -199,13 +199,21 @@
   .textbox-wrap { position: absolute; pointer-events: auto; touch-action: none; }
   .textbox {
     min-width: 220px; min-height: 36px;
-    background: rgba(255,255,240,.92); border: 1.5px dashed #d97706;
+    background: transparent; border: 1.5px dashed transparent;
     padding: 8px 12px; font-size: 14px; color: #111; line-height: 1.5;
     white-space: pre-wrap; word-wrap: break-word;
     cursor: text; -webkit-user-select: text; user-select: text;
-    box-shadow: 0 2px 6px rgba(0,0,0,.08); border-radius: 3px; outline: none;
+    box-shadow: none; border-radius: 3px; outline: none;
+    transition: background 0.15s, border-color 0.15s;
   }
-  .textbox:focus { outline: 2px solid #2563eb; background: #fff; }
+  .textbox-wrap.active .textbox {
+    background: rgba(255,255,240,.92); border: 1.5px dashed #d97706;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+  }
+  .textbox-wrap.active .textbox:focus { outline: 2px solid #2563eb; background: #fff; }
+  /* ×ボタン：選択時のみ表示 */
+  .textbox-wrap .close-btn { display: none; }
+  .textbox-wrap.active .close-btn { display: block; }
   .textbox-wrap .close-btn, .photobox .close-btn {
     position: absolute; top: -10px; right: -10px;
     width: 24px; height: 24px; border-radius: 50%;
@@ -213,6 +221,9 @@
     font-size: 14px; line-height: 20px; text-align: center;
     cursor: pointer; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); z-index: 2;
   }
+  /* ドラッグハンドル：選択時のみ表示 */
+  .textbox-wrap .drag-handle { display: none; }
+  .textbox-wrap.active .drag-handle { display: block; }
   .textbox-wrap .drag-handle {
     position: absolute; top: -10px; left: -10px;
     width: 24px; height: 24px; border-radius: 50%;
@@ -706,6 +717,7 @@
   <div class="spacer"></div>
   <button class="secondary" id="archiveBtn">📚 履歴</button>
   <button class="secondary" id="taskBtn">✅ タスク</button>
+  <button class="secondary" id="earlyBtn" style="background:#fffbeb;border-color:#f59e0b;color:#b45309;font-weight:700;">🔔 早割登録</button>
   <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
   <div id="userInfo"><span id="userEmail"></span><button id="logoutBtn">ログアウト</button></div>
   <button class="save" id="saveBtn">💾 保存</button>
@@ -950,6 +962,25 @@
 </div>
 
 <div class="modal" id="apiModal"><div class="box small"><header class="mhead"><h2>Gemini APIキー</h2><button class="close-x" data-close="apiModal">×</button></header><div class="body"><p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.5;">AI指示書生成を使うには<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#2563eb;">Google AI Studio</a>のAPIキーを入力してください。</p><input type="password" class="txt" id="apiKeyInput" placeholder="AIza..." /></div><div class="footer"><button class="mbtn ghost" data-close="apiModal">キャンセル</button><button class="mbtn primary" id="apiSave">保存</button></div></div></div>
+<!-- 早割（先行登録）モーダル -->
+<div class="modal" id="earlyAccessModal"><div class="box small"><header class="mhead"><h2>🔔 早割の案内を受け取る</h2><button class="close-x" data-close="earlyAccessModal">×</button></header>
+<div class="body">
+  <div id="earlyForm">
+    <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:12px;">
+      このアプリは<b>当面ずっと無料</b>です。2〜3ヶ月後に一部機能（☁️クラウド同期・📱マルチデバイス・📚履歴無制限）を<b>月¥980</b>で有料化予定。<br>
+      いまご登録いただいた方は、ずっと<b style="color:#b45309;">早割 ¥780/月</b>でご案内します。<br>
+      <span style="color:#6b7280;">有料化のタイミングをメールでお知らせするだけ。今すぐの支払いは不要です。</span>
+    </p>
+    <input type="email" class="txt" id="earlyEmailInput" placeholder="you@example.com" autocomplete="email" style="margin-bottom:6px;" />
+    <div id="earlyMsg" style="font-size:12px;min-height:16px;"></div>
+  </div>
+  <div id="earlyDone" style="display:none;text-align:center;padding:14px 0;">
+    <div style="font-size:40px;">✅</div>
+    <p style="font-size:15px;font-weight:700;color:#047857;margin-top:8px;">登録ありがとうございます！</p>
+    <p style="font-size:12px;color:#6b7280;margin-top:4px;">有料化のときに早割¥780でご案内します。</p>
+  </div>
+</div>
+<div class="footer"><button class="mbtn ghost" data-close="earlyAccessModal">閉じる</button><button class="mbtn primary" id="earlySubmit">登録する</button></div></div></div>
 <div class="modal" id="sbModal"><div class="box small"><header class="mhead"><h2>☁️ クラウド同期設定</h2><button class="close-x" data-close="sbModal">×</button></header><div class="body">
   <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6;">Supabaseと接続するとデータがクラウドに自動保存され、<br>どの端末からでもアクセスできます。</p>
   <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Supabase Anon Key</label>
@@ -1426,6 +1457,9 @@ drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType==='touch' && !e.isPrimary) return;
   if (e.pointerType==='touch' && isPinching) return;
   e.preventDefault();
+  // テキストボックス選択解除
+  document.querySelectorAll('.textbox-wrap.active').forEach(w=>{w.classList.remove('active');});
+  if(state.activeTextbox){hideTextPropPanel();state.activeTextbox=null;}
   drawCanvas.setPointerCapture(e.pointerId);
   state.drawing = true;
   const p = getPos(e, drawCanvas);
@@ -1495,6 +1529,9 @@ drawCanvas.addEventListener('pointerleave',hideEraserCursor);
 let pmSelStart=null, pmSelRect=null, pmOverlay=null;
 
 shapeCanvas.addEventListener('pointerdown', e=>{
+  // テキストボックス選択解除
+  document.querySelectorAll('.textbox-wrap.active').forEach(w=>{w.classList.remove('active');});
+  if(state.activeTextbox){hideTextPropPanel();state.activeTextbox=null;}
   if(state.tool!=='penmove') return;
   e.preventDefault();
   shapeCanvas.setPointerCapture(e.pointerId);
@@ -2122,7 +2159,7 @@ function addTextBox(x,y,text,opts){
   const handle=document.createElement('div');handle.className='drag-handle';handle.textContent='✥';
   const close=document.createElement('div');close.className='close-btn';close.textContent='×';close.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();wrap.remove();if(state.activeTextbox===box)state.activeTextbox=null;});
   wrap.appendChild(handle);wrap.appendChild(close);wrap.appendChild(box);
-  box.addEventListener('focus',()=>{ state.activeTextbox=box; showTextPropPanel(box); });
+  box.addEventListener('focus',()=>{ state.activeTextbox=box; wrap.classList.add('active'); showTextPropPanel(box); });
   box.addEventListener('blur',()=>{
     setTimeout(()=>{
       const focus = document.activeElement;
@@ -2130,12 +2167,12 @@ function addTextBox(x,y,text,opts){
       if(focus && (focus === box || focus.closest('#textPropPanel'))) return;
       // Also don't hide if a slider in the panel is being dragged
       if(document.getElementById('textFontSizeSlider') === focus) return;
-      if(state.activeTextbox === box) hideTextPropPanel();
+      if(state.activeTextbox === box){ hideTextPropPanel(); wrap.classList.remove('active'); state.activeTextbox=null; }
     }, 250);
   });
-  box.addEventListener('pointerdown',e=>{ state.activeTextbox=box; showTextPropPanel(box); e.stopPropagation(); },true);
+  box.addEventListener('pointerdown',e=>{ state.activeTextbox=box; wrap.classList.add('active'); showTextPropPanel(box); e.stopPropagation(); },true);
   let dragging=false,sx=0,sy=0,bL=0,bT=0,sc=1;
-  handle.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();state.activeTextbox=box;showTextPropPanel(box);dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}sc=W/textLayer.getBoundingClientRect().width;sx=e.clientX;sy=e.clientY;bL=parseFloat(wrap.style.left);bT=parseFloat(wrap.style.top);});
+  handle.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();state.activeTextbox=box;wrap.classList.add('active');showTextPropPanel(box);dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}sc=W/textLayer.getBoundingClientRect().width;sx=e.clientX;sy=e.clientY;bL=parseFloat(wrap.style.left);bT=parseFloat(wrap.style.top);});
   handle.addEventListener('pointermove',e=>{if(!dragging)return;e.preventDefault();wrap.style.left=(bL+(e.clientX-sx)*sc)+'px';wrap.style.top=(bT+(e.clientY-sy)*sc)+'px';});
   const endD=e=>{if(!dragging)return;dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}};
   handle.addEventListener('pointerup',endD);handle.addEventListener('pointercancel',endD);
@@ -2857,6 +2894,31 @@ window.addEventListener('load', () => {
 
 document.getElementById('apiKeyBtn').addEventListener('click',()=>{document.getElementById('apiKeyInput').value=state.apiKey||'';openModal('apiModal');});
 document.getElementById('apiSave').addEventListener('click',()=>{const v=document.getElementById('apiKeyInput').value.trim();if(v){state.apiKey=v;localStorage.setItem('gemini_api_key',v);}closeModal('apiModal');});
+
+/* =================== 早割（先行登録）フォーム =================== */
+// Formspree送信先（早割リスト・通知先 tomeitodx@gmail.com）。フォームID: xykqellj
+const EARLY_FORM_ENDPOINT = 'https://formspree.io/f/xykqellj';
+document.getElementById('earlyBtn').addEventListener('click',()=>{
+  document.getElementById('earlyForm').style.display='';
+  document.getElementById('earlyDone').style.display='none';
+  document.getElementById('earlyEmailInput').value='';
+  document.getElementById('earlyMsg').textContent='';
+  document.getElementById('earlySubmit').style.display='';
+  openModal('earlyAccessModal');
+});
+document.getElementById('earlySubmit').addEventListener('click', async ()=>{
+  const input = document.getElementById('earlyEmailInput');
+  const msg = document.getElementById('earlyMsg');
+  const email = input.value.trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.style.color='#dc2626'; msg.textContent='メールアドレスを正しく入力してください'; return; }
+  const btn = document.getElementById('earlySubmit'); btn.disabled=true; msg.style.color='#6b7280'; msg.textContent='送信中…';
+  const showDone = ()=>{ document.getElementById('earlyForm').style.display='none'; document.getElementById('earlyDone').style.display=''; btn.style.display='none'; btn.disabled=false; };
+  try{
+    if(EARLY_FORM_ENDPOINT.includes('YOUR_FORMSPREE_ID')){ showDone(); return; } // 未設定時もUIは成功扱い
+    const res = await fetch(EARLY_FORM_ENDPOINT, { method:'POST', headers:{'Accept':'application/json'}, body:(()=>{const f=new FormData();f.append('email',email);f.append('source','app');return f;})() });
+    if(res.ok){ showDone(); } else { msg.style.color='#dc2626'; msg.textContent='送信に失敗しました。時間をおいて再度お試しください'; btn.disabled=false; }
+  }catch(e){ msg.style.color='#dc2626'; msg.textContent='ネットワークエラー。再度お試しください'; btn.disabled=false; }
+});
 
 /* =================== Save / Archive (per-vendor editable state) =================== */
 function getInstructions(){try{return JSON.parse(localStorage.getItem(STORE_INST)||'[]');}catch(e){return[];}}
