@@ -721,6 +721,7 @@
   <button class="secondary" id="archiveBtn">📚 履歴</button>
   <button class="secondary" id="taskBtn">✅ タスク</button>
   <button class="secondary" id="earlyBtn" style="background:#fffbeb;border-color:#f59e0b;color:#b45309;font-weight:700;">🔔 早割登録</button>
+  <button class="secondary" id="proBtn" style="background:#f5f3ff;border-color:#8b5cf6;color:#6d28d9;font-weight:700;">⭐ Pro<span id="proStatusLabel" style="margin-left:4px;"></span></button>
   <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
   <div id="userInfo"><span id="userEmail"></span><button id="logoutBtn">ログアウト</button></div>
   <button class="save" id="saveBtn">💾 保存</button>
@@ -984,6 +985,28 @@
   </div>
 </div>
 <div class="footer"><button class="mbtn ghost" data-close="earlyAccessModal">閉じる</button><button class="mbtn primary" id="earlySubmit">登録する</button></div></div></div>
+<!-- Proライセンス モーダル -->
+<div class="modal" id="proModal"><div class="box small"><header class="mhead"><h2>⭐ Pro ライセンス</h2><button class="close-x" data-close="proModal">×</button></header>
+<div class="body">
+  <div id="proInactiveView">
+    <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:12px;">
+      Proにアップグレードすると、<b>☁️クラウド同期 / 📱マルチデバイス / 📚履歴無制限</b>が使えます。<br>
+      ご購入後にGumroadから届く<b>ライセンスキー</b>を入力してください。
+    </p>
+    <input type="text" class="txt" id="proKeyInput" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX" style="margin-bottom:6px;" />
+    <div id="proMsg" style="font-size:12px;min-height:16px;"></div>
+    <div style="margin-top:10px;font-size:12px;">
+      <a id="proBuyLink" href="#" target="_blank" style="color:#6d28d9;font-weight:700;">→ まだの方はこちらで購入（Pro ¥980/月・早割 ¥780/月）</a>
+    </div>
+  </div>
+  <div id="proActiveView" style="display:none;text-align:center;padding:14px 0;">
+    <div style="font-size:40px;">⭐</div>
+    <p style="font-size:15px;font-weight:700;color:#6d28d9;margin-top:8px;">Pro 有効です！</p>
+    <p style="font-size:12px;color:#6b7280;margin-top:4px;">クラウド同期・マルチデバイス・履歴無制限が使えます。</p>
+    <button class="mbtn ghost" id="proRemoveBtn" style="margin-top:12px;font-size:12px;">この端末でProを解除</button>
+  </div>
+</div>
+<div class="footer"><button class="mbtn ghost" data-close="proModal">閉じる</button><button class="mbtn primary" id="proVerifyBtn">ライセンスを確認</button></div></div></div>
 <div class="modal" id="sbModal"><div class="box small"><header class="mhead"><h2>☁️ クラウド同期設定</h2><button class="close-x" data-close="sbModal">×</button></header><div class="body">
   <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6;">Supabaseと接続するとデータがクラウドに自動保存され、<br>どの端末からでもアクセスできます。</p>
   <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Supabase Anon Key</label>
@@ -2935,6 +2958,79 @@ document.getElementById('earlySubmit').addEventListener('click', async ()=>{
     if(res.ok){ showDone(); } else { msg.style.color='#dc2626'; msg.textContent='送信に失敗しました。時間をおいて再度お試しください'; btn.disabled=false; }
   }catch(e){ msg.style.color='#dc2626'; msg.textContent='ネットワークエラー。再度お試しください'; btn.disabled=false; }
 });
+
+/* =================== Pro 課金判定（Gumroadライセンス） =================== */
+// ↓ Gumroad商品作成後、permalink（商品URL末尾の英数字）と購入URLを差し替える
+const GUMROAD_PRODUCT_ID = 'rvqek';
+const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/rvqek';
+// 8/1の有料化ローンチで true にすると、Pro導線（⭐Proボタン等）が表示される。無料期間中は false で隠す。
+const PRO_LAUNCH = false;
+const PRO_KEY_STORE = 'gyosha_pro_license';
+let isProUser = false;
+
+function getStoredLicense(){ try { return localStorage.getItem(PRO_KEY_STORE)||''; } catch(e){ return ''; } }
+
+// Gumroadでライセンス検証。サブスクの解約/返金/失敗は無効扱い。
+async function verifyGumroadLicense(key, incrementUses){
+  if(!key) return { ok:false, reason:'キーが空です' };
+  if(GUMROAD_PRODUCT_ID.indexOf('YOUR_PRODUCT')>=0) return { ok:false, reason:'（商品未設定）' };
+  try{
+    const body = new URLSearchParams({ product_id:GUMROAD_PRODUCT_ID, license_key:key.trim(), increment_uses_count: incrementUses?'true':'false' });
+    const res = await fetch('https://api.gumroad.com/v2/licenses/verify', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+    const data = await res.json();
+    if(!data.success) return { ok:false, reason: data.message || 'ライセンスが無効です' };
+    const pur = data.purchase || {};
+    if(pur.subscription_ended_at || pur.subscription_failed_at || pur.refunded || pur.chargebacked || pur.disputed)
+      return { ok:false, reason:'サブスクリプションが無効です（解約・返金など）' };
+    return { ok:true, purchase: pur };
+  }catch(e){ return { ok:false, reason:'通信エラー' }; }
+}
+
+function setProStatus(on){
+  isProUser = on;
+  document.body.classList.toggle('is-pro', on);   // W3でCSSゲートに利用
+  const lbl = document.getElementById('proStatusLabel'); if(lbl) lbl.textContent = on ? '✓' : '';
+  const inactive = document.getElementById('proInactiveView'); const active = document.getElementById('proActiveView');
+  if(inactive && active){ inactive.style.display = on?'none':''; active.style.display = on?'':'none'; }
+  const vbtn = document.getElementById('proVerifyBtn'); if(vbtn) vbtn.style.display = on?'none':'';
+}
+
+document.getElementById('proBtn').addEventListener('click', ()=>{
+  document.getElementById('proKeyInput').value = getStoredLicense();
+  document.getElementById('proMsg').textContent = '';
+  const buy = document.getElementById('proBuyLink'); if(buy) buy.href = GUMROAD_BUY_URL;
+  setProStatus(isProUser);
+  openModal('proModal');
+});
+
+document.getElementById('proVerifyBtn').addEventListener('click', async ()=>{
+  const key = document.getElementById('proKeyInput').value.trim();
+  const msg = document.getElementById('proMsg');
+  if(!key){ msg.style.color='#dc2626'; msg.textContent='ライセンスキーを入力してください'; return; }
+  const btn = document.getElementById('proVerifyBtn'); btn.disabled=true; msg.style.color='#6b7280'; msg.textContent='確認中…';
+  const r = await verifyGumroadLicense(key, true);
+  btn.disabled=false;
+  if(r.ok){ try{ localStorage.setItem(PRO_KEY_STORE, key); }catch(e){} setProStatus(true); msg.textContent=''; }
+  else { msg.style.color='#dc2626'; msg.textContent='確認できませんでした：'+r.reason; }
+});
+
+document.getElementById('proRemoveBtn').addEventListener('click', ()=>{
+  try{ localStorage.removeItem(PRO_KEY_STORE); }catch(e){}
+  setProStatus(false);
+  document.getElementById('proKeyInput').value='';
+});
+
+// 無料期間中（PRO_LAUNCH=false）は Pro導線を隠す。8/1に true で公開。
+if(!PRO_LAUNCH){ const _pb=document.getElementById('proBtn'); if(_pb) _pb.style.display='none'; }
+
+// 起動時：保存済みライセンスを再検証（途中解約を検知。uses加算はしない）
+(async ()=>{
+  const k = getStoredLicense();
+  if(!k) return;
+  const r = await verifyGumroadLicense(k, false);
+  if(r.ok){ setProStatus(true); }
+  else if(r.reason !== '通信エラー' && r.reason !== '（商品未設定）'){ try{ localStorage.removeItem(PRO_KEY_STORE); }catch(e){} setProStatus(false); }
+})();
 
 /* =================== Save / Archive (per-vendor editable state) =================== */
 function getInstructions(){try{return JSON.parse(localStorage.getItem(STORE_INST)||'[]');}catch(e){return[];}}
