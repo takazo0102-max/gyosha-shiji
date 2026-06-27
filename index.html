@@ -989,6 +989,7 @@
 <div class="modal" id="proModal"><div class="box small"><header class="mhead"><h2>⭐ Pro ライセンス</h2><button class="close-x" data-close="proModal">×</button></header>
 <div class="body">
   <div id="proInactiveView">
+    <div id="proUpsellMsg" style="display:none;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:#5b21b6;font-weight:700;line-height:1.6;"></div>
     <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:12px;">
       Proにアップグレードすると、<b>☁️クラウド同期 / 📱マルチデバイス / 📚履歴無制限</b>が使えます。<br>
       ご購入後にGumroadから届く<b>ライセンスキー</b>を入力してください。
@@ -2569,6 +2570,7 @@ document.getElementById('updatePassBtn').addEventListener('click', async()=>{
 // sbConfigBtn（☁️ クラウド同期）: ログイン済みなら何もしない、未ログインならログイン画面を表示
 document.getElementById('sbConfigBtn').addEventListener('click',()=>{
   if(sbCurrentUser){ if(confirm('クラウド同期からログアウトしますか？')){ sbClient && sbClient.auth.signOut(); } return; }
+  if(PRO_LAUNCH && !isProUser){ openProUpsell('クラウド同期・マルチデバイスはProプランの機能です'); return; }
   showLoginScreen();
 });
 
@@ -2963,8 +2965,21 @@ document.getElementById('earlySubmit').addEventListener('click', async ()=>{
 // ↓ Gumroad商品作成後、permalink（商品URL末尾の英数字）と購入URLを差し替える
 const GUMROAD_PRODUCT_ID = 'rvqek';
 const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/rvqek';
-// 8/1の有料化ローンチで true にすると、Pro導線（⭐Proボタン等）が表示される。無料期間中は false で隠す。
+// 8/1の有料化ローンチで true にすると、Pro導線（⭐Proボタン等・各種ゲート）が有効になる。無料期間中は false。
 const PRO_LAUNCH = false;
+// 無料プランで保存できる履歴の上限（Proは無制限）
+const FREE_HISTORY_LIMIT = 5;
+
+// アップグレード案内（ゲートに引っかかった時に文脈メッセージ付きでProモーダルを開く）
+function openProUpsell(message){
+  const m = document.getElementById('proUpsellMsg');
+  if(m){ if(message){ m.textContent = '🔒 ' + message; m.style.display=''; } else { m.style.display='none'; } }
+  document.getElementById('proKeyInput').value = getStoredLicense();
+  document.getElementById('proMsg').textContent = '';
+  const buy = document.getElementById('proBuyLink'); if(buy) buy.href = GUMROAD_BUY_URL;
+  setProStatus(isProUser);
+  openModal('proModal');
+}
 const PRO_KEY_STORE = 'gyosha_pro_license';
 let isProUser = false;
 
@@ -3197,6 +3212,10 @@ function restoreTextLayer(items){
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const vendor = document.getElementById('vendorName').value.trim();
   if (!vendor) { alert('業者名を入力してください'); return; }
+  if(PRO_LAUNCH && !isProUser && getInstructions().length >= FREE_HISTORY_LIMIT){
+    openProUpsell('履歴の保存は無料プランで'+FREE_HISTORY_LIMIT+'件までです。Proなら無制限に保存できます。');
+    return;
+  }
   const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
   showLoader('保存中...');
   try {
