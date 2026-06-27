@@ -513,7 +513,7 @@
     <div id="anonKeySection" style="display:none; background:#fef3c7; border-radius:8px; padding:12px; margin-bottom:16px;">
       <div style="font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px;">⚠️ 初回設定が必要です</div>
       <div style="font-size:11px; color:#78350f; margin-bottom:8px;">
-        <a href="https://supabase.com/dashboard/project/joexvyxvdidtuxtkzmkd/settings/api" target="_blank" style="color:#2563eb;">Supabaseダッシュボード</a>の「anon public」キーを入力してください
+        <a href="https://supabase.com/dashboard/project/csiylwumoubsininxrxt/settings/api" target="_blank" style="color:#2563eb;">Supabaseダッシュボード</a>の「anon public」キーを入力してください
       </div>
       <input type="text" id="anonKeyInput" placeholder="eyJhbGciOi..." style="width:100%;padding:8px;border:1.5px solid #d97706;border-radius:6px;font-size:12px;margin-bottom:8px;" />
       <button class="login-btn primary" id="anonKeySaveBtn" style="margin-bottom:0;font-size:13px;padding:10px;">接続する</button>
@@ -525,9 +525,12 @@
       <label>パスワード</label>
       <input type="password" id="loginPass" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
       <button class="login-btn primary" id="loginBtn">ログイン</button>
-      <button class="login-btn secondary" id="signupBtn" style="display:none;">新規アカウント作成</button>
+      <button class="login-btn secondary" id="signupBtn">新規アカウント作成</button>
       <div style="text-align:center; margin-top:4px;">
         <button id="forgotPassBtn" style="background:none;border:none;color:#2563eb;font-size:12px;cursor:pointer;text-decoration:underline;">パスワードをお忘れの方</button>
+      </div>
+      <div style="text-align:center; margin-top:14px; border-top:1px solid #e5e7eb; padding-top:12px;">
+        <button id="skipLoginBtn" style="background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer;">無料のまま使う（ログインせずに続ける） →</button>
       </div>
     </div>
     <!-- パスワードリセット送信フォーム -->
@@ -2253,8 +2256,8 @@ function addTextBox(x,y,text,opts){
 })();
 
 /* =================== Supabase クラウド同期 + 認証 =================== */
-const SB_URL = 'https://joexvyxvdidtuxtkzmkd.supabase.co';
-const SB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvZXh2eXh2ZGlkdHV4dGt6bWtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzQyOTAsImV4cCI6MjA5MjY1MDI5MH0.N0vMAnsJ3IGuc9KFVODqwCkV_7Y3yIvnj00yG2Z-ksY';
+const SB_URL = 'https://csiylwumoubsininxrxt.supabase.co';
+const SB_ANON_KEY = 'sb_publishable__nMxuY7qP7I2PYmP7EPifQ_8m97FVlE';
 const SB_KEY_STORE = 'sb_anon_key';
 let sbClient = null;
 let sbCurrentUser = null;
@@ -2276,7 +2279,9 @@ function initSupabase(anonKey){
 
 /* ---------- 認証UI ---------- */
 function showLoginScreen(){
-  // ログイン機能停止中 — 何もしない
+  const s = document.getElementById('loginScreen');
+  if(s) s.classList.remove('hidden');
+  document.getElementById('userInfo').style.display = 'none';
 }
 
 function hideLoginScreen(){
@@ -2419,10 +2424,23 @@ document.getElementById('loginBtn').addEventListener('click', async()=>{
   setLoginLoading(false);
 });
 
-document.getElementById('signupBtn').addEventListener('click', ()=>{
-  // 新規登録停止中
-  setLoginMsg('現在、新規登録は受け付けていません。', true);
+document.getElementById('signupBtn').addEventListener('click', async()=>{
+  if(!sbClient){ showAnonKeySection(); setLoginMsg('先にAnon Keyで接続してください', true); return; }
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  if(!email || !pass){ setLoginMsg('メールとパスワードを入力してください', true); return; }
+  if(pass.length < 6){ setLoginMsg('パスワードは6文字以上にしてください', true); return; }
+  setLoginLoading(true); setLoginMsg('登録中…', false);
+  try {
+    const {data, error} = await sbClient.auth.signUp({email, password:pass});
+    if(error){ setLoginMsg('登録失敗: ' + error.message, true); }
+    else if(data && data.session){ /* 確認不要の設定なら即ログイン */ setLoginMsg('✓ 登録しました！', false); }
+    else { setLoginMsg('確認メールを送信しました。メール内のリンクを開いてからログインしてください。', false); }
+  } catch(e){ setLoginMsg('エラー: ' + e.message, true); }
+  setLoginLoading(false);
 });
+
+document.getElementById('skipLoginBtn').addEventListener('click', ()=>{ hideLoginScreen(); });
 
 document.getElementById('logoutBtn').addEventListener('click', async()=>{
   if(!sbClient) return;
@@ -2525,12 +2543,10 @@ document.getElementById('updatePassBtn').addEventListener('click', async()=>{
   }
 })();
 
-// sbConfigBtn（Anon Key設定モーダル）
+// sbConfigBtn（☁️ クラウド同期）: ログイン済みなら何もしない、未ログインならログイン画面を表示
 document.getElementById('sbConfigBtn').addEventListener('click',()=>{
-  const saved = localStorage.getItem(SB_KEY_STORE)||'';
-  document.getElementById('sbKeyInput').value = saved;
-  document.getElementById('sbTestResult').textContent = '';
-  openModal('sbModal');
+  if(sbCurrentUser){ if(confirm('クラウド同期からログアウトしますか？')){ sbClient && sbClient.auth.signOut(); } return; }
+  showLoginScreen();
 });
 
 document.getElementById('sbSaveBtn').addEventListener('click', async()=>{
