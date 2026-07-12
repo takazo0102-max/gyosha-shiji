@@ -961,6 +961,12 @@
       <h3>AI指示生成</h3>
       <button class="action-btn" id="voiceBtn" style="background:#10b981;color:#fff;border:none;">🎤 音声で指示書作成</button>
     </div>
+
+    <div class="section">
+      <h3>ご意見・ご要望</h3>
+      <button class="action-btn ghost" id="feedbackBtn" style="border:1px solid #e5e7eb;">💬 要望・不具合を送る</button>
+      <p style="font-size:11px;color:#9ca3af;margin:6px 2px 0;line-height:1.5;">現場の声で改善します。ひとことでも大歓迎です🙌</p>
+    </div>
   </aside>
 
   <main id="mainArea">
@@ -1053,6 +1059,31 @@
   </div>
 </div>
 <div class="footer"><button class="mbtn ghost" data-close="earlyAccessModal">閉じる</button><button class="mbtn primary" id="earlySubmit">登録する</button></div></div></div>
+<!-- ご意見・ご要望 モーダル -->
+<div class="modal" id="feedbackModal"><div class="box small"><header class="mhead"><h2>💬 ご意見・ご要望</h2><button class="close-x" data-close="feedbackModal">×</button></header>
+<div class="body">
+  <div id="feedbackForm">
+    <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:12px;">
+      使ってみた感想・「こうしてほしい」・不具合など、<b>ひとことでも大歓迎</b>です。現場の声を優先して改善します🙌
+    </p>
+    <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">種類</label>
+    <select class="txt" id="feedbackType" style="margin-bottom:10px;">
+      <option value="要望">💡 こうしてほしい（要望）</option>
+      <option value="不具合">🐛 うまく動かない（不具合）</option>
+      <option value="感想">😊 感想・その他</option>
+    </select>
+    <textarea class="txt" id="feedbackText" rows="5" placeholder="例：スマホで線をもっと太くしたい／PDF出力で文字がずれる など" style="margin-bottom:10px;resize:vertical;font-family:inherit;"></textarea>
+    <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">返信がほしい方はメールを（任意）</label>
+    <input type="email" class="txt" id="feedbackEmail" placeholder="you@example.com（任意）" autocomplete="email" style="margin-bottom:6px;" />
+    <div id="feedbackMsg" style="font-size:12px;min-height:16px;"></div>
+  </div>
+  <div id="feedbackDone" style="display:none;text-align:center;padding:14px 0;">
+    <div style="font-size:40px;">🙏</div>
+    <p style="font-size:15px;font-weight:700;color:#047857;margin-top:8px;">ありがとうございます！</p>
+    <p style="font-size:12px;color:#6b7280;margin-top:4px;">いただいた声を参考に改善していきます。</p>
+  </div>
+</div>
+<div class="footer"><button class="mbtn ghost" data-close="feedbackModal">閉じる</button><button class="mbtn primary" id="feedbackSubmit">送信する</button></div></div></div>
 <!-- Proライセンス モーダル -->
 <div class="modal" id="proModal"><div class="box small"><header class="mhead"><h2>⭐ Pro ライセンス</h2><button class="close-x" data-close="proModal">×</button></header>
 <div class="body">
@@ -3035,6 +3066,45 @@ document.getElementById('earlySubmit').addEventListener('click', async ()=>{
   try{
     if(EARLY_FORM_ENDPOINT.includes('YOUR_FORMSPREE_ID')){ showDone(); return; } // 未設定時もUIは成功扱い
     const res = await fetch(EARLY_FORM_ENDPOINT, { method:'POST', headers:{'Accept':'application/json'}, body:(()=>{const f=new FormData();f.append('email',email);f.append('source','app');return f;})() });
+    if(res.ok){ showDone(); } else { msg.style.color='#dc2626'; msg.textContent='送信に失敗しました。時間をおいて再度お試しください'; btn.disabled=false; }
+  }catch(e){ msg.style.color='#dc2626'; msg.textContent='ネットワークエラー。再度お試しください'; btn.disabled=false; }
+});
+
+/* =================== ご意見・ご要望（フィードバック） =================== */
+// 早割と同じFormspree（通知先 tomeitodx@gmail.com）に type=feedback で送る。
+// ※専用フォームに分けたい場合はここのエンドポイントを差し替え。無料枠は月50件（早割と共有）。
+const FEEDBACK_FORM_ENDPOINT = EARLY_FORM_ENDPOINT;
+document.getElementById('feedbackBtn').addEventListener('click', ()=>{
+  closeDrawer();
+  document.getElementById('feedbackForm').style.display='';
+  document.getElementById('feedbackDone').style.display='none';
+  document.getElementById('feedbackText').value='';
+  document.getElementById('feedbackEmail').value='';
+  document.getElementById('feedbackMsg').textContent='';
+  const sb=document.getElementById('feedbackSubmit'); sb.style.display=''; sb.disabled=false;
+  openModal('feedbackModal');
+});
+document.getElementById('feedbackSubmit').addEventListener('click', async ()=>{
+  const text = document.getElementById('feedbackText').value.trim();
+  const email = document.getElementById('feedbackEmail').value.trim();
+  const type = document.getElementById('feedbackType').value;
+  const msg = document.getElementById('feedbackMsg');
+  if(!text){ msg.style.color='#dc2626'; msg.textContent='内容を入力してください'; return; }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.style.color='#dc2626'; msg.textContent='メールアドレスの形式が正しくありません（空欄でもOK）'; return; }
+  const btn = document.getElementById('feedbackSubmit'); btn.disabled=true; msg.style.color='#6b7280'; msg.textContent='送信中…';
+  const showDone = ()=>{ document.getElementById('feedbackForm').style.display='none'; document.getElementById('feedbackDone').style.display=''; btn.style.display='none'; btn.disabled=false; };
+  try{
+    if(FEEDBACK_FORM_ENDPOINT.includes('YOUR_FORMSPREE_ID')){ showDone(); return; } // 未設定時もUIは成功扱い
+    const f = new FormData();
+    f.append('type','feedback');            // 早割(email)と区別するタグ
+    f.append('category', type);
+    f.append('message', text);
+    if(email) f.append('email', email);
+    f.append('source','app');
+    f.append('_subject','【業者指示書】'+type+'のフィードバック');
+    f.append('ua', navigator.userAgent);    // 端末特定（不具合の再現に役立つ）
+    f.append('screen', window.innerWidth+'x'+window.innerHeight);
+    const res = await fetch(FEEDBACK_FORM_ENDPOINT, { method:'POST', headers:{'Accept':'application/json'}, body:f });
     if(res.ok){ showDone(); } else { msg.style.color='#dc2626'; msg.textContent='送信に失敗しました。時間をおいて再度お試しください'; btn.disabled=false; }
   }catch(e){ msg.style.color='#dc2626'; msg.textContent='ネットワークエラー。再度お試しください'; btn.disabled=false; }
 });
