@@ -3062,7 +3062,7 @@ document.getElementById('earlySubmit').addEventListener('click', async ()=>{
   const email = input.value.trim();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.style.color='#dc2626'; msg.textContent='メールアドレスを正しく入力してください'; return; }
   const btn = document.getElementById('earlySubmit'); btn.disabled=true; msg.style.color='#6b7280'; msg.textContent='送信中…';
-  const showDone = ()=>{ document.getElementById('earlyForm').style.display='none'; document.getElementById('earlyDone').style.display=''; btn.style.display='none'; btn.disabled=false; };
+  const showDone = ()=>{ markEarlyBird(); document.getElementById('earlyForm').style.display='none'; document.getElementById('earlyDone').style.display=''; btn.style.display='none'; btn.disabled=false; };
   try{
     if(EARLY_FORM_ENDPOINT.includes('YOUR_FORMSPREE_ID')){ showDone(); return; } // 未設定時もUIは成功扱い
     const res = await fetch(EARLY_FORM_ENDPOINT, { method:'POST', headers:{'Accept':'application/json'}, body:(()=>{const f=new FormData();f.append('email',email);f.append('source','app');return f;})() });
@@ -3118,13 +3118,35 @@ const PRO_LAUNCH = false;
 // 無料プランで保存できる履歴の上限（Proは無制限）
 const FREE_HISTORY_LIMIT = 5;
 
+/* ---- 早割（¥780）配線 ----
+   ・有料化予定日(LAUNCH_DATE)より前にアプリを使い始めた人＝早割対象として端末に刻む。
+   ・早割対象は購入リンクをGumroad早割URL(/permalink/offercode でコード自動適用)に差し替える。
+   ・Gumroad側で「EARLYBIRD」割引コード(¥200 off ＝ ¥980→¥780)を発行しておくこと。 */
+const LAUNCH_DATE          = '2026-08-01';
+const EARLY_BIRD_STORE     = 'gyosha_early_bird';
+const EARLY_BIRD_OFFER_CODE = 'EARLYBIRD';
+const GUMROAD_EARLY_URL    = GUMROAD_BUY_URL + '/' + EARLY_BIRD_OFFER_CODE;
+function markEarlyBird(){ try{ if(!localStorage.getItem(EARLY_BIRD_STORE)) localStorage.setItem(EARLY_BIRD_STORE, new Date().toISOString().slice(0,10)); }catch(e){} }
+function isEarlyBird(){ try{ return !!localStorage.getItem(EARLY_BIRD_STORE); }catch(e){ return false; } }
+function proBuyUrl(){ return isEarlyBird() ? GUMROAD_EARLY_URL : GUMROAD_BUY_URL; }
+// 無料期間中(8/1より前)に使い始めた端末を早割対象として刻む
+(function stampEarlyBird(){ try{ const today=new Date().toISOString().slice(0,10); if(today < LAUNCH_DATE) markEarlyBird(); }catch(e){} })();
+// Proモーダルの購入リンク（href＋文言）を早割状況に応じて更新
+function refreshProBuyLink(){
+  const buy = document.getElementById('proBuyLink'); if(!buy) return;
+  buy.href = proBuyUrl();
+  buy.textContent = isEarlyBird()
+    ? '→ まだの方はこちらで購入（早割 ¥780/月）'
+    : '→ まだの方はこちらで購入（Pro ¥980/月）';
+}
+
 // アップグレード案内（ゲートに引っかかった時に文脈メッセージ付きでProモーダルを開く）
 function openProUpsell(message){
   const m = document.getElementById('proUpsellMsg');
   if(m){ if(message){ m.textContent = '🔒 ' + message; m.style.display=''; } else { m.style.display='none'; } }
   document.getElementById('proKeyInput').value = getStoredLicense();
   document.getElementById('proMsg').textContent = '';
-  const buy = document.getElementById('proBuyLink'); if(buy) buy.href = GUMROAD_BUY_URL;
+  refreshProBuyLink();
   setProStatus(isProUser);
   openModal('proModal');
 }
@@ -3161,7 +3183,7 @@ function setProStatus(on){
 document.getElementById('proBtn').addEventListener('click', ()=>{
   document.getElementById('proKeyInput').value = getStoredLicense();
   document.getElementById('proMsg').textContent = '';
-  const buy = document.getElementById('proBuyLink'); if(buy) buy.href = GUMROAD_BUY_URL;
+  refreshProBuyLink();
   setProStatus(isProUser);
   openModal('proModal');
 });
