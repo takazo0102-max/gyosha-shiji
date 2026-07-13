@@ -3117,7 +3117,7 @@ document.getElementById('feedbackSubmit').addEventListener('click', async ()=>{
 const GUMROAD_PRODUCT_ID = 'lbfTrXeb-Yz6oyCrRcrfqw==';   // 検証API用（permalinkではない）
 const GUMROAD_PERMALINK  = 'rvqek';                       // 購入URL用
 const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/' + GUMROAD_PERMALINK;
-// 8/1の有料化ローンチで true にすると、Pro導線（⭐Proボタン等・各種ゲート）が有効になる。無料期間中は false。
+// 有料化ローンチで true にすると、Pro導線（⭐Proボタン等・各種ゲート）が有効になる。無料期間中は false。
 const PRO_LAUNCH = false;
 // 無料プランで保存できる履歴の上限（Proは無制限）
 const FREE_HISTORY_LIMIT = 5;
@@ -3126,14 +3126,14 @@ const FREE_HISTORY_LIMIT = 5;
    ・有料化予定日(LAUNCH_DATE)より前にアプリを使い始めた人＝早割対象として端末に刻む。
    ・早割対象は購入リンクをGumroad早割URL(/permalink/offercode でコード自動適用)に差し替える。
    ・Gumroad側で「EARLYBIRD」割引コード(¥200 off ＝ ¥980→¥780)を発行しておくこと。 */
-const LAUNCH_DATE          = '2026-08-01';
+const LAUNCH_DATE          = '2026-09-01';
 const EARLY_BIRD_STORE     = 'gyosha_early_bird';
 const EARLY_BIRD_OFFER_CODE = 'EARLYBIRD';
 const GUMROAD_EARLY_URL    = GUMROAD_BUY_URL + '/' + EARLY_BIRD_OFFER_CODE;
 function markEarlyBird(){ try{ if(!localStorage.getItem(EARLY_BIRD_STORE)) localStorage.setItem(EARLY_BIRD_STORE, new Date().toISOString().slice(0,10)); }catch(e){} }
 function isEarlyBird(){ try{ return !!localStorage.getItem(EARLY_BIRD_STORE); }catch(e){ return false; } }
 function proBuyUrl(){ return isEarlyBird() ? GUMROAD_EARLY_URL : GUMROAD_BUY_URL; }
-// 無料期間中(8/1より前)に使い始めた端末を早割対象として刻む
+// 無料期間中(LAUNCH_DATEより前)に使い始めた端末を早割対象として刻む
 (function stampEarlyBird(){ try{ const today=new Date().toISOString().slice(0,10); if(today < LAUNCH_DATE) markEarlyBird(); }catch(e){} })();
 // Proモーダルの購入リンク（href＋文言）を早割状況に応じて更新
 function refreshProBuyLink(){
@@ -3209,7 +3209,7 @@ document.getElementById('proRemoveBtn').addEventListener('click', ()=>{
   document.getElementById('proKeyInput').value='';
 });
 
-// 無料期間中（PRO_LAUNCH=false）は Pro導線を隠す。8/1に true で公開。
+// 無料期間中（PRO_LAUNCH=false）は Pro導線を隠す。有料化日に true で公開。
 if(!PRO_LAUNCH){ const _pb=document.getElementById('proBtn'); if(_pb) _pb.style.display='none'; }
 
 // 起動時：保存済みライセンスを再検証（途中解約を検知。uses加算はしない）
