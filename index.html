@@ -3110,9 +3110,13 @@ document.getElementById('feedbackSubmit').addEventListener('click', async ()=>{
 });
 
 /* =================== Pro 課金判定（Gumroadライセンス） =================== */
-// ↓ Gumroad商品作成後、permalink（商品URL末尾の英数字）と購入URLを差し替える
-const GUMROAD_PRODUCT_ID = 'rvqek';
-const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/rvqek';
+/* ⚠️ Gumroadの product_id と permalink は別物。混同するとライセンス検証が全件失敗する。
+   ・product_id … /v2/licenses/verify に渡す内部ID。これを間違えても「That license does not
+     exist for the provided product.」としか返らず、キーが悪いのか商品IDが悪いのか区別できない。
+   ・permalink  … 購入URL末尾の短い文字列(rvqek)。購入リンク専用。検証APIには使えない。 */
+const GUMROAD_PRODUCT_ID = 'lbfTrXeb-Yz6oyCrRcrfqw==';   // 検証API用（permalinkではない）
+const GUMROAD_PERMALINK  = 'rvqek';                       // 購入URL用
+const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/' + GUMROAD_PERMALINK;
 // 8/1の有料化ローンチで true にすると、Pro導線（⭐Proボタン等・各種ゲート）が有効になる。無料期間中は false。
 const PRO_LAUNCH = false;
 // 無料プランで保存できる履歴の上限（Proは無制限）
