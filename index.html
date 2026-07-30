@@ -1167,8 +1167,10 @@ const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2
 
 function calcFitScale(){
   const pad = 24;
-  // Use the sidebar width (240) + main's available space
-  const availW = (window.innerWidth - 240) - pad;
+  // スマホ(≤760px)はサイドバーが引き出し＝幅を取らないので差し引かない。
+  // これを引くと図面が9%等の極小表示になり、現場でスマホ利用時に図面が見えなくなる。
+  const sidebar = window.innerWidth <= 760 ? 0 : 240;
+  const availW = (window.innerWidth - sidebar) - pad;
   const availH = (window.innerHeight - 56) - pad;
   return Math.min(availW / W, availH / H, 1);
 }
