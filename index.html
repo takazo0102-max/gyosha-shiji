@@ -13,122 +13,187 @@
   html, body {
     width: 100%; height: 100%; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-    background: #f2f3f5; color: #222;
+    background: #f2ede8; color: #1c1917;
     touch-action: none; -webkit-user-select: none; user-select: none;
   }
   header {
-    height: 56px; background: #1f2937; color: #fff;
+    height: 52px; background: #fff; color: #1c1917;
     display: flex; align-items: center;
-    padding: 0 16px; gap: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,.15);
+    padding: 0 16px; gap: 8px;
+    border-bottom: 1px solid #e8e2d9;
     z-index: 20; position: relative;
     touch-action: auto; -webkit-user-select: auto; user-select: auto;
   }
-  header .logo { font-size: 16px; font-weight: 700; margin-right: 6px; white-space: nowrap; }
-  header input[type="text"], header input[type="date"] {
-    height: 34px; border: none; border-radius: 6px;
-    padding: 0 10px; font-size: 13px;
-    background: #374151; color: #fff; outline: none;
+  header .logo {
+    font-size: 14px; font-weight: 700; margin-right: 4px; white-space: nowrap;
+    color: #1c1917; letter-spacing: .5px;
   }
-  header input::placeholder { color: #9ca3af; }
+  header input[type="text"], header input[type="date"] {
+    height: 32px; border: 1px solid #ddd8d0; border-radius: 6px;
+    padding: 0 10px; font-size: 13px;
+    background: #faf7f4; color: #1c1917; outline: none;
+    transition: border-color .15s;
+  }
+  header input[type="text"]:focus, header input[type="date"]:focus { border-color: #44403c; }
+  header input::placeholder { color: #a8a29e; }
   header input[type="text"] { width: 140px; }
   header select.hdr-select {
-    height: 34px; border: none; border-radius: 6px 0 0 6px;
-    padding: 0 8px; font-size: 13px; width: 160px;
-    color: #fff; outline: none;
+    height: 32px; border: 1px solid #ddd8d0; border-radius: 6px 0 0 6px;
+    padding: 0 8px; font-size: 13px; width: 155px;
+    color: #1c1917; outline: none;
     cursor: pointer; -webkit-appearance: none; appearance: none;
     background-repeat: no-repeat; background-position: right 8px center;
-    padding-right: 24px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='white'/%3E%3C/svg%3E");
+    padding-right: 24px; background-color: #faf7f4;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2378716c'/%3E%3C/svg%3E");
   }
-  header select.hdr-select option { background: #1f2937; color: #fff; }
-  header select#vendorName { background-color: #065f46; }
-  header select#siteName { background-color: #1e40af; }
+  header select.hdr-select option { background: #fff; color: #1c1917; }
+  header select#vendorName { background-color: #f5f5f5; border-color: #d0d0c8; }
+  header select#siteName   { background-color: #f5f5f5; border-color: #d0d0c8; }
   header button.hdr-manage {
-    height: 34px; padding: 0 8px; font-size: 14px; margin-left: -4px;
+    height: 32px; padding: 0 10px; font-size: 13px; margin-left: -1px;
     border-radius: 0 6px 6px 0;
   }
-  header button#vendorManageBtn { background: #047857; }
-  header button#siteManageBtn { background: #1d4ed8; }
+  header button#vendorManageBtn { background: #44403c; }
+  header button#vendorManageBtn:hover { background: #292524; }
+  header button#siteManageBtn { background: #44403c; }
+  header button#siteManageBtn:hover { background: #292524; }
   .vendor-manage-list { max-height: 300px; overflow-y: auto; }
-  .vendor-manage-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
-  .vendor-manage-row .vname { flex: 1; font-size: 14px; color: #111; }
-  .vendor-manage-row .vdel { background: #fee2e2; color: #b91c1c; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+  .vendor-manage-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f0ebe4; }
+  .vendor-manage-row .vname { flex: 1; font-size: 14px; color: #1c1917; }
+  .vendor-manage-row .vdel { background: #fef2f2; color: #9f1239; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
   header .spacer { flex: 1; }
-  /* デスクトップでは透過コンテナ扱い＝従来レイアウト完全維持。スマホでのみ実体化しスクロール領域になる */
   header .hdr-main { display: contents; }
-  header button {
-    height: 36px; padding: 0 12px; border: none; border-radius: 6px;
-    background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;
-    cursor: pointer; white-space: nowrap;
+  /* ヘッダーの「･･･」オーバーフローメニュー：低頻度の操作を畳む */
+  .hdr-more-wrap { position: relative; display: inline-block; }
+  .hdr-more-btn { min-width: 40px; letter-spacing: 1px; font-size: 15px; }
+  .hdr-more-menu {
+    display: none; position: absolute; top: 38px; right: 0;
+    background: #fff; border: 1px solid #ddd8d0; border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.14); padding: 4px; min-width: 176px; z-index: 60;
   }
-  header button:hover { background: #1d4ed8; }
-  header button.secondary { background: #4b5563; }
-  header button.save { background: #059669; }
-  .app { display: flex; width: 100%; height: calc(100% - 56px); }
+  .hdr-more-wrap.open .hdr-more-menu { display: block; }
+  .hdr-more-menu button {
+    display: block; width: 100%; text-align: left;
+    height: 44px; padding: 0 12px; border-radius: 3px;
+    background: transparent; color: #1c1917; font-size: 13px; font-weight: 500;
+  }
+  .hdr-more-menu button:hover { background: #f0ebe4; }
+
+  /* ===== 渡す（出口）バー ===== */
+  .handoff-bar {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: stretch; gap: 8px; z-index: 110;
+  }
+  .handoff-primary {
+    height: 56px; padding: 0 30px; border: none; border-radius: 4px;
+    background: #1c1917; color: #fff; font-size: 16px; font-weight: 700;
+    letter-spacing: .5px; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 6px 22px rgba(0,0,0,.28); transition: background .15s;
+    touch-action: manipulation;
+  }
+  .handoff-primary:hover { background: #2c2825; }
+  .handoff-primary:disabled { background: #78716c; cursor: wait; }
+  .handoff-secondary {
+    height: 56px; padding: 0 18px; border: 1px solid #ddd8d0; border-radius: 4px;
+    background: rgba(255,255,255,.96); color: #44403c; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); transition: background .15s;
+    touch-action: manipulation;
+  }
+  .handoff-secondary:hover { background: #f0ebe4; }
+  header button {
+    height: 32px; padding: 0 14px; border: none; border-radius: 6px;
+    background: #1c1917; color: #fff; font-size: 12px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: background .15s;
+  }
+  header button:hover { background: #292524; }
+  header button.secondary { background: #f0ebe4; color: #44403c; border: 1px solid #ddd8d0; }
+  header button.secondary:hover { background: #e8e2d9; }
+  header button.save { background: #15803d; }
+  header button.save:hover { background: #166534; }
+  .app { display: flex; width: 100%; height: calc(100% - 52px); }
   aside {
-    width: 240px; flex-shrink: 0; background: #fff;
-    border-right: 1px solid #e5e7eb;
-    padding: 14px 12px; overflow-y: auto;
+    width: 240px; flex-shrink: 0; background: #faf8f5;
+    border-right: 1px solid #e5dfd6;
+    padding: 16px 0 16px 0; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: auto; -webkit-user-select: auto; user-select: auto;
   }
-  .section { margin-bottom: 16px; }
+  .section { margin-bottom: 20px; }
   .section h3 {
-    font-size: 11px; font-weight: 700; color: #6b7280;
-    letter-spacing: 1px; text-transform: uppercase;
-    margin-bottom: 8px; padding-left: 2px;
+    font-size: 9px; font-weight: 500; color: #c0b8b0;
+    letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 4px; padding: 0 16px;
   }
-  .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  /* ツール：1列リスト、枠線なし、左ボーダーでアクティブ表現 */
+  .tool-row { display: flex; flex-direction: column; gap: 0; }
+  /* 軍手でも押せるよう主要操作は最低48pxのタップ領域を確保 */
   .tool {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 4px; padding: 10px 4px;
-    border: 1.5px solid #e5e7eb; border-radius: 8px;
-    background: #fff; cursor: pointer;
-    font-size: 11px; color: #374151; transition: all .12s;
+    display: flex; flex-direction: row;
+    align-items: center; min-height: 48px;
+    gap: 10px; padding: 0 16px;
+    border: none; border-left: 3px solid transparent;
+    background: transparent; cursor: pointer;
+    font-size: 14px; color: #57534e;
+    transition: color .1s, background .1s;
+    border-radius: 0; touch-action: manipulation;
   }
-  .tool .icon { font-size: 20px; line-height: 1; }
-  .tool.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-  .colors { display: flex; gap: 8px; padding: 4px 2px; flex-wrap: wrap; }
+  .tool:hover { background: #f0ebe4; color: #1c1917; }
+  .tool .icon { font-size: 20px; line-height: 1; flex-shrink: 0; width: 22px; text-align: center; }
+  .tool.active {
+    border-left-color: #1c1917; background: #ede8e2;
+    color: #1c1917; font-weight: 700;
+  }
+  .colors { display: flex; gap: 4px; padding: 2px 12px; flex-wrap: wrap; }
   .color {
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 3px solid #fff; box-shadow: 0 0 0 1.5px #e5e7eb;
-    cursor: pointer; transition: transform .12s;
+    width: 40px; height: 40px; border-radius: 3px;
+    border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+    cursor: pointer; transition: transform .1s; touch-action: manipulation;
   }
-  .color.active { box-shadow: 0 0 0 2.5px #2563eb; transform: scale(1.1); }
-  .size-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-  .size-row.five { grid-template-columns: repeat(5, 1fr); }
+  .color:hover { transform: scale(1.06); }
+  .color.active { border-color: #1c1917; box-shadow: inset 0 0 0 2px #fff; }
+  .size-row { display: flex; gap: 0; padding: 0 12px; }
+  .size-row.five { }
   .size-btn {
-    padding: 7px 0; border: 1.5px solid #e5e7eb; border-radius: 6px;
-    background: #fff; font-size: 12px; cursor: pointer; color: #374151;
+    flex: 1; min-height: 48px; border: none; border-bottom: 3px solid transparent;
+    background: transparent; font-size: 14px; cursor: pointer; color: #78716c;
+    transition: color .1s; touch-action: manipulation;
   }
-  .size-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+  .size-btn:hover { color: #1c1917; }
+  .size-btn.active { border-bottom-color: #1c1917; color: #1c1917; font-weight: 700; }
   .action-btn {
-    width: 100%; padding: 11px; border: none; border-radius: 8px;
-    font-size: 13px; font-weight: 600; cursor: pointer;
+    width: calc(100% - 24px); margin: 0 12px 5px;
+    min-height: 48px; padding: 10px 12px; border: none; border-radius: 3px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    gap: 6px; margin-bottom: 6px;
+    gap: 6px; transition: background .15s; touch-action: manipulation;
   }
-  .action-btn.primary { background: #7c3aed; color: #fff; }
-  .action-btn.primary:disabled { background: #c4b5fd; cursor: wait; }
-  .action-btn.ghost { background: #f3f4f6; color: #374151; }
-  .action-btn.amber { background: #f59e0b; color: #fff; }
-  .action-btn.danger { background: #ef4444; color: #fff; }
+  .action-btn.primary { background: #1c1917; color: #fff; }
+  .action-btn.primary:hover { background: #2c2825; }
+  .action-btn.primary:disabled { background: #c0b8b0; cursor: wait; }
+  .action-btn.ghost { background: transparent; color: #78716c; border: 1px solid #ddd8d0; }
+  .action-btn.ghost:hover { background: #f0ebe4; color: #1c1917; }
+  .action-btn.amber { background: #78350f; color: #fff; }
+  .action-btn.amber:hover { background: #5c2808; }
+  .action-btn.danger { background: transparent; color: #9f1239; border: 1px solid #fecdd3; }
+  .action-btn.danger:hover { background: #fef2f2; }
   .file-input { display: none; }
   .file-label {
-    display: block; width: 100%; padding: 11px;
-    text-align: center; background: #10b981; color: #fff;
-    border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-    cursor: pointer; margin-bottom: 8px;
-    touch-action: manipulation;
+    display: flex; align-items: center; justify-content: center;
+    width: calc(100% - 24px); margin: 0 12px 6px; min-height: 48px; padding: 10px 12px;
+    text-align: center; background: #166534; color: #fff;
+    border: none; border-radius: 3px; font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation; transition: background .15s;
   }
-  .undo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .file-label:hover { background: #14532d; }
+  .undo-row { display: flex; gap: 4px; padding: 0 12px; }
+  .undo-row .action-btn { flex: 1; width: auto; margin: 0; }
 
   main {
     flex: 1; position: relative;
     overflow: auto; -webkit-overflow-scrolling: touch;
-    background: #e5e7eb;
+    background: #e8e2d9;
   }
   .canvas-scroll-area {
     position: relative;
@@ -148,23 +213,24 @@
   /* Zoom controls */
   .zoom-bar {
     position: fixed; bottom: 16px; right: 16px;
-    display: flex; align-items: center; gap: 6px;
-    background: rgba(31,41,55,.85); color: #fff;
-    border-radius: 24px; padding: 6px 12px;
-    z-index: 100; backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,.96); color: #1c1917;
+    border-radius: 8px; padding: 5px 10px;
+    z-index: 100; backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(0,0,0,.12);
+    border: 1px solid #e8e2d9;
     touch-action: manipulation;
   }
   .zoom-bar button {
-    width: 30px; height: 30px; border: none; border-radius: 50%;
-    background: rgba(255,255,255,.15); color: #fff;
-    font-size: 18px; line-height: 1; cursor: pointer;
+    width: 28px; height: 28px; border: none; border-radius: 4px;
+    background: transparent; color: #44403c;
+    font-size: 16px; line-height: 1; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    touch-action: manipulation;
+    touch-action: manipulation; transition: background .12s;
   }
-  .zoom-bar button:hover { background: rgba(255,255,255,.3); }
-  .zoom-bar .zoom-pct { font-size: 13px; font-weight: 700; min-width: 44px; text-align: center; }
-  .zoom-bar .zoom-fit { font-size: 11px; padding: 4px 8px; border-radius: 12px; width: auto; }
+  .zoom-bar button:hover { background: #f0ebe4; }
+  .zoom-bar .zoom-pct { font-size: 13px; font-weight: 600; min-width: 44px; text-align: center; color: #1c1917; }
+  .zoom-bar .zoom-fit { font-size: 11px; padding: 4px 8px; border-radius: 4px; width: auto; }
   .canvas-wrap canvas {
     position: absolute; top: 0; left: 0;
     width: 1587px; height: 1123px; pointer-events: none;
@@ -191,9 +257,9 @@
   .empty-hint .big { font-size: 48px; margin-bottom: 8px; }
   .drop-overlay {
     position: absolute; inset: 0;
-    background: rgba(37,99,235,.08); border: 3px dashed #2563eb;
+    background: rgba(28,25,23,.05); border: 2px dashed #78716c;
     display: none; align-items: center; justify-content: center;
-    font-size: 24px; color: #1d4ed8; font-weight: 700;
+    font-size: 24px; color: #44403c; font-weight: 600;
     z-index: 50; pointer-events: none;
   }
   main.drag-over .drop-overlay { display: flex; }
@@ -209,43 +275,43 @@
     transition: background 0.15s, border-color 0.15s;
   }
   .textbox-wrap.active .textbox {
-    background: rgba(255,255,240,.92); border: 1.5px dashed #d97706;
-    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    background: rgba(255,253,250,.95); border: 1.5px dashed #b8b0a8;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
   }
-  .textbox-wrap.active .textbox:focus { outline: 2px solid #2563eb; background: #fff; }
+  .textbox-wrap.active .textbox:focus { outline: 1.5px solid #44403c; background: #fff; }
   /* ×ボタン：選択時のみ表示 */
   .textbox-wrap .close-btn { display: none; }
   .textbox-wrap.active .close-btn { display: block; }
   .textbox-wrap .close-btn, .photobox .close-btn {
-    position: absolute; top: -10px; right: -10px;
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #ef4444; color: #fff; border: 2px solid #fff;
-    font-size: 14px; line-height: 20px; text-align: center;
-    cursor: pointer; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); z-index: 2;
+    position: absolute; top: -9px; right: -9px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #1c1917; color: #fff; border: 2px solid #fff;
+    font-size: 12px; line-height: 18px; text-align: center;
+    cursor: pointer; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.2); z-index: 2;
   }
   /* ドラッグハンドル：選択時のみ表示 */
   .textbox-wrap .drag-handle { display: none; }
   .textbox-wrap.active .drag-handle { display: block; }
   .textbox-wrap .drag-handle {
-    position: absolute; top: -10px; left: -10px;
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #6b7280; color: #fff; border: 2px solid #fff;
-    font-size: 13px; line-height: 20px; text-align: center;
-    cursor: move; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    position: absolute; top: -9px; left: -9px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #78716c; color: #fff; border: 2px solid #fff;
+    font-size: 11px; line-height: 18px; text-align: center;
+    cursor: move; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.2);
     z-index: 2; touch-action: none;
   }
   .photobox {
     position: absolute; pointer-events: auto; cursor: move;
-    touch-action: none; border: 2px solid transparent;
-    box-shadow: 0 2px 6px rgba(0,0,0,.15); background: #fff;
+    touch-action: none; border: 1.5px solid transparent;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); background: #fff;
   }
-  .photobox:hover, .photobox.selected { border-color: #2563eb; }
+  .photobox:hover, .photobox.selected { border-color: #44403c; }
   .photobox img { width: 100%; height: 100%; display: block; pointer-events: none; }
   .photobox .resize-handle {
-    position: absolute; right: -8px; bottom: -8px;
-    width: 22px; height: 22px; background: #2563eb;
-    border: 2px solid #fff; border-radius: 4px;
-    cursor: nwse-resize; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    position: absolute; right: -7px; bottom: -7px;
+    width: 20px; height: 20px; background: #44403c;
+    border: 2px solid #fff; border-radius: 3px;
+    cursor: nwse-resize; box-shadow: 0 1px 3px rgba(0,0,0,.2);
     touch-action: none; z-index: 2;
   }
   .photobox .caption {
@@ -280,178 +346,196 @@
     background: #fff; border-radius: 10px;
     width: 92%; max-width: 880px; max-height: 86vh;
     display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,.14);
   }
   .modal .box.small { max-width: 440px; }
   .modal header.mhead {
-    height: 52px; background: #1f2937; padding: 0 18px; color: #fff;
+    height: 50px; background: #1c1917; padding: 0 18px; color: #fff;
     display: flex; align-items: center; justify-content: space-between; box-shadow: none;
   }
-  .modal header.mhead h2 { font-size: 16px; font-weight: 700; }
-  .modal .close-x { background: transparent; border: none; color: #fff; font-size: 22px; cursor: pointer; }
+  .modal header.mhead h2 { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+  .modal .close-x { background: rgba(255,255,255,.1); border: none; color: #fff; font-size: 16px; cursor: pointer; width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: background .12s; }
+  .modal .close-x:hover { background: rgba(255,255,255,.2); }
   .modal .body { padding: 18px; overflow-y: auto; flex: 1; user-select: text; -webkit-user-select: text; }
-  .modal .footer { padding: 12px 18px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end; }
-  .modal button.mbtn { padding: 9px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .modal button.primary { background: #2563eb; color: #fff; }
-  .modal button.ghost { background: #e5e7eb; color: #374151; }
+  .modal .footer { padding: 12px 18px; border-top: 1px solid #e8e2d9; display: flex; gap: 8px; justify-content: flex-end; }
+  .modal button.mbtn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .12s; }
+  .modal button.primary { background: #1c1917; color: #fff; }
+  .modal button.primary:hover { background: #292524; }
+  .modal button.ghost { background: #f0ebe4; color: #44403c; border: 1px solid #e8e2d9; }
+  .modal button.ghost:hover { background: #e8e2d9; }
   .modal input.txt, .modal textarea.txt {
-    width: 100%; padding: 9px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit;
+    width: 100%; padding: 9px 12px; border: 1px solid #ddd8d0; border-radius: 6px; font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s; background: #faf7f4;
   }
+  .modal input.txt:focus, .modal textarea.txt:focus { border-color: #44403c; background: #fff; }
   /* PDF page selector */
   .pdf-page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; padding: 4px; }
   .pdf-page-card {
-    border: 2px solid #e5e7eb; border-radius: 8px; padding: 8px;
-    background: #fff; cursor: pointer; transition: all .15s; position: relative;
+    border: 1px solid #e8e2d9; border-radius: 6px; padding: 8px;
+    background: #faf7f4; cursor: pointer; transition: all .15s; position: relative;
   }
-  .pdf-page-card.selected { border-color: #2563eb; background: #eff6ff; }
-  .pdf-page-card .page-thumb { width: 100%; aspect-ratio: 1587/1123; object-fit: contain; border-radius: 4px; background: #f9fafb; border: 1px solid #e5e7eb; }
-  .pdf-page-card .page-num { font-size: 11px; color: #6b7280; text-align: center; margin: 6px 0 4px; }
+  .pdf-page-card:hover { border-color: #b8b0a8; }
+  .pdf-page-card.selected { border-color: #1c1917; background: #f0ebe4; }
+  .pdf-page-card .page-thumb { width: 100%; aspect-ratio: 1587/1123; object-fit: contain; border-radius: 3px; background: #fff; border: 1px solid #e8e2d9; }
+  .pdf-page-card .page-num { font-size: 11px; color: #a8a29e; text-align: center; margin: 6px 0 4px; }
   .pdf-page-card .page-name-input {
-    width: 100%; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px;
-    font-size: 12px; text-align: center; outline: none;
+    width: 100%; padding: 4px 6px; border: 1px solid #ddd8d0; border-radius: 4px;
+    font-size: 12px; text-align: center; outline: none; background: #fff;
   }
-  .pdf-page-card .page-name-input:focus { border-color: #2563eb; }
+  .pdf-page-card .page-name-input:focus { border-color: #44403c; }
   .pdf-page-card .check-mark {
-    position: absolute; top: 6px; right: 6px; width: 22px; height: 22px;
-    border-radius: 50%; background: #2563eb; color: #fff; font-size: 14px;
+    position: absolute; top: 6px; right: 6px; width: 20px; height: 20px;
+    border-radius: 50%; background: #1c1917; color: #fff; font-size: 12px;
     display: none; align-items: center; justify-content: center; line-height: 1;
   }
   .pdf-page-card.selected .check-mark { display: flex; }
   .pdf-select-actions { display: flex; gap: 8px; margin-bottom: 12px; }
   .pdf-select-actions button {
-    padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px;
-    background: #fff; font-size: 12px; cursor: pointer; color: #374151;
+    padding: 6px 14px; border: 1px solid #ddd8d0; border-radius: 6px;
+    background: #faf7f4; font-size: 12px; cursor: pointer; color: #44403c;
+    transition: background .12s;
   }
-  .pdf-select-actions button:hover { background: #f3f4f6; }
+  .pdf-select-actions button:hover { background: #f0ebe4; }
 
   .vendor-group { margin-bottom: 18px; }
-  .vendor-group h3 { font-size: 14px; font-weight: 700; background: #eff6ff; color: #1d4ed8; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; }
-  .saved-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px; background: #fafafa; }
-  .saved-row .thumb { width: 64px; height: 44px; object-fit: cover; border: 1px solid #e5e7eb; border-radius: 3px; background: #fff; }
-  .saved-row .meta { flex: 1; font-size: 13px; color: #374151; line-height: 1.5; }
-  .saved-row .meta .date { font-weight: 700; color: #111; }
-  .saved-row .meta .sub { color: #6b7280; font-size: 12px; }
-  .saved-row button { padding: 7px 12px; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .saved-row .view-btn { background: #2563eb; color: #fff; }
-  .saved-row .load-btn { background: #059669; color: #fff; }
-  .saved-row .del-btn { background: #ef4444; color: #fff; }
-  .task-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
-  .task-row input[type="checkbox"] { width: 18px; height: 18px; }
-  .task-row .txt-wrap { flex: 1; font-size: 14px; color: #111; }
-  .task-row.done .txt-wrap { color: #9ca3af; text-decoration: line-through; }
-  .task-row .due { font-size: 11px; color: #6b7280; margin-left: 4px; }
-  .task-row .del { background: #fee2e2; color: #b91c1c; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+  .vendor-group h3 { font-size: 12px; font-weight: 700; color: #44403c; padding: 6px 0; border-bottom: 1px solid #e8e2d9; margin-bottom: 8px; letter-spacing: .3px; }
+  .saved-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e8e2d9; border-radius: 6px; margin-bottom: 6px; background: #faf7f4; transition: border-color .12s; }
+  .saved-row:hover { border-color: #b8b0a8; }
+  .saved-row .thumb { width: 64px; height: 44px; object-fit: cover; border: 1px solid #e8e2d9; border-radius: 4px; background: #fff; }
+  .saved-row .meta { flex: 1; font-size: 13px; color: #57534e; line-height: 1.5; }
+  .saved-row .meta .date { font-weight: 600; color: #1c1917; }
+  .saved-row .meta .sub { color: #a8a29e; font-size: 12px; }
+  .saved-row button { padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .12s; }
+  .saved-row .view-btn { background: #1c1917; color: #fff; }
+  .saved-row .view-btn:hover { background: #292524; }
+  .saved-row .load-btn { background: #15803d; color: #fff; }
+  .saved-row .load-btn:hover { background: #166534; }
+  .saved-row .del-btn { background: #fef2f2; color: #9f1239; border: 1px solid #fecdd3; }
+  .saved-row .del-btn:hover { background: #fee2e2; }
+  .task-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #f0ebe4; }
+  .task-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1c1917; }
+  .task-row .txt-wrap { flex: 1; font-size: 13px; color: #1c1917; }
+  .task-row.done .txt-wrap { color: #a8a29e; text-decoration: line-through; }
+  .task-row .due { font-size: 11px; color: #a8a29e; margin-left: 4px; }
+  .task-row .del { background: transparent; color: #a8a29e; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+  .task-row .del:hover { background: #fef2f2; color: #9f1239; }
   .task-add-row { display: flex; gap: 6px; margin-top: 10px; }
   .task-add-row input.txt { flex: 1; }
-  .task-add-row input[type="date"] { padding: 8px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 13px; }
-  .task-add-row button { padding: 0 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
-  .section-label { font-size: 13px; font-weight: 700; color: #374151; margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+  .task-add-row input[type="date"] { padding: 8px; border: 1px solid #ddd8d0; border-radius: 6px; font-size: 13px; background: #faf7f4; }
+  .task-add-row button { padding: 0 14px; background: #1c1917; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background .12s; }
+  .task-add-row button:hover { background: #292524; }
+  .section-label { font-size: 12px; font-weight: 700; color: #44403c; margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e2d9; letter-spacing: .3px; }
   .section-label:first-child { margin-top: 0; }
-  .preview-img { width: 100%; border: 1px solid #e5e7eb; border-radius: 4px; }
-  .empty-msg { text-align: center; color: #9ca3af; padding: 40px 0; font-size: 14px; }
-  .tab-row { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 14px; }
-  .tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; }
-  .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .preview-img { width: 100%; border: 1px solid #e8e2d9; border-radius: 4px; }
+  .empty-msg { text-align: center; color: #a8a29e; padding: 40px 0; font-size: 14px; }
+  .tab-row { display: flex; border-bottom: 1px solid #e8e2d9; margin-bottom: 14px; }
+  .tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: #a8a29e; border-bottom: 2px solid transparent; transition: color .12s; }
+  .tab-btn:hover { color: #44403c; }
+  .tab-btn.active { color: #1c1917; border-bottom-color: #1c1917; }
 
   /* ===== タスク挿入パネル ===== */
   #taskInsertPanel {
-    display: none; margin-top: 6px;
-    border: 1.5px solid #e5e7eb; border-radius: 8px;
-    background: #f9fafb; overflow: hidden;
+    display: none; margin: 4px 12px 0;
+    border: 1px solid #e8e2d9; border-radius: 3px;
+    background: #fff; overflow: hidden;
   }
   #taskInsertPanel.open { display: block; }
-  .task-insert-empty { padding: 10px 12px; font-size: 12px; color: #9ca3af; text-align: center; }
+  .task-insert-empty { padding: 10px 12px; font-size: 12px; color: #a8a29e; text-align: center; }
   .task-insert-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
+    padding: 8px 12px; border-bottom: 1px solid #f0ebe4;
     cursor: pointer; transition: background .1s;
   }
   .task-insert-item:last-child { border-bottom: none; }
-  .task-insert-item:hover { background: #eff6ff; }
-  .task-insert-item.done-item .ti-text { color: #9ca3af; text-decoration: line-through; }
-  .task-insert-item .ti-text { flex: 1; font-size: 12px; color: #1d4ed8; font-weight: 600; line-height: 1.4; }
-  .task-insert-item.done-item .ti-text { color: #9ca3af; }
+  .task-insert-item:hover { background: #f0ebe4; }
+  .task-insert-item.done-item .ti-text { color: #a8a29e; text-decoration: line-through; }
+  .task-insert-item .ti-text { flex: 1; font-size: 12px; color: #44403c; font-weight: 600; line-height: 1.4; }
+  .task-insert-item.done-item .ti-text { color: #a8a29e; }
   #taskInsertToggle {
-    width: 100%; text-align: left; padding: 8px 10px;
-    background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
-    font-size: 12px; font-weight: 700; color: #1d4ed8; cursor: pointer;
+    width: calc(100% - 24px); margin: 0 12px; text-align: left; padding: 8px 10px;
+    background: #f0ebe4; border: 1px solid #e8e2d9; border-radius: 3px;
+    font-size: 12px; font-weight: 600; color: #44403c; cursor: pointer;
     display: flex; align-items: center; justify-content: space-between;
+    transition: background .12s;
   }
+  #taskInsertToggle:hover { background: #e8e2d9; }
   #taskInsertToggle .ti-arrow { font-size: 10px; transition: transform .2s; }
   #taskInsertToggle.open .ti-arrow { transform: rotate(180deg); }
 
   /* ===== PDF gallery ===== */
-  .pdf-gallery { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+  .pdf-gallery { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; padding: 0 12px; }
   .pdf-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px; border: 2px solid #e5e7eb; border-radius: 6px;
-    cursor: pointer; background: #fafafa; transition: all .12s;
+    padding: 6px 8px; border: 1px solid #e8e2d9; border-radius: 6px;
+    cursor: pointer; background: #faf7f4; transition: border-color .12s;
   }
-  .pdf-item:hover { background: #f0f0f0; }
-  .pdf-item.active { border-color: #2563eb; background: #eff6ff; }
+  .pdf-item:hover { border-color: #b8b0a8; background: #f0ebe4; }
+  .pdf-item.active { border-color: #1c1917; background: #f0ebe4; }
   .pdf-item .thumb {
-    width: 64px; height: 45px; object-fit: contain;
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 3px; flex-shrink: 0;
+    width: 60px; height: 42px; object-fit: contain;
+    background: #fff; border: 1px solid #e8e2d9; border-radius: 3px; flex-shrink: 0;
   }
   .pdf-item .info { flex: 1; min-width: 0; }
   .pdf-item .info .name {
-    font-size: 12px; font-weight: 600; color: #111;
+    font-size: 12px; font-weight: 600; color: #1c1917;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .pdf-item .info .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .pdf-item .info .name-edit-btn {
-    flex-shrink: 0; background: #e5e7eb; border: none; border-radius: 5px;
-    cursor: pointer; font-size: 14px; color: #4b5563;
-    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+    flex-shrink: 0; background: #f0ebe4; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 13px; color: #44403c;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation; -webkit-user-select: none; user-select: none; transition: background .12s;
   }
-  .pdf-item .info .name-edit-btn:active { background: #d1d5db; }
+  .pdf-item .info .name-edit-btn:active { background: #e8e2d9; }
   .pdf-item .info .name-confirm-btn {
-    flex-shrink: 0; background: #2563eb; border: none; border-radius: 5px;
-    cursor: pointer; font-size: 14px; color: #fff;
-    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; background: #1c1917; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 13px; color: #fff;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
     touch-action: manipulation; -webkit-user-select: none; user-select: none;
   }
-  .pdf-item .info .name-confirm-btn:active { background: #1d4ed8; }
+  .pdf-item .info .name-confirm-btn:active { background: #292524; }
   .pdf-item .info .name-input {
-    font-size: 12px; font-weight: 600; color: #111;
-    border: 1.5px solid #2563eb; border-radius: 4px;
+    font-size: 12px; font-weight: 600; color: #1c1917;
+    border: 1px solid #44403c; border-radius: 4px;
     padding: 2px 6px; width: 100%; outline: none; min-width: 0;
-    touch-action: auto; -webkit-user-select: auto; user-select: auto;
+    touch-action: auto; -webkit-user-select: auto; user-select: auto; background: #fff;
   }
-  .pdf-item .info .page { font-size: 10px; color: #6b7280; }
+  .pdf-item .info .page { font-size: 10px; color: #a8a29e; }
   .pdf-item .del-btn {
     width: 20px; height: 20px; border-radius: 50%;
-    background: #ef4444; color: #fff; border: none;
-    font-size: 12px; line-height: 20px; text-align: center;
-    cursor: pointer; flex-shrink: 0;
+    background: #fef2f2; color: #9f1239; border: 1px solid #fecdd3;
+    font-size: 11px; line-height: 20px; text-align: center;
+    cursor: pointer; flex-shrink: 0; transition: background .12s;
   }
-  .pdf-empty { font-size: 12px; color: #9ca3af; text-align: center; padding: 12px 0; }
+  .pdf-item .del-btn:hover { background: #fee2e2; }
+  .pdf-empty { font-size: 12px; color: #a8a29e; text-align: center; padding: 12px 0; }
 
   /* ===== Shape property panel ===== */
   #shapePropPanel {
-    display: none; background: #fef9c3; border: 1.5px solid #eab308;
-    border-radius: 8px; padding: 10px; margin-bottom: 10px;
+    display: none; background: #faf7f4; border: 1px solid #e8e2d9;
+    border-radius: 3px; padding: 10px 12px; margin: 0 12px 8px;
   }
   #shapePropPanel.show { display: block; }
-  #shapePropPanel h3 { font-size: 12px; color: #92400e; margin-bottom: 8px; font-weight: 700; }
+  #shapePropPanel h3 { font-size: 11px; color: #44403c; margin-bottom: 8px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   #shapePropPanel label { font-size: 11px; color: #78716c; display: block; margin-top: 6px; margin-bottom: 2px; }
   #textPropPanel {
-    display: none; background: #eff6ff; border: 1.5px solid #3b82f6;
-    border-radius: 8px; padding: 10px; margin-bottom: 10px;
+    display: none; background: #faf7f4; border: 1px solid #e8e2d9;
+    border-radius: 3px; padding: 10px 12px; margin: 0 12px 8px;
   }
   #textPropPanel.show { display: block; }
-  #textPropPanel h3 { font-size: 12px; color: #1e40af; margin-bottom: 8px; font-weight: 700; }
-  #textPropPanel label { font-size: 11px; color: #3b82f6; display: block; margin-top: 6px; margin-bottom: 2px; }
+  #textPropPanel h3 { font-size: 11px; color: #44403c; margin-bottom: 8px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+  #textPropPanel label { font-size: 11px; color: #78716c; display: block; margin-top: 6px; margin-bottom: 2px; }
   .text-color-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .text-color-swatch {
-    width: 24px; height: 24px; border-radius: 50%;
-    border: 2px solid #fff; box-shadow: 0 0 0 1.5px #cbd5e1;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px #ddd8d0;
     cursor: pointer; transition: transform .1s;
   }
-  .text-color-swatch.active { box-shadow: 0 0 0 2.5px #2563eb; transform: scale(1.15); }
+  .text-color-swatch.active { box-shadow: 0 0 0 2px #1c1917; transform: scale(1.15); }
   .text-size-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 4px; }
-  .text-size-btn { padding: 5px 0; border: 1.5px solid #e5e7eb; border-radius: 5px; background: #fff; font-size: 11px; cursor: pointer; color: #374151; }
-  .text-size-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+  .text-size-btn { padding: 5px 0; border: 1px solid #e8e2d9; border-radius: 4px; background: #fff; font-size: 11px; cursor: pointer; color: #57534e; transition: all .12s; }
+  .text-size-btn:hover { border-color: #b8b0a8; background: #f0ebe4; }
+  .text-size-btn.active { border-color: #1c1917; background: #1c1917; color: #fff; font-weight: 700; }
 
   /* ===== ログイン画面 ===== */
   #loginScreen {
@@ -547,16 +631,27 @@
     /* キャンバスを全幅に（asideが浮くのでmainが広がる） */
     main { width: 100%; }
 
-    /* 引き出し開閉トグル（左下フローティング） */
+    /* 引き出し開閉トグル（左下フローティング）— 渡すバーの上に逃がす */
     .drawer-toggle {
       display: flex; align-items: center; justify-content: center; gap: 6px;
-      position: fixed; left: 12px; bottom: 16px; z-index: 46;
-      height: 44px; padding: 0 16px; border: none; border-radius: 24px;
-      background: #2563eb; color: #fff; font-size: 14px; font-weight: 700;
-      box-shadow: 0 3px 12px rgba(0,0,0,.3); cursor: pointer;
-      touch-action: manipulation;
+      position: fixed; left: 12px; bottom: 84px; z-index: 46;
+      height: 48px; padding: 0 18px; border: none; border-radius: 4px;
+      background: #1c1917; color: #fff; font-size: 14px; font-weight: 600;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25); cursor: pointer;
+      touch-action: manipulation; transition: background .15s;
     }
-    body.drawer-open .drawer-toggle { background: #1f2937; }
+    body.drawer-open .drawer-toggle { background: #292524; }
+
+    /* 渡すバーは画面下いっぱいに固定（親指の届く位置） */
+    .zoom-bar { bottom: 84px; }
+    .handoff-bar {
+      left: 0; right: 0; bottom: 0; transform: none;
+      width: 100%; gap: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.97); backdrop-filter: blur(10px);
+      border-top: 1px solid #e5dfd6; box-shadow: 0 -2px 16px rgba(0,0,0,.08);
+    }
+    .handoff-primary { flex: 1; height: 56px; padding: 0 16px; box-shadow: none; font-size: 17px; }
+    .handoff-secondary { height: 56px; margin-left: 8px; box-shadow: none; }
 
     /* モーダルをスマホで見やすく：幅広め・高さ余裕・フッターボタンは折り返し可 */
     .modal .box { width: 94%; max-height: 90vh; }
@@ -784,13 +879,17 @@
     <div class="spacer"></div>
     <button class="secondary" id="archiveBtn">📚 履歴</button>
     <button class="secondary" id="taskBtn">✅ タスク</button>
-    <button class="secondary" id="earlyBtn" style="background:#fffbeb;border-color:#f59e0b;color:#b45309;font-weight:700;">🔔 早割登録</button>
-    <button class="secondary" id="proBtn" style="background:#f5f3ff;border-color:#8b5cf6;color:#6d28d9;font-weight:700;">⭐ Pro<span id="proStatusLabel" style="margin-left:4px;"></span></button>
-    <button class="secondary" id="apiKeyBtn">🔑 APIキー</button>
+    <div class="hdr-more-wrap">
+      <button class="secondary hdr-more-btn" id="moreBtn" title="その他">･･･</button>
+      <div class="hdr-more-menu" id="moreMenu">
+        <button id="earlyBtn">🔔 早割登録</button>
+        <button id="proBtn">⭐ Pro<span id="proStatusLabel" style="margin-left:4px;"></span></button>
+        <button id="apiKeyBtn">🔑 APIキー</button>
+      </div>
+    </div>
     <div id="userInfo"><span id="userEmail"></span><button id="logoutBtn">ログアウト</button></div>
   </div>
   <button class="save" id="saveBtn">💾 保存</button>
-  <button id="exportBtn">📥 PDF出力</button>
 </header>
 
 <div class="app">
@@ -800,7 +899,7 @@
       <button class="file-label" type="button" id="pdfAddBtn">📄 PDFを追加</button>
       <input class="file-input" type="file" id="pdfFile" accept="application/pdf" multiple />
       <button class="action-btn ghost" id="newBtn">🆕 新規作成</button>
-      <button class="action-btn ghost" id="sbConfigBtn" style="border-color:#0ea5e9;color:#0369a1;">☁️ クラウド同期：<span id="sbStatus">未接続</span></button>
+      <button class="action-btn ghost" id="sbConfigBtn">☁️ クラウド同期：<span id="sbStatus">未接続</span></button>
     </div>
 
     <div class="section">
@@ -856,11 +955,10 @@
       <h3>📐 選択中の図形</h3>
       <label>色</label>
       <div class="colors" id="shapeColors">
-        <div class="color" data-sc="#000000" style="background:#000"></div>
-        <div class="color" data-sc="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-sc="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-sc="#16a34a" style="background:#16a34a"></div>
-        <div class="color" data-sc="#f59e0b" style="background:#f59e0b"></div>
+        <div class="color" data-sc="#d40000" style="background:#d40000" title="赤"></div>
+        <div class="color" data-sc="#000000" style="background:#000" title="黒"></div>
+        <div class="color" data-sc="#0038a8" style="background:#0038a8" title="青"></div>
+        <div class="color" data-sc="#00701a" style="background:#00701a" title="緑"></div>
       </div>
       <label>塗り透明度</label>
       <input type="range" id="shapeFillAlpha" min="0" max="100" step="5" value="40" style="width:100%;" />
@@ -878,21 +976,20 @@
       <input type="range" id="textFontSizeSlider" min="0" max="18" step="1" value="3" style="width:100%;margin-bottom:4px;" />
       <label>文字色</label>
       <div class="text-color-row" id="textPropColors">
+        <div class="text-color-swatch" data-tc="#d40000" style="background:#d40000;"></div>
         <div class="text-color-swatch" data-tc="#111111" style="background:#111;"></div>
-        <div class="text-color-swatch" data-tc="#dc2626" style="background:#dc2626;"></div>
-        <div class="text-color-swatch" data-tc="#2563eb" style="background:#2563eb;"></div>
-        <div class="text-color-swatch" data-tc="#16a34a" style="background:#16a34a;"></div>
-        <div class="text-color-swatch" data-tc="#f59e0b" style="background:#f59e0b;"></div>
+        <div class="text-color-swatch" data-tc="#0038a8" style="background:#0038a8;"></div>
+        <div class="text-color-swatch" data-tc="#00701a" style="background:#00701a;"></div>
         <div class="text-color-swatch" data-tc="#ffffff" style="background:#fff;"></div>
       </div>
       <label style="margin-top:8px;">背景色</label>
       <div class="text-color-row" id="textBgColors">
-        <div class="text-color-swatch active" data-bg="rgba(255,255,240,0.92)" style="background:#fffef0;border:1.5px solid #d97706;" title="薄黄（デフォルト）"></div>
-        <div class="text-color-swatch" data-bg="rgba(255,255,255,0.95)" style="background:#fff;border:1.5px solid #e5e7eb;" title="白"></div>
-        <div class="text-color-swatch" data-bg="rgba(254,226,226,0.92)" style="background:#fee2e2;" title="薄赤"></div>
-        <div class="text-color-swatch" data-bg="rgba(219,234,254,0.92)" style="background:#dbeafe;" title="薄青"></div>
-        <div class="text-color-swatch" data-bg="rgba(220,252,231,0.92)" style="background:#dcfce7;" title="薄緑"></div>
-        <div class="text-color-swatch" data-bg="rgba(31,41,55,0.9)" style="background:#1f2937;" title="黒"></div>
+        <div class="text-color-swatch active" data-bg="rgba(255,255,255,1)" style="background:#fff;border:1.5px solid #b8b0a8;" title="白（デフォルト）"></div>
+        <div class="text-color-swatch" data-bg="rgba(253,224,71,1)" style="background:#fde047;" title="黄"></div>
+        <div class="text-color-swatch" data-bg="rgba(252,165,165,1)" style="background:#fca5a5;" title="赤"></div>
+        <div class="text-color-swatch" data-bg="rgba(147,197,253,1)" style="background:#93c5fd;" title="青"></div>
+        <div class="text-color-swatch" data-bg="rgba(134,239,172,1)" style="background:#86efac;" title="緑"></div>
+        <div class="text-color-swatch" data-bg="rgba(28,25,23,0.95)" style="background:#1c1917;" title="黒"></div>
         <div class="text-color-swatch" data-bg="transparent" style="background:transparent;border:1.5px dashed #9ca3af;position:relative;" title="透明">
           <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#9ca3af;">∅</span>
         </div>
@@ -903,10 +1000,10 @@
     <div class="section">
       <h3>色</h3>
       <div class="colors">
-        <div class="color active" data-color="#000000" style="background:#000"></div>
-        <div class="color" data-color="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-color="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-color="#16a34a" style="background:#16a34a"></div>
+        <div class="color active" data-color="#d40000" style="background:#d40000" title="赤（指示）"></div>
+        <div class="color" data-color="#000000" style="background:#000" title="黒"></div>
+        <div class="color" data-color="#0038a8" style="background:#0038a8" title="青"></div>
+        <div class="color" data-color="#00701a" style="background:#00701a" title="緑"></div>
       </div>
     </div>
 
@@ -914,8 +1011,8 @@
       <h3>線の太さ</h3>
       <div class="size-row">
         <button class="size-btn" data-size="1">細</button>
-        <button class="size-btn active" data-size="2">中</button>
-        <button class="size-btn" data-size="4">太</button>
+        <button class="size-btn" data-size="2">中</button>
+        <button class="size-btn active" data-size="4">太</button>
         <button class="size-btn" data-size="8">極</button>
       </div>
     </div>
@@ -932,7 +1029,7 @@
     <div class="section">
       <h3>追加</h3>
       <button class="action-btn amber" id="addTextBtn">📝 テキスト追加</button>
-      <label class="file-label" for="photoFile" style="background:#0ea5e9;">📷 写真を追加</label>
+      <label class="file-label" for="photoFile" style="background:#44403c;">📷 写真を追加</label>
       <input class="file-input" type="file" id="photoFile" accept="image/*" multiple />
     </div>
 
@@ -949,22 +1046,21 @@
     <div class="section">
       <h3>文字色</h3>
       <div class="colors" id="textColors">
-        <div class="color active" data-textcolor="#111111" style="background:#111"></div>
-        <div class="color" data-textcolor="#dc2626" style="background:#dc2626"></div>
-        <div class="color" data-textcolor="#2563eb" style="background:#2563eb"></div>
-        <div class="color" data-textcolor="#16a34a" style="background:#16a34a"></div>
-        <div class="color" data-textcolor="#f59e0b" style="background:#f59e0b"></div>
+        <div class="color active" data-textcolor="#d40000" style="background:#d40000" title="赤（指示）"></div>
+        <div class="color" data-textcolor="#111111" style="background:#111" title="黒"></div>
+        <div class="color" data-textcolor="#0038a8" style="background:#0038a8" title="青"></div>
+        <div class="color" data-textcolor="#00701a" style="background:#00701a" title="緑"></div>
       </div>
     </div>
 
     <div class="section">
       <h3>AI指示生成</h3>
-      <button class="action-btn" id="voiceBtn" style="background:#10b981;color:#fff;border:none;">🎤 音声で指示書作成</button>
+      <button class="action-btn" id="voiceBtn" style="background:#166534;color:#fff;border:none;">🎤 音声で指示書作成</button>
     </div>
 
     <div class="section">
       <h3>ご意見・ご要望</h3>
-      <button class="action-btn ghost" id="feedbackBtn" style="border:1px solid #e5e7eb;">💬 要望・不具合を送る</button>
+      <button class="action-btn ghost" id="feedbackBtn">💬 要望・不具合を送る</button>
       <p style="font-size:11px;color:#9ca3af;margin:6px 2px 0;line-height:1.5;">現場の声で改善します。ひとことでも大歓迎です🙌</p>
     </div>
   </aside>
@@ -998,6 +1094,12 @@
   <span class="zoom-pct" id="zoomPct">100%</span>
   <button id="zoomIn" title="拡大">＋</button>
   <button class="zoom-fit" id="zoomFit" title="全体表示">全体</button>
+</div>
+
+<!-- 渡す（出口）バー -->
+<div class="handoff-bar" id="handoffBar">
+  <button class="handoff-primary" id="shareBtn">📤 業者に渡す</button>
+  <button class="handoff-secondary" id="exportBtn" title="PDFを端末に保存">PDF保存</button>
 </div>
 
 <div class="loader" id="loader"><div class="spinner"></div><div id="loaderText">処理中...</div></div>
@@ -1034,7 +1136,7 @@
     <div class="footer" id="voiceResultFooter" style="display:none;flex-wrap:wrap;gap:6px;">
       <button class="mbtn ghost" id="voiceRetryBtn">🎤 録り直す</button>
       <button class="mbtn primary" id="voiceAddBtn">📝 テキストボックスに追加</button>
-      <button class="mbtn primary" id="voiceAddTaskBtn" style="background:#10b981;">✅ タスクに追加</button>
+      <button class="mbtn primary" id="voiceAddTaskBtn" style="background:#166534;">✅ タスクに追加</button>
     </div>
   </div>
 </div>
@@ -1128,8 +1230,8 @@ let autoSaveTimer = null;
 let sbSyncTimer = null;
 
 const state = {
-  tool: 'pen', color: '#000000', size: 2, fontSize: 14,
-  textColor: '#111111', fillAlpha: 0.4,
+  tool: 'pen', color: '#d40000', size: 4, fontSize: 14,
+  textColor: '#d40000', fillAlpha: 0.4,
   drawing: false, lastX: 0, lastY: 0,
   history: [], historyIndex: -1, maxHistory: 30,
   pdfLoaded: false,
@@ -3667,20 +3769,76 @@ async function renderHeaderImage(r){
   div.innerHTML='<div style="font-size:21px;font-weight:700;">業者への指示書</div><div>業者: <b>'+escapeHtml(r.vendor||'')+'</b></div><div>現場: <b>'+escapeHtml(r.siteName||'')+'</b></div><div style="margin-left:auto;">日付: <b>'+escapeHtml(r.date||'')+'</b></div>';
   document.body.appendChild(div);const cv=await html2canvas(div,{scale:1,backgroundColor:'#1f2937'});document.body.removeChild(div);return cv.toDataURL('image/png');
 }
+/* PDFを組み立てて { pdf, filename } を返す（保存にも共有にも使う） */
+async function buildPdf(){
+  const{jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
+  const pW=420,pH=297,hH=14;const r={vendor:document.getElementById('vendorName').value,siteName:document.getElementById('siteName').value,date:document.getElementById('dateInput').value};
+  const hi=await renderHeaderImage(r);pdf.addImage(hi,'PNG',0,0,pW,hH);
+  document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
+  const oldSel=state.selectedShapeId;selectShape(null);
+  const bc=await html2canvas(document.getElementById('canvasWrap'),{scale:1,backgroundColor:'#fff',useCORS:true,allowTaint:true});
+  if(oldSel)selectShape(oldSel);
+  const rH=pH-hH,asp=bc.width/bc.height;let dW=pW,dH=dW/asp;if(dH>rH){dH=rH;dW=dH*asp;}
+  pdf.addImage(bc.toDataURL('image/png'),'PNG',(pW-dW)/2,hH+(rH-dH)/2,dW,dH);
+  return {pdf, filename:(r.vendor||'指示書')+'_'+(r.date||'')+'.pdf', rec:r};
+}
 async function exportPdf(){
   showLoader('PDF生成中...');try{
-    const{jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
-    const pW=420,pH=297,hH=14;const r={vendor:document.getElementById('vendorName').value,siteName:document.getElementById('siteName').value,date:document.getElementById('dateInput').value};
-    const hi=await renderHeaderImage(r);pdf.addImage(hi,'PNG',0,0,pW,hH);
-    document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
-    const oldSel=state.selectedShapeId;selectShape(null);
-    const bc=await html2canvas(document.getElementById('canvasWrap'),{scale:1,backgroundColor:'#fff',useCORS:true,allowTaint:true});
-    if(oldSel)selectShape(oldSel);
-    const rH=pH-hH,asp=bc.width/bc.height;let dW=pW,dH=dW/asp;if(dH>rH){dH=rH;dW=dH*asp;}
-    pdf.addImage(bc.toDataURL('image/png'),'PNG',(pW-dW)/2,hH+(rH-dH)/2,dW,dH);
-    pdf.save((r.vendor||'指示書')+'_'+(r.date||'')+'.pdf');
+    const{pdf,filename}=await buildPdf();
+    pdf.save(filename);
   }catch(err){console.error(err);alert('PDF出力失敗:'+err.message);}finally{hideLoader();}
 }
+
+/* 業者に渡す：端末の共有シート（LINE・メール等）へPDFを直接渡す。
+   非対応環境ではPDF保存にフォールバックする。 */
+document.getElementById('shareBtn').addEventListener('click', sharePdf);
+async function sharePdf(){
+  const btn=document.getElementById('shareBtn');
+  btn.disabled=true;
+  showLoader('PDF生成中...');
+  let built;
+  try{
+    built=await buildPdf();
+  }catch(err){
+    console.error(err);hideLoader();btn.disabled=false;
+    alert('PDF生成に失敗しました:'+err.message);return;
+  }
+  hideLoader();
+  const {pdf,filename,rec}=built;
+  try{
+    const file=new File([pdf.output('blob')],filename,{type:'application/pdf'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:filename,
+        text:[rec.siteName&&('現場: '+rec.siteName),rec.vendor&&('業者: '+rec.vendor),rec.date].filter(Boolean).join(' / ')
+      });
+    }else{
+      pdf.save(filename);
+      alert('この端末は直接共有に対応していないため、PDFを保存しました。\n保存したPDFをLINEやメールに添付して送ってください。');
+    }
+  }catch(err){
+    // ユーザーが共有シートを閉じただけの場合は何も表示しない
+    if(err && err.name==='AbortError') return;
+    console.error(err);
+    try{ pdf.save(filename); }catch(_){}
+    alert('共有できなかったため、PDFを保存しました。');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+/* ヘッダー「･･･」メニュー */
+(function(){
+  const wrap=document.querySelector('.hdr-more-wrap');
+  const btn=document.getElementById('moreBtn');
+  if(!wrap||!btn)return;
+  btn.addEventListener('click',e=>{e.stopPropagation();wrap.classList.toggle('open');});
+  document.addEventListener('click',e=>{if(!wrap.contains(e.target))wrap.classList.remove('open');});
+  wrap.querySelectorAll('.hdr-more-menu button').forEach(b=>{
+    b.addEventListener('click',()=>wrap.classList.remove('open'));
+  });
+})();
 
 /* iPad gesture lock — allow 2-finger pinch for zoom, block single-touch scroll on canvas */
 document.addEventListener('gesturestart',e=>e.preventDefault());
