@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>業者への指示書</title>
+<title>現場便 | 図面に赤入れして業者に渡す指示書アプリ</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -27,7 +27,9 @@
   header .logo {
     font-size: 14px; font-weight: 700; margin-right: 4px; white-space: nowrap;
     color: #1c1917; letter-spacing: .5px;
+    display: inline-flex; align-items: center; gap: 7px;
   }
+  header .logo .ic { width: 16px; height: 16px; }
   header input[type="text"], header input[type="date"] {
     height: 32px; border: 1px solid #ddd8d0; border-radius: 6px;
     padding: 0 10px; font-size: 13px;
@@ -63,21 +65,48 @@
   .vendor-manage-row .vdel { background: #fef2f2; color: #9f1239; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
   header .spacer { flex: 1; }
   header .hdr-main { display: contents; }
-  /* ヘッダーの「･･･」オーバーフローメニュー：低頻度の操作を畳む */
-  .hdr-more-wrap { position: relative; display: inline-block; }
+  /* ヘッダーのドロップダウン（図面一覧 / その他） */
+  .hdr-drop-wrap { position: relative; display: inline-block; }
   .hdr-more-btn { min-width: 40px; letter-spacing: 1px; font-size: 15px; }
-  .hdr-more-menu {
+  .hdr-drop-menu {
     display: none; position: absolute; top: 38px; right: 0;
     background: #fff; border: 1px solid #ddd8d0; border-radius: 4px;
     box-shadow: 0 6px 24px rgba(0,0,0,.14); padding: 4px; min-width: 176px; z-index: 60;
   }
-  .hdr-more-wrap.open .hdr-more-menu { display: block; }
-  .hdr-more-menu button {
+  .hdr-drop-wrap.open .hdr-drop-menu { display: block; }
+  #moreMenu button {
     display: block; width: 100%; text-align: left;
     height: 44px; padding: 0 12px; border-radius: 3px;
     background: transparent; color: #1c1917; font-size: 13px; font-weight: 500;
   }
-  .hdr-more-menu button:hover { background: #f0ebe4; }
+  #moreMenu button:hover { background: #f0ebe4; }
+  /* 図面メニュー：サムネイル一覧を入れるので広め */
+  .hdr-drop-menu.wide { width: 330px; padding: 10px; left: 0; right: auto; }
+  .hdr-drop-menu.wide .file-label { width: 100%; margin: 0 0 8px; min-height: 44px; }
+  .hdr-drop-menu.wide .pdf-gallery { padding: 0; max-height: 48vh; }
+  #pdfCountLabel { margin-left: 4px; opacity: .7; font-weight: 500; }
+  /* アイコン（単色SVG） */
+  .ic {
+    width: 17px; height: 17px; flex: 0 0 auto;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .tool .icon .ic { width: 20px; height: 20px; stroke-width: 1.5; }
+  header button .ic, .hdr-drop-menu button .ic { width: 15px; height: 15px; }
+  .handoff-primary .ic { width: 19px; height: 19px; stroke-width: 1.8; }
+  .modal header.mhead h2 .ic { width: 17px; height: 17px; }
+  /* アイコンを併記するボタンは中身を横並びにする */
+  header button, .hdr-drop-menu button, .handoff-primary, .handoff-secondary,
+  .modal header.mhead h2, .section h3, .saved-row button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  #moreMenu button { justify-content: flex-start; }
+  .modal header.mhead h2, .section h3 { justify-content: flex-start; }
+  /* サイドバー内の小見出し */
+  .sub-label {
+    font-size: 9px; font-weight: 500; color: #c0b8b0; letter-spacing: 2px;
+    text-transform: uppercase; padding: 0 16px; margin: 12px 0 2px;
+  }
 
   /* ===== 渡す（出口）バー ===== */
   .handoff-bar {
@@ -139,7 +168,7 @@
     border-radius: 0; touch-action: manipulation;
   }
   .tool:hover { background: #f0ebe4; color: #1c1917; }
-  .tool .icon { font-size: 20px; line-height: 1; flex-shrink: 0; width: 22px; text-align: center; }
+  .tool .icon { display: flex; align-items: center; justify-content: center; width: 22px; flex-shrink: 0; }
   .tool.active {
     border-left-color: #1c1917; background: #ede8e2;
     color: #1c1917; font-weight: 700;
@@ -592,7 +621,8 @@
   .drawer-backdrop { display: none; }
 
   /* ===================== モバイル対応（スマホ/縦タブレット） ===================== */
-  @media (max-width: 760px) {
+  /* 横向きスマホは幅760pxを超えるが高さが足りないので、高さ条件でも同じレイアウトにする */
+  @media (max-width: 760px), (max-height: 520px) {
     /* ヘッダー：保存/PDF出力は右端固定、それ以外(.hdr-main)を横スクロールで届くように */
     header { gap: 6px; padding: 0 8px; }
     header .hdr-main {
@@ -609,10 +639,13 @@
     header .hdr-main button, header input[type="date"] { flex-shrink: 0; }
     /* 保存/PDF出力は常時見える右端固定 */
     #saveBtn, #exportBtn { flex-shrink: 0; padding: 0 10px; }
+    /* .hdr-main が overflow-x:auto のため、absoluteだと縦に切れる → fixed にする */
+    .hdr-drop-menu { position: fixed; top: 52px; left: 8px; right: 8px; width: auto; }
+    .hdr-drop-menu.wide { width: auto; left: 8px; right: 8px; }
 
     /* サイドバーを画面外の引き出しに */
     aside {
-      position: fixed; top: 56px; left: 0; bottom: 0;
+      position: fixed; top: 52px; left: 0; bottom: 0;
       width: 82%; max-width: 300px; z-index: 45;
       transform: translateX(-100%);
       transition: transform .25s ease;
@@ -622,7 +655,7 @@
 
     /* 引き出しの背景オーバーレイ */
     .drawer-backdrop {
-      display: block; position: fixed; inset: 56px 0 0 0;
+      display: block; position: fixed; inset: 52px 0 0 0;
       background: rgba(0,0,0,.4); z-index: 44;
       opacity: 0; pointer-events: none; transition: opacity .25s;
     }
@@ -658,14 +691,103 @@
     .modal .footer { flex-wrap: wrap; }
     .modal .footer .mbtn { flex: 1 1 auto; min-width: 120px; justify-content: center; }
   }
+  /* ===== 横向きスマホ：縦の余白が乏しいので徹底的に詰める ===== */
+  /* 携帯は縦・横どちらでもヘッダーを詰めてキャンバスに高さを回す */
+  @media (max-width: 767px), (orientation: landscape) and (max-height: 520px) {
+    header { height: 44px; padding: 0 8px; }
+    .app { height: calc(100% - 44px); }
+    aside { top: 44px; }
+    .drawer-backdrop { inset: 44px 0 0 0; }
+    .hdr-drop-menu { top: 44px; max-height: calc(100vh - 56px); overflow-y: auto; }
+    .hdr-drop-menu.wide .pdf-gallery { max-height: 40vh; }
+    header button, header select.hdr-select, header input[type="date"] { height: 30px; }
+    header .logo { font-size: 13px; }
+
+    /* 縦向きでも渡すバーを薄くしてキャンバスを稼ぐ */
+    .handoff-bar { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); }
+    .handoff-primary { height: 48px; font-size: 16px; }
+    .handoff-secondary { height: 48px; }
+    .drawer-toggle { height: 42px; bottom: 70px; padding: 0 14px; font-size: 13px; }
+    .zoom-bar { bottom: 70px; padding: 4px 8px; }
+    .zoom-bar button { width: 26px; height: 26px; }
+  }
+
+  /* 横向きは幅に余裕があるので、渡すバーを右下のボタンにして縦を最大化する */
+  @media (orientation: landscape) and (max-height: 520px) {
+    .handoff-bar {
+      left: auto; right: 10px; bottom: 10px; width: auto;
+      padding: 0; gap: 8px; background: none; border-top: none;
+      box-shadow: none; backdrop-filter: none;
+    }
+    .handoff-primary {
+      height: 46px; padding: 0 20px; font-size: 15px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    }
+    .handoff-secondary { height: 46px; padding: 0 14px; font-size: 12px; }
+    .drawer-toggle { bottom: 10px; left: 10px; }
+    .zoom-bar { bottom: 10px; right: auto; left: 50%; transform: translateX(-50%); }
+  }
+
+  /* ===== 縦向きスマホ：横向きを勧めるだけの細いバナー（作業は妨げない） ===== */
+  #rotateHint { display: none; }
+  @media (max-width: 767px) and (orientation: portrait) {
+    body:not(.allow-portrait) #rotateHint {
+      display: flex; align-items: center; gap: 8px;
+      position: fixed; left: 8px; right: 8px; top: 50px; z-index: 130;
+      background: rgba(28,25,23,.94); color: #fff;
+      border-radius: 6px; padding: 8px 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.28);
+    }
+    #rotateHint .rot-ic { width: 20px; height: 20px; stroke: #fff; fill: none; stroke-width: 1.6; flex: 0 0 auto; }
+    #rotateHint p { font-size: 12px; color: #e7e5e4; line-height: 1.5; flex: 1; }
+    #rotateHint button {
+      background: transparent; color: #a8a29e; border: none;
+      font-size: 18px; line-height: 1; padding: 4px 6px; cursor: pointer; flex: 0 0 auto;
+    }
+  }
 </style>
 </head>
 <body>
+<!-- アイコン：単色ストロークのSVG。currentColorを継承するので選択時の白抜きにもそのまま追従する -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l4.5-1.2L19 8.3a2 2 0 0 0 0-2.8l-.5-.5a2 2 0 0 0-2.8 0L5.2 15.5 4 20z"/><path d="M14.5 7.5l2 2"/></symbol>
+<symbol id="i-eraser" viewBox="0 0 24 24"><path d="M9 20H20"/><path d="M15.5 4.5l4 4a1.5 1.5 0 0 1 0 2.1l-7.4 7.4H8l-3.5-3.5a1.5 1.5 0 0 1 0-2.1l8.9-8.9a1.5 1.5 0 0 1 2.1 0z"/><path d="M8.5 9.5l6 6"/></symbol>
+<symbol id="i-cursor" viewBox="0 0 24 24"><path d="M5.5 3.5l13 7.4-5.6 1.4-2.4 5.6-5-14.4z"/></symbol>
+<symbol id="i-marquee" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M12 9v6M9 12h6"/></symbol>
+<symbol id="i-line" viewBox="0 0 24 24"><path d="M4.5 19.5l15-15"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4.5 19.5l14-14"/><path d="M11.5 5.5h7v7"/></symbol>
+<symbol id="i-rect" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="11" rx="1"/></symbol>
+<symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
+<symbol id="i-rectfill" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="11" rx="1" fill="currentColor" fill-opacity=".28"/></symbol>
+<symbol id="i-ellipsefill" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5" fill="currentColor" fill-opacity=".28"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V4.5h14V7"/><path d="M12 4.5v15"/><path d="M8.5 19.5h7"/></symbol>
+<symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M20.5 16.5l-5-5-6.5 6.5"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5L4 9.5l5-5"/><path d="M4 9.5h9.5a5.5 5.5 0 0 1 0 11H8"/></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14.5l5-5-5-5"/><path d="M20 9.5h-9.5a5.5 5.5 0 0 0 0 11H16"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 4h5v3h-5z"/><path d="M6.5 7l1 12.5h9L17.5 7"/><path d="M10 10.5v6M14 10.5v6"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M9 4.5H7A1.5 1.5 0 0 0 5.5 6v13A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V6A1.5 1.5 0 0 0 17 4.5h-2"/><rect x="9" y="2.8" width="6" height="3.4" rx="1"/><path d="M9 13l2 2 4-4"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3"/></symbol>
+<symbol id="i-newfile" viewBox="0 0 24 24"><path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5M9.5 14h5"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7.5 18.5a4 4 0 0 1 .3-8A5.5 5.5 0 0 1 18 11.6a3.5 3.5 0 0 1-.5 6.9z"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M20.5 14.5a2 2 0 0 1-2 2H8l-4.5 4V5.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3.2L10.2 13.9"/><path d="M21 3.2l-6.6 17.9-4.2-8-7.7-3.9z"/></symbol>
+<symbol id="i-plan" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3 9.5h18M9 9.5v10"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="4" rx="1"/><path d="M4.5 8v10.5A1.5 1.5 0 0 0 6 20h12a1.5 1.5 0 0 0 1.5-1.5V8"/><path d="M10 12h4"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M5.5 3.5h10L20.5 8v12a1 1 0 0 1-1 1h-14a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M8 3.5v5h7"/><path d="M8 13.5h8V21H8z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v12"/><path d="M8 7.5l4-4 4 4"/><path d="M5 14v5.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V14"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v12"/><path d="M8 11.5l4 4 4-4"/><path d="M4.5 20h15"/></symbol>
+<symbol id="i-pdfadd" viewBox="0 0 24 24"><path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5M9.5 14h5"/></symbol>
+<symbol id="i-ruler" viewBox="0 0 24 24"><path d="M4 20h16L4 4z"/><path d="M8 16.5v-2M11 16.5v-3.5"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="1.5"/><path d="M15.5 5.5v-1A1.5 1.5 0 0 0 14 3H5a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 5 15h1"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 5 2 6 2 6h-15s2-1 2-6z"/><path d="M10.2 19a2 2 0 0 0 3.6 0"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9 6.7 19.7l1.1-5.9L3.5 9.7l5.9-.8z"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4.5"/><path d="M11.2 11.2L20 20"/><path d="M17 17l2-2M14.5 14.5l2-2"/></symbol>
+</defs></svg>
 
 <!-- ログイン画面 -->
 <div id="loginScreen">
   <div class="login-box">
-    <h1>📋 業者への指示書</h1>
+    <h1>現場便</h1>
     <p>ログインしてクラウド同期を開始</p>
     <!-- Anon Key セクション（未設定時のみ表示） -->
     <div id="anonKeySection" style="display:none; background:#fef3c7; border-radius:8px; padding:12px; margin-bottom:16px;">
@@ -722,7 +844,7 @@
   <div class="privacy-box">
     <button class="privacy-close" id="privacyClose">✕</button>
     <h2>プライバシーポリシー</h2>
-    <p>本サービス「業者への指示書」（以下「本サービス」）は、<strong>とめいとDX</strong>（以下「運営者」）が提供するサービスです。運営者は、利用者の個人情報の保護を重要な責務と考え、以下の方針に基づき適切に取り扱います。</p>
+    <p>本サービス「現場便」（以下「本サービス」）は、<strong>とめいとDX</strong>（以下「運営者」）が提供するサービスです。運営者は、利用者の個人情報の保護を重要な責務と考え、以下の方針に基づき適切に取り扱います。</p>
 
     <h3>第1条（収集する個人情報）</h3>
     <p>本サービスでは、以下の個人情報を収集します。</p>
@@ -769,7 +891,7 @@
   <div class="privacy-box">
     <button class="privacy-close" id="tosClose">✕</button>
     <h2>利用規約</h2>
-    <p>本利用規約（以下「本規約」）は、とめいとDX（以下「運営者」）が提供するサービス「業者への指示書」（以下「本サービス」）の利用条件を定めるものです。本サービスをご利用いただく前に、必ずお読みください。</p>
+    <p>本利用規約（以下「本規約」）は、とめいとDX（以下「運営者」）が提供するサービス「現場便」（以下「本サービス」）の利用条件を定めるものです。本サービスをご利用いただく前に、必ずお読みください。</p>
 
     <h3>第1条（適用）</h3>
     <p>本規約は、利用者と運営者との間の本サービスに関する一切の関係に適用されます。利用者がアカウントを作成した時点で、本規約に同意したものとみなします。</p>
@@ -872,67 +994,74 @@
 
 <header>
   <div class="hdr-main">
-    <div class="logo">📋 業者への指示書</div>
+    <div class="logo"><svg class="ic"><use href="#i-send"/></svg>現場便</div>
     <select id="vendorName" class="hdr-select"><option value="">-- 業者選択 --</option></select><button class="hdr-manage" id="vendorManageBtn" title="業者管理">⚙</button>
     <select id="siteName" class="hdr-select"><option value="">-- 現場選択 --</option></select><button class="hdr-manage" id="siteManageBtn" title="現場管理">⚙</button>
     <input type="date" id="dateInput" />
     <div class="spacer"></div>
-    <button class="secondary" id="archiveBtn">📚 履歴</button>
-    <button class="secondary" id="taskBtn">✅ タスク</button>
-    <div class="hdr-more-wrap">
+    <div class="hdr-drop-wrap">
+      <button class="secondary" id="pdfMenuBtn"><svg class="ic"><use href="#i-plan"/></svg>図面<span id="pdfCountLabel"></span></button>
+      <div class="hdr-drop-menu wide" id="pdfMenu">
+        <button class="file-label" type="button" id="pdfAddBtn"><svg class="ic"><use href="#i-pdfadd"/></svg>PDFを追加</button>
+        <input class="file-input" type="file" id="pdfFile" accept="application/pdf" multiple />
+        <div class="pdf-gallery" id="pdfGallery">
+          <div class="pdf-empty" id="pdfEmpty">PDFを読み込んでください</div>
+        </div>
+      </div>
+    </div>
+    <button class="secondary" id="archiveBtn"><svg class="ic"><use href="#i-archive"/></svg>履歴</button>
+    <button class="secondary" id="taskBtn"><svg class="ic"><use href="#i-clipboard"/></svg>タスク</button>
+    <div class="hdr-drop-wrap">
       <button class="secondary hdr-more-btn" id="moreBtn" title="その他">･･･</button>
-      <div class="hdr-more-menu" id="moreMenu">
-        <button id="earlyBtn">🔔 早割登録</button>
-        <button id="proBtn">⭐ Pro<span id="proStatusLabel" style="margin-left:4px;"></span></button>
-        <button id="apiKeyBtn">🔑 APIキー</button>
+      <div class="hdr-drop-menu" id="moreMenu">
+        <button id="earlyBtn"><svg class="ic"><use href="#i-bell"/></svg>早割登録</button>
+        <button id="proBtn"><svg class="ic"><use href="#i-star"/></svg>Pro<span id="proStatusLabel" style="margin-left:4px;"></span></button>
+        <button id="apiKeyBtn"><svg class="ic"><use href="#i-key"/></svg>APIキー</button>
       </div>
     </div>
     <div id="userInfo"><span id="userEmail"></span><button id="logoutBtn">ログアウト</button></div>
   </div>
-  <button class="save" id="saveBtn">💾 保存</button>
+  <button class="save" id="saveBtn"><svg class="ic"><use href="#i-save"/></svg>保存</button>
 </header>
 
 <div class="app">
   <aside>
     <div class="section">
-      <h3>ファイル</h3>
-      <button class="file-label" type="button" id="pdfAddBtn">📄 PDFを追加</button>
-      <input class="file-input" type="file" id="pdfFile" accept="application/pdf" multiple />
-      <button class="action-btn ghost" id="newBtn">🆕 新規作成</button>
-      <button class="action-btn ghost" id="sbConfigBtn">☁️ クラウド同期：<span id="sbStatus">未接続</span></button>
-    </div>
-
-    <div class="section">
-      <h3>図面一覧</h3>
-      <div class="pdf-gallery" id="pdfGallery">
-        <div class="pdf-empty" id="pdfEmpty">PDFを読み込んでください</div>
+      <h3>ツール</h3>
+      <div class="tool-row">
+        <div class="tool active" data-tool="pen"><div class="icon"><svg class="ic"><use href="#i-pen"/></svg></div><div>ペン</div></div>
+        <div class="tool" data-tool="eraser"><div class="icon"><svg class="ic"><use href="#i-eraser"/></svg></div><div>消しゴム</div></div>
+        <div class="tool" data-tool="select"><div class="icon"><svg class="ic"><use href="#i-cursor"/></svg></div><div>選択</div></div>
+        <div class="tool" data-tool="penmove"><div class="icon"><svg class="ic"><use href="#i-marquee"/></svg></div><div>ペン移動</div></div>
       </div>
     </div>
 
     <div class="section">
-      <button id="taskInsertToggle">📋 タスクを挿入 <span class="ti-arrow">▼</span></button>
-      <div id="taskInsertPanel"></div>
-    </div>
-
-    <div class="section">
-      <h3>ツール</h3>
-      <div class="tool-row">
-        <div class="tool active" data-tool="pen"><div class="icon">✏️</div><div>ペン</div></div>
-        <div class="tool" data-tool="eraser"><div class="icon">🧽</div><div>消しゴム</div></div>
-        <div class="tool" data-tool="select"><div class="icon">👆</div><div>選択</div></div>
-        <div class="tool" data-tool="penmove"><div class="icon">✂️</div><div>ペン移動</div></div>
+      <h3>色</h3>
+      <div class="colors">
+        <div class="color active" data-color="#d40000" style="background:#d40000" title="赤（指示）"></div>
+        <div class="color" data-color="#000000" style="background:#000" title="黒"></div>
+        <div class="color" data-color="#0038a8" style="background:#0038a8" title="青"></div>
+        <div class="color" data-color="#00701a" style="background:#00701a" title="緑"></div>
+      </div>
+      <div class="sub-label">線の太さ</div>
+      <div class="size-row">
+        <button class="size-btn" data-size="1">細</button>
+        <button class="size-btn" data-size="2">中</button>
+        <button class="size-btn active" data-size="4">太</button>
+        <button class="size-btn" data-size="8">極</button>
       </div>
     </div>
 
     <div class="section">
       <h3>図形</h3>
       <div class="tool-row">
-        <div class="tool" data-tool="line"><div class="icon">／</div><div>直線</div></div>
-        <div class="tool" data-tool="arrow"><div class="icon">➤</div><div>矢印</div></div>
-        <div class="tool" data-tool="rect"><div class="icon">▭</div><div>長方形</div></div>
-        <div class="tool" data-tool="ellipse"><div class="icon">◯</div><div>円</div></div>
-        <div class="tool" data-tool="rectfill"><div class="icon">▬</div><div>塗り矩形</div></div>
-        <div class="tool" data-tool="ellipsefill"><div class="icon">●</div><div>塗り円</div></div>
+        <div class="tool" data-tool="line"><div class="icon"><svg class="ic"><use href="#i-line"/></svg></div><div>直線</div></div>
+        <div class="tool" data-tool="arrow"><div class="icon"><svg class="ic"><use href="#i-arrow"/></svg></div><div>矢印</div></div>
+        <div class="tool" data-tool="rect"><div class="icon"><svg class="ic"><use href="#i-rect"/></svg></div><div>長方形</div></div>
+        <div class="tool" data-tool="ellipse"><div class="icon"><svg class="ic"><use href="#i-ellipse"/></svg></div><div>円</div></div>
+        <div class="tool" data-tool="rectfill"><div class="icon"><svg class="ic"><use href="#i-rectfill"/></svg></div><div>塗り矩形</div></div>
+        <div class="tool" data-tool="ellipsefill"><div class="icon"><svg class="ic"><use href="#i-ellipsefill"/></svg></div><div>塗り円</div></div>
       </div>
       <div style="margin-top:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#6b7280;margin-bottom:3px;">
@@ -950,9 +1079,9 @@
       </div>
     </div>
 
-    <!-- Shape property panel (appears when shape selected) -->
+<!-- Shape property panel (appears when shape selected) -->
     <div id="shapePropPanel">
-      <h3>📐 選択中の図形</h3>
+      <h3 id="shapePropTitle"><svg class="ic"><use href="#i-ruler"/></svg>選択中の図形</h3>
       <label>色</label>
       <div class="colors" id="shapeColors">
         <div class="color" data-sc="#d40000" style="background:#d40000" title="赤"></div>
@@ -965,13 +1094,13 @@
       <label>線の太さ</label>
       <input type="range" id="shapeLineWidth" min="1" max="12" step="1" value="2" style="width:100%;" />
       <div style="margin-top:8px;display:flex;gap:6px;">
-        <button class="action-btn ghost" id="shapeDuplicate" style="flex:1;">📋 複製</button>
-        <button class="action-btn danger" id="shapeDelete" style="flex:1;">🗑 削除</button>
+        <button class="action-btn ghost" id="shapeDuplicate" style="flex:1;"><svg class="ic"><use href="#i-copy"/></svg>複製</button>
+        <button class="action-btn danger" id="shapeDelete" style="flex:1;"><svg class="ic"><use href="#i-trash"/></svg>削除</button>
       </div>
     </div>
 
-    <div id="textPropPanel">
-      <h3>📝 選択中のテキスト</h3>
+<div id="textPropPanel">
+      <h3><svg class="ic"><use href="#i-text"/></svg>選択中のテキスト</h3>
       <label>文字サイズ　<span id="textFontSizeVal" style="font-weight:700;color:#1e40af;">14</span>px</label>
       <input type="range" id="textFontSizeSlider" min="0" max="18" step="1" value="3" style="width:100%;margin-bottom:4px;" />
       <label>文字色</label>
@@ -994,74 +1123,38 @@
           <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#9ca3af;">∅</span>
         </div>
       </div>
-      <button class="action-btn danger" id="textDelete" style="margin-top:8px;">🗑 削除</button>
+      <button class="action-btn danger" id="textDelete" style="margin-top:8px;"><svg class="ic"><use href="#i-trash"/></svg>削除</button>
     </div>
 
     <div class="section">
-      <h3>色</h3>
-      <div class="colors">
-        <div class="color active" data-color="#d40000" style="background:#d40000" title="赤（指示）"></div>
-        <div class="color" data-color="#000000" style="background:#000" title="黒"></div>
-        <div class="color" data-color="#0038a8" style="background:#0038a8" title="青"></div>
-        <div class="color" data-color="#00701a" style="background:#00701a" title="緑"></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>線の太さ</h3>
-      <div class="size-row">
-        <button class="size-btn" data-size="1">細</button>
-        <button class="size-btn" data-size="2">中</button>
-        <button class="size-btn active" data-size="4">太</button>
-        <button class="size-btn" data-size="8">極</button>
-      </div>
+      <h3>テキスト・写真</h3>
+      <button class="action-btn amber" id="addTextBtn"><svg class="ic"><use href="#i-text"/></svg>テキスト追加</button>
+      <label class="file-label" for="photoFile" style="background:#44403c;"><svg class="ic"><use href="#i-photo"/></svg>写真を追加</label>
+      <input class="file-input" type="file" id="photoFile" accept="image/*" multiple />
     </div>
 
     <div class="section">
       <h3>操作</h3>
       <div class="undo-row">
-        <button class="action-btn ghost" id="undoBtn">↶ 戻す</button>
-        <button class="action-btn ghost" id="redoBtn">↷ やり直し</button>
+        <button class="action-btn ghost" id="undoBtn"><svg class="ic"><use href="#i-undo"/></svg>戻す</button>
+        <button class="action-btn ghost" id="redoBtn"><svg class="ic"><use href="#i-redo"/></svg>やり直し</button>
       </div>
-      <button class="action-btn ghost" id="clearBtn">🗑 全消去</button>
+      <button class="action-btn ghost" id="clearBtn"><svg class="ic"><use href="#i-trash"/></svg>全消去</button>
     </div>
 
     <div class="section">
-      <h3>追加</h3>
-      <button class="action-btn amber" id="addTextBtn">📝 テキスト追加</button>
-      <label class="file-label" for="photoFile" style="background:#44403c;">📷 写真を追加</label>
-      <input class="file-input" type="file" id="photoFile" accept="image/*" multiple />
+      <h3>タスク</h3>
+      <button id="taskInsertToggle"><span style="display:inline-flex;align-items:center;gap:6px;"><svg class="ic"><use href="#i-clipboard"/></svg>タスクを挿入</span><span class="ti-arrow">▼</span></button>
+      <div id="taskInsertPanel"></div>
     </div>
 
     <div class="section">
-      <h3>文字サイズ</h3>
-      <div class="size-row">
-        <button class="size-btn" data-fontsize="12">12</button>
-        <button class="size-btn active" data-fontsize="14">14</button>
-        <button class="size-btn" data-fontsize="16">16</button>
-        <button class="size-btn" data-fontsize="20">20</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>文字色</h3>
-      <div class="colors" id="textColors">
-        <div class="color active" data-textcolor="#d40000" style="background:#d40000" title="赤（指示）"></div>
-        <div class="color" data-textcolor="#111111" style="background:#111" title="黒"></div>
-        <div class="color" data-textcolor="#0038a8" style="background:#0038a8" title="青"></div>
-        <div class="color" data-textcolor="#00701a" style="background:#00701a" title="緑"></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>AI指示生成</h3>
-      <button class="action-btn" id="voiceBtn" style="background:#166534;color:#fff;border:none;">🎤 音声で指示書作成</button>
-    </div>
-
-    <div class="section">
-      <h3>ご意見・ご要望</h3>
-      <button class="action-btn ghost" id="feedbackBtn">💬 要望・不具合を送る</button>
-      <p style="font-size:11px;color:#9ca3af;margin:6px 2px 0;line-height:1.5;">現場の声で改善します。ひとことでも大歓迎です🙌</p>
+      <h3>その他</h3>
+      <button class="action-btn" id="voiceBtn" style="background:#166534;color:#fff;border:none;"><svg class="ic"><use href="#i-mic"/></svg>音声で指示書作成</button>
+      <button class="action-btn ghost" id="newBtn"><svg class="ic"><use href="#i-newfile"/></svg>新規作成</button>
+      <button class="action-btn ghost" id="sbConfigBtn"><svg class="ic"><use href="#i-cloud"/></svg>クラウド同期：<span id="sbStatus">未接続</span></button>
+      <button class="action-btn ghost" id="feedbackBtn"><svg class="ic"><use href="#i-message"/></svg>要望・不具合を送る</button>
+      <p style="font-size:11px;color:#9ca3af;margin:6px 16px 0;line-height:1.5;">現場の声で改善します。ひとことでも大歓迎です🙌</p>
     </div>
   </aside>
 
@@ -1098,22 +1191,31 @@
 
 <!-- 渡す（出口）バー -->
 <div class="handoff-bar" id="handoffBar">
-  <button class="handoff-primary" id="shareBtn">📤 業者に渡す</button>
-  <button class="handoff-secondary" id="exportBtn" title="PDFを端末に保存">PDF保存</button>
+  <button class="handoff-primary" id="shareBtn"><svg class="ic"><use href="#i-share"/></svg>業者に渡す</button>
+  <button class="handoff-secondary" id="exportBtn" title="PDFを端末に保存"><svg class="ic"><use href="#i-download"/></svg>PDF保存</button>
 </div>
 
+<!-- 縦向きスマホ向けの案内（図面が小さくなりすぎるため） -->
+<div id="rotateHint">
+  <svg class="rot-ic" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="7" width="19" height="10" rx="2"/>
+    <path d="M8 3.5l2-2 2 2"/><path d="M10 1.5A6.5 6.5 0 0 1 16.5 8"/>
+  </svg>
+  <p>端末を横にすると図面が大きく表示されます</p>
+  <button id="allowPortraitBtn" title="閉じる">&times;</button>
+</div>
 <div class="loader" id="loader"><div class="spinner"></div><div id="loaderText">処理中...</div></div>
 
-<div class="modal" id="archiveModal"><div class="box"><header class="mhead"><h2>📚 保存された指示書</h2><button class="close-x" data-close="archiveModal">×</button></header><div class="body" id="archiveBody"></div></div></div>
+<div class="modal" id="archiveModal"><div class="box"><header class="mhead"><h2><svg class="ic"><use href="#i-archive"/></svg>保存された指示書</h2><button class="close-x" data-close="archiveModal">×</button></header><div class="body" id="archiveBody"></div></div></div>
 <div class="modal" id="previewModal"><div class="box"><header class="mhead"><h2 id="previewTitle">プレビュー</h2><button class="close-x" data-close="previewModal">×</button></header><div class="body"><img id="previewImg" class="preview-img" alt="preview"/><div id="previewMeta" style="margin-top:12px;font-size:13px;color:#374151;"></div></div><div class="footer"><button class="mbtn ghost" data-close="previewModal">閉じる</button><button class="mbtn primary" id="previewDownload">📥 PDFダウンロード</button></div></div></div>
-<div class="modal" id="taskModal"><div class="box"><header class="mhead"><h2>✅ 業者別タスク管理</h2><button class="close-x" data-close="taskModal">×</button></header><div class="body" id="taskBody"></div></div></div>
+<div class="modal" id="taskModal"><div class="box"><header class="mhead"><h2><svg class="ic"><use href="#i-clipboard"/></svg>業者別タスク管理</h2><button class="close-x" data-close="taskModal">×</button></header><div class="body" id="taskBody"></div></div></div>
 <div class="modal" id="vendorModal"><div class="box small"><header class="mhead"><h2>⚙ 業者管理</h2><button class="close-x" data-close="vendorModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newVendorInput" placeholder="新しい業者名..." /><button id="addVendorBtn">追加</button></div><div class="vendor-manage-list" id="vendorManageList"></div></div></div></div>
-<div class="modal" id="pdfSelectModal"><div class="box" style="max-width:800px;"><header class="mhead"><h2>📄 読み込むページを選択</h2><button class="close-x" data-close="pdfSelectModal">×</button></header><div class="body"><div class="pdf-select-actions"><button id="pdfSelectAll">全選択</button><button id="pdfDeselectAll">全解除</button><span style="flex:1;"></span><span id="pdfSelectCount" style="font-size:13px;color:#6b7280;line-height:32px;">0ページ選択中</span></div><div class="pdf-page-grid" id="pdfPageGrid"></div></div><div class="footer"><button class="mbtn ghost" data-close="pdfSelectModal">キャンセル</button><button class="mbtn primary" id="pdfSelectImport">📥 選択したページを読み込む</button></div></div></div>
+<div class="modal" id="pdfSelectModal"><div class="box" style="max-width:800px;"><header class="mhead"><h2><svg class="ic"><use href="#i-pdfadd"/></svg>読み込むページを選択</h2><button class="close-x" data-close="pdfSelectModal">×</button></header><div class="body"><div class="pdf-select-actions"><button id="pdfSelectAll">全選択</button><button id="pdfDeselectAll">全解除</button><span style="flex:1;"></span><span id="pdfSelectCount" style="font-size:13px;color:#6b7280;line-height:32px;">0ページ選択中</span></div><div class="pdf-page-grid" id="pdfPageGrid"></div></div><div class="footer"><button class="mbtn ghost" data-close="pdfSelectModal">キャンセル</button><button class="mbtn primary" id="pdfSelectImport">📥 選択したページを読み込む</button></div></div></div>
 <div class="modal" id="siteModal"><div class="box small"><header class="mhead"><h2>⚙ 現場管理</h2><button class="close-x" data-close="siteModal">×</button></header><div class="body"><div class="task-add-row" style="margin-top:0;margin-bottom:14px;"><input type="text" class="txt" id="newSiteInput" placeholder="新しい現場名..." /><button id="addSiteBtn">追加</button></div><div class="vendor-manage-list" id="siteManageList"></div></div></div></div>
 <!-- 音声入力モーダル -->
 <div class="modal" id="voiceModal">
   <div class="box small">
-    <header class="mhead"><h2>🎤 音声で指示書作成</h2><button class="close-x" data-close="voiceModal">×</button></header>
+    <header class="mhead"><h2><svg class="ic"><use href="#i-mic"/></svg>音声で指示書作成</h2><button class="close-x" data-close="voiceModal">×</button></header>
     <div class="body" style="text-align:center;">
       <!-- 録音エリア -->
       <div id="voiceRecordArea">
@@ -1241,10 +1343,13 @@ const state = {
   activeTextbox: null,
   // Shapes (vector objects)
   shapes: [],
+  selectedIds: [],        // 選択中の図形（複数可）。単一選択時のみ selectedShapeId に同じidが入る
   selectedShapeId: null,
+  marquee: null,          // 範囲選択の矩形
   // shape interaction
   shapeStart: null, tentativeShape: null,
-  shapeDrag: null, shapeResize: null
+  shapeDrag: null, shapeResize: null,
+  shapeRotate: null, shapeEndpoint: null
 };
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1269,11 +1374,18 @@ const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2
 
 function calcFitScale(){
   const pad = 24;
-  // スマホ(≤760px)はサイドバーが引き出し＝幅を取らないので差し引かない。
-  // これを引くと図面が9%等の極小表示になり、現場でスマホ利用時に図面が見えなくなる。
-  const sidebar = window.innerWidth <= 760 ? 0 : 240;
-  const availW = (window.innerWidth - sidebar) - pad;
-  const availH = (window.innerHeight - 56) - pad;
+  // 画面幅からサイドバーやヘッダーの高さを推測すると、
+  // 引き出し化・ヘッダー高さの変更・画面回転のたびにズレる。
+  // 実際の描画領域(#mainArea)を測って合わせる。
+  const main = document.getElementById('mainArea');
+  let availW = main.clientWidth  - pad;
+  let availH = main.clientHeight - pad;
+  if (availW <= 0 || availH <= 0) {
+    // 初回描画時はまだ実寸が取れないことがあるので画面サイズから概算する
+    const sidebar = (window.innerWidth <= 760 || window.innerHeight <= 520) ? 0 : 240;
+    availW = window.innerWidth - sidebar - pad;
+    availH = window.innerHeight - 52 - pad;
+  }
   return Math.min(availW / W, availH / H, 1);
 }
 function applyZoom(){
@@ -1309,11 +1421,15 @@ function zoomOut(){
 }
 // Init after layout settles
 requestAnimationFrame(() => { fitCanvas(); });
+// レイアウト確定後にもう一度、実寸で合わせ直す
+window.addEventListener('load', () => { setTimeout(fitCanvas, 0); });
 window.addEventListener('resize', fitCanvas);
+// 回転直後はまだレイアウトが確定していないことがあるため、遅らせてもう一度合わせる
+window.addEventListener('orientationchange', () => { setTimeout(fitCanvas, 250); });
 
 document.getElementById('zoomIn').addEventListener('click', zoomIn);
 document.getElementById('zoomOut').addEventListener('click', zoomOut);
-document.getElementById('zoomFit').addEventListener('click', () => { userZoom = 1; applyZoom(); });
+document.getElementById('zoomFit').addEventListener('click', fitCanvas);
 
 // Wheel zoom
 document.getElementById('mainArea').addEventListener('wheel', e => {
@@ -1444,11 +1560,51 @@ snapshot();
 /* =================== Shape rendering =================== */
 function renderShapes(tentative){
   sctx.clearRect(0,0,W,H);
-  state.shapes.forEach(s => drawShapeObj(sctx, s, s.id === state.selectedShapeId));
-  if (tentative) drawShapeObj(sctx, tentative, false);
+  const multi = state.selectedIds.length > 1;
+  state.shapes.forEach(s => {
+    const isSel = state.selectedIds.includes(s.id);
+    // 複数選択中は個別ハンドルを出さず、外枠だけで「選ばれている」ことを示す
+    drawShapeObj(sctx, s, isSel && !multi, isSel && multi);
+  });
+  if (tentative) drawShapeObj(sctx, tentative, false, false);
+  if (multi) drawGroupBox(sctx);
+  if (state.marquee) drawMarquee(sctx, state.marquee);
 }
 
-function drawShapeObj(c, s, selected){
+function drawMarquee(c, m){
+  const r = marqueeRect(m);
+  c.save();
+  c.setLineDash([8,4]); c.lineWidth=2; c.strokeStyle='#2563eb';
+  c.fillStyle='rgba(37,99,235,0.06)';
+  c.fillRect(r.x,r.y,r.w,r.h);
+  c.strokeRect(r.x,r.y,r.w,r.h);
+  c.restore();
+}
+
+function drawGroupBox(c){
+  const sel = selectedShapes();
+  if (sel.length < 2) return;
+  let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+  sel.forEach(s=>{
+    x1=Math.min(x1,s.x1,s.x2); y1=Math.min(y1,s.y1,s.y2);
+    x2=Math.max(x2,s.x1,s.x2); y2=Math.max(y2,s.y1,s.y2);
+  });
+  c.save();
+  c.setLineDash([10,6]); c.lineWidth=2; c.strokeStyle='#2563eb';
+  c.strokeRect(x1-10,y1-10,(x2-x1)+20,(y2-y1)+20);
+  c.setLineDash([]);
+  // 選択数バッジ
+  const label = sel.length+'個選択';
+  c.font='bold 20px -apple-system, sans-serif';
+  const tw = c.measureText(label).width;
+  c.fillStyle='#2563eb';
+  c.fillRect(x1-10, y1-42, tw+20, 28);
+  c.fillStyle='#fff';
+  c.fillText(label, x1, y1-22);
+  c.restore();
+}
+
+function drawShapeObj(c, s, selected, inGroup){
   let {type,x1,y1,x2,y2,color,fillAlpha,lineWidth} = s;
   c.save();
   c.globalCompositeOperation = 'source-over';
@@ -1478,21 +1634,55 @@ function drawShapeObj(c, s, selected){
     c.stroke();
   }
 
+  // 複数選択中の個別マーク（ハンドルは出さない）
+  if (inGroup) {
+    const gx=Math.min(x1,x2)-4, gy=Math.min(y1,y2)-4;
+    c.setLineDash([4,3]); c.strokeStyle='#60a5fa'; c.lineWidth=1.5;
+    c.strokeRect(gx,gy,Math.abs(x2-x1)+8,Math.abs(y2-y1)+8);
+    c.setLineDash([]);
+  }
+
   // selection handles
   if (selected) {
-    const bx=Math.min(x1,x2)-6, by=Math.min(y1,y2)-6;
-    const bw=Math.abs(x2-x1)+12, bh=Math.abs(y2-y1)+12;
-    c.setLineDash([6,4]); c.strokeStyle='#2563eb'; c.lineWidth=2;
-    c.strokeRect(bx,by,bw,bh);
-    c.setLineDash([]);
-    // corner handles
-    const corners = [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]];
-    corners.forEach(([hx,hy])=>{
-      c.fillStyle='#fff'; c.strokeStyle='#2563eb'; c.lineWidth=2;
-      c.beginPath(); c.arc(hx,hy,7,0,Math.PI*2); c.fill(); c.stroke();
-    });
+    if (type === 'line' || type === 'arrow') {
+      // 線分は「両端を掴んで振る」＋「中点まわりに回す」の2通りで操作する
+      c.setLineDash([6,4]); c.strokeStyle='#2563eb'; c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+      c.setLineDash([]);
+      const rp = rotateHandlePos(s);
+      const mx=(x1+x2)/2, my=(y1+y2)/2;
+      c.strokeStyle='#2563eb'; c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(mx,my); c.lineTo(rp.x,rp.y); c.stroke();
+      [[x1,y1],[x2,y2]].forEach(([hx,hy])=>{
+        c.fillStyle='#fff'; c.strokeStyle='#2563eb'; c.lineWidth=2;
+        c.beginPath(); c.arc(hx,hy,9,0,Math.PI*2); c.fill(); c.stroke();
+      });
+      // 回転ハンドル（塗りつぶし＝端点と見分けがつくように）
+      c.fillStyle='#2563eb'; c.strokeStyle='#fff'; c.lineWidth=2.5;
+      c.beginPath(); c.arc(rp.x,rp.y,10,0,Math.PI*2); c.fill(); c.stroke();
+    } else {
+      const bx=Math.min(x1,x2)-6, by=Math.min(y1,y2)-6;
+      const bw=Math.abs(x2-x1)+12, bh=Math.abs(y2-y1)+12;
+      c.setLineDash([6,4]); c.strokeStyle='#2563eb'; c.lineWidth=2;
+      c.strokeRect(bx,by,bw,bh);
+      c.setLineDash([]);
+      // corner handles
+      const corners = [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]];
+      corners.forEach(([hx,hy])=>{
+        c.fillStyle='#fff'; c.strokeStyle='#2563eb'; c.lineWidth=2;
+        c.beginPath(); c.arc(hx,hy,7,0,Math.PI*2); c.fill(); c.stroke();
+      });
+    }
   }
   c.restore();
+}
+
+/* 回転ハンドルは線分の中点から垂直に離した位置に置く */
+function rotateHandlePos(s){
+  const mx=(s.x1+s.x2)/2, my=(s.y1+s.y2)/2;
+  const ang=Math.atan2(s.y2-s.y1, s.x2-s.x1) - Math.PI/2;
+  const d=46;
+  return { x: mx+Math.cos(ang)*d, y: my+Math.sin(ang)*d };
 }
 
 /* =================== Shape hit test =================== */
@@ -1515,7 +1705,22 @@ function hitShape(s, px, py){
   return true;
 }
 
+/* 線分の端点ハンドル：0=始点 / 1=終点 / -1=外れ */
+function hitLineEndpoint(s, px, py){
+  if (s.type!=='line' && s.type!=='arrow') return -1;
+  if (Math.hypot(px-s.x1, py-s.y1) < 20) return 0;
+  if (Math.hypot(px-s.x2, py-s.y2) < 20) return 1;
+  return -1;
+}
+function hitRotateHandle(s, px, py){
+  if (s.type!=='line' && s.type!=='arrow') return false;
+  const rp = rotateHandlePos(s);
+  return Math.hypot(px-rp.x, py-rp.y) < 22;
+}
+
 function hitResizeHandle(s, px, py){
+  // 線分は端点ハンドルで操作するのでバウンディングボックスの角は使わない
+  if (s.type==='line' || s.type==='arrow') return -1;
   const bx=Math.min(s.x1,s.x2)-6, by=Math.min(s.y1,s.y2)-6;
   const bw=Math.abs(s.x2-s.x1)+12, bh=Math.abs(s.y2-s.y1)+12;
   const corners = [[bx,by,0],[bx+bw,by,1],[bx,by+bh,2],[bx+bw,by+bh,3]];
@@ -1549,6 +1754,18 @@ shapeCanvas.addEventListener('pointerdown', e => {
     const sel = state.selectedShapeId ? state.shapes.find(s=>s.id===state.selectedShapeId) : null;
     // check resize handle first
     if (sel) {
+      // 回転ハンドル → 端点ハンドル → リサイズ角 の順で拾う
+      if (hitRotateHandle(sel, p.x, p.y)) {
+        shapeCanvas.setPointerCapture(e.pointerId);
+        state.shapeRotate = { id: sel.id };
+        return;
+      }
+      const ep = hitLineEndpoint(sel, p.x, p.y);
+      if (ep >= 0) {
+        shapeCanvas.setPointerCapture(e.pointerId);
+        state.shapeEndpoint = { id: sel.id, idx: ep };
+        return;
+      }
       const ci = hitResizeHandle(sel, p.x, p.y);
       if (ci >= 0) {
         shapeCanvas.setPointerCapture(e.pointerId);
@@ -1557,12 +1774,29 @@ shapeCanvas.addEventListener('pointerdown', e => {
       }
     }
     const hit = hitTestShapes(p.x, p.y);
+    // Shiftは画面のパン操作に使われているため、追加選択はCmd/Ctrlに割り当てる
+    const addMod = e.metaKey || e.ctrlKey;
     if (hit) {
-      selectShape(hit.id);
+      const already = state.selectedIds.includes(hit.id);
+      if (addMod) {
+        // Cmd/Ctrl+タップで選択に足す／外す
+        setSelection(already ? state.selectedIds.filter(i=>i!==hit.id)
+                             : [...state.selectedIds, hit.id]);
+        if (already) return;
+      } else if (!already) {
+        setSelection([hit.id]);
+      }
       shapeCanvas.setPointerCapture(e.pointerId);
-      state.shapeDrag = { id: hit.id, ox: p.x, oy: p.y, origX1: hit.x1, origY1: hit.y1, origX2: hit.x2, origY2: hit.y2 };
+      // 選択中のものを全部まとめて動かす
+      state.shapeDrag = {
+        ox: p.x, oy: p.y,
+        items: selectedShapes().map(s=>({ id:s.id, x1:s.x1, y1:s.y1, x2:s.x2, y2:s.y2 }))
+      };
     } else {
-      selectShape(null);
+      // 空き領域からのドラッグ＝範囲選択
+      shapeCanvas.setPointerCapture(e.pointerId);
+      state.marquee = { x0:p.x, y0:p.y, x1:p.x, y1:p.y, additive: addMod };
+      renderShapes();
     }
     return;
   }
@@ -1582,6 +1816,38 @@ shapeCanvas.addEventListener('pointerdown', e => {
 shapeCanvas.addEventListener('pointermove', e => {
   const p = getPos(e);
 
+  // rotate（中点を軸に、長さを保ったまま角度だけ変える）
+  if (state.shapeRotate) {
+    const s = state.shapes.find(x=>x.id===state.shapeRotate.id);
+    if (!s) return;
+    const mx=(s.x1+s.x2)/2, my=(s.y1+s.y2)/2;
+    const half = Math.hypot(s.x2-s.x1, s.y2-s.y1)/2;
+    // ハンドルは中点から90°ずらした位置にあるので、その分を戻す
+    let ang = Math.atan2(p.y-my, p.x-mx) + Math.PI/2;
+    if (shiftDown) { const step=Math.PI/12; ang = Math.round(ang/step)*step; }
+    s.x1 = mx - Math.cos(ang)*half; s.y1 = my - Math.sin(ang)*half;
+    s.x2 = mx + Math.cos(ang)*half; s.y2 = my + Math.sin(ang)*half;
+    renderShapes(); return;
+  }
+
+  // 端点ドラッグ（角度と長さを同時に変える）
+  if (state.shapeEndpoint) {
+    const ep = state.shapeEndpoint;
+    const s = state.shapes.find(x=>x.id===ep.id);
+    if (!s) return;
+    let nx=p.x, ny=p.y;
+    if (shiftDown) {
+      const ax = ep.idx===0 ? s.x2 : s.x1;
+      const ay = ep.idx===0 ? s.y2 : s.y1;
+      const dist = Math.hypot(nx-ax, ny-ay);
+      const step = Math.PI/12;
+      const a = Math.round(Math.atan2(ny-ay, nx-ax)/step)*step;
+      nx = ax + Math.cos(a)*dist; ny = ay + Math.sin(a)*dist;
+    }
+    if (ep.idx===0) { s.x1=nx; s.y1=ny; } else { s.x2=nx; s.y2=ny; }
+    renderShapes(); return;
+  }
+
   // resize
   if (state.shapeResize) {
     const r = state.shapeResize;
@@ -1596,14 +1862,22 @@ shapeCanvas.addEventListener('pointermove', e => {
     renderShapes(); return;
   }
 
-  // drag
+  // 範囲選択の矩形を更新
+  if (state.marquee) {
+    state.marquee.x1 = p.x; state.marquee.y1 = p.y;
+    renderShapes(); return;
+  }
+
+  // drag（選択中のものをまとめて移動）
   if (state.shapeDrag) {
     const d = state.shapeDrag;
-    const s = state.shapes.find(x=>x.id===d.id);
-    if (!s) return;
     const dx = p.x-d.ox, dy = p.y-d.oy;
-    s.x1=d.origX1+dx; s.y1=d.origY1+dy;
-    s.x2=d.origX2+dx; s.y2=d.origY2+dy;
+    d.items.forEach(it=>{
+      const s = state.shapes.find(x=>x.id===it.id);
+      if (!s) return;
+      s.x1=it.x1+dx; s.y1=it.y1+dy;
+      s.x2=it.x2+dx; s.y2=it.y2+dy;
+    });
     renderShapes(); return;
   }
 
@@ -1625,8 +1899,22 @@ shapeCanvas.addEventListener('pointermove', e => {
 });
 
 function endShapePointer(e){
-  if (state.shapeResize) { state.shapeResize = null; updateShapePropPanel(); return; }
-  if (state.shapeDrag) { state.shapeDrag = null; return; }
+  if (state.marquee) {
+    const m = state.marquee; state.marquee = null;
+    const r = marqueeRect(m);
+    if (r.w < 5 && r.h < 5) {
+      // ドラッグせずタップしただけ＝選択解除
+      if (!m.additive) setSelection([]); else renderShapes();
+    } else {
+      const inside = state.shapes.filter(s=>shapeIntersectsRect(s,r)).map(s=>s.id);
+      setSelection(m.additive ? [...state.selectedIds, ...inside] : inside);
+    }
+    return;
+  }
+  if (state.shapeRotate) { state.shapeRotate = null; updateShapePropPanel(); scheduleAutoSave(); return; }
+  if (state.shapeEndpoint) { state.shapeEndpoint = null; updateShapePropPanel(); scheduleAutoSave(); return; }
+  if (state.shapeResize) { state.shapeResize = null; updateShapePropPanel(); scheduleAutoSave(); return; }
+  if (state.shapeDrag) { state.shapeDrag = null; scheduleAutoSave(); return; }
   if (state.drawing && SHAPE_TOOLS.includes(state.tool) && state.shapeStart) {
     const p = getPos(e);
     let x2=p.x, y2=p.y;
@@ -1865,74 +2153,116 @@ function createPenMoveOverlay(imageData,x,y,w,h){
 
 /* =================== Shape selection & property panel =================== */
 function selectShape(id){
-  state.selectedShapeId = id;
+  setSelection(id ? [id] : []);
+}
+
+/* 選択の実体。単一選択のときだけ selectedShapeId を立てて、
+   回転・端点・リサイズのハンドル操作を単一選択時に限定する */
+function setSelection(ids){
+  const valid = (ids||[]).filter(id => state.shapes.some(s=>s.id===id));
+  state.selectedIds = [...new Set(valid)];
+  state.selectedShapeId = state.selectedIds.length === 1 ? state.selectedIds[0] : null;
   renderShapes();
   updateShapePropPanel();
   // auto switch to select tool
-  if (id) {
+  if (state.selectedIds.length) {
     document.querySelectorAll('.tool').forEach(e=>e.classList.remove('active'));
     document.querySelector('.tool[data-tool="select"]').classList.add('active');
     state.tool = 'select';
   }
 }
 
+function selectedShapes(){
+  return state.selectedIds.map(id=>state.shapes.find(s=>s.id===id)).filter(Boolean);
+}
+
+/* 範囲選択：バウンディングボックスが矩形に重なる図形を拾う */
+function shapeIntersectsRect(s, r){
+  const sx1=Math.min(s.x1,s.x2), sy1=Math.min(s.y1,s.y2);
+  const sx2=Math.max(s.x1,s.x2), sy2=Math.max(s.y1,s.y2);
+  return !(sx2 < r.x || sx1 > r.x + r.w || sy2 < r.y || sy1 > r.y + r.h);
+}
+function marqueeRect(m){
+  return { x: Math.min(m.x0,m.x1), y: Math.min(m.y0,m.y1),
+           w: Math.abs(m.x1-m.x0), h: Math.abs(m.y1-m.y0) };
+}
+
 function updateShapePropPanel(){
   const panel = document.getElementById('shapePropPanel');
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) { panel.classList.remove('show'); return; }
+  const sel = selectedShapes();
+  if (!sel.length) { panel.classList.remove('show'); return; }
+  const s = sel[0];
   panel.classList.add('show');
+  const title = document.getElementById('shapePropTitle');
+  if (title) title.textContent = sel.length > 1 ? '📐 選択中の図形（'+sel.length+'個）' : '📐 選択中の図形';
   document.getElementById('shapeFillAlpha').value = Math.round((s.fillAlpha||0)*100);
   document.getElementById('shapeLineWidth').value = s.lineWidth||2;
-  // highlight active color
+  // highlight active color（複数選択で色がバラバラなら未選択表示）
+  const same = sel.every(x=>x.color===s.color);
   document.querySelectorAll('#shapeColors .color').forEach(c => {
-    c.classList.toggle('active', c.dataset.sc === s.color);
+    c.classList.toggle('active', same && c.dataset.sc === s.color);
   });
 }
 
+/* パネルの操作は選択中の図形すべてに効かせる */
 document.querySelectorAll('#shapeColors .color').forEach(el => {
   el.addEventListener('click', () => {
-    const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-    if (!s) return;
-    s.color = el.dataset.sc;
-    renderShapes(); updateShapePropPanel();
+    const sel = selectedShapes();
+    if (!sel.length) return;
+    sel.forEach(s => s.color = el.dataset.sc);
+    renderShapes(); updateShapePropPanel(); scheduleAutoSave();
   });
 });
 
 document.getElementById('shapeFillAlpha').addEventListener('input', e => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  s.fillAlpha = parseInt(e.target.value,10)/100;
-  renderShapes();
+  const sel = selectedShapes();
+  if (!sel.length) return;
+  const v = parseInt(e.target.value,10)/100;
+  sel.forEach(s => s.fillAlpha = v);
+  renderShapes(); scheduleAutoSave();
 });
 
 document.getElementById('shapeLineWidth').addEventListener('input', e => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  s.lineWidth = parseInt(e.target.value,10);
-  renderShapes();
+  const sel = selectedShapes();
+  if (!sel.length) return;
+  const v = parseInt(e.target.value,10);
+  sel.forEach(s => s.lineWidth = v);
+  renderShapes(); scheduleAutoSave();
 });
 
 document.getElementById('shapeDelete').addEventListener('click', () => {
-  if (!state.selectedShapeId) return;
-  state.shapes = state.shapes.filter(s=>s.id!==state.selectedShapeId);
-  selectShape(null);
+  if (!state.selectedIds.length) return;
+  const ids = new Set(state.selectedIds);
+  state.shapes = state.shapes.filter(s=>!ids.has(s.id));
+  setSelection([]);
   scheduleAutoSave();
 });
 
 document.getElementById('shapeDuplicate').addEventListener('click', () => {
-  const s = state.shapes.find(x=>x.id===state.selectedShapeId);
-  if (!s) return;
-  const dup = {...s, id: 's_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), x1:s.x1+20, y1:s.y1+20, x2:s.x2+20, y2:s.y2+20 };
-  state.shapes.push(dup);
-  selectShape(dup.id);
+  const sel = selectedShapes();
+  if (!sel.length) return;
+  const newIds = [];
+  sel.forEach((s,i) => {
+    const dup = {...s, id: 's_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,6),
+                 x1:s.x1+20, y1:s.y1+20, x2:s.x2+20, y2:s.y2+20 };
+    state.shapes.push(dup); newIds.push(dup.id);
+  });
+  setSelection(newIds);
   scheduleAutoSave();
 });
 
 /* Delete key */
 document.addEventListener('keydown', e => {
-  if ((e.key==='Delete'||e.key==='Backspace') && state.selectedShapeId && document.activeElement===document.body) {
-    state.shapes = state.shapes.filter(s=>s.id!==state.selectedShapeId);
-    selectShape(null);
+  if ((e.key==='Delete'||e.key==='Backspace') && state.selectedIds.length && document.activeElement===document.body) {
+    const ids = new Set(state.selectedIds);
+    state.shapes = state.shapes.filter(s=>!ids.has(s.id));
+    setSelection([]);
+    scheduleAutoSave();
+  }
+  // Cmd/Ctrl+A で全図形を選択
+  if ((e.metaKey||e.ctrlKey) && e.key==='a' && state.tool==='select' && document.activeElement===document.body) {
+    e.preventDefault();
+    setSelection(state.shapes.map(s=>s.id));
   }
   if ((e.metaKey||e.ctrlKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
   else if((e.metaKey||e.ctrlKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();}
@@ -1956,13 +2286,14 @@ document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',()=>{
     // 同じボタンを再度押したら解除
     state.tool = '';
     selectShape(null);
-    pmSelStart=null; pmSelRect=null;
+    pmSelStart=null; pmSelRect=null; state.marquee=null;
     renderShapes(); // 解除後も図形を再描画
     restoreShapeCanvas();
     return;
   }
   el.classList.add('active'); state.tool=el.dataset.tool;
   if (state.tool !== 'select') selectShape(null);
+  state.marquee = null;
   // Clean up penmove overlay if switching away
   if (state.tool !== 'penmove') { pmSelStart=null; pmSelRect=null; }
   // ツール切り替え後も図形を再描画（clearRectしない）
@@ -1978,17 +2309,6 @@ document.querySelectorAll('.color[data-color]').forEach(el=>el.addEventListener(
 document.querySelectorAll('.size-btn[data-size]').forEach(el=>el.addEventListener('click',()=>{
   document.querySelectorAll('.size-btn[data-size]').forEach(e=>e.classList.remove('active'));
   el.classList.add('active'); state.size=parseFloat(el.dataset.size);
-}));
-document.querySelectorAll('.size-btn[data-fontsize]').forEach(el=>el.addEventListener('click',()=>{
-  document.querySelectorAll('.size-btn[data-fontsize]').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.fontSize=parseInt(el.dataset.fontsize,10);
-  if(state.activeTextbox)state.activeTextbox.style.fontSize=state.fontSize+'px';
-}));
-document.querySelectorAll('#textColors .color').forEach(el=>el.addEventListener('click',ev=>{
-  ev.preventDefault();
-  document.querySelectorAll('#textColors .color').forEach(e=>e.classList.remove('active'));
-  el.classList.add('active'); state.textColor=el.dataset.textcolor;
-  const t=state.activeTextbox; if(t){const sel=window.getSelection();if(sel&&sel.rangeCount&&t.contains(sel.anchorNode)&&!sel.isCollapsed){document.execCommand('styleWithCSS',false,true);document.execCommand('foreColor',false,state.textColor);}else{t.style.color=state.textColor;}}
 }));
 /* =================== Text property panel =================== */
 const textPropPanel = document.getElementById('textPropPanel');
@@ -2259,6 +2579,8 @@ function removePdfPage(id){
 function renderPdfGallery(){
   const gallery = document.getElementById('pdfGallery');
   const empty = document.getElementById('pdfEmpty');
+  const countLabel = document.getElementById('pdfCountLabel');
+  if (countLabel) countLabel.textContent = state.pdfPages.length ? '('+state.pdfPages.length+')' : '';
   if (state.pdfPages.length === 0) {
     gallery.innerHTML = '';
     gallery.appendChild(empty); empty.style.display='';
@@ -2342,7 +2664,7 @@ function renderPdfGallery(){
     item.appendChild(thumb);
     item.appendChild(info);
     item.appendChild(del);
-    item.addEventListener('click', () => switchToPdf(p.id));
+    item.addEventListener('click', () => { switchToPdf(p.id); closeHdrDropdowns(); });
     gallery.appendChild(item);
   });
 }
@@ -3064,7 +3386,7 @@ window.addEventListener('load', () => {
 
     try {
       const prompt =
-        `以下は建設現場監督が音声で話した内容です。これを業者への指示書テキストとして整形してください。\n`+
+        `以下は建設現場監督が音声で話した内容です。これを業者向けの指示書テキストとして整形してください。\n`+
         `・箇条書きや番号付きリストを使って見やすく\n`+
         `・建設業の専門用語を適切に使用\n`+
         `・曖昧な表現は具体的に補足\n`+
@@ -3427,12 +3749,13 @@ refreshSiteSelect();
 
 async function buildMergedDataUrl(){
   document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
-  const oldSel=state.selectedShapeId; selectShape(null);
-  const merge=document.createElement('canvas');merge.width=W;merge.height=H;const mc=merge.getContext('2d');
-  mc.fillStyle='#fff';mc.fillRect(0,0,W,H);mc.drawImage(pdfCanvas,0,0);mc.drawImage(drawCanvas,0,0);mc.drawImage(shapeCanvas,0,0);
-  const tl=await html2canvas(textLayer,{backgroundColor:null,width:W,height:H,scale:1,useCORS:true,allowTaint:true});mc.drawImage(tl,0,0);
-  if(oldSel)selectShape(oldSel);
-  const thumb=document.createElement('canvas');thumb.width=256;thumb.height=Math.round(256*H/W);thumb.getContext('2d').drawImage(merge,0,0,thumb.width,thumb.height);
+  const oldSel=[...state.selectedIds]; setSelection([]);
+  // textLayer を単体で html2canvas に渡すと、canvas-wrap の CSS transform と
+  // 指定した width/height が食い違ってテキストが二重にずれる。
+  // PDF出力と同じく canvasWrap ごと取り込む経路に統一する。
+  const merge=await html2canvas(document.getElementById('canvasWrap'),{scale:1,backgroundColor:'#fff',useCORS:true,allowTaint:true});
+  if(oldSel.length)setSelection(oldSel);
+  const thumb=document.createElement('canvas');thumb.width=256;thumb.height=Math.round(256*merge.height/merge.width);thumb.getContext('2d').drawImage(merge,0,0,thumb.width,thumb.height);
   return{full:merge.toDataURL('image/jpeg',.75),thumb:thumb.toDataURL('image/jpeg',.6)};
 }
 
@@ -3766,7 +4089,7 @@ document.getElementById('exportBtn').addEventListener('click',exportPdf);
 async function renderHeaderImage(r){
   const div=document.createElement('div');
   div.style.cssText='position:fixed;left:-9999px;top:0;width:1587px;height:70px;background:#1f2937;color:#fff;display:flex;align-items:center;padding:0 24px;font-family:-apple-system,sans-serif;gap:24px;font-size:19px;';
-  div.innerHTML='<div style="font-size:21px;font-weight:700;">業者への指示書</div><div>業者: <b>'+escapeHtml(r.vendor||'')+'</b></div><div>現場: <b>'+escapeHtml(r.siteName||'')+'</b></div><div style="margin-left:auto;">日付: <b>'+escapeHtml(r.date||'')+'</b></div>';
+  div.innerHTML='<div style="font-size:21px;font-weight:700;">作業指示書</div><div>業者: <b>'+escapeHtml(r.vendor||'')+'</b></div><div>現場: <b>'+escapeHtml(r.siteName||'')+'</b></div><div style="margin-left:auto;">日付: <b>'+escapeHtml(r.date||'')+'</b></div><div style="font-size:13px;opacity:.55;">現場便</div>';
   document.body.appendChild(div);const cv=await html2canvas(div,{scale:1,backgroundColor:'#1f2937'});document.body.removeChild(div);return cv.toDataURL('image/png');
 }
 /* PDFを組み立てて { pdf, filename } を返す（保存にも共有にも使う） */
@@ -3775,9 +4098,9 @@ async function buildPdf(){
   const pW=420,pH=297,hH=14;const r={vendor:document.getElementById('vendorName').value,siteName:document.getElementById('siteName').value,date:document.getElementById('dateInput').value};
   const hi=await renderHeaderImage(r);pdf.addImage(hi,'PNG',0,0,pW,hH);
   document.querySelectorAll('.photobox.selected').forEach(p=>p.classList.remove('selected'));
-  const oldSel=state.selectedShapeId;selectShape(null);
+  const oldSel=[...state.selectedIds];setSelection([]);
   const bc=await html2canvas(document.getElementById('canvasWrap'),{scale:1,backgroundColor:'#fff',useCORS:true,allowTaint:true});
-  if(oldSel)selectShape(oldSel);
+  if(oldSel.length)setSelection(oldSel);
   const rH=pH-hH,asp=bc.width/bc.height;let dW=pW,dH=dW/asp;if(dH>rH){dH=rH;dW=dH*asp;}
   pdf.addImage(bc.toDataURL('image/png'),'PNG',(pW-dW)/2,hH+(rH-dH)/2,dW,dH);
   return {pdf, filename:(r.vendor||'指示書')+'_'+(r.date||'')+'.pdf', rec:r};
@@ -3828,15 +4151,28 @@ async function sharePdf(){
   }
 }
 
-/* ヘッダー「･･･」メニュー */
+/* ヘッダーのドロップダウン（図面 / ･･･）を共通で開閉する */
+function closeHdrDropdowns(){
+  document.querySelectorAll('.hdr-drop-wrap.open').forEach(w=>w.classList.remove('open'));
+}
 (function(){
-  const wrap=document.querySelector('.hdr-more-wrap');
-  const btn=document.getElementById('moreBtn');
-  if(!wrap||!btn)return;
-  btn.addEventListener('click',e=>{e.stopPropagation();wrap.classList.toggle('open');});
-  document.addEventListener('click',e=>{if(!wrap.contains(e.target))wrap.classList.remove('open');});
-  wrap.querySelectorAll('.hdr-more-menu button').forEach(b=>{
-    b.addEventListener('click',()=>wrap.classList.remove('open'));
+  document.querySelectorAll('.hdr-drop-wrap').forEach(wrap=>{
+    const btn = wrap.querySelector(':scope > button');
+    if(!btn) return;
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const willOpen = !wrap.classList.contains('open');
+      closeHdrDropdowns();
+      if(willOpen) wrap.classList.add('open');
+    });
+  });
+  // メニュー外をクリックしたら閉じる
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.hdr-drop-wrap')) closeHdrDropdowns();
+  });
+  // 「･･･」の項目はモーダルを開くので選んだら閉じる
+  document.querySelectorAll('#moreMenu button').forEach(b=>{
+    b.addEventListener('click',()=>closeHdrDropdowns());
   });
 })();
 
@@ -3846,6 +4182,16 @@ document.addEventListener('touchmove',e=>{
   if(e.touches.length < 2 && e.target.closest('.canvas-wrap')) e.preventDefault();
 },{passive:false});
 
+
+/* 縦向き案内：ユーザーが縦で使うと決めたら以後出さない */
+(function(){
+  if(localStorage.getItem('allowPortrait')==='1') document.body.classList.add('allow-portrait');
+  var b=document.getElementById('allowPortraitBtn');
+  if(b) b.addEventListener('click',function(){
+    document.body.classList.add('allow-portrait');
+    localStorage.setItem('allowPortrait','1');
+  });
+})();
 /* Initial render */
 renderShapes();
 </script>
