@@ -1,0 +1,478 @@
+"""構造計算（仮設工業会「足場・型枠支保工設計指針」「風荷重に対する足場の安全技術指針」準拠）.
+
+⚠️ 設計方針（開発指示書§6・§9）:
+本モジュールは「計算エンジンの自作」ではなく **実績フォーマットへ転記するための値を算出する下書き**。
+最終判断は計画作成参画者（有資格者）が行う前提。
+
+耐力値（ジャッキ許容支持力・壁つなぎ許容耐力・作業床許容積載）は data/capacity.csv に
+外出しし、各行に verified 列と source 列を持つ。verified=no の値が計算に使われた場合は
+必ず警告を出し、帳票にも「未確認値」と明記する。安全に関わる数値を黙って使わないための仕組み。
+
+計算式（指示書§6の指定どおり）:
+  設計風速   V  = V0 × K(高さ) × E(近接建物 1.0〜1.3) × S(地域区分)
+  速度圧     q  = 0.6 × V^2                    [N/m2]
+  風力係数   C  = (0.11 + 0.09γ + 0.945×Co×R) × F   （Co=1.57、メッシュ R=0.7）
+  壁つなぎ   P  = C × q × lh × lw ≦ 許容耐力 × 1.3  （風荷重時30%割増）
+  建地圧縮   N  = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）
+"""
+
+from __future__ import annotations
+
+import csv
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional
+
+from .model import ScaffoldModel
+from .quantity import QuantityResult
+
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+
+# 風力係数の定数（仮設工業会 風荷重指針）
+CO_BASE = 1.57          # 基本風力係数
+WIND_INCREASE = 1.3     # 風荷重時の部材許容耐力の割増（30%）
+AIR_Q_COEF = 0.6        # 速度圧 q = 0.6 V^2 [N/m2]
+
+# 養生材の充実率 R
+SHEET_FILL_RATIO = {
+    "なし": 0.0,
+    "メッシュシート": 0.7,
+    "防音シート": 1.0,
+    "密閉シート": 1.0,
+}
+
+# 地表面粗度区分ごとの高さ補正係数 K の算定用（Zb, ZG, α）
+# 建築基準法告示1454号 Er の考え方に準拠した簡易実装
+ROUGHNESS = {
+    "I": (5.0, 250.0, 0.10),
+    "II": (5.0, 350.0, 0.15),
+    "III": (5.0, 450.0, 0.20),
+    "IV": (10.0, 550.0, 0.27),
+}
+
+
+class CapacityError(Exception):
+    pass
+
+
+@dataclass
+class CapacityValue:
+    value: float
+    unit: str
+    verified: bool
+    source: str
+
+    @property
+    def label(self) -> str:
+        return f"{self.value}{self.unit}" + ("" if self.verified else "（未確認値）")
+
+
+def load_capacities(series_id: str, path: Optional[Path] = None) -> dict[tuple[str, str], CapacityValue]:
+    p = Path(path) if path else DATA_DIR / "capacity.csv"
+    out: dict[tuple[str, str], CapacityValue] = {}
+    with open(p, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["series_id"] != series_id:
+                continue
+            out[(row["item"], row["key"])] = CapacityValue(
+                value=float(row["value"]),
+                unit=row["unit"],
+                verified=row["verified"].strip().lower() in ("yes", "true", "1"),
+                source=row["source"],
+            )
+    if not out:
+        raise CapacityError(f"系列 {series_id} の耐力値が {p} にありません")
+    return out
+
+
+def load_wind_regions(path: Optional[Path] = None) -> dict[str, tuple[float, str]]:
+    p = Path(path) if path else DATA_DIR / "wind_region.csv"
+    out = {}
+    with open(p, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            out[row["region"]] = (float(row["v0_ms"]), row["source"])
+    return out
+
+
+# ---- 追加入力4項目（指示書§6） -------------------------------------------
+
+
+@dataclass
+class SiteCondition:
+    """構造計算に必要な追加入力4項目."""
+
+    region: str = "関東(内陸)"          # 建設地（地域区分）
+    v0_ms: Optional[float] = None       # 基準風速。Noneならregionから引く
+    roughness: str = "III"              # 地表面粗度区分
+    sheet_type: str = "メッシュシート"   # 養生材仕様
+    adjacent_factor: float = 1.0        # 近接建物による補正 E（1.0〜1.3）
+    region_factor: float = 1.0          # 地域区分係数 S
+    gamma: float = 0.0                  # 風力係数式のγ（躯体側の充実率パラメータ）
+    correction_f: float = 1.0           # 風力係数の補正係数 F
+    period_days: int = 90               # 設置期間
+    simultaneous_loaded_levels: int = 2  # 同時に積載する作業層数（実務: 2層以内）
+
+    def base_wind_speed(self) -> tuple[float, str]:
+        if self.v0_ms is not None:
+            return self.v0_ms, "利用者指定値"
+        regions = load_wind_regions()
+        if self.region not in regions:
+            raise CapacityError(
+                f"未知の地域区分です: {self.region}（候補: {', '.join(regions)}）"
+            )
+        return regions[self.region]
+
+    def fill_ratio(self) -> float:
+        if self.sheet_type not in SHEET_FILL_RATIO:
+            raise CapacityError(
+                f"未知の養生材です: {self.sheet_type}"
+                f"（候補: {', '.join(SHEET_FILL_RATIO)}）"
+            )
+        return SHEET_FILL_RATIO[self.sheet_type]
+
+
+# ---- 計算結果 -------------------------------------------------------------
+
+
+@dataclass
+class WindResult:
+    v0_ms: float
+    v0_source: str
+    height_m: float
+    k_height: float
+    e_adjacent: float
+    s_region: float
+    v_design_ms: float
+    q_n_m2: float
+    fill_ratio: float
+    c_force: float
+
+
+@dataclass
+class WallTieResult:
+    lh_m: float                 # 水平間隔
+    lw_m: float                 # 垂直間隔
+    tributary_area_m2: float
+    force_kn: float             # P = C·q·lh·lw
+    allowable_kn: float         # 許容耐力
+    allowable_increased_kn: float  # ×1.3
+    ratio: float                # 検定比 P / (許容×1.3)
+    ok: bool
+    source: str
+    verified: bool
+
+
+@dataclass
+class PostResult:
+    dead_load_kn: float
+    live_load_kn: float
+    total_kn: float
+    jack_extension_mm: int
+    allowable_kn: float
+    ratio: float
+    ok: bool
+    governing: str              # 支配する検定（ジャッキ / 支柱）
+    source: str
+    verified: bool
+
+
+@dataclass
+class StructuralResult:
+    site: SiteCondition
+    wind: WindResult
+    wall_tie: WallTieResult
+    post: PostResult
+    warnings: list[str] = field(default_factory=list)
+    unverified_used: list[str] = field(default_factory=list)
+
+    @property
+    def all_ok(self) -> bool:
+        return self.wall_tie.ok and self.post.ok
+
+
+# ---- 計算本体 -------------------------------------------------------------
+
+
+def height_factor(height_m: float, roughness: str = "III") -> float:
+    """高さ補正係数 K（告示1454号 Er に準拠した簡易式）."""
+    if roughness not in ROUGHNESS:
+        raise CapacityError(f"未知の地表面粗度区分です: {roughness}")
+    zb, zg, alpha = ROUGHNESS[roughness]
+    h = max(height_m, 1.0)
+    if h <= zb:
+        return 1.7 * (zb / zg) ** alpha
+    return 1.7 * (h / zg) ** alpha
+
+
+def wind_force_coefficient(fill_ratio: float, gamma: float = 0.0, f: float = 1.0) -> float:
+    """風力係数 C = (0.11 + 0.09γ + 0.945×Co×R) × F."""
+    return (0.11 + 0.09 * gamma + 0.945 * CO_BASE * fill_ratio) * f
+
+
+def compute_wind(model: ScaffoldModel, site: SiteCondition) -> WindResult:
+    v0, v0_src = site.base_wind_speed()
+    h_m = model.scaffold_height_mm / 1000.0
+    k = height_factor(h_m, site.roughness)
+    v = v0 * k * site.adjacent_factor * site.region_factor
+    q = AIR_Q_COEF * v**2
+    r = site.fill_ratio()
+    c = wind_force_coefficient(r, site.gamma, site.correction_f)
+    return WindResult(
+        v0_ms=v0,
+        v0_source=v0_src,
+        height_m=round(h_m, 3),
+        k_height=round(k, 4),
+        e_adjacent=site.adjacent_factor,
+        s_region=site.region_factor,
+        v_design_ms=round(v, 3),
+        q_n_m2=round(q, 1),
+        fill_ratio=r,
+        c_force=round(c, 4),
+    )
+
+
+def check_wall_tie(
+    model: ScaffoldModel, wind: WindResult, caps: dict
+) -> WallTieResult:
+    """壁つなぎ1箇所あたり P = C·q·lh·lw ≦ 許容耐力×1.3."""
+    v_max_mm, h_max_mm = model.wall_tie_max_spacing()
+    lw = v_max_mm / 1000.0
+    lh = h_max_mm / 1000.0
+    area = lh * lw
+    p_kn = wind.c_force * wind.q_n_m2 * area / 1000.0  # N → kN
+
+    cap_t = caps.get(("壁つなぎ許容耐力", "引張"))
+    cap_c = caps.get(("壁つなぎ許容耐力", "圧縮"))
+    if cap_t is None or cap_c is None:
+        raise CapacityError("壁つなぎ許容耐力が capacity.csv にありません")
+    cap = min(cap_t.value, cap_c.value)
+    verified = cap_t.verified and cap_c.verified
+    allow_inc = cap * WIND_INCREASE
+    ratio = p_kn / allow_inc if allow_inc else float("inf")
+    return WallTieResult(
+        lh_m=round(lh, 3),
+        lw_m=round(lw, 3),
+        tributary_area_m2=round(area, 3),
+        force_kn=round(p_kn, 3),
+        allowable_kn=cap,
+        allowable_increased_kn=round(allow_inc, 3),
+        ratio=round(ratio, 3),
+        ok=ratio <= 1.0,
+        source=cap_t.source,
+        verified=verified,
+    )
+
+
+def check_post(
+    model: ScaffoldModel, quantity: QuantityResult, site: SiteCondition, caps: dict
+) -> PostResult:
+    """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）."""
+    n_posts = model.plan.total_posts * (1 if model.config.scaffold_form == "一側足場" else 2)
+    dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
+
+    cap_deck = caps.get(("作業床許容積載荷重", "スパン"))
+    if cap_deck is None:
+        raise CapacityError("作業床許容積載荷重が capacity.csv にありません")
+    # 1構面(スパン)の積載を両端2本の建地で分担。同時載荷は所定層数まで
+    live_kn = cap_deck.value * site.simultaneous_loaded_levels / 2.0
+    total = dead_kn + live_kn
+
+    jack = model.elevation.jack_extension
+    cap_jack, jack_key = _interpolate_capacity(caps, "ジャッキ許容支持力", jack)
+    cap_post = caps.get(("支柱許容圧縮耐力", "0"))
+    candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]
+    if cap_post is not None:
+        candidates.append(("支柱", cap_post))
+    governing_name, governing_cap = min(candidates, key=lambda kv: kv[1].value)
+
+    ratio = total / governing_cap.value if governing_cap.value else float("inf")
+    return PostResult(
+        dead_load_kn=round(dead_kn, 3),
+        live_load_kn=round(live_kn, 3),
+        total_kn=round(total, 3),
+        jack_extension_mm=jack,
+        allowable_kn=governing_cap.value,
+        ratio=round(ratio, 3),
+        ok=ratio <= 1.0,
+        governing=governing_name,
+        source=governing_cap.source,
+        verified=governing_cap.verified and cap_deck.verified,
+    )
+
+
+def _interpolate_capacity(
+    caps: dict, item: str, key_mm: int
+) -> tuple[CapacityValue, str]:
+    """繰出し長に対する許容支持力を線形補間（安全側に切り下げ）."""
+    rows = sorted(
+        ((int(k), v) for (i, k), v in caps.items() if i == item),
+        key=lambda kv: kv[0],
+    )
+    if not rows:
+        raise CapacityError(f"{item} が capacity.csv にありません")
+    if key_mm <= rows[0][0]:
+        return rows[0][1], str(rows[0][0])
+    if key_mm >= rows[-1][0]:
+        return rows[-1][1], str(rows[-1][0])
+    for (x0, v0), (x1, v1) in zip(rows, rows[1:]):
+        if x0 <= key_mm <= x1:
+            t = (key_mm - x0) / (x1 - x0)
+            val = v0.value + t * (v1.value - v0.value)
+            return (
+                CapacityValue(
+                    value=round(val, 3),
+                    unit=v0.unit,
+                    verified=v0.verified and v1.verified,
+                    source=f"{v0.source}（{x0}〜{x1}mmを線形補間）",
+                ),
+                f"{x0}-{x1}",
+            )
+    raise CapacityError(f"{item} の補間に失敗しました: {key_mm}")
+
+
+@dataclass
+class TieOptimizeResult:
+    span_step: int
+    level_step: int
+    tie_count: int
+    wall_tie: WallTieResult
+    tightened: bool          # 既定配置から詰めたか
+    feasible: bool           # 最密でも耐力を満たせない場合 False
+    message: str
+
+
+def optimize_wall_ties(
+    model: ScaffoldModel,
+    site: Optional[SiteCondition] = None,
+    capacity_path: Optional[Path] = None,
+    apply: bool = True,
+) -> TieOptimizeResult:
+    """壁つなぎ間隔を構造計算から逆算して決める.
+
+    法規上限（垂直5m×水平5.5m）を満たしていても風荷重で耐力不足になることがあるため、
+    「法規に適合し、かつ P ≦ 許容耐力×1.3 を満たす最も緩い配置」を探索する。
+    緩い順（部材数が少ない順）に試し、最初に成立した構成を採用する。
+
+    apply=True のとき model.wall_ties を最適解で置き換える（数量・図面に反映される）。
+    """
+    from .model import generate_wall_ties  # 循環インポート回避のため関数内で解決
+
+    site = site or SiteCondition(period_days=model.config.period_days)
+    caps = load_capacities(model.master.series_id, capacity_path)
+    wind = compute_wind(model, site)
+
+    original = list(model.wall_ties)
+    base_span, base_level = (
+        model.config.wall_tie_span_step,
+        model.config.wall_tie_level_step,
+    )
+    # 部材数が少ない（緩い）順に試す
+    candidates = sorted(
+        [(s, lv) for s in (3, 2, 1) for lv in (2, 1)],
+        key=lambda c: (-(c[0] * c[1]), -c[0]),
+    )
+
+    best: Optional[TieOptimizeResult] = None
+    tightest: Optional[TieOptimizeResult] = None
+    try:
+        for span_step, level_step in candidates:
+            model.config.wall_tie_span_step = span_step
+            model.config.wall_tie_level_step = level_step
+            ties = generate_wall_ties(model.plan, model.elevation, model.config)
+            model.wall_ties = ties
+            res = check_wall_tie(model, wind, caps)
+            cand = TieOptimizeResult(
+                span_step=span_step,
+                level_step=level_step,
+                tie_count=len(ties),
+                wall_tie=res,
+                tightened=(span_step, level_step) != (base_span, base_level),
+                feasible=res.ok,
+                message="",
+            )
+            if tightest is None or cand.tie_count > tightest.tie_count:
+                tightest = cand
+            if res.ok and res.lw_m * 1000 <= 5000 and res.lh_m * 1000 <= 5500:
+                best = cand
+                break
+    except Exception:
+        model.wall_ties = original
+        model.config.wall_tie_span_step = base_span
+        model.config.wall_tie_level_step = base_level
+        raise
+
+    chosen = best or tightest
+    assert chosen is not None, "壁つなぎ候補の評価に失敗しました"
+    if best is None:
+        chosen.feasible = False
+        chosen.message = (
+            f"壁つなぎを最密（{chosen.span_step}スパン毎×{chosen.level_step}層毎）にしても"
+            f"検定比{chosen.wall_tie.ratio:.2f}で耐力を満たせません。"
+            "高耐力の壁つなぎ、養生材の変更（メッシュ→なし等）、"
+            "または壁つなぎ以外の補強を検討してください"
+        )
+    elif chosen.tightened:
+        chosen.message = (
+            f"風荷重の検定を満たすため壁つなぎを "
+            f"{base_span}スパン×{base_level}層毎 → "
+            f"{chosen.span_step}スパン×{chosen.level_step}層毎 に詰めました"
+            f"（{chosen.tie_count}箇所、検定比{chosen.wall_tie.ratio:.2f}）"
+        )
+    else:
+        chosen.message = (
+            f"既定配置で耐力を満たします"
+            f"（{chosen.tie_count}箇所、検定比{chosen.wall_tie.ratio:.2f}）"
+        )
+
+    if apply:
+        model.config.wall_tie_span_step = chosen.span_step
+        model.config.wall_tie_level_step = chosen.level_step
+        model.wall_ties = generate_wall_ties(
+            model.plan, model.elevation, model.config
+        )
+    else:
+        model.wall_ties = original
+        model.config.wall_tie_span_step = base_span
+        model.config.wall_tie_level_step = base_level
+    return chosen
+
+
+def run_structural(
+    model: ScaffoldModel,
+    quantity: QuantityResult,
+    site: Optional[SiteCondition] = None,
+    capacity_path: Optional[Path] = None,
+) -> StructuralResult:
+    site = site or SiteCondition(period_days=model.config.period_days)
+    caps = load_capacities(model.master.series_id, capacity_path)
+
+    wind = compute_wind(model, site)
+    tie = check_wall_tie(model, wind, caps)
+    post = check_post(model, quantity, site, caps)
+
+    warnings: list[str] = []
+    unverified: list[str] = []
+    if not tie.verified:
+        unverified.append("壁つなぎ許容耐力")
+    if not post.verified:
+        unverified.append("ジャッキ／支柱許容支持力・作業床許容積載荷重")
+    if unverified:
+        warnings.append(
+            "未確認の耐力値が計算に使われています（" + "、".join(unverified) + "）。"
+            "data/capacity.csv をメーカー認定値・仮設工業会認定値に差し替えてから"
+            "提出図書に使用してください"
+        )
+    if not tie.ok:
+        warnings.append(
+            f"壁つなぎが耐力不足です（検定比{tie.ratio:.2f}）。"
+            "壁つなぎ間隔を詰める、または高耐力品への変更を検討してください"
+        )
+    if not post.ok:
+        warnings.append(
+            f"建地圧縮が耐力不足です（検定比{post.ratio:.2f}、支配: {post.governing}）。"
+            "ジャッキ繰出し量の低減、支柱2本組、またはスパン短縮を検討してください"
+        )
+    return StructuralResult(
+        site=site, wind=wind, wall_tie=tie, post=post,
+        warnings=warnings, unverified_used=unverified,
+    )

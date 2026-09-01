@@ -13,11 +13,15 @@ from pathlib import Path
 
 from .law_check import CheckResult
 from .model import ScaffoldModel
+from .notification import notification_required  # 判定はnotificationに一元化
 from .quantity import QuantityResult
 
-
-def notification_required(model: ScaffoldModel) -> bool:
-    return model.scaffold_height_mm >= 10000 and model.config.period_days >= 60
+__all__ = [
+    "notification_required",
+    "write_quantity_csv",
+    "write_report_md",
+    "write_plan_json",
+]
 
 
 def write_quantity_csv(result: QuantityResult, path: Path) -> None:
@@ -58,8 +62,8 @@ def write_report_md(
     a(f"- 千鳥用代替構成: " + " + ".join(str(p) for p in e.posts_alt)
       + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
     a(f"- 1層あたり支柱位置数: {model.plan.total_posts}（二重計上なし）")
-    a(f"- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
-                     if notification_required(model) else "不要"))
+    a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
+                    if notification_required(model) else "不要"))
     a("")
     a("## 平面割付")
     a("")

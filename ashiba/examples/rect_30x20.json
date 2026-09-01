@@ -10,5 +10,22 @@
   "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
-  "n_stairs": 1
+  "n_stairs": 1,
+  "site": {
+    "region": "関東(沿岸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート",
+    "adjacent_factor": 1.0,
+    "region_factor": 1.0,
+    "simultaneous_loaded_levels": 2
+  },
+  "notification": {
+    "business_type": "建築工事業",
+    "site_name": "サンプル新築工事",
+    "site_address": "",
+    "worker_count": "",
+    "planner_name": "",
+    "start_date": "2026-11-01",
+    "labor_office": ""
+  }
 }

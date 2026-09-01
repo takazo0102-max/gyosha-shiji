@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import sys
 from pathlib import Path
@@ -31,14 +32,15 @@ from .elevation_solver import solve_elevation
 from .law_check import run_all_checks, summary
 from .master import load_master
 from .model import ScaffoldConfig, ScaffoldModel
+from .notification import (
+    NotificationInfo,
+    notification_required,
+    write_notification_xlsx,
+)
 from .plan_solver import StandoffSpec, solve_plan
 from .quantity import take_off
-from .report import (
-    notification_required,
-    write_plan_json,
-    write_quantity_csv,
-    write_report_md,
-)
+from .report import write_plan_json, write_quantity_csv, write_report_md
+from .structural import SiteCondition, optimize_wall_ties, run_structural
 
 
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
@@ -69,17 +71,58 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
 
 
+def build_site(spec: dict) -> SiteCondition:
+    """入力JSONの site ブロック → 構造計算の追加入力4項目."""
+    s = spec.get("site", {})
+    return SiteCondition(
+        region=s.get("region", "関東(内陸)"),
+        v0_ms=s.get("v0_ms"),
+        roughness=s.get("roughness", "III"),
+        sheet_type=s.get("sheet_type", "メッシュシート"),
+        adjacent_factor=s.get("adjacent_factor", 1.0),
+        region_factor=s.get("region_factor", 1.0),
+        gamma=s.get("gamma", 0.0),
+        correction_f=s.get("correction_f", 1.0),
+        period_days=spec.get("period_days", 60),
+        simultaneous_loaded_levels=s.get("simultaneous_loaded_levels", 2),
+    )
+
+
+def build_notification_info(spec: dict) -> NotificationInfo:
+    n = spec.get("notification", {})
+    start = n.get("start_date")
+    return NotificationInfo(
+        business_type=n.get("business_type", ""),
+        site_name=n.get("site_name", ""),
+        site_address=n.get("site_address", ""),
+        worker_count=str(n.get("worker_count", "")),
+        planner_name=n.get("planner_name", ""),
+        planner_career=n.get("planner_career", ""),
+        start_date=_dt.date.fromisoformat(start) if start else None,
+        contractor=n.get("contractor", ""),
+        labor_office=n.get("labor_office", ""),
+    )
+
+
 def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
     spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
     model = build_model(spec, master_csv)
+    site = build_site(spec)
+    # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
+    tie_opt = optimize_wall_ties(model, site)
     checks = run_all_checks(model)
     quantity = take_off(model)
+    structural = run_structural(model, quantity, site)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     write_report_md(model, quantity, checks, out_dir / f"{name}_割付レポート.md", name)
     write_plan_json(model, out_dir / f"{name}_plan.json")
+    write_notification_xlsx(
+        model, quantity, checks, structural,
+        out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
+    )
 
     s = summary(checks)
     return {
@@ -91,6 +134,21 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         "notification_required": notification_required(model),
         "total_weight_kg": quantity.total_weight_kg,
         "kake_menseki_m2": quantity.kake_menseki_m2,
+        "structural": {
+            "design_wind_speed_ms": structural.wind.v_design_ms,
+            "wind_pressure_n_m2": structural.wind.q_n_m2,
+            "wall_tie_ratio": structural.wall_tie.ratio,
+            "post_ratio": structural.post.ratio,
+            "all_ok": structural.all_ok,
+            "unverified_capacity_used": structural.unverified_used,
+        },
+        "wall_ties": {
+            "count": len(model.wall_ties),
+            "span_step": tie_opt.span_step,
+            "level_step": tie_opt.level_step,
+            "message": tie_opt.message,
+        },
+        "warnings": structural.warnings + model.plan.warnings + model.elevation.warnings,
         "out_dir": str(out_dir),
     }
 

@@ -28,6 +28,19 @@ class TestAcceptance(unittest.TestCase):
             self.assertIn("架け面積", csv_text)
             self.assertIn("A-3609", csv_text)  # 型番ベース
 
+            # Phase 2: 設置届一式（様式20号＋構造計算書＋明細）が出る
+            xlsx = out / f"{name}_設置届一式.xlsx"
+            self.assertTrue(xlsx.exists())
+            import zipfile
+            z = zipfile.ZipFile(xlsx)
+            self.assertIsNone(z.testzip())
+            # 壁つなぎは構造計算から逆算され、検定を満たす
+            self.assertTrue(result["structural"]["all_ok"])
+            self.assertLessEqual(result["structural"]["wall_tie_ratio"], 1.0)
+            self.assertGreater(result["wall_ties"]["count"], 0)
+            # 暫定耐力値を使っていることは必ず申告される
+            self.assertTrue(result["structural"]["unverified_capacity_used"])
+
     def test_l_shape_one_click(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)

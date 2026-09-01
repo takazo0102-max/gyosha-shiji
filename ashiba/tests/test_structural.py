@@ -1,0 +1,153 @@
+import unittest
+
+from _path import SRC  # noqa: F401
+
+from ashiba.elevation_solver import solve_elevation
+from ashiba.master import load_master
+from ashiba.model import ScaffoldConfig, ScaffoldModel
+from ashiba.plan_solver import solve_plan
+from ashiba.quantity import take_off
+from ashiba.structural import (
+    CO_BASE,
+    CapacityError,
+    SiteCondition,
+    height_factor,
+    load_capacities,
+    optimize_wall_ties,
+    run_structural,
+    wind_force_coefficient,
+)
+
+RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
+
+
+def make_model():
+    master = load_master("shinwa_A")
+    plan = solve_plan(RECT, master)
+    elev = solve_elevation(16300, master=master)
+    return ScaffoldModel(
+        master=master, plan=plan, elevation=elev,
+        config=ScaffoldConfig(period_days=90), building_height_mm=16000,
+    )
+
+
+class TestWindFormula(unittest.TestCase):
+    def test_force_coefficient_matches_spec(self):
+        # C = (0.11 + 0.09γ + 0.945×Co×R) × F、メッシュ R=0.7・Co=1.57
+        c = wind_force_coefficient(fill_ratio=0.7, gamma=0.0, f=1.0)
+        self.assertAlmostEqual(c, 0.11 + 0.945 * CO_BASE * 0.7, places=6)
+        # 養生なしなら 0.11 のみ
+        self.assertAlmostEqual(wind_force_coefficient(0.0), 0.11, places=6)
+        # γとFが効く
+        self.assertGreater(wind_force_coefficient(0.7, gamma=1.0), c)
+        self.assertAlmostEqual(wind_force_coefficient(0.7, f=2.0), c * 2, places=6)
+
+    def test_height_factor_increases_with_height(self):
+        self.assertLess(height_factor(5, "III"), height_factor(30, "III"))
+        # 粗度区分が粗いほど地表付近の係数は小さい
+        self.assertGreater(height_factor(20, "I"), height_factor(20, "IV"))
+
+    def test_unknown_roughness_and_region_rejected(self):
+        with self.assertRaises(CapacityError):
+            height_factor(10, "V")
+        with self.assertRaises(CapacityError):
+            SiteCondition(region="火星").base_wind_speed()
+        with self.assertRaises(CapacityError):
+            SiteCondition(sheet_type="ビニール").fill_ratio()
+
+    def test_design_wind_speed_chain(self):
+        m = make_model()
+        site = SiteCondition(region="関東(内陸)", adjacent_factor=1.2, region_factor=1.1)
+        r = run_structural(m, take_off(m), site)
+        expect = r.wind.v0_ms * r.wind.k_height * 1.2 * 1.1
+        self.assertAlmostEqual(r.wind.v_design_ms, expect, places=2)
+        self.assertAlmostEqual(r.wind.q_n_m2, 0.6 * expect**2, places=0)
+
+
+class TestCapacityGate(unittest.TestCase):
+    def test_unverified_values_are_flagged(self):
+        m = make_model()
+        r = run_structural(m, take_off(m))
+        # 同梱の暫定耐力値は verified=no。黙って使わず必ず警告する
+        self.assertTrue(r.unverified_used)
+        self.assertTrue(any("未確認" in w for w in r.warnings))
+        self.assertFalse(r.wall_tie.verified)
+
+    def test_jack_capacity_interpolated_and_decreasing(self):
+        caps = load_capacities("shinwa_A")
+        from ashiba.structural import _interpolate_capacity
+        v0, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 0)
+        v150, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 150)
+        v270, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 270)
+        # 繰出しが長いほど許容支持力は下がる
+        self.assertGreater(v0.value, v150.value)
+        self.assertGreater(v150.value, v270.value)
+        # 100(22.5)と200(19.6)の中間
+        self.assertAlmostEqual(v150.value, (22.5 + 19.6) / 2, places=2)
+
+
+class TestChecks(unittest.TestCase):
+    def test_wall_tie_formula(self):
+        m = make_model()
+        r = run_structural(m, take_off(m))
+        t, w = r.wall_tie, r.wind
+        # P = C·q·lh·lw （kN換算）
+        expect = w.c_force * w.q_n_m2 * t.lh_m * t.lw_m / 1000.0
+        self.assertAlmostEqual(t.force_kn, expect, places=2)
+        # 許容は風荷重時30%割増
+        self.assertAlmostEqual(t.allowable_increased_kn, t.allowable_kn * 1.3, places=3)
+
+    def test_post_check_uses_governing_capacity(self):
+        m = make_model()
+        r = run_structural(m, take_off(m))
+        p = r.post
+        self.assertAlmostEqual(p.total_kn, p.dead_load_kn + p.live_load_kn, places=3)
+        self.assertEqual(p.jack_extension_mm, m.elevation.jack_extension)
+        self.assertAlmostEqual(p.ratio, p.total_kn / p.allowable_kn, places=3)
+
+    def test_severe_site_fails_and_warns(self):
+        m = make_model()
+        severe = SiteCondition(region="沖縄", sheet_type="密閉シート", adjacent_factor=1.3)
+        r = run_structural(m, take_off(m), severe)
+        self.assertFalse(r.wall_tie.ok)
+        self.assertTrue(any("壁つなぎ" in w for w in r.warnings))
+
+
+class TestWallTieOptimization(unittest.TestCase):
+    def test_tightens_until_structurally_ok(self):
+        m = make_model()
+        before = len(m.wall_ties)
+        site = SiteCondition(region="関東(沿岸)", sheet_type="メッシュシート")
+        opt = optimize_wall_ties(m, site)
+        self.assertTrue(opt.feasible)
+        self.assertLessEqual(opt.wall_tie.ratio, 1.0)
+        # 法規上限も満たす
+        self.assertLessEqual(opt.wall_tie.lw_m * 1000, 5000)
+        self.assertLessEqual(opt.wall_tie.lh_m * 1000, 5500)
+        # 詰めた場合は本数が増え、モデルに反映される
+        self.assertEqual(len(m.wall_ties), opt.tie_count)
+        if opt.tightened:
+            self.assertGreater(opt.tie_count, before)
+            self.assertIn("詰めました", opt.message)
+
+    def test_apply_false_leaves_model_untouched(self):
+        m = make_model()
+        before = list(m.wall_ties)
+        before_cfg = (m.config.wall_tie_span_step, m.config.wall_tie_level_step)
+        optimize_wall_ties(m, SiteCondition(region="関東(沿岸)"), apply=False)
+        self.assertEqual(len(m.wall_ties), len(before))
+        self.assertEqual(
+            (m.config.wall_tie_span_step, m.config.wall_tie_level_step), before_cfg
+        )
+
+    def test_infeasible_case_reports_remedy(self):
+        m = make_model()
+        severe = SiteCondition(region="沖縄", sheet_type="密閉シート", adjacent_factor=1.3)
+        opt = optimize_wall_ties(m, severe)
+        self.assertFalse(opt.feasible)
+        self.assertIn("最密", opt.message)
+        self.assertTrue("高耐力" in opt.message or "養生材" in opt.message)
+
+
+if __name__ == "__main__":
+    unittest.main()
