@@ -196,6 +196,36 @@ class ArchicadClient:
     def reload_libraries(self) -> None:
         self.tapir("ReloadLibraries")
 
+    def find_red_pen(self, default: int = 20) -> int:
+        """有効なペンテーブルから最も赤に近いペン番号を返す.
+
+        警告表示に使う「赤」はペンテーブル依存（このプロジェクトのテーブルでは
+        pen6は青、pen20が純赤だった）。番号を決め打ちせず実際の色から選ぶ。
+        取得できない場合は default を返す。
+        """
+        try:
+            attrs = self.tapir(
+                "GetAttributesByType", {"attributeType": "PenTable"}
+            ).get("attributes", [])
+            if not attrs:
+                return default
+            res = self.tapir(
+                "GetPenTables",
+                {"attributeIds": [{"attributeId": attrs[0]["attributeId"]}],
+                 "fields": ["pens"]},
+            )
+            pens = res["penTables"][0].get("pens", [])
+            if not pens:
+                return default
+
+            def redness(p: dict) -> float:
+                c = p["color"]
+                return (c["red"] - 1.0) ** 2 + c["green"] ** 2 + c["blue"] ** 2
+
+            return int(min(pens, key=redness)["index"])
+        except (TapirError, KeyError, IndexError, TypeError):
+            return default
+
 
 # ---- 高水準API ----------------------------------------------------------
 
@@ -256,6 +286,36 @@ def place_scaffold_lines(
                 "floorH": model.master.floor_height / 1000.0,
                 "standoff": ep.standoff / 1000.0,
             },
+        )
+        placed.append(elem)
+    return placed
+
+
+def place_details(
+    model: ScaffoldModel,
+    sheets: Optional[list] = None,
+    object_name: str = "ashiba_detail",
+    origin_mm: tuple[float, float] = (0.0, 0.0),
+    pitch_mm: float = 4000.0,
+    client: Optional[ArchicadClient] = None,
+) -> list[dict]:
+    """必要な詳細図を横一列に配置する（設置届の添付図書用）.
+
+    警告表示のペン番号は、決め打ちせずプロジェクトのペンテーブルから赤を探して渡す。
+    """
+    from .details import required_details
+
+    client = client or ArchicadClient()
+    sheets = sheets if sheets is not None else required_details(model)
+    warn_pen = client.find_red_pen()
+    placed = []
+    for i, sheet in enumerate(sheets):
+        elem = client.create_object(
+            object_name, origin_mm[0] + i * pitch_mm, origin_mm[1]
+        )
+        client.set_gdl_parameters(
+            elem,
+            {"detailType": sheet.key, "warnPen": warn_pen, **sheet.params},
         )
         placed.append(elem)
     return placed

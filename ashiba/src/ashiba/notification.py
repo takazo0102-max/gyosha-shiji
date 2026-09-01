@@ -84,8 +84,12 @@ def write_notification_xlsx(
     path: Path,
     project_name: str = "",
     info: Optional[NotificationInfo] = None,
+    details: Optional[list] = None,
 ) -> None:
     info = info or NotificationInfo()
+    if details is None:
+        from .details import required_details
+        details = required_details(model)
     wb = Workbook()
     _sheet_form20(wb, model, quantity, project_name, info)
     _sheet_conditions(wb, model, structural, project_name)
@@ -94,7 +98,7 @@ def write_notification_xlsx(
     _sheet_post(wb, structural)
     _sheet_quantity(wb, quantity)
     _sheet_law_check(wb, checks)
-    _sheet_attachments(wb, info)
+    _sheet_attachments(wb, info, details)
     wb.save(path)
 
 
@@ -307,9 +311,9 @@ def _sheet_law_check(wb, checks: list[CheckResult]) -> None:
         ])
 
 
-def _sheet_attachments(wb, info: NotificationInfo) -> None:
+def _sheet_attachments(wb, info: NotificationInfo, details=None) -> None:
     s = wb.sheet("添付図書チェック")
-    for c, wdt in enumerate([22, 18, 46, 12]):
+    for c, wdt in enumerate([26, 18, 52, 12]):
         s.set_width(c, wdt)
     s.add_title("添付図書チェックリスト（安衛法88条）", span=4)
     s.add_blank()
@@ -319,6 +323,15 @@ def _sheet_attachments(wb, info: NotificationInfo) -> None:
             Cell(name, STYLE_BORDER), Cell(kind, STYLE_BORDER),
             Cell(desc, STYLE_BORDER), Cell("", STYLE_BORDER),
         ])
+    if details:
+        s.add_blank()
+        s.add(["■ 詳細図の内訳（この計画に必要な図）"], STYLE_BOLD)
+        s.add_header(["図面名", "detailType", "必要な理由", "確認"])
+        for d in details:
+            s.add_cells([
+                Cell(d.title, STYLE_BORDER), Cell(d.key, STYLE_BORDER),
+                Cell(d.reason, STYLE_BORDER), Cell("", STYLE_BORDER),
+            ])
     s.add_blank()
     s.add(["提出先", info.labor_office or FILL_IN], STYLE_BOLD)
     s.add(["提出期限", (info.submission_deadline().isoformat()

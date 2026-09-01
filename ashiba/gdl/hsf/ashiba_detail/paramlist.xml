@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="detailType">
+			<Description><![CDATA["詳細図の種類 base=脚部/tie=壁つなぎ/asagao=朝顔/corner=コーナー/beam=梁枠"]]></Description>
+			<Value><![CDATA["base"]]></Value>
+		</String>
+		<String Name="serType">
+			<Description><![CDATA["系列 A/B"]]></Description>
+			<Value><![CDATA["A"]]></Value>
+		</String>
+		<Length Name="jackOut">
+			<Description><![CDATA["ジャッキ繰り出し量"]]></Description>
+			<Value>0.2</Value>
+		</Length>
+		<Length Name="negaLv">
+			<Description><![CDATA["根がらみコマ高さ 支柱下端から"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Length Name="standoff">
+			<Description><![CDATA["壁離れ"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="rowW">
+			<Description><![CDATA["内外建地間隔"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="spanW">
+			<Description><![CDATA["スパン"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="tieV">
+			<Description><![CDATA["壁つなぎ 垂直間隔"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<Length Name="tieH">
+			<Description><![CDATA["壁つなぎ 水平間隔"]]></Description>
+			<Value>5.4</Value>
+		</Length>
+		<Length Name="asagaoProj">
+			<Description><![CDATA["朝顔 突出長さ"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<RealNum Name="asagaoAngle">
+			<Description><![CDATA["朝顔 傾斜角 度"]]></Description>
+			<Value>25</Value>
+		</RealNum>
+		<Length Name="beamSpan">
+			<Description><![CDATA["梁枠スパン 3.6/5.4"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<Length Name="deckW1">
+			<Description><![CDATA["踏板1幅"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="deckW2">
+			<Description><![CDATA["踏板2幅 0で無し"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Boolean Name="showDim">
+			<Description><![CDATA["寸法・注記の表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<Integer Name="warnPen">
+			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
+			<Value>20</Value>
+		</Integer>
+	</Parameters>
+</ParamSection>

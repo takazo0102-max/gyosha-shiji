@@ -1,0 +1,417 @@
+! ============================================================
+! 足場 詳細図 2Dシンボル（5枚を detailType で切替）
+! 法規チェックを図面上に埋め込む（違反時は警告ペンで赤字表示）
+! ============================================================
+set style "anno"
+pen 1
+
+dim warnMsg[8]
+nWarn = 0
+ttl = ""
+
+! detailType はASCIIキーで指定する。
+! 日本語文字列をパラメータ値として外部から渡すと比較が一致しない（実機で確認済み）ため、
+! 判定キーは必ずASCII、画面に出す名称だけ日本語にする。
+if detailType = "base" then
+	gosub 100
+else
+	if detailType = "tie" then
+		gosub 200
+	else
+		if detailType = "asagao" then
+			gosub 300
+		else
+			if detailType = "corner" then
+				gosub 400
+			else
+				if detailType = "beam" then
+					gosub 500
+				else
+					! 未知キーで別の図を黙って描くと誤りが図面に紛れ込むので明示する
+					pen warnPen
+					text2 0, 0, "detailType 未知: " + detailType
+					text2 0, -0.12, "base / tie / asagao / corner / beam を指定してください"
+					pen 1
+					end
+				endif
+			endif
+		endif
+	endif
+endif
+
+gosub 900		! 図面名と警告の表示
+end
+
+! ============================================================
+100: ! ---- 脚部詳細（立面） ----
+! 参照実装 kyakubu_detail_2d.gdl を系列パラメータ対応にしたもの
+ttl = "脚部詳細（タイプ" + serType + " コマピッチ" + str(koma * 1000, 3, 0) + "）"
+
+y_base = 0.050						! ジャッキ台座上端（敷板35+ベース15）
+y_sic0 = y_base + jackOut			! 支柱下端レベル
+
+! GL・地盤ハッチ
+line2 -0.60, 0, 0.65, 0
+for gx = -0.55 to 0.60 step 0.05
+	line2 gx, 0, gx - 0.03, -0.03
+next gx
+
+rect2 -0.45, 0, 0.45, 0.035			! 敷板 900x35
+line2 -0.45, 0.010, 0.45, 0.010
+rect2 -0.070, 0.035, 0.070, 0.050	! アンダーベース 140角
+
+! ジャッキベース
+rect2 -0.070, y_base, 0.070, y_base + 0.006
+rect2 -r_jack, y_base, r_jack, y_sic0 + 0.100
+for ty = y_base + 0.02 to y_sic0 - 0.01 step 0.02
+	line2 -r_jack, ty, r_jack, ty
+next ty
+rect2 -0.045, y_sic0 - 0.035, 0.045, y_sic0 - 0.015	! 調整ハンドル
+
+! 支柱
+rect2 -r_sic, y_sic0, r_sic, 0.90
+line2 -r_sic, y_sic0, r_sic, y_sic0
+
+! 根がらみコマ＋根がらみ布材＋くさび
+y_koma = y_sic0 + negaLv
+rect2  r_sic, y_koma - 0.015,  r_sic + 0.020, y_koma + 0.015
+rect2 -r_sic - 0.020, y_koma - 0.015, -r_sic, y_koma + 0.015
+rect2  r_sic + 0.020, y_koma - r_nuno, 0.60, y_koma + r_nuno
+poly2 4, 1,
+	r_sic + 0.020, y_koma + 0.015,
+	r_sic + 0.038, y_koma + 0.015,
+	r_sic + 0.030, y_koma - 0.020,
+	r_sic + 0.020, y_koma - 0.020
+
+hotspot2 0, 0
+hotspot2 0, y_sic0
+hotspot2 0.60, y_koma
+
+! 法規チェック: ジャッキ繰出し ≦270（実務基準）
+if jackOut > LIM_JACK then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※ジャッキ繰出し " + str(jackOut * 1000, 4, 0) + "mm > 270mm 要是正"
+endif
+! 法規チェック: 第一の布（根がらみ）はできる限り低く・GLから2m以下
+if y_koma > 2.0 then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※根がらみ高さ超過（安衛則571条 第一の布2m以下）"
+endif
+
+if not(showDim) then return
+
+! 繰出し量の寸法
+dimx = -0.52
+line2 dimx, y_base, dimx, y_sic0
+line2 dimx - 0.015, y_base, dimx + 0.015, y_base
+line2 dimx - 0.015, y_sic0, dimx + 0.015, y_sic0
+text2 dimx - 0.02, (y_base + y_sic0) / 2,
+	"繰出し " + str(jackOut * 1000, 4, 0) + "≦" + str(LIM_JACK * 1000, 3, 0)
+
+! 引出し注記
+tx = 0.68
+line2 r_sic, 0.80, tx - 0.02, 0.80
+text2 tx, 0.80, "支柱 φ48.6"
+line2 0.50, y_koma, tx - 0.02, 0.70
+text2 tx, 0.70, "根がらみ φ42.7（最下コマ）"
+line2 0.03, y_sic0 - 0.025, tx - 0.02, 0.55
+text2 tx, 0.55, "ジャッキベース φ38.1"
+line2 0.06, 0.043, tx - 0.02, 0.45
+text2 tx, 0.45, "アンダーベース 140角"
+line2 0.40, 0.018, tx - 0.02, 0.35
+text2 tx, 0.35, "敷板"
+return
+
+! ============================================================
+200: ! ---- 壁つなぎ部詳細（平面） ----
+ttl = "壁つなぎ部詳細（平面 タイプ" + serType + "）"
+
+xin  = -standoff				! 内側建地
+xout = -standoff - rowW			! 外側建地
+
+! 躯体（右側）
+line2 0, -0.50, 0, 0.50
+rect2 0, -0.50, 0.35, 0.50
+for gy = -0.48 to 0.48 step 0.06
+	line2 0, gy, 0.06, gy + 0.06
+next gy
+
+! 建地（内・外）と布材
+circle2 xin, 0, r_sic
+circle2 xout, 0, r_sic
+circle2 xin, spanW, r_sic
+circle2 xout, spanW, r_sic
+rect2 xin - r_nuno, 0, xin + r_nuno, spanW
+rect2 xout - r_nuno, 0, xout + r_nuno, spanW
+
+! 踏板（内外建地間）
+rect2 xout + 0.05, 0.10, xout + 0.05 + deckW1, spanW - 0.10
+if deckW2 > 0 then
+	rect2 xout + 0.07 + deckW1, 0.10, xout + 0.07 + deckW1 + deckW2, spanW - 0.10
+endif
+
+! 壁つなぎ材（躯体アンカー → 内側建地クランプ）
+rect2 0, -r_tie, xin, r_tie
+rect2 -0.030, -0.022, 0, 0.022			! アンカープレート
+rect2 xin - 0.035, -0.030, xin + 0.035, 0.030	! 緊結クランプ
+line2 xin - 0.035, -0.030, xin + 0.035, 0.030
+
+hotspot2 0, 0
+hotspot2 xin, 0
+hotspot2 xout, 0
+
+! 法規チェック: 壁つなぎ間隔（安衛則570条 くさび式 垂直5m×水平5.5m）
+if tieV > LIM_TIE_V then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※壁つなぎ垂直間隔 " + str(tieV * 1000, 5, 0) + "mm > 5000mm"
+endif
+if tieH > LIM_TIE_H then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※壁つなぎ水平間隔 " + str(tieH * 1000, 5, 0) + "mm > 5500mm"
+endif
+
+if not(showDim) then return
+
+! 寸法（離れ・建地間隔）
+dy = -0.30
+line2 xin, dy, 0, dy
+line2 xin, dy - 0.02, xin, dy + 0.02
+line2 0, dy - 0.02, 0, dy + 0.02
+text2 (xin + 0) / 2, dy - 0.05, "離れ " + str(standoff * 1000, 4, 0)
+line2 xout, dy, xin, dy
+line2 xout, dy - 0.02, xout, dy + 0.02
+text2 (xout + xin) / 2, dy - 0.05, str(rowW * 1000, 4, 0)
+
+tx = 0.45
+text2 tx, 0.42, "壁つなぎ φ27.2（伸縮式）"
+line2 xin / 2, r_tie, tx - 0.02, 0.40
+text2 tx, 0.30, "配置間隔 垂直" + str(tieV * 1000, 5, 0) + " × 水平" + str(tieH * 1000, 5, 0)
+text2 tx, 0.22, "（法定 垂直5000以下×水平5500以下）"
+text2 tx, 0.14, "コーナーから1.8m以上離して左右均等に配置"
+text2 tx, 0.06, "躯体側はアンカー、建地側は緊結クランプ"
+return
+
+! ============================================================
+300: ! ---- 朝顔（防護棚）取付部詳細（立面） ----
+ttl = "朝顔取付部詳細（立面 タイプ" + serType + "）"
+
+xout = 0						! 外側建地
+xin  = rowW						! 内側建地
+xwall = rowW + standoff			! 躯体面
+
+! 躯体
+line2 xwall, -0.30, xwall, 1.60
+rect2 xwall, -0.30, xwall + 0.25, 1.60
+for gy = -0.28 to 1.55 step 0.08
+	line2 xwall, gy, xwall + 0.06, gy + 0.06
+next gy
+
+! 建地2本
+rect2 xout - r_sic, -0.30, xout + r_sic, 1.60
+rect2 xin - r_sic, -0.30, xin + r_sic, 1.60
+! 布材（作業床レベル）
+circle2 xout, 0, r_nuno
+circle2 xin, 0, r_nuno
+circle2 xout, koma, r_nuno
+circle2 xout, 2 * koma, r_nuno
+
+! 朝顔（外向き上がり勾配）
+ax = -asagaoProj * cos(asagaoAngle)
+ay =  asagaoProj * sin(asagaoAngle)
+! 受けブラケット
+line2 xout, 0, xout + ax, ay
+line2 xout, 0.06, xout + ax, ay + 0.06
+! 防護板
+poly2 4, 1,
+	xout, 0.06,
+	xout + ax, ay + 0.06,
+	xout + ax, ay + 0.085,
+	xout, 0.085
+! 方杖（支柱の1コマ上へ）
+line2 xout + ax * 0.55, ay * 0.55, xout, 2 * koma
+! 先端の返し
+line2 xout + ax, ay + 0.06, xout + ax - 0.02, ay + 0.20
+
+hotspot2 xout, 0
+hotspot2 xout + ax, ay
+hotspot2 xwall, 0
+
+! 法規チェック: 突出2m以上・傾斜20度以上
+if asagaoProj < LIM_ASA_P then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※朝顔突出 " + str(asagaoProj * 1000, 5, 0) + "mm < 2000mm"
+endif
+if asagaoAngle < LIM_ASA_A then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※朝顔傾斜 " + str(asagaoAngle, 3, 0) + "度 < 20度"
+endif
+
+if not(showDim) then return
+
+! 突出寸法
+dyy = -0.22
+line2 xout + ax, dyy, xout, dyy
+line2 xout + ax, dyy - 0.02, xout + ax, dyy + 0.02
+line2 xout, dyy - 0.02, xout, dyy + 0.02
+text2 xout + ax / 2, dyy - 0.06, "突出 " + str(asagaoProj * 1000, 5, 0) + "≧2000"
+! 角度
+arc2 xout, 0, 0.30, 180 - asagaoAngle, 180
+text2 xout - 0.36, 0.10, str(asagaoAngle, 3, 0) + "°≧20°"
+
+tx = xwall + 0.35
+text2 tx, 1.45, "朝顔（防護棚）"
+text2 tx, 1.35, "高さ10m以上で1段、20m以上で2段"
+text2 tx, 1.25, "取付部は2スパン毎に壁つなぎを設置"
+text2 tx, 1.15, "外周から水平突出2m以上・水平面と20度以上"
+return
+
+! ============================================================
+400: ! ---- コーナー部詳細（平面・出隅の回し） ----
+ttl = "コーナー部詳細（出隅 平面 タイプ" + serType + "）"
+
+! 躯体は第1象限、足場は外側（-X / -Y 側）に回る
+line2 0, 0, 0, 1.20
+line2 0, 0, 1.20, 0
+rect2 0, 0, 1.20, 1.20
+for gg = 0.05 to 1.15 step 0.10
+	line2 0, gg, 0.07, gg + 0.07
+	line2 gg, 0, gg + 0.07, 0.07
+next gg
+
+yin  = -standoff
+yout = -standoff - rowW
+xin  = -standoff
+xout = -standoff - rowW
+
+! X方向の面（下側）: 建地ラインと踏板
+rect2 xout, yin - r_nuno, 1.20, yin + r_nuno
+rect2 xout, yout - r_nuno, 1.20, yout + r_nuno
+rect2 xout + 0.05, yout + 0.05, 1.15, yout + 0.05 + deckW1
+! Y方向の面（左側）
+rect2 xin - r_nuno, yout, xin + r_nuno, 1.20
+rect2 xout - r_nuno, yout, xout + r_nuno, 1.20
+rect2 xout + 0.05, yout + 0.05 + deckW1 + 0.02, xout + 0.05 + deckW1, 1.15
+
+! 支柱（コーナーは両面共有の1本）
+circle2 xin, yin, r_sic
+circle2 xout, yout, r_sic
+circle2 xin, yout, r_sic
+circle2 xout, yin, r_sic
+circle2 xin + spanW, yin, r_sic
+circle2 xout + spanW, yout, r_sic
+circle2 xin, yin + spanW, r_sic
+circle2 xout, yout + spanW, r_sic
+
+hotspot2 0, 0
+hotspot2 xin, yin
+hotspot2 xout, yout
+
+if not(showDim) then return
+
+! 離れ寸法（両方向）
+line2 xin, 0.30, 0, 0.30
+line2 xin, 0.28, xin, 0.32
+line2 0, 0.28, 0, 0.32
+text2 xin / 2, 0.35, str(standoff * 1000, 4, 0)
+line2 0.30, yin, 0.30, 0
+line2 0.28, yin, 0.32, yin
+text2 0.35, yin / 2, str(standoff * 1000, 4, 0)
+
+tx = 0.55
+text2 tx, yout - 0.10, "出隅は「回し」: 優先面の足場を直交面の外面まで延長し"
+text2 tx, yout - 0.20, "直交面の起点とする。くさび式はコマが4方向にあるため"
+text2 tx, yout - 0.30, "コーナー支柱1本を両面で共有できる"
+text2 tx, yout - 0.42, "端数はコーナーで受けず壁離れ（250〜350）で吸収する"
+text2 tx, yout - 0.52, "※コーナーで足場板の調整をしないこと"
+text2 tx, yout - 0.64, "壁つなぎはコーナーから1.8m以上離す（1スパン除外）"
+text2 tx, yout - 0.74, "踏板の余りを外側にはみ出させない"
+return
+
+! ============================================================
+500: ! ---- 開口部 梁枠詳細（立面） ----
+ttl = "開口部 梁枠詳細（立面 " + str(beamSpan * 1000, 5, 0) + " タイプ" + serType + "）"
+
+hOpen = 2 * floorH				! 開口高さ（梁枠下端）
+ht = 0.45						! トラス梁枠せい
+
+! 梁枠（上下弦材＋斜材）
+rect2 0, hOpen, beamSpan, hOpen + 0.05
+rect2 0, hOpen + ht - 0.05, beamSpan, hOpen + ht
+nDiv = 6
+for i = 0 to nDiv - 1
+	x1 = beamSpan * i / nDiv
+	x2 = beamSpan * (i + 1) / nDiv
+	if i - 2 * int(i / 2) = 0 then
+		line2 x1, hOpen + 0.05, x2, hOpen + ht - 0.05
+	else
+		line2 x1, hOpen + ht - 0.05, x2, hOpen + 0.05
+	endif
+	line2 x1, hOpen + 0.05, x1, hOpen + ht - 0.05
+next i
+line2 beamSpan, hOpen + 0.05, beamSpan, hOpen + ht - 0.05
+
+! 梁枠を支持する両端の支柱（下まで通る）
+rect2 -r_sic, 0, r_sic, hOpen + ht + 2 * floorH
+rect2 beamSpan - r_sic, 0, beamSpan + r_sic, hOpen + ht + 2 * floorH
+! 梁枠上に乗る中間支柱（開口部には建てない）
+nUp = int(beamSpan / spanW + 0.001)
+for i = 1 to nUp - 1
+	xx = spanW * i
+	rect2 xx - r_sic, hOpen + ht, xx + r_sic, hOpen + ht + 2 * floorH
+next i
+
+! 梁枠上の作業床と手すり
+for lv = 1 to 2
+	yy = hOpen + ht + floorH * (lv - 1)
+	rect2 0, yy, beamSpan, yy + 0.045
+	line2 0, yy + koma, beamSpan, yy + koma
+	line2 0, yy + 2 * koma, beamSpan, yy + 2 * koma
+next lv
+
+! GL
+line2 -0.40, 0, beamSpan + 0.40, 0
+for gx = -0.35 to beamSpan + 0.35 step 0.08
+	line2 gx, 0, gx - 0.05, -0.05
+next gx
+
+hotspot2 0, 0
+hotspot2 beamSpan, hOpen
+hotspot2 0, hOpen + ht
+
+! 梁枠は2スパン(3600)/3スパン(5400)のみ
+if abs(beamSpan - 3.6) > 0.001 and abs(beamSpan - 5.4) > 0.001 then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※梁枠スパン " + str(beamSpan * 1000, 5, 0) + "mm は規格外（3600/5400）"
+endif
+
+if not(showDim) then return
+
+dyy = -0.25
+line2 0, dyy, beamSpan, dyy
+line2 0, dyy - 0.03, 0, dyy + 0.03
+line2 beamSpan, dyy - 0.03, beamSpan, dyy + 0.03
+text2 beamSpan / 2, dyy - 0.10, "梁枠 " + str(beamSpan * 1000, 5, 0)
+
+line2 -0.30, 0, -0.30, hOpen
+line2 -0.33, 0, -0.27, 0
+line2 -0.33, hOpen, -0.27, hOpen
+text2 -0.36, hOpen / 2, "開口 " + str(hOpen * 1000, 5, 0)
+
+tx = beamSpan + 0.20
+text2 tx, hOpen + ht + 0.30, "トラス梁枠（" + str(nUp, 1, 0) + "スパン分の支柱を受ける）"
+text2 tx, hOpen + ht + 0.20, "梁枠上は積載荷重を低減し、両端支柱は補強すること"
+text2 tx, hOpen + ht + 0.10, "梁枠取付部の直近に壁つなぎを設置"
+return
+
+! ============================================================
+900: ! ---- 図面名と法規警告の表示 ----
+pen 1
+text2 0, -0.95, ttl
+if nWarn = 0 then return
+pen warnPen
+text2 0, -1.08, "【法規チェック警告】"
+for i = 1 to nWarn
+	text2 0, -1.08 - 0.10 * i, warnMsg[i]
+next i
+pen 1
+return
