@@ -39,6 +39,7 @@ from .notification import (
     write_notification_xlsx,
 )
 from .plan_solver import StandoffSpec, solve_plan
+from .platforms import Hoist, LoadingStage, platform_quantities, validate_platforms
 from .quantity import take_off
 from .report import (
     write_jack_table_csv,
@@ -118,6 +119,37 @@ def build_brackets(spec: dict) -> list[BracketSection]:
     return out
 
 
+def build_platforms(spec: dict) -> tuple[list, list]:
+    """荷受けステージと昇降機の入力."""
+    stages = [
+        LoadingStage(
+            edge_index=s["edge_index"],
+            start_mm=float(s["start_mm"]),
+            span_count=s.get("span_count", 2),
+            projection_mm=s.get("projection_mm", 1500),
+            load_kn=s.get("load_kn", 9.8),
+            levels=s.get("levels", []),
+            has_guard_rail=s.get("has_guard_rail", True),
+            has_toe_board=s.get("has_toe_board", True),
+            has_load_sign=s.get("has_load_sign", True),
+            has_hozue=s.get("has_hozue", True),
+            note=s.get("note", ""),
+        )
+        for s in spec.get("loading_stages", [])
+    ]
+    hoists = [
+        Hoist(
+            edge_index=h["edge_index"],
+            position_mm=float(h["position_mm"]),
+            reach_height_mm=h.get("reach_height_mm", 0.0),
+            tie_every_mm=h.get("tie_every_mm", 3600),
+            note=h.get("note", ""),
+        )
+        for h in spec.get("hoists", [])
+    ]
+    return stages, hoists
+
+
 def build_ground(spec: dict) -> GroundModel:
     """敷地の標高サンプル点。Archicadから使う場合は read_ground_model() で読む."""
     pts = spec.get("ground_points_mm", [])
@@ -177,7 +209,8 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     )
     checks = run_all_checks(model)
     quantity = take_off(model, bracket_sections=brackets, stair_plan=stair_plan)
-    structural = run_structural(model, quantity, site)
+    platforms = validate_platforms(model, *build_platforms(spec))
+    structural = run_structural(model, quantity, site, platforms=platforms)
     terrain = solve_post_feet(model, build_ground(spec))
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -223,6 +256,14 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             if model.config.asagao else None
         ),
         "bracket_sections": len(brackets),
+        "platforms": {
+            "loading_stages": len(platforms.stages),
+            "hoists": len(platforms.hoists),
+            "extra_wall_ties": platforms.extra_wall_ties,
+            "max_post_load_kn": round(platforms.max_post_load_kn, 2),
+            "governing": platforms.governing,
+            "ok": platforms.ok,
+        },
         "terrain": {
             "gl_difference_mm": round(terrain.gl_difference_mm, 1),
             "jack_range_mm": [round(terrain.jack_min_mm, 1),
@@ -246,6 +287,8 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
             + stair_plan.warnings + [f"階段: {w}" for w in stair_issues]
             + [f"敷地: {w}" for w in terrain.warnings]
+            + [f"{i.kind}[{i.severity}] {i.message}（{i.basis}）"
+               for i in platforms.issues]
         ),
         "out_dir": str(out_dir),
     }

@@ -101,6 +101,22 @@ class TestAcceptance(unittest.TestCase):
             # 上限超過は黙って丸めず対処まで書く
             self.assertIn("敷板", text + "".join(result["warnings"]))
 
+    def test_loading_stage_and_hoist(self):
+        """荷受けステージ・昇降機がある計画でも一式が出て、建地検定に反映される."""
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            result = run(EXAMPLES / "loading_stage.json", out)
+            p = result["platforms"]
+            self.assertEqual(p["loading_stages"], 1)
+            self.assertEqual(p["hoists"], 1)
+            self.assertTrue(p["ok"])
+            self.assertGreater(p["max_post_load_kn"], 0)
+            self.assertGreater(p["extra_wall_ties"], 0)
+            self.assertIsNotNone(p["governing"])
+            # 昇降機本体が対象外であることは黙らない
+            self.assertTrue(any("対象外" in w for w in result["warnings"]))
+            self.assertEqual(result["checks"]["ng"], 0)
+
     def test_stairs_auto_placed(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)

@@ -167,6 +167,7 @@ class WallTieResult:
 class PostResult:
     dead_load_kn: float
     live_load_kn: float
+    extra_load_kn: float          # 荷受けステージ等の局所荷重
     total_kn: float
     jack_extension_mm: int
     allowable_kn: float
@@ -354,9 +355,18 @@ def check_wall_tie(
 
 
 def check_post(
-    model: ScaffoldModel, quantity: QuantityResult, site: SiteCondition, caps: dict
+    model: ScaffoldModel,
+    quantity: QuantityResult,
+    site: SiteCondition,
+    caps: dict,
+    extra_post_load_kn: float = 0.0,
+    extra_load_source: str = "",
 ) -> PostResult:
-    """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）."""
+    """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）.
+
+    荷受けステージのような局所荷重がある場合は extra_post_load_kn で加算する。
+    平均で見ると直下の建地が抜けるため、最も厳しい1本で検定する。
+    """
     n_posts = model.plan.total_posts * (1 if model.config.scaffold_form == "一側足場" else 2)
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
 
@@ -365,7 +375,7 @@ def check_post(
         raise CapacityError("作業床許容積載荷重が capacity.csv にありません")
     # 1構面(スパン)の積載を両端2本の建地で分担。同時載荷は所定層数まで
     live_kn = cap_deck.value * site.simultaneous_loaded_levels / 2.0
-    total = dead_kn + live_kn
+    total = dead_kn + live_kn + extra_post_load_kn
 
     jack = model.elevation.jack_extension
     cap_jack, jack_key = _interpolate_capacity(caps, "ジャッキ許容支持力", jack)
@@ -376,9 +386,13 @@ def check_post(
     governing_name, governing_cap = min(candidates, key=lambda kv: kv[1].value)
 
     ratio = total / governing_cap.value if governing_cap.value else float("inf")
+    if extra_post_load_kn > 0 and extra_load_source:
+        governing_name += f" ＋{extra_load_source}"
+
     return PostResult(
         dead_load_kn=round(dead_kn, 3),
         live_load_kn=round(live_kn, 3),
+        extra_load_kn=round(extra_post_load_kn, 3),
         total_kn=round(total, 3),
         jack_extension_mm=jack,
         allowable_kn=governing_cap.value,
@@ -534,13 +548,20 @@ def run_structural(
     quantity: QuantityResult,
     site: Optional[SiteCondition] = None,
     capacity_path: Optional[Path] = None,
+    platforms=None,
 ) -> StructuralResult:
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
 
     wind = compute_wind(model, site)
     tie = check_wall_tie(model, wind, caps)
-    post = check_post(model, quantity, site, caps)
+    # 荷受けステージがあれば、その直下の建地（最も厳しい1本）で検定する
+    extra = platforms.max_post_load_kn if platforms else 0.0
+    source = (
+        f"荷受けステージ {platforms.governing}"
+        if platforms and platforms.governing else ""
+    )
+    post = check_post(model, quantity, site, caps, extra, source)
 
     warnings: list[str] = []
     unverified: list[str] = []
@@ -560,9 +581,15 @@ def run_structural(
             "壁つなぎ間隔を詰める、または高耐力品への変更を検討してください"
         )
     if not post.ok:
+        remedy = "ジャッキ繰出し量の低減、支柱2本組、またはスパン短縮を検討してください"
+        if post.extra_load_kn > 0:
+            remedy = (
+                "荷受けステージ直下の建地が支配的です。積載荷重の低減、間口の拡大"
+                "（支持する建地を増やす）、または支柱2本組を検討してください"
+            )
         warnings.append(
             f"建地圧縮が耐力不足です（検定比{post.ratio:.2f}、支配: {post.governing}）。"
-            "ジャッキ繰出し量の低減、支柱2本組、またはスパン短縮を検討してください"
+            + remedy
         )
     return StructuralResult(
         site=site, wind=wind, wall_tie=tie, post=post,
