@@ -222,6 +222,16 @@ pen 1
 ! ---- 建地列（外・内）と支柱記号 ----
 line2 0, 0, lineLen, 0
 line2 0, rowW, lineLen, rowW
+
+! ---- スパン区切りと布板の対角線（作業床が敷いてある区画の慣用表記） ----
+x = 0
+for ip = 1 to nSpan
+    line2 x, 0, x, rowW
+    if showDeck then line2 x, 0, x + spans[ip], rowW
+    x = x + spans[ip]
+next ip
+line2 x, 0, x, rowW
+
 x = 0
 for ip = 1 to nSpan + 1
     circle2 x, 0, r_sic

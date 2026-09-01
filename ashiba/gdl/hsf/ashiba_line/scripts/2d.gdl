@@ -18,6 +18,18 @@ end
 100: ! ---- 平面図 ----
 line2 0, 0, lineLen, 0
 line2 0, -rowW, lineLen, -rowW
+
+! スパン区切り線と布板の対角線。平面図で「作業床が敷いてある区画」を表す
+! 慣用表記で、実務の足場平面図はこの見え方になる。対角線の向きは全スパン
+! 揃える（向きを交互にするとブレスの表記と紛らわしい）。
+x = 0
+for ip = 1 to nSpan
+	line2 x, 0, x, -rowW
+	if showDeck then line2 x, -rowW, x + spans[ip], 0
+	x = x + spans[ip]
+next ip
+line2 x, 0, x, -rowW
+
 x = 0
 for ip = 1 to nSpan + 1
 	circle2 x, 0, r_sic
