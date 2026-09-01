@@ -15,26 +15,30 @@
 !   Python側は割付を解いてこのオブジェクトを辺の数だけ置くのみ。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   spanList       文字列  スパン構成 mm カンマ区切り                  既定 "1800,1800,1800"
-!   postList       文字列  支柱構成 mm 下から                          既定 "3600,3600,1800"
-!   jackOut        長さ    ジャッキ繰り出し量                          既定 0.1
-!   komaPitch      長さ    コマピッチ                                  既定 0.45
-!   floorH         長さ    階高                                        既定 1.8
-!   rowW           長さ    内外建地間隔                                既定 0.6
-!   standoff       長さ    壁離れ                                      既定 0.3
-!   deckW1         長さ    踏板1幅                                     既定 0.4
-!   deckW2         長さ    踏板2幅 0で無し                             既定 0.25
-!   showDeck       ブール  踏板表示                                    既定 1
-!   showBrace      ブール  ブレス表示                                  既定 1
-!   showDim        ブール  2D寸法・注記表示                            既定 1
-!   serType        文字列  系列 A/B                                    既定 "A"
-!   viewMode       文字列  2D表現 plan=平面 / elev=立面                既定 "plan"
-!   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）  既定 ""
-!   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）      既定 ""
-!   flList         文字列  各階FL高さ mm カンマ区切り（立面の参照線）  既定 ""
-!   faceName       文字列  面の名称（立面図の図面名）                  既定 ""
-!   warnPen        整数    注記強調のペン番号 ペンテーブル依存         既定 20
-!   texSiz         実数    文字高mm                                    既定 2.5
+!   spanList       文字列  スパン構成 mm カンマ区切り                              既定 "1800,1800,1800"
+!   postList       文字列  支柱構成 mm 下から                                      既定 "3600,3600,1800"
+!   jackOut        長さ    ジャッキ繰り出し量                                      既定 0.1
+!   komaPitch      長さ    コマピッチ                                              既定 0.45
+!   floorH         長さ    階高                                                    既定 1.8
+!   rowW           長さ    内外建地間隔                                            既定 0.6
+!   standoff       長さ    壁離れ                                                  既定 0.3
+!   deckW1         長さ    踏板1幅                                                 既定 0.4
+!   deckW2         長さ    踏板2幅 0で無し                                         既定 0.25
+!   showDeck       ブール  踏板表示                                                既定 1
+!   showBrace      ブール  ブレス表示                                              既定 1
+!   showDim        ブール  2D寸法・注記表示                                        既定 1
+!   serType        文字列  系列 A/B                                                既定 "A"
+!   viewMode       文字列  2D表現 plan=平面 / elev=立面                            既定 "plan"
+!   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）              既定 ""
+!   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）                  既定 ""
+!   flList         文字列  各階FL高さ mm カンマ区切り（立面の参照線）              既定 ""
+!   faceName       文字列  面の名称（立面図の図面名）                              既定 ""
+!   levelList      文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）  既定 ""
+!   negaH          長さ    根がらみ高さ GLから 0で自動                             既定 0
+!   railH          長さ    手すり高さ 作業床から 0で自動                           既定 0
+!   midH           長さ    中桟高さ 作業床から 0で自動                             既定 0
+!   warnPen        整数    注記強調のペン番号 ペンテーブル依存                     既定 20
+!   texSiz         実数    文字高mm                                                既定 2.5
 ! ==========================================================
 
 ! ==========================================================
@@ -55,6 +59,7 @@ dim ties[80]
 dim tieH[80]
 dim fls[20]
 dim lv[42]
+dim levIn[40]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -159,6 +164,28 @@ while strlen(rest) > 0 and nFL < 20 do
 	endif
 endwhile
 
+! ---- levelList をパース (mm→m) ----
+! 作業床の高さはPython側の立面ソルバが決めた値をそのまま受け取る。
+! GDLで komaPitch から再計算すると、コマの概念が無い枠組（komaPitch=0）で
+! 破綻するうえ、ソルバの結果と図面がずれる。
+nLevIn = 0
+rest = levelList
+while strlen(rest) > 0 and nLevIn < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLevIn = nLevIn + 1
+		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
 ! ---- 派生値 ----
 lineLen = 0
 for i = 1 to nSpan
@@ -168,23 +195,40 @@ postTop = jackOut
 for i = 1 to nPost
 	postTop = postTop + posts[i]
 next i
-firstLedger = jackOut + komaPitch
-topFloor = postTop - 2 * komaPitch
-
-! 作業層数
-nLevels = 0
-h = topFloor
-while h > firstLedger + komaPitch do
-	nLevels = nLevels + 1
-	h = h - floorH
-endwhile
+! 根がらみ高さ。negaH が渡されていればそれを使う（枠組は建枠脚部が相当）
+firstLedger = negaH
+if firstLedger <= 0 then firstLedger = jackOut + komaPitch
 
 ! レベル列: lv[1]=根がらみ、lv[2..nLv]=作業床（下から昇順）
 lv[1] = firstLedger
-for il = 1 to nLevels
-	lv[il + 1] = topFloor - (nLevels - il) * floorH
-next il
+if nLevIn > 0 then
+	! Python側の立面ソルバが決めた作業床高さをそのまま使う
+	nLevels = nLevIn
+	for il = 1 to nLevels
+		lv[il + 1] = levIn[il]
+	next il
+	topFloor = levIn[nLevels]
+else
+	! 単体で置いた場合のフォールバック（くさび式の積み方から推定）
+	topFloor = postTop - 2 * komaPitch
+	nLevels = 0
+	h = topFloor
+	while h > firstLedger + komaPitch do
+		nLevels = nLevels + 1
+		h = h - floorH
+	endwhile
+	for il = 1 to nLevels
+		lv[il + 1] = topFloor - (nLevels - il) * floorH
+	next il
+endif
 nLv = nLevels + 1
+
+! 手すり・中桟の高さ（作業床から）。komaPitch の倍数で決め打ちすると
+! コマの概念が無い枠組で 0 になり、手すりが作業床に重なって消える
+railTop = railH
+if railTop <= 0 then railTop = 2 * komaPitch
+railMid = midH
+if railMid <= 0 then railMid = komaPitch
 
 ! 壁つなぎは位置と高さの対。短い方に合わせる
 nTiePair = nTie
@@ -318,8 +362,8 @@ for il = 2 to nLv
 	! 幅木
 	rect2 0, z + 0.05, lineLen, z + 0.05 + 0.157
 	! 手すり・中桟
-	line2 0, z + komaPitch, lineLen, z + komaPitch
-	line2 0, z + 2 * komaPitch, lineLen, z + 2 * komaPitch
+	line2 0, z + railMid, lineLen, z + railMid
+	line2 0, z + railTop, lineLen, z + railTop
 next il
 
 ! ブレス（各構面・各層で交互向き）
@@ -431,11 +475,11 @@ for il = 1 to nLv
 		next row
 		! 外側手すり・中桟（作業層のみ）
 		if il > 1 then
-			add x, -rowW, z + 2 * komaPitch
+			add x, -rowW, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2
-			add x, -rowW, z + komaPitch
+			add x, -rowW, z + railMid
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2

@@ -36,11 +36,11 @@ for il = 1 to nLv
 		next row
 		! 外側手すり・中桟（作業層のみ）
 		if il > 1 then
-			add x, -rowW, z + 2 * komaPitch
+			add x, -rowW, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2
-			add x, -rowW, z + komaPitch
+			add x, -rowW, z + railMid
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2

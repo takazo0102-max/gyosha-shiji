@@ -40,6 +40,7 @@ from ashiba.stairs import auto_place_stairs  # noqa: E402
 from ashiba.structural import SiteCondition, optimize_wall_ties, run_structural  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
     ArchicadClient,
+    TapirError,
     _extract_polygon,
     place_details,
     place_elevations,
@@ -48,8 +49,8 @@ from ashiba.tapir_adapter import (  # noqa: E402
 )
 from ashiba.terrain import GroundModel, solve_post_feet  # noqa: E402
 
-LINE_OBJECT = "ashiba_line_v2"     # 埋め込みライブラリの検証済み部品名
-DETAIL_OBJECT = "ashiba_detail_v11"
+# 検証する部品は毎回HSFからコンパイルして注入する。部品名を固定で埋め込むと、
+# 更新を忘れたまま古いGSMを検証し続ける（実際そうなっていた）。
 SLAB_POLY_MM = [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]
 
 
@@ -62,6 +63,24 @@ def main() -> None:
     c = ArchicadClient()
     assert c.is_alive(), "Archicadが応答しません"
     print(f"Tapir {c.tapir_version()} 接続OK")
+
+    # --- 0. 現在のHSFをコンパイルして埋め込みライブラリへ ---
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from dev_gsm_iterate import build_current_gsm
+
+    work = ROOT / "out" / "gsm_dev"
+    work.mkdir(parents=True, exist_ok=True)
+    objects = {}
+    for part in ("ashiba_line", "ashiba_detail"):
+        name, gsm = build_current_gsm(part, work)
+        try:
+            c.add_file_to_embedded_library(str(gsm), gsm.name)
+        except TapirError:
+            pass   # 同じ内容なら既に入っている（部品名は内容ハッシュ）
+        objects[part] = name
+    LINE_OBJECT = objects["ashiba_line"]
+    DETAIL_OBJECT = objects["ashiba_detail"]
+    print(f"0. 現行GDLを注入: {LINE_OBJECT} / {DETAIL_OBJECT}")
 
     # --- 1. 躯体スラブ ---
     slab = c.create_slab(SLAB_POLY_MM)

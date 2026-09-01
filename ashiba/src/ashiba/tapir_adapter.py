@@ -165,7 +165,16 @@ class ArchicadClient:
         )
 
     def set_gdl_parameters(self, element: dict, params: dict[str, Any]) -> None:
-        self.tapir(
+        """GDLパラメータを設定する.
+
+        SetGDLParametersOfElements はコマンド自体は成功扱いで返し、
+        個別の失敗は executionResults に入る。パラメータ名が1つでも
+        オブジェクト側に無いと**全パラメータが適用されない**ので、
+        握りつぶすと既定値のまま描かれた図面を「成功」と報告してしまう。
+        （古いGSMに新パラメータを送って、立面図の代わりに平面図が
+        出ているのに成功と出た実績がある）
+        """
+        resp = self.tapir(
             "SetGDLParametersOfElements",
             {
                 "elementsWithGDLParameters": [
@@ -178,6 +187,14 @@ class ArchicadClient:
                 ]
             },
         )
+        for r in resp.get("executionResults", []):
+            if not r.get("success", True):
+                err = r.get("error", {})
+                raise TapirError(
+                    "GDLパラメータの設定に失敗しました: "
+                    f"{err.get('message', err)}"
+                    f"（送信: {', '.join(params)}）"
+                )
 
     def get_gdl_parameters(self, element: dict) -> dict:
         return self.tapir(
@@ -257,6 +274,35 @@ def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
     return None
 
 
+def _line_params(model: ScaffoldModel, ep) -> dict:
+    """足場ラインGDLに渡す共通パラメータ.
+
+    平面と立面で別々に組み立てると片方だけ渡し漏れる（実際、内外建地間隔と
+    踏板幅が平面側で渡されておらずGDL既定値のまま描かれていた）。1箇所に集約する。
+
+    作業床高さ・根がらみ高さ・手すり高さはPython側の解を渡す。GDLで
+    komaPitch から再計算させると、コマの概念が無い枠組で破綻する。
+    """
+    e = model.elevation
+    widths = list(model.config.deck_widths or [])
+    return {
+        "spanList": ",".join(str(s) for s in ep.spans),
+        "postList": ",".join(str(p) for p in e.posts),
+        "jackOut": e.jack_extension / 1000.0,
+        "komaPitch": model.master.koma_pitch / 1000.0,
+        "floorH": model.master.floor_height / 1000.0,
+        "standoff": ep.standoff / 1000.0,
+        "rowW": model.deck_width_total / 1000.0,
+        "deckW1": (widths[0] if widths else 400) / 1000.0,
+        "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
+        "levelList": ",".join(str(int(h)) for h in e.level_heights),
+        "negaH": e.first_ledger_height / 1000.0,
+        "railH": model.guard_rail_height_mm / 1000.0,
+        "midH": model.config.midrail_height_mm / 1000.0,
+        "serType": "B" if model.master.series_id.endswith("_B") else "A",
+    }
+
+
 def place_scaffold_lines(
     model: ScaffoldModel,
     object_name: str = "ashiba_line",
@@ -269,24 +315,13 @@ def place_scaffold_lines(
     """
     client = client or ArchicadClient()
     e = model.elevation
-    post_str = ",".join(str(p) for p in e.posts)
     placed = []
     for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
         elem = client.create_object(object_name, ep.start_post[0], ep.start_post[1])
         angle = math.atan2(edge.direction[1], edge.direction[0])
         if abs(angle) > 1e-9:
             client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
-        client.set_gdl_parameters(
-            elem,
-            {
-                "spanList": ",".join(str(s) for s in ep.spans),
-                "postList": post_str,
-                "jackOut": e.jack_extension / 1000.0,
-                "komaPitch": model.master.koma_pitch / 1000.0,
-                "floorH": model.master.floor_height / 1000.0,
-                "standoff": ep.standoff / 1000.0,
-            },
-        )
+        client.set_gdl_parameters(elem, _line_params(model, ep))
         placed.append(elem)
     return placed
 
@@ -373,7 +408,6 @@ def place_elevations(
     """
     client = client or ArchicadClient()
     e = model.elevation
-    post_str = ",".join(str(p) for p in e.posts)
     fl_str = ",".join(str(int(f)) for f in (floor_levels_mm or []))
     placed = []
     x = origin_mm[0]
@@ -383,13 +417,8 @@ def place_elevations(
         client.set_gdl_parameters(
             elem,
             {
+                **_line_params(model, ep),
                 "viewMode": "elev",
-                "spanList": ",".join(str(s) for s in ep.spans),
-                "postList": post_str,
-                "jackOut": e.jack_extension / 1000.0,
-                "komaPitch": model.master.koma_pitch / 1000.0,
-                "floorH": model.master.floor_height / 1000.0,
-                "standoff": ep.standoff / 1000.0,
                 "tieList": ",".join(str(int(t.position_mm)) for t in ties),
                 "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
                 "flList": fl_str,

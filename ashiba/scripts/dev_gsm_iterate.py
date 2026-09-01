@@ -77,6 +77,50 @@ def build_versioned_gsm(
     return name, gsm
 
 
+def build_current_gsm(part: str, work_dir: Path) -> tuple[str, Path]:
+    """HSFの現在の内容からGSMを作る。部品名とGUIDは内容のハッシュから決める.
+
+    版番号を手で振ると、更新を忘れたまま古い埋め込み部品を検証してしまう
+    （実機E2Eが数ヶ月前のGSMを検証し続けていた）。内容が変わったときだけ
+    名前が変わるので、埋め込みライブラリに無駄に溜まることもない。
+    """
+    import hashlib
+
+    hsf_src = HSF_DIR / part
+    if not hsf_src.is_dir():
+        raise SystemExit(f"HSFソースがありません: {hsf_src}")
+    h = hashlib.sha256()
+    for f in sorted(hsf_src.rglob("*")):
+        if f.is_file():
+            h.update(f.relative_to(hsf_src).as_posix().encode())
+            h.update(f.read_bytes())
+    digest = h.hexdigest()[:8]
+
+    name = f"{part}_{digest}"
+    hsf_dst = work_dir / name
+    if hsf_dst.exists():
+        shutil.rmtree(hsf_dst)
+    shutil.copytree(hsf_src, hsf_dst)
+    lpd = hsf_dst / "libpartdata.xml"
+    text = lpd.read_text(encoding="utf-8")
+    old_guid = text.split("<MainGUID>")[1].split("</MainGUID>")[0]
+    new_guid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"ashiba/{name}")).upper()
+    lpd.write_text(text.replace(old_guid, new_guid), encoding="utf-8")
+
+    gsm = work_dir / f"{name}.gsm"
+    if gsm.exists():
+        gsm.unlink()
+    res = subprocess.run(
+        [LPX, "hsf2libpart", str(hsf_dst), str(gsm)],
+        capture_output=True, text=True,
+    )
+    if not gsm.exists():
+        raise SystemExit(
+            f"GSMコンパイル失敗: {(res.stdout + res.stderr)}".replace("\n", " ")
+        )
+    return name, gsm
+
+
 def parse_params(argv: list[str]) -> dict:
     """--params k=v k=v ... を辞書に（数値に見える値はfloatにする）."""
     if "--params" not in argv:

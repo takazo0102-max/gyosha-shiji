@@ -101,6 +101,22 @@
 			<Description><![CDATA["面の名称（立面図の図面名）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="levelList">
+			<Description><![CDATA["作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="negaH">
+			<Description><![CDATA["根がらみ高さ GLから 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="railH">
+			<Description><![CDATA["手すり高さ 作業床から 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="midH">
+			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="warnPen">
 			<Description><![CDATA["注記強調のペン番号 ペンテーブル依存"]]></Description>
 			<Value>20</Value>
