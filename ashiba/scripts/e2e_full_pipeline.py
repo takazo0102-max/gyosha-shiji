@@ -1,0 +1,171 @@
+"""実機E2E（全機能通し）: Archicadの躯体スラブから設置届一式まで.
+
+Phase 1〜4の全機能を1本で通す最終検証:
+  スラブ作成 → 外形取得 → 平面/立面割付 → 壁つなぎ最適化 → 階段自動配置
+  → 敷地高低差(ジャッキ量) → 荷受けステージ → 法規10項目 → 構造計算
+  → 足場ライン配置 → 詳細図配置 → 帳票一式出力 → プレビュー保存
+
+使い方: python3 scripts/e2e_full_pipeline.py [--keep]
+"""
+
+from __future__ import annotations
+
+import base64
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from ashiba.details import required_details  # noqa: E402
+from ashiba.elevation_solver import solve_elevation  # noqa: E402
+from ashiba.law_check import run_all_checks, summary  # noqa: E402
+from ashiba.master import load_master  # noqa: E402
+from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel  # noqa: E402
+from ashiba.notification import (  # noqa: E402
+    NotificationInfo,
+    notification_required,
+    write_notification_xlsx,
+)
+from ashiba.plan_solver import solve_plan  # noqa: E402
+from ashiba.platforms import LoadingStage, validate_platforms  # noqa: E402
+from ashiba.quantity import take_off  # noqa: E402
+from ashiba.report import (  # noqa: E402
+    write_jack_table_csv,
+    write_plan_json,
+    write_quantity_csv,
+    write_report_md,
+)
+from ashiba.stairs import auto_place_stairs  # noqa: E402
+from ashiba.structural import SiteCondition, optimize_wall_ties, run_structural  # noqa: E402
+from ashiba.tapir_adapter import (  # noqa: E402
+    ArchicadClient,
+    _extract_polygon,
+    place_details,
+    place_scaffold_lines,
+    read_ground_model,
+)
+from ashiba.terrain import GroundModel, solve_post_feet  # noqa: E402
+
+LINE_OBJECT = "ashiba_line_v2"     # 埋め込みライブラリの検証済み部品名
+DETAIL_OBJECT = "ashiba_detail_v11"
+SLAB_POLY_MM = [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]
+
+
+def main() -> None:
+    keep = "--keep" in sys.argv
+    out = ROOT / "out" / "e2e_full"
+    out.mkdir(parents=True, exist_ok=True)
+    placed: list[dict] = []
+
+    c = ArchicadClient()
+    assert c.is_alive(), "Archicadが応答しません"
+    print(f"Tapir {c.tapir_version()} 接続OK")
+
+    # --- 1. 躯体スラブ ---
+    slab = c.create_slab(SLAB_POLY_MM)
+    placed.append(slab)
+    det = c.get_details([slab])[0]
+    poly = _extract_polygon(det)
+    assert poly, "外形が取れません"
+    outline_mm = [(x * 1000.0, y * 1000.0) for (x, y) in poly]
+    print(f"1. 躯体スラブ作成・外形取得: {len(outline_mm)}点")
+
+    # --- 2. 割付 ---
+    master = load_master("shinwa_A")
+    plan = solve_plan(outline_mm, master)
+    elevation = solve_elevation(16300, master=master)
+    model = ScaffoldModel(
+        master=master, plan=plan, elevation=elevation,
+        config=ScaffoldConfig(period_days=90, asagao=AsagaoSpec(stages=1)),
+        building_height_mm=16000,
+    )
+    print(f"2. 割付: 支柱{plan.total_posts}位置/層・{elevation.n_levels}層・"
+          f"H{model.scaffold_height_mm}mm")
+
+    # --- 3. 壁つなぎ最適化 → 階段 → 地形 → ステージ ---
+    site = SiteCondition(region="関東(沿岸)", sheet_type="メッシュシート")
+    tie_opt = optimize_wall_ties(model, site)
+    print(f"3. 壁つなぎ: {tie_opt.tie_count}箇所 検定比{tie_opt.wall_tie.ratio}")
+
+    stair_plan = auto_place_stairs(model)
+    print(f"4. 階段: {stair_plan.count}箇所 最大移動{stair_plan.max_travel_mm / 1000:.1f}m")
+
+    ground = read_ground_model(c)
+    if ground.is_flat:
+        ground = GroundModel(points=[
+            (x, y, -(x - 300000) * 0.02)
+            for x in (300000, 315000, 331000) for y in (300000, 321000)
+        ])
+        print("5. 敷地: メッシュ無し → 検証用の斜面(高低差約0.6m)を仮定")
+    terrain = solve_post_feet(model, ground)
+    print(f"   高低差{terrain.gl_difference_mm:.0f}mm ジャッキ"
+          f"{terrain.jack_min_mm:.0f}〜{terrain.jack_max_mm:.0f}mm "
+          f"脚部{len({f.koma_offset for f in terrain.feet})}種")
+
+    stages = [LoadingStage(edge_index=0, start_mm=7200, span_count=2, levels=[3])]
+    platforms = validate_platforms(model, stages)
+    print(f"6. 荷受けステージ: {len(stages)}基 直下建地+{platforms.max_post_load_kn:.2f}kN")
+
+    # --- 4. 検査と数量 ---
+    checks = run_all_checks(model)
+    quantity = take_off(model, stair_plan=stair_plan)
+    structural = run_structural(model, quantity, site, platforms=platforms)
+    s = summary(checks)
+    print(f"7. 法規: OK{s['ok']} WARN{s['warn']} NG{s['ng']} / "
+          f"構造: 壁つなぎ{structural.wall_tie.ratio} 建地{structural.post.ratio} "
+          f"→ {'成立' if structural.all_ok else '不成立'}")
+    print(f"8. 数量: {len(quantity.lines)}品目 {quantity.total_weight_kg}kg "
+          f"4t車{quantity.truck_count}台 架け面積{quantity.kake_menseki_m2}m²")
+
+    # --- 5. Archicadへ配置 ---
+    lines = place_scaffold_lines(model, LINE_OBJECT, c)
+    placed += lines
+    print(f"9. 足場ライン配置: {len(lines)}本")
+
+    sheets = required_details(model)
+    details = place_details(
+        model, sheets, DETAIL_OBJECT, origin_mm=(300000, 280000), client=c
+    )
+    placed += details
+    print(f"10. 詳細図配置: {len(details)}枚 "
+          f"({', '.join(d.key for d in sheets)})")
+
+    # --- 6. 帳票 ---
+    name = "E2E全機能"
+    write_quantity_csv(quantity, out / f"{name}_数量表.csv")
+    write_report_md(model, quantity, checks, out / f"{name}_割付レポート.md", name)
+    write_plan_json(model, out / f"{name}_plan.json")
+    write_jack_table_csv(terrain, out / f"{name}_ジャッキ量一覧.csv")
+    write_notification_xlsx(
+        model, quantity, checks, structural, out / f"{name}_設置届一式.xlsx",
+        name, NotificationInfo(site_name="E2E検証"), sheets, terrain,
+    )
+    files = sorted(p.name for p in out.glob(f"{name}_*"))
+    print(f"11. 帳票出力: {len(files)}件 {files}")
+    print(f"    設置届: {'要' if notification_required(model) else '不要'}")
+
+    # --- 7. プレビュー ---
+    for label, elem in (("足場ライン", lines[0]), ("詳細図(脚部)", details[0])):
+        for img in ("3D", "2D") if label == "足場ライン" else ("2D",):
+            resp = c.tapir(
+                "GetElementPreviewImage",
+                {"elementId": elem["elementId"], "imageType": img,
+                 "width": 900, "height": 900},
+            )
+            p = out / f"{label}_{img}.png"
+            p.write_bytes(base64.b64decode(resp["previewImage"]))
+            print(f"12. プレビュー保存: {p.name}")
+
+    if not keep:
+        c.delete_elements(placed)
+        print(f"テスト要素 {len(placed)}個を削除（--keep で残せます）")
+
+    ok = s["ng"] == 0 and structural.all_ok and platforms.ok
+    print("\nE2E全機能 " + ("成功" if ok else "失敗"))
+    if not ok:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

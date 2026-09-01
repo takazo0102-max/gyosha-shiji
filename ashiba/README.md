@@ -45,6 +45,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボル（参照実装） |
 | `scripts/run_from_archicad.py` | ツールバー割当用エントリ |
 | `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証） |
+| `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票） |
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
 
@@ -256,8 +257,10 @@ Archicadからは `read_ground_model()` が敷地メッシュの頂点とレベ�
 2. `scripts/run_from_archicad.py` の条件入力（系列・軒高・期間）を編集
 3. Tapirのスクリプト割当でツールバーボタン化 → 躯体スラブを選択して実行
 
-E2E確認は `python3 scripts/e2e_archicad_test.py`（テスト用スラブ作成→割付→
-4辺配置→角度・パラメータ検証→3D/2Dプレビュー保存まで自動実行）。
+E2E確認は2種類:
+- `scripts/e2e_archicad_test.py` — 配置パイプラインの検証（スラブ→割付→4辺配置→角度検証）
+- `scripts/e2e_full_pipeline.py` — **全機能通し**（割付・壁つなぎ最適化・階段・高低差・
+  荷受けステージ・法規10項目・構造計算・足場ライン配置・詳細図配置・帳票5件・プレビュー）
 
 ### GDLの編集とコンパイル
 

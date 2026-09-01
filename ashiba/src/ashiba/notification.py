@@ -290,7 +290,12 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
     _kv(s, "積載 建地1本あたり", p.live_load_kn,
         "kN  作業床許容積載×同時載荷層数÷2")
-    _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
+    if p.extra_load_kn > 0:
+        _kv(s, "局所荷重 建地1本あたり", p.extra_load_kn,
+            "kN  荷受けステージ等（直下の建地に張出しの偏心を割増して配分）")
+        _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載 + 局所荷重")
+    else:
+        _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
     s.add_blank()
     _kv(s, "ジャッキ繰出し量", p.jack_extension_mm, "mm")
     _kv(s, "支配する検定", p.governing, "")
