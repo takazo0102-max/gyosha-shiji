@@ -1,0 +1,49 @@
+{
+  "project_name": "サンプル凹み形状",
+  "series_id": "shinwa_A",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      24000,
+      0
+    ],
+    [
+      24000,
+      16000
+    ],
+    [
+      14000,
+      16000
+    ],
+    [
+      14000,
+      14000
+    ],
+    [
+      10000,
+      14000
+    ],
+    [
+      10000,
+      16000
+    ],
+    [
+      0,
+      16000
+    ]
+  ],
+  "eaves_height_mm": 12100,
+  "guard_extra_mm": 900,
+  "building_height_mm": 12700,
+  "period_days": 90,
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "関東(内陸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート"
+  }
+}

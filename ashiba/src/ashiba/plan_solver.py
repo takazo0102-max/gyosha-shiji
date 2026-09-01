@@ -81,12 +81,14 @@ def achievable_sums(coins: list[int], lo: int, hi: int) -> dict[int, list[int]]:
     """[lo,hi]で構成可能な合計→最良構成（本数最小、次に大部材優先）を返すDP.
 
     コイン問題。切断調整は存在しないため真物の組合せのみ。
+
+    DPテーブルの大きさと「返す範囲」は別物にしてある。テーブルを広げるついでに
+    返す上限まで広げてしまうと、呼び出し側が求めた帯の外の解を混ぜてしまう。
     """
-    if hi < max(coins):
-        hi = max(coins)
-    best: list[Optional[list[int]]] = [None] * (hi + 1)
+    table_hi = max(hi, max(coins))
+    best: list[Optional[list[int]]] = [None] * (table_hi + 1)
     best[0] = []
-    for s in range(1, hi + 1):
+    for s in range(1, table_hi + 1):
         for c in sorted(coins, reverse=True):
             if s - c >= 0 and best[s - c] is not None:
                 cand = best[s - c] + [c]
@@ -94,8 +96,8 @@ def achievable_sums(coins: list[int], lo: int, hi: int) -> dict[int, list[int]]:
                     best[s] = cand
     return {
         s: sorted(best[s], reverse=True)
-        for s in range(lo, hi + 1)
-        if best[s] is not None and s >= lo
+        for s in range(max(lo, 1), hi + 1)
+        if best[s] is not None
     }
 
 
@@ -137,9 +139,19 @@ def solve_plan(
                 bounds.append(e.length + e.start_sign * dp + e.end_sign * dn)
         lo = int(min(bounds) - slack)
         hi = int(max(bounds) + slack)
-        sums = achievable_sums(coins, max(lo, main_span), hi)
+        # 探索下限は「組める最小のスパン」。最大スパンで下限を切ると、
+        # 短い辺（凹み・小さな張り出し）で最大スパン1本しか候補が出ず、
+        # 実際には成立する構成を黙って捨ててしまう。
+        # 「大きいスパンを優先する」意図は _small_span_count の評価側で満たす。
+        min_span = min(coins)
+        sums = achievable_sums(coins, max(lo, min_span), hi)
         if not sums:
-            raise ValidationError(f"辺{e.index}(長さ{e.length:.0f})に組めるスパンがありません")
+            raise ValidationError(
+                f"辺{e.index}（躯体長{e.length:.0f}mm）に組めるスパンがありません。"
+                f"この辺の足場長は{lo}〜{hi}mmになりますが、最小スパンは{min_span}mmです。"
+                "凹みや小さな張り出しが狭すぎて足場面を作れないため、"
+                "その区間は足場を回り込ませず直線で通す（渡す）計画にしてください"
+            )
         target = e.length + (e.start_sign + e.end_sign) * spec.target
         ranked = sorted(
             sums.items(),
@@ -174,6 +186,14 @@ def solve_plan(
             )
         elif d < spec.hard_min:
             remedy = f"離れ{d:.0f}mm < 顧客最小値{spec.hard_min:.0f}mm: スパン構成の見直しが必要です"
+        elif d < spec.min:
+            # 顧客最小値は満たすが目標下限を下回る帯。躯体との干渉余裕が小さいので
+            # 黙って通さず、現場で確認すべき旨を出す
+            remedy = (
+                f"離れ{d:.0f}mm が目標下限{spec.min:.0f}mmを下回ります"
+                f"（顧客最小値{spec.hard_min:.0f}mmは満たす）。"
+                "躯体の出入り・断熱材・仕上げ厚との干渉を現場で確認してください"
+            )
         start_post = scaffold_verts[e.index]
         end_post = scaffold_verts[(e.index + 1) % n]
         plan_edges.append(

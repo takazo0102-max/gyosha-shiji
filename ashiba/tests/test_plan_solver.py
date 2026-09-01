@@ -74,6 +74,110 @@ class TestPlanRect(unittest.TestCase):
         self.assertEqual(self.plan.total_posts, self.plan.total_spans)
 
 
+class TestShortEdges(unittest.TestCase):
+    """短い辺（凹み・小さな張り出し）の回帰テスト.
+
+    探索下限を最大スパンで切ると、短い辺で最大スパン1本しか候補が出ず、
+    実際には成立する構成を黙って捨ててしまう（過大な離れ、または解なし）。
+    実務の玄関ポーチ・小さな張り出し・凹みで普通に起きる。
+    """
+
+    def setUp(self):
+        self.master = load_master("shinwa_A")
+
+    # 2000幅×800深の凹み
+    RECESS = [(0, 0), (12000, 0), (12000, 8000), (7000, 8000),
+              (7000, 7200), (5000, 7200), (5000, 8000), (0, 8000)]
+    # 2400×1200の張り出し
+    BUMP = [(0, 0), (12000, 0), (12000, 8000), (7200, 8000),
+            (7200, 9200), (4800, 9200), (4800, 8000), (0, 8000)]
+    # 800幅の凹み（狭すぎて足場面を作れない）
+    TOO_NARROW = [(0, 0), (12000, 0), (12000, 8000), (6400, 8000),
+                  (6400, 7200), (5600, 7200), (5600, 8000), (0, 8000)]
+
+    def test_recess_uses_short_spans_not_max_span(self):
+        plan = solve_plan(self.RECESS, self.master)
+        short = [ep for ep in plan.edges if ep.scaffold_length < 1800]
+        self.assertTrue(short, "短い足場面が1つも出ていない")
+        for ep in short:
+            # 最大スパン1本に丸められていない
+            self.assertNotEqual(ep.spans, [1800])
+            for s in ep.spans:
+                self.assertIn(s, self.master.span_lengths())
+
+    def test_bump_keeps_standoff_in_range(self):
+        plan = solve_plan(self.BUMP, self.master)
+        for ep in plan.edges:
+            if ep.scaffold_length < 1800:
+                self.assertGreaterEqual(ep.standoff, 250)
+                self.assertLessEqual(ep.standoff, 350)
+
+    def test_geometry_consistency_with_short_edges(self):
+        for name, poly in (("凹み", self.RECESS), ("張出", self.BUMP)):
+            with self.subTest(shape=name):
+                plan = solve_plan(poly, self.master)
+                n = len(plan.edges)
+                for ep, e in zip(plan.edges, plan.outline.edges):
+                    d_prev = plan.standoffs[(e.index - 1) % n]
+                    d_next = plan.standoffs[(e.index + 1) % n]
+                    expect = e.length + e.start_sign * d_prev + e.end_sign * d_next
+                    self.assertAlmostEqual(sum(ep.spans), expect, delta=0.5)
+
+    def test_too_narrow_recess_rejected_with_reason(self):
+        """物理的に足場面を作れない場合は、理由と対処を添えて拒否する."""
+        with self.assertRaises(ValidationError) as ctx:
+            solve_plan(self.TOO_NARROW, self.master)
+        msg = str(ctx.exception)
+        self.assertIn("最小スパン", msg)
+        self.assertIn("渡す", msg)   # 対処が書いてある
+
+    def test_achievable_sums_respects_requested_window(self):
+        """DPテーブルの大きさが返す範囲を広げてしまわない."""
+        from ashiba.plan_solver import achievable_sums
+        coins = self.master.span_lengths()
+        sums = achievable_sums(coins, 600, 1200)
+        self.assertTrue(sums)
+        for s in sums:
+            self.assertGreaterEqual(s, 600)
+            self.assertLessEqual(s, 1200)   # max(coins)=1800 に広がらない
+
+    def test_standoff_below_target_min_is_flagged(self):
+        """顧客最小値は満たすが目標下限(250)を下回る帯を黙って通さない.
+
+        200〜250mmは「組めるが余裕が小さい」帯で、干渉確認が要る。
+        """
+        plan = solve_plan(
+            [(0, 0), (24000, 0), (24000, 16000), (14000, 16000),
+             (14000, 14000), (10000, 14000), (10000, 16000), (0, 16000)],
+            self.master,
+        )
+        below = [ep for ep in plan.edges
+                 if 200 <= ep.standoff < 250]
+        self.assertTrue(below, "この形状では目標下限を下回る面が出るはず")
+        for ep in below:
+            self.assertIsNotNone(ep.remedy, f"辺{ep.edge_index}が無警告")
+            self.assertIn("干渉", ep.remedy)
+
+    def test_every_out_of_target_standoff_has_remedy(self):
+        """目標帯[250,350]を外れた面には必ず対処案が付く."""
+        for name, poly in (("凹み", self.RECESS), ("張出", self.BUMP)):
+            with self.subTest(shape=name):
+                plan = solve_plan(poly, self.master)
+                for ep in plan.edges:
+                    if not (250 <= ep.standoff <= 350):
+                        self.assertIsNotNone(
+                            ep.remedy,
+                            f"{name} 辺{ep.edge_index} 離れ{ep.standoff:.0f}が無警告",
+                        )
+
+    def test_no_double_counted_posts_with_short_edges(self):
+        plan = solve_plan(self.RECESS, self.master)
+        pts = plan.post_positions()
+        uniq = {(round(x, 1), round(y, 1)) for x, y in pts}
+        self.assertEqual(len(uniq), len(pts))
+        self.assertEqual(plan.total_posts, plan.total_spans)
+
+
 class TestPlanLShape(unittest.TestCase):
     def setUp(self):
         self.master = load_master("shinwa_A")
