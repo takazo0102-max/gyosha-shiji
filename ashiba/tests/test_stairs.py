@@ -139,6 +139,52 @@ class TestQuantityIntegration(unittest.TestCase):
         q = take_off(m, stair_plan=plan)
         self.assertEqual(q.qty_of("階段"), 3 * m.elevation.n_levels)
 
+    def test_towers_never_overlap(self):
+        """区間が重なると物理的に成立せず、踏板の差引も二重にかかる."""
+        m = build(outline=SMALL)
+        for n in (2, 4, 6, 8, 12):
+            with self.subTest(count=n):
+                plan = auto_place_stairs(m, count=n)
+                self.assertEqual(validate_stairs(m, plan), [])
+                seen = set()
+                for t in plan.towers:
+                    self.assertNotIn((t.edge_index, t.start_mm), seen)
+                    seen.add((t.edge_index, t.start_mm))
+
+    def test_deduction_counts_each_span_once(self):
+        """重なりが起きると差引が二重になり踏板が不足する."""
+        m = build(outline=SMALL)
+        plan = auto_place_stairs(m, count=8)
+        self.assertEqual(
+            sum(stair_deck_deduction(m, plan).values()),
+            sum(t.span_count for t in plan.towers),
+        )
+
+    def test_unplaceable_count_is_reported(self):
+        """置けなかった箇所を黙って減らさない."""
+        m = build(outline=SMALL)
+        plan = auto_place_stairs(m, count=20)
+        self.assertLess(plan.count, 20)
+        self.assertTrue(any("配置できる区間が見つかりません" in w for w in plan.warnings))
+
+    def test_min_per_face_puts_one_on_every_face(self):
+        m = build()
+        plan = auto_place_stairs(m, min_per_face=1)
+        faces = {t.edge_index for t in plan.towers}
+        self.assertEqual(faces, {e.edge_index for e in m.plan.edges})
+        self.assertEqual(validate_stairs(m, plan), [])
+
+    def test_min_per_face_still_meets_travel_distance(self):
+        m = build()
+        plan = auto_place_stairs(m, min_per_face=1)
+        self.assertLessEqual(plan.max_travel_mm, DEFAULT_MAX_TRAVEL_MM)
+
+    def test_min_per_face_reports_faces_that_cannot_take_one(self):
+        """短い面には階段室が入らない。入らなかったことを黙らせない."""
+        m = build(outline=[(0, 0), (30000, 0), (30000, 3000), (0, 3000)])
+        plan = auto_place_stairs(m, min_per_face=1)
+        self.assertTrue(any("階段室を1箇所置けません" in w for w in plan.warnings))
+
     def test_no_plan_falls_back_to_config(self):
         m = build()
         m.config.n_stairs = 1

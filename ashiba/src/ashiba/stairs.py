@@ -8,6 +8,10 @@
 - 階段室は所定スパン数（A系列 1800×1800 なら2スパン=3600mm）を占有する
 - コーナーから1スパン以上離す（コーナー支柱まわりは納まりが厳しい）
 - 階段室の区間には踏板を敷かない → 数量から差し引く（二重計上の防止）
+- 同じ区間に2箇所置かない。重ねると物理的に成立しないうえ、踏板の差引が
+  二重にかかって数量が狂う
+- min_per_face を指定すると各面に1箇所以上置く（法規ではなく実務上の配慮。
+  1面だけに集中すると、その面が塞がったとき降りられない）
 """
 
 from __future__ import annotations
@@ -62,11 +66,15 @@ def auto_place_stairs(
     max_travel_mm: float = DEFAULT_MAX_TRAVEL_MM,
     tower_spans: int = 2,
     count: Optional[int] = None,
+    min_per_face: int = 0,
 ) -> StairPlan:
-    """階段室をループ上に均等配置する.
+    """階段室をループ上に配置する.
 
     count を指定するとその箇所数で配置し、指定しなければ
     移動距離が max_travel_mm 以下になる最小箇所数を自動で決める。
+
+    min_per_face を指定すると、まず各面にその数だけ置いてから
+    移動距離が足りるまで空いた区間を埋める。
     """
     plan = StairPlan()
     plan.landings_per_tower = landings_per_tower(model)
@@ -86,19 +94,73 @@ def auto_place_stairs(
     plan.required_count = need
     n = count if count is not None else need
 
-    targets = [loop_len * i / n for i in range(n)]
-    for i, t in enumerate(targets):
-        tower = _place_at(model, t, tower_spans)
+    # 置いた区間は occupied に積んで、次の階段が重ならないようにする。
+    # 重ねると物理的に成立しないうえ、踏板の差引が二重にかかる。
+    occupied: dict[int, list[tuple[float, float]]] = {}
+
+    def _add(tower: Optional[StairTower], reason: str) -> bool:
         if tower is None:
-            plan.warnings.append(
-                f"階段{i + 1}箇所目を配置できる区間が見つかりません"
-                f"（{tower_spans}スパン連続かつコーナーから1スパン以上離れた場所が必要）"
-            )
-            continue
-        tower.reason = (
-            f"昇降設備{n}箇所を均等配置（安衛則526条、水平移動{max_travel_mm / 1000:.0f}m以内）"
+            return False
+        tower.reason = reason
+        occupied.setdefault(tower.edge_index, []).append(
+            (tower.start_mm, tower.end_mm)
         )
         plan.towers.append(tower)
+        return True
+
+    if min_per_face > 0:
+        for ep in model.plan.edges:
+            placed = 0
+            for _ in range(min_per_face):
+                slot = _find_slot(ep, ep.scaffold_length / 2, tower_spans,
+                                  occupied.get(ep.edge_index, []))
+                if slot is None:
+                    break
+                start, length = slot
+                acc = sum(
+                    e.scaffold_length for e in model.plan.edges
+                    if e.edge_index < ep.edge_index
+                )
+                _add(
+                    StairTower(
+                        edge_index=ep.edge_index, start_mm=start,
+                        span_count=tower_spans, length_mm=length,
+                        loop_position_mm=acc + start,
+                    ),
+                    "各面に昇降設備を確保（1面が塞がっても降りられるようにする）",
+                )
+                placed += 1
+            if placed < min_per_face:
+                plan.warnings.append(
+                    f"辺{ep.edge_index}に階段室を{min_per_face}箇所置けません"
+                    f"（置けたのは{placed}箇所。{tower_spans}スパン連続かつ"
+                    "コーナーから1スパン以上離れた空き区間が必要）"
+                )
+        # 各面に置いたうえで移動距離が足りなければ、一番広く空いた所から埋める
+        while len(plan.towers) < n:
+            pos = _largest_gap_center(plan.towers, loop_len)
+            if not _add(
+                _place_at(model, pos, tower_spans, occupied),
+                f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加",
+            ):
+                plan.warnings.append(
+                    f"階段を{n}箇所置きたいところ{len(plan.towers)}箇所しか置けません"
+                    f"（{tower_spans}スパン連続の空き区間が足りない）"
+                )
+                break
+    else:
+        targets = [loop_len * i / n for i in range(n)]
+        for i, t in enumerate(targets):
+            if not _add(
+                _place_at(model, t, tower_spans, occupied),
+                f"昇降設備{n}箇所を均等配置"
+                f"（安衛則526条、水平移動{max_travel_mm / 1000:.0f}m以内）",
+            ):
+                plan.warnings.append(
+                    f"階段{i + 1}箇所目を配置できる区間が見つかりません"
+                    f"（{tower_spans}スパン連続かつコーナーから1スパン以上"
+                    "離れた空き区間が必要）"
+                )
 
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）
@@ -109,7 +171,24 @@ def auto_place_stairs(
             f"{plan.max_travel_mm / 1000:.1f}mとなり"
             f"目安{max_travel_mm / 1000:.0f}mを超えます（{need + 1}箇所以上を検討）"
         )
+    # 自前の検証も通しておく。成立しない配置を黙って返すのが一番まずい
+    for issue in validate_stairs(model, plan, max_travel_mm):
+        if issue not in plan.warnings:
+            plan.warnings.append(issue)
     return plan
+
+
+def _largest_gap_center(towers: list[StairTower], loop_len_mm: float) -> float:
+    """一番広く空いているループ区間の中央を返す（次の階段を置きたい位置）."""
+    if not towers:
+        return 0.0
+    pos = sorted(t.loop_position_mm for t in towers)
+    best_gap, best_center = -1.0, 0.0
+    for i, a in enumerate(pos):
+        b = pos[i + 1] if i + 1 < len(pos) else pos[0] + loop_len_mm
+        if b - a > best_gap:
+            best_gap, best_center = b - a, (a + b) / 2
+    return best_center % loop_len_mm
 
 
 def landings_per_tower(model: ScaffoldModel, every_levels: int = LANDING_EVERY_LEVELS) -> int:
@@ -223,44 +302,56 @@ def actual_max_travel(towers: list[StairTower], loop_len_mm: float) -> float:
 
 
 def _place_at(
-    model: ScaffoldModel, loop_pos_mm: float, tower_spans: int
+    model: ScaffoldModel,
+    loop_pos_mm: float,
+    tower_spans: int,
+    occupied: Optional[dict[int, list[tuple[float, float]]]] = None,
 ) -> Optional[StairTower]:
-    """ループ上の位置に最も近い、配置可能な区間へ階段室を置く."""
+    """ループ上の位置に最も近い、配置可能な区間へ階段室を置く.
+
+    occupied に入っている区間は既に別の階段が使っているので避ける。
+    """
+    occ = occupied or {}
+
+    def _try(ep, prefer: float, acc: float) -> Optional[StairTower]:
+        slot = _find_slot(ep, prefer, tower_spans, occ.get(ep.edge_index, []))
+        if slot is None:
+            return None
+        start, length = slot
+        return StairTower(
+            edge_index=ep.edge_index, start_mm=start, span_count=tower_spans,
+            length_mm=length, loop_position_mm=acc + start,
+        )
+
     acc = 0.0
     for ep in model.plan.edges:
         edge_len = ep.scaffold_length
         if loop_pos_mm <= acc + edge_len or ep is model.plan.edges[-1]:
             local = max(0.0, min(loop_pos_mm - acc, edge_len))
-            slot = _find_slot(ep, local, tower_spans)
-            if slot is not None:
-                start, length = slot
-                return StairTower(
-                    edge_index=ep.edge_index,
-                    start_mm=start,
-                    span_count=tower_spans,
-                    length_mm=length,
-                    loop_position_mm=acc + start,
-                )
+            tower = _try(ep, local, acc)
+            if tower is not None:
+                return tower
             # この辺に置けなければ次の辺を探す
         acc += edge_len
     # どこにも置けなければ、置ける辺を総当たり
     acc = 0.0
     for ep in model.plan.edges:
-        slot = _find_slot(ep, 0.0, tower_spans)
-        if slot is not None:
-            start, length = slot
-            return StairTower(
-                edge_index=ep.edge_index, start_mm=start, span_count=tower_spans,
-                length_mm=length, loop_position_mm=acc + start,
-            )
+        tower = _try(ep, 0.0, acc)
+        if tower is not None:
+            return tower
         acc += ep.scaffold_length
     return None
 
 
-def _find_slot(edge, prefer_mm: float, tower_spans: int) -> Optional[tuple[float, float]]:
+def _find_slot(
+    edge,
+    prefer_mm: float,
+    tower_spans: int,
+    occupied: Optional[list[tuple[float, float]]] = None,
+) -> Optional[tuple[float, float]]:
     """辺の中で、コーナーから1スパン以上離れた連続 tower_spans スパンの区間を探す.
 
-    prefer_mm に最も近いものを返す。
+    occupied と重なる区間は候補から外す。prefer_mm に最も近いものを返す。
     """
     spans = edge.spans
     if len(spans) < tower_spans + 2:  # 両端に1スパンずつ確保できない
@@ -269,11 +360,15 @@ def _find_slot(edge, prefer_mm: float, tower_spans: int) -> Optional[tuple[float
     for s in spans:
         starts.append(starts[-1] + s)
 
+    taken = occupied or []
     candidates = []
     # i=1 から始めてコーナー側1スパンを空ける。終端側も1スパン残す
     for i in range(1, len(spans) - tower_spans):
+        start = starts[i]
         length = sum(spans[i:i + tower_spans])
-        candidates.append((starts[i], length))
+        if any(start < b and a < start + length for a, b in taken):
+            continue
+        candidates.append((start, length))
     if not candidates:
         return None
     return min(candidates, key=lambda c: abs(c[0] - prefer_mm))

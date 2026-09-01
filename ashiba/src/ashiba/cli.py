@@ -16,7 +16,15 @@
   "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
-  "n_stairs": 1
+  "n_stairs": 1,
+  // 階段（省略可）。positions を書けば手動配置、書かなければ自動配置
+  "stairs": {
+    "count": 2,              // 箇所数。省略時は移動距離30m以内から自動算出
+    "tower_spans": 2,        // 階段室が占有するスパン数
+    "max_travel_mm": 30000,  // 昇降設備までの水平移動距離の目安
+    "min_per_face": 1,       // 各面に最低1箇所（法規ではなく実務上の配慮）
+    "positions": [{"edge_index": 0, "start_mm": 3600, "span_count": 2}]
+  }
 }
 """
 
@@ -223,6 +231,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
             tower_spans=st.get("tower_spans", 2),
             count=st.get("count"),
+            min_per_face=st.get("min_per_face", 0),
         )
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
