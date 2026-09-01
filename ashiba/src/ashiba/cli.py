@@ -245,7 +245,10 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
-    write_report_md(model, quantity, checks, out_dir / f"{name}_割付レポート.md", name)
+    write_report_md(
+        model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
+        stair_plan=stair_plan,
+    )
     write_plan_json(model, out_dir / f"{name}_plan.json")
     write_jack_table_csv(terrain, out_dir / f"{name}_ジャッキ量一覧.csv")
     write_notification_xlsx(

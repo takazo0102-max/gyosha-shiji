@@ -49,6 +49,7 @@ def write_report_md(
     checks: list[CheckResult],
     path: Path,
     project_name: str = "",
+    stair_plan=None,
 ) -> None:
     e = model.elevation
     lines: list[str] = []
@@ -84,6 +85,29 @@ def write_report_md(
         for cs in model.plan.corner_steps:
             a(f"| {cs.corner_index} | {cs.gap_mm:.0f}mm | "
               f"{'OK' if cs.ok else 'NG'} | {cs.message or '建枠70mm以上・ステップ250mm以内'} |")
+    if stair_plan is not None and stair_plan.towers:
+        a("")
+        a("## 昇降設備（階段室）")
+        a("")
+        a(f"- 箇所数: {stair_plan.count}（移動距離30m以内に必要な数: "
+          f"{stair_plan.required_count}）")
+        a(f"- 最大水平移動距離: {stair_plan.max_travel_mm / 1000:.1f}m")
+        a(f"- 踊り場: 1箇所あたり{stair_plan.landings_per_tower}段 "
+          f"／ 計{stair_plan.total_landings}段（2層以下毎）")
+        a("")
+        a("| # | 辺 | 始点からの位置 | 占有 | 選定理由 |")
+        a("|---|---|---|---|---|")
+        for i, t in enumerate(stair_plan.towers, 1):
+            a(f"| {i} | {t.edge_index} | {t.start_mm:.0f}mm | "
+              f"{t.span_count}スパン({t.length_mm:.0f}mm) | "
+              f"{t.reason or ('位置指定' if t.manual else '自動配置')} |")
+        # 必要数を大きく超える配置は費用に効くので、そうと分かるように書く
+        if stair_plan.count > stair_plan.required_count:
+            a("")
+            a(f"> 移動距離の目安を満たすだけなら{stair_plan.required_count}箇所で足ります"
+              f"（現在{stair_plan.count}箇所）。各面配置などの方針で増えている分です。")
+        for w in stair_plan.warnings:
+            a(f"- ⚠️ {w}")
     a("")
     a("## 法規チェック")
     a("")
