@@ -5,7 +5,7 @@ from _path import SRC  # noqa: F401
 from ashiba.elevation_solver import ElevationResult, solve_elevation
 from ashiba.law_check import NG, OK, WARN, run_all_checks
 from ashiba.master import Part, load_master
-from ashiba.model import ScaffoldConfig, ScaffoldModel
+from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
@@ -19,14 +19,15 @@ def make_good_model():
         master=master,
         plan=plan,
         elevation=elev,
-        config=ScaffoldConfig(),
+        # 高さ16.3m ≧ 10m なので朝顔1段が要る
+        config=ScaffoldConfig(asagao=AsagaoSpec(stages=1)),
         building_height_mm=16000,
         clearance_space_mm=2000,
     )
 
 
 def make_violation_model():
-    """意図的な違反モデル: 9項目すべてが検出されること（受け入れ基準）."""
+    """意図的な違反モデル: 10項目すべてが検出されること（受け入れ基準）."""
     master = load_master("shinwa_A")
     plan = solve_plan(RECT, master)
     # 立面を手作りで違反させる
@@ -66,22 +67,22 @@ def make_violation_model():
 class TestLawChecks(unittest.TestCase):
     def test_good_model_passes(self):
         results = run_all_checks(make_good_model())
-        self.assertEqual(len(results), 9)
+        self.assertEqual(len(results), 10)
         bad = [r for r in results if r.status == NG]
         self.assertEqual(bad, [], f"NG: {[(r.name, r.message) for r in bad]}")
 
     def test_all_violations_detected(self):
         results = run_all_checks(make_violation_model())
-        self.assertEqual(len(results), 9)
+        self.assertEqual(len(results), 10)
         by_id = {r.check_id: r for r in results}
         # 9項目すべて OK 以外（NG または WARN）で検出される
-        for cid in range(1, 10):
+        for cid in range(1, 11):
             self.assertNotEqual(
                 by_id[cid].status, OK,
                 f"チェック#{cid} {by_id[cid].name} が違反を検出できていない",
             )
         # 明確なNG項目
-        for cid in (1, 2, 3, 4, 5, 7, 9):
+        for cid in (1, 2, 3, 4, 5, 7, 9, 10):
             self.assertEqual(by_id[cid].status, NG, f"#{cid}")
         # ジャッキ超過と高さ31m超は警告
         self.assertEqual(by_id[6].status, WARN)

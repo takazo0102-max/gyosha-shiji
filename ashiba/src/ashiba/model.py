@@ -15,9 +15,27 @@ from .plan_solver import PlanResult
 
 
 @dataclass
+class AsagaoSpec:
+    """朝顔（防護棚）の仕様（仕様5-#10）.
+
+    高さ10m以上で1段・20m以上で2段、突出2m以上・傾斜20度以上、
+    取付部は2スパン毎に壁つなぎ。
+    """
+
+    stages: int = 0                  # 設置段数（0=未設置）
+    projection_mm: float = 2000.0    # 水平突出
+    angle_deg: float = 25.0          # 水平面からの傾斜
+    tie_every_spans: int = 2         # 取付部の壁つなぎ間隔（スパン数）
+    heights_mm: list[int] = field(default_factory=list)  # 設置高さ（空なら自動）
+
+
+@dataclass
 class ScaffoldConfig:
     scaffold_form: str = "本足場"          # 本足場 / 一側足場
-    deck_widths: tuple[int, ...] = (400, 250)  # スパン当たりの踏板幅構成
+    # 踏板幅は系列で実寸が違う（A:400/250、B:405/240、次世代:500）。
+    # Noneならマスタの系列既定を使う（決め打ちにするとマスタ引き当てが静かに失敗する）
+    deck_widths: Optional[tuple[int, ...]] = None
+    next_gen: bool = False                 # 次世代足場（くさび派生・踏板幅500）
     deck_gap_mm: int = 20                  # 床材間の隙間
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
@@ -27,6 +45,7 @@ class ScaffoldConfig:
     wall_tie_span_step: int = 3            # 壁つなぎ水平間隔（スパン数、実務推奨3以内）
     wall_tie_level_step: int = 2           # 壁つなぎ垂直間隔（作業層数、実務推奨2以内）
     period_days: int = 60                  # 設置期間（届出要否判定）
+    asagao: Optional["AsagaoSpec"] = None  # 朝顔（Noneなら未設置）
 
 
 @dataclass
@@ -47,6 +66,10 @@ class ScaffoldModel:
     wall_ties: list[WallTie] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        if self.config.deck_widths is None:
+            self.config.deck_widths = self.master.default_deck_widths(
+                self.config.next_gen
+            )
         if not self.wall_ties:
             self.wall_ties = generate_wall_ties(
                 self.plan, self.elevation, self.config

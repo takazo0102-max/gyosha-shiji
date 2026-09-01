@@ -37,8 +37,18 @@ def run_all_checks(model: ScaffoldModel) -> list[CheckResult]:
         check_wall_ties,
         check_height_reinforcement,
         check_series_lock,
+        check_asagao,
     ]
     return [fn(model) for fn in checks]
+
+
+def required_asagao_stages(height_mm: float) -> int:
+    """必要な朝顔の段数: 10m以上で1段、20m以上で2段."""
+    if height_mm >= 20000:
+        return 2
+    if height_mm >= 10000:
+        return 1
+    return 0
 
 
 def summary(results: list[CheckResult]) -> dict:
@@ -183,3 +193,50 @@ def check_series_lock(m: ScaffoldModel) -> CheckResult:
     except SeriesLockError as exc:
         return CheckResult(9, "規格混在", NG, str(exc), basis)
     return CheckResult(9, "規格混在", OK, f"全部材が {m.master.series_id} に統一", basis)
+
+
+# ---- #10 朝顔（防護棚） --------------------------------------------------
+
+def check_asagao(m: ScaffoldModel) -> CheckResult:
+    basis = (
+        "安衛則563条・537条（落下物防護）: 高さ10m以上で1段・20m以上で2段、"
+        "突出2m以上・傾斜20度以上、取付部は2スパン毎に壁つなぎ"
+    )
+    need = required_asagao_stages(m.scaffold_height_mm)
+    spec = m.config.asagao
+    h_m = m.scaffold_height_mm / 1000.0
+
+    if need == 0:
+        if spec is None or spec.stages == 0:
+            return CheckResult(
+                10, "朝顔", OK, f"足場高さ{h_m:.2f}m < 10m のため朝顔は不要", basis
+            )
+        return CheckResult(
+            10, "朝顔", OK,
+            f"足場高さ{h_m:.2f}m（不要だが{spec.stages}段を設置）", basis,
+        )
+
+    if spec is None or spec.stages == 0:
+        return CheckResult(
+            10, "朝顔", NG,
+            f"足場高さ{h_m:.2f}m には朝顔{need}段が必要ですが設置されていません",
+            basis,
+        )
+
+    problems = []
+    if spec.stages < need:
+        problems.append(f"段数{spec.stages} < 必要{need}段")
+    if spec.projection_mm < 2000:
+        problems.append(f"突出{spec.projection_mm:.0f}mm < 2000mm")
+    if spec.angle_deg < 20:
+        problems.append(f"傾斜{spec.angle_deg:.0f}度 < 20度")
+    if spec.tie_every_spans > 2:
+        problems.append(f"取付部の壁つなぎが{spec.tie_every_spans}スパン毎 > 2スパン毎")
+    if problems:
+        return CheckResult(10, "朝顔", NG, "、".join(problems), basis)
+    return CheckResult(
+        10, "朝顔", OK,
+        f"{spec.stages}段（必要{need}段）・突出{spec.projection_mm:.0f}mm・"
+        f"傾斜{spec.angle_deg:.0f}度・取付部{spec.tie_every_spans}スパン毎に壁つなぎ",
+        basis,
+    )

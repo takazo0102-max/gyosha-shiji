@@ -59,7 +59,11 @@ class QuantityResult:
         )
 
 
-def take_off(model: ScaffoldModel, rules: Optional[QuantityRules] = None) -> QuantityResult:
+def take_off(
+    model: ScaffoldModel,
+    rules: Optional[QuantityRules] = None,
+    bracket_sections: Optional[list] = None,
+) -> QuantityResult:
     rules = rules or QuantityRules()
     m = model.master
     plan = model.plan
@@ -151,6 +155,38 @@ def take_off(model: ScaffoldModel, rules: Optional[QuantityRules] = None) -> Qua
     # ---- 階段 ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
     add(stair, model.config.n_stairs * n_levels, "階段")
+
+    # ---- 朝顔（設置段数×外周スパン数。受けブラケットと方杖は支柱位置ごと） ----
+    asagao = model.config.asagao
+    if asagao and asagao.stages > 0:
+        panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
+        bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
+        hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
+        add(panel, total_spans * asagao.stages, "朝顔本体")
+        add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
+        add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
+        # 取付部は2スパン毎に壁つなぎを増設
+        extra_ties = 0
+        for e in plan.edges:
+            extra_ties += max(1, e.span_count // max(asagao.tie_every_spans, 1))
+        add(kt, extra_ties * asagao.stages, "朝顔取付部の壁つなぎ")
+
+    # ---- ブラケット区間（面の区間属性から算出。支柱ラインは動かさない） ----
+    if bracket_sections:
+        from .brackets import bracket_quantities
+        for (width, purpose), qty in bracket_quantities(model, bracket_sections).items():
+            if purpose == "方杖":
+                part = next((p for p in m.by_category("ブラケット")
+                             if p.nominal_dim == width), None)
+                notes.append(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
+                continue
+            note_key = "張出" if purpose == "張出" else ""
+            part = next(
+                (p for p in m.by_category("ブラケット")
+                 if p.nominal_dim == width and (note_key in p.note if note_key else "張出" not in p.note)),
+                None,
+            )
+            add(part, qty, f"ブラケット{width}（{purpose}）")
 
     lines = [BomLine(part=parts[k], qty=v) for k, v in sorted(counts.items())]
     total_weight = sum(l.subtotal_weight for l in lines)

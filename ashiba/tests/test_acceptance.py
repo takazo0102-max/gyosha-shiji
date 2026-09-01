@@ -48,6 +48,26 @@ class TestAcceptance(unittest.TestCase):
             self.assertEqual(result["checks"]["ng"], 0)
             self.assertGreater(result["posts_per_level"], 0)
 
+    def test_b_series_nextgen_with_brackets(self):
+        """B系列＋次世代足場＋ブラケット区間でも一式が出る."""
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            result = run(EXAMPLES / "b_series_nextgen.json", out)
+            self.assertEqual(result["checks"]["total"], 10)
+            self.assertEqual(result["checks"]["ng"], 0)
+            self.assertEqual(result["bracket_sections"], 1)
+            # ブラケットの検証で問題が出ていない
+            self.assertEqual(
+                [w for w in result["warnings"] if w.startswith("ブラケット[NG]")], []
+            )
+            # 高さ10m以上なので朝顔が自動で1段入る
+            self.assertEqual(result["asagao"]["stages"], 1)
+            csv_text = (out / f"{result['project']}_数量表.csv").read_text(
+                encoding="utf-8-sig"
+            )
+            self.assertNotIn("該当部材がありません", csv_text)  # 系列の欠品なし
+            self.assertIn("B-", csv_text)                       # B系列の型番
+
 
 if __name__ == "__main__":
     unittest.main()

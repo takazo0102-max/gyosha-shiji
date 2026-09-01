@@ -1,0 +1,153 @@
+import unittest
+
+from _path import SRC  # noqa: F401
+
+from ashiba.brackets import (
+    INNER,
+    OUTER,
+    BracketSection,
+    bracket_quantities,
+    validate_bracket_sections,
+)
+from ashiba.elevation_solver import solve_elevation
+from ashiba.master import load_master
+from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
+from ashiba.plan_solver import solve_plan
+from ashiba.quantity import take_off
+
+RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
+
+
+def make_model(height=16300):
+    master = load_master("shinwa_A")
+    plan = solve_plan(RECT, master)
+    elev = solve_elevation(height, master=master)
+    return ScaffoldModel(
+        master=master, plan=plan, elevation=elev,
+        config=ScaffoldConfig(asagao=AsagaoSpec(stages=1)),
+        building_height_mm=16000,
+    )
+
+
+def ng(issues):
+    return [i for i in issues if i.severity == "NG"]
+
+
+class TestBracketValidation(unittest.TestCase):
+    def setUp(self):
+        self.m = make_model()
+
+    def test_valid_section_passes(self):
+        s = BracketSection(edge_index=0, start_mm=12000, end_mm=18000,
+                           direction=INNER, width=300, reason="躯体凹凸への床追従")
+        self.assertEqual(ng(validate_bracket_sections(self.m, [s])), [])
+
+    def test_section_beyond_edge_rejected(self):
+        edge_len = self.m.plan.edges[0].scaffold_length
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=edge_len + 1000)
+        issues = ng(validate_bracket_sections(self.m, [s]))
+        self.assertTrue(any("面長" in i.message for i in issues))
+
+    def test_unknown_edge_rejected(self):
+        s = BracketSection(edge_index=99, start_mm=0, end_mm=1800)
+        self.assertTrue(ng(validate_bracket_sections(self.m, [s])))
+
+    def test_opposite_directions_overlapping_rejected(self):
+        a = BracketSection(edge_index=0, start_mm=0, end_mm=5400, direction=INNER)
+        b = BracketSection(edge_index=0, start_mm=3600, end_mm=9000, direction=OUTER)
+        issues = ng(validate_bracket_sections(self.m, [a, b]))
+        self.assertTrue(any("逆向き" in i.message for i in issues))
+
+    def test_same_direction_overlapping_allowed(self):
+        a = BracketSection(edge_index=0, start_mm=0, end_mm=5400, direction=INNER)
+        b = BracketSection(edge_index=0, start_mm=3600, end_mm=9000, direction=INNER)
+        self.assertEqual(ng(validate_bracket_sections(self.m, [a, b])), [])
+
+    def test_different_levels_do_not_conflict(self):
+        a = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                           direction=INNER, levels=[1])
+        b = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                           direction=OUTER, levels=[2])
+        self.assertEqual(ng(validate_bracket_sections(self.m, [a, b])), [])
+
+    def test_widening_twice_rejected(self):
+        a = BracketSection(edge_index=0, start_mm=0, end_mm=3600, is_widening=True)
+        b = BracketSection(edge_index=1, start_mm=0, end_mm=3600, is_widening=True)
+        issues = ng(validate_bracket_sections(self.m, [a, b]))
+        self.assertTrue(any("1回まで" in i.message for i in issues))
+
+    def test_kessokubu_widening_requires_hozue(self):
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=3600, width=400,
+                           is_widening=True, on_kessokubu=True, has_hozue=False)
+        issues = ng(validate_bracket_sections(self.m, [s]))
+        self.assertTrue(any("方杖" in i.message for i in issues))
+        s.has_hozue = True
+        self.assertEqual(
+            [i for i in ng(validate_bracket_sections(self.m, [s])) if "方杖" in i.message],
+            [],
+        )
+
+    def test_widening_ratio_rule(self):
+        """拡幅は下層建地間隔が上層の60%以上（仕様4.3）.
+
+        この足場の建地間隔は670mm。幅400なら 670/1070=63% で可、
+        幅600だと 670/1270=53% で不可。
+        """
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=3600, width=400,
+                           is_widening=True)
+        self.assertEqual(
+            [i for i in ng(validate_bracket_sections(self.m, [s])) if "60%" in i.message],
+            [],
+        )
+        s.width = 600
+        self.assertTrue(any("60%" in i.message
+                            for i in ng(validate_bracket_sections(self.m, [s]))))
+
+    def test_invalid_level_rejected(self):
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=1800, levels=[99])
+        self.assertTrue(ng(validate_bracket_sections(self.m, [s])))
+
+
+class TestBracketQuantity(unittest.TestCase):
+    def setUp(self):
+        self.m = make_model()
+
+    def test_counts_posts_times_levels(self):
+        # 1800×3スパン分＝支柱4本、全層(8層)
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                           direction=INNER, width=300)
+        q = bracket_quantities(self.m, [s])
+        self.assertEqual(q[(300, INNER)], 4 * self.m.elevation.n_levels)
+
+    def test_levels_limit_quantity(self):
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                           direction=INNER, width=300, levels=[1, 2])
+        self.assertEqual(bracket_quantities(self.m, [s])[(300, INNER)], 4 * 2)
+
+    def test_hozue_counted(self):
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=1800, width=400,
+                           has_hozue=True, levels=[1])
+        q = bracket_quantities(self.m, [s])
+        self.assertEqual(q[(400, "方杖")], 2)
+
+    def test_flows_into_takeoff(self):
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                           direction=INNER, width=300, levels=[1])
+        base = take_off(self.m)
+        with_bracket = take_off(self.m, bracket_sections=[s])
+        self.assertGreater(
+            with_bracket.qty_of("ブラケット"), base.qty_of("ブラケット")
+        )
+        self.assertGreater(with_bracket.total_weight_kg, base.total_weight_kg)
+
+    def test_post_positions_unchanged_by_brackets(self):
+        """ブラケットは面の区間属性であり、支柱ラインを動かさない（仕様4.3）."""
+        before = self.m.plan.post_positions()
+        s = BracketSection(edge_index=0, start_mm=0, end_mm=5400, width=600)
+        validate_bracket_sections(self.m, [s])
+        bracket_quantities(self.m, [s])
+        self.assertEqual(self.m.plan.post_positions(), before)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -7,7 +7,6 @@
   "building_height_mm": 16000,
   "period_days": 90,
   "standoff": {"target": 300, "min": 250, "max": 350, "hard_min": 200},
-  "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
   "n_stairs": 1,

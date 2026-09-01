@@ -28,10 +28,11 @@ import json
 import sys
 from pathlib import Path
 
+from .brackets import BracketSection, validate_bracket_sections
 from .elevation_solver import solve_elevation
-from .law_check import run_all_checks, summary
+from .law_check import required_asagao_stages, run_all_checks, summary
 from .master import load_master
-from .model import ScaffoldConfig, ScaffoldModel
+from .model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -57,9 +58,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     elevation = solve_elevation(required, master=master)
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
-        deck_widths=tuple(spec.get("deck_widths", (400, 250))),
+        # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
+        deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
+        next_gen=spec.get("next_gen", False),
         n_stairs=spec.get("n_stairs", 1),
         period_days=spec.get("period_days", 60),
+        asagao=build_asagao(spec, elevation.total_height),
     )
     return ScaffoldModel(
         master=master,
@@ -69,6 +73,42 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         building_height_mm=float(spec.get("building_height_mm", 0)),
         clearance_space_mm=float(spec.get("clearance_space_mm", 2000)),
     )
+
+
+def build_asagao(spec: dict, height_mm: int) -> AsagaoSpec | None:
+    """朝顔の入力。指定がなければ高さから必要段数を自動設定する（10m以上で1段・20m以上で2段）."""
+    a = spec.get("asagao")
+    if a is False:  # 明示的に「設置しない」
+        return None
+    need = required_asagao_stages(height_mm)
+    if a is None:
+        return AsagaoSpec(stages=need) if need else None
+    return AsagaoSpec(
+        stages=a.get("stages", need),
+        projection_mm=a.get("projection_mm", 2000.0),
+        angle_deg=a.get("angle_deg", 25.0),
+        tie_every_spans=a.get("tie_every_spans", 2),
+    )
+
+
+def build_brackets(spec: dict) -> list[BracketSection]:
+    """ブラケット区間の入力（面の区間属性。支柱ラインは動かさない）."""
+    out = []
+    for b in spec.get("bracket_sections", []):
+        out.append(BracketSection(
+            edge_index=b["edge_index"],
+            start_mm=float(b["start_mm"]),
+            end_mm=float(b["end_mm"]),
+            direction=b.get("direction", "内"),
+            width=b.get("width", 600),
+            deck_width=b.get("deck_width"),
+            levels=b.get("levels", []),
+            has_hozue=b.get("has_hozue", False),
+            is_widening=b.get("is_widening", False),
+            on_kessokubu=b.get("on_kessokubu", False),
+            reason=b.get("reason", ""),
+        ))
+    return out
 
 
 def build_site(spec: dict) -> SiteCondition:
@@ -110,8 +150,10 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     site = build_site(spec)
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
     tie_opt = optimize_wall_ties(model, site)
+    brackets = build_brackets(spec)
+    bracket_issues = validate_bracket_sections(model, brackets)
     checks = run_all_checks(model)
-    quantity = take_off(model)
+    quantity = take_off(model, bracket_sections=brackets)
     structural = run_structural(model, quantity, site)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -148,7 +190,17 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             "level_step": tie_opt.level_step,
             "message": tie_opt.message,
         },
-        "warnings": structural.warnings + model.plan.warnings + model.elevation.warnings,
+        "asagao": (
+            {"stages": model.config.asagao.stages,
+             "projection_mm": model.config.asagao.projection_mm,
+             "angle_deg": model.config.asagao.angle_deg}
+            if model.config.asagao else None
+        ),
+        "bracket_sections": len(brackets),
+        "warnings": (
+            structural.warnings + model.plan.warnings + model.elevation.warnings
+            + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
+        ),
         "out_dir": str(out_dir),
     }
 

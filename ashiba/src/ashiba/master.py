@@ -13,11 +13,16 @@ from typing import Optional
 
 DEFAULT_MASTER_PATH = Path(__file__).resolve().parents[2] / "data" / "part_master.csv"
 
-# 系列ごとのコマピッチ・階高 [mm]
+# 系列ごとのコマピッチ・階高・既定踏板幅 [mm]
+# 踏板幅は系列で実寸が違う（A:400/250、B:405/240）。既定値を決め打ちにすると
+# 系列を切り替えたときにマスタ引き当てが静かに失敗するので、ここから引く。
 SERIES_CONST = {
-    "shinwa_A": {"koma_pitch": 450, "floor_height": 1800, "hozo": 125},
-    "shinwa_B": {"koma_pitch": 475, "floor_height": 1900, "hozo": 125},
-    "inch": {"koma_pitch": 0, "floor_height": 1700, "hozo": 0},
+    "shinwa_A": {"koma_pitch": 450, "floor_height": 1800, "hozo": 125,
+                 "deck_widths": (400, 250), "next_gen_deck_widths": (500, 250)},
+    "shinwa_B": {"koma_pitch": 475, "floor_height": 1900, "hozo": 125,
+                 "deck_widths": (405, 240), "next_gen_deck_widths": (500, 240)},
+    "inch": {"koma_pitch": 0, "floor_height": 1700, "hozo": 0,
+             "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
 }
 
 
@@ -55,6 +60,15 @@ class PartMaster:
     @property
     def hozo(self) -> int:
         return SERIES_CONST[self.series_id]["hozo"]
+
+    def default_deck_widths(self, next_gen: bool = False) -> tuple[int, ...]:
+        """この系列の既定踏板幅.
+
+        次世代足場は専用系列を作らず「くさび派生（踏板幅500・階高1800/1900）」
+        として扱う（仕様3.1）。
+        """
+        key = "next_gen_deck_widths" if next_gen else "deck_widths"
+        return SERIES_CONST[self.series_id][key]
 
     def by_category(self, category: str) -> list[Part]:
         return [p for p in self.parts if p.category == category]

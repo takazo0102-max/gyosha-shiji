@@ -6,7 +6,6 @@
   "guard_extra_mm": 900,
   "building_height_mm": 12700,
   "period_days": 90,
-  "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
   "n_stairs": 1,
