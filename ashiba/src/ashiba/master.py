@@ -13,15 +13,27 @@ from typing import Optional
 
 DEFAULT_MASTER_PATH = Path(__file__).resolve().parents[2] / "data" / "part_master.csv"
 
+# 足場の方式。くさび式（支柱＋布材）と枠組式（建枠）は構造が根本的に違うため、
+# 立面の解き方も数量ルールも分岐する。
+WEDGE = "くさび"
+FRAME = "枠組"
+
 # 系列ごとのコマピッチ・階高・既定踏板幅 [mm]
 # 踏板幅は系列で実寸が違う（A:400/250、B:405/240）。既定値を決め打ちにすると
 # 系列を切り替えたときにマスタ引き当てが静かに失敗するので、ここから引く。
 SERIES_CONST = {
-    "shinwa_A": {"koma_pitch": 450, "floor_height": 1800, "hozo": 125,
+    "shinwa_A": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                 "hozo": 125,
                  "deck_widths": (400, 250), "next_gen_deck_widths": (500, 250)},
-    "shinwa_B": {"koma_pitch": 475, "floor_height": 1900, "hozo": 125,
+    "shinwa_B": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
+                 "hozo": 125,
                  "deck_widths": (405, 240), "next_gen_deck_widths": (500, 240)},
-    "inch": {"koma_pitch": 0, "floor_height": 1700, "hozo": 0,
+    "inch": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1829,
+             "hozo": 125,
+             "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
+    "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
+             "hozo": 0,
              "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
 }
 
@@ -60,6 +72,33 @@ class PartMaster:
     @property
     def hozo(self) -> int:
         return SERIES_CONST[self.series_id]["hozo"]
+
+    @property
+    def system_type(self) -> str:
+        """足場の方式（くさび / 枠組）. 立面の解き方と数量ルールが変わる."""
+        return SERIES_CONST[self.series_id]["system_type"]
+
+    @property
+    def is_frame(self) -> bool:
+        return self.system_type == FRAME
+
+    def frame_heights(self) -> list[int]:
+        """建枠の高さ一覧（降順）. 枠組式のみ."""
+        return sorted(
+            {p.nominal_dim for p in self.by_category("建枠")}, reverse=True
+        )
+
+    def frame_widths(self) -> list[int]:
+        """建枠の幅一覧（降順）. noteの「幅NNNN」から読む."""
+        out = set()
+        for p in self.by_category("建枠"):
+            for token in p.note.split():
+                if token.startswith("幅"):
+                    try:
+                        out.add(int(token[1:]))
+                    except ValueError:
+                        pass
+        return sorted(out, reverse=True)
 
     def default_deck_widths(self, next_gen: bool = False) -> tuple[int, ...]:
         """この系列の既定踏板幅.

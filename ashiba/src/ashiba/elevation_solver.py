@@ -93,6 +93,83 @@ def _alt_order(pieces: list[int]) -> list[int]:
     return [ordered[-1]] + ordered[:-1]
 
 
+def solve_elevation_frame(
+    required_height: int,
+    master: PartMaster,
+    jack_max: int = JACK_MAX_EXTENSION,
+    jack_min: int = JACK_MIN_EXTENSION,
+) -> ElevationResult:
+    """枠組足場の立面: 建枠を積み上げる.
+
+    くさび式と違いコマピッチの概念がなく、1層＝建枠1段。
+    端数はくさび式と同じく最下部のジャッキ＋調整枠（高さの低い建枠）で吸収する。
+    posts には建枠の高さを下から順に入れる（数量拾いが建枠段数として使う）。
+    """
+    heights = master.frame_heights()
+    if not heights:
+        raise ValueError(f"系列 {master.series_id} に建枠がありません")
+    smallest = min(heights)
+
+    # 建枠1段＋最小繰出しより低い足場は組めない
+    min_buildable = jack_min + smallest
+    if required_height < min_buildable:
+        raise ValueError(
+            f"要求高さ{required_height}mmは組立可能な最小高さ{min_buildable}mm"
+            f"（ジャッキ{jack_min} + 最小建枠{smallest}）を下回ります"
+        )
+
+    # 超過側の許容は最小建枠まで。これ以上緩めると要求より大幅に高い解を許してしまう
+    under_allow, over_allow = 150, smallest
+    table = _compose_table(required_height + over_allow, heights)
+    best: Optional[tuple[tuple, int, list[int]]] = None
+    for jack in range(jack_min, jack_max + 1, 5):
+        for delta in range(-under_allow, over_allow + 1, 5):
+            total = required_height + delta - jack
+            if total <= 0:
+                continue
+            pieces = table.get(total)
+            if pieces is None:
+                continue
+            score = (abs(delta), len(pieces), jack_max - jack)
+            if best is None or score < best[0]:
+                best = (score, jack, pieces)
+    if best is None:
+        raise ValueError(
+            f"要求高さ{required_height}mmを建枠{heights}で構成できません"
+        )
+    _score, jack, pieces = best
+
+    frames = sorted(pieces, reverse=True)     # 標準枠を下に、調整枠を上に
+    frames_alt = _alt_order(pieces)
+    top = jack + sum(frames)
+
+    # 作業床は各建枠の天端。最上段は手すり分として使うため作業床から除く
+    level_heights = []
+    h = jack
+    for f in frames[:-1] if len(frames) > 1 else frames:
+        h += f
+        level_heights.append(h)
+
+    warnings = []
+    if len(set(pieces)) < 2 and len(pieces) > 1:
+        warnings.append(
+            "建枠が単一高さのため千鳥（縦継ぎ位置ずらし）を構成できません。"
+            "最下段を調整枠に置換してください"
+        )
+
+    return ElevationResult(
+        required_height=required_height,
+        jack_extension=jack,
+        posts=frames,
+        posts_alt=frames_alt,
+        has_negarami=True,
+        first_ledger_height=jack,   # 枠組は建枠脚部が第一の布に相当
+        n_levels=len(level_heights),
+        level_heights=level_heights,
+        warnings=warnings,
+    )
+
+
 def solve_elevation(
     required_height: int,
     master: Optional[PartMaster] = None,
@@ -105,7 +182,10 @@ def solve_elevation(
     """要求高さ（ジャッキベース下端→支柱天端）から支柱構成を解く.
 
     post_lengths を渡すとマスタより優先（テスト・実例再現用）。
+    枠組系列のマスタが渡された場合は建枠の積み上げ（solve_elevation_frame）へ委譲する。
     """
+    if post_lengths is None and master is not None and master.is_frame:
+        return solve_elevation_frame(required_height, master, jack_max, jack_min)
     if post_lengths is None:
         assert master is not None, "master か post_lengths のどちらかが必要です"
         post_lengths = master.post_lengths()
@@ -114,6 +194,14 @@ def solve_elevation(
     if koma_pitch is None:
         koma_pitch = master.koma_pitch if master else 450
     lengths = sorted(set(post_lengths), reverse=True)
+
+    # 支柱1本＋最小繰出しより低い足場は組めない
+    min_buildable = jack_min + min(lengths)
+    if required_height < min_buildable:
+        raise ValueError(
+            f"要求高さ{required_height}mmは組立可能な最小高さ{min_buildable}mm"
+            f"（ジャッキ{jack_min} + 最小支柱{min(lengths)}）を下回ります"
+        )
 
     # 端数は最下部のジャッキで吸収。要求高さと厳密一致しない場合は
     # ±許容窓（下-150〜上+1コマ）内で偏差最小の解を許す。

@@ -68,6 +68,30 @@ class TestAcceptance(unittest.TestCase):
             self.assertNotIn("該当部材がありません", csv_text)  # 系列の欠品なし
             self.assertIn("B-", csv_text)                       # B系列の型番
 
+    def test_frame_scaffold_one_click(self):
+        """枠組足場（建枠方式）でも一式が出る."""
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            result = run(EXAMPLES / "waku_frame.json", out)
+            self.assertEqual(result["checks"]["total"], 10)
+            self.assertEqual(result["checks"]["ng"], 0)
+            self.assertGreaterEqual(result["stairs"]["count"], 1)
+            csv_text = (out / f"{result['project']}_数量表.csv").read_text(
+                encoding="utf-8-sig"
+            )
+            self.assertNotIn("該当部材がありません", csv_text)
+            self.assertIn("建枠", csv_text)
+            self.assertIn("アームロック", csv_text)
+            self.assertNotIn("支柱", csv_text)   # くさび式の部材は出ない
+
+    def test_stairs_auto_placed(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            result = run(EXAMPLES / "rect_30x20.json", out)
+            stairs = result["stairs"]
+            self.assertGreaterEqual(stairs["count"], stairs["required_count"])
+            self.assertLessEqual(stairs["max_travel_m"], 30.0)
+
 
 if __name__ == "__main__":
     unittest.main()

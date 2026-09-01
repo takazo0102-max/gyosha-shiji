@@ -13,6 +13,9 @@ from .elevation_solver import ElevationResult
 from .master import PartMaster
 from .plan_solver import PlanResult
 
+# 枠組足場の建枠が兼ねる手すりの高さ（作業床から。安衛則563条の85cm以上を満たす）
+FRAME_GUARD_RAIL_HEIGHT_MM = 900
+
 
 @dataclass
 class AsagaoSpec:
@@ -39,6 +42,7 @@ class ScaffoldConfig:
     deck_gap_mm: int = 20                  # 床材間の隙間
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
+    guard_rail_height_mm: Optional[int] = None  # 直接指定する場合（枠組等）
     has_midrail: bool = True               # 中桟
     has_toe_board: bool = True             # 幅木
     n_stairs: int = 1                      # 階段設置箇所数
@@ -86,6 +90,15 @@ class ScaffoldModel:
 
     @property
     def guard_rail_height_mm(self) -> int:
+        """作業床からの手すり高さ.
+
+        枠組式は建枠自体が手すりを兼ねるため、コマピッチ（枠組には無い概念）ではなく
+        建枠の手すり高さを使う。
+        """
+        if self.config.guard_rail_height_mm is not None:
+            return self.config.guard_rail_height_mm
+        if self.master.is_frame:
+            return FRAME_GUARD_RAIL_HEIGHT_MM
         return self.config.guard_rail_koma * self.master.koma_pitch
 
     def wall_tie_max_spacing(self) -> tuple[float, float]:

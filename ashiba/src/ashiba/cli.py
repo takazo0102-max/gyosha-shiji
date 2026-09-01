@@ -41,6 +41,7 @@ from .notification import (
 from .plan_solver import StandoffSpec, solve_plan
 from .quantity import take_off
 from .report import write_plan_json, write_quantity_csv, write_report_md
+from .stairs import DEFAULT_MAX_TRAVEL_MM, auto_place_stairs, validate_stairs
 from .structural import SiteCondition, optimize_wall_ties, run_structural
 
 
@@ -152,8 +153,18 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     tie_opt = optimize_wall_ties(model, site)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
+    st = spec.get("stairs", {})
+    stair_plan = auto_place_stairs(
+        model,
+        max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
+        tower_spans=st.get("tower_spans", 2),
+        count=st.get("count"),
+    )
+    stair_issues = validate_stairs(
+        model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
+    )
     checks = run_all_checks(model)
-    quantity = take_off(model, bracket_sections=brackets)
+    quantity = take_off(model, bracket_sections=brackets, stair_plan=stair_plan)
     structural = run_structural(model, quantity, site)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -197,9 +208,20 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             if model.config.asagao else None
         ),
         "bracket_sections": len(brackets),
+        "stairs": {
+            "count": stair_plan.count,
+            "required_count": stair_plan.required_count,
+            "max_travel_m": round(stair_plan.max_travel_mm / 1000.0, 1),
+            "positions": [
+                {"edge_index": t.edge_index, "start_mm": round(t.start_mm),
+                 "spans": t.span_count}
+                for t in stair_plan.towers
+            ],
+        },
         "warnings": (
             structural.warnings + model.plan.warnings + model.elevation.warnings
             + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
+            + stair_plan.warnings + [f"階段: {w}" for w in stair_issues]
         ),
         "out_dir": str(out_dir),
     }

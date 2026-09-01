@@ -1,0 +1,17 @@
+{
+  "project_name": "サンプル枠組足場",
+  "series_id": "waku",
+  "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "関東(内陸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート"
+  },
+  "stairs": {"max_travel_mm": 30000}
+}
