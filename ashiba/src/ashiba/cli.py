@@ -40,9 +40,15 @@ from .notification import (
 )
 from .plan_solver import StandoffSpec, solve_plan
 from .quantity import take_off
-from .report import write_plan_json, write_quantity_csv, write_report_md
+from .report import (
+    write_jack_table_csv,
+    write_plan_json,
+    write_quantity_csv,
+    write_report_md,
+)
 from .stairs import DEFAULT_MAX_TRAVEL_MM, auto_place_stairs, validate_stairs
 from .structural import SiteCondition, optimize_wall_ties, run_structural
+from .terrain import GroundModel, solve_post_feet
 
 
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
@@ -112,6 +118,12 @@ def build_brackets(spec: dict) -> list[BracketSection]:
     return out
 
 
+def build_ground(spec: dict) -> GroundModel:
+    """敷地の標高サンプル点。Archicadから使う場合は read_ground_model() で読む."""
+    pts = spec.get("ground_points_mm", [])
+    return GroundModel(points=[tuple(p) for p in pts])
+
+
 def build_site(spec: dict) -> SiteCondition:
     """入力JSONの site ブロック → 構造計算の追加入力4項目."""
     s = spec.get("site", {})
@@ -166,15 +178,18 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     checks = run_all_checks(model)
     quantity = take_off(model, bracket_sections=brackets, stair_plan=stair_plan)
     structural = run_structural(model, quantity, site)
+    terrain = solve_post_feet(model, build_ground(spec))
 
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     write_report_md(model, quantity, checks, out_dir / f"{name}_割付レポート.md", name)
     write_plan_json(model, out_dir / f"{name}_plan.json")
+    write_jack_table_csv(terrain, out_dir / f"{name}_ジャッキ量一覧.csv")
     write_notification_xlsx(
         model, quantity, checks, structural,
         out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
+        terrain=terrain,
     )
 
     s = summary(checks)
@@ -208,6 +223,14 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             if model.config.asagao else None
         ),
         "bracket_sections": len(brackets),
+        "terrain": {
+            "gl_difference_mm": round(terrain.gl_difference_mm, 1),
+            "jack_range_mm": [round(terrain.jack_min_mm, 1),
+                              round(terrain.jack_max_mm, 1)],
+            "foot_variants": len({f.koma_offset for f in terrain.feet}),
+            "posts_over_recommended": len(terrain.over_recommended()),
+            "all_ok": terrain.all_ok,
+        },
         "stairs": {
             "count": stair_plan.count,
             "required_count": stair_plan.required_count,
@@ -222,6 +245,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             structural.warnings + model.plan.warnings + model.elevation.warnings
             + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
             + stair_plan.warnings + [f"階段: {w}" for w in stair_issues]
+            + [f"敷地: {w}" for w in terrain.warnings]
         ),
         "out_dir": str(out_dir),
     }

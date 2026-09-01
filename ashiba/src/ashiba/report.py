@@ -21,6 +21,7 @@ __all__ = [
     "write_quantity_csv",
     "write_report_md",
     "write_plan_json",
+    "write_jack_table_csv",
 ]
 
 
@@ -92,6 +93,26 @@ def write_report_md(
     a("> 本レポートは計画作成参画者（有資格者）が確認する前提の下書きです。")
     a("> 部材形状はカタログ寸法からの再現であり、単位重量は概算値を含みます。")
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_jack_table_csv(terrain, path: Path) -> None:
+    """支柱ごとのジャッキ量一覧（敷地高低差対応・本ツールの差別化機能）."""
+    from .terrain import jack_table_rows
+
+    rows = jack_table_rows(terrain)
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        for row in rows:
+            w.writerow(row)
+        w.writerow([])
+        w.writerow(["基準GL(mm)", round(terrain.reference_gl_mm, 1)])
+        w.writerow(["GL範囲(mm)", round(terrain.gl_range_mm[0], 1),
+                    round(terrain.gl_range_mm[1], 1)])
+        w.writerow(["高低差(mm)", round(terrain.gl_difference_mm, 1)])
+        w.writerow(["ジャッキ繰出し範囲(mm)", round(terrain.jack_min_mm, 1),
+                    round(terrain.jack_max_mm, 1)])
+        for note in terrain.warnings:
+            w.writerow(["注記", note])
 
 
 def write_plan_json(model: ScaffoldModel, path: Path) -> None:

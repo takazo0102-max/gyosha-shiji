@@ -319,3 +319,39 @@ def place_details(
         )
         placed.append(elem)
     return placed
+
+
+def read_ground_model(client: Optional[ArchicadClient] = None):
+    """プロジェクトの敷地メッシュから標高サンプル点群を読み、GroundModelを作る.
+
+    メッシュの外形ポリゴン頂点とレベリングサブラインの点を標高サンプルとして使う。
+    メッシュが無ければ空（平坦扱い）のGroundModelを返す。
+    ⚠️ 三角形分割ではなく近傍点の逆距離加重で補間する近似（terrain.py参照）。
+    """
+    from .terrain import GroundModel
+
+    client = client or ArchicadClient()
+    points: list[tuple[float, float, float]] = []
+    try:
+        meshes = client.tapir(
+            "GetElementsByType", {"elementType": "Mesh"}
+        ).get("elements", [])
+    except TapirError:
+        return GroundModel()
+    if not meshes:
+        return GroundModel()
+
+    for det in client.get_details(meshes):
+        d = det.get("details", det)
+        level = float(d.get("level", 0.0))
+
+        def take(coords) -> None:
+            for c in coords or []:
+                if isinstance(c, dict) and "x" in c and "y" in c:
+                    z = (float(c.get("z", 0.0)) + level) * 1000.0
+                    points.append((c["x"] * 1000.0, c["y"] * 1000.0, z))
+
+        take(d.get("polygonCoordinates"))
+        for sub in d.get("sublines", []) or []:
+            take(sub.get("coordinates"))
+    return GroundModel(points=points)

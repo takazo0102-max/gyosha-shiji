@@ -84,6 +84,23 @@ class TestAcceptance(unittest.TestCase):
             self.assertIn("アームロック", csv_text)
             self.assertNotIn("支柱", csv_text)   # くさび式の部材は出ない
 
+    def test_sloped_site_jack_table(self):
+        """傾斜地でも支柱ごとのジャッキ量一覧まで出る（Phase 4の差別化機能）."""
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            result = run(EXAMPLES / "sloped_site.json", out)
+            self.assertEqual(result["checks"]["ng"], 0)
+            t = result["terrain"]
+            self.assertGreater(t["gl_difference_mm"], 1000)
+            self.assertGreater(t["foot_variants"], 1)   # 脚部構成が複数種になる
+            csv_path = out / f"{result['project']}_ジャッキ量一覧.csv"
+            self.assertTrue(csv_path.exists())
+            text = csv_path.read_text(encoding="utf-8-sig")
+            self.assertIn("ジャッキ繰出し(mm)", text)
+            self.assertIn("下げコマ数", text)
+            # 上限超過は黙って丸めず対処まで書く
+            self.assertIn("敷板", text + "".join(result["warnings"]))
+
     def test_stairs_auto_placed(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)

@@ -85,6 +85,7 @@ def write_notification_xlsx(
     project_name: str = "",
     info: Optional[NotificationInfo] = None,
     details: Optional[list] = None,
+    terrain=None,
 ) -> None:
     info = info or NotificationInfo()
     if details is None:
@@ -98,8 +99,33 @@ def write_notification_xlsx(
     _sheet_post(wb, structural)
     _sheet_quantity(wb, quantity)
     _sheet_law_check(wb, checks)
+    if terrain is not None and terrain.feet:
+        _sheet_jack_table(wb, terrain)
     _sheet_attachments(wb, info, details)
     wb.save(path)
+
+
+def _sheet_jack_table(wb, terrain) -> None:
+    """支柱ごとのジャッキ量一覧（敷地高低差対応）."""
+    from .terrain import jack_table_rows
+
+    s = wb.sheet("ジャッキ量一覧")
+    for c, wdt in enumerate([6, 12, 12, 14, 12, 18, 14, 30, 46]):
+        s.set_width(c, wdt)
+    s.add_title("支柱ごとのジャッキ量一覧（敷地高低差対応）", span=9)
+    s.add_cells([Cell("作業床レベルは全周で通し、GL高低差は各支柱のジャッキと支柱長で吸収する")])
+    s.add_blank()
+    rows = jack_table_rows(terrain)
+    s.add_header(rows[0])
+    for row in rows[1:]:
+        s.add_cells([Cell(v, STYLE_BORDER) for v in row])
+    s.add_blank()
+    s.add(["基準GL(mm)", round(terrain.reference_gl_mm, 1)], STYLE_BOLD)
+    s.add(["高低差(mm)", round(terrain.gl_difference_mm, 1)], STYLE_BOLD)
+    s.add(["ジャッキ繰出し範囲(mm)",
+           round(terrain.jack_min_mm, 1), round(terrain.jack_max_mm, 1)], STYLE_BOLD)
+    for note in terrain.warnings:
+        s.add_cells([Cell("注記"), Cell(note)])
 
 
 # ---- 各シート -------------------------------------------------------------
