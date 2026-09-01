@@ -44,7 +44,9 @@ class ScaffoldConfig:
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
     guard_rail_height_mm: Optional[int] = None  # 直接指定する場合（枠組等）
     has_midrail: bool = True               # 中桟
+    midrail_height_mm: int = 450           # 中桟高さ（作業床から。基準35〜50cm）
     has_toe_board: bool = True             # 幅木
+    toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）
     n_stairs: int = 1                      # 階段設置箇所数
     wall_tie_span_step: int = 3            # 壁つなぎ水平間隔（スパン数、実務推奨3以内）
     wall_tie_level_step: int = 2           # 壁つなぎ垂直間隔（作業層数、実務推奨2以内）

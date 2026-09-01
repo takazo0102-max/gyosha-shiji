@@ -27,7 +27,7 @@ def make_good_model():
 
 
 def make_violation_model():
-    """意図的な違反モデル: 10項目すべてが検出されること（受け入れ基準）."""
+    """意図的な違反モデル: 全項目が検出されること（受け入れ基準）."""
     master = load_master("shinwa_A")
     plan = solve_plan(RECT, master)
     # 立面を手作りで違反させる
@@ -49,6 +49,9 @@ def make_violation_model():
         guard_rail_koma=1,             # #3 450mm<850mm
         has_midrail=False,             # #3
     )
+    # #11 建地間隔: 桁行方向に規格外スパンが混入した状態
+    # （マスタや系列を差し替えたときに起こりうる）
+    plan.edges[0].spans = [2000] + plan.edges[0].spans[1:]
     model = ScaffoldModel(
         master=master,
         plan=plan,
@@ -67,22 +70,22 @@ def make_violation_model():
 class TestLawChecks(unittest.TestCase):
     def test_good_model_passes(self):
         results = run_all_checks(make_good_model())
-        self.assertEqual(len(results), 10)
+        self.assertEqual(len(results), 11)
         bad = [r for r in results if r.status == NG]
         self.assertEqual(bad, [], f"NG: {[(r.name, r.message) for r in bad]}")
 
     def test_all_violations_detected(self):
         results = run_all_checks(make_violation_model())
-        self.assertEqual(len(results), 10)
+        self.assertEqual(len(results), 11)
         by_id = {r.check_id: r for r in results}
-        # 9項目すべて OK 以外（NG または WARN）で検出される
-        for cid in range(1, 11):
+        # 全項目 OK 以外（NG または WARN）で検出される
+        for cid in range(1, 12):
             self.assertNotEqual(
                 by_id[cid].status, OK,
                 f"チェック#{cid} {by_id[cid].name} が違反を検出できていない",
             )
         # 明確なNG項目
-        for cid in (1, 2, 3, 4, 5, 7, 9, 10):
+        for cid in (1, 2, 3, 4, 5, 7, 9, 10, 11):
             self.assertEqual(by_id[cid].status, NG, f"#{cid}")
         # ジャッキ超過と高さ31m超は警告
         self.assertEqual(by_id[6].status, WARN)
@@ -95,3 +98,72 @@ class TestLawChecks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPostSpacing(unittest.TestCase):
+    """#11 建地間隔: 桁行1.85m以下・梁間1.5m以下.
+
+    スパン割は真物から決まるので通常は満たすが、系列やマスタを
+    差し替えたときに黙って超えないよう検査する。
+    """
+
+    def test_normal_model_passes(self):
+        r = [c for c in run_all_checks(make_good_model()) if c.check_id == 11][0]
+        self.assertEqual(r.status, OK)
+        self.assertIn("桁行", r.message)
+
+    def test_oversized_span_rejected(self):
+        m = make_good_model()
+        m.plan.edges[0].spans = [1900] + m.plan.edges[0].spans[1:]
+        r = [c for c in run_all_checks(m) if c.check_id == 11][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("桁行", r.message)
+
+    def test_oversized_cross_spacing_rejected(self):
+        m = make_good_model()
+        m.config.deck_widths = (800, 800)   # 梁間 1620mm > 1500mm
+        r = [c for c in run_all_checks(m) if c.check_id == 11][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("梁間", r.message)
+
+    def test_single_row_has_no_cross_spacing(self):
+        """一側足場は内外2列でないので梁間方向の制限は対象外."""
+        m = make_good_model()
+        m.config.scaffold_form = "一側足場"
+        m.config.deck_widths = (800, 800)
+        r = [c for c in run_all_checks(m) if c.check_id == 11][0]
+        self.assertEqual(r.status, OK)
+
+
+class TestDeckAndRailDetails(unittest.TestCase):
+    """テキストの基準を追加検査した分（作業床の垂直間隔・中桟・幅木）."""
+
+    def test_deck_vertical_pitch_over_2m_rejected(self):
+        m = make_good_model()
+        m.elevation.level_heights = [1000, 3500, 6000]   # 2500mm ピッチ
+        r = [c for c in run_all_checks(m) if c.check_id == 2][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("垂直間隔", r.message)
+
+    def test_midrail_height_out_of_range_rejected(self):
+        for bad in (300, 600):
+            with self.subTest(height=bad):
+                m = make_good_model()
+                m.config.midrail_height_mm = bad
+                r = [c for c in run_all_checks(m) if c.check_id == 3][0]
+                self.assertEqual(r.status, NG)
+                self.assertIn("中桟", r.message)
+
+    def test_toe_board_under_100mm_rejected(self):
+        m = make_good_model()
+        m.config.toe_board_height_mm = 80
+        r = [c for c in run_all_checks(m) if c.check_id == 3][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("幅木", r.message)
+
+    def test_defaults_satisfy_standards(self):
+        m = make_good_model()
+        by = {c.check_id: c for c in run_all_checks(m)}
+        self.assertEqual(by[2].status, OK)
+        self.assertEqual(by[3].status, OK)
+        self.assertIn("中桟450", by[3].message)

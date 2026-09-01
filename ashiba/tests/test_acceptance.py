@@ -53,7 +53,7 @@ class TestAcceptance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)
             result = run(EXAMPLES / "b_series_nextgen.json", out)
-            self.assertEqual(result["checks"]["total"], 10)
+            self.assertEqual(result["checks"]["total"], 11)
             self.assertEqual(result["checks"]["ng"], 0)
             self.assertEqual(result["bracket_sections"], 1)
             # ブラケットの検証で問題が出ていない
@@ -73,7 +73,7 @@ class TestAcceptance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td)
             result = run(EXAMPLES / "waku_frame.json", out)
-            self.assertEqual(result["checks"]["total"], 10)
+            self.assertEqual(result["checks"]["total"], 11)
             self.assertEqual(result["checks"]["ng"], 0)
             self.assertGreaterEqual(result["stairs"]["count"], 1)
             csv_text = (out / f"{result['project']}_数量表.csv").read_text(

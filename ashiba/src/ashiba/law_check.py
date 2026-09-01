@@ -1,7 +1,7 @@
-"""法規チェック（仕様5の自動判定リスト、MVPは#1〜#9）.
+"""法規チェック.
 
+仕様5の自動判定リスト10項目に、建地間隔（#11）を加えた11項目。
 判定は OK / WARN / NG の3値。根拠条文を basis に必ず持つ。
-#10 朝顔はPhase 3（朝顔機能実装時に追加）。
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ def run_all_checks(model: ScaffoldModel) -> list[CheckResult]:
         check_height_reinforcement,
         check_series_lock,
         check_asagao,
+        check_post_spacing,
     ]
     return [fn(model) for fn in checks]
 
@@ -85,6 +86,12 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
         problems.append(f"床材隙間{m.config.deck_gap_mm}mm > 30mm")
     if m.config.deck_to_post_gap_mm >= 120:
         problems.append(f"床材と建地の隙間{m.config.deck_to_post_gap_mm}mm ≧ 120mm")
+    # 作業床の垂直間隔は2m以下（くさび緊結式足場の基準）
+    levels = m.elevation.level_heights
+    if len(levels) >= 2:
+        v_pitch = max(b - a for a, b in zip(levels, levels[1:]))
+        if v_pitch > 2000:
+            problems.append(f"作業床の垂直間隔{v_pitch}mm > 2000mm")
     if problems:
         return CheckResult(2, "作業床", NG, "、".join(problems), basis)
     return CheckResult(
@@ -103,7 +110,22 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
         return CheckResult(3, "手すり", NG, f"手すり高さ{h}mm < 850mm", basis)
     if not m.config.has_midrail:
         return CheckResult(3, "手すり", NG, f"手すり高さ{h}mmだが中桟がありません", basis)
-    return CheckResult(3, "手すり", OK, f"手すり高さ{h}mm＋中桟あり", basis)
+    problems = []
+    mh = m.config.midrail_height_mm
+    if not (350 <= mh <= 500):
+        problems.append(f"中桟高さ{mh}mm が35〜50cmの範囲外")
+    if m.config.has_toe_board and m.config.toe_board_height_mm < 100:
+        problems.append(
+            f"幅木高さ{m.config.toe_board_height_mm}mm < 100mm（落下物防止）"
+        )
+    if problems:
+        return CheckResult(3, "手すり", NG, "、".join(problems), basis)
+    return CheckResult(
+        3, "手すり", OK,
+        f"手すり高さ{h}mm＋中桟{mh}mm"
+        + (f"＋幅木{m.config.toe_board_height_mm}mm" if m.config.has_toe_board else ""),
+        basis,
+    )
 
 
 # ---- #4 第一の布 ---------------------------------------------------------
@@ -240,3 +262,38 @@ def check_asagao(m: ScaffoldModel) -> CheckResult:
         f"傾斜{spec.angle_deg:.0f}度・取付部{spec.tie_every_spans}スパン毎に壁つなぎ",
         basis,
     )
+
+
+# ---- #11 建地間隔 --------------------------------------------------------
+
+# くさび緊結式足場の建地間隔（安衛則571条 わく組足場以外の支柱式足場に準じる）
+MAX_SPAN_ALONG_MM = 1850    # 桁行方向（スパン方向）
+MAX_SPAN_ACROSS_MM = 1500   # 梁間方向（内外建地間隔）
+
+
+def check_post_spacing(m: ScaffoldModel) -> CheckResult:
+    """建地の間隔: 桁行方向1.85m以下・梁間方向1.5m以下.
+
+    スパン割は真物の呼び寸法から決まるので通常は満たすが、
+    系列やマスタを差し替えたときに黙って超えないよう検査する。
+    """
+    basis = (
+        "安衛則571条（支柱式足場の建地間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
+    )
+    problems = []
+    spans = [s for ep in m.plan.edges for s in ep.spans]
+    if spans:
+        longest = max(spans)
+        if longest > MAX_SPAN_ALONG_MM:
+            problems.append(
+                f"桁行方向の建地間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm"
+            )
+    across = m.deck_width_total
+    if m.config.scaffold_form != "一側足場" and across > MAX_SPAN_ACROSS_MM:
+        problems.append(f"梁間方向の建地間隔{across}mm > {MAX_SPAN_ACROSS_MM}mm")
+    if problems:
+        return CheckResult(11, "建地間隔", NG, "、".join(problems), basis)
+    detail = f"桁行{max(spans) if spans else 0}mm"
+    if m.config.scaffold_form != "一側足場":
+        detail += f"・梁間{across}mm"
+    return CheckResult(11, "建地間隔", OK, detail, basis)

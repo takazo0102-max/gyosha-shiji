@@ -77,7 +77,7 @@ class TestSeriesSwitching(unittest.TestCase):
             with self.subTest(series=series):
                 model, _q = build(series, h)
                 s = summary(run_all_checks(model))
-                self.assertEqual(s["total"], 10)
+                self.assertEqual(s["total"], 11)
                 self.assertEqual(s["ng"], 0)
 
     def test_series_b_uses_b_parts_only(self):

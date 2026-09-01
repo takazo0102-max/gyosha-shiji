@@ -176,6 +176,8 @@ class PostResult:
     governing: str              # 支配する検定（ジャッキ / 支柱）
     source: str
     verified: bool
+    # 未確認だった耐力値の名称。警告文に実際の項目だけを挙げるために持つ
+    unverified_items: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -389,6 +391,12 @@ def check_post(
     if extra_post_load_kn > 0 and extra_load_source:
         governing_name += f" ＋{extra_load_source}"
 
+    unverified_items = []
+    if not governing_cap.verified:
+        unverified_items.append(f"{governing_name.split('(')[0].strip()}許容支持力")
+    if not cap_deck.verified:
+        unverified_items.append("作業床許容積載荷重")
+
     return PostResult(
         dead_load_kn=round(dead_kn, 3),
         live_load_kn=round(live_kn, 3),
@@ -401,6 +409,7 @@ def check_post(
         governing=governing_name,
         source=governing_cap.source,
         verified=governing_cap.verified and cap_deck.verified,
+        unverified_items=unverified_items,
     )
 
 
@@ -567,8 +576,7 @@ def run_structural(
     unverified: list[str] = []
     if not tie.verified:
         unverified.append("壁つなぎ許容耐力")
-    if not post.verified:
-        unverified.append("ジャッキ／支柱許容支持力・作業床許容積載荷重")
+    unverified.extend(post.unverified_items)
     if unverified:
         warnings.append(
             "未確認の耐力値が計算に使われています（" + "、".join(unverified) + "）。"
