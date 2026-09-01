@@ -1,0 +1,39 @@
+! ============================================================
+! 足場ライン 2Dスクリプト
+! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体面 y=+standoff（参照線）
+! ============================================================
+define style "anno" "MS Pゴシック", texSiz, 1, 0
+set style "anno"
+pen 1
+
+! ---- 建地列（内・外）と支柱記号 ----
+line2 0, 0, lineLen, 0
+line2 0, -rowW, lineLen, -rowW
+x = 0
+for ip = 1 to nSpan + 1
+	circle2 x, 0, r_sic
+	circle2 x, -rowW, r_sic
+	hotspot2 x, 0
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+hotspot2 0, -rowW
+hotspot2 lineLen, -rowW
+
+! ---- 躯体面の参照線（離れ表示） ----
+line_type 3
+line2 0, standoff, lineLen, standoff
+line_type 1
+
+if not(showDim) then end
+
+! ---- スパン寸法 ----
+x = 0
+for ip = 1 to nSpan
+	text2 x + spans[ip] / 2, -rowW - 0.25, str(spans[ip] * 1000, 5, 0)
+	line2 x, -rowW - 0.15, x, -rowW - 0.35
+	x = x + spans[ip]
+next ip
+line2 x, -rowW - 0.15, x, -rowW - 0.35
+text2 lineLen / 2, -rowW - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+
+end

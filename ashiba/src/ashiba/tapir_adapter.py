@@ -1,59 +1,212 @@
-"""Archicad接続層（Tapirアドオン経由）.
+"""Archicad接続層（Tapirアドオン経由、標準ライブラリのみで動作）.
 
-⚠️ このモジュールだけがArchicadに依存する。割付エンジン本体はArchicad無しで動く。
-⚠️ Archicad実機での動作検証は未実施（開発環境にArchicadが無いため）。
-   実機で GetSelectedElements / GetDetailsOfElements / CreateObjects /
-   SetGDLParametersOfElements のレスポンス形式を確認しながら調整すること。
+`archicad` pipパッケージには依存せず、ArchicadのJSON API (http://127.0.0.1:19723)
+へ urllib で直接POSTする。Tapir 1.5.8 / Archicad 28 (Mac) で実機検証済み
+（スラブ外形取得→4辺配置→回転→GDLパラメータ設定のE2E: scripts/e2e_archicad_test.py）。
 
-前提:
-- Archicad 27+ / Tapir Additional JSON Commands アドオン導入済み
-- pip install archicad（Archicad同梱のPython環境なら同梱済み）
-- 「足場ライン」オブジェクト(ashiba_line)がプロジェクトのライブラリに読込済み
+実機で確認済みの仕様・落とし穴:
+- CreateObjects は libraryPartName + coordinates のみ受ける。回転は RotateElements で行う
+  （ModifyObjects の details に angle を渡すとスキーマ違反になる）
+- 埋め込みライブラリへのGSM追加は AddFilesToEmbeddedLibrary。同名の上書きは不可
+  （エラー文言は「not a valid relative path」）。開発イテレーションは版名を変えて追加する
+- Get3DBoundingBoxes はオブジェクトに「2D記号外形×高さ」のフォールバック値を返すことが
+  ある。3D生成の検証には GetElementPreviewImage(imageType="3D") を使うこと
+- スラブ詳細の外形キーは details.polygonOutline（終点=始点の閉じたループ、単位m）
 """
 
 from __future__ import annotations
 
+import json
+import math
+import urllib.error
+import urllib.request
 from typing import Any, Optional
 
 from .model import ScaffoldModel
+
+DEFAULT_PORT = 19723
 
 
 class TapirError(Exception):
     pass
 
 
-def _connect():
-    try:
-        from archicad import ACConnection  # type: ignore
-    except ImportError as exc:
-        raise TapirError(
-            "archicad パッケージがありません。Archicad同梱Pythonで実行するか "
-            "`pip install archicad` してください"
-        ) from exc
-    conn = ACConnection.connect()
-    if not conn:
-        raise TapirError("Archicadに接続できません（Archicadを起動し、JSON APIを有効にしてください）")
-    return conn
+class ArchicadClient:
+    """Archicad JSON API + Tapir AddOnCommand の薄いクライアント."""
+
+    def __init__(self, host: str = "127.0.0.1", port: int = DEFAULT_PORT, timeout: float = 60.0):
+        self.url = f"http://{host}:{port}"
+        self.timeout = timeout
+
+    def post(self, command: str, parameters: Optional[dict] = None) -> dict:
+        payload = {"command": command}
+        if parameters is not None:
+            payload["parameters"] = parameters
+        req = urllib.request.Request(
+            self.url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, OSError) as exc:
+            raise TapirError(
+                f"Archicadに接続できません（{self.url}）。Archicadを起動してください: {exc}"
+            ) from exc
+        if not data.get("succeeded"):
+            raise TapirError(f"{command} が失敗: {data.get('error')}")
+        return data.get("result", {})
+
+    def tapir(self, command: str, parameters: Optional[dict] = None) -> dict:
+        result = self.post(
+            "API.ExecuteAddOnCommand",
+            {
+                "addOnCommandId": {
+                    "commandNamespace": "TapirCommand",
+                    "commandName": command,
+                },
+                "addOnCommandParameters": parameters or {},
+            },
+        )
+        resp = result.get("addOnCommandResponse", {})
+        if isinstance(resp, dict) and resp.get("error"):
+            raise TapirError(f"Tapir {command} が失敗: {resp['error']}")
+        return resp
+
+    # ---- 基本操作 ------------------------------------------------------
+
+    def is_alive(self) -> bool:
+        try:
+            return bool(self.post("API.IsAlive").get("isAlive"))
+        except TapirError:
+            return False
+
+    def tapir_version(self) -> str:
+        return self.tapir("GetAddOnVersion").get("version", "")
+
+    def get_selected_elements(self) -> list[dict]:
+        return self.tapir("GetSelectedElements").get("elements", [])
+
+    def get_details(self, elements: list[dict]) -> list[dict]:
+        return self.tapir("GetDetailsOfElements", {"elements": elements}).get(
+            "detailsOfElements", []
+        )
+
+    def get_3d_bboxes(self, elements: list[dict]) -> list[dict]:
+        return self.tapir("Get3DBoundingBoxes", {"elements": elements}).get(
+            "boundingBoxes3D", []
+        )
+
+    def delete_elements(self, elements: list[dict]) -> None:
+        self.tapir("DeleteElements", {"elements": elements})
+
+    def create_slab(
+        self, polygon_mm: list[tuple[float, float]], level: float = 0.0, thickness: float = 0.3
+    ) -> dict:
+        data = {
+            "slabsData": [
+                {
+                    "level": level,
+                    "thickness": thickness,
+                    "polygonCoordinates": [
+                        {"x": x / 1000.0, "y": y / 1000.0} for (x, y) in polygon_mm
+                    ],
+                }
+            ]
+        }
+        elements = self.tapir("CreateSlabs", data).get("elements", [])
+        if not elements:
+            raise TapirError("スラブを作成できませんでした")
+        return elements[0]
+
+    def create_object(
+        self, library_part_name: str, x_mm: float, y_mm: float, z_mm: float = 0.0
+    ) -> dict:
+        data = {
+            "objectsData": [
+                {
+                    "libraryPartName": library_part_name,
+                    "coordinates": {
+                        "x": x_mm / 1000.0,
+                        "y": y_mm / 1000.0,
+                        "z": z_mm / 1000.0,
+                    },
+                }
+            ]
+        }
+        elements = self.tapir("CreateObjects", data).get("elements", [])
+        if not elements:
+            raise TapirError(f"オブジェクト {library_part_name} を配置できませんでした")
+        return elements[0]
+
+    def rotate_element(
+        self, element: dict, angle_rad: float, origin_x_mm: float, origin_y_mm: float
+    ) -> None:
+        """要素を原点(origin)まわりに angle_rad 回転する（RotateElements）."""
+        ox, oy = origin_x_mm / 1000.0, origin_y_mm / 1000.0
+        self.tapir(
+            "RotateElements",
+            {
+                "elementsWithRotations": [
+                    {
+                        "elementId": element["elementId"],
+                        "rotation": {
+                            "origin": {"x": ox, "y": oy},
+                            "beginPoint": {"x": ox + 1.0, "y": oy},
+                            "endPoint": {
+                                "x": ox + math.cos(angle_rad),
+                                "y": oy + math.sin(angle_rad),
+                            },
+                        },
+                    }
+                ]
+            },
+        )
+
+    def set_gdl_parameters(self, element: dict, params: dict[str, Any]) -> None:
+        self.tapir(
+            "SetGDLParametersOfElements",
+            {
+                "elementsWithGDLParameters": [
+                    {
+                        "elementId": element["elementId"],
+                        "gdlParameters": [
+                            {"name": k, "value": v} for k, v in params.items()
+                        ],
+                    }
+                ]
+            },
+        )
+
+    def get_gdl_parameters(self, element: dict) -> dict:
+        return self.tapir(
+            "GetGDLParametersOfElements", {"elements": [element]}
+        )
+
+    def add_file_to_embedded_library(self, input_path: str, output_name: str) -> None:
+        resp = self.tapir(
+            "AddFilesToEmbeddedLibrary",
+            {"files": [{"inputPath": input_path, "outputPath": output_name}]},
+        )
+        results = resp.get("executionResults", [])
+        if results and not results[0].get("success"):
+            raise TapirError(f"埋め込みライブラリへの追加に失敗: {results[0].get('error')}")
+
+    def reload_libraries(self) -> None:
+        self.tapir("ReloadLibraries")
 
 
-def _tapir(conn, command: str, params: Optional[dict] = None) -> Any:
-    """Tapirの AddOnCommand を実行する."""
-    cmd_id = conn.types.AddOnCommandId("TapirCommand", command)
-    return conn.commands.ExecuteAddOnCommand(cmd_id, params or {})
+# ---- 高水準API ----------------------------------------------------------
 
 
-def get_selected_outline_mm(conn=None) -> list[tuple[float, float]]:
-    """選択中のスラブ/メッシュ等から躯体外形ポリゴン[mm]を取得する.
-
-    選択要素の1つ目のポリゴンを採用。座標はArchicad内部(m)→mmに変換。
-    """
-    conn = conn or _connect()
-    sel = _tapir(conn, "GetSelectedElements")
-    elements = sel.get("elements", []) if isinstance(sel, dict) else []
+def get_selected_outline_mm(client: Optional[ArchicadClient] = None) -> list[tuple[float, float]]:
+    """選択中のスラブから躯体外形ポリゴン[mm]を取得する."""
+    client = client or ArchicadClient()
+    elements = client.get_selected_elements()
     if not elements:
         raise TapirError("要素が選択されていません。躯体スラブ（外形）を選択してください")
-    details = _tapir(conn, "GetDetailsOfElements", {"elements": elements})
-    for det in details.get("detailsOfElements", []):
+    for det in client.get_details(elements):
         poly = _extract_polygon(det)
         if poly:
             return [(p[0] * 1000.0, p[1] * 1000.0) for p in poly]
@@ -61,9 +214,8 @@ def get_selected_outline_mm(conn=None) -> list[tuple[float, float]]:
 
 
 def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
-    """要素詳細からポリゴン座標を探す（要素種別によりキーが異なる）."""
     d = details.get("details", details)
-    for key in ("polygonOutline", "polygon", "coordinates", "outline"):
+    for key in ("polygonOutline", "polygonCoordinates", "polygon", "coordinates", "outline"):
         coords = d.get(key)
         if isinstance(coords, list) and len(coords) >= 3:
             pts = []
@@ -78,73 +230,32 @@ def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
 def place_scaffold_lines(
     model: ScaffoldModel,
     object_name: str = "ashiba_line",
-    conn=None,
-) -> list:
+    client: Optional[ArchicadClient] = None,
+) -> list[dict]:
     """割付結果の各辺に「足場ライン」オブジェクトを1つずつ配置する.
 
-    配置規約（GDL側と一致させる）: 原点=始点コーナー支柱、+X=辺方向。
+    配置規約（GDL側と一致）: 原点=始点コーナー支柱（内側建地列）、+X=辺方向、+Y=躯体側。
+    平面ループはCCWで躯体は進行方向左側 → 配置角は辺方向そのまま。
     """
-    conn = conn or _connect()
+    client = client or ArchicadClient()
     e = model.elevation
-    span_strs = []
-    placements = []
-    import math
-
-    for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
-        angle = math.atan2(edge.direction[1], edge.direction[0])
-        placements.append(
-            {
-                "objectName": object_name,
-                "coordinates": {
-                    "x": ep.start_post[0] / 1000.0,
-                    "y": ep.start_post[1] / 1000.0,
-                    "z": 0.0,
-                },
-                "angle": angle,
-            }
-        )
-        span_strs.append(",".join(str(s) for s in ep.spans))
-
-    created = _tapir(conn, "CreateObjects", {"objects": placements})
-    ids = created.get("elements", []) if isinstance(created, dict) else []
-    if len(ids) != len(placements):
-        raise TapirError(
-            f"オブジェクト配置数が一致しません: 要求{len(placements)} / 生成{len(ids)}"
-        )
-
     post_str = ",".join(str(p) for p in e.posts)
-    for elem, ep, span_str in zip(ids, model.plan.edges, span_strs):
-        params = [
-            {"name": "spanList", "value": span_str},
-            {"name": "postList", "value": post_str},
-            {"name": "jackOut", "value": e.jack_extension / 1000.0},
-            {"name": "komaPitch", "value": model.master.koma_pitch / 1000.0},
-            {"name": "floorH", "value": model.master.floor_height / 1000.0},
-            {"name": "standoff", "value": ep.standoff / 1000.0},
-        ]
-        _tapir(
-            conn,
-            "SetGDLParametersOfElements",
-            {"elements": [elem], "gdlParameters": params},
+    placed = []
+    for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
+        elem = client.create_object(object_name, ep.start_post[0], ep.start_post[1])
+        angle = math.atan2(edge.direction[1], edge.direction[0])
+        if abs(angle) > 1e-9:
+            client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
+        client.set_gdl_parameters(
+            elem,
+            {
+                "spanList": ",".join(str(s) for s in ep.spans),
+                "postList": post_str,
+                "jackOut": e.jack_extension / 1000.0,
+                "komaPitch": model.master.koma_pitch / 1000.0,
+                "floorH": model.master.floor_height / 1000.0,
+                "standoff": ep.standoff / 1000.0,
+            },
         )
-    return ids
-
-
-def get_post_ground_levels(model: ScaffoldModel, conn=None) -> list[dict]:
-    """敷地メッシュから各支柱位置のGL標高を取得（Phase 4の骨組み。未検証）.
-
-    メッシュが無い場合は全支柱 z=0 を返す。
-    """
-    positions = model.plan.post_positions()
-    try:
-        conn = conn or _connect()
-        # Tapir: GetTerrainHeight系コマンドは環境により無いことがある
-        return [
-            {"x": x, "y": y, "gl_mm": 0.0, "jack_mm": model.elevation.jack_extension}
-            for (x, y) in positions
-        ]
-    except TapirError:
-        return [
-            {"x": x, "y": y, "gl_mm": 0.0, "jack_mm": model.elevation.jack_extension}
-            for (x, y) in positions
-        ]
+        placed.append(elem)
+    return placed

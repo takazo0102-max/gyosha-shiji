@@ -1,0 +1,113 @@
+! ============================================================
+! 足場ライン 3Dスクリプト
+! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体側 +Y
+! ============================================================
+pen 1
+
+! ---- 支柱（各スパン境界に内外1対） ----
+x = 0
+for ip = 1 to nSpan + 1
+	for row = 0 to 1
+		add x, -row * rowW, 0
+		! ジャッキ
+		cylind jackOut, 0.0381 / 2
+		addz jackOut
+		! 支柱積み上げ
+		for j = 1 to nPost
+			cylind posts[j], r_sic
+			addz posts[j]
+		next j
+		del nPost + 2
+	next row
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! ---- 水平材（根がらみ＋各作業層） ----
+for il = 1 to nLv
+	z = lv[il]
+	x = 0
+	for ip = 1 to nSpan
+		! 内外の布材（床レベル）
+		for row = 0 to 1
+			add x, -row * rowW, z
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+		next row
+		! 外側手すり・中桟（作業層のみ）
+		if il > 1 then
+			add x, -rowW, z + 2 * komaPitch
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+			add x, -rowW, z + komaPitch
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+		endif
+		! 腕木（内外連結、-Y向き）
+		add x, 0, z
+		rotz -90
+		roty 90
+		cylind rowW, r_nuno
+		del 3
+		x = x + spans[ip]
+	next ip
+	! 終端の腕木
+	add x, 0, z
+	rotz -90
+	roty 90
+	cylind rowW, r_nuno
+	del 3
+next il
+
+! ---- 踏板・幅木 ----
+if showDeck then
+	for il = 2 to nLv
+		z = lv[il]
+		x = 0
+		for ip = 1 to nSpan
+			add x, -rowW + 0.05, z
+			block spans[ip], deckW1, 0.045
+			del 1
+			if deckW2 > 0 then
+				add x, -rowW + 0.05 + deckW1 + 0.02, z
+				block spans[ip], deckW2, 0.045
+				del 1
+			endif
+			! 幅木（外側）
+			add x, -rowW - 0.02, z + 0.045
+			block spans[ip], 0.02, 0.157
+			del 1
+			x = x + spans[ip]
+		next ip
+	next il
+endif
+
+! ---- ブレス（外側構面、スパンごとに交互方向） ----
+if showBrace then
+	for il = 1 to nLv - 1
+		z1 = lv[il]
+		z2 = lv[il + 1]
+		x = 0
+		for ip = 1 to nSpan
+			bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
+			ang = atn((z2 - z1) / spans[ip])
+			if ip - 2 * int(ip / 2) = 0 then
+				add x, -rowW - 0.05, z1
+				roty 90 - ang
+				cylind bl, 0.0213 / 2
+				del 2
+			else
+				add x + spans[ip], -rowW - 0.05, z1
+				mulx -1
+				roty 90 - ang
+				cylind bl, 0.0213 / 2
+				del 3
+			endif
+			x = x + spans[ip]
+		next ip
+	next il
+endif
+
+end

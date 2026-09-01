@@ -29,10 +29,14 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/quantity.py` | 数量拾い（従属部材ルール・重量・トラック概算・架け面積） |
 | `src/ashiba/report.py` | 数量表CSV・割付レポートMD・plan.json |
 | `src/ashiba/cli.py` | ワンクリック実行CLI |
-| `src/ashiba/tapir_adapter.py` | Archicad/Tapir接続（**実機未検証**） |
-| `gdl/ashiba_line.gdl` | 足場ラインオブジェクト（マスタ/2D/3Dスクリプト） |
+| `src/ashiba/tapir_adapter.py` | Archicad/Tapir接続（AC28+Tapir1.5.8 実機E2E検証済み） |
+| `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** |
+| `gdl/hsf/ashiba_line/` | 同GDLソース（HSF形式: paramlist + 1d/2d/3dスクリプト） |
+| `gdl/ashiba_line.gdl` | 同スクリプトの単一ファイル参照版 |
 | `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボル（参照実装） |
 | `scripts/run_from_archicad.py` | ツールバー割当用エントリ |
+| `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証） |
+| `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
 
 ## 使い方
 
@@ -46,11 +50,22 @@ PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 出力: `数量表.csv`（型番ベース・発注書兼用）/ `割付レポート.md`（平面割付・法規チェック・数量サマリ）/
 `plan.json`（GDL配置・再編集用の機械可読データ）
 
-### Archicadから（要 Tapir アドオン）
+### Archicadから（要 Tapir アドオン。AC28+Tapir1.5.8で実機検証済み）
 
-1. Tapirをインストールし、`gdl/ashiba_line.gdl` からオブジェクトを作成してライブラリに読込
+1. `gdl/ashiba_line.gsm` をライブラリマネージャで読込（または埋め込みライブラリへ追加）
 2. `scripts/run_from_archicad.py` の条件入力（系列・軒高・期間）を編集
 3. Tapirのスクリプト割当でツールバーボタン化 → 躯体スラブを選択して実行
+
+E2E確認は `python3 scripts/e2e_archicad_test.py`（テスト用スラブ作成→割付→
+4辺配置→角度・パラメータ検証→3D/2Dプレビュー保存まで自動実行）。
+
+### GDLの編集とコンパイル
+
+ソースは `gdl/hsf/ashiba_line/`（HSF形式）。LP_XMLConverter（GRAPHISOFT LibDev Toolkit）で
+`LP_XMLConverter hsf2libpart gdl/hsf/ashiba_line gdl/ashiba_line.gsm` としてGSM化する。
+開発イテレーションは `scripts/dev_gsm_iterate.py <版番号>` で
+コンパイル→埋め込みライブラリ注入→テスト配置→プレビュー画像化まで自動化済み
+（埋め込みライブラリは同名上書き不可のため版名を変えて追加する方式）。
 
 ## 割付エンジンの要点（開発指示書 §4 準拠）
 
@@ -89,8 +104,9 @@ cd ashiba
 - **MVP範囲**: 信和A系列・矩形/L型（直交90度コーナーのみ）。非直交は明示的に拒否
 - 部材の**単位重量はカタログ近似の概算値**。数量（本数）は割付から厳密だが、
   重量・トラック台数は概算。実運用前にマスタCSVの重量を自社データで差し替えること
-- `tapir_adapter.py` と GDL は **Archicad実機での検証が未実施**
-  （本開発環境にArchicadが無いため）。Tapirのコマンド応答形式に合わせた調整が必要
+- Tapir接続・GDL 3D/2D生成は Archicad 28 (Mac, Intel) + Tapir 1.5.8 でE2E検証済み。
+  他バージョンではTapirコマンドの応答形式差分に注意（実機の落とし穴メモは
+  `tapir_adapter.py` 冒頭のdocstringに集約）
 - 本ツールの出力は計画作成参画者（有資格者）が確認する前提の下書き
 
 ## ロードマップ

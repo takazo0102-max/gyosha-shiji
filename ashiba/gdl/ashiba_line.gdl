@@ -34,7 +34,7 @@ dim posts[20]
 ! ---- spanList をパース ----
 nSpan = 0
 rest = spanList
-do while strlen(rest) > 0 and nSpan < 30
+while strlen(rest) > 0 and nSpan < 30 do
     p = strstr(rest, ",")
     if p > 0 then
         item = strsub(rest, 1, p - 1)
@@ -46,12 +46,12 @@ do while strlen(rest) > 0 and nSpan < 30
     nSpan = nSpan + 1
     k = split(item, "%n", v)
     spans[nSpan] = v / 1000        ! mm → m
-enddo
+endwhile
 
 ! ---- postList をパース ----
 nPost = 0
 rest = postList
-do while strlen(rest) > 0 and nPost < 20
+while strlen(rest) > 0 and nPost < 20 do
     p = strstr(rest, ",")
     if p > 0 then
         item = strsub(rest, 1, p - 1)
@@ -63,7 +63,7 @@ do while strlen(rest) > 0 and nPost < 20
     nPost = nPost + 1
     k = split(item, "%n", v)
     posts[nPost] = v / 1000
-enddo
+endwhile
 
 ! ---- 派生値 ----
 lineLen = 0
@@ -78,10 +78,10 @@ nLevels = 0
 topFloor = postTop - 2 * komaPitch
 firstLedger = jackOut + komaPitch
 h = topFloor
-do while h > firstLedger + komaPitch
+while h > firstLedger + komaPitch do
     nLevels = nLevels + 1
     h = h - floorH
-enddo
+endwhile
 
 r_sic  = 0.0486 / 2   ! 支柱 φ48.6
 r_nuno = 0.0427 / 2   ! 布材 φ42.7

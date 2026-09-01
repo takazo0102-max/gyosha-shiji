@@ -3,7 +3,9 @@
 操作モデル（GLOOBE踏襲）:
   躯体スラブを選択 → このスクリプトを実行 → 足場ライン一括生成＋帳票出力
 
-⚠️ Archicad実機での動作検証は未実施。tapir_adapter.py の注意書きを参照。
+前提: gdl/ashiba_line.gsm をプロジェクトのライブラリに読込済みであること
+（配置パイプライン自体は Archicad 28 + Tapir 1.5.8 でE2E検証済み:
+ scripts/e2e_archicad_test.py）。
 """
 
 import sys
