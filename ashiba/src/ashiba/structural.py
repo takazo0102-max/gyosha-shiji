@@ -588,6 +588,16 @@ def run_structural(
             f"壁つなぎが耐力不足です（検定比{tie.ratio:.2f}）。"
             "壁つなぎ間隔を詰める、または高耐力品への変更を検討してください"
         )
+    # 壁つなぎ0本の面の風荷重は、この検定では誰も負担していない。
+    # 両隣の面へコーナー経由で伝わる前提になるので、そうと書いておく
+    untied = model.edges_without_wall_ties()
+    if untied:
+        warnings.append(
+            "壁つなぎが1本も入らない面があります（辺"
+            + "、".join(str(i) for i in untied)
+            + "）。この面の風荷重は本検定に含まれておらず、両隣の面の壁つなぎに"
+            "コーナー経由で伝わる前提です。単管等での別途拘束を検討してください"
+        )
     if not post.ok:
         remedy = "ジャッキ繰出し量の低減、支柱2本組、またはスパン短縮を検討してください"
         if post.extra_load_kn > 0:

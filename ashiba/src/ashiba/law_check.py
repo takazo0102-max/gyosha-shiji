@@ -175,6 +175,23 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
         problems.append(f"水平間隔{h_max:.0f}mm > 5500mm")
     if problems:
         return CheckResult(7, "壁つなぎ", NG, "、".join(problems), basis)
+    # 間隔が法規内でも、壁つなぎが1本も入らない面は別に挙げる。
+    # 間隔の最大値だけ見ていると、その面の存在が結果に出てこない
+    untied = m.edges_without_wall_ties()
+    if untied:
+        lengths = {
+            e.edge_index: e.scaffold_length for e in m.plan.edges
+        }
+        detail = "、".join(
+            f"辺{i}({lengths.get(i, 0):.0f}mm)" for i in untied
+        )
+        return CheckResult(
+            7, "壁つなぎ", WARN,
+            f"最大 垂直{v_max:.0f}mm×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）"
+            f"／壁つなぎが入らない面: {detail}。"
+            "両隣の面にコーナー経由で支持される前提です。単管等での別途拘束を検討してください",
+            basis,
+        )
     return CheckResult(
         7, "壁つなぎ", OK,
         f"最大 垂直{v_max:.0f}mm×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）", basis,

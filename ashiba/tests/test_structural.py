@@ -220,5 +220,51 @@ class TestWallTieOptimization(unittest.TestCase):
         self.assertTrue("高耐力" in opt.message or "養生材" in opt.message)
 
 
+class TestUntiedFaces(unittest.TestCase):
+    """壁つなぎが入らない面を黙って通さないこと."""
+
+    @staticmethod
+    def _model(outline):
+        master = load_master("shinwa_A")
+        plan = solve_plan(outline, master)
+        return ScaffoldModel(
+            master=master, plan=plan,
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(period_days=90),
+        )
+
+    def test_short_face_still_gets_a_tie(self):
+        """コーナーから1スパン空ける取り合いより、面を拘束する方が優先."""
+        m = self._model([
+            (0, 0), (20000, 0), (20000, 10000), (14000, 10000),
+            (14000, 7000), (6000, 7000), (6000, 10000), (0, 10000),
+        ])
+        self.assertEqual(m.edges_without_wall_ties(), [])
+
+    def test_single_span_face_is_reported(self):
+        """支柱が無く物理的に入らない面は、警告として必ず出す."""
+        from ashiba.law_check import check_wall_ties
+
+        m = self._model([(0, 0), (30000, 0), (30000, 900), (0, 900)])
+        self.assertTrue(m.edges_without_wall_ties())
+        check = check_wall_ties(m)
+        self.assertEqual(check.status, "WARN")
+        self.assertIn("壁つなぎが入らない面", check.message)
+
+    def test_structural_states_the_face_is_not_carried(self):
+        m = self._model([(0, 0), (30000, 0), (30000, 900), (0, 900)])
+        res = run_structural(m, take_off(m), SiteCondition())
+        self.assertTrue(
+            any("壁つなぎが1本も入らない面" in w for w in res.warnings),
+            res.warnings,
+        )
+
+    def test_tributaries_skip_untied_faces(self):
+        """支配面積に出てこない面がある＝その面の風荷重は検定外、という前提の確認."""
+        m = self._model([(0, 0), (30000, 0), (30000, 900), (0, 900)])
+        covered = {t.edge_index for t in tie_tributaries(m)}
+        self.assertTrue(set(m.edges_without_wall_ties()).isdisjoint(covered))
+
+
 if __name__ == "__main__":
     unittest.main()

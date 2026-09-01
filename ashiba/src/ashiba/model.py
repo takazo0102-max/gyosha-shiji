@@ -110,6 +110,17 @@ class ScaffoldModel:
             return FRAME_GUARD_RAIL_HEIGHT_MM
         return self.config.guard_rail_koma * self.master.koma_pitch
 
+    def edges_without_wall_ties(self) -> list[int]:
+        """壁つなぎが1本も無い辺の番号.
+
+        短い面は支柱が足りず壁つなぎを入れられないことがある。その面は
+        両隣の面の壁つなぎにコーナー経由で支持される前提になるが、
+        構造計算はその面の風荷重を誰にも負担させていない。黙って通さない
+        ために取り出せるようにしておく。
+        """
+        has = {t.edge_index for t in self.wall_ties}
+        return [e.edge_index for e in self.plan.edges if e.edge_index not in has]
+
     def wall_tie_max_spacing(self) -> tuple[float, float]:
         """壁つなぎの実配置から(垂直最大, 水平最大)間隔[mm]を返す."""
         if not self.wall_ties:
@@ -161,12 +172,27 @@ def generate_wall_ties(
         acc = [0.0]
         for s in e.spans:
             acc.append(acc[-1] + s)
+        interior = acc[1:-1]  # コーナー支柱そのものは除外
         candidates = [
             x
-            for x in acc[1:-1]  # コーナー支柱そのものは除外
+            for x in interior
             if x >= max(1800, e.spans[0]) and (e.scaffold_length - x) >= max(1800, e.spans[-1])
         ]
         if not candidates:
+            # コーナーから1スパン空ける取り合いの都合を満たせない短い面。
+            # ここで諦めるとその面が壁つなぎ0本になり、法規チェックも
+            # 構造計算もその面を見なくなる（黙って未拘束の面ができる）。
+            # 取り合いの都合より面を拘束する方が優先なので、中央寄りの
+            # 支柱に1本入れる。
+            if not interior:
+                continue
+            mid = e.scaffold_length / 2
+            picked = [min(interior, key=lambda x: abs(x - mid))]
+            for h in tie_levels:
+                for x in picked:
+                    ties.append(
+                        WallTie(edge_index=e.edge_index, position_mm=x, height_mm=h)
+                    )
             continue
         # step スパン毎に選ぶ（左右均等: 中央対称になるよう間引く）
         step = config.wall_tie_span_step
