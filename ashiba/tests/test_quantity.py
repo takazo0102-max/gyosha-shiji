@@ -6,7 +6,7 @@ from ashiba.elevation_solver import solve_elevation
 from ashiba.master import load_master
 from ashiba.model import ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
-from ashiba.quantity import take_off
+from ashiba.quantity import QuantityRules, take_off
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
 
@@ -45,10 +45,35 @@ class TestQuantity(unittest.TestCase):
             n_deck, self.plan.total_spans * self.elev.n_levels * 2
         )
 
-    def test_braces_from_faces(self):
-        # ブレスは1800スパンの構面数から
-        n1800 = sum(1 for e in self.plan.edges for s in e.spans if s == 1800)
-        self.assertEqual(self.q.qty_of("筋交"), n1800 * self.elev.n_levels)
+    def test_braces_use_standard_spacing(self):
+        """斜材は全構面ではなく設置間隔から算出する.
+
+        くさび式足場用斜材は「6層6スパン以下毎に交さ2方向」が基準。
+        全スパン×全層で拾うと1桁多く発注してしまう。
+        """
+        import math
+        rules = QuantityRules()
+        level_groups = math.ceil(self.elev.n_levels / rules.brace_every_levels)
+        expect = 0
+        for e in self.plan.edges:
+            fit = sum(1 for s in e.spans if s == 1800)
+            want = math.ceil(e.span_count / rules.brace_every_spans)
+            expect += min(want, fit) * level_groups
+        self.assertEqual(
+            self.q.qty_of("筋交"), expect * rules.braces_per_location
+        )
+
+    def test_brace_rule_is_stated_in_notes(self):
+        """どの間隔で拾ったかを数量表に残す（発注数量が大きく変わるため）."""
+        self.assertTrue(any("斜材は" in n and "交さ2方向" in n for n in self.q.notes))
+
+    def test_denser_bracing_is_configurable(self):
+        base = self.q.qty_of("筋交")
+        dense = take_off(
+            self.model,
+            rules=QuantityRules(brace_every_spans=1, brace_every_levels=1),
+        ).qty_of("筋交")
+        self.assertGreater(dense, base)
 
     def test_kake_menseki(self):
         # (外周100m+4m)×(高さ16m+0.5m)

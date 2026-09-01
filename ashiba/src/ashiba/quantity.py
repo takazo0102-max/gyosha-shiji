@@ -30,7 +30,11 @@ class QuantityRules:
     ledgers_per_level_floor: int = 2    # 作業層あたり床レベルの布材（内外）
     ledgers_negarami: int = 2           # 根がらみ（内外）
     udegi_nominal: int = 600            # 腕木の呼び寸法（内外建地間隔）
-    brace_per_face: int = 1             # 構面あたりブレス本数
+    # 斜材（ブレス）の設置間隔。くさび式足場用斜材は「6層6スパン以下毎に交さ2方向」が基準。
+    # 全スパン・全層に入れる会社もあるので、その場合は1/1にする（数量が大きく変わる）
+    brace_every_spans: int = 6
+    brace_every_levels: int = 6
+    braces_per_location: int = 2        # 交さ2方向＝1箇所にX形で2本
     truck_payload_kg: float = 3200.0    # 4t車の実効積載（積載効率0.8）
 
 
@@ -161,16 +165,33 @@ def take_off(
         for s, n in deck_span_counts.items():
             add(m.deck_parts(w, s), n * n_levels, f"踏板 幅{w}×{s}")
 
-    # ---- ブレス（構面数から自動算出。外側のみ） ----
+    # ---- 斜材（ブレス）: 6層6スパン以下毎に交さ2方向 ----
+    # 全スパン×全層に入れるのではなく設置間隔から算出する。
+    # 枠組の交差筋交とは考え方が違う（あちらは建枠と一体で構面を成すので全スパン）
     brace = next(iter(m.by_category("筋交")), None)
     if brace:
-        n_brace_spans = span_counts.get(brace.nominal_dim, 0)
-        add(brace, n_brace_spans * n_levels * rules.brace_per_face, "ブレス")
-        other = total_spans - n_brace_spans
-        if other > 0:
+        every_s = max(1, rules.brace_every_spans)
+        every_l = max(1, rules.brace_every_levels)
+        level_groups = math.ceil(n_levels / every_l) if n_levels else 0
+        n_locations = 0
+        shortfall = 0
+        for e in plan.edges:
+            # 斜材は規格スパン（1800）の構面に入れる
+            fit_bays = sum(1 for s in e.spans if s == brace.nominal_dim)
+            want = math.ceil(e.span_count / every_s) if e.span_count else 0
+            n_locations += min(want, fit_bays) * level_groups
+            shortfall += max(0, want - fit_bays) * level_groups
+        add(brace, n_locations * rules.braces_per_location, "斜材（ブレス）")
+        notes.append(
+            f"斜材は{every_s}スパン×{every_l}層以下毎に交さ2方向で計上"
+            f"（{n_locations}箇所×{rules.braces_per_location}本）。"
+            "全構面に入れる場合は QuantityRules の brace_every_spans/levels を1にしてください"
+        )
+        if shortfall > 0:
             notes.append(
-                f"1800以外のスパン{other}箇所はブレス規格外のため未計上"
-                "（布板ブレス等を別途検討）"
+                f"斜材を入れる規格スパン（{brace.nominal_dim}）が"
+                f"{shortfall}箇所分不足しています。"
+                "その区間は布板ブレス等の別手段を検討してください"
             )
 
     # ---- 幅木（各作業層 外側スパン毎） ----
@@ -331,6 +352,8 @@ def _count_frame_parts(
             add(part, n * n_levels, f"布板 幅{w}×{s}")
 
     # ---- 交差筋交（構面数×段数）。建枠間隔ごとに規格がある ----
+    # 枠組は交差筋交が建枠と一体で構面を成すため全スパン・全段に入る。
+    # くさび式の斜材（6層6スパン以下毎）とは考え方が違う
     for s, n in span_counts.items():
         brace = next(
             (p for p in m.by_category("筋交") if p.nominal_dim == s), None
