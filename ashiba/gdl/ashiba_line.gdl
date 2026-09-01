@@ -1,0 +1,250 @@
+! ============================================================
+! 足場ライン オブジェクト（くさび緊結式・1辺=1オブジェクト）
+! ------------------------------------------------------------
+! アーキテクチャ決定（開発指示書2.1）:
+!   部材1本ごとにオブジェクトを置かず、1つの辺を1つのGDLオブジェクトとし
+!   内部で支柱・布材・踏板・手すり・幅木・ブレスをパラメトリック生成する。
+!   Python側は割付を解いてこのオブジェクトを辺の数だけ置くのみ。
+!
+! 配置規約: 原点=始点コーナー支柱（外側建地列）、+X=辺方向、+Y=躯体側
+!
+! パラメータリスト（Archicadで定義するもの）:
+!   spanList  文字列  スパン構成 mm カンマ区切り 例 "1800,1800,1500"
+!   postList  文字列  支柱構成 mm 下から 例 "3600,3600,3600,1800,450"
+!   jackOut   長さ    ジャッキ繰り出し量      既定 0.100 (m)
+!   komaPitch 長さ    コマピッチ              既定 0.450 (A系列) / 0.475 (B系列)
+!   floorH    長さ    階高                    既定 1.800
+!   rowW      長さ    内外建地間隔            既定 0.600
+!   standoff  長さ    壁離れ（2D躯体線表示用）既定 0.300
+!   deckW1    長さ    踏板1幅                 既定 0.400
+!   deckW2    長さ    踏板2幅                 既定 0.250 (0で無し)
+!   showDeck  ブール  踏板表示                既定 ON
+!   showBrace ブール  ブレス表示              既定 ON
+!   showDim   ブール  2D寸法・注記表示        既定 ON
+!   serType   文字列  "A" / "B"               既定 "A"
+!   texSiz    実数    文字高(mm)              既定 2.5
+! ============================================================
+
+! ============================================================
+! ==== マスタースクリプト ====================================
+! ============================================================
+dim spans[30]
+dim posts[20]
+
+! ---- spanList をパース ----
+nSpan = 0
+rest = spanList
+do while strlen(rest) > 0 and nSpan < 30
+    p = strstr(rest, ",")
+    if p > 0 then
+        item = strsub(rest, 1, p - 1)
+        rest = strsub(rest, p + 1, strlen(rest) - p)
+    else
+        item = rest
+        rest = ""
+    endif
+    nSpan = nSpan + 1
+    k = split(item, "%n", v)
+    spans[nSpan] = v / 1000        ! mm → m
+enddo
+
+! ---- postList をパース ----
+nPost = 0
+rest = postList
+do while strlen(rest) > 0 and nPost < 20
+    p = strstr(rest, ",")
+    if p > 0 then
+        item = strsub(rest, 1, p - 1)
+        rest = strsub(rest, p + 1, strlen(rest) - p)
+    else
+        item = rest
+        rest = ""
+    endif
+    nPost = nPost + 1
+    k = split(item, "%n", v)
+    posts[nPost] = v / 1000
+enddo
+
+! ---- 派生値 ----
+lineLen = 0
+for i = 1 to nSpan
+    lineLen = lineLen + spans[i]
+next i
+postTop = jackOut
+for i = 1 to nPost
+    postTop = postTop + posts[i]
+next i
+nLevels = 0
+topFloor = postTop - 2 * komaPitch
+firstLedger = jackOut + komaPitch
+h = topFloor
+do while h > firstLedger + komaPitch
+    nLevels = nLevels + 1
+    h = h - floorH
+enddo
+
+r_sic  = 0.0486 / 2   ! 支柱 φ48.6
+r_nuno = 0.0427 / 2   ! 布材 φ42.7
+
+! ============================================================
+! ==== 3Dスクリプト ==========================================
+! ============================================================
+! 建地2列: 外側 y=0 / 内側 y=rowW
+pen 1
+
+! ---- 支柱（各スパン境界に内外1対、千鳥は交互構成） ----
+x = 0
+for ip = 1 to nSpan + 1
+    for row = 0 to 1
+        addy row * rowW
+        add x, 0, 0
+        ! ジャッキ
+        material "Metal - Steel"
+        cylind jackOut, 0.0381 / 2
+        addz jackOut
+        ! 支柱積み上げ
+        for j = 1 to nPost
+            cylind posts[j], r_sic
+            addz posts[j]
+        next j
+        del nPost + 1
+        del 1
+        del 1
+    next row
+    if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! ---- 水平材（根がらみ＋各作業層の床レベル・手すり・中桟） ----
+! レベル列を組み立てる
+! lv[1]=根がらみ、lv[2..]=作業床（下から上へ昇順）
+dim lv[40]
+lv[1] = firstLedger
+for il = 1 to nLevels
+    lv[il + 1] = topFloor - (nLevels - il) * floorH
+next il
+nLv = nLevels + 1
+
+for il = 1 to nLv
+    z = lv[il]
+    x = 0
+    for ip = 1 to nSpan
+        ! 内外の布材
+        for row = 0 to 1
+            add x, row * rowW, z
+            rotz 0
+            roty 90
+            cylind spans[ip], r_nuno
+            del 3
+        next row
+        ! 外側手すり・中桟（作業層のみ、根がらみ層は除く）
+        if il > 1 then
+            add x, 0, z + 2 * komaPitch
+            roty 90
+            cylind spans[ip], r_nuno
+            del 2
+            add x, 0, z + komaPitch
+            roty 90
+            cylind spans[ip], r_nuno
+            del 2
+        endif
+        ! 腕木（内外連結）
+        add x, 0, z
+        rotz 90
+        roty 90
+        cylind rowW, r_nuno
+        del 3
+        x = x + spans[ip]
+    next ip
+    ! 終端の腕木
+    add x, 0, z
+    rotz 90
+    roty 90
+    cylind rowW, r_nuno
+    del 3
+next il
+
+! ---- 踏板・幅木 ----
+if showDeck then
+    for il = 2 to nLv
+        z = lv[il]
+        x = 0
+        for ip = 1 to nSpan
+            add x, 0.05, z
+            block spans[ip], deckW1, 0.045
+            del 1
+            if deckW2 > 0 then
+                add x, 0.05 + deckW1 + 0.02, z
+                block spans[ip], deckW2, 0.045
+                del 1
+            endif
+            ! 幅木（外側）
+            add x, -0.02, z + 0.045
+            block spans[ip], 0.02, 0.157
+            del 1
+            x = x + spans[ip]
+        next ip
+    next il
+endif
+
+! ---- ブレス（外側構面、スパンごとに交互方向） ----
+if showBrace then
+    for il = 1 to nLv - 1
+        z1 = lv[il]
+        z2 = lv[il + 1]
+        x = 0
+        for ip = 1 to nSpan
+            bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
+            if ip - 2 * int(ip / 2) = 0 then
+                add x, -0.05, z1
+                rotz 0
+                roty 90 - atn((z2 - z1) / spans[ip])
+            else
+                add x + spans[ip], -0.05, z1
+                rotz 180
+                roty 90 - atn((z2 - z1) / spans[ip])
+            endif
+            cylind bl, 0.0213
+            del 3
+            x = x + spans[ip]
+        next ip
+    next il
+endif
+
+end
+
+! ============================================================
+! ==== 2Dスクリプト ==========================================
+! ============================================================
+define style "anno" "MS Pゴシック", texSiz, 1, 0
+set style "anno"
+pen 1
+
+! ---- 建地列（外・内）と支柱記号 ----
+line2 0, 0, lineLen, 0
+line2 0, rowW, lineLen, rowW
+x = 0
+for ip = 1 to nSpan + 1
+    circle2 x, 0, r_sic
+    circle2 x, rowW, r_sic
+    hotspot2 x, 0
+    if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! ---- 躯体面の参照線（離れ表示） ----
+line_type 3
+line2 0, rowW + standoff, lineLen, rowW + standoff
+line_type 1
+
+if not(showDim) then end
+
+! ---- スパン寸法 ----
+x = 0
+for ip = 1 to nSpan
+    text2 x + spans[ip] / 2, -0.25, str(spans[ip] * 1000, 5, 0)
+    line2 x, -0.15, x, -0.35
+    x = x + spans[ip]
+next ip
+line2 x, -0.15, x, -0.35
+text2 lineLen / 2, -0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+
+end

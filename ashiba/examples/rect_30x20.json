@@ -1,0 +1,14 @@
+{
+  "project_name": "サンプル矩形30x20",
+  "series_id": "shinwa_A",
+  "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "standoff": {"target": 300, "min": 250, "max": 350, "hard_min": 200},
+  "deck_widths": [400, 250],
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "n_stairs": 1
+}
