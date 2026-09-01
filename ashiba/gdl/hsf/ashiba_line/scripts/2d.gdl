@@ -1,12 +1,21 @@
+﻿! ============================================================
+! 足場ライン 2Dスクリプト（viewMode で平面／立面を切替）
+!   plan: 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体面 y=+standoff
+!   elev: X=面に沿った距離 / Y=GLからの高さ
 ! ============================================================
-! 足場ライン 2Dスクリプト
-! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体面 y=+standoff（参照線）
-! ============================================================
-define style "anno" "MS Pゴシック", texSiz, 1, 0
+define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
 set style "anno"
 pen 1
 
-! ---- 建地列（内・外）と支柱記号 ----
+if viewMode = "elev" then
+	gosub 200
+else
+	gosub 100
+endif
+end
+
+! ============================================================
+100: ! ---- 平面図 ----
 line2 0, 0, lineLen, 0
 line2 0, -rowW, lineLen, -rowW
 x = 0
@@ -19,14 +28,19 @@ next ip
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
 
-! ---- 躯体面の参照線（離れ表示） ----
+! 躯体面の参照線（離れ表示）
 line_type 3
 line2 0, standoff, lineLen, standoff
 line_type 1
 
-if not(showDim) then end
+! 壁つなぎ位置（平面でも位置が分かるよう大きめの丸で示す）
+for it = 1 to nTie
+	circle2 ties[it], standoff / 2, 0.09
+	line2 ties[it], 0, ties[it], standoff
+next it
 
-! ---- スパン寸法 ----
+if not(showDim) then return
+
 x = 0
 for ip = 1 to nSpan
 	text2 x + spans[ip] / 2, -rowW - 0.25, str(spans[ip] * 1000, 5, 0)
@@ -35,5 +49,128 @@ for ip = 1 to nSpan
 next ip
 line2 x, -rowW - 0.15, x, -rowW - 0.35
 text2 lineLen / 2, -rowW - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+return
 
-end
+! ============================================================
+200: ! ---- 立面図 ----
+! 作図順（実務）: GL・ジャッキ → 1段目 → 上へ積上げ → 壁つなぎ → 寸法・特記
+
+! GL と地盤ハッチ
+line2 -0.5, 0, lineLen + 0.5, 0
+gx = -0.45
+while gx < lineLen + 0.45 do
+	line2 gx, 0, gx - 0.08, -0.08
+	gx = gx + 0.12
+endwhile
+text2 -0.5, -0.22, "GL"
+
+! 各階FLの参照線（躯体との対応を見るため）
+line_type 3
+for ifl = 1 to nFL
+	line2 -0.3, fls[ifl], lineLen + 0.3, fls[ifl]
+	text2 lineLen + 0.35, fls[ifl], str(ifl, 1, 0) + "FL"
+next ifl
+line_type 1
+
+! 支柱（ジャッキ＋積上げ）と ジョイント位置
+x = 0
+for ip = 1 to nSpan + 1
+	! ジャッキ（敷板含む脚部）
+	rect2 x - 0.02, 0, x + 0.02, jackOut
+	line2 x - 0.06, 0, x + 0.06, 0
+	! 支柱
+	rect2 x - r_sic, jackOut, x + r_sic, postTop
+	! 縦継ぎ（ジョイント）位置に短い横線
+	jh = jackOut
+	for jp = 1 to nPost - 1
+		jh = jh + posts[jp]
+		line2 x - 0.05, jh, x + 0.05, jh
+	next jp
+	hotspot2 x, 0
+	hotspot2 x, postTop
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! 根がらみ（最下コマ）＝ lv[1]
+line2 0, lv[1], lineLen, lv[1]
+line2 0, lv[1] + 0.02, lineLen, lv[1] + 0.02
+
+! 各作業層: 布板・手すり・中桟・幅木
+for il = 2 to nLv
+	z = lv[il]
+	! 布板（作業床）
+	rect2 0, z, lineLen, z + 0.05
+	! 幅木
+	rect2 0, z + 0.05, lineLen, z + 0.05 + 0.157
+	! 手すり・中桟
+	line2 0, z + komaPitch, lineLen, z + komaPitch
+	line2 0, z + 2 * komaPitch, lineLen, z + 2 * komaPitch
+next il
+
+! ブレス（各構面・各層で交互向き）
+x = 0
+for ip = 1 to nSpan
+	for il = 1 to nLv - 1
+		if ip - 2 * int(ip / 2) = 0 then
+			line2 x, lv[il], x + spans[ip], lv[il + 1]
+		else
+			line2 x + spans[ip], lv[il], x, lv[il + 1]
+		endif
+	next il
+	x = x + spans[ip]
+next ip
+
+! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
+pen warnPen
+! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
+for it = 1 to nTiePair
+	circle2 ties[it], tieH[it], 0.12
+	line2 ties[it] - 0.08, tieH[it], ties[it] + 0.08, tieH[it]
+	line2 ties[it], tieH[it] - 0.08, ties[it], tieH[it] + 0.08
+next it
+pen 1
+
+if not(showDim) then return
+
+! ---- 高さ寸法（左側）: 各層と全高 ----
+dx = -0.35
+line2 dx, 0, dx, postTop
+for il = 1 to nLv
+	line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
+	text2 dx - txtH, lv[il], str(lv[il] * 1000, 6, 0)
+next il
+line2 dx - 0.06, postTop, dx + 0.06, postTop
+text2 dx - txtH, postTop, "H=" + str(postTop * 1000, 6, 0)
+text2 dx - txtH, jackOut / 2, "ジャッキ" + str(jackOut * 1000, 4, 0)
+
+! ---- スパン寸法（下側） ----
+dy = -0.45
+x = 0
+for ip = 1 to nSpan
+	text2 x + spans[ip] / 2, dy - txtLine, str(spans[ip] * 1000, 5, 0)
+	line2 x, dy, x, dy - 0.06
+	x = x + spans[ip]
+next ip
+line2 x, dy, x, dy - 0.06
+line2 0, dy, lineLen, dy
+text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
+
+! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
+tx = lineLen + 0.5
+ny = postTop
+text2 tx, ny, "立面図 " + faceName
+ny = ny - txtLine * 1.4
+text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+ny = ny - txtLine
+text2 tx, ny, "頭つなぎ: 最上段（同上）"
+ny = ny - txtLine
+text2 tx, ny, "内側: ブレース＋幅木"
+ny = ny - txtLine
+text2 tx, ny, "外側: ブレース＋手すり＋中桟"
+ny = ny - txtLine
+text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
+ny = ny - txtLine
+text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（○印）"
+ny = ny - txtLine
+text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
+return

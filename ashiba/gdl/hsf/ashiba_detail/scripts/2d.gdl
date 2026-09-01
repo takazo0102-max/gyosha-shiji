@@ -1,4 +1,4 @@
-! ============================================================
+﻿! ============================================================
 ! 足場 詳細図 2Dシンボル（5枚を detailType で切替）
 ! 法規チェックを図面上に埋め込む（違反時は警告ペンで赤字表示）
 ! ============================================================
@@ -109,17 +109,23 @@ text2 dimx - 0.02, (y_base + y_sic0) / 2,
 	"繰出し " + str(jackOut * 1000, 4, 0) + "≦" + str(LIM_JACK * 1000, 3, 0)
 
 ! 引出し注記
+! 引出し注記は文字高に追随させて行送りする（縮尺が変わっても重ならない）
 tx = 0.68
-line2 r_sic, 0.80, tx - 0.02, 0.80
-text2 tx, 0.80, "支柱 φ48.6"
-line2 0.50, y_koma, tx - 0.02, 0.70
-text2 tx, 0.70, "根がらみ φ42.7（最下コマ）"
-line2 0.03, y_sic0 - 0.025, tx - 0.02, 0.55
-text2 tx, 0.55, "ジャッキベース φ38.1"
-line2 0.06, 0.043, tx - 0.02, 0.45
-text2 tx, 0.45, "アンダーベース 140角"
-line2 0.40, 0.018, tx - 0.02, 0.35
-text2 tx, 0.35, "敷板"
+ny = 0.90
+line2 r_sic, ny, tx - 0.02, ny
+text2 tx, ny, "支柱 φ48.6"
+ny = ny - txtLine
+line2 0.50, y_koma, tx - 0.02, ny
+text2 tx, ny, "根がらみ φ42.7（最下コマ）"
+ny = ny - txtLine
+line2 0.03, y_sic0 - 0.025, tx - 0.02, ny
+text2 tx, ny, "ジャッキベース φ38.1"
+ny = ny - txtLine
+line2 0.06, 0.043, tx - 0.02, ny
+text2 tx, ny, "アンダーベース 140角"
+ny = ny - txtLine
+line2 0.40, 0.018, tx - 0.02, ny
+text2 tx, ny, "敷板"
 return
 
 ! ============================================================
@@ -183,12 +189,17 @@ line2 xout, dy - 0.02, xout, dy + 0.02
 text2 (xout + xin) / 2, dy - 0.05, str(rowW * 1000, 4, 0)
 
 tx = 0.45
-text2 tx, 0.42, "壁つなぎ φ27.2（伸縮式）"
-line2 xin / 2, r_tie, tx - 0.02, 0.40
-text2 tx, 0.30, "配置間隔 垂直" + str(tieV * 1000, 5, 0) + " × 水平" + str(tieH * 1000, 5, 0)
-text2 tx, 0.22, "（法定 垂直5000以下×水平5500以下）"
-text2 tx, 0.14, "コーナーから1.8m以上離して左右均等に配置"
-text2 tx, 0.06, "躯体側はアンカー、建地側は緊結クランプ"
+ny = 0.42
+line2 xin / 2, r_tie, tx - 0.02, ny
+text2 tx, ny, "壁つなぎ φ27.2（伸縮式）"
+ny = ny - txtLine
+text2 tx, ny, "配置間隔 垂直" + str(tieV * 1000, 5, 0) + " × 水平" + str(tieH * 1000, 5, 0)
+ny = ny - txtLine
+text2 tx, ny, "（法定 垂直5000以下×水平5500以下）"
+ny = ny - txtLine
+text2 tx, ny, "コーナーから1.8m以上離して左右均等に配置"
+ny = ny - txtLine
+text2 tx, ny, "躯体側はアンカー、建地側は緊結クランプ"
 return
 
 ! ============================================================
@@ -259,10 +270,14 @@ arc2 xout, 0, 0.30, 180 - asagaoAngle, 180
 text2 xout - 0.36, 0.10, str(asagaoAngle, 3, 0) + "°≧20°"
 
 tx = xwall + 0.35
-text2 tx, 1.45, "朝顔（防護棚）"
-text2 tx, 1.35, "高さ10m以上で1段、20m以上で2段"
-text2 tx, 1.25, "取付部は2スパン毎に壁つなぎを設置"
-text2 tx, 1.15, "外周から水平突出2m以上・水平面と20度以上"
+ny = 1.45
+text2 tx, ny, "朝顔（防護棚）"
+ny = ny - txtLine
+text2 tx, ny, "高さ10m以上で1段、20m以上で2段"
+ny = ny - txtLine
+text2 tx, ny, "取付部は2スパン毎に壁つなぎを設置"
+ny = ny - txtLine
+text2 tx, ny, "外周から水平突出2m以上・水平面と20度以上"
 return
 
 ! ============================================================
@@ -318,13 +333,20 @@ line2 0.28, yin, 0.32, yin
 text2 0.35, yin / 2, str(standoff * 1000, 4, 0)
 
 tx = 0.55
-text2 tx, yout - 0.10, "出隅は「回し」: 優先面の足場を直交面の外面まで延長し"
-text2 tx, yout - 0.20, "直交面の起点とする。くさび式はコマが4方向にあるため"
-text2 tx, yout - 0.30, "コーナー支柱1本を両面で共有できる"
-text2 tx, yout - 0.42, "端数はコーナーで受けず壁離れ（250〜350）で吸収する"
-text2 tx, yout - 0.52, "※コーナーで足場板の調整をしないこと"
-text2 tx, yout - 0.64, "壁つなぎはコーナーから1.8m以上離す（1スパン除外）"
-text2 tx, yout - 0.74, "踏板の余りを外側にはみ出させない"
+ny = yout - txtLine
+text2 tx, ny, "出隅は「回し」: 優先面の足場を直交面の外面まで延長し"
+ny = ny - txtLine
+text2 tx, ny, "直交面の起点とする。くさび式はコマが4方向にあるため"
+ny = ny - txtLine
+text2 tx, ny, "コーナー支柱1本を両面で共有できる"
+ny = ny - txtLine
+text2 tx, ny, "端数はコーナーで受けず壁離れ（250〜350）で吸収する"
+ny = ny - txtLine
+text2 tx, ny, "※コーナーで足場板の調整をしないこと"
+ny = ny - txtLine
+text2 tx, ny, "壁つなぎはコーナーから1.8m以上離す（1スパン除外）"
+ny = ny - txtLine
+text2 tx, ny, "踏板の余りを外側にはみ出させない"
 return
 
 ! ============================================================
@@ -398,20 +420,25 @@ line2 -0.33, hOpen, -0.27, hOpen
 text2 -0.36, hOpen / 2, "開口 " + str(hOpen * 1000, 5, 0)
 
 tx = beamSpan + 0.20
-text2 tx, hOpen + ht + 0.30, "トラス梁枠（" + str(nUp, 1, 0) + "スパン分の支柱を受ける）"
-text2 tx, hOpen + ht + 0.20, "梁枠上は積載荷重を低減し、両端支柱は補強すること"
-text2 tx, hOpen + ht + 0.10, "梁枠取付部の直近に壁つなぎを設置"
+ny = hOpen + ht + 3 * txtLine
+text2 tx, ny, "トラス梁枠（" + str(nUp, 1, 0) + "スパン分の支柱を受ける）"
+ny = ny - txtLine
+text2 tx, ny, "梁枠上は積載荷重を低減し、両端支柱は補強すること"
+ny = ny - txtLine
+text2 tx, ny, "梁枠取付部の直近に壁つなぎを設置"
 return
 
 ! ============================================================
 900: ! ---- 図面名と法規警告の表示 ----
 pen 1
-text2 0, -0.95, ttl
+wy = -0.95 - txtLine
+text2 0, wy, ttl
 if nWarn = 0 then return
 pen warnPen
-text2 0, -1.08, "【法規チェック警告】"
+wy = wy - txtLine * 1.4
+text2 0, wy, "【法規チェック警告】"
 for i = 1 to nWarn
-	text2 0, -1.08 - 0.10 * i, warnMsg[i]
+	text2 0, wy - txtLine * i, warnMsg[i]
 next i
 pen 1
 return

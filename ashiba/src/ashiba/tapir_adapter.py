@@ -355,3 +355,50 @@ def read_ground_model(client: Optional[ArchicadClient] = None):
         for sub in d.get("sublines", []) or []:
             take(sub.get("coordinates"))
     return GroundModel(points=points)
+
+
+def place_elevations(
+    model: ScaffoldModel,
+    object_name: str = "ashiba_line",
+    origin_mm: tuple[float, float] = (0.0, 0.0),
+    gap_mm: float = 4000.0,
+    floor_levels_mm: Optional[list[float]] = None,
+    face_names: Optional[list[str]] = None,
+    client: Optional[ArchicadClient] = None,
+) -> list[dict]:
+    """各面の立面図を横に並べて配置する（viewMode="elev"）.
+
+    実務の作図順（平面を固めてから立面を起こす）に合わせ、平面割付の結果を
+    そのまま渡す。壁つなぎは位置と高さの対で渡し、立面上は大きな丸印で示す。
+    """
+    client = client or ArchicadClient()
+    e = model.elevation
+    post_str = ",".join(str(p) for p in e.posts)
+    fl_str = ",".join(str(int(f)) for f in (floor_levels_mm or []))
+    placed = []
+    x = origin_mm[0]
+    for i, ep in enumerate(model.plan.edges):
+        ties = [t for t in model.wall_ties if t.edge_index == ep.edge_index]
+        elem = client.create_object(object_name, x, origin_mm[1])
+        client.set_gdl_parameters(
+            elem,
+            {
+                "viewMode": "elev",
+                "spanList": ",".join(str(s) for s in ep.spans),
+                "postList": post_str,
+                "jackOut": e.jack_extension / 1000.0,
+                "komaPitch": model.master.koma_pitch / 1000.0,
+                "floorH": model.master.floor_height / 1000.0,
+                "standoff": ep.standoff / 1000.0,
+                "tieList": ",".join(str(int(t.position_mm)) for t in ties),
+                "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
+                "flList": fl_str,
+                "faceName": (
+                    face_names[i] if face_names and i < len(face_names)
+                    else f"辺{ep.edge_index}"
+                ),
+            },
+        )
+        placed.append(elem)
+        x += ep.scaffold_length + gap_mm
+    return placed

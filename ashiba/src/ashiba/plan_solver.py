@@ -21,10 +21,20 @@ from .master import PartMaster
 
 @dataclass
 class StandoffSpec:
+    """壁離れの目標と許容範囲.
+
+    fall_protection_limit（300mm）は法規に基づく境界:
+    外壁施工後、建築物と足場の作業床との間隔は30cm以下とすること。
+    30cm以下が困難な場合は、手すりを設けるか安全帯を使用させる等の
+    墜落防止措置を講じる（足場からの墜落防止のための措置／安衛則）。
+    幾何学的に組める範囲（min〜max）とは別の基準なので独立に持つ。
+    """
+
     target: float = 300.0
     min: float = 250.0
     max: float = 350.0
     hard_min: float = 200.0  # 顧客最小値（これ未満は組めない）
+    fall_protection_limit: float = 300.0  # これを超えると墜落防止措置が必要
 
 
 @dataclass
@@ -170,7 +180,9 @@ def solve_plan(
         combo, d_solved = _solve_axis(grp, candidates, edges, spec, main_span)
         best_combo.update(combo)
         for idx, d in d_solved.items():
-            standoffs[idx] = d
+            # 最小二乗の解には微小な数値誤差が乗る。丸めずに閾値比較すると
+            # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
+            standoffs[idx] = round(d, 3)
 
     # 結果組み立て
     scaffold_verts = scaffold_loop_vertices(outline, standoffs)
@@ -186,6 +198,13 @@ def solve_plan(
             )
         elif d < spec.hard_min:
             remedy = f"離れ{d:.0f}mm < 顧客最小値{spec.hard_min:.0f}mm: スパン構成の見直しが必要です"
+        elif d > spec.fall_protection_limit:
+            # 組める範囲だが法規上の措置が要る帯。黙って通さない
+            remedy = (
+                f"離れ{d:.0f}mm > {spec.fall_protection_limit:.0f}mm: "
+                "外壁施工後の建物と作業床の間隔は30cm以下が原則です。"
+                "手すりの設置、または安全帯の使用等の墜落防止措置を講じてください"
+            )
         elif d < spec.min:
             # 顧客最小値は満たすが目標下限を下回る帯。躯体との干渉余裕が小さいので
             # 黙って通さず、現場で確認すべき旨を出す
@@ -265,8 +284,10 @@ def _solve_axis(
         dev = sum(abs(x - spec.target) for x in d)
         n_over = sum(1 for x in d if x > spec.max or x < spec.min)
         n_hard = sum(1 for x in d if x < spec.hard_min)
+        # 墜落防止措置が要る面（離れ30cm超）は少ないほどよい
+        n_fall = sum(1 for x in d if x > spec.fall_protection_limit)
         n_small = sum(_small_span_count(spans, main_span) for _s, spans in choice)
-        score = (n_hard, n_over, n_small, dev)
+        score = (n_hard, n_over, n_fall, n_small, dev)
         if best is None or score < best[0]:
             best = (score, choice, d)
 

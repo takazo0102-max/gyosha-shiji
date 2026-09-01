@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <ParamSection>
 	<ParamSectHeader>
 		<AutoHotspots>false</AutoHotspots>
@@ -81,6 +81,30 @@
 			<Description><![CDATA["系列 A/B"]]></Description>
 			<Value><![CDATA["A"]]></Value>
 		</String>
+		<String Name="viewMode">
+			<Description><![CDATA["2D表現 plan=平面 / elev=立面"]]></Description>
+			<Value><![CDATA["plan"]]></Value>
+		</String>
+		<String Name="tieList">
+			<Description><![CDATA["壁つなぎ位置 mm カンマ区切り（辺始点から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList">
+			<Description><![CDATA["壁つなぎ高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="flList">
+			<Description><![CDATA["各階FL高さ mm カンマ区切り（立面の参照線）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="faceName">
+			<Description><![CDATA["面の名称（立面図の図面名）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Integer Name="warnPen">
+			<Description><![CDATA["注記強調のペン番号 ペンテーブル依存"]]></Description>
+			<Value>20</Value>
+		</Integer>
 		<RealNum Name="texSiz">
 			<Description><![CDATA["文字高mm"]]></Description>
 			<Value>2.5</Value>

@@ -38,7 +38,25 @@ class TestPlanRect(unittest.TestCase):
         for d in self.plan.standoffs:
             self.assertGreaterEqual(d, 250)
             self.assertLessEqual(d, 350)
-        self.assertEqual(self.plan.warnings, [])
+
+    def test_over_300_requires_fall_protection(self):
+        """離れ30cm超は法規上、墜落防止措置が要る（許容範囲内でも黙って通さない）.
+
+        外壁施工後の建物と作業床の間隔は30cm以下が原則。
+        超える場合は手すり設置または安全帯使用等の措置。
+        """
+        for ep in self.plan.edges:
+            if ep.standoff > 300:
+                self.assertIsNotNone(ep.remedy, f"辺{ep.edge_index}が無警告")
+                self.assertIn("墜落防止", ep.remedy)
+            elif 250 <= ep.standoff <= 300:
+                self.assertIsNone(ep.remedy, f"辺{ep.edge_index}に不要な警告")
+
+    def test_max_300_spec_avoids_fall_protection(self):
+        """許容上限を300にすれば、墜落防止措置が要る面を出さずに解ける場合がある."""
+        plan = solve_plan(RECT, self.master, StandoffSpec(max=300.0, min=200.0))
+        for d in plan.standoffs:
+            self.assertLessEqual(d, 300)
 
     def test_span_geometry_consistency(self):
         # 各辺: sum(spans) == 躯体辺長 + 符号付き隣接離れ（真物のみ・切断なし）

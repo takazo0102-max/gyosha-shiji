@@ -1,27 +1,36 @@
-! ============================================================
+﻿! ============================================================
 ! 足場ライン マスタースクリプト（くさび緊結式・1辺=1オブジェクト）
 ! 配置規約: 原点=始点コーナー支柱（内側建地列）、+X=辺方向、+Y=躯体側
-!           外側建地列は y=-rowW、躯体面は y=+standoff
+! 2D表現は viewMode で切替: plan=平面 / elev=立面
+!
+! 文字列リストのパースは gosub にせずインラインで展開している。
+! マスタースクリプトでの gosub は動作しない環境があり、失敗すると
+! 2D/3Dとも一切描画されない（実機で確認済み）。
 ! ============================================================
 dim spans[30]
 dim posts[20]
+dim ties[80]
+dim tieH[80]
+dim fls[20]
 dim lv[42]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
 rest = spanList
 while strlen(rest) > 0 and nSpan < 30 do
-	p = strstr(rest, ",")
-	if p > 0 then
-		item = strsub(rest, 1, p - 1)
-		rest = strsub(rest, p + 1, strlen(rest) - p)
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
 	else
 		item = rest
 		rest = ""
 	endif
-	nSpan = nSpan + 1
 	k = split(item, "%n", v)
-	spans[nSpan] = v / 1000
+	if k > 0 then
+		nSpan = nSpan + 1
+		spans[nSpan] = v / 1000
+	endif
 endwhile
 if nSpan = 0 then
 	nSpan = 1
@@ -32,22 +41,81 @@ endif
 nPost = 0
 rest = postList
 while strlen(rest) > 0 and nPost < 20 do
-	p = strstr(rest, ",")
-	if p > 0 then
-		item = strsub(rest, 1, p - 1)
-		rest = strsub(rest, p + 1, strlen(rest) - p)
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
 	else
 		item = rest
 		rest = ""
 	endif
-	nPost = nPost + 1
 	k = split(item, "%n", v)
-	posts[nPost] = v / 1000
+	if k > 0 then
+		nPost = nPost + 1
+		posts[nPost] = v / 1000
+	endif
 endwhile
 if nPost = 0 then
 	nPost = 1
 	posts[1] = 3.6
 endif
+
+! ---- tieList をパース (mm→m) ----
+nTie = 0
+rest = tieList
+while strlen(rest) > 0 and nTie < 80 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTie = nTie + 1
+		ties[nTie] = v / 1000
+	endif
+endwhile
+
+! ---- tieHeightList をパース (mm→m) ----
+nTieH = 0
+rest = tieHeightList
+while strlen(rest) > 0 and nTieH < 80 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTieH = nTieH + 1
+		tieH[nTieH] = v / 1000
+	endif
+endwhile
+
+! ---- flList をパース (mm→m) ----
+nFL = 0
+rest = flList
+while strlen(rest) > 0 and nFL < 20 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nFL = nFL + 1
+		fls[nFL] = v / 1000
+	endif
+endwhile
 
 ! ---- 派生値 ----
 lineLen = 0
@@ -76,5 +144,14 @@ for il = 1 to nLevels
 next il
 nLv = nLevels + 1
 
+! 壁つなぎは位置と高さの対。短い方に合わせる
+nTiePair = nTie
+if nTieH < nTiePair then nTiePair = nTieH
+
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
 r_nuno = 0.0427 / 2	! 布材 φ42.7
+
+! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
+! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
+txtH = texSiz * GLOB_SCALE / 1000
+txtLine = txtH * 1.8

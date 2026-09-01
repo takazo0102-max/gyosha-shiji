@@ -42,6 +42,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     ArchicadClient,
     _extract_polygon,
     place_details,
+    place_elevations,
     place_scaffold_lines,
     read_ground_model,
 )
@@ -123,12 +124,20 @@ def main() -> None:
     placed += lines
     print(f"9. 足場ライン配置: {len(lines)}本")
 
+    elevs = place_elevations(
+        model, LINE_OBJECT, origin_mm=(300000, 250000),
+        floor_levels_mm=[3000, 6000, 9000, 12000, 15000],
+        face_names=["南面", "東面", "北面", "西面"], client=c,
+    )
+    placed += elevs
+    print(f"10. 立面図配置: {len(elevs)}面")
+
     sheets = required_details(model)
     details = place_details(
         model, sheets, DETAIL_OBJECT, origin_mm=(300000, 280000), client=c
     )
     placed += details
-    print(f"10. 詳細図配置: {len(details)}枚 "
+    print(f"11. 詳細図配置: {len(details)}枚 "
           f"({', '.join(d.key for d in sheets)})")
 
     # --- 6. 帳票 ---
@@ -142,11 +151,12 @@ def main() -> None:
         name, NotificationInfo(site_name="E2E検証"), sheets, terrain,
     )
     files = sorted(p.name for p in out.glob(f"{name}_*"))
-    print(f"11. 帳票出力: {len(files)}件 {files}")
+    print(f"12. 帳票出力: {len(files)}件 {files}")
     print(f"    設置届: {'要' if notification_required(model) else '不要'}")
 
     # --- 7. プレビュー ---
-    for label, elem in (("足場ライン", lines[0]), ("詳細図(脚部)", details[0])):
+    for label, elem in (("足場ライン", lines[0]), ("立面図", elevs[0]),
+                        ("詳細図(脚部)", details[0])):
         for img in ("3D", "2D") if label == "足場ライン" else ("2D",):
             resp = c.tapir(
                 "GetElementPreviewImage",
@@ -155,7 +165,7 @@ def main() -> None:
             )
             p = out / f"{label}_{img}.png"
             p.write_bytes(base64.b64decode(resp["previewImage"]))
-            print(f"12. プレビュー保存: {p.name}")
+            print(f"13. プレビュー保存: {p.name}")
 
     if not keep:
         c.delete_elements(placed)
