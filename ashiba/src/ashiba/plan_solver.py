@@ -37,6 +37,23 @@ class StandoffSpec:
     fall_protection_limit: float = 300.0  # これを超えると墜落防止措置が必要
 
 
+# 枠組足場のコーナー処理（仕様4.2の分岐）
+# くさび式: 端数は壁離れで吸収する（コーナーで足場板の調整をしない）
+# 枠組式  : 離れは固定し、端数はコーナーステップ・足場板で吸収する
+FRAME_CORNER_MIN_GAP_MM = 70    # 建枠を90度回して納めるのに要る最小隙間
+FRAME_CORNER_MAX_STEP_MM = 250  # コーナーステップで埋められる上限
+
+
+@dataclass
+class CornerStep:
+    """枠組のコーナーに生じる隙間（コーナーステップ・足場板で埋める）."""
+
+    corner_index: int        # 足場ループの頂点番号
+    gap_mm: float            # 隙間の大きさ
+    ok: bool                 # 70〜250mmに納まっているか
+    message: str = ""
+
+
 @dataclass
 class EdgePlan:
     edge_index: int
@@ -60,6 +77,7 @@ class PlanResult:
     standoffs: list[float]
     scaffold_vertices: list[tuple[float, float]]
     warnings: list[str] = field(default_factory=list)
+    corner_steps: list[CornerStep] = field(default_factory=list)  # 枠組のみ
 
     @property
     def total_posts(self) -> int:
@@ -136,6 +154,11 @@ def solve_plan(
     if not coins:
         raise ValidationError(f"系列 {master.series_id} にスパン用布材がありません")
     main_span = max(coins)
+
+    # 枠組は端数の逃がし先が違う（仕様4.2）。離れを固定し、
+    # 余りはコーナーステップで吸収する
+    if master.is_frame:
+        return _solve_plan_frame(outline, master, spec, coins)
 
     # 各辺の候補スパン合計: 離れが[min,max]のときに実現される長さ帯
     #   S_i = L_i + start_sign*d_prev + end_sign*d_next
@@ -333,3 +356,102 @@ def _lstsq_with_target(
                 f = m[r][col]
                 m[r] = [v - f * w for v, w in zip(m[r], m[col])]
     return [m[i][nvar] for i in range(nvar)]
+
+
+def _solve_plan_frame(
+    outline: Outline,
+    master: PartMaster,
+    spec: StandoffSpec,
+    coins: list[int],
+) -> PlanResult:
+    """枠組足場の平面割付（仕様4.2の分岐）.
+
+    くさび式は端数を壁離れで吸収するが、枠組は建枠が定尺で離れを動かしにくいため
+    **離れを固定し、余りをコーナーステップ・足場板で吸収する**。
+
+    さらに枠組はコーナーで建枠を90度回して納めるため、
+    直交する建枠どうしが干渉しない隙間（70mm以上）が要る。
+    余りが70mm未満になる場合は1スパン落として隙間を開ける。
+    """
+    edges = outline.edges
+    n = len(edges)
+    d = spec.target                      # 離れは全面固定
+    standoffs = [d] * n
+    min_span = min(coins)
+
+    plan_edges: list[EdgePlan] = []
+    warnings: list[str] = []
+    corner_steps: list[CornerStep] = []
+    scaffold_verts = scaffold_loop_vertices(outline, standoffs)
+
+    for e in edges:
+        # 離れ固定なので面の長さは一意に決まる
+        target_len = e.length + (e.start_sign + e.end_sign) * d
+        if target_len < min_span:
+            raise ValidationError(
+                f"辺{e.index}（躯体長{e.length:.0f}mm）は足場長{target_len:.0f}mmとなり、"
+                f"最小スパン{min_span}mmを下回ります。"
+                "その区間は足場を回り込ませず直線で通す（渡す）計画にしてください"
+            )
+        spans, gap = _frame_spans_and_gap(coins, target_len)
+        plan_edges.append(EdgePlan(
+            edge_index=e.index,
+            spans=spans,
+            scaffold_length=float(sum(spans)),
+            standoff=d,
+            owned_post_count=len(spans),
+            start_post=scaffold_verts[e.index],
+            end_post=scaffold_verts[(e.index + 1) % n],
+            remedy=None,
+        ))
+        # 余りは終点側のコーナーに出る
+        corner = (e.index + 1) % n
+        ok = FRAME_CORNER_MIN_GAP_MM <= gap <= FRAME_CORNER_MAX_STEP_MM
+        msg = ""
+        if gap < FRAME_CORNER_MIN_GAP_MM:
+            msg = (
+                f"コーナー{corner}: 隙間{gap:.0f}mm < {FRAME_CORNER_MIN_GAP_MM}mm。"
+                "建枠を90度回して納める余地がありません。"
+                "離れを広げるか、1スパン落としてコーナーステップで調整してください"
+            )
+        elif gap > FRAME_CORNER_MAX_STEP_MM:
+            msg = (
+                f"コーナー{corner}: 隙間{gap:.0f}mm > {FRAME_CORNER_MAX_STEP_MM}mm。"
+                "コーナーステップで埋めきれません。役物スパンの追加、"
+                "または離れの見直しが必要です"
+            )
+        corner_steps.append(CornerStep(corner, round(gap, 1), ok, msg))
+        if msg:
+            warnings.append(msg)
+
+    return PlanResult(
+        outline=outline,
+        edges=plan_edges,
+        standoffs=standoffs,
+        scaffold_vertices=scaffold_verts,
+        warnings=warnings,
+        corner_steps=corner_steps,
+    )
+
+
+def _frame_spans_and_gap(coins: list[int], target_len: float) -> tuple[list[int], float]:
+    """建枠のスパン構成と、コーナーに残る隙間を返す.
+
+    隙間は 70mm 以上（建枠の干渉回避）を満たす最小のものを選ぶ。
+    満たせる構成が無ければ、隙間が最小の構成を返す（呼び出し側で警告する）。
+    """
+    limit = int(target_len)
+    table = achievable_sums(coins, min(coins), max(limit, min(coins)))
+    candidates = [
+        (target_len - s, spans) for s, spans in table.items() if s <= target_len
+    ]
+    if not candidates:
+        # 最短構成しか置けない
+        return [min(coins)], target_len - min(coins)
+    fits = [c for c in candidates if c[0] >= FRAME_CORNER_MIN_GAP_MM]
+    if fits:
+        # 干渉を避けられる中で隙間が最小＝部材を最大限使う構成
+        gap, spans = min(fits, key=lambda c: (c[0], len(c[1])))
+    else:
+        gap, spans = min(candidates, key=lambda c: (abs(c[0]), len(c[1])))
+    return spans, gap

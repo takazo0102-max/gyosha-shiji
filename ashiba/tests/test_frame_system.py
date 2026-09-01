@@ -147,3 +147,67 @@ class TestFrameLawChecks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFrameCorners(unittest.TestCase):
+    """枠組のコーナー処理（仕様4.2の分岐）.
+
+    くさび式は端数を壁離れで吸収するが、枠組は建枠が定尺なので
+    離れを固定し、余りをコーナーステップで吸収する。
+    さらに建枠を90度回して納めるため70mm以上の隙間が要る。
+    """
+
+    LSHAPE = [(0, 0), (30000, 0), (30000, 12000),
+              (18000, 12000), (18000, 20000), (0, 20000)]
+
+    def test_standoff_is_fixed_not_adjusted(self):
+        """枠組は離れを動かさない（くさび式との違い）."""
+        from ashiba.plan_solver import StandoffSpec, solve_plan
+        m = load_master("waku")
+        plan = solve_plan(RECT, m, StandoffSpec(target=300.0))
+        self.assertEqual(set(plan.standoffs), {300.0})
+
+    def test_wedge_still_adjusts_standoff(self):
+        """くさび式は従来どおり離れで吸収する（分岐が効いていること）."""
+        from ashiba.plan_solver import solve_plan
+        plan = solve_plan(RECT, load_master("shinwa_A"))
+        self.assertGreater(len(set(plan.standoffs)), 1)
+
+    def test_corner_gap_at_least_70mm(self):
+        """建枠を90度回して納めるのに要る隙間を確保する."""
+        from ashiba.plan_solver import FRAME_CORNER_MIN_GAP_MM, solve_plan
+        m = load_master("waku")
+        for name, poly in (("矩形", RECT), ("L型", self.LSHAPE)):
+            with self.subTest(shape=name):
+                plan = solve_plan(poly, m)
+                self.assertTrue(plan.corner_steps)
+                for cs in plan.corner_steps:
+                    self.assertGreaterEqual(cs.gap_mm, FRAME_CORNER_MIN_GAP_MM)
+
+    def test_oversized_gap_is_flagged(self):
+        """コーナーステップで埋めきれない隙間は黙って通さない."""
+        from ashiba.plan_solver import FRAME_CORNER_MAX_STEP_MM, solve_plan
+        plan = solve_plan(self.LSHAPE, load_master("waku"))
+        over = [cs for cs in plan.corner_steps
+                if cs.gap_mm > FRAME_CORNER_MAX_STEP_MM]
+        for cs in over:
+            self.assertFalse(cs.ok)
+            self.assertIn("コーナーステップ", cs.message)
+            self.assertTrue(any(cs.message == w for w in plan.warnings))
+
+    def test_spans_fit_within_target_length(self):
+        """スパン合計は離れ固定で決まる面長を超えない（超えると躯体に当たる）."""
+        from ashiba.plan_solver import solve_plan
+        m = load_master("waku")
+        plan = solve_plan(RECT, m)
+        for ep, e in zip(plan.edges, plan.outline.edges):
+            target = e.length + (e.start_sign + e.end_sign) * ep.standoff
+            self.assertLessEqual(sum(ep.spans), target + 1e-6)
+
+    def test_one_corner_step_per_corner(self):
+        plan = solve_plan(self.LSHAPE, load_master("waku"))
+        self.assertEqual(len(plan.corner_steps), len(plan.edges))
+        self.assertEqual(
+            sorted(cs.corner_index for cs in plan.corner_steps),
+            list(range(len(plan.edges))),
+        )

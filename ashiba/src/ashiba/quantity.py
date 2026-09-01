@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 from .master import Part, PartMaster
-from .model import ScaffoldModel
+from .model import GUARD_RAIL_ADVANCE, ScaffoldModel
 
 if TYPE_CHECKING:
     from .stairs import StairPlan
@@ -116,9 +116,13 @@ def take_off(
     add(under, n_posts, "アンダーベース")
 
     # ---- 布材（スパン方向: 根がらみ＋床レベル＋手すり・中桟） ----
+    # 手すり方式で外側の手すり・中桟の拾い方が変わる。
+    # 先行手すり工法は専用部材（手すり＋斜材が一体）が布材2本を置き換える
+    advance_rail = model.config.guard_rail_type == GUARD_RAIL_ADVANCE
+    rails_outer = 0 if advance_rail else rules.rails_per_level_outer
     per_span_rails = (
         rules.ledgers_negarami
-        + n_levels * (rules.ledgers_per_level_floor + rules.rails_per_level_outer)
+        + n_levels * (rules.ledgers_per_level_floor + rails_outer)
     )
     span_counts: dict[int, int] = {}
     for e in plan.edges:
@@ -126,6 +130,18 @@ def take_off(
             span_counts[s] = span_counts.get(s, 0) + 1
     for s, n in span_counts.items():
         add(m.find("布材", s), n * per_span_rails, f"布材{s}")
+
+    # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
+    if advance_rail:
+        for s, n in span_counts.items():
+            part = m.find("先行手摺", s)
+            if part is None:
+                notes.append(
+                    f"先行手摺{s}がマスタにありません（{n * n_levels}本）。"
+                    "この寸法は布材による手すり＋中桟で計画してください"
+                )
+                continue
+            add(part, n * n_levels, f"先行手摺{s}")
 
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
@@ -166,13 +182,20 @@ def take_off(
     kt = next(iter(m.by_category("壁つなぎ")), None)
     add(kt, len(model.wall_ties), "壁つなぎ")
 
-    # ---- 階段（自動配置があればその箇所数、なければ設定値） ----
+    # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
+    landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (
         stair_plan.count if stair_plan is not None and stair_plan.towers
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段")
+    # 昇降階段は2層以下毎に踊り場を設ける
+    n_landings = (
+        stair_plan.total_landings if stair_plan is not None and stair_plan.towers
+        else 0
+    )
+    add(landing, n_landings, "踊り場（2層以下毎）")
 
     # ---- 朝顔（設置段数×外周スパン数。受けブラケットと方杖は支柱位置ごと） ----
     asagao = model.config.asagao
@@ -327,11 +350,17 @@ def _count_frame_parts(
     kt = next(iter(m.by_category("壁つなぎ")), None)
     add(kt, len(model.wall_ties), "壁つなぎ")
     stair = next(iter(m.by_category("階段")), None)
+    landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (
         stair_plan.count if stair_plan is not None and stair_plan.towers
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段枠")
+    add(
+        landing,
+        stair_plan.total_landings if stair_plan is not None and stair_plan.towers else 0,
+        "踊り場（2層以下毎）",
+    )
 
     # ---- 朝顔 ----
     asagao = model.config.asagao

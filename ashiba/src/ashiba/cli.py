@@ -32,7 +32,12 @@ from .brackets import BracketSection, validate_bracket_sections
 from .elevation_solver import solve_elevation
 from .law_check import required_asagao_stages, run_all_checks, summary
 from .master import load_master
-from .model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
+from .model import (
+    GUARD_RAIL_LEDGER,
+    AsagaoSpec,
+    ScaffoldConfig,
+    ScaffoldModel,
+)
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -47,7 +52,12 @@ from .report import (
     write_quantity_csv,
     write_report_md,
 )
-from .stairs import DEFAULT_MAX_TRAVEL_MM, auto_place_stairs, validate_stairs
+from .stairs import (
+    DEFAULT_MAX_TRAVEL_MM,
+    auto_place_stairs,
+    place_stairs_at,
+    validate_stairs,
+)
 from .structural import SiteCondition, optimize_wall_ties, run_structural
 from .terrain import GroundModel, solve_post_feet
 
@@ -69,6 +79,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
         next_gen=spec.get("next_gen", False),
+        guard_rail_type=spec.get("guard_rail_type", GUARD_RAIL_LEDGER),
         n_stairs=spec.get("n_stairs", 1),
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height),
@@ -198,12 +209,21 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
     st = spec.get("stairs", {})
-    stair_plan = auto_place_stairs(
-        model,
-        max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
-        tower_spans=st.get("tower_spans", 2),
-        count=st.get("count"),
-    )
+    if st.get("positions"):
+        # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
+        stair_plan = place_stairs_at(
+            model,
+            st["positions"],
+            tower_spans=st.get("tower_spans", 2),
+            max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
+        )
+    else:
+        stair_plan = auto_place_stairs(
+            model,
+            max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
+            tower_spans=st.get("tower_spans", 2),
+            count=st.get("count"),
+        )
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
@@ -276,9 +296,11 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             "count": stair_plan.count,
             "required_count": stair_plan.required_count,
             "max_travel_m": round(stair_plan.max_travel_mm / 1000.0, 1),
+            "landings": stair_plan.total_landings,
+            "manual": any(t.manual for t in stair_plan.towers),
             "positions": [
                 {"edge_index": t.edge_index, "start_mm": round(t.start_mm),
-                 "spans": t.span_count}
+                 "spans": t.span_count, "manual": t.manual}
                 for t in stair_plan.towers
             ],
         },

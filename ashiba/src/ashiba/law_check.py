@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from .elevation_solver import JACK_MAX_EXTENSION
 from .master import SeriesLockError
-from .model import ScaffoldModel
+from .model import GUARD_RAIL_ADVANCE, ScaffoldModel
 
 OK = "OK"
 WARN = "WARN"
@@ -108,11 +108,13 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
     h = m.guard_rail_height_mm
     if h < 850:
         return CheckResult(3, "手すり", NG, f"手すり高さ{h}mm < 850mm", basis)
-    if not m.config.has_midrail:
+    # 先行手摺は手すりと斜材が一体で、中桟の機能を兼ねる
+    advance = m.config.guard_rail_type == GUARD_RAIL_ADVANCE
+    if not advance and not m.config.has_midrail:
         return CheckResult(3, "手すり", NG, f"手すり高さ{h}mmだが中桟がありません", basis)
     problems = []
     mh = m.config.midrail_height_mm
-    if not (350 <= mh <= 500):
+    if not advance and not (350 <= mh <= 500):
         problems.append(f"中桟高さ{mh}mm が35〜50cmの範囲外")
     if m.config.has_toe_board and m.config.toe_board_height_mm < 100:
         problems.append(
@@ -120,12 +122,11 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
         )
     if problems:
         return CheckResult(3, "手すり", NG, "、".join(problems), basis)
-    return CheckResult(
-        3, "手すり", OK,
-        f"手すり高さ{h}mm＋中桟{mh}mm"
-        + (f"＋幅木{m.config.toe_board_height_mm}mm" if m.config.has_toe_board else ""),
-        basis,
-    )
+    detail = f"手すり高さ{h}mm＋" + ("先行手摺（斜材が中桟を兼ねる）" if advance
+                                    else f"中桟{mh}mm")
+    if m.config.has_toe_board:
+        detail += f"＋幅木{m.config.toe_board_height_mm}mm"
+    return CheckResult(3, "手すり", OK, detail, basis)
 
 
 # ---- #4 第一の布 ---------------------------------------------------------

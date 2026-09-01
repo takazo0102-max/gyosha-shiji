@@ -63,6 +63,7 @@ def write_report_md(
     a(f"- 千鳥用代替構成: " + " + ".join(str(p) for p in e.posts_alt)
       + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
     a(f"- 1層あたり支柱位置数: {model.plan.total_posts}（二重計上なし）")
+    a(f"- 手すり方式: {model.config.guard_rail_type}")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
                     if notification_required(model) else "不要"))
     a("")
@@ -74,6 +75,15 @@ def write_report_md(
         spans = "+".join(str(s) for s in ep.spans)
         a(f"| {ep.edge_index} | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
+    if model.plan.corner_steps:
+        a("")
+        a("## コーナーステップ（枠組: 離れ固定で余りをコーナーで吸収）")
+        a("")
+        a("| コーナー | 隙間 | 判定 | 備考 |")
+        a("|---|---|---|---|")
+        for cs in model.plan.corner_steps:
+            a(f"| {cs.corner_index} | {cs.gap_mm:.0f}mm | "
+              f"{'OK' if cs.ok else 'NG'} | {cs.message or '建枠70mm以上・ステップ250mm以内'} |")
     a("")
     a("## 法規チェック")
     a("")

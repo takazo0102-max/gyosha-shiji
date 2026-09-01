@@ -16,6 +16,10 @@ from .plan_solver import PlanResult
 # 枠組足場の建枠が兼ねる手すりの高さ（作業床から。安衛則563条の85cm以上を満たす）
 FRAME_GUARD_RAIL_HEIGHT_MM = 900
 
+# 手すり方式
+GUARD_RAIL_ADVANCE = "先行手すり"   # 先行手摺部材（手すり＋斜材が一体）
+GUARD_RAIL_LEDGER = "布材"          # 布材で手すり＋中桟を組む
+
 
 @dataclass
 class AsagaoSpec:
@@ -41,6 +45,9 @@ class ScaffoldConfig:
     next_gen: bool = False                 # 次世代足場（くさび派生・踏板幅500）
     deck_gap_mm: int = 20                  # 床材間の隙間
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間
+    # 手すり方式: 先行手すり工法か、布材（手すり＋中桟）か
+    # ビル工事用は原則として手すり先行工法（特別教育テキスト）
+    guard_rail_type: str = GUARD_RAIL_LEDGER
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
     guard_rail_height_mm: Optional[int] = None  # 直接指定する場合（枠組等）
     has_midrail: bool = True               # 中桟

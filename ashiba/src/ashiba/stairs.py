@@ -18,8 +18,9 @@ from typing import Optional
 
 from .model import ScaffoldModel
 
-DEFAULT_MAX_TRAVEL_MM = 30000   # 昇降設備までの水平移動距離の目安
+DEFAULT_MAX_TRAVEL_MM = 30000    # 昇降設備までの水平移動距離の目安
 MIN_HEIGHT_FOR_STAIRS_MM = 1500  # 安衛則526条
+LANDING_EVERY_LEVELS = 2         # 昇降階段は2層以下毎に踊り場を設ける
 
 
 @dataclass
@@ -32,6 +33,7 @@ class StairTower:
     length_mm: float         # 占有長さ
     loop_position_mm: float  # ループ全体での位置（移動距離の計算用）
     reason: str = ""
+    manual: bool = False     # 利用者が位置を指定したものか
 
     @property
     def end_mm(self) -> float:
@@ -43,11 +45,16 @@ class StairPlan:
     towers: list[StairTower] = field(default_factory=list)
     max_travel_mm: float = 0.0     # 実配置での最大水平移動距離
     required_count: int = 0
+    landings_per_tower: int = 0    # 1箇所あたりの踊り場数（2層以下毎）
     warnings: list[str] = field(default_factory=list)
 
     @property
     def count(self) -> int:
         return len(self.towers)
+
+    @property
+    def total_landings(self) -> int:
+        return self.count * self.landings_per_tower
 
 
 def auto_place_stairs(
@@ -62,6 +69,7 @@ def auto_place_stairs(
     移動距離が max_travel_mm 以下になる最小箇所数を自動で決める。
     """
     plan = StairPlan()
+    plan.landings_per_tower = landings_per_tower(model)
     if model.scaffold_height_mm <= MIN_HEIGHT_FOR_STAIRS_MM:
         plan.warnings.append(
             f"足場高さ{model.scaffold_height_mm}mm ≦ {MIN_HEIGHT_FOR_STAIRS_MM}mm のため"
@@ -102,6 +110,101 @@ def auto_place_stairs(
             f"目安{max_travel_mm / 1000:.0f}mを超えます（{need + 1}箇所以上を検討）"
         )
     return plan
+
+
+def landings_per_tower(model: ScaffoldModel, every_levels: int = LANDING_EVERY_LEVELS) -> int:
+    """1箇所あたりの踊り場数（昇降階段は2層以下毎に踊り場を設ける）."""
+    n = model.elevation.n_levels
+    if n <= 0 or every_levels <= 0:
+        return 0
+    # 2層登るごとに踊り場。最上層に着いたところは作業床なので数えない
+    return max(0, (n - 1) // every_levels)
+
+
+def place_stairs_at(
+    model: ScaffoldModel,
+    positions: list[dict],
+    tower_spans: int = 2,
+    max_travel_mm: float = DEFAULT_MAX_TRAVEL_MM,
+    landing_every_levels: int = LANDING_EVERY_LEVELS,
+) -> StairPlan:
+    """階段室の位置を指定して配置する.
+
+    positions: [{"edge_index": 0, "start_mm": 3600, "span_count": 2}, ...]
+    start_mm は辺の始点コーナー支柱からの距離。スパン境界に丸める
+    （階段室は支柱間に納まる必要があるため）。
+
+    自動配置と同じ検証（移動距離・重なり）を通すので、
+    指定位置が実務指針を外れていれば警告が出る。
+    """
+    plan = StairPlan()
+    plan.landings_per_tower = landings_per_tower(model, landing_every_levels)
+    if model.scaffold_height_mm <= MIN_HEIGHT_FOR_STAIRS_MM:
+        plan.warnings.append(
+            f"足場高さ{model.scaffold_height_mm}mm ≦ {MIN_HEIGHT_FOR_STAIRS_MM}mm のため"
+            "昇降設備は不要です（安衛則526条）"
+        )
+        return plan
+
+    loop_len = sum(ep.scaffold_length for ep in model.plan.edges)
+    plan.required_count = max(1, math.ceil(loop_len / (2 * max_travel_mm)))
+
+    for i, pos in enumerate(positions):
+        ei = pos.get("edge_index")
+        edge = next((e for e in model.plan.edges if e.edge_index == ei), None)
+        if edge is None:
+            plan.warnings.append(f"階段{i + 1}: 辺{ei}は存在しません")
+            continue
+        spans_n = pos.get("span_count", tower_spans)
+        snapped = _snap_to_span(edge, float(pos.get("start_mm", 0)), spans_n)
+        if snapped is None:
+            plan.warnings.append(
+                f"階段{i + 1}: 辺{ei}に{spans_n}スパン連続の区間を確保できません"
+                f"（面長{edge.scaffold_length:.0f}mm・{edge.span_count}スパン）"
+            )
+            continue
+        start, length = snapped
+        requested = float(pos.get("start_mm", 0))
+        if abs(start - requested) > 1:
+            plan.warnings.append(
+                f"階段{i + 1}: 指定位置{requested:.0f}mmを"
+                f"スパン境界の{start:.0f}mmに丸めました（支柱間に納めるため）"
+            )
+        acc = sum(
+            e.scaffold_length for e in model.plan.edges if e.edge_index < ei
+        )
+        plan.towers.append(StairTower(
+            edge_index=ei, start_mm=start, span_count=spans_n, length_mm=length,
+            loop_position_mm=acc + start, manual=True,
+            reason=pos.get("reason", "利用者が位置を指定"),
+        ))
+
+    plan.max_travel_mm = actual_max_travel(plan.towers, loop_len)
+    if plan.towers and plan.max_travel_mm > max_travel_mm:
+        plan.warnings.append(
+            f"指定された{len(plan.towers)}箇所では最大水平移動距離が"
+            f"{plan.max_travel_mm / 1000:.1f}mとなり"
+            f"目安{max_travel_mm / 1000:.0f}mを超えます"
+            f"（{plan.required_count}箇所以上を推奨）"
+        )
+    return plan
+
+
+def _snap_to_span(edge, start_mm: float, tower_spans: int):
+    """指定位置に最も近いスパン境界へ丸め、そこから tower_spans 分の区間を返す."""
+    spans = edge.spans
+    if len(spans) < tower_spans:
+        return None
+    starts = [0.0]
+    for s in spans:
+        starts.append(starts[-1] + s)
+    candidates = [
+        (starts[i], sum(spans[i:i + tower_spans]))
+        for i in range(0, len(spans) - tower_spans + 1)
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda c: abs(c[0] - start_mm))
 
 
 def actual_max_travel(towers: list[StairTower], loop_len_mm: float) -> float:
