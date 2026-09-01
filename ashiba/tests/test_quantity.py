@@ -75,6 +75,17 @@ class TestQuantity(unittest.TestCase):
         ).qty_of("筋交")
         self.assertGreater(dense, base)
 
+    def test_landings_counted_without_a_stair_plan(self):
+        """階段を計上したのに踊り場だけ0本になると必須部材が発注から抜ける."""
+        from ashiba.stairs import landings_per_tower
+
+        self.model.config.n_stairs = 2
+        q = take_off(self.model)
+        self.assertGreater(q.qty_of("階段"), 0)
+        self.assertEqual(
+            q.qty_of("踊り場"), landings_per_tower(self.model) * 2
+        )
+
     def test_kake_menseki(self):
         # (外周100m+4m)×(高さ16m+0.5m)
         self.assertAlmostEqual(self.q.kake_menseki_m2, 104 * 16.5, delta=0.1)

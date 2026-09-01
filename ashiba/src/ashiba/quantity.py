@@ -211,12 +211,9 @@ def take_off(
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段")
-    # 昇降階段は2層以下毎に踊り場を設ける
-    n_landings = (
-        stair_plan.total_landings if stair_plan is not None and stair_plan.towers
-        else 0
-    )
-    add(landing, n_landings, "踊り場（2層以下毎）")
+    # 昇降階段は2層以下毎に踊り場を設ける。階段を計上したのに踊り場だけ0本に
+    # なると、必須部材が黙って発注から抜ける
+    add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
 
     # ---- 朝顔（設置段数×外周スパン数。受けブラケットと方杖は支柱位置ごと） ----
     asagao = model.config.asagao
@@ -251,6 +248,19 @@ def take_off(
             add(part, qty, f"ブラケット{width}（{purpose}）")
 
     return _assemble(model, rules, counts, parts, notes)
+
+
+def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
+    """踊り場の本数.
+
+    stair_plan があればその配置から、無ければ階段箇所数×1箇所あたりの段数で
+    求める。階段を計上しているのに踊り場だけ0本になるのを防ぐ。
+    """
+    if stair_plan is not None and stair_plan.towers:
+        return stair_plan.total_landings
+    from .stairs import landings_per_tower
+
+    return landings_per_tower(model) * n_towers
 
 
 def _assemble(
@@ -379,11 +389,7 @@ def _count_frame_parts(
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段枠")
-    add(
-        landing,
-        stair_plan.total_landings if stair_plan is not None and stair_plan.towers else 0,
-        "踊り場（2層以下毎）",
-    )
+    add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
 
     # ---- 朝顔 ----
     asagao = model.config.asagao

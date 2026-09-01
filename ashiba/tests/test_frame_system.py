@@ -145,6 +145,41 @@ class TestFrameLawChecks(unittest.TestCase):
         self.assertEqual(m.guard_rail_height_mm, 1000)
 
 
+class TestFrameSpecificRules(unittest.TestCase):
+    """安衛則は足場の種類で条文が違う。枠組に単管の値を当てない."""
+
+    def test_wall_tie_limits_differ_by_system(self):
+        frame = build_frame()
+        wedge_master = load_master("shinwa_A")
+        wedge = ScaffoldModel(
+            master=wedge_master, plan=solve_plan(RECT, wedge_master),
+            elevation=solve_elevation(16300, master=wedge_master),
+            config=ScaffoldConfig(),
+        )
+        self.assertEqual(frame.wall_tie_limits()[:2], (9000.0, 8000.0))
+        self.assertEqual(wedge.wall_tie_limits()[:2], (5000.0, 5500.0))
+        self.assertIn("わく組足場", frame.wall_tie_limits()[2])
+
+    def test_low_frame_scaffold_uses_the_stricter_limit(self):
+        """わく組の緩和は高さ5m以上のみ（570条1項五号イの括弧書き）."""
+        low = build_frame(height=4000)
+        self.assertLess(low.scaffold_height_mm, 5000)
+        self.assertEqual(low.wall_tie_limits()[:2], (5000.0, 5500.0))
+
+    def test_post_spacing_check_uses_frame_clause(self):
+        from ashiba.law_check import check_post_spacing
+
+        c = check_post_spacing(build_frame())
+        self.assertEqual(c.status, "OK")
+        self.assertIn("わく組足場", c.basis)
+        self.assertIn("主わく", c.message)
+
+    def test_submission_form_names_the_right_system(self):
+        """届出書に別方式の名前を書かない."""
+        self.assertEqual(load_master("waku").system_name, "枠組足場")
+        self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
+
+
 if __name__ == "__main__":
     unittest.main()
 

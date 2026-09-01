@@ -164,15 +164,15 @@ def check_jack_extension(m: ScaffoldModel) -> CheckResult:
 # ---- #7 壁つなぎ ---------------------------------------------------------
 
 def check_wall_ties(m: ScaffoldModel) -> CheckResult:
-    basis = "安衛則570条（くさび緊結式: 垂直5m×水平5.5m以下）"
+    v_lim, h_lim, basis = m.wall_tie_limits()
     if not m.wall_ties:
         return CheckResult(7, "壁つなぎ", NG, "壁つなぎが配置されていません", basis)
     v_max, h_max = m.wall_tie_max_spacing()
     problems = []
-    if v_max > 5000:
-        problems.append(f"垂直間隔{v_max:.0f}mm > 5000mm")
-    if h_max > 5500:
-        problems.append(f"水平間隔{h_max:.0f}mm > 5500mm")
+    if v_max > v_lim:
+        problems.append(f"垂直間隔{v_max:.0f}mm > {v_lim:.0f}mm")
+    if h_max > h_lim:
+        problems.append(f"水平間隔{h_max:.0f}mm > {h_lim:.0f}mm")
     if problems:
         return CheckResult(7, "壁つなぎ", NG, "、".join(problems), basis)
     # 間隔が法規内でも、壁つなぎが1本も入らない面は別に挙げる。
@@ -289,29 +289,46 @@ MAX_SPAN_ALONG_MM = 1850    # 桁行方向（スパン方向）
 MAX_SPAN_ACROSS_MM = 1500   # 梁間方向（内外建地間隔）
 
 
-def check_post_spacing(m: ScaffoldModel) -> CheckResult:
-    """建地の間隔: 桁行方向1.85m以下・梁間方向1.5m以下.
+MAX_FRAME_HEIGHT_MM = 2000   # わく組足場の主わく高さ（571条1項一号）
 
+
+def check_post_spacing(m: ScaffoldModel) -> CheckResult:
+    """建地（枠組は主わく）の間隔.
+
+    571条は足場の種類で条文が違う:
+      一号 わく組足場: 主わく高さ2m以下・主わく間隔1.85m以下
+      二号 それ以外の支柱式: 桁行1.85m以下・梁間1.5m以下
+
+    梁間1.5mの制限はわく組には無い（建枠の幅で決まる）ので当てない。
     スパン割は真物の呼び寸法から決まるので通常は満たすが、
     系列やマスタを差し替えたときに黙って超えないよう検査する。
     """
-    basis = (
-        "安衛則571条（支柱式足場の建地間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
-    )
-    problems = []
     spans = [s for ep in m.plan.edges for s in ep.spans]
-    if spans:
-        longest = max(spans)
+    longest = max(spans) if spans else 0
+    problems = []
+
+    if m.master.is_frame:
+        basis = "安衛則571条1項一号（わく組足場: 主わく高さ2m以下・主わく間隔1.85m以下）"
         if longest > MAX_SPAN_ALONG_MM:
-            problems.append(
-                f"桁行方向の建地間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm"
-            )
+            problems.append(f"主わくの間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm")
+        frame_h = max(m.elevation.posts) if m.elevation.posts else 0
+        if frame_h > MAX_FRAME_HEIGHT_MM:
+            problems.append(f"主わくの高さ{frame_h}mm > {MAX_FRAME_HEIGHT_MM}mm")
+        if problems:
+            return CheckResult(11, "建地間隔", NG, "、".join(problems), basis)
+        return CheckResult(
+            11, "建地間隔", OK, f"主わく間隔{longest}mm・主わく高さ{frame_h}mm", basis
+        )
+
+    basis = "安衛則571条1項二号（支柱式足場の建地間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
+    if longest > MAX_SPAN_ALONG_MM:
+        problems.append(f"桁行方向の建地間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm")
     across = m.deck_width_total
     if m.config.scaffold_form != "一側足場" and across > MAX_SPAN_ACROSS_MM:
         problems.append(f"梁間方向の建地間隔{across}mm > {MAX_SPAN_ACROSS_MM}mm")
     if problems:
         return CheckResult(11, "建地間隔", NG, "、".join(problems), basis)
-    detail = f"桁行{max(spans) if spans else 0}mm"
+    detail = f"桁行{longest}mm"
     if m.config.scaffold_form != "一側足場":
         detail += f"・梁間{across}mm"
     return CheckResult(11, "建地間隔", OK, detail, basis)

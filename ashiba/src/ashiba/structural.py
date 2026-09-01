@@ -505,9 +505,11 @@ def optimize_wall_ties(
             )
             if tightest is None or cand.tie_count > tightest.tie_count:
                 tightest = cand
-            # 法規（垂直5m×水平5.5m）は「間隔」の制限。支配面積とは別物なので実間隔で見る
+            # 法規上限は「間隔」の制限。支配面積とは別物なので実間隔で見る。
+            # 上限は足場の種類で違う（枠組は垂直9m×水平8m）ので model から引く
+            v_lim, h_lim, _ = model.wall_tie_limits()
             v_max, h_max = model.wall_tie_max_spacing()
-            if res.ok and v_max <= 5000 and h_max <= 5500:
+            if res.ok and v_max <= v_lim and h_max <= h_lim:
                 best = cand
                 break
     except Exception:

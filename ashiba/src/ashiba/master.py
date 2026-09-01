@@ -82,6 +82,11 @@ class PartMaster:
     def is_frame(self) -> bool:
         return self.system_type == FRAME
 
+    @property
+    def system_name(self) -> str:
+        """帳票に書く足場の種類。届出書に別方式の名前を書かないための一元管理."""
+        return "枠組足場" if self.is_frame else "くさび緊結式足場"
+
     def frame_heights(self) -> list[int]:
         """建枠の高さ一覧（降順）. 枠組式のみ."""
         return sorted(

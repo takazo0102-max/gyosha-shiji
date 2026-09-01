@@ -110,6 +110,22 @@ class ScaffoldModel:
             return FRAME_GUARD_RAIL_HEIGHT_MM
         return self.config.guard_rail_koma * self.master.koma_pitch
 
+    def wall_tie_limits(self) -> tuple[float, float, str]:
+        """壁つなぎ間隔の法定上限（垂直, 水平, 根拠）.
+
+        安衛則570条1項五号は足場の種類で上限が違う:
+          イ わく組足場（高さ5m未満を除く）: 垂直9m・水平8m
+          ハ 単管足場: 垂直5m・水平5.5m（くさび緊結式はこれに準じる）
+
+        枠組に単管の値を当てると法規上不要な壁つなぎを拾うことになり、
+        逆に緩い方を全系列に当てると法規違反を見逃す。系列で分ける。
+        """
+        if self.master.is_frame and self.scaffold_height_mm >= 5000:
+            return (9000.0, 8000.0,
+                    "安衛則570条1項五号イ（わく組足場: 垂直9m×水平8m以下）")
+        return (5000.0, 5500.0,
+                "安衛則570条1項五号ハ（単管足場に準じる: 垂直5m×水平5.5m以下）")
+
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.
 
