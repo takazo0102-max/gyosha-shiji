@@ -4,7 +4,7 @@ from _path import SRC  # noqa: F401
 
 from ashiba.elevation_solver import solve_elevation
 from ashiba.master import load_master
-from ashiba.model import ScaffoldConfig, ScaffoldModel
+from ashiba.model import ScaffoldConfig, ScaffoldModel, generate_wall_ties
 from ashiba.plan_solver import solve_plan
 from ashiba.quantity import take_off
 from ashiba.structural import (
@@ -15,6 +15,7 @@ from ashiba.structural import (
     load_capacities,
     optimize_wall_ties,
     run_structural,
+    tie_tributaries,
     wind_force_coefficient,
 )
 
@@ -107,10 +108,77 @@ class TestChecks(unittest.TestCase):
 
     def test_severe_site_fails_and_warns(self):
         m = make_model()
-        severe = SiteCondition(region="沖縄", sheet_type="密閉シート", adjacent_factor=1.3)
+        # 沖縄・密閉シート・粗度区分I（海岸の開けた地形）・近接建物補正最大
+        severe = SiteCondition(region="沖縄", sheet_type="密閉シート",
+                               roughness="I", adjacent_factor=1.3)
         r = run_structural(m, take_off(m), severe)
         self.assertFalse(r.wall_tie.ok)
         self.assertTrue(any("壁つなぎ" in w for w in r.warnings))
+
+
+class TestTieTributary(unittest.TestCase):
+    """壁つなぎごとの支配面積（Phase 4）.
+
+    境界の扱い: 下端は脚部が支点なので半分、上端は自由端なので全長、
+    面の端はコーナー支柱（支点）なので半分。
+    """
+
+    def setUp(self):
+        self.m = make_model()
+        self.tribs = tie_tributaries(self.m)
+
+    def test_one_entry_per_tie(self):
+        self.assertEqual(len(self.tribs), len(self.m.wall_ties))
+
+    def test_no_tie_no_tributary(self):
+        m = make_model()
+        m.wall_ties = []
+        self.assertEqual(tie_tributaries(m), [])
+
+    def test_top_tie_covers_full_overhang(self):
+        """最上段は上の張り出しを全部負担する（自由端）."""
+        top_h = max(t.height_mm for t in self.m.wall_ties)
+        heights = sorted({t.height_mm for t in self.m.wall_ties})
+        below_half = (top_h - heights[-2]) / 2
+        overhang = self.m.scaffold_height_mm - top_h
+        for t in self.tribs:
+            if t.height_mm == top_h:
+                self.assertAlmostEqual(
+                    t.lw_m * 1000, below_half + overhang, delta=1
+                )
+
+    def test_bottom_tie_takes_half_to_ground(self):
+        """最下段は脚部が支点なので、地盤までの半分だけ負担する."""
+        heights = sorted({t.height_mm for t in self.m.wall_ties})
+        bottom = heights[0]
+        expect = bottom / 2 + (heights[1] - bottom) / 2
+        for t in self.tribs:
+            if t.height_mm == bottom:
+                self.assertAlmostEqual(t.lw_m * 1000, expect, delta=1)
+
+    def test_total_area_below_full_face(self):
+        """支配面積の合計は足場外面より小さい（脚部とコーナーが分担するため）."""
+        total = sum(t.area_m2 for t in self.tribs)
+        loop_m = sum(e.scaffold_length for e in self.m.plan.edges) / 1000
+        face = loop_m * self.m.scaffold_height_mm / 1000
+        self.assertLess(total, face)
+        self.assertGreater(total, face * 0.5)   # 極端に小さくもない
+
+    def test_check_uses_worst_tie_and_names_it(self):
+        r = run_structural(self.m, take_off(self.m))
+        worst = max(self.tribs, key=lambda t: t.area_m2)
+        self.assertAlmostEqual(r.wall_tie.tributary_area_m2, worst.area_m2, places=2)
+        self.assertIsNotNone(r.wall_tie.governing)
+        self.assertIn(f"辺{worst.edge_index}", r.wall_tie.governing)
+
+    def test_tighter_layout_reduces_tributary(self):
+        m = make_model()
+        loose = max(t.area_m2 for t in tie_tributaries(m))
+        m.config.wall_tie_span_step = 1
+        m.config.wall_tie_level_step = 1
+        m.wall_ties = generate_wall_ties(m.plan, m.elevation, m.config)
+        tight = max(t.area_m2 for t in tie_tributaries(m))
+        self.assertLess(tight, loose)
 
 
 class TestWallTieOptimization(unittest.TestCase):
@@ -121,9 +189,10 @@ class TestWallTieOptimization(unittest.TestCase):
         opt = optimize_wall_ties(m, site)
         self.assertTrue(opt.feasible)
         self.assertLessEqual(opt.wall_tie.ratio, 1.0)
-        # 法規上限も満たす
-        self.assertLessEqual(opt.wall_tie.lw_m * 1000, 5000)
-        self.assertLessEqual(opt.wall_tie.lh_m * 1000, 5500)
+        # 法規上限は「間隔」の制限（支配面積 lh/lw とは別物）
+        v_max, h_max = m.wall_tie_max_spacing()
+        self.assertLessEqual(v_max, 5000)
+        self.assertLessEqual(h_max, 5500)
         # 詰めた場合は本数が増え、モデルに反映される
         self.assertEqual(len(m.wall_ties), opt.tie_count)
         if opt.tightened:
@@ -142,7 +211,9 @@ class TestWallTieOptimization(unittest.TestCase):
 
     def test_infeasible_case_reports_remedy(self):
         m = make_model()
-        severe = SiteCondition(region="沖縄", sheet_type="密閉シート", adjacent_factor=1.3)
+        # 沖縄・密閉シート・粗度区分I（海岸の開けた地形）・近接建物補正最大
+        severe = SiteCondition(region="沖縄", sheet_type="密閉シート",
+                               roughness="I", adjacent_factor=1.3)
         opt = optimize_wall_ties(m, severe)
         self.assertFalse(opt.feasible)
         self.assertIn("最密", opt.message)

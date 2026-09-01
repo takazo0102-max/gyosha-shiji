@@ -95,7 +95,7 @@ def write_notification_xlsx(
     _sheet_form20(wb, model, quantity, project_name, info)
     _sheet_conditions(wb, model, structural, project_name)
     _sheet_wind(wb, structural)
-    _sheet_wall_tie(wb, structural)
+    _sheet_wall_tie(wb, structural, model)
     _sheet_post(wb, structural)
     _sheet_quantity(wb, quantity)
     _sheet_law_check(wb, checks)
@@ -243,7 +243,7 @@ def _sheet_wind(wb, structural: StructuralResult) -> None:
         "C = (0.11 + 0.09γ + 0.945×Co×R) × F")
 
 
-def _sheet_wall_tie(wb, structural: StructuralResult) -> None:
+def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
     s = wb.sheet("計算書2_壁つなぎ")
     s.set_width(0, 30)
     s.set_width(1, 18)
@@ -253,8 +253,15 @@ def _sheet_wall_tie(wb, structural: StructuralResult) -> None:
     s.add_title("壁つなぎの検定", span=3)
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
-    _kv(s, "水平間隔 lh", t.lh_m, "m（実配置の最大値。法定5.5m以下）")
-    _kv(s, "垂直間隔 lw", t.lw_m, "m（実配置の最大値。法定5.0m以下）")
+    v_max, h_max = model.wall_tie_max_spacing()
+    _kv(s, "壁つなぎ本数", len(model.wall_ties), "箇所")
+    _kv(s, "実配置の最大間隔", f"垂直{v_max:.0f} × 水平{h_max:.0f}",
+        "mm（法定 垂直5000以下 × 水平5500以下）")
+    _kv(s, "支配的な壁つなぎ", t.governing or "—",
+        "支配面積が最大となる1本で検定する")
+    _kv(s, "支配幅 lh", t.lh_m, "m（隣の壁つなぎとの中間まで。端は支点として半分）")
+    _kv(s, "支配高さ lw", t.lw_m,
+        "m（下端は脚部が支点なので半分、上端は自由端なので全長）")
     _kv(s, "支配面積 lh×lw", t.tributary_area_m2, "m²")
     _kv(s, "風力係数 C", w.c_force, "計算書1より")
     _kv(s, "速度圧 q", w.q_n_m2, "N/m²  計算書1より")

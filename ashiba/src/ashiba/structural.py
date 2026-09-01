@@ -160,6 +160,7 @@ class WallTieResult:
     ok: bool
     source: str
     verified: bool
+    governing: Optional[str] = None   # 支配的な壁つなぎの位置（どの1本が効いているか）
 
 
 @dataclass
@@ -231,14 +232,102 @@ def compute_wind(model: ScaffoldModel, site: SiteCondition) -> WindResult:
     )
 
 
+@dataclass
+class TieTributary:
+    """壁つなぎ1本が受け持つ支配面積."""
+
+    edge_index: int
+    position_mm: float
+    height_mm: int
+    lh_m: float          # 水平方向の支配幅
+    lw_m: float          # 垂直方向の支配高さ
+
+    @property
+    def area_m2(self) -> float:
+        return self.lh_m * self.lw_m
+
+
+def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
+    """壁つなぎごとの支配面積を求める（Phase 4）.
+
+    各壁つなぎは「隣の壁つなぎとの中間まで」の風荷重を受け持つ。境界の扱いは
+    そこが構造的な支点かどうかで決まる:
+
+    - 最下段の下側: 足場脚部（ジャッキ・根がらみ）は支点なので **半分**を負担
+    - 最上段の上側: 自由端の張り出しなので **全長**を負担
+    - 面の端（コーナー）: コーナー支柱は両面共有で直交面に支持される支点なので **半分**
+
+    「最大垂直間隔×最大水平間隔」で一律に評価すると、その2つが別々の壁つなぎで
+    起きている場合に過大評価になり、逆に最下段のように片側が長い壁つなぎは
+    過小評価になる。支配面積で見ると、どの1本が支配的かも分かる。
+
+    ⚠️ 境界の支点扱いは工学的仮定。提出図書に使う際は有資格者の確認を受けること。
+    """
+    out: list[TieTributary] = []
+    if not model.wall_ties:
+        return out
+    top = float(model.scaffold_height_mm)
+    heights = sorted({t.height_mm for t in model.wall_ties})
+
+    for edge in model.plan.edges:
+        edge_ties = [t for t in model.wall_ties if t.edge_index == edge.edge_index]
+        if not edge_ties:
+            continue
+        by_height: dict[int, list[float]] = {}
+        for t in edge_ties:
+            by_height.setdefault(t.height_mm, []).append(t.position_mm)
+        for h in by_height:
+            by_height[h].sort()
+
+        for t in edge_ties:
+            xs = by_height[t.height_mm]
+            i = xs.index(t.position_mm)
+            # 水平: 端はコーナー支柱（直交面に支持される支点）なので半分
+            left = (t.position_mm - xs[i - 1]) / 2 if i > 0 else t.position_mm / 2
+            right = (
+                (xs[i + 1] - t.position_mm) / 2 if i < len(xs) - 1
+                else (edge.scaffold_length - t.position_mm) / 2
+            )
+
+            # 垂直: 下端は脚部（支点）なので半分、上端は自由端なので全長
+            j = heights.index(t.height_mm)
+            below = (t.height_mm - heights[j - 1]) / 2 if j > 0 else t.height_mm / 2
+            above = (
+                (heights[j + 1] - t.height_mm) / 2 if j < len(heights) - 1
+                else top - t.height_mm
+            )
+
+            out.append(TieTributary(
+                edge_index=edge.edge_index,
+                position_mm=t.position_mm,
+                height_mm=t.height_mm,
+                lh_m=(left + right) / 1000.0,
+                lw_m=(below + above) / 1000.0,
+            ))
+    return out
+
+
 def check_wall_tie(
     model: ScaffoldModel, wind: WindResult, caps: dict
 ) -> WallTieResult:
-    """壁つなぎ1箇所あたり P = C·q·lh·lw ≦ 許容耐力×1.3."""
-    v_max_mm, h_max_mm = model.wall_tie_max_spacing()
-    lw = v_max_mm / 1000.0
-    lh = h_max_mm / 1000.0
-    area = lh * lw
+    """壁つなぎ1箇所あたり P = C·q·lh·lw ≦ 許容耐力×1.3.
+
+    支配面積は壁つなぎごとに求め、最大のもの（支配的な1本）で検定する。
+    """
+    tribs = tie_tributaries(model)
+    governing = None
+    if tribs:
+        worst = max(tribs, key=lambda t: t.area_m2)
+        lh, lw, area = worst.lh_m, worst.lw_m, worst.area_m2
+        governing = (
+            f"辺{worst.edge_index} 始点から{worst.position_mm:.0f}mm "
+            f"高さ{worst.height_mm}mm"
+        )
+    else:
+        v_max_mm, h_max_mm = model.wall_tie_max_spacing()
+        lw = v_max_mm / 1000.0
+        lh = h_max_mm / 1000.0
+        area = lh * lw
     p_kn = wind.c_force * wind.q_n_m2 * area / 1000.0  # N → kN
 
     cap_t = caps.get(("壁つなぎ許容耐力", "引張"))
@@ -260,6 +349,7 @@ def check_wall_tie(
         ok=ratio <= 1.0,
         source=cap_t.source,
         verified=verified,
+        governing=governing,
     )
 
 
@@ -392,7 +482,9 @@ def optimize_wall_ties(
             )
             if tightest is None or cand.tie_count > tightest.tie_count:
                 tightest = cand
-            if res.ok and res.lw_m * 1000 <= 5000 and res.lh_m * 1000 <= 5500:
+            # 法規（垂直5m×水平5.5m）は「間隔」の制限。支配面積とは別物なので実間隔で見る
+            v_max, h_max = model.wall_tie_max_spacing()
+            if res.ok and v_max <= 5000 and h_max <= 5500:
                 best = cand
                 break
     except Exception:
