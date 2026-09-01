@@ -1,260 +1,509 @@
-! ============================================================
-! 足場ライン オブジェクト（くさび緊結式・1辺=1オブジェクト）
-! ------------------------------------------------------------
+﻿! ==========================================================
+! 足場ライン オブジェクト（くさび緊結式・1辺=1オブジェクト） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_line/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_line.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
 ! アーキテクチャ決定（開発指示書2.1）:
 !   部材1本ごとにオブジェクトを置かず、1つの辺を1つのGDLオブジェクトとし
 !   内部で支柱・布材・踏板・手すり・幅木・ブレスをパラメトリック生成する。
 !   Python側は割付を解いてこのオブジェクトを辺の数だけ置くのみ。
-!
-! 配置規約: 原点=始点コーナー支柱（外側建地列）、+X=辺方向、+Y=躯体側
-!
-! パラメータリスト（Archicadで定義するもの）:
-!   spanList  文字列  スパン構成 mm カンマ区切り 例 "1800,1800,1500"
-!   postList  文字列  支柱構成 mm 下から 例 "3600,3600,3600,1800,450"
-!   jackOut   長さ    ジャッキ繰り出し量      既定 0.100 (m)
-!   komaPitch 長さ    コマピッチ              既定 0.450 (A系列) / 0.475 (B系列)
-!   floorH    長さ    階高                    既定 1.800
-!   rowW      長さ    内外建地間隔            既定 0.600
-!   standoff  長さ    壁離れ（2D躯体線表示用）既定 0.300
-!   deckW1    長さ    踏板1幅                 既定 0.400
-!   deckW2    長さ    踏板2幅                 既定 0.250 (0で無し)
-!   showDeck  ブール  踏板表示                既定 ON
-!   showBrace ブール  ブレス表示              既定 ON
-!   showDim   ブール  2D寸法・注記表示        既定 ON
-!   serType   文字列  "A" / "B"               既定 "A"
-!   texSiz    実数    文字高(mm)              既定 2.5
-! ============================================================
+! ----------------------------------------------------------
+! パラメータリスト:
+!   spanList       文字列  スパン構成 mm カンマ区切り                  既定 "1800,1800,1800"
+!   postList       文字列  支柱構成 mm 下から                          既定 "3600,3600,1800"
+!   jackOut        長さ    ジャッキ繰り出し量                          既定 0.1
+!   komaPitch      長さ    コマピッチ                                  既定 0.45
+!   floorH         長さ    階高                                        既定 1.8
+!   rowW           長さ    内外建地間隔                                既定 0.6
+!   standoff       長さ    壁離れ                                      既定 0.3
+!   deckW1         長さ    踏板1幅                                     既定 0.4
+!   deckW2         長さ    踏板2幅 0で無し                             既定 0.25
+!   showDeck       ブール  踏板表示                                    既定 1
+!   showBrace      ブール  ブレス表示                                  既定 1
+!   showDim        ブール  2D寸法・注記表示                            既定 1
+!   serType        文字列  系列 A/B                                    既定 "A"
+!   viewMode       文字列  2D表現 plan=平面 / elev=立面                既定 "plan"
+!   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）  既定 ""
+!   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）      既定 ""
+!   flList         文字列  各階FL高さ mm カンマ区切り（立面の参照線）  既定 ""
+!   faceName       文字列  面の名称（立面図の図面名）                  既定 ""
+!   warnPen        整数    注記強調のペン番号 ペンテーブル依存         既定 20
+!   texSiz         実数    文字高mm                                    既定 2.5
+! ==========================================================
 
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
 ! ============================================================
-! ==== マスタースクリプト ====================================
+! 足場ライン マスタースクリプト（くさび緊結式・1辺=1オブジェクト）
+! 配置規約: 原点=始点コーナー支柱（内側建地列）、+X=辺方向、+Y=躯体側
+! 2D表現は viewMode で切替: plan=平面 / elev=立面
+!
+! 文字列リストのパースは gosub にせずインラインで展開している。
+! マスタースクリプトでの gosub は動作しない環境があり、失敗すると
+! 2D/3Dとも一切描画されない（実機で確認済み）。
 ! ============================================================
 dim spans[30]
 dim posts[20]
+dim ties[80]
+dim tieH[80]
+dim fls[20]
+dim lv[42]
 
-! ---- spanList をパース ----
+! ---- spanList をパース (mm→m) ----
 nSpan = 0
 rest = spanList
 while strlen(rest) > 0 and nSpan < 30 do
-    p = strstr(rest, ",")
-    if p > 0 then
-        item = strsub(rest, 1, p - 1)
-        rest = strsub(rest, p + 1, strlen(rest) - p)
-    else
-        item = rest
-        rest = ""
-    endif
-    nSpan = nSpan + 1
-    k = split(item, "%n", v)
-    spans[nSpan] = v / 1000        ! mm → m
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSpan = nSpan + 1
+		spans[nSpan] = v / 1000
+	endif
 endwhile
+if nSpan = 0 then
+	nSpan = 1
+	spans[1] = 1.8
+endif
 
-! ---- postList をパース ----
+! ---- postList をパース (mm→m) ----
 nPost = 0
 rest = postList
 while strlen(rest) > 0 and nPost < 20 do
-    p = strstr(rest, ",")
-    if p > 0 then
-        item = strsub(rest, 1, p - 1)
-        rest = strsub(rest, p + 1, strlen(rest) - p)
-    else
-        item = rest
-        rest = ""
-    endif
-    nPost = nPost + 1
-    k = split(item, "%n", v)
-    posts[nPost] = v / 1000
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPost = nPost + 1
+		posts[nPost] = v / 1000
+	endif
+endwhile
+if nPost = 0 then
+	nPost = 1
+	posts[1] = 3.6
+endif
+
+! ---- tieList をパース (mm→m) ----
+nTie = 0
+rest = tieList
+while strlen(rest) > 0 and nTie < 80 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTie = nTie + 1
+		ties[nTie] = v / 1000
+	endif
+endwhile
+
+! ---- tieHeightList をパース (mm→m) ----
+nTieH = 0
+rest = tieHeightList
+while strlen(rest) > 0 and nTieH < 80 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTieH = nTieH + 1
+		tieH[nTieH] = v / 1000
+	endif
+endwhile
+
+! ---- flList をパース (mm→m) ----
+nFL = 0
+rest = flList
+while strlen(rest) > 0 and nFL < 20 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nFL = nFL + 1
+		fls[nFL] = v / 1000
+	endif
 endwhile
 
 ! ---- 派生値 ----
 lineLen = 0
 for i = 1 to nSpan
-    lineLen = lineLen + spans[i]
+	lineLen = lineLen + spans[i]
 next i
 postTop = jackOut
 for i = 1 to nPost
-    postTop = postTop + posts[i]
+	postTop = postTop + posts[i]
 next i
-nLevels = 0
-topFloor = postTop - 2 * komaPitch
 firstLedger = jackOut + komaPitch
+topFloor = postTop - 2 * komaPitch
+
+! 作業層数
+nLevels = 0
 h = topFloor
 while h > firstLedger + komaPitch do
-    nLevels = nLevels + 1
-    h = h - floorH
+	nLevels = nLevels + 1
+	h = h - floorH
 endwhile
 
-r_sic  = 0.0486 / 2   ! 支柱 φ48.6
-r_nuno = 0.0427 / 2   ! 布材 φ42.7
-
-! ============================================================
-! ==== 3Dスクリプト ==========================================
-! ============================================================
-! 建地2列: 外側 y=0 / 内側 y=rowW
-pen 1
-
-! ---- 支柱（各スパン境界に内外1対、千鳥は交互構成） ----
-x = 0
-for ip = 1 to nSpan + 1
-    for row = 0 to 1
-        addy row * rowW
-        add x, 0, 0
-        ! ジャッキ
-        material "Metal - Steel"
-        cylind jackOut, 0.0381 / 2
-        addz jackOut
-        ! 支柱積み上げ
-        for j = 1 to nPost
-            cylind posts[j], r_sic
-            addz posts[j]
-        next j
-        del nPost + 1
-        del 1
-        del 1
-    next row
-    if ip <= nSpan then x = x + spans[ip]
-next ip
-
-! ---- 水平材（根がらみ＋各作業層の床レベル・手すり・中桟） ----
-! レベル列を組み立てる
-! lv[1]=根がらみ、lv[2..]=作業床（下から上へ昇順）
-dim lv[40]
+! レベル列: lv[1]=根がらみ、lv[2..nLv]=作業床（下から昇順）
 lv[1] = firstLedger
 for il = 1 to nLevels
-    lv[il + 1] = topFloor - (nLevels - il) * floorH
+	lv[il + 1] = topFloor - (nLevels - il) * floorH
 next il
 nLv = nLevels + 1
 
+! 壁つなぎは位置と高さの対。短い方に合わせる
+nTiePair = nTie
+if nTieH < nTiePair then nTiePair = nTieH
+
+r_sic  = 0.0486 / 2	! 支柱 φ48.6
+r_nuno = 0.0427 / 2	! 布材 φ42.7
+
+! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
+! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
+txtH = texSiz * GLOB_SCALE / 1000
+txtLine = txtH * 1.8
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場ライン 2Dスクリプト（viewMode で平面／立面を切替）
+!   plan: 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体面 y=+standoff
+!   elev: X=面に沿った距離 / Y=GLからの高さ
+! ============================================================
+define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+set style "anno"
+pen 1
+
+if viewMode = "elev" then
+	gosub 200
+else
+	gosub 100
+endif
+end
+
+! ============================================================
+100: ! ---- 平面図 ----
+line2 0, 0, lineLen, 0
+line2 0, -rowW, lineLen, -rowW
+
+! スパン区切り線と布板の対角線。平面図で「作業床が敷いてある区画」を表す
+! 慣用表記で、実務の足場平面図はこの見え方になる。対角線の向きは全スパン
+! 揃える（向きを交互にするとブレスの表記と紛らわしい）。
+x = 0
+for ip = 1 to nSpan
+	line2 x, 0, x, -rowW
+	if showDeck then line2 x, -rowW, x + spans[ip], 0
+	x = x + spans[ip]
+next ip
+line2 x, 0, x, -rowW
+
+x = 0
+for ip = 1 to nSpan + 1
+	circle2 x, 0, r_sic
+	circle2 x, -rowW, r_sic
+	hotspot2 x, 0
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+hotspot2 0, -rowW
+hotspot2 lineLen, -rowW
+
+! 躯体面の参照線（離れ表示）
+line_type 3
+line2 0, standoff, lineLen, standoff
+line_type 1
+
+! 壁つなぎ位置（平面でも位置が分かるよう大きめの丸で示す）
+for it = 1 to nTie
+	circle2 ties[it], standoff / 2, 0.09
+	line2 ties[it], 0, ties[it], standoff
+next it
+
+if not(showDim) then return
+
+x = 0
+for ip = 1 to nSpan
+	text2 x + spans[ip] / 2, -rowW - 0.25, str(spans[ip] * 1000, 5, 0)
+	line2 x, -rowW - 0.15, x, -rowW - 0.35
+	x = x + spans[ip]
+next ip
+line2 x, -rowW - 0.15, x, -rowW - 0.35
+text2 lineLen / 2, -rowW - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+return
+
+! ============================================================
+200: ! ---- 立面図 ----
+! 作図順（実務）: GL・ジャッキ → 1段目 → 上へ積上げ → 壁つなぎ → 寸法・特記
+
+! GL と地盤ハッチ
+line2 -0.5, 0, lineLen + 0.5, 0
+gx = -0.45
+while gx < lineLen + 0.45 do
+	line2 gx, 0, gx - 0.08, -0.08
+	gx = gx + 0.12
+endwhile
+text2 -0.5, -0.22, "GL"
+
+! 各階FLの参照線（躯体との対応を見るため）
+line_type 3
+for ifl = 1 to nFL
+	line2 -0.3, fls[ifl], lineLen + 0.3, fls[ifl]
+	text2 lineLen + 0.35, fls[ifl], str(ifl, 1, 0) + "FL"
+next ifl
+line_type 1
+
+! 支柱（ジャッキ＋積上げ）と ジョイント位置
+x = 0
+for ip = 1 to nSpan + 1
+	! ジャッキ（敷板含む脚部）
+	rect2 x - 0.02, 0, x + 0.02, jackOut
+	line2 x - 0.06, 0, x + 0.06, 0
+	! 支柱
+	rect2 x - r_sic, jackOut, x + r_sic, postTop
+	! 縦継ぎ（ジョイント）位置に短い横線
+	jh = jackOut
+	for jp = 1 to nPost - 1
+		jh = jh + posts[jp]
+		line2 x - 0.05, jh, x + 0.05, jh
+	next jp
+	hotspot2 x, 0
+	hotspot2 x, postTop
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! 根がらみ（最下コマ）＝ lv[1]
+line2 0, lv[1], lineLen, lv[1]
+line2 0, lv[1] + 0.02, lineLen, lv[1] + 0.02
+
+! 各作業層: 布板・手すり・中桟・幅木
+for il = 2 to nLv
+	z = lv[il]
+	! 布板（作業床）
+	rect2 0, z, lineLen, z + 0.05
+	! 幅木
+	rect2 0, z + 0.05, lineLen, z + 0.05 + 0.157
+	! 手すり・中桟
+	line2 0, z + komaPitch, lineLen, z + komaPitch
+	line2 0, z + 2 * komaPitch, lineLen, z + 2 * komaPitch
+next il
+
+! ブレス（各構面・各層で交互向き）
+x = 0
+for ip = 1 to nSpan
+	for il = 1 to nLv - 1
+		if ip - 2 * int(ip / 2) = 0 then
+			line2 x, lv[il], x + spans[ip], lv[il + 1]
+		else
+			line2 x + spans[ip], lv[il], x, lv[il + 1]
+		endif
+	next il
+	x = x + spans[ip]
+next ip
+
+! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
+pen warnPen
+! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
+for it = 1 to nTiePair
+	circle2 ties[it], tieH[it], 0.12
+	line2 ties[it] - 0.08, tieH[it], ties[it] + 0.08, tieH[it]
+	line2 ties[it], tieH[it] - 0.08, ties[it], tieH[it] + 0.08
+next it
+pen 1
+
+if not(showDim) then return
+
+! ---- 高さ寸法（左側）: 各層と全高 ----
+dx = -0.35
+line2 dx, 0, dx, postTop
 for il = 1 to nLv
-    z = lv[il]
-    x = 0
-    for ip = 1 to nSpan
-        ! 内外の布材
-        for row = 0 to 1
-            add x, row * rowW, z
-            rotz 0
-            roty 90
-            cylind spans[ip], r_nuno
-            del 3
-        next row
-        ! 外側手すり・中桟（作業層のみ、根がらみ層は除く）
-        if il > 1 then
-            add x, 0, z + 2 * komaPitch
-            roty 90
-            cylind spans[ip], r_nuno
-            del 2
-            add x, 0, z + komaPitch
-            roty 90
-            cylind spans[ip], r_nuno
-            del 2
-        endif
-        ! 腕木（内外連結）
-        add x, 0, z
-        rotz 90
-        roty 90
-        cylind rowW, r_nuno
-        del 3
-        x = x + spans[ip]
-    next ip
-    ! 終端の腕木
-    add x, 0, z
-    rotz 90
-    roty 90
-    cylind rowW, r_nuno
-    del 3
+	line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
+	text2 dx - txtH, lv[il], str(lv[il] * 1000, 6, 0)
+next il
+line2 dx - 0.06, postTop, dx + 0.06, postTop
+text2 dx - txtH, postTop, "H=" + str(postTop * 1000, 6, 0)
+text2 dx - txtH, jackOut / 2, "ジャッキ" + str(jackOut * 1000, 4, 0)
+
+! ---- スパン寸法（下側） ----
+dy = -0.45
+x = 0
+for ip = 1 to nSpan
+	text2 x + spans[ip] / 2, dy - txtLine, str(spans[ip] * 1000, 5, 0)
+	line2 x, dy, x, dy - 0.06
+	x = x + spans[ip]
+next ip
+line2 x, dy, x, dy - 0.06
+line2 0, dy, lineLen, dy
+text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
+
+! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
+tx = lineLen + 0.5
+ny = postTop
+text2 tx, ny, "立面図 " + faceName
+ny = ny - txtLine * 1.4
+text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+ny = ny - txtLine
+text2 tx, ny, "頭つなぎ: 最上段（同上）"
+ny = ny - txtLine
+text2 tx, ny, "内側: ブレース＋幅木"
+ny = ny - txtLine
+text2 tx, ny, "外側: ブレース＋手すり＋中桟"
+ny = ny - txtLine
+text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
+ny = ny - txtLine
+text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（○印）"
+ny = ny - txtLine
+text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
+return
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場ライン 3Dスクリプト
+! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体側 +Y
+! ============================================================
+pen 1
+
+! ---- 支柱（各スパン境界に内外1対） ----
+x = 0
+for ip = 1 to nSpan + 1
+	for row = 0 to 1
+		add x, -row * rowW, 0
+		! ジャッキ
+		cylind jackOut, 0.0381 / 2
+		addz jackOut
+		! 支柱積み上げ
+		for j = 1 to nPost
+			cylind posts[j], r_sic
+			addz posts[j]
+		next j
+		del nPost + 2
+	next row
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! ---- 水平材（根がらみ＋各作業層） ----
+for il = 1 to nLv
+	z = lv[il]
+	x = 0
+	for ip = 1 to nSpan
+		! 内外の布材（床レベル）
+		for row = 0 to 1
+			add x, -row * rowW, z
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+		next row
+		! 外側手すり・中桟（作業層のみ）
+		if il > 1 then
+			add x, -rowW, z + 2 * komaPitch
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+			add x, -rowW, z + komaPitch
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+		endif
+		! 腕木（内外連結、-Y向き）
+		add x, 0, z
+		rotz -90
+		roty 90
+		cylind rowW, r_nuno
+		del 3
+		x = x + spans[ip]
+	next ip
+	! 終端の腕木
+	add x, 0, z
+	rotz -90
+	roty 90
+	cylind rowW, r_nuno
+	del 3
 next il
 
 ! ---- 踏板・幅木 ----
 if showDeck then
-    for il = 2 to nLv
-        z = lv[il]
-        x = 0
-        for ip = 1 to nSpan
-            add x, 0.05, z
-            block spans[ip], deckW1, 0.045
-            del 1
-            if deckW2 > 0 then
-                add x, 0.05 + deckW1 + 0.02, z
-                block spans[ip], deckW2, 0.045
-                del 1
-            endif
-            ! 幅木（外側）
-            add x, -0.02, z + 0.045
-            block spans[ip], 0.02, 0.157
-            del 1
-            x = x + spans[ip]
-        next ip
-    next il
+	for il = 2 to nLv
+		z = lv[il]
+		x = 0
+		for ip = 1 to nSpan
+			add x, -rowW + 0.05, z
+			block spans[ip], deckW1, 0.045
+			del 1
+			if deckW2 > 0 then
+				add x, -rowW + 0.05 + deckW1 + 0.02, z
+				block spans[ip], deckW2, 0.045
+				del 1
+			endif
+			! 幅木（外側）
+			add x, -rowW - 0.02, z + 0.045
+			block spans[ip], 0.02, 0.157
+			del 1
+			x = x + spans[ip]
+		next ip
+	next il
 endif
 
 ! ---- ブレス（外側構面、スパンごとに交互方向） ----
 if showBrace then
-    for il = 1 to nLv - 1
-        z1 = lv[il]
-        z2 = lv[il + 1]
-        x = 0
-        for ip = 1 to nSpan
-            bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
-            if ip - 2 * int(ip / 2) = 0 then
-                add x, -0.05, z1
-                rotz 0
-                roty 90 - atn((z2 - z1) / spans[ip])
-            else
-                add x + spans[ip], -0.05, z1
-                rotz 180
-                roty 90 - atn((z2 - z1) / spans[ip])
-            endif
-            cylind bl, 0.0213
-            del 3
-            x = x + spans[ip]
-        next ip
-    next il
+	for il = 1 to nLv - 1
+		z1 = lv[il]
+		z2 = lv[il + 1]
+		x = 0
+		for ip = 1 to nSpan
+			bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
+			ang = atn((z2 - z1) / spans[ip])
+			if ip - 2 * int(ip / 2) = 0 then
+				add x, -rowW - 0.05, z1
+				roty 90 - ang
+				cylind bl, 0.0213 / 2
+				del 2
+			else
+				add x + spans[ip], -rowW - 0.05, z1
+				mulx -1
+				roty 90 - ang
+				cylind bl, 0.0213 / 2
+				del 3
+			endif
+			x = x + spans[ip]
+		next ip
+	next il
 endif
 
 end
 
-! ============================================================
-! ==== 2Dスクリプト ==========================================
-! ============================================================
-define style "anno" "MS Pゴシック", texSiz, 1, 0
-set style "anno"
-pen 1
-
-! ---- 建地列（外・内）と支柱記号 ----
-line2 0, 0, lineLen, 0
-line2 0, rowW, lineLen, rowW
-
-! ---- スパン区切りと布板の対角線（作業床が敷いてある区画の慣用表記） ----
-x = 0
-for ip = 1 to nSpan
-    line2 x, 0, x, rowW
-    if showDeck then line2 x, 0, x + spans[ip], rowW
-    x = x + spans[ip]
-next ip
-line2 x, 0, x, rowW
-
-x = 0
-for ip = 1 to nSpan + 1
-    circle2 x, 0, r_sic
-    circle2 x, rowW, r_sic
-    hotspot2 x, 0
-    if ip <= nSpan then x = x + spans[ip]
-next ip
-
-! ---- 躯体面の参照線（離れ表示） ----
-line_type 3
-line2 0, rowW + standoff, lineLen, rowW + standoff
-line_type 1
-
-if not(showDim) then end
-
-! ---- スパン寸法 ----
-x = 0
-for ip = 1 to nSpan
-    text2 x + spans[ip] / 2, -0.25, str(spans[ip] * 1000, 5, 0)
-    line2 x, -0.15, x, -0.35
-    x = x + spans[ip]
-next ip
-line2 x, -0.15, x, -0.35
-text2 lineLen / 2, -0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
-
-end

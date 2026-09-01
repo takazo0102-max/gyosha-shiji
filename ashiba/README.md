@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト213本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト215本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -29,7 +29,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 - **割付エンジンはArchicad非依存**（`src/ashiba/`）。Tapir接続は `tapir_adapter.py` に隔離
 - **足場ライン方式**（最重要決定）: 部材1本ごとにオブジェクトを置かず、
-  1つの辺＝1つのGDLオブジェクト（`gdl/ashiba_line.gdl`）が内部で
+  1つの辺＝1つのGDLオブジェクト（`gdl/hsf/ashiba_line/`）が内部で
   支柱・布材・踏板・手すり・幅木・ブレスをパラメトリック生成する
 - 部材マスタは外部CSV（`data/part_master.csv`）。**系列ロック**でインチ/センチ混在を機械的にブロック
 - 呼び寸法(nominal)と実寸法(actual)を厳密分離: 割付計算は呼び寸法、描画は実寸法
@@ -59,13 +59,14 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** |
 | `gdl/ashiba_detail.gsm` | **詳細図5枚の2Dシンボル（同上・detailTypeで切替）** |
 | `gdl/hsf/ashiba_line/`, `gdl/hsf/ashiba_detail/` | 同GDLソース（HSF形式） |
-| `gdl/ashiba_line.gdl` | 足場ラインスクリプトの単一ファイル参照版 |
-| `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボル（参照実装） |
+| `gdl/ashiba_line.gdl`, `gdl/ashiba_detail.gdl` | 同スクリプトの単一ファイル参照版（**HSFから自動生成**・手で編集しない） |
+| `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボルの旧参照実装（`ashiba_detail` の `detailType=脚部` に統合済み） |
 | `scripts/run_from_archicad.py` | ツールバー割当用エントリ |
 | `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証） |
 | `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票） |
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
+| `scripts/build_flat_gdl.py` | HSF→単一ファイル参照版の生成（`--check` でズレ検査） |
 
 ## 使い方
 
@@ -375,6 +376,8 @@ E2E確認は2種類:
 
 ソースは `gdl/hsf/ashiba_line/`（HSF形式）。LP_XMLConverter（GRAPHISOFT LibDev Toolkit）で
 `LP_XMLConverter hsf2libpart gdl/hsf/ashiba_line gdl/ashiba_line.gsm` としてGSM化する。
+参照版 `.gdl` はHSFから生成しているので、HSFを直したら
+`python3 scripts/build_flat_gdl.py` で再生成する（ズレは `tests/test_flat_gdl_sync.py` が落とす）。
 開発イテレーションは `scripts/dev_gsm_iterate.py <版番号>` で
 コンパイル→埋め込みライブラリ注入→テスト配置→プレビュー画像化まで自動化済み
 （埋め込みライブラリは同名上書き不可のため版名を変えて追加する方式）。
