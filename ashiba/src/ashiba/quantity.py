@@ -202,9 +202,30 @@ def take_off(
         from .stairs import stair_deck_deduction
         for s, n in stair_deck_deduction(model, stair_plan).items():
             deck_span_counts[s] = max(0, deck_span_counts.get(s, 0) - n)
-    for w in model.config.deck_widths:
+    # 一側足場は建地1列で、作業床はブラケット受けの1枚敷き。本足場の内外2枚敷きを
+    # そのまま数えると踏板が倍になる（実際、重量で3.7t多く出ていた）
+    deck_widths = list(model.deck_widths_in_use)
+    if rows == 1 and len(model.config.deck_widths) > len(deck_widths):
+        notes.append(
+            f"一側足場のため作業床は幅{deck_widths[0]}mmの1枚敷きで計上しています"
+            f"（本足場の{'+'.join(str(w) for w in model.config.deck_widths)}ではなく）"
+        )
+    for w in deck_widths:
         for s, n in deck_span_counts.items():
             add(m.deck_parts(w, s), n * n_levels, f"踏板 幅{w}×{s}")
+    if rows == 1:
+        # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）
+        brk = next((p for p in m.by_category("ブラケット")
+                    if p.nominal_dim >= deck_widths[0] and "張出" not in p.note
+                    and "内" not in p.note), None)
+        need = posts_per_line * n_levels
+        if brk is None:
+            notes.action(
+                f"一側足場の作業床を受けるブラケット（幅{deck_widths[0]}mm以上）が"
+                f"マスタにありません（{need}本）。別途手配してください"
+            )
+        else:
+            add(brk, need, f"一側足場の床受けブラケット{brk.nominal_dim}")
 
     # ---- 斜材（ブレス）: 6層6スパン以下毎に交さ2方向 ----
     # 全スパン×全層に入れるのではなく設置間隔から算出する。

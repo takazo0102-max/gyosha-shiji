@@ -70,9 +70,9 @@ def required_details(
         "standoff": _median_standoff(model) / 1000.0,
         "rowW": model.post_row_spacing_mm / 1000.0,
         "spanW": _common_span(model) / 1000.0,
-        "deckW1": model.config.deck_widths[0] / 1000.0,
-        "deckW2": (model.config.deck_widths[1] / 1000.0
-                   if len(model.config.deck_widths) > 1 else 0.0),
+        "deckW1": model.deck_widths_in_use[0] / 1000.0,
+        "deckW2": (model.deck_widths_in_use[1] / 1000.0
+                   if len(model.deck_widths_in_use) > 1 else 0.0),
     }
     v_max, h_max = model.wall_tie_max_spacing()
     height = model.scaffold_height_mm

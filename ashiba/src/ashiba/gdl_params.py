@@ -29,7 +29,7 @@ def line_params(
     rules = rules or QuantityRules()
     e = model.elevation
     ties = [t for t in model.wall_ties if t.edge_index == ep.edge_index]
-    widths = list(model.config.deck_widths or [])
+    widths = list(model.deck_widths_in_use)
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)

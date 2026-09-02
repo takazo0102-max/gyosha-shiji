@@ -90,7 +90,7 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
 def check_working_deck(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則563条"
     problems = []
-    width = sum(m.config.deck_widths)
+    width = sum(m.deck_widths_in_use)
     if width < 400:
         problems.append(f"作業床幅{width}mm < 400mm")
     if m.config.deck_gap_mm > 30:

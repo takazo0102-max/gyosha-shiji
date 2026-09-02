@@ -190,5 +190,54 @@ class TestActionableNotes(unittest.TestCase):
         )
 
 
+class TestSingleRowScaffold(unittest.TestCase):
+    """一側足場は建地1列・床は1枚敷き。本足場の構成をそのまま数えない."""
+
+    def _model(self, form):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(scaffold_form=form),
+            building_height_mm=16000, clearance_space_mm=500,
+        )
+
+    def setUp(self):
+        self.both = take_off(self._model("本足場"))
+        self.one = take_off(self._model("一側足場"))
+
+    def test_decks_are_halved(self):
+        self.assertEqual(self.one.qty_of("踏板"), self.both.qty_of("踏板") // 2)
+
+    def test_only_the_widest_board_is_used(self):
+        widths = {
+            l.part.note for l in self.one.lines if l.part.category == "踏板"
+        }
+        self.assertEqual(widths, {"幅400"}, widths)
+
+    def test_deck_brackets_are_counted(self):
+        """床が片持ちになるので受けのブラケットが要る（本足場には無い部材）."""
+        self.assertEqual(self.both.qty_of("ブラケット"), 0)
+        self.assertGreater(self.one.qty_of("ブラケット"), 0)
+
+    def test_substitution_is_stated(self):
+        self.assertTrue(any("1枚敷き" in n for n in self.one.notes), self.one.notes)
+
+    def test_law_check_uses_the_same_width(self):
+        from ashiba.law_check import run_all_checks
+
+        m = self._model("一側足場")
+        deck = [c for c in run_all_checks(m) if c.check_id == 2][0]
+        self.assertIn(f"幅{sum(m.deck_widths_in_use)}mm", deck.message)
+
+    def test_drawing_uses_the_same_width(self):
+        from ashiba.gdl_params import line_params
+
+        m = self._model("一側足場")
+        p = line_params(m, m.plan.edges[0])
+        self.assertEqual(p["nRows"], 1)
+        self.assertEqual(p["deckW2"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

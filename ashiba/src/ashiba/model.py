@@ -157,9 +157,22 @@ class ScaffoldModel:
         return max(cands) if cands else self.deck_width_total
 
     @property
+    def deck_widths_in_use(self) -> tuple[int, ...]:
+        """実際に敷く作業床の幅.
+
+        一側足場は建地1列でブラケット受けの1枚敷きになる。マスタ既定の
+        内外2枚（400+250など）をそのまま使うと、数量も図面も法規チェックの
+        床幅も本足場のものになってしまう。
+        """
+        ws = tuple(self.config.deck_widths or ())
+        if self.config.scaffold_form == "一側足場" and len(ws) > 1:
+            return (max(ws),)
+        return ws
+
+    @property
     def deck_width_total(self) -> int:
-        gaps = self.config.deck_gap_mm * (len(self.config.deck_widths) - 1)
-        return sum(self.config.deck_widths) + gaps
+        ws = self.deck_widths_in_use
+        return sum(ws) + self.config.deck_gap_mm * (len(ws) - 1)
 
     @property
     def guard_rail_height_mm(self) -> int:
