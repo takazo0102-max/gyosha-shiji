@@ -65,6 +65,23 @@ class BomLine:
         return self.part.weight_kg * self.qty
 
 
+class Notes(list):
+    """数量の注記。手配・検討が要るものは action() で分けて持つ.
+
+    「マスタに部材が無い」「カタログ品では受けられない」は、放っておくと
+    現場で足りない・受けられないになる。計上ルールの説明と同じ扱いで
+    注記に埋もれると読み飛ばされるので、要確認一覧へ回す分を区別する。
+    """
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.actions: list[str] = []
+
+    def action(self, msg: str) -> None:
+        self.append(msg)
+        self.actions.append(msg)
+
+
 @dataclass
 class QuantityResult:
     lines: list[BomLine]
@@ -72,6 +89,8 @@ class QuantityResult:
     total_weight_kg: float
     truck_count: int
     notes: list[str] = field(default_factory=list)
+    # notes のうち手配・検討が要るもの（説明だけの注記は含めない）
+    warnings: list[str] = field(default_factory=list)
 
     def qty_of(self, category: str, nominal: Optional[int] = None) -> int:
         return sum(
@@ -96,13 +115,13 @@ def take_off(
     elev = model.elevation
     counts: dict[str, int] = {}   # model_no -> qty
     parts: dict[str, Part] = {}
-    notes: list[str] = []
+    notes = Notes()
 
     def add(part: Optional[Part], qty: int, what: str) -> None:
         if qty <= 0:
             return
         if part is None:
-            notes.append(f"マスタに該当部材がありません: {what}（数量{qty}）")
+            notes.action(f"マスタに該当部材がありません: {what}（数量{qty}）")
             return
         m.assert_series(part)
         counts[part.model_no] = counts.get(part.model_no, 0) + qty
@@ -161,7 +180,7 @@ def take_off(
         for s, n in span_counts.items():
             part = m.find("先行手摺", s)
             if part is None:
-                notes.append(
+                notes.action(
                     f"先行手摺{s}がマスタにありません（{n * n_levels}本）。"
                     "この寸法は布材による手すり＋中桟で計画してください"
                 )
@@ -210,7 +229,7 @@ def take_off(
             "全構面に入れる場合は QuantityRules の brace_every_spans/levels を1にしてください"
         )
         if shortfall > 0:
-            notes.append(
+            notes.action(
                 f"斜材を入れる規格スパン（{brace.nominal_dim}）が"
                 f"{shortfall}箇所分不足しています。"
                 "その区間は布板ブレス等の別手段を検討してください"
@@ -259,7 +278,7 @@ def take_off(
             if purpose == "方杖":
                 part = next((p for p in m.by_category("ブラケット")
                              if p.nominal_dim == width), None)
-                notes.append(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
+                notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
                 continue
             note_key = "張出" if purpose == "張出" else ""
             part = next(
@@ -275,7 +294,7 @@ def take_off(
         for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
             new_part = m.deck_parts(to_w, span)
             if new_part is None:
-                notes.append(
+                notes.action(
                     f"区間指定の踏板 幅{to_w}×{span}がマスタにありません"
                     f"（{n_lv}枚）。幅{from_w}のままで計上しています"
                 )
@@ -308,13 +327,15 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
             None,
         )
         if part is None:
-            notes.append(
+            notes.action(
                 f"梁枠{o.beam_span_mm}mmがマスタにありません（辺{o.edge_index}）。"
                 "規格品の梁枠で計画し直してください"
             )
             continue
         add(part, 1, f"梁枠{o.beam_span_mm}（辺{o.edge_index}）")
     if openings.removed_posts:
+        # 補強・積載低減が要ることは openings.issues が開口部ごとに言う。
+        # ここで同じ対応をもう一度挙げると要確認一覧に二重で並ぶ
         notes.append(
             f"開口部で支柱{openings.removed_posts}本を抜いています。"
             "梁枠の両端支柱は補強し、梁枠上の作業床は積載荷重を低減してください"
@@ -346,7 +367,7 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             and (not d.note_contains or d.note_contains in p.note)
         ]
         if not cands:
-            notes.append(
+            notes.action(
                 f"荷受けステージ用の{d.label}"
                 + (f"（呼び{d.nominal_dim}）" if d.nominal_dim else "")
                 + f"がマスタにありません（{d.qty}本）。別途手配してください"
@@ -356,7 +377,7 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
 
     for st in platforms.stages:
         if _bracket_nominal(model, st.projection_mm) is None:
-            notes.append(
+            notes.action(
                 f"辺{st.edge_index}のステージは出{st.projection_mm:.0f}mmで、"
                 "カタログの張出ブラケットでは受けられません。"
                 "単管等による支持を個別に検討してください"
@@ -391,10 +412,10 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
         return
     spans = sum(w[2] for w in wide)
     faces = "、".join(f"辺{i}({d:.0f}mm)" for i, d, _ in wide)
-    notes.append(
-        f"離れが300mmを超える面があります（{faces}）。躯体側の墜落防止措置が"
-        f"必要ですが、手すり材は数量に含んでいません（該当{spans}スパン）。"
-        "躯体側手すりで対応する場合は布材を別途計上してください"
+    # 措置が要ること自体は割付の警告が言う。ここは数量側の話に絞る
+    notes.action(
+        f"離れが300mmを超える面（{faces}）の躯体側手すり材は数量に含んでいません"
+        f"（該当{spans}スパン）。躯体側手すりで対応する場合は布材を別途計上してください"
     )
 
 
@@ -419,7 +440,8 @@ def _assemble(
         kake_menseki_m2=round(kake, 2),
         total_weight_kg=round(total_weight, 1),
         truck_count=math.ceil(total_weight / rules.truck_payload_kg) if total_weight else 0,
-        notes=notes,
+        notes=list(notes),
+        warnings=list(getattr(notes, "actions", [])),
     )
 
 
@@ -455,7 +477,7 @@ def _count_frame_parts(
     need_width = model.deck_width_total
     frame_width, fits = m.frame_width_for(need_width)
     if not fits:
-        notes.append(
+        notes.action(
             f"布板幅の合計{need_width}mmに対し建枠幅が不足しています"
             f"（最大{frame_width}mm）。布板構成か建枠規格を見直してください"
         )

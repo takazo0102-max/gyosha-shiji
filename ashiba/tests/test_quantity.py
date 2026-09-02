@@ -151,5 +151,44 @@ class TestWeightPlausibility(unittest.TestCase):
                 self.assertLess(per_m2, 25.0, f"{sid} {per_m2:.1f}kg/m2 は重すぎる")
 
 
+class TestActionableNotes(unittest.TestCase):
+    """手配・検討が要る注記は、計上ルールの説明と混ぜない."""
+
+    def setUp(self):
+        self.master = load_master("shinwa_A")
+        self.model = ScaffoldModel(
+            master=self.master, plan=solve_plan(RECT, self.master),
+            elevation=solve_elevation(16300, master=self.master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_warnings_are_a_subset_of_notes(self):
+        q = take_off(self.model)
+        for w in q.warnings:
+            self.assertIn(w, q.notes)
+
+    def test_counting_rules_are_not_warnings(self):
+        q = take_off(self.model)
+        self.assertTrue(any("斜材は" in n for n in q.notes))
+        self.assertFalse(any("斜材は" in w for w in q.warnings))
+
+    def test_missing_master_part_is_a_warning(self):
+        """マスタに無い＝現場で足りない。説明ではなく手配の話."""
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        pf = validate_platforms(self.model, [LoadingStage(
+            edge_index=0, start_mm=3600, span_count=2,
+            projection_mm=1500, load_kn=9.8, levels=[3],
+        )])
+        q = take_off(self.model, platforms=pf)
+        self.assertTrue(
+            any("別途手配" in w for w in q.warnings), q.warnings
+        )
+        self.assertTrue(
+            any("張出ブラケットでは受けられません" in w for w in q.warnings),
+            q.warnings,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

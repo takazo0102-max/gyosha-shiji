@@ -254,7 +254,7 @@ def build_notification_info(spec: dict) -> NotificationInfo:
 
 def collect_warnings(
     structural, model, bracket_issues, stair_plan, stair_issues,
-    openings, terrain, platforms, checks=None,
+    openings, terrain, platforms, checks=None, quantity=None,
 ) -> list[tuple[str, str, str]]:
     """是正・確認が要る項目を (分類, 重大度, 本文) で集める.
 
@@ -278,6 +278,9 @@ def collect_warnings(
     said = {c.message for c in (checks or []) if c.status == "WARN"}
     out += [("敷地", "WARN", f"敷地: {w}")
             for w in terrain.warnings if w not in said]
+    # 「マスタに無い」「カタログ品では受けられない」は手配・検討が要る。
+    # 数量注記に埋もれると発注漏れになる
+    out += [("数量・手配", "WARN", w) for w in getattr(quantity, "warnings", [])]
     out += [("荷受けステージ・昇降機", i.severity,
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in platforms.issues]
@@ -380,7 +383,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     s = summary(checks)
     warnings = collect_warnings(
         structural, model, bracket_issues, stair_plan, stair_issues,
-        openings, terrain, platforms, checks,
+        openings, terrain, platforms, checks, quantity,
     )
     verdict = build_verdict(
         s, structural, platforms, openings, bracket_issues, warnings

@@ -171,7 +171,8 @@ def main() -> None:
     write_quantity_csv(quantity, out / f"{name}_数量表.csv")
     openings = validate_openings(model, [])
     warnings = collect_warnings(
-        structural, model, [], stair_plan, [], openings, terrain, platforms, checks
+        structural, model, [], stair_plan, [], openings, terrain, platforms,
+        checks, quantity,
     )
     verdict = build_verdict(s, structural, platforms, openings, [], warnings)
     write_report_md(
