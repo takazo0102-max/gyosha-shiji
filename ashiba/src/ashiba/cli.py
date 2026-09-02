@@ -17,10 +17,35 @@
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
   "n_stairs": 1,
+  "next_gen": false,               // 次世代足場（踏板幅が広い規格）
+  "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
     {"edge_index": 0, "start_mm": 3600, "beam_span_mm": 3600, "reason": "現場出入口"}
   ],
+  // 朝顔（省略時は高さから自動。false で明示的に設置しない）
+  "asagao": {"stages": 1, "projection_mm": 2000, "angle_deg": 25, "tie_every_spans": 2},
+  // ブラケット区間（面の区間属性。支柱ラインは動かさない）
+  "bracket_sections": [
+    {"edge_index": 0, "start_mm": 0, "end_mm": 5400, "direction": "内",
+     "width": 300, "deck_width": 500, "levels": [1], "has_hozue": false,
+     "is_widening": false, "on_kessokubu": false}
+  ],
+  // 荷受けステージ・昇降機
+  "loading_stages": [
+    {"edge_index": 0, "start_mm": 12600, "span_count": 2, "projection_mm": 1500,
+     "load_kn": 9.8, "levels": [3]}
+  ],
+  "hoists": [{"edge_index": 2, "position_mm": 14400, "tie_every_mm": 3600}],
+  // 敷地の標高サンプル [[x,y,z], ...]（Archicad連携時は敷地メッシュから自動）
+  "ground_points_mm": [[0, 0, 0], [30000, 0, 400]],
+  // 構造計算の追加入力（省略時は既定値。地域区分だけでも入れる）
+  "site": {"region": "関東(沿岸)", "roughness": "III", "sheet_type": "メッシュシート",
+           "adjacent_factor": 1.0, "region_factor": 1.0,
+           "simultaneous_loaded_levels": 2},
+  // 様式第20号の人が書く欄（分かる範囲で事前入力できる）
+  "notification": {"business_type": "", "site_name": "", "start_date": "2026-11-01",
+                   "planner_name": "", "labor_office": ""},
   // 階段（省略可）。positions を書けば手動配置、書かなければ自動配置
   "stairs": {
     "count": 2,              // 箇所数。省略時は移動距離30m以内から自動算出

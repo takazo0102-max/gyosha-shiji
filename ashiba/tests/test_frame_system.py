@@ -145,6 +145,42 @@ class TestFrameLawChecks(unittest.TestCase):
         self.assertEqual(m.guard_rail_height_mm, 1000)
 
 
+class TestFrameLedgers(unittest.TestCase):
+    """枠組でも根がらみと最上層の手すりは布材で組む."""
+
+    def setUp(self):
+        self.m = build_frame()
+        self.q = take_off(self.m)
+
+    def test_ledgers_are_counted(self):
+        """マスタに布材があるのに1本も拾っていなかった."""
+        self.assertGreater(self.q.qty_of("布材"), 0)
+
+    def test_count_is_negarami_plus_top_rails(self):
+        from ashiba.quantity import QuantityRules
+
+        r = QuantityRules()
+        per_span = r.ledgers_negarami + r.rails_per_level_outer
+        self.assertEqual(
+            self.q.qty_of("布材"), self.m.plan.total_spans * per_span
+        )
+
+    def test_rule_is_stated_in_notes(self):
+        self.assertTrue(
+            any("最上層の手すり" in n for n in self.q.notes), self.q.notes
+        )
+
+    def test_intermediate_levels_do_not_add_rails(self):
+        """中間層の手すりは1つ上の建枠が兼ねるので、層数に比例しない."""
+        low_m, high_m = build_frame(height=8000), build_frame(height=24000)
+        self.assertLess(low_m.elevation.n_levels, high_m.elevation.n_levels)
+        per_span = [
+            take_off(m).qty_of("布材") / m.plan.total_spans
+            for m in (low_m, high_m)
+        ]
+        self.assertEqual(per_span[0], per_span[1])
+
+
 class TestFrameSpecificRules(unittest.TestCase):
     """安衛則は足場の種類で条文が違う。枠組に単管の値を当てない."""
 

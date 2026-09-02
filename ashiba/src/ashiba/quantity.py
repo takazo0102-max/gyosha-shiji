@@ -454,6 +454,22 @@ def _count_frame_parts(
             )
             add(part, n * n_levels, f"布板 幅{w}×{s}")
 
+    # ---- 布材（根がらみ＋最上層の手すり） ----
+    # 枠組は各作業層の手すりを「1つ上の建枠」が兼ねるので中間層には要らない。
+    # ただし次の2箇所は建枠が無いので布材で組む:
+    #   - 脚部の根がらみ（内外2本／スパン）
+    #   - 最上層の作業床の手すり・中桟（外側2本／スパン）
+    # ここを拾っていなかったため、枠組の部材表には根がらみも最上段の
+    # 手すりも出ていなかった
+    frame_rails_per_span = rules.ledgers_negarami + rules.rails_per_level_outer
+    for s, n in span_counts.items():
+        add(m.find("布材", s), n * frame_rails_per_span, f"布材{s}（根がらみ・最上層手すり）")
+    notes.append(
+        f"枠組の布材は根がらみ{rules.ledgers_negarami}本＋最上層の手すり・中桟"
+        f"{rules.rails_per_level_outer}本＝1スパンあたり{frame_rails_per_span}本で計上"
+        "（中間層の手すりは1つ上の建枠が兼ねる）"
+    )
+
     # ---- 交差筋交（構面数×段数）。建枠間隔ごとに規格がある ----
     # 枠組は交差筋交が建枠と一体で構面を成すため全スパン・全段に入る。
     # くさび式の斜材（6層6スパン以下毎）とは考え方が違う
