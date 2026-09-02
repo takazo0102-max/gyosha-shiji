@@ -143,5 +143,55 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
         self.assertEqual(sent - declared, set())
 
 
+class TestDetailParametersAreWired(unittest.TestCase):
+    """詳細図GDLのパラメータと required_details の受け渡しが食い違わないこと.
+
+    足場ライン側だけ担保していたので、詳細図は綴り違いを実機まで気づけなかった
+    （存在しないパラメータを1つ送ると、その要素の全パラメータが無視される）。
+    """
+
+    # 図面ごとに使うもの／GDL既定で足りる表示切替
+    SHEET_ONLY = {"detailType", "tieV", "tieH", "asagaoProj", "asagaoAngle",
+                  "beamSpan", "beamPosts", "openH", "floorH", "koma", "negaLv"}
+    DISPLAY_ONLY = {"showDim", "texSiz", "warnPen"}
+
+    def _declared(self, fixed_only=False):
+        import xml.etree.ElementTree as ET
+        from pathlib import Path as P
+
+        root = ET.parse(
+            P(__file__).resolve().parents[1]
+            / "gdl" / "hsf" / "ashiba_detail" / "paramlist.xml"
+        ).getroot()
+        return {
+            e.get("Name") for e in root.find("Parameters")
+            if fixed_only or e.find("Fix") is None
+        }
+
+    def _sent(self):
+        from ashiba.details import required_details
+
+        m = full_model()
+        out = set()
+        for sheet in required_details(
+            m, [{"beam_span_mm": 3600, "inner_posts_mm": [1800.0],
+                 "beam_height_mm": 4600}], force_all=True
+        ):
+            out |= set(sheet.params)
+        return out
+
+    def test_no_parameter_that_gdl_does_not_know(self):
+        self.assertEqual(self._sent() - self._declared(fixed_only=True), set())
+
+    def test_no_unwired_parameter(self):
+        unwired = (
+            self._declared() - self._sent() - self.SHEET_ONLY - self.DISPLAY_ONLY
+        )
+        self.assertEqual(
+            unwired, set(),
+            f"GDLにあるのに required_details が渡していない: {sorted(unwired)}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

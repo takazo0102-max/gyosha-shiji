@@ -32,6 +32,15 @@ CASES = [
 ]
 
 
+def _assert_cases_cover_every_sheet() -> None:
+    """図の種類が増えたのに検証ケースを足し忘れる事故を防ぐ."""
+    from ashiba.details import DETAIL_NAMES
+
+    missing = sorted(set(DETAIL_NAMES) - {k for k, _n, _o, _g in CASES})
+    if missing:
+        raise SystemExit(f"検証ケースの無い詳細図があります: {missing}")
+
+
 def preview(c: ArchicadClient, elem: dict, out: Path) -> int:
     resp = c.tapir(
         "GetElementPreviewImage",
@@ -45,6 +54,7 @@ def preview(c: ArchicadClient, elem: dict, out: Path) -> int:
 
 def main() -> None:
     keep = "--keep" in sys.argv
+    _assert_cases_cover_every_sheet()
     work = ROOT / "out" / "details"
     work.mkdir(parents=True, exist_ok=True)
 
