@@ -12,6 +12,7 @@ from _path import SRC  # noqa: F401
 
 from ashiba.brackets import INNER, OUTER
 from ashiba.cli import (
+    InputError,
     build_asagao,
     build_brackets,
     build_ground,
@@ -20,6 +21,8 @@ from ashiba.cli import (
     build_openings,
     build_platforms,
     build_site,
+    STAIR_POSITION_KEYS,
+    validate_spec,
 )
 from ashiba.model import GUARD_RAIL_ADVANCE, GUARD_RAIL_LEDGER
 
@@ -193,6 +196,74 @@ class TestBuildNotificationInfo(unittest.TestCase):
         self.assertEqual(info.worker_count, "30")
 
 
+class TestValidateSpec(unittest.TestCase):
+    """綴り違い・型違い・矛盾は、黙って既定値に落とさず入口で弾く."""
+
+    def ng(self, spec):
+        with self.assertRaises(InputError) as cm:
+            validate_spec(spec)
+        return str(cm.exception)
+
+    def test_valid_spec_passes(self):
+        validate_spec(dict(BASE))
+
+    def test_unknown_top_level_key_is_rejected(self):
+        msg = self.ng(dict(BASE, loading_stage=[]))
+        self.assertIn("loading_stage", msg)
+        self.assertIn("loading_stages", msg)   # 綴り違いの候補を出す
+
+    def test_unknown_nested_key_is_rejected(self):
+        self.assertIn("stage", self.ng(dict(BASE, asagao={"stage": 2})))
+        self.assertIn("regionn", self.ng(dict(BASE, site={"regionn": "沖縄"})))
+
+    def test_unknown_list_item_key_is_rejected(self):
+        msg = self.ng(dict(BASE, loading_stages=[
+            {"edge_index": 0, "start_mm": 0, "span": 2}]))
+        self.assertIn("loading_stages[0]", msg)
+        self.assertIn("span", msg)
+
+    def test_required_keys_are_named(self):
+        msg = self.ng({"outline_mm": RECT})
+        self.assertIn("eaves_height_mm", msg)
+        msg = self.ng(dict(BASE, openings=[{"edge_index": 0}]))
+        self.assertIn("start_mm", msg)
+        self.assertIn("beam_span_mm", msg)
+
+    def test_outline_shape_is_checked(self):
+        self.assertIn("3点以上", self.ng(dict(BASE, outline_mm=[[0, 0], [1, 1]])))
+        self.assertIn("2要素", self.ng(dict(BASE, outline_mm=[[0, 0, 0]] * 3)))
+
+    def test_standoff_order_is_checked(self):
+        msg = self.ng(dict(BASE, standoff={"target": 400, "min": 250, "max": 350}))
+        self.assertIn("hard_min≦min≦target≦max", msg)
+
+    def test_negative_numbers_are_rejected(self):
+        self.assertIn("eaves_height_mm", self.ng(dict(BASE, eaves_height_mm=-1)))
+
+    def test_scaffold_form_is_checked(self):
+        self.assertIn("scaffold_form", self.ng(dict(BASE, scaffold_form="本足")))
+
+    def test_ground_points_need_three_values(self):
+        self.assertIn("3要素", self.ng(dict(BASE, ground_points_mm=[[0, 0]])))
+
+    def test_all_problems_are_reported_at_once(self):
+        msg = self.ng(dict(BASE, foo=1, bar=2, scaffold_form="x"))
+        for token in ("foo", "bar", "scaffold_form"):
+            self.assertIn(token, msg)
+
+    def test_asagao_false_is_allowed(self):
+        validate_spec(dict(BASE, asagao=False))
+
+    def test_examples_all_validate(self):
+        import json
+        from pathlib import Path
+
+        ex = Path(__file__).resolve().parents[1] / "examples"
+        for f in sorted(ex.glob("*.json")):
+            with self.subTest(f.name):
+                validate_spec(json.loads(f.read_text(encoding="utf-8")))
+
+
 class TestDocumentedSchemaIsRead(unittest.TestCase):
     """docstringに書いた入力項目が、実際にコードから読まれていること.
 
@@ -211,6 +282,28 @@ class TestDocumentedSchemaIsRead(unittest.TestCase):
         body = src.split('"""', 2)[2]
         missing = sorted(k for k in keys if f'"{k}"' not in body)
         self.assertEqual(missing, [], f"docstringにあるがコードが読んでいない: {missing}")
+
+    def test_accepted_keys_and_the_documented_schema_agree(self):
+        """受け付けるキーと説明が食い違うと、正しい入力が弾かれる（逆も）."""
+        import re
+        from pathlib import Path
+
+        from ashiba.cli import LIST_ITEM_KEYS, NESTED_KEYS, TOP_KEYS
+
+        src = (Path(__file__).resolve().parents[1]
+               / "src" / "ashiba" / "cli.py").read_text(encoding="utf-8")
+        schema = src.split("入力JSONスキーマ")[1].split('"""')[0]
+        documented = set(re.findall(r'"([a-z_0-9]+)":', schema))
+        accepted = set(TOP_KEYS)
+        for v in NESTED_KEYS.values():
+            accepted |= v
+        for allowed, _ in LIST_ITEM_KEYS.values():
+            accepted |= allowed
+        accepted |= STAIR_POSITION_KEYS
+        self.assertEqual(
+            sorted(documented - accepted), [],
+            "説明にあるのに受け付けないキー（正しい入力が弾かれる）",
+        )
 
 
 if __name__ == "__main__":

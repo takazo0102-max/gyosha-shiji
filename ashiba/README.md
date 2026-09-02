@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト428本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト442本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -79,6 +79,10 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 cd ashiba
 PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 ```
+
+入力JSONは実行前に検証する。未知のキー（`loading_stages` を `loading_stage` と書く等）・
+必須キーの欠落・型違い・`standoff` の大小関係の矛盾はまとめて指摘して終了コード2で止まる。
+黙って既定値に落とすと、指定したつもりの朝顔やステージが計画から消えても気づけないため。
 
 用意してある例題（`examples/`）:
 

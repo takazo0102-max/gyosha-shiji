@@ -52,7 +52,8 @@
     "tower_spans": 2,        // 階段室が占有するスパン数
     "max_travel_mm": 30000,  // 昇降設備までの水平移動距離の目安
     "min_per_face": 1,       // 各面に最低1箇所（法規ではなく実務上の配慮）
-    "positions": [{"edge_index": 0, "start_mm": 3600, "span_count": 2}]
+    "positions": [{"edge_index": 0, "start_mm": 3600, "span_count": 2,
+                   "reason": "現場出入口の近く"}]
   }
 }
 """
@@ -98,6 +99,133 @@ from .stairs import (
 )
 from .structural import SiteCondition, optimize_wall_ties, run_structural
 from .terrain import GroundModel, solve_post_feet
+
+
+class InputError(ValueError):
+    """入力JSONの誤り（綴り違い・型違い・矛盾）をまとめて知らせる."""
+
+
+# 受け付けるキー。ここに無いキーは綴り違いとして弾く。
+# 黙って無視すると「指定したのに効かない」まま図面と計算が進んでしまう
+# （loading_stage と書けばステージが消え、計算にも数量にも現れない）
+TOP_KEYS = {
+    "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm",
+    "building_height_mm", "period_days", "standoff", "deck_widths",
+    "clearance_space_mm", "scaffold_form", "n_stairs", "next_gen",
+    "guard_rail_type", "openings", "asagao", "bracket_sections", "loading_stages",
+    "hoists", "ground_points_mm", "site", "notification", "stairs",
+}
+NESTED_KEYS = {
+    "standoff": {"target", "min", "max", "hard_min"},
+    "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans"},
+    "site": {"region", "v0_ms", "roughness", "sheet_type", "adjacent_factor",
+             "region_factor", "gamma", "correction_f",
+             "simultaneous_loaded_levels"},
+    "notification": {"business_type", "site_name", "site_address", "worker_count",
+                     "planner_name", "planner_career", "start_date", "contractor",
+                     "labor_office"},
+    "stairs": {"count", "tower_spans", "max_travel_mm", "min_per_face",
+               "positions"},
+}
+LIST_ITEM_KEYS = {
+    "openings": ({"edge_index", "start_mm", "beam_span_mm", "level", "reason"},
+                 {"edge_index", "start_mm", "beam_span_mm"}),
+    "bracket_sections": (
+        {"edge_index", "start_mm", "end_mm", "direction", "width", "deck_width",
+         "levels", "has_hozue", "is_widening", "on_kessokubu", "reason"},
+        {"edge_index", "start_mm", "end_mm"},
+    ),
+    "loading_stages": (
+        {"edge_index", "start_mm", "span_count", "projection_mm", "load_kn",
+         "levels", "has_guard_rail", "has_toe_board", "has_load_sign",
+         "has_hozue", "note"},
+        {"edge_index", "start_mm"},
+    ),
+    "hoists": ({"edge_index", "position_mm", "reach_height_mm", "tie_every_mm",
+                "note"},
+               {"edge_index", "position_mm"}),
+}
+STAIR_POSITION_KEYS = {"edge_index", "start_mm", "span_count", "reason"}
+
+
+def _check_keys(errors: list[str], where: str, obj, allowed: set[str],
+                required: set[str] = frozenset()) -> None:
+    if not isinstance(obj, dict):
+        errors.append(f"{where}: オブジェクトで指定してください（{type(obj).__name__}）")
+        return
+    for k in sorted(set(obj) - allowed):
+        near = [a for a in allowed if a.startswith(k[:4])]
+        hint = f"（{'・'.join(sorted(near))} の綴り違い？）" if near else ""
+        errors.append(f"{where}: 未知のキー \"{k}\"{hint}")
+    for k in sorted(required - set(obj)):
+        errors.append(f"{where}: \"{k}\" が要ります")
+
+
+def validate_spec(spec: dict) -> None:
+    """入力JSONを読む前に、綴り違い・型違い・矛盾をまとめて指摘する.
+
+    黙って既定値へ落とすと、指定したつもりの朝顔やステージが計画から消えても
+    誰も気づかない。安全に関わる指定を無視しないための入口チェック。
+    """
+    errors: list[str] = []
+    _check_keys(errors, "入力", spec, TOP_KEYS, {"outline_mm", "eaves_height_mm"})
+    if not isinstance(spec, dict):
+        raise InputError("入力JSONはオブジェクトで指定してください")
+
+    outline = spec.get("outline_mm")
+    if outline is not None:
+        if not isinstance(outline, list) or len(outline) < 3:
+            errors.append("outline_mm: 3点以上の[[x,y], ...]で指定してください")
+        elif any(not isinstance(p, (list, tuple)) or len(p) != 2 for p in outline):
+            errors.append("outline_mm: 各点は[x, y]の2要素で指定してください")
+
+    for key in ("eaves_height_mm", "guard_extra_mm", "building_height_mm",
+                "period_days", "clearance_space_mm", "n_stairs"):
+        v = spec.get(key)
+        if v is not None and (not isinstance(v, (int, float))
+                              or isinstance(v, bool) or v < 0):
+            errors.append(f"{key}: 0以上の数値で指定してください（{v!r}）")
+
+    for key, allowed in NESTED_KEYS.items():
+        if key in spec and spec[key] is not None and spec[key] is not False:
+            _check_keys(errors, key, spec[key], allowed)
+
+    so = spec.get("standoff")
+    if isinstance(so, dict):
+        hard, mn = so.get("hard_min", 200), so.get("min", 250)
+        mx, tgt = so.get("max", 350), so.get("target", 300)
+        if not (hard <= mn <= tgt <= mx):
+            errors.append(
+                f"standoff: hard_min≦min≦target≦max の順になっていません"
+                f"（hard_min{hard}・min{mn}・target{tgt}・max{mx}）"
+            )
+
+    for key, (allowed, required) in LIST_ITEM_KEYS.items():
+        items = spec.get(key)
+        if items is None:
+            continue
+        if not isinstance(items, list):
+            errors.append(f"{key}: 配列で指定してください")
+            continue
+        for i, item in enumerate(items):
+            _check_keys(errors, f"{key}[{i}]", item, allowed, required)
+
+    st = spec.get("stairs")
+    if isinstance(st, dict):
+        for i, pos in enumerate(st.get("positions") or []):
+            _check_keys(errors, f"stairs.positions[{i}]", pos,
+                        STAIR_POSITION_KEYS, {"edge_index", "start_mm"})
+
+    for i, p in enumerate(spec.get("ground_points_mm") or []):
+        if not isinstance(p, (list, tuple)) or len(p) != 3:
+            errors.append(f"ground_points_mm[{i}]: [x, y, z]の3要素で指定してください")
+
+    form = spec.get("scaffold_form")
+    if form is not None and form not in ("本足場", "一側足場"):
+        errors.append(f"scaffold_form: 本足場 か 一側足場 です（{form!r}）")
+
+    if errors:
+        raise InputError("入力JSONに問題があります:\n  - " + "\n  - ".join(errors))
 
 
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
@@ -337,6 +465,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     if master_csv is not None:
         master_csv = Path(master_csv)
     spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    validate_spec(spec)
     model = build_model(spec, master_csv)
     site = build_site(spec)
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
@@ -492,7 +621,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=Path("out"), help="出力ディレクトリ")
     ap.add_argument("--master", type=Path, default=None, help="部材マスタCSV（省略時は同梱）")
     args = ap.parse_args(argv)
-    result = run(args.input, args.out, args.master)
+    try:
+        result = run(args.input, args.out, args.master)
+    except InputError as e:
+        # 入力の綴り違いでスタックトレースを出しても直しようがない
+        print(str(e), file=sys.stderr)
+        return 2
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
