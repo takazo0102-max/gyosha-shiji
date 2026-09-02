@@ -2,7 +2,7 @@
 
 Phase 1〜4の全機能を1本で通す最終検証:
   スラブ作成 → 外形取得 → 平面/立面割付 → 壁つなぎ最適化 → 階段自動配置
-  → 敷地高低差(ジャッキ量) → 荷受けステージ → 法規10項目 → 構造計算
+  → 敷地高低差(ジャッキ量) → 荷受けステージ → 法規12項目 → 構造計算
   → 足場ライン配置 → 詳細図配置 → 帳票一式出力 → プレビュー保存
 
 使い方: python3 scripts/e2e_full_pipeline.py [--keep]
@@ -164,7 +164,11 @@ def main() -> None:
     # --- 6. 帳票 ---
     name = "E2E全機能"
     write_quantity_csv(quantity, out / f"{name}_数量表.csv")
-    write_report_md(model, quantity, checks, out / f"{name}_割付レポート.md", name)
+    write_report_md(
+        model, quantity, checks, out / f"{name}_割付レポート.md", name,
+        stair_plan=stair_plan, structural=structural, terrain=terrain,
+        platforms=platforms,
+    )
     write_plan_json(model, out / f"{name}_plan.json")
     write_jack_table_csv(terrain, out / f"{name}_ジャッキ量一覧.csv")
     write_notification_xlsx(

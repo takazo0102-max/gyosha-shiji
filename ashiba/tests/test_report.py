@@ -28,12 +28,12 @@ def build():
     )
 
 
-def render(model, stair_plan=None) -> str:
+def render(model, stair_plan=None, **kw) -> str:
     with tempfile.TemporaryDirectory() as d:
         path = Path(d) / "r.md"
         write_report_md(
             model, take_off(model), run_all_checks(model), path,
-            "テスト", stair_plan=stair_plan,
+            "テスト", stair_plan=stair_plan, **kw,
         )
         return path.read_text(encoding="utf-8")
 
@@ -60,6 +60,61 @@ class TestReport(unittest.TestCase):
     def test_disclaimer_is_always_present(self):
         """有資格者確認前提の下書きである旨（指示書9）を落とさない."""
         self.assertIn("計画作成参画者（有資格者）が確認する前提の下書き", render(build()))
+
+
+class TestReportCoversTheWholePlan(unittest.TestCase):
+    """計画の可否を左右する数字が本文に出ること.
+
+    構造計算の検定比・壁つなぎ・敷地の高低差は、以前は plan.json と
+    設置届Excelにしかなく、人が読む割付レポートには無かった。
+    """
+
+    def setUp(self):
+        self.m = build()
+
+    def test_wall_tie_section_always_present(self):
+        text = render(self.m)
+        self.assertIn("## 壁つなぎ", text)
+        self.assertIn(f"本数: {len(self.m.wall_ties)}箇所", text)
+
+    def test_structural_ratios_are_shown(self):
+        from ashiba.structural import SiteCondition, run_structural
+
+        res = run_structural(self.m, take_off(self.m), SiteCondition())
+        text = render(self.m, structural=res)
+        self.assertIn("## 構造計算", text)
+        self.assertIn(str(res.wall_tie.ratio), text)
+        self.assertIn(str(res.post.ratio), text)
+
+    def test_structural_warnings_are_shown(self):
+        from ashiba.structural import SiteCondition, run_structural
+
+        res = run_structural(self.m, take_off(self.m), SiteCondition())
+        text = render(self.m, structural=res)
+        for w in res.warnings:
+            self.assertIn(w, text)
+
+    def test_terrain_section_only_when_sloped(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        flat = solve_post_feet(self.m, GroundModel())
+        self.assertNotIn("## 敷地の高低差", render(self.m, terrain=flat))
+        slope = solve_post_feet(self.m, GroundModel(points=[
+            (0, 0, 0), (30000, 0, 400), (30000, 20000, 1200), (0, 20000, 800),
+        ]))
+        text = render(self.m, terrain=slope)
+        self.assertIn("## 敷地の高低差", text)
+        self.assertIn("脚部構成", text)
+
+    def test_extras_section_only_when_present(self):
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        self.assertNotIn("## 付帯設備", render(self.m))
+        pf = validate_platforms(self.m, [LoadingStage(
+            edge_index=0, start_mm=12600, span_count=2, levels=[3])])
+        text = render(self.m, platforms=pf)
+        self.assertIn("## 付帯設備", text)
+        self.assertIn("荷受けステージ 1基", text)
 
 
 if __name__ == "__main__":

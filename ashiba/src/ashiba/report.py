@@ -50,7 +50,18 @@ def write_report_md(
     path: Path,
     project_name: str = "",
     stair_plan=None,
+    structural=None,
+    terrain=None,
+    platforms=None,
+    openings=None,
+    bracket_sections=None,
 ) -> None:
+    """割付レポート（人が読む成果物）.
+
+    構造計算の検定比・壁つなぎの配置・敷地の高低差・付帯設備は、以前は
+    plan.json と設置届Excelにしか出ておらず、この本文には無かった。
+    計画の可否を左右する数字なので本文に出す。
+    """
     e = model.elevation
     lines: list[str] = []
     a = lines.append
@@ -116,6 +127,78 @@ def write_report_md(
     for c in checks:
         mark = {"OK": "✅", "WARN": "⚠️", "NG": "❌"}.get(c.status, c.status)
         a(f"| {c.check_id} | {c.name} | {mark} {c.status} | {c.message} | {c.basis} |")
+    a("")
+    a("## 壁つなぎ")
+    a("")
+    v_lim, h_lim, tie_basis = model.wall_tie_limits()
+    v_max, h_max = model.wall_tie_max_spacing()
+    a(f"- 本数: {len(model.wall_ties)}箇所")
+    a(f"- 実配置の最大間隔: 垂直{v_max:.0f}mm × 水平{h_max:.0f}mm "
+      f"（法定 垂直{v_lim:.0f} × 水平{h_lim:.0f}以下）")
+    a(f"- 根拠: {tie_basis}")
+    untied = model.edges_without_wall_ties()
+    if untied:
+        a("- ⚠️ 壁つなぎが入らない面: "
+          + "、".join(f"辺{i}" for i in untied)
+          + "（両隣の面にコーナー経由で支持される前提。単管等での別途拘束を検討）")
+
+    if structural is not None:
+        w, t, ps = structural.wind, structural.wall_tie, structural.post
+        a("")
+        a("## 構造計算（有資格者の確認前提の下書き）")
+        a("")
+        a(f"- 設計風速 V = {w.v_design_ms}m/s（V0={w.v0_ms} × K={w.k_height} "
+          f"× E={w.e_adjacent} × S={w.s_region}）／速度圧 q = {w.q_n_m2}N/m²")
+        a(f"- 風力係数 C = {w.c_force}（養生材 {structural.site.sheet_type}・充実率{w.fill_ratio}）")
+        a("")
+        a("| 検定 | 作用 | 許容 | 検定比 | 判定 |")
+        a("|---|---|---|---|---|")
+        a(f"| 壁つなぎ | {t.force_kn}kN | {t.allowable_increased_kn}kN（×1.3） "
+          f"| {t.ratio} | {'✅ OK' if t.ok else '❌ NG'} |")
+        a(f"| 建地圧縮 | {ps.total_kn}kN | {ps.allowable_kn}kN "
+          f"| {ps.ratio} | {'✅ OK' if ps.ok else '❌ NG'} |")
+        a("")
+        a(f"- 支配的な壁つなぎ: {t.governing or '—'}（支配面積{t.tributary_area_m2}m²）")
+        a(f"- 建地の支配検定: {ps.governing}")
+        a(f"- 建地1本の内訳: 自重{ps.dead_load_kn}kN ＋ 積載{ps.live_load_kn}kN"
+          + (f" ＋ 局所{ps.extra_load_kn}kN" if ps.extra_load_kn > 0 else ""))
+        for wmsg in structural.warnings:
+            a(f"- ⚠️ {wmsg}")
+
+    if terrain is not None and terrain.gl_difference_mm > 0:
+        a("")
+        a("## 敷地の高低差")
+        a("")
+        a(f"- 高低差: {terrain.gl_difference_mm:.0f}mm "
+          f"／ 脚部構成 {len({f.koma_offset for f in terrain.feet})}種類")
+        a(f"- ジャッキ繰出し: {terrain.jack_min_mm:.0f}〜{terrain.jack_max_mm:.0f}mm")
+        need_plate = [f for f in terrain.feet if abs(f.base_plate_adjust_mm) > 1e-6]
+        if need_plate:
+            a(f"- 敷板・床掘りでの調整が要る支柱: {len(need_plate)}本"
+              "（支柱ごとの量はジャッキ量一覧CSV）")
+        a("- 作業床レベルは全周で通し、高低差は支柱ごとのジャッキと支柱長で吸収しています")
+
+    extras = []
+    if bracket_sections:
+        extras.append(f"ブラケット区間 {len(bracket_sections)}箇所")
+    if platforms is not None and platforms.stages:
+        extras.append(f"荷受けステージ {len(platforms.stages)}基")
+    if platforms is not None and platforms.hoists:
+        extras.append(f"昇降機 {len(platforms.hoists)}基")
+    if openings is not None and openings.openings:
+        extras.append(f"開口部（梁枠）{len(openings.openings)}箇所")
+    if extras:
+        a("")
+        a("## 付帯設備")
+        a("")
+        a("- " + "／".join(extras))
+        if platforms is not None and platforms.max_post_load_kn > 0:
+            a(f"- ステージ直下の建地に加わる軸力: {platforms.max_post_load_kn:.2f}kN"
+              f"（{platforms.governing}）")
+        if openings is not None and openings.removed_posts:
+            a(f"- 開口部で抜いた支柱: {openings.removed_posts}本"
+              "（両端支柱の補強・梁枠上の積載荷重低減が必要）")
+
     a("")
     a("## 数量サマリ")
     a("")
