@@ -253,12 +253,11 @@ class TestJackExtensionGovernsPostCapacity(unittest.TestCase):
         self.assertGreater(slope.post.ratio, flat.post.ratio)
 
     def test_the_governing_post_is_named(self):
+        """どの支柱で検定したかは「説明」なので notes 側に出す."""
         res = run_structural(
             self.m, take_off(self.m), SiteCondition(), terrain=self.terrain
         )
-        self.assertTrue(
-            any("最大繰出し" in w for w in res.warnings), res.warnings
-        )
+        self.assertTrue(any("最大繰出し" in n for n in res.notes), res.notes)
 
     def test_flat_site_is_unchanged(self):
         from ashiba.terrain import GroundModel, solve_post_feet

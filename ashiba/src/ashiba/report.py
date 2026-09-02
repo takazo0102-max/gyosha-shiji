@@ -180,6 +180,8 @@ def write_report_md(
         a(f"- 建地の支配検定: {ps.governing}")
         a(f"- 建地1本の内訳: 自重{ps.dead_load_kn}kN ＋ 積載{ps.live_load_kn}kN"
           + (f" ＋ 局所{ps.extra_load_kn}kN" if ps.extra_load_kn > 0 else ""))
+        for nmsg in structural.notes:
+            a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:
             a(f"- ⚠️ {wmsg}")
 
@@ -195,6 +197,10 @@ def write_report_md(
             a(f"- 敷板・床掘りでの調整が要る支柱: {len(need_plate)}本"
               "（支柱ごとの量はジャッキ量一覧CSV）")
         a("- 作業床レベルは全周で通し、高低差は支柱ごとのジャッキと支柱長で吸収しています")
+        # terrain.notes は上の箇条書き（高低差・脚部構成）と同じ内容なので出さない。
+        # 対応が要るものだけ出す
+        for wmsg in terrain.warnings:
+            a(f"- ⚠️ {wmsg}")
 
     extras = []
     if bracket_sections:

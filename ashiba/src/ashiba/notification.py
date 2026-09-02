@@ -216,9 +216,14 @@ def _sheet_conditions(wb, model, structural: StructuralResult, project_name) -> 
     _kv(s, "同時載荷層数", site.simultaneous_loaded_levels, "層（実務: 2層以内）")
     s.add_blank()
     if structural.warnings:
-        s.add(["■ 警告"], STYLE_BOLD)
+        s.add(["■ 対応が必要"], STYLE_BOLD)
         for w in structural.warnings:
             s.add_cells([Cell(w)])
+    if structural.notes:
+        s.add_blank()
+        s.add(["■ 参考（どの条件で検定したか）"], STYLE_BOLD)
+        for n in structural.notes:
+            s.add_cells([Cell(n)])
 
 
 def _sheet_wind(wb, structural: StructuralResult) -> None:

@@ -186,7 +186,9 @@ class StructuralResult:
     wind: WindResult
     wall_tie: WallTieResult
     post: PostResult
+    # warnings は「対応が要るもの」だけ。検定条件の説明は notes へ分ける
     warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     unverified_used: list[str] = field(default_factory=list)
 
     @property
@@ -591,9 +593,10 @@ def run_structural(
     post = check_post(model, quantity, site, caps, extra, source, max_jack)
 
     warnings: list[str] = []
+    notes: list[str] = []
     unverified: list[str] = []
     if governing_foot is not None:
-        warnings.append(
+        notes.append(
             f"敷地高低差により最大繰出し{post.jack_extension_mm}mmの支柱"
             f"（支柱{governing_foot.index}）で建地を検定しています"
             f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
@@ -636,5 +639,5 @@ def run_structural(
         )
     return StructuralResult(
         site=site, wind=wind, wall_tie=tie, post=post,
-        warnings=warnings, unverified_used=unverified,
+        warnings=warnings, notes=notes, unverified_used=unverified,
     )

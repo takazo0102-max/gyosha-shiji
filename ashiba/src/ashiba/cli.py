@@ -419,6 +419,9 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
                 for t in stair_plan.towers
             ],
         },
+        # 参考情報（何をどう解いたかの説明）は warnings と分ける。
+        # 混ぜると、読む側がどれに手を打てばよいのか分からなくなる
+        "notes": structural.notes + [f"敷地: {n}" for n in terrain.notes],
         "warnings": (
             structural.warnings + model.plan.warnings + model.elevation.warnings
             + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]

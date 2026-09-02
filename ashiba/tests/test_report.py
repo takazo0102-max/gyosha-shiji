@@ -157,5 +157,50 @@ class TestPlanJsonIsSelfSufficient(unittest.TestCase):
         )
 
 
+class TestWarningsAreSeparatedFromNotes(unittest.TestCase):
+    """対応が要るものと、何をどう解いたかの説明を混ぜない."""
+
+    def setUp(self):
+        from ashiba.structural import SiteCondition, run_structural
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        self.m = build()
+        self.terrain = solve_post_feet(self.m, GroundModel(points=[
+            (0, 0, 0), (30000, 0, 400), (30000, 20000, 1200), (0, 20000, 800),
+        ]))
+        self.res = run_structural(
+            self.m, take_off(self.m), SiteCondition(), terrain=self.terrain
+        )
+
+    def test_condition_explanation_is_a_note_not_a_warning(self):
+        """どのジャッキ量で検定したかは説明であって是正項目ではない."""
+        self.assertTrue(
+            any("最大繰出し" in n for n in self.res.notes), self.res.notes
+        )
+        self.assertFalse(any("最大繰出し" in w for w in self.res.warnings))
+
+    def test_unverified_capacity_stays_a_warning(self):
+        """未確認の耐力値は提出前に必ず解消するので警告のまま."""
+        self.assertTrue(
+            any("未確認の耐力値" in w for w in self.res.warnings), self.res.warnings
+        )
+
+    def test_terrain_absorption_is_a_note_and_over_limit_is_a_warning(self):
+        self.assertTrue(
+            any("吸収しました" in n for n in self.terrain.notes), self.terrain.notes
+        )
+        self.assertFalse(any("吸収しました" in w for w in self.terrain.warnings))
+        self.assertTrue(
+            any("実務上限" in w for w in self.terrain.warnings), self.terrain.warnings
+        )
+
+    def test_report_marks_them_differently(self):
+        text = render(self.m, structural=self.res, terrain=self.terrain)
+        for n in self.res.notes:
+            self.assertIn(f"ℹ️ {n}", text)
+        for w in self.res.warnings:
+            self.assertIn(f"⚠️ {w}", text)
+
+
 if __name__ == "__main__":
     unittest.main()

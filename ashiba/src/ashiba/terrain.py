@@ -98,7 +98,10 @@ class TerrainResult:
     reference_gl_mm: float
     gl_range_mm: tuple[float, float]
     deck_levels_abs_mm: list[float]    # 作業床の絶対標高（全周共通）
+    # warnings は「対応が要るもの」だけ。何をどう解いたかの説明は notes へ分ける
+    # （混ぜると、読む側がどれに手を打てばよいのか分からなくなる）
     warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     @property
     def jack_min_mm(self) -> float:
@@ -209,9 +212,10 @@ def solve_post_feet(
             posts=posts, base_plate_adjust_mm=adjust, warnings=foot_warnings,
         ))
 
+    notes: list[str] = []
     diff = gl_max - gl_min
     if diff > 0:
-        warnings.append(
+        notes.append(
             f"敷地の高低差{diff:.0f}mmを支柱ごとのジャッキ・支柱長で吸収しました"
             f"（{len({f.koma_offset for f in feet})}種類の脚部構成）"
         )
@@ -252,6 +256,7 @@ def solve_post_feet(
         gl_range_mm=(gl_min, gl_max),
         deck_levels_abs_mm=deck_levels_abs,
         warnings=warnings,
+        notes=notes,
     )
 
 
