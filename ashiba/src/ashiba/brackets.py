@@ -165,6 +165,35 @@ def bracket_quantities(
     return counts
 
 
+def bracket_deck_changes(
+    model: ScaffoldModel, sections: list[BracketSection]
+) -> list[tuple[int, int, int, int]]:
+    """踏板幅を変える区間の差し替え一覧 (スパン呼び寸法, 変更前幅, 変更後幅, 枚数).
+
+    BracketSection.deck_width は入力として受け取っているのに数量へ反映されて
+    いなかった。指定しても数量表が変わらないと、区間の踏板が現場で足りない。
+    区間に完全に収まるスパンだけを対象にする（またぐスパンは敷き替えられない）。
+    """
+    out: list[tuple[int, int, int, int]] = []
+    widths = list(model.config.deck_widths or [])
+    if not widths:
+        return out
+    base_width = widths[0]           # 差し替えるのは主となる幅の踏板
+    for s in sections:
+        if s.deck_width is None or s.deck_width == base_width:
+            continue
+        edge = _find_edge(model, s.edge_index)
+        if edge is None or s.length_mm <= 0:
+            continue
+        n_levels = len(s.levels) if s.levels else model.elevation.n_levels
+        acc = 0.0
+        for span in edge.spans:
+            if s.start_mm - 1e-6 <= acc and acc + span <= s.end_mm + 1e-6:
+                out.append((span, base_width, s.deck_width, n_levels))
+            acc += span
+    return out
+
+
 def _find_edge(model: ScaffoldModel, edge_index: int):
     for ep in model.plan.edges:
         if ep.edge_index == edge_index:

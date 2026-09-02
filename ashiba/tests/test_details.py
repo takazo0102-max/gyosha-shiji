@@ -97,5 +97,31 @@ class TestRequiredDetails(unittest.TestCase):
         self.assertIn("入隅1", sheet.reason)
 
 
+class TestFrameSeriesDetails(unittest.TestCase):
+    """詳細図はくさびの納まり。枠組で使うことを図面に出す."""
+
+    def test_frame_uses_its_own_series_type(self):
+        frame = required_details(make_model(series="waku"))[0]
+        wedge = required_details(make_model(series="shinwa_A"))[0]
+        self.assertEqual(frame.params["serType"], "W")
+        self.assertEqual(wedge.params["serType"], "A")
+
+    def test_negarami_height_comes_from_the_solver(self):
+        """コマピッチで決め打ちすると、コマの概念が無い枠組で0になる."""
+        m = make_model(series="shinwa_A")
+        base = required_details(m)[0]
+        self.assertAlmostEqual(
+            base.params["negaLv"],
+            (m.elevation.first_ledger_height - m.elevation.jack_extension) / 1000.0,
+        )
+
+    def test_tie_limits_follow_the_series(self):
+        """図面に埋め込む法規しきい値も系列で変わる（570条1項五号）."""
+        frame = required_details(make_model(series="waku"))[0]
+        wedge = required_details(make_model(series="shinwa_A"))[0]
+        self.assertEqual((frame.params["tieVLim"], frame.params["tieHLim"]), (9.0, 8.0))
+        self.assertEqual((wedge.params["tieVLim"], wedge.params["tieHLim"]), (5.0, 5.5))
+
+
 if __name__ == "__main__":
     unittest.main()

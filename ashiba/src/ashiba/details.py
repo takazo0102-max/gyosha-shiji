@@ -55,9 +55,18 @@ def required_details(
     force_all: Trueなら不要な図も含め5枚すべて返す
     """
     e = model.elevation
-    ser = "B" if model.master.series_id.endswith("_B") else "A"
+    # 枠組は "W"。くさびのA/Bと同じ扱いにすると、枠組の計画に
+    # くさびの納まり図が注意書き無しで付いてしまう
+    if model.master.is_frame:
+        ser = "W"
+    else:
+        ser = "B" if model.master.series_id.endswith("_B") else "A"
+    v_lim, h_lim, _ = model.wall_tie_limits()
     common = {
         "serType": ser,
+        # 図面に埋め込む法規しきい値も系列で変わる（570条1項五号）
+        "tieVLim": v_lim / 1000.0,
+        "tieHLim": h_lim / 1000.0,
         "standoff": _median_standoff(model) / 1000.0,
         "rowW": model.deck_width_total / 1000.0,
         "spanW": _common_span(model) / 1000.0,
@@ -74,7 +83,11 @@ def required_details(
             title=DETAIL_NAMES["base"],
             params={**common,
                     "jackOut": e.jack_extension / 1000.0,
-                    "negaLv": model.master.koma_pitch / 1000.0},
+                    # 根がらみ高さは立面ソルバの結果から。コマピッチで決め打ちすると
+                    # コマの概念が無い枠組で0になる
+                    "negaLv": max(
+                        0.0, (e.first_ledger_height - e.jack_extension) / 1000.0
+                    )},
             reason="全ての足場に必要（脚部・根がらみ・ジャッキ）",
         ),
         DetailSheet(

@@ -149,5 +149,54 @@ class TestBracketQuantity(unittest.TestCase):
         self.assertEqual(self.m.plan.post_positions(), before)
 
 
+class TestBracketDeckWidth(unittest.TestCase):
+    """区間の踏板幅指定が数量に反映されること（受け取るだけで無視していた）."""
+
+    def setUp(self):
+        from ashiba.brackets import bracket_deck_changes
+
+        self.changes = bracket_deck_changes
+        self.m = make_model()
+
+    def _qty(self, model_no, result):
+        return next((l.qty for l in result.lines if l.part.model_no == model_no), 0)
+
+    def test_only_spans_fully_inside_are_changed(self):
+        """区間をまたぐスパンは敷き替えられない."""
+        sec = BracketSection(
+            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            deck_width=500, levels=[1],
+        )
+        got = self.changes(self.m, [sec])
+        self.assertEqual(len(got), 3)          # 1800×3スパンが収まる
+        self.assertTrue(all(sum(c[:1]) == 1800 for c in got))
+
+    def test_take_off_swaps_the_deck_part(self):
+        sec = BracketSection(
+            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            deck_width=500, levels=[1, 2],
+        )
+        base = take_off(self.m)
+        with_sec = take_off(self.m, bracket_sections=[sec])
+        self.assertEqual(
+            self._qty("A-F4018", base) - self._qty("A-F4018", with_sec), 6
+        )
+        self.assertEqual(self._qty("A-F5018", with_sec), 6)
+
+    def test_missing_width_is_reported_not_dropped(self):
+        sec = BracketSection(
+            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            deck_width=9999, levels=[1],
+        )
+        q = take_off(self.m, bracket_sections=[sec])
+        self.assertTrue(
+            any("マスタにありません" in n and "9999" in n for n in q.notes), q.notes
+        )
+
+    def test_no_width_given_changes_nothing(self):
+        sec = BracketSection(edge_index=0, start_mm=0, end_mm=5400, width=300)
+        self.assertEqual(self.changes(self.m, [sec]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

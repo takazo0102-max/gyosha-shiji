@@ -16,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ashiba.tapir_adapter import ArchicadClient  # noqa: E402
-from dev_gsm_iterate import build_versioned_gsm  # noqa: E402
+from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
+from dev_gsm_iterate import build_current_gsm  # noqa: E402
 
 # (ASCIIキー, 表示名, 適合パラメータ, 違反パラメータ)
 # detailType は必ずASCII。日本語値は外部から渡すとGDL側の比較が一致しない（実機確認済み）
@@ -44,17 +44,21 @@ def preview(c: ArchicadClient, elem: dict, out: Path) -> int:
 
 
 def main() -> None:
-    version = int(sys.argv[1]) if len(sys.argv) > 1 else 10
     keep = "--keep" in sys.argv
     work = ROOT / "out" / "details"
     work.mkdir(parents=True, exist_ok=True)
 
-    name, gsm = build_versioned_gsm(version, work, "ashiba_detail")
+    # 部品名はHSFの内容ハッシュ。版番号を手で振ると、更新を忘れたまま
+    # 古い埋め込み部品を検証してしまう
+    name, gsm = build_current_gsm("ashiba_detail", work)
     print(f"コンパイル: {gsm.name}")
 
     c = ArchicadClient()
-    c.add_file_to_embedded_library(str(gsm), gsm.name)
-    print("埋め込みライブラリへ追加（1回のみ）")
+    try:
+        c.add_file_to_embedded_library(str(gsm), gsm.name)
+        print("埋め込みライブラリへ追加（1回のみ）")
+    except TapirError:
+        print("同じ内容の部品が既にあるのでそれを使います")
 
     placed: list[dict] = []
     failures: list[str] = []

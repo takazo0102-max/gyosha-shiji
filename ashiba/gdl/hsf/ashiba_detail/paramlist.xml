@@ -93,6 +93,14 @@
 			<Description><![CDATA["文字高mm"]]></Description>
 			<Value>2.5</Value>
 		</RealNum>
+		<Length Name="tieVLim">
+			<Description><![CDATA["壁つなぎ垂直間隔の上限 0で既定5m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="tieHLim">
+			<Description><![CDATA["壁つなぎ水平間隔の上限 0で既定5.5m"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="warnPen">
 			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
 			<Value>20</Value>

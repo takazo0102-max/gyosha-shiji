@@ -249,6 +249,24 @@ def take_off(
             )
             add(part, qty, f"ブラケット{width}（{purpose}）")
 
+        # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
+        from .brackets import bracket_deck_changes
+
+        for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
+            new_part = m.deck_parts(to_w, span)
+            if new_part is None:
+                notes.append(
+                    f"区間指定の踏板 幅{to_w}×{span}がマスタにありません"
+                    f"（{n_lv}枚）。幅{from_w}のままで計上しています"
+                )
+                continue
+            old_part = m.deck_parts(from_w, span)
+            if old_part is not None:
+                counts[old_part.model_no] = max(
+                    0, counts.get(old_part.model_no, 0) - n_lv
+                )
+            add(new_part, n_lv, f"踏板 幅{to_w}×{span}（区間指定）")
+
     _count_platform_parts(model, platforms, add, notes)
     return _assemble(model, rules, counts, parts, notes)
 
