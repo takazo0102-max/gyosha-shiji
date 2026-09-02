@@ -337,7 +337,12 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     s.add_title("建地（支柱）圧縮の検定", span=3)
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
+    # 式だけ書いて元の数を出さないと、確認する人が値を追えない
+    _kv(s, "足場総重量", p.total_weight_kg, "kg  部材等明細書の合計")
+    _kv(s, "建地本数", p.n_posts, "本（支柱位置数×列数）")
     _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
+    _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  capacity.csv")
+    _kv(s, "同時載荷層数", p.loaded_levels, "層（実務: 2層以内）")
     _kv(s, "積載 建地1本あたり", p.live_load_kn,
         "kN  作業床許容積載×同時載荷層数÷2")
     if p.extra_load_kn > 0:

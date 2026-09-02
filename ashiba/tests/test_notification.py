@@ -151,6 +151,40 @@ class TestNotification(unittest.TestCase):
             self.assertIn("未確認値", tie)
 
 
+class TestPostSheetIsReproducible(unittest.TestCase):
+    """計算書は値だけでなく、その値を出した数まで載せる（確認できないと意味がない）."""
+
+    def test_inputs_of_each_formula_are_on_the_sheet(self):
+        m = make_model()
+        q = take_off(m)
+        st = run_structural(m, q)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "n.xlsx"
+            write_notification_xlsx(m, q, run_all_checks(m), st, p)
+            z = zipfile.ZipFile(p)
+            names = re.findall(
+                r'name="([^"]+)"', z.read("xl/workbook.xml").decode())
+            sheet = z.read(
+                f"xl/worksheets/sheet{names.index('計算書3_建地圧縮') + 1}.xml"
+            ).decode()
+        for label in ("足場総重量", "建地本数", "作業床許容積載", "同時載荷層数"):
+            self.assertIn(label, sheet)
+        self.assertIn(f"<v>{st.post.n_posts}</v>", sheet)
+        self.assertIn(f"<v>{q.total_weight_kg}</v>", sheet)
+
+    def test_dead_load_matches_the_stated_numbers(self):
+        m = make_model()
+        q = take_off(m)
+        p = run_structural(m, q).post
+        self.assertAlmostEqual(
+            p.dead_load_kn, p.total_weight_kg * 9.80665 / 1000.0 / p.n_posts,
+            places=2,
+        )
+        self.assertAlmostEqual(
+            p.live_load_kn, p.deck_capacity_kn * p.loaded_levels / 2.0, places=3
+        )
+
+
 class TestForm20StructureSummary(unittest.TestCase):
     """様式第20号の「構造の概要」が計画に追随すること."""
 

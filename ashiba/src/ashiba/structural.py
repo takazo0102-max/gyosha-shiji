@@ -213,6 +213,11 @@ class WallTieResult:
 
 @dataclass
 class PostResult:
+    # 検定値の元になった数（計算書を追えるようにするため持つ）
+    n_posts: int
+    total_weight_kg: float
+    deck_capacity_kn: float
+    loaded_levels: int
     dead_load_kn: float
     live_load_kn: float
     extra_load_kn: float          # 荷受けステージ等の局所荷重
@@ -474,6 +479,10 @@ def check_post(
     ]
 
     return PostResult(
+        n_posts=n_posts,
+        total_weight_kg=quantity.total_weight_kg,
+        deck_capacity_kn=cap_deck.value,
+        loaded_levels=site.simultaneous_loaded_levels,
         dead_load_kn=round(dead_kn, 3),
         live_load_kn=round(live_kn, 3),
         extra_load_kn=round(extra_post_load_kn, 3),
