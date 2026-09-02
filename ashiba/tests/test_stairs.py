@@ -179,6 +179,34 @@ class TestQuantityIntegration(unittest.TestCase):
         plan = auto_place_stairs(m, min_per_face=1)
         self.assertLessEqual(plan.max_travel_mm, DEFAULT_MAX_TRAVEL_MM)
 
+    def test_min_per_face_tops_up_when_one_per_face_is_not_enough(self):
+        """各面1箇所で移動距離が足りない大きな建物は、広く空いた所から埋める."""
+        m = build(outline=[(0, 0), (100000, 0), (100000, 60000), (0, 60000)])
+        plan = auto_place_stairs(m, min_per_face=1)
+        self.assertGreater(plan.required_count, len(m.plan.edges))
+        self.assertGreaterEqual(plan.count, plan.required_count)
+        self.assertLessEqual(plan.max_travel_mm, DEFAULT_MAX_TRAVEL_MM)
+        self.assertEqual(validate_stairs(m, plan), [])
+
+    def test_top_up_fills_the_widest_gap_first(self):
+        """埋める位置は一番広く空いた区間。偏って詰めない."""
+        m = build(outline=[(0, 0), (100000, 0), (100000, 60000), (0, 60000)])
+        plan = auto_place_stairs(m, min_per_face=1)
+        loop = sum(e.scaffold_length for e in m.plan.edges)
+        pos = sorted(t.loop_position_mm for t in plan.towers)
+        gaps = [b - a for a, b in zip(pos, pos[1:])] + [loop - pos[-1] + pos[0]]
+        # 最大の間隔が周長の半分を超えるような偏りは無い
+        self.assertLess(max(gaps), loop / 2)
+
+    def test_top_up_reports_when_it_runs_out_of_room(self):
+        """置けない分を黙って減らさない."""
+        m = build(outline=SMALL)
+        plan = auto_place_stairs(m, count=20, min_per_face=1)
+        self.assertLess(plan.count, 20)
+        self.assertTrue(
+            any("しか置けません" in w for w in plan.warnings), plan.warnings
+        )
+
     def test_min_per_face_reports_faces_that_cannot_take_one(self):
         """短い面には階段室が入らない。入らなかったことを黙らせない."""
         m = build(outline=[(0, 0), (30000, 0), (30000, 3000), (0, 3000)])

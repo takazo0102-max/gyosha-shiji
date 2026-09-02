@@ -136,15 +136,22 @@ def auto_place_stairs(
                     f"（置けたのは{placed}箇所。{tower_spans}スパン連続かつ"
                     "コーナーから1スパン以上離れた空き区間が必要）"
                 )
-        # 各面に置いたうえで移動距離が足りなければ、一番広く空いた所から埋める
-        while len(plan.towers) < n:
+        # 各面に置いたうえで移動距離が足りなければ、一番広く空いた所から埋める。
+        # 箇所数だけを条件にすると、必要数を満たしていても配置が偏って
+        # 移動距離を超えたままになる（各面の中央に置くので均等にならない）。
+        # 実際の移動距離が収まるまで埋める
+        while True:
+            if (len(plan.towers) >= n
+                    and actual_max_travel(plan.towers, loop_len) <= max_travel_mm):
+                break
             pos = _largest_gap_center(plan.towers, loop_len)
             if not _add(
                 _place_at(model, pos, tower_spans, occupied),
                 f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加",
             ):
                 plan.warnings.append(
-                    f"階段を{n}箇所置きたいところ{len(plan.towers)}箇所しか置けません"
+                    f"階段を{max(n, len(plan.towers) + 1)}箇所置きたいところ"
+                    f"{len(plan.towers)}箇所しか置けません"
                     f"（{tower_spans}スパン連続の空き区間が足りない）"
                 )
                 break
