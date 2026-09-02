@@ -162,11 +162,14 @@ class TestQuantityIntegration(unittest.TestCase):
         )
 
     def test_unplaceable_count_is_reported(self):
-        """置けなかった箇所を黙って減らさない."""
+        """置けなかった箇所を黙って減らさない（ただし1行にまとめる）."""
         m = build(outline=SMALL)
         plan = auto_place_stairs(m, count=20)
         self.assertLess(plan.count, 20)
-        self.assertTrue(any("配置できる区間が見つかりません" in w for w in plan.warnings))
+        hits = [w for w in plan.warnings if "しか配置できません" in w]
+        self.assertEqual(len(hits), 1, plan.warnings)
+        self.assertIn(f"{plan.count}箇所", hits[0])
+        self.assertIn("20箇所", hits[0])
 
     def test_min_per_face_puts_one_on_every_face(self):
         m = build()
@@ -218,6 +221,30 @@ class TestQuantityIntegration(unittest.TestCase):
         m = build()
         m.config.n_stairs = 1
         self.assertEqual(take_off(m).qty_of("階段"), m.elevation.n_levels)
+
+
+class TestWallTieRatioIsNotInfinite(unittest.TestCase):
+    """作業層が取れない高さでも、検定比inf を帳票やJSONに出さない."""
+
+    def test_no_infinity_in_the_result(self):
+        import json
+        import tempfile
+
+        from ashiba.cli import run
+
+        spec = {"series_id": "shinwa_A", "project_name": "軒高0",
+                "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 0, "period_days": 90}
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "s.json"
+            f.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = run(f, Path(td) / "o")
+        self.assertNotIn("Infinity", json.dumps(r, ensure_ascii=False))
+        self.assertIsNone(r["structural"]["wall_tie_ratio"])
+        self.assertTrue(any("検定不能" in b for b in r["verdict"]["blockers"]))
+        self.assertTrue(
+            any("壁つなぎが1本もないため" in w for w in r["warnings"]), r["warnings"]
+        )
 
 
 class TestTooSmallForAStairTower(unittest.TestCase):

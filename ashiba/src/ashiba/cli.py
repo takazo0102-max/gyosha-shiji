@@ -445,7 +445,11 @@ def build_verdict(
     if check_summary["ng"]:
         blockers.append(f"法規チェックNG {check_summary['ng']}件")
     if not structural.wall_tie.ok:
-        blockers.append(f"壁つなぎ 検定比{structural.wall_tie.ratio}")
+        blockers.append(
+            f"壁つなぎ 検定比{structural.wall_tie.ratio}"
+            if math.isfinite(structural.wall_tie.ratio)
+            else "壁つなぎ 0本のため検定不能"
+        )
     if not structural.post.ok:
         blockers.append(f"建地圧縮 検定比{structural.post.ratio}")
     n_pf = len([i for i in platforms.issues if i.severity == "NG"])
@@ -603,6 +607,17 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
     )
 
 
+def _finite(value):
+    """inf/nan を None に落とす（JSONに Infinity を書くと厳密なパーサで読めない）."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite(v) for v in value]
+    return value
+
+
 def result_dict(r: PlanRun, out_dir: Path) -> dict:
     """機械可読の実行結果（CLIの標準出力・受け入れテストが読む）."""
     (model, quantity, checks, structural, terrain, platforms, openings,
@@ -611,7 +626,7 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.tie_opt)
     name = r.name
     s = summary(checks)
-    return {
+    return _finite({
         "project": name,
         "posts_per_level": model.plan.total_posts,
         "levels": model.elevation.n_levels,
@@ -688,7 +703,7 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         "notes": structural.notes + [f"敷地: {n}" for n in terrain.notes],
         "warnings": [w for _, _, w in warnings],
         "out_dir": str(out_dir),
-    }
+    })
 
 
 def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:

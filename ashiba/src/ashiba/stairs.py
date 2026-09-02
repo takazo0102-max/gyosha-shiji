@@ -157,17 +157,23 @@ def auto_place_stairs(
                 break
     else:
         targets = [loop_len * i / n for i in range(n)]
-        for i, t in enumerate(targets):
+        failed = 0
+        for t in targets:
             if not _add(
                 _place_at(model, t, tower_spans, occupied),
                 f"昇降設備{n}箇所を均等配置"
                 f"（安衛則526条、水平移動{max_travel_mm / 1000:.0f}m以内）",
             ):
-                plan.warnings.append(
-                    f"階段{i + 1}箇所目を配置できる区間が見つかりません"
-                    f"（{tower_spans}スパン連続かつコーナーから1スパン以上"
-                    "離れた空き区間が必要）"
-                )
+                failed += 1
+        if failed:
+            # 1箇所ごとに同じ文を並べると、指定箇所数が多いほど警告で埋まる
+            # （99箇所の指定で75行出ていた）。何箇所置けたのかを1行で言う
+            plan.warnings.append(
+                f"指定の{n}箇所のうち{len(plan.towers)}箇所しか配置できません"
+                f"（残り{failed}箇所ぶんの空き区間がありません。"
+                f"{tower_spans}スパン連続かつコーナーから1スパン以上離れた"
+                "区間が必要）"
+            )
 
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）
