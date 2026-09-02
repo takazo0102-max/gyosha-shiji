@@ -117,6 +117,10 @@
 			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<String Name="brktList">
+			<Description><![CDATA["ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="stageList">
 			<Description><![CDATA["荷受けステージ mm 「開始,長さ,出,設置高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>

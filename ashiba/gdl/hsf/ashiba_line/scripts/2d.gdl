@@ -75,6 +75,27 @@ for it2 = 1 to nSt
 	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
 next it2
 
+! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
+for ik = 1 to nBk
+	drawn = 0
+	for ij = 1 to ik - 1
+		if bkS[ij] = bkS[ik] and bkE[ij] = bkE[ik] and bkD[ij] = bkD[ik] then drawn = 1
+	next ij
+	if drawn = 0 then
+		if bkD[ik] > 0 then
+			by1 = 0
+			by2 = bkW[ik]
+		else
+			by1 = -rowW
+			by2 = -rowW - bkW[ik]
+		endif
+		line2 bkS[ik], by2, bkE[ik], by2
+		line2 bkS[ik], by1, bkS[ik], by2
+		line2 bkE[ik], by1, bkE[ik], by2
+		if showDim then text2 (bkS[ik] + bkE[ik]) / 2, by2 + (by2 - by1) * 0.25, "BR" + str(bkW[ik] * 1000, 4, 0)
+	endif
+next ik
+
 ! 荷受けステージ（平面では外側への張り出し外形）
 for ig = 1 to nSg
 	gs = sgS[ig]

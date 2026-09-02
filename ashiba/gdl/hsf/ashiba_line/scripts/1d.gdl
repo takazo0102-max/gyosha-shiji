@@ -24,6 +24,11 @@ dim sgS[8]
 dim sgL[8]
 dim sgP[8]
 dim sgH[8]
+dim bkS[24]
+dim bkE[24]
+dim bkW[24]
+dim bkD[24]
+dim bkH[24]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -147,6 +152,44 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- brktList をパース「開始,終了,幅,向き,高さ」の繰り返し (mm→m) ----
+! ブラケット区間は作業床の幅を局所的に変える。図面に出ないと、
+! 実際より狭い（または広い）床を描いたままになる
+nBk = 0
+bkIdx = 0
+bkA = 0
+bkB = 0
+bkC = 0
+bkE0 = 0
+rest = brktList
+while strlen(rest) > 0 and nBk < 24 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		bkIdx = bkIdx + 1
+		md = bkIdx - 5 * int(bkIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		if md = 1 then bkA = v / 1000
+		if md = 2 then bkB = v / 1000
+		if md = 3 then bkC = v / 1000
+		if md = 4 then bkE0 = v
+		if md = 0 then
+			nBk = nBk + 1
+			bkS[nBk] = bkA
+			bkE[nBk] = bkB
+			bkW[nBk] = bkC
+			bkD[nBk] = bkE0
+			bkH[nBk] = v / 1000
+		endif
 	endif
 endwhile
 

@@ -168,4 +168,18 @@ for ig = 1 to nSg
 	del 2
 next ig
 
+! ---- ブラケット区間（拡幅ぶんの作業床） ----
+for ik = 1 to nBk
+	if bkD[ik] > 0 then
+		add bkS[ik], 0, bkH[ik]
+		block bkE[ik] - bkS[ik], bkW[ik], 0.045
+		del 1
+	else
+		add bkS[ik], -rowW, bkH[ik]
+		muly -1
+		block bkE[ik] - bkS[ik], bkW[ik], 0.045
+		del 2
+	endif
+next ik
+
 end

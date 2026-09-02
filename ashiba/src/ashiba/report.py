@@ -239,6 +239,7 @@ def write_plan_json(
     terrain=None,
     platforms=None,
     openings=None,
+    bracket_sections=None,
 ) -> None:
     """GDL配置・再編集用の機械可読データ.
 
@@ -286,7 +287,7 @@ def write_plan_json(
                 "placement": placement_of(model, ep.edge_index),
                 "gdl_params": line_params(
                     model, ep, stair_plan=stair_plan, openings=openings,
-                    platforms=platforms,
+                    platforms=platforms, bracket_sections=bracket_sections,
                 ),
             }
             for ep in model.plan.edges

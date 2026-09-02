@@ -282,6 +282,7 @@ def place_scaffold_lines(
     stair_plan=None,
     openings=None,
     platforms=None,
+    bracket_sections=None,
 ) -> list[dict]:
     """割付結果の各辺に「足場ライン」オブジェクトを1つずつ配置する.
 
@@ -300,7 +301,7 @@ def place_scaffold_lines(
             elem,
             line_params(
                 model, ep, stair_plan=stair_plan, openings=openings,
-                platforms=platforms,
+                platforms=platforms, bracket_sections=bracket_sections,
             ),
         )
         placed.append(elem)
@@ -379,6 +380,7 @@ def place_elevations(
     stair_plan=None,
     openings=None,
     platforms=None,
+    bracket_sections=None,
     origin_mm: tuple[float, float] = (0.0, 0.0),
     gap_mm: float = 4000.0,
     floor_levels_mm: Optional[list[float]] = None,
@@ -402,7 +404,7 @@ def place_elevations(
             {
                 **line_params(
                     model, ep, stair_plan=stair_plan, openings=openings,
-                    platforms=platforms,
+                    platforms=platforms, bracket_sections=bracket_sections,
                 ),
                 "viewMode": "elev",
                 "flList": fl_str,

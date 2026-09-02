@@ -329,6 +329,58 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         self.assertEqual(line_params(m, m.plan.edges[0])["stageList"], "")
 
 
+class TestBracketSectionsReachTheDrawing(unittest.TestCase):
+    """区間の幅指定は数量に反映している。図面にも出さないと食い違う."""
+
+    def _sec(self, **kw):
+        from ashiba.brackets import BracketSection
+
+        base = dict(edge_index=0, start_mm=0, end_mm=5400, width=300)
+        base.update(kw)
+        return BracketSection(**base)
+
+    def test_quintuple_layout(self):
+        m = build("shinwa_A")
+        vals = line_params(
+            m, m.plan.edges[0], bracket_sections=[self._sec(levels=[1])]
+        )["brktList"].split(",")
+        self.assertEqual(len(vals), 5)
+        self.assertEqual([int(v) for v in vals[:4]], [0, 5400, 300, 1])
+        self.assertEqual(int(vals[4]), m.elevation.level_heights[0])
+
+    def test_outer_direction_is_negative(self):
+        from ashiba.brackets import OUTER
+
+        m = build("shinwa_A")
+        vals = line_params(
+            m, m.plan.edges[0],
+            bracket_sections=[self._sec(direction=OUTER, levels=[1])],
+        )["brktList"].split(",")
+        self.assertEqual(int(vals[3]), -1)
+
+    def test_no_levels_means_every_level(self):
+        m = build("shinwa_A")
+        vals = line_params(
+            m, m.plan.edges[0], bracket_sections=[self._sec()]
+        )["brktList"].split(",")
+        self.assertEqual(len(vals) // 5, m.elevation.n_levels)
+
+    def test_group_count_is_capped(self):
+        from ashiba.gdl_params import MAX_BRACKET_GROUPS
+
+        m = build("shinwa_A")
+        secs = [self._sec(start_mm=i * 1800, end_mm=i * 1800 + 1800) for i in range(6)]
+        vals = line_params(m, m.plan.edges[0], bracket_sections=secs)["brktList"]
+        self.assertLessEqual(len(vals.split(",")) // 5, MAX_BRACKET_GROUPS)
+
+    def test_other_edges_are_empty(self):
+        m = build("shinwa_A")
+        self.assertEqual(
+            line_params(m, m.plan.edges[1], bracket_sections=[self._sec()])["brktList"],
+            "",
+        )
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 

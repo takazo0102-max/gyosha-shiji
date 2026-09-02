@@ -14,7 +14,7 @@ from .model import ScaffoldModel
 
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
-    platforms=None,
+    platforms=None, bracket_sections=None,
 ) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
@@ -60,6 +60,8 @@ def line_params(
         "beamList": _beam_list(model, ep, openings),
         # 荷受けステージ。「開始,長さ,出,設置高さ」の繰り返し
         "stageList": _stage_list(model, ep, platforms),
+        # ブラケット区間。「開始,終了,幅,向き,高さ」の繰り返し
+        "brktList": _bracket_list(model, ep, bracket_sections),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
         # 平面では一度も描かれていなかった
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
@@ -121,6 +123,38 @@ def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
             parts += [
                 str(int(st.start_mm)), str(int(length)),
                 str(int(st.projection_mm)), str(int(levels[idx])),
+            ]
+    return ",".join(parts)
+
+
+# GDL側の配列上限。層数×区間数で増えるので、超える分は描かず注記に任せる
+MAX_BRACKET_GROUPS = 24
+
+
+def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
+    """この辺のブラケット区間を「開始,終了,幅,向き,高さ」の繰り返しで返す.
+
+    向きは 1=内（躯体側）/ -1=張出。作業層の指定が無ければ全層に効く。
+    区間の幅指定は数量にも反映しているので、図面にも出さないと
+    実際と違う幅の床を描いたままになる。
+    """
+    if not sections:
+        return ""
+    from .brackets import INNER
+
+    levels = model.elevation.level_heights
+    parts = []
+    for sec in sections:
+        if sec.edge_index != ep.edge_index or not levels:
+            continue
+        d = 1 if sec.direction == INNER else -1
+        for lv in (sec.levels or range(1, len(levels) + 1)):
+            idx = min(max(int(lv), 1), len(levels)) - 1
+            if len(parts) // 5 >= MAX_BRACKET_GROUPS:
+                break
+            parts += [
+                str(int(sec.start_mm)), str(int(sec.end_mm)),
+                str(int(sec.width)), str(d), str(int(levels[idx])),
             ]
     return ",".join(parts)
 
