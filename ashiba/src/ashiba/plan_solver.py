@@ -200,12 +200,16 @@ def solve_plan(
     # 同じ対処案は面ごとに1行ずつ出さず、対象の辺をまとめて1行にする
     # （凹み形状で同じ文が4行並び、件数だけ増えて読みにくかった）
     remedies: dict[str, list[int]] = {}
+    # 面ごとに「他にどの離れなら成立したか」。選択の余地があるのか、
+    # 形状から一意に決まるのかで打つ手が変わる
+    feasible_standoffs: dict[int, set[int]] = {}
     for axis in ("x", "y"):
         grp = [e for e in edges if e.axis == axis]
         if not grp:
             continue
-        combo, d_solved = _solve_axis(grp, candidates, edges, spec, main_span)
+        combo, d_solved, feas = _solve_axis(grp, candidates, edges, spec, main_span)
         best_combo.update(combo)
+        feasible_standoffs.update(feas)
         for idx, d in d_solved.items():
             # 最小二乗の解には微小な数値誤差が乗る。丸めずに閾値比較すると
             # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
@@ -242,6 +246,11 @@ def solve_plan(
             )
         start_post = scaffold_verts[e.index]
         end_post = scaffold_verts[(e.index + 1) % n]
+        if remedy:
+            # 表にも警告にも同じ本文を出す（別々にすると片方だけ情報が欠ける）
+            remedy += _feasibility_hint(
+                feasible_standoffs.get(e.index), d, spec
+            )
         plan_edges.append(
             EdgePlan(
                 edge_index=e.index,
@@ -270,13 +279,39 @@ def solve_plan(
     )
 
 
+def _feasibility_hint(
+    feasible: Optional[set[int]], chosen: float, spec: StandoffSpec
+) -> str:
+    """他にどの離れなら成立したかを添える.
+
+    「350mmしか組めない」のか「300mmも組めるが別の理由で選ばなかった」のかで、
+    計画者の打つ手が変わる。前者は建物側か措置側でしか動かせない。
+    スパンは真物のみで組むので、成立する離れは形状から離散的に決まる。
+    """
+    if feasible is None:
+        return ""
+    if not feasible:
+        return (
+            f"（目標帯{spec.min:.0f}〜{spec.max:.0f}mmで真物で組める離れは"
+            "ありません。建物寸法か措置側での対応になります）"
+        )
+    others = sorted(v for v in feasible if abs(v - chosen) > 0.5)
+    if not others:
+        return "（真物で組める離れはこの値のみ。スパン構成では動かせません）"
+    parts = []
+    for v in others:
+        out = "" if spec.min <= v <= spec.max else "＝目標帯外"
+        parts.append(f"{v}mm{out}")
+    return "（この形状で組める離れは他に " + "・".join(parts) + "）"
+
+
 def _solve_axis(
     grp: list,
     candidates: list[list[tuple[int, list[int]]]],
     all_edges: list,
     spec: StandoffSpec,
     main_span: int,
-) -> tuple[dict[int, tuple[int, list[int]]], dict[int, float]]:
+) -> tuple[dict[int, tuple[int, list[int]]], dict[int, float], dict[int, set[int]]]:
     """1軸分の辺グループについて、スパン合計の組合せと離れを同時に解く.
 
     未知数: グループの辺に隣接する直交面の離れ d
@@ -291,6 +326,9 @@ def _solve_axis(
     pos = {di: k for k, di in enumerate(d_indices)}
 
     best = None  # (score, combo, d_map)
+    # 成立した離れの値を集める。「350mmしか組めない」のか「300mmも組めるが
+    # 別の理由で選ばなかった」のかで、計画者の打つ手が変わる
+    feasible: dict[int, set[int]] = {di: set() for di in d_indices}
     for choice in itertools.product(*[candidates[e.index] for e in grp]):
         # 連立: A d = b を最小二乗で解き、シフト自由度で偏差を最小化
         rows = []
@@ -312,6 +350,9 @@ def _solve_axis(
                 break
         if not ok:
             continue
+        for di, x in zip(d_indices, d):
+            if spec.hard_min - 0.5 <= x <= spec.max + 0.5:
+                feasible[di].add(int(round(x)))
         dev = sum(abs(x - spec.target) for x in d)
         n_over = sum(1 for x in d if x > spec.max or x < spec.min)
         n_hard = sum(1 for x in d if x < spec.hard_min)
@@ -327,7 +368,7 @@ def _solve_axis(
     _score, choice, d = best
     combo = {e.index: c for e, c in zip(grp, choice)}
     d_map = {di: d[pos[di]] for di in d_indices}
-    return combo, d_map
+    return combo, d_map, feasible
 
 
 def _lstsq_with_target(

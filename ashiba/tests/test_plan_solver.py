@@ -316,5 +316,55 @@ class TestWarningsAreGrouped(unittest.TestCase):
                 self.assertEqual(len(grouped), len(distinct))
 
 
+class TestFeasibilityHint(unittest.TestCase):
+    """対処案に「他にどの離れなら組めたか」を添える.
+
+    350mmしか組めないのか、300mmも組めるが別の理由で選ばなかったのかで、
+    計画者の打つ手が変わる（前者は建物側か措置側でしか動かせない）。
+    """
+
+    def setUp(self):
+        self.master = load_master("shinwa_A")
+
+    def test_hint_is_attached_to_every_remedy(self):
+        for poly in (RECT, LSHAPE):
+            with self.subTest(poly=poly[1]):
+                for e in solve_plan(poly, self.master).edges:
+                    if e.remedy:
+                        self.assertIn("（", e.remedy, e.remedy)
+
+    def test_listed_alternatives_are_really_buildable(self):
+        """挙げた離れが本当に真物で組めること（スパン和＝面長になる）."""
+        import re
+
+        plan = solve_plan(RECT, self.master)
+        remedy = next(e.remedy for e in plan.edges if e.remedy)
+        alts = [int(v) for v in re.findall(r"(\d+)mm＝?目標帯外", remedy)]
+        self.assertTrue(alts, remedy)
+        for d in alts:
+            with self.subTest(d=d):
+                spec = StandoffSpec(target=d, min=d, max=d, hard_min=d)
+                p2 = solve_plan(RECT, self.master, spec)
+                for e in p2.edges:
+                    self.assertAlmostEqual(sum(e.spans), e.scaffold_length)
+
+    def test_says_so_when_the_value_is_forced(self):
+        """代案が無いときは「この値のみ」と言う."""
+        plan = solve_plan(
+            [(0, 0), (20000, 0), (20000, 10000), (14000, 10000),
+             (14000, 7000), (6000, 7000), (6000, 10000), (0, 10000)],
+            self.master,
+        )
+        forced = [e.remedy for e in plan.edges
+                  if e.remedy and "この値のみ" in e.remedy]
+        self.assertTrue(forced, [e.remedy for e in plan.edges if e.remedy])
+
+    def test_says_so_when_nothing_in_the_band_works(self):
+        plan = solve_plan(LSHAPE, self.master)
+        none_fit = [e.remedy for e in plan.edges
+                    if e.remedy and "組める離れはありません" in e.remedy]
+        self.assertTrue(none_fit, [e.remedy for e in plan.edges if e.remedy])
+
+
 if __name__ == "__main__":
     unittest.main()
