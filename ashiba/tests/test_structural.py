@@ -220,6 +220,57 @@ class TestWallTieOptimization(unittest.TestCase):
         self.assertTrue("高耐力" in opt.message or "養生材" in opt.message)
 
 
+class TestJackExtensionGovernsPostCapacity(unittest.TestCase):
+    """ジャッキ許容支持力は繰出し長で落ちる（100mm:22.5kN → 450mm:11.8kN）.
+
+    傾斜地で平坦時の繰出し量のまま検定すると2倍近く危険側になる。
+    """
+
+    def setUp(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        self.m = make_model()
+        # 30m×20mの敷地に約1.2mの高低差
+        self.ground = GroundModel(points=[
+            (0, 0, 0), (30000, 0, 400), (30000, 20000, 1200), (0, 20000, 800),
+        ])
+        self.terrain = solve_post_feet(self.m, self.ground)
+
+    def test_terrain_produces_larger_jack_extensions(self):
+        self.assertGreater(
+            self.terrain.jack_max_mm, self.m.elevation.jack_extension
+        )
+
+    def test_check_uses_the_worst_post(self):
+        q = take_off(self.m)
+        flat = run_structural(self.m, q, SiteCondition())
+        slope = run_structural(self.m, q, SiteCondition(), terrain=self.terrain)
+        self.assertEqual(flat.post.jack_extension_mm, self.m.elevation.jack_extension)
+        self.assertEqual(
+            slope.post.jack_extension_mm, int(round(self.terrain.jack_max_mm))
+        )
+        self.assertLess(slope.post.allowable_kn, flat.post.allowable_kn)
+        self.assertGreater(slope.post.ratio, flat.post.ratio)
+
+    def test_the_governing_post_is_named(self):
+        res = run_structural(
+            self.m, take_off(self.m), SiteCondition(), terrain=self.terrain
+        )
+        self.assertTrue(
+            any("最大繰出し" in w for w in res.warnings), res.warnings
+        )
+
+    def test_flat_site_is_unchanged(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        flat_terrain = solve_post_feet(self.m, GroundModel())
+        q = take_off(self.m)
+        a = run_structural(self.m, q, SiteCondition())
+        b = run_structural(self.m, q, SiteCondition(), terrain=flat_terrain)
+        self.assertEqual(a.post.jack_extension_mm, b.post.jack_extension_mm)
+        self.assertEqual(a.post.ratio, b.post.ratio)
+
+
 class TestUntiedFaces(unittest.TestCase):
     """壁つなぎが入らない面を黙って通さないこと."""
 

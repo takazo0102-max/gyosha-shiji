@@ -130,7 +130,9 @@ def main() -> None:
     # --- 4. 検査と数量 ---
     checks = run_all_checks(model)
     quantity = take_off(model, stair_plan=stair_plan)
-    structural = run_structural(model, quantity, site, platforms=platforms)
+    structural = run_structural(
+        model, quantity, site, platforms=platforms, terrain=terrain
+    )
     s = summary(checks)
     print(f"7. 法規: OK{s['ok']} WARN{s['warn']} NG{s['ng']} / "
           f"構造: 壁つなぎ{structural.wall_tie.ratio} 建地{structural.post.ratio} "

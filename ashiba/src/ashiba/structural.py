@@ -363,11 +363,17 @@ def check_post(
     caps: dict,
     extra_post_load_kn: float = 0.0,
     extra_load_source: str = "",
+    jack_extension_mm: Optional[int] = None,
 ) -> PostResult:
     """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）.
 
     荷受けステージのような局所荷重がある場合は extra_post_load_kn で加算する。
     平均で見ると直下の建地が抜けるため、最も厳しい1本で検定する。
+
+    jack_extension_mm には敷地高低差を解いた結果の最大繰出し量を渡す。
+    ジャッキの許容支持力は繰出し長で大きく落ちる（100mm:22.5kN →
+    450mm:11.8kN）ので、傾斜地で平坦時の繰出し量のまま検定すると
+    2倍近く危険側になる。
     """
     n_posts = model.plan.total_posts * (1 if model.config.scaffold_form == "一側足場" else 2)
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
@@ -379,7 +385,7 @@ def check_post(
     live_kn = cap_deck.value * site.simultaneous_loaded_levels / 2.0
     total = dead_kn + live_kn + extra_post_load_kn
 
-    jack = model.elevation.jack_extension
+    jack = max(model.elevation.jack_extension, jack_extension_mm or 0)
     cap_jack, jack_key = _interpolate_capacity(caps, "ジャッキ許容支持力", jack)
     cap_post = caps.get(("支柱許容圧縮耐力", "0"))
     candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]
@@ -560,6 +566,7 @@ def run_structural(
     site: Optional[SiteCondition] = None,
     capacity_path: Optional[Path] = None,
     platforms=None,
+    terrain=None,
 ) -> StructuralResult:
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
@@ -572,10 +579,26 @@ def run_structural(
         f"荷受けステージ {platforms.governing}"
         if platforms and platforms.governing else ""
     )
-    post = check_post(model, quantity, site, caps, extra, source)
+    # 傾斜地では支柱ごとにジャッキ繰出し量が違う。許容支持力は繰出し長で
+    # 落ちるので、最も繰り出している1本で検定する
+    max_jack = None
+    governing_foot = None
+    if terrain is not None and getattr(terrain, "feet", None):
+        worst = max(terrain.feet, key=lambda f: f.jack_mm)
+        max_jack = int(round(worst.jack_mm))
+        if max_jack > model.elevation.jack_extension:
+            governing_foot = worst
+    post = check_post(model, quantity, site, caps, extra, source, max_jack)
 
     warnings: list[str] = []
     unverified: list[str] = []
+    if governing_foot is not None:
+        warnings.append(
+            f"敷地高低差により最大繰出し{post.jack_extension_mm}mmの支柱"
+            f"（支柱{governing_foot.index}）で建地を検定しています"
+            f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
+            "ジャッキ許容支持力は繰出し長で低下します"
+        )
     if not tie.verified:
         unverified.append("壁つなぎ許容耐力")
     unverified.extend(post.unverified_items)

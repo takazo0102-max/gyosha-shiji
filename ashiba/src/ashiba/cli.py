@@ -242,8 +242,11 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms,
     )
-    structural = run_structural(model, quantity, site, platforms=platforms)
+    # 構造計算はジャッキ繰出し量に依存するので、敷地を先に解く
     terrain = solve_post_feet(model, build_ground(spec))
+    structural = run_structural(
+        model, quantity, site, platforms=platforms, terrain=terrain
+    )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
