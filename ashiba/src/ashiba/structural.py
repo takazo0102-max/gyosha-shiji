@@ -679,6 +679,13 @@ def run_structural(
             f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
             "ジャッキ許容支持力は繰出し長で低下します"
         )
+    if model.scaffold_height_mm > 31000:
+        # 2本組にすれば許容は増えるが、そう組むかは計画者の判断。
+        # どちらで検定したのかを書かないと検定比の意味が変わる
+        notes.append(
+            f"足場高さ{model.scaffold_height_mm / 1000:.2f}mですが、建地の検定は"
+            "1本組で行っています（安衛則571条の2本組にすれば許容支持力は増えます）"
+        )
     unverified_caps.extend(tie.unverified_caps)
     unverified_caps.extend(post.unverified_caps)
     # 同じCSV行が複数の検定に効いていることがある（引張/圧縮など）。

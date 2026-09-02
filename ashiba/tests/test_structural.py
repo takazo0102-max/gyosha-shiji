@@ -106,6 +106,28 @@ class TestCapacityGate(unittest.TestCase):
         )
 
 
+class TestTallScaffoldNote(unittest.TestCase):
+    """31m超は2本組が要る。どちらで検定したのかを書かないと検定比が読めない."""
+
+    def _model(self, height):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(height, master=master),
+            config=ScaffoldConfig(), building_height_mm=height - 300,
+        )
+
+    def test_note_says_single_post(self):
+        m = self._model(35000)
+        r = run_structural(m, take_off(m))
+        self.assertTrue(any("1本組" in n for n in r.notes), r.notes)
+
+    def test_no_note_below_31m(self):
+        m = self._model(16300)
+        r = run_structural(m, take_off(m))
+        self.assertFalse([n for n in r.notes if "1本組" in n])
+
+
 class TestUnverifiedRowsAreNamed(unittest.TestCase):
     """「未確認値です」だけでは直せない。どの行を差し替えるかまで出す."""
 
