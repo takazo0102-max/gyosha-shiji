@@ -17,11 +17,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from ashiba.cli import build_verdict, collect_warnings  # noqa: E402
 from ashiba.details import required_details  # noqa: E402
 from ashiba.elevation_solver import solve_elevation  # noqa: E402
 from ashiba.law_check import run_all_checks, summary  # noqa: E402
 from ashiba.master import load_master  # noqa: E402
 from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel  # noqa: E402
+from ashiba.openings import validate_openings  # noqa: E402
 from ashiba.notification import (  # noqa: E402
     NotificationInfo,
     notification_required,
@@ -167,10 +169,15 @@ def main() -> None:
     # --- 6. 帳票 ---
     name = "E2E全機能"
     write_quantity_csv(quantity, out / f"{name}_数量表.csv")
+    openings = validate_openings(model, [])
+    warnings = collect_warnings(
+        structural, model, [], stair_plan, [], openings, terrain, platforms, checks
+    )
+    verdict = build_verdict(s, structural, platforms, openings, [], warnings)
     write_report_md(
         model, quantity, checks, out / f"{name}_割付レポート.md", name,
         stair_plan=stair_plan, structural=structural, terrain=terrain,
-        platforms=platforms,
+        platforms=platforms, verdict=verdict, warnings=warnings,
     )
     write_plan_json(
         model, out / f"{name}_plan.json",
@@ -184,6 +191,8 @@ def main() -> None:
     files = sorted(p.name for p in out.glob(f"{name}_*"))
     print(f"12. 帳票出力: {len(files)}件 {files}")
     print(f"    設置届: {'要' if notification_required(model) else '不要'}")
+    print(f"    総合判定: {'成立' if verdict['ok'] else '是正が必要'}"
+          f" 要確認{verdict['warn']}件 {verdict['warn_breakdown']}")
 
     # --- 7. プレビュー ---
     for label, elem in (("足場ライン", lines[0]), ("立面図", elevs[0]),
@@ -202,7 +211,7 @@ def main() -> None:
         c.delete_elements(placed)
         print(f"テスト要素 {len(placed)}個を削除（--keep で残せます）")
 
-    ok = s["ng"] == 0 and structural.all_ok and platforms.ok
+    ok = verdict["ok"]
     print("\nE2E全機能 " + ("成功" if ok else "失敗"))
     if not ok:
         raise SystemExit(1)
