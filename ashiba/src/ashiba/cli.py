@@ -254,7 +254,7 @@ def build_notification_info(spec: dict) -> NotificationInfo:
 
 def collect_warnings(
     structural, model, bracket_issues, stair_plan, stair_issues,
-    openings, terrain, platforms,
+    openings, terrain, platforms, checks=None,
 ) -> list[tuple[str, str, str]]:
     """是正・確認が要る項目を (分類, 重大度, 本文) で集める.
 
@@ -274,7 +274,10 @@ def collect_warnings(
     # 重大度を本文にも出す。NGと注意が同じ見た目だと、どれが止まる項目か分からない
     out += [("開口部", i.severity, f"開口部[{i.severity}] {i.message}")
             for i in openings.issues]
-    out += [("敷地", "WARN", f"敷地: {w}") for w in terrain.warnings]
+    # 法規チェックが同じ文面で挙げている事象は、そちらが条文つきで出るので重ねない
+    said = {c.message for c in (checks or []) if c.status == "WARN"}
+    out += [("敷地", "WARN", f"敷地: {w}")
+            for w in terrain.warnings if w not in said]
     out += [("荷受けステージ・昇降機", i.severity,
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in platforms.issues]
@@ -377,7 +380,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     s = summary(checks)
     warnings = collect_warnings(
         structural, model, bracket_issues, stair_plan, stair_issues,
-        openings, terrain, platforms,
+        openings, terrain, platforms, checks,
     )
     verdict = build_verdict(
         s, structural, platforms, openings, bracket_issues, warnings
@@ -390,6 +393,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
         stair_plan=stair_plan, verdict=verdict, structural=structural, terrain=terrain,
         platforms=platforms, openings=openings, bracket_sections=brackets,
+        warnings=warnings,
     )
     write_plan_json(
         model, out_dir / f"{name}_plan.json",

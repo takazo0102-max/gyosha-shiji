@@ -215,6 +215,24 @@ class TestOverallVerdict(unittest.TestCase):
         self.assertTrue(ng)
         self.assertIn("開口部 1件", r["verdict"]["warn_breakdown"])
 
+    def test_report_lists_every_warning_once(self):
+        """冒頭の「要確認N件」が本文の一覧と一致すること."""
+        r, report = self._run("要確認一覧", ground_points_mm=[
+            [0, 0, 0], [30000, 0, 900], [30000, 20000, 900], [0, 20000, 0],
+        ])
+        body = report.split("## 要確認一覧")[1]
+        rows = [ln for ln in body.splitlines() if ln.startswith("| ") and
+                not ln.startswith("| # ") and not ln.startswith("|---")]
+        self.assertEqual(len(rows), r["verdict"]["warn"])
+
+    def test_terrain_and_law_check_do_not_repeat_each_other(self):
+        """同じジャッキ超過を敷地と法規で二度言わない."""
+        r, report = self._run("重複しない", ground_points_mm=[
+            [0, 0, 0], [30000, 0, 900], [30000, 20000, 900], [0, 20000, 0],
+        ])
+        body = report.split("## 要確認一覧")[1]
+        self.assertEqual(body.count("実務上限270mmを超える支柱"), 1, body)
+
     def test_every_example_is_ok(self):
         for f in sorted(EXAMPLES.glob("*.json")):
             with self.subTest(f.name), tempfile.TemporaryDirectory() as td:

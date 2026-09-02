@@ -177,13 +177,14 @@ def check_jack_extension(m: ScaffoldModel, terrain=None) -> CheckResult:
         over = [f for f in terrain.feet if f.jack_mm > JACK_MAX_EXTENSION]
         j = max(j, max((f.jack_mm for f in terrain.feet), default=0))
     if over:
-        return CheckResult(
-            6, "ジャッキ", WARN,
+        # 地形ソルバは「なぜ超えるのか・どれだけ床均しすれば収まるのか」まで
+        # 出している。同じ事象を別文面で二度言わず、その本文をそのまま使う
+        msg = getattr(terrain, "over_jack_warning", "") or (
             f"敷地高低差により繰り出しが{JACK_MAX_EXTENSION}mmを超える支柱が"
             f"{len(over)}本あります（最大{j:.0f}mm）。"
-            "該当支柱は敷板調整または部分的な床均しで対応してください",
-            basis,
+            "該当支柱は敷板調整または部分的な床均しで対応してください"
         )
+        return CheckResult(6, "ジャッキ", WARN, msg, basis)
     if j > JACK_MAX_EXTENSION:
         return CheckResult(
             6, "ジャッキ", WARN, f"繰り出し{j:.0f}mm > {JACK_MAX_EXTENSION}mm", basis

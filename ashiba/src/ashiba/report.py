@@ -63,6 +63,7 @@ def write_report_md(
     platforms=None,
     openings=None,
     bracket_sections=None,
+    warnings=None,
 ) -> None:
     """割付レポート（人が読む成果物）.
 
@@ -233,6 +234,26 @@ def write_report_md(
     a(f"- 架け面積: {quantity.kake_menseki_m2}m²（(外周+4m)×(高さ+0.5m)）")
     for n in quantity.notes:
         a(f"- 注記: {n}")
+    # 冒頭で「要確認N件」と言う以上、その N 件が本文のどこかで拾えないと片手落ち。
+    # 分類ごとに1箇所へまとめ、着手前のチェックリストとして使えるようにする
+    items: list[tuple[str, str]] = [
+        ("法規チェック", f"{c.name}: {c.message}（{c.basis}）")
+        for c in checks if c.status == "WARN"
+    ]
+    items += [(kind, text) for kind, sev, text in (warnings or []) if sev != "NG"]
+    if items:
+        a("")
+        a("## 要確認一覧")
+        a("")
+        a("計画は成立していますが、着手前に次の項目を確認・措置してください。"
+          if verdict is None or verdict["ok"] else
+          "是正項目とは別に、着手前に次の項目を確認・措置してください。")
+        a("")
+        a("| # | 分類 | 内容 |")
+        a("|---|---|---|")
+        for i, (kind, text) in enumerate(items, 1):
+            a(f"| {i} | {kind} | {text} |")
+
     a("")
     a("> 本レポートは計画作成参画者（有資格者）が確認する前提の下書きです。")
     a("> 部材形状はカタログ寸法からの再現であり、単位重量は概算値を含みます。")
@@ -267,6 +288,7 @@ def write_plan_json(
     platforms=None,
     openings=None,
     bracket_sections=None,
+    warnings=None,
 ) -> None:
     """GDL配置・再編集用の機械可読データ.
 

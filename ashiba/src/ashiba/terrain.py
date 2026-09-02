@@ -102,6 +102,9 @@ class TerrainResult:
     # （混ぜると、読む側がどれに手を打てばよいのか分からなくなる）
     warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # ジャッキ繰出しが実務上限を超えたときの本文。法規チェック6と同じ事象なので、
+    # 向こうにも同じ文面を使わせて、要確認一覧に二重で並ばないようにする
+    over_jack_warning: str = ""
 
     @property
     def jack_min_mm(self) -> float:
@@ -219,6 +222,7 @@ def solve_post_feet(
             f"敷地の高低差{diff:.0f}mmを支柱ごとのジャッキ・支柱長で吸収しました"
             f"（{len({f.koma_offset for f in feet})}種類の脚部構成）"
         )
+    over_jack_warning = ""
     over = [f for f in feet if f.jack_mm > jack_recommended_max]
     if over:
         window = jack_recommended_max - jack_min
@@ -240,6 +244,7 @@ def solve_post_feet(
                 "一定数が上限を超えます。該当支柱の敷板調整または部分的な床均しで対応してください"
             )
         warnings.append(msg)
+        over_jack_warning = msg
     need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6]
     if need_plate:
         warnings.append(
@@ -257,6 +262,7 @@ def solve_post_feet(
         deck_levels_abs_mm=deck_levels_abs,
         warnings=warnings,
         notes=notes,
+        over_jack_warning=over_jack_warning,
     )
 
 
