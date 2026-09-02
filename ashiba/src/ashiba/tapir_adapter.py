@@ -167,7 +167,9 @@ class ArchicadClient:
             },
         )
 
-    def set_gdl_parameters(self, element: dict, params: dict[str, Any]) -> None:
+    def set_gdl_parameters(
+        self, element: dict, params: dict[str, Any], object_name: str = ""
+    ) -> None:
         """GDLパラメータを設定する.
 
         SetGDLParametersOfElements はコマンド自体は成功扱いで返し、
@@ -193,10 +195,17 @@ class ArchicadClient:
         for r in resp.get("executionResults", []):
             if not r.get("success", True):
                 err = r.get("error", {})
+                # 失敗の原因はほぼ「部品が無い／古い」。次に何をすればよいかまで書く
+                part = f"「{object_name}」" if object_name else ""
                 raise TapirError(
                     "GDLパラメータの設定に失敗しました: "
                     f"{err.get('message', err)}"
-                    f"（送信: {', '.join(params)}）"
+                    f"（送信: {', '.join(params)}）\n"
+                    f"ライブラリ部品{part}が読み込まれていないか、"
+                    "このパラメータを持たない古い版の可能性があります。"
+                    "gdl/ashiba_line.gsm（詳細図は ashiba_detail.gsm）を"
+                    "ライブラリに読み込むか、scripts/dev_gsm_iterate.py で"
+                    "現行HSFをコンパイルして埋め込みライブラリへ注入してください"
                 )
 
     def get_gdl_parameters(self, element: dict) -> dict:
@@ -302,6 +311,7 @@ def place_scaffold_lines(
                 model, ep, stair_plan=stair_plan, openings=openings,
                 platforms=platforms, bracket_sections=bracket_sections,
             ),
+            object_name,
         )
         placed.append(elem)
     return placed
@@ -332,6 +342,7 @@ def place_details(
         client.set_gdl_parameters(
             elem,
             {"detailType": sheet.key, "warnPen": warn_pen, **sheet.params},
+            object_name,
         )
         placed.append(elem)
     return placed
@@ -412,6 +423,7 @@ def place_elevations(
                     else f"辺{ep.edge_index}"
                 ),
             },
+            object_name,
         )
         placed.append(elem)
         x += ep.scaffold_length + gap_mm

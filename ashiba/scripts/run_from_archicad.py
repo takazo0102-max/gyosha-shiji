@@ -1,7 +1,12 @@
 """Archicadツールバー割当用スクリプト（Tapirのスクリプト割当機能でボタン化する）.
 
 操作モデル（GLOOBE踏襲）:
-  躯体スラブを選択 → このスクリプトを実行 → 足場ライン一括生成＋帳票出力
+  躯体スラブを選択 → このスクリプトを実行 → 足場ライン一括生成＋帳票一式出力
+
+CLI（python3 -m ashiba.cli）と同じ solve_all/write_outputs を通すので、
+ボタンから出る成果物もCLIと同じ（壁つなぎ最適化・階段・敷地・構造計算・
+総合判定・設置届まで）。以前はこのスクリプトだけ手順を書き下しており、
+構造計算も総合判定も無い薄いレポートしか出ていなかった。
 
 前提: gdl/ashiba_line.gsm をプロジェクトのライブラリに読込済みであること
 （配置パイプライン自体は Archicad 28 + Tapir 1.5.8 でE2E検証済み:
@@ -14,51 +19,64 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from ashiba.elevation_solver import solve_elevation  # noqa: E402
-from ashiba.law_check import run_all_checks, summary  # noqa: E402
-from ashiba.master import load_master  # noqa: E402
-from ashiba.model import ScaffoldConfig, ScaffoldModel  # noqa: E402
-from ashiba.plan_solver import solve_plan  # noqa: E402
-from ashiba.quantity import take_off  # noqa: E402
-from ashiba.report import write_plan_json, write_quantity_csv, write_report_md  # noqa: E402
+from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
+    ArchicadClient,
     get_selected_outline_mm,
+    place_details,
     place_scaffold_lines,
+    read_ground_model,
 )
 
 # ---- 条件入力（Phase 2でUIダイアログ化。当面はここを編集する） ----
-SERIES_ID = "shinwa_A"
-EAVES_HEIGHT_MM = 15400     # 軒高
-GUARD_EXTRA_MM = 900        # 最上層作業床固定点 = 軒高 + 手すり分
-PERIOD_DAYS = 90
+# キー名と既定値は入力JSONと同じ（ashiba/cli.py のスキーマ参照）
+SPEC = {
+    "project_name": "足場計画",
+    "series_id": "shinwa_A",
+    "eaves_height_mm": 15400,      # 軒高
+    "guard_extra_mm": 900,         # 最上層作業床固定点 = 軒高 + 手すり分
+    "period_days": 90,
+    "site": {"region": "関東(内陸)", "sheet_type": "メッシュシート"},
+}
+LINE_OBJECT = "ashiba_line"
+DETAIL_OBJECT = "ashiba_detail"
+PLACE_DETAILS = True               # 詳細図も並べるか
 OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
 
 
 def main() -> None:
-    master = load_master(SERIES_ID)
-    outline = get_selected_outline_mm()
-    plan = solve_plan(outline, master)
-    elevation = solve_elevation(EAVES_HEIGHT_MM + GUARD_EXTRA_MM, master=master)
-    model = ScaffoldModel(
-        master=master,
-        plan=plan,
-        elevation=elevation,
-        config=ScaffoldConfig(period_days=PERIOD_DAYS),
-        building_height_mm=EAVES_HEIGHT_MM,
+    client = ArchicadClient()
+    spec = dict(SPEC)
+    spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
+    # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
+    ground = read_ground_model(client)
+    if not ground.is_flat:
+        spec["ground_points_mm"] = [list(p) for p in ground.points]
+
+    r = solve_all(spec)
+    write_outputs(r, OUT_DIR)
+    result = result_dict(r, OUT_DIR)
+
+    lines = place_scaffold_lines(
+        r.model, LINE_OBJECT, client, stair_plan=r.stair_plan,
+        openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
     )
+    details = []
+    if PLACE_DETAILS:
+        origin = min(r.model.plan.outline.vertices)
+        details = place_details(
+            r.model, r.detail_sheets, DETAIL_OBJECT,
+            origin_mm=(origin[0], origin[1] - 20000.0), client=client,
+        )
 
-    ids = place_scaffold_lines(model)
-    checks = run_all_checks(model)
-    quantity = take_off(model)
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    write_quantity_csv(quantity, OUT_DIR / "数量表.csv")
-    write_report_md(model, quantity, checks, OUT_DIR / "割付レポート.md")
-    write_plan_json(model, OUT_DIR / "plan.json")
-
-    s = summary(checks)
-    print(f"足場ライン {len(ids)}本を配置しました")
-    print(f"法規チェック: OK {s['ok']} / WARN {s['warn']} / NG {s['ng']}")
+    v = result["verdict"]
+    print(f"足場ライン {len(lines)}本・詳細図 {len(details)}枚を配置しました")
+    print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))
+    for b in v["blockers"]:
+        print(f"  是正: {b}")
+    if v["warn"]:
+        print(f"  要確認 {v['warn']}件: " + "／".join(v["warn_breakdown"])
+              + "（割付レポートの要確認一覧を参照）")
     print(f"帳票出力先: {OUT_DIR}")
 
 

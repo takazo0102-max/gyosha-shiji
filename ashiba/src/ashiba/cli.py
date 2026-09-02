@@ -64,6 +64,7 @@ import argparse
 import datetime as _dt
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from .brackets import BracketSection, validate_bracket_sections
@@ -458,13 +459,40 @@ def build_verdict(
     }
 
 
-def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
-    # 文字列で渡されることがある（スクリプトからの直接呼び出し）。
-    # input_path だけ Path() していて out_dir はしていなかった
-    out_dir = Path(out_dir)
-    if master_csv is not None:
-        master_csv = Path(master_csv)
-    spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
+@dataclass
+class PlanRun:
+    """1回の計画で解いたものを一式で持つ.
+
+    CLI・Archicadのツールバー・実機E2Eが同じ手順で解くための入れ物。
+    以前はスクリプトごとに手順を書いていたので、ツールバーから出る成果物だけ
+    構造計算も総合判定も無い薄いものになっていた。
+    """
+
+    spec: dict
+    model: ScaffoldModel
+    site: SiteCondition
+    tie_opt: object
+    brackets: list
+    bracket_issues: list
+    stair_plan: object
+    stair_issues: list
+    platforms: object
+    openings: object
+    terrain: object
+    checks: list
+    quantity: object
+    structural: object
+    detail_sheets: list
+    warnings: list
+    verdict: dict
+
+    @property
+    def name(self) -> str:
+        return self.spec.get("project_name", "ashiba")
+
+
+def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
+    """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）."""
     validate_spec(spec)
     model = build_model(spec, master_csv)
     site = build_site(spec)
@@ -517,9 +545,24 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     verdict = build_verdict(
         s, structural, platforms, openings, bracket_issues, warnings
     )
+    return PlanRun(
+        spec=spec, model=model, site=site, tie_opt=tie_opt, brackets=brackets,
+        bracket_issues=bracket_issues, stair_plan=stair_plan,
+        stair_issues=stair_issues, platforms=platforms, openings=openings,
+        terrain=terrain, checks=checks, quantity=quantity, structural=structural,
+        detail_sheets=detail_sheets, warnings=warnings, verdict=verdict,
+    )
 
+
+def write_outputs(r: PlanRun, out_dir: Path) -> None:
+    """帳票一式を書き出す（CLIもツールバーも同じものを出す）."""
+    (model, quantity, checks, structural, terrain, platforms, openings,
+     brackets, stair_plan, verdict, warnings, spec) = (
+        r.model, r.quantity, r.checks, r.structural, r.terrain, r.platforms,
+        r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.spec)
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    name = spec.get("project_name", "ashiba")
+    name = r.name
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     write_report_md(
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
@@ -536,9 +579,19 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     write_notification_xlsx(
         model, quantity, checks, structural,
         out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
-        details=detail_sheets, terrain=terrain, verdict=verdict, warnings=warnings,
+        details=r.detail_sheets, terrain=terrain, verdict=verdict,
+        warnings=warnings,
     )
 
+
+def result_dict(r: PlanRun, out_dir: Path) -> dict:
+    """機械可読の実行結果（CLIの標準出力・受け入れテストが読む）."""
+    (model, quantity, checks, structural, terrain, platforms, openings,
+     brackets, stair_plan, verdict, warnings, tie_opt) = (
+        r.model, r.quantity, r.checks, r.structural, r.terrain, r.platforms,
+        r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.tie_opt)
+    name = r.name
+    s = summary(checks)
     return {
         "project": name,
         "posts_per_level": model.plan.total_posts,
@@ -613,6 +666,17 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         "warnings": [w for _, _, w in warnings],
         "out_dir": str(out_dir),
     }
+
+
+def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
+    """入力JSON → 解く → 帳票一式 → 実行結果."""
+    # 文字列で渡されることがある（スクリプトからの直接呼び出し）。
+    # input_path だけ Path() していて out_dir はしていなかった
+    out_dir = Path(out_dir)
+    spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    r = solve_all(spec, Path(master_csv) if master_csv is not None else None)
+    write_outputs(r, out_dir)
+    return result_dict(r, out_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
