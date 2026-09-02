@@ -54,6 +54,14 @@ class TestBuildModel(unittest.TestCase):
         self.assertEqual(m.config.period_days, 90)
         self.assertEqual(list(m.config.deck_widths), [500, 240])
 
+    def test_guard_extra_default_follows_the_series(self):
+        """既定は手すり分。枠組はコマピッチ0なので、2×コマだと0になってしまう."""
+        for series, extra in (("shinwa_A", 900), ("shinwa_B", 950), ("waku", 900)):
+            with self.subTest(series):
+                m = build_model(dict(BASE, series_id=series), None)
+                self.assertGreaterEqual(
+                    m.scaffold_height_mm, BASE["eaves_height_mm"] + extra)
+
     def test_guard_extra_is_added_to_the_eaves_height(self):
         low = build_model(dict(BASE, guard_extra_mm=0), None)
         high = build_model(dict(BASE, guard_extra_mm=900), None)

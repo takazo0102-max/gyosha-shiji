@@ -71,6 +71,7 @@ from .elevation_solver import solve_elevation
 from .law_check import required_asagao_stages, run_all_checks, summary
 from .master import load_master
 from .model import (
+    FRAME_GUARD_RAIL_HEIGHT_MM,
     GUARD_RAIL_LEDGER,
     AsagaoSpec,
     ScaffoldConfig,
@@ -245,7 +246,15 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         hard_min=so.get("hard_min", 200),
     )
     plan = solve_plan(spec["outline_mm"], master, standoff)
-    required = int(spec["eaves_height_mm"]) + int(spec.get("guard_extra_mm", 2 * master.koma_pitch))
+    # 手すり分の既定は系列から。枠組はコマピッチを持たない（0）ので、
+    # 2×コマピッチだと軒高そのままになり、最上層に手すりが立たない
+    guard_extra = spec.get("guard_extra_mm")
+    if guard_extra is None:
+        guard_extra = (
+            FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame
+            else 2 * master.koma_pitch
+        )
+    required = int(spec["eaves_height_mm"]) + int(guard_extra)
     elevation = solve_elevation(required, master=master)
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
