@@ -46,8 +46,13 @@ def write_quantity_csv(result: QuantityResult, path: Path) -> None:
         w.writerow(["総重量kg", round(result.total_weight_kg, 1)])
         w.writerow(["トラック台数概算(4t)", result.truck_count])
         w.writerow(["架け面積m2", result.kake_menseki_m2])
+        # 手配・検討が要るものは、計上ルールの説明と同じ見た目にしない。
+        # 発注書として使うので、拾えていない部材が注記に埋もれると発注漏れになる
+        for n in result.warnings:
+            w.writerow(["要手配・要検討", n])
         for n in result.notes:
-            w.writerow(["注記", n])
+            if n not in result.warnings:
+                w.writerow(["注記", n])
 
 
 def write_report_md(
@@ -234,8 +239,11 @@ def write_report_md(
     a("")
     a(f"- 総重量: {quantity.total_weight_kg}kg / トラック概算: 4t車{quantity.truck_count}台")
     a(f"- 架け面積: {quantity.kake_menseki_m2}m²（(外周+4m)×(高さ+0.5m)）")
+    for n in quantity.warnings:
+        a(f"- **要手配・要検討**: {n}")
     for n in quantity.notes:
-        a(f"- 注記: {n}")
+        if n not in quantity.warnings:
+            a(f"- 注記: {n}")
     # 冒頭で「要確認N件」と言う以上、その N 件が本文のどこかで拾えないと片手落ち。
     # 分類ごとに1箇所へまとめ、着手前のチェックリストとして使えるようにする
     items: list[tuple[str, str]] = [

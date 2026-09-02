@@ -362,8 +362,11 @@ def _sheet_quantity(wb, quantity: QuantityResult) -> None:
     s.add(["総重量kg", quantity.total_weight_kg], STYLE_BOLD)
     s.add(["トラック台数概算(4t)", quantity.truck_count], STYLE_BOLD)
     s.add(["架け面積m²", quantity.kake_menseki_m2], STYLE_BOLD)
+    for n in quantity.warnings:
+        s.add_cells([Cell("要手配・要検討", STYLE_BOLD), Cell(n, STYLE_BOLD)])
     for n in quantity.notes:
-        s.add_cells([Cell("注記"), Cell(n)])
+        if n not in quantity.warnings:
+            s.add_cells([Cell("注記"), Cell(n)])
 
 
 def _sheet_todo(wb, verdict, checks: list[CheckResult], warnings=None) -> None:

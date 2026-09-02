@@ -12,7 +12,7 @@ from ashiba.master import load_master
 from ashiba.model import ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
 from ashiba.quantity import take_off
-from ashiba.report import write_report_md
+from ashiba.report import write_quantity_csv, write_report_md
 from ashiba.stairs import auto_place_stairs
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
@@ -200,6 +200,43 @@ class TestWarningsAreSeparatedFromNotes(unittest.TestCase):
             self.assertIn(f"ℹ️ {n}", text)
         for w in self.res.warnings:
             self.assertIn(f"⚠️ {w}", text)
+
+
+class TestOrderableNotesStandOut(unittest.TestCase):
+    """発注書として使うCSVで、手配が要る項目が注記に埋もれないこと."""
+
+    def setUp(self):
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        self.m = build()
+        pf = validate_platforms(self.m, [LoadingStage(
+            edge_index=0, start_mm=3600, span_count=2,
+            projection_mm=1500, load_kn=9.8, levels=[3])])
+        self.q = take_off(self.m, platforms=pf)
+
+    def test_csv_labels_them_differently(self):
+        import tempfile
+
+        self.assertTrue(self.q.warnings)
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "q.csv"
+            write_quantity_csv(self.q, path)
+            text = path.read_text(encoding="utf-8-sig")
+        for w in self.q.warnings:
+            self.assertIn(f"要手配・要検討,{w}", text)
+        # 同じ行が注記としても出ない（二重に見える）
+        self.assertEqual(text.count(self.q.warnings[0]), 1)
+
+    def test_report_marks_them_too(self):
+        import tempfile
+
+        from ashiba.law_check import run_all_checks
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "r.md"
+            write_report_md(self.m, self.q, run_all_checks(self.m), path, "x")
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("**要手配・要検討**", text)
 
 
 if __name__ == "__main__":
