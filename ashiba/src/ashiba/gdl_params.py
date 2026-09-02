@@ -46,7 +46,7 @@ def line_params(
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
         "negaH": e.first_ledger_height / 1000.0,
         "railH": model.guard_rail_height_mm / 1000.0,
-        "midH": model.config.midrail_height_mm / 1000.0,
+        "midH": model.midrail_height_mm / 1000.0,
         "serType": "B" if model.master.series_id.endswith("_B") else "A",
         # 一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,

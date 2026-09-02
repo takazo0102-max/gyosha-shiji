@@ -94,5 +94,45 @@ class TestSeriesSwitching(unittest.TestCase):
             self.assertEqual(heights[1] - heights[0], 1900)
 
 
+class TestMidrailFollowsTheSeries(unittest.TestCase):
+    """中桟は緊結部（コマ）にしか付かない。450決め打ちにしない."""
+
+    def _model(self, series):
+        master = load_master(series)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_one_koma_for_wedge_systems(self):
+        for series in ("shinwa_A", "shinwa_B"):
+            with self.subTest(series):
+                m = self._model(series)
+                self.assertEqual(m.midrail_height_mm, m.master.koma_pitch)
+
+    def test_frame_keeps_the_frame_value(self):
+        from ashiba.model import FRAME_MIDRAIL_HEIGHT_MM
+
+        self.assertEqual(
+            self._model("waku").midrail_height_mm, FRAME_MIDRAIL_HEIGHT_MM
+        )
+
+    def test_drawing_and_check_agree(self):
+        from ashiba.gdl_params import line_params
+        from ashiba.law_check import run_all_checks
+
+        m = self._model("shinwa_B")
+        p = line_params(m, m.plan.edges[0])
+        self.assertAlmostEqual(p["midH"] * 1000, m.midrail_height_mm, places=3)
+        rail = [c for c in run_all_checks(m) if c.check_id == 3][0]
+        self.assertIn(f"中桟{m.midrail_height_mm}mm", rail.message)
+
+    def test_explicit_value_still_wins(self):
+        m = self._model("shinwa_B")
+        m.config.midrail_height_mm = 400
+        self.assertEqual(m.midrail_height_mm, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

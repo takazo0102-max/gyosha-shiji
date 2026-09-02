@@ -324,7 +324,7 @@ def write_plan_json(
             "post_row_spacing_mm": model.post_row_spacing_mm,
             "guard_rail_type": cfg.guard_rail_type,
             "guard_rail_height_mm": model.guard_rail_height_mm,
-            "midrail_height_mm": cfg.midrail_height_mm,
+            "midrail_height_mm": model.midrail_height_mm,
             "toe_board_height_mm": cfg.toe_board_height_mm,
             "next_gen": cfg.next_gen,
             "period_days": cfg.period_days,

@@ -147,7 +147,7 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
     if not advance and not m.config.has_midrail:
         return CheckResult(3, "手すり", NG, f"手すり高さ{h}mmだが中桟がありません", basis)
     problems = []
-    mh = m.config.midrail_height_mm
+    mh = m.midrail_height_mm
     if not advance and not (350 <= mh <= 500):
         problems.append(f"中桟高さ{mh}mm が35〜50cmの範囲外")
     if m.config.has_toe_board and m.config.toe_board_height_mm < 100:

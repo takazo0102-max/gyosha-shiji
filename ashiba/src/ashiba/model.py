@@ -24,6 +24,7 @@ from .plan_solver import PlanResult
 
 # 枠組足場の建枠が兼ねる手すりの高さ（作業床から。安衛則563条の85cm以上を満たす）
 FRAME_GUARD_RAIL_HEIGHT_MM = 900
+FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）
 
 # 手すり方式
 GUARD_RAIL_ADVANCE = "先行手すり"   # 先行手摺部材（手すり＋斜材が一体）
@@ -67,7 +68,9 @@ class ScaffoldConfig:
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
     guard_rail_height_mm: Optional[int] = None  # 直接指定する場合（枠組等）
     has_midrail: bool = True               # 中桟
-    midrail_height_mm: int = 450           # 中桟高さ（作業床から。基準35〜50cm）
+    # 中桟高さ（作業床から。基準35〜50cm）。Noneなら系列から求める
+    # （くさびは緊結部＝コマ位置にしか付かないので、450決め打ちだとB系列で25mmずれる）
+    midrail_height_mm: Optional[int] = None
     has_toe_board: bool = True             # 幅木
     toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）
     n_stairs: int = 1                      # 階段設置箇所数
@@ -189,6 +192,20 @@ class ScaffoldModel:
         if self.master.is_frame:
             return FRAME_GUARD_RAIL_HEIGHT_MM
         return self.config.guard_rail_koma * self.master.koma_pitch
+
+    @property
+    def midrail_height_mm(self) -> int:
+        """作業床からの中桟高さ.
+
+        くさび式の中桟は緊結部（コマ）にしか取り付かないので、コマピッチの
+        整数倍になる（A:450＝1コマ、B:475＝1コマ）。450決め打ちにすると、
+        B系列で図面も帳票も実際と25mmずれる。
+        """
+        if self.config.midrail_height_mm is not None:
+            return self.config.midrail_height_mm
+        if self.master.is_frame:
+            return FRAME_MIDRAIL_HEIGHT_MM
+        return self.master.koma_pitch
 
     def wall_tie_limits(self) -> tuple[float, float, str]:
         """壁つなぎ間隔の法定上限（垂直, 水平, 根拠）.
