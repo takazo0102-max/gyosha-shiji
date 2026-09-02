@@ -197,6 +197,9 @@ def solve_plan(
     standoffs = [spec.target] * n
     # 外形を整理した内容は黙って飲み込まず、割付の警告として残す
     warnings: list[str] = list(outline.notes)
+    # 同じ対処案は面ごとに1行ずつ出さず、対象の辺をまとめて1行にする
+    # （凹み形状で同じ文が4行並び、件数だけ増えて読みにくかった）
+    remedies: dict[str, list[int]] = {}
     for axis in ("x", "y"):
         grp = [e for e in edges if e.axis == axis]
         if not grp:
@@ -252,7 +255,11 @@ def solve_plan(
             )
         )
         if remedy:
-            warnings.append(f"辺{e.index}: {remedy}")
+            remedies.setdefault(remedy, []).append(e.index)
+
+    for remedy, edges in remedies.items():
+        label = "・".join(f"辺{i}" for i in edges)
+        warnings.append(f"{label}: {remedy}")
 
     return PlanResult(
         outline=outline,

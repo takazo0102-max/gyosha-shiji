@@ -275,5 +275,46 @@ class TestDegenerateOutlines(unittest.TestCase):
             build_outline([(0, 0), (5000, 0), (10000, 0), (10000, 0)])
 
 
+class TestWarningsAreGrouped(unittest.TestCase):
+    """同じ対処案が面ごとに1行ずつ並ぶと、件数だけ増えて読みにくい."""
+
+    def setUp(self):
+        self.master = load_master("shinwa_A")
+
+    def test_same_remedy_is_one_line_naming_every_face(self):
+        plan = solve_plan(RECT, self.master)
+        hits = [w for w in plan.warnings if "離れ350mm" in w]
+        self.assertEqual(len(hits), 1, plan.warnings)
+        self.assertIn("辺0", hits[0])
+        self.assertIn("辺2", hits[0])
+
+    def test_different_remedies_stay_separate(self):
+        """離れの値が違えば別の対処案なので、まとめない."""
+        plan = solve_plan(
+            [(0, 0), (20000, 0), (20000, 10000), (14000, 10000),
+             (14000, 7000), (6000, 7000), (6000, 10000), (0, 10000)],
+            self.master,
+        )
+        texts = {w.split(": ", 1)[1] for w in plan.warnings if ": " in w}
+        self.assertGreater(len(texts), 1, plan.warnings)
+        self.assertEqual(len(plan.warnings), len(texts))
+
+    def test_per_edge_remedy_is_kept_for_the_table(self):
+        """まとめるのは警告一覧だけ。面ごとの表には各辺の対処案が要る."""
+        plan = solve_plan(RECT, self.master)
+        with_remedy = [e for e in plan.edges if e.remedy]
+        self.assertEqual(len(with_remedy), 2)
+        for e in with_remedy:
+            self.assertIn(f"{e.standoff:.0f}mm", e.remedy)
+
+    def test_warning_count_matches_distinct_remedies(self):
+        for poly in (RECT, LSHAPE):
+            with self.subTest(poly=poly[1]):
+                plan = solve_plan(poly, self.master)
+                distinct = {e.remedy for e in plan.edges if e.remedy}
+                grouped = [w for w in plan.warnings if "辺" in w]
+                self.assertEqual(len(grouped), len(distinct))
+
+
 if __name__ == "__main__":
     unittest.main()
