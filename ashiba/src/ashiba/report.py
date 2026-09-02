@@ -57,6 +57,7 @@ def write_report_md(
     path: Path,
     project_name: str = "",
     stair_plan=None,
+    verdict=None,
     structural=None,
     terrain=None,
     platforms=None,
@@ -74,6 +75,16 @@ def write_report_md(
     a = lines.append
     a(f"# 足場割付レポート {project_name}".rstrip())
     a("")
+    if verdict is not None:
+        # 法規・構造・付帯設備がそれぞれ別々に判定を持つので、先頭で束ねて出す
+        if verdict["ok"]:
+            a("**判定: 計画は成立しています**"
+              + (f"（要確認 {verdict['warn']}件）" if verdict["warn"] else ""))
+        else:
+            a("**判定: ❌ 是正が必要です**")
+            for b in verdict["blockers"]:
+                a(f"- {b}")
+        a("")
     a(f"- 系列: {model.master.series_id}（コマピッチ{model.master.koma_pitch}mm）")
     a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}")
     a(f"- 支柱構成（下から）: ジャッキ{e.jack_extension} + "

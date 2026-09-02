@@ -1,5 +1,6 @@
 """受け入れ基準（仕様10）のエンドツーエンドテスト."""
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -124,6 +125,73 @@ class TestAcceptance(unittest.TestCase):
             stairs = result["stairs"]
             self.assertGreaterEqual(stairs["count"], stairs["required_count"])
             self.assertLessEqual(stairs["max_travel_m"], 30.0)
+
+
+class TestOverallVerdict(unittest.TestCase):
+    """成立しているかを1箇所で言えること.
+
+    法規・構造・荷受けステージ・開口部・ブラケット区間がそれぞれ別々に
+    判定を持っていて、どこかがNGでも他は緑のままだった。
+    """
+
+    BASE = {
+        "series_id": "shinwa_A",
+        "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+        "eaves_height_mm": 15400, "guard_extra_mm": 900, "period_days": 90,
+    }
+
+    def _run(self, name, **extra):
+        spec = dict(self.BASE, project_name=name, **extra)
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            f = out / "s.json"
+            f.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            result = run(f, out / "o")
+            report = (out / "o" / f"{name}_割付レポート.md").read_text(encoding="utf-8")
+        return result, report
+
+    def test_clean_plan_is_ok(self):
+        r, report = self._run("正常")
+        self.assertTrue(r["verdict"]["ok"])
+        self.assertEqual(r["verdict"]["blockers"], [])
+        self.assertIn("計画は成立しています", report)
+
+    def test_opening_ng_blocks_even_when_law_checks_pass(self):
+        """法規12/12 OKでも、開口部が規格外なら成立していない."""
+        r, report = self._run(
+            "梁枠規格外", series_id="shinwa_B",
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+        )
+        self.assertEqual(r["checks"]["ng"], 0)
+        self.assertFalse(r["verdict"]["ok"])
+        self.assertTrue(any("開口部" in b for b in r["verdict"]["blockers"]))
+        self.assertIn("是正が必要です", report)
+
+    def test_platform_ng_blocks(self):
+        r, _ = self._run("ステージ重なり", loading_stages=[
+            {"edge_index": 0, "start_mm": 3600, "span_count": 2},
+            {"edge_index": 0, "start_mm": 5400, "span_count": 2},
+        ])
+        self.assertFalse(r["verdict"]["ok"])
+        self.assertTrue(
+            any("ステージ" in b for b in r["verdict"]["blockers"]),
+            r["verdict"],
+        )
+
+    def test_blockers_name_the_reason(self):
+        """判定だけでなく、どこが引っかかったかを言う."""
+        r, _ = self._run(
+            "梁枠規格外2", series_id="shinwa_B",
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+        )
+        for b in r["verdict"]["blockers"]:
+            self.assertGreater(len(b), 5, b)
+
+    def test_every_example_is_ok(self):
+        for f in sorted(EXAMPLES.glob("*.json")):
+            with self.subTest(f.name), tempfile.TemporaryDirectory() as td:
+                r = run(f, Path(td))
+                self.assertTrue(r["verdict"]["ok"], f"{f.name}: {r['verdict']}")
 
 
 if __name__ == "__main__":

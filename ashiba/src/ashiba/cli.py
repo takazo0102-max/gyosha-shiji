@@ -252,6 +252,36 @@ def build_notification_info(spec: dict) -> NotificationInfo:
     )
 
 
+def build_verdict(check_summary, structural, platforms, openings, bracket_issues) -> dict:
+    """計画が成立しているかの総合判定.
+
+    これまでは法規チェック・構造計算・荷受けステージ・開口部・ブラケット区間が
+    それぞれ別々に判定を持ち、どこかがNGでも他は緑のままだった。読む側が
+    4〜5箇所を突き合わせないと成立しているか分からない。1箇所にまとめる。
+    """
+    blockers = []
+    if check_summary["ng"]:
+        blockers.append(f"法規チェックNG {check_summary['ng']}件")
+    if not structural.wall_tie.ok:
+        blockers.append(f"壁つなぎ 検定比{structural.wall_tie.ratio}")
+    if not structural.post.ok:
+        blockers.append(f"建地圧縮 検定比{structural.post.ratio}")
+    n_pf = len([i for i in platforms.issues if i.severity == "NG"])
+    if n_pf:
+        blockers.append(f"荷受けステージ・昇降機NG {n_pf}件")
+    n_op = len([i for i in openings.issues if i.severity == "NG"])
+    if n_op:
+        blockers.append(f"開口部NG {n_op}件")
+    n_bk = len([i for i in bracket_issues if i.severity == "NG"])
+    if n_bk:
+        blockers.append(f"ブラケット区間NG {n_bk}件")
+    return {
+        "ok": not blockers,
+        "blockers": blockers,
+        "warn": check_summary["warn"],
+    }
+
+
 def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
     # 文字列で渡されることがある（スクリプトからの直接呼び出し）。
     # input_path だけ Path() していて out_dir はしていなかった
@@ -302,12 +332,15 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         model, quantity, site, platforms=platforms, terrain=terrain
     )
 
+    s = summary(checks)
+    verdict = build_verdict(s, structural, platforms, openings, bracket_issues)
+
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     write_report_md(
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
-        stair_plan=stair_plan, structural=structural, terrain=terrain,
+        stair_plan=stair_plan, verdict=verdict, structural=structural, terrain=terrain,
         platforms=platforms, openings=openings, bracket_sections=brackets,
     )
     write_plan_json(
@@ -322,12 +355,12 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         details=detail_sheets, terrain=terrain,
     )
 
-    s = summary(checks)
     return {
         "project": name,
         "posts_per_level": model.plan.total_posts,
         "levels": model.elevation.n_levels,
         "scaffold_height_mm": model.scaffold_height_mm,
+        "verdict": verdict,
         "checks": s,
         "notification_required": notification_required(model),
         "total_weight_kg": quantity.total_weight_kg,
