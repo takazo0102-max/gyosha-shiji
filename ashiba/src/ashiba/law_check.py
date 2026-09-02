@@ -258,7 +258,7 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
             e.edge_index: e.scaffold_length for e in m.plan.edges
         }
         detail = "、".join(
-            f"{m.face_name(i)}({lengths.get(i, 0):.0f}mm)" for i in untied
+            f"{m.face_name(i)} {lengths.get(i, 0):.0f}mm" for i in untied
         )
         return CheckResult(
             7, "壁つなぎ", WARN,
