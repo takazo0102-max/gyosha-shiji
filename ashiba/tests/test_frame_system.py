@@ -121,7 +121,13 @@ class TestFrameQuantity(unittest.TestCase):
     def test_cross_braces_cover_all_spans(self):
         n_bays = self.m.plan.total_spans
         n_stages = len(self.m.elevation.posts)
-        self.assertEqual(self.q.qty_of("筋交"), n_bays * n_stages)
+        from ashiba.quantity import QuantityRules
+
+        # 外構面・内構面の両方に入る
+        self.assertEqual(
+            self.q.qty_of("筋交"),
+            n_bays * n_stages * QuantityRules().frame_braces_per_bay,
+        )
 
 
 class TestFrameLawChecks(unittest.TestCase):
@@ -179,6 +185,34 @@ class TestFrameLedgers(unittest.TestCase):
             for m in (low_m, high_m)
         ]
         self.assertEqual(per_span[0], per_span[1])
+
+
+class TestFrameCrossBraces(unittest.TestCase):
+    """交差筋交は外構面・内構面の両方に入る."""
+
+    def test_two_per_bay_by_default(self):
+        from ashiba.quantity import QuantityRules
+
+        m = build_frame()
+        q = take_off(m)
+        n_stages = len(m.elevation.posts)
+        self.assertEqual(
+            q.qty_of("筋交"),
+            m.plan.total_spans * n_stages * QuantityRules().frame_braces_per_bay,
+        )
+
+    def test_single_face_is_configurable(self):
+        from ashiba.quantity import QuantityRules
+
+        m = build_frame()
+        both = take_off(m).qty_of("筋交")
+        one = take_off(m, rules=QuantityRules(frame_braces_per_bay=1)).qty_of("筋交")
+        self.assertEqual(both, one * 2)
+
+    def test_rule_is_stated_in_notes(self):
+        self.assertTrue(
+            any("交差筋交は1構面あたり" in n for n in take_off(build_frame()).notes)
+        )
 
 
 class TestFrameSpecificRules(unittest.TestCase):

@@ -86,6 +86,21 @@ class TestQuantity(unittest.TestCase):
             q.qty_of("踊り場"), landings_per_tower(self.model) * 2
         )
 
+    def test_wide_standoff_notes_the_missing_inner_rail(self):
+        """離れ300mm超は躯体側にも墜落防止措置が要る。数量に無いことを書く."""
+        wide = [e for e in self.plan.edges if e.standoff > 300]
+        self.assertTrue(wide, "この例題は離れ350mmの面を含む前提")
+        self.assertTrue(
+            any("手すり材は数量に含んでいません" in n for n in self.q.notes),
+            self.q.notes,
+        )
+
+    def test_no_such_note_when_all_within_300(self):
+        for e in self.plan.edges:
+            e.standoff = 300.0
+        q = take_off(self.model)
+        self.assertFalse(any("離れが300mmを超える" in n for n in q.notes))
+
     def test_kake_menseki(self):
         # (外周100m+4m)×(高さ16m+0.5m)
         self.assertAlmostEqual(self.q.kake_menseki_m2, 104 * 16.5, delta=0.1)
@@ -111,6 +126,29 @@ class TestQuantity(unittest.TestCase):
         q = take_off(model)
         jacks = [l for l in q.lines if l.part.category == "ジャッキ" and "アンダー" not in l.part.note]
         self.assertEqual(jacks[0].qty, self.plan.total_posts)
+
+
+class TestWeightPlausibility(unittest.TestCase):
+    """架け面積あたりの重量が実務の相場（おおむね15〜22kg/m2）から外れないこと.
+
+    拾いルールを1つ間違えると桁で狂う。合計で歯止めをかけておく。
+    """
+
+    def test_wedge_and_frame_are_in_range(self):
+        from ashiba.elevation_solver import solve_elevation
+
+        for sid in ("shinwa_A", "shinwa_B", "waku"):
+            with self.subTest(sid):
+                master = load_master(sid)
+                model = ScaffoldModel(
+                    master=master, plan=solve_plan(RECT, master),
+                    elevation=solve_elevation(16300, master=master),
+                    config=ScaffoldConfig(), building_height_mm=16000,
+                )
+                q = take_off(model)
+                per_m2 = q.total_weight_kg / q.kake_menseki_m2
+                self.assertGreater(per_m2, 12.0, f"{sid} {per_m2:.1f}kg/m2 は軽すぎる")
+                self.assertLess(per_m2, 25.0, f"{sid} {per_m2:.1f}kg/m2 は重すぎる")
 
 
 if __name__ == "__main__":

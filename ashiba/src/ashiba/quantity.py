@@ -37,6 +37,8 @@ class QuantityRules:
     brace_every_spans: int = 6
     brace_every_levels: int = 6
     braces_per_location: int = 2        # 交さ2方向＝1箇所にX形で2本
+    # 枠組の交差筋交は外構面と内構面の両方に入れる。片面だけの現場は1にする
+    frame_braces_per_bay: int = 2
     truck_payload_kg: float = 3200.0    # 4t車の実効積載（積載効率0.8）
 
 
@@ -105,6 +107,7 @@ def take_off(
         _count_frame_parts(model, rules, add, notes, stair_plan)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
+        _note_inner_rail_if_wide(model, notes)
         return _assemble(model, rules, counts, parts, notes)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
@@ -274,6 +277,7 @@ def take_off(
 
     _count_platform_parts(model, platforms, add, notes)
     _count_opening_parts(model, openings, add, notes)
+    _note_inner_rail_if_wide(model, notes)
     return _assemble(model, rules, counts, parts, notes)
 
 
@@ -358,6 +362,28 @@ def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
     from .stairs import landings_per_tower
 
     return landings_per_tower(model) * n_towers
+
+
+def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
+    """離れが300mmを超える面は躯体側にも墜落防止措置が要る.
+
+    法規チェックと割付の警告では「手すりの設置または安全帯の使用等」と
+    出しているが、数量表には躯体側の手すり材が入っていない。どちらを選ぶかは
+    現場判断なので自動では計上しないが、入っていないことは書いておく。
+    """
+    wide = [
+        (e.edge_index, e.standoff, e.span_count)
+        for e in model.plan.edges if e.standoff > 300.0 + 1e-6
+    ]
+    if not wide:
+        return
+    spans = sum(w[2] for w in wide)
+    faces = "、".join(f"辺{i}({d:.0f}mm)" for i, d, _ in wide)
+    notes.append(
+        f"離れが300mmを超える面があります（{faces}）。躯体側の墜落防止措置が"
+        f"必要ですが、手すり材は数量に含んでいません（該当{spans}スパン）。"
+        "躯体側手すりで対応する場合は布材を別途計上してください"
+    )
 
 
 def _assemble(
@@ -473,11 +499,16 @@ def _count_frame_parts(
     # ---- 交差筋交（構面数×段数）。建枠間隔ごとに規格がある ----
     # 枠組は交差筋交が建枠と一体で構面を成すため全スパン・全段に入る。
     # くさび式の斜材（6層6スパン以下毎）とは考え方が違う
+    per_bay = max(1, rules.frame_braces_per_bay)
     for s, n in span_counts.items():
         brace = next(
             (p for p in m.by_category("筋交") if p.nominal_dim == s), None
         )
-        add(brace, n * n_stages, f"交差筋交{s}")
+        add(brace, n * n_stages * per_bay, f"交差筋交{s}")
+    notes.append(
+        f"交差筋交は1構面あたり{per_bay}本で計上（外構面・内構面の両方）。"
+        "片面のみの場合は QuantityRules の frame_braces_per_bay を1にしてください"
+    )
 
     # ---- 従属部材: 建枠数から自動算出 ----
     armlock = next(iter(m.by_category("アームロック")), None)
