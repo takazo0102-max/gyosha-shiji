@@ -146,6 +146,52 @@ class TestBraceSpacingMatchesTakeOff(unittest.TestCase):
         self.assertEqual((p["braceEveryS"], p["braceEveryL"]), (1, 1))
 
 
+class TestAsagaoReachesTheDrawing(unittest.TestCase):
+    """朝顔は数量にも法規チェックにも出るのに、図面・3Dに現れていなかった."""
+
+    def _model(self, stages, height=16300):
+        from ashiba.model import AsagaoSpec
+
+        master = load_master("shinwa_A")
+        plan = solve_plan(RECT, master)
+        return ScaffoldModel(
+            master=master, plan=plan,
+            elevation=solve_elevation(height, master=master),
+            config=ScaffoldConfig(
+                asagao=AsagaoSpec(stages=stages) if stages else None
+            ),
+        )
+
+    def test_heights_are_work_deck_levels(self):
+        m = self._model(2, height=25000)
+        hs = m.asagao_heights()
+        self.assertEqual(len(hs), 2)
+        for h in hs:
+            self.assertIn(h, m.elevation.level_heights)
+
+    def test_first_stage_is_around_4_to_5m(self):
+        m = self._model(1)
+        self.assertTrue(3000 <= m.asagao_heights()[0] <= 6000, m.asagao_heights())
+
+    def test_explicit_heights_win(self):
+        m = self._model(1)
+        m.config.asagao.heights_mm = [8200]
+        self.assertEqual(m.asagao_heights(), [8200])
+
+    def test_params_carry_the_heights(self):
+        m = self._model(1)
+        p = line_params(m, m.plan.edges[0])
+        self.assertEqual(
+            p["asagaoList"], ",".join(str(h) for h in m.asagao_heights())
+        )
+        self.assertGreater(p["asagaoProj"], 0)
+
+    def test_no_asagao_means_empty_list(self):
+        m = self._model(0)
+        self.assertEqual(m.asagao_heights(), [])
+        self.assertEqual(line_params(m, m.plan.edges[0])["asagaoList"], "")
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 

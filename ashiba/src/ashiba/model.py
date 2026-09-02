@@ -21,6 +21,12 @@ GUARD_RAIL_ADVANCE = "先行手すり"   # 先行手摺部材（手すり＋斜�
 GUARD_RAIL_LEDGER = "布材"          # 布材で手すり＋中桟を組む
 
 
+# 朝顔の設置高さの実務目安（法は段数と突出・傾斜のみを定める）
+ASAGAO_FIRST_MIN_MM = 4000
+ASAGAO_FIRST_MAX_MM = 5000
+ASAGAO_STAGE_PITCH_MM = 10000
+
+
 @dataclass
 class AsagaoSpec:
     """朝顔（防護棚）の仕様（仕様5-#10）.
@@ -92,6 +98,32 @@ class ScaffoldModel:
     @property
     def scaffold_height_mm(self) -> int:
         return self.elevation.total_height
+
+    def asagao_heights(self) -> list[int]:
+        """朝顔の設置高さ（GLから、下から昇順）.
+
+        法は段数（10m以上1段・20m以上2段）と突出・傾斜を定めるが、高さは
+        定めていない。実務では「1段目は地上4〜5m、2段目以降は1段目から
+        10m以内ごと」に取るので、その範囲に最も近い作業床の高さを選ぶ。
+        AsagaoSpec.heights_mm を指定すればそちらを優先する。
+        """
+        spec = self.config.asagao
+        if spec is None or spec.stages <= 0:
+            return []
+        if spec.heights_mm:
+            return sorted(int(h) for h in spec.heights_mm)
+        levels = self.elevation.level_heights
+        if not levels:
+            return []
+        out: list[int] = []
+        target = (ASAGAO_FIRST_MIN_MM + ASAGAO_FIRST_MAX_MM) / 2
+        for _ in range(spec.stages):
+            cands = [h for h in levels if h not in out]
+            if not cands:
+                break
+            out.append(min(cands, key=lambda h: abs(h - target)))
+            target = out[-1] + ASAGAO_STAGE_PITCH_MM
+        return sorted(out)
 
     @property
     def post_row_spacing_mm(self) -> int:

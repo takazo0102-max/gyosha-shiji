@@ -49,6 +49,12 @@ def line_params(model: ScaffoldModel, ep, rules=None) -> dict:
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,
         "braceEveryL": brace_l,
+        # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
+        "asagaoList": ",".join(str(h) for h in model.asagao_heights()),
+        "asagaoProj": (model.config.asagao.projection_mm / 1000.0
+                       if model.config.asagao else 2.0),
+        "asagaoAngle": (model.config.asagao.angle_deg
+                        if model.config.asagao else 25.0),
     }
 
 

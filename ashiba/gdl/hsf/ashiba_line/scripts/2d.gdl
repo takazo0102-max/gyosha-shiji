@@ -41,6 +41,16 @@ next ip
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
 
+! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
+if nAsa > 0 then
+	line_type 3
+	line2 0, -rowW - asagaoProj, lineLen, -rowW - asagaoProj
+	line2 0, -rowW, 0, -rowW - asagaoProj
+	line2 lineLen, -rowW, lineLen, -rowW - asagaoProj
+	line_type 1
+	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
+endif
+
 ! 躯体面の参照線（離れ表示）
 line_type 3
 line2 0, standoff, lineLen, standoff
@@ -134,6 +144,14 @@ for ip = 1 to nSpan
 	next il
 	x = x + spans[ip]
 next ip
+
+! 朝顔（立面では設置高さに太線と注記）
+for ia = 1 to nAsa
+	za = asa[ia]
+	line2 0, za, lineLen, za
+	line2 0, za + 0.02, lineLen, za + 0.02
+	if showDim then text2 lineLen + 0.1, za, "朝顔" + str(ia, 1, 0) + "段目 GL+" + str(za * 1000, 5, 0)
+next ia
 
 ! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
 pen warnPen

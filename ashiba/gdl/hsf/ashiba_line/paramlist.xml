@@ -117,6 +117,18 @@
 			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<String Name="asagaoList">
+			<Description><![CDATA["朝顔の設置高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="asagaoProj">
+			<Description><![CDATA["朝顔の水平突出"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<RealNum Name="asagaoAngle">
+			<Description><![CDATA["朝顔の傾斜 度"]]></Description>
+			<Value>25</Value>
+		</RealNum>
 		<Integer Name="braceEveryS">
 			<Description><![CDATA["斜材の設置間隔 スパン 1=全構面"]]></Description>
 			<Value>1</Value>

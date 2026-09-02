@@ -14,6 +14,7 @@ dim tieH[80]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
+dim asa[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -137,6 +138,27 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- asagaoList をパース (mm→m) ----
+! 朝顔は数量にも法規チェックにも出るのに、図面にも3Dにも現れていなかった。
+! 突出2mの部材なので、干渉確認のためにモデルへ出す
+nAsa = 0
+rest = asagaoList
+while strlen(rest) > 0 and nAsa < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nAsa = nAsa + 1
+		asa[nAsa] = v / 1000
 	endif
 endwhile
 

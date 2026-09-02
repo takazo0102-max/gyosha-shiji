@@ -120,4 +120,29 @@ if showBrace then
 	next il
 endif
 
+! ---- 朝顔（防護棚）: 外側へ突出する傾斜板と受けブラケット ----
+! 突出2m・傾斜25度。数量にも法規チェックにも出るのに図面・3Dに
+! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
+! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
+! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+for ia = 1 to nAsa
+	za = asa[ia]
+	! 板（外側へ張り出し、先端が上がる）
+	add 0, -rowW, za
+	muly -1
+	rotx asagaoAngle
+	block lineLen, asagaoProj, 0.02
+	del 3
+	! 受けブラケット（支柱位置ごと）
+	x = 0
+	for ip = 1 to nSpan + 1
+		add x, -rowW, za
+		muly -1
+		rotx asagaoAngle - 90
+		cylind asagaoProj, 0.0213 / 2
+		del 3
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+next ia
+
 end

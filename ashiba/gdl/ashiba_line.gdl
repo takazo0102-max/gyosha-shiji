@@ -37,6 +37,9 @@
 !   negaH          長さ    根がらみ高さ GLから 0で自動                             既定 0
 !   railH          長さ    手すり高さ 作業床から 0で自動                           既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                             既定 0
+!   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                既定 ""
+!   asagaoProj     長さ    朝顔の水平突出                                          既定 2
+!   asagaoAngle    実数    朝顔の傾斜 度                                           既定 25
 !   braceEveryS    整数    斜材の設置間隔 スパン 1=全構面                          既定 1
 !   braceEveryL    整数    斜材の設置間隔 層 1=全層                                既定 1
 !   nRows          整数    建地列数 2=本足場 1=一側足場                            既定 2
@@ -63,6 +66,7 @@ dim tieH[80]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
+dim asa[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -189,6 +193,27 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	endif
 endwhile
 
+! ---- asagaoList をパース (mm→m) ----
+! 朝顔は数量にも法規チェックにも出るのに、図面にも3Dにも現れていなかった。
+! 突出2mの部材なので、干渉確認のためにモデルへ出す
+nAsa = 0
+rest = asagaoList
+while strlen(rest) > 0 and nAsa < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nAsa = nAsa + 1
+		asa[nAsa] = v / 1000
+	endif
+endwhile
+
 ! ---- 派生値 ----
 lineLen = 0
 for i = 1 to nSpan
@@ -303,6 +328,16 @@ next ip
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
 
+! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
+if nAsa > 0 then
+	line_type 3
+	line2 0, -rowW - asagaoProj, lineLen, -rowW - asagaoProj
+	line2 0, -rowW, 0, -rowW - asagaoProj
+	line2 lineLen, -rowW, lineLen, -rowW - asagaoProj
+	line_type 1
+	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
+endif
+
 ! 躯体面の参照線（離れ表示）
 line_type 3
 line2 0, standoff, lineLen, standoff
@@ -396,6 +431,14 @@ for ip = 1 to nSpan
 	next il
 	x = x + spans[ip]
 next ip
+
+! 朝顔（立面では設置高さに太線と注記）
+for ia = 1 to nAsa
+	za = asa[ia]
+	line2 0, za, lineLen, za
+	line2 0, za + 0.02, lineLen, za + 0.02
+	if showDim then text2 lineLen + 0.1, za, "朝顔" + str(ia, 1, 0) + "段目 GL+" + str(za * 1000, 5, 0)
+next ia
 
 ! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
 pen warnPen
@@ -576,6 +619,31 @@ if showBrace then
 		endif
 	next il
 endif
+
+! ---- 朝顔（防護棚）: 外側へ突出する傾斜板と受けブラケット ----
+! 突出2m・傾斜25度。数量にも法規チェックにも出るのに図面・3Dに
+! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
+! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
+! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+for ia = 1 to nAsa
+	za = asa[ia]
+	! 板（外側へ張り出し、先端が上がる）
+	add 0, -rowW, za
+	muly -1
+	rotx asagaoAngle
+	block lineLen, asagaoProj, 0.02
+	del 3
+	! 受けブラケット（支柱位置ごと）
+	x = 0
+	for ip = 1 to nSpan + 1
+		add x, -rowW, za
+		muly -1
+		rotx asagaoAngle - 90
+		cylind asagaoProj, 0.0213 / 2
+		del 3
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+next ia
 
 end
 
