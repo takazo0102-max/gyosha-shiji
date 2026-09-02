@@ -71,6 +71,7 @@ def take_off(
     rules: Optional[QuantityRules] = None,
     bracket_sections: Optional[list] = None,
     stair_plan: Optional["StairPlan"] = None,
+    platforms=None,
 ) -> QuantityResult:
     rules = rules or QuantityRules()
     m = model.master
@@ -99,6 +100,7 @@ def take_off(
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
         _count_frame_parts(model, rules, add, notes, stair_plan)
+        _count_platform_parts(model, platforms, add, notes)
         return _assemble(model, rules, counts, parts, notes)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
@@ -247,7 +249,50 @@ def take_off(
             )
             add(part, qty, f"ブラケット{width}（{purpose}）")
 
+    _count_platform_parts(model, platforms, add, notes)
     return _assemble(model, rules, counts, parts, notes)
+
+
+def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
+    """荷受けステージ・昇降機の部材を数量表に載せる.
+
+    ここを繋がないと、ステージの張出ブラケット・踏板・幅木・手すりと
+    取付部の壁つなぎが発注リストから丸ごと抜ける。構造計算では直下の建地を
+    見ているのに、部材だけ数量表に出てこない状態だった。
+    """
+    if platforms is None or not (platforms.stages or platforms.hoists):
+        return
+    from .platforms import _bracket_nominal, platform_part_demands
+
+    m = model.master
+    for d in platform_part_demands(model, platforms):
+        if d.qty <= 0:
+            continue
+        if d.nominal_dim is None and d.note_contains:
+            # 出を受けられる寸法がカタログに無い。分類だけで引き当てると
+            # 出1500mmのステージに600のブラケットを当ててしまう
+            continue
+        cands = [
+            p for p in m.by_category(d.category)
+            if (d.nominal_dim is None or p.nominal_dim == d.nominal_dim)
+            and (not d.note_contains or d.note_contains in p.note)
+        ]
+        if not cands:
+            notes.append(
+                f"荷受けステージ用の{d.label}"
+                + (f"（呼び{d.nominal_dim}）" if d.nominal_dim else "")
+                + f"がマスタにありません（{d.qty}本）。別途手配してください"
+            )
+            continue
+        add(cands[0], d.qty, f"荷受けステージ {d.label}")
+
+    for st in platforms.stages:
+        if _bracket_nominal(model, st.projection_mm) is None:
+            notes.append(
+                f"辺{st.edge_index}のステージは出{st.projection_mm:.0f}mmで、"
+                "カタログの張出ブラケットでは受けられません。"
+                "単管等による支持を個別に検討してください"
+            )
 
 
 def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:

@@ -237,8 +237,11 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
     checks = run_all_checks(model)
-    quantity = take_off(model, bracket_sections=brackets, stair_plan=stair_plan)
     platforms = validate_platforms(model, *build_platforms(spec))
+    quantity = take_off(
+        model, bracket_sections=brackets, stair_plan=stair_plan,
+        platforms=platforms,
+    )
     structural = run_structural(model, quantity, site, platforms=platforms)
     terrain = solve_post_feet(model, build_ground(spec))
 

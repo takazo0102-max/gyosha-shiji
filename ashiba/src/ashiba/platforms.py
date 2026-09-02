@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -54,9 +55,17 @@ class LoadingStage:
             acc += s
         return acc
 
-    @property
-    def end_mm(self) -> float:
-        return self.start_mm + self.span_count * 1800   # 概算（検証で厳密化）
+    def end_mm(self, model: ScaffoldModel) -> float:
+        """間口の終端。スパンは1800とは限らない（B系列・枠組・端数スパン）."""
+        return self.start_mm + self.length_mm(model)
+
+    def spans(self, model: ScaffoldModel) -> list[int]:
+        """間口が占有するスパンの呼び寸法。面の端を越える分は含まれない."""
+        edge = _edge(model, self.edge_index)
+        if edge is None:
+            return []
+        i = _span_index(edge, self.start_mm)
+        return list(edge.spans[i:i + self.span_count])
 
 
 @dataclass
@@ -173,6 +182,16 @@ def validate_platforms(
                 "支持方法を個別に検討してください",
                 "仮設工業会 設計指針"))
 
+        # 間口が面に収まるか。スライスで黙って短くなると、実際には
+        # 取り付かない構成のまま軸力だけ計算してしまう
+        got = s.spans(model)
+        if len(got) < s.span_count:
+            result.issues.append(PlatformIssue(
+                "ステージ", i, "NG",
+                f"辺{s.edge_index}: 位置{s.start_mm:.0f}mmから"
+                f"{s.span_count}スパンは面（{edge.scaffold_length:.0f}mm・"
+                f"{edge.span_count}スパン）に収まりません", "入力エラー"))
+
         load = stage_post_load_kn(s, model)
         if load > result.max_post_load_kn:
             result.max_post_load_kn = load
@@ -183,6 +202,18 @@ def validate_platforms(
             )
         # ステージ取付部は壁つなぎを増設する（間口の両端）
         result.extra_wall_ties += 2 * max(1, len(s.levels) or 1)
+
+    # 同じ区間に2基は取り付かない。重なりを黙って通すと部材も軸力も二重になる
+    for i, a in enumerate(stages):
+        for j, b in list(enumerate(stages))[i + 1:]:
+            if a.edge_index != b.edge_index:
+                continue
+            if a.start_mm < b.end_mm(model) and b.start_mm < a.end_mm(model):
+                result.issues.append(PlatformIssue(
+                    "ステージ", j, "NG",
+                    f"辺{a.edge_index}でステージ{i + 1}と{j + 1}の間口が重なっています"
+                    f"（{a.start_mm:.0f}-{a.end_mm(model):.0f} と "
+                    f"{b.start_mm:.0f}-{b.end_mm(model):.0f}）", "入力エラー"))
 
     for i, h in enumerate(hoists):
         edge = _edge(model, h.edge_index)
@@ -214,29 +245,74 @@ def validate_platforms(
     return result
 
 
-def platform_quantities(
+@dataclass
+class PartDemand:
+    """ステージが必要とする部材1件。数量拾いがマスタに引き当てるための指定."""
+
+    label: str            # 数量表の分類名
+    category: str         # マスタの分類
+    nominal_dim: Optional[int]   # 呼び寸法。Noneなら分類内の唯一品
+    qty: int
+    note_contains: str = ""      # マスタ検索の絞り込み（例 "張出"）
+
+
+def platform_part_demands(
     model: ScaffoldModel, result: PlatformResult
-) -> dict[str, int]:
-    """荷受けステージの部材数（分類名→数量）.
+) -> list[PartDemand]:
+    """ステージの必要部材。数量拾いと platform_quantities の唯一の出所.
 
-    張出ブラケット・方杖・踏板・幅木・手すり用布材を、間口のスパン数から算出する。
+    分類名だけ返して数量表に載せないと、ステージの部材（張出ブラケット・
+    踏板・幅木・手すり）が発注リストから丸ごと抜ける。間口の呼び寸法は
+    1800決め打ちにせず、実際のスパン構成から拾う。
     """
-    counts: dict[str, int] = {}
-
-    def add(key: str, n: int) -> None:
-        if n > 0:
-            counts[key] = counts.get(key, 0) + n
-
+    out: list[PartDemand] = []
     for s in result.stages:
         n_levels = max(1, len(s.levels) or 1)
         n_posts = s.span_count + 1
-        add("張出ブラケット", n_posts * n_levels)
+        bracket = _bracket_nominal(model, s.projection_mm)
+        out.append(PartDemand(
+            "張出ブラケット", "ブラケット", bracket, n_posts * n_levels, "張出"
+        ))
         if s.has_hozue:
-            add("方杖", n_posts * n_levels)
-        add("踏板", s.span_count * n_levels)
-        if s.has_toe_board:
-            add("幅木", s.span_count * n_levels)
-        if s.has_guard_rail:
-            add("布材", s.span_count * 2 * n_levels)   # 手すり＋中桟
-    add("壁つなぎ", result.extra_wall_ties)
+            out.append(PartDemand("方杖", "方杖", None, n_posts * n_levels))
+        spans = s.spans(model)
+        # 張出し床は「出」を踏板で覆う。1スパンあたり1枚で数えると、
+        # 出1500mmのステージに幅400の踏板1枚しか拾わないことになる
+        deck_w = max(model.config.deck_widths or [400])
+        per_span = math.ceil(s.projection_mm / deck_w) if deck_w else 0
+        for nominal in set(spans):
+            n = spans.count(nominal)
+            out.append(PartDemand(
+                "踏板", "踏板", nominal, n * n_levels * per_span, f"幅{deck_w}"
+            ))
+            if s.has_toe_board:
+                out.append(PartDemand("幅木", "幅木", nominal, n * n_levels))
+            if s.has_guard_rail:
+                # 手すり＋中桟
+                out.append(PartDemand("布材", "布材", nominal, n * 2 * n_levels))
+    if result.extra_wall_ties > 0:
+        out.append(PartDemand("壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
+    return out
+
+
+def _bracket_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:
+    """出を受けられる最小の張出ブラケット呼び寸法。無ければ None."""
+    sizes = sorted(
+        p.nominal_dim for p in model.master.by_category("ブラケット")
+        if "張出" in p.note
+    )
+    for n in sizes:
+        if n >= projection_mm - 1e-6:
+            return n
+    return None
+
+
+def platform_quantities(
+    model: ScaffoldModel, result: PlatformResult
+) -> dict[str, int]:
+    """荷受けステージの部材数（分類名→数量）の要約."""
+    counts: dict[str, int] = {}
+    for d in platform_part_demands(model, result):
+        if d.qty > 0:
+            counts[d.label] = counts.get(d.label, 0) + d.qty
     return counts

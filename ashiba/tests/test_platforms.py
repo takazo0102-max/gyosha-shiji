@@ -4,6 +4,7 @@
 全体平均ではなく「直下の建地」を個別に見る必要がある。
 """
 
+import math
 import unittest
 
 from _path import SRC  # noqa: F401
@@ -196,7 +197,8 @@ class TestPlatformQuantities(unittest.TestCase):
         q = platform_quantities(m, r)
         self.assertEqual(q["張出ブラケット"], 3)   # スパン数+1
         self.assertEqual(q["方杖"], 3)
-        self.assertEqual(q["踏板"], 2)
+        # 張出し床は「出」を踏板で覆う: 出1500 / 幅400 → 1スパンあたり4枚
+        self.assertEqual(q["踏板"], 2 * math.ceil(1500 / 400))
         self.assertEqual(q["幅木"], 2)
         self.assertEqual(q["布材"], 4)             # 手すり＋中桟
         self.assertEqual(q["壁つなぎ"], r.extra_wall_ties)
@@ -205,6 +207,72 @@ class TestPlatformQuantities(unittest.TestCase):
         m = build()
         r = validate_platforms(m, [stage(has_hozue=False)])
         self.assertNotIn("方杖", platform_quantities(m, r))
+
+
+class TestStageGeometry(unittest.TestCase):
+    """間口の寸法をスパン1800決め打ちにしない."""
+
+    def setUp(self):
+        self.m = build()
+
+    def test_end_uses_real_spans(self):
+        st = stage(start_mm=0, span_count=2)
+        self.assertEqual(st.spans(self.m), self.m.plan.edges[0].spans[:2])
+        self.assertAlmostEqual(st.end_mm(self.m), sum(st.spans(self.m)))
+
+    def test_stage_running_past_the_face_is_ng(self):
+        edge = self.m.plan.edges[0]
+        st = stage(start_mm=edge.scaffold_length - 1800, span_count=3)
+        msgs = [i.message for i in ngs(validate_platforms(self.m, [st]))]
+        self.assertTrue(any("収まりません" in msg for msg in msgs), msgs)
+
+    def test_overlapping_stages_are_ng(self):
+        a = stage(start_mm=3600, span_count=2)
+        b = stage(start_mm=5400, span_count=2)
+        msgs = [i.message for i in ngs(validate_platforms(self.m, [a, b]))]
+        self.assertTrue(any("重なっています" in msg for msg in msgs), msgs)
+
+
+class TestStagePartsReachTheBom(unittest.TestCase):
+    """ステージの部材が数量表に載ること（構造だけ見て部材が抜けていた）."""
+
+    def setUp(self):
+        self.m = build()
+        self.pf = validate_platforms(self.m, [stage()])
+        self.base = take_off(self.m)
+        self.with_pf = take_off(self.m, platforms=self.pf)
+
+    def test_extra_wall_ties_are_counted(self):
+        self.assertEqual(
+            self.with_pf.qty_of("壁つなぎ") - self.base.qty_of("壁つなぎ"),
+            self.pf.extra_wall_ties,
+        )
+
+    def test_deck_and_toe_board_increase(self):
+        for cat in ("踏板", "幅木", "布材"):
+            with self.subTest(cat):
+                self.assertGreater(
+                    self.with_pf.qty_of(cat), self.base.qty_of(cat)
+                )
+
+    def test_no_platform_means_no_change(self):
+        self.assertEqual(
+            take_off(self.m, platforms=validate_platforms(self.m)).total_weight_kg,
+            self.base.total_weight_kg,
+        )
+
+    def test_oversized_projection_is_not_silently_substituted(self):
+        """出1500mmに600のブラケットを当てない。注記で別途手配を促す."""
+        notes = self.with_pf.notes
+        self.assertTrue(
+            any("張出ブラケットでは受けられません" in n for n in notes), notes
+        )
+        self.assertEqual(self.with_pf.qty_of("ブラケット"), 0)
+
+    def test_bracket_is_used_when_the_catalog_covers_it(self):
+        pf = validate_platforms(self.m, [stage(projection_mm=600)])
+        q = take_off(self.m, platforms=pf)
+        self.assertGreater(q.qty_of("ブラケット", 600), 0)
 
 
 if __name__ == "__main__":
