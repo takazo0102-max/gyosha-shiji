@@ -182,11 +182,14 @@ class TestShortEdges(unittest.TestCase):
             with self.subTest(shape=name):
                 plan = solve_plan(poly, self.master)
                 for ep in plan.edges:
-                    if not (250 <= ep.standoff <= 350):
-                        self.assertIsNotNone(
-                            ep.remedy,
-                            f"{name} 辺{ep.edge_index} 離れ{ep.standoff:.0f}が無警告",
-                        )
+                    if 250 <= ep.standoff <= 350:
+                        continue
+                    where = f"{name} 辺{ep.edge_index} 離れ{ep.standoff:.0f}"
+                    # None でないだけでは足りない。空文字でも assertIsNotNone は通る
+                    self.assertTrue(ep.remedy, f"{where} が無警告")
+                    self.assertGreater(len(ep.remedy.strip()), 10, where)
+                    # 実際の離れの値を本文に出す（何mmが問題なのか分かること）
+                    self.assertIn(f"{ep.standoff:.0f}mm", ep.remedy, where)
 
     def test_no_double_counted_posts_with_short_edges(self):
         plan = solve_plan(self.RECESS, self.master)

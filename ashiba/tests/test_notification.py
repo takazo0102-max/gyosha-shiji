@@ -75,13 +75,26 @@ class TestXlsxWriter(unittest.TestCase):
             self.assertIn("タイトル", sheet)
 
     def test_escapes_xml_special_chars(self):
+        """整形式なだけでは足りない。値が落ちても整形式にはなる."""
+        text = "<&>\"危険' 100 > 50"
         wb = Workbook()
-        wb.sheet("s").add(["<&>\"危険"])
+        wb.sheet("s").add([text])
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "t.xlsx"
             wb.save(p)
             z = zipfile.ZipFile(p)
-            assert_wellformed(z.read("xl/worksheets/sheet1.xml"))
+            raw = z.read("xl/worksheets/sheet1.xml")
+        assert_wellformed(raw)
+        # 生のXMLに未エスケープの記号が残っていないこと
+        body = raw.decode().split("<sheetData>")[1]
+        self.assertNotIn("<&", body)
+        self.assertIn("&lt;", body)
+        self.assertIn("&amp;", body)
+        # パースし直して元の文字列に戻ること（落ちていない・壊れていない）
+        doc = minidom.parseString(raw)
+        cells = doc.getElementsByTagName("t")
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(cells[0].firstChild.nodeValue, text)
 
 
 class TestNotification(unittest.TestCase):

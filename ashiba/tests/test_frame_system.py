@@ -151,6 +151,62 @@ class TestFrameLawChecks(unittest.TestCase):
         self.assertEqual(m.guard_rail_height_mm, 1000)
 
 
+class TestFrameCornerStepsAreSurfaced(unittest.TestCase):
+    """枠組は離れ300固定で端数をコーナーで吸収する。埋めきれない分を黙らせない.
+
+    くさび側の「目標帯を外れた離れには必ず対処案」と対になる不変条件。
+    枠組は離れが常に300なので、代わりにコーナーステップで判定する。
+    """
+
+    SHAPES = {
+        "矩形": RECT,
+        "凹み": [(0, 0), (20000, 0), (20000, 10000), (14000, 10000),
+                (14000, 7000), (6000, 7000), (6000, 10000), (0, 10000)],
+        "L型": [(0, 0), (30000, 0), (30000, 12000), (18000, 12000),
+               (18000, 20000), (0, 20000)],
+    }
+
+    def _plan(self, poly):
+        return solve_plan(poly, load_master("waku"))
+
+    def test_standoff_is_fixed_at_300(self):
+        for name, poly in self.SHAPES.items():
+            with self.subTest(name):
+                for e in self._plan(poly).edges:
+                    self.assertEqual(e.standoff, 300.0)
+
+    def test_every_corner_gets_a_step_record(self):
+        for name, poly in self.SHAPES.items():
+            with self.subTest(name):
+                plan = self._plan(poly)
+                self.assertEqual(len(plan.corner_steps), len(plan.edges))
+
+    def test_failed_corner_steps_carry_a_message_and_a_warning(self):
+        for name, poly in self.SHAPES.items():
+            with self.subTest(name):
+                plan = self._plan(poly)
+                for c in plan.corner_steps:
+                    if c.ok:
+                        continue
+                    where = f"{name} コーナー{c.corner_index} 隙間{c.gap_mm:.0f}"
+                    self.assertTrue(c.message, f"{where} が無警告")
+                    self.assertIn(f"{c.gap_mm:.0f}mm", c.message, where)
+                    self.assertIn(c.message, plan.warnings, where)
+
+    def test_ok_corner_steps_are_within_the_catalog_range(self):
+        from ashiba.plan_solver import (
+            FRAME_CORNER_MAX_STEP_MM,
+            FRAME_CORNER_MIN_GAP_MM,
+        )
+
+        for name, poly in self.SHAPES.items():
+            with self.subTest(name):
+                for c in self._plan(poly).corner_steps:
+                    if c.ok:
+                        self.assertGreaterEqual(c.gap_mm, FRAME_CORNER_MIN_GAP_MM)
+                        self.assertLessEqual(c.gap_mm, FRAME_CORNER_MAX_STEP_MM)
+
+
 class TestFrameLedgers(unittest.TestCase):
     """枠組でも根がらみと最上層の手すりは布材で組む."""
 
