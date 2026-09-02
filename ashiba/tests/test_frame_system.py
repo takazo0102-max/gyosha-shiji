@@ -306,6 +306,40 @@ class TestFrameSpecificRules(unittest.TestCase):
         self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
 
 
+class TestFrameLegs(unittest.TestCase):
+    """建枠1枚は2脚。脚まわりの部材を建枠の枚数で数えない."""
+
+    def setUp(self):
+        master = load_master("waku")
+        self.model = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        self.q = take_off(self.model)
+
+    def test_jacks_and_bases_are_two_per_frame_line(self):
+        n = self.model.plan.total_posts
+        jack = sum(l.qty for l in self.q.lines
+                   if l.part.category == "ジャッキ" and "アンダー" not in l.part.note)
+        base = sum(l.qty for l in self.q.lines
+                   if l.part.category == "ジャッキ" and "アンダーベース" in l.part.note)
+        self.assertEqual(jack, n * 2)
+        self.assertEqual(base, n * 2)
+
+    def test_same_leg_count_as_the_wedge_system(self):
+        """同じ外形なら脚の数は方式によらない（片方だけ半分になっていた）."""
+        master = load_master("shinwa_A")
+        wedge = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        self.assertEqual(
+            take_off(wedge).qty_of("ジャッキ"), self.q.qty_of("ジャッキ")
+        )
+
+
 class TestFrameCannotBeSingleRow(unittest.TestCase):
     """建枠は内外2列を成す。一側足場という指定は成り立たない."""
 

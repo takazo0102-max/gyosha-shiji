@@ -513,8 +513,11 @@ def _count_frame_parts(
     # ---- ジャッキ・アンダーベース ----
     jack = next((p for p in m.by_category("ジャッキ") if "アンダー" not in p.note), None)
     under = next((p for p in m.by_category("ジャッキ") if "アンダーベース" in p.note), None)
-    add(jack, n_frame_lines, "ジャッキ")
-    add(under, n_frame_lines, "アンダーベース")
+    # 建枠は1枚で2脚（内外の建地を兼ねる）。建枠の枚数で数えると脚が半分になり、
+    # 現場でジャッキが足りなくなる
+    n_frame_legs = n_frame_lines * rules.rows
+    add(jack, n_frame_legs, "ジャッキ（建枠1枚に2脚）")
+    add(under, n_frame_legs, "アンダーベース（建枠1枚に2脚）")
 
     # ---- 布板（作業床）。階段枠の区間には敷かない ----
     span_counts: dict[int, int] = {}

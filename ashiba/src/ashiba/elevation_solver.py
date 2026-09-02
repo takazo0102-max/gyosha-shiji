@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .dp import better
 from .master import PartMaster
 
 JACK_MAX_EXTENSION = 270  # mm 安衛則上の実務上限（超過は法規チェックで警告）
@@ -62,17 +63,11 @@ def _compose_table(max_total: int, lengths: list[int], max_pieces: int = 60) -> 
                 cand = best[s - c] + [c]
                 if len(cand) > max_pieces:
                     continue
-                if cand_best is None or _better(cand, cand_best):
+                if cand_best is None or better(cand, cand_best):
                     cand_best = cand
         if cand_best is not None:
             best[s] = cand_best
     return best
-
-
-def _better(a: list[int], b: list[int]) -> bool:
-    if len(a) != len(b):
-        return len(a) < len(b)
-    return sorted(a, reverse=True) > sorted(b, reverse=True)
 
 
 def _order_bottom_up(pieces: list[int]) -> list[int]:

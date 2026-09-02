@@ -17,6 +17,7 @@ from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .dp import better_desc, insert_desc
 from .geometry import Outline, ValidationError, build_outline, scaffold_loop_vertices
 from .master import PartMaster
 
@@ -166,31 +167,13 @@ def _achievable_core(
             prev = best[s - c] if s - c >= 0 else None
             if prev is None:
                 continue
-            cand = _insert_desc(prev, c)
-            if cur is None or _better(cand, cur):
+            cand = insert_desc(prev, c)
+            if cur is None or better_desc(cand, cur):
                 cur = cand
         best[s] = cur
     return {
         s: best[s] for s in range(max(lo, 1), hi + 1) if best[s] is not None
     }
-
-
-def _insert_desc(seq: tuple[int, ...], value: int) -> tuple[int, ...]:
-    """降順のタプルに1要素を降順のまま挿入する."""
-    i = 0
-    while i < len(seq) and seq[i] >= value:
-        i += 1
-    return seq[:i] + (value,) + seq[i:]
-
-
-def _better(a, b) -> bool:
-    """本数が少ない方が良い。同数なら大きい部材を使う方が良い.
-
-    a・bは降順で渡すこと（plan_solver内は降順のタプル、立面側はリスト）。
-    """
-    if len(a) != len(b):
-        return len(a) < len(b)
-    return tuple(sorted(a, reverse=True)) > tuple(sorted(b, reverse=True))
 
 
 def _small_span_count(spans: list[int], main_span: int) -> int:
