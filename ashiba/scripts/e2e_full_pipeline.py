@@ -141,7 +141,7 @@ def main() -> None:
           f"4t車{quantity.truck_count}台 架け面積{quantity.kake_menseki_m2}m²")
 
     # --- 5. Archicadへ配置 ---
-    lines = place_scaffold_lines(model, LINE_OBJECT, c)
+    lines = place_scaffold_lines(model, LINE_OBJECT, c, stair_plan=stair_plan)
     placed += lines
     print(f"9. 足場ライン配置: {len(lines)}本")
 
@@ -149,6 +149,7 @@ def main() -> None:
         model, LINE_OBJECT, origin_mm=(300000, 250000),
         floor_levels_mm=[3000, 6000, 9000, 12000, 15000],
         face_names=["南面", "東面", "北面", "西面"], client=c,
+        stair_plan=stair_plan,
     )
     placed += elevs
     print(f"10. 立面図配置: {len(elevs)}面")

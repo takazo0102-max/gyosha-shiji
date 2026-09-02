@@ -15,6 +15,8 @@ dim fls[20]
 dim lv[42]
 dim levIn[40]
 dim asa[8]
+dim stS[8]
+dim stL[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -138,6 +140,35 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- stairList をパース「開始,長さ」の繰り返し (mm→m) ----
+! 階段室は数量（踏板の差引）にも帳票にも出るのに、図面に位置が
+! 出ていなかった。昇降設備の位置は計画図の主要情報
+nSt = 0
+stTmp = 0
+stIdx = 0
+rest = stairList
+while strlen(rest) > 0 and nSt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		stIdx = stIdx + 1
+		if stIdx - 2 * int(stIdx / 2) = 1 then
+			stTmp = v / 1000
+		else
+			nSt = nSt + 1
+			stS[nSt] = stTmp
+			stL[nSt] = v / 1000
+		endif
 	endif
 endwhile
 

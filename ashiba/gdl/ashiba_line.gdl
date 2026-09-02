@@ -15,36 +15,37 @@
 !   Python側は割付を解いてこのオブジェクトを辺の数だけ置くのみ。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   spanList       文字列  スパン構成 mm カンマ区切り                              既定 "1800,1800,1800"
-!   postList       文字列  支柱構成 mm 下から                                      既定 "3600,3600,1800"
-!   jackOut        長さ    ジャッキ繰り出し量                                      既定 0.1
-!   komaPitch      長さ    コマピッチ                                              既定 0.45
-!   floorH         長さ    階高                                                    既定 1.8
-!   rowW           長さ    内外建地間隔                                            既定 0.6
-!   standoff       長さ    壁離れ                                                  既定 0.3
-!   deckW1         長さ    踏板1幅                                                 既定 0.4
-!   deckW2         長さ    踏板2幅 0で無し                                         既定 0.25
-!   showDeck       ブール  踏板表示                                                既定 1
-!   showBrace      ブール  ブレス表示                                              既定 1
-!   showDim        ブール  2D寸法・注記表示                                        既定 1
-!   serType        文字列  系列 A/B                                                既定 "A"
-!   viewMode       文字列  2D表現 plan=平面 / elev=立面                            既定 "plan"
-!   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）              既定 ""
-!   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）                  既定 ""
-!   flList         文字列  各階FL高さ mm カンマ区切り（立面の参照線）              既定 ""
-!   faceName       文字列  面の名称（立面図の図面名）                              既定 ""
-!   levelList      文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）  既定 ""
-!   negaH          長さ    根がらみ高さ GLから 0で自動                             既定 0
-!   railH          長さ    手すり高さ 作業床から 0で自動                           既定 0
-!   midH           長さ    中桟高さ 作業床から 0で自動                             既定 0
-!   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                既定 ""
-!   asagaoProj     長さ    朝顔の水平突出                                          既定 2
-!   asagaoAngle    実数    朝顔の傾斜 度                                           既定 25
-!   braceEveryS    整数    斜材の設置間隔 スパン 1=全構面                          既定 1
-!   braceEveryL    整数    斜材の設置間隔 層 1=全層                                既定 1
-!   nRows          整数    建地列数 2=本足場 1=一側足場                            既定 2
-!   warnPen        整数    注記強調のペン番号 ペンテーブル依存                     既定 20
-!   texSiz         実数    文字高mm                                                既定 2.5
+!   spanList       文字列  スパン構成 mm カンマ区切り                               既定 "1800,1800,1800"
+!   postList       文字列  支柱構成 mm 下から                                       既定 "3600,3600,1800"
+!   jackOut        長さ    ジャッキ繰り出し量                                       既定 0.1
+!   komaPitch      長さ    コマピッチ                                               既定 0.45
+!   floorH         長さ    階高                                                     既定 1.8
+!   rowW           長さ    内外建地間隔                                             既定 0.6
+!   standoff       長さ    壁離れ                                                   既定 0.3
+!   deckW1         長さ    踏板1幅                                                  既定 0.4
+!   deckW2         長さ    踏板2幅 0で無し                                          既定 0.25
+!   showDeck       ブール  踏板表示                                                 既定 1
+!   showBrace      ブール  ブレス表示                                               既定 1
+!   showDim        ブール  2D寸法・注記表示                                         既定 1
+!   serType        文字列  系列 A/B                                                 既定 "A"
+!   viewMode       文字列  2D表現 plan=平面 / elev=立面                             既定 "plan"
+!   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）               既定 ""
+!   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）                   既定 ""
+!   flList         文字列  各階FL高さ mm カンマ区切り（立面の参照線）               既定 ""
+!   faceName       文字列  面の名称（立面図の図面名）                               既定 ""
+!   levelList      文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）   既定 ""
+!   negaH          長さ    根がらみ高さ GLから 0で自動                              既定 0
+!   railH          長さ    手すり高さ 作業床から 0で自動                            既定 0
+!   midH           長さ    中桟高さ 作業床から 0で自動                              既定 0
+!   stairList      文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）  既定 ""
+!   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                 既定 ""
+!   asagaoProj     長さ    朝顔の水平突出                                           既定 2
+!   asagaoAngle    実数    朝顔の傾斜 度                                            既定 25
+!   braceEveryS    整数    斜材の設置間隔 スパン 1=全構面                           既定 1
+!   braceEveryL    整数    斜材の設置間隔 層 1=全層                                 既定 1
+!   nRows          整数    建地列数 2=本足場 1=一側足場                             既定 2
+!   warnPen        整数    注記強調のペン番号 ペンテーブル依存                      既定 20
+!   texSiz         実数    文字高mm                                                 既定 2.5
 ! ==========================================================
 
 ! ==========================================================
@@ -67,6 +68,8 @@ dim fls[20]
 dim lv[42]
 dim levIn[40]
 dim asa[8]
+dim stS[8]
+dim stL[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -193,6 +196,35 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	endif
 endwhile
 
+! ---- stairList をパース「開始,長さ」の繰り返し (mm→m) ----
+! 階段室は数量（踏板の差引）にも帳票にも出るのに、図面に位置が
+! 出ていなかった。昇降設備の位置は計画図の主要情報
+nSt = 0
+stTmp = 0
+stIdx = 0
+rest = stairList
+while strlen(rest) > 0 and nSt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		stIdx = stIdx + 1
+		if stIdx - 2 * int(stIdx / 2) = 1 then
+			stTmp = v / 1000
+		else
+			nSt = nSt + 1
+			stS[nSt] = stTmp
+			stL[nSt] = v / 1000
+		endif
+	endif
+endwhile
+
 ! ---- asagaoList をパース (mm→m) ----
 ! 朝顔は数量にも法規チェックにも出るのに、図面にも3Dにも現れていなかった。
 ! 突出2mの部材なので、干渉確認のためにモデルへ出す
@@ -312,7 +344,13 @@ line2 0, -rowW, lineLen, -rowW
 x = 0
 for ip = 1 to nSpan
 	line2 x, 0, x, -rowW
-	if showDeck then line2 x, -rowW, x + spans[ip], 0
+	! 階段室の区間には踏板を敷かない（数量でも差し引いている）。
+	! ここに対角線を引くと、敷いていない床を描くことになる
+	inStair = 0
+	for it2 = 1 to nSt
+		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+	next it2
+	if showDeck and inStair = 0 then line2 x, -rowW, x + spans[ip], 0
 	x = x + spans[ip]
 next ip
 line2 x, 0, x, -rowW
@@ -327,6 +365,17 @@ for ip = 1 to nSpan + 1
 next ip
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
+
+! 階段室（平面では区間を囲ってタスキと文字で示す）
+for it2 = 1 to nSt
+	sx = stS[it2]
+	ex = sx + stL[it2]
+	line2 sx, 0, sx, -rowW
+	line2 ex, 0, ex, -rowW
+	line2 sx, 0, ex, -rowW
+	line2 sx, -rowW, ex, 0
+	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
+next it2
 
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 if nAsa > 0 then
@@ -431,6 +480,22 @@ for ip = 1 to nSpan
 	next il
 	x = x + spans[ip]
 next ip
+
+! 階段室（立面では区間の各層に斜めの段板を示す）
+for it2 = 1 to nSt
+	sx = stS[it2]
+	ex = sx + stL[it2]
+	line2 sx, lv[1], sx, postTop
+	line2 ex, lv[1], ex, postTop
+	for il = 1 to nLv - 1
+		if il - 2 * int(il / 2) = 0 then
+			line2 sx, lv[il], ex, lv[il + 1]
+		else
+			line2 ex, lv[il], sx, lv[il + 1]
+		endif
+	next il
+	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
+next it2
 
 ! 朝顔（立面では設置高さに太線と注記）
 for ia = 1 to nAsa

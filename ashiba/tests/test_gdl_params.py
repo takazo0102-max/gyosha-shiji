@@ -192,6 +192,37 @@ class TestAsagaoReachesTheDrawing(unittest.TestCase):
         self.assertEqual(line_params(m, m.plan.edges[0])["asagaoList"], "")
 
 
+class TestStairsReachTheDrawing(unittest.TestCase):
+    """階段室の位置は計画図の主要情報。図面に出ていなかった."""
+
+    def setUp(self):
+        from ashiba.stairs import auto_place_stairs
+
+        self.m = build("shinwa_A")
+        self.plan = auto_place_stairs(self.m)
+
+    def test_each_edge_gets_only_its_own_towers(self):
+        for ep in self.m.plan.edges:
+            p = line_params(self.m, ep, stair_plan=self.plan)
+            mine = [t for t in self.plan.towers if t.edge_index == ep.edge_index]
+            got = [v for v in p["stairList"].split(",") if v]
+            self.assertEqual(len(got), len(mine) * 2, ep.edge_index)
+
+    def test_pairs_are_start_and_length(self):
+        ep = next(
+            e for e in self.m.plan.edges
+            if any(t.edge_index == e.edge_index for t in self.plan.towers)
+        )
+        t = next(t for t in self.plan.towers if t.edge_index == ep.edge_index)
+        vals = line_params(self.m, ep, stair_plan=self.plan)["stairList"].split(",")
+        self.assertEqual(int(vals[0]), int(t.start_mm))
+        self.assertEqual(int(vals[1]), int(t.length_mm))
+
+    def test_empty_without_a_plan(self):
+        p = line_params(self.m, self.m.plan.edges[0])
+        self.assertEqual(p["stairList"], "")
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 

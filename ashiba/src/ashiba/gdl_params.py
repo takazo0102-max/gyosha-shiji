@@ -12,7 +12,7 @@ import math
 from .model import ScaffoldModel
 
 
-def line_params(model: ScaffoldModel, ep, rules=None) -> dict:
+def line_params(model: ScaffoldModel, ep, rules=None, stair_plan=None) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
     平面と立面で別々に組み立てると片方だけ渡し漏れる（実際、内外建地間隔と
@@ -50,12 +50,25 @@ def line_params(model: ScaffoldModel, ep, rules=None) -> dict:
         "braceEveryS": brace_s,
         "braceEveryL": brace_l,
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
+        # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
+        "stairList": _stair_list(ep, stair_plan),
         "asagaoList": ",".join(str(h) for h in model.asagao_heights()),
         "asagaoProj": (model.config.asagao.projection_mm / 1000.0
                        if model.config.asagao else 2.0),
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }
+
+
+def _stair_list(ep, stair_plan) -> str:
+    """この辺に載る階段室の区間を「開始,長さ」の繰り返しで返す."""
+    if stair_plan is None or not getattr(stair_plan, "towers", None):
+        return ""
+    parts = []
+    for t in stair_plan.towers:
+        if t.edge_index == ep.edge_index:
+            parts += [str(int(t.start_mm)), str(int(t.length_mm))]
+    return ",".join(parts)
 
 
 def placement_of(model: ScaffoldModel, edge_index: int) -> dict:
