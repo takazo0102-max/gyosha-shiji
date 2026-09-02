@@ -29,6 +29,7 @@ dim bkE[24]
 dim bkW[24]
 dim bkD[24]
 dim bkH[24]
+dim bkDW[24]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -164,6 +165,7 @@ bkA = 0
 bkB = 0
 bkC = 0
 bkE0 = 0
+bkF = 0
 rest = brktList
 while strlen(rest) > 0 and nBk < 24 do
 	pc = strstr(rest, ",")
@@ -177,18 +179,20 @@ while strlen(rest) > 0 and nBk < 24 do
 	k = split(item, "%n", v)
 	if k > 0 then
 		bkIdx = bkIdx + 1
-		md = bkIdx - 5 * int(bkIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		md = bkIdx - 6 * int(bkIdx / 6)   ! 1,2,3,4,5,0 の繰り返し
 		if md = 1 then bkA = v / 1000
 		if md = 2 then bkB = v / 1000
 		if md = 3 then bkC = v / 1000
 		if md = 4 then bkE0 = v
+		if md = 5 then bkF = v / 1000
 		if md = 0 then
 			nBk = nBk + 1
 			bkS[nBk] = bkA
 			bkE[nBk] = bkB
 			bkW[nBk] = bkC
 			bkD[nBk] = bkE0
-			bkH[nBk] = v / 1000
+			bkH[nBk] = bkF
+			bkDW[nBk] = v / 1000        ! 区間の床幅（0で変更なし）
 		endif
 	endif
 endwhile

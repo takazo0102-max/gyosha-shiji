@@ -132,7 +132,7 @@ MAX_BRACKET_GROUPS = 24
 
 
 def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
-    """この辺のブラケット区間を「開始,終了,幅,向き,高さ」の繰り返しで返す.
+    """この辺のブラケット区間を「開始,終了,幅,向き,高さ,床幅」の繰り返しで返す.
 
     向きは 1=内（躯体側）/ -1=張出。作業層の指定が無ければ全層に効く。
     区間の幅指定は数量にも反映しているので、図面にも出さないと
@@ -150,11 +150,12 @@ def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
         d = 1 if sec.direction == INNER else -1
         for lv in (sec.levels or range(1, len(levels) + 1)):
             idx = min(max(int(lv), 1), len(levels)) - 1
-            if len(parts) // 5 >= MAX_BRACKET_GROUPS:
+            if len(parts) // 6 >= MAX_BRACKET_GROUPS:
                 break
             parts += [
                 str(int(sec.start_mm)), str(int(sec.end_mm)),
                 str(int(sec.width)), str(d), str(int(levels[idx])),
+                str(int(sec.deck_width or 0)),
             ]
     return ",".join(parts)
 

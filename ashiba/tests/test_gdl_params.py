@@ -339,14 +339,25 @@ class TestBracketSectionsReachTheDrawing(unittest.TestCase):
         base.update(kw)
         return BracketSection(**base)
 
-    def test_quintuple_layout(self):
+    def test_sextuple_layout(self):
+        """開始,終了,幅,向き,高さ,床幅 の6要素で1区間."""
+        m = build("shinwa_A")
+        vals = line_params(
+            m, m.plan.edges[0],
+            bracket_sections=[self._sec(levels=[1], deck_width=500)],
+        )["brktList"].split(",")
+        self.assertEqual(len(vals), 6)
+        self.assertEqual([int(v) for v in vals[:4]], [0, 5400, 300, 1])
+        self.assertEqual(int(vals[4]), m.elevation.level_heights[0])
+        self.assertEqual(int(vals[5]), 500)
+
+    def test_deck_width_is_zero_when_unchanged(self):
+        """床幅を変えない区間は0。図に「床500」と書かせない."""
         m = build("shinwa_A")
         vals = line_params(
             m, m.plan.edges[0], bracket_sections=[self._sec(levels=[1])]
         )["brktList"].split(",")
-        self.assertEqual(len(vals), 5)
-        self.assertEqual([int(v) for v in vals[:4]], [0, 5400, 300, 1])
-        self.assertEqual(int(vals[4]), m.elevation.level_heights[0])
+        self.assertEqual(int(vals[5]), 0)
 
     def test_outer_direction_is_negative(self):
         from ashiba.brackets import OUTER
@@ -363,7 +374,7 @@ class TestBracketSectionsReachTheDrawing(unittest.TestCase):
         vals = line_params(
             m, m.plan.edges[0], bracket_sections=[self._sec()]
         )["brktList"].split(",")
-        self.assertEqual(len(vals) // 5, m.elevation.n_levels)
+        self.assertEqual(len(vals) // 6, m.elevation.n_levels)
 
     def test_group_count_is_capped(self):
         from ashiba.gdl_params import MAX_BRACKET_GROUPS
@@ -371,7 +382,7 @@ class TestBracketSectionsReachTheDrawing(unittest.TestCase):
         m = build("shinwa_A")
         secs = [self._sec(start_mm=i * 1800, end_mm=i * 1800 + 1800) for i in range(6)]
         vals = line_params(m, m.plan.edges[0], bracket_sections=secs)["brktList"]
-        self.assertLessEqual(len(vals.split(",")) // 5, MAX_BRACKET_GROUPS)
+        self.assertLessEqual(len(vals.split(",")) // 6, MAX_BRACKET_GROUPS)
 
     def test_other_edges_are_empty(self):
         m = build("shinwa_A")

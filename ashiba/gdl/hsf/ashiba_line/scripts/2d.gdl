@@ -31,6 +31,11 @@ for ip = 1 to nSpan
 	for it2 = 1 to nSt
 		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
 	next it2
+	! 開口部（梁枠の区間）も同じ。この平面は支柱を抜いた状態を描いているので、
+	! 床だけ上層の状態を描くと1枚の図の中で辻褄が合わなくなる
+	for ib3 = 1 to nBm
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+	next ib3
 	if showDeck and inStair = 0 then line2 x, -rowW, x + spans[ip], 0
 	x = x + spans[ip]
 next ip
@@ -92,7 +97,11 @@ for ik = 1 to nBk
 		line2 bkS[ik], by2, bkE[ik], by2
 		line2 bkS[ik], by1, bkS[ik], by2
 		line2 bkE[ik], by1, bkE[ik], by2
-		if showDim then text2 (bkS[ik] + bkE[ik]) / 2, by2 + (by2 - by1) * 0.25, "BR" + str(bkW[ik] * 1000, 4, 0)
+		if showDim then
+			bkTxt = "BR" + str(bkW[ik] * 1000, 4, 0)
+			if bkDW[ik] > 0 then bkTxt = bkTxt + " 床" + str(bkDW[ik] * 1000, 4, 0)
+			text2 (bkS[ik] + bkE[ik]) / 2, by2 + (by2 - by1) * 0.25, bkTxt
+		endif
 	endif
 next ik
 
@@ -259,6 +268,27 @@ for it2 = 1 to nSt
 	next il
 	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
 next it2
+
+! ブラケット区間（立面では該当層の床を太線にして幅を注記する）
+! 平面と3Dには出ているのに立面だけ描いておらず、区間指定が図から消えていた
+for ik2 = 1 to nBk
+	kx1 = bkS[ik2]
+	kx2 = bkE[ik2]
+	kz = bkH[ik2]
+	line2 kx1, kz - 0.02, kx2, kz - 0.02
+	line2 kx1, kz + 0.07, kx2, kz + 0.07
+	line2 kx1, kz - 0.02, kx1, kz + 0.07
+	line2 kx2, kz - 0.02, kx2, kz + 0.07
+	if showDim then
+		if bkD[ik2] > 0 then
+			kTxt = "BR" + str(bkW[ik2] * 1000, 4, 0) + "内"
+		else
+			kTxt = "BR" + str(bkW[ik2] * 1000, 4, 0) + "張出"
+		endif
+		if bkDW[ik2] > 0 then kTxt = kTxt + " 床" + str(bkDW[ik2] * 1000, 4, 0)
+		text2 (kx1 + kx2) / 2, kz + 0.12, kTxt
+	endif
+next ik2
 
 ! 荷受けステージ（立面では設置高さの区間を太線と文字で）
 for ig = 1 to nSg
