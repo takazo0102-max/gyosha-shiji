@@ -195,7 +195,8 @@ def solve_plan(
     # 軸ごとに独立: x方向に走る辺の式はy面の離れのみを含む（直交ポリゴン）
     best_combo: dict[int, tuple[int, list[int]]] = {}
     standoffs = [spec.target] * n
-    warnings: list[str] = []
+    # 外形を整理した内容は黙って飲み込まず、割付の警告として残す
+    warnings: list[str] = list(outline.notes)
     for axis in ("x", "y"):
         grp = [e for e in edges if e.axis == axis]
         if not grp:
@@ -380,7 +381,8 @@ def _solve_plan_frame(
     min_span = min(coins)
 
     plan_edges: list[EdgePlan] = []
-    warnings: list[str] = []
+    # 外形を整理した内容は黙って飲み込まず、割付の警告として残す
+    warnings: list[str] = list(outline.notes)
     corner_steps: list[CornerStep] = []
     scaffold_verts = scaffold_loop_vertices(outline, standoffs)
 

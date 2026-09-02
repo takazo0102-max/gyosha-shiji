@@ -56,6 +56,7 @@ class Outline:
     vertices: list[Point]
     edges: list[Edge] = field(default_factory=list)
     corners: list[Corner] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)   # 外形の整理内容（黙って直さない）
 
     @property
     def perimeter(self) -> float:
@@ -72,14 +73,62 @@ def _signed_area(vertices: list[Point]) -> float:
     return s / 2.0
 
 
+def _clean_vertices(verts: list[Point], tol: float = 1e-6) -> tuple[list[Point], list[str]]:
+    """重複頂点と共線頂点を取り除く.
+
+    Archicadのスラブ外形は編集の履歴で、同じ点が2度入っていたり、
+    直線の途中に頂点が残っていたりする。そのまま扱うと:
+    - 重複頂点は長さ0の辺になり、方向ベクトルが作れない
+    - 共線頂点は cross=0 なので入隅と判定され、そこに存在しないコーナーが
+      でき、両側の面が離れの分だけ短くなる（足場ループが閉じない）
+    30m壁の中央に頂点が1つ余分にあるだけで、足場長が600mm不足した。
+    """
+    notes: list[str] = []
+    out = list(verts)
+
+    # 連続する同一点
+    deduped = [out[0]]
+    for v in out[1:]:
+        if abs(v[0] - deduped[-1][0]) > tol or abs(v[1] - deduped[-1][1]) > tol:
+            deduped.append(v)
+    if len(deduped) > 1 and (
+        abs(deduped[0][0] - deduped[-1][0]) <= tol
+        and abs(deduped[0][1] - deduped[-1][1]) <= tol
+    ):
+        deduped.pop()
+    if len(deduped) != len(out):
+        notes.append(f"外形の重複頂点を{len(out) - len(deduped)}点除去しました")
+    out = deduped
+
+    # 共線頂点（直線の途中に残った頂点）
+    changed = True
+    while changed and len(out) > 3:
+        changed = False
+        for i in range(len(out)):
+            a, b, c = out[i - 1], out[i], out[(i + 1) % len(out)]
+            cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+            if abs(cross) <= tol:
+                out.pop(i)
+                notes.append(
+                    f"外形の共線頂点({b[0]:.0f}, {b[1]:.0f})を除去しました"
+                    "（直線の途中に頂点があると、そこに無いコーナーができます）"
+                )
+                changed = True
+                break
+    return out, notes
+
+
 def build_outline(vertices: list[Point]) -> Outline:
     """外形ポリゴンを検証しCCW正規化、辺・コーナー情報を構築する."""
     if len(vertices) < 4:
         raise ValidationError("外形ポリゴンには4点以上が必要です")
     verts = [tuple(map(float, v)) for v in vertices]
-    # 重複終点を除去
-    if verts[0] == verts[-1]:
-        verts = verts[:-1]
+    verts, notes = _clean_vertices(verts)
+    if len(verts) < 4:
+        raise ValidationError(
+            f"重複・共線の頂点を除くと{len(verts)}点しか残りません"
+            "（外形ポリゴンには4点以上が必要です）"
+        )
     if _signed_area(verts) < 0:
         verts = list(reversed(verts))
 
@@ -95,7 +144,7 @@ def build_outline(vertices: list[Point]) -> Outline:
                 "MVPは90度コーナーのみ対応です"
             )
 
-    outline = Outline(vertices=verts)
+    outline = Outline(vertices=verts, notes=notes)
     corner_kinds: list[str] = []
     for i in range(n):
         p_prev = verts[(i - 1) % n]

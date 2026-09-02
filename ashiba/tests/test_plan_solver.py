@@ -230,5 +230,47 @@ class TestPlanLShape(unittest.TestCase):
             self.assertGreaterEqual(d, 200)
 
 
+class TestDegenerateOutlines(unittest.TestCase):
+    """Archicadのスラブ外形は重複頂点・共線頂点を普通に含む."""
+
+    def setUp(self):
+        self.m = load_master("shinwa_A")
+
+    def test_collinear_vertex_does_not_create_a_corner(self):
+        """直線の途中の頂点を入隅と見なすと、両側の面が離れの分だけ短くなる."""
+        plain = solve_plan(RECT, self.m)
+        withmid = solve_plan(
+            [(0, 0), (15000, 0), (30000, 0), (30000, 20000), (0, 20000)], self.m
+        )
+        self.assertEqual(len(withmid.edges), len(plain.edges))
+        self.assertEqual(withmid.total_spans, plain.total_spans)
+        self.assertAlmostEqual(
+            sum(e.scaffold_length for e in withmid.edges),
+            sum(e.scaffold_length for e in plain.edges),
+        )
+
+    def test_cleanup_is_reported(self):
+        plan = solve_plan(
+            [(0, 0), (15000, 0), (30000, 0), (30000, 20000), (0, 20000)], self.m
+        )
+        self.assertTrue(any("共線頂点" in w for w in plan.warnings), plan.warnings)
+
+    def test_duplicate_vertex_is_not_reported_as_non_orthogonal(self):
+        """長さ0の辺は「非直交」ではない。誤った原因を出さない."""
+        outline = build_outline(
+            [(0, 0), (10000, 0), (10000, 0), (10000, 8000), (0, 8000)]
+        )
+        self.assertEqual(len(outline.edges), 4)
+        self.assertTrue(any("重複頂点" in n for n in outline.notes))
+
+    def test_still_rejects_real_non_orthogonal(self):
+        with self.assertRaises(ValidationError):
+            build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
+
+    def test_too_few_vertices_after_cleanup(self):
+        with self.assertRaises(ValidationError):
+            build_outline([(0, 0), (5000, 0), (10000, 0), (10000, 0)])
+
+
 if __name__ == "__main__":
     unittest.main()
