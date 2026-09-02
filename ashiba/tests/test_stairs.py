@@ -5,6 +5,7 @@
 """
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -217,6 +218,50 @@ class TestQuantityIntegration(unittest.TestCase):
         m = build()
         m.config.n_stairs = 1
         self.assertEqual(take_off(m).qty_of("階段"), m.elevation.n_levels)
+
+
+class TestTooSmallForAStairTower(unittest.TestCase):
+    """階段室が入らない規模でも、読める形で結果を返すこと."""
+
+    def _model(self, side_mm):
+        master = load_master("shinwa_A")
+        poly = [(0, 0), (side_mm, 0), (side_mm, side_mm), (0, side_mm)]
+        return ScaffoldModel(
+            master=master, plan=solve_plan(poly, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_warning_offers_an_alternative(self):
+        plan = auto_place_stairs(self._model(3000))
+        self.assertEqual(plan.count, 0)
+        hit = [w for w in plan.warnings if "はしご" in w]
+        self.assertTrue(hit, plan.warnings)
+        self.assertNotIn("inf", "".join(plan.warnings))
+
+    def test_no_distance_warning_without_towers(self):
+        """0箇所のときに「移動距離infm」と言わない."""
+        m = self._model(3000)
+        plan = auto_place_stairs(m)
+        for text in plan.warnings + validate_stairs(m, plan):
+            self.assertNotIn("infm", text)
+
+    def test_result_json_has_no_infinity(self):
+        import json
+        import tempfile
+
+        from ashiba.cli import run
+
+        spec = {"series_id": "shinwa_A", "project_name": "極小",
+                "outline_mm": [[0, 0], [3000, 0], [3000, 3000], [0, 3000]],
+                "eaves_height_mm": 15400, "period_days": 90}
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "s.json"
+            f.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = run(f, Path(td) / "o")
+        text = json.dumps(r, ensure_ascii=False)
+        self.assertNotIn("Infinity", text)
+        self.assertIsNone(r["stairs"]["max_travel_m"])
 
 
 if __name__ == "__main__":

@@ -172,7 +172,15 @@ def auto_place_stairs(
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）
     plan.max_travel_mm = actual_max_travel(plan.towers, loop_len)
-    if plan.max_travel_mm > max_travel_mm:
+    if not plan.towers:
+        # 階段室が1つも入らない規模。距離を「inf m」と書いても読めないので、
+        # 何で代替するのかを書く（526条は階段に限らず昇降設備を求めている）
+        plan.warnings.append(
+            f"階段室（{tower_spans}スパン連続）が入る区間が無い規模です"
+            f"（足場長の合計{loop_len / 1000:.1f}m）。はしご・移動式昇降設備等での"
+            "昇降を別途計画してください（安衛則526条は階段に限定していません）"
+        )
+    elif plan.max_travel_mm > max_travel_mm:
         plan.warnings.append(
             f"階段{len(plan.towers)}箇所では最大水平移動距離が"
             f"{plan.max_travel_mm / 1000:.1f}mとなり"
@@ -412,7 +420,7 @@ def validate_stairs(
             "（安衛則526条）"
         )
         return issues
-    if plan.max_travel_mm > max_travel_mm:
+    if plan.towers and plan.max_travel_mm > max_travel_mm:
         issues.append(
             f"昇降設備までの最大水平移動距離{plan.max_travel_mm / 1000:.1f}mが"
             f"目安{max_travel_mm / 1000:.0f}mを超えます"

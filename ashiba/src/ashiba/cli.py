@@ -62,6 +62,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -669,7 +670,11 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         "stairs": {
             "count": stair_plan.count,
             "required_count": stair_plan.required_count,
-            "max_travel_m": round(stair_plan.max_travel_mm / 1000.0, 1),
+            # 階段0箇所だと inf。JSONに Infinity を書くと厳密なパーサで読めない
+            "max_travel_m": (
+                round(stair_plan.max_travel_mm / 1000.0, 1)
+                if math.isfinite(stair_plan.max_travel_mm) else None
+            ),
             "landings": stair_plan.total_landings,
             "manual": any(t.manual for t in stair_plan.towers),
             "positions": [
