@@ -175,7 +175,7 @@ def bracket_deck_changes(
     区間に完全に収まるスパンだけを対象にする（またぐスパンは敷き替えられない）。
     """
     out: list[tuple[int, int, int, int]] = []
-    widths = list(model.config.deck_widths or [])
+    widths = list(model.deck_widths_in_use)
     if not widths:
         return out
     base_width = widths[0]           # 差し替えるのは主となる幅の踏板
