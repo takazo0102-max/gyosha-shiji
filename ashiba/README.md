@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト281本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト293本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -56,6 +56,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/cli.py` | ワンクリック実行CLI |
 | `src/ashiba/tapir_adapter.py` | Archicad/Tapir接続（AC28+Tapir1.5.8 実機E2E検証済み） |
 | `src/ashiba/details.py` | 詳細図5枚の要否判定とGDLパラメータ導出 |
+| `src/ashiba/openings.py` | 開口部（梁枠）の検証と詳細図・数量への反映 |
 | `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** |
 | `gdl/ashiba_detail.gsm` | **詳細図5枚の2Dシンボル（同上・detailTypeで切替）** |
 | `gdl/hsf/ashiba_line/`, `gdl/hsf/ashiba_detail/` | 同GDLソース（HSF形式） |

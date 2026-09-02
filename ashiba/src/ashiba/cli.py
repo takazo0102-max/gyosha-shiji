@@ -17,6 +17,10 @@
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
   "n_stairs": 1,
+  // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
+  "openings": [
+    {"edge_index": 0, "start_mm": 3600, "beam_span_mm": 3600, "reason": "現場出入口"}
+  ],
   // 階段（省略可）。positions を書けば手動配置、書かなければ自動配置
   "stairs": {
     "count": 2,              // 箇所数。省略時は移動距離30m以内から自動算出
@@ -46,6 +50,7 @@ from .model import (
     ScaffoldConfig,
     ScaffoldModel,
 )
+from .openings import Opening, opening_detail_specs, validate_openings
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -136,6 +141,20 @@ def build_brackets(spec: dict) -> list[BracketSection]:
             reason=b.get("reason", ""),
         ))
     return out
+
+
+def build_openings(spec: dict) -> list:
+    """開口部（梁枠）の入力を組み立てる."""
+    return [
+        Opening(
+            edge_index=int(o["edge_index"]),
+            start_mm=float(o["start_mm"]),
+            beam_span_mm=int(o["beam_span_mm"]),
+            level=int(o.get("level", 1)),
+            reason=o.get("reason", ""),
+        )
+        for o in spec.get("openings", [])
+    ]
 
 
 def build_platforms(spec: dict) -> tuple[list, list]:
@@ -242,13 +261,18 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
     platforms = validate_platforms(model, *build_platforms(spec))
+    openings = validate_openings(model, build_openings(spec))
     # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
     terrain = solve_post_feet(model, build_ground(spec))
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
-        platforms=platforms,
+        platforms=platforms, openings=openings,
     )
+    # 詳細図は開口部があれば梁枠の図を足す
+    from .details import required_details
+
+    detail_sheets = required_details(model, opening_detail_specs(openings))
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain
     )
@@ -265,7 +289,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     write_notification_xlsx(
         model, quantity, checks, structural,
         out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
-        terrain=terrain,
+        details=detail_sheets, terrain=terrain,
     )
 
     s = summary(checks)
@@ -299,6 +323,11 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             if model.config.asagao else None
         ),
         "bracket_sections": len(brackets),
+        "openings": {
+            "count": len(openings.openings),
+            "removed_posts": openings.removed_posts,
+            "ok": openings.ok,
+        },
         "platforms": {
             "loading_stages": len(platforms.stages),
             "hoists": len(platforms.hoists),
@@ -331,6 +360,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             structural.warnings + model.plan.warnings + model.elevation.warnings
             + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
             + stair_plan.warnings + [f"階段: {w}" for w in stair_issues]
+            + [f"開口部: {i.message}" for i in openings.issues]
             + [f"敷地: {w}" for w in terrain.warnings]
             + [f"{i.kind}[{i.severity}] {i.message}（{i.basis}）"
                for i in platforms.issues]

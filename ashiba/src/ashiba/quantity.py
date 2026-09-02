@@ -74,6 +74,7 @@ def take_off(
     bracket_sections: Optional[list] = None,
     stair_plan: Optional["StairPlan"] = None,
     platforms=None,
+    openings=None,
 ) -> QuantityResult:
     rules = rules or QuantityRules()
     m = model.master
@@ -103,6 +104,7 @@ def take_off(
     if m.is_frame:
         _count_frame_parts(model, rules, add, notes, stair_plan)
         _count_platform_parts(model, platforms, add, notes)
+        _count_opening_parts(model, openings, add, notes)
         return _assemble(model, rules, counts, parts, notes)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
@@ -271,7 +273,36 @@ def take_off(
             add(new_part, n_lv, f"踏板 幅{to_w}×{span}（区間指定）")
 
     _count_platform_parts(model, platforms, add, notes)
+    _count_opening_parts(model, openings, add, notes)
     return _assemble(model, rules, counts, parts, notes)
+
+
+def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
+    """開口部の梁枠を数量表に載せる.
+
+    マスタに梁枠はあるのに、どこからも拾っていなかった。梁枠が要る計画で
+    数量表に出てこないと、支柱を抜いた開口が受けられない。
+    """
+    if openings is None or not openings.openings:
+        return
+    m = model.master
+    for o in openings.openings:
+        part = next(
+            (p for p in m.by_category("梁枠") if p.nominal_dim == o.beam_span_mm),
+            None,
+        )
+        if part is None:
+            notes.append(
+                f"梁枠{o.beam_span_mm}mmがマスタにありません（辺{o.edge_index}）。"
+                "規格品の梁枠で計画し直してください"
+            )
+            continue
+        add(part, 1, f"梁枠{o.beam_span_mm}（辺{o.edge_index}）")
+    if openings.removed_posts:
+        notes.append(
+            f"開口部で支柱{openings.removed_posts}本を抜いています。"
+            "梁枠の両端支柱は補強し、梁枠上の作業床は積載荷重を低減してください"
+        )
 
 
 def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
