@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from .law_check import CheckResult
+from .law_check import WARN, CheckResult
 from .model import ScaffoldModel
 from .quantity import QuantityResult
 from .structural import StructuralResult
@@ -86,6 +86,8 @@ def write_notification_xlsx(
     info: Optional[NotificationInfo] = None,
     details: Optional[list] = None,
     terrain=None,
+    verdict=None,
+    warnings=None,
 ) -> None:
     info = info or NotificationInfo()
     if details is None:
@@ -93,6 +95,9 @@ def write_notification_xlsx(
         details = required_details(model)
     wb = Workbook()
     _sheet_form20(wb, model, quantity, project_name, info)
+    # 確認する人が最初に見る位置に、是正項目と要確認事項をまとめて置く
+    if verdict is not None:
+        _sheet_todo(wb, verdict, checks, warnings)
     _sheet_conditions(wb, model, structural, project_name)
     _sheet_wind(wb, structural)
     _sheet_wall_tie(wb, structural, model)
@@ -359,6 +364,37 @@ def _sheet_quantity(wb, quantity: QuantityResult) -> None:
     s.add(["架け面積m²", quantity.kake_menseki_m2], STYLE_BOLD)
     for n in quantity.notes:
         s.add_cells([Cell("注記"), Cell(n)])
+
+
+def _sheet_todo(wb, verdict, checks: list[CheckResult], warnings=None) -> None:
+    """是正項目と要確認事項（着手前チェックリスト）.
+
+    法規・構造・付帯設備の判定が別々のシートに散っていると、確認する人が
+    突き合わせないと可否が分からない。1枚目の次に総括を置く。
+    """
+    s = wb.sheet("要確認事項")
+    for c, wdt in enumerate([6, 22, 96, 12]):
+        s.set_width(c, wdt)
+    s.add_title("総合判定と着手前チェックリスト", span=4)
+    s.add_blank()
+    s.add(["総合判定", "計画は成立しています" if verdict["ok"] else "是正が必要です"],
+          STYLE_BOLD)
+    for b in verdict.get("blockers", []):
+        s.add_cells([Cell("是正"), Cell(b)])
+    s.add(["要確認", f"{verdict.get('warn', 0)}件",
+           "／".join(verdict.get("warn_breakdown", []))], STYLE_BOLD)
+    s.add_blank()
+    items = [("法規チェック", f"{c.name}: {c.message}（{c.basis}）")
+             for c in checks if c.status == WARN]
+    items += [(kind, text) for kind, sev, text in (warnings or []) if sev != "NG"]
+    if not items:
+        return
+    s.add_header(["#", "分類", "内容", "確認"])
+    for i, (kind, text) in enumerate(items, 1):
+        s.add_cells([
+            Cell(i, STYLE_BORDER), Cell(kind, STYLE_BORDER),
+            Cell(text, STYLE_BORDER), Cell("", STYLE_BORDER),
+        ])
 
 
 def _sheet_law_check(wb, checks: list[CheckResult]) -> None:

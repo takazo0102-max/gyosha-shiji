@@ -187,6 +187,7 @@ def main() -> None:
     write_notification_xlsx(
         model, quantity, checks, structural, out / f"{name}_設置届一式.xlsx",
         name, NotificationInfo(site_name="E2E検証"), sheets, terrain,
+        verdict=verdict, warnings=warnings,
     )
     files = sorted(p.name for p in out.glob(f"{name}_*"))
     print(f"12. 帳票出力: {len(files)}件 {files}")

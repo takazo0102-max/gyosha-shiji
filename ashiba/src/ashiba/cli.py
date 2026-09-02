@@ -404,7 +404,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     write_notification_xlsx(
         model, quantity, checks, structural,
         out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
-        details=detail_sheets, terrain=terrain,
+        details=detail_sheets, terrain=terrain, verdict=verdict, warnings=warnings,
     )
 
     return {

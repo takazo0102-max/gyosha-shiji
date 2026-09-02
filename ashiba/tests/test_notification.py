@@ -151,6 +151,58 @@ class TestNotification(unittest.TestCase):
             self.assertIn("未確認値", tie)
 
 
+class TestTodoSheet(unittest.TestCase):
+    """提出書類にも「着手前に何を確認するか」を載せる."""
+
+    def _book(self, **kw):
+        m = make_model()
+        q = take_off(m)
+        checks = run_all_checks(m)
+        st = run_structural(m, q)
+        td = tempfile.mkdtemp()
+        p = Path(td) / "n.xlsx"
+        write_notification_xlsx(m, q, checks, st, p, **kw)
+        z = zipfile.ZipFile(p)
+        names = z.read("xl/workbook.xml").decode()
+        return z, names
+
+    def test_sheet_absent_without_verdict(self):
+        _, names = self._book()
+        self.assertNotIn("要確認事項", names)
+
+    def test_sheet_lists_items_and_counts(self):
+        z, names = self._book(
+            verdict={"ok": True, "blockers": [], "warn": 1,
+                     "warn_breakdown": ["構造 1件"]},
+            warnings=[("構造", "WARN", "未確認の耐力値が計算に使われています")],
+        )
+        self.assertIn("要確認事項", names)
+        # 様式第20号の次（確認する人が最初に見る位置）
+        sheet = z.read("xl/worksheets/sheet2.xml").decode()
+        self.assertIn("計画は成立しています", sheet)
+        self.assertIn("未確認の耐力値", sheet)
+        self.assertIn("構造 1件", sheet)
+
+    def test_blockers_are_listed(self):
+        z, _ = self._book(
+            verdict={"ok": False, "blockers": ["開口部NG 1件"], "warn": 0,
+                     "warn_breakdown": []},
+            warnings=[],
+        )
+        sheet = z.read("xl/worksheets/sheet2.xml").decode()
+        self.assertIn("是正が必要です", sheet)
+        self.assertIn("開口部NG 1件", sheet)
+
+    def test_ng_warnings_are_not_repeated_as_checklist(self):
+        z, _ = self._book(
+            verdict={"ok": False, "blockers": ["開口部NG 1件"], "warn": 0,
+                     "warn_breakdown": []},
+            warnings=[("開口部", "NG", "梁枠3600mmは規格外です")],
+        )
+        sheet = z.read("xl/worksheets/sheet2.xml").decode()
+        self.assertNotIn("規格外", sheet)
+
+
 class TestNonFiniteValues(unittest.TestCase):
     """inf / nan を数値セルに書くとブックが開けなくなる."""
 
