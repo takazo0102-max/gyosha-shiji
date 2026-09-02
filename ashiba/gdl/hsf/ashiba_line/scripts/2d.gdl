@@ -75,6 +75,19 @@ for it2 = 1 to nSt
 	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
 next it2
 
+! 荷受けステージ（平面では外側への張り出し外形）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gy = -rowW - sgP[ig]
+	line2 gs, -rowW, gs, gy
+	line2 ge, -rowW, ge, gy
+	line2 gs, gy, ge, gy
+	line2 gs, -rowW, ge, gy
+	line2 gs, gy, ge, -rowW
+	if showDim then text2 (gs + ge) / 2, gy - 0.15, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+next ig
+
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 if nAsa > 0 then
 	line_type 3
@@ -205,6 +218,18 @@ for it2 = 1 to nSt
 	next il
 	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
 next it2
+
+! 荷受けステージ（立面では設置高さの区間を太線と文字で）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gh = sgH[ig]
+	rect2 gs, gh, ge, gh + 0.05
+	line2 gs, gh, gs, gh + 0.9
+	line2 ge, gh, ge, gh + 0.9
+	line2 gs, gh + 0.9, ge, gh + 0.9
+	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+next ig
 
 ! 梁枠（立面ではトラス）
 for ib = 1 to nBm

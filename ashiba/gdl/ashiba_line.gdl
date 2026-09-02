@@ -37,6 +37,7 @@
 !   negaH          長さ    根がらみ高さ GLから 0で自動                              既定 0
 !   railH          長さ    手すり高さ 作業床から 0で自動                            既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                              既定 0
+!   stageList      文字列  荷受けステージ mm 「開始,長さ,出,設置高さ」の繰り返し    既定 ""
 !   beamList       文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し               既定 ""
 !   stairList      文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）  既定 ""
 !   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                 既定 ""
@@ -74,6 +75,10 @@ dim stL[8]
 dim bmS[8]
 dim bmL[8]
 dim bmH[8]
+dim sgS[8]
+dim sgL[8]
+dim sgP[8]
+dim sgH[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -197,6 +202,41 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- stageList をパース「開始,長さ,出,設置高さ」の繰り返し (mm→m) ----
+! 荷受けステージは出1.5mの張り出し床。構造計算では直下の建地を個別に
+! 検定しているのに、図面にも3Dにも出ていなかった
+nSg = 0
+sgIdx = 0
+sgA = 0
+sgB = 0
+sgC = 0
+rest = stageList
+while strlen(rest) > 0 and nSg < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		sgIdx = sgIdx + 1
+		md = sgIdx - 4 * int(sgIdx / 4)   ! 1,2,3,0 の繰り返し
+		if md = 1 then sgA = v / 1000
+		if md = 2 then sgB = v / 1000
+		if md = 3 then sgC = v / 1000
+		if md = 0 then
+			nSg = nSg + 1
+			sgS[nSg] = sgA
+			sgL[nSg] = sgB
+			sgP[nSg] = sgC
+			sgH[nSg] = v / 1000
+		endif
 	endif
 endwhile
 
@@ -435,6 +475,19 @@ for it2 = 1 to nSt
 	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
 next it2
 
+! 荷受けステージ（平面では外側への張り出し外形）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gy = -rowW - sgP[ig]
+	line2 gs, -rowW, gs, gy
+	line2 ge, -rowW, ge, gy
+	line2 gs, gy, ge, gy
+	line2 gs, -rowW, ge, gy
+	line2 gs, gy, ge, -rowW
+	if showDim then text2 (gs + ge) / 2, gy - 0.15, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+next ig
+
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 if nAsa > 0 then
 	line_type 3
@@ -565,6 +618,18 @@ for it2 = 1 to nSt
 	next il
 	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
 next it2
+
+! 荷受けステージ（立面では設置高さの区間を太線と文字で）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gh = sgH[ig]
+	rect2 gs, gh, ge, gh + 0.05
+	line2 gs, gh, gs, gh + 0.9
+	line2 ge, gh, ge, gh + 0.9
+	line2 gs, gh + 0.9, ge, gh + 0.9
+	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+next ig
 
 ! 梁枠（立面ではトラス）
 for ib = 1 to nBm
@@ -810,6 +875,19 @@ for it = 1 to nTiePair
 	cylind standoff, r_tie
 	del 2
 next it
+
+! ---- 荷受けステージ（外側へ張り出す床・手すり） ----
+for ig = 1 to nSg
+	add sgS[ig], -rowW, sgH[ig]
+	muly -1
+	block sgL[ig], sgP[ig], 0.05
+	del 2
+	! 手すり（張り出し先端と両側）
+	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.9
+	roty 90
+	cylind sgL[ig], r_nuno
+	del 2
+next ig
 
 end
 

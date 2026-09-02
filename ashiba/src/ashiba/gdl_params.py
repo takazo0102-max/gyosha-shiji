@@ -13,7 +13,8 @@ from .model import ScaffoldModel
 
 
 def line_params(
-    model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None
+    model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
+    platforms=None,
 ) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
@@ -57,6 +58,8 @@ def line_params(
         "stairList": _stair_list(ep, stair_plan),
         # 梁枠。「開始,スパン,梁下高さ」の繰り返し
         "beamList": _beam_list(model, ep, openings),
+        # 荷受けステージ。「開始,長さ,出,設置高さ」の繰り返し
+        "stageList": _stage_list(model, ep, platforms),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
         # 平面では一度も描かれていなかった
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
@@ -96,6 +99,29 @@ def _beam_list(model: ScaffoldModel, ep, openings) -> str:
         idx = min(max(o.level, 1), len(levels)) - 1 if levels else 0
         h = levels[idx] if levels else 0
         parts += [str(int(o.start_mm)), str(int(o.beam_span_mm)), str(int(h))]
+    return ",".join(parts)
+
+
+def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
+    """この辺の荷受けステージを「開始,長さ,出,設置高さ」の繰り返しで返す.
+
+    出1.5mの張り出し床で、構造計算では直下の建地を個別に検定している
+    のに図面にも3Dにも出ていなかった。設置層が複数なら層ごとに1組。
+    """
+    if platforms is None or not getattr(platforms, "stages", None):
+        return ""
+    levels = model.elevation.level_heights
+    parts = []
+    for st in platforms.stages:
+        if st.edge_index != ep.edge_index or not levels:
+            continue
+        length = st.length_mm(model)
+        for lv in (st.levels or [1]):
+            idx = min(max(int(lv), 1), len(levels)) - 1
+            parts += [
+                str(int(st.start_mm)), str(int(length)),
+                str(int(st.projection_mm)), str(int(levels[idx])),
+            ]
     return ",".join(parts)
 
 

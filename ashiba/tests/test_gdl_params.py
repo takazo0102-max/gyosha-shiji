@@ -293,6 +293,42 @@ class TestBeamFramesReachTheDrawing(unittest.TestCase):
         self.assertEqual(line_params(m, m.plan.edges[0])["beamList"], "")
 
 
+class TestLoadingStagesReachTheDrawing(unittest.TestCase):
+    """出1.5mの張り出し床。構造計算では見ているのに図面に無かった."""
+
+    def _setup(self, levels=(3,)):
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        m = build("shinwa_A")
+        pf = validate_platforms(m, [LoadingStage(
+            edge_index=0, start_mm=12600, span_count=2, levels=list(levels))])
+        return m, pf
+
+    def test_quadruple_is_start_length_projection_height(self):
+        m, pf = self._setup()
+        vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
+        self.assertEqual(len(vals), 4)
+        self.assertEqual(int(vals[0]), 12600)
+        self.assertEqual(int(vals[2]), int(pf.stages[0].projection_mm))
+        self.assertEqual(int(vals[3]), m.elevation.level_heights[2])
+
+    def test_one_group_per_level(self):
+        m, pf = self._setup(levels=(3, 4))
+        vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
+        self.assertEqual(len(vals), 8)
+        self.assertEqual(int(vals[7]), m.elevation.level_heights[3])
+
+    def test_length_comes_from_the_real_spans(self):
+        m, pf = self._setup()
+        vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
+        self.assertEqual(int(vals[1]), int(pf.stages[0].length_mm(m)))
+
+    def test_other_edges_and_no_platform_are_empty(self):
+        m, pf = self._setup()
+        self.assertEqual(line_params(m, m.plan.edges[1], platforms=pf)["stageList"], "")
+        self.assertEqual(line_params(m, m.plan.edges[0])["stageList"], "")
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 

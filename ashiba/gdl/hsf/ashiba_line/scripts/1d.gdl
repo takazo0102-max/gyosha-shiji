@@ -20,6 +20,10 @@ dim stL[8]
 dim bmS[8]
 dim bmL[8]
 dim bmH[8]
+dim sgS[8]
+dim sgL[8]
+dim sgP[8]
+dim sgH[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -143,6 +147,41 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- stageList をパース「開始,長さ,出,設置高さ」の繰り返し (mm→m) ----
+! 荷受けステージは出1.5mの張り出し床。構造計算では直下の建地を個別に
+! 検定しているのに、図面にも3Dにも出ていなかった
+nSg = 0
+sgIdx = 0
+sgA = 0
+sgB = 0
+sgC = 0
+rest = stageList
+while strlen(rest) > 0 and nSg < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		sgIdx = sgIdx + 1
+		md = sgIdx - 4 * int(sgIdx / 4)   ! 1,2,3,0 の繰り返し
+		if md = 1 then sgA = v / 1000
+		if md = 2 then sgB = v / 1000
+		if md = 3 then sgC = v / 1000
+		if md = 0 then
+			nSg = nSg + 1
+			sgS[nSg] = sgA
+			sgL[nSg] = sgB
+			sgP[nSg] = sgC
+			sgH[nSg] = v / 1000
+		endif
 	endif
 endwhile
 

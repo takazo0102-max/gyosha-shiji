@@ -285,7 +285,8 @@ def write_plan_json(
                 # そのまま set_gdl_parameters に渡せる形で持つ
                 "placement": placement_of(model, ep.edge_index),
                 "gdl_params": line_params(
-                    model, ep, stair_plan=stair_plan, openings=openings
+                    model, ep, stair_plan=stair_plan, openings=openings,
+                    platforms=platforms,
                 ),
             }
             for ep in model.plan.edges

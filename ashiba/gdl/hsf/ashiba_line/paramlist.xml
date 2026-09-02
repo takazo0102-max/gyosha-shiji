@@ -117,6 +117,10 @@
 			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<String Name="stageList">
+			<Description><![CDATA["荷受けステージ mm 「開始,長さ,出,設置高さ」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="beamList">
 			<Description><![CDATA["梁枠 mm 「開始,スパン,梁下高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>

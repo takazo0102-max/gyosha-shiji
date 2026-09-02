@@ -155,4 +155,17 @@ for it = 1 to nTiePair
 	del 2
 next it
 
+! ---- 荷受けステージ（外側へ張り出す床・手すり） ----
+for ig = 1 to nSg
+	add sgS[ig], -rowW, sgH[ig]
+	muly -1
+	block sgL[ig], sgP[ig], 0.05
+	del 2
+	! 手すり（張り出し先端と両側）
+	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.9
+	roty 90
+	cylind sgL[ig], r_nuno
+	del 2
+next ig
+
 end
