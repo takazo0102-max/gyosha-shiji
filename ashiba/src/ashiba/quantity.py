@@ -198,11 +198,22 @@ def take_off(
         )
 
     # ---- 踏板（スパン×作業層×幅構成。階段室の区間には敷かない） ----
-    deck_span_counts = dict(span_counts)
+    # 床は「スパン×層」のセル数で数える。階段室は全層、開口部は梁枠より下の
+    # 層だけ敷かないので、スパン本数の引き算では表せない
+    deck_cells = {s: n * n_levels for s, n in span_counts.items()}
+    from .openings import opening_deck_deduction
+    open_cut = opening_deck_deduction(model, openings)
+    # 開口部（梁枠より下）は通路。床も幅木も無い
+    toe_cells = {
+        s: max(0, n - open_cut.get(s, 0)) for s, n in deck_cells.items()
+    }
+    for s, cells in open_cut.items():
+        deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
     if stair_plan is not None and stair_plan.towers:
+        # 階段室には踏板を敷かないが、外構面の幅木は残る（階段側の落下防止）
         from .stairs import stair_deck_deduction
         for s, n in stair_deck_deduction(model, stair_plan).items():
-            deck_span_counts[s] = max(0, deck_span_counts.get(s, 0) - n)
+            deck_cells[s] = max(0, deck_cells.get(s, 0) - n * n_levels)
     # 一側足場は建地1列で、作業床はブラケット受けの1枚敷き。本足場の内外2枚敷きを
     # そのまま数えると踏板が倍になる（実際、重量で3.7t多く出ていた）
     deck_widths = list(model.deck_widths_in_use)
@@ -212,8 +223,8 @@ def take_off(
             f"（本足場の{'+'.join(str(w) for w in model.config.deck_widths)}ではなく）"
         )
     for w in deck_widths:
-        for s, n in deck_span_counts.items():
-            add(m.deck_parts(w, s), n * n_levels, f"踏板 幅{w}×{s}")
+        for s, cells in deck_cells.items():
+            add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
     if rows == 1:
         # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）
         brk = next((p for p in m.by_category("ブラケット")
@@ -259,8 +270,8 @@ def take_off(
 
     # ---- 幅木（各作業層 外側スパン毎） ----
     if model.config.has_toe_board:
-        for s, n in span_counts.items():
-            add(m.find("幅木", s), n * n_levels, f"幅木{s}")
+        for s, cells in toe_cells.items():
+            add(m.find("幅木", s), cells, f"幅木{s}")
 
     # ---- 壁つなぎ ----
     kt = next(iter(m.by_category("壁つなぎ")), None)

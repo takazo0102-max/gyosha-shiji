@@ -162,13 +162,17 @@ def required_details(
         # 梁枠上の支柱位置は割付の実際の値を渡す。図がスパン割から推定すると
         # 開口部だけ割付が違う場合に本数が食い違う
         inner = spec.get("inner_posts_mm") or []
+        # 開口高さは梁枠を載せる作業層の高さ。2層ぶんと決め打ちすると、
+        # 実際より高い（低い）通路を図が示す
+        lv = spec.get("beam_height_mm") or 0.0
         sheets.append(
             DetailSheet(
                 key="beam",
                 title=DETAIL_NAMES["beam"] + (f"（開口{i + 1}）" if len(specs) > 1 else ""),
                 params={**common,
                         "beamSpan": span / 1000.0,
-                        "beamPosts": ",".join(f"{v:.0f}" for v in inner)},
+                        "beamPosts": ",".join(f"{v:.0f}" for v in inner),
+                        "openH": lv / 1000.0},
                 reason=f"開口部（梁枠{span}mm）で支柱を抜くため",
             )
         )

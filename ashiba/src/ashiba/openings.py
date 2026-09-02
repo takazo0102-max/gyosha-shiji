@@ -18,6 +18,7 @@ from typing import Optional
 
 from .model import ScaffoldModel
 
+MIN_HEADROOM_MM = 1800.0   # 通路として使う開口の頭上高さの目安
 # 梁枠の直近に壁つなぎが要る距離の目安
 TIE_NEAR_MM = 1800.0
 
@@ -52,6 +53,8 @@ class OpeningResult:
     removed_posts: int = 0        # 抜いた支柱の本数（内外列ぶん）
     # 開口部ごとの、梁枠上に乗る支柱の位置（開口始点からのmm）
     inner_posts: dict = field(default_factory=dict)
+    # 開口部ごとの梁枠下端＝開口高さ（GLからのmm）
+    beam_heights: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -125,12 +128,27 @@ def validate_openings(
         # 梁枠上に乗る支柱の位置。図がスパン割から推定すると、開口部だけ
         # 割付が違う場合（900+1800+900など）に本数が食い違う
         result.inner_posts[i] = [round(p - o.start_mm, 1) for p in inner]
+        lv = model.elevation.level_heights
+        result.beam_heights[i] = (
+            lv[o.level - 1] if 0 < o.level <= len(lv) else 0.0
+        )
 
         result.issues.append(OpeningIssue(
             i, "WARN",
             f"辺{o.edge_index}の梁枠（{o.beam_span_mm}mm・支柱{len(inner)}本を受ける）: "
             "両端支柱の補強、梁枠上の積載荷重低減、取付部直近の壁つなぎが必要です",
             "仮設工業会 足場・型枠支保工設計指針"))
+
+        # 通路として使う開口なので、頭上の高さが要る
+        levels = model.elevation.level_heights
+        h = levels[o.level - 1] if 0 < o.level <= len(levels) else 0
+        if 0 < h < MIN_HEADROOM_MM:
+            result.issues.append(OpeningIssue(
+                i, "WARN",
+                f"辺{o.edge_index}の開口高さ{h:.0f}mm < {MIN_HEADROOM_MM:.0f}mm。"
+                "通路として使うなら梁枠を1層上げてください",
+                "通路の頭上高さ（実務の目安）",
+            ))
 
         near = [
             t for t in model.wall_ties
@@ -157,10 +175,37 @@ def validate_openings(
     return result
 
 
+def opening_deck_deduction(
+    model: ScaffoldModel, result: Optional[OpeningResult]
+) -> dict[int, int]:
+    """開口部で敷かない床の枚数（呼び寸法 → スパン×層のセル数）.
+
+    梁枠より下は通路（支柱を抜いた開口）なので、床も幅木も無い。
+    数えたままにすると、実際には存在しない作業床が数量表に出る。
+    """
+    out: dict[int, int] = {}
+    if result is None or not result.openings:
+        return out
+    for o in result.openings:
+        edge = _edge(model, o.edge_index)
+        if edge is None:
+            continue
+        below = max(0, o.level - 1)      # 梁枠のある層より下の層数
+        if below == 0:
+            continue
+        acc = 0.0
+        for sp in edge.spans:
+            if o.start_mm - 1e-6 <= acc < o.end_mm - 1e-6:
+                out[sp] = out.get(sp, 0) + below
+            acc += sp
+    return out
+
+
 def opening_detail_specs(result: OpeningResult) -> list[dict]:
     """詳細図（detailType="beam"）に渡す指定."""
     return [
         {"beam_span_mm": o.beam_span_mm,
-         "inner_posts_mm": result.inner_posts.get(i, [])}
+         "inner_posts_mm": result.inner_posts.get(i, []),
+         "beam_height_mm": result.beam_heights.get(i, 0.0)}
         for i, o in enumerate(result.openings)
     ]

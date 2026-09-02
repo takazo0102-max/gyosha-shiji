@@ -54,13 +54,15 @@
       "edge_index": 0,
       "start_mm": 3600,
       "beam_span_mm": 3600,
-      "reason": "現場出入口"
+      "reason": "現場出入口",
+      "level": 2
     },
     {
       "edge_index": 2,
       "start_mm": 9000,
       "beam_span_mm": 5400,
-      "reason": "資材搬入路"
+      "reason": "資材搬入路",
+      "level": 2
     }
   ]
 }

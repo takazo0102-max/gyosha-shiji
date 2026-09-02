@@ -387,7 +387,9 @@ return
 500: ! ---- 開口部 梁枠詳細（立面） ----
 ttl = "開口部 梁枠詳細（立面 " + str(beamSpan * 1000, 5, 0) + " タイプ" + serType + "）"
 
-hOpen = 2 * floorH				! 開口高さ（梁枠下端）
+! 開口高さ（梁枠下端）。実際に梁枠を載せる作業層の高さを使う
+hOpen = 2 * floorH
+if openH > 0 then hOpen = openH
 ht = 0.45						! トラス梁枠せい
 
 ! 梁枠（上下弦材＋斜材）

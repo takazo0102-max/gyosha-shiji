@@ -103,6 +103,46 @@ class TestOpeningQuantity(unittest.TestCase):
         with_empty = take_off(m, openings=validate_openings(m))
         self.assertEqual(base.total_weight_kg, with_empty.total_weight_kg)
 
+    def test_floor_below_the_beam_is_not_counted(self):
+        """梁枠より下は通路。床も幅木も無いのに数えていた."""
+        m = build()
+        base = take_off(m)
+        r = validate_openings(m, [Opening(0, 3600, 5400, level=3)])
+        q = take_off(m, openings=r)
+        edge = m.plan.edges[0]
+        # 開口が占有するスパン数 × 梁枠より下の層数 × 踏板2枚
+        spans = sum(1 for i, s in enumerate(edge.spans)
+                    if 3600 - 1e-6 <= sum(edge.spans[:i]) < 3600 + 5400 - 1e-6)
+        cells = spans * 2
+        self.assertEqual(base.qty_of("踏板") - q.qty_of("踏板"), cells * 2)
+        self.assertEqual(base.qty_of("幅木") - q.qty_of("幅木"), cells)
+
+    def test_opening_at_the_lowest_level_removes_nothing(self):
+        """1層目に梁枠を置く指定では、下に層が無いので差し引きも無い."""
+        m = build()
+        base = take_off(m)
+        q = take_off(m, openings=validate_openings(
+            m, [Opening(0, 3600, 3600, level=1)]))
+        self.assertEqual(base.qty_of("踏板"), q.qty_of("踏板"))
+
+    def test_low_headroom_warns(self):
+        """通路として使う開口なので頭上高さが要る."""
+        from ashiba.openings import MIN_HEADROOM_MM
+
+        m = build()
+        m.elevation.level_heights[0] = MIN_HEADROOM_MM - 100
+        msgs = [i.message for i in
+                validate_openings(m, [Opening(0, 3600, 3600, level=1)]).issues]
+        self.assertTrue(any("開口高さ" in x for x in msgs), msgs)
+
+    def test_detail_sheet_gets_the_real_opening_height(self):
+        """図が階高2層ぶんと決め打ちすると、実際と違う通路高さを示す."""
+        m = build()
+        specs = opening_detail_specs(
+            validate_openings(m, [Opening(0, 3600, 3600, level=2)])
+        )
+        self.assertEqual(specs[0]["beam_height_mm"], m.elevation.level_heights[1])
+
     def test_detail_specs_are_derived(self):
         m = build()
         r = validate_openings(m, [Opening(0, 3600, 3600), Opening(1, 3600, 5400)])

@@ -121,6 +121,10 @@
 			<Description><![CDATA["梁枠上に乗る支柱位置 開口始点からのmm 空でスパン割から推定"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="openH">
+			<Description><![CDATA["開口高さ(梁枠下端) 0で階高2層ぶん"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="warnPen">
 			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
 			<Value>20</Value>

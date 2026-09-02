@@ -642,15 +642,35 @@ line2 0, lv[1], lineLen, lv[1]
 line2 0, lv[1] + 0.02, lineLen, lv[1] + 0.02
 
 ! 各作業層: 布板・手すり・中桟・幅木
+! 全長に通して描くと、階段室や開口部（梁枠より下＝通路）にも床があることに
+! なってしまう。数量の差し引きと同じ区間を空ける
 for il = 2 to nLv
 	z = lv[il]
-	! 布板（作業床）
-	rect2 0, z, lineLen, z + 0.05
-	! 幅木
-	rect2 0, z + 0.05, lineLen, z + 0.05 + 0.157
-	! 手すり・中桟
-	line2 0, z + railMid, lineLen, z + railMid
-	line2 0, z + railTop, lineLen, z + railTop
+	x = 0
+	for ip = 1 to nSpan
+		xs = x
+		xe = x + spans[ip]
+		noDeck = 0
+		noAll = 0
+		for it3 = 1 to nSt
+			if xs >= stS[it3] - 0.001 and xe <= stS[it3] + stL[it3] + 0.001 then noDeck = 1
+		next it3
+		for ib2 = 1 to nBm
+			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
+					z < bmH[ib2] - 0.001 then noAll = 1
+		next ib2
+		if noAll = 0 then
+			! 布板（作業床）。階段室は段板で上がるので敷かない
+			if noDeck = 0 then
+				rect2 xs, z, xe, z + 0.05
+				rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			endif
+			! 手すり・中桟は階段室にも要る
+			line2 xs, z + railMid, xe, z + railMid
+			line2 xs, z + railTop, xe, z + railTop
+		endif
+		x = xe
+	next ip
 next il
 
 ! ブレス（交互向き）。設置間隔は数量拾いと揃える
