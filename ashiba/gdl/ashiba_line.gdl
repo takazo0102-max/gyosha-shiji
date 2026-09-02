@@ -37,6 +37,7 @@
 !   negaH          長さ    根がらみ高さ GLから 0で自動                              既定 0
 !   railH          長さ    手すり高さ 作業床から 0で自動                            既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                              既定 0
+!   beamList       文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し               既定 ""
 !   stairList      文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）  既定 ""
 !   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                 既定 ""
 !   asagaoProj     長さ    朝顔の水平突出                                           既定 2
@@ -70,6 +71,9 @@ dim levIn[40]
 dim asa[8]
 dim stS[8]
 dim stL[8]
+dim bmS[8]
+dim bmL[8]
+dim bmH[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -193,6 +197,42 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- beamList をパース「開始,スパン,梁下高さ」の繰り返し (mm→m) ----
+! 梁枠は支柱を抜いて通路にする箇所。図面が抜いた支柱を描いたままだと、
+! 実際には無い建地を図面が示すことになる
+nBm = 0
+bmIdx = 0
+bmT1 = 0
+bmT2 = 0
+rest = beamList
+while strlen(rest) > 0 and nBm < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		bmIdx = bmIdx + 1
+		md = bmIdx - 3 * int(bmIdx / 3)   ! 1,2,0 の繰り返し
+		if md = 1 then
+			bmT1 = v / 1000
+		endif
+		if md = 2 then
+			bmT2 = v / 1000
+		endif
+		if md = 0 then
+			nBm = nBm + 1
+			bmS[nBm] = bmT1
+			bmL[nBm] = bmT2
+			bmH[nBm] = v / 1000
+		endif
 	endif
 endwhile
 
@@ -358,12 +398,29 @@ line2 x, 0, x, -rowW
 
 x = 0
 for ip = 1 to nSpan + 1
-	! 一側足場は建地1列。無い列に支柱記号を描かない
-	if nRows >= 2 then circle2 x, 0, r_sic
-	circle2 x, -rowW, r_sic
+	! 梁枠の内側の支柱は抜いてある。描くと実際には無い建地を示すことになる
+	removed = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
+	next ib
+	if removed = 0 then
+		if nRows >= 2 then circle2 x, 0, r_sic
+		circle2 x, -rowW, r_sic
+	endif
 	hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]
 next ip
+
+! 梁枠の区間（平面では太い二重線と文字）
+for ib = 1 to nBm
+	bs = bmS[ib]
+	be = bs + bmL[ib]
+	line2 bs, -rowW, be, -rowW
+	line2 bs, -rowW - 0.06, be, -rowW - 0.06
+	line2 bs, -rowW, bs, -rowW - 0.06
+	line2 be, -rowW, be, -rowW - 0.06
+	if showDim then text2 (bs + be) / 2, -rowW - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+next ib
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
 
@@ -435,11 +492,22 @@ line_type 1
 ! 支柱（ジャッキ＋積上げ）と ジョイント位置
 x = 0
 for ip = 1 to nSpan + 1
+	! 梁枠の内側は支柱を抜き、梁下から上だけ描く
+	bBase = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+	next ib
 	! ジャッキ（敷板含む脚部）
-	rect2 x - 0.02, 0, x + 0.02, jackOut
-	line2 x - 0.06, 0, x + 0.06, 0
+	if bBase = 0 then
+		rect2 x - 0.02, 0, x + 0.02, jackOut
+		line2 x - 0.06, 0, x + 0.06, 0
+	endif
 	! 支柱
-	rect2 x - r_sic, jackOut, x + r_sic, postTop
+	if bBase = 0 then
+		rect2 x - r_sic, jackOut, x + r_sic, postTop
+	else
+		rect2 x - r_sic, bBase, x + r_sic, postTop
+	endif
 	! 縦継ぎ（ジョイント）位置に短い横線
 	jh = jackOut
 	for jp = 1 to nPost - 1
@@ -497,6 +565,28 @@ for it2 = 1 to nSt
 	next il
 	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
 next it2
+
+! 梁枠（立面ではトラス）
+for ib = 1 to nBm
+	bs = bmS[ib]
+	be = bs + bmL[ib]
+	bh = bmH[ib]
+	line2 bs, bh, be, bh
+	line2 bs, bh - 0.45, be, bh - 0.45
+	line2 bs, bh - 0.45, bs, bh
+	line2 be, bh - 0.45, be, bh
+	nd = 4
+	for id = 0 to nd - 1
+		dx1 = bs + bmL[ib] * id / nd
+		dx2 = bs + bmL[ib] * (id + 1) / nd
+		if id - 2 * int(id / 2) = 0 then
+			line2 dx1, bh - 0.45, dx2, bh
+		else
+			line2 dx1, bh, dx2, bh - 0.45
+		endif
+	next id
+	if showDim then text2 (bs + be) / 2, bh - 0.65, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+next ib
 
 ! 朝顔（立面では設置高さに太線と注記）
 for ia = 1 to nAsa

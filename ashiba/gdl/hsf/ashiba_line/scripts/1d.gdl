@@ -17,6 +17,9 @@ dim levIn[40]
 dim asa[8]
 dim stS[8]
 dim stL[8]
+dim bmS[8]
+dim bmL[8]
+dim bmH[8]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
@@ -140,6 +143,42 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- beamList をパース「開始,スパン,梁下高さ」の繰り返し (mm→m) ----
+! 梁枠は支柱を抜いて通路にする箇所。図面が抜いた支柱を描いたままだと、
+! 実際には無い建地を図面が示すことになる
+nBm = 0
+bmIdx = 0
+bmT1 = 0
+bmT2 = 0
+rest = beamList
+while strlen(rest) > 0 and nBm < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		bmIdx = bmIdx + 1
+		md = bmIdx - 3 * int(bmIdx / 3)   ! 1,2,0 の繰り返し
+		if md = 1 then
+			bmT1 = v / 1000
+		endif
+		if md = 2 then
+			bmT2 = v / 1000
+		endif
+		if md = 0 then
+			nBm = nBm + 1
+			bmS[nBm] = bmT1
+			bmL[nBm] = bmT2
+			bmH[nBm] = v / 1000
+		endif
 	endif
 endwhile
 

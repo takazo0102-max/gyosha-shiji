@@ -12,7 +12,9 @@ import math
 from .model import ScaffoldModel
 
 
-def line_params(model: ScaffoldModel, ep, rules=None, stair_plan=None) -> dict:
+def line_params(
+    model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None
+) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
     平面と立面で別々に組み立てると片方だけ渡し漏れる（実際、内外建地間隔と
@@ -53,6 +55,8 @@ def line_params(model: ScaffoldModel, ep, rules=None, stair_plan=None) -> dict:
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
         # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
         "stairList": _stair_list(ep, stair_plan),
+        # 梁枠。「開始,スパン,梁下高さ」の繰り返し
+        "beamList": _beam_list(model, ep, openings),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
         # 平面では一度も描かれていなかった
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
@@ -73,6 +77,25 @@ def _stair_list(ep, stair_plan) -> str:
     for t in stair_plan.towers:
         if t.edge_index == ep.edge_index:
             parts += [str(int(t.start_mm)), str(int(t.length_mm))]
+    return ",".join(parts)
+
+
+def _beam_list(model: ScaffoldModel, ep, openings) -> str:
+    """この辺の梁枠を「開始,スパン,梁下高さ」の繰り返しで返す.
+
+    梁下高さは支柱を抜く作業層の高さ。図面が抜いた支柱を描いたままだと、
+    実際には無い建地を図面が示すことになる。
+    """
+    if openings is None or not getattr(openings, "openings", None):
+        return ""
+    levels = model.elevation.level_heights
+    parts = []
+    for o in openings.openings:
+        if o.edge_index != ep.edge_index:
+            continue
+        idx = min(max(o.level, 1), len(levels)) - 1 if levels else 0
+        h = levels[idx] if levels else 0
+        parts += [str(int(o.start_mm)), str(int(o.beam_span_mm)), str(int(h))]
     return ",".join(parts)
 
 

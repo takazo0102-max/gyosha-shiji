@@ -280,6 +280,7 @@ def place_scaffold_lines(
     object_name: str = "ashiba_line",
     client: Optional[ArchicadClient] = None,
     stair_plan=None,
+    openings=None,
 ) -> list[dict]:
     """割付結果の各辺に「足場ライン」オブジェクトを1つずつ配置する.
 
@@ -294,7 +295,7 @@ def place_scaffold_lines(
         angle = math.atan2(edge.direction[1], edge.direction[0])
         if abs(angle) > 1e-9:
             client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
-        client.set_gdl_parameters(elem, line_params(model, ep, stair_plan=stair_plan))
+        client.set_gdl_parameters(elem, line_params(model, ep, stair_plan=stair_plan, openings=openings))
         placed.append(elem)
     return placed
 
@@ -369,6 +370,7 @@ def place_elevations(
     model: ScaffoldModel,
     object_name: str = "ashiba_line",
     stair_plan=None,
+    openings=None,
     origin_mm: tuple[float, float] = (0.0, 0.0),
     gap_mm: float = 4000.0,
     floor_levels_mm: Optional[list[float]] = None,
@@ -390,7 +392,7 @@ def place_elevations(
         client.set_gdl_parameters(
             elem,
             {
-                **line_params(model, ep, stair_plan=stair_plan),
+                **line_params(model, ep, stair_plan=stair_plan, openings=openings),
                 "viewMode": "elev",
                 "flList": fl_str,
                 "faceName": (

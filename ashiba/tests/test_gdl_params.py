@@ -254,6 +254,45 @@ class TestWallTiesReachTheDrawing(unittest.TestCase):
         self.assertEqual(total, len(self.m.wall_ties))
 
 
+class TestBeamFramesReachTheDrawing(unittest.TestCase):
+    """梁枠の内側は支柱を抜く。図面が抜いた支柱を描いたままだと嘘になる."""
+
+    def _setup(self):
+        from ashiba.openings import Opening, validate_openings
+
+        m = build("shinwa_A")
+        return m, validate_openings(m, [Opening(0, 3600, 3600)])
+
+    def test_only_the_owning_edge_gets_the_beam(self):
+        m, op = self._setup()
+        got = {
+            ep.edge_index: line_params(m, ep, openings=op)["beamList"]
+            for ep in m.plan.edges
+        }
+        self.assertTrue(got[0])
+        self.assertEqual([v for k, v in got.items() if k != 0], ["", "", ""])
+
+    def test_triple_is_start_span_and_beam_height(self):
+        m, op = self._setup()
+        vals = line_params(m, m.plan.edges[0], openings=op)["beamList"].split(",")
+        self.assertEqual(len(vals), 3)
+        self.assertEqual(int(vals[0]), 3600)
+        self.assertEqual(int(vals[1]), 3600)
+        self.assertEqual(int(vals[2]), m.elevation.level_heights[0])
+
+    def test_level_selects_the_beam_height(self):
+        from ashiba.openings import Opening, validate_openings
+
+        m = build("shinwa_A")
+        op = validate_openings(m, [Opening(0, 3600, 3600, level=3)])
+        vals = line_params(m, m.plan.edges[0], openings=op)["beamList"].split(",")
+        self.assertEqual(int(vals[2]), m.elevation.level_heights[2])
+
+    def test_empty_without_openings(self):
+        m = build("shinwa_A")
+        self.assertEqual(line_params(m, m.plan.edges[0])["beamList"], "")
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 
