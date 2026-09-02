@@ -50,6 +50,8 @@ class OpeningResult:
     openings: list[Opening] = field(default_factory=list)
     issues: list[OpeningIssue] = field(default_factory=list)
     removed_posts: int = 0        # 抜いた支柱の本数（内外列ぶん）
+    # 開口部ごとの、梁枠上に乗る支柱の位置（開口始点からのmm）
+    inner_posts: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -120,6 +122,9 @@ def validate_openings(
 
         inner = [p for p in posts if o.start_mm + 1e-6 < p < o.end_mm - 1e-6]
         result.removed_posts += len(inner) * rows
+        # 梁枠上に乗る支柱の位置。図がスパン割から推定すると、開口部だけ
+        # 割付が違う場合（900+1800+900など）に本数が食い違う
+        result.inner_posts[i] = [round(p - o.start_mm, 1) for p in inner]
 
         result.issues.append(OpeningIssue(
             i, "WARN",
@@ -154,4 +159,8 @@ def validate_openings(
 
 def opening_detail_specs(result: OpeningResult) -> list[dict]:
     """詳細図（detailType="beam"）に渡す指定."""
-    return [{"beam_span_mm": o.beam_span_mm} for o in result.openings]
+    return [
+        {"beam_span_mm": o.beam_span_mm,
+         "inner_posts_mm": result.inner_posts.get(i, [])}
+        for i, o in enumerate(result.openings)
+    ]

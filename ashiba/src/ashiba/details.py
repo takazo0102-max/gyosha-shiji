@@ -44,6 +44,10 @@ class DetailSheet:
         return DETAIL_NAMES.get(self.key, self.key)
 
 
+def _beam_sizes(model: ScaffoldModel) -> list[int]:
+    return sorted({p.nominal_dim for p in model.master.by_category("梁枠")})
+
+
 def required_details(
     model: ScaffoldModel,
     openings: Optional[list[dict]] = None,
@@ -82,6 +86,8 @@ def required_details(
         "soMin": (so.min if so else 250.0) / 1000.0,
         "soMax": (so.max if so else 350.0) / 1000.0,
         "cornerGap": gap / 1000.0,
+        # 梁枠の規格寸法は系列で違う。図に決め打ちすると規格品を規格外と警告する
+        "beamList": ",".join(str(v) for v in _beam_sizes(model)),
     }
     v_max, h_max = model.wall_tie_max_spacing()
     height = model.scaffold_height_mm
@@ -148,15 +154,21 @@ def required_details(
             )
         )
 
-    spans = [o.get("beam_span_mm", 3600) for o in (openings or [])]
-    if force_all and not spans:
-        spans = [3600]
-    for i, span in enumerate(spans):
+    specs = list(openings or [])
+    if force_all and not specs:
+        specs = [{"beam_span_mm": 3600}]
+    for i, spec in enumerate(specs):
+        span = spec.get("beam_span_mm", 3600)
+        # 梁枠上の支柱位置は割付の実際の値を渡す。図がスパン割から推定すると
+        # 開口部だけ割付が違う場合に本数が食い違う
+        inner = spec.get("inner_posts_mm") or []
         sheets.append(
             DetailSheet(
                 key="beam",
-                title=DETAIL_NAMES["beam"] + (f"（開口{i + 1}）" if len(spans) > 1 else ""),
-                params={**common, "beamSpan": span / 1000.0},
+                title=DETAIL_NAMES["beam"] + (f"（開口{i + 1}）" if len(specs) > 1 else ""),
+                params={**common,
+                        "beamSpan": span / 1000.0,
+                        "beamPosts": ",".join(f"{v:.0f}" for v in inner)},
                 reason=f"開口部（梁枠{span}mm）で支柱を抜くため",
             )
         )

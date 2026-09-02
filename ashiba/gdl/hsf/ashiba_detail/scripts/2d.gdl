@@ -409,12 +409,20 @@ line2 beamSpan, hOpen + 0.05, beamSpan, hOpen + ht - 0.05
 ! 梁枠を支持する両端の支柱（下まで通る）
 rect2 -r_sic, 0, r_sic, hOpen + ht + 2 * floorH
 rect2 beamSpan - r_sic, 0, beamSpan + r_sic, hOpen + ht + 2 * floorH
-! 梁枠上に乗る中間支柱（開口部には建てない）
-nUp = int(beamSpan / spanW + 0.001)
-for i = 1 to nUp - 1
-	xx = spanW * i
-	rect2 xx - r_sic, hOpen + ht, xx + r_sic, hOpen + ht + 2 * floorH
-next i
+! 梁枠上に乗る中間支柱（開口部には建てない）。位置は割付の実測値を優先する
+if nBp > 0 then
+	nUp = nBp + 1
+	for i = 1 to nBp
+		xx = bpOff[i]
+		rect2 xx - r_sic, hOpen + ht, xx + r_sic, hOpen + ht + 2 * floorH
+	next i
+else
+	nUp = int(beamSpan / spanW + 0.001)
+	for i = 1 to nUp - 1
+		xx = spanW * i
+		rect2 xx - r_sic, hOpen + ht, xx + r_sic, hOpen + ht + 2 * floorH
+	next i
+endif
 
 ! 梁枠上の作業床と手すり
 for lv = 1 to 2
@@ -434,10 +442,15 @@ hotspot2 0, 0
 hotspot2 beamSpan, hOpen
 hotspot2 0, hOpen + ht
 
-! 梁枠は2スパン(3600)/3スパン(5400)のみ
-if abs(beamSpan - 3.6) > 0.001 and abs(beamSpan - 5.4) > 0.001 then
+! 梁枠は規格品しか飛ばせない。規格寸法は系列で違うので beamList で受ける
+isStd = 0
+for i = 1 to nBeam
+	if abs(beamSpan - beamStd[i]) < 0.001 then isStd = 1
+next i
+if isStd = 0 then
 	nWarn = nWarn + 1
-	warnMsg[nWarn] = "※梁枠スパン " + str(beamSpan * 1000, 5, 0) + "mm は規格外（3600/5400）"
+	warnMsg[nWarn] = "※梁枠スパン " + str(beamSpan * 1000, 5, 0) + \
+		"mm は規格外（" + beamStdTxt + "）"
 endif
 
 if not(showDim) then return

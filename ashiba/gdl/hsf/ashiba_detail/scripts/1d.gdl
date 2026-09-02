@@ -39,6 +39,57 @@ if tieHLim > 0 then LIM_TIE_H = tieHLim
 LIM_ASA_P = 2.000           ! 朝顔 突出下限
 LIM_ASA_A = 20.0            ! 朝顔 傾斜下限 度
 
+! 梁枠の規格寸法は系列で違う（A:3600/5400、B:3800/5700 など）。
+! 図に決め打ちすると、規格品なのに「規格外」と警告してしまう
+dim beamStd[8]
+nBeam = 0
+rest = beamList
+while strlen(rest) > 0 and nBeam < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBeam = nBeam + 1
+		beamStd[nBeam] = v / 1000
+	endif
+endwhile
+if nBeam = 0 then
+	beamStd[1] = 3.600
+	beamStd[2] = 5.400
+	nBeam = 2
+endif
+beamStdTxt = ""
+for i = 1 to nBeam
+	if i > 1 then beamStdTxt = beamStdTxt + "/"
+	beamStdTxt = beamStdTxt + str(beamStd[i] * 1000, 5, 0)
+next i
+
+! 梁枠上に乗る支柱の位置（開口始点から）。空ならスパン割から推定する
+dim bpOff[12]
+nBp = 0
+rest = beamPosts
+while strlen(rest) > 0 and nBp < 12 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBp = nBp + 1
+		bpOff[nBp] = v / 1000
+	endif
+endwhile
+
 ! 壁離れの目標帯は計画ごとに指定できる。図に既定値を書くと計画と食い違う
 SO_MIN = 0.250
 SO_MAX = 0.350

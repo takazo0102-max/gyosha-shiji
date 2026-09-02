@@ -113,6 +113,14 @@
 			<Description><![CDATA["枠組のコーナー隙間 0でくさび式(隙間なし)"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<String Name="beamList">
+			<Description><![CDATA["梁枠の規格寸法 カンマ区切りmm 空で3600,5400"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="beamPosts">
+			<Description><![CDATA["梁枠上に乗る支柱位置 開口始点からのmm 空でスパン割から推定"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="warnPen">
 			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
 			<Value>20</Value>

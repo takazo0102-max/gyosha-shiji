@@ -107,9 +107,20 @@ class TestOpeningQuantity(unittest.TestCase):
         m = build()
         r = validate_openings(m, [Opening(0, 3600, 3600), Opening(1, 3600, 5400)])
         self.assertEqual(
-            opening_detail_specs(r),
-            [{"beam_span_mm": 3600}, {"beam_span_mm": 5400}],
+            [s["beam_span_mm"] for s in opening_detail_specs(r)], [3600, 5400]
         )
+
+    def test_detail_specs_carry_the_posts_on_the_beam(self):
+        """図がスパン割から推定すると、割付と本数が食い違う."""
+        m = build()
+        r = validate_openings(m, [Opening(0, 3600, 3600), Opening(1, 3600, 5400)])
+        specs = opening_detail_specs(r)
+        # 1800割なら 3600 に1本、5400 に2本乗る
+        self.assertEqual(len(specs[0]["inner_posts_mm"]), 1)
+        self.assertEqual(len(specs[1]["inner_posts_mm"]), 2)
+        for s in specs:
+            for v in s["inner_posts_mm"]:
+                self.assertTrue(0 < v < s["beam_span_mm"], v)
 
 
 if __name__ == "__main__":
