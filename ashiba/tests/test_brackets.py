@@ -198,5 +198,38 @@ class TestBracketDeckWidth(unittest.TestCase):
         self.assertEqual(self.changes(self.m, [sec]), [])
 
 
+class TestFrameSystemAlsoCounts(unittest.TestCase):
+    """枠組式でも区間指定が数量に届くこと（届かず黙って消えていた）."""
+
+    def _model(self, series_id):
+        master = load_master(series_id)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def _section(self, model):
+        edge = model.plan.edges[0]
+        return [BracketSection(
+            edge_index=0, start_mm=0, end_mm=sum(edge.spans[:3]),
+            direction="内", width=300, levels=[1, 2],
+        )]
+
+    def test_missing_master_part_is_reported_not_ignored(self):
+        m = self._model("waku")
+        q = take_off(m, bracket_sections=self._section(m))
+        self.assertTrue(
+            any("ブラケット" in w and "手配" in w for w in q.warnings), q.warnings
+        )
+
+    def test_wedge_system_still_counts_parts(self):
+        m = self._model("shinwa_A")
+        base = take_off(m)
+        q = take_off(m, bracket_sections=self._section(m))
+        self.assertGreater(q.qty_of("ブラケット"), 0)
+        self.assertGreater(q.total_weight_kg, base.total_weight_kg)
+
+
 if __name__ == "__main__":
     unittest.main()

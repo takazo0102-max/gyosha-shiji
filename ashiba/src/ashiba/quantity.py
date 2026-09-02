@@ -136,6 +136,7 @@ def take_off(
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
         _count_frame_parts(model, rules, add, notes, stair_plan)
+        _count_bracket_parts(model, bracket_sections, add, notes, counts)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
         _note_inner_rail_if_wide(model, notes)
@@ -292,45 +293,60 @@ def take_off(
             extra_ties += max(1, e.span_count // max(asagao.tie_every_spans, 1))
         add(kt, extra_ties * asagao.stages, "朝顔取付部の壁つなぎ")
 
-    # ---- ブラケット区間（面の区間属性から算出。支柱ラインは動かさない） ----
-    if bracket_sections:
-        from .brackets import bracket_quantities
-        for (width, purpose), qty in bracket_quantities(model, bracket_sections).items():
-            if purpose == "方杖":
-                part = next((p for p in m.by_category("ブラケット")
-                             if p.nominal_dim == width), None)
-                notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
-                continue
-            note_key = "張出" if purpose == "張出" else ""
-            part = next(
-                (p for p in m.by_category("ブラケット")
-                 if p.nominal_dim == width and (note_key in p.note if note_key else "張出" not in p.note)),
-                None,
-            )
-            add(part, qty, f"ブラケット{width}（{purpose}）")
-
-        # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
-        from .brackets import bracket_deck_changes
-
-        for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
-            new_part = m.deck_parts(to_w, span)
-            if new_part is None:
-                notes.action(
-                    f"区間指定の踏板 幅{to_w}×{span}がマスタにありません"
-                    f"（{n_lv}枚）。幅{from_w}のままで計上しています"
-                )
-                continue
-            old_part = m.deck_parts(from_w, span)
-            if old_part is not None:
-                counts[old_part.model_no] = max(
-                    0, counts.get(old_part.model_no, 0) - n_lv
-                )
-            add(new_part, n_lv, f"踏板 幅{to_w}×{span}（区間指定）")
-
+    _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
     _count_opening_parts(model, openings, add, notes)
     _note_inner_rail_if_wide(model, notes)
     return _assemble(model, rules, counts, parts, notes)
+
+
+def _count_bracket_parts(
+    model: ScaffoldModel, bracket_sections, add, notes, counts
+) -> None:
+    """ブラケット区間の部材を数量表に載せる（くさび式・枠組式で共通）.
+
+    枠組式ではこの処理を通しておらず、区間を指定しても検証は通るのに
+    数量表には1本も出なかった（指定が黙って消えていた）。
+    """
+    if not bracket_sections:
+        return
+    from .brackets import bracket_deck_changes, bracket_quantities
+
+    m = model.master
+    for (width, purpose), qty in bracket_quantities(model, bracket_sections).items():
+        if purpose == "方杖":
+            notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
+            continue
+        note_key = "張出" if purpose == "張出" else ""
+        part = next(
+            (p for p in m.by_category("ブラケット")
+             if p.nominal_dim == width
+             and (note_key in p.note if note_key else "張出" not in p.note)),
+            None,
+        )
+        if part is None:
+            notes.action(
+                f"ブラケット{width}mm（{purpose}）が系列 {m.series_id} のマスタに"
+                f"ありません（{qty}本）。別途手配してください"
+            )
+            continue
+        add(part, qty, f"ブラケット{width}（{purpose}）")
+
+    # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
+    for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
+        new_part = m.deck_parts(to_w, span)
+        if new_part is None:
+            notes.action(
+                f"区間指定の踏板 幅{to_w}×{span}がマスタにありません"
+                f"（{n_lv}枚）。幅{from_w}のままで計上しています"
+            )
+            continue
+        old_part = m.deck_parts(from_w, span)
+        if old_part is not None:
+            counts[old_part.model_no] = max(
+                0, counts.get(old_part.model_no, 0) - n_lv
+            )
+        add(new_part, n_lv, f"踏板 幅{to_w}×{span}（区間指定）")
 
 
 def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
