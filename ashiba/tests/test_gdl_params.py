@@ -13,7 +13,7 @@ from ashiba.elevation_solver import solve_elevation
 from ashiba.master import load_master
 from ashiba.model import ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
-from ashiba.tapir_adapter import _line_params
+from ashiba.gdl_params import line_params, placement_of
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
 
@@ -33,7 +33,7 @@ class TestLineParams(unittest.TestCase):
         for sid in ("shinwa_A", "shinwa_B", "waku"):
             with self.subTest(sid):
                 m = build(sid)
-                p = _line_params(m, m.plan.edges[0])
+                p = line_params(m, m.plan.edges[0])
                 self.assertEqual(
                     p["levelList"],
                     ",".join(str(h) for h in m.elevation.level_heights),
@@ -42,7 +42,7 @@ class TestLineParams(unittest.TestCase):
     def test_rail_heights_are_nonzero_for_frames(self):
         """枠組は komaPitch=0。手すり高さを komaPitch から作ると作業床に重なって消える."""
         m = build("waku")
-        p = _line_params(m, m.plan.edges[0])
+        p = line_params(m, m.plan.edges[0])
         self.assertEqual(p["komaPitch"], 0.0)
         self.assertGreater(p["railH"], 0)
         self.assertGreater(p["midH"], 0)
@@ -51,7 +51,7 @@ class TestLineParams(unittest.TestCase):
     def test_row_width_and_deck_widths_follow_the_series(self):
         """既定値のままだと系列に関係なくA系列の幅で描かれる."""
         widths = {
-            sid: _line_params(build(sid), build(sid).plan.edges[0])
+            sid: line_params(build(sid), build(sid).plan.edges[0])
             for sid in ("shinwa_A", "shinwa_B", "waku")
         }
         self.assertNotEqual(widths["shinwa_A"]["deckW1"], widths["waku"]["deckW1"])
@@ -69,7 +69,7 @@ class TestLineParams(unittest.TestCase):
         from ashiba.quantity import take_off
 
         m = build("shinwa_A")
-        rowW_mm = round(_line_params(m, m.plan.edges[0])["rowW"] * 1000)
+        rowW_mm = round(line_params(m, m.plan.edges[0])["rowW"] * 1000)
         udegi = [
             l for l in take_off(m).lines
             if l.part.category == "布材" and l.part.nominal_dim == rowW_mm
@@ -79,7 +79,7 @@ class TestLineParams(unittest.TestCase):
     def test_plan_and_elevation_share_the_same_geometry(self):
         """平面と立面で別々に組み立てると片方だけ渡し漏れる."""
         m = build("shinwa_A")
-        p = _line_params(m, m.plan.edges[0])
+        p = line_params(m, m.plan.edges[0])
         for key in ("rowW", "deckW1", "levelList", "railH", "negaH"):
             self.assertIn(key, p)
 
@@ -100,7 +100,7 @@ class TestSingleRowScaffold(unittest.TestCase):
         for form, want in (("本足場", 2), ("一側足場", 1)):
             with self.subTest(form):
                 m = self._model(form)
-                self.assertEqual(_line_params(m, m.plan.edges[0])["nRows"], want)
+                self.assertEqual(line_params(m, m.plan.edges[0])["nRows"], want)
 
     def test_quantity_and_drawing_agree_on_the_row_count(self):
         """数量は1列で拾うのに図面が2列、という食い違いを防ぐ."""
@@ -112,9 +112,26 @@ class TestSingleRowScaffold(unittest.TestCase):
         jacks_double = take_off(double).qty_of("ジャッキ")
         self.assertEqual(jacks_double, jacks_single * 2)
         self.assertEqual(
-            _line_params(double, double.plan.edges[0])["nRows"],
-            2 * _line_params(single, single.plan.edges[0])["nRows"],
+            line_params(double, double.plan.edges[0])["nRows"],
+            2 * line_params(single, single.plan.edges[0])["nRows"],
         )
+
+
+class TestPlacement(unittest.TestCase):
+    """配置座標と回転角。plan.json だけで再配置できるようにする."""
+
+    def test_origin_is_the_start_corner_post(self):
+        m = build("shinwa_A")
+        for ep in m.plan.edges:
+            with self.subTest(edge=ep.edge_index):
+                pl = placement_of(m, ep.edge_index)
+                self.assertAlmostEqual(pl["x_mm"], ep.start_post[0])
+                self.assertAlmostEqual(pl["y_mm"], ep.start_post[1])
+
+    def test_angles_follow_the_edge_directions(self):
+        m = build("shinwa_A")
+        angles = [placement_of(m, e.edge_index)["angle_deg"] for e in m.plan.edges]
+        self.assertEqual(sorted(angles), [-90.0, 0.0, 90.0, 180.0])
 
 
 if __name__ == "__main__":

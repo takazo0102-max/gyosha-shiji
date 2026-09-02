@@ -232,12 +232,40 @@ def write_jack_table_csv(terrain, path: Path) -> None:
             w.writerow(["注記", note])
 
 
-def write_plan_json(model: ScaffoldModel, path: Path) -> None:
-    """GDL配置・再編集用の機械可読データ."""
+def write_plan_json(
+    model: ScaffoldModel,
+    path: Path,
+    stair_plan=None,
+    terrain=None,
+    platforms=None,
+    openings=None,
+) -> None:
+    """GDL配置・再編集用の機械可読データ.
+
+    「配置用」と謳う以上、これだけで再配置できる必要がある。以前は
+    系列と割付しか入っておらず、内外建地間隔・踏板幅・手すり高さ・
+    建地列数といったGDLパラメータも、配置座標も回転角も無かったため、
+    読む側が割付を解き直さないと配置できなかった。
+    """
+    from .gdl_params import line_params, placement_of
+
+    cfg = model.config
     data = {
         "series_id": model.master.series_id,
+        "system_type": model.master.system_type,
         "koma_pitch": model.master.koma_pitch,
         "scaffold_height_mm": model.scaffold_height_mm,
+        "config": {
+            "scaffold_form": cfg.scaffold_form,
+            "deck_widths": list(cfg.deck_widths or []),
+            "post_row_spacing_mm": model.post_row_spacing_mm,
+            "guard_rail_type": cfg.guard_rail_type,
+            "guard_rail_height_mm": model.guard_rail_height_mm,
+            "midrail_height_mm": cfg.midrail_height_mm,
+            "toe_board_height_mm": cfg.toe_board_height_mm,
+            "next_gen": cfg.next_gen,
+            "period_days": cfg.period_days,
+        },
         "elevation": {
             "jack_extension": model.elevation.jack_extension,
             "posts": model.elevation.posts,
@@ -254,6 +282,9 @@ def write_plan_json(model: ScaffoldModel, path: Path) -> None:
                 "start_post": list(ep.start_post),
                 "end_post": list(ep.end_post),
                 "remedy": ep.remedy,
+                # そのまま set_gdl_parameters に渡せる形で持つ
+                "placement": placement_of(model, ep.edge_index),
+                "gdl_params": line_params(model, ep),
             }
             for ep in model.plan.edges
         ],
@@ -261,4 +292,35 @@ def write_plan_json(model: ScaffoldModel, path: Path) -> None:
         "wall_ties": [asdict(t) for t in model.wall_ties],
         "warnings": model.plan.warnings + model.elevation.warnings,
     }
+    if stair_plan is not None and stair_plan.towers:
+        data["stairs"] = {
+            "count": stair_plan.count,
+            "max_travel_mm": round(stair_plan.max_travel_mm, 1),
+            "landings_per_tower": stair_plan.landings_per_tower,
+            "towers": [asdict(t) for t in stair_plan.towers],
+        }
+    if openings is not None and openings.openings:
+        data["openings"] = [asdict(o) for o in openings.openings]
+    if platforms is not None and (platforms.stages or platforms.hoists):
+        data["platforms"] = {
+            "stages": [asdict(s) for s in platforms.stages],
+            "hoists": [asdict(h) for h in platforms.hoists],
+            "extra_wall_ties": platforms.extra_wall_ties,
+        }
+    if terrain is not None and terrain.feet:
+        data["terrain"] = {
+            "reference_gl_mm": round(terrain.reference_gl_mm, 1),
+            "gl_difference_mm": round(terrain.gl_difference_mm, 1),
+            "deck_levels_abs_mm": [round(v, 1) for v in terrain.deck_levels_abs_mm],
+            "feet": [
+                {
+                    "index": f.index, "x": round(f.x, 1), "y": round(f.y, 1),
+                    "gl_mm": round(f.gl_mm, 1), "koma_offset": f.koma_offset,
+                    "jack_mm": round(f.jack_mm, 1),
+                    "base_plate_adjust_mm": round(f.base_plate_adjust_mm, 1),
+                    "posts": f.posts,
+                }
+                for f in terrain.feet
+            ],
+        }
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

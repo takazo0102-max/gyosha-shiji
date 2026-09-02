@@ -117,5 +117,45 @@ class TestReportCoversTheWholePlan(unittest.TestCase):
         self.assertIn("荷受けステージ 1基", text)
 
 
+class TestPlanJsonIsSelfSufficient(unittest.TestCase):
+    """「配置用」と謳う以上、これだけで再配置できること."""
+
+    def _json(self, **kw):
+        import json
+
+        from ashiba.report import write_plan_json
+
+        m = build()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "p.json"
+            write_plan_json(m, path, **kw)
+            return m, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_every_edge_carries_placement_and_gdl_params(self):
+        from ashiba.gdl_params import line_params
+
+        m, d = self._json()
+        self.assertEqual(len(d["edges"]), len(m.plan.edges))
+        for ep, e in zip(m.plan.edges, d["edges"]):
+            self.assertEqual(e["gdl_params"], line_params(m, ep))
+            self.assertAlmostEqual(e["placement"]["x_mm"], ep.start_post[0])
+
+    def test_config_is_recorded(self):
+        m, d = self._json()
+        self.assertEqual(d["config"]["post_row_spacing_mm"], m.post_row_spacing_mm)
+        self.assertEqual(d["config"]["scaffold_form"], m.config.scaffold_form)
+
+    def test_optional_sections_appear_only_when_given(self):
+        from ashiba.stairs import auto_place_stairs
+
+        _m, plain = self._json()
+        self.assertNotIn("stairs", plain)
+        m, with_stairs = self._json(stair_plan=auto_place_stairs(build()))
+        self.assertIn("stairs", with_stairs)
+        self.assertEqual(
+            len(with_stairs["stairs"]["towers"]), with_stairs["stairs"]["count"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

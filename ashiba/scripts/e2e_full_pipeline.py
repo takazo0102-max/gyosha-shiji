@@ -169,7 +169,10 @@ def main() -> None:
         stair_plan=stair_plan, structural=structural, terrain=terrain,
         platforms=platforms,
     )
-    write_plan_json(model, out / f"{name}_plan.json")
+    write_plan_json(
+        model, out / f"{name}_plan.json",
+        stair_plan=stair_plan, terrain=terrain, platforms=platforms,
+    )
     write_jack_table_csv(terrain, out / f"{name}_ジャッキ量一覧.csv")
     write_notification_xlsx(
         model, quantity, checks, structural, out / f"{name}_設置届一式.xlsx",
