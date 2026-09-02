@@ -306,6 +306,39 @@ class TestFrameSpecificRules(unittest.TestCase):
         self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
 
 
+class TestFrameCannotBeSingleRow(unittest.TestCase):
+    """建枠は内外2列を成す。一側足場という指定は成り立たない."""
+
+    def _model(self, form):
+        master = load_master("waku")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(scaffold_form=form),
+            building_height_mm=16000, clearance_space_mm=500,
+        )
+
+    def test_combination_is_ng(self):
+        from ashiba.law_check import run_all_checks
+
+        c = [r for r in run_all_checks(self._model("一側足場")) if r.check_id == 1][0]
+        self.assertEqual(c.status, "NG")
+        self.assertIn("枠組", c.message)
+
+    def test_quantity_and_check_do_not_change(self):
+        """NGの組合せで数量・検定だけ静かに変わると、誤りに気づけない."""
+        from ashiba.quantity import take_off
+        from ashiba.structural import run_structural
+
+        a, b = self._model("本足場"), self._model("一側足場")
+        qa, qb = take_off(a), take_off(b)
+        self.assertEqual(qa.total_weight_kg, qb.total_weight_kg)
+        self.assertEqual(qa.qty_of("建枠"), qb.qty_of("建枠"))
+        self.assertEqual(
+            run_structural(a, qa).post.ratio, run_structural(b, qb).post.ratio
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
 

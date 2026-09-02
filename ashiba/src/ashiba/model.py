@@ -165,7 +165,10 @@ class ScaffoldModel:
         床幅も本足場のものになってしまう。
         """
         ws = tuple(self.config.deck_widths or ())
-        if self.config.scaffold_form == "一側足場" and len(ws) > 1:
+        # 枠組は建枠が内外2列を成すので一側にはできない（法規チェック1でNG）。
+        # ここで幅を1枚に落とすと、建枠幅まで細くなって矛盾が広がる
+        if (self.config.scaffold_form == "一側足場"
+                and not self.master.is_frame and len(ws) > 1):
             return (max(ws),)
         return ws
 

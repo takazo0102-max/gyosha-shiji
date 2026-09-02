@@ -82,6 +82,14 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
             f"躯体外面から水平{m.clearance_space_mm:.0f}mm≧1mのスペースがあるため"
             "一側足場は使用できません。本足場としてください", basis,
         )
+    if m.master.is_frame and m.config.scaffold_form == "一側足場":
+        # 建枠そのものが内外2列を成す。一側で組める製品ではない
+        return CheckResult(
+            1, "本足場原則", NG,
+            "枠組足場は建枠が内外2列を成すため一側足場にはできません。"
+            "本足場とするか、くさび緊結式（一側可）で計画してください",
+            basis + "／枠組足場の構造",
+        )
     return CheckResult(1, "本足場原則", OK, f"足場形式: {m.config.scaffold_form}", basis)
 
 

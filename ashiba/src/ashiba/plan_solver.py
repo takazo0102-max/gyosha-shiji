@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -136,27 +137,60 @@ def achievable_sums(coins: list[int], lo: int, hi: int) -> dict[int, list[int]]:
 
     DPテーブルの大きさと「返す範囲」は別物にしてある。テーブルを広げるついでに
     返す上限まで広げてしまうと、呼び出し側が求めた帯の外の解を混ぜてしまう。
+
+    結果はキャッシュから複製して返す。呼び出し側は返ったリストを組合せとして
+    保持するので、キャッシュの実体をそのまま渡すと後から書き換えられ得る。
     """
-    table_hi = max(hi, max(coins))
-    best: list[Optional[list[int]]] = [None] * (table_hi + 1)
-    best[0] = []
-    for s in range(1, table_hi + 1):
-        for c in sorted(coins, reverse=True):
-            if s - c >= 0 and best[s - c] is not None:
-                cand = best[s - c] + [c]
-                if best[s] is None or _better(cand, best[s]):
-                    best[s] = cand
     return {
-        s: sorted(best[s], reverse=True)
-        for s in range(max(lo, 1), hi + 1)
-        if best[s] is not None
+        s: list(v)
+        for s, v in _achievable_core(tuple(sorted(set(coins))), lo, hi).items()
     }
 
 
-def _better(a: list[int], b: list[int]) -> bool:
+@lru_cache(maxsize=64)
+def _achievable_core(
+    coins: tuple[int, ...], lo: int, hi: int
+) -> dict[int, tuple[int, ...]]:
+    """DP本体。同じ系列・同じ帯で何度も呼ばれるのでキャッシュする.
+
+    構成は常に降順のタプルで持つ。以前は比較のたびに両辺をソートしており、
+    テスト1本の割付で sorted が数百万回走っていた。
+    """
+    table_hi = max(hi, max(coins))
+    coins_desc = sorted(coins, reverse=True)
+    best: list[Optional[tuple[int, ...]]] = [None] * (table_hi + 1)
+    best[0] = ()
+    for s in range(1, table_hi + 1):
+        cur: Optional[tuple[int, ...]] = None
+        for c in coins_desc:
+            prev = best[s - c] if s - c >= 0 else None
+            if prev is None:
+                continue
+            cand = _insert_desc(prev, c)
+            if cur is None or _better(cand, cur):
+                cur = cand
+        best[s] = cur
+    return {
+        s: best[s] for s in range(max(lo, 1), hi + 1) if best[s] is not None
+    }
+
+
+def _insert_desc(seq: tuple[int, ...], value: int) -> tuple[int, ...]:
+    """降順のタプルに1要素を降順のまま挿入する."""
+    i = 0
+    while i < len(seq) and seq[i] >= value:
+        i += 1
+    return seq[:i] + (value,) + seq[i:]
+
+
+def _better(a, b) -> bool:
+    """本数が少ない方が良い。同数なら大きい部材を使う方が良い.
+
+    a・bは降順で渡すこと（plan_solver内は降順のタプル、立面側はリスト）。
+    """
     if len(a) != len(b):
         return len(a) < len(b)
-    return sorted(a, reverse=True) > sorted(b, reverse=True)
+    return tuple(sorted(a, reverse=True)) > tuple(sorted(b, reverse=True))
 
 
 def _small_span_count(spans: list[int], main_span: int) -> int:

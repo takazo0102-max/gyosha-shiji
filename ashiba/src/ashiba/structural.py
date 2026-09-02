@@ -438,7 +438,12 @@ def check_post(
     450mm:11.8kN）ので、傾斜地で平坦時の繰出し量のまま検定すると
     2倍近く危険側になる。
     """
-    n_posts = model.plan.total_posts * (1 if model.config.scaffold_form == "一側足場" else 2)
+    # 枠組は建枠1枚が2脚なので、一側指定でも脚は2列ぶん（その組合せ自体は
+    # 法規チェック1でNGになる）
+    single_row = (
+        model.config.scaffold_form == "一側足場" and not model.master.is_frame
+    )
+    n_posts = model.plan.total_posts * (1 if single_row else 2)
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
 
     cap_deck = caps.get(("作業床許容積載荷重", "スパン"))
