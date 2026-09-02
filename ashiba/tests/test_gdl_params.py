@@ -71,5 +71,38 @@ class TestLineParams(unittest.TestCase):
             self.assertIn(key, p)
 
 
+class TestSingleRowScaffold(unittest.TestCase):
+    """一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる."""
+
+    def _model(self, form):
+        master = load_master("shinwa_A")
+        plan = solve_plan(RECT, master)
+        return ScaffoldModel(
+            master=master, plan=plan,
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(scaffold_form=form),
+        )
+
+    def test_row_count_follows_the_form(self):
+        for form, want in (("本足場", 2), ("一側足場", 1)):
+            with self.subTest(form):
+                m = self._model(form)
+                self.assertEqual(_line_params(m, m.plan.edges[0])["nRows"], want)
+
+    def test_quantity_and_drawing_agree_on_the_row_count(self):
+        """数量は1列で拾うのに図面が2列、という食い違いを防ぐ."""
+        from ashiba.quantity import take_off
+
+        single = self._model("一側足場")
+        double = self._model("本足場")
+        jacks_single = take_off(single).qty_of("ジャッキ")
+        jacks_double = take_off(double).qty_of("ジャッキ")
+        self.assertEqual(jacks_double, jacks_single * 2)
+        self.assertEqual(
+            _line_params(double, double.plan.edges[0])["nRows"],
+            2 * _line_params(single, single.plan.edges[0])["nRows"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

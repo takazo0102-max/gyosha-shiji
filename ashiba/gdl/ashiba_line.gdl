@@ -37,6 +37,7 @@
 !   negaH          長さ    根がらみ高さ GLから 0で自動                             既定 0
 !   railH          長さ    手すり高さ 作業床から 0で自動                           既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                             既定 0
+!   nRows          整数    建地列数 2=本足場 1=一側足場                            既定 2
 !   warnPen        整数    注記強調のペン番号 ペンテーブル依存                     既定 20
 !   texSiz         実数    文字高mm                                                既定 2.5
 ! ==========================================================
@@ -234,6 +235,11 @@ if railMid <= 0 then railMid = komaPitch
 nTiePair = nTie
 if nTieH < nTiePair then nTiePair = nTieH
 
+! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
+! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
+rowStart = 0
+if nRows < 2 then rowStart = 1
+
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
 r_nuno = 0.0427 / 2	! 布材 φ42.7
 
@@ -279,7 +285,8 @@ line2 x, 0, x, -rowW
 
 x = 0
 for ip = 1 to nSpan + 1
-	circle2 x, 0, r_sic
+	! 一側足場は建地1列。無い列に支柱記号を描かない
+	if nRows >= 2 then circle2 x, 0, r_sic
 	circle2 x, -rowW, r_sic
 	hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]
@@ -446,7 +453,7 @@ pen 1
 ! ---- 支柱（各スパン境界に内外1対） ----
 x = 0
 for ip = 1 to nSpan + 1
-	for row = 0 to 1
+	for row = rowStart to 1
 		add x, -row * rowW, 0
 		! ジャッキ
 		cylind jackOut, 0.0381 / 2
@@ -467,7 +474,7 @@ for il = 1 to nLv
 	x = 0
 	for ip = 1 to nSpan
 		! 内外の布材（床レベル）
-		for row = 0 to 1
+		for row = rowStart to 1
 			add x, -row * rowW, z
 			roty 90
 			cylind spans[ip], r_nuno
@@ -484,20 +491,24 @@ for il = 1 to nLv
 			cylind spans[ip], r_nuno
 			del 2
 		endif
-		! 腕木（内外連結、-Y向き）
+		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない
+		if nRows >= 2 then
+			add x, 0, z
+			rotz -90
+			roty 90
+			cylind rowW, r_nuno
+			del 3
+		endif
+		x = x + spans[ip]
+	next ip
+	! 終端の腕木
+	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
 		roty 90
 		cylind rowW, r_nuno
 		del 3
-		x = x + spans[ip]
-	next ip
-	! 終端の腕木
-	add x, 0, z
-	rotz -90
-	roty 90
-	cylind rowW, r_nuno
-	del 3
+	endif
 next il
 
 ! ---- 踏板・幅木 ----

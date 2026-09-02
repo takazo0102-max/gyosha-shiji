@@ -32,7 +32,8 @@ line2 x, 0, x, -rowW
 
 x = 0
 for ip = 1 to nSpan + 1
-	circle2 x, 0, r_sic
+	! 一側足場は建地1列。無い列に支柱記号を描かない
+	if nRows >= 2 then circle2 x, 0, r_sic
 	circle2 x, -rowW, r_sic
 	hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]

@@ -142,6 +142,10 @@ def _col_name(idx: int) -> str:
     return name
 
 
+def _is_finite(v) -> bool:
+    return not isinstance(v, float) or (v == v and v not in (float("inf"), float("-inf")))
+
+
 def _esc(s: str) -> str:
     return (
         str(s)
@@ -175,8 +179,13 @@ def _sheet_xml(sheet: Sheet) -> str:
             elif isinstance(cell.value, bool):
                 cells.append(f'<c r="{ref}"{st} t="inlineStr"><is><t>'
                              f'{_esc(str(cell.value))}</t></is></c>')
-            elif isinstance(cell.value, (int, float)):
+            elif isinstance(cell.value, (int, float)) and _is_finite(cell.value):
                 cells.append(f'<c r="{ref}"{st}><v>{cell.value}</v></c>')
+            elif isinstance(cell.value, float):
+                # inf / nan を数値セルに書くとブックが開けなくなる。
+                # 検定比は許容耐力0のとき inf になり得るので、文字で残す
+                cells.append(f'<c r="{ref}"{st} t="inlineStr"><is><t>'
+                             f'{_esc("計算不能(" + str(cell.value) + ")")}</t></is></c>')
             else:
                 cells.append(f'<c r="{ref}"{st} t="inlineStr"><is><t xml:space="preserve">'
                              f"{_esc(cell.value)}</t></is></c>")

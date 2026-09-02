@@ -258,9 +258,17 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
     v_max, h_max = model.wall_tie_max_spacing()
+    # 法定上限は足場の種類で違う（570条1項五号）。決め打ちすると届出書に
+    # 誤った基準値が載る
+    v_lim, h_lim, tie_basis = model.wall_tie_limits()
     _kv(s, "壁つなぎ本数", len(model.wall_ties), "箇所")
     _kv(s, "実配置の最大間隔", f"垂直{v_max:.0f} × 水平{h_max:.0f}",
-        "mm（法定 垂直5000以下 × 水平5500以下）")
+        f"mm（法定 垂直{v_lim:.0f}以下 × 水平{h_lim:.0f}以下） {tie_basis}")
+    untied = model.edges_without_wall_ties()
+    if untied:
+        _kv(s, "壁つなぎが入らない面",
+            "、".join(f"辺{i}" for i in untied),
+            "両隣の面にコーナー経由で支持される前提。単管等での別途拘束を検討")
     _kv(s, "支配的な壁つなぎ", t.governing or "—",
         "支配面積が最大となる1本で検定する")
     _kv(s, "支配幅 lh", t.lh_m, "m（隣の壁つなぎとの中間まで。端は支点として半分）")
@@ -301,7 +309,9 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     else:
         _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
     s.add_blank()
-    _kv(s, "ジャッキ繰出し量", p.jack_extension_mm, "mm")
+    _kv(s, "ジャッキ繰出し量", p.jack_extension_mm,
+        "mm（敷地高低差がある場合は最も繰り出している支柱の値。"
+        "許容支持力は繰出し長で低下する）")
     _kv(s, "支配する検定", p.governing, "")
     _kv(s, "許容支持力", p.allowable_kn,
         f"kN  {p.source}" + ("" if p.verified else "  ※未確認値"))

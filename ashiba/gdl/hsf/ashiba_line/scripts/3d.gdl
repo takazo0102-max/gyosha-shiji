@@ -7,7 +7,7 @@ pen 1
 ! ---- 支柱（各スパン境界に内外1対） ----
 x = 0
 for ip = 1 to nSpan + 1
-	for row = 0 to 1
+	for row = rowStart to 1
 		add x, -row * rowW, 0
 		! ジャッキ
 		cylind jackOut, 0.0381 / 2
@@ -28,7 +28,7 @@ for il = 1 to nLv
 	x = 0
 	for ip = 1 to nSpan
 		! 内外の布材（床レベル）
-		for row = 0 to 1
+		for row = rowStart to 1
 			add x, -row * rowW, z
 			roty 90
 			cylind spans[ip], r_nuno
@@ -45,20 +45,24 @@ for il = 1 to nLv
 			cylind spans[ip], r_nuno
 			del 2
 		endif
-		! 腕木（内外連結、-Y向き）
+		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない
+		if nRows >= 2 then
+			add x, 0, z
+			rotz -90
+			roty 90
+			cylind rowW, r_nuno
+			del 3
+		endif
+		x = x + spans[ip]
+	next ip
+	! 終端の腕木
+	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
 		roty 90
 		cylind rowW, r_nuno
 		del 3
-		x = x + spans[ip]
-	next ip
-	! 終端の腕木
-	add x, 0, z
-	rotz -90
-	roty 90
-	cylind rowW, r_nuno
-	del 3
+	endif
 next il
 
 ! ---- 踏板・幅木 ----

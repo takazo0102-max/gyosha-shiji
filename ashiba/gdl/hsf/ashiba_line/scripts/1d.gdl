@@ -188,6 +188,11 @@ if railMid <= 0 then railMid = komaPitch
 nTiePair = nTie
 if nTieH < nTiePair then nTiePair = nTieH
 
+! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
+! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
+rowStart = 0
+if nRows < 2 then rowStart = 1
+
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
 r_nuno = 0.0427 / 2	! 布材 φ42.7
 

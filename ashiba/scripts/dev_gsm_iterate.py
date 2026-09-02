@@ -130,10 +130,14 @@ def parse_params(argv: list[str]) -> dict:
         if tok.startswith("--") or "=" not in tok:
             break
         k, v = tok.split("=", 1)
+        # 整数パラメータ（warnPen・nRows等）にfloatを送ると型不一致で弾かれる
         try:
-            out[k] = float(v)
+            out[k] = int(v)
         except ValueError:
-            out[k] = v
+            try:
+                out[k] = float(v)
+            except ValueError:
+                out[k] = v
     return out
 
 

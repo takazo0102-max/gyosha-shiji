@@ -209,6 +209,11 @@ def build_notification_info(spec: dict) -> NotificationInfo:
 
 
 def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
+    # 文字列で渡されることがある（スクリプトからの直接呼び出し）。
+    # input_path だけ Path() していて out_dir はしていなかった
+    out_dir = Path(out_dir)
+    if master_csv is not None:
+        master_csv = Path(master_csv)
     spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
     model = build_model(spec, master_csv)
     site = build_site(spec)

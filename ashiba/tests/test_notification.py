@@ -138,5 +138,60 @@ class TestNotification(unittest.TestCase):
             self.assertIn("未確認値", tie)
 
 
+class TestNonFiniteValues(unittest.TestCase):
+    """inf / nan を数値セルに書くとブックが開けなくなる."""
+
+    def test_infinite_ratio_does_not_corrupt_the_book(self):
+        from ashiba.xlsx_writer import Cell
+
+        wb = Workbook()
+        sh = wb.sheet("t")
+        sh.add_cells([Cell(float("inf")), Cell(float("nan")), Cell(2.5)])
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "t.xlsx"
+            wb.save(path)
+            z = zipfile.ZipFile(path)
+            name = [n for n in z.namelist() if n.endswith("sheet1.xml")][0]
+            xml = z.read(name).decode()
+        assert_wellformed(xml.encode())
+        self.assertIn("計算不能", xml)
+        self.assertIn("<v>2.5</v>", xml)
+
+
+class TestSheetsStateTheRightBasis(unittest.TestCase):
+    """届出書に載る基準値は足場の種類で変わる（570条1項五号）."""
+
+    def _sheet_text(self, series_id):
+        master = load_master(series_id)
+        plan = solve_plan(RECT, master)
+        elev = solve_elevation(16300, master=master)
+        model = ScaffoldModel(
+            master=master, plan=plan, elevation=elev,
+            config=ScaffoldConfig(period_days=90), building_height_mm=16000,
+        )
+        q = take_off(model)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "n.xlsx"
+            write_notification_xlsx(
+                model, q, run_all_checks(model), run_structural(model, q),
+                path, "テスト", NotificationInfo(),
+            )
+            z = zipfile.ZipFile(path)
+            return "".join(
+                z.read(n).decode() for n in z.namelist() if n.endswith(".xml")
+            )
+
+    def test_wedge_states_the_tube_scaffold_limits(self):
+        text = self._sheet_text("shinwa_A")
+        self.assertIn("垂直5000以下", text)
+        self.assertIn("くさび緊結式足場", text)
+
+    def test_frame_states_the_frame_scaffold_limits(self):
+        text = self._sheet_text("waku")
+        self.assertIn("垂直9000以下", text)
+        self.assertIn("枠組足場", text)
+        self.assertNotIn("垂直5000以下", text)
+
+
 if __name__ == "__main__":
     unittest.main()
