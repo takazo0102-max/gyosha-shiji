@@ -8,6 +8,7 @@
 """
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -141,6 +142,32 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
         m = full_model()
         sent = set(line_params(m, m.plan.edges[0]))
         self.assertEqual(sent - declared, set())
+
+
+class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
+    """平面・立面・3Dが同じ区間で床を抜くこと（3Dだけ敷いたままだった）."""
+
+    def _script(self, name):
+        return (Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+                / "ashiba_line" / "scripts" / name).read_text(encoding="utf-8")
+
+    def test_3d_skips_stair_and_opening_bays(self):
+        body = self._script("3d.gdl")
+        self.assertIn("stS[it4]", body)      # 階段室の判定
+        self.assertIn("bmH[ib4]", body)      # 梁枠より下の判定
+
+    def test_3d_omits_posts_inside_an_opening(self):
+        self.assertIn("bBase", self._script("3d.gdl"))
+
+    def test_3d_draws_beams_and_stairs(self):
+        body = self._script("3d.gdl")
+        self.assertIn("梁枠", body)
+        self.assertIn("階段室", body)
+
+    def test_2d_has_the_same_checks(self):
+        body = self._script("2d.gdl")
+        for token in ("stS[it2]", "bmS[ib3]", "stS[it3]", "bmH[ib2]"):
+            self.assertIn(token, body)
 
 
 class TestDetailParametersAreWired(unittest.TestCase):

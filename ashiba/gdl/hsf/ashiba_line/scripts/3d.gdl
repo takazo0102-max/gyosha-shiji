@@ -5,19 +5,32 @@
 pen 1
 
 ! ---- 支柱（各スパン境界に内外1対） ----
+! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
+! 実際には無い建地を干渉確認に使うことになる
 x = 0
 for ip = 1 to nSpan + 1
+	bBase = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+	next ib
 	for row = rowStart to 1
-		add x, -row * rowW, 0
-		! ジャッキ
-		cylind jackOut, 0.0381 / 2
-		addz jackOut
-		! 支柱積み上げ
-		for j = 1 to nPost
-			cylind posts[j], r_sic
-			addz posts[j]
-		next j
-		del nPost + 2
+		if bBase = 0 then
+			add x, -row * rowW, 0
+			! ジャッキ
+			cylind jackOut, 0.0381 / 2
+			addz jackOut
+			! 支柱積み上げ
+			for j = 1 to nPost
+				cylind posts[j], r_sic
+				addz posts[j]
+			next j
+			del nPost + 2
+		else
+			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
+			add x, -row * rowW, bBase
+			cylind postTop - bBase, r_sic
+			del 1
+		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
 next ip
@@ -71,18 +84,29 @@ if showDeck then
 		z = lv[il]
 		x = 0
 		for ip = 1 to nSpan
-			add x, -rowW + 0.05, z
-			block spans[ip], deckW1, 0.045
-			del 1
-			if deckW2 > 0 then
-				add x, -rowW + 0.05 + deckW1 + 0.02, z
-				block spans[ip], deckW2, 0.045
+			! 階段室は段板で上がるので床を敷かない。開口部（梁枠より下）は通路
+			skipD = 0
+			for it4 = 1 to nSt
+				if x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then skipD = 1
+			next it4
+			for ib4 = 1 to nBm
+				if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
+						z < bmH[ib4] - 0.001 then skipD = 1
+			next ib4
+			if skipD = 0 then
+				add x, -rowW + 0.05, z
+				block spans[ip], deckW1, 0.045
+				del 1
+				if deckW2 > 0 then
+					add x, -rowW + 0.05 + deckW1 + 0.02, z
+					block spans[ip], deckW2, 0.045
+					del 1
+				endif
+				! 幅木（外側）
+				add x, -rowW - 0.02, z + 0.045
+				block spans[ip], 0.02, 0.157
 				del 1
 			endif
-			! 幅木（外側）
-			add x, -rowW - 0.02, z + 0.045
-			block spans[ip], 0.02, 0.157
-			del 1
 			x = x + spans[ip]
 		next ip
 	next il
@@ -167,6 +191,53 @@ for ig = 1 to nSg
 	cylind sgL[ig], r_nuno
 	del 2
 next ig
+
+! ---- 梁枠（開口部）: 上下弦材と斜材 ----
+! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった
+for ib2 = 1 to nBm
+	bs = bmS[ib2]
+	bl = bmL[ib2]
+	bh = bmH[ib2]
+	for row2 = rowStart to 1
+		add bs, -row2 * rowW - 0.02, bh - 0.45
+		block bl, 0.04, 0.04
+		del 1
+		add bs, -row2 * rowW - 0.02, bh - 0.04
+		block bl, 0.04, 0.04
+		del 1
+		! 斜材（4分割の折れ線をブロックで近似）
+		nd2 = 4
+		for id2 = 0 to nd2 - 1
+			dlen = bl / nd2
+			ang = atn(0.41 / dlen)
+			add bs + dlen * id2, -row2 * rowW - 0.015, bh - 0.45
+			if id2 - 2 * int(id2 / 2) = 0 then
+				roty -ang
+				block sqr(dlen * dlen + 0.41 * 0.41), 0.03, 0.03
+				del 2
+			else
+				addz 0.41
+				roty ang
+				block sqr(dlen * dlen + 0.41 * 0.41), 0.03, 0.03
+				del 3
+			endif
+		next id2
+	next row2
+next ib2
+
+! ---- 階段室（段板を傾けて示す） ----
+for it5 = 1 to nSt
+	sx = stS[it5]
+	sl = stL[it5]
+	for il5 = 1 to nLv - 1
+		rise = lv[il5 + 1] - lv[il5]
+		ang5 = atn(rise / sl)
+		add sx, -rowW + 0.05, lv[il5]
+		roty -ang5
+		block sqr(sl * sl + rise * rise), rowW - 0.10, 0.04
+		del 2
+	next il5
+next it5
 
 ! ---- ブラケット区間（拡幅ぶんの作業床） ----
 for ik = 1 to nBk
