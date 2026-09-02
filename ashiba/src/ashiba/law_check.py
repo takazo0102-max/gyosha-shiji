@@ -1,6 +1,6 @@
 """法規チェック.
 
-仕様5の自動判定リスト10項目に、建地間隔（#11）を加えた11項目。
+仕様5の自動判定リスト10項目に、建地間隔（#11）と昇降設備（#12）を加えた12項目。
 判定は OK / WARN / NG の3値。根拠条文を basis に必ず持つ。
 """
 
@@ -26,21 +26,32 @@ class CheckResult:
     basis: str
 
 
-def run_all_checks(model: ScaffoldModel) -> list[CheckResult]:
+def run_all_checks(
+    model: ScaffoldModel, stair_plan=None, terrain=None
+) -> list[CheckResult]:
+    """法規チェック12項目.
+
+    stair_plan / terrain を渡すと、その結果を使って判定する:
+    - 昇降設備(#12)は階段の配置が無いと判定できない
+    - ジャッキ(#6)は敷地高低差で支柱ごとに繰出し量が違う。平坦時の値だけ
+      見ていると、実際には上限超過の支柱があるのにOKと出る
+    """
     checks = [
         check_full_scaffold_principle,
         check_working_deck,
         check_guard_rail,
         check_first_ledger,
         check_negarami,
-        check_jack_extension,
         check_wall_ties,
         check_height_reinforcement,
         check_series_lock,
         check_asagao,
         check_post_spacing,
     ]
-    return [fn(model) for fn in checks]
+    results = [fn(model) for fn in checks]
+    results.append(check_jack_extension(model, terrain))
+    results.append(check_stairs(model, stair_plan))
+    return sorted(results, key=lambda r: r.check_id)
 
 
 def required_asagao_stages(height_mm: float) -> int:
@@ -153,12 +164,75 @@ def check_negarami(m: ScaffoldModel) -> CheckResult:
 
 # ---- #6 ジャッキ ---------------------------------------------------------
 
-def check_jack_extension(m: ScaffoldModel) -> CheckResult:
+def check_jack_extension(m: ScaffoldModel, terrain=None) -> CheckResult:
+    """ジャッキ繰出し量。傾斜地では支柱ごとに違うので最大の1本で見る.
+
+    平坦時の値だけ見ていると、敷地の警告では「上限超過が16本」と出ている
+    のに法規チェックはOK、という食い違いが起きる。
+    """
     basis = f"実務基準（繰り出し{JACK_MAX_EXTENSION}mm以下）"
     j = m.elevation.jack_extension
+    over = []
+    if terrain is not None and getattr(terrain, "feet", None):
+        over = [f for f in terrain.feet if f.jack_mm > JACK_MAX_EXTENSION]
+        j = max(j, max((f.jack_mm for f in terrain.feet), default=0))
+    if over:
+        return CheckResult(
+            6, "ジャッキ", WARN,
+            f"敷地高低差により繰り出しが{JACK_MAX_EXTENSION}mmを超える支柱が"
+            f"{len(over)}本あります（最大{j:.0f}mm）。"
+            "該当支柱は敷板調整または部分的な床均しで対応してください",
+            basis,
+        )
     if j > JACK_MAX_EXTENSION:
-        return CheckResult(6, "ジャッキ", WARN, f"繰り出し{j}mm > {JACK_MAX_EXTENSION}mm", basis)
-    return CheckResult(6, "ジャッキ", OK, f"繰り出し{j}mm ≦ {JACK_MAX_EXTENSION}mm", basis)
+        return CheckResult(
+            6, "ジャッキ", WARN, f"繰り出し{j:.0f}mm > {JACK_MAX_EXTENSION}mm", basis
+        )
+    return CheckResult(
+        6, "ジャッキ", OK, f"繰り出し{j:.0f}mm ≦ {JACK_MAX_EXTENSION}mm", basis
+    )
+
+
+# ---- #12 昇降設備 --------------------------------------------------------
+
+def check_stairs(m: ScaffoldModel, stair_plan=None) -> CheckResult:
+    """昇降設備の有無と、昇降設備までの水平移動距離.
+
+    ツールは階段を自動配置しているのに、法規チェックの一覧には入って
+    いなかった。設置届の法規チェック表に昇降設備の行が無いのはまずい。
+    """
+    from .stairs import (
+        DEFAULT_MAX_TRAVEL_MM,
+        MIN_HEIGHT_FOR_STAIRS_MM,
+        validate_stairs,
+    )
+
+    basis = "安衛則526条（高さ1.5m超は昇降設備）／実務指針（水平移動30m以内）"
+    h = m.scaffold_height_mm
+    if h <= MIN_HEIGHT_FOR_STAIRS_MM:
+        return CheckResult(
+            12, "昇降設備", OK,
+            f"足場高さ{h}mm ≦ {MIN_HEIGHT_FOR_STAIRS_MM}mm のため昇降設備は不要",
+            basis,
+        )
+    if stair_plan is None:
+        return CheckResult(
+            12, "昇降設備", WARN,
+            f"足場高さ{h / 1000:.1f}mには昇降設備が必要ですが、"
+            "階段の配置が未指定のため判定できません",
+            basis,
+        )
+    issues = validate_stairs(m, stair_plan)
+    if issues:
+        return CheckResult(12, "昇降設備", NG, "、".join(issues), basis)
+    return CheckResult(
+        12, "昇降設備", OK,
+        f"階段{stair_plan.count}箇所（最大水平移動"
+        f"{stair_plan.max_travel_mm / 1000:.1f}m ≦ "
+        f"{DEFAULT_MAX_TRAVEL_MM / 1000:.0f}m）"
+        f"／踊り場計{stair_plan.total_landings}段",
+        basis,
+    )
 
 
 # ---- #7 壁つなぎ ---------------------------------------------------------

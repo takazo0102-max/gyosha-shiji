@@ -70,16 +70,16 @@ def make_violation_model():
 class TestLawChecks(unittest.TestCase):
     def test_good_model_passes(self):
         results = run_all_checks(make_good_model())
-        self.assertEqual(len(results), 11)
+        self.assertEqual(len(results), 12)
         bad = [r for r in results if r.status == NG]
         self.assertEqual(bad, [], f"NG: {[(r.name, r.message) for r in bad]}")
 
     def test_all_violations_detected(self):
         results = run_all_checks(make_violation_model())
-        self.assertEqual(len(results), 11)
+        self.assertEqual(len(results), 12)
         by_id = {r.check_id: r for r in results}
         # 全項目 OK 以外（NG または WARN）で検出される
-        for cid in range(1, 12):
+        for cid in range(1, 13):
             self.assertNotEqual(
                 by_id[cid].status, OK,
                 f"チェック#{cid} {by_id[cid].name} が違反を検出できていない",
@@ -94,6 +94,70 @@ class TestLawChecks(unittest.TestCase):
     def test_basis_present(self):
         for r in run_all_checks(make_good_model()):
             self.assertTrue(r.basis)
+
+
+class TestStairCheck(unittest.TestCase):
+    """#12 昇降設備。階段を自動配置しているのにチェック一覧に無かった."""
+
+    def test_unspecified_plan_is_warned_not_ok(self):
+        r = [c for c in run_all_checks(make_good_model()) if c.check_id == 12][0]
+        self.assertEqual(r.status, WARN)
+        self.assertIn("判定できません", r.message)
+
+    def test_valid_plan_passes(self):
+        from ashiba.stairs import auto_place_stairs
+
+        m = make_good_model()
+        plan = auto_place_stairs(m)
+        r = [
+            c for c in run_all_checks(m, stair_plan=plan) if c.check_id == 12
+        ][0]
+        self.assertEqual(r.status, OK)
+        self.assertIn("階段", r.message)
+
+    def test_missing_stairs_is_ng(self):
+        from ashiba.stairs import StairPlan
+
+        m = make_good_model()
+        r = [
+            c for c in run_all_checks(m, stair_plan=StairPlan())
+            if c.check_id == 12
+        ][0]
+        self.assertEqual(r.status, NG)
+
+    def test_low_scaffold_needs_none(self):
+        from ashiba.elevation_solver import solve_elevation
+
+        m = make_good_model()
+        m.elevation = solve_elevation(1400, post_lengths=[900, 450], koma_pitch=450)
+        r = [c for c in run_all_checks(m) if c.check_id == 12][0]
+        self.assertEqual(r.status, OK)
+        self.assertIn("不要", r.message)
+
+
+class TestJackCheckUsesTerrain(unittest.TestCase):
+    """傾斜地では支柱ごとに繰出し量が違う。平坦時の値だけ見ない."""
+
+    def _terrain(self, m):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        return solve_post_feet(m, GroundModel(points=[
+            (0, 0, 0), (30000, 0, 400), (30000, 20000, 1200), (0, 20000, 800),
+        ]))
+
+    def test_flat_site_is_ok(self):
+        r = [c for c in run_all_checks(make_good_model()) if c.check_id == 6][0]
+        self.assertEqual(r.status, OK)
+
+    def test_slope_with_over_extended_posts_is_warned(self):
+        m = make_good_model()
+        t = self._terrain(m)
+        r = [
+            c for c in run_all_checks(m, terrain=t) if c.check_id == 6
+        ][0]
+        self.assertEqual(r.status, WARN)
+        self.assertIn("支柱が", r.message)
+        self.assertIn("本", r.message)
 
 
 if __name__ == "__main__":

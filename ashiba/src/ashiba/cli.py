@@ -241,14 +241,14 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
-    checks = run_all_checks(model)
     platforms = validate_platforms(model, *build_platforms(spec))
+    # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
+    terrain = solve_post_feet(model, build_ground(spec))
+    checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms,
     )
-    # 構造計算はジャッキ繰出し量に依存するので、敷地を先に解く
-    terrain = solve_post_feet(model, build_ground(spec))
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain
     )

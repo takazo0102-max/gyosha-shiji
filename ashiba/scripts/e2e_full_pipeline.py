@@ -128,7 +128,7 @@ def main() -> None:
     print(f"6. 荷受けステージ: {len(stages)}基 直下建地+{platforms.max_post_load_kn:.2f}kN")
 
     # --- 4. 検査と数量 ---
-    checks = run_all_checks(model)
+    checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
     quantity = take_off(model, stair_plan=stair_plan)
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain

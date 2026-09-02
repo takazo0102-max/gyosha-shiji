@@ -135,7 +135,7 @@ class TestFrameLawChecks(unittest.TestCase):
     def test_all_checks_pass(self):
         m = build_frame()
         s = summary(run_all_checks(m))
-        self.assertEqual(s["total"], 11)
+        self.assertEqual(s["total"], 12)
         ngs = [c for c in run_all_checks(m) if c.status == "NG"]
         self.assertEqual(ngs, [], [(c.name, c.message) for c in ngs])
 
