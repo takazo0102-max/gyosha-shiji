@@ -12,6 +12,13 @@
 - Get3DBoundingBoxes はオブジェクトに「2D記号外形×高さ」のフォールバック値を返すことが
   ある。3D生成の検証には GetElementPreviewImage(imageType="3D") を使うこと
 - スラブ詳細の外形キーは details.polygonOutline（終点=始点の閉じたループ、単位m）
+- SetGDLParametersOfElements はコマンド自体は成功で返し、個別の失敗は
+  executionResults に入る。パラメータ名が1つでも無いと**全パラメータが適用されない**
+  ので、結果を見ないと既定値のまま描かれた図面を「成功」と報告してしまう
+  （古いGSMに新パラメータを送り、立面図の位置に平面図が出たまま成功と出た実績がある）
+- 上と同じ理由で、検証スクリプトは部品名を固定せず毎回HSFからコンパイルして注入する
+  （名前はHSFの内容ハッシュ。scripts/dev_gsm_iterate.py の build_current_gsm）
+- 整数パラメータ（warnPen・nRows等）にfloatを送ると型不一致で弾かれる
 """
 
 from __future__ import annotations
