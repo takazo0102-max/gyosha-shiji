@@ -24,6 +24,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     ArchicadClient,
     get_selected_outline_mm,
     place_details,
+    place_elevations,
     place_scaffold_lines,
     read_ground_model,
 )
@@ -41,6 +42,11 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 PLACE_DETAILS = True               # 詳細図も並べるか
+PLACE_ELEVATIONS = True            # 各面の立面図も並べるか
+FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら描かない）
+# 図面の並べ先。躯体外形の左下から下方向へ、立面→詳細図の順に置く
+ELEVATION_OFFSET_MM = -45000.0
+DETAIL_OFFSET_MM = -20000.0
 OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
 
 
@@ -61,16 +67,27 @@ def main() -> None:
         r.model, LINE_OBJECT, client, stair_plan=r.stair_plan,
         openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
     )
+    x0 = min(v[0] for v in r.model.plan.outline.vertices)
+    y0 = min(v[1] for v in r.model.plan.outline.vertices)
+    elevs = []
+    if PLACE_ELEVATIONS:
+        # 面名は指定しなければ方位（南面・東面…）が入る
+        elevs = place_elevations(
+            r.model, LINE_OBJECT, stair_plan=r.stair_plan, openings=r.openings,
+            platforms=r.platforms, bracket_sections=r.brackets,
+            origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
+            floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
+        )
     details = []
     if PLACE_DETAILS:
-        origin = min(r.model.plan.outline.vertices)
         details = place_details(
             r.model, r.detail_sheets, DETAIL_OBJECT,
-            origin_mm=(origin[0], origin[1] - 20000.0), client=client,
+            origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
         )
 
     v = result["verdict"]
-    print(f"足場ライン {len(lines)}本・詳細図 {len(details)}枚を配置しました")
+    print(f"足場ライン {len(lines)}本・立面図 {len(elevs)}面・"
+          f"詳細図 {len(details)}枚を配置しました")
     print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))
     for b in v["blockers"]:
         print(f"  是正: {b}")

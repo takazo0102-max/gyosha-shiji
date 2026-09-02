@@ -103,11 +103,13 @@ def write_report_md(
     a("")
     a("## 平面割付")
     a("")
-    a("| 辺 | 足場長 | スパン構成 | 離れ | 対処案 |")
-    a("|---|---|---|---|---|")
-    for ep in model.plan.edges:
+    # 現場で通じるのは辺番号ではなく面（南面・東面）。立面図の面名と揃える
+    faces = model.plan.face_names()
+    a("| 辺 | 面 | 足場長 | スパン構成 | 離れ | 対処案 |")
+    a("|---|---|---|---|---|---|")
+    for ep, face in zip(model.plan.edges, faces):
         spans = "+".join(str(s) for s in ep.spans)
-        a(f"| {ep.edge_index} | {ep.scaffold_length:.0f} | {spans} "
+        a(f"| {ep.edge_index} | {face} | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
     if model.plan.corner_steps:
         a("")
@@ -326,6 +328,7 @@ def write_plan_json(
         "edges": [
             {
                 "edge_index": ep.edge_index,
+                "face": face,
                 "spans": ep.spans,
                 "scaffold_length": ep.scaffold_length,
                 "standoff": ep.standoff,
@@ -339,7 +342,7 @@ def write_plan_json(
                     platforms=platforms, bracket_sections=bracket_sections,
                 ),
             }
-            for ep in model.plan.edges
+            for ep, face in zip(model.plan.edges, model.plan.face_names())
         ],
         "scaffold_vertices": [list(v) for v in model.plan.scaffold_vertices],
         "wall_ties": [asdict(t) for t in model.wall_ties],

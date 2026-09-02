@@ -404,6 +404,8 @@ def place_elevations(
     """
     client = client or ArchicadClient()
     e = model.elevation
+    # 面名を渡さない場合は方位で呼ぶ（辺0では図面を見た人に伝わらない）
+    face_names = face_names or model.plan.face_names()
     fl_str = ",".join(str(int(f)) for f in (floor_levels_mm or []))
     placed = []
     x = origin_mm[0]

@@ -366,5 +366,30 @@ class TestFeasibilityHint(unittest.TestCase):
         self.assertTrue(none_fit, [e.remedy for e in plan.edges if e.remedy])
 
 
+class TestFaceNames(unittest.TestCase):
+    """辺番号は図面を見た人に伝わらない。面は方位で呼ぶ."""
+
+    def _plan(self, outline):
+        return solve_plan(outline, load_master("shinwa_A"))
+
+    def test_rectangle_is_named_by_compass(self):
+        names = self._plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)]).face_names()
+        self.assertEqual(names, ["南面", "東面", "北面", "西面"])
+
+    def test_duplicate_directions_are_disambiguated(self):
+        names = self._plan([
+            (0, 0), (30000, 0), (30000, 10000), (15000, 10000),
+            (15000, 20000), (0, 20000),
+        ]).face_names()
+        self.assertEqual(len(names), 6)
+        self.assertEqual(len(set(names)), 6)          # 全部区別できる
+        self.assertIn("東面(辺1)", names)
+        self.assertIn("東面(辺3)", names)
+
+    def test_one_name_per_edge(self):
+        plan = self._plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)])
+        self.assertEqual(len(plan.face_names()), len(plan.edges))
+
+
 if __name__ == "__main__":
     unittest.main()

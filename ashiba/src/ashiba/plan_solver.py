@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -70,6 +71,15 @@ class EdgePlan:
         return len(self.spans)
 
 
+# 外向き法線の向き → 方位。真北はY+（Archicadの既定と同じ扱い）
+_COMPASS_8 = ["東", "北東", "北", "北西", "西", "南西", "南", "南東"]
+
+
+def _compass(outward: tuple[float, float]) -> str:
+    ang = math.degrees(math.atan2(outward[1], outward[0])) % 360.0
+    return _COMPASS_8[int((ang + 22.5) % 360.0 // 45.0)]
+
+
 @dataclass
 class PlanResult:
     outline: Outline
@@ -78,6 +88,20 @@ class PlanResult:
     scaffold_vertices: list[tuple[float, float]]
     warnings: list[str] = field(default_factory=list)
     corner_steps: list[CornerStep] = field(default_factory=list)  # 枠組のみ
+
+    def face_names(self) -> list[str]:
+        """各面の呼び名（方位）。立面図の面名と帳票の見出しに使う.
+
+        外形はCCWで内側が躯体、Edge.outward が外向き法線なので、そこから
+        方位を決める。同じ方位が複数あるときは辺番号を添えて区別する
+        （南面が2つある建物で、どちらの図か分からなくなるため）。
+        """
+        raw = [_compass(e.outward) for e in self.outline.edges]
+        dup = {n for n in raw if raw.count(n) > 1}
+        return [
+            f"{n}面(辺{e.edge_index})" if n in dup else f"{n}面"
+            for n, e in zip(raw, self.edges)
+        ]
 
     @property
     def total_posts(self) -> int:
