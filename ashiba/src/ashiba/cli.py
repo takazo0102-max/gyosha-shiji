@@ -252,7 +252,39 @@ def build_notification_info(spec: dict) -> NotificationInfo:
     )
 
 
-def build_verdict(check_summary, structural, platforms, openings, bracket_issues) -> dict:
+def collect_warnings(
+    structural, model, bracket_issues, stair_plan, stair_issues,
+    openings, terrain, platforms,
+) -> list[tuple[str, str, str]]:
+    """是正・確認が要る項目を (分類, 重大度, 本文) で集める.
+
+    総合判定と結果JSONで同じものを数えるための一箇所。別々に組み立てていた
+    ときは、判定が法規チェックのWARNしか数えず、離れの措置や未確認耐力値が
+    「要確認0件」の裏に隠れていた。
+    """
+    out: list[tuple[str, str, str]] = []
+    out += [("構造", "WARN", w) for w in structural.warnings]
+    out += [("割付", "WARN", w)
+            for w in model.plan.warnings + model.elevation.warnings]
+    out += [("ブラケット区間", i.severity,
+             f"ブラケット[{i.severity}] {i.message}（{i.basis}）")
+            for i in bracket_issues]
+    out += [("階段", "WARN", w) for w in stair_plan.warnings]
+    out += [("階段", "WARN", f"階段[WARN] {w}") for w in stair_issues]
+    # 重大度を本文にも出す。NGと注意が同じ見た目だと、どれが止まる項目か分からない
+    out += [("開口部", i.severity, f"開口部[{i.severity}] {i.message}")
+            for i in openings.issues]
+    out += [("敷地", "WARN", f"敷地: {w}") for w in terrain.warnings]
+    out += [("荷受けステージ・昇降機", i.severity,
+             f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
+            for i in platforms.issues]
+    return out
+
+
+def build_verdict(
+    check_summary, structural, platforms, openings, bracket_issues,
+    warnings: list[tuple[str, str, str]] | None = None,
+) -> dict:
     """計画が成立しているかの総合判定.
 
     これまでは法規チェック・構造計算・荷受けステージ・開口部・ブラケット区間が
@@ -275,10 +307,20 @@ def build_verdict(check_summary, structural, platforms, openings, bracket_issues
     n_bk = len([i for i in bracket_issues if i.severity == "NG"])
     if n_bk:
         blockers.append(f"ブラケット区間NG {n_bk}件")
+    # 要確認の件数は法規チェックのWARNだけではない。離れの措置・未確認耐力値・
+    # 階段の注意なども「読んで手を打つ」対象なので、まとめて数えて内訳を出す
+    counts: dict[str, int] = {}
+    if check_summary["warn"]:
+        counts["法規チェック"] = check_summary["warn"]
+    for kind, severity, _ in warnings or []:
+        # NG は blockers に出ている。要確認の件数に混ぜると二重に数える
+        if severity != "NG":
+            counts[kind] = counts.get(kind, 0) + 1
     return {
         "ok": not blockers,
         "blockers": blockers,
-        "warn": check_summary["warn"],
+        "warn": sum(counts.values()),
+        "warn_breakdown": [f"{k} {v}件" for k, v in counts.items()],
     }
 
 
@@ -333,7 +375,13 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     )
 
     s = summary(checks)
-    verdict = build_verdict(s, structural, platforms, openings, bracket_issues)
+    warnings = collect_warnings(
+        structural, model, bracket_issues, stair_plan, stair_issues,
+        openings, terrain, platforms,
+    )
+    verdict = build_verdict(
+        s, structural, platforms, openings, bracket_issues, warnings
+    )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     name = spec.get("project_name", "ashiba")
@@ -426,15 +474,7 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
         # 参考情報（何をどう解いたかの説明）は warnings と分ける。
         # 混ぜると、読む側がどれに手を打てばよいのか分からなくなる
         "notes": structural.notes + [f"敷地: {n}" for n in terrain.notes],
-        "warnings": (
-            structural.warnings + model.plan.warnings + model.elevation.warnings
-            + [f"ブラケット[{i.severity}] {i.message}（{i.basis}）" for i in bracket_issues]
-            + stair_plan.warnings + [f"階段: {w}" for w in stair_issues]
-            + [f"開口部: {i.message}" for i in openings.issues]
-            + [f"敷地: {w}" for w in terrain.warnings]
-            + [f"{i.kind}[{i.severity}] {i.message}（{i.basis}）"
-               for i in platforms.issues]
-        ),
+        "warnings": [w for _, _, w in warnings],
         "out_dir": str(out_dir),
     }
 

@@ -187,6 +187,34 @@ class TestOverallVerdict(unittest.TestCase):
         for b in r["verdict"]["blockers"]:
             self.assertGreater(len(b), 5, b)
 
+    def test_warn_count_covers_every_warning(self):
+        """「要確認0件」の裏に離れの措置や未確認耐力値が隠れないこと."""
+        r, report = self._run("要確認の数")
+        # NG は blockers 側に出るので、要確認の件数からは除く
+        non_ng = [w for w in r["warnings"] if "[NG]" not in w]
+        self.assertEqual(r["verdict"]["warn"], r["checks"]["warn"] + len(non_ng))
+        self.assertGreater(r["verdict"]["warn"], 0)
+        self.assertIn(f"要確認 {r['verdict']['warn']}件", report)
+
+    def test_warn_breakdown_names_the_source(self):
+        r, _ = self._run("要確認の内訳")
+        self.assertTrue(r["verdict"]["warn_breakdown"])
+        # 内訳の合計と総数が食い違わない
+        total = sum(int(x.split()[-1].rstrip("件"))
+                    for x in r["verdict"]["warn_breakdown"])
+        self.assertEqual(total, r["verdict"]["warn"])
+
+    def test_ng_is_not_counted_twice(self):
+        r, _ = self._run(
+            "梁枠規格外3", series_id="shinwa_B",
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+        )
+        self.assertFalse(r["verdict"]["ok"])
+        # 開口部はNG1件＋常時の注意1件。要確認に数えるのは後者だけ
+        ng = [w for w in r["warnings"] if w.startswith("開口部") and "NG" in w]
+        self.assertTrue(ng)
+        self.assertIn("開口部 1件", r["verdict"]["warn_breakdown"])
+
     def test_every_example_is_ok(self):
         for f in sorted(EXAMPLES.glob("*.json")):
             with self.subTest(f.name), tempfile.TemporaryDirectory() as td:

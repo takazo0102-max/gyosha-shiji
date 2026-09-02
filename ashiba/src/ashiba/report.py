@@ -77,13 +77,16 @@ def write_report_md(
     a("")
     if verdict is not None:
         # 法規・構造・付帯設備がそれぞれ別々に判定を持つので、先頭で束ねて出す
+        detail = "／".join(verdict.get("warn_breakdown", []))
         if verdict["ok"]:
             a("**判定: 計画は成立しています**"
-              + (f"（要確認 {verdict['warn']}件）" if verdict["warn"] else ""))
+              + (f"（要確認 {verdict['warn']}件: {detail}）" if verdict["warn"] else ""))
         else:
             a("**判定: ❌ 是正が必要です**")
             for b in verdict["blockers"]:
                 a(f"- {b}")
+            if verdict["warn"]:
+                a(f"- ほかに要確認 {verdict['warn']}件: {detail}")
         a("")
     a(f"- 系列: {model.master.series_id}（コマピッチ{model.master.koma_pitch}mm）")
     a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}")
