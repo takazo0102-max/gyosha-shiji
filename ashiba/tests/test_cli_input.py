@@ -7,6 +7,7 @@
 
 import datetime as dt
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -256,12 +257,35 @@ class TestValidateSpec(unittest.TestCase):
 
     def test_examples_all_validate(self):
         import json
-        from pathlib import Path
-
+        
         ex = Path(__file__).resolve().parents[1] / "examples"
         for f in sorted(ex.glob("*.json")):
             with self.subTest(f.name):
                 validate_spec(json.loads(f.read_text(encoding="utf-8")))
+
+
+class TestInputsActuallyTakeEffect(unittest.TestCase):
+    """受け取っているのに何も変えない入力は、指定しても効かないのと同じ."""
+
+    def test_retired_key_points_at_the_new_one(self):
+        """n_stairs は受け取るだけで効いていなかった。黙って無視しない."""
+        from ashiba.cli import InputError, validate_spec
+
+        with self.assertRaises(InputError) as cm:
+            validate_spec(dict(BASE, n_stairs=3))
+        self.assertIn("stairs.count", str(cm.exception))
+
+    def test_clearance_space_blocks_a_scaffold_that_does_not_fit(self):
+        """離れ＋建地間隔が確保できる幅を超えたらNG（素通りしていた）."""
+        from ashiba.law_check import run_all_checks
+
+        wide = build_model(dict(BASE, clearance_space_mm=2000), None)
+        narrow = build_model(dict(BASE, clearance_space_mm=800), None)
+        self.assertEqual(
+            [c.status for c in run_all_checks(wide) if c.check_id == 1], ["OK"])
+        ng = [c for c in run_all_checks(narrow) if c.check_id == 1][0]
+        self.assertEqual(ng.status, "NG")
+        self.assertIn("収まりません", ng.message)
 
 
 class TestDocumentedSchemaIsRead(unittest.TestCase):

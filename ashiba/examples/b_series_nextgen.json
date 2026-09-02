@@ -2,14 +2,30 @@
   "project_name": "サンプルB系列_次世代",
   "series_id": "shinwa_B",
   "next_gen": true,
-  "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
   "eaves_height_mm": 15250,
   "guard_extra_mm": 950,
   "building_height_mm": 16000,
   "period_days": 90,
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
-  "n_stairs": 1,
   "site": {
     "region": "近畿(沿岸)",
     "roughness": "III",

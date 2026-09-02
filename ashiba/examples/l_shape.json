@@ -33,7 +33,6 @@
   "period_days": 90,
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
-  "n_stairs": 1,
   "site": {
     "region": "中部(内陸)",
     "roughness": "III",

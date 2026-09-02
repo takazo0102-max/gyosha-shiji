@@ -16,7 +16,6 @@
   "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
-  "n_stairs": 1,
   "next_gen": false,               // 次世代足場（踏板幅が広い規格）
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
@@ -112,7 +111,7 @@ class InputError(ValueError):
 TOP_KEYS = {
     "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm",
     "building_height_mm", "period_days", "standoff", "deck_widths",
-    "clearance_space_mm", "scaffold_form", "n_stairs", "next_gen",
+    "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "openings", "asagao", "bracket_sections", "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
@@ -149,12 +148,19 @@ LIST_ITEM_KEYS = {
 STAIR_POSITION_KEYS = {"edge_index", "start_mm", "span_count", "reason"}
 
 
+# 以前あったが実際には効いていなかったキー → 今の書き方
+RENAMED = {"n_stairs": "stairs.count（階段の箇所数）"}
+
+
 def _check_keys(errors: list[str], where: str, obj, allowed: set[str],
                 required: set[str] = frozenset()) -> None:
     if not isinstance(obj, dict):
         errors.append(f"{where}: オブジェクトで指定してください（{type(obj).__name__}）")
         return
     for k in sorted(set(obj) - allowed):
+        if k in RENAMED:
+            errors.append(f"{where}: \"{k}\" は廃止しました → {RENAMED[k]} を使ってください")
+            continue
         near = [a for a in allowed if a.startswith(k[:4])]
         hint = f"（{'・'.join(sorted(near))} の綴り違い？）" if near else ""
         errors.append(f"{where}: 未知のキー \"{k}\"{hint}")
@@ -181,7 +187,7 @@ def validate_spec(spec: dict) -> None:
             errors.append("outline_mm: 各点は[x, y]の2要素で指定してください")
 
     for key in ("eaves_height_mm", "guard_extra_mm", "building_height_mm",
-                "period_days", "clearance_space_mm", "n_stairs"):
+                "period_days", "clearance_space_mm"):
         v = spec.get(key)
         if v is not None and (not isinstance(v, (int, float))
                               or isinstance(v, bool) or v < 0):
@@ -247,7 +253,6 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
         next_gen=spec.get("next_gen", False),
         guard_rail_type=spec.get("guard_rail_type", GUARD_RAIL_LEDGER),
-        n_stairs=spec.get("n_stairs", 1),
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height),
     )
@@ -514,6 +519,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             model,
             max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
             tower_spans=st.get("tower_spans", 2),
+            # stairs.count が無ければ n_stairs を使う。どちらも書かなければ
+            # 移動距離から自動算出（n_stairs は既定値1なので、明示時だけ効かせる）
             count=st.get("count"),
             min_per_face=st.get("min_per_face", 0),
         )
