@@ -61,10 +61,54 @@ class CapacityValue:
     unit: str
     verified: bool
     source: str
+    # 由来した capacity.csv の行。未確認値をどの行で差し替えればよいかを
+    # 帳票側に伝えるために持つ（補間値なら元の2行ぶん入る）
+    series_id: str = ""
+    item: str = ""
+    keys: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
         return f"{self.value}{self.unit}" + ("" if self.verified else "（未確認値）")
+
+    @property
+    def rows(self) -> list[str]:
+        """capacity.csv の該当行を series_id,item,key 形式で返す."""
+        return [f"{self.series_id},{self.item},{k}" for k in self.keys]
+
+    def unverified(self, label: str) -> Optional["UnverifiedCapacity"]:
+        if self.verified:
+            return None
+        return UnverifiedCapacity(
+            label=label, value=self.value, unit=self.unit,
+            series_id=self.series_id, item=self.item, keys=self.keys,
+            source=self.source,
+        )
+
+
+@dataclass
+class UnverifiedCapacity:
+    """未確認のまま計算に使われた耐力値と、その差し替え先の行."""
+
+    label: str          # 何に使われた値か（例: ジャッキ(繰出し450mm)許容支持力）
+    value: float
+    unit: str
+    series_id: str
+    item: str
+    keys: tuple[str, ...]
+    source: str
+
+    @property
+    def rows(self) -> list[str]:
+        return [f"{self.series_id},{self.item},{k}" for k in self.keys]
+
+    @property
+    def where(self) -> str:
+        """差し替える行の指示（key が複数なら補間元の両方）."""
+        return f"{self.item}（key={('・'.join(self.keys)) or '—'}）"
+
+    def describe(self) -> str:
+        return f"{self.where} {self.value}{self.unit} ← {self.label}"
 
 
 def load_capacities(series_id: str, path: Optional[Path] = None) -> dict[tuple[str, str], CapacityValue]:
@@ -79,6 +123,9 @@ def load_capacities(series_id: str, path: Optional[Path] = None) -> dict[tuple[s
                 unit=row["unit"],
                 verified=row["verified"].strip().lower() in ("yes", "true", "1"),
                 source=row["source"],
+                series_id=row["series_id"],
+                item=row["item"],
+                keys=(row["key"],),
             )
     if not out:
         raise CapacityError(f"系列 {series_id} の耐力値が {p} にありません")
@@ -161,6 +208,7 @@ class WallTieResult:
     source: str
     verified: bool
     governing: Optional[str] = None   # 支配的な壁つなぎの位置（どの1本が効いているか）
+    unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
 
 
 @dataclass
@@ -176,8 +224,12 @@ class PostResult:
     governing: str              # 支配する検定（ジャッキ / 支柱）
     source: str
     verified: bool
-    # 未確認だった耐力値の名称。警告文に実際の項目だけを挙げるために持つ
-    unverified_items: list[str] = field(default_factory=list)
+    # 未確認だった耐力値。警告文に実際の項目と差し替え先の行を挙げるために持つ
+    unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
+
+    @property
+    def unverified_items(self) -> list[str]:
+        return [c.label for c in self.unverified_caps]
 
 
 @dataclass
@@ -189,7 +241,9 @@ class StructuralResult:
     # warnings は「対応が要るもの」だけ。検定条件の説明は notes へ分ける
     warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # 未確認のまま使われた耐力値。文字列（項目名）と差し替え先の行の両方を持つ
     unverified_used: list[str] = field(default_factory=list)
+    unverified_rows: list[UnverifiedCapacity] = field(default_factory=list)
 
     @property
     def all_ok(self) -> bool:
@@ -341,6 +395,12 @@ def check_wall_tie(
         raise CapacityError("壁つなぎ許容耐力が capacity.csv にありません")
     cap = min(cap_t.value, cap_c.value)
     verified = cap_t.verified and cap_c.verified
+    unverified_caps = [
+        c for c in (
+            cap_t.unverified("壁つなぎ許容耐力(引張)"),
+            cap_c.unverified("壁つなぎ許容耐力(圧縮)"),
+        ) if c is not None
+    ]
     allow_inc = cap * WIND_INCREASE
     ratio = p_kn / allow_inc if allow_inc else float("inf")
     return WallTieResult(
@@ -355,6 +415,7 @@ def check_wall_tie(
         source=cap_t.source,
         verified=verified,
         governing=governing,
+        unverified_caps=unverified_caps,
     )
 
 
@@ -396,14 +457,16 @@ def check_post(
     governing_name, governing_cap = min(candidates, key=lambda kv: kv[1].value)
 
     ratio = total / governing_cap.value if governing_cap.value else float("inf")
+    cap_label = f"{governing_name}の許容支持力"
     if extra_post_load_kn > 0 and extra_load_source:
         governing_name += f" ＋{extra_load_source}"
 
-    unverified_items = []
-    if not governing_cap.verified:
-        unverified_items.append(f"{governing_name.split('(')[0].strip()}許容支持力")
-    if not cap_deck.verified:
-        unverified_items.append("作業床許容積載荷重")
+    unverified_caps = [
+        c for c in (
+            governing_cap.unverified(cap_label),
+            cap_deck.unverified("作業床許容積載荷重"),
+        ) if c is not None
+    ]
 
     return PostResult(
         dead_load_kn=round(dead_kn, 3),
@@ -417,7 +480,7 @@ def check_post(
         governing=governing_name,
         source=governing_cap.source,
         verified=governing_cap.verified and cap_deck.verified,
-        unverified_items=unverified_items,
+        unverified_caps=unverified_caps,
     )
 
 
@@ -435,6 +498,9 @@ def _interpolate_capacity(
         return rows[0][1], str(rows[0][0])
     if key_mm >= rows[-1][0]:
         return rows[-1][1], str(rows[-1][0])
+    for x, v in rows:
+        if x == key_mm:
+            return v, str(x)
     for (x0, v0), (x1, v1) in zip(rows, rows[1:]):
         if x0 <= key_mm <= x1:
             t = (key_mm - x0) / (x1 - x0)
@@ -445,6 +511,12 @@ def _interpolate_capacity(
                     unit=v0.unit,
                     verified=v0.verified and v1.verified,
                     source=f"{v0.source}（{x0}〜{x1}mmを線形補間）",
+                    series_id=v0.series_id,
+                    item=item,
+                    # 補間値は2行から作られる。片方だけ直しても未確認は消えない
+                    keys=tuple(
+                        k for v in (v0, v1) for k in v.keys if not v.verified
+                    ) or (str(x0), str(x1)),
                 ),
                 f"{x0}-{x1}",
             )
@@ -594,7 +666,7 @@ def run_structural(
 
     warnings: list[str] = []
     notes: list[str] = []
-    unverified: list[str] = []
+    unverified_caps: list[UnverifiedCapacity] = []
     if governing_foot is not None:
         notes.append(
             f"敷地高低差により最大繰出し{post.jack_extension_mm}mmの支柱"
@@ -602,14 +674,31 @@ def run_structural(
             f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
             "ジャッキ許容支持力は繰出し長で低下します"
         )
-    if not tie.verified:
-        unverified.append("壁つなぎ許容耐力")
-    unverified.extend(post.unverified_items)
-    if unverified:
+    unverified_caps.extend(tie.unverified_caps)
+    unverified_caps.extend(post.unverified_caps)
+    # 同じCSV行が複数の検定に効いていることがある（引張/圧縮など）。
+    # 差し替える側は行が知りたいので、行単位でまとめて挙げる
+    by_row: dict[tuple[str, ...], UnverifiedCapacity] = {}
+    used_for: dict[tuple[str, ...], list[str]] = {}
+    for c in unverified_caps:
+        by_row.setdefault(c.keys, c)
+        used_for.setdefault(c.keys, []).append(c.label)
+    unverified = [c.label for c in unverified_caps]
+    if unverified_caps:
+        series = unverified_caps[0].series_id
+        lines = []
+        for k, labels in used_for.items():
+            c = by_row[k]
+            line = f"{c.item}(key={'・'.join(k)}) {c.value}{c.unit}"
+            # 項目名だけで用途が分かる行に用途を書き足しても読みにくいだけ
+            extra = [t for t in labels if not t.startswith(c.item)]
+            if extra:
+                line += f"＝{'／'.join(dict.fromkeys(extra))}"
+            lines.append(line)
         warnings.append(
-            "未確認の耐力値が計算に使われています（" + "、".join(unverified) + "）。"
-            "data/capacity.csv をメーカー認定値・仮設工業会認定値に差し替えてから"
-            "提出図書に使用してください"
+            f"未確認の耐力値が計算に使われています。data/capacity.csv の系列 {series} の"
+            "次の行を、メーカー認定値・仮設工業会認定値に差し替えて verified=yes に"
+            "してから提出図書に使用してください: " + "、".join(lines)
         )
     if not tie.ok:
         warnings.append(
@@ -640,4 +729,5 @@ def run_structural(
     return StructuralResult(
         site=site, wind=wind, wall_tie=tie, post=post,
         warnings=warnings, notes=notes, unverified_used=unverified,
+        unverified_rows=list(by_row.values()),
     )

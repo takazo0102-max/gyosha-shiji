@@ -131,6 +131,14 @@ def _sheet_jack_table(wb, terrain) -> None:
 # ---- 各シート -------------------------------------------------------------
 
 
+def _rows(result) -> str:
+    """未確認値の差し替え先（capacity.csv の行）を注記に添える."""
+    rows = [r for c in getattr(result, "unverified_caps", []) for r in c.rows]
+    if not rows:
+        return ""
+    return "（要差替: data/capacity.csv " + "・".join(dict.fromkeys(rows)) + "）"
+
+
 def _kv(sheet, label: str, value, note: str = "") -> None:
     sheet.add_cells(
         [Cell(label, STYLE_BORDER), Cell(value, STYLE_BORDER), Cell(note)]
@@ -285,7 +293,7 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
     _kv(s, "壁つなぎ作用力 P", t.force_kn, "kN  P = C × q × lh × lw")
     s.add_blank()
     _kv(s, "許容耐力", t.allowable_kn,
-        f"kN  {t.source}" + ("" if t.verified else "  ※未確認値"))
+        f"kN  {t.source}" + ("" if t.verified else "  ※未確認値 " + _rows(t)))
     _kv(s, "風荷重時割増後", t.allowable_increased_kn, "kN  許容耐力 × 1.3")
     _kv(s, "検定比 P/(許容×1.3)", t.ratio, "1.0以下で可")
     s.add_cells([
@@ -319,7 +327,7 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         "許容支持力は繰出し長で低下する）")
     _kv(s, "支配する検定", p.governing, "")
     _kv(s, "許容支持力", p.allowable_kn,
-        f"kN  {p.source}" + ("" if p.verified else "  ※未確認値"))
+        f"kN  {p.source}" + ("" if p.verified else "  ※未確認値 " + _rows(p)))
     _kv(s, "検定比 N/許容", p.ratio, "1.0以下で可")
     s.add_cells([
         Cell("判定", STYLE_HEADER),

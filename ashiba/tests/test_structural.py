@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -85,6 +86,74 @@ class TestCapacityGate(unittest.TestCase):
         self.assertGreater(v150.value, v270.value)
         # 100(22.5)と200(19.6)の中間
         self.assertAlmostEqual(v150.value, (22.5 + 19.6) / 2, places=2)
+
+    def test_exact_key_is_not_reported_as_interpolated(self):
+        """表にある繰出し量は補間しない（補間と書くと出典が誤りになる）."""
+        from ashiba.structural import _interpolate_capacity
+        caps = load_capacities("shinwa_A")
+        v, key = _interpolate_capacity(caps, "ジャッキ許容支持力", 200)
+        self.assertEqual(key, "200")
+        self.assertNotIn("補間", v.source)
+        self.assertEqual(v.rows, ["shinwa_A,ジャッキ許容支持力,200"])
+
+    def test_interpolated_value_names_both_source_rows(self):
+        from ashiba.structural import _interpolate_capacity
+        caps = load_capacities("shinwa_A")
+        v, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 150)
+        self.assertEqual(
+            v.rows,
+            ["shinwa_A,ジャッキ許容支持力,100", "shinwa_A,ジャッキ許容支持力,200"],
+        )
+
+
+class TestUnverifiedRowsAreNamed(unittest.TestCase):
+    """「未確認値です」だけでは直せない。どの行を差し替えるかまで出す."""
+
+    def setUp(self):
+        m = make_model()
+        self.r = run_structural(m, take_off(m))
+        self.warn = next(w for w in self.r.warnings if "未確認" in w)
+
+    def test_warning_names_the_csv_rows(self):
+        for item in ("壁つなぎ許容耐力", "ジャッキ許容支持力"):
+            self.assertIn(item, self.warn)
+        self.assertIn("capacity.csv", self.warn)
+        self.assertIn("verified=yes", self.warn)
+
+    def test_rows_point_at_real_lines_in_the_csv(self):
+        import csv as _csv
+        from ashiba.structural import DATA_DIR
+        with open(DATA_DIR / "capacity.csv", encoding="utf-8") as f:
+            actual = {
+                (r["series_id"], r["item"], r["key"])
+                for r in _csv.DictReader(f)
+                if r["verified"].strip().lower() not in ("yes", "true", "1")
+            }
+        reported = {
+            tuple(row.split(",")) for c in self.r.unverified_rows for row in c.rows
+        }
+        self.assertTrue(reported)
+        self.assertTrue(reported <= actual, reported - actual)
+
+    def test_verified_master_data_produces_no_warning(self):
+        import csv as _csv
+        import tempfile
+        from ashiba.structural import DATA_DIR
+        with open(DATA_DIR / "capacity.csv", encoding="utf-8") as f:
+            rows = list(_csv.DictReader(f))
+            names = list(rows[0])
+        for r in rows:
+            r["verified"] = "yes"
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "capacity.csv"
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                w = _csv.DictWriter(f, names)
+                w.writeheader()
+                w.writerows(rows)
+            m = make_model()
+            r = run_structural(m, take_off(m), capacity_path=path)
+        self.assertEqual(r.unverified_rows, [])
+        self.assertFalse([w for w in r.warnings if "未確認" in w])
 
 
 class TestChecks(unittest.TestCase):

@@ -372,6 +372,10 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
             "post_ratio": structural.post.ratio,
             "all_ok": structural.all_ok,
             "unverified_capacity_used": structural.unverified_used,
+            # 差し替えるべき capacity.csv の行（series_id,item,key）
+            "unverified_capacity_rows": [
+                r for c in structural.unverified_rows for r in c.rows
+            ],
         },
         "wall_ties": {
             "count": len(model.wall_ties),
