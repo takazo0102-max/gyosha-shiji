@@ -177,11 +177,13 @@ def check_first_ledger(m: ScaffoldModel) -> CheckResult:
 
 def check_negarami(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則570条・仮設工業会技術基準（できる限り低く）"
+    # 「コマ」はくさび式の概念。枠組の図書に書くと通じない
+    where = "建枠脚部" if m.master.is_frame else "最下コマ"
     if not m.elevation.has_negarami:
-        return CheckResult(5, "根がらみ", NG, "最下コマに根がらみがありません", basis)
+        return CheckResult(5, "根がらみ", NG, f"{where}に根がらみがありません", basis)
     return CheckResult(
         5, "根がらみ", OK,
-        f"最下コマ（高さ{m.elevation.first_ledger_height}mm）に設置", basis,
+        f"{where}（高さ{m.elevation.first_ledger_height}mm）に設置", basis,
     )
 
 

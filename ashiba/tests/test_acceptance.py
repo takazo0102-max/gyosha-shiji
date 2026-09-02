@@ -98,7 +98,7 @@ class TestAcceptance(unittest.TestCase):
             self.assertTrue(csv_path.exists())
             text = csv_path.read_text(encoding="utf-8-sig")
             self.assertIn("ジャッキ繰出し(mm)", text)
-            self.assertIn("下げコマ数", text)
+            self.assertIn("下げ段数", text)
             # 上限超過は黙って丸めず対処まで書く
             self.assertIn("敷板", text + "".join(result["warnings"]))
 

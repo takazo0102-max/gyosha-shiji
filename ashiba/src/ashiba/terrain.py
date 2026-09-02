@@ -141,9 +141,12 @@ def solve_post_feet(
     ground = ground or GroundModel()
     positions = model.plan.post_positions()
     koma = model.master.koma_pitch
+    # 枠組にコマは無い。段差の刻みは最小の建枠（調整枠）の高さになる
+    step_name = "コマピッチ"
     if koma <= 0:
         # 枠組はコマの概念がないので、建枠高さの最小値を刻みとする
         koma = min(model.master.frame_heights() or [model.master.floor_height])
+        step_name = "調整枠の高さ"
 
     gls = [ground.elevation_at(x, y) for (x, y) in positions]
     gl_max = max(gls) if gls else 0.0
@@ -234,13 +237,13 @@ def solve_post_feet(
             # 高低差がコマピッチ以内なら、床均しで全数を上限内に収められる
             need = max(0.0, diff - window)
             msg += (
-                f"高低差がコマピッチ{koma:.0f}mm以内なので、"
+                f"高低差が{step_name}{koma:.0f}mm以内なので、"
                 f"床均しで高低差を{need:.0f}mm縮めれば全支柱が上限内に収まります"
             )
         else:
             msg += (
                 f"ジャッキの可動域（{jack_min}〜{jack_recommended_max}mm＝{window}mm）は"
-                f"コマピッチ{koma:.0f}mmより狭いため、高低差が1コマを超える敷地では"
+                f"{step_name}{koma:.0f}mmより狭いため、高低差が1段を超える敷地では"
                 "一定数が上限を超えます。該当支柱の敷板調整または部分的な床均しで対応してください"
             )
         warnings.append(msg)
@@ -341,7 +344,7 @@ def _choose_koma_offset(
 def jack_table_rows(result: TerrainResult) -> list[list]:
     """ジャッキ量一覧（帳票用の行データ）."""
     rows = [[
-        "No", "X(mm)", "Y(mm)", "GL標高(mm)", "下げコマ数",
+        "No", "X(mm)", "Y(mm)", "GL標高(mm)", "下げ段数",
         "ジャッキ繰出し(mm)", "敷板調整(mm)", "支柱構成", "備考",
     ]]
     for f in result.feet:

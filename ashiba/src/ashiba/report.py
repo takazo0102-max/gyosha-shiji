@@ -5,7 +5,7 @@
   構造計算（検定比）・敷地の高低差・付帯設備・数量サマリ。該当が無い節は出さない
 - plan.json: 配置・再編集用。各辺にGDLパラメータと配置座標を持つので、
   割付を解き直さずに再配置できる（scripts/place_from_plan_json.py が実証）
-- ジャッキ量一覧CSV: 支柱ごとのGL標高・下げコマ数・ジャッキ量・地盤調整量
+- ジャッキ量一覧CSV: 支柱ごとのGL標高・下げ段数・ジャッキ量・地盤調整量
 
 設置届（様式第20号）要否の自動判定もここで行う:
 高さ10m以上かつ設置期間60日以上 → 工事開始30日前までに所轄労基署へ（安衛法88条）。
@@ -94,7 +94,10 @@ def write_report_md(
             if verdict["warn"]:
                 a(f"- ほかに要確認 {verdict['warn']}件: {detail}")
         a("")
-    a(f"- 系列: {model.master.series_id}（コマピッチ{model.master.koma_pitch}mm）")
+    # コマピッチは枠組には無い概念（建枠を積む方式）
+    a(f"- 系列: {model.master.series_id}"
+      + ("（建枠を積む方式）" if model.master.is_frame
+         else f"（コマピッチ{model.master.koma_pitch}mm）"))
     a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}")
     a(f"- 支柱構成（下から）: ジャッキ{e.jack_extension} + "
       + " + ".join(str(p) for p in e.posts)

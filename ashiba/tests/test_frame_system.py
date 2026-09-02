@@ -6,6 +6,7 @@
 """
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -304,6 +305,56 @@ class TestFrameSpecificRules(unittest.TestCase):
         """届出書に別方式の名前を書かない."""
         self.assertEqual(load_master("waku").system_name, "枠組足場")
         self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
+
+
+class TestFrameWordingIsNotWedgeWording(unittest.TestCase):
+    """枠組の図書にくさび式の用語（コマ）を書かない."""
+
+    def _model(self, series):
+        master = load_master(series)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_negarami_message(self):
+        from ashiba.law_check import run_all_checks
+
+        frame = [c for c in run_all_checks(self._model("waku"))
+                 if c.check_id == 5][0]
+        self.assertIn("建枠脚部", frame.message)
+        self.assertNotIn("コマ", frame.message)
+        wedge = [c for c in run_all_checks(self._model("shinwa_A"))
+                 if c.check_id == 5][0]
+        self.assertIn("最下コマ", wedge.message)
+
+    def test_terrain_warning_calls_it_the_adjusting_frame(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        ground = GroundModel(points=[
+            (x, y, -x * 0.05) for x in (0, 15000, 30000) for y in (0, 20000)
+        ])
+        t = solve_post_feet(self._model("waku"), ground)
+        over = [w for w in t.warnings if "可動域" in w]
+        self.assertTrue(over)
+        self.assertIn("調整枠の高さ", over[0])
+        self.assertNotIn("コマピッチ", over[0])
+
+    def test_report_header_has_no_koma_pitch_for_frames(self):
+        import tempfile
+
+        from ashiba.law_check import run_all_checks
+        from ashiba.quantity import take_off
+        from ashiba.report import write_report_md
+
+        m = self._model("waku")
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "r.md"
+            write_report_md(m, take_off(m), run_all_checks(m), path, "枠組")
+            head = path.read_text(encoding="utf-8").split("## ")[0]
+        self.assertIn("建枠を積む方式", head)
+        self.assertNotIn("コマピッチ", head)
 
 
 class TestSpanIsNotAssumed1800(unittest.TestCase):
