@@ -190,6 +190,14 @@ class ScaffoldModel:
         return (5000.0, 5500.0,
                 "安衛則570条1項五号ハ（単管足場に準じる: 垂直5m×水平5.5m以下）")
 
+    def face_name(self, edge_index: int) -> str:
+        """辺番号 → 面の呼び名（南面など）。図面・帳票で人に見せる側に使う."""
+        names = self.plan.face_names()
+        for e, n in zip(self.plan.edges, names):
+            if e.edge_index == edge_index:
+                return n
+        return f"辺{edge_index}"
+
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.
 

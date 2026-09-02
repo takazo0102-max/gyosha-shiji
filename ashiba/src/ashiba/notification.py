@@ -285,7 +285,7 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
     untied = model.edges_without_wall_ties()
     if untied:
         _kv(s, "壁つなぎが入らない面",
-            "、".join(f"辺{i}" for i in untied),
+            "、".join(model.face_name(i) for i in untied),
             "両隣の面にコーナー経由で支持される前提。単管等での別途拘束を検討")
     _kv(s, "支配的な壁つなぎ", t.governing or "—",
         "支配面積が最大となる1本で検定する")

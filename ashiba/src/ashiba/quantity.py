@@ -411,7 +411,7 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
     if not wide:
         return
     spans = sum(w[2] for w in wide)
-    faces = "、".join(f"辺{i}({d:.0f}mm)" for i, d, _ in wide)
+    faces = "、".join(f"{model.face_name(i)}({d:.0f}mm)" for i, d, _ in wide)
     # 措置が要ること自体は割付の警告が言う。ここは数量側の話に絞る
     notes.action(
         f"離れが300mmを超える面（{faces}）の躯体側手すり材は数量に含んでいません"

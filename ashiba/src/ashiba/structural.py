@@ -710,8 +710,8 @@ def run_structural(
     untied = model.edges_without_wall_ties()
     if untied:
         warnings.append(
-            "壁つなぎが1本も入らない面があります（辺"
-            + "、".join(str(i) for i in untied)
+            "壁つなぎが1本も入らない面があります（"
+            + "、".join(model.face_name(i) for i in untied)
             + "）。この面の風荷重は本検定に含まれておらず、両隣の面の壁つなぎに"
             "コーナー経由で伝わる前提です。単管等での別途拘束を検討してください"
         )

@@ -285,8 +285,9 @@ class TestWarningsAreGrouped(unittest.TestCase):
         plan = solve_plan(RECT, self.master)
         hits = [w for w in plan.warnings if "離れ350mm" in w]
         self.assertEqual(len(hits), 1, plan.warnings)
-        self.assertIn("辺0", hits[0])
-        self.assertIn("辺2", hits[0])
+        # 措置を打つ人に伝わる呼び名（方位）で面を挙げる
+        self.assertIn("南面", hits[0])
+        self.assertIn("北面", hits[0])
 
     def test_different_remedies_stay_separate(self):
         """離れの値が違えば別の対処案なので、まとめない."""
@@ -312,7 +313,8 @@ class TestWarningsAreGrouped(unittest.TestCase):
             with self.subTest(poly=poly[1]):
                 plan = solve_plan(poly, self.master)
                 distinct = {e.remedy for e in plan.edges if e.remedy}
-                grouped = [w for w in plan.warnings if "辺" in w]
+                grouped = [w for w in plan.warnings
+                           if ": " in w and w.split(": ", 1)[1] in distinct]
                 self.assertEqual(len(grouped), len(distinct))
 
 

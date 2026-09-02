@@ -290,17 +290,20 @@ def solve_plan(
         if remedy:
             remedies.setdefault(remedy, []).append(e.index)
 
-    for remedy, edges in remedies.items():
-        label = "・".join(f"辺{i}" for i in edges)
-        warnings.append(f"{label}: {remedy}")
-
-    return PlanResult(
+    result = PlanResult(
         outline=outline,
         edges=plan_edges,
         standoffs=standoffs,
         scaffold_vertices=scaffold_verts,
         warnings=warnings,
     )
+    # 現場で措置を打つ人に「辺2」では伝わらない。面の呼び名で言う
+    faces = result.face_names()
+    by_index = {e.edge_index: f for e, f in zip(plan_edges, faces)}
+    for remedy, edges in remedies.items():
+        label = "・".join(by_index.get(i, f"辺{i}") for i in edges)
+        warnings.append(f"{label}: {remedy}")
+    return result
 
 
 def _feasibility_hint(
