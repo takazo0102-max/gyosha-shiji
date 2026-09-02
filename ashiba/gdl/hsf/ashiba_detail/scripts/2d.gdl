@@ -8,6 +8,9 @@ pen 1
 dim warnMsg[8]
 nWarn = 0
 ttl = ""
+! 注記の最終行の高さ。図面名と警告はこれより下に置く（重ねない）。
+! 固定位置に置いていたため、注記が長い図では赤字と注記が重なっていた
+ny = -0.95
 
 ! detailType はASCIIキーで指定する。
 ! 日本語文字列をパラメータ値として外部から渡すと比較が一致しない（実機で確認済み）ため、
@@ -171,14 +174,17 @@ hotspot2 0, 0
 hotspot2 xin, 0
 hotspot2 xout, 0
 
-! 法規チェック: 壁つなぎ間隔（安衛則570条 くさび式 垂直5m×水平5.5m）
+! 法規チェック: 壁つなぎ間隔（安衛則570条1項五号）。上限は足場の種類で違うので
+! パラメータ tieVLim/tieHLim で受ける（くさび式 5m×5.5m／わく組 9m×8m）
 if tieV > LIM_TIE_V then
 	nWarn = nWarn + 1
-	warnMsg[nWarn] = "※壁つなぎ垂直間隔 " + str(tieV * 1000, 5, 0) + "mm > 5000mm"
+	warnMsg[nWarn] = "※壁つなぎ垂直間隔 " + str(tieV * 1000, 5, 0) + \
+		"mm > " + str(LIM_TIE_V * 1000, 5, 0) + "mm"
 endif
 if tieH > LIM_TIE_H then
 	nWarn = nWarn + 1
-	warnMsg[nWarn] = "※壁つなぎ水平間隔 " + str(tieH * 1000, 5, 0) + "mm > 5500mm"
+	warnMsg[nWarn] = "※壁つなぎ水平間隔 " + str(tieH * 1000, 5, 0) + \
+		"mm > " + str(LIM_TIE_H * 1000, 5, 0) + "mm"
 endif
 
 if not(showDim) then return
@@ -200,7 +206,8 @@ text2 tx, ny, "壁つなぎ φ27.2（伸縮式）"
 ny = ny - txtLine
 text2 tx, ny, "配置間隔 垂直" + str(tieV * 1000, 5, 0) + " × 水平" + str(tieH * 1000, 5, 0)
 ny = ny - txtLine
-text2 tx, ny, "（法定 垂直5000以下×水平5500以下）"
+text2 tx, ny, "（法定 垂直" + str(LIM_TIE_V * 1000, 5, 0) + \
+	"以下×水平" + str(LIM_TIE_H * 1000, 5, 0) + "以下）"
 ny = ny - txtLine
 text2 tx, ny, "コーナーから1.8m以上離して左右均等に配置"
 ny = ny - txtLine
@@ -326,6 +333,13 @@ hotspot2 0, 0
 hotspot2 xin, yin
 hotspot2 xout, yout
 
+! 枠組は支柱を共有できず、コーナーに隙間が残る。干渉を避ける下限がある
+if cornerGap > 0 and cornerGap < 0.070 then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※コーナー隙間 " + str(cornerGap * 1000, 4, 0) + \
+		"mm < 70mm（建枠が干渉）"
+endif
+
 if not(showDim) then return
 
 ! 離れ寸法（両方向）
@@ -337,15 +351,30 @@ line2 0.30, yin, 0.30, 0
 line2 0.28, yin, 0.32, yin
 text2 0.35, yin / 2, str(standoff * 1000, 4, 0)
 
+if cornerGap > 0 then
+	text2 xout, yout - 0.10, "コーナー隙間 " + str(cornerGap * 1000, 4, 0) + "mm"
+endif
+
 tx = 0.55
 ny = yout - txtLine
 text2 tx, ny, "出隅は「回し」: 優先面の足場を直交面の外面まで延長し"
 ny = ny - txtLine
-text2 tx, ny, "直交面の起点とする。くさび式はコマが4方向にあるため"
-ny = ny - txtLine
-text2 tx, ny, "コーナー支柱1本を両面で共有できる"
-ny = ny - txtLine
-text2 tx, ny, "端数はコーナーで受けず壁離れ（250〜350）で吸収する"
+! 納まりの根拠が方式で違う。くさびの説明を枠組の図に載せない
+if serType = "W" then
+	text2 tx, ny, "直交面の起点とする。枠組は建枠の向きが固定で支柱を"
+	ny = ny - txtLine
+	text2 tx, ny, "共有できないため、コーナーに隙間を残して納める"
+	ny = ny - txtLine
+	text2 tx, ny, "隙間は建枠の干渉を避けて70mm以上・ステップ250mm以内"
+else
+	text2 tx, ny, "直交面の起点とする。くさび式はコマが4方向にあるため"
+	ny = ny - txtLine
+	text2 tx, ny, "コーナー支柱1本を両面で共有できる"
+	ny = ny - txtLine
+	text2 tx, ny, "端数はコーナーで受けず壁離れ（" + \
+		str(SO_MIN * 1000, 4, 0) + "〜" + str(SO_MAX * 1000, 4, 0) + \
+		"）で吸収する"
+endif
 ny = ny - txtLine
 text2 tx, ny, "※コーナーで足場板の調整をしないこと"
 ny = ny - txtLine
@@ -441,7 +470,7 @@ if isFrame then
 	warnMsg[nWarn] = "※本図はくさび緊結式の納まりです。枠組足場の詳細図は別途作成してください"
 endif
 pen 1
-wy = -0.95 - txtLine
+wy = min(-0.95, ny) - txtLine * 1.4
 text2 0, wy, ttl
 if nWarn = 0 then return
 pen warnPen

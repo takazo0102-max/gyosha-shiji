@@ -101,6 +101,18 @@
 			<Description><![CDATA["壁つなぎ水平間隔の上限 0で既定5.5m"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Length Name="soMin">
+			<Description><![CDATA["壁離れの目標下限 0で既定0.25m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soMax">
+			<Description><![CDATA["壁離れの目標上限 0で既定0.35m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cornerGap">
+			<Description><![CDATA["枠組のコーナー隙間 0でくさび式(隙間なし)"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="warnPen">
 			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
 			<Value>20</Value>

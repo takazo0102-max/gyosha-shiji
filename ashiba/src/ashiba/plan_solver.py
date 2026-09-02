@@ -90,6 +90,8 @@ class PlanResult:
     scaffold_vertices: list[tuple[float, float]]
     warnings: list[str] = field(default_factory=list)
     corner_steps: list[CornerStep] = field(default_factory=list)  # 枠組のみ
+    # 実際に使った離れの目標帯。図面・帳票に既定値を書かないために持つ
+    standoff_spec: Optional["StandoffSpec"] = None
 
     def face_names(self) -> list[str]:
         """各面の呼び名（方位）。立面図の面名と帳票の見出しに使う.
@@ -313,6 +315,7 @@ def solve_plan(
         standoffs=standoffs,
         scaffold_vertices=scaffold_verts,
         warnings=warnings,
+        standoff_spec=spec,
     )
     # 現場で措置を打つ人に「辺2」では伝わらない。面の呼び名で言う
     faces = result.face_names()
@@ -525,6 +528,7 @@ def _solve_plan_frame(
         scaffold_vertices=scaffold_verts,
         warnings=warnings,
         corner_steps=corner_steps,
+        standoff_spec=spec,
     )
 
 

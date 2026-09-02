@@ -39,6 +39,12 @@ if tieHLim > 0 then LIM_TIE_H = tieHLim
 LIM_ASA_P = 2.000           ! 朝顔 突出下限
 LIM_ASA_A = 20.0            ! 朝顔 傾斜下限 度
 
+! 壁離れの目標帯は計画ごとに指定できる。図に既定値を書くと計画と食い違う
+SO_MIN = 0.250
+SO_MAX = 0.350
+if soMin > 0 then SO_MIN = soMin
+if soMax > 0 then SO_MAX = soMax
+
 ! ---- 共通スタイル ----
 define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
 

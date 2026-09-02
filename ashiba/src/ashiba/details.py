@@ -64,6 +64,10 @@ def required_details(
     else:
         ser = "B" if model.master.series_id.endswith("_B") else "A"
     v_lim, h_lim, _ = model.wall_tie_limits()
+    # 離れの目標帯とコーナー隙間は計画ごとに違う。図に既定値を書くと
+    # 添付図書が計画と食い違う
+    so = model.plan.standoff_spec
+    gap = max((c.gap_mm for c in model.plan.corner_steps), default=0.0)
     common = {
         "serType": ser,
         # 図面に埋め込む法規しきい値も系列で変わる（570条1項五号）
@@ -75,6 +79,9 @@ def required_details(
         "deckW1": model.deck_widths_in_use[0] / 1000.0,
         "deckW2": (model.deck_widths_in_use[1] / 1000.0
                    if len(model.deck_widths_in_use) > 1 else 0.0),
+        "soMin": (so.min if so else 250.0) / 1000.0,
+        "soMax": (so.max if so else 350.0) / 1000.0,
+        "cornerGap": gap / 1000.0,
     }
     v_max, h_max = model.wall_tie_max_spacing()
     height = model.scaffold_height_mm

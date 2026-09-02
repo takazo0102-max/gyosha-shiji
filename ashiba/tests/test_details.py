@@ -146,6 +146,29 @@ class TestSheetsMatchThePlan(unittest.TestCase):
         sheet = {s.key: s for s in required_details(m)}["asagao"]
         self.assertIn("計画は2段", sheet.reason)
 
+    def test_standoff_band_comes_from_the_plan(self):
+        """図に既定の250〜350を書くと、指定した帯と食い違う."""
+        from ashiba.plan_solver import StandoffSpec
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master,
+            plan=solve_plan(RECT, master,
+                            StandoffSpec(target=280, min=220, max=320, hard_min=200)),
+            elevation=solve_elevation(16300, master=master),
+            building_height_mm=16000,
+        )
+        p = {s.key: s for s in required_details(m)}["corner"].params
+        self.assertEqual((p["soMin"], p["soMax"]), (0.22, 0.32))
+
+    def test_frame_corner_gap_is_passed(self):
+        """枠組はコーナーに隙間が残る。図にも出す（くさびは0）."""
+        for series, expect_gap in (("waku", True), ("shinwa_A", False)):
+            with self.subTest(series):
+                m = make_model(series=series)
+                p = {s.key: s for s in required_details(m)}["corner"].params
+                self.assertEqual(p["cornerGap"] > 0, expect_gap)
+
     def test_base_sheet_draws_the_worst_jack(self):
         """平坦時の繰出しで描くと、法規チェックの警告と図面が食い違う."""
         from ashiba.terrain import GroundModel, solve_post_feet
