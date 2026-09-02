@@ -69,11 +69,6 @@ def _compose_table(max_total: int, lengths: list[int], max_pieces: int = 60) -> 
     return best
 
 
-def compose_posts(total: int, lengths: list[int], max_pieces: int = 60) -> Optional[list[int]]:
-    """合計totalを支柱呼び寸法の組合せで構成（本数最小、次に長尺優先）."""
-    return _compose_table(total, lengths, max_pieces).get(total)
-
-
 def _better(a: list[int], b: list[int]) -> bool:
     if len(a) != len(b):
         return len(a) < len(b)

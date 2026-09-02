@@ -101,11 +101,6 @@ class ArchicadClient:
             "detailsOfElements", []
         )
 
-    def get_3d_bboxes(self, elements: list[dict]) -> list[dict]:
-        return self.tapir("Get3DBoundingBoxes", {"elements": elements}).get(
-            "boundingBoxes3D", []
-        )
-
     def delete_elements(self, elements: list[dict]) -> None:
         self.tapir("DeleteElements", {"elements": elements})
 
@@ -217,9 +212,6 @@ class ArchicadClient:
         results = resp.get("executionResults", [])
         if results and not results[0].get("success"):
             raise TapirError(f"埋め込みライブラリへの追加に失敗: {results[0].get('error')}")
-
-    def reload_libraries(self) -> None:
-        self.tapir("ReloadLibraries")
 
     def find_red_pen(self, default: int = 20) -> int:
         """有効なペンテーブルから最も赤に近いペン番号を返す.

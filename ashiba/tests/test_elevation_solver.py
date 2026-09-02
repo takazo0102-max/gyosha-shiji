@@ -86,5 +86,34 @@ class TestDegenerateHeights(unittest.TestCase):
                     self.assertTrue(all(g <= 2000 for g in gaps), gaps)
 
 
+class TestJointStaggering(unittest.TestCase):
+    """千鳥（隣接支柱で縦継ぎ位置をずらす）は指示書§4.4の要求."""
+
+    def test_joint_heights_are_cumulative_from_the_jack(self):
+        m = load_master("shinwa_A")
+        e = solve_elevation(16300, master=m)
+        got = e.joint_heights()
+        acc, want = e.jack_extension, []
+        for p in e.posts[:-1]:
+            acc += p
+            want.append(acc)
+        self.assertEqual(got, want)
+        self.assertEqual(len(got), len(e.posts) - 1)
+
+    def test_alt_order_shifts_every_joint(self):
+        m = load_master("shinwa_A")
+        e = solve_elevation(16300, master=m)
+        self.assertTrue(e.is_staggered())
+        self.assertEqual(
+            set(e.joint_heights(e.posts)) & set(e.joint_heights(e.posts_alt)), set()
+        )
+
+    def test_single_length_cannot_stagger_and_says_so(self):
+        e = solve_elevation(7200, post_lengths=[1800], koma_pitch=450)
+        self.assertEqual(len(set(e.posts)), 1)
+        self.assertFalse(e.is_staggered())
+        self.assertTrue(any("千鳥" in w for w in e.warnings), e.warnings)
+
+
 if __name__ == "__main__":
     unittest.main()

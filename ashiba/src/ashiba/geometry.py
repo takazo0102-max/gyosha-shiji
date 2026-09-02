@@ -202,7 +202,3 @@ def scaffold_loop_vertices(outline: Outline, standoffs: list[float]) -> list[Poi
             verts.append((p1[0], p2[1]))
     return verts
 
-
-def edge_scaffold_length(edge: Edge, d_prev: float, d_self_unused: float, d_next: float) -> float:
-    """辺の足場中心線長（コーナー支柱間距離）."""
-    return edge.length + edge.start_sign * d_prev + edge.end_sign * d_next

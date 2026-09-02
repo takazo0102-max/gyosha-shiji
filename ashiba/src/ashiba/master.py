@@ -70,10 +70,6 @@ class PartMaster:
         return SERIES_CONST[self.series_id]["floor_height"]
 
     @property
-    def hozo(self) -> int:
-        return SERIES_CONST[self.series_id]["hozo"]
-
-    @property
     def system_type(self) -> str:
         """足場の方式（くさび / 枠組）. 立面の解き方と数量ルールが変わる."""
         return SERIES_CONST[self.series_id]["system_type"]

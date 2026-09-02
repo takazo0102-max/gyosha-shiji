@@ -64,5 +64,43 @@ class TestMasterCompleteness(unittest.TestCase):
         self.assertIsNotNone(load_master("waku").deck_parts(500, 1829))
 
 
+class TestSeriesDerivedDimensions(unittest.TestCase):
+    """系列から引く寸法。決め打ちすると系列を切り替えたとき静かに壊れる."""
+
+    def test_default_deck_widths_differ_by_series(self):
+        a = load_master("shinwa_A")
+        b = load_master("shinwa_B")
+        self.assertEqual(a.default_deck_widths(False), (400, 250))
+        self.assertEqual(b.default_deck_widths(False), (405, 240))
+        self.assertNotEqual(
+            a.default_deck_widths(False), a.default_deck_widths(True)
+        )
+
+    def test_next_gen_widths_are_wider(self):
+        for sid in ("shinwa_A", "shinwa_B"):
+            with self.subTest(sid):
+                m = load_master(sid)
+                self.assertGreater(
+                    sum(m.default_deck_widths(True)),
+                    sum(m.default_deck_widths(False)),
+                )
+
+    def test_frame_width_picks_the_smallest_that_fits(self):
+        """「近い幅」で選ぶと布板より狭い建枠になり、実際には組めない."""
+        m = load_master("waku")
+        widths = sorted(m.frame_widths())
+        need = widths[0] + 1
+        w, fits = m.frame_width_for(need)
+        self.assertTrue(fits)
+        self.assertGreaterEqual(w, need)
+        self.assertEqual(w, min(x for x in widths if x >= need))
+
+    def test_frame_width_reports_when_nothing_fits(self):
+        m = load_master("waku")
+        w, fits = m.frame_width_for(99999)
+        self.assertFalse(fits)
+        self.assertEqual(w, max(m.frame_widths()))
+
+
 if __name__ == "__main__":
     unittest.main()
