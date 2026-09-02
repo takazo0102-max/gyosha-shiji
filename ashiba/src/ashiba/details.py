@@ -48,11 +48,13 @@ def required_details(
     model: ScaffoldModel,
     openings: Optional[list[dict]] = None,
     force_all: bool = False,
+    terrain=None,
 ) -> list[DetailSheet]:
     """この計画に必要な詳細図を決め、GDLパラメータまで埋めて返す.
 
     openings: [{"beam_span_mm": 3600}, ...] 開口部（梁枠が要る箇所）
     force_all: Trueなら不要な図も含め5枚すべて返す
+    terrain: 敷地の解。渡すと脚部詳細のジャッキ繰出しを実際の最大値で描く
     """
     e = model.elevation
     # 枠組は "W"。くさびのA/Bと同じ扱いにすると、枠組の計画に
@@ -77,18 +79,28 @@ def required_details(
     v_max, h_max = model.wall_tie_max_spacing()
     height = model.scaffold_height_mm
 
+    # 脚部詳細は「実際に一番繰り出す支柱」で描く。平坦時の値で描くと、
+    # 法規チェックが435mmを警告している横で図面は100mmを示すことになる
+    jack_mm = e.jack_extension
+    jack_note = ""
+    if terrain is not None and getattr(terrain, "feet", None):
+        worst = max(f.jack_mm for f in terrain.feet)
+        if worst > jack_mm:
+            jack_mm = int(round(worst))
+            jack_note = f"（敷地高低差により最大繰出し{jack_mm}mmの支柱で作図）"
+
     sheets = [
         DetailSheet(
             key="base",
             title=DETAIL_NAMES["base"],
             params={**common,
-                    "jackOut": e.jack_extension / 1000.0,
+                    "jackOut": jack_mm / 1000.0,
                     # 根がらみ高さは立面ソルバの結果から。コマピッチで決め打ちすると
                     # コマの概念が無い枠組で0になる
                     "negaLv": max(
                         0.0, (e.first_ledger_height - e.jack_extension) / 1000.0
                     )},
-            reason="全ての足場に必要（脚部・根がらみ・ジャッキ）",
+            reason="全ての足場に必要（脚部・根がらみ・ジャッキ）" + jack_note,
         ),
         DetailSheet(
             key="tie",
@@ -108,13 +120,24 @@ def required_details(
     ]
 
     if force_all or height >= ASAGAO_MIN_HEIGHT_MM:
-        stages = 2 if height >= ASAGAO_2ND_HEIGHT_MM else 1
+        need = 2 if height >= ASAGAO_2ND_HEIGHT_MM else 1
+        # 突出・傾斜は計画値で描く。既定値で描くと、指定した朝顔と
+        # 添付図書の朝顔が食い違う
+        a = model.config.asagao
+        proj = a.projection_mm if a else 2000.0
+        angle = a.angle_deg if a else 25.0
+        stages = a.stages if a else need
+        reason = f"足場高さ{height / 1000:.1f}m ≧ 10m のため朝顔{need}段が必要"
+        if stages != need:
+            reason += f"（計画は{stages}段）"
         sheets.append(
             DetailSheet(
                 key="asagao",
                 title=DETAIL_NAMES["asagao"],
-                params={**common, "asagaoProj": 2.0, "asagaoAngle": 25.0},
-                reason=f"足場高さ{height / 1000:.1f}m ≧ 10m のため朝顔{stages}段が必要",
+                params={**common,
+                        "asagaoProj": proj / 1000.0,
+                        "asagaoAngle": angle},
+                reason=reason,
             )
         )
 

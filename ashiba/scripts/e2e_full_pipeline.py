@@ -158,7 +158,7 @@ def main() -> None:
     placed += elevs
     print(f"10. 立面図配置: {len(elevs)}面")
 
-    sheets = required_details(model)
+    sheets = required_details(model, terrain=terrain)
     details = place_details(
         model, sheets, DETAIL_OBJECT, origin_mm=(300000, 280000), client=c
     )

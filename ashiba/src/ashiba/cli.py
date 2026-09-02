@@ -532,7 +532,9 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 詳細図は開口部があれば梁枠の図を足す
     from .details import required_details
 
-    detail_sheets = required_details(model, opening_detail_specs(openings))
+    detail_sheets = required_details(
+        model, opening_detail_specs(openings), terrain=terrain
+    )
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain
     )

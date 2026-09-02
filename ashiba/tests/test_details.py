@@ -5,7 +5,7 @@ from _path import SRC  # noqa: F401
 from ashiba.details import DETAIL_NAMES, required_details
 from ashiba.elevation_solver import solve_elevation
 from ashiba.master import load_master
-from ashiba.model import ScaffoldConfig, ScaffoldModel
+from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
@@ -121,6 +121,47 @@ class TestFrameSeriesDetails(unittest.TestCase):
         wedge = required_details(make_model(series="shinwa_A"))[0]
         self.assertEqual((frame.params["tieVLim"], frame.params["tieHLim"]), (9.0, 8.0))
         self.assertEqual((wedge.params["tieVLim"], wedge.params["tieHLim"]), (5.0, 5.5))
+
+
+class TestSheetsMatchThePlan(unittest.TestCase):
+    """添付図書が計画と食い違わないこと（既定値で描いていた）."""
+
+    def _model(self, **kw):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            building_height_mm=16000, **kw,
+        )
+
+    def test_asagao_uses_the_planned_projection_and_angle(self):
+        m = self._model(config=ScaffoldConfig(
+            asagao=AsagaoSpec(stages=2, projection_mm=2500, angle_deg=30)))
+        sheet = {s.key: s for s in required_details(m)}["asagao"]
+        self.assertEqual(sheet.params["asagaoProj"], 2.5)
+        self.assertEqual(sheet.params["asagaoAngle"], 30)
+
+    def test_planned_stage_count_is_stated_when_it_differs(self):
+        m = self._model(config=ScaffoldConfig(asagao=AsagaoSpec(stages=2)))
+        sheet = {s.key: s for s in required_details(m)}["asagao"]
+        self.assertIn("計画は2段", sheet.reason)
+
+    def test_base_sheet_draws_the_worst_jack(self):
+        """平坦時の繰出しで描くと、法規チェックの警告と図面が食い違う."""
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = self._model(config=ScaffoldConfig())
+        ground = GroundModel(points=[
+            (x, y, -x * 0.02) for x in (0, 15000, 30000) for y in (0, 20000)
+        ])
+        terrain = solve_post_feet(m, ground)
+        flat = {s.key: s for s in required_details(m)}["base"]
+        slope = {s.key: s for s in required_details(m, terrain=terrain)}["base"]
+        worst = max(f.jack_mm for f in terrain.feet)
+        self.assertGreater(worst, m.elevation.jack_extension)
+        self.assertAlmostEqual(slope.params["jackOut"], round(worst) / 1000.0, 3)
+        self.assertGreater(slope.params["jackOut"], flat.params["jackOut"])
+        self.assertIn("敷地高低差", slope.reason)
 
 
 if __name__ == "__main__":
