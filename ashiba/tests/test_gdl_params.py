@@ -58,10 +58,23 @@ class TestLineParams(unittest.TestCase):
         for sid, p in widths.items():
             m = build(sid)
             with self.subTest(sid):
-                self.assertAlmostEqual(p["rowW"], m.deck_width_total / 1000.0)
+                # 建地列の間隔は発注する腕木（枠組は建枠幅）の寸法と一致させる。
+                # 作業床の被覆幅で描くと、部材表と図面が食い違う
+                self.assertAlmostEqual(p["rowW"], m.post_row_spacing_mm / 1000.0)
                 self.assertAlmostEqual(
                     p["deckW1"], m.config.deck_widths[0] / 1000.0
                 )
+
+    def test_drawing_row_width_matches_the_ordered_ledger(self):
+        from ashiba.quantity import take_off
+
+        m = build("shinwa_A")
+        rowW_mm = round(_line_params(m, m.plan.edges[0])["rowW"] * 1000)
+        udegi = [
+            l for l in take_off(m).lines
+            if l.part.category == "布材" and l.part.nominal_dim == rowW_mm
+        ]
+        self.assertTrue(udegi, f"腕木{rowW_mm}が数量表に無い")
 
     def test_plan_and_elevation_share_the_same_geometry(self):
         """平面と立面で別々に組み立てると片方だけ渡し漏れる."""

@@ -29,7 +29,9 @@ class QuantityRules:
     rails_per_level_outer: int = 2      # 作業層あたり外側の手すり＋中桟
     ledgers_per_level_floor: int = 2    # 作業層あたり床レベルの布材（内外）
     ledgers_negarami: int = 2           # 根がらみ（内外）
-    udegi_nominal: int = 600            # 腕木の呼び寸法（内外建地間隔）
+    # 腕木の呼び寸法。Noneならモデルの建地列間隔から引く
+    # （固定値にすると系列や次世代足場で図面と発注部材がズレる）
+    udegi_nominal: Optional[int] = None
     # 斜材（ブレス）の設置間隔。くさび式足場用斜材は「6層6スパン以下毎に交さ2方向」が基準。
     # 全スパン・全層に入れる会社もあるので、その場合は1/1にする（数量が大きく変わる）
     brace_every_spans: int = 6
@@ -151,10 +153,11 @@ def take_off(
 
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
+        udegi = rules.udegi_nominal or model.post_row_spacing_mm
         add(
-            m.find("布材", rules.udegi_nominal),
+            m.find("布材", udegi),
             posts_per_line * (n_levels + 1),
-            f"腕木（布材{rules.udegi_nominal}）",
+            f"腕木（布材{udegi}）",
         )
 
     # ---- 踏板（スパン×作業層×幅構成。階段室の区間には敷かない） ----
@@ -381,12 +384,8 @@ def _count_frame_parts(
     # 建枠幅は「近い幅」ではなく「布板が載る最小幅」を選ぶ
     # （近似で選ぶと布板より狭い建枠になり、実際には組めない）
     need_width = model.deck_width_total
-    widths = m.frame_widths()
-    fits = [w for w in widths if w >= need_width]
-    if fits:
-        frame_width = min(fits)
-    else:
-        frame_width = max(widths) if widths else 1219
+    frame_width, fits = m.frame_width_for(need_width)
+    if not fits:
         notes.append(
             f"布板幅の合計{need_width}mmに対し建枠幅が不足しています"
             f"（最大{frame_width}mm）。布板構成か建枠規格を見直してください"

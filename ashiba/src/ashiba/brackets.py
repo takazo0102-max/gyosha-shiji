@@ -132,7 +132,7 @@ def validate_bracket_sections(
 
     # 拡幅時: 下層建地間隔が上層の60%以上
     for s in widen:
-        base = model.deck_width_total
+        base = model.post_row_spacing_mm
         widened = base + s.width
         if base < widened * WIDEN_MIN_LOWER_RATIO:
             issues.append(BracketIssue(

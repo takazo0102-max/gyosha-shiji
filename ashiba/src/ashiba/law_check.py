@@ -397,7 +397,8 @@ def check_post_spacing(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則571条1項二号（支柱式足場の建地間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
     if longest > MAX_SPAN_ALONG_MM:
         problems.append(f"桁行方向の建地間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm")
-    across = m.deck_width_total
+    # 梁間方向の建地間隔は建地列の芯々。作業床の被覆幅ではない
+    across = m.post_row_spacing_mm
     if m.config.scaffold_form != "一側足場" and across > MAX_SPAN_ACROSS_MM:
         problems.append(f"梁間方向の建地間隔{across}mm > {MAX_SPAN_ACROSS_MM}mm")
     if problems:

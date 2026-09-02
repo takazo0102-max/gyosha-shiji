@@ -102,6 +102,18 @@ class PartMaster:
             {p.nominal_dim for p in self.by_category("建枠")}, reverse=True
         )
 
+    def frame_width_for(self, need_width: int) -> tuple[int, bool]:
+        """布板幅の合計を載せられる最小の建枠幅と、足りているかを返す.
+
+        「近い幅」で選ぶと布板より狭い建枠になり、実際には組めない。
+        数量拾いと図面で別々に選ぶとズレるので、選定はここに集約する。
+        """
+        widths = self.frame_widths()
+        fits = [w for w in widths if w >= need_width]
+        if fits:
+            return min(fits), True
+        return (max(widths) if widths else 1219), False
+
     def frame_widths(self) -> list[int]:
         """建枠の幅一覧（降順）. noteの「幅NNNN」から読む."""
         out = set()

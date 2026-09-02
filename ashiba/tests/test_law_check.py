@@ -184,11 +184,20 @@ class TestPostSpacing(unittest.TestCase):
         self.assertIn("桁行", r.message)
 
     def test_oversized_cross_spacing_rejected(self):
+        """梁間は建地列の芯々。作業床の被覆幅ではない."""
         m = make_good_model()
-        m.config.deck_widths = (800, 800)   # 梁間 1620mm > 1500mm
+        m.config.post_row_spacing_mm = 1620
         r = [c for c in run_all_checks(m) if c.check_id == 11][0]
         self.assertEqual(r.status, NG)
         self.assertIn("梁間", r.message)
+
+    def test_cross_spacing_comes_from_the_ledger_not_the_deck(self):
+        """作業床を広げただけでは建地間隔は変わらない（腕木の寸法で決まる）."""
+        m = make_good_model()
+        m.config.deck_widths = (800, 800)
+        self.assertGreater(m.deck_width_total, m.post_row_spacing_mm)
+        r = [c for c in run_all_checks(m) if c.check_id == 11][0]
+        self.assertEqual(r.status, OK)
 
     def test_single_row_has_no_cross_spacing(self):
         """一側足場は内外2列でないので梁間方向の制限は対象外."""

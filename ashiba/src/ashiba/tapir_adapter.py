@@ -292,7 +292,7 @@ def _line_params(model: ScaffoldModel, ep) -> dict:
         "komaPitch": model.master.koma_pitch / 1000.0,
         "floorH": model.master.floor_height / 1000.0,
         "standoff": ep.standoff / 1000.0,
-        "rowW": model.deck_width_total / 1000.0,
+        "rowW": model.post_row_spacing_mm / 1000.0,
         "deckW1": (widths[0] if widths else 400) / 1000.0,
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),

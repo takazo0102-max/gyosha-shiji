@@ -68,7 +68,7 @@ def required_details(
         "tieVLim": v_lim / 1000.0,
         "tieHLim": h_lim / 1000.0,
         "standoff": _median_standoff(model) / 1000.0,
-        "rowW": model.deck_width_total / 1000.0,
+        "rowW": model.post_row_spacing_mm / 1000.0,
         "spanW": _common_span(model) / 1000.0,
         "deckW1": model.config.deck_widths[0] / 1000.0,
         "deckW2": (model.config.deck_widths[1] / 1000.0

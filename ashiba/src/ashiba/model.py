@@ -44,6 +44,7 @@ class ScaffoldConfig:
     deck_widths: Optional[tuple[int, ...]] = None
     next_gen: bool = False                 # 次世代足場（くさび派生・踏板幅500）
     deck_gap_mm: int = 20                  # 床材間の隙間
+    post_row_spacing_mm: Optional[int] = None  # 内外建地列の芯々間隔（Noneで自動）
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間
     # 手すり方式: 先行手すり工法か、布材（手すり＋中桟）か
     # ビル工事用は原則として手すり先行工法（特別教育テキスト）
@@ -91,6 +92,28 @@ class ScaffoldModel:
     @property
     def scaffold_height_mm(self) -> int:
         return self.elevation.total_height
+
+    @property
+    def post_row_spacing_mm(self) -> int:
+        """内外の建地列の芯々間隔.
+
+        作業床の被覆幅（deck_width_total）とは別物。くさび式は内外を繋ぐ
+        腕木（布材）の呼び寸法が、そのまま建地列の間隔になる。枠組は建枠幅。
+
+        以前は建地列の間隔として deck_width_total を使っていたため、
+        部材表は腕木600を発注するのに図面は670で描く、という食い違いが
+        出ていた。発注する部材の寸法を正とする。
+        """
+        if self.config.post_row_spacing_mm is not None:
+            return self.config.post_row_spacing_mm
+        if self.master.is_frame:
+            return self.master.frame_width_for(self.deck_width_total)[0]
+        # 作業床を載せられる範囲で最大の腕木（布材）
+        cands = [
+            p.nominal_dim for p in self.master.by_category("布材")
+            if p.nominal_dim <= self.deck_width_total
+        ]
+        return max(cands) if cands else self.deck_width_total
 
     @property
     def deck_width_total(self) -> int:
