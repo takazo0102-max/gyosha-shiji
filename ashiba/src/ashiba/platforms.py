@@ -282,8 +282,9 @@ def platform_part_demands(
         per_span = math.ceil(s.projection_mm / deck_w) if deck_w else 0
         for nominal in set(spans):
             n = spans.count(nominal)
+            deck_cat = model.master.deck_category
             out.append(PartDemand(
-                "踏板", "踏板", nominal, n * n_levels * per_span, f"幅{deck_w}"
+                deck_cat, deck_cat, nominal, n * n_levels * per_span, f"幅{deck_w}"
             ))
             if s.has_toe_board:
                 out.append(PartDemand("幅木", "幅木", nominal, n * n_levels))

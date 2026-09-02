@@ -156,6 +156,11 @@ def solve_elevation_frame(
             "建枠が単一高さのため千鳥（縦継ぎ位置ずらし）を構成できません。"
             "最下段を調整枠に置換してください"
         )
+    if not level_heights:
+        warnings.append(
+            f"足場高さ{top}mmでは作業床が1層も取れません。"
+            "要求高さを上げるか、作業床の要否を見直してください"
+        )
 
     return ElevationResult(
         required_height=required_height,
@@ -250,6 +255,13 @@ def solve_elevation(
         level_heights.append(h)
         h -= floor_height
     level_heights.sort()
+    if not level_heights:
+        warnings.append(
+            f"足場高さ{top}mmでは作業床が1層も取れません"
+            f"（最上層は支柱天端から手すり{2 * koma_pitch}mm下、"
+            f"最下層は根がらみ{first_ledger}mmより上に必要）。"
+            "要求高さを上げるか、作業床の要否を見直してください"
+        )
 
     return ElevationResult(
         required_height=required_height,

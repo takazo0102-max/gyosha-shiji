@@ -40,5 +40,29 @@ class TestMaster(unittest.TestCase):
             self.a.assert_series(b_part)
 
 
+class TestMasterCompleteness(unittest.TestCase):
+    """部材が欠けた系列は読み込み時点で落とす."""
+
+    def test_incomplete_series_is_rejected_with_the_missing_names(self):
+        """inch系列は布材しか無い。解いている途中で空のmin()を取る前に落とす."""
+        with self.assertRaises(SeriesLockError) as cm:
+            load_master("inch")
+        msg = str(cm.exception)
+        self.assertIn("不完全", msg)
+        for cat in ("支柱", "踏板", "ジャッキ", "壁つなぎ"):
+            self.assertIn(cat, msg)
+
+    def test_complete_series_load_fine(self):
+        for sid in ("shinwa_A", "shinwa_B", "waku"):
+            with self.subTest(sid):
+                self.assertTrue(load_master(sid).parts)
+
+    def test_deck_category_differs_by_system(self):
+        """枠組は「布板」。決め打ちすると部材があるのに拾えない."""
+        self.assertEqual(load_master("shinwa_A").deck_category, "踏板")
+        self.assertEqual(load_master("waku").deck_category, "布板")
+        self.assertIsNotNone(load_master("waku").deck_parts(500, 1829))
+
+
 if __name__ == "__main__":
     unittest.main()

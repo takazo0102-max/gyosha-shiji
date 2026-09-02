@@ -87,6 +87,15 @@ class PartMaster:
         """帳票に書く足場の種類。届出書に別方式の名前を書かないための一元管理."""
         return "枠組足場" if self.is_frame else "くさび緊結式足場"
 
+    @property
+    def deck_category(self) -> str:
+        """作業床の分類名。枠組は「布板」、くさびは「踏板」と呼び分ける.
+
+        分類名を決め打ちすると、枠組の計画でステージや区間指定の作業床が
+        「マスタにありません」になる（実際の部材はあるのに拾えない）。
+        """
+        return "布板" if self.is_frame else "踏板"
+
     def frame_heights(self) -> list[int]:
         """建枠の高さ一覧（降順）. 枠組式のみ."""
         return sorted(
@@ -148,8 +157,8 @@ class PartMaster:
         return None
 
     def deck_parts(self, width: int, nominal_dim: int) -> Optional[Part]:
-        """指定幅・長さの踏板."""
-        for p in self.by_category("踏板"):
+        """指定幅・長さの作業床（くさび=踏板 / 枠組=布板）."""
+        for p in self.by_category(self.deck_category):
             if p.nominal_dim == nominal_dim and f"幅{width}" in p.note and "センター" not in p.note:
                 return p
         return None
@@ -186,4 +195,24 @@ def load_master(series_id: str, csv_path: Optional[Path] = None) -> PartMaster:
             )
     if not master.parts:
         raise SeriesLockError(f"系列 {series_id} の部材がマスタにありません: {path}")
+    _assert_complete(master, path)
     return master
+
+
+# 割付・数量・構造のどれかが必ず引く分類。欠けていると解いている途中で
+# 空の min() を取るような分かりにくい例外になる（実際 inch 系列がそうだった）
+REQUIRED_CATEGORIES = {
+    WEDGE: ("支柱", "布材", "踏板", "ジャッキ", "壁つなぎ"),
+    FRAME: ("建枠", "布材", "布板", "ジャッキ", "壁つなぎ"),
+}
+
+
+def _assert_complete(master: PartMaster, path: Path) -> None:
+    """系列に必須分類が揃っているか。足りなければ読み込み時点で落とす."""
+    have = {p.category for p in master.parts}
+    missing = [c for c in REQUIRED_CATEGORIES[master.system_type] if c not in have]
+    if missing:
+        raise SeriesLockError(
+            f"系列 {master.series_id} は部材マスタが不完全です"
+            f"（不足: {'、'.join(missing)}）。{path} を補完してください"
+        )

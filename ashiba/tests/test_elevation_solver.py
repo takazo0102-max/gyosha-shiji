@@ -54,5 +54,37 @@ class TestElevation(unittest.TestCase):
             solve_elevation(100, post_lengths=[3600], koma_pitch=450, floor_height=1800)
 
 
+class TestDegenerateHeights(unittest.TestCase):
+    """作業床が1層も取れない解を黙って返さない."""
+
+    def test_zero_levels_is_warned(self):
+        m = load_master("shinwa_A")
+        e = solve_elevation(2000, master=m)
+        self.assertEqual(e.n_levels, 0)
+        self.assertTrue(
+            any("作業床が1層も取れません" in w for w in e.warnings), e.warnings
+        )
+
+    def test_normal_heights_have_no_such_warning(self):
+        m = load_master("shinwa_A")
+        e = solve_elevation(16300, master=m)
+        self.assertGreater(e.n_levels, 0)
+        self.assertFalse(any("作業床が1層も取れません" in w for w in e.warnings))
+
+    def test_every_series_solves_across_the_usable_range(self):
+        """高さを振っても例外・過大偏差・2m超の層間が出ないこと."""
+        for sid in ("shinwa_A", "shinwa_B", "waku"):
+            m = load_master(sid)
+            for h in range(4000, 45001, 1000):
+                with self.subTest(sid=sid, h=h):
+                    e = solve_elevation(h, master=m)
+                    self.assertGreater(e.n_levels, 0)
+                    self.assertGreaterEqual(e.total_height - h, -150)
+                    gaps = [
+                        b - a for a, b in zip(e.level_heights, e.level_heights[1:])
+                    ]
+                    self.assertTrue(all(g <= 2000 for g in gaps), gaps)
+
+
 if __name__ == "__main__":
     unittest.main()
