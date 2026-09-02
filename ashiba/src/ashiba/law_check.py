@@ -292,9 +292,12 @@ def check_height_reinforcement(m: ScaffoldModel) -> CheckResult:
             f"足場高さ{h / 1000:.2f}m > 45m: 本ツールの適用範囲外です（個別設計が必要）", basis,
         )
     if h > 31000:
+        # どこからどこまでを2本組にするのかまで言わないと手が打てない
         return CheckResult(
             8, "高さ", WARN,
-            f"足場高さ{h / 1000:.2f}m > 31m: 31mを超える部分より下の支柱は2本組等の補強が必要です",
+            f"足場高さ{h / 1000:.2f}m > 31m: 最高部から31mを超える部分"
+            f"（GL〜{(h - 31000) / 1000:.2f}m）の建地は2本組が必要です。"
+            "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます",
             basis,
         )
     return CheckResult(8, "高さ", OK, f"足場高さ{h / 1000:.2f}m ≦ 31m", basis)

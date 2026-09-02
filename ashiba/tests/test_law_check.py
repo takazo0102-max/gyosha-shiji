@@ -160,6 +160,40 @@ class TestJackCheckUsesTerrain(unittest.TestCase):
         self.assertIn("本", r.message)
 
 
+class TestTallScaffoldReachesTheQuantity(unittest.TestCase):
+    """31m超の2本組は、警告だけ出して数量が単管1本組のままでは部材が足りない."""
+
+    def _model(self, height, series="shinwa_A"):
+        master = load_master(series)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(height, master=master),
+            config=ScaffoldConfig(), building_height_mm=height - 300,
+        )
+
+    def test_quantity_states_what_is_missing(self):
+        from ashiba.quantity import take_off
+
+        for series in ("shinwa_A", "waku"):
+            with self.subTest(series):
+                q = take_off(self._model(35000, series))
+                hit = [w for w in q.warnings if "2本組" in w]
+                self.assertTrue(hit, q.warnings)
+                self.assertIn("数量に含んでいません", hit[0])
+                self.assertIn("本ぶん", hit[0])
+
+    def test_check_names_the_range(self):
+        c = [r for r in run_all_checks(self._model(35000)) if r.check_id == 8][0]
+        self.assertEqual(c.status, "WARN")
+        self.assertIn("GL〜", c.message)
+
+    def test_short_scaffold_says_nothing(self):
+        from ashiba.quantity import take_off
+
+        q = take_off(self._model(16300))
+        self.assertFalse([w for w in q.warnings if "2本組" in w])
+
+
 if __name__ == "__main__":
     unittest.main()
 

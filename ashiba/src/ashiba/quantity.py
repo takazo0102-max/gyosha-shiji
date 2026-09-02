@@ -140,6 +140,7 @@ def take_off(
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
         _note_inner_rail_if_wide(model, notes)
+        _note_double_posts_if_tall(model, notes)
         return _assemble(model, rules, counts, parts, notes)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
@@ -308,6 +309,7 @@ def take_off(
     _count_platform_parts(model, platforms, add, notes)
     _count_opening_parts(model, openings, add, notes)
     _note_inner_rail_if_wide(model, notes)
+    _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes)
 
 
@@ -443,6 +445,30 @@ def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
     from .stairs import landings_per_tower
 
     return landings_per_tower(model) * n_towers
+
+
+DOUBLE_POST_HEIGHT_MM = 31000   # これを超える部分の建地は2本組（安衛則571条）
+
+
+def _note_double_posts_if_tall(model: ScaffoldModel, notes) -> None:
+    """31m超の2本組は数量に含めていないことを、必要本数つきで書く.
+
+    法規チェックは警告を出すのに数量表は単管1本組のままで、部材が足りない。
+    除外規定（設計荷重が最大使用荷重以内）があるので自動では計上せず、
+    どれだけ要るのかを数字で出して判断できるようにする。
+    """
+    h = model.scaffold_height_mm
+    if h <= DOUBLE_POST_HEIGHT_MM:
+        return
+    below = h - DOUBLE_POST_HEIGHT_MM
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    lines = model.plan.total_posts * rows
+    notes.action(
+        f"足場高さ{h / 1000:.2f}mは31mを超えます。最高部から31mを超える部分"
+        f"（GL〜{below / 1000:.2f}m）の建地は2本組が必要ですが、追加の支柱・"
+        f"ジャッキは数量に含んでいません（該当は支柱{lines}本ぶん）。"
+        "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます"
+    )
 
 
 def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
