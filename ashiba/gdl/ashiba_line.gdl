@@ -37,6 +37,8 @@
 !   negaH          長さ    根がらみ高さ GLから 0で自動                             既定 0
 !   railH          長さ    手すり高さ 作業床から 0で自動                           既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                             既定 0
+!   braceEveryS    整数    斜材の設置間隔 スパン 1=全構面                          既定 1
+!   braceEveryL    整数    斜材の設置間隔 層 1=全層                                既定 1
 !   nRows          整数    建地列数 2=本足場 1=一側足場                            既定 2
 !   warnPen        整数    注記強調のペン番号 ペンテーブル依存                     既定 20
 !   texSiz         実数    文字高mm                                                既定 2.5
@@ -235,6 +237,13 @@ if railMid <= 0 then railMid = komaPitch
 nTiePair = nTie
 if nTieH < nTiePair then nTiePair = nTieH
 
+! 斜材の設置間隔。数量は「6層6スパン以下毎に交さ2方向」で拾っているので、
+! 図面を全構面に描くと部材表と食い違う（発注40本に対し図面896本）
+bEvS = braceEveryS
+if bEvS < 1 then bEvS = 1
+bEvL = braceEveryL
+if bEvL < 1 then bEvL = 1
+
 ! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
 ! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
 rowStart = 0
@@ -373,14 +382,16 @@ for il = 2 to nLv
 	line2 0, z + railTop, lineLen, z + railTop
 next il
 
-! ブレス（各構面・各層で交互向き）
+! ブレス（交互向き）。設置間隔は数量拾いと揃える
 x = 0
 for ip = 1 to nSpan
 	for il = 1 to nLv - 1
-		if ip - 2 * int(ip / 2) = 0 then
-			line2 x, lv[il], x + spans[ip], lv[il + 1]
-		else
-			line2 x + spans[ip], lv[il], x, lv[il + 1]
+		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+			if ip - 2 * int(ip / 2) = 0 then
+				line2 x, lv[il], x + spans[ip], lv[il + 1]
+			else
+				line2 x + spans[ip], lv[il], x, lv[il + 1]
+			endif
 		endif
 	next il
 	x = x + spans[ip]
@@ -535,28 +546,34 @@ if showDeck then
 endif
 
 ! ---- ブレス（外側構面、スパンごとに交互方向） ----
+! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
+! 同じ間隔で描かないと、部材表と図面の本数が食い違う
 if showBrace then
 	for il = 1 to nLv - 1
-		z1 = lv[il]
-		z2 = lv[il + 1]
-		x = 0
-		for ip = 1 to nSpan
-			bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
-			ang = atn((z2 - z1) / spans[ip])
-			if ip - 2 * int(ip / 2) = 0 then
-				add x, -rowW - 0.05, z1
-				roty 90 - ang
-				cylind bl, 0.0213 / 2
-				del 2
-			else
-				add x + spans[ip], -rowW - 0.05, z1
-				mulx -1
-				roty 90 - ang
-				cylind bl, 0.0213 / 2
-				del 3
-			endif
-			x = x + spans[ip]
-		next ip
+		if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+			z1 = lv[il]
+			z2 = lv[il + 1]
+			x = 0
+			for ip = 1 to nSpan
+				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
+					ang = atn((z2 - z1) / spans[ip])
+					if ip - 2 * int(ip / 2) = 0 then
+						add x, -rowW - 0.05, z1
+						roty 90 - ang
+						cylind bl, 0.0213 / 2
+						del 2
+					else
+						add x + spans[ip], -rowW - 0.05, z1
+						mulx -1
+						roty 90 - ang
+						cylind bl, 0.0213 / 2
+						del 3
+					endif
+				endif
+				x = x + spans[ip]
+			next ip
+		endif
 	next il
 endif
 

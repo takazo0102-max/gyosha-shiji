@@ -120,14 +120,16 @@ for il = 2 to nLv
 	line2 0, z + railTop, lineLen, z + railTop
 next il
 
-! ブレス（各構面・各層で交互向き）
+! ブレス（交互向き）。設置間隔は数量拾いと揃える
 x = 0
 for ip = 1 to nSpan
 	for il = 1 to nLv - 1
-		if ip - 2 * int(ip / 2) = 0 then
-			line2 x, lv[il], x + spans[ip], lv[il + 1]
-		else
-			line2 x + spans[ip], lv[il], x, lv[il + 1]
+		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+			if ip - 2 * int(ip / 2) = 0 then
+				line2 x, lv[il], x + spans[ip], lv[il + 1]
+			else
+				line2 x + spans[ip], lv[il], x, lv[il + 1]
+			endif
 		endif
 	next il
 	x = x + spans[ip]

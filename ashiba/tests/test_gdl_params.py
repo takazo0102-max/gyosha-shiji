@@ -117,6 +117,35 @@ class TestSingleRowScaffold(unittest.TestCase):
         )
 
 
+class TestBraceSpacingMatchesTakeOff(unittest.TestCase):
+    """図面のブレス本数が部材表と食い違わないこと."""
+
+    def test_wedge_uses_the_take_off_interval(self):
+        from ashiba.quantity import QuantityRules
+
+        r = QuantityRules()
+        p = line_params(build("shinwa_A"), build("shinwa_A").plan.edges[0])
+        self.assertEqual(p["braceEveryS"], r.brace_every_spans)
+        self.assertEqual(p["braceEveryL"], r.brace_every_levels)
+        self.assertGreater(p["braceEveryS"], 1)
+
+    def test_frame_draws_every_bay(self):
+        """枠組の交差筋交は建枠と一体で全構面に入る."""
+        m = build("waku")
+        p = line_params(m, m.plan.edges[0])
+        self.assertEqual((p["braceEveryS"], p["braceEveryL"]), (1, 1))
+
+    def test_custom_rules_are_reflected(self):
+        from ashiba.quantity import QuantityRules
+
+        m = build("shinwa_A")
+        p = line_params(
+            m, m.plan.edges[0],
+            rules=QuantityRules(brace_every_spans=1, brace_every_levels=1),
+        )
+        self.assertEqual((p["braceEveryS"], p["braceEveryL"]), (1, 1))
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 

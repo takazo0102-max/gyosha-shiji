@@ -12,7 +12,7 @@ import math
 from .model import ScaffoldModel
 
 
-def line_params(model: ScaffoldModel, ep) -> dict:
+def line_params(model: ScaffoldModel, ep, rules=None) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
     平面と立面で別々に組み立てると片方だけ渡し漏れる（実際、内外建地間隔と
@@ -21,8 +21,14 @@ def line_params(model: ScaffoldModel, ep) -> dict:
     作業床高さ・根がらみ高さ・手すり高さはPython側の解を渡す。GDLで
     komaPitch から再計算させると、コマの概念が無い枠組で破綻する。
     """
+    from .quantity import QuantityRules
+
+    rules = rules or QuantityRules()
     e = model.elevation
     widths = list(model.config.deck_widths or [])
+    # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
+    brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
+    brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
     return {
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
@@ -40,6 +46,9 @@ def line_params(model: ScaffoldModel, ep) -> dict:
         "serType": "B" if model.master.series_id.endswith("_B") else "A",
         # 一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,
+        # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
+        "braceEveryS": brace_s,
+        "braceEveryL": brace_l,
     }
 
 

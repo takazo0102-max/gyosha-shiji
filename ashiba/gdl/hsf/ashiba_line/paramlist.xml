@@ -117,6 +117,14 @@
 			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Integer Name="braceEveryS">
+			<Description><![CDATA["斜材の設置間隔 スパン 1=全構面"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="braceEveryL">
+			<Description><![CDATA["斜材の設置間隔 層 1=全層"]]></Description>
+			<Value>1</Value>
+		</Integer>
 		<Integer Name="nRows">
 			<Description><![CDATA["建地列数 2=本足場 1=一側足場"]]></Description>
 			<Value>2</Value>

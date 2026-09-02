@@ -188,6 +188,13 @@ if railMid <= 0 then railMid = komaPitch
 nTiePair = nTie
 if nTieH < nTiePair then nTiePair = nTieH
 
+! 斜材の設置間隔。数量は「6層6スパン以下毎に交さ2方向」で拾っているので、
+! 図面を全構面に描くと部材表と食い違う（発注40本に対し図面896本）
+bEvS = braceEveryS
+if bEvS < 1 then bEvS = 1
+bEvL = braceEveryL
+if bEvL < 1 then bEvL = 1
+
 ! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
 ! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
 rowStart = 0

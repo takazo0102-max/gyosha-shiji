@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト313本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト316本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -69,6 +69,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
 | `scripts/build_flat_gdl.py` | HSF→単一ファイル参照版の生成（`--check` でズレ検査） |
+| `scripts/place_from_plan_json.py` | plan.json だけからArchicadへ再配置（読み戻して照合） |
 
 ## 使い方
 
