@@ -306,6 +306,29 @@ class TestFrameSpecificRules(unittest.TestCase):
         self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
 
 
+class TestSpanIsNotAssumed1800(unittest.TestCase):
+    """インチ規格（1829）の系列で、1800決め打ちの判定がずれないこと."""
+
+    RECESS = [(0, 0), (20000, 0), (20000, 10000), (12000, 10000),
+              (12000, 8000), (8000, 8000), (8000, 10000), (0, 10000)]
+
+    def test_one_span_face_is_not_counted_as_a_gap(self):
+        """1スパンぶんの面は両隣で拘束される。1829>1800で計上すると過大になる."""
+        master = load_master("waku")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(self.RECESS, master),
+            elevation=solve_elevation(9100, master=master),
+            config=ScaffoldConfig(), building_height_mm=9000,
+        )
+        short = [e for e in m.plan.edges
+                 if len(e.spans) == 1
+                 and not [t for t in m.wall_ties if t.edge_index == e.edge_index]]
+        self.assertTrue(short, "1スパンで壁つなぎ0本の面が無い")
+        _v, h_max = m.wall_tie_max_spacing()
+        for e in short:
+            self.assertNotAlmostEqual(h_max, e.scaffold_length, places=1)
+
+
 class TestFrameLegs(unittest.TestCase):
     """建枠1枚は2脚。脚まわりの部材を建枠の枚数で数えない."""
 

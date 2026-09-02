@@ -243,7 +243,9 @@ class ScaffoldModel:
                 t.position_mm for t in self.wall_ties if t.edge_index == e.edge_index
             )
             if not xs:
-                if e.scaffold_length > 1800:
+                # 壁つなぎが1本も無い面は、その面全体が1つの間隔になる。
+                # 1スパン以下の面（回し・小さな張り出し）は両隣で拘束される
+                if e.spans and e.scaffold_length > max(e.spans):
                     h_max = max(h_max, e.scaffold_length)
                 continue
             prev_x = 0.0
@@ -305,7 +307,10 @@ def generate_wall_ties(
         for k, i in enumerate(idxs):
             if k % step == 0:
                 picked.append(acc[i])
-        if picked and (e.scaffold_length - picked[-1]) > step * 1800:
+        # 最後の壁つなぎから面の端までが step スパンより空くなら1本足す。
+        # 1800決め打ちにすると、B系列(1829)や枠組(1829)で判定がずれる
+        span_ref = max(e.spans) if e.spans else 1800
+        if picked and (e.scaffold_length - picked[-1]) > step * span_ref:
             picked.append(acc[idxs[-1]])
         for h in tie_levels:
             for x in picked:
