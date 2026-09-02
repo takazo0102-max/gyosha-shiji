@@ -185,6 +185,26 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo) -> 
     _kv(s, "作業床の層数", model.elevation.n_levels, "層")
     _kv(s, "支柱位置数", model.plan.total_posts, "箇所/層（内外2列なら×2本）")
     _kv(s, "設置期間", model.config.period_days, "日")
+    # 様式の「構造の概要」欄。作業床・手すり・壁つなぎ・昇降設備・朝顔は
+    # 計画で変わるのに、この下書きは種類と寸法しか書いていなかった
+    widths = "＋".join(str(w) for w in model.deck_widths_in_use)
+    # 法規上の作業床幅は床材の合計（隙間は床ではない）。deck_width_total は
+    # 隙間込みの被覆幅なので、ここで使うと法規チェックの650と食い違う
+    _kv(s, "作業床", f"幅{sum(model.deck_widths_in_use)}mm（{widths}）",
+        f"{model.elevation.n_levels}層・床材隙間{model.config.deck_gap_mm}mm・幅木H157"
+        + ("" if model.config.has_toe_board else "（幅木なし）"))
+    _kv(s, "手すり", model.config.guard_rail_type,
+        f"手すり{model.guard_rail_height_mm}mm＋中桟")
+    v_max, h_max = model.wall_tie_max_spacing()
+    v_lim, h_lim, tie_basis = model.wall_tie_limits()
+    _kv(s, "壁つなぎ", f"{len(model.wall_ties)}箇所",
+        f"最大 垂直{v_max:.0f}×水平{h_max:.0f}mm（法定 {v_lim:.0f}×{h_lim:.0f}以下） "
+        f"{tie_basis}")
+    a = model.config.asagao
+    _kv(s, "朝顔（防護棚）",
+        f"{a.stages}段" if a and a.stages else "なし",
+        (f"突出{a.projection_mm:.0f}mm・傾斜{a.angle_deg:.0f}度"
+         if a and a.stages else "高さ10m未満または設置しない指定"))
     s.add_blank()
 
     s.add(["■ 日程"], STYLE_BOLD)

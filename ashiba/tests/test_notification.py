@@ -151,6 +151,32 @@ class TestNotification(unittest.TestCase):
             self.assertIn("未確認値", tie)
 
 
+class TestForm20StructureSummary(unittest.TestCase):
+    """様式第20号の「構造の概要」が計画に追随すること."""
+
+    def _form(self, **cfg):
+        m = make_model(**cfg) if cfg else make_model()
+        q = take_off(m)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "n.xlsx"
+            write_notification_xlsx(m, q, run_all_checks(m), run_structural(m, q), p)
+            z = zipfile.ZipFile(p)
+            return z.read("xl/worksheets/sheet1.xml").decode()
+
+    def test_deck_and_rail_and_ties_are_stated(self):
+        form = self._form()
+        for token in ("作業床", "手すり", "壁つなぎ", "朝顔"):
+            self.assertIn(token, form)
+
+    def test_deck_width_matches_the_law_check(self):
+        """様式の作業床幅と法規チェックの幅が食い違わない（670と650）."""
+        m = make_model()
+        width = sum(m.deck_widths_in_use)
+        self.assertIn(f"幅{width}mm", self._form())
+        deck = [c for c in run_all_checks(m) if c.check_id == 2][0]
+        self.assertIn(f"幅{width}mm", deck.message)
+
+
 class TestTodoSheet(unittest.TestCase):
     """提出書類にも「着手前に何を確認するか」を載せる."""
 
