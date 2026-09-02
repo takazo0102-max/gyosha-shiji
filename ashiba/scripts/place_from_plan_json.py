@@ -23,11 +23,19 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
 from dev_gsm_iterate import build_current_gsm  # noqa: E402
 
-# 読み戻して照合する対象。文字列とスカラで扱いが違うので分けておく
-NUMERIC_KEYS = ("jackOut", "komaPitch", "floorH", "standoff", "rowW",
-                "deckW1", "deckW2", "negaH", "railH", "midH")
-STRING_KEYS = ("spanList", "postList", "levelList", "serType")
-INT_KEYS = ("nRows",)
+# 照合は plan.json が送った全パラメータで行う。対象を手で並べていたときは、
+# パラメータを増やすたびに照合対象から漏れ、12個が黙って未検証になっていた
+
+
+def _same(sent, got) -> bool:
+    """送った値と読み戻した値が同じか（数値は誤差、文字列は表記の揺れを吸収）."""
+    if got is None:
+        return False
+    try:
+        return abs(float(sent) - float(got)) <= 1e-6
+    except (TypeError, ValueError):
+        pass
+    return str(sent).strip() == str(got).strip()
 
 
 def _values(resp: dict) -> dict:
@@ -61,6 +69,7 @@ def main() -> None:
     print(f"部品: {name}")
 
     placed, mismatches = [], []
+    checked = 0
     for e in data["edges"]:
         pl, params = e["placement"], e["gdl_params"]
         elem = c.create_object(name, pl["x_mm"], pl["y_mm"])
@@ -72,15 +81,13 @@ def main() -> None:
         c.set_gdl_parameters(elem, params)
 
         got = _values(c.get_gdl_parameters(elem))
-        for k in STRING_KEYS + INT_KEYS:
-            if k in params and str(got.get(k)) != str(params[k]):
+        for k, v in params.items():
+            if not _same(v, got.get(k)):
                 mismatches.append(f"辺{e['edge_index']} {k}: "
-                                  f"{params[k]!r} → {got.get(k)!r}")
-        for k in NUMERIC_KEYS:
-            if k in params and abs(float(got.get(k, 0)) - float(params[k])) > 1e-6:
-                mismatches.append(f"辺{e['edge_index']} {k}: "
-                                  f"{params[k]} → {got.get(k)}")
-    print(f"配置: {len(placed)}本")
+                                  f"{v!r} → {got.get(k)!r}")
+        checked += len(params)
+    print(f"配置: {len(placed)}本 / 照合 {checked}パラメータ"
+          f"（1本あたり{checked // max(len(placed), 1)}）")
 
     out = ROOT / "out" / "replace_check"
     out.mkdir(parents=True, exist_ok=True)

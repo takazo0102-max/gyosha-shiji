@@ -6,6 +6,7 @@ Python側の解をそのまま渡していることを検査する。
 """
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -407,6 +408,36 @@ class TestPlacement(unittest.TestCase):
         m = build("shinwa_A")
         angles = [placement_of(m, e.edge_index)["angle_deg"] for e in m.plan.edges]
         self.assertEqual(sorted(angles), [-90.0, 0.0, 90.0, 180.0])
+
+
+class TestPlanJsonRoundTripCoverage(unittest.TestCase):
+    """plan.json からの再配置スクリプトが、送った全パラメータを照合すること.
+
+    照合対象を手で並べていたときは、パラメータを増やすたびに漏れて
+    「全パラメータ一致」と出しながら12個が未検証だった。
+    """
+
+    def test_no_hardcoded_key_list_in_the_script(self):
+        src = (Path(__file__).resolve().parents[1]
+               / "scripts" / "place_from_plan_json.py").read_text(encoding="utf-8")
+        for name in ("NUMERIC_KEYS", "STRING_KEYS", "INT_KEYS"):
+            self.assertNotIn(name, src, f"{name} で対象を固定すると漏れる")
+        self.assertIn("params.items()", src)
+
+    def test_plan_json_carries_every_parameter(self):
+        import json
+        import tempfile
+
+        from ashiba.report import write_plan_json
+
+        m = build("shinwa_A")
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "plan.json"
+            write_plan_json(m, path)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        sent = set(line_params(m, m.plan.edges[0]))
+        for e in data["edges"]:
+            self.assertEqual(set(e["gdl_params"]), sent)
 
 
 if __name__ == "__main__":
