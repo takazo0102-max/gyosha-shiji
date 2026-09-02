@@ -145,4 +145,14 @@ for ia = 1 to nAsa
 	next ip
 next ia
 
+! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
+! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との
+! 取り合いが確認できなかった
+for it = 1 to nTiePair
+	add ties[it], 0, tieH[it]
+	rotx -90
+	cylind standoff, r_tie
+	del 2
+next it
+
 end

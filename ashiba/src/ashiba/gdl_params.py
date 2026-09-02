@@ -25,6 +25,7 @@ def line_params(model: ScaffoldModel, ep, rules=None, stair_plan=None) -> dict:
 
     rules = rules or QuantityRules()
     e = model.elevation
+    ties = [t for t in model.wall_ties if t.edge_index == ep.edge_index]
     widths = list(model.config.deck_widths or [])
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
@@ -52,6 +53,10 @@ def line_params(model: ScaffoldModel, ep, rules=None, stair_plan=None) -> dict:
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
         # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
         "stairList": _stair_list(ep, stair_plan),
+        # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
+        # 平面では一度も描かれていなかった
+        "tieList": ",".join(str(int(t.position_mm)) for t in ties),
+        "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
         "asagaoList": ",".join(str(h) for h in model.asagao_heights()),
         "asagaoProj": (model.config.asagao.projection_mm / 1000.0
                        if model.config.asagao else 2.0),

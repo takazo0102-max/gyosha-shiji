@@ -308,6 +308,7 @@ if nRows < 2 then rowStart = 1
 
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
 r_nuno = 0.0427 / 2	! 布材 φ42.7
+r_tie  = 0.0273 / 2	! 壁つなぎ φ27.2
 
 ! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
 ! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
@@ -709,6 +710,16 @@ for ia = 1 to nAsa
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
 next ia
+
+! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
+! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との
+! 取り合いが確認できなかった
+for it = 1 to nTiePair
+	add ties[it], 0, tieH[it]
+	rotx -90
+	cylind standoff, r_tie
+	del 2
+next it
 
 end
 

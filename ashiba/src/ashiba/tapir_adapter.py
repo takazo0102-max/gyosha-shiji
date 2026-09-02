@@ -386,15 +386,12 @@ def place_elevations(
     placed = []
     x = origin_mm[0]
     for i, ep in enumerate(model.plan.edges):
-        ties = [t for t in model.wall_ties if t.edge_index == ep.edge_index]
         elem = client.create_object(object_name, x, origin_mm[1])
         client.set_gdl_parameters(
             elem,
             {
                 **line_params(model, ep, stair_plan=stair_plan),
                 "viewMode": "elev",
-                "tieList": ",".join(str(int(t.position_mm)) for t in ties),
-                "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
                 "flList": fl_str,
                 "faceName": (
                     face_names[i] if face_names and i < len(face_names)

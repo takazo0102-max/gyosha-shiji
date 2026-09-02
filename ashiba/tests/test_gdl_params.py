@@ -223,6 +223,37 @@ class TestStairsReachTheDrawing(unittest.TestCase):
         self.assertEqual(p["stairList"], "")
 
 
+class TestWallTiesReachTheDrawing(unittest.TestCase):
+    """平面にも描画コードがあるのに、立面でしか渡していなかった."""
+
+    def setUp(self):
+        self.m = build("shinwa_A")
+
+    def test_each_edge_gets_only_its_own_ties(self):
+        for ep in self.m.plan.edges:
+            p = line_params(self.m, ep)
+            mine = [t for t in self.m.wall_ties if t.edge_index == ep.edge_index]
+            got = [v for v in p["tieList"].split(",") if v]
+            self.assertEqual(len(got), len(mine), ep.edge_index)
+
+    def test_positions_and_heights_pair_up(self):
+        ep = self.m.plan.edges[0]
+        p = line_params(self.m, ep)
+        pos = p["tieList"].split(",")
+        hei = p["tieHeightList"].split(",")
+        self.assertEqual(len(pos), len(hei))
+        mine = [t for t in self.m.wall_ties if t.edge_index == ep.edge_index]
+        self.assertEqual([int(v) for v in pos], [int(t.position_mm) for t in mine])
+        self.assertEqual([int(v) for v in hei], [int(t.height_mm) for t in mine])
+
+    def test_all_ties_are_covered_across_edges(self):
+        total = sum(
+            len([v for v in line_params(self.m, ep)["tieList"].split(",") if v])
+            for ep in self.m.plan.edges
+        )
+        self.assertEqual(total, len(self.m.wall_ties))
+
+
 class TestPlacement(unittest.TestCase):
     """配置座標と回転角。plan.json だけで再配置できるようにする."""
 
