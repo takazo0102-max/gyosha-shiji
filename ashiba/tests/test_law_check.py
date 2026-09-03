@@ -242,8 +242,61 @@ class TestPostSpacing(unittest.TestCase):
         self.assertEqual(r.status, OK)
 
 
+class TestSeriesLockCheck(unittest.TestCase):
+    """系列ロック（法規チェック9）。このツールの根幹の不変条件.
+
+    読込側（assert_series）はテストしていたが、モデル側のチェック9は
+    無効化してもテストが落ちなかった（変異テストで判明）。
+    """
+
+    def _model_with(self, part):
+        m = make_good_model()
+        m.master.parts.append(part)
+        return m
+
+    def test_foreign_part_is_ng(self):
+        foreign = Part(series_id="waku", category="支柱", model_no="W-X",
+                       nominal_dim=1829, actual_dim=1829, diameter=48.6,
+                       weight_kg=10.0, note="")
+        r = [c for c in run_all_checks(self._model_with(foreign))
+             if c.check_id == 9][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("混在", r.message)
+
+    def test_clean_model_is_ok(self):
+        m = make_good_model()
+        r = [c for c in run_all_checks(m) if c.check_id == 9][0]
+        self.assertEqual(r.status, OK)
+        self.assertIn(m.master.series_id, r.message)
+
+    def test_inch_and_metric_cannot_be_mixed(self):
+        """インチ規格（1829）とセンチ規格（1800）の混在を通さない."""
+        inch = Part(series_id="inch", category="布材", model_no="I-N18",
+                    nominal_dim=1829, actual_dim=1829, diameter=42.7,
+                    weight_kg=5.5, note="")
+        r = [c for c in run_all_checks(self._model_with(inch))
+             if c.check_id == 9][0]
+        self.assertEqual(r.status, NG)
+
+
 class TestDeckAndRailDetails(unittest.TestCase):
     """テキストの基準を追加検査した分（作業床の垂直間隔・中桟・幅木）."""
+
+    def test_narrow_deck_rejected(self):
+        """幅40cm未満は563条違反。下限判定を消してもテストが落ちなかった箇所."""
+        m = make_good_model()
+        m.config.deck_widths = (300,)
+        r = [c for c in run_all_checks(m) if c.check_id == 2][0]
+        self.assertEqual(r.status, NG)
+        self.assertIn("400mm", r.message)
+
+    def test_deck_width_is_the_sum_of_boards(self):
+        """隙間は床ではない。合計で判定する（被覆幅と混同しない）."""
+        m = make_good_model()
+        m.config.deck_widths = (250, 200)     # 合計450mm＝OK
+        r = [c for c in run_all_checks(m) if c.check_id == 2][0]
+        self.assertEqual(r.status, OK)
+        self.assertIn("幅450mm", r.message)
 
     def test_deck_vertical_pitch_over_2m_rejected(self):
         m = make_good_model()

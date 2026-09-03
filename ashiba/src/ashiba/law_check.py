@@ -324,12 +324,8 @@ def check_height_reinforcement(m: ScaffoldModel) -> CheckResult:
 
 def check_series_lock(m: ScaffoldModel) -> CheckResult:
     basis = "本ツール運用規則（系列ロック。インチ/センチ混在は組めない）"
-    series = {p.series_id for p in m.master.parts}
-    if len(series) > 1 or (series and m.master.series_id not in series):
-        return CheckResult(
-            9, "規格混在", NG,
-            f"複数系列の部材が混在しています: {sorted(series)}", basis,
-        )
+    # 系列の集合を見る分岐も持っていたが、assert_series が全部材を見るので
+    # 同じ条件しか捕まえない。1本にして、混在した部材の型番まで挙げる方を残す
     try:
         for p in m.master.parts:
             m.master.assert_series(p)
