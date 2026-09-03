@@ -104,6 +104,13 @@ def validate_bracket_sections(
                     i, "NG",
                     f"作業層{lv}は存在しません（1〜{n_levels}）", "入力エラー"))
 
+        if s.direction == OUTER:
+            issues.append(BracketIssue(
+                i, "WARN",
+                f"辺{s.edge_index}: 張出し区間の外縁は作業床の開放端になります。"
+                "手すり・中桟・幅木が必要です（数量には計上しています）",
+                "安衛則563条（作業床の開放端）"))
+
         if s.is_widening and s.on_kessokubu and not s.has_hozue:
             issues.append(BracketIssue(
                 i, "NG",
@@ -163,6 +170,31 @@ def bracket_quantities(
             hz = (s.width, "方杖")
             counts[hz] = counts.get(hz, 0) + n_posts * n_levels
     return counts
+
+
+def outer_edge_quantities(
+    model: ScaffoldModel, sections: list[BracketSection]
+) -> dict[int, int]:
+    """張出しブラケット床の外側縁に要る手すり・幅木の数（呼び寸法→スパン×層）.
+
+    張出すと作業床の外縁が建地より外へ出る。既存の手すりは建地位置にあるので、
+    新しい縁は無防備なまま。563条の墜落防止は「作業床の開放端」に要るので、
+    ここを数えないと現場で手すりも幅木も足りない。
+    """
+    out: dict[int, int] = {}
+    for s in sections:
+        if s.direction != OUTER:
+            continue
+        edge = _find_edge(model, s.edge_index)
+        if edge is None or s.length_mm <= 0:
+            continue
+        n_levels = len(s.levels) if s.levels else model.elevation.n_levels
+        acc = 0.0
+        for span in edge.spans:
+            if s.start_mm - 1e-6 <= acc and acc + span <= s.end_mm + 1e-6:
+                out[span] = out.get(span, 0) + n_levels
+            acc += span
+    return out
 
 
 def bracket_deck_changes(

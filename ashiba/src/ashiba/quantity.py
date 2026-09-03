@@ -345,6 +345,15 @@ def _count_bracket_parts(
             continue
         add(part, qty, f"ブラケット{width}（{purpose}）")
 
+    # 張出し区間は作業床の外縁が建地より外に出る。その縁の手すり・中桟・幅木は
+    # 通常の（建地位置の）手すりとは別に要る
+    from .brackets import outer_edge_quantities
+
+    for span, cells in outer_edge_quantities(model, bracket_sections).items():
+        add(m.find("布材", span), cells * 2, f"張出し外縁の手すり・中桟{span}")
+        if model.config.has_toe_board:
+            add(m.find("幅木", span), cells, f"張出し外縁の幅木{span}")
+
     # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
     for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
         new_part = m.deck_parts(to_w, span)

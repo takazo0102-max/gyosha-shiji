@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト502本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト506本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -43,7 +43,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/plan_solver.py` | 平面割付（コーナー固定点＋スパンDP＋離れ最適化＋全体シフト） |
 | `src/ashiba/elevation_solver.py` | 立面割付（コマピッチDP・ジャッキ端数吸収・千鳥） |
 | `src/ashiba/model.py` | 足場モデル・壁つなぎ自動配置・朝顔仕様 |
-| `src/ashiba/brackets.py` | ブラケット区間（面の区間属性）の検証と数量 |
+| `src/ashiba/brackets.py` | ブラケット区間（面の区間属性）の検証と数量（張出しは外縁の手すり・幅木まで） |
 | `src/ashiba/stairs.py` | 階段（昇降設備）の自動配置・踏板控除 |
 | `src/ashiba/terrain.py` | 敷地高低差の吸収・支柱ごとのジャッキ量算出 |
 | `src/ashiba/platforms.py` | 荷受けステージ・昇降機（局所荷重と壁つなぎ増設） |

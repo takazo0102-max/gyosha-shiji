@@ -1090,6 +1090,18 @@ for ik = 1 to nBk
 		muly -1
 		block bkE[ik] - bkS[ik], bkW[ik], 0.045
 		del 2
+		! 張出すと作業床の外縁が建地より外に出る。その縁は開放端なので
+		! 手すり・中桟・幅木が要る（数量にも計上している）
+		bkLen = bkE[ik] - bkS[ik]
+		add bkS[ik], -rowW - bkW[ik], bkH[ik] + 0.045
+		block bkLen, 0.02, 0.157
+		del 1
+		add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + railH
+		block bkLen, 0.0427, 0.0427
+		del 1
+		add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + midH
+		block bkLen, 0.0427, 0.0427
+		del 1
 	endif
 next ik
 

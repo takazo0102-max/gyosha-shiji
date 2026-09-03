@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -196,6 +197,47 @@ class TestBracketDeckWidth(unittest.TestCase):
     def test_no_width_given_changes_nothing(self):
         sec = BracketSection(edge_index=0, start_mm=0, end_mm=5400, width=300)
         self.assertEqual(self.changes(self.m, [sec]), [])
+
+
+class TestOuterBracketEdge(unittest.TestCase):
+    """張出すと作業床の外縁が建地より外に出る。その縁の手すり・幅木が要る."""
+
+    def setUp(self):
+        master = load_master("shinwa_A")
+        self.m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        self.base = take_off(self.m)
+
+    def _sec(self, direction):
+        return [BracketSection(edge_index=0, start_mm=0, end_mm=5400,
+                               direction=direction, width=600, levels=[1, 2])]
+
+    def test_outer_section_adds_rails_and_toe_boards(self):
+        q = take_off(self.m, bracket_sections=self._sec("張出"))
+        # 3スパン×2層＝6セル。手すり＋中桟で2本、幅木1本
+        self.assertEqual(q.qty_of("布材") - self.base.qty_of("布材"), 12)
+        self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6)
+
+    def test_inner_section_does_not(self):
+        """内側は躯体に面する。開放端にならないので足さない."""
+        q = take_off(self.m, bracket_sections=self._sec("内"))
+        self.assertEqual(q.qty_of("布材"), self.base.qty_of("布材"))
+        self.assertEqual(q.qty_of("幅木"), self.base.qty_of("幅木"))
+
+    def test_open_edge_is_flagged(self):
+        issues = validate_bracket_sections(self.m, self._sec("張出"))
+        hit = [i for i in issues if "開放端" in i.message]
+        self.assertTrue(hit, issues)
+        self.assertIn("563", hit[0].basis)
+
+    def test_drawing_shows_the_edge_rails(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+                / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("bkLen", body)
+        self.assertIn("開放端", body)
 
 
 class TestFrameSystemAlsoCounts(unittest.TestCase):
