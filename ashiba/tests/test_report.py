@@ -202,6 +202,57 @@ class TestWarningsAreSeparatedFromNotes(unittest.TestCase):
             self.assertIn(f"⚠️ {w}", text)
 
 
+class TestReadmeMatchesTheCode(unittest.TestCase):
+    """READMEの機械的に確かめられる記述が実装とズレないこと.
+
+    数値やファイル名は実装が動くたびに古くなる。読む人はREADMEを信じて
+    手を動かすので、ズレはそのまま「動かない手順」になる。
+    """
+
+    README = Path(__file__).resolve().parents[1] / "README.md"
+
+    def _text(self) -> str:
+        return self.README.read_text(encoding="utf-8")
+
+    def test_referenced_paths_exist(self):
+        import re
+
+        root = self.README.parent
+        paths = set(re.findall(
+            r'`((?:src|scripts|gdl|data|examples|tests)/[^`\s]+)`', self._text()))
+        missing = [p for p in sorted(paths) if "*" not in p
+                   and not (root / p).exists()]
+        self.assertEqual(missing, [])
+
+    def test_test_count_is_current(self):
+        import re
+        import unittest as ut
+
+        def count(suite):
+            return sum(count(x) if isinstance(x, ut.TestSuite) else 1
+                       for x in suite)
+
+        n = count(ut.TestLoader().discover(str(self.README.parent / "tests")))
+        claimed = int(re.search(r"ユニットテスト(\d+)本", self._text()).group(1))
+        self.assertEqual(claimed, n, "READMEのテスト本数を更新してください")
+
+    def test_examples_are_all_listed(self):
+        import re
+
+        ex = {p.name for p in (self.README.parent / "examples").glob("*.json")}
+        listed = set(re.findall(r'\| `([a-z_0-9]+\.json)` \|', self._text()))
+        self.assertEqual(ex, listed)
+
+    def test_law_check_count(self):
+        import re
+
+        from ashiba.law_check import run_all_checks
+
+        n = len(run_all_checks(build()))
+        for claimed in re.findall(r"法規チェック(?:\s*\|\s*)?(\d+)項目", self._text()):
+            self.assertEqual(int(claimed), n)
+
+
 class TestPlanJsonSchemaIsDocumented(unittest.TestCase):
     """出力スキーマの説明と実際の出力が食い違わないこと.
 
