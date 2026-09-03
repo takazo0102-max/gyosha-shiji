@@ -291,9 +291,26 @@ def platform_part_demands(
             if s.has_guard_rail:
                 # 手すり＋中桟
                 out.append(PartDemand("布材", "布材", nominal, n * 2 * n_levels))
+        # 妻側（張出しの左右）も開放端。前面だけ手すりを立てても横から落ちる
+        side = _side_nominal(model, s.projection_mm)
+        if side is not None:
+            if s.has_guard_rail:
+                out.append(PartDemand(
+                    "妻側手すり・中桟", "布材", side, 2 * 2 * n_levels))
+            if s.has_toe_board:
+                out.append(PartDemand("妻側幅木", "幅木", side, 2 * n_levels))
     if result.extra_wall_ties > 0:
         out.append(PartDemand("壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
     return out
+
+
+def _side_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:
+    """張出しの妻側（左右）に渡す材の呼び寸法。出以上で最小のもの."""
+    sizes = sorted(p.nominal_dim for p in model.master.by_category("布材"))
+    for v in sizes:
+        if v >= projection_mm - 1e-6:
+            return v
+    return None
 
 
 def _bracket_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:

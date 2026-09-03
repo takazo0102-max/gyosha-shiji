@@ -185,11 +185,33 @@ for ig = 1 to nSg
 	muly -1
 	block sgL[ig], sgP[ig], 0.05
 	del 2
-	! 手すり（張り出し先端と両側）
-	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.9
-	roty 90
-	cylind sgL[ig], r_nuno
-	del 2
+	! 手すり・中桟（張り出し先端）
+	for ir = 1 to 2
+		if ir = 1 then hgt = railH else hgt = midH
+		add sgS[ig], -rowW - sgP[ig], sgH[ig] + hgt
+		roty 90
+		cylind sgL[ig], r_nuno
+		del 2
+	next ir
+	! 妻側（左右）も開放端。前面だけ手すりを立てても横から落ちる
+	for ie = 0 to 1
+		xg = sgS[ig] + sgL[ig] * ie
+		for ir = 1 to 2
+			if ir = 1 then hgt = railH else hgt = midH
+			add xg, -rowW, sgH[ig] + hgt
+			rotx 90
+			cylind sgP[ig], r_nuno
+			del 2
+		next ir
+		! 妻側の幅木
+		add xg, -rowW - sgP[ig], sgH[ig] + 0.05
+		block 0.02, sgP[ig], 0.157
+		del 1
+	next ie
+	! 先端の幅木
+	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.05
+	block sgL[ig], 0.02, 0.157
+	del 1
 next ig
 
 ! ---- 梁枠（開口部）: 上下弦材と斜材 ----

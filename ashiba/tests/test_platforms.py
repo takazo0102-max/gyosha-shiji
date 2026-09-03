@@ -209,6 +209,46 @@ class TestPlatformQuantities(unittest.TestCase):
         self.assertNotIn("方杖", platform_quantities(m, r))
 
 
+class TestStageOpenEdges(unittest.TestCase):
+    """張出しの妻側（左右）も開放端。前面だけ手すりを立てても横から落ちる."""
+
+    def setUp(self):
+        self.m = build()
+        self.base = take_off(self.m)
+        self.pf = validate_platforms(self.m, [stage(projection_mm=1500)])
+        self.q = take_off(self.m, platforms=self.pf)
+
+    def test_side_rails_and_toe_boards_are_counted(self):
+        from ashiba.platforms import platform_part_demands
+
+        labels = {d.label for d in platform_part_demands(self.m, self.pf)}
+        self.assertIn("妻側手すり・中桟", labels)
+        self.assertIn("妻側幅木", labels)
+
+    def test_side_members_span_the_projection(self):
+        from ashiba.platforms import platform_part_demands
+
+        side = [d for d in platform_part_demands(self.m, self.pf)
+                if d.label == "妻側手すり・中桟"][0]
+        self.assertGreaterEqual(side.nominal_dim, 1500)
+        # 左右2箇所 × 手すり＋中桟2本 × 1層
+        self.assertEqual(side.qty, 4)
+
+    def test_totals_include_both_faces(self):
+        # 前面（2スパン×2本）＋妻側（2箇所×2本）＝8本
+        self.assertEqual(
+            self.q.qty_of("布材") - self.base.qty_of("布材"), 8)
+        self.assertEqual(
+            self.q.qty_of("幅木") - self.base.qty_of("幅木"), 4)
+
+    def test_drawing_shows_the_side_rails(self):
+        from pathlib import Path as P
+
+        body = (P(__file__).resolve().parents[1] / "gdl" / "hsf"
+                / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("妻側", body)
+
+
 class TestStageGeometry(unittest.TestCase):
     """間口の寸法をスパン1800決め打ちにしない."""
 
