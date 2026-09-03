@@ -201,6 +201,29 @@ def opening_deck_deduction(
     return out
 
 
+def opening_span_counts(
+    model: ScaffoldModel, result: Optional[OpeningResult]
+) -> dict[int, int]:
+    """開口部が占めるスパン（呼び寸法 → 本数）.
+
+    層に依らない部材（根がらみ）の控除に使う。開口はGLから梁枠までなので、
+    最下段の布材（根がらみ）もその区間には入らない。
+    """
+    out: dict[int, int] = {}
+    if result is None or not result.openings:
+        return out
+    for o in result.openings:
+        edge = _edge(model, o.edge_index)
+        if edge is None:
+            continue
+        acc = 0.0
+        for sp in edge.spans:
+            if o.start_mm - 1e-6 <= acc < o.end_mm - 1e-6:
+                out[sp] = out.get(sp, 0) + 1
+            acc += sp
+    return out
+
+
 def opening_detail_specs(result: OpeningResult) -> list[dict]:
     """詳細図（detailType="beam"）に渡す指定."""
     return [

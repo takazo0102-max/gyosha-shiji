@@ -221,8 +221,20 @@ for ip = 1 to nSpan + 1
 next ip
 
 ! 根がらみ（最下コマ）＝ lv[1]
-line2 0, lv[1], lineLen, lv[1]
-line2 0, lv[1] + 0.02, lineLen, lv[1] + 0.02
+! 開口部はGLから梁枠までの通路なので、その区間には根がらみも入らない
+! （足元に横材が通っていたら通れない）。数量でも同じ区間を引いている
+x = 0
+for ip = 1 to nSpan
+	inOpen = 0
+	for ib5 = 1 to nBm
+		if x >= bmS[ib5] - 0.001 and x + spans[ip] <= bmS[ib5] + bmL[ib5] + 0.001 then inOpen = 1
+	next ib5
+	if inOpen = 0 then
+		line2 x, lv[1], x + spans[ip], lv[1]
+		line2 x, lv[1] + 0.02, x + spans[ip], lv[1] + 0.02
+	endif
+	x = x + spans[ip]
+next ip
 
 ! 各作業層: 布板・手すり・中桟・幅木
 ! 全長に通して描くと、階段室や開口部（梁枠より下＝通路）にも床があることに

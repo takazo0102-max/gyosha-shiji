@@ -40,15 +40,24 @@ for il = 1 to nLv
 	z = lv[il]
 	x = 0
 	for ip = 1 to nSpan
+		! 開口部（梁枠より下）は支柱を抜いた通路。布材も手すりも入らない。
+		! 立面は空けているのに3Dだけ通していた（根がらみが足元を横切っていた）
+		skipH = 0
+		for ib6 = 1 to nBm
+			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
+					z < bmH[ib6] - 0.001 then skipH = 1
+		next ib6
 		! 内外の布材（床レベル）
-		for row = rowStart to 1
-			add x, -row * rowW, z
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
-		next row
+		if skipH = 0 then
+			for row = rowStart to 1
+				add x, -row * rowW, z
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			next row
+		endif
 		! 外側手すり・中桟（作業層のみ）
-		if il > 1 then
+		if il > 1 and skipH = 0 then
 			add x, -rowW, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno
@@ -58,15 +67,23 @@ for il = 1 to nLv
 			cylind spans[ip], r_nuno
 			del 2
 		endif
-		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない
-		if nRows >= 2 then
-			add x, 0, z
-			rotz -90
-			roty 90
-			cylind rowW, r_nuno
-			del 3
-		else
-			gosub 800
+		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
+		! 開口部の内側は支柱を抜いてあるので、そこにも入らない
+		noPost = 0
+		for ib7 = 1 to nBm
+			if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
+					z < bmH[ib7] - 0.001 then noPost = 1
+		next ib7
+		if noPost = 0 then
+			if nRows >= 2 then
+				add x, 0, z
+				rotz -90
+				roty 90
+				cylind rowW, r_nuno
+				del 3
+			else
+				gosub 800
+			endif
 		endif
 		x = x + spans[ip]
 	next ip

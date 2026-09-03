@@ -181,6 +181,28 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("if noDeck = 0 then rect2 xs, z, xe, z + 0.05", body2)
         self.assertIn("幅木は階段室にも残る", body2)
 
+    def test_opening_bays_have_no_ledgers_in_any_view(self):
+        """開口部（梁枠より下）は通路。布材・手すり・根がらみが入らない.
+
+        立面だけがその区間を空けていて、3Dは根がらみが足元を横切り、
+        数量は全スパンぶん布材を数えていた。
+        """
+        body3 = self._script("3d.gdl")
+        self.assertIn("skipH", body3)          # 布材・手すりを開口部で止める
+        self.assertIn("noPost", body3)         # 抜いた支柱には腕木も付かない
+        body2 = self._script("2d.gdl")
+        self.assertIn("inOpen", body2)         # 根がらみも開口部を避ける
+        self.assertNotIn("line2 0, lv[1], lineLen, lv[1]", body2)
+
+    def test_quantity_deducts_the_opening_ledgers(self):
+        model = full_model()
+        base = take_off(model)
+        op = validate_openings(model, [Opening(0, 3600, 3600, level=3)])
+        cut = take_off(model, openings=op)
+        self.assertLess(cut.qty_of("布材"), base.qty_of("布材"))
+        # 2スパン×2層×(床2+手すり2) ＋ 2スパン×根がらみ2 ＝ 20本
+        self.assertEqual(base.qty_of("布材") - cut.qty_of("布材"), 20)
+
     def test_2d_has_the_same_checks(self):
         body = self._script("2d.gdl")
         for token in ("stS[it2]", "bmS[ib3]", "stS[it3]", "bmH[ib2]"):

@@ -196,8 +196,18 @@ def take_off(
     for e in plan.edges:
         for s in e.spans:
             span_counts[s] = span_counts.get(s, 0) + 1
+    # 開口部（梁枠より下）は支柱を抜いた通路。布材も手すりも根がらみも入らない。
+    # 図面はその区間を空けているのに数量だけ数えていた
+    from .openings import opening_deck_deduction, opening_span_counts
+    open_cut = opening_deck_deduction(model, openings)
+    open_spans = opening_span_counts(model, openings)
+    per_level_rails = rules.ledgers_per_level_floor + rails_outer
+    open_rail_cut = 0
     for s, n in span_counts.items():
-        add(m.find("布材", s), n * per_span_rails, f"布材{s}")
+        cut = (open_cut.get(s, 0) * per_level_rails
+               + open_spans.get(s, 0) * rules.ledgers_negarami)
+        open_rail_cut += cut
+        add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     notes.append(
         f"布材は1スパンあたり 根がらみ{rules.ledgers_negarami}本"
@@ -205,6 +215,11 @@ def take_off(
         + (f"＋手すり・中桟{rails_outer}本" if rails_outer else "＋手すりは先行手摺")
         + f"）×{n_levels}層 ＝ {per_span_rails}本で計上"
     )
+    if open_rail_cut:
+        notes.append(
+            f"開口部（梁枠より下）は通路なので、その区間の布材{open_rail_cut}本"
+            "（根がらみ・床レベル・手すり）を差し引いています"
+        )
 
     # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
     if advance_rail:
@@ -216,7 +231,7 @@ def take_off(
                     "この寸法は布材による手すり＋中桟で計画してください"
                 )
                 continue
-            add(part, n * n_levels, f"先行手摺{s}")
+            add(part, max(0, n * n_levels - open_cut.get(s, 0)), f"先行手摺{s}")
 
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
@@ -236,9 +251,7 @@ def take_off(
     # 床は「スパン×層」のセル数で数える。階段室は全層、開口部は梁枠より下の
     # 層だけ敷かないので、スパン本数の引き算では表せない
     deck_cells = {s: n * n_levels for s, n in span_counts.items()}
-    from .openings import opening_deck_deduction
-    open_cut = opening_deck_deduction(model, openings)
-    # 開口部（梁枠より下）は通路。床も幅木も無い
+    # 開口部（梁枠より下）は通路。床も幅木も無い（open_cut は布材と共通）
     toe_cells = {
         s: max(0, n - open_cut.get(s, 0)) for s, n in deck_cells.items()
     }
