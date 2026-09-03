@@ -603,6 +603,11 @@ def _note_double_posts_if_tall(model: ScaffoldModel, notes) -> None:
     h = model.scaffold_height_mm
     if h <= DOUBLE_POST_HEIGHT_MM:
         return
+    # 建地2本組は単管足場（安衛則571条）の概念。枠組足場は対象外で、
+    # 高さがある場合は最下段建枠・ジャッキベースの強度検討で対応する
+    # （法規チェック8が枠組用の文面を出す）。ここで2本組を数えると誤り
+    if model.master.is_frame:
+        return
     below = h - DOUBLE_POST_HEIGHT_MM
     rows = 1 if model.config.scaffold_form == "一側足場" else 2
     lines = model.plan.total_posts * rows

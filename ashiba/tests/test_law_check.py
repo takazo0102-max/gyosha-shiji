@@ -171,16 +171,29 @@ class TestTallScaffoldReachesTheQuantity(unittest.TestCase):
             config=ScaffoldConfig(), building_height_mm=height - 300,
         )
 
-    def test_quantity_states_what_is_missing(self):
+    def test_wedge_quantity_states_what_is_missing(self):
+        """くさびは単管に準じて31m超の建地2本組を警告し、不足本数を出す."""
         from ashiba.quantity import take_off
 
-        for series in ("shinwa_A", "waku"):
-            with self.subTest(series):
-                q = take_off(self._model(35000, series))
-                hit = [w for w in q.warnings if "2本組" in w]
-                self.assertTrue(hit, q.warnings)
-                self.assertIn("数量に含んでいません", hit[0])
-                self.assertIn("本ぶん", hit[0])
+        q = take_off(self._model(35000, "shinwa_A"))
+        hit = [w for w in q.warnings if "2本組" in w]
+        self.assertTrue(hit, q.warnings)
+        self.assertIn("数量に含んでいません", hit[0])
+        self.assertIn("本ぶん", hit[0])
+
+    def test_frame_does_not_use_single_pipe_double_post_rule(self):
+        """枠組は単管足場の「建地2本組」（571条）の対象外。誤ってその文面を出さない."""
+        from ashiba.quantity import take_off
+
+        m = self._model(35000, "waku")
+        q = take_off(m)
+        self.assertFalse([w for w in q.warnings if "2本組" in w], q.warnings)
+        self.assertFalse([n for n in q.notes if "2本組" in n], q.notes)
+        # 高さチェックは枠組用の文面（最下段建枠の強度検討）を出す
+        c = [r for r in run_all_checks(m) if r.check_id == 8][0]
+        self.assertEqual(c.status, "WARN")
+        self.assertIn("最下段", c.message)
+        self.assertNotIn("2本組が必要", c.message)
 
     def test_check_names_the_range(self):
         c = [r for r in run_all_checks(self._model(35000)) if r.check_id == 8][0]

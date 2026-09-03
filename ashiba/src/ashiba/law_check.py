@@ -302,8 +302,30 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
 # ---- #8 高さ31m超の補強 --------------------------------------------------
 
 def check_height_reinforcement(m: ScaffoldModel) -> CheckResult:
-    basis = "安衛則571条（高さ31m超は建地2本組等の補強）"
     h = m.scaffold_height_mm
+    # 枠組足場は「建地2本組」（単管足場＝安衛則571条の概念）ではなく、
+    # 仮設工業会の枠組指針で最下段建枠・ジャッキベースの強度を検討する。
+    # くさび式は単管足場に準じて31m超の2本組で保守的に警告する。
+    if m.master.is_frame:
+        basis = "仮設工業会 足場・型枠支保工設計指針（枠組足場・高さ45m超／最下段の強度検討）"
+        if h > 45000:
+            return CheckResult(
+                8, "高さ", NG,
+                f"足場高さ{h / 1000:.2f}m > 45m: 本ツールの適用範囲外です（個別設計が必要）",
+                basis,
+            )
+        if h > 31000:
+            return CheckResult(
+                8, "高さ", WARN,
+                f"足場高さ{h / 1000:.2f}m（枠組）: 高さが大きいので最下段の建枠・"
+                "ジャッキベースが自重＋積載に対して許容支持力以内か強度検討してください"
+                "（枠組は単管足場の建地2本組の対象外）",
+                basis,
+            )
+        return CheckResult(8, "高さ", OK,
+                           f"足場高さ{h / 1000:.2f}m ≦ 45m（枠組）", basis)
+
+    basis = "安衛則571条（単管足場: 高さ31m超は建地2本組等の補強）"
     if h > 45000:
         return CheckResult(
             8, "高さ", NG,

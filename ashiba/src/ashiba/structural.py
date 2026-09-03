@@ -720,7 +720,8 @@ def run_structural(
             f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
             "ジャッキ許容支持力は繰出し長で低下します"
         )
-    if model.scaffold_height_mm > 31000:
+    # 建地2本組は単管足場（571条）の話。枠組は対象外なのでこの注記は出さない
+    if model.scaffold_height_mm > 31000 and not model.master.is_frame:
         # 2本組にすれば許容は増えるが、そう組むかは計画者の判断。
         # どちらで検定したのかを書かないと検定比の意味が変わる
         notes.append(
