@@ -452,6 +452,8 @@ txtLine = txtH * 1.8
 !   elev: X=面に沿った距離 / Y=GLからの高さ
 ! ============================================================
 define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 中央揃え。スパン寸法や部位名は基準点が中心でないと位置がずれて見える
+define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 set style "anno"
 pen 1
 
@@ -512,7 +514,9 @@ for ib = 1 to nBm
 	line2 bs, -rowW - 0.06, be, -rowW - 0.06
 	line2 bs, -rowW, bs, -rowW - 0.06
 	line2 be, -rowW, be, -rowW - 0.06
+	set style "annoC"
 	if showDim then text2 (bs + be) / 2, -rowW - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+	set style "anno"
 next ib
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
@@ -525,7 +529,9 @@ for it2 = 1 to nSt
 	line2 ex, 0, ex, -rowW
 	line2 sx, 0, ex, -rowW
 	line2 sx, -rowW, ex, 0
+	set style "annoC"
 	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
+	set style "anno"
 next it2
 
 ! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
@@ -548,7 +554,9 @@ for ik = 1 to nBk
 		if showDim then
 			bkTxt = "BR" + str(bkW[ik] * 1000, 4, 0)
 			if bkDW[ik] > 0 then bkTxt = bkTxt + " 床" + str(bkDW[ik] * 1000, 4, 0)
+			set style "annoC"
 			text2 (bkS[ik] + bkE[ik]) / 2, by2 + (by2 - by1) * 0.25, bkTxt
+			set style "anno"
 		endif
 	endif
 next ik
@@ -563,7 +571,9 @@ for ig = 1 to nSg
 	line2 gs, gy, ge, gy
 	line2 gs, -rowW, ge, gy
 	line2 gs, gy, ge, -rowW
+	set style "annoC"
 	if showDim then text2 (gs + ge) / 2, gy - 0.15, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+	set style "anno"
 next ig
 
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
@@ -573,7 +583,9 @@ if nAsa > 0 then
 	line2 0, -rowW, 0, -rowW - asagaoProj
 	line2 lineLen, -rowW, lineLen, -rowW - asagaoProj
 	line_type 1
+	set style "annoC"
 	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
+	set style "anno"
 endif
 
 ! 躯体面の参照線（離れ表示）
@@ -591,12 +603,16 @@ if not(showDim) then return
 
 x = 0
 for ip = 1 to nSpan
+	set style "annoC"
 	text2 x + spans[ip] / 2, -rowW - 0.25, str(spans[ip] * 1000, 5, 0)
+	set style "anno"
 	line2 x, -rowW - 0.15, x, -rowW - 0.35
 	x = x + spans[ip]
 next ip
 line2 x, -rowW - 0.15, x, -rowW - 0.35
+set style "annoC"
 text2 lineLen / 2, -rowW - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+set style "anno"
 return
 
 ! ============================================================
@@ -714,7 +730,9 @@ for it2 = 1 to nSt
 			line2 ex, lv[il], sx, lv[il + 1]
 		endif
 	next il
+	set style "annoC"
 	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
+	set style "anno"
 next it2
 
 ! ブラケット区間（立面では該当層の床を太線にして幅を注記する）
@@ -734,7 +752,9 @@ for ik2 = 1 to nBk
 			kTxt = "BR" + str(bkW[ik2] * 1000, 4, 0) + "張出"
 		endif
 		if bkDW[ik2] > 0 then kTxt = kTxt + " 床" + str(bkDW[ik2] * 1000, 4, 0)
+		set style "annoC"
 		text2 (kx1 + kx2) / 2, kz + 0.12, kTxt
+		set style "anno"
 	endif
 next ik2
 
@@ -747,7 +767,9 @@ for ig = 1 to nSg
 	line2 gs, gh, gs, gh + 0.9
 	line2 ge, gh, ge, gh + 0.9
 	line2 gs, gh + 0.9, ge, gh + 0.9
+	set style "annoC"
 	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+	set style "anno"
 next ig
 
 ! 梁枠（立面ではトラス）
@@ -769,7 +791,9 @@ for ib = 1 to nBm
 			line2 dx1, bh, dx2, bh - 0.45
 		endif
 	next id
+	set style "annoC"
 	if showDim then text2 (bs + be) / 2, bh - 0.65, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+	set style "anno"
 next ib
 
 ! 朝顔（立面では設置高さに太線と注記）
@@ -810,13 +834,17 @@ text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, postTop, dimTxt
 dy = -0.45
 x = 0
 for ip = 1 to nSpan
+	set style "annoC"
 	text2 x + spans[ip] / 2, dy - txtLine, str(spans[ip] * 1000, 5, 0)
+	set style "anno"
 	line2 x, dy, x, dy - 0.06
 	x = x + spans[ip]
 next ip
 line2 x, dy, x, dy - 0.06
 line2 0, dy, lineLen, dy
+set style "annoC"
 text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
+set style "anno"
 ! ジャッキ繰出しは高さ寸法の列に入れると最下段（GL+100等）の寸法と
 ! 文字が重なって両方読めなくなる。GL下の空きに別記する
 ! 短い面では L= の文字と横に並ぶので、行を分ける

@@ -574,6 +574,27 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         self.assertNotIn('text2 dx - txtH, lv[il]', self.body)
         self.assertNotIn('text2 dx - txtH, postTop', self.body)
 
+    def test_centered_labels_use_the_centered_style(self):
+        """中点に置く文字は中央揃えのスタイルで書く.
+
+        既定のスタイルは左詰めなので、中点を基準点にすると文字幅の半分だけ
+        右にずれて見える（実機で全てのスパン寸法がずれていた）。
+        """
+        lines = self.body.splitlines()
+        offenders = []
+        for i, ln in enumerate(lines):
+            if "text2 " not in ln:
+                continue
+            x = ln.split("text2 ", 1)[1].split(",")[0].strip()
+            if not x.endswith("/ 2"):
+                continue
+            if lines[i - 1].strip() != 'set style "annoC"':
+                offenders.append(ln.strip())
+        self.assertEqual(offenders, [], "中点基準の文字が左詰めのままです")
+
+    def test_centered_style_is_defined(self):
+        self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0', self.body)
+
     def test_notes_column_clears_the_height_labels(self):
         # FL参照(+0.35)・朝顔の高さ表示(+0.1)と同じ帯だと行が重なる
         tx = [ln for ln in self.body.splitlines() if ln.startswith("tx = lineLen")]
