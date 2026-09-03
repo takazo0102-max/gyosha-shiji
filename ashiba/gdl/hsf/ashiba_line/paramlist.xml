@@ -33,6 +33,10 @@
 			<Description><![CDATA["スパン構成 mm カンマ区切り"]]></Description>
 			<Value><![CDATA["1800,1800,1800"]]></Value>
 		</String>
+		<String Name="spanList2">
+			<Description><![CDATA["スパン構成（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="postList">
 			<Description><![CDATA["支柱構成 mm 下から"]]></Description>
 			<Value><![CDATA["3600,3600,1800"]]></Value>
@@ -89,8 +93,40 @@
 			<Description><![CDATA["壁つなぎ位置 mm カンマ区切り（辺始点から）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="tieList2">
+			<Description><![CDATA["壁つなぎ位置（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList3">
+			<Description><![CDATA["壁つなぎ位置（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList4">
+			<Description><![CDATA["壁つなぎ位置（続き4）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList5">
+			<Description><![CDATA["壁つなぎ位置（続き5）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="tieHeightList">
 			<Description><![CDATA["壁つなぎ高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList2">
+			<Description><![CDATA["壁つなぎ高さ（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList3">
+			<Description><![CDATA["壁つなぎ高さ（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList4">
+			<Description><![CDATA["壁つなぎ高さ（続き4）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList5">
+			<Description><![CDATA["壁つなぎ高さ（続き5）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="flList">
@@ -119,6 +155,18 @@
 		</Length>
 		<String Name="brktList">
 			<Description><![CDATA["ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList2">
+			<Description><![CDATA["ブラケット区間（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList3">
+			<Description><![CDATA["ブラケット区間（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList4">
+			<Description><![CDATA["ブラケット区間（続き4）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="stageList">

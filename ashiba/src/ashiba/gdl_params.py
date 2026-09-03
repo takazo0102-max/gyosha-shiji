@@ -12,6 +12,74 @@ import math
 from .model import ScaffoldModel
 
 
+# GDLの文字列パラメータは255文字で切れる（実機で確認: 枠組9層×6列の壁つなぎで
+# tieList が途中で切れ、上層の壁つなぎが図から黙って消えていた）。
+# 長いリストは続きパラメータ（name2, name3, …）に分けて渡し、GDL側で続けて読む。
+GDL_STR_MAX = 255
+LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4}
+# レコード単位のリストは、レコードの途中で切らない（GDLは項目を順に読む）
+LIST_GROUP = {"brktList": 6}
+# GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
+GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
+                 "tieHeightList": 200, "brktList": 24 * 6}
+_LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
+               "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目"}
+
+
+class GdlCapacityError(ValueError):
+    """足場ラインGDLの上限（配列・文字列長）を超える入力.
+
+    黙って切り捨てると図面から部材が消える（安全側に倒れない）。止めて知らせる。
+    """
+
+
+def _split_chunks(value: str, group: int) -> list[str]:
+    items = value.split(",") if value else []
+    chunks: list[str] = []
+    cur: list[str] = []
+    for i in range(0, len(items), group):
+        rec = items[i:i + group]
+        if cur and len(",".join(cur + rec)) > GDL_STR_MAX:
+            chunks.append(",".join(cur))
+            cur = list(rec)
+        else:
+            cur = cur + rec
+    if cur:
+        chunks.append(",".join(cur))
+    return chunks
+
+
+def fit_gdl_lists(params: dict, edge_index: int) -> dict:
+    """リスト文字列を GDL の上限に収める。収まらなければ止める."""
+    out = dict(params)
+    for key, cap in GDL_ARRAY_CAP.items():
+        value = params.get(key, "")
+        count = len(value.split(",")) if value else 0
+        if count > cap:
+            raise GdlCapacityError(
+                f"辺{edge_index}の{_LIST_LABEL[key]}が{count}個で、足場ラインGDLの"
+                f"上限{cap}個を超えます。面を分割して配置するか、GDLの配列上限"
+                "（1d.gdl の dim）と GDL_ARRAY_CAP を上げてください"
+            )
+    for key, n_chunks in LIST_CHUNKS.items():
+        chunks = _split_chunks(params.get(key, ""), LIST_GROUP.get(key, 1))
+        if len(chunks) > n_chunks:
+            raise GdlCapacityError(
+                f"辺{edge_index}の{key}が{len(params.get(key, ''))}文字で、"
+                f"続きパラメータ{n_chunks}個（{GDL_STR_MAX * n_chunks}文字）に"
+                "収まりません。面を分割して配置してください"
+            )
+        for k in range(n_chunks):
+            out[key if k == 0 else f"{key}{k + 1}"] = chunks[k] if k < len(chunks) else ""
+    for key, value in params.items():
+        if isinstance(value, str) and key not in LIST_CHUNKS and len(value) > GDL_STR_MAX:
+            raise GdlCapacityError(
+                f"辺{edge_index}の{key}が{len(value)}文字で、GDLの文字列上限"
+                f"{GDL_STR_MAX}文字を超えます（黙って切れるので止めています）"
+            )
+    return out
+
+
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
     platforms=None, bracket_sections=None,
@@ -33,7 +101,7 @@ def line_params(
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
-    return {
+    return fit_gdl_lists({
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
         "jackOut": e.jack_extension / 1000.0,
@@ -79,7 +147,7 @@ def line_params(
                        if model.config.asagao else 2.0),
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
-    }
+    }, ep.edge_index)
 
 
 def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:

@@ -7,10 +7,10 @@
 ! マスタースクリプトでの gosub は動作しない環境があり、失敗すると
 ! 2D/3Dとも一切描画されない（実機で確認済み）。
 ! ============================================================
-dim spans[30]
-dim posts[20]
-dim ties[80]
-dim tieH[80]
+dim spans[60]
+dim posts[40]
+dim ties[200]
+dim tieH[200]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -38,22 +38,27 @@ dim bkDW[24]
 
 ! ---- spanList をパース (mm→m) ----
 nSpan = 0
-rest = spanList
-while strlen(rest) > 0 and nSpan < 30 do
-	pc = strstr(rest, ",")
-	if pc > 0 then
-		item = strsub(rest, 1, pc - 1)
-		rest = strsub(rest, pc + 1, strlen(rest) - pc)
-	else
-		item = rest
-		rest = ""
-	endif
-	k = split(item, "%n", v)
-	if k > 0 then
-		nSpan = nSpan + 1
-		spans[nSpan] = v / 1000
-	endif
-endwhile
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! spanList2〜spanList2 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 2
+	rest = spanList
+	if tc = 2 then rest = spanList2
+	while strlen(rest) > 0 and nSpan < 60 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSpan = nSpan + 1
+			spans[nSpan] = v / 1000
+		endif
+	endwhile
+next tc
 if nSpan = 0 then
 	nSpan = 1
 	spans[1] = 1.8
@@ -62,7 +67,7 @@ endif
 ! ---- postList をパース (mm→m) ----
 nPost = 0
 rest = postList
-while strlen(rest) > 0 and nPost < 20 do
+while strlen(rest) > 0 and nPost < 40 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
 		item = strsub(rest, 1, pc - 1)
@@ -84,41 +89,57 @@ endif
 
 ! ---- tieList をパース (mm→m) ----
 nTie = 0
-rest = tieList
-while strlen(rest) > 0 and nTie < 80 do
-	pc = strstr(rest, ",")
-	if pc > 0 then
-		item = strsub(rest, 1, pc - 1)
-		rest = strsub(rest, pc + 1, strlen(rest) - pc)
-	else
-		item = rest
-		rest = ""
-	endif
-	k = split(item, "%n", v)
-	if k > 0 then
-		nTie = nTie + 1
-		ties[nTie] = v / 1000
-	endif
-endwhile
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! tieList2〜tieList5 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 5
+	rest = tieList
+	if tc = 2 then rest = tieList2
+	if tc = 3 then rest = tieList3
+	if tc = 4 then rest = tieList4
+	if tc = 5 then rest = tieList5
+	while strlen(rest) > 0 and nTie < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nTie = nTie + 1
+			ties[nTie] = v / 1000
+		endif
+	endwhile
+next tc
 
 ! ---- tieHeightList をパース (mm→m) ----
 nTieH = 0
-rest = tieHeightList
-while strlen(rest) > 0 and nTieH < 80 do
-	pc = strstr(rest, ",")
-	if pc > 0 then
-		item = strsub(rest, 1, pc - 1)
-		rest = strsub(rest, pc + 1, strlen(rest) - pc)
-	else
-		item = rest
-		rest = ""
-	endif
-	k = split(item, "%n", v)
-	if k > 0 then
-		nTieH = nTieH + 1
-		tieH[nTieH] = v / 1000
-	endif
-endwhile
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! tieHeightList2〜tieHeightList5 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 5
+	rest = tieHeightList
+	if tc = 2 then rest = tieHeightList2
+	if tc = 3 then rest = tieHeightList3
+	if tc = 4 then rest = tieHeightList4
+	if tc = 5 then rest = tieHeightList5
+	while strlen(rest) > 0 and nTieH < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nTieH = nTieH + 1
+			tieH[nTieH] = v / 1000
+		endif
+	endwhile
+next tc
 
 ! ---- flList をパース (mm→m) ----
 nFL = 0
@@ -171,36 +192,43 @@ bkB = 0
 bkC = 0
 bkE0 = 0
 bkF = 0
-rest = brktList
-while strlen(rest) > 0 and nBk < 24 do
-	pc = strstr(rest, ",")
-	if pc > 0 then
-		item = strsub(rest, 1, pc - 1)
-		rest = strsub(rest, pc + 1, strlen(rest) - pc)
-	else
-		item = rest
-		rest = ""
-	endif
-	k = split(item, "%n", v)
-	if k > 0 then
-		bkIdx = bkIdx + 1
-		md = bkIdx - 6 * int(bkIdx / 6)   ! 1,2,3,4,5,0 の繰り返し
-		if md = 1 then bkA = v / 1000
-		if md = 2 then bkB = v / 1000
-		if md = 3 then bkC = v / 1000
-		if md = 4 then bkE0 = v
-		if md = 5 then bkF = v / 1000
-		if md = 0 then
-			nBk = nBk + 1
-			bkS[nBk] = bkA
-			bkE[nBk] = bkB
-			bkW[nBk] = bkC
-			bkD[nBk] = bkE0
-			bkH[nBk] = bkF
-			bkDW[nBk] = v / 1000        ! 区間の床幅（0で変更なし）
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! brktList2〜brktList4 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 4
+	rest = brktList
+	if tc = 2 then rest = brktList2
+	if tc = 3 then rest = brktList3
+	if tc = 4 then rest = brktList4
+	while strlen(rest) > 0 and nBk < 24 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
 		endif
-	endif
-endwhile
+		k = split(item, "%n", v)
+		if k > 0 then
+			bkIdx = bkIdx + 1
+			md = bkIdx - 6 * int(bkIdx / 6)   ! 1,2,3,4,5,0 の繰り返し
+			if md = 1 then bkA = v / 1000
+			if md = 2 then bkB = v / 1000
+			if md = 3 then bkC = v / 1000
+			if md = 4 then bkE0 = v
+			if md = 5 then bkF = v / 1000
+			if md = 0 then
+				nBk = nBk + 1
+				bkS[nBk] = bkA
+				bkE[nBk] = bkB
+				bkW[nBk] = bkC
+				bkD[nBk] = bkE0
+				bkH[nBk] = bkF
+				bkDW[nBk] = v / 1000        ! 区間の床幅（0で変更なし）
+			endif
+		endif
+	endwhile
+next tc
 
 ! ---- stageList をパース「開始,長さ,出,設置高さ,方杖」の繰り返し (mm→m) ----
 ! 方杖は0/1（数量拾いと同じ指定を使う。図だけ勝手に方杖を付けない）

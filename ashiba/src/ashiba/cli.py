@@ -96,6 +96,7 @@ from .model import (
 )
 from .openings import Opening, opening_detail_specs, opening_ranges, validate_openings
 from .conflicts import check_conflicts
+from .gdl_params import GdlCapacityError
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -925,7 +926,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         result = run(args.input, args.out, args.master)
-    except (InputError, MasterDataError, SeriesLockError) as e:
+    except (InputError, MasterDataError, SeriesLockError, GdlCapacityError) as e:
         # 入力やマスタの誤りでスタックトレースを出しても直しようがない
         print(str(e), file=sys.stderr)
         return 2
