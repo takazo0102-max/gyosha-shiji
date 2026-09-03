@@ -147,6 +147,7 @@ def take_off(
     stair_plan: Optional["StairPlan"] = None,
     platforms=None,
     openings=None,
+    terrain=None,
 ) -> QuantityResult:
     rules = rules or QuantityRules()
     m = model.master
@@ -180,7 +181,7 @@ def take_off(
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
-        _count_frame_parts(model, rules, add, notes, stair_plan, openings)
+        _count_frame_parts(model, rules, add, notes, stair_plan, openings, terrain)
         _count_bracket_parts(model, bracket_sections, add, notes, counts)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
@@ -189,16 +190,32 @@ def take_off(
         return _assemble(model, rules, counts, parts, notes, breakdown)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
+    # 敷地に高低差があると、低い側の脚は下へ支柱を継ぎ足す。名目構成×位置数の
+    # ままだと、その分の支柱が数量から抜ける（ジャッキ量一覧には出ているのに）
     counts_posts: dict[int, int] = {}
-    for nominal in elev.posts:
-        counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
+    feet = list(getattr(terrain, "feet", []) or [])
+    extra_posts = 0
+    if feet:
+        for f in feet:
+            for nominal in f.posts:
+                counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
+        extra_posts = sum(len(f.posts) - len(elev.posts) for f in feet) * rows
+        if extra_posts > 0:
+            notes.append(
+                f"敷地高低差の継ぎ足し分として{model.master.vertical_member_name}"
+                f"{extra_posts}本を含みます（脚ごとの構成はジャッキ量一覧のとおり。"
+                "立面図は名目構成で描いています）"
+            )
+    else:
+        for nominal in elev.posts:
+            counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
     for nominal, per_line in counts_posts.items():
         part = next(
             (p for p in m.by_category("支柱")
              if p.nominal_dim == nominal and "根がらみ" not in p.note and "屋根" not in p.note),
             None,
         )
-        add(part, per_line * n_posts, f"支柱{nominal}")
+        add(part, per_line * (rows if feet else n_posts), f"支柱{nominal}")
 
     # ---- ジャッキ・アンダーベース（アンダーベース数=ジャッキ数） ----
     jack = next((p for p in m.by_category("ジャッキ") if "ベース" not in p.note and "アンダー" not in p.note), None)
@@ -721,6 +738,7 @@ def _count_frame_parts(
     notes: list[str],
     stair_plan=None,
     openings=None,
+    terrain=None,
 ) -> None:
     """枠組足場の数量ルール.
 
@@ -740,8 +758,22 @@ def _count_frame_parts(
 
     # ---- 建枠（1構面に2枚＝両側。段数ぶん積む） ----
     stage_counts: dict[int, int] = {}
-    for h in elev.posts:
-        stage_counts[h] = stage_counts.get(h, 0) + 1
+    # 高低差のある敷地では低い側の脚に調整枠を継ぎ足す。名目の段数×位置数の
+    # ままだと、その建枠と連結ピンが数量から抜ける
+    feet = list(getattr(terrain, "feet", []) or [])
+    if feet:
+        for f in feet:
+            for h in f.posts:
+                stage_counts[h] = stage_counts.get(h, 0) + 1
+        extra = sum(len(f.posts) - len(elev.posts) for f in feet)
+        if extra > 0:
+            notes.append(
+                f"敷地高低差の継ぎ足し分として建枠{extra}枚を含みます"
+                "（脚ごとの構成はジャッキ量一覧のとおり。立面図は名目構成で描いています）"
+            )
+    else:
+        for h in elev.posts:
+            stage_counts[h] = stage_counts.get(h, 0) + 1
     # 建枠幅は「近い幅」ではなく「布板が載る最小幅」を選ぶ
     # （近似で選ぶと布板より狭い建枠になり、実際には組めない）
     need_width = model.deck_width_total
@@ -758,7 +790,7 @@ def _count_frame_parts(
              if p.nominal_dim == h and f"幅{frame_width}" in p.note),
             None,
         )
-        add(part, per_line * n_frame_lines, f"建枠 幅{frame_width}×高{h}")
+        add(part, per_line * (1 if feet else n_frame_lines), f"建枠 幅{frame_width}×高{h}")
 
     # ---- ジャッキ・アンダーベース ----
     jack = next((p for p in m.by_category("ジャッキ") if "アンダー" not in p.note), None)
@@ -835,7 +867,9 @@ def _count_frame_parts(
     armlock = next(iter(m.by_category("アームロック")), None)
     pin = next(iter(m.by_category("連結ピン")), None)
     add(armlock, n_bays * n_stages, "アームロック（建枠2枚に1個）")
-    add(pin, max(0, n_stages - 1) * n_frame_lines, "連結ピン（縦継ぎ1箇所に1本）")
+    n_joints = (sum(max(0, len(f.posts) - 1) for f in feet) if feet
+                else max(0, n_stages - 1) * n_frame_lines)
+    add(pin, n_joints, "連結ピン（縦継ぎ1箇所に1本）")
 
     # ---- 幅木・壁つなぎ・階段枠 ----
     if model.config.has_toe_board:

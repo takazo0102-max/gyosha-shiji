@@ -43,12 +43,14 @@ def run_all_checks(
         check_first_ledger,
         check_negarami,
         check_wall_ties,
-        check_height_reinforcement,
         check_series_lock,
         check_asagao,
         check_post_spacing,
     ]
     results = [fn(model) for fn in checks]
+    # 高さ(#8)は敷地の低い側で実高さが伸びる。名目高さだけ見ると、崖地で
+    # 36mになっている足場を「16m ≦ 31m」で通してしまう
+    results.append(check_height_reinforcement(model, terrain))
     results.append(check_jack_extension(model, terrain))
     results.append(check_stairs(model, stair_plan))
     return sorted(results, key=lambda r: r.check_id)
@@ -309,8 +311,26 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
 
 # ---- #8 高さ31m超の補強 --------------------------------------------------
 
-def check_height_reinforcement(m: ScaffoldModel) -> CheckResult:
-    h = m.scaffold_height_mm
+def actual_max_height_mm(m: ScaffoldModel, terrain=None) -> tuple[float, float]:
+    """判定に使う足場高さと、敷地の低い側で伸びた分（mm）.
+
+    高低差のある敷地では支柱を下へ継ぎ足すので、最も低い脚の実高さは
+    名目の足場高さより大きい。31m・45mの判定はその実高さで行う。
+    """
+    nominal = m.scaffold_height_mm
+    feet = list(getattr(terrain, "feet", []) or [])
+    if not feet:
+        return nominal, 0.0
+    tallest = max(sum(f.posts) + f.jack_mm for f in feet)
+    return max(nominal, tallest), max(0.0, tallest - nominal)
+
+
+def check_height_reinforcement(m: ScaffoldModel, terrain=None) -> CheckResult:
+    h, extra = actual_max_height_mm(m, terrain)
+    site_note = (
+        f"（敷地の低い側で支柱を{extra / 1000:.2f}m継ぎ足した実高さ。名目{m.scaffold_height_mm / 1000:.2f}m）"
+        if extra > 1 else ""
+    )
     # 枠組足場は「建地2本組」（単管足場＝安衛則571条の概念）ではなく、
     # 仮設工業会の枠組指針で最下段建枠・ジャッキベースの強度を検討する。
     # くさび式は単管足場に準じて31m超の2本組で保守的に警告する。
@@ -319,36 +339,36 @@ def check_height_reinforcement(m: ScaffoldModel) -> CheckResult:
         if h > 45000:
             return CheckResult(
                 8, "高さ", NG,
-                f"足場高さ{h / 1000:.2f}m > 45m: 本ツールの適用範囲外です（個別設計が必要）",
+                f"足場高さ{h / 1000:.2f}m{site_note} > 45m: 本ツールの適用範囲外です（個別設計が必要）",
                 basis,
             )
         if h > 31000:
             return CheckResult(
                 8, "高さ", WARN,
-                f"足場高さ{h / 1000:.2f}m（枠組）: 高さが大きいので最下段の建枠・"
+                f"足場高さ{h / 1000:.2f}m{site_note}（枠組）: 高さが大きいので最下段の建枠・"
                 "ジャッキベースが自重＋積載に対して許容支持力以内か強度検討してください"
                 "（枠組は単管足場の建地2本組の対象外）",
                 basis,
             )
         return CheckResult(8, "高さ", OK,
-                           f"足場高さ{h / 1000:.2f}m ≦ 45m（枠組）", basis)
+                           f"足場高さ{h / 1000:.2f}m{site_note} ≦ 45m（枠組）", basis)
 
     basis = "安衛則571条（単管足場: 高さ31m超は建地2本組等の補強）"
     if h > 45000:
         return CheckResult(
             8, "高さ", NG,
-            f"足場高さ{h / 1000:.2f}m > 45m: 本ツールの適用範囲外です（個別設計が必要）", basis,
+            f"足場高さ{h / 1000:.2f}m{site_note} > 45m: 本ツールの適用範囲外です（個別設計が必要）", basis,
         )
     if h > 31000:
         # どこからどこまでを2本組にするのかまで言わないと手が打てない
         return CheckResult(
             8, "高さ", WARN,
-            f"足場高さ{h / 1000:.2f}m > 31m: 最高部から31mを超える部分"
+            f"足場高さ{h / 1000:.2f}m{site_note} > 31m: 最高部から31mを超える部分"
             f"（GL〜{(h - 31000) / 1000:.2f}m）の建地は2本組が必要です。"
             "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます",
             basis,
         )
-    return CheckResult(8, "高さ", OK, f"足場高さ{h / 1000:.2f}m ≦ 31m", basis)
+    return CheckResult(8, "高さ", OK, f"足場高さ{h / 1000:.2f}m{site_note} ≦ 31m", basis)
 
 
 # ---- #9 規格混在 ---------------------------------------------------------

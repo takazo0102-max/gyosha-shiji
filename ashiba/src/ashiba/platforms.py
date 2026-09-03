@@ -163,6 +163,17 @@ def validate_platforms(
         if s.span_count < 1:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG", "間口は1スパン以上必要です", "入力エラー"))
+        if s.projection_mm <= 0:
+            result.issues.append(PlatformIssue(
+                "ステージ", i, "NG",
+                f"出{s.projection_mm:.0f}mmでは張出し床になりません（0より大きい値）",
+                "入力エラー"))
+        if s.load_kn <= 0:
+            result.issues.append(PlatformIssue(
+                "ステージ", i, "NG",
+                f"最大積載荷重{s.load_kn:.1f}kNは0より大きい値で指定してください"
+                "（荷受けステージは積載が前提。0以下では検定にならない）",
+                "入力エラー"))
         for lv in s.levels:
             if not (1 <= lv <= n_levels):
                 result.issues.append(PlatformIssue(

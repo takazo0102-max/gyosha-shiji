@@ -418,3 +418,59 @@ class TestDeckCellsReconcile(unittest.TestCase):
         note = next(n for n in q.notes if n.startswith("踏板はスパン"))
         self.assertIn(f"階段室{len(sp.towers)}箇所", note)
 
+
+class TestTerrainExtensionPostsAreCounted(unittest.TestCase):
+    """高低差で継ぎ足した支柱は数量に入る（ジャッキ量一覧にだけ出ていた）."""
+
+    def test_posts_follow_the_feet(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+        )
+        ground = GroundModel(points=[(0, 0, 6000), (30000, 0, 0),
+                                     (30000, 20000, 0), (0, 20000, 6000)])
+        t = solve_post_feet(m, ground)
+        flat = take_off(m)
+        sloped = take_off(m, terrain=t)
+
+        def posts(q):
+            return {l.part.nominal_dim: l.qty for l in q.lines if l.part.category == "支柱"}
+
+        rows = 2
+        expect = {}
+        for f in t.feet:
+            for n in f.posts:
+                expect[n] = expect.get(n, 0) + rows
+        self.assertEqual(posts(sloped), expect)
+        self.assertGreater(sum(posts(sloped).values()), sum(posts(flat).values()))
+        self.assertTrue([n for n in sloped.notes if "継ぎ足し分" in n], sloped.notes)
+        self.assertFalse([n for n in flat.notes if "継ぎ足し分" in n])
+
+    def test_frame_stacks_follow_the_feet(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        master = load_master("waku")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+        )
+        ground = GroundModel(points=[(0, 0, 6000), (30000, 0, 0),
+                                     (30000, 20000, 0), (0, 20000, 6000)])
+        t = solve_post_feet(m, ground)
+        sloped = take_off(m, terrain=t)
+        got = {}
+        for l in sloped.lines:
+            if l.part.category == "建枠":
+                got[l.part.nominal_dim] = got.get(l.part.nominal_dim, 0) + l.qty
+        expect = {}
+        for f in t.feet:
+            for h in f.posts:
+                expect[h] = expect.get(h, 0) + 1
+        self.assertEqual(got, expect)
+        pins = sum(l.qty for l in sloped.lines if l.part.category == "連結ピン")
+        self.assertEqual(pins, sum(len(f.posts) - 1 for f in t.feet))
+        self.assertTrue([n for n in sloped.notes if "継ぎ足し分として建枠" in n], sloped.notes)
+

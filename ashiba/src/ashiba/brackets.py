@@ -94,6 +94,11 @@ def validate_bracket_sections(
                 f"辺{s.edge_index}: 区間終点{s.end_mm:.0f}mmが"
                 f"面長{edge.scaffold_length:.0f}mmを超えています",
                 "入力エラー"))
+        if s.width <= 0:
+            issues.append(BracketIssue(
+                i, "NG",
+                f"辺{s.edge_index}: ブラケット幅{s.width:.0f}mmは0より大きい値で指定してください",
+                "入力エラー"))
         if s.direction not in (INNER, OUTER):
             issues.append(BracketIssue(
                 i, "NG", f"ブラケット向きが不正です: {s.direction}",

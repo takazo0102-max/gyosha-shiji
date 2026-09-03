@@ -363,3 +363,33 @@ class TestDeckAndRailDetails(unittest.TestCase):
         self.assertEqual(by[2].status, OK)
         self.assertEqual(by[3].status, OK)
         self.assertIn("中桟450", by[3].message)
+
+
+class TestHeightUsesTheTallestLeg(unittest.TestCase):
+    """高さ(#8)は敷地の低い側で継ぎ足した実高さで判定する（名目だけ見ない）."""
+
+    def _model(self):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(28000, master=master),
+            config=ScaffoldConfig(), building_height_mm=27700,
+        )
+
+    def test_flat_site_uses_nominal_height(self):
+        c = [r for r in run_all_checks(self._model()) if r.check_id == 8][0]
+        self.assertEqual(c.status, "OK")
+        self.assertNotIn("継ぎ足した", c.message)
+
+    def test_terrace_pushes_the_low_side_over_31m(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = self._model()          # 名目28.1m。低い側で5m継ぎ足すと33m超
+        ground = GroundModel(points=[(0, 0, 5000), (30000, 0, 0),
+                                     (30000, 20000, 0), (0, 20000, 5000)])
+        terrain = solve_post_feet(m, ground)
+        c = [r for r in run_all_checks(m, terrain=terrain) if r.check_id == 8][0]
+        self.assertEqual(c.status, "WARN", c.message)
+        self.assertIn("継ぎ足した実高さ", c.message)
+        self.assertIn("2本組", c.message)
+

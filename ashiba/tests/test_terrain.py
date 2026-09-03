@@ -293,3 +293,37 @@ class TestFrameTerrainUsesKenwaku(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTallTerraceExtendsThePosts(unittest.TestCase):
+    """3.6m（8コマ）を超える段差でも、継ぎ足した支柱構成を脚ごとに持つ.
+
+    構成表を8コマで打ち切っていたため、それを超える脚は名目構成に戻され、
+    数量の支柱が足りず、高さ判定も名目のままだった。
+    """
+
+    def test_every_foot_sums_to_its_offset(self):
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.master import load_master
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+        from ashiba.plan_solver import solve_plan
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master,
+            plan=solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+        )
+        ground = GroundModel(points=[(0, 0, 6000), (30000, 0, 0),
+                                     (30000, 20000, 0), (0, 20000, 6000)])
+        t = solve_post_feet(m, ground)
+        base_total = sum(m.elevation.posts)
+        koma = master.koma_pitch
+        self.assertGreater(max(f.koma_offset for f in t.feet), 8)
+        for f in t.feet:
+            self.assertEqual(sum(f.posts), base_total + f.koma_offset * koma,
+                             f"脚{f.index}: offset={f.koma_offset} posts={f.posts}")
+            self.assertFalse([w for w in f.warnings if "組めません" in w])
+        self.assertFalse([w for w in t.warnings if "組めない脚" in w])
+

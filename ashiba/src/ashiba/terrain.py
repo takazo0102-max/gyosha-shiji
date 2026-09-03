@@ -169,15 +169,24 @@ def solve_post_feet(
         model.master.frame_heights() if model.master.is_frame
         else model.master.post_lengths(include_negarami=True)
     )
-    table = _compose_table(base_total + int(koma) * 8, sorted(set(lengths), reverse=True))
+    # 何コマ下げれば、ジャッキ量が可動域に収まるか（脚ごと）
+    offsets = [
+        _choose_koma_offset(
+            ref_jack_top, gl, koma, jack_min, jack_hard_max, jack_recommended_max
+        )
+        for gl in gls
+    ]
+    # 継ぎ足しの構成表は、実際に必要な最大コマ数まで作る。8コマ（3.6m）で
+    # 打ち切っていたときは、それを超える段差の脚が名目構成に戻され、数量の
+    # 支柱が不足し、高さ判定も名目のままだった（脚ごとの備考にしか出なかった）
+    max_offset = max(offsets) if offsets else 0
+    table = _compose_table(
+        base_total + int(koma) * max(8, max_offset), sorted(set(lengths), reverse=True)
+    )
 
     feet: list[PostFoot] = []
     warnings: list[str] = []
-    for i, ((x, y), gl) in enumerate(zip(positions, gls)):
-        # 何コマ下げれば、ジャッキ量が可動域に収まるか
-        m = _choose_koma_offset(
-            ref_jack_top, gl, koma, jack_min, jack_hard_max, jack_recommended_max
-        )
+    for i, ((x, y), gl), m in zip(range(len(gls)), zip(positions, gls), offsets):
         # 支柱下端の目標位置は gl + jack_ideal。ジャッキで届かない分は地盤側で調整する。
         # 調整量は必ず adjust = jack_ideal - 実ジャッキ量 とする（符号を逆にすると
         # 支柱下端が目標からずれ、作業床が全周で通らなくなる）
@@ -251,6 +260,14 @@ def solve_post_feet(
             )
         warnings.append(msg)
         over_jack_warning = msg
+    cannot = [f for f in feet if any("組めません" in w for w in f.warnings)]
+    if cannot:
+        # 脚ごとの備考にしか出ないと、総合判定が成立のまま部材が足りない計画になる
+        warnings.append(
+            f"継ぎ足した{vm}構成を組めない脚が{len(cannot)}本あります"
+            f"（最大{max(f.koma_offset for f in cannot)}{step_name}分）。"
+            "マスタの支柱長で構成できない段差です。床均しか支柱規格の追加を検討してください"
+        )
     need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6]
     if need_plate:
         warnings.append(

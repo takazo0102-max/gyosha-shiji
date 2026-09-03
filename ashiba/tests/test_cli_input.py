@@ -44,7 +44,7 @@ class TestBuildModel(unittest.TestCase):
         m = build_model(dict(
             BASE, scaffold_form="一側足場", guard_rail_type=GUARD_RAIL_ADVANCE,
             next_gen=True, clearance_space_mm=500, building_height_mm=16000,
-            period_days=90, deck_widths=[500, 240],
+            period_days=90, deck_widths=[500, 250],
         ), None)
         self.assertEqual(m.config.scaffold_form, "一側足場")
         self.assertEqual(m.config.guard_rail_type, GUARD_RAIL_ADVANCE)
@@ -52,7 +52,7 @@ class TestBuildModel(unittest.TestCase):
         self.assertEqual(m.clearance_space_mm, 500)
         self.assertEqual(m.building_height_mm, 16000)
         self.assertEqual(m.config.period_days, 90)
-        self.assertEqual(list(m.config.deck_widths), [500, 240])
+        self.assertEqual(list(m.config.deck_widths), [500, 250])
 
     def test_guard_extra_default_follows_the_series(self):
         """既定は手すり分。枠組はコマピッチ0なので、2×コマだと0になってしまう."""
@@ -297,6 +297,64 @@ class TestValidateSpec(unittest.TestCase):
         for f in sorted(ex.glob("*.json")):
             with self.subTest(f.name):
                 validate_spec(json.loads(f.read_text(encoding="utf-8")))
+
+
+class TestDegenerateValuesAreRejected(unittest.TestCase):
+    """型は合っているが解くと意味の無い値（0・逆転）を入口で弾く."""
+
+    def ng(self, **over):
+        with self.assertRaises(InputError) as cm:
+            validate_spec(dict(BASE, **over))
+        return str(cm.exception)
+
+    def test_zero_eaves_height(self):
+        self.assertIn("eaves_height_mm", self.ng(eaves_height_mm=0))
+
+    def test_eaves_above_building(self):
+        msg = self.ng(eaves_height_mm=20000, building_height_mm=15000)
+        self.assertIn("軒高", msg)
+        self.assertIn("建物高さ", msg)
+
+    def test_zero_period(self):
+        self.assertIn("period_days", self.ng(period_days=0))
+
+    def test_deck_widths_shape(self):
+        for bad in ([], [400, 250, 200], [-400, 250], [0, 250], "400"):
+            with self.subTest(bad):
+                self.assertIn("deck_widths", self.ng(deck_widths=bad))
+
+    def test_deck_width_missing_from_master(self):
+        from ashiba.cli import build_model
+
+        with self.assertRaises(InputError) as cm:
+            build_model(dict(BASE, deck_widths=[999, 250]))
+        self.assertIn("999", str(cm.exception))
+        self.assertIn("使える幅", str(cm.exception))
+
+    def test_negative_stairs_count(self):
+        self.assertIn("stairs.count", self.ng(stairs={"count": -1}))
+        self.assertIn("max_travel_mm", self.ng(stairs={"max_travel_mm": 0}))
+
+    def test_non_orthogonal_outline_is_a_clean_error(self):
+        """非直交の外形は生のトレースバックではなく入力エラーとして出る."""
+        import io
+        import json
+        import tempfile
+        from contextlib import redirect_stderr
+
+        from ashiba.cli import main
+
+        with tempfile.TemporaryDirectory() as d:
+            src = Path(d) / "in.json"
+            src.write_text(json.dumps(dict(
+                BASE, outline_mm=[[0, 0], [30000, 0], [25000, 20000], [0, 20000]])),
+                encoding="utf-8")
+            err = io.StringIO()
+            with redirect_stderr(err):
+                code = main([str(src), "--out", d])
+        self.assertEqual(code, 2)
+        self.assertIn("非直交", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
 
 
 class TestInputsActuallyTakeEffect(unittest.TestCase):

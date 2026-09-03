@@ -153,6 +153,22 @@ class PartMaster:
         key = "next_gen_deck_widths" if next_gen else "deck_widths"
         return SERIES_CONST[self.series_id][key]
 
+    def deck_widths_available(self) -> set[int]:
+        """この系列のマスタにある作業床の幅（noteの「幅NNN」）.
+
+        無い幅を指定しても解けてしまい、数量表で床が丸ごと欠けるだけになる。
+        入力時点で弾くために使う。
+        """
+        out: set[int] = set()
+        for p in self.by_category(self.deck_category):
+            for token in p.note.split():
+                if token.startswith("幅"):
+                    try:
+                        out.add(int(token[1:]))
+                    except ValueError:
+                        pass
+        return out
+
     def by_category(self, category: str) -> list[Part]:
         return [p for p in self.parts if p.category == category]
 

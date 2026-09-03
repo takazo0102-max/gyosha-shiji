@@ -275,3 +275,24 @@ class TestFrameSystemAlsoCounts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestZeroWidthBracketIsRejected(unittest.TestCase):
+    def test_width_zero_is_ng(self):
+        from ashiba.brackets import BracketSection, validate_bracket_sections
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.master import load_master
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+        from ashiba.plan_solver import solve_plan
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master,
+            plan=solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+        )
+        issues = validate_bracket_sections(m, [BracketSection(
+            edge_index=0, start_mm=5400, end_mm=9000, direction="張出", width=0)])
+        self.assertTrue([i for i in issues if i.severity == "NG" and "ブラケット幅" in i.message],
+                        [i.message for i in issues])
+

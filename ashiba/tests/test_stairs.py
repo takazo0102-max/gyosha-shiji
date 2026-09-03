@@ -232,9 +232,10 @@ class TestWallTieRatioIsNotInfinite(unittest.TestCase):
 
         from ashiba.cli import run
 
-        spec = {"series_id": "shinwa_A", "project_name": "軒高0",
+        # 軒高0は入口で弾くので、作業層が取れない最小の正の軒高で再現する
+        spec = {"series_id": "shinwa_A", "project_name": "軒高ごくわずか",
                 "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
-                "eaves_height_mm": 0, "period_days": 90}
+                "eaves_height_mm": 100, "period_days": 90}
         with tempfile.TemporaryDirectory() as td:
             f = Path(td) / "s.json"
             f.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")

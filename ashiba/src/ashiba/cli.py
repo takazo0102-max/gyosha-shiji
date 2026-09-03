@@ -97,6 +97,7 @@ from .model import (
 from .openings import Opening, opening_detail_specs, opening_ranges, validate_openings
 from .conflicts import check_conflicts
 from .gdl_params import GdlCapacityError
+from .geometry import ValidationError
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -277,6 +278,36 @@ def validate_spec(spec: dict) -> None:
                               or isinstance(v, bool) or v < 0):
             errors.append(f"{key}: 0以上の数値で指定してください（{v!r}）")
 
+    def _num(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    # 0は型としては通るが、解くと意味の無い計画になる値
+    ev, bv = spec.get("eaves_height_mm"), spec.get("building_height_mm")
+    if _num(ev) and ev <= 0:
+        errors.append("eaves_height_mm: 0より大きい値で指定してください（軒高0では足場を組めません）")
+    if _num(ev) and _num(bv) and bv > 0 and ev > bv:
+        errors.append(
+            f"eaves_height_mm: 軒高{ev:g}mmが建物高さ building_height_mm {bv:g}mmを"
+            "超えています（軒高≦建物高さ）")
+    pd = spec.get("period_days")
+    if _num(pd) and 0 <= pd < 1:
+        errors.append("period_days: 1日以上で指定してください（工期0日では風荷重の期間係数を決められません）")
+    dw = spec.get("deck_widths")
+    if dw is not None and (
+        not isinstance(dw, list) or not (1 <= len(dw) <= 2)
+        or any(not _num(w) or w <= 0 for w in dw)
+    ):
+        errors.append(f"deck_widths: 正の数値を1〜2個の配列で指定してください（{dw!r}）")
+    st0 = spec.get("stairs")
+    if isinstance(st0, dict):
+        for k in ("count", "tower_spans", "min_per_face"):
+            v = st0.get(k)
+            if _num(v) and v < 0:
+                errors.append(f"stairs.{k}: 0以上で指定してください（{v!r}）")
+        v = st0.get("max_travel_mm")
+        if _num(v) and v <= 0:
+            errors.append(f"stairs.max_travel_mm: 0より大きい値で指定してください（{v!r}）")
+
     for key, allowed in NESTED_KEYS.items():
         if key in spec and spec[key] is not None and spec[key] is not False:
             _check_keys(errors, key, spec[key], allowed)
@@ -355,6 +386,16 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         )
     required = int(spec["eaves_height_mm"]) + int(guard_extra)
     elevation = solve_elevation(required, master=master)
+    # マスタに無い幅の作業床は、解けてしまって数量表で床が丸ごと欠けるだけになる
+    if spec.get("deck_widths"):
+        avail = master.deck_widths_available()
+        bad = [w for w in spec["deck_widths"] if int(w) not in avail]
+        if bad:
+            raise InputError(
+                f"deck_widths: 幅{'・'.join(str(int(w)) for w in bad)}の{master.deck_category}が"
+                f"系列 {master.series_id} の部材マスタにありません"
+                f"（使える幅: {'・'.join(str(w) for w in sorted(avail, reverse=True))}）"
+            )
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
@@ -667,7 +708,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
-        platforms=platforms, openings=openings,
+        platforms=platforms, openings=openings, terrain=terrain,
     )
     # 詳細図は開口部があれば梁枠の図を足す
     from .details import required_details
@@ -926,7 +967,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         result = run(args.input, args.out, args.master)
-    except (InputError, MasterDataError, SeriesLockError, GdlCapacityError) as e:
+    except (InputError, MasterDataError, SeriesLockError, GdlCapacityError,
+            ValidationError) as e:
         # 入力やマスタの誤りでスタックトレースを出しても直しようがない
         print(str(e), file=sys.stderr)
         return 2

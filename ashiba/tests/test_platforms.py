@@ -386,3 +386,18 @@ class TestStagePartsReachTheBom(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDegenerateStageValues(unittest.TestCase):
+    """出0・積載0以下のステージは入力エラー（張出し床にならない・検定にならない）."""
+
+    def test_zero_projection_is_ng(self):
+        r = validate_platforms(build(), [stage(projection_mm=0)], [])
+        self.assertTrue([i for i in ngs(r) if "出0" in i.message], [i.message for i in r.issues])
+
+    def test_nonpositive_load_is_ng(self):
+        for load in (0, -1):
+            with self.subTest(load):
+                r = validate_platforms(build(), [stage(load_kn=load)], [])
+                self.assertTrue([i for i in ngs(r) if "最大積載荷重" in i.message and "0より大きい" in i.message])
+
