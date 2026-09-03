@@ -55,6 +55,14 @@ def write_quantity_csv(result: QuantityResult, path: Path) -> None:
                 w.writerow(["注記", n])
 
 
+def _short(msg: str, listed: set) -> str:
+    """末尾の一覧に載る文は、本文では1行に切り詰めて参照に回す."""
+    if msg not in listed:
+        return msg
+    head = msg.split("。")[0].split("（")[0]
+    return f"{head[:60]}…（要確認一覧を参照）"
+
+
 def write_report_md(
     model: ScaffoldModel,
     quantity: QuantityResult,
@@ -79,6 +87,15 @@ def write_report_md(
     e = model.elevation
     lines: list[str] = []
     a = lines.append
+    # 末尾の要確認一覧に載る項目。本文で同じ長文を二度読ませないため先に決める
+    checklist: list[tuple[str, str]] = [
+        ("法規チェック", f"{c.name}: {c.message}（{c.basis}）")
+        for c in checks if c.status == "WARN"
+    ]
+    checklist += [(kind, text) for kind, sev, text in (warnings or []) if sev != "NG"]
+    listed = {text for _kind, text in checklist}
+    # 法規チェック表に出ている文は、他の節では見出しだけにして重複を避ける
+    in_law_table = {c.message for c in checks if c.status == "WARN"}
     a(f"# 足場割付レポート {project_name}".rstrip())
     a("")
     if verdict is not None:
@@ -197,7 +214,7 @@ def write_report_md(
         for nmsg in structural.notes:
             a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:
-            a(f"- ⚠️ {wmsg}")
+            a(f"- ⚠️ {_short(wmsg, listed)}")
 
     if terrain is not None and terrain.gl_difference_mm > 0:
         a("")
@@ -214,7 +231,11 @@ def write_report_md(
         # terrain.notes は上の箇条書き（高低差・脚部構成）と同じ内容なので出さない。
         # 対応が要るものだけ出す
         for wmsg in terrain.warnings:
-            a(f"- ⚠️ {wmsg}")
+            if wmsg in in_law_table:
+                head = wmsg.split("。")[0]
+                a(f"- ⚠️ {head}（法規チェック6を参照）")
+            else:
+                a(f"- ⚠️ {_short(f'敷地: {wmsg}', listed)}")
 
     extras = []
     if bracket_sections:
@@ -242,18 +263,17 @@ def write_report_md(
     a("")
     a(f"- 総重量: {quantity.total_weight_kg}kg / トラック概算: 4t車{quantity.truck_count}台")
     a(f"- 架け面積: {quantity.kake_menseki_m2}m²（(外周+4m)×(高さ+0.5m)）")
+    dup = [n for n in quantity.warnings if n in listed]
+    if dup:
+        # 全文は末尾の一覧にある。同じ長文を2箇所に並べない
+        a(f"- **要手配・要検討 {len(dup)}件**（末尾の要確認一覧を参照）")
     for n in quantity.warnings:
-        a(f"- **要手配・要検討**: {n}")
+        if n not in listed:
+            a(f"- **要手配・要検討**: {n}")
     for n in quantity.notes:
         if n not in quantity.warnings:
             a(f"- 注記: {n}")
-    # 冒頭で「要確認N件」と言う以上、その N 件が本文のどこかで拾えないと片手落ち。
-    # 分類ごとに1箇所へまとめ、着手前のチェックリストとして使えるようにする
-    items: list[tuple[str, str]] = [
-        ("法規チェック", f"{c.name}: {c.message}（{c.basis}）")
-        for c in checks if c.status == "WARN"
-    ]
-    items += [(kind, text) for kind, sev, text in (warnings or []) if sev != "NG"]
+    items = checklist
     if items:
         a("")
         a("## 要確認一覧")

@@ -202,6 +202,55 @@ class TestWarningsAreSeparatedFromNotes(unittest.TestCase):
             self.assertIn(f"⚠️ {w}", text)
 
 
+class TestNoDoubleReading(unittest.TestCase):
+    """同じ長文を1つのレポート内で二度読ませない."""
+
+    def _render(self):
+        import tempfile
+
+        from ashiba.cli import build_verdict, collect_warnings
+        from ashiba.openings import validate_openings
+        from ashiba.platforms import LoadingStage, validate_platforms
+        from ashiba.stairs import auto_place_stairs
+        from ashiba.structural import run_structural
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = build()
+        stair = auto_place_stairs(m)
+        pf = validate_platforms(m, [LoadingStage(
+            edge_index=0, start_mm=3600, span_count=2,
+            projection_mm=1500, load_kn=9.8, levels=[3])])
+        op = validate_openings(m)
+        terrain = solve_post_feet(m, GroundModel(points=[]))
+        checks = run_all_checks(m, stair_plan=stair, terrain=terrain)
+        q = take_off(m, platforms=pf, stair_plan=stair)
+        st = run_structural(m, q, platforms=pf, terrain=terrain)
+        warnings = collect_warnings(
+            st, m, [], stair, [], op, terrain, pf, checks, q)
+        verdict = build_verdict(
+            {"ok": 0, "warn": 0, "ng": 0}, st, pf, op, [], warnings)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "r.md"
+            write_report_md(
+                m, q, checks, path, "テスト", stair_plan=stair, verdict=verdict,
+                structural=st, terrain=terrain, platforms=pf, openings=op,
+                warnings=warnings,
+            )
+            return path.read_text(encoding="utf-8"), q
+
+    def test_quantity_section_points_at_the_checklist(self):
+        text, q = self._render()
+        self.assertIn("末尾の要確認一覧を参照", text)
+        # 長文が数量サマリと一覧の両方に全文で出ていない
+        for w in q.warnings:
+            self.assertLessEqual(text.count(w), 1, w[:40])
+
+    def test_structural_warning_is_shortened(self):
+        text, _q = self._render()
+        head = "未確認の耐力値が計算に使われています"
+        self.assertIn(f"{head}…（要確認一覧を参照）", text)
+
+
 class TestOrderableNotesStandOut(unittest.TestCase):
     """発注書として使うCSVで、手配が要る項目が注記に埋もれないこと."""
 
