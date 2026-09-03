@@ -423,6 +423,21 @@ def _sheet_quantity(wb, quantity: QuantityResult) -> None:
             Cell(pt.note + ("　" + line.note if line.note else ""), STYLE_BORDER),
         ])
     s.add_blank()
+    # 分類別集計（発注前の規模感）。CSVの数量表と同じ内容
+    s.add(["■分類別集計", "数量計", "重量計kg"], STYLE_HEADER)
+    cat_qty: dict = {}
+    cat_wt: dict = {}
+    cat_order: list = []
+    for line in quantity.lines:
+        c = line.part.category
+        if c not in cat_qty:
+            cat_order.append(c)
+        cat_qty[c] = cat_qty.get(c, 0) + line.qty
+        cat_wt[c] = cat_wt.get(c, 0.0) + line.subtotal_weight
+    for c in cat_order:
+        s.add_cells([Cell(c, STYLE_BORDER), Cell(cat_qty[c], STYLE_BORDER),
+                     Cell(round(cat_wt[c], 1), STYLE_BORDER)])
+    s.add_blank()
     s.add(["総重量kg", quantity.total_weight_kg], STYLE_BOLD)
     s.add(["トラック台数概算(4t)", quantity.truck_count], STYLE_BOLD)
     s.add(["架け面積m²", quantity.kake_menseki_m2], STYLE_BOLD)

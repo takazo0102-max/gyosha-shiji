@@ -72,6 +72,52 @@ class TestReport(unittest.TestCase):
         self.assertIn("計画作成参画者（有資格者）が確認する前提の下書き", render(build()))
 
 
+class TestQuantityCsvCategorySubtotals(unittest.TestCase):
+    """数量CSVの分類別集計が、型番別明細の合計と一致すること."""
+
+    def _csv(self, model):
+        import csv
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "q.csv"
+            write_quantity_csv(take_off(model), path)
+            return list(csv.reader(path.open(encoding="utf-8-sig")))
+
+    def test_subtotals_match_the_line_items(self):
+        m = build()
+        q = take_off(m)
+        rows = self._csv(m)
+        # 分類別集計ブロックを読む
+        i = next(k for k, r in enumerate(rows) if r and r[0] == "■分類別集計")
+        sub = {}
+        for r in rows[i + 1:]:
+            if not r or r[0].startswith("総重量"):
+                break
+            if len(r) >= 3 and r[1] and r[2]:
+                sub[r[0]] = (int(r[1]), float(r[2]))
+        # 明細から分類別に集計して照合
+        want = {}
+        for l in q.lines:
+            c = l.part.category
+            pq, pw = want.get(c, (0, 0.0))
+            want[c] = (pq + l.qty, pw + l.subtotal_weight)
+        for c, (wq, ww) in want.items():
+            self.assertIn(c, sub)
+            self.assertEqual(sub[c][0], wq, c)
+            self.assertAlmostEqual(sub[c][1], round(ww, 1), places=1)
+
+    def test_subtotal_weights_sum_to_grand_total(self):
+        rows = self._csv(build())
+        i = next(k for k, r in enumerate(rows) if r and r[0] == "■分類別集計")
+        total = 0.0
+        for r in rows[i + 1:]:
+            if not r or r[0].startswith("総重量"):
+                break
+            if len(r) >= 3 and r[2]:
+                total += float(r[2])
+        grand = next(float(r[1]) for r in rows if r and r[0] == "総重量kg")
+        self.assertAlmostEqual(total, grand, places=1)
+
+
 class TestFrameReportUsesFrameTerms(unittest.TestCase):
     """枠組の割付レポートはくさび用語（支柱・布材手すり）を出さない."""
 
