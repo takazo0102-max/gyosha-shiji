@@ -426,7 +426,9 @@ def collect_warnings(
             for w in terrain.warnings if w not in said]
     # 「マスタに無い」「カタログ品では受けられない」は手配・検討が要る。
     # 数量注記に埋もれると発注漏れになる
-    out += [("数量・手配", "WARN", w) for w in getattr(quantity, "warnings", [])]
+    kinds = getattr(quantity, "warning_kinds", {})
+    out += [(f"数量・{kinds.get(w, '手配')}", "WARN", w)
+            for w in getattr(quantity, "warnings", [])]
     out += [("荷受けステージ・昇降機", i.severity,
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in platforms.issues]

@@ -249,15 +249,6 @@ def validate_platforms(
             f"昇降機本体の基礎・構造は本ツールの対象外です。"
             f"マスト控えの壁つなぎ{n_ties}箇所を計上しました",
             "メーカーの構造計算による"))
-        # 乗り込み口は足場側の開口。防護しないと開放端が各層にできる
-        landings = h.landings(model)
-        if landings:
-            result.issues.append(PlatformIssue(
-                "昇降機", i, "WARN",
-                f"乗り込み口が{len(landings)}箇所（作業層"
-                + "・".join(str(lv) for lv in landings)
-                + "）できます。各口に開閉式手すり等の防護が必要です",
-                "安衛則563条（作業床の開口部）"))
 
     return result
 
@@ -271,6 +262,9 @@ class PartDemand:
     nominal_dim: Optional[int]   # 呼び寸法。Noneなら分類内の唯一品
     qty: int
     note_contains: str = ""      # マスタ検索の絞り込み（例 "張出"）
+    # 手配が要るときに添える補足（場所・条文）。検証側と数量側で
+    # 同じ話を2行に分けないため、部材の説明はここに集約する
+    detail: str = ""
 
 
 def platform_part_demands(
@@ -318,10 +312,15 @@ def platform_part_demands(
             if s.has_toe_board:
                 out.append(PartDemand("荷受けステージ 妻側幅木", "幅木", side, 2 * n_levels))
     for h in result.hoists:
-        n = len(h.landings(model))
-        if n:
+        landings = h.landings(model)
+        if landings:
             out.append(PartDemand(
-                "昇降機 乗り込み口の開閉式手すり", "開閉式手すり", None, n))
+                "昇降機 乗り込み口の開閉式手すり", "開閉式手すり", None,
+                len(landings),
+                detail="作業層" + "・".join(str(lv) for lv in landings)
+                       + "。乗り込み口は足場側の開口で、防護しないと"
+                         "各層に開放端ができます（安衛則563条）",
+            ))
     if result.extra_wall_ties > 0:
         out.append(PartDemand("付帯設備の増設壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
     return out

@@ -73,13 +73,23 @@ class Notes(list):
     注記に埋もれると読み飛ばされるので、要確認一覧へ回す分を区別する。
     """
 
+    ORDER = "手配"     # 発注に足すもの（マスタに無い部材など）
+    SITE = "現場対応"  # 塞ぐ・検討する・確認するもの
+
     def __init__(self, *a):
         super().__init__(*a)
         self.actions: list[str] = []
+        self.kinds: dict[str, str] = {}
 
-    def action(self, msg: str) -> None:
+    def action(self, msg: str, kind: str = ORDER) -> None:
+        """対応が要る注記。発注に足すのか現場で対応するのかで分けて持つ.
+
+        まとめて1つの分類に放り込むと、発注担当と現場担当のどちらが動く
+        項目なのかを読む側が毎回判断することになる。
+        """
         self.append(msg)
         self.actions.append(msg)
+        self.kinds[msg] = kind
 
 
 @dataclass
@@ -91,6 +101,8 @@ class QuantityResult:
     notes: list[str] = field(default_factory=list)
     # notes のうち手配・検討が要るもの（説明だけの注記は含めない）
     warnings: list[str] = field(default_factory=list)
+    # 上の各項目が「手配」か「現場対応」か。発注担当と現場担当で見る先が違う
+    warning_kinds: dict = field(default_factory=dict)
 
     def qty_of(self, category: str, nominal: Optional[int] = None) -> int:
         return sum(
@@ -278,7 +290,8 @@ def take_off(
             notes.action(
                 f"斜材を入れる規格スパン（{brace.nominal_dim}）が"
                 f"{shortfall}箇所分不足しています。"
-                "その区間は布板ブレス等の別手段を検討してください"
+                "その区間は布板ブレス等の別手段を検討してください",
+                Notes.SITE,
             )
 
     # ---- 幅木（各作業層 外側スパン毎） ----
@@ -349,7 +362,8 @@ def _count_asagao_parts(
             "朝顔本体の呼び寸法が合わないスパンがあります（"
             + "、".join(f"{sp}mm×{n}" for sp, n in sorted(odd.items()))
             + f"）。{panel.nominal_dim}mmの板で計上しているので、"
-            "現場で切り詰めるか、隙間を板・シートで塞いでください"
+            "現場で切り詰めるか、隙間を板・シートで塞いでください",
+            Notes.SITE,
         )
     add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
     add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
@@ -360,7 +374,8 @@ def _count_asagao_parts(
         notes.action(
             f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
             f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
-            "（本ツールは隅の部材を計上していません）"
+            "（本ツールは隅の部材を計上していません）",
+            Notes.SITE,
         )
 
     # 取付部は所定スパン毎に壁つなぎを増設
@@ -385,7 +400,7 @@ def _count_bracket_parts(
     m = model.master
     for (width, purpose), qty in bracket_quantities(model, bracket_sections).items():
         if purpose == "方杖":
-            notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）")
+            notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）", Notes.SITE)
             continue
         note_key = "張出" if purpose == "張出" else ""
         part = next(
@@ -417,7 +432,8 @@ def _count_bracket_parts(
         if new_part is None:
             notes.action(
                 f"区間指定の踏板 幅{to_w}×{span}がマスタにありません"
-                f"（{n_lv}枚）。幅{from_w}のままで計上しています"
+                f"（{n_lv}枚）。幅{from_w}のままで計上しています",
+                Notes.SITE,
             )
             continue
         old_part = m.deck_parts(from_w, span)
@@ -488,6 +504,7 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
                 f"{d.label}"
                 + (f"（呼び{d.nominal_dim}）" if d.nominal_dim else "")
                 + f"がマスタにありません（{d.qty}）。別途手配してください"
+                + (f"：{d.detail}" if d.detail else "")
             )
             continue
         add(cands[0], d.qty, d.label)
@@ -497,7 +514,8 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             notes.action(
                 f"辺{st.edge_index}のステージは出{st.projection_mm:.0f}mmで、"
                 "カタログの張出ブラケットでは受けられません。"
-                "単管等による支持を個別に検討してください"
+                "単管等による支持を個別に検討してください",
+                Notes.SITE,
             )
 
 
@@ -534,7 +552,8 @@ def _note_double_posts_if_tall(model: ScaffoldModel, notes) -> None:
         f"足場高さ{h / 1000:.2f}mは31mを超えます。最高部から31mを超える部分"
         f"（GL〜{below / 1000:.2f}m）の建地は2本組が必要ですが、追加の支柱・"
         f"ジャッキは数量に含んでいません（該当は支柱{lines}本ぶん）。"
-        "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます"
+        "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます",
+        Notes.SITE,
     )
 
 
@@ -556,7 +575,8 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
     # 措置が要ること自体は割付の警告が言う。ここは数量側の話に絞る
     notes.action(
         f"離れが300mmを超える面（{faces}）の躯体側手すり材は数量に含んでいません"
-        f"（該当{spans}スパン）。躯体側手すりで対応する場合は布材を別途計上してください"
+        f"（該当{spans}スパン）。躯体側手すりで対応する場合は布材を別途計上してください",
+        Notes.SITE,
     )
 
 
@@ -589,6 +609,7 @@ def _assemble(
         truck_count=math.ceil(total_weight / rules.truck_payload_kg) if total_weight else 0,
         notes=list(notes),
         warnings=list(getattr(notes, "actions", [])),
+        warning_kinds=dict(getattr(notes, "kinds", {})),
     )
 
 
@@ -626,7 +647,8 @@ def _count_frame_parts(
     if not fits:
         notes.action(
             f"布板幅の合計{need_width}mmに対し建枠幅が不足しています"
-            f"（最大{frame_width}mm）。布板構成か建枠規格を見直してください"
+            f"（最大{frame_width}mm）。布板構成か建枠規格を見直してください",
+            Notes.SITE,
         )
     for h, per_line in stage_counts.items():
         part = next(

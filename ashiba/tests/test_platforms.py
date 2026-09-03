@@ -174,33 +174,37 @@ class TestHoist(unittest.TestCase):
         ).extra_wall_ties
         self.assertGreater(tight, loose)
 
-    def test_landing_openings_are_flagged_and_counted(self):
-        """乗り込み口は足場側の開口。防護しないと各層に開放端ができる."""
+    def test_landing_openings_are_counted(self):
+        """乗り込み口は足場側の開口。口数ぶんの防護が要る."""
         from ashiba.platforms import platform_part_demands
 
         r = validate_platforms(
             self.m, hoists=[Hoist(edge_index=2, position_mm=0,
                                   landing_levels=[2, 4])])
-        hit = [i for i in r.issues if "乗り込み口" in i.message]
-        self.assertTrue(hit, r.issues)
-        self.assertIn("563", hit[0].basis)
         demand = [d for d in platform_part_demands(self.m, r)
-                  if "乗り込み口" in d.label]
-        self.assertEqual(demand[0].qty, 2)
+                  if "乗り込み口" in d.label][0]
+        self.assertEqual(demand.qty, 2)
+        self.assertIn("563", demand.detail)
+        self.assertIn("作業層2・4", demand.detail)
 
     def test_landing_defaults_to_every_level(self):
-        r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=0)])
-        hit = [i for i in r.issues if "乗り込み口" in i.message][0]
-        self.assertIn(f"{self.m.elevation.n_levels}箇所", hit.message)
+        from ashiba.platforms import platform_part_demands
 
-    def test_missing_part_becomes_an_order_note(self):
-        """開閉式手すりはマスタに無い。黙って落とさず手配項目にする."""
+        r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=0)])
+        demand = [d for d in platform_part_demands(self.m, r)
+                  if "乗り込み口" in d.label][0]
+        self.assertEqual(demand.qty, self.m.elevation.n_levels)
+
+    def test_missing_part_becomes_one_order_note(self):
+        """開閉式手すりはマスタに無い。手配項目に出すが、同じ話を2行にしない."""
         r = validate_platforms(
             self.m, hoists=[Hoist(edge_index=2, position_mm=0, landing_levels=[1])])
         q = take_off(self.m, platforms=r)
-        self.assertTrue(
-            any("乗り込み口" in w and "手配" in w for w in q.warnings), q.warnings
-        )
+        hits = [w for w in q.warnings if "乗り込み口" in w]
+        self.assertEqual(len(hits), 1, q.warnings)
+        self.assertIn("手配", hits[0])
+        self.assertIn("563", hits[0])
+        self.assertFalse([i for i in r.issues if "乗り込み口" in i.message])
 
     def test_scope_limit_is_stated(self):
         """昇降機本体の構造は対象外であることを黙らない."""

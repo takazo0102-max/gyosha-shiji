@@ -209,6 +209,31 @@ class TestActionableNotes(unittest.TestCase):
         self.assertTrue(any("斜材は" in n for n in q.notes))
         self.assertFalse(any("斜材は" in w for w in q.warnings))
 
+    def test_order_and_site_actions_are_separated(self):
+        """発注に足すものと現場で対応するものを、同じ分類に放り込まない."""
+        from ashiba.model import AsagaoSpec
+        from ashiba.platforms import LoadingStage, validate_platforms
+        from ashiba.quantity import Notes
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=1)),
+            building_height_mm=16000,
+        )
+        pf = validate_platforms(m, [LoadingStage(
+            edge_index=0, start_mm=3600, span_count=2,
+            projection_mm=1500, load_kn=9.8, levels=[3])])
+        q = take_off(m, platforms=pf)
+        kinds = {q.warning_kinds[w] for w in q.warnings}
+        self.assertEqual(kinds, {Notes.ORDER, Notes.SITE})
+        # マスタに無い部材は手配、隙間を塞ぐ話は現場対応
+        order = [w for w in q.warnings if q.warning_kinds[w] == Notes.ORDER]
+        site = [w for w in q.warnings if q.warning_kinds[w] == Notes.SITE]
+        self.assertTrue(any("マスタにありません" in w for w in order), order)
+        self.assertTrue(any("出隅" in w for w in site), site)
+
     def test_missing_master_part_is_a_warning(self):
         """マスタに無い＝現場で足りない。説明ではなく手配の話."""
         from ashiba.platforms import LoadingStage, validate_platforms
