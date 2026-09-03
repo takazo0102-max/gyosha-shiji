@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -22,10 +23,40 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.tapir_adapter import ArchicadClient  # noqa: E402
 
-LPX = (
-    "/Users/takazou/Downloads/LibDev Toolkit 27 (3001)/Tool/OSX/"
-    "MakeGDLLib_X86/LP_XMLConverter.app/Contents/MacOS/LP_XMLConverter"
+# LP_XMLConverter（GRAPHISOFT LibDev Toolkit 同梱）の場所。
+# 開発者の実機パスを直書きすると、他の環境では意味不明な失敗になる。
+# 環境変数 → よくある場所の順で探す
+LPX_ENV = "ASHIBA_LP_XMLCONVERTER"
+LPX_GLOBS = (
+    "~/Downloads/LibDev Toolkit*/Tool/OSX/MakeGDLLib_X86/"
+    "LP_XMLConverter.app/Contents/MacOS/LP_XMLConverter",
+    "/Applications/LibDev Toolkit*/Tool/OSX/MakeGDLLib_X86/"
+    "LP_XMLConverter.app/Contents/MacOS/LP_XMLConverter",
+    "~/Applications/LibDev Toolkit*/Tool/OSX/MakeGDLLib_X86/"
+    "LP_XMLConverter.app/Contents/MacOS/LP_XMLConverter",
 )
+
+
+def find_lp_xmlconverter() -> str:
+    """LP_XMLConverter を探す。見つからなければ何をすればよいかを言う."""
+    import glob
+
+    env = os.environ.get(LPX_ENV)
+    if env:
+        if Path(env).exists():
+            return env
+        raise SystemExit(
+            f"{LPX_ENV} に指定されたパスがありません: {env}"
+        )
+    for pattern in LPX_GLOBS:
+        hits = sorted(glob.glob(str(Path(pattern).expanduser())))
+        if hits:
+            return hits[-1]      # 版が複数あれば新しい方
+    raise SystemExit(
+        "LP_XMLConverter が見つかりません。GRAPHISOFT の LibDev Toolkit を"
+        "インストールし、見つからない場合は場所を環境変数で指定してください:\n"
+        f"  export {LPX_ENV}='/path/to/LP_XMLConverter'"
+    )
 HSF_DIR = ROOT / "gdl" / "hsf"
 
 # 部品ごとの検証パラメータと確認するプレビュー種別
@@ -41,7 +72,8 @@ PART_PROFILES = {
     },
     "ashiba_detail": {
         "images": ("2D",),
-        "params": {"detailType": "脚部", "jackOut": 0.2},
+        # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）
+        "params": {"detailType": "base", "jackOut": 0.2},
     },
 }
 
@@ -68,7 +100,7 @@ def build_versioned_gsm(
     if gsm.exists():
         gsm.unlink()
     res = subprocess.run(
-        [LPX, "hsf2libpart", str(hsf_dst), str(gsm)],
+        [find_lp_xmlconverter(), "hsf2libpart", str(hsf_dst), str(gsm)],
         capture_output=True, text=True,
     )
     out = (res.stdout + res.stderr).replace("\n", " ")
@@ -111,7 +143,7 @@ def build_current_gsm(part: str, work_dir: Path) -> tuple[str, Path]:
     if gsm.exists():
         gsm.unlink()
     res = subprocess.run(
-        [LPX, "hsf2libpart", str(hsf_dst), str(gsm)],
+        [find_lp_xmlconverter(), "hsf2libpart", str(hsf_dst), str(gsm)],
         capture_output=True, text=True,
     )
     if not gsm.exists():

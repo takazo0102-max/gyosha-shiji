@@ -444,6 +444,13 @@ READMEの手順で読み込む部品が古いままだと、利用者は最新�
 
 ソースは `gdl/hsf/ashiba_line/`（HSF形式）。LP_XMLConverter（GRAPHISOFT LibDev Toolkit）で
 `LP_XMLConverter hsf2libpart gdl/hsf/ashiba_line gdl/ashiba_line.gsm` としてGSM化する。
+スクリプトは LP_XMLConverter を `~/Downloads` や `/Applications` の LibDev Toolkit から
+自動で探す。別の場所にある場合は環境変数で指定する:
+
+```bash
+export ASHIBA_LP_XMLCONVERTER='/path/to/LP_XMLConverter'
+```
+
 参照版 `.gdl` はHSFから生成しているので、HSFを直したら
 `python3 scripts/build_flat_gdl.py` で再生成する（ズレは `tests/test_flat_gdl_sync.py` が落とす）。
 開発イテレーションは `scripts/dev_gsm_iterate.py <版番号>` で
