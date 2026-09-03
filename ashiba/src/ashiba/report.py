@@ -258,8 +258,9 @@ def write_report_md(
             a(f"- ステージ直下の建地に加わる軸力: {platforms.max_post_load_kn:.2f}kN"
               f"（{platforms.governing}）")
         if openings is not None and openings.removed_posts:
-            a(f"- 開口部で抜いた支柱: {openings.removed_posts}本"
-              "（両端支柱の補強・梁枠上の積載荷重低減が必要）")
+            vm = model.master.vertical_member_name
+            a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"
+              f"（両端{vm}の補強・梁枠上の積載荷重低減が必要）")
 
     a("")
     a("## 数量サマリ")

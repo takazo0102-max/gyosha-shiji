@@ -105,6 +105,15 @@ class PartMaster:
         """
         return "布板" if self.is_frame else "踏板"
 
+    @property
+    def vertical_member_name(self) -> str:
+        """鉛直部材の呼び名。枠組は「建枠」、くさびは「支柱」.
+
+        開口部（梁枠）で抜く部材や補強の対象を帳票に書くときに使う。
+        決め打ちで「支柱」と書くと、枠組の届出・数量で別部材の名前になる。
+        """
+        return "建枠" if self.is_frame else "支柱"
+
     def frame_heights(self) -> list[int]:
         """建枠の高さ一覧（降順）. 枠組式のみ."""
         return sorted(

@@ -33,6 +33,16 @@ def build():
     )
 
 
+def build_frame():
+    master = load_master("waku")
+    plan = solve_plan(RECT, master)
+    return ScaffoldModel(
+        master=master, plan=plan,
+        elevation=solve_elevation(16300, master=master),
+        config=ScaffoldConfig(),
+    )
+
+
 def ngs(r):
     return [i for i in r.issues if i.severity == "NG"]
 
@@ -96,6 +106,27 @@ class TestOpeningQuantity(unittest.TestCase):
         q = take_off(m, openings=r)
         self.assertEqual(q.qty_of("梁枠", 3600), 1)
         self.assertTrue(any("支柱2本を抜いています" in n for n in q.notes))
+
+    def test_frame_scaffold_says_kenwaku_not_shichu(self):
+        """枠組の開口部は建枠を抜く。届出・数量で「支柱」と書かない."""
+        m = build_frame()
+        beam = beam_sizes(m)[0]      # waku の梁枠(3658)
+        r = validate_openings(m, [Opening(0, 1829, beam, level=2)])
+        # WARN メッセージが建枠語彙
+        warn = next(i for i in r.issues if "梁枠" in i.message and i.severity == "WARN")
+        self.assertIn("建枠", warn.message)
+        self.assertNotIn("支柱", warn.message)
+        # 数量の注記も建枠
+        q = take_off(m, openings=r)
+        self.assertTrue(any("建枠" in n and "抜いています" in n for n in q.notes))
+        self.assertFalse(any("支柱" in n and "抜いています" in n for n in q.notes))
+
+    def test_wedge_scaffold_still_says_shichu(self):
+        m = build()
+        r = validate_openings(m, [Opening(0, 3600, 3600)])
+        warn = next(i for i in r.issues if "梁枠" in i.message and i.severity == "WARN")
+        self.assertIn("支柱", warn.message)
+        self.assertNotIn("建枠", warn.message)
 
     def test_no_openings_changes_nothing(self):
         m = build()

@@ -238,7 +238,7 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     if openings is not None and getattr(openings, "openings", None):
         _kv(s, "開口部（梁枠）", f"{len(openings.openings)}箇所",
             "・".join(f"梁枠{o.beam_span_mm}mm" for o in openings.openings)
-            + f"／支柱{openings.removed_posts}本を抜き梁枠で受ける")
+            + f"／{model.master.vertical_member_name}{openings.removed_posts}本を抜き梁枠で受ける")
     if bracket_sections:
         _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間",
             "作業床の幅を局所的に変更（数量・図面に反映済み）")

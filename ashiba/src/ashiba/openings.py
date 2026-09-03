@@ -133,10 +133,11 @@ def validate_openings(
             lv[o.level - 1] if 0 < o.level <= len(lv) else 0.0
         )
 
+        vm = model.master.vertical_member_name
         result.issues.append(OpeningIssue(
             i, "WARN",
-            f"辺{o.edge_index}の梁枠（{o.beam_span_mm}mm・支柱{len(inner)}本を受ける）: "
-            "両端支柱の補強、梁枠上の積載荷重低減、取付部直近の壁つなぎが必要です",
+            f"辺{o.edge_index}の梁枠（{o.beam_span_mm}mm・{vm}{len(inner)}本を受ける）: "
+            f"両端{vm}の補強、梁枠上の積載荷重低減、取付部直近の壁つなぎが必要です",
             "仮設工業会 足場・型枠支保工設計指針"))
 
         # 通路として使う開口なので、頭上の高さが要る

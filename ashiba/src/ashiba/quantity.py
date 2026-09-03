@@ -498,16 +498,17 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
             continue
         add(part, 1, f"梁枠{o.beam_span_mm}（辺{o.edge_index}）")
     if openings.removed_posts:
+        vm = model.master.vertical_member_name
         # 補強・積載低減が要ることは openings.issues が開口部ごとに言う。
         # ここで同じ対応をもう一度挙げると要確認一覧に二重で並ぶ
         notes.append(
-            f"開口部で支柱{openings.removed_posts}本を抜いています。"
-            "梁枠の両端支柱は補強し、梁枠上の作業床は積載荷重を低減してください"
+            f"開口部で{vm}{openings.removed_posts}本を抜いています。"
+            f"梁枠の両端{vm}は補強し、梁枠上の作業床は積載荷重を低減してください"
         )
-        # ジャッキ・腕木・布材は抜いたぶんを引いてあるが、支柱の積み上げ構成は
-        # 全位置で同じものを使っている。梁枠上に乗る支柱は構成が変わる
+        # ジャッキ・腕木・布材は抜いたぶんを引いてあるが、鉛直部材の積み上げ構成は
+        # 全位置で同じものを使っている。梁枠上に乗る部材は構成が変わる
         notes.action(
-            "支柱は全ての支柱位置で同じ積み上げ構成で計上しています。"
+            f"{vm}は全ての{vm}位置で同じ積み上げ構成で計上しています。"
             f"開口部で抜いた{openings.removed_posts}本は梁枠上に乗る構成"
             "（梁枠下端から天端まで）に置き換えて拾い直してください",
             Notes.ORDER,
