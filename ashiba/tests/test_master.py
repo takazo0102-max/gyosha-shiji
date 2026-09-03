@@ -1,8 +1,9 @@
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
-from ashiba.master import SeriesLockError, load_master
+from ashiba.master import MasterDataError, SeriesLockError, load_master
 
 
 class TestMaster(unittest.TestCase):
@@ -100,6 +101,64 @@ class TestSeriesDerivedDimensions(unittest.TestCase):
         w, fits = m.frame_width_for(99999)
         self.assertFalse(fits)
         self.assertEqual(w, max(m.frame_widths()))
+
+
+class TestMasterCsvErrors(unittest.TestCase):
+    """マスタは利用者が差し替える外部データ。読めない理由を日本語で返す."""
+
+    HEAD = ("series_id,category,model_no,nominal_dim,actual_dim,"
+            "diameter,weight_kg,note\n")
+    ROW = "shinwa_A,支柱,A-3609,3600,3725,48.6,13.1,ほぞ+125\n"
+
+    def _load(self, body, encoding="utf-8"):
+        import tempfile
+
+        td = tempfile.mkdtemp()
+        path = Path(td) / "m.csv"
+        if isinstance(body, bytes):
+            path.write_bytes(body)
+        else:
+            path.write_text(body, encoding=encoding)
+        return load_master("shinwa_A", path)
+
+    def _err(self, *a, **kw):
+        with self.assertRaises(MasterDataError) as cm:
+            self._load(*a, **kw)
+        return str(cm.exception)
+
+    def test_missing_file(self):
+        with self.assertRaises(MasterDataError) as cm:
+            load_master("shinwa_A", Path("/nonexistent/master.csv"))
+        self.assertIn("見つかりません", str(cm.exception))
+
+    def test_empty_file(self):
+        self.assertIn("空です", self._err(""))
+
+    def test_missing_columns_are_named(self):
+        msg = self._err("series_id,category,model_no\nshinwa_A,支柱,A-1\n")
+        self.assertIn("必要な列がありません", msg)
+        self.assertIn("nominal_dim", msg)
+
+    def test_non_numeric_names_the_row(self):
+        msg = self._err(self.HEAD + "shinwa_A,支柱,A-3609,さんぜん,3725,48.6,13.1,x\n")
+        self.assertIn("2行目", msg)
+        self.assertIn("nominal_dim", msg)
+        self.assertIn("A-3609", msg)
+
+    def test_empty_cell_names_the_row(self):
+        msg = self._err(self.HEAD + "shinwa_A,支柱,A-3609,,3725,48.6,13.1,x\n")
+        self.assertIn("空です", msg)
+        self.assertIn("nominal_dim", msg)
+
+    def test_excel_encodings_are_accepted(self):
+        """ExcelのCSVはBOM付きUTF-8かShift_JIS。どちらも読めること."""
+        full = Path(__file__).resolve().parents[1] / "data" / "part_master.csv"
+        text = full.read_text(encoding="utf-8")
+        for body in (text.encode("utf-8-sig"), text.encode("cp932")):
+            with self.subTest(len(body)):
+                m = self._load(body)
+                self.assertGreater(len(m.parts), 10)
+                self.assertEqual(m.series_id, "shinwa_A")
 
 
 if __name__ == "__main__":

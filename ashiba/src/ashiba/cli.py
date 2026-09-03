@@ -71,7 +71,7 @@ from pathlib import Path
 from .brackets import BracketSection, validate_bracket_sections
 from .elevation_solver import solve_elevation
 from .law_check import required_asagao_stages, run_all_checks, summary
-from .master import load_master
+from .master import MasterDataError, SeriesLockError, load_master
 from .model import (
     FRAME_GUARD_RAIL_HEIGHT_MM,
     GUARD_RAIL_LEDGER,
@@ -815,8 +815,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         result = run(args.input, args.out, args.master)
-    except InputError as e:
-        # 入力の綴り違いでスタックトレースを出しても直しようがない
+    except (InputError, MasterDataError, SeriesLockError) as e:
+        # 入力やマスタの誤りでスタックトレースを出しても直しようがない
         print(str(e), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, indent=2))

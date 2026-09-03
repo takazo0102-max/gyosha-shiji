@@ -42,6 +42,19 @@ class SeriesLockError(Exception):
     """系列ロック違反（規格混在）"""
 
 
+class MasterDataError(Exception):
+    """部材マスタCSVの読み取り失敗（列不足・型違い・文字コード違いなど）.
+
+    マスタは利用者が差し替えられる外部データ。Excelから保存したCSVは
+    BOM付きだったりShift_JISだったりするので、そこで落ちる理由が
+    トレースバックだと直しようがない。
+    """
+
+
+MASTER_COLUMNS = ("series_id", "category", "model_no", "nominal_dim",
+                  "actual_dim", "diameter", "weight_kg")
+
+
 @dataclass(frozen=True)
 class Part:
     series_id: str
@@ -179,28 +192,73 @@ class PartMaster:
             )
 
 
+def _read_master_text(path: Path) -> str:
+    """マスタCSVを読む。ExcelのBOM付き・Shift_JIS保存もそのまま受ける."""
+    try:
+        raw = Path(path).read_bytes()
+    except FileNotFoundError:
+        raise MasterDataError(f"部材マスタが見つかりません: {path}") from None
+    except OSError as e:
+        raise MasterDataError(
+            f"部材マスタを読めません: {path}（{e.strerror}）") from None
+    if not raw.strip():
+        raise MasterDataError(f"部材マスタが空です: {path}")
+    for enc in ("utf-8-sig", "cp932"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    raise MasterDataError(
+        f"部材マスタの文字コードを判別できません: {path}。"
+        "UTF-8（BOM付き可）またはShift_JISで保存してください"
+    )
+
+
+def _num(row: dict, col: str, cast, path: Path, line: int):
+    """数値列を読む。空欄・全角・単位付きは行と値を挙げて弾く."""
+    value = (row.get(col) or "").strip()
+    if not value:
+        raise MasterDataError(
+            f"部材マスタ {path} の{line}行目: 列「{col}」が空です"
+            f"（型番 {row.get('model_no', '?')}）"
+        )
+    try:
+        return cast(value)
+    except ValueError:
+        raise MasterDataError(
+            f"部材マスタ {path} の{line}行目: 列「{col}」が数値ではありません"
+            f"（{value!r}／型番 {row.get('model_no', '?')}）"
+        ) from None
+
+
 def load_master(series_id: str, csv_path: Optional[Path] = None) -> PartMaster:
     """CSVから指定系列のみ読み込む（系列ロック）."""
     path = Path(csv_path) if csv_path else DEFAULT_MASTER_PATH
     if series_id not in SERIES_CONST:
         raise SeriesLockError(f"未知の系列IDです: {series_id}")
     master = PartMaster(series_id=series_id)
-    with open(path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if row["series_id"] != series_id:
-                continue
-            master.parts.append(
-                Part(
-                    series_id=row["series_id"],
-                    category=row["category"],
-                    model_no=row["model_no"],
-                    nominal_dim=int(row["nominal_dim"]),
-                    actual_dim=int(row["actual_dim"]),
-                    diameter=float(row["diameter"]),
-                    weight_kg=float(row["weight_kg"]),
-                    note=row.get("note", "") or "",
-                )
+    reader = csv.DictReader(_read_master_text(path).splitlines())
+    missing = [c for c in MASTER_COLUMNS if c not in (reader.fieldnames or [])]
+    if missing:
+        raise MasterDataError(
+            f"部材マスタに必要な列がありません: {path}"
+            f"（不足: {'、'.join(missing)}／必要な列: {'、'.join(MASTER_COLUMNS)}）"
+        )
+    for i, row in enumerate(reader, start=2):   # 2行目からがデータ
+        if (row.get("series_id") or "").strip() != series_id:
+            continue
+        master.parts.append(
+            Part(
+                series_id=row["series_id"],
+                category=row["category"],
+                model_no=row["model_no"],
+                nominal_dim=_num(row, "nominal_dim", int, path, i),
+                actual_dim=_num(row, "actual_dim", int, path, i),
+                diameter=_num(row, "diameter", float, path, i),
+                weight_kg=_num(row, "weight_kg", float, path, i),
+                note=row.get("note", "") or "",
             )
+        )
     if not master.parts:
         raise SeriesLockError(f"系列 {series_id} の部材がマスタにありません: {path}")
     _assert_complete(master, path)
