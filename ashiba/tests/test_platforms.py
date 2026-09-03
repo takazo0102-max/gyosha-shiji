@@ -221,6 +221,21 @@ class TestHoist(unittest.TestCase):
         r = validate_platforms(self.m, hoists=[Hoist(edge_index=99, position_mm=0)])
         self.assertTrue(ngs(r))
 
+    def test_out_of_range_landing_level_is_rejected(self):
+        """存在しない作業層への乗り込み口指定を黙って読み飛ばさない.
+
+        landings() は範囲外の層を静かに除外する（層数が変わっても壊れない
+        ようにするため）。ここで指摘しないと、指定した層の乗り込み口が
+        数量にも図面にも出ないまま気づけない。
+        """
+        r = validate_platforms(
+            self.m, hoists=[Hoist(edge_index=2, position_mm=0,
+                                  landing_levels=[1, 99])])
+        self.assertTrue(ngs(r))
+        self.assertTrue(any("99" in i.message for i in r.issues))
+        # それでも landings() 自体は範囲内だけ返す（描画・数量が壊れないように）
+        self.assertEqual(r.hoists[0].landings(self.m), [1])
+
 
 class TestPlatformQuantities(unittest.TestCase):
     def test_parts_scale_with_span_and_levels(self):

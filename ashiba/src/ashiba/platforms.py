@@ -234,6 +234,15 @@ def validate_platforms(
                 "昇降機", i, "NG",
                 f"辺{h.edge_index}: 位置{h.position_mm:.0f}mmが面長の範囲外です",
                 "入力エラー"))
+        # landings() は範囲外の層を黙って読み飛ばす（層数が変わっても落ちないように）。
+        # ここで指摘しないと「指定した層に乗り込み口が無い」まま数量・図面から
+        # 静かに消える
+        bad_levels = [lv for lv in h.landing_levels if not (1 <= lv <= n_levels)]
+        if bad_levels:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "NG",
+                f"乗り込み口の作業層{bad_levels}は存在しません（1〜{n_levels}）。"
+                "指定した層の乗り込み口は計上されません", "入力エラー"))
         reach = h.reach_height_mm or model.scaffold_height_mm
         if reach > model.scaffold_height_mm:
             result.issues.append(PlatformIssue(
