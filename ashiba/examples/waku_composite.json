@@ -1,0 +1,98 @@
+{
+  "project_name": "サンプル枠組_付帯設備一式",
+  "series_id": "waku",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "clearance_space_mm": 2000,
+  "site": {
+    "region": "関東(内陸)",
+    "sheet_type": "メッシュシート"
+  },
+  "openings": [
+    {
+      "edge_index": 0,
+      "start_mm": 3658,
+      "beam_span_mm": 3658,
+      "level": 2,
+      "reason": "現場出入口"
+    }
+  ],
+  "loading_stages": [
+    {
+      "edge_index": 1,
+      "start_mm": 3658,
+      "span_count": 2,
+      "projection_mm": 1500,
+      "load_kn": 9.8,
+      "levels": [
+        3
+      ]
+    }
+  ],
+  "hoists": [
+    {
+      "edge_index": 2,
+      "position_mm": 9000,
+      "landing_levels": [
+        2,
+        4
+      ],
+      "note": "工事用エレベータ"
+    }
+  ],
+  "bracket_sections": [
+    {
+      "edge_index": 3,
+      "start_mm": 0,
+      "end_mm": 5487,
+      "direction": "張出",
+      "width": 600,
+      "levels": [
+        2
+      ],
+      "reason": "下屋の張出し"
+    }
+  ],
+  "ground_points_mm": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      30000,
+      0,
+      500
+    ],
+    [
+      30000,
+      20000,
+      500
+    ],
+    [
+      0,
+      20000,
+      0
+    ]
+  ]
+}

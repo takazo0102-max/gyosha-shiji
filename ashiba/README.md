@@ -99,6 +99,7 @@ PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 | `advance_rail_stairs.json` | 先行手すり＋階段位置の手動指定 |
 | `loading_stage.json` | 荷受けステージ＋昇降機 |
 | `opening_beam.json` | 開口部（梁枠3600・5400） |
+| `waku_composite.json` | 枠組＋開口部＋荷受けステージ＋昇降機＋張出しブラケット＋高低差 |
 
 出力:
 - `数量表.csv` — 型番ベース・発注書兼用。手配や検討が要る項目は「要手配・要検討」として
