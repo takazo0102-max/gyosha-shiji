@@ -274,6 +274,15 @@ def write_report_md(
         if platforms is not None and platforms.max_post_load_kn > 0:
             a(f"- ステージ直下の建地に加わる軸力: {platforms.max_post_load_kn:.2f}kN"
               f"（{platforms.governing}）")
+        # 昇降機は「1基」だけでは位置も乗り込み口も分からない。
+        # マストの位置・到達高さ・乗り込み口の層を出す（干渉と防護の確認用）
+        for h in (getattr(platforms, "hoists", None) or []):
+            face = model.face_name(h.edge_index)
+            reach = h.reach_height_mm or model.scaffold_height_mm
+            landings = h.landings(model)
+            a(f"- 昇降機: {face} 始点から{h.position_mm:.0f}mm・到達高さ{reach:.0f}mm"
+              f"・乗り込み口 第{'・'.join(str(l) for l in landings)}層"
+              "（各層の開口は開閉式手すりで防護／安衛則563条）")
         if openings is not None and openings.removed_posts:
             vm = model.master.vertical_member_name
             a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"

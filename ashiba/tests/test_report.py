@@ -83,6 +83,20 @@ class TestReport(unittest.TestCase):
         self.assertIn("床幅500", line)
         self.assertIn("第2層", line)
 
+    def test_hoist_detail_is_shown(self):
+        """昇降機は「1基」だけでなく、位置・到達高さ・乗り込み口の層を出す."""
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = build()
+        pf = validate_platforms(m, [], [Hoist(
+            edge_index=0, position_mm=9000, landing_levels=[2, 4])])
+        text = render(m, platforms=pf)
+        line = next(l for l in text.splitlines() if l.startswith("- 昇降機:"))
+        self.assertIn("9000mm", line)
+        self.assertIn("到達高さ", line)
+        self.assertIn("第2・4層", line)
+        self.assertIn("開閉式手すり", line)
+
     def test_disclaimer_is_always_present(self):
         """有資格者確認前提の下書きである旨（指示書9）を落とさない."""
         self.assertIn("計画作成参画者（有資格者）が確認する前提の下書き", render(build()))
