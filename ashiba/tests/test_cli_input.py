@@ -296,6 +296,73 @@ class TestInputsActuallyTakeEffect(unittest.TestCase):
         self.assertIn("収まりません", ng.message)
 
 
+class TestBrokenInputFiles(unittest.TestCase):
+    """入口の失敗でトレースバックを出さない（何を直すか書く）."""
+
+    OK = ('{"outline_mm": [[0,0],[30000,0],[30000,20000],[0,20000]],'
+          ' "eaves_height_mm": 15400}')
+
+    def _load(self, body, name="s.json", encoding="utf-8"):
+        import tempfile
+
+        from ashiba.cli import load_spec
+
+        td = tempfile.mkdtemp()
+        path = Path(td) / name
+        if isinstance(body, bytes):
+            path.write_bytes(body)
+        else:
+            path.write_text(body, encoding=encoding)
+        return load_spec(path)
+
+    def _err(self, *a, **kw):
+        with self.assertRaises(InputError) as cm:
+            self._load(*a, **kw)
+        return str(cm.exception)
+
+    def test_missing_file(self):
+        from ashiba.cli import load_spec
+
+        with self.assertRaises(InputError) as cm:
+            load_spec(Path("/nonexistent/なにか.json"))
+        self.assertIn("見つかりません", str(cm.exception))
+
+    def test_empty_file(self):
+        self.assertIn("空です", self._err(""))
+
+    def test_broken_json_points_at_the_line(self):
+        msg = self._err('{"outline_mm": [[0,0],')
+        self.assertIn("JSONとして読めません", msg)
+        self.assertIn("1行", msg)
+        self.assertIn("該当行", msg)
+
+    def test_trailing_comma_hint(self):
+        msg = self._err(self.OK[:-1] + ",}")
+        self.assertIn("末尾の余分なカンマ", msg)
+
+    def test_bom_is_accepted(self):
+        """Windowsのメモ帳で保存するとBOMが付く。実用上そのまま受ける."""
+        spec = self._load("\ufeff" + self.OK)
+        self.assertEqual(spec["eaves_height_mm"], 15400)
+
+    def test_shift_jis_is_named(self):
+        # 日本語が入って初めてUTF-8として壊れる（ASCIIだけなら同じバイト列）
+        body = '{"project_name": "現場", ' + self.OK[1:]
+        msg = self._err(body.encode("cp932"))
+        self.assertIn("cp932", msg)
+        self.assertIn("UTF-8で保存", msg)
+
+    def test_cli_exits_with_code_2(self):
+        import tempfile
+
+        from ashiba.cli import main
+
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "s.json"
+            f.write_text("", encoding="utf-8")
+            self.assertEqual(main([str(f), "--out", str(Path(td) / "o")]), 2)
+
+
 class TestProjectNameBecomesAFileName(unittest.TestCase):
     """工事名はそのままファイル名になる。使えない文字で落ちない."""
 

@@ -747,12 +747,61 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
     })
 
 
+def load_spec(path: Path) -> dict:
+    """入力JSONを読む。読めない理由は Python の例外ではなく日本語で返す.
+
+    このツールはプログラマ以外も実行する。ファイルが無い・壊れている・
+    文字コードが違うといった入口の失敗でトレースバックを出しても、
+    何を直せばよいのか分からない。
+    """
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        raise InputError(f"入力ファイルが見つかりません: {path}") from None
+    except IsADirectoryError:
+        raise InputError(f"入力にディレクトリが指定されています: {path}") from None
+    except OSError as e:
+        raise InputError(f"入力ファイルを読めません: {path}（{e.strerror}）") from None
+
+    if not raw.strip():
+        raise InputError(f"入力ファイルが空です: {path}")
+    try:
+        # BOM付きUTF-8（Windowsのメモ帳など）もそのまま受ける
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        for enc in ("cp932", "euc_jp"):
+            try:
+                raw.decode(enc)
+            except UnicodeDecodeError:
+                continue
+            raise InputError(
+                f"入力ファイルの文字コードが {enc} のようです: {path}。"
+                "UTF-8で保存し直してください"
+            ) from None
+        raise InputError(
+            f"入力ファイルをUTF-8として読めません: {path}。"
+            "UTF-8で保存し直してください"
+        ) from None
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        line = text.splitlines()[e.lineno - 1] if 0 < e.lineno <= len(
+            text.splitlines()) else ""
+        raise InputError(
+            f"JSONとして読めません: {path} の{e.lineno}行{e.colno}文字目付近"
+            f"（{e.msg}）\n  該当行: {line.strip()[:80]}\n"
+            "  よくある原因: 末尾の余分なカンマ、閉じ括弧の不足、"
+            "コメント（JSONにコメントは書けません）"
+        ) from None
+
+
 def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict:
     """入力JSON → 解く → 帳票一式 → 実行結果."""
     # 文字列で渡されることがある（スクリプトからの直接呼び出し）。
     # input_path だけ Path() していて out_dir はしていなかった
     out_dir = Path(out_dir)
-    spec = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    spec = load_spec(Path(input_path))
     r = solve_all(spec, Path(master_csv) if master_csv is not None else None)
     write_outputs(r, out_dir)
     return result_dict(r, out_dir)
