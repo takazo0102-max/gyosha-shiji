@@ -226,5 +226,52 @@ class TestFrameSeriesTerrain(unittest.TestCase):
         self.assertEqual(len(datums), 1)
 
 
+class TestDeckLevelsAreShared(unittest.TestCase):
+    """作業床レベルは全周で通す。高低差は脚部だけで吸収する.
+
+    この不変条件は plan.json と設置届に出るのに、絶対標高を空にしても
+    テストが落ちなかった（変異テストで判明）。
+    """
+
+    def _solve(self, slope=0.04):
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        ground = GroundModel(points=[
+            (x, y, -x * slope) for x in (0, 15000, 30000) for y in (0, 20000)
+        ])
+        return m, solve_post_feet(m, ground)
+
+    def test_levels_are_reported(self):
+        m, t = self._solve()
+        self.assertEqual(
+            len(t.deck_levels_abs_mm), len(m.elevation.level_heights))
+
+    def test_each_foot_reaches_the_same_levels(self):
+        """支柱ごとにジャッキ量も支柱長も違うが、床の標高は揃う."""
+        m, t = self._solve()
+        first = t.deck_levels_abs_mm[0]
+        for f in t.feet:
+            with self.subTest(f.index):
+                # 脚部下端(GL+敷板調整)＋ジャッキ＝支柱下端。そこから
+                # 下げたコマぶん長い支柱を積むので、床は全周で同じ標高になる
+                post_bottom = f.gl_mm + f.base_plate_adjust_mm + f.jack_mm
+                koma = f.koma_offset * m.master.koma_pitch
+                level0 = m.elevation.level_heights[0] - m.elevation.jack_extension
+                self.assertAlmostEqual(
+                    post_bottom + koma + level0, first, delta=1.0)
+
+    def test_levels_follow_the_elevation(self):
+        m, t = self._solve()
+        pitches = [b - a for a, b in zip(t.deck_levels_abs_mm,
+                                         t.deck_levels_abs_mm[1:])]
+        want = [b - a for a, b in zip(m.elevation.level_heights,
+                                      m.elevation.level_heights[1:])]
+        self.assertEqual([round(p) for p in pitches], want)
+
+
 if __name__ == "__main__":
     unittest.main()

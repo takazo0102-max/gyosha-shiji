@@ -247,6 +247,43 @@ class TestWallTieRatioIsNotInfinite(unittest.TestCase):
         )
 
 
+class TestLandings(unittest.TestCase):
+    """踊り場は2層以下毎（昇降階段の基準）。数を0にしても落ちなかった箇所."""
+
+    def _model(self, height=16300):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(height, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_every_two_levels(self):
+        from ashiba.stairs import LANDING_EVERY_LEVELS, landings_per_tower
+
+        m = self._model()
+        n = m.elevation.n_levels
+        self.assertEqual(
+            landings_per_tower(m), max(0, (n - 1) // LANDING_EVERY_LEVELS))
+        self.assertGreater(landings_per_tower(m), 0)
+
+    def test_counted_in_the_quantity(self):
+        m = self._model()
+        plan = auto_place_stairs(m)
+        q = take_off(m, stair_plan=plan)
+        self.assertEqual(
+            q.qty_of("踊り場"), plan.count * plan.landings_per_tower)
+        self.assertGreater(q.qty_of("踊り場"), 0)
+
+    def test_reported_in_the_law_check(self):
+        from ashiba.law_check import run_all_checks
+
+        m = self._model()
+        plan = auto_place_stairs(m)
+        c = [x for x in run_all_checks(m, stair_plan=plan) if x.check_id == 12][0]
+        self.assertIn(f"踊り場計{plan.total_landings}段", c.message)
+
+
 class TestTooSmallForAStairTower(unittest.TestCase):
     """階段室が入らない規模でも、読める形で結果を返すこと."""
 
