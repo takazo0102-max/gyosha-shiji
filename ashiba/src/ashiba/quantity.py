@@ -180,7 +180,7 @@ def take_off(
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
-        _count_frame_parts(model, rules, add, notes, stair_plan)
+        _count_frame_parts(model, rules, add, notes, stair_plan, openings)
         _count_bracket_parts(model, bracket_sections, add, notes, counts)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
@@ -283,11 +283,18 @@ def take_off(
     }
     for s, cells in open_cut.items():
         deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
+    stair_cut_cells = 0
     if stair_plan is not None and stair_plan.towers:
         # 階段室には踏板を敷かないが、外構面の幅木は残る（階段側の落下防止）
         from .stairs import stair_deck_deduction
         for s, n in stair_deck_deduction(model, stair_plan).items():
             deck_cells[s] = max(0, deck_cells.get(s, 0) - n * n_levels)
+            stair_cut_cells += n * n_levels
+    _note_deck_cells(
+        notes, m.deck_category, sum(span_counts.values()), n_levels,
+        stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
+        sum(open_cut.values()), sum(deck_cells.values()),
+    )
     # 一側足場は建地1列で、作業床はブラケット受けの1枚敷き。本足場の内外2枚敷きを
     # そのまま数えると踏板が倍になる（実際、重量で3.7t多く出ていた）
     deck_widths = list(model.deck_widths_in_use)
@@ -590,6 +597,25 @@ def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
     return landings_per_tower(model) * n_towers
 
 
+def _note_deck_cells(notes, name: str, n_spans: int, n_levels: int,
+                     stair_cut: int, n_towers: int, open_cut: int, final: int) -> None:
+    """作業床の枚数の検算メモ。スパン×層から何をいくつ引いたかを書く.
+
+    布材には1スパンあたりの内訳があるのに、踏板は本数だけで、
+    「スパン×層」より少ない理由（階段室・開口部）が読み手に分からなかった。
+    """
+    base = n_spans * n_levels
+    text = f"{name}はスパン{n_spans}×作業層{n_levels}層＝{base}セル"
+    cuts = []
+    if stair_cut:
+        cuts.append(f"階段室{n_towers}箇所の{stair_cut}セル")
+    if open_cut:
+        cuts.append(f"開口部（梁枠より下）の{open_cut}セル")
+    if cuts:
+        text += "から" + "と".join(cuts) + f"を差し引いた{final}セル"
+    notes.append(text + "で計上（幅ごとに同数）")
+
+
 DOUBLE_POST_HEIGHT_MM = 31000   # これを超える部分の建地は2本組（安衛則571条）
 
 
@@ -694,6 +720,7 @@ def _count_frame_parts(
     add,
     notes: list[str],
     stair_plan=None,
+    openings=None,
 ) -> None:
     """枠組足場の数量ルール.
 
@@ -747,19 +774,32 @@ def _count_frame_parts(
     for e in plan.edges:
         for s in e.spans:
             span_counts[s] = span_counts.get(s, 0) + 1
-    deck_counts = dict(span_counts)
+    # くさびの踏板と同じくセル（スパン×層）で数える。開口部（梁枠より下）は
+    # 通路で床が無い。図面は空けているのに数量だけ数えていた
+    from .openings import opening_deck_deduction
+    open_cut = opening_deck_deduction(model, openings)
+    deck_cells = {s: n * n_levels for s, n in span_counts.items()}
+    for s, cells in open_cut.items():
+        deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
+    stair_cut_cells = 0
     if stair_plan is not None and stair_plan.towers:
         from .stairs import stair_deck_deduction
         for s, n in stair_deck_deduction(model, stair_plan).items():
-            deck_counts[s] = max(0, deck_counts.get(s, 0) - n)
+            deck_cells[s] = max(0, deck_cells.get(s, 0) - n * n_levels)
+            stair_cut_cells += n * n_levels
+    _note_deck_cells(
+        notes, m.deck_category, sum(span_counts.values()), n_levels,
+        stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
+        sum(open_cut.values()), sum(deck_cells.values()),
+    )
     for w in model.config.deck_widths:
-        for s, n in deck_counts.items():
+        for s, cells in deck_cells.items():
             part = next(
                 (p for p in m.by_category("布板")
                  if p.nominal_dim == s and f"幅{w}" in p.note),
                 None,
             )
-            add(part, n * n_levels, f"布板 幅{w}×{s}")
+            add(part, cells, f"布板 幅{w}×{s}")
 
     # ---- 布材（根がらみ＋最上層の手すり） ----
     # 枠組は各作業層の手すりを「1つ上の建枠」が兼ねるので中間層には要らない。
@@ -799,8 +839,9 @@ def _count_frame_parts(
 
     # ---- 幅木・壁つなぎ・階段枠 ----
     if model.config.has_toe_board:
+        # 開口部（梁枠より下）は床が無いので幅木も無い（階段室の外構面には残す）
         for s, n in span_counts.items():
-            add(m.find("幅木", s), n * n_levels, f"幅木{s}")
+            add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0)), f"幅木{s}")
     kt = next(iter(m.by_category("壁つなぎ")), None)
     add(kt, len(model.wall_ties), "壁つなぎ")
     stair = next(iter(m.by_category("階段")), None)

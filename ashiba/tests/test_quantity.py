@@ -363,3 +363,58 @@ class TestSingleRowScaffold(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDeckCellsReconcile(unittest.TestCase):
+    """作業床は「スパン×層」から階段室・開口部を引いた枚数で、注記で検算できる."""
+
+    def _model(self, series):
+        master = load_master(series)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+        )
+
+    @staticmethod
+    def _cells(q, category):
+        return sum(l.qty for l in q.lines if l.part.category == category)
+
+    def test_frame_opening_removes_deck_and_toe_board_cells(self):
+        """枠組の布板も（くさびの踏板と同じく）開口部の梁枠より下は敷かない."""
+        from ashiba.openings import Opening, opening_deck_deduction, validate_openings
+
+        m = self._model("waku")
+        op = validate_openings(m, [Opening(0, 3658, 3658, level=2)])
+        cut = sum(opening_deck_deduction(m, op).values())
+        self.assertGreater(cut, 0)
+        base, with_op = take_off(m), take_off(m, openings=op)
+        n_widths = len(m.config.deck_widths)
+        self.assertEqual(
+            self._cells(base, "布板") - self._cells(with_op, "布板"), cut * n_widths)
+        if m.config.has_toe_board:
+            self.assertEqual(
+                self._cells(base, "幅木") - self._cells(with_op, "幅木"), cut)
+        note = next(n for n in with_op.notes if n.startswith("布板はスパン"))
+        self.assertIn(f"開口部（梁枠より下）の{cut}セル", note)
+
+    def test_wedge_note_reconciles_with_the_lines(self):
+        import re
+
+        m = self._model("shinwa_A")
+        q = take_off(m)
+        note = next(n for n in q.notes if n.startswith("踏板はスパン"))
+        n_spans, nl = m.plan.total_spans, m.elevation.n_levels
+        self.assertIn(f"スパン{n_spans}×作業層{nl}層＝{n_spans * nl}セル", note)
+        final = int(re.search(r"(\d+)セルで計上", note).group(1))
+        per_width = self._cells(q, "踏板") / len(m.config.deck_widths)
+        self.assertEqual(final, per_width)
+
+    def test_stair_towers_are_named_in_the_note(self):
+        from ashiba.stairs import auto_place_stairs
+
+        m = self._model("shinwa_A")
+        sp = auto_place_stairs(m)
+        q = take_off(m, stair_plan=sp)
+        note = next(n for n in q.notes if n.startswith("踏板はスパン"))
+        self.assertIn(f"階段室{len(sp.towers)}箇所", note)
+
