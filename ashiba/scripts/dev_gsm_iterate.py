@@ -6,7 +6,10 @@
 
 使い方:
   python3 scripts/dev_gsm_iterate.py <version> [--part ashiba_line] [--keep]
-  python3 scripts/dev_gsm_iterate.py 1 --part ashiba_detail --params detailType=脚部
+  python3 scripts/dev_gsm_iterate.py 1 --part ashiba_detail --params detailType=base
+
+detailType はASCIIキー（base/tie/asagao/corner/beam）。日本語を渡すとGDL側の
+比較が一致せず「detailType 未知」になる。
 """
 
 from __future__ import annotations
@@ -174,6 +177,13 @@ def parse_params(argv: list[str]) -> dict:
 
 
 def main() -> None:
+    # 第1引数は版番号。部品名を渡す間違いが多いので、使い方を出して止める
+    if len(sys.argv) > 1 and not sys.argv[1].lstrip("-").isdigit():
+        raise SystemExit(
+            f"第1引数は版番号（数字）です: {sys.argv[1]!r}\n"
+            "  python3 scripts/dev_gsm_iterate.py <版番号> "
+            "[--part ashiba_line|ashiba_detail] [--params k=v ...] [--keep]"
+        )
     version = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     keep = "--keep" in sys.argv
     part = "ashiba_line"
