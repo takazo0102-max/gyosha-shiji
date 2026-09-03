@@ -132,6 +132,20 @@ class TestAsagaoGaps(unittest.TestCase):
         q = take_off(m)
         self.assertEqual(q.qty_of("朝顔", 1800), m.plan.total_spans)
 
+    def test_frame_system_gets_the_same_notes(self):
+        """枠組の経路にだけ注記が無い、という状態を作らない."""
+        master = load_master("waku")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=1)),
+            building_height_mm=16000,
+        )
+        q = take_off(m)
+        self.assertTrue([w for w in q.warnings if "出隅" in w], q.warnings)
+        self.assertTrue([w for w in q.warnings if "呼び寸法が合わない" in w])
+        self.assertGreater(q.qty_of("朝顔"), 0)
+
     def test_no_asagao_no_notes(self):
         master = load_master("shinwa_A")
         m = ScaffoldModel(

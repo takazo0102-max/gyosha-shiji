@@ -290,50 +290,7 @@ def take_off(
     # なると、必須部材が黙って発注から抜ける
     add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
 
-    # ---- 朝顔（設置段数×外周スパン数。受けブラケットと方杖は支柱位置ごと） ----
-    asagao = model.config.asagao
-    if asagao and asagao.stages > 0:
-        panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
-        bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
-        hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
-        # 朝顔本体はスパンに合う寸法で拾う。1種類しか無い系列では、
-        # 短いスパンに長い板を当てることになるので、そうと書く
-        if panel is not None:
-            odd = {}
-            for sp, n in span_counts.items():
-                fit = next(
-                    (q for q in m.by_category("朝顔")
-                     if "防護棚" in q.note and q.nominal_dim == sp), None
-                )
-                if fit is not None:
-                    add(fit, n * asagao.stages, f"朝顔本体{sp}")
-                else:
-                    odd[sp] = n
-                    add(panel, n * asagao.stages, f"朝顔本体（{sp}スパンに{panel.nominal_dim}）")
-            if odd:
-                notes.action(
-                    "朝顔本体の呼び寸法が合わないスパンがあります（"
-                    + "、".join(f"{sp}mm×{n}" for sp, n in sorted(odd.items()))
-                    + f"）。{panel.nominal_dim}mmの板で計上しているので、"
-                    "現場で切り詰めるか、隙間を板・シートで塞いでください"
-                )
-        else:
-            add(panel, total_spans * asagao.stages, "朝顔本体")
-        add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
-        add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
-        # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）
-        corners = [c for c in plan.outline.corners if c.kind == "出隅"]
-        if corners:
-            notes.action(
-                f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
-                f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
-                "（本ツールは隅の部材を計上していません）"
-            )
-        # 取付部は2スパン毎に壁つなぎを増設
-        extra_ties = 0
-        for e in plan.edges:
-            extra_ties += max(1, e.span_count // max(asagao.tie_every_spans, 1))
-        add(kt, extra_ties * asagao.stages, "朝顔取付部の壁つなぎ")
+    _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
@@ -341,6 +298,64 @@ def take_off(
     _note_inner_rail_if_wide(model, notes)
     _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes)
+
+
+def _count_asagao_parts(
+    model: ScaffoldModel, span_counts: dict, posts_per_line: int, add, notes, kt
+) -> None:
+    """朝顔（防護棚）の部材と、隙間が残る箇所の注記（くさび式・枠組式で共通）.
+
+    朝顔は落下物を受ける設備なので、隙間が残る箇所（出隅・端数スパン）を
+    黙ってはいけない。枠組の経路にだけ注記が無い、という状態も作らない。
+    """
+    asagao = model.config.asagao
+    if not asagao or asagao.stages <= 0:
+        return
+    m = model.master
+    panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
+    bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
+    hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
+
+    # 朝顔本体はスパンに合う寸法で拾う。1種類しか無い系列では、
+    # 短いスパンに長い板を当てることになるので、そうと書く
+    odd: dict[int, int] = {}
+    for sp, n in span_counts.items():
+        fit = next(
+            (q for q in m.by_category("朝顔")
+             if "防護棚" in q.note and q.nominal_dim == sp), None
+        )
+        if fit is not None:
+            add(fit, n * asagao.stages, f"朝顔本体{sp}")
+        elif panel is not None:
+            odd[sp] = n
+            add(panel, n * asagao.stages,
+                f"朝顔本体（{sp}スパンに{panel.nominal_dim}）")
+        else:
+            add(None, n * asagao.stages, f"朝顔本体{sp}")
+    if odd and panel is not None:
+        notes.action(
+            "朝顔本体の呼び寸法が合わないスパンがあります（"
+            + "、".join(f"{sp}mm×{n}" for sp, n in sorted(odd.items()))
+            + f"）。{panel.nominal_dim}mmの板で計上しているので、"
+            "現場で切り詰めるか、隙間を板・シートで塞いでください"
+        )
+    add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
+    add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
+
+    # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）
+    corners = [c for c in model.plan.outline.corners if c.kind == "出隅"]
+    if corners:
+        notes.action(
+            f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
+            f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
+            "（本ツールは隅の部材を計上していません）"
+        )
+
+    # 取付部は所定スパン毎に壁つなぎを増設
+    extra_ties = 0
+    for e in model.plan.edges:
+        extra_ties += max(1, e.span_count // max(asagao.tie_every_spans, 1))
+    add(kt, extra_ties * asagao.stages, "朝顔取付部の壁つなぎ")
 
 
 def _count_bracket_parts(
@@ -682,12 +697,5 @@ def _count_frame_parts(
     add(stair, n_towers * n_levels, "階段枠")
     add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
 
-    # ---- 朝顔 ----
-    asagao = model.config.asagao
-    if asagao and asagao.stages > 0:
-        panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
-        bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
-        hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
-        add(panel, n_bays * asagao.stages, "朝顔本体")
-        add(bracket, n_frame_lines * asagao.stages, "朝顔受けブラケット")
-        add(hozue, n_frame_lines * asagao.stages, "朝顔方杖")
+    # ---- 朝顔（くさび式と同じ数え方・同じ注記） ----
+    _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)
