@@ -112,7 +112,7 @@ def write_notification_xlsx(
     _sheet_law_check(wb, checks)
     if terrain is not None and terrain.feet:
         _sheet_jack_table(wb, terrain, checks)
-    _sheet_attachments(wb, info, details)
+    _sheet_attachments(wb, info, details, model)
     wb.save(path)
 
 
@@ -485,14 +485,18 @@ def _sheet_law_check(wb, checks: list[CheckResult]) -> None:
         ])
 
 
-def _sheet_attachments(wb, info: NotificationInfo, details=None) -> None:
+def _sheet_attachments(wb, info: NotificationInfo, details=None, model=None) -> None:
     s = wb.sheet("添付図書チェック")
     for c, wdt in enumerate([26, 18, 52, 12]):
         s.set_width(c, wdt)
     s.add_title("添付図書チェックリスト（安衛法88条）", span=4)
     s.add_blank()
     s.add_header(["図書", "作成区分", "内容", "確認"])
+    vm = model.master.vertical_member_name if model is not None else "支柱"
     for name, kind, desc in ATTACHMENTS:
+        # 立面図の説明は方式で呼び分ける（枠組は建枠構成）
+        if name == "立面図":
+            desc = desc.replace("支柱構成", f"{vm}構成")
         s.add_cells([
             Cell(name, STYLE_BORDER), Cell(kind, STYLE_BORDER),
             Cell(desc, STYLE_BORDER), Cell("", STYLE_BORDER),
