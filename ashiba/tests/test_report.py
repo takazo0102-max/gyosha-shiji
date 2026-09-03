@@ -67,6 +67,22 @@ class TestReport(unittest.TestCase):
     def test_section_is_omitted_without_stairs(self):
         self.assertNotIn("## 昇降設備", render(build()))
 
+    def test_bracket_section_detail_is_shown(self):
+        """ブラケット区間は「1箇所」だけでなく、面・範囲・向き・幅を出す."""
+        from ashiba.brackets import BracketSection
+
+        m = build()
+        secs = [BracketSection(edge_index=0, start_mm=3600, end_mm=9000,
+                               direction="張出", width=600, deck_width=500,
+                               levels=[2])]
+        text = render(m, bracket_sections=secs)
+        line = next(l for l in text.splitlines() if l.startswith("- ブラケット区間:"))
+        self.assertIn("3600〜9000mm", line)
+        self.assertIn("張出", line)
+        self.assertIn("ブラケット600", line)
+        self.assertIn("床幅500", line)
+        self.assertIn("第2層", line)
+
     def test_disclaimer_is_always_present(self):
         """有資格者確認前提の下書きである旨（指示書9）を落とさない."""
         self.assertIn("計画作成参画者（有資格者）が確認する前提の下書き", render(build()))

@@ -278,6 +278,18 @@ def write_report_md(
             vm = model.master.vertical_member_name
             a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"
               f"（両端{vm}の補強・梁枠上の積載荷重低減が必要）")
+        # ブラケット区間は「1箇所」だけでは何をするか分からない。
+        # どの面のどの範囲を、どちら向きに、どの幅で持ち出す/追従するかを出す
+        for b in (bracket_sections or []):
+            face = model.face_name(b.edge_index)
+            arm = "張出" if b.direction == "張出" else "内（躯体側へ追従）"
+            detail = (f"- ブラケット区間: {face} {b.start_mm:.0f}〜{b.end_mm:.0f}mm"
+                      f"・{arm}・ブラケット{b.width}")
+            if b.deck_width:
+                detail += f"・床幅{b.deck_width}に変更"
+            if b.levels:
+                detail += f"・第{'・'.join(str(l) for l in b.levels)}層"
+            a(detail)
 
     a("")
     a("## 数量サマリ")
