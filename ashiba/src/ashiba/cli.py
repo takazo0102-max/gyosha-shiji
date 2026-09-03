@@ -166,6 +166,70 @@ LIST_ITEM_KEYS = {
 STAIR_POSITION_KEYS = {"edge_index", "start_mm", "span_count", "reason"}
 
 
+# 型違いを実行前に弾くための、数値であるべきフィールド一覧。
+# 文字列やbool・負値を黙って通すと、割付の途中で TypeError や
+# invalid literal になり、利用者には直しようがない
+NUMERIC_FIELDS = {
+    "standoff": ("target", "min", "max", "hard_min"),
+    "asagao": ("stages", "projection_mm", "angle_deg", "tie_every_spans"),
+    "site": ("v0_ms", "adjacent_factor", "region_factor", "gamma",
+             "correction_f", "simultaneous_loaded_levels"),
+    "stairs": ("count", "tower_spans", "max_travel_mm", "min_per_face"),
+}
+# 文字列であるべきフィールド（数値を渡すと後段の照合で分かりにくく落ちる）
+STRING_FIELDS = {
+    "site": ("region", "roughness", "sheet_type"),
+}
+# LIST_ITEM_KEYS の各要素で数値であるべきキー
+LIST_NUMERIC_FIELDS = {
+    "openings": ("edge_index", "start_mm", "beam_span_mm", "level"),
+    "bracket_sections": ("edge_index", "start_mm", "end_mm", "width", "deck_width"),
+    "loading_stages": ("edge_index", "start_mm", "span_count",
+                       "projection_mm", "load_kn"),
+    "hoists": ("edge_index", "position_mm", "reach_height_mm", "tie_every_mm"),
+}
+# 整数の配列であるべきキー（作業層の指定など）
+LIST_INT_LIST_FIELDS = {
+    "bracket_sections": ("levels",),
+    "loading_stages": ("levels",),
+    "hoists": ("landing_levels",),
+}
+
+
+def _check_numbers(errors: list[str], where: str, obj, keys) -> None:
+    """obj の指定キーが数値（bool不可）であることを確認する."""
+    if not isinstance(obj, dict):
+        return
+    for k in keys:
+        v = obj.get(k)
+        if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool)):
+            errors.append(f"{where}: \"{k}\" は数値で指定してください（{v!r}）")
+
+
+def _check_int_lists(errors: list[str], where: str, obj, keys) -> None:
+    """obj の指定キーが整数の配列であることを確認する."""
+    if not isinstance(obj, dict):
+        return
+    for k in keys:
+        v = obj.get(k)
+        if v is None:
+            continue
+        if not isinstance(v, list) or any(
+            not isinstance(x, int) or isinstance(x, bool) for x in v
+        ):
+            errors.append(f"{where}: \"{k}\" は整数の配列で指定してください（{v!r}）")
+
+
+def _check_strings(errors: list[str], where: str, obj, keys) -> None:
+    """obj の指定キーが文字列であることを確認する."""
+    if not isinstance(obj, dict):
+        return
+    for k in keys:
+        v = obj.get(k)
+        if v is not None and not isinstance(v, str):
+            errors.append(f"{where}: \"{k}\" は文字列で指定してください（{v!r}）")
+
+
 # 以前あったが実際には効いていなかったキー → 今の書き方
 RENAMED = {"n_stairs": "stairs.count（階段の箇所数）"}
 
@@ -214,12 +278,22 @@ def validate_spec(spec: dict) -> None:
     for key, allowed in NESTED_KEYS.items():
         if key in spec and spec[key] is not None and spec[key] is not False:
             _check_keys(errors, key, spec[key], allowed)
+            if key in NUMERIC_FIELDS:
+                _check_numbers(errors, key, spec[key], NUMERIC_FIELDS[key])
+            if key in STRING_FIELDS:
+                _check_strings(errors, key, spec[key], STRING_FIELDS[key])
 
     so = spec.get("standoff")
     if isinstance(so, dict):
+        _check_numbers(errors, "standoff", so,
+                       ("target", "min", "max", "hard_min"))
         hard, mn = so.get("hard_min", 200), so.get("min", 250)
         mx, tgt = so.get("max", 350), so.get("target", 300)
-        if not (hard <= mn <= tgt <= mx):
+        # 大小比較は数値のときだけ。型違いは上の _check_numbers が指摘済み
+        vals = (hard, mn, tgt, mx)
+        numeric = all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                      for v in vals)
+        if numeric and not (hard <= mn <= tgt <= mx):
             errors.append(
                 f"standoff: hard_min≦min≦target≦max の順になっていません"
                 f"（hard_min{hard}・min{mn}・target{tgt}・max{mx}）"
@@ -233,13 +307,19 @@ def validate_spec(spec: dict) -> None:
             errors.append(f"{key}: 配列で指定してください")
             continue
         for i, item in enumerate(items):
-            _check_keys(errors, f"{key}[{i}]", item, allowed, required)
+            where = f"{key}[{i}]"
+            _check_keys(errors, where, item, allowed, required)
+            _check_numbers(errors, where, item, LIST_NUMERIC_FIELDS.get(key, ()))
+            _check_int_lists(errors, where, item, LIST_INT_LIST_FIELDS.get(key, ()))
 
     st = spec.get("stairs")
     if isinstance(st, dict):
         for i, pos in enumerate(st.get("positions") or []):
-            _check_keys(errors, f"stairs.positions[{i}]", pos,
+            where = f"stairs.positions[{i}]"
+            _check_keys(errors, where, pos,
                         STAIR_POSITION_KEYS, {"edge_index", "start_mm"})
+            _check_numbers(errors, where, pos,
+                           ("edge_index", "start_mm", "span_count"))
 
     for i, p in enumerate(spec.get("ground_points_mm") or []):
         if not isinstance(p, (list, tuple)) or len(p) != 3:

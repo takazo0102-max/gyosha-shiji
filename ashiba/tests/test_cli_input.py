@@ -260,6 +260,33 @@ class TestValidateSpec(unittest.TestCase):
         for token in ("foo", "bar", "scaffold_form"):
             self.assertIn(token, msg)
 
+    def test_numeric_field_type_is_checked(self):
+        """数値であるべきフィールドに文字列を渡したら実行前に弾く.
+
+        以前は割付の途中で TypeError（'<' not supported）や
+        invalid literal になり、利用者には直しようがなかった。
+        """
+        msg = self.ng(dict(BASE, loading_stages=[
+            {"edge_index": 0, "start_mm": 0, "span_count": "two"}]))
+        self.assertIn("span_count", msg)
+        self.assertIn("数値", msg)
+        msg = self.ng(dict(BASE, openings=[
+            {"edge_index": 0, "start_mm": 0, "beam_span_mm": 3600, "level": "x"}]))
+        self.assertIn("level", msg)
+        self.assertIn("数値", msg)
+        self.assertIn("stages", self.ng(dict(BASE, asagao={"stages": "one"})))
+
+    def test_int_list_field_type_is_checked(self):
+        msg = self.ng(dict(BASE, hoists=[
+            {"edge_index": 0, "position_mm": 0, "landing_levels": ["a"]}]))
+        self.assertIn("landing_levels", msg)
+        self.assertIn("整数の配列", msg)
+
+    def test_string_field_type_is_checked(self):
+        msg = self.ng(dict(BASE, site={"region": 123}))
+        self.assertIn("region", msg)
+        self.assertIn("文字列", msg)
+
     def test_asagao_false_is_allowed(self):
         validate_spec(dict(BASE, asagao=False))
 
