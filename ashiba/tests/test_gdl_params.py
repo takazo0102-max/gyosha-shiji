@@ -410,6 +410,66 @@ class TestPlacement(unittest.TestCase):
         self.assertEqual(sorted(angles), [-90.0, 0.0, 90.0, 180.0])
 
 
+class TestPartialPlacementIsRolledBack(unittest.TestCase):
+    """一括配置の途中で失敗したら、置いた分を残さない."""
+
+    class FakeClient:
+        def __init__(self, fail_on):
+            self.fail_on = fail_on
+            self.created = []
+            self.deleted = []
+            self.n = 0
+
+        def create_object(self, name, x, y):
+            elem = {"elementId": {"guid": f"g{len(self.created)}"}}
+            self.created.append(elem)
+            return elem
+
+        def rotate_element(self, *a, **kw):
+            pass
+
+        def set_gdl_parameters(self, element, params, object_name=""):
+            self.n += 1
+            if self.n == self.fail_on:
+                from ashiba.tapir_adapter import TapirError
+                raise TapirError("テスト用の失敗")
+
+        def delete_elements(self, elements):
+            self.deleted.extend(elements)
+
+        def find_red_pen(self, default=20):
+            return 20
+
+    def test_scaffold_lines_are_removed(self):
+        from ashiba.tapir_adapter import TapirError, place_scaffold_lines
+
+        m = build("shinwa_A")
+        c = self.FakeClient(fail_on=3)
+        with self.assertRaises(TapirError) as cm:
+            place_scaffold_lines(m, "obj", c)
+        self.assertEqual(len(c.deleted), len(c.created))
+        self.assertIn("削除しました", str(cm.exception))
+
+    def test_details_are_removed(self):
+        from ashiba.details import required_details
+        from ashiba.tapir_adapter import TapirError, place_details
+
+        m = build("shinwa_A")
+        c = self.FakeClient(fail_on=2)
+        with self.assertRaises(TapirError):
+            place_details(m, required_details(m), "obj", client=c)
+        self.assertEqual(len(c.deleted), len(c.created))
+
+    def test_success_deletes_nothing(self):
+        from ashiba.tapir_adapter import place_scaffold_lines
+
+        m = build("shinwa_A")
+        c = self.FakeClient(fail_on=0)
+        placed = place_scaffold_lines(m, "obj", c)
+        self.assertEqual(len(placed), len(m.plan.edges))
+        self.assertEqual(c.deleted, [])
+
+
 class TestPlanJsonRoundTripCoverage(unittest.TestCase):
     """plan.json からの再配置スクリプトが、送った全パラメータを照合すること.
 

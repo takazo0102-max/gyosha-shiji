@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import urllib.error
@@ -63,7 +64,19 @@ class ArchicadClient:
                 f"Archicadに接続できません（{self.url}）。Archicadを起動してください: {exc}"
             ) from exc
         if not data.get("succeeded"):
-            raise TapirError(f"{command} が失敗: {data.get('error')}")
+            err = data.get("error") or {}
+            msg = err.get("message", "") if isinstance(err, dict) else str(err)
+            hint = ""
+            # Tapirが入っていない／古いときの 4010 は、原因を書かないと
+            # 「失敗しました」だけで何をすればよいか分からない
+            if "TapirCommand." in msg:
+                hint = (
+                    "\nArchicadにTapirアドオンが入っていないか、"
+                    "このコマンドに対応していない版の可能性があります"
+                    "（動作確認: Tapir 1.5.8）。"
+                    "アドオンを入れて Archicad を再起動してください"
+                )
+            raise TapirError(f"{command} が失敗: {err}{hint}")
         return data.get("result", {})
 
     def tapir(self, command: str, parameters: Optional[dict] = None) -> dict:
@@ -283,6 +296,26 @@ def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
     return None
 
 
+@contextlib.contextmanager
+def _rollback_on_error(client, placed: list):
+    """一括配置の途中で失敗したら、置いた分を消してから例外を投げ直す."""
+    try:
+        yield
+    except Exception as exc:
+        if placed:
+            try:
+                client.delete_elements(placed)
+            except Exception:      # 後始末の失敗で元の原因を隠さない
+                raise TapirError(
+                    f"{exc}\n（途中まで配置した{len(placed)}個の削除にも失敗しました。"
+                    "手動で削除してください）"
+                ) from exc
+            placed.clear()
+            raise TapirError(
+                f"{exc}\n（途中まで配置した要素は削除しました）") from exc
+        raise
+
+
 def place_scaffold_lines(
     model: ScaffoldModel,
     object_name: str = "ashiba_line",
@@ -299,21 +332,26 @@ def place_scaffold_lines(
     """
     client = client or ArchicadClient()
     e = model.elevation
-    placed = []
-    for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
-        elem = client.create_object(object_name, ep.start_post[0], ep.start_post[1])
-        angle = math.atan2(edge.direction[1], edge.direction[0])
-        if abs(angle) > 1e-9:
-            client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
-        client.set_gdl_parameters(
-            elem,
-            line_params(
-                model, ep, stair_plan=stair_plan, openings=openings,
-                platforms=platforms, bracket_sections=bracket_sections,
-            ),
-            object_name,
-        )
-        placed.append(elem)
+    placed: list[dict] = []
+    # 途中で失敗したら、置いた分を消してから投げる。中途半端な足場が
+    # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
+    with _rollback_on_error(client, placed):
+        for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
+            elem = client.create_object(
+                object_name, ep.start_post[0], ep.start_post[1])
+            placed.append(elem)
+            angle = math.atan2(edge.direction[1], edge.direction[0])
+            if abs(angle) > 1e-9:
+                client.rotate_element(
+                    elem, angle, ep.start_post[0], ep.start_post[1])
+            client.set_gdl_parameters(
+                elem,
+                line_params(
+                    model, ep, stair_plan=stair_plan, openings=openings,
+                    platforms=platforms, bracket_sections=bracket_sections,
+                ),
+                object_name,
+            )
     return placed
 
 
@@ -334,17 +372,18 @@ def place_details(
     client = client or ArchicadClient()
     sheets = sheets if sheets is not None else required_details(model)
     warn_pen = client.find_red_pen()
-    placed = []
-    for i, sheet in enumerate(sheets):
-        elem = client.create_object(
-            object_name, origin_mm[0] + i * pitch_mm, origin_mm[1]
-        )
-        client.set_gdl_parameters(
-            elem,
-            {"detailType": sheet.key, "warnPen": warn_pen, **sheet.params},
-            object_name,
-        )
-        placed.append(elem)
+    placed: list[dict] = []
+    with _rollback_on_error(client, placed):
+        for i, sheet in enumerate(sheets):
+            elem = client.create_object(
+                object_name, origin_mm[0] + i * pitch_mm, origin_mm[1]
+            )
+            placed.append(elem)
+            client.set_gdl_parameters(
+                elem,
+                {"detailType": sheet.key, "warnPen": warn_pen, **sheet.params},
+                object_name,
+            )
     return placed
 
 
@@ -407,26 +446,27 @@ def place_elevations(
     # 面名を渡さない場合は方位で呼ぶ（辺0では図面を見た人に伝わらない）
     face_names = face_names or model.plan.face_names()
     fl_str = ",".join(str(int(f)) for f in (floor_levels_mm or []))
-    placed = []
+    placed: list[dict] = []
     x = origin_mm[0]
-    for i, ep in enumerate(model.plan.edges):
-        elem = client.create_object(object_name, x, origin_mm[1])
-        client.set_gdl_parameters(
-            elem,
-            {
-                **line_params(
-                    model, ep, stair_plan=stair_plan, openings=openings,
-                    platforms=platforms, bracket_sections=bracket_sections,
-                ),
-                "viewMode": "elev",
-                "flList": fl_str,
-                "faceName": (
-                    face_names[i] if face_names and i < len(face_names)
-                    else f"辺{ep.edge_index}"
-                ),
-            },
-            object_name,
-        )
-        placed.append(elem)
-        x += ep.scaffold_length + gap_mm
+    with _rollback_on_error(client, placed):
+        for i, ep in enumerate(model.plan.edges):
+            elem = client.create_object(object_name, x, origin_mm[1])
+            placed.append(elem)
+            client.set_gdl_parameters(
+                elem,
+                {
+                    **line_params(
+                        model, ep, stair_plan=stair_plan, openings=openings,
+                        platforms=platforms, bracket_sections=bracket_sections,
+                    ),
+                    "viewMode": "elev",
+                    "flList": fl_str,
+                    "faceName": (
+                        face_names[i] if face_names and i < len(face_names)
+                        else f"辺{ep.edge_index}"
+                    ),
+                },
+                object_name,
+            )
+            x += ep.scaffold_length + gap_mm
     return placed
