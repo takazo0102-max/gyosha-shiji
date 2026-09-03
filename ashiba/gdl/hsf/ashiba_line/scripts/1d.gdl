@@ -24,6 +24,11 @@ dim sgS[8]
 dim sgL[8]
 dim sgP[8]
 dim sgH[8]
+dim sgZ[8]
+dim hoP[4]
+dim hoR[4]
+dim laP[40]
+dim laH[40]
 dim bkS[24]
 dim bkE[24]
 dim bkW[24]
@@ -197,7 +202,8 @@ while strlen(rest) > 0 and nBk < 24 do
 	endif
 endwhile
 
-! ---- stageList をパース「開始,長さ,出,設置高さ」の繰り返し (mm→m) ----
+! ---- stageList をパース「開始,長さ,出,設置高さ,方杖」の繰り返し (mm→m) ----
+! 方杖は0/1（数量拾いと同じ指定を使う。図だけ勝手に方杖を付けない）
 ! 荷受けステージは出1.5mの張り出し床。構造計算では直下の建地を個別に
 ! 検定しているのに、図面にも3Dにも出ていなかった
 nSg = 0
@@ -205,6 +211,7 @@ sgIdx = 0
 sgA = 0
 sgB = 0
 sgC = 0
+sgD = 0
 rest = stageList
 while strlen(rest) > 0 and nSg < 8 do
 	pc = strstr(rest, ",")
@@ -218,19 +225,82 @@ while strlen(rest) > 0 and nSg < 8 do
 	k = split(item, "%n", v)
 	if k > 0 then
 		sgIdx = sgIdx + 1
-		md = sgIdx - 4 * int(sgIdx / 4)   ! 1,2,3,0 の繰り返し
+		md = sgIdx - 5 * int(sgIdx / 5)   ! 1,2,3,4,0 の繰り返し
 		if md = 1 then sgA = v / 1000
 		if md = 2 then sgB = v / 1000
 		if md = 3 then sgC = v / 1000
+		if md = 4 then sgD = v / 1000
 		if md = 0 then
 			nSg = nSg + 1
 			sgS[nSg] = sgA
 			sgL[nSg] = sgB
 			sgP[nSg] = sgC
-			sgH[nSg] = v / 1000
+			sgH[nSg] = sgD
+			sgZ[nSg] = v                  ! 方杖 0/1（mm換算しない）
 		endif
 	endif
 endwhile
+
+! ---- hoistList をパース「位置,到達高さ」の繰り返し (mm→m) ----
+! 昇降機は数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
+! 出ていたのに、図面には現れていなかった。マストは足場の外に立つ大物なので
+! 平面・立面・3Dに出して干渉を確認できるようにする
+nHo = 0
+hoIdx = 0
+hoT = 0
+rest = hoistList
+while strlen(rest) > 0 and nHo < 4 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		hoIdx = hoIdx + 1
+		if hoIdx - 2 * int(hoIdx / 2) = 1 then
+			hoT = v / 1000
+		else
+			nHo = nHo + 1
+			hoP[nHo] = hoT
+			hoR[nHo] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- landingList をパース「位置,作業床高さ」の繰り返し (mm→m) ----
+nLa = 0
+laIdx = 0
+laT = 0
+rest = landingList
+while strlen(rest) > 0 and nLa < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		laIdx = laIdx + 1
+		if laIdx - 2 * int(laIdx / 2) = 1 then
+			laT = v / 1000
+		else
+			nLa = nLa + 1
+			laP[nLa] = laT
+			laH[nLa] = v / 1000
+		endif
+	endif
+endwhile
+
+! 昇降機の見付け幅（ケージ＋マストの目安）。実機は機種で違うので図示用
+HOIST_W = 2.0
+HOIST_D = 2.0
 
 ! ---- beamList をパース「開始,スパン,梁下高さ」の繰り返し (mm→m) ----
 ! 梁枠は支柱を抜いて通路にする箇所。図面が抜いた支柱を描いたままだと、

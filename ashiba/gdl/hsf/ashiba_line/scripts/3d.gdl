@@ -235,7 +235,50 @@ for ig = 1 to nSg
 	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.05
 	block sgL[ig], 0.02, 0.157
 	del 1
+	! 張出ブラケットと方杖。床だけ描くとステージが宙に浮いて見えるうえ、
+	! 数量では建地位置ぶん拾っている（張出ブラケット・方杖）
+	xb = 0
+	for ipb = 1 to nSpan + 1
+		if xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			add xb, -rowW, sgH[ig]
+			rotz -90
+			roty 90
+			cylind sgP[ig], r_nuno
+			del 3
+			if sgZ[ig] > 0 then
+				add xb, -rowW, sgH[ig] - sgP[ig]
+				rotx 45
+				cylind sgP[ig] * 1.4142, r_nuno
+				del 2
+			endif
+		endif
+		if ipb <= nSpan then xb = xb + spans[ipb]
+	next ipb
 next ig
+
+! ---- 昇降機（マスト＋ケージの占有範囲） ----
+! 実機は機種で寸法が違うので、図示用の見付け（HOIST_W×HOIST_D）で置く。
+! 数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には出ていたのに
+! モデルに無く、搬入経路や庇との干渉を3Dで確認できなかった
+for ih = 1 to nHo
+	hx = hoP[ih]
+	! 4隅の柱で枠として示す（塊で置くと足場が見えなくなる）
+	for icx = 0 to 1
+		for icy = 0 to 1
+			add hx - HOIST_W / 2 + HOIST_W * icx, -rowW - HOIST_D * icy, 0
+			cylind hoR[ih], 0.06 / 2
+			del 1
+		next icy
+	next icx
+	! 乗り込み口の高さに水平枠
+	for il3 = 1 to nLa
+		if abs(laP[il3] - hx) < 0.001 then
+			add hx - HOIST_W / 2, -rowW - HOIST_D, laH[il3]
+			block HOIST_W, HOIST_D, 0.04
+			del 1
+		endif
+	next il3
+next ih
 
 ! ---- 梁枠（開口部）: 上下弦材と斜材 ----
 ! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった

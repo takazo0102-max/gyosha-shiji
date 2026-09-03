@@ -305,19 +305,58 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
             edge_index=0, start_mm=12600, span_count=2, levels=list(levels))])
         return m, pf
 
-    def test_quadruple_is_start_length_projection_height(self):
+    def test_group_is_start_length_projection_height_hozue(self):
         m, pf = self._setup()
         vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
-        self.assertEqual(len(vals), 4)
+        self.assertEqual(len(vals), 5)
         self.assertEqual(int(vals[0]), 12600)
         self.assertEqual(int(vals[2]), int(pf.stages[0].projection_mm))
         self.assertEqual(int(vals[3]), m.elevation.level_heights[2])
+        # 方杖は数量拾いと同じ指定を渡す（図だけ勝手に方杖を付けない）
+        self.assertEqual(vals[4], "1" if pf.stages[0].has_hozue else "0")
+
+    def test_hozue_flag_follows_the_input(self):
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        m = build("shinwa_A")
+        pf = validate_platforms(m, [LoadingStage(
+            edge_index=0, start_mm=12600, span_count=2, levels=[3],
+            has_hozue=False)])
+        vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
+        self.assertEqual(vals[4], "0")
+
+    def test_hoist_reaches_the_drawing(self):
+        """昇降機のマストと乗り込み口が図面に出ること.
+
+        数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
+        出ていたのに、図面には昇降機がまったく現れていなかった。
+        """
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = build("shinwa_A")
+        pf = validate_platforms(m, [], [Hoist(
+            edge_index=0, position_mm=9000, landing_levels=[2, 5])])
+        p = line_params(m, m.plan.edges[0], platforms=pf)
+        ho = p["hoistList"].split(",")
+        self.assertEqual(int(ho[0]), 9000)
+        self.assertEqual(int(ho[1]), m.elevation.total_height)   # 到達高さ既定
+        la = [int(v) for v in p["landingList"].split(",")]
+        self.assertEqual(la, [9000, m.elevation.level_heights[1],
+                              9000, m.elevation.level_heights[4]])
+
+    def test_hoist_is_drawn_in_every_view(self):
+        gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        body2 = (gdl / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        body3 = (gdl / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertEqual(body2.count("hoP[ih]"), 2)     # 平面と立面
+        self.assertIn("乗込口", body2)
+        self.assertIn("hoR[ih]", body3)
 
     def test_one_group_per_level(self):
         m, pf = self._setup(levels=(3, 4))
         vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
-        self.assertEqual(len(vals), 8)
-        self.assertEqual(int(vals[7]), m.elevation.level_heights[3])
+        self.assertEqual(len(vals), 10)
+        self.assertEqual(int(vals[8]), m.elevation.level_heights[3])
 
     def test_length_comes_from_the_real_spans(self):
         m, pf = self._setup()

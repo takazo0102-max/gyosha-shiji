@@ -130,6 +130,18 @@ for ig = 1 to nSg
 	set style "anno"
 next ig
 
+! 昇降機（平面ではマストの占有範囲を破線で。足場の外に立つ大物なので
+! 干渉と搬入経路の検討に要る）
+line_type 3
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - HOIST_W / 2, -rowW, hx + HOIST_W / 2, -rowW - HOIST_D
+	set style "annoC"
+	if showDim then text2 hx, -rowW - HOIST_D - 0.15, "昇降機"
+	set style "anno"
+next ih
+line_type 1
+
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 if nAsa > 0 then
 	line_type 3
@@ -335,6 +347,28 @@ for ig = 1 to nSg
 	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
 	set style "anno"
 next ig
+
+! 昇降機（立面ではマストの見付けを破線で、乗り込み口は開口として）
+line_type 3
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - HOIST_W / 2, 0, hx + HOIST_W / 2, hoR[ih]
+	set style "annoC"
+	if showDim then text2 hx, hoR[ih] + 0.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
+	set style "anno"
+next ih
+line_type 1
+! 乗り込み口（開閉式手すり）。足場側の開口なので、どの層かを図に出す
+for il2 = 1 to nLa
+	lx = laP[il2]
+	lz = laH[il2]
+	rect2 lx - HOIST_W / 2, lz, lx + HOIST_W / 2, lz + railH
+	if showDim then
+		set style "annoC"
+		text2 lx, lz + railH + 0.10, "乗込口"
+		set style "anno"
+	endif
+next il2
 
 ! 梁枠（立面ではトラス）
 for ib = 1 to nBm

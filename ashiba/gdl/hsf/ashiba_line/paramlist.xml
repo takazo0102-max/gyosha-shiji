@@ -122,7 +122,15 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="stageList">
-			<Description><![CDATA["荷受けステージ mm 「開始,長さ,出,設置高さ」の繰り返し"]]></Description>
+			<Description><![CDATA["荷受けステージ mm 「開始,長さ,出,設置高さ,方杖(0/1)」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="hoistList">
+			<Description><![CDATA["昇降機 mm 「位置,到達高さ」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="landingList">
+			<Description><![CDATA["昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="beamList">

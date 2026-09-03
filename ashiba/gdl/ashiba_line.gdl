@@ -38,7 +38,9 @@
 !   railH          長さ    手すり高さ 作業床から 0で自動                                         既定 0
 !   midH           長さ    中桟高さ 作業床から 0で自動                                           既定 0
 !   brktList       文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm  既定 ""
-!   stageList      文字列  荷受けステージ mm 「開始,長さ,出,設置高さ」の繰り返し                 既定 ""
+!   stageList      文字列  荷受けステージ mm 「開始,長さ,出,設置高さ,方杖(0/1)」の繰り返し       既定 ""
+!   hoistList      文字列  昇降機 mm 「位置,到達高さ」の繰り返し                                 既定 ""
+!   landingList    文字列  昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                   既定 ""
 !   beamList       文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                            既定 ""
 !   stairList      文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）               既定 ""
 !   asagaoList     文字列  朝顔の設置高さ mm カンマ区切り（GLから）                              既定 ""
@@ -80,6 +82,11 @@ dim sgS[8]
 dim sgL[8]
 dim sgP[8]
 dim sgH[8]
+dim sgZ[8]
+dim hoP[4]
+dim hoR[4]
+dim laP[40]
+dim laH[40]
 dim bkS[24]
 dim bkE[24]
 dim bkW[24]
@@ -253,7 +260,8 @@ while strlen(rest) > 0 and nBk < 24 do
 	endif
 endwhile
 
-! ---- stageList をパース「開始,長さ,出,設置高さ」の繰り返し (mm→m) ----
+! ---- stageList をパース「開始,長さ,出,設置高さ,方杖」の繰り返し (mm→m) ----
+! 方杖は0/1（数量拾いと同じ指定を使う。図だけ勝手に方杖を付けない）
 ! 荷受けステージは出1.5mの張り出し床。構造計算では直下の建地を個別に
 ! 検定しているのに、図面にも3Dにも出ていなかった
 nSg = 0
@@ -261,6 +269,7 @@ sgIdx = 0
 sgA = 0
 sgB = 0
 sgC = 0
+sgD = 0
 rest = stageList
 while strlen(rest) > 0 and nSg < 8 do
 	pc = strstr(rest, ",")
@@ -274,19 +283,82 @@ while strlen(rest) > 0 and nSg < 8 do
 	k = split(item, "%n", v)
 	if k > 0 then
 		sgIdx = sgIdx + 1
-		md = sgIdx - 4 * int(sgIdx / 4)   ! 1,2,3,0 の繰り返し
+		md = sgIdx - 5 * int(sgIdx / 5)   ! 1,2,3,4,0 の繰り返し
 		if md = 1 then sgA = v / 1000
 		if md = 2 then sgB = v / 1000
 		if md = 3 then sgC = v / 1000
+		if md = 4 then sgD = v / 1000
 		if md = 0 then
 			nSg = nSg + 1
 			sgS[nSg] = sgA
 			sgL[nSg] = sgB
 			sgP[nSg] = sgC
-			sgH[nSg] = v / 1000
+			sgH[nSg] = sgD
+			sgZ[nSg] = v                  ! 方杖 0/1（mm換算しない）
 		endif
 	endif
 endwhile
+
+! ---- hoistList をパース「位置,到達高さ」の繰り返し (mm→m) ----
+! 昇降機は数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
+! 出ていたのに、図面には現れていなかった。マストは足場の外に立つ大物なので
+! 平面・立面・3Dに出して干渉を確認できるようにする
+nHo = 0
+hoIdx = 0
+hoT = 0
+rest = hoistList
+while strlen(rest) > 0 and nHo < 4 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		hoIdx = hoIdx + 1
+		if hoIdx - 2 * int(hoIdx / 2) = 1 then
+			hoT = v / 1000
+		else
+			nHo = nHo + 1
+			hoP[nHo] = hoT
+			hoR[nHo] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- landingList をパース「位置,作業床高さ」の繰り返し (mm→m) ----
+nLa = 0
+laIdx = 0
+laT = 0
+rest = landingList
+while strlen(rest) > 0 and nLa < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		laIdx = laIdx + 1
+		if laIdx - 2 * int(laIdx / 2) = 1 then
+			laT = v / 1000
+		else
+			nLa = nLa + 1
+			laP[nLa] = laT
+			laH[nLa] = v / 1000
+		endif
+	endif
+endwhile
+
+! 昇降機の見付け幅（ケージ＋マストの目安）。実機は機種で違うので図示用
+HOIST_W = 2.0
+HOIST_D = 2.0
 
 ! ---- beamList をパース「開始,スパン,梁下高さ」の繰り返し (mm→m) ----
 ! 梁枠は支柱を抜いて通路にする箇所。図面が抜いた支柱を描いたままだと、
@@ -578,6 +650,18 @@ for ig = 1 to nSg
 	set style "anno"
 next ig
 
+! 昇降機（平面ではマストの占有範囲を破線で。足場の外に立つ大物なので
+! 干渉と搬入経路の検討に要る）
+line_type 3
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - HOIST_W / 2, -rowW, hx + HOIST_W / 2, -rowW - HOIST_D
+	set style "annoC"
+	if showDim then text2 hx, -rowW - HOIST_D - 0.15, "昇降機"
+	set style "anno"
+next ih
+line_type 1
+
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 if nAsa > 0 then
 	line_type 3
@@ -783,6 +867,28 @@ for ig = 1 to nSg
 	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
 	set style "anno"
 next ig
+
+! 昇降機（立面ではマストの見付けを破線で、乗り込み口は開口として）
+line_type 3
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - HOIST_W / 2, 0, hx + HOIST_W / 2, hoR[ih]
+	set style "annoC"
+	if showDim then text2 hx, hoR[ih] + 0.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
+	set style "anno"
+next ih
+line_type 1
+! 乗り込み口（開閉式手すり）。足場側の開口なので、どの層かを図に出す
+for il2 = 1 to nLa
+	lx = laP[il2]
+	lz = laH[il2]
+	rect2 lx - HOIST_W / 2, lz, lx + HOIST_W / 2, lz + railH
+	if showDim then
+		set style "annoC"
+		text2 lx, lz + railH + 0.10, "乗込口"
+		set style "anno"
+	endif
+next il2
 
 ! 梁枠（立面ではトラス）
 for ib = 1 to nBm
@@ -1130,7 +1236,50 @@ for ig = 1 to nSg
 	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.05
 	block sgL[ig], 0.02, 0.157
 	del 1
+	! 張出ブラケットと方杖。床だけ描くとステージが宙に浮いて見えるうえ、
+	! 数量では建地位置ぶん拾っている（張出ブラケット・方杖）
+	xb = 0
+	for ipb = 1 to nSpan + 1
+		if xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			add xb, -rowW, sgH[ig]
+			rotz -90
+			roty 90
+			cylind sgP[ig], r_nuno
+			del 3
+			if sgZ[ig] > 0 then
+				add xb, -rowW, sgH[ig] - sgP[ig]
+				rotx 45
+				cylind sgP[ig] * 1.4142, r_nuno
+				del 2
+			endif
+		endif
+		if ipb <= nSpan then xb = xb + spans[ipb]
+	next ipb
 next ig
+
+! ---- 昇降機（マスト＋ケージの占有範囲） ----
+! 実機は機種で寸法が違うので、図示用の見付け（HOIST_W×HOIST_D）で置く。
+! 数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には出ていたのに
+! モデルに無く、搬入経路や庇との干渉を3Dで確認できなかった
+for ih = 1 to nHo
+	hx = hoP[ih]
+	! 4隅の柱で枠として示す（塊で置くと足場が見えなくなる）
+	for icx = 0 to 1
+		for icy = 0 to 1
+			add hx - HOIST_W / 2 + HOIST_W * icx, -rowW - HOIST_D * icy, 0
+			cylind hoR[ih], 0.06 / 2
+			del 1
+		next icy
+	next icx
+	! 乗り込み口の高さに水平枠
+	for il3 = 1 to nLa
+		if abs(laP[il3] - hx) < 0.001 then
+			add hx - HOIST_W / 2, -rowW - HOIST_D, laH[il3]
+			block HOIST_W, HOIST_D, 0.04
+			del 1
+		endif
+	next il3
+next ih
 
 ! ---- 梁枠（開口部）: 上下弦材と斜材 ----
 ! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった

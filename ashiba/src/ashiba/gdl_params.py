@@ -61,8 +61,13 @@ def line_params(
         "stairList": _stair_list(ep, stair_plan),
         # 梁枠。「開始,スパン,梁下高さ」の繰り返し
         "beamList": _beam_list(model, ep, openings),
-        # 荷受けステージ。「開始,長さ,出,設置高さ」の繰り返し
+        # 荷受けステージ。「開始,長さ,出,設置高さ,方杖」の繰り返し
         "stageList": _stage_list(model, ep, platforms),
+        # 昇降機。「位置,到達高さ」／乗り込み口「位置,作業床高さ」の繰り返し。
+        # 数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
+        # 出ていたのに、図面には昇降機がまったく現れていなかった
+        "hoistList": _hoist_list(model, ep, platforms),
+        "landingList": _landing_list(model, ep, platforms),
         # ブラケット区間。「開始,終了,幅,向き,高さ」の繰り返し
         "brktList": _bracket_list(model, ep, bracket_sections),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
@@ -75,6 +80,43 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }
+
+
+def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
+    """この辺の昇降機を「位置,到達高さ」の繰り返しで返す.
+
+    到達高さの指定が無ければ足場天端まで。干渉確認のためにマストの
+    占有範囲を図面と3Dに出す。
+    """
+    if platforms is None or not getattr(platforms, "hoists", None):
+        return ""
+    top = model.elevation.total_height
+    parts = []
+    for h in platforms.hoists:
+        if h.edge_index != ep.edge_index:
+            continue
+        reach = h.reach_height_mm or top
+        parts += [str(int(h.position_mm)), str(int(reach))]
+    return ",".join(parts)
+
+
+def _landing_list(model: ScaffoldModel, ep, platforms) -> str:
+    """この辺の乗り込み口を「位置,作業床高さ」の繰り返しで返す.
+
+    乗り込み口は足場側の開口。開閉式手すりを数量で拾っているので、
+    どの層に開口があるかを図面にも出す（安衛則563条）。
+    """
+    if platforms is None or not getattr(platforms, "hoists", None):
+        return ""
+    levels = model.elevation.level_heights
+    parts = []
+    for h in platforms.hoists:
+        if h.edge_index != ep.edge_index or not levels:
+            continue
+        for lv in h.landings(model):
+            idx = min(max(int(lv), 1), len(levels)) - 1
+            parts += [str(int(h.position_mm)), str(int(levels[idx]))]
+    return ",".join(parts)
 
 
 def _stair_list(ep, stair_plan) -> str:
@@ -108,7 +150,7 @@ def _beam_list(model: ScaffoldModel, ep, openings) -> str:
 
 
 def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
-    """この辺の荷受けステージを「開始,長さ,出,設置高さ」の繰り返しで返す.
+    """この辺の荷受けステージを「開始,長さ,出,設置高さ,方杖(0/1)」で返す.
 
     出1.5mの張り出し床で、構造計算では直下の建地を個別に検定している
     のに図面にも3Dにも出ていなかった。設置層が複数なら層ごとに1組。
@@ -126,6 +168,7 @@ def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
             parts += [
                 str(int(st.start_mm)), str(int(length)),
                 str(int(st.projection_mm)), str(int(levels[idx])),
+                "1" if st.has_hozue else "0",
             ]
     return ",".join(parts)
 
