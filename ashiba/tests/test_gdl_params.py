@@ -566,6 +566,20 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         self.assertEqual(len(line), 1, "ジャッキ繰出しの記載は1箇所")
         self.assertIn("dy - txtLine * 3.4", line[0])
 
+    def test_height_dimension_text_is_right_aligned(self):
+        # 左詰めのままだと桁数が増えたとき寸法線と足場の中へはみ出す
+        for want in ("dimTxt = str(lv[il] * 1000, 6, 0)",
+                     "stw(dimTxt) * GLOB_SCALE / 1000"):
+            self.assertIn(want, self.body)
+        self.assertNotIn('text2 dx - txtH, lv[il]', self.body)
+        self.assertNotIn('text2 dx - txtH, postTop', self.body)
+
+    def test_notes_column_clears_the_height_labels(self):
+        # FL参照(+0.35)・朝顔の高さ表示(+0.1)と同じ帯だと行が重なる
+        tx = [ln for ln in self.body.splitlines() if ln.startswith("tx = lineLen")]
+        self.assertEqual(len(tx), 1)
+        self.assertGreaterEqual(float(tx[0].split("+")[1]), 2.5)
+
     def test_span_total_and_jack_are_on_separate_lines(self):
         # 短い面では L= と横並びになる。行を変えて避ける
         total = [ln for ln in self.body.splitlines()

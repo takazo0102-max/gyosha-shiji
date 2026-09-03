@@ -347,12 +347,16 @@ if not(showDim) then return
 ! ---- 高さ寸法（左側）: 各層と全高 ----
 dx = -0.35
 line2 dx, 0, dx, postTop
+! 数字は右詰め。左詰めのまま文字1つ分だけ左に置くと、桁数が増えたときに
+! 寸法線と足場の中へ数字がはみ出して読めなくなる（実機で確認）
 for il = 1 to nLv
 	line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
-	text2 dx - txtH, lv[il], str(lv[il] * 1000, 6, 0)
+	dimTxt = str(lv[il] * 1000, 6, 0)
+	text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, lv[il], dimTxt
 next il
 line2 dx - 0.06, postTop, dx + 0.06, postTop
-text2 dx - txtH, postTop, "H=" + str(postTop * 1000, 6, 0)
+dimTxt = "H=" + str(postTop * 1000, 6, 0)
+text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, postTop, dimTxt
 
 ! ---- スパン寸法（下側） ----
 dy = -0.45
@@ -371,7 +375,9 @@ text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
 text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
 
 ! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
-tx = lineLen + 0.5
+! 特記の列。FL参照（+0.35）や朝顔の高さ表示（+0.1・文字幅が2m超）と
+! 同じ帯に置くと、階数や段数によっては行が重なる。文字幅の分だけ右に離す
+tx = lineLen + 2.8
 ny = postTop
 text2 tx, ny, "立面図 " + faceName
 ny = ny - txtLine * 1.4
