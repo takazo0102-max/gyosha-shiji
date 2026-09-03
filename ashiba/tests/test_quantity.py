@@ -151,6 +151,43 @@ class TestWeightPlausibility(unittest.TestCase):
                 self.assertLess(per_m2, 25.0, f"{sid} {per_m2:.1f}kg/m2 は重すぎる")
 
 
+class TestCountsAreCheckable(unittest.TestCase):
+    """数だけ出しても検算できない。内訳を注記に書く."""
+
+    def setUp(self):
+        master = load_master("shinwa_A")
+        self.m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        self.q = take_off(self.m)
+
+    def test_ledger_breakdown_adds_up(self):
+        spans = self.m.plan.total_spans
+        posts = self.m.plan.total_posts
+        levels = self.m.elevation.n_levels
+        per_span = 2 + levels * (2 + 2)          # 根がらみ＋各層(床＋手すり中桟)
+        udegi = posts * (levels + 1)
+        self.assertEqual(self.q.qty_of("布材"), spans * per_span + udegi)
+        notes = " ".join(self.q.notes)
+        self.assertIn(f"＝ {per_span}本で計上", notes)
+        self.assertIn(f"＝{udegi}本で計上", notes)
+
+    def test_truck_note_states_the_payload(self):
+        import math
+
+        from ashiba.quantity import QuantityRules
+
+        payload = QuantityRules().truck_payload_kg
+        self.assertEqual(
+            self.q.truck_count, math.ceil(self.q.total_weight_kg / payload)
+        )
+        self.assertTrue(
+            any(f"{payload:.0f}kg" in n for n in self.q.notes), self.q.notes
+        )
+
+
 class TestActionableNotes(unittest.TestCase):
     """手配・検討が要る注記は、計上ルールの説明と混ぜない."""
 

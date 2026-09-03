@@ -176,6 +176,13 @@ def take_off(
             span_counts[s] = span_counts.get(s, 0) + 1
     for s, n in span_counts.items():
         add(m.find("布材", s), n * per_span_rails, f"布材{s}")
+    # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
+    notes.append(
+        f"布材は1スパンあたり 根がらみ{rules.ledgers_negarami}本"
+        f"＋各層（床レベル{rules.ledgers_per_level_floor}本"
+        + (f"＋手すり・中桟{rails_outer}本" if rails_outer else "＋手すりは先行手摺")
+        + f"）×{n_levels}層 ＝ {per_span_rails}本で計上"
+    )
 
     # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
     if advance_rail:
@@ -192,6 +199,11 @@ def take_off(
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
         udegi = rules.udegi_nominal or model.post_row_spacing_mm
+        notes.append(
+            f"腕木は呼び{udegi}mmの布材を、支柱位置{posts_per_line}箇所×"
+            f"（作業層{n_levels}＋根がらみ1）＝{posts_per_line * (n_levels + 1)}本で計上"
+            "（布材の合計にはこの分も含む）"
+        )
         add(
             m.find("布材", udegi),
             posts_per_line * (n_levels + 1),
@@ -564,6 +576,12 @@ def _assemble(
     height_m = (model.building_height_mm or model.scaffold_height_mm) / 1000.0
     kake = (perimeter_m + 4.0) * (height_m + 0.5)
 
+    # 台数だけ出しても検算できない。1台あたりの実効積載を書く
+    notes.append(
+        f"トラック台数は1台あたり{rules.truck_payload_kg:.0f}kg"
+        "（4t車の実効積載・積載効率0.8）で割った概算です。"
+        "長尺材の積み方や現場条件で変わります"
+    )
     return QuantityResult(
         lines=lines,
         kake_menseki_m2=round(kake, 2),
