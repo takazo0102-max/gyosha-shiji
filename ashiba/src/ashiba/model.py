@@ -198,6 +198,18 @@ class ScaffoldModel:
         return self.config.guard_rail_koma * self.master.koma_pitch
 
     @property
+    def guard_rail_method(self) -> str:
+        """帳票に書く手すり方式の説明.
+
+        枠組は中間層の手すりを建枠自体が兼ね、最上層だけ布材で組む。
+        guard_rail_type（布材／先行手すり）はくさび式の選択肢なので、
+        枠組でそのまま書くと「布材で全層手すり」と誤読される。
+        """
+        if self.master.is_frame:
+            return "建枠一体（最上層のみ布材で手すり・中桟）"
+        return self.config.guard_rail_type
+
+    @property
     def midrail_height_mm(self) -> int:
         """作業床からの中桟高さ.
 

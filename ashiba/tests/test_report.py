@@ -28,6 +28,16 @@ def build():
     )
 
 
+def build_frame():
+    master = load_master("waku")
+    plan = solve_plan(RECT, master)
+    elev = solve_elevation(16300, master=master)
+    return ScaffoldModel(
+        master=master, plan=plan, elevation=elev, config=ScaffoldConfig(),
+        building_height_mm=16000,
+    )
+
+
 def render(model, stair_plan=None, **kw) -> str:
     with tempfile.TemporaryDirectory() as d:
         path = Path(d) / "r.md"
@@ -60,6 +70,27 @@ class TestReport(unittest.TestCase):
     def test_disclaimer_is_always_present(self):
         """有資格者確認前提の下書きである旨（指示書9）を落とさない."""
         self.assertIn("計画作成参画者（有資格者）が確認する前提の下書き", render(build()))
+
+
+class TestFrameReportUsesFrameTerms(unittest.TestCase):
+    """枠組の割付レポートはくさび用語（支柱・布材手すり）を出さない."""
+
+    def test_frame_calls_verticals_kenwaku(self):
+        text = render(build_frame())
+        self.assertIn("建枠構成（下から）", text)
+        self.assertIn("建枠位置数", text)
+        self.assertNotIn("支柱構成", text)
+        self.assertNotIn("支柱位置数", text)
+
+    def test_frame_guard_rail_is_the_frame_itself(self):
+        text = render(build_frame())
+        self.assertIn("手すり方式: 建枠一体", text)
+
+    def test_wedge_still_uses_shichu_and_ledger(self):
+        text = render(build())
+        self.assertIn("支柱構成（下から）", text)
+        self.assertIn("支柱位置数", text)
+        self.assertIn("手すり方式: 布材", text)
 
 
 class TestReportCoversTheWholePlan(unittest.TestCase):

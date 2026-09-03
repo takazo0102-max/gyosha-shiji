@@ -210,7 +210,7 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     _kv(s, "作業床", f"幅{sum(model.deck_widths_in_use)}mm（{widths}）",
         f"{model.elevation.n_levels}層・床材隙間{model.config.deck_gap_mm}mm・幅木H157"
         + ("" if model.config.has_toe_board else "（幅木なし）"))
-    _kv(s, "手すり", model.config.guard_rail_type,
+    _kv(s, "手すり", model.guard_rail_method,
         f"手すり{model.guard_rail_height_mm}mm＋中桟")
     v_max, h_max = model.wall_tie_max_spacing()
     v_lim, h_lim, tie_basis = model.wall_tie_limits()

@@ -119,13 +119,14 @@ def write_report_md(
       + ("（建枠を積む方式）" if model.master.is_frame
          else f"（コマピッチ{model.master.koma_pitch}mm）"))
     a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}")
-    a(f"- 支柱構成（下から）: ジャッキ{e.jack_extension} + "
+    vm = model.master.vertical_member_name
+    a(f"- {vm}構成（下から）: ジャッキ{e.jack_extension} + "
       + " + ".join(str(p) for p in e.posts)
       + f" = {e.total_height}mm")
     a(f"- 千鳥用代替構成: " + " + ".join(str(p) for p in e.posts_alt)
       + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
-    a(f"- 1層あたり支柱位置数: {model.plan.total_posts}（二重計上なし）")
-    a(f"- 手すり方式: {model.config.guard_rail_type}")
+    a(f"- 1層あたり{vm}位置数: {model.plan.total_posts}（二重計上なし）")
+    a(f"- 手すり方式: {model.guard_rail_method}")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
                     if notification_required(model) else "不要"))
     a("")
