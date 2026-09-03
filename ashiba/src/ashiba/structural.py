@@ -236,6 +236,8 @@ class PostResult:
     verified: bool
     # 未確認だった耐力値。警告文に実際の項目と差し替え先の行を挙げるために持つ
     unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
+    # 作業床許容積載の出典（計算書に「capacity.csv」とだけ書いても確認できない）
+    deck_source: str = ""
 
     @property
     def unverified_items(self) -> list[str]:
@@ -504,6 +506,7 @@ def check_post(
         ok=ratio <= 1.0,
         governing=governing_name,
         source=governing_cap.source,
+        deck_source=cap_deck.source,
         verified=governing_cap.verified and cap_deck.verified,
         unverified_caps=unverified_caps,
     )
@@ -774,6 +777,13 @@ def run_structural(
             remedy = (
                 "荷受けステージ直下の建地が支配的です。積載荷重の低減、間口の拡大"
                 "（支持する建地を増やす）、または支柱2本組を検討してください"
+            )
+        if not post.verified:
+            # 一般値（単管建地6.86kN等）で不足しただけなら、部材を変える前に
+            # メーカーの認定値を入れて判定し直すのが先。認定値は一般値より大きい
+            remedy = (
+                "許容支持力が未確認の一般値です。まずメーカー認定値を capacity.csv に"
+                "入れて再判定してください。認定値でも不足なら、" + remedy
             )
         warnings.append(
             f"建地圧縮が耐力不足です（検定比{post.ratio:.2f}、支配: {post.governing}）。"

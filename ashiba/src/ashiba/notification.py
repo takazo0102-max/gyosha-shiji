@@ -378,7 +378,7 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     _kv(s, "足場総重量", p.total_weight_kg, "kg  部材等明細書の合計")
     _kv(s, "建地本数", p.n_posts, "本（支柱位置数×列数）")
     _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
-    _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  capacity.csv")
+    _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  " + (p.deck_source or "capacity.csv"))
     _kv(s, "同時載荷層数", p.loaded_levels, "層（実務: 2層以内）")
     _kv(s, "積載 建地1本あたり", p.live_load_kn,
         "kN  作業床許容積載×同時載荷層数÷2")
@@ -399,7 +399,9 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     s.add_cells([
         Cell("判定", STYLE_HEADER),
         Cell("OK" if p.ok else "NG", STYLE_HEADER),
-        Cell("" if p.ok else "繰出し量低減・支柱2本組・スパン短縮を検討", STYLE_HEADER),
+        Cell("" if p.ok else (
+            "許容支持力が未確認の一般値。まずメーカー認定値へ差し替えて再判定"
+            if not p.verified else "繰出し量低減・支柱2本組・スパン短縮を検討"), STYLE_HEADER),
     ])
 
 

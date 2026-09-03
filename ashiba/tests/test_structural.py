@@ -525,3 +525,26 @@ class TestCapacitySources(unittest.TestCase):
         m = make_model()
         caps = load_capacities("shinwa_A")
         self.assertEqual(_width_item(caps, "ジャッキ許容支持力", m), "ジャッキ許容支持力")
+
+
+class TestPostNgRemedyOrdersTheSteps(unittest.TestCase):
+    """建地NGで支配した許容値が一般値なら、部材変更より先に認定値の差し替えを言う."""
+
+    def test_unverified_capacity_is_named_first(self):
+        from ashiba.platforms import LoadingStage, validate_platforms
+
+        m = make_model()
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=12600,
+                                                 span_count=2, levels=[3])])
+        r = run_structural(m, take_off(m), platforms=pf)
+        self.assertFalse(r.post.ok)
+        self.assertFalse(r.post.verified)
+        w = next(x for x in r.warnings if "建地圧縮が耐力不足" in x)
+        i_cert = w.index("メーカー認定値")
+        i_part = w.index("支柱2本組")
+        self.assertLess(i_cert, i_part)
+
+    def test_deck_source_is_carried_to_the_result(self):
+        m = make_model()
+        r = run_structural(m, take_off(m))
+        self.assertIn("信和総合カタログ", r.post.deck_source)

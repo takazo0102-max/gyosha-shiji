@@ -155,6 +155,19 @@ class TestNotification(unittest.TestCase):
             self.assertIn("未確認値", post)
 
 
+class TestPostSheetNamesTheDeckSource(unittest.TestCase):
+    def test_deck_capacity_row_shows_the_real_source(self):
+        m = make_model()
+        q = take_off(m)
+        st = run_structural(m, q)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "n.xlsx"
+            write_notification_xlsx(m, q, run_all_checks(m), st, p)
+            post = zipfile.ZipFile(p).read("xl/worksheets/sheet5.xml").decode()
+        self.assertIn("信和総合カタログ", post)
+        self.assertNotIn("kN/スパン  capacity.csv", post)
+
+
 class TestPostSheetIsReproducible(unittest.TestCase):
     """計算書は値だけでなく、その値を出した数まで載せる（確認できないと意味がない）."""
 
