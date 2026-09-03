@@ -426,13 +426,14 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             and (not d.note_contains or d.note_contains in p.note)
         ]
         if not cands:
+            # ラベルは何の部材かを自分で名乗る（ステージ／昇降機の両方が来る）
             notes.action(
-                f"荷受けステージ用の{d.label}"
+                f"{d.label}"
                 + (f"（呼び{d.nominal_dim}）" if d.nominal_dim else "")
-                + f"がマスタにありません（{d.qty}本）。別途手配してください"
+                + f"がマスタにありません（{d.qty}）。別途手配してください"
             )
             continue
-        add(cands[0], d.qty, f"荷受けステージ {d.label}")
+        add(cands[0], d.qty, d.label)
 
     for st in platforms.stages:
         if _bracket_nominal(model, st.projection_mm) is None:

@@ -76,7 +76,15 @@ class Hoist:
     position_mm: float              # 辺の始点コーナー支柱からの距離
     reach_height_mm: float = 0.0    # 到達高さ（0なら足場高さ）
     tie_every_mm: float = 3600      # マスト控えの壁つなぎ間隔
+    # 乗り込み口を設ける作業層（空なら全層）。足場側の開口なので本ツールの範囲
+    landing_levels: list[int] = field(default_factory=list)
     note: str = ""
+
+    def landings(self, model: ScaffoldModel) -> list[int]:
+        n = model.elevation.n_levels
+        if self.landing_levels:
+            return [lv for lv in self.landing_levels if 1 <= lv <= n]
+        return list(range(1, n + 1))
 
 
 @dataclass
@@ -241,6 +249,15 @@ def validate_platforms(
             f"昇降機本体の基礎・構造は本ツールの対象外です。"
             f"マスト控えの壁つなぎ{n_ties}箇所を計上しました",
             "メーカーの構造計算による"))
+        # 乗り込み口は足場側の開口。防護しないと開放端が各層にできる
+        landings = h.landings(model)
+        if landings:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "WARN",
+                f"乗り込み口が{len(landings)}箇所（作業層"
+                + "・".join(str(lv) for lv in landings)
+                + "）できます。各口に開閉式手すり等の防護が必要です",
+                "安衛則563条（作業床の開口部）"))
 
     return result
 
@@ -271,10 +288,10 @@ def platform_part_demands(
         n_posts = s.span_count + 1
         bracket = _bracket_nominal(model, s.projection_mm)
         out.append(PartDemand(
-            "張出ブラケット", "ブラケット", bracket, n_posts * n_levels, "張出"
+            "荷受けステージ 張出ブラケット", "ブラケット", bracket, n_posts * n_levels, "張出"
         ))
         if s.has_hozue:
-            out.append(PartDemand("方杖", "方杖", None, n_posts * n_levels))
+            out.append(PartDemand("荷受けステージ 方杖", "方杖", None, n_posts * n_levels))
         spans = s.spans(model)
         # 張出し床は「出」を踏板で覆う。1スパンあたり1枚で数えると、
         # 出1500mmのステージに幅400の踏板1枚しか拾わないことになる
@@ -284,23 +301,29 @@ def platform_part_demands(
             n = spans.count(nominal)
             deck_cat = model.master.deck_category
             out.append(PartDemand(
-                deck_cat, deck_cat, nominal, n * n_levels * per_span, f"幅{deck_w}"
+                "荷受けステージ " + deck_cat, deck_cat, nominal,
+                n * n_levels * per_span, f"幅{deck_w}"
             ))
             if s.has_toe_board:
-                out.append(PartDemand("幅木", "幅木", nominal, n * n_levels))
+                out.append(PartDemand("荷受けステージ 幅木", "幅木", nominal, n * n_levels))
             if s.has_guard_rail:
                 # 手すり＋中桟
-                out.append(PartDemand("布材", "布材", nominal, n * 2 * n_levels))
+                out.append(PartDemand("荷受けステージ 手すり・中桟", "布材", nominal, n * 2 * n_levels))
         # 妻側（張出しの左右）も開放端。前面だけ手すりを立てても横から落ちる
         side = _side_nominal(model, s.projection_mm)
         if side is not None:
             if s.has_guard_rail:
                 out.append(PartDemand(
-                    "妻側手すり・中桟", "布材", side, 2 * 2 * n_levels))
+                    "荷受けステージ 妻側手すり・中桟", "布材", side, 2 * 2 * n_levels))
             if s.has_toe_board:
-                out.append(PartDemand("妻側幅木", "幅木", side, 2 * n_levels))
+                out.append(PartDemand("荷受けステージ 妻側幅木", "幅木", side, 2 * n_levels))
+    for h in result.hoists:
+        n = len(h.landings(model))
+        if n:
+            out.append(PartDemand(
+                "昇降機 乗り込み口の開閉式手すり", "開閉式手すり", None, n))
     if result.extra_wall_ties > 0:
-        out.append(PartDemand("壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
+        out.append(PartDemand("付帯設備の増設壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
     return out
 
 

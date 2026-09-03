@@ -48,7 +48,11 @@
       "edge_index": 2,
       "position_mm": 14400,
       "tie_every_mm": 3600,
-      "note": "工事用エレベータ"
+      "note": "工事用エレベータ",
+      "landing_levels": [
+        2,
+        5
+      ]
     }
   ]
 }

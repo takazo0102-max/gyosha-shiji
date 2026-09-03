@@ -35,7 +35,8 @@
     {"edge_index": 0, "start_mm": 12600, "span_count": 2, "projection_mm": 1500,
      "load_kn": 9.8, "levels": [3]}
   ],
-  "hoists": [{"edge_index": 2, "position_mm": 14400, "tie_every_mm": 3600}],
+  "hoists": [{"edge_index": 2, "position_mm": 14400, "tie_every_mm": 3600,
+              "landing_levels": [2, 4]}],   // 乗り込み口の作業層（省略＝全層）
   // 敷地の標高サンプル [[x,y,z], ...]（Archicad連携時は敷地メッシュから自動）
   "ground_points_mm": [[0, 0, 0], [30000, 0, 400]],
   // 構造計算の追加入力（省略時は既定値。地域区分だけでも入れる）
@@ -144,7 +145,7 @@ LIST_ITEM_KEYS = {
         {"edge_index", "start_mm"},
     ),
     "hoists": ({"edge_index", "position_mm", "reach_height_mm", "tie_every_mm",
-                "note"},
+                "landing_levels", "note"},
                {"edge_index", "position_mm"}),
 }
 STAIR_POSITION_KEYS = {"edge_index", "start_mm", "span_count", "reason"}
@@ -350,6 +351,7 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             position_mm=float(h["position_mm"]),
             reach_height_mm=h.get("reach_height_mm", 0.0),
             tie_every_mm=h.get("tie_every_mm", 3600),
+            landing_levels=[int(v) for v in h.get("landing_levels", [])],
             note=h.get("note", ""),
         )
         for h in spec.get("hoists", [])

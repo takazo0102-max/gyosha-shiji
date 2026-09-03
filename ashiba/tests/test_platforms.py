@@ -174,6 +174,34 @@ class TestHoist(unittest.TestCase):
         ).extra_wall_ties
         self.assertGreater(tight, loose)
 
+    def test_landing_openings_are_flagged_and_counted(self):
+        """乗り込み口は足場側の開口。防護しないと各層に開放端ができる."""
+        from ashiba.platforms import platform_part_demands
+
+        r = validate_platforms(
+            self.m, hoists=[Hoist(edge_index=2, position_mm=0,
+                                  landing_levels=[2, 4])])
+        hit = [i for i in r.issues if "乗り込み口" in i.message]
+        self.assertTrue(hit, r.issues)
+        self.assertIn("563", hit[0].basis)
+        demand = [d for d in platform_part_demands(self.m, r)
+                  if "乗り込み口" in d.label]
+        self.assertEqual(demand[0].qty, 2)
+
+    def test_landing_defaults_to_every_level(self):
+        r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=0)])
+        hit = [i for i in r.issues if "乗り込み口" in i.message][0]
+        self.assertIn(f"{self.m.elevation.n_levels}箇所", hit.message)
+
+    def test_missing_part_becomes_an_order_note(self):
+        """開閉式手すりはマスタに無い。黙って落とさず手配項目にする."""
+        r = validate_platforms(
+            self.m, hoists=[Hoist(edge_index=2, position_mm=0, landing_levels=[1])])
+        q = take_off(self.m, platforms=r)
+        self.assertTrue(
+            any("乗り込み口" in w and "手配" in w for w in q.warnings), q.warnings
+        )
+
     def test_scope_limit_is_stated(self):
         """昇降機本体の構造は対象外であることを黙らない."""
         r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=0)])
@@ -195,18 +223,18 @@ class TestPlatformQuantities(unittest.TestCase):
         m = build()
         r = validate_platforms(m, [stage(span_count=2, levels=[3])])
         q = platform_quantities(m, r)
-        self.assertEqual(q["張出ブラケット"], 3)   # スパン数+1
-        self.assertEqual(q["方杖"], 3)
+        self.assertEqual(q["荷受けステージ 張出ブラケット"], 3)   # スパン数+1
+        self.assertEqual(q["荷受けステージ 方杖"], 3)
         # 張出し床は「出」を踏板で覆う: 出1500 / 幅400 → 1スパンあたり4枚
-        self.assertEqual(q["踏板"], 2 * math.ceil(1500 / 400))
-        self.assertEqual(q["幅木"], 2)
-        self.assertEqual(q["布材"], 4)             # 手すり＋中桟
-        self.assertEqual(q["壁つなぎ"], r.extra_wall_ties)
+        self.assertEqual(q["荷受けステージ 踏板"], 2 * math.ceil(1500 / 400))
+        self.assertEqual(q["荷受けステージ 幅木"], 2)
+        self.assertEqual(q["荷受けステージ 手すり・中桟"], 4)   # 前面の手すり＋中桟
+        self.assertEqual(q["付帯設備の増設壁つなぎ"], r.extra_wall_ties)
 
     def test_no_hozue_no_count(self):
         m = build()
         r = validate_platforms(m, [stage(has_hozue=False)])
-        self.assertNotIn("方杖", platform_quantities(m, r))
+        self.assertNotIn("荷受けステージ 方杖", platform_quantities(m, r))
 
 
 class TestStageOpenEdges(unittest.TestCase):
@@ -222,14 +250,14 @@ class TestStageOpenEdges(unittest.TestCase):
         from ashiba.platforms import platform_part_demands
 
         labels = {d.label for d in platform_part_demands(self.m, self.pf)}
-        self.assertIn("妻側手すり・中桟", labels)
-        self.assertIn("妻側幅木", labels)
+        self.assertIn("荷受けステージ 妻側手すり・中桟", labels)
+        self.assertIn("荷受けステージ 妻側幅木", labels)
 
     def test_side_members_span_the_projection(self):
         from ashiba.platforms import platform_part_demands
 
         side = [d for d in platform_part_demands(self.m, self.pf)
-                if d.label == "妻側手すり・中桟"][0]
+                if d.label == "荷受けステージ 妻側手すり・中桟"][0]
         self.assertGreaterEqual(side.nominal_dim, 1500)
         # 左右2箇所 × 手すり＋中桟2本 × 1層
         self.assertEqual(side.qty, 4)
