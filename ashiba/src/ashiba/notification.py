@@ -88,13 +88,19 @@ def write_notification_xlsx(
     terrain=None,
     verdict=None,
     warnings=None,
+    stair_plan=None,
+    platforms=None,
+    openings=None,
+    bracket_sections=None,
 ) -> None:
     info = info or NotificationInfo()
     if details is None:
         from .details import required_details
         details = required_details(model)
     wb = Workbook()
-    _sheet_form20(wb, model, quantity, project_name, info)
+    _sheet_form20(wb, model, quantity, project_name, info,
+                  stair_plan=stair_plan, platforms=platforms,
+                  openings=openings, bracket_sections=bracket_sections)
     # 確認する人が最初に見る位置に、是正項目と要確認事項をまとめて置く
     if verdict is not None:
         _sheet_todo(wb, verdict, checks, warnings)
@@ -159,7 +165,9 @@ def _kv(sheet, label: str, value, note: str = "") -> None:
     )
 
 
-def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo) -> None:
+def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
+                  stair_plan=None, platforms=None, openings=None,
+                  bracket_sections=None) -> None:
     s = wb.sheet("様式第20号(下書き)")
     s.set_width(0, 26)
     s.set_width(1, 34)
@@ -214,6 +222,26 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo) -> 
         f"{a.stages}段" if a and a.stages else "なし",
         (f"突出{a.projection_mm:.0f}mm・傾斜{a.angle_deg:.0f}度"
          if a and a.stages else "高さ10m未満または設置しない指定"))
+    # 付帯設備。計画に入っているのに届の下書きに出ないと、審査側は
+    # 「無い」ものとして読む（図面と食い違う届になる）
+    if stair_plan is not None and getattr(stair_plan, "towers", None):
+        _kv(s, "昇降設備（階段）", f"{len(stair_plan.towers)}箇所",
+            f"最大水平移動{stair_plan.max_travel_mm / 1000:.1f}m（安衛則526条）")
+    if platforms is not None and getattr(platforms, "stages", None):
+        st = platforms.stages
+        _kv(s, "荷受けステージ", f"{len(st)}基",
+            "・".join(f"出{x.projection_mm:.0f}mm 第{'・'.join(str(l) for l in (x.levels or [1]))}層"
+                      for x in st))
+    if platforms is not None and getattr(platforms, "hoists", None):
+        _kv(s, "昇降機", f"{len(platforms.hoists)}基",
+            "乗り込み口は開閉式手すりで防護（安衛則563条）")
+    if openings is not None and getattr(openings, "openings", None):
+        _kv(s, "開口部（梁枠）", f"{len(openings.openings)}箇所",
+            "・".join(f"梁枠{o.beam_span_mm}mm" for o in openings.openings)
+            + f"／支柱{openings.removed_posts}本を抜き梁枠で受ける")
+    if bracket_sections:
+        _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間",
+            "作業床の幅を局所的に変更（数量・図面に反映済み）")
     s.add_blank()
 
     s.add(["■ 日程"], STYLE_BOLD)

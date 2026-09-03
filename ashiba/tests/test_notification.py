@@ -202,6 +202,41 @@ class TestForm20StructureSummary(unittest.TestCase):
         for token in ("作業床", "手すり", "壁つなぎ", "朝顔"):
             self.assertIn(token, form)
 
+    def test_attached_equipment_reaches_the_form(self):
+        """付帯設備が様式に出る。計画にあるのに届に無いと、審査側は
+        「無い」ものとして読む（図面と食い違う届になる）."""
+        from ashiba.openings import Opening, validate_openings
+        from ashiba.platforms import Hoist, LoadingStage, validate_platforms
+        from ashiba.stairs import auto_place_stairs
+
+        m = make_model()
+        q = take_off(m)
+        stair = auto_place_stairs(m)
+        pf = validate_platforms(
+            m,
+            [LoadingStage(edge_index=0, start_mm=12600, span_count=2, levels=[3])],
+            [Hoist(edge_index=2, position_mm=9000)],
+        )
+        op = validate_openings(m, [Opening(0, 3600, 3600)])
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "n.xlsx"
+            write_notification_xlsx(
+                m, q, run_all_checks(m), run_structural(m, q), path,
+                stair_plan=stair, platforms=pf, openings=op,
+                bracket_sections=[object()],
+            )
+            form = zipfile.ZipFile(path).read("xl/worksheets/sheet1.xml").decode()
+        for token in ("昇降設備（階段）", "荷受けステージ", "出1500mm 第3層",
+                      "昇降機", "開閉式手すり", "開口部（梁枠）", "梁枠3600mm",
+                      "ブラケット区間"):
+            self.assertIn(token, form)
+
+    def test_no_equipment_rows_when_none_planned(self):
+        # 付帯設備なしの計画に空の行を出さない（「0基」は誤読のもと）
+        form = self._form()
+        for token in ("荷受けステージ", "開口部（梁枠）", "ブラケット区間"):
+            self.assertNotIn(token, form)
+
     def test_deck_width_matches_the_law_check(self):
         """様式の作業床幅と法規チェックの幅が食い違わない（670と650）."""
         m = make_model()

@@ -651,7 +651,8 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
         model, quantity, checks, structural,
         out_dir / f"{name}_設置届一式.xlsx", name, build_notification_info(spec),
         details=r.detail_sheets, terrain=terrain, verdict=verdict,
-        warnings=warnings,
+        warnings=warnings, stair_plan=stair_plan, platforms=platforms,
+        openings=openings, bracket_sections=brackets,
     )
 
 
