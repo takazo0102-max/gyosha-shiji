@@ -269,8 +269,12 @@ dimx = -0.52
 line2 dimx, y_base, dimx, y_sic0
 line2 dimx - 0.015, y_base, dimx + 0.015, y_base
 line2 dimx - 0.015, y_sic0, dimx + 0.015, y_sic0
-text2 dimx - 0.02, (y_base + y_sic0) / 2,
-	"繰出し " + str(jackOut * 1000, 4, 0) + "≦" + str(LIM_JACK * 1000, 3, 0)
+! 左詰めのままだと寸法線から右へ伸びて脚部の絵の上に重なる。
+! 基準値（≦270）も足さない。違反時に「350≦270」と嘘の式になるうえ、
+! 実測値だけなら文字が短く収まる（基準は注記と警告文に出る）
+jackTxt = "繰出し " + str(jackOut * 1000, 4, 0)
+text2 dimx - 0.02 - stw(jackTxt) * GLOB_SCALE / 1000,
+	(y_base + y_sic0) / 2, jackTxt
 
 ! 引出し注記
 ! 引出し注記は文字高に追随させて行送りする（縮尺が変わっても重ならない）
@@ -290,6 +294,9 @@ text2 tx, ny, "アンダーベース 140角"
 ny = ny - txtLine
 line2 0.40, 0.018, tx - 0.02, ny
 text2 tx, ny, "敷板"
+ny = ny - txtLine * 1.4
+! 基準は寸法に混ぜず注記に置く（寸法は実測値だけ）
+text2 tx, ny, "ジャッキ繰出しは " + str(LIM_JACK * 1000, 3, 0) + "mm以下"
 return
 
 ! ============================================================
@@ -639,7 +646,9 @@ set style "anno"
 line2 -0.30, 0, -0.30, hOpen
 line2 -0.33, 0, -0.27, 0
 line2 -0.33, hOpen, -0.27, hOpen
-text2 -0.36, hOpen / 2, "開口 " + str(hOpen * 1000, 5, 0)
+! 左詰めのままだと寸法線を跨いで開口の中へ文字が入る
+openTxt = "開口 " + str(hOpen * 1000, 5, 0)
+text2 -0.36 - stw(openTxt) * GLOB_SCALE / 1000, hOpen / 2, openTxt
 
 tx = beamSpan + 0.20
 ny = hOpen + ht + 3 * txtLine

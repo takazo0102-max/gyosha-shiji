@@ -603,10 +603,13 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         """
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_detail"
                 / "scripts" / "2d.gdl").read_text(encoding="utf-8")
-        for bad in ('"≧2000"', '"°≧20°"'):
+        for bad in ('"≧2000"', '"°≧20°"', '"≦" + str(LIM_JACK'):
             self.assertNotIn(bad, body)
+        # 基準は注記と警告文の側に残っていること
         self.assertIn("外周から水平突出2m以上・水平面と20度以上", body)
         self.assertIn('"※朝顔突出 "', body)
+        self.assertIn('"ジャッキ繰出しは " + str(LIM_JACK * 1000, 3, 0) + "mm以下"', body)
+        self.assertIn('"※ジャッキ繰出し "', body)
 
     def test_detail_sheets_center_their_labels_too(self):
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_detail"
