@@ -271,11 +271,22 @@ class TestOverallVerdict(unittest.TestCase):
         body = report.split("## 要確認一覧")[1]
         self.assertEqual(body.count("実務上限270mmを超える支柱"), 1, body)
 
-    def test_every_example_is_ok(self):
+    # 是正になる例題と、その理由。くさび支柱の一般値6.86kN（信和の認定値は非公開）に
+    # 1tの荷受けステージは載らない。ツールが正しく止める例として残している
+    EXPECTED_BLOCKERS = {"loading_stage.json": "建地圧縮"}
+
+    def test_every_example_has_the_expected_verdict(self):
         for f in sorted(EXAMPLES.glob("*.json")):
             with self.subTest(f.name), tempfile.TemporaryDirectory() as td:
                 r = run(f, Path(td))
-                self.assertTrue(r["verdict"]["ok"], f"{f.name}: {r['verdict']}")
+                want = self.EXPECTED_BLOCKERS.get(f.name)
+                if want is None:
+                    self.assertTrue(r["verdict"]["ok"], f"{f.name}: {r['verdict']}")
+                else:
+                    self.assertFalse(r["verdict"]["ok"], f"{f.name}: 是正のはず")
+                    self.assertTrue(
+                        any(want in b for b in r["verdict"]["blockers"]),
+                        f"{f.name}: {r['verdict']['blockers']}")
 
 
 if __name__ == "__main__":

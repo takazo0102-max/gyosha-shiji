@@ -70,22 +70,26 @@ class TestCapacityGate(unittest.TestCase):
     def test_unverified_values_are_flagged(self):
         m = make_model()
         r = run_structural(m, take_off(m))
-        # 同梱の暫定耐力値は verified=no。黙って使わず必ず警告する
+        # くさびの支柱・ジャッキは一般値（verified=no）。黙って使わず必ず警告する
         self.assertTrue(r.unverified_used)
         self.assertTrue(any("未確認" in w for w in r.warnings))
-        self.assertFalse(r.wall_tie.verified)
+        self.assertFalse(r.post.verified)
+        # 壁つなぎは仮設工業会の認定基準値（4.41kN）で確認済み
+        self.assertTrue(r.wall_tie.verified)
 
     def test_jack_capacity_interpolated_and_decreasing(self):
         caps = load_capacities("shinwa_A")
         from ashiba.structural import _interpolate_capacity
         v0, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 0)
-        v150, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 150)
-        v270, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 270)
-        # 繰出しが長いほど許容支持力は下がる
-        self.assertGreater(v0.value, v150.value)
-        self.assertGreater(v150.value, v270.value)
-        # 100(22.5)と200(19.6)の中間
-        self.assertAlmostEqual(v150.value, (22.5 + 19.6) / 2, places=2)
+        v200, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 200)
+        v275, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 275)
+        v350, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 350)
+        # 仮設工業会の表は「200mm以下」がひと括り。それより長いと下がる
+        self.assertEqual(v0.value, v200.value)
+        self.assertGreater(v200.value, v275.value)
+        self.assertGreater(v275.value, v350.value)
+        # 250(6.54)と300(6.23)の中間
+        self.assertAlmostEqual(v275.value, (6.54 + 6.23) / 2, places=2)
 
     def test_exact_key_is_not_reported_as_interpolated(self):
         """表にある繰出し量は補間しない（補間と書くと出典が誤りになる）."""
@@ -99,10 +103,10 @@ class TestCapacityGate(unittest.TestCase):
     def test_interpolated_value_names_both_source_rows(self):
         from ashiba.structural import _interpolate_capacity
         caps = load_capacities("shinwa_A")
-        v, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 150)
+        v, _ = _interpolate_capacity(caps, "ジャッキ許容支持力", 275)
         self.assertEqual(
             v.rows,
-            ["shinwa_A,ジャッキ許容支持力,100", "shinwa_A,ジャッキ許容支持力,200"],
+            ["shinwa_A,ジャッキ許容支持力,250", "shinwa_A,ジャッキ許容支持力,300"],
         )
 
 
@@ -169,8 +173,9 @@ class TestUnverifiedRowsAreNamed(unittest.TestCase):
         self.warn = next(w for w in self.r.warnings if "未確認" in w)
 
     def test_warning_names_the_csv_rows(self):
-        for item in ("壁つなぎ許容耐力", "ジャッキ許容支持力"):
-            self.assertIn(item, self.warn)
+        self.assertIn("ジャッキ許容支持力", self.warn)
+        # 壁つなぎは仮設工業会の認定基準値に差し替え済み。名指しされない
+        self.assertNotIn("壁つなぎ許容耐力", self.warn)
         self.assertIn("capacity.csv", self.warn)
         self.assertIn("verified=yes", self.warn)
 
@@ -227,7 +232,8 @@ class TestChecks(unittest.TestCase):
         p = r.post
         self.assertAlmostEqual(p.total_kn, p.dead_load_kn + p.live_load_kn, places=3)
         self.assertEqual(p.jack_extension_mm, m.elevation.jack_extension)
-        self.assertAlmostEqual(p.ratio, p.total_kn / p.allowable_kn, places=3)
+        # ratio は3桁に丸めて持つ。丸め前の商とは末尾が1つずれうる
+        self.assertAlmostEqual(p.ratio, p.total_kn / p.allowable_kn, delta=0.001)
 
     def test_severe_site_fails_and_warns(self):
         m = make_model()
@@ -344,9 +350,9 @@ class TestWallTieOptimization(unittest.TestCase):
 
 
 class TestJackExtensionGovernsPostCapacity(unittest.TestCase):
-    """ジャッキ許容支持力は繰出し長で落ちる（100mm:22.5kN → 450mm:11.8kN）.
+    """ジャッキ許容支持力は繰出し長で落ちる（200mm以下:6.86kN → 450mm:5.51kN）.
 
-    傾斜地で平坦時の繰出し量のまま検定すると2倍近く危険側になる。
+    傾斜地で平坦時の繰出し量のまま検定すると危険側になる。
     """
 
     def setUp(self):
@@ -441,3 +447,81 @@ class TestUntiedFaces(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCapacitySources(unittest.TestCase):
+    """耐力値は公開資料で裏を取った値であること（暫定の丸めた値に戻さない）.
+
+    出典: 仮設工業会認定基準（壁つなぎ4.41kN/本）、『足場・型枠支保工設計指針』
+    （建枠の繰出し長別許容支持力・積載荷重）、信和総合カタログ2025.06 p46
+    （キャッチャーの積載荷重250kg/スパン・開口部上方800kg）。
+    """
+
+    def test_wall_tie_is_the_certified_4_41kn_for_every_series(self):
+        for series in ("shinwa_A", "shinwa_B", "waku"):
+            caps = load_capacities(series)
+            for key in ("引張", "圧縮"):
+                c = caps[("壁つなぎ許容耐力", key)]
+                self.assertEqual(c.value, 4.41, series)
+                self.assertTrue(c.verified, series)
+                self.assertIn("4.41", c.source)
+
+    def test_wedge_post_is_the_general_value_and_still_unverified(self):
+        # 信和の認定値はカタログに無い。一般値6.86kNを使い、未確認のまま出す
+        caps = load_capacities("shinwa_A")
+        post = caps[("支柱許容圧縮耐力", "0")]
+        self.assertEqual(post.value, 6.86)
+        self.assertFalse(post.verified)
+        self.assertIn("メーカー確認要", post.source)
+        # ジャッキは支柱を超えない（同じ管に載る）
+        jack = caps[("ジャッキ許容支持力", "200")]
+        self.assertLessEqual(jack.value, post.value)
+
+    def test_wedge_deck_load_follows_the_shinwa_catalog(self):
+        for series in ("shinwa_A", "shinwa_B"):
+            caps = load_capacities(series)
+            deck = caps[("作業床許容積載荷重", "スパン")]
+            self.assertEqual(deck.value, 2.45)          # 250kg/スパン
+            self.assertTrue(deck.verified)
+            self.assertIn("信和総合カタログ", deck.source)
+            beam = caps[("開口部上方許容積載荷重", "合計")]
+            self.assertEqual(beam.value, 7.84)          # 800kg
+            self.assertTrue(beam.verified)
+
+    def test_frame_leg_is_half_of_the_frame_table(self):
+        caps = load_capacities("waku")
+        self.assertEqual(caps[("支柱許容圧縮耐力", "0")].value, 21.3)      # 42.6/2
+        self.assertEqual(caps[("ジャッキ許容支持力", "350")].value, 18.6)   # 37.2/2
+        self.assertEqual(caps[("支柱許容圧縮耐力[幅610]", "0")].value, 17.15)  # 34.3/2
+        for (item, key), c in caps.items():
+            if item.startswith(("ジャッキ", "支柱", "作業床", "壁つなぎ", "開口部")):
+                self.assertTrue(c.verified, (item, key))
+
+    def test_narrow_frame_uses_the_simple_frame_rows(self):
+        """610枠（簡易枠）は標準枠より約2割低い値で検定する."""
+        from ashiba.structural import _width_item
+
+        caps = load_capacities("waku")
+        master = load_master("waku")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(period_days=90), building_height_mm=16000,
+        )
+        m.config.post_row_spacing_mm = 610
+        self.assertEqual(_width_item(caps, "ジャッキ許容支持力", m),
+                         "ジャッキ許容支持力[幅610]")
+        self.assertEqual(_width_item(caps, "作業床許容積載荷重", m),
+                         "作業床許容積載荷重[幅610]")
+        m.config.post_row_spacing_mm = 1219
+        # 1219には幅付きのジャッキ行が無いので標準枠の行に落ちる
+        self.assertEqual(_width_item(caps, "ジャッキ許容支持力", m), "ジャッキ許容支持力")
+        self.assertEqual(_width_item(caps, "作業床許容積載荷重", m),
+                         "作業床許容積載荷重[幅1219]")
+
+    def test_wedge_never_gets_a_width_variant(self):
+        from ashiba.structural import _width_item
+
+        m = make_model()
+        caps = load_capacities("shinwa_A")
+        self.assertEqual(_width_item(caps, "ジャッキ許容支持力", m), "ジャッキ許容支持力")

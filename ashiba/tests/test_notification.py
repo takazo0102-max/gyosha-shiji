@@ -147,8 +147,12 @@ class TestNotification(unittest.TestCase):
             p = Path(td) / "n.xlsx"
             write_notification_xlsx(m, q, run_all_checks(m), st, p)
             z = zipfile.ZipFile(p)
+            # 壁つなぎ(sheet4)は認定基準値で確認済み。くさびの建地(sheet5)は
+            # ジャッキ・支柱が一般値のままなので、そちらに未確認の印が出る
             tie = z.read("xl/worksheets/sheet4.xml").decode()
-            self.assertIn("未確認値", tie)
+            post = z.read("xl/worksheets/sheet5.xml").decode()
+            self.assertNotIn("未確認値", tie)
+            self.assertIn("未確認値", post)
 
 
 class TestPostSheetIsReproducible(unittest.TestCase):

@@ -444,9 +444,13 @@ def check_post(
     平均で見ると直下の建地が抜けるため、最も厳しい1本で検定する。
 
     jack_extension_mm には敷地高低差を解いた結果の最大繰出し量を渡す。
-    ジャッキの許容支持力は繰出し長で大きく落ちる（100mm:22.5kN →
-    450mm:11.8kN）ので、傾斜地で平坦時の繰出し量のまま検定すると
-    2倍近く危険側になる。
+    ジャッキの許容支持力は繰出し長で落ちる（仮設工業会の建枠の表では
+    200mm以下→350mmで約13%減）ので、傾斜地で平坦時の繰出し量のまま
+    検定すると危険側になる。
+
+    枠組は建枠の幅で許容値が変わる（900mm未満は簡易枠で約2割低い）。
+    capacity.csv に「項目[幅610]」のような幅付きの行があればそれを使い、
+    無ければ幅なしの行に落ちる。
     """
     # 枠組は建枠1枚が2脚なので、一側指定でも脚は2列ぶん（その組合せ自体は
     # 法規チェック1でNGになる）
@@ -456,7 +460,8 @@ def check_post(
     n_posts = model.plan.total_posts * (1 if single_row else 2)
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
 
-    cap_deck = caps.get(("作業床許容積載荷重", "スパン"))
+    deck_item = _width_item(caps, "作業床許容積載荷重", model)
+    cap_deck = caps.get((deck_item, "スパン"))
     if cap_deck is None:
         raise CapacityError("作業床許容積載荷重が capacity.csv にありません")
     # 1構面(スパン)の積載を両端2本の建地で分担。同時載荷は所定層数まで
@@ -464,8 +469,9 @@ def check_post(
     total = dead_kn + live_kn + extra_post_load_kn
 
     jack = max(model.elevation.jack_extension, jack_extension_mm or 0)
-    cap_jack, jack_key = _interpolate_capacity(caps, "ジャッキ許容支持力", jack)
-    cap_post = caps.get(("支柱許容圧縮耐力", "0"))
+    cap_jack, jack_key = _interpolate_capacity(
+        caps, _width_item(caps, "ジャッキ許容支持力", model), jack)
+    cap_post = caps.get((_width_item(caps, "支柱許容圧縮耐力", model), "0"))
     candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]
     if cap_post is not None:
         candidates.append(("支柱", cap_post))
@@ -501,6 +507,20 @@ def check_post(
         verified=governing_cap.verified and cap_deck.verified,
         unverified_caps=unverified_caps,
     )
+
+
+def _width_item(caps: dict, item: str, model: ScaffoldModel) -> str:
+    """枠組は建枠の幅で許容値が違う。幅付きの行があればその項目名を返す.
+
+    例: 610枠なら「ジャッキ許容支持力[幅610]」。くさびや、幅付きの行が無い
+    場合は元の項目名のまま（標準枠の値）。
+    """
+    if not model.master.is_frame:
+        return item
+    variant = f"{item}[幅{model.post_row_spacing_mm}]"
+    if any(i == variant for (i, _k) in caps):
+        return variant
+    return item
 
 
 def _interpolate_capacity(
