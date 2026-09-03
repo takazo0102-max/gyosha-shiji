@@ -86,6 +86,26 @@ class TestFrameReportUsesFrameTerms(unittest.TestCase):
         text = render(build_frame())
         self.assertIn("手すり方式: 建枠一体", text)
 
+    def test_deck_config_line_is_shown(self):
+        """作業床の幅構成と建地列間隔を計画サマリに出す（レビューできるように）."""
+        text = render(build())
+        self.assertIn("- 作業床: 踏板 400＋250 ＝ 幅650mm", text)
+        self.assertIn("支柱列間隔 600mm", text)
+
+    def test_next_gen_deck_is_labelled(self):
+        m = build()
+        m.config.next_gen = True
+        m.config.deck_widths = None
+        m.config.deck_widths = m.master.default_deck_widths(True)
+        text = render(m)
+        self.assertIn("次世代足場", text)
+        self.assertIn("幅750mm", text)
+
+    def test_frame_deck_config_uses_frame_terms(self):
+        text = render(build_frame())
+        self.assertIn("- 作業床: 布板", text)
+        self.assertIn("建枠列間隔", text)
+
     def test_wedge_still_uses_shichu_and_ledger(self):
         text = render(build())
         self.assertIn("支柱構成（下から）", text)

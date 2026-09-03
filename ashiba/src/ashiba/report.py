@@ -126,6 +126,16 @@ def write_report_md(
     a(f"- 千鳥用代替構成: " + " + ".join(str(p) for p in e.posts_alt)
       + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
     a(f"- 1層あたり{vm}位置数: {model.plan.total_posts}（二重計上なし）")
+    widths = model.deck_widths_in_use
+    deck_desc = "＋".join(f"{w}" for w in widths) + f" ＝ 幅{sum(widths)}mm"
+    one_sided = model.config.scaffold_form == "一側足場"
+    if one_sided:
+        deck_desc += "（一側足場・1枚敷き）"
+    elif model.config.next_gen:
+        deck_desc += "（次世代足場・幅広踏板）"
+    # 一側足場は建地1列なので列間隔は無い（ブラケットで持ち出す）
+    spacing = "" if one_sided else f" ／ {vm}列間隔 {model.post_row_spacing_mm}mm"
+    a(f"- 作業床: {model.master.deck_category} {deck_desc}" + spacing)
     a(f"- 手すり方式: {model.guard_rail_method}")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
                     if notification_required(model) else "不要"))
