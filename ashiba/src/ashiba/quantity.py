@@ -122,6 +122,23 @@ class QuantityResult:
             and (nominal is None or l.part.nominal_dim == nominal)
         )
 
+    def category_totals(self) -> list[tuple[str, int, float]]:
+        """分類別の (分類名, 数量計, 重量計) を明細の出現順で返す.
+
+        数量表CSV・部材等明細書・割付レポートで同じ集計を出すための唯一の出所。
+        3箇所で別々に集計するとズレるので1メソッドに寄せる。
+        """
+        qty: dict = {}
+        wt: dict = {}
+        order: list = []
+        for line in self.lines:
+            c = line.part.category
+            if c not in qty:
+                order.append(c)
+            qty[c] = qty.get(c, 0) + line.qty
+            wt[c] = wt.get(c, 0.0) + line.subtotal_weight
+        return [(c, qty[c], round(wt[c], 1)) for c in order]
+
 
 def take_off(
     model: ScaffoldModel,

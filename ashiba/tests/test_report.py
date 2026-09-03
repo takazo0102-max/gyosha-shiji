@@ -105,6 +105,19 @@ class TestQuantityCsvCategorySubtotals(unittest.TestCase):
             self.assertEqual(sub[c][0], wq, c)
             self.assertAlmostEqual(sub[c][1], round(ww, 1), places=1)
 
+    def test_report_md_has_category_table(self):
+        """割付レポートにも分類別の規模感（分類テーブル）を出す."""
+        text = render(build())
+        self.assertIn("| 分類 | 数量計 | 重量計kg |", text)
+        # 分類テーブルの合計重量は総重量に一致
+        import re
+        m = re.search(r"総重量: ([\d.]+)kg", text)
+        grand = float(m.group(1))
+        rows = re.findall(r"^\| (\S+) \| (\d+) \| ([\d.]+) \|$", text, re.M)
+        # 分類テーブルの行だけ（数量計・重量計のヘッダを除く）
+        wt = sum(float(w) for _c, _q, w in rows if _c not in ("分類",))
+        self.assertAlmostEqual(wt, grand, delta=0.2)
+
     def test_subtotal_weights_sum_to_grand_total(self):
         rows = self._csv(build())
         i = next(k for k, r in enumerate(rows) if r and r[0] == "■分類別集計")

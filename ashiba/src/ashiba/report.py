@@ -49,17 +49,8 @@ def write_quantity_csv(result: QuantityResult, path: Path) -> None:
         # 型番別の明細だけだと、系列全体の規模感がつかめない
         w.writerow([])
         w.writerow(["■分類別集計", "数量計", "重量計kg"])
-        cat_qty: dict[str, int] = {}
-        cat_wt: dict[str, float] = {}
-        cat_order: list[str] = []
-        for line in result.lines:
-            c = line.part.category
-            if c not in cat_qty:
-                cat_order.append(c)
-            cat_qty[c] = cat_qty.get(c, 0) + line.qty
-            cat_wt[c] = cat_wt.get(c, 0.0) + line.subtotal_weight
-        for c in cat_order:
-            w.writerow([c, cat_qty[c], round(cat_wt[c], 1)])
+        for c, q, wt in result.category_totals():
+            w.writerow([c, q, wt])
         w.writerow([])
         w.writerow(["総重量kg", round(result.total_weight_kg, 1)])
         w.writerow(["トラック台数概算(4t)", result.truck_count])
@@ -293,6 +284,15 @@ def write_report_md(
     a("")
     a(f"- 総重量: {quantity.total_weight_kg}kg / トラック概算: 4t車{quantity.truck_count}台")
     a(f"- 架け面積: {quantity.kake_menseki_m2}m²（(外周+4m)×(高さ+0.5m)）")
+    # 分類別の規模感を1画面で（明細は数量表CSV・部材等明細書）
+    cats = quantity.category_totals()
+    if cats:
+        a("")
+        a("| 分類 | 数量計 | 重量計kg |")
+        a("|---|---|---|")
+        for c, q, wt in cats:
+            a(f"| {c} | {q} | {wt} |")
+        a("")
     dup = [n for n in quantity.warnings if n in listed]
     if dup:
         # 全文は末尾の一覧にある。同じ長文を2箇所に並べない

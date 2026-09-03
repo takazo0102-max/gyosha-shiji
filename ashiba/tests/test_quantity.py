@@ -168,6 +168,26 @@ class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):
         self.assertEqual(post.note, "")
 
 
+class TestCategoryTotals(unittest.TestCase):
+    def test_totals_match_lines_and_grand_total(self):
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        q = take_off(m)
+        cats = q.category_totals()
+        # 分類ごとの数量・重量が明細と一致
+        for c, qty, wt in cats:
+            self.assertEqual(qty, q.qty_of(c))
+        # 重量合計は総重量に一致
+        self.assertAlmostEqual(sum(w for _c, _q, w in cats),
+                               q.total_weight_kg, delta=0.2)
+        # 出現順を保つ（明細の最初の分類がテーブルの先頭）
+        self.assertEqual(cats[0][0], q.lines[0].part.category)
+
+
 class TestWeightPlausibility(unittest.TestCase):
     """架け面積あたりの重量が実務の相場（おおむね15〜22kg/m2）から外れないこと.
 
