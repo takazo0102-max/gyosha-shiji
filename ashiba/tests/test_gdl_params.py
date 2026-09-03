@@ -595,6 +595,32 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
     def test_centered_style_is_defined(self):
         self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0', self.body)
 
+    def test_asagao_dimension_does_not_claim_the_limit_is_met(self):
+        """朝顔の寸法に法定値を混ぜない.
+
+        「突出 1500≧2000」と描かれていた。違反していても≧と書くので
+        図面が嘘をつく。法定値は注記と警告文に出る。
+        """
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_detail"
+                / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        for bad in ('"≧2000"', '"°≧20°"'):
+            self.assertNotIn(bad, body)
+        self.assertIn("外周から水平突出2m以上・水平面と20度以上", body)
+        self.assertIn('"※朝顔突出 "', body)
+
+    def test_detail_sheets_center_their_labels_too(self):
+        gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_detail"
+        self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0',
+                      (gdl / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
+        lines = (gdl / "scripts" / "2d.gdl").read_text(encoding="utf-8").splitlines()
+        offenders = [
+            ln.strip() for i, ln in enumerate(lines)
+            if "text2 " in ln
+            and ln.split("text2 ", 1)[1].split(",")[0].strip().endswith("/ 2")
+            and lines[i - 1].strip() != 'set style "annoC"'
+        ]
+        self.assertEqual(offenders, [], "詳細図の中点基準の文字が左詰めのままです")
+
     def test_notes_column_clears_the_height_labels(self):
         # FL参照(+0.35)・朝顔の高さ表示(+0.1)と同じ帯だと行が重なる
         tx = [ln for ln in self.body.splitlines() if ln.startswith("tx = lineLen")]

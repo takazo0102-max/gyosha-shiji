@@ -98,6 +98,8 @@ if soMax > 0 then SO_MAX = soMax
 
 ! ---- 共通スタイル ----
 define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 中央揃え。寸法や部位名は基準点が中心でないと位置がずれて見える
+define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 
 ! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
 ! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
