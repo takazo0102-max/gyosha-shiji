@@ -105,12 +105,12 @@ def write_notification_xlsx(
     _sheet_quantity(wb, quantity)
     _sheet_law_check(wb, checks)
     if terrain is not None and terrain.feet:
-        _sheet_jack_table(wb, terrain)
+        _sheet_jack_table(wb, terrain, checks)
     _sheet_attachments(wb, info, details)
     wb.save(path)
 
 
-def _sheet_jack_table(wb, terrain) -> None:
+def _sheet_jack_table(wb, terrain, checks=None) -> None:
     """支柱ごとのジャッキ量一覧（敷地高低差対応）."""
     from .terrain import jack_table_rows
 
@@ -129,8 +129,17 @@ def _sheet_jack_table(wb, terrain) -> None:
     s.add(["高低差(mm)", round(terrain.gl_difference_mm, 1)], STYLE_BOLD)
     s.add(["ジャッキ繰出し範囲(mm)",
            round(terrain.jack_min_mm, 1), round(terrain.jack_max_mm, 1)], STYLE_BOLD)
+    # 法規チェックシートに同じ文が出ているものは、ここでは見出しだけにする
+    # （このシートは支柱ごとの数値が主役で、同じ長文を2枚に並べる必要はない）
+    said = {c.message for c in (checks or []) if c.status == WARN}
     for note in terrain.warnings:
-        s.add_cells([Cell("注記"), Cell(note)])
+        if note in said:
+            s.add_cells([
+                Cell("注記"),
+                Cell(note.split("。")[0] + "（法規チェックシートを参照）"),
+            ])
+        else:
+            s.add_cells([Cell("注記"), Cell(note)])
 
 
 # ---- 各シート -------------------------------------------------------------
