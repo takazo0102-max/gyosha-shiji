@@ -180,9 +180,9 @@ class TestBracketDeckWidth(unittest.TestCase):
         base = take_off(self.m)
         with_sec = take_off(self.m, bracket_sections=[sec])
         self.assertEqual(
-            self._qty("A-F4018", base) - self._qty("A-F4018", with_sec), 6
+            self._qty("SD-4018T", base) - self._qty("SD-4018T", with_sec), 6
         )
-        self.assertEqual(self._qty("A-F5018", with_sec), 6)
+        self.assertEqual(self._qty("SD-5018T", with_sec), 6)
 
     def test_missing_width_is_reported_not_dropped(self):
         sec = BracketSection(

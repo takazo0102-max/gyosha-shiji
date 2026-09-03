@@ -62,6 +62,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/details.py` | 詳細図5枚の要否判定とGDLパラメータ導出 |
 | `src/ashiba/openings.py` | 開口部（梁枠）の検証と詳細図・数量への反映（梁枠より下は通路なので床を差し引く） |
 | `src/ashiba/dp.py` | 割付DPで共通の「良い構成」の判断（本数最小・長尺優先） |
+| `data/part_master.csv` | 部材マスタ。信和A/Bは総合カタログ2025.06の実品番・重量（朝顔・踊り場など該当なしは「型番仮」） |
 | `data/capacity.csv`, `data/CAPACITY_SOURCES.md` | 耐力値と、その出典（仮設工業会認定基準・設計指針・信和カタログ） |
 | `src/ashiba/gdl_params.py` | GDLへ渡すパラメータと配置座標の導出（平面・立面・plan.jsonで共用） |
 | `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** |

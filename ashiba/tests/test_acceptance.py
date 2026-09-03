@@ -27,7 +27,7 @@ class TestAcceptance(unittest.TestCase):
             self.assertTrue(result["notification_required"])
             csv_text = (out / f"{name}_数量表.csv").read_text(encoding="utf-8-sig")
             self.assertIn("架け面積", csv_text)
-            self.assertIn("A-3609", csv_text)  # 型番ベース
+            self.assertIn("SA-36", csv_text)  # 型番ベース（信和の実品番）
 
             # Phase 2: 設置届一式（様式20号＋構造計算書＋明細）が出る
             xlsx = out / f"{name}_設置届一式.xlsx"
@@ -160,7 +160,7 @@ class TestOverallVerdict(unittest.TestCase):
         """法規12/12 OKでも、開口部が規格外なら成立していない."""
         r, report = self._run(
             "梁枠規格外", series_id="shinwa_B",
-            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 7200}],
         )
         self.assertEqual(r["checks"]["ng"], 0)
         self.assertFalse(r["verdict"]["ok"])
@@ -220,7 +220,7 @@ class TestOverallVerdict(unittest.TestCase):
         """判定だけでなく、どこが引っかかったかを言う."""
         r, _ = self._run(
             "梁枠規格外2", series_id="shinwa_B",
-            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 7200}],
         )
         for b in r["verdict"]["blockers"]:
             self.assertGreater(len(b), 5, b)
@@ -245,7 +245,7 @@ class TestOverallVerdict(unittest.TestCase):
     def test_ng_is_not_counted_twice(self):
         r, _ = self._run(
             "梁枠規格外3", series_id="shinwa_B",
-            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 3600}],
+            openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 7200}],
         )
         self.assertFalse(r["verdict"]["ok"])
         # 開口部はNG1件＋常時の注意1件。要確認に数えるのは後者だけ
