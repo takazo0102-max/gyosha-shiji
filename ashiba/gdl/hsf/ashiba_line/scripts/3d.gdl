@@ -65,16 +65,20 @@ for il = 1 to nLv
 			roty 90
 			cylind rowW, r_nuno
 			del 3
+		else
+			gosub 800
 		endif
 		x = x + spans[ip]
 	next ip
-	! 終端の腕木
+	! 終端の腕木（一側足場は床受けブラケット）
 	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
 		roty 90
 		cylind rowW, r_nuno
 		del 3
+	else
+		gosub 800
 	endif
 next il
 
@@ -285,3 +289,22 @@ for ik = 1 to nBk
 next ik
 
 end
+
+end
+
+! ============================================================
+800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
+! 作業床は建地から躯体側へ持ち出す。数量では「一側足場の床受けブラケット」
+! として拾っているので、3Dにも出さないと図と部材表が食い違う
+if il >= 2 then
+	add x, -rowW, z
+	rotz 90
+	roty 90
+	cylind rowW, r_nuno
+	del 3
+	add x, -rowW, z - rowW
+	rotx -45
+	cylind rowW * 1.4142, r_nuno
+	del 2
+endif
+return

@@ -499,6 +499,8 @@ for ip = 1 to nSpan + 1
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
 	next ib
 	if removed = 0 then
+		! 一側足場は建地1列。躯体側の建地は無い（受けブラケットの腕は
+		! スパン区切り線と重なるので平面には現れない。3Dには出している）
 		if nRows >= 2 then circle2 x, 0, r_sic
 		circle2 x, -rowW, r_sic
 	endif
@@ -947,16 +949,20 @@ for il = 1 to nLv
 			roty 90
 			cylind rowW, r_nuno
 			del 3
+		else
+			gosub 800
 		endif
 		x = x + spans[ip]
 	next ip
-	! 終端の腕木
+	! 終端の腕木（一側足場は床受けブラケット）
 	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
 		roty 90
 		cylind rowW, r_nuno
 		del 3
+	else
+		gosub 800
 	endif
 next il
 
@@ -1167,4 +1173,23 @@ for ik = 1 to nBk
 next ik
 
 end
+
+end
+
+! ============================================================
+800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
+! 作業床は建地から躯体側へ持ち出す。数量では「一側足場の床受けブラケット」
+! として拾っているので、3Dにも出さないと図と部材表が食い違う
+if il >= 2 then
+	add x, -rowW, z
+	rotz 90
+	roty 90
+	cylind rowW, r_nuno
+	del 3
+	add x, -rowW, z - rowW
+	rotx -45
+	cylind rowW * 1.4142, r_nuno
+	del 2
+endif
+return
 

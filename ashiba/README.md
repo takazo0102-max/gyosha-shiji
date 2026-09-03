@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト587本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト588本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -107,6 +107,7 @@ PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 | `loading_stage.json` | 荷受けステージ＋昇降機 |
 | `opening_beam.json` | 開口部（梁枠3600・5400） |
 | `waku_composite.json` | 枠組＋開口部＋荷受けステージ＋昇降機＋張出しブラケット＋高低差 |
+| `hitokawa.json` | 一側足場（隣地が近く本足場が組めない狭小地） |
 
 出力（ファイル名の頭は工事名。ファイル名に使えない文字は置き換え、置き換えたことは
 結果JSONの notes に出す）:

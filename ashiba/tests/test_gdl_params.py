@@ -614,6 +614,17 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         j = body3.index("! ---- ブレス")
         self.assertEqual(body3[j:j + 900].count("cylind bl, 0.0213 / 2"), 2)
 
+    def test_single_row_scaffold_gets_its_deck_brackets(self):
+        """一側足場の床受けブラケットを3Dにも出す.
+
+        数量では拾っているのに3Dには腕木もブラケットも無く、作業床が
+        宙に浮いて見えていた（干渉確認にも使えない）。
+        """
+        body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+                 / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("800: ! ---- 一側足場の床受けブラケット", body3)
+        self.assertEqual(body3.count("gosub 800"), 2)   # 各スパンと終端
+
     def test_asagao_dimension_does_not_claim_the_limit_is_met(self):
         """朝顔の寸法に法定値を混ぜない.
 

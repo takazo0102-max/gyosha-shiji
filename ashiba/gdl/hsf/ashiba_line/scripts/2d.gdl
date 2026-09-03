@@ -51,6 +51,8 @@ for ip = 1 to nSpan + 1
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
 	next ib
 	if removed = 0 then
+		! 一側足場は建地1列。躯体側の建地は無い（受けブラケットの腕は
+		! スパン区切り線と重なるので平面には現れない。3Dには出している）
 		if nRows >= 2 then circle2 x, 0, r_sic
 		circle2 x, -rowW, r_sic
 	endif
