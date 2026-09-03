@@ -176,6 +176,20 @@ def validate_openings(
     return result
 
 
+def opening_ranges(result: Optional[OpeningResult]) -> dict[int, list[tuple[float, float]]]:
+    """開口部が占める区間（辺 → [(始点, 終点)]）. 階段室の自動配置が避けるために使う.
+
+    梁枠より下は支柱を抜いた通路で、階段室を組めない。自動配置がここに
+    階段を置くと、割付は通っても衝突検査で止まる（実際にサンプル2件で起きた）。
+    """
+    out: dict[int, list[tuple[float, float]]] = {}
+    if result is None:
+        return out
+    for o in result.openings:
+        out.setdefault(o.edge_index, []).append((o.start_mm, o.end_mm))
+    return out
+
+
 def opening_deck_deduction(
     model: ScaffoldModel, result: Optional[OpeningResult]
 ) -> dict[int, int]:

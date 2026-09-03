@@ -67,6 +67,7 @@ def auto_place_stairs(
     tower_spans: int = 2,
     count: Optional[int] = None,
     min_per_face: int = 0,
+    avoid: Optional[dict[int, list[tuple[float, float]]]] = None,
 ) -> StairPlan:
     """階段室をループ上に配置する.
 
@@ -75,6 +76,9 @@ def auto_place_stairs(
 
     min_per_face を指定すると、まず各面にその数だけ置いてから
     移動距離が足りるまで空いた区間を埋める。
+
+    avoid は置いてはいけない区間（辺 → [(始点, 終点)]）。開口部の梁枠区間など、
+    階段室を組めない場所を先に埋めておく。
     """
     plan = StairPlan()
     plan.landings_per_tower = landings_per_tower(model)
@@ -96,7 +100,9 @@ def auto_place_stairs(
 
     # 置いた区間は occupied に積んで、次の階段が重ならないようにする。
     # 重ねると物理的に成立しないうえ、踏板の差引が二重にかかる。
-    occupied: dict[int, list[tuple[float, float]]] = {}
+    occupied: dict[int, list[tuple[float, float]]] = {
+        k: list(v) for k, v in (avoid or {}).items()
+    }
 
     def _add(tower: Optional[StairTower], reason: str) -> bool:
         if tower is None:
@@ -174,6 +180,19 @@ def auto_place_stairs(
                 f"{tower_spans}スパン連続かつコーナーから1スパン以上離れた"
                 "区間が必要）"
             )
+        # 開口部などを避けて位置がずれると、必要数を置いても移動距離を超える
+        # （実際にサンプルで31.5mになった）。箇所数を指定していないときは、
+        # 収まるまで一番広い空きから追加する
+        if count is None:
+            while (plan.towers
+                   and actual_max_travel(plan.towers, loop_len) > max_travel_mm):
+                pos = _largest_gap_center(plan.towers, loop_len)
+                if not _add(
+                    _place_at(model, pos, tower_spans, occupied),
+                    f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加"
+                    "（開口部等を避けて位置がずれた分）",
+                ):
+                    break
 
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）

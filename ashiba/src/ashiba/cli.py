@@ -94,7 +94,8 @@ from .model import (
     ScaffoldConfig,
     ScaffoldModel,
 )
-from .openings import Opening, opening_detail_specs, validate_openings
+from .openings import Opening, opening_detail_specs, opening_ranges, validate_openings
+from .conflicts import check_conflicts
 from .notification import (
     NotificationInfo,
     notification_required,
@@ -495,7 +496,7 @@ def build_notification_info(spec: dict) -> NotificationInfo:
 
 def collect_warnings(
     structural, model, bracket_issues, stair_plan, stair_issues,
-    openings, terrain, platforms, checks=None, quantity=None,
+    openings, terrain, platforms, checks=None, quantity=None, conflicts=None,
 ) -> list[tuple[str, str, str]]:
     """是正・確認が要る項目を (分類, 重大度, 本文) で集める.
 
@@ -527,12 +528,16 @@ def collect_warnings(
     out += [("荷受けステージ・昇降機", i.severity,
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in platforms.issues]
+    # 付帯設備どうし・開口部との衝突。個々の検証は通っても同じ区間には組めない
+    out += [("付帯設備の衝突", i.severity,
+             f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
+            for i in (conflicts or [])]
     return out
 
 
 def build_verdict(
     check_summary, structural, platforms, openings, bracket_issues,
-    warnings: list[tuple[str, str, str]] | None = None,
+    warnings: list[tuple[str, str, str]] | None = None, conflicts=None,
 ) -> dict:
     """計画が成立しているかの総合判定.
 
@@ -560,6 +565,9 @@ def build_verdict(
     n_bk = len([i for i in bracket_issues if i.severity == "NG"])
     if n_bk:
         blockers.append(f"ブラケット区間NG {n_bk}件")
+    n_cf = len([i for i in (conflicts or []) if i.severity == "NG"])
+    if n_cf:
+        blockers.append(f"付帯設備の衝突NG {n_cf}件")
     # 要確認の件数は法規チェックのWARNだけではない。離れの措置・未確認耐力値・
     # 階段の注意なども「読んで手を打つ」対象なので、まとめて数えて内訳を出す
     counts: dict[str, int] = {}
@@ -596,6 +604,7 @@ class PlanRun:
     stair_issues: list
     platforms: object
     openings: object
+    conflicts: list
     terrain: object
     checks: list
     quantity: object
@@ -623,6 +632,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     tie_opt = optimize_wall_ties(model, site)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
+    # 開口部は階段より先に解く。自動配置が梁枠の区間（通路）に階段を置かないため
+    openings = validate_openings(model, build_openings(spec))
     st = spec.get("stairs", {})
     if st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
@@ -641,12 +652,15 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             # 移動距離から自動算出（n_stairs は既定値1なので、明示時だけ効かせる）
             count=st.get("count"),
             min_per_face=st.get("min_per_face", 0),
+            avoid=opening_ranges(openings),
         )
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
     platforms = validate_platforms(model, *build_platforms(spec))
-    openings = validate_openings(model, build_openings(spec))
+    conflicts = check_conflicts(
+        model, openings, stair_plan=stair_plan, platforms=platforms, brackets=brackets
+    )
     # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
     terrain = solve_post_feet(model, build_ground(spec))
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
@@ -667,16 +681,16 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     s = summary(checks)
     warnings = collect_warnings(
         structural, model, bracket_issues, stair_plan, stair_issues,
-        openings, terrain, platforms, checks, quantity,
+        openings, terrain, platforms, checks, quantity, conflicts,
     )
     verdict = build_verdict(
-        s, structural, platforms, openings, bracket_issues, warnings
+        s, structural, platforms, openings, bracket_issues, warnings, conflicts
     )
     return PlanRun(
         spec=spec, model=model, site=site, tie_opt=tie_opt, brackets=brackets,
         bracket_issues=bracket_issues, stair_plan=stair_plan,
         stair_issues=stair_issues, platforms=platforms, openings=openings,
-        terrain=terrain, checks=checks, quantity=quantity, structural=structural,
+        conflicts=conflicts, terrain=terrain, checks=checks, quantity=quantity, structural=structural,
         detail_sheets=detail_sheets, warnings=warnings, verdict=verdict,
     )
 
