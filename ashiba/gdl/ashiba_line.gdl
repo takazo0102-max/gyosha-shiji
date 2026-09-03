@@ -1025,9 +1025,17 @@ endif
 ny = ny - txtLine
 text2 tx, ny, "頭つなぎ: 最上段（同上）"
 ny = ny - txtLine
-text2 tx, ny, "内側: ブレース＋幅木"
-ny = ny - txtLine
-text2 tx, ny, "外側: ブレース＋手すり＋中桟"
+! 一側足場は建地1列。本足場の「内側／外側」の注記を出すと、無い建地列の
+! 部材を書くことになる（実機の立面で確認）
+if nRows = 1 then
+	text2 tx, ny, "一側足場: 建地1列・作業床はブラケット受け"
+	ny = ny - txtLine
+	text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+else
+	text2 tx, ny, "内側: ブレース＋幅木"
+	ny = ny - txtLine
+	text2 tx, ny, "外側: ブレース＋手すり＋中桟"
+endif
 ny = ny - txtLine
 text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
 ny = ny - txtLine
