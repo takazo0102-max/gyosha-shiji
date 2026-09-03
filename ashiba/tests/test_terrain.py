@@ -273,5 +273,23 @@ class TestDeckLevelsAreShared(unittest.TestCase):
         self.assertEqual([round(p) for p in pitches], want)
 
 
+
+class TestFrameTerrainUsesKenwaku(unittest.TestCase):
+    """枠組の敷地警告は「支柱」でなく「建枠」で書く."""
+
+    def test_over_jack_warning_says_kenwaku(self):
+        m = build(series="waku")
+        r = solve_post_feet(m, slope(0.06))
+        self.assertTrue(r.over_jack_warning)
+        self.assertIn("建枠", r.over_jack_warning)
+        self.assertNotIn("超える支柱", r.over_jack_warning)
+
+    def test_wedge_still_says_shichu(self):
+        m = build(series="shinwa_A")
+        r = solve_post_feet(m, slope(0.06))
+        self.assertTrue(r.over_jack_warning)
+        self.assertIn("支柱", r.over_jack_warning)
+
+
 if __name__ == "__main__":
     unittest.main()

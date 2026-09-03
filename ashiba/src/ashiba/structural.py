@@ -710,9 +710,10 @@ def run_structural(
     notes: list[str] = []
     unverified_caps: list[UnverifiedCapacity] = []
     if governing_foot is not None:
+        vm = model.master.vertical_member_name
         notes.append(
-            f"敷地高低差により最大繰出し{post.jack_extension_mm}mmの支柱"
-            f"（支柱{governing_foot.index}）で建地を検定しています"
+            f"敷地高低差により最大繰出し{post.jack_extension_mm}mmの{vm}"
+            f"（{vm}{governing_foot.index}）で建地を検定しています"
             f"（平坦時の{model.elevation.jack_extension}mmではなく）。"
             "ジャッキ許容支持力は繰出し長で低下します"
         )

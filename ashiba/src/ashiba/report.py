@@ -229,9 +229,9 @@ def write_report_md(
         a(f"- ジャッキ繰出し: {terrain.jack_min_mm:.0f}〜{terrain.jack_max_mm:.0f}mm")
         need_plate = [f for f in terrain.feet if abs(f.base_plate_adjust_mm) > 1e-6]
         if need_plate:
-            a(f"- 敷板・床掘りでの調整が要る支柱: {len(need_plate)}本"
-              "（支柱ごとの量はジャッキ量一覧CSV）")
-        a("- 作業床レベルは全周で通し、高低差は支柱ごとのジャッキと支柱長で吸収しています")
+            a(f"- 敷板・床掘りでの調整が要る{vm}: {len(need_plate)}本"
+              f"（{vm}ごとの量はジャッキ量一覧CSV）")
+        a(f"- 作業床レベルは全周で通し、高低差は{vm}ごとのジャッキと{vm}長で吸収しています")
         # terrain.notes は上の箇条書き（高低差・脚部構成）と同じ内容なので出さない。
         # 対応が要るものだけ出す
         for wmsg in terrain.warnings:

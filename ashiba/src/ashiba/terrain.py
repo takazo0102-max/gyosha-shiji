@@ -225,12 +225,13 @@ def solve_post_feet(
             f"敷地の高低差{diff:.0f}mmを支柱ごとのジャッキ・支柱長で吸収しました"
             f"（{len({f.koma_offset for f in feet})}種類の脚部構成）"
         )
+    vm = model.master.vertical_member_name    # 支柱／建枠
     over_jack_warning = ""
     over = [f for f in feet if f.jack_mm > jack_recommended_max]
     if over:
         window = jack_recommended_max - jack_min
         msg = (
-            f"ジャッキ繰出しが実務上限{jack_recommended_max}mmを超える支柱が"
+            f"ジャッキ繰出しが実務上限{jack_recommended_max}mmを超える{vm}が"
             f"{len(over)}本あります（最大{max(f.jack_mm for f in over):.0f}mm）。"
         )
         if diff <= koma:
@@ -238,20 +239,20 @@ def solve_post_feet(
             need = max(0.0, diff - window)
             msg += (
                 f"高低差が{step_name}{koma:.0f}mm以内なので、"
-                f"床均しで高低差を{need:.0f}mm縮めれば全支柱が上限内に収まります"
+                f"床均しで高低差を{need:.0f}mm縮めれば全{vm}が上限内に収まります"
             )
         else:
             msg += (
                 f"ジャッキの可動域（{jack_min}〜{jack_recommended_max}mm＝{window}mm）は"
                 f"{step_name}{koma:.0f}mmより狭いため、高低差が1段を超える敷地では"
-                "一定数が上限を超えます。該当支柱の敷板調整または部分的な床均しで対応してください"
+                f"一定数が上限を超えます。該当{vm}の敷板調整または部分的な床均しで対応してください"
             )
         warnings.append(msg)
         over_jack_warning = msg
     need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6]
     if need_plate:
         warnings.append(
-            f"ジャッキの可動域で吸収しきれない支柱が{len(need_plate)}本あります"
+            f"ジャッキの可動域で吸収しきれない{vm}が{len(need_plate)}本あります"
             "（敷板または床掘りでの調整量を一覧に明示しています）"
         )
 
