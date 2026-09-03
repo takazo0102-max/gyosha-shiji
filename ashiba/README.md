@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト547本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト548本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -71,6 +71,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票） |
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
+| `scripts/build_dist_gsm.py` | 配布用GSM（gdl/*.gsm）をHSFから再生成（`--check` でズレ確認） |
 | `scripts/build_flat_gdl.py` | HSF→単一ファイル参照版の生成（`--check` でズレ検査） |
 | `scripts/place_from_plan_json.py` | plan.json だけからArchicadへ再配置（読み戻して照合） |
 
@@ -435,6 +436,11 @@ E2E確認は2種類:
   荷受けステージ・法規10項目・構造計算・足場ライン配置・詳細図配置・帳票5件・プレビュー）
 
 ### GDLの編集とコンパイル
+
+配布用の `gdl/*.gsm` は `python3 scripts/build_dist_gsm.py` で再生成する（由来のHSF
+ハッシュを `.gsm.hash` に残し、ズレは `tests/test_flat_gdl_sync.py` が落とす）。
+READMEの手順で読み込む部品が古いままだと、利用者は最新のパラメータを持たない部品を
+読み込むことになる。
 
 ソースは `gdl/hsf/ashiba_line/`（HSF形式）。LP_XMLConverter（GRAPHISOFT LibDev Toolkit）で
 `LP_XMLConverter hsf2libpart gdl/hsf/ashiba_line gdl/ashiba_line.gsm` としてGSM化する。
