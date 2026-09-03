@@ -78,6 +78,8 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
 | `scripts/build_dist_gsm.py` | 配布用GSM（gdl/*.gsm）をHSFから再生成（`--check` でズレ確認） |
 | `scripts/build_flat_gdl.py` | HSF→単一ファイル参照版の生成（`--check` でズレ検査） |
+| `scripts/roundtrip_examples.py` | 全サンプルを実機に再配置してGDLパラメータの読み戻しを照合（文字列255文字切れ等、配置は成功するのに図が欠ける事故を見つける） |
+| `scripts/preview_face.py` | サンプルの指定面を実機に置いて平面／立面／3Dの大判プレビュー（4000px）を保存。全層の壁つなぎ・付帯設備を目視できる |
 | `scripts/place_from_plan_json.py` | plan.json だけからArchicadへ再配置（読み戻して照合） |
 
 ## 使い方
