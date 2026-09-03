@@ -23,6 +23,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import contextlib
 import json
 import math
@@ -154,6 +156,16 @@ class ArchicadClient:
         elements = self.tapir("CreateObjects", data).get("elements", [])
         if not elements:
             raise TapirError(f"オブジェクト {library_part_name} を配置できませんでした")
+        # 失敗は要素ごとに error で返る（コマンド自体は成功扱い）。そのまま返すと
+        # 後段で KeyError 'elementId' になり、部品が無いことが分からない
+        if "error" in elements[0]:
+            msg = elements[0]["error"].get("message", elements[0]["error"])
+            raise TapirError(
+                f"オブジェクト {library_part_name} を配置できませんでした: {msg}\n"
+                "ライブラリ部品が読み込まれていない可能性があります。gdl/ashiba_line.gsm"
+                "（詳細図は ashiba_detail.gsm）をライブラリに読み込むか、"
+                "scripts/dev_gsm_iterate.py で現行HSFを埋め込みライブラリへ注入してください"
+            )
         return elements[0]
 
     def rotate_element(
@@ -227,9 +239,12 @@ class ArchicadClient:
         )
 
     def add_file_to_embedded_library(self, input_path: str, output_name: str) -> None:
+        # Archicad はこのプロセスの作業ディレクトリを知らない。相対パスを渡すと
+        # 「Failed to read file on the given inputPath」で落ちる（実際に踏んだ）
+        abs_path = str(Path(input_path).resolve())
         resp = self.tapir(
             "AddFilesToEmbeddedLibrary",
-            {"files": [{"inputPath": input_path, "outputPath": output_name}]},
+            {"files": [{"inputPath": abs_path, "outputPath": output_name}]},
         )
         results = resp.get("executionResults", [])
         if results and not results[0].get("success"):
