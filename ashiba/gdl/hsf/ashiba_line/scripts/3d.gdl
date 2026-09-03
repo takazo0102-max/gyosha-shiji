@@ -112,9 +112,9 @@ if showDeck then
 	next il
 endif
 
-! ---- ブレス（外側構面、スパンごとに交互方向） ----
+! ---- ブレス（外側構面、交さ2方向＝X） ----
 ! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
-! 同じ間隔で描かないと、部材表と図面の本数が食い違う
+! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
 if showBrace then
 	for il = 1 to nLv - 1
 		if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
@@ -125,18 +125,15 @@ if showBrace then
 				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
 					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
 					ang = atn((z2 - z1) / spans[ip])
-					if ip - 2 * int(ip / 2) = 0 then
-						add x, -rowW - 0.05, z1
-						roty 90 - ang
-						cylind bl, 0.0213 / 2
-						del 2
-					else
-						add x + spans[ip], -rowW - 0.05, z1
-						mulx -1
-						roty 90 - ang
-						cylind bl, 0.0213 / 2
-						del 3
-					endif
+					add x, -rowW - 0.05, z1
+					roty 90 - ang
+					cylind bl, 0.0213 / 2
+					del 2
+					add x + spans[ip], -rowW - 0.05, z1
+					mulx -1
+					roty 90 - ang
+					cylind bl, 0.0213 / 2
+					del 3
 				endif
 				x = x + spans[ip]
 			next ip

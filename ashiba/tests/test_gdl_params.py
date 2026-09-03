@@ -595,6 +595,25 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
     def test_centered_style_is_defined(self):
         self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0', self.body)
 
+    def test_braces_are_drawn_as_a_cross(self):
+        """ブレスは1箇所2本（交さ2方向）。数量がそう数えているので図もX.
+
+        片方向だけ描いていたため、部材表の本数と図が合わなかった。
+        枠組の交差筋交も同じ（建枠間はX）。
+        """
+        from ashiba.quantity import QuantityRules
+
+        self.assertEqual(QuantityRules().braces_per_location, 2)
+        body2 = self.body
+        i = body2.index("! ブレス")
+        block = body2[i:i + 700]
+        self.assertIn("line2 x, lv[il], x + spans[ip], lv[il + 1]", block)
+        self.assertIn("line2 x + spans[ip], lv[il], x, lv[il + 1]", block)
+        body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+                 / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        j = body3.index("! ---- ブレス")
+        self.assertEqual(body3[j:j + 900].count("cylind bl, 0.0213 / 2"), 2)
+
     def test_asagao_dimension_does_not_claim_the_limit_is_met(self):
         """朝顔の寸法に法定値を混ぜない.
 
