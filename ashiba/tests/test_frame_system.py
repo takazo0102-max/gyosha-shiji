@@ -307,6 +307,41 @@ class TestFrameSpecificRules(unittest.TestCase):
         self.assertEqual(load_master("shinwa_A").system_name, "くさび緊結式足場")
 
 
+class TestFrameDrawingSaysWhatItIs(unittest.TestCase):
+    """枠組の図面は建枠を支柱・布材で表現している。そうと書く."""
+
+    def test_series_type_is_w_for_frames(self):
+        from ashiba.gdl_params import line_params
+
+        master = load_master("waku")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+        self.assertEqual(line_params(m, m.plan.edges[0])["serType"], "W")
+
+    def test_wedge_series_are_a_or_b(self):
+        from ashiba.gdl_params import line_params
+
+        for series, want in (("shinwa_A", "A"), ("shinwa_B", "B")):
+            with self.subTest(series):
+                master = load_master(series)
+                m = ScaffoldModel(
+                    master=master, plan=solve_plan(RECT, master),
+                    elevation=solve_elevation(16300, master=master),
+                    config=ScaffoldConfig(), building_height_mm=16000,
+                )
+                self.assertEqual(line_params(m, m.plan.edges[0])["serType"], want)
+
+    def test_elevation_note_branches_on_the_system(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+                / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn('if serType = "W" then', body)
+        self.assertIn("建枠の形状は別途", body)
+        self.assertIn("根がらみ: 建枠脚部", body)
+
+
 class TestFrameWordingIsNotWedgeWording(unittest.TestCase):
     """枠組の図書にくさび式の用語（コマ）を書かない."""
 

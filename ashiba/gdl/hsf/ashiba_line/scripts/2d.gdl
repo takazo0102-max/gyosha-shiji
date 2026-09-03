@@ -372,7 +372,13 @@ tx = lineLen + 0.5
 ny = postTop
 text2 tx, ny, "立面図 " + faceName
 ny = ny - txtLine * 1.4
-text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+if serType = "W" then
+	text2 tx, ny, "本図は建枠を支柱・布材で表現しています（建枠の形状は別途）"
+	ny = ny - txtLine
+	text2 tx, ny, "根がらみ: 建枠脚部（布板と区別がつかないため特記）"
+else
+	text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+endif
 ny = ny - txtLine
 text2 tx, ny, "頭つなぎ: 最上段（同上）"
 ny = ny - txtLine

@@ -27,7 +27,7 @@
 !   showDeck       ブール  踏板表示                                                              既定 1
 !   showBrace      ブール  ブレス表示                                                            既定 1
 !   showDim        ブール  2D寸法・注記表示                                                      既定 1
-!   serType        文字列  系列 A/B                                                              既定 "A"
+!   serType        文字列  系列 A/B/W（Wは枠組）                                                 既定 "A"
 !   viewMode       文字列  2D表現 plan=平面 / elev=立面                                          既定 "plan"
 !   tieList        文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）                            既定 ""
 !   tieHeightList  文字列  壁つなぎ高さ mm カンマ区切り（GLから）                                既定 ""
@@ -820,7 +820,13 @@ tx = lineLen + 0.5
 ny = postTop
 text2 tx, ny, "立面図 " + faceName
 ny = ny - txtLine * 1.4
-text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+if serType = "W" then
+	text2 tx, ny, "本図は建枠を支柱・布材で表現しています（建枠の形状は別途）"
+	ny = ny - txtLine
+	text2 tx, ny, "根がらみ: 建枠脚部（布板と区別がつかないため特記）"
+else
+	text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+endif
 ny = ny - txtLine
 text2 tx, ny, "頭つなぎ: 最上段（同上）"
 ny = ny - txtLine

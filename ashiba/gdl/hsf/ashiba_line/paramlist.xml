@@ -78,7 +78,7 @@
 			<Value>1</Value>
 		</Boolean>
 		<String Name="serType">
-			<Description><![CDATA["系列 A/B"]]></Description>
+			<Description><![CDATA["系列 A/B/W（Wは枠組）"]]></Description>
 			<Value><![CDATA["A"]]></Value>
 		</String>
 		<String Name="viewMode">
