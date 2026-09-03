@@ -692,10 +692,9 @@ for il = 2 to nLv
 		next ib2
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
-			if noDeck = 0 then
-				rect2 xs, z, xe, z + 0.05
-				rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
-			endif
+			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
+			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
+			rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
 			line2 xs, z + railMid, xe, z + railMid
 			line2 xs, z + railTop, xe, z + railTop
@@ -972,23 +971,28 @@ if showDeck then
 		z = lv[il]
 		x = 0
 		for ip = 1 to nSpan
-			! 階段室は段板で上がるので床を敷かない。開口部（梁枠より下）は通路
-			skipD = 0
+			! 階段室は段板で上がるので床を敷かない。ただし外構面の幅木は残る
+			! （階段側の落下防止）。開口部（梁枠より下）は通路なので床も幅木も無い。
+			! 数量もこの区別で拾っている（階段室は幅木を引かない）
+			skipDeck = 0
 			for it4 = 1 to nSt
-				if x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then skipD = 1
+				if x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then skipDeck = 1
 			next it4
+			skipAll = 0
 			for ib4 = 1 to nBm
 				if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
-						z < bmH[ib4] - 0.001 then skipD = 1
+						z < bmH[ib4] - 0.001 then skipAll = 1
 			next ib4
-			if skipD = 0 then
-				add x, -rowW + 0.05, z
-				block spans[ip], deckW1, 0.045
-				del 1
-				if deckW2 > 0 then
-					add x, -rowW + 0.05 + deckW1 + 0.02, z
-					block spans[ip], deckW2, 0.045
+			if skipAll = 0 then
+				if skipDeck = 0 then
+					add x, -rowW + 0.05, z
+					block spans[ip], deckW1, 0.045
 					del 1
+					if deckW2 > 0 then
+						add x, -rowW + 0.05 + deckW1 + 0.02, z
+						block spans[ip], deckW2, 0.045
+						del 1
+					endif
 				endif
 				! 幅木（外側）
 				add x, -rowW - 0.02, z + 0.045

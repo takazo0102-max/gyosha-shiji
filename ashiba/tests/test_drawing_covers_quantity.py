@@ -164,6 +164,23 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("梁枠", body)
         self.assertIn("階段室", body)
 
+    def test_stair_bays_keep_their_toe_board(self):
+        """階段室は床を敷かないが幅木は残る（数量もそう拾っている）.
+
+        3Dも立面も床と幅木を同じ条件で消していたため、階段室のスパンだけ
+        図面から幅木が消え、部材表の枚数と合わなかった。
+        """
+        body3 = self._script("3d.gdl")
+        # 床は階段室＋開口部で消す、幅木は開口部だけで消す
+        self.assertIn("if skipAll = 0 then", body3)
+        self.assertIn("if skipDeck = 0 then", body3)
+        i = body3.index("! 幅木（外側）")
+        self.assertLess(body3.index("if skipDeck = 0 then"), i)
+        self.assertIn("skipDeck", body3[:i])
+        body2 = self._script("2d.gdl")
+        self.assertIn("if noDeck = 0 then rect2 xs, z, xe, z + 0.05", body2)
+        self.assertIn("幅木は階段室にも残る", body2)
+
     def test_2d_has_the_same_checks(self):
         body = self._script("2d.gdl")
         for token in ("stS[it2]", "bmS[ib3]", "stS[it3]", "bmH[ib2]"):

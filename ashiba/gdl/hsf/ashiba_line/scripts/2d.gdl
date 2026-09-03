@@ -244,10 +244,9 @@ for il = 2 to nLv
 		next ib2
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
-			if noDeck = 0 then
-				rect2 xs, z, xe, z + 0.05
-				rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
-			endif
+			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
+			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
+			rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
 			line2 xs, z + railMid, xe, z + railMid
 			line2 xs, z + railTop, xe, z + railTop
