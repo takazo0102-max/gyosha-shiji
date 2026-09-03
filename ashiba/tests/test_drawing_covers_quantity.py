@@ -201,7 +201,21 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         cut = take_off(model, openings=op)
         self.assertLess(cut.qty_of("布材"), base.qty_of("布材"))
         # 2スパン×2層×(床2+手すり2) ＋ 2スパン×根がらみ2 ＝ 20本
-        self.assertEqual(base.qty_of("布材") - cut.qty_of("布材"), 20)
+        # ＋ 抜いた支柱1本×3段（根がらみ＋梁枠より下2層）の腕木 ＝ 23本
+        self.assertEqual(base.qty_of("布材") - cut.qty_of("布材"), 23)
+
+    def test_quantity_drops_the_jacks_of_removed_posts(self):
+        """抜いた支柱は地面に達しない。ジャッキもアンダーベースも要らない."""
+        model = full_model()
+        base = take_off(model)
+        op = validate_openings(model, [Opening(0, 3600, 3600, level=3)])
+        cut = take_off(model, openings=op)
+        self.assertEqual(op.removed_posts, 2)      # 内側支柱1本×内外2列
+        # 分類「ジャッキ」にはアンダーベースも含むので 2本×2品目
+        self.assertEqual(base.qty_of("ジャッキ") - cut.qty_of("ジャッキ"), 4)
+        # 支柱は構成が変わるので引かず、拾い直しを要確認に出す
+        self.assertEqual(base.qty_of("支柱"), cut.qty_of("支柱"))
+        self.assertTrue(any("梁枠上に乗る構成" in w for w in cut.warnings))
 
     def test_2d_has_the_same_checks(self):
         body = self._script("2d.gdl")

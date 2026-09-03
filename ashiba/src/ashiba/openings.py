@@ -224,6 +224,23 @@ def opening_span_counts(
     return out
 
 
+def opening_removed_udegi(
+    model: ScaffoldModel, result: Optional[OpeningResult]
+) -> int:
+    """開口部で抜いた支柱位置ぶんの腕木の本数（建地1列あたり）.
+
+    抜いた支柱にはGLから梁枠下端まで腕木が付かない。段数は
+    根がらみ1＋梁枠より下の作業層（= o.level - 1）＝ o.level。
+    """
+    if result is None or not result.openings:
+        return 0
+    out = 0
+    for i, o in enumerate(result.openings):
+        inner = len(result.inner_posts.get(i, []))
+        out += inner * max(0, o.level)
+    return out
+
+
 def opening_detail_specs(result: OpeningResult) -> list[dict]:
     """詳細図（detailType="beam"）に渡す指定."""
     return [

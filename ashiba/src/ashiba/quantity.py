@@ -180,8 +180,10 @@ def take_off(
     # ---- ジャッキ・アンダーベース（アンダーベース数=ジャッキ数） ----
     jack = next((p for p in m.by_category("ジャッキ") if "ベース" not in p.note and "アンダー" not in p.note), None)
     under = next((p for p in m.by_category("ジャッキ") if "アンダーベース" in p.note), None)
-    add(jack, n_posts, "ジャッキ")
-    add(under, n_posts, "アンダーベース")
+    # 開口部で抜いた支柱は地面に達しないので、ジャッキもアンダーベースも要らない
+    removed = openings.removed_posts if openings is not None else 0
+    add(jack, max(0, n_posts - removed), "ジャッキ")
+    add(under, max(0, n_posts - removed), "アンダーベース")
 
     # ---- 布材（スパン方向: 根がらみ＋床レベル＋手すり・中桟） ----
     # 手すり方式で外側の手すり・中桟の拾い方が変わる。
@@ -236,16 +238,17 @@ def take_off(
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
         udegi = rules.udegi_nominal or model.post_row_spacing_mm
+        from .openings import opening_removed_udegi
+        udegi_cut = opening_removed_udegi(model, openings)
+        n_udegi = max(0, posts_per_line * (n_levels + 1) - udegi_cut)
         notes.append(
             f"腕木は呼び{udegi}mmの布材を、支柱位置{posts_per_line}箇所×"
             f"（作業層{n_levels}＋根がらみ1）＝{posts_per_line * (n_levels + 1)}本で計上"
-            "（布材の合計にはこの分も含む）"
+            + (f"（開口部で抜いた支柱ぶん{udegi_cut}本を差し引いて{n_udegi}本）"
+               if udegi_cut else "")
+            + "（布材の合計にはこの分も含む）"
         )
-        add(
-            m.find("布材", udegi),
-            posts_per_line * (n_levels + 1),
-            f"腕木（布材{udegi}）",
-        )
+        add(m.find("布材", udegi), n_udegi, f"腕木（布材{udegi}）")
 
     # ---- 踏板（スパン×作業層×幅構成。階段室の区間には敷かない） ----
     # 床は「スパン×層」のセル数で数える。階段室は全層、開口部は梁枠より下の
@@ -494,6 +497,14 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         notes.append(
             f"開口部で支柱{openings.removed_posts}本を抜いています。"
             "梁枠の両端支柱は補強し、梁枠上の作業床は積載荷重を低減してください"
+        )
+        # ジャッキ・腕木・布材は抜いたぶんを引いてあるが、支柱の積み上げ構成は
+        # 全位置で同じものを使っている。梁枠上に乗る支柱は構成が変わる
+        notes.action(
+            "支柱は全ての支柱位置で同じ積み上げ構成で計上しています。"
+            f"開口部で抜いた{openings.removed_posts}本は梁枠上に乗る構成"
+            "（梁枠下端から天端まで）に置き換えて拾い直してください",
+            Notes.ORDER,
         )
 
 
