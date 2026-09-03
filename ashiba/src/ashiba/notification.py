@@ -420,7 +420,7 @@ def _sheet_quantity(wb, quantity: QuantityResult) -> None:
             Cell(pt.nominal_dim, STYLE_BORDER), Cell(pt.actual_dim, STYLE_BORDER),
             Cell(pt.weight_kg, STYLE_BORDER), Cell(line.qty, STYLE_BORDER),
             Cell(round(line.subtotal_weight, 1), STYLE_BORDER),
-            Cell(pt.note, STYLE_BORDER),
+            Cell(pt.note + ("　" + line.note if line.note else ""), STYLE_BORDER),
         ])
     s.add_blank()
     s.add(["総重量kg", quantity.total_weight_kg], STYLE_BOLD)

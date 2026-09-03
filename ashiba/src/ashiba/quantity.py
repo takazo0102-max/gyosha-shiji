@@ -137,6 +137,10 @@ def take_off(
     elev = model.elevation
     counts: dict[str, int] = {}   # model_no -> qty
     parts: dict[str, Part] = {}
+    # model_no -> {用途ラベル: 本数}。同じ型番が別々の用途で足されるとき
+    # （壁つなぎ＝躯体＋朝顔取付＋ステージ取付 など）1行に潰れて内訳が消えるので、
+    # 発注担当が図面の本数と照合できるよう用途別に持つ
+    breakdown: dict[str, dict[str, int]] = {}
     notes = Notes()
 
     def add(part: Optional[Part], qty: int, what: str) -> None:
@@ -148,6 +152,8 @@ def take_off(
         m.assert_series(part)
         counts[part.model_no] = counts.get(part.model_no, 0) + qty
         parts[part.model_no] = part
+        by = breakdown.setdefault(part.model_no, {})
+        by[what] = by.get(what, 0) + qty
 
     rows = 1 if model.config.scaffold_form == "一側足場" else rules.rows
     posts_per_line = plan.total_posts        # 帰属ルールで二重計上なし
@@ -163,7 +169,7 @@ def take_off(
         _count_opening_parts(model, openings, add, notes)
         _note_inner_rail_if_wide(model, notes)
         _note_double_posts_if_tall(model, notes)
-        return _assemble(model, rules, counts, parts, notes)
+        return _assemble(model, rules, counts, parts, notes, breakdown)
 
     # ---- 支柱（1支柱位置あたりの積み上げ構成×位置数、内外同一構成） ----
     counts_posts: dict[int, int] = {}
@@ -348,7 +354,7 @@ def take_off(
     _count_opening_parts(model, openings, add, notes)
     _note_inner_rail_if_wide(model, notes)
     _note_double_posts_if_tall(model, notes)
-    return _assemble(model, rules, counts, parts, notes)
+    return _assemble(model, rules, counts, parts, notes, breakdown)
 
 
 def _count_asagao_parts(
@@ -620,9 +626,21 @@ def _assemble(
     counts: dict[str, int],
     parts: dict[str, Part],
     notes: list[str],
+    breakdown: Optional[dict[str, dict[str, int]]] = None,
 ) -> QuantityResult:
     """集計結果を QuantityResult に組み立てる（くさび式・枠組式で共通）."""
-    lines = [BomLine(part=parts[k], qty=v) for k, v in sorted(counts.items())]
+    breakdown = breakdown or {}
+    lines = []
+    for k, v in sorted(counts.items()):
+        # 同じ型番が2つ以上の用途で足された行は、備考に用途別の内訳を出す。
+        # 図面に出るのは躯体ぶんだけなので、照合できるよう本数を分けて書く
+        by = breakdown.get(k, {})
+        detail = ""
+        if len(by) >= 2:
+            detail = "内訳: " + "／".join(
+                f"{lbl} {n}本" for lbl, n in sorted(by.items(), key=lambda x: -x[1])
+            )
+        lines.append(BomLine(part=parts[k], qty=v, note=detail))
     total_weight = sum(l.subtotal_weight for l in lines)
 
     # ---- 架け面積: (建物外周+4m)×(建物高さ+0.5m) ----

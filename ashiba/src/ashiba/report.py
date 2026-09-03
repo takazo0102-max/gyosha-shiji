@@ -40,9 +40,10 @@ def write_quantity_csv(result: QuantityResult, path: Path) -> None:
         w.writerow(["型番", "分類", "呼び寸法", "実寸法", "単位重量kg", "数量", "小計重量kg", "備考"])
         for line in result.lines:
             p = line.part
+            note = p.note + ("　" + line.note if line.note else "")
             w.writerow(
                 [p.model_no, p.category, p.nominal_dim, p.actual_dim,
-                 p.weight_kg, line.qty, round(line.subtotal_weight, 1), p.note]
+                 p.weight_kg, line.qty, round(line.subtotal_weight, 1), note]
             )
         w.writerow([])
         w.writerow(["総重量kg", round(result.total_weight_kg, 1)])

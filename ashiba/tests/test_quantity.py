@@ -128,6 +128,46 @@ class TestQuantity(unittest.TestCase):
         self.assertEqual(jacks[0].qty, self.plan.total_posts)
 
 
+class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):
+    """同じ型番が複数の用途で足された行は、備考に用途別の内訳を出す.
+
+    壁つなぎは躯体ぶん（図面に○で出る）＋朝顔取付＋ステージ取付が1行に潰れる。
+    発注担当が図面の本数と照合できないと、どれが構造で何本かが分からない。
+    """
+
+    def _model(self, **cfg):
+        from ashiba.model import AsagaoSpec
+
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=1), **cfg),
+            building_height_mm=16000,
+        )
+
+    def test_wall_tie_row_splits_body_and_asagao(self):
+        m = self._model()
+        q = take_off(m)
+        tie = next(l for l in q.lines if l.part.category == "壁つなぎ")
+        self.assertIn("内訳:", tie.note)
+        self.assertIn(f"壁つなぎ {len(m.wall_ties)}本", tie.note)
+        self.assertIn("朝顔取付部の壁つなぎ", tie.note)
+        # 内訳の合計は行の数量に一致する
+        import re
+        nums = [int(x) for x in re.findall(r" (\d+)本", tie.note.split("内訳:")[1])]
+        self.assertEqual(sum(nums), tie.qty)
+
+    def test_single_use_part_has_no_breakdown(self):
+        # 支柱は1用途しかない。内訳を付けない（ノイズになる）
+        m = self._model()
+        q = take_off(m)
+        post = next(l for l in q.lines if l.part.category == "支柱"
+                    and l.qty == max(x.qty for x in q.lines
+                                     if x.part.category == "支柱"))
+        self.assertEqual(post.note, "")
+
+
 class TestWeightPlausibility(unittest.TestCase):
     """架け面積あたりの重量が実務の相場（おおむね15〜22kg/m2）から外れないこと.
 
