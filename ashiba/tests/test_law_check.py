@@ -160,6 +160,29 @@ class TestJackCheckUsesTerrain(unittest.TestCase):
         self.assertIn("本", r.message)
 
 
+class TestFirstLedgerBasisBySystem(unittest.TestCase):
+    """第一の布（2m以下）は単管足場の規定。方式で根拠を出し分ける."""
+
+    def _model(self, series):
+        master = load_master(series)
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(), building_height_mm=16000,
+        )
+
+    def test_wedge_cites_tanken_provision(self):
+        c = [r for r in run_all_checks(self._model("shinwa_A")) if r.check_id == 4][0]
+        self.assertIn("571条1項四号", c.basis)
+        self.assertIn("単管足場に準じる", c.basis)
+
+    def test_frame_does_not_cite_tanken_571(self):
+        c = [r for r in run_all_checks(self._model("waku")) if r.check_id == 4][0]
+        self.assertIn("建枠脚部", c.message)
+        self.assertNotIn("571条", c.basis)
+        self.assertIn("570条", c.basis)
+
+
 class TestTallScaffoldReachesTheQuantity(unittest.TestCase):
     """31m超の2本組は、警告だけ出して数量が単管1本組のままでは部材が足りない."""
 
