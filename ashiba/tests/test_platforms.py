@@ -241,6 +241,28 @@ class TestPlatformQuantities(unittest.TestCase):
         self.assertNotIn("荷受けステージ 方杖", platform_quantities(m, r))
 
 
+class TestStageDefaults(unittest.TestCase):
+    """積載の既定は1000kgf/箇所（実務の目安）。小さくすると検定が甘くなる."""
+
+    def test_default_load_is_1000kgf(self):
+        from ashiba.platforms import DEFAULT_STAGE_LOAD_KN, GRAVITY
+
+        self.assertAlmostEqual(DEFAULT_STAGE_LOAD_KN, 1000 * GRAVITY / 1000.0,
+                               places=1)
+
+    def test_omitting_the_load_uses_the_default(self):
+        from ashiba.platforms import DEFAULT_STAGE_LOAD_KN
+
+        m = build()
+        without = LoadingStage(edge_index=0, start_mm=3600, span_count=2,
+                               levels=[3])
+        with_value = LoadingStage(edge_index=0, start_mm=3600, span_count=2,
+                                  levels=[3], load_kn=DEFAULT_STAGE_LOAD_KN)
+        self.assertAlmostEqual(
+            stage_post_load_kn(without, m), stage_post_load_kn(with_value, m))
+        self.assertGreater(stage_post_load_kn(without, m), 0)
+
+
 class TestStageOpenEdges(unittest.TestCase):
     """張出しの妻側（左右）も開放端。前面だけ手すりを立てても横から落ちる."""
 

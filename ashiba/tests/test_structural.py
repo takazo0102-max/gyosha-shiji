@@ -106,6 +106,38 @@ class TestCapacityGate(unittest.TestCase):
         )
 
 
+class TestSafetyDefaults(unittest.TestCase):
+    """既定値そのものが安全に効く。指定しない利用者が一番多い."""
+
+    def test_sheet_fill_ratios(self):
+        """充実率は風力係数に直結する（メッシュ0.7・防音/密閉1.0・なし0）."""
+        from ashiba.structural import SHEET_FILL_RATIO
+
+        self.assertEqual(SHEET_FILL_RATIO["なし"], 0.0)
+        self.assertEqual(SHEET_FILL_RATIO["メッシュシート"], 0.7)
+        self.assertEqual(SHEET_FILL_RATIO["防音シート"], 1.0)
+        self.assertEqual(SHEET_FILL_RATIO["密閉シート"], 1.0)
+
+    def test_sheet_type_changes_the_wind_force(self):
+        m = make_model()
+        q = take_off(m)
+        mesh = run_structural(m, q, SiteCondition(sheet_type="メッシュシート"))
+        none = run_structural(m, q, SiteCondition(sheet_type="なし"))
+        soundproof = run_structural(m, q, SiteCondition(sheet_type="防音シート"))
+        self.assertLess(none.wind.c_force, mesh.wind.c_force)
+        self.assertLess(mesh.wind.c_force, soundproof.wind.c_force)
+
+    def test_default_loaded_levels_is_two(self):
+        """実務は2層以内。既定を0にすると積載がゼロになる."""
+        self.assertEqual(SiteCondition().simultaneous_loaded_levels, 2)
+        m = make_model()
+        q = take_off(m)
+        two = run_structural(m, q, SiteCondition(simultaneous_loaded_levels=2))
+        one = run_structural(m, q, SiteCondition(simultaneous_loaded_levels=1))
+        self.assertAlmostEqual(two.post.live_load_kn, one.post.live_load_kn * 2)
+        self.assertGreater(one.post.live_load_kn, 0)
+
+
 class TestTallScaffoldNote(unittest.TestCase):
     """31m超は2本組が要る。どちらで検定したのかを書かないと検定比が読めない."""
 

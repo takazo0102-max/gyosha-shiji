@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト569本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト574本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -521,6 +521,24 @@ python3 -m unittest discover -s tests
 ```
 
 依存ゼロ（標準ライブラリのみ）。Python 3.9 で全テストの通過を確認している。
+
+検査の穴は**変異テスト**で探している。安全に関わる判定・定数を1つずつ意図的に壊し、
+テストが落ちるかを見る（落ちなければ、その振る舞いは誰も見ていない）。
+これまで75通り試して10件の穴を塞いだ:
+
+```bash
+# 例: 作業床幅の下限を無効化してテストが落ちるか
+python3 - <<'EOS'
+import subprocess, sys
+from pathlib import Path
+p = Path("src/ashiba/law_check.py"); orig = p.read_text(encoding="utf-8")
+p.write_text(orig.replace("if width < 400:", "if width < 0:", 1), encoding="utf-8")
+r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"],
+                   capture_output=True, text=True)
+p.write_text(orig, encoding="utf-8")
+print("検知" if "FAILED" in r.stderr else "見逃し（テストの穴）")
+EOS
+```
 
 受け入れ基準（指示書§10）はすべてテスト化済み:
 矩形ワンクリック生成 / 実例値16370の再現（指示書の部材構成で） / L型の出隅・入隅と二重計上なし /
