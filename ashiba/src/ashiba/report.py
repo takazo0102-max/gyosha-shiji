@@ -329,6 +329,53 @@ def write_plan_json(
     系列と割付しか入っておらず、内外建地間隔・踏板幅・手すり高さ・
     建地列数といったGDLパラメータも、配置座標も回転角も無かったため、
     読む側が割付を解き直さないと配置できなかった。
+
+    出力スキーマ（読む側の実装が推測しなくて済むよう明記する）:
+    {
+      "series_id": "shinwa_A",          // 系列。混在は不可（系列ロック）
+      "system_type": "くさび" | "枠組",
+      "koma_pitch": 450,                 // 枠組は0（コマの概念が無い）
+      "scaffold_height_mm": 16300,
+      "config": {                        // 図面・数量に効く設定
+        "scaffold_form": "本足場" | "一側足場",
+        "deck_widths": [400, 250],       // 実際に敷く幅（一側は1枚）
+        "post_row_spacing_mm": 600,      // 内外建地列の芯々
+        "guard_rail_type": "布材" | "先行手すり",
+        "guard_rail_height_mm": 900, "midrail_height_mm": 450,
+        "toe_board_height_mm": 157, "next_gen": false, "period_days": 90
+      },
+      "elevation": {
+        "jack_extension": 100,           // ジャッキ繰出し（平坦時）
+        "posts": [3600, ...],            // 下から積む支柱（枠組は建枠高さ）
+        "posts_alt": [...],              // 千鳥用の並べ替え
+        "level_heights": [550, ...],     // 作業床高さ（GLから）
+        "first_ledger_height": 550
+      },
+      "edges": [{                        // 面ごと。1辺=1オブジェクト
+        "edge_index": 0, "face": "南面",
+        "spans": [1800, ...], "scaffold_length": 30600.0, "standoff": 350.0,
+        "start_post": [x, y], "end_post": [x, y],
+        "remedy": null,                  // 離れ超過時の対処案
+        "placement": {"x_mm": .., "y_mm": .., "angle_deg": ..},
+        "gdl_params": {...}              // set_gdl_parameters にそのまま渡せる
+      }],
+      "scaffold_vertices": [[x, y], ...],// 足場中心線ループ
+      "wall_ties": [{"edge_index": 0, "position_mm": 3600.0, "height_mm": 4600}],
+      "warnings": [...],                 // 割付・立面の警告
+      // 以下は該当があるときだけ入る
+      "stairs": {"count": 2, "max_travel_mm": 28800.0,
+                 "landings_per_tower": 3, "towers": [...]},
+      "openings": [{"edge_index": 0, "start_mm": 3600.0,
+                    "beam_span_mm": 3600, "level": 2, "reason": ""}],
+      "platforms": {"stages": [...], "hoists": [...], "extra_wall_ties": 0},
+      "bracket_sections": [{"edge_index": 0, "start_mm": 0.0, "end_mm": 5400.0,
+                            "direction": "内" | "張出", "width": 300,
+                            "deck_width": null, "levels": [1], "has_hozue": false,
+                            "is_widening": false, "on_kessokubu": false,
+                            "reason": ""}],
+      "terrain": {"reference_gl_mm": 0.0, "gl_difference_mm": 0.0,
+                  "deck_levels_abs_mm": [...], "feet": [...]}
+    }
     """
     from .gdl_params import line_params, placement_of
 
@@ -388,6 +435,9 @@ def write_plan_json(
         }
     if openings is not None and openings.openings:
         data["openings"] = [asdict(o) for o in openings.openings]
+    if bracket_sections:
+        # 区間指定は利用者の入力。再編集用データなら往復できないと意味がない
+        data["bracket_sections"] = [asdict(b) for b in bracket_sections]
     if platforms is not None and (platforms.stages or platforms.hoists):
         data["platforms"] = {
             "stages": [asdict(s) for s in platforms.stages],

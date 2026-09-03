@@ -12,7 +12,7 @@ from ashiba.master import load_master
 from ashiba.model import ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
 from ashiba.quantity import take_off
-from ashiba.report import write_quantity_csv, write_report_md
+from ashiba.report import write_plan_json, write_quantity_csv, write_report_md
 from ashiba.stairs import auto_place_stairs
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
@@ -200,6 +200,65 @@ class TestWarningsAreSeparatedFromNotes(unittest.TestCase):
             self.assertIn(f"ℹ️ {n}", text)
         for w in self.res.warnings:
             self.assertIn(f"⚠️ {w}", text)
+
+
+class TestPlanJsonSchemaIsDocumented(unittest.TestCase):
+    """出力スキーマの説明と実際の出力が食い違わないこと.
+
+    plan.json は他ツールが読む前提の機械可読データなので、
+    説明に無いキーが出たり、説明にあるキーが出なかったりすると使えない。
+    """
+
+    def _doc_keys(self) -> set:
+        import re
+
+        src = (Path(__file__).resolve().parents[1] / "src" / "ashiba"
+               / "report.py").read_text(encoding="utf-8")
+        schema = src.split("出力スキーマ")[1].split('"""')[0]
+        return set(re.findall(r'"([a-z_0-9]+)":', schema))
+
+    def _actual_keys(self) -> set:
+        import json
+        import tempfile
+
+        from ashiba.brackets import BracketSection
+        from ashiba.openings import Opening, validate_openings
+        from ashiba.platforms import LoadingStage, validate_platforms
+        from ashiba.stairs import auto_place_stairs
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = build()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "plan.json"
+            write_plan_json(
+                m, path, stair_plan=auto_place_stairs(m),
+                terrain=solve_post_feet(m, GroundModel(points=[])),
+                platforms=validate_platforms(m, [LoadingStage(
+                    edge_index=0, start_mm=3600, span_count=2, levels=[3])]),
+                openings=validate_openings(m, [Opening(0, 7200, 3600, level=2)]),
+                bracket_sections=[BracketSection(
+                    edge_index=1, start_mm=0, end_mm=3600, width=300)],
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+        keys = set(data)
+        for section in ("config", "elevation", "stairs", "platforms", "terrain"):
+            keys |= set(data.get(section, {}))
+        for section in ("openings", "bracket_sections"):
+            for item in data.get(section, []):
+                keys |= set(item)
+        keys |= set(data["edges"][0])
+        keys |= set(data["edges"][0]["placement"])
+        keys |= set(data["wall_ties"][0])
+        return keys
+
+    def test_every_output_key_is_documented(self):
+        undocumented = self._actual_keys() - self._doc_keys()
+        self.assertEqual(sorted(undocumented), [])
+
+    def test_documented_keys_exist(self):
+        # gdl_params の中身は gdl_params.py 側で担保しているので除く
+        missing = self._doc_keys() - self._actual_keys() - {"gdl_params"}
+        self.assertEqual(sorted(missing), [])
 
 
 class TestNoDoubleReading(unittest.TestCase):
