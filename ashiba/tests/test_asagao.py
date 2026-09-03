@@ -99,5 +99,49 @@ class TestAsagaoQuantity(unittest.TestCase):
         self.assertGreater(with_asagao, base)
 
 
+class TestAsagaoGaps(unittest.TestCase):
+    """朝顔は「落下物を受ける」設備。隙間が残る箇所を黙らない."""
+
+    def _model(self, outline=None, stages=1):
+        master = load_master("shinwa_A")
+        poly = outline or RECT
+        return ScaffoldModel(
+            master=master, plan=solve_plan(poly, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=stages)),
+            building_height_mm=16000,
+        )
+
+    def test_outside_corners_are_reported(self):
+        m = self._model()
+        q = take_off(m)
+        hit = [w for w in q.warnings if "出隅" in w]
+        self.assertTrue(hit, q.warnings)
+        corners = [c for c in m.plan.outline.corners if c.kind == "出隅"]
+        self.assertIn(f"出隅{len(corners)}箇所", hit[0])
+
+    def test_odd_span_is_reported(self):
+        """900スパンに1800の板を当てていることを書く."""
+        q = take_off(self._model())
+        hit = [w for w in q.warnings if "呼び寸法が合わない" in w]
+        self.assertTrue(hit, q.warnings)
+        self.assertIn("900mm", hit[0])
+
+    def test_panel_count_still_matches_spans(self):
+        m = self._model()
+        q = take_off(m)
+        self.assertEqual(q.qty_of("朝顔", 1800), m.plan.total_spans)
+
+    def test_no_asagao_no_notes(self):
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=None), building_height_mm=16000,
+        )
+        q = take_off(m)
+        self.assertFalse([w for w in q.warnings if "朝顔" in w or "出隅" in w])
+
+
 if __name__ == "__main__":
     unittest.main()

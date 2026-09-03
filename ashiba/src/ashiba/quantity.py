@@ -296,9 +296,39 @@ def take_off(
         panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
         bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
         hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
-        add(panel, total_spans * asagao.stages, "朝顔本体")
+        # 朝顔本体はスパンに合う寸法で拾う。1種類しか無い系列では、
+        # 短いスパンに長い板を当てることになるので、そうと書く
+        if panel is not None:
+            odd = {}
+            for sp, n in span_counts.items():
+                fit = next(
+                    (q for q in m.by_category("朝顔")
+                     if "防護棚" in q.note and q.nominal_dim == sp), None
+                )
+                if fit is not None:
+                    add(fit, n * asagao.stages, f"朝顔本体{sp}")
+                else:
+                    odd[sp] = n
+                    add(panel, n * asagao.stages, f"朝顔本体（{sp}スパンに{panel.nominal_dim}）")
+            if odd:
+                notes.action(
+                    "朝顔本体の呼び寸法が合わないスパンがあります（"
+                    + "、".join(f"{sp}mm×{n}" for sp, n in sorted(odd.items()))
+                    + f"）。{panel.nominal_dim}mmの板で計上しているので、"
+                    "現場で切り詰めるか、隙間を板・シートで塞いでください"
+                )
+        else:
+            add(panel, total_spans * asagao.stages, "朝顔本体")
         add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
         add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
+        # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）
+        corners = [c for c in plan.outline.corners if c.kind == "出隅"]
+        if corners:
+            notes.action(
+                f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
+                f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
+                "（本ツールは隅の部材を計上していません）"
+            )
         # 取付部は2スパン毎に壁つなぎを増設
         extra_ties = 0
         for e in plan.edges:
