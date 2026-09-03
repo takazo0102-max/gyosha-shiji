@@ -167,6 +167,44 @@ class TestOverallVerdict(unittest.TestCase):
         self.assertTrue(any("開口部" in b for b in r["verdict"]["blockers"]))
         self.assertIn("是正が必要です", report)
 
+    def test_law_check_ng_blocks(self):
+        """法規チェックのNGが総合判定に入ること（入れなくても落ちなかった箇所）."""
+        r, report = self._run(
+            "本足場原則NG", scaffold_form="一側足場", clearance_space_mm=2000)
+        self.assertGreater(r["checks"]["ng"], 0)
+        self.assertFalse(r["verdict"]["ok"])
+        self.assertTrue(
+            any("法規チェックNG" in b for b in r["verdict"]["blockers"]),
+            r["verdict"],
+        )
+        self.assertIn("是正が必要です", report)
+
+    def test_terrain_warnings_reach_the_checklist(self):
+        """敷地の警告が要確認一覧に載ること（落としても落ちなかった箇所）.
+
+        法規チェック6と同じ文面のものは重ねないので、敷地固有の警告
+        （敷板・床掘りの調整）を直接与えて配線だけを見る。
+        """
+        from types import SimpleNamespace
+
+        from ashiba.cli import collect_warnings
+
+        terrain = SimpleNamespace(
+            warnings=["ジャッキの可動域で吸収しきれない支柱が3本あります"],
+            notes=[], feet=[],
+        )
+        got = collect_warnings(
+            SimpleNamespace(warnings=[], notes=[]),
+            SimpleNamespace(plan=SimpleNamespace(warnings=[]),
+                            elevation=SimpleNamespace(warnings=[])),
+            [], SimpleNamespace(warnings=[]), [],
+            SimpleNamespace(issues=[]), terrain, SimpleNamespace(issues=[]),
+        )
+        self.assertEqual(
+            [(kind, text) for kind, _sev, text in got],
+            [("敷地", "敷地: ジャッキの可動域で吸収しきれない支柱が3本あります")],
+        )
+
     def test_platform_ng_blocks(self):
         r, _ = self._run("ステージ重なり", loading_stages=[
             {"edge_index": 0, "start_mm": 3600, "span_count": 2},

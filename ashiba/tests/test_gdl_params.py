@@ -410,6 +410,52 @@ class TestPlacement(unittest.TestCase):
         self.assertEqual(sorted(angles), [-90.0, 0.0, 90.0, 180.0])
 
 
+class TestGeometryParamsMatchThePlan(unittest.TestCase):
+    """図面に渡す寸法が割付の値と一致すること.
+
+    離れを0で渡しても落ちない状態だった（変異テストで判明）。
+    離れは平面図の躯体参照線・壁つなぎの長さ・詳細図の寸法に効くので、
+    ここがズレると図面だけ実物と違う。
+    """
+
+    def test_standoff_is_per_edge(self):
+        m = build("shinwa_A")
+        for ep in m.plan.edges:
+            with self.subTest(ep.edge_index):
+                p = line_params(m, ep)
+                self.assertAlmostEqual(p["standoff"] * 1000, ep.standoff, places=3)
+                self.assertGreater(p["standoff"], 0)
+
+    def test_standoff_follows_a_changed_spec(self):
+        from ashiba.plan_solver import StandoffSpec, solve_plan
+
+        m = build("shinwa_A")
+        m.plan = solve_plan(
+            [(0, 0), (30000, 0), (30000, 20000), (0, 20000)], m.master,
+            StandoffSpec(target=250, min=200, max=300, hard_min=180),
+        )
+        for ep in m.plan.edges:
+            p = line_params(m, ep)
+            self.assertAlmostEqual(p["standoff"] * 1000, ep.standoff, places=3)
+
+    def test_detail_sheet_uses_a_real_standoff(self):
+        from ashiba.details import required_details
+
+        m = build("shinwa_A")
+        for sheet in required_details(m):
+            with self.subTest(sheet.key):
+                self.assertGreater(sheet.params["standoff"], 0)
+
+    def test_row_spacing_is_not_the_deck_width(self):
+        """建地列の芯々と作業床の被覆幅は別物（混同すると図面が狂う）."""
+        m = build("shinwa_A")
+        p = line_params(m, m.plan.edges[0])
+        self.assertAlmostEqual(
+            p["rowW"] * 1000, m.post_row_spacing_mm, places=3)
+        self.assertNotAlmostEqual(
+            p["rowW"] * 1000, m.deck_width_total, places=3)
+
+
 class TestPartialPlacementIsRolledBack(unittest.TestCase):
     """一括配置の途中で失敗したら、置いた分を残さない."""
 
