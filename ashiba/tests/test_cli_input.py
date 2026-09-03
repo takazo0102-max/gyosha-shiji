@@ -296,6 +296,61 @@ class TestInputsActuallyTakeEffect(unittest.TestCase):
         self.assertIn("収まりません", ng.message)
 
 
+class TestProjectNameBecomesAFileName(unittest.TestCase):
+    """工事名はそのままファイル名になる。使えない文字で落ちない."""
+
+    def _run(self, name):
+        import json
+        import tempfile
+
+        from ashiba.cli import run
+
+        spec = dict(BASE, project_name=name)
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "s.json"
+            f.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = run(f, Path(td) / "o")
+            files = sorted(p.name for p in (Path(td) / "o").rglob("*") if p.is_file())
+        return r, files
+
+    def test_slash_does_not_crash(self):
+        """"A/B工区" は FileNotFoundError で落ちていた."""
+        r, files = self._run("A/B工区")
+        self.assertEqual(len(files), 5)
+        self.assertEqual(r["file_stem"], "A_B工区")
+        self.assertTrue(all(f.startswith("A_B工区_") for f in files), files)
+
+    def test_reserved_characters_are_replaced(self):
+        from ashiba.cli import safe_file_stem
+
+        for bad in ':*?"<>|\\':
+            with self.subTest(bad):
+                self.assertNotIn(bad, safe_file_stem(f"現場{bad}1期"))
+
+    def test_empty_or_dots_fall_back(self):
+        from ashiba.cli import safe_file_stem
+
+        for name in ("", "   ", "..", ". ."):
+            with self.subTest(name):
+                self.assertEqual(safe_file_stem(name), "ashiba")
+
+    def test_long_name_is_truncated(self):
+        from ashiba.cli import MAX_NAME_LEN, safe_file_stem
+
+        self.assertLessEqual(len(safe_file_stem("あ" * 200)), MAX_NAME_LEN)
+
+    def test_change_is_not_silent(self):
+        r, _files = self._run("A/B工区")
+        self.assertTrue(
+            any("ファイル名" in n for n in r["notes"]), r["notes"]
+        )
+
+    def test_normal_name_is_untouched(self):
+        from ashiba.cli import safe_file_stem
+
+        self.assertEqual(safe_file_stem("サンプル矩形30x20"), "サンプル矩形30x20")
+
+
 class TestDocumentedSchemaIsRead(unittest.TestCase):
     """docstringに書いた入力項目が、実際にコードから読まれていること.
 

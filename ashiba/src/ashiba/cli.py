@@ -513,6 +513,11 @@ class PlanRun:
     def name(self) -> str:
         return self.spec.get("project_name", "ashiba")
 
+    @property
+    def file_stem(self) -> str:
+        """帳票のファイル名に使う工事名（使えない文字を落とした形）."""
+        return safe_file_stem(self.name)
+
 
 def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）."""
@@ -581,6 +586,30 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     )
 
 
+# ファイル名に使えない文字（Windows/macOSの制約の和集合）
+_BAD_NAME_CHARS = '/\\:*?"<>|'
+MAX_NAME_LEN = 80
+
+
+def safe_file_stem(name: str) -> str:
+    """工事名をファイル名に使える形にする.
+
+    工事名はそのままファイル名の頭に付く。"A/B工区" のような名前が来ると、
+    スラッシュがディレクトリ区切りとして扱われて書き出しに失敗する
+    （実際 FileNotFoundError で落ちていた）。Windowsで使えない文字や
+    前後の空白・ドットも落として、長すぎる名前は切り詰める。
+    """
+    out = []
+    for ch in name.strip():
+        out.append("_" if ch in _BAD_NAME_CHARS or ord(ch) < 32 else ch)
+    stem = "".join(out).strip(" .")
+    while "__" in stem:
+        stem = stem.replace("__", "_")
+    if len(stem) > MAX_NAME_LEN:
+        stem = stem[:MAX_NAME_LEN].rstrip(" ._")
+    return stem or "ashiba"
+
+
 def write_outputs(r: PlanRun, out_dir: Path) -> None:
     """帳票一式を書き出す（CLIもツールバーも同じものを出す）."""
     (model, quantity, checks, structural, terrain, platforms, openings,
@@ -589,7 +618,7 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
         r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.spec)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    name = r.name
+    name = safe_file_stem(r.name)
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     write_report_md(
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
@@ -630,8 +659,15 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.tie_opt)
     name = r.name
     s = summary(checks)
+    renamed = []
+    if r.file_stem != r.name:
+        renamed.append(
+            f"工事名にファイル名で使えない文字があるため、帳票のファイル名は"
+            f"「{r.file_stem}」にしました"
+        )
     return _finite({
         "project": name,
+        "file_stem": r.file_stem,
         "posts_per_level": model.plan.total_posts,
         "levels": model.elevation.n_levels,
         "scaffold_height_mm": model.scaffold_height_mm,
@@ -704,7 +740,8 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         },
         # 参考情報（何をどう解いたかの説明）は warnings と分ける。
         # 混ぜると、読む側がどれに手を打てばよいのか分からなくなる
-        "notes": structural.notes + [f"敷地: {n}" for n in terrain.notes],
+        "notes": (structural.notes + [f"敷地: {n}" for n in terrain.notes]
+                  + renamed),
         "warnings": [w for _, _, w in warnings],
         "out_dir": str(out_dir),
     })
