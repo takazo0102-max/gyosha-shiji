@@ -238,6 +238,8 @@ class PostResult:
     unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
     # 作業床許容積載の出典（計算書に「capacity.csv」とだけ書いても確認できない）
     deck_source: str = ""
+    # 帳票の呼び名（枠組は建枠）
+    vertical_member_name: str = "支柱"
 
     @property
     def unverified_items(self) -> list[str]:
@@ -507,6 +509,7 @@ def check_post(
         governing=governing_name,
         source=governing_cap.source,
         deck_source=cap_deck.source,
+        vertical_member_name=model.master.vertical_member_name,
         verified=governing_cap.verified and cap_deck.verified,
         unverified_caps=unverified_caps,
     )

@@ -195,6 +195,25 @@ class TestFrameReportUsesFrameTerms(unittest.TestCase):
         self.assertIn("- 作業床: 布板", text)
         self.assertIn("建枠列間隔", text)
 
+    def test_no_shichu_leaks_into_frame_report(self):
+        """枠組の割付レポート全文に「支柱」（建枠と併記でない）が残らない."""
+        # 斜面＋開口＋ステージ＋ブラケットを載せて全節を出す
+        from ashiba.brackets import BracketSection
+        from ashiba.openings import Opening, validate_openings
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = build_frame()
+        ground = GroundModel(points=[(x, y, -x * 0.02)
+                                     for x in (0, 15000, 30000) for y in (0, 20000)])
+        terrain = solve_post_feet(m, ground)
+        op = validate_openings(m, [Opening(0, 1829, 3658, level=2)])
+        secs = [BracketSection(edge_index=1, start_mm=0, end_mm=3658,
+                               direction="張出", width=600)]
+        text = render(m, terrain=terrain, openings=op, bracket_sections=secs)
+        offenders = [ln for ln in text.splitlines()
+                     if "支柱" in ln and "建枠" not in ln]
+        self.assertEqual(offenders, [], offenders)
+
     def test_wedge_still_uses_shichu_and_ledger(self):
         text = render(build())
         self.assertIn("支柱構成（下から）", text)

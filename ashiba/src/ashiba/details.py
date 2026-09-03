@@ -100,8 +100,9 @@ def required_details(
         worst = max(f.jack_mm for f in terrain.feet)
         if worst > jack_mm:
             jack_mm = int(round(worst))
-            jack_note = f"（敷地高低差により最大繰出し{jack_mm}mmの支柱で作図）"
+            jack_note = f"（敷地高低差により最大繰出し{jack_mm}mmの{model.master.vertical_member_name}で作図）"
 
+    vm = model.master.vertical_member_name
     sheets = [
         DetailSheet(
             key="base",
@@ -173,7 +174,7 @@ def required_details(
                         "beamSpan": span / 1000.0,
                         "beamPosts": ",".join(f"{v:.0f}" for v in inner),
                         "openH": lv / 1000.0},
-                reason=f"開口部（梁枠{span}mm）で支柱を抜くため",
+                reason=f"開口部（梁枠{span}mm）で{vm}を抜くため",
             )
         )
     return sheets

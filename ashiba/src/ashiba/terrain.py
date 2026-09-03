@@ -105,6 +105,8 @@ class TerrainResult:
     # ジャッキ繰出しが実務上限を超えたときの本文。法規チェック6と同じ事象なので、
     # 向こうにも同じ文面を使わせて、要確認一覧に二重で並ばないようにする
     over_jack_warning: str = ""
+    # 帳票の呼び名（枠組は建枠）。ジャッキ量一覧の列名などに使う
+    vertical_member_name: str = "支柱"
 
     @property
     def jack_min_mm(self) -> float:
@@ -267,6 +269,7 @@ def solve_post_feet(
         warnings=warnings,
         notes=notes,
         over_jack_warning=over_jack_warning,
+        vertical_member_name=vm,
     )
 
 
@@ -344,9 +347,10 @@ def _choose_koma_offset(
 
 def jack_table_rows(result: TerrainResult) -> list[list]:
     """ジャッキ量一覧（帳票用の行データ）."""
+    vm = result.vertical_member_name
     rows = [[
         "No", "X(mm)", "Y(mm)", "GL標高(mm)", "下げ段数",
-        "ジャッキ繰出し(mm)", "敷板調整(mm)", "支柱構成", "備考",
+        "ジャッキ繰出し(mm)", "敷板調整(mm)", f"{vm}構成", "備考",
     ]]
     for f in result.feet:
         rows.append([

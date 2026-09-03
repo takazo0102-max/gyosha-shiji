@@ -123,8 +123,9 @@ def _sheet_jack_table(wb, terrain, checks=None) -> None:
     s = wb.sheet("ジャッキ量一覧")
     for c, wdt in enumerate([6, 12, 12, 14, 12, 18, 14, 30, 46]):
         s.set_width(c, wdt)
-    s.add_title("支柱ごとのジャッキ量一覧（敷地高低差対応）", span=9)
-    s.add_cells([Cell("作業床レベルは全周で通し、GL高低差は各支柱のジャッキと支柱長で吸収する")])
+    vm = getattr(terrain, "vertical_member_name", "支柱")
+    s.add_title(f"{vm}ごとのジャッキ量一覧（敷地高低差対応）", span=9)
+    s.add_cells([Cell(f"作業床レベルは全周で通し、GL高低差は各{vm}のジャッキと{vm}長で吸収する")])
     s.add_blank()
     rows = jack_table_rows(terrain)
     s.add_header(rows[0])
@@ -197,10 +198,11 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     _kv(s, "足場の長さ", round(scaffold_total_length_m(model), 2),
         "m（足場中心線の全長）")
     _kv(s, "足場の高さ", round(model.scaffold_height_mm / 1000.0, 3),
-        "m（ジャッキ下端〜支柱天端）")
+        f"m（ジャッキ下端〜{model.master.vertical_member_name}天端）")
     _kv(s, "架け面積", quantity.kake_menseki_m2, "m²（(建物外周+4m)×(建物高さ+0.5m)）")
     _kv(s, "作業床の層数", model.elevation.n_levels, "層")
-    _kv(s, "支柱位置数", model.plan.total_posts, "箇所/層（内外2列なら×2本）")
+    _kv(s, f"{model.master.vertical_member_name}位置数", model.plan.total_posts,
+        "箇所/層（内外2列なら×2本）")
     _kv(s, "設置期間", model.config.period_days, "日")
     # 様式の「構造の概要」欄。作業床・手すり・壁つなぎ・昇降設備・朝顔は
     # 計画で変わるのに、この下書きは種類と寸法しか書いていなかった
@@ -371,12 +373,13 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     s.set_width(1, 18)
     s.set_width(2, 52)
     p = structural.post
-    s.add_title("建地（支柱）圧縮の検定", span=3)
+    vm = getattr(p, "vertical_member_name", "支柱")
+    s.add_title(f"建地（{vm}）圧縮の検定", span=3)
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
     # 式だけ書いて元の数を出さないと、確認する人が値を追えない
     _kv(s, "足場総重量", p.total_weight_kg, "kg  部材等明細書の合計")
-    _kv(s, "建地本数", p.n_posts, "本（支柱位置数×列数）")
+    _kv(s, "建地本数", p.n_posts, f"本（{vm}位置数×列数）")
     _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
     _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  " + (p.deck_source or "capacity.csv"))
     _kv(s, "同時載荷層数", p.loaded_levels, "層（実務: 2層以内）")
@@ -390,7 +393,7 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
     s.add_blank()
     _kv(s, "ジャッキ繰出し量", p.jack_extension_mm,
-        "mm（敷地高低差がある場合は最も繰り出している支柱の値。"
+        f"mm（敷地高低差がある場合は最も繰り出している{vm}の値。"
         "許容支持力は繰出し長で低下する）")
     _kv(s, "支配する検定", p.governing, "")
     _kv(s, "許容支持力", p.allowable_kn,
