@@ -548,3 +548,26 @@ class TestPlanJsonRoundTripCoverage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
+    """立面図の文字が重ならないこと（実機のプレビューで潰れていた）."""
+
+    def setUp(self):
+        self.body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+                     / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+
+    def test_jack_callout_left_the_height_dimension_column(self):
+        # 高さ寸法の列（dx）に jackOut/2 で置くと最下段（GL+100）の寸法と重なる
+        self.assertNotIn('jackOut / 2, "ジャッキ', self.body)
+
+    def test_jack_callout_sits_below_the_span_dimension(self):
+        line = [ln for ln in self.body.splitlines() if '"ジャッキ繰出' in ln]
+        self.assertEqual(len(line), 1, "ジャッキ繰出しの記載は1箇所")
+        self.assertIn("dy - txtLine * 3.4", line[0])
+
+    def test_span_total_and_jack_are_on_separate_lines(self):
+        # 短い面では L= と横並びになる。行を変えて避ける
+        total = [ln for ln in self.body.splitlines()
+                 if '"L=" + str(lineLen' in ln and "dy - txtLine * 2.2" in ln]
+        self.assertEqual(len(total), 1, "立面の全長寸法は1箇所")

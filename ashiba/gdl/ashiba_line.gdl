@@ -801,7 +801,6 @@ for il = 1 to nLv
 next il
 line2 dx - 0.06, postTop, dx + 0.06, postTop
 text2 dx - txtH, postTop, "H=" + str(postTop * 1000, 6, 0)
-text2 dx - txtH, jackOut / 2, "ジャッキ" + str(jackOut * 1000, 4, 0)
 
 ! ---- スパン寸法（下側） ----
 dy = -0.45
@@ -814,6 +813,10 @@ next ip
 line2 x, dy, x, dy - 0.06
 line2 0, dy, lineLen, dy
 text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
+! ジャッキ繰出しは高さ寸法の列に入れると最下段（GL+100等）の寸法と
+! 文字が重なって両方読めなくなる。GL下の空きに別記する
+! 短い面では L= の文字と横に並ぶので、行を分ける
+text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
 
 ! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
 tx = lineLen + 0.5
