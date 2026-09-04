@@ -131,7 +131,7 @@ def main() -> None:
 
     # --- 4. 検査と数量 ---
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
-    quantity = take_off(model, stair_plan=stair_plan)
+    quantity = take_off(model, stair_plan=stair_plan, platforms=platforms, terrain=terrain)
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain
     )
