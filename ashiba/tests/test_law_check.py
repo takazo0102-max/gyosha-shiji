@@ -393,3 +393,27 @@ class TestHeightUsesTheTallestLeg(unittest.TestCase):
         self.assertIn("脚の伸び", c.message)
         self.assertIn("2本組", c.message)
 
+
+class TestSingleRowFootprint(unittest.TestCase):
+    """一側足場の収まりは離れ＋床受けブラケット長で見る（離れだけでは過小）."""
+
+    def _model(self, clearance):
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(9000, master=master),
+            config=ScaffoldConfig(scaffold_form="一側足場"),
+            clearance_space_mm=clearance,
+        )
+
+    def test_footprint_includes_the_bracket_deck(self):
+        m = self._model(900)
+        need = max(e.standoff for e in m.plan.edges) + m.post_row_spacing_mm
+        tight = self._model(need - 50)
+        c = [r for r in run_all_checks(tight) if r.check_id == 1][0]
+        self.assertEqual(c.status, "NG", c.message)
+        self.assertIn("床受けブラケット長", c.message)
+        wide = self._model(need + 50)
+        c2 = [r for r in run_all_checks(wide) if r.check_id == 1][0]
+        self.assertEqual(c2.status, "OK", c2.message)
+

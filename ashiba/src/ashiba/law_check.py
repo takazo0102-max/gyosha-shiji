@@ -86,19 +86,6 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
         )
     # 確保できるスペースに足場が物理的に収まるか。入力は受け取っていたのに
     # 一側足場かどうかの判定にしか使っておらず、収まらない計画も素通りしていた
-    need = max((e.standoff for e in m.plan.edges), default=0.0)
-    need += m.post_row_spacing_mm if m.config.scaffold_form != "一側足場" else 0.0
-    if m.clearance_space_mm and need > m.clearance_space_mm + 1e-6:
-        return CheckResult(
-            1, "本足場原則", NG,
-            f"確保できるスペース{m.clearance_space_mm:.0f}mmに対し、"
-            f"{m.config.scaffold_form}の必要幅{need:.0f}mm"
-            f"（離れ{max(e.standoff for e in m.plan.edges):.0f}"
-            + (f"＋建地間隔{m.post_row_spacing_mm:.0f}"
-               if m.config.scaffold_form != "一側足場" else "")
-            + "）が収まりません。離れの見直し、または足場形式の変更が要ります",
-            basis + "／敷地条件",
-        )
     if m.master.is_frame and m.config.scaffold_form == "一側足場":
         # 建枠そのものが内外2列を成す。一側で組める製品ではない
         return CheckResult(
@@ -106,6 +93,20 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
             "枠組足場は建枠が内外2列を成すため一側足場にはできません。"
             "本足場とするか、くさび緊結式（一側可）で計画してください",
             basis + "／枠組足場の構造",
+        )
+    # 一側足場も建地1列＋躯体側へ張り出す床（ブラケット長＝建地列間隔）で幅を取る。
+    # 離れだけで見ると床と建地の幅が抜けて、収まらない計画を通していた
+    single = m.config.scaffold_form == "一側足場"
+    need = max((e.standoff for e in m.plan.edges), default=0.0) + m.post_row_spacing_mm
+    if m.clearance_space_mm and need > m.clearance_space_mm + 1e-6:
+        return CheckResult(
+            1, "本足場原則", NG,
+            f"確保できるスペース{m.clearance_space_mm:.0f}mmに対し、"
+            f"{m.config.scaffold_form}の必要幅{need:.0f}mm"
+            f"（離れ{max(e.standoff for e in m.plan.edges):.0f}＋"
+            + ("床受けブラケット長" if single else "建地間隔")
+            + f"{m.post_row_spacing_mm:.0f}）が収まりません。離れの見直し、または足場形式の変更が要ります",
+            basis + "／敷地条件",
         )
     return CheckResult(1, "本足場原則", OK, f"足場形式: {m.config.scaffold_form}", basis)
 
