@@ -95,9 +95,13 @@ class TestStageLoad(unittest.TestCase):
         self.m = build()
 
     def test_load_distributed_to_supporting_posts(self):
+        from ashiba.platforms import cantilever_amplification
+
         s = stage(span_count=2, load_kn=9.8, levels=[3])
-        # 支持する建地は間口のスパン数+1本、張出しの偏心を割増係数で見込む
-        expect = 9.8 * 1 * CANTILEVER_AMPLIFICATION / 3
+        # 支持する建地は間口のスパン数+1本、張出しの偏心は 1+a/b（下限1.5）で見込む
+        amp = cantilever_amplification(s, self.m)
+        self.assertGreaterEqual(amp, CANTILEVER_AMPLIFICATION)
+        expect = 9.8 * 1 * amp / 3
         self.assertAlmostEqual(stage_post_load_kn(s, self.m), expect, places=3)
 
     def test_wider_stage_lowers_per_post_load(self):
@@ -400,4 +404,46 @@ class TestDegenerateStageValues(unittest.TestCase):
             with self.subTest(load):
                 r = validate_platforms(build(), [stage(load_kn=load)], [])
                 self.assertTrue([i for i in ngs(r) if "最大積載荷重" in i.message and "0より大きい" in i.message])
+
+
+class TestStageEccentricityAndForm(unittest.TestCase):
+    """張出しの偏心は出に応じて外側建地の軸力を増やす。一側足場には置けない."""
+
+    def test_post_load_grows_with_projection(self):
+        from ashiba.platforms import cantilever_amplification, stage_post_load_kn
+
+        m = build()
+        short = stage(projection_mm=600)
+        long = stage(projection_mm=1800)
+        self.assertGreater(stage_post_load_kn(long, m), stage_post_load_kn(short, m))
+        # 出1500・建地間隔600 → 1 + 750/600 = 2.25（定数1.5より大きい）
+        s15 = stage(projection_mm=1500)
+        self.assertAlmostEqual(
+            cantilever_amplification(s15, m), 1 + 750 / m.post_row_spacing_mm, places=6)
+
+    def test_single_row_scaffold_rejects_stage(self):
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(scaffold_form="一側足場"),
+        )
+        r = validate_platforms(m, [stage()], [])
+        self.assertTrue([i for i in ngs(r) if "一側足場" in i.message], [i.message for i in r.issues])
+
+
+class TestHoistInputGuards(unittest.TestCase):
+    def test_zero_tie_spacing_is_ng_and_not_counted(self):
+        r = validate_platforms(build(), [], [Hoist(edge_index=2, position_mm=14400, tie_every_mm=0)])
+        self.assertTrue([i for i in ngs(r) if "控えの間隔" in i.message])
+        self.assertEqual(r.extra_wall_ties, 0)
+
+    def test_two_hoists_at_the_same_spot_are_ng(self):
+        h = Hoist(edge_index=2, position_mm=14400)
+        r = validate_platforms(build(), [], [h, Hoist(edge_index=2, position_mm=14900)])
+        self.assertTrue([i for i in ngs(r) if "同じ位置" in i.message])
+        apart = validate_platforms(build(), [], [h, Hoist(edge_index=2, position_mm=3600)])
+        self.assertFalse([i for i in ngs(apart) if "同じ位置" in i.message])
 

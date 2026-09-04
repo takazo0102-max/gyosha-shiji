@@ -134,7 +134,21 @@ def stage_post_load_kn(stage: LoadingStage, model: ScaffoldModel) -> float:
     """
     n_posts = stage.span_count + 1
     n_levels = max(1, len(stage.levels) or 1)
-    return stage.load_kn * n_levels * CANTILEVER_AMPLIFICATION / n_posts
+    return stage.load_kn * n_levels * cantilever_amplification(stage, model) / n_posts
+
+
+def cantilever_amplification(stage: LoadingStage, model: ScaffoldModel) -> float:
+    """張出しの偏心による外側建地の割増係数 1 + a/b（下限 CANTILEVER_AMPLIFICATION）.
+
+    荷重は張出し床の中央（外側建地から a = 出/2）に載るとみなす。内外の建地間隔 b で
+    受ける片持ちの反力は外側建地で P(1 + a/b)、内側は引抜き。定数1.5だけだと
+    出1500mm・建地間隔600mmの2.25倍を過小に見ていた（出を変えても軸力が動かなかった）。
+    """
+    b = float(model.post_row_spacing_mm or 0)
+    if b <= 0:
+        return CANTILEVER_AMPLIFICATION
+    a = stage.projection_mm / 2.0
+    return max(CANTILEVER_AMPLIFICATION, 1.0 + a / b)
 
 
 def validate_platforms(
@@ -163,6 +177,12 @@ def validate_platforms(
         if s.span_count < 1:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG", "間口は1スパン以上必要です", "入力エラー"))
+        if model.config.scaffold_form == "一側足場":
+            result.issues.append(PlatformIssue(
+                "ステージ", i, "NG",
+                "一側足場（建地1列）には荷受けステージを取り付けられません。張出しの偏心を"
+                "内外2列の建地で受ける前提なので、本足場で計画してください",
+                "仮設工業会 足場・型枠支保工設計指針（荷受け構台は本足場に設置）"))
         if s.projection_mm <= 0:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG",
@@ -261,8 +281,24 @@ def validate_platforms(
                 f"到達高さ{reach:.0f}mmが足場高さ{model.scaffold_height_mm}mmを超えます。"
                 "マスト頂部の控えを別途検討してください",
                 "工事用エレベータ構造規格"))
+        if h.tie_every_mm <= 0:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "NG",
+                f"マスト控えの間隔{h.tie_every_mm:.0f}mmは0より大きい値で指定してください"
+                "（0だと控えが無限に必要になる）", "入力エラー"))
+            continue
+        # 同じ面の同じ位置（1スパン未満）に2基は建たない。黙って通すと控えと
+        # 乗り込み口が二重に計上される
+        for j, other in enumerate(hoists[:i]):
+            if other.edge_index == h.edge_index and \
+                    abs(other.position_mm - h.position_mm) < min(edge.spans or [1800]):
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "NG",
+                    f"辺{h.edge_index}で昇降機{j + 1}と{i + 1}が同じ位置"
+                    f"（{other.position_mm:.0f}mmと{h.position_mm:.0f}mm）に重なっています",
+                    "入力エラー"))
         # マスト控えの壁つなぎ
-        n_ties = max(1, int(reach // max(h.tie_every_mm, 1)))
+        n_ties = max(1, int(reach // h.tie_every_mm))
         result.extra_wall_ties += n_ties
         result.issues.append(PlatformIssue(
             "昇降機", i, "WARN",

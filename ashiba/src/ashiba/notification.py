@@ -399,7 +399,8 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         "kN  作業床許容積載×同時載荷層数÷2")
     if p.extra_load_kn > 0:
         _kv(s, "局所荷重 建地1本あたり", p.extra_load_kn,
-            "kN  荷受けステージ等（直下の建地に張出しの偏心を割増して配分）")
+            "kN  荷受けステージ等（張出しの偏心: 外側建地の反力 P×(1+a/b)、"
+            "a=出/2・b=内外の建地間隔、下限1.5倍。間口の建地数で割る）")
         _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載 + 局所荷重")
     else:
         _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
