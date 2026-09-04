@@ -666,7 +666,7 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         # ここで同じ対応をもう一度挙げると要確認一覧に二重で並ぶ
         notes.append(
             f"開口部で{vm}{openings.removed_posts}本を抜いています。"
-            f"梁枠の両端{vm}は補強し、梁枠上の作業床は積載荷重を低減してください"
+            f"梁枠の両端{vm}の補強の要否と梁枠上の積載制限は、構造計算（計算書4）の結果に従ってください"
         )
 
 

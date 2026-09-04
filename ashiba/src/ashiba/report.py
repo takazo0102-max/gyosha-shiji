@@ -320,7 +320,7 @@ def write_report_md(
         if openings is not None and openings.removed_posts:
             vm = model.master.vertical_member_name
             a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"
-              f"（両端{vm}の補強・梁枠上の積載荷重低減が必要）")
+              f"（両端{vm}の軸力と梁枠上の積載制限は構造計算の開口部の行を参照）")
         # ブラケット区間は「1箇所」だけでは何をするか分からない。
         # どの面のどの範囲を、どちら向きに、どの幅で持ち出す/追従するかを出す
         for b in (bracket_sections or []):

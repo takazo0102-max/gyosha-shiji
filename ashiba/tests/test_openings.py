@@ -90,7 +90,7 @@ class TestOpeningValidation(unittest.TestCase):
     def test_reinforcement_is_always_warned(self):
         """梁枠の両端支柱は集中荷重を受ける。黙って通さない."""
         r = validate_openings(self.m, [Opening(0, 3600, 3600)])
-        self.assertTrue(any("両端支柱の補強" in i.message for i in r.issues))
+        self.assertTrue(any("両端支柱の軸力" in i.message for i in r.issues))
 
     def test_missing_nearby_tie_is_warned(self):
         m = build()
