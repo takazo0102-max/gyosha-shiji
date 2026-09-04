@@ -138,9 +138,13 @@ def main() -> None:
         model, quantity, site, platforms=platforms, terrain=terrain
     )
     s = summary(checks)
+    why = ""
+    if not structural.all_ok and not structural.post.ok and not structural.post.verified:
+        # 一般値で不足しているだけなら、それが理由だと行の中で言う（末尾の1行だけだと見落とす）
+        why = "（建地の許容支持力が未確認の一般値。認定値を capacity.csv に入れて再判定）"
     print(f"7. 法規: OK{s['ok']} WARN{s['warn']} NG{s['ng']} / "
           f"構造: 壁つなぎ{structural.wall_tie.ratio} 建地{structural.post.ratio} "
-          f"→ {'成立' if structural.all_ok else '不成立'}")
+          f"→ {'成立' if structural.all_ok else '不成立' + why}")
     print(f"8. 数量: {len(quantity.lines)}品目 {quantity.total_weight_kg}kg "
           f"4t車{quantity.truck_count}台 架け面積{quantity.kake_menseki_m2}m²")
 
