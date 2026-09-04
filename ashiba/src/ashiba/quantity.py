@@ -204,7 +204,7 @@ def take_off(
             notes.append(
                 f"敷地高低差の継ぎ足し分として{model.master.vertical_member_name}"
                 f"{extra_posts}本を含みます（脚ごとの構成はジャッキ量一覧のとおり。"
-                "立面図は名目構成で描いています）"
+                "立面図・3Dも脚ごとの地盤高で描いています）"
             )
     else:
         for nominal in elev.posts:
@@ -769,7 +769,7 @@ def _count_frame_parts(
         if extra > 0:
             notes.append(
                 f"敷地高低差の継ぎ足し分として建枠{extra}枚を含みます"
-                "（脚ごとの構成はジャッキ量一覧のとおり。立面図は名目構成で描いています）"
+                "（脚ごとの構成はジャッキ量一覧のとおり。立面図・3Dも脚ごとの地盤高で描いています）"
             )
     else:
         for h in elev.posts:

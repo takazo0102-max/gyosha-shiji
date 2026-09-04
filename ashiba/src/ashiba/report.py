@@ -469,6 +469,7 @@ def write_plan_json(
                 "gdl_params": line_params(
                     model, ep, stair_plan=stair_plan, openings=openings,
                     platforms=platforms, bracket_sections=bracket_sections,
+                    terrain=terrain,
                 ),
             }
             for ep, face in zip(model.plan.edges, model.plan.face_names())

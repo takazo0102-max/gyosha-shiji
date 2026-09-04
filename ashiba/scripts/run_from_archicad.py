@@ -66,6 +66,7 @@ def main() -> None:
     lines = place_scaffold_lines(
         r.model, LINE_OBJECT, client, stair_plan=r.stair_plan,
         openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
+        terrain=r.terrain,
     )
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
@@ -74,7 +75,7 @@ def main() -> None:
         # 面名は指定しなければ方位（南面・東面…）が入る
         elevs = place_elevations(
             r.model, LINE_OBJECT, stair_plan=r.stair_plan, openings=r.openings,
-            platforms=r.platforms, bracket_sections=r.brackets,
+            platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
             origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
             floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
         )

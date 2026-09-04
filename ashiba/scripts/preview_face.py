@@ -48,7 +48,7 @@ def main() -> int:
     ep = next(e for e in r.model.plan.edges if e.edge_index == edge)
     base = line_params(
         r.model, ep, stair_plan=r.stair_plan, openings=r.openings,
-        platforms=r.platforms, bracket_sections=r.brackets,
+        platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
     )
     out = ROOT / "out" / "view_check"
     out.mkdir(parents=True, exist_ok=True)

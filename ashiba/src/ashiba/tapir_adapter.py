@@ -339,6 +339,7 @@ def place_scaffold_lines(
     openings=None,
     platforms=None,
     bracket_sections=None,
+    terrain=None,
 ) -> list[dict]:
     """割付結果の各辺に「足場ライン」オブジェクトを1つずつ配置する.
 
@@ -364,6 +365,7 @@ def place_scaffold_lines(
                 line_params(
                     model, ep, stair_plan=stair_plan, openings=openings,
                     platforms=platforms, bracket_sections=bracket_sections,
+                    terrain=terrain,
                 ),
                 object_name,
             )
@@ -450,6 +452,7 @@ def place_elevations(
     floor_levels_mm: Optional[list[float]] = None,
     face_names: Optional[list[str]] = None,
     client: Optional[ArchicadClient] = None,
+    terrain=None,
 ) -> list[dict]:
     """各面の立面図を横に並べて配置する（viewMode="elev"）.
 
@@ -473,6 +476,7 @@ def place_elevations(
                     **line_params(
                         model, ep, stair_plan=stair_plan, openings=openings,
                         platforms=platforms, bracket_sections=bracket_sections,
+                        terrain=terrain,
                     ),
                     "viewMode": "elev",
                     "flList": fl_str,

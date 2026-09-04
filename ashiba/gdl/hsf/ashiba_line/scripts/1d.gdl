@@ -11,6 +11,8 @@ dim spans[60]
 dim posts[40]
 dim ties[200]
 dim tieH[200]
+dim gl[61]
+dim jk[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -137,6 +139,52 @@ for tc = 1 to 5
 		if k > 0 then
 			nTieH = nTieH + 1
 			tieH[nTieH] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- glList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは glList2
+nGl = 0
+for tc = 1 to 2
+	rest = glList
+	if tc = 2 then rest = glList2
+	while strlen(rest) > 0 and nGl < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nGl = nGl + 1
+			gl[nGl] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- jackList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは jackList2
+nJk = 0
+for tc = 1 to 2
+	rest = jackList
+	if tc = 2 then rest = jackList2
+	while strlen(rest) > 0 and nJk < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nJk = nJk + 1
+			jk[nJk] = v / 1000
 		endif
 	endwhile
 next tc

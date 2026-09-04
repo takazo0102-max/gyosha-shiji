@@ -13,18 +13,29 @@ for ip = 1 to nSpan + 1
 	for ib = 1 to nBm
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
 	next ib
+	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
+	gv = 0
+	jo = jackOut
+	if ip <= nGl then gv = gl[ip]
+	if ip <= nJk then jo = jk[ip]
 	for row = rowStart to 1
 		if bBase = 0 then
-			add x, -row * rowW, 0
+			add x, -row * rowW, gv
 			! ジャッキ
-			cylind jackOut, 0.0381 / 2
-			addz jackOut
-			! 支柱積み上げ
-			for j = 1 to nPost
-				cylind posts[j], r_sic
-				addz posts[j]
-			next j
-			del nPost + 2
+			cylind jo, 0.0381 / 2
+			addz jo
+			if nGl >= 2 then
+				! 継ぎ足した脚は長さが脚ごとに違う。天端まで1本で描く
+				cylind postTop - gv - jo, r_sic
+				del 2
+			else
+				! 支柱積み上げ
+				for j = 1 to nPost
+					cylind posts[j], r_sic
+					addz posts[j]
+				next j
+				del nPost + 2
+			endif
 		else
 			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
 			add x, -row * rowW, bBase

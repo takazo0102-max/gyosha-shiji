@@ -129,6 +129,22 @@
 			<Description><![CDATA["壁つなぎ高さ（続き5）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="glList">
+			<Description><![CDATA["支柱位置ごとの地盤高 mm（基準GLからの差、下がりは負）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glList2">
+			<Description><![CDATA["支柱位置ごとの地盤高（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackList">
+			<Description><![CDATA["支柱位置ごとのジャッキ繰出し mm（敷板調整含む）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackList2">
+			<Description><![CDATA["支柱位置ごとのジャッキ繰出し（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="flList">
 			<Description><![CDATA["各階FL高さ mm カンマ区切り（立面の参照線）"]]></Description>
 			<Value><![CDATA[""]]></Value>

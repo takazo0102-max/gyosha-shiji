@@ -40,6 +40,10 @@
 !   tieHeightList3  文字列  壁つなぎ高さ（続き3）                                                 既定 ""
 !   tieHeightList4  文字列  壁つなぎ高さ（続き4）                                                 既定 ""
 !   tieHeightList5  文字列  壁つなぎ高さ（続き5）                                                 既定 ""
+!   glList          文字列  支柱位置ごとの地盤高 mm（基準GLからの差、下がりは負）                 既定 ""
+!   glList2         文字列  支柱位置ごとの地盤高（続き2）                                         既定 ""
+!   jackList        文字列  支柱位置ごとのジャッキ繰出し mm（敷板調整含む）                       既定 ""
+!   jackList2       文字列  支柱位置ごとのジャッキ繰出し（続き2）                                 既定 ""
 !   flList          文字列  各階FL高さ mm カンマ区切り（立面の参照線）                            既定 ""
 !   faceName        文字列  面の名称（立面図の図面名）                                            既定 ""
 !   levelList       文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）                既定 ""
@@ -81,6 +85,8 @@ dim spans[60]
 dim posts[40]
 dim ties[200]
 dim tieH[200]
+dim gl[61]
+dim jk[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -207,6 +213,52 @@ for tc = 1 to 5
 		if k > 0 then
 			nTieH = nTieH + 1
 			tieH[nTieH] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- glList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは glList2
+nGl = 0
+for tc = 1 to 2
+	rest = glList
+	if tc = 2 then rest = glList2
+	while strlen(rest) > 0 and nGl < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nGl = nGl + 1
+			gl[nGl] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- jackList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは jackList2
+nJk = 0
+for tc = 1 to 2
+	rest = jackList
+	if tc = 2 then rest = jackList2
+	while strlen(rest) > 0 and nJk < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nJk = nJk + 1
+			jk[nJk] = v / 1000
 		endif
 	endwhile
 next tc
@@ -745,14 +797,46 @@ return
 200: ! ---- 立面図 ----
 ! 作図順（実務）: GL・ジャッキ → 1段目 → 上へ積上げ → 壁つなぎ → 寸法・特記
 
-! GL と地盤ハッチ
-line2 -0.5, 0, lineLen + 0.5, 0
-gx = -0.45
-while gx < lineLen + 0.45 do
-	line2 gx, 0, gx - 0.08, -0.08
-	gx = gx + 0.12
-endwhile
-text2 -0.5, -0.22, "GL"
+! GL と地盤ハッチ。敷地高低差があれば支柱位置ごとの地盤高（glList）を結ぶ
+! （平坦のまま描くと、継ぎ足した支柱もジャッキの差も図に出ない）
+if nGl >= 2 then
+	gx = -0.5
+	gy = gl[1]
+	xp = 0
+	for ip = 1 to nSpan + 1
+		gv = 0
+		if ip <= nGl then gv = gl[ip]
+		line2 gx, gy, xp, gv
+		gx = xp
+		gy = gv
+		if ip <= nSpan then xp = xp + spans[ip]
+	next ip
+	line2 gx, gy, lineLen + 0.5, gy
+	! ハッチは各区間の地盤線に沿って打つ
+	xp = 0
+	for ip = 1 to nSpan
+		g0 = 0
+		g1 = 0
+		if ip <= nGl then g0 = gl[ip]
+		if ip + 1 <= nGl then g1 = gl[ip + 1]
+		nh = int(spans[ip] / 0.12)
+		for ih = 0 to nh
+			hx = xp + ih * 0.12
+			hy = g0 + (g1 - g0) * (ih * 0.12 / spans[ip])
+			line2 hx, hy, hx - 0.08, hy - 0.08
+		next ih
+		xp = xp + spans[ip]
+	next ip
+	text2 -0.5, gl[1] - 0.22, "GL"
+else
+	line2 -0.5, 0, lineLen + 0.5, 0
+	gx = -0.45
+	while gx < lineLen + 0.45 do
+		line2 gx, 0, gx - 0.08, -0.08
+		gx = gx + 0.12
+	endwhile
+	text2 -0.5, -0.22, "GL"
+endif
 
 ! 各階FLの参照線（躯体との対応を見るため）
 line_type 3
@@ -770,24 +854,29 @@ for ip = 1 to nSpan + 1
 	for ib = 1 to nBm
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
 	next ib
+	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
+	gv = 0
+	jo = jackOut
+	if ip <= nGl then gv = gl[ip]
+	if ip <= nJk then jo = jk[ip]
 	! ジャッキ（敷板含む脚部）
 	if bBase = 0 then
-		rect2 x - 0.02, 0, x + 0.02, jackOut
-		line2 x - 0.06, 0, x + 0.06, 0
+		rect2 x - 0.02, gv, x + 0.02, gv + jo
+		line2 x - 0.06, gv, x + 0.06, gv
 	endif
-	! 支柱
+	! 支柱（継ぎ足した脚は下へ伸びる）
 	if bBase = 0 then
-		rect2 x - r_sic, jackOut, x + r_sic, postTop
+		rect2 x - r_sic, gv + jo, x + r_sic, postTop
 	else
 		rect2 x - r_sic, bBase, x + r_sic, postTop
 	endif
-	! 縦継ぎ（ジョイント）位置に短い横線
-	jh = jackOut
-	for jp = 1 to nPost - 1
-		jh = jh + posts[jp]
+	! 縦継ぎ（ジョイント）位置に短い横線。継ぎ足しは下側なので天端から数える
+	jh = postTop
+	for jp = nPost to 2 step -1
+		jh = jh - posts[jp]
 		line2 x - 0.05, jh, x + 0.05, jh
 	next jp
-	hotspot2 x, 0
+	hotspot2 x, gv
 	hotspot2 x, postTop
 	if ip <= nSpan then x = x + spans[ip]
 next ip
@@ -1006,7 +1095,17 @@ set style "anno"
 ! ジャッキ繰出しは高さ寸法の列に入れると最下段（GL+100等）の寸法と
 ! 文字が重なって両方読めなくなる。GL下の空きに別記する
 ! 短い面では L= の文字と横に並ぶので、行を分ける
-text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
+if nJk >= 2 then
+	jmin = jk[1]
+	jmax = jk[1]
+	for ij = 2 to nJk
+		if jk[ij] < jmin then jmin = jk[ij]
+		if jk[ij] > jmax then jmax = jk[ij]
+	next ij
+	text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0) + "〜" + str(jmax * 1000, 4, 0) + "（高低差あり・脚ごと）"
+else
+	text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
+endif
 
 ! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
 ! 特記の列。FL参照（+0.35）や朝顔の高さ表示（+0.1・文字幅が2m超）と
@@ -1062,18 +1161,29 @@ for ip = 1 to nSpan + 1
 	for ib = 1 to nBm
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
 	next ib
+	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
+	gv = 0
+	jo = jackOut
+	if ip <= nGl then gv = gl[ip]
+	if ip <= nJk then jo = jk[ip]
 	for row = rowStart to 1
 		if bBase = 0 then
-			add x, -row * rowW, 0
+			add x, -row * rowW, gv
 			! ジャッキ
-			cylind jackOut, 0.0381 / 2
-			addz jackOut
-			! 支柱積み上げ
-			for j = 1 to nPost
-				cylind posts[j], r_sic
-				addz posts[j]
-			next j
-			del nPost + 2
+			cylind jo, 0.0381 / 2
+			addz jo
+			if nGl >= 2 then
+				! 継ぎ足した脚は長さが脚ごとに違う。天端まで1本で描く
+				cylind postTop - gv - jo, r_sic
+				del 2
+			else
+				! 支柱積み上げ
+				for j = 1 to nPost
+					cylind posts[j], r_sic
+					addz posts[j]
+				next j
+				del nPost + 2
+			endif
 		else
 			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
 			add x, -row * rowW, bBase

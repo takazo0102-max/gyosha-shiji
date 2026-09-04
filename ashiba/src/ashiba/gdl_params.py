@@ -16,14 +16,17 @@ from .model import ScaffoldModel
 # tieList が途中で切れ、上層の壁つなぎが図から黙って消えていた）。
 # 長いリストは続きパラメータ（name2, name3, …）に分けて渡し、GDL側で続けて読む。
 GDL_STR_MAX = 255
-LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4}
+LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4,
+               "glList": 2, "jackList": 2}
 # レコード単位のリストは、レコードの途中で切らない（GDLは項目を順に読む）
 LIST_GROUP = {"brktList": 6}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
-                 "tieHeightList": 200, "brktList": 24 * 6}
+                 "tieHeightList": 200, "brktList": 24 * 6,
+                 "glList": 61, "jackList": 61}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
-               "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目"}
+               "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
+               "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ"}
 
 
 class GdlCapacityError(ValueError):
@@ -80,9 +83,39 @@ def fit_gdl_lists(params: dict, edge_index: int) -> dict:
     return out
 
 
+def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
+    """この辺の支柱位置ごとの地盤高（基準GLからの差）とジャッキ量（mm）.
+
+    立面・3Dは平坦なGLに共通のジャッキで描いていたので、敷地高低差で
+    継ぎ足した支柱（数量には入る）が図に出ず、図面と数量が食い違っていた。
+    平坦（terrain無し／高低差0）なら空文字を返し、GDLは従来どおり描く。
+    """
+    feet = list(getattr(terrain, "feet", []) or [])
+    if not feet:
+        return "", ""
+    # post_positions() の順（各辺の始点＋中間支柱）に feet が並ぶ。
+    # この辺のぶんは連続ブロックで、終点は次の辺の始点
+    edges = model.plan.edges
+    offset = sum(e.span_count for e in edges if e.edge_index < ep.edge_index)
+    idx = list(range(offset, offset + ep.span_count))
+    nxt = offset + ep.span_count
+    idx.append(nxt if nxt < len(feet) else 0)
+    if max(idx) >= len(feet):
+        return "", ""
+    gl_ref = max(f.gl_mm for f in feet)
+    picked = [feet[i] for i in idx]
+    if all(abs(f.gl_mm - gl_ref) < 0.5 for f in feet):
+        return "", ""          # 平坦。空にしておけば図は従来どおり
+    gl = ",".join(str(int(round(f.gl_mm - gl_ref))) for f in picked)
+    jack = ",".join(
+        str(int(round(f.jack_mm + f.base_plate_adjust_mm))) for f in picked
+    )
+    return gl, jack
+
+
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
-    platforms=None, bracket_sections=None,
+    platforms=None, bracket_sections=None, terrain=None,
 ) -> dict:
     """足場ラインGDLに渡す共通パラメータ.
 
@@ -101,6 +134,7 @@ def line_params(
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
+    gl_list, jack_list = _foot_lists(model, ep, terrain)
     return fit_gdl_lists({
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
@@ -140,6 +174,9 @@ def line_params(
         "brktList": _bracket_list(model, ep, bracket_sections),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
         # 平面では一度も描かれていなかった
+        # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
+        "glList": gl_list,
+        "jackList": jack_list,
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
         "asagaoList": ",".join(str(h) for h in model.asagao_heights()),

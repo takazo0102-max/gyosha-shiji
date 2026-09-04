@@ -602,8 +602,10 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
 
     def test_jack_callout_sits_below_the_span_dimension(self):
         line = [ln for ln in self.body.splitlines() if '"ジャッキ繰出' in ln]
-        self.assertEqual(len(line), 1, "ジャッキ繰出しの記載は1箇所")
-        self.assertIn("dy - txtLine * 3.4", line[0])
+        # 平坦／高低差あり（脚ごとの範囲）の2分岐。どちらも同じ位置に置く
+        self.assertEqual(len(line), 2, "ジャッキ繰出しの記載は平坦・高低差の2分岐")
+        for ln in line:
+            self.assertIn("dy - txtLine * 3.4", ln)
 
     def test_height_dimension_text_is_right_aligned(self):
         # 左詰めのままだと桁数が増えたとき寸法線と足場の中へはみ出す
@@ -704,3 +706,53 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         total = [ln for ln in self.body.splitlines()
                  if '"L=" + str(lineLen' in ln and "dy - txtLine * 2.2" in ln]
         self.assertEqual(len(total), 1, "立面の全長寸法は1箇所")
+
+
+class TestTerrainReachesTheDrawing(unittest.TestCase):
+    """敷地高低差は支柱位置ごとの地盤高・ジャッキとして図面に渡る.
+
+    平坦なGLに共通のジャッキで描いていたので、継ぎ足した支柱（数量には入る）が
+    立面・3Dに出ず、図面と数量が食い違っていた。
+    """
+
+    def _terrain(self, m, drop):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        return solve_post_feet(m, GroundModel(points=[
+            (0, 0, drop), (30000, 0, 0), (30000, 20000, 0), (0, 20000, drop)]))
+
+    def test_flat_site_sends_nothing(self):
+        m = build("shinwa_A")
+        p = line_params(m, m.plan.edges[0], terrain=self._terrain(m, 0))
+        self.assertEqual(p["glList"], "")
+        self.assertEqual(p["jackList"], "")
+        self.assertEqual(line_params(m, m.plan.edges[0])["glList"], "")
+
+    def test_sloped_site_sends_one_value_per_post(self):
+        m = build("shinwa_A")
+        t = self._terrain(m, 2000)
+        for ep in m.plan.edges:
+            p = line_params(m, ep, terrain=t)
+            gl = [int(v) for v in p["glList"].split(",")]
+            jk = [int(v) for v in p["jackList"].split(",")]
+            self.assertEqual(len(gl), ep.span_count + 1, ep.edge_index)
+            self.assertEqual(len(jk), ep.span_count + 1)
+            self.assertLessEqual(max(gl), 0)            # 基準は最も高い地盤
+            self.assertTrue(all(v >= 30 for v in jk))   # ジャッキ最小以上
+        # 辺0は x=0 側が高い（drop）→ 地盤高は x=0 で 0、終点で -2000 付近
+        p0 = line_params(m, m.plan.edges[0], terrain=t)
+        gl0 = [int(v) for v in p0["glList"].split(",")]
+        self.assertGreater(gl0[0], gl0[-1])
+        self.assertLess(gl0[-1], -1500)
+
+    def test_gdl_reads_the_lists(self):
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        master = (root / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        elev = (root / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        solid = (root / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for name in ("glList", "glList2", "jackList", "jackList2"):
+            self.assertIn(f"rest = {name}", master)
+        self.assertIn("gl[ip]", elev)
+        self.assertIn("jk[ip]", elev)
+        self.assertIn("gl[ip]", solid)
+
