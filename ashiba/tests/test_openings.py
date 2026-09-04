@@ -228,6 +228,32 @@ class TestBeamSaddle(unittest.TestCase):
         self.assertFalse([n for n in q.warnings if "梁渡し" in n])
 
 
+class TestSingleRowOpening(unittest.TestCase):
+    """一側足場（建地1列）の開口部: 抜く支柱は1列ぶん、梁枠は1枚."""
+
+    def test_single_row_counts(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "hitokawa.json").read_text(encoding="utf-8"))
+        spec["openings"] = [{"edge_index": 0, "start_mm": 9000, "beam_span_mm": 3600, "level": 2}]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertEqual(r.openings.removed_posts, 1)
+        self.assertEqual(r.quantity.qty_of("梁枠", 3600), 1)
+        jacks = sum(l.qty for l in r.quantity.lines
+                    if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
+        self.assertEqual(jacks, r.model.plan.total_posts - 1)
+        self.assertEqual(len(r.structural.openings), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
 
