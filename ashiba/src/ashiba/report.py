@@ -149,6 +149,10 @@ def write_report_md(
     spacing = "" if one_sided else f" ／ {vm}列間隔 {model.post_row_spacing_mm}mm"
     a(f"- 作業床: {model.master.deck_category} {deck_desc}" + spacing)
     a(f"- 手すり方式: {model.guard_rail_method}")
+    if getattr(model.config, "post_reinforcement", ""):
+        # 補強前提の耐力で検定している。書かないと通常仕様の計画に見える
+        a(f"- {model.master.vertical_member_name}補強: {model.config.post_reinforcement}"
+          "（腕木を方杖付きに替え、支柱の許容支持力はその仕様の値で検定）")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
                     if notification_required(model, terrain) else "不要"))
     a("")

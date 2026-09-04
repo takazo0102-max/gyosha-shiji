@@ -85,5 +85,31 @@ class TestPostReinforcement(unittest.TestCase):
         self.assertIn("post_reinforcement", str(cm.exception))
 
 
+    def test_reports_state_the_reinforcement(self):
+        """補強前提で検定した計画は、割付レポートと様式第20号の概要にそう書く."""
+        import zipfile
+
+        from ashiba.notification import write_notification_xlsx
+        from ashiba.report import write_report_md
+
+        r = solve(dict(base(), post_reinforcement="強力つなぎ材"))
+        with tempfile.TemporaryDirectory() as d:
+            md = Path(d) / "r.md"
+            write_report_md(r.model, r.quantity, r.checks, md, "t", stair_plan=r.stair_plan)
+            text = md.read_text(encoding="utf-8")
+            self.assertIn("支柱補強: 強力つなぎ材", text)
+            xl = Path(d) / "n.xlsx"
+            write_notification_xlsx(r.model, r.quantity, r.checks, r.structural, xl, "t")
+            form = zipfile.ZipFile(xl).read("xl/worksheets/sheet1.xml").decode()
+            self.assertIn("支柱補強", form)
+            self.assertIn("強力つなぎ材", form)
+        # 補強なしの計画には出ない
+        plain = solve(base())
+        with tempfile.TemporaryDirectory() as d:
+            md = Path(d) / "r.md"
+            write_report_md(plain.model, plain.quantity, plain.checks, md, "t", stair_plan=plain.stair_plan)
+            self.assertNotIn("支柱補強", md.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()
