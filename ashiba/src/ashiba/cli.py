@@ -96,6 +96,7 @@ from .model import (
 )
 from .openings import Opening, opening_detail_specs, opening_ranges, validate_openings
 from .conflicts import check_conflicts
+from .structural import CapacityError
 from .gdl_params import GdlCapacityError
 from .geometry import ValidationError
 from .notification import (
@@ -361,6 +362,46 @@ def validate_spec(spec: dict) -> None:
     form = spec.get("scaffold_form")
     if form is not None and form not in ("本足場", "一側足場"):
         errors.append(f"scaffold_form: 本足場 か 一側足場 です（{form!r}）")
+
+    # 構造計算の敷地条件。未知の地域区分・粗度区分・養生材は解いている途中で
+    # CapacityError（トレースバック）になっていた。入口で候補つきで弾く
+    site = spec.get("site")
+    if isinstance(site, dict):
+        from .structural import ROUGHNESS, SHEET_FILL_RATIO, CapacityError, SiteCondition
+
+        reg = site.get("region")
+        if isinstance(reg, str):
+            try:
+                SiteCondition(region=reg).base_wind_speed()
+            except CapacityError as e:
+                errors.append(f"site.region: {e}")
+        rough = site.get("roughness")
+        if isinstance(rough, str) and rough not in ROUGHNESS:
+            errors.append(
+                f"site.roughness: 未知の地表面粗度区分です: {rough}"
+                f"（候補: {'、'.join(ROUGHNESS)}）")
+        sheet = site.get("sheet_type")
+        if isinstance(sheet, str) and sheet not in SHEET_FILL_RATIO:
+            errors.append(
+                f"site.sheet_type: 未知の養生材です: {sheet}"
+                f"（候補: {'、'.join(SHEET_FILL_RATIO)}）")
+        v0 = site.get("v0_ms")
+        if _num(v0) and v0 <= 0:
+            errors.append(f"site.v0_ms: 基準風速は0より大きい値（m/s）で指定してください（{v0!r}）")
+        e_adj = site.get("adjacent_factor")
+        if _num(e_adj) and not (1.0 <= e_adj <= 1.3):
+            errors.append(
+                f"site.adjacent_factor: 近接建物補正Eは1.0〜1.3の範囲で指定してください（{e_adj!r}）")
+        for k in ("region_factor", "correction_f"):
+            v = site.get(k)
+            if _num(v) and v <= 0:
+                errors.append(f"site.{k}: 0より大きい値で指定してください（{v!r}）")
+        g = site.get("gamma")
+        if _num(g) and not (0.0 <= g <= 1.0):
+            errors.append(f"site.gamma: 0〜1の範囲で指定してください（{g!r}）")
+        sl = site.get("simultaneous_loaded_levels")
+        if _num(sl) and sl < 1:
+            errors.append(f"site.simultaneous_loaded_levels: 1層以上で指定してください（{sl!r}）")
 
     if errors:
         raise InputError("入力JSONに問題があります:\n  - " + "\n  - ".join(errors))
@@ -968,7 +1009,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run(args.input, args.out, args.master)
     except (InputError, MasterDataError, SeriesLockError, GdlCapacityError,
-            ValidationError) as e:
+            ValidationError, CapacityError) as e:
         # 入力やマスタの誤りでスタックトレースを出しても直しようがない
         print(str(e), file=sys.stderr)
         return 2

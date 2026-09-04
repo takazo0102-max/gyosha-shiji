@@ -335,6 +335,30 @@ class TestDegenerateValuesAreRejected(unittest.TestCase):
         self.assertIn("stairs.count", self.ng(stairs={"count": -1}))
         self.assertIn("max_travel_mm", self.ng(stairs={"max_travel_mm": 0}))
 
+    def test_unknown_site_region_lists_candidates(self):
+        msg = self.ng(site={"region": "火星"})
+        self.assertIn("site.region", msg)
+        self.assertIn("沖縄", msg)
+
+    def test_unknown_roughness_and_sheet(self):
+        self.assertIn("粗度", self.ng(site={"roughness": "X"}))
+        msg = self.ng(site={"sheet_type": "紙"})
+        self.assertIn("養生材", msg)
+        self.assertIn("メッシュシート", msg)
+
+    def test_zero_wind_speed_is_rejected(self):
+        self.assertIn("v0_ms", self.ng(site={"v0_ms": 0}))
+
+    def test_adjacent_factor_range(self):
+        self.assertIn("1.0〜1.3", self.ng(site={"adjacent_factor": 5.0}))
+        self.assertIn("adjacent_factor", self.ng(site={"adjacent_factor": 0.5}))
+        validate_spec(dict(BASE, site={"adjacent_factor": 1.3}))
+
+    def test_other_site_factors(self):
+        self.assertIn("gamma", self.ng(site={"gamma": 2}))
+        self.assertIn("correction_f", self.ng(site={"correction_f": 0}))
+        self.assertIn("simultaneous_loaded_levels", self.ng(site={"simultaneous_loaded_levels": 0}))
+
     def test_non_orthogonal_outline_is_a_clean_error(self):
         """非直交の外形は生のトレースバックではなく入力エラーとして出る."""
         import io
