@@ -245,6 +245,9 @@ class PostResult:
     # 自重 dead_load_kn で抑えられなければジャッキベースが浮く
     inner_uplift_kn: float = 0.0
     uplift_source: str = ""
+    # 張出ブラケットの区間がある計画か。拡幅部の行で検定したか／無くて通常値だったか
+    widened: bool = False
+    widened_note: str = ""
 
     @property
     def uplift_ok(self) -> bool:
@@ -453,6 +456,7 @@ def check_post(
     extra_post_load_kn: float = 0.0,
     extra_load_source: str = "",
     jack_extension_mm: Optional[int] = None,
+    widened: bool = False,
 ) -> PostResult:
     """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）.
 
@@ -487,10 +491,11 @@ def check_post(
     jack = max(model.elevation.jack_extension, jack_extension_mm or 0)
     cap_jack, _jack_key = _interpolate_capacity(
         caps, _width_item(caps, "ジャッキ許容支持力", model), jack)
-    cap_post = caps.get((_width_item(caps, "支柱許容圧縮耐力", model), "0"))
+    post_item, widened_note = _post_item(caps, model, widened)
+    cap_post = caps.get((post_item, "0"))
     candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]
     if cap_post is not None:
-        candidates.append(("支柱", cap_post))
+        candidates.append(("支柱（拡幅部）" if "[拡幅部]" in post_item else "支柱", cap_post))
     governing_name, governing_cap = min(candidates, key=lambda kv: kv[1].value)
 
     ratio = total / governing_cap.value if governing_cap.value else float("inf")
@@ -524,6 +529,39 @@ def check_post(
         vertical_member_name=model.master.vertical_member_name,
         verified=governing_cap.verified and cap_deck.verified,
         unverified_caps=unverified_caps,
+        widened=widened,
+        widened_note=widened_note,
+    )
+
+
+def _post_item(caps: dict, model: ScaffoldModel, widened: bool) -> tuple[str, str]:
+    """支柱許容圧縮耐力の行名と、拡幅部の行が無いときの注意.
+
+    張出・拡幅ブラケットを付けた区間の支柱は、日建NDでは許容支持力が下がる
+    （ND1800 通常11.0→拡幅部8.8kN/本、強力つなぎ材でも17.0→12.5）。区間があるのに
+    通常値で検定すると危険側。拡幅部の行が無い系列は通常値で検定し、その旨を返す。
+    """
+    item = "支柱許容圧縮耐力"
+    if not widened:
+        return _width_item(caps, item, model), ""
+    reinf = getattr(model.config, "post_reinforcement", "") or ""
+    present = {i for (i, _k) in caps}
+    tries = []
+    if reinf:
+        tries.append(f"{item}[拡幅部][{reinf}]")
+    tries.append(f"{item}[拡幅部]")
+    for t in tries:
+        if t in present:
+            if reinf and f"[{reinf}]" not in t:
+                raise CapacityError(
+                    f"系列 {model.master.series_id} には拡幅部で「{reinf}」使用時の支柱許容圧縮耐力が"
+                    " capacity.csv にありません（post_reinforcement を外すか、認定値を追加してください）"
+                )
+            return t, ""
+    return _width_item(caps, item, model), (
+        f"張出ブラケットの区間がありますが、系列 {model.master.series_id} には拡幅部の"
+        "支柱許容圧縮耐力が capacity.csv に無いため通常値で検定しています。"
+        "拡幅部は許容支持力が下がる系列があります（日建ND: 11.0→8.8kN/本）。メーカー値を確認してください"
     )
 
 
@@ -711,6 +749,7 @@ def run_structural(
     capacity_path: Optional[Path] = None,
     platforms=None,
     terrain=None,
+    bracket_sections=None,
 ) -> StructuralResult:
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
@@ -732,13 +771,16 @@ def run_structural(
         max_jack = int(round(worst.jack_mm))
         if max_jack > model.elevation.jack_extension:
             governing_foot = worst
-    post = check_post(model, quantity, site, caps, extra, source, max_jack)
+    widened = any(getattr(b, "direction", "") == "張出" for b in (bracket_sections or []))
+    post = check_post(model, quantity, site, caps, extra, source, max_jack, widened=widened)
     if platforms is not None and platforms.max_inner_uplift_kn > 0:
         post.inner_uplift_kn = round(platforms.max_inner_uplift_kn, 3)
         post.uplift_source = platforms.uplift_governing or ""
 
     warnings: list[str] = []
     notes: list[str] = []
+    if post.widened_note:
+        warnings.append(post.widened_note)
     if post.inner_uplift_kn > 0:
         vm = model.master.vertical_member_name
         if post.uplift_ok:
