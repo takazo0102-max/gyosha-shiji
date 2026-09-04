@@ -108,7 +108,7 @@ from .notification import (
     write_notification_xlsx,
 )
 from .plan_solver import StandoffSpec, solve_plan
-from .platforms import Hoist, LoadingStage, platform_quantities, validate_platforms
+from .platforms import Hoist, LoadingStage, validate_platforms
 from .quantity import take_off
 from .report import (
     write_jack_table_csv,

@@ -197,7 +197,7 @@ def bridge_small_notches(
                     "（内ブラケットでの床の拡幅か墜落防止措置を検討）"
                 )
             verts = [v for k, v in enumerate(verts) if k not in removed]
-            verts, more = _clean_vertices(verts)
+            verts, _more = _clean_vertices(verts)
             changed = True
             break
     return verts
@@ -293,7 +293,7 @@ def scaffold_loop_vertices(outline: Outline, standoffs: list[float]) -> list[Poi
     verts: list[Point] = []
     for i in range(n):
         (p1, d1) = lines[(i - 1) % n]
-        (p2, d2) = lines[i]
+        (p2, _d2) = lines[i]
         # 軸平行前提の交点
         if abs(d1[0]) > 0.5:  # 前辺がx方向 → y固定、後辺がy方向 → x固定
             verts.append((p2[0], p1[1]))

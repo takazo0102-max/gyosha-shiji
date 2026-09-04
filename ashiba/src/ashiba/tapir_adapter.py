@@ -347,7 +347,6 @@ def place_scaffold_lines(
     平面ループはCCWで躯体は進行方向左側 → 配置角は辺方向そのまま。
     """
     client = client or ArchicadClient()
-    e = model.elevation
     placed: list[dict] = []
     # 途中で失敗したら、置いた分を消してから投げる。中途半端な足場が
     # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
@@ -460,7 +459,6 @@ def place_elevations(
     そのまま渡す。壁つなぎは位置と高さの対で渡し、立面上は大きな丸印で示す。
     """
     client = client or ArchicadClient()
-    e = model.elevation
     # 面名を渡さない場合は方位で呼ぶ（辺0では図面を見た人に伝わらない）
     face_names = face_names or model.plan.face_names()
     fl_str = ",".join(str(int(f)) for f in (floor_levels_mm or []))

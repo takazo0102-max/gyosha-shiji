@@ -485,7 +485,7 @@ def check_post(
     total = dead_kn + live_kn + extra_post_load_kn
 
     jack = max(model.elevation.jack_extension, jack_extension_mm or 0)
-    cap_jack, jack_key = _interpolate_capacity(
+    cap_jack, _jack_key = _interpolate_capacity(
         caps, _width_item(caps, "ジャッキ許容支持力", model), jack)
     cap_post = caps.get((_width_item(caps, "支柱許容圧縮耐力", model), "0"))
     candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]

@@ -178,7 +178,6 @@ def take_off(
     posts_per_line = plan.total_posts        # 帰属ルールで二重計上なし
     n_posts = posts_per_line * rows
     n_levels = elev.n_levels
-    total_spans = plan.total_spans
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
