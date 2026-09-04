@@ -347,13 +347,15 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
     ⚠️ 境界の支点扱いは工学的仮定。提出図書に使う際は有資格者の確認を受けること。
     """
     out: list[TieTributary] = []
-    if not model.wall_ties:
+    # 昇降機マストの控えはマストを支えるもので、足場の風荷重は負担しない
+    ties = [t for t in model.wall_ties if getattr(t, "kind", "grid") != "hoist"]
+    if not ties:
         return out
     top = float(model.scaffold_height_mm)
-    heights = sorted({t.height_mm for t in model.wall_ties})
+    heights = sorted({t.height_mm for t in ties})
 
     for edge in model.plan.edges:
-        edge_ties = [t for t in model.wall_ties if t.edge_index == edge.edge_index]
+        edge_ties = [t for t in ties if t.edge_index == edge.edge_index]
         if not edge_ties:
             continue
         by_height: dict[int, list[float]] = {}

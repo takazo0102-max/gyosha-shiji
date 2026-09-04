@@ -181,7 +181,8 @@ def take_off(
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
     if m.is_frame:
-        _count_frame_parts(model, rules, add, notes, stair_plan, openings, terrain)
+        _count_frame_parts(model, rules, add, notes, stair_plan, openings, terrain,
+                           platforms)
         _count_bracket_parts(model, bracket_sections, add, notes, counts)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
@@ -377,7 +378,7 @@ def take_off(
 
     # ---- 壁つなぎ ----
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    add(kt, len(model.wall_ties), "壁つなぎ")
+    _add_wall_ties(model, platforms, kt, add)
 
     # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
@@ -454,11 +455,8 @@ def _count_asagao_parts(
             Notes.SITE,
         )
 
-    # 取付部は所定スパン毎に壁つなぎを増設
-    extra_ties = 0
-    for e in model.plan.edges:
-        extra_ties += max(1, e.span_count // max(asagao.tie_every_spans, 1))
-    add(kt, extra_ties * asagao.stages, "朝顔取付部の壁つなぎ")
+    # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
+    # 数える（図面にも出る。同じ位置の格子の金具で兼ねる分は二重に数えない）
 
 
 def _count_bracket_parts(
@@ -637,6 +635,20 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
         )
 
 
+def _add_wall_ties(model: ScaffoldModel, platforms, kt, add) -> None:
+    """壁つなぎを由来ごとに計上する（格子＋朝顔取付部＋ステージ取付部＋マスト控え）.
+
+    取付部の分がまだ一覧に無ければここで統合する（take_off を単独で呼んでも
+    数量が欠けないように。統合は何度呼んでも同じ結果）。
+    """
+    from .ties import KIND_LABEL, has_attachment_ties, merge_attachment_ties, tie_counts
+
+    if not has_attachment_ties(model):
+        merge_attachment_ties(model, platforms)
+    for kind, n in tie_counts(model).items():
+        add(kt, n, KIND_LABEL.get(kind, kind))
+
+
 def _note_deck_cells(notes, name: str, n_spans: int, n_levels: int,
                      stair_cut: int, n_towers: int, open_cut: int, final: int) -> None:
     """作業床の枚数の検算メモ。スパン×層から何をいくつ引いたかを書く.
@@ -762,6 +774,7 @@ def _count_frame_parts(
     stair_plan=None,
     openings=None,
     terrain=None,
+    platforms=None,
 ) -> None:
     """枠組足場の数量ルール.
 
@@ -903,7 +916,7 @@ def _count_frame_parts(
         for s, n in span_counts.items():
             add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0)), f"幅木{s}")
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    add(kt, len(model.wall_ties), "壁つなぎ")
+    _add_wall_ties(model, platforms, kt, add)
     stair = next(iter(m.by_category("階段")), None)
     landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (

@@ -401,8 +401,8 @@ def platform_part_demands(
                        + "。乗り込み口は足場側の開口で、防護しないと"
                          "各層に開放端ができます（安衛則563条）",
             ))
-    if result.extra_wall_ties > 0:
-        out.append(PartDemand("付帯設備の増設壁つなぎ", "壁つなぎ", None, result.extra_wall_ties))
+    # 取付部・マスト控えの壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に
+    # 入れて数える（図面にも出る）。ここで別に足すと二重計上になる
     return out
 
 

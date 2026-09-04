@@ -127,6 +127,8 @@ def main() -> None:
 
     stages = [LoadingStage(edge_index=0, start_mm=7200, span_count=2, levels=[3])]
     platforms = validate_platforms(model, stages)
+    from ashiba.ties import merge_attachment_ties
+    merge_attachment_ties(model, platforms)
     print(f"6. 荷受けステージ: {len(stages)}基 直下建地+{platforms.max_post_load_kn:.2f}kN")
 
     # --- 4. 検査と数量 ---

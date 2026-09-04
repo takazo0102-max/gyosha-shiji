@@ -207,7 +207,12 @@ def write_report_md(
     a("")
     v_lim, h_lim, tie_basis = model.wall_tie_limits()
     v_max, h_max = model.wall_tie_max_spacing()
-    a(f"- 本数: {len(model.wall_ties)}箇所")
+    from .ties import KIND_LABEL, tie_counts
+
+    counts = tie_counts(model)
+    breakdown = "／".join(f"{KIND_LABEL.get(k, k)} {n}" for k, n in counts.items() if k != "grid")
+    a(f"- 本数: {len(model.wall_ties)}箇所"
+      + (f"（格子{counts.get('grid', 0)}＋{breakdown}。同じ位置は同じ金具で兼ねる）" if breakdown else ""))
     a(f"- 実配置の最大間隔: 垂直{v_max:.0f}mm × 水平{h_max:.0f}mm "
       f"（法定 垂直{v_lim:.0f} × 水平{h_lim:.0f}以下）")
     a(f"- 根拠: {tie_basis}")
@@ -420,7 +425,8 @@ def write_plan_json(
         "gdl_params": {...}              // set_gdl_parameters にそのまま渡せる
       }],
       "scaffold_vertices": [[x, y], ...],// 足場中心線ループ
-      "wall_ties": [{"edge_index": 0, "position_mm": 3600.0, "height_mm": 4600}],
+      "wall_ties": [{"edge_index": 0, "position_mm": 3600.0, "height_mm": 4600,
+                     "kind": "grid"}],   // kind: grid / asagao / stage / hoist
       "warnings": [...],                 // 割付・立面の警告
       // 以下は該当があるときだけ入る
       "stairs": {"count": 2, "max_travel_mm": 28800.0,

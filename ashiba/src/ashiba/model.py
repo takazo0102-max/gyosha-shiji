@@ -89,6 +89,9 @@ class WallTie:
     edge_index: int
     position_mm: float   # 辺の始点コーナー支柱からの距離
     height_mm: int       # GLからの高さ
+    # 由来: grid（風荷重から決めた格子）／asagao（朝顔取付部）／stage（荷受け
+    # ステージ取付部）／hoist（昇降機マストの控え）。数量・図面・検定で同じ一覧を使う
+    kind: str = "grid"
 
 
 @dataclass

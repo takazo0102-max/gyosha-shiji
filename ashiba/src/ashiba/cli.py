@@ -96,6 +96,7 @@ from .model import (
 )
 from .openings import Opening, opening_detail_specs, opening_ranges, validate_openings
 from .conflicts import check_conflicts
+from .ties import merge_attachment_ties
 from .structural import CapacityError
 from .gdl_params import GdlCapacityError
 from .geometry import ValidationError
@@ -741,6 +742,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
     platforms = validate_platforms(model, *build_platforms(spec))
+    # 取付部・マスト控えの壁つなぎを格子と同じ一覧へ（図面・数量・検定が同じ本数になる）
+    merge_attachment_ties(model, platforms)
     conflicts = check_conflicts(
         model, openings, stair_plan=stair_plan, platforms=platforms, brackets=brackets
     )

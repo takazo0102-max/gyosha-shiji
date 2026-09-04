@@ -252,7 +252,10 @@ class TestPlatformQuantities(unittest.TestCase):
         self.assertEqual(q["荷受けステージ 踏板"], 2 * math.ceil(1500 / 400))
         self.assertEqual(q["荷受けステージ 幅木"], 2)
         self.assertEqual(q["荷受けステージ 手すり・中桟"], 4)   # 前面の手すり＋中桟
-        self.assertEqual(q["付帯設備の増設壁つなぎ"], r.extra_wall_ties)
+        # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
+        # 数える（図面にも出る）。ここで別に足すと二重計上になる
+        self.assertNotIn("付帯設備の増設壁つなぎ", q)
+        self.assertGreater(r.extra_wall_ties, 0)
 
     def test_no_hozue_no_count(self):
         m = build()
@@ -356,10 +359,11 @@ class TestStagePartsReachTheBom(unittest.TestCase):
         self.with_pf = take_off(self.m, platforms=self.pf)
 
     def test_extra_wall_ties_are_counted(self):
-        self.assertEqual(
-            self.with_pf.qty_of("壁つなぎ") - self.base.qty_of("壁つなぎ"),
-            self.pf.extra_wall_ties,
-        )
+        # 取付部の壁つなぎは格子と同じ一覧に入る。格子と同じ位置の分は同じ金具で
+        # 兼ねるので、増える本数は「取付部の必要数」以下（0本のこともある）
+        diff = self.with_pf.qty_of("壁つなぎ") - self.base.qty_of("壁つなぎ")
+        self.assertGreaterEqual(diff, 0)
+        self.assertLessEqual(diff, self.pf.extra_wall_ties)
 
     def test_deck_and_toe_board_increase(self):
         for cat in ("踏板", "幅木", "布材"):

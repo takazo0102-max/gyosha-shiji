@@ -151,7 +151,9 @@ class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):
         q = take_off(m)
         tie = next(l for l in q.lines if l.part.category == "壁つなぎ")
         self.assertIn("内訳:", tie.note)
-        self.assertIn(f"壁つなぎ {len(m.wall_ties)}本", tie.note)
+        from ashiba.ties import tie_counts
+
+        self.assertIn(f"壁つなぎ {tie_counts(m)['grid']}本", tie.note)
         self.assertIn("朝顔取付部の壁つなぎ", tie.note)
         # 内訳の合計は行の数量に一致する
         import re
