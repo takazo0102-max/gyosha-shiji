@@ -476,3 +476,24 @@ class TestTerrainExtensionPostsAreCounted(unittest.TestCase):
         self.assertEqual(pins, sum(len(f.posts) - 1 for f in t.feet))
         self.assertTrue([n for n in sloped.notes if "継ぎ足し分として建枠" in n], sloped.notes)
 
+
+class TestSingleRowLedgers(unittest.TestCase):
+    """一側足場（建地1列）の根がらみ・床レベル布材は1本ずつ（2列前提で数えていた）."""
+
+    def test_ledgers_per_span_follow_the_row_count(self):
+        master = load_master("shinwa_A")
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(scaffold_form="一側足場"),
+        )
+        q = take_off(m)
+        nl = m.elevation.n_levels
+        spans = m.plan.total_spans
+        # 根がらみ1＋各層（床1＋手すり・中桟2）。腕木は無し。継ぎ足し無し
+        expect = spans * (1 + nl * 3)
+        self.assertEqual(q.qty_of("布材"), expect)
+        note = next(n for n in q.notes if n.startswith("布材は1スパンあたり"))
+        self.assertIn("根がらみ1本", note)
+        self.assertIn("床レベル1本", note)
+

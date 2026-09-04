@@ -548,3 +548,23 @@ class TestFrameCorners(unittest.TestCase):
             sorted(cs.corner_index for cs in plan.corner_steps),
             list(range(len(plan.edges))),
         )
+
+
+class TestAdvanceRailOnFrameIsNotSilent(unittest.TestCase):
+    def test_warning_when_specified(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = json.loads(Path(__file__).resolve().parents[1].joinpath(
+            "examples", "waku_frame.json").read_text(encoding="utf-8"))
+        spec["guard_rail_type"] = "先行手すり"
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        self.assertTrue([w for w in r.model.plan.warnings if "先行手すり工法" in w and "無視" in w])
+        self.assertEqual(r.quantity.qty_of("先行手摺"), 0)
+

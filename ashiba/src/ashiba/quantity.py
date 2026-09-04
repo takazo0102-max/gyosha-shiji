@@ -239,10 +239,11 @@ def take_off(
     # 先行手すり工法は専用部材（手すり＋斜材が一体）が布材2本を置き換える
     advance_rail = model.config.guard_rail_type == GUARD_RAIL_ADVANCE
     rails_outer = 0 if advance_rail else rules.rails_per_level_outer
-    per_span_rails = (
-        rules.ledgers_negarami
-        + n_levels * (rules.ledgers_per_level_floor + rails_outer)
-    )
+    # 根がらみ・床レベルの布材は建地列ごとに1本。一側足場は建地1列なので
+    # 本足場の「内外2本」のまま数えると1スパンあたり5本（4層で）多くなる
+    negarami_n = min(rules.ledgers_negarami, rows)
+    floor_n = min(rules.ledgers_per_level_floor, rows)
+    per_span_rails = negarami_n + n_levels * (floor_n + rails_outer)
     span_counts: dict[int, int] = {}
     for e in plan.edges:
         for s in e.spans:
@@ -252,17 +253,17 @@ def take_off(
     from .openings import opening_deck_deduction, opening_span_counts
     open_cut = opening_deck_deduction(model, openings)
     open_spans = opening_span_counts(model, openings)
-    per_level_rails = rules.ledgers_per_level_floor + rails_outer
+    per_level_rails = floor_n + rails_outer
     open_rail_cut = 0
     for s, n in span_counts.items():
         cut = (open_cut.get(s, 0) * per_level_rails
-               + open_spans.get(s, 0) * rules.ledgers_negarami)
+               + open_spans.get(s, 0) * negarami_n)
         open_rail_cut += cut
         add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     notes.append(
-        f"布材は1スパンあたり 根がらみ{rules.ledgers_negarami}本"
-        f"＋各層（床レベル{rules.ledgers_per_level_floor}本"
+        f"布材は1スパンあたり 根がらみ{negarami_n}本"
+        f"＋各層（床レベル{floor_n}本"
         + (f"＋手すり・中桟{rails_outer}本" if rails_outer else "＋手すりは先行手摺")
         + f"）×{n_levels}層 ＝ {per_span_rails}本で計上"
     )

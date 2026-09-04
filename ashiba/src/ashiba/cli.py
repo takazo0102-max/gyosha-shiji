@@ -88,6 +88,7 @@ from .elevation_solver import solve_elevation
 from .law_check import required_asagao_stages, run_all_checks, summary
 from .master import MasterDataError, SeriesLockError, load_master
 from .model import (
+    GUARD_RAIL_ADVANCE,
     FRAME_GUARD_RAIL_HEIGHT_MM,
     GUARD_RAIL_LEDGER,
     AsagaoSpec,
@@ -716,6 +717,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     tie_opt = optimize_wall_ties(model, site)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
+    # 枠組の手すりは建枠一体。先行手すり工法の指定は効かないので、黙って無視しない
+    if model.master.is_frame and spec.get("guard_rail_type") == GUARD_RAIL_ADVANCE:
+        model.plan.warnings.append(
+            "枠組足場では先行手すり工法（guard_rail_type）は適用されません。手すりは建枠一体で、"
+            "最上層のみ布材で手すり・中桟を組みます。指定は無視しました"
+        )
     # 外形を整理した（反転・重複除去・渡し）うえで辺番号つきの付帯設備があるなら、
     # その番号が入力の頂点順と一致しない可能性を先に言う
     edge_keys = [k for k in ("openings", "loading_stages", "hoists", "bracket_sections")
