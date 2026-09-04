@@ -61,6 +61,9 @@ class TestOpeningCheck(unittest.TestCase):
         self.assertAlmostEqual(oc.end_post_kn, post.dead_load_kn + post.live_load_kn + oc.reaction_kn, places=2)
         self.assertEqual(oc.end_post_allow_kn, 12.0)
         self.assertTrue(oc.end_post_ok)
+        # 積載制限は成立条件であって不成立ではない
+        self.assertTrue(oc.ok)
+        self.assertIn("1.96kN", oc.condition)
         self.assertTrue([n for n in r.structural.notes if "制限してください" in n], r.structural.notes)
         self.assertTrue([n for n in r.structural.notes if "両端支柱の軸力" in n], r.structural.notes)
 

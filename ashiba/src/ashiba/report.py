@@ -263,7 +263,8 @@ def write_report_md(
               + f"、両端{model.master.vertical_member_name} {oc.end_post_kn}kN / {oc.end_post_allow_kn}kN"
               + f"、梁枠上の積載 {oc.live_above_kn}kN"
               + (f" / {oc.live_limit_kn}kN" if oc.live_limit_kn is not None else "")
-              + f" → {'✅ OK' if oc.ok else '⚠️ 要対応'}")
+              + (f" → ✅ OK（{oc.condition}）" if oc.ok and oc.condition else
+                 (" → ✅ OK" if oc.ok else " → ❌ 要対応")))
         for nmsg in structural.notes:
             a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:

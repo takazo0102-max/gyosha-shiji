@@ -293,7 +293,15 @@ class OpeningCheck:
 
     @property
     def ok(self) -> bool:
-        return self.live_ok and self.support_ok and self.end_post_ok
+        """成立か。梁枠上の積載制限は「制限を表示して運用する」条件であって不成立ではない."""
+        return self.support_ok and self.end_post_ok
+
+    @property
+    def condition(self) -> str:
+        """成立条件（積載制限）。無ければ空."""
+        if self.live_ok or self.live_per_span_limit_kn is None:
+            return ""
+        return f"梁枠上の積載を1スパン{self.live_per_span_limit_kn}kN以下に制限"
 
 
 @dataclass

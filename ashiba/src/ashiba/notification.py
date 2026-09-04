@@ -406,8 +406,8 @@ def _sheet_openings(wb, structural: StructuralResult, model) -> None:
             f"kN  {oc.support_source}" if oc.support_allow_kn is not None else "メーカー値で確認")
         _kv(s, "梁枠の反力（両端各）", oc.reaction_kn, f"kN  (乗る{vm}の軸力×本数＋梁枠自重)÷2")
         _kv(s, f"両端{vm}の軸力", oc.end_post_kn, f"kN  通常の軸力＋反力 ≦ 許容{oc.end_post_allow_kn}kN")
-        _kv(s, "判定", "OK" if oc.ok else "要対応",
-            "" if oc.ok else "計算条件シートの対応事項を参照")
+        _kv(s, "判定", ("OK（積載制限付き）" if oc.condition else "OK") if oc.ok else "NG",
+            oc.condition if oc.ok else "計算条件シートの対応事項を参照")
     for col, w in enumerate((22, 26, 90)):
         s.set_width(col, w)
 
