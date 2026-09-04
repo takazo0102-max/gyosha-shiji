@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+
 import math
 from dataclasses import dataclass, field
 from typing import Optional
@@ -263,6 +265,27 @@ def validate_platforms(
                 f"（間口{s.span_count}スパン・出{s.projection_mm:.0f}mm・"
                 f"積載{s.load_kn:.1f}kN）"
             )
+        # 受けブラケット1本の荷重 ≦ ブラケットの許容荷重。出で選んだ部材が
+        # 積載に耐えるかは別の話で、枠組の伸縮ブラケット（許容1.96kN）に
+        # 1tのステージを受けさせても、ここで見なければ通ってしまう
+        n_brk = s.span_count + 1
+        per_bracket = s.load_kn / n_brk
+        brk = stage_bracket_part(model, s.projection_mm)
+        if brk is not None:
+            allow = bracket_allowable_kn(brk)
+            if allow is None:
+                result.issues.append(PlatformIssue(
+                    "ステージ", i, "WARN",
+                    f"受けブラケット {brk.model_no} の許容荷重がマスタに無く、"
+                    f"1本あたり{per_bracket:.2f}kN（積載{s.load_kn:.1f}kN÷{n_brk}本）の検定ができません。"
+                    "メーカー値で確認してください", "仮設工業会 設計指針"))
+            elif per_bracket > allow + 1e-9:
+                result.issues.append(PlatformIssue(
+                    "ステージ", i, "NG",
+                    f"受けブラケット {brk.model_no} の許容荷重{allow:.2f}kN/本に対し"
+                    f"1本あたり{per_bracket:.2f}kN（積載{s.load_kn:.1f}kN÷{n_brk}本）で超過します。"
+                    "荷取り用のブラケットに替えるか、積載を下げるか、間口を広げてください",
+                    "仮設工業会 設計指針（部材の許容荷重）"))
         # ステージ取付部は壁つなぎを増設する（間口の両端）
         result.extra_wall_ties += 2 * max(1, len(s.levels) or 1)
 
@@ -415,16 +438,31 @@ def _side_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:
     return None
 
 
+def stage_bracket_part(model: ScaffoldModel, projection_mm: float):
+    """出を受けられる最小の張出ブラケット（部材）。無ければ None."""
+    cands = sorted(
+        (p for p in model.master.by_category("ブラケット") if "張出" in p.note),
+        key=lambda p: p.nominal_dim,
+    )
+    for p in cands:
+        if p.nominal_dim >= projection_mm - 1e-6:
+            return p
+    return None
+
+
 def _bracket_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:
     """出を受けられる最小の張出ブラケット呼び寸法。無ければ None."""
-    sizes = sorted(
-        p.nominal_dim for p in model.master.by_category("ブラケット")
-        if "張出" in p.note
-    )
-    for n in sizes:
-        if n >= projection_mm - 1e-6:
-            return n
-    return None
+    p = stage_bracket_part(model, projection_mm)
+    return p.nominal_dim if p is not None else None
+
+
+def bracket_allowable_kn(part) -> Optional[float]:
+    """ブラケットの許容荷重（kN/本）。マスタの note の「許容支持力6.86kN」「許容荷重1.96kN」から読む.
+
+    書いていない部材は None（検定できないので要確認に回す）。
+    """
+    m = re.search(r"許容(?:支持力|荷重)\s*([\d.]+)\s*kN", part.note)
+    return float(m.group(1)) if m else None
 
 
 def platform_quantities(
