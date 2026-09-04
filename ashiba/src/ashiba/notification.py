@@ -406,7 +406,11 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         _kv(s, "局所荷重 建地1本あたり", p.extra_load_kn,
             "kN  荷受けステージ等（張出しの偏心: 外側建地の反力 P×(1+a/b)、"
             "a=出/2・b=内外の建地間隔、下限1.5倍。間口の建地数で割る）")
-        _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載 + 局所荷重")
+        _kv(s, "軸力 N", p.total_kn,
+            "kN  N = 自重 + 積載 + 局所荷重" if p.includes_extra
+            else "kN  N = 自重 + 積載（一般部の支柱。荷取り部は下の参考行で別に検定）")
+        for line in p.other_checks:
+            _kv(s, "参考: 他の検定", line, "支配しなかった側（作用/許容=検定比）")
         if p.inner_uplift_kn > 0:
             _kv(s, "内側建地の引抜き U", p.inner_uplift_kn,
                 f"kN  偏心の裏側 P×a/b÷建地数（{p.uplift_source}）")

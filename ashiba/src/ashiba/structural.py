@@ -248,6 +248,11 @@ class PostResult:
     # 張出ブラケットの区間がある計画か。拡幅部の行で検定したか／無くて通常値だったか
     widened: bool = False
     widened_note: str = ""
+    # 支配した検定の軸力に局所荷重（ステージ）が入っているか。荷取り部の行がある
+    # 系列では一般部（局所荷重なし）と荷取り部を別々に検定するので、計算書の式が変わる
+    includes_extra: bool = True
+    # 支配しなかった側の検定（一般部／荷取り部／ジャッキ）。計算書の参考行
+    other_checks: list[str] = field(default_factory=list)
 
     @property
     def uplift_ok(self) -> bool:
@@ -493,14 +498,30 @@ def check_post(
         caps, _width_item(caps, "ジャッキ許容支持力", model), jack)
     post_item, widened_note = _post_item(caps, model, widened)
     cap_post = caps.get((post_item, "0"))
-    candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack)]
+    # 候補ごとに (名前, 許容, 作用軸力)。荷取りブラケットを付けた支柱は日建では別の
+    # 許容値（ND1800 補剛材あり15kN/本）なので、その行があればステージ直下は
+    # その値で、一般部の支柱は局所荷重抜きの軸力で、それぞれ検定して厳しい方を採る
+    candidates = [("ジャッキ(繰出し%dmm)" % jack, cap_jack, total)]
+    stage_row = caps.get(("支柱許容圧縮耐力[荷取り]", "0")) if extra_post_load_kn > 0 else None
+    other_checks: list[str] = []
     if cap_post is not None:
-        candidates.append(("支柱（拡幅部）" if "[拡幅部]" in post_item else "支柱", cap_post))
-    governing_name, governing_cap = min(candidates, key=lambda kv: kv[1].value)
+        post_name = "支柱（拡幅部）" if "[拡幅部]" in post_item else "支柱"
+        if stage_row is not None:
+            candidates.append((post_name + "（一般部）", cap_post, dead_kn + live_kn))
+            candidates.append(("支柱（荷取り部）", stage_row, total))
+        else:
+            candidates.append((post_name, cap_post, total))
+    def _ratio(c):
+        return c[2] / c[1].value if c[1].value else float("inf")
+    governing_name, governing_cap, governing_n = max(candidates, key=_ratio)
+    for name, cap, n in candidates:
+        if name != governing_name:
+            other_checks.append(f"{name}: {n:.3f}kN / {cap.value}kN = {_ratio((name, cap, n)):.3f}")
 
-    ratio = total / governing_cap.value if governing_cap.value else float("inf")
+    ratio = governing_n / governing_cap.value if governing_cap.value else float("inf")
+    includes_extra = governing_n >= total - 1e-9
     cap_label = f"{governing_name}の許容支持力"
-    if extra_post_load_kn > 0 and extra_load_source:
+    if extra_post_load_kn > 0 and extra_load_source and includes_extra:
         governing_name += f" ＋{extra_load_source}"
 
     unverified_caps = [
@@ -518,7 +539,9 @@ def check_post(
         dead_load_kn=round(dead_kn, 3),
         live_load_kn=round(live_kn, 3),
         extra_load_kn=round(extra_post_load_kn, 3),
-        total_kn=round(total, 3),
+        total_kn=round(governing_n, 3),
+        includes_extra=includes_extra,
+        other_checks=other_checks,
         jack_extension_mm=jack,
         allowable_kn=governing_cap.value,
         ratio=round(ratio, 3),
