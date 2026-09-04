@@ -294,7 +294,8 @@ class TestActionableNotes(unittest.TestCase):
         order = [w for w in q.warnings if q.warning_kinds[w] == Notes.ORDER]
         site = [w for w in q.warnings if q.warning_kinds[w] == Notes.SITE]
         self.assertTrue(any("マスタにありません" in w for w in order), order)
-        self.assertTrue(any("出隅" in w for w in site), site)
+        # 出隅はコーナー材で計上するようになったので、現場対応の例は端数スパンの板
+        self.assertTrue(any("呼び寸法が合わない" in w for w in site), site)
 
     def test_missing_master_part_is_a_warning(self):
         """マスタに無い＝現場で足りない。説明ではなく手配の話."""

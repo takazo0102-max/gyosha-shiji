@@ -115,10 +115,12 @@ class TestAsagaoGaps(unittest.TestCase):
     def test_outside_corners_are_reported(self):
         m = self._model()
         q = take_off(m)
-        hit = [w for w in q.warnings if "出隅" in w]
-        self.assertTrue(hit, q.warnings)
+        # 出隅の隅部はコーナー材で計上し、その旨を注記に出す（現場対応の警告ではない）
+        hit = [n for n in q.notes if "出隅" in n and "朝顔コーナー" in n]
+        self.assertTrue(hit, q.notes)
         corners = [c for c in m.plan.outline.corners if c.kind == "出隅"]
         self.assertIn(f"出隅{len(corners)}箇所", hit[0])
+        self.assertFalse([w for w in q.warnings if "出隅" in w])
 
     def test_odd_span_is_reported(self):
         """900スパンに1800の板を当てていることを書く."""
@@ -142,7 +144,7 @@ class TestAsagaoGaps(unittest.TestCase):
             building_height_mm=16000,
         )
         q = take_off(m)
-        self.assertTrue([w for w in q.warnings if "出隅" in w], q.warnings)
+        self.assertTrue([n for n in q.notes if "出隅" in n and "朝顔コーナー" in n], q.notes)
         self.assertTrue([w for w in q.warnings if "呼び寸法が合わない" in w])
         self.assertGreater(q.qty_of("朝顔"), 0)
 
@@ -159,3 +161,31 @@ class TestAsagaoGaps(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAsagaoCorners(unittest.TestCase):
+    """出隅の隅部は朝顔コーナー（型番仮）で計上する（以前は現場対応の注記だけだった）."""
+
+    def test_corner_pieces_counted_per_convex_corner_and_stage(self):
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.master import load_master
+        from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
+        from ashiba.plan_solver import solve_plan
+        from ashiba.quantity import take_off
+
+        for series in ("shinwa_A", "waku"):
+            with self.subTest(series):
+                master = load_master(series)
+                m = ScaffoldModel(
+                    master=master,
+                    plan=solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], master),
+                    elevation=solve_elevation(25000, master=master),
+                    config=ScaffoldConfig(asagao=AsagaoSpec(stages=2)),
+                )
+                q = take_off(m)
+                corner = [l for l in q.lines if l.part.category == "朝顔" and "コーナー" in l.part.note]
+                self.assertEqual(len(corner), 1)
+                self.assertEqual(corner[0].qty, 4 * 2)
+                self.assertTrue([n for n in q.notes if "朝顔コーナー" in n and "計上" in n])
+                self.assertFalse([w for w in q.warnings if "隅角部の板" in w])
+

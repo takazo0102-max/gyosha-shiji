@@ -455,15 +455,24 @@ def _count_asagao_parts(
     add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
     add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
 
-    # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）
+    # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）。
+    # 隅部はコーナー材で塞ぐ。マスタにあれば出隅×段数で計上、無ければ現場対応を出す
     corners = [c for c in model.plan.outline.corners if c.kind == "出隅"]
     if corners:
-        notes.action(
-            f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
-            f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
-            "（本ツールは隅の部材を計上していません）",
-            Notes.SITE,
-        )
+        corner_part = next((p for p in m.by_category("朝顔") if "コーナー" in p.note), None)
+        if corner_part is not None:
+            add(corner_part, len(corners) * asagao.stages, "朝顔コーナー（出隅）")
+            notes.append(
+                f"出隅{len(corners)}箇所×{asagao.stages}段の隅部は朝顔コーナー"
+                f"（{corner_part.model_no}）で計上しています"
+            )
+        else:
+            notes.action(
+                f"出隅{len(corners)}箇所は朝顔が突き合わない隅部になります"
+                f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください"
+                "（朝顔コーナーがマスタに無いため計上していません）",
+                Notes.SITE,
+            )
 
     # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
     # 数える（図面にも出る。同じ位置の格子の金具で兼ねる分は二重に数えない）
