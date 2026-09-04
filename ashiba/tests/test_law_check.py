@@ -390,6 +390,6 @@ class TestHeightUsesTheTallestLeg(unittest.TestCase):
         terrain = solve_post_feet(m, ground)
         c = [r for r in run_all_checks(m, terrain=terrain) if r.check_id == 8][0]
         self.assertEqual(c.status, "WARN", c.message)
-        self.assertIn("継ぎ足した実高さ", c.message)
+        self.assertIn("脚の伸び", c.message)
         self.assertIn("2本組", c.message)
 

@@ -94,7 +94,7 @@ class TestNotificationUsesActualHeight(unittest.TestCase):
         cells = re.findall(r"<t[^>]*>([^<]*)</t>", xml)
         i = cells.index("足場の高さ")
         self.assertIn("実高さ", cells[i + 1])   # 数値セルは<t>に出ないので次が単位注記
-        self.assertIn("継ぎ足し", cells[i + 1])
+        self.assertIn("脚の伸び", cells[i + 1])
         h, _ = actual_max_height_mm(m, t)
         self.assertIn(f"{h / 1000:.3f}", xml)
 

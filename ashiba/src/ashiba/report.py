@@ -128,7 +128,8 @@ def write_report_md(
 
     h_act, h_extra = actual_max_height_mm(model, terrain)
     a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}"
-      + (f"（敷地の低い側の実高さ {h_act:.0f}mm＝継ぎ足し{h_extra:.0f}mm。法規・届出・風はこの値で判定）"
+      + (f"（敷地の低い側の実高さ {h_act:.0f}mm＝名目＋脚の伸び{h_extra:.0f}mm"
+         "〈継ぎ足し・ジャッキ繰出しの差〉。法規・届出・風はこの値で判定）"
          if h_extra > 1 else ""))
     vm = model.master.vertical_member_name
     a(f"- {vm}構成（下から）: ジャッキ{e.jack_extension} + "

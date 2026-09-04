@@ -208,7 +208,8 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     h_mm, extra = actual_max_height_mm(model, terrain)
     _kv(s, "足場の高さ", round(h_mm / 1000.0, 3),
         f"m（ジャッキ下端〜{model.master.vertical_member_name}天端"
-        + (f"。敷地の低い側の実高さ。名目{model.scaffold_height_mm / 1000:.3f}m＋継ぎ足し{extra / 1000:.3f}m"
+        + (f"。敷地の低い側の実高さ。名目{model.scaffold_height_mm / 1000:.3f}m＋脚の伸び{extra / 1000:.3f}m"
+           "（継ぎ足しとジャッキ繰出しの差）"
            if extra > 1 else "") + "）")
     _kv(s, "架け面積", quantity.kake_menseki_m2, "m²（(建物外周+4m)×(建物高さ+0.5m)）")
     _kv(s, "作業床の層数", model.elevation.n_levels, "層")

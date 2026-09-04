@@ -337,7 +337,8 @@ def actual_max_height_mm(m: ScaffoldModel, terrain=None) -> tuple[float, float]:
 def check_height_reinforcement(m: ScaffoldModel, terrain=None) -> CheckResult:
     h, extra = actual_max_height_mm(m, terrain)
     site_note = (
-        f"（敷地の低い側で支柱を{extra / 1000:.2f}m継ぎ足した実高さ。名目{m.scaffold_height_mm / 1000:.2f}m）"
+        f"（敷地の低い側の実高さ。名目{m.scaffold_height_mm / 1000:.2f}m＋脚の伸び{extra / 1000:.2f}m"
+        "＝継ぎ足しとジャッキ繰出しの差）"
         if extra > 1 else ""
     )
     # 枠組足場は「建地2本組」（単管足場＝安衛則571条の概念）ではなく、
