@@ -286,6 +286,17 @@ def validate_platforms(
                     f"1本あたり{per_bracket:.2f}kN（積載{s.load_kn:.1f}kN÷{n_brk}本）で超過します。"
                     "荷取り用のブラケットに替えるか、積載を下げるか、間口を広げてください",
                     "仮設工業会 設計指針（部材の許容荷重）"))
+            # 1本あたりが通っても、スパン当たりの上限（日建 荷取りブラケット 6.86kN/スパン）を
+            # 超えることがある（間口1スパンに1t → 4.9kN/本は可、9.8kN/スパンは不可）
+            span_allow = bracket_span_allowable_kn(brk)
+            per_span = s.load_kn / max(1, s.span_count)
+            if span_allow is not None and per_span > span_allow + 1e-9:
+                result.issues.append(PlatformIssue(
+                    "ステージ", i, "NG",
+                    f"受けブラケット {brk.model_no} のスパン当たり許容荷重{span_allow:.2f}kNに対し"
+                    f"1スパンあたり{per_span:.2f}kN（積載{s.load_kn:.1f}kN÷間口{s.span_count}スパン）で"
+                    "超過します。間口を広げるか、積載を下げてください",
+                    "メーカー使用基準（荷取りブラケット スパン当たり許容荷重）"))
         # ステージ取付部は壁つなぎを増設する（間口の両端）
         # 間口の各支柱（スパン数+1）に、ブラケットの上下で2箇所（ties._platform_ties と同じ数え方）
         result.extra_wall_ties += 2 * (s.span_count + 1) * max(1, len(s.levels) or 1)
@@ -455,6 +466,12 @@ def _bracket_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int
     """出を受けられる最小の張出ブラケット呼び寸法。無ければ None."""
     p = stage_bracket_part(model, projection_mm)
     return p.nominal_dim if p is not None else None
+
+
+def bracket_span_allowable_kn(part) -> Optional[float]:
+    """ブラケットのスパン当たり許容荷重（note の「かつ6.86kN/スパン」）。無ければ None."""
+    m = re.search(r"([\d.]+)\s*kN\s*/\s*スパン", part.note)
+    return float(m.group(1)) if m else None
 
 
 def bracket_allowable_kn(part) -> Optional[float]:

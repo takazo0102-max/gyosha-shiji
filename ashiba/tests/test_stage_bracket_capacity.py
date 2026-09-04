@@ -111,5 +111,27 @@ class TestUpliftWordingDoesNotContradictTheHozue(unittest.TestCase):
             self.assertNotIn(">NG<", row)
 
 
+class TestPerSpanLimit(unittest.TestCase):
+    """1本あたりが通っても、スパン当たりの上限で止める（日建 荷取りブラケット 6.86kN/スパン）."""
+
+    def test_one_span_one_ton_is_ng_per_span(self):
+        from ashiba.platforms import bracket_span_allowable_kn
+
+        m = build("nikken_nd1800")
+        brk = next(p for p in m.master.by_category("ブラケット") if p.model_no == "NDBS15")
+        self.assertEqual(bracket_span_allowable_kn(brk), 6.86)
+        r = validate_platforms(m, [stage(projection_mm=1500, span_count=1, load_kn=9.8)])
+        per_bracket_ng = [i for i in r.issues if i.severity == "NG" and "許容荷重6.86kN/本" in i.message]
+        self.assertFalse(per_bracket_ng)          # 4.9kN/本 は可
+        per_span_ng = [i for i in r.issues if i.severity == "NG" and "スパン当たり" in i.message]
+        self.assertTrue(per_span_ng, [i.message for i in r.issues])
+        self.assertIn("9.80kN", per_span_ng[0].message)
+
+    def test_two_spans_pass(self):
+        m = build("nikken_nd1800")
+        r = validate_platforms(m, [stage(projection_mm=1500, span_count=2, load_kn=9.8)])
+        self.assertFalse([i for i in r.issues if "スパン当たり" in i.message])
+
+
 if __name__ == "__main__":
     unittest.main()
