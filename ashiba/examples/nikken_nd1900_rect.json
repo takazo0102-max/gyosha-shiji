@@ -1,0 +1,51 @@
+{
+  "project_name": "サンプル 日建NDシステム1900",
+  "series_id": "nikken_nd1900",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "standoff": {
+    "target": 300,
+    "min": 250,
+    "max": 350,
+    "hard_min": 200
+  },
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "関東(沿岸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート",
+    "adjacent_factor": 1.0,
+    "region_factor": 1.0,
+    "simultaneous_loaded_levels": 2
+  },
+  "notification": {
+    "business_type": "建築工事業",
+    "site_name": "サンプル新築工事",
+    "site_address": "",
+    "worker_count": "",
+    "planner_name": "",
+    "start_date": "2026-11-01",
+    "labor_office": ""
+  }
+}

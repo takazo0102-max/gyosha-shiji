@@ -47,8 +47,8 @@ class TestNikkenNd1800Master(unittest.TestCase):
         self.assertEqual(by_no["ND752P"].weight_kg, 2.82)        # p004
         self.assertEqual(by_no["KS700"].weight_kg, 1.61)         # p100
         self.assertEqual(by_no["NDBS15"].weight_kg, 20.0)        # p018
-        # アルミ軽量アサガオ直線部1スパン: 10.80×2+4.60+5.00+1.70+2.00×2+5.97×6
-        self.assertAlmostEqual(by_no["ALA-1829"].weight_kg, 83.52)
+        # アルミ軽量アサガオ直線部1スパン（受金具ALA7Nを除く）: 10.80×2+4.60+5.00+1.70+2.00×2+5.97×6
+        self.assertAlmostEqual(by_no["ALA-1829"].weight_kg, 72.72)
         self.assertAlmostEqual(by_no["ALAC-SET"].weight_kg, 98.28)
 
     def test_capacity_rows_are_verified_with_catalog_page(self):

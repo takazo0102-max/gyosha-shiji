@@ -34,6 +34,11 @@ SERIES_CONST = {
     "nikken_nd1800": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
                       "hozo": 125,
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 日建リース NDシステム1900: コマ475・階高1900（支柱3800/2850/1900/1425/950/475）。
+    # つなぎ材・布板・ブラケット・梁枠はND1800と共通、支柱・先行手すり・階段が専用
+    "nikken_nd1900": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
+                      "hozo": 125,
+                      "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
              "hozo": 0,
