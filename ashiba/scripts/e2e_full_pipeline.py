@@ -194,7 +194,7 @@ def main() -> None:
     )
     files = sorted(p.name for p in out.glob(f"{name}_*"))
     print(f"12. 帳票出力: {len(files)}件 {files}")
-    print(f"    設置届: {'要' if notification_required(model) else '不要'}")
+    print(f"    設置届: {'要' if notification_required(model, terrain) else '不要'}")
     print(f"    総合判定: {'成立' if verdict['ok'] else '是正が必要'}"
           f" 要確認{verdict['warn']}件 {verdict['warn_breakdown']}")
 

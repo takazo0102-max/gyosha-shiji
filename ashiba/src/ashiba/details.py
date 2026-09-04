@@ -90,7 +90,9 @@ def required_details(
         "beamList": ",".join(str(v) for v in _beam_sizes(model)),
     }
     v_max, h_max = model.wall_tie_max_spacing()
-    height = model.scaffold_height_mm
+    from .terrain import actual_max_height_mm
+
+    height = actual_max_height_mm(model, terrain)[0]
 
     # 脚部詳細は「実際に一番繰り出す支柱」で描く。平坦時の値で描くと、
     # 法規チェックが435mmを警告している横で図面は100mmを示すことになる

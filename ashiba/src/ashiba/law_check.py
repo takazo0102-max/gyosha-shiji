@@ -43,10 +43,10 @@ def run_all_checks(
         check_negarami,
         check_wall_ties,
         check_series_lock,
-        check_asagao,
         check_post_spacing,
     ]
     results = [fn(model) for fn in checks]
+    results.append(check_asagao(model, terrain))
     # 高さ(#8)は敷地の低い側で実高さが伸びる。名目高さだけ見ると、崖地で
     # 36mになっている足場を「16m ≦ 31m」で通してしまう
     results.append(check_first_ledger(model, terrain))
@@ -328,17 +328,10 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
 # ---- #8 高さ31m超の補強 --------------------------------------------------
 
 def actual_max_height_mm(m: ScaffoldModel, terrain=None) -> tuple[float, float]:
-    """判定に使う足場高さと、敷地の低い側で伸びた分（mm）.
+    """判定に使う足場高さと、敷地の低い側で伸びた分（terrain.actual_max_height_mm）."""
+    from .terrain import actual_max_height_mm as _actual
 
-    高低差のある敷地では支柱を下へ継ぎ足すので、最も低い脚の実高さは
-    名目の足場高さより大きい。31m・45mの判定はその実高さで行う。
-    """
-    nominal = m.scaffold_height_mm
-    feet = list(getattr(terrain, "feet", []) or [])
-    if not feet:
-        return nominal, 0.0
-    tallest = max(sum(f.posts) + f.jack_mm for f in feet)
-    return max(nominal, tallest), max(0.0, tallest - nominal)
+    return _actual(m, terrain)
 
 
 def check_height_reinforcement(m: ScaffoldModel, terrain=None) -> CheckResult:
@@ -403,14 +396,19 @@ def check_series_lock(m: ScaffoldModel) -> CheckResult:
 
 # ---- #10 朝顔（防護棚） --------------------------------------------------
 
-def check_asagao(m: ScaffoldModel) -> CheckResult:
+def check_asagao(m: ScaffoldModel, terrain=None) -> CheckResult:
     basis = (
         "安衛則563条・537条（落下物防護）: 高さ10m以上で1段・20m以上で2段、"
         "突出2m以上・傾斜20度以上、取付部は2スパン毎に壁つなぎ"
     )
-    need = required_asagao_stages(m.scaffold_height_mm)
+    # 落下物防護は地盤からの高さで決まる。敷地の低い側では継ぎ足した分だけ
+    # 高くなるので、名目ではなく実高さで段数を決める
+    h_mm, extra = actual_max_height_mm(m, terrain)
+    need = required_asagao_stages(h_mm)
     spec = m.config.asagao
-    h_m = m.scaffold_height_mm / 1000.0
+    h_m = h_mm / 1000.0
+    if extra > 1:
+        basis += f"／敷地の低い側の実高さ{h_m:.2f}m（名目{m.scaffold_height_mm / 1000:.2f}m）で判定"
 
     if need == 0:
         if spec is None or spec.stages == 0:

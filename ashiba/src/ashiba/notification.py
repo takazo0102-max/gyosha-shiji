@@ -67,8 +67,14 @@ class NotificationInfo:
         return self.start_date - _dt.timedelta(days=30)
 
 
-def notification_required(model: ScaffoldModel) -> bool:
-    return model.scaffold_height_mm >= 10000 and model.config.period_days >= 60
+def notification_required(model: ScaffoldModel, terrain=None) -> bool:
+    """設置届の要否（高さ10m以上かつ60日以上、安衛法88条）.
+
+    高さは敷地の低い側の実高さで見る（名目9mでも2mの段差があれば11m）。
+    """
+    from .terrain import actual_max_height_mm
+
+    return actual_max_height_mm(model, terrain)[0] >= 10000 and model.config.period_days >= 60
 
 
 def scaffold_total_length_m(model: ScaffoldModel) -> float:
@@ -100,7 +106,7 @@ def write_notification_xlsx(
     wb = Workbook()
     _sheet_form20(wb, model, quantity, project_name, info,
                   stair_plan=stair_plan, platforms=platforms,
-                  openings=openings, bracket_sections=bracket_sections)
+                  openings=openings, bracket_sections=bracket_sections, terrain=terrain)
     # 確認する人が最初に見る位置に、是正項目と要確認事項をまとめて置く
     if verdict is not None:
         _sheet_todo(wb, verdict, checks, warnings)
@@ -168,7 +174,7 @@ def _kv(sheet, label: str, value, note: str = "") -> None:
 
 def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
                   stair_plan=None, platforms=None, openings=None,
-                  bracket_sections=None) -> None:
+                  bracket_sections=None, terrain=None) -> None:
     s = wb.sheet("様式第20号(下書き)")
     s.set_width(0, 26)
     s.set_width(1, 34)
@@ -177,7 +183,7 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     s.add_cells([Cell(DISCLAIMER)])
     s.add_blank()
 
-    required = notification_required(model)
+    required = notification_required(model, terrain)
     s.add(["届出要否", "要" if required else "不要",
            "高さ10m以上かつ設置期間60日以上で届出（安衛法88条）"], STYLE_BOLD)
     s.add_blank()
@@ -197,8 +203,13 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
         f"系列 {model.master.series_id}")
     _kv(s, "足場の長さ", round(scaffold_total_length_m(model), 2),
         "m（足場中心線の全長）")
-    _kv(s, "足場の高さ", round(model.scaffold_height_mm / 1000.0, 3),
-        f"m（ジャッキ下端〜{model.master.vertical_member_name}天端）")
+    from .terrain import actual_max_height_mm
+
+    h_mm, extra = actual_max_height_mm(model, terrain)
+    _kv(s, "足場の高さ", round(h_mm / 1000.0, 3),
+        f"m（ジャッキ下端〜{model.master.vertical_member_name}天端"
+        + (f"。敷地の低い側の実高さ。名目{model.scaffold_height_mm / 1000:.3f}m＋継ぎ足し{extra / 1000:.3f}m"
+           if extra > 1 else "") + "）")
     _kv(s, "架け面積", quantity.kake_menseki_m2, "m²（(建物外周+4m)×(建物高さ+0.5m)）")
     _kv(s, "作業床の層数", model.elevation.n_levels, "層")
     _kv(s, f"{model.master.vertical_member_name}位置数", model.plan.total_posts,

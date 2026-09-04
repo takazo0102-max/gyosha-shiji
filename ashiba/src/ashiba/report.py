@@ -124,7 +124,12 @@ def write_report_md(
     a(f"- 系列: {model.master.series_id}"
       + ("（建枠を積む方式）" if model.master.is_frame
          else f"（コマピッチ{model.master.koma_pitch}mm）"))
-    a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}")
+    from .terrain import actual_max_height_mm
+
+    h_act, h_extra = actual_max_height_mm(model, terrain)
+    a(f"- 足場高さ: {model.scaffold_height_mm}mm / 作業層数: {e.n_levels}"
+      + (f"（敷地の低い側の実高さ {h_act:.0f}mm＝継ぎ足し{h_extra:.0f}mm。法規・届出・風はこの値で判定）"
+         if h_extra > 1 else ""))
     vm = model.master.vertical_member_name
     a(f"- {vm}構成（下から）: ジャッキ{e.jack_extension} + "
       + " + ".join(str(p) for p in e.posts)
@@ -144,7 +149,7 @@ def write_report_md(
     a(f"- 作業床: {model.master.deck_category} {deck_desc}" + spacing)
     a(f"- 手すり方式: {model.guard_rail_method}")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
-                    if notification_required(model) else "不要"))
+                    if notification_required(model, terrain) else "不要"))
     a("")
     a("## 平面割付")
     a("")

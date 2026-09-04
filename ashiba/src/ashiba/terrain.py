@@ -452,3 +452,18 @@ def first_ledger_heights(model: ScaffoldModel, terrain) -> list[float]:
             levels[idx[i + 1]].append(lvl)
     return [min(levels[i]) - (f.gl_mm - gl_ref) for i, f in enumerate(feet)]
 
+
+def actual_max_height_mm(model: ScaffoldModel, terrain=None) -> tuple[float, float]:
+    """判定・届出に使う足場高さと、敷地の低い側で伸びた分（mm）.
+
+    高低差のある敷地では支柱を下へ継ぎ足すので、最も低い脚の実高さは名目の
+    足場高さより大きい。31m/45m・朝顔の段数・届出要否・風の高さ補正は
+    この実高さで見る（名目で見ると崖地の36mを16mとして通してしまう）。
+    """
+    nominal = float(model.scaffold_height_mm)
+    feet = list(getattr(terrain, "feet", []) or [])
+    if not feet:
+        return nominal, 0.0
+    tallest = max(sum(f.posts) + f.jack_mm for f in feet)
+    return max(nominal, tallest), max(0.0, tallest - nominal)
+

@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from .terrain import actual_max_height_mm
 from .model import ScaffoldModel
 from .quantity import QuantityResult
 
@@ -283,9 +284,10 @@ def wind_force_coefficient(fill_ratio: float, gamma: float = 0.0, f: float = 1.0
     return (0.11 + 0.09 * gamma + 0.945 * CO_BASE * fill_ratio) * f
 
 
-def compute_wind(model: ScaffoldModel, site: SiteCondition) -> WindResult:
+def compute_wind(model: ScaffoldModel, site: SiteCondition, height_mm: Optional[float] = None) -> WindResult:
     v0, v0_src = site.base_wind_speed()
-    h_m = model.scaffold_height_mm / 1000.0
+    # 高さ補正は最も高い部分で見る。敷地の低い側で継ぎ足した分は名目より高い
+    h_m = (height_mm if height_mm else model.scaffold_height_mm) / 1000.0
     k = height_factor(h_m, site.roughness)
     v = v0 * k * site.adjacent_factor * site.region_factor
     q = AIR_Q_COEF * v**2
@@ -690,7 +692,7 @@ def run_structural(
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
 
-    wind = compute_wind(model, site)
+    wind = compute_wind(model, site, height_mm=actual_max_height_mm(model, terrain)[0])
     tie = check_wall_tie(model, wind, caps)
     # 荷受けステージがあれば、その直下の建地（最も厳しい1本）で検定する
     extra = platforms.max_post_load_kn if platforms else 0.0

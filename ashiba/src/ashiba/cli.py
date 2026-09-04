@@ -825,7 +825,7 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         "scaffold_height_mm": model.scaffold_height_mm,
         "verdict": verdict,
         "checks": s,
-        "notification_required": notification_required(model),
+        "notification_required": notification_required(model, r.terrain),
         "total_weight_kg": quantity.total_weight_kg,
         "kake_menseki_m2": quantity.kake_menseki_m2,
         "structural": {
