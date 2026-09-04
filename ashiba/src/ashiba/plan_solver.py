@@ -410,6 +410,12 @@ def _feasibility_hint(
     others = sorted(v for v in feasible if abs(v - chosen) > 0.5)
     if not others:
         return "（真物で組める離れはこの値のみ。スパン構成では動かせません）"
+    inside = [v for v in others if spec.min <= v <= spec.max]
+    if not inside:
+        # 全部帯外なら1つずつ「＝目標帯外」を付けて並べても読む側の手は増えない。
+        # 帯内の代案が無いことを先に言い、帯外の候補は参考として添える
+        return ("（目標帯内で組める離れは他にありません。帯外で組めるのは "
+                + "・".join(f"{v}mm" for v in others) + "）")
     parts = []
     for v in others:
         out = "" if spec.min <= v <= spec.max else "＝目標帯外"

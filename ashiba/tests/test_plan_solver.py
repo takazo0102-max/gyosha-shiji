@@ -357,7 +357,11 @@ class TestFeasibilityHint(unittest.TestCase):
 
         plan = solve_plan(RECT, self.master)
         remedy = next(e.remedy for e in plan.edges if e.remedy)
-        alts = [int(v) for v in re.findall(r"(\d+)mm＝?目標帯外", remedy)]
+        alts = [int(v) for v in re.findall(r"(\d+)mm＝目標帯外", remedy)]
+        if not alts:
+            # 帯内の代案が無い面は「帯外で組めるのは A・Bmm」の形で列挙する
+            tail = remedy.split("帯外で組めるのは")[1]
+            alts = [int(v) for v in re.findall(r"(\d+)mm", tail)]
         self.assertTrue(alts, remedy)
         for d in alts:
             with self.subTest(d=d):
@@ -407,6 +411,28 @@ class TestFaceNames(unittest.TestCase):
     def test_one_name_per_edge(self):
         plan = self._plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)])
         self.assertEqual(len(plan.face_names()), len(plan.edges))
+
+
+class TestHintSaysWhenNoAlternativeIsInBand(unittest.TestCase):
+    """代案が全部帯外なら、1つずつ「＝目標帯外」を並べず、帯内の代案が無いと言う."""
+
+    def test_all_out_of_band(self):
+        from ashiba.plan_solver import _feasibility_hint
+
+        spec = StandoffSpec(target=300, min=250, max=350, hard_min=200)
+        hint = _feasibility_hint({206, 207, 208}, 207, spec)
+        self.assertIn("目標帯内で組める離れは他にありません", hint)
+        self.assertIn("206mm・208mm", hint)
+        self.assertNotIn("＝目標帯外", hint)
+
+    def test_mixed_keeps_the_per_value_marks(self):
+        from ashiba.plan_solver import _feasibility_hint
+
+        spec = StandoffSpec(target=300, min=250, max=350, hard_min=200)
+        hint = _feasibility_hint({207, 260, 340}, 207, spec)
+        self.assertIn("260mm", hint)
+        self.assertNotIn("260mm＝目標帯外", hint)
+        self.assertNotIn("他にありません", hint)
 
 
 if __name__ == "__main__":
