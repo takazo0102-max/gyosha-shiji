@@ -552,7 +552,7 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         # ジャッキ・腕木・布材は抜いたぶんを引いてあるが、鉛直部材の積み上げ構成は
         # 全位置で同じものを使っている。梁枠上に乗る部材は構成が変わる
         notes.action(
-            f"{vm}は全ての{vm}位置で同じ積み上げ構成で計上しています。"
+            f"開口部の{vm}は、抜く前の位置と同じ積み上げ構成で計上しています。"
             f"開口部で抜いた{openings.removed_posts}本は梁枠上に乗る構成"
             "（梁枠下端から天端まで）に置き換えて拾い直してください",
             Notes.ORDER,

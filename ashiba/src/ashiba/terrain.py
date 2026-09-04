@@ -181,6 +181,13 @@ def solve_post_feet(
     # 継ぎ足しの構成表は、実際に必要な最大コマ数まで作る。8コマ（3.6m）で
     # 打ち切っていたときは、それを超える段差の脚が名目構成に戻され、数量の
     # 支柱が不足し、高さ判定も名目のままだった（脚ごとの備考にしか出なかった）
+    # 全脚が同じ段数だけ下がっているなら、それは基準面が高すぎるだけ。
+    # 基準面ごと下げれば同じジャッキ量のまま継ぎ足しが要らなくなる
+    # （枠組は刻み900mmで、500mmの高低差に全58脚へ調整枠を足していた）
+    min_offset = min(offsets) if offsets else 0
+    if min_offset > 0:
+        offsets = [m - min_offset for m in offsets]
+        ref_jack_top -= min_offset * koma
     max_offset = max(offsets) if offsets else 0
     table = _compose_table(
         base_total + int(koma) * max(8, max_offset), sorted(set(lengths), reverse=True)
@@ -450,7 +457,12 @@ def first_ledger_heights(model: ScaffoldModel, terrain) -> list[float]:
         for i, lvl in extra.get(ep.edge_index, []):
             levels[idx[i]].append(lvl)
             levels[idx[i + 1]].append(lvl)
-    return [min(levels[i]) - (f.gl_mm - gl_ref) for i, f in enumerate(feet)]
+    # 支持面は敷板（正）・床掘り（負）の調整後。元の地盤で測ると、床掘りした脚で
+    # 「地盤より下の布」という負の高さが出る（実際に-300mmと出た）
+    return [
+        min(levels[i]) - (f.gl_mm + f.base_plate_adjust_mm - gl_ref)
+        for i, f in enumerate(feet)
+    ]
 
 
 def actual_max_height_mm(model: ScaffoldModel, terrain=None) -> tuple[float, float]:

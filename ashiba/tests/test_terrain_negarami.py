@@ -113,5 +113,36 @@ class TestExtraNegarami(unittest.TestCase):
             self.assertIn("lv[1] - mlo * footStep", body)
 
 
+class TestDatumIsNotWastefullyHigh(unittest.TestCase):
+    """全脚が同じ段数だけ下がる解は基準面が高すぎるだけ。継ぎ足しを増やさない.
+
+    枠組（刻み900mm）で高低差500mmの敷地に、全58脚へ調整枠を1枚ずつ足していた。
+    """
+
+    def test_min_offset_is_zero(self):
+        for series, drop in (("waku", 500), ("waku", 5000), ("shinwa_A", 700), ("shinwa_A", 6000)):
+            with self.subTest(series=series, drop=drop):
+                m = build(series)
+                t = terrace(m, drop)
+                self.assertEqual(min(f.koma_offset for f in t.feet), 0)
+                for f in t.feet:
+                    # ジャッキは可動域内（外れる分は敷板・床掘りとして明示）
+                    self.assertGreaterEqual(f.jack_mm, 30 - 1e-6)
+                    self.assertLessEqual(f.jack_mm, 450 + 1e-6)
+
+
+class TestFirstLedgerIsMeasuredFromTheBearingSurface(unittest.TestCase):
+    def test_no_negative_heights_after_digging(self):
+        """床掘りした脚は支持面が下がる。元の地盤で測ると負の高さが出ていた（-300mm）."""
+        m = build("waku")
+        t = terrace(m, 500)
+        hs = first_ledger_heights(m, t)
+        self.assertGreaterEqual(min(hs), 0)
+        self.assertLessEqual(max(hs), 2000)
+        c = [r for r in run_all_checks(m, terrain=t) if r.check_id == 4][0]
+        self.assertEqual(c.status, "OK", c.message)
+        self.assertNotIn("-", c.message.split("高さ")[1].split("mm")[0])
+
+
 if __name__ == "__main__":
     unittest.main()
