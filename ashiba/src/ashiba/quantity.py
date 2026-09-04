@@ -921,8 +921,11 @@ def _count_frame_parts(
     # 建枠は1枚で2脚（内外の建地を兼ねる）。建枠の枚数で数えると脚が半分になり、
     # 現場でジャッキが足りなくなる
     n_frame_legs = n_frame_lines * rules.rows
-    add(jack, n_frame_legs, "ジャッキ（建枠1枚に2脚）")
-    add(under, n_frame_legs, "アンダーベース（建枠1枚に2脚）")
+    # 開口部で抜いた建枠は地面に達しない。その脚のジャッキ・アンダーベースは要らない
+    # （くさび経路は控除していたのに、枠組経路だけ全脚で数えていた）
+    removed_legs = openings.removed_posts if openings is not None else 0
+    add(jack, max(0, n_frame_legs - removed_legs), "ジャッキ（建枠1枚に2脚）")
+    add(under, max(0, n_frame_legs - removed_legs), "アンダーベース（建枠1枚に2脚）")
 
     # ---- 布板（作業床）。階段枠の区間には敷かない ----
     span_counts: dict[int, int] = {}
