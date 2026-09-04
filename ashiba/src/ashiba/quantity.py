@@ -230,12 +230,11 @@ def take_off(
     # ---- ジャッキ・アンダーベース（アンダーベース数=ジャッキ数） ----
     # 「ベース」で除外すると品名が「パイプジャッキベース」の系列（日建ND）で
     # ジャッキが拾えなくなる。除外するのはアンダーベース（敷板）だけ
-    jack = next((p for p in m.by_category("ジャッキ") if "アンダーベース" not in p.note), None)
     under = next((p for p in m.by_category("ジャッキ") if "アンダーベース" in p.note), None)
     # 開口部で抜いた支柱は地面に達しないので、ジャッキもアンダーベースも要らない
     removed = openings.removed_posts if openings is not None else 0
     n_feet = max(0, n_posts - removed)
-    add(jack, n_feet, "ジャッキ")
+    _count_jacks(m, feet, rows, n_feet, add, notes)
     add(under, n_feet, "アンダーベース")
     # 支柱最下部にだけ付く附属品（日建NDの下部カラー材など）。脚の数だけ
     for p in m.by_category("支柱附属"):
@@ -426,6 +425,55 @@ def take_off(
     _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes, breakdown)
+
+
+def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "") -> None:
+    """ジャッキを脚ごとの繰出し量に合う品で数える.
+
+    敷地に高低差があると脚ごとに繰出し量が違う。日建 ND752P は繰出し最大292mmで、
+    それを超える脚はロング（ND752SP・432mm）が要る。平坦時の1品で全脚を数えると、
+    ジャッキ量一覧では444mmと出ているのに数量は届かない品になっていた。
+    繰出し上限の書いていない品（信和 SE-6 等）は従来どおり全脚をその品で数える。
+    """
+    jacks = [p for p in m.by_category("ジャッキ") if "アンダーベース" not in p.note]
+    if not jacks:
+        add(None, n_feet, "ジャッキ" + suffix)
+        return
+    ranked = sorted(jacks, key=lambda p: (p.max_extension_mm() is None, p.max_extension_mm() or 0))
+    default = ranked[0]
+    if not feet or all(p.max_extension_mm() is None for p in jacks):
+        add(default, n_feet, "ジャッキ" + suffix)
+        return
+    # 脚ごとに、繰出し量を受けられる中で最も短い品。どれも届かない脚は最長の品で数え、
+    # 差は敷板調整（ジャッキ量一覧の備考）として残る
+    per_part: dict[str, int] = {}
+    parts_by_no = {p.model_no: p for p in ranked}
+    unreachable = 0
+    for f in feet:
+        need = float(getattr(f, "jack_mm", 0.0))
+        fit = next((p for p in ranked
+                    if p.max_extension_mm() is None or need <= p.max_extension_mm() + 1e-6), None)
+        if fit is None:
+            fit = ranked[-1]
+            unreachable += 1
+        per_part[fit.model_no] = per_part.get(fit.model_no, 0) + rows
+    # 開口部で抜いた脚のぶんは、既定の品から引く（脚一覧には抜く前の脚も入っている）
+    over = sum(per_part.values()) - n_feet
+    if over > 0 and default.model_no in per_part:
+        per_part[default.model_no] = max(0, per_part[default.model_no] - over)
+    for no, qty in per_part.items():
+        p = parts_by_no[no]
+        label = "ジャッキ" + suffix
+        if p is not default:
+            label = f"ジャッキ（繰出し{default.max_extension_mm()}mm超の脚: {p.model_no}）" + suffix
+        add(p, qty, label)
+    if unreachable:
+        top = ranked[-1]
+        notes.action(
+            f"繰出し量がジャッキの上限{top.max_extension_mm()}mm（{top.model_no}）を超える脚が"
+            f"{unreachable}箇所あります。敷板・床均しで下端を上げてください（ジャッキ量一覧の備考参照）",
+            Notes.SITE,
+        )
 
 
 def _units_per_place(part: Part) -> int:
@@ -954,7 +1002,6 @@ def _count_frame_parts(
         add(part, total, f"建枠 幅{frame_width}×高{h}")
 
     # ---- ジャッキ・アンダーベース ----
-    jack = next((p for p in m.by_category("ジャッキ") if "アンダー" not in p.note), None)
     under = next((p for p in m.by_category("ジャッキ") if "アンダーベース" in p.note), None)
     # 建枠は1枚で2脚（内外の建地を兼ねる）。建枠の枚数で数えると脚が半分になり、
     # 現場でジャッキが足りなくなる
@@ -962,7 +1009,8 @@ def _count_frame_parts(
     # 開口部で抜いた建枠は地面に達しない。その脚のジャッキ・アンダーベースは要らない
     # （くさび経路は控除していたのに、枠組経路だけ全脚で数えていた）
     removed_legs = openings.removed_posts if openings is not None else 0
-    add(jack, max(0, n_frame_legs - removed_legs), "ジャッキ（建枠1枚に2脚）")
+    _count_jacks(m, feet, rules.rows, max(0, n_frame_legs - removed_legs), add, notes,
+                 "（建枠1枚に2脚）")
     add(under, max(0, n_frame_legs - removed_legs), "アンダーベース（建枠1枚に2脚）")
 
     # ---- 布板（作業床）。階段枠の区間には敷かない ----

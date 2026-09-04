@@ -116,10 +116,17 @@ def validate_openings(
                 f"{edge.scaffold_length:.0f}mmを超えています", "入力エラー"))
             continue
         if not (on_start and on_end):
+            # 「一致しません」だけでは、どこに直せばよいか分からない。
+            # 始点に最も近い支柱位置と、そこから梁枠長ぶん先が支柱に乗るかを示す
+            near = min(posts, key=lambda p: abs(p - o.start_mm))
+            near_end = near + o.beam_span_mm
+            end_ok = any(abs(p - near_end) < 1e-6 for p in posts)
+            hint = (f"始点を{near:.0f}mmにすれば両端とも支柱に乗ります" if end_ok else
+                    f"支柱位置は {'・'.join(f'{p:.0f}' for p in posts)}mm です")
             result.issues.append(OpeningIssue(
                 i, "NG",
                 f"辺{o.edge_index}: 梁枠の両端（{o.start_mm:.0f}・{o.end_mm:.0f}mm）が"
-                "支柱位置に一致しません。スパン割を調整してください",
+                f"支柱位置に一致しません。スパン割を調整してください（{hint}）",
                 "梁枠は支柱で受ける"))
             continue
 

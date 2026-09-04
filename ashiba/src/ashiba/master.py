@@ -84,6 +84,11 @@ class Part:
         lo, hi = int(m.group(1)), int(m.group(2))
         return (lo, hi) if lo < hi else None
 
+    def max_extension_mm(self) -> Optional[int]:
+        """ジャッキの繰出し上限（note の「繰出し最大NNN」）。書いていなければ None."""
+        m = re.search(r"繰出し最大\s*(\d+)", self.note)
+        return int(m.group(1)) if m else None
+
     def covers(self, width: int) -> bool:
         """この部材で呼び幅 width をまかなえるか（定尺は一致、伸縮は範囲内）."""
         rng = self.adjustable_range()
