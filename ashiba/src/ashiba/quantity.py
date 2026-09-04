@@ -533,13 +533,13 @@ def _count_bracket_parts(
         if purpose == "方杖":
             notes.action(f"方杖{qty}本が必要です（緊結部付ブラケット拡幅部）", Notes.SITE)
             continue
-        note_key = "張出" if purpose == "張出" else ""
-        part = next(
-            (p for p in m.by_category("ブラケット")
-             if p.nominal_dim == width
-             and (note_key in p.note if note_key else "張出" not in p.note)),
-            None,
-        )
+        # 定尺の一致→伸縮範囲、の順で当てる（PartMaster.bracket_for）
+        part = m.bracket_for(width, outward=(purpose == "張出"))
+        if part is not None and part.nominal_dim != width:
+            notes.append(
+                f"ブラケット{width}mm（{purpose}）は伸縮品 {part.model_no}"
+                f"（{part.note.split()[0]}）を{width}mmに合わせて使う前提で計上"
+            )
         if part is None:
             notes.action(
                 f"ブラケット{width}mm（{purpose}）が系列 {m.series_id} のマスタに"

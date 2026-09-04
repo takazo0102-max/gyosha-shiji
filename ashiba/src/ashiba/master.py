@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import re
+
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,6 +75,21 @@ class Part:
     diameter: float   # [mm] 0なら管材でない
     weight_kg: float
     note: str = ""
+
+    def adjustable_range(self) -> Optional[tuple[int, int]]:
+        """伸縮品の可変範囲（note の「NNN〜MMM」）。定尺品は None."""
+        m = re.search(r"(\d+)\s*〜\s*(\d+)", self.note)
+        if not m:
+            return None
+        lo, hi = int(m.group(1)), int(m.group(2))
+        return (lo, hi) if lo < hi else None
+
+    def covers(self, width: int) -> bool:
+        """この部材で呼び幅 width をまかなえるか（定尺は一致、伸縮は範囲内）."""
+        rng = self.adjustable_range()
+        if rng is None:
+            return self.nominal_dim == width
+        return rng[0] <= width <= rng[1]
 
 
 @dataclass
@@ -203,6 +220,24 @@ class PartMaster:
             {p.nominal_dim for p in self.by_category("布材") if p.nominal_dim >= min_span},
             reverse=True,
         )
+
+    def bracket_for(self, width: int, outward: bool) -> Optional[Part]:
+        """区間指定のブラケット（呼び幅・向き）に当てる部材.
+
+        呼び寸法が一致する定尺品を優先し、無ければ伸縮範囲（note の「360〜475」）に
+        幅が入る伸縮品のうち最短のものを返す。完全一致だけにしていると、
+        枠組の張出（日建 TWL750 は 500〜750）や ND の伸縮ブラケットが
+        「マスタにありません」になり、実際にはある部材を別途手配させていた。
+        """
+        cands = [
+            p for p in self.by_category("ブラケット")
+            if ("張出" in p.note) == outward
+        ]
+        exact = next((p for p in cands if p.nominal_dim == width), None)
+        if exact is not None:
+            return exact
+        covering = [p for p in cands if p.covers(width)]
+        return min(covering, key=lambda p: p.nominal_dim) if covering else None
 
     def find(self, category: str, nominal_dim: int, note_contains: str = "") -> Optional[Part]:
         for p in self.by_category(category):

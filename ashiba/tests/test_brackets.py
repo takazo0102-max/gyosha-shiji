@@ -273,8 +273,6 @@ class TestFrameSystemAlsoCounts(unittest.TestCase):
         self.assertGreater(q.total_weight_kg, base.total_weight_kg)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestZeroWidthBracketIsRejected(unittest.TestCase):
@@ -296,3 +294,52 @@ class TestZeroWidthBracketIsRejected(unittest.TestCase):
         self.assertTrue([i for i in issues if i.severity == "NG" and "ブラケット幅" in i.message],
                         [i.message for i in issues])
 
+
+
+class TestAdjustableBracketsAreFound(unittest.TestCase):
+    """伸縮ブラケットは呼び幅が範囲に入れば当てる（完全一致だけだと「マスタに無い」）."""
+
+    def test_part_covers(self):
+        from ashiba.master import Part
+
+        adj = Part("x", "ブラケット", "T", 750, 750, 0, 5.5, "張出用 伸縮ブラケット500〜750")
+        fixed = Part("x", "ブラケット", "F", 600, 580, 0, 2.5, "踏板500用")
+        self.assertEqual(adj.adjustable_range(), (500, 750))
+        self.assertTrue(adj.covers(600))
+        self.assertFalse(adj.covers(400))
+        self.assertIsNone(fixed.adjustable_range())
+        self.assertTrue(fixed.covers(600))
+        self.assertFalse(fixed.covers(610))
+
+    def test_exact_part_wins_over_adjustable(self):
+        from ashiba.master import load_master
+
+        m = load_master("nikken_nd1800")
+        self.assertEqual(m.bracket_for(600, outward=False).model_no, "NDBK06C")
+        # 400 は定尺が無いので伸縮 360〜475 の NDBK3647C
+        self.assertEqual(m.bracket_for(400, outward=False).model_no, "NDBK3647C")
+        self.assertIsNone(m.bracket_for(200, outward=False))
+
+    def test_frame_outward_section_uses_twl(self):
+        from ashiba.brackets import BracketSection
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.master import load_master
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+        from ashiba.plan_solver import solve_plan
+        from ashiba.quantity import take_off
+
+        master = load_master("waku")
+        rect = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
+        m = ScaffoldModel(master=master, plan=solve_plan(rect, master),
+                          elevation=solve_elevation(16300, master=master),
+                          config=ScaffoldConfig(), building_height_mm=16000)
+        sec = [BracketSection(edge_index=0, start_mm=0, end_mm=5487, width=600,
+                              direction="張出", levels=[1])]
+        q = take_off(m, bracket_sections=sec)
+        self.assertGreater(sum(l.qty for l in q.lines if l.part.model_no == "TWL750"), 0)
+        self.assertFalse([w for w in q.warnings if "ブラケット600mm" in w and "ありません" in w], q.warnings)
+        self.assertTrue([n for n in q.notes if "TWL750" in n and "合わせて使う" in n], q.notes)
+
+
+if __name__ == "__main__":
+    unittest.main()
