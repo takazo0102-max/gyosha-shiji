@@ -287,7 +287,8 @@ def validate_platforms(
                     "荷取り用のブラケットに替えるか、積載を下げるか、間口を広げてください",
                     "仮設工業会 設計指針（部材の許容荷重）"))
         # ステージ取付部は壁つなぎを増設する（間口の両端）
-        result.extra_wall_ties += 2 * max(1, len(s.levels) or 1)
+        # 間口の各支柱（スパン数+1）に、ブラケットの上下で2箇所（ties._platform_ties と同じ数え方）
+        result.extra_wall_ties += 2 * (s.span_count + 1) * max(1, len(s.levels) or 1)
 
     # 同じ区間に2基は取り付かない。重なりを黙って通すと部材も軸力も二重になる
     for i, a in enumerate(stages):

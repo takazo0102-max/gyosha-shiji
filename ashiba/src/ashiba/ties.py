@@ -56,12 +56,22 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
         edge = _edge(model, st.edge_index)
         if edge is None:
             continue
+        # 荷取りブラケットの上下付近に必須（日建 p019/p039）。ブラケットは間口の
+        # 各支柱に付くので、支柱ごとにブラケットの1つ上と1つ下の作業層に置く
+        # （最下層なら根がらみ、最上層なら同じ層）。以前は間口の両端2本だけで、
+        # 高さもブラケットと同じ層だった
+        posts = [float(st.start_mm)]
+        for sp in st.spans(model):
+            posts.append(posts[-1] + sp)
+        first = int(model.elevation.first_ledger_height)
         for lv in (st.levels or [1]):
             if not (1 <= lv <= n):
                 continue
-            h = int(levels[lv - 1])
-            for x in (st.start_mm, st.end_mm(model)):
-                out.append(WallTie(st.edge_index, float(x), h, "stage"))
+            below = int(levels[lv - 2]) if lv >= 2 else first
+            above = int(levels[lv]) if lv < n else int(levels[lv - 1])
+            for x in posts:
+                for h in sorted({below, above}):
+                    out.append(WallTie(st.edge_index, x, h, "stage"))
     for ho in platforms.hoists:
         edge = _edge(model, ho.edge_index)
         if edge is None or ho.tie_every_mm <= 0:

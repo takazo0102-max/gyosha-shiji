@@ -41,7 +41,9 @@ class TestMerge(unittest.TestCase):
         # 同じ位置は同じ金具で兼ねる → ステージ両端が格子と重なれば足さない
         counts = tie_counts(m)
         self.assertEqual(counts.get("hoist", 0), 4)          # 16300 // 3600
-        self.assertLessEqual(counts.get("stage", 0), 2)
+        # 間口の各支柱（スパン数+1）にブラケットの上下で2箇所
+        st = pf.stages[0]
+        self.assertLessEqual(counts.get("stage", 0), 2 * (st.span_count + 1))
         # 冪等
         again = merge_attachment_ties(m, pf)
         self.assertEqual(again, {})
@@ -84,6 +86,33 @@ class TestMerge(unittest.TestCase):
         n = len(m.wall_ties)
         self.assertEqual(merge_attachment_ties(m, None), {})
         self.assertEqual(len(m.wall_ties), n)
+
+
+class TestStageTiesBracketTheStage(unittest.TestCase):
+    """荷取りブラケットの上下付近に壁つなぎ（日建 p019）: 各支柱に、1つ上と1つ下の作業層."""
+
+    def test_heights_and_posts(self):
+        from ashiba.ties import _platform_ties
+
+        m = build()
+        st = LoadingStage(edge_index=0, start_mm=12600, span_count=2, levels=[3])
+        pf = validate_platforms(m, [st])
+        ties = [t for t in _platform_ties(m, pf) if t.kind == "stage"]
+        lv = m.elevation.level_heights
+        self.assertEqual({t.height_mm for t in ties}, {int(lv[1]), int(lv[3])})
+        posts = sorted({t.position_mm for t in ties})
+        self.assertEqual(len(posts), 3)
+        self.assertEqual(posts[0], 12600.0)
+        self.assertEqual(len(ties), 6)
+        self.assertEqual(pf.extra_wall_ties, 6)
+
+    def test_bottom_level_uses_the_first_ledger(self):
+        from ashiba.ties import _platform_ties
+
+        m = build()
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=12600, span_count=1, levels=[1])])
+        ties = [t for t in _platform_ties(m, pf) if t.kind == "stage"]
+        self.assertIn(int(m.elevation.first_ledger_height), {t.height_mm for t in ties})
 
 
 if __name__ == "__main__":
