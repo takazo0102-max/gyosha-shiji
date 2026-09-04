@@ -71,8 +71,7 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                 rows = 1 if m.config.scaffold_form == "一側足場" else 2
                 feet = m.plan.total_posts * rows - r.openings.removed_posts
                 jacks = sum(l.qty for l in r.quantity.lines
-                            if l.part.category == "ジャッキ" and "アンダー" not in l.part.note
-                            and "ベース" not in l.part.note)
+                            if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
                 self.assertEqual(jacks, feet, name)
 
     def test_plan_json_gdl_params_fit_the_gdl(self):

@@ -28,9 +28,12 @@ SERIES_CONST = {
     "shinwa_B": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
                  "hozo": 125,
                  "deck_widths": (405, 240), "next_gen_deck_widths": (500, 240)},
-    "inch": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1829,
-             "hozo": 125,
-             "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 日建リース NDシステム1800（ダーウィン）: コマ450・階高1800、スパンはインチ
+    # （1829/1524/1219/914/610）。品番・重量・耐力は仮設資材カタログVol.10
+    # （data/NIKKEN_CATALOG_NOTES.md に抜き書き）
+    "nikken_nd1800": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                      "hozo": 125,
+                      "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
              "hozo": 0,

@@ -53,9 +53,9 @@ class TestMasterCompleteness(unittest.TestCase):
             csv_path = Path(d) / "m.csv"
             csv_path.write_text(
                 "series_id,category,model_no,nominal_dim,actual_dim,diameter,weight_kg,note\n"
-                "inch,布材,I-N1829,1829,1829,42.7,5.5,\n", encoding="utf-8")
+                "nikken_nd1800,布材,NDT18,1829,1829,42.7,5.03,\n", encoding="utf-8")
             with self.assertRaises(SeriesLockError) as cm:
-                load_master("inch", csv_path)
+                load_master("nikken_nd1800", csv_path)
         msg = str(cm.exception)
         self.assertIn("不完全", msg)
         for cat in ("支柱", "踏板", "ジャッキ", "壁つなぎ"):

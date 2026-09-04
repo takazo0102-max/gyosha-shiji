@@ -528,13 +528,12 @@ def check_post(
 
 
 def _width_item(caps: dict, item: str, model: ScaffoldModel) -> str:
-    """枠組は建枠の幅で許容値が違う。幅付きの行があればその項目名を返す.
+    """建地列の間隔（枠組は建枠幅）で許容値が違う系列は、幅付きの行を使う.
 
-    例: 610枠なら「ジャッキ許容支持力[幅610]」。くさびや、幅付きの行が無い
-    場合は元の項目名のまま（標準枠の値）。
+    例: 610枠なら「ジャッキ許容支持力[幅610]」。くさびでも日建NDは
+    W914・W610 で支柱の許容支持力が1.0kN大きい（幅の広い方が基準値）。
+    幅付きの行が無い場合は元の項目名のまま（標準枠／基準幅の値）。
     """
-    if not model.master.is_frame:
-        return item
     variant = f"{item}[幅{model.post_row_spacing_mm}]"
     if any(i == variant for (i, _k) in caps):
         return variant

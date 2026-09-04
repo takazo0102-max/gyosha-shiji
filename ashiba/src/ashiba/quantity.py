@@ -35,6 +35,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
@@ -227,12 +228,19 @@ def take_off(
         add(part, total, f"支柱{nominal}")
 
     # ---- ジャッキ・アンダーベース（アンダーベース数=ジャッキ数） ----
-    jack = next((p for p in m.by_category("ジャッキ") if "ベース" not in p.note and "アンダー" not in p.note), None)
+    # 「ベース」で除外すると品名が「パイプジャッキベース」の系列（日建ND）で
+    # ジャッキが拾えなくなる。除外するのはアンダーベース（敷板）だけ
+    jack = next((p for p in m.by_category("ジャッキ") if "アンダーベース" not in p.note), None)
     under = next((p for p in m.by_category("ジャッキ") if "アンダーベース" in p.note), None)
     # 開口部で抜いた支柱は地面に達しないので、ジャッキもアンダーベースも要らない
     removed = openings.removed_posts if openings is not None else 0
-    add(jack, max(0, n_posts - removed), "ジャッキ")
-    add(under, max(0, n_posts - removed), "アンダーベース")
+    n_feet = max(0, n_posts - removed)
+    add(jack, n_feet, "ジャッキ")
+    add(under, n_feet, "アンダーベース")
+    # 支柱最下部にだけ付く附属品（日建NDの下部カラー材など）。脚の数だけ
+    for p in m.by_category("支柱附属"):
+        if "最下部" in p.note:
+            add(p, n_feet * _units_per_place(p), f"{p.model_no}（支柱最下部）")
 
     # ---- 布材（スパン方向: 根がらみ＋床レベル＋手すり・中桟） ----
     # 手すり方式で外側の手すり・中桟の拾い方が変わる。
@@ -412,6 +420,16 @@ def take_off(
     return _assemble(model, rules, counts, parts, notes, breakdown)
 
 
+def _units_per_place(part: Part) -> int:
+    """1箇所に何個要る部材か。マスタの note の「N個組」から読む（無ければ1）.
+
+    例: 日建の朝顔受け金具 ALA7N は支柱1本に上下2個。品番は1つなので、
+    数量表では箇所数×2で計上する。
+    """
+    m = re.search(r"(\d+)個組", part.note)
+    return int(m.group(1)) if m else 1
+
+
 def _count_asagao_parts(
     model: ScaffoldModel, span_counts: dict, posts_per_line: int, add, notes, kt
 ) -> None:
@@ -426,7 +444,10 @@ def _count_asagao_parts(
     m = model.master
     panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
     bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
-    hozue = next((p for p in m.by_category("朝顔") if "方杖" in p.note), None)
+    # 「方杖不要」と書いた本体を方杖として拾わない（実際に朝顔本体の行に
+    # 方杖58本が足されていた）
+    hozue = next((p for p in m.by_category("朝顔")
+                  if "方杖" in p.note and "方杖不要" not in p.note), None)
 
     # 朝顔本体はスパンに合う寸法で拾う。1種類しか無い系列では、
     # 短いスパンに長い板を当てることになるので、そうと書く
@@ -452,8 +473,17 @@ def _count_asagao_parts(
             "現場で切り詰めるか、隙間を板・シートで塞いでください",
             Notes.SITE,
         )
-    add(bracket, posts_per_line * asagao.stages, "朝顔受けブラケット")
-    add(hozue, posts_per_line * asagao.stages, "朝顔方杖")
+    n_places = posts_per_line * asagao.stages
+    if bracket is not None:
+        add(bracket, n_places * _units_per_place(bracket), "朝顔受けブラケット")
+    else:
+        add(None, n_places, "朝顔受けブラケット")
+    # 斜材を内蔵する朝顔（日建アルミ軽量アサガオ等）は方杖が要らない。
+    # 「マスタに無い」と出すと別途手配させてしまう
+    if hozue is None and panel is not None and "方杖不要" in panel.note:
+        pass
+    else:
+        add(hozue, n_places, "朝顔方杖")
 
     # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）。
     # 隅部はコーナー材で塞ぐ。マスタにあれば出隅×段数で計上、無ければ現場対応を出す
