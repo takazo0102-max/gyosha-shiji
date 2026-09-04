@@ -33,6 +33,7 @@
   "scaffold_form": "本足場",
   "next_gen": false,               // 次世代足場（踏板幅が広い規格）
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
+  "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
     {"edge_index": 0, "start_mm": 3600, "beam_span_mm": 3600, "reason": "現場出入口"}
@@ -136,7 +137,7 @@ TOP_KEYS = {
     "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "openings", "asagao", "bracket_sections", "loading_stages",
+    "guard_rail_type", "post_reinforcement", "openings", "asagao", "bracket_sections", "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
 NESTED_KEYS = {
@@ -364,6 +365,9 @@ def validate_spec(spec: dict) -> None:
     form = spec.get("scaffold_form")
     if form is not None and form not in ("本足場", "一側足場"):
         errors.append(f"scaffold_form: 本足場 か 一側足場 です（{form!r}）")
+    reinf = spec.get("post_reinforcement", "")
+    if reinf not in ("", "強力つなぎ材"):
+        errors.append(f"post_reinforcement: \"\" か 強力つなぎ材 です（{reinf!r}）")
 
     # 構造計算の敷地条件。未知の地域区分・粗度区分・養生材は解いている途中で
     # CapacityError（トレースバック）になっていた。入口で候補つきで弾く
@@ -445,6 +449,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
         next_gen=spec.get("next_gen", False),
         guard_rail_type=spec.get("guard_rail_type", GUARD_RAIL_LEDGER),
+        post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height),
     )

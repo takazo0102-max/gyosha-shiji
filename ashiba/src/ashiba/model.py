@@ -70,6 +70,10 @@ class ScaffoldConfig:
     # ビル工事用は原則として手すり先行工法（特別教育テキスト）
     guard_rail_type: str = GUARD_RAIL_LEDGER
     guard_rail_koma: int = 2               # 手すり高さ（コマ数。A:900 / B:950）
+    # 支柱の補強仕様。"強力つなぎ材" を指定すると腕木を強力つなぎ材（方杖付き）に替え、
+    # capacity.csv の「支柱許容圧縮耐力[強力つなぎ材]」で検定する（日建ND: 11.0→17.0kN/本）。
+    # 該当行が無い系列では検定で止まる（黙って通常値で通さない）
+    post_reinforcement: str = ""
     guard_rail_height_mm: Optional[int] = None  # 直接指定する場合（枠組等）
     has_midrail: bool = True               # 中桟
     # 中桟高さ（作業床から。基準35〜50cm）。Noneなら系列から求める

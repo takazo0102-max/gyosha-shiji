@@ -309,7 +309,15 @@ def take_off(
                if udegi_cut else "")
             + "（布材の合計にはこの分も含む）"
         )
-        add(m.find("布材", udegi), n_udegi, f"腕木（布材{udegi}）")
+        reinf = getattr(model.config, "post_reinforcement", "") or ""
+        if reinf:
+            # 補強仕様: 腕木を強力つなぎ材（方杖付き）に替える。無ければ手配を出す
+            strong = m.find("布材", udegi, reinf)
+            add(strong, n_udegi, f"腕木（{reinf}{udegi}）")
+            if strong is None:
+                notes.action(f"{reinf}{udegi}mmが系列 {m.series_id} のマスタにありません（{n_udegi}本）")
+        else:
+            add(m.find("布材", udegi), n_udegi, f"腕木（布材{udegi}）")
 
     # ---- 踏板（スパン×作業層×幅構成。階段室の区間には敷かない） ----
     # 床は「スパン×層」のセル数で数える。階段室は全層、開口部は梁枠より下の

@@ -534,9 +534,23 @@ def _width_item(caps: dict, item: str, model: ScaffoldModel) -> str:
     W914・W610 で支柱の許容支持力が1.0kN大きい（幅の広い方が基準値）。
     幅付きの行が無い場合は元の項目名のまま（標準枠／基準幅の値）。
     """
-    variant = f"{item}[幅{model.post_row_spacing_mm}]"
-    if any(i == variant for (i, _k) in caps):
-        return variant
+    width = f"[幅{model.post_row_spacing_mm}]"
+    reinf = getattr(model.config, "post_reinforcement", "") or ""
+    tries = []
+    if reinf and item == "支柱許容圧縮耐力":
+        tries += [f"{item}{width}[{reinf}]", f"{item}[{reinf}]"]
+    tries += [f"{item}{width}", item]
+    present = {i for (i, _k) in caps}
+    for t in tries:
+        if t in present:
+            if reinf and item == "支柱許容圧縮耐力" and f"[{reinf}]" not in t:
+                # 補強を指定したのに値が無い系列。通常値で黙って通すと、補強を
+                # 前提にした計画が通常仕様の耐力で成立したように見える
+                raise CapacityError(
+                    f"系列 {model.master.series_id} には「{reinf}」使用時の支柱許容圧縮耐力が"
+                    f" capacity.csv にありません（post_reinforcement を外すか、認定値を追加してください）"
+                )
+            return t
     return item
 
 

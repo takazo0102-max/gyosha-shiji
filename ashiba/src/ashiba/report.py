@@ -414,6 +414,7 @@ def write_plan_json(
         "deck_widths": [400, 250],       // 実際に敷く幅（一側は1枚）
         "post_row_spacing_mm": 600,      // 内外建地列の芯々
         "guard_rail_type": "布材" | "先行手すり",
+        "post_reinforcement": "" | "強力つなぎ材",
         "guard_rail_height_mm": 900, "midrail_height_mm": 450,
         "toe_board_height_mm": 157, "next_gen": false, "period_days": 90
       },
@@ -467,6 +468,7 @@ def write_plan_json(
             "deck_widths": list(cfg.deck_widths or []),
             "post_row_spacing_mm": model.post_row_spacing_mm,
             "guard_rail_type": cfg.guard_rail_type,
+            "post_reinforcement": cfg.post_reinforcement,
             "guard_rail_height_mm": model.guard_rail_height_mm,
             "midrail_height_mm": model.midrail_height_mm,
             "toe_board_height_mm": cfg.toe_board_height_mm,
