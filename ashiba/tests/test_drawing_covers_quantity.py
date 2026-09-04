@@ -213,9 +213,10 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertEqual(op.removed_posts, 2)      # 内側支柱1本×内外2列
         # 分類「ジャッキ」にはアンダーベースも含むので 2本×2品目
         self.assertEqual(base.qty_of("ジャッキ") - cut.qty_of("ジャッキ"), 4)
-        # 支柱は構成が変わるので引かず、拾い直しを要確認に出す
-        self.assertEqual(base.qty_of("支柱"), cut.qty_of("支柱"))
-        self.assertTrue(any("梁枠上に乗る構成" in w for w in cut.warnings))
+        # 抜いた支柱は梁枠上（作業床〜天端）だけの短い構成に置き換わる（本数は減るか同じ）
+        self.assertLessEqual(cut.qty_of("支柱"), base.qty_of("支柱"))
+        self.assertTrue(any("梁枠上（作業床〜天端）の構成で計上" in n for n in cut.notes), cut.notes)
+        self.assertFalse(any("拾い直して" in w for w in cut.warnings))
 
     def test_2d_has_the_same_checks(self):
         body = self._script("2d.gdl")

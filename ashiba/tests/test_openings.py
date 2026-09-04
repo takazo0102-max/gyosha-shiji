@@ -196,3 +196,42 @@ class TestOpeningQuantity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOpeningStacksAreShortened(unittest.TestCase):
+    """開口部で抜いた鉛直部材は梁枠上（作業床〜天端）だけの構成で数える."""
+
+    def test_wedge_posts_total_length_drops_by_the_beam_height(self):
+        from ashiba.quantity import take_off
+
+        m = build()
+        op = validate_openings(m, [Opening(0, 3600, 3600, level=2)])
+        base = take_off(m)
+        with_op = take_off(m, openings=op)
+
+        def total_mm(q):
+            return sum(l.part.nominal_dim * l.qty for l in q.lines
+                       if l.part.category == "支柱" and "根がらみ" not in l.part.note)
+
+        beam_h = op.beam_heights[0]
+        full = sum(m.elevation.posts)
+        above = m.elevation.total_height - beam_h
+        expect_drop = op.removed_posts * (full - above)
+        self.assertEqual(total_mm(base) - total_mm(with_op), expect_drop)
+        self.assertTrue([n for n in with_op.notes if "梁枠上（作業床〜天端）の構成で計上" in n], with_op.notes)
+        self.assertFalse([n for n in with_op.warnings if "拾い直して" in n])
+
+    def test_frame_stacks_and_pins_shrink(self):
+        from ashiba.quantity import take_off
+
+        m = build_frame()
+        op = validate_openings(m, [Opening(0, 3658, 3658, level=2)])
+        base = take_off(m)
+        with_op = take_off(m, openings=op)
+        frames = lambda q: sum(l.part.nominal_dim * l.qty for l in q.lines if l.part.category == "建枠")
+        beam_h = op.beam_heights[0]
+        above = m.elevation.total_height - beam_h
+        self.assertEqual(frames(base) - frames(with_op),
+                         op.removed_posts * (sum(m.elevation.posts) - above))
+        self.assertLess(with_op.qty_of("連結ピン"), base.qty_of("連結ピン"))
+

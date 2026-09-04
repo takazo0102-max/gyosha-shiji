@@ -211,13 +211,20 @@ def take_off(
     else:
         for nominal in elev.posts:
             counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
-    for nominal, per_line in counts_posts.items():
+    totals_posts = {k: v * (rows if feet else n_posts) for k, v in counts_posts.items()}
+    # 開口部で抜いた支柱は梁枠上（作業床〜天端）だけの短い構成に置き換える。
+    # 全高のまま数えると梁枠より下の分が余計に入る（以前は「拾い直して」と注記していた）
+    _replace_opening_stacks(
+        model, openings, totals_posts, list(elev.posts),
+        m.post_lengths(include_negarami=True), notes, "支柱",
+    )
+    for nominal, total in totals_posts.items():
         part = next(
             (p for p in m.by_category("支柱")
              if p.nominal_dim == nominal and "根がらみ" not in p.note and "屋根" not in p.note),
             None,
         )
-        add(part, per_line * (rows if feet else n_posts), f"支柱{nominal}")
+        add(part, total, f"支柱{nominal}")
 
     # ---- ジャッキ・アンダーベース（アンダーベース数=ジャッキ数） ----
     jack = next((p for p in m.by_category("ジャッキ") if "ベース" not in p.note and "アンダー" not in p.note), None)
@@ -549,14 +556,6 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
             f"開口部で{vm}{openings.removed_posts}本を抜いています。"
             f"梁枠の両端{vm}は補強し、梁枠上の作業床は積載荷重を低減してください"
         )
-        # ジャッキ・腕木・布材は抜いたぶんを引いてあるが、鉛直部材の積み上げ構成は
-        # 全位置で同じものを使っている。梁枠上に乗る部材は構成が変わる
-        notes.action(
-            f"開口部の{vm}は、抜く前の位置と同じ積み上げ構成で計上しています。"
-            f"開口部で抜いた{openings.removed_posts}本は梁枠上に乗る構成"
-            "（梁枠下端から天端まで）に置き換えて拾い直してください",
-            Notes.ORDER,
-        )
 
 
 def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
@@ -649,6 +648,53 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add) -> None:
         merge_attachment_ties(model, platforms)
     for kind, n in tie_counts(model).items():
         add(kt, n, KIND_LABEL.get(kind, kind))
+
+
+def _replace_opening_stacks(model, openings, totals: dict[int, int], full_stack: list[int],
+                            lengths: list[int], notes, label: str) -> int:
+    """開口部で抜いた鉛直部材を、梁枠上（作業床〜天端）だけの構成に置き換える.
+
+    totals（呼び寸法→本数）を書き換える。戻り値は縦継ぎ箇所数の増減（枠組の連結ピン用）。
+    組める構成が無い高さは全高のまま残し、要確認に出す。
+    """
+    from .elevation_solver import _compose_table
+    from .openings import opening_post_heights
+
+    heights = opening_post_heights(model, openings)
+    if not heights or not lengths:
+        return 0
+    table = _compose_table(int(round(max(heights))) + 1, sorted(set(lengths), reverse=True))
+    replaced = 0
+    joints_delta = 0
+    missing: list[float] = []
+    done: dict[int, int] = {}
+    for h in heights:
+        comp = table.get(int(round(h)))
+        if comp is None:
+            missing.append(h)
+            continue
+        for nominal in full_stack:
+            totals[nominal] = totals.get(nominal, 0) - 1
+        for nominal in comp:
+            totals[nominal] = totals.get(nominal, 0) + 1
+        joints_delta += (len(comp) - 1) - (len(full_stack) - 1)
+        done[int(round(h))] = done.get(int(round(h)), 0) + 1
+        replaced += 1
+    for k in [k for k, v in totals.items() if v <= 0]:
+        del totals[k]
+    if replaced:
+        notes.append(
+            f"開口部で抜いた{label}{replaced}本は梁枠上（作業床〜天端）の構成で計上しています（"
+            + "、".join(f"高さ{h}mm×{n}本" for h, n in sorted(done.items())) + "）"
+        )
+    if missing:
+        notes.action(
+            f"開口部の梁枠上に乗る{label}{len(missing)}本は、規格の長さでは高さ"
+            f"{'・'.join(f'{h:.0f}' for h in sorted(set(missing)))}mmに組めないため全高で計上しています。"
+            "梁枠の位置か支柱規格を見直してください",
+            Notes.ORDER,
+        )
+    return joints_delta
 
 
 def _note_deck_cells(notes, name: str, n_spans: int, n_levels: int,
@@ -846,13 +892,18 @@ def _count_frame_parts(
             f"（最大{frame_width}mm）。布板構成か建枠規格を見直してください",
             Notes.SITE,
         )
-    for h, per_line in stage_counts.items():
+    totals_frames = {k: v * (1 if feet else n_frame_lines) for k, v in stage_counts.items()}
+    # 開口部で抜いた建枠は梁枠上（作業床〜天端）だけの段数に置き換える
+    joints_delta = _replace_opening_stacks(
+        model, openings, totals_frames, list(elev.posts), m.frame_heights(), notes, "建枠",
+    )
+    for h, total in totals_frames.items():
         part = next(
             (p for p in m.by_category("建枠")
              if p.nominal_dim == h and f"幅{frame_width}" in p.note),
             None,
         )
-        add(part, per_line * (1 if feet else n_frame_lines), f"建枠 幅{frame_width}×高{h}")
+        add(part, total, f"建枠 幅{frame_width}×高{h}")
 
     # ---- ジャッキ・アンダーベース ----
     jack = next((p for p in m.by_category("ジャッキ") if "アンダー" not in p.note), None)
@@ -930,8 +981,8 @@ def _count_frame_parts(
     pin = next(iter(m.by_category("連結ピン")), None)
     add(armlock, n_bays * n_stages, "アームロック（建枠2枚に1個）")
     n_joints = (sum(max(0, len(f.posts) - 1) for f in feet) if feet
-                else max(0, n_stages - 1) * n_frame_lines)
-    add(pin, n_joints, "連結ピン（縦継ぎ1箇所に1本）")
+                else max(0, n_stages - 1) * n_frame_lines) + joints_delta
+    add(pin, max(0, n_joints), "連結ピン（縦継ぎ1箇所に1本）")
 
     # 継ぎ足した脚（調整枠）の区間の根がらみ（敷地高低差）。建枠の両脚に入るので2本
     _add_extra_negarami(model, terrain, add, notes, 2)

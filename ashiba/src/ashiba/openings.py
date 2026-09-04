@@ -176,6 +176,23 @@ def validate_openings(
     return result
 
 
+def opening_post_heights(model: ScaffoldModel, result: Optional[OpeningResult]) -> list[float]:
+    """開口部で抜いた鉛直部材1本ごとの、梁枠上に乗る部材の高さ（梁枠上端＝作業床〜天端, mm）.
+
+    抜く前と同じ全高の構成で数えると、梁枠より下の分が余計に入る。
+    """
+    if result is None or not result.openings:
+        return []
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    top = float(model.elevation.total_height)
+    out: list[float] = []
+    for i, _o in enumerate(result.openings):
+        n = len(result.inner_posts.get(i, [])) * rows
+        beam_h = float(result.beam_heights.get(i, 0.0))
+        out.extend([max(0.0, top - beam_h)] * n)
+    return out
+
+
 def opening_ranges(result: Optional[OpeningResult]) -> dict[int, list[tuple[float, float]]]:
     """開口部が占める区間（辺 → [(始点, 終点)]）. 階段室の自動配置が避けるために使う.
 
