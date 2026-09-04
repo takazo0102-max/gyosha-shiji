@@ -54,11 +54,23 @@ class Edge:
 
 
 @dataclass
+class BridgedZone:
+    """直線で渡した凹み・張り出しの区間（均した後の線上の両端点）."""
+
+    kind: str          # "凹み" / "張り出し"
+    p0: Point
+    p1: Point
+    width_mm: float
+    depth_mm: float    # この区間で増える離れ
+
+
+@dataclass
 class Outline:
     vertices: list[Point]
     edges: list[Edge] = field(default_factory=list)
     corners: list[Corner] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)   # 外形の整理内容（黙って直さない）
+    bridged: list[BridgedZone] = field(default_factory=list)   # 渡した区間
 
     @property
     def perimeter(self) -> float:
@@ -121,7 +133,8 @@ def _clean_vertices(verts: list[Point], tol: float = 1e-6) -> tuple[list[Point],
 
 
 def bridge_small_notches(
-    verts: list[Point], threshold_mm: float, notes: list[str]
+    verts: list[Point], threshold_mm: float, notes: list[str],
+    zones: Optional[list["BridgedZone"]] = None,
 ) -> list[Point]:
     """最小スパン未満の凹み・張り出しは足場を回り込ませず直線で渡す.
 
@@ -158,6 +171,8 @@ def bridge_small_notches(
                 if min(width, depth) >= threshold_mm:
                     continue
                 removed = {(i + 1) % n, (i + 2) % n}
+                if zones is not None:
+                    zones.append(BridgedZone("凹み", v0, v3, width, depth))
                 notes.append(
                     f"凹み（幅{width:.0f}mm×奥行{depth:.0f}mm）は最小スパン{threshold_mm:.0f}mm"
                     "未満なので足場を回り込ませず直線で渡します。その区間は躯体との離れが"
@@ -173,6 +188,8 @@ def bridge_small_notches(
                            (i + 4) % n: (verts[(i + 4) % n][0] + ax, verts[(i + 4) % n][1] + ay)}
                 verts = [shifted.get(k, v) for k, v in enumerate(verts)]
                 removed = {i % n, (i + 3) % n}
+                if zones is not None:
+                    zones.append(BridgedZone("張り出し", v1, v2, width, depth))
                 notes.append(
                     f"張り出し（幅{width:.0f}mm×出{depth:.0f}mm）は出が最小スパン"
                     f"{threshold_mm:.0f}mm未満なので、両隣の面を張り出しの線まで前に出して"
@@ -222,10 +239,11 @@ def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outlin
                 "MVPは90度コーナーのみ対応です"
             )
 
-    verts = bridge_small_notches(verts, bridge_below_mm, notes)
+    zones: list[BridgedZone] = []
+    verts = bridge_small_notches(verts, bridge_below_mm, notes, zones)
     n = len(verts)
 
-    outline = Outline(vertices=verts, notes=notes)
+    outline = Outline(vertices=verts, notes=notes, bridged=zones)
     corner_kinds: list[str] = []
     for i in range(n):
         p_prev = verts[(i - 1) % n]

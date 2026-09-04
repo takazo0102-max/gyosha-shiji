@@ -187,6 +187,7 @@ def take_off(
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
         _note_inner_rail_if_wide(model, notes)
+        _note_bridged_zones(model, notes)
         _note_double_posts_if_tall(model, notes)
         return _assemble(model, rules, counts, parts, notes, breakdown)
 
@@ -398,6 +399,7 @@ def take_off(
     _count_platform_parts(model, platforms, add, notes)
     _count_opening_parts(model, openings, add, notes)
     _note_inner_rail_if_wide(model, notes)
+    _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes, breakdown)
 
@@ -696,6 +698,30 @@ def _note_double_posts_if_tall(model: ScaffoldModel, notes) -> None:
         "建地下端の設計荷重が最大使用荷重以内と確認できる場合は除外できます",
         Notes.SITE,
     )
+
+
+def _note_bridged_zones(model: ScaffoldModel, notes) -> None:
+    """直線で渡した凹み・張り出しの区間は離れが増える。措置の部材を本数で出す.
+
+    どちらの措置（内ブラケットでの床の拡幅／躯体側手すり）を取るかは現場判断
+    なので自動では計上しないが、区間・スパン数・本数まで書いて手配できるようにする。
+    """
+    zones = getattr(model.plan, "bridged_zones", None) or []
+    if not zones:
+        return
+    n_levels = model.elevation.n_levels
+    for z in zones:
+        posts = z.span_count + 1
+        brackets = posts * n_levels
+        rails = z.span_count * n_levels * 2      # 手すり＋中桟
+        notes.action(
+            f"{z.kind}を渡した区間（{model.face_name(z.edge_index)} 始点から"
+            f"{z.start_mm:.0f}〜{z.end_mm:.0f}mm・{z.span_count}スパン×{n_levels}層）は"
+            f"躯体との離れが{z.depth_mm:.0f}mm増えます。数量に含んでいない措置: "
+            f"内ブラケットで床を拡幅する場合 内ブラケット{brackets}本（{posts}位置×{n_levels}層）と"
+            f"その踏板、躯体側手すりで対応する場合 布材{rails}本（手すり・中桟）",
+            Notes.ORDER,
+        )
 
 
 def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:

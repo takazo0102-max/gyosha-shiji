@@ -83,6 +83,46 @@ def _compass(outward: tuple[float, float]) -> str:
 
 
 @dataclass
+class BridgedSpan:
+    """渡した区間の、割付後の辺上での位置（始点コーナー支柱から）."""
+
+    kind: str
+    edge_index: int
+    start_mm: float
+    end_mm: float
+    span_count: int        # 区間にかかるスパン数
+    width_mm: float
+    depth_mm: float        # 増える離れ
+
+
+def _locate_bridged_zones(outline: Outline, edges: list, standoffs: list[float]) -> list[BridgedSpan]:
+    """均した外形上の区間を、割付後の辺・スパンへ落とす."""
+    out: list[BridgedSpan] = []
+    n = len(outline.vertices)
+    for z in outline.bridged:
+        for i, e in enumerate(outline.edges):
+            x0, y0 = outline.vertices[i]
+            dx, dy = e.direction
+            a = (z.p0[0] - x0) * dx + (z.p0[1] - y0) * dy
+            b = (z.p1[0] - x0) * dx + (z.p1[1] - y0) * dy
+            off = max(abs((z.p0[0] - x0) * dy - (z.p0[1] - y0) * dx),
+                      abs((z.p1[0] - x0) * dy - (z.p1[1] - y0) * dx))
+            if off > 1e-3 or min(a, b) < -1e-3 or max(a, b) > e.length + 1e-3:
+                continue
+            base = e.start_sign * standoffs[(i - 1) % n]
+            s0, s1 = base + min(a, b), base + max(a, b)
+            acc = 0.0
+            count = 0
+            for sp in edges[i].spans:
+                if acc < s1 - 1e-6 and acc + sp > s0 + 1e-6:
+                    count += 1
+                acc += sp
+            out.append(BridgedSpan(z.kind, e.index, s0, s1, count, z.width_mm, z.depth_mm))
+            break
+    return out
+
+
+@dataclass
 class PlanResult:
     outline: Outline
     edges: list[EdgePlan]
@@ -92,6 +132,8 @@ class PlanResult:
     corner_steps: list[CornerStep] = field(default_factory=list)  # 枠組のみ
     # 実際に使った離れの目標帯。図面・帳票に既定値を書かないために持つ
     standoff_spec: Optional["StandoffSpec"] = None
+    # 直線で渡した凹み・張り出し（辺上の区間とスパン数）。措置の本数を出すために持つ
+    bridged_zones: list["BridgedSpan"] = field(default_factory=list)
 
     def face_names(self) -> list[str]:
         """各面の呼び名（方位）。立面図の面名と帳票の見出しに使う.
@@ -202,7 +244,9 @@ def solve_plan(
     # 枠組は端数の逃がし先が違う（仕様4.2）。離れを固定し、
     # 余りはコーナーステップで吸収する
     if master.is_frame:
-        return _solve_plan_frame(outline, master, spec, coins)
+        res = _solve_plan_frame(outline, master, spec, coins)
+        res.bridged_zones = _locate_bridged_zones(outline, res.edges, res.standoffs)
+        return res
 
     # 各辺の候補スパン合計: 離れが[min,max]のときに実現される長さ帯
     #   S_i = L_i + start_sign*d_prev + end_sign*d_next
@@ -336,6 +380,7 @@ def solve_plan(
     for remedy, edges in remedies.items():
         label = "・".join(by_index.get(i, f"辺{i}") for i in edges)
         warnings.append(f"{label}: {remedy}")
+    result.bridged_zones = _locate_bridged_zones(outline, plan_edges, standoffs)
     return result
 
 

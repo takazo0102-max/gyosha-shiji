@@ -166,6 +166,10 @@ def write_report_md(
         vx, vy = verts[ep.edge_index] if ep.edge_index < len(verts) else (0, 0)
         a(f"| {ep.edge_index} | {face} | ({vx:.0f}, {vy:.0f}) | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
+    for z in getattr(model.plan, "bridged_zones", None) or []:
+        a(f"- 渡した区間: {model.face_name(z.edge_index)} 始点から{z.start_mm:.0f}〜{z.end_mm:.0f}mm"
+          f"（{z.kind} 幅{z.width_mm:.0f}mm、{z.span_count}スパン）。離れ＋{z.depth_mm:.0f}mm"
+          "（措置の本数は数量サマリの要確認）")
     if model.plan.corner_steps:
         a("")
         a("## コーナーステップ（枠組: 離れ固定で余りをコーナーで吸収）")

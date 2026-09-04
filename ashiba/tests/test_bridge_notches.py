@@ -68,5 +68,45 @@ class TestBridge(unittest.TestCase):
         self.assertEqual(len(o.vertices), 6)
 
 
+class TestBridgedZoneReachesQuantityAndReport(unittest.TestCase):
+    def test_zone_is_located_on_the_face_with_span_count(self):
+        plan = solve_plan(with_notch(300, 3600), MASTER)
+        self.assertEqual(len(plan.bridged_zones), 1)
+        z = plan.bridged_zones[0]
+        self.assertEqual((z.kind, z.edge_index), ("凹み", 0))
+        # 始点コーナー支柱から: 離れ + 12000mm
+        self.assertGreater(z.start_mm, 12000)
+        self.assertAlmostEqual(z.end_mm - z.start_mm, 3600, delta=1e-6)
+        self.assertIn(z.span_count, (2, 3))
+        self.assertAlmostEqual(z.depth_mm, 300)
+
+    def test_bump_zone_too(self):
+        plan = solve_plan(with_notch(300, 3600, bump=True), MASTER)
+        self.assertEqual([z.kind for z in plan.bridged_zones], ["張り出し"])
+        self.assertAlmostEqual(plan.bridged_zones[0].depth_mm, 300)
+
+    def test_quantity_note_gives_counts(self):
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+        from ashiba.quantity import take_off
+
+        plan = solve_plan(with_notch(300, 3600), MASTER)
+        m = ScaffoldModel(master=MASTER, plan=plan,
+                          elevation=solve_elevation(16300, master=MASTER), config=ScaffoldConfig())
+        q = take_off(m)
+        note = [n for n in q.warnings + q.notes if "渡した区間" in n]
+        self.assertTrue(note, q.warnings)
+        z = plan.bridged_zones[0]
+        lv = m.elevation.n_levels
+        self.assertIn(f"内ブラケット{(z.span_count + 1) * lv}本", note[0])
+        self.assertIn(f"布材{z.span_count * lv * 2}本", note[0])
+
+    def test_frame_path_locates_zones_as_well(self):
+        waku = load_master("waku")
+        plan = solve_plan(with_notch(300, 3658), waku)
+        self.assertEqual(len(plan.bridged_zones), 1)
+        self.assertGreater(plan.bridged_zones[0].span_count, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
