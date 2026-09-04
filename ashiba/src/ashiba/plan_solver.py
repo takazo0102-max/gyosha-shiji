@@ -350,6 +350,13 @@ def _feasibility_hint(
     if feasible is None:
         return ""
     if not feasible:
+        if spec.min <= chosen <= spec.max:
+            # この面は帯内。帯外なのは同じ軸の別の面で、真物では全面を
+            # 顧客最小〜最大に収める組合せが無い
+            return (
+                "（この面は目標帯内。全面を顧客最小〜最大に収める真物の組合せが無く、"
+                "帯外の面は建物寸法か措置側での対応になります）"
+            )
         return (
             f"（目標帯{spec.min:.0f}〜{spec.max:.0f}mmで真物で組める離れは"
             "ありません。建物寸法か措置側での対応になります）"
@@ -409,8 +416,11 @@ def _solve_axis(
                 break
         if not ok:
             continue
-        for di, x in zip(d_indices, d):
-            if spec.hard_min - 0.5 <= x <= spec.max + 0.5:
+        # 「他にこの離れでも組める」は、その組合せで全面が顧客最小〜最大に
+        # 収まるときだけ挙げる。面ごとに拾うと、他面を425mmにする組合せ由来の
+        # 275mmを「他に組める」と案内してしまう（凹み形状で実際に出た）
+        if all(spec.hard_min - 0.5 <= x <= spec.max + 0.5 for x in d):
+            for di, x in zip(d_indices, d):
                 feasible[di].add(int(round(x)))
         dev = sum(abs(x - spec.target) for x in d)
         n_over = sum(1 for x in d if x > spec.max or x < spec.min)

@@ -335,6 +335,22 @@ class TestFeasibilityHint(unittest.TestCase):
                     if e.remedy:
                         self.assertIn("（", e.remedy, e.remedy)
 
+    def test_alternatives_come_only_from_combinations_within_limits(self):
+        """凹み側面の「他に275mm」は他面を425mmにする組合せ由来だった。挙げない."""
+        import json
+        from pathlib import Path
+
+        from ashiba.master import load_master
+
+        spec = json.loads(Path(__file__).resolve().parents[1].joinpath(
+            "examples", "recess.json").read_text(encoding="utf-8"))
+        plan = solve_plan([tuple(p) for p in spec["outline_mm"]], load_master("shinwa_A"))
+        side = [e for e in plan.edges if e.remedy and abs(e.standoff - 200) < 0.5]
+        self.assertTrue(side)
+        for e in side:
+            self.assertNotIn("275mm", e.remedy)
+            self.assertIn("この値のみ", e.remedy)
+
     def test_listed_alternatives_are_really_buildable(self):
         """挙げた離れが本当に真物で組めること（スパン和＝面長になる）."""
         import re
