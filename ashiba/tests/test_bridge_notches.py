@@ -137,5 +137,35 @@ class TestBridgedZoneReachesTheDrawing(unittest.TestCase):
         self.assertIn("渡し", body)
 
 
+class TestBridgedZoneInPlanJson(unittest.TestCase):
+    def test_plan_json_lists_the_zones(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+        from ashiba.report import write_plan_json
+
+        plan = solve_plan(with_notch(300, 3600), MASTER)
+        m = ScaffoldModel(master=MASTER, plan=plan,
+                          elevation=solve_elevation(16300, master=MASTER), config=ScaffoldConfig())
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "p.json"
+            write_plan_json(m, path)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(data["bridged_zones"]), 1)
+        z = data["bridged_zones"][0]
+        self.assertEqual((z["kind"], z["edge_index"], z["depth_mm"]), ("凹み", 0, 300.0))
+        # 渡していない外形では省略する
+        plain = solve_plan(RECT, MASTER)
+        mp = ScaffoldModel(master=MASTER, plan=plain,
+                           elevation=solve_elevation(16300, master=MASTER), config=ScaffoldConfig())
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "p.json"
+            write_plan_json(mp, path)
+            self.assertNotIn("bridged_zones", json.loads(path.read_text(encoding="utf-8")))
+
+
 if __name__ == "__main__":
     unittest.main()

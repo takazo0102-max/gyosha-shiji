@@ -442,6 +442,9 @@ def write_plan_json(
       "openings": [{"edge_index": 0, "start_mm": 3600.0,
                     "beam_span_mm": 3600, "level": 2, "reason": ""}],
       "platforms": {"stages": [...], "hoists": [...], "extra_wall_ties": 0},
+      "bridged_zones": [{"kind": "凹み", "edge_index": 0, "start_mm": 12300.0,
+                         "end_mm": 15900.0, "span_count": 3, "width_mm": 3600.0,
+                         "depth_mm": 300.0}],   // 直線で渡した凹み・張り出し（無ければ省略）
       "bracket_sections": [{"edge_index": 0, "start_mm": 0.0, "end_mm": 5400.0,
                             "direction": "内" | "張出", "width": 300,
                             "deck_width": null, "levels": [1], "has_hozue": false,
@@ -513,6 +516,11 @@ def write_plan_json(
     if bracket_sections:
         # 区間指定は利用者の入力。再編集用データなら往復できないと意味がない
         data["bracket_sections"] = [asdict(b) for b in bracket_sections]
+    # 直線で渡した凹み・張り出し（辺上の区間・スパン数・増える離れ）。
+    # 平面図の破線・数量の要確認と同じ区間を機械可読で持つ
+    zones = getattr(model.plan, "bridged_zones", None) or []
+    if zones:
+        data["bridged_zones"] = [asdict(z) for z in zones]
     if platforms is not None and (platforms.stages or platforms.hoists):
         data["platforms"] = {
             "stages": [asdict(s) for s in platforms.stages],

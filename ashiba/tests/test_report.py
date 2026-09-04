@@ -437,7 +437,15 @@ class TestPlanJsonSchemaIsDocumented(unittest.TestCase):
         from ashiba.stairs import auto_place_stairs
         from ashiba.terrain import GroundModel, solve_post_feet
 
-        m = build()
+        # 浅い凹みを付けて「渡した区間」も出す（文書化したキーは全部実在させる）
+        master = load_master("shinwa_A")
+        notch = [(0, 0), (12000, 0), (12000, 300), (15600, 300), (15600, 0),
+                 (30000, 0), (30000, 20000), (0, 20000)]
+        m = ScaffoldModel(
+            master=master, plan=solve_plan(notch, master),
+            elevation=solve_elevation(16300, master=master), config=ScaffoldConfig(),
+            building_height_mm=16000,
+        )
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "plan.json"
             write_plan_json(
@@ -453,7 +461,7 @@ class TestPlanJsonSchemaIsDocumented(unittest.TestCase):
         keys = set(data)
         for section in ("config", "elevation", "stairs", "platforms", "terrain"):
             keys |= set(data.get(section, {}))
-        for section in ("openings", "bracket_sections"):
+        for section in ("openings", "bracket_sections", "bridged_zones"):
             for item in data.get(section, []):
                 keys |= set(item)
         keys |= set(data["edges"][0])
