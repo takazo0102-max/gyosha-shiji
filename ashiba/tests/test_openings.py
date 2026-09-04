@@ -104,7 +104,8 @@ class TestOpeningQuantity(unittest.TestCase):
         m = build()
         r = validate_openings(m, [Opening(0, 3600, 3600)])
         q = take_off(m, openings=r)
-        self.assertEqual(q.qty_of("梁枠", 3600), 1)
+        # 内外の建地列に1枚ずつ（本足場は2枚）
+        self.assertEqual(q.qty_of("梁枠", 3600), 2)
         self.assertTrue(any("支柱2本を抜いています" in n for n in q.notes))
 
     def test_frame_scaffold_says_kenwaku_not_shichu(self):
@@ -192,6 +193,39 @@ class TestOpeningQuantity(unittest.TestCase):
         for s in specs:
             for v in s["inner_posts_mm"]:
                 self.assertTrue(0 < v < s["beam_span_mm"], v)
+
+
+class TestBeamSaddle(unittest.TestCase):
+    """日建NDは梁枠上の支柱を梁渡し（NDHW）に立てる。梁枠上の支柱1本に1個."""
+
+    def test_nd1800_counts_one_saddle_per_inner_post_and_two_beams(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "nikken_nd1800_rect.json").read_text(encoding="utf-8"))
+        spec["openings"] = [{"edge_index": 0, "start_mm": 9145, "beam_span_mm": 3658, "level": 2}]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        q = r.quantity
+        self.assertEqual(q.qty_of("梁枠", 3658), 2)
+        self.assertEqual(q.qty_of("梁渡し"), 1)               # 2スパン梁枠に乗る支柱1本
+        self.assertEqual(q.qty_of("梁渡し", 610), 1)          # 建地列間隔610 → NDHW06
+        self.assertFalse([n for n in q.warnings if "梁渡し" in n], q.warnings)
+
+    def test_series_without_saddles_is_silent(self):
+        from ashiba.openings import Opening, validate_openings
+
+        m = build()
+        op = validate_openings(m, [Opening(0, 3600, 3600, level=2)])
+        q = take_off(m, openings=op)
+        self.assertEqual(q.qty_of("梁渡し"), 0)
+        self.assertFalse([n for n in q.warnings if "梁渡し" in n])
 
 
 if __name__ == "__main__":

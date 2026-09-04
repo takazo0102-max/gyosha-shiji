@@ -627,11 +627,15 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
 
     マスタに梁枠はあるのに、どこからも拾っていなかった。梁枠が要る計画で
     数量表に出てこないと、支柱を抜いた開口が受けられない。
+    梁枠は内外の建地列それぞれに1枚（本足場は2枚、一側は1枚）。以前は開口部ごとに
+    1枚で数えていて、後踏み側の梁枠が抜けていた。
     """
     if openings is None or not openings.openings:
         return
     m = model.master
-    for o in openings.openings:
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    saddles = m.by_category("梁渡し")
+    for i, o in enumerate(openings.openings):
         part = next(
             (p for p in m.by_category("梁枠") if p.nominal_dim == o.beam_span_mm),
             None,
@@ -642,7 +646,20 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
                 "規格品の梁枠で計画し直してください"
             )
             continue
-        add(part, 1, f"梁枠{o.beam_span_mm}（辺{o.edge_index}）")
+        add(part, rows, f"梁枠{o.beam_span_mm}（辺{o.edge_index}・内外{rows}枚）")
+        # 梁枠上に支柱を建てる系列（日建ND）は、内外の梁枠に渡す梁渡しに支柱を立てる。
+        # 梁枠上の支柱1本（位置）に1個
+        n_inner = len(openings.inner_posts.get(i, []))
+        if saddles and n_inner and rows == 2:
+            span = model.post_row_spacing_mm
+            saddle = next((p for p in saddles if p.nominal_dim == span or p.covers(span)), None)
+            if saddle is None:
+                notes.action(
+                    f"梁渡し{span}mm（建地列間隔）がマスタにありません（辺{o.edge_index}・{n_inner}個）。"
+                    "別途手配してください"
+                )
+            else:
+                add(saddle, n_inner, f"梁渡し（辺{o.edge_index}の梁枠上の支柱{n_inner}本）")
     if openings.removed_posts:
         vm = model.master.vertical_member_name
         # 補強・積載低減が要ることは openings.issues が開口部ごとに言う。
