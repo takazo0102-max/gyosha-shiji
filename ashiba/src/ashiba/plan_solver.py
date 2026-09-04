@@ -190,12 +190,13 @@ def solve_plan(
     standoff: Optional[StandoffSpec] = None,
 ) -> PlanResult:
     spec = standoff or StandoffSpec()
-    outline = build_outline(vertices)
-    edges = outline.edges
-    n = len(edges)
     coins = master.span_lengths()
     if not coins:
         raise ValidationError(f"系列 {master.series_id} にスパン用布材がありません")
+    # 最小スパン未満の凹み・張り出しは直線で渡す（増える離れは警告に出る）
+    outline = build_outline(vertices, bridge_below_mm=min(coins))
+    edges = outline.edges
+    n = len(edges)
     main_span = max(coins)
 
     # 枠組は端数の逃がし先が違う（仕様4.2）。離れを固定し、

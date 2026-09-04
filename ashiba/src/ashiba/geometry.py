@@ -8,6 +8,8 @@ CCWのとき進行方向の右手側が外側（足場側）になる。
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -118,8 +120,78 @@ def _clean_vertices(verts: list[Point], tol: float = 1e-6) -> tuple[list[Point],
     return out, notes
 
 
-def build_outline(vertices: list[Point]) -> Outline:
-    """外形ポリゴンを検証しCCW正規化、辺・コーナー情報を構築する."""
+def bridge_small_notches(
+    verts: list[Point], threshold_mm: float, notes: list[str]
+) -> list[Point]:
+    """最小スパン未満の凹み・張り出しは足場を回り込ませず直線で渡す.
+
+    3辺（入る・沿う・戻る）で作る出入りのうち、
+    - 凹み: 幅か奥行が threshold 未満なら、凹みを無視して外側の線で通す
+      （その区間だけ躯体との離れが奥行ぶん増える）
+    - 張り出し: 出が threshold 未満なら、両隣の面を張り出しの線まで前に出して通す
+      （両隣の面の離れが出ぶん増える）
+    どちらも「その辺に組めるスパンがありません」で止めるより、実務どおり渡して
+    増える離れを警告に出す方が計画になる。深い張り出しは従来どおり回り込む。
+    verts はCCW・直交・整理済みであること。
+    """
+    if threshold_mm <= 0:
+        return verts
+    verts = list(verts)
+    changed = True
+    while changed and len(verts) > 4:
+        changed = False
+        n = len(verts)
+        for i in range(n):
+            v0, v1, v2, v3 = (verts[(i + k) % n] for k in range(4))
+            ax, ay = v1[0] - v0[0], v1[1] - v0[1]
+            bx, by = v2[0] - v1[0], v2[1] - v1[1]
+            cx, cy = v3[0] - v2[0], v3[1] - v2[1]
+            # a と c が逆向き平行（出入り）で、a と c の長さが同じ（段差ではない）
+            if ax * cx + ay * cy >= 0 or abs(ax * cy - ay * cx) > 1e-6:
+                continue
+            depth = math.hypot(ax, ay)
+            if abs(depth - math.hypot(cx, cy)) > 1e-6:
+                continue
+            width = math.hypot(bx, by)
+            turn = ax * by - ay * bx          # CCWで左折(>0)=出隅 → 張り出し
+            if turn < 0:
+                if min(width, depth) >= threshold_mm:
+                    continue
+                removed = {(i + 1) % n, (i + 2) % n}
+                notes.append(
+                    f"凹み（幅{width:.0f}mm×奥行{depth:.0f}mm）は最小スパン{threshold_mm:.0f}mm"
+                    "未満なので足場を回り込ませず直線で渡します。その区間は躯体との離れが"
+                    f"{depth:.0f}mm増えます（内ブラケットでの床の拡幅か墜落防止措置を検討）"
+                )
+            else:
+                if depth >= threshold_mm:
+                    continue
+                # 両隣の面を張り出しの線まで前に出す: 面の両端のコーナー（v0の前・
+                # v3の後）を出の方向へ動かし、v0・v3（v1・v2と重なる）を落とす。
+                # v0・v3だけ落とすと隣の辺が斜めになる
+                shifted = {(i - 1) % n: (verts[(i - 1) % n][0] + ax, verts[(i - 1) % n][1] + ay),
+                           (i + 4) % n: (verts[(i + 4) % n][0] + ax, verts[(i + 4) % n][1] + ay)}
+                verts = [shifted.get(k, v) for k, v in enumerate(verts)]
+                removed = {i % n, (i + 3) % n}
+                notes.append(
+                    f"張り出し（幅{width:.0f}mm×出{depth:.0f}mm）は出が最小スパン"
+                    f"{threshold_mm:.0f}mm未満なので、両隣の面を張り出しの線まで前に出して"
+                    f"直線で渡します。両隣の面は躯体との離れが{depth:.0f}mm増えます"
+                    "（内ブラケットでの床の拡幅か墜落防止措置を検討）"
+                )
+            verts = [v for k, v in enumerate(verts) if k not in removed]
+            verts, more = _clean_vertices(verts)
+            changed = True
+            break
+    return verts
+
+
+def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outline:
+    """外形ポリゴンを検証しCCW正規化、辺・コーナー情報を構築する.
+
+    bridge_below_mm を渡すと、それ未満の凹み・張り出しは直線で渡す
+    （bridge_small_notches）。
+    """
     if len(vertices) < 4:
         raise ValidationError("外形ポリゴンには4点以上が必要です")
     verts = [tuple(map(float, v)) for v in vertices]
@@ -143,6 +215,9 @@ def build_outline(vertices: list[Point]) -> Outline:
                 f"非直交の辺があります（頂点{i}→{(i + 1) % n}）。"
                 "MVPは90度コーナーのみ対応です"
             )
+
+    verts = bridge_small_notches(verts, bridge_below_mm, notes)
+    n = len(verts)
 
     outline = Outline(vertices=verts, notes=notes)
     corner_kinds: list[str] = []
