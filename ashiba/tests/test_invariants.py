@@ -88,5 +88,28 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                             self.assertLessEqual(len(v), GDL_STR_MAX, (name, k))
 
 
+class TestCapacityKeysMatchTheJacks(unittest.TestCase):
+    """ジャッキ許容支持力の繰出し量キーは、その系列のジャッキで実際に繰り出せる範囲にある.
+
+    ND752SP は432mmまでなのに450mmの行、信和SE-6は450mmまでなのに500mmの行があった。
+    存在しない繰出し量の行は、検定が「その繰出しで成立した」ように見える。
+    """
+
+    def test_no_capacity_row_beyond_the_longest_jack(self):
+        from ashiba.master import SERIES_CONST, load_master
+        from ashiba.structural import load_capacities
+
+        for sid in SERIES_CONST:
+            with self.subTest(sid):
+                m = load_master(sid)
+                limits = [p.max_extension_mm() for p in m.by_category("ジャッキ")
+                          if "アンダーベース" not in p.note and p.max_extension_mm() is not None]
+                keys = [int(k) for (item, k), _ in load_capacities(sid).items()
+                        if item.startswith("ジャッキ許容支持力")]
+                self.assertTrue(keys, sid)
+                if limits:
+                    self.assertLessEqual(max(keys), max(limits), (sid, sorted(keys), limits))
+
+
 if __name__ == "__main__":
     unittest.main()
