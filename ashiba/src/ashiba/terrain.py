@@ -397,6 +397,26 @@ def terrain_step_mm(model: ScaffoldModel) -> float:
     return float(koma)
 
 
+def datum_first_ledger_mm(model: ScaffoldModel, terrain) -> float:
+    """基準面から見た第一の布（根がらみ）の高さ（gl_ref 基準, mm）.
+
+    名目の first_ledger_height は名目のジャッキ量を前提にしている。敷地を解く
+    ときは基準面の最適化でジャッキ量が名目から動く（枠組でジャッキ86→205mm）
+    ので、実際の脚から基準面を逆算する。脚の下端＝gl＋敷板調整＋ジャッキで、
+    下げた段数ぶんを戻せばどの脚からも同じ基準面が出る。
+    """
+    feet = list(getattr(terrain, "feet", []) or [])
+    e = model.elevation
+    if not feet:
+        return float(e.first_ledger_height)
+    step = terrain_step_mm(model)
+    gl_ref = max(f.gl_mm for f in feet)
+    f0 = feet[0]
+    ref_top = f0.gl_mm + f0.base_plate_adjust_mm + f0.jack_mm + f0.koma_offset * step
+    # 名目の「ジャッキ天端から第一の布まで」（くさび=コマ1つ、枠組=0）はそのまま
+    return (ref_top - gl_ref) + float(e.first_ledger_height - e.jack_extension)
+
+
 def edge_foot_indices(model: ScaffoldModel, ep, n_feet: int) -> list[int]:
     """この辺の支柱位置（始点・中間・終点）が feet の何番目か.
 
@@ -423,7 +443,7 @@ def extra_negarami(model: ScaffoldModel, terrain) -> dict[int, list[tuple[int, f
     if not feet:
         return out
     step = terrain_step_mm(model)
-    nega = float(model.elevation.first_ledger_height)
+    nega = datum_first_ledger_mm(model, terrain)
     for ep in model.plan.edges:
         idx = edge_foot_indices(model, ep, len(feet))
         if max(idx) >= len(feet):
@@ -447,7 +467,7 @@ def first_ledger_heights(model: ScaffoldModel, terrain) -> list[float]:
     if not feet:
         return []
     gl_ref = max(f.gl_mm for f in feet)
-    nega = float(model.elevation.first_ledger_height)
+    nega = datum_first_ledger_mm(model, terrain)
     levels: dict[int, list[float]] = {i: [nega] for i in range(len(feet))}
     extra = extra_negarami(model, terrain)
     for ep in model.plan.edges:

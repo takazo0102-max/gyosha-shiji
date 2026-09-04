@@ -112,7 +112,10 @@ def solve_elevation_frame(
     under_allow, over_allow = 150, smallest
     table = _compose_table(required_height + over_allow, heights)
     best: Optional[tuple[tuple, int, list[int]]] = None
-    for jack in range(jack_min, jack_max + 1, 5):
+    # ジャッキは1mm刻みで探す。5mm刻みだとインチ寸法の建枠（914・1219・1524）を
+    # 混ぜた構成は総高さが5の倍数にならず候補から落ち、1524×5 のような
+    # 「たまたま5の倍数になる」構成しか残らない
+    for jack in range(jack_min, jack_max + 1):
         for delta in range(-under_allow, over_allow + 1, 5):
             total = required_height + delta - jack
             if total <= 0:
@@ -120,7 +123,11 @@ def solve_elevation_frame(
             pieces = table.get(total)
             if pieces is None:
                 continue
-            score = (abs(delta), len(pieces), jack_max - jack)
+            # 同じ枚数なら調整枠（標準枠より低い建枠）が少ない構成。
+            # 日建の建枠は 1524/1219/914/490 と刻みが細かく、枚数だけで選ぶと
+            # 1700×5＋1524×5 のような半分が調整枠の構成になっていた
+            n_adjust = sum(1 for q in pieces if q != heights[0])
+            score = (abs(delta), len(pieces), n_adjust, jack_max - jack)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
     if best is None:

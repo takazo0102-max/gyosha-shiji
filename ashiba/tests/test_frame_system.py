@@ -40,7 +40,8 @@ class TestSystemType(unittest.TestCase):
 
     def test_frame_catalog(self):
         m = load_master("waku")
-        self.assertEqual(m.frame_heights(), [1700, 1200, 900])
+        # 日建カタログの建枠高さ（1700の標準枠に、1524・1219・914の調整枠と490の調節枠）
+        self.assertEqual(m.frame_heights(), [1700, 1524, 1219, 914, 490])
         self.assertEqual(m.frame_widths(), [1219, 914, 610])
         # 建枠間隔はインチ規格
         self.assertIn(1829, m.span_lengths())
@@ -568,3 +569,49 @@ class TestAdvanceRailOnFrameIsNotSilent(unittest.TestCase):
         self.assertTrue([w for w in r.model.plan.warnings if "先行手すり工法" in w and "無視" in w])
         self.assertEqual(r.quantity.qty_of("先行手摺"), 0)
 
+
+
+class TestFrameSpansPreferLongFrames(unittest.TestCase):
+    """建枠間隔610がマスタにあっても、面を610×50で埋めない.
+
+    隙間の小ささだけで構成を選んでいたため、日建カタログの手摺A28（610）を
+    足した途端に30m面が610×50スパンになり、建枠・筋違・布板が3倍になった。
+    コーナーステップで埋められる隙間なら、スパン数が最少の構成を採る。
+    """
+
+    def test_thirty_metre_face_uses_1829_frames(self):
+        from ashiba.plan_solver import solve_plan
+
+        m = load_master("waku")
+        self.assertIn(610, m.span_lengths())
+        plan = solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], m)
+        for e in plan.edges:
+            self.assertLessEqual(len(e.spans), 18, (e.edge_index, e.spans))
+            self.assertGreaterEqual(e.spans.count(1829), 10, e.spans)
+        for cs in plan.corner_steps:
+            self.assertTrue(cs.ok, cs.message)
+
+    def test_gap_is_still_within_the_corner_step(self):
+        from ashiba.plan_solver import (FRAME_CORNER_MAX_STEP_MM, FRAME_CORNER_MIN_GAP_MM,
+                                        _frame_spans_and_gap)
+
+        spans, gap = _frame_spans_and_gap([1829, 1524, 1219, 914, 610], 30600)
+        self.assertGreaterEqual(gap, FRAME_CORNER_MIN_GAP_MM)
+        self.assertLessEqual(gap, FRAME_CORNER_MAX_STEP_MM)
+        self.assertLess(len(spans), 20)
+
+
+class TestFrameStackPrefersStandardFrames(unittest.TestCase):
+    """同じ枚数なら標準枠（最大高さ）を多く使う.
+
+    刻みの細かい調整枠（1524/1219/914/490）が揃うと、枚数だけの評価では
+    1700×5＋1524×5 のような構成が選ばれていた。9×1700＋914 と同じ10枚なら
+    調整枠が1枚の方を採る。
+    """
+
+    def test_16300_uses_nine_standard_frames(self):
+        m = load_master("waku")
+        r = solve_elevation_frame(16300, m)
+        self.assertEqual(r.total_height, 16300)
+        self.assertEqual(r.posts.count(1700), 9, r.posts)
+        self.assertLessEqual(sum(1 for p in r.posts if p != 1700), 1, r.posts)

@@ -107,7 +107,15 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
     picked = [feet[i] for i in idx]
     if all(abs(f.gl_mm - gl_ref) < 0.5 for f in feet):
         return "", ""          # 平坦。空にしておけば図は従来どおり
-    gl = ",".join(str(int(round(f.gl_mm - gl_ref))) for f in picked)
+    # 図の作業床・根がらみは名目のジャッキ量を前提に描く。敷地を解くと基準面の
+    # 最適化でジャッキ量が名目から動く（例: 名目100→基準脚35）ので、その差を
+    # 地盤高に乗せて「脚の下端＋ジャッキ＝名目のジャッキ天端」を保つ。
+    # これが無いと、脚は実ジャッキで描かれ根がらみは名目高さに残り、
+    # 基準の脚でさえ緊結部が最大コマ1つぶんずれて描かれていた
+    from .terrain import datum_first_ledger_mm
+
+    shift = datum_first_ledger_mm(model, terrain) - model.elevation.first_ledger_height
+    gl = ",".join(str(int(round(f.gl_mm - gl_ref - shift))) for f in picked)
     jack = ",".join(
         str(int(round(f.jack_mm + f.base_plate_adjust_mm))) for f in picked
     )

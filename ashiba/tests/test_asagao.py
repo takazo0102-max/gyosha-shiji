@@ -137,6 +137,10 @@ class TestAsagaoGaps(unittest.TestCase):
     def test_frame_system_gets_the_same_notes(self):
         """枠組の経路にだけ注記が無い、という状態を作らない."""
         master = load_master("waku")
+        # 日建の朝顔は全スパンにセットがあるので、端数スパンの注記を出させるために
+        # 1829以外のセットを外した系列で試す
+        master.parts = [p for p in master.parts
+                        if not (p.category == "朝顔" and "直線部" in p.note and p.nominal_dim != 1829)]
         m = ScaffoldModel(
             master=master, plan=solve_plan(RECT, master),
             elevation=solve_elevation(16300, master=master),
@@ -145,7 +149,7 @@ class TestAsagaoGaps(unittest.TestCase):
         )
         q = take_off(m)
         self.assertTrue([n for n in q.notes if "出隅" in n and "朝顔コーナー" in n], q.notes)
-        self.assertTrue([w for w in q.warnings if "呼び寸法が合わない" in w])
+        self.assertTrue([w for w in q.warnings if "呼び寸法が合わない" in w], q.warnings)
         self.assertGreater(q.qty_of("朝顔"), 0)
 
     def test_no_asagao_no_notes(self):

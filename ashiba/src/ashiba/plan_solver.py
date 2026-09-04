@@ -624,8 +624,14 @@ def _frame_spans_and_gap(coins: list[int], target_len: float) -> tuple[list[int]
         # 最短構成しか置けない
         return [min(coins)], target_len - min(coins)
     fits = [c for c in candidates if c[0] >= FRAME_CORNER_MIN_GAP_MM]
-    if fits:
-        # 干渉を避けられる中で隙間が最小＝部材を最大限使う構成
+    # 隙間の小ささだけで選ぶと、短い建枠間隔（610）がマスタにあるときに
+    # 30m面を610×50スパンで埋めてしまう（隙間は最小になるが建枠・筋違・
+    # 布板が3倍になる）。コーナーステップで埋められる隙間の範囲なら、
+    # スパン数が最少（＝長尺の建枠間隔を使う）の構成を採り、隙間はその次
+    within = [c for c in fits if c[0] <= FRAME_CORNER_MAX_STEP_MM]
+    if within:
+        gap, spans = min(within, key=lambda c: (len(c[1]), c[0]))
+    elif fits:
         gap, spans = min(fits, key=lambda c: (c[0], len(c[1])))
     else:
         gap, spans = min(candidates, key=lambda c: (abs(c[0]), len(c[1])))

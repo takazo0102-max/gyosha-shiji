@@ -50,7 +50,12 @@ class TestExtraNegarami(unittest.TestCase):
         t = terrace(m, 6000)
         rows = extra_negarami(m, t)
         self.assertTrue(rows)
-        nega = m.elevation.first_ledger_height
+        # 基準面は最適化で名目から動く（この敷地では名目ジャッキ100→基準脚35）。
+        # 格子は実際の基準面で見る
+        from ashiba.terrain import datum_first_ledger_mm
+
+        nega = datum_first_ledger_mm(m, t)
+        self.assertNotAlmostEqual(nega, m.elevation.first_ledger_height)
         koma = m.master.koma_pitch
         for edge_index, items in rows.items():
             ep = next(e for e in m.plan.edges if e.edge_index == edge_index)
@@ -142,6 +147,56 @@ class TestFirstLedgerIsMeasuredFromTheBearingSurface(unittest.TestCase):
         c = [r for r in run_all_checks(m, terrain=t) if r.check_id == 4][0]
         self.assertEqual(c.status, "OK", c.message)
         self.assertNotIn("-", c.message.split("高さ")[1].split("mm")[0])
+
+
+class TestDrawingFollowsTheDatumShift(unittest.TestCase):
+    """基準面が名目から動いても、図の脚の下端は名目のジャッキ天端の格子に乗る.
+
+    GDLは作業床・根がらみを名目の高さに描き、脚は glList＋jackList で描く。
+    基準面の最適化でジャッキ量が名目から動いた分（名目100→基準脚35）を
+    glList に乗せていなかったので、基準の脚でも緊結部が65mmずれて描かれていた。
+    """
+
+    def _feet_in_drawing(self, m, t):
+        from ashiba.gdl_params import line_params
+        from ashiba.terrain import terrain_step_mm
+
+        step = terrain_step_mm(m)
+        nominal_top = m.elevation.jack_extension
+        out = []
+        for ep in m.plan.edges:
+            p = line_params(m, ep, terrain=t)
+            if not p["glList"]:
+                continue
+            gls = [float(v) for v in p["glList"].split(",")]
+            jks = [float(v) for v in p["jackList"].split(",")]
+            for g, j in zip(gls, jks):
+                # 脚の下端（地盤＋ジャッキ）は名目ジャッキ天端から刻みの整数倍だけ下
+                out.append((nominal_top - (g + j)) / step)
+        return out
+
+    def test_wedge_and_frame_feet_sit_on_the_grid(self):
+        for series, drop in (("shinwa_A", 6000), ("waku", 500), ("shinwa_A", 700)):
+            with self.subTest(series=series, drop=drop):
+                m = build(series)
+                t = terrace(m, drop)
+                steps = self._feet_in_drawing(m, t)
+                self.assertTrue(steps)
+                for s_ in steps:
+                    self.assertAlmostEqual(s_, round(s_), delta=1.5 / terrain_step(m))
+
+    def test_flat_site_is_unchanged(self):
+        from ashiba.gdl_params import line_params
+
+        m = build()
+        p = line_params(m, m.plan.edges[0], terrain=terrace(m, 0))
+        self.assertEqual((p["glList"], p["jackList"]), ("", ""))
+
+
+def terrain_step(m):
+    from ashiba.terrain import terrain_step_mm
+
+    return terrain_step_mm(m)
 
 
 if __name__ == "__main__":
