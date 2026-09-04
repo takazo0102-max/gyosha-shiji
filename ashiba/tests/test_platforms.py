@@ -447,3 +447,29 @@ class TestHoistInputGuards(unittest.TestCase):
         apart = validate_platforms(build(), [], [h, Hoist(edge_index=2, position_mm=3600)])
         self.assertFalse([i for i in ngs(apart) if "同じ位置" in i.message])
 
+
+class TestInnerPostUplift(unittest.TestCase):
+    """偏心の裏側: 内側建地の引抜き P×a/b が自重を超えると浮く."""
+
+    def test_uplift_follows_projection_and_load(self):
+        from ashiba.platforms import stage_inner_uplift_kn
+
+        m = build()
+        small = stage_inner_uplift_kn(stage(projection_mm=600), m)
+        big = stage_inner_uplift_kn(stage(projection_mm=1800), m)
+        self.assertGreater(big, small)
+        # 出1500・間隔600・間口2（建地3本）: 9.8×(750/600)/3
+        self.assertAlmostEqual(
+            stage_inner_uplift_kn(stage(), m),
+            9.8 * (750 / m.post_row_spacing_mm) / 3, places=6)
+
+    def test_structural_reports_note_or_warning(self):
+        m = build()
+        q = take_off(m)
+        mild = run_structural(m, q, platforms=validate_platforms(m, [stage(load_kn=2.0)]))
+        self.assertTrue(mild.post.uplift_ok)
+        self.assertTrue([n for n in mild.notes if "引抜き" in n and "抑えられます" in n], mild.notes)
+        heavy = run_structural(m, q, platforms=validate_platforms(m, [stage(load_kn=60.0, span_count=1)]))
+        self.assertFalse(heavy.post.uplift_ok)
+        self.assertTrue([w for w in heavy.warnings if "引抜き" in w and "浮く" in w], heavy.warnings)
+

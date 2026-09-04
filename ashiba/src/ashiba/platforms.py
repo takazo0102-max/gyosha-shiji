@@ -104,6 +104,9 @@ class PlatformResult:
     extra_wall_ties: int = 0
     max_post_load_kn: float = 0.0      # ステージ直下の建地1本あたり最大軸力
     governing: Optional[str] = None    # どのステージが支配的か
+    # 偏心の裏の内側建地の引抜き（1本あたり）。自重と比べて浮きを判定する
+    max_inner_uplift_kn: float = 0.0
+    uplift_governing: Optional[str] = None
 
     @property
     def ok(self) -> bool:
@@ -135,6 +138,21 @@ def stage_post_load_kn(stage: LoadingStage, model: ScaffoldModel) -> float:
     n_posts = stage.span_count + 1
     n_levels = max(1, len(stage.levels) or 1)
     return stage.load_kn * n_levels * cantilever_amplification(stage, model) / n_posts
+
+
+def stage_inner_uplift_kn(stage: LoadingStage, model: ScaffoldModel) -> float:
+    """ステージの偏心で内側建地1本に生じる引抜き力 P×a/b ÷ 建地数.
+
+    外側建地の反力 P(1+a/b) の裏で、内側建地には P×a/b の引抜きが出る。
+    自重で抑えられなければジャッキベースが浮く（方杖で外側へ流すか浮き止めが要る）。
+    """
+    b = float(model.post_row_spacing_mm or 0)
+    if b <= 0:
+        return 0.0
+    n_posts = stage.span_count + 1
+    n_levels = max(1, len(stage.levels) or 1)
+    a = stage.projection_mm / 2.0
+    return stage.load_kn * n_levels * (a / b) / n_posts
 
 
 def cantilever_amplification(stage: LoadingStage, model: ScaffoldModel) -> float:
@@ -231,6 +249,12 @@ def validate_platforms(
                 f"{s.span_count}スパンは面（{edge.scaffold_length:.0f}mm・"
                 f"{edge.span_count}スパン）に収まりません", "入力エラー"))
 
+        uplift = stage_inner_uplift_kn(s, model)
+        if uplift > result.max_inner_uplift_kn:
+            result.max_inner_uplift_kn = uplift
+            result.uplift_governing = (
+                f"辺{s.edge_index} 始点から{s.start_mm:.0f}mm（出{s.projection_mm:.0f}mm）"
+            )
         load = stage_post_load_kn(s, model)
         if load > result.max_post_load_kn:
             result.max_post_load_kn = load

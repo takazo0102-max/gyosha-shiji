@@ -241,6 +241,14 @@ class PostResult:
     deck_source: str = ""
     # 帳票の呼び名（枠組は建枠）
     vertical_member_name: str = "支柱"
+    # 荷受けステージの偏心で内側建地に生じる引抜き（1本あたり）と、その出どころ。
+    # 自重 dead_load_kn で抑えられなければジャッキベースが浮く
+    inner_uplift_kn: float = 0.0
+    uplift_source: str = ""
+
+    @property
+    def uplift_ok(self) -> bool:
+        return self.inner_uplift_kn <= self.dead_load_kn + 1e-9
 
     @property
     def unverified_items(self) -> list[str]:
@@ -710,9 +718,26 @@ def run_structural(
         if max_jack > model.elevation.jack_extension:
             governing_foot = worst
     post = check_post(model, quantity, site, caps, extra, source, max_jack)
+    if platforms is not None and platforms.max_inner_uplift_kn > 0:
+        post.inner_uplift_kn = round(platforms.max_inner_uplift_kn, 3)
+        post.uplift_source = platforms.uplift_governing or ""
 
     warnings: list[str] = []
     notes: list[str] = []
+    if post.inner_uplift_kn > 0:
+        vm = model.master.vertical_member_name
+        if post.uplift_ok:
+            notes.append(
+                f"荷受けステージの偏心による内側{vm}の引抜き{post.inner_uplift_kn}kN"
+                f"（{post.uplift_source}）は自重{post.dead_load_kn}kNで抑えられます"
+            )
+        else:
+            warnings.append(
+                f"荷受けステージの偏心で内側{vm}に引抜き{post.inner_uplift_kn}kNが生じ、"
+                f"自重{post.dead_load_kn}kNを超えます（{post.uplift_source}）。ジャッキベースが"
+                "浮くので、方杖で外側建地へ流す構成にし、内側建地の浮き止め（根がらみへの緊結・"
+                "壁つなぎの増設）か出の縮小・積載の低減を検討してください"
+            )
     unverified_caps: list[UnverifiedCapacity] = []
     if governing_foot is not None:
         vm = model.master.vertical_member_name

@@ -237,6 +237,9 @@ def write_report_md(
         a(f"- 建地の支配検定: {ps.governing}")
         a(f"- 建地1本の内訳: 自重{ps.dead_load_kn}kN ＋ 積載{ps.live_load_kn}kN"
           + (f" ＋ 局所{ps.extra_load_kn}kN" if ps.extra_load_kn > 0 else ""))
+        if ps.inner_uplift_kn > 0:
+            a(f"- 内側建地の引抜き: {ps.inner_uplift_kn}kN vs 自重{ps.dead_load_kn}kN "
+              f"→ {'✅ 浮かない' if ps.uplift_ok else '❌ 浮く（方杖・浮き止め要）'}")
         for nmsg in structural.notes:
             a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:
