@@ -203,6 +203,12 @@ def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outlin
         )
     if _signed_area(verts) < 0:
         verts = list(reversed(verts))
+        # 黙って反転すると、利用者の「辺0」（入力の頂点0→1）が別の面になる
+        notes.append(
+            "外形が時計回りだったので反時計回りに直しました。辺番号は直した後の頂点順"
+            "（頂点0→1が辺0）です。付帯設備の edge_index は割付レポートの平面割付表"
+            "（辺・面名・躯体頂点）で確認してください"
+        )
 
     n = len(verts)
     # 直交チェック

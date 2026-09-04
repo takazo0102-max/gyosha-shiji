@@ -156,11 +156,15 @@ def write_report_md(
     a("")
     # 現場で通じるのは辺番号ではなく面（南面・東面）。立面図の面名と揃える
     faces = model.plan.face_names()
-    a("| 辺 | 面 | 足場長 | スパン構成 | 離れ | 対処案 |")
-    a("|---|---|---|---|---|---|")
+    # 躯体頂点（辺の始点）を出す。外形を整理（反転・重複除去・渡し）すると辺番号が
+    # 入力の頂点順とずれるので、付帯設備の edge_index を突き合わせる手がかりにする
+    verts = model.plan.outline.vertices
+    a("| 辺 | 面 | 躯体頂点(始点) | 足場長 | スパン構成 | 離れ | 対処案 |")
+    a("|---|---|---|---|---|---|---|")
     for ep, face in zip(model.plan.edges, faces):
         spans = "+".join(str(s) for s in ep.spans)
-        a(f"| {ep.edge_index} | {face} | {ep.scaffold_length:.0f} | {spans} "
+        vx, vy = verts[ep.edge_index] if ep.edge_index < len(verts) else (0, 0)
+        a(f"| {ep.edge_index} | {face} | ({vx:.0f}, {vy:.0f}) | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
     if model.plan.corner_steps:
         a("")

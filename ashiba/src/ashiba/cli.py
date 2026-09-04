@@ -716,6 +716,19 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     tie_opt = optimize_wall_ties(model, site)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
+    # 外形を整理した（反転・重複除去・渡し）うえで辺番号つきの付帯設備があるなら、
+    # その番号が入力の頂点順と一致しない可能性を先に言う
+    edge_keys = [k for k in ("openings", "loading_stages", "hoists", "bracket_sections")
+                 if spec.get(k)]
+    if spec.get("stairs", {}).get("positions"):
+        edge_keys.append("stairs.positions")
+    if edge_keys and model.plan.outline.notes:
+        model.plan.warnings.append(
+            "外形を整理したため（" + "／".join(n.split("。")[0] for n in model.plan.outline.notes)
+            + "）、辺番号が入力の頂点順とずれている可能性があります。"
+            + "・".join(edge_keys) + " の edge_index は、平面割付表の辺・面名・躯体頂点で"
+            "指定した面に当たっているか確認してください"
+        )
     # 開口部は階段より先に解く。自動配置が梁枠の区間（通路）に階段を置かないため
     openings = validate_openings(model, build_openings(spec))
     st = spec.get("stairs", {})
