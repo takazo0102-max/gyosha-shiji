@@ -1,0 +1,157 @@
+{
+  "project_name": "総合例 L型ND1800",
+  "series_id": "nikken_nd1800",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      12000
+    ],
+    [
+      18000,
+      12000
+    ],
+    [
+      18000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "standoff": {
+    "target": 300,
+    "min": 250,
+    "max": 350,
+    "hard_min": 200
+  },
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "関東(沿岸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート",
+    "adjacent_factor": 1.0,
+    "region_factor": 1.0,
+    "simultaneous_loaded_levels": 2
+  },
+  "notification": {
+    "business_type": "建築工事業",
+    "site_name": "サンプル新築工事",
+    "site_address": "",
+    "worker_count": "",
+    "planner_name": "",
+    "start_date": "2026-11-01",
+    "labor_office": ""
+  },
+  "stairs": {
+    "min_per_face": 1
+  },
+  "openings": [
+    {
+      "edge_index": 0,
+      "start_mm": 9145,
+      "beam_span_mm": 3658,
+      "level": 2
+    }
+  ],
+  "loading_stages": [
+    {
+      "edge_index": 0,
+      "start_mm": 18290,
+      "span_count": 2,
+      "projection_mm": 1500,
+      "load_kn": 9.8,
+      "levels": [
+        3
+      ]
+    }
+  ],
+  "hoists": [
+    {
+      "edge_index": 5,
+      "position_mm": 9145,
+      "tie_every_mm": 3600,
+      "landing_levels": [
+        2,
+        5
+      ]
+    }
+  ],
+  "ground_points_mm": [
+    [
+      0,
+      0,
+      0.0
+    ],
+    [
+      0,
+      10000,
+      0.0
+    ],
+    [
+      0,
+      21000,
+      0.0
+    ],
+    [
+      10000,
+      0,
+      -400.0
+    ],
+    [
+      10000,
+      10000,
+      -400.0
+    ],
+    [
+      10000,
+      21000,
+      -400.0
+    ],
+    [
+      20000,
+      0,
+      -800.0
+    ],
+    [
+      20000,
+      10000,
+      -800.0
+    ],
+    [
+      20000,
+      21000,
+      -800.0
+    ],
+    [
+      31000,
+      0,
+      -1240.0
+    ],
+    [
+      31000,
+      10000,
+      -1240.0
+    ],
+    [
+      31000,
+      21000,
+      -1240.0
+    ]
+  ],
+  "post_reinforcement": "強力つなぎ材",
+  "guard_rail_type": "先行手すり"
+}
