@@ -83,5 +83,26 @@ class TestOpeningHint(unittest.TestCase):
         self.assertIn(f"始点を{posts[3]:.0f}mmにすれば", ng[0].message)
 
 
+class TestHoistGate(unittest.TestCase):
+    """昇降機の乗り込み口の開閉式手すりは、カタログのスイングドア KSSD で拾う."""
+
+    def test_landing_gates_are_counted(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        for name in ("combo_nd1800.json", "waku_composite.json"):
+            with self.subTest(name):
+                r = solve_all(load_spec(root / "examples" / name))
+                n_landings = sum(len(h.landings(r.model)) for h in r.platforms.hoists)
+                self.assertGreater(n_landings, 0)
+                self.assertEqual(qty(r.quantity, "KSSD"), n_landings)
+                self.assertFalse([w for w in r.quantity.warnings if "開閉式手すり" in w and "ありません" in w],
+                                 r.quantity.warnings)
+
+
 if __name__ == "__main__":
     unittest.main()
