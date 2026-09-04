@@ -15,58 +15,59 @@
 !   Python側は割付を解いてこのオブジェクトを辺の数だけ置くのみ。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   spanList        文字列  スパン構成 mm カンマ区切り                                            既定 "1800,1800,1800"
-!   spanList2       文字列  スパン構成（続き2）                                                   既定 ""
-!   postList        文字列  支柱構成 mm 下から                                                    既定 "3600,3600,1800"
-!   jackOut         長さ    ジャッキ繰り出し量                                                    既定 0.1
-!   komaPitch       長さ    コマピッチ                                                            既定 0.45
-!   floorH          長さ    階高                                                                  既定 1.8
-!   rowW            長さ    内外建地間隔                                                          既定 0.6
-!   standoff        長さ    壁離れ                                                                既定 0.3
-!   deckW1          長さ    踏板1幅                                                               既定 0.4
-!   deckW2          長さ    踏板2幅 0で無し                                                       既定 0.25
-!   showDeck        ブール  踏板表示                                                              既定 1
-!   showBrace       ブール  ブレス表示                                                            既定 1
-!   showDim         ブール  2D寸法・注記表示                                                      既定 1
-!   serType         文字列  系列 A/B/W（Wは枠組）                                                 既定 "A"
-!   viewMode        文字列  2D表現 plan=平面 / elev=立面                                          既定 "plan"
-!   tieList         文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）                            既定 ""
-!   tieList2        文字列  壁つなぎ位置（続き2）                                                 既定 ""
-!   tieList3        文字列  壁つなぎ位置（続き3）                                                 既定 ""
-!   tieList4        文字列  壁つなぎ位置（続き4）                                                 既定 ""
-!   tieList5        文字列  壁つなぎ位置（続き5）                                                 既定 ""
-!   tieHeightList   文字列  壁つなぎ高さ mm カンマ区切り（GLから）                                既定 ""
-!   tieHeightList2  文字列  壁つなぎ高さ（続き2）                                                 既定 ""
-!   tieHeightList3  文字列  壁つなぎ高さ（続き3）                                                 既定 ""
-!   tieHeightList4  文字列  壁つなぎ高さ（続き4）                                                 既定 ""
-!   tieHeightList5  文字列  壁つなぎ高さ（続き5）                                                 既定 ""
-!   glList          文字列  支柱位置ごとの地盤高 mm（基準GLからの差、下がりは負）                 既定 ""
-!   glList2         文字列  支柱位置ごとの地盤高（続き2）                                         既定 ""
-!   jackList        文字列  支柱位置ごとのジャッキ繰出し mm（敷板調整含む）                       既定 ""
-!   jackList2       文字列  支柱位置ごとのジャッキ繰出し（続き2）                                 既定 ""
-!   flList          文字列  各階FL高さ mm カンマ区切り（立面の参照線）                            既定 ""
-!   faceName        文字列  面の名称（立面図の図面名）                                            既定 ""
-!   levelList       文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）                既定 ""
-!   negaH           長さ    根がらみ高さ GLから 0で自動                                           既定 0
-!   railH           長さ    手すり高さ 作業床から 0で自動                                         既定 0
-!   midH            長さ    中桟高さ 作業床から 0で自動                                           既定 0
-!   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm  既定 ""
-!   brktList2       文字列  ブラケット区間（続き2）                                               既定 ""
-!   brktList3       文字列  ブラケット区間（続き3）                                               既定 ""
-!   brktList4       文字列  ブラケット区間（続き4）                                               既定 ""
-!   stageList       文字列  荷受けステージ mm 「開始,長さ,出,設置高さ,方杖(0/1)」の繰り返し       既定 ""
-!   hoistList       文字列  昇降機 mm 「位置,到達高さ」の繰り返し                                 既定 ""
-!   landingList     文字列  昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                   既定 ""
-!   beamList        文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                            既定 ""
-!   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）               既定 ""
-!   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                              既定 ""
-!   asagaoProj      長さ    朝顔の水平突出                                                        既定 2
-!   asagaoAngle     実数    朝顔の傾斜 度                                                         既定 25
-!   braceEveryS     整数    斜材の設置間隔 スパン 1=全構面                                        既定 1
-!   braceEveryL     整数    斜材の設置間隔 層 1=全層                                              既定 1
-!   nRows           整数    建地列数 2=本足場 1=一側足場                                          既定 2
-!   warnPen         整数    注記強調のペン番号 ペンテーブル依存                                   既定 20
-!   texSiz          実数    文字高mm                                                              既定 2.5
+!   spanList        文字列  スパン構成 mm カンマ区切り                                             既定 "1800,1800,1800"
+!   spanList2       文字列  スパン構成（続き2）                                                    既定 ""
+!   postList        文字列  支柱構成 mm 下から                                                     既定 "3600,3600,1800"
+!   jackOut         長さ    ジャッキ繰り出し量                                                     既定 0.1
+!   footStep        長さ    継ぎ足しの刻み m（コマピッチ／調整枠。0で継ぎ足し根がらみを描かない）  既定 0
+!   komaPitch       長さ    コマピッチ                                                             既定 0.45
+!   floorH          長さ    階高                                                                   既定 1.8
+!   rowW            長さ    内外建地間隔                                                           既定 0.6
+!   standoff        長さ    壁離れ                                                                 既定 0.3
+!   deckW1          長さ    踏板1幅                                                                既定 0.4
+!   deckW2          長さ    踏板2幅 0で無し                                                        既定 0.25
+!   showDeck        ブール  踏板表示                                                               既定 1
+!   showBrace       ブール  ブレス表示                                                             既定 1
+!   showDim         ブール  2D寸法・注記表示                                                       既定 1
+!   serType         文字列  系列 A/B/W（Wは枠組）                                                  既定 "A"
+!   viewMode        文字列  2D表現 plan=平面 / elev=立面                                           既定 "plan"
+!   tieList         文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）                             既定 ""
+!   tieList2        文字列  壁つなぎ位置（続き2）                                                  既定 ""
+!   tieList3        文字列  壁つなぎ位置（続き3）                                                  既定 ""
+!   tieList4        文字列  壁つなぎ位置（続き4）                                                  既定 ""
+!   tieList5        文字列  壁つなぎ位置（続き5）                                                  既定 ""
+!   tieHeightList   文字列  壁つなぎ高さ mm カンマ区切り（GLから）                                 既定 ""
+!   tieHeightList2  文字列  壁つなぎ高さ（続き2）                                                  既定 ""
+!   tieHeightList3  文字列  壁つなぎ高さ（続き3）                                                  既定 ""
+!   tieHeightList4  文字列  壁つなぎ高さ（続き4）                                                  既定 ""
+!   tieHeightList5  文字列  壁つなぎ高さ（続き5）                                                  既定 ""
+!   glList          文字列  支柱位置ごとの地盤高 mm（基準GLからの差、下がりは負）                  既定 ""
+!   glList2         文字列  支柱位置ごとの地盤高（続き2）                                          既定 ""
+!   jackList        文字列  支柱位置ごとのジャッキ繰出し mm（敷板調整含む）                        既定 ""
+!   jackList2       文字列  支柱位置ごとのジャッキ繰出し（続き2）                                  既定 ""
+!   flList          文字列  各階FL高さ mm カンマ区切り（立面の参照線）                             既定 ""
+!   faceName        文字列  面の名称（立面図の図面名）                                             既定 ""
+!   levelList       文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）                 既定 ""
+!   negaH           長さ    根がらみ高さ GLから 0で自動                                            既定 0
+!   railH           長さ    手すり高さ 作業床から 0で自動                                          既定 0
+!   midH            長さ    中桟高さ 作業床から 0で自動                                            既定 0
+!   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm   既定 ""
+!   brktList2       文字列  ブラケット区間（続き2）                                                既定 ""
+!   brktList3       文字列  ブラケット区間（続き3）                                                既定 ""
+!   brktList4       文字列  ブラケット区間（続き4）                                                既定 ""
+!   stageList       文字列  荷受けステージ mm 「開始,長さ,出,設置高さ,方杖(0/1)」の繰り返し        既定 ""
+!   hoistList       文字列  昇降機 mm 「位置,到達高さ」の繰り返し                                  既定 ""
+!   landingList     文字列  昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                    既定 ""
+!   beamList        文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                             既定 ""
+!   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                既定 ""
+!   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                               既定 ""
+!   asagaoProj      長さ    朝顔の水平突出                                                         既定 2
+!   asagaoAngle     実数    朝顔の傾斜 度                                                          既定 25
+!   braceEveryS     整数    斜材の設置間隔 スパン 1=全構面                                         既定 1
+!   braceEveryL     整数    斜材の設置間隔 層 1=全層                                               既定 1
+!   nRows           整数    建地列数 2=本足場 1=一側足場                                           既定 2
+!   warnPen         整数    注記強調のペン番号 ペンテーブル依存                                    既定 20
+!   texSiz          実数    文字高mm                                                               既定 2.5
 ! ==========================================================
 
 ! ==========================================================
@@ -897,6 +898,31 @@ for ip = 1 to nSpan
 	x = x + spans[ip]
 next ip
 
+! 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の地盤から
+! 離れるので、区間両端の脚のうち下げ段数の少ない方に合わせて1段入れる
+! （数量と同じ規則。下げ段数は支柱下端の基準からの差÷刻みで求める）
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib5 = 1 to nBm
+			if x >= bmS[ib5] - 0.001 and x + spans[ip] <= bmS[ib5] + bmL[ib5] + 0.001 then inOpen = 1
+		next ib5
+		ma = 0
+		mb = 0
+		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+		mlo = ma
+		if mb < mlo then mlo = mb
+		if mlo >= 1 and inOpen = 0 then
+			zz = lv[1] - mlo * footStep
+			line2 x, zz, x + spans[ip], zz
+			line2 x, zz + 0.02, x + spans[ip], zz + 0.02
+		endif
+		x = x + spans[ip]
+	next ip
+endif
+
 ! 各作業層: 布板・手すり・中桟・幅木
 ! 全長に通して描くと、階段室や開口部（梁枠より下＝通路）にも床があることに
 ! なってしまう。数量の差し引きと同じ区間を空ける
@@ -1257,6 +1283,33 @@ for il = 1 to nLv
 		gosub 800
 	endif
 next il
+
+! ---- 継ぎ足した脚の区間の根がらみ（敷地高低差。立面・数量と同じ規則） ----
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib8 = 1 to nBm
+			if x >= bmS[ib8] - 0.001 and x + spans[ip] <= bmS[ib8] + bmL[ib8] + 0.001 then inOpen = 1
+		next ib8
+		ma = 0
+		mb = 0
+		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+		mlo = ma
+		if mb < mlo then mlo = mb
+		if mlo >= 1 and inOpen = 0 then
+			zz = lv[1] - mlo * footStep
+			for row = rowStart to 1
+				add x, -row * rowW, zz
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			next row
+		endif
+		x = x + spans[ip]
+	next ip
+endif
 
 ! ---- 踏板・幅木 ----
 if showDeck then

@@ -285,6 +285,31 @@ for ip = 1 to nSpan
 	x = x + spans[ip]
 next ip
 
+! 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の地盤から
+! 離れるので、区間両端の脚のうち下げ段数の少ない方に合わせて1段入れる
+! （数量と同じ規則。下げ段数は支柱下端の基準からの差÷刻みで求める）
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib5 = 1 to nBm
+			if x >= bmS[ib5] - 0.001 and x + spans[ip] <= bmS[ib5] + bmL[ib5] + 0.001 then inOpen = 1
+		next ib5
+		ma = 0
+		mb = 0
+		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+		mlo = ma
+		if mb < mlo then mlo = mb
+		if mlo >= 1 and inOpen = 0 then
+			zz = lv[1] - mlo * footStep
+			line2 x, zz, x + spans[ip], zz
+			line2 x, zz + 0.02, x + spans[ip], zz + 0.02
+		endif
+		x = x + spans[ip]
+	next ip
+endif
+
 ! 各作業層: 布板・手すり・中桟・幅木
 ! 全長に通して描くと、階段室や開口部（梁枠より下＝通路）にも床があることに
 ! なってしまう。数量の差し引きと同じ区間を空ける

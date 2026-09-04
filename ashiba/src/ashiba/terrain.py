@@ -107,6 +107,8 @@ class TerrainResult:
     over_jack_warning: str = ""
     # 帳票の呼び名（枠組は建枠）。ジャッキ量一覧の列名などに使う
     vertical_member_name: str = "支柱"
+    # 下げ段数の刻み（くさび=コマピッチ、枠組=調整枠の高さ）mm
+    step_mm: float = 0.0
 
     @property
     def jack_min_mm(self) -> float:
@@ -287,6 +289,7 @@ def solve_post_feet(
         notes=notes,
         over_jack_warning=over_jack_warning,
         vertical_member_name=vm,
+        step_mm=float(koma),
     )
 
 
@@ -377,3 +380,75 @@ def jack_table_rows(result: TerrainResult) -> list[list]:
             " / ".join(f.warnings) if f.warnings else "",
         ])
     return rows
+
+
+def terrain_step_mm(model: ScaffoldModel) -> float:
+    """下げ段数の刻み。くさびはコマピッチ、枠組は調整枠（最小の建枠）の高さ."""
+    koma = model.master.koma_pitch
+    if koma <= 0:
+        koma = min(model.master.frame_heights() or [model.master.floor_height])
+    return float(koma)
+
+
+def edge_foot_indices(model: ScaffoldModel, ep, n_feet: int) -> list[int]:
+    """この辺の支柱位置（始点・中間・終点）が feet の何番目か.
+
+    feet は post_positions() の順（各辺の始点＋中間支柱）。終点は次の辺の始点。
+    """
+    offset = sum(e.span_count for e in model.plan.edges if e.edge_index < ep.edge_index)
+    idx = list(range(offset, offset + ep.span_count))
+    nxt = offset + ep.span_count
+    idx.append(nxt if nxt < n_feet else 0)
+    return idx
+
+
+def extra_negarami(model: ScaffoldModel, terrain) -> dict[int, list[tuple[int, float]]]:
+    """継ぎ足した脚の区間に入れる根がらみ（辺 → [(スパン番号, 基準GLからの高さmm)]）.
+
+    基準の根がらみは最も高い地盤に合わせた高さなので、下げた脚では地盤から
+    離れる（地上第一の布2m以下＝安衛則571条、根がらみ＝570条）。区間の両端の
+    脚のうち下げ段数の少ない方に合わせ、その段数ぶん下げた高さに1段入れる。
+    くさびのコマ（緊結部）は全支柱で基準面の格子に揃うので、この高さは
+    両端の支柱の緊結部に必ず乗る。図面（2D/3D）も同じ規則で描く。
+    """
+    feet = list(getattr(terrain, "feet", []) or [])
+    out: dict[int, list[tuple[int, float]]] = {}
+    if not feet:
+        return out
+    step = terrain_step_mm(model)
+    nega = float(model.elevation.first_ledger_height)
+    for ep in model.plan.edges:
+        idx = edge_foot_indices(model, ep, len(feet))
+        if max(idx) >= len(feet):
+            continue
+        rows = []
+        for i in range(ep.span_count):
+            m = min(feet[idx[i]].koma_offset, feet[idx[i + 1]].koma_offset)
+            if m >= 1:
+                rows.append((i, nega - m * step))
+        if rows:
+            out[ep.edge_index] = rows
+    return out
+
+
+def first_ledger_heights(model: ScaffoldModel, terrain) -> list[float]:
+    """脚ごとの、その脚の地盤から最初の布（根がらみ）までの高さ（mm）.
+
+    継ぎ足し部の根がらみ（extra_negarami）を含めて、脚に取り付く最も低い布で見る。
+    """
+    feet = list(getattr(terrain, "feet", []) or [])
+    if not feet:
+        return []
+    gl_ref = max(f.gl_mm for f in feet)
+    nega = float(model.elevation.first_ledger_height)
+    levels: dict[int, list[float]] = {i: [nega] for i in range(len(feet))}
+    extra = extra_negarami(model, terrain)
+    for ep in model.plan.edges:
+        idx = edge_foot_indices(model, ep, len(feet))
+        if max(idx) >= len(feet):
+            continue
+        for i, lvl in extra.get(ep.edge_index, []):
+            levels[idx[i]].append(lvl)
+            levels[idx[i + 1]].append(lvl)
+    return [min(levels[i]) - (f.gl_mm - gl_ref) for i, f in enumerate(feet)]
+

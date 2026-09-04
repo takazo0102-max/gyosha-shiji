@@ -262,6 +262,9 @@ def take_off(
             f"開口部（梁枠より下）は通路なので、その区間の布材{open_rail_cut}本"
             "（根がらみ・床レベル・手すり）を差し引いています"
         )
+    # 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の
+    # 地盤から離れるので、区間ごとに1段追加する（図面も同じ規則で描く）
+    _add_extra_negarami(model, terrain, add, notes, rows)
 
     # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
     if advance_rail:
@@ -614,6 +617,26 @@ def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
     return landings_per_tower(model) * n_towers
 
 
+def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) -> None:
+    """敷地高低差で継ぎ足した脚の区間に入れる根がらみ（布材）を計上する."""
+    if terrain is None:
+        return
+    from .terrain import extra_negarami
+
+    m = model.master
+    n_extra = 0
+    for ep in model.plan.edges:
+        for i, _level in extra_negarami(model, terrain).get(ep.edge_index, []):
+            s = ep.spans[i]
+            add(m.find("布材", s), rows, f"継ぎ足し部の根がらみ（布材{s}）")
+            n_extra += rows
+    if n_extra:
+        notes.append(
+            f"敷地高低差で継ぎ足した脚の区間に根がらみ（布材）{n_extra}本を追加しています"
+            "（基準の根がらみが低い脚の地盤から離れるため。立面・3Dにも同じ高さで描いています）"
+        )
+
+
 def _note_deck_cells(notes, name: str, n_spans: int, n_levels: int,
                      stair_cut: int, n_towers: int, open_cut: int, final: int) -> None:
     """作業床の枚数の検算メモ。スパン×層から何をいくつ引いたかを書く.
@@ -870,6 +893,9 @@ def _count_frame_parts(
     n_joints = (sum(max(0, len(f.posts) - 1) for f in feet) if feet
                 else max(0, n_stages - 1) * n_frame_lines)
     add(pin, n_joints, "連結ピン（縦継ぎ1箇所に1本）")
+
+    # 継ぎ足した脚（調整枠）の区間の根がらみ（敷地高低差）。建枠の両脚に入るので2本
+    _add_extra_negarami(model, terrain, add, notes, 2)
 
     # ---- 幅木・壁つなぎ・階段枠 ----
     if model.config.has_toe_board:

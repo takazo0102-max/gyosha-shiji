@@ -135,6 +135,10 @@ def line_params(
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
     gl_list, jack_list = _foot_lists(model, ep, terrain)
+    # 継ぎ足し部の根がらみをGDLが同じ規則で描くための刻み（平坦なら0で描かない）
+    from .terrain import terrain_step_mm
+
+    foot_step = terrain_step_mm(model) / 1000.0 if gl_list else 0.0
     return fit_gdl_lists({
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
@@ -177,6 +181,7 @@ def line_params(
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,
+        "footStep": foot_step,
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
         "asagaoList": ",".join(str(h) for h in model.asagao_heights()),

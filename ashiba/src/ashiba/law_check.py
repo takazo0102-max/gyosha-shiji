@@ -40,7 +40,6 @@ def run_all_checks(
         check_full_scaffold_principle,
         check_working_deck,
         check_guard_rail,
-        check_first_ledger,
         check_negarami,
         check_wall_ties,
         check_series_lock,
@@ -50,6 +49,7 @@ def run_all_checks(
     results = [fn(model) for fn in checks]
     # 高さ(#8)は敷地の低い側で実高さが伸びる。名目高さだけ見ると、崖地で
     # 36mになっている足場を「16m ≦ 31m」で通してしまう
+    results.append(check_first_ledger(model, terrain))
     results.append(check_height_reinforcement(model, terrain))
     results.append(check_jack_extension(model, terrain))
     results.append(check_stairs(model, stair_plan))
@@ -167,11 +167,27 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
 
 # ---- #4 第一の布 ---------------------------------------------------------
 
-def check_first_ledger(m: ScaffoldModel) -> CheckResult:
+def check_first_ledger(m: ScaffoldModel, terrain=None) -> CheckResult:
     # 「地上第一の布は2m以下」は単管足場（安衛則571条1項四号）の規定。
     # くさびは単管に準じる。枠組は建枠脚部（根がらみ）が最下の横架材なので、
     # 同条ではなく建枠脚部が低いことの確認として扱う
     h = m.elevation.first_ledger_height
+    # 敷地に高低差があると、下げた脚では基準の根がらみが地盤から離れる。
+    # 継ぎ足し部の根がらみを含めた「その脚の地盤からの高さ」で最も高い脚を見る
+    from .terrain import first_ledger_heights
+
+    heights = first_ledger_heights(m, terrain)
+    site_note = ""
+    if heights:
+        h = int(round(max(heights)))
+        over = [x for x in heights if x > 2000]
+        if over:
+            site_note = (
+                f"（敷地の低い側{len(over)}本。継ぎ足し部の根がらみを入れても、"
+                "1スパン内の段差が大きく2mを超えます。段差位置での床均しか支柱位置の追加を検討）"
+            )
+        elif max(heights) > m.elevation.first_ledger_height + 1:
+            site_note = "（敷地の低い側の脚。継ぎ足し部の根がらみを含む）"
     if m.master.is_frame:
         name = "建枠脚部（第一の布）"
         basis = "安衛則570条・仮設工業会技術基準（建枠脚部・根がらみをできる限り低く）"
@@ -179,8 +195,8 @@ def check_first_ledger(m: ScaffoldModel) -> CheckResult:
         name = "第一の布"
         basis = "安衛則571条1項四号（単管足場に準じる: 地上第一の布は2m以下）"
     if h > 2000:
-        return CheckResult(4, "第一の布", NG, f"{name}高さ{h}mm > 2000mm", basis)
-    return CheckResult(4, "第一の布", OK, f"{name}高さ{h}mm ≦ 2000mm", basis)
+        return CheckResult(4, "第一の布", NG, f"{name}高さ{h}mm > 2000mm{site_note}", basis)
+    return CheckResult(4, "第一の布", OK, f"{name}高さ{h}mm ≦ 2000mm{site_note}", basis)
 
 
 # ---- #5 根がらみ ---------------------------------------------------------

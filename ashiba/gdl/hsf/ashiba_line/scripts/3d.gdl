@@ -110,6 +110,33 @@ for il = 1 to nLv
 	endif
 next il
 
+! ---- 継ぎ足した脚の区間の根がらみ（敷地高低差。立面・数量と同じ規則） ----
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib8 = 1 to nBm
+			if x >= bmS[ib8] - 0.001 and x + spans[ip] <= bmS[ib8] + bmL[ib8] + 0.001 then inOpen = 1
+		next ib8
+		ma = 0
+		mb = 0
+		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+		mlo = ma
+		if mb < mlo then mlo = mb
+		if mlo >= 1 and inOpen = 0 then
+			zz = lv[1] - mlo * footStep
+			for row = rowStart to 1
+				add x, -row * rowW, zz
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			next row
+		endif
+		x = x + spans[ip]
+	next ip
+endif
+
 ! ---- 踏板・幅木 ----
 if showDeck then
 	for il = 2 to nLv

@@ -45,6 +45,10 @@
 			<Description><![CDATA["ジャッキ繰り出し量"]]></Description>
 			<Value>0.1</Value>
 		</Length>
+		<Length Name="footStep">
+			<Description><![CDATA["継ぎ足しの刻み m（コマピッチ／調整枠。0で継ぎ足し根がらみを描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="komaPitch">
 			<Description><![CDATA["コマピッチ"]]></Description>
 			<Value>0.45</Value>
