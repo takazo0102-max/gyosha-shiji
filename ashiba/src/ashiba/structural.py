@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -264,6 +265,38 @@ class PostResult:
 
 
 @dataclass
+class OpeningCheck:
+    """開口部（梁枠）1箇所の構造検定.
+
+    - 梁枠上の積載: 作業床許容積載×梁枠スパン数×同時載荷層 ≦ 開口部上方許容積載荷重
+    - 支点: 梁枠に乗る支柱1本の軸力（梁枠より上の自重＋積載）≦ 梁枠の支点許容支持力
+    - 両端支柱: 通常の軸力＋梁枠の反力 ≦ 支柱の許容支持力
+    """
+
+    index: int
+    edge_index: int
+    beam_span_mm: int
+    beam_model: str
+    n_inner_posts: int
+    live_above_kn: float
+    live_limit_kn: Optional[float]
+    live_ok: bool
+    live_per_span_limit_kn: Optional[float]
+    support_kn: float
+    support_allow_kn: Optional[float]
+    support_source: str
+    support_ok: bool
+    reaction_kn: float
+    end_post_kn: float
+    end_post_allow_kn: float
+    end_post_ok: bool
+
+    @property
+    def ok(self) -> bool:
+        return self.live_ok and self.support_ok and self.end_post_ok
+
+
+@dataclass
 class StructuralResult:
     site: SiteCondition
     wind: WindResult
@@ -275,6 +308,8 @@ class StructuralResult:
     # 未確認のまま使われた耐力値。文字列（項目名）と差し替え先の行の両方を持つ
     unverified_used: list[str] = field(default_factory=list)
     unverified_rows: list[UnverifiedCapacity] = field(default_factory=list)
+    # 開口部（梁枠）ごとの検定。無ければ空
+    openings: list[OpeningCheck] = field(default_factory=list)
 
     @property
     def all_ok(self) -> bool:
@@ -557,6 +592,95 @@ def check_post(
     )
 
 
+def beam_support_allowable_kn(part) -> Optional[float]:
+    """梁枠の支点当たり許容支持力（note の「許容支持力18.5kN/支点(実大試験)・16.0kN(それ以外)」）.
+
+    条件付きの実大試験値ではなく、並んだ値のうち最小（それ以外の値）を採る。
+    """
+    m = re.search(r"許容支持力(.*)", part.note)
+    if not m:
+        return None
+    vals = [float(v) for v in re.findall(r"([\d.]+)\s*kN", m.group(1))]
+    return min(vals) if vals else None
+
+
+def check_openings(
+    model: ScaffoldModel, openings, post: PostResult, caps: dict
+) -> tuple[list[OpeningCheck], list[str], list[str]]:
+    """開口部（梁枠）の構造検定。戻り値は (検定, 警告, 注記)."""
+    out: list[OpeningCheck] = []
+    warnings: list[str] = []
+    notes: list[str] = []
+    if openings is None or not getattr(openings, "openings", None):
+        return out, warnings, notes
+    limit = caps.get(("開口部上方許容積載荷重", "合計"))
+    cap_deck = caps.get((_width_item(caps, "作業床許容積載荷重", model), "スパン"))
+    post_item, _ = _post_item(caps, model, False)
+    cap_post = caps.get((post_item, "0"))
+    height = float(model.scaffold_height_mm) or 1.0
+    vm = model.master.vertical_member_name
+    for i, o in enumerate(openings.openings):
+        beam = model.master.find("梁枠", o.beam_span_mm)
+        if beam is None:
+            continue
+        inner = openings.inner_posts.get(i, [])
+        beam_h = float(openings.beam_heights.get(i, 0.0))
+        n_spans = max(1, len(inner) + 1)
+        loaded = post.loaded_levels
+        live_above = (cap_deck.value if cap_deck else 0.0) * n_spans * loaded
+        live_limit = limit.value if limit else None
+        live_ok = live_limit is None or live_above <= live_limit + 1e-9
+        per_span_limit = (live_limit / (n_spans * loaded)) if live_limit else None
+        live_design = min(live_above, live_limit) if live_limit else live_above
+        # 梁枠に乗る支柱1本: 梁枠より上の自重＋その支柱が受け持つ1スパン分の積載
+        frac = max(0.0, (height - beam_h) / height)
+        support = post.dead_load_kn * frac + live_design / n_spans
+        allow = beam_support_allowable_kn(beam)
+        support_ok = allow is None or support <= allow + 1e-9
+        # 両端支柱: 通常の軸力に梁枠の反力（内側支柱の軸力と梁枠自重の半分）
+        beam_kn = beam.weight_kg * 9.80665 / 1000.0
+        reaction = (support * len(inner) + beam_kn) / 2.0
+        end_post = post.dead_load_kn + post.live_load_kn + reaction
+        end_allow = cap_post.value if cap_post else post.allowable_kn
+        end_ok = end_post <= end_allow + 1e-9
+        chk = OpeningCheck(
+            index=i, edge_index=o.edge_index, beam_span_mm=o.beam_span_mm, beam_model=beam.model_no,
+            n_inner_posts=len(inner), live_above_kn=round(live_above, 3), live_limit_kn=live_limit,
+            live_ok=live_ok, live_per_span_limit_kn=(round(per_span_limit, 3) if per_span_limit else None),
+            support_kn=round(support, 3), support_allow_kn=allow, support_source=beam.note,
+            support_ok=support_ok, reaction_kn=round(reaction, 3), end_post_kn=round(end_post, 3),
+            end_post_allow_kn=end_allow, end_post_ok=end_ok,
+        )
+        out.append(chk)
+        where = f"辺{o.edge_index}の開口部（梁枠{beam.model_no} {o.beam_span_mm}mm）"
+        if not live_ok:
+            notes.append(
+                f"{where}: 梁枠上の積載は{live_limit:.2f}kN以下に制限してください"
+                f"（作業床の通常積載{live_above:.2f}kN＝{cap_deck.value if cap_deck else 0}kN×{n_spans}スパン×{loaded}層に対し、"
+                f"1スパン{per_span_limit:.2f}kN＝約{per_span_limit * 1000 / 9.80665:.0f}kgまで）"
+            )
+        if allow is None:
+            warnings.append(
+                f"{where}: 梁枠の支点当たり許容支持力がマスタに無く、梁枠に乗る{vm}の軸力"
+                f"{support:.2f}kN/本の検定ができません。メーカー値で確認してください"
+            )
+        elif not support_ok:
+            warnings.append(
+                f"{where}: 梁枠に乗る{vm}の軸力{support:.2f}kN/本が梁枠の支点許容{allow:.2f}kNを超えます。"
+                "梁枠上の積載の低減か、支点の多い梁枠への変更が必要です"
+            )
+        if not end_ok:
+            warnings.append(
+                f"{where}: 両端{vm}の軸力{end_post:.2f}kN（通常{post.dead_load_kn + post.live_load_kn:.2f}"
+                f"＋反力{reaction:.2f}）が許容{end_allow:.2f}kNを超えます。両端{vm}の2本組等の補強が必要です"
+            )
+        else:
+            notes.append(
+                f"{where}: 両端{vm}の軸力{end_post:.2f}kN（反力{reaction:.2f}kN込み）≦ 許容{end_allow:.2f}kN"
+            )
+    return out, warnings, notes
+
+
 def _post_item(caps: dict, model: ScaffoldModel, widened: bool) -> tuple[str, str]:
     """支柱許容圧縮耐力の行名と、拡幅部の行が無いときの注意.
 
@@ -773,6 +897,7 @@ def run_structural(
     platforms=None,
     terrain=None,
     bracket_sections=None,
+    openings=None,
 ) -> StructuralResult:
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
@@ -804,6 +929,9 @@ def run_structural(
     notes: list[str] = []
     if post.widened_note:
         warnings.append(post.widened_note)
+    opening_checks, op_warn, op_notes = check_openings(model, openings, post, caps)
+    warnings += op_warn
+    notes += op_notes
     if post.inner_uplift_kn > 0:
         vm = model.master.vertical_member_name
         if post.uplift_ok:
@@ -906,4 +1034,5 @@ def run_structural(
         site=site, wind=wind, wall_tie=tie, post=post,
         warnings=warnings, notes=notes, unverified_used=unverified,
         unverified_rows=list(by_row.values()),
+        openings=opening_checks,
     )

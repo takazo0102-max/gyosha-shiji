@@ -787,7 +787,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     )
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain,
-        bracket_sections=brackets,
+        bracket_sections=brackets, openings=openings,
     )
 
     s = summary(checks)

@@ -114,6 +114,8 @@ def write_notification_xlsx(
     _sheet_wind(wb, structural)
     _sheet_wall_tie(wb, structural, model)
     _sheet_post(wb, structural)
+    if structural.openings:
+        _sheet_openings(wb, structural, model)
     _sheet_quantity(wb, quantity)
     _sheet_law_check(wb, checks)
     if terrain is not None and terrain.feet:
@@ -382,6 +384,32 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
         Cell("OK" if t.ok else "NG", STYLE_HEADER),
         Cell("" if t.ok else "壁つなぎ間隔の短縮または高耐力品を検討", STYLE_HEADER),
     ])
+
+
+def _sheet_openings(wb, structural: StructuralResult, model) -> None:
+    """計算書4: 開口部（梁枠）の検定。梁枠上の積載制限・支点・両端支柱."""
+    s = wb.sheet("計算書4_開口部梁枠")
+    vm = model.master.vertical_member_name
+    s.add_cells([Cell("開口部（梁枠）の検定", STYLE_BOLD)])
+    s.add_cells([Cell("項目", STYLE_HEADER), Cell("値", STYLE_HEADER), Cell("式・根拠", STYLE_HEADER)])
+    for oc in structural.openings:
+        _kv(s, "開口部", f"辺{oc.edge_index} 梁枠{oc.beam_model}（{oc.beam_span_mm}mm）",
+            f"梁枠に乗る{vm} {oc.n_inner_posts}本")
+        _kv(s, "梁枠上の積載", oc.live_above_kn,
+            "kN  作業床許容積載×梁枠スパン数×同時載荷層"
+            + (f"（上限{oc.live_limit_kn}kN → 1スパン{oc.live_per_span_limit_kn}kNまでに制限）"
+               if oc.live_limit_kn is not None and not oc.live_ok else ""))
+        _kv(s, f"梁枠に乗る{vm}の軸力", oc.support_kn,
+            "kN  梁枠より上の自重＋1スパン分の積載（制限後）")
+        _kv(s, "梁枠の支点許容支持力",
+            oc.support_allow_kn if oc.support_allow_kn is not None else "マスタに無し",
+            f"kN  {oc.support_source}" if oc.support_allow_kn is not None else "メーカー値で確認")
+        _kv(s, "梁枠の反力（両端各）", oc.reaction_kn, f"kN  (乗る{vm}の軸力×本数＋梁枠自重)÷2")
+        _kv(s, f"両端{vm}の軸力", oc.end_post_kn, f"kN  通常の軸力＋反力 ≦ 許容{oc.end_post_allow_kn}kN")
+        _kv(s, "判定", "OK" if oc.ok else "要対応",
+            "" if oc.ok else "計算条件シートの対応事項を参照")
+    for col, w in enumerate((22, 26, 90)):
+        s.set_width(col, w)
 
 
 def _sheet_post(wb, structural: StructuralResult) -> None:

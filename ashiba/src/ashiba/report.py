@@ -257,6 +257,13 @@ def write_report_md(
         if ps.inner_uplift_kn > 0:
             a(f"- 内側建地の引抜き: {ps.inner_uplift_kn}kN vs 自重{ps.dead_load_kn}kN "
               f"→ {'✅ 浮かない' if ps.uplift_ok else '⚠️ 自重超過（方杖の効果を見込まない値。浮き止めの要否を要確認）'}")
+        for oc in structural.openings:
+            a(f"- 開口部 辺{oc.edge_index} 梁枠{oc.beam_model}: 支点 {oc.support_kn}kN"
+              + (f" / {oc.support_allow_kn}kN" if oc.support_allow_kn is not None else "（許容はマスタに無し）")
+              + f"、両端{model.master.vertical_member_name} {oc.end_post_kn}kN / {oc.end_post_allow_kn}kN"
+              + f"、梁枠上の積載 {oc.live_above_kn}kN"
+              + (f" / {oc.live_limit_kn}kN" if oc.live_limit_kn is not None else "")
+              + f" → {'✅ OK' if oc.ok else '⚠️ 要対応'}")
         for nmsg in structural.notes:
             a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:
