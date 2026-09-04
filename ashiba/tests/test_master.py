@@ -45,9 +45,17 @@ class TestMasterCompleteness(unittest.TestCase):
     """部材が欠けた系列は読み込み時点で落とす."""
 
     def test_incomplete_series_is_rejected_with_the_missing_names(self):
-        """inch系列は布材しか無い。解いている途中で空のmin()を取る前に落とす."""
-        with self.assertRaises(SeriesLockError) as cm:
-            load_master("inch")
+        """布材しか無い系列は、解いている途中で空のmin()を取る前に落とす."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as d:
+            csv_path = Path(d) / "m.csv"
+            csv_path.write_text(
+                "series_id,category,model_no,nominal_dim,actual_dim,diameter,weight_kg,note\n"
+                "inch,布材,I-N1829,1829,1829,42.7,5.5,\n", encoding="utf-8")
+            with self.assertRaises(SeriesLockError) as cm:
+                load_master("inch", csv_path)
         msg = str(cm.exception)
         self.assertIn("不完全", msg)
         for cat in ("支柱", "踏板", "ジャッキ", "壁つなぎ"):

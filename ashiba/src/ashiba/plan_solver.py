@@ -229,11 +229,23 @@ def solve_plan(
                 "その区間は足場を回り込ませず直線で通す（渡す）計画にしてください"
             )
         target = e.length + (e.start_sign + e.end_sign) * spec.target
-        ranked = sorted(
+        # 「目標長に近い6件」だけだと、規格がmm単位で揃わない系列（インチ）では
+        # 端数だらけの合計ばかりが近くに並び、端数1本で組める合計（117mm離れる）
+        # が候補から落ちていた（30m面が610スパン×50本になった）。
+        # 近い順と端数の少ない順の両方から候補を取る
+        nearest = sorted(sums.items(), key=lambda kv: abs(kv[0] - target))[:6]
+        cleanest = sorted(
             sums.items(),
-            key=lambda kv: (abs(kv[0] - target), _small_span_count(kv[1], main_span)),
-        )
-        candidates.append(ranked[:6])
+            key=lambda kv: (_small_span_count(kv[1], main_span), len(kv[1]),
+                            abs(kv[0] - target)),
+        )[:6]
+        ranked: list[tuple[int, list[int]]] = []
+        seen: set[int] = set()
+        for kv in nearest + cleanest:
+            if kv[0] not in seen:
+                seen.add(kv[0])
+                ranked.append(kv)
+        candidates.append(ranked)
 
     # 軸ごとに独立: x方向に走る辺の式はy面の離れのみを含む（直交ポリゴン）
     best_combo: dict[int, tuple[int, list[int]]] = {}
@@ -406,7 +418,16 @@ def _solve_axis(
         # 墜落防止措置が要る面（離れ30cm超）は少ないほどよい
         n_fall = sum(1 for x in d if x > spec.fall_protection_limit)
         n_small = sum(_small_span_count(spans, main_span) for _s, spans in choice)
-        score = (n_hard, n_over, n_fall, n_small, dev)
+        # 顧客最小値（hard_min）だけは絶対。それ以外は重み付きで足す。
+        # 辞書順（n_over → n_fall → n_small）にしていたときは、離れが目標帯を
+        # 8.5mm下回るのを避けるために30m面を610スパン×50本にしていた
+        # （インチ規格で実際に起きた）。目標帯外（250〜350の外）は帯内で300超
+        # （墜落防止措置）より重く、目標帯外1面 ≒ 端数スパン6〜7本の重さにする
+        score = (
+            n_hard,
+            20.0 * n_over + 10.0 * n_fall + 3.0 * n_small + dev / 50.0,
+            n_small, dev,
+        )
         if best is None or score < best[0]:
             best = (score, choice, d)
 
