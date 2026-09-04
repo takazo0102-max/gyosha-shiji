@@ -749,9 +749,10 @@ def run_structural(
         else:
             warnings.append(
                 f"荷受けステージの偏心で内側{vm}に引抜き{post.inner_uplift_kn}kNが生じ、"
-                f"自重{post.dead_load_kn}kNを超えます（{post.uplift_source}）。ジャッキベースが"
-                "浮くので、方杖で外側建地へ流す構成にし、内側建地の浮き止め（根がらみへの緊結・"
-                "壁つなぎの増設）か出の縮小・積載の低減を検討してください"
+                f"自重{post.dead_load_kn}kNを超えます（{post.uplift_source}）。この値は方杖の効果を"
+                "見込まないてこモデルの安全側の値です。方杖の効きを含めた検討と、内側建地の浮き止め"
+                "（根がらみへの緊結・壁つなぎの増設）または出の縮小・積載の低減の要否を、有資格者が"
+                "確認してください"
             )
     unverified_caps: list[UnverifiedCapacity] = []
     if governing_foot is not None:

@@ -256,7 +256,7 @@ def write_report_md(
           + (f" ＋ 局所{ps.extra_load_kn}kN" if ps.extra_load_kn > 0 else ""))
         if ps.inner_uplift_kn > 0:
             a(f"- 内側建地の引抜き: {ps.inner_uplift_kn}kN vs 自重{ps.dead_load_kn}kN "
-              f"→ {'✅ 浮かない' if ps.uplift_ok else '❌ 浮く（方杖・浮き止め要）'}")
+              f"→ {'✅ 浮かない' if ps.uplift_ok else '⚠️ 自重超過（方杖の効果を見込まない値。浮き止めの要否を要確認）'}")
         for nmsg in structural.notes:
             a(f"- ℹ️ {nmsg}")
         for wmsg in structural.warnings:

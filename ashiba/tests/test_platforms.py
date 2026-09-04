@@ -475,5 +475,5 @@ class TestInnerPostUplift(unittest.TestCase):
         self.assertTrue([n for n in mild.notes if "引抜き" in n and "抑えられます" in n], mild.notes)
         heavy = run_structural(m, q, platforms=validate_platforms(m, [stage(load_kn=60.0, span_count=1)]))
         self.assertFalse(heavy.post.uplift_ok)
-        self.assertTrue([w for w in heavy.warnings if "引抜き" in w and "浮く" in w], heavy.warnings)
+        self.assertTrue([w for w in heavy.warnings if "引抜き" in w and "自重" in w and "超えます" in w], heavy.warnings)
 

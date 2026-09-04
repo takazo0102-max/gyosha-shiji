@@ -75,5 +75,41 @@ class TestStageBracketCheck(unittest.TestCase):
         self.assertFalse([i for i in r.issues if i.severity == "NG" and "受けブラケット" in i.message])
 
 
+class TestUpliftWordingDoesNotContradictTheHozue(unittest.TestCase):
+    """方杖付きのステージに「方杖を付けろ」と言わない.
+
+    引抜きはてこモデル（方杖の効果を見込まない）で出しているので、方杖が既に
+    ある計画には「安全側の値・有資格者確認」と言う。
+    """
+
+    def test_warning_and_sheets(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+        from ashiba.notification import write_notification_xlsx
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "combo_nd1800.json"))
+        self.assertTrue(all(s.has_hozue for s in r.platforms.stages))
+        w = [x for x in r.structural.warnings if "引抜き" in x]
+        self.assertTrue(w, r.structural.warnings)
+        self.assertIn("方杖の効果を見込まない", w[0])
+        self.assertNotIn("方杖で外側建地へ流す構成にし", w[0])
+        with tempfile.TemporaryDirectory() as d:
+            xl = Path(d) / "n.xlsx"
+            write_notification_xlsx(r.model, r.quantity, r.checks, r.structural, xl, "t")
+            import re
+
+            z = zipfile.ZipFile(xl)
+            names = re.findall(r'name="([^"]+)"', z.read("xl/workbook.xml").decode())
+            calc3 = z.read(f"xl/worksheets/sheet{names.index('計算書3_建地圧縮') + 1}.xml").decode()
+            row = next(m.group(1) for m in re.finditer(r"<row[^>]*>(.*?)</row>", calc3, re.S)
+                       if "引抜きの判定" in m.group(1))
+            self.assertIn("要確認", row)
+            self.assertNotIn(">NG<", row)
+
+
 if __name__ == "__main__":
     unittest.main()

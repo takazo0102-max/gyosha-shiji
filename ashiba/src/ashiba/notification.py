@@ -410,9 +410,10 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         if p.inner_uplift_kn > 0:
             _kv(s, "内側建地の引抜き U", p.inner_uplift_kn,
                 f"kN  偏心の裏側 P×a/b÷建地数（{p.uplift_source}）")
-            _kv(s, "引抜きの判定", "OK" if p.uplift_ok else "NG",
+            _kv(s, "引抜きの判定", "OK" if p.uplift_ok else "要確認",
                 f"U ≦ 自重 {p.dead_load_kn}kN なら浮かない"
-                + ("" if p.uplift_ok else "。方杖で外側へ流し、浮き止めを検討"))
+                + ("" if p.uplift_ok else
+                   "。方杖の効果を見込まないてこモデルの値。方杖の効きと浮き止めの要否を有資格者が確認"))
     else:
         _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
     s.add_blank()
