@@ -108,5 +108,34 @@ class TestBridgedZoneReachesQuantityAndReport(unittest.TestCase):
         self.assertGreater(plan.bridged_zones[0].span_count, 0)
 
 
+class TestBridgedZoneReachesTheDrawing(unittest.TestCase):
+    def test_bridge_list_is_sent_for_the_face(self):
+        from ashiba.elevation_solver import solve_elevation
+        from ashiba.gdl_params import line_params
+        from ashiba.model import ScaffoldConfig, ScaffoldModel
+
+        plan = solve_plan(with_notch(300, 3600), MASTER)
+        m = ScaffoldModel(master=MASTER, plan=plan,
+                          elevation=solve_elevation(16300, master=MASTER), config=ScaffoldConfig())
+        z = plan.bridged_zones[0]
+        p0 = line_params(m, plan.edges[0])
+        self.assertEqual(p0["bridgeList"], f"{z.start_mm:.0f},3600,300,0")
+        self.assertEqual(line_params(m, plan.edges[1])["bridgeList"], "")
+        bump = solve_plan(with_notch(300, 3600, bump=True), MASTER)
+        mb = ScaffoldModel(master=MASTER, plan=bump,
+                           elevation=solve_elevation(16300, master=MASTER), config=ScaffoldConfig())
+        self.assertTrue(line_params(mb, bump.edges[0])["bridgeList"].endswith(",300,1"))
+
+    def test_gdl_reads_and_draws_it(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        self.assertIn('<String Name="bridgeList">', (root / "paramlist.xml").read_text(encoding="utf-8"))
+        self.assertIn("rest = bridgeList", (root / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
+        body = (root / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("standoff + brD[ibr]", body)
+        self.assertIn("渡し", body)
+
+
 if __name__ == "__main__":
     unittest.main()

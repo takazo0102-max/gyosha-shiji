@@ -205,6 +205,10 @@
 			<Description><![CDATA["梁枠 mm 「開始,スパン,梁下高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="bridgeList">
+			<Description><![CDATA["渡した凹み・張り出し「開始,長さ,増える離れ,種別0/1」mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="stairList">
 			<Description><![CDATA["階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）"]]></Description>
 			<Value><![CDATA[""]]></Value>

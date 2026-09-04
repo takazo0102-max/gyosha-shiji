@@ -23,10 +23,11 @@ LIST_GROUP = {"brktList": 6}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
                  "tieHeightList": 200, "brktList": 24 * 6,
-                 "glList": 61, "jackList": 61}
+                 "glList": 61, "jackList": 61, "bridgeList": 8 * 4}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
                "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
-               "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ"}
+               "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ",
+               "bridgeList": "渡した区間の項目"}
 
 
 class GdlCapacityError(ValueError):
@@ -113,6 +114,17 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
     return gl, jack
 
 
+def _bridge_list(model: ScaffoldModel, ep) -> str:
+    """この辺の渡した区間「開始,長さ,増える離れ,種別(0=凹み/1=張り出し)」."""
+    zones = [z for z in (getattr(model.plan, "bridged_zones", None) or [])
+             if z.edge_index == ep.edge_index]
+    return ",".join(
+        f"{z.start_mm:.0f},{z.end_mm - z.start_mm:.0f},{z.depth_mm:.0f},"
+        f"{1 if z.kind == '張り出し' else 0}"
+        for z in zones
+    )
+
+
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
     platforms=None, bracket_sections=None, terrain=None,
@@ -178,6 +190,8 @@ def line_params(
         "brktList": _bracket_list(model, ep, bracket_sections),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
         # 平面では一度も描かれていなかった
+        # 渡した凹み・張り出し（実際の躯体線を平面に破線で示す）
+        "bridgeList": _bridge_list(model, ep),
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,

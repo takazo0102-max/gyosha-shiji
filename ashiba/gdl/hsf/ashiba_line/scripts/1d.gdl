@@ -22,6 +22,10 @@ dim stL[8]
 dim bmS[8]
 dim bmL[8]
 dim bmH[8]
+dim brS[8]
+dim brL[8]
+dim brD[8]
+dim brK[8]
 dim sgS[8]
 dim sgL[8]
 dim sgP[8]
@@ -277,6 +281,41 @@ for tc = 1 to 4
 		endif
 	endwhile
 next tc
+
+! ---- bridgeList をパース「開始,長さ,増える離れ,種別(0=凹み/1=張り出し)」の繰り返し (mm→m) ----
+! 最小スパン未満の凹み・張り出しは直線で渡す。実際の躯体線は離れが増えるので
+! 平面に破線で示す（数量の要確認と同じ区間）
+nBr = 0
+brIdx = 0
+brT1 = 0
+brT2 = 0
+brT3 = 0
+rest = bridgeList
+while strlen(rest) > 0 and nBr < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		brIdx = brIdx + 1
+		md = brIdx - 4 * int(brIdx / 4)   ! 1,2,3,0 の繰り返し
+		if md = 1 then brT1 = v / 1000
+		if md = 2 then brT2 = v / 1000
+		if md = 3 then brT3 = v / 1000
+		if md = 0 then
+			nBr = nBr + 1
+			brS[nBr] = brT1
+			brL[nBr] = brT2
+			brD[nBr] = brT3
+			brK[nBr] = v
+		endif
+	endif
+endwhile
 
 ! ---- stageList をパース「開始,長さ,出,設置高さ,方杖」の繰り返し (mm→m) ----
 ! 方杖は0/1（数量拾いと同じ指定を使う。図だけ勝手に方杖を付けない）
