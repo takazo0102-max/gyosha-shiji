@@ -102,5 +102,24 @@ class TestOpeningCheck(unittest.TestCase):
             self.assertIn("開口部 辺0 梁枠NDH36", md.read_text(encoding="utf-8"))
 
 
+class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):
+    """開口部で抜いた建地は総重量を分担しない（数量のジャッキ数と同じ本数で割る）."""
+
+    def test_post_count_excludes_removed_posts(self):
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
+        self.assertGreater(r.openings.removed_posts, 0)
+        expect = r.model.plan.total_posts * 2 - r.openings.removed_posts
+        self.assertEqual(r.structural.post.n_posts, expect)
+        jacks = sum(l.qty for l in r.quantity.lines
+                    if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
+        self.assertEqual(r.structural.post.n_posts, jacks)
+
+
 if __name__ == "__main__":
     unittest.main()
+

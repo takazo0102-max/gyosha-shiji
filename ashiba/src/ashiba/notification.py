@@ -114,7 +114,7 @@ def write_notification_xlsx(
     _sheet_conditions(wb, model, structural, project_name)
     _sheet_wind(wb, structural)
     _sheet_wall_tie(wb, structural, model)
-    _sheet_post(wb, structural)
+    _sheet_post(wb, structural, openings)
     if structural.openings:
         _sheet_openings(wb, structural, model)
     _sheet_quantity(wb, quantity)
@@ -422,7 +422,7 @@ def _sheet_openings(wb, structural: StructuralResult, model) -> None:
         s.set_width(col, w)
 
 
-def _sheet_post(wb, structural: StructuralResult) -> None:
+def _sheet_post(wb, structural: StructuralResult, openings=None) -> None:
     s = wb.sheet("計算書3_建地圧縮")
     s.set_width(0, 30)
     s.set_width(1, 18)
@@ -434,7 +434,9 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
     s.add_header(["項目", "値", "式・根拠"])
     # 式だけ書いて元の数を出さないと、確認する人が値を追えない
     _kv(s, "足場総重量", p.total_weight_kg, "kg  部材等明細書の合計")
-    _kv(s, "建地本数", p.n_posts, f"本（{vm}位置数×列数）")
+    removed = openings.removed_posts if openings is not None and getattr(openings, "removed_posts", 0) else 0
+    _kv(s, "建地本数", p.n_posts,
+        f"本（{vm}位置数×列数" + (f"−開口部で抜いた{removed}本" if removed else "") + "）")
     _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
     _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  " + (p.deck_source or "capacity.csv"))
     _kv(s, "同時載荷層数", p.loaded_levels, "層（実務: 2層以内）")

@@ -524,6 +524,7 @@ def check_post(
     extra_load_source: str = "",
     jack_extension_mm: Optional[int] = None,
     widened: bool = False,
+    removed_posts: int = 0,
 ) -> PostResult:
     """建地1本あたり N = 自重 + 積載 ≦ 許容支持力（ジャッキ繰出し長で変動）.
 
@@ -544,7 +545,9 @@ def check_post(
     single_row = (
         model.config.scaffold_form == "一側足場" and not model.master.is_frame
     )
-    n_posts = model.plan.total_posts * (1 if single_row else 2)
+    # 開口部で抜いた建地は地盤に立たない（梁枠より上の分は梁枠両端の建地が受ける＝
+    # 計算書4）。総重量を割る本数は実際に立っている本数にする。数量のジャッキ数と同じ
+    n_posts = model.plan.total_posts * (1 if single_row else 2) - max(0, removed_posts)
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
 
     deck_item = _width_item(caps, "作業床許容積載荷重", model)
@@ -970,7 +973,8 @@ def run_structural(
         if max_jack > model.elevation.jack_extension:
             governing_foot = worst
     widened = any(getattr(b, "direction", "") == "張出" for b in (bracket_sections or []))
-    post = check_post(model, quantity, site, caps, extra, source, max_jack, widened=widened)
+    post = check_post(model, quantity, site, caps, extra, source, max_jack, widened=widened,
+                      removed_posts=(openings.removed_posts if openings is not None else 0))
     if platforms is not None and platforms.max_inner_uplift_kn > 0:
         post.inner_uplift_kn = round(platforms.max_inner_uplift_kn, 3)
         post.uplift_source = platforms.uplift_governing or ""
