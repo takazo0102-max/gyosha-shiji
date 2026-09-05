@@ -622,7 +622,8 @@ def _count_safe_wing_parts(
     for sp, n in span_counts.items():
         deck = m.deck_parts(400, sp)
         qty = 3 * n * asagao.stages
-        if deck is None or "キャッチャー用" in wing.note and "踏板" in wing.note and "B用" in wing.note:
+        # マスタ note の「B用踏板は使用不可」= その系列の踏板を張出部に使わない指示
+        if deck is None or "B用踏板は使用不可" in wing.note:
             missing[sp] = qty
             continue
         add(deck, qty, f"セーフウイング張出部の踏板{sp}（3枚/スパン）")
