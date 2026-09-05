@@ -307,5 +307,49 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         self.assertEqual(m.wall_ties, before)
 
 
+class TestTiesInBridgedZones(unittest.TestCase):
+    """渡した区間（凹み・斜辺）の中の壁つなぎは、増えた離れで長さを選ぶ."""
+
+    def test_recess_adds_its_depth_inside_the_zone(self):
+        master = load_master("shinwa_A")
+        notch = [(0, 0), (12000, 0), (12000, 300), (15600, 300), (15600, 0),
+                 (30000, 0), (30000, 20000), (0, 20000)]
+        m = ScaffoldModel(master=master, plan=solve_plan(notch, master),
+                          elevation=solve_elevation(16300, master=master), config=ScaffoldConfig())
+        z = next(z for z in m.plan.bridged_zones if z.kind == "凹み")
+        inside = (z.start_mm + z.end_mm) / 2
+        base = wall_tie_required_length_mm(m, z.edge_index)
+        self.assertAlmostEqual(wall_tie_required_length_mm(m, z.edge_index, inside), base + 300, places=6)
+        self.assertAlmostEqual(wall_tie_required_length_mm(m, z.edge_index, z.start_mm - 100), base, places=6)
+        q = take_off(m)
+        self.assertEqual(sum(l.qty for l in q.lines if l.part.category == "壁つなぎ"), len(m.wall_ties))
+
+    def test_diagonal_zone_reports_unreachable_ties(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "rect_30x20.json").read_text(encoding="utf-8"))
+        spec["outline_mm"] = [[0, 0], [30000, 0], [30000, 12000], [20000, 20000], [0, 20000]]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        hit = [w for w in r.quantity.warnings if "躯体に届きません" in w]
+        self.assertEqual(len(hit), 1, r.quantity.warnings)
+        self.assertIn("NK-90112II", hit[0])
+        # 区間の中でも線形に増える: 浅い端の壁つなぎは通常品で足りる
+        z = next(z for z in r.model.plan.bridged_zones if z.kind == "斜辺" and z.deep_end == "end")
+        shallow = wall_tie_required_length_mm(r.model, z.edge_index, z.start_mm + 100)
+        deep = wall_tie_required_length_mm(r.model, z.edge_index, z.end_mm - 100)
+        self.assertLess(shallow, deep)
+        self.assertEqual(sum(l.qty for l in r.quantity.lines if l.part.category == "壁つなぎ"),
+                         len(r.model.wall_ties))
+
+
 if __name__ == "__main__":
     unittest.main()
+

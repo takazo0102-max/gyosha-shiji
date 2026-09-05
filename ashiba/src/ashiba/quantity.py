@@ -828,12 +828,40 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
         )
 
 
-def wall_tie_required_length_mm(model: ScaffoldModel, edge_index: int) -> float:
-    """その面の壁つなぎに要る長さ（躯体面〜支柱芯＝離れ＋支柱半径）."""
+def bridged_extra_standoff_mm(model: ScaffoldModel, edge_index: int, position_mm: float) -> float:
+    """渡した区間（凹み・張り出し・斜辺）の中で増える離れ（その位置での値）.
+
+    凹みは区間で一定、斜辺は深い側で最大・反対側で0の線形。区間外は0。
+    """
+    extra = 0.0
+    for z in getattr(model.plan, "bridged_zones", None) or []:
+        if z.edge_index != edge_index or not (z.start_mm - 1e-6 <= position_mm <= z.end_mm + 1e-6):
+            continue
+        deep = getattr(z, "deep_end", "uniform")
+        width = max(z.end_mm - z.start_mm, 1e-9)
+        if deep == "end":
+            v = z.depth_mm * (position_mm - z.start_mm) / width
+        elif deep == "start":
+            v = z.depth_mm * (z.end_mm - position_mm) / width
+        else:
+            v = z.depth_mm
+        extra = max(extra, v)
+    return extra
+
+
+def wall_tie_required_length_mm(
+    model: ScaffoldModel, edge_index: int, position_mm: Optional[float] = None
+) -> float:
+    """その面の壁つなぎに要る長さ（躯体面〜支柱芯＝離れ＋支柱半径）.
+
+    position_mm を渡すと、渡した区間（凹み・斜辺）の中ではそこで増える離れを足す。
+    区間の中の壁つなぎを面の離れで選ぶと、実際の躯体に届かない品を計上する。
+    """
     standoff = float(model.plan.standoffs[edge_index]) if edge_index < len(model.plan.standoffs) else 0.0
     posts = model.master.by_category(model.master.vertical_member_name if not model.master.is_frame else "建枠")
     dia = next((p.diameter for p in posts if p.diameter > 0), 42.7)
-    return standoff + dia / 2.0
+    extra = bridged_extra_standoff_mm(model, edge_index, position_mm) if position_mm is not None else 0.0
+    return standoff + extra + dia / 2.0
 
 
 def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None:
@@ -862,9 +890,17 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     counts: dict[tuple[str, str], int] = {}
     parts = {p.model_no: p for p in cands}
     uncovered: dict[int, tuple[int, Part, int]] = {}   # 辺 -> (本数, 当てた品, 範囲までの差mm)
+    unreachable: dict[int, tuple[int, int]] = {}       # 辺 -> (本数, 最大の必要長さ)
+    longest = max(p.adjustable_range()[1] for p in cands)
     for t in model.wall_ties:
-        need = int(round(wall_tie_required_length_mm(model, t.edge_index)))
+        need = int(round(wall_tie_required_length_mm(model, t.edge_index, t.position_mm)))
         fit = next((p for p in cands if p.covers(need)), None)
+        if fit is None and need > longest:
+            # 渡した区間（凹み・斜辺）の中で、最長の壁つなぎでも躯体に届かない位置。
+            # 本数は図面と合わせて最長品で計上し、別途の控えを名指しで出す
+            fit = cands[-1]
+            n, mx = unreachable.get(t.edge_index, (0, 0))
+            unreachable[t.edge_index] = (n + 1, max(mx, need))
         if fit is None:
             # 範囲の隙間（日建 KS200 160〜240 と KS400 250〜420 の間の 241〜249 など）に
             # 落ちた面は、いちばん近い範囲の品を当てる。以前は既定品（最長の KS700）に
@@ -883,6 +919,16 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
         counts[key] = counts.get(key, 0) + 1
     for (no, kind), n in counts.items():
         add(parts[no], n, labels.get(kind, kind))
+    if unreachable and notes is not None and hasattr(notes, "action"):
+        faces = "・".join(
+            f"{model.face_name(e)} {n}本（最大 要{mx}mm）" for e, (n, mx) in sorted(unreachable.items())
+        )
+        notes.action(
+            f"渡した区間（凹み・斜辺）の中の壁つなぎは離れが増え、最長の壁つなぎ"
+            f"（{cands[-1].model_no} 〜{longest}mm）でも躯体に届きません: {faces}。"
+            "その位置は単管等で躯体まで控えを取るか、区間の外の支柱へ壁つなぎを移してください"
+            "（数量は最長品で計上しています）"
+        )
     if uncovered and notes is not None and hasattr(notes, "action"):
         faces = "・".join(
             f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本、"
