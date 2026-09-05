@@ -338,9 +338,22 @@ class TestTiesInBridgedZones(unittest.TestCase):
             p = Path(d) / "s.json"
             p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
             r = solve_all(load_spec(p))
-        hit = [w for w in r.quantity.warnings if "躯体に届きません" in w]
-        self.assertEqual(len(hit), 1, r.quantity.warnings)
-        self.assertIn("NK-90112II", hit[0])
+        # 届かない位置の壁つなぎは届く支柱へ寄せるので、数量側の「届かない」手配は出ない
+        self.assertFalse([w for w in r.quantity.warnings if "躯体に届きません" in w], r.quantity.warnings)
+        moved = [w[2] for w in r.warnings if "届く位置の支柱へ寄せました" in w[2]]
+        self.assertTrue(1 <= len(moved) <= 2, [w[2] for w in r.warnings])   # 格子／取付部で最大2件
+        # 届かない帯は検定から除いて別途の控えを求める。壁つなぎの検定はその外で成立する
+        self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie)
+        self.assertTrue([w for w in r.structural.warnings if "検定から除いています" in w], r.structural.warnings)
+        # 法規#7: 帯は別途の控えで拘束する前提。NGではなく前提を書いたWARN
+        c7 = next(c for c in r.checks if c.check_id == 7)
+        self.assertEqual(c7.status, "WARN", c7.message)
+        self.assertIn("届かない帯", c7.message)
+        self.assertIn("別途の控え", c7.message)
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        longest = max(p.adjustable_range()[1] for p in r.model.master.by_category("壁つなぎ"))
+        for t in r.model.wall_ties:
+            self.assertLessEqual(wall_tie_required_length_mm(r.model, t.edge_index, t.position_mm), longest + 1e-6)
         # 区間の中でも線形に増える: 浅い端の壁つなぎは通常品で足りる
         z = next(z for z in r.model.plan.bridged_zones if z.kind == "斜辺" and z.deep_end == "end")
         shallow = wall_tie_required_length_mm(r.model, z.edge_index, z.start_mm + 100)

@@ -304,6 +304,23 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
         problems.append(f"水平間隔{h_max:.0f}mm > {h_lim:.0f}mm")
     if problems:
         return CheckResult(7, "壁つなぎ", NG, "、".join(problems), basis)
+    # 渡した区間の深い所（壁つなぎが届かない帯）は別途の控えで拘束する前提で間隔から
+    # 除いている。黙って通さず、帯と前提を書く
+    from .ties import unreachable_bands
+
+    bands = unreachable_bands(m)
+    if bands:
+        _v_raw, h_raw = m.wall_tie_max_spacing(exclude_unreachable=False)
+        detail = "、".join(
+            f"{m.face_name(e)} {a:.0f}〜{b:.0f}mm" for e, bs in sorted(bands.items()) for a, b in bs
+        )
+        return CheckResult(
+            7, "壁つなぎ", WARN,
+            f"最大 垂直{v_max:.0f}mm×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）"
+            f"／壁つなぎが届かない帯: {detail}。帯は単管等の別途の控えで躯体に固定する前提で"
+            f"間隔から除いています（帯を含めた水平間隔は{h_raw:.0f}mm）",
+            basis,
+        )
     # 間隔が法規内でも、壁つなぎが1本も入らない面は別に挙げる。
     # 間隔の最大値だけ見ていると、その面の存在が結果に出てこない
     untied = m.edges_without_wall_ties()

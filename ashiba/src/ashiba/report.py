@@ -172,8 +172,11 @@ def write_report_md(
         a(f"| {ep.edge_index} | {face} | ({vx:.0f}, {vy:.0f}) | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
     for z in getattr(model.plan, "bridged_zones", None) or []:
+        deep = getattr(z, "deep_end", "uniform")
+        how = (f"離れ＋最大{z.depth_mm:.0f}mm（{'終点' if deep == 'end' else '始点'}側で最大、斜辺に沿って線形）"
+               if z.kind == "斜辺" else f"離れ＋{z.depth_mm:.0f}mm")
         a(f"- 渡した区間: {model.face_name(z.edge_index)} 始点から{z.start_mm:.0f}〜{z.end_mm:.0f}mm"
-          f"（{z.kind} 幅{z.width_mm:.0f}mm、{z.span_count}スパン）。離れ＋{z.depth_mm:.0f}mm"
+          f"（{z.kind} 幅{z.width_mm:.0f}mm、{z.span_count}スパン）。{how}"
           "（措置の本数は数量サマリの要確認）")
     if model.plan.corner_steps:
         a("")

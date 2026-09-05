@@ -171,3 +171,97 @@ def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
     msg += "。寄せた面の水平間隔は法規チェック#4で判定しています"
     return [msg]
 
+
+def unreachable_bands(model: ScaffoldModel) -> dict[int, list[tuple[float, float]]]:
+    """辺ごとに、最長の壁つなぎでも躯体に届かない区間（始点からのmm）.
+
+    渡した区間（凹み・斜辺）で増える離れが（最長品の上限 − 面の必要長さ）を超える所。
+    斜辺は線形に増えるので、しきい値を超える側の部分区間になる。
+    """
+    from .quantity import wall_tie_required_length_mm
+
+    zones = getattr(model.plan, "bridged_zones", None) or []
+    cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
+    if not zones or not cands:
+        return {}
+    longest = max(p.adjustable_range()[1] for p in cands)
+    out: dict[int, list[tuple[float, float]]] = {}
+    for z in zones:
+        limit = longest - wall_tie_required_length_mm(model, z.edge_index)
+        width = max(z.end_mm - z.start_mm, 1e-9)
+        deep = getattr(z, "deep_end", "uniform")
+        if z.depth_mm <= limit + 1e-9:
+            continue
+        if deep == "end":
+            band = (z.start_mm + max(limit, 0.0) * width / z.depth_mm, z.end_mm)
+        elif deep == "start":
+            band = (z.start_mm, z.end_mm - max(limit, 0.0) * width / z.depth_mm)
+        else:
+            band = (z.start_mm, z.end_mm)
+        if band[1] - band[0] > 1e-6:
+            out.setdefault(z.edge_index, []).append(band)
+    for e, bands in out.items():
+        bands.sort()
+        merged: list[tuple[float, float]] = []
+        for a, b in bands:
+            if merged and a <= merged[-1][1] + 1e-6:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+            else:
+                merged.append((a, b))
+        out[e] = merged
+    return out
+
+
+def relocate_unreachable_ties(model: ScaffoldModel, label: str = "壁つなぎ") -> list[str]:
+    """渡した区間（凹み・斜辺）の中で最長の壁つなぎでも躯体に届かない壁つなぎを、届く位置の支柱へ寄せる.
+
+    開口部の寄せと同じ考え方。同じ辺の支柱位置のうち、その位置で要る長さが最長品の
+    範囲に収まる最も近い支柱へ動かす（どちら側でもよい）。届く支柱が無ければ動かさず
+    （数量側が名指しで手配に出す）。寄せた先に同じ高さの壁つなぎがあれば1本にまとめる。
+    """
+    from .quantity import wall_tie_required_length_mm
+
+    zones = getattr(model.plan, "bridged_zones", None) or []
+    cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
+    if not zones or not cands:
+        return []
+    longest = max(p.adjustable_range()[1] for p in cands)
+    posts_by_edge: dict[int, list[float]] = {}
+    for e in model.plan.edges:
+        xs = [0.0]
+        for sp in e.spans:
+            xs.append(xs[-1] + sp)
+        posts_by_edge[e.edge_index] = xs
+    moved: dict[int, int] = {}
+    stuck: dict[int, int] = {}
+    merged = 0
+    keep: list[WallTie] = []
+    for t in model.wall_ties:
+        need = wall_tie_required_length_mm(model, t.edge_index, t.position_mm)
+        if need <= longest + 1e-6:
+            keep.append(t)
+            continue
+        ok = [x for x in posts_by_edge.get(t.edge_index, [])
+              if wall_tie_required_length_mm(model, t.edge_index, x) <= longest + 1e-6]
+        if not ok:
+            stuck[t.edge_index] = stuck.get(t.edge_index, 0) + 1
+            keep.append(t)
+            continue
+        new_x = min(ok, key=lambda x: (abs(x - t.position_mm), x))
+        if any(k.edge_index == t.edge_index and abs(k.position_mm - new_x) < 1e-6
+               and k.height_mm == t.height_mm for k in keep):
+            merged += 1
+        else:
+            keep.append(WallTie(t.edge_index, new_x, t.height_mm, t.kind))
+        moved[t.edge_index] = moved.get(t.edge_index, 0) + 1
+    model.wall_ties = keep
+    if not moved:
+        return []
+    faces = "・".join(f"{model.face_name(e)} {n}本" for e, n in sorted(moved.items()))
+    msg = (f"渡した区間（凹み・斜辺）の中で最長の壁つなぎ（〜{longest:.0f}mm）でも躯体に届かない{label}"
+           f"{faces}を、届く位置の支柱へ寄せました")
+    if merged:
+        msg += f"（うち{merged}本は寄せた先の壁つなぎと同じ位置なので1本にまとめています）"
+    msg += "。届かない帯の風荷重は壁つなぎの検定から除き、別途の控え（構造の要確認）で受けます"
+    return [msg]
+

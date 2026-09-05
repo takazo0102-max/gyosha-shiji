@@ -276,10 +276,23 @@ class ScaffoldModel:
         has = {t.edge_index for t in self.wall_ties}
         return [e.edge_index for e in self.plan.edges if e.edge_index not in has]
 
-    def wall_tie_max_spacing(self) -> tuple[float, float]:
-        """壁つなぎの実配置から(垂直最大, 水平最大)間隔[mm]を返す."""
+    def wall_tie_max_spacing(self, exclude_unreachable: bool = True) -> tuple[float, float]:
+        """壁つなぎの実配置から(垂直最大, 水平最大)間隔[mm]を返す.
+
+        exclude_unreachable: 渡した区間（凹み・斜辺）の深い所は最長の壁つなぎでも
+        躯体に届かず、単管等の別途の控えで固定する帯。その帯は控えで拘束される前提で
+        水平間隔の計算から除く（帯の両端を拘束点として数える）。
+        """
         if not self.wall_ties:
             return (float("inf"), float("inf"))
+        bands: dict[int, list[tuple[float, float]]] = {}
+        if exclude_unreachable:
+            try:
+                from .ties import unreachable_bands
+
+                bands = unreachable_bands(self)
+            except Exception:
+                bands = {}
         v_max = 0.0
         h_max = 0.0
         heights = sorted({t.height_mm for t in self.wall_ties})
@@ -299,9 +312,14 @@ class ScaffoldModel:
                 if e.spans and e.scaffold_length > max(e.spans):
                     h_max = max(h_max, e.scaffold_length)
                 continue
+            # 届かない帯の両端は控えの拘束点。帯の内側（a〜b）は間隔として数えない
+            edge_bands = bands.get(e.edge_index, [])
+            points = sorted(set(xs) | {a for a, _b in edge_bands} | {b for _a, b in edge_bands})
             prev_x = 0.0
-            for x in xs:
-                h_max = max(h_max, x - prev_x)
+            for x in points:
+                inside = any(a - 1e-6 <= prev_x and x <= b + 1e-6 for a, b in edge_bands)
+                if not inside:
+                    h_max = max(h_max, x - prev_x)
                 prev_x = x
             h_max = max(h_max, e.scaffold_length - prev_x)
         return (v_max, h_max)

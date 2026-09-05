@@ -424,6 +424,9 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
     if not ties:
         return out
     top = float(model.scaffold_height_mm)
+    from .ties import unreachable_bands
+
+    bands = unreachable_bands(model)
 
     for edge in model.plan.edges:
         edge_ties = [t for t in ties if t.edge_index == edge.edge_index]
@@ -437,6 +440,13 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
             poly = _clip(poly, 0.0, -1.0, -z0 / 2.0)             # z ≥ z0/2
             poly = _clip(poly, -1.0, 0.0, -x0 / 2.0)             # x ≥ x0/2
             poly = _clip(poly, 1.0, 0.0, (length + x0) / 2.0)    # x ≤ (L+x0)/2
+            # 壁つなぎが届かない帯（渡した区間の深い所）はこの検定の外。帯の風荷重は
+            # 別途の控えが受ける前提で、帯の手前までを受け持ち領域にする
+            for a, b in bands.get(edge.edge_index, []):
+                if x0 <= a + 1e-6:
+                    poly = _clip(poly, 1.0, 0.0, a)              # x ≤ a
+                elif x0 >= b - 1e-6:
+                    poly = _clip(poly, -1.0, 0.0, -b)            # x ≥ b
             for (x1, z1) in pts:
                 if abs(x1 - x0) < 1e-9 and abs(z1 - z0) < 1e-9:
                     continue
@@ -842,7 +852,7 @@ def optimize_wall_ties(
     opening_beam サンプルが寄せた後に検定比1.10で落ちた）。
     """
     from .model import generate_wall_ties  # 循環インポート回避のため関数内で解決
-    from .ties import merge_attachment_ties, relocate_ties_off_openings
+    from .ties import merge_attachment_ties, relocate_ties_off_openings, relocate_unreachable_ties
 
     def layout() -> list[str]:
         """候補の格子に、開口部の寄せと取付部（朝顔・ステージ）の壁つなぎを載せる.
@@ -854,6 +864,8 @@ def optimize_wall_ties(
         notes = relocate_ties_off_openings(model, openings)
         merge_attachment_ties(model, platforms)
         notes += relocate_ties_off_openings(model, openings)
+        # 渡した区間の深い所（最長品でも届かない）の壁つなぎは、届く支柱へ寄せる
+        notes += relocate_unreachable_ties(model)
         return notes
 
     site = site or SiteCondition(period_days=model.config.period_days)
@@ -957,6 +969,7 @@ def run_structural(
 
     wind = compute_wind(model, site, height_mm=actual_max_height_mm(model, terrain)[0])
     tie = check_wall_tie(model, wind, caps)
+
     # 荷受けステージがあれば、その直下の建地（最も厳しい1本）で検定する
     extra = platforms.max_post_load_kn if platforms else 0.0
     source = (
@@ -980,6 +993,19 @@ def run_structural(
         post.uplift_source = platforms.uplift_governing or ""
 
     warnings: list[str] = []
+    # 壁つなぎが届かない帯（渡した区間の深い所）は検定の外。面積を出して別途の控えを求める
+    from .ties import unreachable_bands
+    _bands = unreachable_bands(model)
+    if _bands:
+        _top = float(model.scaffold_height_mm)
+        _txt = "・".join(
+            f"{model.face_name(e)} {a:.0f}〜{b:.0f}mm（{(b - a) * _top / 1e6:.1f}m²）"
+            for e, bs in sorted(_bands.items()) for a, b in bs
+        )
+        warnings.append(
+            f"渡した区間の深い所は最長の壁つなぎでも躯体に届かず、壁つなぎの検定から除いています: {_txt}。"
+            "この帯の風荷重は単管等で躯体まで控えを取って受けてください（控えの設計は本ツールの対象外）"
+        )
     notes: list[str] = []
     if post.widened_note:
         warnings.append(post.widened_note)
