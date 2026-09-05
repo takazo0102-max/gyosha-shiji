@@ -39,7 +39,7 @@ ATTACHMENTS = [
     ("案内図", "別途作成", "現場位置がわかる地図"),
     ("工程表", "別途作成", "足場の組立・解体時期を含む工程"),
     ("平面図", "本ツール出力", "足場ライン配置＋スパン・離れ寸法"),
-    ("立面図", "本ツール出力", "支柱構成・作業層・壁つなぎ位置"),
+    ("立面図", "本ツール出力", "建地構成・作業層・壁つなぎ位置"),
     ("詳細図", "本ツール出力", "脚部・壁つなぎ部・コーナー部ほか"),
     ("部材等明細書", "本ツール出力", "数量表シート（型番・数量・重量）"),
     ("構造計算書", "本ツール出力", "風荷重・壁つなぎ・建地圧縮シート"),
@@ -436,7 +436,7 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
             "a=出/2・b=内外の建地間隔、下限1.5倍。間口の建地数で割る）")
         _kv(s, "軸力 N", p.total_kn,
             "kN  N = 自重 + 積載 + 局所荷重" if p.includes_extra
-            else "kN  N = 自重 + 積載（一般部の支柱。荷取り部は下の参考行で別に検定）")
+            else f"kN  N = 自重 + 積載（一般部の{p.vertical_member_name}。荷取り部は下の参考行で別に検定）")
         for line in p.other_checks:
             _kv(s, "参考: 他の検定", line, "支配しなかった側（作用/許容=検定比）")
         if p.inner_uplift_kn > 0:
@@ -461,7 +461,7 @@ def _sheet_post(wb, structural: StructuralResult) -> None:
         Cell("OK" if p.ok else "NG", STYLE_HEADER),
         Cell("" if p.ok else (
             "許容支持力が未確認の一般値。まずメーカー認定値へ差し替えて再判定"
-            if not p.verified else "繰出し量低減・支柱2本組・スパン短縮を検討"), STYLE_HEADER),
+            if not p.verified else f"繰出し量低減・{p.vertical_member_name}2本組・スパン短縮を検討"), STYLE_HEADER),
     ])
 
 
