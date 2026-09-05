@@ -60,5 +60,13 @@ class TestWidenedPostCapacity(unittest.TestCase):
         self.assertTrue([w for w in r.warnings if "拡幅部" in w[2]], r.warnings)
 
 
+    def test_opening_end_posts_use_the_same_row(self):
+        """開口部の両端支柱の許容も、張出区間があれば拡幅部の値."""
+        spec = dict(base("nikken_nd1800_rect.json"), bracket_sections=OUT,
+                    openings=[{"edge_index": 2, "start_mm": 9145, "beam_span_mm": 3658, "level": 2}])
+        r = solve(spec)
+        self.assertEqual(r.structural.openings[0].end_post_allow_kn, 8.8)
+
+
 if __name__ == "__main__":
     unittest.main()

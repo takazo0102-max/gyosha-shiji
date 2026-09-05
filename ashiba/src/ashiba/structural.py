@@ -623,7 +623,8 @@ def check_openings(
         return out, warnings, notes
     limit = caps.get(("開口部上方許容積載荷重", "合計"))
     cap_deck = caps.get((_width_item(caps, "作業床許容積載荷重", model), "スパン"))
-    post_item, _ = _post_item(caps, model, False)
+    # 両端支柱の許容は建地圧縮と同じ行（張出区間があれば拡幅部の値）
+    post_item, _ = _post_item(caps, model, post.widened)
     cap_post = caps.get((post_item, "0"))
     height = float(model.scaffold_height_mm) or 1.0
     vm = model.master.vertical_member_name
