@@ -262,6 +262,18 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         notes = [w[2] for w in r.warnings if "両端の支柱へ寄せました" in w[2]]
         self.assertEqual(len(notes), 1 if r.tie_opt.notes else 0, notes)
 
+    def test_optimizer_checks_with_the_attachment_ties(self):
+        """朝顔取付部の壁つなぎを載せた一覧で間隔を選ぶ（L形は後から足すと検定比1.23で落ちた）."""
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "l_shape.json"))
+        self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie)
+        # 最適化時の検定比と最終の検定比は同じ一覧なので一致する
+        self.assertAlmostEqual(r.tie_opt.wall_tie.ratio, r.structural.wall_tie.ratio, places=2)
+
     def test_hoist_mast_ties_leave_the_opening_too(self):
         """マスト控えの壁つなぎは最適化の後で足される。それも抜いた支柱には付けない."""
         import json

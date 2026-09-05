@@ -793,7 +793,9 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 階段の自動配置も梁枠の区間（通路）を避ける）
     openings = validate_openings(model, build_openings(spec))
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
-    tie_opt = optimize_wall_ties(model, site, openings=openings)
+    # 取付部（朝顔・ステージ）の壁つなぎも最適化の検定に載せるため、付帯設備を先に解く
+    platforms = validate_platforms(model, *build_platforms(spec))
+    tie_opt = optimize_wall_ties(model, site, openings=openings, platforms=platforms)
     model.plan.warnings.extend(tie_opt.notes)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
@@ -839,8 +841,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
-    platforms = validate_platforms(model, *build_platforms(spec))
-    # 取付部・マスト控えの壁つなぎを格子と同じ一覧へ（図面・数量・検定が同じ本数になる）
+    # 取付部・マスト控えの壁つなぎを格子と同じ一覧へ（図面・数量・検定が同じ本数になる。
+    # 最適化で既に載っていれば何もしない）
     merge_attachment_ties(model, platforms)
     # 取付部・マスト控えの壁つなぎも、開口部で抜いた支柱には付けられない
     model.plan.warnings.extend(relocate_ties_off_openings(model, openings))

@@ -373,27 +373,48 @@ class TieTributary:
     edge_index: int
     position_mm: float
     height_mm: int
-    lh_m: float          # 水平方向の支配幅
-    lw_m: float          # 垂直方向の支配高さ
+    lh_m: float          # 水平方向の支配幅（受け持ち領域の横の広がり）
+    lw_m: float          # 垂直方向の支配高さ（同じく縦の広がり）
+    area_m2: float = 0.0  # 受け持ち領域の面積（格子なら lh×lw、取付部の壁つなぎが混じると多角形）
 
-    @property
-    def area_m2(self) -> float:
-        return self.lh_m * self.lw_m
+
+def _clip(poly: list[tuple[float, float]], a: float, b: float, c: float) -> list[tuple[float, float]]:
+    """半平面 a·x + b·z ≤ c で凸多角形を切る（Sutherland–Hodgman）."""
+    out: list[tuple[float, float]] = []
+    n = len(poly)
+    for i in range(n):
+        p, q = poly[i], poly[(i + 1) % n]
+        fp = a * p[0] + b * p[1] - c
+        fq = a * q[0] + b * q[1] - c
+        if fp <= 0:
+            out.append(p)
+        if (fp < 0 < fq) or (fq < 0 < fp):
+            t = fp / (fp - fq)
+            out.append((p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])))
+    return out
+
+
+def _poly_area(poly: list[tuple[float, float]]) -> float:
+    return abs(sum(poly[i][0] * poly[(i + 1) % len(poly)][1]
+                   - poly[(i + 1) % len(poly)][0] * poly[i][1]
+                   for i in range(len(poly)))) / 2.0 if len(poly) >= 3 else 0.0
 
 
 def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
     """壁つなぎごとの支配面積を求める（Phase 4）.
 
-    各壁つなぎは「隣の壁つなぎとの中間まで」の風荷重を受け持つ。境界の扱いは
-    そこが構造的な支点かどうかで決まる:
+    面（足場長×足場高さの長方形）を「最も近い壁つなぎ」で分割し（ボロノイ分割）、
+    各壁つなぎの受け持ち領域とする。境界の扱いはそこが構造的な支点かどうかで決まる:
 
-    - 最下段の下側: 足場脚部（ジャッキ・根がらみ）は支点なので **半分**を負担
-    - 最上段の上側: 自由端の張り出しなので **全長**を負担
+    - 最下段の下側: 足場脚部（ジャッキ・根がらみ）は支点なので **半分**（高さの中点まで）
+    - 最上段の上側: 自由端の張り出しなので **全長**
     - 面の端（コーナー）: コーナー支柱は両面共有で直交面に支持される支点なので **半分**
 
-    「最大垂直間隔×最大水平間隔」で一律に評価すると、その2つが別々の壁つなぎで
-    起きている場合に過大評価になり、逆に最下段のように片側が長い壁つなぎは
-    過小評価になる。支配面積で見ると、どの1本が支配的かも分かる。
+    格子状の配置では従来の「隣との中間まで」の長方形と一致する。以前は同じ高さの
+    列の中だけで隣を探していたため、荷受けステージ取付部のように格子と違う高さに
+    1本だけ足された壁つなぎが、右隣を「面の端まで」と数えて14.6m²の支配的な1本に
+    なっていた（壁つなぎを足したのに検定が悪化する）。近い壁つなぎで分ければ、
+    足した壁つなぎは周りの領域を分担するだけで、どの1本の面積も増えない。
 
     ⚠️ 境界の支点扱いは工学的仮定。提出図書に使う際は有資格者の確認を受けること。
     """
@@ -403,42 +424,40 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
     if not ties:
         return out
     top = float(model.scaffold_height_mm)
-    heights = sorted({t.height_mm for t in ties})
 
     for edge in model.plan.edges:
         edge_ties = [t for t in ties if t.edge_index == edge.edge_index]
         if not edge_ties:
             continue
-        by_height: dict[int, list[float]] = {}
-        for t in edge_ties:
-            by_height.setdefault(t.height_mm, []).append(t.position_mm)
-        for h in by_height:
-            by_height[h].sort()
-
-        for t in edge_ties:
-            xs = by_height[t.height_mm]
-            i = xs.index(t.position_mm)
-            # 水平: 端はコーナー支柱（直交面に支持される支点）なので半分
-            left = (t.position_mm - xs[i - 1]) / 2 if i > 0 else t.position_mm / 2
-            right = (
-                (xs[i + 1] - t.position_mm) / 2 if i < len(xs) - 1
-                else (edge.scaffold_length - t.position_mm) / 2
-            )
-
-            # 垂直: 下端は脚部（支点）なので半分、上端は自由端なので全長
-            j = heights.index(t.height_mm)
-            below = (t.height_mm - heights[j - 1]) / 2 if j > 0 else t.height_mm / 2
-            above = (
-                (heights[j + 1] - t.height_mm) / 2 if j < len(heights) - 1
-                else top - t.height_mm
-            )
-
+        length = float(edge.scaffold_length)
+        pts = [(float(t.position_mm), float(t.height_mm)) for t in edge_ties]
+        for t, (x0, z0) in zip(edge_ties, pts):
+            poly = [(0.0, 0.0), (length, 0.0), (length, top), (0.0, top)]
+            # 支点との境界: 地盤（下）とコーナー（左右）は中点まで。上端は自由端
+            poly = _clip(poly, 0.0, -1.0, -z0 / 2.0)             # z ≥ z0/2
+            poly = _clip(poly, -1.0, 0.0, -x0 / 2.0)             # x ≥ x0/2
+            poly = _clip(poly, 1.0, 0.0, (length + x0) / 2.0)    # x ≤ (L+x0)/2
+            for (x1, z1) in pts:
+                if abs(x1 - x0) < 1e-9 and abs(z1 - z0) < 1e-9:
+                    continue
+                # 垂直二等分線: t に近い側を残す
+                poly = _clip(poly, 2.0 * (x1 - x0), 2.0 * (z1 - z0),
+                             x1 * x1 + z1 * z1 - x0 * x0 - z0 * z0)
+                if not poly:
+                    break
+            if poly:
+                xs = [p[0] for p in poly]
+                zs = [p[1] for p in poly]
+                lh = (max(xs) - min(xs)) / 1000.0
+                lw = (max(zs) - min(zs)) / 1000.0
+                area = _poly_area(poly) / 1e6
+            else:
+                lh = lw = area = 0.0
             out.append(TieTributary(
                 edge_index=edge.edge_index,
                 position_mm=t.position_mm,
                 height_mm=t.height_mm,
-                lh_m=(left + right) / 1000.0,
-                lw_m=(below + above) / 1000.0,
+                lh_m=lh, lw_m=lw, area_m2=area,
             ))
     return out
 
@@ -806,6 +825,7 @@ def optimize_wall_ties(
     capacity_path: Optional[Path] = None,
     apply: bool = True,
     openings=None,
+    platforms=None,
 ) -> TieOptimizeResult:
     """壁つなぎ間隔を構造計算から逆算して決める.
 
@@ -819,7 +839,19 @@ def optimize_wall_ties(
     opening_beam サンプルが寄せた後に検定比1.10で落ちた）。
     """
     from .model import generate_wall_ties  # 循環インポート回避のため関数内で解決
-    from .ties import relocate_ties_off_openings
+    from .ties import merge_attachment_ties, relocate_ties_off_openings
+
+    def layout() -> list[str]:
+        """候補の格子に、開口部の寄せと取付部（朝顔・ステージ）の壁つなぎを載せる.
+
+        検定は最終的な一覧で行う。格子だけで検定して後から取付部を足すと、
+        取付部の壁つなぎが格子の粗い所（コーナー寄り）の風荷重を受け持つ形になり、
+        「壁つなぎを足したのに検定が悪化」して総合判定で落ちた（L形サンプル）。
+        """
+        notes = relocate_ties_off_openings(model, openings)
+        merge_attachment_ties(model, platforms)
+        notes += relocate_ties_off_openings(model, openings)
+        return notes
 
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
@@ -844,7 +876,7 @@ def optimize_wall_ties(
             model.config.wall_tie_level_step = level_step
             ties = generate_wall_ties(model.plan, model.elevation, model.config)
             model.wall_ties = ties
-            relocate_ties_off_openings(model, openings)
+            layout()
             res = check_wall_tie(model, wind, caps)
             cand = TieOptimizeResult(
                 span_step=span_step,
@@ -899,7 +931,7 @@ def optimize_wall_ties(
         model.wall_ties = generate_wall_ties(
             model.plan, model.elevation, model.config
         )
-        chosen.notes = relocate_ties_off_openings(model, openings)
+        chosen.notes = layout()
     else:
         model.wall_ties = original
         model.config.wall_tie_span_step = base_span

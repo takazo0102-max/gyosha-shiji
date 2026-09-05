@@ -300,6 +300,37 @@ class TestTieTributary(unittest.TestCase):
         self.assertIsNotNone(r.wall_tie.governing)
         self.assertIn(f"辺{worst.edge_index}", r.wall_tie.governing)
 
+    def test_adding_a_tie_never_increases_the_worst_area(self):
+        """格子と違う高さに1本足しても、どの壁つなぎの支配面積も増えない.
+
+        荷受けステージ取付部の壁つなぎ（格子の間の高さ）が、同じ高さの列に隣が
+        無いために右隣を面の端までと数え、14.6m²の支配的な1本になっていた。
+        """
+        from ashiba.model import WallTie
+
+        m = make_model()
+        base = tie_tributaries(m)
+        worst0 = max(t.area_m2 for t in base)
+        by0 = {(t.edge_index, t.position_mm, t.height_mm): t.area_m2 for t in base}
+        heights = sorted({t.height_mm for t in m.wall_ties})
+        mid_h = (heights[0] + heights[1]) // 2
+        e0 = m.plan.edges[0]
+        x = sum(e0.spans[:3])
+        m.wall_ties.append(WallTie(e0.edge_index, float(x), int(mid_h), "stage"))
+        after = tie_tributaries(m)
+        self.assertLessEqual(max(t.area_m2 for t in after), worst0 + 1e-9)
+        added = next(t for t in after if t.height_mm == mid_h and t.position_mm == x)
+        self.assertLess(added.area_m2, worst0)
+        for t in after:
+            key = (t.edge_index, t.position_mm, t.height_mm)
+            if key in by0:
+                self.assertLessEqual(t.area_m2, by0[key] + 1e-9, key)
+
+    def test_grid_cells_are_rectangles(self):
+        """格子状の配置では受け持ち領域が長方形（面積 = 幅×高さ）."""
+        for t in self.tribs:
+            self.assertAlmostEqual(t.area_m2, t.lh_m * t.lw_m, places=6)
+
     def test_tighter_layout_reduces_tributary(self):
         m = make_model()
         loose = max(t.area_m2 for t in tie_tributaries(m))
