@@ -206,7 +206,7 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="bridgeList">
-			<Description><![CDATA["渡した凹み・張り出し「開始,長さ,増える離れ,種別0/1」mm"]]></Description>
+			<Description><![CDATA["渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="stairList">

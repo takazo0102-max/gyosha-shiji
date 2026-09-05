@@ -57,11 +57,13 @@ class Edge:
 class BridgedZone:
     """直線で渡した凹み・張り出しの区間（均した後の線上の両端点）."""
 
-    kind: str          # "凹み" / "張り出し"
+    kind: str          # "凹み" / "張り出し" / "斜辺"
     p0: Point
     p1: Point
     width_mm: float
-    depth_mm: float    # この区間で増える離れ
+    depth_mm: float    # この区間で増える離れ（斜辺は最大値）
+    # 離れの増え方: "uniform"（区間で一定）／"end"（p1側で最大、p0側で0）／"start"（p0側で最大）
+    deep_end: str = "uniform"
 
 
 @dataclass
@@ -203,6 +205,49 @@ def bridge_small_notches(
     return verts
 
 
+def orthogonalize_diagonals(
+    verts: list[Point], notes: list[str], zones: Optional[list["BridgedZone"]] = None,
+) -> list[Point]:
+    """斜めの辺 p→q を、外側のコーナー c を経由する直交2辺 p→c→q に置き換える.
+
+    c は (q.x, p.y) と (p.x, q.y) のうち、進行方向の右側（CCWなので外側）にある方。
+    面 p→c は c 側で最大 |q−c|、面 c→q は c 側で最大 |p−c| だけ躯体との離れが増える
+    （斜辺に沿って0から線形に増える）。verts はCCW・整理済みであること。
+    """
+    verts = list(verts)
+    i = 0
+    guard = 0
+    while i < len(verts) and guard < 200:
+        guard += 1
+        n = len(verts)
+        p = verts[i]
+        q = verts[(i + 1) % n]
+        dx, dy = q[0] - p[0], q[1] - p[1]
+        if not (abs(dx) > 1e-6 and abs(dy) > 1e-6):
+            i += 1
+            continue
+        c1 = (q[0], p[1])
+        c2 = (p[0], q[1])
+        # 右側（外側）にある候補: 外積 (q-p)×(c-p) < 0
+        cross1 = dx * (c1[1] - p[1]) - dy * (c1[0] - p[0])
+        c = c1 if cross1 < 0 else c2
+        diag = math.hypot(dx, dy)
+        d_pc = math.hypot(c[0] - p[0], c[1] - p[1])
+        d_cq = math.hypot(q[0] - c[0], q[1] - c[1])
+        if zones is not None:
+            zones.append(BridgedZone("斜辺", p, c, d_pc, d_cq, deep_end="end"))
+            zones.append(BridgedZone("斜辺", c, q, d_cq, d_pc, deep_end="start"))
+        notes.append(
+            f"斜めの辺（頂点{i}→{(i + 1) % n}、長さ{diag:.0f}mm）は足場を斜めに組めないので、"
+            f"外側のコーナー({c[0]:.0f}, {c[1]:.0f})を経由する直交2辺に置き換えました。"
+            f"置き換えた2面は躯体との離れがコーナー側でそれぞれ最大{d_cq:.0f}mm・{d_pc:.0f}mm"
+            "増えます（内ブラケットでの床の拡幅・層間ネット等の措置を検討。平面図に実躯体線を破線で示す）"
+        )
+        verts.insert(i + 1, c)
+        i += 2
+    return verts
+
+
 def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outline:
     """外形ポリゴンを検証しCCW正規化、辺・コーナー情報を構築する.
 
@@ -227,19 +272,27 @@ def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outlin
             "（辺・面名・躯体頂点）で確認してください"
         )
 
+    zones: list[BridgedZone] = []
+    # 斜めの辺は、その辺を外側から囲う直交2辺に置き換える（足場は真物の直交割付しか
+    # 組めない）。置き換えた面は躯体との離れが斜辺の分だけ増えるので、区間として持ち
+    # 図面（破線の実躯体線）と要確認に出す。以前は入力エラーで止めていた
+    verts = orthogonalize_diagonals(verts, notes, zones)
+    if zones:
+        # 挿入したコーナーで元の頂点が共線になる（例: 斜辺の両端）。区間の端点は
+        # 辺上にあればよいので、共線の頂点は落として辺を通す
+        verts, _more = _clean_vertices(verts)
+
     n = len(verts)
-    # 直交チェック
+    # 直交チェック（置き換え後は必ず直交。残っていればロジックの異常）
     for i in range(n):
         x1, y1 = verts[i]
         x2, y2 = verts[(i + 1) % n]
         dx, dy = x2 - x1, y2 - y1
         if (abs(dx) > 1e-6) == (abs(dy) > 1e-6):
             raise ValidationError(
-                f"非直交の辺があります（頂点{i}→{(i + 1) % n}）。"
-                "MVPは90度コーナーのみ対応です。斜めの辺は、その辺を含む直交する外形（斜辺の両端を通る水平・垂直の辺）に置き換えて入力し、離れが大きくなる面は層間ネット・内ブラケット等の措置側で対応してください"
+                f"非直交の辺が残っています（頂点{i}→{(i + 1) % n}）。外形の頂点を確認してください"
             )
 
-    zones: list[BridgedZone] = []
     verts = bridge_small_notches(verts, bridge_below_mm, notes, zones)
     n = len(verts)
 

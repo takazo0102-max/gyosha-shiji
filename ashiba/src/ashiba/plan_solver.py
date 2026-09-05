@@ -92,7 +92,8 @@ class BridgedSpan:
     end_mm: float
     span_count: int        # 区間にかかるスパン数
     width_mm: float
-    depth_mm: float        # 増える離れ
+    depth_mm: float        # 増える離れ（斜辺は最大値）
+    deep_end: str = "uniform"   # 斜辺: "end"＝区間の終点側で最大／"start"＝始点側で最大
 
 
 def _locate_bridged_zones(outline: Outline, edges: list, standoffs: list[float]) -> list[BridgedSpan]:
@@ -117,7 +118,10 @@ def _locate_bridged_zones(outline: Outline, edges: list, standoffs: list[float])
                 if acc < s1 - 1e-6 and acc + sp > s0 + 1e-6:
                     count += 1
                 acc += sp
-            out.append(BridgedSpan(z.kind, e.index, s0, s1, count, z.width_mm, z.depth_mm))
+            deep = z.deep_end
+            if deep in ("start", "end") and a > b:     # 区間の向きが辺と逆なら深い側も逆
+                deep = "start" if deep == "end" else "end"
+            out.append(BridgedSpan(z.kind, e.index, s0, s1, count, z.width_mm, z.depth_mm, deep))
             break
     return out
 

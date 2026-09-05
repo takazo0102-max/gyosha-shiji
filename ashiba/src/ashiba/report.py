@@ -459,7 +459,8 @@ def write_plan_json(
       "platforms": {"stages": [...], "hoists": [...], "extra_wall_ties": 0},
       "bridged_zones": [{"kind": "凹み", "edge_index": 0, "start_mm": 12300.0,
                          "end_mm": 15900.0, "span_count": 3, "width_mm": 3600.0,
-                         "depth_mm": 300.0}],   // 直線で渡した凹み・張り出し（無ければ省略）
+                         "depth_mm": 300.0,
+                         "deep_end": "uniform"}],   // 直線で渡した凹み・張り出し（無ければ省略）（deep_end: 離れの増え方 uniform＝一定／end＝終点側で最大／start＝始点側で最大、斜辺の置き換え）
       "bracket_sections": [{"edge_index": 0, "start_mm": 0.0, "end_mm": 5400.0,
                             "direction": "内" | "張出", "width": 300,
                             "deck_width": null, "levels": [1], "has_hozue": false,

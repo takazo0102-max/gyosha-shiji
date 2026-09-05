@@ -266,9 +266,10 @@ class TestDegenerateOutlines(unittest.TestCase):
         self.assertEqual(len(outline.edges), 4)
         self.assertTrue(any("重複頂点" in n for n in outline.notes))
 
-    def test_still_rejects_real_non_orthogonal(self):
-        with self.assertRaises(ValidationError):
-            build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
+    def test_real_non_orthogonal_is_squared_not_rejected(self):
+        o = build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
+        self.assertEqual(len(o.vertices), 4)
+        self.assertTrue(any("斜めの辺" in n for n in o.notes))
 
     def test_too_few_vertices_after_cleanup(self):
         with self.assertRaises(ValidationError):

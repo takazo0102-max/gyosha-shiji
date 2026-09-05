@@ -1005,10 +1005,14 @@ def _note_bridged_zones(model: ScaffoldModel, notes) -> None:
         posts = z.span_count + 1
         brackets = posts * n_levels
         rails = z.span_count * n_levels * 2      # 手すり＋中桟
+        deep = getattr(z, "deep_end", "uniform")
+        how = (f"躯体との離れが{'終点' if deep == 'end' else '始点'}側で最大{z.depth_mm:.0f}mm増えます"
+               f"（斜辺に沿って0から線形に増加）" if z.kind == "斜辺"
+               else f"躯体との離れが{z.depth_mm:.0f}mm増えます")
         notes.action(
             f"{z.kind}を渡した区間（{model.face_name(z.edge_index)} 始点から"
             f"{z.start_mm:.0f}〜{z.end_mm:.0f}mm・{z.span_count}スパン×{n_levels}層）は"
-            f"躯体との離れが{z.depth_mm:.0f}mm増えます。数量に含んでいない措置: "
+            f"{how}。数量に含んでいない措置: "
             f"内ブラケットで床を拡幅する場合 内ブラケット{brackets}本（{posts}位置×{n_levels}層）と"
             f"その踏板、躯体側手すりで対応する場合 布材{rails}本（手すり・中桟）",
             Notes.ORDER,

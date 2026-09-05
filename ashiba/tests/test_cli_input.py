@@ -359,8 +359,11 @@ class TestDegenerateValuesAreRejected(unittest.TestCase):
         self.assertIn("correction_f", self.ng(site={"correction_f": 0}))
         self.assertIn("simultaneous_loaded_levels", self.ng(site={"simultaneous_loaded_levels": 0}))
 
-    def test_non_orthogonal_outline_is_a_clean_error(self):
-        """非直交の外形は生のトレースバックではなく入力エラーとして出る."""
+    def test_degenerate_outline_is_a_clean_error(self):
+        """外形の検証エラーは生のトレースバックではなく入力エラーとして出る.
+
+        斜めの辺は直交外形に置き換えて通すようになったので、3点の外形で確認する。
+        """
         import io
         import json
         import tempfile
@@ -371,13 +374,13 @@ class TestDegenerateValuesAreRejected(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             src = Path(d) / "in.json"
             src.write_text(json.dumps(dict(
-                BASE, outline_mm=[[0, 0], [30000, 0], [25000, 20000], [0, 20000]])),
+                BASE, outline_mm=[[0, 0], [30000, 0], [30000, 20000]])),
                 encoding="utf-8")
             err = io.StringIO()
             with redirect_stderr(err):
                 code = main([str(src), "--out", d])
         self.assertEqual(code, 2)
-        self.assertIn("非直交", err.getvalue())
+        self.assertIn("4点以上", err.getvalue())
         self.assertNotIn("Traceback", err.getvalue())
 
 

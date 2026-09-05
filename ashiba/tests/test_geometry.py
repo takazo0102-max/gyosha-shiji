@@ -56,9 +56,13 @@ class TestOutline(unittest.TestCase):
         o = build_outline(RECT)
         self.assertEqual([e.axis for e in o.edges], ["x", "y", "x", "y"])
 
-    def test_non_orthogonal_is_rejected(self):
-        with self.assertRaises(ValidationError):
-            build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
+    def test_non_orthogonal_is_squared_with_a_note(self):
+        """斜めの辺はエラーにせず、外側のコーナーを経由する直交2辺に置き換える."""
+        o = build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
+        self.assertEqual([tuple(map(float, v)) for v in o.vertices],
+                         [(0.0, 0.0), (10000.0, 0.0), (10000.0, 8000.0), (0.0, 8000.0)])
+        self.assertTrue(any("斜めの辺" in n for n in o.notes))
+        self.assertEqual([z.kind for z in o.bridged], ["斜辺", "斜辺"])
 
 
 class TestScaffoldLoop(unittest.TestCase):

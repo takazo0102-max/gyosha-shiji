@@ -168,6 +168,19 @@ line2 0, standoff, lineLen, standoff
 ! （凹み＝区間内が奥へ、張り出し＝区間外（両隣）が奥へ）
 for ibr = 1 to nBr
 	line_type 3
+	if brK[ibr] > 1.5 then
+		! 斜辺: 実際の躯体線は区間の一端で離れ0、他端で最大（種別2＝終点側、3＝始点側）
+		if brK[ibr] > 2.5 then
+			line2 brS[ibr], standoff + brD[ibr], brS[ibr] + brL[ibr], standoff
+		else
+			line2 brS[ibr], standoff, brS[ibr] + brL[ibr], standoff + brD[ibr]
+		endif
+		line_type 1
+		set style "annoC"
+		text2 brS[ibr] + brL[ibr] / 2, standoff + brD[ibr] / 2 + 0.18, \
+			"斜辺 渡し 離れ+最大" + str(brD[ibr] * 1000, 5, 0)
+		set style "anno"
+	else
 	if brK[ibr] < 0.5 then
 		line2 brS[ibr], standoff, brS[ibr], standoff + brD[ibr]
 		line2 brS[ibr], standoff + brD[ibr], brS[ibr] + brL[ibr], standoff + brD[ibr]
@@ -187,6 +200,7 @@ for ibr = 1 to nBr
 		text2 brS[ibr] + brL[ibr] / 2, standoff + brD[ibr] + 0.18, \
 			"張り出し 渡し 両隣の離れ+" + str(brD[ibr] * 1000, 4, 0)
 		set style "anno"
+	endif
 	endif
 next ibr
 line_type 1

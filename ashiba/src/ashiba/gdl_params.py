@@ -123,12 +123,20 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
 
 
 def _bridge_list(model: ScaffoldModel, ep) -> str:
-    """この辺の渡した区間「開始,長さ,増える離れ,種別(0=凹み/1=張り出し)」."""
+    """この辺の渡した区間「開始,長さ,増える離れ,種別」.
+
+    種別: 0=凹み／1=張り出し／2=斜辺（終点側で離れ最大）／3=斜辺（始点側で最大）
+    """
     zones = [z for z in (getattr(model.plan, "bridged_zones", None) or [])
              if z.edge_index == ep.edge_index]
+
+    def code(z) -> int:
+        if z.kind == "斜辺":
+            return 3 if getattr(z, "deep_end", "end") == "start" else 2
+        return 1 if z.kind == "張り出し" else 0
+
     return ",".join(
-        f"{z.start_mm:.0f},{z.end_mm - z.start_mm:.0f},{z.depth_mm:.0f},"
-        f"{1 if z.kind == '張り出し' else 0}"
+        f"{z.start_mm:.0f},{z.end_mm - z.start_mm:.0f},{z.depth_mm:.0f},{code(z)}"
         for z in zones
     )
 
