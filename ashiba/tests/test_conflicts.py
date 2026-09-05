@@ -131,7 +131,8 @@ class TestAutoStairsAvoidOpenings(unittest.TestCase):
         for name in ("opening_beam.json", "waku_composite.json"):
             with self.subTest(name):
                 r = solve_all(load_spec(root / name))
-                self.assertEqual([i.message for i in r.conflicts], [])
+                # 朝顔を貫く昇降機の切り欠きは WARN で出る（waku_composite）。止まるのはNGだけ
+                self.assertEqual([i.message for i in r.conflicts if i.severity == "NG"], [])
 
 
 class TestConflictsReachTheVerdict(unittest.TestCase):
@@ -157,5 +158,48 @@ class TestConflictsReachTheVerdict(unittest.TestCase):
         self.assertTrue([w for w in r.warnings if w[0] == "付帯設備の衝突"])
 
 
+class TestAsagaoVersusAttachments(unittest.TestCase):
+    """朝顔は面の全長に外へ出る板。昇降機のマストが貫く／ステージと同じ高さ帯は素通りさせない."""
+
+    def _model(self, stages=1):
+        from ashiba.model import AsagaoSpec
+
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=stages)),
+        )
+
+    def test_hoist_mast_through_the_asagao_is_flagged_with_the_span(self):
+        m = self._model()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        hits = [c for c in check_conflicts(m, platforms=pf) if c.kind == "昇降機×朝顔"]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "WARN")
+        self.assertIn("切り欠き", hits[0].message)
+        self.assertIn("7200〜9000mm・9000〜10800mm", hits[0].message)   # 支柱の真上→両隣
+
+    def test_stage_at_the_asagao_height_is_flagged(self):
+        m = self._model()
+        h = m.asagao_heights()[0]
+        level = m.elevation.level_heights.index(h) + 1
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=3600, levels=[level])], [])
+        hits = [c for c in check_conflicts(m, platforms=pf) if c.kind == "ステージ×朝顔"]
+        self.assertEqual(len(hits), 1, [c.message for c in check_conflicts(m, platforms=pf)])
+        self.assertIn(f"第{level}層", hits[0].message)
+
+    def test_stage_well_above_the_asagao_is_fine(self):
+        m = self._model()
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=3600, levels=[6])], [])
+        self.assertFalse([c for c in check_conflicts(m, platforms=pf) if "朝顔" in c.kind])
+
+    def test_no_asagao_no_check(self):
+        m = build()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        self.assertFalse([c for c in check_conflicts(m, platforms=pf) if "朝顔" in c.kind])
+
+
 if __name__ == "__main__":
     unittest.main()
+

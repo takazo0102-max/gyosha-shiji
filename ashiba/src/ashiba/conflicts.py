@@ -30,6 +30,65 @@ def _rng(start: float, end: float) -> str:
     return f"{start:.0f}〜{end:.0f}mm"
 
 
+def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssue]:
+    import math
+
+    from .model import ASAGAO_KIND_SAFE_WING
+
+    a = model.config.asagao
+    heights = model.asagao_heights()
+    out: list[ConflictIssue] = []
+    if a is None or not heights or not (hoists or stages):
+        return out
+    label = "セーフウイング" if a.kind == ASAGAO_KIND_SAFE_WING else "朝顔"
+    rise = a.projection_mm * math.tan(math.radians(a.angle_deg))   # 先端の上がり
+    lv = model.elevation.level_heights
+    pitch = (lv[1] - lv[0]) if len(lv) >= 2 else 1800.0
+    hs = "・".join(f"{h:.0f}" for h in heights)
+    basis = "安衛則563条・537条（落下物防護）"
+
+    def spans_at(edge_index: int, x: float) -> list[tuple[float, float]]:
+        ep = next((e for e in model.plan.edges if e.edge_index == edge_index), None)
+        if ep is None:
+            return []
+        posts = [0.0]
+        for s in ep.spans:
+            posts.append(posts[-1] + s)
+        # 支柱の真上なら両隣のスパン、それ以外はその位置を含むスパン
+        return [(posts[k], posts[k + 1]) for k in range(len(ep.spans))
+                if posts[k] - 1e-6 <= x <= posts[k + 1] + 1e-6]
+
+    for i, h in enumerate(hoists):
+        cut = spans_at(h.edge_index, h.position_mm)
+        rng = "・".join(_rng(s0, s1) for s0, s1 in cut) or f"{h.position_mm:.0f}mm付近"
+        out.append(ConflictIssue(
+            f"昇降機×{label}", "WARN",
+            f"辺{h.edge_index}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）のマスト・搬器は"
+            f"{label}{len(heights)}段（高さ{hs}mm）を貫きます。該当スパン（{rng}）の{label}は"
+            f"切り欠き、その開口は昇降機メーカー仕様の防護で塞いでください"
+            f"（{label}の数量は切り欠き前の全スパンで計上しています）",
+            basis,
+        ))
+    for i, st in enumerate(stages):
+        for level in (st.levels or [1]):
+            if not (1 <= level <= len(lv)):
+                continue
+            z = lv[level - 1]
+            # ステージは床の下に張出ブラケット・方杖（ほぼ1層分）、上に手すり
+            hit = [h for h in heights if _overlap(h, h + rise, z - pitch, z + 900)]
+            if not hit:
+                continue
+            out.append(ConflictIssue(
+                f"ステージ×{label}", "WARN",
+                f"辺{st.edge_index}の荷受けステージ{i + 1}（第{level}層・高さ{z:.0f}mm）が"
+                f"{label}（高さ{'・'.join(f'{x:.0f}' for x in hit)}mm、先端の上がり{rise:.0f}mm）と"
+                f"同じ高さ帯にあり、張出しが重なります。ステージの層を変えるか、"
+                f"{label}の設置高さ（asagao.heights_mm）をずらしてください",
+                basis,
+            ))
+    return out
+
+
 def check_conflicts(
     model: ScaffoldModel,
     openings=None,
@@ -115,6 +174,11 @@ def check_conflicts(
                        "積載を低減してください" if on_beam else ""),
                     "安衛則570条（壁つなぎ）・仮設工業会 梁枠使用基準",
                 ))
+
+    # 朝顔（セーフウイング）× 昇降機・荷受けステージ。朝顔は面の全長に渡って外へ2m出る
+    # 板なので、マストや搬器が通る位置は切り欠くしかない。ステージが朝顔と同じ高さ帯に
+    # あると張出しが二重になる。3Dでは互いを貫いて描かれるだけで、検証は素通りしていた
+    out += _asagao_conflicts(model, hoists, stages)
 
     # ステージの張出ブラケット × ブラケット区間（同じ区間の二重張出し）
     for i, st in enumerate(stages):
