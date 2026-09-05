@@ -8,11 +8,16 @@ CLI（python3 -m ashiba.cli）と同じ solve_all/write_outputs を通すので�
 総合判定・設置届まで）。以前はこのスクリプトだけ手順を書き下しており、
 構造計算も総合判定も無い薄いレポートしか出ていなかった。
 
+条件（系列・軒高・開口部など）はデスクトップの ashiba_spec.json（入力JSONと同じキー）で
+上書きできる。無ければ下の SPEC の既定値。系列だけなら --series=nikken_nd1800 でも指定できる。
+
 前提: gdl/ashiba_line.gsm をプロジェクトのライブラリに読込済みであること
 （配置パイプライン自体は Archicad 28 + Tapir 1.5.8 でE2E検証済み:
  scripts/e2e_archicad_test.py）。
 """
 
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -48,11 +53,36 @@ FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら�
 ELEVATION_OFFSET_MM = -45000.0
 DETAIL_OFFSET_MM = -20000.0
 OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+# 条件をスクリプトを編集せずに変えるための上書きファイル（存在すれば SPEC に重ねる）。
+# 中身は入力JSONと同じキー（series_id・eaves_height_mm・site・openings 等。outline_mm は
+# 選択したスラブから取るので無視）。環境変数 ASHIBA_SPEC でパスを差し替えられる
+SPEC_OVERRIDE = Path(os.environ.get("ASHIBA_SPEC", str(Path.home() / "Desktop" / "ashiba_spec.json")))
+
+
+def load_spec_override() -> dict:
+    """上書きファイルを読む。無ければ空、壊れていれば理由を出して空."""
+    if not SPEC_OVERRIDE.exists():
+        return {}
+    try:
+        data = json.loads(SPEC_OVERRIDE.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as e:
+        print(f"条件の上書きファイル {SPEC_OVERRIDE} を読めません（{e}）。既定の条件で続けます")
+        return {}
+    if not isinstance(data, dict):
+        print(f"条件の上書きファイル {SPEC_OVERRIDE} はオブジェクトではありません。既定の条件で続けます")
+        return {}
+    data.pop("outline_mm", None)
+    print(f"条件の上書き: {SPEC_OVERRIDE}（{', '.join(sorted(data))}）")
+    return data
 
 
 def main() -> None:
     client = ArchicadClient()
     spec = dict(SPEC)
+    spec.update(load_spec_override())
+    for a in sys.argv[1:]:
+        if a.startswith("--series="):
+            spec["series_id"] = a.split("=", 1)[1]
     spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client)

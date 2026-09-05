@@ -72,7 +72,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `gdl/hsf/ashiba_line/`, `gdl/hsf/ashiba_detail/` | 同GDLソース（HSF形式） |
 | `gdl/ashiba_line.gdl`, `gdl/ashiba_detail.gdl` | 同スクリプトの単一ファイル参照版（**HSFから自動生成**・手で編集しない） |
 | `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボルの旧参照実装（`ashiba_detail` の `detailType=脚部` に統合済み） |
-| `scripts/run_from_archicad.py` | ツールバー割当用エントリ |
+| `scripts/run_from_archicad.py` | ツールバー割当用エントリ。条件はデスクトップの `ashiba_spec.json`（入力JSONと同じキー）で上書き、系列は `--series=` でも指定可 |
 | `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証）。現行HSFを注入して配置、`--series=` で系列指定 |
 | `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票）。`--series=nikken_nd1800` 等で系列を指定できる |
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
