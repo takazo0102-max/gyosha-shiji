@@ -129,4 +129,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # CLI と同じく、入力・マスタ・耐力値・Archicad接続の失敗はトレースバックではなく
+    # 原因と直し方を出して終了コード2で止める（上書きファイルの綴り違いもここに来る）
+    from ashiba.cli import InputError
+    from ashiba.geometry import ValidationError
+    from ashiba.master import MasterDataError, SeriesLockError
+    from ashiba.structural import CapacityError
+    from ashiba.tapir_adapter import TapirError
+
+    try:
+        main()
+    except (InputError, ValidationError, MasterDataError, SeriesLockError,
+            CapacityError, TapirError) as e:
+        print(f"[ashiba] {type(e).__name__}: {e}")
+        raise SystemExit(2)
