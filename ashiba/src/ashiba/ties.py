@@ -126,3 +126,48 @@ def tie_counts(model: ScaffoldModel) -> dict[str, int]:
 
 def has_attachment_ties(model: ScaffoldModel) -> bool:
     return any(t.kind in ATTACHMENT_KINDS for t in model.wall_ties)
+
+
+def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
+    """開口部で抜いた支柱（梁枠より下）に当たる壁つなぎを、開口部の両端の支柱へ寄せる.
+
+    格子の壁つなぎは開口部を知らずに決まるので、通路の真ん中（支柱が無い所）に
+    金具が描かれ、数量にも入っていた（実機の立面で見つけた）。梁枠より上の支柱は
+    梁枠に乗っているので、そこの壁つなぎはそのまま。寄せた先に同じ高さの壁つなぎが
+    既にあれば1本にまとめる（同じ位置は同じ金具で兼ねる）。戻り値は寄せた内容の説明。
+    """
+    if openings is None or not getattr(openings, "openings", None):
+        return []
+    moved: dict[int, int] = {}
+    merged = 0
+    for i, o in enumerate(openings.openings):
+        beam_h = openings.beam_heights.get(i)
+        if beam_h is None or i not in openings.inner_posts:
+            continue   # 成立していない開口部（両端が支柱に乗らない等）は触らない
+        keep: list[WallTie] = []
+        for t in model.wall_ties:
+            inside = (t.edge_index == o.edge_index
+                      and o.start_mm + 1e-6 < t.position_mm < o.end_mm - 1e-6
+                      and t.height_mm < beam_h - 1e-6)
+            if not inside:
+                keep.append(t)
+                continue
+            new_x = o.start_mm if (t.position_mm - o.start_mm) <= (o.end_mm - t.position_mm) else o.end_mm
+            dup = any(k.edge_index == t.edge_index and abs(k.position_mm - new_x) < 1e-6
+                      and k.height_mm == t.height_mm for k in keep)
+            if dup:
+                merged += 1
+            else:
+                keep.append(WallTie(t.edge_index, new_x, t.height_mm, t.kind))
+            moved[o.edge_index] = moved.get(o.edge_index, 0) + 1
+        model.wall_ties = keep
+    if not moved:
+        return []
+    faces = "・".join(f"辺{e} {n}本" for e, n in sorted(moved.items()))
+    msg = (f"開口部の通路（支柱を抜いた区間・梁枠より下）に当たる壁つなぎ{faces}を、開口部の両端の"
+           "支柱へ寄せました")
+    if merged:
+        msg += f"（うち{merged}本は寄せた先の壁つなぎと同じ位置なので1本にまとめています）"
+    msg += "。寄せた面の水平間隔は法規チェック#4で判定しています"
+    return [msg]
+

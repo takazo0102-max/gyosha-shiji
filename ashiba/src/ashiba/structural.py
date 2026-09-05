@@ -796,6 +796,8 @@ class TieOptimizeResult:
     tightened: bool          # 既定配置から詰めたか
     feasible: bool           # 最密でも耐力を満たせない場合 False
     message: str
+    # 開口部で抜いた支柱から両端へ寄せた壁つなぎの説明（openings を渡したとき）
+    notes: list = field(default_factory=list)
 
 
 def optimize_wall_ties(
@@ -803,6 +805,7 @@ def optimize_wall_ties(
     site: Optional[SiteCondition] = None,
     capacity_path: Optional[Path] = None,
     apply: bool = True,
+    openings=None,
 ) -> TieOptimizeResult:
     """壁つなぎ間隔を構造計算から逆算して決める.
 
@@ -811,8 +814,12 @@ def optimize_wall_ties(
     緩い順（部材数が少ない順）に試し、最初に成立した構成を採用する。
 
     apply=True のとき model.wall_ties を最適解で置き換える（数量・図面に反映される）。
+    openings を渡すと、開口部で抜いた支柱に当たる壁つなぎを両端へ寄せた状態で検定する
+    （寄せると支配面積が偏るので、寄せた後で成立する間隔を選ぶ。寄せる前に選んだ間隔では
+    opening_beam サンプルが寄せた後に検定比1.10で落ちた）。
     """
     from .model import generate_wall_ties  # 循環インポート回避のため関数内で解決
+    from .ties import relocate_ties_off_openings
 
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
@@ -837,11 +844,12 @@ def optimize_wall_ties(
             model.config.wall_tie_level_step = level_step
             ties = generate_wall_ties(model.plan, model.elevation, model.config)
             model.wall_ties = ties
+            relocate_ties_off_openings(model, openings)
             res = check_wall_tie(model, wind, caps)
             cand = TieOptimizeResult(
                 span_step=span_step,
                 level_step=level_step,
-                tie_count=len(ties),
+                tie_count=len(model.wall_ties),
                 wall_tie=res,
                 tightened=(span_step, level_step) != (base_span, base_level),
                 feasible=res.ok,
@@ -891,6 +899,7 @@ def optimize_wall_ties(
         model.wall_ties = generate_wall_ties(
             model.plan, model.elevation, model.config
         )
+        chosen.notes = relocate_ties_off_openings(model, openings)
     else:
         model.wall_ties = original
         model.config.wall_tie_span_step = base_span

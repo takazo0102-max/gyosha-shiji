@@ -789,8 +789,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     validate_spec(spec)
     model = build_model(spec, master_csv)
     site = build_site(spec)
+    # 開口部を先に解く（壁つなぎの最適化は抜いた支柱を避けた状態で検定する。
+    # 階段の自動配置も梁枠の区間（通路）を避ける）
+    openings = validate_openings(model, build_openings(spec))
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
-    tie_opt = optimize_wall_ties(model, site)
+    tie_opt = optimize_wall_ties(model, site, openings=openings)
+    model.plan.warnings.extend(tie_opt.notes)
     brackets = build_brackets(spec)
     bracket_issues = validate_bracket_sections(model, brackets)
     # 枠組の手すりは建枠一体。先行手すり工法の指定は効かないので、黙って無視しない
@@ -812,8 +816,6 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             + "・".join(edge_keys) + " の edge_index は、平面割付表の辺・面名・躯体頂点で"
             "指定した面に当たっているか確認してください"
         )
-    # 開口部は階段より先に解く。自動配置が梁枠の区間（通路）に階段を置かないため
-    openings = validate_openings(model, build_openings(spec))
     st = spec.get("stairs", {})
     if st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）

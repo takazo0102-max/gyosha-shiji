@@ -194,5 +194,82 @@ class TestTieRangeGap(unittest.TestCase):
                 self.assertTrue(any(p.covers(1000) for p in m.by_category("壁つなぎ")))
 
 
+class TestTiesLeaveTheOpening(unittest.TestCase):
+    """開口部で抜いた支柱（梁枠より下）に壁つなぎを付けない.
+
+    格子の壁つなぎは開口部を知らずに決まるので、通路の真ん中に金具が描かれていた
+    （複合サンプルの実機立面で発見）。両端の支柱へ寄せ、同じ位置は1本にまとめる。
+    """
+
+    def _model_with_opening(self):
+        from ashiba.openings import Opening, validate_openings
+
+        m = build(asagao=0)
+        op = validate_openings(m, [Opening(0, 3600, 3600, level=2)])
+        self.assertTrue(op.ok, [i.message for i in op.issues])
+        return m, op
+
+    def test_inner_ties_below_the_beam_move_to_the_end_posts(self):
+        from ashiba.model import WallTie
+        from ashiba.ties import relocate_ties_off_openings
+
+        m, op = self._model_with_opening()
+        beam_h = op.beam_heights[0]
+        m.wall_ties = [t for t in m.wall_ties
+                       if not (t.edge_index == 0 and 3600 < t.position_mm < 7200)]
+        m.wall_ties.append(WallTie(0, 5400, int(beam_h) - 1800, "grid"))   # 通路の真ん中
+        m.wall_ties.append(WallTie(0, 5400, int(beam_h) + 1800, "grid"))   # 梁枠上の支柱（残る）
+        n0 = len(m.wall_ties)
+        notes = relocate_ties_off_openings(m, op)
+        self.assertEqual(len(m.wall_ties), n0)
+        bad = [t for t in m.wall_ties if t.edge_index == 0 and 3600 < t.position_mm < 7200
+               and t.height_mm < beam_h]
+        self.assertEqual(bad, [])
+        moved = [t for t in m.wall_ties if t.edge_index == 0 and t.height_mm == int(beam_h) - 1800
+                 and t.position_mm in (3600.0, 7200.0)]
+        self.assertTrue(moved)
+        above = [t for t in m.wall_ties if t.position_mm == 5400 and t.height_mm == int(beam_h) + 1800]
+        self.assertEqual(len(above), 1)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("辺0 1本", notes[0])
+
+    def test_duplicate_at_the_target_is_merged(self):
+        from ashiba.model import WallTie
+        from ashiba.ties import relocate_ties_off_openings
+
+        m, op = self._model_with_opening()
+        h = int(op.beam_heights[0]) - 1800
+        m.wall_ties = [WallTie(0, 3600, h, "grid"), WallTie(0, 4500, h, "grid")]
+        notes = relocate_ties_off_openings(m, op)
+        self.assertEqual(len(m.wall_ties), 1)
+        self.assertIn("1本にまとめて", notes[0])
+
+    def test_optimizer_checks_the_relocated_layout(self):
+        """寄せた後の配置で風荷重の検定が成立する間隔を選ぶ（opening_beam は寄せた後に落ちていた）."""
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
+        self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie)
+        op = r.openings
+        for i, o in enumerate(op.openings):
+            bad = [t for t in r.model.wall_ties if t.edge_index == o.edge_index
+                   and o.start_mm < t.position_mm < o.end_mm and t.height_mm < op.beam_heights[i]]
+            self.assertEqual(bad, [], i)
+        # 寄せた本数があるときだけ割付の警告に出る（採用した間隔で通路に当たらなければ無し）
+        notes = [w[2] for w in r.warnings if "両端の支柱へ寄せました" in w[2]]
+        self.assertEqual(len(notes), 1 if r.tie_opt.notes else 0, notes)
+
+    def test_no_opening_changes_nothing(self):
+        from ashiba.ties import relocate_ties_off_openings
+
+        m = build(asagao=0)
+        before = list(m.wall_ties)
+        self.assertEqual(relocate_ties_off_openings(m, None), [])
+        self.assertEqual(m.wall_ties, before)
+
+
 if __name__ == "__main__":
     unittest.main()

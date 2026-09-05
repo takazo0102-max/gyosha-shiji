@@ -44,7 +44,10 @@ def main() -> int:
         c.add_file_to_embedded_library(str(gsm), gsm.name)
     except TapirError:
         pass    # 同じ内容の部品が既にある
-    r = solve_all(load_spec(ROOT / "examples" / f"{ex}.json"))
+    # 同梱サンプル名か、任意の入力JSONのパス（実案件の確認用）
+    spec_path = Path(ex) if ex.endswith(".json") else ROOT / "examples" / f"{ex}.json"
+    ex = spec_path.stem
+    r = solve_all(load_spec(spec_path))
     ep = next(e for e in r.model.plan.edges if e.edge_index == edge)
     base = line_params(
         r.model, ep, stair_plan=r.stair_plan, openings=r.openings,

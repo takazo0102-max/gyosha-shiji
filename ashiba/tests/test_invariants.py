@@ -32,6 +32,21 @@ class TestCrossCuttingInvariants(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(r.quantity.qty_of("壁つなぎ"), len(r.model.wall_ties))
 
+    def test_no_wall_tie_on_a_removed_post(self):
+        """開口部で抜いた支柱（梁枠より下）に壁つなぎが無い."""
+        for name, r in self.runs:
+            with self.subTest(name):
+                op = r.openings
+                for i, o in enumerate(op.openings):
+                    beam_h = op.beam_heights.get(i)
+                    if beam_h is None:
+                        continue
+                    bad = [t for t in r.model.wall_ties
+                           if t.edge_index == o.edge_index
+                           and o.start_mm + 1e-6 < t.position_mm < o.end_mm - 1e-6
+                           and t.height_mm < beam_h - 1e-6]
+                    self.assertEqual(bad, [], (name, i))
+
     def test_warnings_are_not_duplicated(self):
         for name, r in self.runs:
             with self.subTest(name):
