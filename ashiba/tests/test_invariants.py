@@ -88,6 +88,43 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                             self.assertLessEqual(len(v), GDL_STR_MAX, (name, k))
 
 
+class TestShimsAndSaddlesFollowTheModel(unittest.TestCase):
+    """敷板は敷板調整の脚以上、梁渡しは梁枠上の支柱の数（マスタにある系列で）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import glob
+
+        from ashiba.cli import load_spec, solve_all
+
+        cls.runs = []
+        for ex in sorted(glob.glob(str(ROOT / "examples" / "*.json"))):
+            cls.runs.append((Path(ex).stem, solve_all(load_spec(Path(ex)))))
+
+    def test_shims_cover_raised_feet(self):
+        for name, r in self.runs:
+            m = r.model.master
+            if not m.by_category("敷板") or r.terrain is None:
+                continue
+            with self.subTest(name):
+                raised = [f for f in r.terrain.feet if f.base_plate_adjust_mm > 0]
+                shims = r.quantity.qty_of("敷板")
+                if raised:
+                    self.assertGreaterEqual(shims, len(raised))
+                else:
+                    self.assertEqual(shims, 0)
+
+    def test_saddles_equal_inner_posts_on_beams(self):
+        for name, r in self.runs:
+            m = r.model.master
+            if not m.by_category("梁渡し"):
+                continue
+            with self.subTest(name):
+                rows = 1 if r.model.config.scaffold_form == "一側足場" else 2
+                expect = sum(len(v) for v in r.openings.inner_posts.values()) if rows == 2 else 0
+                self.assertEqual(r.quantity.qty_of("梁渡し"), expect)
+
+
 class TestCapacityKeysMatchTheJacks(unittest.TestCase):
     """ジャッキ許容支持力の繰出し量キーは、その系列のジャッキで実際に繰り出せる範囲にある.
 
