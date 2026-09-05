@@ -257,6 +257,54 @@ def _check_keys(errors: list[str], where: str, obj, allowed: set[str],
         errors.append(f"{where}: \"{k}\" が要ります")
 
 
+def _check_item_semantics(errors: list[str], key: str, where: str, item) -> None:
+    """区間指定の値の意味の誤り（向きの綴り・負の積載・終点が始点より前）を入口で止める.
+
+    これらは検証ではNG（計画不成立）として出ていたが、綴り違いや符号の間違いは
+    計画の問題ではなく入力の問題。是正項目に混ぜると読む側が入力ミスに気づきにくい。
+    """
+    if not isinstance(item, dict):
+        return
+
+    def num(name):
+        v = item.get(name)
+        return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+    for name in ("edge_index", "start_mm", "position_mm"):
+        v = num(name)
+        if v is not None and v < 0:
+            errors.append(f"{where}.{name}: 0以上で指定してください（{v}）")
+    if key == "bracket_sections":
+        d = item.get("direction")
+        if d is not None and d not in ("内", "張出"):
+            errors.append(f"{where}.direction: 内 か 張出 です（{d!r}）")
+        w = num("width")
+        if w is not None and w <= 0:
+            errors.append(f"{where}.width: 0より大きい値で指定してください（{w}）")
+        s0, s1 = num("start_mm"), num("end_mm")
+        if s0 is not None and s1 is not None and s1 <= s0:
+            errors.append(f"{where}: end_mm（{s1}）は start_mm（{s0}）より大きい値です")
+    elif key == "loading_stages":
+        for name in ("load_kn", "projection_mm"):
+            v = num(name)
+            if v is not None and v <= 0:
+                errors.append(f"{where}.{name}: 0より大きい値で指定してください（{v}）")
+        sc = num("span_count")
+        if sc is not None and sc < 1:
+            errors.append(f"{where}.span_count: 1以上で指定してください（{sc}）")
+    elif key == "hoists":
+        t = num("tie_every_mm")
+        if t is not None and t <= 0:
+            errors.append(f"{where}.tie_every_mm: 0より大きい値で指定してください（{t}）")
+    elif key == "openings":
+        b = num("beam_span_mm")
+        if b is not None and b <= 0:
+            errors.append(f"{where}.beam_span_mm: 0より大きい値で指定してください（{b}）")
+        lv = num("level")
+        if lv is not None and lv < 1:
+            errors.append(f"{where}.level: 1以上で指定してください（{lv}）")
+
+
 def validate_spec(spec: dict) -> None:
     """入力JSONを読む前に、綴り違い・型違い・矛盾をまとめて指摘する.
 
@@ -348,6 +396,7 @@ def validate_spec(spec: dict) -> None:
             _check_keys(errors, where, item, allowed, required)
             _check_numbers(errors, where, item, LIST_NUMERIC_FIELDS.get(key, ()))
             _check_int_lists(errors, where, item, LIST_INT_LIST_FIELDS.get(key, ()))
+            _check_item_semantics(errors, key, where, item)
 
     st = spec.get("stairs")
     if isinstance(st, dict):
