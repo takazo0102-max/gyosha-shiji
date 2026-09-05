@@ -20,6 +20,11 @@ DEFAULT_MASTER_PATH = Path(__file__).resolve().parents[2] / "data" / "part_maste
 WEDGE = "くさび"
 FRAME = "枠組"
 
+# ジャッキの機械的な上限。枠組はジャッキ型ベース金具の最大使用高さ350mm（構造規格）、
+# くさびはマスタに上限の記載が無いときの既定
+FRAME_JACK_MAX_MM = 350
+DEFAULT_JACK_MAX_MM = 450
+
 # 系列ごとのコマピッチ・階高・既定踏板幅 [mm]
 # 踏板幅は系列で実寸が違う（A:400/250、B:405/240）。既定値を決め打ちにすると
 # 系列を切り替えたときにマスタ引き当てが静かに失敗するので、ここから引く。
@@ -225,6 +230,19 @@ class PartMaster:
             {p.nominal_dim for p in self.by_category("布材") if p.nominal_dim >= min_span},
             reverse=True,
         )
+
+    def jack_hard_max_mm(self) -> int:
+        """この系列でジャッキを繰り出せる上限（mm）.
+
+        枠組はジャッキ型ベース金具の最大使用高さ350mm（構造規格）。くさびはマスタの
+        ジャッキの「繰出し最大NNN」の最大（ロングがあればその値）、書いていなければ450。
+        敷地の高低差を解くときの機械的な上限に使う（実務上限270とは別）。
+        """
+        if self.is_frame:
+            return FRAME_JACK_MAX_MM
+        limits = [p.max_extension_mm() for p in self.by_category("ジャッキ")
+                  if "アンダーベース" not in p.note and p.max_extension_mm() is not None]
+        return max(limits) if limits else DEFAULT_JACK_MAX_MM
 
     def bracket_for(self, width: int, outward: bool) -> Optional[Part]:
         """区間指定のブラケット（呼び幅・向き）に当てる部材.

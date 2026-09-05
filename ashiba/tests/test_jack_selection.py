@@ -104,5 +104,27 @@ class TestHoistGate(unittest.TestCase):
                                  r.quantity.warnings)
 
 
+class TestJackHardMaxBySeries(unittest.TestCase):
+    """ジャッキの機械的上限は系列で違う: 枠組350（構造規格）、ND 432（ロング）、信和450."""
+
+    def test_limits(self):
+        self.assertEqual(load_master("waku").jack_hard_max_mm(), 350)
+        self.assertEqual(load_master("nikken_nd1800").jack_hard_max_mm(), 432)
+        self.assertEqual(load_master("shinwa_A").jack_hard_max_mm(), 450)
+
+    def test_terrain_respects_the_frame_limit(self):
+        m = build("waku")
+        t = terrace(m, 1200)
+        self.assertLessEqual(max(f.jack_mm for f in t.feet), 350 + 1e-6)
+        # 届かない分は敷板調整として明示される
+        self.assertTrue(any(f.base_plate_adjust_mm > 0 for f in t.feet)
+                        or all(f.jack_mm <= 350 for f in t.feet))
+
+    def test_terrain_respects_the_nd_long_jack(self):
+        m = build("nikken_nd1800")
+        t = terrace(m, 1200)
+        self.assertLessEqual(max(f.jack_mm for f in t.feet), 432 + 1e-6)
+
+
 if __name__ == "__main__":
     unittest.main()

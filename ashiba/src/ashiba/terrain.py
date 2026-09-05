@@ -135,7 +135,7 @@ def solve_post_feet(
     ground: Optional[GroundModel] = None,
     jack_min: int = JACK_MIN_EXTENSION,
     jack_recommended_max: int = JACK_MAX_EXTENSION,
-    jack_hard_max: int = JACK_HARD_MAX_EXTENSION,
+    jack_hard_max: Optional[int] = None,
 ) -> TerrainResult:
     """各支柱位置のGL標高から、支柱ごとのジャッキ量と支柱構成を解く.
 
@@ -143,6 +143,9 @@ def solve_post_feet(
     残差をジャッキで吸収し、吸収しきれない分は敷板調整として明示する。
     """
     ground = ground or GroundModel()
+    # 機械的な上限は系列で違う（枠組350・日建ND752SP 432・信和SE-6 450）
+    if jack_hard_max is None:
+        jack_hard_max = model.master.jack_hard_max_mm()
     positions = model.plan.post_positions()
     koma = model.master.koma_pitch
     # 枠組にコマは無い。段差の刻みは最小の建枠（調整枠）の高さになる
