@@ -846,7 +846,9 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     品を選ぶ。1品だけの系列は従来どおりその品で全数を数える。以前は日建で KS700
     （380〜760mm）だけを登録していて、離れ212mmの面にも KS700 を当てていた。
     """
-    from .ties import KIND_LABEL, has_attachment_ties, merge_attachment_ties, tie_counts
+    from .ties import has_attachment_ties, kind_labels, merge_attachment_ties, tie_counts
+
+    labels = kind_labels(model)
 
     if not has_attachment_ties(model):
         merge_attachment_ties(model, platforms)
@@ -854,7 +856,7 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     # 1品だけでも伸縮範囲が書いてあれば、面の必要長さが範囲外なら手配項目に出す
     if not cands or kt is None:
         for kind, n in tie_counts(model).items():
-            add(kt, n, KIND_LABEL.get(kind, kind))
+            add(kt, n, labels.get(kind, kind))
         return
     cands.sort(key=lambda p: p.adjustable_range()[1])
     counts: dict[tuple[str, str], int] = {}
@@ -880,7 +882,7 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
         key = (fit.model_no, t.kind)
         counts[key] = counts.get(key, 0) + 1
     for (no, kind), n in counts.items():
-        add(parts[no], n, KIND_LABEL.get(kind, kind))
+        add(parts[no], n, labels.get(kind, kind))
     if uncovered and notes is not None and hasattr(notes, "action"):
         faces = "・".join(
             f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本、"

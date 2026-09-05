@@ -103,6 +103,14 @@ class TestQuantity(unittest.TestCase):
         self.assertTrue([w for w in q.warnings
                          if "セーフウイング" in w and "マスタに該当部材がありません" in w], q.warnings)
 
+    def test_attachment_ties_are_labelled_as_the_wing(self):
+        """取付部の壁つなぎの内訳を「朝顔取付部」と書かない（届は朝顔なしなので食い違う）."""
+        q = take_off(build())
+        ties = [l for l in q.lines if l.part.category == "壁つなぎ"]
+        notes = " ".join(l.note for l in ties)
+        self.assertIn("セーフウイング取付部の壁つなぎ", notes)
+        self.assertNotIn("朝顔取付部", notes)
+
     def test_provisional_notice_names_the_wing(self):
         q = take_off(build())
         self.assertTrue([w for w in q.warnings if "型番仮" in w and "SW-A" in w])

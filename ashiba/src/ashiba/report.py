@@ -220,10 +220,11 @@ def write_report_md(
     a("")
     v_lim, h_lim, tie_basis = model.wall_tie_limits()
     v_max, h_max = model.wall_tie_max_spacing()
-    from .ties import KIND_LABEL, tie_counts
+    from .ties import kind_labels, tie_counts
 
     counts = tie_counts(model)
-    breakdown = "／".join(f"{KIND_LABEL.get(k, k)} {n}" for k, n in counts.items() if k != "grid")
+    labels = kind_labels(model)
+    breakdown = "／".join(f"{labels.get(k, k)} {n}" for k, n in counts.items() if k != "grid")
     a(f"- 本数: {len(model.wall_ties)}箇所"
       + (f"（格子{counts.get('grid', 0)}＋{breakdown}。同じ位置は同じ金具で兼ねる）" if breakdown else ""))
     a(f"- 実配置の最大間隔: 垂直{v_max:.0f}mm × 水平{h_max:.0f}mm "

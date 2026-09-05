@@ -19,6 +19,18 @@ KIND_LABEL = {
 ATTACHMENT_KINDS = ("asagao", "stage", "hoist")
 
 
+def kind_labels(model: ScaffoldModel) -> dict[str, str]:
+    """用途ラベル。朝顔の種別がセーフウイングなら取付部の名前もそう書く（発注書・内訳で
+    「朝顔」と読ませない。届の下書きは「朝顔なし」なので食い違う）."""
+    from .model import ASAGAO_KIND_SAFE_WING
+
+    labels = dict(KIND_LABEL)
+    a = model.config.asagao
+    if a is not None and a.stages > 0 and a.kind == ASAGAO_KIND_SAFE_WING:
+        labels["asagao"] = "セーフウイング取付部の壁つなぎ"
+    return labels
+
+
 def _edge(model: ScaffoldModel, idx: int):
     return next((e for e in model.plan.edges if e.edge_index == idx), None)
 
