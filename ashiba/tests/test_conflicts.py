@@ -178,7 +178,7 @@ class TestAsagaoVersusAttachments(unittest.TestCase):
         self.assertEqual(len(hits), 1)
         self.assertEqual(hits[0].severity, "WARN")
         self.assertIn("切り欠き", hits[0].message)
-        self.assertIn("7200〜9000mm・9000〜10800mm", hits[0].message)   # 支柱の真上→両隣
+        self.assertIn("7200〜10800mm", hits[0].message)   # 支柱の真上→両隣のスパンを結合
 
     def test_stage_at_the_asagao_height_is_flagged(self):
         m = self._model()

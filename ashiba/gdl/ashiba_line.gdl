@@ -62,6 +62,7 @@
 !   bridgeList      文字列  渡した凹み・張り出し「開始,長さ,増える離れ,種別0/1」mm                 既定 ""
 !   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                既定 ""
 !   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                               既定 ""
+!   asaCutList      文字列  朝顔を切り欠く区間 mm 「開始,終了」の繰り返し（昇降機の通る位置）      既定 ""
 !   asagaoProj      長さ    朝顔の水平突出                                                         既定 2
 !   asagaoAngle     実数    朝顔の傾斜 度                                                          既定 25
 !   braceEveryS     整数    斜材の設置間隔 スパン 1=全構面                                         既定 1
@@ -93,6 +94,10 @@ dim fls[20]
 dim lv[42]
 dim levIn[40]
 dim asa[8]
+dim cutS[8]
+dim cutE[8]
+dim asgA[9]
+dim asgB[9]
 dim stS[8]
 dim stL[8]
 dim bmS[8]
@@ -579,11 +584,59 @@ while strlen(rest) > 0 and nAsa < 8 do
 	endif
 endwhile
 
+! ---- asaCutList をパース「開始,終了」の繰り返し (mm→m) ----
+! 配列名に acS を使うと GDL 組込み関数 ACS()（逆余弦）と衝突して部品ごと壊れる
+! （パラメータ設定が全部失敗する。半日の切り分けで判明）。cut〜 で統一
+! 昇降機のマスト・搬器が通るスパンは朝顔を切り欠く。衝突検査が切り欠きを
+! 指示するのに、図面と3Dは全長の板のままだった
+nCut = 0
+cutIdx = 0
+cutT = 0
+rest = asaCutList
+while strlen(rest) > 0 and nCut < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		cutIdx = cutIdx + 1
+		if cutIdx - 2 * int(cutIdx / 2) = 1 then
+			cutT = v / 1000
+		else
+			nCut = nCut + 1
+			cutS[nCut] = cutT
+			cutE[nCut] = v / 1000
+		endif
+	endif
+endwhile
+
 ! ---- 派生値 ----
 lineLen = 0
 for i = 1 to nSpan
 	lineLen = lineLen + spans[i]
 next i
+
+! 朝顔の連続区間（切り欠きを除いた asgA〜asgB）。区間は Python 側で昇順・非重複
+nAsg = 0
+cutX = 0
+for ic = 1 to nCut
+	if cutS[ic] > cutX + 0.001 then
+		nAsg = nAsg + 1
+		asgA[nAsg] = cutX
+		asgB[nAsg] = cutS[ic]
+	endif
+	cutX = cutE[ic]
+next ic
+if lineLen > cutX + 0.001 then
+	nAsg = nAsg + 1
+	asgA[nAsg] = cutX
+	asgB[nAsg] = lineLen
+endif
 postTop = jackOut
 for i = 1 to nPost
 	postTop = postTop + posts[i]
@@ -796,14 +849,21 @@ next ih
 line_type 1
 
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
+! 昇降機が通る区間（asaCutList）は切り欠いて描く
 if nAsa > 0 then
 	line_type 3
-	line2 0, -rowW - asagaoProj, lineLen, -rowW - asagaoProj
-	line2 0, -rowW, 0, -rowW - asagaoProj
-	line2 lineLen, -rowW, lineLen, -rowW - asagaoProj
+	for isg = 1 to nAsg
+		line2 asgA[isg], -rowW - asagaoProj, asgB[isg], -rowW - asagaoProj
+		line2 asgA[isg], -rowW, asgA[isg], -rowW - asagaoProj
+		line2 asgB[isg], -rowW, asgB[isg], -rowW - asagaoProj
+	next isg
 	line_type 1
 	set style "annoC"
 	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
+	for ic = 1 to nCut
+		set style "annoC"
+		if showDim then text2 (cutS[ic] + cutE[ic]) / 2, -rowW - asagaoProj / 2, "朝顔切欠"
+	next ic
 	set style "anno"
 endif
 
@@ -1137,9 +1197,16 @@ next ib
 ! 朝顔（立面では設置高さに太線と注記）
 for ia = 1 to nAsa
 	za = asa[ia]
-	line2 0, za, lineLen, za
-	line2 0, za + 0.02, lineLen, za + 0.02
+	for isg = 1 to nAsg
+		line2 asgA[isg], za, asgB[isg], za
+		line2 asgA[isg], za + 0.02, asgB[isg], za + 0.02
+	next isg
 	if showDim then text2 lineLen + 0.1, za, "朝顔" + str(ia, 1, 0) + "段目 GL+" + str(za * 1000, 5, 0)
+	for ic = 1 to nCut
+		set style "annoC"
+		if showDim then text2 (cutS[ic] + cutE[ic]) / 2, za + 0.12, "朝顔切欠（昇降機）"
+	next ic
+	set style "anno"
 next ia
 
 ! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
@@ -1449,22 +1516,31 @@ endif
 ! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
 ! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
 ! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
 for ia = 1 to nAsa
 	za = asa[ia]
 	! 板（外側へ張り出し、先端が上がる）
-	add 0, -rowW, za
-	muly -1
-	rotx asagaoAngle
-	block lineLen, asagaoProj, 0.02
-	del 3
-	! 受けブラケット（支柱位置ごと）
+	for isg = 1 to nAsg
+		add asgA[isg], -rowW, za
+		muly -1
+		rotx asagaoAngle
+		block asgB[isg] - asgA[isg], asagaoProj, 0.02
+		del 3
+	next isg
+	! 受けブラケット（支柱位置ごと。切り欠きの内側の支柱には付けない）
 	x = 0
 	for ip = 1 to nSpan + 1
-		add x, -rowW, za
-		muly -1
-		rotx asagaoAngle - 90
-		cylind asagaoProj, 0.0213 / 2
-		del 3
+		inCut = 0
+		for ic = 1 to nCut
+			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
+		next ic
+		if inCut = 0 then
+			add x, -rowW, za
+			muly -1
+			rotx asagaoAngle - 90
+			cylind asagaoProj, 0.0213 / 2
+			del 3
+		endif
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
 next ia

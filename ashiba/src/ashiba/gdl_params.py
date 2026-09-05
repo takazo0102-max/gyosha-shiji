@@ -207,11 +207,26 @@ def line_params(
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
         "asagaoList": ",".join(str(h) for h in model.asagao_heights()),
+        # 朝顔を切り欠く区間「開始,終了」の繰り返し（昇降機のマスト・搬器が通るスパン）。
+        # 衝突検査が切り欠きを指示するのに、図面と3Dは全長の板のままだった
+        "asaCutList": _asagao_cut_list(model, ep, platforms),
         "asagaoProj": (model.config.asagao.projection_mm / 1000.0
                        if model.config.asagao else 2.0),
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+def _asagao_cut_list(model: ScaffoldModel, ep, platforms) -> str:
+    """この辺の朝顔（セーフウイング）を切り欠く区間を「開始,終了」の繰り返しで返す."""
+    if not model.asagao_heights() or platforms is None or not getattr(platforms, "hoists", None):
+        return ""
+    from .platforms import hoist_cut_ranges
+
+    parts = []
+    for s0, e0 in hoist_cut_ranges(model, ep.edge_index, platforms.hoists):
+        parts += [str(int(round(s0))), str(int(round(e0)))]
+    return ",".join(parts)
 
 
 def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:

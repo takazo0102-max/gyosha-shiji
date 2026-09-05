@@ -492,3 +492,32 @@ def platform_quantities(
         if d.qty > 0:
             counts[d.label] = counts.get(d.label, 0) + d.qty
     return counts
+
+
+def hoist_cut_ranges(model: ScaffoldModel, edge_index: int, hoists) -> list[tuple[float, float]]:
+    """昇降機のマスト・搬器が通るスパン（辺の始点からの区間、重なりは結合）.
+
+    朝顔はこの区間を切り欠く。支柱の真上に立つ昇降機は両隣のスパンを占める。
+    衝突検査の文面と図面（asaCutList）で同じ区間を使う。
+    """
+    ep = next((e for e in model.plan.edges if e.edge_index == edge_index), None)
+    if ep is None:
+        return []
+    posts = [0.0]
+    for sp in ep.spans:
+        posts.append(posts[-1] + sp)
+    raw: list[tuple[float, float]] = []
+    for h in hoists or []:
+        if h.edge_index != edge_index:
+            continue
+        x = h.position_mm
+        raw += [(posts[k], posts[k + 1]) for k in range(len(ep.spans))
+                if posts[k] - 1e-6 <= x <= posts[k + 1] + 1e-6]
+    out: list[tuple[float, float]] = []
+    for s0, e0 in sorted(raw):
+        if out and s0 <= out[-1][1] + 1e-6:
+            out[-1] = (out[-1][0], max(out[-1][1], e0))
+        else:
+            out.append((s0, e0))
+    return out
+

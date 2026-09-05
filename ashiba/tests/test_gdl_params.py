@@ -756,3 +756,42 @@ class TestTerrainReachesTheDrawing(unittest.TestCase):
         self.assertIn("jk[ip]", elev)
         self.assertIn("gl[ip]", solid)
 
+
+class TestAsagaoCutList(unittest.TestCase):
+    """昇降機が通るスパンは朝顔を切り欠いて描く（asaCutList「開始,終了」）."""
+
+    def _model(self):
+        from ashiba.model import AsagaoSpec
+
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=1)),
+        )
+
+    def test_hoist_on_a_post_cuts_both_spans_as_one_range(self):
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = self._model()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        p = line_params(m, m.plan.edges[0], platforms=pf)
+        self.assertEqual(p["asaCutList"], "7200,10800")
+        other = line_params(m, m.plan.edges[1], platforms=pf)
+        self.assertEqual(other["asaCutList"], "")
+
+    def test_hoist_mid_span_cuts_that_span(self):
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = self._model()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9900)])
+        p = line_params(m, m.plan.edges[0], platforms=pf)
+        self.assertEqual(p["asaCutList"], "9000,10800")
+
+    def test_no_asagao_means_no_cut(self):
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = build("shinwa_A")
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        self.assertEqual(line_params(m, m.plan.edges[0], platforms=pf)["asaCutList"], "")
+

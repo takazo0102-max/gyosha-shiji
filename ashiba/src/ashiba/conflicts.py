@@ -47,19 +47,10 @@ def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssu
     hs = "・".join(f"{h:.0f}" for h in heights)
     basis = "安衛則563条・537条（落下物防護）"
 
-    def spans_at(edge_index: int, x: float) -> list[tuple[float, float]]:
-        ep = next((e for e in model.plan.edges if e.edge_index == edge_index), None)
-        if ep is None:
-            return []
-        posts = [0.0]
-        for s in ep.spans:
-            posts.append(posts[-1] + s)
-        # 支柱の真上なら両隣のスパン、それ以外はその位置を含むスパン
-        return [(posts[k], posts[k + 1]) for k in range(len(ep.spans))
-                if posts[k] - 1e-6 <= x <= posts[k + 1] + 1e-6]
+    from .platforms import hoist_cut_ranges
 
     for i, h in enumerate(hoists):
-        cut = spans_at(h.edge_index, h.position_mm)
+        cut = hoist_cut_ranges(model, h.edge_index, [h])
         rng = "・".join(_rng(s0, s1) for s0, s1 in cut) or f"{h.position_mm:.0f}mm付近"
         out.append(ConflictIssue(
             f"昇降機×{label}", "WARN",

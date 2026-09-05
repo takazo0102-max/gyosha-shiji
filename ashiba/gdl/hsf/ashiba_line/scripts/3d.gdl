@@ -210,22 +210,31 @@ endif
 ! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
 ! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
 ! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
 for ia = 1 to nAsa
 	za = asa[ia]
 	! 板（外側へ張り出し、先端が上がる）
-	add 0, -rowW, za
-	muly -1
-	rotx asagaoAngle
-	block lineLen, asagaoProj, 0.02
-	del 3
-	! 受けブラケット（支柱位置ごと）
+	for isg = 1 to nAsg
+		add asgA[isg], -rowW, za
+		muly -1
+		rotx asagaoAngle
+		block asgB[isg] - asgA[isg], asagaoProj, 0.02
+		del 3
+	next isg
+	! 受けブラケット（支柱位置ごと。切り欠きの内側の支柱には付けない）
 	x = 0
 	for ip = 1 to nSpan + 1
-		add x, -rowW, za
-		muly -1
-		rotx asagaoAngle - 90
-		cylind asagaoProj, 0.0213 / 2
-		del 3
+		inCut = 0
+		for ic = 1 to nCut
+			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
+		next ic
+		if inCut = 0 then
+			add x, -rowW, za
+			muly -1
+			rotx asagaoAngle - 90
+			cylind asagaoProj, 0.0213 / 2
+			del 3
+		endif
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
 next ia

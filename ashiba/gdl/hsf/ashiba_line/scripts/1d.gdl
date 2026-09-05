@@ -17,6 +17,10 @@ dim fls[20]
 dim lv[42]
 dim levIn[40]
 dim asa[8]
+dim cutS[8]
+dim cutE[8]
+dim asgA[9]
+dim asgB[9]
 dim stS[8]
 dim stL[8]
 dim bmS[8]
@@ -503,11 +507,59 @@ while strlen(rest) > 0 and nAsa < 8 do
 	endif
 endwhile
 
+! ---- asaCutList をパース「開始,終了」の繰り返し (mm→m) ----
+! 配列名に acS を使うと GDL 組込み関数 ACS()（逆余弦）と衝突して部品ごと壊れる
+! （パラメータ設定が全部失敗する。半日の切り分けで判明）。cut〜 で統一
+! 昇降機のマスト・搬器が通るスパンは朝顔を切り欠く。衝突検査が切り欠きを
+! 指示するのに、図面と3Dは全長の板のままだった
+nCut = 0
+cutIdx = 0
+cutT = 0
+rest = asaCutList
+while strlen(rest) > 0 and nCut < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		cutIdx = cutIdx + 1
+		if cutIdx - 2 * int(cutIdx / 2) = 1 then
+			cutT = v / 1000
+		else
+			nCut = nCut + 1
+			cutS[nCut] = cutT
+			cutE[nCut] = v / 1000
+		endif
+	endif
+endwhile
+
 ! ---- 派生値 ----
 lineLen = 0
 for i = 1 to nSpan
 	lineLen = lineLen + spans[i]
 next i
+
+! 朝顔の連続区間（切り欠きを除いた asgA〜asgB）。区間は Python 側で昇順・非重複
+nAsg = 0
+cutX = 0
+for ic = 1 to nCut
+	if cutS[ic] > cutX + 0.001 then
+		nAsg = nAsg + 1
+		asgA[nAsg] = cutX
+		asgB[nAsg] = cutS[ic]
+	endif
+	cutX = cutE[ic]
+next ic
+if lineLen > cutX + 0.001 then
+	nAsg = nAsg + 1
+	asgA[nAsg] = cutX
+	asgB[nAsg] = lineLen
+endif
 postTop = jackOut
 for i = 1 to nPost
 	postTop = postTop + posts[i]

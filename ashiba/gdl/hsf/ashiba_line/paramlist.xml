@@ -217,6 +217,10 @@
 			<Description><![CDATA["朝顔の設置高さ mm カンマ区切り（GLから）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="asaCutList">
+			<Description><![CDATA["朝顔を切り欠く区間 mm 「開始,終了」の繰り返し（昇降機の通る位置）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="asagaoProj">
 			<Description><![CDATA["朝顔の水平突出"]]></Description>
 			<Value>2</Value>

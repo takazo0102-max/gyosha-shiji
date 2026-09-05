@@ -242,13 +242,22 @@ class ArchicadClient:
         # Archicad はこのプロセスの作業ディレクトリを知らない。相対パスを渡すと
         # 「Failed to read file on the given inputPath」で落ちる（実際に踏んだ）
         abs_path = str(Path(input_path).resolve())
+        # outputPath は「フォルダ/名前.gsm」の形で渡す。直下に「名前.gsm」だと
+        # 「not a valid relative path」、拡張子無しだと入るが部品として見つからない
+        # （Archicad 28 + Tapir 1.5.8 で実際に踏んだ）。追加後は ReloadLibraries を
+        # 掛けないと直後の配置で「Not found library part」になる
+        out = output_name if "/" in output_name else f"ashiba/{output_name}"
         resp = self.tapir(
             "AddFilesToEmbeddedLibrary",
-            {"files": [{"inputPath": abs_path, "outputPath": output_name}]},
+            {"files": [{"inputPath": abs_path, "outputPath": out}]},
         )
         results = resp.get("executionResults", [])
         if results and not results[0].get("success"):
             raise TapirError(f"埋め込みライブラリへの追加に失敗: {results[0].get('error')}")
+        try:
+            self.tapir("ReloadLibraries", {})
+        except TapirError:
+            pass    # 古い Tapir に無ければ、配置側の再試行に任せる
 
     def find_red_pen(self, default: int = 20) -> int:
         """有効なペンテーブルから最も赤に近いペン番号を返す.
