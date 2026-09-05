@@ -235,6 +235,7 @@ def take_off(
     n_feet = max(0, n_posts - removed)
     _count_jacks(m, feet, rows, n_feet, add, notes)
     add(under, n_feet, "アンダーベース")
+    _count_shims(m, feet, rows, add, notes)
     # 支柱最下部にだけ付く附属品（日建NDの下部カラー材など）。脚の数だけ
     for p in m.by_category("支柱附属"):
         if "最下部" in p.note:
@@ -473,6 +474,36 @@ def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix
             f"{unreachable}箇所あります。敷板・床均しで下端を上げてください（ジャッキ量一覧の備考参照）",
             Notes.SITE,
         )
+
+
+def _count_shims(m: PartMaster, feet, rows: int, add, notes) -> None:
+    """敷板調整（ジャッキで届かない分を敷板で持ち上げる脚）の敷板を数える.
+
+    高低差の解は「敷板でNNmm持ち上げる」を脚ごとに出すが、数量には載っていなかった。
+    マスタの敷板（note の「厚35」）で枚数に換算する。敷板が無い系列は合計量を手配に出す。
+    """
+    raises = [(f, float(getattr(f, "base_plate_adjust_mm", 0.0))) for f in (feet or [])]
+    raises = [(f, a) for f, a in raises if a > 1e-6]
+    if not raises:
+        return
+    shim = next(iter(m.by_category("敷板")), None)
+    thick = None
+    if shim is not None:
+        mt = re.search(r"厚\s*(\d+)", shim.note)
+        thick = int(mt.group(1)) if mt else None
+    if shim is None or not thick:
+        total = sum(a for _, a in raises)
+        notes.action(
+            f"敷板調整が要る脚が{len(raises) * rows}本あります（合計{total * rows:.0f}mm相当）。"
+            "敷板がマスタに無いので別途手配してください（ジャッキ量一覧の備考参照）",
+        )
+        return
+    n = sum(math.ceil(a / thick - 1e-9) for _, a in raises) * rows
+    add(shim, n, f"敷板調整（{len(raises) * rows}脚・厚{thick}mm換算）")
+    notes.append(
+        f"敷板調整の脚{len(raises) * rows}本に敷板{shim.model_no}（厚{thick}mm）を"
+        f"計{n}枚で計上（脚ごとの調整量はジャッキ量一覧）"
+    )
 
 
 def _units_per_place(part: Part) -> int:
@@ -1028,6 +1059,7 @@ def _count_frame_parts(
     _count_jacks(m, feet, rules.rows, max(0, n_frame_legs - removed_legs), add, notes,
                  "（建枠1枚に2脚）")
     add(under, max(0, n_frame_legs - removed_legs), "アンダーベース（建枠1枚に2脚）")
+    _count_shims(m, feet, rules.rows, add, notes)
 
     # ---- 布板（作業床）。階段枠の区間には敷かない ----
     span_counts: dict[int, int] = {}

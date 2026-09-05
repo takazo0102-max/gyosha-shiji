@@ -126,5 +126,36 @@ class TestJackHardMaxBySeries(unittest.TestCase):
         self.assertLessEqual(max(f.jack_mm for f in t.feet), 432 + 1e-6)
 
 
+class TestShims(unittest.TestCase):
+    """敷板調整の脚には敷板（厚35）を枚数換算で計上する."""
+
+    def test_frame_site_beyond_the_jack_gets_shims(self):
+        import math
+
+        m = build("waku")
+        t = terrace(m, 1200)
+        raised = [f for f in t.feet if f.base_plate_adjust_mm > 0]
+        self.assertTrue(raised)
+        q = take_off(m, terrain=t)
+        expect = sum(math.ceil(f.base_plate_adjust_mm / 35 - 1e-9) for f in raised) * 2
+        self.assertEqual(qty(q, "S3503B"), expect)
+        self.assertTrue([n for n in q.notes if "敷板調整の脚" in n], q.notes)
+
+    def test_flat_site_has_no_shims(self):
+        m = build("waku")
+        q = take_off(m, terrain=terrace(m, 0))
+        self.assertEqual(qty(q, "S3503B"), 0)
+
+    def test_series_without_shims_gets_an_order_note(self):
+        m = build("shinwa_A")
+        t = terrace(m, 6000)
+        raised = [f for f in t.feet if f.base_plate_adjust_mm > 0]
+        q = take_off(m, terrain=t)
+        if raised:
+            self.assertTrue([n for n in q.warnings if "敷板がマスタに無い" in n], q.warnings)
+        else:
+            self.assertFalse([n for n in q.warnings if "敷板" in n])
+
+
 if __name__ == "__main__":
     unittest.main()
