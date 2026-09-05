@@ -199,5 +199,28 @@ def terrain_step(m):
     return terrain_step_mm(m)
 
 
+class TestFlatSiteKeepsTheNominalJack(unittest.TestCase):
+    """平坦な敷地では脚のジャッキ量＝立面の名目ジャッキ量.
+
+    基準面の最適化が同点の候補から delta=0（ジャッキ30mm）を選び、立面図（名目100mm）と
+    ジャッキ量一覧（30mm）が食い違っていた。同点なら名目に最も近い基準面を採る。
+    """
+
+    def test_flat(self):
+        for series in ("shinwa_A", "waku", "nikken_nd1800"):
+            with self.subTest(series):
+                m = build(series)
+                t = terrace(m, 0)
+                self.assertTrue(all(abs(f.jack_mm - m.elevation.jack_extension) < 1e-6 for f in t.feet),
+                                (m.elevation.jack_extension, sorted({round(f.jack_mm) for f in t.feet})))
+
+    def test_sloped_site_still_prefers_fewer_over_limit_feet(self):
+        m = build()
+        t = terrace(m, 6000)
+        over = sum(1 for f in t.feet if f.jack_mm > 270)
+        # 名目に寄せるのは同点のときだけ。上限超過の本数最小が優先
+        self.assertLessEqual(over, len(t.feet) // 2)
+
+
 if __name__ == "__main__":
     unittest.main()

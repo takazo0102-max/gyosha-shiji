@@ -321,7 +321,9 @@ def _optimize_datum(
         return gl_max + ref_jack
     best = None
     step = 5
-    for delta in range(0, int(koma), step):
+    # 5mm刻みの走査に、名目のジャッキ量そのもの（例: 建枠の86mm）も候補として加える
+    nominal_delta = int(round((ref_jack - jack_min) % koma))
+    for delta in sorted(set(range(0, int(koma), step)) | {nominal_delta}):
         top = gl_max + jack_min + delta
         n_over = 0
         n_plate = 0
@@ -340,7 +342,12 @@ def _optimize_datum(
             elif jack > jack_recommended_max:
                 n_over += 1
                 total_dev += jack - jack_recommended_max
-        score = (n_plate, n_over, total_dev)
+        # 同点なら名目のジャッキ量（立面ソルバが端数吸収で決めた値）に最も近い基準面。
+        # これが無いと平坦な敷地でも delta=0（ジャッキ30mm）が選ばれ、立面（名目100mm）と
+        # ジャッキ量一覧（30mm）が食い違い、足場全体が70mm低く組まれることになる
+        d = (jack_min + delta - ref_jack) % koma
+        near = min(d, koma - d)
+        score = (n_plate, n_over, total_dev, near)
         if best is None or score < best[0]:
             best = (score, top)
     return best[1]
