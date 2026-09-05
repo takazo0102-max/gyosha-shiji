@@ -41,6 +41,13 @@ ASAGAO_FIRST_MAX_MM = 5000
 ASAGAO_STAGE_PITCH_MM = 10000
 
 
+ASAGAO_KIND_ASAGAO = "朝顔"
+ASAGAO_KIND_SAFE_WING = "セーフウイング"
+ASAGAO_KINDS = (ASAGAO_KIND_ASAGAO, ASAGAO_KIND_SAFE_WING)
+SAFE_WING_PROJECTION_MM = 1280.0   # 信和セーフウイング資料（swg.pdf）: 張出1,280mm・25°
+SAFE_WING_ANGLE_DEG = 25.0
+
+
 @dataclass
 class AsagaoSpec:
     """朝顔（防護棚）の仕様（仕様5-#10）.
@@ -50,6 +57,10 @@ class AsagaoSpec:
     """
 
     stages: int = 0                  # 設置段数（0=未設置）
+    # 種別: "朝顔"（防護棚・突出2m以上）か "セーフウイング"（信和の簡易落下物防止機材、
+    # 張出1,280mm・25°）。セーフウイングは防護棚の要件を満たさないので、10m以上の
+    # 足場では法規#10がNGになる（別途朝顔が要る）。低い足場の落下物対策として使う
+    kind: str = ASAGAO_KIND_ASAGAO
     projection_mm: float = 2000.0    # 水平突出
     angle_deg: float = 25.0          # 水平面からの傾斜
     tie_every_spans: int = 2         # 取付部の壁つなぎ間隔（スパン数）

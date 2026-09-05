@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Optional
 
 from .master import Part, PartMaster
 from .model import GUARD_RAIL_ADVANCE, ScaffoldModel
+from .model import ASAGAO_KIND_SAFE_WING
 
 if TYPE_CHECKING:
     from .stairs import StairPlan
@@ -531,6 +532,9 @@ def _count_asagao_parts(
     if not asagao or asagao.stages <= 0:
         return
     m = model.master
+    if asagao.kind == ASAGAO_KIND_SAFE_WING:
+        _count_safe_wing_parts(model, span_counts, posts_per_line, add, notes)
+        return
     panel = next((p for p in m.by_category("朝顔") if "防護棚" in p.note), None)
     bracket = next((p for p in m.by_category("朝顔") if "受けブラケット" in p.note), None)
     # 「方杖不要」と書いた本体を方杖として拾わない（実際に朝顔本体の行に
@@ -595,6 +599,48 @@ def _count_asagao_parts(
 
     # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
     # 数える（図面にも出る。同じ位置の格子の金具で兼ねる分は二重に数えない）
+
+
+def _count_safe_wing_parts(
+    model: ScaffoldModel, span_counts: dict, posts_per_line: int, add, notes
+) -> None:
+    """信和セーフウイング（簡易落下物防止機材）の数量.
+
+    資料（swg.pdf）: 張出1,280mm・25°、支柱ごとに1本（1スパンに2本）、張出部には
+    SD-4018 なら3枚の踏板を敷く。キャッチャーB用も踏板はキャッチャー用（A系列）を使う
+    指示なので、B系列ではマスタに無い＝手配項目に出す（黙って0枚にしない）。
+    """
+    asagao = model.config.asagao
+    m = model.master
+    wing = next((p for p in m.by_category("朝顔") if p.note.startswith("セーフウイング")), None)
+    n_places = posts_per_line * asagao.stages
+    if wing is None:
+        add(None, n_places, f"セーフウイング（系列 {m.series_id} のマスタに無い）")
+        return
+    add(wing, n_places * _units_per_place(wing), "セーフウイング本体")
+    missing: dict[int, int] = {}
+    for sp, n in span_counts.items():
+        deck = m.deck_parts(400, sp)
+        qty = 3 * n * asagao.stages
+        if deck is None or "キャッチャー用" in wing.note and "踏板" in wing.note and "B用" in wing.note:
+            missing[sp] = qty
+            continue
+        add(deck, qty, f"セーフウイング張出部の踏板{sp}（3枚/スパン）")
+    if missing:
+        notes.action(
+            "セーフウイング張出部の踏板（幅400・3枚/スパン）が系列 "
+            f"{m.series_id} のマスタにありません: "
+            + "、".join(f"{sp}mm×{n}枚" for sp, n in sorted(missing.items()))
+            + "。資料の指示どおりキャッチャー用踏板 SD-40xx を別途手配してください"
+            "（Bタイプ用踏板は使用不可）",
+        )
+    corners = [c for c in model.plan.outline.corners if c.kind == "出隅"]
+    if corners:
+        notes.action(
+            f"出隅{len(corners)}箇所はセーフウイングが突き合わない隅部になります"
+            f"（{asagao.stages}段ぶん）。隅角部の板・シート等で塞いでください",
+            Notes.SITE,
+        )
 
 
 def _count_bracket_parts(

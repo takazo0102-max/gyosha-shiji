@@ -17,6 +17,7 @@ from typing import Optional
 
 from .law_check import WARN, CheckResult
 from .model import ScaffoldModel
+from .model import ASAGAO_KIND_SAFE_WING
 from .quantity import QuantityResult
 from .structural import StructuralResult
 from .xlsx_writer import (
@@ -239,10 +240,16 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
         f"最大 垂直{v_max:.0f}×水平{h_max:.0f}mm（法定 {v_lim:.0f}×{h_lim:.0f}以下） "
         f"{tie_basis}")
     a = model.config.asagao
-    _kv(s, "朝顔（防護棚）",
-        f"{a.stages}段" if a and a.stages else "なし",
-        (f"突出{a.projection_mm:.0f}mm・傾斜{a.angle_deg:.0f}度"
-         if a and a.stages else "高さ10m未満または設置しない指定"))
+    if a and a.stages and a.kind == ASAGAO_KIND_SAFE_WING:
+        # 防護棚ではない。届に「朝顔あり」と読ませない
+        _kv(s, "朝顔（防護棚）", "なし",
+            f"簡易落下物防止機材セーフウイング{a.stages}段（張出{a.projection_mm:.0f}mm・"
+            f"{a.angle_deg:.0f}度）を設置。突出2m以上の防護棚ではない")
+    else:
+        _kv(s, "朝顔（防護棚）",
+            f"{a.stages}段" if a and a.stages else "なし",
+            (f"突出{a.projection_mm:.0f}mm・傾斜{a.angle_deg:.0f}度"
+             if a and a.stages else "高さ10m未満または設置しない指定"))
     # 付帯設備。計画に入っているのに届の下書きに出ないと、審査側は
     # 「無い」ものとして読む（図面と食い違う届になる）
     if stair_plan is not None and getattr(stair_plan, "towers", None):

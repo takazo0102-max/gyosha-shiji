@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from .elevation_solver import JACK_MAX_EXTENSION
 from .master import SeriesLockError
 from .model import GUARD_RAIL_ADVANCE, ScaffoldModel
+from .model import ASAGAO_KIND_SAFE_WING
 
 OK = "OK"
 WARN = "WARN"
@@ -417,9 +418,27 @@ def check_asagao(m: ScaffoldModel, terrain=None) -> CheckResult:
             return CheckResult(
                 10, "朝顔", OK, f"足場高さ{h_m:.2f}m < 10m のため朝顔は不要", basis
             )
+        if spec.kind == ASAGAO_KIND_SAFE_WING:
+            return CheckResult(
+                10, "朝顔", OK,
+                f"足場高さ{h_m:.2f}m < 10m。簡易落下物防止機材セーフウイング{spec.stages}段"
+                f"（張出{spec.projection_mm:.0f}mm・{spec.angle_deg:.0f}度）を設置",
+                basis,
+            )
         return CheckResult(
             10, "朝顔", OK,
             f"足場高さ{h_m:.2f}m（不要だが{spec.stages}段を設置）", basis,
+        )
+
+    # セーフウイングは張出1,280mmの簡易落下物防止機材で、防護棚（突出2m以上）の
+    # 要件を満たさない。「突出が足りない」ではなく、朝顔が別途要ると明言する
+    if spec is not None and spec.stages > 0 and spec.kind == ASAGAO_KIND_SAFE_WING:
+        return CheckResult(
+            10, "朝顔", NG,
+            f"セーフウイング{spec.stages}段（張出{spec.projection_mm:.0f}mm）は簡易落下物"
+            f"防止機材で、突出2m以上の朝顔（防護棚）の要件を満たしません。"
+            f"足場高さ{h_m:.2f}m には朝顔{need}段が別途必要です",
+            basis,
         )
 
     if spec is None or spec.stages == 0:

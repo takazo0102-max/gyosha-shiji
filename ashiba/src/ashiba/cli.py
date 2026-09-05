@@ -40,6 +40,8 @@
   ],
   // 朝顔（省略時は高さから自動。false で明示的に設置しない）
   "asagao": {"stages": 1, "projection_mm": 2000, "angle_deg": 25, "tie_every_spans": 2},
+  // 信和のセーフウイング（簡易落下物防止・張出1280mm）は "kind": "セーフウイング"。
+  // 防護棚ではないので10m以上の足場では法規#10がNGになる（朝顔が別途要る）
   // ブラケット区間（面の区間属性。支柱ラインは動かさない）
   "bracket_sections": [
     {"edge_index": 0, "start_mm": 0, "end_mm": 5400, "direction": "内",
@@ -89,6 +91,7 @@ from .elevation_solver import solve_elevation
 from .law_check import required_asagao_stages, run_all_checks, summary
 from .master import MasterDataError, SeriesLockError, load_master
 from .model import (
+    ASAGAO_KIND_ASAGAO, ASAGAO_KIND_SAFE_WING, ASAGAO_KINDS, SAFE_WING_ANGLE_DEG, SAFE_WING_PROJECTION_MM,
     GUARD_RAIL_ADVANCE,
     FRAME_GUARD_RAIL_HEIGHT_MM,
     GUARD_RAIL_LEDGER,
@@ -142,7 +145,7 @@ TOP_KEYS = {
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
-    "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans"},
+    "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans", "kind"},
     "site": {"region", "v0_ms", "roughness", "sheet_type", "adjacent_factor",
              "region_factor", "gamma", "correction_f",
              "simultaneous_loaded_levels"},
@@ -186,6 +189,7 @@ NUMERIC_FIELDS = {
 # 文字列であるべきフィールド（数値を渡すと後段の照合で分かりにくく落ちる）
 STRING_FIELDS = {
     "site": ("region", "roughness", "sheet_type"),
+    "asagao": ("kind",),
 }
 # LIST_ITEM_KEYS の各要素で数値であるべきキー
 LIST_NUMERIC_FIELDS = {
@@ -500,7 +504,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         guard_rail_type=spec.get("guard_rail_type", GUARD_RAIL_LEDGER),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
-        asagao=build_asagao(spec, elevation.total_height),
+        asagao=build_asagao(spec, elevation.total_height, master),
     )
     return ScaffoldModel(
         master=master,
@@ -512,7 +516,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
 
 
-def build_asagao(spec: dict, height_mm: int) -> AsagaoSpec | None:
+def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
     """朝顔の入力。指定がなければ高さから必要段数を自動設定する（10m以上で1段・20m以上で2段）."""
     a = spec.get("asagao")
     if a is False:  # 明示的に「設置しない」
@@ -520,6 +524,20 @@ def build_asagao(spec: dict, height_mm: int) -> AsagaoSpec | None:
     need = required_asagao_stages(height_mm)
     if a is None:
         return AsagaoSpec(stages=need) if need else None
+    kind = a.get("kind", ASAGAO_KIND_ASAGAO)
+    if kind not in ASAGAO_KINDS:
+        raise InputError(f"asagao.kind: {' か '.join(ASAGAO_KINDS)} です（{kind!r}）")
+    if kind == ASAGAO_KIND_SAFE_WING:
+        # 簡易落下物防止機材。張出・角度は資料値で固定（マスタにあれば系列の実寸）
+        wing = next((p for p in master.by_category("朝顔") if p.note.startswith("セーフウイング")), None) \
+            if master is not None else None
+        return AsagaoSpec(
+            stages=a.get("stages", need or 1),
+            kind=kind,
+            projection_mm=a.get("projection_mm", float(wing.nominal_dim) if wing else SAFE_WING_PROJECTION_MM),
+            angle_deg=a.get("angle_deg", SAFE_WING_ANGLE_DEG),
+            tie_every_spans=a.get("tie_every_spans", 2),
+        )
     return AsagaoSpec(
         stages=a.get("stages", need),
         projection_mm=a.get("projection_mm", 2000.0),
@@ -967,6 +985,7 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         },
         "asagao": (
             {"stages": model.config.asagao.stages,
+             "kind": model.config.asagao.kind,
              "projection_mm": model.config.asagao.projection_mm,
              "angle_deg": model.config.asagao.angle_deg}
             if model.config.asagao else None
