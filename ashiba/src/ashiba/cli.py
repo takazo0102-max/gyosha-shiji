@@ -309,6 +309,40 @@ def _check_item_semantics(errors: list[str], key: str, where: str, item) -> None
             errors.append(f"{where}.level: 1以上で指定してください（{lv}）")
 
 
+MIN_OUTLINE_EXTENT_MM = 1000.0   # これ未満の外形は m 入力の取り違えとみなす
+MIN_HEIGHT_MM = 100.0            # 軒高: これ未満は m 入力の取り違え（100mm以上は作業層が取れない検定不能の経路として通す）
+
+
+def check_edge_indices(spec: dict, model) -> None:
+    """辺番号つきの付帯設備が、割付後に存在する辺を指しているか.
+
+    存在しない辺の階段は「辺9は存在しません」の警告だけで落ちて、階段が無い計画が
+    黙って出ていた。開口部・ステージ・昇降機・ブラケット区間も同じ入口で止める。
+    """
+    valid = sorted(e.edge_index for e in model.plan.edges)
+    errors: list[str] = []
+    items: list[tuple[str, list]] = [
+        (key, spec.get(key) or []) for key in ("openings", "loading_stages", "hoists", "bracket_sections")
+    ]
+    items.append(("stairs.positions", (spec.get("stairs") or {}).get("positions") or []))
+    for key, lst in items:
+        if not isinstance(lst, list):
+            continue
+        for i, item in enumerate(lst):
+            if not isinstance(item, dict):
+                continue
+            ei = item.get("edge_index")
+            if isinstance(ei, bool) or not isinstance(ei, (int, float)):
+                continue
+            if int(ei) not in valid:
+                errors.append(
+                    f"{key}[{i}].edge_index: 辺{int(ei)}は存在しません（この外形の辺は "
+                    + "・".join(str(v) for v in valid) + "。割付レポートの平面割付表の辺番号）"
+                )
+    if errors:
+        raise InputError("入力JSONに問題があります:\n  - " + "\n  - ".join(errors))
+
+
 def validate_spec(spec: dict) -> None:
     """入力JSONを読む前に、綴り違い・型違い・矛盾をまとめて指摘する.
 
@@ -326,6 +360,20 @@ def validate_spec(spec: dict) -> None:
             errors.append("outline_mm: 3点以上の[[x,y], ...]で指定してください")
         elif any(not isinstance(p, (list, tuple)) or len(p) != 2 for p in outline):
             errors.append("outline_mm: 各点は[x, y]の2要素で指定してください")
+        else:
+            # m で入力した外形（30×20）は 30mm×20mm の建物として解けてしまい、
+            # 支柱4本・重量1.5t の計画が黙って出る。単位の取り違えは入口で止める
+            try:
+                xs = [float(p[0]) for p in outline]
+                ys = [float(p[1]) for p in outline]
+                extent = max(max(xs) - min(xs), max(ys) - min(ys))
+                if extent < MIN_OUTLINE_EXTENT_MM:
+                    errors.append(
+                        f"outline_mm: 外形の大きさが{extent:.0f}mmしかありません。"
+                        "単位は mm です（m で入力していませんか。30m なら 30000）"
+                    )
+            except (TypeError, ValueError):
+                errors.append("outline_mm: 座標は数値で指定してください")
 
     for key in ("eaves_height_mm", "guard_extra_mm", "building_height_mm",
                 "period_days", "clearance_space_mm"):
@@ -341,6 +389,10 @@ def validate_spec(spec: dict) -> None:
     ev, bv = spec.get("eaves_height_mm"), spec.get("building_height_mm")
     if _num(ev) and ev <= 0:
         errors.append("eaves_height_mm: 0より大きい値で指定してください（軒高0では足場を組めません）")
+    elif _num(ev) and ev < MIN_HEIGHT_MM:
+        errors.append(
+            f"eaves_height_mm: 軒高{ev:g}mmは小さすぎます。単位は mm です（m で入力していませんか。16m なら 16000）"
+        )
     if _num(ev) and _num(bv) and bv > 0 and ev > bv:
         errors.append(
             f"eaves_height_mm: 軒高{ev:g}mmが建物高さ building_height_mm {bv:g}mmを"
@@ -788,6 +840,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）."""
     validate_spec(spec)
     model = build_model(spec, master_csv)
+    check_edge_indices(spec, model)
     site = build_site(spec)
     # 開口部を先に解く（壁つなぎの最適化は抜いた支柱を避けた状態で検定する。
     # 階段の自動配置も梁枠の区間（通路）を避ける）

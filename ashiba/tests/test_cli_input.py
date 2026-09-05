@@ -310,6 +310,32 @@ class TestDegenerateValuesAreRejected(unittest.TestCase):
     def test_zero_eaves_height(self):
         self.assertIn("eaves_height_mm", self.ng(eaves_height_mm=0))
 
+    def test_outline_in_metres_is_caught(self):
+        """m で入力した外形は 30mm の建物として解けてしまう。単位の取り違えを止める."""
+        msg = self.ng(outline_mm=[[0, 0], [30, 0], [30, 20], [0, 20]])
+        self.assertIn("単位は mm", msg)
+        self.assertIn("30000", msg)
+
+    def test_eaves_height_in_metres_is_caught(self):
+        msg = self.ng(eaves_height_mm=16)
+        self.assertIn("単位は mm", msg)
+
+    def test_stairs_on_a_missing_edge_is_an_input_error(self):
+        """存在しない辺の階段は警告だけで落ちて階段の無い計画が出ていた."""
+        import json
+        import tempfile
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = dict(BASE, stairs={"positions": [{"edge_index": 9, "start_mm": 0}]})
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec), encoding="utf-8")
+            with self.assertRaises(InputError) as cm:
+                solve_all(load_spec(p))
+        self.assertIn("stairs.positions[0].edge_index: 辺9は存在しません", str(cm.exception))
+        self.assertIn("0・1・2・3", str(cm.exception))
+
     def test_eaves_above_building(self):
         msg = self.ng(eaves_height_mm=20000, building_height_mm=15000)
         self.assertIn("軒高", msg)
