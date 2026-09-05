@@ -303,13 +303,15 @@ def solve_plan(
     # 面ごとに「他にどの離れなら成立したか」。選択の余地があるのか、
     # 形状から一意に決まるのかで打つ手が変わる
     feasible_standoffs: dict[int, set[int]] = {}
+    extra_small: dict[int, dict[int, int]] = {}   # 面 → {離れ: 端数スパンが増える本数}
     for axis in ("x", "y"):
         grp = [e for e in edges if e.axis == axis]
         if not grp:
             continue
-        combo, d_solved, feas = _solve_axis(grp, candidates, edges, spec, main_span)
+        combo, d_solved, feas, extra = _solve_axis(grp, candidates, edges, spec, main_span)
         best_combo.update(combo)
         feasible_standoffs.update(feas)
+        extra_small.update(extra)
         for idx, d in d_solved.items():
             # 最小二乗の解には微小な数値誤差が乗る。丸めずに閾値比較すると
             # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
@@ -349,7 +351,7 @@ def solve_plan(
         if remedy:
             # 表にも警告にも同じ本文を出す（別々にすると片方だけ情報が欠ける）
             remedy += _feasibility_hint(
-                feasible_standoffs.get(e.index), d, spec
+                feasible_standoffs.get(e.index), d, spec, extra_small.get(e.index)
             )
         plan_edges.append(
             EdgePlan(
@@ -385,7 +387,8 @@ def solve_plan(
 
 
 def _feasibility_hint(
-    feasible: Optional[set[int]], chosen: float, spec: StandoffSpec
+    feasible: Optional[set[int]], chosen: float, spec: StandoffSpec,
+    extra_small: Optional[dict[int, int]] = None,
 ) -> str:
     """他にどの離れなら成立したかを添える.
 
@@ -420,7 +423,19 @@ def _feasibility_hint(
     for v in others:
         out = "" if spec.min <= v <= spec.max else "＝目標帯外"
         parts.append(f"{v}mm{out}")
-    return "（この形状で組める離れは他に " + "・".join(parts) + "）"
+    text = "（この形状で組める離れは他に " + "・".join(parts)
+    # 採用した離れが帯外なのに帯内の代案があるときは、なぜ採らなかったかを言う。
+    # 「250mmでも組める」とだけ書くと、ツールの選択ミスに見える
+    # （インチ規格で 241.5mm を採り 250mm を案内していた。250mm は端数スパンが増える）
+    chosen_in = spec.min <= chosen <= spec.max
+    if not chosen_in and extra_small:
+        costs = [(v, extra_small.get(v)) for v in inside if extra_small.get(v) is not None]
+        worse = [(v, n) for v, n in costs if n > 0]
+        if worse:
+            text += "。帯内の" + "・".join(f"{v}mm は端数スパンが{n}本増える" for v, n in worse) \
+                + f"ため、離れを{abs(chosen - (spec.min if chosen < spec.min else spec.max)):.1f}mm" \
+                + ("下げて" if chosen < spec.min else "上げて") + "端数を減らす方を採っています"
+    return text + "）"
 
 
 def _solve_axis(
@@ -447,6 +462,9 @@ def _solve_axis(
     # 成立した離れの値を集める。「350mmしか組めない」のか「300mmも組めるが
     # 別の理由で選ばなかった」のかで、計画者の打つ手が変わる
     feasible: dict[int, set[int]] = {di: set() for di in d_indices}
+    # 離れの値ごとに、それで組んだときの端数スパンの最少本数（軸の全面合計）。
+    # 「250mmでも組めるが採らなかった」理由（端数が何本増えるか）を案内に出すため
+    small_by: dict[int, dict[int, int]] = {di: {} for di in d_indices}
     for choice in itertools.product(*[candidates[e.index] for e in grp]):
         # 連立: A d = b を最小二乗で解き、シフト自由度で偏差を最小化
         rows = []
@@ -471,15 +489,17 @@ def _solve_axis(
         # 「他にこの離れでも組める」は、その組合せで全面が顧客最小〜最大に
         # 収まるときだけ挙げる。面ごとに拾うと、他面を425mmにする組合せ由来の
         # 275mmを「他に組める」と案内してしまう（凹み形状で実際に出た）
+        n_small = sum(_small_span_count(spans, main_span) for _s, spans in choice)
         if all(spec.hard_min - 0.5 <= x <= spec.max + 0.5 for x in d):
             for di, x in zip(d_indices, d):
-                feasible[di].add(int(round(x)))
+                v = int(round(x))
+                feasible[di].add(v)
+                small_by[di][v] = min(small_by[di].get(v, n_small), n_small)
         dev = sum(abs(x - spec.target) for x in d)
         n_over = sum(1 for x in d if x > spec.max or x < spec.min)
         n_hard = sum(1 for x in d if x < spec.hard_min)
         # 墜落防止措置が要る面（離れ30cm超）は少ないほどよい
         n_fall = sum(1 for x in d if x > spec.fall_protection_limit)
-        n_small = sum(_small_span_count(spans, main_span) for _s, spans in choice)
         # 顧客最小値（hard_min）だけは絶対。それ以外は重み付きで足す。
         # 辞書順（n_over → n_fall → n_small）にしていたときは、離れが目標帯を
         # 8.5mm下回るのを避けるために30m面を610スパン×50本にしていた
@@ -491,14 +511,16 @@ def _solve_axis(
             n_small, dev,
         )
         if best is None or score < best[0]:
-            best = (score, choice, d)
+            best = (score, choice, d, n_small)
 
     if best is None:
         raise ValidationError("スパン割の整合解が見つかりません（建物寸法と布材規格を確認してください）")
-    _score, choice, d = best
+    _score, choice, d, chosen_small = best
     combo = {e.index: c for e, c in zip(grp, choice)}
     d_map = {di: d[pos[di]] for di in d_indices}
-    return combo, d_map, feasible
+    # 採用した離れの端数本数を引いた「増える本数」に直して返す
+    extra = {di: {v: n - chosen_small for v, n in m.items()} for di, m in small_by.items()}
+    return combo, d_map, feasible, extra
 
 
 def _lstsq_with_target(

@@ -435,5 +435,28 @@ class TestHintSaysWhenNoAlternativeIsInBand(unittest.TestCase):
         self.assertNotIn("他にありません", hint)
 
 
+class TestHintExplainsWhyTheInBandStandoffWasNotChosen(unittest.TestCase):
+    """帯外の離れを採り、帯内の代案があるときは、その代案の端数スパン増を書く.
+
+    日建ND1800の30m×20mで東西面が241.5mm（帯250〜350の外）。250mmでも組めるが
+    端数スパンが増える。「250mmも組める」とだけ書くと選択ミスに見える。
+    """
+
+    def test_nikken_rect_says_the_odd_span_cost(self):
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "nikken_nd1800_rect.json"))
+        ep = next(e for e in r.model.plan.edges if e.edge_index == 1)
+        self.assertLess(ep.standoff, 250)
+        self.assertIn("250mm", ep.remedy)
+        self.assertIn("端数スパンが", ep.remedy)
+        self.assertIn("本増える", ep.remedy)
+        self.assertIn("下げて端数を減らす方を採っています", ep.remedy)
+
+
 if __name__ == "__main__":
     unittest.main()
+
