@@ -51,5 +51,27 @@ class TestEdgeNumbering(unittest.TestCase):
         self.assertIn("| 0 | 南面 | (0, 0) |", text)
 
 
+class TestSpanTextIsRunLength(unittest.TestCase):
+    def test_helper(self):
+        from ashiba.report import spans_text
+
+        self.assertEqual(spans_text([1829] * 16 + [1219]), "1829×16+1219")
+        self.assertEqual(spans_text([1800, 1800, 900, 1800]), "1800×2+900+1800")
+        self.assertEqual(spans_text([600]), "600")
+        self.assertEqual(spans_text([]), "")
+
+    def test_report_uses_it(self):
+        from ashiba.report import write_report_md
+
+        base = json.loads((ROOT / "examples" / "rect_30x20.json").read_text(encoding="utf-8"))
+        r = solve(base)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "r.md"
+            write_report_md(r.model, r.quantity, r.checks, path, "t", stair_plan=r.stair_plan)
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("×", text.split("## 平面割付")[1].split("##")[0])
+        self.assertNotIn("1800+1800+1800+1800", text)
+
+
 if __name__ == "__main__":
     unittest.main()

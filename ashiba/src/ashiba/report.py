@@ -72,6 +72,24 @@ def _short(msg: str, listed: set) -> str:
     return f"{head[:60]}…（要確認一覧を参照）"
 
 
+def spans_text(spans) -> str:
+    """スパン構成を読める形に（連続する同じ寸法は「1829×16」にまとめ、並び順は保つ）.
+
+    30m面を「1829+1829+…+1219」と17個並べても、読む側は数えるしかない。
+    """
+    out = []
+    run = None
+    n = 0
+    for sp in list(spans) + [None]:
+        if sp == run:
+            n += 1
+            continue
+        if run is not None:
+            out.append(f"{run}×{n}" if n > 1 else str(run))
+        run, n = sp, 1
+    return "+".join(out)
+
+
 def write_report_md(
     model: ScaffoldModel,
     quantity: QuantityResult,
@@ -166,7 +184,7 @@ def write_report_md(
     a("| 辺 | 面 | 躯体頂点(始点) | 足場長 | スパン構成 | 離れ | 対処案 |")
     a("|---|---|---|---|---|---|---|")
     for ep, face in zip(model.plan.edges, faces):
-        spans = "+".join(str(s) for s in ep.spans)
+        spans = spans_text(ep.spans)
         vx, vy = verts[ep.edge_index] if ep.edge_index < len(verts) else (0, 0)
         a(f"| {ep.edge_index} | {face} | ({vx:.0f}, {vy:.0f}) | {ep.scaffold_length:.0f} | {spans} "
           f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
