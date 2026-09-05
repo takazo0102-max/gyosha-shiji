@@ -5,7 +5,7 @@ Phase 1〜4の全機能を1本で通す最終検証:
   → 敷地高低差(ジャッキ量) → 荷受けステージ → 法規12項目 → 構造計算
   → 足場ライン配置 → 詳細図配置 → 帳票一式出力 → プレビュー保存
 
-使い方: python3 scripts/e2e_full_pipeline.py [--keep]
+使い方: python3 scripts/e2e_full_pipeline.py [--keep] [--series=shinwa_A|nikken_nd1800|...]
 """
 
 from __future__ import annotations
@@ -58,7 +58,8 @@ SLAB_POLY_MM = [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 3
 
 def main() -> None:
     keep = "--keep" in sys.argv
-    out = ROOT / "out" / "e2e_full"
+    series = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--series=")), "shinwa_A")
+    out = ROOT / "out" / ("e2e_full" if series == "shinwa_A" else f"e2e_full_{series}")
     out.mkdir(parents=True, exist_ok=True)
     placed: list[dict] = []
 
@@ -94,8 +95,9 @@ def main() -> None:
     print(f"1. 躯体スラブ作成・外形取得: {len(outline_mm)}点")
 
     # --- 2. 割付 ---
-    master = load_master("shinwa_A")
+    master = load_master(series)
     plan = solve_plan(outline_mm, master)
+    print(f"   系列 {series}（コマ{master.koma_pitch}・階高{master.floor_height}・スパン{master.span_lengths()}）")
     elevation = solve_elevation(16300, master=master)
     model = ScaffoldModel(
         master=master, plan=plan, elevation=elevation,
@@ -125,7 +127,9 @@ def main() -> None:
           f"{terrain.jack_min_mm:.0f}〜{terrain.jack_max_mm:.0f}mm "
           f"脚部{len({f.koma_offset for f in terrain.feet})}種")
 
-    stages = [LoadingStage(edge_index=0, start_mm=7200, span_count=2, levels=[3])]
+    # ステージの始点は辺0の4本目の支柱（系列でスパンが違うので位置から出す）
+    stage_start = float(sum(plan.edges[0].spans[:4]))
+    stages = [LoadingStage(edge_index=0, start_mm=stage_start, span_count=2, levels=[3])]
     platforms = validate_platforms(model, stages)
     from ashiba.ties import merge_attachment_ties
     merge_attachment_ties(model, platforms)
