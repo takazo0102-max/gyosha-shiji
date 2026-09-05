@@ -236,7 +236,7 @@ def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outlin
         if (abs(dx) > 1e-6) == (abs(dy) > 1e-6):
             raise ValidationError(
                 f"非直交の辺があります（頂点{i}→{(i + 1) % n}）。"
-                "MVPは90度コーナーのみ対応です"
+                "MVPは90度コーナーのみ対応です。斜めの辺は、その辺を含む直交する外形（斜辺の両端を通る水平・垂直の辺）に置き換えて入力し、離れが大きくなる面は層間ネット・内ブラケット等の措置側で対応してください"
             )
 
     zones: list[BridgedZone] = []
