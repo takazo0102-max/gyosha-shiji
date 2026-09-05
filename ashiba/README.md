@@ -74,7 +74,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボルの旧参照実装（`ashiba_detail` の `detailType=脚部` に統合済み） |
 | `scripts/run_from_archicad.py` | ツールバー割当用エントリ。条件はデスクトップの `ashiba_spec.json`（入力JSONと同じキー）で上書き、系列は `--series=` でも指定可 |
 | `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証）。現行HSFを注入して配置、`--series=` で系列指定 |
-| `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票）。`--series=nikken_nd1800` 等で系列を指定できる |
+| `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票）。`--series=nikken_nd1800` 等で系列を指定できる |（`--poly=diagonal` で斜辺つきのスラブ。スラブの作成は平面図ウィンドウが前面のときだけ通る。レイアウト・3Dが前面だと「アクティブなウィンドウが Layout です」で止まる）
 | `scripts/verify_details.py` | 詳細図5枚の実機検証（適合／違反の計9枚を描画） |
 | `scripts/dev_gsm_iterate.py` | GDL開発イテレーション（コンパイル→注入→配置→プレビュー） |
 | `scripts/build_dist_gsm.py` | 配布用GSM（gdl/*.gsm）をHSFから再生成（`--check` でズレ確認） |
@@ -115,6 +115,7 @@ PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 | `waku_composite.json` | 枠組＋開口部＋荷受けステージ＋昇降機＋張出しブラケット＋高低差 |
 | `hitokawa.json` | 一側足場（隣地が近く本足場が組めない狭小地） |
 | `safe_wing_low.json` | 高さ10m未満の低層に信和セーフウイング（簡易落下物防止・張出1,280mm）を1段。`asagao.kind` の使い方 |
+| `diagonal_corner.json` | 北東を斜めに切った五角形。斜辺を外側コーナー経由の直交2辺に置き換え、届かない帯の壁つなぎを寄せて別途の控えを要確認に出す |
 | `nikken_nd1800_rect.json` | 日建リース NDシステム1800（カタログ実品番・確定耐力値の系列で矩形30m×20m） |
 | `nikken_nd1900_rect.json` | 日建リース NDシステム1900（コマ475・階高1900、同上） |
 | `combo_nd1800.json` | 総合例: L型＋開口部（梁枠3658）＋荷受けステージ＋昇降機＋高低差1.2m＋日建ND1800＋補強仕様（強力つなぎ材）＋先行手すり |

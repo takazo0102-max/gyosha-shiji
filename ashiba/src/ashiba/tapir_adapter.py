@@ -119,9 +119,24 @@ class ArchicadClient:
     def delete_elements(self, elements: list[dict]) -> None:
         self.tapir("DeleteElements", {"elements": elements})
 
+    def current_window_type(self) -> str:
+        """アクティブなウィンドウの種類（FloorPlan / Layout / 3D など）。取れなければ空."""
+        try:
+            return str(self.tapir("GetCurrentWindowType", {}).get("currentWindowType", ""))
+        except TapirError:
+            return ""
+
     def create_slab(
         self, polygon_mm: list[tuple[float, float]], level: float = 0.0, thickness: float = 0.3
     ) -> dict:
+        # スラブはレイアウト・3D ウィンドウがアクティブだと作れない（オブジェクトは置ける）。
+        # 「Failed to create new Slab」だけでは原因が分からず、半日を無駄にした
+        win = self.current_window_type()
+        if win and win != "FloorPlan":
+            raise TapirError(
+                f"アクティブなウィンドウが {win} です。スラブの作成は平面図（FloorPlan）で"
+                "行うので、Archicad で平面図のウィンドウを前面にしてから実行してください"
+            )
         data = {
             "slabsData": [
                 {
@@ -136,6 +151,13 @@ class ArchicadClient:
         elements = self.tapir("CreateSlabs", data).get("elements", [])
         if not elements:
             raise TapirError("スラブを作成できませんでした")
+        # 失敗は要素ごとの error で返る（elements は空にならない）。素通しすると
+        # 後段が「外形が取れません」で止まり、原因（多角形の指定）が見えない
+        if "error" in elements[0]:
+            raise TapirError(
+                f"スラブを作成できませんでした: {elements[0]['error']}"
+                f"（頂点{len(polygon_mm)}点。閉じた多角形か、自己交差していないか確認）"
+            )
         return elements[0]
 
     def create_object(

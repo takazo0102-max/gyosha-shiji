@@ -5,7 +5,7 @@ Phase 1〜4の全機能を1本で通す最終検証:
   → 敷地高低差(ジャッキ量) → 荷受けステージ → 法規12項目 → 構造計算
   → 足場ライン配置 → 詳細図配置 → 帳票一式出力 → プレビュー保存
 
-使い方: python3 scripts/e2e_full_pipeline.py [--keep] [--series=shinwa_A|nikken_nd1800|...]
+使い方: python3 scripts/e2e_full_pipeline.py [--keep] [--series=shinwa_A|nikken_nd1800|...] [--poly=rect|diagonal]
 """
 
 from __future__ import annotations
@@ -59,6 +59,11 @@ SLAB_POLY_MM = [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 3
 def main() -> None:
     keep = "--keep" in sys.argv
     series = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--series=")), "shinwa_A")
+    # --poly=diagonal: 北東を斜めに切った五角形（斜辺の置き換え・届かない帯の経路を実機で通す）
+    poly_kind = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--poly=")), "rect")
+    slab_poly = SLAB_POLY_MM
+    if poly_kind == "diagonal":
+        slab_poly = [(300000, 300000), (330000, 300000), (330000, 312000), (320000, 320000), (300000, 320000)]
     out = ROOT / "out" / ("e2e_full" if series == "shinwa_A" else f"e2e_full_{series}")
     out.mkdir(parents=True, exist_ok=True)
     placed: list[dict] = []
@@ -86,7 +91,7 @@ def main() -> None:
     print(f"0. 現行GDLを注入: {LINE_OBJECT} / {DETAIL_OBJECT}")
 
     # --- 1. 躯体スラブ ---
-    slab = c.create_slab(SLAB_POLY_MM)
+    slab = c.create_slab(slab_poly)
     placed.append(slab)
     det = c.get_details([slab])[0]
     poly = _extract_polygon(det)
