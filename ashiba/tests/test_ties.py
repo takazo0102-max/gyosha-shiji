@@ -10,7 +10,7 @@ from ashiba.master import load_master
 from ashiba.model import AsagaoSpec, ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
 from ashiba.platforms import Hoist, LoadingStage, validate_platforms
-from ashiba.quantity import take_off
+from ashiba.quantity import take_off, wall_tie_required_length_mm
 from ashiba.structural import tie_tributaries
 from ashiba.ties import merge_attachment_ties, tie_counts
 
@@ -157,5 +157,42 @@ class TestWallTieLengthSelection(unittest.TestCase):
         for part in by:
             self.assertTrue(any(part.covers(round(n)) for n in need), (part.model_no, need))
         self.assertFalse([w for w in q.warnings if "伸縮範囲に合う品が無い" in w], q.warnings)
+
+
+class TestTieRangeGap(unittest.TestCase):
+    """伸縮範囲の隙間に落ちた面は、いちばん近い範囲の品で計上して差を書く.
+
+    日建は KS200 160〜240 / KS400 250〜420 で 241〜249mm が隙間。combo_nd1800 の辺1
+    （要245mm）は以前 既定品の KS700（380〜760）に落ちていた。
+    """
+
+    def test_nearest_range_not_the_longest(self):
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "combo_nd1800.json"))
+        q = r.quantity
+        need = {e.edge_index: round(wall_tie_required_length_mm(r.model, e.edge_index))
+                for e in r.model.plan.edges}
+        gap_faces = [e for e, n in need.items()
+                     if not any(p.covers(n) for p in r.model.master.by_category("壁つなぎ"))]
+        self.assertEqual(gap_faces, [1], need)
+        by = {l.part.model_no: l.qty for l in q.lines if l.part.category == "壁つなぎ"}
+        self.assertNotIn("KS700", by)          # 380〜760 は 245mm の面に載せない
+        self.assertIn("KS400", by)
+        hit = [w for w in q.warnings if "伸縮範囲に合う品が無い" in w]
+        self.assertEqual(len(hit), 1, q.warnings)
+        self.assertIn("辺1（要245mm", hit[0])
+        self.assertIn("KS400 250〜420mm まで5mm", hit[0])
+
+    def test_ks1000_is_available_for_wide_standoffs(self):
+        for sid in ("nikken_nd1800", "nikken_nd1900", "waku"):
+            with self.subTest(sid):
+                m = load_master(sid)
+                self.assertTrue(any(p.covers(1000) for p in m.by_category("壁つなぎ")))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -858,13 +858,23 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     cands.sort(key=lambda p: p.adjustable_range()[1])
     counts: dict[tuple[str, str], int] = {}
     parts = {p.model_no: p for p in cands}
-    uncovered: dict[int, int] = {}
+    uncovered: dict[int, tuple[int, Part, int]] = {}   # 辺 -> (本数, 当てた品, 範囲までの差mm)
     for t in model.wall_ties:
-        need = wall_tie_required_length_mm(model, t.edge_index)
-        fit = next((p for p in cands if p.covers(int(round(need)))), None)
+        need = int(round(wall_tie_required_length_mm(model, t.edge_index)))
+        fit = next((p for p in cands if p.covers(need)), None)
         if fit is None:
-            fit = kt
-            uncovered[t.edge_index] = uncovered.get(t.edge_index, 0) + 1
+            # 範囲の隙間（日建 KS200 160〜240 と KS400 250〜420 の間の 241〜249 など）に
+            # 落ちた面は、いちばん近い範囲の品を当てる。以前は既定品（最長の KS700）に
+            # 落としていて、245mm の面に 380〜760mm の壁つなぎを載せていた
+            def gap(p):
+                lo, hi = p.adjustable_range()
+                return lo - need if need < lo else need - hi
+
+            # 同じ差なら長い側（最短が need を超える品）。短い側は届かないが、
+            # 長い側は離れを数mm広げれば納まる
+            fit = min(cands, key=lambda p: (gap(p), 0 if p.adjustable_range()[0] > need else 1))
+            n, _, _ = uncovered.get(t.edge_index, (0, fit, 0))
+            uncovered[t.edge_index] = (n + 1, fit, gap(fit))
         parts[fit.model_no] = fit
         key = (fit.model_no, t.kind)
         counts[key] = counts.get(key, 0) + 1
@@ -872,11 +882,13 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
         add(parts[no], n, KIND_LABEL.get(kind, kind))
     if uncovered and notes is not None and hasattr(notes, "action"):
         faces = "・".join(
-            f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本）" for e, n in sorted(uncovered.items())
+            f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本、"
+            f"{p.model_no} {p.adjustable_range()[0]}〜{p.adjustable_range()[1]}mm まで{g}mm）"
+            for e, (n, p, g) in sorted(uncovered.items())
         )
         notes.action(
-            f"壁つなぎの伸縮範囲に合う品が無い面があります: {faces}。{kt.model_no} で計上していますが、"
-            "取付長さに合う壁つなぎを確認してください"
+            f"壁つなぎの伸縮範囲に合う品が無い面があります: {faces}。いちばん近い範囲の品で計上して"
+            "いますが、離れを範囲内に調整するか、取付金具側で差を吸収できるか確認してください"
         )
 
 
