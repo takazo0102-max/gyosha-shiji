@@ -946,6 +946,17 @@ def _assemble(
 ) -> QuantityResult:
     """集計結果を QuantityResult に組み立てる（くさび式・枠組式で共通）."""
     breakdown = breakdown or {}
+    # 型番仮（カタログに該当が無く仮の品番・概算重量）の部材は、実品番と同じ顔で
+    # 発注書に載せない。手配項目として名指しで出す
+    provisional = sorted(
+        {p.model_no for p in parts.values() if "型番仮" in p.note and counts.get(p.model_no, 0) > 0}
+    )
+    if provisional and hasattr(notes, "action"):
+        notes.action(
+            "型番仮の部材があります（カタログ未照合の仮品番・概算重量）: "
+            + "・".join(provisional)
+            + "。発注前に実品番と重量をマスタ（part_master.csv）で差し替えてください"
+        )
     lines = []
     for k, v in sorted(counts.items()):
         # 同じ型番が2つ以上の用途で足された行は、備考に用途別の内訳を出す。
