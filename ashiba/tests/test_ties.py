@@ -138,12 +138,16 @@ class TestWallTieLengthSelection(unittest.TestCase):
         self.assertGreater(by.get("KS200", 0) + by.get("KS400", 0), 0)
         self.assertFalse([w for w in q.warnings if "伸縮範囲に合う品が無い" in w], q.warnings)
 
-    def test_single_tie_series_is_unchanged(self):
+    def test_single_tie_series_warns_when_out_of_range(self):
+        """信和 NK-3352II（330〜520）は離れ212の面（要236mm）に合わない → 手配項目."""
         m = build()
         q = take_off(m)
         ties = [l for l in q.lines if l.part.category == "壁つなぎ"]
         self.assertEqual(len(ties), 1)
         self.assertEqual(ties[0].qty, len(m.wall_ties))
+        hit = [w for w in q.warnings if "伸縮範囲に合う品が無い" in w]
+        self.assertTrue(hit, q.warnings)
+        self.assertIn("NK-3352II", hit[0])
 
 
 if __name__ == "__main__":

@@ -802,7 +802,8 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     if not has_attachment_ties(model):
         merge_attachment_ties(model, platforms)
     cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
-    if len(cands) < 2 or kt is None:
+    # 1品だけでも伸縮範囲が書いてあれば、面の必要長さが範囲外なら手配項目に出す
+    if not cands or kt is None:
         for kind, n in tie_counts(model).items():
             add(kt, n, KIND_LABEL.get(kind, kind))
         return
