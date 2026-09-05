@@ -115,5 +115,36 @@ class TestStageTiesBracketTheStage(unittest.TestCase):
         self.assertIn(int(m.elevation.first_ledger_height), {t.height_mm for t in ties})
 
 
+class TestWallTieLengthSelection(unittest.TestCase):
+    """伸縮範囲の違う壁つなぎがある系列は、面ごとの離れ（＋支柱半径）に合う品を選ぶ."""
+
+    def test_nd1800_picks_by_standoff(self):
+        from ashiba.quantity import wall_tie_required_length_mm
+
+        master = load_master("nikken_nd1800")
+        m = ScaffoldModel(master=master, plan=solve_plan(RECT, master),
+                          elevation=solve_elevation(16300, master=master),
+                          config=ScaffoldConfig(), building_height_mm=16000)
+        q = take_off(m)
+        by = {}
+        for l in q.lines:
+            if l.part.category == "壁つなぎ":
+                by[l.part.model_no] = by.get(l.part.model_no, 0) + l.qty
+        self.assertEqual(sum(by.values()), len(m.wall_ties))
+        # 離れ212の面（＋21）→ KS200、離れ242の面（＋21）→ KS400。KS700 は出ない
+        needs = {round(wall_tie_required_length_mm(m, e)) for e in range(4)}
+        self.assertTrue(needs <= set(range(160, 421)), needs)
+        self.assertNotIn("KS700", by)
+        self.assertGreater(by.get("KS200", 0) + by.get("KS400", 0), 0)
+        self.assertFalse([w for w in q.warnings if "伸縮範囲に合う品が無い" in w], q.warnings)
+
+    def test_single_tie_series_is_unchanged(self):
+        m = build()
+        q = take_off(m)
+        ties = [l for l in q.lines if l.part.category == "壁つなぎ"]
+        self.assertEqual(len(ties), 1)
+        self.assertEqual(ties[0].qty, len(m.wall_ties))
+
+
 if __name__ == "__main__":
     unittest.main()

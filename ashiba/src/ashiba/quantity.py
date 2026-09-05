@@ -402,7 +402,7 @@ def take_off(
 
     # ---- 壁つなぎ ----
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    _add_wall_ties(model, platforms, kt, add)
+    _add_wall_ties(model, platforms, kt, add, notes)
 
     # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
@@ -779,18 +779,56 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
         )
 
 
-def _add_wall_ties(model: ScaffoldModel, platforms, kt, add) -> None:
+def wall_tie_required_length_mm(model: ScaffoldModel, edge_index: int) -> float:
+    """その面の壁つなぎに要る長さ（躯体面〜支柱芯＝離れ＋支柱半径）."""
+    standoff = float(model.plan.standoffs[edge_index]) if edge_index < len(model.plan.standoffs) else 0.0
+    posts = model.master.by_category(model.master.vertical_member_name if not model.master.is_frame else "建枠")
+    dia = next((p.diameter for p in posts if p.diameter > 0), 42.7)
+    return standoff + dia / 2.0
+
+
+def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None:
     """壁つなぎを由来ごとに計上する（格子＋朝顔取付部＋ステージ取付部＋マスト控え）.
 
     取付部の分がまだ一覧に無ければここで統合する（take_off を単独で呼んでも
     数量が欠けないように。統合は何度呼んでも同じ結果）。
+
+    伸縮範囲の違う壁つなぎが複数ある系列（日建 KS200/400/700）は、面ごとの離れに合う
+    品を選ぶ。1品だけの系列は従来どおりその品で全数を数える。以前は日建で KS700
+    （380〜760mm）だけを登録していて、離れ212mmの面にも KS700 を当てていた。
     """
     from .ties import KIND_LABEL, has_attachment_ties, merge_attachment_ties, tie_counts
 
     if not has_attachment_ties(model):
         merge_attachment_ties(model, platforms)
-    for kind, n in tie_counts(model).items():
-        add(kt, n, KIND_LABEL.get(kind, kind))
+    cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
+    if len(cands) < 2 or kt is None:
+        for kind, n in tie_counts(model).items():
+            add(kt, n, KIND_LABEL.get(kind, kind))
+        return
+    cands.sort(key=lambda p: p.adjustable_range()[1])
+    counts: dict[tuple[str, str], int] = {}
+    parts = {p.model_no: p for p in cands}
+    uncovered: dict[int, int] = {}
+    for t in model.wall_ties:
+        need = wall_tie_required_length_mm(model, t.edge_index)
+        fit = next((p for p in cands if p.covers(int(round(need)))), None)
+        if fit is None:
+            fit = kt
+            uncovered[t.edge_index] = uncovered.get(t.edge_index, 0) + 1
+        parts[fit.model_no] = fit
+        key = (fit.model_no, t.kind)
+        counts[key] = counts.get(key, 0) + 1
+    for (no, kind), n in counts.items():
+        add(parts[no], n, KIND_LABEL.get(kind, kind))
+    if uncovered and notes is not None and hasattr(notes, "action"):
+        faces = "・".join(
+            f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本）" for e, n in sorted(uncovered.items())
+        )
+        notes.action(
+            f"壁つなぎの伸縮範囲に合う品が無い面があります: {faces}。{kt.model_no} で計上していますが、"
+            "取付長さに合う壁つなぎを確認してください"
+        )
 
 
 def _replace_opening_stacks(model, openings, totals: dict[int, int], full_stack: list[int],
@@ -1151,7 +1189,7 @@ def _count_frame_parts(
         for s, n in span_counts.items():
             add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0)), f"幅木{s}")
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    _add_wall_ties(model, platforms, kt, add)
+    _add_wall_ties(model, platforms, kt, add, notes)
     stair = next(iter(m.by_category("階段")), None)
     landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (
