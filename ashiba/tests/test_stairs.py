@@ -329,5 +329,27 @@ class TestTooSmallForAStairTower(unittest.TestCase):
         self.assertIsNone(r["stairs"]["max_travel_m"])
 
 
+class TestTravelWarningIsNotDuplicated(unittest.TestCase):
+    """移動距離超過は配置側と検証側で同じ事象。要確認一覧には1回だけ出す."""
+
+    def test_one_message_for_one_excess(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "l_shape.json").read_text(encoding="utf-8"))
+        spec["stairs"] = {"positions": [{"edge_index": 0, "start_mm": 9000}]}   # 1箇所では30m超
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        hits = [w[2] for w in r.warnings if "最大水平移動距離" in w[2]]
+        self.assertEqual(len(hits), 1, hits)
+        self.assertIn("箇所以上を推奨", hits[0])   # 残るのは何箇所要るかまで書いた方
+
+
 if __name__ == "__main__":
     unittest.main()

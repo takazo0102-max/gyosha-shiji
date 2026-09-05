@@ -669,7 +669,11 @@ def collect_warnings(
              f"ブラケット[{i.severity}] {i.message}（{i.basis}）")
             for i in bracket_issues]
     out += [("階段", "WARN", w) for w in stair_plan.warnings]
-    out += [("階段", "WARN", f"階段[WARN] {w}") for w in stair_issues]
+    # 配置時の警告（何箇所要るかまで書いてある）と検証の警告が同じ移動距離超過を
+    # 二重に挙げていた。配置側にあれば検証側は重ねない
+    travel_said = any("最大水平移動距離" in w for w in stair_plan.warnings)
+    out += [("階段", "WARN", f"階段[WARN] {w}") for w in stair_issues
+            if not (travel_said and "最大水平移動距離" in w)]
     # 重大度を本文にも出す。NGと注意が同じ見た目だと、どれが止まる項目か分からない
     out += [("開口部", i.severity, f"開口部[{i.severity}] {i.message}")
             for i in openings.issues]
