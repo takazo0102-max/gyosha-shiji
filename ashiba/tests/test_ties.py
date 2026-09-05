@@ -262,6 +262,30 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         notes = [w[2] for w in r.warnings if "両端の支柱へ寄せました" in w[2]]
         self.assertEqual(len(notes), 1 if r.tie_opt.notes else 0, notes)
 
+    def test_hoist_mast_ties_leave_the_opening_too(self):
+        """マスト控えの壁つなぎは最適化の後で足される。それも抜いた支柱には付けない."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "opening_beam.json").read_text(encoding="utf-8"))
+        spec["hoists"] = [{"edge_index": 0, "position_mm": 5400, "tie_every_mm": 3600}]   # 通路の真ん中
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        beam_h = r.openings.beam_heights[0]
+        bad = [t for t in r.model.wall_ties if t.edge_index == 0 and 3600 < t.position_mm < 7200
+               and t.height_mm < beam_h]
+        self.assertEqual(bad, [])
+        hoist_ties = [t for t in r.model.wall_ties if t.kind == "hoist"]
+        self.assertTrue(hoist_ties)
+        self.assertTrue([t for t in hoist_ties if t.position_mm in (3600.0, 7200.0)])
+        self.assertTrue([w for w in r.warnings if "両端の支柱へ寄せました" in w[2]])
+
     def test_no_opening_changes_nothing(self):
         from ashiba.ties import relocate_ties_off_openings
 
