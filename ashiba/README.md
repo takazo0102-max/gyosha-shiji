@@ -114,6 +114,7 @@ PYTHONPATH=src python3 -m ashiba.cli examples/rect_30x20.json --out out/
 | `opening_beam.json` | 開口部（梁枠3600・5400） |
 | `waku_composite.json` | 枠組＋開口部＋荷受けステージ＋昇降機＋張出しブラケット＋高低差 |
 | `hitokawa.json` | 一側足場（隣地が近く本足場が組めない狭小地） |
+| `safe_wing_low.json` | 高さ10m未満の低層に信和セーフウイング（簡易落下物防止・張出1,280mm）を1段。`asagao.kind` の使い方 |
 | `nikken_nd1800_rect.json` | 日建リース NDシステム1800（カタログ実品番・確定耐力値の系列で矩形30m×20m） |
 | `nikken_nd1900_rect.json` | 日建リース NDシステム1900（コマ475・階高1900、同上） |
 | `combo_nd1800.json` | 総合例: L型＋開口部（梁枠3658）＋荷受けステージ＋昇降機＋高低差1.2m＋日建ND1800＋補強仕様（強力つなぎ材）＋先行手すり |
