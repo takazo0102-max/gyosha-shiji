@@ -6,6 +6,7 @@ Archicad 28 + Tapir 1.5.8 で実行。配置結果はプロジェクトに残す
 使い方:
   python3 scripts/e2e_archicad_test.py --slab <GUID>      # 既存スラブを使う
   python3 scripts/e2e_archicad_test.py                    # スラブも新規作成
+  python3 scripts/e2e_archicad_test.py --series=nikken_nd1900   # 系列を指定（既定 shinwa_A）
 """
 
 from __future__ import annotations
@@ -58,7 +59,9 @@ def main() -> None:
     print(f"外形取得: {len(outline_mm)}点")
 
     # 3. 割付
-    master = load_master("shinwa_A")
+    series = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--series=")), "shinwa_A")
+    master = load_master(series)
+    print(f"系列 {series}")
     plan = solve_plan(outline_mm, master)
     elevation = solve_elevation(16300, master=master)
     model = ScaffoldModel(
@@ -70,8 +73,25 @@ def main() -> None:
     print(f"割付OK: 支柱位置{plan.total_posts}/層, 層数{elevation.n_levels}, "
           f"法規 {checks}, 総重量{q.total_weight_kg}kg")
 
-    # 4. 配置
-    placed = place_scaffold_lines(model, OBJECT_NAME, c)
+    # 4. 配置（現行HSFをコンパイルして埋め込みライブラリへ。部品名は内容ハッシュ。
+    #    以前は検証済みGSMの固定名 ashiba_line_v2 を前提にしていて、
+    #    その部品を読み込んでいないプロジェクトでは「Not found library part」で止まった）
+    object_name = OBJECT_NAME
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from dev_gsm_iterate import build_current_gsm
+
+        work = ROOT / "out" / "gsm_dev"
+        work.mkdir(parents=True, exist_ok=True)
+        object_name, gsm = build_current_gsm("ashiba_line", work)
+        try:
+            c.add_file_to_embedded_library(str(gsm), gsm.name)
+        except Exception:
+            pass   # 同じ内容なら既に入っている
+        print(f"部品: {object_name}（現行HSF）")
+    except Exception as e:   # コンパイル環境が無ければ固定名で試す
+        print(f"現行HSFの注入に失敗（{e}）。部品名 {OBJECT_NAME} で配置します")
+    placed = place_scaffold_lines(model, object_name, c)
     print(f"足場ライン {len(placed)}本 配置")
 
     # 5. 検証: 角度・パラメータ
