@@ -374,13 +374,16 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
             "両隣の面にコーナー経由で支持される前提。単管等での別途拘束を検討")
     _kv(s, "支配的な壁つなぎ", t.governing or "—",
         "支配面積が最大となる1本で検定する")
-    _kv(s, "支配幅 lh", t.lh_m, "m（隣の壁つなぎとの中間まで。端は支点として半分）")
+    _kv(s, "支配幅 lh", t.lh_m, "m（受け持ち領域の横の広がり。隣の壁つなぎとの中間まで、端は支点として半分）")
     _kv(s, "支配高さ lw", t.lw_m,
-        "m（下端は脚部が支点なので半分、上端は自由端なので全長）")
-    _kv(s, "支配面積 lh×lw", t.tributary_area_m2, "m²")
+        "m（同じく縦の広がり。下端は脚部が支点なので半分、上端は自由端なので全長）")
+    # 受け持ち領域は「最も近い壁つなぎ」で面を分けた多角形。格子なら lh×lw の長方形だが、
+    # 取付部の壁つなぎが混じる面では lh×lw より小さい。式に lh×lw と書くと数字が合わない
+    _kv(s, "支配面積 A", t.tributary_area_m2,
+        "m²（最も近い壁つなぎで面を分けた受け持ち領域の面積。格子なら lh×lw）")
     _kv(s, "風力係数 C", w.c_force, "計算書1より")
     _kv(s, "速度圧 q", w.q_n_m2, "N/m²  計算書1より")
-    _kv(s, "壁つなぎ作用力 P", t.force_kn, "kN  P = C × q × lh × lw")
+    _kv(s, "壁つなぎ作用力 P", t.force_kn, "kN  P = C × q × A")
     s.add_blank()
     _kv(s, "許容耐力", t.allowable_kn,
         f"kN  {t.source}" + ("" if t.verified else "  ※未確認値 " + _rows(t)))

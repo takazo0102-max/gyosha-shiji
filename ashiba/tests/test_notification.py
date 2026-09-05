@@ -137,7 +137,7 @@ class TestNotification(unittest.TestCase):
             self.assertIn("有資格者", form)          # 免責が入る
 
             tie = z.read("xl/worksheets/sheet4.xml").decode()
-            self.assertIn("P = C × q × lh × lw", tie)  # 式が転記されている
+            self.assertIn("P = C × q × A", tie)  # 式が転記されている（A＝支配面積）
 
     def test_unverified_marked_in_sheet(self):
         m = make_model()
