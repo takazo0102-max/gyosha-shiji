@@ -205,6 +205,9 @@ def bridge_small_notches(
     return verts
 
 
+SKEW_SNAP_MM = 20.0   # これ以下の斜めは座標誤差として直交に丸める
+
+
 def orthogonalize_diagonals(
     verts: list[Point], notes: list[str], zones: Optional[list["BridgedZone"]] = None,
 ) -> list[Point]:
@@ -215,6 +218,33 @@ def orthogonalize_diagonals(
     （斜辺に沿って0から線形に増える）。verts はCCW・整理済みであること。
     """
     verts = list(verts)
+    # 座標誤差級の微小な斜め（片方の成分が SKEW_SNAP_MM 以下）は斜辺ではなく入力の丸め誤差。
+    # コーナーを挿入すると「長さ5mmの面で離れが最大30000mm増える」という意味の無い区間が
+    # できる（実際に出た）。頂点をずらして直交に丸め、そう書く
+    skew = 0.0
+    for _pass in range(6):
+        changed = False
+        n = len(verts)
+        for i in range(n):
+            p = verts[i]
+            q = verts[(i + 1) % n]
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            if abs(dx) > 1e-6 and abs(dy) > 1e-6 and min(abs(dx), abs(dy)) <= SKEW_SNAP_MM:
+                if abs(dy) <= abs(dx):
+                    verts[(i + 1) % n] = (q[0], p[1])
+                    skew = max(skew, abs(dy))
+                else:
+                    verts[(i + 1) % n] = (p[0], q[1])
+                    skew = max(skew, abs(dx))
+                changed = True
+        if not changed:
+            break
+    if skew > 0:
+        verts, _more = _clean_vertices(verts)
+        notes.append(
+            f"外形の頂点に微小な座標誤差（最大{skew:.0f}mm）があったので、直交になるよう頂点を"
+            "丸めました（斜辺としては扱いません）"
+        )
     i = 0
     guard = 0
     while i < len(verts) and guard < 200:

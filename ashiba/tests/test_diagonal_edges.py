@@ -80,5 +80,40 @@ class TestDiagonalFlowsThroughThePlan(unittest.TestCase):
         self.assertEqual(len(plan.edges), 4)
 
 
+class TestShapes(unittest.TestCase):
+    def test_tiny_skew_is_rounding_not_a_diagonal(self):
+        """5mm の斜めは座標誤差。コーナーを挿入して30mの離れを言わない."""
+        o = build_outline([(0, 0), (30000, 0), (30000, 20000), (0, 20005)])
+        self.assertEqual([tuple(map(float, v)) for v in o.vertices],
+                         [(0.0, 0.0), (30000.0, 0.0), (30000.0, 20000.0), (0.0, 20000.0)])
+        self.assertFalse([z for z in o.bridged if z.kind == "斜辺"])
+        self.assertTrue(any("座標誤差" in n and "5mm" in n for n in o.notes), o.notes)
+
+    def test_concave_diagonal_bulges_outward(self):
+        """入隅を斜めに切った形も外側のコーナーで囲う（内側に食い込まない）."""
+        poly = [(0, 0), (30000, 0), (30000, 12000), (18000, 20000), (0, 20000)]
+        o = build_outline(poly)
+        self.assertEqual(len(o.vertices), 4)
+        from ashiba.geometry import _signed_area
+        self.assertGreater(_signed_area(o.vertices), _signed_area(poly))   # 置き換えで面積は増える
+
+    def test_two_consecutive_diagonals(self):
+        poly = [(0, 0), (26000, 0), (30000, 4000), (30000, 16000), (26000, 20000), (0, 20000)]
+        o = build_outline(poly)
+        self.assertEqual(len(o.vertices), 4)
+        self.assertEqual(len([z for z in o.bridged if z.kind == "斜辺"]), 4)
+        plan = solve_plan(poly, load_master("shinwa_A"))
+        self.assertEqual(len(plan.bridged_zones), 4)
+
+    def test_v_notch_is_bridged_flat(self):
+        """面に食い込むV字の切れ込みは平らに渡し、中央で最大の離れになる2区間になる."""
+        poly = [(0, 0), (12000, 0), (15000, 3000), (18000, 0), (30000, 0), (30000, 20000), (0, 20000)]
+        plan = solve_plan(poly, load_master("shinwa_A"))
+        zones = [z for z in plan.bridged_zones if z.kind == "斜辺"]
+        self.assertEqual([(z.edge_index, z.deep_end, round(z.depth_mm)) for z in zones],
+                         [(0, "end", 3000), (0, "start", 3000)])
+
+
 if __name__ == "__main__":
     unittest.main()
+
