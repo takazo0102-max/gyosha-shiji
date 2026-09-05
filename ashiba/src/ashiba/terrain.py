@@ -20,6 +20,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .dp import spans_text
 from .elevation_solver import JACK_MAX_EXTENSION, JACK_MIN_EXTENSION, _compose_table
 from .model import ScaffoldModel
 
@@ -393,7 +394,7 @@ def jack_table_rows(result: TerrainResult) -> list[list]:
         rows.append([
             f.index + 1, round(f.x), round(f.y), round(f.gl_mm, 1), f.koma_offset,
             round(f.jack_mm, 1), round(f.base_plate_adjust_mm, 1),
-            "+".join(str(p) for p in f.posts),
+            spans_text(f.posts),
             " / ".join(f.warnings) if f.warnings else "",
         ])
     return rows

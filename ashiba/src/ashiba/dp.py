@@ -28,3 +28,22 @@ def insert_desc(seq: tuple[int, ...], value: int) -> tuple[int, ...]:
     while i < len(seq) and seq[i] >= value:
         i += 1
     return seq[:i] + (value,) + seq[i:]
+
+
+def spans_text(spans) -> str:
+    """寸法の並びを読める形に（連続する同じ寸法は「1829×16」にまとめ、並び順は保つ）.
+
+    30m面のスパン構成や支柱構成を「1829+1829+…」と並べても読む側は数えるしかない。
+    割付レポート・ジャッキ量一覧で共用。
+    """
+    out = []
+    run = None
+    n = 0
+    for sp in list(spans) + [None]:
+        if sp == run:
+            n += 1
+            continue
+        if run is not None:
+            out.append(f"{run}×{n}" if n > 1 else str(run))
+        run, n = sp, 1
+    return "+".join(out)

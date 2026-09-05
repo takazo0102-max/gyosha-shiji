@@ -20,6 +20,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from .dp import spans_text
 from .law_check import CheckResult
 from .model import ScaffoldModel
 from .notification import notification_required  # 判定はnotificationに一元化
@@ -70,24 +71,6 @@ def _short(msg: str, listed: set) -> str:
         return msg
     head = msg.split("。")[0].split("（")[0]
     return f"{head[:60]}…（要確認一覧を参照）"
-
-
-def spans_text(spans) -> str:
-    """スパン構成を読める形に（連続する同じ寸法は「1829×16」にまとめ、並び順は保つ）.
-
-    30m面を「1829+1829+…+1219」と17個並べても、読む側は数えるしかない。
-    """
-    out = []
-    run = None
-    n = 0
-    for sp in list(spans) + [None]:
-        if sp == run:
-            n += 1
-            continue
-        if run is not None:
-            out.append(f"{run}×{n}" if n > 1 else str(run))
-        run, n = sp, 1
-    return "+".join(out)
 
 
 def write_report_md(
