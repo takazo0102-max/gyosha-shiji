@@ -149,16 +149,19 @@ class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):
     def test_wall_tie_row_splits_body_and_asagao(self):
         m = self._model()
         q = take_off(m)
-        tie = next(l for l in q.lines if l.part.category == "壁つなぎ")
-        self.assertIn("内訳:", tie.note)
         from ashiba.ties import tie_counts
 
-        self.assertIn(f"壁つなぎ {tie_counts(m)['grid']}本", tie.note)
-        self.assertIn("朝顔取付部の壁つなぎ", tie.note)
-        # 内訳の合計は行の数量に一致する
+        # 壁つなぎは面の離れごとに品番が分かれる（NK-1925II／NK-2434II…）ので行は複数。
+        # 全行の合計は図面の本数、朝顔取付部を含む行には用途別の内訳が付く
+        ties = [l for l in q.lines if l.part.category == "壁つなぎ"]
+        self.assertEqual(sum(l.qty for l in ties), sum(tie_counts(m).values()))
+        asagao = [l for l in ties if "朝顔取付部の壁つなぎ" in l.note]
+        self.assertTrue(asagao, [l.note for l in ties])
         import re
-        nums = [int(x) for x in re.findall(r" (\d+)本", tie.note.split("内訳:")[1])]
-        self.assertEqual(sum(nums), tie.qty)
+        for tie in asagao:
+            self.assertIn("内訳:", tie.note)
+            nums = [int(x) for x in re.findall(r" (\d+)本", tie.note.split("内訳:")[1])]
+            self.assertEqual(sum(nums), tie.qty)   # 内訳の合計は行の数量に一致する
 
     def test_single_use_part_has_no_breakdown(self):
         # 支柱は1用途しかない。内訳を付けない（ノイズになる）

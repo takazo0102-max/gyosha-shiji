@@ -138,17 +138,24 @@ class TestWallTieLengthSelection(unittest.TestCase):
         self.assertGreater(by.get("KS200", 0) + by.get("KS400", 0), 0)
         self.assertFalse([w for w in q.warnings if "伸縮範囲に合う品が無い" in w], q.warnings)
 
-    def test_single_tie_series_warns_when_out_of_range(self):
-        """信和 NK-3352II（330〜520）は離れ212の面（要236mm）に合わない → 手配項目."""
+    def test_shinwa_ties_are_picked_by_standoff_too(self):
+        """信和も NK-1925II〜NK-90112II（p39）を持ったので、面ごとの離れで選ぶ.
+
+        以前は NK-3352II 1品しか無く、範囲外の面は「合う品が無い」と警告するしかなかった。
+        """
+        from ashiba.quantity import wall_tie_required_length_mm
+
         m = build()
         q = take_off(m)
-        ties = [l for l in q.lines if l.part.category == "壁つなぎ"]
-        self.assertEqual(len(ties), 1)
-        self.assertEqual(ties[0].qty, len(m.wall_ties))
-        hit = [w for w in q.warnings if "伸縮範囲に合う品が無い" in w]
-        self.assertTrue(hit, q.warnings)
-        self.assertIn("NK-3352II", hit[0])
-
-
+        by = {}
+        for l in q.lines:
+            if l.part.category == "壁つなぎ":
+                by[l.part] = by.get(l.part, 0) + l.qty
+        self.assertEqual(sum(by.values()), len(m.wall_ties))
+        self.assertGreaterEqual(len(by), 2, by)       # 離れの違う面で品番が分かれる
+        need = [wall_tie_required_length_mm(m, i) for i in range(len(m.plan.edges))]
+        for part in by:
+            self.assertTrue(any(part.covers(round(n)) for n in need), (part.model_no, need))
+        self.assertFalse([w for w in q.warnings if "伸縮範囲に合う品が無い" in w], q.warnings)
 if __name__ == "__main__":
     unittest.main()

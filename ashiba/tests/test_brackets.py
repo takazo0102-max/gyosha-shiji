@@ -116,14 +116,14 @@ class TestBracketQuantity(unittest.TestCase):
     def test_counts_posts_times_levels(self):
         # 1800×3スパン分＝支柱4本、全層(8層)
         s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
-                           direction=INNER, width=300)
+                           direction=INNER, width=400)
         q = bracket_quantities(self.m, [s])
-        self.assertEqual(q[(300, INNER)], 4 * self.m.elevation.n_levels)
+        self.assertEqual(q[(400, INNER)], 4 * self.m.elevation.n_levels)
 
     def test_levels_limit_quantity(self):
         s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
-                           direction=INNER, width=300, levels=[1, 2])
-        self.assertEqual(bracket_quantities(self.m, [s])[(300, INNER)], 4 * 2)
+                           direction=INNER, width=400, levels=[1, 2])
+        self.assertEqual(bracket_quantities(self.m, [s])[(400, INNER)], 4 * 2)
 
     def test_hozue_counted(self):
         s = BracketSection(edge_index=0, start_mm=0, end_mm=1800, width=400,
@@ -133,7 +133,7 @@ class TestBracketQuantity(unittest.TestCase):
 
     def test_flows_into_takeoff(self):
         s = BracketSection(edge_index=0, start_mm=0, end_mm=5400,
-                           direction=INNER, width=300, levels=[1])
+                           direction=INNER, width=400, levels=[1])
         base = take_off(self.m)
         with_bracket = take_off(self.m, bracket_sections=[s])
         self.assertGreater(
@@ -159,13 +159,16 @@ class TestBracketDeckWidth(unittest.TestCase):
         self.changes = bracket_deck_changes
         self.m = make_model()
 
-    def _qty(self, model_no, result):
-        return next((l.qty for l in result.lines if l.part.model_no == model_no), 0)
+    def _qty(self, model_no, result, category="踏板"):
+        # 信和の踊り場は踏板 SD-4018T で構成するので、同じ品番の行が踊り場にもある。
+        # 踏板の行だけ見る
+        return next((l.qty for l in result.lines
+                     if l.part.model_no == model_no and l.part.category == category), 0)
 
     def test_only_spans_fully_inside_are_changed(self):
         """区間をまたぐスパンは敷き替えられない."""
         sec = BracketSection(
-            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            edge_index=0, start_mm=0, end_mm=5400, width=400,
             deck_width=500, levels=[1],
         )
         got = self.changes(self.m, [sec])
@@ -174,7 +177,7 @@ class TestBracketDeckWidth(unittest.TestCase):
 
     def test_take_off_swaps_the_deck_part(self):
         sec = BracketSection(
-            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            edge_index=0, start_mm=0, end_mm=5400, width=400,
             deck_width=500, levels=[1, 2],
         )
         base = take_off(self.m)
@@ -183,10 +186,13 @@ class TestBracketDeckWidth(unittest.TestCase):
             self._qty("SD-4018T", base) - self._qty("SD-4018T", with_sec), 6
         )
         self.assertEqual(self._qty("SD-5018T", with_sec), 6)
+        # 踊り場（同じ品番 SD-4018T）の行は踏板の行と別に残り、敷き替えで減らない
+        self.assertEqual(self._qty("SD-4018T", base, "踊り場"),
+                         self._qty("SD-4018T", with_sec, "踊り場"))
 
     def test_missing_width_is_reported_not_dropped(self):
         sec = BracketSection(
-            edge_index=0, start_mm=0, end_mm=5400, width=300,
+            edge_index=0, start_mm=0, end_mm=5400, width=400,
             deck_width=9999, levels=[1],
         )
         q = take_off(self.m, bracket_sections=[sec])
@@ -195,7 +201,7 @@ class TestBracketDeckWidth(unittest.TestCase):
         )
 
     def test_no_width_given_changes_nothing(self):
-        sec = BracketSection(edge_index=0, start_mm=0, end_mm=5400, width=300)
+        sec = BracketSection(edge_index=0, start_mm=0, end_mm=5400, width=400)
         self.assertEqual(self.changes(self.m, [sec]), [])
 
 
@@ -255,7 +261,7 @@ class TestFrameSystemAlsoCounts(unittest.TestCase):
         edge = model.plan.edges[0]
         return [BracketSection(
             edge_index=0, start_mm=0, end_mm=sum(edge.spans[:3]),
-            direction="内", width=300, levels=[1, 2],
+            direction="内", width=400, levels=[1, 2],
         )]
 
     def test_missing_master_part_is_reported_not_ignored(self):
@@ -264,6 +270,17 @@ class TestFrameSystemAlsoCounts(unittest.TestCase):
         self.assertTrue(
             any("ブラケット" in w and "手配" in w for w in q.warnings), q.warnings
         )
+
+    def test_width_without_a_catalog_part_is_ordered_not_dropped(self):
+        """信和の内ブラケット300は型番仮を外した（カタログ p41 の伸縮品は320〜505）。
+        マスタに無い幅は0本で黙らず、手配項目に幅と本数を出す."""
+        m = self._model("shinwa_A")
+        sec = self._section(m)
+        sec[0].width = 300
+        q = take_off(m, bracket_sections=sec)
+        hit = [w for w in q.warnings if "ブラケット300mm" in w and "手配" in w]
+        self.assertTrue(hit, q.warnings)
+        self.assertIn(f"（{2 * 4}本）", hit[0])
 
     def test_wedge_system_still_counts_parts(self):
         m = self._model("shinwa_A")

@@ -169,9 +169,12 @@ def take_off(
             notes.action(f"マスタに該当部材がありません: {what}（数量{qty}）")
             return
         m.assert_series(part)
-        counts[part.model_no] = counts.get(part.model_no, 0) + qty
-        parts[part.model_no] = part
-        by = breakdown.setdefault(part.model_no, {})
+        # 行は（品番, 分類）で持つ。同じ品番が別の分類でも使われる（信和の踊り場は踏板
+        # SD-4018T そのもの）ときに、踏板の行へ黙って合算されて分類別の数が崩れないように
+        key = (part.model_no, part.category)
+        counts[key] = counts.get(key, 0) + qty
+        parts[key] = part
+        by = breakdown.setdefault(key, {})
         by[what] = by.get(what, 0) + qty
 
     rows = 1 if model.config.scaffold_form == "一側足場" else rules.rows
@@ -647,9 +650,8 @@ def _count_bracket_parts(
             continue
         old_part = m.deck_parts(from_w, span)
         if old_part is not None:
-            counts[old_part.model_no] = max(
-                0, counts.get(old_part.model_no, 0) - n_lv
-            )
+            okey = (old_part.model_no, old_part.category)
+            counts[okey] = max(0, counts.get(okey, 0) - n_lv)
         add(new_part, n_lv, f"踏板 幅{to_w}×{span}（区間指定）")
 
 
@@ -988,7 +990,7 @@ def _assemble(
     # 型番仮（カタログに該当が無く仮の品番・概算重量）の部材は、実品番と同じ顔で
     # 発注書に載せない。手配項目として名指しで出す
     provisional = sorted(
-        {p.model_no for p in parts.values() if "型番仮" in p.note and counts.get(p.model_no, 0) > 0}
+        {p.model_no for k, p in parts.items() if "型番仮" in p.note and counts.get(k, 0) > 0}
     )
     if provisional and hasattr(notes, "action"):
         notes.action(
