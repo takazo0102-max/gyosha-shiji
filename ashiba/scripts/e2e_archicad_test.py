@@ -19,12 +19,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ashiba.elevation_solver import solve_elevation  # noqa: E402
-from ashiba.law_check import run_all_checks, summary  # noqa: E402
-from ashiba.master import load_master  # noqa: E402
-from ashiba.model import ScaffoldConfig, ScaffoldModel  # noqa: E402
-from ashiba.plan_solver import solve_plan  # noqa: E402
-from ashiba.quantity import take_off  # noqa: E402
+import json  # noqa: E402
+
+from ashiba.cli import solve_all  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
     ArchicadClient,
     _extract_polygon,
@@ -58,20 +55,20 @@ def main() -> None:
     outline_mm = [(x * 1000.0, y * 1000.0) for (x, y) in poly]
     print(f"外形取得: {len(outline_mm)}点")
 
-    # 3. 割付
+    # 3. 割付（CLI・ツールバー・全機能E2Eと同じ solve_all で解く。手順を写すと
+    #    solve_all に足した処理が抜けて検定結果がズレる）
     series = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--series=")), "shinwa_A")
-    master = load_master(series)
     print(f"系列 {series}")
-    plan = solve_plan(outline_mm, master)
-    elevation = solve_elevation(16300, master=master)
-    model = ScaffoldModel(
-        master=master, plan=plan, elevation=elevation,
-        config=ScaffoldConfig(period_days=90), building_height_mm=16000,
-    )
-    checks = summary(run_all_checks(model))
-    q = take_off(model)
+    spec = json.loads((ROOT / "examples" / "rect_30x20.json").read_text(encoding="utf-8"))
+    spec.update({
+        "project_name": "E2E基本", "series_id": series,
+        "outline_mm": [[x, y] for (x, y) in outline_mm], "period_days": 90,
+    })
+    r = solve_all(spec)
+    model, plan, elevation = r.model, r.model.plan, r.model.elevation
+    checks = {k: sum(1 for c in r.checks if c.status == st) for k, st in (("ok", "OK"), ("warn", "WARN"), ("ng", "NG"))}
     print(f"割付OK: 支柱位置{plan.total_posts}/層, 層数{elevation.n_levels}, "
-          f"法規 {checks}, 総重量{q.total_weight_kg}kg")
+          f"法規 {checks}, 総重量{r.quantity.total_weight_kg}kg, 判定 {'成立' if r.verdict['ok'] else '是正'}")
 
     # 4. 配置（現行HSFをコンパイルして埋め込みライブラリへ。部品名は内容ハッシュ。
     #    以前は検証済みGSMの固定名 ashiba_line_v2 を前提にしていて、
@@ -91,7 +88,8 @@ def main() -> None:
         print(f"部品: {object_name}（現行HSF）")
     except Exception as e:   # コンパイル環境が無ければ固定名で試す
         print(f"現行HSFの注入に失敗（{e}）。部品名 {OBJECT_NAME} で配置します")
-    placed = place_scaffold_lines(model, object_name, c)
+    placed = place_scaffold_lines(model, object_name, c, stair_plan=r.stair_plan,
+                                  platforms=r.platforms, terrain=r.terrain)
     print(f"足場ライン {len(placed)}本 配置")
 
     # 5. 検証: 角度・パラメータ
