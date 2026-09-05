@@ -354,6 +354,16 @@ class TestTiesInBridgedZones(unittest.TestCase):
         longest = max(p.adjustable_range()[1] for p in r.model.master.by_category("壁つなぎ"))
         for t in r.model.wall_ties:
             self.assertLessEqual(wall_tie_required_length_mm(r.model, t.edge_index, t.position_mm), longest + 1e-6)
+        # 区間がコーナーから始まる面: コーナー支柱（位置0）も深い側なので壁つなぎを付けない
+        from ashiba.ties import unreachable_bands
+
+        bands = unreachable_bands(r.model)
+        z0 = next(z for z in r.model.plan.bridged_zones if z.kind == "斜辺" and z.deep_end == "start")
+        self.assertEqual(bands[z0.edge_index][0][0], 0.0)
+        self.assertFalse([t for t in r.model.wall_ties if t.edge_index == z0.edge_index and t.position_mm < 1])
+        z1 = next(z for z in r.model.plan.bridged_zones if z.kind == "斜辺" and z.deep_end == "end")
+        e1 = next(e for e in r.model.plan.edges if e.edge_index == z1.edge_index)
+        self.assertAlmostEqual(bands[z1.edge_index][-1][1], e1.scaffold_length)
         # 区間の中でも線形に増える: 浅い端の壁つなぎは通常品で足りる
         z = next(z for z in r.model.plan.bridged_zones if z.kind == "斜辺" and z.deep_end == "end")
         shallow = wall_tie_required_length_mm(r.model, z.edge_index, z.start_mm + 100)

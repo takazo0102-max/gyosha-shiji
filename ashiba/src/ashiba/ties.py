@@ -185,6 +185,9 @@ def unreachable_bands(model: ScaffoldModel) -> dict[int, list[tuple[float, float
     if not zones or not cands:
         return {}
     longest = max(p.adjustable_range()[1] for p in cands)
+    from .quantity import CORNER_MARGIN_MM
+
+    lengths = {e.edge_index: float(e.scaffold_length) for e in model.plan.edges}
     out: dict[int, list[tuple[float, float]]] = {}
     for z in zones:
         limit = longest - wall_tie_required_length_mm(model, z.edge_index)
@@ -192,10 +195,13 @@ def unreachable_bands(model: ScaffoldModel) -> dict[int, list[tuple[float, float
         deep = getattr(z, "deep_end", "uniform")
         if z.depth_mm <= limit + 1e-9:
             continue
+        length = lengths.get(z.edge_index, float("inf"))
         if deep == "end":
-            band = (z.start_mm + max(limit, 0.0) * width / z.depth_mm, z.end_mm)
+            band = (z.start_mm + max(limit, 0.0) * width / z.depth_mm,
+                    length if z.end_mm >= length - CORNER_MARGIN_MM else z.end_mm)
         elif deep == "start":
-            band = (z.start_mm, z.end_mm - max(limit, 0.0) * width / z.depth_mm)
+            band = (0.0 if z.start_mm <= CORNER_MARGIN_MM else z.start_mm,
+                    z.end_mm - max(limit, 0.0) * width / z.depth_mm)
         else:
             band = (z.start_mm, z.end_mm)
         if band[1] - band[0] > 1e-6:

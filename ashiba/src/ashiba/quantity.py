@@ -828,17 +828,33 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
         )
 
 
+CORNER_MARGIN_MM = 600.0   # 区間がこの範囲で面の端に接していれば、外側の残りはコーナーの離れ分
+
+
 def bridged_extra_standoff_mm(model: ScaffoldModel, edge_index: int, position_mm: float) -> float:
     """渡した区間（凹み・張り出し・斜辺）の中で増える離れ（その位置での値）.
 
     凹みは区間で一定、斜辺は深い側で最大・反対側で0の線形。区間外は0。
     """
     extra = 0.0
+    ep = next((e for e in model.plan.edges if e.edge_index == edge_index), None)
+    length = float(ep.scaffold_length) if ep is not None else float("inf")
     for z in getattr(model.plan, "bridged_zones", None) or []:
-        if z.edge_index != edge_index or not (z.start_mm - 1e-6 <= position_mm <= z.end_mm + 1e-6):
+        if z.edge_index != edge_index:
             continue
         deep = getattr(z, "deep_end", "uniform")
         width = max(z.end_mm - z.start_mm, 1e-9)
+        # 斜辺の区間が面の端（コーナー）から始まる／で終わるとき、区間の外側に残る
+        # コーナー支柱までの離れ分（0〜区間の始点）も深い側の値になる。コーナー支柱に
+        # 通常長さの壁つなぎを付けていた（実機の立面で発見）
+        if deep == "start" and position_mm < z.start_mm and z.start_mm <= CORNER_MARGIN_MM:
+            extra = max(extra, z.depth_mm)
+            continue
+        if deep == "end" and position_mm > z.end_mm and z.end_mm >= length - CORNER_MARGIN_MM:
+            extra = max(extra, z.depth_mm)
+            continue
+        if not (z.start_mm - 1e-6 <= position_mm <= z.end_mm + 1e-6):
+            continue
         if deep == "end":
             v = z.depth_mm * (position_mm - z.start_mm) / width
         elif deep == "start":
