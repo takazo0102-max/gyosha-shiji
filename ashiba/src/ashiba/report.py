@@ -151,9 +151,9 @@ def write_report_md(
          if h_extra > 1 else ""))
     vm = model.master.vertical_member_name
     a(f"- {vm}構成（下から）: ジャッキ{e.jack_extension} + "
-      + " + ".join(str(p) for p in e.posts)
+      + spans_text(e.posts).replace("+", " + ")
       + f" = {e.total_height}mm")
-    a(f"- 千鳥用代替構成: " + " + ".join(str(p) for p in e.posts_alt)
+    a(f"- 千鳥用代替構成: " + spans_text(e.posts_alt).replace("+", " + ")
       + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
     a(f"- 1層あたり{vm}位置数: {model.plan.total_posts}（二重計上なし）")
     widths = model.deck_widths_in_use
