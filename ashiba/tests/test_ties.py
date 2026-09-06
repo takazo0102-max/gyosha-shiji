@@ -320,6 +320,21 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
                 for t in r.model.wall_ties) for i, o in enumerate(op.openings)))
         self.assertEqual(r.quantity.qty_of("壁つなぎ"), len(r.model.wall_ties))
 
+    def test_quantity_notes_list_ties_per_face(self):
+        """面ごとの本数と品番が数量の注記に出る（面で品番が変わるので行の合計だけでは足りない）."""
+        m = build()
+        q = take_off(m)
+        note = next(n for n in q.notes if n.startswith("壁つなぎの面別本数"))
+        total = 0
+        import re
+        for face_part in note.split(": ", 1)[1].split("／"):
+            n = int(re.search(r" (\d+)本", face_part).group(1))
+            inner = sum(int(x) for x in re.findall(r"[A-Z0-9-]+ (\d+)", face_part.split("（")[1]))
+            self.assertEqual(n, inner, face_part)
+            total += n
+        self.assertEqual(total, len(m.wall_ties))
+        self.assertIn("南面", note)
+
     def test_no_opening_changes_nothing(self):
         from ashiba.ties import relocate_ties_off_openings
 

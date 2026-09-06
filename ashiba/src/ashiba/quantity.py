@@ -907,6 +907,7 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
     parts = {p.model_no: p for p in cands}
     uncovered: dict[int, tuple[int, Part, int]] = {}   # 辺 -> (本数, 当てた品, 範囲までの差mm)
     unreachable: dict[int, tuple[int, int]] = {}       # 辺 -> (本数, 最大の必要長さ)
+    by_face: dict[int, dict[str, int]] = {}            # 辺 -> {品番: 本数}
     longest = max(p.adjustable_range()[1] for p in cands)
     for t in model.wall_ties:
         need = int(round(wall_tie_required_length_mm(model, t.edge_index, t.position_mm)))
@@ -933,8 +934,19 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
         parts[fit.model_no] = fit
         key = (fit.model_no, t.kind)
         counts[key] = counts.get(key, 0) + 1
+        by_face.setdefault(t.edge_index, {})
+        by_face[t.edge_index][fit.model_no] = by_face[t.edge_index].get(fit.model_no, 0) + 1
     for (no, kind), n in counts.items():
         add(parts[no], n, labels.get(kind, kind))
+    # 面ごとの本数と品番。壁つなぎは離れで品番が面ごとに変わるので、行の合計だけでは
+    # どの面に何本持って行くか分からない
+    if by_face and notes is not None:
+        face_txt = "／".join(
+            f"{model.face_name(e)} {sum(m.values())}本（"
+            + "・".join(f"{no} {n}" for no, n in sorted(m.items(), key=lambda kv: -kv[1])) + "）"
+            for e, m in sorted(by_face.items())
+        )
+        notes.append(f"壁つなぎの面別本数: {face_txt}")
     if unreachable and notes is not None and hasattr(notes, "action"):
         faces = "・".join(
             f"{model.face_name(e)} {n}本（最大 要{mx}mm）" for e, (n, mx) in sorted(unreachable.items())
