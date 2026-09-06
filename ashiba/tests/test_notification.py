@@ -370,5 +370,31 @@ class TestSheetsStateTheRightBasis(unittest.TestCase):
         self.assertNotIn("垂直5000以下", text)
 
 
+class TestFormListsWhatSitsOnEachFace(unittest.TestCase):
+    """様式第20号の下書きに面ごとの構成（壁つなぎ本数・梁枠…）が入る."""
+
+    def test_opening_example_row(self):
+        import re
+        import tempfile
+        import zipfile
+
+        from ashiba.cli import load_spec, solve_all, write_outputs
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
+        with tempfile.TemporaryDirectory() as d:
+            write_outputs(r, Path(d))
+            x = next(Path(d).glob("*_設置届一式.xlsx"))
+            z = zipfile.ZipFile(x)
+            sheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        cells = re.findall(r"<t[^>]*>([^<]*)</t>", sheet)
+        self.assertIn("面ごとの構成", cells)
+        row = next(c for c in cells if c.startswith("南面: "))
+        self.assertIn("梁枠1", row)
+        self.assertIn("壁つなぎ", row)
+        self.assertIn("北面", row)
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -270,6 +270,16 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     if bracket_sections:
         _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間",
             "作業床の幅を局所的に変更（数量・図面に反映済み）")
+    # 面ごとに何が載るか（割付レポートの平面割付表と同じ内訳）。審査側が図面と突き合わせる手がかり
+    from .report import _face_items
+
+    faces = model.plan.face_names()
+    per_face = "；".join(
+        f"{face}: {_face_items(model, ep.edge_index, stair_plan, platforms, openings, bracket_sections)}"
+        for ep, face in zip(model.plan.edges, faces)
+    )
+    # 説明に設備名を並べると「無い設備の行が出る」検査に掛かる（実際に掛かった）。内訳は値の側だけに出す
+    _kv(s, "面ごとの構成", per_face, "各面に載るもの（割付レポートの平面割付表と同じ内訳）")
     s.add_blank()
 
     s.add(["■ 日程"], STYLE_BOLD)
