@@ -73,6 +73,38 @@ def _short(msg: str, listed: set) -> str:
     return f"{head[:60]}…（要確認一覧を参照）"
 
 
+def _face_items(model: ScaffoldModel, edge_index: int, stair_plan, platforms, openings,
+                bracket_sections) -> str:
+    """その面に載るものを「壁つなぎ64／階段1／梁枠1…」の形で返す（無ければ壁つなぎ本数だけ）."""
+    parts: list[str] = []
+    n_ties = sum(1 for t in model.wall_ties if t.edge_index == edge_index)
+    parts.append(f"壁つなぎ{n_ties}")
+
+    def count(seq, attr="edge_index"):
+        return sum(1 for x in (seq or []) if getattr(x, attr, None) == edge_index)
+
+    n = count(getattr(stair_plan, "towers", None))
+    if n:
+        parts.append(f"階段{n}")
+    n = count(getattr(openings, "openings", None))
+    if n:
+        parts.append(f"梁枠{n}")
+    n = count(getattr(platforms, "stages", None))
+    if n:
+        parts.append(f"ステージ{n}")
+    n = count(getattr(platforms, "hoists", None))
+    if n:
+        parts.append(f"昇降機{n}")
+    n = count(bracket_sections)
+    if n:
+        parts.append(f"ブラケット区間{n}")
+    zones = [z for z in (getattr(model.plan, "bridged_zones", None) or []) if z.edge_index == edge_index]
+    if zones:
+        kinds = "・".join(sorted({z.kind for z in zones}))
+        parts.append(f"渡し{len(zones)}（{kinds}）")
+    return "／".join(parts)
+
+
 def write_report_md(
     model: ScaffoldModel,
     quantity: QuantityResult,
@@ -164,13 +196,16 @@ def write_report_md(
     # 躯体頂点（辺の始点）を出す。外形を整理（反転・重複除去・渡し）すると辺番号が
     # 入力の頂点順とずれるので、付帯設備の edge_index を突き合わせる手がかりにする
     verts = model.plan.outline.vertices
-    a("| 辺 | 面 | 躯体頂点(始点) | 足場長 | スパン構成 | 離れ | 対処案 |")
-    a("|---|---|---|---|---|---|---|")
+    # 面に載るもの（壁つなぎ本数・階段・梁枠・ステージ・昇降機・ブラケット区間・渡した区間）を
+    # 辺ごとに1列で見せる。付帯設備は章ごとに散らばるので、面単位で突き合わせる手がかりにする
+    a("| 辺 | 面 | 躯体頂点(始点) | 足場長 | スパン構成 | 離れ | 面に載るもの | 対処案 |")
+    a("|---|---|---|---|---|---|---|---|")
     for ep, face in zip(model.plan.edges, faces):
         spans = spans_text(ep.spans)
         vx, vy = verts[ep.edge_index] if ep.edge_index < len(verts) else (0, 0)
+        items = _face_items(model, ep.edge_index, stair_plan, platforms, openings, bracket_sections)
         a(f"| {ep.edge_index} | {face} | ({vx:.0f}, {vy:.0f}) | {ep.scaffold_length:.0f} | {spans} "
-          f"| {ep.standoff:.0f} | {ep.remedy or '—'} |")
+          f"| {ep.standoff:.0f} | {items} | {ep.remedy or '—'} |")
     for z in getattr(model.plan, "bridged_zones", None) or []:
         deep = getattr(z, "deep_end", "uniform")
         how = (f"離れ＋最大{z.depth_mm:.0f}mm（{'終点' if deep == 'end' else '始点'}側で最大、斜辺に沿って線形）"

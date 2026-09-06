@@ -565,5 +565,37 @@ class TestOrderableNotesStandOut(unittest.TestCase):
         self.assertIn("**要手配・要検討**", text)
 
 
+class TestPlanTableListsWhatSitsOnEachFace(unittest.TestCase):
+    """平面割付表に「面に載るもの」列（壁つなぎ本数・階段・梁枠・ステージ・昇降機・渡し）."""
+
+    def _table(self, example):
+        import tempfile
+
+        from ashiba.cli import load_spec, solve_all, write_outputs
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / example))
+        with tempfile.TemporaryDirectory() as d:
+            write_outputs(r, Path(d))
+            md = next(Path(d).glob("*_割付レポート.md")).read_text(encoding="utf-8")
+        rows = [ln for ln in md.splitlines() if ln.startswith("| ") and ln.count("|") >= 9]
+        header = next(ln for ln in md.splitlines() if ln.startswith("| 辺 | 面 |"))
+        self.assertIn("面に載るもの", header)
+        return {int(ln.split("|")[1]): ln.split("|")[7].strip() for ln in rows if ln.split("|")[1].strip().isdigit()}
+
+    def test_opening_and_stage_examples(self):
+        cells = self._table("opening_beam.json")
+        self.assertIn("梁枠1", cells[0])
+        self.assertIn("梁枠1", cells[2])
+        self.assertTrue(cells[0].startswith("壁つなぎ"))
+        cells = self._table("loading_stage.json")
+        self.assertIn("ステージ1", cells[0])
+        self.assertIn("昇降機1", cells[2])
+        cells = self._table("diagonal_corner.json")
+        self.assertIn("渡し1（斜辺）", cells[1])
+        self.assertIn("渡し1（斜辺）", cells[2])
+
+
 if __name__ == "__main__":
     unittest.main()
+
