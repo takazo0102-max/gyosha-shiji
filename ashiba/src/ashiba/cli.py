@@ -896,7 +896,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     )
     # 取付部・マスト控えの壁つなぎを格子と同じ一覧へ（図面・数量・検定が同じ本数になる。
     # 最適化で既に載っていれば何もしない）
-    merge_attachment_ties(model, platforms)
+    merge_attachment_ties(model, platforms, openings)
     # 取付部・マスト控えの壁つなぎも、開口部で抜いた支柱には付けられない／届かない位置には置かない
     model.plan.warnings.extend(relocate_ties_off_openings(model, openings))
     model.plan.warnings.extend(relocate_unreachable_ties(model, label="取付部の壁つなぎ"))

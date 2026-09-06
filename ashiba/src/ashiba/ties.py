@@ -15,8 +15,9 @@ KIND_LABEL = {
     "asagao": "朝顔取付部の壁つなぎ",
     "stage": "荷受けステージ取付部の壁つなぎ",
     "hoist": "昇降機マスト控えの壁つなぎ",
+    "beam": "梁枠取付部の壁つなぎ",
 }
-ATTACHMENT_KINDS = ("asagao", "stage", "hoist")
+ATTACHMENT_KINDS = ("asagao", "stage", "hoist", "beam")
 
 
 def kind_labels(model: ScaffoldModel) -> dict[str, str]:
@@ -96,7 +97,26 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
     return out
 
 
-def merge_attachment_ties(model: ScaffoldModel, platforms=None) -> dict[str, int]:
+def _beam_ties(model: ScaffoldModel, openings) -> list[WallTie]:
+    """開口部の梁枠取付部（両端の支柱・梁枠の高さ）の壁つなぎ.
+
+    仮設工業会の梁枠使用基準は取付部直近に壁つなぎを求める。以前は開口部の検証が
+    「取付部直近の壁つなぎが必要です」と書くだけで、一覧には入っていなかった
+    （格子の壁つなぎがたまたま来なければ図面にも数量にも無い）。
+    """
+    out: list[WallTie] = []
+    if openings is None or not getattr(openings, "openings", None):
+        return out
+    for i, o in enumerate(openings.openings):
+        h = openings.beam_heights.get(i)
+        if h is None or i not in openings.inner_posts:
+            continue    # 成立していない開口部（両端が支柱に乗らない等）
+        for x in (o.start_mm, o.end_mm):
+            out.append(WallTie(o.edge_index, float(x), int(h), "beam"))
+    return out
+
+
+def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -> dict[str, int]:
     """取付部の壁つなぎを model.wall_ties に足す（同じ位置の金具は兼ねる）.
 
     何度呼んでも同じ結果（同じ辺・位置・高さが既にあれば足さない）。
@@ -106,7 +126,7 @@ def merge_attachment_ties(model: ScaffoldModel, platforms=None) -> dict[str, int
         (t.edge_index, round(t.position_mm), int(t.height_mm)) for t in model.wall_ties
     }
     added: dict[str, int] = {}
-    for t in _asagao_ties(model) + _platform_ties(model, platforms):
+    for t in _asagao_ties(model) + _platform_ties(model, platforms) + _beam_ties(model, openings):
         key = (t.edge_index, round(t.position_mm), int(t.height_mm))
         if key in existing:
             continue

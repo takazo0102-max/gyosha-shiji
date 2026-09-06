@@ -406,7 +406,7 @@ def take_off(
 
     # ---- 壁つなぎ ----
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    _add_wall_ties(model, platforms, kt, add, notes)
+    _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
 
     # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
@@ -880,7 +880,7 @@ def wall_tie_required_length_mm(
     return standoff + extra + dia / 2.0
 
 
-def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None:
+def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, openings=None) -> None:
     """壁つなぎを由来ごとに計上する（格子＋朝顔取付部＋ステージ取付部＋マスト控え）.
 
     取付部の分がまだ一覧に無ければここで統合する（take_off を単独で呼んでも
@@ -895,7 +895,7 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None) -> None
     labels = kind_labels(model)
 
     if not has_attachment_ties(model):
-        merge_attachment_ties(model, platforms)
+        merge_attachment_ties(model, platforms, openings)
     cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
     # 1品だけでも伸縮範囲が書いてあれば、面の必要長さが範囲外なら手配項目に出す
     if not cands or kt is None:
@@ -1319,7 +1319,7 @@ def _count_frame_parts(
         for s, n in span_counts.items():
             add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0)), f"幅木{s}")
     kt = next(iter(m.by_category("壁つなぎ")), None)
-    _add_wall_ties(model, platforms, kt, add, notes)
+    _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
     stair = next(iter(m.by_category("階段")), None)
     landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (

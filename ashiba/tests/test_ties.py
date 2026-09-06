@@ -298,6 +298,28 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         self.assertTrue([t for t in hoist_ties if t.position_mm in (3600.0, 7200.0)])
         self.assertTrue([w for w in r.warnings if "両端の支柱へ寄せました" in w[2]])
 
+    def test_beam_end_ties_are_added_at_the_beam_height(self):
+        """梁枠取付部（両端支柱・梁枠高さ）の壁つなぎが一覧に入り、内訳にも出る."""
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
+        op = r.openings
+        for i, o in enumerate(op.openings):
+            h = int(op.beam_heights[i])
+            for x in (o.start_mm, o.end_mm):
+                self.assertTrue([t for t in r.model.wall_ties
+                                 if t.edge_index == o.edge_index and abs(t.position_mm - x) < 1e-6
+                                 and t.height_mm == h], (i, x, h))
+        kinds = {t.kind for t in r.model.wall_ties}
+        # 格子の金具と重ならない分だけ beam として残る（重なれば grid で兼ねる）
+        self.assertTrue("beam" in kinds or all(
+            any(t.edge_index == o.edge_index and t.height_mm == int(op.beam_heights[i]) and t.kind == "grid"
+                for t in r.model.wall_ties) for i, o in enumerate(op.openings)))
+        self.assertEqual(r.quantity.qty_of("壁つなぎ"), len(r.model.wall_ties))
+
     def test_no_opening_changes_nothing(self):
         from ashiba.ties import relocate_ties_off_openings
 

@@ -862,7 +862,7 @@ def optimize_wall_ties(
         「壁つなぎを足したのに検定が悪化」して総合判定で落ちた（L形サンプル）。
         """
         notes = relocate_ties_off_openings(model, openings)
-        merge_attachment_ties(model, platforms)
+        merge_attachment_ties(model, platforms, openings)
         notes += relocate_ties_off_openings(model, openings)
         # 渡した区間の深い所（最長品でも届かない）の壁つなぎは、届く支柱へ寄せる
         notes += relocate_unreachable_ties(model)
