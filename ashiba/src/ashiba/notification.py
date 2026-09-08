@@ -536,6 +536,10 @@ def _sheet_todo(wb, verdict, checks: list[CheckResult], warnings=None) -> None:
           STYLE_BOLD)
     for b in verdict.get("blockers", []):
         s.add_cells([Cell("是正"), Cell(b)])
+    # NG の理由の本文（件数だけでは直せない）
+    for kind, sev, text in (warnings or []):
+        if sev == "NG":
+            s.add_cells([Cell("是正"), Cell(f"{kind}: {text}")])
     s.add(["要確認", f"{verdict.get('warn', 0)}件",
            "／".join(verdict.get("warn_breakdown", []))], STYLE_BOLD)
     s.add_blank()

@@ -305,14 +305,22 @@ class TestTodoSheet(unittest.TestCase):
         self.assertIn("是正が必要です", sheet)
         self.assertIn("開口部NG 1件", sheet)
 
-    def test_ng_warnings_are_not_repeated_as_checklist(self):
+    def test_ng_warnings_are_listed_once_as_a_blocker_not_as_checklist(self):
+        """NG の本文は「是正」の行に1回だけ出す。番号付きの着手前チェックリストには混ぜない.
+
+        以前は本文を出していなかったので「ブラケット区間NG 1件」だけで理由が分からなかった。
+        """
         z, _ = self._book(
             verdict={"ok": False, "blockers": ["開口部NG 1件"], "warn": 0,
                      "warn_breakdown": []},
             warnings=[("開口部", "NG", "梁枠3600mmは規格外です")],
         )
         sheet = z.read("xl/worksheets/sheet2.xml").decode()
-        self.assertNotIn("規格外", sheet)
+        self.assertEqual(sheet.count("規格外"), 1)
+        self.assertIn("開口部: 梁枠3600mmは規格外です", sheet)
+        import re
+        numbered = re.findall(r"<row[^>]*>(.*?)</row>", sheet, re.S)
+        self.assertFalse([r for r in numbered if "<v>1</v>" in r and "規格外" in r])
 
 
 class TestNonFiniteValues(unittest.TestCase):

@@ -596,6 +596,33 @@ class TestPlanTableListsWhatSitsOnEachFace(unittest.TestCase):
         self.assertIn("渡し1（斜辺）", cells[2])
 
 
+class TestNgReasonsAreWrittenOut(unittest.TestCase):
+    """NG の理由の本文がレポートと届の要確認事項に出る（件数だけでは直せない）."""
+
+    def test_widening_ratio_ng_text_reaches_both_outputs(self):
+        import re
+        import tempfile
+        import zipfile
+
+        from ashiba.cli import solve_all, write_outputs
+
+        spec = {"project_name": "拡幅NG", "series_id": "nikken_nd1800",
+                "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 16000, "building_height_mm": 16000, "guard_extra_mm": 300, "period_days": 90,
+                "bracket_sections": [{"edge_index": 0, "start_mm": 0, "end_mm": 7316, "width": 610,
+                                      "direction": "張出", "levels": [2, 3], "has_hozue": True, "is_widening": True}]}
+        r = solve_all(spec)
+        self.assertIn("ブラケット区間NG 1件", r.verdict["blockers"])
+        with tempfile.TemporaryDirectory() as d:
+            write_outputs(r, Path(d))
+            md = next(Path(d).glob("*_割付レポート.md")).read_text(encoding="utf-8")
+            z = zipfile.ZipFile(next(Path(d).glob("*_設置届一式.xlsx")))
+            sheet2 = z.read("xl/worksheets/sheet2.xml").decode("utf-8")
+        self.assertIn("是正: ブラケット区間: ", md)
+        self.assertIn("60%", md.split("## ")[0])          # 冒頭の判定ブロックに理由がある
+        self.assertTrue(re.search(r"<t[^>]*>ブラケット区間: [^<]*60%", sheet2))
+
+
 if __name__ == "__main__":
     unittest.main()
 

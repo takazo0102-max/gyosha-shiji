@@ -150,6 +150,12 @@ def write_report_md(
             a("**判定: ❌ 是正が必要です**")
             for b in verdict["blockers"]:
                 a(f"- {b}")
+            # NG の理由（付帯設備・開口部・ブラケット区間・衝突）は件数だけでは直せない。
+            # 要確認一覧は WARN だけなので、是正項目の本文をここに出す（実機で「ブラケット区間NG 1件」
+            # としか書かれず、60%規定に掛かったことがどこにも無かった）
+            for kind, sev, text in (warnings or []):
+                if sev == "NG":
+                    a(f"  - 是正: {kind}: {text}")
             if verdict["warn"]:
                 a(f"- ほかに要確認 {verdict['warn']}件: {detail}")
         a("")
