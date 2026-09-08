@@ -177,6 +177,10 @@
 			<Description><![CDATA["手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="railIn">
+			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
+			<Value>1</Value>
+		</Integer>
 		<String Name="brktList">
 			<Description><![CDATA["ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm"]]></Description>
 			<Value><![CDATA[""]]></Value>

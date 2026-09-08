@@ -200,9 +200,9 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         op = validate_openings(model, [Opening(0, 3600, 3600, level=3)])
         cut = take_off(model, openings=op)
         self.assertLess(cut.qty_of("布材"), base.qty_of("布材"))
-        # 2スパン×2層×(床2+手すり2) ＋ 2スパン×根がらみ2 ＝ 20本
-        # ＋ 抜いた支柱1本×3段（根がらみ＋梁枠より下2層）の腕木 ＝ 23本
-        self.assertEqual(base.qty_of("布材") - cut.qty_of("布材"), 23)
+        # 2スパン×2層×(床2+外側の手すり2+躯体側の手すり2) ＋ 2スパン×根がらみ2 ＝ 28本
+        # ＋ 抜いた支柱1本×3段（根がらみ＋梁枠より下2層）の腕木 ＝ 31本
+        self.assertEqual(base.qty_of("布材") - cut.qty_of("布材"), 31)
 
     def test_quantity_drops_the_jacks_of_removed_posts(self):
         """抜いた支柱は地面に達しない。ジャッキもアンダーベースも要らない."""

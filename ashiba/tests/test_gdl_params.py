@@ -807,3 +807,14 @@ class TestGuardRailMethodReachesTheDrawing(unittest.TestCase):
                 m = build(sid)
                 m.config.guard_rail_type = rail
                 self.assertEqual(line_params(m, m.plan.edges[0])["railAdv"], want)
+
+
+class TestInnerGuardRailReachesTheDrawing(unittest.TestCase):
+    """躯体側の手すり・中桟（railIn）は既定で 1。外せば 0。枠組は建枠一体なので 0."""
+    def test_flag(self):
+        m = build("shinwa_A")
+        self.assertEqual(line_params(m, m.plan.edges[0])["railIn"], 1)
+        m.config.inner_guard_rail = False
+        self.assertEqual(line_params(m, m.plan.edges[0])["railIn"], 0)
+        w = build("waku")
+        self.assertEqual(line_params(w, w.plan.edges[0])["railIn"], 0)

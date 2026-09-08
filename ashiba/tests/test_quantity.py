@@ -87,13 +87,31 @@ class TestQuantity(unittest.TestCase):
         )
 
     def test_wide_standoff_notes_the_missing_inner_rail(self):
-        """離れ300mm超は躯体側にも墜落防止措置が要る。数量に無いことを書く."""
+        """離れ300mm超は躯体側にも墜落防止措置が要る。躯体側手すりを外した計画では数量に無いことを書く."""
         wide = [e for e in self.plan.edges if e.standoff > 300]
         self.assertTrue(wide, "この例題は離れ350mmの面を含む前提")
+        self.model.config.inner_guard_rail = False
+        q = take_off(self.model)
         self.assertTrue(
-            any("手すり材は数量に含んでいません" in n for n in self.q.notes),
-            self.q.notes,
+            any("手すり材は数量に含んでいません" in n for n in q.notes),
+            q.notes,
         )
+        # 既定（躯体側の手すり・中桟を布材で組む）では計上済みなので、その注記は出ない
+        self.assertFalse(any("手すり材は数量に含んでいません" in n for n in self.q.notes), self.q.notes)
+
+    def test_inner_guard_rail_is_counted_by_default(self):
+        """躯体側の手すり＋中桟（布材）は3Dに描くのと同じ条件で数える."""
+        nl = self.elev.n_levels
+        spans = self.plan.total_spans
+        udegi = self.plan.total_posts * (nl + 1)      # 腕木も布材の区分
+        # 根がらみ2＋各層（床2＋外側の手すり・中桟2＋躯体側の手すり・中桟2）
+        self.assertEqual(self.q.qty_of("布材"), spans * (2 + nl * 6) + udegi)
+        note = next(n for n in self.q.notes if n.startswith("布材は1スパンあたり"))
+        self.assertIn("躯体側の手すり・中桟2本", note)
+        self.model.config.inner_guard_rail = False
+        q = take_off(self.model)
+        self.assertEqual(q.qty_of("布材"), spans * (2 + nl * 4) + udegi)
+        self.assertNotIn("躯体側", next(n for n in q.notes if n.startswith("布材は1スパンあたり")))
 
     def test_no_such_note_when_all_within_300(self):
         for e in self.plan.edges:
@@ -232,7 +250,7 @@ class TestCountsAreCheckable(unittest.TestCase):
         spans = self.m.plan.total_spans
         posts = self.m.plan.total_posts
         levels = self.m.elevation.n_levels
-        per_span = 2 + levels * (2 + 2)          # 根がらみ＋各層(床＋手すり中桟)
+        per_span = 2 + levels * (2 + 2 + 2)      # 根がらみ＋各層(床＋外側の手すり中桟＋躯体側の手すり中桟)
         udegi = posts * (levels + 1)
         self.assertEqual(self.q.qty_of("布材"), spans * per_span + udegi)
         notes = " ".join(self.q.notes)

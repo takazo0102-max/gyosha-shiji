@@ -185,6 +185,8 @@ def line_params(
         # 先行手すり工法は手すり＋斜材の一体部材で、斜材が中桟を兼ねる。数量と法規は
         # そう扱っているのに、図面と3Dは布材の手すり＋中桟のままだった（実機で発見）
         "railAdv": 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0,
+        # 躯体側の手すり・中桟（布材）。数量の rails_inner と同じ条件（列数はGDL側の nRows で見る）
+        "railIn": 1 if (model.config.inner_guard_rail and not model.master.is_frame) else 0,
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
         "serType": ("W" if model.master.is_frame

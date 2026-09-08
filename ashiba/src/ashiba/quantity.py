@@ -254,7 +254,9 @@ def take_off(
     # 本足場の「内外2本」のまま数えると1スパンあたり5本（4層で）多くなる
     negarami_n = min(rules.ledgers_negarami, rows)
     floor_n = min(rules.ledgers_per_level_floor, rows)
-    per_span_rails = negarami_n + n_levels * (floor_n + rails_outer)
+    # 躯体側（内側建地列）の手すり＋中桟。3Dに描くのと同じ条件で数える
+    rails_inner = 2 if (model.config.inner_guard_rail and rows >= 2) else 0
+    per_span_rails = negarami_n + n_levels * (floor_n + rails_outer + rails_inner)
     span_counts: dict[int, int] = {}
     for e in plan.edges:
         for s in e.spans:
@@ -264,7 +266,7 @@ def take_off(
     from .openings import opening_deck_deduction, opening_span_counts
     open_cut = opening_deck_deduction(model, openings)
     open_spans = opening_span_counts(model, openings)
-    per_level_rails = floor_n + rails_outer
+    per_level_rails = floor_n + rails_outer + rails_inner
     open_rail_cut = 0
     for s, n in span_counts.items():
         cut = (open_cut.get(s, 0) * per_level_rails
@@ -275,7 +277,8 @@ def take_off(
     notes.append(
         f"布材は1スパンあたり 根がらみ{negarami_n}本"
         f"＋各層（床レベル{floor_n}本"
-        + (f"＋手すり・中桟{rails_outer}本" if rails_outer else "＋手すりは先行手摺")
+        + (f"＋外側の手すり・中桟{rails_outer}本" if rails_outer else "＋外側の手すりは先行手摺")
+        + (f"＋躯体側の手すり・中桟{rails_inner}本" if rails_inner else "")
         + f"）×{n_levels}層 ＝ {per_span_rails}本で計上"
     )
     if open_rail_cut:
@@ -1083,12 +1086,15 @@ def _note_bridged_zones(model: ScaffoldModel, notes) -> None:
         how = (f"躯体との離れが{'終点' if deep == 'end' else '始点'}側で最大{z.depth_mm:.0f}mm増えます"
                f"（斜辺に沿って0から線形に増加）" if z.kind == "斜辺"
                else f"躯体との離れが{z.depth_mm:.0f}mm増えます")
+        inner_counted = (model.config.inner_guard_rail and not model.master.is_frame
+                         and model.config.scaffold_form != "一側足場")
+        rail_text = (f"躯体側手すり（布材{rails}本）は計上済み" if inner_counted
+                     else f"躯体側手すりで対応する場合 布材{rails}本（手すり・中桟）は数量に含んでいません")
         notes.action(
             f"{z.kind}を渡した区間（{model.face_name(z.edge_index)} 始点から"
             f"{z.start_mm:.0f}〜{z.end_mm:.0f}mm・{z.span_count}スパン×{n_levels}層）は"
-            f"{how}。数量に含んでいない措置: "
-            f"内ブラケットで床を拡幅する場合 内ブラケット{brackets}本（{posts}位置×{n_levels}層）と"
-            f"その踏板、躯体側手すりで対応する場合 布材{rails}本（手すり・中桟）",
+            f"{how}。内ブラケットで床を拡幅する場合 内ブラケット{brackets}本（{posts}位置×{n_levels}層）と"
+            f"その踏板は数量に含んでいません。{rail_text}",
             Notes.ORDER,
         )
 
@@ -1106,6 +1112,9 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
     ]
     if not wide:
         return
+    if model.config.inner_guard_rail and not model.master.is_frame \
+            and model.config.scaffold_form != "一側足場":
+        return    # 躯体側の手すり・中桟は布材として計上済み
     spans = sum(w[2] for w in wide)
     faces = "、".join(f"{model.face_name(i)} {d:.0f}mm" for i, d, _ in wide)
     # 措置が要ること自体は割付の警告が言う。ここは数量側の話に絞る

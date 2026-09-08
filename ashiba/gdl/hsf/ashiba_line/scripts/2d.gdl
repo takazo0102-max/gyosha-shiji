@@ -384,6 +384,10 @@ for il = 2 to nLv
 			if railAdv = 1 then
 				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
 				line2 xs, z + railTop, xe, z + 0.05 + 0.157
+				! 躯体側の中桟（布材）は先行手すりの奥に見える
+				if railIn = 1 and nRows >= 2 then
+					line2 xs, z + railMid, xe, z + railMid
+				endif
 			else
 				line2 xs, z + railMid, xe, z + railMid
 			endif
@@ -412,11 +416,34 @@ for it2 = 1 to nSt
 	ex = sx + stL[it2]
 	line2 sx, lv[1], sx, postTop
 	line2 ex, lv[1], ex, postTop
+	! 3Dと同じ折り返し（踏面1スパン＋踊り場1スパン）。段の刻みと階段手すりも描く
+	sl = ex - sx
 	for il = 1 to nLv - 1
-		if il - 2 * int(il / 2) = 0 then
-			line2 sx, lv[il], ex, lv[il + 1]
+		rise = lv[il + 1] - lv[il]
+		fl = sl
+		if sl > 2.7 and rise / (sl / 2) <= 1.15 then fl = sl / 2
+		nStep = int(rise / 0.225 + 0.5)
+		if nStep < 1 then nStep = 1
+		td = fl / nStep
+		th = rise / nStep
+		if il - 2 * int(il / 2) = 1 then
+			x0 = sx
+			dx = 1
+			lx = sx + fl
 		else
-			line2 ex, lv[il], sx, lv[il + 1]
+			x0 = ex
+			dx = -1
+			lx = sx
+		endif
+		for is2 = 1 to nStep
+			line2 x0 + (is2 - 1) * td * dx, lv[il] + (is2 - 1) * th, x0 + (is2 - 1) * td * dx, lv[il] + is2 * th
+			line2 x0 + (is2 - 1) * td * dx, lv[il] + is2 * th, x0 + is2 * td * dx, lv[il] + is2 * th
+		next is2
+		line2 x0, lv[il] + 0.95, x0 + fl * dx, lv[il + 1] + 0.95
+		line2 x0, lv[il], x0, lv[il] + 0.95
+		line2 x0 + fl * dx, lv[il + 1], x0 + fl * dx, lv[il + 1] + 0.95
+		if fl < sl - 0.001 then
+			line2 lx, lv[il + 1], lx + sl - fl, lv[il + 1]
 		endif
 	next il
 	set style "annoC"

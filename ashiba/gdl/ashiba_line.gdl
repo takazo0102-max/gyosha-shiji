@@ -52,6 +52,7 @@
 !   railH           長さ    手すり高さ 作業床から 0で自動                                                                             既定 0
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
+!   railIn          整数    躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1                                                        既定 1
 !   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                      既定 ""
 !   brktList2       文字列  ブラケット区間（続き2）                                                                                   既定 ""
 !   brktList3       文字列  ブラケット区間（続き3）                                                                                   既定 ""
@@ -1091,6 +1092,10 @@ for il = 2 to nLv
 			if railAdv = 1 then
 				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
 				line2 xs, z + railTop, xe, z + 0.05 + 0.157
+				! 躯体側の中桟（布材）は先行手すりの奥に見える
+				if railIn = 1 and nRows >= 2 then
+					line2 xs, z + railMid, xe, z + railMid
+				endif
 			else
 				line2 xs, z + railMid, xe, z + railMid
 			endif
@@ -1119,11 +1124,34 @@ for it2 = 1 to nSt
 	ex = sx + stL[it2]
 	line2 sx, lv[1], sx, postTop
 	line2 ex, lv[1], ex, postTop
+	! 3Dと同じ折り返し（踏面1スパン＋踊り場1スパン）。段の刻みと階段手すりも描く
+	sl = ex - sx
 	for il = 1 to nLv - 1
-		if il - 2 * int(il / 2) = 0 then
-			line2 sx, lv[il], ex, lv[il + 1]
+		rise = lv[il + 1] - lv[il]
+		fl = sl
+		if sl > 2.7 and rise / (sl / 2) <= 1.15 then fl = sl / 2
+		nStep = int(rise / 0.225 + 0.5)
+		if nStep < 1 then nStep = 1
+		td = fl / nStep
+		th = rise / nStep
+		if il - 2 * int(il / 2) = 1 then
+			x0 = sx
+			dx = 1
+			lx = sx + fl
 		else
-			line2 ex, lv[il], sx, lv[il + 1]
+			x0 = ex
+			dx = -1
+			lx = sx
+		endif
+		for is2 = 1 to nStep
+			line2 x0 + (is2 - 1) * td * dx, lv[il] + (is2 - 1) * th, x0 + (is2 - 1) * td * dx, lv[il] + is2 * th
+			line2 x0 + (is2 - 1) * td * dx, lv[il] + is2 * th, x0 + is2 * td * dx, lv[il] + is2 * th
+		next is2
+		line2 x0, lv[il] + 0.95, x0 + fl * dx, lv[il + 1] + 0.95
+		line2 x0, lv[il], x0, lv[il] + 0.95
+		line2 x0 + fl * dx, lv[il + 1], x0 + fl * dx, lv[il + 1] + 0.95
+		if fl < sl - 0.001 then
+			line2 lx, lv[il + 1], lx + sl - fl, lv[il + 1]
 		endif
 	next il
 	set style "annoC"
@@ -1372,6 +1400,33 @@ for ip = 1 to nSpan + 1
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
+! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
+! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
+! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
+if komaPitch > 0 then
+	resol 8
+	x = 0
+	for ip = 1 to nSpan + 1
+		bBase = 0
+		for ib = 1 to nBm
+			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		next ib
+		for row = rowStart to 1
+			zk = lv[1]
+			while zk < postTop - 0.01 do
+				if zk > bBase + 0.001 then
+					add x, -row * rowW, zk - 0.005
+					cylind 0.01, 0.055
+					del 1
+				endif
+				zk = zk + komaPitch
+			endwhile
+		next row
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+	resol 36
+endif
+
 ! ---- 水平材（根がらみ＋各作業層） ----
 for il = 1 to nLv
 	z = lv[il]
@@ -1409,6 +1464,17 @@ for il = 1 to nLv
 				del 2
 			else
 				add x, -rowW, z + railMid
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			endif
+			! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ）
+			if railIn = 1 and nRows >= 2 then
+				add x, 0, z + railTop
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+				add x, 0, z + railMid
 				roty 90
 				cylind spans[ip], r_nuno
 				del 2
@@ -1696,17 +1762,80 @@ for ib2 = 1 to nBm
 	next row2
 next ib2
 
-! ---- 階段室（段板を傾けて示す） ----
+! ---- 階段室（段板・側桁・階段手すり） ----
+! 2スパン以上の階段室は折り返し（踏面1スパン＋踊り場1スパン）。奇数層は始点側から
+! 上り、偶数層は終点側から戻る。以前は区間全長の傾いた板1枚で、滑り台に見えた
+stairW = rowW - 0.10
 for it5 = 1 to nSt
 	sx = stS[it5]
 	sl = stL[it5]
 	for il5 = 1 to nLv - 1
 		rise = lv[il5 + 1] - lv[il5]
-		ang5 = atn(rise / sl)
-		add sx, -rowW + 0.05, lv[il5]
-		roty -ang5
-		block sqr(sl * sl + rise * rise), rowW - 0.10, 0.04
-		del 2
+		! 踏面は1スパン＋踊り場が基本。上がりが大きい層（根がらみ→1層目など）で
+		! 勾配が約49度を超えるなら踏面を区間全長にして踊り場を省く
+		fl = sl
+		if sl > 2.7 and rise / (sl / 2) <= 1.15 then fl = sl / 2
+		nStep = int(rise / 0.225 + 0.5)
+		if nStep < 1 then nStep = 1
+		td = fl / nStep
+		th = rise / nStep
+		ang5 = atn(rise / fl)
+		fLen = sqr(fl * fl + rise * rise)
+		dirR = 1
+		if il5 - 2 * int(il5 / 2) = 0 then dirR = 0
+		if dirR = 1 then
+			x0 = sx
+			lx = sx + fl
+		else
+			x0 = sx + sl
+			lx = sx
+		endif
+		nd = 3 - dirR
+		! 段板
+		for is5 = 1 to nStep
+			if dirR = 1 then
+				add x0 + (is5 - 1) * td, -rowW + 0.05, lv[il5] + is5 * th - 0.03
+			else
+				add x0 - is5 * td, -rowW + 0.05, lv[il5] + is5 * th - 0.03
+			endif
+			block td, stairW, 0.03
+			del 1
+		next is5
+		! 踊り場（折り返しのとき。上の層の高さで残りの区間に敷く）
+		if fl < sl - 0.001 then
+			add lx, -rowW + 0.05, lv[il5 + 1] - 0.03
+			block sl - fl, stairW, 0.03
+			del 1
+		endif
+		! 側桁と階段手すり（両側）。終点側から戻る層は x を反転して描く
+		for sd = 0 to 1
+			ys = -rowW + 0.05 + sd * (stairW - 0.03)
+			add x0, ys, lv[il5]
+			if dirR = 0 then
+				mulx -1
+			endif
+			roty -ang5
+			block fLen, 0.03, 0.12
+			del nd
+			add x0, ys + 0.015, lv[il5] + 0.95
+			if dirR = 0 then
+				mulx -1
+			endif
+			roty 90 - ang5
+			cylind fLen, r_nuno
+			del nd
+			! 手すり支柱（踏面の上下端）
+			add x0, ys + 0.015, lv[il5]
+			cylind 0.95, r_nuno
+			del 1
+			if dirR = 1 then
+				add x0 + fl, ys + 0.015, lv[il5 + 1]
+			else
+				add x0 - fl, ys + 0.015, lv[il5 + 1]
+			endif
+			cylind 0.95, r_nuno
+			del 1
+		next sd
 	next il5
 next it5
 
