@@ -342,6 +342,37 @@ class ArchicadClient:
             self.delete_elements(stale)
         return len(stale)
 
+    def objects_for_slab(
+        self, outline_mm: list[tuple[float, float]], names: tuple = ("ashiba_line", "ashiba_detail"),
+        elevation_offset_mm: float = -45000.0, detail_offset_mm: float = -20000.0,
+        margin_mm: float = 1000.0,
+    ) -> list[dict]:
+        """そのスラブ（外形）に対して置いた足場ライン・立面図・詳細図のオブジェクトを集める.
+
+        足場ラインは外形の範囲（＋余裕）、立面図と詳細図はツールバーが並べる行
+        （外形の左下から elevation_offset / detail_offset 下）にあるものを拾う。
+        他の建物の配置や他ツールの部品は拾わない。撤去スクリプト用。
+        """
+        xs = [float(p[0]) for p in outline_mm]
+        ys = [float(p[1]) for p in outline_mm]
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        rows = (y0 + elevation_offset_mm, y0 + detail_offset_mm)
+        all_objs = self.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+        out: list[dict] = []
+        for e, d in zip(all_objs, self.get_details(all_objs) if all_objs else []):
+            dd = d.get("details", {})
+            lp = dd.get("libPart") or {}
+            name = lp.get("name") if isinstance(lp, dict) else ""
+            if name not in names:
+                continue
+            o = dd.get("origin") or {}
+            ox, oy = float(o.get("x", 0)) * 1000, float(o.get("y", 0)) * 1000
+            in_plan = (x0 - margin_mm <= ox <= x1 + margin_mm) and (y0 - margin_mm <= oy <= y1 + margin_mm)
+            in_row = ox >= x0 - margin_mm and any(abs(oy - r) <= margin_mm for r in rows)
+            if in_plan or in_row:
+                out.append(e)
+        return out
+
     def find_red_pen(self, default: int = 20) -> int:
         """有効なペンテーブルから最も赤に近いペン番号を返す.
 

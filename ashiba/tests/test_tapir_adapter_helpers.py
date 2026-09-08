@@ -82,6 +82,22 @@ class TestDeleteStaleDuplicates(unittest.TestCase):
         self.assertEqual(c.deleted, [])
 
 
+class TestObjectsForSlab(unittest.TestCase):
+    def test_picks_lines_elevations_and_details_of_that_slab_only(self):
+        objs = {
+            "line": ("ashiba_line", 299.7, 299.65, 0.0),        # 外形の範囲
+            "elev": ("ashiba_line", 334.6, 255.0, 0.0),         # 立面図の行（y0-45m）
+            "det": ("ashiba_detail", 300.0, 280.0, 0.0),        # 詳細図の行（y0-20m）
+            "other_bldg": ("ashiba_line", 399.7, 299.65, 0.0),  # 別の建物（x が外）
+            "other_row": ("ashiba_line", 300.0, 270.0, 0.0),    # どの行でもない
+            "fr": ("FR_Column", 300.0, 300.0, 0.0),             # 他ツール
+        }
+        c = _DupStub(objs)
+        got = sorted(e["elementId"]["guid"] for e in c.objects_for_slab(
+            [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]))
+        self.assertEqual(got, ["det", "elev", "line"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
