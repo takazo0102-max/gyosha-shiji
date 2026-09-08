@@ -273,12 +273,23 @@ def take_off(
     open_cut = opening_deck_deduction(model, openings)
     open_spans = opening_span_counts(model, openings)
     per_level_rails = floor_n + rails_outer + rails_inner
+    # 荷受けステージの間口は、設置層で本体の外側手すり・中桟・幅木を外す（ステージ側の
+    # 先端・妻側の手すりで防護し、荷を通す）。3D・立面も同じ区間を空ける
+    stage_cells = _stage_cells(model, platforms)
     open_rail_cut = 0
     for s, n in span_counts.items():
         cut = (open_cut.get(s, 0) * per_level_rails
-               + open_spans.get(s, 0) * negarami_n)
+               + open_spans.get(s, 0) * negarami_n
+               + stage_cells.get(s, 0) * rails_outer)
         open_rail_cut += cut
         add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
+    if stage_cells and (rails_outer or advance_rail):
+        notes.append(
+            f"荷受けステージの間口（{sum(stage_cells.values())}スパン×層）は設置層で本体の"
+            + ("外側の手すり・中桟" if rails_outer else "先行手摺")
+            + ("・幅木" if model.config.has_toe_board else "")
+            + "を外しています（ステージの先端・妻側の手すりで防護）"
+        )
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     notes.append(
         f"布材は1スパンあたり 根がらみ{negarami_n}本"
@@ -310,7 +321,7 @@ def take_off(
                     "この寸法は布材による手すり＋中桟で計画してください"
                 )
                 continue
-            add(part, max(0, n * n_levels - open_cut.get(s, 0)), f"先行手摺{s}")
+            add(part, max(0, n * n_levels - open_cut.get(s, 0) - stage_cells.get(s, 0)), f"先行手摺{s}")
 
     # ---- 腕木（内外連結。支柱位置×(作業層+根がらみ)） ----
     if rows >= 2:
@@ -341,7 +352,7 @@ def take_off(
     deck_cells = {s: n * n_levels for s, n in span_counts.items()}
     # 開口部（梁枠より下）は通路。床も幅木も無い（open_cut は布材と共通）
     toe_cells = {
-        s: max(0, n - open_cut.get(s, 0)) for s, n in deck_cells.items()
+        s: max(0, n - open_cut.get(s, 0) - stage_cells.get(s, 0)) for s, n in deck_cells.items()
     }
     for s, cells in open_cut.items():
         deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
@@ -442,6 +453,16 @@ def take_off(
     _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes, breakdown)
+
+
+def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
+    """荷受けステージの間口のセル（スパン呼び寸法 → スパン数×設置層数）."""
+    out: dict[int, int] = {}
+    for s in (getattr(platforms, "stages", None) or []):
+        n_lv = max(1, len(s.levels) or 1)
+        for nominal in s.spans(model):
+            out[nominal] = out.get(nominal, 0) + n_lv
+    return out
 
 
 def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,

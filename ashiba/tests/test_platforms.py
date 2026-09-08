@@ -311,11 +311,12 @@ class TestStageOpenEdges(unittest.TestCase):
         self.assertEqual(side.qty, 4)
 
     def test_totals_include_both_faces(self):
-        # 前面（2スパン×2本）＋妻側（2箇所×2本）＝8本
+        # 前面（2スパン×2本）＋妻側（2箇所×2本）＝8本。ただしステージの間口では本体の
+        # 外側手すり・中桟（2スパン×2本）と幅木（2スパン）を外すので、差はその分減る
         self.assertEqual(
-            self.q.qty_of("布材") - self.base.qty_of("布材"), 8)
+            self.q.qty_of("布材") - self.base.qty_of("布材"), 8 - 4)
         self.assertEqual(
-            self.q.qty_of("幅木") - self.base.qty_of("幅木"), 4)
+            self.q.qty_of("幅木") - self.base.qty_of("幅木"), 4 - 2)
 
     def test_drawing_shows_the_side_rails(self):
         from pathlib import Path as P
@@ -390,6 +391,50 @@ class TestStagePartsReachTheBom(unittest.TestCase):
         pf = validate_platforms(self.m, [stage(projection_mm=600)])
         q = take_off(self.m, platforms=pf)
         self.assertGreater(q.qty_of("ブラケット", 600), 0)
+
+
+class TestStageBayDropsTheOuterRails(unittest.TestCase):
+    """荷受けステージの間口は設置層で本体の外側手すり・中桟・幅木を外す（3D・立面・数量）."""
+
+    def _run(self, **extra):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "rect_30x20.json").read_text(encoding="utf-8"))
+        spec.update(extra)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            return solve_all(load_spec(p))
+
+    def test_ledger_method(self):
+        base = self._run()
+        st = self._run(loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2, 3]}])
+        cells = 2 * 2                      # 2スパン×2層
+        # ステージ側: 前面2スパン×2本＋妻側2箇所×2本＝8本/層、幅木 前面2＋妻側2＝4本/層。
+        # 本体側: 外側手すり・中桟 2本×セル、幅木 1本×セル を外す
+        self.assertEqual(st.quantity.qty_of("布材"), base.quantity.qty_of("布材") + 8 * 2 - cells * 2)
+        self.assertEqual(st.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") + 4 * 2 - cells)
+        self.assertTrue(any("外側の手すり・中桟・幅木を外しています" in n for n in st.quantity.notes), st.quantity.notes)
+
+    def test_advance_method(self):
+        base = self._run(guard_rail_type="先行手すり")
+        st = self._run(guard_rail_type="先行手すり",
+                       loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2]}])
+        self.assertEqual(st.quantity.qty_of("先行手摺"), base.quantity.qty_of("先行手摺") - 2)
+
+    def test_scripts_share_the_rule(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        for name in ("3d.gdl", "2d.gdl"):
+            body = (root / name).read_text(encoding="utf-8")
+            self.assertIn("abs(z - sgH[ig2]) < 0.001 then inSg = 1", body, name)
+            self.assertIn("inSg = 0", body, name)
 
 
 if __name__ == "__main__":

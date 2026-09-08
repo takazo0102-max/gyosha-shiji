@@ -301,10 +301,12 @@ for ip = 1 to nSpan + 1
 	jo = jackOut
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
-	! ジャッキ（敷板含む脚部）
+	! ジャッキベース: アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
 	if bBase = 0 then
-		rect2 x - 0.02, gv, x + 0.02, gv + jo
-		line2 x - 0.06, gv, x + 0.06, gv
+		rect2 x - 0.07, gv, x + 0.07, gv + 0.006
+		rect2 x - 0.019, gv + 0.006, x + 0.019, gv + jo
+		rect2 x - 0.045, gv + jo - 0.03, x + 0.045, gv + jo
+		line2 x - 0.09, gv + jo - 0.015, x + 0.09, gv + jo - 0.015
 	endif
 	! 支柱（継ぎ足した脚は下へ伸びる）
 	if bBase = 0 then
@@ -382,16 +384,28 @@ for il = 2 to nLv
 			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
 					z < bmH[ib2] - 0.001 then noAll = 1
 		next ib2
+		! 荷受けステージの間口は設置層で外側の手すり・中桟・幅木を外す（3D・数量と同じ）
+		inSg = 0
+		for ig2 = 1 to nSg
+			if xs >= sgS[ig2] - 0.001 and xe <= sgS[ig2] + sgL[ig2] + 0.001 and \
+					abs(z - sgH[ig2]) < 0.001 then inSg = 1
+		next ig2
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
 			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
 			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
-			if railAdv = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
-			line2 xs, z + railTop, xe, z + railTop
+			if inSg = 0 then line2 xs, z + railTop, xe, z + railTop
+			if inSg = 1 then
+				! ステージの間口: 躯体側の手すり・中桟だけ
+				if railIn = 1 and nRows >= 2 then
+					line2 xs, z + railTop, xe, z + railTop
+					line2 xs, z + railMid, xe, z + railMid
+				endif
+			else
 			if railAdv = 1 then
-				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
 				! 先行手すりは手すり1本＋X形の斜材2本が一体（手すり・中桟・筋交を兼ねる）
 				line2 xs, z + railTop, xe, z + 0.02
 				line2 xe, z + railTop, xs, z + 0.02
@@ -401,6 +415,7 @@ for il = 2 to nLv
 				endif
 			else
 				line2 xs, z + railMid, xe, z + railMid
+			endif
 			endif
 		endif
 		x = xe

@@ -172,7 +172,7 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertEqual(blk.count("cylind advL"), 2)
         self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip], 0.02, 0.157"))
         body2 = self._script("2d.gdl")
-        self.assertIn("if railAdv = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
+        self.assertIn("if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
         self.assertIn("line2 xe, z + railTop, xs, z + 0.02", body2)
 
     def test_stair_bays_keep_their_toe_board(self):

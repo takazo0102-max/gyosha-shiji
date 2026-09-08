@@ -1010,10 +1010,12 @@ for ip = 1 to nSpan + 1
 	jo = jackOut
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
-	! ジャッキ（敷板含む脚部）
+	! ジャッキベース: アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
 	if bBase = 0 then
-		rect2 x - 0.02, gv, x + 0.02, gv + jo
-		line2 x - 0.06, gv, x + 0.06, gv
+		rect2 x - 0.07, gv, x + 0.07, gv + 0.006
+		rect2 x - 0.019, gv + 0.006, x + 0.019, gv + jo
+		rect2 x - 0.045, gv + jo - 0.03, x + 0.045, gv + jo
+		line2 x - 0.09, gv + jo - 0.015, x + 0.09, gv + jo - 0.015
 	endif
 	! 支柱（継ぎ足した脚は下へ伸びる）
 	if bBase = 0 then
@@ -1091,16 +1093,28 @@ for il = 2 to nLv
 			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
 					z < bmH[ib2] - 0.001 then noAll = 1
 		next ib2
+		! 荷受けステージの間口は設置層で外側の手すり・中桟・幅木を外す（3D・数量と同じ）
+		inSg = 0
+		for ig2 = 1 to nSg
+			if xs >= sgS[ig2] - 0.001 and xe <= sgS[ig2] + sgL[ig2] + 0.001 and \
+					abs(z - sgH[ig2]) < 0.001 then inSg = 1
+		next ig2
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
 			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
 			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
-			if railAdv = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
-			line2 xs, z + railTop, xe, z + railTop
+			if inSg = 0 then line2 xs, z + railTop, xe, z + railTop
+			if inSg = 1 then
+				! ステージの間口: 躯体側の手すり・中桟だけ
+				if railIn = 1 and nRows >= 2 then
+					line2 xs, z + railTop, xe, z + railTop
+					line2 xs, z + railMid, xe, z + railMid
+				endif
+			else
 			if railAdv = 1 then
-				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
 				! 先行手すりは手すり1本＋X形の斜材2本が一体（手すり・中桟・筋交を兼ねる）
 				line2 xs, z + railTop, xe, z + 0.02
 				line2 xe, z + railTop, xs, z + 0.02
@@ -1110,6 +1124,7 @@ for il = 2 to nLv
 				endif
 			else
 				line2 xs, z + railMid, xe, z + railMid
+			endif
 			endif
 		endif
 		x = xe
@@ -1417,7 +1432,7 @@ for ip = 1 to nSpan + 1
 		if bBase = 0 then
 			add x, -row * rowW, gv
 			! ジャッキ
-			cylind jo, 0.0381 / 2
+			gosub 820
 			addz jo
 			if nGl >= 2 then
 				! 継ぎ足した脚は長さが脚ごとに違う。天端まで1本で描く
@@ -1451,7 +1466,7 @@ if cornerS = 1 and nRows >= 2 then
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
 	add -rowW, -rowW, gv
-	cylind jo, 0.0381 / 2
+	gosub 820
 	addz jo
 	if nGl >= 2 then
 		cylind postTop - gv - jo, r_sic
@@ -1568,8 +1583,15 @@ for il = 1 to nLv
 				del 2
 			next row
 		endif
+		! 荷受けステージの間口は設置層で外側の手すり・中桟を外す（荷を通す。
+		! ステージ側の先端・妻側の手すりで防護）。数量も同じ区間を引いている
+		inSg = 0
+		for ig2 = 1 to nSg
+			if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
+					abs(z - sgH[ig2]) < 0.001 then inSg = 1
+		next ig2
 		! 外側手すり・中桟（作業層のみ）
-		if il > 1 and skipH = 0 then
+		if il > 1 and skipH = 0 and inSg = 0 then
 			add x, -rowW, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno
@@ -1594,17 +1616,18 @@ for il = 1 to nLv
 				cylind spans[ip], r_nuno
 				del 2
 			endif
-			! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ）
-			if railIn = 1 and nRows >= 2 then
-				add x, 0, z + railTop
-				roty 90
-				cylind spans[ip], r_nuno
-				del 2
-				add x, 0, z + railMid
-				roty 90
-				cylind spans[ip], r_nuno
-				del 2
-			endif
+		endif
+		! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
+		! ステージの間口でも残る）
+		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 then
+			add x, 0, z + railTop
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
+			add x, 0, z + railMid
+			roty 90
+			cylind spans[ip], r_nuno
+			del 2
 		endif
 		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
 		! 開口部の内側は支柱を抜いてあるので、そこにも入らない
@@ -1694,8 +1717,14 @@ if showDeck then
 						del 1
 					endif
 				endif
-				! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）
-				if railAdv = 0 then
+				! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）。
+				! 荷受けステージの間口は設置層で外す
+				inSg = 0
+				for ig3 = 1 to nSg
+					if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
+							abs(z - sgH[ig3]) < 0.001 then inSg = 1
+				next ig3
+				if railAdv = 0 and inSg = 0 then
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157
 					del 1
@@ -1998,6 +2027,25 @@ end
 end
 
 ! ============================================================
+820: ! ---- ジャッキベース（アンダーベース＋ねじ棒＋ハンドル付きナット） ----
+! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。以前は細い棒1本で
+! 敷板もナットも無く、ジャッキに見えなかった（ユーザー指摘）。
+! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き
+add -0.07, -0.07, 0
+block 0.14, 0.14, 0.006
+del 1
+cylind jo, 0.0381 / 2
+add 0, 0, jo - 0.03
+resol 6
+cylind 0.03, 0.045
+resol 36
+addz 0.015
+roty 90
+add 0, 0, -0.09
+cylind 0.18, 0.006
+del 4
+return
+
 800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
 ! 作業床は建地から躯体側へ持ち出す。数量では「一側足場の床受けブラケット」
 ! として拾っているので、3Dにも出さないと図と部材表が食い違う
