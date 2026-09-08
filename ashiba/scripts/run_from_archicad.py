@@ -60,18 +60,28 @@ SPEC_OVERRIDE = Path(os.environ.get("ASHIBA_SPEC", str(Path.home() / "Desktop" /
 
 
 def load_spec_override() -> dict:
-    """上書きファイルを読む。無ければ空、壊れていれば理由を出して空."""
+    """条件の上書きファイルを読む（無ければ空、壊れていれば止める）.
+
+    以前は読めないと「既定の条件で続けます」と印字して進んでいたが、ツールバーからの
+    実行では印字が見えず、waku を指定したつもりで信和Aの足場が置かれる。
+    ファイルがあるのに読めない・オブジェクトでない場合は入力エラーで止める。
+    """
+    from ashiba.cli import InputError
+
     if not SPEC_OVERRIDE.exists():
         return {}
     try:
         data = json.loads(SPEC_OVERRIDE.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as e:
-        print(f"条件の上書きファイル {SPEC_OVERRIDE} を読めません（{e}）。既定の条件で続けます")
-        return {}
+        raise InputError(
+            f"条件の上書きファイル {SPEC_OVERRIDE} を読めません（{e}）。"
+            "JSON の綴り（末尾のカンマ・コメント不可）を直すか、ファイルを外してから実行してください"
+        ) from None
     if not isinstance(data, dict):
-        print(f"条件の上書きファイル {SPEC_OVERRIDE} はオブジェクトではありません。既定の条件で続けます")
-        return {}
-    data.pop("outline_mm", None)
+        raise InputError(
+            f"条件の上書きファイル {SPEC_OVERRIDE} はオブジェクト（{{ ... }}）で書いてください"
+        )
+    data.pop("outline_mm", None)    # 外形は選択したスラブから取る（ファイルの外形は無視）
     print(f"条件の上書き: {SPEC_OVERRIDE}（{', '.join(sorted(data))}）")
     return data
 
