@@ -164,6 +164,17 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("梁枠", body)
         self.assertIn("階段室", body)
 
+    def test_advance_rail_draws_an_x_and_no_toe_board(self):
+        """先行手すりは手すり＋X斜材2本。幅木は先行手すり方式では描かない（数量も0）."""
+        body3 = self._script("3d.gdl")
+        i = body3.index("if railAdv = 1 then")
+        blk = body3[i:body3.index("else", i)]
+        self.assertEqual(blk.count("cylind advL"), 2)
+        self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip], 0.02, 0.157"))
+        body2 = self._script("2d.gdl")
+        self.assertIn("if railAdv = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
+        self.assertIn("line2 xe, z + railTop, xs, z + 0.02", body2)
+
     def test_stair_bays_keep_their_toe_board(self):
         """階段室は床を敷かないが幅木は残る（数量もそう拾っている）.
 

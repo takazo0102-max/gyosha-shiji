@@ -716,12 +716,22 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                 f"系列 {master.series_id} の部材マスタにありません"
                 f"（使える幅: {'・'.join(str(w) for w in sorted(avail, reverse=True))}）"
             )
+    rail_type = spec.get("guard_rail_type", GUARD_RAIL_LEDGER)
+    # 先行手すり方式（くさび系）は幅木を付けない（先行手すりは手すり＋X斜材が一体。
+    # 落下物防止はメッシュシート・防網等で）。図面・数量・法規チェックを同じ前提にする
+    no_toe = rail_type == GUARD_RAIL_ADVANCE and not master.is_frame
+    if no_toe:
+        plan.warnings.append(
+            "先行手すり方式のため幅木は付けていません（図面・数量とも）。落下物防止は"
+            "メッシュシート・防網等で確保してください（安衛則563条1項六号）"
+        )
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
+        has_toe_board=not no_toe,
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
         next_gen=spec.get("next_gen", False),
-        guard_rail_type=spec.get("guard_rail_type", GUARD_RAIL_LEDGER),
+        guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),

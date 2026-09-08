@@ -460,8 +460,9 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
         "ずつで計上"
     )
     toe = m.find("幅木", udegi)
-    add(toe, n_corners * n_levels * 2, f"出隅コーナーの幅木{udegi}")
-    if toe is None:
+    if model.config.has_toe_board:
+        add(toe, n_corners * n_levels * 2, f"出隅コーナーの幅木{udegi}")
+    if toe is None and model.config.has_toe_board:
         notes.action(
             f"出隅コーナーの幅木（呼び{udegi}mm、{n_corners * n_levels * 2}本）がマスタにありません",
             Notes.ORDER,

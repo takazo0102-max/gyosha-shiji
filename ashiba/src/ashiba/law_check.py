@@ -160,10 +160,14 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
         )
     if problems:
         return CheckResult(3, "手すり", NG, "、".join(problems), basis)
-    detail = f"手すり高さ{h}mm＋" + ("先行手摺（斜材が中桟を兼ねる）" if advance
+    detail = f"手すり高さ{h}mm＋" + ("先行手摺（手すり＋X斜材が一体、中桟を兼ねる）" if advance
                                     else f"中桟{mh}mm")
     if m.config.has_toe_board:
         detail += f"＋幅木{m.config.toe_board_height_mm}mm"
+    elif advance:
+        detail += "＋幅木なし（先行手すり方式。落下物防止はメッシュシート・防網等で〈563条1項六号〉）"
+    else:
+        detail += "＋幅木なし（落下物防止はメッシュシート・防網等で〈563条1項六号〉）"
     return CheckResult(3, "手すり", OK, detail, basis)
 
 

@@ -386,12 +386,15 @@ for il = 2 to nLv
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
 			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
-			rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
+			if railAdv = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
 			line2 xs, z + railTop, xe, z + railTop
 			if railAdv = 1 then
 				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
-				line2 xs, z + railTop, xe, z + 0.05 + 0.157
+				! 先行手すりは手すり1本＋X形の斜材2本が一体（手すり・中桟・筋交を兼ねる）
+				line2 xs, z + railTop, xe, z + 0.02
+				line2 xe, z + railTop, xs, z + 0.02
 				! 躯体側の中桟（布材）は先行手すりの奥に見える
 				if railIn = 1 and nRows >= 2 then
 					line2 xs, z + railMid, xe, z + railMid
@@ -430,7 +433,7 @@ if cornerS = 1 and nRows >= 2 then
 			line2 -rowW, z + railTop, 0, z + railTop
 			line2 -rowW, z + railMid, 0, z + railMid
 			rect2 -rowW, z, 0, z + 0.05
-			rect2 -rowW, z + 0.05, 0, z + 0.05 + 0.157
+			if railAdv = 0 then rect2 -rowW, z + 0.05, 0, z + 0.05 + 0.157
 		endif
 	next il
 endif
@@ -652,11 +655,23 @@ ny = ny - txtLine
 if nRows = 1 then
 	text2 tx, ny, "一側足場: 建地1列・作業床はブラケット受け"
 	ny = ny - txtLine
-	text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+	if railAdv = 1 then
+		text2 tx, ny, "外側: ブレース＋先行手すり（手すり＋X斜材一体・幅木なし）"
+	else
+		text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+	endif
 else
-	text2 tx, ny, "内側: ブレース＋幅木"
+	if railIn = 1 then
+		text2 tx, ny, "内側: 手すり＋中桟（布材）"
+	else
+		text2 tx, ny, "内側: ブレース＋幅木"
+	endif
 	ny = ny - txtLine
-	text2 tx, ny, "外側: ブレース＋手すり＋中桟"
+	if railAdv = 1 then
+		text2 tx, ny, "外側: ブレース＋先行手すり（手すり＋X斜材一体・幅木なし）"
+	else
+		text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+	endif
 endif
 ny = ny - txtLine
 text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)

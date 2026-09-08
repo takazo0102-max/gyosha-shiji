@@ -708,5 +708,40 @@ class TestHeightAndSpanOverrides(unittest.TestCase):
         self.assertIn("spans_mm", str(cm.exception))
 
 
+class TestAdvanceRailHasNoToeBoard(unittest.TestCase):
+    """先行手すり方式は幅木なし（図面・数量・法規チェック）。布材方式は幅木あり."""
+
+    def _solve(self, **extra):
+        import json
+        import tempfile
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = dict(BASE, **extra)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            return solve_all(load_spec(p))
+
+    def test_advance(self):
+        r = self._solve(guard_rail_type=GUARD_RAIL_ADVANCE)
+        self.assertFalse(r.model.config.has_toe_board)
+        self.assertEqual(r.quantity.qty_of("幅木"), 0)
+        self.assertTrue(any("幅木は付けていません" in w[2] for w in r.warnings), r.warnings)
+        c3 = [c for c in r.checks if c.check_id == 3][0]
+        self.assertEqual(c3.status, "OK")
+        self.assertIn("幅木なし（先行手すり方式", c3.message)
+
+    def test_ledger_keeps_toe_boards(self):
+        r = self._solve(guard_rail_type=GUARD_RAIL_LEDGER)
+        self.assertTrue(r.model.config.has_toe_board)
+        self.assertGreater(r.quantity.qty_of("幅木"), 0)
+        self.assertFalse(any("幅木は付けていません" in w[2] for w in r.warnings))
+
+    def test_frame_ignores_advance_and_keeps_toe_boards(self):
+        r = self._solve(series_id="waku", guard_rail_type=GUARD_RAIL_ADVANCE)
+        self.assertTrue(r.model.config.has_toe_board)
+
+
 if __name__ == "__main__":
     unittest.main()
