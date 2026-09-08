@@ -72,6 +72,48 @@ OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
 SPEC_OVERRIDE = Path(os.environ.get("ASHIBA_SPEC", str(Path.home() / "Desktop" / "ashiba_spec.json")))
 
 
+# 出力先に毎回書く上書き条件の雛形。"_" で始まるキーはコメント（検証で無視される）。
+# 利用者が README を探さなくても、高さ・スパン・面名指定の書き方が手元に残る
+SAMPLE_SPEC = {
+    "_説明": "このファイルを ~/Desktop/ashiba_spec.json にコピーして値を変えると、ツールバー実行の条件になります。"
+             "\"_\" で始まるキーはコメントなので残して構いません。外形（outline_mm）は選択したスラブから取ります",
+    "project_name": "足場計画",
+    "series_id": "shinwa_A",
+    "_series_id": "shinwa_A / shinwa_B / nikken_nd1800 / nikken_nd1900 / waku（枠組）",
+    "eaves_height_mm": 15400,
+    "guard_extra_mm": 900,
+    "_scaffold_height_mm": "足場高さを直接決めるときは scaffold_height_mm を書く（軒高＋手すり分より優先）。例: 15000",
+    "building_height_mm": 16000,
+    "period_days": 90,
+    "guard_rail_type": "布材",
+    "_guard_rail_type": "布材（手すり＋中桟＋幅木）／先行手すり（手すり＋X斜材一体・幅木なし）",
+    "inner_guard_rail": True,
+    "scaffold_form": "本足場",
+    "_scaffold_form": "本足場／一側足場",
+    "_span_overrides": "面ごとにスパン列を固定する例（面名は割付レポートの平面割付表と同じ。\"1800x5\" は1800を5本）",
+    "_span_overrides_example": [{"face": "南面", "spans_mm": ["1800x5", 900, 900, "1800x11"]}],
+    "_stairs": "階段の位置を決める例（省くと自動配置）",
+    "_stairs_example": {"positions": [{"face": "南面", "start_mm": 1800}, {"face": "北面", "start_mm": 1800}]},
+    "_openings_example": [{"face": "南面", "start_mm": 3600, "beam_span_mm": 3600, "level": 2}],
+    "_loading_stages_example": [{"face": "南面", "start_mm": 12600, "span_count": 2, "projection_mm": 1500,
+                                  "load_kn": 9.8, "levels": [3]}],
+    "_hoists_example": [{"face": "北面", "position_mm": 9000, "landing_levels": [2, 5]}],
+    "_bracket_sections_example": [{"face": "東面", "start_mm": 0, "end_mm": 7200, "width": 400,
+                                    "direction": "内", "levels": [1, 2]}],
+    "site": {"region": "関東(内陸)", "sheet_type": "メッシュシート"},
+    "notification": {"site_name": "現場名"},
+}
+SAMPLE_NAME = "ashiba_spec.sample.json"
+
+
+def write_sample_spec(out_dir: Path) -> Path:
+    """上書き条件の雛形を出力先に書く（毎回上書き。利用者の ashiba_spec.json には触らない）."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    p = out_dir / SAMPLE_NAME
+    p.write_text(json.dumps(SAMPLE_SPEC, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return p
+
+
 def load_spec_override() -> dict:
     """条件の上書きファイルを読む（無ければ空、壊れていれば止める）.
 
@@ -82,6 +124,8 @@ def load_spec_override() -> dict:
     from ashiba.cli import InputError
 
     if not SPEC_OVERRIDE.exists():
+        print(f"条件の上書きファイルは無し（既定条件）。条件を変えるには {SPEC_OVERRIDE} を置く"
+              f"（雛形: {OUT_DIR / SAMPLE_NAME}）")
         return {}
     try:
         data = json.loads(SPEC_OVERRIDE.read_text(encoding="utf-8-sig"))
@@ -125,6 +169,7 @@ def main() -> None:
 
     r = solve_all(spec)
     write_outputs(r, OUT_DIR)
+    write_sample_spec(OUT_DIR)
     result = result_dict(r, OUT_DIR)
 
     lines = place_scaffold_lines(

@@ -743,5 +743,13 @@ class TestAdvanceRailHasNoToeBoard(unittest.TestCase):
         self.assertTrue(r.model.config.has_toe_board)
 
 
+class TestUnderscoreKeysAreComments(unittest.TestCase):
+    def test_top_level_and_items(self):
+        spec = dict(BASE, _memo="コメント", hoists=[{"_memo": "北面の昇降機", "face": "北面", "position_mm": 9000}])
+        validate_spec(spec)      # 例外にならない
+        with self.assertRaises(InputError):
+            validate_spec(dict(BASE, memo="コメント"))
+
+
 if __name__ == "__main__":
     unittest.main()

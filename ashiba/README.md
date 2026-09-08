@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト921本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト924本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -72,7 +72,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `gdl/hsf/ashiba_line/`, `gdl/hsf/ashiba_detail/` | 同GDLソース（HSF形式） |
 | `gdl/ashiba_line.gdl`, `gdl/ashiba_detail.gdl` | 同スクリプトの単一ファイル参照版（**HSFから自動生成**・手で編集しない） |
 | `gdl/kyakubu_detail_2d.gdl` | 脚部詳細図2Dシンボルの旧参照実装（`ashiba_detail` の `detailType=脚部` に統合済み） |
-| `scripts/run_from_archicad.py` | ツールバー割当用エントリ。条件はデスクトップの `ashiba_spec.json`（入力JSONと同じキー）で上書き、系列は `--series=` でも指定可 |
+| `scripts/run_from_archicad.py` | ツールバー割当用エントリ。条件はデスクトップの `ashiba_spec.json`（入力JSONと同じキー）で上書き、系列は `--series=` でも指定可。実行のたびに出力先へ雛形 `ashiba_spec.sample.json`（`_` で始まるキーはコメント）を書くので、それをコピーして編集する |
 | `scripts/remove_from_archicad.py` | 撤去用（ツールバー割当）: 選択したスラブに対して置いた足場ライン・立面図・詳細図を消す。`--all` でプロジェクト内の足場部品を全部消す。同じスラブでの再実行は run_from_archicad.py が前回分を置き換えるので、外形や離れを変えた後の残りを片付けるときに使う |
 | `scripts/e2e_archicad_test.py` | 実機E2Eテスト（スラブ→割付→4辺配置→検証）。現行HSFを注入して配置、`--series=` で系列指定 |
 | `scripts/e2e_full_pipeline.py` | 実機E2E（全機能通し: スラブ→割付→検査→配置→帳票）。`--series=nikken_nd1800` 等で系列を指定できる |（`--poly=diagonal` で斜辺つきのスラブ。スラブの作成は平面図ウィンドウが前面のときだけ通る。レイアウト・3Dが前面だと「アクティブなウィンドウが Layout です」で止まる）

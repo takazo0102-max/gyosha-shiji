@@ -74,5 +74,36 @@ class TestVersionedPartName(unittest.TestCase):
             self.assertTrue(is_ashiba_part(n), n)
 
 
+class TestSampleSpec(unittest.TestCase):
+    """出力先に書く雛形は、そのまま（外形を足せば）入力として通る."""
+
+    def test_sample_is_valid_input(self):
+        from ashiba.cli import validate_spec
+
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as d:
+            p = mod.write_sample_spec(Path(d))
+            import json
+            data = json.loads(p.read_text(encoding="utf-8"))
+        self.assertTrue(any(k.startswith("_") for k in data))       # コメント入り
+        data["outline_mm"] = [[0, 0], [30000, 0], [30000, 20000], [0, 20000]]
+        validate_spec(data)                                          # コメントは無視される
+        self.assertIn("_scaffold_height_mm", data)
+        self.assertIn("_span_overrides_example", data)
+
+    def test_missing_override_prints_where_to_put_it(self):
+        import io
+        from contextlib import redirect_stdout
+
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as d:
+            mod.SPEC_OVERRIDE = Path(d) / "ashiba_spec.json"
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(mod.load_spec_override(), {})
+        self.assertIn("雛形", buf.getvalue())
+        self.assertIn(mod.SAMPLE_NAME, buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

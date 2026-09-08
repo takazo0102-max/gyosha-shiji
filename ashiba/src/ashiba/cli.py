@@ -253,7 +253,8 @@ def _check_keys(errors: list[str], where: str, obj, allowed: set[str],
     if not isinstance(obj, dict):
         errors.append(f"{where}: オブジェクトで指定してください（{type(obj).__name__}）")
         return
-    for k in sorted(set(obj) - allowed):
+    # "_" で始まるキーはコメント扱い（JSONにコメントが書けないので、雛形の説明に使う）
+    for k in sorted(k for k in set(obj) - allowed if not str(k).startswith("_")):
         if k in RENAMED:
             errors.append(f"{where}: \"{k}\" は廃止しました → {RENAMED[k]} を使ってください")
             continue
