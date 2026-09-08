@@ -152,6 +152,9 @@ def main() -> None:
     print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))
     for b in v["blockers"]:
         print(f"  是正: {b}")
+    for kind, sev, text in r.warnings:
+        if sev == "NG":
+            print(f"    {kind}: {text}")
     if v["warn"]:
         print(f"  要確認 {v['warn']}件: " + "／".join(v["warn_breakdown"])
               + "（割付レポートの要確認一覧を参照）")
