@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト875本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト876本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -67,7 +67,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `data/capacity.csv`, `data/CAPACITY_SOURCES.md` | 耐力値と、その出典（仮設工業会認定基準・設計指針・信和カタログ・日建カタログ） |
 | `data/NIKKEN_CATALOG_NOTES.md` | 日建リース仮設資材カタログVol.10 の抜き書き（ND1800/ND1900/枠組/ジャッキ/壁つなぎ/朝顔の品番・重量・許容値とページ） |
 | `src/ashiba/gdl_params.py` | GDLへ渡すパラメータと配置座標の導出（平面・立面・plan.jsonで共用） |
-| `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** |
+| `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** （ツールバーからの実行では、読み込んでいなくても同梱の GSM を自動で埋め込みライブラリへ入れる） |
 | `gdl/ashiba_detail.gsm` | **詳細図5枚の2Dシンボル（同上・detailTypeで切替）** |
 | `gdl/hsf/ashiba_line/`, `gdl/hsf/ashiba_detail/` | 同GDLソース（HSF形式） |
 | `gdl/ashiba_line.gdl`, `gdl/ashiba_detail.gdl` | 同スクリプトの単一ファイル参照版（**HSFから自動生成**・手で編集しない） |
@@ -469,7 +469,7 @@ BOMが無いと日本語がLatin-1として解釈され、図面上の注記が�
 
 ### Archicadから（要 Tapir アドオン。AC28+Tapir1.5.8で実機検証済み）
 
-1. `gdl/ashiba_line.gsm`・`gdl/ashiba_detail.gsm` をライブラリマネージャで読込
+1. `gdl/ashiba_line.gsm`・`gdl/ashiba_detail.gsm` をライブラリマネージャで読込（ツールバーからの実行では、読み込んでいなくても同梱の GSM を自動で埋め込みライブラリへ入れる）
    （または埋め込みライブラリへ追加）
 2. `scripts/run_from_archicad.py` の `SPEC`（系列・軒高・期間・地域）を編集
 3. Tapirのスクリプト割当でツールバーボタン化 → 躯体スラブを選択して実行

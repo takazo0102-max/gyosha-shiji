@@ -281,6 +281,26 @@ class ArchicadClient:
         except TapirError:
             pass    # 古い Tapir に無ければ、配置側の再試行に任せる
 
+    def ensure_embedded_parts(self, files: list) -> list[str]:
+        """配布GSMを埋め込みライブラリに入れる（既に入っていれば何もしない）.
+
+        ツールバーからの実行は「gdl/ashiba_line.gsm をライブラリに読み込み済み」を
+        前提にしていて、読み込んでいないと「Not found library part」で止まった。
+        ツールに同梱している部品なので、無ければ自分で入れる。戻り値は今回入れた
+        ファイル名（既にあるものは Tapir が弾くので含まれない）。
+        """
+        added: list[str] = []
+        for f in files:
+            f = Path(f)
+            if not f.exists():
+                continue
+            try:
+                self.add_file_to_embedded_library(str(f), f.name)
+                added.append(f.name)
+            except TapirError:
+                pass    # 同名の部品が既にある（Tapir は「not a valid relative path」で弾く）
+        return added
+
     def find_red_pen(self, default: int = 20) -> int:
         """有効なペンテーブルから最も赤に近いペン番号を返す.
 

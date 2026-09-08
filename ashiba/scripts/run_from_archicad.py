@@ -11,7 +11,7 @@ CLI（python3 -m ashiba.cli）と同じ solve_all/write_outputs を通すので�
 条件（系列・軒高・開口部など）はデスクトップの ashiba_spec.json（入力JSONと同じキー）で
 上書きできる。無ければ下の SPEC の既定値。系列だけなら --series=nikken_nd1800 でも指定できる。
 
-前提: gdl/ashiba_line.gsm をプロジェクトのライブラリに読込済みであること
+部品（gdl/ashiba_line.gsm・ashiba_detail.gsm）は無ければ自動で埋め込みライブラリへ入れる
 （配置パイプライン自体は Archicad 28 + Tapir 1.5.8 でE2E検証済み:
  scripts/e2e_archicad_test.py）。
 """
@@ -84,6 +84,12 @@ def main() -> None:
         if a.startswith("--series="):
             spec["series_id"] = a.split("=", 1)[1]
     spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
+    # 同梱の配布GSM（足場ライン・詳細図）を埋め込みライブラリに入れる。手で読み込んで
+    # いなくても止まらないように（既に入っていれば何もしない）
+    GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
+    added = client.ensure_embedded_parts([GDL_DIR / f"{LINE_OBJECT}.gsm", GDL_DIR / f"{DETAIL_OBJECT}.gsm"])
+    if added:
+        print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client)
     if not ground.is_flat:
