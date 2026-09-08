@@ -16,7 +16,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from ashiba.tapir_adapter import ArchicadClient, TapirError, get_selected_outline_mm  # noqa: E402
+from ashiba.tapir_adapter import ArchicadClient, TapirError, get_selected_outline_mm, is_ashiba_part  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_from_archicad import DETAIL_OBJECT, DETAIL_OFFSET_MM, ELEVATION_OFFSET_MM, LINE_OBJECT  # noqa: E402
@@ -29,7 +29,7 @@ def main() -> int:
         els = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
         targets = [
             e for e, d in zip(els, client.get_details(els) if els else [])
-            if ((d.get("details", {}).get("libPart") or {}).get("name") or "") in names
+            if is_ashiba_part((d.get("details", {}).get("libPart") or {}).get("name") or "", names)
         ]
     else:
         outline = get_selected_outline_mm(client)

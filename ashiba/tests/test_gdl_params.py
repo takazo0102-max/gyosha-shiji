@@ -795,3 +795,15 @@ class TestAsagaoCutList(unittest.TestCase):
         pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
         self.assertEqual(line_params(m, m.plan.edges[0], platforms=pf)["asaCutList"], "")
 
+
+
+class TestGuardRailMethodReachesTheDrawing(unittest.TestCase):
+    """先行手すり工法は railAdv=1（斜材が中桟を兼ねる）。布材は 0、枠組は建枠一体なので 0."""
+    def test_flag(self):
+        from ashiba.model import GUARD_RAIL_ADVANCE, GUARD_RAIL_LEDGER
+        for sid, rail, want in (("shinwa_A", GUARD_RAIL_ADVANCE, 1), ("shinwa_A", GUARD_RAIL_LEDGER, 0),
+                                ("waku", GUARD_RAIL_ADVANCE, 0)):
+            with self.subTest((sid, rail)):
+                m = build(sid)
+                m.config.guard_rail_type = rail
+                self.assertEqual(line_params(m, m.plan.edges[0])["railAdv"], want)

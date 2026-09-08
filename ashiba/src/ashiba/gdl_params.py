@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 from .model import ScaffoldModel
+from .model import GUARD_RAIL_ADVANCE
 
 
 # GDLの文字列パラメータは255文字で切れる（実機で確認: 枠組9層×6列の壁つなぎで
@@ -181,6 +182,9 @@ def line_params(
         "negaH": e.first_ledger_height / 1000.0,
         "railH": model.guard_rail_height_mm / 1000.0,
         "midH": model.midrail_height_mm / 1000.0,
+        # 先行手すり工法は手すり＋斜材の一体部材で、斜材が中桟を兼ねる。数量と法規は
+        # そう扱っているのに、図面と3Dは布材の手すり＋中桟のままだった（実機で発見）
+        "railAdv": 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0,
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
         "serType": ("W" if model.master.is_frame

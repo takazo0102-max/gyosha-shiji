@@ -380,8 +380,13 @@ for il = 2 to nLv
 			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
 			rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
-			line2 xs, z + railMid, xe, z + railMid
 			line2 xs, z + railTop, xe, z + railTop
+			if railAdv = 1 then
+				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
+				line2 xs, z + railTop, xe, z + 0.05 + 0.157
+			else
+				line2 xs, z + railMid, xe, z + railMid
+			endif
 		endif
 		x = xe
 	next ip

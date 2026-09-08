@@ -51,5 +51,28 @@ class TestSpecOverride(unittest.TestCase):
             self.mod.load_spec_override()
 
 
+class TestVersionedPartName(unittest.TestCase):
+    """配布GSMの版（.gsm.hash）を部品名に付ける。GSM更新で古い埋め込み部品が居座り
+    「railAdv is not a GDL parameter」で止まった対策."""
+
+    def test_uses_hash_stamp_and_falls_back_to_base(self):
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as d:
+            g = Path(d)
+            (g / "ashiba_line.gsm.hash").write_text("a146589c\n", encoding="utf-8")
+            (g / "ashiba_detail.gsm.hash").write_text("not a hash", encoding="utf-8")
+            self.assertEqual(mod.versioned_part_name("ashiba_line", g), "ashiba_line_a146589c")
+            self.assertEqual(mod.versioned_part_name("ashiba_detail", g), "ashiba_detail")
+            self.assertEqual(mod.versioned_part_name("ashiba_other", g), "ashiba_other")
+
+    def test_shipped_stamps_give_recognised_names(self):
+        from ashiba.tapir_adapter import is_ashiba_part
+        mod = _load_module()
+        for base in ("ashiba_line", "ashiba_detail"):
+            n = mod.versioned_part_name(base)
+            self.assertNotEqual(n, base, "配布GSMの .gsm.hash が無い")
+            self.assertTrue(is_ashiba_part(n), n)
+
+
 if __name__ == "__main__":
     unittest.main()

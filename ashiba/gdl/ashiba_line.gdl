@@ -51,6 +51,7 @@
 !   negaH           長さ    根がらみ高さ GLから 0で自動                                                                               既定 0
 !   railH           長さ    手すり高さ 作業床から 0で自動                                                                             既定 0
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
+!   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                      既定 ""
 !   brktList2       文字列  ブラケット区間（続き2）                                                                                   既定 ""
 !   brktList3       文字列  ブラケット区間（続き3）                                                                                   既定 ""
@@ -1086,8 +1087,13 @@ for il = 2 to nLv
 			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
 			rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
-			line2 xs, z + railMid, xe, z + railMid
 			line2 xs, z + railTop, xe, z + railTop
+			if railAdv = 1 then
+				! 先行手すり: 斜材が中桟を兼ねる（手すり高さから隣の支柱の床際へ）
+				line2 xs, z + railTop, xe, z + 0.05 + 0.157
+			else
+				line2 xs, z + railMid, xe, z + railMid
+			endif
 		endif
 		x = xe
 	next ip
@@ -1393,10 +1399,20 @@ for il = 1 to nLv
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2
-			add x, -rowW, z + railMid
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
+			if railAdv = 1 then
+				! 先行手すり: 中桟の代わりに斜材（手すり高さ→隣の支柱の床際）
+				advDz = railTop - 0.2
+				advL = sqr(spans[ip] * spans[ip] + advDz * advDz)
+				add x, -rowW, z + railTop
+				roty 90 + atn(advDz / spans[ip])
+				cylind advL, r_nuno
+				del 2
+			else
+				add x, -rowW, z + railMid
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			endif
 		endif
 		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
 		! 開口部の内側は支柱を抜いてあるので、そこにも入らない

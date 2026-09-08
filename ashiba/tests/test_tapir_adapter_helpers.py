@@ -6,7 +6,7 @@ from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
-from ashiba.tapir_adapter import ArchicadClient, TapirError
+from ashiba.tapir_adapter import ArchicadClient, TapirError, is_ashiba_part
 
 
 class _Stub(ArchicadClient):
@@ -92,11 +92,32 @@ class TestObjectsForSlab(unittest.TestCase):
             "other_row": ("ashiba_line", 300.0, 270.0, 0.0),    # どの行でもない
             "east_bldg_elev": ("ashiba_line", 460.0, 255.0, 0.0),  # 同じ行の東隣の建物の立面図 → 拾わない
             "fr": ("FR_Column", 300.0, 300.0, 0.0),             # 他ツール
+            "old_ver": ("ashiba_line_a146589c", 330.3, 299.65, 1.571),  # 版名付きの配布部品も同じ部品
+            "old_det": ("ashiba_detail_3f344e7b", 306.0, 280.0, 0.0),
         }
         c = _DupStub(objs)
         got = sorted(e["elementId"]["guid"] for e in c.objects_for_slab(
             [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]))
-        self.assertEqual(got, ["det", "elev", "line"])
+        self.assertEqual(got, ["det", "elev", "line", "old_det", "old_ver"])
+
+
+class TestPartNameVersions(unittest.TestCase):
+    """埋め込み部品は上書きできないので、配布GSMは「基本名_ハッシュ8桁」で埋め込む."""
+
+    def test_base_and_versioned_names_are_ours(self):
+        for n in ("ashiba_line", "ashiba_line_a146589c", "ashiba_detail_3f344e7b"):
+            self.assertTrue(is_ashiba_part(n), n)
+        for n in ("", "FR_Column", "ashiba_line_v2", "ashiba_liner", "ashiba_line_a146589c_x", "ashiba_line_a146-89c"):
+            self.assertFalse(is_ashiba_part(n), n)
+
+    def test_ensure_embedded_parts_takes_an_embedded_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = Path(d) / "ashiba_line.gsm"; a.write_bytes(b"x")
+            c = _Stub()
+            added = c.ensure_embedded_parts([(a, "ashiba_line_a146589c")])
+        self.assertEqual(added, ["ashiba_line_a146589c.gsm"])
+        adds = [p for cmd, p in c.calls if cmd == "AddFilesToEmbeddedLibrary"]
+        self.assertEqual(adds[0]["files"][0]["outputPath"], "ashiba/ashiba_line_a146589c.gsm")
 
 
 class _SelStub(ArchicadClient):

@@ -46,6 +46,19 @@ SPEC = {
 }
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
+GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
+
+
+def versioned_part_name(base: str, gdl_dir: Path = GDL_DIR) -> str:
+    """配布GSMの部品名（基本名_版）。版は build_dist_gsm.py が書く .gsm.hash（HSFのハッシュ8桁）.
+
+    ハッシュが無ければ基本名のまま（手で読み込んだ部品を使う）。
+    """
+    stamp = gdl_dir / f"{base}.gsm.hash"
+    if not stamp.exists():
+        return base
+    h = stamp.read_text(encoding="utf-8").strip()
+    return f"{base}_{h}" if h.isalnum() and len(h) == 8 else base
 PLACE_DETAILS = True               # 詳細図も並べるか
 PLACE_ELEVATIONS = True            # 各面の立面図も並べるか
 FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら描かない）
@@ -96,8 +109,13 @@ def main() -> None:
     spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
     # 同梱の配布GSM（足場ライン・詳細図）を埋め込みライブラリに入れる。手で読み込んで
     # いなくても止まらないように（既に入っていれば何もしない）
-    GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
-    added = client.ensure_embedded_parts([GDL_DIR / f"{LINE_OBJECT}.gsm", GDL_DIR / f"{DETAIL_OBJECT}.gsm"])
+    # 埋め込んだ部品は Tapir から上書きできないので、GSM の版（HSFのハッシュ）を
+    # 名前に付けて埋め込む。GSM を更新すれば新しい名前で入り、古い部品は置き換え時に消える
+    line_part = versioned_part_name(LINE_OBJECT)
+    detail_part = versioned_part_name(DETAIL_OBJECT)
+    added = client.ensure_embedded_parts([
+        (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
+    ])
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
@@ -110,7 +128,7 @@ def main() -> None:
     result = result_dict(r, OUT_DIR)
 
     lines = place_scaffold_lines(
-        r.model, LINE_OBJECT, client, stair_plan=r.stair_plan,
+        r.model, line_part, client, stair_plan=r.stair_plan,
         openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
         terrain=r.terrain,
     )
@@ -120,7 +138,7 @@ def main() -> None:
     if PLACE_ELEVATIONS:
         # 面名は指定しなければ方位（南面・東面…）が入る
         elevs = place_elevations(
-            r.model, LINE_OBJECT, stair_plan=r.stair_plan, openings=r.openings,
+            r.model, line_part, stair_plan=r.stair_plan, openings=r.openings,
             platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
             origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
             floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
@@ -128,7 +146,7 @@ def main() -> None:
     details = []
     if PLACE_DETAILS:
         details = place_details(
-            r.model, r.detail_sheets, DETAIL_OBJECT,
+            r.model, r.detail_sheets, detail_part,
             origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
         )
 

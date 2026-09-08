@@ -42,6 +42,25 @@ class TapirError(Exception):
     pass
 
 
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail")) -> bool:
+    """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
+
+    埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で
+    AddFilesToEmbeddedLibrary すると「not a valid relative path」で弾かれる）。
+    GSM を更新すると古い部品が居座って「railAdv is not a GDL parameter」で配置が
+    止まったので、配布部品は「ashiba_line_<HSFのハッシュ8桁>」の名前で埋め込む。
+    撤去・置き換えでは版違いも同じ部品として拾う。
+    """
+    if not name:
+        return False
+    for b in bases:
+        if name == b:
+            return True
+        if name.startswith(b + "_") and len(name) == len(b) + 9 and name[len(b) + 1:].isalnum():
+            return True
+    return False
+
+
 class ArchicadClient:
     """Archicad JSON API + Tapir AddOnCommand の薄いクライアント."""
 
@@ -286,17 +305,22 @@ class ArchicadClient:
 
         ツールバーからの実行は「gdl/ashiba_line.gsm をライブラリに読み込み済み」を
         前提にしていて、読み込んでいないと「Not found library part」で止まった。
-        ツールに同梱している部品なので、無ければ自分で入れる。戻り値は今回入れた
-        ファイル名（既にあるものは Tapir が弾くので含まれない）。
+        ツールに同梱している部品なので、無ければ自分で入れる。各要素はパス、または
+        (パス, 埋め込み名) の組。埋め込み名を省くとファイル名がそのまま部品名になる。
+        戻り値は今回入れた埋め込み名（既にあるものは Tapir が弾くので含まれない）。
         """
         added: list[str] = []
-        for f in files:
+        for item in files:
+            f, name = (item if isinstance(item, tuple) else (item, None))
             f = Path(f)
             if not f.exists():
                 continue
+            name = name or f.name
+            if not name.lower().endswith(".gsm"):
+                name += ".gsm"
             try:
-                self.add_file_to_embedded_library(str(f), f.name)
-                added.append(f.name)
+                self.add_file_to_embedded_library(str(f), name)
+                added.append(name)
             except TapirError:
                 pass    # 同名の部品が既にある（Tapir は「not a valid relative path」で弾く）
         return added
@@ -372,7 +396,7 @@ class ArchicadClient:
             dd = d.get("details", {})
             lp = dd.get("libPart") or {}
             name = lp.get("name") if isinstance(lp, dict) else ""
-            if name not in names:
+            if not is_ashiba_part(name, names):
                 continue
             o = dd.get("origin") or {}
             ox, oy = float(o.get("x", 0)) * 1000, float(o.get("y", 0)) * 1000

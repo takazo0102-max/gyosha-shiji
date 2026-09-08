@@ -73,10 +73,20 @@ for il = 1 to nLv
 			roty 90
 			cylind spans[ip], r_nuno
 			del 2
-			add x, -rowW, z + railMid
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
+			if railAdv = 1 then
+				! 先行手すり: 中桟の代わりに斜材（手すり高さ→隣の支柱の床際）
+				advDz = railTop - 0.2
+				advL = sqr(spans[ip] * spans[ip] + advDz * advDz)
+				add x, -rowW, z + railTop
+				roty 90 + atn(advDz / spans[ip])
+				cylind advL, r_nuno
+				del 2
+			else
+				add x, -rowW, z + railMid
+				roty 90
+				cylind spans[ip], r_nuno
+				del 2
+			endif
 		endif
 		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
 		! 開口部の内側は支柱を抜いてあるので、そこにも入らない
