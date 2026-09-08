@@ -31,12 +31,23 @@ class TestQuantity(unittest.TestCase):
         jacks = [l for l in self.q.lines if l.part.category == "ジャッキ"]
         by_note = {("アンダーベース" in l.part.note): l.qty for l in jacks}
         self.assertEqual(by_note[True], by_note[False])
-        self.assertEqual(by_note[False], self.plan.total_posts * 2)
+        # ＋出隅の外側コーナー支柱（四隅）
+        self.assertEqual(by_note[False], self.plan.total_posts * 2 + 4)
+        self.assertEqual(self.model.outer_corner_posts(), 4)
 
     def test_post_counts(self):
         per_line = len(self.elev.posts)
         total = self.q.qty_of("支柱")
-        self.assertEqual(total, self.plan.total_posts * 2 * per_line)
+        self.assertEqual(total, (self.plan.total_posts * 2 + 4) * per_line)
+
+    def test_corner_ledgers_and_toe_boards(self):
+        """出隅の外側コーナー升目: 布材（腕木寸法）2辺×(根がらみ1＋各層3)、幅木2辺×層."""
+        nl = self.elev.n_levels
+        udegi = self.model.post_row_spacing_mm
+        self.assertEqual(self.q.qty_of("布材", udegi) - self.plan.total_posts * (nl + 1),
+                         4 * 2 * (1 + nl * 3))
+        self.assertEqual(self.q.qty_of("幅木", udegi), 4 * nl * 2)
+        self.assertTrue(any("コーナー踏板" in n for n in self.q.notes), self.q.notes)
 
     def test_deck_counts(self):
         # 踏板: スパン数×層数×幅構成2枚
@@ -104,13 +115,14 @@ class TestQuantity(unittest.TestCase):
         nl = self.elev.n_levels
         spans = self.plan.total_spans
         udegi = self.plan.total_posts * (nl + 1)      # 腕木も布材の区分
+        corners = 4 * 2 * (1 + nl * 3)                 # 出隅コーナーの升目
         # 根がらみ2＋各層（床2＋外側の手すり・中桟2＋躯体側の手すり・中桟2）
-        self.assertEqual(self.q.qty_of("布材"), spans * (2 + nl * 6) + udegi)
+        self.assertEqual(self.q.qty_of("布材"), spans * (2 + nl * 6) + udegi + corners)
         note = next(n for n in self.q.notes if n.startswith("布材は1スパンあたり"))
         self.assertIn("躯体側の手すり・中桟2本", note)
         self.model.config.inner_guard_rail = False
         q = take_off(self.model)
-        self.assertEqual(q.qty_of("布材"), spans * (2 + nl * 4) + udegi)
+        self.assertEqual(q.qty_of("布材"), spans * (2 + nl * 4) + udegi + corners)
         self.assertNotIn("躯体側", next(n for n in q.notes if n.startswith("布材は1スパンあたり")))
 
     def test_no_such_note_when_all_within_300(self):
@@ -252,7 +264,8 @@ class TestCountsAreCheckable(unittest.TestCase):
         levels = self.m.elevation.n_levels
         per_span = 2 + levels * (2 + 2 + 2)      # 根がらみ＋各層(床＋外側の手すり中桟＋躯体側の手すり中桟)
         udegi = posts * (levels + 1)
-        self.assertEqual(self.q.qty_of("布材"), spans * per_span + udegi)
+        corners = self.m.outer_corner_posts() * 2 * (1 + levels * 3)
+        self.assertEqual(self.q.qty_of("布材"), spans * per_span + udegi + corners)
         notes = " ".join(self.q.notes)
         self.assertIn(f"＝ {per_span}本で計上", notes)
         self.assertIn(f"＝{udegi}本で計上", notes)
@@ -468,6 +481,8 @@ class TestTerrainExtensionPostsAreCounted(unittest.TestCase):
         for f in t.feet:
             for n in f.posts:
                 expect[n] = expect.get(n, 0) + rows
+        for n in m.elevation.posts:              # 出隅の外側コーナー支柱（脚一覧に無い）
+            expect[n] = expect.get(n, 0) + m.outer_corner_posts()
         self.assertEqual(posts(sloped), expect)
         self.assertGreater(sum(posts(sloped).values()), sum(posts(flat).values()))
         self.assertTrue([n for n in sloped.notes if "継ぎ足し分" in n], sloped.notes)

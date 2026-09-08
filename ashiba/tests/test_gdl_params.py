@@ -111,7 +111,8 @@ class TestSingleRowScaffold(unittest.TestCase):
         double = self._model("本足場")
         jacks_single = take_off(single).qty_of("ジャッキ")
         jacks_double = take_off(double).qty_of("ジャッキ")
-        self.assertEqual(jacks_double, jacks_single * 2)
+        # 本足場は出隅の外側コーナー支柱（ジャッキ＋アンダーベース）が加わる
+        self.assertEqual(jacks_double - 2 * double.outer_corner_posts(), jacks_single * 2)
         self.assertEqual(
             line_params(double, double.plan.edges[0])["nRows"],
             2 * line_params(single, single.plan.edges[0])["nRows"],
@@ -818,3 +819,14 @@ class TestInnerGuardRailReachesTheDrawing(unittest.TestCase):
         self.assertEqual(line_params(m, m.plan.edges[0])["railIn"], 0)
         w = build("waku")
         self.assertEqual(line_params(w, w.plan.edges[0])["railIn"], 0)
+
+
+class TestCornerReachesTheDrawing(unittest.TestCase):
+    """出隅の外側コーナーは始点側の面が描く（cornerS）。一側足場・枠組は 0."""
+    def test_flag(self):
+        m = build("shinwa_A")
+        self.assertTrue(all(line_params(m, e)["cornerS"] == 1 for e in m.plan.edges))
+        m.config.scaffold_form = "一側足場"
+        self.assertEqual(line_params(m, m.plan.edges[0])["cornerS"], 0)
+        w = build("waku")
+        self.assertEqual(line_params(w, w.plan.edges[0])["cornerS"], 0)

@@ -660,5 +660,53 @@ class TestFaceNamesInsteadOfEdgeIndex(unittest.TestCase):
         self.assertIn('"edge_index" が要ります（または face: "北面"）', str(cm.exception))
 
 
+class TestHeightAndSpanOverrides(unittest.TestCase):
+    """足場高さの直接指定と、面ごとのスパン指定."""
+
+    def _solve(self, **extra):
+        import json
+        import tempfile
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = dict(BASE, **extra)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            return solve_all(load_spec(p))
+
+    def test_scaffold_height_overrides_the_eaves_rule(self):
+        base = self._solve()
+        r = self._solve(scaffold_height_mm=12000)
+        self.assertNotEqual(r.model.scaffold_height_mm, base.model.scaffold_height_mm)
+        self.assertLess(abs(r.model.scaffold_height_mm - 12000), 700)
+        notes = [w[2] for w in r.warnings if "足場高さは指定値12000mm" in w[2]]
+        self.assertEqual(len(notes), 1, r.warnings)
+        self.assertIn("軒高より低い", notes[0])
+
+    def test_scaffold_height_too_low_is_an_input_error(self):
+        with self.assertRaises(InputError) as cm:
+            self._solve(scaffold_height_mm=100)
+        self.assertIn("scaffold_height_mm", str(cm.exception))
+
+    def test_span_override_by_face(self):
+        r = self._solve(span_overrides=[{"face": "南面", "spans_mm": ["1800x5", 900, 900, "1800x11"]}])
+        south = [e for e in r.model.plan.edges if r.model.face_name(e.edge_index) == "南面"][0]
+        self.assertEqual(list(south.spans), [1800] * 5 + [900, 900] + [1800] * 11)
+        self.assertTrue(any("南面のスパンは指定どおり" in w[2] for w in r.warnings), r.warnings)
+
+    def test_span_override_errors(self):
+        with self.assertRaises(InputError) as cm:
+            self._solve(span_overrides=[{"face": "北西面", "spans_mm": [1800]}])
+        self.assertIn("面「北西面」はありません", str(cm.exception))
+        with self.assertRaises(InputError) as cm:
+            self._solve(span_overrides=[{"face": "南面", "spans_mm": ["1800x5"]}])
+        self.assertIn("span_overrides", str(cm.exception))
+        self.assertIn("足場長", str(cm.exception))
+        with self.assertRaises(InputError) as cm:
+            self._solve(span_overrides=[{"face": "南面", "spans_mm": ["abc"]}])
+        self.assertIn("spans_mm", str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

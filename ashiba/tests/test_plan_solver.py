@@ -458,6 +458,36 @@ class TestHintExplainsWhyTheInBandStandoffWasNotChosen(unittest.TestCase):
         self.assertIn("下げて端数を減らす方を採っています", ep.remedy)
 
 
+class TestFixedSpans(unittest.TestCase):
+    """面ごとのスパン指定（途中に900を入れる等）はその構成で固定し、離れだけを解く."""
+
+    def setUp(self):
+        from ashiba.master import load_master
+        self.master = load_master("shinwa_A")
+        self.rect = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
+
+    def test_fixed_spans_are_used_verbatim(self):
+        fixed = {0: [1800] * 5 + [900, 900] + [1800] * 11}
+        plan = solve_plan(self.rect, self.master, fixed_spans=fixed)
+        e0 = [e for e in plan.edges if e.edge_index == 0][0]
+        self.assertEqual(list(e0.spans), fixed[0])
+        # 他の面は通常どおり解く
+        self.assertTrue(all(len(e.spans) > 0 for e in plan.edges))
+
+    def test_unknown_span_size_is_an_error(self):
+        from ashiba.geometry import ValidationError
+        with self.assertRaises(ValidationError) as cm:
+            solve_plan(self.rect, self.master, fixed_spans={0: [1800] * 16 + [1000]})
+        self.assertIn("系列 shinwa_A に無い寸法", str(cm.exception))
+        self.assertIn("1000", str(cm.exception))
+
+    def test_total_far_from_the_face_is_an_error(self):
+        from ashiba.geometry import ValidationError
+        with self.assertRaises(ValidationError) as cm:
+            solve_plan(self.rect, self.master, fixed_spans={0: [1800] * 5})
+        self.assertIn("足場長", str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
 

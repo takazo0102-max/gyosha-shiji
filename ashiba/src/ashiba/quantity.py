@@ -180,7 +180,10 @@ def take_off(
 
     rows = 1 if model.config.scaffold_form == "一側足場" else rules.rows
     posts_per_line = plan.total_posts        # 帰属ルールで二重計上なし
-    n_posts = posts_per_line * rows
+    # 出隅の外側コーナー支柱（内側列は隣の面とコーナー支柱を共有するが、外側列は
+    # 面ごとに躯体コーナーで終わるので、四隅の外側に1本ずつ立つ）。3Dも同じ規則で描く
+    n_corners = model.outer_corner_posts()
+    n_posts = posts_per_line * rows + n_corners
     n_levels = elev.n_levels
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
@@ -216,6 +219,9 @@ def take_off(
         for nominal in elev.posts:
             counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
     totals_posts = {k: v * (rows if feet else n_posts) for k, v in counts_posts.items()}
+    if feet and n_corners:
+        for nominal in elev.posts:
+            totals_posts[nominal] = totals_posts.get(nominal, 0) + n_corners
     # 開口部で抜いた支柱は梁枠上（作業床〜天端）だけの短い構成に置き換える。
     # 全高のまま数えると梁枠より下の分が余計に入る（以前は「拾い直して」と注記していた）
     _replace_opening_stacks(
@@ -289,6 +295,10 @@ def take_off(
     # 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の
     # 地盤から離れるので、区間ごとに1段追加する（図面も同じ規則で描く）
     _add_extra_negarami(model, terrain, add, notes, rows)
+
+    # ---- 出隅コーナーの升目（外側コーナー支柱までの布材・手すり・踏板・幅木） ----
+    if n_corners:
+        _count_corner_parts(model, m, rules, add, notes, n_corners, n_levels)
 
     # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
     if advance_rail:
@@ -434,6 +444,37 @@ def take_off(
     return _assemble(model, rules, counts, parts, notes, breakdown)
 
 
+def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
+                        n_corners: int, n_levels: int) -> None:
+    """出隅の外側コーナー升目の部材（支柱・ジャッキは支柱位置数に足してある）.
+
+    升目は建地列間隔（腕木の呼び寸法）角。布材は前の面の外側列の延長と、この面の
+    外側列の手前の2本を、根がらみ＋各層（床レベル＋手すり＋中桟）に入れる。
+    """
+    udegi = rules.udegi_nominal or model.post_row_spacing_mm
+    per_corner = 2 * (1 + n_levels * 3)
+    add(m.find("布材", udegi), n_corners * per_corner, f"出隅コーナーの布材{udegi}")
+    notes.append(
+        f"出隅コーナー{n_corners}箇所は、外側コーナー支柱1本（支柱位置数に含む）と"
+        f"呼び{udegi}mmの布材{per_corner}本（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
+        "ずつで計上"
+    )
+    toe = m.find("幅木", udegi)
+    add(toe, n_corners * n_levels * 2, f"出隅コーナーの幅木{udegi}")
+    if toe is None:
+        notes.action(
+            f"出隅コーナーの幅木（呼び{udegi}mm、{n_corners * n_levels * 2}本）がマスタにありません",
+            Notes.ORDER,
+        )
+    # コーナーの床（{udegi}mm角）は踏板のセル数（スパン×層）には入れない。
+    # 専用のコーナー踏板か隙間塞ぎで対応するので、手配として枚数を出す
+    notes.action(
+        f"四隅の外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
+        f"（{udegi}mm角）は踏板の数量に含んでいません（コーナー踏板または隙間塞ぎを別途手配）",
+        Notes.ORDER,
+    )
+
+
 def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "") -> None:
     """ジャッキを脚ごとの繰出し量に合う品で数える.
 
@@ -464,10 +505,13 @@ def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix
             fit = ranked[-1]
             unreachable += 1
         per_part[fit.model_no] = per_part.get(fit.model_no, 0) + rows
-    # 開口部で抜いた脚のぶんは、既定の品から引く（脚一覧には抜く前の脚も入っている）
+    # 開口部で抜いた脚のぶんは、既定の品から引く（脚一覧には抜く前の脚も入っている）。
+    # 脚一覧に無い脚（出隅の外側コーナー支柱）は既定の品で足す
     over = sum(per_part.values()) - n_feet
     if over > 0 and default.model_no in per_part:
         per_part[default.model_no] = max(0, per_part[default.model_no] - over)
+    elif over < 0:
+        per_part[default.model_no] = per_part.get(default.model_no, 0) - over
     for no, qty in per_part.items():
         p = parts_by_no[no]
         label = "ジャッキ" + suffix

@@ -113,7 +113,7 @@ class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
         self.assertGreater(r.openings.removed_posts, 0)
-        expect = r.model.plan.total_posts * 2 - r.openings.removed_posts
+        expect = r.model.plan.total_posts * 2 + r.model.outer_corner_posts() - r.openings.removed_posts
         self.assertEqual(r.structural.post.n_posts, expect)
         jacks = sum(l.qty for l in r.quantity.lines
                     if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)

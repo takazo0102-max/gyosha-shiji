@@ -268,6 +268,17 @@ class ScaffoldModel:
                 return n
         return f"辺{edge_index}"
 
+    def outer_corner_posts(self) -> int:
+        """出隅の外側コーナー支柱の本数.
+
+        内側建地列は隣の面とコーナー支柱を共有するが、外側建地列は面ごとに躯体コーナーで
+        終わるので、四隅の外側に1本ずつ立つ。3D・数量・構造（立っている本数）で同じ値を使う。
+        一側足場（外側列のみ）と枠組（建枠を回して納める）には無い。
+        """
+        if self.config.scaffold_form == "一側足場" or self.master.is_frame:
+            return 0
+        return len([e for e in self.plan.outline.edges if e.start_corner == "出隅"])
+
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.
 

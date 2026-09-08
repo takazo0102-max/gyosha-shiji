@@ -138,7 +138,8 @@ class InputError(ValueError):
 # 黙って無視すると「指定したのに効かない」まま図面と計算が進んでしまう
 # （loading_stage と書けばステージが消え、計算にも数量にも現れない）
 TOP_KEYS = {
-    "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm",
+    "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
+    "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "inner_guard_rail", "post_reinforcement", "openings", "asagao", "bracket_sections",
@@ -426,7 +427,7 @@ def validate_spec(spec: dict) -> None:
                 errors.append("outline_mm: 座標は数値で指定してください")
 
     for key in ("eaves_height_mm", "guard_extra_mm", "building_height_mm",
-                "period_days", "clearance_space_mm"):
+                "period_days", "clearance_space_mm", "scaffold_height_mm"):
         v = spec.get(key)
         if v is not None and (not isinstance(v, (int, float))
                               or isinstance(v, bool) or v < 0):
@@ -504,6 +505,22 @@ def validate_spec(spec: dict) -> None:
             _check_int_lists(errors, where, item, LIST_INT_LIST_FIELDS.get(key, ()))
             _check_item_semantics(errors, key, where, item)
 
+    so = spec.get("span_overrides")
+    if so is not None:
+        if not isinstance(so, list):
+            errors.append("span_overrides: 配列で指定してください")
+        else:
+            for i, item in enumerate(so):
+                where = f"span_overrides[{i}]"
+                _check_keys(errors, where, item, {"edge_index", "face", "spans_mm"}, {"edge_index", "spans_mm"})
+                if isinstance(item, dict):
+                    try:
+                        vals = expand_span_list(item.get("spans_mm"))
+                        if not vals:
+                            errors.append(f"{where}.spans_mm: 1本以上のスパンを指定してください")
+                    except ValueError as e:
+                        errors.append(f"{where}.spans_mm: {e}")
+
     st = spec.get("stairs")
     if isinstance(st, dict):
         for i, pos in enumerate(st.get("positions") or []):
@@ -568,6 +585,76 @@ def validate_spec(spec: dict) -> None:
         raise InputError("入力JSONに問題があります:\n  - " + "\n  - ".join(errors))
 
 
+def expand_span_list(values) -> list[int]:
+    """スパン指定を本数に展開する。[1800, "1800x5", 900] → [1800, 1800, ..., 900]."""
+    if not isinstance(values, list):
+        raise ValueError("配列で指定してください（例 [1800, \"1800x5\", 900]）")
+    out: list[int] = []
+    for v in values:
+        if isinstance(v, bool):
+            raise ValueError(f"数値か \"寸法x本数\" で指定してください（{v!r}）")
+        if isinstance(v, (int, float)):
+            if v <= 0:
+                raise ValueError(f"スパンは0より大きい値で指定してください（{v!r}）")
+            out.append(int(v))
+            continue
+        if isinstance(v, str) and "x" in v.lower():
+            a, _, b = v.lower().partition("x")
+            try:
+                n = int(b)
+                d = int(float(a))
+            except ValueError:
+                raise ValueError(f"\"寸法x本数\" の形で指定してください（{v!r}）")
+            if n <= 0 or d <= 0:
+                raise ValueError(f"\"寸法x本数\" は正の値で指定してください（{v!r}）")
+            out += [d] * n
+            continue
+        raise ValueError(f"数値か \"寸法x本数\" で指定してください（{v!r}）")
+    return out
+
+
+def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
+    """span_overrides の面（face か edge_index）を割付後の辺番号に解き、{辺番号: スパン列} を返す."""
+    fixed: dict[int, list[int]] = {}
+    names = plan.face_names()
+    by_name = {n: e.edge_index for e, n in zip(plan.edges, names)}
+    valid = {e.edge_index for e in plan.edges}
+    errors: list[str] = []
+    for i, item in enumerate(spec.get("span_overrides") or []):
+        where = f"span_overrides[{i}]"
+        ei = None
+        if item.get("face") is not None:
+            key = str(item["face"]).strip()
+            if not key.endswith("面") and "(" not in key:
+                key += "面"
+            if key in by_name:
+                ei = by_name[key]
+            else:
+                pref = [n for n in names if n.startswith(key + "(")]
+                errors.append(
+                    f"{where}.face: 面「{item['face']}」は複数あります（{'・'.join(pref)}）。辺番号つきで指定してください"
+                    if pref else f"{where}.face: 面「{item['face']}」はありません（この外形の面は {'・'.join(names)}）"
+                )
+                continue
+            ei0 = item.get("edge_index")
+            if ei0 is not None and not isinstance(ei0, bool) and int(ei0) != ei:
+                errors.append(f"{where}: face「{item['face']}」は辺{ei}ですが edge_index は{int(ei0)}です。どちらか一方にしてください")
+                continue
+        else:
+            ei = int(item["edge_index"])
+            if ei not in valid:
+                errors.append(f"{where}.edge_index: 辺{ei}は存在しません（この外形の辺は "
+                              + "・".join(str(v) for v in sorted(valid)) + "）")
+                continue
+        if ei in fixed:
+            errors.append(f"{where}: 辺{ei}のスパン指定が重複しています")
+            continue
+        fixed[ei] = expand_span_list(item["spans_mm"])
+    if errors:
+        raise InputError("入力JSONに問題があります:\n  - " + "\n  - ".join(errors))
+    return fixed
+
+
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     master = load_master(spec.get("series_id", "shinwa_A"), master_csv)
     so = spec.get("standoff", {})
@@ -578,6 +665,19 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         hard_min=so.get("hard_min", 200),
     )
     plan = solve_plan(spec["outline_mm"], master, standoff)
+    # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
+    # その面を固定して離れを解き直す
+    if spec.get("span_overrides"):
+        fixed = _resolve_span_overrides(spec, plan)
+        try:
+            plan = solve_plan(spec["outline_mm"], master, standoff, fixed_spans=fixed)
+        except ValidationError as e:
+            raise InputError(f"span_overrides: {e}")
+        for ei, sp in sorted(fixed.items()):
+            plan.warnings.append(
+                f"{plan.face_names()[[e.edge_index for e in plan.edges].index(ei)]}のスパンは指定どおり"
+                f"（{'+'.join(str(s) for s in sp)}＝{sum(sp)}mm・{len(sp)}スパン）に固定し、離れはそれに合わせて解いています"
+            )
     # 手すり分の既定は系列から。枠組はコマピッチを持たない（0）ので、
     # 2×コマピッチだと軒高そのままになり、最上層に手すりが立たない
     guard_extra = spec.get("guard_extra_mm")
@@ -587,7 +687,25 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             else 2 * master.koma_pitch
         )
     required = int(spec["eaves_height_mm"]) + int(guard_extra)
-    elevation = solve_elevation(required, master=master)
+    height_note = None
+    if spec.get("scaffold_height_mm") is not None:
+        # 足場高さの直接指定（軒高＋手すり分の計算値より優先）。実機で高さを
+        # 調整したい要望。軒高より低ければ黙って通さず警告する
+        required = int(spec["scaffold_height_mm"])
+        height_note = (
+            f"足場高さは指定値{required}mm（軒高{int(spec['eaves_height_mm'])}＋手すり分{int(guard_extra)}"
+            f"＝{int(spec['eaves_height_mm']) + int(guard_extra)}mmの計算値ではなく）を目標に解いています"
+        )
+        if required < int(spec["eaves_height_mm"]):
+            height_note += "。指定高さが軒高より低いので、最上層は軒に届きません"
+    try:
+        elevation = solve_elevation(required, master=master)
+    except ValueError as e:
+        if spec.get("scaffold_height_mm") is not None:
+            raise InputError(f"scaffold_height_mm: {e}")
+        raise
+    if height_note:
+        plan.warnings.append(height_note)
     # マスタに無い幅の作業床は、解けてしまって数量表で床が丸ごと欠けるだけになる
     if spec.get("deck_widths"):
         avail = master.deck_widths_available()

@@ -445,8 +445,9 @@ class TestFrameLegs(unittest.TestCase):
             elevation=solve_elevation(16300, master=master),
             config=ScaffoldConfig(), building_height_mm=16000,
         )
+        # くさび式は出隅の外側コーナー支柱（ジャッキ＋アンダーベース）が四隅に加わる
         self.assertEqual(
-            take_off(wedge).qty_of("ジャッキ"), self.q.qty_of("ジャッキ")
+            take_off(wedge).qty_of("ジャッキ") - 2 * wedge.outer_corner_posts(), self.q.qty_of("ジャッキ")
         )
 
 

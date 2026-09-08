@@ -46,6 +46,83 @@ for ip = 1 to nSpan + 1
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
+! ---- 出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]） ----
+! 内側建地列は隣の面と同じコーナー支柱で繋がるが、外側建地列は面ごとに躯体コーナー
+! で終わるので、四隅の外側の升目（外側コーナー支柱・布材・踏板・幅木）が抜けていた。
+! 各面は始点の出隅を描く（終点は次の面が描く）。一側足場・枠組には無い
+if cornerS = 1 and nRows >= 2 then
+	gv = 0
+	jo = jackOut
+	if nGl >= 1 then gv = gl[1]
+	if nJk >= 1 then jo = jk[1]
+	add -rowW, -rowW, gv
+	cylind jo, 0.0381 / 2
+	addz jo
+	if nGl >= 2 then
+		cylind postTop - gv - jo, r_sic
+		del 2
+	else
+		for j = 1 to nPost
+			cylind posts[j], r_sic
+			addz posts[j]
+		next j
+		del nPost + 2
+	endif
+	if komaPitch > 0 then
+		resol 8
+		zk = lv[1]
+		while zk < postTop - 0.01 do
+			add -rowW, -rowW, zk - 0.005
+			cylind 0.01, 0.055
+			del 1
+			zk = zk + komaPitch
+		endwhile
+		resol 36
+	endif
+	for il = 1 to nLv
+		z = lv[il]
+		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
+		add -rowW, 0, z
+		rotx 90
+		cylind rowW, r_nuno
+		del 2
+		add -rowW, -rowW, z
+		roty 90
+		cylind rowW, r_nuno
+		del 2
+		if il > 1 then
+			add -rowW, 0, z + railTop
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			add -rowW, -rowW, z + railTop
+			roty 90
+			cylind rowW, r_nuno
+			del 2
+			add -rowW, 0, z + railMid
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			add -rowW, -rowW, z + railMid
+			roty 90
+			cylind rowW, r_nuno
+			del 2
+			if showDeck then
+				! コーナー踏板と、外側2辺の幅木
+				add -rowW + 0.05, -rowW + 0.05, z
+				block rowW - 0.05, rowW - 0.05, 0.045
+				del 1
+				add -rowW - 0.02, -rowW - 0.02, z + 0.045
+				block rowW + 0.02, 0.02, 0.157
+				del 1
+				add -rowW - 0.02, -rowW - 0.02, z + 0.045
+				block 0.02, rowW + 0.02, 0.157
+				del 1
+			endif
+		endif
+	next il
+endif
+
 ! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない

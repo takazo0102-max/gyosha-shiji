@@ -84,7 +84,7 @@ class TestCrossCuttingInvariants(unittest.TestCase):
             with self.subTest(name):
                 m = r.model
                 rows = 1 if m.config.scaffold_form == "一側足場" else 2
-                feet = m.plan.total_posts * rows - r.openings.removed_posts
+                feet = m.plan.total_posts * rows + m.outer_corner_posts() - r.openings.removed_posts
                 jacks = sum(l.qty for l in r.quantity.lines
                             if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
                 self.assertEqual(jacks, feet, name)

@@ -234,7 +234,9 @@ def solve_plan(
     vertices: list[tuple[float, float]],
     master: PartMaster,
     standoff: Optional[StandoffSpec] = None,
+    fixed_spans: Optional[dict[int, list[int]]] = None,
 ) -> PlanResult:
+    """fixed_spans: {辺番号: スパン列（始点から）}。その面はこの構成で固定し、離れだけを解く."""
     spec = standoff or StandoffSpec()
     coins = master.span_lengths()
     if not coins:
@@ -294,6 +296,23 @@ def solve_plan(
             if kv[0] not in seen:
                 seen.add(kv[0])
                 ranked.append(kv)
+        if fixed_spans and e.index in fixed_spans:
+            fixed = [int(v) for v in fixed_spans[e.index]]
+            bad = sorted({v for v in fixed if v not in coins})
+            if bad:
+                raise ValidationError(
+                    f"辺{e.index}のスパン指定に系列 {master.series_id} に無い寸法があります"
+                    f"（{'・'.join(str(b) for b in bad)}。使える寸法: "
+                    + "・".join(str(c) for c in coins) + "）"
+                )
+            total = sum(fixed)
+            if not (lo <= total <= hi):
+                raise ValidationError(
+                    f"辺{e.index}のスパン指定の合計{total}mm（{len(fixed)}スパン）は、この面の足場長"
+                    f"{lo}〜{hi}mm（躯体長{e.length:.0f}mm＋両端の離れ{lo_d:.0f}〜{hi_d:.0f}mm）から外れています。"
+                    "合計がこの範囲に入るようスパンを足すか減らしてください"
+                )
+            ranked = [(total, list(fixed))]
         candidates.append(ranked)
 
     # 軸ごとに独立: x方向に走る辺の式はy面の離れのみを含む（直交ポリゴン）

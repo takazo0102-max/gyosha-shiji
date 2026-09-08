@@ -557,7 +557,8 @@ def check_post(
     )
     # 開口部で抜いた建地は地盤に立たない（梁枠より上の分は梁枠両端の建地が受ける＝
     # 計算書4）。総重量を割る本数は実際に立っている本数にする。数量のジャッキ数と同じ
-    n_posts = model.plan.total_posts * (1 if single_row else 2) - max(0, removed_posts)
+    n_posts = (model.plan.total_posts * (1 if single_row else 2) + model.outer_corner_posts()
+               - max(0, removed_posts))
     dead_kn = (quantity.total_weight_kg * 9.80665 / 1000.0) / max(n_posts, 1)
 
     deck_item = _width_item(caps, "作業床許容積載荷重", model)
