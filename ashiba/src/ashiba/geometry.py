@@ -102,6 +102,13 @@ def _clean_vertices(verts: list[Point], tol: float = 1e-6) -> tuple[list[Point],
     notes: list[str] = []
     out = list(verts)
 
+    # 閉じた多角形（終点＝始点）は Archicad のスラブ外形の普通の形。閉じているだけの
+    # 点は黙って落とす（毎回「重複頂点を1点除去」と要確認に出ていた）
+    n_closing = 0
+    if len(out) > 1 and abs(out[0][0] - out[-1][0]) <= tol and abs(out[0][1] - out[-1][1]) <= tol:
+        out = out[:-1]
+        n_closing = 1
+
     # 連続する同一点
     deduped = [out[0]]
     for v in out[1:]:

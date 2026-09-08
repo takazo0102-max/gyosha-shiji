@@ -56,6 +56,17 @@ class TestOutline(unittest.TestCase):
         o = build_outline(RECT)
         self.assertEqual([e.axis for e in o.edges], ["x", "y", "x", "y"])
 
+    def test_closed_polygon_is_not_reported_as_duplicate(self):
+        """終点＝始点の閉じた外形（Archicadのスラブはこの形）は注記を出さない."""
+        o = build_outline([(0, 0), (30000, 0), (30000, 20000), (0, 20000), (0, 0)])
+        self.assertEqual(len(o.vertices), 4)
+        self.assertFalse([n for n in o.notes if "重複頂点" in n], o.notes)
+
+    def test_real_duplicate_is_still_reported(self):
+        o = build_outline([(0, 0), (30000, 0), (30000, 0), (30000, 20000), (0, 20000), (0, 0)])
+        self.assertEqual(len(o.vertices), 4)
+        self.assertTrue(any("重複頂点を1点" in n for n in o.notes), o.notes)
+
     def test_non_orthogonal_is_squared_with_a_note(self):
         """斜めの辺はエラーにせず、外側のコーナーを経由する直交2辺に置き換える."""
         o = build_outline([(0, 0), (10000, 500), (10000, 8000), (0, 8000)])
