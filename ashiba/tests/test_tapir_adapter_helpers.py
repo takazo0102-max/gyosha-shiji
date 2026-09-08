@@ -99,6 +99,41 @@ class TestObjectsForSlab(unittest.TestCase):
         self.assertEqual(got, ["det", "elev", "line"])
 
 
+class _SelStub(ArchicadClient):
+    def __init__(self, polys):
+        self.polys = polys
+
+    def get_selected_elements(self):
+        return [{"elementId": {"guid": f"g{i}"}} for i in range(len(self.polys))]
+
+    def get_details(self, elements):
+        return [{"details": {"polygonCoordinates": [{"x": x, "y": y} for x, y in p]}} if p else {"details": {}}
+                for p in self.polys]
+
+
+class TestSelectedOutline(unittest.TestCase):
+    RECT = [(0, 0), (30, 0), (30, 20), (0, 20)]
+
+    def test_single_slab(self):
+        from ashiba.tapir_adapter import get_selected_outline_mm
+
+        out = get_selected_outline_mm(_SelStub([self.RECT]))
+        self.assertEqual(out[1], (30000.0, 0.0))
+
+    def test_two_slabs_selected_is_an_error(self):
+        from ashiba.tapir_adapter import get_selected_outline_mm
+
+        with self.assertRaises(TapirError) as cm:
+            get_selected_outline_mm(_SelStub([self.RECT, self.RECT]))
+        self.assertIn("2個選択", str(cm.exception))
+
+    def test_non_polygon_selection_is_ignored_but_one_slab_ok(self):
+        from ashiba.tapir_adapter import get_selected_outline_mm
+
+        out = get_selected_outline_mm(_SelStub([None, self.RECT]))
+        self.assertEqual(len(out), 4)
+
+
 if __name__ == "__main__":
     unittest.main()
 

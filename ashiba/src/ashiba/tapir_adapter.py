@@ -422,11 +422,16 @@ def get_selected_outline_mm(client: Optional[ArchicadClient] = None) -> list[tup
     elements = client.get_selected_elements()
     if not elements:
         raise TapirError("要素が選択されていません。躯体スラブ（外形）を選択してください")
-    for det in client.get_details(elements):
-        poly = _extract_polygon(det)
-        if poly:
-            return [(p[0] * 1000.0, p[1] * 1000.0) for p in poly]
-    raise TapirError("選択要素から外形ポリゴンを取得できませんでした（スラブを選択してください）")
+    polys = [p for p in (_extract_polygon(det) for det in client.get_details(elements)) if p]
+    if not polys:
+        raise TapirError("選択要素から外形ポリゴンを取得できませんでした（スラブを選択してください）")
+    if len(polys) > 1:
+        # Archicad の選択は追加式で溜まる。最初の1つを黙って使うと、別の建物に足場が
+        # 置かれる（実機で2棟目のつもりが1棟目に置き換わった）
+        raise TapirError(
+            f"外形を持つ要素が{len(polys)}個選択されています。足場を組む躯体スラブを1つだけ選択してください"
+        )
+    return [(p[0] * 1000.0, p[1] * 1000.0) for p in polys[0]]
 
 
 def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
