@@ -300,11 +300,19 @@ def place_stairs_at(
 
     plan.max_travel_mm = actual_max_travel(plan.towers, loop_len)
     if plan.towers and plan.max_travel_mm > max_travel_mm:
+        n = len(plan.towers)
+        if n >= plan.required_count:
+            # 数は足りているのに超えるのは偏りのせい。「2箇所以上を推奨」と
+            # 指定済みの数を勧めても直せない（実機の五角形棟で2箇所指定→31.9m）
+            even = loop_len / (2 * n) / 1000
+            hint = (f"（{n}箇所を等間隔に置けば約{even:.1f}m。位置の見直し、"
+                    f"または{n + 1}箇所以上）")
+        else:
+            hint = f"（{plan.required_count}箇所以上を推奨）"
         plan.warnings.append(
-            f"指定された{len(plan.towers)}箇所では最大水平移動距離が"
+            f"指定された{n}箇所では最大水平移動距離が"
             f"{plan.max_travel_mm / 1000:.1f}mとなり"
-            f"目安{max_travel_mm / 1000:.0f}mを超えます"
-            f"（{plan.required_count}箇所以上を推奨）"
+            f"目安{max_travel_mm / 1000:.0f}mを超えます{hint}"
         )
     return plan
 

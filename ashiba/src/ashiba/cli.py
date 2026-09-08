@@ -714,15 +714,29 @@ def collect_warnings(
     「要確認0件」の裏に隠れていた。
     """
     out: list[tuple[str, str, str]] = []
+    # 法規チェックのNGは条文つきの本文を出す。件数だけ（「法規チェックNG 1件」）だと
+    # どの条文で落ちたか、割付レポートの表まで探さないと分からない（実機の五角形棟で
+    # 昇降設備までの水平移動30m超が理由だったのに、ツールバーの出力に無かった）
+    ng_checks = [c for c in (checks or []) if c.status == "NG"]
+    # 昇降設備までの移動距離超過は階段の配置側も同じ事象を（何箇所要るかまで書いて）
+    # 挙げる。NG の本文に対処として畳み込み、1件にする
+    travel_fix = [w for w in stair_plan.warnings if "最大水平移動距離" in w]
+    plan_warnings = [w for w in stair_plan.warnings if w not in travel_fix] if any(
+        "最大水平移動距離" in c.message for c in ng_checks) else list(stair_plan.warnings)
+    for c in ng_checks:
+        text = f"法規チェック[NG] #{c.check_id} {c.name}: {c.message}（{c.basis}）"
+        if "最大水平移動距離" in c.message and travel_fix:
+            text += "／対処: " + "；".join(travel_fix)
+        out.append(("法規チェック", "NG", text))
     out += [("構造", "WARN", w) for w in structural.warnings]
     out += [("割付", "WARN", w)
             for w in model.plan.warnings + model.elevation.warnings]
     out += [("ブラケット区間", i.severity,
              f"ブラケット[{i.severity}] {i.message}（{i.basis}）")
             for i in bracket_issues]
-    out += [("階段", "WARN", w) for w in stair_plan.warnings]
+    out += [("階段", "WARN", w) for w in plan_warnings]
     # 配置時の警告（何箇所要るかまで書いてある）と検証の警告が同じ移動距離超過を
-    # 二重に挙げていた。配置側にあれば検証側は重ねない
+    # 二重に挙げていた。配置側（または上の法規NG）にあれば検証側は重ねない
     travel_said = any("最大水平移動距離" in w for w in stair_plan.warnings)
     out += [("階段", "WARN", f"階段[WARN] {w}") for w in stair_issues
             if not (travel_said and "最大水平移動距離" in w)]

@@ -351,5 +351,38 @@ class TestTravelWarningIsNotDuplicated(unittest.TestCase):
         self.assertIn("箇所以上を推奨", hits[0])   # 残るのは何箇所要るかまで書いた方
 
 
+class TestUnevenStairPositionsGetAUsefulHint(unittest.TestCase):
+    """数は足りているのに偏りで30mを超えるとき、指定済みの数を「推奨」しない."""
+
+    def _run(self, positions):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "rect_30x20.json").read_text(encoding="utf-8"))
+        spec["stairs"] = {"positions": positions}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            return solve_all(load_spec(p))
+
+    def test_two_towers_side_by_side(self):
+        r = self._run([{"edge_index": 0, "start_mm": 1800}, {"edge_index": 0, "start_mm": 7200}])
+        hits = [w[2] for w in r.warnings if "最大水平移動距離" in w[2]]
+        self.assertEqual(len(hits), 1, hits)
+        self.assertNotIn("2箇所以上を推奨", hits[0])
+        self.assertIn("位置の見直し", hits[0])
+        self.assertIn("3箇所以上", hits[0])
+        self.assertIn("2箇所を等間隔に置けば", hits[0])
+
+    def test_too_few_towers_still_says_how_many(self):
+        r = self._run([{"edge_index": 0, "start_mm": 1800}])
+        hits = [w[2] for w in r.warnings if "最大水平移動距離" in w[2]]
+        self.assertTrue(hits and "箇所以上を推奨" in hits[0], hits)
+
+
 if __name__ == "__main__":
     unittest.main()

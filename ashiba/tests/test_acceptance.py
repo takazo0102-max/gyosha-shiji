@@ -178,6 +178,11 @@ class TestOverallVerdict(unittest.TestCase):
             r["verdict"],
         )
         self.assertIn("是正が必要です", report)
+        # 件数だけでなく、どの条文で落ちたかを判定の直下に出す
+        ng_texts = [w for w in r["warnings"] if w.startswith("法規チェック[NG] #")]
+        self.assertEqual(len(ng_texts), r["checks"]["ng"], r["warnings"])
+        for t in ng_texts:
+            self.assertIn(f"- 是正: 法規チェック: {t}", report)
 
     def test_terrain_warnings_reach_the_checklist(self):
         """敷地の警告が要確認一覧に載ること（落としても落ちなかった箇所）.
