@@ -156,24 +156,24 @@ NESTED_KEYS = {
                "positions"},
 }
 LIST_ITEM_KEYS = {
-    "openings": ({"edge_index", "start_mm", "beam_span_mm", "level", "reason"},
+    "openings": ({"edge_index", "face", "start_mm", "beam_span_mm", "level", "reason"},
                  {"edge_index", "start_mm", "beam_span_mm"}),
     "bracket_sections": (
-        {"edge_index", "start_mm", "end_mm", "direction", "width", "deck_width",
+        {"edge_index", "face", "start_mm", "end_mm", "direction", "width", "deck_width",
          "levels", "has_hozue", "is_widening", "on_kessokubu", "reason"},
         {"edge_index", "start_mm", "end_mm"},
     ),
     "loading_stages": (
-        {"edge_index", "start_mm", "span_count", "projection_mm", "load_kn",
+        {"edge_index", "face", "start_mm", "span_count", "projection_mm", "load_kn",
          "levels", "has_guard_rail", "has_toe_board", "has_load_sign",
          "has_hozue", "note"},
         {"edge_index", "start_mm"},
     ),
-    "hoists": ({"edge_index", "position_mm", "reach_height_mm", "tie_every_mm",
+    "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
                 "landing_levels", "note"},
                {"edge_index", "position_mm"}),
 }
-STAIR_POSITION_KEYS = {"edge_index", "start_mm", "span_count", "reason"}
+STAIR_POSITION_KEYS = {"edge_index", "face", "start_mm", "span_count", "reason"}
 
 
 # 型違いを実行前に弾くための、数値であるべきフィールド一覧。
@@ -257,8 +257,13 @@ def _check_keys(errors: list[str], where: str, obj, allowed: set[str],
         near = [a for a in allowed if a.startswith(k[:4])]
         hint = f"（{'・'.join(sorted(near))} の綴り違い？）" if near else ""
         errors.append(f"{where}: 未知のキー \"{k}\"{hint}")
+    # 面は edge_index か face（面名）のどちらかで指定する
+    if "face" in obj:
+        required = required - {"edge_index"}
+        if not isinstance(obj["face"], str) or not obj["face"].strip():
+            errors.append(f"{where}: \"face\" は面名の文字列で指定してください（例 \"北面\"）")
     for k in sorted(required - set(obj)):
-        errors.append(f"{where}: \"{k}\" が要ります")
+        errors.append(f"{where}: \"{k}\" が要ります" + ("（または face: \"北面\"）" if k == "edge_index" else ""))
 
 
 def _check_item_semantics(errors: list[str], key: str, where: str, item) -> None:
@@ -313,6 +318,28 @@ MIN_OUTLINE_EXTENT_MM = 1000.0   # これ未満の外形は m 入力の取り違
 MIN_HEIGHT_MM = 100.0            # 軒高: これ未満は m 入力の取り違え（100mm以上は作業層が取れない検定不能の経路として通す）
 
 
+def resolve_face_name(name: str, model) -> int:
+    """面名（"北面"・"北"・"南面(辺4)"）→ 辺番号。無い・複数あるときは InputError.
+
+    面名は割付レポート・立面図と同じ方位名（plan.face_names()）。同じ方位の面が複数
+    ある建物では「南面(辺0)」「南面(辺4)」のように辺番号つきでしか呼べないので、
+    「南面」だけでは止めて候補を出す。
+    """
+    names = model.plan.face_names()
+    key = name.strip()
+    if key.endswith("面") is False and "(" not in key:
+        key += "面"
+    exact = [e.edge_index for e, n in zip(model.plan.edges, names) if n == key]
+    if len(exact) == 1:
+        return exact[0]
+    prefix = [n for n in names if n.startswith(key + "(")]
+    if prefix:
+        raise InputError(
+            f"面「{name}」は複数あります（{'・'.join(prefix)}）。辺番号つきで指定してください"
+        )
+    raise InputError(f"面「{name}」はありません（この外形の面は {'・'.join(names)}）")
+
+
 def check_edge_indices(spec: dict, model) -> None:
     """辺番号つきの付帯設備が、割付後に存在する辺を指しているか.
 
@@ -331,7 +358,28 @@ def check_edge_indices(spec: dict, model) -> None:
         for i, item in enumerate(lst):
             if not isinstance(item, dict):
                 continue
+            # 面名（"北面"）での指定を辺番号に解く。辺番号は外形の整理（反転・斜辺の
+            # 置き換え・共線頂点の除去）で入力の頂点順とずれ、実機の五角形棟では入力順の
+            # 辺3（北面）が整理後は西面になり、昇降機が西面に置かれた。面名なら整理の
+            # 影響を受けない
+            if item.get("face") is not None:
+                try:
+                    resolved = resolve_face_name(str(item["face"]), model)
+                except InputError as e:
+                    errors.append(f"{key}[{i}].face: {e}")
+                    continue
+                ei0 = item.get("edge_index")
+                if ei0 is not None and not isinstance(ei0, bool) and int(ei0) != resolved:
+                    errors.append(
+                        f"{key}[{i}]: face「{item['face']}」は辺{resolved}ですが edge_index は{int(ei0)}です。"
+                        "どちらか一方にしてください"
+                    )
+                    continue
+                item["edge_index"] = resolved
             ei = item.get("edge_index")
+            if ei is None:
+                errors.append(f"{key}[{i}]: 面の指定がありません（face: \"北面\" か edge_index）")
+                continue
             if isinstance(ei, bool) or not isinstance(ei, (int, float)):
                 continue
             if int(ei) not in valid:
@@ -874,16 +922,20 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         )
     # 外形を整理した（反転・重複除去・渡し）うえで辺番号つきの付帯設備があるなら、
     # その番号が入力の頂点順と一致しない可能性を先に言う
+    def _uses_index(lst) -> bool:
+        return any(isinstance(x, dict) and x.get("face") is None for x in (lst or []))
+
     edge_keys = [k for k in ("openings", "loading_stages", "hoists", "bracket_sections")
-                 if spec.get(k)]
-    if spec.get("stairs", {}).get("positions"):
+                 if _uses_index(spec.get(k))]
+    if _uses_index(spec.get("stairs", {}).get("positions")):
         edge_keys.append("stairs.positions")
     if edge_keys and model.plan.outline.notes:
         model.plan.warnings.append(
             "外形を整理したため（" + "／".join(n.split("。")[0] for n in model.plan.outline.notes)
             + "）、辺番号が入力の頂点順とずれている可能性があります。"
             + "・".join(edge_keys) + " の edge_index は、平面割付表の辺・面名・躯体頂点で"
-            "指定した面に当たっているか確認してください"
+            "指定した面に当たっているか確認してください（辺番号の代わりに face: \"北面\" で"
+            "面名指定もできます）"
         )
     st = spec.get("stairs", {})
     if st.get("positions"):

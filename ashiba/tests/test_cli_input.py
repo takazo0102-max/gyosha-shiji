@@ -598,5 +598,67 @@ class TestDocumentedSchemaIsRead(unittest.TestCase):
         )
 
 
+class TestFaceNamesInsteadOfEdgeIndex(unittest.TestCase):
+    """付帯設備の面は face: "北面" でも指定できる。辺番号は外形の整理でずれる."""
+
+    def _solve(self, **extra):
+        import json
+        import tempfile
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = dict(BASE, **extra)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            return solve_all(load_spec(p))
+
+    def test_face_name_resolves_to_the_edge(self):
+        r = self._solve(hoists=[{"face": "北面", "position_mm": 9000}])
+        h = r.platforms.hoists[0]
+        self.assertEqual(r.model.face_name(h.edge_index), "北面")
+
+    def test_face_survives_outline_normalisation(self):
+        """実機の五角形棟: 入力順の辺3は北面だが、斜辺の置き換えで整理後は西面になった."""
+        pent = [[0, 0], [30000, 0], [30000, 12000], [20000, 20000], [0, 20000]]
+        r = self._solve(outline_mm=pent, hoists=[{"face": "北面", "position_mm": 9000}])
+        self.assertEqual(r.model.face_name(r.platforms.hoists[0].edge_index), "北面")
+        r2 = self._solve(outline_mm=pent, hoists=[{"edge_index": 3, "position_mm": 9000}])
+        self.assertEqual(r2.model.face_name(r2.platforms.hoists[0].edge_index), "西面")
+        # 面名で指定した項目には「辺番号がずれている可能性」の警告を出さない
+        self.assertFalse(any("辺番号が入力の頂点順とずれている" in w[2] for w in r.warnings), r.warnings)
+        self.assertTrue(any("辺番号が入力の頂点順とずれている" in w[2] for w in r2.warnings))
+
+    def test_short_form_and_stairs(self):
+        r = self._solve(stairs={"positions": [{"face": "南", "start_mm": 9000}, {"face": "北面", "start_mm": 9000}]})
+        faces = sorted(r.model.face_name(t.edge_index) for t in r.stair_plan.towers)
+        self.assertEqual(faces, ["北面", "南面"])
+
+    def test_unknown_face_lists_the_faces(self):
+        with self.assertRaises(InputError) as cm:
+            self._solve(openings=[{"face": "北西面", "start_mm": 3600, "beam_span_mm": 3600}])
+        self.assertIn("openings[0].face: 面「北西面」はありません", str(cm.exception))
+        self.assertIn("南面・東面・北面・西面", str(cm.exception))
+
+    def test_duplicate_direction_needs_the_edge_number(self):
+        l_shape = [[0, 0], [30000, 0], [30000, 10000], [15000, 10000], [15000, 20000], [0, 20000]]
+        with self.assertRaises(InputError) as cm:
+            self._solve(outline_mm=l_shape, hoists=[{"face": "北面", "position_mm": 3600}])
+        self.assertIn("複数あります", str(cm.exception))
+        self.assertIn("北面(辺", str(cm.exception))
+        r = self._solve(outline_mm=l_shape, hoists=[{"face": "北面(辺2)", "position_mm": 3600}])
+        self.assertEqual(r.platforms.hoists[0].edge_index, 2)
+
+    def test_face_and_edge_index_must_agree(self):
+        with self.assertRaises(InputError) as cm:
+            self._solve(hoists=[{"face": "北面", "edge_index": 0, "position_mm": 3600}])
+        self.assertIn("どちらか一方", str(cm.exception))
+
+    def test_neither_is_an_error(self):
+        with self.assertRaises(InputError) as cm:
+            self._solve(hoists=[{"position_mm": 3600}])
+        self.assertIn('"edge_index" が要ります（または face: "北面"）', str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
