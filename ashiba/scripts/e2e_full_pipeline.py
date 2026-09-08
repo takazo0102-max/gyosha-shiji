@@ -188,6 +188,11 @@ def main() -> None:
     if not keep:
         c.delete_elements(placed)
         print(f"テスト要素 {len(placed)}個を削除（--keep で残せます）")
+    else:
+        # --keep の繰り返しで同じ位置に溜まらないよう、前回の残りは置き換える
+        replaced = c.delete_stale_duplicates(placed)
+        if replaced:
+            print(f"前回の残り {replaced}個を置き換え")
 
     # このシナリオは斜面（ジャッキ約400mm）＋1tの荷受けステージをくさび支柱に載せる。
     # くさび支柱は一般値6.86kN（信和の認定値はカタログ非公開）なので建地圧縮は是正になる。

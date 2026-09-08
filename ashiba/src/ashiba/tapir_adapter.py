@@ -301,6 +301,47 @@ class ArchicadClient:
                 pass    # 同名の部品が既にある（Tapir は「not a valid relative path」で弾く）
         return added
 
+    def delete_stale_duplicates(self, placed: list[dict]) -> int:
+        """今回置いたオブジェクトと同じ部品・同じ位置・同じ向きの古いオブジェクトを消す.
+
+        同じスラブでツールバーを再実行すると、前回の足場ライン・立面図・詳細図の上に
+        新しいものが重なって溜まる（実機で13個ずつ増えた）。位置が1mm以内で一致する
+        同名部品だけを消すので、別の建物の配置や他ツールの部品には触らない。
+        戻り値は消した個数。
+        """
+        if not placed:
+            return 0
+        placed_guids = {e["elementId"]["guid"] for e in placed}
+        keys = set()
+        for d in self.get_details(placed):
+            dd = d.get("details", {})
+            lp = dd.get("libPart") or {}
+            name = lp.get("name") if isinstance(lp, dict) else ""
+            o = dd.get("origin") or {}
+            if name and o:
+                keys.add((name, round(float(o.get("x", 0)) * 1000), round(float(o.get("y", 0)) * 1000),
+                          round(float(dd.get("angle") or 0.0), 4)))
+        if not keys:
+            return 0
+        names = {k[0] for k in keys}
+        all_objs = self.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+        candidates = [e for e in all_objs if e["elementId"]["guid"] not in placed_guids]
+        stale = []
+        for e, d in zip(candidates, self.get_details(candidates) if candidates else []):
+            dd = d.get("details", {})
+            lp = dd.get("libPart") or {}
+            name = lp.get("name") if isinstance(lp, dict) else ""
+            if name not in names:
+                continue
+            o = dd.get("origin") or {}
+            key = (name, round(float(o.get("x", 0)) * 1000), round(float(o.get("y", 0)) * 1000),
+                   round(float(dd.get("angle") or 0.0), 4))
+            if key in keys:
+                stale.append(e)
+        if stale:
+            self.delete_elements(stale)
+        return len(stale)
+
     def find_red_pen(self, default: int = 20) -> int:
         """有効なペンテーブルから最も赤に近いペン番号を返す.
 

@@ -122,9 +122,12 @@ def main() -> None:
             origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
         )
 
+    # 同じスラブでの再実行は、前回の配置（同じ部品・同じ位置）を置き換える
+    replaced = client.delete_stale_duplicates(lines + elevs + details)
     v = result["verdict"]
     print(f"足場ライン {len(lines)}本・立面図 {len(elevs)}面・"
-          f"詳細図 {len(details)}枚を配置しました")
+          f"詳細図 {len(details)}枚を配置しました"
+          + (f"（前回の配置{replaced}個を置き換え）" if replaced else ""))
     print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))
     for b in v["blockers"]:
         print(f"  是正: {b}")

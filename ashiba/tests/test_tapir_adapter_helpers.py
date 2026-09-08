@@ -39,5 +39,49 @@ class TestEnsureEmbeddedParts(unittest.TestCase):
         self.assertTrue(any(cmd == "ReloadLibraries" for cmd, _ in c.calls))
 
 
+class _DupStub(ArchicadClient):
+    """オブジェクト一覧と詳細を持つ疑似クライアント."""
+
+    def __init__(self, objects):
+        self.objects = objects      # guid -> (name, x_m, y_m, angle)
+        self.deleted = []
+
+    def tapir(self, command, params):
+        if command == "GetElementsByType":
+            return {"elements": [{"elementId": {"guid": g}} for g in self.objects]}
+        if command == "GetDetailsOfElements":
+            out = []
+            for e in params["elements"]:
+                name, x, y, a = self.objects[e["elementId"]["guid"]]
+                out.append({"details": {"libPart": {"name": name}, "origin": {"x": x, "y": y, "z": 0}, "angle": a}})
+            return {"detailsOfElements": out}
+        if command == "DeleteElements":
+            self.deleted += [e["elementId"]["guid"] for e in params["elements"]]
+            return {}
+        return {}
+
+
+class TestDeleteStaleDuplicates(unittest.TestCase):
+    def test_only_same_part_same_spot_goes(self):
+        objs = {
+            "new1": ("ashiba_line", 299.7, 299.65, 0.0),
+            "old1": ("ashiba_line", 299.7, 299.65, 0.0),        # 同じ位置の前回分 → 消す
+            "old_far": ("ashiba_line", 399.7, 299.65, 0.0),     # 別の建物 → 残す
+            "old_rot": ("ashiba_line", 299.7, 299.65, 1.5708),  # 向きが違う → 残す
+            "other": ("FR_Column", 299.7, 299.65, 0.0),          # 他ツールの部品 → 残す
+            "old_close": ("ashiba_line", 299.7004, 299.65, 0.0),  # 0.4mm 違い → 同じ位置とみなす
+        }
+        c = _DupStub(objs)
+        n = c.delete_stale_duplicates([{"elementId": {"guid": "new1"}}])
+        self.assertEqual(n, 2)
+        self.assertEqual(sorted(c.deleted), ["old1", "old_close"])
+
+    def test_nothing_placed_nothing_deleted(self):
+        c = _DupStub({"a": ("ashiba_line", 0, 0, 0)})
+        self.assertEqual(c.delete_stale_duplicates([]), 0)
+        self.assertEqual(c.deleted, [])
+
+
 if __name__ == "__main__":
     unittest.main()
+
