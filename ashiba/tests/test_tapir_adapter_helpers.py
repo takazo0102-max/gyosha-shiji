@@ -90,6 +90,7 @@ class TestObjectsForSlab(unittest.TestCase):
             "det": ("ashiba_detail", 300.0, 280.0, 0.0),        # 詳細図の行（y0-20m）
             "other_bldg": ("ashiba_line", 399.7, 299.65, 0.0),  # 別の建物（x が外）
             "other_row": ("ashiba_line", 300.0, 270.0, 0.0),    # どの行でもない
+            "east_bldg_elev": ("ashiba_line", 460.0, 255.0, 0.0),  # 同じ行の東隣の建物の立面図 → 拾わない
             "fr": ("FR_Column", 300.0, 300.0, 0.0),             # 他ツール
         }
         c = _DupStub(objs)

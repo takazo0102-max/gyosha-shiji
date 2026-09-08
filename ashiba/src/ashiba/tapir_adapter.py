@@ -357,6 +357,15 @@ class ArchicadClient:
         ys = [float(p[1]) for p in outline_mm]
         x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
         rows = (y0 + elevation_offset_mm, y0 + detail_offset_mm)
+        # 行の右端はこの建物の並べ幅（各面の足場長＋面間4m）まで。上限を付けないと、
+        # 同じ行に並ぶ東隣の建物の立面図まで拾う（30m棟の4面目が x0+94m まで来る）
+        n = len(outline_mm)
+        perimeter = sum(
+            ((outline_mm[(i + 1) % n][0] - outline_mm[i][0]) ** 2
+             + (outline_mm[(i + 1) % n][1] - outline_mm[i][1]) ** 2) ** 0.5
+            for i in range(n)
+        )
+        row_x_max = x0 + perimeter + 4000.0 * (n + 1) + margin_mm
         all_objs = self.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
         out: list[dict] = []
         for e, d in zip(all_objs, self.get_details(all_objs) if all_objs else []):
@@ -368,7 +377,7 @@ class ArchicadClient:
             o = dd.get("origin") or {}
             ox, oy = float(o.get("x", 0)) * 1000, float(o.get("y", 0)) * 1000
             in_plan = (x0 - margin_mm <= ox <= x1 + margin_mm) and (y0 - margin_mm <= oy <= y1 + margin_mm)
-            in_row = ox >= x0 - margin_mm and any(abs(oy - r) <= margin_mm for r in rows)
+            in_row = (x0 - margin_mm <= ox <= row_x_max) and any(abs(oy - r) <= margin_mm for r in rows)
             if in_plan or in_row:
                 out.append(e)
         return out
