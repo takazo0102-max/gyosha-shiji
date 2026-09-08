@@ -285,10 +285,10 @@ def take_off(
         add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
     if stage_cells and (rails_outer or advance_rail):
         notes.append(
-            f"荷受けステージの間口（{sum(stage_cells.values())}スパン×層）は設置層で本体の"
+            f"荷受けステージの間口・昇降機の乗り込み口（計{sum(stage_cells.values())}スパン×層）は本体の"
             + ("外側の手すり・中桟" if rails_outer else "先行手摺")
             + ("・幅木" if model.config.has_toe_board else "")
-            + "を外しています（ステージの先端・妻側の手すりで防護）"
+            + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すりで防護）"
         )
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     notes.append(
@@ -456,12 +456,25 @@ def take_off(
 
 
 def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
-    """荷受けステージの間口のセル（スパン呼び寸法 → スパン数×設置層数）."""
+    """本体の外側手すり・中桟・幅木を外すセル（スパン呼び寸法 → スパン数×層数）.
+
+    荷受けステージの間口（設置層）と、昇降機の乗り込み口（乗り込む層の、位置を含む
+    1スパン。固定の手すりの代わりに開閉式手すりが付く）。3D・立面も同じ区間を空ける
+    """
+    from .platforms import _edge, _span_index
+
     out: dict[int, int] = {}
     for s in (getattr(platforms, "stages", None) or []):
         n_lv = max(1, len(s.levels) or 1)
         for nominal in s.spans(model):
             out[nominal] = out.get(nominal, 0) + n_lv
+    for h in (getattr(platforms, "hoists", None) or []):
+        edge = _edge(model, h.edge_index)
+        if edge is None or not edge.spans:
+            continue
+        i = min(_span_index(edge, h.position_mm), len(edge.spans) - 1)
+        nominal = edge.spans[i]
+        out[nominal] = out.get(nominal, 0) + len(h.landings(model))
     return out
 
 

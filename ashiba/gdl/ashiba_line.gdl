@@ -1099,6 +1099,10 @@ for il = 2 to nLv
 			if xs >= sgS[ig2] - 0.001 and xe <= sgS[ig2] + sgL[ig2] + 0.001 and \
 					abs(z - sgH[ig2]) < 0.001 then inSg = 1
 		next ig2
+		! 昇降機の乗り込み口（開閉式手すりは別に描く）
+		for il4 = 1 to nLa
+			if laP[il4] >= xs - 0.001 and laP[il4] < xe - 0.001 and abs(z - laH[il4]) < 0.001 then inSg = 2
+		next il4
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
@@ -1107,8 +1111,8 @@ for il = 2 to nLv
 			if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			! 手すり・中桟は階段室にも要る
 			if inSg = 0 then line2 xs, z + railTop, xe, z + railTop
-			if inSg = 1 then
-				! ステージの間口: 躯体側の手すり・中桟だけ
+			if inSg >= 1 then
+				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ
 				if railIn = 1 and nRows >= 2 then
 					line2 xs, z + railTop, xe, z + railTop
 					line2 xs, z + railMid, xe, z + railMid
@@ -1590,6 +1594,28 @@ for il = 1 to nLv
 			if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
 					abs(z - sgH[ig2]) < 0.001 then inSg = 1
 		next ig2
+		! 昇降機の乗り込み口（位置を含むスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
+		for il4 = 1 to nLa
+			if laP[il4] >= x - 0.001 and laP[il4] < x + spans[ip] - 0.001 and \
+					abs(z - laH[il4]) < 0.001 then inSg = 2
+		next il4
+		if il > 1 and skipH = 0 and inSg = 2 then
+			! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
+			add x + 0.05, -rowW, z + 0.10
+			cylind railTop - 0.10, 0.015
+			del 1
+			add x + spans[ip] - 0.05, -rowW, z + 0.10
+			cylind railTop - 0.10, 0.015
+			del 1
+			add x + 0.05, -rowW, z + railTop
+			roty 90
+			cylind spans[ip] - 0.10, 0.015
+			del 2
+			add x + 0.05, -rowW, z + railMid
+			roty 90
+			cylind spans[ip] - 0.10, 0.015
+			del 2
+		endif
 		! 外側手すり・中桟（作業層のみ）
 		if il > 1 and skipH = 0 and inSg = 0 then
 			add x, -rowW, z + railTop
@@ -1724,6 +1750,10 @@ if showDeck then
 					if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
 							abs(z - sgH[ig3]) < 0.001 then inSg = 1
 				next ig3
+				for il5 = 1 to nLa
+					if laP[il5] >= x - 0.001 and laP[il5] < x + spans[ip] - 0.001 and \
+							abs(z - laH[il5]) < 0.001 then inSg = 2
+				next il5
 				if railAdv = 0 and inSg = 0 then
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157

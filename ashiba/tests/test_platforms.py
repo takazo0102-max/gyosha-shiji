@@ -427,6 +427,17 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
                        loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2]}])
         self.assertEqual(st.quantity.qty_of("先行手摺"), base.quantity.qty_of("先行手摺") - 2)
 
+    def test_hoist_landing_bays(self):
+        """乗り込み口（位置を含むスパン×乗り込む層）も固定手すり・幅木を外す（開閉式手すりに置き換わる）."""
+        base = self._run()
+        h = self._run(hoists=[{"edge_index": 0, "position_mm": 9000, "landing_levels": [2, 5]}])
+        self.assertEqual(h.quantity.qty_of("布材"), base.quantity.qty_of("布材") - 2 * 2)
+        self.assertEqual(h.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") - 2)
+        # 開閉式手すりはマスタに無い系列では手配注記になる（どちらでも2箇所が出ること）
+        mentioned = (h.quantity.qty_of("開閉式手すり") == 2
+                     or any("開閉式手すり" in n for n in h.quantity.notes))
+        self.assertTrue(mentioned, h.quantity.notes)
+
     def test_scripts_share_the_rule(self):
         from pathlib import Path
 
@@ -434,6 +445,7 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
         for name in ("3d.gdl", "2d.gdl"):
             body = (root / name).read_text(encoding="utf-8")
             self.assertIn("abs(z - sgH[ig2]) < 0.001 then inSg = 1", body, name)
+            self.assertIn("abs(z - laH[il4]) < 0.001 then inSg = 2", body, name)
             self.assertIn("inSg = 0", body, name)
 
 
