@@ -122,8 +122,19 @@ def main() -> None:
             origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
         )
 
-    # 同じスラブでの再実行は、前回の配置（同じ部品・同じ位置）を置き換える
-    replaced = client.delete_stale_duplicates(lines + elevs + details)
+    # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
+    # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
+    # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）
+    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details}
+    stale = [
+        e for e in client.objects_for_slab(
+            r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT),
+            elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
+        ) if e["elementId"]["guid"] not in placed_now
+    ]
+    if stale:
+        client.delete_elements(stale)
+    replaced = len(stale)
     v = result["verdict"]
     print(f"足場ライン {len(lines)}本・立面図 {len(elevs)}面・"
           f"詳細図 {len(details)}枚を配置しました"
