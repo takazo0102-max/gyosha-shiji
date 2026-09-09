@@ -662,7 +662,12 @@ if nJk >= 2 then
 		if jk[ij] < jmin then jmin = jk[ij]
 		if jk[ij] > jmax then jmax = jk[ij]
 	next ij
-	text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0) + "〜" + str(jmax * 1000, 4, 0) + "（高低差あり・脚ごと）"
+	! 脚ごとの値がほぼ同じ（差5mm未満）なら範囲で書かない（「265〜265（高低差あり）」は誤解を招く）
+	if jmax - jmin < 0.005 then
+		text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0)
+	else
+		text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0) + "〜" + str(jmax * 1000, 4, 0) + "（高低差あり・脚ごと）"
+	endif
 else
 	text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
 endif
