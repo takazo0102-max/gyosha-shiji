@@ -54,7 +54,7 @@ def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssu
         rng = "・".join(_rng(s0, s1) for s0, s1 in cut) or f"{h.position_mm:.0f}mm付近"
         out.append(ConflictIssue(
             f"昇降機×{label}", "WARN",
-            f"辺{h.edge_index}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）のマスト・搬器は"
+            f"{model.face_name(h.edge_index)}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）のマスト・搬器は"
             f"{label}{len(heights)}段（高さ{hs}mm）を貫きます。該当スパン（{rng}）の{label}は"
             f"切り欠き、その開口は昇降機メーカー仕様の防護で塞いでください"
             f"（{label}の数量は切り欠き前の全スパンで計上しています）",
@@ -71,7 +71,7 @@ def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssu
                 continue
             out.append(ConflictIssue(
                 f"ステージ×{label}", "WARN",
-                f"辺{st.edge_index}の荷受けステージ{i + 1}（第{level}層・高さ{z:.0f}mm）が"
+                f"{model.face_name(st.edge_index)}の荷受けステージ{i + 1}（第{level}層・高さ{z:.0f}mm）が"
                 f"{label}（高さ{'・'.join(f'{x:.0f}' for x in hit)}mm、先端の上がり{rise:.0f}mm）と"
                 f"同じ高さ帯にあり、張出しが重なります。ステージの層を変えるか、"
                 f"{label}の設置高さ（asagao.heights_mm）をずらしてください",
@@ -106,7 +106,7 @@ def check_conflicts(
             ):
                 out.append(ConflictIssue(
                     "階段室×開口部", "NG",
-                    f"辺{o.edge_index}の階段室（{_rng(t.start_mm, t.end_mm)}）が"
+                    f"{model.face_name(o.edge_index)}の階段室（{_rng(t.start_mm, t.end_mm)}）が"
                     f"開口部（{o_rng}）と重なっています。梁枠より下は{vm}を抜いた"
                     "通路で床が無く、階段室を組めません。階段位置か開口部をずらしてください",
                     "安衛則526条・563条（昇降設備・作業床）",
@@ -118,7 +118,7 @@ def check_conflicts(
             ):
                 out.append(ConflictIssue(
                     "ステージ×開口部", "NG",
-                    f"辺{o.edge_index}の荷受けステージ{i + 1}"
+                    f"{model.face_name(o.edge_index)}の荷受けステージ{i + 1}"
                     f"（{_rng(st.start_mm, st.end_mm(model))}）が開口部（{o_rng}）の"
                     "区間にあります。梁枠上は積載荷重を低減する区間で、荷受けステージの"
                     "集中荷重は受けられません。ステージを開口部の外に移してください",
@@ -135,7 +135,7 @@ def check_conflicts(
             if below:
                 out.append(ConflictIssue(
                     "ブラケット区間×開口部", "NG",
-                    f"辺{o.edge_index}のブラケット区間{i + 1}"
+                    f"{model.face_name(o.edge_index)}のブラケット区間{i + 1}"
                     f"（{_rng(b.start_mm, b.end_mm)}・第{'・'.join(map(str, below))}層）が"
                     f"開口部（{o_rng}）の梁枠より下にかかっています。その層は{vm}を"
                     "抜いているので、ブラケットを取り付けられません。区間か層を見直してください",
@@ -144,7 +144,7 @@ def check_conflicts(
             else:
                 out.append(ConflictIssue(
                     "ブラケット区間×開口部", "WARN",
-                    f"辺{o.edge_index}のブラケット区間{i + 1}"
+                    f"{model.face_name(o.edge_index)}のブラケット区間{i + 1}"
                     f"（{_rng(b.start_mm, b.end_mm)}）が開口部（{o_rng}）の梁枠上に"
                     "かかっています。梁枠上の積載を低減し、ブラケットの偏心荷重を"
                     f"梁枠両端の{vm}で確認してください",
@@ -158,7 +158,7 @@ def check_conflicts(
                 on_beam = [lv for lv in h.landings(model) if lv >= o.level]
                 out.append(ConflictIssue(
                     "昇降機×開口部", "WARN",
-                    f"辺{o.edge_index}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）が"
+                    f"{model.face_name(o.edge_index)}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）が"
                     f"開口部（{o_rng}）の区間にあります。梁枠より下には控えを取る{vm}が"
                     f"無いので、マスト控えは梁枠両端の{vm}か躯体に取ってください"
                     + (f"。乗り込み口 第{'・'.join(map(str, on_beam))}層は梁枠上なので"
@@ -185,7 +185,7 @@ def check_conflicts(
                 continue
             out.append(ConflictIssue(
                 "ステージ×ブラケット区間", "NG",
-                f"辺{st.edge_index}の荷受けステージ{i + 1}"
+                f"{model.face_name(st.edge_index)}の荷受けステージ{i + 1}"
                 f"（{_rng(st.start_mm, st.end_mm(model))}）とブラケット区間{j + 1}"
                 f"（{_rng(b.start_mm, b.end_mm)}）が第{'・'.join(map(str, hit))}層で"
                 "重なっています。ステージは専用の張出ブラケットで組むので、同じ区間に"
