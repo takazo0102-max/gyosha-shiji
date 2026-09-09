@@ -1101,6 +1101,15 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
+    # 一側足場の床（受けブラケット幅＝建地列間隔）に階段枠（幅420〜450）は収まらない。
+    # 区間・数量は計上するが、その区間の組み方は別途要る（実機の一側棟で階段室が幅400の
+    # 床の中に描かれていた）
+    if model.config.scaffold_form == "一側足場" and getattr(stair_plan, "towers", None):
+        stair_plan.warnings.append(
+            f"一側足場の作業床（幅{model.post_row_spacing_mm}mm）には階段枠（幅420〜450mm）が収まりません。"
+            f"階段室{len(stair_plan.towers)}箇所の区間は本足場（建地2列）で組むか、階段用ブラケットで"
+            "受けてください（階段・踊り場の数量と区間は計上済み。その区間の支柱・布材の追加は含んでいません）"
+        )
     # 取付部・マスト控えの壁つなぎを格子と同じ一覧へ（図面・数量・検定が同じ本数になる。
     # 最適化で既に載っていれば何もしない）
     merge_attachment_ties(model, platforms, openings)

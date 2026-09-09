@@ -384,5 +384,25 @@ class TestUnevenStairPositionsGetAUsefulHint(unittest.TestCase):
         self.assertTrue(hits and "箇所以上を推奨" in hits[0], hits)
 
 
+class TestSingleRowStairsNeedADoubleRowSection(unittest.TestCase):
+    def test_warning_is_raised(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1]
+        spec = json.loads((root / "examples" / "hitokawa.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        self.assertTrue(r.stair_plan.towers)
+        hit = [w[2] for w in r.warnings if "階段枠" in w[2] and "収まりません" in w[2]]
+        self.assertEqual(len(hit), 1, r.warnings)
+        self.assertIn("本足場", hit[0])
+
+
 if __name__ == "__main__":
     unittest.main()
