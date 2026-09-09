@@ -1462,6 +1462,9 @@ return
 ! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体側 +Y
 ! ============================================================
 pen 1
+! 円柱の分割数。既定36だと30m面1つの3D生成に約40秒（支柱・布材・コマで数千本）。
+! 12にすると見た目は保ったまま面数が1/3になる。コマ・ナットは6
+resol 12
 
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
@@ -1533,7 +1536,7 @@ if cornerS = 1 then
 		del nPost + 2
 	endif
 	if komaPitch > 0 then
-		resol 8
+		resol 6
 		zk = lv[1]
 		while zk < postTop - 0.01 do
 			add -rowW, -rowW, zk - 0.005
@@ -1541,7 +1544,7 @@ if cornerS = 1 then
 			del 1
 			zk = zk + komaPitch
 		endwhile
-		resol 36
+		resol 12
 	endif
 	for il = 1 to nLv
 		z = lv[il]
@@ -1593,7 +1596,7 @@ endif
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
 if komaPitch > 0 then
-	resol 8
+	resol 6
 	x = 0
 	for ip = 1 to nSpan + 1
 		bBase = 0
@@ -1613,7 +1616,7 @@ if komaPitch > 0 then
 		next row
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
-	resol 36
+	resol 12
 endif
 
 ! ---- 水平材（根がらみ＋各作業層） ----
@@ -2196,7 +2199,7 @@ del 1
 add 0, 0, jo - 0.03
 resol 6
 cylind 0.03, 0.045
-resol 36
+resol 12
 addz 0.015
 roty 90
 add 0, 0, -0.09
