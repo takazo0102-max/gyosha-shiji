@@ -112,7 +112,8 @@ class TestSingleRowScaffold(unittest.TestCase):
         jacks_single = take_off(single).qty_of("ジャッキ")
         jacks_double = take_off(double).qty_of("ジャッキ")
         # 本足場は出隅の外側コーナー支柱（ジャッキ＋アンダーベース）が加わる
-        self.assertEqual(jacks_double - 2 * double.outer_corner_posts(), jacks_single * 2)
+        self.assertEqual(jacks_double - 2 * double.outer_corner_posts(),
+                         2 * (jacks_single - 2 * single.outer_corner_posts()))
         self.assertEqual(
             line_params(double, double.plan.edges[0])["nRows"],
             2 * line_params(single, single.plan.edges[0])["nRows"],
@@ -827,7 +828,7 @@ class TestCornerReachesTheDrawing(unittest.TestCase):
         m = build("shinwa_A")
         self.assertTrue(all(line_params(m, e)["cornerS"] == 1 for e in m.plan.edges))
         m.config.scaffold_form = "一側足場"
-        self.assertEqual(line_params(m, m.plan.edges[0])["cornerS"], 0)
+        self.assertEqual(line_params(m, m.plan.edges[0])["cornerS"], 1)   # 一側も建地列が躯体コーナーで終わる
         w = build("waku")
         self.assertEqual(line_params(w, w.plan.edges[0])["cornerS"], 0)
 

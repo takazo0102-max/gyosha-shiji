@@ -198,7 +198,7 @@ def line_params(
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,
         # 始点が出隅なら、その外側のコーナー（外側建地・布材・踏板・幅木）をこの面が描く
         # （各面は始点支柱を所有する規則と同じ向き。実機の3Dで四隅が抜けていた）
-        "cornerS": 1 if (model.config.scaffold_form != "一側足場" and not model.master.is_frame
+        "cornerS": 1 if (not model.master.is_frame
                          and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,

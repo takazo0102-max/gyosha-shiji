@@ -155,7 +155,8 @@ class TestQuantity(unittest.TestCase):
         )
         q = take_off(model)
         jacks = [l for l in q.lines if l.part.category == "ジャッキ" and "アンダー" not in l.part.note]
-        self.assertEqual(jacks[0].qty, self.plan.total_posts)
+        # 建地1列＋出隅の外側コーナー支柱（一側でも付く）
+        self.assertEqual(jacks[0].qty, self.plan.total_posts + model.outer_corner_posts())
 
 
 class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):
@@ -527,8 +528,9 @@ class TestSingleRowLedgers(unittest.TestCase):
         q = take_off(m)
         nl = m.elevation.n_levels
         spans = m.plan.total_spans
-        # 根がらみ1＋各層（床1＋手すり・中桟2）。腕木は無し。継ぎ足し無し
-        expect = spans * (1 + nl * 3)
+        # 根がらみ1＋各層（床1＋手すり・中桟2）。腕木は無し。継ぎ足し無し。
+        # 出隅の外側コーナー升目（布材 2辺×〈根がらみ1＋各層3〉）は一側でも付く
+        expect = spans * (1 + nl * 3) + m.outer_corner_posts() * 2 * (1 + nl * 3)
         self.assertEqual(q.qty_of("布材"), expect)
         note = next(n for n in q.notes if n.startswith("布材は1スパンあたり"))
         self.assertIn("根がらみ1本", note)

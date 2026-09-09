@@ -76,7 +76,7 @@ hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
 
 ! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
-if cornerS = 1 and nRows >= 2 then
+if cornerS = 1 then
 	line2 -rowW, 0, -rowW, -rowW
 	line2 -rowW, -rowW, 0, -rowW
 	circle2 -rowW, -rowW, r_sic
@@ -456,7 +456,7 @@ for ip = 1 to nSpan
 next ip
 
 ! 始点の出隅コーナー（外側コーナー支柱と、そこまでの布材・手すり・踏板・幅木）
-if cornerS = 1 and nRows >= 2 then
+if cornerS = 1 then
 	gv = 0
 	if nGl >= 1 then gv = gl[1]
 	line2 -rowW, gv, -rowW, postTop

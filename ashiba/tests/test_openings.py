@@ -250,7 +250,8 @@ class TestSingleRowOpening(unittest.TestCase):
         self.assertEqual(r.quantity.qty_of("梁枠", 3600), 1)
         jacks = sum(l.qty for l in r.quantity.lines
                     if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
-        self.assertEqual(jacks, r.model.plan.total_posts - 1)
+        # 建地1列（抜いた1本を除く）＋出隅の外側コーナー支柱
+        self.assertEqual(jacks, r.model.plan.total_posts - 1 + r.model.outer_corner_posts())
         self.assertEqual(len(r.structural.openings), 1)
 
 
