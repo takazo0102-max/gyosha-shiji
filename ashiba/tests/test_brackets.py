@@ -226,8 +226,10 @@ class TestOuterBracketEdge(unittest.TestCase):
         q = take_off(self.m, bracket_sections=self._sec("張出"))
         # 3スパン×2層＝6セル。新しい縁に手すり＋中桟2本・幅木1本を足し、建地位置の
         # 外側手すり・中桟2本・幅木1本（床の途中に立つことになる）を外すので差は0
-        self.assertEqual(q.qty_of("布材") - self.base.qty_of("布材"), 12 - 12)
-        self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6 - 6)
+        # 妻側（両端）: 手すり・中桟 2箇所×2本×2層＝8本、幅木 2箇所×2層＝4本
+        self.assertEqual(q.qty_of("布材") - self.base.qty_of("布材"), 12 - 12 + 8)
+        self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6 - 6 + 4)
+        self.assertEqual(q.qty_of("布材", 600) - self.base.qty_of("布材", 600), 8)
         # 縁の部材が別行で入っていること
         edge_rails = sum(qty for what, qty in q.breakdown_for("布材") if "張出し外縁" in what) \
             if hasattr(q, "breakdown_for") else None

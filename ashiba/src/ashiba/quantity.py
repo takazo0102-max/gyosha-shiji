@@ -786,6 +786,17 @@ def _count_bracket_parts(
         add(m.find("布材", span), cells * 2, f"張出し外縁の手すり・中桟{span}")
         if model.config.has_toe_board:
             add(m.find("幅木", span), cells, f"張出し外縁の幅木{span}")
+    # 張出し区間の両端（妻側）も開放端。前面だけ手すりを立てても横から落ちる
+    # （荷受けステージの妻側と同じ扱い。3Dも同じ位置に描く）
+    from .brackets import OUTER as _OUTER
+    for sec in bracket_sections or []:
+        if sec.direction != _OUTER or sec.length_mm <= 0:
+            continue
+        n_lv = len(sec.levels) if sec.levels else model.elevation.n_levels
+        w = int(sec.width)
+        add(m.find("布材", w), 2 * 2 * n_lv, f"張出し妻側の手すり・中桟{w}")
+        if model.config.has_toe_board:
+            add(m.find("幅木", w), 2 * n_lv, f"張出し妻側の幅木{w}")
 
     # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
     for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):

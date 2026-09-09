@@ -684,6 +684,22 @@ for ik = 1 to nBk
 		add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + midH
 		block bkLen, 0.0427, 0.0427
 		del 1
+		! 妻側（両端）も開放端。手すり・中桟・幅木（数量の「張出し妻側」と同じ）
+		for ie2 = 0 to 1
+			xk = bkS[ik] + bkLen * ie2
+			for ir2 = 1 to 2
+				if ir2 = 1 then hgt = railH else hgt = midH
+				add xk, -rowW, bkH[ik] + hgt
+				rotx 90
+				cylind bkW[ik], r_nuno
+				del 2
+			next ir2
+			if railAdv = 0 then
+				add xk - 0.01, -rowW - bkW[ik], bkH[ik] + 0.045
+				block 0.02, bkW[ik], 0.157
+				del 1
+			endif
+		next ie2
 	endif
 next ik
 
