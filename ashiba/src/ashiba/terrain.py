@@ -41,6 +41,8 @@ class GroundModel:
     points: list[tuple[float, float, float]] = field(default_factory=list)  # (x,y,z) mm
     k_nearest: int = 4
     power: float = 2.0
+    # 建物の範囲に掛からず無視した敷地メッシュの数（read_ground_model が建物外形で絞ったとき）
+    ignored_meshes: int = 0
 
     @property
     def is_flat(self) -> bool:

@@ -26,6 +26,7 @@ sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
+    MESH_MARGIN_MM,
     ArchicadClient,
     get_selected_outline_mm,
     place_details,
@@ -163,7 +164,10 @@ def main() -> None:
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
-    ground = read_ground_model(client)
+    ground = read_ground_model(client, outline_mm=spec["outline_mm"])
+    if ground.ignored_meshes:
+        print(f"敷地メッシュ{ground.ignored_meshes}個は建物の範囲外（{MESH_MARGIN_MM / 1000:.0f}m以上離れている）"
+              "なので、この棟の地盤には使いません")
     if not ground.is_flat:
         spec["ground_points_mm"] = [list(p) for p in ground.points]
 

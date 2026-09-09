@@ -604,8 +604,8 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
 
     def test_jack_callout_sits_below_the_span_dimension(self):
         line = [ln for ln in self.body.splitlines() if '"ジャッキ繰出' in ln]
-        # 平坦／高低差あり（脚ごとの範囲）の2分岐。どちらも同じ位置に置く
-        self.assertEqual(len(line), 2, "ジャッキ繰出しの記載は平坦・高低差の2分岐")
+        # 平坦／高低差あり（脚ごとに同じ値）／高低差あり（脚ごとの範囲）の3分岐。どれも同じ位置に置く
+        self.assertEqual(len(line), 3, "ジャッキ繰出しの記載は平坦・同値・範囲の3分岐")
         for ln in line:
             self.assertIn("dy - txtLine * 3.4", ln)
 

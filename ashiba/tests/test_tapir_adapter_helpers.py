@@ -158,3 +158,42 @@ class TestSelectedOutline(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class _MeshStub(ArchicadClient):
+    """2枚の敷地メッシュ（建物の近くと、300m離れた別棟のもの）."""
+
+    def __init__(self):
+        pass
+
+    def tapir(self, command, params):
+        if command == "GetElementsByType":
+            return {"elements": [{"elementId": {"guid": "near"}}, {"elementId": {"guid": "far"}}]}
+        if command == "GetDetailsOfElements":
+            return {"detailsOfElements": [
+                {"details": {"level": 0.0, "polygonCoordinates": [
+                    {"x": 299, "y": 299, "z": 0}, {"x": 331, "y": 299, "z": -0.4},
+                    {"x": 331, "y": 321, "z": -0.4}, {"x": 299, "y": 321, "z": 0}]}},
+                {"details": {"level": 0.0, "polygonCoordinates": [
+                    {"x": 599, "y": 299, "z": -0.3}, {"x": 621, "y": 299, "z": -0.3},
+                    {"x": 621, "y": 316, "z": -0.4}, {"x": 599, "y": 316, "z": -0.4}]}},
+            ]}
+        return {}
+
+
+class TestGroundModelUsesOnlyNearbyMeshes(unittest.TestCase):
+    def test_far_mesh_is_ignored_for_this_building(self):
+        from ashiba.tapir_adapter import read_ground_model
+
+        near_bldg = [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]
+        g = read_ground_model(_MeshStub(), outline_mm=near_bldg)
+        self.assertEqual(g.ignored_meshes, 1)
+        self.assertTrue(all(p[0] < 400000 for p in g.points))
+        far_bldg = [(600000, 300000), (620000, 300000), (620000, 315000), (600000, 315000)]
+        g2 = read_ground_model(_MeshStub(), outline_mm=far_bldg)
+        self.assertEqual(g2.ignored_meshes, 1)
+        self.assertTrue(all(p[0] > 500000 for p in g2.points))
+        # 外形を渡さなければ従来どおり全メッシュ
+        g3 = read_ground_model(_MeshStub())
+        self.assertEqual(g3.ignored_meshes, 0)
+        self.assertEqual(len(g3.points), 8)

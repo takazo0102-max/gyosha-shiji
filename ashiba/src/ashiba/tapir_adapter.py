@@ -564,17 +564,36 @@ def place_details(
     return placed
 
 
-def read_ground_model(client: Optional[ArchicadClient] = None):
+MESH_MARGIN_MM = 3000.0   # 建物外形からこの距離までに掛かるメッシュだけを敷地として使う
+
+
+def _mesh_touches(mesh_pts_mm: list[tuple[float, float]], outline_mm, margin: float) -> bool:
+    """メッシュ外形の矩形範囲が、建物外形（＋余裕）の矩形範囲と重なるか."""
+    if not mesh_pts_mm or not outline_mm:
+        return True
+    mx0 = min(p[0] for p in mesh_pts_mm); mx1 = max(p[0] for p in mesh_pts_mm)
+    my0 = min(p[1] for p in mesh_pts_mm); my1 = max(p[1] for p in mesh_pts_mm)
+    bx0 = min(float(p[0]) for p in outline_mm) - margin; bx1 = max(float(p[0]) for p in outline_mm) + margin
+    by0 = min(float(p[1]) for p in outline_mm) - margin; by1 = max(float(p[1]) for p in outline_mm) + margin
+    return not (mx1 < bx0 or mx0 > bx1 or my1 < by0 or my0 > by1)
+
+
+def read_ground_model(client: Optional[ArchicadClient] = None, outline_mm=None):
     """プロジェクトの敷地メッシュから標高サンプル点群を読み、GroundModelを作る.
 
     メッシュの外形ポリゴン頂点とレベリングサブラインの点を標高サンプルとして使う。
     メッシュが無ければ空（平坦扱い）のGroundModelを返す。
+    outline_mm（建物外形）を渡すと、その範囲（＋MESH_MARGIN_MM）に掛かるメッシュだけを
+    使う。離れた別棟のメッシュまで拾うと、その外挿値でこの棟の地盤が決まる
+    （実機で300m離れた棟が GL-377mm の「高低差あり」になった）。無視した数は
+    GroundModel.ignored_meshes に入れる。
     ⚠️ 三角形分割ではなく近傍点の逆距離加重で補間する近似（terrain.py参照）。
     """
     from .terrain import GroundModel
 
     client = client or ArchicadClient()
     points: list[tuple[float, float, float]] = []
+    ignored = 0
     try:
         meshes = client.tapir(
             "GetElementsByType", {"elementType": "Mesh"}
@@ -587,6 +606,11 @@ def read_ground_model(client: Optional[ArchicadClient] = None):
     for det in client.get_details(meshes):
         d = det.get("details", det)
         level = float(d.get("level", 0.0))
+        poly = [(c["x"] * 1000.0, c["y"] * 1000.0) for c in (d.get("polygonCoordinates") or [])
+                if isinstance(c, dict) and "x" in c and "y" in c]
+        if outline_mm is not None and not _mesh_touches(poly, outline_mm, MESH_MARGIN_MM):
+            ignored += 1
+            continue
 
         def take(coords) -> None:
             for c in coords or []:
@@ -597,7 +621,7 @@ def read_ground_model(client: Optional[ArchicadClient] = None):
         take(d.get("polygonCoordinates"))
         for sub in d.get("sublines", []) or []:
             take(sub.get("coordinates"))
-    return GroundModel(points=points)
+    return GroundModel(points=points, ignored_meshes=ignored)
 
 
 def place_elevations(
