@@ -524,7 +524,7 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
     # コーナーの床（{udegi}mm角）は踏板のセル数（スパン×層）には入れない。
     # 専用のコーナー踏板か隙間塞ぎで対応するので、手配として枚数を出す
     notes.action(
-        f"四隅の外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
+        f"外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
         f"（{udegi}mm角）は踏板の数量に含んでいません（コーナー踏板または隙間塞ぎを別途手配）",
         Notes.ORDER,
     )
