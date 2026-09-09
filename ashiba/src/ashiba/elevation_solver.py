@@ -208,10 +208,14 @@ def solve_elevation(
     # 端数は最下部のジャッキで吸収。要求高さと厳密一致しない場合は
     # ±許容窓（下-150〜上+1コマ）内で偏差最小の解を許す。
     # 優先順位: 要求高さとの偏差最小 → 支柱本数最小 → 繰り出し大（短支柱削減）
+    # （受け入れ基準の実例 G(ジャッキ270)+3800×4+900=16370 を再現するため、この順は変えない。
+    # 繰出しが上限に張り付いた場合は、調整代のある代替構成を警告で添える）
     under_allow, over_allow = 150, koma_pitch
+    band_lo, band_hi = jack_min + 50, jack_max - 70
     max_total = required_height + over_allow
     table = _compose_table(max_total, lengths)
     best: Optional[tuple[tuple, int, list[int]]] = None
+    best_band: Optional[tuple[tuple, int, list[int]]] = None
     for jack in range(jack_min, jack_max + 1, 5):
         for delta in range(-under_allow, over_allow + 1, 5):
             posts_total = required_height + delta - jack
@@ -223,6 +227,10 @@ def solve_elevation(
             score = (abs(delta), len(pieces), jack_max - jack)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
+            if band_lo <= jack <= band_hi:
+                bscore = (abs(delta), len(pieces), abs(jack - (band_lo + band_hi) / 2))
+                if best_band is None or bscore < best_band[0]:
+                    best_band = (bscore, jack, pieces)
     if best is None:
         raise ValueError(
             f"要求高さ{required_height}mmを構成できません"
@@ -234,6 +242,18 @@ def solve_elevation(
     posts_alt = _alt_order(pieces)
 
     warnings = []
+    # 繰出しが実務上限に張り付くと、地盤の凹凸を上へ吸収できない（L字棟で270mmちょうどが
+    # 選ばれた）。調整代のある帯の構成を案として添える（採るかは計画者の判断）
+    if jack > band_hi and best_band is not None and (best_band[1], best_band[2]) != (jack, pieces):
+        alt_jack, alt_pieces = best_band[1], best_band[2]
+        alt_total = alt_jack + sum(alt_pieces)
+        alt_desc = "+".join(str(v) for v in _order_bottom_up(alt_pieces))
+        warnings.append(
+            f"ジャッキ繰出し{jack}mmは実務上限{jack_max}mmに近く、上への調整代がありません。"
+            f"調整代を残すなら ジャッキ{alt_jack}+{alt_desc}＝{alt_total}mm"
+            f"（要求高さとの差{alt_total - required_height:+d}mm）の構成も検討してください"
+            "（scaffold_height_mm で高さを指定すれば切り替えられます）"
+        )
     if len(set(pieces)) < 2 and len(pieces) > 1:
         warnings.append(
             "支柱が単一寸法のため千鳥（ジョイント位置ずらし）を構成できません。"

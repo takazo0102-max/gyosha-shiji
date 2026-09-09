@@ -115,5 +115,23 @@ class TestJointStaggering(unittest.TestCase):
         self.assertTrue(any("千鳥" in w for w in e.warnings), e.warnings)
 
 
+class TestJackNearTheLimitGetsAnAlternative(unittest.TestCase):
+    """繰出しが実務上限に張り付いたら、調整代のある構成を警告で添える（採択は計画者）."""
+
+    def test_alternative_is_offered(self):
+        master = load_master("shinwa_A")
+        r = solve_elevation(12900, master=master)     # L字棟の条件: 270mm が選ばれる
+        self.assertEqual(r.jack_extension, 270)
+        hit = [w for w in r.warnings if "調整代" in w]
+        self.assertTrue(hit, r.warnings)
+        self.assertIn("ジャッキ", hit[0])
+        self.assertIn("scaffold_height_mm", hit[0])
+
+    def test_no_note_when_jack_is_comfortable(self):
+        master = load_master("shinwa_A")
+        r = solve_elevation(16300, master=master)     # ジャッキ100
+        self.assertFalse([w for w in r.warnings if "調整代" in w], r.warnings)
+
+
 if __name__ == "__main__":
     unittest.main()
