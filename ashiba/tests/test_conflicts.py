@@ -203,3 +203,54 @@ class TestAsagaoVersusAttachments(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestStairsVersusPlatforms(unittest.TestCase):
+    """階段室のスパンは段板・踊り場で埋まる。同じスパンに昇降機の乗り込み口やステージは取れない."""
+
+    def setUp(self):
+        self.m = build()
+
+    def test_stair_tower_on_the_hoist_span_is_ng(self):
+        # 辺0: 階段室 1800〜5400、昇降機 5400 幅2400 → 4200〜6600 のスパン(3600〜7200)と重なる
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 1800}])
+        pf = validate_platforms(self.m, [], [Hoist(edge_index=0, position_mm=5400, cage_width_mm=2400)])
+        kinds = [(c.kind, c.severity) for c in check_conflicts(self.m, stair_plan=sp, platforms=pf)]
+        self.assertIn(("階段室×昇降機", "NG"), kinds)
+        # 離せば通る
+        pf2 = validate_platforms(self.m, [], [Hoist(edge_index=0, position_mm=12600, cage_width_mm=2400)])
+        self.assertEqual(check_conflicts(self.m, stair_plan=sp, platforms=pf2), [])
+
+    def test_stair_tower_on_the_stage_span_is_ng(self):
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 1800}])
+        pf = validate_platforms(self.m, [LoadingStage(edge_index=0, start_mm=3600, span_count=2)], [])
+        kinds = [(c.kind, c.severity) for c in check_conflicts(self.m, stair_plan=sp, platforms=pf)]
+        self.assertIn(("階段室×ステージ", "NG"), kinds)
+
+    def test_auto_placement_avoids_the_hoist_span(self):
+        from ashiba.platforms import platform_ranges
+        from ashiba.stairs import auto_place_stairs
+
+        plain = auto_place_stairs(self.m)
+        t = plain.towers[0]
+        # 自動配置が選んだ区間の真ん中に昇降機を立てると衝突する
+        pf = validate_platforms(self.m, [], [Hoist(
+            edge_index=t.edge_index, position_mm=(t.start_mm + t.end_mm) / 2, cage_width_mm=2400)])
+        self.assertTrue(check_conflicts(self.m, stair_plan=plain, platforms=pf))
+        sp = auto_place_stairs(self.m, avoid=platform_ranges(self.m, pf))
+        self.assertEqual(check_conflicts(self.m, stair_plan=sp, platforms=pf), [])
+        self.assertLessEqual(sp.max_travel_mm, 30000)
+
+    def test_solve_all_keeps_stairs_off_the_hoist(self):
+        from ashiba.cli import solve_all
+
+        spec = {
+            "project_name": "小型 昇降機", "series_id": "shinwa_A",
+            "outline_mm": [[0, 0], [10800, 0], [10800, 5400], [0, 5400]],
+            "eaves_height_mm": 9000, "building_height_mm": 9000,
+            "hoists": [{"face": "南面", "position_mm": 5400, "landing_levels": [2, 4],
+                        "cage_width_mm": 2400, "cage_depth_mm": 1800}],
+        }
+        r = solve_all(spec)
+        self.assertEqual([c.kind for c in r.conflicts if "階段室" in c.kind], [])
+        self.assertTrue(r.stair_plan.towers)

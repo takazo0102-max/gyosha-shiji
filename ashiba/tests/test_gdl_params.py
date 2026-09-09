@@ -855,3 +855,33 @@ class TestShimsReachTheDrawing(unittest.TestCase):
             self.assertEqual(s_ % 35, 0)
         flat = line_params(m, m.plan.edges[0])
         self.assertEqual(flat["shimList"], "")
+
+
+class TestHoistMastInModel(unittest.TestCase):
+    """昇降機はマスト・搬器・渡し板・マスト控えまで3Dに出す（以前は4隅の柱と床板だけ）."""
+
+    def _params(self, **kw):
+        from ashiba.platforms import Hoist, validate_platforms
+
+        m = build("shinwa_A")
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000, landing_levels=[2, 5], **kw)])
+        return m, line_params(m, m.plan.edges[0], platforms=pf)
+
+    def test_tie_pitch_is_the_fifth_value(self):
+        m, p = self._params()
+        ho = p["hoistList"].split(",")
+        self.assertEqual(len(ho), 5)
+        self.assertEqual(int(ho[4]), 3600)                       # 既定の控えピッチ
+        _, p2 = self._params(tie_every_mm=1800, cage_width_mm=2400, cage_depth_mm=1800)
+        self.assertEqual([int(v) for v in p2["hoistList"].split(",")[2:]], [2400, 1800, 1800])
+
+    def test_gdl_parses_five_values_and_draws_mast_cage_tie(self):
+        gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        body1 = (gdl / "1d.gdl").read_text(encoding="utf-8")
+        self.assertIn("hoM = hoIdx - 5 * int((hoIdx - 1) / 5)", body1)
+        self.assertIn("hoTp[nHo] = 3.6", body1)                  # 未指定でも控えを描く
+        body3 = (gdl / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("マスト控え", "渡し板", "hoTp[ih]", "cylind 2.2, 0.02", "cylind mh, 0.02"):
+            self.assertIn(key, body3)
+        body2 = (gdl / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("-rowW - 0.40 - hoD[ih]", body2)          # 平面にマストの角

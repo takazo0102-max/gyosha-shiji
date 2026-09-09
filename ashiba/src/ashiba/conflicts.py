@@ -166,6 +166,38 @@ def check_conflicts(
                     "安衛則570条（壁つなぎ）・仮設工業会 梁枠使用基準",
                 ))
 
+    # 階段室 × 昇降機・荷受けステージ。階段室のスパンは段板・踊り場で埋まるので、
+    # 同じスパンに乗り込み口（搬器から渡る床）やステージの間口は取れない。
+    # 実機の小型面で自動配置の階段室と昇降機が同じスパンに描かれていた
+    from .platforms import hoist_cut_ranges
+    for t in towers:
+        for i, h in enumerate(hoists):
+            if h.edge_index != t.edge_index:
+                continue
+            for s0, e0 in hoist_cut_ranges(model, h.edge_index, [h]):
+                if _overlap(t.start_mm, t.end_mm, s0, e0):
+                    out.append(ConflictIssue(
+                        "階段室×昇降機", "NG",
+                        f"{model.face_name(t.edge_index)}の階段室（{_rng(t.start_mm, t.end_mm)}）と"
+                        f"昇降機{i + 1}の搬器が掛かるスパン（{_rng(s0, e0)}）が重なっています。"
+                        "階段室のスパンは段板・踊り場で埋まり、乗り込み口の床が取れません。"
+                        "階段位置か昇降機の位置をずらしてください",
+                        "安衛則526条・563条（昇降設備・作業床）",
+                    ))
+                    break
+        for i, st in enumerate(stages):
+            if st.edge_index == t.edge_index and _overlap(
+                t.start_mm, t.end_mm, st.start_mm, st.end_mm(model)
+            ):
+                out.append(ConflictIssue(
+                    "階段室×ステージ", "NG",
+                    f"{model.face_name(t.edge_index)}の階段室（{_rng(t.start_mm, t.end_mm)}）と"
+                    f"荷受けステージ{i + 1}（{_rng(st.start_mm, st.end_mm(model))}）が重なっています。"
+                    "ステージの間口は荷を通すため外側の手すりを外す区間で、階段室の"
+                    "段板・踊り場と両立しません。区間を分けてください",
+                    "安衛則563条（作業床）・仮設工業会 張出しブラケット使用基準",
+                ))
+
     # 朝顔（セーフウイング）× 昇降機・荷受けステージ。朝顔は面の全長に渡って外へ2m出る
     # 板なので、マストや搬器が通る位置は切り欠くしかない。ステージが朝顔と同じ高さ帯に
     # あると張出しが二重になる。3Dでは互いを貫いて描かれるだけで、検証は素通りしていた

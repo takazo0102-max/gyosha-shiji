@@ -112,7 +112,7 @@ from .notification import (
     write_notification_xlsx,
 )
 from .plan_solver import StandoffSpec, solve_plan
-from .platforms import Hoist, LoadingStage, validate_platforms
+from .platforms import Hoist, LoadingStage, platform_ranges, validate_platforms
 from .quantity import take_off
 from .report import (
     write_jack_table_csv,
@@ -822,6 +822,15 @@ def build_openings(spec: dict) -> list:
     ]
 
 
+def _merge_ranges(*maps: dict) -> dict[int, list[tuple[float, float]]]:
+    """辺ごとの区間一覧を結合する（階段室の自動配置が避ける区間）."""
+    out: dict[int, list[tuple[float, float]]] = {}
+    for m in maps:
+        for k, v in (m or {}).items():
+            out.setdefault(k, []).extend(v)
+    return out
+
+
 def build_platforms(spec: dict) -> tuple[list, list]:
     """荷受けステージと昇降機の入力."""
     stages = [
@@ -1100,7 +1109,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             # 移動距離から自動算出（n_stairs は既定値1なので、明示時だけ効かせる）
             count=st.get("count"),
             min_per_face=st.get("min_per_face", 0),
-            avoid=opening_ranges(openings),
+            avoid=_merge_ranges(opening_ranges(openings), platform_ranges(model, platforms)),
         )
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)

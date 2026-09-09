@@ -122,6 +122,7 @@ dim hoP[4]
 dim hoR[4]
 dim hoW[4]
 dim hoD[4]
+dim hoTp[4]
 dim laP[40]
 dim laH[40]
 dim bkS[24]
@@ -467,7 +468,7 @@ while strlen(rest) > 0 and nSg < 8 do
 	endif
 endwhile
 
-! ---- hoistList をパース「位置,到達高さ,搬器幅,搬器奥行」の繰り返し (mm→m) ----
+! ---- hoistList をパース「位置,到達高さ,搬器幅,搬器奥行,控えピッチ」の繰り返し (mm→m) ----
 ! 昇降機は数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
 ! 出ていたのに、図面には現れていなかった。マストは足場の外に立つ大物なので
 ! 平面・立面・3Dに出して干渉を確認できるようにする
@@ -487,7 +488,7 @@ while strlen(rest) > 0 and nHo < 4 do
 	k = split(item, "%n", v)
 	if k > 0 then
 		hoIdx = hoIdx + 1
-		hoM = hoIdx - 4 * int((hoIdx - 1) / 4)     ! 1..4
+		hoM = hoIdx - 5 * int((hoIdx - 1) / 5)     ! 1..5
 		if hoM = 1 then
 			hoT = v / 1000
 		endif
@@ -497,9 +498,11 @@ while strlen(rest) > 0 and nHo < 4 do
 			hoR[nHo] = v / 1000
 			hoW[nHo] = 2.0
 			hoD[nHo] = 2.0
+			hoTp[nHo] = 3.6
 		endif
 		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000
 		if hoM = 4 and nHo > 0 then hoD[nHo] = v / 1000
+		if hoM = 5 and nHo > 0 and v > 0 then hoTp[nHo] = v / 1000
 	endif
 endwhile
 
@@ -880,14 +883,17 @@ for ig = 1 to nSg
 	set style "anno"
 next ig
 
-! 昇降機（平面ではマストの占有範囲を破線で。足場の外に立つ大物なので
-! 干渉と搬入経路の検討に要る）
-line_type 3
+! 昇降機（平面では搬器の占有範囲を破線で、その外側のマストを実線の0.30角で。
+! 足場の外に立つ大物なので干渉と搬入経路の検討に要る。詳細図と同じく
+! 外側建地から隙間0.10mを空ける）
 for ih = 1 to nHo
 	hx = hoP[ih]
-	rect2 hx - hoW[ih] / 2, -rowW, hx + hoW[ih] / 2, -rowW - hoD[ih]
+	line_type 3
+	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
+	line_type 1
+	rect2 hx - 0.15, -rowW - 0.10 - hoD[ih], hx + 0.15, -rowW - 0.40 - hoD[ih]
 	set style "annoC"
-	if showDim then text2 hx, -rowW - hoD[ih] - 0.15, "昇降機"
+	if showDim then text2 hx, -rowW - hoD[ih] - 0.55, "昇降機"
 	set style "anno"
 next ih
 line_type 1
@@ -1985,28 +1991,97 @@ for ig = 1 to nSg
 	next ipb
 next ig
 
-! ---- 昇降機（マスト＋ケージの占有範囲） ----
-! 実機は機種で寸法が違うので、図示用の見付け（HOIST_W×HOIST_D）で置く。
-! 数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には出ていたのに
-! モデルに無く、搬入経路や庇との干渉を3Dで確認できなかった
+! ---- ロングスパンエレベーター（マスト＋搬器＋渡し板＋マスト控え） ----
+! 詳細図と同じ取合い: 外側建地から隙間0.10mを空けて搬器（hoW×hoD、手すり枠高さ2.2m）、
+! その外側に0.30角のラック付きマスト（0.5mごとの横材）。搬器は最下の乗り込み口の
+! 高さに置く。以前は4隅の細い柱と床板だけでマストが無く、干渉確認に使えなかった
 for ih = 1 to nHo
 	hx = hoP[ih]
-	! 4隅の柱で枠として示す（塊で置くと足場が見えなくなる）
-	for icx = 0 to 1
-		for icy = 0 to 1
-			add hx - hoW[ih] / 2 + hoW[ih] * icx, -rowW - hoD[ih] * icy, 0
-			cylind hoR[ih], 0.06 / 2
+	hg = 0.10
+	cy = -rowW - hg              ! 搬器の足場側端
+	cyo = cy - hoD[ih]           ! 搬器の外側端
+	myc = cyo - 0.15             ! マスト中心（y）
+	mh = hoR[ih] + 1.0           ! マスト頂部（到達高さ＋余長）
+	! マスト: 4隅の主材＋0.5mごとの横材
+	for icx = -1 to 1 step 2
+		for icy = -1 to 1 step 2
+			add hx + 0.15 * icx, myc + 0.15 * icy, 0
+			cylind mh, 0.02
 			del 1
 		next icy
 	next icx
-	! 乗り込み口の高さに水平枠
+	nm3 = int(mh / 0.5)
+	for im3 = 1 to nm3
+		add hx - 0.15, myc - 0.165, im3 * 0.5 - 0.015
+		block 0.30, 0.03, 0.03
+		del 1
+		add hx - 0.15, myc + 0.135, im3 * 0.5 - 0.015
+		block 0.30, 0.03, 0.03
+		del 1
+		add hx - 0.165, myc - 0.15, im3 * 0.5 - 0.015
+		block 0.03, 0.30, 0.03
+		del 1
+		add hx + 0.135, myc - 0.15, im3 * 0.5 - 0.015
+		block 0.03, 0.30, 0.03
+		del 1
+	next im3
+	! 搬器: 床＋4隅の枠柱＋上枠（4辺）＋中桟（外側・妻側。足場側は乗降口）
+	cz = 0.20
+	cz0 = 0
 	for il3 = 1 to nLa
 		if abs(laP[il3] - hx) < 0.001 then
-			add hx - hoW[ih] / 2, -rowW - hoD[ih], laH[il3]
-			block hoW[ih], hoD[ih], 0.04
+			if cz0 = 0 or laH[il3] < cz0 then cz0 = laH[il3]
+		endif
+	next il3
+	if cz0 > 0 then cz = cz0
+	add hx - hoW[ih] / 2, cyo, cz
+	block hoW[ih], hoD[ih], 0.05
+	del 1
+	for icx = 0 to 1
+		for icy = 0 to 1
+			add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo + hoD[ih] * icy, cz
+			cylind 2.2, 0.02
+			del 1
+		next icy
+	next icx
+	for icy = 0 to 1
+		add hx - hoW[ih] / 2, cyo + hoD[ih] * icy, cz + 2.2
+		roty 90
+		cylind hoW[ih], 0.015
+		del 2
+	next icy
+	for icx = 0 to 1
+		add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo, cz + 2.2
+		rotx -90
+		cylind hoD[ih], 0.015
+		del 2
+		add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo, cz + 1.1
+		rotx -90
+		cylind hoD[ih], 0.015
+		del 2
+	next icx
+	add hx - hoW[ih] / 2, cyo, cz + 1.1
+	roty 90
+	cylind hoW[ih], 0.015
+	del 2
+	! 各乗り込み口: 渡し板（搬器の床から作業床へ、隙間を塞ぐ）
+	for il3 = 1 to nLa
+		if abs(laP[il3] - hx) < 0.001 then
+			add hx - hoW[ih] / 2, cy - 0.10, laH[il3] + 0.045
+			block hoW[ih], hg + 0.25, 0.03
 			del 1
 		endif
 	next il3
+	! マスト控え（控えピッチごとにマストから足場の外側建地へ。足場側は壁つなぎで躯体へ）
+	tp3 = hoTp[ih]
+	if tp3 < 0.5 then tp3 = 3.6
+	nt3 = int(hoR[ih] / tp3)
+	for it3 = 1 to nt3
+		add hx, myc + 0.15, it3 * tp3
+		rotx -90
+		cylind -rowW - myc - 0.15, r_tie
+		del 2
+	next it3
 next ih
 
 ! ---- 梁枠（開口部）: 上下弦材と斜材 ----

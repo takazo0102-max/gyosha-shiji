@@ -528,3 +528,21 @@ def hoist_cut_ranges(model: ScaffoldModel, edge_index: int, hoists) -> list[tupl
             out.append((s0, e0))
     return out
 
+
+
+def platform_ranges(model: ScaffoldModel, platforms) -> dict[int, list[tuple[float, float]]]:
+    """荷受けステージと昇降機（搬器の幅が掛かるスパン）が占める区間（辺 → [(始点, 終点)]）.
+
+    階段室の自動配置が避けるために使う。実機の小型面で、自動配置の階段室が
+    昇降機の乗り込み口のスパンに重なって、踊り場と搬器が同じ床を取り合っていた。
+    """
+    out: dict[int, list[tuple[float, float]]] = {}
+    if platforms is None:
+        return out
+    for st in getattr(platforms, "stages", None) or []:
+        out.setdefault(st.edge_index, []).append((st.start_mm, st.end_mm(model)))
+    hoists = getattr(platforms, "hoists", None) or []
+    for ep in model.plan.edges:
+        for rng in hoist_cut_ranges(model, ep.edge_index, hoists):
+            out.setdefault(ep.edge_index, []).append(rng)
+    return out

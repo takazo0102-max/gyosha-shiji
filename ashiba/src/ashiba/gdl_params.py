@@ -252,10 +252,11 @@ def _asagao_cut_list(model: ScaffoldModel, ep, platforms) -> str:
 
 
 def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
-    """この辺の昇降機を「位置,到達高さ,搬器幅,搬器奥行」の繰り返しで返す.
+    """この辺の昇降機を「位置,到達高さ,搬器幅,搬器奥行,控えピッチ」の繰り返しで返す.
 
     到達高さの指定が無ければ足場天端まで。干渉確認のためにマストの
-    占有範囲を図面と3Dに出す。
+    占有範囲を図面と3Dに出す。控えピッチはマスト控え（足場外側建地へ）の
+    間隔で、3Dに控えを描く。
     """
     if platforms is None or not getattr(platforms, "hoists", None):
         return ""
@@ -268,7 +269,8 @@ def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
         # 搬器の幅・奥行も渡す（詳細図と同じ寸法で平面・立面・3Dに出す）
         parts += [str(int(h.position_mm)), str(int(reach)),
                   str(int(getattr(h, "cage_width_mm", 2000) or 2000)),
-                  str(int(getattr(h, "cage_depth_mm", 2000) or 2000))]
+                  str(int(getattr(h, "cage_depth_mm", 2000) or 2000)),
+                  str(int(getattr(h, "tie_every_mm", 3600) or 3600))]
     return ",".join(parts)
 
 

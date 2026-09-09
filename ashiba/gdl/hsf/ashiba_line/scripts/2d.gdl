@@ -138,14 +138,17 @@ for ig = 1 to nSg
 	set style "anno"
 next ig
 
-! 昇降機（平面ではマストの占有範囲を破線で。足場の外に立つ大物なので
-! 干渉と搬入経路の検討に要る）
-line_type 3
+! 昇降機（平面では搬器の占有範囲を破線で、その外側のマストを実線の0.30角で。
+! 足場の外に立つ大物なので干渉と搬入経路の検討に要る。詳細図と同じく
+! 外側建地から隙間0.10mを空ける）
 for ih = 1 to nHo
 	hx = hoP[ih]
-	rect2 hx - hoW[ih] / 2, -rowW, hx + hoW[ih] / 2, -rowW - hoD[ih]
+	line_type 3
+	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
+	line_type 1
+	rect2 hx - 0.15, -rowW - 0.10 - hoD[ih], hx + 0.15, -rowW - 0.40 - hoD[ih]
 	set style "annoC"
-	if showDim then text2 hx, -rowW - hoD[ih] - 0.15, "昇降機"
+	if showDim then text2 hx, -rowW - hoD[ih] - 0.55, "昇降機"
 	set style "anno"
 next ih
 line_type 1
