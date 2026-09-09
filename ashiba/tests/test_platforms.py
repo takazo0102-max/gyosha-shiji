@@ -438,6 +438,17 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
                      or any("開閉式手すり" in n for n in h.quantity.notes))
         self.assertTrue(mentioned, h.quantity.notes)
 
+    def test_inner_bracket_drops_the_inner_rails(self):
+        """内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟（2本）を付けない."""
+        base = self._run()
+        b = self._run(bracket_sections=[{"edge_index": 0, "start_mm": 0, "end_mm": 7200, "width": 400,
+                                          "direction": "内", "levels": [1, 2]}])
+        cells = 4 * 2
+        brk = sum(l.qty for l in b.quantity.lines if l.part.category == "ブラケット")
+        self.assertGreater(brk, 0)
+        self.assertEqual(b.quantity.qty_of("布材"), base.quantity.qty_of("布材") - cells * 2)
+        self.assertTrue(any("躯体側の手すり・中桟を外しています" in n for n in b.quantity.notes), b.quantity.notes)
+
     def test_scripts_share_the_rule(self):
         from pathlib import Path
 
@@ -446,6 +457,7 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
             body = (root / name).read_text(encoding="utf-8")
             self.assertIn("abs(z - sgH[ig2]) < 0.001 then inSg = 1", body, name)
             self.assertIn("abs(z - laH[il4]) < 0.001 then inSg = 2", body, name)
+            self.assertIn("inBk = 1", body, name)
             self.assertIn("inSg = 0", body, name)
 
 

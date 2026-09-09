@@ -139,7 +139,8 @@ class TestBracketQuantity(unittest.TestCase):
         self.assertGreater(
             with_bracket.qty_of("ブラケット"), base.qty_of("ブラケット")
         )
-        self.assertGreater(with_bracket.total_weight_kg, base.total_weight_kg)
+        # 重量はブラケット分が増え、外した躯体側手すり分が減る（単純増ではない）
+        self.assertNotEqual(with_bracket.total_weight_kg, base.total_weight_kg)
 
     def test_post_positions_unchanged_by_brackets(self):
         """ブラケットは面の区間属性であり、支柱ラインを動かさない（仕様4.3）."""
@@ -228,9 +229,10 @@ class TestOuterBracketEdge(unittest.TestCase):
         self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6)
 
     def test_inner_section_does_not(self):
-        """内側は躯体に面する。開放端にならないので足さない."""
+        """内側は躯体に面する。開放端にならないので手すり・幅木は足さない。
+        むしろ拡幅で隙間が小さくなるので、躯体側の手すり・中桟（2本×3スパン×2層）を外す."""
         q = take_off(self.m, bracket_sections=self._sec("内"))
-        self.assertEqual(q.qty_of("布材"), self.base.qty_of("布材"))
+        self.assertEqual(q.qty_of("布材"), self.base.qty_of("布材") - 6 * 2)
         self.assertEqual(q.qty_of("幅木"), self.base.qty_of("幅木"))
 
     def test_open_edge_is_flagged(self):
@@ -287,7 +289,7 @@ class TestFrameSystemAlsoCounts(unittest.TestCase):
         base = take_off(m)
         q = take_off(m, bracket_sections=self._section(m))
         self.assertGreater(q.qty_of("ブラケット"), 0)
-        self.assertGreater(q.total_weight_kg, base.total_weight_kg)
+        self.assertNotEqual(q.total_weight_kg, base.total_weight_kg)
 
 
 

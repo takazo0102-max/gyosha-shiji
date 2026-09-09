@@ -202,6 +202,30 @@ def outer_edge_quantities(
     return out
 
 
+def inner_edge_cells(
+    model: ScaffoldModel, sections: list[BracketSection]
+) -> dict[int, int]:
+    """内ブラケットで床を拡幅した区間のセル（呼び寸法→スパン×層）.
+
+    拡幅で躯体との隙間が小さくなるので、その層・スパンには躯体側の手すり・中桟
+    （inner_guard_rail）を付けない。3D・立面も同じ区間を空ける。
+    """
+    out: dict[int, int] = {}
+    for s in sections:
+        if s.direction != INNER:
+            continue
+        edge = _find_edge(model, s.edge_index)
+        if edge is None or s.length_mm <= 0:
+            continue
+        n_levels = len(s.levels) if s.levels else model.elevation.n_levels
+        acc = 0.0
+        for span in edge.spans:
+            if s.start_mm - 1e-6 <= acc and acc + span <= s.end_mm + 1e-6:
+                out[span] = out.get(span, 0) + n_levels
+            acc += span
+    return out
+
+
 def bracket_deck_changes(
     model: ScaffoldModel, sections: list[BracketSection]
 ) -> list[tuple[int, int, int, int]]:

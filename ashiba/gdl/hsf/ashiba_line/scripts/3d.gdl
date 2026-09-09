@@ -230,8 +230,14 @@ for il = 1 to nLv
 			endif
 		endif
 		! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
-		! ステージの間口でも残る）
-		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 then
+		! ステージの間口でも残る）。内ブラケットで床を拡幅した層・スパンは隙間が
+		! 小さいので付けない（数量も同じセルを引いている）
+		inBk = 0
+		for ik2 = 1 to nBk
+			if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inBk = 1
+		next ik2
+		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 then
 			add x, 0, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno
@@ -612,8 +618,34 @@ for it5 = 1 to nSt
 	next il5
 next it5
 
-! ---- ブラケット区間（拡幅ぶんの作業床） ----
+! ---- ブラケット区間（拡幅ぶんの作業床＋支柱位置ごとのブラケット腕・方杖） ----
+! 床だけ描くと宙に浮いて見えるうえ、数量では支柱位置ごとにブラケットを拾っている
 for ik = 1 to nBk
+	xb = 0
+	for ipk = 1 to nSpan + 1
+		if xb >= bkS[ik] - 0.001 and xb <= bkE[ik] + 0.001 then
+			if bkD[ik] > 0 then
+				add xb, 0, bkH[ik]
+				rotx -90
+				cylind bkW[ik], r_nuno
+				del 2
+				add xb, 0, bkH[ik] - bkW[ik]
+				rotx -45
+				cylind bkW[ik] * 1.4142, r_nuno
+				del 2
+			else
+				add xb, -rowW, bkH[ik]
+				rotx 90
+				cylind bkW[ik], r_nuno
+				del 2
+				add xb, -rowW, bkH[ik] - bkW[ik]
+				rotx 45
+				cylind bkW[ik] * 1.4142, r_nuno
+				del 2
+			endif
+		endif
+		if ipk <= nSpan then xb = xb + spans[ipk]
+	next ipk
 	if bkD[ik] > 0 then
 		add bkS[ik], 0, bkH[ik]
 		block bkE[ik] - bkS[ik], bkW[ik], 0.045

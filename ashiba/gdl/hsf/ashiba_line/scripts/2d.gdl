@@ -394,6 +394,12 @@ for il = 2 to nLv
 		for il4 = 1 to nLa
 			if laP[il4] >= xs - 0.001 and laP[il4] < xe - 0.001 and abs(z - laH[il4]) < 0.001 then inSg = 2
 		next il4
+		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）
+		inBk = 0
+		for ik2 = 1 to nBk
+			if bkD[ik2] > 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inBk = 1
+		next ik2
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
@@ -404,7 +410,7 @@ for il = 2 to nLv
 			if inSg = 0 then line2 xs, z + railTop, xe, z + railTop
 			if inSg >= 1 then
 				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ
-				if railIn = 1 and nRows >= 2 then
+				if railIn = 1 and nRows >= 2 and inBk = 0 then
 					line2 xs, z + railTop, xe, z + railTop
 					line2 xs, z + railMid, xe, z + railMid
 				endif
@@ -414,7 +420,7 @@ for il = 2 to nLv
 				line2 xs, z + railTop, xe, z + 0.02
 				line2 xe, z + railTop, xs, z + 0.02
 				! 躯体側の中桟（布材）は先行手すりの奥に見える
-				if railIn = 1 and nRows >= 2 then
+				if railIn = 1 and nRows >= 2 and inBk = 0 then
 					line2 xs, z + railMid, xe, z + railMid
 				endif
 			else

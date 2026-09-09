@@ -276,13 +276,22 @@ def take_off(
     # 荷受けステージの間口は、設置層で本体の外側手すり・中桟・幅木を外す（ステージ側の
     # 先端・妻側の手すりで防護し、荷を通す）。3D・立面も同じ区間を空ける
     stage_cells = _stage_cells(model, platforms)
+    # 内ブラケットで床を拡幅した区間は躯体との隙間が小さいので、躯体側の手すり・中桟は付けない
+    from .brackets import inner_edge_cells
+    inner_cut_cells = inner_edge_cells(model, bracket_sections or []) if rails_inner else {}
     open_rail_cut = 0
     for s, n in span_counts.items():
         cut = (open_cut.get(s, 0) * per_level_rails
                + open_spans.get(s, 0) * negarami_n
-               + stage_cells.get(s, 0) * rails_outer)
+               + stage_cells.get(s, 0) * rails_outer
+               + inner_cut_cells.get(s, 0) * rails_inner)
         open_rail_cut += cut
         add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
+    if inner_cut_cells:
+        notes.append(
+            f"内ブラケットで床を拡幅した区間（{sum(inner_cut_cells.values())}スパン×層）は躯体との隙間が"
+            "小さくなるので、躯体側の手すり・中桟を外しています"
+        )
     if stage_cells and (rails_outer or advance_rail):
         notes.append(
             f"荷受けステージの間口・昇降機の乗り込み口（計{sum(stage_cells.values())}スパン×層）は本体の"
