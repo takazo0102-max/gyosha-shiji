@@ -202,8 +202,12 @@ for il = 1 to nLv
 			cylind spans[ip] - 0.10, 0.015
 			del 2
 		endif
+		! 枠組の中間層は交差筋交＋幅木（＋上の建枠）で防護し、布材の手すり・中桟は
+		! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
+		frMid = 0
+		if serType = "W" and il < nLv then frMid = 1
 		! 外側手すり・中桟（作業層のみ）
-		if il > 1 and skipH = 0 and inSg = 0 then
+		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 then
 			add x, -rowW, z + railTop
 			roty 90
 			cylind spans[ip], r_nuno

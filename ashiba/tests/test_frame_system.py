@@ -484,6 +484,19 @@ class TestFrameCannotBeSingleRow(unittest.TestCase):
         )
 
 
+class TestFrameDrawingsMatchTheTakeOff(unittest.TestCase):
+    """枠組の中間層は布材の手すり・中桟を描かない（数量は最上層だけ拾う）."""
+
+    def test_scripts_gate_the_rails_on_the_top_level(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        for name in ("3d.gdl", "2d.gdl"):
+            body = (root / name).read_text(encoding="utf-8")
+            self.assertIn('if serType = "W" and il < nLv then frMid = 1', body, name)
+            self.assertIn("frMid = 0", body, name)
+
+
 if __name__ == "__main__":
     unittest.main()
 
