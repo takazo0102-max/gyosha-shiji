@@ -224,9 +224,15 @@ class TestOuterBracketEdge(unittest.TestCase):
 
     def test_outer_section_adds_rails_and_toe_boards(self):
         q = take_off(self.m, bracket_sections=self._sec("張出"))
-        # 3スパン×2層＝6セル。手すり＋中桟で2本、幅木1本
-        self.assertEqual(q.qty_of("布材") - self.base.qty_of("布材"), 12)
-        self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6)
+        # 3スパン×2層＝6セル。新しい縁に手すり＋中桟2本・幅木1本を足し、建地位置の
+        # 外側手すり・中桟2本・幅木1本（床の途中に立つことになる）を外すので差は0
+        self.assertEqual(q.qty_of("布材") - self.base.qty_of("布材"), 12 - 12)
+        self.assertEqual(q.qty_of("幅木") - self.base.qty_of("幅木"), 6 - 6)
+        # 縁の部材が別行で入っていること
+        edge_rails = sum(qty for what, qty in q.breakdown_for("布材") if "張出し外縁" in what) \
+            if hasattr(q, "breakdown_for") else None
+        if edge_rails is not None:
+            self.assertEqual(edge_rails, 12)
 
     def test_inner_section_does_not(self):
         """内側は躯体に面する。開放端にならないので手すり・幅木は足さない。

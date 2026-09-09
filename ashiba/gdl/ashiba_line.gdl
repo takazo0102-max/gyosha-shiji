@@ -1131,11 +1131,14 @@ for il = 2 to nLv
 		for il4 = 1 to nLa
 			if laP[il4] >= xs - 0.001 and laP[il4] < xe - 0.001 and abs(z - laH[il4]) < 0.001 then inSg = 2
 		next il4
-		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）
+		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）。
+		! 張出しブラケットの層・スパンは建地位置の外側手すり・幅木を外す（新しい縁の手すりに任せる）
 		inBk = 0
 		for ik2 = 1 to nBk
 			if bkD[ik2] > 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
 					abs(z - bkH[ik2]) < 0.001 then inBk = 1
+			if bkD[ik2] < 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inSg = 1
 		next ik2
 		! 枠組の中間層は布材の手すり・中桟を描かない（交差筋交＋幅木。数量と同じ）
 		frMid = 0
@@ -1640,6 +1643,11 @@ for il = 1 to nLv
 			if laP[il4] >= x - 0.001 and laP[il4] < x + spans[ip] - 0.001 and \
 					abs(z - laH[il4]) < 0.001 then inSg = 2
 		next il4
+		! 張出しブラケットで床を広げた層・スパンは、建地位置の手すりは外し、新しい縁の手すりに任せる
+		for ik3 = 1 to nBk
+			if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
+					abs(z - bkH[ik3]) < 0.001 then inSg = 1
+		next ik3
 		if il > 1 and skipH = 0 and inSg = 2 then
 			! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
 			add x + 0.05, -rowW, z + 0.10
@@ -1805,6 +1813,10 @@ if showDeck then
 					if laP[il5] >= x - 0.001 and laP[il5] < x + spans[ip] - 0.001 and \
 							abs(z - laH[il5]) < 0.001 then inSg = 2
 				next il5
+				for ik4 = 1 to nBk
+					if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
+							abs(z - bkH[ik4]) < 0.001 then inSg = 1
+				next ik4
 				if railAdv = 0 and inSg = 0 then
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157

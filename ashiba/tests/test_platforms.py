@@ -458,6 +458,7 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
             self.assertIn("abs(z - sgH[ig2]) < 0.001 then inSg = 1", body, name)
             self.assertIn("abs(z - laH[il4]) < 0.001 then inSg = 2", body, name)
             self.assertIn("inBk = 1", body, name)
+            self.assertIn("bkD[ik", body, name)   # 張出し区間でも建地位置の外側手すりを外す
             self.assertIn("inSg = 0", body, name)
 
 

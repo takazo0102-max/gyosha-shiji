@@ -276,6 +276,10 @@ def take_off(
     # 荷受けステージの間口は、設置層で本体の外側手すり・中桟・幅木を外す（ステージ側の
     # 先端・妻側の手すりで防護し、荷を通す）。3D・立面も同じ区間を空ける
     stage_cells = _stage_cells(model, platforms)
+    # 張出しブラケットで床を広げた層・スパンは、建地位置の手すり・中桟・幅木が床の途中に
+    # 立つことになるので外し、新しい縁の手すり・幅木（_count_bracket_parts）に置き換える
+    for s_, c_ in _outer_bracket_cells(model, bracket_sections).items():
+        stage_cells[s_] = stage_cells.get(s_, 0) + c_
     # 内ブラケットで床を拡幅した区間は躯体との隙間が小さいので、躯体側の手すり・中桟は付けない
     from .brackets import inner_edge_cells
     inner_cut_cells = inner_edge_cells(model, bracket_sections or []) if rails_inner else {}
@@ -294,10 +298,10 @@ def take_off(
         )
     if stage_cells and (rails_outer or advance_rail):
         notes.append(
-            f"荷受けステージの間口・昇降機の乗り込み口（計{sum(stage_cells.values())}スパン×層）は本体の"
+            f"荷受けステージの間口・昇降機の乗り込み口・張出しブラケット区間（計{sum(stage_cells.values())}スパン×層）は本体の"
             + ("外側の手すり・中桟" if rails_outer else "先行手摺")
             + ("・幅木" if model.config.has_toe_board else "")
-            + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すりで防護）"
+            + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すり／張出し外縁の手すりで防護）"
         )
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     notes.append(
@@ -485,6 +489,13 @@ def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
         nominal = edge.spans[i]
         out[nominal] = out.get(nominal, 0) + len(h.landings(model))
     return out
+
+
+def _outer_bracket_cells(model: ScaffoldModel, bracket_sections) -> dict[int, int]:
+    """張出しブラケットで床を広げた層・スパン（建地位置の外側手すり・幅木は新しい縁へ移る）."""
+    from .brackets import outer_edge_quantities
+
+    return outer_edge_quantities(model, bracket_sections or [])
 
 
 def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,

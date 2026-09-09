@@ -397,11 +397,14 @@ for il = 2 to nLv
 		for il4 = 1 to nLa
 			if laP[il4] >= xs - 0.001 and laP[il4] < xe - 0.001 and abs(z - laH[il4]) < 0.001 then inSg = 2
 		next il4
-		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）
+		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）。
+		! 張出しブラケットの層・スパンは建地位置の外側手すり・幅木を外す（新しい縁の手すりに任せる）
 		inBk = 0
 		for ik2 = 1 to nBk
 			if bkD[ik2] > 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
 					abs(z - bkH[ik2]) < 0.001 then inBk = 1
+			if bkD[ik2] < 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inSg = 1
 		next ik2
 		! 枠組の中間層は布材の手すり・中桟を描かない（交差筋交＋幅木。数量と同じ）
 		frMid = 0
