@@ -515,8 +515,11 @@ def hoist_cut_ranges(model: ScaffoldModel, edge_index: int, hoists) -> list[tupl
         if h.edge_index != edge_index:
             continue
         x = h.position_mm
+        # 搬器の幅ぶん（位置を中心に）掛かるスパンを取る。点だけで見ると、幅2.4mの
+        # 搬器がスパン境界の近くに立つとき隣のスパンの朝顔が切り欠かれない
+        half = float(getattr(h, "cage_width_mm", 2000.0) or 2000.0) / 2.0
         raw += [(posts[k], posts[k + 1]) for k in range(len(ep.spans))
-                if posts[k] - 1e-6 <= x <= posts[k + 1] + 1e-6]
+                if posts[k] < x + half - 1e-6 and posts[k + 1] > x - half + 1e-6]
     out: list[tuple[float, float]] = []
     for s0, e0 in sorted(raw):
         if out and s0 <= out[-1][1] + 1e-6:

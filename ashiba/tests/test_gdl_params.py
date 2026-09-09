@@ -783,12 +783,16 @@ class TestAsagaoCutList(unittest.TestCase):
         self.assertEqual(other["asaCutList"], "")
 
     def test_hoist_mid_span_cuts_that_span(self):
+        """切り欠きは搬器の幅ぶん。スパンに収まる搬器はそのスパンだけ、はみ出せば隣も."""
         from ashiba.platforms import Hoist, validate_platforms
 
         m = self._model()
-        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9900)])
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9900, cage_width_mm=1600)])
         p = line_params(m, m.plan.edges[0], platforms=pf)
         self.assertEqual(p["asaCutList"], "9000,10800")
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9900, cage_width_mm=2400)])
+        p = line_params(m, m.plan.edges[0], platforms=pf)
+        self.assertEqual(p["asaCutList"], "7200,12600")     # 幅2.4mは両隣に100mm以上掛かる
 
     def test_no_asagao_means_no_cut(self):
         from ashiba.platforms import Hoist, validate_platforms

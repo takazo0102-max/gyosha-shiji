@@ -143,9 +143,9 @@ next ig
 line_type 3
 for ih = 1 to nHo
 	hx = hoP[ih]
-	rect2 hx - HOIST_W / 2, -rowW, hx + HOIST_W / 2, -rowW - HOIST_D
+	rect2 hx - hoW[ih] / 2, -rowW, hx + hoW[ih] / 2, -rowW - hoD[ih]
 	set style "annoC"
-	if showDim then text2 hx, -rowW - HOIST_D - 0.15, "昇降機"
+	if showDim then text2 hx, -rowW - hoD[ih] - 0.15, "昇降機"
 	set style "anno"
 next ih
 line_type 1
@@ -554,7 +554,7 @@ next ig
 line_type 3
 for ih = 1 to nHo
 	hx = hoP[ih]
-	rect2 hx - HOIST_W / 2, 0, hx + HOIST_W / 2, hoR[ih]
+	rect2 hx - hoW[ih] / 2, 0, hx + hoW[ih] / 2, hoR[ih]
 	set style "annoC"
 	if showDim then text2 hx, hoR[ih] + 0.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
 	set style "anno"
@@ -564,7 +564,12 @@ line_type 1
 for il2 = 1 to nLa
 	lx = laP[il2]
 	lz = laH[il2]
-	rect2 lx - HOIST_W / 2, lz, lx + HOIST_W / 2, lz + railH
+	! 乗り込み口の幅はその昇降機の搬器幅
+	lw = HOIST_W
+	for ih2 = 1 to nHo
+		if abs(hoP[ih2] - lx) < 0.001 then lw = hoW[ih2]
+	next ih2
+	rect2 lx - lw / 2, lz, lx + lw / 2, lz + railH
 	if showDim then
 		set style "annoC"
 		text2 lx, lz + railH + 0.10, "乗込口"

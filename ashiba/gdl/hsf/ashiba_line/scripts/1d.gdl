@@ -38,6 +38,8 @@ dim sgH[8]
 dim sgZ[8]
 dim hoP[4]
 dim hoR[4]
+dim hoW[4]
+dim hoD[4]
 dim laP[40]
 dim laH[40]
 dim bkS[24]
@@ -383,7 +385,7 @@ while strlen(rest) > 0 and nSg < 8 do
 	endif
 endwhile
 
-! ---- hoistList をパース「位置,到達高さ」の繰り返し (mm→m) ----
+! ---- hoistList をパース「位置,到達高さ,搬器幅,搬器奥行」の繰り返し (mm→m) ----
 ! 昇降機は数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
 ! 出ていたのに、図面には現れていなかった。マストは足場の外に立つ大物なので
 ! 平面・立面・3Dに出して干渉を確認できるようにする
@@ -403,13 +405,19 @@ while strlen(rest) > 0 and nHo < 4 do
 	k = split(item, "%n", v)
 	if k > 0 then
 		hoIdx = hoIdx + 1
-		if hoIdx - 2 * int(hoIdx / 2) = 1 then
+		hoM = hoIdx - 4 * int((hoIdx - 1) / 4)     ! 1..4
+		if hoM = 1 then
 			hoT = v / 1000
-		else
+		endif
+		if hoM = 2 then
 			nHo = nHo + 1
 			hoP[nHo] = hoT
 			hoR[nHo] = v / 1000
+			hoW[nHo] = 2.0
+			hoD[nHo] = 2.0
 		endif
+		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000
+		if hoM = 4 and nHo > 0 then hoD[nHo] = v / 1000
 	endif
 endwhile
 

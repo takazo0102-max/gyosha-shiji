@@ -522,7 +522,7 @@ for ih = 1 to nHo
 	! 4隅の柱で枠として示す（塊で置くと足場が見えなくなる）
 	for icx = 0 to 1
 		for icy = 0 to 1
-			add hx - HOIST_W / 2 + HOIST_W * icx, -rowW - HOIST_D * icy, 0
+			add hx - hoW[ih] / 2 + hoW[ih] * icx, -rowW - hoD[ih] * icy, 0
 			cylind hoR[ih], 0.06 / 2
 			del 1
 		next icy
@@ -530,8 +530,8 @@ for ih = 1 to nHo
 	! 乗り込み口の高さに水平枠
 	for il3 = 1 to nLa
 		if abs(laP[il3] - hx) < 0.001 then
-			add hx - HOIST_W / 2, -rowW - HOIST_D, laH[il3]
-			block HOIST_W, HOIST_D, 0.04
+			add hx - hoW[ih] / 2, -rowW - hoD[ih], laH[il3]
+			block hoW[ih], hoD[ih], 0.04
 			del 1
 		endif
 	next il3
