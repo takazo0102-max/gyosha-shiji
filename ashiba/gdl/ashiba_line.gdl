@@ -1298,13 +1298,31 @@ for ig = 1 to nSg
 	set style "anno"
 next ig
 
-! 昇降機（立面ではマストの見付けを破線で、乗り込み口は開口として）
-line_type 3
+! 昇降機（立面では搬器の通る範囲を破線で、マスト（0.30角・到達高さ+1m）と
+! 最下の乗り込み口の高さに置いた搬器（高さ2.2m）を実線で。控えピッチごとに
+! マスト控えの印。3D・詳細図と同じ取合い）
 for ih = 1 to nHo
 	hx = hoP[ih]
+	line_type 3
 	rect2 hx - hoW[ih] / 2, 0, hx + hoW[ih] / 2, hoR[ih]
+	line_type 1
+	rect2 hx - 0.15, 0, hx + 0.15, hoR[ih] + 1.0
+	cz2 = 0.20
+	for il6 = 1 to nLa
+		if abs(laP[il6] - hx) < 0.001 then
+			if cz2 = 0.20 or laH[il6] < cz2 then cz2 = laH[il6]
+		endif
+	next il6
+	rect2 hx - hoW[ih] / 2, cz2, hx + hoW[ih] / 2, cz2 + 2.2
+	line2 hx - hoW[ih] / 2, cz2, hx + hoW[ih] / 2, cz2 + 2.2
+	line2 hx - hoW[ih] / 2, cz2 + 2.2, hx + hoW[ih] / 2, cz2
+	tp2 = hoTp[ih]
+	if tp2 < 0.5 then tp2 = 3.6
+	for it2 = 1 to int(hoR[ih] / tp2)
+		rect2 hx - 0.06, it2 * tp2 - 0.03, hx + 0.06, it2 * tp2 + 0.03
+	next it2
 	set style "annoC"
-	if showDim then text2 hx, hoR[ih] + 0.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
+	if showDim then text2 hx, hoR[ih] + 1.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
 	set style "anno"
 next ih
 line_type 1

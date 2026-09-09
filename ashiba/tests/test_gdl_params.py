@@ -885,3 +885,5 @@ class TestHoistMastInModel(unittest.TestCase):
             self.assertIn(key, body3)
         body2 = (gdl / "2d.gdl").read_text(encoding="utf-8")
         self.assertIn("-rowW - 0.40 - hoD[ih]", body2)          # 平面にマストの角
+        self.assertIn("hoR[ih] + 1.0", body2)                    # 立面にマスト（到達+1m）と搬器
+        self.assertIn("cz2 + 2.2", body2)
