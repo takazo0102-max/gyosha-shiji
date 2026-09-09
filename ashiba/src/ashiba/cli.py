@@ -706,6 +706,15 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             raise InputError(f"scaffold_height_mm: {e}")
         raise
     if height_note:
+        # 指定高さで最上層作業床が軒より下に来るなら、その差を書く（足場高さだけ見ると
+        # 軒より高いのに、作業床は軒に届いていない、という見落としを防ぐ）
+        eaves = int(spec["eaves_height_mm"])
+        top_floor = max(elevation.level_heights) if elevation.level_heights else 0
+        if top_floor < eaves and required >= eaves:
+            height_note += (
+                f"。最上層作業床{top_floor}mmは軒高{eaves}mmより{eaves - top_floor}mm低くなります"
+                "（軒回りの作業に支障がないか確認）"
+            )
         plan.warnings.append(height_note)
     # マスタに無い幅の作業床は、解けてしまって数量表で床が丸ごと欠けるだけになる
     if spec.get("deck_widths"):

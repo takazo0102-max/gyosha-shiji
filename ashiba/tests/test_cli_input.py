@@ -684,6 +684,15 @@ class TestHeightAndSpanOverrides(unittest.TestCase):
         self.assertEqual(len(notes), 1, r.warnings)
         self.assertIn("軒高より低い", notes[0])
 
+    def test_top_floor_below_the_eaves_is_named(self):
+        """足場高さは軒より高いが、最上層作業床が軒に届かないときはその差を書く."""
+        r = self._solve(scaffold_height_mm=15900)            # 軒高15400、手すり分900 → 計算値16300
+        notes = [w[2] for w in r.warnings if "足場高さは指定値15900mm" in w[2]]
+        self.assertEqual(len(notes), 1, r.warnings)
+        self.assertIn("軒高15400mmより", notes[0])
+        self.assertIn("低くなります", notes[0])
+        self.assertNotIn("軒に届きません", notes[0])
+
     def test_scaffold_height_too_low_is_an_input_error(self):
         with self.assertRaises(InputError) as cm:
             self._solve(scaffold_height_mm=100)
