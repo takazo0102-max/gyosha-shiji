@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -25,6 +26,7 @@ from .elevation_solver import JACK_MAX_EXTENSION, JACK_MIN_EXTENSION, _compose_t
 from .model import ScaffoldModel
 
 JACK_HARD_MAX_EXTENSION = 450   # ジャッキの機械的な最大繰出し（270は実務上限）
+SHIM_UNIT_MM = 35               # 敷板1枚の厚さ（杉敷板 厚35）。実務上限超えの脚を敷板で持ち上げる単位
 
 
 @dataclass
@@ -197,6 +199,19 @@ def solve_post_feet(
         base_total + int(koma) * max(8, max_offset), sorted(set(lengths), reverse=True)
     )
 
+    # 敷板で持ち上げる境目。実務上限（270）を超えても、その繰出しを許容する品（日建の
+    # ロングジャッキ ND752SP 432 等）が系列にあればそれで受け、無ければ敷板で上限内に収める
+    # （信和 SE-6 は「繰出し最大450 許容繰出し270」なので許容270が境目）
+    rated: list[int] = []
+    for p in model.master.by_category("ジャッキ"):
+        if "アンダーベース" in p.note:
+            continue
+        mt = re.search(r"許容繰出し\s*(\d+)", p.note)
+        v = int(mt.group(1)) if mt else p.max_extension_mm()
+        if v:
+            rated.append(int(v))
+    shim_limit = max([jack_recommended_max] + rated)
+
     feet: list[PostFoot] = []
     warnings: list[str] = []
     for i, ((x, y), gl), m in zip(range(len(gls)), zip(positions, gls), offsets):
@@ -221,6 +236,17 @@ def solve_post_feet(
             foot_warnings.append(
                 f"ジャッキ最大{jack_hard_max}mmでも下端に届きません。"
                 f"敷板で{adjust:.0f}mm持ち上げる必要があります"
+            )
+        elif jack > shim_limit:
+            # 実務上限（270）または系列の許容繰出しを超えるが可動域内。敷板（厚35）を重ねて
+            # 持ち上げ、繰出しを境目以下に収める。支柱下端（gl＋敷板＋ジャッキ）は変えないので
+            # 作業床は通る。以前は警告だけで敷板調整が0のままだった（実機で7本が警告のまま）
+            n_shim = int(math.ceil((jack - shim_limit) / SHIM_UNIT_MM))
+            adjust = n_shim * SHIM_UNIT_MM
+            jack = jack_ideal - adjust
+            foot_warnings.append(
+                f"ジャッキ繰出し{jack_ideal:.0f}mmは実務上限{shim_limit}mmを超えるので、"
+                f"敷板{n_shim}枚（厚{SHIM_UNIT_MM}mm）で{adjust:.0f}mm持ち上げて繰出し{jack:.0f}mmにしています"
             )
         elif jack > jack_recommended_max:
             foot_warnings.append(
@@ -251,6 +277,17 @@ def solve_post_feet(
         )
     vm = model.master.vertical_member_name    # 支柱／建枠
     over_jack_warning = ""
+    shimmed = [f for f in feet if f.base_plate_adjust_mm > 1e-6
+               and any("実務上限" in w for w in f.warnings)]
+    if shimmed:
+        n_sheets = sum(int(round(f.base_plate_adjust_mm / SHIM_UNIT_MM)) for f in shimmed)
+        shim_msg = (
+            f"ジャッキ繰出しが実務上限{shim_limit}mmを超える{vm}{len(shimmed)}本は、"
+            f"敷板（厚{SHIM_UNIT_MM}mm）で持ち上げて上限内にしています（敷板 計{n_sheets}枚・1列あたり。"
+            "脚ごとの枚数はジャッキ量一覧の敷板調整欄）。床均しで高低差を縮めれば敷板は減らせます"
+        )
+        warnings.append(shim_msg)
+        over_jack_warning = shim_msg
     over = [f for f in feet if f.jack_mm > jack_recommended_max]
     if over:
         window = jack_recommended_max - jack_min

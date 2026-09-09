@@ -247,6 +247,13 @@ def check_jack_extension(m: ScaffoldModel, terrain=None) -> CheckResult:
         return CheckResult(
             6, "ジャッキ", WARN, f"繰り出し{j:.0f}mm > {JACK_MAX_EXTENSION}mm", basis
         )
+    # 上限超えの脚を敷板で持ち上げて収めた場合は、その旨を判定に残す（黙ってOKにしない）
+    if terrain is not None and any(
+        getattr(f, "base_plate_adjust_mm", 0) > 1e-6 and any("敷板" in w for w in f.warnings)
+        for f in getattr(terrain, "feet", []) or []
+    ):
+        return CheckResult(6, "ジャッキ", OK, getattr(terrain, "over_jack_warning", "") or
+                           f"上限超えの脚は敷板で持ち上げて繰り出し{j:.0f}mm ≦ {JACK_MAX_EXTENSION}mm", basis)
     return CheckResult(
         6, "ジャッキ", OK, f"繰り出し{j:.0f}mm ≦ {JACK_MAX_EXTENSION}mm", basis
     )

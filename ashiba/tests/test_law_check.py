@@ -149,14 +149,16 @@ class TestJackCheckUsesTerrain(unittest.TestCase):
         r = [c for c in run_all_checks(make_good_model()) if c.check_id == 6][0]
         self.assertEqual(r.status, OK)
 
-    def test_slope_with_over_extended_posts_is_warned(self):
+    def test_slope_with_over_extended_posts_is_shimmed(self):
+        """上限超えの支柱は敷板で持ち上げて上限内に収める。判定はOKだが、その旨を本文に残す."""
         m = make_good_model()
         t = self._terrain(m)
         r = [
             c for c in run_all_checks(m, terrain=t) if c.check_id == 6
         ][0]
-        self.assertEqual(r.status, WARN)
-        self.assertIn("支柱が", r.message)
+        self.assertEqual(r.status, OK)
+        self.assertIn("敷板", r.message)
+        self.assertIn("支柱", r.message)
         self.assertIn("本", r.message)
 
 

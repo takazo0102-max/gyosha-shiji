@@ -133,8 +133,10 @@ class TestDatumOptimization(unittest.TestCase):
         g = slope(0.01)   # 高低差約0.3m
         r = solve_post_feet(m, g)
         koma = m.master.koma_pitch
-        # 最適化された基準面では、可動域外（敷板調整が要る）支柱が出ない
-        self.assertEqual([f for f in r.feet if abs(f.base_plate_adjust_mm) > 1e-6], [])
+        # 最適化された基準面では、可動域外（ジャッキ最大でも届かない／最小でも高い）支柱が出ない
+        # （実務上限超えの脚を敷板で持ち上げる調整は可動域内の話なので除く）
+        self.assertEqual([f for f in r.feet
+                          if any("ジャッキ最大" in w or "床掘り" in w for w in f.warnings)], [])
         # 基準面はコマピッチの範囲内で選ばれている
         self.assertLessEqual(r.reference_gl_mm - r.gl_range_mm[1], koma)
 
@@ -289,6 +291,26 @@ class TestFrameTerrainUsesKenwaku(unittest.TestCase):
         r = solve_post_feet(m, slope(0.06))
         self.assertTrue(r.over_jack_warning)
         self.assertIn("支柱", r.over_jack_warning)
+
+
+class TestOverRecommendedJackGetsShims(unittest.TestCase):
+    """実務上限（270）超〜可動域内の脚は、敷板（厚35）で持ち上げて上限内に収める."""
+
+    def test_shims_bring_the_jack_within_the_limit(self):
+        from ashiba.terrain import SHIM_UNIT_MM, JACK_HARD_MAX_EXTENSION
+
+        m = build()
+        r = solve_post_feet(m, slope(0.04))
+        over = [f for f in r.feet if f.jack_mm > JACK_RECOMMENDED]
+        self.assertEqual(over, [])                       # 上限を超える脚は残らない
+        shimmed = [f for f in r.feet if f.base_plate_adjust_mm > 1e-6]
+        self.assertTrue(shimmed, "この斜面では敷板調整が出る前提")
+        for f in shimmed:
+            self.assertAlmostEqual(f.base_plate_adjust_mm % SHIM_UNIT_MM, 0.0)
+            self.assertGreaterEqual(f.jack_mm, 30)
+            self.assertLessEqual(f.jack_mm, JACK_RECOMMENDED)
+            self.assertTrue(any("敷板" in w and "実務上限" in w for w in f.warnings), f.warnings)
+        self.assertTrue(any("敷板（厚35mm）で持ち上げて上限内" in w for w in r.warnings), r.warnings)
 
 
 if __name__ == "__main__":
