@@ -18,16 +18,17 @@ from .model import GUARD_RAIL_ADVANCE
 # 長いリストは続きパラメータ（name2, name3, …）に分けて渡し、GDL側で続けて読む。
 GDL_STR_MAX = 255
 LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4,
-               "glList": 2, "jackList": 2}
+               "glList": 2, "jackList": 2, "shimList": 2}
 # レコード単位のリストは、レコードの途中で切らない（GDLは項目を順に読む）
 LIST_GROUP = {"brktList": 6}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
                  "tieHeightList": 200, "brktList": 24 * 6,
-                 "glList": 61, "jackList": 61, "bridgeList": 8 * 4}
+                 "glList": 61, "jackList": 61, "shimList": 61, "bridgeList": 8 * 4}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
                "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
                "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ",
+               "shimList": "支柱位置の敷板調整",
                "bridgeList": "渡した区間の項目"}
 
 
@@ -85,7 +86,7 @@ def fit_gdl_lists(params: dict, edge_index: int) -> dict:
     return out
 
 
-def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
+def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str, str]:
     """この辺の支柱位置ごとの地盤高（基準GLからの差）とジャッキ量（mm）.
 
     立面・3Dは平坦なGLに共通のジャッキで描いていたので、敷地高低差で
@@ -94,7 +95,7 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
     """
     feet = list(getattr(terrain, "feet", []) or [])
     if not feet:
-        return "", ""
+        return "", "", ""
     # post_positions() の順（各辺の始点＋中間支柱）に feet が並ぶ。
     # この辺のぶんは連続ブロックで、終点は次の辺の始点
     edges = model.plan.edges
@@ -103,11 +104,11 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
     nxt = offset + ep.span_count
     idx.append(nxt if nxt < len(feet) else 0)
     if max(idx) >= len(feet):
-        return "", ""
+        return "", "", ""
     gl_ref = max(f.gl_mm for f in feet)
     picked = [feet[i] for i in idx]
     if all(abs(f.gl_mm - gl_ref) < 0.5 for f in feet):
-        return "", ""          # 平坦。空にしておけば図は従来どおり
+        return "", "", ""      # 平坦。空にしておけば図は従来どおり
     # 図の作業床・根がらみは名目のジャッキ量を前提に描く。敷地を解くと基準面の
     # 最適化でジャッキ量が名目から動く（例: 名目100→基準脚35）ので、その差を
     # 地盤高に乗せて「脚の下端＋ジャッキ＝名目のジャッキ天端」を保つ。
@@ -120,7 +121,9 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str]:
     jack = ",".join(
         str(int(round(f.jack_mm + f.base_plate_adjust_mm))) for f in picked
     )
-    return gl, jack
+    # 敷板で持ち上げた分（正のみ）。図では敷板を重ねて描き、ねじ棒はその上から
+    shim = ",".join(str(int(round(max(0.0, f.base_plate_adjust_mm)))) for f in picked)
+    return gl, jack, shim
 
 
 def _bridge_list(model: ScaffoldModel, ep) -> str:
@@ -163,7 +166,7 @@ def line_params(
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
-    gl_list, jack_list = _foot_lists(model, ep, terrain)
+    gl_list, jack_list, shim_list = _foot_lists(model, ep, terrain)
     # 継ぎ足し部の根がらみをGDLが同じ規則で描くための刻み（平坦なら0で描かない）
     from .terrain import terrain_step_mm
 
@@ -221,6 +224,7 @@ def line_params(
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,
+        "shimList": shim_list,
         "footStep": foot_step,
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),

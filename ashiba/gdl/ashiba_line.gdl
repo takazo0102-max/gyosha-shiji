@@ -45,6 +45,8 @@
 !   glList2         文字列  支柱位置ごとの地盤高（続き2）                                                                             既定 ""
 !   jackList        文字列  支柱位置ごとのジャッキ繰出し mm（敷板調整含む）                                                           既定 ""
 !   jackList2       文字列  支柱位置ごとのジャッキ繰出し（続き2）                                                                     既定 ""
+!   shimList        文字列  支柱位置ごとの敷板調整 mm（ジャッキ繰出しの内数。敷板を重ねて描く）                                       既定 ""
+!   shimList2       文字列  支柱位置ごとの敷板調整（続き2）                                                                           既定 ""
 !   flList          文字列  各階FL高さ mm カンマ区切り（立面の参照線）                                                                既定 ""
 !   faceName        文字列  面の名称（立面図の図面名）                                                                                既定 ""
 !   levelList       文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）                                                    既定 ""
@@ -93,6 +95,7 @@ dim ties[200]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
+dim sh[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -273,6 +276,28 @@ for tc = 1 to 2
 		if k > 0 then
 			nJk = nJk + 1
 			jk[nJk] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- shimList をパース (mm→m): 敷板で持ち上げた分（ジャッキ繰出しの内数） ----
+nSh = 0
+for tc = 1 to 2
+	rest = shimList
+	if tc = 2 then rest = shimList2
+	while strlen(rest) > 0 and nSh < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSh = nSh + 1
+			sh[nSh] = v / 1000
 		endif
 	endwhile
 next tc
@@ -1008,12 +1033,15 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
-	! ジャッキベース: アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
+	if ip <= nSh then sv = sh[ip]
+	! ジャッキベース: 敷板（あれば）＋アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
 	if bBase = 0 then
-		rect2 x - 0.07, gv, x + 0.07, gv + 0.006
-		rect2 x - 0.019, gv + 0.006, x + 0.019, gv + jo
+		if sv > 0.001 then rect2 x - 0.15, gv, x + 0.15, gv + sv
+		rect2 x - 0.07, gv + sv, x + 0.07, gv + sv + 0.006
+		rect2 x - 0.019, gv + sv + 0.006, x + 0.019, gv + jo
 		rect2 x - 0.045, gv + jo - 0.03, x + 0.045, gv + jo
 		line2 x - 0.09, gv + jo - 0.015, x + 0.09, gv + jo - 0.015
 	endif
@@ -1439,12 +1467,14 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
+	if ip <= nSh then sv = sh[ip]
 	for row = rowStart to 1
 		if bBase = 0 then
 			add x, -row * rowW, gv
-			! ジャッキ
+			! ジャッキ（敷板があればその上から）
 			gosub 820
 			addz jo
 			if nGl >= 2 then
@@ -1476,8 +1506,10 @@ next ip
 if cornerS = 1 and nRows >= 2 then
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
+	if nSh >= 1 then sv = sh[1]
 	add -rowW, -rowW, gv
 	gosub 820
 	addz jo
@@ -2102,14 +2134,23 @@ end
 end
 
 ! ============================================================
-820: ! ---- ジャッキベース（アンダーベース＋ねじ棒＋ハンドル付きナット） ----
+820: ! ---- ジャッキベース（敷板＋アンダーベース＋ねじ棒＋ハンドル付きナット） ----
 ! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。以前は細い棒1本で
 ! 敷板もナットも無く、ジャッキに見えなかった（ユーザー指摘）。
-! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き
-add -0.07, -0.07, 0
+! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き。
+! jo はジャッキ繰出し（敷板 sv を含む）。敷板があれば杉敷板300×210を sv の厚さに重ね、
+! アンダーベースとねじ棒はその上から（ねじ棒の長さは jo - sv）
+if sv > 0.001 then
+	add -0.15, -0.105, 0
+	block 0.30, 0.21, sv
+	del 1
+endif
+add -0.07, -0.07, sv
 block 0.14, 0.14, 0.006
 del 1
-cylind jo, 0.0381 / 2
+add 0, 0, sv
+cylind jo - sv, 0.0381 / 2
+del 1
 add 0, 0, jo - 0.03
 resol 6
 cylind 0.03, 0.045

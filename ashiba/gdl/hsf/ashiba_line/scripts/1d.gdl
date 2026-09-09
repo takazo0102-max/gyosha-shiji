@@ -13,6 +13,7 @@ dim ties[200]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
+dim sh[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -193,6 +194,28 @@ for tc = 1 to 2
 		if k > 0 then
 			nJk = nJk + 1
 			jk[nJk] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- shimList をパース (mm→m): 敷板で持ち上げた分（ジャッキ繰出しの内数） ----
+nSh = 0
+for tc = 1 to 2
+	rest = shimList
+	if tc = 2 then rest = shimList2
+	while strlen(rest) > 0 and nSh < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSh = nSh + 1
+			sh[nSh] = v / 1000
 		endif
 	endwhile
 next tc

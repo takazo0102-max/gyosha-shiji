@@ -830,3 +830,23 @@ class TestCornerReachesTheDrawing(unittest.TestCase):
         self.assertEqual(line_params(m, m.plan.edges[0])["cornerS"], 0)
         w = build("waku")
         self.assertEqual(line_params(w, w.plan.edges[0])["cornerS"], 0)
+
+
+class TestShimsReachTheDrawing(unittest.TestCase):
+    """敷板で持ち上げた脚は shimList で図に渡す（ジャッキ繰出しの内数）."""
+    def test_shim_list(self):
+        from ashiba.terrain import GroundModel, solve_post_feet
+
+        m = build("shinwa_A")
+        t = solve_post_feet(m, GroundModel(points=[(0, 0, 0), (30000, 0, 700), (30000, 20000, 700), (0, 20000, 0)]))
+        self.assertTrue(any(f.base_plate_adjust_mm > 0 for f in t.feet), "敷板が出る斜面の前提")
+        p = line_params(m, m.plan.edges[0], terrain=t)
+        shims = [int(v) for v in p["shimList"].split(",")]
+        jacks = [int(v) for v in p["jackList"].split(",")]
+        self.assertEqual(len(shims), len(jacks))
+        self.assertTrue(any(v > 0 for v in shims))
+        for s_, j in zip(shims, jacks):
+            self.assertLessEqual(s_, j)
+            self.assertEqual(s_ % 35, 0)
+        flat = line_params(m, m.plan.edges[0])
+        self.assertEqual(flat["shimList"], "")

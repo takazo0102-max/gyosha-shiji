@@ -16,12 +16,14 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
+	if ip <= nSh then sv = sh[ip]
 	for row = rowStart to 1
 		if bBase = 0 then
 			add x, -row * rowW, gv
-			! ジャッキ
+			! ジャッキ（敷板があればその上から）
 			gosub 820
 			addz jo
 			if nGl >= 2 then
@@ -53,8 +55,10 @@ next ip
 if cornerS = 1 and nRows >= 2 then
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
+	if nSh >= 1 then sv = sh[1]
 	add -rowW, -rowW, gv
 	gosub 820
 	addz jo
@@ -679,14 +683,23 @@ end
 end
 
 ! ============================================================
-820: ! ---- ジャッキベース（アンダーベース＋ねじ棒＋ハンドル付きナット） ----
+820: ! ---- ジャッキベース（敷板＋アンダーベース＋ねじ棒＋ハンドル付きナット） ----
 ! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。以前は細い棒1本で
 ! 敷板もナットも無く、ジャッキに見えなかった（ユーザー指摘）。
-! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き
-add -0.07, -0.07, 0
+! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き。
+! jo はジャッキ繰出し（敷板 sv を含む）。敷板があれば杉敷板300×210を sv の厚さに重ね、
+! アンダーベースとねじ棒はその上から（ねじ棒の長さは jo - sv）
+if sv > 0.001 then
+	add -0.15, -0.105, 0
+	block 0.30, 0.21, sv
+	del 1
+endif
+add -0.07, -0.07, sv
 block 0.14, 0.14, 0.006
 del 1
-cylind jo, 0.0381 / 2
+add 0, 0, sv
+cylind jo - sv, 0.0381 / 2
+del 1
 add 0, 0, jo - 0.03
 resol 6
 cylind 0.03, 0.045

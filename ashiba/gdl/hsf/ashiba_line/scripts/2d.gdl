@@ -299,12 +299,15 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
 	jo = jackOut
+	sv = 0
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
-	! ジャッキベース: アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
+	if ip <= nSh then sv = sh[ip]
+	! ジャッキベース: 敷板（あれば）＋アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
 	if bBase = 0 then
-		rect2 x - 0.07, gv, x + 0.07, gv + 0.006
-		rect2 x - 0.019, gv + 0.006, x + 0.019, gv + jo
+		if sv > 0.001 then rect2 x - 0.15, gv, x + 0.15, gv + sv
+		rect2 x - 0.07, gv + sv, x + 0.07, gv + sv + 0.006
+		rect2 x - 0.019, gv + sv + 0.006, x + 0.019, gv + jo
 		rect2 x - 0.045, gv + jo - 0.03, x + 0.045, gv + jo
 		line2 x - 0.09, gv + jo - 0.015, x + 0.09, gv + jo - 0.015
 	endif
