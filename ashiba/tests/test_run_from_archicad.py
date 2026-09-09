@@ -105,5 +105,13 @@ class TestSampleSpec(unittest.TestCase):
         self.assertIn(mod.SAMPLE_NAME, buf.getvalue())
 
 
+class TestElevationTitles(unittest.TestCase):
+    def test_project_name_is_appended(self):
+        mod = _load_module()
+        self.assertEqual(mod.elevation_face_titles(["南面", "東面(辺1)"], "A棟"), ["南面　A棟", "東面(辺1)　A棟"])
+        self.assertEqual(mod.elevation_face_titles(["南面"], ""), ["南面"])
+        self.assertEqual(mod.elevation_face_titles(["南面"], None), ["南面"])
+
+
 if __name__ == "__main__":
     unittest.main()

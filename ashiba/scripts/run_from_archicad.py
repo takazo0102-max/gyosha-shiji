@@ -115,6 +115,15 @@ def write_sample_spec(out_dir: Path) -> Path:
     return p
 
 
+def elevation_face_titles(face_names: list, project_name) -> list:
+    """立面図の表題に入れる面名。案件名があれば添える（複数棟を同じ図面に置くと、
+    「立面図 南面」だけではどの棟か分からない）."""
+    name = str(project_name or "").strip()
+    if not name:
+        return list(face_names)
+    return [f"{n}　{name}" for n in face_names]
+
+
 def load_spec_override() -> dict:
     """条件の上書きファイルを読む（無ければ空、壊れていれば止める）.
 
@@ -191,6 +200,7 @@ def main() -> None:
             platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
             origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
             floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
+            face_names=elevation_face_titles(r.model.plan.face_names(), spec.get("project_name")),
         )
     details = []
     if PLACE_DETAILS:
