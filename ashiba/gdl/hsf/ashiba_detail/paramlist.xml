@@ -121,6 +121,38 @@
 			<Description><![CDATA["梁枠上に乗る支柱位置 開口始点からのmm 空でスパン割から推定"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="hoistW">
+			<Description><![CDATA["昇降機 搬器の幅（面に沿う方向）"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<Length Name="hoistD">
+			<Description><![CDATA["昇降機 搬器の奥行（面に直交）"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<Length Name="hoistH">
+			<Description><![CDATA["昇降機 到達高さ（マスト高さ）0で階高6層ぶん"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hoistGap">
+			<Description><![CDATA["搬器と足場の隙間"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="mastTie">
+			<Description><![CDATA["マスト控えの間隔（メーカー指定）"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<RealNum Name="hoistLoad">
+			<Description><![CDATA["昇降機 積載荷重 kN（0=未指定）"]]></Description>
+			<Value>0</Value>
+		</RealNum>
+		<Integer Name="hoistGate">
+			<Description><![CDATA["乗り込み口の開閉式手すり（遮断設備）あり=1"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="landList">
+			<Description><![CDATA["乗り込み口の作業床高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="openH">
 			<Description><![CDATA["開口高さ(梁枠下端) 0で階高2層ぶん"]]></Description>
 			<Value>0</Value>

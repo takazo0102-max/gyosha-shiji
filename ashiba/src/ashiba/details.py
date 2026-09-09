@@ -26,7 +26,12 @@ DETAIL_NAMES = {
     "asagao": "朝顔取付部詳細",
     "corner": "コーナー部詳細",
     "beam": "開口部 梁枠詳細",
+    "hoist": "ロングスパンエレベーター（昇降機）詳細",
 }
+
+# ロングスパンエレベーター（工事用エレベーター）の届出区分（クレーン等安全規則）
+HOIST_NOTIFY_KN = 9.8          # 積載荷重1t以上 → エレベーター設置届（140条、30日前）
+HOIST_REPORT_KN = 2.45         # 0.25t以上1t未満 → 設置報告（145条）
 
 ASAGAO_MIN_HEIGHT_MM = 10000   # 朝顔が必要になる高さ
 ASAGAO_2ND_HEIGHT_MM = 20000   # 2段必要になる高さ
@@ -48,17 +53,39 @@ def _beam_sizes(model: ScaffoldModel) -> list[int]:
     return sorted({p.nominal_dim for p in model.master.by_category("梁枠")})
 
 
+def hoist_detail_specs(model: ScaffoldModel, platforms) -> list[dict]:
+    """昇降機ごとの詳細図パラメータ（面・位置・乗り込み口の高さ・搬器・積載）を集める."""
+    out: list[dict] = []
+    levels = model.elevation.level_heights
+    for h in (getattr(platforms, "hoists", None) or []):
+        landings = h.landings(model)
+        out.append({
+            "face": model.face_name(h.edge_index),
+            "position_mm": float(h.position_mm),
+            "reach_height_mm": float(h.reach_height_mm or model.scaffold_height_mm),
+            "tie_every_mm": float(h.tie_every_mm),
+            "landing_levels": list(landings),
+            "landing_heights_mm": [float(levels[lv - 1]) for lv in landings if 1 <= lv <= len(levels)],
+            "cage_width_mm": float(getattr(h, "cage_width_mm", 2000.0)),
+            "cage_depth_mm": float(getattr(h, "cage_depth_mm", 2000.0)),
+            "load_kn": float(getattr(h, "load_kn", 0.0)),
+        })
+    return out
+
+
 def required_details(
     model: ScaffoldModel,
     openings: Optional[list[dict]] = None,
     force_all: bool = False,
     terrain=None,
+    hoists: Optional[list[dict]] = None,
 ) -> list[DetailSheet]:
     """この計画に必要な詳細図を決め、GDLパラメータまで埋めて返す.
 
     openings: [{"beam_span_mm": 3600}, ...] 開口部（梁枠が要る箇所）
-    force_all: Trueなら不要な図も含め5枚すべて返す
+    force_all: Trueなら不要な図も含め6枚すべて返す
     terrain: 敷地の解。渡すと脚部詳細のジャッキ繰出しを実際の最大値で描く
+    hoists: hoist_detail_specs() の結果。昇降機（ロングスパンエレベーター）があれば1基に1枚
     """
     e = model.elevation
     # 枠組は "W"。くさびのA/Bと同じ扱いにすると、枠組の計画に
@@ -177,6 +204,45 @@ def required_details(
                         "beamPosts": ",".join(f"{v:.0f}" for v in inner),
                         "openH": lv / 1000.0},
                 reason=f"開口部（梁枠{span}mm）で{vm}を抜くため",
+            )
+        )
+
+    # ロングスパンエレベーター（工事用エレベーター）: 1基に1枚。搬器・マスト控え・
+    # 乗り込み口（開閉式手すり）・届出区分を図に載せる。本体の基礎・構造はメーカー
+    hspecs = list(hoists or [])
+    if force_all and not hspecs:
+        hspecs = [{"face": "南面", "position_mm": 9000.0, "reach_height_mm": float(model.scaffold_height_mm),
+                   "tie_every_mm": 3600.0, "landing_levels": [1, 2],
+                   "landing_heights_mm": [float(v) for v in e.level_heights[:2]],
+                   "cage_width_mm": 2000.0, "cage_depth_mm": 2000.0, "load_kn": 0.0}]
+    for i, h in enumerate(hspecs):
+        load = float(h.get("load_kn") or 0.0)
+        if load >= HOIST_NOTIFY_KN:
+            notify = "エレベーター設置届（クレーン等安全規則140条・積載荷重1t以上・30日前）"
+        elif load >= HOIST_REPORT_KN:
+            notify = "エレベーター設置報告（クレーン等安全規則145条・積載荷重0.25t以上1t未満）"
+        elif load > 0:
+            notify = "届出区分外（積載荷重0.25t未満）"
+        else:
+            notify = "積載荷重未指定（メーカー仕様で確認し、設置届/設置報告の要否を決める）"
+        lv_txt = "・".join(str(v) for v in h.get("landing_levels", [])) or "全層"
+        sheets.append(
+            DetailSheet(
+                key="hoist",
+                title=DETAIL_NAMES["hoist"] + (f"（昇降機{i + 1}）" if len(hspecs) > 1 else ""),
+                params={**common,
+                        "hoistW": float(h.get("cage_width_mm", 2000.0)) / 1000.0,
+                        "hoistD": float(h.get("cage_depth_mm", 2000.0)) / 1000.0,
+                        "hoistH": float(h.get("reach_height_mm") or model.scaffold_height_mm) / 1000.0,
+                        "mastTie": float(h.get("tie_every_mm") or 3600.0) / 1000.0,
+                        "hoistGap": 0.10,       # 搬器と足場の隙間（図示用。乗場の渡し板で塞ぐ）
+                        "hoistLoad": load,
+                        "hoistGate": 1,
+                        "landList": ",".join(f"{v:.0f}" for v in h.get("landing_heights_mm", [])),
+                        },
+                reason=(f"{h.get('face', '')} 始点から{float(h.get('position_mm', 0)):.0f}mm の昇降機"
+                        f"（乗り込み口 第{lv_txt}層）の取合い（搬器・マスト控え・開閉式手すり）を示すため。"
+                        f"{notify}"),
             )
         )
     return sheets

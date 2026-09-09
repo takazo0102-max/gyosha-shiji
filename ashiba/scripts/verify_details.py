@@ -29,6 +29,8 @@ CASES = [
      {"asagaoProj": 1.5, "asagaoAngle": 15.0}),
     ("corner", "コーナー", {"standoff": 0.3}, None),
     ("beam", "梁枠", {"beamSpan": 3.6}, {"beamSpan": 4.2}),
+    ("hoist", "昇降機", {"hoistGate": 1, "hoistLoad": 9.8, "landList": "2050,5850"},
+     {"hoistGate": 0, "hoistLoad": 0}),
 ]
 
 

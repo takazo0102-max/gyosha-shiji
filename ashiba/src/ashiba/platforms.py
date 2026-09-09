@@ -81,6 +81,10 @@ class Hoist:
     # 乗り込み口を設ける作業層（空なら全層）。足場側の開口なので本ツールの範囲
     landing_levels: list[int] = field(default_factory=list)
     note: str = ""
+    # 搬器の見付け（詳細図用。機種で違うので既定は図示用の2.0×2.0m）と積載荷重
+    cage_width_mm: float = 2000.0
+    cage_depth_mm: float = 2000.0
+    load_kn: float = 0.0            # 積載荷重（0=未指定。設置届/設置報告の要否判定に使う）
 
     def landings(self, model: ScaffoldModel) -> list[int]:
         n = model.elevation.n_levels

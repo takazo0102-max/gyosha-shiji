@@ -98,7 +98,10 @@ SAMPLE_SPEC = {
     "_openings_example": [{"face": "南面", "start_mm": 3600, "beam_span_mm": 3600, "level": 2}],
     "_loading_stages_example": [{"face": "南面", "start_mm": 12600, "span_count": 2, "projection_mm": 1500,
                                   "load_kn": 9.8, "levels": [3]}],
-    "_hoists_example": [{"face": "北面", "position_mm": 9000, "landing_levels": [2, 5]}],
+    "_hoists_example": [{"face": "北面", "position_mm": 9000, "landing_levels": [2, 5],
+                         "cage_width_mm": 2400, "cage_depth_mm": 1800, "load_kn": 9.8}],
+    "_hoists_note": "ロングスパンエレベーターの詳細図は昇降機1基に1枚。搬器寸法（cage_width_mm/cage_depth_mm）と"
+                    "積載荷重（load_kn。9.8以上＝1t以上は設置届、2.45以上は設置報告）を書くと図と届出区分に反映",
     "_bracket_sections_example": [{"face": "東面", "start_mm": 0, "end_mm": 7200, "width": 400,
                                     "direction": "内", "levels": [1, 2]}],
     "site": {"region": "関東(内陸)", "sheet_type": "メッシュシート"},

@@ -173,7 +173,7 @@ LIST_ITEM_KEYS = {
         {"edge_index", "start_mm"},
     ),
     "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
-                "landing_levels", "note"},
+                "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn"},
                {"edge_index", "position_mm"}),
 }
 STAIR_POSITION_KEYS = {"edge_index", "face", "start_mm", "span_count", "reason"}
@@ -200,7 +200,8 @@ LIST_NUMERIC_FIELDS = {
     "bracket_sections": ("edge_index", "start_mm", "end_mm", "width", "deck_width"),
     "loading_stages": ("edge_index", "start_mm", "span_count",
                        "projection_mm", "load_kn"),
-    "hoists": ("edge_index", "position_mm", "reach_height_mm", "tie_every_mm"),
+    "hoists": ("edge_index", "position_mm", "reach_height_mm", "tie_every_mm",
+               "cage_width_mm", "cage_depth_mm", "load_kn"),
 }
 # 整数の配列であるべきキー（作業層の指定など）
 LIST_INT_LIST_FIELDS = {
@@ -847,6 +848,9 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             tie_every_mm=h.get("tie_every_mm", 3600),
             landing_levels=[int(v) for v in h.get("landing_levels", [])],
             note=h.get("note", ""),
+            cage_width_mm=float(h.get("cage_width_mm", 2000)),
+            cage_depth_mm=float(h.get("cage_depth_mm", 2000)),
+            load_kn=float(h.get("load_kn", 0.0)),
         )
         for h in spec.get("hoists", [])
     ]
@@ -1127,10 +1131,11 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         platforms=platforms, openings=openings, terrain=terrain,
     )
     # 詳細図は開口部があれば梁枠の図を足す
-    from .details import required_details
+    from .details import hoist_detail_specs, required_details
 
     detail_sheets = required_details(
-        model, opening_detail_specs(openings), terrain=terrain
+        model, opening_detail_specs(openings), terrain=terrain,
+        hoists=hoist_detail_specs(model, platforms),
     )
     structural = run_structural(
         model, quantity, site, platforms=platforms, terrain=terrain,

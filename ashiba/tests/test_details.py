@@ -61,6 +61,49 @@ class TestRequiredDetails(unittest.TestCase):
         self.assertIn("開口1", beams[0].title)
         self.assertIn("開口2", beams[1].title)
 
+    def test_hoist_sheet_only_with_a_hoist(self):
+        m = make_model()
+        self.assertEqual([s for s in required_details(m) if getattr(s, "key") == "hoist"], [])
+        spec = {"face": "西面", "position_mm": 7200.0, "reach_height_mm": 0.0, "tie_every_mm": 3600.0,
+                "landing_levels": [2, 4], "landing_heights_mm": [3850.0, 7450.0],
+                "cage_width_mm": 2400.0, "cage_depth_mm": 1800.0, "load_kn": 9.8}
+        sheets = [s for s in required_details(m, hoists=[spec]) if getattr(s, "key") == "hoist"]
+        self.assertEqual(len(sheets), 1)
+        p = sheets[0].params
+        self.assertAlmostEqual(p["hoistW"], 2.4)
+        self.assertAlmostEqual(p["hoistD"], 1.8)
+        self.assertEqual(p["landList"], "3850,7450")
+        self.assertAlmostEqual(p["mastTie"], 3.6)
+        self.assertEqual(p["hoistGate"], 1)
+        self.assertIn("西面 始点から7200mm", sheets[0].reason)
+        self.assertIn("設置届", sheets[0].reason)          # 9.8kN ＝ 1t以上
+        spec2 = dict(spec, load_kn=3.0)
+        self.assertIn("設置報告", [s for s in required_details(m, hoists=[spec2]) if getattr(s, "key") == "hoist"][0].reason)
+        spec3 = dict(spec, load_kn=0.0)
+        self.assertIn("未指定", [s for s in required_details(m, hoists=[spec3]) if getattr(s, "key") == "hoist"][0].reason)
+
+    def test_hoist_specs_come_from_the_plan(self):
+        """ツールバー・CLIは平面の昇降機から詳細図の条件を作る（面名・乗り込み口の高さ）."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = {"series_id": "shinwa_A", "outline_mm": RECT, "eaves_height_mm": 15400,
+                "hoists": [{"face": "北面", "position_mm": 9000, "landing_levels": [2, 5],
+                            "cage_width_mm": 2400, "load_kn": 9.8}]}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            r = solve_all(load_spec(p))
+        hs = [s for s in r.detail_sheets if getattr(s, "key") == "hoist"]
+        self.assertEqual(len(hs), 1)
+        self.assertIn("北面 始点から9000mm", hs[0].reason)
+        lv = r.model.elevation.level_heights
+        self.assertEqual(hs[0].params["landList"], f"{lv[1]:.0f},{lv[4]:.0f}")
+        self.assertAlmostEqual(hs[0].params["hoistW"], 2.4)
+
     def test_force_all_gives_five(self):
         sheets = required_details(make_model(height=8000), force_all=True)
         self.assertEqual({s.key for s in sheets}, set(DETAIL_NAMES))

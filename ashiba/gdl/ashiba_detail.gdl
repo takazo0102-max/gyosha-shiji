@@ -36,6 +36,14 @@
 !   cornerGap    長さ    枠組のコーナー隙間 0でくさび式(隙間なし)                                   既定 0
 !   beamList     文字列  梁枠の規格寸法 カンマ区切りmm 空で3600,5400                                既定 ""
 !   beamPosts    文字列  梁枠上に乗る支柱位置 開口始点からのmm 空でスパン割から推定                 既定 ""
+!   hoistW       長さ    昇降機 搬器の幅（面に沿う方向）                                            既定 2
+!   hoistD       長さ    昇降機 搬器の奥行（面に直交）                                              既定 2
+!   hoistH       長さ    昇降機 到達高さ（マスト高さ）0で階高6層ぶん                                既定 0
+!   hoistGap     長さ    搬器と足場の隙間                                                           既定 0.1
+!   mastTie      長さ    マスト控えの間隔（メーカー指定）                                           既定 3.6
+!   hoistLoad    実数    昇降機 積載荷重 kN（0=未指定）                                             既定 0
+!   hoistGate    整数    乗り込み口の開閉式手すり（遮断設備）あり=1                                 既定 1
+!   landList     文字列  乗り込み口の作業床高さ mm カンマ区切り（GLから）                           既定 ""
 !   openH        長さ    開口高さ(梁枠下端) 0で階高2層ぶん                                          既定 0
 !   warnPen      整数    警告表示のペン番号 赤 ペンテーブル依存                                     既定 20
 ! ==========================================================
@@ -115,6 +123,31 @@ for i = 1 to nBeam
 	beamStdTxt = beamStdTxt + str(beamStd[i] * 1000, 5, 0)
 next i
 
+! 昇降機の乗り込み口の作業床高さ（GLから）。空なら階高で2層ぶん置く
+dim landH[16]
+nLand = 0
+rest = landList
+while strlen(rest) > 0 and nLand < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLand = nLand + 1
+		landH[nLand] = v / 1000
+	endif
+endwhile
+if nLand = 0 then
+	landH[1] = floorH
+	landH[2] = 2 * floorH
+	nLand = 2
+endif
+
 ! 梁枠上に乗る支柱の位置（開口始点から）。空ならスパン割から推定する
 dim bpOff[12]
 nBp = 0
@@ -186,12 +219,16 @@ else
 				if detailType = "beam" then
 					gosub 500
 				else
-					! 未知キーで別の図を黙って描くと誤りが図面に紛れ込むので明示する
-					pen warnPen
-					text2 0, 0, "detailType 未知: " + detailType
-					text2 0, -0.12, "base / tie / asagao / corner / beam を指定してください"
-					pen 1
-					end
+					if detailType = "hoist" then
+						gosub 600
+					else
+						! 未知キーで別の図を黙って描くと誤りが図面に紛れ込むので明示する
+						pen warnPen
+						text2 0, 0, "detailType 未知: " + detailType
+						text2 0, -0.12, "base / tie / asagao / corner / beam / hoist を指定してください"
+						pen 1
+						end
+					endif
 				endif
 			endif
 		endif
@@ -657,6 +694,148 @@ ny = ny - txtLine
 text2 tx, ny, "梁枠上は積載荷重を低減し、両端支柱は補強すること"
 ny = ny - txtLine
 text2 tx, ny, "梁枠取付部の直近に壁つなぎを設置"
+return
+
+! ============================================================
+600: ! ---- ロングスパンエレベーター（工事用エレベーター）詳細（立面＋平面） ----
+! 足場の外側にマストと搬器が立ち、各乗り込み口で足場の作業床へ渡る。
+! 足場側の取合い（マスト控え・乗り込み口の開閉式手すり・渡し板）を示す。
+! 本体の基礎・構造・定格はメーカー仕様（本ツールの対象外）
+ttl = "ロングスパンエレベーター詳細（立面・平面 タイプ" + serType + "）"
+hH = hoistH
+if hH <= 0.001 then hH = 6 * floorH
+hg = hoistGap
+cx0 = -hg - hoistD                     ! 搬器の外側端（足場外側建地を x=0 とし、外側が -x）
+mx = cx0 - 0.15                        ! マスト中心（搬器の外側に立つ）
+
+! --- 立面（面に直交する方向から見る: 左が外、右が躯体側） ---
+! 足場: 外側建地・内側建地（建地列間隔 rowW）と作業床
+rect2 -r_sic, 0, r_sic, hH + koma
+rect2 rowW - r_sic, 0, rowW + r_sic, hH + koma
+! GL
+line2 mx - 0.60, 0, rowW + 0.60, 0
+for gx = mx - 0.55 to rowW + 0.55 step 0.08
+	line2 gx, 0, gx - 0.05, -0.05
+next gx
+! マスト（ラック付きの角形マスト。継ぎ目を0.5mごとに示す）
+rect2 mx - 0.15, 0, mx + 0.15, hH
+nm = int(hH / 0.5)
+for i = 1 to nm
+	line2 mx - 0.15, i * 0.5, mx + 0.15, i * 0.5
+next i
+! 搬器（最下の乗り込み口の高さに置く。高さ2.2m）
+cz = landH[1]
+rect2 cx0, cz, cx0 + hoistD, cz + 2.2
+line2 cx0, cz, cx0 + hoistD, cz + 2.2
+line2 cx0, cz + 2.2, cx0 + hoistD, cz
+! 各乗り込み口: 作業床・渡し板（隙間を塞ぐ）・開閉式手すり（遮断設備）
+for i = 1 to nLand
+	z = landH[i]
+	rect2 -0.05, z, rowW + 0.05, z + 0.045
+	rect2 -hg, z + 0.045, 0, z + 0.075
+	if hoistGate = 1 then
+		rect2 -0.02, z + 0.10, 0.02, z + 0.90
+		line2 -0.06, z + 0.90, 0.06, z + 0.90
+		line2 -0.06, z + 0.50, 0.06, z + 0.50
+	endif
+next i
+! マスト控え（間隔 mastTie ごとに足場の外側建地へ。足場側は壁つなぎで躯体へ）
+nt = int(hH / mastTie)
+for i = 1 to nt
+	z = i * mastTie
+	rect2 mx + 0.15, z - r_tie, 0, z + r_tie
+	rect2 -0.035, z - 0.03, 0.035, z + 0.03
+next i
+
+hotspot2 0, 0
+hotspot2 mx, 0
+hotspot2 mx, hH
+
+! --- 平面（右側に並べる。搬器の平面が立面の建地に掛からないだけ右へ離す）---
+px = rowW + 0.90 + hg + hoistD + 0.30
+py = 0
+! 足場の建地列2本と踏板（間口 spanW）
+rect2 px - r_nuno, py, px + r_nuno, py + spanW
+rect2 px + rowW - r_nuno, py, px + rowW + r_nuno, py + spanW
+circle2 px, py, r_sic
+circle2 px, py + spanW, r_sic
+circle2 px + rowW, py, r_sic
+circle2 px + rowW, py + spanW, r_sic
+rect2 px + 0.05, py + 0.10, px + 0.05 + deckW1, py + spanW - 0.10
+! 搬器（幅 hoistW × 奥行 hoistD）とマスト。乗り込み口は搬器の幅ぶん開く
+cy0 = py + (spanW - hoistW) / 2
+rect2 px - hg - hoistD, cy0, px - hg, cy0 + hoistW
+line2 px - hg - hoistD, cy0, px - hg, cy0 + hoistW
+line2 px - hg - hoistD, cy0 + hoistW, px - hg, cy0
+rect2 px - hg - hoistD - 0.30, py + spanW / 2 - 0.15, px - hg - hoistD, py + spanW / 2 + 0.15
+! 乗り込み口の開閉式手すり（搬器の幅、外側建地位置）
+if hoistGate = 1 then
+	line_type 3
+	line2 px, cy0, px, cy0 + hoistW
+	line_type 1
+endif
+hotspot2 px, py
+
+! 法規チェック: 乗り込み口の遮断設備（安衛則563条: 作業床の開放端）
+if hoistGate = 0 then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※乗り込み口に開閉式手すり（遮断設備）が必要（安衛則563条）"
+endif
+! 積載荷重未指定は届出区分が決まらない
+if hoistLoad <= 0.001 then
+	nWarn = nWarn + 1
+	warnMsg[nWarn] = "※積載荷重が未指定。メーカー仕様で確認し設置届/設置報告の要否を決めること"
+endif
+
+if not(showDim) then return
+
+! 寸法: 搬器奥行・隙間・到達高さ
+dyy = -0.30
+line2 cx0, dyy, 0, dyy
+line2 cx0, dyy - 0.03, cx0, dyy + 0.03
+line2 -hg, dyy - 0.03, -hg, dyy + 0.03
+line2 0, dyy - 0.03, 0, dyy + 0.03
+set style "annoC"
+text2 (cx0 - hg) / 2, dyy - 0.10, "搬器 " + str(hoistD * 1000, 4, 0)
+set style "annoC"
+text2 -hg / 2, dyy - 0.10 - txtLine, "隙間 " + str(hg * 1000, 3, 0)
+set style "anno"
+line2 mx - 0.40, 0, mx - 0.40, hH
+line2 mx - 0.43, 0, mx - 0.37, 0
+line2 mx - 0.43, hH, mx - 0.37, hH
+hTxt = "到達 " + str(hH * 1000, 5, 0)
+text2 mx - 0.46 - stw(hTxt) * GLOB_SCALE / 1000, hH / 2, hTxt
+
+! 注記
+tx = px + rowW + 0.40
+ny = hH
+text2 tx, ny, "ロングスパンエレベーター（工事用エレベーター）"
+ny = ny - txtLine
+text2 tx, ny, "搬器 W" + str(hoistW * 1000, 4, 0) + "×D" + str(hoistD * 1000, 4, 0) + \
+	"（図示用。機種の実寸で差し替え）"
+ny = ny - txtLine
+text2 tx, ny, "乗り込み口 " + str(nLand, 2, 0) + "箇所: 渡し板で隙間" + str(hg * 1000, 3, 0) + \
+	"mmを塞ぎ、開閉式手すりで防護"
+ny = ny - txtLine
+text2 tx, ny, "マスト控え: " + str(mastTie * 1000, 5, 0) + "mm以内ごとに足場の建地へ（メーカー指定）"
+ny = ny - txtLine
+text2 tx, ny, "　控えを受ける建地には壁つなぎを増設（構造計算書のマスト控え）"
+ny = ny - txtLine
+if hoistLoad >= 9.8 then
+	text2 tx, ny, "積載荷重 " + str(hoistLoad, 4, 1) + "kN（1t以上）→ 設置届（クレーン等安全規則140条・30日前）"
+else
+	if hoistLoad >= 2.45 then
+		text2 tx, ny, "積載荷重 " + str(hoistLoad, 4, 1) + "kN（0.25t以上1t未満）→ 設置報告（クレーン等安全規則145条）"
+	else
+		if hoistLoad > 0.001 then
+			text2 tx, ny, "積載荷重 " + str(hoistLoad, 4, 1) + "kN（0.25t未満）→ 届出区分外"
+		else
+			text2 tx, ny, "積載荷重: 未指定（メーカー仕様で確認）"
+		endif
+	endif
+endif
+ny = ny - txtLine
+text2 tx, ny, "本体の基礎・据付・定格速度はメーカー施工要領による（本図は足場側の取合い）"
 return
 
 ! ============================================================

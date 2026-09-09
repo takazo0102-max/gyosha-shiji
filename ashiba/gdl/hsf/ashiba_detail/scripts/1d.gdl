@@ -70,6 +70,31 @@ for i = 1 to nBeam
 	beamStdTxt = beamStdTxt + str(beamStd[i] * 1000, 5, 0)
 next i
 
+! 昇降機の乗り込み口の作業床高さ（GLから）。空なら階高で2層ぶん置く
+dim landH[16]
+nLand = 0
+rest = landList
+while strlen(rest) > 0 and nLand < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLand = nLand + 1
+		landH[nLand] = v / 1000
+	endif
+endwhile
+if nLand = 0 then
+	landH[1] = floorH
+	landH[2] = 2 * floorH
+	nLand = 2
+endif
+
 ! 梁枠上に乗る支柱の位置（開口始点から）。空ならスパン割から推定する
 dim bpOff[12]
 nBp = 0
