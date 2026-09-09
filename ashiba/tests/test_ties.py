@@ -184,7 +184,7 @@ class TestTieRangeGap(unittest.TestCase):
         self.assertIn("KS400", by)
         hit = [w for w in q.warnings if "伸縮範囲に合う品が無い" in w]
         self.assertEqual(len(hit), 1, q.warnings)
-        self.assertIn("辺1（要245mm", hit[0])
+        self.assertIn("東面(辺1)（要245mm", hit[0])
         self.assertIn("KS400 250〜420mm まで5mm", hit[0])
 
     def test_ks1000_is_available_for_wide_standoffs(self):
@@ -231,7 +231,7 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         above = [t for t in m.wall_ties if t.position_mm == 5400 and t.height_mm == int(beam_h) + 1800]
         self.assertEqual(len(above), 1)
         self.assertEqual(len(notes), 1)
-        self.assertIn("辺0 1本", notes[0])
+        self.assertIn("南面 1本", notes[0])
 
     def test_duplicate_at_the_target_is_merged(self):
         from ashiba.model import WallTie

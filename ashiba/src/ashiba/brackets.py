@@ -112,14 +112,14 @@ def validate_bracket_sections(
         if s.direction == OUTER:
             issues.append(BracketIssue(
                 i, "WARN",
-                f"辺{s.edge_index}: 張出し区間の外縁は作業床の開放端になります。"
+                f"{model.face_name(s.edge_index)}: 張出し区間の外縁は作業床の開放端になります。"
                 "手すり・中桟・幅木が必要です（数量には計上しています）",
                 "安衛則563条（作業床の開放端）"))
 
         if s.is_widening and s.on_kessokubu and not s.has_hozue:
             issues.append(BracketIssue(
                 i, "NG",
-                f"辺{s.edge_index}: 緊結部付ブラケットでの拡幅には方杖が必須です",
+                f"{model.face_name(s.edge_index)}: 緊結部付ブラケットでの拡幅には方杖が必須です",
                 "仕様4.3"))
 
     # 逆向き取付禁止: 同一区間に内と張出が重なってはいけない
@@ -128,7 +128,7 @@ def validate_bracket_sections(
             if a.overlaps(b) and a.direction != b.direction:
                 issues.append(BracketIssue(
                     j, "NG",
-                    f"辺{a.edge_index}: 区間"
+                    f"{model.face_name(a.edge_index)}: 区間"
                     f"[{max(a.start_mm, b.start_mm):.0f}-"
                     f"{min(a.end_mm, b.end_mm):.0f}]で"
                     f"{a.direction}と{b.direction}が逆向きに重なっています",

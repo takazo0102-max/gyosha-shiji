@@ -298,7 +298,7 @@ class TestTieTributary(unittest.TestCase):
         worst = max(self.tribs, key=lambda t: t.area_m2)
         self.assertAlmostEqual(r.wall_tie.tributary_area_m2, worst.area_m2, places=2)
         self.assertIsNotNone(r.wall_tie.governing)
-        self.assertIn(f"辺{worst.edge_index}", r.wall_tie.governing)
+        self.assertIn(self.m.face_name(worst.edge_index), r.wall_tie.governing)
 
     def test_adding_a_tie_never_increases_the_worst_area(self):
         """格子と違う高さに1本足しても、どの壁つなぎの支配面積も増えない.

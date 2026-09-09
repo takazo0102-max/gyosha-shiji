@@ -413,7 +413,7 @@ def _sheet_openings(wb, structural: StructuralResult, model) -> None:
     s.add_cells([Cell("開口部（梁枠）の検定", STYLE_BOLD)])
     s.add_cells([Cell("項目", STYLE_HEADER), Cell("値", STYLE_HEADER), Cell("式・根拠", STYLE_HEADER)])
     for oc in structural.openings:
-        _kv(s, "開口部", f"辺{oc.edge_index} 梁枠{oc.beam_model}（{oc.beam_span_mm}mm）",
+        _kv(s, "開口部", f"{model.face_name(oc.edge_index)} 梁枠{oc.beam_model}（{oc.beam_span_mm}mm）",
             f"梁枠に乗る{vm} {oc.n_inner_posts}本")
         _kv(s, "梁枠上の積載", oc.live_above_kn,
             "kN  作業床許容積載×梁枠スパン数×同時載荷層"

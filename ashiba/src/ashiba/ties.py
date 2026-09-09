@@ -183,7 +183,7 @@ def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
         model.wall_ties = keep
     if not moved:
         return []
-    faces = "・".join(f"辺{e} {n}本" for e, n in sorted(moved.items()))
+    faces = "・".join(f"{model.face_name(e)} {n}本" for e, n in sorted(moved.items()))
     msg = (f"開口部の通路（支柱を抜いた区間・梁枠より下）に当たる壁つなぎ{faces}を、開口部の両端の"
            "支柱へ寄せました")
     if merged:

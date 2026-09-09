@@ -835,11 +835,11 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         )
         if part is None:
             notes.action(
-                f"梁枠{o.beam_span_mm}mmがマスタにありません（辺{o.edge_index}）。"
+                f"梁枠{o.beam_span_mm}mmがマスタにありません（{model.face_name(o.edge_index)}）。"
                 "規格品の梁枠で計画し直してください"
             )
             continue
-        add(part, rows, f"梁枠{o.beam_span_mm}（辺{o.edge_index}・内外{rows}枚）")
+        add(part, rows, f"梁枠{o.beam_span_mm}（{model.face_name(o.edge_index)}・内外{rows}枚）")
         # 梁枠上に支柱を建てる系列（日建ND）は、内外の梁枠に渡す梁渡しに支柱を立てる。
         # 梁枠上の支柱1本（位置）に1個
         n_inner = len(openings.inner_posts.get(i, []))
@@ -848,11 +848,11 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
             saddle = next((p for p in saddles if p.nominal_dim == span or p.covers(span)), None)
             if saddle is None:
                 notes.action(
-                    f"梁渡し{span}mm（建地列間隔）がマスタにありません（辺{o.edge_index}・{n_inner}個）。"
+                    f"梁渡し{span}mm（建地列間隔）がマスタにありません（{model.face_name(o.edge_index)}・{n_inner}個）。"
                     "別途手配してください"
                 )
             else:
-                add(saddle, n_inner, f"梁渡し（辺{o.edge_index}の梁枠上の支柱{n_inner}本）")
+                add(saddle, n_inner, f"梁渡し（{model.face_name(o.edge_index)}の梁枠上の支柱{n_inner}本）")
     if openings.removed_posts:
         vm = model.master.vertical_member_name
         # 補強・積載低減が要ることは openings.issues が開口部ごとに言う。
@@ -901,7 +901,7 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
     for st in platforms.stages:
         if _bracket_nominal(model, st.projection_mm) is None:
             notes.action(
-                f"辺{st.edge_index}のステージは出{st.projection_mm:.0f}mmで、"
+                f"{model.face_name(st.edge_index)}のステージは出{st.projection_mm:.0f}mmで、"
                 "カタログの張出ブラケットでは受けられません。"
                 "単管等による支持を個別に検討してください",
                 Notes.SITE,
@@ -1072,7 +1072,7 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
         )
     if uncovered and notes is not None and hasattr(notes, "action"):
         faces = "・".join(
-            f"辺{e}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本、"
+            f"{model.face_name(e)}（要{wall_tie_required_length_mm(model, e):.0f}mm・{n}本、"
             f"{p.model_no} {p.adjustable_range()[0]}〜{p.adjustable_range()[1]}mm まで{g}mm）"
             for e, (n, p, g) in sorted(uncovered.items())
         )

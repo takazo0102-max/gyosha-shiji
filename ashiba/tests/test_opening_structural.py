@@ -99,7 +99,7 @@ class TestOpeningCheck(unittest.TestCase):
             md = Path(d) / "r.md"
             write_report_md(r.model, r.quantity, r.checks, md, "t", stair_plan=r.stair_plan,
                             structural=r.structural)
-            self.assertIn("開口部 辺0 梁枠NDH36", md.read_text(encoding="utf-8"))
+            self.assertIn("開口部 南面 梁枠NDH36", md.read_text(encoding="utf-8"))
 
 
 class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):

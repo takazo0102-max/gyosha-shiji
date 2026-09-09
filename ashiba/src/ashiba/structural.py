@@ -485,7 +485,7 @@ def check_wall_tie(
         worst = max(tribs, key=lambda t: t.area_m2)
         lh, lw, area = worst.lh_m, worst.lw_m, worst.area_m2
         governing = (
-            f"辺{worst.edge_index} 始点から{worst.position_mm:.0f}mm "
+            f"{model.face_name(worst.edge_index)} 始点から{worst.position_mm:.0f}mm "
             f"高さ{worst.height_mm}mm"
         )
     else:
@@ -694,7 +694,7 @@ def check_openings(
             end_post_allow_kn=end_allow, end_post_ok=end_ok,
         )
         out.append(chk)
-        where = f"辺{o.edge_index}の開口部（梁枠{beam.model_no} {o.beam_span_mm}mm）"
+        where = f"{model.face_name(o.edge_index)}の開口部（梁枠{beam.model_no} {o.beam_span_mm}mm）"
         if not live_ok:
             notes.append(
                 f"{where}: 梁枠上の積載は{live_limit:.2f}kN以下に制限してください"

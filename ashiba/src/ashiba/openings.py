@@ -143,7 +143,7 @@ def validate_openings(
         vm = model.master.vertical_member_name
         result.issues.append(OpeningIssue(
             i, "WARN",
-            f"辺{o.edge_index}の梁枠（{o.beam_span_mm}mm・{vm}{len(inner)}本を受ける）: "
+            f"{model.face_name(o.edge_index)}の梁枠（{o.beam_span_mm}mm・{vm}{len(inner)}本を受ける）: "
             f"両端{vm}の軸力（反力込み）と梁枠上の積載制限は計算書4で検定します。取付部直近の壁つなぎは両端{vm}の梁枠高さに計上しています（同じ位置の格子の金具で兼ねる）",
             "仮設工業会 足場・型枠支保工設計指針"))
 
@@ -153,7 +153,7 @@ def validate_openings(
         if 0 < h < MIN_HEADROOM_MM:
             result.issues.append(OpeningIssue(
                 i, "WARN",
-                f"辺{o.edge_index}の開口高さ{h:.0f}mm < {MIN_HEADROOM_MM:.0f}mm。"
+                f"{model.face_name(o.edge_index)}の開口高さ{h:.0f}mm < {MIN_HEADROOM_MM:.0f}mm。"
                 "通路として使うなら梁枠を1層上げてください",
                 "通路の頭上高さ（実務の目安）",
             ))
@@ -167,7 +167,7 @@ def validate_openings(
         if not near:
             result.issues.append(OpeningIssue(
                 i, "WARN",
-                f"辺{o.edge_index}の梁枠取付部から{TIE_NEAR_MM:.0f}mm以内に"
+                f"{model.face_name(o.edge_index)}の梁枠取付部から{TIE_NEAR_MM:.0f}mm以内に"
                 "壁つなぎがありません。増設を検討してください",
                 "仮設工業会 設計指針"))
 
@@ -178,7 +178,7 @@ def validate_openings(
             if a.start_mm < b.end_mm and b.start_mm < a.end_mm:
                 result.issues.append(OpeningIssue(
                     j, "NG",
-                    f"辺{a.edge_index}で開口部{i + 1}と{j + 1}が重なっています",
+                    f"{model.face_name(a.edge_index)}で開口部{i + 1}と{j + 1}が重なっています",
                     "入力エラー"))
     return result
 

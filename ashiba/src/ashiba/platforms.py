@@ -247,7 +247,7 @@ def validate_platforms(
         if len(got) < s.span_count:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG",
-                f"辺{s.edge_index}: 位置{s.start_mm:.0f}mmから"
+                f"{model.face_name(s.edge_index)}: 位置{s.start_mm:.0f}mmから"
                 f"{s.span_count}スパンは面（{edge.scaffold_length:.0f}mm・"
                 f"{edge.span_count}スパン）に収まりません", "入力エラー"))
 
@@ -255,13 +255,13 @@ def validate_platforms(
         if uplift > result.max_inner_uplift_kn:
             result.max_inner_uplift_kn = uplift
             result.uplift_governing = (
-                f"辺{s.edge_index} 始点から{s.start_mm:.0f}mm（出{s.projection_mm:.0f}mm）"
+                f"{model.face_name(s.edge_index)} 始点から{s.start_mm:.0f}mm（出{s.projection_mm:.0f}mm）"
             )
         load = stage_post_load_kn(s, model)
         if load > result.max_post_load_kn:
             result.max_post_load_kn = load
             result.governing = (
-                f"辺{s.edge_index} 始点から{s.start_mm:.0f}mm "
+                f"{model.face_name(s.edge_index)} 始点から{s.start_mm:.0f}mm "
                 f"（間口{s.span_count}スパン・出{s.projection_mm:.0f}mm・"
                 f"積載{s.load_kn:.1f}kN）"
             )
@@ -309,7 +309,7 @@ def validate_platforms(
             if a.start_mm < b.end_mm(model) and b.start_mm < a.end_mm(model):
                 result.issues.append(PlatformIssue(
                     "ステージ", j, "NG",
-                    f"辺{a.edge_index}でステージ{i + 1}と{j + 1}の間口が重なっています"
+                    f"{model.face_name(a.edge_index)}でステージ{i + 1}と{j + 1}の間口が重なっています"
                     f"（{a.start_mm:.0f}-{a.end_mm(model):.0f} と "
                     f"{b.start_mm:.0f}-{b.end_mm(model):.0f}）", "入力エラー"))
 
@@ -353,7 +353,7 @@ def validate_platforms(
                     abs(other.position_mm - h.position_mm) < min(edge.spans or [1800]):
                 result.issues.append(PlatformIssue(
                     "昇降機", i, "NG",
-                    f"辺{h.edge_index}で昇降機{j + 1}と{i + 1}が同じ位置"
+                    f"{model.face_name(h.edge_index)}で昇降機{j + 1}と{i + 1}が同じ位置"
                     f"（{other.position_mm:.0f}mmと{h.position_mm:.0f}mm）に重なっています",
                     "入力エラー"))
         # マスト控えの壁つなぎ

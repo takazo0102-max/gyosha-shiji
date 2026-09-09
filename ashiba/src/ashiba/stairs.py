@@ -138,7 +138,7 @@ def auto_place_stairs(
                 placed += 1
             if placed < min_per_face:
                 plan.warnings.append(
-                    f"辺{ep.edge_index}に階段室を{min_per_face}箇所置けません"
+                    f"{model.face_name(ep.edge_index)}に階段室を{min_per_face}箇所置けません"
                     f"（置けたのは{placed}箇所。{tower_spans}スパン連続かつ"
                     "コーナーから1スパン以上離れた空き区間が必要）"
                 )
@@ -463,7 +463,7 @@ def validate_stairs(
         for b in plan.towers[i + 1:]:
             if a.edge_index == b.edge_index and a.start_mm < b.end_mm and b.start_mm < a.end_mm:
                 issues.append(
-                    f"辺{a.edge_index}で階段室の区間が重なっています"
+                    f"{model.face_name(a.edge_index)}で階段室の区間が重なっています"
                     f"（{a.start_mm:.0f}-{a.end_mm:.0f} と {b.start_mm:.0f}-{b.end_mm:.0f}）"
                 )
     return issues
