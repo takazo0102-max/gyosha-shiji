@@ -887,3 +887,14 @@ class TestHoistMastInModel(unittest.TestCase):
         self.assertIn("-rowW - 0.40 - hoD[ih]", body2)          # 平面にマストの角
         self.assertIn("hoR[ih] + 1.0", body2)                    # 立面にマスト（到達+1m）と搬器
         self.assertIn("cz2 + 2.2", body2)
+
+
+class TestPlanDimensionClearsAttachments(unittest.TestCase):
+    """平面の寸法線は昇降機の搬器・ステージの外側に置く（面中央の昇降機で文字が重なっていた）."""
+
+    def test_offset_uses_hoist_depth_and_stage_projection(self):
+        body2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
+                 ).read_text(encoding="utf-8")
+        self.assertIn("if 0.10 + hoD[ih] + 0.55 > dOff then dOff = 0.10 + hoD[ih] + 0.55", body2)
+        self.assertIn("if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10", body2)
+        self.assertIn('text2 lineLen / 2, -rowW - dOff - 0.55, "L="', body2)

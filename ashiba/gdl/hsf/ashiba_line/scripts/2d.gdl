@@ -224,17 +224,26 @@ next it
 
 if not(showDim) then return
 
+! 寸法線は外側に張り出すもの（昇降機の搬器・マスト、荷受けステージ）の外へ置く。
+! 面の中央に昇降機があると「L= 離れ」の文字が搬器の破線に重なって読めなかった
+dOff = 0
+for ih = 1 to nHo
+	if 0.10 + hoD[ih] + 0.55 > dOff then dOff = 0.10 + hoD[ih] + 0.55
+next ih
+for ig = 1 to nSg
+	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
+next ig
 x = 0
 for ip = 1 to nSpan
 	set style "annoC"
-	text2 x + spans[ip] / 2, -rowW - 0.25, str(spans[ip] * 1000, 5, 0)
+	text2 x + spans[ip] / 2, -rowW - dOff - 0.25, str(spans[ip] * 1000, 5, 0)
 	set style "anno"
-	line2 x, -rowW - 0.15, x, -rowW - 0.35
+	line2 x, -rowW - dOff - 0.15, x, -rowW - dOff - 0.35
 	x = x + spans[ip]
 next ip
-line2 x, -rowW - 0.15, x, -rowW - 0.35
+line2 x, -rowW - dOff - 0.15, x, -rowW - dOff - 0.35
 set style "annoC"
-text2 lineLen / 2, -rowW - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+text2 lineLen / 2, -rowW - dOff - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
 set style "anno"
 return
 
