@@ -1998,6 +1998,11 @@ for ig = 1 to nSg
 			roty 90
 			cylind sgP[ig], r_nuno
 			del 3
+			! 先端の手すり支柱（ブラケット先端の建地受けに立て、手すり・中桟を受ける。
+			! 無いと手すりが宙に浮く。数量は「先端手すり支柱」）
+			add xb, -rowW - sgP[ig], sgH[ig]
+			cylind railH + 0.10, r_sic
+			del 1
 			if sgZ[ig] > 0 then
 				add xb, -rowW, sgH[ig] - sgP[ig]
 				rotx 45

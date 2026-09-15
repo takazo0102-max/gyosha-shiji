@@ -422,6 +422,14 @@ def platform_part_demands(
             if s.has_guard_rail:
                 # 手すり＋中桟
                 out.append(PartDemand("荷受けステージ 手すり・中桟", "布材", nominal, n * 2 * n_levels))
+        if s.has_guard_rail:
+            # 先端の手すり・中桟を受ける支柱（張出ブラケット先端の建地受けに立てる短い支柱）。
+            # 3Dで手すりが宙に浮いていて、数量にも無かった（実機の小型面で確認）
+            post = _rail_post_nominal(model)
+            out.append(PartDemand(
+                "荷受けステージ 先端手すり支柱", "支柱", post, n_posts * n_levels,
+                detail="張出ブラケット先端に立て、先端の手すり・中桟を受ける",
+            ))
         # 妻側（張出しの左右）も開放端。前面だけ手すりを立てても横から落ちる
         side = _side_nominal(model, s.projection_mm)
         if side is not None:
@@ -443,6 +451,17 @@ def platform_part_demands(
     # 取付部・マスト控えの壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に
     # 入れて数える（図面にも出る）。ここで別に足すと二重計上になる
     return out
+
+
+def _rail_post_nominal(model: ScaffoldModel) -> Optional[int]:
+    """先端の手すり支柱の呼び寸法。手すり高さ以上で最小の支柱（根がらみ用は除く）."""
+    need = model.guard_rail_height_mm
+    sizes = sorted(p.nominal_dim for p in model.master.by_category("支柱")
+                   if "根がらみ" not in p.note and p.nominal_dim > 0)
+    for v in sizes:
+        if v >= need - 1e-6:
+            return v
+    return sizes[-1] if sizes else None
 
 
 def _side_nominal(model: ScaffoldModel, projection_mm: float) -> Optional[int]:

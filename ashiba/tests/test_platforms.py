@@ -547,3 +547,36 @@ class TestInnerPostUplift(unittest.TestCase):
         self.assertFalse(heavy.post.uplift_ok)
         self.assertTrue([w for w in heavy.warnings if "引抜き" in w and "自重" in w and "超えます" in w], heavy.warnings)
 
+
+
+class TestStageRailPosts(unittest.TestCase):
+    """先端の手すり・中桟は支柱で受ける（3Dで宙に浮いていて数量にも無かった）."""
+
+    def setUp(self):
+        self.m = build()
+
+    def test_one_post_per_bracket_per_level(self):
+        from ashiba.platforms import platform_part_demands
+
+        pf = validate_platforms(self.m, [stage(projection_mm=1500)])
+        d = [d for d in platform_part_demands(self.m, pf) if d.label == "荷受けステージ 先端手すり支柱"][0]
+        self.assertEqual(d.category, "支柱")
+        self.assertEqual(d.qty, pf.stages[0].span_count + 1)
+        self.assertGreaterEqual(d.nominal_dim, self.m.guard_rail_height_mm)
+        self.assertLess(d.nominal_dim, 1800)            # 手すり高さに足る最小の支柱
+
+    def test_counted_in_the_quantity_table(self):
+        from ashiba.platforms import platform_part_demands
+
+        pf = validate_platforms(self.m, [stage(projection_mm=1500)])
+        d = [d for d in platform_part_demands(self.m, pf) if d.label == "荷受けステージ 先端手すり支柱"][0]
+        base = take_off(self.m)
+        q = take_off(self.m, platforms=pf)
+        self.assertEqual(q.qty_of("支柱", d.nominal_dim) - base.qty_of("支柱", d.nominal_dim), d.qty)
+
+    def test_drawn_in_3d(self):
+        from pathlib import Path
+
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("cylind railH + 0.10, r_sic", body)
