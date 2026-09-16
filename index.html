@@ -3544,7 +3544,8 @@ const GUMROAD_PRODUCT_ID = 'lbfTrXeb-Yz6oyCrRcrfqw==';   // 検証API用（perma
 const GUMROAD_PERMALINK  = 'rvqek';                       // 購入URL用
 const GUMROAD_BUY_URL    = 'https://tomaitdx.gumroad.com/l/' + GUMROAD_PERMALINK;
 // 有料化ローンチで true にすると、Pro導線（⭐Proボタン等・各種ゲート）が有効になる。無料期間中は false。
-const PRO_LAUNCH = false;
+// 2026-09-17 有料化ON（¥980/月・9/1より前に使い始めた端末は早割¥780）
+const PRO_LAUNCH = true;
 // 無料プランで保存できる履歴の上限（Proは無制限）
 const FREE_HISTORY_LIMIT = 5;
 
@@ -3637,6 +3638,8 @@ document.getElementById('proRemoveBtn').addEventListener('click', ()=>{
 
 // 無料期間中（PRO_LAUNCH=false）は Pro導線を隠す。有料化日に true で公開。
 if(!PRO_LAUNCH){ const _pb=document.getElementById('proBtn'); if(_pb) _pb.style.display='none'; }
+// 有料化後は「早割登録」ボタンを隠す（フォーム送信で早割刻印が付くため、新規に早割が付かないようにする）
+if(PRO_LAUNCH){ const _eb=document.getElementById('earlyBtn'); if(_eb) _eb.style.display='none'; }
 
 // 起動時：保存済みライセンスを再検証（途中解約を検知。uses加算はしない）
 (async ()=>{
