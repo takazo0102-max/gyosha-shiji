@@ -33,6 +33,24 @@
 			<Description><![CDATA["スパン構成 mm カンマ区切り"]]></Description>
 			<Value><![CDATA["1800,1800,1800"]]></Value>
 		</String>
+		<Boolean Name="editSpan">
+			<Description><![CDATA["平面のホットスポットでスパン境界を動かせる"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="sizeList">
+			<Description><![CDATA["吸着するスパンの規格寸法 mm カンマ区切り（系列の布材）"]]></Description>
+			<Value><![CDATA["1800,1500,1200,900,600"]]></Value>
+		</String>
+		<Length Name="xEdit">
+			<Description><![CDATA["支柱位置（編集ホットスポット用。1Dが spanList から作り直す）"]]></Description>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<ArrayValues FirstDimension="2" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+				<AVal Row="2">1.8</AVal>
+			</ArrayValues>
+		</Length>
 		<String Name="spanList2">
 			<Description><![CDATA["スパン構成（続き2）"]]></Description>
 			<Value><![CDATA[""]]></Value>

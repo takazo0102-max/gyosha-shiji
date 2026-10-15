@@ -110,7 +110,8 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
     VIEW_ONLY = {"viewMode", "faceName", "flList"}
     DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen"}
     # 部品の1Dスクリプトが図示本数を計算して書き戻す出力専用（Python からは渡さない）
-    OUTPUT_ONLY = {"qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair"}
+    OUTPUT_ONLY = {"qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair",
+                   "xEdit"}
 
     def test_no_unwired_parameter(self):
         import xml.etree.ElementTree as ET

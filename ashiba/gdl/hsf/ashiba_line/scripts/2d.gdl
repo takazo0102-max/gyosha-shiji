@@ -132,6 +132,14 @@ for ib = 1 to nBm
 next ib
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
+! スパン境界の編集ホットスポット（建地列の中央。引くと 1D が規格寸法に吸着して書き戻す）
+if editSpan and vardim1(xEdit) = nSpan + 1 then
+	for i = 2 to nSpan
+		hotspot2 0, -rowW / 2, 500 + 3 * i, xEdit[i], 1 + 128
+		hotspot2 xEdit[i], -rowW / 2, 501 + 3 * i, xEdit[i], 2
+		hotspot2 -1, -rowW / 2, 502 + 3 * i, xEdit[i], 3
+	next i
+endif
 
 ! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
 if cornerS = 1 then

@@ -195,6 +195,9 @@ def line_params(
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
         "mvoName": mvo_part_name(),
         "planSimple": False,
+        # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）
+        "editSpan": True,
+        "sizeList": ",".join(str(v) for v in model.master.span_lengths()),
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
         "serType": ("W" if model.master.is_frame
