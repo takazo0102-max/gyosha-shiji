@@ -10,6 +10,11 @@ resol 12
 ! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
 ! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
 ! 立体表現（既定）は干渉確認用、線表示は割付検討用
+mv3d = 0
+if LIBRARYGLOBAL(mvoName, "mode3d", mv3d) then
+	if mv3d = 1 then lineMode = 0
+	if mv3d = 2 then lineMode = 1
+endif
 if lineMode then
 	gosub 900
 	end

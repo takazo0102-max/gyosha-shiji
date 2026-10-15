@@ -42,7 +42,7 @@ def main() -> int:
     # --set 名前=値 でGDLパラメータを上書き（lineMode=1 など表示モードの確認用）
     # Boolean パラメータは bool で送る（int だと「not a boolean」で全パラメータが落ちる）
     overrides: dict[str, object] = {}
-    bool_names = {"showDeck", "showBrace", "showDim", "lineMode"}
+    bool_names = {"showDeck", "showBrace", "showDim", "lineMode", "planSimple"}
     argv = sys.argv[1:]
     for i, a in enumerate(argv):
         kv = argv[i + 1] if a == "--set" and i + 1 < len(argv) else (a[6:] if a.startswith("--set=") else None)

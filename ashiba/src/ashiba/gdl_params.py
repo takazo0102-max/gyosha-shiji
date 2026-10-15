@@ -192,6 +192,9 @@ def line_params(
         "railIn": 1 if (model.config.inner_guard_rail and not model.master.is_frame) else 0,
         # 3Dの線表示（Boolean は bool で送る。int だと Tapir が全パラメータを落とす）
         "lineMode": bool(model.config.line_mode_3d),
+        # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
+        "mvoName": mvo_part_name(),
+        "planSimple": False,
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
         "serType": ("W" if model.master.is_frame
@@ -396,3 +399,20 @@ def placement_of(model: ScaffoldModel, edge_index: int) -> dict:
         "y_mm": ep.start_post[1],
         "angle_deg": round(math.degrees(angle), 6),
     }
+
+
+def mvo_part_name(gdl_dir=None) -> str:
+    """モデル表示オプション部品（ashiba_mvo）の埋め込み名。配布版は「ashiba_mvo_<HSFハッシュ8桁>」.
+
+    足場ラインは LIBRARYGLOBAL でこの名前の部品から表示設定を読む。版付きで埋め込む
+    （埋め込み部品は上書きできない）ので、名前を部品に渡す。ハッシュが無ければ基本名。
+    """
+    from pathlib import Path
+
+    base = "ashiba_mvo"
+    root = Path(gdl_dir) if gdl_dir else Path(__file__).resolve().parents[2] / "gdl"
+    stamp = root / f"{base}.gsm.hash"
+    if not stamp.exists():
+        return base
+    h = stamp.read_text(encoding="utf-8").strip()
+    return f"{base}_{h}" if h.isalnum() and len(h) == 8 else base

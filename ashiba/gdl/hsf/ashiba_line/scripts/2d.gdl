@@ -9,12 +9,70 @@ define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 set style "anno"
 pen 1
 
+! モデル表示オプション（ashiba_mvo）があればそちらが優先。無ければ部品の設定
+! （planSimple / showDim）。図面の用途ごとに部品を1つずつ触らなくてよい
+mvPlan = 0
+mvNotes = 1
+mvOk = LIBRARYGLOBAL(mvoName, "planMode", mvPlan)
+if mvOk and mvPlan = 2 then planSimple = 1
+if mvOk and mvPlan = 1 then planSimple = 0
+if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
+
 if viewMode = "elev" then
 	gosub 200
 else
-	gosub 100
+	if planSimple then
+		gosub 950
+	else
+		gosub 100
+	endif
 endif
 end
+
+! ============================================================
+950: ! ---- 平面 単線（割付検討用: 建地列・支柱位置・床の対角線・付帯設備の占有範囲） ----
+line2 0, 0, lineLen, 0
+line2 0, -rowW, lineLen, -rowW
+x = 0
+for ip = 1 to nSpan
+	line2 x, 0, x, -rowW
+	inStair = 0
+	for it2 = 1 to nSt
+		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+	next it2
+	for ib3 = 1 to nBm
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+	next ib3
+	if inStair = 0 then line2 x, 0, x + spans[ip], -rowW
+	x = x + spans[ip]
+next ip
+line2 lineLen, 0, lineLen, -rowW
+! 階段室: 区間の中心線と矢印（始点側から上る）
+for it2 = 1 to nSt
+	line2 stS[it2], -rowW / 2, stS[it2] + stL[it2], -rowW / 2
+	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 - 0.10
+	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 + 0.10
+next it2
+! 付帯設備の占有範囲は破線（ステージ・張出しブラケット・昇降機）
+line_type 3
+for ig = 1 to nSg
+	rect2 sgS[ig], -rowW, sgS[ig] + sgL[ig], -rowW - sgP[ig]
+next ig
+for ik = 1 to nBk
+	if bkD[ik] > 0 then
+		rect2 bkS[ik], 0, bkE[ik], bkW[ik]
+	else
+		rect2 bkS[ik], -rowW, bkE[ik], -rowW - bkW[ik]
+	endif
+next ik
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
+next ih
+line_type 1
+hotspot2 0, 0
+hotspot2 lineLen, 0
+return
 
 ! ============================================================
 100: ! ---- 平面図 ----

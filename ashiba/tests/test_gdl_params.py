@@ -350,7 +350,7 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
         body2 = (gdl / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         body3 = (gdl / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertEqual(body2.count("hoP[ih]"), 2)     # 平面と立面
+        self.assertEqual(body2.count("hoP[ih]"), 3)     # 平面（詳細・単線）と立面
         self.assertIn("乗込口", body2)
         self.assertIn("hoR[ih]", body3)
 
@@ -932,3 +932,42 @@ class TestLineModeFromSpec(unittest.TestCase):
                        "outline_mm": [[0, 0], [10800, 0], [10800, 5400], [0, 5400]],
                        "eaves_height_mm": 9000, "building_height_mm": 9000, "line_mode_3d": True})
         self.assertIs(line_params(r.model, r.model.plan.edges[0])["lineMode"], True)
+
+
+class TestModelViewOptionPart(unittest.TestCase):
+    """モデル表示オプション部品 ashiba_mvo と、足場ラインの LIBRARYGLOBAL 読み."""
+
+    def test_mvo_part_is_a_library_global(self):
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_mvo"
+        anc = (root / "ancestry.xml").read_text(encoding="utf-8")
+        self.assertIn("709CC5CC-6817-4C56-A74B-BED99DDB5FFA", anc)     # Library Global Settings の系譜
+        lpd = (root / "libpartdata.xml").read_text(encoding="utf-8")
+        self.assertIn("<Script_UI", lpd)
+        self.assertIn("<Script_VL", lpd)
+        xml = (root / "paramlist.xml").read_text(encoding="utf-8")
+        for name in ("planMode", "planNotes", "mode3d"):
+            self.assertIn(f'Name="{name}"', xml)
+        vl = (root / "scripts" / "vl.gdl").read_text(encoding="utf-8")
+        self.assertIn('"planMode", 1, "詳細", 2, "単線"', vl)
+
+    def test_line_part_reads_the_mvo_and_falls_back_to_its_own_params(self):
+        gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        body2 = (gdl / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn('LIBRARYGLOBAL(mvoName, "planMode", mvPlan)', body2)
+        self.assertIn('LIBRARYGLOBAL(mvoName, "planNotes", mvNotes)', body2)
+        self.assertIn("950: ! ---- 平面 単線", body2)
+        body3 = (gdl / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn('LIBRARYGLOBAL(mvoName, "mode3d", mv3d)', body3)
+
+    def test_mvo_name_is_passed_with_the_dist_version(self):
+        import tempfile
+        from ashiba.gdl_params import mvo_part_name
+
+        m = build("shinwa_A")
+        p = line_params(m, m.plan.edges[0])
+        self.assertTrue(p["mvoName"].startswith("ashiba_mvo"))
+        self.assertIs(p["planSimple"], False)
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(mvo_part_name(d), "ashiba_mvo")
+            (Path(d) / "ashiba_mvo.gsm.hash").write_text("0123abcd\n", encoding="utf-8")
+            self.assertEqual(mvo_part_name(d), "ashiba_mvo_0123abcd")

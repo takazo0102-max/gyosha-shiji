@@ -30,6 +30,8 @@
 !   showBrace       ブール  ブレス表示                                                                                                既定 1
 !   showDim         ブール  2D寸法・注記表示                                                                                          既定 1
 !   lineMode        ブール  3D線表示（計画初期・大規模向けの軽い表現）                                                                既定 0
+!   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
+!   mvoName         文字列  表示設定を読むライブラリグローバル部品名                                                                  既定 "ashiba_mvo"
 !   serType         文字列  系列 A/B/W（Wは枠組）                                                                                     既定 "A"
 !   viewMode        文字列  2D表現 plan=平面 / elev=立面                                                                              既定 "plan"
 !   tieList         文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）                                                                既定 ""
@@ -755,12 +757,70 @@ define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 set style "anno"
 pen 1
 
+! モデル表示オプション（ashiba_mvo）があればそちらが優先。無ければ部品の設定
+! （planSimple / showDim）。図面の用途ごとに部品を1つずつ触らなくてよい
+mvPlan = 0
+mvNotes = 1
+mvOk = LIBRARYGLOBAL(mvoName, "planMode", mvPlan)
+if mvOk and mvPlan = 2 then planSimple = 1
+if mvOk and mvPlan = 1 then planSimple = 0
+if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
+
 if viewMode = "elev" then
 	gosub 200
 else
-	gosub 100
+	if planSimple then
+		gosub 950
+	else
+		gosub 100
+	endif
 endif
 end
+
+! ============================================================
+950: ! ---- 平面 単線（割付検討用: 建地列・支柱位置・床の対角線・付帯設備の占有範囲） ----
+line2 0, 0, lineLen, 0
+line2 0, -rowW, lineLen, -rowW
+x = 0
+for ip = 1 to nSpan
+	line2 x, 0, x, -rowW
+	inStair = 0
+	for it2 = 1 to nSt
+		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+	next it2
+	for ib3 = 1 to nBm
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+	next ib3
+	if inStair = 0 then line2 x, 0, x + spans[ip], -rowW
+	x = x + spans[ip]
+next ip
+line2 lineLen, 0, lineLen, -rowW
+! 階段室: 区間の中心線と矢印（始点側から上る）
+for it2 = 1 to nSt
+	line2 stS[it2], -rowW / 2, stS[it2] + stL[it2], -rowW / 2
+	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 - 0.10
+	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 + 0.10
+next it2
+! 付帯設備の占有範囲は破線（ステージ・張出しブラケット・昇降機）
+line_type 3
+for ig = 1 to nSg
+	rect2 sgS[ig], -rowW, sgS[ig] + sgL[ig], -rowW - sgP[ig]
+next ig
+for ik = 1 to nBk
+	if bkD[ik] > 0 then
+		rect2 bkS[ik], 0, bkE[ik], bkW[ik]
+	else
+		rect2 bkS[ik], -rowW, bkE[ik], -rowW - bkW[ik]
+	endif
+next ik
+for ih = 1 to nHo
+	hx = hoP[ih]
+	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
+next ih
+line_type 1
+hotspot2 0, 0
+hotspot2 lineLen, 0
+return
 
 ! ============================================================
 100: ! ---- 平面図 ----
@@ -1516,6 +1576,11 @@ resol 12
 ! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
 ! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
 ! 立体表現（既定）は干渉確認用、線表示は割付検討用
+mv3d = 0
+if LIBRARYGLOBAL(mvoName, "mode3d", mv3d) then
+	if mv3d = 1 then lineMode = 0
+	if mv3d = 2 then lineMode = 1
+endif
 if lineMode then
 	gosub 900
 	end

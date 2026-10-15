@@ -48,6 +48,7 @@ SPEC = {
 }
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
+MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
 
 
@@ -178,8 +179,10 @@ def main() -> None:
     # 名前に付けて埋め込む。GSM を更新すれば新しい名前で入り、古い部品は置き換え時に消える
     line_part = versioned_part_name(LINE_OBJECT)
     detail_part = versioned_part_name(DETAIL_OBJECT)
+    # MVO部品は置かないが、ライブラリに入っていればモデル表示オプションに「仮設足場の表示設定」が出る
     added = client.ensure_embedded_parts([
         (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
+        (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
     ])
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
