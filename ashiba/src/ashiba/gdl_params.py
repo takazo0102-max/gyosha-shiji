@@ -190,6 +190,8 @@ def line_params(
         "railAdv": 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0,
         # 躯体側の手すり・中桟（布材）。数量の rails_inner と同じ条件（列数はGDL側の nRows で見る）
         "railIn": 1 if (model.config.inner_guard_rail and not model.master.is_frame) else 0,
+        # 3Dの線表示（Boolean は bool で送る。int だと Tapir が全パラメータを落とす）
+        "lineMode": bool(model.config.line_mode_3d),
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
         "serType": ("W" if model.master.is_frame

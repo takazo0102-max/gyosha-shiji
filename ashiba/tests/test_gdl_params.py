@@ -898,3 +898,37 @@ class TestPlanDimensionClearsAttachments(unittest.TestCase):
         self.assertIn("if 0.10 + hoD[ih] + 0.55 > dOff then dOff = 0.10 + hoD[ih] + 0.55", body2)
         self.assertIn("if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10", body2)
         self.assertIn('text2 lineLen / 2, -rowW - dOff - 0.55, "L="', body2)
+
+
+class TestLineMode3D(unittest.TestCase):
+    """3Dの線表示（lineMode）: 立体を描かず線だけで割付・付帯設備の占有範囲を出す."""
+
+    def test_parameter_and_branch_exist(self):
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        xml = (root / "paramlist.xml").read_text(encoding="utf-8")
+        self.assertIn('<Boolean Name="lineMode">', xml)
+        body3 = (root / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if lineMode then\n\tgosub 900\n\tend\nendif", body3)
+        self.assertIn("900:\t! ---- 線表示 ----", body3)
+        # 線表示でも開口部の支柱抜き・階段・ステージ・昇降機・壁つなぎは出す
+        sub = body3[body3.index("900:"):]
+        for key in ("bBase = bmH[ib]", "for it5 = 1 to nSt", "for ig = 1 to nSg", "for ih = 1 to nHo",
+                    "for it = 1 to nTiePair", "cornerS = 1"):
+            self.assertIn(key, sub)
+        # 線表示の部分に立体（cylind/block/prism）は無い
+        for solid in ("cylind", "block ", "prism"):
+            self.assertNotIn(solid, sub)
+
+
+class TestLineModeFromSpec(unittest.TestCase):
+    """入力の line_mode_3d が部品の lineMode に bool で届く（int だと Tapir が全パラメータを落とす）."""
+
+    def test_default_off_and_bool_type(self):
+        m = build("shinwa_A")
+        p = line_params(m, m.plan.edges[0])
+        self.assertIs(p["lineMode"], False)
+        from ashiba.cli import solve_all
+        r = solve_all({"project_name": "線表示", "series_id": "shinwa_A",
+                       "outline_mm": [[0, 0], [10800, 0], [10800, 5400], [0, 5400]],
+                       "eaves_height_mm": 9000, "building_height_mm": 9000, "line_mode_3d": True})
+        self.assertIs(line_params(r.model, r.model.plan.edges[0])["lineMode"], True)

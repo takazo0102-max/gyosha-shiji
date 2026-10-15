@@ -5,7 +5,7 @@ GetElementPreviewImage は固定縮尺で描くので、既定の900pxでは立�
 （壁つなぎの上層が消えていた255文字切れは、これで確認した）。
 
 使い方:
-  python3 scripts/preview_face.py <example> <edge_index> [plan,elev,3d] [--size 4000x3000]
+  python3 scripts/preview_face.py <example> <edge_index> [plan,elev,3d] [--size 4000x3000] [--set lineMode=1]
 出力: out/view_check/<example>_辺<n>_<view>.png
 """
 
@@ -26,7 +26,9 @@ from dev_gsm_iterate import build_current_gsm  # noqa: E402
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv0 = sys.argv[1:]
+    args = [a for i, a in enumerate(argv0)
+            if not a.startswith("--") and not (i > 0 and argv0[i - 1] in ("--set", "--size"))]
     if len(args) < 2:
         print(__doc__)
         return 2
@@ -37,6 +39,20 @@ def main() -> int:
         if a.startswith("--size"):
             size = a.split("=", 1)[1] if "=" in a else sys.argv[sys.argv.index(a) + 1]
     width, height = (int(v) for v in size.lower().split("x"))
+    # --set 名前=値 でGDLパラメータを上書き（lineMode=1 など表示モードの確認用）
+    # Boolean パラメータは bool で送る（int だと「not a boolean」で全パラメータが落ちる）
+    overrides: dict[str, object] = {}
+    bool_names = {"showDeck", "showBrace", "showDim", "lineMode"}
+    argv = sys.argv[1:]
+    for i, a in enumerate(argv):
+        kv = argv[i + 1] if a == "--set" and i + 1 < len(argv) else (a[6:] if a.startswith("--set=") else None)
+        if kv is None:
+            continue
+        k, _, v = kv.partition("=")
+        if k in bool_names:
+            overrides[k] = v not in ("0", "", "false", "no")
+        else:
+            overrides[k] = int(v) if v.lstrip("-").isdigit() else v
 
     c = ArchicadClient()
     name, gsm = build_current_gsm("ashiba_line", ROOT / "out" / "gsm_dev")
@@ -62,7 +78,7 @@ def main() -> int:
             placed.append(el)
             c.set_gdl_parameters(
                 el, {**base, "viewMode": "elev" if v == "elev" else "plan",
-                     "faceName": f"辺{edge}"}, name,
+                     "faceName": f"辺{edge}", **overrides}, name,
             )
             resp = c.tapir(
                 "GetElementPreviewImage",

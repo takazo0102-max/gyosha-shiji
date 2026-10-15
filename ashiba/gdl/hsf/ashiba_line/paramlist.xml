@@ -85,6 +85,10 @@
 			<Description><![CDATA["2D寸法・注記表示"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3D線表示（計画初期・大規模向けの軽い表現）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<String Name="serType">
 			<Description><![CDATA["系列 A/B/W（Wは枠組）"]]></Description>
 			<Value><![CDATA["A"]]></Value>

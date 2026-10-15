@@ -458,6 +458,25 @@ def get_selected_outline_mm(client: Optional[ArchicadClient] = None) -> list[tup
     return [(p[0] * 1000.0, p[1] * 1000.0) for p in polys[0]]
 
 
+def slab_outline_mm_by_guid(client: ArchicadClient, guid_prefix: str) -> list[tuple[float, float]]:
+    """GUID の先頭一致でスラブを探して外形[mm]を返す（選択に頼らない検証用）.
+
+    選択は現在のフロアに無い要素を拾えない（基礎下端が表示中だと 1FL のスラブは
+    選択しても GetSelectedElements に出ない）。スクリプトからの検証はこちらで指定する。
+    """
+    pref = guid_prefix.upper()
+    els = client.tapir("GetElementsByType", {"elementType": "Slab"}).get("elements", [])
+    hit = [e for e in els if e["elementId"]["guid"].upper().startswith(pref)]
+    if not hit:
+        raise TapirError(f"GUID {guid_prefix}… のスラブがありません")
+    if len(hit) > 1:
+        raise TapirError(f"GUID {guid_prefix}… のスラブが{len(hit)}個あります。桁を増やしてください")
+    poly = _extract_polygon(client.get_details(hit)[0])
+    if not poly:
+        raise TapirError(f"スラブ {guid_prefix}… から外形ポリゴンを取得できませんでした")
+    return [(p[0] * 1000.0, p[1] * 1000.0) for p in poly]
+
+
 def _extract_polygon(details: dict) -> Optional[list[tuple[float, float]]]:
     d = details.get("details", details)
     for key in ("polygonOutline", "polygonCoordinates", "polygon", "coordinates", "outline"):

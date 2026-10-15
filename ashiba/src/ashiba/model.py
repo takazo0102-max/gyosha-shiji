@@ -94,6 +94,8 @@ class ScaffoldConfig:
     # （くさびは緊結部＝コマ位置にしか付かないので、450決め打ちだとB系列で25mmずれる）
     midrail_height_mm: Optional[int] = None
     has_toe_board: bool = True             # 幅木
+    # 3Dを線だけで描く（計画初期・40m級の建物一周で軽くする。干渉確認は立体表現で）
+    line_mode_3d: bool = False
     toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）
     n_stairs: int = 1                      # 階段設置箇所数
     wall_tie_span_step: int = 3            # 壁つなぎ水平間隔（スパン数、実務推奨3以内）

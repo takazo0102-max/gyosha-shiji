@@ -34,6 +34,7 @@
   "next_gen": false,               // 次世代足場（踏板幅が広い規格）
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   "inner_guard_rail": true,        // 躯体側（内側建地列）の手すり＋中桟を布材で組む
+  "line_mode_3d": false,           // 3Dを線だけで描く（計画初期・大規模向け。干渉確認は false の立体表現で）
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
@@ -142,7 +143,7 @@ TOP_KEYS = {
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "inner_guard_rail", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
@@ -744,6 +745,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         next_gen=spec.get("next_gen", False),
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
+        line_mode_3d=bool(spec.get("line_mode_3d", False)),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height, master),

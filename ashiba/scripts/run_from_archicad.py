@@ -29,6 +29,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     MESH_MARGIN_MM,
     ArchicadClient,
     get_selected_outline_mm,
+    slab_outline_mm_by_guid,
     place_details,
     place_elevations,
     place_scaffold_lines,
@@ -89,6 +90,7 @@ SAMPLE_SPEC = {
     "guard_rail_type": "布材",
     "_guard_rail_type": "布材（手すり＋中桟＋幅木）／先行手すり（手すり＋X斜材一体・幅木なし）",
     "inner_guard_rail": True,
+    "line_mode_3d": False,
     "scaffold_form": "本足場",
     "_scaffold_form": "本足場／一側足場",
     "_span_overrides": "面ごとにスパン列を固定する例（面名は割付レポートの平面割付表と同じ。\"1800x5\" は1800を5本）",
@@ -163,7 +165,13 @@ def main() -> None:
     for a in sys.argv[1:]:
         if a.startswith("--series="):
             spec["series_id"] = a.split("=", 1)[1]
-    spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
+    # 外形: 通常は選択中のスラブ。環境変数 ASHIBA_SLAB=<GUID先頭> があればそのスラブ
+    # （スクリプトからの検証用。表示中のフロアに無い要素は選択しても拾えないため）
+    slab_guid = os.environ.get("ASHIBA_SLAB", "").strip()
+    if slab_guid:
+        spec["outline_mm"] = [list(p) for p in slab_outline_mm_by_guid(client, slab_guid)]
+    else:
+        spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]
     # 同梱の配布GSM（足場ライン・詳細図）を埋め込みライブラリに入れる。手で読み込んで
     # いなくても止まらないように（既に入っていれば何もしない）
     # 埋め込んだ部品は Tapir から上書きできないので、GSM の版（HSFのハッシュ）を

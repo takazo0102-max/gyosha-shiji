@@ -7,6 +7,14 @@ pen 1
 ! 12にすると見た目は保ったまま面数が1/3になる。コマ・ナットは6
 resol 12
 
+! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
+! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
+! 立体表現（既定）は干渉確認用、線表示は割付検討用
+if lineMode then
+	gosub 900
+	end
+endif
+
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
 ! 実際には無い建地を干渉確認に使うことになる
@@ -836,4 +844,144 @@ if il >= 2 then
 	cylind rowW * 1.4142, r_nuno
 	del 2
 endif
+return
+
+! ============================================================
+900:	! ---- 線表示 ----
+! 支柱（脚ごとの地盤高。開口部の梁枠より下は抜く）とジャッキベース板（140角）
+x = 0
+for ip = 1 to nSpan + 1
+	gv = 0
+	if ip <= nGl then gv = gl[ip]
+	bBase = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+	next ib
+	for row = rowStart to 1
+		yr = -row * rowW
+		if bBase = 0 then
+			lin_ x, yr, gv, x, yr, postTop
+			lin_ x - 0.07, yr - 0.07, gv, x + 0.07, yr - 0.07, gv
+			lin_ x + 0.07, yr - 0.07, gv, x + 0.07, yr + 0.07, gv
+			lin_ x + 0.07, yr + 0.07, gv, x - 0.07, yr + 0.07, gv
+			lin_ x - 0.07, yr + 0.07, gv, x - 0.07, yr - 0.07, gv
+		else
+			lin_ x, yr, bBase, x, yr, postTop
+		endif
+	next row
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+! 出隅コーナー: 外側コーナー支柱と各層の升目の輪郭
+if cornerS = 1 then
+	gv = 0
+	if nGl >= 1 then gv = gl[1]
+	lin_ -rowW, -rowW, gv, -rowW, -rowW, postTop
+	for il = 1 to nLv
+		z = lv[il]
+		lin_ 0, 0, z, -rowW, 0, z
+		lin_ -rowW, 0, z, -rowW, -rowW, z
+		lin_ -rowW, -rowW, z, 0, -rowW, z
+		if il > 1 then
+			lin_ -rowW, 0, z + railTop, -rowW, -rowW, z + railTop
+			lin_ -rowW, -rowW, z + railTop, 0, -rowW, z + railTop
+		endif
+	next il
+endif
+! 水平材: 根がらみ・各層の床レベル（内外）と外側の手すり、支柱位置の腕木。
+! 開口部の梁枠より下は空ける（立体表現と同じ規則）
+for il = 1 to nLv
+	z = lv[il]
+	x = 0
+	for ip = 1 to nSpan
+		skipH = 0
+		for ib6 = 1 to nBm
+			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
+					z < bmH[ib6] - 0.001 then skipH = 1
+		next ib6
+		if skipH = 0 then
+			for row = rowStart to 1
+				lin_ x, -row * rowW, z, x + spans[ip], -row * rowW, z
+			next row
+			if il > 1 then
+				lin_ x, -rowW, z + railTop, x + spans[ip], -rowW, z + railTop
+				if railIn = 1 and nRows >= 2 then
+					lin_ x, 0, z + railTop, x + spans[ip], 0, z + railTop
+				endif
+			endif
+			lin_ x, 0, z, x, -rowW, z
+			if ip = nSpan then lin_ x + spans[ip], 0, z, x + spans[ip], -rowW, z
+		endif
+		x = x + spans[ip]
+	next ip
+next il
+! 階段室: 層ごとに折り返す斜線（踏面の両端）
+for it5 = 1 to nSt
+	sx = stS[it5]
+	sl = stL[it5]
+	for il5 = 1 to nLv - 1
+		if il5 - 2 * int(il5 / 2) = 1 then
+			xa = sx
+			xb = sx + sl
+		else
+			xa = sx + sl
+			xb = sx
+		endif
+		lin_ xa, -0.05, lv[il5], xb, -0.05, lv[il5 + 1]
+		lin_ xa, -rowW + 0.05, lv[il5], xb, -rowW + 0.05, lv[il5 + 1]
+	next il5
+next it5
+! 梁枠（開口部）: 上下弦材と両端の縦材
+for ib2 = 1 to nBm
+	bs = bmS[ib2]
+	bl = bmL[ib2]
+	bh = bmH[ib2]
+	for row2 = rowStart to 1
+		yr = -row2 * rowW
+		lin_ bs, yr, bh - 0.45, bs + bl, yr, bh - 0.45
+		lin_ bs, yr, bh - 0.45, bs, yr, bh
+		lin_ bs + bl, yr, bh - 0.45, bs + bl, yr, bh
+	next row2
+next ib2
+! 荷受けステージ: 張出し床の輪郭と先端の手すり
+for ig = 1 to nSg
+	lin_ sgS[ig], -rowW, sgH[ig], sgS[ig], -rowW - sgP[ig], sgH[ig]
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig]
+	lin_ sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW, sgH[ig]
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig] + railTop, sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig] + railTop
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig], sgS[ig], -rowW - sgP[ig], sgH[ig] + railTop
+	lin_ sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig] + railTop
+next ig
+! ブラケット区間: 拡幅した床の輪郭（内＝躯体側 +Y、張出＝外側 -Y）
+for ik = 1 to nBk
+	if bkD[ik] > 0 then
+		y0 = 0
+		y1 = bkW[ik]
+	else
+		y0 = -rowW
+		y1 = -rowW - bkW[ik]
+	endif
+	lin_ bkS[ik], y0, bkH[ik], bkS[ik], y1, bkH[ik]
+	lin_ bkS[ik], y1, bkH[ik], bkE[ik], y1, bkH[ik]
+	lin_ bkE[ik], y1, bkH[ik], bkE[ik], y0, bkH[ik]
+	if bkD[ik] < 0 then
+		lin_ bkS[ik], y1, bkH[ik] + railTop, bkE[ik], y1, bkH[ik] + railTop
+	endif
+next ik
+! 昇降機: マストの芯線と搬器の占有範囲（足場側に隙間0.10）
+for ih = 1 to nHo
+	hx = hoP[ih]
+	cy = -rowW - 0.10
+	cyo = cy - hoD[ih]
+	lin_ hx, cyo - 0.15, 0, hx, cyo - 0.15, hoR[ih] + 1.0
+	lin_ hx - hoW[ih] / 2, cy, 0, hx + hoW[ih] / 2, cy, 0
+	lin_ hx + hoW[ih] / 2, cy, 0, hx + hoW[ih] / 2, cyo, 0
+	lin_ hx + hoW[ih] / 2, cyo, 0, hx - hoW[ih] / 2, cyo, 0
+	lin_ hx - hoW[ih] / 2, cyo, 0, hx - hoW[ih] / 2, cy, 0
+	lin_ hx - hoW[ih] / 2, cy, 0, hx - hoW[ih] / 2, cy, hoR[ih]
+	lin_ hx + hoW[ih] / 2, cy, 0, hx + hoW[ih] / 2, cy, hoR[ih]
+next ih
+! 壁つなぎ: 内側建地から躯体へ
+for it = 1 to nTiePair
+	lin_ ties[it], 0, tieH[it], ties[it], standoff, tieH[it]
+next it
 return
