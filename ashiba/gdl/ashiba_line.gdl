@@ -1690,6 +1690,22 @@ for ip = 1 to nSpan + 1
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
+! ---- スパン寸法の文字（3D。足場計画.gsm の txt3d と同じ発想） ----
+! 天端の外側に、各スパンの呼び寸法を立てて置く。3Dで割付を読めると、平面を
+! 開かずに離れ・スパン構成を確認できる。寸法・注記表示（showDim）に従う
+if showDim then
+	define style "txt3d" "ＭＳ Ｐゴシック", 300, 5, 0
+	set style "txt3d"
+	x = 0
+	for ip = 1 to nSpan
+		add x + spans[ip] / 2, -rowW - 0.25, postTop + 0.15
+		rotx 90
+		text 0.3, 0, str(spans[ip] * 1000, 5, 0)
+		del 2
+		x = x + spans[ip]
+	next ip
+endif
+
 ! ---- 出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]） ----
 ! 内側建地列は隣の面と同じコーナー支柱で繋がるが、外側建地列は面ごとに躯体コーナー
 ! で終わるので、四隅の外側の升目（外側コーナー支柱・布材・踏板・幅木）が抜けていた。

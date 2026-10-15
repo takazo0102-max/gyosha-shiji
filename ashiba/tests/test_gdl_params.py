@@ -1055,3 +1055,17 @@ class TestRealMemberDimensions3D(unittest.TestCase):
     def test_decks_clear_the_posts_by_70(self):
         self.assertIn("add x + 0.07, -rowW + 0.05, z", self.body)
         self.assertIn("block spans[ip] - 0.14, deckW1, 0.045", self.body)
+
+
+class TestSpanTextIn3D(unittest.TestCase):
+    """3Dの天端にスパン寸法の文字を立てる（足場計画.gsm の txt3d と同じ発想。showDim に従う）."""
+
+    def test_text_per_span_above_the_top_rail(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        i = body.index("! ---- スパン寸法の文字（3D")
+        sub = body[i:i + 700]
+        self.assertIn('define style "txt3d"', sub)
+        self.assertIn("if showDim then", sub)
+        self.assertIn("add x + spans[ip] / 2, -rowW - 0.25, postTop + 0.15", sub)
+        self.assertIn("text 0.3, 0, str(spans[ip] * 1000, 5, 0)", sub)
