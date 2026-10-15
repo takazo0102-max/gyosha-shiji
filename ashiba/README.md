@@ -65,6 +65,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/dp.py` | 割付DPで共通の「良い構成」の判断（本数最小・長尺優先） |
 | `data/part_master.csv` | 部材マスタ。信和A/Bは総合カタログ2025.06の実品番・重量（該当の無い朝顔だけ「型番仮」。壁つなぎ・伸縮ブラケット・張出ブラケット・踊り場は ver311 から実品番化、抜き書きは `SHINWA_CATALOG_NOTES.md`）、日建ND1800/ND1900は仮設資材カタログVol.10の実品番（型番仮なし） |
 | `data/capacity.csv`, `data/CAPACITY_SOURCES.md` | 耐力値と、その出典（仮設工業会認定基準・設計指針・信和カタログ・日建カタログ） |
+| `docs/参考GDL_bim-arekore.md` | bim-arekore.com 配布の足場GDL（足場計画・足場MVO・次世代足場）から学んだ作り方と実寸法、取り入れ候補の優先順 |
 | `data/NIKKEN_CATALOG_NOTES.md` | 日建リース仮設資材カタログVol.10 の抜き書き（ND1800/ND1900/枠組/ジャッキ/壁つなぎ/朝顔の品番・重量・許容値とページ） |
 | `src/ashiba/gdl_params.py` | GDLへ渡すパラメータと配置座標の導出（平面・立面・plan.jsonで共用） |
 | `gdl/ashiba_line.gsm` | **足場ラインオブジェクト（コンパイル済み・そのままライブラリ読込可）** （ツールバーからの実行では、読み込んでいなくても同梱の GSM を自動で埋め込みライブラリへ入れる） |
