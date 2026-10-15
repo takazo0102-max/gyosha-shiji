@@ -1719,8 +1719,8 @@ if cornerS = 1 then
 		resol 6
 		zk = lv[1]
 		while zk < postTop - 0.01 do
-			add -rowW, -rowW, zk - 0.005
-			cylind 0.01, 0.055
+			add -rowW, -rowW, zk - 0.003
+			cylind 0.006, 0.053
 			del 1
 			zk = zk + komaPitch
 		endwhile
@@ -1773,6 +1773,7 @@ if cornerS = 1 then
 endif
 
 ! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
+! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
 if komaPitch > 0 then
@@ -1787,8 +1788,8 @@ if komaPitch > 0 then
 			zk = lv[1]
 			while zk < postTop - 0.01 do
 				if zk > bBase + 0.001 then
-					add x, -row * rowW, zk - 0.005
-					cylind 0.01, 0.055
+					add x, -row * rowW, zk - 0.003
+					cylind 0.006, 0.053
 					del 1
 				endif
 				zk = zk + komaPitch
@@ -1815,9 +1816,9 @@ for il = 1 to nLv
 		if skipH = 0 then
 			for row = rowStart to 1
 				add x, -row * rowW, z
-				roty 90
-				cylind spans[ip], r_nuno
-				del 2
+				nL = spans[ip]
+				gosub 830
+				del 1
 			next row
 		endif
 		! 荷受けステージの間口は設置層で外側の手すり・中桟を外す（荷を通す。
@@ -1861,9 +1862,9 @@ for il = 1 to nLv
 		! 外側手すり・中桟（作業層のみ）
 		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 then
 			add x, -rowW, z + railTop
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
+			nL = spans[ip]
+			gosub 830
+			del 1
 			if railAdv = 1 then
 				! 先行手すり（信和セーフハンガー SXII 等）: 手すり1本＋X形の斜材2本が一体で
 				! 手すり・中桟・筋交の3機能を兼ねる（カタログ p19）。斜材は両上端から
@@ -1880,9 +1881,9 @@ for il = 1 to nLv
 				del 2
 			else
 				add x, -rowW, z + railMid
-				roty 90
-				cylind spans[ip], r_nuno
-				del 2
+				nL = spans[ip]
+				gosub 830
+				del 1
 			endif
 		endif
 		! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
@@ -1895,13 +1896,13 @@ for il = 1 to nLv
 		next ik2
 		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 then
 			add x, 0, z + railTop
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
+			nL = spans[ip]
+			gosub 830
+			del 1
 			add x, 0, z + railMid
-			roty 90
-			cylind spans[ip], r_nuno
-			del 2
+			nL = spans[ip]
+			gosub 830
+			del 1
 		endif
 		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
 		! 開口部の内側は支柱を抜いてあるので、そこにも入らない
@@ -1953,9 +1954,9 @@ if nGl >= 2 and footStep > 0.001 then
 			zz = lv[1] - mlo * footStep
 			for row = rowStart to 1
 				add x, -row * rowW, zz
-				roty 90
-				cylind spans[ip], r_nuno
-				del 2
+				nL = spans[ip]
+				gosub 830
+				del 1
 			next row
 		endif
 		x = x + spans[ip]
@@ -1982,12 +1983,14 @@ if showDeck then
 			next ib4
 			if skipAll = 0 then
 				if skipDeck = 0 then
-					add x, -rowW + 0.05, z
-					block spans[ip], deckW1, 0.045
+					! 踏板は支柱芯から 70 逃げて両端の爪で布材に掛かる（次世代足場.gsm の寸法）。
+					! 支柱に食い込んで描くと、支柱位置の納まりが見えない
+					add x + 0.07, -rowW + 0.05, z
+					block spans[ip] - 0.14, deckW1, 0.045
 					del 1
 					if deckW2 > 0 then
-						add x, -rowW + 0.05 + deckW1 + 0.02, z
-						block spans[ip], deckW2, 0.045
+						add x + 0.07, -rowW + 0.05 + deckW1 + 0.02, z
+						block spans[ip] - 0.14, deckW2, 0.045
 						del 1
 					endif
 				endif
@@ -2475,6 +2478,22 @@ if il >= 2 then
 	cylind rowW * 1.4142, r_nuno
 	del 2
 endif
+return
+
+! ============================================================
+830:	! ---- 布材（爪付き）: 原点から +X へ長さ nL。管は支柱芯から 78 内側で終わり、
+! そこから支柱のフランジまで爪（ブラケット）が掛かる（次世代足場.gsm の寸法）。
+! 支柱芯まで管を通して描くと支柱に貫入し、緊結部の納まりが見えない
+add 0.078, 0, 0
+roty 90
+cylind nL - 0.156, r_nuno
+del 2
+add 0.026, -0.010, -0.012
+block 0.052, 0.020, 0.024
+del 1
+add nL - 0.078, -0.010, -0.012
+block 0.052, 0.020, 0.024
+del 1
 return
 
 ! ============================================================

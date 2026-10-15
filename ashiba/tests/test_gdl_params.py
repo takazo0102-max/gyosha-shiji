@@ -1032,3 +1032,26 @@ class TestFaceDrawnCounts(unittest.TestCase):
         c0 = face_drawn_counts(plain.model, ps, stair_plan=plain.stair_plan, openings=plain.openings)
         self.assertLess(c["qtyAdv"], c0["qtyAdv"])            # 開口部の通路層ぶん減る
         self.assertLess(c["qtyNuno"], c0["qtyNuno"])
+
+
+class TestRealMemberDimensions3D(unittest.TestCase):
+    """3Dの緊結部まわりは実寸（次世代足場.gsm で確認した寸法）で描く."""
+
+    def setUp(self):
+        self.body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                     ).read_text(encoding="utf-8")
+
+    def test_flange_is_phi106_t6(self):
+        self.assertIn("cylind 0.006, 0.053", self.body)
+        self.assertNotIn("cylind 0.01, 0.055", self.body)
+
+    def test_ledgers_end_at_the_claw_not_the_post_centre(self):
+        self.assertEqual(self.body.count("gosub 830"), 6)                 # 床レベル・手すり・中桟・根がらみ
+        self.assertNotIn("cylind spans[ip], r_nuno", self.body)
+        sub = self.body[self.body.index("830:"):self.body.index("900:")]
+        self.assertIn("cylind nL - 0.156, r_nuno", sub)                   # 両端 78 ずつ
+        self.assertEqual(sub.count("block 0.052, 0.020, 0.024"), 2)       # 爪
+
+    def test_decks_clear_the_posts_by_70(self):
+        self.assertIn("add x + 0.07, -rowW + 0.05, z", self.body)
+        self.assertIn("block spans[ip] - 0.14, deckW1, 0.045", self.body)
