@@ -97,6 +97,42 @@
 			<Description><![CDATA["表示設定を読むライブラリグローバル部品名"]]></Description>
 			<Value><![CDATA["ashiba_mvo"]]></Value>
 		</String>
+		<Integer Name="qtyPostPos">
+			<Description><![CDATA["図示本数: 支柱位置（この面が所有する始点・中間＋出隅コーナー）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyPost">
+			<Description><![CDATA["図示本数: 支柱（位置×積み上げ本数）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyNuno">
+			<Description><![CDATA["図示本数: 布材（面に沿う根がらみ・床レベル・手すり・中桟。腕木は含まない）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyDeck">
+			<Description><![CDATA["図示本数: 踏板セル（スパン×層。階段室・開口部の通路を除く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyToe">
+			<Description><![CDATA["図示本数: 幅木（スパン×層。開口部の通路を除く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyAdv">
+			<Description><![CDATA["図示本数: 先行手すり（スパン×層）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyTie">
+			<Description><![CDATA["図示本数: 壁つなぎ"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyBrace">
+			<Description><![CDATA["図示本数: 斜材（設置間隔どおり、1箇所2本）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyStair">
+			<Description><![CDATA["図示本数: 階段（階段室×層）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<String Name="serType">
 			<Description><![CDATA["系列 A/B/W（Wは枠組）"]]></Description>
 			<Value><![CDATA["A"]]></Value>

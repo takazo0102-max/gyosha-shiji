@@ -32,6 +32,15 @@
 !   lineMode        ブール  3D線表示（計画初期・大規模向けの軽い表現）                                                                既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
 !   mvoName         文字列  表示設定を読むライブラリグローバル部品名                                                                  既定 "ashiba_mvo"
+!   qtyPostPos      整数    図示本数: 支柱位置（この面が所有する始点・中間＋出隅コーナー）                                            既定 0
+!   qtyPost         整数    図示本数: 支柱（位置×積み上げ本数）                                                                       既定 0
+!   qtyNuno         整数    図示本数: 布材（面に沿う根がらみ・床レベル・手すり・中桟。腕木は含まない）                                既定 0
+!   qtyDeck         整数    図示本数: 踏板セル（スパン×層。階段室・開口部の通路を除く）                                               既定 0
+!   qtyToe          整数    図示本数: 幅木（スパン×層。開口部の通路を除く）                                                           既定 0
+!   qtyAdv          整数    図示本数: 先行手すり（スパン×層）                                                                         既定 0
+!   qtyTie          整数    図示本数: 壁つなぎ                                                                                        既定 0
+!   qtyBrace        整数    図示本数: 斜材（設置間隔どおり、1箇所2本）                                                                既定 0
+!   qtyStair        整数    図示本数: 階段（階段室×層）                                                                               既定 0
 !   serType         文字列  系列 A/B/W（Wは枠組）                                                                                     既定 "A"
 !   viewMode        文字列  2D表現 plan=平面 / elev=立面                                                                              既定 "plan"
 !   tieList         文字列  壁つなぎ位置 mm カンマ区切り（辺始点から）                                                                既定 ""
@@ -742,6 +751,57 @@ r_tie  = 0.0273 / 2	! 壁つなぎ φ27.2
 ! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
 txtH = texSiz * GLOB_SCALE / 1000
 txtLine = txtH * 1.8
+
+! ---- 図示本数（この面のオブジェクトが描いている本数）を書き戻す ----
+! Archicad の一覧表（スケジュール）で面ごと・建物ごとに集計できる（bim-arekore の
+! 次世代足場.gsm が部材本数をパラメータに持つのと同じ）。発注数量の正は Python の
+! 数量表（ステージ・ブラケット区間・高低差の継ぎ足し・コーナー部材まで入る）で、
+! ここは図面との照合用。支柱は始点・中間を所有し終点は次の面（二重計上しない）
+qPostPos = nSpan * nRows + cornerS
+qPost = qPostPos * nPost
+qOuter = 2
+if railAdv = 1 then qOuter = 0
+qInner = 0
+if railIn = 1 and nRows >= 2 then qInner = 2
+qNuno = 0
+qDeck = 0
+qToe = 0
+qAdv = 0
+x = 0
+for ip = 1 to nSpan
+	! 開口部（梁枠より下）: その層の布材・床・幅木・先行手すりは無い
+	qOpenLv = 0
+	qOpenNega = 0
+	for ib = 1 to nBm
+		if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 then
+			if lv[1] < bmH[ib] - 0.001 then qOpenNega = 1
+			for il = 2 to nLv
+				if lv[il] < bmH[ib] - 0.001 then qOpenLv = qOpenLv + 1
+			next il
+		endif
+	next ib
+	! 階段室: 床は敷かない（幅木・手すりは残る）
+	qStairSpan = 0
+	for it = 1 to nSt
+		if x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qStairSpan = 1
+	next it
+	qNuno = qNuno + nRows * (1 - qOpenNega) + (nLevels - qOpenLv) * (nRows + qOuter + qInner)
+	qDeck = qDeck + (nLevels - qOpenLv) * (1 - qStairSpan)
+	if railAdv = 0 then qToe = qToe + nLevels - qOpenLv
+	if railAdv = 1 then qAdv = qAdv + nLevels - qOpenLv
+	x = x + spans[ip]
+next ip
+! 斜材: 3D と同じ間隔（bEvL 層・bEvS スパンごと、1箇所2本）
+qBrace = 0
+for il = 1 to nLv - 1
+	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+		for ip = 1 to nSpan
+			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then qBrace = qBrace + 2
+		next ip
+	endif
+next il
+parameters qtyPostPos = qPostPos, qtyPost = qPost, qtyNuno = qNuno, qtyDeck = qDeck, \
+	qtyToe = qToe, qtyAdv = qAdv, qtyTie = nTiePair, qtyBrace = qBrace, qtyStair = nSt * nLevels
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====

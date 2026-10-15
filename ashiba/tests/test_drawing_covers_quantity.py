@@ -109,6 +109,8 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
     # 立面図の配置でだけ設定するもの／GDL既定で足りる表示切替
     VIEW_ONLY = {"viewMode", "faceName", "flList"}
     DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen"}
+    # 部品の1Dスクリプトが図示本数を計算して書き戻す出力専用（Python からは渡さない）
+    OUTPUT_ONLY = {"qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair"}
 
     def test_no_unwired_parameter(self):
         import xml.etree.ElementTree as ET
@@ -123,7 +125,7 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
         }
         m = full_model()
         sent = set(line_params(m, m.plan.edges[0]))
-        unwired = declared - sent - self.VIEW_ONLY - self.DISPLAY_ONLY
+        unwired = declared - sent - self.VIEW_ONLY - self.DISPLAY_ONLY - self.OUTPUT_ONLY
         self.assertEqual(
             unwired, set(),
             f"GDLにあるのに line_params が渡していない: {sorted(unwired)}",

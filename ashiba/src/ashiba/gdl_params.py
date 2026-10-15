@@ -416,3 +416,63 @@ def mvo_part_name(gdl_dir=None) -> str:
         return base
     h = stamp.read_text(encoding="utf-8").strip()
     return f"{base}_{h}" if h.isalnum() and len(h) == 8 else base
+
+
+FACE_COUNT_PARAMS = ("qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair")
+
+
+def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, rules=None) -> dict[str, int]:
+    """足場ラインの1Dスクリプトが書き戻す「図示本数」と同じ式（面ごと）.
+
+    部品側は Archicad の一覧表で集計するための値で、発注数量の正は take_off。
+    この関数はテストで take_off と突き合わせ、図面の本数と数量表がずれていないことを
+    確かめるためのもの（GDL の式を変えたらここも変える）。
+    """
+    from .quantity import QuantityRules
+
+    rules = rules or QuantityRules()
+    e = model.elevation
+    n_levels = e.n_levels
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    corner = 1 if (not model.master.is_frame
+                   and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0
+    adv = 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0
+    outer = 0 if adv else 2
+    inner = 2 if (model.config.inner_guard_rail and not model.master.is_frame and rows >= 2) else 0
+    levels = [e.first_ledger_height] + list(e.level_heights)
+    beams = []
+    if openings is not None:
+        # 梁下高さは _beam_list と同じ: 支柱を抜く層の作業床高さ
+        for o in openings.openings:
+            if o.edge_index == ep.edge_index and e.level_heights:
+                idx = min(max(o.level, 1), len(e.level_heights)) - 1
+                beams.append((o.start_mm, o.end_mm, e.level_heights[idx]))
+    towers = [(t.start_mm, t.start_mm + t.length_mm) for t in getattr(stair_plan, "towers", []) or []
+              if t.edge_index == ep.edge_index]
+    nuno = deck = toe = advq = 0
+    x = 0.0
+    for sp in ep.spans:
+        open_lv = 0
+        open_nega = 0
+        for s0, e0, bh in beams:
+            if x >= s0 - 1e-6 and x + sp <= e0 + 1e-6 and bh is not None:
+                if levels[0] < bh - 1e-6:
+                    open_nega = 1
+                open_lv += sum(1 for h in levels[1:] if h < bh - 1e-6)
+        in_stair = any(x >= s0 - 1e-6 and x + sp <= e0 + 1e-6 for s0, e0 in towers)
+        nuno += rows * (1 - open_nega) + (n_levels - open_lv) * (rows + outer + inner)
+        deck += (n_levels - open_lv) * (0 if in_stair else 1)
+        if adv:
+            advq += n_levels - open_lv
+        else:
+            toe += n_levels - open_lv
+        x += sp
+    ev_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
+    ev_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
+    brace = 2 * sum(1 for il in range(n_levels) if il % ev_l == 0) * sum(1 for ip in range(len(ep.spans)) if ip % ev_s == 0)
+    ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
+    post_pos = len(ep.spans) * rows + corner
+    return {
+        "qtyPostPos": post_pos, "qtyPost": post_pos * len(e.posts), "qtyNuno": nuno, "qtyDeck": deck,
+        "qtyToe": toe, "qtyAdv": advq, "qtyTie": ties, "qtyBrace": brace, "qtyStair": len(towers) * n_levels,
+    }

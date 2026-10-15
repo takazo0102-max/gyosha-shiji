@@ -971,3 +971,64 @@ class TestModelViewOptionPart(unittest.TestCase):
             self.assertEqual(mvo_part_name(d), "ashiba_mvo")
             (Path(d) / "ashiba_mvo.gsm.hash").write_text("0123abcd\n", encoding="utf-8")
             self.assertEqual(mvo_part_name(d), "ashiba_mvo_0123abcd")
+
+
+class TestFaceDrawnCounts(unittest.TestCase):
+    """部品が書き戻す図示本数（qty*）の式は Python にも置き、全面の合計が数量表と合うことを確かめる."""
+
+    def _solve(self, **extra):
+        from ashiba.cli import solve_all
+
+        spec = {"project_name": "図示本数", "series_id": "shinwa_A",
+                "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 16000, "building_height_mm": 16000}
+        spec.update(extra)
+        return solve_all(spec)
+
+    def test_gdl_writes_back_every_count(self):
+        from ashiba.gdl_params import FACE_COUNT_PARAMS
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        xml = (root / "paramlist.xml").read_text(encoding="utf-8")
+        body1 = (root / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        for name in FACE_COUNT_PARAMS:
+            self.assertIn(f'<Integer Name="{name}">', xml)
+            self.assertIn(f"{name} = ", body1)
+        self.assertIn("parameters qtyPostPos = qPostPos", body1)
+
+    def test_sums_match_the_take_off(self):
+        from ashiba.gdl_params import face_drawn_counts
+        from ashiba.quantity import QuantityRules
+
+        r = self._solve()
+        m, q = r.model, r.quantity
+        tot = {}
+        for ep in m.plan.edges:
+            for k, v in face_drawn_counts(m, ep, stair_plan=r.stair_plan, openings=r.openings).items():
+                tot[k] = tot.get(k, 0) + v
+        self.assertEqual(tot["qtyPostPos"], m.plan.total_posts * 2 + m.outer_corner_posts())
+        self.assertEqual(tot["qtyTie"], len(m.wall_ties))
+        self.assertEqual(tot["qtyStair"], r.stair_plan.count * m.elevation.n_levels)
+        widths = list(m.deck_widths_in_use)
+        self.assertEqual(tot["qtyDeck"] * len(widths), q.qty_of(m.master.deck_category))
+        self.assertEqual(tot["qtyToe"], q.qty_of("幅木") - m.outer_corner_posts() * 2 * m.elevation.n_levels)
+        # 布材（面に沿う分）: 数量表の1スパンあたりの式と同じ
+        rules = QuantityRules()
+        per_span = rules.ledgers_negarami + m.elevation.n_levels * (rules.ledgers_per_level_floor + rules.rails_per_level_outer + 2)
+        self.assertEqual(tot["qtyNuno"], m.plan.total_spans * per_span)
+
+    def test_opening_and_advance_rail_change_the_counts(self):
+        from ashiba.gdl_params import face_drawn_counts
+
+        r = self._solve(openings=[{"face": "南面", "start_mm": 3600, "beam_span_mm": 3600, "level": 2}],
+                        guard_rail_type="先行手すり")
+        m = r.model
+        south = next(e for e in m.plan.edges if m.face_name(e.edge_index) == "南面")
+        c = face_drawn_counts(m, south, stair_plan=r.stair_plan, openings=r.openings)
+        self.assertEqual(c["qtyToe"], 0)                      # 先行手すりでは幅木なし
+        self.assertGreater(c["qtyAdv"], 0)
+        plain = self._solve(guard_rail_type="先行手すり")
+        ps = next(e for e in plain.model.plan.edges if plain.model.face_name(e.edge_index) == "南面")
+        c0 = face_drawn_counts(plain.model, ps, stair_plan=plain.stair_plan, openings=plain.openings)
+        self.assertLess(c["qtyAdv"], c0["qtyAdv"])            # 開口部の通路層ぶん減る
+        self.assertLess(c["qtyNuno"], c0["qtyNuno"])
