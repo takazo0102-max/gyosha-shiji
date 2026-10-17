@@ -35,6 +35,7 @@
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   "inner_guard_rail": true,        // 躯体側（内側建地列）の手すり＋中桟を布材で組む
   "line_mode_3d": false,           // 3Dを線だけで描く（計画初期・大規模向け。干渉確認は false の立体表現で）
+  "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ／"object"=平面の下に2Dで並べる／"none"
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
@@ -143,7 +144,7 @@ TOP_KEYS = {
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "elevation_mode", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }

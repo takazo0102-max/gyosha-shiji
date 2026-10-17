@@ -19,7 +19,45 @@ sys.path.insert(0, str(SRC))
 from ashiba.tapir_adapter import ArchicadClient, TapirError, get_selected_outline_mm, is_ashiba_part  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run_from_archicad import DETAIL_OBJECT, DETAIL_OFFSET_MM, ELEVATION_OFFSET_MM, LINE_OBJECT  # noqa: E402
+from ashiba.elevation_sections import (  # noqa: E402
+    ELEVATIONS_RECORD,
+    load_record,
+    remove_all_scaffold_elevations,
+    remove_elevations,
+)
+from run_from_archicad import (  # noqa: E402
+    DETAIL_OBJECT,
+    DETAIL_OFFSET_MM,
+    ELEVATION_OFFSET_MM,
+    LINE_OBJECT,
+    OUT_DIR,
+    SPEC,
+    load_spec_override,
+)
+
+
+def _remove_section_elevations(client, all_buildings: bool) -> None:
+    """断面図方式の立面（断面要素・レイアウト）も消す。控え（elevation_sections.json）の GUID で消す."""
+    import json
+
+    rec = load_record(OUT_DIR)
+    if all_buildings:
+        n_s, n_l, left = remove_all_scaffold_elevations(client, rec.values())
+        (OUT_DIR / ELEVATIONS_RECORD).write_text("{}\n", encoding="utf-8")
+    else:
+        # この建物の分: 条件ファイルの project_name（ツールバーと同じ接頭辞）で選ぶ
+        spec = dict(SPEC)
+        spec.update(load_spec_override())
+        prefix = str(spec.get("project_name") or "足場")
+        mine = {k: v for k, v in rec.items() if k.startswith(prefix + " ")}
+        faces = [k[len(prefix) + 1:-len(" 足場立面")] for k in mine]
+        n_s, n_l, left = remove_elevations(client, list(mine), [f"{prefix} 足場立面図 {f}" for f in faces], mine.values())
+        rest = {k: v for k, v in rec.items() if k not in mine}
+        (OUT_DIR / ELEVATIONS_RECORD).write_text(json.dumps(rest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if n_s or n_l:
+        print(f"立面図（断面図ビューポイント）{n_s}面・レイアウト {n_l}枚を撤去しました")
+    if left:
+        print("控えの無い断面が残っています（プロジェクトマップで手で消してください）: " + "・".join(left))
 
 
 def main() -> int:
@@ -32,15 +70,19 @@ def main() -> int:
             if is_ashiba_part((d.get("details", {}).get("libPart") or {}).get("name") or "", names)
         ]
     else:
-        outline = get_selected_outline_mm(client)
+        import os
+        from ashiba.tapir_adapter import slab_outline_mm_by_guid
+        guid = os.environ.get("ASHIBA_SLAB", "").strip()
+        outline = slab_outline_mm_by_guid(client, guid) if guid else get_selected_outline_mm(client)
         targets = client.objects_for_slab(
             outline, names, elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
         )
-    if not targets:
+    if targets:
+        client.delete_elements(targets)
+        print(f"足場部品 {len(targets)}個を撤去しました")
+    else:
         print("撤去する足場部品はありません")
-        return 0
-    client.delete_elements(targets)
-    print(f"足場部品 {len(targets)}個を撤去しました")
+    _remove_section_elevations(client, "--all" in sys.argv)
     return 0
 
 

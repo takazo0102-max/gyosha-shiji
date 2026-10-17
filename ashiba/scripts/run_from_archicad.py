@@ -35,6 +35,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     place_scaffold_lines,
     read_ground_model,
 )
+from ashiba.elevation_sections import load_record, place_section_elevations, save_record  # noqa: E402
 
 # ---- 条件入力（Phase 2でUIダイアログ化。当面はここを編集する） ----
 # キー名と既定値は入力JSONと同じ（ashiba/cli.py のスキーマ参照）
@@ -64,6 +65,9 @@ def versioned_part_name(base: str, gdl_dir: Path = GDL_DIR) -> str:
     return f"{base}_{h}" if h.isalnum() and len(h) == 8 else base
 PLACE_DETAILS = True               # 詳細図も並べるか
 PLACE_ELEVATIONS = True            # 各面の立面図も並べるか
+# 立面図の作り方。section=断面図ビューポイント（立面ツール相当）で3Dから投影しレイアウトへ／
+# object=平面図の下に2Dオブジェクトで並べる（従来）／none=作らない。入力の elevation_mode で上書き
+ELEVATION_MODE = "section"
 FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら描かない）
 # 図面の並べ先。躯体外形の左下から下方向へ、立面→詳細図の順に置く
 ELEVATION_OFFSET_MM = -45000.0
@@ -92,6 +96,7 @@ SAMPLE_SPEC = {
     "_guard_rail_type": "布材（手すり＋中桟＋幅木）／先行手すり（手すり＋X斜材一体・幅木なし）",
     "inner_guard_rail": True,
     "line_mode_3d": False,
+    "elevation_mode": "section",
     "scaffold_form": "本足場",
     "_scaffold_form": "本足場／一側足場",
     "_span_overrides": "面ごとにスパン列を固定する例（面名は割付レポートの平面割付表と同じ。\"1800x5\" は1800を5本）",
@@ -207,7 +212,17 @@ def main() -> None:
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
     elevs = []
-    if PLACE_ELEVATIONS:
+    elevation_mode = str(spec.get("elevation_mode") or ELEVATION_MODE)
+    sections = []
+    if elevation_mode == "section":
+        # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
+        prev = load_record(OUT_DIR)
+        sections = place_section_elevations(r.model, client, prefix=str(spec.get("project_name") or "足場"), previous=prev)
+        save_record(OUT_DIR, sections, prev)
+        for pl in sections:
+            for n in pl.notes:
+                print(f"  立面（{pl.face_name}）: {n}")
+    if PLACE_ELEVATIONS and elevation_mode == "object":
         # 面名は指定しなければ方位（南面・東面…）が入る
         elevs = place_elevations(
             r.model, line_part, stair_plan=r.stair_plan, openings=r.openings,
@@ -237,8 +252,11 @@ def main() -> None:
         client.delete_elements(stale)
     replaced = len(stale)
     v = result["verdict"]
-    print(f"足場ライン {len(lines)}本・立面図 {len(elevs)}面・"
-          f"詳細図 {len(details)}枚を配置しました"
+    n_sec = sum(1 for pl in sections if pl.drawing_guid)
+    sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「仮設足場」、1/{sections[0].scale}）・"
+               if sections else f"立面図 {len(elevs)}面・")
+    print(f"足場ライン {len(lines)}本・" + sec_txt
+          + f"詳細図 {len(details)}枚を配置しました"
           + (f"（前回の配置{replaced}個を置き換え）" if replaced else ""))
     print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))
     for b in v["blockers"]:
