@@ -36,7 +36,10 @@ class StandoffSpec:
     target: float = 300.0
     min: float = 250.0
     max: float = 350.0
-    hard_min: float = 200.0  # 顧客最小値（これ未満は組めない）
+    # 顧客最小値（これ未満は組めない）。既定は目標下限と同じ250: 250未満の離れは躯体の出入り・
+    # 仕上げ厚との干渉余裕が無いので採らない（インチ規格で212mmを採っていた）。200まで許す
+    # 案件は入力の standoff.hard_min で下げる
+    hard_min: float = 250.0
     fall_protection_limit: float = 300.0  # これを超えると墜落防止措置が必要
 
 

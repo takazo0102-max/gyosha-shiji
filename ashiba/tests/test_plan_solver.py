@@ -54,7 +54,7 @@ class TestPlanRect(unittest.TestCase):
 
     def test_max_300_spec_avoids_fall_protection(self):
         """許容上限を300にすれば、墜落防止措置が要る面を出さずに解ける場合がある."""
-        plan = solve_plan(RECT, self.master, StandoffSpec(max=300.0, min=200.0))
+        plan = solve_plan(RECT, self.master, StandoffSpec(max=300.0, min=200.0, hard_min=200.0))
         for d in plan.standoffs:
             self.assertLessEqual(d, 300)
 
@@ -164,10 +164,11 @@ class TestShortEdges(unittest.TestCase):
 
         200〜250mmは「組めるが余裕が小さい」帯で、干渉確認が要る。
         """
+        # 既定の顧客最小値は250（250未満は採らない）。この帯を試すには 200 まで許す
         plan = solve_plan(
             [(0, 0), (24000, 0), (24000, 16000), (14000, 16000),
              (14000, 14000), (10000, 14000), (10000, 16000), (0, 16000)],
-            self.master,
+            self.master, StandoffSpec(hard_min=200.0),
         )
         below = [ep for ep in plan.edges
                  if 200 <= ep.standoff < 250]
@@ -345,7 +346,7 @@ class TestFeasibilityHint(unittest.TestCase):
 
         spec = json.loads(Path(__file__).resolve().parents[1].joinpath(
             "examples", "recess.json").read_text(encoding="utf-8"))
-        plan = solve_plan([tuple(p) for p in spec["outline_mm"]], load_master("shinwa_A"))
+        plan = solve_plan([tuple(p) for p in spec["outline_mm"]], load_master("shinwa_A"), StandoffSpec(hard_min=200.0))
         side = [e for e in plan.edges if e.remedy and abs(e.standoff - 200) < 0.5]
         self.assertTrue(side)
         for e in side:
@@ -356,7 +357,7 @@ class TestFeasibilityHint(unittest.TestCase):
         """挙げた離れが本当に真物で組めること（スパン和＝面長になる）."""
         import re
 
-        plan = solve_plan(RECT, self.master)
+        plan = solve_plan(RECT, self.master, StandoffSpec(hard_min=200.0))
         remedy = next(e.remedy for e in plan.edges if e.remedy)
         alts = [int(v) for v in re.findall(r"(\d+)mm＝目標帯外", remedy)]
         if not alts:
@@ -491,3 +492,21 @@ class TestFixedSpans(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestDefaultFloorIs250(unittest.TestCase):
+    """既定では離れ250未満を採らない（インチ規格で212mmを採っていた）."""
+
+    def test_inch_rect_never_below_250(self):
+        from ashiba.master import load_master
+
+        plan = solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], load_master("nikken_nd1800"))
+        self.assertTrue(all(d >= 250 - 1e-6 for d in plan.standoffs), plan.standoffs)
+        self.assertEqual(StandoffSpec().hard_min, 250.0)
+
+    def test_200_is_still_available_by_input(self):
+        from ashiba.master import load_master
+
+        plan = solve_plan([(0, 0), (30000, 0), (30000, 20000), (0, 20000)], load_master("nikken_nd1800"),
+                          StandoffSpec(hard_min=200.0))
+        self.assertTrue(any(d < 250 for d in plan.standoffs))

@@ -28,7 +28,7 @@
   "guard_extra_mm": 900,           // 軒高に足す手すり分（最上層作業床固定点）
   "building_height_mm": 16000,     // 架け面積用（省略時は足場高さ）
   "period_days": 90,
-  "standoff": {"target": 300, "min": 250, "max": 350, "hard_min": 200},
+  "standoff": {"target": 300, "min": 250, "max": 350, "hard_min": 250},   // hard_min 未満の離れは採らない（200まで許す案件は下げる）
   "deck_widths": [400, 250],
   "clearance_space_mm": 2000,
   "scaffold_form": "本足場",
@@ -484,7 +484,7 @@ def validate_spec(spec: dict) -> None:
     if isinstance(so, dict):
         _check_numbers(errors, "standoff", so,
                        ("target", "min", "max", "hard_min"))
-        hard, mn = so.get("hard_min", 200), so.get("min", 250)
+        hard, mn = so.get("hard_min", 250), so.get("min", 250)
         mx, tgt = so.get("max", 350), so.get("target", 300)
         # 大小比較は数値のときだけ。型違いは上の _check_numbers が指摘済み
         vals = (hard, mn, tgt, mx)
@@ -699,7 +699,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         target=so.get("target", 300),
         min=so.get("min", 250),
         max=so.get("max", 350),
-        hard_min=so.get("hard_min", 200),
+        hard_min=so.get("hard_min", 250),
     )
     plan = solve_plan(spec["outline_mm"], master, standoff)
     # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
