@@ -1066,7 +1066,7 @@ class TestSpanTextIn3D(unittest.TestCase):
         i = body.index("! ---- スパン寸法の文字（3D")
         sub = body[i:i + 700]
         self.assertIn('define style "txt3d"', sub)
-        self.assertIn("if showDim then", sub)
+        self.assertIn("if showDim and GLOB_VIEW_TYPE <> 4 and GLOB_VIEW_TYPE <> 5 then", sub)
         self.assertIn("add x + spans[ip] / 2, -rowW - 0.25, postTop + 0.15", sub)
         self.assertIn("text 0.3, 0, str(spans[ip] * 1000, 5, 0)", sub)
 
@@ -1096,3 +1096,10 @@ class TestStandoffDimensionInPlan(unittest.TestCase):
         self.assertIn("if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2", body2)
         self.assertIn("line2 xd, 0, xd, standoff", body2)
         self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)
+
+
+class TestSpanTextReadableInSections(unittest.TestCase):
+    def test_mirrored_in_section_and_elevation_views(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("if showDim and GLOB_VIEW_TYPE <> 4 and GLOB_VIEW_TYPE <> 5 then", body)   # 断面・立面では3D文字を出さない

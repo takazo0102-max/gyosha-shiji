@@ -65,6 +65,8 @@ def _remove_section_elevations(client, all_buildings: bool) -> None:
 
 def main() -> int:
     client = ArchicadClient()
+    from ashiba.elevation_sections import activate_floor_plan
+    activate_floor_plan(client)      # 部品は平面図のデータベースにある
     names = (LINE_OBJECT, DETAIL_OBJECT)
     if "--all" in sys.argv:
         els = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])

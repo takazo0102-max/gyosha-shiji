@@ -54,6 +54,8 @@ def main() -> int:
     spec_path = Path(args[1]) if len(args) > 1 else SPEC_DEFAULT
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     c = ArchicadClient()
+    from ashiba.elevation_sections import activate_floor_plan
+    activate_floor_plan(c)           # 足場ラインは平面図のデータベースにある
     # 足場ラインは plan.json の配置位置（原点）で見つける。スラブの選択や GUID は要らない
     objs = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
     readbacks = []

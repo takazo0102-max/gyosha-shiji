@@ -39,6 +39,7 @@ class SectionSpec:
     end_mm: tuple[float, float]
     depth_mm: float
     length_mm: float
+    edge_index: int = -1
 
 
 @dataclass
@@ -100,7 +101,7 @@ def section_specs(model: ScaffoldModel, prefix: str = "足場",
         far = max(((vx - s[0]) * nx + (vy - s[1]) * ny) for vx, vy in verts) if verts else off
         depth = max(far, off) + DEPTH_MARGIN_MM
         face = model.face_name(ep.edge_index)
-        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth, length + 2 * end_ext_mm))
+        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth, length + 2 * end_ext_mm, ep.edge_index))
     return out
 
 
@@ -134,29 +135,32 @@ class SheetPlan:
     paper_mm: tuple[float, float]
 
 
-def arrange_on_one_sheet(lengths_mm: list[float], scaffold_height_mm: float, paper_mm: tuple[float, float],
-                         margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
-                         title_band_mm: float = 60.0, gap_mm: float = 25.0, caption_mm: float = 15.0,
-                         max_scale: int = 200) -> Optional[SheetPlan]:
-    """全面を1枚の用紙に並べられる縮尺と位置。左上から右へ並べ、入らなければ次の行。収まらなければ None.
+# 注記ぶんの余白（モデル mm）。左は Archicad のフロアマーカー、右は高さの注記と寸法、上は面の注記
+NOTE_EXTRA_W_MM = 6500.0
+NOTE_EXTRA_H_MM = 4500.0
 
-    1/100 から試し、1/max_scale（既定 1/200）より小さくなるなら1枚にまとめない（1/300 の立面では
-    部材が読めない。面ごとのレイアウトなら大きく置ける）。各面の図面の下に図面タイトルの帯を見込む。
+
+def arrange_boxes(boxes_mm: list[tuple[float, float]], paper_mm: tuple[float, float],
+                  margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
+                  title_band_mm: float = 60.0, gap_mm: float = 25.0, caption_mm: float = 15.0,
+                  scales: Iterable[int] = SCALE_CANDIDATES, max_scale: int = 200) -> Optional[SheetPlan]:
+    """図面の箱（モデル mm の幅・高さ）を1枚の用紙に並べる縮尺と位置。左上から右へ、入らなければ次の行.
+
+    1/100 から試し、1/max_scale より小さくなるなら None（1/300 の立面では部材が読めない）。
+    各図面の下に図面タイトルの帯（caption）を見込む。位置は図面の左下（用紙 mm）。
     """
     pw, ph = paper_mm
     left, top, right, bottom = margins_mm
     usable_w = pw - left - right - 10.0
     usable_h = ph - top - bottom - title_band_mm
-    h_draw = (scaffold_height_mm + 2000.0) / 1.0
-    for scale in SCALE_CANDIDATES:
+    for scale in scales:
         if scale > max_scale:
             break
-        cell_h = h_draw / scale + caption_mm
         x = 0.0
         rows: list[list[tuple[int, float]]] = [[]]
         ok = True
-        for i, length in enumerate(lengths_mm):
-            w = length / scale
+        for i, (bw, _bh) in enumerate(boxes_mm):
+            w = bw / scale
             if w > usable_w:
                 ok = False
                 break
@@ -167,18 +171,115 @@ def arrange_on_one_sheet(lengths_mm: list[float], scaffold_height_mm: float, pap
             x += w + gap_mm
         if not ok:
             continue
-        total_h = len(rows) * cell_h + (len(rows) - 1) * gap_mm
-        if total_h > usable_h:
+        row_h = [max(boxes_mm[i][1] / scale for i, _ in row) + caption_mm for row in rows]
+        if sum(row_h) + (len(rows) - 1) * gap_mm > usable_h:
             continue
-        # 上の行から置く（用紙座標は左下原点）
-        positions: list[tuple[float, float]] = [(0.0, 0.0)] * len(lengths_mm)
-        y_top = ph - top
-        for r, row in enumerate(rows):
-            y = y_top - (r + 1) * cell_h - r * gap_mm + caption_mm
+        positions: list[tuple[float, float]] = [(0.0, 0.0)] * len(boxes_mm)
+        y_cursor = ph - top
+        for row, h in zip(rows, row_h):
+            y_cursor -= h
             for i, x0 in row:
-                positions[i] = (left + 10.0 + x0, y)
+                positions[i] = (left + 10.0 + x0, y_cursor + caption_mm)
+            y_cursor -= gap_mm
         return SheetPlan(scale=scale, positions_mm=positions, paper_mm=paper_mm)
     return None
+
+
+def arrange_on_one_sheet(lengths_mm: list[float], scaffold_height_mm: float, paper_mm: tuple[float, float],
+                         margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
+                         title_band_mm: float = 60.0, gap_mm: float = 25.0, caption_mm: float = 15.0,
+                         max_scale: int = 200, extra_w_mm: float = 0.0, extra_h_mm: float = 0.0) -> Optional[SheetPlan]:
+    """全面を1枚の用紙に並べる（見積りの箱 = 切断線の長さ×(足場高さ+2m)＋注記の余白）."""
+    boxes = [(length + extra_w_mm, scaffold_height_mm + 2000.0 + extra_h_mm) for length in lengths_mm]
+    return arrange_boxes(boxes, paper_mm, margins_mm, title_band_mm, gap_mm, caption_mm, max_scale=max_scale)
+
+
+# ---------------------------------------------------------------- 断面への注記（純粋関数）
+
+@dataclass
+class SectionNotes:
+    texts: list[dict] = field(default_factory=list)                    # {"x","y","text","just"}（m、断面座標）
+    lines: list[list[tuple[float, float]]] = field(default_factory=list)
+
+
+def section_axis(spec: SectionSpec) -> tuple[float, float]:
+    dx, dy = spec.end_mm[0] - spec.start_mm[0], spec.end_mm[1] - spec.start_mm[1]
+    n = math.hypot(dx, dy) or 1.0
+    return dx / n, dy / n
+
+
+def section_x(spec: SectionSpec, p_mm: tuple[float, float]) -> float:
+    """平面の点 → 断面図ウィンドウの横座標（m）.
+
+    断面の横軸は「切断線の向きへの平面座標の射影」（実機で確認: 南面＝+x の断面では x そのまま、
+    北面＝-x の断面では -x）。縦軸は標高（m）。
+    """
+    ux, uy = section_axis(spec)
+    return (p_mm[0] * ux + p_mm[1] * uy) / 1000.0
+
+
+def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
+                        label_pitch_m: float = 0.7) -> SectionNotes:
+    """断面立面に置く注記: GL線・各作業床の高さ・足場高さの寸法・面の要約（上に2行）."""
+    ep = next(e for e in model.plan.edges if e.edge_index == spec.edge_index)
+    e = model.elevation
+    row_w = float(model.post_row_spacing_mm) / 1000.0
+    a, b = section_x(spec, ep.start_post), section_x(spec, ep.end_post)
+    lo, hi = min(a, b) - row_w, max(a, b) + row_w
+    top = float(model.scaffold_height_mm) / 1000.0
+    out = SectionNotes()
+    # GL（敷地に高低差があれば基準高さ。脚ごとの地盤はジャッキ量一覧）
+    out.lines.append([(lo - 1.0, 0.0), (hi + 1.0, 0.0)])
+    gl_note = "GL±0"
+    diff = float(getattr(terrain, "gl_difference_mm", 0.0) or 0.0) if terrain is not None else 0.0
+    if diff > 1.0:
+        gl_note += f"（基準。敷地高低差 {diff:.0f}）"
+    out.texts.append({"x": hi + 0.6, "y": 0.05, "text": gl_note, "just": "Left"})
+    # 各作業床の高さ（右側に目盛り＋文字）
+    levels = [("根がらみ", float(e.first_ledger_height))] + [
+        (f"{i}層", float(h)) for i, h in enumerate(e.level_heights, start=1)]
+    for label, h in levels:
+        y = h / 1000.0
+        out.lines.append([(hi + 0.1, y), (hi + 0.5, y)])
+        out.texts.append({"x": hi + 0.6, "y": y + 0.05, "text": f"{label} +{h:.0f}", "just": "Left"})
+    # 足場高さの寸法（右に縦線と両端の目盛り）
+    xd = hi + 3.4
+    out.lines.append([(xd, 0.0), (xd, top)])
+    out.lines.append([(xd - 0.15, 0.0), (xd + 0.15, 0.0)])
+    out.lines.append([(xd - 0.15, top), (xd + 0.15, top)])
+    out.texts.append({"x": xd + 0.2, "y": top / 2.0, "text": f"足場高さ {top * 1000:.0f}", "just": "Left"})
+    # スパン寸法（天端の上。3Dの文字は断面では潰れるので2Dで入れる）
+    x = 0.0
+    sgn = 1.0 if b >= a else -1.0
+    for sp in ep.spans:
+        out.texts.append({"x": a + sgn * (x + sp / 2.0) / 1000.0, "y": top + 0.25, "text": f"{sp:.0f}", "just": "Center"})
+        out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
+        x += sp
+    out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
+    # 面の要約（足場の上に2行）
+    ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
+    mod = "インチ" if model.master.module == "inch" else "メートル"
+    line1 = (f"{spec.face_name} 足場立面図　{model.master.series_id}（{mod}）・作業層 {e.n_levels}層・"
+             f"階高 {model.master.floor_height}")
+    line2 = (f"壁つなぎ {ties}箇所（▽印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
+    out.texts.append({"x": lo, "y": top + 1.0 + label_pitch_m, "text": line1, "just": "Left"})
+    out.texts.append({"x": lo, "y": top + 1.0, "text": line2, "just": "Left"})
+    return out
+
+
+def write_section_notes(client, notes: SectionNotes, text_height_mm: float = 2.5) -> int:
+    """現在の断面図ウィンドウに注記を置く（ChangeWindow で開いてから呼ぶ）。置いた数を返す."""
+    n = 0
+    if notes.texts:
+        r = client.tapir("CreateTexts", {"textsData": [
+            {"coordinate": {"x": t["x"], "y": t["y"], "z": 0.0}, "text": t["text"], "height": text_height_mm,
+             "justification": t.get("just", "Left")} for t in notes.texts]})
+        n += sum(1 for el in r.get("elements", []) if "elementId" in el)
+    if notes.lines:
+        r = client.tapir("CreatePolylines", {"polylinesData": [
+            {"coordinates": [{"x": x, "y": y} for x, y in pts]} for pts in notes.lines]})
+        n += sum(1 for el in r.get("elements", []) if "elementId" in el)
+    return n
 
 
 # ---------------------------------------------------------------- ナビゲータツリー
@@ -337,45 +438,114 @@ def _create_layout(client, name: str, subset: str, master: Optional[dict]) -> Op
     return hit[-1]["guid"] if hit else None
 
 
-def _place_on_one_sheet(client, model, prefix, specs, results, subset, master) -> bool:
-    """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）."""
-    name = sheet_layout_name(prefix)
-    lay = _create_layout(client, name, subset, master)
-    if not lay:
-        return False
-    paper, margins = _layout_paper_mm(client, lay)
-    plan = arrange_on_one_sheet([s.length_mm for s in specs], float(model.scaffold_height_mm), paper, margins)
-    if plan is None:
-        # 収まらない: 作ったレイアウトを消して面ごとに
-        _delete_items(client, [lay])
-        return False
-    db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
-    dbid = db["databases"][0]["databaseId"]
+def _drawing_boxes(client, made: list[dict]) -> Optional[tuple[list[tuple[float, float]], float]]:
+    """置いた図面の実寸（bounds）からモデル mm の箱と、元ビューの縮尺（1/100 なら 0.01）を求める.
+
+    図面の大きさ = モデル × 元ビューの縮尺 × 比率（ratio）。drawingScale は表示上の縮尺名で、
+    大きさは変えない（実機で 1/200 を指定しても 1/100 の大きさで置かれた）。
+    """
+    try:
+        dets = client.get_details(made)
+    except Exception:
+        return None
+    boxes, src = [], None
+    for d in dets:
+        dd = d.get("details") or {}
+        bnd, ds, ratio = dd.get("bounds"), float(dd.get("drawingScale") or 0), float(dd.get("ratio") or 1)
+        if not bnd or ds <= 0:
+            return None
+        k = ds * ratio                                   # 用紙 m / モデル m
+        src = ds if src is None else src
+        boxes.append(((bnd["xMax"] - bnd["xMin"]) / k * 1000.0, (bnd["yMax"] - bnd["yMin"]) / k * 1000.0))
+    return boxes, (src or 0.01)
+
+
+def _activate(client, item_guid: str) -> None:
+    try:
+        client.tapir("ChangeWindow", {"navigatorItemId": {"guid": item_guid}})
+    except Exception:
+        pass
+
+
+def _delete_drawings(client, layout_item_guid: str, made: list[dict]) -> bool:
+    """図面の削除はそのレイアウトが前面のときだけ通る."""
+    if not made:
+        return True
+    _activate(client, layout_item_guid)
+    r = client.tapir("DeleteElements", {"elements": made})
+    return all(x.get("success", True) for x in r.get("executionResults", []))
+
+
+def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale: float) -> list[dict]:
+    """図面を置く。比率 = (1/scale) / 元ビューの縮尺（元が 1/100 なら 1/200 は 0.5）."""
+    ratio = (1.0 / scale) / src_scale
     data = [{"navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
              "position": {"x": pos[0] / 1000.0, "y": pos[1] / 1000.0},
-             "drawingScale": float(plan.scale), "name": f"{pl.face_name} 足場立面図 1/{plan.scale}"}
-            for pl, pos in zip(results, plan.positions_mm)]
+             "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} 足場立面図 1/{scale}"}
+            for pl, pos in zip(results, positions_mm)]
     dr = client.tapir("CreateDrawings", {"drawingsData": data})
     made = []
     for pl, el in zip(results, dr.get("elements", [])):
-        pl.layout_name = name
-        pl.layout_item_guid = lay
-        pl.scale = plan.scale
+        pl.scale = scale
         if "elementId" in el:
             pl.drawing_guid = el["elementId"]["guid"]
             made.append(el)
         else:
+            pl.drawing_guid = ""
             pl.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
     if made:
         try:
             client.tapir("UpdateDrawings", {"elements": made})
         except Exception:
             pass
+    return made
+
+
+def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate: bool = False) -> bool:
+    """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）.
+
+    1) 元の大きさ（比率1）で仮置きして実寸を測る（注記・フロアマーカーの張り出しまで入る）
+    2) 実寸の箱で縮尺と並びを決める  3) 仮置きを消して本配置
+    """
+    name = sheet_layout_name(prefix)
+    lay = _create_layout(client, name, subset, master)
+    if not lay:
+        return False
+    paper, margins = _layout_paper_mm(client, lay)
+    db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
+    dbid = db["databases"][0]["databaseId"]
+    for pl in results:
+        pl.layout_name = name
+        pl.layout_item_guid = lay
+    probe = _create_drawings(client, dbid, results, [(margins[0], margins[3])] * len(results), 100, 0.01)
+    _activate(client, lay)
+    measured = _drawing_boxes(client, probe) if len(probe) == len(results) else None
+    if measured:
+        boxes, src = measured
+    else:
+        # 測れなければ見積り（切断線の長さ×(足場高さ+2m)＋注記の余白）
+        ex_w = NOTE_EXTRA_W_MM if annotate else 2500.0
+        ex_h = NOTE_EXTRA_H_MM if annotate else 0.0
+        boxes = [(s_.length_mm + ex_w, float(model.scaffold_height_mm) + 2000.0 + ex_h) for s_ in specs]
+        src = 0.01
+    plan = arrange_boxes(boxes, paper, margins)
+    if not _delete_drawings(client, lay, probe):
+        for pl in results:
+            pl.notes.append("仮置きした図面を消せませんでした（レイアウトに重なって残っています）")
+    if plan is None:
+        _delete_items(client, [lay])
+        for pl in results:
+            pl.drawing_guid = ""
+            pl.layout_name = ""
+            pl.layout_item_guid = ""
+        return False
+    _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src)
     return True
 
 
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
-                             previous: Optional[dict] = None, one_sheet: bool = True) -> list[ElevationPlacement]:
+                             previous: Optional[dict] = None, one_sheet: bool = True,
+                             annotate: bool = True, terrain=None) -> list[ElevationPlacement]:
     """面ごとの断面図を作り、サブセット「仮設足場」の下のレイアウトに図面として置く.
 
     previous は前回の控え {断面名: 要素GUID}（run_from_archicad が書く）。再実行で置き換える。
@@ -417,12 +587,24 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
             pl.section_item_guid = hit[-1]["guid"]
         else:
             pl.notes.append("プロジェクトマップに断面が見つかりません")
+    # 2b. 注記（各断面を開いて文字と線を置く。断面を消すと中の注記も消えるので控えは要らない）
+    if annotate:
+        by_name = {s.name: s for s in specs}
+        for pl in results:
+            if not pl.section_item_guid or not pl.section_guid:
+                continue
+            try:
+                client.tapir("ChangeWindow", {"navigatorItemId": {"guid": pl.section_item_guid}})
+                write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain))
+            except Exception as ex:          # 注記が置けなくても図面は置く
+                pl.notes.append(f"注記を置けませんでした: {ex}")
+        activate_floor_plan(client)
     # 3. レイアウトと図面
     subset = ensure_subset(client)
     lb = _tree(client, "LayoutBook")
     master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]])
     if one_sheet and all(pl.section_item_guid for pl in results) and results:
-        placed = _place_on_one_sheet(client, model, prefix, specs, results, subset, master)
+        placed = _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate=annotate)
         if placed:
             activate_floor_plan(client)
             return results
@@ -444,20 +626,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         dbid = db["databases"][0]["databaseId"]
         paper, margins = _layout_paper_mm(client, pl.layout_item_guid)
         plan = drawing_plan(s.length_mm, float(model.scaffold_height_mm), paper, margins)
-        pl.scale = plan.scale
-        dr = client.tapir("CreateDrawings", {"drawingsData": [{
-            "navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
-            "position": {"x": plan.position_mm[0] / 1000.0, "y": plan.position_mm[1] / 1000.0},
-            "drawingScale": float(plan.scale), "name": f"{pl.face_name} 足場立面図 1/{plan.scale}"}]})
-        el = (dr.get("elements") or [{}])[0]
-        if "elementId" in el:
-            pl.drawing_guid = el["elementId"]["guid"]
-            try:
-                client.tapir("UpdateDrawings", {"elements": [el]})
-            except Exception:
-                pass
-        else:
-            pl.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
+        # 断面の元ビューは 1/100（Archicad の断面の既定）。比率で縮尺を付ける
+        _create_drawings(client, dbid, [pl], [plan.position_mm], plan.scale, 0.01)
     activate_floor_plan(client)
     return results
 

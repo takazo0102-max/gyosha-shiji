@@ -1770,7 +1770,9 @@ next ip
 ! ---- スパン寸法の文字（3D。足場計画.gsm の txt3d と同じ発想） ----
 ! 天端の外側に、各スパンの呼び寸法を立てて置く。3Dで割付を読めると、平面を
 ! 開かずに離れ・スパン構成を確認できる。寸法・注記表示（showDim）に従う
-if showDim then
+! 断面図・立面図（GLOB_VIEW_TYPE 4・5）では立体の文字が潰れて読めないので出さない
+! （断面方式の立面にはツールが2Dの注記でスパン寸法を入れる）
+if showDim and GLOB_VIEW_TYPE <> 4 and GLOB_VIEW_TYPE <> 5 then
 	define style "txt3d" "ＭＳ Ｐゴシック", 300, 5, 0
 	set style "txt3d"
 	x = 0

@@ -35,7 +35,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     place_scaffold_lines,
     read_ground_model,
 )
-from ashiba.elevation_sections import load_record, place_section_elevations, save_record  # noqa: E402
+from ashiba.elevation_sections import activate_floor_plan, load_record, place_section_elevations, save_record  # noqa: E402
 
 # ---- 条件入力（Phase 2でUIダイアログ化。当面はここを編集する） ----
 # キー名と既定値は入力JSONと同じ（ashiba/cli.py のスキーマ参照）
@@ -169,6 +169,8 @@ def load_spec_override() -> dict:
 
 def main(outline_mm=None) -> None:
     client = ArchicadClient()
+    # スラブ・足場部品は平面図のデータベースにある。レイアウトや断面が前面だと見つからない
+    activate_floor_plan(client)
     spec = dict(SPEC)
     override = load_spec_override()
     spec.update(override)
@@ -234,7 +236,8 @@ def main(outline_mm=None) -> None:
     if elevation_mode == "section":
         # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
         prev = load_record(OUT_DIR)
-        sections = place_section_elevations(r.model, client, prefix=str(spec.get("project_name") or "足場"), previous=prev)
+        sections = place_section_elevations(r.model, client, prefix=str(spec.get("project_name") or "足場"), previous=prev,
+                                            terrain=r.terrain)
         save_record(OUT_DIR, sections, prev)
         for pl in sections:
             for n in pl.notes:

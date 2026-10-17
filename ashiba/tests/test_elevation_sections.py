@@ -8,13 +8,16 @@ from ashiba.elevation_sections import (
     CLEARANCE_MM,
     END_EXT_MM,
     SUBSET_NAME,
+    arrange_boxes,
     arrange_on_one_sheet,
     drawing_plan,
     ensure_subset,
     find_items,
     pick_master_layout,
     remove_elevations,
+    section_annotations,
     section_specs,
+    section_x,
     walk_tree,
 )
 from ashiba.elevation_solver import solve_elevation
@@ -224,3 +227,107 @@ class TestActivateFloorPlan(unittest.TestCase):
         n = len(c.calls)
         self.assertTrue(activate_floor_plan(c))          # 既に平面図なら何もしない
         self.assertEqual(len(c.calls), n)
+
+
+class TestSectionCoordinates(unittest.TestCase):
+    """断面の横軸＝切断線の向きへの射影（実機: 南面は x、北面は -x）."""
+
+    def test_projection_per_face(self):
+        m = build()
+        specs = {s.face_name: s for s in section_specs(m, "試験")}
+        self.assertAlmostEqual(section_x(specs["南面"], (300000.0, 0.0)), 300.0)
+        self.assertAlmostEqual(section_x(specs["北面"], (300000.0, 0.0)), -300.0)
+        self.assertAlmostEqual(section_x(specs["東面"], (0.0, 310000.0)), 310.0)
+        for s in specs.values():
+            self.assertLess(section_x(s, s.start_mm), section_x(s, s.end_mm))   # 始点が左
+
+
+class TestSectionAnnotations(unittest.TestCase):
+    def setUp(self):
+        self.m = build()
+        self.specs = {s.face_name: s for s in section_specs(self.m, "試験")}
+
+    def test_levels_heights_and_summary(self):
+        notes = section_annotations(self.m, self.specs["南面"])
+        texts = [t["text"] for t in notes.texts]
+        e = self.m.elevation
+        for i, h in enumerate(e.level_heights, start=1):
+            self.assertIn(f"{i}層 +{h:.0f}", texts)
+        self.assertIn(f"根がらみ +{e.first_ledger_height:.0f}", texts)
+        self.assertIn(f"足場高さ {self.m.scaffold_height_mm:.0f}", texts)
+        self.assertTrue(any(t.startswith("南面 足場立面図") for t in texts))
+        self.assertTrue(any("壁つなぎ" in t and "▽印" in t for t in texts))
+        self.assertIn("GL±0", texts)
+        ep = next(x for x in self.m.plan.edges if x.edge_index == self.specs["南面"].edge_index)
+        spans = [t for t in notes.texts if t.get("just") == "Center"]
+        self.assertEqual([t["text"] for t in spans], [f"{s:.0f}" for s in ep.spans])   # スパン寸法を2Dで
+
+    def test_notes_sit_beside_and_above_the_scaffold(self):
+        s = self.specs["南面"]
+        ep = next(e for e in self.m.plan.edges if e.edge_index == s.edge_index)
+        hi = section_x(s, ep.end_post) + self.m.post_row_spacing_mm / 1000.0
+        notes = section_annotations(self.m, s)
+        level_texts = [t for t in notes.texts if "層 +" in t["text"]]
+        self.assertTrue(all(t["x"] > hi for t in level_texts))            # 右側
+        summary = [t for t in notes.texts if "足場立面図" in t["text"]][0]
+        self.assertGreater(summary["y"], self.m.scaffold_height_mm / 1000.0)   # 上
+        self.assertTrue(all(len(pts) >= 2 for pts in notes.lines))
+
+
+class TestArrangeBoxes(unittest.TestCase):
+    def test_measured_boxes_do_not_overlap_and_fit(self):
+        boxes = [(41000, 21000), (31000, 21000), (41000, 21000), (31000, 21000)]   # 30×20m＋注記の余白
+        plan = arrange_boxes(boxes, (841.0, 594.0))
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.scale, 100)
+        rects = [(x, y, x + w / 100, y + h / 100) for (x, y), (w, h) in zip(plan.positions_mm, boxes)]
+        for i in range(len(rects)):
+            for j in range(i + 1, len(rects)):
+                a, b = rects[i], rects[j]
+                self.assertTrue(a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1], (a, b))
+        for x0, y0, x1, y1 in rects:
+            self.assertLessEqual(x1, 841 - 20)
+            self.assertLessEqual(y1, 594 - 20)
+
+    def test_scale_floor_is_respected(self):
+        boxes = [(44000, 21000)] * 4
+        plan = arrange_boxes(boxes, (841.0, 594.0), scales=[200, 300])
+        self.assertEqual(plan.scale, 200)
+
+
+class TestDrawingScaleIsARatio(unittest.TestCase):
+    """図面の大きさは比率（scale）で決まる。drawingScale は縮尺名だけ（実機で 1/200 指定が 1/100 の大きさで置かれた）."""
+
+    def test_ratio_from_target_scale(self):
+        from ashiba.elevation_sections import ElevationPlacement, _create_drawings
+
+        class C:
+            def __init__(self):
+                self.sent = None
+
+            def tapir(self, command, params):
+                if command == "CreateDrawings":
+                    self.sent = params["drawingsData"]
+                    return {"elements": [{"elementId": {"guid": "d1"}}]}
+                return {}
+
+        c = C()
+        pl = ElevationPlacement("南面", "x", section_item_guid="s")
+        _create_drawings(c, {"guid": "db"}, [pl], [(30.0, 80.0)], 200, 0.01)
+        self.assertAlmostEqual(c.sent[0]["scale"], 0.5)
+        self.assertEqual(c.sent[0]["drawingScale"], 200.0)
+        self.assertEqual(pl.scale, 200)
+        self.assertEqual(pl.drawing_guid, "d1")
+
+    def test_boxes_from_measured_bounds(self):
+        from ashiba.elevation_sections import _drawing_boxes
+
+        class C:
+            def get_details(self, made):
+                return [{"details": {"bounds": {"xMin": 0.02, "xMax": 0.439, "yMin": 0.1, "yMax": 0.305},
+                                     "drawingScale": 0.01, "ratio": 1}}]
+
+        boxes, src = _drawing_boxes(C(), [{"elementId": {"guid": "d"}}])
+        self.assertAlmostEqual(boxes[0][0], 41900.0, places=3)
+        self.assertAlmostEqual(boxes[0][1], 20500.0, places=3)
+        self.assertEqual(src, 0.01)
