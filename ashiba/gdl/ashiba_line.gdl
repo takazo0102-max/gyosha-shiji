@@ -926,6 +926,15 @@ hotspot2 lineLen, 0
 return
 
 ! ============================================================
+960:	! ---- 壁つなぎの記号（平面）: 逆三角 ▽、頂点が躯体側（+y） ----
+tx3 = ties[it]
+ty3 = standoff / 2
+line2 tx3 - 0.11, ty3 - 0.09, tx3 + 0.11, ty3 - 0.09
+line2 tx3 + 0.11, ty3 - 0.09, tx3, ty3 + 0.11
+line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09
+return
+
+! ============================================================
 100: ! ---- 平面図 ----
 line2 0, 0, lineLen, 0
 line2 0, -rowW, lineLen, -rowW
@@ -1135,9 +1144,9 @@ for ibr = 1 to nBr
 next ibr
 line_type 1
 
-! 壁つなぎ位置（平面でも位置が分かるよう大きめの丸で示す）
+! 壁つなぎ位置（実務の記号は逆三角 ▽。頂点を躯体側に向けて、足場と躯体の間に置く）
 for it = 1 to nTie
-	circle2 ties[it], standoff / 2, 0.09
+	gosub 960
 	line2 ties[it], 0, ties[it], standoff
 next it
 
@@ -1565,13 +1574,15 @@ for ia = 1 to nAsa
 	set style "anno"
 next ia
 
-! 壁つなぎ: 形状を描いても判別できないので大きな丸印で示す（実務の作図法）
+! 壁つなぎ: 形状を描いても判別できないので記号で示す。実務の記号は逆三角 ▽（取付点が頂点）
 pen warnPen
 ! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
 for it = 1 to nTiePair
-	circle2 ties[it], tieH[it], 0.12
-	line2 ties[it] - 0.08, tieH[it], ties[it] + 0.08, tieH[it]
-	line2 ties[it], tieH[it] - 0.08, ties[it], tieH[it] + 0.08
+	tx3 = ties[it]
+	ty3 = tieH[it]
+	line2 tx3 - 0.14, ty3 + 0.22, tx3 + 0.14, ty3 + 0.22
+	line2 tx3 + 0.14, ty3 + 0.22, tx3, ty3
+	line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22
 next it
 pen 1
 
@@ -1669,7 +1680,7 @@ endif
 ny = ny - txtLine
 text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
 ny = ny - txtLine
-text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（○印）"
+text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（▽印）"
 ny = ny - txtLine
 text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
 return

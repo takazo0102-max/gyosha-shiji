@@ -1069,3 +1069,16 @@ class TestSpanTextIn3D(unittest.TestCase):
         self.assertIn("if showDim then", sub)
         self.assertIn("add x + spans[ip] / 2, -rowW - 0.25, postTop + 0.15", sub)
         self.assertIn("text 0.3, 0, str(spans[ip] * 1000, 5, 0)", sub)
+
+
+class TestWallTieSymbol(unittest.TestCase):
+    """壁つなぎの記号は逆三角 ▽（実務の記号。以前は○に十字）."""
+
+    def test_plan_and_elevation_use_inverted_triangles(self):
+        body2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
+                 ).read_text(encoding="utf-8")
+        self.assertNotIn("circle2 ties[it]", body2)
+        self.assertIn("960:\t! ---- 壁つなぎの記号（平面）: 逆三角", body2)
+        self.assertIn("line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22", body2)  # 立面: 取付点が頂点
+        self.assertIn("line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09", body2)  # 平面: 頂点が躯体側
+        self.assertIn("箇所（▽印）", body2)
