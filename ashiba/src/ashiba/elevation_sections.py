@@ -123,6 +123,64 @@ def drawing_plan(section_length_mm: float, scaffold_height_mm: float, paper_mm: 
     return DrawingPlan(scale=scale, position_mm=(left + 10.0, bottom + title_band_mm), paper_mm=paper_mm)
 
 
+def sheet_layout_name(prefix: str) -> str:
+    return f"{prefix} 足場立面図"
+
+
+@dataclass
+class SheetPlan:
+    scale: int
+    positions_mm: list[tuple[float, float]]   # 各面の図面の左下（用紙 mm、specs と同じ順）
+    paper_mm: tuple[float, float]
+
+
+def arrange_on_one_sheet(lengths_mm: list[float], scaffold_height_mm: float, paper_mm: tuple[float, float],
+                         margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
+                         title_band_mm: float = 60.0, gap_mm: float = 25.0, caption_mm: float = 15.0,
+                         max_scale: int = 200) -> Optional[SheetPlan]:
+    """全面を1枚の用紙に並べられる縮尺と位置。左上から右へ並べ、入らなければ次の行。収まらなければ None.
+
+    1/100 から試し、1/max_scale（既定 1/200）より小さくなるなら1枚にまとめない（1/300 の立面では
+    部材が読めない。面ごとのレイアウトなら大きく置ける）。各面の図面の下に図面タイトルの帯を見込む。
+    """
+    pw, ph = paper_mm
+    left, top, right, bottom = margins_mm
+    usable_w = pw - left - right - 10.0
+    usable_h = ph - top - bottom - title_band_mm
+    h_draw = (scaffold_height_mm + 2000.0) / 1.0
+    for scale in SCALE_CANDIDATES:
+        if scale > max_scale:
+            break
+        cell_h = h_draw / scale + caption_mm
+        x = 0.0
+        rows: list[list[tuple[int, float]]] = [[]]
+        ok = True
+        for i, length in enumerate(lengths_mm):
+            w = length / scale
+            if w > usable_w:
+                ok = False
+                break
+            if rows[-1] and x + w > usable_w:
+                rows.append([])
+                x = 0.0
+            rows[-1].append((i, x))
+            x += w + gap_mm
+        if not ok:
+            continue
+        total_h = len(rows) * cell_h + (len(rows) - 1) * gap_mm
+        if total_h > usable_h:
+            continue
+        # 上の行から置く（用紙座標は左下原点）
+        positions: list[tuple[float, float]] = [(0.0, 0.0)] * len(lengths_mm)
+        y_top = ph - top
+        for r, row in enumerate(rows):
+            y = y_top - (r + 1) * cell_h - r * gap_mm + caption_mm
+            for i, x0 in row:
+                positions[i] = (left + 10.0 + x0, y)
+        return SheetPlan(scale=scale, positions_mm=positions, paper_mm=paper_mm)
+    return None
+
+
 # ---------------------------------------------------------------- ナビゲータツリー
 
 def walk_tree(node: dict, depth: int = 0) -> Iterable[dict]:
@@ -156,6 +214,32 @@ def pick_master_layout(masters: list[dict], prefer: str = "A1") -> Optional[dict
 
 
 # ---------------------------------------------------------------- Tapir 操作
+
+def story_items(tree: dict) -> list[dict]:
+    return find_items(tree, "StoryItem")
+
+
+def activate_floor_plan(client) -> bool:
+    """平面図のウィンドウを前面にする（Tapir 1.7.0 の ChangeWindow）.
+
+    断面の作成・削除・スラブの作成は平面図が前面のときだけ通る。ツールバーがレイアウトを作ると
+    Archicad はそのタブを前面にするので、次の実行がそのままだと "Failed to create section" で止まる。
+    """
+    try:
+        if client.current_window_type() == "FloorPlan":
+            return True
+        stories = client.tapir("GetStories", {})
+        act = int(stories.get("actStory", 0))
+        items = story_items(_tree(client, "ProjectMap"))
+        hit = [it for it in items if str(it.get("prefix", "")).strip() == str(act)]
+        target = hit[0] if hit else (items[0] if items else None)
+        if target is None:
+            return False
+        client.tapir("ChangeWindow", {"navigatorItemId": {"guid": target["guid"]}})
+        return client.current_window_type() == "FloorPlan"
+    except Exception:
+        return False
+
 
 def _tree(client, map_id: str) -> dict:
     return client.tapir("GetNavigatorItemTree", {"navigatorMapId": map_id})["navigatorItemTree"]
@@ -244,17 +328,68 @@ def _layout_paper_mm(client, layout_item_guid: str, fallback=(841.0, 594.0)) -> 
     return fallback, (20.0, 20.0, 20.0, 20.0)
 
 
+def _create_layout(client, name: str, subset: str, master: Optional[dict]) -> Optional[str]:
+    data = {"layoutName": name, "parentNavigatorItemId": {"guid": subset}}
+    if master:
+        data["masterNavigatorItemId"] = {"guid": master["guid"]}
+    client.tapir("CreateLayout", {"layoutsData": [data]})
+    hit = find_items(_tree(client, "LayoutBook"), "LayoutItem", name=name)
+    return hit[-1]["guid"] if hit else None
+
+
+def _place_on_one_sheet(client, model, prefix, specs, results, subset, master) -> bool:
+    """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）."""
+    name = sheet_layout_name(prefix)
+    lay = _create_layout(client, name, subset, master)
+    if not lay:
+        return False
+    paper, margins = _layout_paper_mm(client, lay)
+    plan = arrange_on_one_sheet([s.length_mm for s in specs], float(model.scaffold_height_mm), paper, margins)
+    if plan is None:
+        # 収まらない: 作ったレイアウトを消して面ごとに
+        _delete_items(client, [lay])
+        return False
+    db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
+    dbid = db["databases"][0]["databaseId"]
+    data = [{"navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
+             "position": {"x": pos[0] / 1000.0, "y": pos[1] / 1000.0},
+             "drawingScale": float(plan.scale), "name": f"{pl.face_name} 足場立面図 1/{plan.scale}"}
+            for pl, pos in zip(results, plan.positions_mm)]
+    dr = client.tapir("CreateDrawings", {"drawingsData": data})
+    made = []
+    for pl, el in zip(results, dr.get("elements", [])):
+        pl.layout_name = name
+        pl.layout_item_guid = lay
+        pl.scale = plan.scale
+        if "elementId" in el:
+            pl.drawing_guid = el["elementId"]["guid"]
+            made.append(el)
+        else:
+            pl.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
+    if made:
+        try:
+            client.tapir("UpdateDrawings", {"elements": made})
+        except Exception:
+            pass
+    return True
+
+
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
-                             previous: Optional[dict] = None) -> list[ElevationPlacement]:
+                             previous: Optional[dict] = None, one_sheet: bool = True) -> list[ElevationPlacement]:
     """面ごとの断面図を作り、サブセット「仮設足場」の下のレイアウトに図面として置く.
 
     previous は前回の控え {断面名: 要素GUID}（run_from_archicad が書く）。再実行で置き換える。
+    one_sheet なら、全面が1枚の用紙に収まるときは1枚のレイアウト「<prefix> 足場立面図」にまとめ、
+    収まらなければ面ごとのレイアウトにする。
     """
     specs = section_specs(model, prefix)
     stale_notes: list[str] = []
+    if not activate_floor_plan(client):
+        stale_notes.append("平面図のウィンドウを前面にできませんでした。断面の作成・削除は平面図が前面のときだけ通ります")
     if replace:
         prev = previous or {}
-        _, _, left = remove_elevations(client, [s.name for s in specs], [layout_name(prefix, s.face_name) for s in specs],
+        _, _, left = remove_elevations(client, [s.name for s in specs],
+                                       [layout_name(prefix, s.face_name) for s in specs] + [sheet_layout_name(prefix)],
                                        [prev.get(s.name, "") for s in specs])
         if left:
             stale_notes.append("前回の断面「" + "・".join(left) + "」は控えが無く消せませんでした。プロジェクトマップで手で消してください")
@@ -271,7 +406,7 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         if "elementId" in el:
             pl.section_guid = el["elementId"]["guid"]
         else:
-            pl.notes.append(f"断面を作れませんでした: {el.get('error', el)}")
+            pl.notes.append(f"断面を作れませんでした（{el.get('error', {}).get('message', el)}）。同名の断面が残っていればそれを図面に使います")
         results.append(pl)
     # 2. プロジェクトマップの項目（図面の元）
     pm = _tree(client, "ProjectMap")
@@ -286,6 +421,11 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
     subset = ensure_subset(client)
     lb = _tree(client, "LayoutBook")
     master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]])
+    if one_sheet and all(pl.section_item_guid for pl in results) and results:
+        placed = _place_on_one_sheet(client, model, prefix, specs, results, subset, master)
+        if placed:
+            activate_floor_plan(client)
+            return results
     for pl, s in zip(results, specs):
         if not pl.section_item_guid:
             continue
@@ -318,6 +458,7 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
                 pass
         else:
             pl.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
+    activate_floor_plan(client)
     return results
 
 

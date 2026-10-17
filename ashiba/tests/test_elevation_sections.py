@@ -8,6 +8,7 @@ from ashiba.elevation_sections import (
     CLEARANCE_MM,
     END_EXT_MM,
     SUBSET_NAME,
+    arrange_on_one_sheet,
     drawing_plan,
     ensure_subset,
     find_items,
@@ -164,3 +165,62 @@ class TestRecord(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOneSheet(unittest.TestCase):
+    """全面が収まるときは1枚のレイアウトに並べる（30×20m・A1 なら 1/100 で2行）."""
+
+    def test_rect_fits_on_a1_at_1_100(self):
+        plan = arrange_on_one_sheet([34600, 24600, 34600, 24600], 16300, (841.0, 594.0))
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.scale, 100)
+        xs = [p[0] for p in plan.positions_mm]
+        ys = [p[1] for p in plan.positions_mm]
+        self.assertEqual(len(set(ys)), 2)                      # 2行
+        self.assertLess(xs[0], xs[1])                           # 南→東は右へ
+        self.assertEqual(ys[0], ys[1]); self.assertEqual(ys[2], ys[3])
+        self.assertGreater(ys[0], ys[2])                        # 1行目が上
+        # 右端・上端が用紙に収まる（図面幅 = 長さ/100、高さ = (H+2000)/100）
+        for (x, y), length in zip(plan.positions_mm, [34600, 24600, 34600, 24600]):
+            self.assertLessEqual(x + length / 100, 841 - 20)
+            self.assertLessEqual(y + 18300 / 100, 594 - 20)
+            self.assertGreaterEqual(y, 20 + 60)
+
+    def test_falls_back_when_too_big(self):
+        self.assertIsNone(arrange_on_one_sheet([34600, 24600, 34600, 24600], 16300, (420.0, 297.0)))   # A3 では無理
+        plan = arrange_on_one_sheet([34600, 24600, 34600, 24600], 50000, (841.0, 594.0))
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.scale, 200)                       # 高さ 52m は 1/100 では2行にならない → 1/200
+
+
+class TestActivateFloorPlan(unittest.TestCase):
+    def test_switches_to_the_active_story_when_a_layout_is_in_front(self):
+        from ashiba.elevation_sections import activate_floor_plan
+
+        class C:
+            def __init__(self):
+                self.calls = []
+                self.win = "Layout"
+
+            def current_window_type(self):
+                return self.win
+
+            def tapir(self, command, params):
+                self.calls.append((command, params))
+                if command == "GetStories":
+                    return {"actStory": 1}
+                if command == "GetNavigatorItemTree":
+                    return {"navigatorItemTree": {"type": "ProjectItem", "name": "p", "navigatorItemId": {"guid": "p"}, "children": [
+                        {"navigatorItem": {"type": "StoryItem", "prefix": "0", "name": "1FL", "navigatorItemId": {"guid": "s0"}}},
+                        {"navigatorItem": {"type": "StoryItem", "prefix": "1", "name": "2FL", "navigatorItemId": {"guid": "s1"}}}]}}
+                if command == "ChangeWindow":
+                    self.win = "FloorPlan"
+                    return {"success": True}
+                return {}
+
+        c = C()
+        self.assertTrue(activate_floor_plan(c))
+        self.assertEqual([p for cmd, p in c.calls if cmd == "ChangeWindow"], [{"navigatorItemId": {"guid": "s1"}}])
+        n = len(c.calls)
+        self.assertTrue(activate_floor_plan(c))          # 既に平面図なら何もしない
+        self.assertEqual(len(c.calls), n)

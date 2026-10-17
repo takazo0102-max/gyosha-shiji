@@ -270,7 +270,8 @@ def main(outline_mm=None) -> None:
     replaced = len(stale)
     v = result["verdict"]
     n_sec = sum(1 for pl in sections if pl.drawing_guid)
-    sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「仮設足場」、1/{sections[0].scale}）・"
+    sheet = sections[0].layout_name if sections else ""
+    sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「{sheet}」{'に1枚' if sections and all(p.layout_name == sheet for p in sections) else '（面ごと）'}、1/{sections[0].scale}）・"
                if sections else f"立面図 {len(elevs)}面・")
     print(f"足場ライン {len(lines)}本・" + sec_txt
           + f"詳細図 {len(details)}枚を配置しました"

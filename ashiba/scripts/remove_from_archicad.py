@@ -40,6 +40,8 @@ def _remove_section_elevations(client, all_buildings: bool) -> None:
     """断面図方式の立面（断面要素・レイアウト）も消す。控え（elevation_sections.json）の GUID で消す."""
     import json
 
+    from ashiba.elevation_sections import activate_floor_plan
+    activate_floor_plan(client)      # 断面の削除は平面図が前面のときだけ通る
     rec = load_record(OUT_DIR)
     if all_buildings:
         n_s, n_l, left = remove_all_scaffold_elevations(client, rec.values())
@@ -51,7 +53,8 @@ def _remove_section_elevations(client, all_buildings: bool) -> None:
         prefix = str(spec.get("project_name") or "足場")
         mine = {k: v for k, v in rec.items() if k.startswith(prefix + " ")}
         faces = [k[len(prefix) + 1:-len(" 足場立面")] for k in mine]
-        n_s, n_l, left = remove_elevations(client, list(mine), [f"{prefix} 足場立面図 {f}" for f in faces], mine.values())
+        n_s, n_l, left = remove_elevations(client, list(mine), [f"{prefix} 足場立面図 {f}" for f in faces] + [f"{prefix} 足場立面図"],
+                                           mine.values())
         rest = {k: v for k, v in rec.items() if k not in mine}
         (OUT_DIR / ELEVATIONS_RECORD).write_text(json.dumps(rest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if n_s or n_l:
