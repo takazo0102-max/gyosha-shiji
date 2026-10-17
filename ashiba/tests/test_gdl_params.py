@@ -1085,3 +1085,14 @@ class TestWallTieSymbol(unittest.TestCase):
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                  ).read_text(encoding="utf-8")
         self.assertIn("prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0", body3)   # 3Dにも ▽（断面図方式の立面に映す）
+
+
+class TestStandoffDimensionInPlan(unittest.TestCase):
+    """平面に躯体面と内側建地列の間の離れ寸法を両端に入れる."""
+
+    def test_dimension_lines_and_value(self):
+        body2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
+                 ).read_text(encoding="utf-8")
+        self.assertIn("if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2", body2)
+        self.assertIn("line2 xd, 0, xd, standoff", body2)
+        self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)

@@ -301,6 +301,19 @@ next it
 
 if not(showDim) then return
 
+! 離れ寸法: 躯体面と内側建地列の間（面の両端のスパン中央に1本ずつ。端数スパンや渡しで
+! 面の途中の離れが違っても、両端を見れば分かる）。寸法線は面に直交、値は線の脇に
+for kd = 1 to 2
+	if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2
+	line2 xd, 0, xd, standoff
+	line2 xd - 0.05, 0.05, xd + 0.05, -0.05
+	line2 xd - 0.05, standoff + 0.05, xd + 0.05, standoff - 0.05
+	line2 xd - 0.12, 0, xd + 0.12, 0
+	line2 xd - 0.12, standoff, xd + 0.12, standoff
+	set style "anno"
+	text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)
+next kd
+
 ! 寸法線は外側に張り出すもの（昇降機の搬器・マスト、荷受けステージ）の外へ置く。
 ! 面の中央に昇降機があると「L= 離れ」の文字が搬器の破線に重なって読めなかった
 dOff = 0
