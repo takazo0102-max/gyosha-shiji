@@ -626,3 +626,23 @@ class TestNgReasonsAreWrittenOut(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestPlanJsonHasOutline(unittest.TestCase):
+    def test_outline_is_written_for_read_back_apply(self):
+        import json
+        import tempfile
+        from pathlib import Path as P
+
+        from ashiba.cli import solve_all
+        from ashiba.report import write_plan_json
+
+        r = solve_all({"project_name": "外形", "series_id": "shinwa_A",
+                       "outline_mm": [[0, 0], [10800, 0], [10800, 5400], [0, 5400]],
+                       "eaves_height_mm": 9000, "building_height_mm": 9000})
+        with tempfile.TemporaryDirectory() as d:
+            p = P(d) / "x_plan.json"
+            write_plan_json(r.model, p, stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
+                            bracket_sections=r.brackets, terrain=r.terrain)
+            data = json.loads(p.read_text(encoding="utf-8"))
+        self.assertEqual(data["outline_mm"], [[0, 0], [10800, 0], [10800, 5400], [0, 5400]])

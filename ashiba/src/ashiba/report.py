@@ -492,6 +492,7 @@ def write_plan_json(
         "gdl_params": {...}              // set_gdl_parameters にそのまま渡せる
       }],
       "scaffold_vertices": [[x, y], ...],// 足場中心線ループ
+      "outline_mm": [[x, y], ...],       // 躯体外形（配置に使ったスラブ）
       "wall_ties": [{"edge_index": 0, "position_mm": 3600.0, "height_mm": 4600,
                      "kind": "grid"}],   // kind: grid / asagao / stage / hoist
       "warnings": [...],                 // 割付・立面の警告
@@ -562,6 +563,8 @@ def write_plan_json(
             for ep, face in zip(model.plan.edges, model.plan.face_names())
         ],
         "scaffold_vertices": [list(v) for v in model.plan.scaffold_vertices],
+        # 躯体外形（読み戻し→解き直しがスラブの選択なしで動くように）
+        "outline_mm": [list(v) for v in model.plan.outline.vertices],
         "wall_ties": [asdict(t) for t in model.wall_ties],
         "warnings": model.plan.warnings + model.elevation.warnings,
     }

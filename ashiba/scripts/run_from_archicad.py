@@ -164,7 +164,7 @@ def load_spec_override() -> dict:
     return data
 
 
-def main() -> None:
+def main(outline_mm=None) -> None:
     client = ArchicadClient()
     spec = dict(SPEC)
     spec.update(load_spec_override())
@@ -174,7 +174,9 @@ def main() -> None:
     # 外形: 通常は選択中のスラブ。環境変数 ASHIBA_SLAB=<GUID先頭> があればそのスラブ
     # （スクリプトからの検証用。表示中のフロアに無い要素は選択しても拾えないため）
     slab_guid = os.environ.get("ASHIBA_SLAB", "").strip()
-    if slab_guid:
+    if outline_mm:
+        spec["outline_mm"] = [list(p) for p in outline_mm]        # 読み戻し→解き直し（plan.json の外形）
+    elif slab_guid:
         spec["outline_mm"] = [list(p) for p in slab_outline_mm_by_guid(client, slab_guid)]
     else:
         spec["outline_mm"] = [list(p) for p in get_selected_outline_mm(client)]

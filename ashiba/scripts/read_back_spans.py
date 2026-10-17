@@ -102,8 +102,12 @@ def main() -> int:
     sys.path.insert(0, str(ROOT / "scripts"))
     import run_from_archicad
 
-    print("---- ツールバーを実行して解き直します")
-    run_from_archicad.main()
+    outline = plan.get("outline_mm")
+    if not outline:
+        print("この plan.json には躯体外形がありません（古い版の配置）。スラブを選択してツールバーを実行してください")
+        return 1
+    print("---- ツールバーを実行して解き直します（plan.json の躯体外形を使うので、スラブの選択は要りません）")
+    run_from_archicad.main(outline_mm=outline)
     return 0
 
 
