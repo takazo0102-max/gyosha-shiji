@@ -22,6 +22,7 @@
 {
   "project_name": "サンプル",
   "series_id": "shinwa_A",
+  "module": "metric",              // "metric"（メートル: 1800/1500/1200/900/600）／"inch"（インチ: 1829/1524/1219/914/610）。series_id を省くと既定の系列（信和A／日建ND1800）
   "outline_mm": [[0,0],[30000,0],[30000,20000],[0,20000]],
   "eaves_height_mm": 15400,        // 軒高
   "guard_extra_mm": 900,           // 軒高に足す手すり分（最上層作業床固定点）
@@ -140,7 +141,7 @@ class InputError(ValueError):
 # 黙って無視すると「指定したのに効かない」まま図面と計算が進んでしまう
 # （loading_stage と書けばステージが消え、計算にも数量にも現れない）
 TOP_KEYS = {
-    "project_name", "series_id", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
+    "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
@@ -509,6 +510,12 @@ def validate_spec(spec: dict) -> None:
             _check_int_lists(errors, where, item, LIST_INT_LIST_FIELDS.get(key, ()))
             _check_item_semantics(errors, key, where, item)
 
+    if spec.get("module") not in (None, ""):
+        from .master import normalize_module
+        try:
+            normalize_module(spec.get("module"))
+        except ValueError as e:
+            errors.append(f"module: {e}")
     so = spec.get("span_overrides")
     if so is not None:
         if not isinstance(so, list):
@@ -659,8 +666,34 @@ def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
     return fixed
 
 
+def resolve_series_id(spec: dict) -> str:
+    """series_id と module（インチ／メートル）から系列を決める.
+
+    module だけなら既定の系列（メートル=信和A、インチ=日建ND1800）。両方あれば食い違いを止める
+    （インチで組む指定に信和Aを当てると、1800の布材で1829の割付を描くことになる）。
+    """
+    from .master import DEFAULT_SERIES_BY_MODULE, SERIES_CONST, normalize_module, series_ids_for_module, series_module
+
+    sid = spec.get("series_id")
+    mod_in = spec.get("module")
+    if mod_in is None or str(mod_in).strip() == "":
+        return str(sid or "shinwa_A")
+    module = normalize_module(mod_in)
+    if not sid:
+        return DEFAULT_SERIES_BY_MODULE[module]
+    sid = str(sid)
+    if sid in SERIES_CONST and series_module(sid) != module:
+        label = "インチ" if module == "inch" else "メートル"
+        raise InputError(
+            f"module が{label}なのに系列 {sid} は{'メートル' if label == 'インチ' else 'インチ'}系列です。"
+            f"{label}の系列は " + "・".join(series_ids_for_module(module)) + "（series_id を省けば既定の "
+            f"{DEFAULT_SERIES_BY_MODULE[module]}）"
+        )
+    return sid
+
+
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
-    master = load_master(spec.get("series_id", "shinwa_A"), master_csv)
+    master = load_master(resolve_series_id(spec), master_csv)
     so = spec.get("standoff", {})
     standoff = StandoffSpec(
         target=so.get("target", 300),

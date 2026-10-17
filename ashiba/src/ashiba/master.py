@@ -25,30 +25,56 @@ FRAME = "枠組"
 FRAME_JACK_MAX_MM = 350
 DEFAULT_JACK_MAX_MM = 450
 
+# スパンのモジュール。メートル（1800/1500/1200/900/600）かインチ（1829/1524/1219/914/610）。
+# 系列ロックの上に「インチで組みたい」という指定を受けるための区分（足場計画.gsm の
+# インチ／メートル切替と同じ発想）。インチ系列は日建ND1800/ND1900と枠組
+MODULE_METRIC = "metric"
+MODULE_INCH = "inch"
+MODULE_ALIASES = {"metric": MODULE_METRIC, "メートル": MODULE_METRIC, "m": MODULE_METRIC, "mm": MODULE_METRIC,
+                  "inch": MODULE_INCH, "インチ": MODULE_INCH, "in": MODULE_INCH}
+DEFAULT_SERIES_BY_MODULE = {MODULE_METRIC: "shinwa_A", MODULE_INCH: "nikken_nd1800"}
+
+
+def normalize_module(value) -> str:
+    """入力のモジュール表記（inch／インチ／metric／メートル）を正規化。不明なら ValueError."""
+    key = str(value).strip().lower() if value is not None else ""
+    for k, v in MODULE_ALIASES.items():
+        if key == k.lower():
+            return v
+    raise ValueError(f"モジュールは inch（インチ）か metric（メートル）です（'{value}'）")
+
+
+def series_module(series_id: str) -> str:
+    return SERIES_CONST[series_id]["module"]
+
+
+def series_ids_for_module(module: str) -> list[str]:
+    return [sid for sid, c in SERIES_CONST.items() if c["module"] == module]
+
 # 系列ごとのコマピッチ・階高・既定踏板幅 [mm]
 # 踏板幅は系列で実寸が違う（A:400/250、B:405/240）。既定値を決め打ちにすると
 # 系列を切り替えたときにマスタ引き当てが静かに失敗するので、ここから引く。
 SERIES_CONST = {
     "shinwa_A": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
-                 "hozo": 125,
+                 "hozo": 125, "module": "metric",
                  "deck_widths": (400, 250), "next_gen_deck_widths": (500, 250)},
     "shinwa_B": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
-                 "hozo": 125,
+                 "hozo": 125, "module": "metric",
                  "deck_widths": (405, 240), "next_gen_deck_widths": (500, 240)},
     # 日建リース NDシステム1800（ダーウィン）: コマ450・階高1800、スパンはインチ
     # （1829/1524/1219/914/610）。品番・重量・耐力は仮設資材カタログVol.10
     # （data/NIKKEN_CATALOG_NOTES.md に抜き書き）
     "nikken_nd1800": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
-                      "hozo": 125,
+                      "hozo": 125, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 日建リース NDシステム1900: コマ475・階高1900（支柱3800/2850/1900/1425/950/475）。
     # つなぎ材・布板・ブラケット・梁枠はND1800と共通、支柱・先行手すり・階段が専用
     "nikken_nd1900": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
-                      "hozo": 125,
+                      "hozo": 125, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
-             "hozo": 0,
+             "hozo": 0, "module": "inch",
              "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
 }
 
@@ -125,6 +151,11 @@ class PartMaster:
     @property
     def is_frame(self) -> bool:
         return self.system_type == FRAME
+
+    @property
+    def module(self) -> str:
+        """スパンのモジュール（metric／inch）."""
+        return series_module(self.series_id)
 
     @property
     def system_name(self) -> str:

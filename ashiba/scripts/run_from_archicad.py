@@ -42,6 +42,7 @@ from ashiba.elevation_sections import load_record, place_section_elevations, sav
 SPEC = {
     "project_name": "足場計画",
     "series_id": "shinwa_A",
+    "module": "",                  # "inch" でインチ（1829/1524/1219/914/610）。series_id を空にすれば既定の日建ND1800
     "eaves_height_mm": 15400,      # 軒高
     "guard_extra_mm": 900,         # 最上層作業床固定点 = 軒高 + 手すり分
     "period_days": 90,
@@ -87,6 +88,8 @@ SAMPLE_SPEC = {
     "project_name": "足場計画",
     "series_id": "shinwa_A",
     "_series_id": "shinwa_A / shinwa_B / nikken_nd1800 / nikken_nd1900 / waku（枠組）",
+    "module": "",
+    "_module": "\"inch\"（インチ: 1829/1524/1219/914/610）か \"metric\"（メートル: 1800/1500/1200/900/600）。series_id を空にすれば既定の系列（インチ=nikken_nd1800、メートル=shinwa_A）。両方書いて食い違うと止まる",
     "eaves_height_mm": 15400,
     "guard_extra_mm": 900,
     "_scaffold_height_mm": "足場高さを直接決めるときは scaffold_height_mm を書く（軒高＋手すり分より優先）。例: 15000",
@@ -167,10 +170,22 @@ def load_spec_override() -> dict:
 def main(outline_mm=None) -> None:
     client = ArchicadClient()
     spec = dict(SPEC)
-    spec.update(load_spec_override())
+    override = load_spec_override()
+    spec.update(override)
+    # 条件ファイルが module（インチ／メートル）だけを書いて series_id を書かないときは、
+    # ここの既定の series_id（信和A）に引きずられずにそのモジュールの既定系列を使う
+    if override.get("module") and not override.get("series_id"):
+        spec.pop("series_id", None)
+    if not spec.get("module"):
+        spec.pop("module", None)
     for a in sys.argv[1:]:
         if a.startswith("--series="):
             spec["series_id"] = a.split("=", 1)[1]
+        if a.startswith("--module="):
+            # --module=inch: インチの既定系列（日建ND1800）。series_id を一緒に指定して食い違えば止まる
+            spec["module"] = a.split("=", 1)[1]
+            if "--series=" not in " ".join(sys.argv[1:]):
+                spec.pop("series_id", None)
     # 外形: 通常は選択中のスラブ。環境変数 ASHIBA_SLAB=<GUID先頭> があればそのスラブ
     # （スクリプトからの検証用。表示中のフロアに無い要素は選択しても拾えないため）
     slab_guid = os.environ.get("ASHIBA_SLAB", "").strip()
