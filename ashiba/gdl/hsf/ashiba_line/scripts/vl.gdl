@@ -1,0 +1,117 @@
+﻿! ============================================================
+! 足場ライン パラメータスクリプト
+! 平面のホットスポットで xEdit（支柱位置）を引いたときだけ動く。マスタースクリプトが
+! 解いた spans[]・規格寸法 szL[] を使って吸着し、spanList と xEdit を書き戻す。
+! GLOB_MODPAR_NAME はパラメータスクリプトで確実に取れる（マスターでは効かなかった）
+! ============================================================
+if GLOB_MODPAR_NAME <> "" then
+	parameters lastMod = "VL:" + GLOB_MODPAR_NAME + "|" + str(vardim1(xEdit), 1, 0) + "|" + str(nSpan, 1, 0)
+endif
+if editSpan and GLOB_MODPAR_NAME = "xEdit" and vardim1(xEdit) = nSpan + 1 and nSz > 0 then
+	! 動かした境界 i を1つだけ探す（同時に動くのは1点）
+	iMv = 0
+	xo = 0
+	for i = 2 to nSpan
+		xo = xo + spans[i - 1]
+		if abs(xEdit[i] - xo) > 0.0005 and iMv = 0 then
+			iMv = i
+			xMv = xo
+		endif
+	next i
+	if iMv > 0 then
+		i = iMv
+		pair = spans[i - 1] + spans[i]
+		want = xEdit[i] - (xMv - spans[i - 1])
+		! 1) 隣の境界まで引いた（残り < 最小規格の半分）: 2本を1本に結合。合計が規格寸法のときだけ
+		!    （900+900→1800、1200+600→1800。1800+900 は 2700 で規格に無いので結合しない）
+		okPair = 0
+		for k = 1 to nSz
+			if abs(pair - szL[k]) < 0.0005 then okPair = 1
+		next k
+		if (want < szMin / 2 or want > pair - szMin / 2) and okPair and nSpan >= 2 then
+			spans[i - 1] = pair
+			for j = i to nSpan - 1
+				spans[j] = spans[j + 1]
+			next j
+			nSpan = nSpan - 1
+		else
+			! 2) 前のスパンを規格寸法に吸着。残りが規格寸法ならそのまま、違えば規格2本に
+			!    分けて1本挿入する（1800+1800 の境界を 1500 へ引くと 1500+1500+600）。
+			!    どちらもできなければ動かさない（規格外を残すと Python の入力検証で止まる）
+			best = 0
+			bd = 1e9
+			for k = 1 to nSz
+				rem = pair - szL[k]
+				okRest = 0
+				if abs(rem) < 0.0005 then okRest = 0
+				for k2 = 1 to nSz
+					if abs(rem - szL[k2]) < 0.0005 then okRest = 1
+					for k3 = 1 to nSz
+						if abs(rem - szL[k2] - szL[k3]) < 0.0005 then okRest = 1
+					next k3
+				next k2
+				if okRest and abs(szL[k] - want) < bd then
+					bd = abs(szL[k] - want)
+					best = szL[k]
+				endif
+			next k
+			if best > 0 and abs(best - spans[i - 1]) > 0.0005 then
+				rem = pair - best
+				remOk = 0
+				for k2 = 1 to nSz
+					if abs(rem - szL[k2]) < 0.0005 then remOk = 1
+				next k2
+				spans[i - 1] = best
+				if remOk then
+					spans[i] = rem
+				else
+					if nSpan < 60 then
+						! 残りを「大きい方＋小さい方」の規格2本に（szL は降順で渡される）
+						ra = 0
+						rb = 0
+						for k2 = 1 to nSz
+							for k3 = k2 to nSz
+								if ra = 0 and abs(rem - szL[k2] - szL[k3]) < 0.0005 then
+									ra = szL[k2]
+									rb = szL[k3]
+								endif
+							next k3
+						next k2
+						for j = nSpan + 1 to i + 2 step -1
+							spans[j] = spans[j - 1]
+						next j
+						spans[i] = ra
+						spans[i + 1] = rb
+						nSpan = nSpan + 1
+					else
+						spans[i - 1] = pair - spans[i]
+					endif
+				endif
+			endif
+		endif
+	endif
+	! spanList を書き戻す（255文字の制限があるので 40 本ごとに spanList2 へ）
+	sl1 = ""
+	sl2 = ""
+	for i = 1 to nSpan
+		item = str(spans[i] * 1000, 1, 0)
+		if i <= 40 then
+			if sl1 = "" then sl1 = item else sl1 = sl1 + "," + item
+		else
+			if sl2 = "" then sl2 = item else sl2 = sl2 + "," + item
+		endif
+	next i
+	parameters spanList = sl1, spanList2 = sl2
+endif
+! xEdit をスパンから作り直す（引いたときは吸着後の spans、それ以外は spanList が正）。
+! マスタースクリプトでやると要素数の変わる配列の書き戻しで 2D・3D が描けなくなるので、ここで行う
+if editSpan then
+	dim xe[]
+	xe[1] = 0
+	for i = 1 to nSpan
+		xe[i + 1] = xe[i] + spans[i]
+	next i
+	if vardim1(xEdit) <> nSpan + 1 or GLOB_MODPAR_NAME = "xEdit" or GLOB_MODPAR_NAME = "spanList" or GLOB_MODPAR_NAME = "spanList2" then
+		parameters xEdit = xe
+	endif
+endif

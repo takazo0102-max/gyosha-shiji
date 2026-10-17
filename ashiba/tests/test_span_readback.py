@@ -58,8 +58,12 @@ class TestGdlSideOfTheEdit(unittest.TestCase):
         xml = (self.root / "paramlist.xml").read_text(encoding="utf-8")
         for name in ("editSpan", "sizeList", "xEdit"):
             self.assertIn(f'Name="{name}"', xml)
-        body1 = (self.root / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        body1 = (self.root / "scripts" / "vl.gdl").read_text(encoding="utf-8")       # 吸着はパラメータスクリプト
         self.assertIn('GLOB_MODPAR_NAME = "xEdit"', body1)
+        master = (self.root / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        self.assertNotIn("parameters xEdit", master)      # マスターで配列を書き戻すと 2D・3D が描けなくなる（実機で切り分け）
+        self.assertIn("parameters xEdit = xe", body1)
+        self.assertIn("<Script_VL", (self.root / "libpartdata.xml").read_text(encoding="utf-8"))
         self.assertIn("if abs(rem - szL[k2] - szL[k3]) < 0.0005 then okRest = 1", body1)   # 残りを規格2本に分けて挿入
         self.assertIn("nSpan = nSpan - 1", body1)                                             # 隣に重ねたら結合
         self.assertIn("nSpan = nSpan + 1", body1)
@@ -69,7 +73,7 @@ class TestGdlSideOfTheEdit(unittest.TestCase):
     def test_plan_has_editable_hotspots_between_the_ends(self):
         body2 = (self.root / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         self.assertIn("for i = 2 to nSpan", body2)
-        self.assertIn("hotspot2 xEdit[i], -rowW / 2, 501 + 3 * i, xEdit[i], 2", body2)
+        self.assertIn("hotspot2 xEdit[i], -rowW, 501 + 3 * i, xEdit[i], 2", body2)
 
     def test_python_sends_the_series_sizes(self):
         import sys

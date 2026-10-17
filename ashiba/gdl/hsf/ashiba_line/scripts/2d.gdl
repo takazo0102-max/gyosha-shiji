@@ -132,12 +132,14 @@ for ib = 1 to nBm
 next ib
 hotspot2 0, -rowW
 hotspot2 lineLen, -rowW
-! スパン境界の編集ホットスポット（建地列の中央。引くと 1D が規格寸法に吸着して書き戻す）
+! スパン境界の編集ホットスポット（外側建地列の支柱位置。引くとパラメータスクリプトが
+! 規格寸法に吸着して書き戻す）。固定のホットスポットを同じ位置に重ねると、そちらを
+! 掴んでオブジェクト全体が動くので、外側列の支柱位置は編集用だけにする
 if editSpan and vardim1(xEdit) = nSpan + 1 then
 	for i = 2 to nSpan
-		hotspot2 0, -rowW / 2, 500 + 3 * i, xEdit[i], 1 + 128
-		hotspot2 xEdit[i], -rowW / 2, 501 + 3 * i, xEdit[i], 2
-		hotspot2 -1, -rowW / 2, 502 + 3 * i, xEdit[i], 3
+		hotspot2 0, -rowW, 500 + 3 * i, xEdit[i], 1 + 128
+		hotspot2 xEdit[i], -rowW, 501 + 3 * i, xEdit[i], 2
+		hotspot2 -1, -rowW, 502 + 3 * i, xEdit[i], 3
 	next i
 endif
 

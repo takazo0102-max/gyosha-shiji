@@ -43,14 +43,18 @@
 		</String>
 		<Length Name="xEdit">
 			<Description><![CDATA["支柱位置（編集ホットスポット用。1Dが spanList から作り直す）"]]></Description>
-			<Flags>
-				<ParFlg_Hidden/>
-			</Flags>
 			<ArrayValues FirstDimension="2" SecondDimension="0">
 				<AVal Row="1">0</AVal>
 				<AVal Row="2">1.8</AVal>
 			</ArrayValues>
 		</Length>
+		<String Name="lastMod">
+			<Description><![CDATA["診断: 直前に変わったパラメータ名|xEditの要素数|nSpan（1Dが書く）"]]></Description>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="spanList2">
 			<Description><![CDATA["スパン構成（続き2）"]]></Description>
 			<Value><![CDATA[""]]></Value>
