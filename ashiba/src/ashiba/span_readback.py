@@ -73,3 +73,40 @@ def merge_overrides(spec: dict, overrides: list[dict]) -> dict:
         by_edge[int(o["edge_index"])] = {"edge_index": int(o["edge_index"]), "spans_mm": list(o["spans_mm"])}
     out["span_overrides"] = [by_edge[k] for k in sorted(by_edge)]
     return out
+
+
+def snap_boundary(spans: list[int], i: int, want_mm: float, allowed: Iterable[int]) -> list[int]:
+    """部品の1Dスクリプトと同じ吸着規則（境界 i の手前のスパン長を want_mm に引いたとき）.
+
+    1) 隣の境界まで引いた（残りが最小規格の半分未満）: 2本を結合。合計が規格寸法のときだけ
+    2) 手前を規格寸法に吸着。残りが規格ならそのまま、違えば規格2本（大＋小）に分けて1本挿入
+    3) どちらもできなければ動かさない
+    i は 1 始まりの境界番号（spans[i-2] と spans[i-1] の間）。GDL のテストはこの関数の値と突き合わせる。
+    """
+    sizes = sorted({int(v) for v in allowed}, reverse=True)
+    if not sizes or i < 2 or i > len(spans):
+        return list(spans)
+    out = list(spans)
+    a, b = out[i - 2], out[i - 1]
+    pair = a + b
+    smin = min(sizes)
+    if (want_mm < smin / 2 or want_mm > pair - smin / 2) and pair in sizes:
+        return out[: i - 2] + [pair] + out[i:]
+    best, bd = 0, float("inf")
+    for s_ in sizes:
+        rem = pair - s_
+        ok = rem in sizes or any(rem - x in sizes for x in sizes if rem - x > 0)
+        if ok and abs(s_ - want_mm) < bd:
+            best, bd = s_, abs(s_ - want_mm)
+    if best == 0 or best == a:
+        return out
+    rem = pair - best
+    if rem in sizes:
+        return out[: i - 2] + [best, rem] + out[i:]
+    if len(out) >= 60:
+        return out
+    for x in sizes:
+        y = rem - x
+        if y in sizes and y <= x:
+            return out[: i - 2] + [best, x, y] + out[i:]
+    return out

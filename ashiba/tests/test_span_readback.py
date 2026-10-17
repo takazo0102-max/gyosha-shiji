@@ -60,7 +60,9 @@ class TestGdlSideOfTheEdit(unittest.TestCase):
             self.assertIn(f'Name="{name}"', xml)
         body1 = (self.root / "scripts" / "1d.gdl").read_text(encoding="utf-8")
         self.assertIn('GLOB_MODPAR_NAME = "xEdit"', body1)
-        self.assertIn("if abs(pair - szL[k] - szL[k2]) < 0.0005 then okRest = 1", body1)   # 前後とも規格になる位置だけ
+        self.assertIn("if abs(rem - szL[k2] - szL[k3]) < 0.0005 then okRest = 1", body1)   # 残りを規格2本に分けて挿入
+        self.assertIn("nSpan = nSpan - 1", body1)                                             # 隣に重ねたら結合
+        self.assertIn("nSpan = nSpan + 1", body1)
         self.assertIn("parameters spanList = sl1, spanList2 = sl2", body1)
         self.assertIn("parameters xEdit = xe", body1)               # Python から置いたときは spanList が正
 
@@ -84,3 +86,35 @@ class TestGdlSideOfTheEdit(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSnapRule(unittest.TestCase):
+    """吸着規則（部品の1Dと同じ）: 規格寸法だけで面の長さを保つ."""
+
+    A = (1800, 1500, 1200, 900, 600)
+
+    def test_pair_that_can_be_two_sizes(self):
+        from ashiba.span_readback import snap_boundary
+
+        self.assertEqual(snap_boundary([1800, 900], 2, 1450, self.A), [1500, 1200])
+        self.assertEqual(snap_boundary([1800, 900], 2, 1250, self.A), [1200, 1500])
+
+    def test_1800_1800_boundary_inserts_a_span(self):
+        from ashiba.span_readback import snap_boundary
+
+        self.assertEqual(snap_boundary([1800, 1800, 1800], 2, 1500, self.A), [1500, 1500, 600, 1800])
+        self.assertEqual(snap_boundary([1800, 1800, 1800], 3, 1250, self.A), [1800, 1200, 1800, 600])
+        self.assertEqual(sum(snap_boundary([1800, 1800, 1800], 2, 1500, self.A)), 5400)
+
+    def test_dragging_onto_the_neighbour_merges_only_into_a_size(self):
+        from ashiba.span_readback import snap_boundary
+
+        self.assertEqual(snap_boundary([900, 900, 1800], 2, 50, self.A), [1800, 1800])
+        self.assertEqual(snap_boundary([1200, 600], 2, 1790, self.A), [1800])
+        self.assertEqual(snap_boundary([1800, 900], 2, 2690, self.A), [1800, 900])   # 2700 は規格に無い
+
+    def test_no_change_when_nothing_fits(self):
+        from ashiba.span_readback import snap_boundary
+
+        self.assertEqual(snap_boundary([1800, 1800], 2, 1800, self.A), [1800, 1800])
+        self.assertEqual(snap_boundary([1800, 1800], 5, 1500, self.A), [1800, 1800])
