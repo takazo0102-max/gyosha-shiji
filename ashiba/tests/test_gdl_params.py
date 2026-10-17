@@ -1082,3 +1082,6 @@ class TestWallTieSymbol(unittest.TestCase):
         self.assertIn("line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22", body2)  # 立面: 取付点が頂点
         self.assertIn("line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09", body2)  # 平面: 頂点が躯体側
         self.assertIn("箇所（▽印）", body2)
+        body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                 ).read_text(encoding="utf-8")
+        self.assertIn("prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0", body3)   # 3Dにも ▽（断面図方式の立面に映す）
