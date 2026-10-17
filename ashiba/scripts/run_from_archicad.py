@@ -26,6 +26,7 @@ sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
+    TapirError,
     MESH_MARGIN_MM,
     ArchicadClient,
     get_selected_outline_mm,
@@ -35,7 +36,13 @@ from ashiba.tapir_adapter import (  # noqa: E402
     place_scaffold_lines,
     read_ground_model,
 )
-from ashiba.elevation_sections import activate_floor_plan, load_record, place_section_elevations, save_record  # noqa: E402
+from ashiba.elevation_sections import (  # noqa: E402
+    activate_floor_plan,
+    load_record,
+    place_plan_sheet,
+    place_section_elevations,
+    save_record,
+)
 
 # ---- 条件入力（Phase 2でUIダイアログ化。当面はここを編集する） ----
 # キー名と既定値は入力JSONと同じ（ashiba/cli.py のスキーマ参照）
@@ -169,6 +176,8 @@ def load_spec_override() -> dict:
 
 def main(outline_mm=None) -> None:
     client = ArchicadClient()
+    if not client.wait_ready():
+        raise TapirError("Archicad が2分以上応答しません。ダイアログを閉じるか操作を止めてから、もう一度実行してください")
     # スラブ・足場部品は平面図のデータベースにある。レイアウトや断面が前面だと見つからない
     activate_floor_plan(client)
     spec = dict(SPEC)
@@ -237,8 +246,14 @@ def main(outline_mm=None) -> None:
         # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
         prev = load_record(OUT_DIR)
         sections = place_section_elevations(r.model, client, prefix=str(spec.get("project_name") or "足場"), previous=prev,
-                                            terrain=r.terrain)
+                                            terrain=r.terrain, on_sections=lambda res: save_record(OUT_DIR, res, prev))
         save_record(OUT_DIR, sections, prev)
+        # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
+        plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"))
+        for n in plan_sheet.notes:
+            print(f"  平面図: {n}")
+        if plan_sheet.drawing_guid:
+            print(f"  平面図: レイアウト「{plan_sheet.layout_name}」に 1/{plan_sheet.scale}")
         for pl in sections:
             for n in pl.notes:
                 print(f"  立面（{pl.face_name}）: {n}")

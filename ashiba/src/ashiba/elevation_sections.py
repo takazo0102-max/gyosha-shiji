@@ -383,14 +383,27 @@ def remove_all_scaffold_elevations(client, section_guids: Iterable[str] = (), pr
     戻り値は (断面, レイアウト, 残った断面名)。
     """
     lb = _tree(client, "LayoutBook")
-    lays = [it["guid"] for it in walk_tree(lb) if it["type"] == "LayoutItem" and prefix_contains in it["name"]]
+    lays = [it["guid"] for it in walk_tree(lb) if it["type"] == "LayoutItem"
+            and (prefix_contains in it["name"] or "足場平面図" in it["name"])]
     guids = [g for g in section_guids if g]
     if guids:
         client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
     n_l = _delete_items(client, lays)
     pm = _tree(client, "ProjectMap")
-    left = [it["name"] for it in walk_tree(pm) if it["type"] == "SectionItem" and prefix_contains in it["name"]]
-    return len(guids), n_l, left
+    secs = [it for it in walk_tree(pm) if it["type"] == "SectionItem"]
+    left = [it["name"] for it in secs if prefix_contains in it["name"]]
+    n_extra = 0
+    if left and all(prefix_contains in it["name"] for it in secs):
+        # 控えに無い断面（時間切れで控える前に止まった回の残骸）。断面要素と名前は API で
+        # 対応が取れないが、プロジェクトの断面がすべて足場の立面なら全部消してよい
+        activate_floor_plan(client)
+        extra = client.tapir("GetElementsByType", {"elementType": "CutPlane"}).get("elements", [])
+        if extra:
+            client.tapir("DeleteElements", {"elements": extra})
+            n_extra = len(extra)
+        left = [it["name"] for it in walk_tree(_tree(client, "ProjectMap"))
+                if it["type"] == "SectionItem" and prefix_contains in it["name"]]
+    return len(guids) + n_extra, n_l, left
 
 
 def ensure_subset(client, name: str = SUBSET_NAME) -> str:
@@ -545,7 +558,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
 
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
                              previous: Optional[dict] = None, one_sheet: bool = True,
-                             annotate: bool = True, terrain=None) -> list[ElevationPlacement]:
+                             annotate: bool = True, terrain=None, on_sections=None) -> list[ElevationPlacement]:
     """面ごとの断面図を作り、サブセット「仮設足場」の下のレイアウトに図面として置く.
 
     previous は前回の控え {断面名: 要素GUID}（run_from_archicad が書く）。再実行で置き換える。
@@ -578,6 +591,12 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         else:
             pl.notes.append(f"断面を作れませんでした（{el.get('error', {}).get('message', el)}）。同名の断面が残っていればそれを図面に使います")
         results.append(pl)
+    # 作った断面はすぐ控える（この後で時間切れ等で止まっても、次回の実行で消せるように）
+    if on_sections is not None:
+        try:
+            on_sections(results)
+        except Exception:
+            pass
     # 2. プロジェクトマップの項目（図面の元）
     pm = _tree(client, "ProjectMap")
     for pl in results:
@@ -661,3 +680,123 @@ def save_record(out_dir, placements: list[ElevationPlacement], previous: Optiona
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     (Path(out_dir) / ELEVATIONS_RECORD).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return rec
+
+
+
+# ---------------------------------------------------------------- 足場平面図のレイアウト（Phase 9-2）
+
+def plan_layout_name(prefix: str) -> str:
+    return f"{prefix} 足場平面図"
+
+
+def plan_region_mm(model: ScaffoldModel, margin_mm: float = 1500.0) -> tuple[float, float, float, float]:
+    """平面図で切り抜く範囲（モデル mm: xmin, ymin, xmax, ymax）.
+
+    躯体外形に、最大の離れ＋建地列間隔＋断面の切断線（外側建地列から CLEARANCE_MM 外）と
+    その延長・マーカーを足す。朝顔（突出2m）・ステージの張出し・昇降機の搬器はこの中に入る。
+    """
+    xs = [float(v[0]) for v in model.plan.outline.vertices]
+    ys = [float(v[1]) for v in model.plan.outline.vertices]
+    standoff = max((float(e.standoff) for e in model.plan.edges), default=300.0)
+    grow = standoff + float(model.post_row_spacing_mm) + CLEARANCE_MM + margin_mm
+    return (min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow)
+
+
+def fit_scale(box_mm: tuple[float, float], paper_mm: tuple[float, float],
+              margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
+              title_band_mm: float = 60.0, caption_mm: float = 15.0) -> Optional[int]:
+    """モデル mm の箱が用紙に収まる最大の縮尺（1/100 から）。収まらなければ None."""
+    pw, ph = paper_mm
+    left, top, right, bottom = margins_mm
+    uw = pw - left - right - 10.0
+    uh = ph - top - bottom - title_band_mm - caption_mm
+    for sc in SCALE_CANDIDATES:
+        if box_mm[0] / sc <= uw and box_mm[1] / sc <= uh:
+            return sc
+    return None
+
+
+def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale: int,
+                             paper_pos_mm: tuple[float, float]) -> tuple[list[dict], dict]:
+    """平面の範囲を用紙の位置に切り抜いて置くときの clipPolygon と position（どちらも用紙 m）.
+
+    実機で確かめた関係: 図面の枠（clipPolygon）は用紙の絶対座標、中身は「用紙 = pos + モデル×k」
+    （k = 1/縮尺）、Tapir は pos = position − clip の最小角 にする。よって枠を P に置き、モデルの
+    範囲の最小角を P に合わせるには position = 2P − Rmin×k、clip = P から R×k の大きさの矩形。
+    """
+    k = 1.0 / scale
+    x0, y0, x1, y1 = region_mm
+    px, py = paper_pos_mm[0] / 1000.0, paper_pos_mm[1] / 1000.0
+    w, h = (x1 - x0) / 1000.0 * k, (y1 - y0) / 1000.0 * k
+    clip = [{"x": px, "y": py}, {"x": px + w, "y": py}, {"x": px + w, "y": py + h}, {"x": px, "y": py + h}]
+    position = {"x": 2 * px - x0 / 1000.0 * k, "y": 2 * py - y0 / 1000.0 * k}
+    return clip, position
+
+
+def active_story_item(client) -> Optional[dict]:
+    """足場を置いたフロア（現在のフロア）のプロジェクトマップ項目."""
+    try:
+        act = int(client.tapir("GetStories", {}).get("actStory", 0))
+    except Exception:
+        act = 0
+    items = story_items(_tree(client, "ProjectMap"))
+    hit = [it for it in items if str(it.get("prefix", "")).strip() == str(act)]
+    return hit[0] if hit else (items[0] if items else None)
+
+
+@dataclass
+class PlanSheet:
+    layout_name: str = ""
+    layout_item_guid: str = ""
+    drawing_guid: str = ""
+    scale: int = 100
+    notes: list[str] = field(default_factory=list)
+
+
+def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True) -> PlanSheet:
+    """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く."""
+    out = PlanSheet(layout_name=plan_layout_name(prefix))
+    activate_floor_plan(client)
+    story = active_story_item(client)
+    if story is None:
+        out.notes.append("フロアがプロジェクトマップに見つかりません")
+        return out
+    if replace:
+        lb = _tree(client, "LayoutBook")
+        _delete_items(client, [it["guid"] for it in walk_tree(lb) if it["type"] == "LayoutItem" and it["name"] == out.layout_name])
+    subset = ensure_subset(client)
+    lb = _tree(client, "LayoutBook")
+    master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]])
+    lay = _create_layout(client, out.layout_name, subset, master)
+    if not lay:
+        out.notes.append("レイアウトを作れませんでした")
+        return out
+    out.layout_item_guid = lay
+    paper, margins = _layout_paper_mm(client, lay)
+    region = plan_region_mm(model)
+    box = (region[2] - region[0], region[3] - region[1])
+    scale = fit_scale(box, paper, margins)
+    if scale is None:
+        scale = SCALE_CANDIDATES[-1]
+        out.notes.append(f"平面が用紙に収まりません（1/{scale} で置きます）")
+    out.scale = scale
+    # 用紙の左上寄せ（タイトル帯の上）
+    pos = (margins[0] + 10.0, paper[1] - margins[1] - box[1] / scale)
+    clip, position = clipped_drawing_geometry(region, scale, pos)
+    db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
+    dbid = db["databases"][0]["databaseId"]
+    r = client.tapir("CreateDrawings", {"drawingsData": [{
+        "navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
+        "clipPolygon": clip, "scale": (1.0 / scale) / 0.01, "drawingScale": float(scale),
+        "name": f"足場平面図 1/{scale}"}]})
+    el = (r.get("elements") or [{}])[0]
+    if "elementId" in el:
+        out.drawing_guid = el["elementId"]["guid"]
+        try:
+            client.tapir("UpdateDrawings", {"elements": [el]})
+        except Exception:
+            pass
+    else:
+        out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
+    activate_floor_plan(client)
+    return out

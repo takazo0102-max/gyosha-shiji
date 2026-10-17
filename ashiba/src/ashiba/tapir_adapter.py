@@ -27,6 +27,7 @@ from pathlib import Path
 
 import contextlib
 import json
+import time
 import math
 import urllib.error
 import urllib.request
@@ -61,6 +62,10 @@ def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "a
     return False
 
 
+class TapirTimeout(TapirError):
+    """Archicad は起動しているが、アドオンの命令が時間内に返らない（操作中など）."""
+
+
 class ArchicadClient:
     """Archicad JSON API + Tapir AddOnCommand の薄いクライアント."""
 
@@ -81,6 +86,13 @@ class ArchicadClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, OSError) as exc:
+            if "timed out" in str(exc):
+                # Archicad は起動しているが、操作中（ドラッグ・ダイアログ・再構築）でアドオンの
+                # 命令が待たされている。起動していないのとは打つ手が違う
+                raise TapirTimeout(
+                    f"Archicad が {self.timeout:.0f}秒応答しません（{command}）。操作中・ダイアログ表示中・"
+                    "再構築中の可能性があります。手を止めてから、もう一度実行してください"
+                ) from exc
             raise TapirError(
                 f"Archicadに接続できません（{self.url}）。Archicadを起動してください: {exc}"
             ) from exc
@@ -94,29 +106,57 @@ class ArchicadClient:
                 hint = (
                     "\nArchicadにTapirアドオンが入っていないか、"
                     "このコマンドに対応していない版の可能性があります"
-                    "（動作確認: Tapir 1.5.8）。"
+                    "（動作確認: Tapir 1.7.0 / Archicad 30）。"
                     "アドオンを入れて Archicad を再起動してください"
                 )
             raise TapirError(f"{command} が失敗: {err}{hint}")
         return data.get("result", {})
 
-    def tapir(self, command: str, parameters: Optional[dict] = None) -> dict:
-        result = self.post(
-            "API.ExecuteAddOnCommand",
-            {
-                "addOnCommandId": {
-                    "commandNamespace": "TapirCommand",
-                    "commandName": command,
-                },
-                "addOnCommandParameters": parameters or {},
+    # 読むだけの命令は、時間切れなら待って再試行してよい（作る・消す命令は Archicad 側で
+    # 実行済みのことがあるので再試行しない。重複して作ってしまう）
+    READ_ONLY_PREFIXES = ("Get", "Is", "FitInWindow")
+
+    def tapir(self, command: str, parameters: Optional[dict] = None, retries: int = 2,
+              wait_s: float = 5.0) -> dict:
+        body = {
+            "addOnCommandId": {
+                "commandNamespace": "TapirCommand",
+                "commandName": command,
             },
-        )
+            "addOnCommandParameters": parameters or {},
+        }
+        for attempt in range(retries + 1):
+            try:
+                result = self.post("API.ExecuteAddOnCommand", body)
+                break
+            except TapirTimeout:
+                if attempt >= retries or not command.startswith(self.READ_ONLY_PREFIXES):
+                    raise
+                time.sleep(wait_s)
         resp = result.get("addOnCommandResponse", {})
         if isinstance(resp, dict) and resp.get("error"):
             raise TapirError(f"Tapir {command} が失敗: {resp['error']}")
         return resp
 
     # ---- 基本操作 ------------------------------------------------------
+
+    def wait_ready(self, max_wait_s: float = 120.0, poll_s: float = 5.0, echo=print) -> bool:
+        """アドオンの命令が通るまで待つ（Archicad が操作中だと待たされる）。通れば True."""
+        start = time.time()
+        told = False
+        while True:
+            try:
+                self.post("API.ExecuteAddOnCommand", {
+                    "addOnCommandId": {"commandNamespace": "TapirCommand", "commandName": "GetCurrentWindowType"},
+                    "addOnCommandParameters": {}})
+                return True
+            except TapirTimeout:
+                if time.time() - start > max_wait_s:
+                    return False
+                if not told and echo:
+                    echo("Archicad が操作中のため待っています…（手を止めてください）")
+                    told = True
+                time.sleep(poll_s)
 
     def is_alive(self) -> bool:
         try:

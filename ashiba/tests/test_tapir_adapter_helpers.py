@@ -197,3 +197,36 @@ class TestGroundModelUsesOnlyNearbyMeshes(unittest.TestCase):
         g3 = read_ground_model(_MeshStub())
         self.assertEqual(g3.ignored_meshes, 0)
         self.assertEqual(len(g3.points), 8)
+
+
+class TestTimeouts(unittest.TestCase):
+    """Archicad が操作中で時間切れ: 読むだけの命令は待って再試行、作る命令は再試行しない（重複を作らない）."""
+
+    def _client(self, fail_times):
+        from ashiba.tapir_adapter import TapirTimeout
+
+        class C(ArchicadClient):
+            def __init__(self):
+                super().__init__()
+                self.calls = 0
+
+            def post(self, command, parameters=None):
+                self.calls += 1
+                if self.calls <= fail_times:
+                    raise TapirTimeout("timed out")
+                return {"addOnCommandResponse": {"ok": True}}
+
+        return C()
+
+    def test_read_only_is_retried(self):
+        c = self._client(2)
+        self.assertEqual(c.tapir("GetStories", {}, wait_s=0), {"ok": True})
+        self.assertEqual(c.calls, 3)
+
+    def test_create_is_not_retried(self):
+        from ashiba.tapir_adapter import TapirTimeout
+
+        c = self._client(1)
+        with self.assertRaises(TapirTimeout):
+            c.tapir("CreateSections", {}, wait_s=0)
+        self.assertEqual(c.calls, 1)

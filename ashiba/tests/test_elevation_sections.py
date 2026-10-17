@@ -331,3 +331,35 @@ class TestDrawingScaleIsARatio(unittest.TestCase):
         self.assertAlmostEqual(boxes[0][0], 41900.0, places=3)
         self.assertAlmostEqual(boxes[0][1], 20500.0, places=3)
         self.assertEqual(src, 0.01)
+
+
+class TestPlanSheet(unittest.TestCase):
+    """足場平面図: 範囲・縮尺・切り抜きの幾何（実機で確かめた関係）."""
+
+    def test_region_covers_scaffold_and_section_lines(self):
+        from ashiba.elevation_sections import plan_region_mm
+
+        m = build()
+        x0, y0, x1, y1 = plan_region_mm(m)
+        specs = section_specs(m, "試験")
+        for s in specs:
+            for px, py in (s.start_mm, s.end_mm):
+                self.assertTrue(x0 <= px <= x1 and y0 <= py <= y1, (s.face_name, px, py))
+        self.assertLess(x0, 300000 - CLEARANCE_MM)
+
+    def test_fit_scale(self):
+        from ashiba.elevation_sections import fit_scale
+
+        self.assertEqual(fit_scale((41000, 31000), (841.0, 594.0)), 100)
+        self.assertEqual(fit_scale((90000, 60000), (841.0, 594.0)), 200)
+        self.assertIsNone(fit_scale((500000, 400000), (841.0, 594.0)))
+
+    def test_clip_and_position(self):
+        from ashiba.elevation_sections import clipped_drawing_geometry
+
+        clip, pos = clipped_drawing_geometry((295000, 293000, 335000, 327000), 100, (50.0, 80.0))
+        self.assertAlmostEqual(clip[0]["x"], 0.05); self.assertAlmostEqual(clip[0]["y"], 0.08)
+        self.assertAlmostEqual(clip[2]["x"], 0.45); self.assertAlmostEqual(clip[2]["y"], 0.42)
+        # 実機の値: position = 2P − Rmin×k → Tapir の pos = position − clip最小角 = (-2.9, -2.85)
+        self.assertAlmostEqual(pos["x"] - clip[0]["x"], -2.9)
+        self.assertAlmostEqual(pos["y"] - clip[0]["y"], -2.85)
