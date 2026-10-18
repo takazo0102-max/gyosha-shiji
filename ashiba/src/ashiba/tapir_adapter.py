@@ -1,7 +1,7 @@
 """Archicad接続層（Tapirアドオン経由、標準ライブラリのみで動作）.
 
 `archicad` pipパッケージには依存せず、ArchicadのJSON API (http://127.0.0.1:19723)
-へ urllib で直接POSTする。Tapir 1.5.8 / Archicad 28 (Mac) で実機検証済み
+へ urllib で直接POSTする。Archicad 28 ＋ Tapir 1.5.8、Archicad 30 ＋ Tapir 1.7.0（Mac）で実機検証済み
 （スラブ外形取得→4辺配置→回転→GDLパラメータ設定のE2E: scripts/e2e_archicad_test.py）。
 
 実機で確認済みの仕様・落とし穴:
@@ -166,6 +166,18 @@ class ArchicadClient:
 
     def tapir_version(self) -> str:
         return self.tapir("GetAddOnVersion").get("version", "")
+
+    def versions(self) -> tuple[str, Optional[int]]:
+        """(Tapir の版, Archicad の版)。読めなければ ("", None)（GetAddOnVersion が無いほど古い Tapir など）."""
+        try:
+            tv = str(self.tapir_version() or "")
+        except TapirError:
+            tv = ""
+        try:
+            av = int(self.post("API.GetProductInfo").get("version"))
+        except (TapirError, TypeError, ValueError):
+            av = None
+        return tv, av
 
     def get_selected_elements(self) -> list[dict]:
         return self.tapir("GetSelectedElements").get("elements", [])

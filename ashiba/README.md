@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト1024本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト1031本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -58,7 +58,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `src/ashiba/xlsx_writer.py` | 依存ゼロの最小XLSXライタ |
 | `src/ashiba/report.py` | 数量表CSV・割付レポートMD・plan.json |
 | `src/ashiba/cli.py` | ワンクリック実行CLI |
-| `src/ashiba/tapir_adapter.py` | Archicad/Tapir接続（AC28+Tapir1.5.8 実機E2E検証済み）。一括配置は途中失敗で置いた分を消す |
+| `src/ashiba/tapir_adapter.py` | Archicad/Tapir接続（AC28+Tapir1.5.8・AC30+Tapir1.7.0 で実機検証済み）。一括配置は途中失敗で置いた分を消す |
 | `src/ashiba/details.py` | 詳細図5枚の要否判定とGDLパラメータ導出 |
 | `src/ashiba/openings.py` | 開口部（梁枠）の検証と詳細図・数量への反映（梁枠より下は通路なので床を差し引く） |
 | `src/ashiba/conflicts.py` | 付帯設備どうし・開口部との衝突検査（階段室・ステージ・ブラケット区間・昇降機が梁枠の区間に来ていないか、ステージとブラケット区間の二重張出し、朝顔を貫く昇降機マストの切り欠き・朝顔と同じ高さ帯のステージ）。NGは総合判定の是正理由に出る |
@@ -566,7 +566,7 @@ BOMが無いと日本語がLatin-1として解釈され、図面上の注記が�
 警告文には**実際に未確認の項目だけ**を挙げる（確定済みの項目を並べると、
 どれを差し替えるべきか分からなくなる）。
 
-### Archicadから（要 Tapir アドオン。AC28+Tapir1.5.8で実機検証済み）
+### Archicadから（要 Tapir アドオン。AC28+Tapir1.5.8・AC30+Tapir1.7.0で実機検証済み）
 
 1. `gdl/ashiba_line.gsm`・`gdl/ashiba_detail.gsm` をライブラリマネージャで読込（ツールバーからの実行では、読み込んでいなくても同梱の GSM を自動で埋め込みライブラリへ入れる）
    （または埋め込みライブラリへ追加）
@@ -703,7 +703,10 @@ EOS
 - 部材の単位重量は、信和A/Bは総合カタログ2025.06、日建ND1800/ND1900・枠組は仮設資材カタログVol.10の
   実値。**型番仮の行（信和の朝顔）だけ概算**で、含む計画は要確認一覧に
   品番を名指しで出す。数量（本数）は割付から厳密、トラック台数は積載効率込みの概算
-- Tapir接続・GDL 3D/2D生成は Archicad 28 (Mac, Intel) + Tapir 1.5.8 でE2E検証済み。
+- Tapir接続・GDL 3D/2D生成は Archicad 28 (Mac, Intel) + Tapir 1.5.8、
+  断面図方式の立面・平面図レイアウトは Archicad 30 + Tapir 1.7.0 で実機検証済み。
+  ツールバーは起動時に版を読み、Tapir が 1.7.0 より古ければ立面を部品方式（`elevation_mode=object`）に
+  自動で戻す。確認していない組み合わせは「未確認」と1行出して続ける（[tapir_features.py](src/ashiba/tapir_features.py)）。
   他バージョンではTapirコマンドの応答形式差分に注意（実機の落とし穴メモは
   `tapir_adapter.py` 冒頭のdocstringに集約）
 - 本ツールの出力は計画作成参画者（有資格者）が確認する前提の下書き

@@ -13,7 +13,8 @@ CLI（python3 -m ashiba.cli）と同じ solve_all/write_outputs を通すので�
 
 部品（gdl/ashiba_line.gsm・ashiba_detail.gsm）は無ければ自動で埋め込みライブラリへ入れる
 （配置パイプライン自体は Archicad 28 + Tapir 1.5.8 でE2E検証済み:
- scripts/e2e_archicad_test.py）。
+ scripts/e2e_archicad_test.py。断面図方式の立面・平面図レイアウトは Archicad 30 + Tapir 1.7.0。
+ Tapir が 1.7.0 より古ければ立面は部品方式に自動で戻す: ashiba/tapir_features.py）。
 """
 
 import json
@@ -25,6 +26,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
+from ashiba.tapir_features import choose_elevation_mode, environment_notes  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
     is_ashiba_part,
     TapirError,
@@ -222,6 +224,10 @@ def main(outline_mm=None) -> None:
     client = ArchicadClient()
     if not client.wait_ready():
         raise TapirError("Archicad が2分以上応答しません。ダイアログを閉じるか操作を止めてから、もう一度実行してください")
+    # 版を見て、使える機能を決める（古い Tapir で断面方式を試して途中で止まらないように）
+    tapir_v, archicad_v = client.versions()
+    for n in environment_notes(tapir_v, archicad_v):
+        print(f"注意: {n}")
     # スラブ・足場部品は平面図のデータベースにある。レイアウトや断面が前面だと見つからない
     activate_floor_plan(client)
     spec = dict(SPEC)
@@ -287,7 +293,9 @@ def main(outline_mm=None) -> None:
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
     elevs = []
-    elevation_mode = str(spec.get("elevation_mode") or ELEVATION_MODE)
+    elevation_mode, mode_notes = choose_elevation_mode(str(spec.get("elevation_mode") or ELEVATION_MODE), tapir_v)
+    for n in mode_notes:
+        print(f"  立面: {n}")
     sections = []
     if elevation_mode == "section":
         # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
