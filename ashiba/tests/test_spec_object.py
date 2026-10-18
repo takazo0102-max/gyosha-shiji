@@ -91,5 +91,12 @@ class TestPick(unittest.TestCase):
         self.assertIsNotNone(pick_spec_object([({}, (x, y), {})], RECT))   # 置いた場所は次回拾える
 
 
+class TestToolbarReplacesUnreadableSpecObject(unittest.TestCase):
+    def test_empty_params_are_not_read_as_conditions(self):
+        src = (Path(__file__).resolve().parents[1] / "scripts" / "run_from_archicad.py").read_text(encoding="utf-8")
+        self.assertIn("if hit is not None and not hit[1]:", src)       # 値の無い条件部品は置き直す
+        self.assertIn("client.delete_elements([hit[0]])", src)
+
+
 if __name__ == "__main__":
     unittest.main()

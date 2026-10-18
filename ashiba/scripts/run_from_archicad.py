@@ -205,6 +205,16 @@ def apply_spec_object(client, spec: dict) -> dict:
     from ashiba.spec_object import merge_object_into_spec, params_from_spec, pick_spec_object, spec_from_params, spec_object_position
 
     hit = pick_spec_object(read_spec_objects(client), spec["outline_mm"])
+    if hit is not None and not hit[1]:
+        # 部品が埋め込みライブラリから消えると、置いた条件部品のパラメータは1つも読めなくなる
+        # （2026-10-18 実機: 古い版を整理したときに置いてある版まで消えた）。空の条件として読まず、置き直す
+        print("足場条件の部品の値を読めません（部品がライブラリから消えた可能性）。消して今の条件で置き直します"
+              "（前の条件は戻らないので、設定ダイアログで入れ直してください）")
+        try:
+            client.delete_elements([hit[0]])
+        except TapirError:
+            pass
+        hit = None
     if hit is not None:
         _el, params = hit
         obj = spec_from_params(params)
