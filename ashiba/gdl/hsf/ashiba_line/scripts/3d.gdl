@@ -49,10 +49,16 @@ for ip = 1 to nSpan + 1
 				cylind postTop - gv - jo, r_sic
 				del 2
 			else
-				! 支柱積み上げ
+				! 支柱積み上げ（部材ごと）。継ぎ目には継手のカラーを描いて部材の切れ目を見せる
+				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）
 				for j = 1 to nPost
 					cylind posts[j], r_sic
 					addz posts[j]
+					if j < nPost then
+						addz -0.03
+						cylind 0.06, r_sic + 0.006
+						del 1
+					endif
 				next j
 				del nPost + 2
 			endif
@@ -106,6 +112,11 @@ if cornerS = 1 then
 		for j = 1 to nPost
 			cylind posts[j], r_sic
 			addz posts[j]
+			if j < nPost then
+				addz -0.03
+				cylind 0.06, r_sic + 0.006
+				del 1
+			endif
 		next j
 		del nPost + 2
 	endif
@@ -911,6 +922,12 @@ for ip = 1 to nSpan + 1
 			lin_ x + 0.07, yr - 0.07, gv, x + 0.07, yr + 0.07, gv
 			lin_ x + 0.07, yr + 0.07, gv, x - 0.07, yr + 0.07, gv
 			lin_ x - 0.07, yr + 0.07, gv, x - 0.07, yr - 0.07, gv
+			! 支柱の継ぎ目（部材の切れ目）に短い横線。天端から数える（継ぎ足しは下側）
+			jh = postTop
+			for jp = nPost to 2 step -1
+				jh = jh - posts[jp]
+				lin_ x - 0.06, yr, jh, x + 0.06, yr, jh
+			next jp
 		else
 			lin_ x, yr, bBase, x, yr, postTop
 		endif
