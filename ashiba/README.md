@@ -5,7 +5,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 
 ## 実装状況
 
-指示書のPhase 1〜4をすべて実装済み。ユニットテスト1069本＋Archicad 28実機でのE2E検証を通過。
+指示書のPhase 1〜4をすべて実装済み。ユニットテスト1072本＋Archicad 28実機でのE2E検証を通過。
 
 | できること | 実装 |
 |---|---|
@@ -88,6 +88,7 @@ Archicadの躯体モデルから、くさび緊結式足場の**割付・法規�
 | `scripts/read_back_spans.py` | ホットスポットで動かしたスパンと階段室の位置を読み戻し、配置時の plan.json と比べて変わった面を `span_overrides`・`stairs.positions` にする（`--write` で条件ファイルへ、`--apply` で続けて解き直し） |
 | `scripts/dev_slab.py` | 実機検証用の躯体スラブを作る・一覧・選択（`create 30000x20000 --at 300000,300000` / `pentagon` / `lshape`）。デモ版は保存されないので毎回作り直す |
 | `scripts/preview_face.py` | サンプルの指定面を実機に置いて平面／立面／3Dの大判プレビュー（4000px）を保存。全層の壁つなぎ・付帯設備を目視できる。`--set lineMode=1` でGDLパラメータを上書きして確認できる。`examples/dev/` に付帯設備1種ずつの小型入力 |
+| `scripts/library_report.py` | プロジェクトに置いた足場部品の版を数え（今の版／置いてある版）、埋め込みライブラリに溜まった古い版の消し方を案内する（読むだけ。埋め込んだ部品は API で消せないので、ライブラリマネージャーの「埋め込みライブラリ」→「ashiba」で手で消す） |
 | `scripts/smoke_archicad.py` | 実機スモーク。`examples/dev/` の小型5件と30×20m（メートル・インチ）を、離れた所（x=2000m〜）にスラブを作ってツールバーと同じ手順で置き、足場ラインの本数・部品の図示本数（qty*）と式の一致・2D/3D プレビューの白抜け・断面の立面図とレイアウト・CLI と同じ総合判定を照合して片付ける（`--only=` `--keep` `--verbose`、NG があれば終了コード1）。GDL や Tapir 呼び出しを変えたらこれを流す（Archicad 30 ＋ Tapir 1.7.0 で7件 OK・約5分） |
 | `scripts/place_from_plan_json.py` | plan.json だけからArchicadへ再配置（読み戻して照合） |
 
