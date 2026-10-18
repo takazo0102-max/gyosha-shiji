@@ -248,7 +248,8 @@ class TestDetailParametersAreWired(unittest.TestCase):
     # 図面ごとに使うもの／GDL既定で足りる表示切替
     SHEET_ONLY = {"detailType", "tieV", "tieH", "asagaoProj", "asagaoAngle",
                   "beamSpan", "beamPosts", "openH", "floorH", "koma", "negaLv"}
-    DISPLAY_ONLY = {"showDim", "texSiz", "warnPen"}
+    # detScale は詳細図のレイアウトを作るとき（detail_sheet.respace_details）に渡す
+    DISPLAY_ONLY = {"showDim", "texSiz", "warnPen", "detScale"}
 
     def _declared(self, fixed_only=False):
         import xml.etree.ElementTree as ET

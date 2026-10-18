@@ -41,6 +41,7 @@ from ashiba.elevation_sections import (  # noqa: E402
     remove_elevations,
     sheet_layout_name,
 )
+from ashiba.detail_sheet import detail_layout_name  # noqa: E402
 from ashiba.gdl_params import FACE_COUNT_PARAMS, face_drawn_counts  # noqa: E402
 from ashiba.smoke import CaseReport, all_zero, cases, count_mismatches, placed_spec, select, summary_lines  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
@@ -101,6 +102,11 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
             rep.add("断面の立面図", len(drawn) == len(edges), f"図面{len(drawn)}・面{len(edges)}")
             ps = res["plan_sheet"]
             rep.add("足場平面図のレイアウト", bool(ps and ps.drawing_guid), "; ".join(ps.notes) if ps else "置いていない")
+            ds = res.get("detail_sheet")
+            n_det = len(res["details"])
+            rep.add("足場詳細図のレイアウト", bool(ds) and len(ds.drawing_guids) == n_det,
+                    (f"図面{len(ds.drawing_guids)}・詳細図{n_det}・1/{ds.scale}" + ("; " + "; ".join(ds.notes) if ds.notes else ""))
+                    if ds else "置いていない")
         else:
             rep.add("立面図（部品）", len(res["elevations"]) == len(edges), f"{len(res['elevations'])}面")
 
@@ -128,7 +134,8 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
         rec = load_record(out_dir)
         faces = [k[len(prefix) + 1:-len(" 足場立面")] for k in rec if k.startswith(prefix + " ")]
         remove_elevations(client, list(rec), [layout_name(prefix, f) for f in faces]
-                          + [sheet_layout_name(prefix), plan_layout_name(prefix)], rec.values())
+                          + [sheet_layout_name(prefix), plan_layout_name(prefix), detail_layout_name(prefix)],
+                          rec.values())
         (out_dir / "elevation_sections.json").write_text("{}\n", encoding="utf-8")
         activate_floor_plan(client)
         client.delete_elements([slab])

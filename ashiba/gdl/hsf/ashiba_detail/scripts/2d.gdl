@@ -658,6 +658,7 @@ if isFrame then
 endif
 pen 1
 wy = min(-0.95, ny) - txtLine * 1.4
+if detScale > 0 then ttl = ttl + "　S=1/" + str(detScale, 1, 0)
 text2 0, wy, ttl
 if nWarn = 0 then return
 pen warnPen

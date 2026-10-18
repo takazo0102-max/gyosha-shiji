@@ -121,12 +121,19 @@ SO_MAX = 0.350
 if soMin > 0 then SO_MIN = soMin
 if soMax > 0 then SO_MAX = soMax
 
+! ---- 詳細図の縮尺 ----
+! detScale > 0 なら、その縮尺（1/detScale）で読める文字の大きさにする。平面（1/100）に置いた
+! 詳細図をレイアウトで 1/detScale に拡大して置くと、文字も一緒に拡大されるため。
+! 0 なら表示の縮尺のまま（平面で 1/20 などに切り替えて見るとき）
+dScale = GLOB_SCALE
+if detScale > 0 then dScale = detScale
+
 ! ---- 共通スタイル ----
-define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+define style "anno" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 1, 0
 ! 中央揃え。寸法や部位名は基準点が中心でないと位置がずれて見える
-define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
+define style "annoC" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 5, 0
 
 ! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
-! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
-txtH = texSiz * GLOB_SCALE / 1000
+! GLOB_SCALE = 表示の縮尺の分母（1/100なら100）。texSiz は用紙上のmm（詳細図の縮尺で）
+txtH = texSiz * dScale / 1000
 txtLine = txtH * 1.8

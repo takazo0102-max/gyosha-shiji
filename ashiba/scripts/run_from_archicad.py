@@ -26,6 +26,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
+from ashiba.detail_sheet import place_detail_sheet  # noqa: E402
 from ashiba.tapir_features import choose_elevation_mode, environment_notes  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
     is_ashiba_part,
@@ -338,11 +339,20 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             face_names=elevation_face_titles(r.model.plan.face_names(), spec.get("project_name")),
         )
     details = []
+    detail_sheet = None
     if PLACE_DETAILS:
         details = place_details(
             r.model, r.detail_sheets, detail_part,
             origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
         )
+        if elevation_mode == "section" and details:
+            # 詳細図もサブセット「仮設足場」のレイアウトへ（部品を 1/20 の文字で描かせ、詰め直して切り抜く）
+            detail_sheet = place_detail_sheet(client, details, [s.title for s in r.detail_sheets],
+                                              prefix=str(spec.get("project_name") or "足場"))
+            for n in detail_sheet.notes:
+                print(f"  詳細図: {n}")
+            if detail_sheet.drawing_guids:
+                print(f"  詳細図: レイアウト「{detail_sheet.layout_name}」に {len(detail_sheet.drawing_guids)}枚、1/{detail_sheet.scale}")
 
     # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
     # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
@@ -376,7 +386,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
               + "（割付レポートの要確認一覧を参照）")
     print(f"帳票出力先: {OUT_DIR}")
     return {"result": r, "spec": spec, "lines": lines, "elevations": elevs, "details": details,
-            "sections": sections, "plan_sheet": plan_sheet, "elevation_mode": elevation_mode,
+            "sections": sections, "plan_sheet": plan_sheet, "detail_sheet": detail_sheet, "elevation_mode": elevation_mode,
             "replaced": replaced, "verdict": v}
 
 

@@ -686,7 +686,7 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
 
     def test_detail_sheets_center_their_labels_too(self):
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_detail"
-        self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0',
+        self.assertIn('define style "annoC" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 5, 0',
                       (gdl / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
         lines = (gdl / "scripts" / "2d.gdl").read_text(encoding="utf-8").splitlines()
         offenders = [

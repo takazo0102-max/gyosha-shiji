@@ -729,7 +729,7 @@ def remove_stale_prefixes(client, record: dict, meta: dict, building: str, prefi
     rec = dict(record)
     for old, names in stale.items():
         faces = [n[len(old) + 1:-len(" 足場立面")] for n in names if n.endswith(" 足場立面")]
-        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old)]
+        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old), f"{old} 足場詳細図"]
         activate_floor_plan(client)
         remove_elevations(client, names, lays, [rec.get(n, "") for n in names])
         for n in names:
@@ -773,19 +773,22 @@ def fit_scale(box_mm: tuple[float, float], paper_mm: tuple[float, float],
 
 
 def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale: int,
-                             paper_pos_mm: tuple[float, float]) -> tuple[list[dict], dict]:
+                             paper_pos_mm: tuple[float, float], source_scale: int = 100) -> tuple[list[dict], dict]:
     """平面の範囲を用紙の位置に切り抜いて置くときの clipPolygon と position（どちらも用紙 m）.
 
     実機で確かめた関係: 図面の枠（clipPolygon）は用紙の絶対座標、中身は「用紙 = pos + モデル×k」
-    （k = 1/縮尺）、Tapir は pos = position − clip の最小角 にする。よって枠を P に置き、モデルの
-    範囲の最小角を P に合わせるには position = 2P − Rmin×k、clip = P から R×k の大きさの矩形。
+    （k = 1/縮尺）、Tapir は pos = position − clip の最小角 × 比率（比率 = 元の図の縮尺/縮尺、
+    1/100 の平面を 1/20 で置けば 5）にする。よって枠を P に置き、モデルの範囲の最小角を P に
+    合わせるには position = P×(1+比率) − Rmin×k、clip = P から R×k の大きさの矩形。
+    （比率1のときは 2P − Rmin×k。詳細図を 1/20 で置いて比率の項が要ると分かった、2026-10-18）
     """
     k = 1.0 / scale
+    ratio = source_scale / scale
     x0, y0, x1, y1 = region_mm
     px, py = paper_pos_mm[0] / 1000.0, paper_pos_mm[1] / 1000.0
     w, h = (x1 - x0) / 1000.0 * k, (y1 - y0) / 1000.0 * k
     clip = [{"x": px, "y": py}, {"x": px + w, "y": py}, {"x": px + w, "y": py + h}, {"x": px, "y": py + h}]
-    position = {"x": 2 * px - x0 / 1000.0 * k, "y": 2 * py - y0 / 1000.0 * k}
+    position = {"x": px * (1 + ratio) - x0 / 1000.0 * k, "y": py * (1 + ratio) - y0 / 1000.0 * k}
     return clip, position
 
 

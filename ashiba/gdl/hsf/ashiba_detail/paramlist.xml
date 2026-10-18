@@ -93,6 +93,10 @@
 			<Description><![CDATA["文字高mm"]]></Description>
 			<Value>2.5</Value>
 		</RealNum>
+		<Integer Name="detScale">
+			<Description><![CDATA["詳細図の縮尺の分母 0で表示の縮尺"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="tieVLim">
 			<Description><![CDATA["壁つなぎ垂直間隔の上限 0で既定5m"]]></Description>
 			<Value>0</Value>

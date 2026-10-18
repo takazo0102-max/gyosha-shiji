@@ -29,6 +29,7 @@
 !   deckW2       長さ    踏板2幅 0で無し                                                            既定 0.25
 !   showDim      ブール  寸法・注記の表示                                                           既定 1
 !   texSiz       実数    文字高mm                                                                   既定 2.5
+!   detScale     整数    詳細図の縮尺の分母 0で表示の縮尺                                           既定 0
 !   tieVLim      長さ    壁つなぎ垂直間隔の上限 0で既定5m                                           既定 0
 !   tieHLim      長さ    壁つなぎ水平間隔の上限 0で既定5.5m                                         既定 0
 !   soMin        長さ    壁離れの目標下限 0で既定0.25m                                              既定 0
@@ -174,14 +175,21 @@ SO_MAX = 0.350
 if soMin > 0 then SO_MIN = soMin
 if soMax > 0 then SO_MAX = soMax
 
+! ---- 詳細図の縮尺 ----
+! detScale > 0 なら、その縮尺（1/detScale）で読める文字の大きさにする。平面（1/100）に置いた
+! 詳細図をレイアウトで 1/detScale に拡大して置くと、文字も一緒に拡大されるため。
+! 0 なら表示の縮尺のまま（平面で 1/20 などに切り替えて見るとき）
+dScale = GLOB_SCALE
+if detScale > 0 then dScale = detScale
+
 ! ---- 共通スタイル ----
-define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+define style "anno" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 1, 0
 ! 中央揃え。寸法や部位名は基準点が中心でないと位置がずれて見える
-define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
+define style "annoC" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 5, 0
 
 ! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
-! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
-txtH = texSiz * GLOB_SCALE / 1000
+! GLOB_SCALE = 表示の縮尺の分母（1/100なら100）。texSiz は用紙上のmm（詳細図の縮尺で）
+txtH = texSiz * dScale / 1000
 txtLine = txtH * 1.8
 
 ! ==========================================================
@@ -847,6 +855,7 @@ if isFrame then
 endif
 pen 1
 wy = min(-0.95, ny) - txtLine * 1.4
+if detScale > 0 then ttl = ttl + "　S=1/" + str(detScale, 1, 0)
 text2 0, wy, ttl
 if nWarn = 0 then return
 pen warnPen

@@ -363,6 +363,9 @@ class TestPlanSheet(unittest.TestCase):
         # 実機の値: position = 2P − Rmin×k → Tapir の pos = position − clip最小角 = (-2.9, -2.85)
         self.assertAlmostEqual(pos["x"] - clip[0]["x"], -2.9)
         self.assertAlmostEqual(pos["y"] - clip[0]["y"], -2.85)
+        # 1/200（比率 0.5）: Tapir の pos = position − clip最小角×0.5 が P − Rmin×k になる
+        clip, pos = clipped_drawing_geometry((295000, 293000, 335000, 327000), 200, (50.0, 80.0))
+        self.assertAlmostEqual(pos["x"] - clip[0]["x"] * 0.5, 0.05 - 295.0 / 200)
 
 
 class TestStalePrefixes(unittest.TestCase):
