@@ -963,11 +963,24 @@ line2 0, -rowW, lineLen, -rowW
 x = 0
 for ip = 1 to nSpan
 	line2 x, 0, x, -rowW
-	! 階段室の区間には踏板を敷かない（数量でも差し引いている）。
-	! ここに対角線を引くと、敷いていない床を描くことになる
+	! 階段室は最上層で階段が上がってくる1スパンだけ床が無い（奇数層は始点側、偶数層は終点側。
+	! 3D・数量と同じ）。平面は最上層を上から見た状態なので、もう一方のスパンには対角線を引く
 	inStair = 0
+	kOdd = nLevels - 2 * int(nLevels / 2)
 	for it2 = 1 to nSt
-		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then
+			if stL[it2] <= spans[ip] + 0.001 then
+				inStair = 1
+			else
+				if abs(x - stS[it2]) < 0.001 then
+					if kOdd = 1 then inStair = 1
+				else
+					if ip > 1 then
+						if kOdd = 0 and abs(x - spans[ip - 1] - stS[it2]) < 0.001 then inStair = 1
+					endif
+				endif
+			endif
+		endif
 	next it2
 	! 開口部（梁枠の区間）も同じ。この平面は支柱を抜いた状態を描いているので、
 	! 床だけ上層の状態を描くと1枚の図の中で辻褄が合わなくなる

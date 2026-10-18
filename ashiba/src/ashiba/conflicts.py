@@ -99,7 +99,7 @@ def check_conflicts(
 
     for o in ops:
         o_rng = _rng(o.start_mm, o.end_mm)
-        # 階段室: 梁枠より下は床も支柱も無く、段板・踊り場を組めない
+        # 階段室: 梁枠より下は床も支柱も無く、段板を組めない
         for t in towers:
             if t.edge_index == o.edge_index and _overlap(
                 t.start_mm, t.end_mm, o.start_mm, o.end_mm
@@ -166,7 +166,7 @@ def check_conflicts(
                     "安衛則570条（壁つなぎ）・仮設工業会 梁枠使用基準",
                 ))
 
-    # 階段室 × 昇降機・荷受けステージ。階段室のスパンは段板・踊り場で埋まるので、
+    # 階段室 × 昇降機・荷受けステージ。階段室のスパンは段板と開口・床で埋まるので、
     # 同じスパンに乗り込み口（搬器から渡る床）やステージの間口は取れない。
     # 実機の小型面で自動配置の階段室と昇降機が同じスパンに描かれていた
     from .platforms import hoist_cut_ranges
@@ -180,7 +180,7 @@ def check_conflicts(
                         "階段室×昇降機", "NG",
                         f"{model.face_name(t.edge_index)}の階段室（{_rng(t.start_mm, t.end_mm)}）と"
                         f"昇降機{i + 1}の搬器が掛かるスパン（{_rng(s0, e0)}）が重なっています。"
-                        "階段室のスパンは段板・踊り場で埋まり、乗り込み口の床が取れません。"
+                        "階段室のスパンは段板と開口・床で埋まり、乗り込み口の床が取れません。"
                         "階段位置か昇降機の位置をずらしてください",
                         "安衛則526条・563条（昇降設備・作業床）",
                     ))
@@ -194,7 +194,7 @@ def check_conflicts(
                     f"{model.face_name(t.edge_index)}の階段室（{_rng(t.start_mm, t.end_mm)}）と"
                     f"荷受けステージ{i + 1}（{_rng(st.start_mm, st.end_mm(model))}）が重なっています。"
                     "ステージの間口は荷を通すため外側の手すりを外す区間で、階段室の"
-                    "段板・踊り場と両立しません。区間を分けてください",
+                    "段板・開口と両立しません。区間を分けてください",
                     "安衛則563条（作業床）・仮設工業会 張出しブラケット使用基準",
                 ))
 

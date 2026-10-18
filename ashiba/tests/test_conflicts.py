@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
 
 class TestStairsVersusPlatforms(unittest.TestCase):
-    """階段室のスパンは段板・踊り場で埋まる。同じスパンに昇降機の乗り込み口やステージは取れない."""
+    """階段室のスパンは段板と開口・床で埋まる。同じスパンに昇降機の乗り込み口やステージは取れない."""
 
     def setUp(self):
         self.m = build()

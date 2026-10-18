@@ -24,7 +24,7 @@ from .model import ScaffoldModel
 
 DEFAULT_MAX_TRAVEL_MM = 30000    # 昇降設備までの水平移動距離の目安
 MIN_HEIGHT_FOR_STAIRS_MM = 1500  # 安衛則526条
-LANDING_EVERY_LEVELS = 2         # 昇降階段は2層以下毎に踊り場を設ける
+LANDING_EVERY_LEVELS = 2         # 昇降階段は2層以下毎に踊り場（このツールでは階段室の外の作業床が兼ねる）
 
 
 @dataclass

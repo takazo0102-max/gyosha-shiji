@@ -453,7 +453,7 @@ def take_off(
     kt = next(iter(m.by_category("壁つなぎ")), None)
     _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
 
-    # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
+    # ---- 階段・階段まわりの手すり（自動配置があればその箇所数、なければ設定値）。踊り場の床は使わない ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
     n_towers = (
         stair_plan.count if stair_plan is not None and stair_plan.towers
