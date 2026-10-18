@@ -27,6 +27,7 @@ from pathlib import Path
 
 import contextlib
 import json
+import os
 import time
 import math
 import urllib.error
@@ -36,7 +37,7 @@ from typing import Any, Optional
 from .gdl_params import line_params
 from .model import ScaffoldModel
 
-DEFAULT_PORT = 19723
+DEFAULT_PORT = int(os.environ.get("ASHIBA_PORT", "19723") or 19723)   # Tapir パレットは --port で渡してくる（入口が ASHIBA_PORT に移す）
 
 
 class TapirError(Exception):
