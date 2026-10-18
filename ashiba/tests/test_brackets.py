@@ -370,3 +370,87 @@ class TestAdjustableBracketsAreFound(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class TestAutoInnerBracket(unittest.TestCase):
+    """離れ350超の面に内ブラケット＋踏板を自動で付ける（インチ30×20mで離れ364/394になる）."""
+
+    def _solve(self, **extra):
+        from ashiba.cli import solve_all
+
+        spec = {"project_name": "内ブラ", "module": "inch",
+                "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 16000, "building_height_mm": 16000}
+        spec.update(extra)
+        return solve_all(spec)
+
+    def test_wide_standoff_faces_get_inner_brackets(self):
+        r = self._solve()
+        auto = [b for b in r.brackets if getattr(b, "auto", False)]
+        wide = [e for e in r.model.plan.edges if e.standoff > 350]
+        self.assertTrue(wide)
+        self.assertEqual({b.edge_index for b in auto}, {e.edge_index for e in wide})
+        for b in auto:
+            ep = next(e for e in r.model.plan.edges if e.edge_index == b.edge_index)
+            gap = ep.standoff - b.inner_deck_width - 25
+            self.assertTrue(50 <= gap <= 300, gap)
+            self.assertIsNone(ep.remedy)
+            self.assertEqual(b.end_mm, ep.scaffold_length)
+        ws = r.model.plan.warnings
+        self.assertEqual(sum("付けました" in w for w in ws), len(auto))
+        self.assertFalse(any("検討してください" in w for w in ws))         # 措置前の注意は消える
+        self.assertFalse(any("躯体側手すり材は数量に含んでいません" in str(n) for n in r.quantity.notes))
+
+    def test_quantity_has_the_brackets_and_the_planks(self):
+        r = self._solve()
+        q = r.quantity
+        auto = [b for b in r.brackets if getattr(b, "auto", False)]
+        deck_w = auto[0].inner_deck_width
+        notes = [ln.note for ln in q.lines]
+        part = r.model.master.bracket_for(auto[0].width, outward=False)
+        self.assertGreater(q.qty_of("ブラケット", part.nominal_dim), 0)
+        self.assertTrue(any(f"内ブラケットの踏板 幅{deck_w}" in (n or "") for n in notes)
+                        or q.qty_of(r.model.master.deck_category) > 0)
+
+    def test_drawing_reach_is_the_plank_not_the_arm(self):
+        from ashiba.gdl_params import line_params
+
+        r = self._solve()
+        b = next(b for b in r.brackets if getattr(b, "auto", False))
+        ep = next(e for e in r.model.plan.edges if e.edge_index == b.edge_index)
+        p = line_params(r.model, ep, bracket_sections=r.brackets)
+        vals = p["brktList"].split(",")
+        self.assertEqual(int(vals[2]), b.inner_deck_width + 25)        # 腕の呼び（400）ではなく踏板＋支柱半径
+        self.assertLess(int(vals[2]), ep.standoff)                      # 躯体に当たらない
+
+    def test_can_be_turned_off_and_does_not_touch_input_brackets(self):
+        r = self._solve(auto_inner_bracket=False)
+        self.assertFalse(any(getattr(b, "auto", False) for b in r.brackets))
+        r2 = self._solve(bracket_sections=[{"face": "南面", "start_mm": 0, "end_mm": 3658, "width": 350, "direction": "内"}])
+        south = next(e for e in r2.model.plan.edges if r2.model.face_name(e.edge_index) == "南面")
+        self.assertFalse(any(getattr(b, "auto", False) and b.edge_index == south.edge_index for b in r2.brackets))
+
+    def test_metric_rect_within_band_gets_none(self):
+        r = self._solve(module="metric")
+        self.assertFalse(any(getattr(b, "auto", False) for b in r.brackets))
+
+
+class TestAutoInnerAvoidsOuterBrackets(unittest.TestCase):
+    """入力の張出区間とは重ねない（逆向き取付禁止）。残りの範囲にだけ付け、措置の注意は残す."""
+
+    def test_carves_around_the_outer_section(self):
+        from ashiba.cli import solve_all
+
+        spec = {"project_name": "張出と内", "series_id": "nikken_nd1800",
+                "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 16000, "building_height_mm": 16000,
+                "bracket_sections": [{"edge_index": 0, "start_mm": 0, "end_mm": 7316, "width": 350,
+                                      "direction": "張出", "levels": [2, 3]}]}
+        r = solve_all(spec)
+        auto0 = [b for b in r.brackets if b.auto and b.edge_index == 0]
+        self.assertEqual([(b.start_mm, b.end_mm) for b in auto0],
+                         [(7316, r.model.plan.edges[0].scaffold_length)])
+        self.assertFalse(any("逆向き" in i.message for i in r.bracket_issues))
+        self.assertIsNotNone(r.model.plan.edges[0].remedy)            # 張出の範囲は詰まっていない
+        self.assertTrue(any("張出ブラケットの範囲は除く" in w for w in r.model.plan.warnings))

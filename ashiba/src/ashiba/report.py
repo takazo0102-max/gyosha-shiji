@@ -510,7 +510,8 @@ def write_plan_json(
                             "direction": "内" | "張出", "width": 300,
                             "deck_width": null, "levels": [1], "has_hozue": false,
                             "is_widening": false, "on_kessokubu": false,
-                            "reason": ""}],
+                            "reason": "",
+                            "inner_deck_width": null, "auto": false}],   // inner_deck_width: 内ブラケットに敷く踏板の幅（離れを詰める）／auto: 離れ350超でツールが自動で付けた区間
       "terrain": {"reference_gl_mm": 0.0, "gl_difference_mm": 0.0,
                   "deck_levels_abs_mm": [...], "feet": [...]}
     }

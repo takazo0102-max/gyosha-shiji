@@ -50,6 +50,7 @@ FIELDS: tuple[Field, ...] = (
     Field("siteName", "str", ("notification", "site_name"), "", zero_is_unset=True),
     Field("elevMode", "str", ("elevation_mode",), "section"),
     Field("lineMode3d", "bool", ("line_mode_3d",), False),
+    Field("autoInBrk", "bool", ("auto_inner_bracket",), True),
 )
 
 

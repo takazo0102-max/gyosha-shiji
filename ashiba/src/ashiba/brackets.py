@@ -27,6 +27,10 @@ from typing import Optional
 from .model import ScaffoldModel
 
 INNER = "内"      # 床追従・幅切替（躯体側へ）
+# 内ブラケットの踏板は支柱の芯から約25mm（支柱の半径）離れて掛かる
+INNER_DECK_OFFSET_MM = 25.0
+# 内ブラケットで詰めたあと、躯体との隙間はこれ以上残す（外壁の出入り・仕上げに当てない）
+MIN_GAP_AFTER_INNER_MM = 50.0
 OUTER = "張出"    # 外側へ張り出す
 
 WIDEN_MIN_LOWER_RATIO = 0.60   # 拡幅時、下層建地間隔は上層の60%以上
@@ -48,6 +52,16 @@ class BracketSection:
     is_widening: bool = False  # 拡幅目的か（床追従・幅切替と区別する）
     on_kessokubu: bool = False # 緊結部付ブラケットか
     reason: str = ""
+    # 内ブラケットの上に躯体側へ敷く踏板の幅（離れを詰める用途）。None なら敷かない
+    inner_deck_width: Optional[int] = None
+    auto: bool = False         # ツールが自動で付けた区間か（入力にはない）
+
+    @property
+    def reach_mm(self) -> float:
+        """床が内側建地から躯体側へ出る長さ（図・3Dの奥行き）。踏板を敷くならその幅＋支柱の半径分."""
+        if self.inner_deck_width:
+            return float(self.inner_deck_width) + INNER_DECK_OFFSET_MM
+        return float(self.width)
 
     @property
     def length_mm(self) -> float:
@@ -270,3 +284,90 @@ def _posts_in_section(edge, start_mm: float, end_mm: float) -> int:
         acc += s
         positions.append(acc)
     return sum(1 for p in positions if start_mm - 1e-6 <= p <= end_mm + 1e-6)
+
+
+
+def inner_bracket_options(model: ScaffoldModel) -> list[tuple[int, int, str]]:
+    """系列の内ブラケット（張出用でないもの）と、その上に敷く踏板の幅 → (腕の呼び, 踏板幅, 品番).
+
+    品番の注記「踏板250用」「踏板240用」から踏板の幅を取る（「踏板500・400用」は最初の数字）。
+    """
+    import re
+
+    out = []
+    for p in model.master.by_category("ブラケット"):
+        if "張出" in p.note:
+            continue
+        m = re.search(r"踏板(\d+)", p.note)
+        if m:
+            out.append((int(p.nominal_dim), int(m.group(1)), p.model_no))
+    return sorted(out, key=lambda t: (t[1], t[0]))
+
+
+def auto_inner_brackets(model: ScaffoldModel, existing: list[BracketSection],
+                        limit_mm: float, fall_limit_mm: float = 300.0) -> tuple[list[BracketSection], list[str]]:
+    """離れが limit（目標上限）を超える面に、内ブラケットを全層・全長に付ける.
+
+    躯体までの隙間（離れ − 踏板幅 − 支柱の半径）が墜落防止の限度（300）以下、かつ
+    MIN_GAP 以上になる最小の踏板を選ぶ。その面に入力の内ブラケット区間があれば触らない。
+    入力の張出ブラケット区間とは重ねない（逆向き取付禁止）。その範囲を除いた残りに付ける。
+    枠組・一側足場は対象外（枠組は張出用しか無く、一側はもともとブラケット床）。
+    戻り値は (足す区間, 案内文)。
+    """
+    from .model import ScaffoldModel  # noqa: F401  (型の明示)
+
+    if model.master.is_frame or model.config.scaffold_form == "一側足場":
+        return [], []
+    opts = inner_bracket_options(model)
+    added: list[BracketSection] = []
+    notes: list[str] = []
+    for ep in model.plan.edges:
+        d = float(ep.standoff)
+        if d <= limit_mm + 1e-6:
+            continue
+        if any(s.edge_index == ep.edge_index and s.direction == INNER for s in existing):
+            continue
+        face = model.face_name(ep.edge_index)
+        pick = None
+        for arm, deck, no in opts:
+            gap = d - deck - INNER_DECK_OFFSET_MM
+            if MIN_GAP_AFTER_INNER_MM - 1e-6 <= gap <= fall_limit_mm + 1e-6:
+                pick = (arm, deck, no, gap)
+                break
+        if pick is None:
+            notes.append(
+                f"{face}: 離れ{d:.0f}mm を詰める内ブラケットが系列 {model.master.series_id} にありません"
+                f"（隙間を{MIN_GAP_AFTER_INNER_MM:.0f}〜{fall_limit_mm:.0f}mm にできる踏板幅が無い）。"
+                "落下防止材（層間ネット等）を検討してください")
+            continue
+        arm, deck, no, gap = pick
+        length = float(ep.scaffold_length)
+        free = _free_ranges(length, [(s.start_mm, s.end_mm) for s in existing
+                                     if s.edge_index == ep.edge_index])
+        for a, b in free:
+            added.append(BracketSection(
+                edge_index=ep.edge_index, start_mm=a, end_mm=b,
+                direction=INNER, width=arm, inner_deck_width=deck, auto=True,
+                reason=f"離れ{d:.0f}mm > {limit_mm:.0f}mm の墜落防止（自動）"))
+        if not free:
+            continue
+        where = ("全長" if free == [(0.0, length)]
+                 else "区間 " + "・".join(f"{a:.0f}〜{b:.0f}mm" for a, b in free)
+                 + "（張出ブラケットの範囲は除く）")
+        notes.append(
+            f"{face}: 離れ{d:.0f}mm が{limit_mm:.0f}mm を超えるので、内ブラケット {no}（踏板{deck}）を全層・{where}に"
+            f"付けました。躯体までの隙間は約{gap:.0f}mm です（入力 auto_inner_bracket=false で付けない）")
+    return added, notes
+
+
+def _free_ranges(length: float, taken: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """[0, length] から taken の区間を除いた残り（長さ1mm未満は捨てる）."""
+    out = []
+    cur = 0.0
+    for a, b in sorted(taken):
+        if a > cur + 1.0:
+            out.append((cur, min(a, length)))
+        cur = max(cur, b)
+    if length > cur + 1.0:
+        out.append((cur, length))
+    return out

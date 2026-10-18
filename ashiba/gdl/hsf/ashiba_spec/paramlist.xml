@@ -131,5 +131,9 @@
 			<Description><![CDATA["3Dを線で表示"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Boolean Name="autoInBrk">
+			<Description><![CDATA["離れ350超に内ブラケットを自動で付ける"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 	</Parameters>
 </ParamSection>

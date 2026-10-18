@@ -36,6 +36,7 @@
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   "inner_guard_rail": true,        // 躯体側（内側建地列）の手すり＋中桟を布材で組む
   "line_mode_3d": false,           // 3Dを線だけで描く（計画初期・大規模向け。干渉確認は false の立体表現で）
+  "auto_inner_bracket": true,      // 離れが目標上限（350）を超える面に内ブラケット＋踏板を自動で付ける
   "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ／"object"=平面の下に2Dで並べる／"none"
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
@@ -145,7 +146,7 @@ TOP_KEYS = {
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "elevation_mode", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "elevation_mode", "auto_inner_bracket", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
@@ -780,6 +781,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
         line_mode_3d=bool(spec.get("line_mode_3d", False)),
+        auto_inner_bracket=bool(spec.get("auto_inner_bracket", True)),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height, master),
@@ -1103,6 +1105,36 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     tie_opt = optimize_wall_ties(model, site, openings=openings, platforms=platforms)
     model.plan.warnings.extend(tie_opt.notes)
     brackets = build_brackets(spec)
+    # 離れが目標上限を超える面には内ブラケットを自動で付ける（入力で切れる）
+    if model.config.auto_inner_bracket:
+        from .brackets import auto_inner_brackets
+
+        so_spec = model.plan.standoff_spec
+        auto, auto_notes = auto_inner_brackets(
+            model, brackets, so_spec.max if so_spec else 350.0,
+            so_spec.fall_protection_limit if so_spec else 300.0)
+        brackets += auto
+        # 内ブラケットで措置した面は、割付が出していた「検討してください」を外す
+        # （同じ文面を複数面でまとめた警告は、措置した面だけ名前から抜く）
+        resolved: dict[str, set[str]] = {}
+        for sec in auto:
+            ep = next(e for e in model.plan.edges if e.edge_index == sec.edge_index)
+            covered = sum(s.end_mm - s.start_mm for s in auto if s.edge_index == ep.edge_index)
+            if covered < ep.scaffold_length - 1.0:
+                continue      # 張出の範囲は詰まっていない。措置の注意は残す
+            if ep.remedy:
+                resolved.setdefault(ep.remedy, set()).add(model.face_name(ep.edge_index))
+            ep.remedy = None
+        kept = []
+        for w in model.plan.warnings:
+            label, sep, rest = w.partition(": ")
+            if sep and rest in resolved:
+                faces = [f for f in label.split("・") if f not in resolved[rest]]
+                if not faces:
+                    continue
+                w = f"{'・'.join(faces)}: {rest}"
+            kept.append(w)
+        model.plan.warnings[:] = kept + auto_notes
     bracket_issues = validate_bracket_sections(model, brackets)
     # 枠組の手すりは建枠一体。先行手すり工法の指定は効かないので、黙って無視しない
     if model.master.is_frame and spec.get("guard_rail_type") == GUARD_RAIL_ADVANCE:

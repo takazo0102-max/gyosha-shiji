@@ -382,7 +382,7 @@ def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
                 break
             parts += [
                 str(int(sec.start_mm)), str(int(sec.end_mm)),
-                str(int(sec.width)), str(d), str(int(levels[idx])),
+                str(int(round(getattr(sec, "reach_mm", sec.width)))), str(d), str(int(levels[idx])),
                 str(int(sec.deck_width or 0)),
             ]
     return ",".join(parts)

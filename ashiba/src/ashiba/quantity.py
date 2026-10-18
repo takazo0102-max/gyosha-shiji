@@ -193,7 +193,7 @@ def take_off(
         _count_bracket_parts(model, bracket_sections, add, notes, counts)
         _count_platform_parts(model, platforms, add, notes)
         _count_opening_parts(model, openings, add, notes)
-        _note_inner_rail_if_wide(model, notes)
+        _note_inner_rail_if_wide(model, notes, bracket_sections)
         _note_bridged_zones(model, notes)
         _note_double_posts_if_tall(model, notes)
         return _assemble(model, rules, counts, parts, notes, breakdown)
@@ -462,7 +462,7 @@ def take_off(
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
     _count_opening_parts(model, openings, add, notes)
-    _note_inner_rail_if_wide(model, notes)
+    _note_inner_rail_if_wide(model, notes, bracket_sections)
     _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
     return _assemble(model, rules, counts, parts, notes, breakdown)
@@ -777,6 +777,21 @@ def _count_bracket_parts(
             )
             continue
         add(part, qty, f"ブラケット{width}（{purpose}）")
+
+    # 内ブラケットの上に躯体側へ敷く踏板（離れを詰める区間）。区間に収まるスパン×層
+    from .brackets import _find_edge as _edge_of
+    for sec in bracket_sections or []:
+        if not getattr(sec, "inner_deck_width", None):
+            continue
+        edge = _edge_of(model, sec.edge_index)
+        if edge is None:
+            continue
+        n_lv = len(sec.levels) if sec.levels else model.elevation.n_levels
+        acc = 0.0
+        for span in edge.spans:
+            if sec.start_mm - 1e-6 <= acc and acc + span <= sec.end_mm + 1e-6:
+                add(m.deck_parts(sec.inner_deck_width, span), n_lv, f"内ブラケットの踏板 幅{sec.inner_deck_width}×{span}")
+            acc += span
 
     # 張出し区間は作業床の外縁が建地より外に出る。その縁の手すり・中桟・幅木は
     # 通常の（建地位置の）手すりとは別に要る
@@ -1209,16 +1224,22 @@ def _note_bridged_zones(model: ScaffoldModel, notes) -> None:
         )
 
 
-def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str]) -> None:
+def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str], bracket_sections=None) -> None:
     """離れが300mmを超える面は躯体側にも墜落防止措置が要る.
 
     法規チェックと割付の警告では「手すりの設置または安全帯の使用等」と
     出しているが、数量表には躯体側の手すり材が入っていない。どちらを選ぶかは
     現場判断なので自動では計上しないが、入っていないことは書いておく。
+    内ブラケットの踏板で全長を詰めた面（隙間300以下）は対象外。
     """
+    closed = {s.edge_index for s in bracket_sections or []
+              if getattr(s, "inner_deck_width", None) and s.start_mm <= 1e-6
+              and s.end_mm >= next((e.scaffold_length for e in model.plan.edges
+                                    if e.edge_index == s.edge_index), float("inf")) - 1e-6}
     wide = [
         (e.edge_index, e.standoff, e.span_count)
-        for e in model.plan.edges if e.standoff > 300.0 + 1e-6
+        for e in model.plan.edges
+        if e.standoff > 300.0 + 1e-6 and e.edge_index not in closed
     ]
     if not wide:
         return
