@@ -390,3 +390,25 @@ class TestStalePrefixes(unittest.TestCase):
 
         self.assertEqual(building_key([(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]),
                          "300.0,300.0,330.0,320.0")
+
+
+class TestTieMarksAreSectionAnnotations(unittest.TestCase):
+    """立面の壁つなぎ ◎ は断面の注記（2重の円の折れ線）で描く。3D には持たせない."""
+
+    def test_each_tie_gets_two_circles_at_its_height(self):
+        from ashiba.cli import solve_all
+        from ashiba.elevation_sections import TIE_MARK_RADII_M, section_annotations, section_specs, tie_marks
+
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                       "eaves_height_mm": 15400, "building_height_mm": 16000})
+        spec = section_specs(r.model, "T")[0]
+        ep = next(e for e in r.model.plan.edges if e.edge_index == spec.edge_index)
+        marks = tie_marks(ep, spec, r.model.wall_ties)
+        n = sum(1 for t in r.model.wall_ties if t.edge_index == ep.edge_index)
+        self.assertEqual(len(marks), n)
+        notes = section_annotations(r.model, spec)
+        circles = [ln for ln in notes.lines if len(ln) == 25]
+        self.assertEqual(len(circles), n * len(TIE_MARK_RADII_M))
+        heights = {round(t.height_mm / 1000, 3) for t in r.model.wall_ties if t.edge_index == ep.edge_index}
+        centers = {round(sum(p[1] for p in c[:-1]) / 24, 3) for c in circles}
+        self.assertEqual(centers, heights)

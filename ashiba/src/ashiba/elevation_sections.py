@@ -218,6 +218,30 @@ def section_x(spec: SectionSpec, p_mm: tuple[float, float]) -> float:
     return (p_mm[0] * ux + p_mm[1] * uy) / 1000.0
 
 
+TIE_MARK_RADII_M = (0.12, 0.065)     # 立面の壁つなぎ記号 ◎ の外輪・内輪（モデル m。1/100 で径2.4mm）
+
+
+def circle_points(cx: float, cy: float, r: float, n: int = 24) -> list[tuple[float, float]]:
+    """円を n 角形の閉じた折れ線で（最初の点に戻る）."""
+    pts = [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    return pts + [pts[0]]
+
+
+def tie_marks(ep, spec: SectionSpec, wall_ties) -> list[tuple[float, float]]:
+    """この面の壁つなぎの断面座標（横＝切断線方向への射影 m、縦＝高さ m）."""
+    sx, sy = ep.start_post
+    ex, ey = ep.end_post
+    length = math.hypot(ex - sx, ey - sy) or 1.0
+    ux, uy = (ex - sx) / length, (ey - sy) / length
+    out = []
+    for t in wall_ties:
+        if t.edge_index != ep.edge_index:
+            continue
+        p = (sx + ux * t.position_mm, sy + uy * t.position_mm)
+        out.append((section_x(spec, p), t.height_mm / 1000.0))
+    return out
+
+
 def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
                         label_pitch_m: float = 0.7) -> SectionNotes:
     """断面立面に置く注記: GL線・各作業床の高さ・足場高さの寸法・面の要約（上に2行）."""
@@ -256,6 +280,10 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
         out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
         x += sp
     out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
+    # 壁つなぎの位置に ◎（2重の円）。3D の部品には持たせず、立面図の注記として描く
+    for cx, cy in tie_marks(ep, spec, model.wall_ties):
+        for r in TIE_MARK_RADII_M:
+            out.lines.append(circle_points(cx, cy, r))
     # 面の要約（足場の上に2行）
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     mod = "インチ" if model.master.module == "inch" else "メートル"

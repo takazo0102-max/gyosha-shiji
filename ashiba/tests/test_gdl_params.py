@@ -1087,7 +1087,7 @@ class TestWallTieSymbol(unittest.TestCase):
         self.assertIn("箇所（平面▽・立面◎）", body2)
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                  ).read_text(encoding="utf-8")
-        self.assertIn("prism_ nsp / 3, 0.01, get(nsp)", body3)               # 3Dにも ◎（断面図方式の立面に映す）
+        self.assertNotIn("prism_ nsp / 3, 0.01, get(nsp)", body3)            # ◎ は3Dに持たせない（立面の注記で描く）
         self.assertNotIn("prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0", body3)
         import re
         self.assertIsNone(re.search(r"\btri\s*=", body3, re.I))   # tri を変数にすると3Dが真っ白（実機）
