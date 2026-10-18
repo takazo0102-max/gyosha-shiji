@@ -1102,3 +1102,19 @@ class TestStandoffDimensionInPlan(unittest.TestCase):
         self.assertIn("if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2", body2)
         self.assertIn("line2 xd, 0, xd, standoff", body2)
         self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)
+
+
+class TestFarSideScreen(unittest.TestCase):
+    """立面（断面）で向こう側の面の足場を描かない: 各面が自分の躯体面の奥に辺の無い幕を立てる（断面・立面だけ）."""
+
+    def test_screen_only_in_sections_without_edges(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        i = body.index("! ---- 向こう側の面を隠す幕")
+        sub = body[i:i + 1500]
+        self.assertIn("if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 then", sub)
+        self.assertIn("add -rowW - 0.05, standoff + 1.0, -3.0", sub)
+        # 状態 8 = 側面あり・辺なし（幕の輪郭を立面に描かない）
+        self.assertEqual(sub.count(", 8"), 4)
+        # 線表示でも効くよう、線表示の分岐より前
+        self.assertLess(i, body.index("if lineMode then"))
