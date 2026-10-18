@@ -1847,12 +1847,12 @@ if d3 < 1 or d3 > 3 then
 	if nSpan * (nLv - 1) > 40 then d3 = 2
 endif
 if d3 = 3 then lineMode = 1
-light = 0
-if d3 = 2 then light = 1
+isLite = 0
+if d3 = 2 then isLite = 1
 ! 円柱の分割数。既定36だと30m面1つの3D生成に約40秒（支柱・布材・コマで数千本）。
 ! 精細は12（見た目は保ったまま面数が1/3）、軽量は6。コマ・ナットは6
 rN = 12
-if light then rN = 6
+if isLite then rN = 6
 resol rN
 
 ! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
@@ -1933,7 +1933,7 @@ for ip = 1 to nSpan + 1
 				for j = 1 to nPost
 					cylind posts[j], r_sic
 					addz posts[j]
-					if j < nPost and light = 0 then
+					if j < nPost and isLite = 0 then
 						addz -0.03
 						cylind 0.06, r_sic + 0.006
 						del 1
@@ -1976,7 +1976,7 @@ if cornerS = 1 then
 		for j = 1 to nPost
 			cylind posts[j], r_sic
 			addz posts[j]
-			if j < nPost and light = 0 then
+			if j < nPost and isLite = 0 then
 				addz -0.03
 				cylind 0.06, r_sic + 0.006
 				del 1
@@ -1984,7 +1984,7 @@ if cornerS = 1 then
 		next j
 		del nPost + 2
 	endif
-	if komaPitch > 0 and light = 0 then
+	if komaPitch > 0 and isLite = 0 then
 		resol 6
 		zk = lv[1]
 		while zk < postTop - 0.01 do
@@ -2045,7 +2045,7 @@ endif
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
-if komaPitch > 0 and light = 0 then
+if komaPitch > 0 and isLite = 0 then
 	resol 6
 	x = 0
 	for ip = 1 to nSpan + 1
@@ -2755,7 +2755,7 @@ add 0, 0, jo - 0.03
 resol 6
 cylind 0.03, 0.045
 resol rN
-if light = 0 then
+if isLite = 0 then
 	addz 0.015
 	roty 90
 	add 0, 0, -0.09
@@ -2789,7 +2789,7 @@ add 0.078, 0, 0
 roty 90
 cylind nL - 0.156, r_nuno
 del 2
-if light = 0 then
+if isLite = 0 then
 	add 0.026, -0.010, -0.012
 	block 0.052, 0.020, 0.024
 	del 1

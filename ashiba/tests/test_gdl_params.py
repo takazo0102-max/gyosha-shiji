@@ -1147,13 +1147,13 @@ class TestLight3D(unittest.TestCase):
 
     def test_levels_and_auto(self):
         self.assertIn("if nSpan * (nLv - 1) > 40 then d3 = 2", self.body)
-        self.assertIn("if light then rN = 6", self.body)
+        self.assertIn("if isLite then rN = 6", self.body)
         self.assertNotIn("resol 12", self.body)          # 戻すときも rN（軽量では6のまま）
 
     def test_light_skips_small_parts(self):
-        self.assertEqual(self.body.count("if komaPitch > 0 and light = 0 then"), 2)   # コマ（外側コーナー含む）
-        self.assertEqual(self.body.count("if j < nPost and light = 0 then"), 2)       # 支柱の継手のカラー
-        self.assertIn("if light = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
+        self.assertEqual(self.body.count("if komaPitch > 0 and isLite = 0 then"), 2)   # コマ（外側コーナー含む）
+        self.assertEqual(self.body.count("if j < nPost and isLite = 0 then"), 2)       # 支柱の継手のカラー
+        self.assertIn("if isLite = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
 
     def test_mvo_overrides(self):
         self.assertIn('if LIBRARYGLOBAL(mvoName, "mode3d", mvD) then', self.body)
