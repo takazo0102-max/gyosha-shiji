@@ -736,15 +736,12 @@ for ia = 1 to nAsa
 	set style "anno"
 next ia
 
-! 壁つなぎ: 形状を描いても判別できないので記号で示す。実務の記号は逆三角 ▽（取付点が頂点）
+! 壁つなぎ: 形状を描いても判別できないので記号で示す。立面の記号は◎（中心が取付点）。平面は▽
 pen warnPen
 ! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
 for it = 1 to nTiePair
-	tx3 = ties[it]
-	ty3 = tieH[it]
-	line2 tx3 - 0.14, ty3 + 0.22, tx3 + 0.14, ty3 + 0.22
-	line2 tx3 + 0.14, ty3 + 0.22, tx3, ty3
-	line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22
+	circle2 ties[it], tieH[it], 0.12
+	circle2 ties[it], tieH[it], 0.065
 next it
 pen 1
 
@@ -842,7 +839,7 @@ endif
 ny = ny - txtLine
 text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
 ny = ny - txtLine
-text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（▽印）"
+text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（平面▽・立面◎）"
 ny = ny - txtLine
 text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
 return

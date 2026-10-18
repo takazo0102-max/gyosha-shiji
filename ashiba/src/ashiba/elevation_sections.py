@@ -261,7 +261,7 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
     mod = "インチ" if model.master.module == "inch" else "メートル"
     line1 = (f"{spec.face_name} 足場立面図　{model.master.series_id}（{mod}）・作業層 {e.n_levels}層・"
              f"階高 {model.master.floor_height}")
-    line2 = (f"壁つなぎ {ties}箇所（▽印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
+    line2 = (f"壁つなぎ {ties}箇所（◎印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
     out.texts.append({"x": lo, "y": top + 1.0 + label_pitch_m, "text": line1, "just": "Left"})
     out.texts.append({"x": lo, "y": top + 1.0, "text": line2, "just": "Left"})
     return out

@@ -256,7 +256,7 @@ class TestSectionAnnotations(unittest.TestCase):
         self.assertIn(f"根がらみ +{e.first_ledger_height:.0f}", texts)
         self.assertIn(f"足場高さ {self.m.scaffold_height_mm:.0f}", texts)
         self.assertTrue(any(t.startswith("南面 足場立面図") for t in texts))
-        self.assertTrue(any("壁つなぎ" in t and "▽印" in t for t in texts))
+        self.assertTrue(any("壁つなぎ" in t and "◎印" in t for t in texts))
         self.assertIn("GL±0", texts)
         ep = next(x for x in self.m.plan.edges if x.edge_index == self.specs["南面"].edge_index)
         spans = [t for t in notes.texts if t.get("just") == "Center"]

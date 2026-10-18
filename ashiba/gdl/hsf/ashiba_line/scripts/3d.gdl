@@ -491,13 +491,27 @@ for it = 1 to nTiePair
 	add ties[it] - 0.05, standoff - 0.012, tieH[it] - 0.05
 	block 0.10, 0.012, 0.10
 	del 1
-	! 壁つなぎの記号 ▽（取付点が頂点）を外側建地列の外に立てる。断面図方式の立面は3Dを
-	! 映すだけで2Dの記号が出ないので、記号も立体で持つ（寸法・注記表示に従う）
+	! 壁つなぎの記号 ◎（中心が取付点）を外側建地列の外に立てる。断面図方式の立面は3Dを
+	! 映すだけで2Dの記号が出ないので、記号も立体で持つ（寸法・注記表示に従う）。
+	! 立面の記号は◎、平面は▽（2D）。輪は24角形の外周と穴の prism_ で2重に作る。
+	! 変数名に tri は使えない（3D が黙って真っ白になった。実機で確認）
 	if showDim then
 		pen warnPen
 		add ties[it], -rowW - 0.25, tieH[it]
 		rotx 90
-		prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0
+		for irg = 1 to 2
+			if irg = 1 then ringO = 0.12 else ringO = 0.065
+			ringI = ringO - 0.02
+			for itk = 0 to 23
+				put ringO * cos(itk * 15), ringO * sin(itk * 15), 15
+			next itk
+			put ringO, 0, -1
+			for itk = 0 to 23
+				put ringI * cos(itk * 15), ringI * sin(itk * 15), 15
+			next itk
+			put ringI, 0, -1
+			prism_ nsp / 3, 0.01, get(nsp)
+		next irg
 		del 2
 		pen 1
 	endif

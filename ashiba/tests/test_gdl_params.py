@@ -1072,19 +1072,23 @@ class TestSpanTextIn3D(unittest.TestCase):
 
 
 class TestWallTieSymbol(unittest.TestCase):
-    """壁つなぎの記号は逆三角 ▽（実務の記号。以前は○に十字）."""
+    """壁つなぎの記号は平面が逆三角 ▽、立面が◎（以前は両方○に十字→▽）."""
 
-    def test_plan_and_elevation_use_inverted_triangles(self):
+    def test_plan_triangle_and_elevation_double_circle(self):
         body2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
                  ).read_text(encoding="utf-8")
-        self.assertNotIn("circle2 ties[it]", body2)
         self.assertIn("960:\t! ---- 壁つなぎの記号（平面）: 逆三角", body2)
-        self.assertIn("line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22", body2)  # 立面: 取付点が頂点
         self.assertIn("line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09", body2)  # 平面: 頂点が躯体側
-        self.assertIn("箇所（▽印）", body2)
+        self.assertIn("circle2 ties[it], tieH[it], 0.12", body2)              # 立面: ◎ の外輪
+        self.assertIn("circle2 ties[it], tieH[it], 0.065", body2)             # 立面: ◎ の内輪
+        self.assertNotIn("line2 tx3, ty3, tx3 - 0.14, ty3 + 0.22", body2)     # 立面の ▽ は廃止
+        self.assertIn("箇所（平面▽・立面◎）", body2)
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                  ).read_text(encoding="utf-8")
-        self.assertIn("prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0", body3)   # 3Dにも ▽（断面図方式の立面に映す）
+        self.assertIn("prism_ nsp / 3, 0.01, get(nsp)", body3)               # 3Dにも ◎（断面図方式の立面に映す）
+        self.assertNotIn("prism 3, 0.01, -0.14, 0.22, 0.14, 0.22, 0, 0", body3)
+        import re
+        self.assertIsNone(re.search(r"\btri\s*=", body3, re.I))   # tri を変数にすると3Dが真っ白（実機）
 
 
 class TestStandoffDimensionInPlan(unittest.TestCase):
