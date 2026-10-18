@@ -108,6 +108,9 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
             rep.add("足場詳細図のレイアウト", bool(ds) and len(ds.drawing_guids) == n_det,
                     (f"図面{len(ds.drawing_guids)}・詳細図{n_det}・1/{ds.scale}" + ("; " + "; ".join(ds.notes) if ds.notes else ""))
                     if ds else "置いていない")
+            pdf = res.get("pdf")
+            rep.add("PDF の発行（立面・平面・詳細）", bool(pdf) and len(pdf.files) == 3,
+                    (f"{len(pdf.files)}枚" + ("; " + "; ".join(pdf.notes) if pdf.notes else "")) if pdf else "発行していない")
         else:
             rep.add("立面図（部品）", len(res["elevations"]) == len(edges), f"{len(res['elevations'])}面")
 
