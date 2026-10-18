@@ -16,6 +16,9 @@ ORIGIN_MM = (2_000_000.0, 2_000_000.0)
 PITCH_MM = 100_000.0
 PREFIX = "スモーク"
 RECT_30x20 = [[0, 0], [30000, 0], [30000, 20000], [0, 20000]]
+# 不整形: 北東を斜めに切った五角形（斜辺の渡し）と、L字（入隅・時計回りの入力）
+PENTAGON = [[0, 0], [30000, 0], [30000, 12000], [20000, 20000], [0, 20000]]
+LSHAPE = [[0, 0], [0, 20000], [12000, 20000], [12000, 8000], [24000, 8000], [24000, 0]]
 
 
 @dataclass
@@ -47,13 +50,16 @@ class CaseReport:
 
 
 def cases(examples_dir: Path) -> list[Case]:
-    """小型入力（examples/dev/*.json）＋ 30×20m のメートル・インチ."""
+    """小型入力（examples/dev/*.json）＋ 30×20m のメートル・インチ＋不整形（五角形・L字）."""
     out = []
     for p in sorted(Path(examples_dir).glob("*.json")):
         out.append(Case(p.stem, json.loads(p.read_text(encoding="utf-8"))))
     base = {"outline_mm": RECT_30x20, "eaves_height_mm": 15400, "building_height_mm": 16000}
     out.append(Case("rect_metric", dict(base, module="metric")))
     out.append(Case("rect_inch", dict(base, module="inch")))
+    small = {"eaves_height_mm": 9000, "building_height_mm": 9000}
+    out.append(Case("pentagon", dict(small, outline_mm=PENTAGON)))
+    out.append(Case("lshape", dict(small, outline_mm=LSHAPE, module="inch")))
     return out
 
 

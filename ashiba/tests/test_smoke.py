@@ -25,7 +25,7 @@ class TestCases(unittest.TestCase):
     def test_dev_inputs_and_both_modules(self):
         names = [c.name for c in cases(DEV)]
         self.assertIn("small_stage", names)
-        self.assertEqual(names[-2:], ["rect_metric", "rect_inch"])
+        self.assertEqual(names[-4:], ["rect_metric", "rect_inch", "pentagon", "lshape"])
         with self.assertRaises(SystemExit):
             select(cases(DEV), ["nope"])
         self.assertEqual([c.name for c in select(cases(DEV), ["rect_inch"])], ["rect_inch"])
