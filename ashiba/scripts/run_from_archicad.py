@@ -220,7 +220,15 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
-def main(outline_mm=None) -> None:
+def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True) -> dict:
+    """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
+
+    spec_override を渡すと、デスクトップの条件ファイルとコマンド引数の代わりにそれを使う。
+    out_dir を渡すと帳票と立面の控えをそこへ書く（利用者の ashiba_out を汚さない）。
+    use_spec_object=False なら足場条件の部品を読まず、置きもしない。
+    """
+    OUT_DIR = Path(out_dir) if out_dir else globals()["OUT_DIR"]
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     client = ArchicadClient()
     if not client.wait_ready():
         raise TapirError("Archicad が2分以上応答しません。ダイアログを閉じるか操作を止めてから、もう一度実行してください")
@@ -231,7 +239,7 @@ def main(outline_mm=None) -> None:
     # スラブ・足場部品は平面図のデータベースにある。レイアウトや断面が前面だと見つからない
     activate_floor_plan(client)
     spec = dict(SPEC)
-    override = load_spec_override()
+    override = load_spec_override() if spec_override is None else dict(spec_override)
     spec.update(override)
     # 条件ファイルが module（インチ／メートル）だけを書いて series_id を書かないときは、
     # ここの既定の series_id（信和A）に引きずられずにそのモジュールの既定系列を使う
@@ -239,7 +247,7 @@ def main(outline_mm=None) -> None:
         spec.pop("series_id", None)
     if not spec.get("module"):
         spec.pop("module", None)
-    for a in sys.argv[1:]:
+    for a in (sys.argv[1:] if spec_override is None else []):
         if a.startswith("--series="):
             spec["series_id"] = a.split("=", 1)[1]
         if a.startswith("--module="):
@@ -271,7 +279,8 @@ def main(outline_mm=None) -> None:
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
     # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
-    spec = apply_spec_object(client, spec)
+    if use_spec_object:
+        spec = apply_spec_object(client, spec)
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client, outline_mm=spec["outline_mm"])
     if ground.ignored_meshes:
@@ -297,6 +306,7 @@ def main(outline_mm=None) -> None:
     for n in mode_notes:
         print(f"  立面: {n}")
     sections = []
+    plan_sheet = None
     if elevation_mode == "section":
         # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
         prefix = str(spec.get("project_name") or "足場")
@@ -365,6 +375,9 @@ def main(outline_mm=None) -> None:
         print(f"  要確認 {v['warn']}件: " + "／".join(v["warn_breakdown"])
               + "（割付レポートの要確認一覧を参照）")
     print(f"帳票出力先: {OUT_DIR}")
+    return {"result": r, "spec": spec, "lines": lines, "elevations": elevs, "details": details,
+            "sections": sections, "plan_sheet": plan_sheet, "elevation_mode": elevation_mode,
+            "replaced": replaced, "verdict": v}
 
 
 if __name__ == "__main__":
