@@ -1062,18 +1062,15 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         self.assertIn("block spans[ip] - 0.14, deckW1, 0.045", self.body)
 
 
-class TestSpanTextIn3D(unittest.TestCase):
-    """3Dの天端にスパン寸法の文字を立てる（足場計画.gsm の txt3d と同じ発想。showDim に従う）."""
+class TestNoTextIn3D(unittest.TestCase):
+    """3D には文字を出さない（利用者の指定 2026-10-18。スパン寸法は平面・立面の2Dで読む）."""
 
-    def test_text_per_span_above_the_top_rail(self):
+    def test_no_3d_text(self):
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        i = body.index("! ---- スパン寸法の文字（3D")
-        sub = body[i:i + 700]
-        self.assertIn('define style "txt3d"', sub)
-        self.assertIn("if showDim and GLOB_VIEW_TYPE <> 4 and GLOB_VIEW_TYPE <> 5 then", sub)
-        self.assertIn("add x + spans[ip] / 2, -rowW - 0.25, postTop + 0.15", sub)
-        self.assertIn("text 0.3, 0, str(spans[ip] * 1000, 5, 0)", sub)
+        code = "\n".join(ln.split("!")[0] for ln in body.splitlines())
+        self.assertNotIn("txt3d", code)
+        self.assertNotRegex(code, r"(?m)^\s*text\s")
 
 
 class TestWallTieSymbol(unittest.TestCase):
@@ -1105,10 +1102,3 @@ class TestStandoffDimensionInPlan(unittest.TestCase):
         self.assertIn("if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2", body2)
         self.assertIn("line2 xd, 0, xd, standoff", body2)
         self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)
-
-
-class TestSpanTextReadableInSections(unittest.TestCase):
-    def test_mirrored_in_section_and_elevation_views(self):
-        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
-                ).read_text(encoding="utf-8")
-        self.assertIn("if showDim and GLOB_VIEW_TYPE <> 4 and GLOB_VIEW_TYPE <> 5 then", body)   # 断面・立面では3D文字を出さない
