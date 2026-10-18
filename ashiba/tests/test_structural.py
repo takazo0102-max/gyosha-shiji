@@ -579,3 +579,18 @@ class TestPostNgRemedyOrdersTheSteps(unittest.TestCase):
         m = make_model()
         r = run_structural(m, take_off(m))
         self.assertIn("信和総合カタログ", r.post.deck_source)
+
+
+class TestTieRemedyGivesNumbers(unittest.TestCase):
+    """壁つなぎ NG の案内は、どれだけ詰めればよいかを数字で出す."""
+
+    def test_remedy_numbers(self):
+        from ashiba.structural import WallTieResult, tie_remedy
+
+        t = WallTieResult(lh_m=1.677, lw_m=4.904, tributary_area_m2=5.828, force_kn=6.514,
+                          allowable_kn=4.41, allowable_increased_kn=5.733, ratio=1.136,
+                          ok=False, source="", verified=True)
+        s = tie_remedy(t)
+        self.assertIn("支配面積を5.13m²以下に（いま5.83m²、12%減）", s)
+        self.assertIn("4.904".replace("4.904", "4.90") + "m を4.32m 以下に", s)
+        self.assertIn("許容耐力5.01kN 以上", s)

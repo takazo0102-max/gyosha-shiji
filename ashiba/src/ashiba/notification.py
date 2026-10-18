@@ -305,8 +305,11 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
             "・".join(f"梁枠{o.beam_span_mm}mm" for o in openings.openings)
             + f"／{model.master.vertical_member_name}{openings.removed_posts}本を抜き梁枠で受ける")
     if bracket_sections:
-        _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間",
-            "作業床の幅を局所的に変更（数量・図面に反映済み）")
+        n_auto = sum(1 for b in bracket_sections if getattr(b, "auto", False))
+        note = ("作業床の幅を局所的に変更（数量・図面に反映済み）" if not n_auto else
+                f"うち{n_auto}区間は離れ350超の面に躯体側へ踏板を足して隙間を詰めるもの（自動）。"
+                "数量・図面に反映済み")
+        _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間", note)
     # 面ごとに何が載るか（割付レポートの平面割付表と同じ内訳）。審査側が図面と突き合わせる手がかり
     from .report import _face_items
 

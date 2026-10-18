@@ -218,6 +218,19 @@ class WallTieResult:
     unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
 
 
+def tie_remedy(tie: "WallTieResult") -> str:
+    """壁つなぎ NG のとき、どれだけ詰めればよいか（作用力は支配面積に比例するので面積を割る）."""
+    if tie.ratio <= 0:
+        return "壁つなぎ間隔を詰める、または高耐力品への変更を検討してください"
+    a_req = tie.tributary_area_m2 / tie.ratio
+    cut = (1 - 1 / tie.ratio) * 100
+    lw_req = tie.lw_m / tie.ratio
+    p_req = tie.force_kn / 1.3
+    return (f"支配面積を{a_req:.2f}m²以下に（いま{tie.tributary_area_m2:.2f}m²、{cut:.0f}%減）。"
+            f"例: 縦の受け持ち{tie.lw_m:.2f}m を{lw_req:.2f}m 以下に（壁つなぎの段を増やす）、"
+            f"または許容耐力{p_req:.2f}kN 以上の壁つなぎに替える（いま{tie.allowable_kn:.2f}kN）")
+
+
 @dataclass
 class PostResult:
     # 検定値の元になった数（計算書を追えるようにするため持つ）
@@ -1080,8 +1093,7 @@ def run_structural(
             )
         else:
             warnings.append(
-                f"壁つなぎが耐力不足です（検定比{tie.ratio:.2f}）。"
-                "壁つなぎ間隔を詰める、または高耐力品への変更を検討してください"
+                f"壁つなぎが耐力不足です（検定比{tie.ratio:.2f}）。" + tie_remedy(tie)
             )
     # 壁つなぎ0本の面の風荷重は、この検定では誰も負担していない。
     # 両隣の面へコーナー経由で伝わる前提になるので、そうと書いておく
