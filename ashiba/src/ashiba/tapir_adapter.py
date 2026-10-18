@@ -517,6 +517,27 @@ class ArchicadClient:
         except (TapirError, KeyError, IndexError, TypeError):
             return default
 
+    # 足場の色（アルミ）。日本語版・英語版の名前の順に探し、無ければ「アルミ」を含む表面材
+    ALUMINIUM_SURFACES = ("金属 - アルミニウム", "Metal - Aluminium", "Metal - Aluminum")
+
+    def find_aluminium_surface(self) -> int:
+        """プロジェクトの表面材からアルミの番号を返す. 見つからなければ 0（部品は既定の表面材のまま）.
+
+        番号はプロジェクトごとに違うので、名前で探して部品の matScaf に渡す。
+        """
+        try:
+            attrs = self.tapir("GetAttributesByType", {"attributeType": "Surface"}).get("attributes", [])
+        except TapirError:
+            return 0
+        by_name = {str(a.get("name", "")): a for a in attrs}
+        hit = next((by_name[n] for n in self.ALUMINIUM_SURFACES if n in by_name), None)
+        if hit is None:
+            hit = next((a for a in attrs if any(k in str(a.get("name", "")) for k in ("アルミ", "Alumin"))), None)
+        try:
+            return int(hit["index"]) if hit else 0
+        except (KeyError, TypeError, ValueError):
+            return 0
+
 
 # ---- 高水準API ----------------------------------------------------------
 
@@ -609,6 +630,8 @@ def place_scaffold_lines(
     """
     client = client or ArchicadClient()
     placed: list[dict] = []
+    # 足場の色はアルミ（利用者の指定 2026-10-18）。表面材の番号はプロジェクトごとに違うので名前で探す
+    mat = client.find_aluminium_surface()
     # 途中で失敗したら、置いた分を消してから投げる。中途半端な足場が
     # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
     with _rollback_on_error(client, placed):
@@ -622,11 +645,11 @@ def place_scaffold_lines(
                     elem, angle, ep.start_post[0], ep.start_post[1])
             client.set_gdl_parameters(
                 elem,
-                line_params(
+                {**line_params(
                     model, ep, stair_plan=stair_plan, openings=openings,
                     platforms=platforms, bracket_sections=bracket_sections,
                     terrain=terrain,
-                ),
+                ), **({"matScaf": mat} if mat else {})},
                 object_name,
             )
     return placed

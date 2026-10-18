@@ -129,6 +129,10 @@
 			<Description><![CDATA["3D線表示（計画初期・大規模向けの軽い表現）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Material Name="matScaf">
+			<Description><![CDATA["足場の表面材（0＝既定。配置時にアルミを入れる）"]]></Description>
+			<Value>0</Value>
+		</Material>
 		<Boolean Name="planSimple">
 			<Description><![CDATA["平面を単線で（建地列・支柱位置・床の対角線だけ）"]]></Description>
 			<Value>0</Value>

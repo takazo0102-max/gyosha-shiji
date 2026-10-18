@@ -527,6 +527,9 @@ class TestPartialPlacementIsRolledBack(unittest.TestCase):
         def find_red_pen(self, default=20):
             return 20
 
+        def find_aluminium_surface(self):
+            return 45
+
     def test_scaffold_lines_are_removed(self):
         from ashiba.tapir_adapter import TapirError, place_scaffold_lines
 

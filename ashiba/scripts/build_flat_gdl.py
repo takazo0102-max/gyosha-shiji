@@ -71,6 +71,7 @@ TYPE_JA = {
     "Integer": "整数",
     "RealNum": "実数",
     "Angle": "角度",
+    "Material": "表面材",
 }
 
 

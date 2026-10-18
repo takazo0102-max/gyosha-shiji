@@ -17,6 +17,7 @@
   python3 scripts/smoke_archicad.py                      # 全件（小型5件＋30×20m 2件）
   python3 scripts/smoke_archicad.py --only=small_stage,rect_inch
   python3 scripts/smoke_archicad.py --keep               # 置いたまま残す（目で見る用）
+  python3 scripts/smoke_archicad.py --cleanup --only=rect_metric   # --keep で残したものを後で片付ける
   python3 scripts/smoke_archicad.py --verbose            # 通った項目も中身を出す
 終了コード: すべて OK なら 0、NG があれば 1。
 """
@@ -142,9 +143,40 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
                           rec.values())
         (out_dir / "elevation_sections.json").write_text("{}\n", encoding="utf-8")
         activate_floor_plan(client)
-        client.delete_elements([slab])
+        if slab is not None:
+            client.delete_elements([slab])
     except TapirError as e:
         print(f"  片付けに失敗（手で消してください）: {e}")
+
+
+def _find_slab(client, outline):
+    """スモークが作った躯体スラブ（外形の外接矩形が一致するもの）. 無ければ None."""
+    xs = [p[0] / 1000.0 for p in outline]
+    ys = [p[1] / 1000.0 for p in outline]
+    want = (min(xs), min(ys), max(xs), max(ys))
+    els = client.post("API.GetElementsByType", {"elementType": "Slab"}).get("elements", [])
+    if not els:
+        return None
+    boxes = client.post("API.Get2DBoundingBoxes", {"elements": els}).get("boundingBoxes2D", [])
+    for el, b in zip(els, boxes):
+        bb = b.get("boundingBox2D") if isinstance(b, dict) else None
+        if not bb:
+            continue
+        got = (bb["xMin"], bb["yMin"], bb["xMax"], bb["yMax"])
+        if all(abs(g - w) < 0.01 for g, w in zip(got, want)):
+            return el
+    return None
+
+
+def cleanup_kept(client, case, index: int) -> None:
+    """--keep で残した1件（部品・断面・レイアウト・スラブ）を片付ける."""
+    spec, outline = placed_spec(case, index)
+    activate_floor_plan(client)
+    slab = _find_slab(client, outline)
+    if slab is None:
+        print(f"  {case.name}: スモークのスラブが見つかりません（部品・断面・レイアウトだけ片付けます）")
+    _cleanup(client, spec, outline, OUT / case.name, slab)
+    print(f"  {case.name}: 片付けました")
 
 
 def main() -> int:
@@ -158,6 +190,11 @@ def main() -> int:
     tv, av = client.versions()
     print(f"Archicad {av} ＋ Tapir {tv}・{len(todo)}件")
     all_names = [c.name for c in cases(ROOT / "examples" / "dev")]
+    if "--cleanup" in sys.argv:
+        for case in todo:
+            cleanup_kept(client, case, all_names.index(case.name))
+        activate_floor_plan(client)
+        return 0
     reports = []
     for case in todo:
         print(f"--- {case.name}")

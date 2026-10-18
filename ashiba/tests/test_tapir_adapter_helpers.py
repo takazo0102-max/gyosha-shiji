@@ -263,3 +263,28 @@ class TestTimeouts(unittest.TestCase):
         with self.assertRaises(TapirTimeout):
             c.tapir("CreateSections", {}, wait_s=0)
         self.assertEqual(c.calls, 1)
+
+
+class TestAluminiumSurface(unittest.TestCase):
+    """足場の色はアルミ。表面材の番号はプロジェクトごとに違うので名前で探す."""
+
+    def _client(self, names):
+        class C(ArchicadClient):
+            def tapir(self, command, parameters=None, retries=2, wait_s=5.0):
+                return {"attributes": [{"index": i + 1, "name": n} for i, n in enumerate(names)]}
+
+        return C()
+
+    def test_japanese_name(self):
+        c = self._client(["金属 - 鉄", "金属 - アルミニウム", "金属 - 亜鉛"])
+        self.assertEqual(c.find_aluminium_surface(), 2)
+
+    def test_english_name(self):
+        self.assertEqual(self._client(["Metal - Steel", "Metal - Aluminium"]).find_aluminium_surface(), 2)
+
+    def test_partial_name(self):
+        self.assertEqual(self._client(["塗装", "アルミ 押出"]).find_aluminium_surface(), 2)
+
+    def test_missing_is_zero(self):
+        """無ければ 0（部品は既定の表面材のまま）."""
+        self.assertEqual(self._client(["塗装", "木"]).find_aluminium_surface(), 0)
