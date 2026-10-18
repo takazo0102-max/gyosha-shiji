@@ -430,6 +430,21 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
     return out
 
 
+def open_section_window(client, section_item_guid: str, tries: int = 3, wait_s: float = 1.0) -> bool:
+    """断面図のウィンドウを前面に出し、本当に断面図が前面になったかを確かめる（なれば True）."""
+    import time
+
+    for _ in range(max(1, tries)):
+        try:
+            client.tapir("ChangeWindow", {"navigatorItemId": {"guid": section_item_guid}})
+        except Exception:
+            pass
+        if client.current_window_type() == "Section":
+            return True
+        time.sleep(wait_s)
+    return False
+
+
 def write_section_notes(client, notes: SectionNotes, text_height_mm: float = 2.5) -> int:
     """現在の断面図ウィンドウに注記を置く（ChangeWindow で開いてから呼ぶ）。置いた数を返す."""
     n = 0
@@ -827,7 +842,11 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
             if not pl.section_item_guid or not pl.section_guid:
                 continue
             try:
-                client.tapir("ChangeWindow", {"navigatorItemId": {"guid": pl.section_item_guid}})
+                if not open_section_window(client, pl.section_item_guid):
+                    # 断面が前面に出ないまま書くと、注記（線・文字・ラベル）が平面図に入ってしまう
+                    # （2026-10-18 実機: 平面図の y≈-687m に立面の注記が53個入り、足場平面図が白紙になった）
+                    pl.notes.append("断面図のウィンドウが開かなかったので注記を置きませんでした（もう一度実行してください）")
+                    continue
                 write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain,
                                                                  stair_plan=stair_plan, text_scale=est_scale))
             except Exception as ex:          # 注記が置けなくても図面は置く

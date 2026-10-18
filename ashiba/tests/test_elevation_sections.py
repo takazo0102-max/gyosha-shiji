@@ -445,3 +445,25 @@ class TestTieMarksAreSectionAnnotations(unittest.TestCase):
         heights = {round(t.height_mm / 1000, 3) for t in r.model.wall_ties if t.edge_index == ep.edge_index}
         centers = {round(sum(p[1] for p in c[:-1]) / 24, 3) for c in circles}
         self.assertEqual(centers, heights)
+
+
+class TestNotesOnlyIntoSections(unittest.TestCase):
+    """断面図が前面に出ないまま注記を書くと平面図に入る。前面が断面図のときだけ書く."""
+
+    def test_open_section_window_checks_the_front_window(self):
+        from ashiba.elevation_sections import open_section_window
+
+        class C:
+            def __init__(self, kinds):
+                self.kinds = list(kinds)
+                self.calls = 0
+
+            def tapir(self, cmd, params=None):
+                self.calls += 1
+                return {}
+
+            def current_window_type(self):
+                return self.kinds.pop(0) if self.kinds else "FloorPlan"
+
+        self.assertTrue(open_section_window(C(["FloorPlan", "Section"]), "g", wait_s=0))
+        self.assertFalse(open_section_window(C(["FloorPlan"] * 5), "g", tries=3, wait_s=0))
