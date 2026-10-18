@@ -331,6 +331,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         if gone:
             print(f"  立面: 工事名を変えたので、前の名前（{'・'.join(gone)}）の断面とレイアウトを片付けました")
         sections = place_section_elevations(r.model, client, prefix=prefix, previous=prev, terrain=r.terrain,
+                                            stair_plan=r.stair_plan,
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）

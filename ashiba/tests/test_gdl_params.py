@@ -900,7 +900,7 @@ class TestPlanDimensionClearsAttachments(unittest.TestCase):
                  ).read_text(encoding="utf-8")
         self.assertIn("if 0.10 + hoD[ih] + 0.55 > dOff then dOff = 0.10 + hoD[ih] + 0.55", body2)
         self.assertIn("if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10", body2)
-        self.assertIn('text2 lineLen / 2, -rowW - dOff - 0.55, "L="', body2)
+        self.assertIn("yd = -rowW - dOff - 0.90", body2)          # 寸法線は張り出しの外からさらに離す
 
 
 class TestLineMode3D(unittest.TestCase):
@@ -1118,3 +1118,21 @@ class TestFarSideScreen(unittest.TestCase):
         self.assertEqual(sub.count(", 8"), 4)
         # 線表示でも効くよう、線表示の分岐より前
         self.assertLess(i, body.index("if lineMode then"))
+
+
+class TestPlanDimensions(unittest.TestCase):
+    """平面のスパン寸法は足場から離した寸法線で、北・西を向く面でも数字が読める向き."""
+
+    def setUp(self):
+        self.body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
+                     ).read_text(encoding="utf-8")
+
+    def test_dimension_line_stands_off(self):
+        self.assertIn("yd = -rowW - dOff - 0.90", self.body)
+        self.assertIn("line2 0, yd, lineLen, yd", self.body)
+        self.assertIn("if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35", self.body)
+
+    def test_text_turns_to_read_from_below_or_right(self):
+        i = self.body.index("985:")
+        sub = self.body[i:i + 600]
+        self.assertIn("if SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001 then rot2 180 else rot2 0", sub)

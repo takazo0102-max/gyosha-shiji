@@ -136,8 +136,8 @@ class SheetPlan:
 
 
 # 注記ぶんの余白（モデル mm）。左は Archicad のフロアマーカー、右は高さの注記と寸法、上は面の注記
-NOTE_EXTRA_W_MM = 6500.0
-NOTE_EXTRA_H_MM = 4500.0
+NOTE_EXTRA_W_MM = 9000.0
+NOTE_EXTRA_H_MM = 8000.0
 
 
 def arrange_boxes(boxes_mm: list[tuple[float, float]], paper_mm: tuple[float, float],
@@ -200,6 +200,7 @@ def arrange_on_one_sheet(lengths_mm: list[float], scaffold_height_mm: float, pap
 class SectionNotes:
     texts: list[dict] = field(default_factory=list)                    # {"x","y","text","just"}（m、断面座標）
     lines: list[list[tuple[float, float]]] = field(default_factory=list)
+    labels: list[dict] = field(default_factory=list)                   # {"beg","mid","end","text"}（引出線つき）
 
 
 def section_axis(spec: SectionSpec) -> tuple[float, float]:
@@ -242,9 +243,26 @@ def tie_marks(ep, spec: SectionSpec, wall_ties) -> list[tuple[float, float]]:
     return out
 
 
+# 寸法・注記の位置（断面座標 m。1/100 で 1m＝10mm）。足場から離して、部材と寸法線が重ならないように
+# （参考: micotoworks「足場図面の書き方」の立面・平面。寸法は足場の外に離し、部材名は引出線のラベルで）
+SPAN_DIM_OFFSET_M = 1.2       # 天端からスパン寸法の寸法線まで
+TOTAL_DIM_OFFSET_M = 2.0      # 天端から全長の寸法線まで
+LEVEL_DIM_OFFSET_M = 1.5      # 外側（右端の建地）から高さの寸法線まで
+HEIGHT_DIM_OFFSET_M = 5.0     # 外側から足場高さの寸法線まで
+LABEL_ROW_BOTTOM_M = -1.6     # 下段のラベル（GL の下）
+LABEL_ROW_TOP_OFFSET_M = 3.2  # 上段のラベル（全長の寸法の上）
+HEADER_OFFSET_M = 4.3         # 面の要約（上段のラベルの上）
+TICK_M = 0.1                  # 寸法の目盛り（斜めの短線の半長）
+
+
+def _tick(x: float, y: float) -> list[tuple[float, float]]:
+    """寸法の目盛り（右上がりの短い斜線）."""
+    return [(x - TICK_M, y - TICK_M), (x + TICK_M, y + TICK_M)]
+
+
 def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
-                        label_pitch_m: float = 0.7) -> SectionNotes:
-    """断面立面に置く注記: GL線・各作業床の高さ・足場高さの寸法・面の要約（上に2行）."""
+                        label_pitch_m: float = 0.7, stair_plan=None, text_scale: float = 100.0) -> SectionNotes:
+    """断面立面に置く注記: GL線・寸法（スパン・全長・各層の間隔・足場高さ）・部材名のラベル・面の要約."""
     ep = next(e for e in model.plan.edges if e.edge_index == spec.edge_index)
     e = model.elevation
     row_w = float(model.post_row_spacing_mm) / 1000.0
@@ -258,40 +276,157 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
     diff = float(getattr(terrain, "gl_difference_mm", 0.0) or 0.0) if terrain is not None else 0.0
     if diff > 1.0:
         gl_note += f"（基準。敷地高低差 {diff:.0f}）"
-    out.texts.append({"x": hi + 0.6, "y": 0.05, "text": gl_note, "just": "Left"})
-    # 各作業床の高さ（右側に目盛り＋文字）
-    levels = [("根がらみ", float(e.first_ledger_height))] + [
-        (f"{i}層", float(h)) for i, h in enumerate(e.level_heights, start=1)]
-    for label, h in levels:
+    # 高さの寸法（右に離して縦の寸法線。GL・根がらみ・各作業床・天端に目盛り、間隔を線の左、高さを右）
+    xc = hi + LEVEL_DIM_OFFSET_M
+    marks = [("GL", 0.0), ("根がらみ", float(e.first_ledger_height))] + [
+        (f"{i}層", float(h)) for i, h in enumerate(e.level_heights, start=1)] + [("天端", top * 1000.0)]
+    out.lines.append([(xc, 0.0), (xc, top)])
+    prev = None
+    for label, h in marks:
         y = h / 1000.0
-        out.lines.append([(hi + 0.1, y), (hi + 0.5, y)])
-        out.texts.append({"x": hi + 0.6, "y": y + 0.05, "text": f"{label} +{h:.0f}", "just": "Left"})
-    # 足場高さの寸法（右に縦線と両端の目盛り）
-    xd = hi + 3.4
+        out.lines.append(_tick(xc, y))
+        out.lines.append([(hi + 0.1, y), (xc - 0.15, y)])            # 足場から寸法線への引出し（補助線）
+        if label == "GL":
+            out.texts.append({"x": xc + 0.25, "y": y + 0.05, "text": gl_note, "just": "Left"})
+        elif label != "天端":
+            out.texts.append({"x": xc + 0.25, "y": y + 0.05, "text": f"{label} +{h:.0f}", "just": "Left"})
+        if prev is not None and h - prev > 1.0:
+            # 間隔は寸法線の左。右寄せが効かない版があるので、文字幅を見積もって左寄せで置く
+            gap_text = f"{h - prev:.0f}"
+            out.texts.append({"x": xc - 0.15 - label_text_width_m(gap_text, 0.25 * text_scale / 100.0),
+                              "y": (prev + h) / 2000.0, "text": gap_text, "just": "Left", "gap": True})
+        prev = h
+    # 足場高さの寸法（さらに右に縦線と両端の目盛り）
+    xd = hi + HEIGHT_DIM_OFFSET_M
     out.lines.append([(xd, 0.0), (xd, top)])
-    out.lines.append([(xd - 0.15, 0.0), (xd + 0.15, 0.0)])
-    out.lines.append([(xd - 0.15, top), (xd + 0.15, top)])
+    out.lines.append(_tick(xd, 0.0))
+    out.lines.append(_tick(xd, top))
     out.texts.append({"x": xd + 0.2, "y": top / 2.0, "text": f"足場高さ {top * 1000:.0f}", "just": "Left"})
-    # スパン寸法（天端の上。3Dの文字は断面では潰れるので2Dで入れる）
-    x = 0.0
+    # スパン寸法（天端から離して寸法線。各支柱に目盛りと補助線）と全長
     sgn = 1.0 if b >= a else -1.0
-    for sp in ep.spans:
-        out.texts.append({"x": a + sgn * (x + sp / 2.0) / 1000.0, "y": top + 0.25, "text": f"{sp:.0f}", "just": "Center"})
-        out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
-        x += sp
-    out.lines.append([(a + sgn * x / 1000.0, top + 0.1), (a + sgn * x / 1000.0, top + 0.5)])
+    ys = top + SPAN_DIM_OFFSET_M
+    yt = top + TOTAL_DIM_OFFSET_M
+    xs = [a + sgn * v / 1000.0 for v in _cumulative(ep.spans)]
+    out.lines.append([(min(xs), ys), (max(xs), ys)])
+    for k, x in enumerate(xs):
+        out.lines.append(_tick(x, ys))
+        out.lines.append([(x, top + 0.15), (x, ys + 0.15)])          # 補助線
+        if k < len(ep.spans):
+            out.texts.append({"x": (x + xs[k + 1]) / 2.0, "y": ys + 0.12, "text": f"{ep.spans[k]:.0f}",
+                              "just": "Center"})
+    out.lines.append([(min(xs), yt), (max(xs), yt)])
+    out.lines.append(_tick(min(xs), yt))
+    out.lines.append(_tick(max(xs), yt))
+    out.lines.append([(min(xs), ys + 0.15), (min(xs), yt + 0.15)])
+    out.lines.append([(max(xs), ys + 0.15), (max(xs), yt + 0.15)])
+    out.texts.append({"x": (min(xs) + max(xs)) / 2.0, "y": yt + 0.12,
+                      "text": f"{sum(ep.spans):.0f}", "just": "Center", "total": True})
     # 壁つなぎの位置に ◎（2重の円）。3D の部品には持たせず、立面図の注記として描く
     for cx, cy in tie_marks(ep, spec, model.wall_ties):
         for r in TIE_MARK_RADII_M:
             out.lines.append(circle_points(cx, cy, r))
-    # 面の要約（足場の上に2行）
+    # 部材名のラベル（引出線つき。下段は GL の下、上段は寸法の上）
+    out.labels.extend(section_labels(model, spec, ep, stair_plan, lo, hi, top, text_scale=text_scale))
+    # 面の要約（ラベルの上に2行。上段のラベルが何段かになればその上）
+    head_y = max([top + HEADER_OFFSET_M] + [lb["end"][1] + 0.9 * text_scale / 100.0 for lb in out.labels
+                                             if lb["end"][1] > top])
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     mod = "インチ" if model.master.module == "inch" else "メートル"
     line1 = (f"{spec.face_name} 足場立面図　{model.master.series_id}（{mod}）・作業層 {e.n_levels}層・"
              f"階高 {model.master.floor_height}")
     line2 = (f"壁つなぎ {ties}箇所（◎印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
-    out.texts.append({"x": lo, "y": top + 1.0 + label_pitch_m, "text": line1, "just": "Left"})
-    out.texts.append({"x": lo, "y": top + 1.0, "text": line2, "just": "Left"})
+    out.texts.append({"x": lo, "y": head_y + label_pitch_m * text_scale / 100.0, "text": line1, "just": "Left"})
+    out.texts.append({"x": lo, "y": head_y, "text": line2, "just": "Left"})
+    return out
+
+
+def _cumulative(spans) -> list[float]:
+    out = [0.0]
+    for sp in spans:
+        out.append(out[-1] + float(sp))
+    return out
+
+
+def label_text_width_m(text: str, h: float) -> float:
+    """ラベル文字の幅の見積り（全角1字＝文字高、半角＝0.55倍）."""
+    return sum(1.15 * h if ord(c) > 0x7F else 0.65 * h for c in text)
+
+
+def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: float, hi: float,
+                   top: float, text_scale: float = 100.0, text_height_mm: float = 2.5) -> list[dict]:
+    """部材名のラベル（引出線の先＝部材の位置、文字は下段か上段に左から順に並べる）.
+
+    返す要素: {"beg": (x, y) 部材, "mid": (x, y) 折れ点, "end": (x, y) 文字, "text": 部材名}。
+    階段室・開口部のスパンは避けて、普通のスパンの部材を指す。
+    """
+    e = model.elevation
+    m = model.master
+    sgn = 1.0 if section_x(spec, ep.end_post) >= section_x(spec, ep.start_post) else -1.0
+    a = section_x(spec, ep.start_post)
+    xs = _cumulative(ep.spans)
+    towers = [t for t in (getattr(stair_plan, "towers", None) or []) if t.edge_index == ep.edge_index]
+    plain = [i for i in range(len(ep.spans))
+             if not any(xs[i] < t.end_mm - 1 and xs[i + 1] > t.start_mm + 1 for t in towers)]
+    if not plain:
+        plain = list(range(len(ep.spans)))
+
+    def at(i: int, frac: float = 0.5) -> float:
+        i = plain[min(i, len(plain) - 1)]
+        return a + sgn * (xs[i] + ep.spans[i] * frac) / 1000.0
+
+    def name(cat: str, fallback: str) -> str:
+        p = next(iter(m.by_category(cat)), None)
+        return f"{fallback} {p.model_no}" if p is not None and p.model_no else fallback
+
+    lv = [float(h) / 1000.0 for h in e.level_heights]
+    first = float(e.first_ledger_height) / 1000.0
+    rail = float(model.guard_rail_height_mm) / 1000.0
+    mid = float(model.midrail_height_mm) / 1000.0
+    items: list[tuple[float, float, str]] = []      # (x, y, 文字)
+    ties = tie_marks(ep, spec, model.wall_ties)
+    if ties:
+        tx, ty = min(ties, key=lambda p: (p[1], abs(p[0] - lo)))
+        items.append((tx, ty, name("壁つなぎ", "壁つなぎ")))
+    items.append((at(0, 0.3), first, "根がらみ"))
+    items.append((a + sgn * xs[plain[0]] / 1000.0, float(e.jack_extension) / 2000.0, "ジャッキベース"))
+    if lv:
+        items.append((at(1), lv[0] + 0.03, "作業床（踏板）・幅木"))
+        advance = model.config.guard_rail_type == "先行手すり" and not m.is_frame
+        if advance:
+            items.append((at(2), lv[-1] + rail, "先行手すり（手すり＋斜材）"))
+        else:
+            items.append((at(2), lv[-1] + rail, "手すり"))
+            items.append((at(3), lv[-1] + mid, "中桟"))
+    for t in towers[:1]:
+        t0 = a + sgn * t.start_mm / 1000.0
+        sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - t.start_mm) < 1), 1800.0) / 1000.0
+        if len(lv) >= 1:
+            items.append((t0 + sgn * sp0 * 0.5, (first + lv[0]) / 2.0, name("階段", "昇降階段")))
+            items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 0.9, name("階段手摺", "階段手摺") + "（両側）"))
+        if len(lv) >= 2:
+            items.append((t0 + sgn * sp0 * 0.5, lv[0] + rail, name("階段開口部手摺", "階段開口部手摺")))
+    bottom = sorted([it for it in items if it[1] < top / 2.0], key=lambda it: it[0])
+    upper = sorted([it for it in items if it[1] >= top / 2.0], key=lambda it: it[0])
+    h = text_height_mm * text_scale / 1000.0                      # 文字高（モデル m）
+    pitch = h * 2.8
+    out = []
+    for row, y0, step in ((bottom, LABEL_ROW_BOTTOM_M, -pitch), (upper, top + LABEL_ROW_TOP_OFFSET_M, pitch)):
+        ends: list[float] = []                                     # 段ごとの右端
+        for x, y, text in row:
+            w = label_text_width_m(text, h) + 0.4 + 1.2 * h            # 引出しの横線＋枠の余白
+            pref = x - 0.5
+            k = 0
+            while True:
+                if k == len(ends):
+                    ends.append(-1e9)
+                xe = max(pref, ends[k] + 0.6 * h / 0.25)
+                # 部材の近くに置けない（右へ 2.5m 以上押される・図の右端を越える）なら次の段へ
+                if (xe + w <= hi + 4.0 and xe - pref <= 2.5) or k >= 3:
+                    break
+                k += 1
+            ends[k] = xe + w
+            y_row = y0 + step * k
+            out.append({"beg": (x, y), "mid": (xe, y_row), "end": (xe + 0.4, y_row), "text": text})
     return out
 
 
@@ -307,7 +442,44 @@ def write_section_notes(client, notes: SectionNotes, text_height_mm: float = 2.5
         r = client.tapir("CreatePolylines", {"polylinesData": [
             {"coordinates": [{"x": x, "y": y} for x, y in pts]} for pts in notes.lines]})
         n += sum(1 for el in r.get("elements", []) if "elementId" in el)
+    if notes.labels:
+        n += write_section_labels(client, notes.labels, text_height_mm)
     return n
+
+
+def write_section_labels(client, labels: list[dict], text_height_mm: float = 2.5) -> int:
+    """部材名を Archicad のラベル（文字ラベル・引出線つき）で置く。置いた数を返す.
+
+    引出線の矢先（beg）が部材、折れ点（mid）から文字（end）へ。文字の大きさが指定できなければ
+    ラベルツールの既定で置く。ラベルが作れなければ文字＋折れ線で同じ見た目に描く。
+    """
+    def data(with_style: bool) -> list[dict]:
+        out = []
+        for lb in labels:
+            d = {"labelClass": "Text", "text": lb["text"],
+                 "begCoordinate": {"x": lb["beg"][0], "y": lb["beg"][1]},
+                 "midCoordinate": {"x": lb["mid"][0], "y": lb["mid"][1]},
+                 "endCoordinate": {"x": lb["end"][0], "y": lb["end"][1]}}
+            if with_style:
+                d["style"] = {"height": text_height_mm}
+            out.append(d)
+        return out
+
+    for with_style in (True, False):
+        try:
+            r = client.tapir("CreateLabels", {"labelsData": data(with_style)})
+        except Exception:
+            continue
+        made = sum(1 for el in r.get("elements", []) if "elementId" in el)
+        if made:
+            return made
+    # ラベルが使えない版: 引出線（折れ線）と文字で描く
+    r = client.tapir("CreatePolylines", {"polylinesData": [
+        {"coordinates": [{"x": x, "y": y} for x, y in (lb["beg"], lb["mid"], lb["end"])]} for lb in labels]})
+    client.tapir("CreateTexts", {"textsData": [
+        {"coordinate": {"x": lb["end"][0], "y": lb["end"][1] + 0.05, "z": 0.0}, "text": lb["text"],
+         "height": text_height_mm, "justification": "Left"} for lb in labels]})
+    return len(labels)
 
 
 # ---------------------------------------------------------------- ナビゲータツリー
@@ -586,7 +758,8 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
 
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
                              previous: Optional[dict] = None, one_sheet: bool = True,
-                             annotate: bool = True, terrain=None, on_sections=None) -> list[ElevationPlacement]:
+                             annotate: bool = True, terrain=None, on_sections=None,
+                             stair_plan=None) -> list[ElevationPlacement]:
     """面ごとの断面図を作り、サブセット「仮設足場」の下のレイアウトに図面として置く.
 
     previous は前回の控え {断面名: 要素GUID}（run_from_archicad が書く）。再実行で置き換える。
@@ -637,12 +810,18 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
     # 2b. 注記（各断面を開いて文字と線を置く。断面を消すと中の注記も消えるので控えは要らない）
     if annotate:
         by_name = {s.name: s for s in specs}
+        # ラベルの文字幅は図面の縮尺で決まる（文字は用紙の mm）。縮尺は図面を置くまで決まらないので、
+        # A1 に全面を並べたときの縮尺で見積もる
+        est = arrange_on_one_sheet([s_.length_mm for s_ in specs], float(model.scaffold_height_mm), (841.0, 594.0),
+                                   extra_w_mm=NOTE_EXTRA_W_MM, extra_h_mm=NOTE_EXTRA_H_MM)
+        est_scale = float(est.scale) if est is not None else 200.0
         for pl in results:
             if not pl.section_item_guid or not pl.section_guid:
                 continue
             try:
                 client.tapir("ChangeWindow", {"navigatorItemId": {"guid": pl.section_item_guid}})
-                write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain))
+                write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain,
+                                                                 stair_plan=stair_plan, text_scale=est_scale))
             except Exception as ex:          # 注記が置けなくても図面は置く
                 pl.notes.append(f"注記を置けませんでした: {ex}")
         activate_floor_plan(client)

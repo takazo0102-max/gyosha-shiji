@@ -259,8 +259,10 @@ class TestSectionAnnotations(unittest.TestCase):
         self.assertTrue(any("壁つなぎ" in t and "◎印" in t for t in texts))
         self.assertIn("GL±0", texts)
         ep = next(x for x in self.m.plan.edges if x.edge_index == self.specs["南面"].edge_index)
-        spans = [t for t in notes.texts if t.get("just") == "Center"]
+        spans = [t for t in notes.texts if t.get("just") == "Center" and not t.get("total")]
         self.assertEqual([t["text"] for t in spans], [f"{s:.0f}" for s in ep.spans])   # スパン寸法を2Dで
+        total = [t for t in notes.texts if t.get("total")]
+        self.assertEqual([t["text"] for t in total], [f"{sum(ep.spans):.0f}"])           # 全長
 
     def test_notes_sit_beside_and_above_the_scaffold(self):
         s = self.specs["南面"]
@@ -272,6 +274,37 @@ class TestSectionAnnotations(unittest.TestCase):
         summary = [t for t in notes.texts if "足場立面図" in t["text"]][0]
         self.assertGreater(summary["y"], self.m.scaffold_height_mm / 1000.0)   # 上
         self.assertTrue(all(len(pts) >= 2 for pts in notes.lines))
+
+    def test_dimensions_stand_off_from_the_scaffold(self):
+        """寸法は足場から離す（スパンは天端から1m以上上、高さの寸法線は外側の建地から1m以上右）."""
+        from ashiba.elevation_sections import LEVEL_DIM_OFFSET_M, SPAN_DIM_OFFSET_M
+
+        s = self.specs["南面"]
+        top = self.m.scaffold_height_mm / 1000.0
+        notes = section_annotations(self.m, s)
+        spans = [t for t in notes.texts if t.get("just") == "Center" and not t.get("total")]
+        self.assertTrue(all(t["y"] > top + 1.0 for t in spans))
+        self.assertGreaterEqual(SPAN_DIM_OFFSET_M, 1.0)
+        self.assertGreaterEqual(LEVEL_DIM_OFFSET_M, 1.0)
+        # 各層の間隔（1800 など）も高さの寸法線の横に書く
+        gaps = [t for t in notes.texts if t.get("gap")]
+        self.assertEqual(len(gaps), len(self.m.elevation.level_heights) + 2)   # GL→根がらみ→各層→天端
+
+    def test_member_labels_point_at_members(self):
+        """部材名は引出線つきのラベル。下段は GL の下、上段は寸法の上に並び、矢先は部材の高さ."""
+        s = self.specs["南面"]
+        top = self.m.scaffold_height_mm / 1000.0
+        notes = section_annotations(self.m, s)
+        texts = [lb["text"] for lb in notes.labels]
+        for want in ("根がらみ", "ジャッキベース", "作業床（踏板）・幅木", "手すり", "中桟"):
+            self.assertIn(want, texts)
+        self.assertTrue(any(t.startswith("壁つなぎ") for t in texts))
+        for lb in notes.labels:
+            self.assertTrue(lb["end"][1] < 0 or lb["end"][1] > top + 2.0, lb)
+            self.assertTrue(0.0 <= lb["beg"][1] <= top + 1.0, lb)
+        e = self.m.elevation
+        neg = next(lb for lb in notes.labels if lb["text"] == "根がらみ")
+        self.assertAlmostEqual(neg["beg"][1], e.first_ledger_height / 1000.0)
 
 
 class TestArrangeBoxes(unittest.TestCase):

@@ -1236,17 +1236,33 @@ next ih
 for ig = 1 to nSg
 	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
 next ig
+if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
+! スパン寸法: 足場から離した寸法線（参考: 足場平面図は寸法を外へ離して読みやすく）。各支柱に補助線と
+! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
+yd = -rowW - dOff - 0.90
+yt = yd - 0.70
+line2 0, yd, lineLen, yd
+line2 0, yt, lineLen, yt
 x = 0
-for ip = 1 to nSpan
-	set style "annoC"
-	text2 x + spans[ip] / 2, -rowW - dOff - 0.25, str(spans[ip] * 1000, 5, 0)
-	set style "anno"
-	line2 x, -rowW - dOff - 0.15, x, -rowW - dOff - 0.35
-	x = x + spans[ip]
+for ip = 1 to nSpan + 1
+	line2 x, -rowW - 0.10, x, yd - 0.10
+	line2 x - 0.07, yd - 0.07, x + 0.07, yd + 0.07
+	if ip <= nSpan then
+		tdx = x + spans[ip] / 2
+		tdy = yd + 0.16
+		tdt = str(spans[ip] * 1000, 5, 0)
+		gosub 985
+		x = x + spans[ip]
+	endif
 next ip
-line2 x, -rowW - dOff - 0.15, x, -rowW - dOff - 0.35
-set style "annoC"
-text2 lineLen / 2, -rowW - dOff - 0.55, "L=" + str(lineLen * 1000, 6, 0) + " 離れ" + str(standoff * 1000, 4, 0)
+line2 0, yd - 0.10, 0, yt - 0.10
+line2 lineLen, yd - 0.10, lineLen, yt - 0.10
+line2 -0.07, yt - 0.07, 0.07, yt + 0.07
+line2 lineLen - 0.07, yt - 0.07, lineLen + 0.07, yt + 0.07
+tdx = lineLen / 2
+tdy = yt + 0.16
+tdt = "L=" + str(lineLen * 1000, 6, 0) + "  離れ" + str(standoff * 1000, 4, 0)
+gosub 985
 set style "anno"
 return
 
@@ -1776,6 +1792,16 @@ ny = ny - txtLine
 text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（平面▽・立面◎）"
 ny = ny - txtLine
 text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
+return
+
+! ============================================================
+985:	! ---- 平面の寸法の数字（中央揃え）。北・西を向く面では上下逆になるので 180° 回して読める向きに ----
+set style "annoC"
+add2 tdx, tdy
+if SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001 then rot2 180 else rot2 0
+text2 0, 0, tdt
+del 2
+set style "anno"
 return
 
 ! ==========================================================
