@@ -233,6 +233,17 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
+def line_floor(client, lines: list[dict]):
+    """足場ラインを置いたフロアの番号（読めなければ None＝現在のフロア）."""
+    if not lines:
+        return None
+    try:
+        det = client.tapir("GetDetailsOfElements", {"elements": lines[:1]}).get("detailsOfElements", [])
+        return int(det[0]["floorIndex"]) if det and "floorIndex" in det[0] else None
+    except (TapirError, KeyError, TypeError, ValueError):
+        return None
+
+
 def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, int]:
     """平面図に寸法（寸法ツール）と部材名のラベルを置き、GUID を建物ごとに控える。(寸法数, ラベル数) を返す.
 
@@ -271,14 +282,7 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, 
         region = plan_region_mm(r.model)
         scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
         labels = plan_labels(r.model, r.stair_plan, text_scale=float(scale), platforms=r.platforms)
-        floor = None
-        if lines:
-            try:
-                det = client.tapir("GetDetailsOfElements", {"elements": lines[:1]}).get("detailsOfElements", [])
-                floor = int(det[0]["floorIndex"]) if det and "floorIndex" in det[0] else None
-            except (TapirError, KeyError, TypeError, ValueError):
-                floor = None
-        lab = create_labels(client, labels, floor_index=floor)
+        lab = create_labels(client, labels, floor_index=line_floor(client, lines))
         guids += lab
         n_lab = len(lab)
     except TapirError as e:
@@ -391,7 +395,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
-        plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"))
+        plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
+                                      floor_index=line_floor(client, lines))
         for n in plan_sheet.notes:
             print(f"  平面図: {n}")
         if plan_sheet.drawing_guid:

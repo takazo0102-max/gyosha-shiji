@@ -1038,12 +1038,15 @@ def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale
     return clip, position
 
 
-def active_story_item(client) -> Optional[dict]:
-    """足場を置いたフロア（現在のフロア）のプロジェクトマップ項目."""
-    try:
-        act = int(client.tapir("GetStories", {}).get("actStory", 0))
-    except Exception:
-        act = 0
+def active_story_item(client, floor_index: Optional[int] = None) -> Optional[dict]:
+    """足場を置いたフロアのプロジェクトマップ項目（floor_index を省くと現在のフロア）."""
+    if floor_index is not None:
+        act = int(floor_index)
+    else:
+        try:
+            act = int(client.tapir("GetStories", {}).get("actStory", 0))
+        except Exception:
+            act = 0
     items = story_items(_tree(client, "ProjectMap"))
     hit = [it for it in items if str(it.get("prefix", "")).strip() == str(act)]
     return hit[0] if hit else (items[0] if items else None)
@@ -1058,11 +1061,13 @@ class PlanSheet:
     notes: list[str] = field(default_factory=list)
 
 
-def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True) -> PlanSheet:
+def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
+                     floor_index: Optional[int] = None) -> PlanSheet:
     """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く."""
     out = PlanSheet(layout_name=plan_layout_name(prefix))
     activate_floor_plan(client)
-    story = active_story_item(client)
+    # 現在のフロアは断面を開いたりすると変わる。足場ラインのフロアを渡されればそれを使う
+    story = active_story_item(client, floor_index)
     if story is None:
         out.notes.append("フロアがプロジェクトマップに見つかりません")
         return out
