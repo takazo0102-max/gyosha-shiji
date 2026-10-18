@@ -256,6 +256,23 @@ class TestTimeouts(unittest.TestCase):
                 c.post("API.ExecuteAddOnCommand", {})
         self.assertIn("Esc", str(cm.exception))
 
+    def test_no_open_project_is_not_busy(self):
+        """4001 でも「プロジェクトが開いていない」は待っても直らないので TapirBusy にせず、開くよう案内する."""
+        from unittest import mock
+
+        from ashiba.tapir_adapter import TapirBusy, TapirError
+
+        c = ArchicadClient()
+        resp = mock.MagicMock()
+        resp.read.return_value = (
+            b'{"succeeded": false, "error": {"code": 4001, "message": "Invalid program status (no open project)"}}')
+        resp.__enter__.return_value = resp
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            with self.assertRaises(TapirError) as cm:
+                c.post("API.ExecuteAddOnCommand", {})
+        self.assertNotIsInstance(cm.exception, TapirBusy)
+        self.assertIn("プロジェクトが開いていません", str(cm.exception))
+
     def test_create_is_not_retried(self):
         from ashiba.tapir_adapter import TapirTimeout
 

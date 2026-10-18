@@ -117,6 +117,10 @@ class ArchicadClient:
                     "（動作確認: Tapir 1.7.0 / Archicad 30）。"
                     "アドオンを入れて Archicad を再起動してください"
                 )
+            if isinstance(err, dict) and err.get("code") == 4001 and "no open project" in msg:
+                # 同じ 4001 でも、プロジェクトが閉じているのは待っても直らない（送り直さない）
+                raise TapirError(f"{command} が失敗: {err}\nArchicad でプロジェクトが開いていません。"
+                                 "足場を置くプロジェクトを開いてから、もう一度実行してください")
             if isinstance(err, dict) and err.get("code") == 4001:
                 raise TapirBusy(
                     f"{command} が失敗: {err}\nArchicad が入力の途中です（ダイアログ・描きかけの要素・"
