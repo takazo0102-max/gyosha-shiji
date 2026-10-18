@@ -102,6 +102,9 @@ class ScaffoldConfig:
     n_stairs: int = 1                      # 階段設置箇所数
     wall_tie_span_step: int = 3            # 壁つなぎ水平間隔（スパン数、実務推奨3以内）
     wall_tie_level_step: int = 2           # 壁つなぎ垂直間隔（作業層数、実務推奨2以内）
+    # 角から1.8m未満の支柱にも壁つなぎを入れるか（最密でも風荷重を満たせないときだけ最適化が使う。
+    # 端のスパンが短いと角の手前の支柱が外れ、端の領域を1本で受ける形になった）
+    wall_tie_near_corner: bool = False
     period_days: int = 60                  # 設置期間（届出要否判定）
     asagao: Optional["AsagaoSpec"] = None  # 朝顔（Noneなら未設置）
 
@@ -367,11 +370,14 @@ def generate_wall_ties(
         for s in e.spans:
             acc.append(acc[-1] + s)
         interior = acc[1:-1]  # コーナー支柱そのものは除外
-        candidates = [
-            x
-            for x in interior
-            if x >= max(1800, e.spans[0]) and (e.scaffold_length - x) >= max(1800, e.spans[-1])
-        ]
+        if config.wall_tie_near_corner:
+            candidates = list(interior)
+        else:
+            candidates = [
+                x
+                for x in interior
+                if x >= max(1800, e.spans[0]) and (e.scaffold_length - x) >= max(1800, e.spans[-1])
+            ]
         if not candidates:
             # コーナーから1スパン空ける取り合いの都合を満たせない短い面。
             # ここで諦めるとその面が壁つなぎ0本になり、法規チェックも
@@ -398,7 +404,9 @@ def generate_wall_ties(
         # 最後の壁つなぎから面の端までが step スパンより空くなら1本足す。
         # 1800決め打ちにすると、B系列(1829)や枠組(1829)で判定がずれる
         span_ref = max(e.spans) if e.spans else 1800
-        if picked and (e.scaffold_length - picked[-1]) > step * span_ref:
+        # （最後の候補が既に選ばれているときは足さない。1スパン毎のとき同じ支柱に2本入り、
+        # 数量が二重になり、検定でも受け持ちが割れていた）
+        if picked and (e.scaffold_length - picked[-1]) > step * span_ref and acc[idxs[-1]] not in picked:
             picked.append(acc[idxs[-1]])
         for h in tie_levels:
             for x in picked:

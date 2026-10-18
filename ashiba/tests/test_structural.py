@@ -594,3 +594,28 @@ class TestTieRemedyGivesNumbers(unittest.TestCase):
         self.assertIn("支配面積を5.13m²以下に（いま5.83m²、12%減）", s)
         self.assertIn("4.904".replace("4.904", "4.90") + "m を4.32m 以下に", s)
         self.assertIn("許容耐力5.01kN 以上", s)
+
+
+class TestWallTieGridFixes(unittest.TestCase):
+    """壁つなぎの格子: 同じ支柱に二重に入れない／最密でも足りなければ角の手前の支柱にも入れる."""
+
+    def _solve(self, region):
+        from ashiba.cli import solve_all
+
+        return solve_all({"module": "inch", "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                          "eaves_height_mm": 15400, "building_height_mm": 16000, "site": {"region": region}})
+
+    def test_no_duplicate_ties(self):
+        from collections import Counter
+
+        for region in ("沖縄", "関東(内陸)"):
+            r = self._solve(region)
+            c = Counter((w.edge_index, round(w.position_mm), w.height_mm) for w in r.model.wall_ties)
+            self.assertEqual([k for k, v in c.items() if v > 1], [], region)
+
+    def test_near_corner_ties_make_okinawa_pass(self):
+        r = self._solve("沖縄")
+        self.assertTrue(r.tie_opt.near_corner)
+        self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie.ratio)
+        self.assertIn("角から1.8m未満の支柱にも入れる", r.tie_opt.message)
+        self.assertFalse(self._solve("関東(内陸)").tie_opt.near_corner)   # 足りる所では使わない

@@ -844,6 +844,7 @@ class TieOptimizeResult:
     message: str
     # 開口部で抜いた支柱から両端へ寄せた壁つなぎの説明（openings を渡したとき）
     notes: list = field(default_factory=list)
+    near_corner: bool = False    # 角から1.8m未満の支柱にも入れたか
 
 
 def optimize_wall_ties(
@@ -891,18 +892,21 @@ def optimize_wall_ties(
         model.config.wall_tie_span_step,
         model.config.wall_tie_level_step,
     )
-    # 部材数が少ない（緩い）順に試す
+    # 部材数が少ない（緩い）順に試す。最後に、最密のまま角の手前の支柱にも入れる案
     candidates = sorted(
         [(s, lv) for s in (3, 2, 1) for lv in (2, 1)],
         key=lambda c: (-(c[0] * c[1]), -c[0]),
     )
+    base_near = model.config.wall_tie_near_corner
 
     best: Optional[TieOptimizeResult] = None
     tightest: Optional[TieOptimizeResult] = None
     try:
-        for span_step, level_step in candidates:
+        for span_step, level_step, near in [(s, lv, base_near) for s, lv in candidates] + (
+                [] if base_near else [(1, 1, True)]):
             model.config.wall_tie_span_step = span_step
             model.config.wall_tie_level_step = level_step
+            model.config.wall_tie_near_corner = near
             ties = generate_wall_ties(model.plan, model.elevation, model.config)
             model.wall_ties = ties
             layout()
@@ -916,6 +920,7 @@ def optimize_wall_ties(
                 feasible=res.ok,
                 message="",
             )
+            cand.near_corner = near
             if tightest is None or cand.tie_count > tightest.tie_count:
                 tightest = cand
             # 法規上限は「間隔」の制限。支配面積とは別物なので実間隔で見る。
@@ -929,6 +934,7 @@ def optimize_wall_ties(
         model.wall_ties = original
         model.config.wall_tie_span_step = base_span
         model.config.wall_tie_level_step = base_level
+        model.config.wall_tie_near_corner = base_near
         raise
 
     chosen = best or tightest
@@ -941,12 +947,13 @@ def optimize_wall_ties(
             "高耐力の壁つなぎ、養生材の変更（メッシュ→なし等）、"
             "または壁つなぎ以外の補強を検討してください"
         )
-    elif chosen.tightened:
+    elif chosen.tightened or chosen.near_corner != base_near:
         chosen.message = (
             f"風荷重の検定を満たすため壁つなぎを "
             f"{base_span}スパン×{base_level}層毎 → "
-            f"{chosen.span_step}スパン×{chosen.level_step}層毎 に詰めました"
-            f"（{chosen.tie_count}箇所、検定比{chosen.wall_tie.ratio:.2f}）"
+            f"{chosen.span_step}スパン×{chosen.level_step}層毎"
+            + ("（角から1.8m未満の支柱にも入れる）" if chosen.near_corner and not base_near else "")
+            + f" に詰めました（{chosen.tie_count}箇所、検定比{chosen.wall_tie.ratio:.2f}）"
         )
     else:
         chosen.message = (
@@ -957,6 +964,7 @@ def optimize_wall_ties(
     if apply:
         model.config.wall_tie_span_step = chosen.span_step
         model.config.wall_tie_level_step = chosen.level_step
+        model.config.wall_tie_near_corner = chosen.near_corner
         model.wall_ties = generate_wall_ties(
             model.plan, model.elevation, model.config
         )
@@ -965,6 +973,7 @@ def optimize_wall_ties(
         model.wall_ties = original
         model.config.wall_tie_span_step = base_span
         model.config.wall_tie_level_step = base_level
+        model.config.wall_tie_near_corner = base_near
     return chosen
 
 
