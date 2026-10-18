@@ -619,3 +619,21 @@ class TestWallTieGridFixes(unittest.TestCase):
         self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie.ratio)
         self.assertIn("角から1.8m未満の支柱にも入れる", r.tie_opt.message)
         self.assertFalse(self._solve("関東(内陸)").tie_opt.near_corner)   # 足りる所では使わない
+
+
+class TestPentagonTiesStayRelocated(unittest.TestCase):
+    """斜辺で届かない取付部の壁つなぎは、寄せたあと数量側で元の位置へ足し直さない（五角形・沖縄で検定比7.13 になっていた）."""
+
+    def test_optimizer_and_final_agree(self):
+        from collections import Counter
+
+        from ashiba.cli import solve_all
+        from ashiba.smoke import PENTAGON
+
+        r = solve_all({"series_id": "nikken_nd1800", "outline_mm": PENTAGON, "eaves_height_mm": 16000,
+                       "building_height_mm": 16000, "site": {"region": "沖縄"}})
+        c = Counter((w.edge_index, round(w.position_mm), w.height_mm) for w in r.model.wall_ties)
+        self.assertEqual([k for k, v in c.items() if v > 1], [])
+        self.assertAlmostEqual(r.tie_opt.wall_tie.ratio, r.structural.wall_tie.ratio, places=3)
+        self.assertTrue(r.structural.wall_tie.ok, r.structural.wall_tie.ratio)
+        self.assertTrue(getattr(r.model, "attachments_merged", False))

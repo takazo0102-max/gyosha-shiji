@@ -1045,12 +1045,13 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
     品を選ぶ。1品だけの系列は従来どおりその品で全数を数える。以前は日建で KS700
     （380〜760mm）だけを登録していて、離れ212mmの面にも KS700 を当てていた。
     """
-    from .ties import has_attachment_ties, kind_labels, merge_attachment_ties, tie_counts
+    from .ties import has_attachment_ties, kind_labels, merge_attachment_ties, relocate_unreachable_ties, tie_counts
 
     labels = kind_labels(model)
 
     if not has_attachment_ties(model):
         merge_attachment_ties(model, platforms, openings)
+        relocate_unreachable_ties(model, label="取付部の壁つなぎ")
     cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
     # 1品だけでも伸縮範囲が書いてあれば、面の必要長さが範囲外なら手配項目に出す
     if not cands or kt is None:

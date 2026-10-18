@@ -122,6 +122,9 @@ def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -
     何度呼んでも同じ結果（同じ辺・位置・高さが既にあれば足さない）。
     戻り値は由来ごとの本数。
     """
+    # 足したことを記録する。寄せ直しで取付部の壁つなぎが格子の壁つなぎと1本にまとまると
+    # 「取付部の壁つなぎが無い」に見え、数量側が届かない元の位置へ足し直していた（五角形の斜辺）
+    model.attachments_merged = True
     existing = {
         (t.edge_index, round(t.position_mm), int(t.height_mm)) for t in model.wall_ties
     }
@@ -145,7 +148,9 @@ def tie_counts(model: ScaffoldModel) -> dict[str, int]:
 
 
 def has_attachment_ties(model: ScaffoldModel) -> bool:
-    return any(t.kind in ATTACHMENT_KINDS for t in model.wall_ties)
+    """取付部の壁つなぎを足し済みか（寄せ直しでまとまって種類が消えても、足した記録があれば済み）."""
+    return bool(getattr(model, "attachments_merged", False)) or any(
+        t.kind in ATTACHMENT_KINDS for t in model.wall_ties)
 
 
 def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
@@ -280,7 +285,18 @@ def relocate_unreachable_ties(model: ScaffoldModel, label: str = "壁つなぎ")
         else:
             keep.append(WallTie(t.edge_index, new_x, t.height_mm, t.kind))
         moved[t.edge_index] = moved.get(t.edge_index, 0) + 1
-    model.wall_ties = keep
+    # 寄せた先に、まだ処理していない元々の壁つなぎが後から来ることがある（上の比較は処理済みの分だけ）。
+    # 最後に同じ位置・同じ高さを1本にまとめる（五角形の斜辺で同じ支柱に2本ずつ入っていた）
+    uniq: list[WallTie] = []
+    seen: set = set()
+    for k in keep:
+        key = (k.edge_index, round(k.position_mm, 3), k.height_mm)
+        if key in seen:
+            merged += 1
+            continue
+        seen.add(key)
+        uniq.append(k)
+    model.wall_ties = uniq
     if not moved:
         return []
     faces = "・".join(f"{model.face_name(e)} {n}本" for e, n in sorted(moved.items()))
