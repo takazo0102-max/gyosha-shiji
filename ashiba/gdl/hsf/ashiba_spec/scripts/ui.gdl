@@ -1,0 +1,49 @@
+﻿! 足場条件の設定ダイアログ（3ページ）
+ui_dialog "仮設足場の条件"
+ui_page 1, -1, "基本"
+ui_outfield "基本", 10, 5, 300, 18
+ui_outfield "工事名", 10, 30, 120, 18
+ui_infield "projName", 140, 28, 300, 20
+ui_outfield "モジュール", 10, 58, 120, 18
+ui_infield "moduleKind", 140, 56, 160, 20
+ui_outfield "系列（空＝既定）", 10, 86, 120, 18
+ui_infield "seriesId", 140, 84, 160, 20
+ui_outfield "足場の形式", 10, 114, 120, 18
+ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "設置期間（日）", 10, 142, 120, 18
+ui_infield "periodDays", 140, 140, 100, 20
+ui_outfield "現場名（設置届）", 10, 170, 120, 18
+ui_infield "siteName", 140, 168, 300, 20
+ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示）", 10, 205, 420, 18
+ui_page 2, -1, "高さ・離れ"
+ui_outfield "高さ・離れ", 10, 5, 300, 18
+ui_outfield "軒高", 10, 30, 160, 18
+ui_infield "eavesH", 180, 28, 120, 20
+ui_outfield "手すり分", 10, 58, 160, 18
+ui_infield "guardExtra", 180, 56, 120, 20
+ui_outfield "足場高さ（0＝軒高から）", 10, 86, 160, 18
+ui_infield "scaffH", 180, 84, 120, 20
+ui_outfield "建物高さ", 10, 114, 160, 18
+ui_infield "bldgH", 180, 112, 120, 20
+ui_outfield "離れ 目標", 10, 142, 160, 18
+ui_infield "soTarget", 180, 140, 120, 20
+ui_outfield "離れ 目標下限〜上限", 10, 170, 160, 18
+ui_infield "soMin", 180, 168, 80, 20
+ui_infield "soMax", 270, 168, 80, 20
+ui_outfield "離れ 下限（未満は採らない）", 10, 198, 160, 18
+ui_infield "soHardMin", 180, 196, 120, 20
+ui_page 3, -1, "安全・表示"
+ui_outfield "安全・表示", 10, 5, 300, 18
+ui_outfield "手すり", 10, 30, 140, 18
+ui_infield "railType", 160, 28, 160, 20
+ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "nextGen", 10, 80, 300, 20
+ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
+ui_infield "asagaoStages", 160, 106, 80, 20
+ui_outfield "地域・粗度・養生材", 10, 136, 140, 18
+ui_infield "region", 160, 134, 130, 20
+ui_infield "roughness", 300, 134, 50, 20
+ui_infield "sheetType", 360, 134, 110, 20
+ui_outfield "立面図", 10, 164, 140, 18
+ui_infield "elevMode", 160, 162, 160, 20
+ui_infield "lineMode3d", 10, 190, 300, 20

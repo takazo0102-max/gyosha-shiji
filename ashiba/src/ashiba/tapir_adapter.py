@@ -43,7 +43,7 @@ class TapirError(Exception):
     pass
 
 
-def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo")) -> bool:
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec")) -> bool:
     """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
 
     埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で

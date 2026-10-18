@@ -26,6 +26,7 @@ sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
+    is_ashiba_part,
     TapirError,
     MESH_MARGIN_MM,
     ArchicadClient,
@@ -38,7 +39,10 @@ from ashiba.tapir_adapter import (  # noqa: E402
 )
 from ashiba.elevation_sections import (  # noqa: E402
     activate_floor_plan,
+    building_key,
     load_record,
+    load_record_meta,
+    remove_stale_prefixes,
     place_plan_sheet,
     place_section_elevations,
     save_record,
@@ -58,6 +62,7 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
+SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
 
 
@@ -174,6 +179,45 @@ def load_spec_override() -> dict:
     return data
 
 
+def read_spec_objects(client) -> list:
+    """プロジェクトの足場条件部品を (要素, 原点mm, パラメータ) の一覧で返す."""
+    objs = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+    found = []
+    for e, d in zip(objs, client.get_details(objs) if objs else []):
+        dd = d.get("details", {})
+        lp = dd.get("libPart") or {}
+        if not is_ashiba_part(lp.get("name", "") if isinstance(lp, dict) else "", (SPEC_OBJECT,)):
+            continue
+        o = dd.get("origin") or {}
+        resp = client.tapir("GetGDLParametersOfElements", {"elements": [e]})
+        item = (resp.get("gdlParametersOfElements") or [{}])[0]
+        params = {p.get("name"): p.get("value") for p in item.get("gdlParameters", item.get("parameters", []))}
+        found.append((e, (float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0), params))
+    return found
+
+
+def apply_spec_object(client, spec: dict) -> dict:
+    """この建物の足場条件部品を読んで条件に重ねる。無ければ今の条件で部品を置く."""
+    from ashiba.spec_object import merge_object_into_spec, params_from_spec, pick_spec_object, spec_from_params, spec_object_position
+
+    hit = pick_spec_object(read_spec_objects(client), spec["outline_mm"])
+    if hit is not None:
+        _el, params = hit
+        obj = spec_from_params(params)
+        print(f"条件: 足場条件の部品から（{', '.join(sorted(obj))}）。JSON より優先します")
+        return merge_object_into_spec(spec, obj)
+    name = versioned_part_name(SPEC_OBJECT)
+    x, y = spec_object_position(spec["outline_mm"])
+    try:
+        el = client.create_object(name, x, y)
+        client.set_gdl_parameters(el, params_from_spec(spec), name)
+        print("足場条件の部品を建物の左下に置きました。次からは、その部品の設定ダイアログで条件を変えて"
+              "ツールバーを実行してください（JSON より優先）")
+    except TapirError as e:
+        print(f"足場条件の部品を置けませんでした（{e}）。JSON の条件で続けます")
+    return spec
+
+
 def main(outline_mm=None) -> None:
     client = ArchicadClient()
     if not client.wait_ready():
@@ -216,9 +260,12 @@ def main(outline_mm=None) -> None:
     added = client.ensure_embedded_parts([
         (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
         (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
+        (GDL_DIR / f"{SPEC_OBJECT}.gsm", versioned_part_name(SPEC_OBJECT)),
     ])
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
+    # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
+    spec = apply_spec_object(client, spec)
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client, outline_mm=spec["outline_mm"])
     if ground.ignored_meshes:
@@ -244,10 +291,16 @@ def main(outline_mm=None) -> None:
     sections = []
     if elevation_mode == "section":
         # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
+        prefix = str(spec.get("project_name") or "足場")
+        bkey = building_key(r.model.plan.outline.vertices)
         prev = load_record(OUT_DIR)
-        sections = place_section_elevations(r.model, client, prefix=str(spec.get("project_name") or "足場"), previous=prev,
-                                            terrain=r.terrain, on_sections=lambda res: save_record(OUT_DIR, res, prev))
-        save_record(OUT_DIR, sections, prev)
+        # 同じ建物で工事名を変えたときは、古い名前の断面・レイアウトを先に片付ける
+        prev, gone = remove_stale_prefixes(client, prev, load_record_meta(OUT_DIR), bkey, prefix)
+        if gone:
+            print(f"  立面: 工事名を変えたので、前の名前（{'・'.join(gone)}）の断面とレイアウトを片付けました")
+        sections = place_section_elevations(r.model, client, prefix=prefix, previous=prev, terrain=r.terrain,
+                                            on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
+        save_record(OUT_DIR, sections, prev, bkey, prefix)
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
         plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"))
         for n in plan_sheet.notes:

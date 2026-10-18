@@ -663,23 +663,79 @@ def load_record(out_dir) -> dict:
     if not p.exists():
         return {}
     try:
-        return {str(k): str(v) for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
+        return {str(k): str(v) for k, v in json.loads(p.read_text(encoding="utf-8")).items() if not str(k).startswith("_")}
     except Exception:
         return {}
 
 
-def save_record(out_dir, placements: list[ElevationPlacement], previous: Optional[dict] = None) -> dict:
-    """今回置いた断面の GUID を控えに足して書く（他の建物の分は残す）."""
+def save_record(out_dir, placements: list[ElevationPlacement], previous: Optional[dict] = None,
+                building: str = "", prefix: str = "") -> dict:
+    """今回置いた断面の GUID を控えに足して書く（他の建物の分は残す）.
+
+    建物（外形の外接矩形）と工事名も控える。工事名を変えて再実行したとき、同じ建物の
+    古い名前の断面・レイアウトを片付けるため（名前だけでは同じ建物と分からない）。
+    """
     import json
     from pathlib import Path
 
     rec = dict(previous or {})
+    meta = dict(load_record_meta(out_dir))
     for pl in placements:
         if pl.section_guid:
             rec[pl.section_name] = pl.section_guid
+            if building:
+                meta[pl.section_name] = {"building": building, "prefix": prefix}
+    out = {**rec, "_meta": {k: v for k, v in meta.items() if k in rec}}
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    (Path(out_dir) / ELEVATIONS_RECORD).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (Path(out_dir) / ELEVATIONS_RECORD).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return rec
+
+
+def load_record_meta(out_dir) -> dict:
+    """控えの付帯情報 {断面名: {"building", "prefix"}}."""
+    import json
+    from pathlib import Path
+
+    p = Path(out_dir) / ELEVATIONS_RECORD
+    try:
+        meta = json.loads(p.read_text(encoding="utf-8")).get("_meta", {}) if p.exists() else {}
+        return meta if isinstance(meta, dict) else {}
+    except Exception:
+        return {}
+
+
+def building_key(outline_mm) -> str:
+    """建物を外形の外接矩形で識別する（0.1m 単位）."""
+    xs = [float(p[0]) for p in outline_mm]
+    ys = [float(p[1]) for p in outline_mm]
+    return ",".join(f"{v / 1000.0:.1f}" for v in (min(xs), min(ys), max(xs), max(ys)))
+
+
+def stale_prefixes(record: dict, meta: dict, building: str, prefix: str) -> dict:
+    """同じ建物で工事名が違う控え → {古い工事名: [断面名, ...]}."""
+    out: dict = {}
+    for name in record:
+        m = meta.get(name) or {}
+        if m.get("building") == building and m.get("prefix") and m.get("prefix") != prefix:
+            out.setdefault(m["prefix"], []).append(name)
+    return out
+
+
+def remove_stale_prefixes(client, record: dict, meta: dict, building: str, prefix: str) -> tuple[dict, list[str]]:
+    """同じ建物の古い工事名の断面とレイアウトを消す。消した分を除いた控えと、消した工事名を返す."""
+    stale = stale_prefixes(record, meta, building, prefix)
+    if not stale:
+        return record, []
+    rec = dict(record)
+    for old, names in stale.items():
+        faces = [n[len(old) + 1:-len(" 足場立面")] for n in names if n.endswith(" 足場立面")]
+        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old)]
+        activate_floor_plan(client)
+        remove_elevations(client, names, lays, [rec.get(n, "") for n in names])
+        for n in names:
+            rec.pop(n, None)
+    activate_floor_plan(client)
+    return rec, sorted(stale)
 
 
 

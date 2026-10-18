@@ -1,0 +1,148 @@
+﻿! ==========================================================
+! 足場条件（ツールバーが読む入力条件） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_spec/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_spec.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! スラブの近くに置き、設定ダイアログ（基本／高さ・離れ／安全・表示）で条件を入れる。
+! ツールバーはこの部品のパラメータを読み、デスクトップの JSON より優先する。
+! パラメータと入力 JSON の対応は src/ashiba/spec_object.py の FIELDS が正。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   projName      文字列  工事名（図面・帳票の名前）                                     既定 "足場計画"
+!   moduleKind    文字列  モジュール metric／inch                                        既定 "metric"
+!   seriesId      文字列  系列（空ならモジュールの既定）                                 既定 ""
+!   eavesH        長さ    軒高                                                           既定 15.4
+!   guardExtra    長さ    手すり分（最上層作業床＝軒高＋この値）                         既定 0.9
+!   scaffH        長さ    足場高さを直接指定（0＝軒高から）                              既定 0.0
+!   bldgH         長さ    建物高さ                                                       既定 16.0
+!   periodDays    整数    設置期間（日）                                                 既定 90
+!   soTarget      長さ    離れ 目標                                                      既定 0.3
+!   soMin         長さ    離れ 目標下限                                                  既定 0.25
+!   soMax         長さ    離れ 目標上限                                                  既定 0.35
+!   soHardMin     長さ    離れ 下限（これ未満は採らない）                                既定 0.25
+!   scaffForm     文字列  本足場／一側足場                                               既定 "本足場"
+!   railType      文字列  手すり 布材／先行手すり                                        既定 "布材"
+!   innerRail     ブール  躯体側の手すり（布材）                                         既定 1
+!   nextGen       ブール  次世代足場                                                     既定 0
+!   asagaoStages  整数    朝顔の段数（0＝自動判定）                                      既定 0
+!   region        文字列  地域（基準風速）                                               既定 "関東(内陸)"
+!   roughness     文字列  地表面粗度区分                                                 既定 "III"
+!   sheetType     文字列  養生材                                                         既定 "メッシュシート"
+!   siteName      文字列  現場名（設置届）                                               既定 ""
+!   elevMode      文字列  立面図 section＝断面図→レイアウト／object＝平面の下に2D／none  既定 "section"
+!   lineMode3d    ブール  3Dを線で表示                                                   既定 0
+! ==========================================================
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場条件（ツールバーが読む条件。設定ダイアログで変えて、もう一度ツールバーを実行する）
+! 平面には条件の要約を札のように出す
+! ============================================================
+txH = 2.5 * GLOB_SCALE / 1000
+define style "specT" "ＭＳ Ｐゴシック", 2.5, 1, 0
+set style "specT"
+dim ln[7]
+modTxt = "メートル"
+if moduleKind = "inch" then modTxt = "インチ"
+serTxt = seriesId
+if serTxt = "" then serTxt = "既定"
+hTxt = "軒高 " + str(eavesH * 1000, 1, 0) + "＋" + str(guardExtra * 1000, 1, 0)
+if scaffH > 0.001 then hTxt = "足場高さ " + str(scaffH * 1000, 1, 0)
+ln[1] = "足場条件　" + projName
+ln[2] = "系列 " + serTxt + "（" + modTxt + "）・" + scaffForm + "・" + railType
+ln[3] = hTxt + "・期間 " + str(periodDays, 1, 0) + "日"
+ln[4] = "離れ " + str(soTarget * 1000, 1, 0) + "（" + str(soMin * 1000, 1, 0) + "〜" + str(soMax * 1000, 1, 0) + "、下限 " + str(soHardMin * 1000, 1, 0) + "）"
+ln[5] = region + "・粗度 " + roughness + "・" + sheetType
+ln[6] = "立面 " + elevMode
+ln[7] = "条件は設定ダイアログで変え、ツールバーを再実行"
+nL = 7
+w = 0
+for i = 1 to nL
+	w = max(w, stw(ln[i]) * GLOB_SCALE / 1000)
+next i
+pad = txH * 0.6
+h = nL * txH * 1.6 + pad
+pen 1
+rect2 0, 0, w + 2 * pad, -h
+line2 0, -txH * 1.6 - pad / 2, w + 2 * pad, -txH * 1.6 - pad / 2
+for i = 1 to nL
+	text2 pad, -pad - (i - 0.75) * txH * 1.6, ln[i]
+next i
+hotspot2 0, 0
+hotspot2 w + 2 * pad, -h
+
+! ==========================================================
+! ==== UIスクリプト ====
+! ==========================================================
+! 足場条件の設定ダイアログ（3ページ）
+ui_dialog "仮設足場の条件"
+ui_page 1, -1, "基本"
+ui_outfield "基本", 10, 5, 300, 18
+ui_outfield "工事名", 10, 30, 120, 18
+ui_infield "projName", 140, 28, 300, 20
+ui_outfield "モジュール", 10, 58, 120, 18
+ui_infield "moduleKind", 140, 56, 160, 20
+ui_outfield "系列（空＝既定）", 10, 86, 120, 18
+ui_infield "seriesId", 140, 84, 160, 20
+ui_outfield "足場の形式", 10, 114, 120, 18
+ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "設置期間（日）", 10, 142, 120, 18
+ui_infield "periodDays", 140, 140, 100, 20
+ui_outfield "現場名（設置届）", 10, 170, 120, 18
+ui_infield "siteName", 140, 168, 300, 20
+ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示）", 10, 205, 420, 18
+ui_page 2, -1, "高さ・離れ"
+ui_outfield "高さ・離れ", 10, 5, 300, 18
+ui_outfield "軒高", 10, 30, 160, 18
+ui_infield "eavesH", 180, 28, 120, 20
+ui_outfield "手すり分", 10, 58, 160, 18
+ui_infield "guardExtra", 180, 56, 120, 20
+ui_outfield "足場高さ（0＝軒高から）", 10, 86, 160, 18
+ui_infield "scaffH", 180, 84, 120, 20
+ui_outfield "建物高さ", 10, 114, 160, 18
+ui_infield "bldgH", 180, 112, 120, 20
+ui_outfield "離れ 目標", 10, 142, 160, 18
+ui_infield "soTarget", 180, 140, 120, 20
+ui_outfield "離れ 目標下限〜上限", 10, 170, 160, 18
+ui_infield "soMin", 180, 168, 80, 20
+ui_infield "soMax", 270, 168, 80, 20
+ui_outfield "離れ 下限（未満は採らない）", 10, 198, 160, 18
+ui_infield "soHardMin", 180, 196, 120, 20
+ui_page 3, -1, "安全・表示"
+ui_outfield "安全・表示", 10, 5, 300, 18
+ui_outfield "手すり", 10, 30, 140, 18
+ui_infield "railType", 160, 28, 160, 20
+ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "nextGen", 10, 80, 300, 20
+ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
+ui_infield "asagaoStages", 160, 106, 80, 20
+ui_outfield "地域・粗度・養生材", 10, 136, 140, 18
+ui_infield "region", 160, 134, 130, 20
+ui_infield "roughness", 300, 134, 50, 20
+ui_infield "sheetType", 360, 134, 110, 20
+ui_outfield "立面図", 10, 164, 140, 18
+ui_infield "elevMode", 160, 162, 160, 20
+ui_infield "lineMode3d", 10, 190, 300, 20
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+values "moduleKind" "metric", "inch"
+values "seriesId" "", "shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "waku"
+values "scaffForm" "本足場", "一側足場"
+values "railType" "布材", "先行手すり"
+values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
+values "roughness" "I", "II", "III", "IV"
+values "sheetType" "なし", "メッシュシート", "防音シート", "密閉シート"
+values "elevMode" "section", "object", "none"
+values "periodDays" range [1, ]
+values "asagaoStages" range [0, 3]
+

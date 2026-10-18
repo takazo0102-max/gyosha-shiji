@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from dev_gsm_iterate import build_current_gsm  # noqa: E402
 
-PARTS = ("ashiba_line", "ashiba_detail", "ashiba_mvo")
+PARTS = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec")
 
 
 def hsf_digest(part: str) -> str:

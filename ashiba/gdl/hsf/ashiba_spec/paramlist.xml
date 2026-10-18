@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+			<STBit_UIUseHierarchicalPages/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["寸法 1"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["寸法 2"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["高さ"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>0</Value>
+		</Length>
+		<String Name="projName">
+			<Description><![CDATA["工事名（図面・帳票の名前）"]]></Description>
+			<Value><![CDATA["足場計画"]]></Value>
+		</String>
+		<String Name="moduleKind">
+			<Description><![CDATA["モジュール metric／inch"]]></Description>
+			<Value><![CDATA["metric"]]></Value>
+		</String>
+		<String Name="seriesId">
+			<Description><![CDATA["系列（空ならモジュールの既定）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="eavesH">
+			<Description><![CDATA["軒高"]]></Description>
+			<Value>15.4</Value>
+		</Length>
+		<Length Name="guardExtra">
+			<Description><![CDATA["手すり分（最上層作業床＝軒高＋この値）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="scaffH">
+			<Description><![CDATA["足場高さを直接指定（0＝軒高から）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="bldgH">
+			<Description><![CDATA["建物高さ"]]></Description>
+			<Value>16.0</Value>
+		</Length>
+		<Integer Name="periodDays">
+			<Description><![CDATA["設置期間（日）"]]></Description>
+			<Value>90</Value>
+		</Integer>
+		<Length Name="soTarget">
+			<Description><![CDATA["離れ 目標"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="soMin">
+			<Description><![CDATA["離れ 目標下限"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Length Name="soMax">
+			<Description><![CDATA["離れ 目標上限"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<Length Name="soHardMin">
+			<Description><![CDATA["離れ 下限（これ未満は採らない）"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<String Name="scaffForm">
+			<Description><![CDATA["本足場／一側足場"]]></Description>
+			<Value><![CDATA["本足場"]]></Value>
+		</String>
+		<String Name="railType">
+			<Description><![CDATA["手すり 布材／先行手すり"]]></Description>
+			<Value><![CDATA["布材"]]></Value>
+		</String>
+		<Boolean Name="innerRail">
+			<Description><![CDATA["躯体側の手すり（布材）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="nextGen">
+			<Description><![CDATA["次世代足場"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Integer Name="asagaoStages">
+			<Description><![CDATA["朝顔の段数（0＝自動判定）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="region">
+			<Description><![CDATA["地域（基準風速）"]]></Description>
+			<Value><![CDATA["関東(内陸)"]]></Value>
+		</String>
+		<String Name="roughness">
+			<Description><![CDATA["地表面粗度区分"]]></Description>
+			<Value><![CDATA["III"]]></Value>
+		</String>
+		<String Name="sheetType">
+			<Description><![CDATA["養生材"]]></Description>
+			<Value><![CDATA["メッシュシート"]]></Value>
+		</String>
+		<String Name="siteName">
+			<Description><![CDATA["現場名（設置届）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="elevMode">
+			<Description><![CDATA["立面図 section＝断面図→レイアウト／object＝平面の下に2D／none"]]></Description>
+			<Value><![CDATA["section"]]></Value>
+		</String>
+		<Boolean Name="lineMode3d">
+			<Description><![CDATA["3Dを線で表示"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+	</Parameters>
+</ParamSection>

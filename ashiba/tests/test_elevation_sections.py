@@ -363,3 +363,27 @@ class TestPlanSheet(unittest.TestCase):
         # 実機の値: position = 2P − Rmin×k → Tapir の pos = position − clip最小角 = (-2.9, -2.85)
         self.assertAlmostEqual(pos["x"] - clip[0]["x"], -2.9)
         self.assertAlmostEqual(pos["y"] - clip[0]["y"], -2.85)
+
+
+class TestStalePrefixes(unittest.TestCase):
+    """工事名を変えて再実行したら、同じ建物の古い名前の断面・レイアウトを片付ける."""
+
+    def test_record_keeps_building_and_prefix(self):
+        import tempfile
+        from ashiba.elevation_sections import ElevationPlacement, load_record, load_record_meta, save_record, stale_prefixes
+
+        with tempfile.TemporaryDirectory() as d:
+            save_record(d, [ElevationPlacement("南面", "旧 南面 足場立面", section_guid="g1")], {}, "300.0,300.0,330.0,320.0", "旧")
+            rec = save_record(d, [ElevationPlacement("南面", "他 南面 足場立面", section_guid="g2")], load_record(d),
+                              "400.0,300.0,430.0,320.0", "他")
+            meta = load_record_meta(d)
+            self.assertEqual(load_record(d), {"旧 南面 足場立面": "g1", "他 南面 足場立面": "g2"})   # _meta は混ざらない
+            self.assertEqual(stale_prefixes(rec, meta, "300.0,300.0,330.0,320.0", "新"), {"旧": ["旧 南面 足場立面"]})
+            self.assertEqual(stale_prefixes(rec, meta, "300.0,300.0,330.0,320.0", "旧"), {})        # 同じ名前は対象外
+            self.assertEqual(stale_prefixes(rec, meta, "500.0,300.0,530.0,320.0", "新"), {})        # 別の建物は触らない
+
+    def test_building_key(self):
+        from ashiba.elevation_sections import building_key
+
+        self.assertEqual(building_key([(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]),
+                         "300.0,300.0,330.0,320.0")
