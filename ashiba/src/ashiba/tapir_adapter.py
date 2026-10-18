@@ -524,6 +524,22 @@ class ArchicadClient:
     # 足場の色（アルミ）。日本語版・英語版の名前の順に探し、無ければ「アルミ」を含む表面材
     ALUMINIUM_SURFACES = ("金属 - アルミニウム", "Metal - Aluminium", "Metal - Aluminum")
 
+    # 部材ごとの色（表面材の名前の候補を順に。無ければ次の候補、どれも無ければその部材は足場と同じ）。
+    # 足場（支柱・布材・手すり・階段）＝アルミ、踏板＝亜鉛めっき鋼、幅木＝黄（現場で目立たせる色）
+    MEMBER_SURFACES = {
+        "matScaf": (("金属 - アルミニウム", "Metal - Aluminium", "Metal - Aluminum"), ("アルミ", "Alumin")),
+        "matDeck": (("金属 - 亜鉛", "Metal - Zinc"), ("亜鉛", "Zinc", "Galvan")),
+        "matToe": (("塗装 - 黄", "ペイント - 黄", "Paint - Yellow"), ("黄", "Yellow")),
+    }
+
+    def find_member_surfaces(self) -> dict:
+        """足場の部材ごとの表面材の番号 {"matScaf": n, ...}. 見つからない部材は入れない."""
+        try:
+            attrs = self.tapir("GetAttributesByType", {"attributeType": "Surface"}).get("attributes", [])
+        except TapirError:
+            return {}
+        return pick_member_surfaces(attrs, self.MEMBER_SURFACES)
+
     def find_aluminium_surface(self) -> int:
         """プロジェクトの表面材からアルミの番号を返す. 見つからなければ 0（部品は既定の表面材のまま）.
 
@@ -541,6 +557,22 @@ class ArchicadClient:
             return int(hit["index"]) if hit else 0
         except (KeyError, TypeError, ValueError):
             return 0
+
+
+def pick_member_surfaces(attrs: list[dict], table: dict) -> dict:
+    """表面材の一覧（GetAttributesByType）から部材ごとの番号を選ぶ（完全一致の名前→部分一致の語の順）."""
+    by_name = {str(a.get("name", "")): a for a in attrs}
+    out = {}
+    for key, (exact, words) in table.items():
+        hit = next((by_name[n] for n in exact if n in by_name), None)
+        if hit is None:
+            hit = next((a for a in attrs if any(w in str(a.get("name", "")) for w in words)), None)
+        try:
+            if hit is not None and int(hit["index"]) > 0:
+                out[key] = int(hit["index"])
+        except (KeyError, TypeError, ValueError):
+            pass
+    return out
 
 
 # ---- 高水準API ----------------------------------------------------------
@@ -634,8 +666,8 @@ def place_scaffold_lines(
     """
     client = client or ArchicadClient()
     placed: list[dict] = []
-    # 足場の色はアルミ（利用者の指定 2026-10-18）。表面材の番号はプロジェクトごとに違うので名前で探す
-    mat = client.find_aluminium_surface()
+    # 足場の色（部材ごと。アルミは利用者の指定 2026-10-18）。表面材の番号はプロジェクトごとに違うので名前で探す
+    mats = client.find_member_surfaces()
     # 途中で失敗したら、置いた分を消してから投げる。中途半端な足場が
     # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
     with _rollback_on_error(client, placed):
@@ -653,7 +685,7 @@ def place_scaffold_lines(
                     model, ep, stair_plan=stair_plan, openings=openings,
                     platforms=platforms, bracket_sections=bracket_sections,
                     terrain=terrain,
-                ), **({"matScaf": mat} if mat else {})},
+                ), **mats},
                 object_name,
             )
     return placed

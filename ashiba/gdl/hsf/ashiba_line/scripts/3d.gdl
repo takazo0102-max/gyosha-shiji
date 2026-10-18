@@ -5,9 +5,30 @@
 pen 1
 ! 表面材: 配置時に Python がプロジェクトのアルミ（金属 - アルミニウム）を入れる。0 は既定のまま
 if matScaf > 0 then material matScaf
+! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線。足場は支柱・布材・コマで数千の部材になり、
+! 建物一周を精細で出すと Archicad の3D・断面の生成が重く、操作しづらかった（利用者の指摘 2026-10-19）。
+! 軽量はコマ（緊結部の座）・布材の爪・支柱の継手のカラー・ジャッキのハンドルを省き、円柱を6角にする
+! （部材の位置・本数・寸法は精細と同じなので、干渉確認と図面には足りる）。自動は面の大きさで決める
+d3 = detail3d
+! モデル表示オプション（ashiba_mvo）の 3Dの表現: 1=精細 3=軽量 2=線 が部品の設定より優先
+mvD = 0
+if LIBRARYGLOBAL(mvoName, "mode3d", mvD) then
+	if mvD = 1 then d3 = 1
+	if mvD = 3 then d3 = 2
+	if mvD = 2 then d3 = 3
+endif
+if d3 < 1 or d3 > 3 then
+	d3 = 1
+	if nSpan * (nLv - 1) > 40 then d3 = 2
+endif
+if d3 = 3 then lineMode = 1
+light = 0
+if d3 = 2 then light = 1
 ! 円柱の分割数。既定36だと30m面1つの3D生成に約40秒（支柱・布材・コマで数千本）。
-! 12にすると見た目は保ったまま面数が1/3になる。コマ・ナットは6
-resol 12
+! 精細は12（見た目は保ったまま面数が1/3）、軽量は6。コマ・ナットは6
+rN = 12
+if light then rN = 6
+resol rN
 
 ! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
 ! （パラメータスクリプト）。全面・帳票はパレットの「解き直し」で追従する。
@@ -47,6 +68,7 @@ endif
 mv3d = 0
 if LIBRARYGLOBAL(mvoName, "mode3d", mv3d) then
 	if mv3d = 1 then lineMode = 0
+	if mv3d = 3 then lineMode = 0
 	if mv3d = 2 then lineMode = 1
 endif
 if lineMode then
@@ -86,7 +108,7 @@ for ip = 1 to nSpan + 1
 				for j = 1 to nPost
 					cylind posts[j], r_sic
 					addz posts[j]
-					if j < nPost then
+					if j < nPost and light = 0 then
 						addz -0.03
 						cylind 0.06, r_sic + 0.006
 						del 1
@@ -129,7 +151,7 @@ if cornerS = 1 then
 		for j = 1 to nPost
 			cylind posts[j], r_sic
 			addz posts[j]
-			if j < nPost then
+			if j < nPost and light = 0 then
 				addz -0.03
 				cylind 0.06, r_sic + 0.006
 				del 1
@@ -137,7 +159,7 @@ if cornerS = 1 then
 		next j
 		del nPost + 2
 	endif
-	if komaPitch > 0 then
+	if komaPitch > 0 and light = 0 then
 		resol 6
 		zk = lv[1]
 		while zk < postTop - 0.01 do
@@ -146,7 +168,7 @@ if cornerS = 1 then
 			del 1
 			zk = zk + komaPitch
 		endwhile
-		resol 12
+		resol rN
 	endif
 	for il = 1 to nLv
 		z = lv[il]
@@ -198,7 +220,7 @@ endif
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
-if komaPitch > 0 then
+if komaPitch > 0 and light = 0 then
 	resol 6
 	x = 0
 	for ip = 1 to nSpan + 1
@@ -219,7 +241,7 @@ if komaPitch > 0 then
 		next row
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
-	resol 12
+	resol rN
 endif
 
 ! ---- 水平材（根がらみ＋各作業層） ----
@@ -418,6 +440,7 @@ if showDeck then
 			next ib4
 			if skipAll = 0 then
 				if skipDeck = 0 then
+					if matDeck > 0 then material matDeck
 					! 踏板は支柱芯から 70 逃げて両端の爪で布材に掛かる（次世代足場.gsm の寸法）。
 					! 支柱に食い込んで描くと、支柱位置の納まりが見えない
 					add x + 0.07, -rowW + 0.05, z
@@ -445,10 +468,12 @@ if showDeck then
 							abs(z - bkH[ik4]) < 0.001 then inSg = 1
 				next ik4
 				if railAdv = 0 and inSg = 0 then
+					if matToe > 0 then material matToe
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157
 					del 1
 				endif
+				if matScaf > 0 then material matScaf
 			endif
 			x = x + spans[ip]
 		next ip
@@ -784,6 +809,30 @@ for it5 = 1 to nSt
 			cylind 0.95, r_nuno
 			del 1
 		next sd
+		! 階段開口部手摺枠＋開口部幅木（出入口1か所に1組。数量の「階段開口部手摺・幅木」と同じ）。
+		! 上の層では、この階段の上がり口（下端 x0）の真上が床と開口の境になる。床の側から開口へ
+		! 落ちないよう、床幅いっぱいに手すり（高さ900）・中桟（450）・幅木（157）の枠を立てる
+		zg = lv[il5 + 1]
+		gy0 = -rowW + 0.05
+		gw = rowW - 0.10
+		for gk = 0 to 1
+			add x0 + 0.03, gy0 + gk * gw, zg
+			cylind 0.95, r_nuno
+			del 1
+		next gk
+		add x0 + 0.03, gy0, zg + 0.90
+		rotx -90
+		cylind gw, r_nuno
+		del 2
+		add x0 + 0.03, gy0, zg + 0.45
+		rotx -90
+		cylind gw, r_nuno
+		del 2
+		if matToe > 0 then material matToe
+		add x0 + 0.01, gy0, zg + 0.045
+		block 0.02, gw, 0.157
+		del 1
+		if matScaf > 0 then material matScaf
 	next il5
 next it5
 
@@ -880,12 +929,15 @@ del 1
 add 0, 0, jo - 0.03
 resol 6
 cylind 0.03, 0.045
-resol 12
-addz 0.015
-roty 90
-add 0, 0, -0.09
-cylind 0.18, 0.006
-del 4
+resol rN
+if light = 0 then
+	addz 0.015
+	roty 90
+	add 0, 0, -0.09
+	cylind 0.18, 0.006
+	del 3
+endif
+del 1
 return
 
 800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
@@ -912,12 +964,14 @@ add 0.078, 0, 0
 roty 90
 cylind nL - 0.156, r_nuno
 del 2
-add 0.026, -0.010, -0.012
-block 0.052, 0.020, 0.024
-del 1
-add nL - 0.078, -0.010, -0.012
-block 0.052, 0.020, 0.024
-del 1
+if light = 0 then
+	add 0.026, -0.010, -0.012
+	block 0.052, 0.020, 0.024
+	del 1
+	add nL - 0.078, -0.010, -0.012
+	block 0.052, 0.020, 0.024
+	del 1
+endif
 return
 
 ! ============================================================

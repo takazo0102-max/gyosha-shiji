@@ -109,7 +109,8 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
     # 立面図の配置でだけ設定するもの／GDL既定で足りる表示切替
     VIEW_ONLY = {"viewMode", "faceName", "flList"}
     # matScaf は配置時に Archicad の表面材から探して入れる（line_params は Archicad を知らない）
-    DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen", "matScaf"}
+    # detail3d は利用者が部品の設定で選ぶ（既定 0＝自動）
+    DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen", "matScaf", "matDeck", "matToe", "detail3d"}
     # 部品の1Dスクリプトが図示本数を計算して書き戻す出力専用（Python からは渡さない）
     OUTPUT_ONLY = {"qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair",
                    "xEdit", "lastMod"}

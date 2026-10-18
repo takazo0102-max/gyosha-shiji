@@ -305,3 +305,21 @@ class TestAluminiumSurface(unittest.TestCase):
     def test_missing_is_zero(self):
         """無ければ 0（部品は既定の表面材のまま）."""
         self.assertEqual(self._client(["塗装", "木"]).find_aluminium_surface(), 0)
+
+
+class TestMemberSurfaces(unittest.TestCase):
+    """部材ごとの色: 足場＝アルミ、踏板＝亜鉛、幅木＝黄。名前が無ければ部分一致、それも無ければ入れない."""
+
+    def test_pick(self):
+        from ashiba.tapir_adapter import ArchicadClient, pick_member_surfaces
+
+        attrs = [{"index": 45, "name": "金属 - アルミニウム"}, {"index": 47, "name": "金属 - 亜鉛"},
+                 {"index": 70, "name": "塗装 - 黄 マット"}]
+        got = pick_member_surfaces(attrs, ArchicadClient.MEMBER_SURFACES)
+        self.assertEqual(got, {"matScaf": 45, "matDeck": 47, "matToe": 70})
+
+    def test_missing_member_is_left_out(self):
+        from ashiba.tapir_adapter import ArchicadClient, pick_member_surfaces
+
+        got = pick_member_surfaces([{"index": 45, "name": "金属 - アルミニウム"}], ArchicadClient.MEMBER_SURFACES)
+        self.assertEqual(got, {"matScaf": 45})

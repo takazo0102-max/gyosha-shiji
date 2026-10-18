@@ -527,8 +527,8 @@ class TestPartialPlacementIsRolledBack(unittest.TestCase):
         def find_red_pen(self, default=20):
             return 20
 
-        def find_aluminium_surface(self):
-            return 45
+        def find_member_surfaces(self):
+            return {"matScaf": 45, "matDeck": 47}
 
     def test_scaffold_lines_are_removed(self):
         from ashiba.tapir_adapter import TapirError, place_scaffold_lines
@@ -1136,3 +1136,40 @@ class TestPlanDimensions(unittest.TestCase):
         i = self.body.index("985:")
         sub = self.body[i:i + 600]
         self.assertIn("if SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001 then rot2 180 else rot2 0", sub)
+
+
+class TestLight3D(unittest.TestCase):
+    """3Dの細かさ: 自動・精細・軽量・線。軽量はコマ・爪・継手・ハンドルを省き円柱を6角に."""
+
+    def setUp(self):
+        self.body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                     ).read_text(encoding="utf-8")
+
+    def test_levels_and_auto(self):
+        self.assertIn("if nSpan * (nLv - 1) > 40 then d3 = 2", self.body)
+        self.assertIn("if light then rN = 6", self.body)
+        self.assertNotIn("resol 12", self.body)          # 戻すときも rN（軽量では6のまま）
+
+    def test_light_skips_small_parts(self):
+        self.assertEqual(self.body.count("if komaPitch > 0 and light = 0 then"), 2)   # コマ（外側コーナー含む）
+        self.assertEqual(self.body.count("if j < nPost and light = 0 then"), 2)       # 支柱の継手のカラー
+        self.assertIn("if light = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
+
+    def test_mvo_overrides(self):
+        self.assertIn('if LIBRARYGLOBAL(mvoName, "mode3d", mvD) then', self.body)
+        vl = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_mvo" / "scripts" / "vl.gdl"
+              ).read_text(encoding="utf-8")
+        self.assertIn('3, "立体（軽量）"', vl)
+
+
+class TestStairOpeningGuard3D(unittest.TestCase):
+    """階段開口部手摺枠＋幅木を、各層の階段の上がり口の真上に描く（数量の出入口1か所に1組と同じ）."""
+
+    def test_guard_frame_at_low_end_of_flight(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        i = body.index("! 階段開口部手摺枠＋開口部幅木")
+        sub = body[i:i + 1200]
+        self.assertIn("zg = lv[il5 + 1]", sub)
+        self.assertIn("add x0 + 0.03, gy0, zg + 0.90", sub)
+        self.assertIn("block 0.02, gw, 0.157", sub)

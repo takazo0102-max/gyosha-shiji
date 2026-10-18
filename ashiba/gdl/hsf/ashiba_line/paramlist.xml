@@ -129,6 +129,18 @@
 			<Description><![CDATA["3D線表示（計画初期・大規模向けの軽い表現）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Integer Name="detail3d">
+			<Description><![CDATA["3Dの細かさ 0=自動 1=精細 2=軽量 3=線"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Material Name="matDeck">
+			<Description><![CDATA["踏板の表面材（0＝足場と同じ）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matToe">
+			<Description><![CDATA["幅木の表面材（0＝足場と同じ）"]]></Description>
+			<Value>0</Value>
+		</Material>
 		<Material Name="matScaf">
 			<Description><![CDATA["足場の表面材（0＝既定。配置時にアルミを入れる）"]]></Description>
 			<Value>0</Value>
