@@ -521,13 +521,36 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
             f"出隅コーナーの幅木（呼び{udegi}mm、{n_corners * n_levels * 2}本）がマスタにありません",
             Notes.ORDER,
         )
-    # コーナーの床（{udegi}mm角）は踏板のセル数（スパン×層）には入れない。
-    # 専用のコーナー踏板か隙間塞ぎで対応するので、手配として枚数を出す
-    notes.action(
-        f"外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
-        f"（{udegi}mm角）は踏板の数量に含んでいません（コーナー踏板または隙間塞ぎを別途手配）",
-        Notes.ORDER,
-    )
+    # コーナーの床（{udegi}mm角）は、長さ{udegi}の踏板を本体の床と同じ幅の組み合わせで敷く
+    # （升目は建地列間隔の長さのスパン1つと同じ形）。系列のマスタにある実在の踏板で拾い、
+    # 無い幅だけ手配に出す（以前は全部を「別途手配」の注意にしていた）
+    if model.config.scaffold_form == "一側足場":
+        # 一側はコーナーの升目がブラケットの床幅で決まり、建地列間隔の正方形にならない
+        notes.action(
+            f"外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
+            "は踏板の数量に含んでいません（一側足場のコーナーはコーナー踏板または隙間塞ぎを別途手配）",
+            Notes.ORDER,
+        )
+        return
+    missing = []
+    for w in model.deck_widths_in_use:
+        part = m.deck_parts(w, udegi)
+        if part is None:
+            missing.append(w)
+            continue
+        add(part, n_corners * n_levels, f"出隅コーナーの踏板 幅{w}×{udegi}")
+    if missing:
+        notes.action(
+            f"出隅コーナー{n_corners}箇所×{n_levels}層の床に敷く長さ{udegi}の踏板"
+            f"（幅{'・'.join(str(w) for w in missing)}）がマスタにありません"
+            "（コーナー踏板または隙間塞ぎを別途手配）",
+            Notes.ORDER,
+        )
+    else:
+        notes.append(
+            f"出隅コーナーの床は長さ{udegi}の踏板（幅{'+'.join(str(w) for w in model.deck_widths_in_use)}）"
+            f"を{n_corners}箇所×{n_levels}層で計上"
+        )
 
 
 def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "") -> None:

@@ -1010,7 +1010,9 @@ class TestFaceDrawnCounts(unittest.TestCase):
         self.assertEqual(tot["qtyTie"], len(m.wall_ties))
         self.assertEqual(tot["qtyStair"], r.stair_plan.count * m.elevation.n_levels)
         widths = list(m.deck_widths_in_use)
-        self.assertEqual(tot["qtyDeck"] * len(widths), q.qty_of(m.master.deck_category))
+        # 出隅コーナーの床（長さ＝建地列間隔の踏板）は面の図示本数に入らない（幅木と同じ扱い）
+        corner_decks = m.outer_corner_posts() * m.elevation.n_levels * len(widths)
+        self.assertEqual(tot["qtyDeck"] * len(widths), q.qty_of(m.master.deck_category) - corner_decks)
         self.assertEqual(tot["qtyToe"], q.qty_of("幅木") - m.outer_corner_posts() * 2 * m.elevation.n_levels)
         # 布材（面に沿う分）: 数量表の1スパンあたりの式と同じ
         rules = QuantityRules()

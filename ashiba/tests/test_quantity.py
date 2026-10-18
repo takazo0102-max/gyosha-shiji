@@ -47,14 +47,19 @@ class TestQuantity(unittest.TestCase):
         self.assertEqual(self.q.qty_of("布材", udegi) - self.plan.total_posts * (nl + 1),
                          4 * 2 * (1 + nl * 3))
         self.assertEqual(self.q.qty_of("幅木", udegi), 4 * nl * 2)
-        self.assertTrue(any("コーナー踏板" in n for n in self.q.notes), self.q.notes)
+        # コーナーの床は長さ＝建地列間隔の踏板で計上（以前は「別途手配」の注意だった）
+        self.assertTrue(any(n.startswith("出隅コーナーの床は長さ") for n in self.q.notes), self.q.notes)
+        self.assertFalse(any("コーナー踏板" in n for n in self.q.notes), self.q.notes)
 
     def test_deck_counts(self):
-        # 踏板: スパン数×層数×幅構成2枚
+        # 踏板: スパン数×層数×幅構成2枚 ＋ 出隅コーナー4箇所×層数×2枚（長さ＝建地列間隔）
         n_deck = self.q.qty_of("踏板")
         self.assertEqual(
-            n_deck, self.plan.total_spans * self.elev.n_levels * 2
+            n_deck, self.plan.total_spans * self.elev.n_levels * 2 + 4 * self.elev.n_levels * 2
         )
+        udegi = self.model.post_row_spacing_mm
+        self.assertEqual(self.q.qty_of("踏板", udegi) - 0, sum(
+            l.qty for l in self.q.lines if l.part.category == "踏板" and l.part.nominal_dim == udegi))
 
     def test_braces_use_standard_spacing(self):
         """斜材は全構面ではなく設置間隔から算出する.
@@ -363,11 +368,16 @@ class TestSingleRowScaffold(unittest.TestCase):
         )
 
     def setUp(self):
-        self.both = take_off(self._model("本足場"))
+        self.both_model = self._model("本足場")
+        self.both = take_off(self.both_model)
         self.one = take_off(self._model("一側足場"))
 
     def test_decks_are_halved(self):
-        self.assertEqual(self.one.qty_of("踏板"), self.both.qty_of("踏板") // 2)
+        # 本足場の出隅コーナーの床（長さ＝建地列間隔の踏板2枚×出隅×層）は一側には無い（別途手配の注意）
+        m = self.both_model
+        corner = m.outer_corner_posts() * m.elevation.n_levels * 2
+        self.assertEqual(self.one.qty_of("踏板"), (self.both.qty_of("踏板") - corner) // 2)
+        self.assertTrue(any("一側足場のコーナー" in n for n in self.one.notes), self.one.notes)
 
     def test_only_the_widest_board_is_used(self):
         widths = {
@@ -444,7 +454,8 @@ class TestDeckCellsReconcile(unittest.TestCase):
         n_spans, nl = m.plan.total_spans, m.elevation.n_levels
         self.assertIn(f"スパン{n_spans}×作業層{nl}層＝{n_spans * nl}セル", note)
         final = int(re.search(r"(\d+)セルで計上", note).group(1))
-        per_width = self._cells(q, "踏板") / len(m.config.deck_widths)
+        corner = m.outer_corner_posts() * nl * len(m.config.deck_widths)   # 出隅コーナーの床
+        per_width = (self._cells(q, "踏板") - corner) / len(m.config.deck_widths)
         self.assertEqual(final, per_width)
 
     def test_stair_towers_are_named_in_the_note(self):
@@ -536,3 +547,30 @@ class TestSingleRowLedgers(unittest.TestCase):
         self.assertIn("根がらみ1本", note)
         self.assertIn("床レベル1本", note)
 
+
+
+class TestCornerDeckPlanks(unittest.TestCase):
+    """出隅コーナーの床（Phase 11-2）: マスタの長さ＝建地列間隔の踏板で拾い、無い幅だけ手配に出す."""
+
+    def _q(self, **extra):
+        from ashiba.cli import solve_all
+
+        spec = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 15400, "building_height_mm": 16000}
+        spec.update(extra)
+        return solve_all(spec)
+
+    def test_real_parts_by_series(self):
+        for sid, no in (("shinwa_A", "SD-2506"), ("nikken_nd1800", "NDN224")):
+            r = self._q(series_id=sid)
+            nl = r.model.elevation.n_levels
+            line = next(l for l in r.quantity.lines if l.part.model_no == no)
+            self.assertTrue(any(str(n).startswith("出隅コーナーの床は長さ") for n in r.quantity.notes), sid)
+            self.assertGreaterEqual(line.qty, 4 * nl, sid)
+
+    def test_missing_width_goes_to_order_notes(self):
+        r = self._q(series_id="shinwa_A", next_gen=True)        # 幅500 の長さ600 はマスタに無い
+        if 500 not in r.model.deck_widths_in_use:
+            self.skipTest("次世代の床幅が500でない")
+        acts = [str(n) for n in r.quantity.notes if "長さ600の踏板" in str(n)]
+        self.assertTrue(any("幅500" in a and "マスタにありません" in a for a in acts), acts)

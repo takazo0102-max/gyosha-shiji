@@ -76,6 +76,10 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     if l.part.category == cat:
                         w = next((t for t in l.part.note.split() if t.startswith("幅")), "?")
                         per_width[w] = per_width.get(w, 0) + l.qty
+                # 出隅コーナーの床（長さ＝建地列間隔の踏板、出隅×層）はセル数の外
+                if any(str(n).startswith("出隅コーナーの床は") for n in r.quantity.notes):
+                    corner = r.model.outer_corner_posts() * r.model.elevation.n_levels
+                    per_width = {w: n - corner for w, n in per_width.items()}
                 # 標準幅（ステージ等の追加が無い幅）はセル数と一致する
                 self.assertIn(final, per_width.values(), (name, per_width, final))
 
