@@ -110,3 +110,159 @@ def snap_boundary(spans: list[int], i: int, want_mm: float, allowed: Iterable[in
         if y in sizes and y <= x:
             return out[: i - 2] + [best, x, y] + out[i:]
     return out
+
+
+# ---------------------------------------------------------------- 階段室の位置（Phase 10-2）
+
+def stairs_from_params(params: dict) -> list[tuple[int, int]]:
+    """読み戻した stairList（「開始,長さ」の繰り返し mm）→ [(開始, 長さ)]."""
+    vals = []
+    for t in str(params.get("stairList") or "").split(","):
+        t = t.strip()
+        if not t:
+            continue
+        try:
+            vals.append(int(round(float(t))))
+        except ValueError:
+            return []
+    return [(vals[i], vals[i + 1]) for i in range(0, len(vals) - 1, 2)]
+
+
+def stair_positions_from_readback(
+    plan_edges: Iterable[dict], towers: Iterable[dict], readbacks: Iterable[tuple[tuple[float, float], dict]],
+) -> tuple[Optional[list[dict]], list[str]]:
+    """平面で引いた階段室の位置 → 入力の stairs.positions（全階段室ぶん）と案内.
+
+    どれも動いていなければ None（入力を変えない）。動いていれば、全部の階段室を位置指定に
+    する（positions を書くと自動配置をやめるので、動かしていない階段室も今の位置で書く）。
+    スパン数は配置時の階段室のものを使う（部品は同じスパン数で長さを取り直している）。
+    """
+    plan_edges = list(plan_edges)
+    by_edge: dict[int, list[dict]] = {}
+    for t in towers:
+        by_edge.setdefault(int(t["edge_index"]), []).append(t)
+    for v in by_edge.values():
+        v.sort(key=lambda t: float(t["start_mm"]))
+    read: dict[int, list[tuple[int, int]]] = {}
+    for origin, params in readbacks:
+        e = match_edge(plan_edges, origin)
+        if e is not None:
+            read[int(e["edge_index"])] = stairs_from_params(params)
+    face = {int(e["edge_index"]): e.get("face") or f"辺{e['edge_index']}" for e in plan_edges}
+    notes: list[str] = []
+    out: list[dict] = []
+    moved = False
+    for ei in sorted(by_edge):
+        planned = by_edge[ei]
+        got = read.get(ei)
+        if got is None or len(got) != len(planned):
+            if got is not None:
+                notes.append(f"{face.get(ei, ei)}: 階段室の数が配置時と違うので位置は読み戻しません"
+                             f"（配置{len(planned)}・部品{len(got)}）")
+            got = [(int(float(t["start_mm"])), int(t.get("length_mm") or 0)) for t in planned]
+        for t, (start, _length) in zip(planned, sorted(got)):
+            if abs(start - float(t["start_mm"])) > 1:
+                moved = True
+                notes.append(f"{face.get(ei, ei)}: 階段室 {float(t['start_mm']):.0f} → {start}mm")
+            out.append({"edge_index": ei, "start_mm": start, "span_count": int(t.get("span_count") or 2),
+                        "reason": "平面で位置を指定（読み戻し）"})
+    return (out if moved else None), notes
+
+
+def merge_stairs(spec: dict, positions: list[dict]) -> dict:
+    """入力の stairs.positions を置き換える（stairs の他の項目は残す）."""
+    out = dict(spec)
+    st = dict(out.get("stairs") or {})
+    st["positions"] = [dict(p) for p in positions]
+    st.pop("count", None)          # 位置指定のときは箇所数は positions の数
+    out["stairs"] = st
+    return out
+
+
+# ---------------------------------------------------------------- 荷受けステージ・昇降機の位置（Phase 10-2）
+
+def _groups(text, size: int) -> list[list[int]]:
+    vals = []
+    for t in str(text or "").split(","):
+        t = t.strip()
+        if not t:
+            continue
+        try:
+            vals.append(int(round(float(t))))
+        except ValueError:
+            return []
+    return [vals[i:i + size] for i in range(0, len(vals) - size + 1, size)]
+
+
+def _distinct_firsts(groups: list[list[int]]) -> list[int]:
+    out: list[int] = []
+    for g in groups:
+        if g and g[0] not in out:
+            out.append(g[0])
+    return out
+
+
+def platform_moves_from_readback(
+    plan_edges: Iterable[dict], platforms: Optional[dict], readbacks: Iterable[tuple[tuple[float, float], dict]],
+) -> tuple[list[tuple[int, float, int]], list[tuple[int, float, int]], list[str]]:
+    """平面で引いたステージ・昇降機 → (ステージの移動, 昇降機の移動, 案内).
+
+    移動は (辺, 配置時の位置, 読み戻した位置)。部品のリストは Python が送った順
+    （plan.json の platforms の順を辺で絞ったもの）に並んでいるので、順番で対応を取る。
+    ステージは層ごとに同じ開始の組が並ぶので、最初に現れた開始位置の順で数える。
+    """
+    plan_edges = list(plan_edges)
+    platforms = platforms or {}
+    face = {int(e["edge_index"]): e.get("face") or f"辺{e['edge_index']}" for e in plan_edges}
+    read: dict[int, dict] = {}
+    for origin, params in readbacks:
+        e = match_edge(plan_edges, origin)
+        if e is not None:
+            read[int(e["edge_index"])] = params
+    stage_moves: list[tuple[int, float, int]] = []
+    hoist_moves: list[tuple[int, float, int]] = []
+    notes: list[str] = []
+    for kind, key, items, moves, size in (
+        ("荷受けステージ", "stageList", platforms.get("stages") or [], stage_moves, 5),
+        ("昇降機", "hoistList", platforms.get("hoists") or [], hoist_moves, 5),
+    ):
+        field_name = "start_mm" if key == "stageList" else "position_mm"
+        by_edge: dict[int, list[dict]] = {}
+        for it in items:
+            by_edge.setdefault(int(it["edge_index"]), []).append(it)
+        for ei, planned in by_edge.items():
+            if ei not in read:
+                continue
+            got = _distinct_firsts(_groups(read[ei].get(key), size))
+            if len(got) != len(planned):
+                notes.append(f"{face.get(ei, ei)}: {kind}の数が配置時と違うので位置は読み戻しません"
+                             f"（配置{len(planned)}・部品{len(got)}）")
+                continue
+            for it, new in zip(planned, got):
+                old = float(it[field_name])
+                if abs(new - old) > 1:
+                    moves.append((ei, old, new))
+                    notes.append(f"{face.get(ei, ei)}: {kind} {old:.0f} → {new}mm")
+    return stage_moves, hoist_moves, notes
+
+
+def merge_platform_moves(spec: dict, plan_edges: Iterable[dict], stage_moves, hoist_moves) -> tuple[dict, list[str]]:
+    """入力の loading_stages・hoists の位置を書き換える（辺は edge_index か face で照合）."""
+    face = {int(e["edge_index"]): e.get("face") for e in plan_edges}
+    out = dict(spec)
+    notes: list[str] = []
+    for key, field_name, moves, kind in (("loading_stages", "start_mm", stage_moves, "荷受けステージ"),
+                                         ("hoists", "position_mm", hoist_moves, "昇降機")):
+        if not moves:
+            continue
+        items = [dict(x) for x in (spec.get(key) or [])]
+        for ei, old, new in moves:
+            hit = next((x for x in items
+                        if (x.get("edge_index") == ei or (x.get("edge_index") is None and x.get("face") == face.get(ei)))
+                        and abs(float(x.get(field_name, -1e9)) - old) <= 1), None)
+            if hit is None:
+                notes.append(f"{face.get(ei) or ei}: 入力に位置{old:.0f}の{kind}が見つからないので書き換えません")
+                continue
+            hit[field_name] = new
+        out[key] = items
+    return out, notes

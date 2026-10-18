@@ -214,6 +214,12 @@ def line_params(
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
         # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
         "stairList": _stair_list(ep, stair_plan),
+        # 階段室の開始位置（平面の編集ホットスポット）。stairList とそろえて送る。部品は両者が
+        # 食い違えば「引かれた」とみなしてスパン境界へ吸着する（vl.gdl）
+        "stEdit": _stair_edit(ep, stair_plan),
+        # ステージ・昇降機の位置（同じく stageList・hoistList とそろえて送る）
+        "sgEdit": _list_edit(_stage_list(model, ep, platforms), 5),
+        "hoEdit": _list_edit(_hoist_list(model, ep, platforms), 5),
         # 梁枠。「開始,スパン,梁下高さ」の繰り返し
         "beamList": _beam_list(model, ep, openings),
         # 荷受けステージ。「開始,長さ,出,設置高さ,方杖」の繰り返し
@@ -310,6 +316,20 @@ def _stair_list(ep, stair_plan) -> str:
         if t.edge_index == ep.edge_index:
             parts += [str(int(t.start_mm)), str(int(t.length_mm))]
     return ",".join(parts)
+
+
+def _stair_edit(ep, stair_plan) -> list[float]:
+    """stairList の開始位置（m）の配列。階段室が無ければ [0]（配列は空にできない）."""
+    starts = [float(t.start_mm) / 1000.0 for t in (getattr(stair_plan, "towers", None) or [])
+              if t.edge_index == ep.edge_index]
+    return starts or [0.0]
+
+
+def _list_edit(text: str, group: int) -> list[float]:
+    """「位置,…」が group 個ずつ並ぶリストの、各組の先頭（m）の配列。空なら [0]."""
+    vals = [v for v in text.split(",") if v.strip()]
+    starts = [float(vals[i]) / 1000.0 for i in range(0, len(vals) - group + 1, group)]
+    return starts or [0.0]
 
 
 def _beam_list(model: ScaffoldModel, ep, openings) -> str:

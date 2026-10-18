@@ -48,6 +48,24 @@
 				<AVal Row="2">1.8</AVal>
 			</ArrayValues>
 		</Length>
+		<Length Name="stEdit">
+			<Description><![CDATA["階段室の開始位置（編集ホットスポット用。パラメータスクリプトが stairList から作り直す）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
+		<Length Name="sgEdit">
+			<Description><![CDATA["荷受けステージの開始位置（編集ホットスポット用。stageList の並びと同じ）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
+		<Length Name="hoEdit">
+			<Description><![CDATA["昇降機の位置（編集ホットスポット用。hoistList の並びと同じ）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
 		<String Name="lastMod">
 			<Description><![CDATA["診断: 直前に変わったパラメータ名|xEditの要素数|nSpan（1Dが書く）"]]></Description>
 			<Flags>

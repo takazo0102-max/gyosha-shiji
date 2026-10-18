@@ -1,4 +1,7 @@
-"""Archicad 上でホットスポット編集したスパンを読み戻し、入力の span_overrides に落とす.
+"""Archicad 上でホットスポット編集したスパンと階段室の位置を読み戻し、入力に落とす.
+
+スパン → span_overrides、階段室（建地列の中央のホットスポット）→ stairs.positions、
+荷受けステージ・昇降機（張り出し床・搬器の中央）→ loading_stages・hoists の位置。
 
 足場ラインの平面で支柱位置のホットスポットを引くと、部品が規格寸法に吸着して spanList を
 書き戻す。このスクリプトは配置時の plan.json と突き合わせ、変わった面を span_overrides に
@@ -23,7 +26,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ashiba.span_readback import match_edge, merge_overrides, overrides_from_readback  # noqa: E402
+from ashiba.span_readback import (  # noqa: E402
+    match_edge,
+    merge_overrides,
+    merge_platform_moves,
+    merge_stairs,
+    overrides_from_readback,
+    platform_moves_from_readback,
+    stair_positions_from_readback,
+)
 from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
 
 OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
@@ -81,21 +92,45 @@ def main() -> int:
     for _, p in readbacks:
         allowed |= {int(float(t)) for t in str(p.get("sizeList") or "").split(",") if t.strip()}
     overrides, warnings = overrides_from_readback(plan["edges"], readbacks, allowed)
+    towers = (plan.get("stairs") or {}).get("towers") or []
+    stair_pos, stair_notes = stair_positions_from_readback(plan["edges"], towers, readbacks)
+    stage_moves, hoist_moves, pf_notes = platform_moves_from_readback(plan["edges"], plan.get("platforms"), readbacks)
+    stair_notes += pf_notes
     print(f"plan: {plan_path.name}  足場ライン {len(readbacks)}本を読み戻し")
     for w in warnings:
         print("注意:", w)
-    if not overrides:
-        print("配置時と同じ割付です（変更なし）")
+    if not overrides and stair_pos is None and not stage_moves and not hoist_moves:
+        for n in stair_notes:
+            print("注意:", n)
+        print("配置時と同じ割付・階段・ステージ・昇降機の位置です（変更なし）")
         return 0
     for o in overrides:
         print(f"{o.get('face') or '辺' + str(o['edge_index'])}: {o['spans_mm']}")
+    for n in stair_notes:
+        print(n)
     if not write:
         print("入力に書くには --write、続けて解き直すには --apply を付けてください")
         return 0
     spec = json.loads(spec_path.read_text(encoding="utf-8")) if spec_path.exists() else {}
-    spec = merge_overrides(spec, overrides)
+    if overrides:
+        spec = merge_overrides(spec, overrides)
+    if stair_pos is not None:
+        spec = merge_stairs(spec, stair_pos)
+    if stage_moves or hoist_moves:
+        spec, merge_notes = merge_platform_moves(spec, plan["edges"], stage_moves, hoist_moves)
+        for n in merge_notes:
+            print("注意:", n)
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"書き込み: {spec_path}（span_overrides {len(spec['span_overrides'])}件）")
+    what = []
+    if overrides:
+        what.append(f"span_overrides {len(spec['span_overrides'])}件")
+    if stair_pos is not None:
+        what.append(f"stairs.positions {len(stair_pos)}箇所")
+    if stage_moves:
+        what.append(f"loading_stages の位置 {len(stage_moves)}件")
+    if hoist_moves:
+        what.append(f"hoists の位置 {len(hoist_moves)}件")
+    print(f"書き込み: {spec_path}（{'・'.join(what)}）")
     if not apply:
         print("次にツールバーを実行すると解き直します")
         return 0

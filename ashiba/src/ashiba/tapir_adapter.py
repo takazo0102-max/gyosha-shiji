@@ -115,6 +115,10 @@ class ArchicadClient:
     # 読むだけの命令は、時間切れなら待って再試行してよい（作る・消す命令は Archicad 側で
     # 実行済みのことがあるので再試行しない。重複して作ってしまう）
     READ_ONLY_PREFIXES = ("Get", "Is", "FitInWindow")
+    # 図面の生成を伴う命令は大きな建物で60秒を超える（30m棟の断面4面の図面で時間切れ。2026-10-18 スモーク）。
+    # 作る命令は再試行できないので、待ち時間の方を延ばす
+    SLOW_COMMANDS = {"CreateDrawings": 300.0, "UpdateDrawings": 300.0, "CreateSections": 180.0,
+                     "CreateLayout": 120.0}
 
     def tapir(self, command: str, parameters: Optional[dict] = None, retries: int = 2,
               wait_s: float = 5.0) -> dict:
@@ -125,9 +129,17 @@ class ArchicadClient:
             },
             "addOnCommandParameters": parameters or {},
         }
+        slow = self.SLOW_COMMANDS.get(command)
         for attempt in range(retries + 1):
             try:
-                result = self.post("API.ExecuteAddOnCommand", body)
+                if slow and slow > self.timeout:
+                    saved, self.timeout = self.timeout, slow
+                    try:
+                        result = self.post("API.ExecuteAddOnCommand", body)
+                    finally:
+                        self.timeout = saved
+                else:
+                    result = self.post("API.ExecuteAddOnCommand", body)
                 break
             except TapirTimeout:
                 if attempt >= retries or not command.startswith(self.READ_ONLY_PREFIXES):

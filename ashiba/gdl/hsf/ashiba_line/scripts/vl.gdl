@@ -115,3 +115,168 @@ if editSpan then
 		parameters xEdit = xe
 	endif
 endif
+
+! ---- 階段室の位置（平面の建地列の中央のホットスポットで引く） ----
+! 引いた先にいちばん近いスパン境界へ吸着し、同じスパン数で長さを取り直して stairList を
+! 書き戻す（階段室は支柱間に納める）。Python は stairList を読み戻して stairs.positions にする。
+! Python は配置時に stairList と stEdit をそろえて送るので、両者が食い違えば「引かれた」とみなす
+! （API で値を変えたときは GLOB_MODPAR_NAME が stEdit にならないため、名前では判断しない）
+if editSpan and nSt > 0 then
+	stDiff = 0
+	if vardim1(stEdit) = nSt then
+		for it = 1 to nSt
+			if abs(stEdit[it] - stS[it]) > 0.001 then stDiff = 1
+		next it
+	endif
+	if stDiff and GLOB_MODPAR_NAME <> "stairList" then
+		sl = ""
+		for it = 1 to nSt
+			! 今の階段室が覆うスパン数
+			cnt = 0
+			xb = 0
+			for ib = 1 to nSpan
+				if xb >= stS[it] - 0.001 and xb + spans[ib] <= stS[it] + stL[it] + 0.001 then cnt = cnt + 1
+				xb = xb + spans[ib]
+			next ib
+			if cnt < 1 then cnt = 1
+			! 引いた先にいちばん近い境界（cnt スパンが面に収まるもの）
+			best = stS[it]
+			bl = stL[it]
+			bd = 1e9
+			xb = 0
+			for ib = 1 to nSpan - cnt + 1
+				lnSt = 0
+				for j = ib to ib + cnt - 1
+					lnSt = lnSt + spans[j]
+				next j
+				if abs(xb - stEdit[it]) < bd then
+					bd = abs(xb - stEdit[it])
+					best = xb
+					bl = lnSt
+				endif
+				xb = xb + spans[ib]
+			next ib
+			stS[it] = best
+			stL[it] = bl
+			item = str(best * 1000, 1, 0) + "," + str(bl * 1000, 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next it
+		parameters stairList = sl
+	endif
+	dim se[]
+	for it = 1 to nSt
+		se[it] = stS[it]
+	next it
+	! 吸着した位置・stairList の手入力・要素数の違いのときは stairList から作り直す
+	if vardim1(stEdit) <> nSt or stDiff then
+		parameters stEdit = se
+	endif
+endif
+
+! ---- 荷受けステージの位置（張り出し床の中央のホットスポットで引く） ----
+! 階段室と同じく、引いた先にいちばん近いスパン境界へ吸着して同じスパン数で長さを取り直す。
+! 複数の層に置いたステージは stageList に層ごとの組が並ぶので、同じ開始位置の組をまとめて動かす
+if editSpan and nSg > 0 then
+	sgDiff = 0
+	if vardim1(sgEdit) = nSg then
+		for ig = 1 to nSg
+			if abs(sgEdit[ig] - sgS[ig]) > 0.001 then sgDiff = 1
+		next ig
+	endif
+	if sgDiff and GLOB_MODPAR_NAME <> "stageList" then
+		dim sgO[]
+		for ig = 1 to nSg
+			sgO[ig] = sgS[ig]
+		next ig
+		for ig = 1 to nSg
+			if abs(sgEdit[ig] - sgO[ig]) > 0.001 then
+				cnt = 0
+				xb = 0
+				for ib = 1 to nSpan
+					if xb >= sgO[ig] - 0.001 and xb + spans[ib] <= sgO[ig] + sgL[ig] + 0.001 then cnt = cnt + 1
+					xb = xb + spans[ib]
+				next ib
+				if cnt < 1 then cnt = 1
+				best = sgO[ig]
+				bl = sgL[ig]
+				bd = 1e9
+				xb = 0
+				for ib = 1 to nSpan - cnt + 1
+					lnSg = 0
+					for j = ib to ib + cnt - 1
+						lnSg = lnSg + spans[j]
+					next j
+					if abs(xb - sgEdit[ig]) < bd then
+						bd = abs(xb - sgEdit[ig])
+						best = xb
+						bl = lnSg
+					endif
+					xb = xb + spans[ib]
+				next ib
+				for jg = 1 to nSg
+					if abs(sgO[jg] - sgO[ig]) < 0.001 then
+						sgS[jg] = best
+						sgL[jg] = bl
+					endif
+				next jg
+			endif
+		next ig
+		sl = ""
+		for ig = 1 to nSg
+			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig], 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next ig
+		parameters stageList = sl
+	endif
+	dim sge[]
+	for ig = 1 to nSg
+		sge[ig] = sgS[ig]
+	next ig
+	if vardim1(sgEdit) <> nSg or sgDiff then
+		parameters sgEdit = sge
+	endif
+endif
+
+! ---- 昇降機の位置（搬器の中央のホットスポットで引く） ----
+! 昇降機のマストは足場の外に立つので支柱位置には吸着しない（50mm 単位に丸め、面の範囲に収める）。
+! 乗り込み口（landingList）は昇降機の位置にあるので一緒に動かす
+if editSpan and nHo > 0 then
+	hoDiff = 0
+	if vardim1(hoEdit) = nHo then
+		for ih = 1 to nHo
+			if abs(hoEdit[ih] - hoP[ih]) > 0.001 then hoDiff = 1
+		next ih
+	endif
+	if hoDiff and GLOB_MODPAR_NAME <> "hoistList" then
+		for ih = 1 to nHo
+			if abs(hoEdit[ih] - hoP[ih]) > 0.001 then
+				hNew = int(hoEdit[ih] / 0.05 + 0.5) * 0.05
+				if hNew < 0 then hNew = 0
+				if hNew > lineLen then hNew = lineLen
+				for il = 1 to nLa
+					if abs(laP[il] - hoP[ih]) < 0.001 then laP[il] = hNew
+				next il
+				hoP[ih] = hNew
+			endif
+		next ih
+		sl = ""
+		for ih = 1 to nHo
+			item = str(hoP[ih] * 1000, 1, 0) + "," + str(hoR[ih] * 1000, 1, 0) + "," + str(hoW[ih] * 1000, 1, 0) + "," + str(hoD[ih] * 1000, 1, 0) + "," + str(hoTp[ih] * 1000, 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next ih
+		sl2 = ""
+		for il = 1 to nLa
+			item = str(laP[il] * 1000, 1, 0) + "," + str(laH[il] * 1000, 1, 0)
+			if sl2 = "" then sl2 = item else sl2 = sl2 + "," + item
+		next il
+		parameters hoistList = sl, landingList = sl2
+	endif
+	dim hoe[]
+	for ih = 1 to nHo
+		hoe[ih] = hoP[ih]
+	next ih
+	if vardim1(hoEdit) <> nHo or hoDiff then
+		parameters hoEdit = hoe
+	endif
+endif
+

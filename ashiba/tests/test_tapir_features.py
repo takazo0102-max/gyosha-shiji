@@ -59,3 +59,20 @@ class TestToolbarUsesTheGate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSlowCommandsWaitLonger(unittest.TestCase):
+    def test_create_drawings_gets_a_longer_timeout_once(self):
+        from ashiba.tapir_adapter import ArchicadClient
+
+        c = ArchicadClient(timeout=60.0)
+        seen = []
+
+        def fake_post(command, parameters=None):
+            seen.append(c.timeout)
+            return {"addOnCommandResponse": {}}
+        c.post = fake_post
+        c.tapir("CreateDrawings", {})
+        c.tapir("GetStories", {})
+        self.assertEqual(seen, [300.0, 60.0])        # 終われば元に戻す
+        self.assertEqual(c.timeout, 60.0)

@@ -151,6 +151,36 @@ if editSpan and vardim1(xEdit) = nSpan + 1 then
 		hotspot2 -1, -rowW, 502 + 3 * i, xEdit[i], 3
 	next i
 endif
+! 荷受けステージの開始位置（張り出し床の中央の高さ。同じステージの別の層は同じ位置なので最初の組だけ）
+if editSpan and nSg > 0 and vardim1(sgEdit) = nSg then
+	for ig = 1 to nSg
+		dupSg = 0
+		for jg = 1 to ig - 1
+			if abs(sgS[jg] - sgS[ig]) < 0.001 then dupSg = 1
+		next jg
+		if dupSg = 0 then
+			hotspot2 0, -rowW - sgP[ig] / 2, 800 + 3 * ig, sgEdit[ig], 1 + 128
+			hotspot2 sgEdit[ig], -rowW - sgP[ig] / 2, 801 + 3 * ig, sgEdit[ig], 2
+			hotspot2 -1, -rowW - sgP[ig] / 2, 802 + 3 * ig, sgEdit[ig], 3
+		endif
+	next ig
+endif
+! 昇降機の位置（搬器の中央）
+if editSpan and nHo > 0 and vardim1(hoEdit) = nHo then
+	for ih = 1 to nHo
+		hotspot2 0, -rowW - 0.10 - hoD[ih] / 2, 900 + 3 * ih, hoEdit[ih], 1 + 128
+		hotspot2 hoEdit[ih], -rowW - 0.10 - hoD[ih] / 2, 901 + 3 * ih, hoEdit[ih], 2
+		hotspot2 -1, -rowW - 0.10 - hoD[ih] / 2, 902 + 3 * ih, hoEdit[ih], 3
+	next ih
+endif
+! 階段室の開始位置（建地列の中央。引くとパラメータスクリプトがスパン境界へ吸着して stairList を書き戻す）
+if editSpan and nSt > 0 and vardim1(stEdit) = nSt then
+	for it = 1 to nSt
+		hotspot2 0, -rowW / 2, 700 + 3 * it, stEdit[it], 1 + 128
+		hotspot2 stEdit[it], -rowW / 2, 701 + 3 * it, stEdit[it], 2
+		hotspot2 -1, -rowW / 2, 702 + 3 * it, stEdit[it], 3
+	next it
+endif
 
 ! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
 if cornerS = 1 then
