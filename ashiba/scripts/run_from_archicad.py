@@ -27,6 +27,7 @@ sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.detail_sheet import place_detail_sheet  # noqa: E402
+from ashiba.project_info import fill_title_block  # noqa: E402
 from ashiba.tapir_features import choose_elevation_mode, environment_notes  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
     is_ashiba_part,
@@ -221,12 +222,13 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
-def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True) -> dict:
+def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
     """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
 
     spec_override を渡すと、デスクトップの条件ファイルとコマンド引数の代わりにそれを使う。
     out_dir を渡すと帳票と立面の控えをそこへ書く（利用者の ashiba_out を汚さない）。
     use_spec_object=False なら足場条件の部品を読まず、置きもしない。
+    fill_title=False ならプロジェクト情報（表題欄）に触らない（スモークは利用者のプロジェクト情報を変えない）。
     """
     OUT_DIR = Path(out_dir) if out_dir else globals()["OUT_DIR"]
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -353,6 +355,15 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                 print(f"  詳細図: {n}")
             if detail_sheet.drawing_guids:
                 print(f"  詳細図: レイアウト「{detail_sheet.layout_name}」に {len(detail_sheet.drawing_guids)}枚、1/{detail_sheet.scale}")
+
+    # レイアウトの表題欄: 工事名・敷地住所・施工者・計画作成者をプロジェクト情報へ（空の項目と、前回ツールが
+    # 書いた値のままの項目だけ。利用者が入れた値は変えない）
+    if fill_title and elevation_mode == "section":
+        written, title_notes = fill_title_block(client, spec, OUT_DIR)
+        if written:
+            print("  表題欄: プロジェクト情報に " + "・".join(f"{k}={v}" for k, v in written.items()))
+        for n in title_notes:
+            print(f"  表題欄: {n}")
 
     # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
     # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と

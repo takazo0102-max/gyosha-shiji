@@ -73,7 +73,8 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
     slab = client.create_slab([tuple(p) for p in outline])
     res = None
     try:
-        res = tb.main(outline_mm=outline, spec_override=spec, out_dir=out_dir, use_spec_object=False)
+        res = tb.main(outline_mm=outline, spec_override=spec, out_dir=out_dir, use_spec_object=False,
+                      fill_title=False)
         r = res["result"]
         edges = r.model.plan.edges
         rep.add("足場ラインの本数", len(res["lines"]) == len(edges), f"置いた{len(res['lines'])}本・面{len(edges)}")
