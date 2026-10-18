@@ -119,7 +119,7 @@ class ArchicadClient:
     # 図面の生成を伴う命令は大きな建物で60秒を超える（30m棟の断面4面の図面で時間切れ。2026-10-18 スモーク）。
     # 作る命令は再試行できないので、待ち時間の方を延ばす
     SLOW_COMMANDS = {"CreateDrawings": 300.0, "UpdateDrawings": 300.0, "CreateSections": 180.0,
-                     "CreateLayout": 120.0}
+                     "CreateLayout": 120.0, "PublishPublisherSet": 600.0}
 
     def tapir(self, command: str, parameters: Optional[dict] = None, retries: int = 2,
               wait_s: float = 5.0) -> dict:

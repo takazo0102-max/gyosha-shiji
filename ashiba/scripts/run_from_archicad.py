@@ -27,6 +27,7 @@ sys.path.insert(0, str(SRC))
 
 from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
 from ashiba.detail_sheet import place_detail_sheet  # noqa: E402
+from ashiba.pdf_publish import DEFAULT_PUBLISHER_SET, publish_scaffold_pdf  # noqa: E402
 from ashiba.project_info import fill_title_block  # noqa: E402
 from ashiba.tapir_features import choose_elevation_mode, environment_notes  # noqa: E402
 from ashiba.tapir_adapter import (  # noqa: E402
@@ -375,6 +376,18 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         for n in title_notes:
             print(f"  表題欄: {n}")
 
+    # 足場のレイアウト一式を PDF に（サブセット「仮設足場」だけ。失敗しても配置は止めない）
+    pdf = None
+    if elevation_mode == "section" and spec.get("pdf", True):
+        pdf = publish_scaffold_pdf(client, OUT_DIR / "PDF",
+                                   str(spec.get("pdf_publisher_set") or DEFAULT_PUBLISHER_SET),
+                                   prefix=str(spec.get("project_name") or "足場"))
+        for n in pdf.notes:
+            print(f"  PDF: {n}")
+        if pdf.files:
+            print(f"  PDF: {len(pdf.files)}枚を {OUT_DIR / 'PDF'} に発行（{'・'.join(p.stem for p in pdf.files)}）")
+        activate_floor_plan(client)
+
     # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
     # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
     # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）
@@ -407,7 +420,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
               + "（割付レポートの要確認一覧を参照）")
     print(f"帳票出力先: {OUT_DIR}")
     return {"result": r, "spec": spec, "lines": lines, "elevations": elevs, "details": details,
-            "sections": sections, "plan_sheet": plan_sheet, "detail_sheet": detail_sheet, "elevation_mode": elevation_mode,
+            "sections": sections, "plan_sheet": plan_sheet, "detail_sheet": detail_sheet, "pdf": pdf, "elevation_mode": elevation_mode,
             "replaced": replaced, "verdict": v}
 
 
