@@ -271,7 +271,14 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, 
         region = plan_region_mm(r.model)
         scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
         labels = plan_labels(r.model, r.stair_plan, text_scale=float(scale), platforms=r.platforms)
-        lab = create_labels(client, labels)
+        floor = None
+        if lines:
+            try:
+                det = client.tapir("GetDetailsOfElements", {"elements": lines[:1]}).get("detailsOfElements", [])
+                floor = int(det[0]["floorIndex"]) if det and "floorIndex" in det[0] else None
+            except (TapirError, KeyError, TypeError, ValueError):
+                floor = None
+        lab = create_labels(client, labels, floor_index=floor)
         guids += lab
         n_lab = len(lab)
     except TapirError as e:

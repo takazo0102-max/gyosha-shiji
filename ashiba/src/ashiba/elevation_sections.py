@@ -467,7 +467,8 @@ def write_section_labels(client, labels: list[dict], text_height_mm: float = 2.5
     return len(create_labels(client, labels, text_height_mm, fallback=True))
 
 
-def create_labels(client, labels: list[dict], text_height_mm: float = 2.5, fallback: bool = False) -> list[str]:
+def create_labels(client, labels: list[dict], text_height_mm: float = 2.5, fallback: bool = False,
+                  floor_index: Optional[int] = None) -> list[str]:
     """文字ラベル（引出線の矢先 beg＝部材、折れ点 mid、文字 end）を現在のウィンドウに置き、GUID を返す.
 
     文字の大きさが指定できなければラベルツールの既定で置く。fallback=True ならラベルが作れない版でも
@@ -476,7 +477,12 @@ def create_labels(client, labels: list[dict], text_height_mm: float = 2.5, fallb
     if not labels:
         return []
 
-    def data(with_style: bool) -> list[dict]:
+    # 引出線はプロジェクトのラベルツールの既定に任せない（既定で引出線が無いプロジェクトでは、文字が部材の上に
+    # 重なった。2026-10-19 実機）。折れ線の引出線＋矢印、枠なし（参考図と同じ下線つき文字の見え方）
+    leader = {"hasLeaderLine": True, "leaderShape": "Segmented", "framed": False,
+              "arrowVisible": True, "arrowType": "FullArrow15"}
+
+    def data(with_style: bool, with_leader: bool) -> list[dict]:
         out = []
         for lb in labels:
             d = {"labelClass": "Text", "text": lb["text"],
@@ -485,12 +491,18 @@ def create_labels(client, labels: list[dict], text_height_mm: float = 2.5, fallb
                  "endCoordinate": {"x": lb["end"][0], "y": lb["end"][1]}}
             if with_style:
                 d["style"] = {"height": text_height_mm}
+            if with_leader:
+                d["leaderLine"] = dict(leader)
+            if floor_index is not None:
+                # 省くと「いまのフロア」に入る。断面を開いたりしたあとは足場と別のフロアになり、
+                # 平面図に出なかった（2026-10-19 実機: 足場は 0 階、ラベルは 2 階）
+                d["floorInd"] = floor_index
             out.append(d)
         return out
 
-    for with_style in (True, False):
+    for with_style, with_leader in ((True, True), (False, True), (True, False), (False, False)):
         try:
-            r = client.tapir("CreateLabels", {"labelsData": data(with_style)})
+            r = client.tapir("CreateLabels", {"labelsData": data(with_style, with_leader)})
         except Exception:
             continue
         guids = [el["elementId"]["guid"] for el in r.get("elements", []) if "elementId" in el]
