@@ -283,22 +283,26 @@ def take_off(
     # 内ブラケットで床を拡幅した区間は躯体との隙間が小さいので、躯体側の手すり・中桟は付けない
     from .brackets import inner_edge_cells
     inner_cut_cells = inner_edge_cells(model, bracket_sections or []) if rails_inner else {}
-    open_rail_cut = 0
+    # 差し引く布材は理由ごとに数えて注記する（以前は全部を「開口部」の本数として書いていた。
+    # 開口部の無い計画で内ブラケットの手すり外しが「開口部の布材928本」と出ていた）
+    open_rail_cut = stage_rail_cut = inner_rail_cut = 0
     for s, n in span_counts.items():
-        cut = (open_cut.get(s, 0) * per_level_rails
-               + open_spans.get(s, 0) * negarami_n
-               + stage_cells.get(s, 0) * rails_outer
-               + inner_cut_cells.get(s, 0) * rails_inner)
-        open_rail_cut += cut
-        add(m.find("布材", s), max(0, n * per_span_rails - cut), f"布材{s}")
+        c_open = open_cut.get(s, 0) * per_level_rails + open_spans.get(s, 0) * negarami_n
+        c_stage = stage_cells.get(s, 0) * rails_outer
+        c_inner = inner_cut_cells.get(s, 0) * rails_inner
+        open_rail_cut += c_open
+        stage_rail_cut += c_stage
+        inner_rail_cut += c_inner
+        add(m.find("布材", s), max(0, n * per_span_rails - c_open - c_stage - c_inner), f"布材{s}")
     if inner_cut_cells:
         notes.append(
             f"内ブラケットで床を拡幅した区間（{sum(inner_cut_cells.values())}スパン×層）は躯体との隙間が"
-            "小さくなるので、躯体側の手すり・中桟を外しています"
+            f"小さくなるので、躯体側の手すり・中桟（布材{inner_rail_cut}本）を外しています"
         )
     if stage_cells and (rails_outer or advance_rail):
         notes.append(
-            f"荷受けステージの間口・昇降機の乗り込み口・張出しブラケット区間（計{sum(stage_cells.values())}スパン×層）は本体の"
+            f"荷受けステージの間口・昇降機の乗り込み口・張出しブラケット区間（計{sum(stage_cells.values())}スパン×層"
+            + (f"・布材{stage_rail_cut}本" if stage_rail_cut else "") + "）は本体の"
             + ("外側の手すり・中桟" if rails_outer else "先行手摺")
             + ("・幅木" if model.config.has_toe_board else "")
             + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すり／張出し外縁の手すりで防護）"

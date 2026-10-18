@@ -371,7 +371,14 @@ def write_report_md(
         # どの面のどの範囲を、どちら向きに、どの幅で持ち出す/追従するかを出す
         for b in (bracket_sections or []):
             face = model.face_name(b.edge_index)
-            arm = "張出" if b.direction == "張出" else "内（躯体側へ追従）"
+            if b.direction == "張出":
+                arm = "張出"
+            elif getattr(b, "auto", False):
+                arm = f"内（離れを詰めるため自動・踏板{b.inner_deck_width}）"
+            elif getattr(b, "inner_deck_width", None):
+                arm = f"内（躯体側へ踏板{b.inner_deck_width}）"
+            else:
+                arm = "内（躯体側へ追従）"
             detail = (f"- ブラケット区間: {face} {b.start_mm:.0f}〜{b.end_mm:.0f}mm"
                       f"・{arm}・ブラケット{b.width}")
             if b.deck_width:

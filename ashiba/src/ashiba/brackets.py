@@ -321,6 +321,7 @@ def auto_inner_brackets(model: ScaffoldModel, existing: list[BracketSection],
     opts = inner_bracket_options(model)
     added: list[BracketSection] = []
     notes: list[str] = []
+    grouped: dict[tuple, list[str]] = {}
     for ep in model.plan.edges:
         d = float(ep.standoff)
         if d <= limit_mm + 1e-6:
@@ -354,9 +355,12 @@ def auto_inner_brackets(model: ScaffoldModel, existing: list[BracketSection],
         where = ("全長" if free == [(0.0, length)]
                  else "区間 " + "・".join(f"{a:.0f}〜{b:.0f}mm" for a, b in free)
                  + "（張出ブラケットの範囲は除く）")
+        # 同じ離れ・同じ品で付けた面は1行にまとめる（向かい合う面は離れが同じになる）
+        grouped.setdefault((round(d), no, deck, round(gap), where), []).append(face)
+    for (d0, no, deck, gap0, where), faces in grouped.items():
         notes.append(
-            f"{face}: 離れ{d:.0f}mm が{limit_mm:.0f}mm を超えるので、内ブラケット {no}（踏板{deck}）を全層・{where}に"
-            f"付けました。躯体までの隙間は約{gap:.0f}mm です（入力 auto_inner_bracket=false で付けない）")
+            f"{'・'.join(faces)}: 離れ{d0}mm が{limit_mm:.0f}mm を超えるので、内ブラケット {no}（踏板{deck}）を全層・{where}に"
+            f"付けました。躯体までの隙間は約{gap0}mm です（入力 auto_inner_bracket=false で付けない）")
     return added, notes
 
 

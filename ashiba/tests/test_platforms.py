@@ -447,7 +447,7 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
         brk = sum(l.qty for l in b.quantity.lines if l.part.category == "ブラケット")
         self.assertGreater(brk, 0)
         self.assertEqual(b.quantity.qty_of("布材"), base.quantity.qty_of("布材") - cells * 2)
-        self.assertTrue(any("躯体側の手すり・中桟を外しています" in n for n in b.quantity.notes), b.quantity.notes)
+        self.assertTrue(any("躯体側の手すり・中桟（布材16本）を外しています" in n for n in b.quantity.notes), b.quantity.notes)
 
     def test_scripts_share_the_rule(self):
         from pathlib import Path

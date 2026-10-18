@@ -398,7 +398,11 @@ class TestAutoInnerBracket(unittest.TestCase):
             self.assertIsNone(ep.remedy)
             self.assertEqual(b.end_mm, ep.scaffold_length)
         ws = r.model.plan.warnings
-        self.assertEqual(sum("付けました" in w for w in ws), len(auto))
+        # 同じ離れの面は1行にまとめる（30×20m は南北 364・東西 394 の2行）
+        lines = [w for w in ws if "付けました" in w]
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(any(w.startswith("南面・北面: 離れ364mm") for w in lines), lines)
+        self.assertTrue(any(w.startswith("東面・西面: 離れ394mm") for w in lines), lines)
         self.assertFalse(any("検討してください" in w for w in ws))         # 措置前の注意は消える
         self.assertFalse(any("躯体側手すり材は数量に含んでいません" in str(n) for n in r.quantity.notes))
 

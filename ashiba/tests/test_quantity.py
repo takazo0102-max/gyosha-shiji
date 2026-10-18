@@ -574,3 +574,27 @@ class TestCornerDeckPlanks(unittest.TestCase):
             self.skipTest("次世代の床幅が500でない")
         acts = [str(n) for n in r.quantity.notes if "長さ600の踏板" in str(n)]
         self.assertTrue(any("幅500" in a and "マスタにありません" in a for a in acts), acts)
+
+
+class TestLedgerCutNotesNameTheirReason(unittest.TestCase):
+    """差し引いた布材は理由ごとに注記する（開口部の無い計画に「開口部の布材」と出ていた）."""
+
+    def _q(self, **extra):
+        from ashiba.cli import solve_all
+
+        spec = {"module": "inch", "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+                "eaves_height_mm": 15400, "building_height_mm": 16000}
+        spec.update(extra)
+        return solve_all(spec).quantity
+
+    def test_inner_bracket_cut_is_not_called_an_opening(self):
+        notes = [str(n) for n in self._q().notes]
+        self.assertFalse(any(n.startswith("開口部（梁枠より下）は通路") for n in notes), notes)
+        inner = next(n for n in notes if n.startswith("内ブラケットで床を拡幅した区間"))
+        self.assertIn("布材928本", inner)                        # 464スパン×層 × 躯体側の手すり・中桟2本
+
+    def test_opening_note_counts_only_the_opening(self):
+        notes = [str(n) for n in self._q(auto_inner_bracket=False, openings=[
+            {"face": "南面", "start_mm": 3658, "beam_span_mm": 3658, "level": 2}]).notes]
+        op = next(n for n in notes if n.startswith("開口部（梁枠より下）は通路"))
+        self.assertNotIn("928", op)
