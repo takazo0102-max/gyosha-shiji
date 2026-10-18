@@ -36,6 +36,39 @@ DISCLAIMER = (
     "提出前に必ず有資格者の確認を受けてください。"
 )
 
+# 計算書の各シートの冒頭に置く一文と、末尾の確認欄（Phase 12-2）。ツールは確認欄を埋めない。
+# 総合判定が「成立」でも、確認欄に署名が入るまでは下書き（運用は README「構造計算書の扱い」）
+DRAFT_LINE = ("下書き（有資格者の確認前提）: 計画作成参画者が内容を確かめ、末尾の確認欄に記入して"
+              "初めて提出図書になります。総合判定の「成立」は確認の代わりになりません")
+
+
+def _draft_banner(s) -> None:
+    s.add_cells([Cell(DRAFT_LINE)])
+
+
+def _unverified_labels(structural) -> list[str]:
+    """計算に使った未確認の耐力値（capacity.csv の verified=no）の呼び名."""
+    out: list[str] = []
+    for v in vars(structural).values():
+        for item in (v if isinstance(v, list) else [v]):
+            for lab in getattr(item, "unverified_items", None) or []:
+                if lab not in out:
+                    out.append(lab)
+    return out
+
+
+def _confirm_block(s, unverified: list[str]) -> None:
+    s.add_blank()
+    s.add(["■ 確認（有資格者が記入。ツールは記入しない）"], STYLE_BOLD)
+    if unverified:
+        s.add_cells([Cell("未確認の耐力値を使っています: " + "・".join(unverified)
+                          + "。認定値・メーカー資料で確かめてから署名してください（data/capacity.csv の verified=no）")])
+    _kv(s, "確認者 氏名", FILL_IN)
+    _kv(s, "資格", FILL_IN, "足場の組立て等作業主任者技能講習修了者等（計画作成参画者）")
+    _kv(s, "確認日", FILL_IN)
+    _kv(s, "所見・修正した箇所", FILL_IN, "修正したときは計算書の該当行も直す")
+
+
 ATTACHMENTS = [
     ("案内図", "別途作成", "現場位置がわかる地図"),
     ("工程表", "別途作成", "足場の組立・解体時期を含む工程"),
@@ -122,6 +155,10 @@ def write_notification_xlsx(
     if terrain is not None and terrain.feet:
         _sheet_jack_table(wb, terrain, checks)
     _sheet_attachments(wb, info, details, model)
+    unverified = _unverified_labels(structural)
+    for sh in wb.sheets:
+        if sh.name.startswith("計算書"):
+            _confirm_block(sh, unverified)
     wb.save(path)
 
 
@@ -341,6 +378,7 @@ def _sheet_wind(wb, structural: StructuralResult) -> None:
     s.set_width(2, 52)
     w = structural.wind
     s.add_title("設計風速・速度圧・風力係数", span=3)
+    _draft_banner(s)
     s.add_cells([Cell("仮設工業会「風荷重に対する足場の安全技術指針」準拠")])
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
@@ -368,6 +406,7 @@ def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
     t = structural.wall_tie
     w = structural.wind
     s.add_title("壁つなぎの検定", span=3)
+    _draft_banner(s)
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
     v_max, h_max = model.wall_tie_max_spacing()
@@ -411,6 +450,7 @@ def _sheet_openings(wb, structural: StructuralResult, model) -> None:
     s = wb.sheet("計算書4_開口部梁枠")
     vm = model.master.vertical_member_name
     s.add_cells([Cell("開口部（梁枠）の検定", STYLE_BOLD)])
+    _draft_banner(s)
     s.add_cells([Cell("項目", STYLE_HEADER), Cell("値", STYLE_HEADER), Cell("式・根拠", STYLE_HEADER)])
     for oc in structural.openings:
         _kv(s, "開口部", f"{model.face_name(oc.edge_index)} 梁枠{oc.beam_model}（{oc.beam_span_mm}mm）",
@@ -440,6 +480,7 @@ def _sheet_post(wb, structural: StructuralResult, openings=None) -> None:
     p = structural.post
     vm = getattr(p, "vertical_member_name", "支柱")
     s.add_title(f"建地（{vm}）圧縮の検定", span=3)
+    _draft_banner(s)
     s.add_blank()
     s.add_header(["項目", "値", "式・根拠"])
     # 式だけ書いて元の数を出さないと、確認する人が値を追えない
