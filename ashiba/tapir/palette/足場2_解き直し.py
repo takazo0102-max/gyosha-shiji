@@ -52,6 +52,13 @@ def _dialog(text, with_report):
     buttons = '{"割付レポートを開く", "OK"}' if with_report else '{"OK"}'
     script = 'display dialog "' + text + '" with title "' + TITLE + '" buttons ' + buttons + ' default button "OK"'
     r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    if r.returncode != 0:
+        # 画面を持たないプロセスからは出せないことがある。理由をログに足す
+        try:
+            with open(os.path.join(OUT, "パレット実行.log"), "a", encoding="utf-8") as f:
+                f.write("\n[ダイアログを出せませんでした] " + (r.stderr or "").strip() + "\n")
+        except OSError:
+            pass
     return "割付レポートを開く" in (r.stdout or "")
 
 
