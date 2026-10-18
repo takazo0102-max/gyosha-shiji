@@ -49,7 +49,7 @@ class StairPlan:
     towers: list[StairTower] = field(default_factory=list)
     max_travel_mm: float = 0.0     # 実配置での最大水平移動距離
     required_count: int = 0
-    landings_per_tower: int = 0    # 1箇所あたりの踊り場数（2層以下毎）
+    landings_per_tower: int = 0    # 1箇所あたり階段室を出て作業床を通る回数（2層ごと。作業床が踊り場を兼ね、踊り場の床材は使わない）
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -422,23 +422,32 @@ def _find_slot(
     return min(candidates, key=lambda c: abs(c[0] - prefer_mm))
 
 
-def stair_deck_deduction(model: ScaffoldModel, plan: StairPlan) -> dict[int, int]:
-    """階段室が占有して踏板を敷かないスパンの本数（呼び寸法→本数）.
+def stair_open_cells(model: ScaffoldModel, plan: StairPlan, n_levels: int) -> dict[int, int]:
+    """階段室で床を敷かないセル（呼び寸法→スパン×層の数）.
 
-    数量の二重計上を防ぐため、踏板の集計からこの分を差し引く。
+    階段は同じ向きで2層ずつ（奇数層への階段は始点側のスパン、偶数層への階段は終点側のスパン）なので、
+    各層で下からの階段が上がってくる1スパンだけが開口になり、もう一方のスパンには床を敷く。
+    1スパンの階段室は全層が開口。3スパン目以降は階段が掛からないので床を敷く。
     """
     out: dict[int, int] = {}
     for tower in plan.towers:
-        edge = next(
-            (e for e in model.plan.edges if e.edge_index == tower.edge_index), None
-        )
+        edge = next((e for e in model.plan.edges if e.edge_index == tower.edge_index), None)
         if edge is None:
             continue
         acc = 0.0
+        tspans: list[int] = []
         for s in edge.spans:
             if tower.start_mm - 1e-6 <= acc < tower.end_mm - 1e-6:
-                out[s] = out.get(s, 0) + 1
+                tspans.append(s)
             acc += s
+        if not tspans:
+            continue
+        for k in range(1, n_levels + 1):
+            if len(tspans) == 1:
+                s = tspans[0]
+            else:
+                s = tspans[0] if k % 2 == 1 else tspans[1]
+            out[s] = out.get(s, 0) + 1
     return out
 
 

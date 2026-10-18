@@ -18,7 +18,7 @@ from ashiba.stairs import (
     DEFAULT_MAX_TRAVEL_MM,
     actual_max_travel,
     auto_place_stairs,
-    stair_deck_deduction,
+    stair_open_cells,
     validate_stairs,
 )
 
@@ -112,27 +112,47 @@ class TestValidation(unittest.TestCase):
 
 class TestQuantityIntegration(unittest.TestCase):
     def test_stair_spans_deducted_from_decks(self):
-        """階段室の区間には踏板を敷かない（二重計上の防止）."""
+        """階段室は各層で階段が上がってくる1スパンだけ踏板を敷かない（二重計上の防止）."""
         m = build()
         plan = auto_place_stairs(m)
         base = take_off(m)
         with_stairs = take_off(m, stair_plan=plan)
-        deduction = stair_deck_deduction(m, plan)
-        expected_drop = (
-            sum(deduction.values()) * m.elevation.n_levels * len(m.config.deck_widths)
-        )
+        n = m.elevation.n_levels
+        expected_drop = sum(stair_open_cells(m, plan, n).values()) * len(m.config.deck_widths)
         self.assertEqual(
             base.qty_of("踏板") - with_stairs.qty_of("踏板"), expected_drop
         )
         self.assertGreater(expected_drop, 0)
 
-    def test_deduction_matches_tower_spans(self):
+    def test_one_open_span_per_level(self):
+        """2スパンの階段室は、各層で1スパン開口・もう1スパンに床（2026-10-18 の決め）."""
         m = build()
         plan = auto_place_stairs(m, count=2)
-        self.assertEqual(
-            sum(stair_deck_deduction(m, plan).values()),
-            sum(t.span_count for t in plan.towers),
-        )
+        n = m.elevation.n_levels
+        self.assertTrue(all(t.span_count == 2 for t in plan.towers))
+        self.assertEqual(sum(stair_open_cells(m, plan, n).values()), len(plan.towers) * n)
+
+    def test_odd_levels_open_the_start_side_span(self):
+        """奇数層へは始点側、偶数層へは終点側のスパン。始点側は (n+1)//2、終点側は n//2 層ぶん開口."""
+        from ashiba.stairs import StairPlan
+
+        m = build()
+        plan = auto_place_stairs(m, count=1)
+        t = plan.towers[0]
+        edge = next(e for e in m.plan.edges if e.edge_index == t.edge_index)
+        acc, tspans = 0.0, []
+        for sp in edge.spans:
+            if t.start_mm - 1e-6 <= acc < t.end_mm - 1e-6:
+                tspans.append(sp)
+            acc += sp
+        self.assertEqual(len(tspans), 2)
+        one = StairPlan(towers=[t])
+        for n in (1, 2, 5, 8):
+            got = stair_open_cells(m, one, n)
+            if tspans[0] == tspans[1]:
+                self.assertEqual(got, {tspans[0]: n})
+            else:
+                self.assertEqual(got, {tspans[0]: (n + 1) // 2, tspans[1]: n // 2})
 
     def test_stair_count_follows_plan(self):
         m = build()
@@ -156,9 +176,10 @@ class TestQuantityIntegration(unittest.TestCase):
         """重なりが起きると差引が二重になり踏板が不足する."""
         m = build(outline=SMALL)
         plan = auto_place_stairs(m, count=8)
+        n = m.elevation.n_levels
         self.assertEqual(
-            sum(stair_deck_deduction(m, plan).values()),
-            sum(t.span_count for t in plan.towers),
+            sum(stair_open_cells(m, plan, n).values()),
+            sum(n for t in plan.towers if t.span_count >= 1),
         )
 
     def test_unplaceable_count_is_reported(self):
@@ -248,33 +269,40 @@ class TestWallTieRatioIsNotInfinite(unittest.TestCase):
         )
 
 
-class TestLandings(unittest.TestCase):
-    """踊り場は2層以下毎（昇降階段の基準）。数を0にしても落ちなかった箇所."""
+class TestStairGuards(unittest.TestCase):
+    """踊り場の床は使わない（2層ごとに外の作業床へ出る）。手すりは両側、開口部手摺・幅木は出入口1か所に1組."""
 
-    def _model(self, height=16300):
-        master = load_master("shinwa_A")
+    def _model(self, series="shinwa_A", height=16300):
+        master = load_master(series)
         return ScaffoldModel(
             master=master, plan=solve_plan(RECT, master),
             elevation=solve_elevation(height, master=master),
             config=ScaffoldConfig(), building_height_mm=16000,
         )
 
-    def test_every_two_levels(self):
-        from ashiba.stairs import LANDING_EVERY_LEVELS, landings_per_tower
-
-        m = self._model()
-        n = m.elevation.n_levels
-        self.assertEqual(
-            landings_per_tower(m), max(0, (n - 1) // LANDING_EVERY_LEVELS))
-        self.assertGreater(landings_per_tower(m), 0)
-
-    def test_counted_in_the_quantity(self):
+    def test_no_landing_boards(self):
         m = self._model()
         plan = auto_place_stairs(m)
         q = take_off(m, stair_plan=plan)
-        self.assertEqual(
-            q.qty_of("踊り場"), plan.count * plan.landings_per_tower)
-        self.assertGreater(q.qty_of("踊り場"), 0)
+        self.assertEqual(q.qty_of("踊り場"), 0)
+
+    def test_handrails_on_both_sides_and_one_guard_set_per_entrance(self):
+        m = self._model("nikken_nd1800")
+        plan = auto_place_stairs(m)
+        q = take_off(m, stair_plan=plan)
+        n = m.elevation.n_levels
+        self.assertEqual(q.qty_of("階段手摺"), plan.count * n * 2)
+        self.assertEqual(q.qty_of("階段開口部手摺"), plan.count * n)
+        self.assertEqual(q.qty_of("階段開口部幅木"), plan.count * n)
+
+    def test_missing_guard_parts_go_to_the_order_list(self):
+        """マスタに無い階段まわりの部材は、手配の注記に本数つきで出す."""
+        m = self._model("shinwa_A")
+        plan = auto_place_stairs(m)
+        q = take_off(m, stair_plan=plan)
+        hit = [w for w in q.warnings if "階段まわりの部材" in w]
+        self.assertTrue(hit, q.warnings)
+        self.assertIn("階段開口部手摺", hit[0])
 
     def test_reported_in_the_law_check(self):
         from ashiba.law_check import run_all_checks
@@ -282,7 +310,7 @@ class TestLandings(unittest.TestCase):
         m = self._model()
         plan = auto_place_stairs(m)
         c = [x for x in run_all_checks(m, stair_plan=plan) if x.check_id == 12][0]
-        self.assertIn(f"踊り場計{plan.total_landings}段", c.message)
+        self.assertIn("作業床が踊り場を兼ねる", c.message)
 
 
 class TestTooSmallForAStairTower(unittest.TestCase):

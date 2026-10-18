@@ -67,6 +67,13 @@ class TapirTimeout(TapirError):
     """Archicad は起動しているが、アドオンの命令が時間内に返らない（操作中など）."""
 
 
+class TapirBusy(TapirError):
+    """Archicad が入力の途中（ダイアログ・描きかけ・ドラッグ中など）で命令を受け付けない（4001）.
+
+    命令は実行されずに断られているので、作る命令でも待って送り直してよい（重複は作らない）。
+    """
+
+
 class ArchicadClient:
     """Archicad JSON API + Tapir AddOnCommand の薄いクライアント."""
 
@@ -110,6 +117,10 @@ class ArchicadClient:
                     "（動作確認: Tapir 1.7.0 / Archicad 30）。"
                     "アドオンを入れて Archicad を再起動してください"
                 )
+            if isinstance(err, dict) and err.get("code") == 4001:
+                raise TapirBusy(
+                    f"{command} が失敗: {err}\nArchicad が入力の途中です（ダイアログ・描きかけの要素・"
+                    "ドラッグなど）。Esc で入力を終えてから、もう一度実行してください")
             raise TapirError(f"{command} が失敗: {err}{hint}")
         return data.get("result", {})
 
@@ -146,6 +157,11 @@ class ArchicadClient:
                 if attempt >= retries or not command.startswith(self.READ_ONLY_PREFIXES):
                     raise
                 time.sleep(wait_s)
+            except TapirBusy:
+                # 断られただけで実行されていないので、作る命令も送り直してよい
+                if attempt >= retries:
+                    raise
+                time.sleep(wait_s)
         resp = result.get("addOnCommandResponse", {})
         if isinstance(resp, dict) and resp.get("error"):
             raise TapirError(f"Tapir {command} が失敗: {resp['error']}")
@@ -163,11 +179,11 @@ class ArchicadClient:
                     "addOnCommandId": {"commandNamespace": "TapirCommand", "commandName": "GetCurrentWindowType"},
                     "addOnCommandParameters": {}})
                 return True
-            except TapirTimeout:
+            except (TapirTimeout, TapirBusy):
                 if time.time() - start > max_wait_s:
                     return False
                 if not told and echo:
-                    echo("Archicad が操作中のため待っています…（手を止めてください）")
+                    echo("Archicad が操作中のため待っています…（手を止めるか、入力の途中なら Esc で終えてください）")
                     told = True
                 time.sleep(poll_s)
 

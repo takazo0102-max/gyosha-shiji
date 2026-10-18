@@ -223,6 +223,39 @@ class TestTimeouts(unittest.TestCase):
         self.assertEqual(c.tapir("GetStories", {}, wait_s=0), {"ok": True})
         self.assertEqual(c.calls, 3)
 
+    def test_busy_create_is_retried(self):
+        """入力の途中（4001）は実行されずに断られただけなので、作る命令も送り直す."""
+        from ashiba.tapir_adapter import TapirBusy
+
+        class C(ArchicadClient):
+            calls = 0
+
+            def post(self, command, parameters=None):
+                C.calls += 1
+                if C.calls == 1:
+                    raise TapirBusy("ongoing user input")
+                return {"addOnCommandResponse": {"ok": True}}
+
+        c = C()
+        self.assertEqual(c.tapir("CreateDrawings", {}, wait_s=0), {"ok": True})
+        self.assertEqual(C.calls, 2)
+
+    def test_4001_becomes_busy(self):
+        """Archicad の 4001（ongoing user input）は TapirBusy にして、Esc で抜ける案内を付ける."""
+        from unittest import mock
+
+        from ashiba.tapir_adapter import TapirBusy
+
+        c = ArchicadClient()
+        resp = mock.MagicMock()
+        resp.read.return_value = (
+            b'{"succeeded": false, "error": {"code": 4001, "message": "Invalid program status (ongoing user input)"}}')
+        resp.__enter__.return_value = resp
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            with self.assertRaises(TapirBusy) as cm:
+                c.post("API.ExecuteAddOnCommand", {})
+        self.assertIn("Esc", str(cm.exception))
+
     def test_create_is_not_retried(self):
         from ashiba.tapir_adapter import TapirTimeout
 

@@ -725,14 +725,27 @@ for ip = 1 to nSpan
 			next il
 		endif
 	next ib
-	! 階段室: 床は敷かない（幅木・手すりは残る）
-	qStairSpan = 0
+	! 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側）。幅木・手すりは残る
+	qStairOpen = 0
 	for it = 1 to nSt
-		if x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qStairSpan = 1
+		if x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then
+			qPos = 0
+			xx = 0
+			for jp = 1 to ip - 1
+				if xx >= stS[it] - 0.001 then qPos = qPos + 1
+				xx = xx + spans[jp]
+			next jp
+			if stL[it] <= spans[ip] + 0.001 then
+				qStairOpen = nLevels
+			else
+				if qPos = 0 then qStairOpen = nLevels - int(nLevels / 2)
+				if qPos = 1 then qStairOpen = int(nLevels / 2)
+			endif
+		endif
 	next it
 	! 作業床の高さにスパン方向の布材は付けない（アンチは腕木に掛ける）。根がらみ＋手すり・中桟だけ
 	qNuno = qNuno + nRows * (1 - qOpenNega) + (nLevels - qOpenLv) * (qOuter + qInner)
-	qDeck = qDeck + (nLevels - qOpenLv) * (1 - qStairSpan)
+	qDeck = qDeck + max(0, nLevels - qOpenLv - qStairOpen)
 	if railAdv = 0 then qToe = qToe + nLevels - qOpenLv
 	if railAdv = 1 then qAdv = qAdv + nLevels - qOpenLv
 	x = x + spans[ip]

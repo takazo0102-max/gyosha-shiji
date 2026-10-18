@@ -296,7 +296,7 @@ def check_stairs(m: ScaffoldModel, stair_plan=None) -> CheckResult:
         f"階段{stair_plan.count}箇所（最大水平移動"
         f"{stair_plan.max_travel_mm / 1000:.1f}m ≦ "
         f"{DEFAULT_MAX_TRAVEL_MM / 1000:.0f}m）"
-        f"／踊り場計{stair_plan.total_landings}段",
+        "／2層ごとに外の作業床へ出る（作業床が踊り場を兼ねる）",
         basis,
     )
 

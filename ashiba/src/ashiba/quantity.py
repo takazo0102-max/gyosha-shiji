@@ -379,11 +379,11 @@ def take_off(
         deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
     stair_cut_cells = 0
     if stair_plan is not None and stair_plan.towers:
-        # 階段室には踏板を敷かないが、外構面の幅木は残る（階段側の落下防止）
-        from .stairs import stair_deck_deduction
-        for s, n in stair_deck_deduction(model, stair_plan).items():
-            deck_cells[s] = max(0, deck_cells.get(s, 0) - n * n_levels)
-            stair_cut_cells += n * n_levels
+        # 階段室は各層で階段が上がってくる1スパンだけ開口（もう一方のスパンには床を敷く）。外構面の幅木は残る
+        from .stairs import stair_open_cells
+        for s, n in stair_open_cells(model, stair_plan, n_levels).items():
+            deck_cells[s] = max(0, deck_cells.get(s, 0) - n)
+            stair_cut_cells += n
     _note_deck_cells(
         notes, m.deck_category, sum(span_counts.values()), n_levels,
         stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
@@ -455,15 +455,12 @@ def take_off(
 
     # ---- 階段・踊り場（自動配置があればその箇所数、なければ設定値） ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
-    landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (
         stair_plan.count if stair_plan is not None and stair_plan.towers
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段")
-    # 昇降階段は2層以下毎に踊り場を設ける。階段を計上したのに踊り場だけ0本に
-    # なると、必須部材が黙って発注から抜ける
-    add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
+    _count_stair_guards(model, add, notes, n_towers, n_levels)
 
     _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
 
@@ -954,17 +951,30 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             )
 
 
-def _landing_count(model: ScaffoldModel, stair_plan, n_towers: int) -> int:
-    """踊り場の本数.
+def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_levels: int) -> None:
+    """階段まわりの手すり類（2026-10-18 利用者の決め）.
 
-    stair_plan があればその配置から、無ければ階段箇所数×1箇所あたりの段数で
-    求める。階段を計上しているのに踊り場だけ0本になるのを防ぐ。
+    - 専用階段手摺: 階段1つにつき両側の2本
+    - 階段開口部手摺・開口部幅木: 出入口1か所に1組。各層で下からの階段が上がってくる所が出入口
+    踊り場の部材（ハッチ付布板）は使わない。2層ごとに階段室を出て外の作業床へ出る（踊り場を兼ねる）。
+    マスタに無い部材は手配の注記に出す。
     """
-    if stair_plan is not None and stair_plan.towers:
-        return stair_plan.total_landings
-    from .stairs import landings_per_tower
-
-    return landings_per_tower(model) * n_towers
+    if not n_towers or not n_levels:
+        return
+    m = model.master
+    need = (("階段手摺", n_towers * n_levels * 2, "専用階段手摺（階段1つに両側2本）"),
+            ("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),
+            ("階段開口部幅木", n_towers * n_levels, "階段開口部幅木（出入口1か所に1組）"))
+    missing = []
+    for cat, qty, label in need:
+        part = next(iter(m.by_category(cat)), None)
+        if part is None:
+            missing.append(f"{label} {qty}")
+            continue
+        add(part, qty, label)
+    if missing:
+        notes.action("階段まわりの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
+                     + "。別途手配してください", Notes.ORDER)
 
 
 def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) -> None:
@@ -1187,7 +1197,7 @@ def _note_deck_cells(notes, name: str, n_spans: int, n_levels: int,
     text = f"{name}はスパン{n_spans}×作業層{n_levels}層＝{base}セル"
     cuts = []
     if stair_cut:
-        cuts.append(f"階段室{n_towers}箇所の{stair_cut}セル")
+        cuts.append(f"階段室{n_towers}箇所の開口{stair_cut}セル（各層で階段が上がってくる1スパン）")
     if open_cut:
         cuts.append(f"開口部（梁枠より下）の{open_cut}セル")
     if cuts:
@@ -1438,10 +1448,10 @@ def _count_frame_parts(
         deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
     stair_cut_cells = 0
     if stair_plan is not None and stair_plan.towers:
-        from .stairs import stair_deck_deduction
-        for s, n in stair_deck_deduction(model, stair_plan).items():
-            deck_cells[s] = max(0, deck_cells.get(s, 0) - n * n_levels)
-            stair_cut_cells += n * n_levels
+        from .stairs import stair_open_cells
+        for s, n in stair_open_cells(model, stair_plan, n_levels).items():
+            deck_cells[s] = max(0, deck_cells.get(s, 0) - n)
+            stair_cut_cells += n
     _note_deck_cells(
         notes, m.deck_category, sum(span_counts.values()), n_levels,
         stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
@@ -1505,13 +1515,12 @@ def _count_frame_parts(
     kt = next(iter(m.by_category("壁つなぎ")), None)
     _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
     stair = next(iter(m.by_category("階段")), None)
-    landing = next(iter(m.by_category("踊り場")), None)
     n_towers = (
         stair_plan.count if stair_plan is not None and stair_plan.towers
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段枠")
-    add(landing, _landing_count(model, stair_plan, n_towers), "踊り場（2層以下毎）")
+    _count_stair_guards(model, add, notes, n_towers, n_levels)
 
     # ---- 朝顔（くさび式と同じ数え方・同じ注記） ----
     _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)

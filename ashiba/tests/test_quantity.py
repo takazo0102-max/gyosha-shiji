@@ -91,16 +91,13 @@ class TestQuantity(unittest.TestCase):
         ).qty_of("筋交")
         self.assertGreater(dense, base)
 
-    def test_landings_counted_without_a_stair_plan(self):
-        """階段を計上したのに踊り場だけ0本になると必須部材が発注から抜ける."""
-        from ashiba.stairs import landings_per_tower
-
+    def test_stair_rails_counted_without_a_stair_plan(self):
+        """階段の配置が無くても、階段の箇所数から両側の階段手摺を数える（踊り場の床は使わない）."""
         self.model.config.n_stairs = 2
         q = take_off(self.model)
         self.assertGreater(q.qty_of("階段"), 0)
-        self.assertEqual(
-            q.qty_of("踊り場"), landings_per_tower(self.model) * 2
-        )
+        self.assertEqual(q.qty_of("踊り場"), 0)
+        self.assertEqual(q.qty_of("階段手摺"), 2 * self.model.elevation.n_levels * 2)
 
     def test_wide_standoff_notes_the_missing_inner_rail(self):
         """離れ300mm超は躯体側にも墜落防止措置が要る。躯体側手すりを外した計画では数量に無いことを書く."""

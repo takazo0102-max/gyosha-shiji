@@ -444,6 +444,14 @@ def mvo_part_name(gdl_dir=None) -> str:
 FACE_COUNT_PARAMS = ("qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair")
 
 
+def _span_starts(spans) -> list[float]:
+    out, x = [], 0.0
+    for sp in spans:
+        out.append(x)
+        x += sp
+    return out
+
+
 def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, rules=None) -> dict[str, int]:
     """足場ラインの1Dスクリプトが書き戻す「図示本数」と同じ式（面ごと）.
 
@@ -482,10 +490,16 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
                 if levels[0] < bh - 1e-6:
                     open_nega = 1
                 open_lv += sum(1 for h in levels[1:] if h < bh - 1e-6)
-        in_stair = any(x >= s0 - 1e-6 and x + sp <= e0 + 1e-6 for s0, e0 in towers)
+        # 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側。1d.gdl と同じ）
+        stair_open = 0
+        for s0, e0 in towers:
+            if x >= s0 - 1e-6 and x + sp <= e0 + 1e-6:
+                pos = sum(1 for xx in _span_starts(ep.spans) if s0 - 1e-6 <= xx < x - 1e-6)
+                one = e0 - s0 <= sp + 1e-6
+                stair_open = n_levels if one else ((n_levels + 1) // 2 if pos == 0 else n_levels // 2 if pos == 1 else 0)
         # 作業床の高さのスパン方向の布材は付けない（1d.gdl と同じ）
         nuno += rows * (1 - open_nega) + (n_levels - open_lv) * (outer + inner)
-        deck += (n_levels - open_lv) * (0 if in_stair else 1)
+        deck += max(0, n_levels - open_lv - stair_open)
         if adv:
             advq += n_levels - open_lv
         else:
