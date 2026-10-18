@@ -9,6 +9,21 @@ if matScaf > 0 then material matScaf
 ! 12にすると見た目は保ったまま面数が1/3になる。コマ・ナットは6
 resol 12
 
+! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
+! （パラメータスクリプト）。全面・帳票はパレットの「解き直し」で追従する。
+! 3D にホットスポットを1つでも置くと外接箱の自動ホットスポットが消えるので、四隅も置く
+if editSpan and serType <> "W" and nLevIn > 0 then
+	hotspot 0, -rowW, 0, 1000, topEdit, 1 + 128
+	hotspot 0, -rowW, topEdit, 1001, topEdit, 2
+	hotspot 0, -rowW, -1, 1002, topEdit, 3
+endif
+hotspot 0, 0, 0
+hotspot lineLen, 0, 0
+hotspot lineLen, -rowW, 0
+hotspot 0, 0, postTop
+hotspot lineLen, 0, postTop
+hotspot lineLen, -rowW, postTop
+
 ! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
 ! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
 ! 立体表現（既定）は干渉確認用、線表示は割付検討用

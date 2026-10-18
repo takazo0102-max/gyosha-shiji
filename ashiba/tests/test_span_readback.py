@@ -122,3 +122,47 @@ class TestSnapRule(unittest.TestCase):
 
         self.assertEqual(snap_boundary([1800, 1800], 2, 1800, self.A), [1800, 1800])
         self.assertEqual(snap_boundary([1800, 1800], 5, 1500, self.A), [1800, 1800])
+
+
+class TestHeightReadback(unittest.TestCase):
+    """3D の天端のホットスポットで引いた足場高さを、全面の目標高さとして読み戻す."""
+
+    PLAN = {
+        "scaffold_height_mm": 16300,
+        "elevation": {"level_heights": [2800, 4600, 6400, 8200, 10000, 11800, 13600, 15400]},
+        "edges": [{"edge_index": 0, "face": "南面", "placement": {"x_mm": 0, "y_mm": 0}},
+                  {"edge_index": 1, "face": "東面", "placement": {"x_mm": 30000, "y_mm": 0}}],
+    }
+
+    def _rb(self, levels, origin=(0, 0)):
+        return (origin, {"levelList": ",".join(str(v) for v in levels)})
+
+    def test_unchanged_is_none(self):
+        from ashiba.span_readback import height_from_readback
+
+        lv = self.PLAN["elevation"]["level_heights"]
+        self.assertEqual(height_from_readback(self.PLAN, [self._rb(lv)]), (None, []))
+
+    def test_one_level_up(self):
+        from ashiba.span_readback import height_from_readback
+
+        lv = self.PLAN["elevation"]["level_heights"] + [17200]
+        h, notes = height_from_readback(self.PLAN, [self._rb(lv)])
+        self.assertEqual(h, 18100)
+        self.assertIn("南面", notes[-1])
+
+    def test_two_levels_down(self):
+        from ashiba.span_readback import height_from_readback
+
+        lv = self.PLAN["elevation"]["level_heights"][:-2]
+        h, _ = height_from_readback(self.PLAN, [self._rb(lv)])
+        self.assertEqual(h, 16300 - 3600)
+
+    def test_different_faces_take_the_largest_and_say_so(self):
+        from ashiba.span_readback import height_from_readback
+
+        base = self.PLAN["elevation"]["level_heights"]
+        h, notes = height_from_readback(
+            self.PLAN, [self._rb(base + [17200]), self._rb(base + [17200, 19000], origin=(30000, 0))])
+        self.assertEqual(h, 16300 + 3600)
+        self.assertTrue(any("面ごとに違う高さ" in n for n in notes), notes)

@@ -266,3 +266,47 @@ def merge_platform_moves(spec: dict, plan_edges: Iterable[dict], stage_moves, ho
             hit[field_name] = new
         out[key] = items
     return out, notes
+
+
+def levels_from_params(params: dict) -> list[int]:
+    """読み戻した levelList（作業床の高さ mm, 下から）→ 整数の列."""
+    out: list[int] = []
+    for tok in str(params.get("levelList") or "").split(","):
+        tok = tok.strip()
+        if tok:
+            out.append(int(round(float(tok))))
+    return out
+
+
+def height_from_readback(plan: dict, readbacks: Iterable[tuple[tuple[float, float], dict]]) -> tuple[Optional[int], list[str]]:
+    """3D の天端のホットスポットで引いた足場高さ → 新しい scaffold_height_mm（変わっていなければ None）.
+
+    部品は引いた量を作業層の単位に丸めて levelList を書き換える（この面だけ）。最上層の作業床が
+    配置時からいくつ動いたかを、配置時の足場高さに足して全面の目標高さにする。面ごとに違う量を
+    引いていれば、いちばん大きく動いた面を採って注意に出す。
+    """
+    elev = plan.get("elevation") or {}
+    old_levels = [int(v) for v in elev.get("level_heights") or []]
+    base = plan.get("scaffold_height_mm")
+    if not old_levels or base is None:
+        return None, []
+    old_top = old_levels[-1]
+    deltas: list[tuple[int, str]] = []
+    for origin, params in readbacks:
+        got = levels_from_params(params)
+        if not got or got == old_levels:
+            continue
+        e = match_edge(plan.get("edges") or [], origin)
+        label = (e.get("face") if e else None) or (f"辺{e.get('edge_index')}" if e else "足場ライン")
+        deltas.append((got[-1] - old_top, label))
+    deltas = [(d, lb) for d, lb in deltas if d != 0]
+    if not deltas:
+        return None, []
+    d, label = max(deltas, key=lambda t: abs(t[0]))
+    notes = []
+    if len({v for v, _ in deltas}) > 1:
+        notes.append("面ごとに違う高さに引かれています（" + "・".join(f"{lb} {v:+d}mm" for v, lb in deltas)
+                     + f"）。{label}の {d:+d}mm を全面に使います")
+    new_h = int(base) + d
+    notes.append(f"足場高さ: {int(base)} → {new_h}mm（{label}の天端を {d:+d}mm 引いた。全面をこの高さで解き直します）")
+    return new_h, notes

@@ -280,3 +280,71 @@ if editSpan and nHo > 0 then
 	endif
 endif
 
+
+! ---- 足場の高さ（3D の天端のホットスポットで引く） ----
+! 引いた量を作業層（階高 floorH）の単位に丸め、上に層を足す／上から層を外す。支柱は上に
+! 2層ぶん（2×階高）と1層ぶん（階高）を積み足すか、上から外して端数を1本で埋める。
+! この面だけの暫定の形で、正式な構成（ジャッキ・壁つなぎ・数量）はパレットの「解き直し」が
+! levelList を読み戻して解き直す。Python は配置時に topEdit＝ジャッキ＋支柱の合計を送る
+if editSpan and serType <> "W" and nLevIn > 0 then
+	if topEdit < 0.01 then
+		parameters topEdit = postTop
+	else
+		if abs(topEdit - postTop) > 0.001 and GLOB_MODPAR_NAME <> "postList" and GLOB_MODPAR_NAME <> "levelList" then
+			nStep = round_int((topEdit - postTop) / floorH)
+			if nLevels + nStep < 1 then nStep = 1 - nLevels
+			if nLevels + nStep > 39 then nStep = 39 - nLevels
+			if nStep = 0 then
+				parameters topEdit = postTop
+			else
+				dim pp[]
+				np = nPost
+				for j = 1 to nPost
+					pp[j] = posts[j]
+				next j
+				if nStep > 0 then
+					k = nStep
+					while k >= 2 do
+						np = np + 1
+						pp[np] = 2 * floorH
+						k = k - 2
+					endwhile
+					if k = 1 then
+						np = np + 1
+						pp[np] = floorH
+					endif
+				else
+					rr = -nStep * floorH
+					popped = 0
+					while popped < rr - 0.0005 and np > 1 do
+						popped = popped + pp[np]
+						np = np - 1
+					endwhile
+					if popped - rr > 0.0005 then
+						np = np + 1
+						pp[np] = popped - rr
+					endif
+				endif
+				pl = ""
+				newTop = jackOut
+				for j = 1 to np
+					newTop = newTop + pp[j]
+					item = str(pp[j] * 1000, 1, 0)
+					if pl = "" then pl = item else pl = pl + "," + item
+				next j
+				nNew = nLevels + nStep
+				ll = ""
+				for il = 1 to nNew
+					if il <= nLevels then
+						hv = levIn[il]
+					else
+						hv = levIn[nLevels] + (il - nLevels) * floorH
+					endif
+					item = str(hv * 1000, 1, 0)
+					if ll = "" then ll = item else ll = ll + "," + item
+				next il
+				parameters postList = pl, levelList = ll, topEdit = newTop
+			endif
+		endif
+	endif
+endif

@@ -182,6 +182,9 @@ def line_params(
         "deckW1": (widths[0] if widths else 400) / 1000.0,
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
+        # 3D の天端のホットスポット（足場高さの編集）。部品の天端（ジャッキ＋支柱）と同じ値で送り、
+        # 食い違ったら「引かれた」とみなして層を足し引きする（vl.gdl）
+        "topEdit": (e.jack_extension + sum(e.posts)) / 1000.0,
         "negaH": e.first_ledger_height / 1000.0,
         "railH": model.guard_rail_height_mm / 1000.0,
         "midH": model.midrail_height_mm / 1000.0,

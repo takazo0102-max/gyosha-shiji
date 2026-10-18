@@ -70,6 +70,7 @@
 !   flList          文字列  各階FL高さ mm カンマ区切り（立面の参照線）                                                                既定 ""
 !   faceName        文字列  面の名称（立面図の図面名）                                                                                既定 ""
 !   levelList       文字列  作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）                                                    既定 ""
+!   topEdit         長さ    足場高さ（3Dの天端のホットスポットで引く。作業層単位に吸着）                                              既定 0
 !   negaH           長さ    根がらみ高さ GLから 0で自動                                                                               既定 0
 !   railH           長さ    手すり高さ 作業床から 0で自動                                                                             既定 0
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
@@ -1791,6 +1792,21 @@ if matScaf > 0 then material matScaf
 ! 12にすると見た目は保ったまま面数が1/3になる。コマ・ナットは6
 resol 12
 
+! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
+! （パラメータスクリプト）。全面・帳票はパレットの「解き直し」で追従する。
+! 3D にホットスポットを1つでも置くと外接箱の自動ホットスポットが消えるので、四隅も置く
+if editSpan and serType <> "W" and nLevIn > 0 then
+	hotspot 0, -rowW, 0, 1000, topEdit, 1 + 128
+	hotspot 0, -rowW, topEdit, 1001, topEdit, 2
+	hotspot 0, -rowW, -1, 1002, topEdit, 3
+endif
+hotspot 0, 0, 0
+hotspot lineLen, 0, 0
+hotspot lineLen, -rowW, 0
+hotspot 0, 0, postTop
+hotspot lineLen, 0, postTop
+hotspot lineLen, -rowW, postTop
+
 ! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
 ! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
 ! 立体表現（既定）は干渉確認用、線表示は割付検討用
@@ -3127,6 +3143,75 @@ if editSpan and nHo > 0 then
 	next ih
 	if vardim1(hoEdit) <> nHo or hoDiff then
 		parameters hoEdit = hoe
+	endif
+endif
+
+
+! ---- 足場の高さ（3D の天端のホットスポットで引く） ----
+! 引いた量を作業層（階高 floorH）の単位に丸め、上に層を足す／上から層を外す。支柱は上に
+! 2層ぶん（2×階高）と1層ぶん（階高）を積み足すか、上から外して端数を1本で埋める。
+! この面だけの暫定の形で、正式な構成（ジャッキ・壁つなぎ・数量）はパレットの「解き直し」が
+! levelList を読み戻して解き直す。Python は配置時に topEdit＝ジャッキ＋支柱の合計を送る
+if editSpan and serType <> "W" and nLevIn > 0 then
+	if topEdit < 0.01 then
+		parameters topEdit = postTop
+	else
+		if abs(topEdit - postTop) > 0.001 and GLOB_MODPAR_NAME <> "postList" and GLOB_MODPAR_NAME <> "levelList" then
+			nStep = round_int((topEdit - postTop) / floorH)
+			if nLevels + nStep < 1 then nStep = 1 - nLevels
+			if nLevels + nStep > 39 then nStep = 39 - nLevels
+			if nStep = 0 then
+				parameters topEdit = postTop
+			else
+				dim pp[]
+				np = nPost
+				for j = 1 to nPost
+					pp[j] = posts[j]
+				next j
+				if nStep > 0 then
+					k = nStep
+					while k >= 2 do
+						np = np + 1
+						pp[np] = 2 * floorH
+						k = k - 2
+					endwhile
+					if k = 1 then
+						np = np + 1
+						pp[np] = floorH
+					endif
+				else
+					rr = -nStep * floorH
+					popped = 0
+					while popped < rr - 0.0005 and np > 1 do
+						popped = popped + pp[np]
+						np = np - 1
+					endwhile
+					if popped - rr > 0.0005 then
+						np = np + 1
+						pp[np] = popped - rr
+					endif
+				endif
+				pl = ""
+				newTop = jackOut
+				for j = 1 to np
+					newTop = newTop + pp[j]
+					item = str(pp[j] * 1000, 1, 0)
+					if pl = "" then pl = item else pl = pl + "," + item
+				next j
+				nNew = nLevels + nStep
+				ll = ""
+				for il = 1 to nNew
+					if il <= nLevels then
+						hv = levIn[il]
+					else
+						hv = levIn[nLevels] + (il - nLevels) * floorH
+					endif
+					item = str(hv * 1000, 1, 0)
+					if ll = "" then ll = item else ll = ll + "," + item
+				next il
+				parameters postList = pl, levelList = ll, topEdit = newTop
+			endif
+		endif
 	endif
 endif
 

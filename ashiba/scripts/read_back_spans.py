@@ -1,7 +1,8 @@
 """Archicad 上でホットスポット編集したスパンと階段室の位置を読み戻し、入力に落とす.
 
 スパン → span_overrides、階段室（建地列の中央のホットスポット）→ stairs.positions、
-荷受けステージ・昇降機（張り出し床・搬器の中央）→ loading_stages・hoists の位置。
+荷受けステージ・昇降機（張り出し床・搬器の中央）→ loading_stages・hoists の位置、
+足場の高さ（3D の天端のホットスポット）→ 足場条件の部品の足場高さ（部品が無ければ scaffold_height_mm）。
 
 足場ラインの平面で支柱位置のホットスポットを引くと、部品が規格寸法に吸着して spanList を
 書き戻す。このスクリプトは配置時の plan.json と突き合わせ、変わった面を span_overrides に
@@ -27,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.span_readback import (  # noqa: E402
+    height_from_readback,
     match_edge,
     merge_overrides,
     merge_platform_moves,
@@ -55,6 +57,27 @@ def _params(client: ArchicadClient, element: dict) -> dict:
         for row in item.get("gdlParameters", item.get("parameters", [])):
             out[row.get("name")] = row.get("value")
     return out
+
+
+def _write_height(client: ArchicadClient, plan: dict, spec: dict, height_mm: int) -> str:
+    """足場高さを書く先: 足場条件の部品があればその「足場高さ」（JSON より優先される）、無ければ JSON."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import run_from_archicad as tb
+    from ashiba.spec_object import pick_spec_object
+
+    hit = None
+    try:
+        hit = pick_spec_object(tb.read_spec_objects(client), plan.get("outline_mm") or [])
+    except Exception:          # 部品が読めなくても JSON に書けば解き直しは通る
+        hit = None
+    if hit is not None and hit[1]:
+        try:
+            client.set_gdl_parameters(hit[0], {"scaffH": height_mm / 1000.0})
+            return "足場条件の部品"
+        except Exception as e:
+            print(f"注意: 足場条件の部品に高さを書けませんでした（{e}）。JSON に書きます")
+    spec["scaffold_height_mm"] = int(height_mm)
+    return "ashiba_spec.json"
 
 
 def main() -> int:
@@ -96,13 +119,15 @@ def main() -> int:
     stair_pos, stair_notes = stair_positions_from_readback(plan["edges"], towers, readbacks)
     stage_moves, hoist_moves, pf_notes = platform_moves_from_readback(plan["edges"], plan.get("platforms"), readbacks)
     stair_notes += pf_notes
+    new_height, height_notes = height_from_readback(plan, readbacks)
+    stair_notes += height_notes
     print(f"plan: {plan_path.name}  足場ライン {len(readbacks)}本を読み戻し")
     for w in warnings:
         print("注意:", w)
-    if not overrides and stair_pos is None and not stage_moves and not hoist_moves:
+    if not overrides and stair_pos is None and not stage_moves and not hoist_moves and new_height is None:
         for n in stair_notes:
             print("注意:", n)
-        print("配置時と同じ割付・階段・ステージ・昇降機の位置です（変更なし）")
+        print("配置時と同じ割付・階段・ステージ・昇降機の位置・足場高さです（変更なし）")
         return 0
     for o in overrides:
         print(f"{o.get('face') or '辺' + str(o['edge_index'])}: {o['spans_mm']}")
@@ -120,8 +145,11 @@ def main() -> int:
         spec, merge_notes = merge_platform_moves(spec, plan["edges"], stage_moves, hoist_moves)
         for n in merge_notes:
             print("注意:", n)
-    spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     what = []
+    if new_height is not None:
+        where = _write_height(c, plan, spec, new_height)
+        what.append(f"足場高さ {new_height}mm（{where}）")
+    spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if overrides:
         what.append(f"span_overrides {len(spec['span_overrides'])}件")
     if stair_pos is not None:
