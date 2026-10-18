@@ -133,6 +133,10 @@
 			<Description><![CDATA["足場の表面材（0＝既定。配置時にアルミを入れる）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<Boolean Name="dimTool">
+			<Description><![CDATA["平面のスパン寸法は寸法ツール（部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Boolean Name="planSimple">
 			<Description><![CDATA["平面を単線で（建地列・支柱位置・床の対角線だけ）"]]></Description>
 			<Value>0</Value>

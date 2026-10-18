@@ -198,6 +198,8 @@ def line_params(
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
         "mvoName": mvo_part_name(),
         "planSimple": False,
+        # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
+        "dimTool": False,
         # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）
         "editSpan": True,
         "sizeList": ",".join(str(v) for v in model.master.span_lengths()),

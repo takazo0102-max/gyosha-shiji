@@ -38,6 +38,7 @@
 !   showDim         ブール  2D寸法・注記表示                                                                                          既定 1
 !   lineMode        ブール  3D線表示（計画初期・大規模向けの軽い表現）                                                                既定 0
 !   matScaf         表面材  足場の表面材（0＝既定。配置時にアルミを入れる）                                                           既定 0
+!   dimTool         ブール  平面のスパン寸法は寸法ツール（部品では描かない）                                                          既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
 !   mvoName         文字列  表示設定を読むライブラリグローバル部品名                                                                  既定 "ashiba_mvo"
 !   qtyPostPos      整数    図示本数: 支柱位置（この面が所有する始点・中間＋出隅コーナー）                                            既定 0
@@ -888,6 +889,16 @@ if mvOk and mvPlan = 2 then planSimple = 1
 if mvOk and mvPlan = 1 then planSimple = 0
 if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
 
+! 寸法ツールの寸法が付く点（外側建地列の支柱位置）。平面では最初に出すので、ホットスポットの番号＝
+! 始点からの支柱の番号（1〜nSpan+1）。Python が CreateAssociativeDimensions でこの番号を指す
+if viewMode <> "elev" then
+	xh = 0
+	for ip = 1 to nSpan + 1
+		hotspot2 xh, -rowW
+		if ip <= nSpan then xh = xh + spans[ip]
+	next ip
+endif
+
 if viewMode = "elev" then
 	gosub 200
 else
@@ -1241,6 +1252,8 @@ if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
 ! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
 yd = -rowW - dOff - 0.90
 yt = yd - 0.70
+! 寸法ツールで寸法を付けたとき（dimTool）は部品ではスパン・全長の寸法を描かない（二重になる）
+if dimTool then return
 line2 0, yd, lineLen, yd
 line2 0, yt, lineLen, yt
 x = 0

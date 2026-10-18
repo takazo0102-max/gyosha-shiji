@@ -72,3 +72,24 @@ class TestLabelRecord(unittest.TestCase):
             self.assertEqual(load_label_record(d), {"B": ["g3"]})
             self.assertEqual(remove_plan_labels(Client(), d), 1)
             self.assertEqual(load_label_record(d), {})
+
+
+class TestPlanDimensions(unittest.TestCase):
+    """平面のスパン寸法は寸法ツール（関連寸法）で、足場ラインの支柱のホットスポット（1〜nSpan+1）を指す."""
+
+    def test_two_dimensions_per_face(self):
+        from ashiba.plan_labels import SPAN_DIM_OUT_M, plan_dimension_data
+
+        r = solve_all(dict(RECT))
+        lines = [{"elementId": {"guid": f"G{i}"}} for i in range(len(r.model.plan.edges))]
+        data = plan_dimension_data(r.model, lines)
+        self.assertEqual(len(data), 2 * len(lines))
+        for k, ep in enumerate(r.model.plan.edges):
+            spans, total = data[2 * k], data[2 * k + 1]
+            self.assertEqual([w["inIndex"] for w in spans["witnessPoints"]], list(range(1, len(ep.spans) + 2)))
+            self.assertEqual([w["inIndex"] for w in total["witnessPoints"]], [1, len(ep.spans) + 1])
+            self.assertTrue(all(w["elementId"]["guid"] == f"G{k}" for w in spans["witnessPoints"]))
+        # 南面（辺0, +x 方向）: 寸法線は外側（-y）へ、建地列＋朝顔の出＋0.9m
+        south = data[0]
+        self.assertAlmostEqual(south["direction"]["x"], 1.0)
+        self.assertLess(south["referencePoint"]["y"], r.model.plan.edges[0].start_post[1] / 1000.0 - SPAN_DIM_OUT_M)

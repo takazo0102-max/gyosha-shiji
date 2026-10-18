@@ -183,3 +183,46 @@ def remove_plan_labels(client, out_dir, building: Optional[str] = None) -> int:
     (Path(out_dir) / PLAN_LABELS_RECORD).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n",
                                                     encoding="utf-8")
     return len(guids)
+
+
+# ---------------------------------------------------------------- 平面のスパン寸法（寸法ツール）
+
+SPAN_DIM_OUT_M = 0.90      # 外側建地列（＋張り出し）からスパン寸法の寸法線まで（2d.gdl の yd と同じ）
+TOTAL_DIM_OUT_M = 1.60     # 同じく全長の寸法線まで（yt）
+
+
+def face_outward_m(model: ScaffoldModel, ep, platforms=None) -> float:
+    """その面で外へ張り出すもの（昇降機・ステージ・朝顔）の出（m）. 2d.gdl の dOff と同じ考え方."""
+    d = 0.0
+    for ho in getattr(platforms, "hoists", None) or []:
+        if getattr(ho, "edge_index", None) == ep.edge_index:
+            d = max(d, 0.10 + float(getattr(ho, "cage_depth_mm", 0.0) or 0.0) / 1000.0 + 0.55)
+    for st in getattr(platforms, "stages", None) or []:
+        if getattr(st, "edge_index", None) == ep.edge_index:
+            d = max(d, float(getattr(st, "projection_mm", 0.0) or 0.0) / 1000.0 + 0.10)
+    asg = getattr(model.config, "asagao", None)
+    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0:
+        d = max(d, float(getattr(asg, "projection_mm", 2000.0) or 2000.0) / 1000.0 + 0.35)
+    return d
+
+
+def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None) -> list[dict]:
+    """足場ラインごとのスパン寸法と全長の寸法（Tapir CreateAssociativeDimensions の dimensionsData）.
+
+    寸法の点は足場ラインの平面のホットスポット 1〜nSpan+1（外側建地列の支柱。2d.gdl が最初に出す）。
+    寸法線は外側建地列から張り出しの外へ SPAN_DIM_OUT_M・TOTAL_DIM_OUT_M 離す。
+    """
+    row_w = float(model.post_row_spacing_mm) / 1000.0
+    out = []
+    for ep, el in zip(model.plan.edges, lines):
+        o, u, nrm = _frame(ep)
+        n = len(ep.spans) + 1
+        off = row_w + face_outward_m(model, ep, platforms)
+        for dist, idx in ((off + SPAN_DIM_OUT_M, list(range(1, n + 1))), (off + TOTAL_DIM_OUT_M, [1, n])):
+            ref = (o[0] / 1000.0 - nrm[0] * dist, o[1] / 1000.0 - nrm[1] * dist)
+            out.append({
+                "referencePoint": {"x": ref[0], "y": ref[1]},
+                "direction": {"x": u[0], "y": u[1]},
+                "witnessPoints": [{"elementId": el["elementId"], "inIndex": i} for i in idx],
+            })
+    return out

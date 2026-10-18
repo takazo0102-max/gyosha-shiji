@@ -233,24 +233,51 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
-def place_plan_labels(client, r, out_dir) -> int:
-    """平面図に部材名のラベルを置き、GUID を建物ごとに控える。置いた数を返す（失敗しても配置は止めない）."""
+def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, int]:
+    """平面図に寸法（寸法ツール）と部材名のラベルを置き、GUID を建物ごとに控える。(寸法数, ラベル数) を返す.
+
+    前回この建物に置いた分は控えの GUID で消してから置く。寸法が置けた足場ラインは dimTool=True にして、
+    部品が描くスパン寸法と二重にしない（置けなければ部品の寸法のまま）。失敗しても配置は止めない。
+    """
     from ashiba.elevation_sections import building_key, create_labels, fit_scale, plan_region_mm
-    from ashiba.plan_labels import plan_labels, remove_plan_labels, save_label_record
+    from ashiba.plan_labels import plan_dimension_data, plan_labels, remove_plan_labels, save_label_record
 
     bkey = building_key(r.model.plan.outline.vertices)
+    guids: list[str] = []
+    n_dim = n_lab = 0
     try:
         activate_floor_plan(client)
         remove_plan_labels(client, out_dir, bkey)
+    except TapirError:
+        pass
+    try:
+        res = client.tapir("CreateAssociativeDimensions",
+                           {"dimensionsData": plan_dimension_data(r.model, lines, r.platforms)})
+        made = [el for el in res.get("elements", [])]
+        ok = [el["elementId"]["guid"] for el in made if "elementId" in el]
+        guids += ok
+        n_dim = len(ok)
+        # 面ごとに2本（スパン・全長）。両方置けた面だけ部品の寸法を消す
+        for k, line in enumerate(lines):
+            pair = made[2 * k:2 * k + 2]
+            if len(pair) == 2 and all("elementId" in el for el in pair):
+                client.set_gdl_parameters(line, {"dimTool": True})
+        errs = [el.get("error", {}).get("message", "") for el in made if "elementId" not in el]
+        if errs:
+            print(f"  平面図: 寸法ツールで置けなかった寸法 {len(errs)}本（部品の寸法のまま）: {errs[0]}")
+    except TapirError as e:
+        print(f"  平面図: 寸法ツールの寸法を置けませんでした（部品の寸法のまま）: {e}")
+    try:
         region = plan_region_mm(r.model)
         scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
         labels = plan_labels(r.model, r.stair_plan, text_scale=float(scale), platforms=r.platforms)
-        guids = create_labels(client, labels)
-        save_label_record(out_dir, bkey, guids)
-        return len(guids)
+        lab = create_labels(client, labels)
+        guids += lab
+        n_lab = len(lab)
     except TapirError as e:
         print(f"  平面図: 部材名のラベルを置けませんでした（{e}）")
-        return 0
+    save_label_record(out_dir, bkey, guids)
+    return n_dim, n_lab
 
 
 def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
@@ -334,7 +361,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         terrain=r.terrain,
     )
     # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
-    plan_label_n = place_plan_labels(client, r, OUT_DIR)
+    plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
     elevs = []
