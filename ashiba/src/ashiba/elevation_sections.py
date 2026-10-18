@@ -448,11 +448,19 @@ def write_section_notes(client, notes: SectionNotes, text_height_mm: float = 2.5
 
 
 def write_section_labels(client, labels: list[dict], text_height_mm: float = 2.5) -> int:
-    """部材名を Archicad のラベル（文字ラベル・引出線つき）で置く。置いた数を返す.
+    """部材名を Archicad のラベル（文字ラベル・引出線つき）で置く。置いた数を返す."""
+    return len(create_labels(client, labels, text_height_mm, fallback=True))
 
-    引出線の矢先（beg）が部材、折れ点（mid）から文字（end）へ。文字の大きさが指定できなければ
-    ラベルツールの既定で置く。ラベルが作れなければ文字＋折れ線で同じ見た目に描く。
+
+def create_labels(client, labels: list[dict], text_height_mm: float = 2.5, fallback: bool = False) -> list[str]:
+    """文字ラベル（引出線の矢先 beg＝部材、折れ点 mid、文字 end）を現在のウィンドウに置き、GUID を返す.
+
+    文字の大きさが指定できなければラベルツールの既定で置く。fallback=True ならラベルが作れない版でも
+    折れ線＋文字で同じ見た目に描く（その場合 GUID は返さない）。
     """
+    if not labels:
+        return []
+
     def data(with_style: bool) -> list[dict]:
         out = []
         for lb in labels:
@@ -470,16 +478,16 @@ def write_section_labels(client, labels: list[dict], text_height_mm: float = 2.5
             r = client.tapir("CreateLabels", {"labelsData": data(with_style)})
         except Exception:
             continue
-        made = sum(1 for el in r.get("elements", []) if "elementId" in el)
-        if made:
-            return made
-    # ラベルが使えない版: 引出線（折れ線）と文字で描く
-    r = client.tapir("CreatePolylines", {"polylinesData": [
-        {"coordinates": [{"x": x, "y": y} for x, y in (lb["beg"], lb["mid"], lb["end"])]} for lb in labels]})
-    client.tapir("CreateTexts", {"textsData": [
-        {"coordinate": {"x": lb["end"][0], "y": lb["end"][1] + 0.05, "z": 0.0}, "text": lb["text"],
-         "height": text_height_mm, "justification": "Left"} for lb in labels]})
-    return len(labels)
+        guids = [el["elementId"]["guid"] for el in r.get("elements", []) if "elementId" in el]
+        if guids:
+            return guids
+    if fallback:
+        client.tapir("CreatePolylines", {"polylinesData": [
+            {"coordinates": [{"x": x, "y": y} for x, y in (lb["beg"], lb["mid"], lb["end"])]} for lb in labels]})
+        client.tapir("CreateTexts", {"textsData": [
+            {"coordinate": {"x": lb["end"][0], "y": lb["end"][1] + 0.05, "z": 0.0}, "text": lb["text"],
+             "height": text_height_mm, "justification": "Left"} for lb in labels]})
+    return []
 
 
 # ---------------------------------------------------------------- ナビゲータツリー

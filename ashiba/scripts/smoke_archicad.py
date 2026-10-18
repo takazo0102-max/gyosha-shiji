@@ -142,6 +142,10 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
                           + [sheet_layout_name(prefix), plan_layout_name(prefix), detail_layout_name(prefix)],
                           rec.values())
         (out_dir / "elevation_sections.json").write_text("{}\n", encoding="utf-8")
+        from ashiba.elevation_sections import building_key
+        from ashiba.plan_labels import remove_plan_labels
+        activate_floor_plan(client)
+        remove_plan_labels(client, out_dir, building_key([tuple(p) for p in outline]))
         activate_floor_plan(client)
         if slab is not None:
             client.delete_elements([slab])

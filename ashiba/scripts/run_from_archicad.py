@@ -233,6 +233,26 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
+def place_plan_labels(client, r, out_dir) -> int:
+    """平面図に部材名のラベルを置き、GUID を建物ごとに控える。置いた数を返す（失敗しても配置は止めない）."""
+    from ashiba.elevation_sections import building_key, create_labels, fit_scale, plan_region_mm
+    from ashiba.plan_labels import plan_labels, remove_plan_labels, save_label_record
+
+    bkey = building_key(r.model.plan.outline.vertices)
+    try:
+        activate_floor_plan(client)
+        remove_plan_labels(client, out_dir, bkey)
+        region = plan_region_mm(r.model)
+        scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
+        labels = plan_labels(r.model, r.stair_plan, text_scale=float(scale), platforms=r.platforms)
+        guids = create_labels(client, labels)
+        save_label_record(out_dir, bkey, guids)
+        return len(guids)
+    except TapirError as e:
+        print(f"  平面図: 部材名のラベルを置けませんでした（{e}）")
+        return 0
+
+
 def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
     """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
 
@@ -313,6 +333,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
         terrain=r.terrain,
     )
+    # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
+    plan_label_n = place_plan_labels(client, r, OUT_DIR)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
     elevs = []

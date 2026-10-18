@@ -87,6 +87,12 @@ def main() -> int:
         print(f"足場部品 {len(targets)}個を撤去しました")
     else:
         print("撤去する足場部品はありません")
+    # 平面の部材名ラベル（控えの GUID で。--all なら全建物の分）
+    from ashiba.elevation_sections import building_key
+    from ashiba.plan_labels import remove_plan_labels
+    n_lab = remove_plan_labels(client, OUT_DIR, None if "--all" in sys.argv else building_key(outline))
+    if n_lab:
+        print(f"平面の部材名ラベル {n_lab}個を撤去しました")
     _remove_section_elevations(client, "--all" in sys.argv)
     return 0
 
