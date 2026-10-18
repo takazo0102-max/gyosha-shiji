@@ -831,7 +831,8 @@ for ip = 1 to nSpan
 	for it = 1 to nSt
 		if x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qStairSpan = 1
 	next it
-	qNuno = qNuno + nRows * (1 - qOpenNega) + (nLevels - qOpenLv) * (nRows + qOuter + qInner)
+	! 作業床の高さにスパン方向の布材は付けない（アンチは腕木に掛ける）。根がらみ＋手すり・中桟だけ
+	qNuno = qNuno + nRows * (1 - qOpenNega) + (nLevels - qOpenLv) * (qOuter + qInner)
 	qDeck = qDeck + (nLevels - qOpenLv) * (1 - qStairSpan)
 	if railAdv = 0 then qToe = qToe + nLevels - qOpenLv
 	if railAdv = 1 then qAdv = qAdv + nLevels - qOpenLv
@@ -1944,8 +1945,8 @@ for il = 1 to nLv
 			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
 					z < bmH[ib6] - 0.001 then skipH = 1
 		next ib6
-		! 内外の布材（床レベル）
-		if skipH = 0 then
+		! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
+		if skipH = 0 and il = 1 then
 			for row = rowStart to 1
 				add x, -row * rowW, z
 				nL = spans[ip]

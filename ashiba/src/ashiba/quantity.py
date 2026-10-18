@@ -51,7 +51,9 @@ if TYPE_CHECKING:
 class QuantityRules:
     rows: int = 2                       # 建地列数（本足場=2、一側=1）
     rails_per_level_outer: int = 2      # 作業層あたり外側の手すり＋中桟
-    ledgers_per_level_floor: int = 2    # 作業層あたり床レベルの布材（内外）
+    # 作業層あたり床レベルのスパン方向の布材。くさび式ではアンチ（踏板）は腕木に掛けるので付けない
+    # （以前は内外2本を数えて3Dにも描いていた。2026-10-18 利用者の指摘）
+    ledgers_per_level_floor: int = 0
     ledgers_negarami: int = 2           # 根がらみ（内外）
     # 腕木の呼び寸法。Noneならモデルの建地列間隔から引く
     # （固定値にすると系列や次世代足場で図面と発注部材がズレる）
@@ -308,12 +310,14 @@ def take_off(
             + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すり／張出し外縁の手すりで防護）"
         )
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
+    per_level_parts = ([f"床レベル{floor_n}本"] if floor_n else []) + [
+        f"外側の手すり・中桟{rails_outer}本" if rails_outer else "外側の手すりは先行手摺"]
+    if rails_inner:
+        per_level_parts.append(f"躯体側の手すり・中桟{rails_inner}本")
     notes.append(
-        f"布材は1スパンあたり 根がらみ{negarami_n}本"
-        f"＋各層（床レベル{floor_n}本"
-        + (f"＋外側の手すり・中桟{rails_outer}本" if rails_outer else "＋外側の手すりは先行手摺")
-        + (f"＋躯体側の手すり・中桟{rails_inner}本" if rails_inner else "")
+        f"布材は1スパンあたり 根がらみ{negarami_n}本＋各層（" + "＋".join(per_level_parts)
         + f"）×{n_levels}層 ＝ {per_span_rails}本で計上"
+        + ("（作業床の高さのスパン方向の布材は付けない。アンチは腕木に掛ける）" if not floor_n else "")
     )
     if open_rail_cut:
         notes.append(

@@ -204,8 +204,8 @@ for il = 1 to nLv
 			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
 					z < bmH[ib6] - 0.001 then skipH = 1
 		next ib6
-		! 内外の布材（床レベル）
-		if skipH = 0 then
+		! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
+		if skipH = 0 and il = 1 then
 			for row = rowStart to 1
 				add x, -row * rowW, z
 				nL = spans[ip]

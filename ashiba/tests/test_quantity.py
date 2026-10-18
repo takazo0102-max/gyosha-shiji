@@ -121,13 +121,13 @@ class TestQuantity(unittest.TestCase):
         spans = self.plan.total_spans
         udegi = self.plan.total_posts * (nl + 1)      # 腕木も布材の区分
         corners = 4 * 2 * (1 + nl * 3)                 # 出隅コーナーの升目
-        # 根がらみ2＋各層（床2＋外側の手すり・中桟2＋躯体側の手すり・中桟2）
-        self.assertEqual(self.q.qty_of("布材"), spans * (2 + nl * 6) + udegi + corners)
+        # 根がらみ2＋各層（外側の手すり・中桟2＋躯体側の手すり・中桟2）。作業床の高さの布材は付けない
+        self.assertEqual(self.q.qty_of("布材"), spans * (2 + nl * 4) + udegi + corners)
         note = next(n for n in self.q.notes if n.startswith("布材は1スパンあたり"))
         self.assertIn("躯体側の手すり・中桟2本", note)
         self.model.config.inner_guard_rail = False
         q = take_off(self.model)
-        self.assertEqual(q.qty_of("布材"), spans * (2 + nl * 4) + udegi + corners)
+        self.assertEqual(q.qty_of("布材"), spans * (2 + nl * 2) + udegi + corners)
         self.assertNotIn("躯体側", next(n for n in q.notes if n.startswith("布材は1スパンあたり")))
 
     def test_no_such_note_when_all_within_300(self):
@@ -268,7 +268,7 @@ class TestCountsAreCheckable(unittest.TestCase):
         spans = self.m.plan.total_spans
         posts = self.m.plan.total_posts
         levels = self.m.elevation.n_levels
-        per_span = 2 + levels * (2 + 2 + 2)      # 根がらみ＋各層(床＋外側の手すり中桟＋躯体側の手すり中桟)
+        per_span = 2 + levels * (2 + 2)          # 根がらみ＋各層(外側の手すり中桟＋躯体側の手すり中桟)。床の高さの布材は無い
         udegi = posts * (levels + 1)
         corners = self.m.outer_corner_posts() * 2 * (1 + levels * 3)
         self.assertEqual(self.q.qty_of("布材"), spans * per_span + udegi + corners)
@@ -539,13 +539,13 @@ class TestSingleRowLedgers(unittest.TestCase):
         q = take_off(m)
         nl = m.elevation.n_levels
         spans = m.plan.total_spans
-        # 根がらみ1＋各層（床1＋手すり・中桟2）。腕木は無し。継ぎ足し無し。
+        # 根がらみ1＋各層（手すり・中桟2）。床の高さの布材・腕木は無し。継ぎ足し無し。
         # 出隅の外側コーナー升目（布材 2辺×〈根がらみ1＋各層3〉）は一側でも付く
-        expect = spans * (1 + nl * 3) + m.outer_corner_posts() * 2 * (1 + nl * 3)
+        expect = spans * (1 + nl * 2) + m.outer_corner_posts() * 2 * (1 + nl * 3)
         self.assertEqual(q.qty_of("布材"), expect)
         note = next(n for n in q.notes if n.startswith("布材は1スパンあたり"))
         self.assertIn("根がらみ1本", note)
-        self.assertIn("床レベル1本", note)
+        self.assertNotIn("床レベル", note)
 
 
 

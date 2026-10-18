@@ -483,7 +483,8 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
                     open_nega = 1
                 open_lv += sum(1 for h in levels[1:] if h < bh - 1e-6)
         in_stair = any(x >= s0 - 1e-6 and x + sp <= e0 + 1e-6 for s0, e0 in towers)
-        nuno += rows * (1 - open_nega) + (n_levels - open_lv) * (rows + outer + inner)
+        # 作業床の高さのスパン方向の布材は付けない（1d.gdl と同じ）
+        nuno += rows * (1 - open_nega) + (n_levels - open_lv) * (outer + inner)
         deck += (n_levels - open_lv) * (0 if in_stair else 1)
         if adv:
             advq += n_levels - open_lv
