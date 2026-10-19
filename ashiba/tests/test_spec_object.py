@@ -100,3 +100,16 @@ class TestToolbarReplacesUnreadableSpecObject(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUpgradeOldPart(unittest.TestCase):
+    def test_missing_fields_get_defaults(self):
+        from ashiba.spec_object import FIELDS, upgrade_params
+
+        old = {f.gdl: f.default for f in FIELDS if f.gdl not in ("scaffW", "stairLayout")}
+        old["railType"] = "先行手すり"
+        new, added = upgrade_params(old)
+        self.assertEqual(sorted(added), ["scaffW", "stairLayout"])
+        self.assertEqual(new["railType"], "先行手すり")
+        self.assertEqual(new["stairLayout"], "自動")
+        self.assertEqual(upgrade_params(new)[1], [])

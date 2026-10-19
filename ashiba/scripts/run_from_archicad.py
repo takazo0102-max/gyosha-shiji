@@ -219,7 +219,23 @@ def apply_spec_object(client, spec: dict) -> dict:
             pass
         hit = None
     if hit is not None:
+        from ashiba.spec_object import upgrade_params
+
         _el, params = hit
+        new_params, added = upgrade_params(params)
+        if added:
+            # 古い版の部品（新しい項目が無い）。値を引き継いで今の版に置き換える
+            try:
+                det = client.tapir("GetDetailsOfElements", {"elements": [_el]}).get("detailsOfElements", [{}])[0]
+                o = (det.get("details") or {}).get("origin") or {}
+                name = versioned_part_name(SPEC_OBJECT)
+                el = client.create_object(name, float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0)
+                client.set_gdl_parameters(el, new_params, name)
+                client.delete_elements([_el])
+                print(f"足場条件の部品を今の版に置き換えました（値は引き継ぎ、新しい項目 {', '.join(added)} は既定値）")
+            except TapirError as e:
+                print(f"足場条件の部品を今の版に置き換えられませんでした（{e}）。新しい項目は既定値で続けます")
+            params = new_params
         obj = spec_from_params(params)
         print(f"条件: 足場条件の部品から（{', '.join(sorted(obj))}）。JSON より優先します")
         return merge_object_into_spec(spec, obj)

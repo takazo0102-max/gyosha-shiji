@@ -202,3 +202,20 @@ def pick_spec_object(objects: list[tuple[dict, tuple[float, float], dict]], outl
         if d <= reach_mm and (best is None or d < best[0]):
             best = (d, el, params)
     return (best[1], best[2]) if best else None
+
+
+def upgrade_params(params: dict) -> tuple[dict, list[str]]:
+    """古い版の足場条件部品の値 → 今の版に入れる値（無い項目は既定値）と、足した項目名.
+
+    部品に項目を足すと、前に置いた部品（古い版）には新しい項目が無く、設定ダイアログにも出ない
+    （2026-10-20: 「幅」「階段の付け方」が実機の部品に無かった）。値を引き継いで今の版に置き換える。
+    """
+    out: dict = {}
+    added: list[str] = []
+    for f in FIELDS:
+        if f.gdl in params:
+            out[f.gdl] = params[f.gdl]
+        else:
+            out[f.gdl] = f.default
+            added.append(f.gdl)
+    return out, added

@@ -36,6 +36,10 @@ def _poly(kind: str, ox: float, oy: float) -> list[tuple[float, float]]:
 
 
 def select(c: ArchicadClient, elements: list[dict]) -> None:
+    # 選択は前面のウィンドウごと。配置の後はレイアウトが前面に残り、そこで選んでも平面図では選ばれていない
+    from ashiba.elevation_sections import activate_floor_plan
+
+    activate_floor_plan(c)
     sel = c.get_selected_elements()
     c.tapir("ChangeSelectionOfElements", {"addElementsToSelection": elements, "removeElementsFromSelection": sel})
 
