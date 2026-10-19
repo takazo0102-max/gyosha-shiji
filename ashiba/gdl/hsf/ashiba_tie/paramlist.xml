@@ -45,6 +45,10 @@
 			<Description><![CDATA["長さ（内側建地から躯体面まで＝離れ）"]]></Description>
 			<Value>0.3</Value>
 		</Length>
+		<Length Name="wallD">
+			<Description><![CDATA["建地芯から躯体面まで（0 なら長さと同じ）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="tieName">
 			<Description><![CDATA["品番"]]></Description>
 			<Value><![CDATA[""]]></Value>

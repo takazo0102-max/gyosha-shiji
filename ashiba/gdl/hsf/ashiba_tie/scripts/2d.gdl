@@ -2,12 +2,14 @@
 ! 壁つなぎ 2D（平面）: 建地から躯体への線と、実務の記号 ▽（頂点を躯体側へ）
 ! ============================================================
 pen 1
+wD = wallD
+if wD <= 0 then wD = tieL
 rot2 faceAng
-line2 0, 0, 0, tieL
-ty = tieL / 2
+line2 0, 0, 0, wD
+ty = wD / 2
 line2 -0.11, ty - 0.09, 0.11, ty - 0.09
 line2 0.11, ty - 0.09, 0, ty + 0.11
 line2 0, ty + 0.11, -0.11, ty - 0.09
 hotspot2 0, 0
-hotspot2 0, tieL
+hotspot2 0, wD
 del 1

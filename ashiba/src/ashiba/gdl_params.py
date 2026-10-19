@@ -216,6 +216,8 @@ def line_params(
         # （各面は始点支柱を所有する規則と同じ向き。実機の3Dで四隅が抜けていた）
         "cornerS": 1 if (not model.master.is_frame
                          and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
+        # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
+        **shared_corner_skips(model, ep.edge_index),
         # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
         "cornerE": 1 if (not model.master.is_frame
                          and model.plan.outline.edges[ep.edge_index].end_corner == "出隅") else 0,
@@ -417,6 +419,22 @@ def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
                 str(int(sec.deck_width or 0)),
             ]
     return ",".join(parts)
+
+
+def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:
+    """隅の内側建地（この面の終点＝次の面の始点）をどちらの面が描くか.
+
+    両方の面が描くと同じ位置に支柱が2本重なる（利用者の指摘 2026-10-20）。面の高さが違う
+    （セットバック）ときは高い方が描かないと隅の支柱が途中で切れるので、高い方、同じなら次の面が描く。
+    隣の面を建てていない（上の部分だけ・面の一部だけ）ときは自分で描く。
+    """
+    n = len(model.plan.outline.edges)
+    built = {e.edge_index for e in model.plan.edges}
+    h = model.elevation_of(edge_index).total_height
+    prev_i, next_i = (edge_index - 1) % n, (edge_index + 1) % n
+    skip_s = prev_i in built and prev_i != edge_index and model.elevation_of(prev_i).total_height > h
+    skip_e = next_i in built and next_i != edge_index and model.elevation_of(next_i).total_height >= h
+    return {"skipInS": 1 if skip_s else 0, "skipInE": 1 if skip_e else 0}
 
 
 def placement_of(model: ScaffoldModel, edge_index: int) -> dict:

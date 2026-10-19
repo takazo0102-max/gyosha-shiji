@@ -18,6 +18,7 @@ TIE_OBJECT = "ashiba_tie"
 NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
 
+TIE_BELOW_DECK_MM = 300.0  # 壁つなぎの取付位置（作業床の高さから下へ。床の高さは腕木・ネットブラケットと同じコマ）
 NET_GAP_MM = 50.0          # ネットブラケットの先端と躯体面のあき
 NET_BELOW_DECK_MM = 50.0   # 作業床の天端からネットまで（床の下に張る）
 
@@ -80,7 +81,7 @@ def tie_name(model: ScaffoldModel, need_mm: float) -> str:
 
 def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
     """壁つなぎ1本ごとの部品（長さは数量と同じ必要長さ＝躯体面まで）."""
-    from .quantity import wall_tie_required_length_mm
+    from .quantity import bridged_extra_standoff_mm, wall_tie_required_length_mm
 
     out: list[Placement] = []
     edges = {e.edge_index: e for e in model.plan.edges}
@@ -90,8 +91,11 @@ def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
             continue
         o, u, _n, ang = _frame(ep)
         need = wall_tie_required_length_mm(model, t.edge_index, t.position_mm)
+        wall = float(ep.standoff) + bridged_extra_standoff_mm(model, t.edge_index, t.position_mm)
+        z = max(float(t.height_mm) - TIE_BELOW_DECK_MM, model.elevation_of(t.edge_index).first_ledger_height)
         out.append(Placement(TIE_OBJECT, o[0] + u[0] * t.position_mm, o[1] + u[1] * t.position_mm, {
-            "faceAng": ang, "zH": (t.height_mm + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
+            "faceAng": ang, "zH": (z + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
+            "wallD": wall / 1000.0,
             "tieName": tie_name(model, need), "lineMode": bool(line_mode)}))
     return out
 

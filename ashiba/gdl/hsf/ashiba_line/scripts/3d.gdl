@@ -93,6 +93,12 @@ for ip = 1 to nSpan + 1
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
 	for row = rowStart to 1
+		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
+		skipP = 0
+		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		if skipP = 1 then
+			! 隣の面が描く
+		else
 		if bBase = 0 then
 			add x, -row * rowW, gv
 			! ジャッキ（敷板があればその上から）
@@ -121,6 +127,7 @@ for ip = 1 to nSpan + 1
 			add x, -row * rowW, bBase
 			cylind postTop - bBase, r_sic
 			del 1
+		endif
 		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
@@ -199,11 +206,14 @@ if cornerS = 1 then
 			cylind rowW, r_nuno
 			del 2
 			if showDeck then
-				! コーナー踏板と、外側2辺の幅木
+				! コーナー踏板と、外側2辺の幅木。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
+				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
+				if matDeck > 0 then material matDeck
 				add -rowW + 0.05, -rowW + 0.05, z
 				block rowW - 0.05, rowW - 0.05, 0.045
 				del 1
 				if railAdv = 0 then
+					if matToe > 0 then material matToe
 					add -rowW - 0.02, -rowW - 0.02, z + 0.045
 					block rowW + 0.02, 0.02, 0.157
 					del 1
@@ -211,6 +221,7 @@ if cornerS = 1 then
 					block 0.02, rowW + 0.02, 0.157
 					del 1
 				endif
+				if matScaf > 0 then material matScaf
 			endif
 		endif
 	next il
@@ -230,6 +241,7 @@ if komaPitch > 0 and isLite = 0 then
 		next ib
 		for row = rowStart to 1
 			zk = lv[1]
+			if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then zk = postTop
 			while zk < postTop - 0.01 do
 				if zk > bBase + 0.001 then
 					add x, -row * rowW, zk - 0.003
@@ -990,7 +1002,9 @@ for ip = 1 to nSpan + 1
 	next ib
 	for row = rowStart to 1
 		yr = -row * rowW
-		if bBase = 0 then
+		skipP = 0
+		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		if bBase = 0 and skipP = 0 then
 			lin_ x, yr, gv, x, yr, postTop
 			lin_ x - 0.07, yr - 0.07, gv, x + 0.07, yr - 0.07, gv
 			lin_ x + 0.07, yr - 0.07, gv, x + 0.07, yr + 0.07, gv

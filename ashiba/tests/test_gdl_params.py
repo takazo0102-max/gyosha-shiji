@@ -1176,3 +1176,41 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         self.assertIn("zg = lv[il5 + 1]", sub)
         self.assertIn("add x0 + 0.03, gy0, zg + 0.90", sub)
         self.assertIn("block 0.02, gw, 0.157", sub)
+
+
+class TestSharedCornerPosts(unittest.TestCase):
+    """隅の内側建地は隣の面と同じ1本。両方の面が描いて重なっていた（利用者の指摘 2026-10-20）."""
+
+    def test_each_corner_post_drawn_once(self):
+        from ashiba.cli import solve_all
+        from ashiba.gdl_params import shared_corner_skips
+
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000})
+        n = len(r.model.plan.edges)
+        sk = {e.edge_index: shared_corner_skips(r.model, e.edge_index) for e in r.model.plan.edges}
+        for i in range(n):
+            # 面 i の終点＝面 i+1 の始点。どちらか一方だけが描く
+            drawn = (1 - sk[i]["skipInE"]) + (1 - sk[(i + 1) % n]["skipInS"])
+            self.assertEqual(drawn, 1, sk)
+
+    def test_taller_face_draws_the_corner_post(self):
+        from ashiba.cli import solve_all
+        from ashiba.gdl_params import shared_corner_skips
+
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 15000,
+                       "face_eaves_mm": {"0": 9000, "1": 15000, "2": 15000, "3": 15000}})
+        m = r.model
+        low = 0
+        self.assertLess(m.elevation_of(low).total_height, m.elevation_of(1).total_height)
+        self.assertEqual(shared_corner_skips(m, low)["skipInE"], 1)     # 次の面（高い）が描く
+        self.assertEqual(shared_corner_skips(m, 1)["skipInS"], 0)
+        self.assertEqual(shared_corner_skips(m, 3)["skipInE"], 0)       # 前の面（高い）が自分で描く
+        self.assertEqual(shared_corner_skips(m, low)["skipInS"], 1)
+
+    def test_gdl_skips_and_corner_materials(self):
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1",
+                      body)
+        i = body.index("! コーナー踏板と、外側2辺の幅木")
+        self.assertIn("if matDeck > 0 then material matDeck", body[i:i + 400])

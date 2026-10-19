@@ -31,12 +31,14 @@ class TestTies(unittest.TestCase):
         self.assertTrue(all(p.part == TIE_OBJECT for p in pls))
         south = next(e for e in r.model.plan.edges if r.model.face_name(e.edge_index) == "南面")
         t = next(t for t in r.model.wall_ties if t.edge_index == south.edge_index)
-        p = next(p for p in pls if abs(p.params["zH"] - t.height_mm / 1000) < 1e-9
+        # 取付は作業床の 300 下（床の高さのコマは腕木・ネットブラケットが使う）
+        p = next(p for p in pls if abs(p.params["zH"] - (t.height_mm - 300) / 1000) < 1e-9
                  and abs(p.x_mm - (south.start_post[0] + t.position_mm)) < 1e-6)
         self.assertAlmostEqual(p.params["faceAng"], 0.0)                 # 南面は +x へ
         self.assertAlmostEqual(p.y_mm, south.start_post[1])              # 内側建地列の上
         self.assertGreater(p.params["tieL"], south.standoff / 1000)       # 躯体面まで（離れ＋支柱半径）
         self.assertTrue(p.params["tieName"])
+        self.assertAlmostEqual(p.params["wallD"], south.standoff / 1000)   # 躯体面で止める（突き抜けない）
 
 
 class TestNet(unittest.TestCase):

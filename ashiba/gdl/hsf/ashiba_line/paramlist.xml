@@ -305,6 +305,14 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="skipInS">
+			<Description><![CDATA["始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipInE">
+			<Description><![CDATA["終点の内側建地は隣の面が描く 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="cornerE">
 			<Description><![CDATA["終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）"]]></Description>
 			<Value>0</Value>
