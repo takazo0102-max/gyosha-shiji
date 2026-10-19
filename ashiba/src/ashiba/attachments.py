@@ -17,6 +17,11 @@ from .model import ScaffoldModel
 TIE_OBJECT = "ashiba_tie"
 NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
+SHEET_OBJECT = "ashiba_sheet"
+
+# 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
+SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400)}
+SHEET_GAP_MM = 60.0          # 外側建地列の芯からシートの面まで（緊結金具の出）
 
 TIE_BELOW_DECK_MM = 300.0  # 壁つなぎの取付位置（作業床の高さから下へ。床の高さは腕木・ネットブラケットと同じコマ）
 NET_GAP_MM = 50.0          # ネットブラケットの先端と躯体面のあき
@@ -151,3 +156,71 @@ def netbk_clash_faces(model: ScaffoldModel) -> list[tuple[int, float]]:
         return []
     return [(ep.edge_index, float(ep.standoff)) for ep in model.plan.edges
             if net_heights_mm(model, ep.edge_index) and not netbk_arm_mm(ep.standoff)[1]]
+
+
+def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
+    """シートの面に沿った範囲（mm。内側建地列の始点から）。出隅は外側の角の支柱の外まで回し、
+    入隅は隣の面のシートの面で止める（外側建地列＋シートのあきだけ戻る）."""
+    oe = model.plan.outline.edges[ep.edge_index]
+    d = float(model.post_row_spacing_mm) + SHEET_GAP_MM
+    length = float(sum(ep.spans))
+    x0 = -d if oe.start_corner == "出隅" else (d if oe.start_corner == "入隅" else 0.0)
+    x1 = length + d if oe.end_corner == "出隅" else (length - d if oe.end_corner == "入隅" else length)
+    return x0, x1
+
+
+def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float, float]]:
+    """面のシートの区間 [(始点, 終点, 内側建地芯からシートの面まで) mm].
+
+    外付け（3列）の階段室の区間は、本体の外側でシートを切り（乗り移りの通路）、階段室の外側に張る。
+    """
+    x0, x1 = _sheet_extent(model, ep)
+    off = float(model.post_row_spacing_mm) + SHEET_GAP_MM
+    cuts = []
+    if stair_plan is not None and getattr(stair_plan, "outside", False):
+        cuts = sorted((t.start_mm, t.end_mm) for t in stair_plan.towers if t.edge_index == ep.edge_index)
+    out = []
+    cur = x0
+    for s0, e0 in cuts:
+        if s0 > cur:
+            out.append((cur, s0, off))
+        out.append((s0, e0, off + float(model.post_row_spacing_mm)))
+        cur = max(cur, e0)
+    if x1 > cur:
+        out.append((cur, x1, off))
+    return out
+
+
+def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=None) -> list[Placement]:
+    """養生シート（面の区間ごとに1部品）。足場の外側の構面を、地面から支柱の天端まで覆う."""
+    size = SHEET_SIZES.get(model.config.sheet_type or "")
+    if size is None:
+        return []
+    out: list[Placement] = []
+    for ep in model.plan.edges:
+        o, _u, _n, ang = _frame(ep)
+        top = float(model.elevation_of(ep.edge_index).total_height)
+        for x0, x1, off in sheet_segments(model, ep, stair_plan):
+            out.append(Placement(SHEET_OBJECT, o[0], o[1], {
+                "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
+                "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zB": 0.0, "zT": top / 1000.0,
+                "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
+    return out
+
+
+def sheet_quantities(model: ScaffoldModel, stair_plan=None) -> tuple[float, int]:
+    """養生シートの面積（m²）と枚数（区間ごとに 幅÷1枚の幅 × 高さ÷1枚の高さ を切り上げ）."""
+    import math as _m
+
+    size = SHEET_SIZES.get(model.config.sheet_type or "")
+    if size is None:
+        return 0.0, 0
+    area = 0.0
+    n = 0
+    for ep in model.plan.edges:
+        top = float(model.elevation_of(ep.edge_index).total_height)
+        for x0, x1, _off in sheet_segments(model, ep, stair_plan):
+            w = max(0.0, x1 - x0)
+            area += w / 1000.0 * top / 1000.0
+            n += _m.ceil(w / size[0] - 1e-6) * _m.ceil(top / size[1] - 1e-6)
+    return area, n

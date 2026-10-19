@@ -1,0 +1,41 @@
+﻿! ============================================================
+! 養生シート 3D: 外側建地列の外（offY）に、面に沿って x0〜x1、高さ zB〜zT の膜。
+! メッシュシートは向こうが透ける。シート1枚の幅（sheetW）ごとに継ぎ目の線を引く
+!   原点＝内側建地列の始点の支柱、+Y＝躯体側（シートは -offY）
+! ============================================================
+pen 1
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ x0, -offY, zB, x1, -offY, zB
+	lin_ x1, -offY, zB, x1, -offY, zT
+	lin_ x1, -offY, zT, x0, -offY, zT
+	lin_ x0, -offY, zT, x0, -offY, zB
+else
+	if matSheet > 0 then
+		material matSheet
+	else
+		! 既定色: メッシュシートは灰（透過）、防音・密閉シートは白っぽい不透明に近い色
+		if sheetKind = "メッシュシート" then
+			define material "ashiba_mesh_sheet" 4, 0.62, 0.66, 0.70
+			material "ashiba_mesh_sheet"
+		else
+			define material "ashiba_solid_sheet" 1, 0.86, 0.88, 0.86
+			material "ashiba_solid_sheet"
+		endif
+	endif
+	add x0, -offY - 0.001, zB
+	block x1 - x0, 0.002, zT - zB
+	del 1
+	! 継ぎ目（1枚の幅ごと）
+	nW = int((x1 - x0) / sheetW + 0.999)
+	for iw = 1 to nW - 1
+		xs = x0 + iw * sheetW
+		lin_ xs, -offY - 0.002, zB, xs, -offY - 0.002, zT
+	next iw
+endif
+hotspot x0, -offY, zB
+hotspot x1, -offY, zB
+hotspot x0, -offY, zT
+hotspot x1, -offY, zT
+del 2

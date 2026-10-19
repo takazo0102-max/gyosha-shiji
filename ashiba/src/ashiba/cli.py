@@ -806,6 +806,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         deck_widths=deck_ws,
         post_row_spacing_mm=row_mm,
         next_gen=spec.get("next_gen", False),
+        sheet_type=str((spec.get("site") or {}).get("sheet_type", "メッシュシート")),
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
         line_mode_3d=bool(spec.get("line_mode_3d", False)),

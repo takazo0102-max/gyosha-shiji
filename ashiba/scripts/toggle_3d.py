@@ -21,7 +21,7 @@ from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
 
 # detail3d: 0=自動 1=精細 2=軽量 3=線（3d.gdl と同じ）
 STEPS = ((0, "自動"), (2, "軽量"), (3, "線"), (1, "精細"))
-ATTACH = ("ashiba_tie", "ashiba_net", "ashiba_netbk")
+ATTACH = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet")
 
 
 def next_step(current: int) -> tuple[int, str]:

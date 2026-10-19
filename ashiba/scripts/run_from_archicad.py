@@ -67,7 +67,7 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
-ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk")
+ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -281,14 +281,15 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     置いた要素と注意を返す。壁つなぎが全部置けたら足場ラインの tieObj を True にして、ライン側の壁つなぎを消す
     （置けなければライン側に描いたまま）。
     """
-    from ashiba.attachments import NET_OBJECT, NETBK_OBJECT, TIE_OBJECT, net_placements, tie_placements
+    from ashiba.attachments import (NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, TIE_OBJECT, net_placements,
+                                    sheet_placements, tie_placements)
 
     notes: list[str] = []
     line_mode = bool(r.model.config.line_mode_3d)
-    pls = tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
+    pls = tie_placements(r.model, line_mode) + net_placements(r.model, line_mode) + sheet_placements(r.model, line_mode, r.stair_plan)
     if not pls:
         return [], notes
-    names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT)}
+    names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT)}
     mats = {}
     try:
         mats = client.find_member_surfaces()
@@ -317,6 +318,9 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     n_bk = sum(1 for p in pls if p.part == NETBK_OBJECT)
     if n_net:
         print(f"  水平ネット {n_net}枚・ネットブラケット {n_bk}個（第{'・'.join(str(v) for v in r.model.config.horizontal_net_levels)}層）")
+    n_sheet = sum(1 for p in pls if p.part == SHEET_OBJECT)
+    if n_sheet:
+        print(f"  養生シート（{r.model.config.sheet_type}）{n_sheet}面")
     return placed, notes
 
 

@@ -610,6 +610,7 @@ def _take_off_one(
 
     _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
     _count_horizontal_net(model, add, notes)
+    _count_sheets(model, add, notes, stair_plan)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
@@ -1138,6 +1139,24 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if missing:
         notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
                      + "。別途手配してください", Notes.ORDER)
+
+
+def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
+    """養生シート（足場の外側の構面）。マスタに無ければ枚数と面積を注記に出す（リースの別手配が多い）."""
+    from .attachments import SHEET_SIZES, sheet_quantities
+
+    kind = model.config.sheet_type or ""
+    if kind not in SHEET_SIZES:
+        return
+    area, n = sheet_quantities(model, stair_plan)
+    if n <= 0:
+        return
+    w, h = SHEET_SIZES[kind]
+    part = next((p for p in model.master.by_category("養生シート") if kind in p.note), None)
+    if part is not None:
+        add(part, n, f"{kind}")
+    notes.append(f"{kind}（{w / 1000:.1f}×{h / 1000:.1f}m）は外側の構面を地面から足場の天端まで、"
+                 f"面ごとに {area:.0f}m²・{n}枚で計上" + ("" if part is not None else "（系列のマスタに無いので別途手配）"))
 
 
 def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
@@ -1776,3 +1795,4 @@ def _count_frame_parts(
     # ---- 朝顔（くさび式と同じ数え方・同じ注記） ----
     _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)
     _count_horizontal_net(model, add, notes)
+    _count_sheets(model, add, notes, stair_plan)

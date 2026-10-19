@@ -104,3 +104,46 @@ class TestNetLabels(unittest.TestCase):
         texts = [lb["text"] for lb in section_annotations(r.model, spec, stair_plan=r.stair_plan).labels]
         self.assertIn("水平ネット・ネットブラケット", texts)
         self.assertTrue(any(t.startswith("水平ネット（第2層）") for _x, _y, t in plan_label_items(r.model, r.stair_plan)))
+
+
+class TestSheets(unittest.TestCase):
+    """養生シート（メッシュシート）を足場の外側の構面に張る部品."""
+
+    def test_one_sheet_part_per_face_around_the_corners(self):
+        from ashiba.attachments import SHEET_OBJECT, sheet_placements
+
+        r = solve_all(dict(RECT))
+        pls = sheet_placements(r.model)
+        self.assertEqual(len(pls), len(r.model.plan.edges))
+        self.assertTrue(all(p.part == SHEET_OBJECT for p in pls))
+        p = pls[0]
+        ep = r.model.plan.edges[0]
+        d = (r.model.post_row_spacing_mm + 60) / 1000.0
+        self.assertAlmostEqual(p.params["x0"], -d)                      # 出隅は角の外まで回す
+        self.assertAlmostEqual(p.params["x1"], sum(ep.spans) / 1000.0 + d)
+        self.assertAlmostEqual(p.params["zT"], r.model.elevation.total_height / 1000.0)
+
+    def test_none_when_no_sheet(self):
+        from ashiba.attachments import sheet_placements, sheet_quantities
+
+        r = solve_all({**RECT, "site": {"sheet_type": "なし"}})
+        self.assertEqual(sheet_placements(r.model), [])
+        self.assertEqual(sheet_quantities(r.model), (0.0, 0))
+
+    def test_quantity_note(self):
+        r = solve_all(dict(RECT))
+        self.assertTrue(any(n.startswith("メッシュシート（1.8×5.1m）") for n in r.quantity.notes), r.quantity.notes)
+
+
+class TestSheetsAroundOutsideStairs(unittest.TestCase):
+    def test_sheet_moves_to_the_outside_of_the_stair_bay(self):
+        from ashiba.attachments import sheet_segments
+
+        r = solve_all({**RECT, "series_id": "nikken_nd1800", "stairs": {"layout": "outside"}})
+        t = r.stair_plan.towers[0]
+        ep = next(e for e in r.model.plan.edges if e.edge_index == t.edge_index)
+        segs = sheet_segments(r.model, ep, r.stair_plan)
+        tower = [s for s in segs if abs(s[0] - t.start_mm) < 1e-6 and abs(s[1] - t.end_mm) < 1e-6]
+        self.assertEqual(len(tower), 1)
+        self.assertAlmostEqual(tower[0][2], 2 * r.model.post_row_spacing_mm + 60)
+        self.assertEqual(len(segs), 3)

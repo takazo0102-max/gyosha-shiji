@@ -74,6 +74,8 @@ class ScaffoldConfig:
     # Noneならマスタの系列既定を使う（決め打ちにするとマスタ引き当てが静かに失敗する）
     deck_widths: Optional[tuple[int, ...]] = None
     next_gen: bool = False                 # 次世代足場（くさび派生・踏板幅500）
+    # 養生材（メッシュシート・防音シート・密閉シート。空・なしは張らない）。風荷重の充実率と同じ指定
+    sheet_type: str = ""
     deck_gap_mm: int = 20                  # 床材間の隙間
     post_row_spacing_mm: Optional[int] = None  # 内外建地列の芯々間隔（Noneで自動）
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間

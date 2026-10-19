@@ -1,0 +1,17 @@
+﻿! ============================================================
+! 養生シート 2D（平面）: 外側建地列の外の線と、1枚の幅ごとの短い目盛り
+! ============================================================
+pen 1
+rot2 faceAng
+line_type 3
+line2 x0, -offY, x1, -offY
+line_type 1
+nW = int((x1 - x0) / sheetW + 0.999)
+for iw = 0 to nW
+	xs = x0 + iw * sheetW
+	if xs > x1 then xs = x1
+	line2 xs, -offY - 0.05, xs, -offY + 0.05
+next iw
+hotspot2 x0, -offY
+hotspot2 x1, -offY
+del 1

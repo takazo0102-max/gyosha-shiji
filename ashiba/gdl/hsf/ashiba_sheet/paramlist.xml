@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+				<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="zH">
+			<Description><![CDATA["足場の立つ高さ（下の屋根から建てた上の部分）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="offY">
+			<Description><![CDATA["シートの面（内側建地芯から外へ。外側建地列＋60）"]]></Description>
+			<Value>0.67</Value>
+		</Length>
+		<Length Name="x0">
+			<Description><![CDATA["始点（面に沿って）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="x1">
+			<Description><![CDATA["終点（面に沿って）"]]></Description>
+			<Value>5.4</Value>
+		</Length>
+		<Length Name="zB">
+			<Description><![CDATA["下端"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="zT">
+			<Description><![CDATA["上端"]]></Description>
+			<Value>5.1</Value>
+		</Length>
+		<Length Name="sheetW">
+			<Description><![CDATA["シート1枚の幅（継ぎ目の線）"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<String Name="sheetKind">
+			<Description><![CDATA["養生材"]]></Description>
+			<Value><![CDATA["メッシュシート"]]></Value>
+		</String>
+		<Material Name="matSheet">
+			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
+			<Value>0</Value>
+		</Material>
+	</Parameters>
+</ParamSection>
