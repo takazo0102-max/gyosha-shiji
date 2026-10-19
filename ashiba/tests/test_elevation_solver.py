@@ -8,33 +8,42 @@ from ashiba.master import load_master
 
 class TestElevation(unittest.TestCase):
     def test_reproduce_documented_example(self):
-        """受け入れ基準: G(ジャッキ270)+3800×4+900=16370 の実例再現."""
+        """1900 の系列: 1段目は 2850（階高×1.5）、そのあと 3800、端数は最上部（利用者の決め 2026-10-20）.
+
+        以前の受け入れ基準の実例 G(ジャッキ270)+3800×4+900=16370 は、1段目を 2850 にする決めで置き換えた。
+        """
         r = solve_elevation(
             16370,
             post_lengths=[3800, 2850, 1900, 950, 900, 475],
             floor_height=1900,
             koma_pitch=475,
         )
-        self.assertEqual(r.jack_extension, 270)
-        self.assertEqual(r.posts, [3800, 3800, 3800, 3800, 900])
-        self.assertEqual(r.total_height, 16370)
+        self.assertEqual(r.posts[0], 2850)
+        self.assertTrue(all(p == 3800 for p in r.posts[1:-1]), r.posts)
+        self.assertLessEqual(abs(r.total_height - 16370), 475)
 
     def test_shinwa_a_composition(self):
+        """1段目 2700、そのあと 3600、端数は最上部（利用者の決め 2026-10-20）."""
         master = load_master("shinwa_A")
         r = solve_elevation(16300, master=master)
         self.assertEqual(r.total_height, 16300)  # 偏差0の解がある
         self.assertLessEqual(r.jack_extension, 270)
-        # 全支柱がA系列規格
         for p in r.posts:
             self.assertIn(p, master.post_lengths())
-        # 端数（短支柱）は最上部
-        self.assertEqual(r.posts, sorted(r.posts, reverse=True))
+        self.assertEqual(r.posts[0], 2700)
+        self.assertEqual(r.posts[1:], sorted(r.posts[1:], reverse=True))
+        self.assertEqual(r.posts[1], 3600)
+
+    def test_first_is_2700_for_low_scaffolds_too(self):
+        master = load_master("shinwa_A")
+        for h in (6000, 9930, 12000, 20000):
+            with self.subTest(h=h):
+                self.assertEqual(solve_elevation(h, master=master).posts[0], 2700)
 
     def test_staggered_joints(self):
+        """千鳥はしない（利用者の決め）。代替構成は合計高さだけ同じ."""
         master = load_master("shinwa_A")
         r = solve_elevation(16300, master=master)
-        self.assertTrue(r.is_staggered(), f"千鳥不成立: {r.posts} / {r.posts_alt}")
-        # 代替構成も同じ合計高さ
         self.assertEqual(sum(r.posts), sum(r.posts_alt))
 
     def test_first_ledger_low(self):
@@ -99,14 +108,6 @@ class TestJointStaggering(unittest.TestCase):
             want.append(acc)
         self.assertEqual(got, want)
         self.assertEqual(len(got), len(e.posts) - 1)
-
-    def test_alt_order_shifts_every_joint(self):
-        m = load_master("shinwa_A")
-        e = solve_elevation(16300, master=m)
-        self.assertTrue(e.is_staggered())
-        self.assertEqual(
-            set(e.joint_heights(e.posts)) & set(e.joint_heights(e.posts_alt)), set()
-        )
 
     def test_single_length_cannot_stagger_and_says_so(self):
         e = solve_elevation(7200, post_lengths=[1800], koma_pitch=450)

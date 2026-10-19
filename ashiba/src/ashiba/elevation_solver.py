@@ -75,6 +75,15 @@ def _order_bottom_up(pieces: list[int]) -> list[int]:
     return sorted(pieces, reverse=True)
 
 
+def _order_with_first(pieces: list[int], first: int) -> list[int]:
+    """1段目を first（2700 等）にし、その上は長い順（3600 を積んで端数は最上部）."""
+    rest = list(pieces)
+    if first and first in rest:
+        rest.remove(first)
+        return [first] + _order_bottom_up(rest)
+    return _order_bottom_up(rest)
+
+
 def _alt_order(pieces: list[int]) -> list[int]:
     """千鳥用: 短い支柱を最下部に回した並び（ジョイント高さをずらす）."""
     if len(set(pieces)) < 2:
@@ -214,6 +223,12 @@ def solve_elevation(
     band_lo, band_hi = jack_min + 50, jack_max - 70
     max_total = required_height + over_allow
     table = _compose_table(max_total, lengths)
+    # 1段目（最下部）の支柱は基本 2700（階高1800の系列。1900 の系列は 2850＝階高×1.5）、そのあと 3600 を積み、
+    # 端数は最上部（利用者の決め 2026-10-20）。1段目を短くすると最初の継ぎ目が低くなり、根がらみ・1層目の
+    # 布材と継ぎ目がずれる。その系列に該当の長さが無い・高さが足りないときは従来の積み方
+    first = int(round(floor_height * 1.5))
+    if first not in lengths:
+        first = 0
     best: Optional[tuple[tuple, int, list[int]]] = None
     best_band: Optional[tuple[tuple, int, list[int]]] = None
     for jack in range(jack_min, jack_max + 1, 5):
@@ -221,14 +236,23 @@ def solve_elevation(
             posts_total = required_height + delta - jack
             if posts_total <= 0:
                 continue
-            pieces = table.get(posts_total)
+            pieces = None
+            lead = 1
+            if first and posts_total >= first:
+                rest = posts_total - first
+                rest_pieces = [] if rest == 0 else table.get(rest)
+                if rest_pieces is not None:
+                    pieces = [first] + list(rest_pieces)
+                    lead = 0
+            if pieces is None:
+                pieces = table.get(posts_total)
             if pieces is None:
                 continue
-            score = (abs(delta), len(pieces), jack_max - jack)
+            score = (lead, abs(delta), len(pieces), jack_max - jack)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
             if band_lo <= jack <= band_hi:
-                bscore = (abs(delta), len(pieces), abs(jack - (band_lo + band_hi) / 2))
+                bscore = (lead, abs(delta), len(pieces), abs(jack - (band_lo + band_hi) / 2))
                 if best_band is None or bscore < best_band[0]:
                     best_band = (bscore, jack, pieces)
     if best is None:
@@ -238,7 +262,7 @@ def solve_elevation(
         )
     _score, jack, pieces = best
 
-    posts = _order_bottom_up(pieces)
+    posts = _order_with_first(pieces, first)
     posts_alt = _alt_order(pieces)
 
     warnings = []
@@ -247,7 +271,7 @@ def solve_elevation(
     if jack > band_hi and best_band is not None and (best_band[1], best_band[2]) != (jack, pieces):
         alt_jack, alt_pieces = best_band[1], best_band[2]
         alt_total = alt_jack + sum(alt_pieces)
-        alt_desc = "+".join(str(v) for v in _order_bottom_up(alt_pieces))
+        alt_desc = "+".join(str(v) for v in _order_with_first(alt_pieces, first))
         warnings.append(
             f"ジャッキ繰出し{jack}mmは実務上限{jack_max}mmに近く、上への調整代がありません。"
             f"調整代を残すなら ジャッキ{alt_jack}+{alt_desc}＝{alt_total}mm"
