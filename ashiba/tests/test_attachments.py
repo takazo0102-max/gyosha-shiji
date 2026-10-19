@@ -12,6 +12,9 @@ from ashiba.attachments import (
     net_heights_mm,
     net_placements,
     net_quantities,
+    net_width_mm,
+    netbk_arm_mm,
+    netbk_clash_faces,
     tie_placements,
 )
 from ashiba.cli import solve_all
@@ -57,6 +60,22 @@ class TestNet(unittest.TestCase):
         self.assertEqual(n_bk, len(bks))
         want = sum(p.params["netL"] * p.params["netW"] for p in nets)
         self.assertTrue(math.isclose(area, want, rel_tol=1e-9))
+
+    def test_nl500_reach(self):
+        """NL500: 受け板（建地芯から42）から 300〜470mm の伸縮。先端は躯体面の 50mm 手前を狙う."""
+        self.assertEqual(netbk_arm_mm(500), (450.0, True))
+        self.assertEqual(netbk_arm_mm(392), (342.0, True))
+        self.assertEqual(netbk_arm_mm(300), (342.0, False))      # 最短でも躯体に当たる
+        self.assertEqual(netbk_arm_mm(900), (512.0, True))       # 全伸で止まる
+        self.assertAlmostEqual(net_width_mm(500), 450 - 20 - 120)
+        self.assertAlmostEqual(net_width_mm(300), 250 - 20 - 120)  # 当たる面は躯体面のあきまで
+
+    def test_clash_warning_when_standoff_is_small(self):
+        r = solve_all({**RECT, "horizontal_net_levels": [2]})
+        self.assertTrue(netbk_clash_faces(r.model))                # 既定の離れ 300 では届きすぎる
+        self.assertTrue(any("NL500" in w and "躯体に当たります" in w for w in r.quantity.warnings), r.quantity.warnings)
+        bk = next(p for p in net_placements(r.model) if p.part == NETBK_OBJECT)
+        self.assertAlmostEqual(bk.params["armL"], 0.342)
 
     def test_quantity_note_and_order(self):
         r = solve_all({**RECT, "horizontal_net_levels": [2]})

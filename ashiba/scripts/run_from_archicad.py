@@ -286,8 +286,8 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
         extra = {}
         if p.part == TIE_OBJECT and mats.get("matScaf"):
             extra["matTie"] = mats["matScaf"]
-        if p.part == NETBK_OBJECT and mats.get("matScaf"):
-            extra["matBk"] = mats["matScaf"]
+        if p.part == NETBK_OBJECT and (mats.get("matDeck") or mats.get("matScaf")):
+            extra["matBk"] = mats.get("matDeck") or mats["matScaf"]   # NL500 は鋼製（溶融亜鉛めっき）
         pairs.append((el, {**p.params, **extra}))
     client.set_gdl_parameters_many(pairs)
     placed = [el for el in els if el is not None]

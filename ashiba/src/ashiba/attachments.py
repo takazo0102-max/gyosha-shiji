@@ -18,9 +18,37 @@ TIE_OBJECT = "ashiba_tie"
 NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
 
-NET_GAP_MM = 50.0          # 水平ネットと躯体面のあき（ネット幅＝離れ−あき）
-NET_EDGE_MM = 60.0         # ネットの建地側の端（建地芯から。ブラケットの受け金具の躯体側の面）
+NET_GAP_MM = 50.0          # ネットブラケットの先端と躯体面のあき
 NET_BELOW_DECK_MM = 50.0   # 作業床の天端からネットまで（床の下に張る）
+
+# ネットブラケットはネット専用ブラケット NL500 の形（利用者の資料 2026-10-20）: φ42.7/48.6 兼用クランプで
+# 内側建地を抱き、受け板（幅75）から φ34 の外管と φ27.2 の内管の伸縮腕を躯体側へ出す（方杖なし）。
+# 腕の届きは受け板の建地側の面から 300〜470mm。ネットは受け板・外管の端・先端のフックに掛ける
+NETBK_MODEL = "NL500"
+NETBK_PLATE_MM = 42.0          # 建地芯から受け板の建地側の面（クランプの出。全伸 512 − 470）
+NETBK_REACH_MIN_MM = 300.0
+NETBK_REACH_MAX_MM = 470.0
+NET_EDGE_MM = 120.0            # ネットの建地側の端（建地芯から。受け板のフック）
+NET_TIP_MM = 20.0              # ネットの躯体側の端（腕の先端のフックから手前）
+
+
+def netbk_arm_mm(standoff_mm: float) -> tuple[float, bool]:
+    """ブラケットの先端（建地芯から mm）と、躯体に当たらずに収まるか.
+
+    先端は躯体面から NET_GAP_MM 手前を狙い、NL500 の伸縮範囲に丸める。最短でも躯体に届く
+    （離れ＜建地芯から 342＋あき）ときは最短で描き、収まらない（False）と返す。
+    """
+    want = float(standoff_mm) - NET_GAP_MM
+    lo = NETBK_PLATE_MM + NETBK_REACH_MIN_MM
+    hi = NETBK_PLATE_MM + NETBK_REACH_MAX_MM
+    return min(max(want, lo), hi), want >= lo - 1e-6
+
+
+def net_width_mm(standoff_mm: float) -> float:
+    """水平ネットの幅（受け板のフック〜腕の先端のフック。腕が躯体に当たるときは躯体面のあきまで）."""
+    arm, _fits = netbk_arm_mm(standoff_mm)
+    tip = min(arm, float(standoff_mm) - NET_GAP_MM)
+    return tip - NET_TIP_MM - NET_EDGE_MM
 
 
 @dataclass
@@ -82,9 +110,10 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
         for z in net_heights_mm(model, ep.edge_index):
             z = z + model.base_height_mm
             o, u, nrm, ang = _frame(ep)
-            width = float(ep.standoff) - NET_GAP_MM - NET_EDGE_MM
+            width = net_width_mm(ep.standoff)
             if width <= 0:
                 continue
+            arm, _fits = netbk_arm_mm(ep.standoff)
             length = float(sum(ep.spans))
             out.append(Placement(NET_OBJECT, o[0] + nrm[0] * NET_EDGE_MM, o[1] + nrm[1] * NET_EDGE_MM, {
                 "faceAng": ang, "zH": z / 1000.0, "netL": length / 1000.0, "netW": width / 1000.0,
@@ -92,7 +121,7 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
             x = 0.0
             for sp in ep.spans:          # 終点の建地は次の面が受け持つ
                 out.append(Placement(NETBK_OBJECT, o[0] + u[0] * x, o[1] + u[1] * x, {
-                    "faceAng": ang, "zH": z / 1000.0, "armL": (float(ep.standoff) - NET_GAP_MM) / 1000.0,
+                    "faceAng": ang, "zH": z / 1000.0, "armL": arm / 1000.0,
                     "lineMode": bool(line_mode)}))
                 x += float(sp)
     return out
@@ -104,9 +133,17 @@ def net_quantities(model: ScaffoldModel) -> tuple[float, int]:
     n_bk = 0
     for ep in model.plan.edges:
         for _z in net_heights_mm(model, ep.edge_index):
-            width = float(ep.standoff) - NET_GAP_MM - NET_EDGE_MM
+            width = net_width_mm(ep.standoff)
             if width <= 0:
                 continue
             area += float(sum(ep.spans)) / 1000.0 * width / 1000.0
             n_bk += len(ep.spans)
     return area, n_bk
+
+
+def netbk_clash_faces(model: ScaffoldModel) -> list[tuple[int, float]]:
+    """ネットを張る面のうち、NL500 が最短でも躯体に当たる面（辺番号, 離れ mm）."""
+    if not model.config.horizontal_net_levels:
+        return []
+    return [(ep.edge_index, float(ep.standoff)) for ep in model.plan.edges
+            if net_heights_mm(model, ep.edge_index) and not netbk_arm_mm(ep.standoff)[1]]

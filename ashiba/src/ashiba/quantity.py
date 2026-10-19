@@ -1102,7 +1102,8 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
 
     マスタに無い系列は手配の注記に面積・個数で出す（ネットは m² 単位、ブラケットは内側建地ごと）。
     """
-    from .attachments import net_quantities
+    from .attachments import (NETBK_MODEL, NETBK_PLATE_MM, NETBK_REACH_MAX_MM, NETBK_REACH_MIN_MM, NET_GAP_MM,
+                              net_quantities, netbk_clash_faces)
 
     if not model.config.horizontal_net_levels:
         return
@@ -1122,9 +1123,17 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if net is None:
         missing.append(f"水平ネット {area:.1f}m²")
     if bk is None:
-        missing.append(f"ネットブラケット {n_bk}個")
+        missing.append(f"ネットブラケット（ネット専用ブラケット {NETBK_MODEL} 相当）{n_bk}個")
     notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m²、ネットブラケットは内側建地ごと"
                  f" {n_bk}個で計上")
+    clash = netbk_clash_faces(model)
+    if clash:
+        need = NETBK_PLATE_MM + NETBK_REACH_MIN_MM + NET_GAP_MM
+        faces = "・".join(f"{model.face_name(i)}（離れ{so:.0f}mm）" for i, so in clash)
+        notes.action(f"ネットブラケット {NETBK_MODEL} の腕は受け板から {NETBK_REACH_MIN_MM:.0f}〜{NETBK_REACH_MAX_MM:.0f}mm"
+                     f"（建地芯から最短 {NETBK_PLATE_MM + NETBK_REACH_MIN_MM:.0f}mm）で、{faces} では最短でも躯体に当たります。"
+                     f"離れを {need:.0f}mm 以上にするか、腕の短いブラケット・内ブラケットで隙間を塞ぐ方法を検討してください",
+                     Notes.SITE)
     if missing:
         notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
                      + "。別途手配してください", Notes.ORDER)

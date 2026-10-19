@@ -42,7 +42,7 @@
 			<Value>0</Value>
 		</Boolean>
 		<Length Name="armL">
-			<Description><![CDATA["腕の長さ（内側建地から躯体側へ）"]]></Description>
+			<Description><![CDATA["先端の位置（建地芯から躯体側へ。NL500 は 342〜512 に丸める）"]]></Description>
 			<Value>0.25</Value>
 		</Length>
 		<Material Name="matBk">
