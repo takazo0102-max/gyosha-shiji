@@ -305,6 +305,10 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="cornerE">
+			<Description><![CDATA["終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="railIn">
 			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
 			<Value>1</Value>

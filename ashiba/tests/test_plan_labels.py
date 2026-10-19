@@ -86,8 +86,10 @@ class TestPlanDimensions(unittest.TestCase):
         self.assertEqual(len(data), 2 * len(lines))
         for k, ep in enumerate(r.model.plan.edges):
             spans, total = data[2 * k], data[2 * k + 1]
-            self.assertEqual([w["inIndex"] for w in spans["witnessPoints"]], list(range(1, len(ep.spans) + 2)))
-            self.assertEqual([w["inIndex"] for w in total["witnessPoints"]], [1, len(ep.spans) + 1])
+            # 長方形は四隅とも出隅: 始点の角の支柱（nSpan+2）→ 支柱 1〜nSpan+1 → 終点の角の支柱（nSpan+3）
+            n = len(ep.spans) + 1
+            self.assertEqual([w["inIndex"] for w in spans["witnessPoints"]], [n + 1] + list(range(1, n + 1)) + [n + 2])
+            self.assertEqual([w["inIndex"] for w in total["witnessPoints"]], [n + 1, n + 2])
             self.assertTrue(all(w["elementId"]["guid"] == f"G{k}" for w in spans["witnessPoints"]))
         # 南面（辺0, +x 方向）: 寸法線は外側（-y）へ、建地列＋朝顔の出＋0.9m
         south = data[0]

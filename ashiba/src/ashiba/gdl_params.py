@@ -216,6 +216,9 @@ def line_params(
         # （各面は始点支柱を所有する規則と同じ向き。実機の3Dで四隅が抜けていた）
         "cornerS": 1 if (not model.master.is_frame
                          and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
+        # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
+        "cornerE": 1 if (not model.master.is_frame
+                         and model.plan.outline.edges[ep.edge_index].end_corner == "出隅") else 0,
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,
         "braceEveryL": brace_l,

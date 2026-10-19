@@ -214,7 +214,9 @@ def face_outward_m(model: ScaffoldModel, ep, platforms=None) -> float:
 def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None) -> list[dict]:
     """足場ラインごとのスパン寸法と全長の寸法（Tapir CreateAssociativeDimensions の dimensionsData）.
 
-    寸法の点は足場ラインの平面のホットスポット 1〜nSpan+1（外側建地列の支柱。2d.gdl が最初に出す）。
+    寸法の点は足場ラインの平面のホットスポット 1〜nSpan+1（外側建地列の支柱。2d.gdl が最初に出す）と、
+    nSpan+2・nSpan+3（始点・終点の出隅コーナーの外側の角の支柱）。寸法は両端のコーナーまで張る
+    （利用者の指摘 2026-10-20: 寸法は両端まで必要）。
     寸法線は外側建地列から張り出しの外へ SPAN_DIM_OUT_M・TOTAL_DIM_OUT_M 離す。
     """
     row_w = float(model.post_row_spacing_mm) / 1000.0
@@ -222,8 +224,13 @@ def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None)
     for ep, el in zip(model.plan.edges, lines):
         o, u, nrm = _frame(ep)
         n = len(ep.spans) + 1
+        oe = model.plan.outline.edges[ep.edge_index]
+        corner = not model.master.is_frame
+        head = [n + 1] if corner and oe.start_corner == "出隅" else []
+        tail = [n + 2] if corner and oe.end_corner == "出隅" else []
+        chain = head + list(range(1, n + 1)) + tail
         off = row_w + face_outward_m(model, ep, platforms)
-        for dist, idx in ((off + SPAN_DIM_OUT_M, list(range(1, n + 1))), (off + TOTAL_DIM_OUT_M, [1, n])):
+        for dist, idx in ((off + SPAN_DIM_OUT_M, chain), (off + TOTAL_DIM_OUT_M, [chain[0], chain[-1]])):
             ref = (o[0] / 1000.0 - nrm[0] * dist, o[1] / 1000.0 - nrm[1] * dist)
             out.append({
                 "referencePoint": {"x": ref[0], "y": ref[1]},

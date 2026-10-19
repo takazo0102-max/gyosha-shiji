@@ -1129,7 +1129,10 @@ class TestPlanDimensions(unittest.TestCase):
 
     def test_dimension_line_stands_off(self):
         self.assertIn("yd = -rowW - dOff - 0.90", self.body)
-        self.assertIn("line2 0, yd, lineLen, yd", self.body)
+        self.assertIn("line2 xs, yd, xe, yd", self.body)
+        # 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
+        self.assertIn("xs = -rowW * cornerS", self.body)
+        self.assertIn("xe = lineLen + rowW * cornerE", self.body)
         self.assertIn("if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35", self.body)
 
     def test_text_turns_to_read_from_below_or_right(self):

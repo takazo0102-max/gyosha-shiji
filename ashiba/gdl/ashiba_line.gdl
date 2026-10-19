@@ -81,6 +81,7 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
+!   cornerE         整数    終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）                              既定 0
 !   railIn          整数    躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1                                                        既定 1
 !   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                      既定 ""
 !   brktList2       文字列  ブラケット区間（続き2）                                                                                   既定 ""
@@ -901,6 +902,9 @@ if viewMode <> "elev" then
 		hotspot2 xh, -rowW
 		if ip <= nSpan then xh = xh + spans[ip]
 	next ip
+	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
+	hotspot2 -rowW * cornerS, -rowW
+	hotspot2 xh + rowW * cornerE, -rowW
 endif
 
 if viewMode = "elev" then
@@ -1261,8 +1265,27 @@ yd = -rowW - dOff - 0.90
 yt = yd - 0.70
 ! 寸法ツールで寸法を付けたとき（dimTool）は部品ではスパン・全長の寸法を描かない（二重になる）
 if dimTool then return
-line2 0, yd, lineLen, yd
-line2 0, yt, lineLen, yt
+! 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
+xs = -rowW * cornerS
+xe = lineLen + rowW * cornerE
+line2 xs, yd, xe, yd
+line2 xs, yt, xe, yt
+if cornerS then
+	line2 xs, -rowW - 0.10, xs, yd - 0.10
+	line2 xs - 0.07, yd - 0.07, xs + 0.07, yd + 0.07
+	tdx = xs / 2
+	tdy = yd + 0.16
+	tdt = str(rowW * 1000, 5, 0)
+	gosub 985
+endif
+if cornerE then
+	line2 xe, -rowW - 0.10, xe, yd - 0.10
+	line2 xe - 0.07, yd - 0.07, xe + 0.07, yd + 0.07
+	tdx = lineLen + rowW / 2
+	tdy = yd + 0.16
+	tdt = str(rowW * 1000, 5, 0)
+	gosub 985
+endif
 x = 0
 for ip = 1 to nSpan + 1
 	line2 x, -rowW - 0.10, x, yd - 0.10
@@ -1275,13 +1298,13 @@ for ip = 1 to nSpan + 1
 		x = x + spans[ip]
 	endif
 next ip
-line2 0, yd - 0.10, 0, yt - 0.10
-line2 lineLen, yd - 0.10, lineLen, yt - 0.10
-line2 -0.07, yt - 0.07, 0.07, yt + 0.07
-line2 lineLen - 0.07, yt - 0.07, lineLen + 0.07, yt + 0.07
-tdx = lineLen / 2
+line2 xs, yd - 0.10, xs, yt - 0.10
+line2 xe, yd - 0.10, xe, yt - 0.10
+line2 xs - 0.07, yt - 0.07, xs + 0.07, yt + 0.07
+line2 xe - 0.07, yt - 0.07, xe + 0.07, yt + 0.07
+tdx = (xs + xe) / 2
 tdy = yt + 0.16
-tdt = "L=" + str(lineLen * 1000, 6, 0) + "  離れ" + str(standoff * 1000, 4, 0)
+tdt = "L=" + str((xe - xs) * 1000, 6, 0) + "  離れ" + str(standoff * 1000, 4, 0)
 gosub 985
 set style "anno"
 return
