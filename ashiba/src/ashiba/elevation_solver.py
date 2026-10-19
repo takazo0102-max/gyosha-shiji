@@ -231,7 +231,10 @@ def solve_elevation(
         first = 0
     best: Optional[tuple[tuple, int, list[int]]] = None
     best_band: Optional[tuple[tuple, int, list[int]]] = None
-    for jack in range(jack_min, jack_max + 1, 5):
+    # 支柱の和は5mmの倍数なので、繰出しは要求高さと5mmの端数を揃えて回す（スラブの天端から決めた
+    # 5928mm のような高さで、5mm刻みの繰出しが一つも合わず「構成できません」になった）
+    jack_start = jack_min + int(round(required_height - jack_min)) % 5
+    for jack in range(jack_start, jack_max + 1, 5):
         for delta in range(-under_allow, over_allow + 1, 5):
             posts_total = required_height + delta - jack
             if posts_total <= 0:

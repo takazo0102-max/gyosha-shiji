@@ -40,6 +40,15 @@ class TestElevation(unittest.TestCase):
             with self.subTest(h=h):
                 self.assertEqual(solve_elevation(h, master=master).posts[0], 2700)
 
+    def test_heights_off_the_5mm_grid(self):
+        """スラブの天端から決めた高さ（5928mm など5mmの倍数でない）でも組める（実機で止まった）."""
+        master = load_master("shinwa_A")
+        for h in (5928, 5927, 9931, 16302, 15999):
+            with self.subTest(h=h):
+                r = solve_elevation(h, master=master)
+                self.assertEqual(r.total_height, h)
+                self.assertEqual(r.posts[0], 2700)
+
     def test_staggered_joints(self):
         """千鳥はしない（利用者の決め）。代替構成は合計高さだけ同じ."""
         master = load_master("shinwa_A")
