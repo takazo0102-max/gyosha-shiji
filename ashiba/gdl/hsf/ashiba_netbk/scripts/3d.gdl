@@ -1,0 +1,30 @@
+﻿! ============================================================
+! ネットブラケット 3D: 建地を抱くクランプ、躯体側への腕 φ34、先端の立ち上がり（ネットの縁を掛ける）、
+! 下からの方杖（腕の6割の位置へ 45°）
+! ============================================================
+pen 1
+if matBk > 0 then material matBk
+resol 8
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ 0, 0, 0, 0, armL, 0
+else
+	add -0.04, -0.04, -0.06
+	block 0.08, 0.08, 0.12
+	del 1
+	rotx -90
+	cylind armL, 0.034 / 2
+	del 1
+	add 0, armL, 0
+	cylind 0.12, 0.034 / 2
+	del 1
+	sl = armL * 0.6
+	add 0, 0, -sl
+	rotx -45
+	cylind sl * 1.4142, 0.0272 / 2
+	del 2
+endif
+hotspot 0, 0, 0
+hotspot 0, armL, 0
+del 2

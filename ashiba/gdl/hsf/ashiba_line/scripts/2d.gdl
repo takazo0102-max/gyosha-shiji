@@ -347,7 +347,10 @@ next ibr
 line_type 1
 
 ! 壁つなぎ位置（実務の記号は逆三角 ▽。頂点を躯体側に向けて、足場と躯体の間に置く）
-for it = 1 to nTie
+! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、その部品が ▽ を描く
+nTieDraw = nTie
+if tieObj then nTieDraw = 0
+for it = 1 to nTieDraw
 	gosub 960
 	line2 ties[it], 0, ties[it], standoff
 next it

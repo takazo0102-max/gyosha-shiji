@@ -463,6 +463,7 @@ def take_off(
     _count_stair_guards(model, add, notes, n_towers, n_levels)
 
     _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
+    _count_horizontal_net(model, add, notes)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
@@ -949,6 +950,39 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
                 "単管等による支持を個別に検討してください",
                 Notes.SITE,
             )
+
+
+def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
+    """水平ネット（躯体と足場の隙間）とネットブラケット。図の部品（attachments）と同じ数え方.
+
+    マスタに無い系列は手配の注記に面積・個数で出す（ネットは m² 単位、ブラケットは内側建地ごと）。
+    """
+    from .attachments import net_quantities
+
+    if not model.config.horizontal_net_levels:
+        return
+    area, n_bk = net_quantities(model)
+    if area <= 0:
+        return
+    m = model.master
+    lv = "・".join(str(v) for v in model.config.horizontal_net_levels)
+    bk = next(iter(m.by_category("ネットブラケット")), None)
+    if bk is not None:
+        add(bk, n_bk, f"ネットブラケット（第{lv}層・内側建地ごと）")
+    net = next(iter(m.by_category("水平ネット")), None)
+    if net is not None:
+        import math as _math
+        add(net, int(_math.ceil(area)), f"水平ネット m²（第{lv}層）")
+    missing = []
+    if net is None:
+        missing.append(f"水平ネット {area:.1f}m²")
+    if bk is None:
+        missing.append(f"ネットブラケット {n_bk}個")
+    notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m²、ネットブラケットは内側建地ごと"
+                 f" {n_bk}個で計上")
+    if missing:
+        notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
+                     + "。別途手配してください", Notes.ORDER)
 
 
 def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_levels: int) -> None:
@@ -1524,3 +1558,4 @@ def _count_frame_parts(
 
     # ---- 朝顔（くさび式と同じ数え方・同じ注記） ----
     _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)
+    _count_horizontal_net(model, add, notes)

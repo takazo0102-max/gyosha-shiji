@@ -26,6 +26,7 @@ from ashiba.elevation_sections import (  # noqa: E402
     remove_elevations,
 )
 from run_from_archicad import (  # noqa: E402
+    ATTACHMENT_OBJECTS,
     DETAIL_OBJECT,
     DETAIL_OFFSET_MM,
     ELEVATION_OFFSET_MM,
@@ -67,7 +68,7 @@ def main() -> int:
     client = ArchicadClient()
     from ashiba.elevation_sections import activate_floor_plan
     activate_floor_plan(client)      # 部品は平面図のデータベースにある
-    names = (LINE_OBJECT, DETAIL_OBJECT)
+    names = (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS
     if "--all" in sys.argv:
         els = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
         targets = [

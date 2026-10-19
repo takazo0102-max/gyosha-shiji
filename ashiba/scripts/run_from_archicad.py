@@ -66,6 +66,8 @@ SPEC = {
 }
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
+# 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
+ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -233,6 +235,51 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
+def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[str]]:
+    """壁つなぎ・水平ネット・ネットブラケットを別の部品として置く（足場ラインの GDL とは別。利用者の指定）.
+
+    置いた要素と注意を返す。壁つなぎが全部置けたら足場ラインの tieObj を True にして、ライン側の壁つなぎを消す
+    （置けなければライン側に描いたまま）。
+    """
+    from ashiba.attachments import NET_OBJECT, NETBK_OBJECT, TIE_OBJECT, net_placements, tie_placements
+
+    notes: list[str] = []
+    line_mode = bool(r.model.config.line_mode_3d)
+    pls = tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
+    if not pls:
+        return [], notes
+    names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT)}
+    mats = {}
+    try:
+        mats = client.find_member_surfaces()
+    except TapirError:
+        pass
+    els = client.create_objects([(names[p.part], p.x_mm, p.y_mm) for p in pls])
+    pairs = []
+    for p, el in zip(pls, els):
+        if el is None:
+            continue
+        extra = {}
+        if p.part == TIE_OBJECT and mats.get("matScaf"):
+            extra["matTie"] = mats["matScaf"]
+        if p.part == NETBK_OBJECT and mats.get("matScaf"):
+            extra["matBk"] = mats["matScaf"]
+        pairs.append((el, {**p.params, **extra}))
+    client.set_gdl_parameters_many(pairs)
+    placed = [el for el in els if el is not None]
+    n_tie = sum(1 for p in pls if p.part == TIE_OBJECT)
+    tie_ok = sum(1 for p, el in zip(pls, els) if p.part == TIE_OBJECT and el is not None)
+    if n_tie and tie_ok == n_tie:
+        client.set_gdl_parameters_many([(line, {"tieObj": True}) for line in lines])
+    elif n_tie:
+        notes.append(f"壁つなぎの部品を {tie_ok}/{n_tie} 本しか置けませんでした（足場ラインの壁つなぎを残します）")
+    n_net = sum(1 for p in pls if p.part == NET_OBJECT)
+    n_bk = sum(1 for p in pls if p.part == NETBK_OBJECT)
+    if n_net:
+        print(f"  水平ネット {n_net}枚・ネットブラケット {n_bk}個（第{'・'.join(str(v) for v in r.model.config.horizontal_net_levels)}層）")
+    return placed, notes
+
+
 def line_floor(client, lines: list[dict]):
     """足場ラインを置いたフロアの番号（読めなければ None＝現在のフロア）."""
     if not lines:
@@ -347,6 +394,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
         (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
         (GDL_DIR / f"{SPEC_OBJECT}.gsm", versioned_part_name(SPEC_OBJECT)),
+        *((GDL_DIR / f"{b}.gsm", versioned_part_name(b)) for b in ATTACHMENT_OBJECTS),
     ])
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
@@ -371,6 +419,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         openings=r.openings, platforms=r.platforms, bracket_sections=r.brackets,
         terrain=r.terrain,
     )
+    # 壁つなぎ・水平ネット・ネットブラケットは別の部品（失敗しても配置は止めない）
+    try:
+        attach, attach_notes = place_attachments(client, r, lines)
+    except TapirError as e:
+        attach, attach_notes = [], [f"壁つなぎ・水平ネットの部品を置けませんでした（{e}）"]
+    for n in attach_notes:
+        print(f"  注意: {n}")
     # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
     plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
@@ -423,7 +478,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         if elevation_mode == "section" and details:
             # 詳細図もサブセット「仮設足場」のレイアウトへ（部品を 1/20 の文字で描かせ、詰め直して切り抜く）
             detail_sheet = place_detail_sheet(client, details, [s.title for s in r.detail_sheets],
-                                              prefix=str(spec.get("project_name") or "足場"))
+                                              prefix=str(spec.get("project_name") or "足場"),
+                                              floor_index=line_floor(client, lines))
             for n in detail_sheet.notes:
                 print(f"  詳細図: {n}")
             if detail_sheet.drawing_guids:
@@ -453,10 +509,10 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
     # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
     # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）
-    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details}
+    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details + attach}
     stale = [
         e for e in client.objects_for_slab(
-            r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT),
+            r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS,
             elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
         ) if e["elementId"]["guid"] not in placed_now
     ]

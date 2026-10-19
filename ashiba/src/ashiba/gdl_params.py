@@ -200,6 +200,8 @@ def line_params(
         "planSimple": False,
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
+        # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）
+        "tieObj": False,
         # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）
         "editSpan": True,
         "sizeList": ",".join(str(v) for v in model.master.span_lengths()),

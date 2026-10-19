@@ -1,0 +1,25 @@
+﻿! ============================================================
+! 水平ネット 3D: 厚さ3mmの面（網の表面材）と、周囲のロープ φ12
+! ============================================================
+pen 1
+if matNet > 0 then material matNet
+resol 6
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ 0, 0, 0, netL, 0, 0
+	lin_ netL, 0, 0, netL, netW, 0
+	lin_ netL, netW, 0, 0, netW, 0
+	lin_ 0, netW, 0, 0, 0, 0
+else
+	block netL, netW, 0.003
+	for k = 0 to 1
+		add 0, k * netW, 0
+		roty 90
+		cylind netL, 0.006
+		del 2
+	next k
+endif
+hotspot 0, 0, 0
+hotspot netL, netW, 0
+del 2

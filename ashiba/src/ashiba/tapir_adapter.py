@@ -44,7 +44,7 @@ class TapirError(Exception):
     pass
 
 
-def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec")) -> bool:
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk")) -> bool:
     """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
 
     埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で
@@ -293,6 +293,34 @@ class ArchicadClient:
                 "scripts/dev_gsm_iterate.py で現行HSFを埋め込みライブラリへ注入してください"
             )
         return elements[0]
+
+    def create_objects(self, items: list[tuple[str, float, float]], chunk: int = 200) -> list[Optional[dict]]:
+        """部品をまとめて置く [(部品名, x mm, y mm)] → 要素（置けなかったものは None）.
+
+        1本ずつ CreateObjects を送ると、壁つなぎ数百本で数分かかる。chunk 個ずつ1回で送る。
+        """
+        out: list[Optional[dict]] = []
+        for i in range(0, len(items), chunk):
+            part = items[i:i + chunk]
+            res = self.tapir("CreateObjects", {"objectsData": [
+                {"libraryPartName": name, "coordinates": {"x": x / 1000.0, "y": y / 1000.0, "z": 0.0}}
+                for name, x, y in part]}).get("elements", [])
+            for k in range(len(part)):
+                el = res[k] if k < len(res) else None
+                out.append(el if isinstance(el, dict) and "elementId" in el else None)
+        return out
+
+    def set_gdl_parameters_many(self, pairs: list[tuple[dict, dict]], chunk: int = 200) -> int:
+        """[(要素, {パラメータ})] をまとめて設定し、設定できた数を返す."""
+        ok = 0
+        for i in range(0, len(pairs), chunk):
+            part = pairs[i:i + chunk]
+            resp = self.tapir("SetGDLParametersOfElements", {"elementsWithGDLParameters": [
+                {"elementId": el["elementId"], "gdlParameters": [{"name": k, "value": v} for k, v in params.items()]}
+                for el, params in part]})
+            results = resp.get("executionResults", [])
+            ok += sum(1 for r in results if r.get("success", True)) if results else len(part)
+        return ok
 
     def rotate_element(
         self, element: dict, angle_rad: float, origin_x_mm: float, origin_y_mm: float

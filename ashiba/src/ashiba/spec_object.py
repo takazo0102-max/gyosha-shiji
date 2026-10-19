@@ -20,7 +20,7 @@ SPEC_OBJECT = "ashiba_spec"
 @dataclass(frozen=True)
 class Field:
     gdl: str            # GDL パラメータ名
-    kind: str           # "str" / "len" / "int" / "bool"
+    kind: str           # "str" / "len" / "int" / "bool" / "intlist"（部品は "2,5" の文字列、入力は [2, 5]）
     path: tuple         # 入力 JSON のキー（入れ子は複数）
     default: Any        # 部品の既定値（GDL の単位: 長さは m）
     zero_is_unset: bool = False   # 0（または空文字）なら入力に入れない
@@ -51,6 +51,7 @@ FIELDS: tuple[Field, ...] = (
     Field("elevMode", "str", ("elevation_mode",), "section"),
     Field("lineMode3d", "bool", ("line_mode_3d",), False),
     Field("autoInBrk", "bool", ("auto_inner_bracket",), True),
+    Field("netLevels", "intlist", ("horizontal_net_levels",), "", zero_is_unset=True),
 )
 
 
@@ -102,6 +103,10 @@ def spec_from_params(params: dict) -> dict:
                 continue
         elif f.kind == "bool":
             v = bool(v) if not isinstance(v, str) else v.strip().lower() in ("1", "true", "yes", "on")
+        elif f.kind == "intlist":
+            v = parse_int_list(v)
+            if f.zero_is_unset and not v:
+                continue
         else:
             v = "" if v is None else str(v).strip()
             if f.zero_is_unset and v == "":
@@ -128,8 +133,25 @@ def params_from_spec(spec: dict) -> dict:
             out[f.gdl] = int(v)
         elif f.kind == "bool":
             out[f.gdl] = bool(v)
+        elif f.kind == "intlist":
+            out[f.gdl] = ",".join(str(i) for i in parse_int_list(v))
         else:
             out[f.gdl] = str(v)
+    return out
+
+
+def parse_int_list(v) -> list[int]:
+    """"2,5"・"2、5"・[2, 5] → [2, 5]（読めない語は飛ばす）."""
+    if isinstance(v, (list, tuple)):
+        items = v
+    else:
+        items = str(v or "").replace("、", ",").replace(" ", ",").split(",")
+    out = []
+    for t in items:
+        try:
+            out.append(int(round(float(str(t).strip()))))
+        except (TypeError, ValueError):
+            continue
     return out
 
 

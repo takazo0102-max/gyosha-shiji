@@ -96,6 +96,8 @@ class ScaffoldConfig:
     has_toe_board: bool = True             # 幅木
     # 3Dを線だけで描く（計画初期・40m級の建物一周で軽くする。干渉確認は立体表現で）
     line_mode_3d: bool = False
+    # 水平ネット（躯体と足場の隙間）を張る作業層。ネットブラケットは内側建地ごと（利用者の指定 2026-10-20）
+    horizontal_net_levels: list = field(default_factory=list)
     # 離れが目標上限を超える面に内ブラケット（躯体側に踏板）を自動で付ける
     auto_inner_bracket: bool = True
     toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）

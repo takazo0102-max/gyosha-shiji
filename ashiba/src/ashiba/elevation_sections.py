@@ -397,6 +397,10 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
         else:
             items.append((at(2), lv[-1] + rail, "手すり"))
             items.append((at(3), lv[-1] + mid, "中桟"))
+    from .attachments import net_heights_mm
+    nets = net_heights_mm(model)
+    if nets:
+        items.append((at(3, 0.0), nets[0] / 1000.0, "水平ネット・ネットブラケット"))
     for t in towers[:1]:
         t0 = a + sgn * t.start_mm / 1000.0
         sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - t.start_mm) < 1), 1800.0) / 1000.0
@@ -1038,6 +1042,35 @@ def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale
     return clip, position
 
 
+def plan_source(client, floor_index: Optional[int] = None) -> tuple[Optional[dict], int, str]:
+    """足場平面図・詳細図を切り抜く元の図と、その縮尺 → (項目, 元の縮尺, 注意).
+
+    プロジェクトマップのフロアは「いまの平面図ウィンドウの縮尺」で図面になる。平面図を 1:50 にして作業して
+    いると、1:100 前提の位置合わせがずれて白紙になった（2026-10-20 実機）。ビューマップに同じフロアの
+    ビュー（縮尺が固定・読める）があればそれを元にし、無ければプロジェクトマップのフロアを 1:100 とみなす。
+    """
+    story = active_story_item(client, floor_index)
+    if story is None:
+        return None, 100, "フロアがプロジェクトマップに見つかりません"
+    try:
+        items = list(walk_tree(_tree(client, "PublicViewMap")))
+    except Exception:
+        items = []
+    for it in items:
+        if it.get("type") != "StoryItem" or it.get("name") != story.get("name"):
+            continue
+        try:
+            vs = client.tapir("GetViewSettings", {"navigatorItemIds": [{"navigatorItemId": {"guid": it["guid"]}}]})
+            v = (vs.get("viewSettings") or [{}])[0]
+        except Exception:
+            continue
+        sc = v.get("drawingScale")
+        if sc and abs(float(v.get("rotation", 0) or 0)) < 1e-9:
+            return it, int(round(float(sc))), ""
+    return story, 100, (f"ビューマップに「{story.get('name')}」のビューが無いので、平面図ウィンドウの縮尺を 1:100 とみなして"
+                        "切り抜きます（平面図を 1:100 以外にしているとずれます）")
+
+
 def active_story_item(client, floor_index: Optional[int] = None) -> Optional[dict]:
     """足場を置いたフロアのプロジェクトマップ項目（floor_index を省くと現在のフロア）."""
     if floor_index is not None:
@@ -1067,9 +1100,10 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
     out = PlanSheet(layout_name=plan_layout_name(prefix))
     activate_floor_plan(client)
     # 現在のフロアは断面を開いたりすると変わる。足場ラインのフロアを渡されればそれを使う
-    story = active_story_item(client, floor_index)
+    story, src_scale, src_note = plan_source(client, floor_index)
+    if src_note:
+        out.notes.append(src_note)
     if story is None:
-        out.notes.append("フロアがプロジェクトマップに見つかりません")
         return out
     if replace:
         lb = _tree(client, "LayoutBook")
@@ -1092,12 +1126,12 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
     out.scale = scale
     # 用紙の左上寄せ（タイトル帯の上）
     pos = (margins[0] + 10.0, paper[1] - margins[1] - box[1] / scale)
-    clip, position = clipped_drawing_geometry(region, scale, pos)
+    clip, position = clipped_drawing_geometry(region, scale, pos, source_scale=src_scale)
     db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
     dbid = db["databases"][0]["databaseId"]
     r = client.tapir("CreateDrawings", {"drawingsData": [{
         "navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
-        "clipPolygon": clip, "scale": (1.0 / scale) / 0.01, "drawingScale": float(scale),
+        "clipPolygon": clip, "scale": src_scale / scale, "drawingScale": float(scale),
         "name": f"足場平面図 1/{scale}"}]})
     el = (r.get("elements") or [{}])[0]
     if "elementId" in el:

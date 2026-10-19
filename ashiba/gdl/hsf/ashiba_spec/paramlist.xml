@@ -135,5 +135,9 @@
 			<Description><![CDATA["離れ350超に内ブラケットを自動で付ける"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<String Name="netLevels">
+			<Description><![CDATA["水平ネットを張る層（例 2,5。空＝張らない）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 	</Parameters>
 </ParamSection>

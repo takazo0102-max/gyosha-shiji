@@ -145,6 +145,10 @@
 			<Description><![CDATA["足場の表面材（0＝既定。配置時にアルミを入れる）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<Boolean Name="tieObj">
+			<Description><![CDATA["壁つなぎは別の部品（ashiba_tie）で置く（この部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Boolean Name="dimTool">
 			<Description><![CDATA["平面のスパン寸法は寸法ツール（部品では描かない）"]]></Description>
 			<Value>0</Value>

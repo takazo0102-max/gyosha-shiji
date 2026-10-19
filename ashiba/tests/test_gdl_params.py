@@ -916,7 +916,7 @@ class TestLineMode3D(unittest.TestCase):
         # 線表示でも開口部の支柱抜き・階段・ステージ・昇降機・壁つなぎは出す
         sub = body3[body3.index("900:"):]
         for key in ("bBase = bmH[ib]", "for it5 = 1 to nSt", "for ig = 1 to nSg", "for ih = 1 to nHo",
-                    "for it = 1 to nTiePair", "cornerS = 1"):
+                    "for it = 1 to nTieDraw", "cornerS = 1"):
             self.assertIn(key, sub)
         # 線表示の部分に立体（cylind/block/prism）は無い
         for solid in ("cylind", "block ", "prism"):

@@ -36,6 +36,7 @@
   "guard_rail_type": "布材",        // "布材"（＋中桟）／"先行手すり"
   "inner_guard_rail": true,        // 躯体側（内側建地列）の手すり＋中桟を布材で組む
   "line_mode_3d": false,           // 3Dを線だけで描く（計画初期・大規模向け。干渉確認は false の立体表現で）
+  "horizontal_net_levels": [2],    // 水平ネット（躯体と足場の隙間）を張る作業層。ネットブラケットは内側建地ごと（省略＝張らない）
   "auto_inner_bracket": true,      // 離れが目標上限（350）を超える面に内ブラケット＋踏板を自動で付ける
   "pdf": true,                     // 足場のレイアウト（サブセット「仮設足場」）を ashiba_out/PDF に発行（断面図方式のとき）
   "pdf_publisher_set": "2 - レイアウト",  // 発行に使う Archicad の発行セット（レイアウトブックを映したもの）
@@ -148,7 +149,7 @@ TOP_KEYS = {
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
@@ -783,6 +784,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
         line_mode_3d=bool(spec.get("line_mode_3d", False)),
+        horizontal_net_levels=net_levels_from_spec(spec, elevation.n_levels),
         auto_inner_bracket=bool(spec.get("auto_inner_bracket", True)),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
@@ -1090,6 +1092,16 @@ class PlanRun:
     def file_stem(self) -> str:
         """帳票のファイル名に使う工事名（使えない文字を落とした形）."""
         return safe_file_stem(self.name)
+
+
+def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
+    """horizontal_net_levels（[2, 5] や "2,5"）→ 作業層の番号の列（範囲外・重複は除く）."""
+    from .spec_object import parse_int_list
+
+    raw = spec.get("horizontal_net_levels")
+    if raw is None:
+        return []
+    return sorted({v for v in parse_int_list(raw) if 1 <= v <= n_levels})
 
 
 def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:

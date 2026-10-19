@@ -24,6 +24,7 @@ from .elevation_sections import (
     _tree,
     activate_floor_plan,
     active_story_item,
+    plan_source,
     arrange_boxes,
     clipped_drawing_geometry,
     ensure_subset,
@@ -116,15 +117,16 @@ def respace_details(client, elements: list[dict], scale: int) -> tuple[list[tupl
 
 
 def place_detail_sheet(client, details: list[dict], titles: list[str], prefix: str = "足場",
-                       replace: bool = True) -> DetailSheet:
+                       replace: bool = True, floor_index=None) -> DetailSheet:
     """詳細図の部品を詰め直し、レイアウト「<prefix> 足場詳細図」に1枚ずつ切り抜いて並べる."""
     out = DetailSheet(layout_name=detail_layout_name(prefix))
     if not details:
         return out
     activate_floor_plan(client)
-    story = active_story_item(client)
+    story, src_scale, src_note = plan_source(client, floor_index)
+    if src_note:
+        out.notes.append(src_note)
     if story is None:
-        out.notes.append("フロアがプロジェクトマップに見つかりません")
         return out
     if replace:
         lb = _tree(client, "LayoutBook")
@@ -160,9 +162,9 @@ def place_detail_sheet(client, details: list[dict], titles: list[str], prefix: s
     dbid = db["databases"][0]["databaseId"]
     data = []
     for region, pos, title in zip(regions, plan.positions_mm, titles):
-        clip, position = clipped_drawing_geometry(region, plan.scale, pos, SOURCE_SCALE)
+        clip, position = clipped_drawing_geometry(region, plan.scale, pos, src_scale)
         data.append({"navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
-                     "clipPolygon": clip, "scale": drawing_ratio(plan.scale), "drawingScale": float(plan.scale),
+                     "clipPolygon": clip, "scale": drawing_ratio(plan.scale, src_scale), "drawingScale": float(plan.scale),
                      "name": f"{title} 1/{plan.scale}"})
     r = client.tapir("CreateDrawings", {"drawingsData": data})
     els = [e for e in (r.get("elements") or []) if "elementId" in e]

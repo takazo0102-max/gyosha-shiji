@@ -548,7 +548,10 @@ next ia
 ! 取り合いが確認できなかった
 ! 壁つなぎ用金具: 支柱側のクランプ（自在クランプ相当の塊）、伸縮する本体パイプ、
 ! 躯体側のアンカープレート（ボルトで躯体に固定する座）。棒1本だと取り合いが見えない
-for it = 1 to nTiePair
+! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、ここでは描かない（二重になる）
+nTieDraw = nTiePair
+if tieObj then nTieDraw = 0
+for it = 1 to nTieDraw
 	add ties[it], 0, tieH[it]
 	rotx -90
 	cylind standoff, r_tie
@@ -1128,8 +1131,10 @@ for ih = 1 to nHo
 	lin_ hx - hoW[ih] / 2, cy, 0, hx - hoW[ih] / 2, cy, hoR[ih]
 	lin_ hx + hoW[ih] / 2, cy, 0, hx + hoW[ih] / 2, cy, hoR[ih]
 next ih
-! 壁つなぎ: 内側建地から躯体へ
-for it = 1 to nTiePair
+! 壁つなぎ: 内側建地から躯体へ（別の部品で置いたときは描かない）
+nTieDraw = nTiePair
+if tieObj then nTieDraw = 0
+for it = 1 to nTieDraw
 	lin_ ties[it], 0, tieH[it], ties[it], standoff, tieH[it]
 next it
 return

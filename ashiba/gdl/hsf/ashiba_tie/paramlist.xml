@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="zH">
+			<Description><![CDATA["高さ（GLから）"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="tieL">
+			<Description><![CDATA["長さ（内側建地から躯体面まで＝離れ）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<String Name="tieName">
+			<Description><![CDATA["品番"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Material Name="matTie">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+	</Parameters>
+</ParamSection>

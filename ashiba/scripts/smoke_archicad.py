@@ -131,7 +131,7 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
     prefix = spec["project_name"]
     try:
         activate_floor_plan(client)
-        objs = client.objects_for_slab([tuple(p) for p in outline], (tb.LINE_OBJECT, tb.DETAIL_OBJECT),
+        objs = client.objects_for_slab([tuple(p) for p in outline], (tb.LINE_OBJECT, tb.DETAIL_OBJECT) + tb.ATTACHMENT_OBJECTS,
                                        elevation_offset_mm=tb.ELEVATION_OFFSET_MM,
                                        detail_offset_mm=tb.DETAIL_OFFSET_MM)
         if objs:
