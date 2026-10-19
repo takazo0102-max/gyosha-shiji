@@ -19,7 +19,7 @@ NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
 
 NET_GAP_MM = 50.0          # 水平ネットと躯体面のあき（ネット幅＝離れ−あき）
-NET_EDGE_MM = 30.0         # ネットの建地側の端（建地芯からの距離）
+NET_EDGE_MM = 60.0         # ネットの建地側の端（建地芯から。ブラケットの受け金具の躯体側の面）
 NET_BELOW_DECK_MM = 50.0   # 作業床の天端からネットまで（床の下に張る）
 
 
