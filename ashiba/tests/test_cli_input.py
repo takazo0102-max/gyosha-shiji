@@ -521,7 +521,7 @@ class TestProjectNameBecomesAFileName(unittest.TestCase):
     def test_slash_does_not_crash(self):
         """"A/B工区" は FileNotFoundError で落ちていた."""
         r, files = self._run("A/B工区")
-        self.assertEqual(len(files), 5)
+        self.assertEqual(len(files), 6)   # 数量表・層別数量・割付レポート・plan・ジャッキ量一覧・設置届一式
         self.assertEqual(r["file_stem"], "A_B工区")
         self.assertTrue(all(f.startswith("A_B工区_") for f in files), files)
 

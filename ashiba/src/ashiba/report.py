@@ -35,6 +35,20 @@ __all__ = [
 ]
 
 
+def write_level_quantity_csv(lt, path: Path) -> None:
+    """層ごとの数量（level_quantity.take_off_by_level）。支柱は1本ずつに分解して下端の層に数える."""
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(["型番", "分類", "呼び寸法"] + [b.label for b in lt.bands] + ["合計"])
+        for row in lt.rows:
+            p = row.part
+            w.writerow([p.model_no, p.category, p.nominal_dim] + list(row.per_level) + [row.total])
+        w.writerow([])
+        w.writerow(["重量kg", "", ""] + lt.level_weights() + [round(sum(lt.level_weights()), 1)])
+        for n in lt.notes:
+            w.writerow(["注記", n])
+
+
 def write_quantity_csv(result: QuantityResult, path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)

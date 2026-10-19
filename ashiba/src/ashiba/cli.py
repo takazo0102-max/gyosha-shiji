@@ -1377,6 +1377,15 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     name = safe_file_stem(r.name)
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
+    # 層ごとの数量（1フロアごとに拾う。支柱は1本ずつ下端の層に）
+    from .level_quantity import take_off_by_level
+    from .report import write_level_quantity_csv
+
+    write_level_quantity_csv(
+        take_off_by_level(model, quantity, bracket_sections=brackets, stair_plan=stair_plan,
+                          platforms=platforms, openings=openings, terrain=terrain),
+        out_dir / f"{name}_層別数量.csv",
+    )
     write_report_md(
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
         stair_plan=stair_plan, verdict=verdict, structural=structural, terrain=terrain,
