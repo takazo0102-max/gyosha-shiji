@@ -10,6 +10,8 @@ ui_outfield "系列（空＝既定）", 10, 86, 120, 18
 ui_infield "seriesId", 140, 84, 160, 20
 ui_outfield "足場の形式", 10, 114, 120, 18
 ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "幅（0＝既定）", 310, 114, 80, 18
+ui_infield "scaffW", 390, 112, 70, 20
 ui_outfield "設置期間（日）", 10, 142, 120, 18
 ui_infield "periodDays", 140, 140, 100, 20
 ui_outfield "現場名（設置届）", 10, 170, 120, 18

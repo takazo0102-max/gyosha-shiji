@@ -67,6 +67,10 @@
 			<Description><![CDATA["建物高さ"]]></Description>
 			<Value>16.0</Value>
 		</Length>
+		<Integer Name="scaffW">
+			<Description><![CDATA["足場の幅 mm（600・900。0＝系列の既定）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="periodDays">
 			<Description><![CDATA["設置期間（日）"]]></Description>
 			<Value>90</Value>

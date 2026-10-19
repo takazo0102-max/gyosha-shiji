@@ -147,7 +147,7 @@ class InputError(ValueError):
 TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
-    "building_height_mm", "period_days", "standoff", "deck_widths",
+    "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
     "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
@@ -461,6 +461,9 @@ def validate_spec(spec: dict) -> None:
     pd = spec.get("period_days")
     if _num(pd) and 0 <= pd < 1:
         errors.append("period_days: 1日以上で指定してください（工期0日では風荷重の期間係数を決められません）")
+    sw = spec.get("scaffold_width_mm")
+    if sw not in (None, 0) and (not _num(sw) or not 300 <= sw <= 1500):
+        errors.append(f"scaffold_width_mm: 足場の幅は 600・900 などを mm で指定してください（{sw!r}）")
     dw = spec.get("deck_widths")
     if dw is not None and (
         not isinstance(dw, list) or not (1 <= len(dw) <= 2)
@@ -784,11 +787,24 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             "先行手すり方式のため幅木は付けていません（図面・数量とも）。落下物防止は"
             "メッシュシート・防網等で確保してください（安衛則563条1項六号）"
         )
+    # 足場の幅（600・900 など。利用者の指定 2026-10-20）: 腕木＝建地列の間隔と、そこに収まる作業床の組を決める。
+    # 作業床を deck_widths で指定していればそちらが優先。枠組は建枠の幅で決まるので使わない
+    deck_ws = tuple(spec["deck_widths"]) if spec.get("deck_widths") else None
+    row_mm = None
+    width_mm = spec.get("scaffold_width_mm")
+    if width_mm:
+        if master.is_frame:
+            plan.warnings.append(f"足場の幅 {int(width_mm)}mm の指定は枠組では使いません（建枠の幅で決まります）")
+        else:
+            row_mm, auto_ws = master.width_setup(int(width_mm))
+            if deck_ws is None and auto_ws:
+                deck_ws = auto_ws
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
         has_toe_board=not no_toe,
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
-        deck_widths=(tuple(spec["deck_widths"]) if spec.get("deck_widths") else None),
+        deck_widths=deck_ws,
+        post_row_spacing_mm=row_mm,
         next_gen=spec.get("next_gen", False),
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),

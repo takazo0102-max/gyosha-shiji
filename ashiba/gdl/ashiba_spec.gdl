@@ -21,6 +21,7 @@
 !   guardExtra    長さ    手すり分（最上層作業床＝軒高＋この値）                         既定 0.9
 !   scaffH        長さ    足場高さを直接指定（0＝軒高から）                              既定 0.0
 !   bldgH         長さ    建物高さ                                                       既定 16.0
+!   scaffW        整数    足場の幅 mm（600・900。0＝系列の既定）                         既定 0
 !   periodDays    整数    設置期間（日）                                                 既定 90
 !   soTarget      長さ    離れ 目標                                                      既定 0.3
 !   soMin         長さ    離れ 目標下限                                                  既定 0.25
@@ -97,6 +98,8 @@ ui_outfield "系列（空＝既定）", 10, 86, 120, 18
 ui_infield "seriesId", 140, 84, 160, 20
 ui_outfield "足場の形式", 10, 114, 120, 18
 ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "幅（0＝既定）", 310, 114, 80, 18
+ui_infield "scaffW", 390, 112, 70, 20
 ui_outfield "設置期間（日）", 10, 142, 120, 18
 ui_infield "periodDays", 140, 140, 100, 20
 ui_outfield "現場名（設置届）", 10, 170, 120, 18
@@ -145,6 +148,7 @@ ui_infield "hFromSlab", 10, 266, 400, 20
 values "moduleKind" "metric", "inch"
 values "seriesId" "", "shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "waku"
 values "scaffForm" "本足場", "一側足場"
+values "scaffW" 0, 600, 900, 1200
 values "railType" "布材", "先行手すり"
 values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
 values "roughness" "I", "II", "III", "IV"

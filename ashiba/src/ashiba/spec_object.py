@@ -40,6 +40,7 @@ FIELDS: tuple[Field, ...] = (
     Field("soMax", "len", ("standoff", "max"), 0.35),
     Field("soHardMin", "len", ("standoff", "hard_min"), 0.25),
     Field("scaffForm", "str", ("scaffold_form",), "本足場"),
+    Field("scaffW", "int", ("scaffold_width_mm",), 0, zero_is_unset=True),
     Field("railType", "str", ("guard_rail_type",), "布材"),
     Field("innerRail", "bool", ("inner_guard_rail",), True),
     Field("nextGen", "bool", ("next_gen",), False),

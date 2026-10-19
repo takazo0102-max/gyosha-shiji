@@ -1,6 +1,7 @@
 ﻿values "moduleKind" "metric", "inch"
 values "seriesId" "", "shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "waku"
 values "scaffForm" "本足場", "一側足場"
+values "scaffW" 0, 600, 900, 1200
 values "railType" "布材", "先行手すり"
 values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
 values "roughness" "I", "II", "III", "IV"

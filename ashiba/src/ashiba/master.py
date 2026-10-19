@@ -219,6 +219,28 @@ class PartMaster:
         key = "next_gen_deck_widths" if next_gen else "deck_widths"
         return SERIES_CONST[self.series_id][key]
 
+    def width_setup(self, width_mm: int, gap_mm: int = 20) -> tuple[int, tuple[int, ...]]:
+        """足場の幅（600・900 など）→ (建地列の間隔＝腕木の呼び寸法, 作業床の幅の組).
+
+        利用者の指定（2026-10-20）: 幅を 900・600 から選べるようにする。腕木は呼び寸法が幅に
+        いちばん近い布材（日建は 610・914、信和は 600・900）。作業床は系列にある幅を2枚までで、
+        建地列の間隔＋70（床は支柱芯より少し外まで掛かる）に収まるいちばん広い組（同じなら枚数の少ない方）。
+        """
+        rows = sorted({p.nominal_dim for p in self.by_category("布材") if p.nominal_dim > 0})
+        row = min(rows, key=lambda v: (abs(v - width_mm), v)) if rows else int(width_mm)
+        avail = sorted(self.deck_widths_available(), reverse=True)
+        best: tuple[int, ...] = ()
+        best_key = None
+        for i, a in enumerate(avail):
+            for combo in [(a,)] + [(a, b) for b in avail[i:]]:
+                total = sum(combo) + gap_mm * (len(combo) - 1)
+                if total > row + 70:
+                    continue
+                key = (total, -len(combo), min(combo))   # 同じなら細い板（150 など）を混ぜない組
+                if best_key is None or key > best_key:
+                    best, best_key = combo, key
+        return row, best
+
     def deck_widths_available(self) -> set[int]:
         """この系列のマスタにある作業床の幅（noteの「幅NNN」）.
 
