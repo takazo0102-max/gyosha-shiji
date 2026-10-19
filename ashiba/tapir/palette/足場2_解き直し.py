@@ -8,7 +8,7 @@
 """仮設足場 解き直し
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-スパン・階段室・ステージ・昇降機を平面で、足場の高さを3Dで引いたあとに押す
+スパン・階段室・ステージ・昇降機を平面で、足場の高さを3Dで引いたあと、壁つなぎの部品を動かした・消した・コピーしたあとに押す
 本体は <ashiba>/scripts/read_back_spans.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os

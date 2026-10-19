@@ -517,6 +517,7 @@ def write_plan_json(
       "outline_mm": [[x, y], ...],       // 躯体外形（配置に使ったスラブ）
       "wall_ties": [{"edge_index": 0, "position_mm": 3600.0, "height_mm": 4600,
                      "kind": "grid"}],   // kind: grid / asagao / stage / hoist
+      "base_height_mm": 0.0,             // 足場の立つ高さ（下の屋根から建てた上の部分）
       "warnings": [...],                 // 割付・立面の警告
       // 以下は該当があるときだけ入る
       "stairs": {"count": 2, "max_travel_mm": 28800.0,
@@ -589,6 +590,8 @@ def write_plan_json(
         # 躯体外形（読み戻し→解き直しがスラブの選択なしで動くように）
         "outline_mm": [list(v) for v in model.plan.outline.vertices],
         "wall_ties": [asdict(t) for t in model.wall_ties],
+        # 足場の立つ高さ（上の部分を下の屋根から建てたとき）。壁つなぎの読み戻しで高さを戻すのに使う
+        "base_height_mm": float(model.base_height_mm),
         "warnings": model.plan.warnings + model.elevation.warnings,
     }
     if stair_plan is not None and stair_plan.towers:

@@ -1,4 +1,4 @@
-"""Archicad 上でホットスポット編集したスパンと階段室の位置を読み戻し、入力に落とす.
+"""Archicad 上でホットスポット編集したスパンと階段室の位置（と、動かした壁つなぎの部品）を読み戻し、入力に落とす.
 
 スパン → span_overrides、階段室（建地列の中央のホットスポット）→ stairs.positions、
 荷受けステージ・昇降機（張り出し床・搬器の中央）→ loading_stages・hoists の位置、
@@ -35,6 +35,7 @@ from ashiba.span_readback import (  # noqa: E402
     merge_stairs,
     overrides_from_readback,
     platform_moves_from_readback,
+    ties_from_readback,
     stair_positions_from_readback,
 )
 from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
@@ -93,10 +94,15 @@ def main() -> int:
     # 足場ラインは plan.json の配置位置（原点）で見つける。スラブの選択や GUID は要らない
     objs = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
     readbacks = []
+    tie_els = []
     for e, d in zip(objs, c.get_details(objs) if objs else []):
         dd = d.get("details", {})
         lp = dd.get("libPart") or {}
-        if not is_ashiba_part(lp.get("name", "") if isinstance(lp, dict) else "", ("ashiba_line",)):
+        lp_name = lp.get("name", "") if isinstance(lp, dict) else ""
+        if is_ashiba_part(lp_name, ("ashiba_tie",)):
+            tie_els.append((e, dd.get("origin") or {}))
+            continue
+        if not is_ashiba_part(lp_name, ("ashiba_line",)):
             continue
         o = dd.get("origin") or {}
         origin = (float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0)
@@ -121,13 +127,23 @@ def main() -> int:
     stair_notes += pf_notes
     new_height, height_notes = height_from_readback(plan, readbacks)
     stair_notes += height_notes
+    # 壁つなぎの部品（動かした・消した・コピーで足した）。取付高さ＝部品の高さ＋zH
+    tie_pts = []
+    for e, o in tie_els:
+        zh = float(_params(c, e).get("zH") or 0.0)
+        tie_pts.append((float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0,
+                        (float(o.get("z", 0)) + zh) * 1000.0))
+    ties, tie_notes = ties_from_readback(plan["edges"], tie_pts, plan.get("wall_ties") or [],
+                                         float(plan.get("base_height_mm") or 0.0))
+    stair_notes += tie_notes
     print(f"plan: {plan_path.name}  足場ライン {len(readbacks)}本を読み戻し")
     for w in warnings:
         print("注意:", w)
-    if not overrides and stair_pos is None and not stage_moves and not hoist_moves and new_height is None:
+    if not overrides and stair_pos is None and not stage_moves and not hoist_moves and new_height is None \
+            and ties is None:
         for n in stair_notes:
             print("注意:", n)
-        print("配置時と同じ割付・階段・ステージ・昇降機の位置・足場高さです（変更なし）")
+        print("配置時と同じ割付・階段・ステージ・昇降機の位置・足場高さ・壁つなぎです（変更なし）")
         return 0
     for o in overrides:
         print(f"{o.get('face') or '辺' + str(o['edge_index'])}: {o['spans_mm']}")
@@ -146,6 +162,9 @@ def main() -> int:
         for n in merge_notes:
             print("注意:", n)
     what = []
+    if ties is not None:
+        spec["wall_ties_manual"] = ties
+        what.append(f"wall_ties_manual {len(ties)}本")
     if new_height is not None:
         where = _write_height(c, plan, spec, new_height)
         what.append(f"足場高さ {new_height}mm（{where}）")

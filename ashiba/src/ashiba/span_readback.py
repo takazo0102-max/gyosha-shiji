@@ -310,3 +310,58 @@ def height_from_readback(plan: dict, readbacks: Iterable[tuple[tuple[float, floa
     new_h = int(base) + d
     notes.append(f"足場高さ: {int(base)} → {new_h}mm（{label}の天端を {d:+d}mm 引いた。全面をこの高さで解き直します）")
     return new_h, notes
+
+
+TIE_LINE_TOL_MM = 150.0     # 壁つなぎの部品の原点が内側建地列からこの範囲なら、その面の壁つなぎ
+TIE_SAME_MM = 50.0          # 配置時と同じ位置とみなす差
+
+
+def ties_from_readback(
+    plan_edges: Iterable[dict], tie_points_mm: Iterable[tuple[float, float, float]],
+    plan_ties: Iterable[dict], base_mm: float = 0.0,
+) -> tuple[Optional[list[dict]], list[str]]:
+    """壁つなぎの部品の位置（x, y, 取付高さ。mm）→ 手で直した壁つなぎの一覧（変わっていなければ None）.
+
+    利用者の指定（2026-10-20）: 後から直すことが多いので修正機能を充実させる。壁つなぎは別の部品にした
+    （利用者の指定）ので、動かす・消す・コピーで足すのを平面でそのままできる。読み戻して入力の
+    wall_ties_manual に書き、次の解き直しでその本数・位置で壁つなぎの検定をする。
+    高さは部品の取付高さ（作業床の 300 下）から、その面のいちばん近い作業床の高さに戻す。
+    """
+    from .attachments import TIE_BELOW_DECK_MM
+
+    edges = list(plan_edges)
+    out: list[dict] = []
+    notes: list[str] = []
+    stray = 0
+    for x, y, z in tie_points_mm:
+        best = None
+        for e in edges:
+            (sx, sy), (ex, ey) = e["start_post"], e["end_post"]
+            length = math.hypot(ex - sx, ey - sy) or 1.0
+            ux, uy = (ex - sx) / length, (ey - sy) / length
+            along = (x - sx) * ux + (y - sy) * uy
+            off = abs(-(x - sx) * uy + (y - sy) * ux)
+            if off <= TIE_LINE_TOL_MM and -TIE_LINE_TOL_MM <= along <= length + TIE_LINE_TOL_MM:
+                if best is None or off < best[0]:
+                    best = (off, e, along)
+        if best is None:
+            stray += 1
+            continue
+        _off, e, along = best
+        h = float(z) - float(base_mm) + TIE_BELOW_DECK_MM
+        levels = [float(v) for v in str((e.get("gdl_params") or {}).get("levelList") or "").split(",") if v.strip()]
+        if levels:
+            h = min(levels, key=lambda v: abs(v - h))
+        out.append({"edge_index": int(e["edge_index"]), "face": e.get("face"),
+                    "position_mm": round(max(0.0, along), 1), "height_mm": int(round(h))})
+    if stray:
+        notes.append(f"どの面の内側建地列にも乗っていない壁つなぎの部品 {stray}本は読み戻していません")
+    if not out and not list(plan_ties):
+        return None, notes
+    before = sorted((int(t["edge_index"]), float(t["position_mm"]), int(t["height_mm"])) for t in plan_ties)
+    after = sorted((t["edge_index"], t["position_mm"], t["height_mm"]) for t in out)
+    if len(before) == len(after) and all(
+            a[0] == b[0] and abs(a[1] - b[1]) <= TIE_SAME_MM and a[2] == b[2] for a, b in zip(before, after)):
+        return None, notes
+    notes.append(f"壁つなぎ: 配置時 {len(before)}本 → 今 {len(after)}本（動かした・消した・足した分を読み戻し）")
+    return out, notes

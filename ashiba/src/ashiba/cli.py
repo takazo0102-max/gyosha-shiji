@@ -152,7 +152,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
-    "hoists", "ground_points_mm", "site", "notification", "stairs",
+    "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -1197,6 +1197,26 @@ def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
     return sorted({v for v in parse_int_list(raw) if 1 <= v <= n_levels})
 
 
+def _manual_ties(spec: dict, model: ScaffoldModel):
+    """入力の wall_ties_manual → 壁つなぎの一覧（無ければ None）。面は edge_index か face（面名）."""
+    from .model import WallTie
+
+    rows = spec.get("wall_ties_manual")
+    if rows is None:
+        return None
+    names = dict(zip(model.plan.face_names(), (e.edge_index for e in model.plan.edges)))
+    built = {e.edge_index for e in model.plan.edges}
+    out = []
+    for i, t in enumerate(rows):
+        ei = t.get("edge_index")
+        if ei is None and t.get("face") in names:
+            ei = names[t["face"]]
+        if ei is None or int(ei) not in built:
+            raise InputError(f"wall_ties_manual[{i}]: 面（edge_index か face）が足場の面に当たりません（{t!r}）")
+        out.append(WallTie(int(ei), float(t["position_mm"]), int(t["height_mm"]), t.get("kind", "grid")))
+    return out
+
+
 def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）."""
     validate_spec(spec)
@@ -1211,6 +1231,14 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     platforms = validate_platforms(model, *build_platforms(spec))
     tie_opt = optimize_wall_ties(model, site, openings=openings, platforms=platforms)
     model.plan.warnings.extend(tie_opt.notes)
+    # 手で直した壁つなぎ（Archicad で部品を動かした・消した・足したのを解き直しが読み戻したもの）。
+    # 最適化の配置の代わりにこの本数・位置で検定・数量・図を出す
+    manual = _manual_ties(spec, model)
+    if manual is not None:
+        model.wall_ties = manual
+        model.plan.warnings.append(
+            f"壁つなぎは手で直した配置（{len(manual)}本）で検定・数量を出しています"
+            "（自動の配置に戻すには条件ファイルの wall_ties_manual を消す）")
     brackets = build_brackets(spec)
     # 離れが目標上限を超える面には内ブラケットを自動で付ける（入力で切れる）
     if model.config.auto_inner_bracket:
