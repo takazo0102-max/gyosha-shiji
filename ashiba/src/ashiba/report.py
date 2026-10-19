@@ -35,11 +35,17 @@ __all__ = [
 ]
 
 
+def _csv_safe(v) -> str:
+    """プロジェクトから来た文字列（フロア名など）を表計算の式として解釈させない（先頭 = + - @ には ' を付ける）."""
+    s = str(v)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
 def write_level_quantity_csv(lt, path: Path) -> None:
     """層ごとの数量（level_quantity.take_off_by_level）。支柱は1本ずつに分解して下端の層に数える."""
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        labels = [b.label + (f" {lt.floors[i]}" if lt.floors else "") for i, b in enumerate(lt.bands)]
+        labels = [b.label + (f" {_csv_safe(lt.floors[i])}" if lt.floors else "") for i, b in enumerate(lt.bands)]
         w.writerow(["型番", "分類", "呼び寸法"] + labels + ["合計"])
         for row in lt.rows:
             p = row.part
@@ -50,7 +56,7 @@ def write_level_quantity_csv(lt, path: Path) -> None:
         if names:
             # 建物のフロアごと（作業床の高さが入るフロアに、その層の部材をまとめる）
             w.writerow([])
-            w.writerow(["■フロア別", "", ""] + names + ["合計"])
+            w.writerow(["■フロア別", "", ""] + [_csv_safe(n) for n in names] + ["合計"])
             for p, vals in by_floor:
                 w.writerow([p.model_no, p.category, p.nominal_dim] + vals + [sum(vals)])
         for n in lt.notes:

@@ -90,3 +90,19 @@ class TestFloors(unittest.TestCase):
             with open(Path(d) / f"{r.name}_層別数量.csv", encoding="utf-8-sig") as f:
                 rows = list(csv.reader(f))
         self.assertTrue(any(row and row[0] == "■フロア別" for row in rows))
+
+
+class TestOutsideStairPosts(unittest.TestCase):
+    def test_tower_posts_are_split_too(self):
+        r = solve_all({**RECT, "series_id": "nikken_nd1800", "stairs": {"layout": "outside"}})
+        lt = _lt(r)
+        self.assertFalse(any("位置ごとに違う分" in n for n in lt.notes), lt.notes)
+
+
+class TestCsvSafe(unittest.TestCase):
+    def test_formula_like_names_are_quoted(self):
+        from ashiba.report import _csv_safe
+
+        self.assertEqual(_csv_safe("=1+1"), "'=1+1")
+        self.assertEqual(_csv_safe("-1.基礎下端"), "'-1.基礎下端")
+        self.assertEqual(_csv_safe("2FL"), "2FL")
