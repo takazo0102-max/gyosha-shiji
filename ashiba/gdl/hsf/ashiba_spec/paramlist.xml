@@ -143,6 +143,10 @@
 			<Description><![CDATA["高さをスラブの天端から自動で（面ごと・セットバック対応）"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<String Name="stairLayout">
+			<Description><![CDATA["階段の付け方（足場の中／外付け（3列）／自動＝足場の外に空きがあれば外付け）"]]></Description>
+			<Value><![CDATA["自動"]]></Value>
+		</String>
 		<String Name="netLevels">
 			<Description><![CDATA["水平ネットを張る層（例 2,5。空＝張らない）"]]></Description>
 			<Value><![CDATA[""]]></Value>

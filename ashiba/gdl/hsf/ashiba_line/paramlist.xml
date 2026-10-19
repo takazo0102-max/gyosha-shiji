@@ -305,6 +305,10 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="stOut">
+			<Description><![CDATA["階段を外付け（3列）0/1: 外側建地列の外にもう1列立て、その升目に階段を通す"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="skipInS">
 			<Description><![CDATA["始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）"]]></Description>
 			<Value>0</Value>

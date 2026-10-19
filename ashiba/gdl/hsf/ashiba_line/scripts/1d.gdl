@@ -728,7 +728,8 @@ for ip = 1 to nSpan
 	! 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側）。幅木・手すりは残る
 	qStairOpen = 0
 	for it = 1 to nSt
-		if x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then
+		! 外付け（stOut）の階段は外の升目なので、本体の床は切らない
+		if stOut = 0 and x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then
 			qPos = 0
 			xx = 0
 			for jp = 1 to ip - 1

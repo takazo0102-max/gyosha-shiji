@@ -51,7 +51,7 @@ for ip = 1 to nSpan
 	line2 x, 0, x, -rowW
 	inStair = 0
 	for it2 = 1 to nSt
-		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
 	next it2
 	for ib3 = 1 to nBm
 		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
@@ -61,10 +61,17 @@ for ip = 1 to nSpan
 next ip
 line2 lineLen, 0, lineLen, -rowW
 ! 階段室: 区間の中心線と矢印（始点側から上る）
+yc = -rowW / 2 - stOut * rowW
 for it2 = 1 to nSt
-	line2 stS[it2], -rowW / 2, stS[it2] + stL[it2], -rowW / 2
-	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 - 0.10
-	line2 stS[it2] + stL[it2], -rowW / 2, stS[it2] + stL[it2] - 0.15, -rowW / 2 + 0.10
+	if stOut = 1 then
+		! 外付け（3列）: 外側建地列の外の升目
+		line2 stS[it2], -rowW, stS[it2], -2 * rowW
+		line2 stS[it2], -2 * rowW, stS[it2] + stL[it2], -2 * rowW
+		line2 stS[it2] + stL[it2], -2 * rowW, stS[it2] + stL[it2], -rowW
+	endif
+	line2 stS[it2], yc, stS[it2] + stL[it2], yc
+	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc - 0.10
+	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc + 0.10
 next it2
 ! 付帯設備の占有範囲は破線（ステージ・張出しブラケット・昇降機）
 line_type 3
@@ -112,7 +119,7 @@ for ip = 1 to nSpan
 	inStair = 0
 	kOdd = nLevels - 2 * int(nLevels / 2)
 	for it2 = 1 to nSt
-		if x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then
+		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then
 			if stL[it2] <= spans[ip] + 0.001 then
 				inStair = 1
 			else
@@ -220,12 +227,23 @@ endif
 for it2 = 1 to nSt
 	sx = stS[it2]
 	ex = sx + stL[it2]
-	line2 sx, 0, sx, -rowW
-	line2 ex, 0, ex, -rowW
-	line2 sx, 0, ex, -rowW
-	line2 sx, -rowW, ex, 0
+	! 外付け（3列）は外側建地列の外の升目に描き、3列目の建地を足す
+	y0 = -stOut * rowW
+	y1 = y0 - rowW
+	line2 sx, y0, sx, y1
+	line2 ex, y0, ex, y1
+	line2 sx, y0, ex, y1
+	line2 sx, y1, ex, y0
+	if stOut = 1 then
+		line2 sx, y1, ex, y1
+		xq = 0
+		for iq = 1 to nSpan + 1
+			if xq >= sx - 0.001 and xq <= ex + 0.001 then circle2 xq, y1, r_sic
+			if iq <= nSpan then xq = xq + spans[iq]
+		next iq
+	endif
 	set style "annoC"
-	if showDim then text2 (sx + ex) / 2, -rowW / 2, "階段"
+	if showDim then text2 (sx + ex) / 2, (y0 + y1) / 2, "階段"
 	set style "anno"
 next it2
 

@@ -164,7 +164,7 @@ NESTED_KEYS = {
                      "planner_name", "planner_career", "start_date", "contractor",
                      "labor_office"},
     "stairs": {"count", "tower_spans", "max_travel_mm", "min_per_face",
-               "positions"},
+               "positions", "layout"},
 }
 LIST_ITEM_KEYS = {
     "openings": ({"edge_index", "face", "start_mm", "beam_span_mm", "level", "reason"},
@@ -1286,6 +1286,14 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             min_per_face=st.get("min_per_face", 0),
             avoid=_merge_ranges(opening_ranges(openings), platform_ranges(model, platforms)),
         )
+    # 階段の付け方（足場の中／外付け3列／自動。自動は足場の外の空きで決める）
+    from .stairs import decide_outside
+
+    outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
+    if stair_plan.towers:
+        stair_plan.outside = outside
+        if why:
+            stair_plan.warnings.append(why)
     stair_issues = validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )

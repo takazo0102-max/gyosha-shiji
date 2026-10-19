@@ -1051,7 +1051,8 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         self.assertNotIn("cylind 0.01, 0.055", self.body)
 
     def test_ledgers_end_at_the_claw_not_the_post_centre(self):
-        self.assertEqual(self.body.count("gosub 830"), 6)                 # 床レベル・手すり・中桟・根がらみ
+        # 床レベル・手すり・中桟・根がらみ（6）＋外付け階段の3列目の根がらみ・手すり・中桟（3）
+        self.assertEqual(self.body.count("gosub 830"), 9)
         self.assertNotIn("cylind spans[ip], r_nuno", self.body)
         sub = self.body[self.body.index("830:"):self.body.index("900:")]
         self.assertIn("cylind nL - 0.156, r_nuno", sub)                   # 両端 78 ずつ

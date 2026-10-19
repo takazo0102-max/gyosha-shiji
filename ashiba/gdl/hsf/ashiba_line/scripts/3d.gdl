@@ -294,6 +294,17 @@ for il = 1 to nLv
 			if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
 					abs(z - bkH[ik3]) < 0.001 then inSg = 1
 		next ik3
+		! 外付け（3列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
+		! 外して乗り移る（奇数層は終点側のスパン、偶数層は始点側のスパン）
+		if stOut = 1 then
+			for it6 = 1 to nSt
+				if stL[it6] > spans[ip] + 0.001 and x >= stS[it6] - 0.001 and x + spans[ip] <= stS[it6] + stL[it6] + 0.001 then
+					kOdd6 = il - 1 - 2 * int((il - 1) / 2)
+					if kOdd6 = 1 and abs(x - stS[it6]) > 0.001 then inSg = 1
+					if kOdd6 = 0 and abs(x - stS[it6]) < 0.001 then inSg = 1
+				endif
+			next it6
+		endif
 		if il > 1 and skipH = 0 and inSg = 2 then
 			! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
 			add x + 0.05, -rowW, z + 0.10
@@ -430,7 +441,8 @@ if showDeck then
 			! 開口部（梁枠より下）は通路なので床も幅木も無い。数量もこの区別で拾っている
 			skipDeck = 0
 			for it4 = 1 to nSt
-				if x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+				! 外付け（stOut）の階段は外の升目に通すので、本体の床は切らない
+				if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
 					if stL[it4] <= spans[ip] + 0.001 then
 						skipDeck = 1
 					else
@@ -479,6 +491,17 @@ if showDeck then
 					if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
 							abs(z - bkH[ik4]) < 0.001 then inSg = 1
 				next ik4
+				! 外付け（3列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
+				! 外して乗り移る（奇数層は終点側のスパン、偶数層は始点側のスパン）
+				if stOut = 1 then
+					for it6 = 1 to nSt
+						if stL[it6] > spans[ip] + 0.001 and x >= stS[it6] - 0.001 and x + spans[ip] <= stS[it6] + stL[it6] + 0.001 then
+							kOdd6 = il - 1 - 2 * int((il - 1) / 2)
+							if kOdd6 = 1 and abs(x - stS[it6]) > 0.001 then inSg = 1
+							if kOdd6 = 0 and abs(x - stS[it6]) < 0.001 then inSg = 1
+						endif
+					next it6
+				endif
 				if railAdv = 0 and inSg = 0 then
 					if matToe > 0 then material matToe
 					add x, -rowW - 0.02, z + 0.045
@@ -767,6 +790,8 @@ next ib2
 ! 1スパン分の階段（階段枠 1829×H1800 と同じ形）。2層登ったら外の作業床を回って始点側へ戻る。
 ! 以前は折り返し（踏面1スパン＋踊り場1スパン、層ごとに向きが逆）で描いていた
 stairW = rowW - 0.10
+! 階段を通す升目の外側の線（外付けは外側建地列のさらに外の升目）
+yb = -rowW - stOut * rowW
 for it5 = 1 to nSt
 	sx = stS[it5]
 	sl = stL[it5]
@@ -801,13 +826,13 @@ for it5 = 1 to nSt
 		fLen = sqr(fl * fl + rise * rise)
 		! 段板
 		for is5 = 1 to nStep
-			add x0 + (is5 - 1) * td, -rowW + 0.05, lv[il5] + is5 * th - 0.03
+			add x0 + (is5 - 1) * td, yb + 0.05, lv[il5] + is5 * th - 0.03
 			block td, stairW, 0.03
 			del 1
 		next is5
 		! 側桁と階段手すり（両側）
 		for sd = 0 to 1
-			ys = -rowW + 0.05 + sd * (stairW - 0.03)
+			ys = yb + 0.05 + sd * (stairW - 0.03)
 			add x0, ys, lv[il5]
 			roty -ang5
 			block fLen, 0.03, 0.12
@@ -828,7 +853,7 @@ for it5 = 1 to nSt
 		! 上の層では、この階段の上がり口（下端 x0）の真上が床と開口の境になる。床の側から開口へ
 		! 落ちないよう、床幅いっぱいに手すり（高さ900）・中桟（450）・幅木（157）の枠を立てる
 		zg = lv[il5 + 1]
-		gy0 = -rowW + 0.05
+		gy0 = yb + 0.05
 		gw = rowW - 0.10
 		for gk = 0 to 1
 			add x0 + 0.03, gy0 + gk * gw, zg
@@ -850,6 +875,109 @@ for it5 = 1 to nSt
 		if matScaf > 0 then material matScaf
 	next il5
 next it5
+
+! ---- 外付け（3列）の階段室: 外側建地列の外の建地1列と、その升目の腕木・手すり・踊り場の床 ----
+dim tsp[]
+if stOut = 1 then
+	yo = -2 * rowW
+	for it7 = 1 to nSt
+		sx = stS[it7]
+		sl = stL[it7]
+		! 区間のスパン（始点側から）
+		xa = 0
+		ns7 = 0
+		for ipx = 1 to nSpan
+			if xa >= sx - 0.001 and xa < sx + sl - 0.001 then
+				ns7 = ns7 + 1
+				tsp[ns7] = spans[ipx]
+			endif
+			xa = xa + spans[ipx]
+		next ipx
+		! 建地（ジャッキから天端まで）と、各層の腕木
+		xp = sx
+		for ip7 = 1 to ns7 + 1
+			gv = 0
+			jo = jackOut
+			sv = 0
+			add xp, yo, gv
+			gosub 820
+			addz jo
+			cylind postTop - gv - jo, r_sic
+			del 2
+			for il7 = 1 to nLv
+				add xp, -rowW, lv[il7]
+				rotx 90
+				cylind rowW, r_nuno
+				del 2
+			next il7
+			if ip7 <= ns7 then xp = xp + tsp[ip7]
+		next ip7
+		! 3列目のスパン方向: 根がらみ、各層の手すり・中桟（先行手すりなら手すり＋X斜材）、幅木、踊り場の床
+		xp = sx
+		for ip7 = 1 to ns7
+			sp7 = tsp[ip7]
+			add xp, yo, lv[1]
+			nL = sp7
+			gosub 830
+			del 1
+			for il7 = 2 to nLv
+				z = lv[il7]
+				add xp, yo, z + railTop
+				nL = sp7
+				gosub 830
+				del 1
+				if railAdv = 1 then
+					advDz = railTop - 0.02
+					advL = sqr(sp7 * sp7 + advDz * advDz)
+					add xp, yo, z + railTop
+					roty 90 + atn(advDz / sp7)
+					cylind advL, 0.0217 / 2
+					del 2
+					add xp + sp7, yo, z + railTop
+					roty -(90 + atn(advDz / sp7))
+					cylind advL, 0.0217 / 2
+					del 2
+				else
+					add xp, yo, z + railMid
+					nL = sp7
+					gosub 830
+					del 1
+					if matToe > 0 then material matToe
+					add xp, yo - 0.02, z + 0.045
+					block sp7, 0.02, 0.157
+					del 1
+					if matScaf > 0 then material matScaf
+				endif
+				! 踊り場の床: 下から階段が上がってくるスパン（奇数層は始点側、偶数層は終点側）以外
+				kOdd7 = il7 - 1 - 2 * int((il7 - 1) / 2)
+				fIdx = 1
+				if kOdd7 = 0 then fIdx = 2
+				if showDeck and ns7 > 1 and ip7 <> fIdx then
+					if matDeck > 0 then material matDeck
+					add xp + 0.07, yo + 0.05, z
+					block sp7 - 0.14, rowW - 0.10, 0.045
+					del 1
+					if matScaf > 0 then material matScaf
+				endif
+			next il7
+			xp = xp + sp7
+		next ip7
+		! 妻側（区間の両端）の手すり・中桟
+		for ie7 = 0 to 1
+			xe = sx + ie7 * sl
+			for il7 = 2 to nLv
+				add xe, -rowW, lv[il7] + railTop
+				rotx 90
+				cylind rowW, r_nuno
+				del 2
+				add xe, -rowW, lv[il7] + railMid
+				rotx 90
+				cylind rowW, r_nuno
+				del 2
+			next il7
+		next ie7
+	next it7
+endif
 
 ! ---- ブラケット区間（拡幅ぶんの作業床＋支柱位置ごとのブラケット腕・方杖） ----
 ! 床だけ描くと宙に浮いて見えるうえ、数量では支柱位置ごとにブラケットを拾っている
@@ -1091,8 +1219,9 @@ for it5 = 1 to nSt
 			x0 = sx + stA
 			fl = stB
 		endif
-		lin_ x0, -0.05, lv[il5], x0 + fl, -0.05, lv[il5 + 1]
-		lin_ x0, -rowW + 0.05, lv[il5], x0 + fl, -rowW + 0.05, lv[il5 + 1]
+		ybl = -stOut * rowW
+		lin_ x0, ybl - 0.05, lv[il5], x0 + fl, ybl - 0.05, lv[il5 + 1]
+		lin_ x0, ybl - rowW + 0.05, lv[il5], x0 + fl, ybl - rowW + 0.05, lv[il5 + 1]
 	next il5
 next it5
 ! 梁枠（開口部）: 上下弦材と両端の縦材
