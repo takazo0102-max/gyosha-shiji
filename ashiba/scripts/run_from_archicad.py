@@ -235,6 +235,30 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
+def read_slabs_near(client, outline_mm, margin_mm: float = 30000.0) -> list[dict]:
+    """建物の外形のまわり（margin まで）にあるスラブの外形と天端（入力の slabs の形）."""
+    from ashiba.slab_heights import slabs_from_details
+
+    try:
+        els = client.tapir("GetElementsByType", {"elementType": "Slab"}).get("elements", [])
+        if not els:
+            return []
+        det = client.tapir("GetDetailsOfElements", {"elements": els}).get("detailsOfElements", [])
+    except TapirError:
+        return []
+    xs = [float(p[0]) for p in outline_mm]
+    ys = [float(p[1]) for p in outline_mm]
+    x0, x1, y0, y1 = min(xs) - margin_mm, max(xs) + margin_mm, min(ys) - margin_mm, max(ys) + margin_mm
+    out = []
+    for sl in slabs_from_details(det):
+        px = [p[0] for p in sl.polygon]
+        py = [p[1] for p in sl.polygon]
+        if max(px) < x0 or min(px) > x1 or max(py) < y0 or min(py) > y1:
+            continue
+        out.append({"polygon_mm": [list(p) for p in sl.polygon], "top_mm": sl.top_mm})
+    return out
+
+
 def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[str]]:
     """壁つなぎ・水平ネット・ネットブラケットを別の部品として置く（足場ラインの GDL とは別。利用者の指定）.
 
@@ -408,6 +432,12 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
               "なので、この棟の地盤には使いません")
     if not ground.is_flat:
         spec["ground_points_mm"] = [list(p) for p in ground.points]
+    # 高さはスラブの天端から（面ごと・セットバック対応。足場条件の「高さをスラブから」を外せば軒高の入力どおり）
+    if spec.get("height_from_slabs", True) and not spec.get("slabs"):
+        slabs = read_slabs_near(client, spec["outline_mm"])
+        if slabs:
+            spec["slabs"] = slabs
+            print(f"高さ: 建物まわりのスラブ{len(slabs)}枚の天端から面ごとに決めます")
 
     r = solve_all(spec)
     write_outputs(r, OUT_DIR)

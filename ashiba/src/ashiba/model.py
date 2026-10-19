@@ -130,6 +130,29 @@ class ScaffoldModel:
     building_height_mm: float = 0.0        # 建物高さ（架け面積・届出判定用）
     clearance_space_mm: float = 2000.0     # 躯体外面から確保できる水平スペース
     wall_ties: list[WallTie] = field(default_factory=list)
+    # 面ごとの立面（セットバックで低い面。辺番号 → 全体の立面を軒高で切ったもの）。無い面は全体の立面
+    face_elevations: dict = field(default_factory=dict)
+    # 足場の立つ高さ（下の屋根の上に建てるとき。GL＝0 からの mm。図面・部品はこの高さに置く）
+    base_height_mm: float = 0.0
+    # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
+    edge_subset: Optional[set] = None
+
+    def elevation_of(self, edge_index: int) -> ElevationResult:
+        """その面の立面（面ごとの高さが無ければ全体）."""
+        return self.face_elevations.get(edge_index, self.elevation)
+
+    def clip_ties_to_faces(self) -> int:
+        """面ごとの高さより上の壁つなぎを外す（低い面に、高い面の層の壁つなぎを残さない）。外した数を返す."""
+        if not self.face_elevations:
+            return 0
+        keep = []
+        for t in self.wall_ties:
+            lv = self.elevation_of(t.edge_index).level_heights
+            if not lv or t.height_mm <= lv[-1] + 1:
+                keep.append(t)
+        n = len(self.wall_ties) - len(keep)
+        self.wall_ties = keep
+        return n
 
     def __post_init__(self) -> None:
         if self.config.deck_widths is None:
@@ -287,7 +310,8 @@ class ScaffoldModel:
         """
         if self.master.is_frame:
             return 0
-        return len([e for e in self.plan.outline.edges if e.start_corner == "出隅"])
+        return len([e for e in self.plan.outline.edges if e.start_corner == "出隅"
+                    and (self.edge_subset is None or e.index in self.edge_subset)])
 
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.

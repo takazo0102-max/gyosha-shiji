@@ -116,7 +116,7 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str, str]:
     # 基準の脚でさえ緊結部が最大コマ1つぶんずれて描かれていた
     from .terrain import datum_first_ledger_mm
 
-    shift = datum_first_ledger_mm(model, terrain) - model.elevation.first_ledger_height
+    shift = datum_first_ledger_mm(model, terrain) - model.elevation_of(ep.edge_index).first_ledger_height
     gl = ",".join(str(int(round(f.gl_mm - gl_ref - shift))) for f in picked)
     jack = ",".join(
         str(int(round(f.jack_mm + f.base_plate_adjust_mm))) for f in picked
@@ -160,7 +160,8 @@ def line_params(
     from .quantity import QuantityRules
 
     rules = rules or QuantityRules()
-    e = model.elevation
+    # 面ごとの立面（セットバックで低い面は全体の立面を軒高で切ったもの）
+    e = model.elevation_of(ep.edge_index)
     ties = [t for t in model.wall_ties if t.edge_index == ep.edge_index]
     widths = list(model.deck_widths_in_use)
     # 枠組の交差筋交は建枠と一体で全構面に入る。くさびの斜材だけ間隔を持つ
@@ -281,7 +282,7 @@ def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
     """
     if platforms is None or not getattr(platforms, "hoists", None):
         return ""
-    top = model.elevation.total_height
+    top = model.elevation_of(ep.edge_index).total_height
     parts = []
     for h in platforms.hoists:
         if h.edge_index != ep.edge_index:
@@ -303,7 +304,7 @@ def _landing_list(model: ScaffoldModel, ep, platforms) -> str:
     """
     if platforms is None or not getattr(platforms, "hoists", None):
         return ""
-    levels = model.elevation.level_heights
+    levels = model.elevation_of(ep.edge_index).level_heights
     parts = []
     for h in platforms.hoists:
         if h.edge_index != ep.edge_index or not levels:
@@ -347,7 +348,7 @@ def _beam_list(model: ScaffoldModel, ep, openings) -> str:
     """
     if openings is None or not getattr(openings, "openings", None):
         return ""
-    levels = model.elevation.level_heights
+    levels = model.elevation_of(ep.edge_index).level_heights
     parts = []
     for o in openings.openings:
         if o.edge_index != ep.edge_index:
@@ -366,7 +367,7 @@ def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
     """
     if platforms is None or not getattr(platforms, "stages", None):
         return ""
-    levels = model.elevation.level_heights
+    levels = model.elevation_of(ep.edge_index).level_heights
     parts = []
     for st in platforms.stages:
         if st.edge_index != ep.edge_index or not levels:
@@ -397,7 +398,7 @@ def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
         return ""
     from .brackets import INNER
 
-    levels = model.elevation.level_heights
+    levels = model.elevation_of(ep.edge_index).level_heights
     parts = []
     for sec in sections:
         if sec.edge_index != ep.edge_index or not levels:
@@ -469,7 +470,7 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
     from .quantity import QuantityRules
 
     rules = rules or QuantityRules()
-    e = model.elevation
+    e = model.elevation_of(ep.edge_index)
     n_levels = e.n_levels
     rows = 1 if model.config.scaffold_form == "一側足場" else 2
     corner = 1 if (not model.master.is_frame

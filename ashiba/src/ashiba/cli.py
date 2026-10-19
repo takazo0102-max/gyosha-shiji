@@ -149,7 +149,8 @@ TOP_KEYS = {
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths",
     "clearance_space_mm", "scaffold_form", "next_gen",
-    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
+    "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs",
 }
@@ -719,6 +720,14 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                 f"{plan.face_names()[[e.edge_index for e in plan.edges].index(ei)]}のスパンは指定どおり"
                 f"（{'+'.join(str(s) for s in sp)}＝{sum(sp)}mm・{len(sp)}スパン）に固定し、離れはそれに合わせて解いています"
             )
+    # スラブの天端から面ごとの軒高（セットバック）。いちばん高い面を全体の軒高にし、低い面は後で切る
+    spec = dict(spec)
+    face_eaves = _face_eaves_from_spec(spec, plan)
+    if face_eaves:
+        spec["eaves_height_mm"] = int(round(max(face_eaves.values())))
+        spec.setdefault("building_height_mm", spec["eaves_height_mm"])
+        if float(spec.get("building_height_mm") or 0) < spec["eaves_height_mm"]:
+            spec["building_height_mm"] = spec["eaves_height_mm"]
     # 手すり分の既定は系列から。枠組はコマピッチを持たない（0）ので、
     # 2×コマピッチだと軒高そのままになり、最上層に手すりが立たない
     guard_extra = spec.get("guard_extra_mm")
@@ -790,14 +799,82 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height, master),
     )
-    return ScaffoldModel(
+    model = ScaffoldModel(
         master=master,
         plan=plan,
         elevation=elevation,
         config=config,
         building_height_mm=float(spec.get("building_height_mm", 0)),
         clearance_space_mm=float(spec.get("clearance_space_mm", 2000)),
+        base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
+    if face_eaves:
+        _apply_face_eaves(model, face_eaves)
+    return model
+
+
+def _face_eaves_from_spec(spec: dict, plan) -> dict[int, float]:
+    """面ごとの軒高（足場の立つ高さからの mm）。slabs（スラブの外形と天端）か face_eaves_mm（面名・辺番号→軒高）.
+
+    slabs は足場の立つ高さ base_height_mm（下の屋根の上に建てるとき）を引いて、立つ面からの高さにする。
+    """
+    out: dict[int, float] = {}
+    base = float(spec.get("base_height_mm", 0) or 0)
+    if spec.get("slabs") and spec.get("height_from_slabs", True):
+        from .slab_heights import SlabInfo, face_base_mm, face_eaves_mm
+
+        slabs = [SlabInfo([tuple(p) for p in s["polygon_mm"]], float(s["top_mm"])) for s in spec["slabs"]]
+        tops = face_eaves_mm(plan.outline.edges, slabs)
+        if spec.get("base_height_mm") is None and tops:
+            # 足場の立つ高さ: 面の外側（建地の下）にある、面の軒高より十分低いスラブ（下の屋根）。
+            # 上のスラブだけを選んで実行したとき、下の屋根の上に建てる。面ごとに違えば低い方（地盤に立つ面がある）
+            out_mm = max(float(s_) for s_ in plan.standoffs) + 300.0 if plan.standoffs else 600.0
+            bases = face_base_mm(plan.outline.edges, slabs, tops, out_mm)
+            if bases:
+                base = min(bases.values())
+                if base > 0:
+                    spec["base_height_mm"] = base
+                    plan.warnings.append(f"足場は下の屋根（天端 GL+{base:.0f}）の上に建てます（スラブから自動）")
+                if len({round(v) for v in bases.values()}) > 1:
+                    plan.warnings.append("面によって立つ高さが違います（" + "・".join(f"{v:.0f}" for v in bases.values())
+                                         + "）。低い方に合わせて建てています。高い屋根の上に立つ面は、その面だけ選び直してください")
+        for ei, top in tops.items():
+            if top - base > 0:
+                out[ei] = top - base
+    names = plan.face_names()
+    for k, v in (spec.get("face_eaves_mm") or {}).items():
+        ei = None
+        if isinstance(k, int) or str(k).isdigit():
+            ei = int(k)
+        else:
+            for e, n in zip(plan.edges, names):
+                if n == k or n.replace("面", "") == str(k).replace("面", ""):
+                    ei = e.edge_index
+        if ei is not None:
+            out[ei] = float(v)
+    return out
+
+
+def _apply_face_eaves(model: ScaffoldModel, face_eaves: dict[int, float]) -> None:
+    """低い面の立面を全体の立面から切り出し、その面の上の壁つなぎを外す。面ごとの高さを警告に書く."""
+    from .elevation_solver import truncate_elevation
+
+    names = model.plan.face_names()
+    lines = []
+    for e, n in zip(model.plan.edges, names):
+        ev = face_eaves.get(e.edge_index)
+        if ev is None:
+            continue
+        fe = truncate_elevation(model.elevation, ev, model.master)
+        if fe is not model.elevation:
+            model.face_elevations[e.edge_index] = fe
+        lines.append(f"{n} 軒高{ev / 1000:.2f}m→{fe.n_levels}層・足場高さ{fe.total_height / 1000:.2f}m")
+    model.clip_ties_to_faces()
+    if model.face_elevations:
+        model.plan.warnings.append("面ごとの高さ（スラブの天端から。セットバックした上の部分は、上のスラブを選んで"
+                                   "もう一度実行すると下の屋根の上から建てます）: " + "／".join(lines))
+    elif lines:
+        model.plan.warnings.append("軒高はスラブの天端から: " + "／".join(lines))
 
 
 def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:

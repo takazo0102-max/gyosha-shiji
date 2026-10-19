@@ -291,3 +291,41 @@ def solve_elevation(
         level_heights=level_heights,
         warnings=warnings,
     )
+
+
+def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaster) -> ElevationResult:
+    """全体の立面（いちばん高い面）を、低い面の軒高で切った立面（セットバックの面ごとの高さ）.
+
+    隣の面とコーナーの支柱・作業床の高さを共有するので、低い面は全体の作業床の並びのうち軒高に
+    届く層までを使う（新しく解き直すと作業床の高さが隣とずれる）。支柱は下から全体の構成を積み、
+    天端の余り（作業床から支柱天端まで）は全体と同じにして、足りない分を短い支柱1本で埋める。
+    軒高が全体の最上層以上なら全体のまま返す。
+    """
+    levels = list(elev.level_heights)
+    if not levels or eaves_mm >= levels[-1] - 1:
+        return elev
+    k = next((i for i, h in enumerate(levels) if h >= eaves_mm - 1), len(levels) - 1)
+    keep = levels[:k + 1]
+    margin = elev.total_height - levels[-1]           # 最上層の床から支柱天端まで（手すり分）
+    target = keep[-1] + margin
+    acc = elev.jack_extension
+    posts: list[int] = []
+    for p in elev.posts:
+        if acc + p > target:
+            break
+        posts.append(p)
+        acc += p
+    rest = target - acc
+    if rest > 0:
+        lengths = sorted(master.post_lengths()) if not master.is_frame else sorted(set(elev.posts))
+        fit = next((L for L in lengths if L >= rest), None)
+        if fit is None and lengths:
+            fit = lengths[-1]
+        if fit:
+            posts.append(int(fit))
+    return ElevationResult(
+        required_height=int(target), jack_extension=elev.jack_extension, posts=posts,
+        posts_alt=_alt_order(posts), has_negarami=elev.has_negarami,
+        first_ledger_height=elev.first_ledger_height, n_levels=len(keep), level_heights=keep,
+        warnings=[],
+    )

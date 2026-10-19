@@ -264,11 +264,11 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
                         label_pitch_m: float = 0.7, stair_plan=None, text_scale: float = 100.0) -> SectionNotes:
     """断面立面に置く注記: GL線・寸法（スパン・全長・各層の間隔・足場高さ）・部材名のラベル・面の要約."""
     ep = next(e for e in model.plan.edges if e.edge_index == spec.edge_index)
-    e = model.elevation
+    e = model.elevation_of(ep.edge_index)
     row_w = float(model.post_row_spacing_mm) / 1000.0
     a, b = section_x(spec, ep.start_post), section_x(spec, ep.end_post)
     lo, hi = min(a, b) - row_w, max(a, b) + row_w
-    top = float(model.scaffold_height_mm) / 1000.0
+    top = float(e.total_height) / 1000.0
     out = SectionNotes()
     # GL（敷地に高低差があれば基準高さ。脚ごとの地盤はジャッキ量一覧）
     out.lines.append([(lo - 1.0, 0.0), (hi + 1.0, 0.0)])
@@ -337,6 +337,16 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
     line2 = (f"壁つなぎ {ties}箇所（◎印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
     out.texts.append({"x": lo, "y": head_y + label_pitch_m * text_scale / 100.0, "text": line1, "just": "Left"})
     out.texts.append({"x": lo, "y": head_y, "text": line2, "just": "Left"})
+    base = float(getattr(model, "base_height_mm", 0.0) or 0.0) / 1000.0
+    if base:
+        # 下の屋根の上に建てた足場（セットバックの上の部分）。注記の高さは立つ面からなので、断面の標高へずらす
+        out.texts = [{**t, "y": t["y"] + base} for t in out.texts]
+        out.lines = [[(x, y + base) for x, y in pts] for pts in out.lines]
+        out.labels = [{**lb, "beg": (lb["beg"][0], lb["beg"][1] + base), "mid": (lb["mid"][0], lb["mid"][1] + base),
+                       "end": (lb["end"][0], lb["end"][1] + base)} for lb in out.labels]
+        for t in out.texts:
+            if t["text"].startswith("GL±0"):
+                t["text"] = f"足場の立つ面（下の屋根）GL+{base * 1000:.0f}"
     return out
 
 
@@ -359,7 +369,7 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
     返す要素: {"beg": (x, y) 部材, "mid": (x, y) 折れ点, "end": (x, y) 文字, "text": 部材名}。
     階段室・開口部のスパンは避けて、普通のスパンの部材を指す。
     """
-    e = model.elevation
+    e = model.elevation_of(ep.edge_index)
     m = model.master
     sgn = 1.0 if section_x(spec, ep.end_post) >= section_x(spec, ep.start_post) else -1.0
     a = section_x(spec, ep.start_post)

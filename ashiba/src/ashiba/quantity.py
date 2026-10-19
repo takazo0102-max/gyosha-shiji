@@ -153,6 +153,151 @@ def take_off(
     openings=None,
     terrain=None,
 ) -> QuantityResult:
+    """数量拾い。面ごとに高さが違えば（セットバック）、同じ高さの面の組ごとに拾って合わせる."""
+    groups = face_height_groups(model)
+    if len(groups) <= 1:
+        return _take_off_one(model, rules, bracket_sections, stair_plan, platforms, openings, terrain)
+    rules = rules or QuantityRules()
+    names = model.plan.face_names()
+    by_edge = {e.edge_index: n for e, n in zip(model.plan.edges, names)}
+    results = []
+    for ev, edges in groups:
+        sub = _sub_model(model, ev, edges)
+        label = "・".join(by_edge.get(i, f"辺{i}") for i in sorted(edges)) + f"（{ev.n_levels}層）"
+        q = _take_off_one(sub, rules, _only_edges(bracket_sections, edges), _sub_stairs(stair_plan, edges),
+                          _sub_platforms(platforms, edges), _sub_openings(openings, edges),
+                          _sub_terrain(terrain, model, edges))
+        results.append((label, q))
+    res = _merge_results(model, rules, results)
+    if _sub_terrain(terrain, model, set()) is not None:
+        res.notes.append("敷地の高低差とセットバック（面ごとの高さ）が両方あるので、脚（ジャッキ・継ぎ足しの支柱）は"
+                         "面ごとに近い脚を割り当てて全高の構成で拾っています。低い面の脚の支柱構成は要確認です")
+    return res
+
+
+def face_height_groups(model: ScaffoldModel) -> list[tuple]:
+    """面を立面（高さ）ごとにまとめる [(立面, {辺番号})]。高い順."""
+    groups: dict[int, tuple] = {}
+    for e in model.plan.edges:
+        ev = model.elevation_of(e.edge_index)
+        key = id(ev)
+        groups.setdefault(key, (ev, set()))[1].add(e.edge_index)
+    return sorted(groups.values(), key=lambda g: -g[0].n_levels)
+
+
+def _sub_model(model: ScaffoldModel, ev, edges: set) -> ScaffoldModel:
+    import copy
+    import dataclasses
+
+    sub = copy.copy(model)
+    sub.plan = dataclasses.replace(model.plan, edges=[e for e in model.plan.edges if e.edge_index in edges])
+    sub.elevation = ev
+    sub.face_elevations = {}
+    sub.edge_subset = set(edges)
+    sub.wall_ties = [t for t in model.wall_ties if t.edge_index in edges]
+    return sub
+
+
+def _only_edges(items, edges: set):
+    if items is None:
+        return None
+    return [x for x in items if getattr(x, "edge_index", None) in edges]
+
+
+def _sub_terrain(terrain, model: ScaffoldModel, edges: set):
+    """敷地の脚を面の組に分ける。平坦なら None（脚ごとの構成は要らない。全周の脚を各組で数えると二重になる）."""
+    if terrain is None:
+        return None
+    lo, hi = getattr(terrain, "gl_range_mm", (0.0, 0.0)) or (0.0, 0.0)
+    if abs(float(hi) - float(lo)) < 1.0:
+        return None
+    if not edges:
+        return terrain
+    import dataclasses
+
+    def nearest(f) -> int:
+        best, bi = None, -1
+        for e in model.plan.edges:
+            (sx, sy), (ex, ey) = e.start_post, e.end_post
+            dx, dy = ex - sx, ey - sy
+            L2 = dx * dx + dy * dy or 1.0
+            t = max(0.0, min(1.0, ((f.x - sx) * dx + (f.y - sy) * dy) / L2))
+            d = (f.x - sx - t * dx) ** 2 + (f.y - sy - t * dy) ** 2
+            if best is None or d < best:
+                best, bi = d, e.edge_index
+        return bi
+
+    return dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges])
+
+
+def _sub_stairs(stair_plan, edges: set):
+    if stair_plan is None:
+        return None
+    import dataclasses
+    return dataclasses.replace(stair_plan, towers=[t for t in stair_plan.towers if t.edge_index in edges])
+
+
+def _sub_platforms(platforms, edges: set):
+    if platforms is None:
+        return None
+    import dataclasses
+    return dataclasses.replace(platforms, stages=_only_edges(platforms.stages, edges),
+                               hoists=_only_edges(platforms.hoists, edges))
+
+
+def _sub_openings(openings, edges: set):
+    if openings is None:
+        return None
+    import dataclasses
+    return dataclasses.replace(openings, openings=_only_edges(openings.openings, edges))
+
+
+def _merge_results(model: ScaffoldModel, rules: QuantityRules, results: list) -> QuantityResult:
+    """面の組ごとの数量を合わせる（同じ品番・分類は足す）。注記は組の名前を付けて並べる."""
+    merged: dict = {}
+    order: list = []
+    for _label, q in results:
+        for ln in q.lines:
+            key = (ln.part.model_no, ln.part.category)
+            if key not in merged:
+                merged[key] = BomLine(part=ln.part, qty=0, note="")
+                order.append(key)
+            merged[key].qty += ln.qty
+    lines = [merged[k] for k in sorted(order)]
+    total_weight = sum(l.subtotal_weight for l in lines)
+    notes: list[str] = [
+        "面ごとに高さが違うので（スラブの天端から。セットバック）、同じ高さの面の組ごとに拾って合わせています: "
+        + "／".join(label for label, _q in results)]
+    warnings: list[str] = []
+    kinds: dict = {}
+    for label, q in results:
+        for n in q.notes:
+            if n.startswith("トラック台数"):
+                continue
+            notes.append(f"【{label}】{n}")
+        for w in q.warnings:
+            if w not in warnings:
+                warnings.append(w)
+                kinds[w] = q.warning_kinds.get(w, Notes.ORDER)
+    notes.append(f"トラック台数は1台あたり{rules.truck_payload_kg:.0f}kg（4t車の実効積載・積載効率0.8）で割った概算です。"
+                 "長尺材の積み方や現場条件で変わります")
+    perimeter_m = model.plan.outline.perimeter / 1000.0
+    height_m = (model.building_height_mm or model.scaffold_height_mm) / 1000.0
+    kake = (perimeter_m + 4.0) * (height_m + 0.5)
+    return QuantityResult(lines=lines, kake_menseki_m2=round(kake, 2), total_weight_kg=round(total_weight, 1),
+                          truck_count=math.ceil(total_weight / rules.truck_payload_kg) if total_weight else 0,
+                          notes=notes, warnings=warnings, warning_kinds=kinds)
+
+
+def _take_off_one(
+    model: ScaffoldModel,
+    rules: Optional[QuantityRules] = None,
+    bracket_sections: Optional[list] = None,
+    stair_plan: Optional["StairPlan"] = None,
+    platforms=None,
+    openings=None,
+    terrain=None,
+) -> QuantityResult:
     rules = rules or QuantityRules()
     m = model.master
     plan = model.plan

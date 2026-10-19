@@ -700,8 +700,9 @@ def place_scaffold_lines(
     # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
     with _rollback_on_error(client, placed):
         for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
+            # 下の屋根の上に建てる足場（セットバックの上の部分）は、その屋根の高さに置く
             elem = client.create_object(
-                object_name, ep.start_post[0], ep.start_post[1])
+                object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0))
             placed.append(elem)
             angle = math.atan2(edge.direction[1], edge.direction[0])
             if abs(angle) > 1e-9:

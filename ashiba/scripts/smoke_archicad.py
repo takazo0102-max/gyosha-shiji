@@ -148,7 +148,7 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
         remove_plan_labels(client, out_dir, building_key([tuple(p) for p in outline]))
         activate_floor_plan(client)
         if slab is not None:
-            client.delete_elements([slab])
+            client.delete_elements(slab if isinstance(slab, list) else [slab])
     except TapirError as e:
         print(f"  片付けに失敗（手で消してください）: {e}")
 
@@ -162,14 +162,16 @@ def _find_slab(client, outline):
     if not els:
         return None
     boxes = client.post("API.Get2DBoundingBoxes", {"elements": els}).get("boundingBoxes2D", [])
+    hits = []
     for el, b in zip(els, boxes):
         bb = b.get("boundingBox2D") if isinstance(b, dict) else None
         if not bb:
             continue
         got = (bb["xMin"], bb["yMin"], bb["xMax"], bb["yMax"])
         if all(abs(g - w) < 0.01 for g, w in zip(got, want)):
-            return el
-    return None
+            hits.append(el)
+    # --keep を何度か流すとスラブが重なって残る。同じ外形のものは全部片付ける
+    return hits or None
 
 
 def cleanup_kept(client, case, index: int) -> None:

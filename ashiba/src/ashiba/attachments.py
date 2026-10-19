@@ -63,22 +63,24 @@ def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
         o, u, _n, ang = _frame(ep)
         need = wall_tie_required_length_mm(model, t.edge_index, t.position_mm)
         out.append(Placement(TIE_OBJECT, o[0] + u[0] * t.position_mm, o[1] + u[1] * t.position_mm, {
-            "faceAng": ang, "zH": t.height_mm / 1000.0, "tieL": need / 1000.0,
+            "faceAng": ang, "zH": (t.height_mm + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
             "tieName": tie_name(model, need), "lineMode": bool(line_mode)}))
     return out
 
 
-def net_heights_mm(model: ScaffoldModel) -> list[float]:
-    """水平ネットを張る高さ（指定した作業層の床の天端の少し下）."""
-    lv = list(model.elevation.level_heights)
+def net_heights_mm(model: ScaffoldModel, edge_index: int = None) -> list[float]:
+    """水平ネットを張る高さ（指定した作業層の床の天端の少し下。面を渡すとその面の層だけ）."""
+    ev = model.elevation if edge_index is None else model.elevation_of(edge_index)
+    lv = list(ev.level_heights)
     return [float(lv[k - 1]) - NET_BELOW_DECK_MM for k in model.config.horizontal_net_levels if 1 <= k <= len(lv)]
 
 
 def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
     """水平ネット（1面1層に1部品）とネットブラケット（内側建地ごと。各面は始点の建地を受け持つ）."""
     out: list[Placement] = []
-    for z in net_heights_mm(model):
-        for ep in model.plan.edges:
+    for ep in model.plan.edges:
+        for z in net_heights_mm(model, ep.edge_index):
+            z = z + model.base_height_mm
             o, u, nrm, ang = _frame(ep)
             width = float(ep.standoff) - NET_GAP_MM - NET_EDGE_MM
             if width <= 0:
@@ -100,8 +102,8 @@ def net_quantities(model: ScaffoldModel) -> tuple[float, int]:
     """水平ネットの面積（m²）とネットブラケットの個数（net_placements と同じ数え方）."""
     area = 0.0
     n_bk = 0
-    for _z in net_heights_mm(model):
-        for ep in model.plan.edges:
+    for ep in model.plan.edges:
+        for _z in net_heights_mm(model, ep.edge_index):
             width = float(ep.standoff) - NET_GAP_MM - NET_EDGE_MM
             if width <= 0:
                 continue

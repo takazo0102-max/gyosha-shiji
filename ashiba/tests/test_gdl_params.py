@@ -507,7 +507,7 @@ class TestPartialPlacementIsRolledBack(unittest.TestCase):
             self.deleted = []
             self.n = 0
 
-        def create_object(self, name, x, y):
+        def create_object(self, name, x, y, z=0.0):
             elem = {"elementId": {"guid": f"g{len(self.created)}"}}
             self.created.append(elem)
             return elem

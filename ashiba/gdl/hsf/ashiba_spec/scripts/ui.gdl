@@ -50,3 +50,4 @@ ui_infield "lineMode3d", 10, 190, 300, 20
 ui_infield "autoInBrk", 10, 214, 400, 20
 ui_outfield "水平ネットの層（例 2,5）", 10, 242, 140, 18
 ui_infield "netLevels", 160, 240, 160, 20
+ui_infield "hFromSlab", 10, 266, 400, 20

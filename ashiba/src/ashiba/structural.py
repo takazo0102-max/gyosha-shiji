@@ -446,6 +446,9 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
         if not edge_ties:
             continue
         length = float(edge.scaffold_length)
+        # 面ごとの高さ（セットバックで低い面）。全体の天端で受け持ちを取ると、低い面の上の壁つなぎが
+        # 実際には無い高さの風まで受けることになる
+        top = float(model.elevation_of(edge.edge_index).total_height)
         pts = [(float(t.position_mm), float(t.height_mm)) for t in edge_ties]
         for t, (x0, z0) in zip(edge_ties, pts):
             poly = [(0.0, 0.0), (length, 0.0), (length, top), (0.0, top)]
@@ -909,6 +912,7 @@ def optimize_wall_ties(
             model.config.wall_tie_near_corner = near
             ties = generate_wall_ties(model.plan, model.elevation, model.config)
             model.wall_ties = ties
+            model.clip_ties_to_faces()
             layout()
             res = check_wall_tie(model, wind, caps)
             cand = TieOptimizeResult(
@@ -968,6 +972,7 @@ def optimize_wall_ties(
         model.wall_ties = generate_wall_ties(
             model.plan, model.elevation, model.config
         )
+        model.clip_ties_to_faces()
         chosen.notes = layout()
     else:
         model.wall_ties = original
