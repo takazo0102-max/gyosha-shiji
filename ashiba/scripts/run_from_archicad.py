@@ -441,6 +441,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
     if use_spec_object:
         spec = apply_spec_object(client, spec)
+    # 建物のフロア（層別数量にフロア名を付け、フロアごとに合計する）
+    if not spec.get("stories"):
+        try:
+            st = client.tapir("GetStories", {}).get("stories", [])
+            spec["stories"] = [{"name": s["name"], "level_mm": float(s["level"]) * 1000.0} for s in st]
+        except (TapirError, KeyError, TypeError, ValueError):
+            pass
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client, outline_mm=spec["outline_mm"])
     if ground.ignored_meshes:

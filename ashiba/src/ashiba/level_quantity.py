@@ -43,6 +43,23 @@ class LevelTakeoff:
     bands: list[LevelBand]
     rows: list[LevelRow]
     notes: list[str] = field(default_factory=list)
+    floors: list[str] = field(default_factory=list)    # 層ごとの建物のフロア名（フロアの情報があるとき）
+
+    def by_floor(self) -> tuple[list[str], list[tuple[object, list[int]]]]:
+        """フロアごとに層をまとめた数量 (フロア名の並び, [(部材, フロアごとの数)])。フロアが無ければ空."""
+        if not self.floors:
+            return [], []
+        names: list[str] = []
+        for f in self.floors:
+            if f not in names:
+                names.append(f)
+        out = []
+        for r in self.rows:
+            vals = [0] * len(names)
+            for i, v in enumerate(r.per_level):
+                vals[names.index(self.floors[i])] += v
+            out.append((r.part, vals))
+        return names, out
 
     def level_weights(self) -> list[float]:
         return [round(sum(r.part.weight_kg * r.per_level[i] for r in self.rows), 1) for i in range(len(self.bands))]
@@ -67,8 +84,27 @@ def _counts(q) -> dict:
     return out, parts
 
 
-def take_off_by_level(model: ScaffoldModel, quantity, **kw) -> LevelTakeoff:
-    """層ごとの数量。quantity は全体の数量（take_off の結果）、kw は take_off に渡したもの."""
+def floor_names(bands: list[LevelBand], stories, base_mm: float = 0.0) -> list[str]:
+    """層（作業床の高さ）→ 建物のフロア名。床の高さ以下でいちばん高いフロア（無ければ最も低いフロア）.
+
+    stories は [{"name": "2FL", "level_mm": 3000}, ...]（Archicad のフロア。足場の立つ高さ base を足して比べる）。
+    """
+    st = sorted(((float(s["level_mm"]), str(s["name"])) for s in stories or []), key=lambda v: v[0])
+    if not st:
+        return []
+    out = []
+    for b in bands:
+        z = b.z_hi + base_mm
+        hit = [name for lv, name in st if lv <= z + 1]
+        out.append(hit[-1] if hit else st[0][1])
+    return out
+
+
+def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> LevelTakeoff:
+    """層ごとの数量。quantity は全体の数量（take_off の結果）、kw は take_off に渡したもの.
+
+    stories（建物のフロア）を渡すと、層ごとにフロア名を付け、フロアごとの合計も出せる（by_floor）。
+    """
     from .quantity import _sub_model, face_height_groups, take_off
 
     levels = list(model.elevation.level_heights)
@@ -141,4 +177,4 @@ def take_off_by_level(model: ScaffoldModel, quantity, **kw) -> LevelTakeoff:
         notes.append("層を切ると数え方が変わる部材（" + "・".join(parts[k].model_no for k in neg)
                      + "）は、層によって負の数になります。合計は数量表と同じです")
     rows = [LevelRow(parts[k], per[k]) for k in keys if any(per[k])]
-    return LevelTakeoff(bands, rows, notes)
+    return LevelTakeoff(bands, rows, notes, floor_names(bands, stories, float(model.base_height_mm)))

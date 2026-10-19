@@ -39,12 +39,20 @@ def write_level_quantity_csv(lt, path: Path) -> None:
     """層ごとの数量（level_quantity.take_off_by_level）。支柱は1本ずつに分解して下端の層に数える."""
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["型番", "分類", "呼び寸法"] + [b.label for b in lt.bands] + ["合計"])
+        labels = [b.label + (f" {lt.floors[i]}" if lt.floors else "") for i, b in enumerate(lt.bands)]
+        w.writerow(["型番", "分類", "呼び寸法"] + labels + ["合計"])
         for row in lt.rows:
             p = row.part
             w.writerow([p.model_no, p.category, p.nominal_dim] + list(row.per_level) + [row.total])
         w.writerow([])
         w.writerow(["重量kg", "", ""] + lt.level_weights() + [round(sum(lt.level_weights()), 1)])
+        names, by_floor = lt.by_floor()
+        if names:
+            # 建物のフロアごと（作業床の高さが入るフロアに、その層の部材をまとめる）
+            w.writerow([])
+            w.writerow(["■フロア別", "", ""] + names + ["合計"])
+            for p, vals in by_floor:
+                w.writerow([p.model_no, p.category, p.nominal_dim] + vals + [sum(vals)])
         for n in lt.notes:
             w.writerow(["注記", n])
 

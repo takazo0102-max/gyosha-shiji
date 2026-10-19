@@ -152,7 +152,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
-    "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual",
+    "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -1418,8 +1418,8 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
     from .report import write_level_quantity_csv
 
     write_level_quantity_csv(
-        take_off_by_level(model, quantity, bracket_sections=brackets, stair_plan=stair_plan,
-                          platforms=platforms, openings=openings, terrain=terrain),
+        take_off_by_level(model, quantity, stories=spec.get("stories"), bracket_sections=brackets,
+                          stair_plan=stair_plan, platforms=platforms, openings=openings, terrain=terrain),
         out_dir / f"{name}_層別数量.csv",
     )
     write_report_md(

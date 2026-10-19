@@ -63,3 +63,30 @@ class TestLevelQuantity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFloors(unittest.TestCase):
+    def test_levels_map_to_building_floors(self):
+        stories = [{"name": "1FL", "level_mm": 0}, {"name": "2FL", "level_mm": 3000},
+                   {"name": "3FL", "level_mm": 6000}, {"name": "RFL", "level_mm": 9000}]
+        r = solve_all({**RECT, "eaves_height_mm": 9000, "stories": stories})
+        lt = take_off_by_level(r.model, r.quantity, stories=stories, bracket_sections=r.brackets,
+                               stair_plan=r.stair_plan, platforms=r.platforms, openings=r.openings,
+                               terrain=r.terrain)
+        self.assertEqual(len(lt.floors), len(lt.bands))
+        for b, f in zip(lt.bands, lt.floors):
+            want = [s["name"] for s in stories if s["level_mm"] <= b.z_hi + 1][-1]
+            self.assertEqual(f, want)
+        names, rows = lt.by_floor()
+        self.assertEqual(names, list(dict.fromkeys(lt.floors)))
+        for (part, vals), row in zip(rows, lt.rows):
+            self.assertEqual(sum(vals), row.total)
+
+    def test_csv_has_floor_section(self):
+        stories = [{"name": "1FL", "level_mm": 0}, {"name": "2FL", "level_mm": 3000}]
+        r = solve_all({**RECT, "stories": stories})
+        with tempfile.TemporaryDirectory() as d:
+            write_outputs(r, Path(d))
+            with open(Path(d) / f"{r.name}_層別数量.csv", encoding="utf-8-sig") as f:
+                rows = list(csv.reader(f))
+        self.assertTrue(any(row and row[0] == "■フロア別" for row in rows))
