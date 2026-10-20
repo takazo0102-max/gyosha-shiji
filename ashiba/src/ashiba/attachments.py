@@ -230,11 +230,11 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
     return out
 
 
-def sheet_quantities(model: ScaffoldModel, stair_plan=None) -> tuple[float, int]:
-    """養生シートの面積（m²）と枚数（区間ごとに 幅÷1枚の幅 × 高さ÷1枚の高さ を切り上げ）."""
+def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[float, int]:
+    """養生シートの面積（m²）と枚数（区間ごとに 幅÷1枚の幅 × 高さ÷1枚の高さ を切り上げ）。size で1枚の大きさを替えられる."""
     import math as _m
 
-    size = SHEET_SIZES.get(model.config.sheet_type or "")
+    size = size or SHEET_SIZES.get(model.config.sheet_type or "")
     if size is None:
         return 0.0, 0
     area = 0.0

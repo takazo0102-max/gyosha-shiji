@@ -1152,11 +1152,12 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     kind = model.config.sheet_type or ""
     if kind not in SHEET_SIZES:
         return
-    area, n = sheet_quantities(model, stair_plan)
+    part = next((p for p in model.master.by_category("養生シート") if kind in p.note), None)
+    # 系列にある品はその大きさ（日建スプリングメッシュは 1829×5160）で数える
+    w, h = (part.nominal_dim, part.actual_dim) if part is not None and part.actual_dim else SHEET_SIZES[kind]
+    area, n = sheet_quantities(model, stair_plan, (w, h))
     if n <= 0:
         return
-    w, h = SHEET_SIZES[kind]
-    part = next((p for p in model.master.by_category("養生シート") if kind in p.note), None)
     if part is not None:
         add(part, n, f"{kind}")
     notes.append(f"{kind}（{w / 1000:.1f}×{h / 1000:.1f}m）は外側の構面を地面から足場の天端まで、"

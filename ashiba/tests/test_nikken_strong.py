@@ -76,3 +76,21 @@ class TestMillennium(unittest.TestCase):
 
         fc2 = next(p for p in load_master("nikken_millennium").by_category("梁枠") if p.model_no == "FC2G")
         self.assertEqual(beam_support_allowable_kn(fc2), 5.4)
+
+
+class TestCatalogAttachments(unittest.TestCase):
+    """カタログの付属品: ネット専用ブラケット NL500（p109）・スプリングメッシュ MS1851（p111）・枠組の階段開口部幅木（p093）."""
+
+    def test_nikken_counts_net_brackets_and_mesh_sheets(self):
+        for sid in ("nikken_nd1800", "nikken_strong", "nikken_millennium", "waku"):
+            with self.subTest(sid):
+                r = solve_all({**RECT, "series_id": sid, "horizontal_net_levels": [2]})
+                q = {l.part.model_no: l.qty for l in r.quantity.lines}
+                self.assertGreater(q.get("NL500", 0), 0)
+                self.assertGreater(q.get("MS1851", 0), 0)
+                self.assertTrue(any(n.startswith("メッシュシート（1.8×5.2m）") for n in r.quantity.notes))
+
+    def test_waku_stair_opening_toe_board(self):
+        r = solve_all({**RECT, "series_id": "waku"})
+        self.assertIn("NFG918", {l.part.model_no for l in r.quantity.lines})
+        self.assertFalse(any("階段開口部幅木" in w for w in r.quantity.warnings))
