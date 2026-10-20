@@ -223,16 +223,26 @@ def apply_spec_object(client, spec: dict) -> dict:
 
         _el, params = hit
         new_params, added = upgrade_params(params)
-        if added:
-            # 古い版の部品（新しい項目が無い）。値を引き継いで今の版に置き換える
+        name = versioned_part_name(SPEC_OBJECT)
+        try:
+            det = client.tapir("GetDetailsOfElements", {"elements": [_el]}).get("detailsOfElements", [{}])[0]
+        except TapirError:
+            det = {}
+        placed_name = ((det.get("details") or {}).get("libPart") or {}).get("name", name)
+        if added or placed_name != name:
+            # 古い版の部品（新しい項目が無い・選択肢が古い）。値を引き継いで今の版に置き換える
+            from ashiba.master import SERIES_LABELS, series_from_label
+
+            if new_params.get("seriesId"):
+                new_params["seriesId"] = SERIES_LABELS.get(series_from_label(new_params["seriesId"]),
+                                                           new_params["seriesId"])
             try:
-                det = client.tapir("GetDetailsOfElements", {"elements": [_el]}).get("detailsOfElements", [{}])[0]
                 o = (det.get("details") or {}).get("origin") or {}
-                name = versioned_part_name(SPEC_OBJECT)
                 el = client.create_object(name, float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0)
                 client.set_gdl_parameters(el, new_params, name)
                 client.delete_elements([_el])
-                print(f"足場条件の部品を今の版に置き換えました（値は引き継ぎ、新しい項目 {', '.join(added)} は既定値）")
+                print("足場条件の部品を今の版に置き換えました（値は引き継ぎ"
+                      + (f"、新しい項目 {', '.join(added)} は既定値" if added else "") + "）")
             except TapirError as e:
                 print(f"足場条件の部品を今の版に置き換えられませんでした（{e}）。新しい項目は既定値で続けます")
             params = new_params
