@@ -3789,13 +3789,92 @@ return
 	roty atn(cdh / cdz)
 	cylind sqr(cdh * cdh + cdz * cdz), 0.0272 / 2
 	del 3
-	! 扇形の FRP 万能板（4枚の三角形で、この面の端・隅の先端・前の面の端をつなぐ）
-	material "ashiba_frp"
-	plane 3, cx0, cy0, za, 0, aY, za, 0, aY - asC, za + asH
-	plane 3, cx0, cy0, za, 0, aY - asC, za + asH, cx0 - asC, aY - asC, za + asH
-	plane 3, cx0, cy0, za, cx0 - asC, aY - asC, za + asH, cx0 - asC, 0, za + asH
-	plane 3, cx0, cy0, za, cx0 - asC, 0, za + asH, cx0, 0, za
-	if matScaf > 0 then material matScaf
+	! 扇形の FRP 万能板: センター材の両側に 小・中・大 の3枚ずつ（ALAF21S・22S・23S、計6枚）。板の継ぎ目は
+	! 根元の辺（外側コーナー支柱〜面の端の主材の根元）と先端の辺を3等分した線。両側の上に万能板上押え（ALAC4N）、
+	! 下に振れ止め 横（ALAC5）・縦（ALAC6）を、面の端の主材とセンター材の間に渡す
+	ctX = cx0 - asC
+	ctY = aY - asC
+	for hb = 0 to 1
+		if hb = 0 then
+			! この面の側: 根元の端は面の始点の主材の根元、先端の端はその主材の先端
+			rX = 0
+			rY = aY
+			tX = 0
+			tY = aY - asC
+		else
+			! 前の面の側
+			rX = cx0
+			rY = 0
+			tX = cx0 - asC
+			tY = 0
+		endif
+		material "ashiba_frp"
+		for kp = 0 to 2
+			t0 = kp / 3 + 0.004
+			t1 = (kp + 1) / 3 - 0.004
+			r0x = cx0 + t0 * (rX - cx0)
+			r0y = cy0 + t0 * (rY - cy0)
+			r1x = cx0 + t1 * (rX - cx0)
+			r1y = cy0 + t1 * (rY - cy0)
+			s0x = ctX + t0 * (tX - ctX)
+			s0y = ctY + t0 * (tY - ctY)
+			s1x = ctX + t1 * (tX - ctX)
+			s1y = ctY + t1 * (tY - ctY)
+			plane 3, r0x, r0y, za + 0.08, r1x, r1y, za + 0.08, s1x, s1y, za + asH + 0.08
+			plane 3, r0x, r0y, za + 0.08, s1x, s1y, za + asH + 0.08, s0x, s0y, za + asH + 0.08
+		next kp
+		if matScaf > 0 then material matScaf
+		! 万能板上押え（板の中ほどを根元から先端へ）
+		bx1 = cx0 + 0.5 * (rX - cx0)
+		by1 = cy0 + 0.5 * (rY - cy0)
+		bz1 = za + 0.11
+		bx2 = ctX + 0.5 * (tX - ctX)
+		by2 = ctY + 0.5 * (tY - ctY)
+		bz2 = za + asH + 0.11
+		brR = 0.015
+		gosub 895
+		if isLite = 0 then
+			! 振れ止め 横（面の端の主材の 0.55 の点〜センター材の 0.55 の点）
+			bx1 = rX + 0.55 * (tX - rX)
+			by1 = rY + 0.55 * (tY - rY)
+			bz1 = za + 0.55 * asH - 0.04
+			bx2 = cx0 + 0.55 * (ctX - cx0)
+			by2 = cy0 + 0.55 * (ctY - cy0)
+			bz2 = za + 0.55 * asH - 0.04
+			brR = 0.012
+			gosub 895
+			! 振れ止め 縦（面の端の主材の根元寄り 0.25〜センター材の先端寄り 0.8）
+			bx1 = rX + 0.25 * (tX - rX)
+			by1 = rY + 0.25 * (tY - rY)
+			bz1 = za + 0.25 * asH - 0.04
+			bx2 = cx0 + 0.8 * (ctX - cx0)
+			by2 = cy0 + 0.8 * (ctY - cy0)
+			bz2 = za + 0.8 * asH - 0.04
+			gosub 895
+		endif
+	next hb
+	return
+
+895:	! ---- 2点 (bx1,by1,bz1)〜(bx2,by2,bz2) を結ぶ丸棒（半径 brR） ----
+	bdx = bx2 - bx1
+	bdy = by2 - by1
+	bdz = bz2 - bz1
+	bLn = sqr(bdx * bdx + bdy * bdy + bdz * bdz)
+	if bLn > 0.001 then
+		if abs(bdx) < 0.000001 then
+			bAz = 90
+			if bdy < 0 then bAz = -90
+		else
+			bAz = atn(bdy / bdx)
+			if bdx < 0 then bAz = bAz + 180
+		endif
+		bTl = acs(bdz / bLn)
+		add bx1, by1, bz1
+		rotz bAz
+		roty bTl
+		cylind bLn, brR
+		del 3
+	endif
 	return
 
 830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:

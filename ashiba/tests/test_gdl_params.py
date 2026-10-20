@@ -620,8 +620,14 @@ class TestCatalogShapesStairAsagao(unittest.TestCase):
         self.assertIn("plane 4, bx, -rowW - r_sic, za", blk)                 # 段差の妻側の板
         # 出隅のコーナー部（センター材と扇形の万能板 4枚の三角形）
         self.assertIn("if cornerS = 1 or cornerG = 1 then gosub 890", blk)
-        sub = self.body[self.body.index("890:"):]
-        self.assertEqual(sub[:sub.index("return")].count("plane 3,"), 4)
+        sub = self.body[self.body.index("890:"):self.body.index("895:")]
+        # 両側に 小・中・大 の3枚（継ぎ目で分ける。1枚を2つの三角形で）、上押えと振れ止め 横・縦
+        self.assertIn("for kp = 0 to 2", sub)
+        self.assertEqual(sub.count("plane 3,"), 2)
+        self.assertIn("! 万能板上押え", sub)
+        self.assertIn("! 振れ止め 横", sub)
+        self.assertIn("! 振れ止め 縦", sub)
+        self.assertGreaterEqual(sub.count("gosub 895"), 3)
         g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
             encoding="utf-8")
         self.assertIn("line2 -rowW, -rowW, -rowW - asagaoProj, aY - asagaoProj", g2)
