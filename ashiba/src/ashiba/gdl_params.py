@@ -227,7 +227,7 @@ def line_params(
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
         # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
         "stairList": _stair_list(ep, stair_plan),
-        # 外付け（4列）: 外側建地列の外に通路と階段の2升。本体の床は切らない
+        # 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）。本体の床は切らない
         "stOut": 1 if getattr(stair_plan, "outside", False) else 0,
         # 階段室の開始位置（平面の編集ホットスポット）。stairList とそろえて送る。部品は両者が
         # 食い違えば「引かれた」とみなしてスパン境界へ吸着する（vl.gdl）
@@ -509,7 +509,7 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
             if o.edge_index == ep.edge_index and e.level_heights:
                 idx = min(max(o.level, 1), len(e.level_heights)) - 1
                 beams.append((o.start_mm, o.end_mm, e.level_heights[idx]))
-    # 外付け（4列）の階段は本体の床を切らない（1d.gdl の stOut と同じ）
+    # 外付けの階段は本体の床を切らない（1d.gdl の stOut と同じ）
     outside = bool(getattr(stair_plan, "outside", False))
     all_towers = [(t.start_mm, t.start_mm + t.length_mm) for t in getattr(stair_plan, "towers", []) or []
                   if t.edge_index == ep.edge_index]

@@ -51,8 +51,9 @@ class StairPlan:
     required_count: int = 0
     landings_per_tower: int = 0    # 1箇所あたり階段室を出て作業床を通る回数（2層ごと。作業床が踊り場を兼ね、踊り場の床材は使わない）
     warnings: list[str] = field(default_factory=list)
-    # 外付け（4列）: 外側建地列のさらに外に建地を2列立て、内側の升目を通路、外側の升目に階段を通す。本体の作業床は
-    # 切らない（利用者の指摘 2026-10-20: 敷地が広いところは階段を横に付けるパターンが多い。回れるように4列は必要）
+    # 外付け: 外側建地列のさらに外に建地を1列立て、その升目に 上り口＋階段2スパン＋降り口 の区間を作る。本体の作業床は
+    # 切らない（利用者の指摘 2026-10-20: 敷地が広いところは階段を横に付けるパターンが多い。回れるように4スパン要る、
+    # 上り口と降り口に横のスパンが必要）
     outside: bool = False
 
     @property
@@ -71,6 +72,7 @@ def auto_place_stairs(
     count: Optional[int] = None,
     min_per_face: int = 0,
     avoid: Optional[dict[int, list[tuple[float, float]]]] = None,
+    corner_gap: int = 1,
 ) -> StairPlan:
     """階段室をループ上に配置する.
 
@@ -122,7 +124,7 @@ def auto_place_stairs(
             placed = 0
             for _ in range(min_per_face):
                 slot = _find_slot(ep, ep.scaffold_length / 2, tower_spans,
-                                  occupied.get(ep.edge_index, []))
+                                  occupied.get(ep.edge_index, []), corner_gap)
                 if slot is None:
                     break
                 start, length = slot
@@ -155,7 +157,7 @@ def auto_place_stairs(
                 break
             pos = _largest_gap_center(plan.towers, loop_len)
             if not _add(
-                _place_at(model, pos, tower_spans, occupied),
+                _place_at(model, pos, tower_spans, occupied, corner_gap),
                 f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加",
             ):
                 plan.warnings.append(
@@ -169,7 +171,7 @@ def auto_place_stairs(
         failed = 0
         for t in targets:
             if not _add(
-                _place_at(model, t, tower_spans, occupied),
+                _place_at(model, t, tower_spans, occupied, corner_gap),
                 f"昇降設備{n}箇所を均等配置"
                 f"（安衛則526条、水平移動{max_travel_mm / 1000:.0f}m以内）",
             ):
@@ -191,7 +193,7 @@ def auto_place_stairs(
                    and actual_max_travel(plan.towers, loop_len) > max_travel_mm):
                 pos = _largest_gap_center(plan.towers, loop_len)
                 if not _add(
-                    _place_at(model, pos, tower_spans, occupied),
+                    _place_at(model, pos, tower_spans, occupied, corner_gap),
                     f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加"
                     "（開口部等を避けて位置がずれた分）",
                 ):
@@ -357,6 +359,7 @@ def _place_at(
     loop_pos_mm: float,
     tower_spans: int,
     occupied: Optional[dict[int, list[tuple[float, float]]]] = None,
+    corner_gap: int = 1,
 ) -> Optional[StairTower]:
     """ループ上の位置に最も近い、配置可能な区間へ階段室を置く.
 
@@ -365,7 +368,7 @@ def _place_at(
     occ = occupied or {}
 
     def _try(ep, prefer: float, acc: float) -> Optional[StairTower]:
-        slot = _find_slot(ep, prefer, tower_spans, occ.get(ep.edge_index, []))
+        slot = _find_slot(ep, prefer, tower_spans, occ.get(ep.edge_index, []), corner_gap)
         if slot is None:
             return None
         start, length = slot
@@ -399,13 +402,15 @@ def _find_slot(
     prefer_mm: float,
     tower_spans: int,
     occupied: Optional[list[tuple[float, float]]] = None,
+    corner_gap: int = 1,
 ) -> Optional[tuple[float, float]]:
-    """辺の中で、コーナーから1スパン以上離れた連続 tower_spans スパンの区間を探す.
+    """辺の中で、コーナーから corner_gap スパン以上離れた連続 tower_spans スパンの区間を探す.
 
     occupied と重なる区間は候補から外す。prefer_mm に最も近いものを返す。
+    外付けの階段室は足場の外に出るので、コーナーまで使ってよい（corner_gap=0）。
     """
     spans = edge.spans
-    if len(spans) < tower_spans + 2:  # 両端に1スパンずつ確保できない
+    if len(spans) < tower_spans + 2 * corner_gap:  # 両端に corner_gap スパンずつ確保できない
         return None
     starts = [0.0]
     for s in spans:
@@ -413,8 +418,8 @@ def _find_slot(
 
     taken = occupied or []
     candidates = []
-    # i=1 から始めてコーナー側1スパンを空ける。終端側も1スパン残す
-    for i in range(1, len(spans) - tower_spans):
+    # i=corner_gap から始めてコーナー側を空ける。終端側も corner_gap スパン残す
+    for i in range(corner_gap, len(spans) - tower_spans - corner_gap + 1):
         start = starts[i]
         length = sum(spans[i:i + tower_spans])
         if any(start < b and a < start + length for a, b in taken):
@@ -428,19 +433,19 @@ def _find_slot(
 STAIR_LAYOUTS = {"inside": "inside", "内": "inside", "中": "inside", "足場の中": "inside",
                  "outside": "outside", "外付け": "outside", "外": "outside", "3列": "outside", "4列": "outside",
                  "auto": "auto", "自動": "auto"}
-OUTSIDE_SPACE_MARGIN_MM = 600    # 外付け（4列）にするには、足場の外に建地列の間隔×2（通路と階段）＋この余裕が要る
+OUTSIDE_SPACE_MARGIN_MM = 600    # 外付けにするには、足場の外に建地列の間隔＋この余裕が要る
 
 
 def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tuple[bool, str]:
-    """階段を外付け（4列）にするか。auto は足場の外の空き（clearance_space_mm）で決める."""
+    """階段を外付けにするか。auto は足場の外の空き（clearance_space_mm）で決める."""
     kind = STAIR_LAYOUTS.get(str(layout or "inside").strip(), "inside")
     if model.master.is_frame or model.config.scaffold_form == "一側足場":
         return False, ("枠組・一側足場は階段を足場の中に組みます（外付けの指定は使いません）" if kind == "outside" else "")
-    need = 2 * model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
+    need = model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
     if kind == "outside":
         if clearance_mm < need:
-            return True, (f"階段を外付け（4列）にしましたが、足場の外の空き {clearance_mm:.0f}mm は"
-                          f"外付けに要る {need:.0f}mm（建地列の間隔×2＋{OUTSIDE_SPACE_MARGIN_MM}）より狭いです")
+            return True, (f"階段を外付けにしましたが、足場の外の空き {clearance_mm:.0f}mm は"
+                          f"外付けに要る {need:.0f}mm（建地列の間隔＋{OUTSIDE_SPACE_MARGIN_MM}）より狭いです")
         return True, ""
     if kind == "auto":
         # 決めた結果は数量の注記（外付けの部材）と図に出るので、要確認には入れない
@@ -460,6 +465,14 @@ def tower_spans(model: ScaffoldModel, tower: StairTower) -> list[int]:
             out.append(s)
         acc += s
     return out
+
+
+def flight_spans(model: ScaffoldModel, tower: StairTower, outside: bool) -> tuple[int, list[int]]:
+    """階段を掛けるスパン（区間の何番目から, スパンの並び）。外付けは両端（上り口・降り口）を除いた中."""
+    ts = tower_spans(model, tower)
+    if outside and len(ts) >= 3:
+        return 1, ts[1:-1]
+    return 0, ts
 
 
 def flight_span_index(level: int, n_spans: int) -> int:

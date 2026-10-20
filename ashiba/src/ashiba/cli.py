@@ -1296,29 +1296,33 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             "面名指定もできます）"
         )
     st = spec.get("stairs", {})
+    # 階段の付け方（足場の中／外付け／自動。自動は足場の外の空きで決める）。外付けの区間は
+    # 上り口＋階段＋降り口（利用者の指摘 2026-10-20: 上り口と降り口に横のスパンが要る）なので2スパン長い
+    from .stairs import decide_outside
+
+    outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
+    tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
     if st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
         stair_plan = place_stairs_at(
             model,
             st["positions"],
-            tower_spans=st.get("tower_spans", 2),
+            tower_spans=tspans,
             max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
         )
     else:
         stair_plan = auto_place_stairs(
             model,
             max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
-            tower_spans=st.get("tower_spans", 2),
+            tower_spans=tspans,
             # stairs.count が無ければ n_stairs を使う。どちらも書かなければ
             # 移動距離から自動算出（n_stairs は既定値1なので、明示時だけ効かせる）
             count=st.get("count"),
             min_per_face=st.get("min_per_face", 0),
             avoid=_merge_ranges(opening_ranges(openings), platform_ranges(model, platforms)),
+            # 外付けは足場の外に出るので、上り口・降り口のスパンがコーナーに掛かってよい
+            corner_gap=0 if outside else 1,
         )
-    # 階段の付け方（足場の中／外付け4列／自動。自動は足場の外の空きで決める）
-    from .stairs import decide_outside
-
-    outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
     if stair_plan.towers:
         stair_plan.outside = outside
         if why:

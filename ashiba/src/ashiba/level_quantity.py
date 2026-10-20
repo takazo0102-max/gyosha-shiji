@@ -140,7 +140,7 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
     if not master.is_frame:
         rows_n = 1 if model.config.scaffold_form == "一側足場" else 2
         geo: dict = {}
-        # 外付け（4列）の階段室の建地は、その面の積み上げで3列目・4列目に（区間のスパン数＋1）本ずつ
+        # 外付けの階段室の建地は、その面の積み上げで3列目に（区間のスパン数＋1）本ずつ
         sp = kw.get("stair_plan")
         tower_pos: dict = {}
         if sp is not None and getattr(sp, "outside", False):
@@ -149,7 +149,7 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
             for t in sp.towers:
                 ts = tower_spans(model, t)
                 if ts:
-                    tower_pos[t.edge_index] = tower_pos.get(t.edge_index, 0) + 2 * (len(ts) + 1)
+                    tower_pos[t.edge_index] = tower_pos.get(t.edge_index, 0) + len(ts) + 1
         for ev, edges in face_height_groups(model):
             sub = _sub_model(model, ev, edges)
             positions = sub.plan.total_posts * rows_n + sub.outer_corner_posts()

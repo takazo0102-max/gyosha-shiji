@@ -1,4 +1,4 @@
-"""階段の外付け（4列）（利用者の指摘 2026-10-20: 敷地が広いところは階段を3列で横に付けるパターンが多い）."""
+"""階段の外付け（利用者の指摘 2026-10-20: 敷地が広いところは階段を横に付ける。上り口と降り口に横のスパンが要る）."""
 
 import unittest
 
@@ -44,13 +44,20 @@ class TestOutsideQuantities(unittest.TestCase):
         qa, qb = _qty(a), _qty(b)
         n_t = len(b.stair_plan.towers)
         n_lv = b.model.elevation.n_levels
-        pos = 2 * sum(t.span_count + 1 for t in b.stair_plan.towers)   # 3列目・4列目
+        pos = sum(t.span_count + 1 for t in b.stair_plan.towers)   # 3列目（区間は 上り口＋階段2＋降り口）
         self.assertEqual(qb["ND752P"] - qa["ND752P"], pos)                 # 3列目の脚
         self.assertEqual(qb["NDP27N"] - qa["NDP27N"], pos * b.model.elevation.posts.count(2700))
-        # 床: 本体は切らない（中の階段の開口ぶん）＋通路（2スパン×各層）＋階段の升目の踊り場（各層1スパン）
-        self.assertEqual(qb["NDN6"] - qa["NDN6"], 4 * n_t * n_lv)
-        self.assertEqual(qb["NDAL4518K"], qa["NDAL4518K"])                 # 階段そのものは同じ
-        self.assertTrue(any("外付け（4列）" in n for n in b.quantity.notes))
+        # 床: 本体は切らない（中の階段の開口ぶん）＋上り口・降り口（2スパン×各層）＋階段のスパンの踊り場（各層1スパン）
+        def decks500(r):
+            return sum(l.qty for l in r.quantity.lines if l.part.category == "踏板" and "幅500" in l.part.note)
+        n_in = len(a.stair_plan.towers)
+        self.assertEqual(decks500(b) - decks500(a), n_in * n_lv + 3 * n_t * n_lv)
+        self.assertTrue(all(t.span_count == 4 for t in b.stair_plan.towers))
+        self.assertNotIn("SG918SW", qb)                                  # 開口部手摺・幅木は使わない
+        self.assertNotIn("NFG918", qb)
+        # 階段そのものは1箇所×層。区間が長くなる（上り口・降り口）ので、移動距離の都合で箇所数は変わりうる
+        self.assertEqual(qb["NDAL4518K"], n_t * n_lv)
+        self.assertTrue(any("上り口＋階段2スパン＋降り口" in n for n in b.quantity.notes))
 
     def test_gdl_params_and_drawn_counts(self):
         b = solve_all({**RECT, "stairs": {"layout": "outside"}})
@@ -67,9 +74,9 @@ class TestOutsideQuantities(unittest.TestCase):
 
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        self.assertIn("yb = -rowW - 2 * stOut * rowW", body)
-        self.assertIn("y3 = -2 * rowW", body)
-        self.assertIn("y4 = -3 * rowW", body)
+        self.assertIn("yb = -rowW - stOut * rowW", body)
+        self.assertIn("yo = -2 * rowW", body)
+        self.assertIn("sx = sx + fFirst", body)                       # 階段は上り口・降り口を除いた中
         self.assertIn("if stOut = 0 and x >= stS[it4] - 0.001", body)
 
 
@@ -86,9 +93,18 @@ class TestOutsideStairAnnotations(unittest.TestCase):
         t = b.stair_plan.towers[0]
         ep = next(e for e in b.model.plan.edges if e.edge_index == t.edge_index)
         row = b.model.post_row_spacing_mm / 1000.0
-        self.assertGreaterEqual(face_outward_m(b.model, ep, b.platforms, b.stair_plan), 2 * row)
+        self.assertGreaterEqual(face_outward_m(b.model, ep, b.platforms, b.stair_plan), row)
         self.assertEqual(face_outward_m(a.model, ep, a.platforms, a.stair_plan), 0.0)
         out_lbl = [i for i in plan_label_items(b.model, b.stair_plan) if "階段" in i[2]]
         in_lbl = [i for i in plan_label_items(a.model, a.stair_plan) if "階段" in i[2]]
         # 南面（辺0）は外が -y。外付けは1升ぶん外へ
-        self.assertAlmostEqual(in_lbl[0][1] - out_lbl[0][1], 2 * b.model.post_row_spacing_mm / 1000.0, places=6)   # 座標は m
+        self.assertAlmostEqual(in_lbl[0][1] - out_lbl[0][1], b.model.post_row_spacing_mm / 1000.0, places=6)   # 座標は m
+
+
+class TestSmallBuilding(unittest.TestCase):
+    def test_outside_tower_may_reach_the_corner(self):
+        """7.4×5.8m の建物（実機の利用者の建物）でも 上り口＋階段2＋降り口 の4スパンが置ける."""
+        r = solve_all({"outline_mm": [[0, 0], [7400, 0], [7400, 5800], [0, 5800]], "eaves_height_mm": 5400,
+                       "series_id": "nikken_nd1800", "module": "inch", "stairs": {"layout": "outside"}})
+        self.assertTrue(r.stair_plan.towers)
+        self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))

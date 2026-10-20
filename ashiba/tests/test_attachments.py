@@ -145,7 +145,7 @@ class TestSheetsAroundOutsideStairs(unittest.TestCase):
         segs = sheet_segments(r.model, ep, r.stair_plan)
         tower = [s for s in segs if abs(s[0] - t.start_mm) < 1e-6 and abs(s[1] - t.end_mm) < 1e-6]
         self.assertEqual(len(tower), 1)
-        self.assertAlmostEqual(tower[0][2], 3 * r.model.post_row_spacing_mm + 60)   # 通路と階段の2升の外
+        self.assertAlmostEqual(tower[0][2], 2 * r.model.post_row_spacing_mm + 60)   # 階段の升目の外
         self.assertEqual(len(segs), 3)
 
 
@@ -158,5 +158,5 @@ class TestSheetEndsOfOutsideStairs(unittest.TestCase):
         faces = len(r.model.plan.edges)
         towers = len(r.stair_plan.towers)
         self.assertEqual(len(pls), faces + 2 * towers + 2 * towers)   # 区間3つ（＋2）と妻側2枚（＋2）
-        ends = [p for p in pls if abs(p.params["x1"] - p.params["x0"] - 2 * r.model.post_row_spacing_mm / 1000) < 1e-9]
+        ends = [p for p in pls if abs(p.params["x1"] - p.params["x0"] - r.model.post_row_spacing_mm / 1000) < 1e-9]
         self.assertEqual(len(ends), 2 * towers)

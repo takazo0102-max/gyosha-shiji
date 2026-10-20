@@ -306,7 +306,7 @@
 			<Value>0</Value>
 		</Integer>
 		<Integer Name="stOut">
-			<Description><![CDATA["階段を外付け（4列）0/1: 外側建地列の外に2列立て、通路と階段の2升にする"]]></Description>
+			<Description><![CDATA["階段を外付け 0/1: 外側建地列の外に1列立て、上り口＋階段2スパン＋降り口の区間にする"]]></Description>
 			<Value>0</Value>
 		</Integer>
 		<Integer Name="skipInS">

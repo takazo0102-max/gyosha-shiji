@@ -605,7 +605,8 @@ def _take_off_one(
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段")
-    _count_stair_guards(model, add, notes, n_towers, n_levels)
+    _count_stair_guards(model, add, notes, n_towers, n_levels,
+                        outside=bool(getattr(stair_plan, "outside", False)))
     _count_outside_stairs(model, stair_plan, add, notes)
 
     _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
@@ -1160,22 +1161,21 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
 
 
 def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
-    """外付け（4列）の階段室: 外側建地列の外に建地を2列（3列目・4列目）立て、通路と階段の2升にする.
+    """外付けの階段室: 外側建地列の外に建地1列（3列目）を立て、区間を 上り口＋階段2スパン＋降り口 にする.
 
-    利用者の指摘（2026-10-20）: 階段は回れるように4列は必要。外側建地列〜3列目が通路（各層に床。階段を上がった先から
-    次の上がり口まで回れる）、3列目〜4列目に階段を通す。1箇所あたり（区間のスパン n、層数 N）:
-    - 支柱: 3列目・4列目の (n+1)×2 本の位置に本体と同じ積み上げ。ジャッキ・アンダーベース・最下部の附属品も位置ごと
-    - 腕木（外側建地列〜3列目〜4列目）: 位置×2×（作業層＋根がらみ）
-    - 根がらみ: 3列目・4列目のスパンごと
-    - 外周（4列目）: 各層の手すり・中桟（先行手すりなら先行手摺）、幅木
-    - 妻側（区間の両端・通路と階段の2升）: 各層の手すり・中桟（腕木と同じ呼び寸法）
-    - 床: 通路は全スパン×各層、階段の升目は各層で下から階段が上がってくるスパン以外
-    - 階段の開口の通路側（3列目）の階段開口部手摺・幅木は、階段まわりの部材（出入口1か所に1組）で計上済み
-    本体の作業床は切らない。乗り移り口の本体外側の手すりは盛り替えで外す（数量は本体のまま）。
+    利用者の指摘（2026-10-20）: 階段は回れるように4スパン要る。上り口と降り口に横のスパンが必要。
+    1箇所あたり（区間のスパン n、層数 N）:
+    - 支柱: n+1 本の位置に本体と同じ積み上げ。ジャッキ・アンダーベース・最下部の附属品も位置ごと
+    - 腕木（外側建地列〜3列目）: 位置×（作業層＋根がらみ）
+    - 3列目のスパン方向: 根がらみ1本、各層の手すり・中桟（先行手すりなら先行手摺1本）、幅木
+    - 妻側（区間の両端）: 各層の手すり・中桟（腕木と同じ呼び寸法）
+    - 床: 両端（上り口・降り口）は各層、中の階段のスパンは下から階段が上がってくるスパン以外
+    本体の作業床は切らない。上り口・降り口のスパンの本体外側の手すりは盛り替えで外す（数量は本体のまま）。
+    階段の開口と本体の床の間は本体の外側の手すりで仕切るので、階段開口部手摺・幅木は使わない。
     """
     if stair_plan is None or not stair_plan.towers or not getattr(stair_plan, "outside", False):
         return
-    from .stairs import flight_span_index, tower_spans
+    from .stairs import flight_span_index, flight_spans, tower_spans
 
     m = model.master
     row = model.post_row_spacing_mm
@@ -1186,9 +1186,10 @@ def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
         ts = tower_spans(model, t)
         if not ts:
             continue
+        first, fl = flight_spans(model, t, True)
         ev = model.elevation_of(t.edge_index)
         n_lv = ev.n_levels
-        pos = 2 * (len(ts) + 1)
+        pos = len(ts) + 1
         n_pos += pos
         for nominal in ev.posts:
             part = next((p for p in m.by_category("支柱")
@@ -1200,33 +1201,33 @@ def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
             if "最下部" in p.note:
                 add(p, pos * _units_per_place(p), f"{p.model_no}（外付け階段の支柱最下部）")
         add(m.find("布材", row), pos * (n_lv + 1), f"腕木（外付け階段、布材{row}）")
-        add(m.find("布材", row), 2 * 2 * 2 * n_lv, f"外付け階段の妻側の手すり・中桟（布材{row}）")
+        add(m.find("布材", row), 2 * 2 * n_lv, f"外付け階段の妻側の手すり・中桟（布材{row}）")
         cells: dict[int, int] = {}
         for i, sp in enumerate(ts):
-            add(m.find("布材", sp), 2, f"外付け階段の根がらみ（布材{sp}）")
+            add(m.find("布材", sp), 1, f"外付け階段の根がらみ（布材{sp}）")
             if adv:
                 add(m.find("先行手摺", sp), n_lv, f"外付け階段の先行手摺{sp}")
             else:
                 add(m.find("布材", sp), 2 * n_lv, f"外付け階段の手すり・中桟（布材{sp}）")
             if model.config.has_toe_board:
                 add(m.find("幅木", sp), n_lv, f"外付け階段の幅木{sp}")
-            cells[sp] = cells.get(sp, 0) + n_lv                       # 通路
+            j = i - first
             for k in range(1, n_lv + 1):
-                if len(ts) > 1 and i != flight_span_index(k, len(ts)):
-                    cells[sp] = cells.get(sp, 0) + 1                  # 階段の升目の踊り場
+                if not (0 <= j < len(fl)) or (len(fl) > 1 and j != flight_span_index(k, len(fl))):
+                    cells[sp] = cells.get(sp, 0) + 1
         for w in model.deck_widths_in_use:
             for sp, c in cells.items():
                 add(m.deck_parts(w, sp), c, f"外付け階段の床 幅{w}×{sp}")
     if n_pos:
         notes.append(
-            f"階段は外付け（4列）: 外側建地列の外に建地を2列（{len(stair_plan.towers)}箇所・支柱位置{n_pos}）"
-            f"立て、間隔{row}mmの升目の内側を通路（各層に床、階段の上がった先から次の上がり口まで回れる）、"
-            "外側に階段を通します。本体の作業床は切りません。各層の乗り移り口"
-            "（階段の上がった先の床のスパン）は本体の外側の手すりを盛り替えで外します（数量は本体のまま）"
+            f"階段は外付け: 外側建地列の外に建地をもう1列（{len(stair_plan.towers)}箇所・支柱位置{n_pos}）立て、"
+            f"間隔{row}mmの升目を 上り口＋階段2スパン＋降り口 にします（両端のスパンは各層に床）。本体の作業床は切りません。"
+            "上り口・降り口のスパンは本体の外側の手すりを盛り替えで外します（数量は本体のまま）"
         )
 
 
-def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_levels: int) -> None:
+def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_levels: int,
+                        outside: bool = False) -> None:
     """階段まわりの手すり類（2026-10-18 利用者の決め）.
 
     - 専用階段手摺: 階段1つにつき両側の2本
@@ -1237,9 +1238,11 @@ def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_level
     if not n_towers or not n_levels:
         return
     m = model.master
-    need = (("階段手摺", n_towers * n_levels * 2, "専用階段手摺（階段1つに両側2本）"),
-            ("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),
-            ("階段開口部幅木", n_towers * n_levels, "階段開口部幅木（出入口1か所に1組）"))
+    need = (("階段手摺", n_towers * n_levels * 2, "専用階段手摺（階段1つに両側2本）"),)
+    # 外付けは階段の開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺・幅木は使わない
+    if not outside:
+        need += (("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),
+                 ("階段開口部幅木", n_towers * n_levels, "階段開口部幅木（出入口1か所に1組）"))
     missing = []
     for cat, qty, label in need:
         part = next(iter(m.by_category(cat)), None)
