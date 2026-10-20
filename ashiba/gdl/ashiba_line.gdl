@@ -2722,19 +2722,32 @@ for it5 = 1 to nSt
 		th = rise / nStep
 		ang5 = atn(rise / fl)
 		fLen = sqr(fl * fl + rise * rise)
-		! 段板
-		for is5 = 1 to nStep
-			add x0 + (is5 - 1) * td, yb + 0.05, lv[il5] + is5 * th - 0.03
-			block td, stairW, 0.03
+		! アルミ階段枠（日建 NDAL4518K・信和 AL3055SW: 長さ1829×高さ1800、外幅481・内幅470）。
+		! 両側の側桁（アルミの溝形、せい100）の間に踏面（縞板、奥行150）を並べ、上下端のフック（横棒）で
+		! 下の層と上の層の腕木に掛ける。最上段は上の層の床。以前は板を階段状に並べただけだった（利用者の指摘 2026-10-20）
+		fw = 0.481
+		if fw > rowW - 0.06 then fw = rowW - 0.06
+		fy0 = yb + (rowW - fw) / 2
+		for sd = 0 to 1
+			add x0, fy0 + sd * (fw - 0.006), lv[il5] - 0.06
+			roty -ang5
+			block fLen, 0.006, 0.10
+			del 2
+		next sd
+		for is5 = 1 to nStep - 1
+			add x0 + is5 * td - 0.075, fy0 + 0.006, lv[il5] + is5 * th - 0.03
+			block 0.15, fw - 0.012, 0.03
 			del 1
 		next is5
-		! 側桁と階段手すり（両側）
-		for sd = 0 to 1
-			ys = yb + 0.05 + sd * (stairW - 0.03)
-			add x0, ys, lv[il5]
-			roty -ang5
-			block fLen, 0.03, 0.12
+		for hk = 0 to 1
+			add x0 + hk * fl, fy0, lv[il5 + hk] + 0.03
+			rotx -90
+			cylind fw, 0.0135
 			del 2
+		next hk
+		! 階段手すり（両側）
+		for sd = 0 to 1
+			ys = fy0 + sd * fw
 			add x0, ys + 0.015, lv[il5] + 0.95
 			roty 90 - ang5
 			cylind fLen, r_nuno
