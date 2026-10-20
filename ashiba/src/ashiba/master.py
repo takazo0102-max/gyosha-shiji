@@ -291,6 +291,10 @@ class PartMaster:
     def by_category(self, category: str) -> list[Part]:
         return [p for p in self.parts if p.category == category]
 
+    def get(self, model_no: str) -> Optional[Part]:
+        """品番 → 部材（この系列のマスタに無ければ None）."""
+        return next((p for p in self.parts if p.model_no == model_no), None)
+
     def post_lengths(self, include_negarami: bool = False) -> list[int]:
         """支柱の呼び寸法一覧（降順）。根がらみ用は既定で除外."""
         out = []

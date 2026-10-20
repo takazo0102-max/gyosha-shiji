@@ -100,6 +100,7 @@
 !   landingList     文字列  昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                                                       既定 ""
 !   beamList        文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                                                                既定 ""
 !   bridgeList      文字列  渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm  既定 ""
+!   editList        文字列  外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」      既定 ""
 !   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                                                   既定 ""
 !   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                                                                  既定 ""
 !   asaCutList      文字列  朝顔を切り欠く区間 mm 「開始,終了」の繰り返し（昇降機の通る位置）                                         既定 ""
@@ -165,6 +166,11 @@ dim bkE[24]
 dim bkW[24]
 dim bkD[24]
 dim bkH[24]
+dim edA[16]
+dim edB[16]
+dim edC[16]
+dim edD[16]
+dim edE[16]
 dim bkDW[24]
 
 ! ---- spanList をパース (mm→m) ----
@@ -467,6 +473,44 @@ for tc = 1 to 4
 		endif
 	endwhile
 next tc
+
+! ---- editList をパース「スパン始,スパン終,層始,層終,ビット」の繰り返し（範囲を指定して外した部材） ----
+! ビット: 1踏板 2外側手すり 4幅木 8筋かい 16内側手すり。スパンは面の始点から1始まり、層は作業床の層（1＝最下段）。
+! 数量表（Python の member_edits）と同じ升目を3D・図示本数から外す
+nEd = 0
+edIdx = 0
+edT1 = 0
+edT2 = 0
+edT3 = 0
+edT4 = 0
+rest = editList
+while strlen(rest) > 0 and nEd < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		edIdx = edIdx + 1
+		md = edIdx - 5 * int(edIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		if md = 1 then edT1 = v
+		if md = 2 then edT2 = v
+		if md = 3 then edT3 = v
+		if md = 4 then edT4 = v
+		if md = 0 then
+			nEd = nEd + 1
+			edA[nEd] = edT1
+			edB[nEd] = edT2
+			edC[nEd] = edT3
+			edD[nEd] = edT4
+			edE[nEd] = v
+		endif
+	endif
+endwhile
 
 ! ---- bridgeList をパース「開始,長さ,増える離れ,種別(0=凹み/1=張り出し/2=斜辺 終点側深い/3=斜辺 始点側深い)」の繰り返し (mm→m) ----
 ! 最小スパン未満の凹み・張り出しは直線で渡す。実際の躯体線は離れが増えるので
@@ -868,6 +912,45 @@ for ip = 1 to nSpan
 	qDeck = qDeck + max(0, nLevels - qOpenLv - qStairOpen)
 	if railAdv = 0 then qToe = qToe + nLevels - qOpenLv
 	if railAdv = 1 then qAdv = qAdv + nLevels - qOpenLv
+	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
+	if nEd > 0 then
+		qInStair = 0
+		for it = 1 to nSt
+			if stOut = 0 and x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qInStair = 1
+		next it
+		for il = 2 to nLv
+			qBlk = 0
+			for ib = 1 to nBm
+				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
+						lv[il] < bmH[ib] - 0.001 then qBlk = 1
+			next ib
+			eoD = 0
+			eoR = 0
+			eoT = 0
+			eoI = 0
+			eoD1 = 0
+			eoD2 = 0
+			if deckW2 <= 0 then eoD2 = 1   ! 1枚敷きは外側の踏板だけで床が無くなる
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 0) then eoD = 1
+					if bittest(edE[ie], 5) then eoD1 = 1
+					if bittest(edE[ie], 6) then eoD2 = 1
+					if bittest(edE[ie], 1) then eoR = 1
+					if bittest(edE[ie], 2) then eoT = 1
+					if bittest(edE[ie], 4) then eoI = 1
+				endif
+			next ie
+			if eoD1 = 1 and eoD2 = 1 then eoD = 1
+			if qBlk = 0 then
+				if eoD = 1 and qInStair = 0 then qDeck = qDeck - 1
+				if eoT = 1 and railAdv = 0 then qToe = qToe - 1
+				if eoR = 1 and railAdv = 1 then qAdv = qAdv - 1
+				if eoR = 1 and railAdv = 0 and serType <> "W" then qNuno = qNuno - 2
+				if eoI = 1 then qNuno = qNuno - qInner
+			endif
+		next il
+	endif
 	x = x + spans[ip]
 next ip
 ! 斜材: 3D と同じ間隔（bEvL 層・bEvS スパンごと、1箇所2本）
@@ -1157,6 +1240,36 @@ for it2 = 1 to nSt
 	if showDim then text2 (sx + ex) / 2, (y0 + y1) / 2, "階段"
 	set style "anno"
 next it2
+
+! 範囲を指定して外した部材（editList）: 区間を破線で囲み、層と部材を書く（平面は1枚なので層は文字で示す）
+for ie = 1 to nEd
+	exs = 0
+	exe = 0
+	xq = 0
+	for iq = 1 to nSpan
+		if iq = edA[ie] then exs = xq
+		xq = xq + spans[iq]
+		if iq = edB[ie] then exe = xq
+	next iq
+	if exe > exs then
+		line_type 3
+		rect2 exs + 0.03, -rowW + 0.03, exe - 0.03, -0.03
+		line_type 1
+		if showDim then
+			edTxt = ""
+			if bittest(edE[ie], 0) then edTxt = edTxt + "床"
+			if bittest(edE[ie], 1) then edTxt = edTxt + "手"
+			if bittest(edE[ie], 2) then edTxt = edTxt + "幅"
+			if bittest(edE[ie], 3) then edTxt = edTxt + "筋"
+			if bittest(edE[ie], 4) then edTxt = edTxt + "内"
+			if bittest(edE[ie], 5) then edTxt = edTxt + "外床"
+			if bittest(edE[ie], 6) then edTxt = edTxt + "内床"
+			set style "annoC"
+			text2 (exs + exe) / 2, -rowW / 2, "外す " + edTxt + " " + str(edC[ie], 1, 0) + "-" + str(edD[ie], 1, 0) + "層"
+			set style "anno"
+		endif
+	endif
+next ie
 
 ! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
 for ik = 1 to nBk
@@ -2313,8 +2426,17 @@ for il = 1 to nLv
 		! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
 		frMid = 0
 		if serType = "W" and il < nLv then frMid = 1
+		! 範囲を指定して外した部材（editList。数量表と同じ升目）: 外側手すり（ビット1）・内側手すり（ビット4）
+		eoR = 0
+		eoI = 0
+		for ie = 1 to nEd
+			if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+				if bittest(edE[ie], 1) then eoR = 1
+				if bittest(edE[ie], 4) then eoI = 1
+			endif
+		next ie
 		! 外側手すり・中桟（作業層のみ）
-		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 then
+		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
 			add x, -rowW, z + railTop
 			nL = spans[ip]
 			gosub 830
@@ -2348,7 +2470,7 @@ for il = 1 to nLv
 			if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
 					abs(z - bkH[ik2]) < 0.001 then inBk = 1
 		next ik2
-		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 then
+		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
 			add x, 0, z + railTop
 			nL = spans[ip]
 			gosub 830
@@ -2451,15 +2573,32 @@ if showDeck then
 				if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
 						z < bmH[ib4] - 0.001 then skipAll = 1
 			next ib4
+			! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
+			! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
+			eoD = 0
+			eoT = 0
+			eoD1 = 0
+			eoD2 = 0
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 0) then eoD = 1
+					if bittest(edE[ie], 2) then eoT = 1
+					if bittest(edE[ie], 5) then eoD1 = 1
+					if bittest(edE[ie], 6) then eoD2 = 1
+				endif
+			next ie
+			if eoD = 1 then skipDeck = 1
 			if skipAll = 0 then
 				if skipDeck = 0 then
 					if matDeck > 0 then material matDeck
 					! 踏板は支柱芯から 70 逃げて両端の爪で布材に掛かる（次世代足場.gsm の寸法）。
 					! 支柱に食い込んで描くと、支柱位置の納まりが見えない
-					add x + 0.07, -rowW + 0.05, z
-					block spans[ip] - 0.14, deckW1, 0.045
-					del 1
-					if deckW2 > 0 then
+					if eoD1 = 0 then
+						add x + 0.07, -rowW + 0.05, z
+						block spans[ip] - 0.14, deckW1, 0.045
+						del 1
+					endif
+					if deckW2 > 0 and eoD2 = 0 then
 						add x + 0.07, -rowW + 0.05 + deckW1 + 0.02, z
 						block spans[ip] - 0.14, deckW2, 0.045
 						del 1
@@ -2486,7 +2625,7 @@ if showDeck then
 						if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
 					next it6
 				endif
-				if railAdv = 0 and inSg = 0 then
+				if railAdv = 0 and inSg = 0 and eoT = 0 then
 					if matToe > 0 then material matToe
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157
@@ -2512,7 +2651,14 @@ if showBrace then
 			nbf = 0
 			if serType = "W" then nbf = 1
 			for ip = 1 to nSpan
-				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+				! 範囲を指定して外した筋かい（editList ビット3。層 il の床の下の構面）
+				eoB = 0
+				for ie = 1 to nEd
+					if ip >= edA[ie] and ip <= edB[ie] and il >= edC[ie] and il <= edD[ie] then
+						if bittest(edE[ie], 3) then eoB = 1
+					endif
+				next ie
+				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 then
 					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
 					ang = atn((z2 - z1) / spans[ip])
 					for bf = 0 to nbf

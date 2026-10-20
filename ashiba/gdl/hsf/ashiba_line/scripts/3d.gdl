@@ -406,8 +406,17 @@ for il = 1 to nLv
 		! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
 		frMid = 0
 		if serType = "W" and il < nLv then frMid = 1
+		! 範囲を指定して外した部材（editList。数量表と同じ升目）: 外側手すり（ビット1）・内側手すり（ビット4）
+		eoR = 0
+		eoI = 0
+		for ie = 1 to nEd
+			if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+				if bittest(edE[ie], 1) then eoR = 1
+				if bittest(edE[ie], 4) then eoI = 1
+			endif
+		next ie
 		! 外側手すり・中桟（作業層のみ）
-		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 then
+		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
 			add x, -rowW, z + railTop
 			nL = spans[ip]
 			gosub 830
@@ -441,7 +450,7 @@ for il = 1 to nLv
 			if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
 					abs(z - bkH[ik2]) < 0.001 then inBk = 1
 		next ik2
-		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 then
+		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
 			add x, 0, z + railTop
 			nL = spans[ip]
 			gosub 830
@@ -544,15 +553,32 @@ if showDeck then
 				if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
 						z < bmH[ib4] - 0.001 then skipAll = 1
 			next ib4
+			! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
+			! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
+			eoD = 0
+			eoT = 0
+			eoD1 = 0
+			eoD2 = 0
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 0) then eoD = 1
+					if bittest(edE[ie], 2) then eoT = 1
+					if bittest(edE[ie], 5) then eoD1 = 1
+					if bittest(edE[ie], 6) then eoD2 = 1
+				endif
+			next ie
+			if eoD = 1 then skipDeck = 1
 			if skipAll = 0 then
 				if skipDeck = 0 then
 					if matDeck > 0 then material matDeck
 					! 踏板は支柱芯から 70 逃げて両端の爪で布材に掛かる（次世代足場.gsm の寸法）。
 					! 支柱に食い込んで描くと、支柱位置の納まりが見えない
-					add x + 0.07, -rowW + 0.05, z
-					block spans[ip] - 0.14, deckW1, 0.045
-					del 1
-					if deckW2 > 0 then
+					if eoD1 = 0 then
+						add x + 0.07, -rowW + 0.05, z
+						block spans[ip] - 0.14, deckW1, 0.045
+						del 1
+					endif
+					if deckW2 > 0 and eoD2 = 0 then
 						add x + 0.07, -rowW + 0.05 + deckW1 + 0.02, z
 						block spans[ip] - 0.14, deckW2, 0.045
 						del 1
@@ -579,7 +605,7 @@ if showDeck then
 						if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
 					next it6
 				endif
-				if railAdv = 0 and inSg = 0 then
+				if railAdv = 0 and inSg = 0 and eoT = 0 then
 					if matToe > 0 then material matToe
 					add x, -rowW - 0.02, z + 0.045
 					block spans[ip], 0.02, 0.157
@@ -605,7 +631,14 @@ if showBrace then
 			nbf = 0
 			if serType = "W" then nbf = 1
 			for ip = 1 to nSpan
-				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+				! 範囲を指定して外した筋かい（editList ビット3。層 il の床の下の構面）
+				eoB = 0
+				for ie = 1 to nEd
+					if ip >= edA[ie] and ip <= edB[ie] and il >= edC[ie] and il <= edD[ie] then
+						if bittest(edE[ie], 3) then eoB = 1
+					endif
+				next ie
+				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 then
 					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
 					ang = atn((z2 - z1) / spans[ip])
 					for bf = 0 to nbf

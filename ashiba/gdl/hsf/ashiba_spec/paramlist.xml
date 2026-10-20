@@ -155,5 +155,21 @@
 			<Description><![CDATA["水平ネットを張る層（例 2,5。空＝張らない）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="memberEdit1">
+			<Description><![CDATA["部材編集1（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit2">
+			<Description><![CDATA["部材編集2（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit3">
+			<Description><![CDATA["部材編集3（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit4">
+			<Description><![CDATA["部材編集4（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 	</Parameters>
 </ParamSection>

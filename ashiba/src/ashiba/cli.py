@@ -153,6 +153,7 @@ TOP_KEYS = {
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
+    "member_edits",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -183,6 +184,9 @@ LIST_ITEM_KEYS = {
     "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
                 "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn"},
                {"edge_index", "position_mm"}),
+    # 範囲を指定した部材の編集（外す・置換）。spans・levels は "3-5"・[3, 5]・3・"全部"
+    "member_edits": ({"edge_index", "face", "spans", "levels", "parts", "part", "action", "to", "reason"},
+                     {"edge_index"}),
 }
 STAIR_POSITION_KEYS = {"edge_index", "face", "start_mm", "span_count", "reason"}
 
@@ -362,7 +366,8 @@ def check_edge_indices(spec: dict, model) -> None:
     valid = sorted(e.edge_index for e in model.plan.edges)
     errors: list[str] = []
     items: list[tuple[str, list]] = [
-        (key, spec.get(key) or []) for key in ("openings", "loading_stages", "hoists", "bracket_sections")
+        (key, spec.get(key) or []) for key in ("openings", "loading_stages", "hoists", "bracket_sections",
+                                                    "member_edits")
     ]
     items.append(("stairs.positions", (spec.get("stairs") or {}).get("positions") or []))
     for key, lst in items:
@@ -1394,6 +1399,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
     terrain = solve_post_feet(model, build_ground(spec))
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)
+    # 範囲を指定した部材の編集（外す・置換）。割付（スパン数・層数）が決まってから升目を読む
+    if spec.get("member_edits"):
+        from .member_edits import parse_member_edits
+
+        model.member_edits, edit_errors = parse_member_edits(spec["member_edits"], model, resolve_face_name)
+        model.plan.warnings.extend(f"部材編集を効かせられません: {m}" for m in edit_errors)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms, openings=openings, terrain=terrain,

@@ -48,6 +48,11 @@ dim bkE[24]
 dim bkW[24]
 dim bkD[24]
 dim bkH[24]
+dim edA[16]
+dim edB[16]
+dim edC[16]
+dim edD[16]
+dim edE[16]
 dim bkDW[24]
 
 ! ---- spanList をパース (mm→m) ----
@@ -350,6 +355,44 @@ for tc = 1 to 4
 		endif
 	endwhile
 next tc
+
+! ---- editList をパース「スパン始,スパン終,層始,層終,ビット」の繰り返し（範囲を指定して外した部材） ----
+! ビット: 1踏板 2外側手すり 4幅木 8筋かい 16内側手すり。スパンは面の始点から1始まり、層は作業床の層（1＝最下段）。
+! 数量表（Python の member_edits）と同じ升目を3D・図示本数から外す
+nEd = 0
+edIdx = 0
+edT1 = 0
+edT2 = 0
+edT3 = 0
+edT4 = 0
+rest = editList
+while strlen(rest) > 0 and nEd < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		edIdx = edIdx + 1
+		md = edIdx - 5 * int(edIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		if md = 1 then edT1 = v
+		if md = 2 then edT2 = v
+		if md = 3 then edT3 = v
+		if md = 4 then edT4 = v
+		if md = 0 then
+			nEd = nEd + 1
+			edA[nEd] = edT1
+			edB[nEd] = edT2
+			edC[nEd] = edT3
+			edD[nEd] = edT4
+			edE[nEd] = v
+		endif
+	endif
+endwhile
 
 ! ---- bridgeList をパース「開始,長さ,増える離れ,種別(0=凹み/1=張り出し/2=斜辺 終点側深い/3=斜辺 始点側深い)」の繰り返し (mm→m) ----
 ! 最小スパン未満の凹み・張り出しは直線で渡す。実際の躯体線は離れが増えるので
@@ -751,6 +794,45 @@ for ip = 1 to nSpan
 	qDeck = qDeck + max(0, nLevels - qOpenLv - qStairOpen)
 	if railAdv = 0 then qToe = qToe + nLevels - qOpenLv
 	if railAdv = 1 then qAdv = qAdv + nLevels - qOpenLv
+	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
+	if nEd > 0 then
+		qInStair = 0
+		for it = 1 to nSt
+			if stOut = 0 and x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qInStair = 1
+		next it
+		for il = 2 to nLv
+			qBlk = 0
+			for ib = 1 to nBm
+				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
+						lv[il] < bmH[ib] - 0.001 then qBlk = 1
+			next ib
+			eoD = 0
+			eoR = 0
+			eoT = 0
+			eoI = 0
+			eoD1 = 0
+			eoD2 = 0
+			if deckW2 <= 0 then eoD2 = 1   ! 1枚敷きは外側の踏板だけで床が無くなる
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 0) then eoD = 1
+					if bittest(edE[ie], 5) then eoD1 = 1
+					if bittest(edE[ie], 6) then eoD2 = 1
+					if bittest(edE[ie], 1) then eoR = 1
+					if bittest(edE[ie], 2) then eoT = 1
+					if bittest(edE[ie], 4) then eoI = 1
+				endif
+			next ie
+			if eoD1 = 1 and eoD2 = 1 then eoD = 1
+			if qBlk = 0 then
+				if eoD = 1 and qInStair = 0 then qDeck = qDeck - 1
+				if eoT = 1 and railAdv = 0 then qToe = qToe - 1
+				if eoR = 1 and railAdv = 1 then qAdv = qAdv - 1
+				if eoR = 1 and railAdv = 0 and serType <> "W" then qNuno = qNuno - 2
+				if eoI = 1 then qNuno = qNuno - qInner
+			endif
+		next il
+	endif
 	x = x + spans[ip]
 next ip
 ! 斜材: 3D と同じ間隔（bEvL 層・bEvS スパンごと、1箇所2本）

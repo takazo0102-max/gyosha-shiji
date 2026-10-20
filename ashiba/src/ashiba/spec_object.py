@@ -56,7 +56,14 @@ FIELDS: tuple[Field, ...] = (
     Field("facesOnly", "str", ("faces",), "", zero_is_unset=True),
     Field("netLevels", "intlist", ("horizontal_net_levels",), "", zero_is_unset=True),
     Field("hFromSlab", "bool", ("height_from_slabs",), True),
+    # 範囲を指定した部材の編集。1行に「面 スパン 層 部材（→品番）」を ; 区切りで（255文字ずつ4欄）
+    Field("memberEdit1", "edits", ("member_edits",), "", zero_is_unset=True),
+    Field("memberEdit2", "edits", ("member_edits",), "", zero_is_unset=True),
+    Field("memberEdit3", "edits", ("member_edits",), "", zero_is_unset=True),
+    Field("memberEdit4", "edits", ("member_edits",), "", zero_is_unset=True),
 )
+EDIT_FIELDS = tuple(f.gdl for f in FIELDS if f.kind == "edits")
+EDIT_FIELD_MAX = 250
 
 
 def _get(spec: dict, path: tuple) -> Any:
@@ -111,6 +118,15 @@ def spec_from_params(params: dict) -> dict:
             v = parse_int_list(v)
             if f.zero_is_unset and not v:
                 continue
+        elif f.kind == "edits":
+            from .member_edits import parse_edit_text
+
+            # 部品に欄があれば部品が正（空にしたら編集を消したということ。JSON の編集を残さない）
+            items, errs = parse_edit_text(v)
+            for e in errs:
+                out.setdefault("_edit_errors", []).append(f"{f.gdl}: {e}")
+            out.setdefault("member_edits", []).extend(items)
+            continue
         else:
             v = "" if v is None else str(v).strip()
             if f.zero_is_unset and v == "":
@@ -129,7 +145,11 @@ def params_from_spec(spec: dict) -> dict:
     Tapir には Boolean を bool、Integer を int、Length を m の float で送る（型が違うと全パラメータが落ちる）。
     """
     out: dict = {}
+    edit_lines = _edit_field_values(spec.get("member_edits"))
     for f in FIELDS:
+        if f.kind == "edits":
+            out[f.gdl] = edit_lines.pop(0) if edit_lines else ""
+            continue
         v = _get(spec, f.path)
         if v is None:
             v = f.default
@@ -150,6 +170,26 @@ def params_from_spec(spec: dict) -> dict:
         else:
             out[f.gdl] = str(v)
     return out
+
+
+def _edit_field_values(items) -> list[str]:
+    """member_edits → 部品の4欄に詰めた文字列（1欄 EDIT_FIELD_MAX 文字まで。入りきらない分は落とさず止める）."""
+    from .member_edits import format_edit_items
+
+    fields: list[str] = []
+    cur = ""
+    for line in format_edit_items(items):
+        nxt = f"{cur}; {line}" if cur else line
+        if len(nxt) > EDIT_FIELD_MAX and cur:
+            fields.append(cur)
+            cur = line
+        else:
+            cur = nxt
+    if cur:
+        fields.append(cur)
+    if len(fields) > len(EDIT_FIELDS):
+        raise ValueError(f"部材編集が多すぎて足場条件の部品の{len(EDIT_FIELDS)}欄に入りません。入力 JSON の member_edits で持ってください")
+    return fields
 
 
 def parse_int_list(v) -> list[int]:

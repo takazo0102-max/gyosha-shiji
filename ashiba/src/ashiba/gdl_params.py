@@ -24,12 +24,13 @@ LIST_GROUP = {"brktList": 6}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
                  "tieHeightList": 200, "brktList": 24 * 6,
-                 "glList": 61, "jackList": 61, "shimList": 61, "bridgeList": 8 * 4}
+                 "glList": 61, "jackList": 61, "shimList": 61, "bridgeList": 8 * 4,
+                 "editList": 16 * 5}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
                "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
                "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ",
                "shimList": "支柱位置の敷板調整",
-               "bridgeList": "渡した区間の項目"}
+               "bridgeList": "渡した区間の項目", "editList": "部材編集の項目"}
 
 
 class GdlCapacityError(ValueError):
@@ -261,6 +262,8 @@ def line_params(
         # 平面では一度も描かれていなかった
         # 渡した凹み・張り出し（実際の躯体線を平面に破線で示す）
         "bridgeList": _bridge_list(model, ep),
+        # 範囲を指定して外した部材「スパン始,スパン終,層始,層終,ビット（1踏板 2外側手すり 4幅木 8筋かい 16内側手すり）」
+        "editList": _edit_list(model, ep),
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,
@@ -277,6 +280,12 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+def _edit_list(model: ScaffoldModel, ep) -> str:
+    from .member_edits import edit_list
+
+    return edit_list(model, ep, getattr(model, "member_edits", None))
 
 
 def _asagao_cut_list(model: ScaffoldModel, ep, platforms) -> str:
@@ -562,6 +571,14 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
     brace = 2 * sum(1 for il in range(n_levels) if il % ev_l == 0) * sum(1 for ip in range(len(ep.spans)) if ip % ev_s == 0)
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     post_pos = len(ep.spans) * rows + corner
+    # 範囲を指定して外した部材（1d.gdl の editList と同じ）
+    from .member_edits import drawn_deltas
+
+    dd = drawn_deltas(model, ep, getattr(model, "member_edits", None), stair_plan, openings)
+    nuno -= dd["qtyNuno"]
+    deck -= dd["qtyDeck"]
+    toe -= dd["qtyToe"]
+    advq -= dd["qtyAdv"]
     return {
         "qtyPostPos": post_pos, "qtyPost": post_pos * len(e.posts), "qtyNuno": nuno, "qtyDeck": deck,
         "qtyToe": toe, "qtyAdv": advq, "qtyTie": ties, "qtyBrace": brace, "qtyStair": len(all_towers) * n_levels,

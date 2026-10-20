@@ -154,10 +154,20 @@ def take_off(
     terrain=None,
 ) -> QuantityResult:
     """数量拾い。面ごとに高さが違えば（セットバック）、同じ高さの面の組ごとに拾って合わせる."""
+    rules = rules or QuantityRules()
+    res = _take_off_groups(model, rules, bracket_sections, stair_plan, platforms, openings, terrain)
+    if getattr(model, "member_edits", None):
+        # 範囲を指定した部材の編集（外す・置換）。全体の計画で升目を数えて効かせる
+        from .member_edits import apply_member_edits
+
+        res = apply_member_edits(res, model, rules, openings=openings, stair_plan=stair_plan)
+    return res
+
+
+def _take_off_groups(model, rules, bracket_sections, stair_plan, platforms, openings, terrain) -> QuantityResult:
     groups = face_height_groups(model)
     if len(groups) <= 1:
         return _take_off_one(model, rules, bracket_sections, stair_plan, platforms, openings, terrain)
-    rules = rules or QuantityRules()
     names = model.plan.face_names()
     by_edge = {e.edge_index: n for e, n in zip(model.plan.edges, names)}
     results = []

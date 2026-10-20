@@ -223,6 +223,14 @@ def apply_spec_object(client, spec: dict) -> dict:
 
         _el, params = hit
         new_params, added = upgrade_params(params)
+        # 部材編集の欄が無い古い版: JSON の member_edits を欄に入れて引き継ぐ（空の欄は「編集なし」になる）
+        from ashiba.spec_object import EDIT_FIELDS
+
+        if any(k in EDIT_FIELDS for k in added):
+            fresh = params_from_spec(spec)
+            for k in EDIT_FIELDS:
+                if k in added:
+                    new_params[k] = fresh[k]
         name = versioned_part_name(SPEC_OBJECT)
         try:
             det = client.tapir("GetDetailsOfElements", {"elements": [_el]}).get("detailsOfElements", [{}])[0]
@@ -247,6 +255,10 @@ def apply_spec_object(client, spec: dict) -> dict:
                 print(f"足場条件の部品を今の版に置き換えられませんでした（{e}）。新しい項目は既定値で続けます")
             params = new_params
         obj = spec_from_params(params)
+        for msg in obj.pop("_edit_errors", []):
+            print(f"部材編集の欄が読めません: {msg}")
+        if obj.get("member_edits"):
+            print(f"部材編集: {len(obj['member_edits'])}件（足場条件の部品の「部材編集」ページ）")
         print(f"条件: 足場条件の部品から（{', '.join(sorted(obj))}）。JSON より優先します")
         return merge_object_into_spec(spec, obj)
     name = versioned_part_name(SPEC_OBJECT)

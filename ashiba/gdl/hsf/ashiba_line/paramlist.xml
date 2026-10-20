@@ -381,6 +381,10 @@
 			<Description><![CDATA["渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="editList">
+			<Description><![CDATA["外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="stairList">
 			<Description><![CDATA["階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）"]]></Description>
 			<Value><![CDATA[""]]></Value>

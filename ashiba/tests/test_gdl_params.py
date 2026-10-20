@@ -658,7 +658,7 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
                  / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         j = body3.index("! ---- ブレス")
-        self.assertEqual(body3[j:j + 900].count("cylind bl, 0.0213 / 2"), 2)
+        self.assertEqual(body3[j:body3.index("! ---- 朝顔", j)].count("cylind bl, 0.0213 / 2"), 2)
 
     def test_single_row_scaffold_gets_its_deck_brackets(self):
         """一側足場の床受けブラケットを3Dにも出す.

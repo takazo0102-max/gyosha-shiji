@@ -26,7 +26,8 @@ class TestParamlistMatchesFields(unittest.TestCase):
     def test_names_and_types(self):
         root = ET.parse(HSF / "paramlist.xml").getroot()
         declared = {e.get("Name"): e.tag for e in root.find("Parameters") if e.find("Fix") is None}
-        kind_to_tag = {"str": "String", "len": "Length", "int": "Integer", "bool": "Boolean", "intlist": "String"}
+        kind_to_tag = {"str": "String", "len": "Length", "int": "Integer", "bool": "Boolean", "intlist": "String",
+                       "edits": "String"}
         self.assertEqual(set(declared), {f.gdl for f in FIELDS})
         for f in FIELDS:
             self.assertEqual(declared[f.gdl], kind_to_tag[f.kind], f.gdl)
@@ -35,7 +36,7 @@ class TestParamlistMatchesFields(unittest.TestCase):
         ui = (HSF / "scripts" / "ui.gdl").read_text(encoding="utf-8")
         for f in FIELDS:
             self.assertIn(f'"{f.gdl}"', ui, f.gdl)
-        for title in ("基本", "高さ・離れ", "安全・表示"):
+        for title in ("基本", "高さ・離れ", "安全・表示", "部材編集"):
             self.assertIn(f'-1, "{title}"', ui)        # ページ名（無いと見出しが「…」になる）
 
 

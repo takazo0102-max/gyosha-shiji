@@ -271,6 +271,36 @@ for it2 = 1 to nSt
 	set style "anno"
 next it2
 
+! 範囲を指定して外した部材（editList）: 区間を破線で囲み、層と部材を書く（平面は1枚なので層は文字で示す）
+for ie = 1 to nEd
+	exs = 0
+	exe = 0
+	xq = 0
+	for iq = 1 to nSpan
+		if iq = edA[ie] then exs = xq
+		xq = xq + spans[iq]
+		if iq = edB[ie] then exe = xq
+	next iq
+	if exe > exs then
+		line_type 3
+		rect2 exs + 0.03, -rowW + 0.03, exe - 0.03, -0.03
+		line_type 1
+		if showDim then
+			edTxt = ""
+			if bittest(edE[ie], 0) then edTxt = edTxt + "床"
+			if bittest(edE[ie], 1) then edTxt = edTxt + "手"
+			if bittest(edE[ie], 2) then edTxt = edTxt + "幅"
+			if bittest(edE[ie], 3) then edTxt = edTxt + "筋"
+			if bittest(edE[ie], 4) then edTxt = edTxt + "内"
+			if bittest(edE[ie], 5) then edTxt = edTxt + "外床"
+			if bittest(edE[ie], 6) then edTxt = edTxt + "内床"
+			set style "annoC"
+			text2 (exs + exe) / 2, -rowW / 2, "外す " + edTxt + " " + str(edC[ie], 1, 0) + "-" + str(edD[ie], 1, 0) + "層"
+			set style "anno"
+		endif
+	endif
+next ie
+
 ! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
 for ik = 1 to nBk
 	drawn = 0

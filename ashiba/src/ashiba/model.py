@@ -140,6 +140,8 @@ class ScaffoldModel:
     edge_subset: Optional[set] = None
     # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる
     faces_only: Optional[set] = None
+    # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
+    member_edits: list = field(default_factory=list)
 
     def _n_outline(self) -> int:
         return len(self.plan.outline.edges)
