@@ -94,3 +94,11 @@ class TestCatalogAttachments(unittest.TestCase):
         r = solve_all({**RECT, "series_id": "waku"})
         self.assertIn("NFG918", {l.part.model_no for l in r.quantity.lines})
         self.assertFalse(any("階段開口部幅木" in w for w in r.quantity.warnings))
+
+
+class TestOneSidedCornerStep(unittest.TestCase):
+    def test_corner_step_replaces_the_order_note(self):
+        r = solve_all({**RECT, "series_id": "nikken_nd1800", "scaffold_form": "一側足場"})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        self.assertEqual(q.get("NDCS05"), r.model.outer_corner_posts() * r.model.elevation.n_levels)
+        self.assertFalse(any("コーナー踏板" in w for w in r.quantity.warnings))

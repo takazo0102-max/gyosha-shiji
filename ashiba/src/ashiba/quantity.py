@@ -682,7 +682,14 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
     # （升目は建地列間隔の長さのスパン1つと同じ形）。系列のマスタにある実在の踏板で拾い、
     # 無い幅だけ手配に出す（以前は全部を「別途手配」の注意にしていた）
     if model.config.scaffold_form == "一側足場":
-        # 一側はコーナーの升目がブラケットの床幅で決まり、建地列間隔の正方形にならない
+        # 一側はコーナーの升目がブラケットの床幅で決まり、建地列間隔の正方形にならない。
+        # 系列にコーナーステップ（日建 NDCS05・02）があれば、床の幅の品で出隅×層を拾う
+        w0 = model.deck_widths_in_use[0] if model.deck_widths_in_use else 0
+        step = next((p for p in m.by_category("コーナー踏板") if p.nominal_dim == w0), None)
+        if step is not None:
+            add(step, n_corners * n_levels, f"一側足場の出隅のコーナーステップ 幅{w0}")
+            notes.append(f"一側足場の出隅{n_corners}箇所×{n_levels}層はコーナーステップ {step.model_no} で計上")
+            return
         notes.action(
             f"外側コーナー{n_corners}箇所×{n_levels}層＝{n_corners * n_levels}枚のコーナー踏板"
             "は踏板の数量に含んでいません（一側足場のコーナーはコーナー踏板または隙間塞ぎを別途手配）",
