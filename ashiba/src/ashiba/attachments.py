@@ -210,6 +210,10 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
     size = SHEET_SIZES.get(model.config.sheet_type or "")
     if size is None:
         return []
+    # 系列にある品（日建スプリングメッシュ 1829×5160）なら継ぎ目はその幅で
+    part = next((p for p in model.master.by_category("養生シート") if (model.config.sheet_type or "") in p.note), None)
+    if part is not None and part.nominal_dim:
+        size = (part.nominal_dim, part.actual_dim or size[1])
     out: list[Placement] = []
     for ep in model.plan.edges:
         o, _u, _n, ang = _frame(ep)
