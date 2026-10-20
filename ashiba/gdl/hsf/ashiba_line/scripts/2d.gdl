@@ -155,6 +155,13 @@ for ip = 1 to nSpan + 1
 		! スパン区切り線と重なるので平面には現れない。3Dには出している）
 		if nRows >= 2 then circle2 x, 0, r_sic
 		circle2 x, -rowW, r_sic
+		! 異形断面の支柱（NDストロング）は十字を添える
+		if postShape = 1 then
+			for rr2 = rowStart to 1
+				line2 x - 0.0275, -rr2 * rowW, x + 0.0275, -rr2 * rowW
+				line2 x, -rr2 * rowW - 0.0275, x, -rr2 * rowW + 0.0275
+			next rr2
+		endif
 	endif
 	hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]

@@ -305,6 +305,10 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="postShape">
+			<Description><![CDATA["支柱の形 0=丸 1=異形断面（NDストロング）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="postDia">
 			<Description><![CDATA["支柱の径（足場の種類ごと。0 なら φ48.6）"]]></Description>
 			<Value>0</Value>

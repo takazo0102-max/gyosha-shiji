@@ -229,6 +229,8 @@ def line_params(
         "stairList": _stair_list(ep, stair_plan),
         # 支柱の径（足場の種類ごと。マスタの支柱の径）
         "postDia": _post_diameter_m(model),
+        # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）
+        "postShape": 1 if model.master.series_id == "nikken_strong" else 0,
         # 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）。本体の床は切らない
         "stOut": 1 if getattr(stair_plan, "outside", False) else 0,
         # 階段室の開始位置（平面の編集ホットスポット）。stairList とそろえて送る。部品は両者が

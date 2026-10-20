@@ -81,6 +81,7 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
+!   postShape       整数    支柱の形 0=丸 1=異形断面（NDストロング）                                                                  既定 0
 !   postDia         長さ    支柱の径（足場の種類ごと。0 なら φ48.6）                                                                  既定 0
 !   stOut           整数    階段を外付け 0/1: 外側建地列の外に1列立て、上り口＋階段2スパン＋降り口の区間にする                        既定 0
 !   skipInS         整数    始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）                                     既定 0
@@ -1038,6 +1039,13 @@ for ip = 1 to nSpan + 1
 		! スパン区切り線と重なるので平面には現れない。3Dには出している）
 		if nRows >= 2 then circle2 x, 0, r_sic
 		circle2 x, -rowW, r_sic
+		! 異形断面の支柱（NDストロング）は十字を添える
+		if postShape = 1 then
+			for rr2 = rowStart to 1
+				line2 x - 0.0275, -rr2 * rowW, x + 0.0275, -rr2 * rowW
+				line2 x, -rr2 * rowW - 0.0275, x, -rr2 * rowW + 0.0275
+			next rr2
+		endif
 	endif
 	hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]
@@ -2009,6 +2017,15 @@ for ip = 1 to nSpan + 1
 				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）
 				for j = 1 to nPost
 					cylind posts[j], r_sic
+					! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
+					if postShape = 1 and isLite = 0 then
+						add -0.0275, -0.003, 0
+						block 0.055, 0.006, posts[j]
+						del 1
+						add -0.003, -0.0275, 0
+						block 0.006, 0.055, posts[j]
+						del 1
+					endif
 					addz posts[j]
 					if j < nPost and isLite = 0 then
 						addz -0.03

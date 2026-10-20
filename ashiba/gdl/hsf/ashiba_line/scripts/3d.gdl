@@ -113,6 +113,15 @@ for ip = 1 to nSpan + 1
 				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）
 				for j = 1 to nPost
 					cylind posts[j], r_sic
+					! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
+					if postShape = 1 and isLite = 0 then
+						add -0.0275, -0.003, 0
+						block 0.055, 0.006, posts[j]
+						del 1
+						add -0.003, -0.0275, 0
+						block 0.006, 0.055, posts[j]
+						del 1
+					endif
 					addz posts[j]
 					if j < nPost and isLite = 0 then
 						addz -0.03
