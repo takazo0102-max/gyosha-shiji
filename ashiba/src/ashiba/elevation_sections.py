@@ -411,14 +411,20 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
     nets = net_heights_mm(model)
     if nets:
         items.append((at(3, 0.0), nets[0] / 1000.0, "水平ネット・ネットブラケット"))
+    outside = bool(getattr(stair_plan, "outside", False))
     for t in towers[:1]:
-        t0 = a + sgn * t.start_mm / 1000.0
-        sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - t.start_mm) < 1), 1800.0) / 1000.0
+        start = t.start_mm
+        if outside:
+            # 外付けは区間の1つ目が上り口。階段はその次のスパンから
+            start += next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - t.start_mm) < 1), 0.0)
+        t0 = a + sgn * start / 1000.0
+        sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - start) < 1), 1800.0) / 1000.0
         if len(lv) >= 1:
             items.append((t0 + sgn * sp0 * 0.5, (first + lv[0]) / 2.0, name("階段", "昇降階段")))
             items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 0.9, name("階段手摺", "階段手摺") + "（両側）"))
-            # 1層目の上がり口（階段室の始点）の真上に立つ開口部手摺枠＋幅木（3d.gdl と同じ位置）
-            items.append((t0 + sgn * 0.03, lv[0] + 0.90, name("階段開口部手摺", "階段開口部手摺") + "・幅木"))
+            # 1層目の上がり口（階段室の始点）の真上に立つ開口部手摺枠＋幅木（3d.gdl と同じ位置）。外付けには付けない
+            if not outside:
+                items.append((t0 + sgn * 0.03, lv[0] + 0.90, name("階段開口部手摺", "階段開口部手摺") + "・幅木"))
     bottom = sorted([it for it in items if it[1] < top / 2.0], key=lambda it: it[0])
     upper = sorted([it for it in items if it[1] >= top / 2.0], key=lambda it: it[0])
     h = text_height_mm * text_scale / 1000.0                      # 文字高（モデル m）

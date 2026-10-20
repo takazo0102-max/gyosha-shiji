@@ -61,6 +61,13 @@ del 1
 !   原点＝内側建地列の始点の支柱、+Y＝躯体側（シートは -offY）
 ! ============================================================
 pen 1
+! 断面図・立面図・展開図（GLOB_VIEW_TYPE 4・5・6）では描かない。足場立面図は断面図ビューポイントで作るので、
+! 手前の外構面のシートが足場を隠して図にならない（利用者の指摘 2026-10-20: 外部のメッシュは立面図で見えないように）。
+! 3Dウィンドウ・平面では描く
+hideHere = 0
+if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 or GLOB_VIEW_TYPE = 6 then hideHere = 1
+if GLOB_CONTEXT = 4 or GLOB_CONTEXT = 24 then hideHere = 1
+if hideHere then end
 rotz faceAng
 addz zH
 if lineMode then
