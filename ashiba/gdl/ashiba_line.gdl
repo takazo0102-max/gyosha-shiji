@@ -3436,49 +3436,52 @@ for ik = 1 to nBk
 	xb = 0
 	for ipk = 1 to nSpan + 1
 		if xb >= bkS[ik] - 0.001 and xb <= bkE[ik] + 0.001 then
-			if bkD[ik] > 0 then
-				add xb, 0, bkH[ik]
-				rotx -90
-				cylind bkW[ik], r_nuno
-				del 2
-				add xb, 0, bkH[ik] - bkW[ik]
-				rotx -45
-				cylind bkW[ik] * 1.4142, r_nuno
-				del 2
-			else
-				add xb, -rowW, bkH[ik]
-				rotx 90
-				cylind bkW[ik], r_nuno
-				del 2
-				add xb, -rowW, bkH[ik] - bkW[ik]
-				rotx 45
-				cylind bkW[ik] * 1.4142, r_nuno
-				del 2
+			! ブラケット（日建 NDBK03C・06C・03H・06H、カタログ p014）: 支柱のコマに緊結部で掛ける腕 φ42.7、
+			! 先端の受け、下の支柱から腕の先へ方杖（腕の長さで 209・253・450・900 下から）
+			bkDr = 1
+			bkY0 = 0
+			if bkD[ik] < 0 then
+				bkDr = -1
+				bkY0 = -rowW
 			endif
+			add xb, bkY0, bkH[ik]
+			if bkDr < 0 then rotz 180
+			rotz 90
+			nL = bkW[ik] + r_sic
+			bkArm = bkW[ik]
+			gosub 875
+			if bkDr < 0 then del 1
+			del 2
 		endif
 		if ipk <= nSpan then xb = xb + spans[ipk]
 	next ipk
 	if bkD[ik] > 0 then
-		add bkS[ik], 0, bkH[ik]
+		add bkS[ik], 0, bkH[ik] + r_nuno
 		block bkE[ik] - bkS[ik], bkW[ik], 0.045
 		del 1
 	else
-		add bkS[ik], -rowW, bkH[ik]
+		add bkS[ik], -rowW, bkH[ik] + r_nuno
 		muly -1
 		block bkE[ik] - bkS[ik], bkW[ik], 0.045
 		del 2
 		! 張出すと作業床の外縁が建地より外に出る。その縁は開放端なので
 		! 手すり・中桟・幅木が要る（数量にも計上している）
 		bkLen = bkE[ik] - bkS[ik]
-		add bkS[ik], -rowW - bkW[ik], bkH[ik] + 0.045
-		block bkLen, 0.02, 0.157
+		! 外縁の幅木（L形）と手すり・中桟（φ42.7）
+		if matToe > 0 then material matToe
+		add bkS[ik], -rowW - bkW[ik] + 0.004, bkH[ik] + r_nuno + 0.045
+		block bkLen, 0.008, 0.150
+		block bkLen, 0.140, 0.004
 		del 1
-		add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + railH
-		block bkLen, 0.0427, 0.0427
-		del 1
-		add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + midH
-		block bkLen, 0.0427, 0.0427
-		del 1
+		if matScaf > 0 then material matScaf
+		for ir3 = 1 to 2
+			hgt = railH
+			if ir3 = 2 then hgt = midH
+			add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + hgt
+			roty 90
+			cylind bkLen, r_nuno
+			del 2
+		next ir3
 		! 妻側（両端）も開放端。手すり・中桟・幅木（数量の「張出し妻側」と同じ）
 		for ie2 = 0 to 1
 			xk = bkS[ik] + bkLen * ie2
@@ -3764,6 +3767,39 @@ return
 			endif
 		next hd870
 	endif
+	return
+
+875:	! ---- ブラケット（腕＋方杖）: 原点＝支柱芯の腕の高さ、+X が腕の向き、腕の長さ bkArm（支柱の外面から） ----
+	! 緊結部（支柱の外面からコマを挟む）・腕 φ42.7・先端の受け（立ち上がり）・方杖（下の支柱から腕の先の手前へ）
+	bkDp = 0.209
+	if bkArm > 0.40 then bkDp = 0.253
+	if bkArm > 0.30 and bkArm < 0.33 then bkDp = 0.45
+	if bkArm > 0.60 then bkDp = 0.90
+	add r_sic, -0.020, 0.003
+	block 0.042, 0.040, 0.042
+	del 1
+	add r_sic, -0.020, -0.040
+	block 0.042, 0.040, 0.037
+	del 1
+	add r_sic + 0.042, 0, 0
+	roty 90
+	cylind bkArm - 0.042, r_nuno
+	del 2
+	! 先端の受け（ブラケットの縁。張出しは先端にホゾ φ36.4）
+	add r_sic + bkArm - 0.02, -0.02, -0.03
+	block 0.02, 0.04, 0.10
+	del 1
+	if isLite = 0 then
+		add r_sic, -0.020, -bkDp - 0.03
+		block 0.042, 0.040, 0.06
+		del 1
+	endif
+	bsX = bkArm - 0.04
+	bsL = sqr(bsX * bsX + bkDp * bkDp)
+	add r_sic + 0.02, 0, -bkDp
+	roty 90 - atn(bkDp / bsX)
+	cylind bsL, 0.0136
+	del 2
 	return
 
 850:	! ---- 先行手すり（日建 NDX、カタログ p006）: 原点＝支柱芯の床の高さ、+X へ次の支柱芯まで nL。
