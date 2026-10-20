@@ -389,6 +389,7 @@ for il = 1 to nLv
 				roty 90
 				cylind rowW, r_nuno
 				del 3
+				gosub 860
 			else
 				gosub 800
 			endif
@@ -402,6 +403,7 @@ for il = 1 to nLv
 		roty 90
 		cylind rowW, r_nuno
 		del 3
+		gosub 860
 	else
 		gosub 800
 	endif
@@ -1134,6 +1136,21 @@ endif
 return
 
 ! ============================================================
+860:	! ---- 建枠の補剛材（枠組の鳥居型建枠の肩の斜材。横架材から脚へ）。くさび式には無い ----
+if serType = "W" and il > 1 and isLite = 0 then
+	for sk = 0 to 1
+		ys = -sk * rowW
+		dir = 1 - 2 * sk
+		dir = -dir
+		bL = sqr(0.25 * 0.25 + 0.30 * 0.30)
+		add x, ys, z - 0.30
+		rotx -atn(dir * 0.25 / 0.30)
+		cylind bL, 0.0109
+		del 2
+	next sk
+endif
+return
+
 830:	! ---- 布材（爪付き）: 原点から +X へ長さ nL。管は支柱芯から 78 内側で終わり、
 ! そこから支柱のフランジまで爪（ブラケット）が掛かる（次世代足場.gsm の寸法）。
 ! 支柱芯まで管を通して描くと支柱に貫入し、緊結部の納まりが見えない
