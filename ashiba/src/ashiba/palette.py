@@ -1,4 +1,4 @@
-"""Tapir パレットのボタン（Phase 10-3）: 「配置」「解き直し」「撤去」「3D表示」.
+"""Tapir パレットのボタン（Phase 10-3）: 「配置」「解き直し」「撤去」「3D表示」「条件」「帳票」.
 
 Tapir のパレットは ~/Documents/Tapir の下のフォルダにある .py を一覧に出し、
 `uv run --script ファイル --port 番号` で起動する（配筋ツールで確かめた仕組み。Tapir は
@@ -38,12 +38,17 @@ ENTRIES: tuple[Entry, ...] = (
           "躯体スラブを選んでから押す。足場部品と立面・平面・詳細図のレイアウトを消す"),
     Entry("足場4_3D表示.py", "toggle_3d.py", (), "3D表示",
           "押すたびに足場の3Dを 自動→軽量→線→精細 と切り替える（重いときは軽量か線）"),
+    Entry("足場5_条件.py", "select_spec.py", (), "条件",
+          "この建物の足場条件の部品を選ぶ。⌘T で幅・手すり・階段・ネット・養生材を変えて「配置」"),
+    Entry("足場6_帳票.py", "open_outputs.py", (), "帳票",
+          "帳票の出力先を開き、最新の割付レポートを開く"),
 )
 
 def summary(output: str, limit: int = 14) -> str:
     """実行の出力から、ダイアログに出す要点の行（keys で始まる行）。無ければ最後の数行."""
     keys = ("足場ライン", "総合判定", "  是正", "  要確認", "  表題欄", "  詳細図:", "  平面図:", "  立面:", "  PDF:",
             "書き込み", "配置時と同じ", "撤去", "足場部品", "立面図（断面", "注意:", "エラー", "[ashiba]",
+            "足場条件", "帳票", "建物が分かりません", "この建物の",
             "TapirError", "TapirTimeout", "Traceback")
     lines = [ln.rstrip() for ln in output.splitlines() if ln.strip()]
     picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys)]

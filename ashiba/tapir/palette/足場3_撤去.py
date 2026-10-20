@@ -27,6 +27,7 @@ def summary(output: str, limit: int = 14) -> str:
     """実行の出力から、ダイアログに出す要点の行（keys で始まる行）。無ければ最後の数行."""
     keys = ("足場ライン", "総合判定", "  是正", "  要確認", "  表題欄", "  詳細図:", "  平面図:", "  立面:", "  PDF:",
             "書き込み", "配置時と同じ", "撤去", "足場部品", "立面図（断面", "注意:", "エラー", "[ashiba]",
+            "足場条件", "帳票", "建物が分かりません", "この建物の",
             "TapirError", "TapirTimeout", "Traceback")
     lines = [ln.rstrip() for ln in output.splitlines() if ln.strip()]
     picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys)]
