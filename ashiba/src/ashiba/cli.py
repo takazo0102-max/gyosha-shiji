@@ -682,7 +682,9 @@ def resolve_series_id(spec: dict) -> str:
     """
     from .master import DEFAULT_SERIES_BY_MODULE, SERIES_CONST, normalize_module, series_ids_for_module, series_module
 
-    sid = spec.get("series_id")
+    from .master import series_from_label
+
+    sid = series_from_label(spec.get("series_id")) or None
     mod_in = spec.get("module")
     if mod_in is None or str(mod_in).strip() == "":
         return str(sid or "shinwa_A")

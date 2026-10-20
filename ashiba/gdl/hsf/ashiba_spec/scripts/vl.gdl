@@ -1,5 +1,5 @@
 ﻿values "moduleKind" "metric", "inch"
-values "seriesId" "", "shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "waku"
+values "seriesId" "", "日建 NDシステム1800（くさび）", "日建 NDシステム1900（くさび）", "日建 NDシステム ストロング（くさび・高耐力）", "日建 枠組（建枠）", "信和 Aタイプ（くさび・メートル）", "信和 Bタイプ（くさび・メートル）", custom
 values "scaffForm" "本足場", "一側足場"
 values "scaffW" 0, 600, 900, 1200
 values "railType" "布材", "先行手すり"

@@ -397,6 +397,9 @@ def _take_off_one(
     for p in m.by_category("支柱附属"):
         if "最下部" in p.note:
             add(p, n_feet * _units_per_place(p), f"{p.model_no}（支柱最下部）")
+        elif "継ぎ目" in p.note:
+            # 支柱を継ぐ金具（NDストロングの NSジョイント）。支柱の継ぎ目ごとに1個
+            add(p, n_feet * max(0, len(elev.posts) - 1), f"{p.model_no}（支柱の継ぎ目）")
 
     # ---- 布材（スパン方向: 根がらみ＋床レベル＋手すり・中桟） ----
     # 手すり方式で外側の手すり・中桟の拾い方が変わる。

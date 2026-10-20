@@ -6,8 +6,8 @@ ui_outfield "工事名", 10, 30, 120, 18
 ui_infield "projName", 140, 28, 300, 20
 ui_outfield "モジュール", 10, 58, 120, 18
 ui_infield "moduleKind", 140, 56, 160, 20
-ui_outfield "系列（空＝既定）", 10, 86, 120, 18
-ui_infield "seriesId", 140, 84, 160, 20
+ui_outfield "足場の種類（空＝既定）", 10, 86, 130, 18
+ui_infield "seriesId", 140, 84, 300, 20
 ui_outfield "足場の形式", 10, 114, 120, 18
 ui_infield "scaffForm", 140, 112, 160, 20
 ui_outfield "幅（0＝既定）", 310, 114, 80, 18

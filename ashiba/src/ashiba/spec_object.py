@@ -114,6 +114,10 @@ def spec_from_params(params: dict) -> dict:
             v = "" if v is None else str(v).strip()
             if f.zero_is_unset and v == "":
                 continue
+            if f.gdl == "seriesId":
+                from .master import series_from_label
+
+                v = series_from_label(v)
         _set(out, f.path, v)
     return out
 
@@ -138,6 +142,10 @@ def params_from_spec(spec: dict) -> dict:
             out[f.gdl] = bool(v)
         elif f.kind == "intlist":
             out[f.gdl] = ",".join(str(i) for i in parse_int_list(v))
+        elif f.gdl == "seriesId":
+            from .master import SERIES_LABELS, series_from_label
+
+            out[f.gdl] = SERIES_LABELS.get(series_from_label(v), str(v))
         else:
             out[f.gdl] = str(v)
     return out

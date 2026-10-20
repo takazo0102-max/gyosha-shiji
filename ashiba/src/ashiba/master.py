@@ -48,6 +48,26 @@ def series_module(series_id: str) -> str:
     return SERIES_CONST[series_id]["module"]
 
 
+# 足場の種類（足場条件の部品で選ぶ表示名）→ 系列。利用者の指定（2026-10-20）: 配置のとき足場の種類を選べるように
+SERIES_LABELS = {
+    "nikken_nd1800": "日建 NDシステム1800（くさび）",
+    "nikken_nd1900": "日建 NDシステム1900（くさび）",
+    "nikken_strong": "日建 NDシステム ストロング（くさび・高耐力）",
+    "waku": "日建 枠組（建枠）",
+    "shinwa_A": "信和 Aタイプ（くさび・メートル）",
+    "shinwa_B": "信和 Bタイプ（くさび・メートル）",
+}
+
+
+def series_from_label(value) -> str:
+    """表示名でも系列IDでも受けて系列IDを返す（分からなければそのまま）."""
+    v = str(value or "").strip()
+    for sid, label in SERIES_LABELS.items():
+        if v in (label, sid):
+            return sid
+    return v
+
+
 def series_ids_for_module(module: str) -> list[str]:
     return [sid for sid, c in SERIES_CONST.items() if c["module"] == module]
 
@@ -71,6 +91,11 @@ SERIES_CONST = {
     # つなぎ材・布板・ブラケット・梁枠はND1800と共通、支柱・先行手すり・階段が専用
     "nikken_nd1900": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
                       "hozo": 125, "module": "inch",
+                      "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 日建リース NDシステム ストロング: 支柱だけ専用（φ42.7・φ48.6 の異形断面 STK500 t2.7、NSジョイントで連結）。
+    # つなぎ材・先行手すり・布板などは ND1800 と共通。支柱の許容支持力 13.7〜19.3kN/本（ND1800 は 11〜17）
+    "nikken_strong": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                      "hozo": 55, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,

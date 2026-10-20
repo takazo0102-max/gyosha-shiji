@@ -16,7 +16,7 @@ class TestModule(unittest.TestCase):
         self.assertEqual(series_module("shinwa_A"), "metric")
         self.assertEqual(series_module("nikken_nd1800"), "inch")
         self.assertEqual(series_module("waku"), "inch")
-        self.assertEqual(set(series_ids_for_module("inch")), {"nikken_nd1800", "nikken_nd1900", "waku"})
+        self.assertEqual(set(series_ids_for_module("inch")), {"nikken_nd1800", "nikken_nd1900", "nikken_strong", "waku"})
 
     def test_aliases(self):
         for v in ("inch", "インチ", "IN", "Inch"):
