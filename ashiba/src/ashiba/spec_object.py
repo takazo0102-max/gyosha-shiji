@@ -28,6 +28,8 @@ class Field:
 
 FIELDS: tuple[Field, ...] = (
     Field("projName", "str", ("project_name",), "足場計画"),
+    # 条件の登録名（パレットの「登録」「呼び出し」で使う。計画には効かない。"_" で始まるキーは入力の検査で無視される）
+    Field("presetName", "str", ("_preset",), "", zero_is_unset=True),
     Field("moduleKind", "str", ("module",), "metric"),
     Field("seriesId", "str", ("series_id",), "", zero_is_unset=True),
     Field("eavesH", "len", ("eaves_height_mm",), 15.4),

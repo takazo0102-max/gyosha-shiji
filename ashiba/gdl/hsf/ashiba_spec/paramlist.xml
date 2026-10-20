@@ -171,5 +171,9 @@
 			<Description><![CDATA["部材編集4（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="presetName">
+			<Description><![CDATA["条件の登録名（パレットの「登録」で控え、「呼び出し」で別の建物へ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 	</Parameters>
 </ParamSection>

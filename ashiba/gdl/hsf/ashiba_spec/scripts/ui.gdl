@@ -18,6 +18,8 @@ ui_outfield "設置期間（日）", 10, 142, 120, 18
 ui_infield "periodDays", 140, 140, 100, 20
 ui_outfield "現場名（設置届）", 10, 170, 120, 18
 ui_infield "siteName", 140, 168, 300, 20
+ui_outfield "条件の登録名", 310, 142, 80, 18
+ui_infield "presetName", 390, 140, 80, 20
 ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示／部材編集）", 10, 232, 420, 18
 ui_page 2, -1, "高さ・離れ"
 ui_outfield "高さ・離れ", 10, 5, 300, 18
