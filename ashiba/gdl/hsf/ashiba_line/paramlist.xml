@@ -130,7 +130,7 @@
 			<Value>0</Value>
 		</Boolean>
 		<Integer Name="detail3d">
-			<Description><![CDATA["3Dの細かさ 0=自動 1=精細 2=軽量 3=線"]]></Description>
+			<Description><![CDATA["3Dの細かさ 0=自動 1=精細 2=軽量 3=線 4=ブロック"]]></Description>
 			<Value>0</Value>
 		</Integer>
 		<Material Name="matDeck">

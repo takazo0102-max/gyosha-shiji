@@ -60,9 +60,6 @@ class TestInstall(unittest.TestCase):
         self.assertIn('SCRIPTS_DIR = TAPIR_DIR / "custom-scripts"', src)   # パレットは直下しか読まない
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class TestToggle3D(unittest.TestCase):
     def test_cycle(self):
@@ -72,5 +69,24 @@ class TestToggle3D(unittest.TestCase):
 
         self.assertEqual(next_step(0), (2, "軽量"))
         self.assertEqual(next_step(2), (3, "線"))
-        self.assertEqual(next_step(3), (1, "精細"))
+        self.assertEqual(next_step(3), (4, "ブロック"))
+        self.assertEqual(next_step(4), (1, "精細"))
         self.assertEqual(next_step(1), (0, "自動"))
+
+
+class TestBlockMode(unittest.TestCase):
+    """3D の「ブロック」表示（参考: smartCON Planner）: 部材を描かずスパン×層の箱."""
+
+    def test_line_and_mvo_know_block_mode(self):
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+        g3 = (root / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if d3 = 4 then", g3)
+        self.assertIn("if mvD = 4 then d3 = 4", g3)
+        # ブロックは線表示・部材の描画より前で終わる
+        self.assertLess(g3.index("if d3 = 4 then"), g3.index("if lineMode then"))
+        mvo = (root / "ashiba_mvo" / "scripts" / "vl.gdl").read_text(encoding="utf-8")
+        self.assertIn('4, "ブロック"', mvo)
+
+
+if __name__ == "__main__":
+    unittest.main()
