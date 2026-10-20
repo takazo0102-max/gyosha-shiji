@@ -80,8 +80,12 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                 if any(str(n).startswith("出隅コーナーの床は") for n in r.quantity.notes):
                     corner = r.model.outer_corner_posts() * r.model.elevation.n_levels
                     per_width = {w: n - corner for w, n in per_width.items()}
-                # 標準幅（ステージ等の追加が無い幅）はセル数と一致する
-                self.assertIn(final, per_width.values(), (name, per_width, final))
+                # 標準幅（ステージ等の追加が無い幅）はセル数と一致する。作業床が1枚敷き（日建の幅610は 500 の
+                # 1枚）だとステージ・ブラケットの追加もその幅に入るので、セル数以上であればよい
+                if len(per_width) == 1:
+                    self.assertGreaterEqual(next(iter(per_width.values())), final, (name, per_width, final))
+                else:
+                    self.assertIn(final, per_width.values(), (name, per_width, final))
 
     def test_jacks_equal_the_feet_on_the_ground(self):
         for name, r in self.runs:

@@ -799,6 +799,18 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             row_mm, auto_ws = master.width_setup(int(width_mm))
             if deck_ws is None and auto_ws:
                 deck_ws = auto_ws
+    elif deck_ws is None and not master.is_frame and not spec.get("next_gen", False):
+        # 幅も作業床も指定が無いとき、系列の既定の作業床（日建 500＋240＝760）が建地列の間隔（610）より
+        # 広いと、内側の板が建地の内へ200ほどはみ出す（利用者の指摘 2026-10-20: 内側のアンチ何？）。
+        # 建地列の間隔に収まる組に替える（建地列の間隔は既定どおり）
+        dflt = master.default_deck_widths(False)
+        total = sum(dflt) + 20 * (len(dflt) - 1)
+        rows = [p.nominal_dim for p in master.by_category("布材") if 0 < p.nominal_dim <= total]
+        if rows and total > max(rows) + 70:
+            _row, fit = master.width_setup(max(rows))
+            if fit:
+                deck_ws = fit
+                row_mm = max(rows)
     config = ScaffoldConfig(
         scaffold_form=spec.get("scaffold_form", "本足場"),
         has_toe_board=not no_toe,

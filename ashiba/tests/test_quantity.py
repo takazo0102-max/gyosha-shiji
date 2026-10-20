@@ -558,7 +558,8 @@ class TestCornerDeckPlanks(unittest.TestCase):
         return solve_all(spec)
 
     def test_real_parts_by_series(self):
-        for sid, no in (("shinwa_A", "SD-2506"), ("nikken_nd1800", "NDN224")):
+        # 日建の既定は幅610に収まる 500 の1枚敷き（500＋240 だと内側の板が建地の内へはみ出す）
+        for sid, no in (("shinwa_A", "SD-2506"), ("nikken_nd1800", "NDN2")):
             r = self._q(series_id=sid)
             nl = r.model.elevation.n_levels
             line = next(l for l in r.quantity.lines if l.part.model_no == no)

@@ -43,3 +43,12 @@ class TestWidthSetup(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDefaultDecksFitTheRows(unittest.TestCase):
+    def test_nikken_default_deck_does_not_stick_out(self):
+        """日建の既定 500＋240（760）は建地列の間隔 610 に収まらず、内側の板がはみ出していた（利用者の指摘 2026-10-20）."""
+        r = solve_all({**RECT, "series_id": "nikken_nd1800"})
+        self.assertEqual(r.model.post_row_spacing_mm, 610)
+        self.assertEqual(r.model.deck_widths_in_use, (500,))
+        self.assertLessEqual(r.model.deck_width_total, r.model.post_row_spacing_mm + 70)
