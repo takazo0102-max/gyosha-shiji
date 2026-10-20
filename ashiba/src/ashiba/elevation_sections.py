@@ -642,16 +642,16 @@ def remove_all_scaffold_elevations(client, section_guids: Iterable[str] = (), pr
     """
     lb = _tree(client, "LayoutBook")
     lays = [it["guid"] for it in walk_tree(lb) if it["type"] == "LayoutItem"
-            and (prefix_contains in it["name"] or "足場平面図" in it["name"])]
+            and (prefix_contains in it["name"] or "足場平面図" in it["name"] or "足場断面図" in it["name"])]
     guids = [g for g in section_guids if g]
     if guids:
         client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
     n_l = _delete_items(client, lays)
     pm = _tree(client, "ProjectMap")
     secs = [it for it in walk_tree(pm) if it["type"] == "SectionItem"]
-    left = [it["name"] for it in secs if prefix_contains in it["name"]]
+    left = [it["name"] for it in secs if prefix_contains in it["name"] or "足場断面" in it["name"]]
     n_extra = 0
-    if left and all(prefix_contains in it["name"] for it in secs):
+    if left and all(prefix_contains in it["name"] or "足場断面" in it["name"] for it in secs):
         # 控えに無い断面（時間切れで控える前に止まった回の残骸）。断面要素と名前は API で
         # 対応が取れないが、プロジェクトの断面がすべて足場の立面なら全部消してよい
         activate_floor_plan(client)
@@ -660,7 +660,7 @@ def remove_all_scaffold_elevations(client, section_guids: Iterable[str] = (), pr
             client.tapir("DeleteElements", {"elements": extra})
             n_extra = len(extra)
         left = [it["name"] for it in walk_tree(_tree(client, "ProjectMap"))
-                if it["type"] == "SectionItem" and prefix_contains in it["name"]]
+                if it["type"] == "SectionItem" and (prefix_contains in it["name"] or "足場断面" in it["name"])]
     return len(guids) + n_extra, n_l, left
 
 
@@ -747,12 +747,13 @@ def _delete_drawings(client, layout_item_guid: str, made: list[dict]) -> bool:
     return all(x.get("success", True) for x in r.get("executionResults", []))
 
 
-def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale: float) -> list[dict]:
+def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale: float,
+                     kind: str = "足場立面図") -> list[dict]:
     """図面を置く。比率 = (1/scale) / 元ビューの縮尺（元が 1/100 なら 1/200 は 0.5）."""
     ratio = (1.0 / scale) / src_scale
     data = [{"navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
              "position": {"x": pos[0] / 1000.0, "y": pos[1] / 1000.0},
-             "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} 足場立面図 1/{scale}"}
+             "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} {kind} 1/{scale}"}
             for pl, pos in zip(results, positions_mm)]
     dr = client.tapir("CreateDrawings", {"drawingsData": data})
     made = []
@@ -772,13 +773,15 @@ def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale:
     return made
 
 
-def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate: bool = False) -> bool:
+def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate: bool = False,
+                        name: Optional[str] = None, kind: str = "足場立面図",
+                        scales: Iterable[int] = SCALE_CANDIDATES) -> bool:
     """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）.
 
     1) 元の大きさ（比率1）で仮置きして実寸を測る（注記・フロアマーカーの張り出しまで入る）
     2) 実寸の箱で縮尺と並びを決める  3) 仮置きを消して本配置
     """
-    name = sheet_layout_name(prefix)
+    name = name or sheet_layout_name(prefix)
     lay = _create_layout(client, name, subset, master)
     if not lay:
         return False
@@ -788,7 +791,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
     for pl in results:
         pl.layout_name = name
         pl.layout_item_guid = lay
-    probe = _create_drawings(client, dbid, results, [(margins[0], margins[3])] * len(results), 100, 0.01)
+    probe = _create_drawings(client, dbid, results, [(margins[0], margins[3])] * len(results), 100, 0.01, kind)
     _activate(client, lay)
     measured = _drawing_boxes(client, probe) if len(probe) == len(results) else None
     if measured:
@@ -799,7 +802,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
         ex_h = NOTE_EXTRA_H_MM if annotate else 0.0
         boxes = [(s_.length_mm + ex_w, float(model.scaffold_height_mm) + 2000.0 + ex_h) for s_ in specs]
         src = 0.01
-    plan = arrange_boxes(boxes, paper, margins)
+    plan = arrange_boxes(boxes, paper, margins, scales=scales)
     if not _delete_drawings(client, lay, probe):
         for pl in results:
             pl.notes.append("仮置きした図面を消せませんでした（レイアウトに重なって残っています）")
@@ -810,7 +813,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
             pl.layout_name = ""
             pl.layout_item_guid = ""
         return False
-    _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src)
+    _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src, kind)
     return True
 
 
@@ -998,7 +1001,8 @@ def remove_stale_prefixes(client, record: dict, meta: dict, building: str, prefi
     rec = dict(record)
     for old, names in stale.items():
         faces = [n[len(old) + 1:-len(" 足場立面")] for n in names if n.endswith(" 足場立面")]
-        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old), f"{old} 足場詳細図"]
+        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old), f"{old} 足場詳細図",
+                                                        f"{old} 足場断面図"]
         activate_floor_plan(client)
         remove_elevations(client, names, lays, [rec.get(n, "") for n in names])
         for n in names:

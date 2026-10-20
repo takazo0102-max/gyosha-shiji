@@ -528,6 +528,22 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                                             stair_plan=r.stair_plan,
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
+        # 足場断面図（建物を横切る A-A・B-B。離れ・幅・各層の高さ）も同じサブセットのレイアウトへ
+        from ashiba.cross_sections import cross_layout_name, place_cross_sections
+
+        try:
+            prev2 = load_record(OUT_DIR)
+            cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
+                                         stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
+                                         on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
+            save_record(OUT_DIR, cross, prev2, bkey, prefix)
+            if cross:
+                print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{cross_layout_name(prefix)}」）")
+            for pl in cross:
+                for n in pl.notes:
+                    print(f"  断面図（{pl.face_name}）: {n}")
+        except TapirError as e:
+            print(f"  断面図: 作れませんでした（{e}）")
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
         plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
                                       floor_index=line_floor(client, lines))
