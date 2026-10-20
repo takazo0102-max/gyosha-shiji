@@ -53,6 +53,7 @@ SERIES_LABELS = {
     "nikken_nd1800": "日建 NDシステム1800（くさび）",
     "nikken_nd1900": "日建 NDシステム1900（くさび）",
     "nikken_strong": "日建 NDシステム ストロング（くさび・高耐力）",
+    "nikken_millennium": "日建 ミレニューム（くさび・次世代）",
     "waku": "日建 枠組（建枠）",
     "shinwa_A": "信和 Aタイプ（くさび・メートル）",
     "shinwa_B": "信和 Bタイプ（くさび・メートル）",
@@ -97,6 +98,11 @@ SERIES_CONST = {
     "nikken_strong": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
                       "hozo": 55, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 日建リース ミレニューム（次世代足場のパイオニア）: 支柱 φ48.6・コマ450・階高1800、先行手すり筋交い（2段手すり機能）。
+    # 布板（アップロック式鋼製布板）・幅木・壁つなぎなどは ND と共通。支柱の許容支持力 11.0kN/本（補剛材ありで19.6）
+    "nikken_millennium": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                          "hozo": 125, "module": "inch",
+                          "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
              "hozo": 0, "module": "inch",

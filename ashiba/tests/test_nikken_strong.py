@@ -52,3 +52,27 @@ class TestScaffoldTypeLabels(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMillennium(unittest.TestCase):
+    """日建 ミレニューム（カタログ Vol.10 p048〜053）."""
+
+    def test_own_posts_ledgers_and_shared_decks(self):
+        m = load_master("nikken_millennium")
+        self.assertEqual({p.model_no for p in m.by_category("支柱")} >= {"P36G", "P27G", "P18G"}, True)
+        self.assertEqual(m.find("布材", 1829).model_no, "SC18G")
+        self.assertEqual(m.find("先行手摺", 1829).model_no, "STXC1809G")
+        self.assertTrue(any(p.model_no.startswith("NDN") for p in m.by_category("踏板")))   # 布板は ND と共通
+
+    def test_solves_with_advance_rails(self):
+        r = solve_all({**RECT, "series_id": "nikken_millennium", "guard_rail_type": "先行手すり"})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        self.assertIn("STXC1809G", q)
+        self.assertIn("KC1818A", q)
+        self.assertTrue(r.verdict["ok"], r.verdict)
+
+    def test_beam_support_allowance_parses_the_smaller_value(self):
+        from ashiba.structural import beam_support_allowable_kn
+
+        fc2 = next(p for p in load_master("nikken_millennium").by_category("梁枠") if p.model_no == "FC2G")
+        self.assertEqual(beam_support_allowable_kn(fc2), 5.4)
