@@ -892,11 +892,24 @@ for it = 1 to nTieDraw
 next it
 
 ! ---- 荷受けステージ（外側へ張り出す床・手すり） ----
+! 日建 荷取りブラケット NDBS15（カタログ p018）: 外側の支柱から張り出す腕 φ42.7 と、下の支柱から腕を支える方杖
+! φ42.7、先端の手すり支柱。床は布板3枚敷き、腕どうしを先端と中ほどのつなぎ材でつなぐ。支柱補剛材 NDPSF
 for ig = 1 to nSg
-	add sgS[ig], -rowW, sgH[ig]
-	muly -1
-	block sgL[ig], sgP[ig], 0.05
-	del 2
+	! 布板（3枚。腕の上に載る）
+	sgW3 = sgP[ig] / 3
+	for ipk = 0 to 2
+		add sgS[ig] + 0.025, -rowW - 0.03 - ipk * sgW3, sgH[ig] + r_nuno
+		muly -1
+		block sgL[ig] - 0.05, sgW3 - 0.01, 0.045
+		del 2
+	next ipk
+	! つなぎ材（腕の先端と中ほど、腕どうしを結ぶ）
+	for itn = 1 to 2
+		add sgS[ig], -rowW - sgP[ig] * itn / 2, sgH[ig] - 0.05
+		roty 90
+		cylind sgL[ig], r_nuno
+		del 2
+	next itn
 	! 手すり・中桟（張り出し先端）
 	for ir = 1 to 2
 		if ir = 1 then hgt = railH else hgt = midH
@@ -929,21 +942,42 @@ for ig = 1 to nSg
 	xb = 0
 	for ipb = 1 to nSpan + 1
 		if xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			! 腕（支柱の緊結部から外へ）
 			add xb, -rowW, sgH[ig]
 			rotz -90
+			nL = sgP[ig] + r_sic
+			if isLite = 0 then
+				add r_sic, -0.020, -0.040
+				block 0.045, 0.040, 0.085
+				del 1
+			endif
 			roty 90
 			cylind sgP[ig], r_nuno
 			del 3
 			! 先端の手すり支柱（ブラケット先端の建地受けに立て、手すり・中桟を受ける。
 			! 無いと手すりが宙に浮く。数量は「先端手すり支柱」）
-			add xb, -rowW - sgP[ig], sgH[ig]
-			cylind railH + 0.10, r_sic
+			add xb, -rowW - sgP[ig], sgH[ig] - 0.12
+			cylind railH + 0.22, r_sic
 			del 1
 			if sgZ[ig] > 0 then
-				add xb, -rowW, sgH[ig] - sgP[ig]
-				rotx 45
-				cylind sgP[ig] * 1.4142, r_nuno
+				! 方杖（下の支柱 1.45 下から腕の先端寄り 0.85 へ）
+				sgD = 1.45
+				sgX = sgP[ig] * 0.85
+				add xb, -rowW, sgH[ig] - sgD
+				rotx atn(sgX / sgD)
+				cylind sqr(sgX * sgX + sgD * sgD), r_nuno
 				del 2
+				if isLite = 0 then
+					add xb - 0.025, -rowW - 0.05, sgH[ig] - sgD - 0.04
+					block 0.05, 0.05, 0.08
+					del 1
+					! 支柱補剛材（支柱の両脇 118、床の1段上から 1350 下まで）
+					for ihs = -1 to 1 step 2
+						add xb + ihs * 0.118, -rowW, sgH[ig] - 1.35
+						cylind 1.35, 0.017
+						del 1
+					next ihs
+				endif
 			endif
 		endif
 		if ipb <= nSpan then xb = xb + spans[ipb]

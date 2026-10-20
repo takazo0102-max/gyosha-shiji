@@ -579,4 +579,4 @@ class TestStageRailPosts(unittest.TestCase):
 
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        self.assertIn("cylind railH + 0.10, r_sic", body)
+        self.assertIn("cylind railH + 0.22, r_sic", body)   # 先端の手すり支柱（腕の下 0.12 から）
