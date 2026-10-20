@@ -147,3 +147,16 @@ class TestSheetsAroundOutsideStairs(unittest.TestCase):
         self.assertEqual(len(tower), 1)
         self.assertAlmostEqual(tower[0][2], 2 * r.model.post_row_spacing_mm + 60)
         self.assertEqual(len(segs), 3)
+
+
+class TestSheetEndsOfOutsideStairs(unittest.TestCase):
+    def test_two_end_pieces_per_tower(self):
+        from ashiba.attachments import sheet_placements
+
+        r = solve_all({**RECT, "series_id": "nikken_nd1800", "stairs": {"layout": "outside"}})
+        pls = sheet_placements(r.model, stair_plan=r.stair_plan)
+        faces = len(r.model.plan.edges)
+        towers = len(r.stair_plan.towers)
+        self.assertEqual(len(pls), faces + 2 * towers + 2 * towers)   # 区間3つ（＋2）と妻側2枚（＋2）
+        ends = [p for p in pls if abs(p.params["x1"] - p.params["x0"] - r.model.post_row_spacing_mm / 1000) < 1e-9]
+        self.assertEqual(len(ends), 2 * towers)

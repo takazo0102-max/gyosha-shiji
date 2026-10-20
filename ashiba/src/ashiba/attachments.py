@@ -191,6 +191,20 @@ def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[floa
     return out
 
 
+def sheet_end_pieces(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float]]:
+    """外付け（3列）の階段室の妻側（区間の両端）のシート [(面に沿った位置, 位置からシートまでのずれ) mm].
+
+    妻側は外側建地列から3列目まで（建地列の間隔1つぶん）。始点側は区間の外（−あき）、終点側も外（＋あき）。
+    """
+    if stair_plan is None or not getattr(stair_plan, "outside", False):
+        return []
+    out = []
+    for t in stair_plan.towers:
+        if t.edge_index == ep.edge_index:
+            out += [(t.start_mm, SHEET_GAP_MM), (t.end_mm, -SHEET_GAP_MM)]
+    return out
+
+
 def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=None) -> list[Placement]:
     """養生シート（面の区間ごとに1部品）。足場の外側の構面を、地面から支柱の天端まで覆う."""
     size = SHEET_SIZES.get(model.config.sheet_type or "")
@@ -205,6 +219,14 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
                 "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zB": 0.0, "zT": top / 1000.0,
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
+        # 外付け階段室の妻側: 部品の x を面の外向きにして（面の向き−90°）、外側建地列から3列目まで
+        row = float(model.post_row_spacing_mm)
+        for pos, shift in sheet_end_pieces(model, ep, stair_plan):
+            out.append(Placement(SHEET_OBJECT, o[0] + _u[0] * pos, o[1] + _u[1] * pos, {
+                "faceAng": ang - 90.0, "zH": model.base_height_mm / 1000.0, "offY": shift / 1000.0,
+                "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (2 * row + SHEET_GAP_MM) / 1000.0,
+                "zB": 0.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
+                "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
     return out
 
 
@@ -219,8 +241,9 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None) -> tuple[float, int]
     n = 0
     for ep in model.plan.edges:
         top = float(model.elevation_of(ep.edge_index).total_height)
-        for x0, x1, _off in sheet_segments(model, ep, stair_plan):
-            w = max(0.0, x1 - x0)
+        widths = [max(0.0, x1 - x0) for x0, x1, _off in sheet_segments(model, ep, stair_plan)]
+        widths += [float(model.post_row_spacing_mm)] * len(sheet_end_pieces(model, ep, stair_plan))
+        for w in widths:
             area += w / 1000.0 * top / 1000.0
             n += _m.ceil(w / size[0] - 1e-6) * _m.ceil(top / size[1] - 1e-6)
     return area, n
