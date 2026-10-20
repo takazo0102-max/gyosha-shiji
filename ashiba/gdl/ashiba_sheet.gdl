@@ -74,7 +74,9 @@ else
 	else
 		! 既定色: メッシュシートは灰（透過）、防音・密閉シートは白っぽい不透明に近い色
 		if sheetKind = "メッシュシート" then
-			define material "ashiba_mesh_sheet" 4, 0.62, 0.66, 0.70
+			! 汎用（type 0）で透過率を指定する。ガラス（type 4）は透けが弱く、中の足場が見えなかった（実機 2026-10-20）
+			! 色 r,g,b・環境光・拡散・反射・透過 0.75・光沢・透過の減衰・反射色・発光色・発光の減衰
+			define material "ashiba_mesh_sheet" 0, 0.55, 0.60, 0.66, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
 			material "ashiba_mesh_sheet"
 		else
 			define material "ashiba_solid_sheet" 1, 0.86, 0.88, 0.86
