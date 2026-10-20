@@ -188,7 +188,9 @@ def write_report_md(
                 a(f"- ほかに要確認 {verdict['warn']}件: {detail}")
         a("")
     # コマピッチは枠組には無い概念（建枠を積む方式）
-    a(f"- 系列: {model.master.series_id}"
+    from .master import SERIES_LABELS
+
+    a(f"- 系列: {SERIES_LABELS.get(model.master.series_id, model.master.series_id)}（{model.master.series_id}）"
       + ("（建枠を積む方式）" if model.master.is_frame
          else f"（コマピッチ{model.master.koma_pitch}mm）"))
     from .terrain import actual_max_height_mm

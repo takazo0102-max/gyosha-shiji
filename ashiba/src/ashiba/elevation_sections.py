@@ -332,7 +332,10 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
                                              if lb["end"][1] > top])
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     mod = "インチ" if model.master.module == "inch" else "メートル"
-    line1 = (f"{spec.face_name} 足場立面図　{model.master.series_id}（{mod}）・作業層 {e.n_levels}層・"
+    from .master import SERIES_LABELS
+
+    kind = SERIES_LABELS.get(model.master.series_id, model.master.series_id)
+    line1 = (f"{spec.face_name} 足場立面図　{kind}（{mod}）・作業層 {e.n_levels}層・"
              f"階高 {model.master.floor_height}")
     line2 = (f"壁つなぎ {ties}箇所（◎印）・離れ {ep.standoff:.0f}・ジャッキ繰出し {e.jack_extension:.0f}")
     out.texts.append({"x": lo, "y": head_y + label_pitch_m * text_scale / 100.0, "text": line1, "just": "Left"})
