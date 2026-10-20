@@ -621,9 +621,10 @@ class TestCatalogShapesStairAsagao(unittest.TestCase):
         # 出隅のコーナー部（センター材と扇形の万能板 4枚の三角形）
         self.assertIn("if cornerS = 1 or cornerG = 1 then gosub 890", blk)
         sub = self.body[self.body.index("890:"):self.body.index("895:")]
-        # 両側に 小・中・大 の3枚（継ぎ目で分ける。1枚を2つの三角形で）、上押えと振れ止め 横・縦
-        self.assertIn("for kp = 0 to 2", sub)
-        self.assertEqual(sub.count("plane 3,"), 2)
+        # 片側の万能板は1枚の面（板ごとの三角形に分けると割れて見えた）。小・中・大の継ぎ目は板の上の線材
+        self.assertEqual(sub.count("plane 4,"), 1)
+        self.assertIn("for kp = 1 to 2", sub)
+        self.assertNotIn("+ 0.004", sub)
         self.assertIn("! 万能板上押え", sub)
         self.assertIn("! 振れ止め 横", sub)
         self.assertIn("! 振れ止め 縦", sub)
