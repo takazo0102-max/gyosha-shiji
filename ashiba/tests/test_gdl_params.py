@@ -1155,7 +1155,8 @@ class TestLight3D(unittest.TestCase):
         self.assertNotIn("resol 12", self.body)          # 戻すときも rN（軽量では6のまま）
 
     def test_light_skips_small_parts(self):
-        self.assertEqual(self.body.count("if komaPitch > 0 and isLite = 0 then"), 3)   # コマ（外側コーナー・外付け階段の建地含む）
+        # コマは軽量でもフックを掛ける高さだけ描く（kz。外側コーナー・外付け階段の建地含む3箇所）
+        self.assertEqual(self.body.count("for ik = 1 to nKz"), 3)
         self.assertEqual(self.body.count("if j < nPost and isLite = 0 then"), 3)       # 支柱の継手のカラー（外付け階段の建地含む）
         self.assertIn("if isLite = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
 

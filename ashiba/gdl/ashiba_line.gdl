@@ -2027,7 +2027,7 @@ pen 1
 if matScaf > 0 then material matScaf
 ! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、
 ! 建物一周を精細で出すと Archicad の3D・断面の生成が重く、操作しづらかった（利用者の指摘 2026-10-19）。
-! 軽量はコマ（緊結部の座）・布材の爪・支柱の継手のカラー・ジャッキのハンドルを省き、円柱を6角にする
+! 軽量は布材の爪・支柱の継手のカラー・ジャッキのハンドルと、フックを掛けない高さのコマを省き、円柱を6角にする
 ! （部材の位置・本数・寸法は精細と同じなので、干渉確認と図面には足りる）。自動は面の大きさで決める
 d3 = detail3d
 ! モデル表示オプション（ashiba_mvo）の 3Dの表現: 1=精細 3=軽量 2=線 が部品の設定より優先
@@ -2133,6 +2133,38 @@ if lineMode then
 	end
 endif
 
+! ---- コマ（緊結部）の高さ kz[1..nKz] ----
+! 精細は komaPitch ごと（根がらみの高さから）。軽量でも、布材・腕木・踏板・手すりのフックを掛ける高さ
+! （根がらみ・各作業床・中桟・手すり）のコマは描く。軽量でコマを全部省いていたため、自動で軽量になった
+! 長い面だけ支柱にフックを掛ける座が無かった（利用者の指摘 2026-10-21）
+dim kz[]
+nKz = 0
+if komaPitch > 0 then
+	if isLite = 0 then
+		zk = lv[1]
+		while zk < postTop - 0.01 do
+			nKz = nKz + 1
+			kz[nKz] = zk
+			zk = zk + komaPitch
+		endwhile
+	else
+		for il = 1 to nLv
+			nKz = nKz + 1
+			kz[nKz] = lv[il]
+			if il > 1 then
+				if lv[il] + railMid < postTop - 0.01 then
+					nKz = nKz + 1
+					kz[nKz] = lv[il] + railMid
+				endif
+				if lv[il] + railTop < postTop - 0.01 then
+					nKz = nKz + 1
+					kz[nKz] = lv[il] + railTop
+				endif
+			endif
+		next il
+	endif
+endif
+
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
 ! 実際には無い建地を干渉確認に使うことになる
@@ -2232,15 +2264,13 @@ if cornerS = 1 then
 		next j
 		del nPost + 2
 	endif
-	if komaPitch > 0 and isLite = 0 then
+	if nKz > 0 then
 		resol 6
-		zk = lv[1]
-		while zk < postTop - 0.01 do
-			add -rowW, -rowW, zk - 0.003
+		for ik = 1 to nKz
+			add -rowW, -rowW, kz[ik] - 0.003
 			cylind 0.006, 0.053
 			del 1
-			zk = zk + komaPitch
-		endwhile
+		next ik
 		resol rN
 	endif
 	for il = 1 to nLv
@@ -2373,7 +2403,7 @@ endif
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
 ! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
-if komaPitch > 0 and isLite = 0 then
+if nKz > 0 then
 	resol 6
 	x = 0
 	for ip = 1 to nSpan + 1
@@ -2382,16 +2412,16 @@ if komaPitch > 0 and isLite = 0 then
 			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
 		next ib
 		for row = rowStart to 1
-			zk = lv[1]
-			if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then zk = postTop
-			while zk < postTop - 0.01 do
-				if zk > bBase + 0.001 then
-					add x, -row * rowW, zk - 0.003
-					cylind 0.006, 0.053
-					del 1
-				endif
-				zk = zk + komaPitch
-			endwhile
+			! 隅の内側建地は隣の面が支柱もコマも描く
+			if not(row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) then
+				for ik = 1 to nKz
+					if kz[ik] > bBase + 0.001 then
+						add x, -row * rowW, kz[ik] - 0.003
+						cylind 0.006, 0.053
+						del 1
+					endif
+				next ik
+			endif
 		next row
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
@@ -3128,15 +3158,13 @@ if stOut = 1 then
 				endif
 			next j
 			del nPost + 2
-			if komaPitch > 0 and isLite = 0 then
+			if nKz > 0 then
 				resol 6
-				zk = lv[1]
-				while zk < postTop - 0.01 do
-					add xp, yo, zk - 0.003
+				for ik = 1 to nKz
+					add xp, yo, kz[ik] - 0.003
 					cylind 0.006, 0.053
 					del 1
-					zk = zk + komaPitch
-				endwhile
+				next ik
 				resol rN
 			endif
 			for il7 = 1 to nLv
