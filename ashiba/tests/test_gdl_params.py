@@ -1050,13 +1050,19 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         self.assertIn("cylind 0.006, 0.053", self.body)
         self.assertNotIn("cylind 0.01, 0.055", self.body)
 
-    def test_ledgers_end_at_the_claw_not_the_post_centre(self):
-        # 床レベル・手すり・中桟・根がらみ（6）＋外付け階段の3列目の根がらみ・手すり・中桟（3）
-        self.assertEqual(self.body.count("gosub 830"), 9)
+    def test_ledgers_end_at_the_wedge_head_not_the_post_centre(self):
+        # 布材・手すり・中桟・根がらみに加え、腕木・出隅の升目・開放端・外付け階段の横材もすべて同じつなぎ材の形
+        self.assertGreaterEqual(self.body.count("gosub 830"), 27)
         self.assertNotIn("cylind spans[ip], r_nuno", self.body)
+        self.assertNotIn("cylind rowW, r_nuno", self.body)               # 支柱芯から芯まで通した直棒は無い
         sub = self.body[self.body.index("830:"):self.body.index("900:")]
-        self.assertIn("cylind nL - 0.156, r_nuno", sub)                   # 両端 78 ずつ
-        self.assertEqual(sub.count("block 0.052, 0.020, 0.024"), 2)       # 爪
+        # 管は緊結部の間だけ（日建カタログ p005: L1＝L−42.7、緊結部は支柱の外面から）
+        self.assertIn("cylind nL - 2 * (hx0 + hdL), r_nuno", sub)
+        self.assertIn("hx0 = r_sic", sub)
+        # 緊結部はコマ（厚み6）を上下から挟む2つの箱、クサビは縦の板
+        self.assertIn("block hdL, 0.040, 0.042", sub)
+        self.assertIn("block hdL, 0.040, 0.037", sub)
+        self.assertIn("block 0.010, 0.012, 0.150", sub)
 
     def test_decks_clear_the_posts_by_70(self):
         self.assertIn("add x + 0.07, -rowW + 0.05, z", self.body)
@@ -1160,7 +1166,7 @@ class TestLight3D(unittest.TestCase):
         # 支柱の継ぎ目の帯は軽量でも描く（継ぎ目が分かるように。外付け階段の建地含む3箇所）
         self.assertEqual(self.body.count("if j < nPost then\n"), 3)
         self.assertEqual(self.body.count("gosub 840"), 3)
-        self.assertIn("if isLite = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
+        self.assertIn("if isLite = 0 then\n\t\t\t! クサビ", self.body)    # 布材のクサビは精細だけ
 
     def test_mvo_overrides(self):
         self.assertIn('if LIBRARYGLOBAL(mvoName, "mode3d", mvD) then', self.body)

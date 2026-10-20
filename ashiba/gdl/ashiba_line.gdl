@@ -2315,30 +2315,33 @@ if cornerS = 1 then
 		z = lv[il]
 		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
 		add -rowW, 0, z
-		rotx 90
-		cylind rowW, r_nuno
+		rotz -90
+		nL = rowW
+		gosub 830
 		del 2
 		add -rowW, -rowW, z
-		roty 90
-		cylind rowW, r_nuno
-		del 2
+		nL = rowW
+		gosub 830
+		del 1
 		if il > 1 then
 			add -rowW, 0, z + railTop
-			rotx 90
-			cylind rowW, r_nuno
+			rotz -90
+			nL = rowW
+			gosub 830
 			del 2
 			add -rowW, -rowW, z + railTop
-			roty 90
-			cylind rowW, r_nuno
-			del 2
+			nL = rowW
+			gosub 830
+			del 1
 			add -rowW, 0, z + railMid
-			rotx 90
-			cylind rowW, r_nuno
+			rotz -90
+			nL = rowW
+			gosub 830
 			del 2
 			add -rowW, -rowW, z + railMid
-			roty 90
-			cylind rowW, r_nuno
-			del 2
+			nL = rowW
+			gosub 830
+			del 1
 			if showDeck then
 				! コーナー踏板と、外側2辺の幅木。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
 				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
@@ -2374,12 +2377,14 @@ for ie9 = 0 to 1
 		for il = 2 to nLv
 			z = lv[il]
 			add xe9, 0, z + railTop
-			rotx 90
-			cylind rowW, r_nuno
+			rotz -90
+			nL = rowW
+			gosub 830
 			del 2
 			add xe9, 0, z + railMid
-			rotx 90
-			cylind rowW, r_nuno
+			rotz -90
+			nL = rowW
+			gosub 830
 			del 2
 			if showDeck then
 				if matToe > 0 then material matToe
@@ -2416,21 +2421,23 @@ if cornerG = 1 then
 		endif
 		! 外周2辺の手すり・中桟
 		add -rowW, 0, z + railTop
-		rotx 90
-		cylind rowW, r_nuno
+		rotz -90
+		nL = rowW
+		gosub 830
 		del 2
 		add -rowW, -rowW, z + railTop
-		roty 90
-		cylind rowW, r_nuno
-		del 2
+		nL = rowW
+		gosub 830
+		del 1
 		add -rowW, 0, z + railMid
-		rotx 90
-		cylind rowW, r_nuno
+		rotz -90
+		nL = rowW
+		gosub 830
 		del 2
 		add -rowW, -rowW, z + railMid
-		roty 90
-		cylind rowW, r_nuno
-		del 2
+		nL = rowW
+		gosub 830
+		del 1
 		add -rowW, -rowW, z
 		cylind railTop, r_nuno
 		del 1
@@ -2596,9 +2603,9 @@ for il = 1 to nLv
 			if nRows >= 2 then
 				add x, 0, z
 				rotz -90
-				roty 90
-				cylind rowW, r_nuno
-				del 3
+				nL = rowW
+				gosub 830
+				del 2
 				gosub 860
 			else
 				gosub 800
@@ -2610,9 +2617,9 @@ for il = 1 to nLv
 	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
-		roty 90
-		cylind rowW, r_nuno
-		del 3
+		nL = rowW
+		gosub 830
+		del 2
 		gosub 860
 	else
 		gosub 800
@@ -3205,8 +3212,9 @@ if stOut = 1 then
 			endif
 			for il7 = 1 to nLv
 				add xp, -rowW, lv[il7]
-				rotx 90
-				cylind rowW, r_nuno
+				rotz -90
+				nL = rowW
+				gosub 830
 				del 2
 			next il7
 			if ip7 <= ns7 then xp = xp + tsp[ip7]
@@ -3268,12 +3276,14 @@ if stOut = 1 then
 			xe = sx + ie7 * sl
 			for il7 = 2 to nLv
 				add xe, -rowW, lv[il7] + railTop
-				rotx 90
-				cylind rowW, r_nuno
+				rotz -90
+				nL = rowW
+				gosub 830
 				del 2
 				add xe, -rowW, lv[il7] + railMid
-				rotx 90
-				cylind rowW, r_nuno
+				rotz -90
+				nL = rowW
+				gosub 830
 				del 2
 			next il7
 		next ie7
@@ -3390,9 +3400,9 @@ return
 if il >= 2 then
 	add x, -rowW, z
 	rotz 90
-	roty 90
-	cylind rowW, r_nuno
-	del 3
+	nL = rowW
+	gosub 830
+	del 2
 	add x, -rowW, z - rowW
 	rotx -45
 	cylind rowW * 1.4142, r_nuno
@@ -3448,22 +3458,46 @@ return
 	del 2
 	return
 
-830:	! ---- 布材（爪付き）: 原点から +X へ長さ nL。管は支柱芯から 78 内側で終わり、
-! そこから支柱のフランジまで爪（ブラケット）が掛かる（次世代足場.gsm の寸法）。
-! 支柱芯まで管を通して描くと支柱に貫入し、緊結部の納まりが見えない
-add 0.078, 0, 0
-roty 90
-cylind nL - 0.156, r_nuno
-del 2
-if isLite = 0 then
-	add 0.026, -0.010, -0.012
-	block 0.052, 0.020, 0.024
-	del 1
-	add nL - 0.078, -0.010, -0.012
-	block 0.052, 0.020, 0.024
-	del 1
-endif
-return
+830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:
+	! 両端の緊結部（クサビ受け）が支柱の外面からコマ（円盤）を上下に挟み、クサビが緊結部を縦に貫いて
+	! 上（クビレ）と下に出る。管 φ42.7 は緊結部の間だけ（L1＝L−42.7）。利用者の指摘（2026-10-21）:
+	! 布材も変。以前は管を支柱芯から 78 で止め、小さな爪の箱だけで、コマに掛かって見えなかった
+	hdL = 0.050          ! 緊結部の長さ（支柱の外面から）
+	hx0 = r_sic          ! 緊結部は支柱の外面から
+	add hx0 + hdL, 0, 0
+	roty 90
+	cylind nL - 2 * (hx0 + hdL), r_nuno
+	del 2
+	for hd830 = 0 to 1
+		if hd830 = 0 then
+			add hx0, 0, 0
+		else
+			add nL - hx0, 0, 0
+			mulx -1
+		endif
+		! 緊結部: コマの上（厚み6の円盤の上）と下に分かれ、外側でつながる
+		add 0, -0.020, 0.003
+		block hdL, 0.040, 0.042
+		del 1
+		add 0, -0.020, -0.040
+		block hdL, 0.040, 0.037
+		del 1
+		add hdL - 0.012, -0.020, -0.003
+		block 0.012, 0.040, 0.006
+		del 1
+		if isLite = 0 then
+			! クサビ（縦の板。上にクビレ、下に固定装置）
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+		endif
+		if hd830 = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd830
+	return
 
 ! ============================================================
 900:	! ---- 線表示 ----
