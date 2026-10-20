@@ -354,7 +354,7 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, 
         pass
     try:
         res = client.tapir("CreateAssociativeDimensions",
-                           {"dimensionsData": plan_dimension_data(r.model, lines, r.platforms)})
+                           {"dimensionsData": plan_dimension_data(r.model, lines, r.platforms, r.stair_plan)})
         made = [el for el in res.get("elements", [])]
         ok = [el["elementId"]["guid"] for el in made if "elementId" in el]
         guids += ok

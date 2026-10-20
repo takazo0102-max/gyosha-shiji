@@ -1281,6 +1281,8 @@ for ig = 1 to nSg
 	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
 next ig
 if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
+! 外付け（3列）の階段室は外側建地列の外にもう1升
+if stOut = 1 and nSt > 0 and rowW + 0.10 > dOff then dOff = rowW + 0.10
 ! スパン寸法: 足場から離した寸法線（参考: 足場平面図は寸法を外へ離して読みやすく）。各支柱に補助線と
 ! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
 yd = -rowW - dOff - 0.90

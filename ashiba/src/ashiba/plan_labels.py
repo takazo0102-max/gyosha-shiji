@@ -90,7 +90,9 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         if ep is None:
             continue
         to, tu, tn = _frame(ep)
-        x, y = _pt(to, tu, tn, (t.start_mm + t.end_mm) / 2.0, -row_w / 2.0)
+        # 外付け（3列）は外側建地列の外の升目の中央
+        y_mm = -row_w / 2.0 - (row_w if getattr(stair_plan, "outside", False) else 0.0)
+        x, y = _pt(to, tu, tn, (t.start_mm + t.end_mm) / 2.0, y_mm)
         items.append((x, y, stair))
     return items
 
@@ -196,9 +198,12 @@ SPAN_DIM_OUT_M = 0.90      # 外側建地列（＋張り出し）からスパン
 TOTAL_DIM_OUT_M = 1.60     # 同じく全長の寸法線まで（yt）
 
 
-def face_outward_m(model: ScaffoldModel, ep, platforms=None) -> float:
-    """その面で外へ張り出すもの（昇降機・ステージ・朝顔）の出（m）. 2d.gdl の dOff と同じ考え方."""
+def face_outward_m(model: ScaffoldModel, ep, platforms=None, stair_plan=None) -> float:
+    """その面で外へ張り出すもの（昇降機・ステージ・朝顔・外付けの階段室）の出（m）. 2d.gdl の dOff と同じ考え方."""
     d = 0.0
+    if getattr(stair_plan, "outside", False) and any(
+            t.edge_index == ep.edge_index for t in getattr(stair_plan, "towers", None) or []):
+        d = float(model.post_row_spacing_mm) / 1000.0 + 0.10
     for ho in getattr(platforms, "hoists", None) or []:
         if getattr(ho, "edge_index", None) == ep.edge_index:
             d = max(d, 0.10 + float(getattr(ho, "cage_depth_mm", 0.0) or 0.0) / 1000.0 + 0.55)
@@ -211,7 +216,7 @@ def face_outward_m(model: ScaffoldModel, ep, platforms=None) -> float:
     return d
 
 
-def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None) -> list[dict]:
+def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None, stair_plan=None) -> list[dict]:
     """足場ラインごとのスパン寸法と全長の寸法（Tapir CreateAssociativeDimensions の dimensionsData）.
 
     寸法の点は足場ラインの平面のホットスポット 1〜nSpan+1（外側建地列の支柱。2d.gdl が最初に出す）と、
@@ -229,7 +234,7 @@ def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None)
         head = [n + 1] if corner and oe.start_corner == "出隅" else []
         tail = [n + 2] if corner and oe.end_corner == "出隅" else []
         chain = head + list(range(1, n + 1)) + tail
-        off = row_w + face_outward_m(model, ep, platforms)
+        off = row_w + face_outward_m(model, ep, platforms, stair_plan)
         for dist, idx in ((off + SPAN_DIM_OUT_M, chain), (off + TOTAL_DIM_OUT_M, [chain[0], chain[-1]])):
             ref = (o[0] / 1000.0 - nrm[0] * dist, o[1] / 1000.0 - nrm[1] * dist)
             out.append({

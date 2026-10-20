@@ -74,3 +74,20 @@ class TestOutsideQuantities(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOutsideStairAnnotations(unittest.TestCase):
+    def test_dimensions_and_label_clear_the_stair_bay(self):
+        from ashiba.plan_labels import face_outward_m, plan_label_items
+
+        b = solve_all({**RECT, "stairs": {"layout": "outside"}})
+        a = solve_all({**RECT, "stairs": {"layout": "inside"}})
+        t = b.stair_plan.towers[0]
+        ep = next(e for e in b.model.plan.edges if e.edge_index == t.edge_index)
+        row = b.model.post_row_spacing_mm / 1000.0
+        self.assertGreaterEqual(face_outward_m(b.model, ep, b.platforms, b.stair_plan), row)
+        self.assertEqual(face_outward_m(a.model, ep, a.platforms, a.stair_plan), 0.0)
+        out_lbl = [i for i in plan_label_items(b.model, b.stair_plan) if "階段" in i[2]]
+        in_lbl = [i for i in plan_label_items(a.model, a.stair_plan) if "階段" in i[2]]
+        # 南面（辺0）は外が -y。外付けは1升ぶん外へ
+        self.assertAlmostEqual(in_lbl[0][1] - out_lbl[0][1], b.model.post_row_spacing_mm / 1000.0, places=6)   # 座標は m
