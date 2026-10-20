@@ -803,20 +803,46 @@ if showBrace then
 					next bf
 				endif
 				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" then
-					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
-					ang = atn((z2 - z1) / spans[ip])
+					! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
+					! 筋違ピン（ロックピン）に掛ける。ピンは建枠の上下から 0.24（1700枠で A寸法 1219）。以前は丸棒で
+					! 建枠の天端から天端へ掛けていた
+					bpz = 0.24
+					if z2 - z1 < 0.9 then bpz = 0.10
+					bA = z2 - z1 - 2 * bpz
+					bl = sqr(spans[ip] ^ 2 + bA ^ 2)
+					ang = atn(bA / spans[ip])
 					for bf = 0 to nbf
-						yb2 = -rowW - 0.05
-						if bf = 1 then yb2 = 0.05
-						add x, yb2, z1
-						roty 90 - ang
-						cylind bl, 0.0213 / 2
-						del 2
-						add x + spans[ip], yb2, z1
-						mulx -1
-						roty 90 - ang
-						cylind bl, 0.0213 / 2
-						del 3
+						yb2 = -rowW - 0.035
+						if bf = 1 then yb2 = 0.035
+						for bd = 0 to 1
+							add x + bd * spans[ip], yb2 + (1 - 2 * bf) * bd * 0.006, z1 + bpz
+							if bd = 1 then mulx -1
+							roty -ang
+							add 0, -0.003, -0.0125
+							block bl, 0.006, 0.025
+							del 2
+							if bd = 1 then del 1
+							del 1
+						next bd
+						if isLite = 0 then
+							! 中央のピンと、脚の筋違ピン（上下・両端）
+							add x + spans[ip] / 2, yb2 - 0.012, z1 + bpz + bA / 2
+							rotx -90
+							cylind 0.03, 0.006
+							del 2
+							for pe = 0 to 3
+								px = x
+								if pe = 1 or pe = 3 then px = x + spans[ip]
+								pz = z1 + bpz
+								if pe >= 2 then pz = z2 - bpz
+								yl0 = -rowW
+								if bf = 1 then yl0 = 0
+								add px, min(yl0, yb2) - 0.01, pz
+								rotx -90
+								cylind abs(yb2 - yl0) + 0.02, 0.007
+								del 2
+							next pe
+						endif
 					next bf
 				endif
 				x = x + spans[ip]
@@ -1535,6 +1561,27 @@ return
 if serType = "W" and il > 1 and isLite = 0 then
 	zt = z
 	zb = lv[il - 1]
+	! 建枠の継ぎ目（下の建枠の天端 zb、2段目から）: 連結ピン（カタログ p081 A20）の帯と、上下の建枠の脚を
+	! つなぐアームロック（p080 A126 等、長さ 739）を両脚の内側に
+	if il > 2 then
+		for sk2 = 0 to 1
+			yl2 = -sk2 * rowW
+			add x, yl2, zb - 0.10
+			cylind 0.20, r_sic + 0.004
+			del 1
+			yi2 = yl2 - 0.045
+			if sk2 = 1 then yi2 = yl2 + 0.045
+			add x, yi2, zb - 0.37
+			cylind 0.739, 0.009
+			del 1
+			add x - 0.006, min(yl2, yi2), zb - 0.37
+			block 0.012, abs(yi2 - yl2), 0.03
+			del 1
+			add x - 0.006, min(yl2, yi2), zb + 0.34
+			block 0.012, abs(yi2 - yl2), 0.03
+			del 1
+		next sk2
+	endif
 	fd = 0.175
 	if rowW < 0.8 then fd = 0.11
 	zv = zt - min(1.219, 0.72 * (zt - zb))

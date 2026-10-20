@@ -705,7 +705,7 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         blk = body3[j:body3.index("! ---- 朝顔", j)]
         self.assertEqual(blk.count("cylind bl, 0.0427 / 2"), 1)          # くさび: 1本の式を2方向（bf=0,1）で
         self.assertIn("for bf = 0 to 1", blk)
-        self.assertEqual(blk.count("cylind bl, 0.0213 / 2"), 2)          # 枠組の交差筋違
+        self.assertIn("block bl, 0.006, 0.025", blk)                       # 枠組の交差筋違（平鋼、カタログ p081）
 
     def test_single_row_scaffold_gets_its_deck_brackets(self):
         """一側足場の床受けブラケットを3Dにも出す.
