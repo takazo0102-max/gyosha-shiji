@@ -174,8 +174,11 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         body3 = self._script("3d.gdl")
         i = body3.index("if railAdv = 1 then")
         blk = body3[i:body3.index("else", i)]
-        self.assertEqual(blk.count("cylind advL"), 2)
-        self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip], 0.02, 0.157"))
+        self.assertIn("gosub 850", blk)
+        sub = body3[body3.index("850:"):body3.index("830:")]
+        self.assertEqual(sub.count("cylind advL"), 2)                     # X 形の斜材 φ21.7
+        self.assertIn("cylind nL - 2 * (r_sic + fitL), 0.0272 / 2", sub)   # 手すり φ27.2（カタログ p006）
+        self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip] + 0.07, 0.008, 0.150"))
         body2 = self._script("2d.gdl")
         self.assertIn("if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
         self.assertIn("line2 xe, z + railTop, xs, z + 0.02", body2)

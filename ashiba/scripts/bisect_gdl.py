@@ -29,16 +29,15 @@ from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
 from dev_gsm_iterate import HSF_DIR, find_lp_xmlconverter  # noqa: E402
 
 # 変種: (名前, {相対パス: [(置換前, 置換後), ...]})。置換前が無ければその変種は飛ばす
-GOOD = "e9b039c4"     # 描けていた最後のコミット（3Dのスパン寸法文字）
+GOOD = "c168d4b0"     # 描けていた最後のコミット（布材をつなぎ材の形に）
 VARIANTS = [
-    ("current", {}),
-    ("1d_from_good_no_vl", {"scripts/1d.gdl": "@" + GOOD, "scripts/vl.gdl": None,
-                            "libpartdata.xml": [("\t<Script_VL SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n", "")]}),
-    ("2d_from_good", {"scripts/2d.gdl": "@" + GOOD}),
-    ("paramlist_from_good_all_scripts_good", {"paramlist.xml": "@" + GOOD, "scripts/1d.gdl": "@" + GOOD, "scripts/2d.gdl": "@" + GOOD,
-                                              "scripts/3d.gdl": "@" + GOOD, "scripts/vl.gdl": None,
-                                              "libpartdata.xml": "@" + GOOD}),
-    ("paramlist_from_good_scripts_current", {"paramlist.xml": "@" + GOOD}),
+    ("current_fine", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n")]}),
+    ("good_fine", {"scripts/3d.gdl": "@" + GOOD}),
+    ("no_new_brace", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ('and eoB = 0 and serType <> "W" then', 'and eoB = 0 and serType = "ZZ" then')]}),
+    ("no_deck_detail", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\tif isLite = 0 then\n\t\tfor hd870", "\tif isLite = 9 then\n\t\tfor hd870")]}),
+    ("no_deck870", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\t\t\tgosub 870\n", "")]}),
+    ("no_toe", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\t\tblock spans[ip] + 0.07, 0.008, 0.150\n\t\t\t\t\tblock spans[ip] + 0.07, 0.140, 0.004\n", "")]}),
+    ("no_850", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\tgosub 850\n", "")]}),
 ]
 
 

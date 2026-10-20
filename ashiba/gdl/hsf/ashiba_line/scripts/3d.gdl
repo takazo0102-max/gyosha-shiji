@@ -323,16 +323,14 @@ if cornerS = 1 then
 				! コーナー踏板と、外側2辺の幅木。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
 				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
 				if matDeck > 0 then material matDeck
-				add -rowW + 0.05, -rowW + 0.05, z
+				add -rowW + 0.05, -rowW + 0.05, z + r_nuno
 				block rowW - 0.05, rowW - 0.05, 0.045
 				del 1
 				if railAdv = 0 then
 					if matToe > 0 then material matToe
-					add -rowW - 0.02, -rowW - 0.02, z + 0.045
-					block rowW + 0.02, 0.02, 0.157
-					del 1
-					add -rowW - 0.02, -rowW - 0.02, z + 0.045
-					block 0.02, rowW + 0.02, 0.157
+					add -rowW + r_sic + 0.004, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+					block rowW - r_sic, 0.008, 0.150
+					block 0.008, rowW - r_sic, 0.150
 					del 1
 				endif
 				if matScaf > 0 then material matScaf
@@ -365,8 +363,8 @@ for ie9 = 0 to 1
 			del 2
 			if showDeck then
 				if matToe > 0 then material matToe
-				add xe9 - 0.01, -rowW, z + 0.045
-				block 0.02, rowW, 0.157
+				add xe9 - 0.01, -rowW, z + r_nuno + 0.045
+				block 0.008, rowW, 0.150
 				del 1
 				if matScaf > 0 then material matScaf
 			endif
@@ -526,25 +524,18 @@ for il = 1 to nLv
 		next ie
 		! 外側手すり・中桟（作業層のみ）
 		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
-			add x, -rowW, z + railTop
-			nL = spans[ip]
-			gosub 830
-			del 1
 			if railAdv = 1 then
-				! 先行手すり（信和セーフハンガー SXII 等）: 手すり1本＋X形の斜材2本が一体で
-				! 手すり・中桟・筋交の3機能を兼ねる（カタログ p19）。斜材は両上端から
-				! 対角の支柱の床際（下部クサビ）へ。以前は片方の斜材1本だけで形が違った
-				advDz = railTop - 0.02
-				advL = sqr(spans[ip] * spans[ip] + advDz * advDz)
-				add x, -rowW, z + railTop
-				roty 90 + atn(advDz / spans[ip])
-				cylind advL, 0.0217 / 2
-				del 2
-				add x + spans[ip], -rowW, z + railTop
-				roty -(90 + atn(advDz / spans[ip]))
-				cylind advL, 0.0217 / 2
-				del 2
+				! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
+				! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける
+				add x, -rowW, z
+				nL = spans[ip]
+				gosub 850
+				del 1
 			else
+				add x, -rowW, z + railTop
+				nL = spans[ip]
+				gosub 830
+				del 1
 				add x, -rowW, z + railMid
 				nL = spans[ip]
 				gosub 830
@@ -680,16 +671,21 @@ if showDeck then
 			if skipAll = 0 then
 				if skipDeck = 0 then
 					if matDeck > 0 then material matDeck
-					! 踏板は支柱芯から 70 逃げて両端の爪で布材に掛かる（次世代足場.gsm の寸法）。
-					! 支柱に食い込んで描くと、支柱位置の納まりが見えない
+					! 布板（日建 アップロック式鋼製布板 NDN6 等、カタログ p007）: 長さ＝スパン。両端のつかみ金具で
+					! 支柱位置の腕木（φ42.7）を掴み、腕木の上に載る。端のペロ板が腕木の上を覆う。
+					! 以前は腕木の高さに埋まり、支柱芯から 70 離した板だけだった（利用者の指摘: 他の部材も見直して）
 					if eoD1 = 0 then
-						add x + 0.07, -rowW + 0.05, z
-						block spans[ip] - 0.14, deckW1, 0.045
+						add x, -rowW + 0.05, z
+						dkL = spans[ip]
+						dkW = deckW1 - 0.01
+						gosub 870
 						del 1
 					endif
 					if deckW2 > 0 and eoD2 = 0 then
-						add x + 0.07, -rowW + 0.05 + deckW1 + 0.02, z
-						block spans[ip] - 0.14, deckW2, 0.045
+						add x, -rowW + 0.05 + deckW1 + 0.02, z
+						dkL = spans[ip]
+						dkW = deckW2 - 0.01
+						gosub 870
 						del 1
 					endif
 				endif
@@ -716,8 +712,11 @@ if showDeck then
 				endif
 				if railAdv = 0 and inSg = 0 and eoT = 0 then
 					if matToe > 0 then material matToe
-					add x, -rowW - 0.02, z + 0.045
-					block spans[ip], 0.02, 0.157
+					! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
+					! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
+					add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+					block spans[ip] + 0.07, 0.008, 0.150
+					block spans[ip] + 0.07, 0.140, 0.004
 					del 1
 				endif
 				if matScaf > 0 then material matScaf
@@ -747,7 +746,41 @@ if showBrace then
 						if bittest(edE[ie], 3) then eoB = 1
 					endif
 				next ie
-				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 then
+				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType <> "W" then
+					! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
+					! 2本（交さ2方向）は前後にずらして重ねる。以前は φ21.7 の細い管で、支柱から離れて浮いていた
+					brZ = 0.10
+					bl = sqr(spans[ip] ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
+					ang = atn((z2 - z1 - 2 * brZ) / spans[ip])
+					for bf = 0 to 1
+						yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
+						xa = x
+						sg = 1
+						if bf = 1 then
+							xa = x + spans[ip]
+							sg = -1
+						endif
+						add xa, yb2, z1 + brZ
+						if sg < 0 then mulx -1
+						roty 90 - ang
+						cylind bl, 0.0427 / 2
+						del 2
+						if sg < 0 then del 1
+						! クサビクランプ（下端は手前の支柱、上端は対角の支柱）
+						for ce = 0 to 1
+							cx = xa
+							cz = z1 + brZ
+							if ce = 1 then
+								cx = xa + sg * spans[ip]
+								cz = z2 - brZ
+							endif
+							add cx - 0.035, yb2 - 0.025, cz - 0.035
+							block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
+							del 1
+						next ce
+					next bf
+				endif
+				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" then
 					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
 					ang = atn((z2 - z1) / spans[ip])
 					for bf = 0 to nbf
@@ -1432,6 +1465,79 @@ return
 	cylind 0.035, r_sic + 0.008
 	addz 0.045
 	cylind 0.035, r_sic + 0.008
+	del 2
+	return
+
+870:	! ---- 布板（アップロック式鋼製布板）: 原点＝支柱芯の床の高さ・板の外側の端、+X へ dkL、+Y へ幅 dkW。
+	! 板は腕木（φ42.7、芯が床の高さ）の上に載る。両端のつかみ金具で腕木を掴み、ペロ板が腕木の上を覆う
+	add 0.025, 0, r_nuno
+	block dkL - 0.05, dkW, 0.045
+	del 1
+	if isLite = 0 then
+		for hd870 = 0 to 1
+			if hd870 = 0 then
+				add 0, 0, 0
+			else
+				add dkL, 0, 0
+				mulx -1
+			endif
+			! ペロ板（腕木の上を覆う薄板）
+			add 0.002, 0.04, r_nuno + 0.040
+			block 0.024, dkW - 0.08, 0.005
+			del 1
+			! つかみ金具（板の両側、腕木を下から抱える）
+			for hk870 = 0 to 1
+				add 0.004, 0.015 + hk870 * (dkW - 0.065), -r_nuno - 0.012
+				block 0.030, 0.035, 2 * r_nuno + 0.012
+				del 1
+			next hk870
+			if hd870 = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd870
+	endif
+	return
+
+850:	! ---- 先行手すり（日建 NDX、カタログ p006）: 原点＝支柱芯の床の高さ、+X へ次の支柱芯まで nL。
+	! 手すり φ27.2 は H900（railTop）、斜材 φ21.7 は上の金具から対角の支柱の床際の金具へ（X形）。
+	! 以前は手すりを布材（φ42.7・緊結部）で描き、金具も無かった（利用者の指摘 2026-10-21: 他の部材も見直して）
+	fitL = 0.045
+	add r_sic + fitL, 0, railTop
+	roty 90
+	cylind nL - 2 * (r_sic + fitL), 0.0272 / 2
+	del 2
+	for hd850 = 0 to 1
+		if hd850 = 0 then
+			add r_sic, 0, 0
+		else
+			add nL - r_sic, 0, 0
+			mulx -1
+		endif
+		! 上の金具（手すりの高さのコマに掛ける）と下の金具（床際のコマに掛ける）
+		add 0, -0.020, railTop - 0.030
+		block fitL, 0.040, 0.060
+		del 1
+		add 0, -0.020, 0.005
+		block fitL, 0.040, 0.045
+		del 1
+		if hd850 = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd850
+	advX = nL - 2 * (r_sic + fitL / 2)
+	advDz = railTop - 0.04
+	advL = sqr(advX * advX + advDz * advDz)
+	add r_sic + fitL / 2, 0.012, railTop - 0.01
+	roty 90 + atn(advDz / advX)
+	cylind advL, 0.0217 / 2
+	del 2
+	add nL - r_sic - fitL / 2, -0.012, railTop - 0.01
+	roty -(90 + atn(advDz / advX))
+	cylind advL, 0.0217 / 2
 	del 2
 	return
 

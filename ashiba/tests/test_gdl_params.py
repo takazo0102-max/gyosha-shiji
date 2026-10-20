@@ -658,7 +658,10 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
                  / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         j = body3.index("! ---- ブレス")
-        self.assertEqual(body3[j:body3.index("! ---- 朝顔", j)].count("cylind bl, 0.0213 / 2"), 2)
+        blk = body3[j:body3.index("! ---- 朝顔", j)]
+        self.assertEqual(blk.count("cylind bl, 0.0427 / 2"), 1)          # くさび: 1本の式を2方向（bf=0,1）で
+        self.assertIn("for bf = 0 to 1", blk)
+        self.assertEqual(blk.count("cylind bl, 0.0213 / 2"), 2)          # 枠組の交差筋違
 
     def test_single_row_scaffold_gets_its_deck_brackets(self):
         """一側足場の床受けブラケットを3Dにも出す.
@@ -1064,9 +1067,23 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         self.assertIn("block hdL, 0.040, 0.037", sub)
         self.assertIn("block 0.010, 0.012, 0.150", sub)
 
-    def test_decks_clear_the_posts_by_70(self):
-        self.assertIn("add x + 0.07, -rowW + 0.05, z", self.body)
-        self.assertIn("block spans[ip] - 0.14, deckW1, 0.045", self.body)
+    def test_decks_sit_on_the_cross_ledgers(self):
+        # 布板（カタログ p007）: 長さ＝スパン、腕木の上に載り、両端のつかみ金具とペロ板
+        self.assertIn("dkL = spans[ip]", self.body)
+        sub = self.body[self.body.index("870:"):self.body.index("850:")]
+        self.assertIn("add 0.025, 0, r_nuno", sub)
+        self.assertIn("! ペロ板", sub)
+        self.assertIn("! つかみ金具", sub)
+
+    def test_toe_board_is_inside_the_outer_posts(self):
+        # 幅木（カタログ p010）: 外側の支柱の内側、布板の上の L 形（立ち上がり150・底140、スパン＋70）
+        self.assertIn("add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045", self.body)
+        self.assertIn("block spans[ip] + 0.07, 0.140, 0.004", self.body)
+
+    def test_wedge_braces_are_phi42_with_clamps(self):
+        # ブレース（カタログ p023）: φ42.7 の管、両端のクサビクランプで支柱を掴む。枠組の交差筋違は別
+        self.assertIn("cylind bl, 0.0427 / 2", self.body)
+        self.assertIn("! クサビクランプ", self.body)
 
 
 class TestNoTextIn3D(unittest.TestCase):
