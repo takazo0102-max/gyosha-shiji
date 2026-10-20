@@ -229,6 +229,9 @@ def line_params(
         "stairList": _stair_list(ep, stair_plan),
         # 支柱の径（足場の種類ごと。マスタの支柱の径）
         "postDia": _post_diameter_m(model),
+        # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
+        "cornerG": 1 if (model.master.is_frame
+                         and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
         # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）
         "postShape": 1 if model.master.series_id == "nikken_strong" else 0,
         # 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）。本体の床は切らない

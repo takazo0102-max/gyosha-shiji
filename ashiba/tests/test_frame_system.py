@@ -31,6 +31,12 @@ def build_frame(height=16300):
     )
 
 
+
+def _corner_rails(m):
+    """出隅のギャプレスの升目の外周2辺の手すり・中桟（出隅×層×4本）。スパン方向の布材とは別に数える."""
+    corners = sum(1 for e in m.plan.outline.edges if e.start_corner == "出隅")
+    return corners * m.elevation.n_levels * 4
+
 class TestSystemType(unittest.TestCase):
     def test_series_declare_system(self):
         self.assertEqual(load_master("shinwa_A").system_type, WEDGE)
@@ -226,7 +232,7 @@ class TestFrameLedgers(unittest.TestCase):
         r = QuantityRules()
         per_span = r.ledgers_negarami + r.rails_per_level_outer
         self.assertEqual(
-            self.q.qty_of("布材"), self.m.plan.total_spans * per_span
+            self.q.qty_of("布材") - _corner_rails(self.m), self.m.plan.total_spans * per_span
         )
 
     def test_rule_is_stated_in_notes(self):
@@ -239,7 +245,7 @@ class TestFrameLedgers(unittest.TestCase):
         low_m, high_m = build_frame(height=8000), build_frame(height=24000)
         self.assertLess(low_m.elevation.n_levels, high_m.elevation.n_levels)
         per_span = [
-            take_off(m).qty_of("布材") / m.plan.total_spans
+            (take_off(m).qty_of("布材") - _corner_rails(m)) / m.plan.total_spans
             for m in (low_m, high_m)
         ]
         self.assertEqual(per_span[0], per_span[1])

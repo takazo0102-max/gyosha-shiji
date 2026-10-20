@@ -1643,6 +1643,46 @@ def _assemble(
     )
 
 
+def _count_frame_corners(model: ScaffoldModel, add, notes, n_levels: int) -> None:
+    """枠組の出隅: ギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）.
+
+    出隅1箇所×1層に ギャプレス1本（建枠の幅の品）・ギャプレスクランプ3個（先行手すりの層は2個）、
+    升目の床（長さ＝建枠の幅の布板、本体と同じ幅の組）と外周2辺の手すり・中桟。以前は枠組のコーナーを
+    何も数えず、図にも隙間が空いていた（利用者の指摘 2026-10-21: 枠足場のコーナー部分も資料を見て見直して）。
+    """
+    m = model.master
+    n_corners = len([e for e in model.plan.outline.edges if e.start_corner == "出隅"
+                     and (model.edge_subset is None or e.index in model.edge_subset)])
+    if not n_corners or not n_levels:
+        return
+    row = model.post_row_spacing_mm
+    cells = n_corners * n_levels
+    cnu = next((p for p in m.by_category("コーナー布受け") if p.nominal_dim == row), None)
+    clamp = next(iter(m.by_category("コーナー布受け金具")), None)
+    adv = model.config.guard_rail_type == GUARD_RAIL_ADVANCE
+    missing = []
+    if cnu is None:
+        missing.append(f"ギャプレス（{row}幅系）{cells}本")
+    else:
+        add(cnu, cells, f"出隅のギャプレス（{row}幅系）")
+    if clamp is not None:
+        add(clamp, cells * (2 if adv else 3), "ギャプレスクランプ")
+    for w in model.deck_widths_in_use:
+        part = m.deck_parts(w, row)
+        if part is None:
+            missing.append(f"出隅の床 幅{w}×長さ{row} {cells}枚")
+        else:
+            add(part, cells, f"出隅の床 幅{w}×{row}")
+    rail = m.find("布材", row)
+    if rail is None:
+        missing.append(f"出隅の手すり・中桟（長さ{row}）{cells * 4}本")
+    else:
+        add(rail, cells * 4, f"出隅の手すり・中桟（外周2辺、{rail.model_no}）")
+    notes.append(f"枠組の出隅{n_corners}箇所×{n_levels}層はギャプレス（コーナー布受け）で納め、升目の床・外周2辺の手すりを計上")
+    if missing:
+        notes.action("枠組の出隅の部材が系列のマスタにありません: " + "・".join(missing) + "。別途手配してください")
+
+
 def _count_frame_parts(
     model: ScaffoldModel,
     rules: QuantityRules,
@@ -1810,6 +1850,8 @@ def _count_frame_parts(
     )
     add(stair, n_towers * n_levels, "階段枠")
     _count_stair_guards(model, add, notes, n_towers, n_levels)
+
+    _count_frame_corners(model, add, notes, n_levels)
 
     # ---- 朝顔（くさび式と同じ数え方・同じ注記） ----
     _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)

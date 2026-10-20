@@ -81,6 +81,7 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
+!   cornerG         整数    枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1                                        既定 0
 !   postShape       整数    支柱の形 0=丸 1=異形断面（NDストロング）                                                                  既定 0
 !   postDia         長さ    支柱の径（足場の種類ごと。0 なら φ48.6）                                                                  既定 0
 !   stOut           整数    階段を外付け 0/1: 外側建地列の外に1列立て、上り口＋階段2スパン＋降り口の区間にする                        既定 0
@@ -2140,6 +2141,51 @@ if cornerS = 1 then
 	next il
 endif
 
+! ---- 枠組の出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]）: ギャプレス（コーナー布受け） ----
+! 日建カタログ p104〜105: 躯体からはみ出す側の建枠の横架材にギャプレスを掛け渡し、ギャプレスクランプで留め、
+! その上に布板を敷く。外周2辺は手すり（アルミスカイガード）。以前は枠組のコーナーを何も描かず隙間が空いていた
+if cornerG = 1 then
+	for il = 2 to nLv
+		z = lv[il]
+		! ギャプレス（φ42.7、升目の外側の辺に沿って隣の面の建枠から渡す）
+		add -rowW, 0, z - 0.03
+		rotx 90
+		cylind rowW, 0.0214
+		del 2
+		! ギャプレスクランプ（横架材との取付け）
+		add -rowW - 0.03, -0.03, z - 0.06
+		block 0.06, 0.06, 0.06
+		del 1
+		if showDeck then
+			if matDeck > 0 then material matDeck
+			add -rowW + 0.03, -rowW + 0.03, z
+			block rowW - 0.06, rowW - 0.06, 0.045
+			del 1
+			if matScaf > 0 then material matScaf
+		endif
+		! 外周2辺の手すり・中桟
+		add -rowW, 0, z + railTop
+		rotx 90
+		cylind rowW, r_nuno
+		del 2
+		add -rowW, -rowW, z + railTop
+		roty 90
+		cylind rowW, r_nuno
+		del 2
+		add -rowW, 0, z + railMid
+		rotx 90
+		cylind rowW, r_nuno
+		del 2
+		add -rowW, -rowW, z + railMid
+		roty 90
+		cylind rowW, r_nuno
+		del 2
+		add -rowW, -rowW, z
+		cylind railTop, r_nuno
+		del 1
+	next il
+endif
+
 ! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
@@ -2429,19 +2475,26 @@ if showBrace then
 			z1 = lv[il]
 			z2 = lv[il + 1]
 			x = 0
+			! 枠組は交差筋違を両面（外構面・内構面）に入れる（カタログ「筋違（両面）」。数量も両面）
+			nbf = 0
+			if serType = "W" then nbf = 1
 			for ip = 1 to nSpan
 				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
 					bl = sqr(spans[ip] ^ 2 + (z2 - z1) ^ 2)
 					ang = atn((z2 - z1) / spans[ip])
-					add x, -rowW - 0.05, z1
-					roty 90 - ang
-					cylind bl, 0.0213 / 2
-					del 2
-					add x + spans[ip], -rowW - 0.05, z1
-					mulx -1
-					roty 90 - ang
-					cylind bl, 0.0213 / 2
-					del 3
+					for bf = 0 to nbf
+						yb2 = -rowW - 0.05
+						if bf = 1 then yb2 = 0.05
+						add x, yb2, z1
+						roty 90 - ang
+						cylind bl, 0.0213 / 2
+						del 2
+						add x + spans[ip], yb2, z1
+						mulx -1
+						roty 90 - ang
+						cylind bl, 0.0213 / 2
+						del 3
+					next bf
 				endif
 				x = x + spans[ip]
 			next ip
@@ -2831,7 +2884,8 @@ if stOut = 1 then
 			endif
 			xa = xa + spans[ipx]
 		next ipx
-		! 建地（3列目）と各層の腕木（外側建地列〜3列目）
+		! 建地（3列目）と各層の腕木（外側建地列〜3列目）。本体の支柱と同じ積み上げ・継手・コマで描く
+		! （1本の棒で描いてコマが無かった。利用者の指摘 2026-10-21）
 		xp = sx
 		for ip7 = 1 to ns7 + 1
 			gv = 0
@@ -2840,8 +2894,35 @@ if stOut = 1 then
 			add xp, yo, gv
 			gosub 820
 			addz jo
-			cylind postTop - gv - jo, r_sic
-			del 2
+			for j = 1 to nPost
+				cylind posts[j], r_sic
+				if postShape = 1 and isLite = 0 then
+					add -0.0275, -0.003, 0
+					block 0.055, 0.006, posts[j]
+					del 1
+					add -0.003, -0.0275, 0
+					block 0.006, 0.055, posts[j]
+					del 1
+				endif
+				addz posts[j]
+				if j < nPost and isLite = 0 then
+					addz -0.03
+					cylind 0.06, r_sic + 0.006
+					del 1
+				endif
+			next j
+			del nPost + 2
+			if komaPitch > 0 and isLite = 0 then
+				resol 6
+				zk = lv[1]
+				while zk < postTop - 0.01 do
+					add xp, yo, zk - 0.003
+					cylind 0.006, 0.053
+					del 1
+					zk = zk + komaPitch
+				endwhile
+				resol rN
+			endif
 			for il7 = 1 to nLv
 				add xp, -rowW, lv[il7]
 				rotx 90
@@ -3040,16 +3121,38 @@ endif
 return
 
 ! ============================================================
-860:	! ---- 建枠の補剛材（枠組の鳥居型建枠の肩の斜材。横架材から脚へ）。くさび式には無い ----
+860:	! ---- 建枠（枠組）: 鳥居型建枠の形。脚の内側 175（610幅系は 110）に縦材を立て、横桟3段で梯子にし、
+! 下端を円弧（ここでは斜材）で脚へ戻す（日建カタログ p068・070 A4055B・A3055A）。くさび式には無い。
+! 呼び出し時の z は建枠の天端（作業床の高さ）、zb はその下の建枠の天端
 if serType = "W" and il > 1 and isLite = 0 then
+	zt = z
+	zb = lv[il - 1]
+	fd = 0.175
+	if rowW < 0.8 then fd = 0.11
+	zv = zt - min(1.219, 0.72 * (zt - zb))
 	for sk = 0 to 1
-		ys = -sk * rowW
-		dir = 1 - 2 * sk
-		dir = -dir
-		bL = sqr(0.25 * 0.25 + 0.30 * 0.30)
-		add x, ys, z - 0.30
-		rotx -atn(dir * 0.25 / 0.30)
-		cylind bL, 0.0109
+		yl = -sk * rowW
+		yv = yl - fd
+		if sk = 1 then yv = yl + fd
+		! 内側の縦材
+		add x, yv, zv
+		cylind zt - 0.02 - zv, 0.0136
+		del 1
+		! 横桟（脚〜縦材）
+		for ir = 1 to 3
+			zr = zt - 0.15 - (ir - 1) * 0.40
+			if zr > zv + 0.05 then
+				add x, min(yl, yv), zr
+				rotx -90
+				cylind fd, 0.0109
+				del 2
+			endif
+		next ir
+		! 下端の円弧（縦材の下から脚へ）
+		ad = sqr(fd * fd + 0.25 * 0.25)
+		add x, yv, zv
+		rotx 180 + atn((yl - yv) / 0.25)
+		cylind ad, 0.0136
 		del 2
 	next sk
 endif

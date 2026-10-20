@@ -102,3 +102,28 @@ class TestOneSidedCornerStep(unittest.TestCase):
         q = {l.part.model_no: l.qty for l in r.quantity.lines}
         self.assertEqual(q.get("NDCS05"), r.model.outer_corner_posts() * r.model.elevation.n_levels)
         self.assertFalse(any("コーナー踏板" in w for w in r.quantity.warnings))
+
+
+class TestFrameCorners(unittest.TestCase):
+    """枠組の出隅はギャプレス（コーナー布受け、カタログ p104〜105）で納める（利用者の指摘 2026-10-21）."""
+
+    def test_gapless_per_corner_and_level(self):
+        r = solve_all({**RECT, "series_id": "waku"})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        cells = 4 * r.model.elevation.n_levels
+        self.assertEqual(q.get("CNU09"), cells)                 # 914幅系
+        self.assertEqual(q.get("CNUC"), cells * 3)
+        self.assertTrue(any("ギャプレス" in n for n in r.quantity.notes))
+
+    def test_gdl_draws_frames_both_braces_and_corner(self):
+        from pathlib import Path
+
+        from ashiba.gdl_params import line_params
+
+        r = solve_all({**RECT, "series_id": "waku"})
+        self.assertEqual(line_params(r.model, r.model.plan.edges[0])["cornerG"], 1)
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("if cornerG = 1 then", body)
+        self.assertIn('if serType = "W" then nbf = 1', body)      # 交差筋違は両面
+        self.assertIn("fd = 0.175", body)                         # 鳥居型建枠の内側の縦材

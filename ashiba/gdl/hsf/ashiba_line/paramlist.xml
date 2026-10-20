@@ -305,6 +305,10 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="cornerG">
+			<Description><![CDATA["枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="postShape">
 			<Description><![CDATA["支柱の形 0=丸 1=異形断面（NDストロング）"]]></Description>
 			<Value>0</Value>
