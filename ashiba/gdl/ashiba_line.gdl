@@ -81,7 +81,7 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
-!   stOut           整数    階段を外付け（3列）0/1: 外側建地列の外にもう1列立て、その升目に階段を通す                                 既定 0
+!   stOut           整数    階段を外付け（4列）0/1: 外側建地列の外に2列立て、通路と階段の2升にする                                    既定 0
 !   skipInS         整数    始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）                                     既定 0
 !   skipInE         整数    終点の内側建地は隣の面が描く 0/1                                                                          既定 0
 !   cornerE         整数    終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）                              既定 0
@@ -941,13 +941,14 @@ for ip = 1 to nSpan
 next ip
 line2 lineLen, 0, lineLen, -rowW
 ! 階段室: 区間の中心線と矢印（始点側から上る）
-yc = -rowW / 2 - stOut * rowW
+yc = -rowW / 2 - 2 * stOut * rowW
 for it2 = 1 to nSt
 	if stOut = 1 then
-		! 外付け（3列）: 外側建地列の外の升目
-		line2 stS[it2], -rowW, stS[it2], -2 * rowW
+		! 外付け（4列）: 外側建地列の外の通路と階段の2升
+		line2 stS[it2], -rowW, stS[it2], -3 * rowW
 		line2 stS[it2], -2 * rowW, stS[it2] + stL[it2], -2 * rowW
-		line2 stS[it2] + stL[it2], -2 * rowW, stS[it2] + stL[it2], -rowW
+		line2 stS[it2], -3 * rowW, stS[it2] + stL[it2], -3 * rowW
+		line2 stS[it2] + stL[it2], -3 * rowW, stS[it2] + stL[it2], -rowW
 	endif
 	line2 stS[it2], yc, stS[it2] + stL[it2], yc
 	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc - 0.10
@@ -1107,18 +1108,24 @@ endif
 for it2 = 1 to nSt
 	sx = stS[it2]
 	ex = sx + stL[it2]
-	! 外付け（3列）は外側建地列の外の升目に描き、3列目の建地を足す
-	y0 = -stOut * rowW
+	! 外付け（4列）は通路の升目の外の升目に描き、3列目・4列目の建地と通路の外形を足す
+	y0 = -2 * stOut * rowW
 	y1 = y0 - rowW
 	line2 sx, y0, sx, y1
 	line2 ex, y0, ex, y1
 	line2 sx, y0, ex, y1
 	line2 sx, y1, ex, y0
 	if stOut = 1 then
+		line2 sx, -rowW, sx, y1
+		line2 ex, -rowW, ex, y1
+		line2 sx, y0, ex, y0
 		line2 sx, y1, ex, y1
 		xq = 0
 		for iq = 1 to nSpan + 1
-			if xq >= sx - 0.001 and xq <= ex + 0.001 then circle2 xq, y1, r_sic
+			if xq >= sx - 0.001 and xq <= ex + 0.001 then
+				circle2 xq, y0, r_sic
+				circle2 xq, y1, r_sic
+			endif
 			if iq <= nSpan then xq = xq + spans[iq]
 		next iq
 	endif
@@ -1281,8 +1288,8 @@ for ig = 1 to nSg
 	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
 next ig
 if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
-! 外付け（3列）の階段室は外側建地列の外にもう1升
-if stOut = 1 and nSt > 0 and rowW + 0.10 > dOff then dOff = rowW + 0.10
+! 外付け（4列）の階段室は外側建地列の外にもう2升（通路と階段）
+if stOut = 1 and nSt > 0 and 2 * rowW + 0.10 > dOff then dOff = 2 * rowW + 0.10
 ! スパン寸法: 足場から離した寸法線（参考: 足場平面図は寸法を外へ離して読みやすく）。各支柱に補助線と
 ! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
 yd = -rowW - dOff - 0.90
@@ -2170,7 +2177,7 @@ for il = 1 to nLv
 			if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
 					abs(z - bkH[ik3]) < 0.001 then inSg = 1
 		next ik3
-		! 外付け（3列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
+		! 外付け（4列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
 		! 外して乗り移る（奇数層は終点側のスパン、偶数層は始点側のスパン）
 		if stOut = 1 then
 			for it6 = 1 to nSt
@@ -2367,7 +2374,7 @@ if showDeck then
 					if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
 							abs(z - bkH[ik4]) < 0.001 then inSg = 1
 				next ik4
-				! 外付け（3列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
+				! 外付け（4列）の階段: 各層で階段を上がった先の床（踊り場）のスパンは、本体の外側の手すり・幅木を
 				! 外して乗り移る（奇数層は終点側のスパン、偶数層は始点側のスパン）
 				if stOut = 1 then
 					for it6 = 1 to nSt
@@ -2666,8 +2673,8 @@ next ib2
 ! 1スパン分の階段（階段枠 1829×H1800 と同じ形）。2層登ったら外の作業床を回って始点側へ戻る。
 ! 以前は折り返し（踏面1スパン＋踊り場1スパン、層ごとに向きが逆）で描いていた
 stairW = rowW - 0.10
-! 階段を通す升目の外側の線（外付けは外側建地列のさらに外の升目）
-yb = -rowW - stOut * rowW
+! 階段を通す升目の外側の線（外付け＝4列は、外側建地列の外の通路の升目のさらに外の升目）
+yb = -rowW - 2 * stOut * rowW
 for it5 = 1 to nSt
 	sx = stS[it5]
 	sl = stL[it5]
@@ -2731,6 +2738,8 @@ for it5 = 1 to nSt
 		zg = lv[il5 + 1]
 		gy0 = yb + 0.05
 		gw = rowW - 0.10
+		! 外付け（4列）は開口の通路側（3列目）に沿って手すり・幅木を立てる（下の外付けの段で描く）
+		if stOut = 0 then
 		for gk = 0 to 1
 			add x0 + 0.03, gy0 + gk * gw, zg
 			cylind 0.95, r_nuno
@@ -2749,13 +2758,19 @@ for it5 = 1 to nSt
 		block 0.02, gw, 0.157
 		del 1
 		if matScaf > 0 then material matScaf
+		endif
 	next il5
 next it5
 
-! ---- 外付け（3列）の階段室: 外側建地列の外の建地1列と、その升目の腕木・手すり・踊り場の床 ----
+! ---- 外付け（4列）の階段室: 外側建地列の外に建地を2列（3列目・4列目）立てる ----
+! 利用者の指摘（2026-10-20）: 階段は回れるように4列は必要。外側建地列〜3列目は通路（各層に床を敷き、
+! 階段を上がった先から次の階段の上がり口まで回れる）、3列目〜4列目に階段を通す。
+! 階段の開口（その層へ下から階段が上がってくるスパン）の通路側には、3列目に沿って
+! 階段開口部手摺（手すり・中桟）と開口部幅木を立てる。外周（4列目）と妻側は手すり・中桟・幅木
 dim tsp[]
 if stOut = 1 then
-	yo = -2 * rowW
+	y3 = -2 * rowW
+	y4 = -3 * rowW
 	for it7 = 1 to nSt
 		sx = stS[it7]
 		sl = stL[it7]
@@ -2769,87 +2784,118 @@ if stOut = 1 then
 			endif
 			xa = xa + spans[ipx]
 		next ipx
-		! 建地（ジャッキから天端まで）と、各層の腕木
+		! 建地（3列目・4列目。ジャッキから天端まで）と、各層の腕木（外側建地列〜3列目〜4列目）
 		xp = sx
 		for ip7 = 1 to ns7 + 1
-			gv = 0
-			jo = jackOut
-			sv = 0
-			add xp, yo, gv
-			gosub 820
-			addz jo
-			cylind postTop - gv - jo, r_sic
-			del 2
-			for il7 = 1 to nLv
-				add xp, -rowW, lv[il7]
-				rotx 90
-				cylind rowW, r_nuno
+			for rr = 2 to 3
+				gv = 0
+				jo = jackOut
+				sv = 0
+				add xp, -rr * rowW, gv
+				gosub 820
+				addz jo
+				cylind postTop - gv - jo, r_sic
 				del 2
+			next rr
+			for il7 = 1 to nLv
+				for rr = 1 to 2
+					add xp, -rr * rowW, lv[il7]
+					rotx 90
+					cylind rowW, r_nuno
+					del 2
+				next rr
 			next il7
 			if ip7 <= ns7 then xp = xp + tsp[ip7]
 		next ip7
-		! 3列目のスパン方向: 根がらみ、各層の手すり・中桟（先行手すりなら手すり＋X斜材）、幅木、踊り場の床
 		xp = sx
 		for ip7 = 1 to ns7
 			sp7 = tsp[ip7]
-			add xp, yo, lv[1]
-			nL = sp7
-			gosub 830
-			del 1
+			! 根がらみ（3列目・4列目）
+			for rr = 2 to 3
+				add xp, -rr * rowW, lv[1]
+				nL = sp7
+				gosub 830
+				del 1
+			next rr
 			for il7 = 2 to nLv
 				z = lv[il7]
-				add xp, yo, z + railTop
+				kOdd7 = il7 - 1 - 2 * int((il7 - 1) / 2)
+				fIdx = 1
+				if kOdd7 = 0 and ns7 > 1 then fIdx = 2
+				! 外周（4列目）の手すり・中桟（先行手すりなら手すり＋X斜材）と幅木
+				add xp, y4, z + railTop
 				nL = sp7
 				gosub 830
 				del 1
 				if railAdv = 1 then
 					advDz = railTop - 0.02
 					advL = sqr(sp7 * sp7 + advDz * advDz)
-					add xp, yo, z + railTop
+					add xp, y4, z + railTop
 					roty 90 + atn(advDz / sp7)
 					cylind advL, 0.0217 / 2
 					del 2
-					add xp + sp7, yo, z + railTop
+					add xp + sp7, y4, z + railTop
 					roty -(90 + atn(advDz / sp7))
 					cylind advL, 0.0217 / 2
 					del 2
 				else
-					add xp, yo, z + railMid
+					add xp, y4, z + railMid
 					nL = sp7
 					gosub 830
 					del 1
 					if matToe > 0 then material matToe
-					add xp, yo - 0.02, z + 0.045
+					add xp, y4 - 0.02, z + 0.045
 					block sp7, 0.02, 0.157
 					del 1
 					if matScaf > 0 then material matScaf
 				endif
-				! 踊り場の床: 下から階段が上がってくるスパン（奇数層は始点側、偶数層は終点側）以外
-				kOdd7 = il7 - 1 - 2 * int((il7 - 1) / 2)
-				fIdx = 1
-				if kOdd7 = 0 then fIdx = 2
-				if showDeck and ns7 > 1 and ip7 <> fIdx then
+				if showDeck then
 					if matDeck > 0 then material matDeck
-					add xp + 0.07, yo + 0.05, z
+					! 通路の床（外側建地列〜3列目。どのスパンも敷く）
+					add xp + 0.07, y3 + 0.05, z
 					block sp7 - 0.14, rowW - 0.10, 0.045
+					del 1
+					! 階段の升目の踊り場の床（下から階段が上がってくるスパン以外）
+					if ns7 > 1 and ip7 <> fIdx then
+						add xp + 0.07, y4 + 0.05, z
+						block sp7 - 0.14, rowW - 0.10, 0.045
+						del 1
+					endif
+					if matScaf > 0 then material matScaf
+				endif
+				! 階段の開口の通路側（3列目）: 階段開口部手摺（手すり・中桟）と開口部幅木
+				if ip7 = fIdx then
+					add xp, y3, z + railTop
+					nL = sp7
+					gosub 830
+					del 1
+					add xp, y3, z + railMid
+					nL = sp7
+					gosub 830
+					del 1
+					if matToe > 0 then material matToe
+					add xp, y3, z + 0.045
+					block sp7, 0.02, 0.157
 					del 1
 					if matScaf > 0 then material matScaf
 				endif
 			next il7
 			xp = xp + sp7
 		next ip7
-		! 妻側（区間の両端）の手すり・中桟
+		! 妻側（区間の両端）の手すり・中桟（通路と階段の2升）
 		for ie7 = 0 to 1
 			xe = sx + ie7 * sl
 			for il7 = 2 to nLv
-				add xe, -rowW, lv[il7] + railTop
-				rotx 90
-				cylind rowW, r_nuno
-				del 2
-				add xe, -rowW, lv[il7] + railMid
-				rotx 90
-				cylind rowW, r_nuno
-				del 2
+				for rr = 1 to 2
+					add xe, -rr * rowW, lv[il7] + railTop
+					rotx 90
+					cylind rowW, r_nuno
+					del 2
+					add xe, -rr * rowW, lv[il7] + railMid
+					rotx 90
+					cylind rowW, r_nuno
+					del 2
+				next rr
 			next il7
 		next ie7
 	next it7
@@ -3095,7 +3141,7 @@ for it5 = 1 to nSt
 			x0 = sx + stA
 			fl = stB
 		endif
-		ybl = -stOut * rowW
+		ybl = -2 * stOut * rowW
 		lin_ x0, ybl - 0.05, lv[il5], x0 + fl, ybl - 0.05, lv[il5 + 1]
 		lin_ x0, ybl - rowW + 0.05, lv[il5], x0 + fl, ybl - rowW + 0.05, lv[il5 + 1]
 	next il5

@@ -61,13 +61,14 @@ for ip = 1 to nSpan
 next ip
 line2 lineLen, 0, lineLen, -rowW
 ! 階段室: 区間の中心線と矢印（始点側から上る）
-yc = -rowW / 2 - stOut * rowW
+yc = -rowW / 2 - 2 * stOut * rowW
 for it2 = 1 to nSt
 	if stOut = 1 then
-		! 外付け（3列）: 外側建地列の外の升目
-		line2 stS[it2], -rowW, stS[it2], -2 * rowW
+		! 外付け（4列）: 外側建地列の外の通路と階段の2升
+		line2 stS[it2], -rowW, stS[it2], -3 * rowW
 		line2 stS[it2], -2 * rowW, stS[it2] + stL[it2], -2 * rowW
-		line2 stS[it2] + stL[it2], -2 * rowW, stS[it2] + stL[it2], -rowW
+		line2 stS[it2], -3 * rowW, stS[it2] + stL[it2], -3 * rowW
+		line2 stS[it2] + stL[it2], -3 * rowW, stS[it2] + stL[it2], -rowW
 	endif
 	line2 stS[it2], yc, stS[it2] + stL[it2], yc
 	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc - 0.10
@@ -227,18 +228,24 @@ endif
 for it2 = 1 to nSt
 	sx = stS[it2]
 	ex = sx + stL[it2]
-	! 外付け（3列）は外側建地列の外の升目に描き、3列目の建地を足す
-	y0 = -stOut * rowW
+	! 外付け（4列）は通路の升目の外の升目に描き、3列目・4列目の建地と通路の外形を足す
+	y0 = -2 * stOut * rowW
 	y1 = y0 - rowW
 	line2 sx, y0, sx, y1
 	line2 ex, y0, ex, y1
 	line2 sx, y0, ex, y1
 	line2 sx, y1, ex, y0
 	if stOut = 1 then
+		line2 sx, -rowW, sx, y1
+		line2 ex, -rowW, ex, y1
+		line2 sx, y0, ex, y0
 		line2 sx, y1, ex, y1
 		xq = 0
 		for iq = 1 to nSpan + 1
-			if xq >= sx - 0.001 and xq <= ex + 0.001 then circle2 xq, y1, r_sic
+			if xq >= sx - 0.001 and xq <= ex + 0.001 then
+				circle2 xq, y0, r_sic
+				circle2 xq, y1, r_sic
+			endif
 			if iq <= nSpan then xq = xq + spans[iq]
 		next iq
 	endif
@@ -401,8 +408,8 @@ for ig = 1 to nSg
 	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
 next ig
 if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
-! 外付け（3列）の階段室は外側建地列の外にもう1升
-if stOut = 1 and nSt > 0 and rowW + 0.10 > dOff then dOff = rowW + 0.10
+! 外付け（4列）の階段室は外側建地列の外にもう2升（通路と階段）
+if stOut = 1 and nSt > 0 and 2 * rowW + 0.10 > dOff then dOff = 2 * rowW + 0.10
 ! スパン寸法: 足場から離した寸法線（参考: 足場平面図は寸法を外へ離して読みやすく）。各支柱に補助線と
 ! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
 yd = -rowW - dOff - 0.90

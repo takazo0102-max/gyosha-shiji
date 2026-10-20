@@ -90,8 +90,8 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         if ep is None:
             continue
         to, tu, tn = _frame(ep)
-        # 外付け（3列）は外側建地列の外の升目の中央
-        y_mm = -row_w / 2.0 - (row_w if getattr(stair_plan, "outside", False) else 0.0)
+        # 外付け（4列）は通路の外の、階段の升目の中央
+        y_mm = -row_w / 2.0 - (2 * row_w if getattr(stair_plan, "outside", False) else 0.0)
         x, y = _pt(to, tu, tn, (t.start_mm + t.end_mm) / 2.0, y_mm)
         items.append((x, y, stair))
     return items
@@ -203,7 +203,7 @@ def face_outward_m(model: ScaffoldModel, ep, platforms=None, stair_plan=None) ->
     d = 0.0
     if getattr(stair_plan, "outside", False) and any(
             t.edge_index == ep.edge_index for t in getattr(stair_plan, "towers", None) or []):
-        d = float(model.post_row_spacing_mm) / 1000.0 + 0.10
+        d = 2 * float(model.post_row_spacing_mm) / 1000.0 + 0.10
     for ho in getattr(platforms, "hoists", None) or []:
         if getattr(ho, "edge_index", None) == ep.edge_index:
             d = max(d, 0.10 + float(getattr(ho, "cage_depth_mm", 0.0) or 0.0) / 1000.0 + 0.55)

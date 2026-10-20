@@ -144,7 +144,7 @@
 			<Value>1</Value>
 		</Boolean>
 		<String Name="stairLayout">
-			<Description><![CDATA["階段の付け方（足場の中／外付け（3列）／自動＝足場の外に空きがあれば外付け）"]]></Description>
+			<Description><![CDATA["階段の付け方（足場の中／外付け（4列）／自動＝足場の外に空きがあれば外付け）"]]></Description>
 			<Value><![CDATA["自動"]]></Value>
 		</String>
 		<String Name="netLevels">

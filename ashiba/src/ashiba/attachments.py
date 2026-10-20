@@ -172,7 +172,7 @@ def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
 def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float, float]]:
     """面のシートの区間 [(始点, 終点, 内側建地芯からシートの面まで) mm].
 
-    外付け（3列）の階段室の区間は、本体の外側でシートを切り（乗り移りの通路）、階段室の外側に張る。
+    外付け（4列）の階段室の区間は、本体の外側でシートを切り（乗り移りの通路）、階段室の外側に張る。
     """
     x0, x1 = _sheet_extent(model, ep)
     off = float(model.post_row_spacing_mm) + SHEET_GAP_MM
@@ -184,7 +184,7 @@ def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[floa
     for s0, e0 in cuts:
         if s0 > cur:
             out.append((cur, s0, off))
-        out.append((s0, e0, off + float(model.post_row_spacing_mm)))
+        out.append((s0, e0, off + 2 * float(model.post_row_spacing_mm)))
         cur = max(cur, e0)
     if x1 > cur:
         out.append((cur, x1, off))
@@ -192,9 +192,9 @@ def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[floa
 
 
 def sheet_end_pieces(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float]]:
-    """外付け（3列）の階段室の妻側（区間の両端）のシート [(面に沿った位置, 位置からシートまでのずれ) mm].
+    """外付け（4列）の階段室の妻側（区間の両端）のシート [(面に沿った位置, 位置からシートまでのずれ) mm].
 
-    妻側は外側建地列から3列目まで（建地列の間隔1つぶん）。始点側は区間の外（−あき）、終点側も外（＋あき）。
+    妻側は外側建地列から4列目まで（建地列の間隔2つぶん）。始点側は区間の外（−あき）、終点側も外（＋あき）。
     """
     if stair_plan is None or not getattr(stair_plan, "outside", False):
         return []
@@ -219,12 +219,12 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
                 "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zB": 0.0, "zT": top / 1000.0,
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
-        # 外付け階段室の妻側: 部品の x を面の外向きにして（面の向き−90°）、外側建地列から3列目まで
+        # 外付け階段室の妻側: 部品の x を面の外向きにして（面の向き−90°）、外側建地列から4列目まで
         row = float(model.post_row_spacing_mm)
         for pos, shift in sheet_end_pieces(model, ep, stair_plan):
             out.append(Placement(SHEET_OBJECT, o[0] + _u[0] * pos, o[1] + _u[1] * pos, {
                 "faceAng": ang - 90.0, "zH": model.base_height_mm / 1000.0, "offY": shift / 1000.0,
-                "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (2 * row + SHEET_GAP_MM) / 1000.0,
+                "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (3 * row + SHEET_GAP_MM) / 1000.0,
                 "zB": 0.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
                 "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
     return out
@@ -242,7 +242,7 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None) -> tuple[float, int]
     for ep in model.plan.edges:
         top = float(model.elevation_of(ep.edge_index).total_height)
         widths = [max(0.0, x1 - x0) for x0, x1, _off in sheet_segments(model, ep, stair_plan)]
-        widths += [float(model.post_row_spacing_mm)] * len(sheet_end_pieces(model, ep, stair_plan))
+        widths += [2 * float(model.post_row_spacing_mm)] * len(sheet_end_pieces(model, ep, stair_plan))
         for w in widths:
             area += w / 1000.0 * top / 1000.0
             n += _m.ceil(w / size[0] - 1e-6) * _m.ceil(top / size[1] - 1e-6)

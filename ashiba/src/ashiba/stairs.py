@@ -51,8 +51,8 @@ class StairPlan:
     required_count: int = 0
     landings_per_tower: int = 0    # 1箇所あたり階段室を出て作業床を通る回数（2層ごと。作業床が踊り場を兼ね、踊り場の床材は使わない）
     warnings: list[str] = field(default_factory=list)
-    # 外付け（3列）: 外側建地列のさらに外に建地をもう1列立て、その升目に階段を通す。本体の作業床は
-    # 切らない（利用者の指摘 2026-10-20: 敷地が広いところは階段を3列で横に付けるパターンが多い）
+    # 外付け（4列）: 外側建地列のさらに外に建地を2列立て、内側の升目を通路、外側の升目に階段を通す。本体の作業床は
+    # 切らない（利用者の指摘 2026-10-20: 敷地が広いところは階段を横に付けるパターンが多い。回れるように4列は必要）
     outside: bool = False
 
     @property
@@ -426,21 +426,21 @@ def _find_slot(
 
 
 STAIR_LAYOUTS = {"inside": "inside", "内": "inside", "中": "inside", "足場の中": "inside",
-                 "outside": "outside", "外付け": "outside", "外": "outside", "3列": "outside",
+                 "outside": "outside", "外付け": "outside", "外": "outside", "3列": "outside", "4列": "outside",
                  "auto": "auto", "自動": "auto"}
-OUTSIDE_SPACE_MARGIN_MM = 600    # 外付けにするには、足場の外に建地列の間隔＋この余裕が要る
+OUTSIDE_SPACE_MARGIN_MM = 600    # 外付け（4列）にするには、足場の外に建地列の間隔×2（通路と階段）＋この余裕が要る
 
 
 def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tuple[bool, str]:
-    """階段を外付け（3列）にするか。auto は足場の外の空き（clearance_space_mm）で決める."""
+    """階段を外付け（4列）にするか。auto は足場の外の空き（clearance_space_mm）で決める."""
     kind = STAIR_LAYOUTS.get(str(layout or "inside").strip(), "inside")
     if model.master.is_frame or model.config.scaffold_form == "一側足場":
         return False, ("枠組・一側足場は階段を足場の中に組みます（外付けの指定は使いません）" if kind == "outside" else "")
-    need = model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
+    need = 2 * model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
     if kind == "outside":
         if clearance_mm < need:
-            return True, (f"階段を外付け（3列）にしましたが、足場の外の空き {clearance_mm:.0f}mm は"
-                          f"外付けに要る {need:.0f}mm（建地列の間隔＋{OUTSIDE_SPACE_MARGIN_MM}）より狭いです")
+            return True, (f"階段を外付け（4列）にしましたが、足場の外の空き {clearance_mm:.0f}mm は"
+                          f"外付けに要る {need:.0f}mm（建地列の間隔×2＋{OUTSIDE_SPACE_MARGIN_MM}）より狭いです")
         return True, ""
     if kind == "auto":
         # 決めた結果は数量の注記（外付けの部材）と図に出るので、要確認には入れない
