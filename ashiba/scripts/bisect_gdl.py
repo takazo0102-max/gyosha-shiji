@@ -77,17 +77,67 @@ def build_variant(part: str, name: str, patches: dict, work: Path) -> tuple[str,
     return f"{part}_{name}", gsm
 
 
-def is_blank(png: bytes) -> bool:
-    """PNG がほぼ真っ白か（PIL が無くても判定できるよう、サイズと一様性を粗く見る）."""
-    try:
-        from PIL import Image  # type: ignore
+def _dark_pixels(png: bytes, threshold: int = 200) -> tuple[int, int]:
+    """PNG（8bit・RGB/RGBA/グレー・インターレース無し）の暗い画素の数と総画素数. 標準ライブラリだけで読む.
 
-        im = Image.open(io.BytesIO(png)).convert("L")
-        hist = im.histogram()
-        dark = sum(hist[:200])
-        return dark < im.width * im.height * 0.0005
-    except ImportError:
-        return len(png) < 60000     # 2400x1500: 真っ白〜点だけで約20〜50KB、描けていれば70KB超
+    以前は PIL が無いと「ファイルが 60KB 未満なら真っ白」と見ていて、寸法ツールで寸法を部品から外したら
+    線の少ない平面が 57KB になり、描けているのに真っ白と判定した（2026-10-20 スモーク）。
+    """
+    import struct
+    import zlib
+
+    pos = 8
+    width = height = 0
+    ctype = 2
+    data = b""
+    while pos < len(png):
+        n = struct.unpack(">I", png[pos:pos + 4])[0]
+        kind = png[pos + 4:pos + 8]
+        body = png[pos + 8:pos + 8 + n]
+        if kind == b"IHDR":
+            width, height, depth, ctype, _c, _f, inter = struct.unpack(">IIBBBBB", body)
+            if depth != 8 or inter != 0 or ctype not in (0, 2, 4, 6):
+                raise ValueError("対応していない PNG")
+        elif kind == b"IDAT":
+            data += body
+        pos += 12 + n
+    bpp = {0: 1, 2: 3, 4: 2, 6: 4}[ctype]
+    raw = zlib.decompress(data)
+    stride = width * bpp
+    prev = bytearray(stride)
+    dark = 0
+    i = 0
+    for _y in range(height):
+        f = raw[i]
+        line = bytearray(raw[i + 1:i + 1 + stride])
+        i += 1 + stride
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1:
+                line[x] = (line[x] + a) & 255
+            elif f == 2:
+                line[x] = (line[x] + b) & 255
+            elif f == 3:
+                line[x] = (line[x] + ((a + b) >> 1)) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        for x in range(0, stride, bpp):
+            if line[x] < threshold:
+                dark += 1
+        prev = line
+    return dark, width * height
+
+
+def is_blank(png: bytes) -> bool:
+    """PNG がほぼ真っ白か（暗い画素が 0.02% 未満）."""
+    try:
+        dark, total = _dark_pixels(png)
+        return dark < total * 0.0002
+    except (ValueError, KeyError, Exception):  # noqa: BLE001 — 読めない PNG は従来の大きさで見る
+        return len(png) < 20000
 
 
 def main() -> int:
