@@ -14,22 +14,23 @@
 ! 形は足場ラインの同じ部材と同じ。parentId に分解元の足場ラインの要素ID（「分解を戻す」で使う）。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   kind       整数    部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ      既定 1
-!   faceAng    角度    向き（度。+X＝部材の長さの向き）                                        既定 0
-!   zH         長さ    下端の高さ                                                              既定 0
-!   memL       長さ    長さ（支柱は高さ、布材・踏板・幅木・先行手すり・ブレースは水平の長さ）  既定 1.8
-!   memW       長さ    幅（踏板の幅、ブレースのクランプの奥行き）                              既定 0.49
-!   memH       長さ    高さ（先行手すりの手すりの高さ、ブレースの上がり、ジャッキの繰出し）    既定 0.9
-!   komaList   文字列  支柱のコマの高さ mm（下端から、カンマ区切り）                           既定 ""
-!   postDia    長さ    支柱の径                                                                既定 0.0427
-!   postShape  整数    支柱の断面 0円 1ストロングの異形                                        既定 0
-!   partName   文字列  部材名（一覧表用）                                                      既定 ""
-!   partNo     文字列  品番（一覧表用）                                                        既定 ""
-!   parentId   文字列  分解した足場ラインの要素ID（まとめ直すときに使う）                      既定 ""
-!   liteMode   ブール  軽量の3D（コマ・クサビ・金具を省く）                                    既定 0
-!   matScaf    表面材  表面材（0＝既定）                                                       既定 0
-!   matDeck    表面材  踏板の表面材（0＝既定）                                                 既定 0
-!   matToe     表面材  幅木の表面材（0＝既定）                                                 既定 0
+!   kind       整数    部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ 8建枠 9交差筋違                      既定 1
+!   faceAng    角度    向き（度。+X＝部材の長さの向き）                                                                        既定 0
+!   zH         長さ    下端の高さ                                                                                              既定 0
+!   memL       長さ    長さ（支柱は高さ、布材・踏板・幅木・先行手すり・ブレースは水平の長さ）                                  既定 1.8
+!   memW       長さ    幅（踏板の幅、ブレースのクランプの奥行き）                                                              既定 0.49
+!   memH       長さ    高さ（先行手すりの手すりの高さ、ブレースの上がり、ジャッキの繰出し）                                    既定 0.9
+!   komaList   文字列  支柱のコマの高さ mm（下端から、カンマ区切り）                                                           既定 ""
+!   postDia    長さ    支柱の径                                                                                                既定 0.0427
+!   postShape  整数    支柱の断面 0円 1ストロングの異形                                                                        既定 0
+!   frFlags    整数    建枠の指定 1＝下の建枠との継ぎ目（連結ピン・アームロック） 2＝躯体側の脚を描かない（隅で隣の面と共有）  既定 0
+!   partName   文字列  部材名（一覧表用）                                                                                      既定 ""
+!   partNo     文字列  品番（一覧表用）                                                                                        既定 ""
+!   parentId   文字列  分解した足場ラインの要素ID（まとめ直すときに使う）                                                      既定 ""
+!   liteMode   ブール  軽量の3D（コマ・クサビ・金具を省く）                                                                    既定 0
+!   matScaf    表面材  表面材（0＝既定）                                                                                       既定 0
+!   matDeck    表面材  踏板の表面材（0＝既定）                                                                                 既定 0
+!   matToe     表面材  幅木の表面材（0＝既定）                                                                                 既定 0
 ! ==========================================================
 
 ! ==========================================================
@@ -71,6 +72,19 @@ if kind = 6 then
 endif
 if kind = 7 then
 	rect2 -0.07, -0.07, 0.07, 0.07
+	hotspot2 0, 0
+endif
+if kind = 8 then
+	line2 0, 0, 0, -memW
+	if not(bittest(frFlags, 1)) then circle2 0, 0, r_sic
+	circle2 0, -memW, r_sic
+	hotspot2 0, 0
+	hotspot2 0, -memW
+endif
+if kind = 9 then
+	line_type 3
+	line2 0, 0, memL, 0
+	line_type 1
 	hotspot2 0, 0
 endif
 del 1
@@ -271,6 +285,90 @@ if kind = 7 then
 		del 3
 	endif
 	del 1
+endif
+if kind = 8 then
+	! 建枠（鳥居型、日建カタログ p068〜070）: 原点＝躯体側の脚の下端、-Y へ幅 memW（外側の脚）、高さ memL。
+	! 脚 2本・横架材・内側の縦材と横桟3段・下端の円弧。frFlags 1＝下の建枠との継ぎ目に連結ピンとアームロック
+	fW = memW
+	fH = memL
+	fd = 0.175
+	if fW < 0.8 then fd = 0.11
+	for sk = 0 to 1
+		yl = -sk * fW
+		if not(sk = 0 and bittest(frFlags, 1)) then
+			add 0, yl, 0
+			cylind fH, r_sic
+			del 1
+		endif
+		yv = yl - fd
+		if sk = 1 then yv = yl + fd
+		zv = fH - min(1.219, 0.72 * fH)
+		add 0, yv, zv
+		cylind fH - 0.02 - zv, 0.0136
+		del 1
+		for ir = 1 to 3
+			zr = fH - 0.15 - (ir - 1) * 0.40
+			if zr > zv + 0.05 then
+				add 0, min(yl, yv), zr
+				rotx -90
+				cylind fd, 0.0109
+				del 2
+			endif
+		next ir
+		ad = sqr(fd * fd + 0.25 * 0.25)
+		add 0, yv, zv
+		rotx 180 + atn((yl - yv) / 0.25)
+		cylind ad, 0.0136
+		del 2
+		if bittest(frFlags, 0) and isLite = 0 then
+			add 0, yl, -0.10
+			cylind 0.20, r_sic + 0.004
+			del 1
+			yi = yl - 0.045
+			if sk = 1 then yi = yl + 0.045
+			add 0, yi, -0.37
+			cylind 0.739, 0.009
+			del 1
+		endif
+	next sk
+	! 横架材（天端）
+	add 0, 0, fH
+	rotx 90
+	cylind fW, r_nuno
+	del 2
+endif
+
+if kind = 9 then
+	! 交差筋違（平鋼2本の X、中央ピン）: 原点＝下の筋違ピンの高さで始点の脚の位置（筋違の面）、+X へ memL、
+	! ピン間の高さ memH、memW＝筋違の面から脚の芯まで（±、ピンの長さ）
+	bl = sqr(memL * memL + memH * memH)
+	bAng = atn(memH / memL)
+	for bd = 0 to 1
+		add bd * memL, bd * 0.006, 0
+		if bd = 1 then mulx -1
+		roty -bAng
+		add 0, -0.003, -0.0125
+		block bl, 0.006, 0.025
+		del 2
+		if bd = 1 then del 1
+		del 1
+	next bd
+	if isLite = 0 then
+		add memL / 2, -0.012, memH / 2
+		rotx -90
+		cylind 0.03, 0.006
+		del 2
+		for pe = 0 to 3
+			px = 0
+			if pe = 1 or pe = 3 then px = memL
+			pz = 0
+			if pe >= 2 then pz = memH
+			add px, min(0, memW) - 0.01, pz
+			rotx -90
+			cylind abs(memW) + 0.02, 0.007
+			del 2
+		next pe
+	endif
 endif
 del 2
 

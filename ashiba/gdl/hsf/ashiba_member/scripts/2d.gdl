@@ -26,4 +26,17 @@ if kind = 7 then
 	rect2 -0.07, -0.07, 0.07, 0.07
 	hotspot2 0, 0
 endif
+if kind = 8 then
+	line2 0, 0, 0, -memW
+	if not(bittest(frFlags, 1)) then circle2 0, 0, r_sic
+	circle2 0, -memW, r_sic
+	hotspot2 0, 0
+	hotspot2 0, -memW
+endif
+if kind = 9 then
+	line_type 3
+	line2 0, 0, memL, 0
+	line_type 1
+	hotspot2 0, 0
+endif
 del 1

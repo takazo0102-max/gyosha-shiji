@@ -1101,7 +1101,10 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         # 布材・手すり・中桟・根がらみに加え、腕木・出隅の升目・開放端・外付け階段の横材もすべて同じつなぎ材の形
         self.assertGreaterEqual(self.body.count("gosub 830"), 27)
         self.assertNotIn("cylind spans[ip], r_nuno", self.body)
-        self.assertNotIn("cylind rowW, r_nuno", self.body)               # 支柱芯から芯まで通した直棒は無い
+        # 支柱芯から芯まで通した直棒は、枠組の建枠の横架材（溶接）だけ
+        import re as _re
+        for m in _re.finditer("cylind rowW, r_nuno", self.body):
+            self.assertIn('if serType = "W" then', self.body[max(0, m.start() - 160):m.start()])
         sub = self.body[self.body.index("830:"):self.body.index("900:")]
         # 管は緊結部の間だけ（日建カタログ p005: L1＝L−42.7、緊結部は支柱の外面から）
         self.assertIn("cylind nL - 2 * (hx0 + hdL), r_nuno", sub)

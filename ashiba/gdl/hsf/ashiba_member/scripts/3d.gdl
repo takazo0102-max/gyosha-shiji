@@ -192,4 +192,88 @@ if kind = 7 then
 	endif
 	del 1
 endif
+if kind = 8 then
+	! 建枠（鳥居型、日建カタログ p068〜070）: 原点＝躯体側の脚の下端、-Y へ幅 memW（外側の脚）、高さ memL。
+	! 脚 2本・横架材・内側の縦材と横桟3段・下端の円弧。frFlags 1＝下の建枠との継ぎ目に連結ピンとアームロック
+	fW = memW
+	fH = memL
+	fd = 0.175
+	if fW < 0.8 then fd = 0.11
+	for sk = 0 to 1
+		yl = -sk * fW
+		if not(sk = 0 and bittest(frFlags, 1)) then
+			add 0, yl, 0
+			cylind fH, r_sic
+			del 1
+		endif
+		yv = yl - fd
+		if sk = 1 then yv = yl + fd
+		zv = fH - min(1.219, 0.72 * fH)
+		add 0, yv, zv
+		cylind fH - 0.02 - zv, 0.0136
+		del 1
+		for ir = 1 to 3
+			zr = fH - 0.15 - (ir - 1) * 0.40
+			if zr > zv + 0.05 then
+				add 0, min(yl, yv), zr
+				rotx -90
+				cylind fd, 0.0109
+				del 2
+			endif
+		next ir
+		ad = sqr(fd * fd + 0.25 * 0.25)
+		add 0, yv, zv
+		rotx 180 + atn((yl - yv) / 0.25)
+		cylind ad, 0.0136
+		del 2
+		if bittest(frFlags, 0) and isLite = 0 then
+			add 0, yl, -0.10
+			cylind 0.20, r_sic + 0.004
+			del 1
+			yi = yl - 0.045
+			if sk = 1 then yi = yl + 0.045
+			add 0, yi, -0.37
+			cylind 0.739, 0.009
+			del 1
+		endif
+	next sk
+	! 横架材（天端）
+	add 0, 0, fH
+	rotx 90
+	cylind fW, r_nuno
+	del 2
+endif
+
+if kind = 9 then
+	! 交差筋違（平鋼2本の X、中央ピン）: 原点＝下の筋違ピンの高さで始点の脚の位置（筋違の面）、+X へ memL、
+	! ピン間の高さ memH、memW＝筋違の面から脚の芯まで（±、ピンの長さ）
+	bl = sqr(memL * memL + memH * memH)
+	bAng = atn(memH / memL)
+	for bd = 0 to 1
+		add bd * memL, bd * 0.006, 0
+		if bd = 1 then mulx -1
+		roty -bAng
+		add 0, -0.003, -0.0125
+		block bl, 0.006, 0.025
+		del 2
+		if bd = 1 then del 1
+		del 1
+	next bd
+	if isLite = 0 then
+		add memL / 2, -0.012, memH / 2
+		rotx -90
+		cylind 0.03, 0.006
+		del 2
+		for pe = 0 to 3
+			px = 0
+			if pe = 1 or pe = 3 then px = memL
+			pz = 0
+			if pe >= 2 then pz = memH
+			add px, min(0, memW) - 0.01, pz
+			rotx -90
+			cylind abs(memW) + 0.02, 0.007
+			del 2
+		next pe
+	endif
+endif
 del 2

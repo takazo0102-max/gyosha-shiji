@@ -8,7 +8,7 @@
 座標: 足場ラインの局所座標（x＝面に沿う向き、y＝躯体側が＋、外側建地列は y=-rowW、z＝足場の立つ面から）を、
 足場ラインの原点・回転で平面の座標に直す。
 
-対象はくさび式（足場ラインの serType が A）。枠組（建枠）は分解しない。
+くさび式は支柱を1本ずつ、枠組（serType W）は建枠を1枚ずつ（脚2本・横架材・鳥居の縦材）と交差筋違にする。
 敷地の高低差（脚ごとの地盤高）、荷受けステージ・昇降機の乗り込み口・ブラケット区間で手すりを外す升目は
 考えず、全部の升目に手すりを置く（分解後にその部材を消す）。
 """
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 MEMBER_OBJECT = "ashiba_member"
-KIND = {"支柱": 1, "布材": 2, "踏板": 3, "幅木": 4, "先行手すり": 5, "ブレース": 6, "ジャッキ": 7}
+KIND = {"支柱": 1, "布材": 2, "踏板": 3, "幅木": 4, "先行手すり": 5, "ブレース": 6, "ジャッキ": 7, "建枠": 8, "交差筋違": 9}
 R_NUNO = 0.0427 / 2
 
 
@@ -36,6 +36,7 @@ class Member:
     H: float = 0.0
     koma: list = field(default_factory=list)   # 支柱のコマ（下端から mm）
     name: str = ""
+    flags: int = 0        # 建枠: 1＝下の建枠との継ぎ目、2＝躯体側の脚を描かない
 
 
 def _nums(v) -> list[float]:
@@ -94,8 +95,7 @@ def _edit_bit(edits, ip: int, level: int, bit: int) -> bool:
 
 def line_members(p: dict) -> list[Member]:
     """足場ラインの GDL パラメータ → 局所座標の部材の並び（3d.gdl の支柱・水平材・踏板・幅木・ブレースと同じ規則）."""
-    if str(p.get("serType", "A")).strip() == "W":
-        raise ValueError("枠組（建枠）の足場ラインは部材に分解できません（くさび式だけ）")
+    frame = str(p.get("serType", "A")).strip() == "W"
     spans = [v / 1000 for v in _nums(p.get("spanList")) + _nums(p.get("spanList2"))]
     posts = [v / 1000 for v in _nums(p.get("postList"))]
     if not spans or not posts:
@@ -146,10 +146,24 @@ def line_members(p: dict) -> list[Member]:
                 out.append(Member(1, x, y, b_base, L=post_top - b_base, name=f"支柱（梁枠上）{(post_top - b_base) * 1000:.0f}"))
                 continue
             out.append(Member(7, x, y, 0.0, H=jack, name=f"ジャッキベース 繰出し{jack * 1000:.0f}"))
+            if frame:
+                continue                  # 建枠は内外の脚を1枚で（下でまとめて置く）
             z = jack
             for pl in posts:
                 out.append(Member(1, x, y, z, L=pl, koma=koma_offsets(pl, pitch, gap, nega, nega_lens),
                                   name=f"支柱 {pl * 1000:.0f}"))
+                z += pl
+
+    # ---- 建枠（枠組。支柱位置ごとに段数ぶん積む。隅で隣の面と共有する躯体側の脚は描かない） ----
+    if frame:
+        for ip, x in enumerate(xs):
+            if any(s + 0.001 < x < s + ln - 0.001 for s, ln, h in beams):
+                continue
+            shared = (ip == 0 and skip_s) or (ip == n_span and skip_e)
+            z = jack
+            for j, pl in enumerate(posts):
+                out.append(Member(8, x, 0.0, z, L=pl, W=row_w, flags=(1 if j else 0) | (2 if shared else 0),
+                                  name=f"建枠 {row_w * 1000:.0f}×{pl * 1000:.0f}"))
                 z += pl
 
     # ---- 水平材（根がらみ・腕木・外側の手すり・中桟／先行手すり・内側の手すり・中桟） ----
@@ -163,7 +177,9 @@ def line_members(p: dict) -> list[Member]:
                 for row in range(row_start, 2):
                     out.append(Member(2, x, -row * row_w, z, L=sp, name=f"布材（根がらみ）{sp * 1000:.0f}"))
             in_sg = st_out and any(abs(x - s) < 0.001 or abs(x + sp - s - ln) < 0.001 for s, ln in towers)
-            if il > 0 and not skip_h and not in_sg and not _edit_bit(edits, ip + 1, k, 1):
+            # 枠組の中間層の手すりは1つ上の建枠が兼ねる（最上層だけ布材）
+            fr_mid = frame and il < n_lv - 1
+            if il > 0 and not skip_h and not in_sg and not fr_mid and not _edit_bit(edits, ip + 1, k, 1):
                 if rail_adv:
                     out.append(Member(5, x, -row_w, z, L=sp, H=rail_top, name=f"先行手すり {sp * 1000:.0f}"))
                 else:
@@ -172,8 +188,8 @@ def line_members(p: dict) -> list[Member]:
             if il > 0 and not skip_h and rail_in and not _edit_bit(edits, ip + 1, k, 4):
                 out.append(Member(2, x, 0.0, z + rail_top, L=sp, name=f"布材（躯体側の手すり）{sp * 1000:.0f}"))
                 out.append(Member(2, x, 0.0, z + rail_mid, L=sp, name=f"布材（躯体側の中桟）{sp * 1000:.0f}"))
-        # 腕木（支柱位置ごと、内外の建地列の間。梁枠の内側の支柱を抜いた位置には無い）
-        if n_rows >= 2:
+        # 腕木（支柱位置ごと、内外の建地列の間。梁枠の内側の支柱を抜いた位置には無い）。枠組は建枠の横架材
+        if n_rows >= 2 and not frame:
             for ip, x in enumerate(xs):
                 if any(s + 0.001 < x < s + ln - 0.001 and z < h - 0.001 for s, ln, h in beams):
                     continue
@@ -213,6 +229,22 @@ def line_members(p: dict) -> list[Member]:
                 out.append(Member(4, x - 0.035, -row_w + r_sic + 0.004, z + R_NUNO + 0.045, L=sp + 0.07,
                                   name=f"幅木 {sp * 1000:.0f}"))
 
+    # ---- 交差筋違（枠組。全構面の両面、建枠の脚の筋違ピンに掛ける） ----
+    if frame:
+        for il in range(n_lv - 1):
+            z1, z2 = lv[il], lv[il + 1]
+            bpz = 0.24 if z2 - z1 >= 0.9 else 0.10
+            for ip in range(n_span):
+                if _edit_bit(edits, ip + 1, il + 1, 3):
+                    continue
+                x, sp = xs[ip], spans[ip]
+                for bf in (0, 1):
+                    yb = -row_w - 0.035 if bf == 0 else 0.035
+                    leg = -row_w if bf == 0 else 0.0
+                    out.append(Member(9, x, yb, z1 + bpz, L=sp, H=z2 - z1 - 2 * bpz, W=leg - yb,
+                                      name=f"交差筋違 {sp * 1000:.0f}"))
+        return out
+
     # ---- ブレース（外側構面、bEvS スパン・bEvL 層ごとに交さ2方向） ----
     br_z = 0.10
     for il in range(n_lv - 1):
@@ -248,7 +280,7 @@ def to_world(members: list[Member], origin_m: tuple, angle_rad: float, base_z_m:
             "params": {
                 "kind": int(m.kind), "faceAng": (deg + m.ang) % 360.0, "zH": base_z_m + m.z,
                 "memL": float(m.L), "memW": float(m.W), "memH": float(m.H),
-                "komaList": ",".join(str(v) for v in m.koma), "partName": m.name,
+                "komaList": ",".join(str(v) for v in m.koma), "partName": m.name, "frFlags": int(m.flags),
             },
         })
     return out

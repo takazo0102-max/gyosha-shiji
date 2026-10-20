@@ -30,7 +30,7 @@
 			<Value>1</Value>
 		</Length>
 				<Integer Name="kind">
-			<Description><![CDATA["部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ"]]></Description>
+			<Description><![CDATA["部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ 8建枠 9交差筋違"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<Angle Name="faceAng">
@@ -63,6 +63,10 @@
 		</Length>
 		<Integer Name="postShape">
 			<Description><![CDATA["支柱の断面 0円 1ストロングの異形"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="frFlags">
+			<Description><![CDATA["建枠の指定 1＝下の建枠との継ぎ目（連結ピン・アームロック） 2＝躯体側の脚を描かない（隅で隣の面と共有）"]]></Description>
 			<Value>0</Value>
 		</Integer>
 		<String Name="partName">

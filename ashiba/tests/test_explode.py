@@ -74,10 +74,32 @@ class TestDetails(unittest.TestCase):
         self.assertAlmostEqual(outer_jack["x"], 30.0 + 0.61, places=3)   # 外側（-Y 局所）は +X 側
         self.assertAlmostEqual(outer_jack["params"]["faceAng"], 90.0)
 
-    def test_frame_is_refused(self):
+    def test_frame_becomes_frames_and_cross_braces(self):
         r = solve_all({**RECT, "series_id": "waku"})
-        with self.assertRaises(ValueError):
-            line_members(line_params(r.model, r.model.plan.edges[0]))
+        for ep in r.model.plan.edges:
+            p = line_params(r.model, ep)
+            ms = line_members(p)
+            e = r.model.elevation_of(ep.edge_index)
+            n_pos, n_stage = len(ep.spans) + 1, len(e.posts)
+            with self.subTest(edge=ep.edge_index):
+                frames = [m for m in ms if m.kind == KIND["建枠"]]
+                self.assertEqual(len(frames), n_pos * n_stage)
+                # 継ぎ目は2段目から、隅で共有する躯体側の脚は描かない
+                self.assertEqual(sum(1 for m in frames if m.flags & 1), n_pos * (n_stage - 1))
+                shared = p["skipInS"] + p["skipInE"]
+                self.assertEqual(sum(1 for m in frames if m.flags & 2), shared * n_stage)
+                self.assertEqual(_count(ms, KIND["支柱"]), 0)
+                self.assertEqual(_count(ms, KIND["交差筋違"]), 2 * len(ep.spans) * (len(e.level_heights)))
+                self.assertEqual(_count(ms, KIND["ブレース"]), 0)
+                self.assertEqual(_count(ms, KIND["布材"], "腕木"), 0)
+                # 手すり・中桟は最上層だけ
+                top = max(e.level_heights) / 1000
+                rails = [m for m in ms if m.kind == KIND["布材"] and "手すり" in m.name]
+                self.assertTrue(rails)
+                self.assertTrue(all(m.z > top for m in rails))
+                c = face_drawn_counts(r.model, ep)
+                self.assertEqual(_count(ms, KIND["踏板"]), c["qtyDeck"] * (2 if p["deckW2"] > 0 else 1))
+                self.assertEqual(_count(ms, KIND["幅木"]), c["qtyToe"])
 
     def test_counts_by_name(self):
         r = solve_all({**RECT, "series_id": "nikken_nd1800"})

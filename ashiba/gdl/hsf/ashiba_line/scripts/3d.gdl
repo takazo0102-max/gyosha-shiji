@@ -579,8 +579,15 @@ for il = 1 to nLv
 			if nRows >= 2 then
 				add x, 0, z
 				rotz -90
-				nL = rowW
-				gosub 830
+				if serType = "W" then
+					! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+					roty 90
+					cylind rowW, r_nuno
+					del 1
+				else
+					nL = rowW
+					gosub 830
+				endif
 				del 2
 				gosub 860
 			else
@@ -593,8 +600,15 @@ for il = 1 to nLv
 	if nRows >= 2 then
 		add x, 0, z
 		rotz -90
-		nL = rowW
-		gosub 830
+		if serType = "W" then
+			! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+			roty 90
+			cylind rowW, r_nuno
+			del 1
+		else
+			nL = rowW
+			gosub 830
+		endif
 		del 2
 		gosub 860
 	else
