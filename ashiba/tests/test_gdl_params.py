@@ -605,13 +605,26 @@ class TestCatalogShapesStairAsagao(unittest.TestCase):
 
     def test_asagao_is_beam_strut_and_frp_panels(self):
         blk = self.body[self.body.index("! ---- 朝顔（防護棚）"):]
-        self.assertIn("block 0.04, asL, 0.08", blk)                        # 主材
-        self.assertIn("cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2", blk)  # 斜材
+        self.assertIn("block 0.04, asL, 0.08", self.body)                  # 主材（880）
+        self.assertIn("cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2", self.body)  # 斜材（880）
         self.assertIn('material "ashiba_frp"', blk)                          # FRP万能板
-        self.assertIn("nPn = int(sgL5 / 0.31 + 0.999)", blk)                 # 幅310の板を並べる
+        self.assertIn("nPn = int(sgL5 / 0.31 + 0.999)", self.body)           # 幅310の板を並べる（885）
         self.assertIn("! フレ止め", blk)
         # 材質を替えるので本体の最後（後に描く部材に空色が移らない）
         self.assertNotIn("! ---- 壁つなぎ", blk)
+
+    def test_asagao_goes_round_the_outside_stair_and_the_corner(self):
+        blk = self.body[self.body.index("! ---- 朝顔（防護棚）"):]
+        # 外付けの階段室の区間は3列目から（本体の外側の支柱から出すと階段室に食い込む）
+        self.assertIn("ybA = -2 * rowW", blk)
+        self.assertIn("plane 4, bx, -rowW - r_sic, za", blk)                 # 段差の妻側の板
+        # 出隅のコーナー部（センター材と扇形の万能板 4枚の三角形）
+        self.assertIn("if cornerS = 1 or cornerG = 1 then gosub 890", blk)
+        sub = self.body[self.body.index("890:"):]
+        self.assertEqual(sub[:sub.index("return")].count("plane 3,"), 4)
+        g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("line2 -rowW, -rowW, -rowW - asagaoProj, aY - asagaoProj", g2)
 
 
 if __name__ == "__main__":

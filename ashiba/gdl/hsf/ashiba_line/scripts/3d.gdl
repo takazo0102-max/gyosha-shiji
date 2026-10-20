@@ -1350,108 +1350,107 @@ next ik
 ! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
 ! そのまま block を置くと躯体側（+Y）へ張り出してしまう
 ! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
-! アルミ軽量アサガオ（日建 ALA、カタログ p120〜121。利用者の指摘 2026-10-21: カタログ見て直して）:
+! アルミ軽量アサガオ（日建 ALA、カタログ p120〜125。利用者の指摘 2026-10-21: カタログ見て直して）:
 ! 支柱ごとに 主材（せい80のアルミ。上の主材受金具から外へ asagaoAngle 上向き）と、1層下（floorH）の
 ! 主材受金具から主材を下から支える 斜材。主材の根元と先端に 万能板受（上・下）、その上に FRP万能板
-! （幅310×長さ2350 の波板。1スパンに6枚）、スパンごとにフレ止め2本（X）。以前は板1枚と細い棒だった
+! （幅310×長さ2350 の波板。1スパンに6枚）、スパンごとにフレ止め2本（X）。
+! 外付けの階段室の区間は、階段室の外側（3列目）の支柱から張り出す（本体の外側の支柱から出すと階段室に
+! 食い込む）。本体の朝顔との段差は妻側の板で塞ぐ。出隅はコーナー部（センター材＋扇形の FRP 万能板）で塞ぐ
 define material "ashiba_frp" 0, 0.45, 0.70, 0.90, 0.6, 0.6, 0.1, 0.0, 5, 0, 1, 1, 1, 0, 0, 0, 0
 asL = asagaoProj / cos(asagaoAngle)
+asC = asL * cos(asagaoAngle)
+asH = asL * sin(asagaoAngle)
 asD = 0.32 * asL          ! 斜材が主材に取り付く位置（根元から。ALA の主材2510・斜材2253・高さ1.8 の三角形）
 for ia = 1 to nAsa
 	za = asa[ia]
-	! 主材・斜材・主材受金具（支柱位置ごと。切り欠きの内側の支柱には付けない）
+	! 主材・斜材・主材受金具（支柱位置ごと。切り欠きの内側の支柱には付けない。外付けの階段室の区間は3列目）
 	x = 0
 	for ip = 1 to nSpan + 1
 		inCut = 0
 		for ic = 1 to nCut
 			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
 		next ic
+		inTw = 0
+		onTw = 0
+		if stOut = 1 then
+			for it8 = 1 to nSt
+				if x > stS[it8] + 0.001 and x < stS[it8] + stL[it8] - 0.001 then inTw = 1
+				if x > stS[it8] - 0.001 and x < stS[it8] + stL[it8] + 0.001 then onTw = 1
+			next it8
+		endif
 		if inCut = 0 then
-			add x, -rowW - r_sic, za
-			muly -1
-			! 主材受金具（上・下）
-			add -0.025, 0, -0.10
-			block 0.05, 0.10, 0.25
-			del 1
-			add -0.025, 0, -floorH - 0.10
-			block 0.05, 0.10, 0.25
-			del 1
-			! 主材（せい80・幅40）
-			rotx asagaoAngle
-			add -0.02, 0, 0
-			block 0.04, asL, 0.08
-			del 2
-			! 斜材（下の主材受金具から主材の asD の点へ）
-			asY = asD * cos(asagaoAngle)
-			asZ = asD * sin(asagaoAngle) + floorH
-			add 0, 0, -floorH
-			rotx -atn(asY / asZ)
-			cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2
-			del 2
-			del 2
-			! フレ止め（スパンごとに2本、主材の下で X）
-			if isLite = 0 and ip <= nSpan then
-				inCut2 = 0
-				for ic = 1 to nCut
-					if x + spans[ip] > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut2 = 1
-				next ic
-				if inCut2 = 0 then
-					add x, -rowW - r_sic, za
-					muly -1
-					rotx asagaoAngle
-					frAng = atn((asL * 0.55) / spans[ip])
-					frL = sqr(spans[ip] ^ 2 + (asL * 0.55) ^ 2)
-					add 0, asL * 0.2, -0.01
-					rotz frAng
-					roty 90
-					cylind frL, 0.012
-					del 3
-					add spans[ip], asL * 0.2, -0.01
-					rotz 180 - frAng
-					roty 90
-					cylind frL, 0.012
-					del 3
-					del 3
+			if inTw = 0 then
+				ybA = -rowW
+				gosub 880
+			endif
+			if onTw = 1 then
+				ybA = -2 * rowW
+				gosub 880
+			endif
+		endif
+		! フレ止め（スパンごとに2本、主材の下で X）
+		if isLite = 0 and ip <= nSpan then
+			inCut2 = 0
+			for ic = 1 to nCut
+				if x + spans[ip] > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut2 = 1
+			next ic
+			if inCut2 = 0 then
+				ybA = -rowW
+				if stOut = 1 then
+					for it8 = 1 to nSt
+						if x > stS[it8] - 0.001 and x + spans[ip] < stS[it8] + stL[it8] + 0.001 then ybA = -2 * rowW
+					next it8
 				endif
+				spL = spans[ip]
+				gosub 887
 			endif
 		endif
 		if ip <= nSpan then x = x + spans[ip]
 	next ip
-	! 万能板（スパンの区間ごと。主材の上に載る）と万能板受。空色の材質に替えるので主材・斜材の後に描く
+	! 万能板（スパンの区間ごと、外付けの階段室の区間は3列目から）と万能板受・押え、段差の妻側の板
 	for isg = 1 to nAsg
-		sgL5 = asgB[isg] - asgA[isg]
-		add asgA[isg], -rowW - r_sic, za
-		muly -1
-		rotx asagaoAngle
-		material "ashiba_frp"
-		if isLite = 0 then
-			nPn = int(sgL5 / 0.31 + 0.999)
-			pnW = sgL5 / nPn
-			for ipn = 1 to nPn
-				add (ipn - 1) * pnW + 0.003, 0.05, 0.08
-				block pnW - 0.006, asL - 0.10, 0.028
-				del 1
-			next ipn
-		else
-			add 0, 0.05, 0.08
-			block sgL5, asL - 0.10, 0.028
-			del 1
-		endif
-		if matScaf > 0 then material matScaf
-		! 万能板受（上＝根元、下＝先端）と万能板押え（中ほど）
-		add 0, 0.04, 0.0
-		block sgL5, 0.04, 0.08
-		del 1
-		add 0, asL - 0.08, -0.02
-		block sgL5, 0.04, 0.10
-		del 1
-		if isLite = 0 then
-			add 0, asL * 0.5, 0.108
-			block sgL5, 0.036, 0.020
-			del 1
-		endif
-		del 3
+		pA = asgA[isg]
+		while pA < asgB[isg] - 0.001 do
+			ybA = -rowW
+			pB = asgB[isg]
+			if stOut = 1 then
+				for it8 = 1 to nSt
+					if pA > stS[it8] - 0.001 and pA < stS[it8] + stL[it8] - 0.001 then
+						ybA = -2 * rowW
+						pB = min(pB, stS[it8] + stL[it8])
+					endif
+				next it8
+				if ybA > -1.5 * rowW then
+					for it8 = 1 to nSt
+						if stS[it8] > pA + 0.001 then pB = min(pB, stS[it8])
+					next it8
+				endif
+			endif
+			if pB <= pA + 0.001 then pB = asgB[isg]
+			p0 = pA
+			p1 = pB
+			gosub 885
+			! 段差（本体の外側の支柱と3列目）の妻側の板
+			if pB < asgB[isg] - 0.001 or pA > asgA[isg] + 0.001 then
+				material "ashiba_frp"
+				for ie8 = 1 to 1
+					bx = pB
+					isStep = 0
+					for it8 = 1 to nSt
+						if stOut = 1 and (abs(bx - stS[it8]) < 0.001 or abs(bx - stS[it8] - stL[it8]) < 0.001) then isStep = 1
+					next it8
+					if isStep = 1 and bx > asgA[isg] + 0.001 and bx < asgB[isg] - 0.001 then
+						plane 4, bx, -rowW - r_sic, za, bx, -rowW - r_sic - asC, za + asH, \
+							bx, -2 * rowW - r_sic - asC, za + asH, bx, -2 * rowW - r_sic, za
+					endif
+				next ie8
+				if matScaf > 0 then material matScaf
+			endif
+			pA = pB
+		endwhile
 	next isg
+	! 出隅のコーナー部（始点側。外側コーナー支柱から斜め45°のセンター材と扇形の万能板）
+	if cornerS = 1 or cornerG = 1 then gosub 890
 next ia
 
 end
@@ -1625,6 +1624,123 @@ return
 	roty -(90 + atn(advDz / advX))
 	cylind advL, 0.0217 / 2
 	del 2
+	return
+
+880:	! ---- 朝顔の主材・斜材・主材受金具（支柱 x、建地列 ybA、高さ za） ----
+	add x, ybA - r_sic, za
+	muly -1
+	add -0.025, 0, -0.10
+	block 0.05, 0.10, 0.25
+	del 1
+	add -0.025, 0, -floorH - 0.10
+	block 0.05, 0.10, 0.25
+	del 1
+	rotx asagaoAngle
+	add -0.02, 0, 0
+	block 0.04, asL, 0.08
+	del 2
+	asY = asD * cos(asagaoAngle)
+	asZ = asD * sin(asagaoAngle) + floorH
+	add 0, 0, -floorH
+	rotx -atn(asY / asZ)
+	cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2
+	del 2
+	del 2
+	return
+
+885:	! ---- 朝顔の万能板受・押えと FRP 万能板（区間 p0〜p1、建地列 ybA、高さ za） ----
+	sgL5 = p1 - p0
+	add p0, ybA - r_sic, za
+	muly -1
+	rotx asagaoAngle
+	add 0, 0.04, 0.0
+	block sgL5, 0.04, 0.08
+	del 1
+	add 0, asL - 0.08, -0.02
+	block sgL5, 0.04, 0.10
+	del 1
+	if isLite = 0 then
+		add 0, asL * 0.5, 0.108
+		block sgL5, 0.036, 0.020
+		del 1
+	endif
+	material "ashiba_frp"
+	if isLite = 0 then
+		nPn = int(sgL5 / 0.31 + 0.999)
+		pnW = sgL5 / nPn
+		for ipn = 1 to nPn
+			add (ipn - 1) * pnW + 0.003, 0.05, 0.08
+			block pnW - 0.006, asL - 0.10, 0.028
+			del 1
+		next ipn
+	else
+		add 0, 0.05, 0.08
+		block sgL5, asL - 0.10, 0.028
+		del 1
+	endif
+	if matScaf > 0 then material matScaf
+	del 3
+	return
+
+887:	! ---- 朝顔のフレ止め（スパン x〜x+spL、建地列 ybA） ----
+	add x, ybA - r_sic, za
+	muly -1
+	rotx asagaoAngle
+	frAng = atn((asL * 0.55) / spL)
+	frL = sqr(spL ^ 2 + (asL * 0.55) ^ 2)
+	add 0, asL * 0.2, -0.01
+	rotz frAng
+	roty 90
+	cylind frL, 0.012
+	del 3
+	add spL, asL * 0.2, -0.01
+	rotz 180 - frAng
+	roty 90
+	cylind frL, 0.012
+	del 3
+	del 3
+	return
+
+890:	! ---- 朝顔の出隅コーナー部（カタログ p125: センター材＋斜材、主材受金具、扇形の FRP 万能板 小・中・大） ----
+	! 前の面の朝顔は -X へ（この面の始点 y≧0 の側）、この面の朝顔は -Y へ出る。その間の外側の隅を塞ぐ
+	cx0 = -rowW - r_sic
+	cy0 = -rowW - r_sic
+	! この面の始点が外付けの階段室なら、この面の朝顔は3列目から出ている
+	aY = cy0
+	if stOut = 1 then
+		for it8 = 1 to nSt
+			if stS[it8] < 0.001 then aY = -2 * rowW - r_sic
+		next it8
+	endif
+	cLen = sqr(2 * asC * asC + asH * asH)
+	! センター材（外側コーナー支柱から 45° 外へ、先端は直線部の先端と同じ高さ）
+	add cx0, cy0, za
+	rotz 225
+	roty -atn(asH / (asC * sqr(2)))
+	add 0, -0.02, 0
+	block cLen, 0.04, 0.08
+	del 4
+	! 主材受金具（上・下）と斜材
+	add cx0 - 0.05, cy0 - 0.05, za - 0.10
+	block 0.10, 0.10, 0.25
+	del 1
+	add cx0 - 0.05, cy0 - 0.05, za - floorH - 0.10
+	block 0.10, 0.10, 0.25
+	del 1
+	cdh = 0.32 * asC * sqr(2)
+	cdz = 0.32 * asH + floorH
+	add cx0, cy0, za - floorH
+	rotz 225
+	roty atn(cdh / cdz)
+	cylind sqr(cdh * cdh + cdz * cdz), 0.0272 / 2
+	del 3
+	! 扇形の FRP 万能板（4枚の三角形で、この面の端・隅の先端・前の面の端をつなぐ）
+	material "ashiba_frp"
+	plane 3, cx0, cy0, za, 0, aY, za, 0, aY - asC, za + asH
+	plane 3, cx0, cy0, za, 0, aY - asC, za + asH, cx0 - asC, aY - asC, za + asH
+	plane 3, cx0, cy0, za, cx0 - asC, aY - asC, za + asH, cx0 - asC, 0, za + asH
+	plane 3, cx0, cy0, za, cx0 - asC, 0, za + asH, cx0, 0, za
+	if matScaf > 0 then material matScaf
 	return
 
 830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:

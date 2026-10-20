@@ -362,11 +362,43 @@ line_type 1
 ! 昇降機が通る区間（asaCutList）は切り欠いて描く
 if nAsa > 0 then
 	line_type 3
+	! 外付けの階段室の区間は階段室の外側（3列目）から張り出す（3D と同じ）。出隅はコーナー部で隅まで
 	for isg = 1 to nAsg
-		line2 asgA[isg], -rowW - asagaoProj, asgB[isg], -rowW - asagaoProj
-		line2 asgA[isg], -rowW, asgA[isg], -rowW - asagaoProj
-		line2 asgB[isg], -rowW, asgB[isg], -rowW - asagaoProj
+		pA = asgA[isg]
+		while pA < asgB[isg] - 0.001 do
+			ybA = -rowW
+			pB = asgB[isg]
+			if stOut = 1 then
+				for it8 = 1 to nSt
+					if pA > stS[it8] - 0.001 and pA < stS[it8] + stL[it8] - 0.001 then
+						ybA = -2 * rowW
+						pB = min(pB, stS[it8] + stL[it8])
+					endif
+				next it8
+				if ybA > -1.5 * rowW then
+					for it8 = 1 to nSt
+						if stS[it8] > pA + 0.001 then pB = min(pB, stS[it8])
+					next it8
+				endif
+			endif
+			if pB <= pA + 0.001 then pB = asgB[isg]
+			line2 pA, ybA - asagaoProj, pB, ybA - asagaoProj
+			line2 pA, ybA, pA, ybA - asagaoProj
+			line2 pB, ybA, pB, ybA - asagaoProj
+			pA = pB
+		endwhile
 	next isg
+	if cornerS = 1 or cornerG = 1 then
+		aY = -rowW
+		if stOut = 1 then
+			for it8 = 1 to nSt
+				if stS[it8] < 0.001 then aY = -2 * rowW
+			next it8
+		endif
+		line2 -rowW - asagaoProj, aY - asagaoProj, 0, aY - asagaoProj
+		line2 -rowW - asagaoProj, aY - asagaoProj, -rowW - asagaoProj, 0
+		line2 -rowW, -rowW, -rowW - asagaoProj, aY - asagaoProj
+	endif
 	line_type 1
 	set style "annoC"
 	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
