@@ -227,6 +227,8 @@ def line_params(
         # 朝顔は突出2mの部材。干渉確認のためモデルにも図面にも出す
         # 階段室の区間（この辺のぶんだけ）。「開始,長さ」の繰り返し
         "stairList": _stair_list(ep, stair_plan),
+        # 支柱の径（足場の種類ごと。マスタの支柱の径）
+        "postDia": _post_diameter_m(model),
         # 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）。本体の床は切らない
         "stOut": 1 if getattr(stair_plan, "outside", False) else 0,
         # 階段室の開始位置（平面の編集ホットスポット）。stairList とそろえて送る。部品は両者が
@@ -421,6 +423,13 @@ def _bracket_list(model: ScaffoldModel, ep, sections) -> str:
                 str(int(sec.deck_width or 0)),
             ]
     return ",".join(parts)
+
+
+def _post_diameter_m(model: ScaffoldModel) -> float:
+    """マスタの支柱（枠組は建枠）の径 m。無ければ 0（部品の既定 φ48.6）."""
+    cat = "建枠" if model.master.is_frame else "支柱"
+    dia = next((p.diameter for p in model.master.by_category(cat) if p.diameter > 0), 0.0)
+    return round(float(dia) / 1000.0, 4)
 
 
 def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:

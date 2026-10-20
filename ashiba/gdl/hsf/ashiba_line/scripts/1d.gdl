@@ -689,6 +689,8 @@ rowStart = 0
 if nRows < 2 then rowStart = 1
 
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
+! 足場の種類ごとの支柱の径（日建ND は φ42.7、ストロング・信和は φ48.6）
+if postDia > 0.01 then r_sic = postDia / 2
 r_nuno = 0.0427 / 2	! 布材 φ42.7
 r_tie  = 0.0273 / 2	! 壁つなぎ φ27.2
 

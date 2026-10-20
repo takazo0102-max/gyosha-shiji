@@ -305,6 +305,10 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="postDia">
+			<Description><![CDATA["支柱の径（足場の種類ごと。0 なら φ48.6）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="stOut">
 			<Description><![CDATA["階段を外付け 0/1: 外側建地列の外に1列立て、上り口＋階段2スパン＋降り口の区間にする"]]></Description>
 			<Value>0</Value>
