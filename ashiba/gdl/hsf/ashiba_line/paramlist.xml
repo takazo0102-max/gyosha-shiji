@@ -305,6 +305,14 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="endOpenS">
+			<Description><![CDATA["始点が開放端（隣の面を掛けない）0/1: 妻側の手すり・中桟・幅木"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="endOpenE">
+			<Description><![CDATA["終点が開放端 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="cornerG">
 			<Description><![CDATA["枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1"]]></Description>
 			<Value>0</Value>

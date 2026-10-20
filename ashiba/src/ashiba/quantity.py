@@ -618,6 +618,7 @@ def _take_off_one(
     _count_asagao_parts(model, span_counts, posts_per_line, add, notes, kt)
     _count_horizontal_net(model, add, notes)
     _count_sheets(model, add, notes, stair_plan)
+    _count_open_ends(model, add, notes)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
@@ -873,8 +874,9 @@ def _count_asagao_parts(
     # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）。
     # 隅部はコーナー材で塞ぐ。マスタにあれば出隅×段数で計上、無ければ現場対応を出す
     # 出隅はそれを始点に持つ面に属する（面の組・面ごとの数量で二重にしない）
-    corners = [e for e in model.plan.outline.edges if e.start_corner == "出隅"
-               and (model.edge_subset is None or e.index in model.edge_subset)]
+    corners = [e for e in model.plan.outline.edges if model.corner_kind_start(e.index) == "出隅"
+               and (model.edge_subset is None or e.index in model.edge_subset)
+               and (model.faces_only is None or e.index in model.faces_only)]
     if corners:
         corner_part = next((p for p in m.by_category("朝顔") if "コーナー" in p.note), None)
         if corner_part is not None:
@@ -930,8 +932,9 @@ def _count_safe_wing_parts(
             "（Bタイプ用踏板は使用不可）",
         )
     # 出隅はそれを始点に持つ面に属する（面の組・面ごとの数量で二重にしない）
-    corners = [e for e in model.plan.outline.edges if e.start_corner == "出隅"
-               and (model.edge_subset is None or e.index in model.edge_subset)]
+    corners = [e for e in model.plan.outline.edges if model.corner_kind_start(e.index) == "出隅"
+               and (model.edge_subset is None or e.index in model.edge_subset)
+               and (model.faces_only is None or e.index in model.faces_only)]
     if corners:
         notes.action(
             f"出隅{len(corners)}箇所はセーフウイングが突き合わない隅部になります"
@@ -1157,6 +1160,30 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if missing:
         notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
                      + "。別途手配してください", Notes.ORDER)
+
+
+def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
+    """一部の面だけの足場の開放端（隣の面を掛けない端）: 妻側の手すり・中桟・幅木を各層に.
+
+    参考: smartCON Planner の「墜落の危険箇所に手すりを設置（つま先板つき）」「エンドストッパー」。
+    """
+    if model.faces_only is None:
+        return
+    m = model.master
+    row = model.post_row_spacing_mm
+    n_ends = 0
+    for ep in model.plan.edges:
+        lv = model.elevation_of(ep.edge_index).n_levels
+        k = int(model.open_start(ep.edge_index)) + int(model.open_end(ep.edge_index))
+        n_ends += k
+        if not k:
+            continue
+        add(m.find("布材", row), k * lv * 2, f"開放端の妻側の手すり・中桟（布材{row}）")
+        if model.config.has_toe_board:
+            add(m.find("幅木", row), k * lv, f"開放端の妻側の幅木{row}")
+    if n_ends:
+        notes.append(f"一部の面だけの足場の開放端{n_ends}箇所は、各層に妻側の手すり・中桟"
+                     + ("・幅木" if model.config.has_toe_board else "") + "を計上")
 
 
 def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
@@ -1658,8 +1685,9 @@ def _count_frame_corners(model: ScaffoldModel, add, notes, n_levels: int) -> Non
     何も数えず、図にも隙間が空いていた（利用者の指摘 2026-10-21: 枠足場のコーナー部分も資料を見て見直して）。
     """
     m = model.master
-    n_corners = len([e for e in model.plan.outline.edges if e.start_corner == "出隅"
-                     and (model.edge_subset is None or e.index in model.edge_subset)])
+    n_corners = len([e for e in model.plan.outline.edges if model.corner_kind_start(e.index) == "出隅"
+                     and (model.edge_subset is None or e.index in model.edge_subset)
+                     and (model.faces_only is None or e.index in model.faces_only)])
     if not n_corners or not n_levels:
         return
     row = model.post_row_spacing_mm
@@ -1864,3 +1892,4 @@ def _count_frame_parts(
     _count_asagao_parts(model, span_counts, n_frame_lines, add, notes, kt)
     _count_horizontal_net(model, add, notes)
     _count_sheets(model, add, notes, stair_plan)
+    _count_open_ends(model, add, notes)

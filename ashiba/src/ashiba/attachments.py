@@ -164,8 +164,9 @@ def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
     oe = model.plan.outline.edges[ep.edge_index]
     d = float(model.post_row_spacing_mm) + SHEET_GAP_MM
     length = float(sum(ep.spans))
-    x0 = -d if oe.start_corner == "出隅" else (d if oe.start_corner == "入隅" else 0.0)
-    x1 = length + d if oe.end_corner == "出隅" else (length - d if oe.end_corner == "入隅" else length)
+    sc, ec = model.corner_kind_start(ep.edge_index), model.corner_kind_end(ep.edge_index)
+    x0 = -d if sc == "出隅" else (d if sc == "入隅" else 0.0)
+    x1 = length + d if ec == "出隅" else (length - d if ec == "入隅" else length)
     return x0, x1
 
 

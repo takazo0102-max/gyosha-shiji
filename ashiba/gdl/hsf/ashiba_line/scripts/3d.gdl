@@ -236,6 +236,37 @@ if cornerS = 1 then
 	next il
 endif
 
+! ---- 開放端（一部の面だけの足場で隣の面を掛けない端）: 妻側の手すり・中桟・幅木 ----
+! 参考: smartCON Planner「墜落の危険箇所に手すり（つま先板つき）」「エンドストッパー」
+for ie9 = 0 to 1
+	isOpen9 = endOpenS
+	xe9 = 0
+	if ie9 = 1 then
+		isOpen9 = endOpenE
+		xe9 = lineLen
+	endif
+	if isOpen9 = 1 then
+		for il = 2 to nLv
+			z = lv[il]
+			add xe9, 0, z + railTop
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			add xe9, 0, z + railMid
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			if showDeck then
+				if matToe > 0 then material matToe
+				add xe9 - 0.01, -rowW, z + 0.045
+				block 0.02, rowW, 0.157
+				del 1
+				if matScaf > 0 then material matScaf
+			endif
+		next il
+	endif
+next ie9
+
 ! ---- 枠組の出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]）: ギャプレス（コーナー布受け） ----
 ! 日建カタログ p104〜105: 躯体からはみ出す側の建枠の横架材にギャプレスを掛け渡し、ギャプレスクランプで留め、
 ! その上に布板を敷く。外周2辺は手すり（アルミスカイガード）。以前は枠組のコーナーを何も描かず隙間が空いていた

@@ -138,6 +138,26 @@ class ScaffoldModel:
     base_height_mm: float = 0.0
     # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
     edge_subset: Optional[set] = None
+    # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる
+    faces_only: Optional[set] = None
+
+    def _n_outline(self) -> int:
+        return len(self.plan.outline.edges)
+
+    def open_start(self, edge_index: int) -> bool:
+        """その面の始点が開放端か（一部の面だけの足場で、前の面を掛けない）."""
+        return self.faces_only is not None and (edge_index - 1) % self._n_outline() not in self.faces_only
+
+    def open_end(self, edge_index: int) -> bool:
+        """その面の終点が開放端か（次の面を掛けない）."""
+        return self.faces_only is not None and (edge_index + 1) % self._n_outline() not in self.faces_only
+
+    def corner_kind_start(self, edge_index: int) -> str:
+        """始点の隅の種類（出隅／入隅／空）。開放端は隅として扱わない."""
+        return "" if self.open_start(edge_index) else self.plan.outline.edges[edge_index].start_corner
+
+    def corner_kind_end(self, edge_index: int) -> str:
+        return "" if self.open_end(edge_index) else self.plan.outline.edges[edge_index].end_corner
 
     def elevation_of(self, edge_index: int) -> ElevationResult:
         """その面の立面（面ごとの高さが無ければ全体）."""
@@ -312,8 +332,9 @@ class ScaffoldModel:
         """
         if self.master.is_frame:
             return 0
-        return len([e for e in self.plan.outline.edges if e.start_corner == "出隅"
-                    and (self.edge_subset is None or e.index in self.edge_subset)])
+        return len([e for e in self.plan.outline.edges if self.corner_kind_start(e.index) == "出隅"
+                    and (self.edge_subset is None or e.index in self.edge_subset)
+                    and (self.faces_only is None or e.index in self.faces_only)])
 
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.

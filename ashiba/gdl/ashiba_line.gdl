@@ -81,6 +81,8 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
+!   endOpenS        整数    始点が開放端（隣の面を掛けない）0/1: 妻側の手すり・中桟・幅木                                             既定 0
+!   endOpenE        整数    終点が開放端 0/1                                                                                          既定 0
 !   cornerG         整数    枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1                                        既定 0
 !   postShape       整数    支柱の形 0=丸 1=異形断面（NDストロング）                                                                  既定 0
 !   postDia         長さ    支柱の径（足場の種類ごと。0 なら φ48.6）                                                                  既定 0
@@ -2140,6 +2142,37 @@ if cornerS = 1 then
 		endif
 	next il
 endif
+
+! ---- 開放端（一部の面だけの足場で隣の面を掛けない端）: 妻側の手すり・中桟・幅木 ----
+! 参考: smartCON Planner「墜落の危険箇所に手すり（つま先板つき）」「エンドストッパー」
+for ie9 = 0 to 1
+	isOpen9 = endOpenS
+	xe9 = 0
+	if ie9 = 1 then
+		isOpen9 = endOpenE
+		xe9 = lineLen
+	endif
+	if isOpen9 = 1 then
+		for il = 2 to nLv
+			z = lv[il]
+			add xe9, 0, z + railTop
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			add xe9, 0, z + railMid
+			rotx 90
+			cylind rowW, r_nuno
+			del 2
+			if showDeck then
+				if matToe > 0 then material matToe
+				add xe9 - 0.01, -rowW, z + 0.045
+				block 0.02, rowW, 0.157
+				del 1
+				if matScaf > 0 then material matScaf
+			endif
+		next il
+	endif
+next ie9
 
 ! ---- 枠組の出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]）: ギャプレス（コーナー布受け） ----
 ! 日建カタログ p104〜105: 躯体からはみ出す側の建枠の横架材にギャプレスを掛け渡し、ギャプレスクランプで留め、

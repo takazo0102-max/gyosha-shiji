@@ -10,13 +10,15 @@ ui_outfield "足場の種類（空＝既定）", 10, 86, 130, 18
 ui_infield "seriesId", 140, 84, 300, 20
 ui_outfield "足場の形式", 10, 114, 120, 18
 ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "掛ける面（空＝全周）", 10, 205, 130, 18
+ui_infield "facesOnly", 140, 203, 200, 20
 ui_outfield "幅（0＝既定）", 310, 114, 80, 18
 ui_infield "scaffW", 390, 112, 70, 20
 ui_outfield "設置期間（日）", 10, 142, 120, 18
 ui_infield "periodDays", 140, 140, 100, 20
 ui_outfield "現場名（設置届）", 10, 170, 120, 18
 ui_infield "siteName", 140, 168, 300, 20
-ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示）", 10, 205, 420, 18
+ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示）", 10, 232, 420, 18
 ui_page 2, -1, "高さ・離れ"
 ui_outfield "高さ・離れ", 10, 5, 300, 18
 ui_outfield "軒高", 10, 30, 160, 18

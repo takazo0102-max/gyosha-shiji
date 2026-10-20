@@ -152,7 +152,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
-    "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories",
+    "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -830,6 +830,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, elevation.total_height, master),
     )
+    # 足場を掛ける面（一部の面だけ）。隣の面を掛けない端は開放端（妻側の手すり・幅木）
+    faces = _faces_from_spec(spec, plan)
+    if faces is not None:
+        import dataclasses as _dc
+
+        plan = _dc.replace(plan, edges=[e for e in plan.edges if e.edge_index in faces])
     model = ScaffoldModel(
         master=master,
         plan=plan,
@@ -839,9 +845,32 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         clearance_space_mm=float(spec.get("clearance_space_mm", 2000)),
         base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
+    model.faces_only = faces
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
     return model
+
+
+def _faces_from_spec(spec: dict, plan):
+    """入力の faces（面名「南面」「南」や辺番号の並び、カンマ区切りの文字列も可）→ 辺番号の集合。無指定・全部なら None."""
+    v = spec.get("faces")
+    if v in (None, "", []):
+        return None
+    items = [t.strip() for t in str(v).replace("、", ",").split(",")] if isinstance(v, str) else list(v)
+    names = plan.face_names()
+    out = set()
+    for t in items:
+        if isinstance(t, int) or str(t).isdigit():
+            out.add(int(t))
+            continue
+        hit = [e.edge_index for e, n in zip(plan.edges, names)
+               if n == t or n.replace("面", "") == str(t).replace("面", "")]
+        if not hit:
+            raise InputError(f"faces: 面「{t}」がありません（{'・'.join(names)}）")
+        out.update(hit)
+    if out >= {e.edge_index for e in plan.edges}:
+        return None
+    return out
 
 
 def _face_eaves_from_spec(spec: dict, plan) -> dict[int, float]:

@@ -215,12 +215,12 @@ def line_params(
         # 始点が出隅なら、その外側のコーナー（外側建地・布材・踏板・幅木）をこの面が描く
         # （各面は始点支柱を所有する規則と同じ向き。実機の3Dで四隅が抜けていた）
         "cornerS": 1 if (not model.master.is_frame
-                         and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
+                         and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
         # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
         "cornerE": 1 if (not model.master.is_frame
-                         and model.plan.outline.edges[ep.edge_index].end_corner == "出隅") else 0,
+                         and model.corner_kind_end(ep.edge_index) == "出隅") else 0,
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,
         "braceEveryL": brace_l,
@@ -229,9 +229,13 @@ def line_params(
         "stairList": _stair_list(ep, stair_plan),
         # 支柱の径（足場の種類ごと。マスタの支柱の径）
         "postDia": _post_diameter_m(model),
+        # 一部の面だけの足場の開放端（隣の面を掛けない端）は、妻側に手すり・中桟・幅木を付ける
+        # （参考: smartCON Planner の「墜落の危険箇所に手すり」「エンドストッパー」）
+        "endOpenS": 1 if model.open_start(ep.edge_index) else 0,
+        "endOpenE": 1 if model.open_end(ep.edge_index) else 0,
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
         "cornerG": 1 if (model.master.is_frame
-                         and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0,
+                         and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）
         "postShape": 1 if model.master.series_id == "nikken_strong" else 0,
         # 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）。本体の床は切らない
@@ -511,7 +515,7 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
     n_levels = e.n_levels
     rows = 1 if model.config.scaffold_form == "一側足場" else 2
     corner = 1 if (not model.master.is_frame
-                   and model.plan.outline.edges[ep.edge_index].start_corner == "出隅") else 0
+                   and model.corner_kind_start(ep.edge_index) == "出隅") else 0
     adv = 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0
     outer = 0 if adv else 2
     inner = 2 if (model.config.inner_guard_rail and not model.master.is_frame and rows >= 2) else 0

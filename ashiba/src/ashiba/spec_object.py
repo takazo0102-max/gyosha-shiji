@@ -53,6 +53,7 @@ FIELDS: tuple[Field, ...] = (
     Field("lineMode3d", "bool", ("line_mode_3d",), False),
     Field("autoInBrk", "bool", ("auto_inner_bracket",), True),
     Field("stairLayout", "str", ("stairs", "layout"), "自動"),
+    Field("facesOnly", "str", ("faces",), "", zero_is_unset=True),
     Field("netLevels", "intlist", ("horizontal_net_levels",), "", zero_is_unset=True),
     Field("hFromSlab", "bool", ("height_from_slabs",), True),
 )

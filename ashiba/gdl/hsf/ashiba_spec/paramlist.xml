@@ -147,6 +147,10 @@
 			<Description><![CDATA["階段の付け方（足場の中／外付け（上り口・降り口つき）／自動＝足場の外に空きがあれば外付け）"]]></Description>
 			<Value><![CDATA["自動"]]></Value>
 		</String>
+		<String Name="facesOnly">
+			<Description><![CDATA["足場を掛ける面（例 南面,東面。空＝全周）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="netLevels">
 			<Description><![CDATA["水平ネットを張る層（例 2,5。空＝張らない）"]]></Description>
 			<Value><![CDATA[""]]></Value>

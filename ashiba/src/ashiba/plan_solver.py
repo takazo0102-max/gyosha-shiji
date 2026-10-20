@@ -151,9 +151,10 @@ class PlanResult:
         """
         raw = [_compass(e.outward) for e in self.outline.edges]
         dup = {n for n in raw if raw.count(n) > 1}
+        # self.edges と同じ並び（一部の面だけの足場・面の組の数量でも、辺番号で外形の辺の方位を引く）
         return [
-            f"{n}面(辺{e.edge_index})" if n in dup else f"{n}面"
-            for n, e in zip(raw, self.edges)
+            f"{raw[e.edge_index]}面(辺{e.edge_index})" if raw[e.edge_index] in dup else f"{raw[e.edge_index]}面"
+            for e in self.edges
         ]
 
     @property
