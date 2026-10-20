@@ -1,0 +1,29 @@
+﻿! 部材の平面記号（足場ラインの平面と同じ考え方: 支柱は円、布材・幅木・手すりは線、踏板は四角）
+pen 1
+rot2 faceAng
+if kind = 1 then
+	circle2 0, 0, r_sic
+	hotspot2 0, 0
+endif
+if kind = 2 or kind = 4 or kind = 5 then
+	line2 0, 0, memL, 0
+	hotspot2 0, 0
+	hotspot2 memL, 0
+endif
+if kind = 3 then
+	rect2 0, 0, memL, memW
+	line2 0, 0, memL, memW
+	hotspot2 0, 0
+	hotspot2 memL, memW
+endif
+if kind = 6 then
+	line_type 3
+	line2 0, 0, memL, 0
+	line_type 1
+	hotspot2 0, 0
+endif
+if kind = 7 then
+	rect2 -0.07, -0.07, 0.07, 0.07
+	hotspot2 0, 0
+endif
+del 1

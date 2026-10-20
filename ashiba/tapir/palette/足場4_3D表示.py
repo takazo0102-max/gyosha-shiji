@@ -8,7 +8,7 @@
 """仮設足場 3D表示
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-押すたびに足場の3Dを 自動→軽量→線→精細 と切り替える（重いときは軽量か線）
+押すたびに足場の3Dを 自動→軽量→線→ブロック→精細 と切り替える（重いときは軽量か線、取り合いはブロック）
 本体は <ashiba>/scripts/toggle_3d.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os

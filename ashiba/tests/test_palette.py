@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class TestEntries(unittest.TestCase):
     def test_three_buttons_call_existing_scripts(self):
         self.assertEqual([e.title for e in ENTRIES], ["配置", "解き直し", "撤去", "3D表示", "条件", "帳票",
-                                                     "条件の登録", "条件の呼び出し"])
+                                                     "条件の登録", "条件の呼び出し", "部材に分解", "分解を戻す"])
         for e in ENTRIES:
             self.assertTrue((ROOT / "scripts" / e.script).exists(), e.script)
             self.assertTrue(e.file.startswith("足場") and e.file.endswith(".py"))

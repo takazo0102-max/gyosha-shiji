@@ -844,5 +844,16 @@ for il = 1 to nLv - 1
 		next ip
 	endif
 next il
+! 部材に分解した足場ラインは、支柱・布材・踏板・幅木・先行手すり・ブレースを分解した部材（ashiba_member）が
+! 1本ずつ持つ。一覧表で二重に数えないよう 0 にする（壁つなぎ・階段は足場ラインのまま）
+if explodeMask > 0 then
+	qPostPos = 0
+	qPost = 0
+	qNuno = 0
+	qDeck = 0
+	qToe = 0
+	qAdv = 0
+	qBrace = 0
+endif
 parameters qtyPostPos = qPostPos, qtyPost = qPost, qtyNuno = qNuno, qtyDeck = qDeck, \
 	qtyToe = qToe, qtyAdv = qAdv, qtyTie = nTiePair, qtyBrace = qBrace, qtyStair = nSt * nLevels

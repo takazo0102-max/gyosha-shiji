@@ -1,0 +1,276 @@
+﻿! ==========================================================
+! 足場の部材（1本＝1部品。足場ラインを部材に分解したとき） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_member/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_member.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! パレットの「部材に分解」で、足場ラインの支柱・ジャッキ・布材・腕木・手すり・踏板・幅木・ブレースを1本ずつの部品にする。
+! kind で種類（1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ）、faceAng で向き、zH で下端の高さ。
+! 形は足場ラインの同じ部材と同じ。parentId に分解元の足場ラインの要素ID（「分解を戻す」で使う）。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   kind       整数    部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ      既定 1
+!   faceAng    角度    向き（度。+X＝部材の長さの向き）                                        既定 0
+!   zH         長さ    下端の高さ                                                              既定 0
+!   memL       長さ    長さ（支柱は高さ、布材・踏板・幅木・先行手すり・ブレースは水平の長さ）  既定 1.8
+!   memW       長さ    幅（踏板の幅、ブレースのクランプの奥行き）                              既定 0.49
+!   memH       長さ    高さ（先行手すりの手すりの高さ、ブレースの上がり、ジャッキの繰出し）    既定 0.9
+!   komaList   文字列  支柱のコマの高さ mm（下端から、カンマ区切り）                           既定 ""
+!   postDia    長さ    支柱の径                                                                既定 0.0427
+!   postShape  整数    支柱の断面 0円 1ストロングの異形                                        既定 0
+!   partName   文字列  部材名（一覧表用）                                                      既定 ""
+!   partNo     文字列  品番（一覧表用）                                                        既定 ""
+!   parentId   文字列  分解した足場ラインの要素ID（まとめ直すときに使う）                      既定 ""
+!   liteMode   ブール  軽量の3D（コマ・クサビ・金具を省く）                                    既定 0
+!   matScaf    表面材  表面材（0＝既定）                                                       既定 0
+!   matDeck    表面材  踏板の表面材（0＝既定）                                                 既定 0
+!   matToe     表面材  幅木の表面材（0＝既定）                                                 既定 0
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 足場の部材（1本＝1部品）。足場ラインを「部材に分解」したときに置く（scripts/explode_line.py）。
+! 原点＝部材の始点（支柱・ジャッキは芯の下端、布材・先行手すり・ブレースは始点の支柱の芯、踏板は外側の端、
+! 幅木は板の外面）。faceAng で向き、zH で下端の高さ。形は足場ライン（ashiba_line）の同じ部材と同じ
+r_sic = postDia / 2
+if r_sic < 0.01 then r_sic = 0.0427 / 2
+r_nuno = 0.0427 / 2
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 部材の平面記号（足場ラインの平面と同じ考え方: 支柱は円、布材・幅木・手すりは線、踏板は四角）
+pen 1
+rot2 faceAng
+if kind = 1 then
+	circle2 0, 0, r_sic
+	hotspot2 0, 0
+endif
+if kind = 2 or kind = 4 or kind = 5 then
+	line2 0, 0, memL, 0
+	hotspot2 0, 0
+	hotspot2 memL, 0
+endif
+if kind = 3 then
+	rect2 0, 0, memL, memW
+	line2 0, 0, memL, memW
+	hotspot2 0, 0
+	hotspot2 memL, memW
+endif
+if kind = 6 then
+	line_type 3
+	line2 0, 0, memL, 0
+	line_type 1
+	hotspot2 0, 0
+endif
+if kind = 7 then
+	rect2 -0.07, -0.07, 0.07, 0.07
+	hotspot2 0, 0
+endif
+del 1
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 部材の3D（足場ラインの 830 布材・870 布板・850 先行手すり・ブレース・820 ジャッキ と同じ寸法）
+pen 1
+if matScaf > 0 then material matScaf
+rotz faceAng
+addz zH
+resol 12
+if liteMode then resol 6
+isLite = liteMode
+
+if kind = 1 then
+	! 支柱（コマはカタログの支柱図の高さ。上端に連結ホゾ）
+	cylind memL, r_sic
+	if postShape = 1 and isLite = 0 then
+		add -0.0275, -0.003, 0
+		block 0.055, 0.006, memL
+		del 1
+		add -0.003, -0.0275, 0
+		block 0.006, 0.055, memL
+		del 1
+	endif
+	addz memL
+	cylind 0.125, 0.0182
+	del 1
+	rest = komaList
+	resol 6
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			add 0, 0, v / 1000 - 0.003
+			cylind 0.006, 0.053
+			del 1
+		endif
+	endwhile
+endif
+
+if kind = 2 then
+	! 布材（つなぎ材）: 緊結部がコマを上下に挟み、クサビが縦に通る。管は緊結部の間
+	hdL = 0.050
+	add r_sic + hdL, 0, 0
+	roty 90
+	cylind memL - 2 * (r_sic + hdL), r_nuno
+	del 2
+	for hd = 0 to 1
+		if hd = 0 then
+			add r_sic, 0, 0
+		else
+			add memL - r_sic, 0, 0
+			mulx -1
+		endif
+		add 0, -0.020, 0.003
+		block hdL, 0.040, 0.042
+		del 1
+		add 0, -0.020, -0.040
+		block hdL, 0.040, 0.037
+		del 1
+		add hdL - 0.012, -0.020, -0.003
+		block 0.012, 0.040, 0.006
+		del 1
+		if isLite = 0 then
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+		endif
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+endif
+
+if kind = 3 then
+	! 布板（アップロック式鋼製布板）: 腕木の上に載り、両端のつかみ金具とペロ板
+	if matDeck > 0 then material matDeck
+	add 0.025, 0, r_nuno
+	block memL - 0.05, memW, 0.045
+	del 1
+	if isLite = 0 then
+		for hd = 0 to 1
+			if hd = 0 then
+				add 0, 0, 0
+			else
+				add memL, 0, 0
+				mulx -1
+			endif
+			add 0.002, 0.04, r_nuno + 0.040
+			block 0.024, memW - 0.08, 0.005
+			del 1
+			for hk = 0 to 1
+				add 0.004, 0.015 + hk * (memW - 0.065), -r_nuno - 0.012
+				block 0.030, 0.035, 2 * r_nuno + 0.012
+				del 1
+			next hk
+			if hd = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd
+	endif
+endif
+
+if kind = 4 then
+	! 幅木（L形 立ち上がり150・底140）
+	if matToe > 0 then material matToe
+	block memL, 0.008, 0.150
+	block memL, 0.140, 0.004
+endif
+
+if kind = 5 then
+	! 先行手すり（手すり φ27.2＋X 斜材 φ21.7、上下の金具）。memH＝手すりの高さ
+	fitL = 0.045
+	add r_sic + fitL, 0, memH
+	roty 90
+	cylind memL - 2 * (r_sic + fitL), 0.0272 / 2
+	del 2
+	for hd = 0 to 1
+		if hd = 0 then
+			add r_sic, 0, 0
+		else
+			add memL - r_sic, 0, 0
+			mulx -1
+		endif
+		add 0, -0.020, memH - 0.030
+		block fitL, 0.040, 0.060
+		del 1
+		add 0, -0.020, 0.005
+		block fitL, 0.040, 0.045
+		del 1
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+	advX = memL - 2 * (r_sic + fitL / 2)
+	advDz = memH - 0.04
+	advL = sqr(advX * advX + advDz * advDz)
+	add r_sic + fitL / 2, 0.012, memH - 0.01
+	roty 90 + atn(advDz / advX)
+	cylind advL, 0.0217 / 2
+	del 2
+	add memL - r_sic - fitL / 2, -0.012, memH - 0.01
+	roty -(90 + atn(advDz / advX))
+	cylind advL, 0.0217 / 2
+	del 2
+endif
+
+if kind = 6 then
+	! ブレース（φ42.7、両端のクサビクランプで支柱を掴む）。memH＝上がり、memW＝クランプから支柱の芯まで（±）
+	bl = sqr(memL * memL + memH * memH)
+	add 0, 0, 0
+	roty 90 - atn(memH / memL)
+	cylind bl, 0.0427 / 2
+	del 2
+	for ce = 0 to 1
+		add ce * memL - 0.035, 0, ce * memH - 0.035
+		if memW >= 0 then
+			add 0, -0.025, 0
+			block 0.070, memW + 0.025 + r_sic, 0.070
+		else
+			add 0, memW - r_sic, 0
+			block 0.070, -memW + 0.025 + r_sic, 0.070
+		endif
+		del 2
+	next ce
+endif
+
+if kind = 7 then
+	! ジャッキベース（アンダーベース 140角・ねじ棒・ハンドル付きナット）。memH＝繰出し
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	cylind memH, 0.035 / 2
+	add 0, 0, memH - 0.03
+	resol 6
+	cylind 0.03, 0.045
+	if isLite = 0 then
+		addz 0.015
+		roty 90
+		add 0, 0, -0.09
+		cylind 0.18, 0.006
+		del 3
+	endif
+	del 1
+endif
+del 2
+

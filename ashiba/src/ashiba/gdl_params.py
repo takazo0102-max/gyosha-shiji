@@ -268,6 +268,8 @@ def line_params(
         "bridgeList": _bridge_list(model, ep),
         # 範囲を指定して外した部材「スパン始,スパン終,層始,層終,ビット（1踏板 2外側手すり 4幅木 8筋かい 16内側手すり）」
         "editList": _edit_list(model, ep),
+        # 部材に分解した状態（scripts/explode_line.py が 1 にする）。置き直したら分解していない状態に戻す
+        "explodeMask": 0,
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,

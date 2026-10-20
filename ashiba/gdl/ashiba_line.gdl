@@ -103,6 +103,7 @@
 !   komaGap         長さ    支柱の上端から最上のコマまで（ND1800 55・ミレニューム 30）                                                既定 0
 !   komaNega        長さ    根がらみ用のコマの高さ（支柱の下端から。ND1800 170）                                                      既定 0
 !   negaLens        文字列  根がらみ用のコマのある支柱の長さ mm（例 2700,1125,900）                                                   既定 ""
+!   explodeMask     整数    部材に分解した（1＝支柱・ジャッキ・布材・手すり・踏板・幅木・ブレースは ashiba_member が描く）            既定 0
 !   editList        文字列  外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」      既定 ""
 !   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                                                   既定 ""
 !   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                                                                  既定 ""
@@ -965,6 +966,17 @@ for il = 1 to nLv - 1
 		next ip
 	endif
 next il
+! 部材に分解した足場ラインは、支柱・布材・踏板・幅木・先行手すり・ブレースを分解した部材（ashiba_member）が
+! 1本ずつ持つ。一覧表で二重に数えないよう 0 にする（壁つなぎ・階段は足場ラインのまま）
+if explodeMask > 0 then
+	qPostPos = 0
+	qPost = 0
+	qNuno = 0
+	qDeck = 0
+	qToe = 0
+	qAdv = 0
+	qBrace = 0
+endif
 parameters qtyPostPos = qPostPos, qtyPost = qPost, qtyNuno = qNuno, qtyDeck = qDeck, \
 	qtyToe = qToe, qtyAdv = qAdv, qtyTie = nTiePair, qtyBrace = qBrace, qtyStair = nSt * nLevels
 
@@ -2239,6 +2251,8 @@ if komaPitch > 0 then
 	next ik
 endif
 
+! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
+if explodeMask = 0 then
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
 ! 実際には無い建地を干渉確認に使うことになる
@@ -2302,6 +2316,7 @@ for ip = 1 to nSpan + 1
 	next row
 	if ip <= nSpan then x = x + spans[ip]
 next ip
+endif   ! explodeMask
 
 ! スパン寸法の立体の文字は出さない（利用者の指定 2026-10-18。3Dが読みにくくなる）。
 ! スパン寸法は平面・立面の2Dで読む
@@ -2474,6 +2489,8 @@ if cornerG = 1 then
 	next il
 endif
 
+! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
+if explodeMask = 0 then
 ! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
@@ -2502,7 +2519,10 @@ if nKz > 0 then
 	next ip
 	resol rN
 endif
+endif   ! explodeMask
 
+! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
+if explodeMask = 0 then
 ! ---- 水平材（根がらみ＋各作業層） ----
 for il = 1 to nLv
 	z = lv[il]
@@ -2648,6 +2668,7 @@ for il = 1 to nLv
 		gosub 800
 	endif
 next il
+endif   ! explodeMask
 
 ! ---- 継ぎ足した脚の区間の根がらみ（敷地高低差。立面・数量と同じ規則） ----
 if nGl >= 2 and footStep > 0.001 then
@@ -2676,6 +2697,8 @@ if nGl >= 2 and footStep > 0.001 then
 	next ip
 endif
 
+! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
+if explodeMask = 0 then
 ! ---- 踏板・幅木 ----
 if showDeck then
 	for il = 2 to nLv
@@ -2722,6 +2745,14 @@ if showDeck then
 					if bittest(edE[ie], 6) then eoD2 = 1
 				endif
 			next ie
+			! 足場の中の階段室の区間は、踏板の編集を効かせない（数量の member_edits と同じ。階段の床の扱いは層ごとに違う）
+			for it4 = 1 to nSt
+				if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+					eoD = 0
+					eoD1 = 0
+					eoD2 = 0
+				endif
+			next it4
 			if eoD = 1 then skipDeck = 1
 			if skipAll = 0 then
 				if skipDeck = 0 then
@@ -2780,7 +2811,10 @@ if showDeck then
 		next ip
 	next il
 endif
+endif   ! explodeMask
 
+! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
+if explodeMask = 0 then
 ! ---- ブレス（外側構面、交さ2方向＝X） ----
 ! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
 ! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
@@ -2857,6 +2891,7 @@ if showBrace then
 		endif
 	next il
 endif
+endif   ! explodeMask
 
 ! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
 ! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との

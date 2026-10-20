@@ -67,7 +67,7 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
-ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet")
+ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
