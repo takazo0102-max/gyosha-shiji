@@ -2826,40 +2826,6 @@ if showBrace then
 	next il
 endif
 
-! ---- 朝顔（防護棚）: 外側へ突出する傾斜板と受けブラケット ----
-! 突出2m・傾斜25度。数量にも法規チェックにも出るのに図面・3Dに
-! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
-! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
-! そのまま block を置くと躯体側（+Y）へ張り出してしまう
-! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
-for ia = 1 to nAsa
-	za = asa[ia]
-	! 板（外側へ張り出し、先端が上がる）
-	for isg = 1 to nAsg
-		add asgA[isg], -rowW, za
-		muly -1
-		rotx asagaoAngle
-		block asgB[isg] - asgA[isg], asagaoProj, 0.02
-		del 3
-	next isg
-	! 受けブラケット（支柱位置ごと。切り欠きの内側の支柱には付けない）
-	x = 0
-	for ip = 1 to nSpan + 1
-		inCut = 0
-		for ic = 1 to nCut
-			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
-		next ic
-		if inCut = 0 then
-			add x, -rowW, za
-			muly -1
-			rotx asagaoAngle - 90
-			cylind asagaoProj, 0.0213 / 2
-			del 3
-		endif
-		if ip <= nSpan then x = x + spans[ip]
-	next ip
-next ia
-
 ! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
 ! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との
 ! 取り合いが確認できなかった
@@ -3138,25 +3104,33 @@ for it5 = 1 to nSt
 			block 0.15, fw - 0.012, 0.03
 			del 1
 		next is5
+		! 階段受け（日建 NDKH、カタログ p010）: 上下端の支柱の間（内外の建地列）に渡す受け材。両端のフックで
+		! 支柱のコマに掛け、階段枠の上下端のフックをこれに掛ける。以前は階段枠の幅だけの細い棒だった
 		for hk = 0 to 1
-			add x0 + hk * fl, fy0, lv[il5 + hk] + 0.03
+			add x0 + hk * fl, yb + r_sic, lv[il5 + hk] - 0.05
 			rotx -90
-			cylind fw, 0.0135
+			cylind rowW - 2 * r_sic, 0.017
 			del 2
+			for he = 0 to 1
+				add x0 + hk * fl - 0.02, yb + r_sic + he * (rowW - 2 * r_sic - 0.04), lv[il5 + hk] - 0.07
+				block 0.04, 0.04, 0.10
+				del 1
+			next he
 		next hk
-		! 階段手すり（両側）
+		! 階段手すり（日建 ND1800専用階段手摺 NDKT φ21.7、カタログ p010）: 両側の建地列で、下の支柱の床から
+		! 900 の高さ（固定クサビ）から上の支柱の上の床から 900（固定爪）へ、階段と平行に渡す。手すり用の支柱は立てない
+		! （以前は φ42.7 の手すりと専用の手すり支柱を立てていた）
 		for sd = 0 to 1
-			ys = fy0 + sd * fw
-			add x0, ys + 0.015, lv[il5] + 0.95
-			roty 90 - ang5
-			cylind fLen, r_nuno
+			ys = yb + r_sic + 0.03 + sd * (rowW - 2 * r_sic - 0.06)
+			add x0 + r_sic, ys, lv[il5] + 0.90
+			roty 90 - atn(rise / (fl - 2 * r_sic))
+			cylind sqr((fl - 2 * r_sic) ^ 2 + rise ^ 2), 0.0217 / 2
 			del 2
-			! 手すり支柱（踏面の上下端）
-			add x0, ys + 0.015, lv[il5]
-			cylind 0.95, r_nuno
+			add x0 + r_sic, ys - 0.02, lv[il5] + 0.87
+			block 0.04, 0.04, 0.06
 			del 1
-			add x0 + fl, ys + 0.015, lv[il5 + 1]
-			cylind 0.95, r_nuno
+			add x0 + fl - r_sic - 0.04, ys - 0.02, lv[il5 + 1] + 0.87
+			block 0.04, 0.04, 0.06
 			del 1
 		next sd
 		! 階段開口部手摺枠＋開口部幅木（出入口1か所に1組。数量の「階段開口部手摺・幅木」と同じ）。
@@ -3390,6 +3364,118 @@ for ik = 1 to nBk
 		next ie2
 	endif
 next ik
+
+! ---- 朝顔（防護棚）: 外側へ突出する傾斜板と受けブラケット ----
+! 万能板の色（FRP の空色）を material で替えるので、本体の最後に描く（後に描く部材に色が移らないように。
+! 表面材 matScaf が 0 の部品では戻す材質が無い）
+! 突出2m・傾斜25度。数量にも法規チェックにも出るのに図面・3Dに
+! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
+! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
+! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
+! アルミ軽量アサガオ（日建 ALA、カタログ p120〜121。利用者の指摘 2026-10-21: カタログ見て直して）:
+! 支柱ごとに 主材（せい80のアルミ。上の主材受金具から外へ asagaoAngle 上向き）と、1層下（floorH）の
+! 主材受金具から主材を下から支える 斜材。主材の根元と先端に 万能板受（上・下）、その上に FRP万能板
+! （幅310×長さ2350 の波板。1スパンに6枚）、スパンごとにフレ止め2本（X）。以前は板1枚と細い棒だった
+define material "ashiba_frp" 0, 0.45, 0.70, 0.90, 0.6, 0.6, 0.1, 0.0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+asL = asagaoProj / cos(asagaoAngle)
+asD = 0.32 * asL          ! 斜材が主材に取り付く位置（根元から。ALA の主材2510・斜材2253・高さ1.8 の三角形）
+for ia = 1 to nAsa
+	za = asa[ia]
+	! 主材・斜材・主材受金具（支柱位置ごと。切り欠きの内側の支柱には付けない）
+	x = 0
+	for ip = 1 to nSpan + 1
+		inCut = 0
+		for ic = 1 to nCut
+			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
+		next ic
+		if inCut = 0 then
+			add x, -rowW - r_sic, za
+			muly -1
+			! 主材受金具（上・下）
+			add -0.025, 0, -0.10
+			block 0.05, 0.10, 0.25
+			del 1
+			add -0.025, 0, -floorH - 0.10
+			block 0.05, 0.10, 0.25
+			del 1
+			! 主材（せい80・幅40）
+			rotx asagaoAngle
+			add -0.02, 0, 0
+			block 0.04, asL, 0.08
+			del 2
+			! 斜材（下の主材受金具から主材の asD の点へ）
+			asY = asD * cos(asagaoAngle)
+			asZ = asD * sin(asagaoAngle) + floorH
+			add 0, 0, -floorH
+			rotx -atn(asY / asZ)
+			cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2
+			del 2
+			del 2
+			! フレ止め（スパンごとに2本、主材の下で X）
+			if isLite = 0 and ip <= nSpan then
+				inCut2 = 0
+				for ic = 1 to nCut
+					if x + spans[ip] > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut2 = 1
+				next ic
+				if inCut2 = 0 then
+					add x, -rowW - r_sic, za
+					muly -1
+					rotx asagaoAngle
+					frAng = atn((asL * 0.55) / spans[ip])
+					frL = sqr(spans[ip] ^ 2 + (asL * 0.55) ^ 2)
+					add 0, asL * 0.2, -0.01
+					rotz frAng
+					roty 90
+					cylind frL, 0.012
+					del 3
+					add spans[ip], asL * 0.2, -0.01
+					rotz 180 - frAng
+					roty 90
+					cylind frL, 0.012
+					del 3
+					del 3
+				endif
+			endif
+		endif
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+	! 万能板（スパンの区間ごと。主材の上に載る）と万能板受。空色の材質に替えるので主材・斜材の後に描く
+	for isg = 1 to nAsg
+		sgL5 = asgB[isg] - asgA[isg]
+		add asgA[isg], -rowW - r_sic, za
+		muly -1
+		rotx asagaoAngle
+		material "ashiba_frp"
+		if isLite = 0 then
+			nPn = int(sgL5 / 0.31 + 0.999)
+			pnW = sgL5 / nPn
+			for ipn = 1 to nPn
+				add (ipn - 1) * pnW + 0.003, 0.05, 0.08
+				block pnW - 0.006, asL - 0.10, 0.028
+				del 1
+			next ipn
+		else
+			add 0, 0.05, 0.08
+			block sgL5, asL - 0.10, 0.028
+			del 1
+		endif
+		if matScaf > 0 then material matScaf
+		! 万能板受（上＝根元、下＝先端）と万能板押え（中ほど）
+		add 0, 0.04, 0.0
+		block sgL5, 0.04, 0.08
+		del 1
+		add 0, asL - 0.08, -0.02
+		block sgL5, 0.04, 0.10
+		del 1
+		if isLite = 0 then
+			add 0, asL * 0.5, 0.108
+			block sgL5, 0.036, 0.020
+			del 1
+		endif
+		del 3
+	next isg
+next ia
 
 end
 

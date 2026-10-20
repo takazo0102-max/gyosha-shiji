@@ -590,6 +590,30 @@ class TestPlanJsonRoundTripCoverage(unittest.TestCase):
             self.assertEqual(set(e["gdl_params"]), sent)
 
 
+class TestCatalogShapesStairAsagao(unittest.TestCase):
+    """階段枠まわりと朝顔をカタログの形に（利用者の指摘 2026-10-21: 階段枠と朝顔もカタログ見て直して）."""
+
+    def setUp(self):
+        self.body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                     ).read_text(encoding="utf-8")
+
+    def test_stair_receiver_and_handrail(self):
+        # 階段受け NDKH を内外の支柱の間に渡し、手すりは NDKT φ21.7 を支柱に掛ける（専用の手すり支柱は無い）
+        self.assertIn("cylind rowW - 2 * r_sic, 0.017", self.body)
+        self.assertIn("cylind sqr((fl - 2 * r_sic) ^ 2 + rise ^ 2), 0.0217 / 2", self.body)
+        self.assertNotIn("! 手すり支柱（踏面の上下端）", self.body)
+
+    def test_asagao_is_beam_strut_and_frp_panels(self):
+        blk = self.body[self.body.index("! ---- 朝顔（防護棚）"):]
+        self.assertIn("block 0.04, asL, 0.08", blk)                        # 主材
+        self.assertIn("cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2", blk)  # 斜材
+        self.assertIn('material "ashiba_frp"', blk)                          # FRP万能板
+        self.assertIn("nPn = int(sgL5 / 0.31 + 0.999)", blk)                 # 幅310の板を並べる
+        self.assertIn("! フレ止め", blk)
+        # 材質を替えるので本体の最後（後に描く部材に空色が移らない）
+        self.assertNotIn("! ---- 壁つなぎ", blk)
+
+
 if __name__ == "__main__":
     unittest.main()
 

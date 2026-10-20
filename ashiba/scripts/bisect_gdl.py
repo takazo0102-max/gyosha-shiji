@@ -29,15 +29,10 @@ from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
 from dev_gsm_iterate import HSF_DIR, find_lp_xmlconverter  # noqa: E402
 
 # 変種: (名前, {相対パス: [(置換前, 置換後), ...]})。置換前が無ければその変種は飛ばす
-GOOD = "c168d4b0"     # 描けていた最後のコミット（布材をつなぎ材の形に）
+GOOD = "b1f0df2b"     # 描けていた最後のコミット（先行手すり・布板・幅木・ブレースをカタログの形に）
 VARIANTS = [
     ("current_fine", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n")]}),
-    ("good_fine", {"scripts/3d.gdl": "@" + GOOD}),
-    ("no_new_brace", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ('and eoB = 0 and serType <> "W" then', 'and eoB = 0 and serType = "ZZ" then')]}),
-    ("no_deck_detail", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\tif isLite = 0 then\n\t\tfor hd870", "\tif isLite = 9 then\n\t\tfor hd870")]}),
-    ("no_deck870", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\t\t\tgosub 870\n", "")]}),
-    ("no_toe", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\t\tblock spans[ip] + 0.07, 0.008, 0.150\n\t\t\t\t\tblock spans[ip] + 0.07, 0.140, 0.004\n", "")]}),
-    ("no_850", {"scripts/3d.gdl": [("d3 = detail3d\n", "d3 = 1\n"), ("\t\t\t\tgosub 850\n", "")]}),
+    ("current_auto", {}),
 ]
 
 
@@ -50,6 +45,10 @@ def build_variant(part: str, name: str, patches: dict, work: Path) -> tuple[str,
         f = dst / rel
         if reps is None:
             f.unlink()
+            continue
+        if isinstance(reps, str) and reps.startswith("file:"):
+            # 手元で作った変種のファイルに差し替える
+            f.write_bytes(Path(reps[5:]).read_bytes())
             continue
         if isinstance(reps, str) and reps.startswith("@"):
             # そのコミットのファイルに差し替える

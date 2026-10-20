@@ -68,5 +68,37 @@ class TestGdlBlocksBalance(unittest.TestCase):
         self.assertEqual(balance("if a then b = 1\nfor i = 1 to 2\nnext i\n"), [])
 
 
+# GDL の組み込み関数・定数の名前（変数名に使うと構文エラーで 3D が白紙になる。2026-10-21、朝顔のフレ止めで
+# 角度を fra（端数の関数 FRA）と名付けて、足場ラインの 3D が全部消えた）
+GDL_BUILTINS = {
+    "abs", "ceil", "fra", "int", "round_int", "sgn", "sqr", "sqrt", "exp", "log", "sin", "cos", "tan", "atn",
+    "acs", "asn", "pi", "rnd", "max", "min", "not", "mod", "str", "strlen", "strsub", "strstr", "split",
+    "bittest", "bitset", "vardim1", "vardim2", "request", "ind", "and", "or", "exor",
+}
+
+
+def builtin_shadows(text: str) -> list[str]:
+    out = []
+    for n, raw in enumerate(text.splitlines(), 1):
+        m = re.match(r"^\s*([A-Za-z_]\w*)\s*(\[[^\]]*\])?\s*=", _strip(raw))
+        if m and m.group(1).lower() in GDL_BUILTINS:
+            out.append(f"{n}行目: 変数名 {m.group(1)} は GDL の組み込み名")
+        m = re.match(r"^\s*for\s+([A-Za-z_]\w*)\s*=", _strip(raw), re.I)
+        if m and m.group(1).lower() in GDL_BUILTINS:
+            out.append(f"{n}行目: ループ変数 {m.group(1)} は GDL の組み込み名")
+    return out
+
+
+class TestNoBuiltinNames(unittest.TestCase):
+    def test_every_script(self):
+        for p in sorted(HSF.glob("*/scripts/*.gdl")):
+            with self.subTest(script=f"{p.parent.parent.name}/{p.name}"):
+                self.assertEqual(builtin_shadows(p.read_text(encoding="utf-8-sig")), [])
+
+    def test_detects_fra(self):
+        self.assertTrue(builtin_shadows("\tfra = atn(1)\n"))
+        self.assertEqual(builtin_shadows("\tfrAng = atn(1)\nif a = 1 then b = 2\n"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
