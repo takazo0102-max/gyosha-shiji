@@ -3111,34 +3111,57 @@ for ih = 1 to nHo
 next ih
 
 ! ---- 梁枠（開口部）: 上下弦材と斜材 ----
-! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった
+! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった。
+! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）、カタログ p011: せい 370、上下弦材 φ42.7、ワーレントラスの
+! 斜材（1スパンを4区画）、1829 ごとの束材、両端の緊結部で支柱のコマに掛ける。以前は四角い棒の折れ線だった
 for ib2 = 1 to nBm
 	bs = bmS[ib2]
 	bl = bmL[ib2]
 	bh = bmH[ib2]
+	bzt = bh - 0.06
+	bzb = bzt - 0.37
 	for row2 = rowStart to 1
-		add bs, -row2 * rowW - 0.02, bh - 0.45
-		block bl, 0.04, 0.04
-		del 1
-		add bs, -row2 * rowW - 0.02, bh - 0.04
-		block bl, 0.04, 0.04
-		del 1
-		! 斜材（4分割の折れ線をブロックで近似）
-		nd2 = 4
-		for id2 = 0 to nd2 - 1
-			dlen = bl / nd2
-			ang = atn(0.41 / dlen)
-			add bs + dlen * id2, -row2 * rowW - 0.015, bh - 0.45
-			if id2 - 2 * int(id2 / 2) = 0 then
-				roty -ang
-				block sqr(dlen * dlen + 0.41 * 0.41), 0.03, 0.03
-				del 2
-			else
-				addz 0.41
-				roty ang
-				block sqr(dlen * dlen + 0.41 * 0.41), 0.03, 0.03
-				del 3
+		yb3 = -row2 * rowW
+		! 上下弦材（両端は支柱の外面から緊結部の分を空ける）
+		for bc = 0 to 1
+			bz = bzt
+			if bc = 1 then bz = bzb
+			add bs + r_sic + 0.05, yb3, bz
+			roty 90
+			cylind bl - 2 * (r_sic + 0.05), r_nuno
+			del 2
+			if isLite = 0 then
+				for be = 0 to 1
+					add bs + r_sic + be * (bl - 2 * r_sic - 0.05), yb3 - 0.02, bz - 0.04
+					block 0.05, 0.04, 0.08
+					del 1
+				next be
 			endif
+		next bc
+		! 束材（両端と 1829 ごと）
+		nPn2 = max(1, int(bl / 1.829 + 0.5))
+		for iv = 0 to nPn2
+			xv = bs + r_sic + 0.05 + iv * (bl - 2 * (r_sic + 0.05)) / nPn2
+			add xv, yb3, bzb
+			cylind 0.37, 0.0136
+			del 1
+		next iv
+		! 斜材（ワーレン。1スパンを4区画）
+		nDg = max(2, 4 * nPn2)
+		dgW = (bl - 2 * (r_sic + 0.05)) / nDg
+		for id2 = 0 to nDg - 1
+			x1 = bs + r_sic + 0.05 + id2 * dgW
+			z1d = bzb
+			z2d = bzt
+			if id2 - 2 * int(id2 / 2) = 1 then
+				z1d = bzt
+				z2d = bzb
+			endif
+			dgL = sqr(dgW * dgW + 0.37 * 0.37)
+			add x1, yb3, z1d
+			roty 90 - atn((z2d - z1d) / dgW)
+			cylind dgL, 0.0136
+			del 2
 		next id2
 	next row2
 next ib2
@@ -3511,6 +3534,10 @@ for ia = 1 to nAsa
 				if x > stS[it8] - 0.001 and x < stS[it8] + stL[it8] + 0.001 then onTw = 1
 			next it8
 		endif
+		! 開口部（梁枠）の内側で支柱を抜いた位置は、斜材を受ける下の主材受金具の支柱が無い（主材も付けない）
+		for ib9 = 1 to nBm
+			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 then inCut = 1
+		next ib9
 		if inCut = 0 then
 			if inTw = 0 then
 				ybA = -rowW
