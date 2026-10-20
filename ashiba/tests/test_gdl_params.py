@@ -1156,8 +1156,10 @@ class TestLight3D(unittest.TestCase):
 
     def test_light_skips_small_parts(self):
         # コマは軽量でもフックを掛ける高さだけ描く（kz。外側コーナー・外付け階段の建地含む3箇所）
-        self.assertEqual(self.body.count("for ik = 1 to nKz"), 3)
-        self.assertEqual(self.body.count("if j < nPost and isLite = 0 then"), 3)       # 支柱の継手のカラー（外付け階段の建地含む）
+        self.assertEqual(self.body.count("for ik = 1 to nKz\n"), 3)
+        # 支柱の継ぎ目の帯は軽量でも描く（継ぎ目が分かるように。外付け階段の建地含む3箇所）
+        self.assertEqual(self.body.count("if j < nPost then\n"), 3)
+        self.assertEqual(self.body.count("gosub 840"), 3)
         self.assertIn("if isLite = 0 then\n\tadd 0.026, -0.010, -0.012", self.body)    # 布材の爪
 
     def test_mvo_overrides(self):

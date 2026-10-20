@@ -96,10 +96,10 @@ class TestKomaInLiteMode(unittest.TestCase):
             encoding="utf-8")
         i = g3.index("! ---- コマ（緊結部）の高さ kz")
         block = g3[i:g3.index("! ---- 支柱（各スパン境界に内外1対）")]
-        self.assertIn("kz[nKz] = lv[il] + railMid", block)
-        self.assertIn("kz[nKz] = lv[il] + railTop", block)
+        self.assertIn("abs(kzAll[ik] - lv[il] - railMid) < 0.005", block)
+        self.assertIn("abs(kzAll[ik] - lv[il] - railTop) < 0.005", block)
         # コマを描く3箇所（本体の支柱・出隅の支柱・外付け階段の建地）はどれも kz を使い、軽量で省かない
-        self.assertEqual(g3.count("for ik = 1 to nKz"), 3)
+        self.assertEqual(g3.count("for ik = 1 to nKz\n"), 3)
         self.assertNotIn("komaPitch > 0 and isLite = 0", g3)
 
 

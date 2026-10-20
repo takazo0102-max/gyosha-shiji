@@ -589,7 +589,9 @@ class TestLedgerCutNotesNameTheirReason(unittest.TestCase):
         notes = [str(n) for n in self._q().notes]
         self.assertFalse(any(n.startswith("開口部（梁枠より下）は通路") for n in notes), notes)
         inner = next(n for n in notes if n.startswith("内ブラケットで床を拡幅した区間"))
-        self.assertIn("布材928本", inner)                        # 464スパン×層 × 躯体側の手すり・中桟2本
+        # 522スパン×層 × 躯体側の手すり・中桟2本（根がらみがカタログどおり下端から170のコマになり、
+        # 作業層が1層増えた。以前は464スパン×層・928本）
+        self.assertIn("布材1044本", inner)
 
     def test_opening_note_counts_only_the_opening(self):
         notes = [str(n) for n in self._q(auto_inner_bracket=False, openings=[

@@ -178,6 +178,10 @@ def line_params(
         "postList": ",".join(str(p) for p in e.posts),
         "jackOut": e.jack_extension / 1000.0,
         "komaPitch": model.master.koma_pitch / 1000.0,
+        # コマの位置（カタログの支柱図。master.post_koma_offsets と同じ規則を 3d.gdl で支柱1本ごとに計算）
+        "komaGap": model.master.koma_top_gap / 1000.0,
+        "komaNega": _koma_const(model, "koma_nega") / 1000.0,
+        "negaLens": ",".join(str(v) for v in _koma_const(model, "nega_koma_lengths", ())),
         "floorH": model.master.floor_height / 1000.0,
         "standoff": ep.standoff / 1000.0,
         "rowW": model.post_row_spacing_mm / 1000.0,
@@ -280,6 +284,12 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+def _koma_const(model: ScaffoldModel, key: str, default=0):
+    from .master import SERIES_CONST
+
+    return SERIES_CONST.get(model.master.series_id, {}).get(key, default) or default
 
 
 def _edit_list(model: ScaffoldModel, ep) -> str:

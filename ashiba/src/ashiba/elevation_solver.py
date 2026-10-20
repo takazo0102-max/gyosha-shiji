@@ -287,12 +287,18 @@ def solve_elevation(
             "隣接支柱の最下部を根がらみ用支柱等に置換してください"
         )
 
-    # 根がらみ＝最下コマ（支柱下端から1コマ目）
-    first_ledger = jack + koma_pitch
-    # 作業層: 固定点は最上層作業床（支柱天端から手すり2コマ分下）。
+    # コマの位置はカタログの支柱図（master.post_koma_offsets）。ND1800 は上端から55下が最上のコマで、
+    # そこから450ピッチ。1段目の2700には下端から170に根がらみ用のコマがある（利用者の指摘 2026-10-21:
+    # 支柱のフックの高さは450ピッチ、2700は根がらみ用のフックがある）。マスタが無ければ従来の
+    # 「下端から1コマ目・上端がコマ」
+    gap = master.koma_top_gap if master is not None else 0
+    offs = master.post_koma_offsets(posts[0]) if master is not None else []
+    # 根がらみ＝最下段の支柱の最下のコマ
+    first_ledger = jack + (min(offs) if offs else koma_pitch)
+    # 作業層: 固定点は最上層作業床（最上のコマから手すり2コマ分下）。
     # そこから floor_height ピッチで下へ展開する（端数吸収は最下部）
     top = jack + sum(pieces)
-    top_floor = top - 2 * koma_pitch
+    top_floor = top - gap - 2 * koma_pitch
     level_heights = []
     h = top_floor
     while h > first_ledger + koma_pitch:
@@ -302,7 +308,7 @@ def solve_elevation(
     if not level_heights:
         warnings.append(
             f"足場高さ{top}mmでは作業床が1層も取れません"
-            f"（最上層は支柱天端から手すり{2 * koma_pitch}mm下、"
+            f"（最上層は支柱天端から手すり{gap + 2 * koma_pitch}mm下、"
             f"最下層は根がらみ{first_ledger}mmより上に必要）。"
             "要求高さを上げるか、作業床の要否を見直してください"
         )

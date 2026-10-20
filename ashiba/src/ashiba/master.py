@@ -85,22 +85,28 @@ SERIES_CONST = {
     # 日建リース NDシステム1800（ダーウィン）: コマ450・階高1800、スパンはインチ
     # （1829/1524/1219/914/610）。品番・重量・耐力は仮設資材カタログVol.10
     # （data/NIKKEN_CATALOG_NOTES.md に抜き書き）
+    # コマの位置（カタログの支柱図）: 上端から koma_top_gap 下に1つ、そこから koma_pitch で下へ。
+    # nega_koma_lengths の支柱は下端から koma_nega にも根がらみ用のコマがある（ND1800 p003: NDP27N は 170・395・845…）
     "nikken_nd1800": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                      "koma_top_gap": 55, "koma_nega": 170, "nega_koma_lengths": (2700, 1125, 900, 675, 450),
                       "hozo": 125, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 日建リース NDシステム1900: コマ475・階高1900（支柱3800/2850/1900/1425/950/475）。
     # つなぎ材・布板・ブラケット・梁枠はND1800と共通、支柱・先行手すり・階段が専用
     "nikken_nd1900": {"system_type": WEDGE, "koma_pitch": 475, "floor_height": 1900,
+                      "koma_top_gap": 55, "koma_nega": 120, "nega_koma_lengths": (2750,),
                       "hozo": 125, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 日建リース NDシステム ストロング: 支柱だけ専用（φ42.7・φ48.6 の異形断面 STK500 t2.7、NSジョイントで連結）。
     # つなぎ材・先行手すり・布板などは ND1800 と共通。支柱の許容支持力 13.7〜19.3kN/本（ND1800 は 11〜17）
     "nikken_strong": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                      "koma_top_gap": 55, "koma_nega": 170, "nega_koma_lengths": (2700,),
                       "hozo": 55, "module": "inch",
                       "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 日建リース ミレニューム（次世代足場のパイオニア）: 支柱 φ48.6・コマ450・階高1800、先行手すり筋交い（2段手すり機能）。
     # 布板（アップロック式鋼製布板）・幅木・壁つなぎなどは ND と共通。支柱の許容支持力 11.0kN/本（補剛材ありで19.6）
     "nikken_millennium": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                          "koma_top_gap": 30, "koma_nega": 120, "nega_koma_lengths": (2700,),
                           "hozo": 125, "module": "inch",
                           "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
@@ -173,6 +179,35 @@ class PartMaster:
     @property
     def floor_height(self) -> int:
         return SERIES_CONST[self.series_id]["floor_height"]
+
+    @property
+    def koma_top_gap(self) -> int:
+        """支柱の上端から最上のコマまで（ND1800・ストロング 55、ミレニューム 30。カタログの無い系列は 0）."""
+        return int(SERIES_CONST[self.series_id].get("koma_top_gap", 0))
+
+    def post_koma_offsets(self, length: int) -> list[int]:
+        """支柱1本の下端からのコマの高さ（mm、昇順。カタログの支柱図）.
+
+        上端から koma_top_gap 下を起点に koma_pitch で下へ並べ、根がらみ用のコマのある支柱
+        （nega_koma_lengths）は下端から koma_nega と、そこから上の半ピッチのコマを足す
+        （ND1800 の NDP27N: 170・395・845…2645、NDP36N: 395・845…3545）。
+        """
+        pitch = self.koma_pitch
+        if pitch <= 0 or length <= 0:
+            return []
+        c = SERIES_CONST[self.series_id]
+        out = set()
+        z = length - self.koma_top_gap
+        while z >= 100:
+            out.add(z)
+            z -= pitch
+        nega = int(c.get("koma_nega", 0) or 0)
+        if nega and length in tuple(c.get("nega_koma_lengths", ())):
+            out.add(nega)
+            # 根がらみのコマのすぐ上（ND1800 の NDP11N は 170 の上に 395 がある）
+            if not any(nega < v <= nega + pitch * 0.75 for v in out) and pitch - self.koma_top_gap < length:
+                out.add(pitch - self.koma_top_gap)
+        return sorted(out)
 
     @property
     def system_type(self) -> str:

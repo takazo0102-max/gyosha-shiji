@@ -744,7 +744,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     if guard_extra is None:
         guard_extra = (
             FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame
-            else 2 * master.koma_pitch
+            else 2 * master.koma_pitch + master.koma_top_gap
         )
     required = int(spec["eaves_height_mm"]) + int(guard_extra)
     height_note = None

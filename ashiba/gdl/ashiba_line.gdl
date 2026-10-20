@@ -100,6 +100,9 @@
 !   landingList     文字列  昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                                                       既定 ""
 !   beamList        文字列  梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                                                                既定 ""
 !   bridgeList      文字列  渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm  既定 ""
+!   komaGap         長さ    支柱の上端から最上のコマまで（ND1800 55・ミレニューム 30）                                                既定 0
+!   komaNega        長さ    根がらみ用のコマの高さ（支柱の下端から。ND1800 170）                                                      既定 0
+!   negaLens        文字列  根がらみ用のコマのある支柱の長さ mm（例 2700,1125,900）                                                   既定 ""
 !   editList        文字列  外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」      既定 ""
 !   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                                                   既定 ""
 !   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                                                                  既定 ""
@@ -2134,35 +2137,74 @@ if lineMode then
 endif
 
 ! ---- コマ（緊結部）の高さ kz[1..nKz] ----
-! 精細は komaPitch ごと（根がらみの高さから）。軽量でも、布材・腕木・踏板・手すりのフックを掛ける高さ
-! （根がらみ・各作業床・中桟・手すり）のコマは描く。軽量でコマを全部省いていたため、自動で軽量になった
-! 長い面だけ支柱にフックを掛ける座が無かった（利用者の指摘 2026-10-21）
+! カタログの支柱図（master.post_koma_offsets と同じ規則）: 支柱1本ごとに、上端から komaGap 下を起点に
+! komaPitch で下へ。negaLens の長さの支柱（ND1800 の 2700 など）は下端から komaNega に根がらみ用のコマ
+! （そのすぐ上に無ければ komaPitch−komaGap にも）。利用者の指摘（2026-10-21）: 支柱のフックの高さは
+! 450ピッチ、2700は根がらみ用のフックがある。以前は根がらみの高さから450ごとに並べ、継ぎ目にコマが来ていた。
+! 軽量では、布材・腕木・踏板・手すりのフックを掛ける高さ（根がらみ・各作業床・中桟・手すり）のコマだけ描く
 dim kz[]
+dim kzAll[]
 nKz = 0
+nKzA = 0
 if komaPitch > 0 then
-	if isLite = 0 then
-		zk = lv[1]
-		while zk < postTop - 0.01 do
-			nKz = nKz + 1
-			kz[nKz] = zk
-			zk = zk + komaPitch
+	zb = jackOut
+	for j = 1 to nPost
+		pl = posts[j]
+		zz = pl - komaGap
+		while zz >= 0.1 - 0.0001 do
+			nKzA = nKzA + 1
+			kzAll[nKzA] = zb + zz
+			zz = zz - komaPitch
 		endwhile
-	else
-		for il = 1 to nLv
-			nKz = nKz + 1
-			kz[nKz] = lv[il]
-			if il > 1 then
-				if lv[il] + railMid < postTop - 0.01 then
-					nKz = nKz + 1
-					kz[nKz] = lv[il] + railMid
-				endif
-				if lv[il] + railTop < postTop - 0.01 then
-					nKz = nKz + 1
-					kz[nKz] = lv[il] + railTop
-				endif
+		! 根がらみ用のコマ
+		isNg = 0
+		rest = negaLens
+		while strlen(rest) > 0 do
+			pc = strstr(rest, ",")
+			if pc > 0 then
+				item = strsub(rest, 1, pc - 1)
+				rest = strsub(rest, pc + 1, strlen(rest) - pc)
+			else
+				item = rest
+				rest = ""
 			endif
-		next il
-	endif
+			k = split(item, "%n", v)
+			if k > 0 then
+				if abs(v / 1000 - pl) < 0.0005 then isNg = 1
+			endif
+		endwhile
+		if isNg = 1 and komaNega > 0.001 then
+			nKzA = nKzA + 1
+			kzAll[nKzA] = zb + komaNega
+			! すぐ上（3/4 ピッチ以内）にコマが無ければ komaPitch−komaGap にも
+			zm = pl - komaGap
+			while zm - komaPitch > komaNega + 0.001 do
+				zm = zm - komaPitch
+			endwhile
+			if zm > komaNega + 0.75 * komaPitch + 0.001 and komaPitch - komaGap < pl then
+				nKzA = nKzA + 1
+				kzAll[nKzA] = zb + komaPitch - komaGap
+			endif
+		endif
+		zb = zb + pl
+	next j
+	for ik = 1 to nKzA
+		keep = 1
+		if isLite = 1 then
+			keep = 0
+			for il = 1 to nLv
+				if abs(kzAll[ik] - lv[il]) < 0.005 then keep = 1
+				if il > 1 then
+					if abs(kzAll[ik] - lv[il] - railMid) < 0.005 then keep = 1
+					if abs(kzAll[ik] - lv[il] - railTop) < 0.005 then keep = 1
+				endif
+			next il
+		endif
+		if keep = 1 then
+			nKz = nKz + 1
+			kz[nKz] = kzAll[ik]
+		endif
+	next ik
 endif
 
 ! ---- 支柱（各スパン境界に内外1対） ----
@@ -2212,10 +2254,8 @@ for ip = 1 to nSpan + 1
 						del 1
 					endif
 					addz posts[j]
-					if j < nPost and isLite = 0 then
-						addz -0.03
-						cylind 0.06, r_sic + 0.006
-						del 1
+					if j < nPost then
+						gosub 840
 					endif
 				next j
 				del nPost + 2
@@ -2256,10 +2296,8 @@ if cornerS = 1 then
 		for j = 1 to nPost
 			cylind posts[j], r_sic
 			addz posts[j]
-			if j < nPost and isLite = 0 then
-				addz -0.03
-				cylind 0.06, r_sic + 0.006
-				del 1
+			if j < nPost then
+				gosub 840
 			endif
 		next j
 		del nPost + 2
@@ -3151,10 +3189,8 @@ if stOut = 1 then
 					del 1
 				endif
 				addz posts[j]
-				if j < nPost and isLite = 0 then
-					addz -0.03
-					cylind 0.06, r_sic + 0.006
-					del 1
+				if j < nPost then
+					gosub 840
 				endif
 			next j
 			del nPost + 2
@@ -3401,6 +3437,16 @@ if serType = "W" and il > 1 and isLite = 0 then
 	next sk
 endif
 return
+
+840:	! ---- 支柱の継ぎ目（利用者の指摘 2026-10-21: 支柱の継ぎ目が分かるように）: 継手の帯（上下の支柱の
+	! 突き合わせ。コマ φ106 の円盤とは形を変え、縦長の帯にする）と、継ぎ目の線（帯の中央の細い溝）。
+	! 軽量でも描く（積んだ支柱の長さ 2700・3600 が3Dと立面で読めるように）
+	addz -0.04
+	cylind 0.035, r_sic + 0.008
+	addz 0.045
+	cylind 0.035, r_sic + 0.008
+	del 2
+	return
 
 830:	! ---- 布材（爪付き）: 原点から +X へ長さ nL。管は支柱芯から 78 内側で終わり、
 ! そこから支柱のフランジまで爪（ブラケット）が掛かる（次世代足場.gsm の寸法）。
