@@ -24,7 +24,8 @@ class TestSameAsTheLine(unittest.TestCase):
         for ep in r.model.plan.edges:
             p = line_params(r.model, ep, stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
                             bracket_sections=r.brackets, terrain=r.terrain)
-            ms = line_members(p)
+            # 出隅の升目・開放端は別に確かめる（図示本数は面の本体の部材だけ）
+            ms = [m for m in line_members(p) if "出隅" not in m.name and "妻側" not in m.name]
             c = face_drawn_counts(r.model, ep, stair_plan=r.stair_plan, openings=r.openings)
             n_post = len(r.model.elevation_of(ep.edge_index).posts)
             with self.subTest(series=spec.get("series_id"), edge=ep.edge_index):
@@ -106,6 +107,30 @@ class TestDetails(unittest.TestCase):
         c = member_counts(line_members(line_params(r.model, r.model.plan.edges[0])))
         self.assertTrue(any(k.startswith("支柱 ") for k in c))
         self.assertTrue(any(k.startswith("布材（腕木）") for k in c))
+
+
+class TestCornerAndOpenEnds(unittest.TestCase):
+    def test_outer_corner_is_exploded_too(self):
+        r = solve_all({**RECT, "series_id": "nikken_nd1800"})
+        ep = r.model.plan.edges[0]
+        p = line_params(r.model, ep)
+        self.assertEqual(p["cornerS"], 1)
+        ms = line_members(p)
+        e = r.model.elevation_of(ep.edge_index)
+        corner_posts = [m for m in ms if m.kind == KIND["支柱"] and "出隅" in m.name]
+        self.assertEqual(len(corner_posts), len(e.posts))
+        self.assertTrue(all(abs(m.x + 0.61) < 0.01 and abs(m.y + 0.61) < 0.01 for m in corner_posts))
+        self.assertEqual(_count(ms, KIND["踏板"], "出隅"), e.n_levels)
+        # 根がらみ1段＋各層の床・手すり・中桟、2方向
+        self.assertEqual(_count(ms, KIND["布材"], "出隅"), 2 * (1 + 3 * e.n_levels))
+
+    def test_open_ends_get_end_rails(self):
+        r = solve_all({**RECT, "series_id": "nikken_nd1800", "faces": "南面,東面"})
+        south = line_params(r.model, r.model.plan.edges[0])
+        ms = line_members(south)
+        n = r.model.elevation.n_levels
+        self.assertEqual(_count(ms, KIND["布材"], "妻側"), 2 * n)
+        self.assertEqual(_count(ms, KIND["幅木"], "妻側"), n)
 
 
 if __name__ == "__main__":

@@ -229,6 +229,47 @@ def line_members(p: dict) -> list[Member]:
                 out.append(Member(4, x - 0.035, -row_w + r_sic + 0.004, z + R_NUNO + 0.045, L=sp + 0.07,
                                   name=f"幅木 {sp * 1000:.0f}"))
 
+    # ---- 出隅の升目（くさび式。始点側の外側コーナー支柱と、隣の面の外側列の延長・この面の外側列の手前） ----
+    if not frame and _i(p, "cornerS") == 1:
+        cx = cy = -row_w
+        out.append(Member(7, cx, cy, 0.0, H=jack, name=f"ジャッキベース（出隅）繰出し{jack * 1000:.0f}"))
+        z = jack
+        for pl in posts:
+            out.append(Member(1, cx, cy, z, L=pl, koma=koma_offsets(pl, pitch, gap, nega, nega_lens),
+                              name=f"支柱（出隅）{pl * 1000:.0f}"))
+            z += pl
+        for il in range(n_lv):
+            heights = [lv[il]] + ([lv[il] + rail_top, lv[il] + rail_mid] if il > 0 else [])
+            for zz in heights:
+                tag = "根がらみ" if il == 0 else ("床" if zz == lv[il] else "手すり・中桟")
+                # 前の面の外側列の延長（この面の内側建地列の位置から -Y へ）と、この面の外側列の手前（+X へ）
+                out.append(Member(2, cx, 0.0, zz, ang=-90.0, L=row_w, name=f"布材（出隅・{tag}）{row_w * 1000:.0f}"))
+                out.append(Member(2, cx, cy, zz, ang=0.0, L=row_w, name=f"布材（出隅・{tag}）{row_w * 1000:.0f}"))
+            if il > 0:
+                out.append(Member(3, cx + 0.025, cy + 0.05, lv[il], L=row_w - 0.025, W=row_w - 0.05,
+                                  name="踏板（出隅）"))
+                if not rail_adv:
+                    tz = lv[il] + R_NUNO + 0.045
+                    out.append(Member(4, cx + r_sic + 0.004, cy + r_sic + 0.004, tz, L=row_w - r_sic,
+                                      name="幅木（出隅）"))
+                    out.append(Member(4, cx + r_sic + 0.004, 0.0, tz, ang=-90.0, L=row_w - r_sic + 0.004,
+                                      name="幅木（出隅）"))
+
+    # ---- 開放端（一部の面だけの足場で隣の面を掛けない端）: 妻側の手すり・中桟・幅木 ----
+    line_len = xs[-1]
+    for xe, flag in ((0.0, _i(p, "endOpenS")), (line_len, _i(p, "endOpenE"))):
+        if flag != 1:
+            continue
+        for il in range(1, n_lv):
+            z = lv[il]
+            for zz in (z + rail_top, z + rail_mid):
+                out.append(Member(2, xe, 0.0, zz, ang=-90.0, L=row_w, name=f"布材（妻側の手すり）{row_w * 1000:.0f}"))
+            # 幅木は板が足場の内側に来る向き（始点の端は +X、終点の端は -X）
+            if xe == 0.0:
+                out.append(Member(4, xe, 0.0, z + R_NUNO + 0.045, ang=-90.0, L=row_w, name="幅木（妻側）"))
+            else:
+                out.append(Member(4, xe, -row_w, z + R_NUNO + 0.045, ang=90.0, L=row_w, name="幅木（妻側）"))
+
     # ---- 交差筋違（枠組。全構面の両面、建枠の脚の筋違ピンに掛ける） ----
     if frame:
         for il in range(n_lv - 1):
