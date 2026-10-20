@@ -189,3 +189,52 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
                      + "）は、層によって負の数になります。合計は数量表と同じです")
     rows = [LevelRow(parts[k], per[k]) for k in keys if any(per[k])]
     return LevelTakeoff(bands, rows, notes, floor_names(bands, stories, float(model.base_height_mm)))
+
+
+@dataclass
+class FaceTakeoff:
+    faces: list[str]
+    rows: list[tuple[object, list[int]]]       # (部材, 面ごとの数)
+    totals: dict                                # (型番, 分類) → 全体の数量
+    notes: list[str] = field(default_factory=list)
+
+
+def take_off_by_face(model: ScaffoldModel, quantity, **kw) -> FaceTakeoff:
+    """面ごとの数量（参考: smartCON Planner の「領域ごとの部品表」。工区・面ごとに手配するとき用）.
+
+    面を1つずつ取り出した計画で数量を拾う。隅の支柱・コーナーの部材は、その隅を始点に持つ面に入る
+    （足場の割付と同じ持ち方）。面ごとの合計は、面をまたぐ部材（階段の外付け・朝顔の取付部など）の
+    数え方の違いで全体の数量表と少しずれることがあるので、全体の列も並べる。
+    """
+    from .quantity import (_only_edges, _sub_model, _sub_openings, _sub_platforms, _sub_stairs, _sub_terrain,
+                           take_off)
+
+    names = model.plan.face_names()
+    faces = []
+    per: dict = {}
+    parts: dict = {}
+    edges = list(model.plan.edges)
+    for i, ep in enumerate(edges):
+        es = {ep.edge_index}
+        sub = _sub_model(model, model.elevation_of(ep.edge_index), es)
+        sub.face_elevations = {}
+        q = take_off(sub, bracket_sections=_only_edges(kw.get("bracket_sections"), es),
+                     stair_plan=_sub_stairs(kw.get("stair_plan"), es),
+                     platforms=_sub_platforms(kw.get("platforms"), es),
+                     openings=_sub_openings(kw.get("openings"), es),
+                     terrain=_sub_terrain(kw.get("terrain"), model, es))
+        faces.append(names[i] if i < len(names) else f"辺{ep.edge_index}")
+        for line in q.lines:
+            key = (line.part.model_no, line.part.category)
+            parts[key] = line.part
+            per.setdefault(key, [0] * len(edges))[i] += line.qty
+    totals: dict = {}
+    for line in quantity.lines:
+        key = (line.part.model_no, line.part.category)
+        parts[key] = line.part
+        totals[key] = totals.get(key, 0) + line.qty
+        per.setdefault(key, [0] * len(edges))
+    rows = [(parts[k], v) for k, v in per.items()]
+    notes = ["隅の支柱・コーナーの部材は、その隅を始点に持つ面に入れています",
+             "面をまたぐ部材（外付け階段・取付部の壁つなぎ等）は面ごとの数え方で全体と少しずれることがあります。発注は全体の列で"]
+    return FaceTakeoff(faces, rows, totals, notes)

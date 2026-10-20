@@ -63,6 +63,18 @@ def write_level_quantity_csv(lt, path: Path) -> None:
             w.writerow(["注記", n])
 
 
+def write_face_quantity_csv(ft, path: Path) -> None:
+    """面ごとの数量（level_quantity.take_off_by_face）。最後の列は全体の数量表の値."""
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(["型番", "分類", "呼び寸法"] + list(ft.faces) + ["面の合計", "全体（数量表）"])
+        for p, vals in ft.rows:
+            w.writerow([p.model_no, p.category, p.nominal_dim] + list(vals)
+                       + [sum(vals), ft.totals.get((p.model_no, p.category), 0)])
+        for n in ft.notes:
+            w.writerow(["注記", n])
+
+
 def write_quantity_csv(result: QuantityResult, path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)

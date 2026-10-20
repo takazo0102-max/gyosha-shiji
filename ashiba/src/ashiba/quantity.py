@@ -234,7 +234,10 @@ def _sub_stairs(stair_plan, edges: set):
     if stair_plan is None:
         return None
     import dataclasses
-    return dataclasses.replace(stair_plan, towers=[t for t in stair_plan.towers if t.edge_index in edges])
+    sub = dataclasses.replace(stair_plan, towers=[t for t in stair_plan.towers if t.edge_index in edges])
+    # 建物に階段があって、この面の組には無い → 0箇所（設定の既定の箇所数に戻さない）
+    sub.subset = bool(stair_plan.towers)
+    return sub
 
 
 def _sub_platforms(platforms, edges: set):
@@ -604,7 +607,7 @@ def _take_off_one(
     # ---- 階段・階段まわりの手すり（自動配置があればその箇所数、なければ設定値）。踊り場の床は使わない ----
     stair = next((p for p in m.by_category("階段") if "ハーフ" not in p.note), None)
     n_towers = (
-        stair_plan.count if stair_plan is not None and stair_plan.towers
+        stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段")
@@ -869,7 +872,9 @@ def _count_asagao_parts(
 
     # 出隅では2面の朝顔が突き合わず、隅に三角の隙間が残る（落下物が抜ける）。
     # 隅部はコーナー材で塞ぐ。マスタにあれば出隅×段数で計上、無ければ現場対応を出す
-    corners = [c for c in model.plan.outline.corners if c.kind == "出隅"]
+    # 出隅はそれを始点に持つ面に属する（面の組・面ごとの数量で二重にしない）
+    corners = [e for e in model.plan.outline.edges if e.start_corner == "出隅"
+               and (model.edge_subset is None or e.index in model.edge_subset)]
     if corners:
         corner_part = next((p for p in m.by_category("朝顔") if "コーナー" in p.note), None)
         if corner_part is not None:
@@ -924,7 +929,9 @@ def _count_safe_wing_parts(
             + "。資料の指示どおりキャッチャー用踏板 SD-40xx を別途手配してください"
             "（Bタイプ用踏板は使用不可）",
         )
-    corners = [c for c in model.plan.outline.corners if c.kind == "出隅"]
+    # 出隅はそれを始点に持つ面に属する（面の組・面ごとの数量で二重にしない）
+    corners = [e for e in model.plan.outline.edges if e.start_corner == "出隅"
+               and (model.edge_subset is None or e.index in model.edge_subset)]
     if corners:
         notes.action(
             f"出隅{len(corners)}箇所はセーフウイングが突き合わない隅部になります"
@@ -1845,7 +1852,7 @@ def _count_frame_parts(
     _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
     stair = next(iter(m.by_category("階段")), None)
     n_towers = (
-        stair_plan.count if stair_plan is not None and stair_plan.towers
+        stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
     add(stair, n_towers * n_levels, "階段枠")

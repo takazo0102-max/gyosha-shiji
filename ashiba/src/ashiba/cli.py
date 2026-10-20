@@ -1441,6 +1441,15 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
                           stair_plan=stair_plan, platforms=platforms, openings=openings, terrain=terrain),
         out_dir / f"{name}_層別数量.csv",
     )
+    # 面ごとの数量（工区・面ごとに手配するとき用。参考: smartCON Planner の領域ごとの部品表）
+    from .level_quantity import take_off_by_face
+    from .report import write_face_quantity_csv
+
+    write_face_quantity_csv(
+        take_off_by_face(model, quantity, bracket_sections=brackets, stair_plan=stair_plan,
+                         platforms=platforms, openings=openings, terrain=terrain),
+        out_dir / f"{name}_面別数量.csv",
+    )
     write_report_md(
         model, quantity, checks, out_dir / f"{name}_割付レポート.md", name,
         stair_plan=stair_plan, verdict=verdict, structural=structural, terrain=terrain,

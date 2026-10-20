@@ -106,3 +106,21 @@ class TestCsvSafe(unittest.TestCase):
         self.assertEqual(_csv_safe("=1+1"), "'=1+1")
         self.assertEqual(_csv_safe("-1.基礎下端"), "'-1.基礎下端")
         self.assertEqual(_csv_safe("2FL"), "2FL")
+
+
+class TestFaceQuantity(unittest.TestCase):
+    """面ごとの数量（参考: smartCON Planner の領域ごとの部品表）。面の合計は全体の数量表と一致する."""
+
+    def test_faces_add_up(self):
+        for sp in ({"series_id": "nikken_nd1800"}, {"series_id": "waku"},
+                   {"series_id": "nikken_nd1800", "stairs": {"layout": "outside"}},
+                   {"face_eaves_mm": {"0": 9000, "1": 15400, "2": 15400, "3": 15400}}):
+            with self.subTest(sp=sp):
+                r = solve_all({**RECT, **sp})
+                from ashiba.level_quantity import take_off_by_face
+
+                ft = take_off_by_face(r.model, r.quantity, bracket_sections=r.brackets, stair_plan=r.stair_plan,
+                                      platforms=r.platforms, openings=r.openings, terrain=r.terrain)
+                self.assertEqual(len(ft.faces), len(r.model.plan.edges))
+                for p, vals in ft.rows:
+                    self.assertEqual(sum(vals), ft.totals.get((p.model_no, p.category), 0), (p.model_no, vals))
