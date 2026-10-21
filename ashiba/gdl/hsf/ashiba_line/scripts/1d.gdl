@@ -220,7 +220,6 @@ for p870 = 1 to 2
 		endif
 	endwhile
 next p870
-noEnd830 = 0
 ! 3D の布・手すりの呼び出し側が、この区間の通しの割付（runP: 0=通さない 1=A 2=B）と区間の始め（runX）を渡す
 runP = 0
 runX = 0

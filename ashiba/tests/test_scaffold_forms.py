@@ -66,8 +66,9 @@ class TestBracketScaffold(unittest.TestCase):
         self.assertEqual(m.config.form_label, "ブラケット足場（単管）")
         # 足場板は1列（利用者の指定 2026-10-22）。腕はそれを受ける単管ブラケット（数量と同じ長さ）
         self.assertEqual(m.deck_widths_in_use, (240,))
-        self.assertIn("TB-40", _qty(r, "ブラケット"))
-        self.assertEqual(m.post_row_spacing_mm, 400)
+        # カタログの C付伸縮ブラケット フリー（日建 p108、φ48.6・42.7兼用）。足場板1列は TWL500F を縮めて 430
+        self.assertIn("TWL500F", _qty(r, "ブラケット"))
+        self.assertEqual(m.post_row_spacing_mm, 430)
         # 一側足場は563条の作業床の規定の適用外。40cm未満は注意（NG にしない）
         self.assertEqual(_check(r, 2).status, "WARN")
 

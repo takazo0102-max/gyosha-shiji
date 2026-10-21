@@ -133,9 +133,11 @@ class TestBoards(unittest.TestCase):
 
     def test_bracket_tip_has_no_clamp_and_ties_start_at_the_post(self):
         d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
-        i = d3.index("800: ! ---- 一側足場の床受けブラケット")
-        self.assertIn("noEnd830 = 1", d3[i:i + 1200])
-        self.assertIn("not(hd830 = 1 and noEnd830 = 1)", d3)
+        # 単管のブラケットは C付伸縮ブラケット（812）。クランプは建地側だけ（先端に建地が無い）
+        i = d3.index("812:")
+        sub = d3[i:d3.index("800: ! ---- 一側足場の床受けブラケット")]
+        self.assertEqual(sub.count("gosub 838"), 1)
+        self.assertIn("TWL500F", sub)
         self.assertIn("if nRows < 2 then yTie = -rowW", d3)
 
     def test_tie_from_the_outer_post_on_a_single_row(self):
