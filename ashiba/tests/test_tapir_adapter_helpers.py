@@ -58,7 +58,13 @@ class _DupStub(ArchicadClient):
         if command == "DeleteElements":
             self.deleted += [e["elementId"]["guid"] for e in params["elements"]]
             return {}
+        if command == "GetGDLParametersOfElements":
+            return {"gdlParametersOfElements": [
+                {"gdlParameters": [{"name": "parentId", "value": self.parents.get(e["elementId"]["guid"], "")}]}
+                for e in params["elements"]]}
         return {}
+
+    parents: dict = {}
 
 
 class TestDeleteStaleDuplicates(unittest.TestCase):
@@ -99,6 +105,21 @@ class TestObjectsForSlab(unittest.TestCase):
         got = sorted(e["elementId"]["guid"] for e in c.objects_for_slab(
             [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)]))
         self.assertEqual(got, ["det", "elev", "line", "old_det", "old_ver"])
+
+    def test_exploded_members_of_its_lines_far_out(self):
+        """分解した部材は外形の外（外側の支柱）にあっても、親の足場ラインごと拾う."""
+        objs = {
+            "line": ("ashiba_line", 299.7, 299.65, 0.0),
+            "m_out": ("ashiba_member_d9eb777d", 298.5, 310.0, 0.0),   # 外形の1.5m外の外側支柱
+            "m_in": ("ashiba_member_d9eb777d", 300.5, 310.0, 0.0),    # 範囲内
+            "m_other": ("ashiba_member_d9eb777d", 298.5, 312.0, 0.0),  # 別の足場ラインの部材
+        }
+        c = _DupStub(objs)
+        c.parents = {"m_out": "line", "m_in": "line", "m_other": "elsewhere"}
+        got = sorted(e["elementId"]["guid"] for e in c.objects_for_slab(
+            [(300000, 300000), (330000, 300000), (330000, 320000), (300000, 320000)],
+            ("ashiba_line", "ashiba_member")))
+        self.assertEqual(got, ["line", "m_in", "m_out"])
 
 
 class TestPartNameVersions(unittest.TestCase):

@@ -505,6 +505,7 @@ class ArchicadClient:
         row_x_max = x0 + perimeter + 4000.0 * (n + 1) + margin_mm
         all_objs = self.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
         out: list[dict] = []
+        far_members: list[dict] = []
         for e, d in zip(all_objs, self.get_details(all_objs) if all_objs else []):
             dd = d.get("details", {})
             lp = dd.get("libPart") or {}
@@ -517,6 +518,19 @@ class ArchicadClient:
             in_row = (x0 - margin_mm <= ox <= row_x_max) and any(abs(oy - r) <= margin_mm for r in rows)
             if in_plan or in_row:
                 out.append(e)
+            elif is_ashiba_part(name, ("ashiba_member",)):
+                far_members.append(e)
+        # 分解した部材は足場の位置（外形から離れ＋幅の外）にあり範囲で拾えない。拾った
+        # 足場ラインを親（parentId）に持つものも拾う（置き直しで外側の支柱などが129本残った）
+        owners = {e["elementId"]["guid"] for e in out}
+        for i in range(0, len(far_members), 200):
+            part = far_members[i:i + 200]
+            r = self.tapir("GetGDLParametersOfElements", {"elements": part})
+            for e, item in zip(part, r.get("gdlParametersOfElements", [])):
+                ps = item.get("gdlParameters", item.get("parameters", []))
+                pid = next((str(p.get("value") or "") for p in ps if p.get("name") == "parentId"), "")
+                if pid in owners:
+                    out.append(e)
         return out
 
     def find_red_pen(self, default: int = 20) -> int:
