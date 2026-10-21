@@ -68,7 +68,7 @@
 			<Value>16.0</Value>
 		</Length>
 		<Integer Name="scaffW">
-			<Description><![CDATA["足場の幅 mm（600・900。0＝系列の既定）"]]></Description>
+			<Description><![CDATA["足場の幅 mm（センチ 600・900・1200、インチ 610・914・1219。0＝配置の始めに選ぶ）"]]></Description>
 			<Value>0</Value>
 		</Integer>
 		<Integer Name="periodDays">

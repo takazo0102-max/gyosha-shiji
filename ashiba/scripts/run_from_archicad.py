@@ -19,6 +19,7 @@ CLI（python3 -m ashiba.cli）と同じ solve_all/write_outputs を通すので�
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -201,6 +202,69 @@ def read_spec_objects(client) -> list:
         params = {p.get("name"): p.get("value") for p in item.get("gdlParameters", item.get("parameters", []))}
         found.append((e, (float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0), params))
     return found
+
+
+def _choose_width_dialog(choices) -> str | None:
+    labels = [c.label for c in choices]
+    q = lambda t: '"' + t.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    script = ("choose from list {" + ", ".join(q(t) for t in labels) + "} with title " + q("足場の幅")
+              + " with prompt " + q("足場の幅（建地列の間隔）を選んでください。センチはメートル系、インチはインチ系の足場になります")
+              + " default items {" + q(labels[0]) + "} OK button name " + q("決定") + " cancel button name " + q("既定のまま"))
+    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    out = (r.stdout or "").strip()
+    return None if r.returncode != 0 or not out or out == "false" else out
+
+
+def choose_width_at_start(client, spec: dict, interactive: bool, persist: bool = True) -> dict:
+    """足場の幅を始めに選ぶ（利用者の指定 2026-10-22: 足場の幅が始めに選べるようにして、インチとセンチで）.
+
+    幅がまだ無い建物（ashiba.widths.needs_width_choice）だけ。ASHIBA_WIDTH（"914"・"90cm"・"36in"・"3ft" など）が
+    あれば一覧を出さずにそれを使う（試験用）。選んだ幅はこの建物の足場条件の部品（幅・モジュール・系列）に書き、
+    部品が無ければ条件ファイルに書くので、次からは聞かない。
+    """
+    from ashiba.widths import apply_width_choice, find_choice, needs_width_choice, ordered_choices
+
+    if not needs_width_choice(spec):
+        return spec
+    env = os.environ.get("ASHIBA_WIDTH", "").strip()
+    if env:
+        choice = find_choice(env)
+    elif interactive and os.environ.get("ASHIBA_ASK_WIDTH", "1") != "0":
+        choice = find_choice(_choose_width_dialog(ordered_choices(spec)))
+    else:
+        return spec
+    if choice is None:
+        print("  幅: 選ばなかったので系列の既定の幅で置きます")
+        return spec
+    new, notes = apply_width_choice(spec, choice)
+    where = ""
+    if persist:
+        from ashiba.spec_object import pick_spec_object
+
+        hit = None
+        try:
+            hit = pick_spec_object(read_spec_objects(client), spec.get("outline_mm") or [])
+        except TapirError:
+            hit = None
+        if hit is not None:
+            try:
+                client.set_gdl_parameters(hit[0], {"scaffW": int(choice.width_mm), "moduleKind": choice.module,
+                                                   "seriesId": str(new.get("series_id") or "")})
+                where = "足場条件の部品"
+            except TapirError as e:
+                print(f"  幅: 足場条件の部品に書けませんでした（{e}）")
+    if not where and SPEC_OVERRIDE.exists() and interactive:
+        try:
+            body = json.loads(SPEC_OVERRIDE.read_text(encoding="utf-8"))
+            body.update({"scaffold_width_mm": int(choice.width_mm), "module": choice.module})
+            if "series_id" not in new:
+                body.pop("series_id", None)
+            SPEC_OVERRIDE.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            where = SPEC_OVERRIDE.name
+        except (OSError, ValueError):
+            pass
+    print("  幅: " + "・".join(notes) + (f"（{where}に控えました）" if where else ""))
+    return new
 
 
 def apply_spec_object(client, spec: dict) -> dict:
@@ -467,6 +531,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
     if use_spec_object:
         spec = apply_spec_object(client, spec)
+    # 足場の幅を始めに選ぶ（幅がまだ無い建物だけ。センチとインチの一覧。選んだ幅は部品・条件ファイルに控える）
+    spec = choose_width_at_start(client, spec, interactive=spec_override is None, persist=use_spec_object)
     # 建物のフロア（層別数量にフロア名を付け、フロアごとに合計する）
     if not spec.get("stories"):
         try:

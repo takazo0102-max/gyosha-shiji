@@ -21,7 +21,7 @@
 !   guardExtra    長さ    手すり分（最上層作業床＝軒高＋この値）                                                      既定 0.9
 !   scaffH        長さ    足場高さを直接指定（0＝軒高から）                                                           既定 0.0
 !   bldgH         長さ    建物高さ                                                                                    既定 16.0
-!   scaffW        整数    足場の幅 mm（600・900。0＝系列の既定）                                                      既定 0
+!   scaffW        整数    足場の幅 mm（センチ 600・900・1200、インチ 610・914・1219。0＝配置の始めに選ぶ）            既定 0
 !   periodDays    整数    設置期間（日）                                                                              既定 90
 !   soTarget      長さ    離れ 目標                                                                                   既定 0.3
 !   soMin         長さ    離れ 目標下限                                                                               既定 0.25
@@ -111,7 +111,7 @@ ui_outfield "掛ける面（空＝全周）", 10, 205, 130, 18
 ui_infield "facesOnly", 140, 203, 140, 20
 ui_outfield "ブラケットの建地", 290, 205, 90, 18
 ui_infield "bracketPost", 390, 203, 70, 20
-ui_outfield "幅（0＝既定）", 310, 114, 80, 18
+ui_outfield "幅 mm（0＝配置で選ぶ）", 300, 114, 90, 18
 ui_infield "scaffW", 390, 112, 70, 20
 ui_outfield "設置期間（日）", 10, 142, 120, 18
 ui_infield "periodDays", 140, 140, 100, 20
