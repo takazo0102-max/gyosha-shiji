@@ -102,6 +102,26 @@ class TestBoards(unittest.TestCase):
         p = line_params(m, m.plan.edges[0])
         self.assertEqual(p["deckRunA"], ",".join(str(v) for v in face_boards(list(m.plan.edges[0].spans))[0].pieces))
 
+    def test_toe_boards_follow_the_deck_layout(self):
+        # 幅木も足場板を立てて規定の長さで通し、継ぎは300重ねる（利用者の指定 2026-10-22）
+        from ashiba.cli import solve_all
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        r = solve_all({**base, "scaffold_form": "ブラケット足場", "bracket_post": "単管"})
+        m = r.model
+        toe = {ln.part.model_no: ln.qty for ln in r.quantity.lines if ln.part and ln.part.category == "幅木"}
+        want: dict = {}
+        for ep in m.plan.edges:
+            for L in face_boards(list(ep.spans))[0].pieces:
+                k = f"足場板{L / 1000:.1f}M-240"
+                want[k] = want.get(k, 0) + m.elevation.n_levels
+        corner = m.outer_corner_posts() * m.elevation.n_levels * 2          # 出隅の外側の升目の幅木（短い板）
+        got = dict(toe)
+        got["足場板1.0M-240"] = got.get("足場板1.0M-240", 0) - corner
+        self.assertEqual({k: v for k, v in got.items() if v}, want)
+        d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("block bdLen[1][kb], 0.028, 0.24", d3)
+
     def test_bracket_tip_has_no_clamp_and_ties_start_at_the_post(self):
         d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
         i = d3.index("800: ! ---- 一側足場の床受けブラケット")

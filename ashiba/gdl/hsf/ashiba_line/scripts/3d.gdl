@@ -988,9 +988,23 @@ if showDeck then
 							! 単管は足場板を立てて幅木にする（高さ240）。抱き足場は足場板の外の縁
 							if hugMode = 0 then
 								! 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
-								add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028
-								block spans[ip], 0.028, 0.24
-								del 1
+								if nBd[1] > 0 then
+									! 幅木も規定の長さの足場板を通し、継ぎは300重ねる（利用者の指定 2026-10-22）。床の足場板と
+									! 同じ割付で、重ねは建地の位置。重ねた側の板は1枚分（28）内側に立つ
+									bs = bdS
+									for kb = 1 to nBd[1]
+										if (bs >= x - 0.001 or ip = 1) and (bs < x + spans[ip] - 0.001 or ip = nSpan) then
+											add bs, -rowW + r_sic + 0.004 + 0.028 * (kb - 2 * int(kb / 2) = 0), z + 0.0243 + 0.028
+											block bdLen[1][kb], 0.028, 0.24
+											del 1
+										endif
+										bs = bs + bdLen[1][kb] - bdLap
+									next kb
+								else
+									add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028
+									block spans[ip], 0.028, 0.24
+									del 1
+								endif
 							endif
 						else
 						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045

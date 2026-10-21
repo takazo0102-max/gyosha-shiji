@@ -633,7 +633,11 @@ def _take_off_one(
             )
 
     # ---- 幅木（各作業層 外側スパン毎） ----
-    if model.config.has_toe_board:
+    if model.config.has_toe_board and m.is_tube and model.deck_widths_in_use:
+        # 単管の幅木は足場板を立てたもの。床の足場板と同じ割付で規定の長さを通し、継ぎは300重ねる
+        _count_tube_toe_boards(model, n_levels, add, notes,
+                               sum(n * n_levels for n in span_counts.values()) - sum(toe_cells.values()))
+    elif model.config.has_toe_board:
         for s, cells in toe_cells.items():
             add(m.find("幅木", s), cells, f"幅木{s}")
 
@@ -1690,6 +1694,26 @@ def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, a
     )
     if cut_cells:
         notes.append(f"足場板は階段・開口部の区間（{cut_cells}スパン×層）も面の通しのまま計上しています")
+
+
+def _count_tube_toe_boards(model: ScaffoldModel, n_levels: int, add, notes, cut_cells: int) -> None:
+    """単管の幅木（足場板を立てたもの）: 面ごとの足場板の割付（face_boards の A）× 作業層."""
+    from .tube_runs import BOARD_LAP_MM, face_boards
+
+    m = model.master
+    lines = []
+    for ep in model.plan.edges:
+        run = face_boards(list(ep.spans))[0]
+        for L in run.pieces:
+            part = next((p for p in m.by_category("幅木") if p.actual_dim == L), None)
+            add(part, n_levels, f"幅木（足場板）{L / 1000:.1f}M")
+        lines.append("+".join(f"{L / 1000:.1f}" for L in run.pieces))
+    notes.append(
+        f"幅木は足場板を立てて規定の長さで通し、継ぎは{BOARD_LAP_MM}mm 重ねる（床の足場板と同じ割付"
+        f" {'／'.join(lines)} m）× {n_levels}層で計上"
+    )
+    if cut_cells:
+        notes.append(f"幅木は開口部・ステージ等の区間（{cut_cells}スパン×層）も面の通しのまま計上しています")
 
 
 def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes, cut: int) -> dict:
