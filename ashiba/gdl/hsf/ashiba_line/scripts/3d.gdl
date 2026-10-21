@@ -1086,6 +1086,9 @@ if showBrace then
 						brZ = 0.10
 						for bf = 0 to 1
 							yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
+							! 単管の筋かい（φ48.6）は布・手すりの単管（建地の脇 tubeOff）の外の面に通し、両端を自在クランプ
+							! （日建 ARC2、金）で建地に留める（くさびのクサビクランプの塊は描かない）
+							if serType = "T" then yb2 = -rowW - tubeOff - 0.0496 - bf * 0.0496
 							xa = x
 							sg = 1
 							spb = spans[ip]
@@ -1101,13 +1104,15 @@ if showBrace then
 							endif
 							bl = sqr(spb ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
 							ang = atn((z2 - z1 - 2 * brZ) / spb)
+							rBr = 0.0427 / 2
+							if serType = "T" then rBr = 0.0486 / 2
 							add xa, yb2, z1 + brZ
 							if sg < 0 then mulx -1
 							roty 90 - ang
-							cylind bl, 0.0427 / 2
+							cylind bl, rBr
 							del 2
 							if sg < 0 then del 1
-							! クサビクランプ（下端は手前の支柱、上端は対角の支柱）
+							! クサビクランプ（下端は手前の支柱、上端は対角の支柱）。単管は自在クランプ（839）
 							for ce = 0 to 1
 								cx = xa
 								cz = z1 + brZ
@@ -1115,9 +1120,13 @@ if showBrace then
 									cx = xa + sg * spb
 									cz = z2 - brZ
 								endif
-								add cx - 0.035, yb2 - 0.025, cz - 0.035
-								block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
-								del 1
+								if serType = "T" then
+									if isLite = 0 then gosub 839
+								else
+									add cx - 0.035, yb2 - 0.025, cz - 0.035
+									block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
+									del 1
+								endif
 							next ce
 						next bf
 					endif
@@ -2524,6 +2533,33 @@ return
 	if cK = 20 then material "ashiba_tc_20"
 	if cK = 15 then material "ashiba_tc_15"
 	if cK = 10 then material "ashiba_tc_10"
+	return
+
+839:	! ---- 自在クランプ（日建 兼用自在クランプ ARC2、カタログ p378。金）: 単管の筋かいの端を建地に留める ----
+	! 建地（cx, -rowW、芯の高さ cz）を掴む口と、筋かい（芯 y = yb2、x-z 面で傾き ang、向き sg）を掴む口を、
+	! 背中合わせの軸で回して留める形。2つの口の背板のあいだは軸（金の短い円柱）でつなぐ
+	add cx, -rowW, cz
+	roty -90
+	jR = r_sic
+	gosub 838
+	del 2
+	add cx, yb2, cz
+	if sg < 0 then mulx -1
+	roty -ang
+	rotx 180
+	jR = 0.0486 / 2
+	gosub 838
+	del 3
+	if sg < 0 then del 1
+	! 軸（2つの口の背板のあいだ）
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	ySA = -rowW - (r_sic + clT + 0.004)
+	ySB = yb2 + (0.0486 / 2 + clT + 0.004)
+	add cx, ySA, cz
+	rotx 90
+	cylind ySA - ySB, 0.010
+	del 2
+	gosub 837
 	return
 
 834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378）----

@@ -703,7 +703,9 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
                  / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         j = body3.index("! ---- ブレス")
         blk = body3[j:body3.index("! ---- 朝顔", j)]
-        self.assertEqual(blk.count("cylind bl, 0.0427 / 2"), 1)          # くさび: 1本の式を2方向（bf=0,1）で
+        self.assertEqual(blk.count("cylind bl, rBr"), 1)                 # 1本の式を2方向（bf=0,1）で
+        self.assertIn("rBr = 0.0427 / 2", blk)                            # くさびは φ42.7、単管は φ48.6
+        self.assertIn('if serType = "T" then rBr = 0.0486 / 2', blk)
         self.assertIn("for bf = 0 to 1", blk)
         self.assertIn("block bl, 0.006, 0.025", blk)                       # 枠組の交差筋違（平鋼、カタログ p081）
 
@@ -1129,8 +1131,11 @@ class TestRealMemberDimensions3D(unittest.TestCase):
 
     def test_wedge_braces_are_phi42_with_clamps(self):
         # ブレース（カタログ p023）: φ42.7 の管、両端のクサビクランプで支柱を掴む。枠組の交差筋違は別
-        self.assertIn("cylind bl, 0.0427 / 2", self.body)
+        self.assertIn("rBr = 0.0427 / 2", self.body)
         self.assertIn("! クサビクランプ", self.body)
+        # 単管の筋かいは両端を自在クランプ（ARC2、839）で建地に留める（くさびの塊は描かない）
+        self.assertIn("839:", self.body)
+        self.assertIn("if isLite = 0 then gosub 839", self.body)
 
 
 class TestNoTextIn3D(unittest.TestCase):
