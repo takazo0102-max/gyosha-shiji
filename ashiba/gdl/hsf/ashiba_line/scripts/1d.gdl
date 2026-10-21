@@ -14,6 +14,9 @@ dim tieH[200]
 dim gl[61]
 dim jk[61]
 dim sh[61]
+dim glO[61]
+dim jkO[61]
+dim shO[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
@@ -266,6 +269,68 @@ for tc = 1 to 2
 		endif
 	endwhile
 next tc
+
+! ---- 外側の建地列の glListO・jackListO・shimListO（本足場で地盤を内外別に解いたとき。空なら内側の列と同じ） ----
+! 外側の列は躯体から建地列の間隔だけ外に立つので、斜面では内側の列と地盤高が違う（利用者の指定 2026-10-21）
+nGlO = 0
+nJkO = 0
+nShO = 0
+for lo = 1 to 3
+	for tc = 1 to 2
+		if lo = 1 then
+			rest = glListO
+			if tc = 2 then rest = glListO2
+		endif
+		if lo = 2 then
+			rest = jackListO
+			if tc = 2 then rest = jackListO2
+		endif
+		if lo = 3 then
+			rest = shimListO
+			if tc = 2 then rest = shimListO2
+		endif
+		while strlen(rest) > 0 do
+			pc = strstr(rest, ",")
+			if pc > 0 then
+				item = strsub(rest, 1, pc - 1)
+				rest = strsub(rest, pc + 1, strlen(rest) - pc)
+			else
+				item = rest
+				rest = ""
+			endif
+			k = split(item, "%n", v)
+			if k > 0 then
+				if lo = 1 and nGlO < 61 then
+					nGlO = nGlO + 1
+					glO[nGlO] = v / 1000
+				endif
+				if lo = 2 and nJkO < 61 then
+					nJkO = nJkO + 1
+					jkO[nJkO] = v / 1000
+				endif
+				if lo = 3 and nShO < 61 then
+					nShO = nShO + 1
+					shO[nShO] = v / 1000
+				endif
+			endif
+		endwhile
+	next tc
+next lo
+! 立面図は外側の列を見る。外側の列の値があればそれで描く
+if viewMode = "elev" and nGlO >= 2 then
+	for i = 1 to nGlO
+		gl[i] = glO[i]
+	next i
+	nGl = nGlO
+	for i = 1 to nJkO
+		jk[i] = jkO[i]
+	next i
+	nJk = nJkO
+	for i = 1 to nShO
+		sh[i] = shO[i]
+	next i
+	nSh = nShO
+endif
 
 ! ---- flList をパース (mm→m) ----
 nFL = 0

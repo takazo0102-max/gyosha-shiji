@@ -167,10 +167,10 @@ def _sheet_jack_table(wb, terrain, checks=None) -> None:
     from .terrain import jack_table_rows
 
     s = wb.sheet("ジャッキ量一覧")
-    for c, wdt in enumerate([6, 12, 12, 14, 12, 18, 14, 30, 46]):
+    for c, wdt in enumerate([6, 5, 12, 12, 14, 12, 18, 14, 30, 46]):
         s.set_width(c, wdt)
     vm = getattr(terrain, "vertical_member_name", "支柱")
-    s.add_title(f"{vm}ごとのジャッキ量一覧（敷地高低差対応）", span=9)
+    s.add_title(f"{vm}ごとのジャッキ量一覧（敷地高低差対応）", span=10)
     s.add_cells([Cell(f"作業床レベルは全周で通し、GL高低差は各{vm}のジャッキと{vm}長で吸収する")])
     s.add_blank()
     rows = jack_table_rows(terrain)

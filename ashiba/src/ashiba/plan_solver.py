@@ -141,6 +141,8 @@ class PlanResult:
     standoff_spec: Optional["StandoffSpec"] = None
     # 直線で渡した凹み・張り出し（辺上の区間とスパン数）。措置の本数を出すために持つ
     bridged_zones: list["BridgedSpan"] = field(default_factory=list)
+    # 庇・バルコニーをかわすために離れを広げた面（辺 → 広げた mm。obstacles）
+    face_shift: dict[int, float] = field(default_factory=dict)
 
     def face_names(self) -> list[str]:
         """各面の呼び名（方位）。立面図の面名と帳票の見出しに使う.
@@ -239,12 +241,22 @@ def solve_plan(
     master: PartMaster,
     standoff: Optional[StandoffSpec] = None,
     fixed_spans: Optional[dict[int, list[int]]] = None,
+    face_min: Optional[dict[int, float]] = None,
 ) -> PlanResult:
-    """fixed_spans: {辺番号: スパン列（始点から）}。その面はこの構成で固定し、離れだけを解く."""
+    """fixed_spans: {辺番号: スパン列（始点から）}。その面はこの構成で固定し、離れだけを解く.
+
+    face_min: {辺番号: 最小の離れ mm}（庇・バルコニーの先端をかわす。obstacles）。その面の躯体線を
+    （最小 − 目標）だけ外へずらした外形で割り付け、離れにずらした分を足して返す（隣の面はずらした分だけ
+    回り込んで長くなる）。辺番号は割付の外形（整理・反時計回り後）の番号。
+    """
     spec = standoff or StandoffSpec()
     coins = master.span_lengths()
     if not coins:
         raise ValidationError(f"系列 {master.series_id} にスパン用布材がありません")
+    if face_min:
+        shifted = _solve_with_face_shift(vertices, master, spec, fixed_spans, face_min, min(coins))
+        if shifted is not None:
+            return shifted
     # 最小スパン未満の凹み・張り出しは直線で渡す（増える離れは警告に出る）
     outline = build_outline(vertices, bridge_below_mm=min(coins))
     edges = outline.edges
@@ -411,6 +423,35 @@ def solve_plan(
         warnings.append(f"{label}: {remedy}")
     result.bridged_zones = _locate_bridged_zones(outline, plan_edges, standoffs)
     return result
+
+
+def _solve_with_face_shift(vertices, master, spec, fixed_spans, face_min, bridge_mm) -> Optional[PlanResult]:
+    """面の躯体線を外へずらして割り付け、元の外形と実際の離れに直す。ずらす面が無い・辺が変わるなら None."""
+    outline0 = build_outline(vertices, bridge_below_mm=bridge_mm)
+    edges0 = outline0.edges
+    n = len(edges0)
+    shifts = {i: round(float(m) - spec.target, 1) for i, m in face_min.items()
+              if 0 <= i < n and float(m) - spec.target > 1.0}
+    if not shifts:
+        return None
+    verts = []
+    for i, (vx, vy) in enumerate(outline0.vertices):
+        dx = dy = 0.0
+        for ei in ((i - 1) % n, i):        # 頂点 i は辺 i-1 の終点・辺 i の始点
+            sh = shifts.get(ei, 0.0)
+            dx += sh * edges0[ei].outward[0]
+            dy += sh * edges0[ei].outward[1]
+        verts.append((vx + dx, vy + dy))
+    res = solve_plan(verts, master, spec, fixed_spans)
+    if len(res.edges) != n or len(res.outline.edges) != n:
+        return None
+    res.outline = outline0
+    res.standoffs = [d + shifts.get(i, 0.0) for i, d in enumerate(res.standoffs)]
+    for ep in res.edges:
+        ep.standoff = round(ep.standoff + shifts.get(ep.edge_index, 0.0), 3)
+    res.face_shift = dict(shifts)
+    res.bridged_zones = _locate_bridged_zones(outline0, res.edges, res.standoffs)
+    return res
 
 
 def _feasibility_hint(

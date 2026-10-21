@@ -84,7 +84,8 @@ class TestExtraNegarami(unittest.TestCase):
         m = build()
         t = terrace(m, 40000)
         hs = first_ledger_heights(m, t)
-        self.assertLessEqual(max(hs), m.master.koma_pitch + 450 + 100)
+        # 基準面は外側の列の脚も含めて決める（2026-10-21）ので、内側の脚は1コマ＋ジャッキ＋150程度まで
+        self.assertLessEqual(max(hs), m.master.koma_pitch + 450 + 150)
         c = [r for r in run_all_checks(m, terrain=t) if r.check_id == 4][0]
         self.assertEqual(c.status, "OK", c.message)
 

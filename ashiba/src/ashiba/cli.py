@@ -150,6 +150,7 @@ TOP_KEYS = {
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
     "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
+    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
@@ -717,6 +718,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         hard_min=so.get("hard_min", 250),
     )
     plan = solve_plan(spec["outline_mm"], master, standoff)
+    fixed = None
     # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
     # その面を固定して離れを解き直す
     if spec.get("span_overrides"):
@@ -733,6 +735,20 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # スラブの天端から面ごとの軒高（セットバック）。いちばん高い面を全体の軒高にし、低い面は後で切る
     spec = dict(spec)
     face_eaves = _face_eaves_from_spec(spec, plan)
+    # 庇・バルコニーをかわす: 内側建地が先端に当たる面は、離れを広げて割り付け直す（obstacles）
+    obstacles = []
+    if spec.get("avoid_obstacles", True):
+        obstacles, face_min, notes = _obstacles_from_spec(spec, plan, face_eaves)
+        if face_min:
+            old_w = list(plan.warnings)
+            plan = solve_plan(spec["outline_mm"], master, standoff, fixed_spans=fixed, face_min=face_min)
+            plan.warnings[:] = old_w + [w for w in plan.warnings if w not in old_w]
+            names = dict(zip([e.edge_index for e in plan.edges], plan.face_names()))
+            for ei, sh in sorted(plan.face_shift.items()):
+                ep = next(e for e in plan.edges if e.edge_index == ei)
+                notes.append(f"{names.get(ei, ei)}: 庇・バルコニーの先端をかわすため、離れを{sh:.0f}mm 広げて"
+                             f"{ep.standoff:.0f}mm にしました（内側建地と先端の間 {100:.0f}mm 以上）")
+        plan.warnings.extend(notes)
     if face_eaves:
         spec["eaves_height_mm"] = int(round(max(face_eaves.values())))
         spec.setdefault("building_height_mm", spec["eaves_height_mm"])
@@ -851,9 +867,34 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
     model.faces_only = faces
+    model.obstacles = obstacles
+    model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
     return model
+
+
+def _obstacles_from_spec(spec: dict, plan, face_eaves: dict[int, float]):
+    """庇・バルコニー（スラブから・入力から）→ (かわす張り出し, 面ごとの最小の離れ, 案内文).
+
+    足場の立つ面（地盤・下の屋根）と同じ高さのスラブは張り出しとみなさない（足場はその上に立つ）。
+    面の足場より上（軒高＋2m）の張り出しも足場に関係しない。
+    """
+    from .obstacles import detect_eaves, from_spec, plan_avoidance
+
+    names = dict(zip([e.edge_index for e in plan.edges], plan.face_names()))
+    base = float(spec.get("base_height_mm", 0) or 0)
+    obs, _sb, notes = from_spec(spec, names)
+    if spec.get("slabs") and spec.get("height_from_slabs", True):
+        limit = {ei: base + v + 2000.0 for ei, v in face_eaves.items()}
+        slabs = [s for s in spec["slabs"] if float(s["top_mm"]) > base + 300.0]
+        found = detect_eaves(plan.outline.edges, slabs, top_limit=limit or None)
+        manual = {o.edge_index for o in obs}
+        obs += [o for o in found if o.edge_index not in manual]
+    obs = [o for o in obs if o.edge_index in names]
+    av = plan_avoidance(plan.outline.edges, plan.standoffs, obs, names,
+                        plan.standoff_spec.target if plan.standoff_spec else 300.0)
+    return av.obstacles, av.face_min, notes + av.notes
 
 
 def _faces_from_spec(spec: dict, plan):
@@ -903,9 +944,31 @@ def _face_eaves_from_spec(spec: dict, plan) -> dict[int, float]:
                 if len({round(v) for v in bases.values()}) > 1:
                     plan.warnings.append("面によって立つ高さが違います（" + "・".join(f"{v:.0f}" for v in bases.values())
                                          + "）。低い方に合わせて建てています。高い屋根の上に立つ面は、その面だけ選び直してください")
+        # 小さなセットバック（奥行き setback_bracket_max_mm 以下）は、足場を上の屋根まで上げて内ブラケットでかわす
+        if spec.get("avoid_obstacles", True):
+            from .obstacles import SETBACK_MAX_MM, detect_setbacks
+
+            sbs = detect_setbacks(plan.outline.edges, spec["slabs"], tops,
+                                  float(spec.get("setback_bracket_max_mm", SETBACK_MAX_MM)))
+            names0 = dict(zip([e.edge_index for e in plan.edges], plan.face_names()))
+            for sb in sbs:
+                plan.warnings.append(
+                    f"{names0.get(sb.edge_index, sb.edge_index)}: セットバック（GL+{sb.height_mm:.0f} から上が奥へ"
+                    f"{sb.depth_mm:.0f}mm）は、足場を上の屋根（GL+{sb.upper_top_mm:.0f}）まで上げ、内ブラケットでかわします")
+                tops[sb.edge_index] = sb.upper_top_mm
+            spec["_setbacks"] = sbs
         for ei, top in tops.items():
             if top - base > 0:
                 out[ei] = top - base
+    if spec.get("setbacks") and spec.get("avoid_obstacles", True):
+        from .obstacles import from_spec as _sb_spec
+
+        names0 = dict(zip([e.edge_index for e in plan.edges], plan.face_names()))
+        _o, sbs2, _n = _sb_spec({"setbacks": spec["setbacks"]}, names0)
+        spec["_setbacks"] = [s for s in (spec.get("_setbacks") or []) if s.edge_index not in {x.edge_index for x in sbs2}] + sbs2
+        for sb in sbs2:
+            if sb.upper_top_mm > 0:
+                out[sb.edge_index] = sb.upper_top_mm - base
     names = plan.face_names()
     for k, v in (spec.get("face_eaves_mm") or {}).items():
         ei = None
@@ -1289,22 +1352,33 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             f"壁つなぎは手で直した配置（{len(manual)}本）で検定・数量を出しています"
             "（自動の配置に戻すには条件ファイルの wall_ties_manual を消す）")
     brackets = build_brackets(spec)
-    # 離れが目標上限を超える面には内ブラケットを自動で付ける（入力で切れる）
+    # 離れが目標上限を超える面には内ブラケットを自動で付ける（入力で切れる）。庇をかわして離れを広げた面・
+    # セットバックの面は、層ごとに隙間を詰める（庇に当たる区間は外す。obstacles）
     if model.config.auto_inner_bracket:
         from .brackets import auto_inner_brackets
+        from .obstacles import avoidance_brackets
 
         so_spec = model.plan.standoff_spec
+        av_br, av_notes = [], []
+        if model.obstacles or model.setbacks or model.plan.face_shift:
+            av_br, av_notes = avoidance_brackets(model, brackets, model.obstacles, model.setbacks,
+                                                 so_spec.fall_protection_limit if so_spec else 300.0,
+                                                 so_spec.max if so_spec else 350.0)
         auto, auto_notes = auto_inner_brackets(
-            model, brackets, so_spec.max if so_spec else 350.0,
+            model, brackets + av_br, so_spec.max if so_spec else 350.0,
             so_spec.fall_protection_limit if so_spec else 300.0)
+        auto = av_br + auto
+        auto_notes = av_notes + auto_notes
         brackets += auto
         # 内ブラケットで措置した面は、割付が出していた「検討してください」を外す
         # （同じ文面を複数面でまとめた警告は、措置した面だけ名前から抜く）
         resolved: dict[str, set[str]] = {}
         for sec in auto:
             ep = next(e for e in model.plan.edges if e.edge_index == sec.edge_index)
-            covered = sum(s.end_mm - s.start_mm for s in auto if s.edge_index == ep.edge_index)
-            if covered < ep.scaffold_length - 1.0:
+            covered = max((sum(s.end_mm - s.start_mm for s in auto if s.edge_index == ep.edge_index
+                               and (not s.levels or lv in s.levels)) for lv in range(1, model.elevation.n_levels + 1)),
+                          default=0.0)
+            if covered < ep.scaffold_length - 1.0 and ep.edge_index not in model.plan.face_shift:
                 continue      # 張出の範囲は詰まっていない。措置の注意は残す
             if ep.remedy:
                 resolved.setdefault(ep.remedy, set()).add(model.face_name(ep.edge_index))

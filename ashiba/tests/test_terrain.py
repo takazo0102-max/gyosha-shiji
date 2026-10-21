@@ -201,7 +201,8 @@ class TestJackTable(unittest.TestCase):
         m = build()
         r = solve_post_feet(m, slope())
         rows = jack_table_rows(r)
-        self.assertEqual(len(rows), len(r.feet) + 1)   # ヘッダ込み
+        self.assertEqual(len(rows), len(r.all_feet) + 1)   # ヘッダ込み（内外の列）
+        self.assertEqual(len(r.feet_outer), len(r.feet))   # 本足場は外側の列も地盤から解く
         self.assertIn("ジャッキ繰出し(mm)", rows[0])
         self.assertIn("敷板調整(mm)", rows[0])
 
@@ -212,7 +213,8 @@ class TestJackTable(unittest.TestCase):
         f = r.feet[3]
         row = rows[4]
         self.assertEqual(row[0], f.index + 1)
-        self.assertAlmostEqual(row[5], round(f.jack_mm, 1))
+        self.assertEqual(row[1], "内")
+        self.assertAlmostEqual(row[6], round(f.jack_mm, 1))
 
 
 class TestFrameSeriesTerrain(unittest.TestCase):
@@ -349,3 +351,43 @@ class TestTallTerraceExtendsThePosts(unittest.TestCase):
             self.assertFalse([w for w in f.warnings if "組めません" in w])
         self.assertFalse([w for w in t.warnings if "組めない脚" in w])
 
+
+
+class TestOuterRow(unittest.TestCase):
+    """外側の建地列は外側の地盤で解く（利用者の指定 2026-10-21「足元はメッシュで高低差があるときの対応」）."""
+
+    def _cross_slope(self, gradient=0.25):
+        # 南面（y=0 の辺）から外へ下がる斜面: 外側の列は内側の列より row×勾配だけ低い
+        return GroundModel(points=[(x, y, y * gradient) for x in (-3000, 10000, 20000, 33000)
+                                   for y in (-3000, -1000, 0, 10000, 23000)])
+
+    def test_outer_feet_follow_their_own_ground(self):
+        m = build()
+        r = solve_post_feet(m, self._cross_slope())
+        self.assertEqual(len(r.feet_outer), len(r.feet))
+        south = [(fi, fo) for fi, fo in zip(r.feet, r.feet_outer) if abs(fi.y - r.feet[0].y) < 1.0]
+        self.assertTrue(south)
+        fi, fo = south[len(south) // 2]
+        self.assertLess(fo.gl_mm, fi.gl_mm - 50)                 # 外側の地盤は低い
+        self.assertEqual((fi.row, fo.row), (0, 1))
+        # 脚の下端（地盤＋敷板＋ジャッキ）は作業床が通るよう段数ぶんだけ違う
+        bottom_i = fi.gl_mm + fi.base_plate_adjust_mm + fi.jack_mm + fi.koma_offset * m.master.koma_pitch
+        bottom_o = fo.gl_mm + fo.base_plate_adjust_mm + fo.jack_mm + fo.koma_offset * m.master.koma_pitch
+        self.assertAlmostEqual(bottom_i, bottom_o, delta=1.0)
+
+    def test_gdl_gets_outer_lists(self):
+        from ashiba.gdl_params import line_params
+
+        m = build()
+        r = solve_post_feet(m, self._cross_slope())
+        p = line_params(m, m.plan.edges[0], terrain=r)
+        self.assertTrue(p["glListO"])
+        self.assertNotEqual(p["glListO"], p["glList"])
+        self.assertEqual(len(p["glListO"].split(",")), len(p["glList"].split(",")))
+
+    def test_one_side_scaffold_reads_the_outer_row(self):
+        m = build()
+        m.config.scaffold_form = "一側足場"
+        r = solve_post_feet(m, self._cross_slope())
+        self.assertEqual(r.feet_outer, [])
+        self.assertTrue(all(f.row == 1 for f in r.feet))

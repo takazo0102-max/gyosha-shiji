@@ -23,6 +23,7 @@ BASE_CLEAR_MM = 1000.0    # 立つ面とみなすスラブは、面の軒高よ�
 class SlabInfo:
     polygon: list[tuple[float, float]]   # mm
     top_mm: float                        # 天端の高さ（プロジェクトの0から mm）
+    thickness_mm: float = 0.0            # 厚さ（庇の下端を出すのに使う。obstacles）
 
 
 def slab_top_mm(details: dict) -> Optional[float]:
@@ -48,7 +49,7 @@ def slabs_from_details(details: Iterable[dict]) -> list[SlabInfo]:
         if len(poly) >= 3 and top is not None:
             if poly[0] == poly[-1]:
                 poly = poly[:-1]
-            out.append(SlabInfo(poly, top))
+            out.append(SlabInfo(poly, top, float(d.get("thickness", 0.0) or 0.0) * 1000.0))
     return out
 
 

@@ -269,6 +269,30 @@
 			<Description><![CDATA["支柱位置ごとの敷板調整（続き2）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="glListO">
+			<Description><![CDATA["外側の建地列の地盤高（mm。空なら内側の列と同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glListO2">
+			<Description><![CDATA["外側の建地列の地盤高（mm。空なら内側の列と同じ）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackListO">
+			<Description><![CDATA["外側の建地列のジャッキ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackListO2">
+			<Description><![CDATA["外側の建地列のジャッキ（mm）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimListO">
+			<Description><![CDATA["外側の建地列の敷板調整（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimListO2">
+			<Description><![CDATA["外側の建地列の敷板調整（mm）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="flList">
 			<Description><![CDATA["各階FL高さ mm カンマ区切り（立面の参照線）"]]></Description>
 			<Value><![CDATA[""]]></Value>

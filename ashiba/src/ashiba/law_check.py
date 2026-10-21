@@ -231,8 +231,8 @@ def check_jack_extension(m: ScaffoldModel, terrain=None) -> CheckResult:
     j = m.elevation.jack_extension
     over = []
     if terrain is not None and getattr(terrain, "feet", None):
-        over = [f for f in terrain.feet if f.jack_mm > JACK_MAX_EXTENSION]
-        j = max(j, max((f.jack_mm for f in terrain.feet), default=0))
+        over = [f for f in terrain.all_feet if f.jack_mm > JACK_MAX_EXTENSION]
+        j = max(j, max((f.jack_mm for f in terrain.all_feet), default=0))
     if over:
         # 地形ソルバは「なぜ超えるのか・どれだけ床均しすれば収まるのか」まで
         # 出している。同じ事象を別文面で二度言わず、その本文をそのまま使う

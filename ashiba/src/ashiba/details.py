@@ -126,7 +126,7 @@ def required_details(
     jack_mm = e.jack_extension
     jack_note = ""
     if terrain is not None and getattr(terrain, "feet", None):
-        worst = max(f.jack_mm for f in terrain.feet)
+        worst = max(f.jack_mm for f in terrain.all_feet)
         if worst > jack_mm:
             jack_mm = int(round(worst))
             jack_note = f"（敷地高低差により最大繰出し{jack_mm}mmの{model.master.vertical_member_name}で作図）"

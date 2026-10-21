@@ -87,6 +87,7 @@ class PostFoot:
     posts: list[int]          # この位置の支柱構成（下から）
     base_plate_adjust_mm: float = 0.0   # 敷板で追加調整が必要な量
     warnings: list[str] = field(default_factory=list)
+    row: int = 0              # 建地列（0＝内側（躯体側）、1＝外側）
 
     @property
     def jack_top_mm(self) -> float:
@@ -114,14 +115,22 @@ class TerrainResult:
     vertical_member_name: str = "支柱"
     # 下げ段数の刻み（くさび=コマピッチ、枠組=調整枠の高さ）mm
     step_mm: float = 0.0
+    # 外側の建地列の脚（本足場。feet と同じ並び）。外側の列は躯体から建地列の間隔だけ外の地盤に立つので、
+    # 内側の列の地盤高で描くと斜面で外側の脚が浮く・埋まる（利用者の指定 2026-10-21「足元はメッシュで高低差が
+    # あるときの対応」）。一側足場は建地が外側の1列だけなので、feet がその列（row=1）で、ここは空
+    feet_outer: list[PostFoot] = field(default_factory=list)
+
+    @property
+    def all_feet(self) -> list[PostFoot]:
+        return list(self.feet) + list(self.feet_outer)
 
     @property
     def jack_min_mm(self) -> float:
-        return min((f.jack_mm for f in self.feet), default=0.0)
+        return min((f.jack_mm for f in self.all_feet), default=0.0)
 
     @property
     def jack_max_mm(self) -> float:
-        return max((f.jack_mm for f in self.feet), default=0.0)
+        return max((f.jack_mm for f in self.all_feet), default=0.0)
 
     @property
     def gl_difference_mm(self) -> float:
@@ -129,10 +138,10 @@ class TerrainResult:
 
     @property
     def all_ok(self) -> bool:
-        return all(f.ok for f in self.feet)
+        return all(f.ok for f in self.all_feet)
 
     def over_recommended(self) -> list[PostFoot]:
-        return [f for f in self.feet if f.jack_mm > JACK_MAX_EXTENSION]
+        return [f for f in self.all_feet if f.jack_mm > JACK_MAX_EXTENSION]
 
 
 def solve_post_feet(
@@ -151,7 +160,13 @@ def solve_post_feet(
     # 機械的な上限は系列で違う（枠組350・日建ND752SP 432・信和SE-6 450）
     if jack_hard_max is None:
         jack_hard_max = model.master.jack_hard_max_mm()
-    positions = model.plan.post_positions()
+    inner = model.plan.post_positions()
+    outer = outer_post_positions(model)
+    if model.config.scaffold_form == "一側足場" or not ground.points:
+        # 一側足場は外側の1列だけ。平坦なら内外とも同じなので内側の列だけで足りる
+        positions, rows = (outer, [1] * len(outer)) if model.config.scaffold_form == "一側足場" else (inner, [0] * len(inner))
+    else:
+        positions, rows = inner + outer, [0] * len(inner) + [1] * len(outer)
     koma = model.master.koma_pitch
     # 枠組にコマは無い。段差の刻みは最小の建枠（調整枠）の高さになる
     step_name = "コマピッチ"
@@ -192,6 +207,10 @@ def solve_post_feet(
     # 全脚が同じ段数だけ下がっているなら、それは基準面が高すぎるだけ。
     # 基準面ごと下げれば同じジャッキ量のまま継ぎ足しが要らなくなる
     # （枠組は刻み900mmで、500mmの高低差に全58脚へ調整枠を足していた）
+    # 枠組は建枠1枚が内外の脚を兼ねるので、外側の脚も内側と同じ段数（建枠の構成）。差はジャッキで受ける
+    if model.master.is_frame and 0 in rows and 1 in rows:
+        n0 = rows.count(0)
+        offsets[n0:] = offsets[:len(offsets) - n0]
     min_offset = min(offsets) if offsets else 0
     if min_offset > 0:
         offsets = [m - min_offset for m in offsets]
@@ -267,7 +286,7 @@ def solve_post_feet(
 
         feet.append(PostFoot(
             index=i, x=x, y=y, gl_mm=gl, koma_offset=m, jack_mm=jack,
-            posts=posts, base_plate_adjust_mm=adjust, warnings=foot_warnings,
+            posts=posts, base_plate_adjust_mm=adjust, warnings=foot_warnings, row=rows[i],
         ))
 
     notes: list[str] = []
@@ -285,8 +304,9 @@ def solve_post_feet(
         n_sheets = sum(int(round(f.base_plate_adjust_mm / SHIM_UNIT_MM)) for f in shimmed)
         shim_msg = (
             f"ジャッキ繰出しが実務上限{shim_limit}mmを超える{vm}{len(shimmed)}本は、"
-            f"敷板（厚{SHIM_UNIT_MM}mm）で持ち上げて上限内にしています（敷板 計{n_sheets}枚・1列あたり。"
-            "脚ごとの枚数はジャッキ量一覧の敷板調整欄）。床均しで高低差を縮めれば敷板は減らせます"
+            f"敷板（厚{SHIM_UNIT_MM}mm）で持ち上げて上限内にしています（敷板 計{n_sheets}枚"
+            + ("・内外の列の合計。" if 1 in rows and 0 in rows else "・1列あたり。")
+            + "脚ごとの枚数はジャッキ量一覧の敷板調整欄）。床均しで高低差を縮めれば敷板は減らせます"
         )
         warnings.append(shim_msg)
         over_jack_warning = shim_msg
@@ -330,8 +350,10 @@ def solve_post_feet(
     deck_levels_abs = [
         ref_jack_top - ref_jack + lvl for lvl in model.elevation.level_heights
     ]
+    n_in = sum(1 for r in rows if r == rows[0]) if rows and rows[0] == 0 else len(feet)
     return TerrainResult(
-        feet=feet,
+        feet=feet[:n_in],
+        feet_outer=feet[n_in:],
         reference_gl_mm=gl_max,
         gl_range_mm=(gl_min, gl_max),
         deck_levels_abs_mm=deck_levels_abs,
@@ -341,6 +363,23 @@ def solve_post_feet(
         vertical_member_name=vm,
         step_mm=float(koma),
     )
+
+
+def outer_post_positions(model: ScaffoldModel) -> list[tuple[float, float]]:
+    """外側の建地列の支柱位置（post_positions と同じ並び。内側の列から外へ建地列の間隔だけ）."""
+    row = float(model.post_row_spacing_mm)
+    pts: list[tuple[float, float]] = []
+    for ep in model.plan.edges:
+        edge = model.plan.outline.edges[ep.edge_index]
+        ox, oy = edge.outward
+        dx, dy = edge.direction
+        x, y = ep.start_post[0] + ox * row, ep.start_post[1] + oy * row
+        acc = 0.0
+        pts.append((x, y))
+        for sp in ep.spans[:-1]:
+            acc += sp
+            pts.append((x + dx * acc, y + dy * acc))
+    return pts
 
 
 def _optimize_datum(
@@ -426,12 +465,12 @@ def jack_table_rows(result: TerrainResult) -> list[list]:
     """ジャッキ量一覧（帳票用の行データ）."""
     vm = result.vertical_member_name
     rows = [[
-        "No", "X(mm)", "Y(mm)", "GL標高(mm)", "下げ段数",
+        "No", "列", "X(mm)", "Y(mm)", "GL標高(mm)", "下げ段数",
         "ジャッキ繰出し(mm)", "敷板調整(mm)", f"{vm}構成", "備考",
     ]]
-    for f in result.feet:
+    for f in result.all_feet:
         rows.append([
-            f.index + 1, round(f.x), round(f.y), round(f.gl_mm, 1), f.koma_offset,
+            f.index + 1, "外" if f.row == 1 else "内", round(f.x), round(f.y), round(f.gl_mm, 1), f.koma_offset,
             round(f.jack_mm, 1), round(f.base_plate_adjust_mm, 1),
             spans_text(f.posts),
             " / ".join(f.warnings) if f.warnings else "",

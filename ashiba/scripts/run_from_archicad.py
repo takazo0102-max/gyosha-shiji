@@ -293,7 +293,7 @@ def read_slabs_near(client, outline_mm, margin_mm: float = 30000.0) -> list[dict
         py = [p[1] for p in sl.polygon]
         if max(px) < x0 or min(px) > x1 or max(py) < y0 or min(py) > y1:
             continue
-        out.append({"polygon_mm": [list(p) for p in sl.polygon], "top_mm": sl.top_mm})
+        out.append({"polygon_mm": [list(p) for p in sl.polygon], "top_mm": sl.top_mm, "thickness_mm": sl.thickness_mm})
     return out
 
 

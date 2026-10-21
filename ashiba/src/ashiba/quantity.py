@@ -237,7 +237,17 @@ def _sub_terrain(terrain, model: ScaffoldModel, edges: set):
                 best, bi = d, e.edge_index
         return bi
 
-    return dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges])
+    return dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges],
+                               feet_outer=[f for f in getattr(terrain, "feet_outer", []) if nearest(f) in edges])
+
+
+def _feet_by_row(terrain, rows: int) -> tuple[list, int]:
+    """数える脚と倍数。外側の列も地盤から解いてあれば内外の脚をそのまま（倍数1）、無ければ内側の列×列数."""
+    feet = list(getattr(terrain, "feet", []) or [])
+    outer = list(getattr(terrain, "feet_outer", []) or [])
+    if feet and outer:
+        return feet + outer, 1
+    return feet, rows
 
 
 def _sub_stairs(stair_plan, edges: set):
@@ -362,13 +372,14 @@ def _take_off_one(
     # 敷地に高低差があると、低い側の脚は下へ支柱を継ぎ足す。名目構成×位置数の
     # ままだと、その分の支柱が数量から抜ける（ジャッキ量一覧には出ているのに）
     counts_posts: dict[int, int] = {}
-    feet = list(getattr(terrain, "feet", []) or [])
+    # 外側の列も地盤から解いてあれば、内外の脚を1本ずつ数える（倍数1）
+    feet, per_foot = _feet_by_row(terrain, rows)
     extra_posts = 0
     if feet:
         for f in feet:
             for nominal in f.posts:
                 counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
-        extra_posts = sum(len(f.posts) - len(elev.posts) for f in feet) * rows
+        extra_posts = sum(len(f.posts) - len(elev.posts) for f in feet) * per_foot
         if extra_posts > 0:
             notes.append(
                 f"敷地高低差の継ぎ足し分として{model.master.vertical_member_name}"
@@ -378,7 +389,7 @@ def _take_off_one(
     else:
         for nominal in elev.posts:
             counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
-    totals_posts = {k: v * (rows if feet else n_posts) for k, v in counts_posts.items()}
+    totals_posts = {k: v * (per_foot if feet else n_posts) for k, v in counts_posts.items()}
     if feet and n_corners:
         for nominal in elev.posts:
             totals_posts[nominal] = totals_posts.get(nominal, 0) + n_corners
@@ -403,9 +414,9 @@ def _take_off_one(
     # 開口部で抜いた支柱は地面に達しないので、ジャッキもアンダーベースも要らない
     removed = openings.removed_posts if openings is not None else 0
     n_feet = max(0, n_posts - removed)
-    _count_jacks(m, feet, rows, n_feet, add, notes)
+    _count_jacks(m, feet, per_foot, n_feet, add, notes)
     add(under, n_feet, "アンダーベース")
-    _count_shims(m, feet, rows, add, notes)
+    _count_shims(m, feet, per_foot, add, notes)
     # 支柱最下部にだけ付く附属品（日建NDの下部カラー材など）。脚の数だけ
     for p in m.by_category("支柱附属"):
         if "最下部" in p.note:
@@ -1316,13 +1327,20 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
         return
     from .terrain import extra_negarami
 
+    import dataclasses
+
     m = model.master
     n_extra = 0
-    for ep in model.plan.edges:
-        for i, _level in extra_negarami(model, terrain).get(ep.edge_index, []):
-            s = ep.spans[i]
-            add(m.find("布材", s), rows, f"継ぎ足し部の根がらみ（布材{s}）")
-            n_extra += rows
+    # 外側の列も地盤から解いてあれば、列ごとにその列の脚で数える（立面・3D と同じ）
+    outer = list(getattr(terrain, "feet_outer", []) or [])
+    per_row = [(terrain, 1), (dataclasses.replace(terrain, feet=outer), 1)] if outer and rows >= 2 else [(terrain, rows)]
+    for t, k in per_row:
+        rows_by_edge = extra_negarami(model, t)
+        for ep in model.plan.edges:
+            for i, _level in rows_by_edge.get(ep.edge_index, []):
+                s = ep.spans[i]
+                add(m.find("布材", s), k, f"継ぎ足し部の根がらみ（布材{s}）")
+                n_extra += k
     if n_extra:
         notes.append(
             f"敷地高低差で継ぎ足した脚の区間に根がらみ（布材）{n_extra}本を追加しています"
@@ -1803,10 +1821,11 @@ def _count_frame_parts(
     # 開口部で抜いた建枠は地面に達しない。その脚のジャッキ・アンダーベースは要らない
     # （くさび経路は控除していたのに、枠組経路だけ全脚で数えていた）
     removed_legs = openings.removed_posts if openings is not None else 0
-    _count_jacks(m, feet, rules.rows, max(0, n_frame_legs - removed_legs), add, notes,
+    legs, per_leg = _feet_by_row(terrain, rules.rows)
+    _count_jacks(m, legs, per_leg, max(0, n_frame_legs - removed_legs), add, notes,
                  "（建枠1枚に2脚）")
     add(under, max(0, n_frame_legs - removed_legs), "アンダーベース（建枠1枚に2脚）")
-    _count_shims(m, feet, rules.rows, add, notes)
+    _count_shims(m, legs, per_leg, add, notes)
 
     # ---- 布板（作業床）。階段枠の区間には敷かない ----
     span_counts: dict[int, int] = {}

@@ -19,18 +19,20 @@ from .segments import WHOLE
 # 長いリストは続きパラメータ（name2, name3, …）に分けて渡し、GDL側で続けて読む。
 GDL_STR_MAX = 255
 LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4,
-               "glList": 2, "jackList": 2, "shimList": 2}
+               "glList": 2, "jackList": 2, "shimList": 2, "glListO": 2, "jackListO": 2, "shimListO": 2}
 # レコード単位のリストは、レコードの途中で切らない（GDLは項目を順に読む）
 LIST_GROUP = {"brktList": 6}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
                  "tieHeightList": 200, "brktList": 24 * 6,
                  "glList": 61, "jackList": 61, "shimList": 61, "bridgeList": 8 * 4,
+                 "glListO": 61, "jackListO": 61, "shimListO": 61,
                  "editList": 16 * 5}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
                "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
                "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ",
                "shimList": "支柱位置の敷板調整",
+               "glListO": "外側の列の地盤高", "jackListO": "外側の列のジャッキ", "shimListO": "外側の列の敷板調整",
                "bridgeList": "渡した区間の項目", "editList": "部材編集の項目"}
 
 
@@ -88,7 +90,7 @@ def fit_gdl_lists(params: dict, edge_index: int) -> dict:
     return out
 
 
-def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str, str]:
+def _foot_lists(model: ScaffoldModel, ep, terrain, outer: bool = False) -> tuple[str, str, str]:
     """この辺の支柱位置ごとの地盤高（基準GLからの差）とジャッキ量（mm）.
 
     立面・3Dは平坦なGLに共通のジャッキで描いていたので、敷地高低差で
@@ -97,6 +99,10 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str, str]:
     """
     feet = list(getattr(terrain, "feet", []) or [])
     if not feet:
+        return "", "", ""
+    # 外側の列（本足場。地盤を内側とは別に解いたもの）。基準（gl_ref・shift）は内側の列と同じにする
+    rows_feet = list(getattr(terrain, "feet_outer", []) or []) if outer else feet
+    if outer and len(rows_feet) != len(feet):
         return "", "", ""
     # post_positions() の順（各辺の始点＋中間支柱）に feet が並ぶ。
     # この辺のぶんは連続ブロックで、終点は次の辺の始点
@@ -108,8 +114,8 @@ def _foot_lists(model: ScaffoldModel, ep, terrain) -> tuple[str, str, str]:
     if max(idx) >= len(feet):
         return "", "", ""
     gl_ref = max(f.gl_mm for f in feet)
-    picked = [feet[i] for i in idx]
-    if all(abs(f.gl_mm - gl_ref) < 0.5 for f in feet):
+    picked = [rows_feet[i] for i in idx]
+    if all(abs(f.gl_mm - gl_ref) < 0.5 for f in list(feet) + list(getattr(terrain, "feet_outer", []) or [])):
         return "", "", ""      # 平坦。空にしておけば図は従来どおり
     # 図の作業床・根がらみは名目のジャッキ量を前提に描く。敷地を解くと基準面の
     # 最適化でジャッキ量が名目から動く（例: 名目100→基準脚35）ので、その差を
@@ -170,6 +176,7 @@ def line_params(
     brace_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     brace_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
     gl_list, jack_list, shim_list = _foot_lists(model, ep, terrain)
+    gl_o, jack_o, shim_o = _foot_lists(model, ep, terrain, outer=True)
     # 継ぎ足し部の根がらみをGDLが同じ規則で描くための刻み（平坦なら0で描かない）
     from .terrain import terrain_step_mm
 
@@ -277,6 +284,10 @@ def line_params(
         "glList": gl_list,
         "jackList": jack_list,
         "shimList": shim_list,
+        # 外側の建地列の地盤高・ジャッキ・敷板（本足場で地盤を内外別に解いたとき。空なら内側の列と同じ）
+        "glListO": gl_o,
+        "jackListO": jack_o,
+        "shimListO": shim_o,
         "footStep": foot_step,
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),

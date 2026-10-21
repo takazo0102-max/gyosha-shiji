@@ -142,6 +142,9 @@ class ScaffoldModel:
     faces_only: Optional[set] = None
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
     member_edits: list = field(default_factory=list)
+    # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
+    obstacles: list = field(default_factory=list)
+    setbacks: list = field(default_factory=list)
 
     def _n_outline(self) -> int:
         return len(self.plan.outline.edges)

@@ -1009,7 +1009,7 @@ def run_structural(
     max_jack = None
     governing_foot = None
     if terrain is not None and getattr(terrain, "feet", None):
-        worst = max(terrain.feet, key=lambda f: f.jack_mm)
+        worst = max(terrain.all_feet, key=lambda f: f.jack_mm)
         max_jack = int(round(worst.jack_mm))
         if max_jack > model.elevation.jack_extension:
             governing_foot = worst

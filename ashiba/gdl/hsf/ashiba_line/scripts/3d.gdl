@@ -261,6 +261,15 @@ for ip = 1 to nSpan + 1
 	ownX = 0
 	if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
 	for row = rowStart to 1
+		! 外側の列は外側の地盤（glListO）。斜面では内側の列と地盤高が違う
+		if row = 1 and nGlO >= 2 then
+			gv = 0
+			jo = jackOut
+			sv = 0
+			if ip <= nGlO then gv = glO[ip]
+			if ip <= nJkO then jo = jkO[ip]
+			if ip <= nShO then sv = shO[ip]
+		endif
 		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
 		skipP = 0
 		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
@@ -334,6 +343,10 @@ if cornerS = 1 then
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
 	if nSh >= 1 then sv = sh[1]
+	! 外側コーナー支柱は外側の列の始点の地盤
+	if nGlO >= 1 then gv = glO[1]
+	if nJkO >= 1 then jo = jkO[1]
+	if nShO >= 1 then sv = shO[1]
 	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く
 	add -rowW, -rowW, gv
 	gosub 820
@@ -721,21 +734,26 @@ if nGl >= 2 and footStep > 0.001 then
 		for ib8 = 1 to nBm
 			if x >= bmS[ib8] - 0.001 and x + spans[ip] <= bmS[ib8] + bmL[ib8] + 0.001 then inOpen = 1
 		next ib8
-		ma = 0
-		mb = 0
-		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
-		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
-		mlo = ma
-		if mb < mlo then mlo = mb
-		if mlo >= 1 and inOpen = 0 then
-			zz = lv[1] - mlo * footStep
-			for row = rowStart to 1
-				add x, -row * rowW, zz
+		! 列ごとに、その列の脚の下げ段数で（外側の列は外側の地盤 glListO）
+		for row = rowStart to 1
+			ma = 0
+			mb = 0
+			if row = 1 and nGlO >= 2 then
+				if ip <= nGlO and ip <= nJkO then ma = round_int((jackOut - (glO[ip] + jkO[ip])) / footStep)
+				if ip + 1 <= nGlO and ip + 1 <= nJkO then mb = round_int((jackOut - (glO[ip + 1] + jkO[ip + 1])) / footStep)
+			else
+				if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+				if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+			endif
+			mlo = ma
+			if mb < mlo then mlo = mb
+			if mlo >= 1 and inOpen = 0 then
+				add x, -row * rowW, lv[1] - mlo * footStep
 				nL = spans[ip]
 				gosub 830
 				del 1
-			next row
-		endif
+			endif
+		next row
 		x = x + spans[ip]
 	next ip
 endif
