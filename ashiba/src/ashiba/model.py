@@ -375,6 +375,15 @@ class ScaffoldModel:
                 return n
         return f"辺{edge_index}"
 
+    @property
+    def tie_post_offset_mm(self) -> float:
+        """壁つなぎを取る建地の、離れの線から外への距離. 建地1列（一側・ブラケット足場）は外側の列（列間隔）、
+        本足場は内側の列（0）。利用者の指摘（2026-10-22）: 壁繋ぎは単管支柱から取るように（線の上から描いて浮いていた）
+        """
+        if self.config.scaffold_form != "一側足場" or self.master.is_frame:     # 建枠は一側にできない（2列のまま）
+            return 0.0
+        return float(self.post_row_spacing_mm)
+
     def outer_corner_posts(self) -> int:
         """出隅の外側コーナー支柱の本数.
 

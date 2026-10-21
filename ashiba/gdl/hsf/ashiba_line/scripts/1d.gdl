@@ -11,6 +11,8 @@ dim spans[60]
 dim posts[40]
 dim postsA[40]
 dim rl[2][20]
+dim bdLen[2][30]
+dim nBd[2]
 dim nRl[2]
 dim runE[2]
 dim ties[200]
@@ -195,6 +197,30 @@ for p832 = 1 to 2
 		endif
 	endwhile
 next p832
+! ---- deckRunA・deckRunB（単管のブラケット足場の足場板の割付。継ぎは bdLap 重ねる）をパース ----
+bdS = deckRunS
+bdLap = 0.3
+for p870 = 1 to 2
+	nBd[p870] = 0
+	rest = deckRunA
+	if p870 = 2 then rest = deckRunB
+	while strlen(rest) > 0 and nBd[p870] < 30 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nBd[p870] = nBd[p870] + 1
+			bdLen[p870][nBd[p870]] = v / 1000
+		endif
+	endwhile
+next p870
+noEnd830 = 0
 ! 3D の布・手すりの呼び出し側が、この区間の通しの割付（runP: 0=通さない 1=A 2=B）と区間の始め（runX）を渡す
 runP = 0
 runX = 0

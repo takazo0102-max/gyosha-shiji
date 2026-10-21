@@ -94,11 +94,14 @@ def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
         ep = edges.get(t.edge_index)
         if ep is None:
             continue
-        o, u, _n, ang = _frame(ep)
+        o, u, nrm, ang = _frame(ep)
         need = wall_tie_required_length_mm(model, t.edge_index, t.position_mm)
-        wall = float(ep.standoff) + bridged_extra_standoff_mm(model, t.edge_index, t.position_mm)
+        # 建地1列の足場は外側の列の建地から取る（nrm は躯体側）
+        off = model.tie_post_offset_mm
+        wall = float(ep.standoff) + off + bridged_extra_standoff_mm(model, t.edge_index, t.position_mm)
         z = max(float(t.height_mm) - TIE_BELOW_DECK_MM, model.elevation_of(t.edge_index).first_ledger_height)
-        out.append(Placement(TIE_OBJECT, o[0] + u[0] * t.position_mm, o[1] + u[1] * t.position_mm, {
+        out.append(Placement(TIE_OBJECT, o[0] + u[0] * t.position_mm - nrm[0] * off,
+                             o[1] + u[1] * t.position_mm - nrm[1] * off, {
             "faceAng": ang, "zH": (z + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
             "wallD": wall / 1000.0,
             "tieName": tie_name(model, need), "lineMode": bool(line_mode)}))

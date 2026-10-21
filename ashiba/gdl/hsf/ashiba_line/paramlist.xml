@@ -437,6 +437,18 @@
 			<Description><![CDATA["単管の通しの始め（面の始点の建地から。負＝手前に出す）"]]></Description>
 			<Value>-0.1</Value>
 		</Length>
+		<String Name="deckRunA">
+			<Description><![CDATA["足場板の割付A（単管のブラケット足場。規定の長さ mm を始点から。継ぎは300重ねる）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="deckRunB">
+			<Description><![CDATA["足場板の割付B（2枚敷きのもう1枚）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="deckRunS">
+			<Description><![CDATA["足場板の敷き始め（面の始点の建地から。負＝手前に出す）"]]></Description>
+			<Value>-0.1</Value>
+		</Length>
 		<Integer Name="hugMode">
 			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、布が床）"]]></Description>
 			<Value>0</Value>

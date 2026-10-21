@@ -579,9 +579,14 @@ def _take_off_one(
             f"一側足場のため作業床は幅{deck_widths[0]}mmの1枚敷きで計上しています"
             f"（本足場の{'+'.join(str(w) for w in model.config.deck_widths)}ではなく）"
         )
-    for w in deck_widths:
-        for s, cells in deck_cells.items():
-            add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
+    if m.is_tube and deck_widths:
+        # 単管のブラケット足場の足場板は規定の長さで面に沿って敷き、継ぎは300重ねる（スパンごとの1枚ではない）
+        _count_tube_boards(model, deck_widths, n_levels, add, notes,
+                           sum(n * n_levels for n in span_counts.values()) - sum(deck_cells.values()))
+    else:
+        for w in deck_widths:
+            for s, cells in deck_cells.items():
+                add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
     if rows == 1 and not model.config.is_hug:
         # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）。単管は足場板2枚の幅で選ぶ
         need_w = deck_widths[0] if not m.is_tube else sum(deck_widths) + 20 * (len(deck_widths) - 1)
@@ -1413,7 +1418,7 @@ def wall_tie_required_length_mm(
     posts = model.master.by_category(model.master.vertical_member_name if not model.master.is_frame else "建枠")
     dia = next((p.diameter for p in posts if p.diameter > 0), 42.7)
     extra = bridged_extra_standoff_mm(model, edge_index, position_mm) if position_mm is not None else 0.0
-    return standoff + extra + dia / 2.0
+    return standoff + model.tie_post_offset_mm + extra + dia / 2.0
 
 
 def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, openings=None) -> None:
@@ -1663,6 +1668,28 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str], bracket_sec
         f"（該当{spans}スパン）。躯体側手すりで対応する場合は布材を別途計上してください",
         Notes.SITE,
     )
+
+
+def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, add, notes, cut_cells: int) -> None:
+    """単管のブラケット足場の足場板: 面ごとの割付（tube_runs.face_boards）× 作業層 × 敷く枚数."""
+    from .tube_runs import BOARD_LAP_MM, face_boards
+
+    m = model.master
+    lines = []
+    for ep in model.plan.edges:
+        runs = face_boards(list(ep.spans))
+        for i, w in enumerate(deck_widths):
+            run = runs[i % 2]
+            for L in run.pieces:
+                part = next((p for p in m.by_category("踏板") if p.actual_dim == L and f"幅{w}" in p.note), None)
+                add(part, n_levels, f"足場板 幅{w}×{L / 1000:.1f}M")
+        lines.append("+".join(f"{L / 1000:.1f}" for L in runs[0].pieces))
+    notes.append(
+        f"足場板は規定の長さで面に沿って敷き、継ぎは{BOARD_LAP_MM}mm 重ねてブラケットの上に掛ける"
+        f"（{'／'.join(lines)} m）× {len(deck_widths)}枚敷き × {n_levels}層で計上"
+    )
+    if cut_cells:
+        notes.append(f"足場板は階段・開口部の区間（{cut_cells}スパン×層）も面の通しのまま計上しています")
 
 
 def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes, cut: int) -> dict:

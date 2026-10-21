@@ -5,7 +5,10 @@ from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
-from ashiba.tube_runs import END_MM, JOINT_CLEAR_MM, MAX_OVER_MM, STOCK_MM, face_runs, post_positions
+from ashiba.tube_runs import (
+    BOARD_BEAR_MM, BOARD_LAP_MM, BOARD_MAX_OVER_MM, BOARD_STOCK_MM, END_MM, JOINT_CLEAR_MM, MAX_OVER_MM, STOCK_MM,
+    face_boards, face_runs, post_positions,
+)
 
 GDL = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
 
@@ -59,6 +62,82 @@ class TestTubeRuns(unittest.TestCase):
         self.assertAlmostEqual(p["tubeRunS"], -0.1)
         w = solve_all(base).model
         self.assertEqual(line_params(w, w.plan.edges[0])["tubeRunA"], "")   # くさびは通さない
+
+
+
+class TestBoards(unittest.TestCase):
+    """単管のブラケット足場の足場板: 規定の長さ、継ぎは300重ねてブラケットの上（利用者の指定 2026-10-22）."""
+
+    def test_laps_sit_on_brackets(self):
+        for spans in ([1800] * 7, [1800] * 4 + [1500], [1800] * 20 + [900], [1800, 1800], [1500], [1800] * 6 + [1500]):
+            posts = post_positions(spans)
+            for run in face_boards(spans):
+                self.assertTrue(all(p in BOARD_STOCK_MM for p in run.pieces))
+                seg = run.spans_mm()
+                for (s0, e0), (s1, _e1) in zip(seg, seg[1:]):
+                    self.assertAlmostEqual(e0 - s1, BOARD_LAP_MM)                  # 300 重ねる
+                    # 重ねの中にブラケット（建地）があり、両側に 100 以上ずつ掛かる
+                    self.assertTrue(any(p - s1 >= BOARD_BEAR_MM and e0 - p >= BOARD_BEAR_MM for p in posts))
+                self.assertLessEqual(-BOARD_MAX_OVER_MM, seg[0][0])
+                self.assertLessEqual(seg[0][0], -BOARD_BEAR_MM)                     # 端もブラケットに掛かる
+                self.assertGreaterEqual(seg[-1][1], posts[-1] + BOARD_BEAR_MM)
+                self.assertLessEqual(seg[-1][1], posts[-1] + BOARD_MAX_OVER_MM)
+
+    def test_bracket_scaffold_counts_boards_by_length(self):
+        from ashiba.cli import solve_all
+        from ashiba.gdl_params import line_params
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        r = solve_all({**base, "scaffold_form": "ブラケット足場", "bracket_post": "単管"})
+        m = r.model
+        n = m.elevation.n_levels
+        boards = {ln.part.model_no: ln.qty for ln in r.quantity.lines if ln.part and ln.part.category == "踏板"}
+        want: dict = {}
+        for ep in m.plan.edges:
+            for i in range(len(m.deck_widths_in_use)):
+                for L in face_boards(list(ep.spans))[i % 2].pieces:
+                    k = f"足場板{L / 1000:.1f}M-240"
+                    want[k] = want.get(k, 0) + n
+        self.assertEqual(boards, want)
+        p = line_params(m, m.plan.edges[0])
+        self.assertEqual(p["deckRunA"], ",".join(str(v) for v in face_boards(list(m.plan.edges[0].spans))[0].pieces))
+
+    def test_bracket_tip_has_no_clamp_and_ties_start_at_the_post(self):
+        d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
+        i = d3.index("800: ! ---- 一側足場の床受けブラケット")
+        self.assertIn("noEnd830 = 1", d3[i:i + 1200])
+        self.assertIn("not(hd830 = 1 and noEnd830 = 1)", d3)
+        self.assertIn("if nRows < 2 then yTie = -rowW", d3)
+
+    def test_tie_from_the_outer_post_on_a_single_row(self):
+        from ashiba.attachments import tie_placements
+        from ashiba.cli import solve_all
+        from ashiba.quantity import wall_tie_required_length_mm
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        brk = solve_all({**base, "scaffold_form": "ブラケット足場", "bracket_post": "単管"}).model
+        full = solve_all({**base, "series_id": "tankan"}).model
+        self.assertEqual(brk.tie_post_offset_mm, brk.post_row_spacing_mm)
+        self.assertEqual(full.tie_post_offset_mm, 0)
+        e = brk.plan.edges[0]
+        self.assertAlmostEqual(wall_tie_required_length_mm(brk, e.edge_index),
+                               e.standoff + brk.post_row_spacing_mm + 48.6 / 2, places=3)
+        t = tie_placements(brk)[0]
+        self.assertAlmostEqual(t.params["wallD"] * 1000, brk.plan.edges[0].standoff + brk.post_row_spacing_mm, places=3)
+
+
+
+class TestMasterArraysDoNotClash(unittest.TestCase):
+    def test_arrays_are_not_scalars_in_the_parameter_script(self):
+        # マスタースクリプトで dim した名前を、パラメータスクリプトで数として代入すると、パラメータスクリプトが落ちて
+        # 部品のパラメータが読めなくなる（実機: 足場板の配列 bd が vl.gdl の bd = 1e9 と衝突し、配置できなかった）
+        import re
+
+        d1 = (GDL / "1d.gdl").read_text(encoding="utf-8")
+        vl = (GDL / "vl.gdl").read_text(encoding="utf-8")
+        arrays = set(re.findall(r"^dim\s+(\w+)\[", d1, flags=re.M))
+        scalars = set(re.findall(r"^\s*(\w+)\s*=[^=]", vl, flags=re.M))
+        self.assertFalse(arrays & scalars, arrays & scalars)
 
 
 if __name__ == "__main__":

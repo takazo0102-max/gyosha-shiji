@@ -114,6 +114,9 @@
 !   tubeRunA        文字列  単管の通しの割付A（規定の長さの単管 mm を始点から。間は直線ジョイント）                                   既定 ""
 !   tubeRunB        文字列  単管の通しの割付B（Aと同じ単管を並べ替え、継ぎをずらす）                                                  既定 ""
 !   tubeRunS        長さ    単管の通しの始め（面の始点の建地から。負＝手前に出す）                                                    既定 -0.1
+!   deckRunA        文字列  足場板の割付A（単管のブラケット足場。規定の長さ mm を始点から。継ぎは300重ねる）                          既定 ""
+!   deckRunB        文字列  足場板の割付B（2枚敷きのもう1枚）                                                                         既定 ""
+!   deckRunS        長さ    足場板の敷き始め（面の始点の建地から。負＝手前に出す）                                                    既定 -0.1
 !   hugMode         整数    単管抱き足場（1＝建地1列を布2本で抱き、布が床）                                                           既定 0
 !   hugDz           長さ    単管抱き足場の布・手すりを上げる量（南北の面。隅で直交する管と交わらない）                                既定 0
 !   segSpanA        整数    区切った部品のスパン（始め。0＝面の始点から）                                                             既定 0
@@ -152,6 +155,8 @@ dim spans[60]
 dim posts[40]
 dim postsA[40]
 dim rl[2][20]
+dim bdLen[2][30]
+dim nBd[2]
 dim nRl[2]
 dim runE[2]
 dim ties[200]
@@ -336,6 +341,30 @@ for p832 = 1 to 2
 		endif
 	endwhile
 next p832
+! ---- deckRunA・deckRunB（単管のブラケット足場の足場板の割付。継ぎは bdLap 重ねる）をパース ----
+bdS = deckRunS
+bdLap = 0.3
+for p870 = 1 to 2
+	nBd[p870] = 0
+	rest = deckRunA
+	if p870 = 2 then rest = deckRunB
+	while strlen(rest) > 0 and nBd[p870] < 30 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nBd[p870] = nBd[p870] + 1
+			bdLen[p870][nBd[p870]] = v / 1000
+		endif
+	endwhile
+next p870
+noEnd830 = 0
 ! 3D の布・手すりの呼び出し側が、この区間の通しの割付（runP: 0=通さない 1=A 2=B）と区間の始め（runX）を渡す
 runP = 0
 runX = 0
@@ -3235,16 +3264,36 @@ if showDeck then
 							if hugMode = 1 then
 								! 単管抱き足場は布板を敷かない（抱き合わせた単管2本が床。利用者の指定 2026-10-22）
 							else
-								if eoD1 = 0 then
-									add x, -rowW + 0.05, z + r_t
-									block spans[ip], deckW1 - 0.01, 0.028
-									del 1
-								endif
-								if deckW2 > 0 and eoD2 = 0 then
-									add x, -rowW + 0.05 + deckW1 + 0.02, z + r_t
-									block spans[ip], deckW2 - 0.01, 0.028
-									del 1
-								endif
+								! 足場板は規定の長さで面に沿って敷き、継ぎは300重ねてブラケットの上に掛ける（利用者の指定
+								! 2026-10-22）。板はこの区間で始まるもの（最初の区間は手前から出るものも）を1枚まるごと描く。
+								! 重ねた側の板は1枚分（28）上に載る。杉の足場板なので幅木（足場板を立てたもの）と同じ表面材
+								if matToe > 0 then material matToe
+								for bw = 1 to 2
+									bOk = (bw = 1 and eoD1 = 0) or (bw = 2 and deckW2 > 0 and eoD2 = 0)
+									if bOk and nBd[bw] > 0 then
+										bY = -rowW + 0.05
+										bWd = deckW1 - 0.01
+										if bw = 2 then
+											bY = -rowW + 0.05 + deckW1 + 0.02
+											bWd = deckW2 - 0.01
+										endif
+										bs = bdS
+										for kb = 1 to nBd[bw]
+											if (bs >= x - 0.001 or ip = 1) and (bs < x + spans[ip] - 0.001 or ip = nSpan) and \
+													not(ip > 1 and bs < x - 0.001) and not(ip < nSpan and bs >= x + spans[ip] - 0.001) then
+												add bs, bY, z + r_t + 0.028 * (kb - 2 * int(kb / 2) = 0)
+												block bdLen[bw][kb], bWd, 0.028
+												del 1
+											endif
+											bs = bs + bdLen[bw][kb] - bdLap
+										next kb
+									endif
+									if bOk and nBd[bw] = 0 then
+										add x, bY, z + r_t
+										block spans[ip], bWd, 0.028
+										del 1
+									endif
+								next bw
 							endif
 						else
 						if eoD1 = 0 then
@@ -3432,14 +3481,18 @@ endif
 ! 壁つなぎ用金具: 支柱側のクランプ（自在クランプ相当の塊）、伸縮する本体パイプ、
 ! 躯体側のアンカープレート（ボルトで躯体に固定する座）。棒1本だと取り合いが見えない
 ! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、ここでは描かない（二重になる）
+! 建地1列（一側・ブラケット足場）は建地が外側の列（-rowW）にあるので、そこから取る（線の上から描いて浮いていた。
+! 利用者の指摘 2026-10-22: 壁繋ぎは単管支柱から取るように）
 nTieDraw = nTiePair
 if tieObj then nTieDraw = 0
+yTie = 0
+if nRows < 2 then yTie = -rowW
 for it = 1 to nTieDraw
-	add ties[it], 0, tieH[it]
+	add ties[it], yTie, tieH[it]
 	rotx -90
-	cylind standoff, r_tie
+	cylind standoff - yTie, r_tie
 	del 2
-	add ties[it] - 0.035, -0.035, tieH[it] - 0.035
+	add ties[it] - 0.035, yTie - 0.035, tieH[it] - 0.035
 	block 0.07, 0.07, 0.07
 	del 1
 	add ties[it] - 0.05, standoff - 0.012, tieH[it] - 0.05
@@ -4210,7 +4263,10 @@ if il >= 2 and hugMode = 0 then
 	add x, -rowW, z
 	rotz 90
 	nL = rowW
+	! ブラケットの先端（躯体側）には建地が無いのでクランプは付かない（利用者の指摘 2026-10-22）
+	noEnd830 = 1
 	gosub 830
+	noEnd830 = 0
 	del 2
 	add x, -rowW, z - rowW
 	rotx -45
@@ -4783,7 +4839,7 @@ return
 			clR2 = r_t
 			for hd830 = 0 to 1
 				! 通しは建地ごとに1個（終点の建地はこの面の最後の区間が留める）。短い管は両端
-				if hd830 = 0 or runP = 0 or runX + nL > lineLen - 0.001 then
+				if (hd830 = 0 or runP = 0 or runX + nL > lineLen - 0.001) and not(hd830 = 1 and noEnd830 = 1) then
 					add hd830 * nL, 0, 0
 					gosub 834
 					del 1

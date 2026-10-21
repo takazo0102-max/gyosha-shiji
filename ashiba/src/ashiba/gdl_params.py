@@ -492,12 +492,20 @@ def _post_diameter_m(model: ScaffoldModel) -> float:
 def _tube_run_params(model: ScaffoldModel, ep) -> dict:
     """単管の通しの割付（くさび・枠組は空）."""
     if not model.master.is_tube:
-        return {"tubeRunA": "", "tubeRunB": "", "tubeRunS": -0.1}
+        return {"tubeRunA": "", "tubeRunB": "", "tubeRunS": -0.1, "deckRunA": "", "deckRunB": "", "deckRunS": -0.1}
     from .tube_runs import face_runs
 
     a, b = face_runs(list(ep.spans))
-    return {"tubeRunA": ",".join(str(v) for v in a.pieces), "tubeRunB": ",".join(str(v) for v in b.pieces),
-            "tubeRunS": a.start_mm / 1000.0}
+    out = {"tubeRunA": ",".join(str(v) for v in a.pieces), "tubeRunB": ",".join(str(v) for v in b.pieces),
+           "tubeRunS": a.start_mm / 1000.0, "deckRunA": "", "deckRunB": "", "deckRunS": -0.1}
+    # 足場板（ブラケット足場の床）: 規定の長さで面に沿って敷き、継ぎは300重ねる（数量と同じ割付）
+    if model.deck_widths_in_use:
+        from .tube_runs import face_boards
+
+        da, db = face_boards(list(ep.spans))
+        out.update({"deckRunA": ",".join(str(v) for v in da.pieces), "deckRunB": ",".join(str(v) for v in db.pieces),
+                    "deckRunS": da.start_mm / 1000.0})
+    return out
 
 
 def _runs_north_south(model: ScaffoldModel, edge_index: int) -> bool:
