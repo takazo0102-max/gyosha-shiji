@@ -28,6 +28,9 @@ from .plan_solver import PlanResult
 
 # 枠組足場の建枠が兼ねる手すりの高さ（作業床から。安衛則563条の85cm以上を満たす）
 FRAME_GUARD_RAIL_HEIGHT_MM = 900
+# 単管の手すり・中桟（安衛則563条: 手すり85cm以上、中桟35〜50cm）
+TUBE_GUARD_RAIL_HEIGHT_MM = 900
+TUBE_MIDRAIL_HEIGHT_MM = 450
 FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）
 
 # 手すり方式
@@ -69,7 +72,15 @@ class AsagaoSpec:
 
 @dataclass
 class ScaffoldConfig:
-    scaffold_form: str = "本足場"          # 本足場 / 一側足場
+    scaffold_form: str = "本足場"          # 本足場 / 一側足場（建地1列。ブラケット足場・抱き足場もこれ）
+    # 建地1列の足場の組み方（利用者の指定 2026-10-21「ブラケット足場、単管抱き足場、ブラケットは単管と支柱のタイプ」）:
+    #   "ブラケット" … 建地に床受けブラケットを付けて床を載せる（従来の一側足場）
+    #   "抱き"       … 単管の建地を両側から2本の布で抱き、その上に足場板（単管抱き足場）
+    single_row_kind: str = ""
+    # ブラケット足場の建地: "支柱"（くさび等の系列の支柱）／"単管"（単管＋クランプ式ブラケット。系列は単管）
+    bracket_post: str = "支柱"
+    # 階段の代わりの昇降設備（はしご等）の箇所数。単管抱き足場など階段の入らない足場で使う（数量は別途手配）
+    ladders: int = 0
     # 踏板幅は系列で実寸が違う（A:400/250、B:405/240、次世代:500）。
     # Noneならマスタの系列既定を使う（決め打ちにするとマスタ引き当てが静かに失敗する）
     deck_widths: Optional[tuple[int, ...]] = None
@@ -111,6 +122,22 @@ class ScaffoldConfig:
     wall_tie_near_corner: bool = False
     period_days: int = 60                  # 設置期間（届出要否判定）
     asagao: Optional["AsagaoSpec"] = None  # 朝顔（Noneなら未設置）
+
+    @property
+    def is_hug(self) -> bool:
+        """単管抱き足場（建地1列を2本の布で抱き、その上に足場板）."""
+        return self.scaffold_form == "一側足場" and self.single_row_kind == "抱き"
+
+    @property
+    def form_label(self) -> str:
+        """帳票に書く足場の形式（一側足場はブラケット足場・抱き足場を呼び分ける）."""
+        if self.scaffold_form != "一側足場":
+            return self.scaffold_form
+        if self.is_hug:
+            return "単管抱き足場"
+        if self.single_row_kind == "ブラケット":
+            return f"ブラケット足場（{self.bracket_post}）"
+        return "一側足場"
 
 
 @dataclass
@@ -234,8 +261,17 @@ class ScaffoldModel:
         """
         if self.config.post_row_spacing_mm is not None:
             return self.config.post_row_spacing_mm
+        if self.config.is_hug:
+            # 単管抱き足場は建地の真上に足場板（布2本で抱いて載せる）。建地列の位置は内側の線（離れの線）から
+            # 足場板の半分＋50 外。床の躯体側の縁が離れの線に来る
+            return int(sum(self.deck_widths_in_use) / 2 + 50)
         if self.master.is_frame:
             return self.master.frame_width_for(self.deck_width_total)[0]
+        if self.master.is_tube:
+            # 単管の腕木は建地に外からクランプで留めるので、作業床の幅以上でいちばん短い単管
+            wide = [p.nominal_dim for p in self.master.by_category("布材") if p.nominal_dim >= self.deck_width_total]
+            if wide:
+                return min(wide)
         # 作業床を載せられる範囲で最大の腕木（布材）
         cands = [
             p.nominal_dim for p in self.master.by_category("布材")
@@ -256,6 +292,9 @@ class ScaffoldModel:
         # ここで幅を1枚に落とすと、建枠幅まで細くなって矛盾が広がる
         if (self.config.scaffold_form == "一側足場"
                 and not self.master.is_frame and len(ws) > 1):
+            # 単管のブラケット足場は足場板（幅240）を2枚並べて床幅40cm以上にする（抱き足場は布2本の上に1枚）
+            if self.master.is_tube and not self.config.is_hug:
+                return ws[:2]
             return (max(ws),)
         return ws
 
@@ -275,6 +314,8 @@ class ScaffoldModel:
             return self.config.guard_rail_height_mm
         if self.master.is_frame:
             return FRAME_GUARD_RAIL_HEIGHT_MM
+        if self.master.is_tube:
+            return TUBE_GUARD_RAIL_HEIGHT_MM      # 単管の手すりはどの高さにもクランプで付く
         return self.config.guard_rail_koma * self.master.koma_pitch
 
     @property
@@ -301,6 +342,8 @@ class ScaffoldModel:
             return self.config.midrail_height_mm
         if self.master.is_frame:
             return FRAME_MIDRAIL_HEIGHT_MM
+        if self.master.is_tube:
+            return TUBE_MIDRAIL_HEIGHT_MM
         return self.master.koma_pitch
 
     def wall_tie_limits(self) -> tuple[float, float, str]:

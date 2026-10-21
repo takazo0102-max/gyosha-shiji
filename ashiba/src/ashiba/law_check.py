@@ -98,18 +98,20 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
     # 一側足場も建地1列＋躯体側へ張り出す床（ブラケット長＝建地列間隔）で幅を取る。
     # 離れだけで見ると床と建地の幅が抜けて、収まらない計画を通していた
     single = m.config.scaffold_form == "一側足場"
-    need = max((e.standoff for e in m.plan.edges), default=0.0) + m.post_row_spacing_mm
+    # 単管抱き足場は建地の両側の布に足場板を載せるので、幅は足場板の半分＋布の外まで
+    width = (sum(m.deck_widths_in_use) / 2 + 50) if m.config.is_hug else m.post_row_spacing_mm
+    need = max((e.standoff for e in m.plan.edges), default=0.0) + width
     if m.clearance_space_mm and need > m.clearance_space_mm + 1e-6:
         return CheckResult(
             1, "本足場原則", NG,
             f"確保できるスペース{m.clearance_space_mm:.0f}mmに対し、"
-            f"{m.config.scaffold_form}の必要幅{need:.0f}mm"
+            f"{m.config.form_label}の必要幅{need:.0f}mm"
             f"（離れ{max(e.standoff for e in m.plan.edges):.0f}＋"
-            + ("床受けブラケット長" if single else "建地間隔")
-            + f"{m.post_row_spacing_mm:.0f}）が収まりません。離れの見直し、または足場形式の変更が要ります",
+            + ("抱き足場の床の外側" if m.config.is_hug else "床受けブラケット長" if single else "建地間隔")
+            + f"{width:.0f}）が収まりません。離れの見直し、または足場形式の変更が要ります",
             basis + "／敷地条件",
         )
-    return CheckResult(1, "本足場原則", OK, f"足場形式: {m.config.scaffold_form}", basis)
+    return CheckResult(1, "本足場原則", OK, f"足場形式: {m.config.form_label}", basis)
 
 
 # ---- #2 作業床 -----------------------------------------------------------
@@ -118,6 +120,13 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則563条"
     problems = []
     width = sum(m.deck_widths_in_use)
+    if width < 400 and m.config.is_hug:
+        # 一側足場は安衛則563条（作業床）の適用外だが、幅40cm未満の床は墜落の危険が大きい
+        return CheckResult(
+            2, "作業床", WARN,
+            f"単管抱き足場の作業床は足場板{width}mm（40cm未満）です。一側足場は563条の作業床の規定の適用外ですが、"
+            "高さ2m以上で作業するなら足場板を2枚にするか、ブラケット足場・本足場を検討してください（墜落防止）",
+            basis + "（一側足場は適用外）")
     if width < 400:
         problems.append(f"作業床幅{width}mm < 400mm")
     if m.config.deck_gap_mm > 30:
@@ -286,6 +295,12 @@ def check_stairs(m: ScaffoldModel, stair_plan=None) -> CheckResult:
             12, "昇降設備", WARN,
             f"足場高さ{h / 1000:.1f}mには昇降設備が必要ですが、"
             "階段の配置が未指定のため判定できません",
+            basis,
+        )
+    if not stair_plan.towers and m.config.ladders > 0:
+        return CheckResult(
+            12, "昇降設備", OK,
+            f"はしご等の昇降設備{m.config.ladders}箇所（入力 ladders。部材は別途手配。水平移動30m以内に配置）",
             basis,
         )
     issues = validate_stairs(m, stair_plan)

@@ -514,11 +514,14 @@ def write_plan_json(
     出力スキーマ（読む側の実装が推測しなくて済むよう明記する）:
     {
       "series_id": "shinwa_A",          // 系列。混在は不可（系列ロック）
-      "system_type": "くさび" | "枠組",
-      "koma_pitch": 450,                 // 枠組は0（コマの概念が無い）
+      "system_type": "くさび" | "枠組" | "単管",
+      "koma_pitch": 450,                 // 枠組は0（コマの概念が無い）、単管は高さの刻み50
       "scaffold_height_mm": 16300,
       "config": {                        // 図面・数量に効く設定
         "scaffold_form": "本足場" | "一側足場",
+        "single_row_kind": "" | "ブラケット" | "抱き",   // 建地1列の組み方
+        "bracket_post": "支柱" | "単管",  // ブラケット足場の建地
+        "form_label": "単管抱き足場",     // 帳票に書く形式
         "deck_widths": [400, 250],       // 実際に敷く幅（一側は1枚）
         "post_row_spacing_mm": 600,      // 内外建地列の芯々
         "guard_rail_type": "布材" | "先行手すり",
@@ -577,6 +580,9 @@ def write_plan_json(
         "scaffold_height_mm": model.scaffold_height_mm,
         "config": {
             "scaffold_form": cfg.scaffold_form,
+            "single_row_kind": cfg.single_row_kind,
+            "bracket_post": cfg.bracket_post,
+            "form_label": cfg.form_label,
             "deck_widths": list(cfg.deck_widths or []),
             "post_row_spacing_mm": model.post_row_spacing_mm,
             "guard_rail_type": cfg.guard_rail_type,

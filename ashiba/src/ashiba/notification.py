@@ -239,7 +239,7 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
 
     s.add(["■ 計画の概要（本ツールが自動記入）"], STYLE_BOLD)
     _kv(s, "設置する機械等の種類",
-        f"{model.master.system_name}（{model.config.scaffold_form}）",
+        f"{model.master.system_name}（{model.config.form_label}）",
         f"系列 {model.master.series_id}")
     _kv(s, "足場の長さ", round(scaffold_total_length_m(model), 2),
         "m（足場中心線の全長）")
@@ -351,7 +351,7 @@ def _sheet_conditions(wb, model, structural: StructuralResult, project_name) -> 
     _kv(s, "工事名", project_name or "—")
     koma = model.master.koma_pitch
     _kv(s, "足場種別",
-        f"{model.master.system_name}・{model.config.scaffold_form}",
+        f"{model.master.system_name}・{model.config.form_label}",
         f"系列 {model.master.series_id}"
         + (f"（コマピッチ{koma}mm）" if koma else "（建枠を積む方式）"))
     _kv(s, "建設地（地域区分）", site.region, structural.wind.v0_source)

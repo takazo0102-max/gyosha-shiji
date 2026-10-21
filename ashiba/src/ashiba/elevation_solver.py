@@ -220,6 +220,9 @@ def solve_elevation(
     # （受け入れ基準の実例 G(ジャッキ270)+3800×4+900=16370 を再現するため、この順は変えない。
     # 繰出しが上限に張り付いた場合は、調整代のある代替構成を警告で添える）
     under_allow, over_allow = 150, koma_pitch
+    # 単管の建地は1m刻みで、布・手すりはどの高さにもクランプで付く。天端は手すりより上へ出てよい
+    if master is not None and master.is_tube:
+        over_allow = max(over_allow, 1000)
     band_lo, band_hi = jack_min + 50, jack_max - 70
     max_total = required_height + over_allow
     table = _compose_table(max_total, lengths)

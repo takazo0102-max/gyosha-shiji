@@ -571,6 +571,16 @@ for il = 1 to nLv
 				if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
 						z < bmH[ib6] - 0.001 then skipH = 1
 			next ib6
+			! 単管抱き足場: 各層の床の高さに、建地を両側から抱く布を2本（その上に足場板）
+			if skipH = 0 and il > 1 and hugMode = 1 then
+				r_t = 0.0486 / 2
+				for sd = 0 to 1
+					add x - 0.05, -rowW + (2 * sd - 1) * (r_sic + r_t), z
+					roty 90
+					cylind spans[ip] + 0.10, r_t
+					del 2
+				next sd
+			endif
 			! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
 			if skipH = 0 and il = 1 then
 				for row = rowStart to 1
@@ -821,6 +831,27 @@ if showDeck then
 						! 布板（日建 アップロック式鋼製布板 NDN6 等、カタログ p007）: 長さ＝スパン。両端のつかみ金具で
 						! 支柱位置の腕木（φ42.7）を掴み、腕木の上に載る。端のペロ板が腕木の上を覆う。
 						! 以前は腕木の高さに埋まり、支柱芯から 70 離した板だけだった（利用者の指摘: 他の部材も見直して）
+						if serType = "T" then
+							! 単管の足場板（杉 厚28。日建カタログに品番なし）: 腕木・ブラケットの管の上に載せる。
+							! 抱き足場は建地の真上（布2本の上）で、建地の間に1枚ずつ
+							r_t = 0.0486 / 2
+							if hugMode = 1 then
+								add x + r_sic + 0.005, -rowW - deckW1 / 2, z + r_t
+								block spans[ip] - 2 * (r_sic + 0.005), deckW1, 0.028
+								del 1
+							else
+								if eoD1 = 0 then
+									add x, -rowW + 0.05, z + r_t
+									block spans[ip], deckW1 - 0.01, 0.028
+									del 1
+								endif
+								if deckW2 > 0 and eoD2 = 0 then
+									add x, -rowW + 0.05 + deckW1 + 0.02, z + r_t
+									block spans[ip], deckW2 - 0.01, 0.028
+									del 1
+								endif
+							endif
+						else
 						if eoD1 = 0 then
 							add x, -rowW + 0.05, z
 							dkL = spans[ip]
@@ -834,6 +865,7 @@ if showDeck then
 							dkW = deckW2 - 0.01
 							gosub 870
 							del 1
+						endif
 						endif
 					endif
 					! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）。
@@ -861,10 +893,22 @@ if showDeck then
 						if matToe > 0 then material matToe
 						! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
 						! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
+						if serType = "T" then
+							! 単管は足場板を立てて幅木にする（高さ240）。抱き足場は足場板の外の縁
+							if hugMode = 1 then
+								add x + r_sic + 0.005, -rowW - deckW1 / 2 - 0.028, z + 0.0243
+								block spans[ip] - 2 * (r_sic + 0.005), 0.028, 0.24
+							else
+								add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028
+								block spans[ip], 0.028, 0.24
+							endif
+							del 1
+						else
 						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
 						block spans[ip] + 0.07, 0.008, 0.150
 						block spans[ip] + 0.07, 0.140, 0.004
 						del 1
+						endif
 					endif
 					if matScaf > 0 then material matScaf
 				endif
@@ -1758,8 +1802,9 @@ return
 
 800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
 ! 作業床は建地から躯体側へ持ち出す。数量では「一側足場の床受けブラケット」
-! として拾っているので、3Dにも出さないと図と部材表が食い違う
-if il >= 2 then
+! として拾っているので、3Dにも出さないと図と部材表が食い違う。単管抱き足場は布2本で受けるので無い。
+! 単管のブラケット（クランプ式）は腕と方杖の管＋建地に留めるクランプ（830 が単管の形で描く）
+if il >= 2 and hugMode = 0 then
 	add x, -rowW, z
 	rotz 90
 	nL = rowW
@@ -2156,6 +2201,23 @@ return
 	! 両端の緊結部（クサビ受け）が支柱の外面からコマ（円盤）を上下に挟み、クサビが緊結部を縦に貫いて
 	! 上（クビレ）と下に出る。管 φ42.7 は緊結部の間だけ（L1＝L−42.7）。利用者の指摘（2026-10-21）:
 	! 布材も変。以前は管を支柱芯から 78 で止め、小さな爪の箱だけで、コマに掛かって見えなかった
+	! 単管（serType "T"）: 布・腕木・手すりは φ48.6 の管を建地の脇（-Y 側）に直交クランプ（日建 ARC1、カタログ
+	! p378）で留める。管は建地の外まで少し出す（次の管と重ねて留めるので）
+	if serType = "T" then
+		r_t = 0.0486 / 2
+		add -0.05, -(r_sic + r_t), 0
+		roty 90
+		cylind nL + 0.10, r_t
+		del 2
+		if isLite = 0 then
+			for hd830 = 0 to 1
+				add hd830 * nL - 0.035, -(r_sic + r_t) - 0.035, -0.045
+				block 0.07, 0.07, 0.09
+				del 1
+			next hd830
+		endif
+		return
+	endif
 	hdL = 0.050          ! 緊結部の長さ（支柱の外面から）
 	hx0 = r_sic          ! 緊結部は支柱の外面から
 	add hx0 + hdL, 0, 0

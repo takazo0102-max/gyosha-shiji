@@ -92,8 +92,12 @@
 			<Value>0.25</Value>
 		</Length>
 		<String Name="scaffForm">
-			<Description><![CDATA["本足場／一側足場"]]></Description>
+			<Description><![CDATA["足場の形式（本足場／ブラケット足場／単管抱き足場）"]]></Description>
 			<Value><![CDATA["本足場"]]></Value>
+		</String>
+		<String Name="bracketPost">
+			<Description><![CDATA["ブラケット足場の建地（支柱＝くさび等の支柱／単管＝単管とクランプ式ブラケット）"]]></Description>
+			<Value><![CDATA["支柱"]]></Value>
 		</String>
 		<String Name="railType">
 			<Description><![CDATA["手すり 布材／先行手すり"]]></Description>

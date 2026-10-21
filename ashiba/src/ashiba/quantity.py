@@ -434,6 +434,9 @@ def _take_off_one(
     # 本足場の「内外2本」のまま数えると1スパンあたり5本（4層で）多くなる
     negarami_n = min(rules.ledgers_negarami, rows)
     floor_n = min(rules.ledgers_per_level_floor, rows)
+    # 単管抱き足場は各層の床の高さに、建地を両側から抱く布を2本（その上に足場板）
+    if model.config.is_hug:
+        floor_n = 2
     # 躯体側（内側建地列）の手すり＋中桟。3Dに描くのと同じ条件で数える
     rails_inner = 2 if (model.config.inner_guard_rail and rows >= 2) else 0
     per_span_rails = negarami_n + n_levels * (floor_n + rails_outer + rails_inner)
@@ -572,10 +575,11 @@ def _take_off_one(
     for w in deck_widths:
         for s, cells in deck_cells.items():
             add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
-    if rows == 1:
-        # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）
-        brk = next((p for p in m.by_category("ブラケット")
-                    if p.nominal_dim >= deck_widths[0] and "張出" not in p.note
+    if rows == 1 and not model.config.is_hug:
+        # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）。単管は足場板2枚の幅で選ぶ
+        need_w = deck_widths[0] if not m.is_tube else sum(deck_widths) + 20 * (len(deck_widths) - 1)
+        brk = next((p for p in sorted(m.by_category("ブラケット"), key=lambda q: q.nominal_dim)
+                    if p.nominal_dim >= need_w and "張出" not in p.note
                     and "内" not in p.note), None)
         need = posts_per_line * n_levels
         if brk is None:
@@ -647,6 +651,8 @@ def _take_off_one(
     _note_inner_rail_if_wide(model, notes, bracket_sections)
     _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
+    if m.is_tube:
+        _count_tube_fittings(model, counts, parts, add, notes)
     return _assemble(model, rules, counts, parts, notes, breakdown)
 
 
@@ -1646,6 +1652,38 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str], bracket_sec
         f"離れが300mmを超える面（{faces}）の躯体側手すり材は数量に含んでいません"
         f"（該当{spans}スパン）。躯体側手すりで対応する場合は布材を別途計上してください",
         Notes.SITE,
+    )
+
+
+def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, notes) -> None:
+    """単管足場のクランプ・ジョイント（くさびの緊結部の代わり）.
+
+    布・腕木・手すり・中桟・根がらみ（布材）は両端を直交クランプで建地に、筋かいは両端を自在クランプで留める。
+    建地の継ぎは直線ジョイント。ブラケット・壁つなぎはクランプ付きの品なので数えない。
+    """
+    m = model.master
+    by_cat: dict[str, int] = {}
+    for key, qty in counts.items():
+        part = parts.get(key)
+        if part is not None:
+            by_cat[part.category] = by_cat.get(part.category, 0) + qty
+    clamps = m.by_category("クランプ")
+    orth = next((p for p in clamps if "直交" in p.note), None)
+    free = next((p for p in clamps if "自在" in p.note), None)
+    n_ledgers = by_cat.get("布材", 0)
+    n_braces = by_cat.get("筋交", 0)
+    add(orth, 2 * n_ledgers, "直交クランプ（布・腕木・手すり・根がらみの両端）")
+    add(free, 2 * n_braces, "自在クランプ（筋かいの両端）")
+    joint = next(iter(m.by_category("ジョイント")), None)
+    n_posts = by_cat.get("支柱", 0)
+    n_feet = by_cat.get("ジャッキ", 0)
+    # ジャッキとアンダーベースは同じ数だけ入るので、脚の数はその半分
+    legs = n_feet // 2 if any("アンダーベース" in p.note for p in m.by_category("ジャッキ")) else n_feet
+    n_joints = max(0, n_posts - legs)
+    add(joint, n_joints, "直線ジョイント（建地の継ぎ）")
+    notes.append(
+        f"単管足場: 直交クランプ{2 * n_ledgers}個（布材{n_ledgers}本×両端）・自在クランプ{2 * n_braces}個"
+        f"（筋かい{n_braces}本×両端）・直線ジョイント{n_joints}個（建地の継ぎ）を計上。ブラケット・壁つなぎはクランプ付きの品"
     )
 
 

@@ -19,6 +19,9 @@ DEFAULT_MASTER_PATH = Path(__file__).resolve().parents[2] / "data" / "part_maste
 # 立面の解き方も数量ルールも分岐する。
 WEDGE = "くさび"
 FRAME = "枠組"
+# 単管（φ48.6 の鋼管をクランプで組む）。緊結部（コマ）が無く、布・腕木・ブラケットは建地の好きな高さにクランプで
+# 留める。立面の解き方はくさびと同じ（コマピッチの代わりに細かい刻み）、部材の拾いにクランプ・ジョイントが加わる
+TUBE = "単管"
 
 # ジャッキの機械的な上限。枠組はジャッキ型ベース金具の最大使用高さ350mm（構造規格）、
 # くさびはマスタに上限の記載が無いときの既定
@@ -57,6 +60,7 @@ SERIES_LABELS = {
     "waku": "日建 枠組（建枠）",
     "shinwa_A": "信和 Aタイプ（くさび・メートル）",
     "shinwa_B": "信和 Bタイプ（くさび・メートル）",
+    "tankan": "単管・クランプ（単管ブラケット足場・単管抱き足場）",
 }
 
 
@@ -109,6 +113,11 @@ SERIES_CONST = {
                           "koma_top_gap": 30, "koma_nega": 120, "nega_koma_lengths": (2700,),
                           "hozo": 125, "module": "inch",
                           "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # 単管（φ48.6×2.4・日建 カタログVol.10p372 の単管パイプ、p377 直線ジョイント、p378 兼用クランプ、p078 ジャッキベース）。
+    # クランプは建地のどこにでも留まるので、koma_pitch は高さの刻み（50）。スパンはメートル（建地間隔 1.85m 以下）
+    "tankan": {"system_type": TUBE, "koma_pitch": 50, "floor_height": 1800,
+               "hozo": 0, "module": "metric",
+               "deck_widths": (240, 240), "next_gen_deck_widths": (240, 240)},
     # 枠組: 建枠を積む。層高＝建枠高さ、コマピッチの概念はない
     "waku": {"system_type": FRAME, "koma_pitch": 0, "floor_height": 1700,
              "hozo": 0, "module": "inch",
@@ -219,6 +228,11 @@ class PartMaster:
         return self.system_type == FRAME
 
     @property
+    def is_tube(self) -> bool:
+        """単管（クランプで組む。コマが無い）."""
+        return self.system_type == TUBE
+
+    @property
     def module(self) -> str:
         """スパンのモジュール（metric／inch）."""
         return series_module(self.series_id)
@@ -226,6 +240,8 @@ class PartMaster:
     @property
     def system_name(self) -> str:
         """帳票に書く足場の種類。届出書に別方式の名前を書かないための一元管理."""
+        if self.is_tube:
+            return "単管足場"
         return "枠組足場" if self.is_frame else "くさび緊結式足場"
 
     @property
@@ -389,14 +405,23 @@ class PartMaster:
         for p in self.by_category(category):
             if p.nominal_dim == nominal_dim and note_contains in p.note:
                 return p
-        return None
+        return self._tube_cover(self.by_category(category), nominal_dim, note_contains)
 
     def deck_parts(self, width: int, nominal_dim: int) -> Optional[Part]:
         """指定幅・長さの作業床（くさび=踏板 / 枠組=布板）."""
-        for p in self.by_category(self.deck_category):
-            if p.nominal_dim == nominal_dim and f"幅{width}" in p.note and "センター" not in p.note:
+        cands = [p for p in self.by_category(self.deck_category)
+                 if f"幅{width}" in p.note and "センター" not in p.note]
+        for p in cands:
+            if p.nominal_dim == nominal_dim:
                 return p
-        return None
+        return self._tube_cover(cands, nominal_dim)
+
+    def _tube_cover(self, parts: list, nominal_dim: int, note_contains: str = "") -> Optional[Part]:
+        """単管・足場板は切って使わず、長い品をクランプで留める（重ねる）。呼びが無ければそれ以上でいちばん短い品."""
+        if not self.is_tube or nominal_dim <= 0:
+            return None
+        longer = [p for p in parts if p.nominal_dim >= nominal_dim and note_contains in p.note]
+        return min(longer, key=lambda p: p.nominal_dim) if longer else None
 
     def assert_series(self, part: Part) -> None:
         if part.series_id != self.series_id:
@@ -484,6 +509,7 @@ def load_master(series_id: str, csv_path: Optional[Path] = None) -> PartMaster:
 REQUIRED_CATEGORIES = {
     WEDGE: ("支柱", "布材", "踏板", "ジャッキ", "壁つなぎ"),
     FRAME: ("建枠", "布材", "布板", "ジャッキ", "壁つなぎ"),
+    TUBE: ("支柱", "布材", "踏板", "ジャッキ", "壁つなぎ", "クランプ"),
 }
 
 

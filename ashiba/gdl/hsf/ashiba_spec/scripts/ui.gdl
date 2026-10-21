@@ -11,7 +11,9 @@ ui_infield "seriesId", 140, 84, 300, 20
 ui_outfield "足場の形式", 10, 114, 120, 18
 ui_infield "scaffForm", 140, 112, 160, 20
 ui_outfield "掛ける面（空＝全周）", 10, 205, 130, 18
-ui_infield "facesOnly", 140, 203, 200, 20
+ui_infield "facesOnly", 140, 203, 140, 20
+ui_outfield "ブラケットの建地", 290, 205, 90, 18
+ui_infield "bracketPost", 390, 203, 70, 20
 ui_outfield "幅（0＝既定）", 310, 114, 80, 18
 ui_infield "scaffW", 390, 112, 70, 20
 ui_outfield "設置期間（日）", 10, 142, 120, 18

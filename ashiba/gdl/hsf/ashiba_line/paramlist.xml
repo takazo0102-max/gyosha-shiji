@@ -421,6 +421,10 @@
 			<Description><![CDATA["支柱だけ分解した（1＝支柱・枠組の建枠は ashiba_member が描く）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="hugMode">
+			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、その上に足場板）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="segSpanA">
 			<Description><![CDATA["区切った部品のスパン（始め。0＝面の始点から）"]]></Description>
 			<Value>0</Value>

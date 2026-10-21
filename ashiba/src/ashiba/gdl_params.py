@@ -185,7 +185,8 @@ def line_params(
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
         "jackOut": e.jack_extension / 1000.0,
-        "komaPitch": model.master.koma_pitch / 1000.0,
+        # 単管はコマが無い（高さの刻みは描かない）
+        "komaPitch": 0.0 if model.master.is_tube else model.master.koma_pitch / 1000.0,
         # コマの位置（カタログの支柱図。master.post_koma_offsets と同じ規則を 3d.gdl で支柱1本ごとに計算）
         "komaGap": model.master.koma_top_gap / 1000.0,
         "komaNega": _koma_const(model, "koma_nega") / 1000.0,
@@ -221,8 +222,11 @@ def line_params(
         "sizeList": ",".join(str(v) for v in model.master.span_lengths()),
         # 枠組は "W"。図面側が方式を知らないと、くさび専用の特記
         # （根がらみ＝最下コマ など）を枠組の図に書いてしまう
-        "serType": ("W" if model.master.is_frame
+        # 単管は "T"（布・腕木・手すりは建地の脇にクランプで留めた管、コマは無い）
+        "serType": ("W" if model.master.is_frame else "T" if model.master.is_tube
                     else "B" if model.master.series_id.endswith("_B") else "A"),
+        # 単管抱き足場（建地1列を布2本で抱き、その上に足場板）
+        "hugMode": 1 if model.config.is_hug else 0,
         # 一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,
         # 始点が出隅なら、その外側のコーナー（外側建地・布材・踏板・幅木）をこの面が描く

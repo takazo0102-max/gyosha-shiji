@@ -150,7 +150,7 @@ TOP_KEYS = {
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
     "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
-    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm",
+    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
@@ -560,8 +560,11 @@ def validate_spec(spec: dict) -> None:
             errors.append(f"ground_points_mm[{i}]: [x, y, z]の3要素で指定してください")
 
     form = spec.get("scaffold_form")
-    if form is not None and form not in ("本足場", "一側足場"):
-        errors.append(f"scaffold_form: 本足場 か 一側足場 です（{form!r}）")
+    if form is not None and form not in SCAFFOLD_FORMS:
+        errors.append(f"scaffold_form: {'・'.join(SCAFFOLD_FORMS)} のどれかです（{form!r}）")
+    bpost = spec.get("bracket_post", "支柱")
+    if bpost not in ("支柱", "単管"):
+        errors.append(f"bracket_post: 支柱 か 単管 です（{bpost!r}）")
     reinf = spec.get("post_reinforcement", "")
     if reinf not in ("", "強力つなぎ材"):
         errors.append(f"post_reinforcement: \"\" か 強力つなぎ材 です（{reinf!r}）")
@@ -680,6 +683,23 @@ def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
     return fixed
 
 
+# 足場の形式（利用者の指定 2026-10-21: ブラケット足場（単管・支柱）と単管抱き足場）。建地1列の形式は内部では一側足場
+SCAFFOLD_FORMS = ("本足場", "一側足場", "ブラケット足場", "抱き足場", "単管抱き足場")
+
+
+def _form_from_spec(spec: dict) -> tuple[str, str, str]:
+    """入力の scaffold_form・bracket_post → (内部の形式, 建地1列の組み方, ブラケットの建地)."""
+    form = str(spec.get("scaffold_form") or "本足場")
+    post = str(spec.get("bracket_post") or "支柱")
+    if form in ("抱き足場", "単管抱き足場"):
+        return "一側足場", "抱き", "単管"
+    if form == "ブラケット足場":
+        return "一側足場", "ブラケット", post
+    if form == "一側足場":
+        return "一側足場", "ブラケット", "支柱"
+    return form, "", "支柱"
+
+
 def resolve_series_id(spec: dict) -> str:
     """series_id と module（インチ／メートル）から系列を決める.
 
@@ -691,6 +711,10 @@ def resolve_series_id(spec: dict) -> str:
     from .master import series_from_label
 
     sid = series_from_label(spec.get("series_id")) or None
+    # 単管抱き足場・単管のブラケット足場は単管の系列で組む（くさびの系列を指定していても）
+    _f, kind, post = _form_from_spec(spec)
+    if kind == "抱き" or (kind == "ブラケット" and post == "単管"):
+        return "tankan"
     mod_in = spec.get("module")
     if mod_in is None or str(mod_in).strip() == "":
         return str(sid or "shinwa_A")
@@ -759,7 +783,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     guard_extra = spec.get("guard_extra_mm")
     if guard_extra is None:
         guard_extra = (
-            FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame
+            FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame or master.is_tube
             else 2 * master.koma_pitch + master.koma_top_gap
         )
     required = int(spec["eaves_height_mm"]) + int(guard_extra)
@@ -834,8 +858,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             if fit:
                 deck_ws = fit
                 row_mm = max(rows)
+    form, kind, post = _form_from_spec(spec)
     config = ScaffoldConfig(
-        scaffold_form=spec.get("scaffold_form", "本足場"),
+        scaffold_form=form,
+        single_row_kind=kind,
+        bracket_post=post,
+        ladders=int(spec.get("ladders", 0) or 0),
         has_toe_board=not no_toe,
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=deck_ws,
@@ -1424,7 +1452,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
 
     outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
-    if st.get("positions"):
+    hug_no_stairs = model.config.is_hug and not st.get("positions") and not st.get("count")
+    if hug_no_stairs:
+        # 単管抱き足場の床（足場板1枚）に階段は入らない。昇降ははしご等を別に（数量・図に階段を出さない）
+        stair_plan = auto_place_stairs(model, max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
+                                       tower_spans=tspans, count=0)
+    elif st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
         stair_plan = place_stairs_at(
             model,
@@ -1449,9 +1482,13 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         stair_plan.outside = outside
         if why:
             stair_plan.warnings.append(why)
-    stair_issues = validate_stairs(
+    stair_issues = [] if (hug_no_stairs or (model.config.ladders and not stair_plan.towers)) else validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )
+    if hug_no_stairs:
+        model.plan.warnings.append(
+            "単管抱き足場の作業床（足場板1枚）に階段は入らないので、階段は計上していません。"
+            "昇降設備（はしご・昇降用の別の足場など）を別に用意し、箇所数を ladders に書いてください（安衛則526条）")
     # 一側足場の床（受けブラケット幅＝建地列間隔）に階段枠（幅420〜450）は収まらない。
     # 区間・数量は計上するが、その区間の組み方は別途要る（実機の一側棟で階段室が幅400の
     # 床の中に描かれていた）
