@@ -199,6 +199,8 @@ def line_params(
         "rowW": model.post_row_spacing_mm / 1000.0,
         "deckW1": (widths[0] if widths else (0 if model.config.is_hug else 400)) / 1000.0,
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
+        # 単管の足場板の枚数（3枚以上は deckW1 と同じ幅で並べる）。くさび・枠組は0
+        "deckN": len(widths) if model.master.is_tube else 0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
         # 3D の天端のホットスポット（足場高さの編集）。部品の天端（ジャッキ＋支柱）と同じ値で送り、
         # 食い違ったら「引かれた」とみなして層を足し引きする（vl.gdl）

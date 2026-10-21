@@ -321,7 +321,10 @@ def solve_elevation(
         top_floor = top - TUBE_GUARD_RAIL_HEIGHT_MM - TUBE_POST_ABOVE_RAIL_MM
     level_heights = []
     h = top_floor
-    while h > first_ledger + koma_pitch:
+    # 単管は床の高さが布・腕木をクランプで留める位置で決まり、コマの刻みに縛られない。最上層から階高で下ろすと
+    # 地面から 630 のような低い床ができた（作業床として使わない高さ）。階高の半分より低い床は作らない
+    low = floor_height / 2 if (master is not None and master.is_tube) else 0
+    while h > first_ledger + koma_pitch and h >= low:
         level_heights.append(h)
         h -= floor_height
     level_heights.sort()

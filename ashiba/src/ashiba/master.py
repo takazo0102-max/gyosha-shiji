@@ -311,6 +311,12 @@ class PartMaster:
         rows = sorted({p.nominal_dim for p in self.by_category("布材") if p.nominal_dim > 0})
         row = min(rows, key=lambda v: (abs(v - width_mm), v)) if rows else int(width_mm)
         avail = sorted(self.deck_widths_available(), reverse=True)
+        if self.is_tube and avail:
+            # 単管は足場板（幅240）を建地列の間に収まるだけ並べる（幅900で3枚、1200で4枚。以前は2枚までで、
+            # 幅900・1200の単管本足場の床が半分しか無かった）
+            w = max(avail)
+            n = max(1, int((row + 70 + gap_mm) // (w + gap_mm)))
+            return row, (w,) * n
         best: tuple[int, ...] = ()
         best_key = None
         for i, a in enumerate(avail):

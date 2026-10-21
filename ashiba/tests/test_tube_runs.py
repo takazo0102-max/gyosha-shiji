@@ -103,7 +103,7 @@ class TestBoards(unittest.TestCase):
         self.assertEqual(boards, want)
         d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn('if showDeck and hugMode = 0 and serType = "T" then', d3)
-        self.assertIn("if kb = nBd[bw] and cornerE = 1 then bRz = 0.056", d3)
+        self.assertIn("if kb = nBd[pb] and cornerE = 1 then bRz = 0.056", d3)
         # クランプは金色（利用者の指定 2026-10-22）
         i = d3.index("838:")
         self.assertNotIn("ashiba_clamp_zinc", d3[i:i + 3000])
@@ -148,6 +148,31 @@ class TestBoards(unittest.TestCase):
         self.assertEqual(lines[("踏板", key)], runs_deck * m.elevation.n_levels + corner * 2)
         self.assertTrue(any(n.startswith("単管の足場の出隅") for n in r.quantity.notes))
         self.assertEqual(corner_board_mm(1200), 1500)
+
+    def test_full_tube_width_fills_boards(self):
+        # 単管本足場は建地列の間に足場板（240）を収まるだけ並べる（幅900で3枚・1200で4枚。以前は2枚まで）
+        from ashiba.cli import solve_all
+        from ashiba.gdl_params import line_params
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                "series_id": "tankan"}
+        for w, n in ((600, 2), (900, 3), (1200, 4)):
+            m = solve_all({**base, "scaffold_width_mm": w}).model
+            self.assertEqual(m.deck_widths_in_use, (240,) * n)
+            self.assertEqual(line_params(m, m.plan.edges[0])["deckN"], n)
+        d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("for bw = 1 to max(2, deckN)", d3)
+        self.assertIn("for cbw = 3 to deckN", d3)
+
+    def test_tube_has_no_floor_below_half_a_lift(self):
+        # 単管は階高の半分（900）より低い床を作らない（地面から 630 の床ができていた）
+        from ashiba.cli import solve_all
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        for form in ({"series_id": "tankan"}, {"scaffold_form": "単管抱き足場"}):
+            lv = solve_all({**base, **form}).model.elevation.level_heights
+            self.assertGreaterEqual(min(lv), 900)
+            self.assertEqual(lv[-1], 6030)
 
     def test_bracket_tip_has_no_clamp_and_ties_start_at_the_post(self):
         d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
