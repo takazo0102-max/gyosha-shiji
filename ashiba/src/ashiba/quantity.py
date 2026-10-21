@@ -731,6 +731,15 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
     # コーナーの床（{udegi}mm角）は、長さ{udegi}の踏板を本体の床と同じ幅の組み合わせで敷く
     # （升目は建地列間隔の長さのスパン1つと同じ形）。系列のマスタにある実在の踏板で拾い、
     # 無い幅だけ手配に出す（以前は全部を「別途手配」の注意にしていた）
+    if model.config.scaffold_form == "一側足場" and m.is_tube and model.deck_widths_in_use:
+        # 単管のブラケット足場の出隅は、足場板1.0Mを1枚、コーナーの単管から始点側の面の板の上に渡す（3D と同じ。
+        # 利用者の指摘 2026-10-22: コーナー部分の巾木がおかしい）。幅木は上で2枚（外側2辺）を数えている
+        w0 = model.deck_widths_in_use[0]
+        board = next((p for p in m.by_category("踏板") if p.actual_dim == 1000 and f"幅{w0}" in p.note), None)
+        add(board, n_corners * n_levels, f"出隅のコーナーの足場板 幅{w0}×1.0M")
+        notes.append(f"単管のブラケット足場の出隅{n_corners}箇所×{n_levels}層は、足場板1.0M 1枚（コーナーの単管から"
+                     "渡して面の板に重ねる）と幅木（足場板1.0M）2枚で計上")
+        return
     if model.config.scaffold_form == "一側足場":
         # 一側はコーナーの升目がブラケットの床幅で決まり、建地列間隔の正方形にならない。
         # 系列にコーナーステップ（日建 NDCS05・02）があれば、床の幅の品で出隅×層を拾う

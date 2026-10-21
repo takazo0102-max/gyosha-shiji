@@ -98,7 +98,16 @@ class TestBoards(unittest.TestCase):
                 for L in face_boards(list(ep.spans))[i % 2].pieces:
                     k = f"足場板{L / 1000:.1f}M-240"
                     want[k] = want.get(k, 0) + n
+        # 出隅ごと・層ごとにコーナーの足場板1.0Mを1枚（利用者の指摘 2026-10-22: コーナー部分）
+        want["足場板1.0M-240"] = want.get("足場板1.0M-240", 0) + m.outer_corner_posts() * n
         self.assertEqual(boards, want)
+        d3 = (GDL / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn('if showDeck and hugMode = 0 and serType = "T" and nRows < 2 then', d3)
+        self.assertIn("if kb = nBd[bw] and cornerE = 1 and nRows < 2 then bRz = 0.056", d3)
+        # クランプは金色（利用者の指定 2026-10-22）
+        i = d3.index("838:")
+        self.assertNotIn("ashiba_clamp_zinc", d3[i:i + 3000])
+        self.assertIn('material "ashiba_clamp_gold"', d3[i:i + 3000])
         p = line_params(m, m.plan.edges[0])
         self.assertEqual(p["deckRunA"], ",".join(str(v) for v in face_boards(list(m.plan.edges[0].spans))[0].pieces))
 

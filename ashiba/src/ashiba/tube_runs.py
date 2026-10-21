@@ -160,23 +160,32 @@ def _lap_on_post(end: float, posts: list[float]) -> bool:
     return any(p - (end - BOARD_LAP_MM) >= BOARD_BEAR_MM and end - p >= BOARD_BEAR_MM for p in posts[1:-1])
 
 
-def plan_boards(spans: list[int], stock=BOARD_STOCK_MM) -> BoardRun:
-    """面の足場板1列の割付. 枚数が少なく、長い板が先."""
+def plan_boards(spans: list[int], stock=BOARD_STOCK_MM, starts=None, end_window=None) -> BoardRun:
+    """面の足場板1列の割付. 枚数が少なく、長い板が先.
+
+    starts: 敷き始めの候補（面の始点の建地から mm。既定はブラケットから 100〜300 手前）。
+    end_window: 終わりの、終点の建地からの出（下限, 上限）mm。既定は (100, 300)。
+    出隅の割付（コーナーを通す・手前で止める）は face_boards_for が渡す。
+    """
     posts = post_positions(spans)
     L = int(round(posts[-1]))
     stock = sorted(set(int(s) for s in stock), reverse=True)
+    default = starts is None
+    if default:
+        starts = (-BOARD_BEAR_MM, -150, -200, -250, -BOARD_MAX_OVER_MM)
+    lo, hi = end_window or (BOARD_BEAR_MM, BOARD_MAX_OVER_MM)
     best = None
-    for start in (-BOARD_BEAR_MM, -150, -200, -250, -BOARD_MAX_OVER_MM):
+    for start in starts:
         # 板の終わりの位置 → そこまでの最良の並び
         reach: dict[int, tuple] = {}
-        frontier = [(start, ())]
+        frontier = [(int(start), ())]
         while frontier:
             nxt = []
             for pos, seq in frontier:
                 for Lb in stock:
                     e = pos + Lb
                     cand = seq + (Lb,)
-                    if L + BOARD_BEAR_MM <= e <= L + BOARD_MAX_OVER_MM:
+                    if L + lo <= e <= L + hi:
                         key = (len(cand), e - L, tuple(-v for v in cand))
                         if best is None or key < best[0]:
                             best = (key, start, cand)
@@ -188,19 +197,20 @@ def plan_boards(spans: list[int], stock=BOARD_STOCK_MM) -> BoardRun:
                         reach[e] = cand
                         nxt.append((e - BOARD_LAP_MM, cand))
             frontier = nxt
-        if best is not None and best[0][0] <= max(1, (L + 2 * BOARD_BEAR_MM) // max(stock) + 1):
+        if default and best is not None and best[0][0] <= max(1, (L + 2 * BOARD_BEAR_MM) // max(stock) + 1):
             break
     if best is None:
         raise ValueError(f"足場板を割り付けられません（面の長さ{L}mm）")
     return BoardRun(start_mm=float(best[1]), pieces=list(best[2]))
 
 
-def staggered_boards(run: BoardRun, spans: list[int]) -> BoardRun:
+def staggered_boards(run: BoardRun, spans: list[int], end_window=None) -> BoardRun:
     """隣の列（2枚敷きのもう1枚）: 同じ板を並べ替え、重ねの位置をずらす。成り立たなければ同じ."""
     if len(run.pieces) < 2:
         return run
     posts = post_positions(spans)
     L = posts[-1]
+    lo, hi = end_window or (BOARD_BEAR_MM, BOARD_MAX_OVER_MM)
     a_ends = [e for _s, e in run.spans_mm()[:-1]]
     best, best_key = run, None
     seen = set()
@@ -214,7 +224,7 @@ def staggered_boards(run: BoardRun, spans: list[int]) -> BoardRun:
         ends = [e for _s, e in cand.spans_mm()]
         if not all(_lap_on_post(e, posts) for e in ends[:-1]):
             continue
-        if not (L + BOARD_BEAR_MM <= ends[-1] <= L + BOARD_MAX_OVER_MM):
+        if not (L + lo <= ends[-1] <= L + hi):
             continue
         gap = min((abs(x - y) for x in ends[:-1] for y in a_ends), default=0.0)
         key = (gap, tuple(perm))
@@ -223,6 +233,7 @@ def staggered_boards(run: BoardRun, spans: list[int]) -> BoardRun:
     return best
 
 
-def face_boards(spans: list[int]) -> tuple[BoardRun, BoardRun]:
-    a = plan_boards(spans)
-    return a, staggered_boards(a, spans)
+def face_boards(spans: list[int], starts=None, end_window=None) -> tuple[BoardRun, BoardRun]:
+    a = plan_boards(spans, starts=starts, end_window=end_window)
+    return a, staggered_boards(a, spans, end_window)
+
