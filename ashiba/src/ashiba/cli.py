@@ -864,7 +864,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         single_row_kind=kind,
         bracket_post=post,
         ladders=int(spec.get("ladders", 0) or 0),
-        has_toe_board=not no_toe,
+        # 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
+        has_toe_board=not no_toe and kind != "抱き",
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=deck_ws,
         post_row_spacing_mm=row_mm,

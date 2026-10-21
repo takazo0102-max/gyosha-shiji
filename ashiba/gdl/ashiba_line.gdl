@@ -110,6 +110,7 @@
 !   komaNega        長さ    根がらみ用のコマの高さ（支柱の下端から。ND1800 170）                                                      既定 0
 !   negaLens        文字列  根がらみ用のコマのある支柱の長さ mm（例 2700,1125,900）                                                   既定 ""
 !   explodeMask     整数    支柱だけ分解した（1＝支柱・枠組の建枠は ashiba_member が描く）                                            既定 0
+!   postListAlt     文字列  千鳥の建地の支柱構成（単管。偶数番目の建地。空なら postList と同じ）                                      既定 ""
 !   hugMode         整数    単管抱き足場（1＝建地1列を布2本で抱き、その上に足場板）                                                   既定 0
 !   segSpanA        整数    区切った部品のスパン（始め。0＝面の始点から）                                                             既定 0
 !   segSpanB        整数    区切った部品のスパン（終わり。0＝面の終点まで）                                                           既定 0
@@ -145,6 +146,7 @@
 ! ============================================================
 dim spans[60]
 dim posts[40]
+dim postsA[40]
 dim ties[200]
 dim tieH[200]
 dim gl[61]
@@ -283,6 +285,25 @@ if nPost = 0 then
 	nPost = 1
 	posts[1] = 3.6
 endif
+
+! ---- postListAlt（単管の千鳥。偶数番目の建地の支柱構成）をパース ----
+nPostA = 0
+rest = postListAlt
+while strlen(rest) > 0 and nPostA < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPostA = nPostA + 1
+		postsA[nPostA] = v / 1000
+	endif
+endwhile
 
 ! ---- tieList をパース (mm→m) ----
 nTie = 0
@@ -1284,7 +1305,7 @@ for ip = 1 to nSpan
 	for ib3 = 1 to nBm
 		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
 	next ib3
-	if showDeck and inStair = 0 and inSeg then line2 x, -rowW, x + spans[ip], 0
+	if showDeck and hugMode = 0 and inStair = 0 and inSeg then line2 x, -rowW, x + spans[ip], 0
 	x = x + spans[ip]
 next ip
 line2 pxB, 0, pxB, -rowW
@@ -1376,7 +1397,7 @@ if cornerS = 1 and sA = 1 then
 	line2 -rowW, 0, -rowW, -rowW
 	line2 -rowW, -rowW, 0, -rowW
 	circle2 -rowW, -rowW, r_sic
-	if showDeck then line2 -rowW, -rowW, 0, 0
+	if showDeck and hugMode = 0 then line2 -rowW, -rowW, 0, 0
 endif
 
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
@@ -1933,15 +1954,25 @@ for il = 2 to nLv
 	next ip
 next il
 
-! ブレス（交さ2方向＝X）。1箇所に2本入る前提で数量を拾っているので、
-! 図も両方向を描く（片方向だけ描くと部材表の本数と図が食い違う）。
-! 枠組の交差筋交も同じくX。設置間隔は数量拾いと揃える
+! ブレス（交さ2方向）。1箇所に2本入る前提で数量を拾っているので、図も両方向を描く（片方向だけ描くと
+! 部材表の本数と図が食い違う）。くさび・単管はこのスパンに「／」・隣のスパンに「＼」の山形（3D と同じ。
+! 同じスパンの X は先行手すりと紛らわしい）。枠組の交差筋交は X。設置間隔は数量拾いと揃える
 x = 0
 for ip = 1 to nSpan
 	for il = 1 to nLv - 1
 		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
 			line2 x, lv[il], x + spans[ip], lv[il + 1]
-			line2 x + spans[ip], lv[il], x, lv[il + 1]
+			if serType = "W" then
+				line2 x + spans[ip], lv[il], x, lv[il + 1]
+			else
+				if ip < nSpan then
+					line2 x + spans[ip] + spans[ip + 1], lv[il], x + spans[ip], lv[il + 1]
+				else
+					spb = spans[ip]
+					if ip > 1 then spb = spans[ip - 1]
+					line2 x, lv[il], x - spb, lv[il + 1]
+				endif
+			endif
 		endif
 	next il
 	x = x + spans[ip]
@@ -2426,6 +2457,7 @@ endif
 ! 軽量では、布材・腕木・踏板・手すりのフックを掛ける高さ（根がらみ・各作業床・中桟・手すり）のコマだけ描く
 dim kz[]
 dim kzAll[]
+dim pj[40]
 dim kzSeg[]
 dim kzSegA[]
 nKz = 0
@@ -2546,30 +2578,41 @@ for ip = 1 to nSpan + 1
 				del 2
 			else
 				! 支柱積み上げ（部材ごと）。継ぎ目には継手のカラーを描いて部材の切れ目を見せる
-				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）
-				zs = gv + jo
+				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）。
+				! 単管は偶数番目の建地を千鳥の構成（postListAlt）で積む（継ぎ目の高さを隣とずらす）
+				nPj = nPost
 				for j = 1 to nPost
+					pj[j] = posts[j]
+				next j
+				if nPostA > 0 and ip - 2 * int(ip / 2) = 0 then
+					nPj = nPostA
+					for j = 1 to nPostA
+						pj[j] = postsA[j]
+					next j
+				endif
+				zs = gv + jo
+				for j = 1 to nPj
 					if not(explodeMask > 0 and ownX = 1 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
-						cylind posts[j], r_sic
+						cylind pj[j], r_sic
 						! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
 						if postShape = 1 and isLite = 0 then
 							add -0.0275, -0.003, 0
-							block 0.055, 0.006, posts[j]
+							block 0.055, 0.006, pj[j]
 							del 1
 							add -0.003, -0.0275, 0
-							block 0.006, 0.055, posts[j]
+							block 0.006, 0.055, pj[j]
 							del 1
 						endif
-						addz posts[j]
-						if j < nPost then
+						addz pj[j]
+						if j < nPj then
 							gosub 840
 						endif
 					else
-						addz posts[j]
+						addz pj[j]
 					endif
-					zs = zs + posts[j]
+					zs = zs + pj[j]
 				next j
-				del nPost + 2
+				del nPj + 2
 			endif
 		else
 			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
@@ -2670,8 +2713,8 @@ if cornerS = 1 then
 			nL = rowW
 			gosub 830
 			del 1
-			if showDeck then
-				! コーナー踏板と、外側2辺の幅木。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
+			if showDeck and hugMode = 0 then
+				! コーナー踏板と、外側2辺の幅木（単管抱き足場は床材・幅木が無い）。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
 				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
 				if matDeck > 0 then material matDeck
 				add -rowW + 0.05, -rowW + 0.05, z + r_nuno
@@ -2712,7 +2755,7 @@ for ie9 = 0 to 1
 			nL = rowW
 			gosub 830
 			del 2
-			if showDeck then
+			if showDeck and hugMode = 0 then
 				if matToe > 0 then material matToe
 				add xe9 - 0.01, -rowW, z + r_nuno + 0.045
 				block 0.008, rowW, 0.150
@@ -2836,6 +2879,16 @@ for il = 1 to nLv
 					cylind spans[ip] + 0.10, r_t
 					del 2
 				next sd
+				! 3連クランプ（日建 P3CR、カタログ p384）: 建地と両側の布2本を1個で抱く。建地ごと（終点の建地も）
+				if isLite = 0 then
+					for ce = 0 to 1
+						if ce = 0 or ip = nSpan then
+							add x + ce * spans[ip] - 0.04, -rowW - (r_sic + 2 * r_t) - 0.008, z - 0.04
+							block 0.08, 2 * (r_sic + 2 * r_t) + 0.016, 0.08
+							del 1
+						endif
+					next ce
+				endif
 			endif
 			! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
 			if skipH = 0 and il = 1 then
@@ -3092,9 +3145,7 @@ if showDeck then
 							! 抱き足場は建地の真上（布2本の上）で、建地の間に1枚ずつ
 							r_t = 0.0486 / 2
 							if hugMode = 1 then
-								add x + r_sic + 0.005, -rowW - deckW1 / 2, z + r_t
-								block spans[ip] - 2 * (r_sic + 0.005), deckW1, 0.028
-								del 1
+								! 単管抱き足場は布板を敷かない（抱き合わせた単管2本が床。利用者の指定 2026-10-22）
 							else
 								if eoD1 = 0 then
 									add x, -rowW + 0.05, z + r_t
@@ -3151,14 +3202,12 @@ if showDeck then
 						! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
 						if serType = "T" then
 							! 単管は足場板を立てて幅木にする（高さ240）。抱き足場は足場板の外の縁
-							if hugMode = 1 then
-								add x + r_sic + 0.005, -rowW - deckW1 / 2 - 0.028, z + 0.0243
-								block spans[ip] - 2 * (r_sic + 0.005), 0.028, 0.24
-							else
+							if hugMode = 0 then
+								! 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
 								add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028
 								block spans[ip], 0.028, 0.24
+								del 1
 							endif
-							del 1
 						else
 						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
 						block spans[ip] + 0.07, 0.008, 0.150
@@ -3198,18 +3247,27 @@ if showBrace then
 					next ie
 					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType <> "W" then
 						! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
-						! 2本（交さ2方向）は前後にずらして重ねる。以前は φ21.7 の細い管で、支柱から離れて浮いていた
+						! 交さ2方向の2本は、このスパンに「／」、隣のスパンに「＼」（山形）。同じスパンに重ねて X にすると
+						! 先行手すり（X の斜材）と見分けがつかなかった（利用者の指摘 2026-10-22: 1段目の端部が先行手すりに
+						! なっている）。終点のスパンでは手前のスパンに「＼」。単管は同じ形の単管の筋かい
 						brZ = 0.10
-						bl = sqr(spans[ip] ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
-						ang = atn((z2 - z1 - 2 * brZ) / spans[ip])
 						for bf = 0 to 1
 							yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
 							xa = x
 							sg = 1
+							spb = spans[ip]
 							if bf = 1 then
-								xa = x + spans[ip]
+								if ip < nSpan then
+									spb = spans[ip + 1]
+									xa = x + spans[ip] + spb
+								else
+									xa = x
+									if ip > 1 then spb = spans[ip - 1]
+								endif
 								sg = -1
 							endif
+							bl = sqr(spb ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
+							ang = atn((z2 - z1 - 2 * brZ) / spb)
 							add xa, yb2, z1 + brZ
 							if sg < 0 then mulx -1
 							roty 90 - ang
@@ -3221,7 +3279,7 @@ if showBrace then
 								cx = xa
 								cz = z1 + brZ
 								if ce = 1 then
-									cx = xa + sg * spans[ip]
+									cx = xa + sg * spb
 									cz = z2 - brZ
 								endif
 								add cx - 0.035, yb2 - 0.025, cz - 0.035

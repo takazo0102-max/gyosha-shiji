@@ -270,6 +270,12 @@ def solve_elevation(
 
     posts = _order_with_first(pieces, first)
     posts_alt = _alt_order(pieces)
+    # 単管の建地は継手を千鳥にする（利用者の指定 2026-10-22）。同じ長さだけの構成は、隣の建地の最下部に半分の長さ
+    # （6m→3m、4m→2m）を入れて上に回し、継ぎ目の高さを半分ずらす（本数・総長は同じ）
+    if master is not None and master.is_tube and len(set(pieces)) < 2 and pieces:
+        half = pieces[0] // 2
+        if half in lengths and len(pieces) >= 1:
+            posts_alt = [half] + list(pieces[:-1]) + [half]
 
     warnings = []
     # 繰出しが実務上限に張り付くと、地盤の凹凸を上へ吸収できない（L字棟で270mmちょうどが

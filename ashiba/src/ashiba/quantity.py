@@ -559,15 +559,16 @@ def _take_off_one(
         for s, n in stair_open_cells(model, stair_plan, n_levels).items():
             deck_cells[s] = max(0, deck_cells.get(s, 0) - n)
             stair_cut_cells += n
-    _note_deck_cells(
-        notes, m.deck_category, sum(span_counts.values()), n_levels,
-        stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
-        sum(open_cut.values()), sum(deck_cells.values()),
-    )
+    if model.deck_widths_in_use:         # 単管抱き足場は床材が無い（抱き合わせた単管2本）
+        _note_deck_cells(
+            notes, m.deck_category, sum(span_counts.values()), n_levels,
+            stair_cut_cells, len(stair_plan.towers) if stair_plan else 0,
+            sum(open_cut.values()), sum(deck_cells.values()),
+        )
     # 一側足場は建地1列で、作業床はブラケット受けの1枚敷き。本足場の内外2枚敷きを
     # そのまま数えると踏板が倍になる（実際、重量で3.7t多く出ていた）
     deck_widths = list(model.deck_widths_in_use)
-    if rows == 1 and len(model.config.deck_widths) > len(deck_widths):
+    if rows == 1 and deck_widths and len(model.config.deck_widths) > len(deck_widths):
         notes.append(
             f"一側足場のため作業床は幅{deck_widths[0]}mmの1枚敷きで計上しています"
             f"（本足場の{'+'.join(str(w) for w in model.config.deck_widths)}ではなく）"
@@ -635,6 +636,9 @@ def _take_off_one(
         stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
+    # 単管抱き足場は階段が入らない（はしご等を別に。cli が階段を置かない）
+    if model.config.is_hug and stair_plan is not None and not stair_plan.towers:
+        n_towers = 0
     add(stair, n_towers * n_levels, "階段")
     _count_stair_guards(model, add, notes, n_towers, n_levels,
                         outside=bool(getattr(stair_plan, "outside", False)))
@@ -1668,11 +1672,19 @@ def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, n
         if part is not None:
             by_cat[part.category] = by_cat.get(part.category, 0) + qty
     clamps = m.by_category("クランプ")
-    orth = next((p for p in clamps if "直交" in p.note), None)
-    free = next((p for p in clamps if "自在" in p.note), None)
+    orth = next((p for p in clamps if "直交" in p.note and "3連" not in p.note), None)
+    free = next((p for p in clamps if "自在" in p.note and "3連" not in p.note), None)
+    triple = next((p for p in clamps if "3連" in p.note), None)
     n_ledgers = by_cat.get("布材", 0)
     n_braces = by_cat.get("筋交", 0)
-    add(orth, 2 * n_ledgers, "直交クランプ（布・腕木・手すり・根がらみの両端）")
+    # 単管抱き足場: 床の高さの布2本は、建地ごと・層ごとに3連クランプ1個で建地と一緒に抱く（直交クランプではない）
+    n_hug = n_triple = 0
+    if model.config.is_hug:
+        n_cells = sum(len(e.spans) for e in model.plan.edges) * model.elevation.n_levels
+        n_hug = min(n_ledgers, 2 * n_cells)
+        n_triple = (model.plan.total_posts + model.outer_corner_posts()) * model.elevation.n_levels
+        add(triple, n_triple, "3連クランプ（建地と抱き合わせた布2本）")
+    add(orth, 2 * (n_ledgers - n_hug), "直交クランプ（布・腕木・手すり・根がらみの両端）")
     add(free, 2 * n_braces, "自在クランプ（筋かいの両端）")
     joint = next(iter(m.by_category("ジョイント")), None)
     n_posts = by_cat.get("支柱", 0)
@@ -1681,8 +1693,11 @@ def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, n
     legs = n_feet // 2 if any("アンダーベース" in p.note for p in m.by_category("ジャッキ")) else n_feet
     n_joints = max(0, n_posts - legs)
     add(joint, n_joints, "直線ジョイント（建地の継ぎ）")
+    if n_triple:
+        notes.append(f"単管抱き足場: 床の高さの布{n_hug}本（建地の両側に2本）は、建地ごと・層ごとの3連クランプ{n_triple}個で留める。"
+                     "布板・幅木は無い（抱き合わせた単管2本が床）")
     notes.append(
-        f"単管足場: 直交クランプ{2 * n_ledgers}個（布材{n_ledgers}本×両端）・自在クランプ{2 * n_braces}個"
+        f"単管足場: 直交クランプ{2 * (n_ledgers - n_hug)}個（布材{n_ledgers - n_hug}本×両端）・自在クランプ{2 * n_braces}個"
         f"（筋かい{n_braces}本×両端）・直線ジョイント{n_joints}個（建地の継ぎ）を計上。ブラケット・壁つなぎはクランプ付きの品"
     )
 
@@ -1950,6 +1965,9 @@ def _count_frame_parts(
         stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
+    # 単管抱き足場は階段が入らない（はしご等を別に。cli が階段を置かない）
+    if model.config.is_hug and stair_plan is not None and not stair_plan.towers:
+        n_towers = 0
     add(stair, n_towers * n_levels, "階段枠")
     _count_stair_guards(model, add, notes, n_towers, n_levels)
 

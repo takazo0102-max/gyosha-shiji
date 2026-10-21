@@ -31,6 +31,8 @@ FRAME_GUARD_RAIL_HEIGHT_MM = 900
 # 単管の手すり・中桟（安衛則563条: 手すり85cm以上、中桟35〜50cm）
 TUBE_GUARD_RAIL_HEIGHT_MM = 900
 TUBE_MIDRAIL_HEIGHT_MM = 450
+# 単管抱き足場の建地列の位置（離れの線から。躯体側の布の外まで）
+HUG_ROW_OFFSET_MM = 100
 FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）
 
 # 手すり方式
@@ -262,9 +264,9 @@ class ScaffoldModel:
         if self.config.post_row_spacing_mm is not None:
             return self.config.post_row_spacing_mm
         if self.config.is_hug:
-            # 単管抱き足場は建地の真上に足場板（布2本で抱いて載せる）。建地列の位置は内側の線（離れの線）から
-            # 足場板の半分＋50 外。床の躯体側の縁が離れの線に来る
-            return int(sum(self.deck_widths_in_use) / 2 + 50)
+            # 単管抱き足場は建地を両側から布2本（単管）で抱き、その布が床になる（利用者の指定 2026-10-22: 布板不要）。
+            # 建地列の位置は内側の線（離れの線）から 100 外（躯体側の布の外まで）
+            return HUG_ROW_OFFSET_MM
         if self.master.is_frame:
             return self.master.frame_width_for(self.deck_width_total)[0]
         if self.master.is_tube:
@@ -288,6 +290,9 @@ class ScaffoldModel:
         床幅も本足場のものになってしまう。
         """
         ws = tuple(self.config.deck_widths or ())
+        # 単管抱き足場は布板を敷かない（抱き合わせた単管2本が床。利用者の指定 2026-10-22）
+        if self.config.is_hug:
+            return ()
         # 枠組は建枠が内外2列を成すので一側にはできない（法規チェック1でNG）。
         # ここで幅を1枚に落とすと、建枠幅まで細くなって矛盾が広がる
         if (self.config.scaffold_form == "一側足場"

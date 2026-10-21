@@ -43,6 +43,12 @@ class StandoffSpec:
     fall_protection_limit: float = 300.0  # これを超えると墜落防止措置が必要
 
 
+# 割付は基本スパン（1800・1829）で組む（利用者の指定 2026-10-22「割り付けは基本を1800 1829で考えて」）。
+# 端数スパン1本の重さ。3 だと、インチの12m面で離れ249mm（下限250に1mm足りない）を嫌って 610×6 で埋めていた
+SMALL_SPAN_WEIGHT = 8.0
+# 離れの下限の許容（インチ寸法の組合せは数mm刻みにしか合わない。下限250に対し249は同じとみなす）
+STANDOFF_TOL_MM = 3.0
+
 # 枠組足場のコーナー処理（仕様4.2の分岐）
 # くさび式: 端数は壁離れで吸収する（コーナーで足場板の調整をしない）
 # 枠組式  : 離れは固定し、端数はコーナーステップ・足場板で吸収する
@@ -558,14 +564,14 @@ def _solve_axis(
         # 収まるときだけ挙げる。面ごとに拾うと、他面を425mmにする組合せ由来の
         # 275mmを「他に組める」と案内してしまう（凹み形状で実際に出た）
         n_small = sum(_small_span_count(spans, main_span) for _s, spans in choice)
-        if all(spec.hard_min - 0.5 <= x <= spec.max + 0.5 for x in d):
+        if all(spec.hard_min - 0.5 - STANDOFF_TOL_MM <= x <= spec.max + 0.5 for x in d):
             for di, x in zip(d_indices, d):
                 v = int(round(x))
                 feasible[di].add(v)
                 small_by[di][v] = min(small_by[di].get(v, n_small), n_small)
         dev = sum(abs(x - spec.target) for x in d)
-        n_over = sum(1 for x in d if x > spec.max or x < spec.min)
-        n_hard = sum(1 for x in d if x < spec.hard_min)
+        n_over = sum(1 for x in d if x > spec.max or x < spec.min - STANDOFF_TOL_MM)
+        n_hard = sum(1 for x in d if x < spec.hard_min - STANDOFF_TOL_MM)
         # 墜落防止措置が要る面（離れ30cm超）は少ないほどよい
         n_fall = sum(1 for x in d if x > spec.fall_protection_limit)
         # 顧客最小値（hard_min）だけは絶対。それ以外は重み付きで足す。
@@ -575,7 +581,7 @@ def _solve_axis(
         # （墜落防止措置）より重く、目標帯外1面 ≒ 端数スパン6〜7本の重さにする
         score = (
             n_hard,
-            20.0 * n_over + 10.0 * n_fall + 3.0 * n_small + dev / 50.0,
+            20.0 * n_over + 10.0 * n_fall + SMALL_SPAN_WEIGHT * n_small + dev / 50.0,
             n_small, dev,
         )
         if best is None or score < best[0]:
@@ -644,9 +650,30 @@ def _solve_plan_frame(
     """
     edges = outline.edges
     n = len(edges)
-    d = spec.target                      # 離れは全面固定
-    standoffs = [d] * n
     min_span = min(coins)
+    # 離れは全面で同じ値に固定する。目標（300）だけで解くと、インチの建枠間隔では隙間の窓（70〜250）に
+    # 入る組合せが 610 の連続しか無い面が出た（8m面が 1524＋610×11）。目標帯（下限〜上限）を10mm刻みで試し、
+    # 端数の建枠間隔がいちばん少なく、隙間が窓に入る離れを採る（同じなら目標に近い方）
+    main = max(coins)
+    best_d, best_key = spec.target, None
+    for d_try in sorted({spec.target} | set(range(int(spec.min), int(spec.max) + 1, 10)),
+                        key=lambda v: abs(v - spec.target)):
+        bad = n_small = n_sp = 0
+        for e in edges:
+            tl = e.length + (e.start_sign + e.end_sign) * d_try
+            if tl < min_span:
+                bad += 1
+                continue
+            sp, gap = _frame_spans_and_gap(coins, tl)
+            if not (FRAME_CORNER_MIN_GAP_MM <= gap <= FRAME_CORNER_MAX_STEP_MM):
+                bad += 1
+            n_small += sum(1 for v in sp if v < main)
+            n_sp += len(sp)
+        key = (bad, n_small, n_sp, abs(d_try - spec.target))
+        if best_key is None or key < best_key:
+            best_d, best_key = d_try, key
+    d = float(best_d)                    # 離れは全面固定
+    standoffs = [d] * n
 
     plan_edges: list[EdgePlan] = []
     # 外形を整理した内容は黙って飲み込まず、割付の警告として残す

@@ -184,6 +184,9 @@ def line_params(
     return fit_gdl_lists({
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
+        # 単管の建地は継手を千鳥にする（偶数番目の建地はこの並び。利用者の指定 2026-10-22）。くさび・枠組は空
+        "postListAlt": (",".join(str(p) for p in e.posts_alt)
+                        if model.master.is_tube and list(e.posts_alt) != list(e.posts) else ""),
         "jackOut": e.jack_extension / 1000.0,
         # 単管はコマが無い（高さの刻みは描かない）
         "komaPitch": 0.0 if model.master.is_tube else model.master.koma_pitch / 1000.0,
@@ -194,7 +197,7 @@ def line_params(
         "floorH": model.master.floor_height / 1000.0,
         "standoff": ep.standoff / 1000.0,
         "rowW": model.post_row_spacing_mm / 1000.0,
-        "deckW1": (widths[0] if widths else 400) / 1000.0,
+        "deckW1": (widths[0] if widths else (0 if model.config.is_hug else 400)) / 1000.0,
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
         # 3D の天端のホットスポット（足場高さの編集）。部品の天端（ジャッキ＋支柱）と同じ値で送り、

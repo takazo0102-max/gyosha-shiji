@@ -177,11 +177,13 @@ class TestFrameCornerStepsAreSurfaced(unittest.TestCase):
     def _plan(self, poly):
         return solve_plan(poly, load_master("waku"))
 
-    def test_standoff_is_fixed_at_300(self):
+    def test_standoff_is_one_value_within_the_band(self):
+        # 枠組の離れは全面で同じ値（目標帯250〜350の中で、基本スパン1829がいちばん多く入る値。2026-10-22）
         for name, poly in self.SHAPES.items():
             with self.subTest(name):
-                for e in self._plan(poly).edges:
-                    self.assertEqual(e.standoff, 300.0)
+                ds = {e.standoff for e in self._plan(poly).edges}
+                self.assertEqual(len(ds), 1)
+                self.assertTrue(250.0 <= ds.pop() <= 350.0)
 
     def test_every_corner_gets_a_step_record(self):
         for name, poly in self.SHAPES.items():

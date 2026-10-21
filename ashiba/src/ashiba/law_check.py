@@ -120,12 +120,12 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則563条"
     problems = []
     width = sum(m.deck_widths_in_use)
-    if width < 400 and m.config.is_hug:
-        # 一側足場は安衛則563条（作業床）の適用外だが、幅40cm未満の床は墜落の危険が大きい
+    if m.config.is_hug:
+        # 一側足場は安衛則563条（作業床）の適用外だが、単管2本の床は墜落の危険が大きい
         return CheckResult(
             2, "作業床", WARN,
-            f"単管抱き足場の作業床は足場板{width}mm（40cm未満）です。一側足場は563条の作業床の規定の適用外ですが、"
-            "高さ2m以上で作業するなら足場板を2枚にするか、ブラケット足場・本足場を検討してください（墜落防止）",
+            "単管抱き足場の床は建地を両側から抱き合わせた単管2本です（布板なし）。一側足場は563条の作業床の規定の"
+            "適用外ですが、高さ2m以上で作業するならブラケット足場・本足場や安全帯の使用を検討してください（墜落防止）",
             basis + "（一側足場は適用外）")
     if width < 400:
         problems.append(f"作業床幅{width}mm < 400mm")

@@ -69,6 +69,10 @@ class TestCrossCuttingInvariants(unittest.TestCase):
         for name, r in self.runs:
             with self.subTest(name):
                 cat = r.model.master.deck_category
+                if not r.model.deck_widths_in_use:
+                    # 単管抱き足場は床材が無い（抱き合わせた単管2本）。注記も床材の行も無い
+                    self.assertFalse([l for l in r.quantity.lines if l.part and l.part.category == cat])
+                    continue
                 note = next(n for n in r.quantity.notes if n.startswith(f"{cat}はスパン"))
                 final = int(re.search(r"(\d+)セルで計上", note).group(1))
                 per_width = {}

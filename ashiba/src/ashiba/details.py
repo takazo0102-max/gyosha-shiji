@@ -107,7 +107,7 @@ def required_details(
         "standoff": _median_standoff(model) / 1000.0,
         "rowW": model.post_row_spacing_mm / 1000.0,
         "spanW": _common_span(model) / 1000.0,
-        "deckW1": model.deck_widths_in_use[0] / 1000.0,
+        "deckW1": (model.deck_widths_in_use[0] if model.deck_widths_in_use else 0) / 1000.0,
         "deckW2": (model.deck_widths_in_use[1] / 1000.0
                    if len(model.deck_widths_in_use) > 1 else 0.0),
         "soMin": (so.min if so else 250.0) / 1000.0,

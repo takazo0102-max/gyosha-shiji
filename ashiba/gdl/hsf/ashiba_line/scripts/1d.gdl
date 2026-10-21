@@ -9,6 +9,7 @@
 ! ============================================================
 dim spans[60]
 dim posts[40]
+dim postsA[40]
 dim ties[200]
 dim tieH[200]
 dim gl[61]
@@ -147,6 +148,25 @@ if nPost = 0 then
 	nPost = 1
 	posts[1] = 3.6
 endif
+
+! ---- postListAlt（単管の千鳥。偶数番目の建地の支柱構成）をパース ----
+nPostA = 0
+rest = postListAlt
+while strlen(rest) > 0 and nPostA < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPostA = nPostA + 1
+		postsA[nPostA] = v / 1000
+	endif
+endwhile
 
 ! ---- tieList をパース (mm→m) ----
 nTie = 0

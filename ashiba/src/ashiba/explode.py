@@ -88,6 +88,8 @@ def line_members(p: dict) -> list[Member]:
     frame = str(p.get("serType", "A")).strip() == "W"
     spans = [v / 1000 for v in _nums(p.get("spanList")) + _nums(p.get("spanList2"))]
     posts = [v / 1000 for v in _nums(p.get("postList"))]
+    # 単管の千鳥（偶数番目の建地は postListAlt。3d.gdl と同じ）
+    posts_alt = [v / 1000 for v in _nums(p.get("postListAlt"))] or posts
     if not spans or not posts:
         raise ValueError("足場ラインのスパン・支柱構成が読めません")
     pc = piece_of(p)
@@ -107,9 +109,9 @@ def line_members(p: dict) -> list[Member]:
     n_span = len(spans)
     out: list[Member] = []
 
-    def stack(x, y, tag=""):
+    def stack(x, y, tag="", alt=False):
         z = jack
-        for j, pl in enumerate(posts):
+        for j, pl in enumerate(posts_alt if alt else posts):
             if pc.own_z(z):
                 if frame:
                     shared = (abs(x) < 0.001 and skip_s) or (abs(x - xs[-1]) < 0.001 and skip_e)
@@ -136,7 +138,7 @@ def line_members(p: dict) -> list[Member]:
                     out.append(Member(1, x, -row * row_w, b_base, L=post_top - b_base,
                                       name=f"支柱（梁枠上）{(post_top - b_base) * 1000:.0f}"))
             else:
-                stack(x, -row * row_w)
+                stack(x, -row * row_w, alt=(ip + 1) % 2 == 0)
 
     # ---- 出隅の外側コーナー支柱（くさび式。始点側の部品が持つ） ----
     if not frame and _i(p, "cornerS") == 1 and pc.sA == 1:

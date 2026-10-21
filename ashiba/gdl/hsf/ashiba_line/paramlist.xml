@@ -421,6 +421,10 @@
 			<Description><![CDATA["支柱だけ分解した（1＝支柱・枠組の建枠は ashiba_member が描く）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<String Name="postListAlt">
+			<Description><![CDATA["千鳥の建地の支柱構成（単管。偶数番目の建地。空なら postList と同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="hugMode">
 			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、その上に足場板）"]]></Description>
 			<Value>0</Value>

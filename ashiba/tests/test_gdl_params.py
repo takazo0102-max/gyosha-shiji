@@ -1228,7 +1228,8 @@ class TestLight3D(unittest.TestCase):
         # コマは軽量でもフックを掛ける高さだけ描く（kz。外側コーナー・外付け階段の建地含む3箇所）
         self.assertEqual(self.body.count("for ik = 1 to nKz\n"), 3)
         # 支柱の継ぎ目の帯は軽量でも描く（継ぎ目が分かるように。外付け階段の建地含む3箇所）
-        self.assertEqual(self.body.count("if j < nPost then\n"), 3)
+        # 継手の帯は本体の支柱（千鳥の構成 nPj）・出隅の支柱・外付け階段の建地の3か所
+        self.assertEqual(self.body.count("if j < nPost then\n") + self.body.count("if j < nPj then\n"), 3)
         self.assertEqual(self.body.count("gosub 840"), 3)
         self.assertIn("if isLite = 0 then\n\t\t\t! クサビ", self.body)    # 布材のクサビは精細だけ
 

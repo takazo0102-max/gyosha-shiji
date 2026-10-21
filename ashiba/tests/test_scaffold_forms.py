@@ -65,11 +65,21 @@ class TestHugScaffold(unittest.TestCase):
         self.assertEqual(m.master.series_id, "tankan")
         self.assertTrue(m.config.is_hug)
         self.assertEqual(m.config.form_label, "単管抱き足場")
-        self.assertEqual(m.deck_widths_in_use, (240,))
+        # 布板・幅木は無い（抱き合わせた単管2本が床。利用者の指定 2026-10-22）
+        self.assertEqual(m.deck_widths_in_use, ())
+        self.assertFalse(m.config.has_toe_board)
+        self.assertFalse(_qty(r, "踏板"))
+        self.assertFalse(_qty(r, "幅木"))
         self.assertFalse(_qty(r, "ブラケット"))
+        # 抱いているところは3連クランプ（建地ごと・層ごと）、直交するところは直交クランプ
+        n_pos = m.plan.total_posts + m.outer_corner_posts()
+        self.assertEqual(_qty(r, "クランプ")["P3CR"], n_pos * m.elevation.n_levels)
+        # 建地は千鳥（偶数番目の建地は継ぎ目の高さが違う）
+        self.assertNotEqual(m.elevation.posts, m.elevation.posts_alt)
+        self.assertEqual(sorted(m.elevation.posts), sorted(m.elevation.posts_alt))
         c2 = _check(r, 2)
         self.assertEqual(c2.status, "WARN")                            # 一側足場は563条の適用外。40cm未満は注意
-        self.assertIn("40cm未満", c2.message)
+        self.assertIn("単管2本", c2.message)
 
     def test_hug_ledgers_more_than_bracket(self):
         hug = solve_all({**BASE, "scaffold_form": "単管抱き足場"})
