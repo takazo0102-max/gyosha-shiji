@@ -23,10 +23,25 @@ def _strip(line: str) -> str:
     return "".join(out).strip()
 
 
-def balance(text: str) -> list[str]:
-    errs, stack = [], []
+def _logical_lines(text: str):
+    """行末の \\ で続く行を1行につなぐ（「if ... and \\」の次の行に then がある複数行の if）。行番号は最初の行."""
+    buf, start = "", 0
     for n, raw in enumerate(text.splitlines(), 1):
         ln = _strip(raw)
+        if not buf:
+            start = n
+        if ln.endswith("\\"):
+            buf += ln[:-1] + " "
+            continue
+        yield start, buf + ln
+        buf = ""
+    if buf:
+        yield start, buf
+
+
+def balance(text: str) -> list[str]:
+    errs, stack = [], []
+    for n, ln in _logical_lines(text):
         low = ln.lower()
         if not low:
             continue

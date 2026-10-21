@@ -5,11 +5,11 @@
 # ///
 # -*- coding: utf-8 -*-
 # ashiba-palette-entry
-"""仮設足場 分解を戻す
+"""仮設足場 区切りを戻す
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-分解した足場ライン（または部材）を選んでから押す。部材を消して足場ラインで描く
-本体は <ashiba>/scripts/explode_line.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
+区切った足場の部品を選んでから押す。その面の部品を1つに戻す
+本体は <ashiba>/scripts/split_line.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os
 import subprocess
@@ -17,9 +17,9 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))           # <ashiba>/tapir/palette（リンクをたどる）
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SCRIPT = os.path.join(ROOT, "scripts", "explode_line.py")
+SCRIPT = os.path.join(ROOT, "scripts", "split_line.py")
 ARGS = ('--undo',)
-TITLE = "仮設足場 分解を戻す"
+TITLE = "仮設足場 区切りを戻す"
 OUT = os.path.join(os.path.expanduser("~"), "Desktop", "ashiba_out")
 
 

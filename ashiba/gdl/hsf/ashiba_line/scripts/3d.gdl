@@ -34,17 +34,58 @@ resol rN
 ! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
 ! （パラメータスクリプト）。全面・帳票はパレットの「解き直し」で追従する。
 ! 3D にホットスポットを1つでも置くと外接箱の自動ホットスポットが消えるので、四隅も置く
-if editSpan and serType <> "W" and nLevIn > 0 then
+if editSpan and serType <> "W" and nLevIn > 0 and segOn = 0 then
 	hotspot 0, -rowW, 0, 1000, topEdit, 1 + 128
 	hotspot 0, -rowW, topEdit, 1001, topEdit, 2
 	hotspot 0, -rowW, -1, 1002, topEdit, 3
 endif
-hotspot 0, 0, 0
-hotspot lineLen, 0, 0
-hotspot lineLen, -rowW, 0
-hotspot 0, 0, postTop
-hotspot lineLen, 0, postTop
-hotspot lineLen, -rowW, postTop
+! 区切った部品は自分の範囲の箱の四隅
+hzA = 0
+if gzA > 0 then hzA = gzA
+hzB = postTop
+if gzB < postTop then hzB = gzB
+hotspot pxA, 0, hzA
+hotspot pxB, 0, hzA
+hotspot pxB, -rowW, hzA
+hotspot pxA, 0, hzB
+hotspot pxB, 0, hzB
+hotspot pxB, -rowW, hzB
+
+! ---- 区切る位置のつまみ（利用者の指定 2026-10-21「クリックした次のところから区切る、3Dで」） ----
+! 選ぶと、上端（外側建地列の外）に縦の区切りのつまみ、始点の支柱の外に横の区切りのつまみが出る。
+! 引いた位置の次の支柱の芯・次の作業床に吸着し（パラメータスクリプト）、そこに赤い面で区切り目を出す（990。
+! 材質を替えるので描き終わりに）。
+! パレットの「区切る」で、そこから先を別の部品にする
+cyH = -rowW - 0.25
+hotspot pxA, cyH, hzB, 1010, cutAtX, 1 + 128
+hotspot pxA + cutAtX, cyH, hzB, 1011, cutAtX, 2
+hotspot pxA - 1, cyH, hzB, 1012, cutAtX, 3
+hotspot pxA - 0.25, cyH, hzA, 1013, cutAtZ, 1 + 128
+hotspot pxA - 0.25, cyH, hzA + cutAtZ, 1014, cutAtZ, 2
+hotspot pxA - 0.25, cyH, hzA - 1, 1015, cutAtZ, 3
+! ---- 区切った部品: 範囲の箱の外を切り取る（縦は支柱の芯、横は作業床の 100 下） ----
+! 切る形は無限に長い角筒（CUTPOLY）。範囲の外の側を大きな四角で囲んで消す。高さは x 軸まわりに回して角筒を水平に
+nClip = 0
+if gxA > -999 then
+	cutpoly 4, -1000, -1000, gxA, -1000, gxA, 1000, -1000, 1000
+	nClip = nClip + 1
+endif
+if gxB < 999 then
+	cutpoly 4, gxB, -1000, 1000, -1000, 1000, 1000, gxB, 1000
+	nClip = nClip + 1
+endif
+if gzA > -999 then
+	rotx 90
+	cutpoly 4, -1000, -1000, 1000, -1000, 1000, gzA, -1000, gzA
+	del 1
+	nClip = nClip + 1
+endif
+if gzB < 999 then
+	rotx 90
+	cutpoly 4, -1000, gzB, 1000, gzB, 1000, 1000, -1000, 1000
+	del 1
+	nClip = nClip + 1
+endif
 
 ! ---- 向こう側の面を隠す幕（断面・立面だけ） ----
 ! 立面図は建物の外に置いた断面で描く。Tapir の断面は奥行きが無限（水平範囲を「制限」にできない）で、
@@ -96,6 +137,10 @@ if d3 = 4 then
 			del 1
 		next it
 	endif
+	gosub 990
+	for ic9 = 1 to nClip
+		cutend
+	next ic9
 	end
 endif
 
@@ -110,6 +155,10 @@ if LIBRARYGLOBAL(mvoName, "mode3d", mv3d) then
 endif
 if lineMode then
 	gosub 900
+	gosub 990
+	for ic9 = 1 to nClip
+		cutend
+	next ic9
 	end
 endif
 
@@ -121,6 +170,8 @@ endif
 ! 軽量では、布材・腕木・踏板・手すりのフックを掛ける高さ（根がらみ・各作業床・中桟・手すり）のコマだけ描く
 dim kz[]
 dim kzAll[]
+dim kzSeg[]
+dim kzSegA[]
 nKz = 0
 nKzA = 0
 if komaPitch > 0 then
@@ -131,6 +182,7 @@ if komaPitch > 0 then
 		while zz >= 0.1 - 0.0001 do
 			nKzA = nKzA + 1
 			kzAll[nKzA] = zb + zz
+			kzSegA[nKzA] = zb
 			zz = zz - komaPitch
 		endwhile
 		! 根がらみ用のコマ
@@ -153,6 +205,7 @@ if komaPitch > 0 then
 		if isNg = 1 and komaNega > 0.001 then
 			nKzA = nKzA + 1
 			kzAll[nKzA] = zb + komaNega
+			kzSegA[nKzA] = zb
 			! すぐ上（3/4 ピッチ以内）にコマが無ければ komaPitch−komaGap にも
 			zm = pl - komaGap
 			while zm - komaPitch > komaNega + 0.001 do
@@ -161,6 +214,7 @@ if komaPitch > 0 then
 			if zm > komaNega + 0.75 * komaPitch + 0.001 and komaPitch - komaGap < pl then
 				nKzA = nKzA + 1
 				kzAll[nKzA] = zb + komaPitch - komaGap
+				kzSegA[nKzA] = zb
 			endif
 		endif
 		zb = zb + pl
@@ -180,15 +234,17 @@ if komaPitch > 0 then
 		if keep = 1 then
 			nKz = nKz + 1
 			kz[nKz] = kzAll[ik]
+			kzSeg[nKz] = kzSegA[ik]
 		endif
 	next ik
 endif
 
-! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
-if explodeMask = 0 then
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
-! 実際には無い建地を干渉確認に使うことになる
+! 実際には無い建地を干渉確認に使うことになる。
+! 支柱だけ分解した部品（explodeMask）は、自分の持つ支柱（位置 x が [gxA, gxB)、下端が [gzA, gzB)）を分解した部材
+! （ashiba_member）が描くので描かない。持たない支柱（隣の部品の区切り目の支柱など）は切り取った範囲の分だけ描く。
+! ジャッキは足場ラインのまま。区切った部品の範囲の外の支柱は描かない（切り取られるので、描く手間だけ省く）
 x = 0
 for ip = 1 to nSpan + 1
 	bBase = 0
@@ -202,12 +258,15 @@ for ip = 1 to nSpan + 1
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
+	ownX = 0
+	if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
 	for row = rowStart to 1
 		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
 		skipP = 0
 		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		if x < gxA - 0.1 or x > gxB + 0.1 then skipP = 1
 		if skipP = 1 then
-			! 隣の面が描く
+			! 隣の面・隣の部品が描く
 		else
 		if bBase = 0 then
 			add x, -row * rowW, gv
@@ -216,46 +275,53 @@ for ip = 1 to nSpan + 1
 			addz jo
 			if nGl >= 2 then
 				! 継ぎ足した脚は長さが脚ごとに違う。天端まで1本で描く
-				cylind postTop - gv - jo, r_sic
+				if not(explodeMask > 0 and ownX = 1 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
+					cylind postTop - gv - jo, r_sic
+				endif
 				del 2
 			else
 				! 支柱積み上げ（部材ごと）。継ぎ目には継手のカラーを描いて部材の切れ目を見せる
 				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）
+				zs = gv + jo
 				for j = 1 to nPost
-					cylind posts[j], r_sic
-					! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
-					if postShape = 1 and isLite = 0 then
-						add -0.0275, -0.003, 0
-						block 0.055, 0.006, posts[j]
-						del 1
-						add -0.003, -0.0275, 0
-						block 0.006, 0.055, posts[j]
-						del 1
+					if not(explodeMask > 0 and ownX = 1 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
+						cylind posts[j], r_sic
+						! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
+						if postShape = 1 and isLite = 0 then
+							add -0.0275, -0.003, 0
+							block 0.055, 0.006, posts[j]
+							del 1
+							add -0.003, -0.0275, 0
+							block 0.006, 0.055, posts[j]
+							del 1
+						endif
+						addz posts[j]
+						if j < nPost then
+							gosub 840
+						endif
+					else
+						addz posts[j]
 					endif
-					addz posts[j]
-					if j < nPost then
-						gosub 840
-					endif
+					zs = zs + posts[j]
 				next j
 				del nPost + 2
 			endif
 		else
 			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
-			add x, -row * rowW, bBase
-			cylind postTop - bBase, r_sic
-			del 1
+			if not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
+				add x, -row * rowW, bBase
+				cylind postTop - bBase, r_sic
+				del 1
+			endif
 		endif
 		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
 next ip
-endif   ! explodeMask
 
 ! スパン寸法の立体の文字は出さない（利用者の指定 2026-10-18。3Dが読みにくくなる）。
 ! スパン寸法は平面・立面の2Dで読む
 
-! 部材に分解した足場ラインは、出隅の升目と開放端の手すりも分解した部材が描く
-if explodeMask = 0 then
 ! ---- 出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]） ----
 ! 内側建地列は隣の面と同じコーナー支柱で繋がるが、外側建地列は面ごとに躯体コーナー
 ! で終わるので、四隅の外側の升目（外側コーナー支柱・布材・踏板・幅木）が抜けていた。
@@ -268,28 +334,39 @@ if cornerS = 1 then
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
 	if nSh >= 1 then sv = sh[1]
+	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く
 	add -rowW, -rowW, gv
 	gosub 820
 	addz jo
 	if nGl >= 2 then
-		cylind postTop - gv - jo, r_sic
+		if not(explodeMask > 0 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
+			cylind postTop - gv - jo, r_sic
+		endif
 		del 2
 	else
+		zs = gv + jo
 		for j = 1 to nPost
-			cylind posts[j], r_sic
-			addz posts[j]
-			if j < nPost then
-				gosub 840
+			if not(explodeMask > 0 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
+				cylind posts[j], r_sic
+				addz posts[j]
+				if j < nPost then
+					gosub 840
+				endif
+			else
+				addz posts[j]
 			endif
+			zs = zs + posts[j]
 		next j
 		del nPost + 2
 	endif
 	if nKz > 0 then
 		resol 6
 		for ik = 1 to nKz
-			add -rowW, -rowW, kz[ik] - 0.003
-			cylind 0.006, 0.053
-			del 1
+			if not(explodeMask > 0 and kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
+				add -rowW, -rowW, kz[ik] - 0.003
+				cylind 0.006, 0.053
+				del 1
+			endif
 		next ik
 		resol rN
 	endif
@@ -376,7 +453,6 @@ for ie9 = 0 to 1
 		next il
 	endif
 next ie9
-endif   ! explodeMask（出隅・開放端）
 
 ! ---- 枠組の出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]）: ギャプレス（コーナー布受け） ----
 ! 日建カタログ p104〜105: 躯体からはみ出す側の建枠の横架材にギャプレスを掛け渡し、ギャプレスクランプで留め、
@@ -425,8 +501,6 @@ if cornerG = 1 then
 	next il
 endif
 
-! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
-if explodeMask = 0 then
 ! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
 ! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
 ! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
@@ -439,11 +513,16 @@ if nKz > 0 then
 		for ib = 1 to nBm
 			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
 		next ib
+		! 支柱だけ分解した部品の持つ支柱のコマは、分解した部材が描く（コマの付く支柱の下端で判定）
+		ownX = 0
+		if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
 		for row = rowStart to 1
 			! 隅の内側建地は隣の面が支柱もコマも描く
-			if not(row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) then
+			if not(row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
+					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
-					if kz[ik] > bBase + 0.001 then
+					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
+							kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
 						add x, -row * rowW, kz[ik] - 0.003
 						cylind 0.006, 0.053
 						del 1
@@ -455,170 +534,184 @@ if nKz > 0 then
 	next ip
 	resol rN
 endif
-endif   ! explodeMask
 
-! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
-if explodeMask = 0 then
 ! ---- 水平材（根がらみ＋各作業層） ----
 for il = 1 to nLv
 	z = lv[il]
+	! 枠組の支柱だけ分解した部品: この高さの横架材の建枠（下端が範囲の高さ）は、建枠ごと分解した部材が描く
+	frZ = 0
+	if serType = "W" and explodeMask > 0 then
+		zq = jackOut
+		for j = 1 to nPost
+			if abs(zq + posts[j] - z) < 0.05 and zq >= gzA - 0.001 and zq < gzB - 0.001 then frZ = 1
+			zq = zq + posts[j]
+		next j
+	endif
 	x = 0
 	for ip = 1 to nSpan
-		! 開口部（梁枠より下）は支柱を抜いた通路。布材も手すりも入らない。
-		! 立面は空けているのに3Dだけ通していた（根がらみが足元を横切っていた）
-		skipH = 0
-		for ib6 = 1 to nBm
-			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
-					z < bmH[ib6] - 0.001 then skipH = 1
-		next ib6
-		! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
-		if skipH = 0 and il = 1 then
-			for row = rowStart to 1
-				add x, -row * rowW, z
-				nL = spans[ip]
-				gosub 830
-				del 1
-			next row
-		endif
-		! 荷受けステージの間口は設置層で外側の手すり・中桟を外す（荷を通す。
-		! ステージ側の先端・妻側の手すりで防護）。数量も同じ区間を引いている
-		inSg = 0
-		for ig2 = 1 to nSg
-			if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
-					abs(z - sgH[ig2]) < 0.001 then inSg = 1
-		next ig2
-		! 昇降機の乗り込み口（位置を含むスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
-		for il4 = 1 to nLa
-			if laP[il4] >= x - 0.001 and laP[il4] < x + spans[ip] - 0.001 and \
-					abs(z - laH[il4]) < 0.001 then inSg = 2
-		next il4
-		! 張出しブラケットで床を広げた層・スパンは、建地位置の手すりは外し、新しい縁の手すりに任せる
-		for ik3 = 1 to nBk
-			if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
-					abs(z - bkH[ik3]) < 0.001 then inSg = 1
-		next ik3
-		! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
-		if stOut = 1 then
-			for it6 = 1 to nSt
-				if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
-			next it6
-		endif
-		if il > 1 and skipH = 0 and inSg = 2 then
-			! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
-			add x + 0.05, -rowW, z + 0.10
-			cylind railTop - 0.10, 0.015
-			del 1
-			add x + spans[ip] - 0.05, -rowW, z + 0.10
-			cylind railTop - 0.10, 0.015
-			del 1
-			add x + 0.05, -rowW, z + railTop
-			roty 90
-			cylind spans[ip] - 0.10, 0.015
-			del 2
-			add x + 0.05, -rowW, z + railMid
-			roty 90
-			cylind spans[ip] - 0.10, 0.015
-			del 2
-		endif
-		! 枠組の中間層は交差筋交＋幅木（＋上の建枠）で防護し、布材の手すり・中桟は
-		! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
-		frMid = 0
-		if serType = "W" and il < nLv then frMid = 1
-		! 範囲を指定して外した部材（editList。数量表と同じ升目）: 外側手すり（ビット1）・内側手すり（ビット4）
-		eoR = 0
-		eoI = 0
-		for ie = 1 to nEd
-			if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
-				if bittest(edE[ie], 1) then eoR = 1
-				if bittest(edE[ie], 4) then eoI = 1
+		! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+		if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+			! 開口部（梁枠より下）は支柱を抜いた通路。布材も手すりも入らない。
+			! 立面は空けているのに3Dだけ通していた（根がらみが足元を横切っていた）
+			skipH = 0
+			for ib6 = 1 to nBm
+				if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
+						z < bmH[ib6] - 0.001 then skipH = 1
+			next ib6
+			! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
+			if skipH = 0 and il = 1 then
+				for row = rowStart to 1
+					add x, -row * rowW, z
+					nL = spans[ip]
+					gosub 830
+					del 1
+				next row
 			endif
-		next ie
-		! 外側手すり・中桟（作業層のみ）
-		if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
-			if railAdv = 1 then
-				! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
-				! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける
-				add x, -rowW, z
-				nL = spans[ip]
-				gosub 850
-				del 1
-			else
-				add x, -rowW, z + railTop
-				nL = spans[ip]
-				gosub 830
-				del 1
-				add x, -rowW, z + railMid
-				nL = spans[ip]
-				gosub 830
-				del 1
+			! 荷受けステージの間口は設置層で外側の手すり・中桟を外す（荷を通す。
+			! ステージ側の先端・妻側の手すりで防護）。数量も同じ区間を引いている
+			inSg = 0
+			for ig2 = 1 to nSg
+				if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
+						abs(z - sgH[ig2]) < 0.001 then inSg = 1
+			next ig2
+			! 昇降機の乗り込み口（位置を含むスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
+			for il4 = 1 to nLa
+				if laP[il4] >= x - 0.001 and laP[il4] < x + spans[ip] - 0.001 and \
+						abs(z - laH[il4]) < 0.001 then inSg = 2
+			next il4
+			! 張出しブラケットで床を広げた層・スパンは、建地位置の手すりは外し、新しい縁の手すりに任せる
+			for ik3 = 1 to nBk
+				if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
+						abs(z - bkH[ik3]) < 0.001 then inSg = 1
+			next ik3
+			! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
+			if stOut = 1 then
+				for it6 = 1 to nSt
+					if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
+				next it6
 			endif
-		endif
-		! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
-		! ステージの間口でも残る）。内ブラケットで床を拡幅した層・スパンは隙間が
-		! 小さいので付けない（数量も同じセルを引いている）
-		inBk = 0
-		for ik2 = 1 to nBk
-			if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
-					abs(z - bkH[ik2]) < 0.001 then inBk = 1
-		next ik2
-		if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
-			add x, 0, z + railTop
-			nL = spans[ip]
-			gosub 830
-			del 1
-			add x, 0, z + railMid
-			nL = spans[ip]
-			gosub 830
-			del 1
-		endif
-		! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
-		! 開口部の内側は支柱を抜いてあるので、そこにも入らない
-		noPost = 0
-		for ib7 = 1 to nBm
-			if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
-					z < bmH[ib7] - 0.001 then noPost = 1
-		next ib7
-		if noPost = 0 then
-			if nRows >= 2 then
-				add x, 0, z
-				rotz -90
-				if serType = "W" then
-					! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
-					roty 90
-					cylind rowW, r_nuno
+			if il > 1 and skipH = 0 and inSg = 2 then
+				! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
+				add x + 0.05, -rowW, z + 0.10
+				cylind railTop - 0.10, 0.015
+				del 1
+				add x + spans[ip] - 0.05, -rowW, z + 0.10
+				cylind railTop - 0.10, 0.015
+				del 1
+				add x + 0.05, -rowW, z + railTop
+				roty 90
+				cylind spans[ip] - 0.10, 0.015
+				del 2
+				add x + 0.05, -rowW, z + railMid
+				roty 90
+				cylind spans[ip] - 0.10, 0.015
+				del 2
+			endif
+			! 枠組の中間層は交差筋交＋幅木（＋上の建枠）で防護し、布材の手すり・中桟は
+			! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
+			frMid = 0
+			if serType = "W" and il < nLv then frMid = 1
+			! 範囲を指定して外した部材（editList。数量表と同じ升目）: 外側手すり（ビット1）・内側手すり（ビット4）
+			eoR = 0
+			eoI = 0
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 1) then eoR = 1
+					if bittest(edE[ie], 4) then eoI = 1
+				endif
+			next ie
+			! 外側手すり・中桟（作業層のみ）
+			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
+				if railAdv = 1 then
+					! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
+					! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける
+					add x, -rowW, z
+					nL = spans[ip]
+					gosub 850
 					del 1
 				else
-					nL = rowW
+					add x, -rowW, z + railTop
+					nL = spans[ip]
 					gosub 830
+					del 1
+					add x, -rowW, z + railMid
+					nL = spans[ip]
+					gosub 830
+					del 1
 				endif
-				del 2
-				gosub 860
-			else
-				gosub 800
+			endif
+			! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
+			! ステージの間口でも残る）。内ブラケットで床を拡幅した層・スパンは隙間が
+			! 小さいので付けない（数量も同じセルを引いている）
+			inBk = 0
+			for ik2 = 1 to nBk
+				if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
+						abs(z - bkH[ik2]) < 0.001 then inBk = 1
+			next ik2
+			if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
+				add x, 0, z + railTop
+				nL = spans[ip]
+				gosub 830
+				del 1
+				add x, 0, z + railMid
+				nL = spans[ip]
+				gosub 830
+				del 1
+			endif
+			! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
+			! 開口部の内側は支柱を抜いてあるので、そこにも入らない
+			noPost = 0
+			for ib7 = 1 to nBm
+				if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
+						z < bmH[ib7] - 0.001 then noPost = 1
+			next ib7
+			if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
+			if noPost = 0 then
+				if nRows >= 2 then
+					add x, 0, z
+					rotz -90
+					if serType = "W" then
+						! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+						roty 90
+						cylind rowW, r_nuno
+						del 1
+					else
+						nL = rowW
+						gosub 830
+					endif
+					del 2
+					gosub 860
+				else
+					gosub 800
+				endif
 			endif
 		endif
 		x = x + spans[ip]
 	next ip
-	! 終端の腕木（一側足場は床受けブラケット）
-	if nRows >= 2 then
-		add x, 0, z
-		rotz -90
-		if serType = "W" then
-			! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
-			roty 90
-			cylind rowW, r_nuno
-			del 1
+	! 終端の腕木（一側足場は床受けブラケット）。区切った部品の範囲の外、枠組の分解した建枠は描かない
+	noPost = 0
+	if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
+	if x > gxB + 0.1 then noPost = 1
+	if noPost = 0 then
+		if nRows >= 2 then
+			add x, 0, z
+			rotz -90
+			if serType = "W" then
+				! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+				roty 90
+				cylind rowW, r_nuno
+				del 1
+			else
+				nL = rowW
+				gosub 830
+			endif
+			del 2
+			gosub 860
 		else
-			nL = rowW
-			gosub 830
+			gosub 800
 		endif
-		del 2
-		gosub 860
-	else
-		gosub 800
 	endif
 next il
-endif   ! explodeMask
 
 ! ---- 継ぎ足した脚の区間の根がらみ（敷地高低差。立面・数量と同じ規則） ----
 if nGl >= 2 and footStep > 0.001 then
@@ -647,124 +740,122 @@ if nGl >= 2 and footStep > 0.001 then
 	next ip
 endif
 
-! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
-if explodeMask = 0 then
 ! ---- 踏板・幅木 ----
 if showDeck then
 	for il = 2 to nLv
 		z = lv[il]
 		x = 0
 		for ip = 1 to nSpan
-			! 階段室は各層で階段が上がってくる1スパンだけ床を敷かない（奇数層は始点側、偶数層は終点側。
-			! もう一方のスパンには床を敷く）。外構面の幅木は残る（階段側の落下防止）。
-			! 開口部（梁枠より下）は通路なので床も幅木も無い。数量もこの区別で拾っている
-			skipDeck = 0
-			for it4 = 1 to nSt
-				! 外付け（stOut）の階段は外の升目に通すので、本体の床は切らない
-				if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
-					if stL[it4] <= spans[ip] + 0.001 then
-						skipDeck = 1
-					else
-						kOdd = il - 1 - 2 * int((il - 1) / 2)
-						if abs(x - stS[it4]) < 0.001 then
-							if kOdd = 1 then skipDeck = 1
+			! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+			if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+				! 階段室は各層で階段が上がってくる1スパンだけ床を敷かない（奇数層は始点側、偶数層は終点側。
+				! もう一方のスパンには床を敷く）。外構面の幅木は残る（階段側の落下防止）。
+				! 開口部（梁枠より下）は通路なので床も幅木も無い。数量もこの区別で拾っている
+				skipDeck = 0
+				for it4 = 1 to nSt
+					! 外付け（stOut）の階段は外の升目に通すので、本体の床は切らない
+					if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+						if stL[it4] <= spans[ip] + 0.001 then
+							skipDeck = 1
 						else
-							if ip > 1 then
-								if kOdd = 0 and abs(x - spans[ip - 1] - stS[it4]) < 0.001 then skipDeck = 1
+							kOdd = il - 1 - 2 * int((il - 1) / 2)
+							if abs(x - stS[it4]) < 0.001 then
+								if kOdd = 1 then skipDeck = 1
+							else
+								if ip > 1 then
+									if kOdd = 0 and abs(x - spans[ip - 1] - stS[it4]) < 0.001 then skipDeck = 1
+								endif
 							endif
 						endif
 					endif
-				endif
-			next it4
-			skipAll = 0
-			for ib4 = 1 to nBm
-				if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
-						z < bmH[ib4] - 0.001 then skipAll = 1
-			next ib4
-			! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
-			! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
-			eoD = 0
-			eoT = 0
-			eoD1 = 0
-			eoD2 = 0
-			for ie = 1 to nEd
-				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
-					if bittest(edE[ie], 0) then eoD = 1
-					if bittest(edE[ie], 2) then eoT = 1
-					if bittest(edE[ie], 5) then eoD1 = 1
-					if bittest(edE[ie], 6) then eoD2 = 1
-				endif
-			next ie
-			! 足場の中の階段室の区間は、踏板の編集を効かせない（数量の member_edits と同じ。階段の床の扱いは層ごとに違う）
-			for it4 = 1 to nSt
-				if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
-					eoD = 0
-					eoD1 = 0
-					eoD2 = 0
-				endif
-			next it4
-			if eoD = 1 then skipDeck = 1
-			if skipAll = 0 then
-				if skipDeck = 0 then
-					if matDeck > 0 then material matDeck
-					! 布板（日建 アップロック式鋼製布板 NDN6 等、カタログ p007）: 長さ＝スパン。両端のつかみ金具で
-					! 支柱位置の腕木（φ42.7）を掴み、腕木の上に載る。端のペロ板が腕木の上を覆う。
-					! 以前は腕木の高さに埋まり、支柱芯から 70 離した板だけだった（利用者の指摘: 他の部材も見直して）
-					if eoD1 = 0 then
-						add x, -rowW + 0.05, z
-						dkL = spans[ip]
-						dkW = deckW1 - 0.01
-						gosub 870
+				next it4
+				skipAll = 0
+				for ib4 = 1 to nBm
+					if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
+							z < bmH[ib4] - 0.001 then skipAll = 1
+				next ib4
+				! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
+				! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
+				eoD = 0
+				eoT = 0
+				eoD1 = 0
+				eoD2 = 0
+				for ie = 1 to nEd
+					if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+						if bittest(edE[ie], 0) then eoD = 1
+						if bittest(edE[ie], 2) then eoT = 1
+						if bittest(edE[ie], 5) then eoD1 = 1
+						if bittest(edE[ie], 6) then eoD2 = 1
+					endif
+				next ie
+				! 足場の中の階段室の区間は、踏板の編集を効かせない（数量の member_edits と同じ。階段の床の扱いは層ごとに違う）
+				for it4 = 1 to nSt
+					if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+						eoD = 0
+						eoD1 = 0
+						eoD2 = 0
+					endif
+				next it4
+				if eoD = 1 then skipDeck = 1
+				if skipAll = 0 then
+					if skipDeck = 0 then
+						if matDeck > 0 then material matDeck
+						! 布板（日建 アップロック式鋼製布板 NDN6 等、カタログ p007）: 長さ＝スパン。両端のつかみ金具で
+						! 支柱位置の腕木（φ42.7）を掴み、腕木の上に載る。端のペロ板が腕木の上を覆う。
+						! 以前は腕木の高さに埋まり、支柱芯から 70 離した板だけだった（利用者の指摘: 他の部材も見直して）
+						if eoD1 = 0 then
+							add x, -rowW + 0.05, z
+							dkL = spans[ip]
+							dkW = deckW1 - 0.01
+							gosub 870
+							del 1
+						endif
+						if deckW2 > 0 and eoD2 = 0 then
+							add x, -rowW + 0.05 + deckW1 + 0.02, z
+							dkL = spans[ip]
+							dkW = deckW2 - 0.01
+							gosub 870
+							del 1
+						endif
+					endif
+					! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）。
+					! 荷受けステージの間口は設置層で外す
+					inSg = 0
+					for ig3 = 1 to nSg
+						if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
+								abs(z - sgH[ig3]) < 0.001 then inSg = 1
+					next ig3
+					for il5 = 1 to nLa
+						if laP[il5] >= x - 0.001 and laP[il5] < x + spans[ip] - 0.001 and \
+								abs(z - laH[il5]) < 0.001 then inSg = 2
+					next il5
+					for ik4 = 1 to nBk
+						if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
+								abs(z - bkH[ik4]) < 0.001 then inSg = 1
+					next ik4
+					! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
+					if stOut = 1 then
+						for it6 = 1 to nSt
+							if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
+						next it6
+					endif
+					if railAdv = 0 and inSg = 0 and eoT = 0 then
+						if matToe > 0 then material matToe
+						! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
+						! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
+						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+						block spans[ip] + 0.07, 0.008, 0.150
+						block spans[ip] + 0.07, 0.140, 0.004
 						del 1
 					endif
-					if deckW2 > 0 and eoD2 = 0 then
-						add x, -rowW + 0.05 + deckW1 + 0.02, z
-						dkL = spans[ip]
-						dkW = deckW2 - 0.01
-						gosub 870
-						del 1
-					endif
+					if matScaf > 0 then material matScaf
 				endif
-				! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）。
-				! 荷受けステージの間口は設置層で外す
-				inSg = 0
-				for ig3 = 1 to nSg
-					if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
-							abs(z - sgH[ig3]) < 0.001 then inSg = 1
-				next ig3
-				for il5 = 1 to nLa
-					if laP[il5] >= x - 0.001 and laP[il5] < x + spans[ip] - 0.001 and \
-							abs(z - laH[il5]) < 0.001 then inSg = 2
-				next il5
-				for ik4 = 1 to nBk
-					if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
-							abs(z - bkH[ik4]) < 0.001 then inSg = 1
-				next ik4
-				! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
-				if stOut = 1 then
-					for it6 = 1 to nSt
-						if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
-					next it6
-				endif
-				if railAdv = 0 and inSg = 0 and eoT = 0 then
-					if matToe > 0 then material matToe
-					! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
-					! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
-					add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
-					block spans[ip] + 0.07, 0.008, 0.150
-					block spans[ip] + 0.07, 0.140, 0.004
-					del 1
-				endif
-				if matScaf > 0 then material matScaf
 			endif
 			x = x + spans[ip]
 		next ip
 	next il
 endif
-endif   ! explodeMask
 
-! 部材に分解した足場ライン（explodeMask）は、分解した部材（ashiba_member）が描くので描かない
-if explodeMask = 0 then
 ! ---- ブレス（外側構面、交さ2方向＝X） ----
 ! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
 ! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
@@ -778,96 +869,98 @@ if showBrace then
 			nbf = 0
 			if serType = "W" then nbf = 1
 			for ip = 1 to nSpan
-				! 範囲を指定して外した筋かい（editList ビット3。層 il の床の下の構面）
-				eoB = 0
-				for ie = 1 to nEd
-					if ip >= edA[ie] and ip <= edB[ie] and il >= edC[ie] and il <= edD[ie] then
-						if bittest(edE[ie], 3) then eoB = 1
-					endif
-				next ie
-				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType <> "W" then
-					! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
-					! 2本（交さ2方向）は前後にずらして重ねる。以前は φ21.7 の細い管で、支柱から離れて浮いていた
-					brZ = 0.10
-					bl = sqr(spans[ip] ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
-					ang = atn((z2 - z1 - 2 * brZ) / spans[ip])
-					for bf = 0 to 1
-						yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
-						xa = x
-						sg = 1
-						if bf = 1 then
-							xa = x + spans[ip]
-							sg = -1
+				! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+				if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+					! 範囲を指定して外した筋かい（editList ビット3。層 il の床の下の構面）
+					eoB = 0
+					for ie = 1 to nEd
+						if ip >= edA[ie] and ip <= edB[ie] and il >= edC[ie] and il <= edD[ie] then
+							if bittest(edE[ie], 3) then eoB = 1
 						endif
-						add xa, yb2, z1 + brZ
-						if sg < 0 then mulx -1
-						roty 90 - ang
-						cylind bl, 0.0427 / 2
-						del 2
-						if sg < 0 then del 1
-						! クサビクランプ（下端は手前の支柱、上端は対角の支柱）
-						for ce = 0 to 1
-							cx = xa
-							cz = z1 + brZ
-							if ce = 1 then
-								cx = xa + sg * spans[ip]
-								cz = z2 - brZ
+					next ie
+					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType <> "W" then
+						! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
+						! 2本（交さ2方向）は前後にずらして重ねる。以前は φ21.7 の細い管で、支柱から離れて浮いていた
+						brZ = 0.10
+						bl = sqr(spans[ip] ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
+						ang = atn((z2 - z1 - 2 * brZ) / spans[ip])
+						for bf = 0 to 1
+							yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
+							xa = x
+							sg = 1
+							if bf = 1 then
+								xa = x + spans[ip]
+								sg = -1
 							endif
-							add cx - 0.035, yb2 - 0.025, cz - 0.035
-							block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
-							del 1
-						next ce
-					next bf
-				endif
-				if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" then
-					! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
-					! 筋違ピン（ロックピン）に掛ける。ピンは建枠の上下から 0.24（1700枠で A寸法 1219）。以前は丸棒で
-					! 建枠の天端から天端へ掛けていた
-					bpz = 0.24
-					if z2 - z1 < 0.9 then bpz = 0.10
-					bA = z2 - z1 - 2 * bpz
-					bl = sqr(spans[ip] ^ 2 + bA ^ 2)
-					ang = atn(bA / spans[ip])
-					for bf = 0 to nbf
-						yb2 = -rowW - 0.035
-						if bf = 1 then yb2 = 0.035
-						for bd = 0 to 1
-							add x + bd * spans[ip], yb2 + (1 - 2 * bf) * bd * 0.006, z1 + bpz
-							if bd = 1 then mulx -1
-							roty -ang
-							add 0, -0.003, -0.0125
-							block bl, 0.006, 0.025
+							add xa, yb2, z1 + brZ
+							if sg < 0 then mulx -1
+							roty 90 - ang
+							cylind bl, 0.0427 / 2
 							del 2
-							if bd = 1 then del 1
-							del 1
-						next bd
-						if isLite = 0 then
-							! 中央のピンと、脚の筋違ピン（上下・両端）
-							add x + spans[ip] / 2, yb2 - 0.012, z1 + bpz + bA / 2
-							rotx -90
-							cylind 0.03, 0.006
-							del 2
-							for pe = 0 to 3
-								px = x
-								if pe = 1 or pe = 3 then px = x + spans[ip]
-								pz = z1 + bpz
-								if pe >= 2 then pz = z2 - bpz
-								yl0 = -rowW
-								if bf = 1 then yl0 = 0
-								add px, min(yl0, yb2) - 0.01, pz
-								rotx -90
-								cylind abs(yb2 - yl0) + 0.02, 0.007
+							if sg < 0 then del 1
+							! クサビクランプ（下端は手前の支柱、上端は対角の支柱）
+							for ce = 0 to 1
+								cx = xa
+								cz = z1 + brZ
+								if ce = 1 then
+									cx = xa + sg * spans[ip]
+									cz = z2 - brZ
+								endif
+								add cx - 0.035, yb2 - 0.025, cz - 0.035
+								block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
+								del 1
+							next ce
+						next bf
+					endif
+					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" then
+						! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
+						! 筋違ピン（ロックピン）に掛ける。ピンは建枠の上下から 0.24（1700枠で A寸法 1219）。以前は丸棒で
+						! 建枠の天端から天端へ掛けていた
+						bpz = 0.24
+						if z2 - z1 < 0.9 then bpz = 0.10
+						bA = z2 - z1 - 2 * bpz
+						bl = sqr(spans[ip] ^ 2 + bA ^ 2)
+						ang = atn(bA / spans[ip])
+						for bf = 0 to nbf
+							yb2 = -rowW - 0.035
+							if bf = 1 then yb2 = 0.035
+							for bd = 0 to 1
+								add x + bd * spans[ip], yb2 + (1 - 2 * bf) * bd * 0.006, z1 + bpz
+								if bd = 1 then mulx -1
+								roty -ang
+								add 0, -0.003, -0.0125
+								block bl, 0.006, 0.025
 								del 2
-							next pe
-						endif
-					next bf
+								if bd = 1 then del 1
+								del 1
+							next bd
+							if isLite = 0 then
+								! 中央のピンと、脚の筋違ピン（上下・両端）
+								add x + spans[ip] / 2, yb2 - 0.012, z1 + bpz + bA / 2
+								rotx -90
+								cylind 0.03, 0.006
+								del 2
+								for pe = 0 to 3
+									px = x
+									if pe = 1 or pe = 3 then px = x + spans[ip]
+									pz = z1 + bpz
+									if pe >= 2 then pz = z2 - bpz
+									yl0 = -rowW
+									if bf = 1 then yl0 = 0
+									add px, min(yl0, yb2) - 0.01, pz
+									rotx -90
+									cylind abs(yb2 - yl0) + 0.02, 0.007
+									del 2
+								next pe
+							endif
+						next bf
+					endif
 				endif
 				x = x + spans[ip]
 			next ip
 		endif
 	next il
 endif
-endif   ! explodeMask
 
 ! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
 ! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との
@@ -1583,9 +1676,35 @@ for ia = 1 to nAsa
 	if cornerS = 1 or cornerG = 1 then gosub 890
 next ia
 
+gosub 990
+for ic9 = 1 to nClip
+	cutend
+next ic9
 end
 
+gosub 990
+for ic9 = 1 to nClip
+	cutend
+next ic9
 end
+
+! ============================================================
+990:	! ---- 区切る位置の印（赤い面）。区切り目は部品の範囲の中なので、範囲の箱の切り取りの中で描いてよい ----
+if cutAtX > 0.0005 or cutAtZ > 0.0005 then
+	define material "ashiba_cut" 0, 0.9, 0.1, 0.1, 0.5, 0.5, 0.1, 0.5, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	material "ashiba_cut"
+	if cutAtX > 0.0005 then
+		add pxA + cutAtX - 0.005, cyH, hzA
+		block 0.01, rowW + 0.5, hzB - hzA
+		del 1
+	endif
+	if cutAtZ > 0.0005 then
+		add pxA - 0.25, cyH, hzA + cutAtZ - 0.005
+		block pxB - pxA + 0.5, rowW + 0.5, 0.01
+		del 1
+	endif
+endif
+return
 
 ! ============================================================
 820: ! ---- ジャッキベース（敷板＋アンダーベース＋ねじ棒＋ハンドル付きナット） ----

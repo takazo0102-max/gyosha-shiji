@@ -20,7 +20,7 @@ if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
 
 ! 寸法ツールの寸法が付く点（外側建地列の支柱位置）。平面では最初に出すので、ホットスポットの番号＝
 ! 始点からの支柱の番号（1〜nSpan+1）。Python が CreateAssociativeDimensions でこの番号を指す
-if viewMode <> "elev" then
+if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	xh = 0
 	for ip = 1 to nSpan + 1
 		hotspot2 xh, -rowW
@@ -34,21 +34,28 @@ endif
 if viewMode = "elev" then
 	gosub 200
 else
-	if planSimple then
-		gosub 950
+	if segBase = 0 then
+		gosub 970
 	else
-		gosub 100
+		if planSimple then
+			gosub 950
+		else
+			gosub 100
+		endif
 	endif
 endif
 end
 
 ! ============================================================
 950: ! ---- 平面 単線（割付検討用: 建地列・支柱位置・床の対角線・付帯設備の占有範囲） ----
-line2 0, 0, lineLen, 0
-line2 0, -rowW, lineLen, -rowW
+! 区切った部品は自分のスパン（pxA〜pxB）だけ。付帯設備は始まりが範囲にある部品が描く
+line2 pxA, 0, pxB, 0
+line2 pxA, -rowW, pxB, -rowW
 x = 0
 for ip = 1 to nSpan
-	line2 x, 0, x, -rowW
+	inSeg = 0
+	if ip >= sA and ip <= sB then inSeg = 1
+	if inSeg then line2 x, 0, x, -rowW
 	inStair = 0
 	for it2 = 1 to nSt
 		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
@@ -56,13 +63,14 @@ for ip = 1 to nSpan
 	for ib3 = 1 to nBm
 		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
 	next ib3
-	if inStair = 0 then line2 x, 0, x + spans[ip], -rowW
+	if inStair = 0 and inSeg then line2 x, 0, x + spans[ip], -rowW
 	x = x + spans[ip]
 next ip
-line2 lineLen, 0, lineLen, -rowW
+line2 pxB, 0, pxB, -rowW
 ! 階段室: 区間の中心線と矢印（始点側から上る）
 yc = -rowW / 2 - stOut * rowW
 for it2 = 1 to nSt
+	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then
 	if stOut = 1 then
 		! 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）
 		line2 stS[it2], -rowW, stS[it2], -2 * rowW
@@ -72,26 +80,47 @@ for it2 = 1 to nSt
 	line2 stS[it2], yc, stS[it2] + stL[it2], yc
 	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc - 0.10
 	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc + 0.10
+	endif
 next it2
 ! 付帯設備の占有範囲は破線（ステージ・張出しブラケット・昇降機）
 line_type 3
 for ig = 1 to nSg
-	rect2 sgS[ig], -rowW, sgS[ig] + sgL[ig], -rowW - sgP[ig]
+	if sgS[ig] >= gxA - 0.001 and sgS[ig] < gxB - 0.001 then rect2 sgS[ig], -rowW, sgS[ig] + sgL[ig], -rowW - sgP[ig]
 next ig
 for ik = 1 to nBk
+	if bkS[ik] < gxA - 0.001 or bkS[ik] >= gxB - 0.001 then
+		! 隣の部品が描く
+	else
 	if bkD[ik] > 0 then
 		rect2 bkS[ik], 0, bkE[ik], bkW[ik]
 	else
 		rect2 bkS[ik], -rowW, bkE[ik], -rowW - bkW[ik]
 	endif
+	endif
 next ik
 for ih = 1 to nHo
 	hx = hoP[ih]
-	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
+	if hx >= gxA - 0.001 and hx < gxB - 0.001 then rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
 next ih
 line_type 1
-hotspot2 0, 0
-hotspot2 lineLen, 0
+hotspot2 pxA, 0
+hotspot2 pxB, 0
+return
+
+! ============================================================
+970: ! ---- 区切った上の部品（平面）: 下の部品と重なるので、範囲を破線で囲み、層を書く ----
+line_type 3
+rect2 pxA + 0.05, -rowW + 0.05, pxB - 0.05, -0.05
+line_type 1
+if showDim then
+	set style "annoC"
+	text2 (pxA + pxB) / 2, -rowW / 2, "上部 " + str(lA, 1, 0) + "〜" + str(lB, 1, 0) + "層"
+	set style "anno"
+endif
+hotspot2 pxA, 0
+hotspot2 pxB, 0
+hotspot2 pxA, -rowW
+hotspot2 pxB, -rowW
 return
 
 ! ============================================================
@@ -105,15 +134,18 @@ return
 
 ! ============================================================
 100: ! ---- 平面図 ----
-line2 0, 0, lineLen, 0
-line2 0, -rowW, lineLen, -rowW
+! 区切った部品は自分のスパン（pxA〜pxB）だけ描く。付帯設備・壁つなぎは始まりが範囲 [gxA, gxB) にある部品が描く
+line2 pxA, 0, pxB, 0
+line2 pxA, -rowW, pxB, -rowW
 
 ! スパン区切り線と布板の対角線。平面図で「作業床が敷いてある区画」を表す
 ! 慣用表記で、実務の足場平面図はこの見え方になる。対角線の向きは全スパン
 ! 揃える（向きを交互にするとブレスの表記と紛らわしい）。
 x = 0
 for ip = 1 to nSpan
-	line2 x, 0, x, -rowW
+	inSeg = 0
+	if ip >= sA and ip <= sB then inSeg = 1
+	if inSeg then line2 x, 0, x, -rowW
 	! 階段室は最上層で階段が上がってくる1スパンだけ床が無い（奇数層は始点側、偶数層は終点側。
 	! 3D・数量と同じ）。平面は最上層を上から見た状態なので、もう一方のスパンには対角線を引く
 	inStair = 0
@@ -138,10 +170,10 @@ for ip = 1 to nSpan
 	for ib3 = 1 to nBm
 		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
 	next ib3
-	if showDeck and inStair = 0 then line2 x, -rowW, x + spans[ip], 0
+	if showDeck and inStair = 0 and inSeg then line2 x, -rowW, x + spans[ip], 0
 	x = x + spans[ip]
 next ip
-line2 x, 0, x, -rowW
+line2 pxB, 0, pxB, -rowW
 
 x = 0
 for ip = 1 to nSpan + 1
@@ -150,6 +182,7 @@ for ip = 1 to nSpan + 1
 	for ib = 1 to nBm
 		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
 	next ib
+	if x < pxA - 0.001 or x > pxB + 0.001 then removed = 1
 	if removed = 0 then
 		! 一側足場は建地1列。躯体側の建地は無い（受けブラケットの腕は
 		! スパン区切り線と重なるので平面には現れない。3Dには出している）
@@ -163,14 +196,15 @@ for ip = 1 to nSpan + 1
 			next rr2
 		endif
 	endif
-	hotspot2 x, 0
+	if x >= pxA - 0.001 and x <= pxB + 0.001 then hotspot2 x, 0
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
-! 梁枠の区間（平面では太い二重線と文字）
+! 梁枠の区間（平面では太い二重線と文字）。区切った部品は範囲の中だけ
 for ib = 1 to nBm
-	bs = bmS[ib]
-	be = bs + bmL[ib]
+	bs = max(bmS[ib], pxA)
+	be = min(bmS[ib] + bmL[ib], pxB)
+	if be > bs + 0.001 then
 	line2 bs, -rowW, be, -rowW
 	line2 bs, -rowW - 0.06, be, -rowW - 0.06
 	line2 bs, -rowW, bs, -rowW - 0.06
@@ -178,13 +212,14 @@ for ib = 1 to nBm
 	set style "annoC"
 	if showDim then text2 (bs + be) / 2, -rowW - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
 	set style "anno"
+	endif
 next ib
-hotspot2 0, -rowW
-hotspot2 lineLen, -rowW
+hotspot2 pxA, -rowW
+hotspot2 pxB, -rowW
 ! スパン境界の編集ホットスポット（外側建地列の支柱位置。引くとパラメータスクリプトが
 ! 規格寸法に吸着して書き戻す）。固定のホットスポットを同じ位置に重ねると、そちらを
 ! 掴んでオブジェクト全体が動くので、外側列の支柱位置は編集用だけにする
-if editSpan and vardim1(xEdit) = nSpan + 1 then
+if editSpan and segOn = 0 and vardim1(xEdit) = nSpan + 1 then
 	for i = 2 to nSpan
 		hotspot2 0, -rowW, 500 + 3 * i, xEdit[i], 1 + 128
 		hotspot2 xEdit[i], -rowW, 501 + 3 * i, xEdit[i], 2
@@ -192,7 +227,7 @@ if editSpan and vardim1(xEdit) = nSpan + 1 then
 	next i
 endif
 ! 荷受けステージの開始位置（張り出し床の中央の高さ。同じステージの別の層は同じ位置なので最初の組だけ）
-if editSpan and nSg > 0 and vardim1(sgEdit) = nSg then
+if editSpan and segOn = 0 and nSg > 0 and vardim1(sgEdit) = nSg then
 	for ig = 1 to nSg
 		dupSg = 0
 		for jg = 1 to ig - 1
@@ -206,7 +241,7 @@ if editSpan and nSg > 0 and vardim1(sgEdit) = nSg then
 	next ig
 endif
 ! 昇降機の位置（搬器の中央）
-if editSpan and nHo > 0 and vardim1(hoEdit) = nHo then
+if editSpan and segOn = 0 and nHo > 0 and vardim1(hoEdit) = nHo then
 	for ih = 1 to nHo
 		hotspot2 0, -rowW - 0.10 - hoD[ih] / 2, 900 + 3 * ih, hoEdit[ih], 1 + 128
 		hotspot2 hoEdit[ih], -rowW - 0.10 - hoD[ih] / 2, 901 + 3 * ih, hoEdit[ih], 2
@@ -214,7 +249,7 @@ if editSpan and nHo > 0 and vardim1(hoEdit) = nHo then
 	next ih
 endif
 ! 階段室の開始位置（建地列の中央。引くとパラメータスクリプトがスパン境界へ吸着して stairList を書き戻す）
-if editSpan and nSt > 0 and vardim1(stEdit) = nSt then
+if editSpan and segOn = 0 and nSt > 0 and vardim1(stEdit) = nSt then
 	for it = 1 to nSt
 		hotspot2 0, -rowW / 2, 700 + 3 * it, stEdit[it], 1 + 128
 		hotspot2 stEdit[it], -rowW / 2, 701 + 3 * it, stEdit[it], 2
@@ -223,7 +258,7 @@ if editSpan and nSt > 0 and vardim1(stEdit) = nSt then
 endif
 
 ! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
-if cornerS = 1 then
+if cornerS = 1 and sA = 1 then
 	line2 -rowW, 0, -rowW, -rowW
 	line2 -rowW, -rowW, 0, -rowW
 	circle2 -rowW, -rowW, r_sic
@@ -232,6 +267,7 @@ endif
 
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
 for it2 = 1 to nSt
+	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then
 	sx = stS[it2]
 	ex = sx + stL[it2]
 	! 外付けは外側建地列の外の升目に描き、3列目の建地を足す。階段のタスキは中の階段のスパンだけ
@@ -269,6 +305,7 @@ for it2 = 1 to nSt
 	set style "annoC"
 	if showDim then text2 (sx + ex) / 2, (y0 + y1) / 2, "階段"
 	set style "anno"
+	endif
 next it2
 
 ! 範囲を指定して外した部材（editList）: 区間を破線で囲み、層と部材を書く（平面は1枚なので層は文字で示す）
@@ -281,7 +318,7 @@ for ie = 1 to nEd
 		xq = xq + spans[iq]
 		if iq = edB[ie] then exe = xq
 	next iq
-	if exe > exs then
+	if exe > exs and exs >= gxA - 0.001 and exs < gxB - 0.001 then
 		line_type 3
 		rect2 exs + 0.03, -rowW + 0.03, exe - 0.03, -0.03
 		line_type 1
@@ -307,6 +344,7 @@ for ik = 1 to nBk
 	for ij = 1 to ik - 1
 		if bkS[ij] = bkS[ik] and bkE[ij] = bkE[ik] and bkD[ij] = bkD[ik] then drawn = 1
 	next ij
+	if bkS[ik] < gxA - 0.001 or bkS[ik] >= gxB - 0.001 then drawn = 1
 	if drawn = 0 then
 		if bkD[ik] > 0 then
 			by1 = 0
@@ -333,6 +371,7 @@ for ig = 1 to nSg
 	gs = sgS[ig]
 	ge = gs + sgL[ig]
 	gy = -rowW - sgP[ig]
+	if gs >= gxA - 0.001 and gs < gxB - 0.001 then
 	line2 gs, -rowW, gs, gy
 	line2 ge, -rowW, ge, gy
 	line2 gs, gy, ge, gy
@@ -341,6 +380,7 @@ for ig = 1 to nSg
 	set style "annoC"
 	if showDim then text2 (gs + ge) / 2, gy - 0.15, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
 	set style "anno"
+	endif
 next ig
 
 ! 昇降機（平面では搬器の占有範囲を破線で、その外側のマストを実線の0.30角で。
@@ -348,6 +388,7 @@ next ig
 ! 外側建地から隙間0.10mを空ける）
 for ih = 1 to nHo
 	hx = hoP[ih]
+	if hx >= gxA - 0.001 and hx < gxB - 0.001 then
 	line_type 3
 	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
 	line_type 1
@@ -355,6 +396,7 @@ for ih = 1 to nHo
 	set style "annoC"
 	if showDim then text2 hx, -rowW - hoD[ih] - 0.55, "昇降機"
 	set style "anno"
+	endif
 next ih
 line_type 1
 
@@ -382,13 +424,17 @@ if nAsa > 0 then
 				endif
 			endif
 			if pB <= pA + 0.001 then pB = asgB[isg]
-			line2 pA, ybA - asagaoProj, pB, ybA - asagaoProj
-			line2 pA, ybA, pA, ybA - asagaoProj
-			line2 pB, ybA, pB, ybA - asagaoProj
+			qA = max(pA, pxA)
+			qB = min(pB, pxB)
+			if qB > qA + 0.001 then
+				line2 qA, ybA - asagaoProj, qB, ybA - asagaoProj
+				line2 qA, ybA, qA, ybA - asagaoProj
+				line2 qB, ybA, qB, ybA - asagaoProj
+			endif
 			pA = pB
 		endwhile
 	next isg
-	if cornerS = 1 or cornerG = 1 then
+	if (cornerS = 1 or cornerG = 1) and sA = 1 then
 		aY = -rowW
 		if stOut = 1 then
 			for it8 = 1 to nSt
@@ -401,20 +447,23 @@ if nAsa > 0 then
 	endif
 	line_type 1
 	set style "annoC"
-	if showDim then text2 lineLen / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
+	if showDim then text2 (pxA + pxB) / 2, -rowW - asagaoProj - 0.15, "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
 	for ic = 1 to nCut
 		set style "annoC"
-		if showDim then text2 (cutS[ic] + cutE[ic]) / 2, -rowW - asagaoProj / 2, "朝顔切欠"
+		if showDim and cutS[ic] >= gxA - 0.001 and cutS[ic] < gxB - 0.001 then text2 (cutS[ic] + cutE[ic]) / 2, -rowW - asagaoProj / 2, "朝顔切欠"
 	next ic
 	set style "anno"
 endif
 
 ! 躯体面の参照線（離れ表示）
 line_type 3
-line2 0, standoff, lineLen, standoff
+line2 pxA, standoff, pxB, standoff
 ! 渡した区間: 実際の躯体線は離れが増える。破線で示す
 ! （凹み＝区間内が奥へ、張り出し＝区間外（両隣）が奥へ）
 for ibr = 1 to nBr
+	if brS[ibr] < gxA - 0.001 or brS[ibr] >= gxB - 0.001 then
+		! 隣の部品が描く
+	else
 	line_type 3
 	if brK[ibr] > 1.5 then
 		! 斜辺: 実際の躯体線は区間の一端で離れ0、他端で最大（種別2＝終点側、3＝始点側）
@@ -450,6 +499,7 @@ for ibr = 1 to nBr
 		set style "anno"
 	endif
 	endif
+	endif
 next ibr
 line_type 1
 
@@ -458,8 +508,10 @@ line_type 1
 nTieDraw = nTie
 if tieObj then nTieDraw = 0
 for it = 1 to nTieDraw
-	gosub 960
-	line2 ties[it], 0, ties[it], standoff
+	if ties[it] >= gxA - 0.001 and ties[it] < gxB - 0.001 then
+		gosub 960
+		line2 ties[it], 0, ties[it], standoff
+	endif
 next it
 
 if not(showDim) then return
@@ -467,7 +519,7 @@ if not(showDim) then return
 ! 離れ寸法: 躯体面と内側建地列の間（面の両端のスパン中央に1本ずつ。端数スパンや渡しで
 ! 面の途中の離れが違っても、両端を見れば分かる）。寸法線は面に直交、値は線の脇に
 for kd = 1 to 2
-	if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2
+	if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2
 	line2 xd, 0, xd, standoff
 	line2 xd - 0.05, 0.05, xd + 0.05, -0.05
 	line2 xd - 0.05, standoff + 0.05, xd + 0.05, standoff - 0.05
@@ -496,11 +548,15 @@ yt = yd - 0.70
 ! 寸法ツールで寸法を付けたとき（dimTool）は部品ではスパン・全長の寸法を描かない（二重になる）
 if dimTool then return
 ! 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
-xs = -rowW * cornerS
-xe = lineLen + rowW * cornerE
+cS = cornerS
+if sA > 1 then cS = 0
+cE = cornerE
+if sB < nSpan then cE = 0
+xs = pxA - rowW * cS
+xe = pxB + rowW * cE
 line2 xs, yd, xe, yd
 line2 xs, yt, xe, yt
-if cornerS then
+if cS then
 	line2 xs, -rowW - 0.10, xs, yd - 0.10
 	line2 xs - 0.07, yd - 0.07, xs + 0.07, yd + 0.07
 	tdx = xs / 2
@@ -508,23 +564,27 @@ if cornerS then
 	tdt = str(rowW * 1000, 5, 0)
 	gosub 985
 endif
-if cornerE then
+if cE then
 	line2 xe, -rowW - 0.10, xe, yd - 0.10
 	line2 xe - 0.07, yd - 0.07, xe + 0.07, yd + 0.07
-	tdx = lineLen + rowW / 2
+	tdx = pxB + rowW / 2
 	tdy = yd + 0.16
 	tdt = str(rowW * 1000, 5, 0)
 	gosub 985
 endif
 x = 0
 for ip = 1 to nSpan + 1
-	line2 x, -rowW - 0.10, x, yd - 0.10
-	line2 x - 0.07, yd - 0.07, x + 0.07, yd + 0.07
+	if x >= pxA - 0.001 and x <= pxB + 0.001 then
+		line2 x, -rowW - 0.10, x, yd - 0.10
+		line2 x - 0.07, yd - 0.07, x + 0.07, yd + 0.07
+	endif
 	if ip <= nSpan then
-		tdx = x + spans[ip] / 2
-		tdy = yd + 0.16
-		tdt = str(spans[ip] * 1000, 5, 0)
-		gosub 985
+		if ip >= sA and ip <= sB then
+			tdx = x + spans[ip] / 2
+			tdy = yd + 0.16
+			tdt = str(spans[ip] * 1000, 5, 0)
+			gosub 985
+		endif
 		x = x + spans[ip]
 	endif
 next ip

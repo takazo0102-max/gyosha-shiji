@@ -11,6 +11,7 @@ import math
 
 from .model import ScaffoldModel
 from .model import GUARD_RAIL_ADVANCE
+from .segments import WHOLE
 
 
 # GDLの文字列パラメータは255文字で切れる（実機で確認: 枠組9層×6列の壁つなぎで
@@ -268,8 +269,10 @@ def line_params(
         "bridgeList": _bridge_list(model, ep),
         # 範囲を指定して外した部材「スパン始,スパン終,層始,層終,ビット（1踏板 2外側手すり 4幅木 8筋かい 16内側手すり）」
         "editList": _edit_list(model, ep),
-        # 部材に分解した状態（scripts/explode_line.py が 1 にする）。置き直したら分解していない状態に戻す
+        # 支柱だけ分解した状態（scripts/explode_line.py が 1 にする）と、区切った部品の範囲・区切る位置
+        # （scripts/split_line.py）。置き直したら分解・区切りの無い面に戻す
         "explodeMask": 0,
+        **WHOLE,
         # 敷地高低差: 支柱位置ごとの地盤高とジャッキ（平坦なら空）
         "glList": gl_list,
         "jackList": jack_list,

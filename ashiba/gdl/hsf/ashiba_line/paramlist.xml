@@ -394,9 +394,37 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<Integer Name="explodeMask">
-			<Description><![CDATA["部材に分解した（1＝支柱・ジャッキ・布材・手すり・踏板・幅木・ブレースは ashiba_member が描く）"]]></Description>
+			<Description><![CDATA["支柱だけ分解した（1＝支柱・枠組の建枠は ashiba_member が描く）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="segSpanA">
+			<Description><![CDATA["区切った部品のスパン（始め。0＝面の始点から）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segSpanB">
+			<Description><![CDATA["区切った部品のスパン（終わり。0＝面の終点まで）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segLevA">
+			<Description><![CDATA["区切った部品の作業層（下。0＝根がらみから）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segLevB">
+			<Description><![CDATA["区切った部品の作業層（上。0＝天端まで）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="segGroup">
+			<Description><![CDATA["区切る前の面（同じ面の部品は同じ値）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="cutAtX">
+			<Description><![CDATA["縦に区切る位置（3Dの上端のつまみで引く。次の支柱に吸着。0＝区切らない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cutAtZ">
+			<Description><![CDATA["横に区切る位置（3Dの始点のつまみで引く。次の作業床に吸着。0＝区切らない）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="editList">
 			<Description><![CDATA["外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」"]]></Description>
 			<Value><![CDATA[""]]></Value>

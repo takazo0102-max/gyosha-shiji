@@ -958,7 +958,7 @@ class TestLineMode3D(unittest.TestCase):
         xml = (root / "paramlist.xml").read_text(encoding="utf-8")
         self.assertIn('<Boolean Name="lineMode">', xml)
         body3 = (root / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertIn("if lineMode then\n\tgosub 900\n\tend\nendif", body3)
+        self.assertIn("if lineMode then\n\tgosub 900\n\tgosub 990\n\tfor ic9 = 1 to nClip\n\t\tcutend\n\tnext ic9\n\tend\nendif", body3)
         self.assertIn("900:\t! ---- 線表示 ----", body3)
         # 線表示でも開口部の支柱抜き・階段・ステージ・昇降機・壁つなぎは出す
         sub = body3[body3.index("900:"):]
@@ -1170,7 +1170,7 @@ class TestStandoffDimensionInPlan(unittest.TestCase):
     def test_dimension_lines_and_value(self):
         body2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl"
                  ).read_text(encoding="utf-8")
-        self.assertIn("if kd = 1 then xd = spans[1] / 2 else xd = lineLen - spans[nSpan] / 2", body2)
+        self.assertIn("if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2", body2)
         self.assertIn("line2 xd, 0, xd, standoff", body2)
         self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)
 
@@ -1202,8 +1202,8 @@ class TestPlanDimensions(unittest.TestCase):
         self.assertIn("yd = -rowW - dOff - 0.90", self.body)
         self.assertIn("line2 xs, yd, xe, yd", self.body)
         # 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
-        self.assertIn("xs = -rowW * cornerS", self.body)
-        self.assertIn("xe = lineLen + rowW * cornerE", self.body)
+        self.assertIn("xs = pxA - rowW * cS", self.body)
+        self.assertIn("xe = pxB + rowW * cE", self.body)
         self.assertIn("if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35", self.body)
 
     def test_text_turns_to_read_from_below_or_right(self):
