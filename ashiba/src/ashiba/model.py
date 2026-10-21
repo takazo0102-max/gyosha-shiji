@@ -269,6 +269,11 @@ class ScaffoldModel:
             return 0
         if self.master.is_frame:
             return self.master.frame_width_for(self.deck_width_total)[0]
+        if self.master.is_tube and self.config.scaffold_form == "一側足場":
+            # 単管のブラケット足場の腕は単管ブラケット。足場板の幅以上でいちばん短いブラケット（数量と同じ品）
+            brk = [p.nominal_dim for p in self.master.by_category("ブラケット") if p.nominal_dim >= self.deck_width_total]
+            if brk:
+                return min(brk)
         if self.master.is_tube:
             # 単管の腕木は建地に外からクランプで留めるので、作業床の幅以上でいちばん短い単管
             wide = [p.nominal_dim for p in self.master.by_category("布材") if p.nominal_dim >= self.deck_width_total]
@@ -297,9 +302,7 @@ class ScaffoldModel:
         # ここで幅を1枚に落とすと、建枠幅まで細くなって矛盾が広がる
         if (self.config.scaffold_form == "一側足場"
                 and not self.master.is_frame and len(ws) > 1):
-            # 単管のブラケット足場は足場板（幅240）を2枚並べて床幅40cm以上にする（抱き足場は布2本の上に1枚）
-            if self.master.is_tube and not self.config.is_hug:
-                return ws[:2]
+            # 単管のブラケット足場も足場板（幅240）1列（利用者の指定 2026-10-22: 足場板は2列じゃなく1列）
             return (max(ws),)
         return ws
 

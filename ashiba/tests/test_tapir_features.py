@@ -26,6 +26,11 @@ class TestChooseElevationMode(unittest.TestCase):
         self.assertEqual(mode, "object")
         self.assertIn("1.7.0 以上", notes[0])
 
+    def test_none_makes_no_elevations(self):
+        # none は立面・断面を作らない（以前は section にされていた。利用者の指定 2026-10-22）
+        self.assertEqual(choose_elevation_mode("none", "1.7.0"), ("none", []))
+        self.assertEqual(choose_elevation_mode("?", "1.7.0")[0], "section")
+
     def test_unreadable_version_falls_back(self):
         # GetAddOnVersion が無いほど古い Tapir は版を読めない
         self.assertEqual(choose_elevation_mode("section", "")[0], "object")

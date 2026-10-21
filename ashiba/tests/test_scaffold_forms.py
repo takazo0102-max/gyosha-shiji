@@ -59,14 +59,17 @@ class TestTubeSeries(unittest.TestCase):
 
 
 class TestBracketScaffold(unittest.TestCase):
-    def test_tube_bracket_uses_the_tube_series_with_two_planks(self):
+    def test_tube_bracket_uses_the_tube_series_with_one_plank(self):
         r = solve_all({**BASE, "series_id": "nikken_nd1800", "scaffold_form": "ブラケット足場", "bracket_post": "単管"})
         m = r.model
         self.assertEqual(m.master.series_id, "tankan")                  # 単管の系列で組む
         self.assertEqual(m.config.form_label, "ブラケット足場（単管）")
-        self.assertEqual(m.deck_widths_in_use, (240, 240))               # 足場板2枚で床幅40cm以上
-        self.assertIn("TB-60", _qty(r, "ブラケット"))
-        self.assertEqual(_check(r, 2).status, "OK")
+        # 足場板は1列（利用者の指定 2026-10-22）。腕はそれを受ける単管ブラケット（数量と同じ長さ）
+        self.assertEqual(m.deck_widths_in_use, (240,))
+        self.assertIn("TB-40", _qty(r, "ブラケット"))
+        self.assertEqual(m.post_row_spacing_mm, 400)
+        # 一側足場は563条の作業床の規定の適用外。40cm未満は注意（NG にしない）
+        self.assertEqual(_check(r, 2).status, "WARN")
 
     def test_post_bracket_keeps_the_series(self):
         r = solve_all({**BASE, "series_id": "shinwa_A", "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})

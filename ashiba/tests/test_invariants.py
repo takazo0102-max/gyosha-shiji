@@ -73,6 +73,15 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     # 単管抱き足場は床材が無い（抱き合わせた単管2本）。注記も床材の行も無い
                     self.assertFalse([l for l in r.quantity.lines if l.part and l.part.category == cat])
                     continue
+                if r.model.master.is_tube:
+                    # 単管の足場板はスパンごとではなく、規定の長さで面に沿って敷く（tube_runs.face_boards）
+                    from ashiba.tube_runs import face_boards
+
+                    n_boards = sum(len(face_boards(list(e.spans))[i % 2].pieces)
+                                   for e in r.model.plan.edges for i in range(len(r.model.deck_widths_in_use)))
+                    got = sum(l.qty for l in r.quantity.lines if l.part and l.part.category == cat)
+                    self.assertEqual(got, n_boards * r.model.elevation.n_levels, name)
+                    continue
                 note = next(n for n in r.quantity.notes if n.startswith(f"{cat}はスパン"))
                 final = int(re.search(r"(\d+)セルで計上", note).group(1))
                 per_width = {}

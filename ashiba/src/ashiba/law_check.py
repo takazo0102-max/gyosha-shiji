@@ -127,6 +127,13 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
             "単管抱き足場の床は建地を両側から抱き合わせた単管2本です（布板なし）。一側足場は563条の作業床の規定の"
             "適用外ですが、高さ2m以上で作業するならブラケット足場・本足場や安全帯の使用を検討してください（墜落防止）",
             basis + "（一側足場は適用外）")
+    if width < 400 and m.master.is_tube and m.config.scaffold_form == "一側足場":
+        # 単管のブラケット足場は足場板1列（利用者の指定 2026-10-22）。一側足場は563条1項の作業床の規定の適用外
+        return CheckResult(
+            2, "作業床", WARN,
+            f"単管のブラケット足場の床は足場板1列（幅{width}mm）です。一側足場は563条の作業床の規定（幅40cm以上）の"
+            "適用外ですが、高さ2m以上で作業するなら幅40cm以上（足場板2列）や安全帯の使用を検討してください（墜落防止）",
+            basis + "（一側足場は適用外）")
     if width < 400:
         problems.append(f"作業床幅{width}mm < 400mm")
     if m.config.deck_gap_mm > 30:
