@@ -86,11 +86,13 @@ class TestPresets(unittest.TestCase):
 
 class TestPalette(unittest.TestCase):
     def test_buttons(self):
-        from ashiba.palette import ENTRIES
+        from ashiba.palette import ACTIONS
 
-        by = {e.file: e for e in ENTRIES}
-        self.assertEqual(by["足場7_条件の登録.py"].args, ("save",))
-        self.assertEqual(by["足場8_条件の呼び出し.py"].args, ("load",))
+        # 条件の登録・呼び出しはパレットのメニューから選ぶ
+        by = {e.title: e for e in ACTIONS}
+        self.assertEqual(by["条件の登録"].args, ("save",))
+        self.assertEqual(by["条件の呼び出し"].args, ("load",))
+        self.assertIn("spec", by["条件の登録"].when)
         root = Path(__file__).resolve().parents[1]
         self.assertTrue((root / "scripts" / "spec_preset.py").exists())
 

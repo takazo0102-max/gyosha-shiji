@@ -6,16 +6,20 @@ from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
-from ashiba.palette import ENTRIES, MARK, entry_source, summary
+from ashiba.palette import ACTIONS, ENTRIES, MARK, entry_source, menu_items, summary
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestEntries(unittest.TestCase):
     def test_three_buttons_call_existing_scripts(self):
-        self.assertEqual([e.title for e in ENTRIES], ["配置", "解き直し", "撤去", "3D表示", "条件", "帳票",
-                                                     "条件の登録", "条件の呼び出し", "区切る", "区切りを戻す",
-                                                     "支柱だけ分解", "分解を戻す"])
+        # パレットはメニュー＋よく使う3つ。ほかの操作はメニューから（利用者の指定 2026-10-21: まとめて使いやすく）
+        self.assertEqual([e.title for e in ENTRIES], ["メニュー", "配置", "解き直し", "3D表示"])
+        self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "支柱だけ分解",
+                                                     "分解を戻す", "3D表示", "条件", "条件の登録", "条件の呼び出し",
+                                                     "帳票", "撤去"])
+        for a in ACTIONS:
+            self.assertTrue((ROOT / "scripts" / a.script).exists(), a.script)
         for e in ENTRIES:
             self.assertTrue((ROOT / "scripts" / e.script).exists(), e.script)
             self.assertTrue(e.file.startswith("足場") and e.file.endswith(".py"))
@@ -106,3 +110,16 @@ class TestKomaInLiteMode(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMenu(unittest.TestCase):
+    def test_selection_puts_matching_actions_first(self):
+        line = [a.title for a in menu_items({"line"})]
+        self.assertEqual(line[:6], ["解き直し", "区切る", "区切りを戻す", "支柱だけ分解", "分解を戻す", "3D表示"])
+        slab = [a.title for a in menu_items({"slab"})]
+        self.assertEqual(slab[:4], ["配置", "条件", "帳票", "撤去"])
+        self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
+        self.assertEqual([a.title for a in menu_items(set())][:3], ["3D表示", "条件", "帳票"])
+        # どの選択でも全部の操作が一覧にある
+        for k in ("line", "slab", "member", "spec", "none"):
+            self.assertEqual(len(menu_items({k})), len(ACTIONS))

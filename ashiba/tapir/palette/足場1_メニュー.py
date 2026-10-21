@@ -5,11 +5,11 @@
 # ///
 # -*- coding: utf-8 -*-
 # ashiba-palette-entry
-"""仮設足場 帳票
+"""仮設足場 メニュー
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-帳票の出力先を開き、最新の割付レポートを開く
-本体は <ashiba>/scripts/open_outputs.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
+選んでいるもの（躯体スラブ・足場・分解した支柱・足場条件の部品）に合う操作を上に出す。選んで「実行」
+本体は <ashiba>/scripts/ashiba_menu.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os
 import subprocess
@@ -17,9 +17,9 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))           # <ashiba>/tapir/palette（リンクをたどる）
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SCRIPT = os.path.join(ROOT, "scripts", "open_outputs.py")
+SCRIPT = os.path.join(ROOT, "scripts", "ashiba_menu.py")
 ARGS = ()
-TITLE = "仮設足場 帳票"
+TITLE = "仮設足場 メニュー"
 OUT = os.path.join(os.path.expanduser("~"), "Desktop", "ashiba_out")
 
 
