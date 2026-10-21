@@ -101,6 +101,7 @@ def line_members(p: dict) -> list[Member]:
     nega, nega_lens = _f(p, "komaNega"), _nums(p.get("negaLens"))
     post_top = jack + sum(posts)
     skip_s, skip_e = _i(p, "skipInS"), _i(p, "skipInE")
+    hug = _i(p, "hugMode") == 1     # 抱き足場は建地列が線の上で、隅の建地は隣の面と同じ1本
     bm = _nums(p.get("beamList"))
     beams = [(bm[i] / 1000, bm[i + 1] / 1000, bm[i + 2] / 1000) for i in range(0, len(bm) - 2, 3)]
     xs = [0.0]
@@ -131,7 +132,7 @@ def line_members(p: dict) -> list[Member]:
             stack(x, 0.0)                  # 建枠は内外の脚を1枚で
             continue
         for row in range(row_start, 2):
-            if row == 0 and ((ip == 0 and skip_s) or (ip == n_span and skip_e)):
+            if (row == 0 or hug) and ((ip == 0 and skip_s) or (ip == n_span and skip_e)):
                 continue
             if b_base:
                 if pc.own_z(b_base):

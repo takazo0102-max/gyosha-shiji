@@ -98,8 +98,8 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
     # 一側足場も建地1列＋躯体側へ張り出す床（ブラケット長＝建地列間隔）で幅を取る。
     # 離れだけで見ると床と建地の幅が抜けて、収まらない計画を通していた
     single = m.config.scaffold_form == "一側足場"
-    # 単管抱き足場は建地の両側の布に足場板を載せるので、幅は足場板の半分＋布の外まで
-    width = (sum(m.deck_widths_in_use) / 2 + 50) if m.config.is_hug else m.post_row_spacing_mm
+    # 単管抱き足場は離れが建地の芯まで。幅は外側の布（直交クランプで建地の脇）の外まで 100
+    width = 100 if m.config.is_hug else m.post_row_spacing_mm
     need = max((e.standoff for e in m.plan.edges), default=0.0) + width
     if m.clearance_space_mm and need > m.clearance_space_mm + 1e-6:
         return CheckResult(

@@ -230,16 +230,20 @@ def line_params(
                     else "B" if model.master.series_id.endswith("_B") else "A"),
         # 単管抱き足場（建地1列を布2本で抱き、その上に足場板）
         "hugMode": 1 if model.config.is_hug else 0,
+        # 単管抱き足場の隅の建地では、直交する2つの面の布・手すりが同じ高さだと交わる。南北に走る面は
+        # クランプ1つ分（60）上で留める（実際も直交する管は上下にずらして留める）
+        "hugDz": (0.06 if model.config.is_hug and _runs_north_south(model, ep.edge_index) else 0.0),
         # 一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,
         # 始点が出隅なら、その外側のコーナー（外側建地・布材・踏板・幅木）をこの面が描く
         # （各面は始点支柱を所有する規則と同じ向き。実機の3Dで四隅が抜けていた）
-        "cornerS": 1 if (not model.master.is_frame
+        # 単管抱き足場は建地列が線の上で、出隅の建地は隣の面と同じ1本（skipInS・skipInE で片方が描く）
+        "cornerS": 1 if (not model.master.is_frame and not model.config.is_hug
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
         # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
-        "cornerE": 1 if (not model.master.is_frame
+        "cornerE": 1 if (not model.master.is_frame and not model.config.is_hug
                          and model.corner_kind_end(ep.edge_index) == "出隅") else 0,
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,
@@ -481,6 +485,12 @@ def _post_diameter_m(model: ScaffoldModel) -> float:
     cat = "建枠" if model.master.is_frame else "支柱"
     dia = next((p.diameter for p in model.master.by_category(cat) if p.diameter > 0), 0.0)
     return round(float(dia) / 1000.0, 4)
+
+
+def _runs_north_south(model: ScaffoldModel, edge_index: int) -> bool:
+    """その面の辺が南北（Y）に走るか."""
+    e = model.plan.outline.edges[edge_index]
+    return abs(e.direction[1]) > abs(e.direction[0])
 
 
 def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:

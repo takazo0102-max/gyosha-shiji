@@ -426,9 +426,13 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<Integer Name="hugMode">
-			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、その上に足場板）"]]></Description>
+			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、布が床）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="hugDz">
+			<Description><![CDATA["単管抱き足場の布・手すりを上げる量（南北の面。隅で直交する管と交わらない）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="segSpanA">
 			<Description><![CDATA["区切った部品のスパン（始め。0＝面の始点から）"]]></Description>
 			<Value>0</Value>

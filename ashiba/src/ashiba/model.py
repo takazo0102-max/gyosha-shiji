@@ -32,8 +32,6 @@ FRAME_GUARD_RAIL_HEIGHT_MM = 900
 from .elevation_solver import (  # noqa: E402,F401
     TUBE_GUARD_RAIL_HEIGHT_MM, TUBE_MIDRAIL_HEIGHT_MM, TUBE_POST_ABOVE_RAIL_MM,
 )
-# 単管抱き足場の建地列の位置（離れの線から。躯体側の布の外まで）
-HUG_ROW_OFFSET_MM = 100
 FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）
 
 # 手すり方式
@@ -266,8 +264,9 @@ class ScaffoldModel:
             return self.config.post_row_spacing_mm
         if self.config.is_hug:
             # 単管抱き足場は建地を両側から布2本（単管）で抱き、その布が床になる（利用者の指定 2026-10-22: 布板不要）。
-            # 建地列の位置は内側の線（離れの線）から 100 外（躯体側の布の外まで）
-            return HUG_ROW_OFFSET_MM
+            # 建地列は離れの線の上（列間隔 0）。以前は線から 100 外に立て、出隅で隣の面の端の建地・コーナー支柱と
+            # 3本並んでいた（利用者の指定 2026-10-22: 出隅の建地は1本にまとめて）。線の上なら隣の面と同じ1本
+            return 0
         if self.master.is_frame:
             return self.master.frame_width_for(self.deck_width_total)[0]
         if self.master.is_tube:
@@ -382,9 +381,9 @@ class ScaffoldModel:
         内側建地列は隣の面とコーナー支柱を共有するが、外側建地列は面ごとに躯体コーナーで
         終わるので、四隅の外側に1本ずつ立つ。3D・数量・構造（立っている本数）で同じ値を使う。
         一側足場も建地列が躯体コーナーで終わるのは同じなので付く。枠組（建枠を回して
-        納める）には無い。
+        納める）には無い。単管抱き足場も無い（建地列が離れの線の上で、出隅の建地は隣の面と同じ1本）。
         """
-        if self.master.is_frame:
+        if self.master.is_frame or self.config.is_hug:
             return 0
         return len([e for e in self.plan.outline.edges if self.corner_kind_start(e.index) == "出隅"
                     and (self.edge_subset is None or e.index in self.edge_subset)

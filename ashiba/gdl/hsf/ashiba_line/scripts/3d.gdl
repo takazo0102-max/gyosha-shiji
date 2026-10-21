@@ -5,6 +5,13 @@
 pen 1
 ! 表面材: 配置時に Python がプロジェクトのアルミ（金属 - アルミニウム）を入れる。0 は既定のまま
 if matScaf > 0 then material matScaf
+! 単管のクランプの色（利用者の写真 2026-10-22）: 本体は亜鉛めっきの銀、ふたは黒、T ボルトは金（クロメート）。
+! 足場の表面材（matScaf）が入っている部品だけ色を替える（0 の部品では描いたあと戻す材質が無い）
+define material "ashiba_clamp_zinc" 2, 0.80, 0.81, 0.83
+define material "ashiba_clamp_black" 3, 0.08, 0.08, 0.09
+define material "ashiba_clamp_bolt" 2, 0.80, 0.63, 0.26
+clW = 0.040		! クランプの口の幅
+clT = 0.0045	! 口の帯の厚み
 ! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、
 ! 建物一周を精細で出すと Archicad の3D・断面の生成が重く、操作しづらかった（利用者の指摘 2026-10-19）。
 ! 軽量は布材の爪・支柱の継手のカラー・ジャッキのハンドルと、フックを掛けない高さのコマを省き、円柱を6角にする
@@ -273,7 +280,7 @@ for ip = 1 to nSpan + 1
 		endif
 		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
 		skipP = 0
-		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
 		if x < gxA - 0.1 or x > gxB + 0.1 then skipP = 1
 		if skipP = 1 then
 			! 隣の面・隣の部品が描く
@@ -543,7 +550,7 @@ if nKz > 0 then
 		if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
 		for row = rowStart to 1
 			! 隅の内側建地は隣の面が支柱もコマも描く
-			if not(row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
+			if not((row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
 					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
 					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
@@ -563,6 +570,8 @@ endif
 ! ---- 水平材（根がらみ＋各作業層） ----
 for il = 1 to nLv
 	z = lv[il]
+	! 単管抱き足場: 南北に走る面は布・手すりをクランプ1つ分上で留める（隅の建地で直交する面の管と交わらない）
+	if hugMode = 1 then z = z + hugDz
 	! 枠組の支柱だけ分解した部品: この高さの横架材の建枠（下端が範囲の高さ）は、建枠ごと分解した部材が描く
 	frZ = 0
 	if serType = "W" and explodeMask > 0 then
@@ -587,14 +596,14 @@ for il = 1 to nLv
 			if skipH = 0 and il > 1 and hugMode = 1 then
 				r_t = 0.0486 / 2
 				for sd = 0 to 1
-					add x - 0.05, -rowW + (2 * sd - 1) * (r_sic + r_t), z
+					add x - 0.05, -rowW + (2 * sd - 1) * tubeOff, z
 					roty 90
 					cylind spans[ip] + 0.10, r_t
 					del 2
 				next sd
 				! 3連クランプ（日建 P3CR、カタログ p384）: 建地と両側の布2本を1個で抱く。建地ごと（終点の建地も）
 				if isLite = 0 then
-					clDy = r_sic + r_t
+					clDy = tubeOff
 					clR2 = r_t
 					for ce = 0 to 1
 						if ce = 0 or ip = nSpan then
@@ -2226,85 +2235,93 @@ return
 	endif
 	return
 
-834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378。利用者の指定 2026-10-22: クランプの詳細度を上げて）----
-	! 原点＝建地の芯（Z 向き）の留める高さ。布は +X 向きで芯は y = -clDy、半径 clR2。建地を巻く帯と布を巻く帯
-	! （どちらも半割を蝶番とボルトで締める）を背中合わせにリベットで留めた形。帯は幅34・厚4.5
-	clW = 0.034
-	clT = 0.0045
-	resol rN
-	! 建地を巻く帯（REVOLVE は X 軸まわり。Y 軸まわりに回して Z 軸まわりにする）
+834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378）----
+	! 原点＝建地の芯（Z 向き）の留める高さ。布は +X 向きで芯は y = -clDy、半径 clR2。建地を掴む口と布を掴む口を
+	! 背中合わせにリベットで留めた形。口は銀色（亜鉛めっき）の本体の半割と、蝶番で開く黒いふたを、金色の
+	! T ボルトとナットで締める（利用者の写真 2026-10-22: クランプの形と色を変えて）
+	! 建地の口（管は Z 向き。蝶番は -X、ボルトは +X）
 	roty -90
-	revolve 4, 360, 63, -clW / 2, r_sic, 0, clW / 2, r_sic, 0, clW / 2, r_sic + clT, 0, -clW / 2, r_sic + clT, 0
+	jR = r_sic
+	gosub 838
 	del 1
-	! 布を巻く帯
+	! 布の口（管は X 向き。蝶番は上、ボルトは下＝足場板に当たらない）
 	add 0, -clDy, 0
-	revolve 4, 360, 63, -clW / 2, clR2, 0, clW / 2, clR2, 0, clW / 2, clR2 + clT, 0, -clW / 2, clR2 + clT, 0
-	del 1
-	! 2つの帯をつなぐ本体（背中合わせ。中心にリベット）
-	add -clW / 2, -r_sic - clT - 0.003, -clW / 2
-	block clW, clT + 0.006, clW
-	del 1
-	! 建地の帯の締め付け（+X 側の耳、ボルトは Y 向き、六角ナット）
-	add r_sic + clT - 0.002, -0.009, -clW / 2
-	block 0.024, 0.018, clW
-	del 1
-	add r_sic + clT + 0.014, 0.021, 0
-	rotx 90
-	cylind 0.042, 0.0055
-	resol 6
-	cylind 0.010, 0.0095
-	resol rN
+	rotz 180
+	jR = clR2
+	gosub 838
 	del 2
-	! 布の帯の締め付け（上側の耳、ボルトは Y 向き）
-	add -clW / 2, -clDy - 0.009, clR2 + clT - 0.002
-	block clW, 0.018, 0.024
-	del 1
-	add 0, -clDy + 0.021, clR2 + clT + 0.014
-	rotx 90
-	cylind 0.042, 0.0055
-	resol 6
-	cylind 0.010, 0.0095
-	del 2
-	resol rN
+	gosub 837
 	return
 
 836:	! ---- 3連クランプ（日建 P3CR 直交、カタログ p384）: 建地と、建地を両側から抱いた布2本を1個で留める ----
-	! 原点＝建地の芯の留める高さ。布は +X 向きで芯は y = ±clDy、半径 clR2。建地の帯の両側に布の帯を背中合わせ
-	clW = 0.034
-	clT = 0.0045
-	resol rN
+	! 原点＝建地の芯の留める高さ。布は +X 向きで芯は y = ±clDy、半径 clR2。建地の口の両側に布の口を背中合わせ
 	roty -90
-	revolve 4, 360, 63, -clW / 2, r_sic, 0, clW / 2, r_sic, 0, clW / 2, r_sic + clT, 0, -clW / 2, r_sic + clT, 0
+	jR = r_sic
+	gosub 838
+	! 建地の口のふた側（+Y）にも、もう1つの布の口と背中合わせにする板
+	if matScaf > 0 then material "ashiba_clamp_zinc"
+	add -clW / 2, jR + clT, -clW / 2
+	block clW, 0.004, clW
 	del 1
-	for sd = -1 to 1 step 2
-		add 0, sd * clDy, 0
-		revolve 4, 360, 63, -clW / 2, clR2, 0, clW / 2, clR2, 0, clW / 2, clR2 + clT, 0, -clW / 2, clR2 + clT, 0
-		del 1
-		! 布の帯の締め付け（外側の耳、ボルトは Z 向き、六角ナット）
-		yo = sd * (clDy + clR2 + clT)
-		if sd < 0 then yo = yo - 0.018
-		add -clW / 2, yo, -0.009
-		block clW, 0.018, 0.018
-		del 1
-		add 0, sd * (clDy + clR2 + clT + 0.009), -0.021
-		cylind 0.042, 0.0055
-		resol 6
-		addz 0.034
-		cylind 0.010, 0.0095
-		del 1
-		resol rN
-		del 1
-	next sd
-	! 建地の帯と布の帯を背中合わせにつなぐ本体（左右）
-	for sd = -1 to 1 step 2
-		y0 = r_sic - 0.003
-		if sd < 0 then y0 = -(r_sic + clT + 0.003)
-		add -clW / 2, y0, -clW / 2
-		block clW, clT + 0.006, clW
-		del 1
-	next sd
-	resol rN
+	del 1
+	add 0, clDy, 0
+	jR = clR2
+	gosub 838
+	del 1
+	add 0, -clDy, 0
+	rotz 180
+	jR = clR2
+	gosub 838
+	del 2
+	gosub 837
 	return
+
+837:	! クランプを描いたあと、足場の表面材に戻す
+	resol rN
+	if matScaf > 0 then material matScaf
+	return
+
+838:	! ---- クランプの口1つ: 管は X 向きで芯が原点、半径 jR。相手の口は -Y 側（そちらに本体と背板）----
+	! 本体（銀）: -Y 側の半割。REVOLVE は +Y から +Z へ回るので、rotx 90 で +Z から -Y を通って -Z まで
+	if matScaf > 0 then material "ashiba_clamp_zinc"
+	resol rN
+	rotx 90
+	revolve 4, 180, 63, -clW / 2, jR, 0, clW / 2, jR, 0, clW / 2, jR + clT, 0, -clW / 2, jR + clT, 0
+	del 1
+	! 背板（相手の口とリベットで留める）
+	add -clW / 2, -(jR + clT + 0.004), -clW / 2
+	block clW, 0.004, clW
+	del 1
+	! 蝶番（+Z）とボルトの軸受け（-Z）
+	add -clW / 2, 0, jR + clT + 0.0035
+	roty 90
+	cylind clW, 0.0045
+	del 2
+	add -clW / 2, -0.014, -(jR + clT + 0.014)
+	block clW, 0.012, clT + 0.014
+	del 1
+	! ふた（黒）: +Y 側の半割。-Z から +Y を通って +Z まで。中央に補強の帯、-Z の端はボルトを受ける舌
+	if matScaf > 0 then material "ashiba_clamp_black"
+	rotx -90
+	revolve 4, 180, 63, -clW / 2, jR, 0, clW / 2, jR, 0, clW / 2, jR + clT, 0, -clW / 2, jR + clT, 0
+	revolve 4, 180, 63, -0.006, jR + clT, 0, 0.006, jR + clT, 0, 0.006, jR + clT + 0.003, 0, -0.006, jR + clT + 0.003, 0
+	del 1
+	add -clW * 0.35, 0, -(jR + clT + 0.016)
+	block clW * 0.7, 0.007, 0.018
+	del 1
+	! T ボルト（金）: 軸受けから +Y へ、ふたの舌を通す。ナット（銀の六角）で舌を締める
+	if matScaf > 0 then material "ashiba_clamp_bolt"
+	add 0, -0.012, -(jR + clT + 0.008)
+	rotx -90
+	cylind 0.044, 0.005
+	if matScaf > 0 then material "ashiba_clamp_zinc"
+	addz 0.019
+	resol 6
+	cylind 0.010, 0.0095
+	resol rN
+	del 3
+	return
+
 
 830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:
 	! 両端の緊結部（クサビ受け）が支柱の外面からコマ（円盤）を上下に挟み、クサビが緊結部を縦に貫いて
@@ -2314,12 +2331,12 @@ return
 	! p378）で留める。管は建地の外まで少し出す（次の管と重ねて留めるので）
 	if serType = "T" then
 		r_t = 0.0486 / 2
-		add -0.05, -(r_sic + r_t), 0
+		add -0.05, -tubeOff, 0
 		roty 90
 		cylind nL + 0.10, r_t
 		del 2
 		if isLite = 0 then
-			clDy = r_sic + r_t
+			clDy = tubeOff
 			clR2 = r_t
 			for hd830 = 0 to 1
 				add hd830 * nL, 0, 0
@@ -2380,7 +2397,7 @@ for ip = 1 to nSpan + 1
 	for row = rowStart to 1
 		yr = -row * rowW
 		skipP = 0
-		if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
 		if bBase = 0 and skipP = 0 then
 			lin_ x, yr, gv, x, yr, postTop
 			lin_ x - 0.07, yr - 0.07, gv, x + 0.07, yr - 0.07, gv

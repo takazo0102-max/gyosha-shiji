@@ -737,6 +737,7 @@ def resolve_series_id(spec: dict) -> str:
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     master = load_master(resolve_series_id(spec), master_csv)
     so = spec.get("standoff", {})
+    # 単管抱き足場の離れは建地の芯まで（建地列が離れの線の上）。既定の300でも躯体側の布の外は躯体から約210
     standoff = StandoffSpec(
         target=so.get("target", 300),
         min=so.get("min", 250),

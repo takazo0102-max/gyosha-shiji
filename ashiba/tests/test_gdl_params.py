@@ -1285,7 +1285,7 @@ class TestSharedCornerPosts(unittest.TestCase):
     def test_gdl_skips_and_corner_materials(self):
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        self.assertIn("if row = 0 and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1",
+        self.assertIn("if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1",
                       body)
         i = body.index("! コーナー踏板と、外側2辺の幅木")
         self.assertIn("if matDeck > 0 then material matDeck", body[i:i + 400])

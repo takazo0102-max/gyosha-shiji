@@ -100,8 +100,26 @@ class TestHugScaffold(unittest.TestCase):
         brk = solve_all({**BASE, "scaffold_form": "ブラケット足場", "bracket_post": "単管"})
         span = sum(len(e.spans) for e in hug.model.plan.edges)
         n = hug.model.elevation.n_levels
-        # 抱き足場は各層の床の高さに建地を両側から抱く布が2本（ブラケット足場は床の高さに布が無い）
-        self.assertEqual(sum(_qty(hug, "布材").values()) - sum(_qty(brk, "布材").values()), 2 * span * n)
+        # 抱き足場は各層の床の高さに建地を両側から抱く布が2本（ブラケット足場は床の高さに布が無い）。
+        # 出隅の建地は隣の面と同じ1本なので、ブラケット足場の出隅の外側の升目（0.8m の管）が無い
+        self.assertEqual([e.spans for e in hug.model.plan.edges], [e.spans for e in brk.model.plan.edges])
+        self.assertNotIn("単管0.8M", _qty(hug, "布材"))
+        long_ = lambda r: sum(v for k, v in _qty(r, "布材").items() if k != "単管0.8M")
+        self.assertEqual(long_(hug) - long_(brk), 2 * span * n)
+
+    def test_hug_corner_post_is_shared(self):
+        # 出隅の建地は1本（利用者の指定 2026-10-22）。建地列は離れの線の上で、隣の面の端の建地・外側コーナー支柱は無い
+        from ashiba.gdl_params import line_params
+
+        m = solve_all({**BASE, "scaffold_form": "単管抱き足場"}).model
+        self.assertEqual(m.post_row_spacing_mm, 0)
+        self.assertEqual(m.outer_corner_posts(), 0)
+        ps = [line_params(m, ep) for ep in m.plan.edges]
+        self.assertTrue(all(p["cornerS"] == 0 and p["cornerE"] == 0 for p in ps))
+        # 隅の建地は片方の面だけが描く（各隅でちょうど1面が終点を飛ばす）
+        self.assertEqual(sum(p["skipInS"] + p["skipInE"] for p in ps), 4)
+        # 直交する面は布の高さをずらす（隅の建地で管が交わらない）
+        self.assertEqual(sorted(p["hugDz"] for p in ps), [0.0, 0.0, 0.06, 0.06])
 
     def test_unknown_form_is_rejected(self):
         from ashiba.cli import InputError
