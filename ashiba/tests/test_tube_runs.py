@@ -158,6 +158,19 @@ class TestBoards(unittest.TestCase):
 
 
 
+class TestGdlPrismContours(unittest.TestCase):
+    def test_prism_does_not_close_contours_with_minus_one(self):
+        # prism_ の輪郭を「最初の点を status -1 で繰り返して閉じる」と、実機（Archicad 30）で足場ライン全体が
+        # 3Dから消えた（ブラケットの先端の板）。輪郭は閉じずに点を並べる（既存の prism_ と同じ）
+        import re
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+        for f in sorted(root.glob("*/scripts/3d.gdl")):
+            body = f.read_text(encoding="utf-8").replace("\\\n", " ")
+            for m in re.finditer(r"prism_[^\n]*", body):
+                self.assertNotRegex(m.group(0), r",\s*-1\b", f"{f.parent.parent.name}: {m.group(0)[:60]}")
+
+
 class TestMasterArraysDoNotClash(unittest.TestCase):
     def test_arrays_are_not_scalars_in_the_parameter_script(self):
         # マスタースクリプトで dim した名前を、パラメータスクリプトで数として代入すると、パラメータスクリプトが落ちて
