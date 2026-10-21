@@ -1457,9 +1457,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
 
     outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
-    hug_no_stairs = model.config.is_hug and not st.get("positions") and not st.get("count")
+    hug_no_stairs = model.no_stair_tower and not st.get("positions") and not st.get("count")
     if hug_no_stairs:
-        # 単管抱き足場の床（足場板1枚）に階段は入らない。昇降ははしご等を別に（数量・図に階段を出さない）
+        # 単管抱き足場（布2本の床）・単管のブラケット足場（足場板1列）に階段は入らない。昇降ははしご等を別に
+        # （数量・図に階段を出さない。利用者の指摘 2026-10-22: 階段はつけれない）
         stair_plan = auto_place_stairs(model, max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
                                        tower_spans=tspans, count=0)
     elif st.get("positions"):
@@ -1492,7 +1493,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     )
     if hug_no_stairs:
         model.plan.warnings.append(
-            "単管抱き足場の作業床（足場板1枚）に階段は入らないので、階段は計上していません。"
+            f"{model.config.form_label}の作業床に階段は入らないので、階段は計上していません。"
             "昇降設備（はしご・昇降用の別の足場など）を別に用意し、箇所数を ladders に書いてください（安衛則526条）")
     # 一側足場の床（受けブラケット幅＝建地列間隔）に階段枠（幅420〜450）は収まらない。
     # 区間・数量は計上するが、その区間の組み方は別途要る（実機の一側棟で階段室が幅400の

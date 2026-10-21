@@ -651,8 +651,8 @@ def _take_off_one(
         stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
-    # 単管抱き足場は階段が入らない（はしご等を別に。cli が階段を置かない）
-    if model.config.is_hug and stair_plan is not None and not stair_plan.towers:
+    # 単管抱き足場・単管のブラケット足場は階段が入らない（はしご等を別に。cli が階段を置かない）
+    if model.no_stair_tower and stair_plan is not None and not stair_plan.towers:
         n_towers = 0
     add(stair, n_towers * n_levels, "階段")
     _count_stair_guards(model, add, notes, n_towers, n_levels,
@@ -2056,8 +2056,8 @@ def _count_frame_parts(
         stair_plan.count if stair_plan is not None and (stair_plan.towers or getattr(stair_plan, "subset", False))
         else model.config.n_stairs
     )
-    # 単管抱き足場は階段が入らない（はしご等を別に。cli が階段を置かない）
-    if model.config.is_hug and stair_plan is not None and not stair_plan.towers:
+    # 単管抱き足場・単管のブラケット足場は階段が入らない（はしご等を別に。cli が階段を置かない）
+    if model.no_stair_tower and stair_plan is not None and not stair_plan.towers:
         n_towers = 0
     add(stair, n_towers * n_levels, "階段枠")
     _count_stair_guards(model, add, notes, n_towers, n_levels)

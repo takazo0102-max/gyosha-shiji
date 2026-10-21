@@ -27,5 +27,6 @@
     "sheet_type": "メッシュシート"
   },
   "scaffold_form": "ブラケット足場",
-  "bracket_post": "単管"
+  "bracket_post": "単管",
+  "ladders": 2
 }

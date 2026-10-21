@@ -71,6 +71,18 @@ class TestBracketScaffold(unittest.TestCase):
         # 一側足場は563条の作業床の規定の適用外。40cm未満は注意（NG にしない）
         self.assertEqual(_check(r, 2).status, "WARN")
 
+    def test_tube_bracket_has_no_stairs(self):
+        # 足場板1列の単管のブラケット足場に階段はつけれない（利用者の指摘 2026-10-22）。昇降ははしご等（ladders）
+        r = solve_all({**BASE, "scaffold_form": "ブラケット足場", "bracket_post": "単管", "ladders": 2})
+        self.assertTrue(r.model.no_stair_tower)
+        self.assertFalse(r.stair_plan.towers)
+        self.assertFalse([ln for ln in r.quantity.lines if ln.part and "階段" in ln.part.category])
+        self.assertTrue(any("階段は入らない" in w for w in r.model.plan.warnings))
+        self.assertEqual(_check(r, 12).status, "OK")                    # はしご等で昇降設備あり
+        # 支柱のブラケット足場（くさび）は従来どおり階段を置く
+        k = solve_all({**BASE, "series_id": "shinwa_A", "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})
+        self.assertFalse(k.model.no_stair_tower)
+
     def test_post_bracket_keeps_the_series(self):
         r = solve_all({**BASE, "series_id": "shinwa_A", "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})
         m = r.model
