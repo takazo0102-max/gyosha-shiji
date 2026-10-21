@@ -102,6 +102,8 @@ from .model import (
     ASAGAO_KIND_ASAGAO, ASAGAO_KIND_SAFE_WING, ASAGAO_KINDS, SAFE_WING_ANGLE_DEG, SAFE_WING_PROJECTION_MM,
     GUARD_RAIL_ADVANCE,
     FRAME_GUARD_RAIL_HEIGHT_MM,
+    TUBE_GUARD_RAIL_HEIGHT_MM,
+    TUBE_POST_ABOVE_RAIL_MM,
     GUARD_RAIL_LEDGER,
     AsagaoSpec,
     ScaffoldConfig,
@@ -779,11 +781,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         if float(spec.get("building_height_mm") or 0) < spec["eaves_height_mm"]:
             spec["building_height_mm"] = spec["eaves_height_mm"]
     # 手すり分の既定は系列から。枠組はコマピッチを持たない（0）ので、
-    # 2×コマピッチだと軒高そのままになり、最上層に手すりが立たない
+    # 2×コマピッチだと軒高そのままになり、最上層に手すりが立たない。単管は手すりの上に建地を100出す
     guard_extra = spec.get("guard_extra_mm")
     if guard_extra is None:
         guard_extra = (
-            FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame or master.is_tube
+            FRAME_GUARD_RAIL_HEIGHT_MM if master.is_frame
+            else TUBE_GUARD_RAIL_HEIGHT_MM + TUBE_POST_ABOVE_RAIL_MM if master.is_tube
             else 2 * master.koma_pitch + master.koma_top_gap
         )
     required = int(spec["eaves_height_mm"]) + int(guard_extra)

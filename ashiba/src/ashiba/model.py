@@ -28,9 +28,10 @@ from .plan_solver import PlanResult
 
 # 枠組足場の建枠が兼ねる手すりの高さ（作業床から。安衛則563条の85cm以上を満たす）
 FRAME_GUARD_RAIL_HEIGHT_MM = 900
-# 単管の手すり・中桟（安衛則563条: 手すり85cm以上、中桟35〜50cm）
-TUBE_GUARD_RAIL_HEIGHT_MM = 900
-TUBE_MIDRAIL_HEIGHT_MM = 450
+# 単管の手すり・中桟（安衛則563条: 手すり85cm以上、中桟35〜50cm。立面ソルバが最上層の床を決めるのに使う）
+from .elevation_solver import (  # noqa: E402,F401
+    TUBE_GUARD_RAIL_HEIGHT_MM, TUBE_MIDRAIL_HEIGHT_MM, TUBE_POST_ABOVE_RAIL_MM,
+)
 # 単管抱き足場の建地列の位置（離れの線から。躯体側の布の外まで）
 HUG_ROW_OFFSET_MM = 100
 FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）

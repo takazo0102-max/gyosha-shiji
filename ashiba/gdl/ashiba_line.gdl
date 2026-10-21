@@ -2881,10 +2881,12 @@ for il = 1 to nLv
 				next sd
 				! 3連クランプ（日建 P3CR、カタログ p384）: 建地と両側の布2本を1個で抱く。建地ごと（終点の建地も）
 				if isLite = 0 then
+					clDy = r_sic + r_t
+					clR2 = r_t
 					for ce = 0 to 1
 						if ce = 0 or ip = nSpan then
-							add x + ce * spans[ip] - 0.04, -rowW - (r_sic + 2 * r_t) - 0.008, z - 0.04
-							block 0.08, 2 * (r_sic + 2 * r_t) + 0.016, 0.08
+							add x + ce * spans[ip], -rowW, z
+							gosub 836
 							del 1
 						endif
 					next ce
@@ -4511,6 +4513,86 @@ return
 	endif
 	return
 
+834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378。利用者の指定 2026-10-22: クランプの詳細度を上げて）----
+	! 原点＝建地の芯（Z 向き）の留める高さ。布は +X 向きで芯は y = -clDy、半径 clR2。建地を巻く帯と布を巻く帯
+	! （どちらも半割を蝶番とボルトで締める）を背中合わせにリベットで留めた形。帯は幅34・厚4.5
+	clW = 0.034
+	clT = 0.0045
+	resol rN
+	! 建地を巻く帯（REVOLVE は X 軸まわり。Y 軸まわりに回して Z 軸まわりにする）
+	roty -90
+	revolve 4, 360, 63, -clW / 2, r_sic, 0, clW / 2, r_sic, 0, clW / 2, r_sic + clT, 0, -clW / 2, r_sic + clT, 0
+	del 1
+	! 布を巻く帯
+	add 0, -clDy, 0
+	revolve 4, 360, 63, -clW / 2, clR2, 0, clW / 2, clR2, 0, clW / 2, clR2 + clT, 0, -clW / 2, clR2 + clT, 0
+	del 1
+	! 2つの帯をつなぐ本体（背中合わせ。中心にリベット）
+	add -clW / 2, -r_sic - clT - 0.003, -clW / 2
+	block clW, clT + 0.006, clW
+	del 1
+	! 建地の帯の締め付け（+X 側の耳、ボルトは Y 向き、六角ナット）
+	add r_sic + clT - 0.002, -0.009, -clW / 2
+	block 0.024, 0.018, clW
+	del 1
+	add r_sic + clT + 0.014, 0.021, 0
+	rotx 90
+	cylind 0.042, 0.0055
+	resol 6
+	cylind 0.010, 0.0095
+	resol rN
+	del 2
+	! 布の帯の締め付け（上側の耳、ボルトは Y 向き）
+	add -clW / 2, -clDy - 0.009, clR2 + clT - 0.002
+	block clW, 0.018, 0.024
+	del 1
+	add 0, -clDy + 0.021, clR2 + clT + 0.014
+	rotx 90
+	cylind 0.042, 0.0055
+	resol 6
+	cylind 0.010, 0.0095
+	del 2
+	resol rN
+	return
+
+836:	! ---- 3連クランプ（日建 P3CR 直交、カタログ p384）: 建地と、建地を両側から抱いた布2本を1個で留める ----
+	! 原点＝建地の芯の留める高さ。布は +X 向きで芯は y = ±clDy、半径 clR2。建地の帯の両側に布の帯を背中合わせ
+	clW = 0.034
+	clT = 0.0045
+	resol rN
+	roty -90
+	revolve 4, 360, 63, -clW / 2, r_sic, 0, clW / 2, r_sic, 0, clW / 2, r_sic + clT, 0, -clW / 2, r_sic + clT, 0
+	del 1
+	for sd = -1 to 1 step 2
+		add 0, sd * clDy, 0
+		revolve 4, 360, 63, -clW / 2, clR2, 0, clW / 2, clR2, 0, clW / 2, clR2 + clT, 0, -clW / 2, clR2 + clT, 0
+		del 1
+		! 布の帯の締め付け（外側の耳、ボルトは Z 向き、六角ナット）
+		yo = sd * (clDy + clR2 + clT)
+		if sd < 0 then yo = yo - 0.018
+		add -clW / 2, yo, -0.009
+		block clW, 0.018, 0.018
+		del 1
+		add 0, sd * (clDy + clR2 + clT + 0.009), -0.021
+		cylind 0.042, 0.0055
+		resol 6
+		addz 0.034
+		cylind 0.010, 0.0095
+		del 1
+		resol rN
+		del 1
+	next sd
+	! 建地の帯と布の帯を背中合わせにつなぐ本体（左右）
+	for sd = -1 to 1 step 2
+		y0 = r_sic - 0.003
+		if sd < 0 then y0 = -(r_sic + clT + 0.003)
+		add -clW / 2, y0, -clW / 2
+		block clW, clT + 0.006, clW
+		del 1
+	next sd
+	resol rN
+	return
+
 830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:
 	! 両端の緊結部（クサビ受け）が支柱の外面からコマ（円盤）を上下に挟み、クサビが緊結部を縦に貫いて
 	! 上（クビレ）と下に出る。管 φ42.7 は緊結部の間だけ（L1＝L−42.7）。利用者の指摘（2026-10-21）:
@@ -4524,9 +4606,11 @@ return
 		cylind nL + 0.10, r_t
 		del 2
 		if isLite = 0 then
+			clDy = r_sic + r_t
+			clR2 = r_t
 			for hd830 = 0 to 1
-				add hd830 * nL - 0.035, -(r_sic + r_t) - 0.035, -0.045
-				block 0.07, 0.07, 0.09
+				add hd830 * nL, 0, 0
+				gosub 834
 				del 1
 			next hd830
 		endif

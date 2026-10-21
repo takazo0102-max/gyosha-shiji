@@ -39,6 +39,20 @@ class TestTubeSeries(unittest.TestCase):
         self.assertGreaterEqual(e.jack_extension + sum(e.posts), 6000 + 900)
 
 
+    def test_handrail_stays_under_the_post_top(self):
+        # 単管は手すりを床から900にクランプで付ける。くさびの「天端から2コマ下」を最上層にすると、手すり・中桟が
+        # 建地の天端より上に浮いた（実機の3Dでクランプだけ宙に浮いていた）
+        from ashiba.model import TUBE_GUARD_RAIL_HEIGHT_MM, TUBE_POST_ABOVE_RAIL_MM
+
+        for form in ({"series_id": "tankan"}, {"scaffold_form": "単管抱き足場"}):
+            e = solve_all({**BASE, **form}).model.elevation
+            # 建地の天端は手すりより100上（手すりのクランプが管の端に掛からない）
+            self.assertLessEqual(e.level_heights[-1] + TUBE_GUARD_RAIL_HEIGHT_MM + TUBE_POST_ABOVE_RAIL_MM,
+                                 e.total_height)
+            self.assertGreaterEqual(e.level_heights[-1], 6000)              # 最上層は軒高に届く
+            self.assertEqual(sum(e.posts), sum(e.posts_alt))                 # 千鳥でも天端は揃う
+
+
 class TestBracketScaffold(unittest.TestCase):
     def test_tube_bracket_uses_the_tube_series_with_two_planks(self):
         r = solve_all({**BASE, "series_id": "nikken_nd1800", "scaffold_form": "ブラケット足場", "bracket_post": "単管"})

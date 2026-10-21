@@ -16,6 +16,12 @@ from typing import Optional
 from .dp import better
 from .master import PartMaster
 
+# 単管の手すり・中桟（安衛則563条: 手すり85cm以上、中桟35〜50cm）
+TUBE_GUARD_RAIL_HEIGHT_MM = 900
+TUBE_MIDRAIL_HEIGHT_MM = 450
+# 単管の建地の天端は手すりより上に出す（手すりのクランプが管の端に掛からないように）
+TUBE_POST_ABOVE_RAIL_MM = 100
+
 JACK_MAX_EXTENSION = 270  # mm 安衛則上の実務上限（超過は法規チェックで警告）
 JACK_MIN_EXTENSION = 30   # mm 調整代として最低限残す
 
@@ -308,6 +314,11 @@ def solve_elevation(
     # そこから floor_height ピッチで下へ展開する（端数吸収は最下部）
     top = jack + sum(pieces)
     top_floor = top - gap - 2 * koma_pitch
+    # 単管はコマが無く、手すりは床から900にクランプで付ける。くさびの「天端から2コマ下」（単管は100下）を
+    # 最上層にすると、手すり・中桟が建地の天端より上に浮いた（実機の3Dでクランプだけ宙に浮いていた）。
+    # 手すりが天端より100下に収まる高さを最上層にする
+    if master is not None and master.is_tube:
+        top_floor = top - TUBE_GUARD_RAIL_HEIGHT_MM - TUBE_POST_ABOVE_RAIL_MM
     level_heights = []
     h = top_floor
     while h > first_ledger + koma_pitch:
