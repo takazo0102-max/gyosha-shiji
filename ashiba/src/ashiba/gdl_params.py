@@ -233,6 +233,8 @@ def line_params(
         # 単管抱き足場の隅の建地では、直交する2つの面の布・手すりが同じ高さだと交わる。南北に走る面は
         # クランプ1つ分（60）上で留める（実際も直交する管は上下にずらして留める）
         "hugDz": (0.06 if model.config.is_hug and _runs_north_south(model, ep.edge_index) else 0.0),
+        # 単管の通し（布・手すり・中桟・根がらみ）: 規定の長さの単管の割付 A・B（tube_runs。数量と同じ割付）
+        **_tube_run_params(model, ep),
         # 一側足場は建地1列。渡さないと図面は本足場（2列）で描かれる
         "nRows": 1 if model.config.scaffold_form == "一側足場" else 2,
         # 始点が出隅なら、その外側のコーナー（外側建地・布材・踏板・幅木）をこの面が描く
@@ -485,6 +487,17 @@ def _post_diameter_m(model: ScaffoldModel) -> float:
     cat = "建枠" if model.master.is_frame else "支柱"
     dia = next((p.diameter for p in model.master.by_category(cat) if p.diameter > 0), 0.0)
     return round(float(dia) / 1000.0, 4)
+
+
+def _tube_run_params(model: ScaffoldModel, ep) -> dict:
+    """単管の通しの割付（くさび・枠組は空）."""
+    if not model.master.is_tube:
+        return {"tubeRunA": "", "tubeRunB": "", "tubeRunS": -0.1}
+    from .tube_runs import face_runs
+
+    a, b = face_runs(list(ep.spans))
+    return {"tubeRunA": ",".join(str(v) for v in a.pieces), "tubeRunB": ",".join(str(v) for v in b.pieces),
+            "tubeRunS": a.start_mm / 1000.0}
 
 
 def _runs_north_south(model: ScaffoldModel, edge_index: int) -> bool:

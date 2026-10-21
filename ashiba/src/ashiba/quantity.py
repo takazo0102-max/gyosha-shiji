@@ -470,7 +470,13 @@ def _take_off_one(
         open_rail_cut += c_open
         stage_rail_cut += c_stage
         inner_rail_cut += c_inner
-        add(m.find("布材", s), max(0, n * per_span_rails - c_open - c_stage - c_inner), f"布材{s}")
+        if not m.is_tube:
+            add(m.find("布材", s), max(0, n * per_span_rails - c_open - c_stage - c_inner), f"布材{s}")
+    # 単管は布・手すり・中桟・根がらみを規定の長さの単管で面の端から端まで通し、直線ジョイントで継ぐ
+    # （スパンごとの1本ではない。利用者の指定 2026-10-22）
+    tube_stats = (_count_tube_runs(model, per_span_rails, n_levels, add, notes,
+                                   open_rail_cut + stage_rail_cut + inner_rail_cut)
+                  if m.is_tube else None)
     if inner_cut_cells:
         notes.append(
             f"内ブラケットで床を拡幅した区間（{sum(inner_cut_cells.values())}スパン×層）は躯体との隙間が"
@@ -656,7 +662,7 @@ def _take_off_one(
     _note_bridged_zones(model, notes)
     _note_double_posts_if_tall(model, notes)
     if m.is_tube:
-        _count_tube_fittings(model, counts, parts, add, notes)
+        _count_tube_fittings(model, counts, parts, add, notes, tube_stats)
     return _assemble(model, rules, counts, parts, notes, breakdown)
 
 
@@ -1659,12 +1665,45 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str], bracket_sec
     )
 
 
-def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, notes) -> None:
+def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes, cut: int) -> dict:
+    """単管の通し（布・手すり・中桟・根がらみ）: 面ごとに規定の長さの単管の割付（tube_runs）× 通しの数.
+
+    通しは建地ごとに直交クランプで留める（抱き足場の床の布2本は3連クランプなので数えない）。継ぎは直線ジョイント。
+    返り値: {"clamps": 直交クランプ, "joints": 直線ジョイント}
+    """
+    from .tube_runs import face_runs
+
+    m = model.master
+    hug_rows = 2 * n_levels if model.config.is_hug else 0
+    clamps = joints = 0
+    lines = []
+    for ep in model.plan.edges:
+        a, _b = face_runs(list(ep.spans))
+        for L in a.pieces:
+            part = m.find("単管", L)
+            add(part, rows, f"単管{L / 1000:.1f}M（布・手すりの通し）")
+        clamps += (len(ep.spans) + 1) * (rows - hug_rows)
+        joints += (len(a.pieces) - 1) * rows
+        lines.append("+".join(f"{L / 1000:.1f}" for L in a.pieces))
+    notes.append(
+        f"単管の通し（根がらみ・" + ("床の布2本・" if hug_rows else "") + "手すり・中桟）は、面ごとに規定の長さの単管を"
+        f"直線ジョイントで継いで通す（{'／'.join(lines)} m。継ぎは建地のクランプから離し、隣の通しとずらす）×"
+        f"1面あたり{rows}通りで計上"
+    )
+    if cut:
+        notes.append(f"単管の通しは開口部・ステージ等の区間（スパン換算{cut}本分）も面の通しのまま計上しています（切らずに通す）")
+    return {"clamps": clamps, "joints": joints}
+
+
+def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, notes,
+                         tube_stats: Optional[dict] = None) -> None:
     """単管足場のクランプ・ジョイント（くさびの緊結部の代わり）.
 
-    布・腕木・手すり・中桟・根がらみ（布材）は両端を直交クランプで建地に、筋かいは両端を自在クランプで留める。
-    建地の継ぎは直線ジョイント。ブラケット・壁つなぎはクランプ付きの品なので数えない。
+    腕木・コーナーの短い管（布材）は両端を直交クランプで建地に、筋かいは両端を自在クランプで留める。
+    布・手すりの通しは建地ごとに直交クランプ（_count_tube_runs）。建地と通しの継ぎは直線ジョイント。
+    ブラケット・壁つなぎはクランプ付きの品なので数えない。
     """
+    tube_stats = tube_stats or {"clamps": 0, "joints": 0}
     m = model.master
     by_cat: dict[str, int] = {}
     for key, qty in counts.items():
@@ -1678,27 +1717,28 @@ def _count_tube_fittings(model: ScaffoldModel, counts: dict, parts: dict, add, n
     n_ledgers = by_cat.get("布材", 0)
     n_braces = by_cat.get("筋交", 0)
     # 単管抱き足場: 床の高さの布2本は、建地ごと・層ごとに3連クランプ1個で建地と一緒に抱く（直交クランプではない）
-    n_hug = n_triple = 0
+    n_triple = 0
     if model.config.is_hug:
-        n_cells = sum(len(e.spans) for e in model.plan.edges) * model.elevation.n_levels
-        n_hug = min(n_ledgers, 2 * n_cells)
         n_triple = (model.plan.total_posts + model.outer_corner_posts()) * model.elevation.n_levels
         add(triple, n_triple, "3連クランプ（建地と抱き合わせた布2本）")
-    add(orth, 2 * (n_ledgers - n_hug), "直交クランプ（布・腕木・手すり・根がらみの両端）")
+    n_orth = 2 * n_ledgers + tube_stats["clamps"]
+    add(orth, n_orth, "直交クランプ（布・手すり・根がらみの通しを建地ごと、腕木・短い管は両端）")
     add(free, 2 * n_braces, "自在クランプ（筋かいの両端）")
     joint = next(iter(m.by_category("ジョイント")), None)
     n_posts = by_cat.get("支柱", 0)
     n_feet = by_cat.get("ジャッキ", 0)
     # ジャッキとアンダーベースは同じ数だけ入るので、脚の数はその半分
     legs = n_feet // 2 if any("アンダーベース" in p.note for p in m.by_category("ジャッキ")) else n_feet
-    n_joints = max(0, n_posts - legs)
-    add(joint, n_joints, "直線ジョイント（建地の継ぎ）")
+    n_post_joints = max(0, n_posts - legs)
+    n_joints = n_post_joints + tube_stats["joints"]
+    add(joint, n_joints, "直線ジョイント（建地と通しの継ぎ）")
     if n_triple:
-        notes.append(f"単管抱き足場: 床の高さの布{n_hug}本（建地の両側に2本）は、建地ごと・層ごとの3連クランプ{n_triple}個で留める。"
+        notes.append(f"単管抱き足場: 床の高さの布（建地の両側に2本の通し）は、建地ごと・層ごとの3連クランプ{n_triple}個で留める。"
                      "布板・幅木は無い（抱き合わせた単管2本が床）")
     notes.append(
-        f"単管足場: 直交クランプ{2 * (n_ledgers - n_hug)}個（布材{n_ledgers - n_hug}本×両端）・自在クランプ{2 * n_braces}個"
-        f"（筋かい{n_braces}本×両端）・直線ジョイント{n_joints}個（建地の継ぎ）を計上。ブラケット・壁つなぎはクランプ付きの品"
+        f"単管足場: 直交クランプ{n_orth}個（通しを建地ごと{tube_stats['clamps']}個＋腕木・短い管{n_ledgers}本×両端）・"
+        f"自在クランプ{2 * n_braces}個（筋かい{n_braces}本×両端）・直線ジョイント{n_joints}個（建地の継ぎ{n_post_joints}・"
+        f"通しの継ぎ{tube_stats['joints']}）を計上。ブラケット・壁つなぎはクランプ付きの品"
     )
 
 

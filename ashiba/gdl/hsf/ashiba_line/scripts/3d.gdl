@@ -10,6 +10,18 @@ if matScaf > 0 then material matScaf
 define material "ashiba_clamp_zinc" 2, 0.80, 0.81, 0.83
 define material "ashiba_clamp_black" 3, 0.08, 0.08, 0.09
 define material "ashiba_clamp_bolt" 2, 0.80, 0.63, 0.26
+! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
+define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
+define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
+define material "ashiba_tc_50" 3, 0.50, 0.50, 0.52	! 5.0M グレー
+define material "ashiba_tc_45" 3, 0.50, 0.30, 0.15	! 4.5M 茶
+define material "ashiba_tc_40" 3, 0.10, 0.30, 0.80	! 4.0M 青
+define material "ashiba_tc_35" 3, 0.95, 0.55, 0.70	! 3.5M ピンク
+define material "ashiba_tc_30" 3, 0.95, 0.85, 0.10	! 3.0M 黄
+define material "ashiba_tc_25" 3, 0.08, 0.08, 0.08	! 2.5M 黒
+define material "ashiba_tc_20" 3, 0.95, 0.50, 0.10	! 2.0M オレンジ
+define material "ashiba_tc_15" 3, 0.15, 0.60, 0.25	! 1.5M 緑
+define material "ashiba_tc_10" 3, 0.50, 0.25, 0.65	! 1.0M 紫
 clW = 0.040		! クランプの口の幅
 clT = 0.0045	! 口の帯の厚み
 ! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、
@@ -314,6 +326,19 @@ for ip = 1 to nSpan + 1
 				for j = 1 to nPj
 					if not(explodeMask > 0 and ownX = 1 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
 						cylind pj[j], r_sic
+						! 単管の建地は両端に識別色
+						if serType = "T" and isLite = 0 and matScaf > 0 then
+							! （継ぎの側は直線ジョイントの帯 25 の半分をよける）
+							cL = pj[j]
+							gosub 846
+							addz 0.0125 * (j > 1)
+							cylind 0.03, r_sic + 0.0004
+							del 1
+							addz pj[j] - 0.03 - 0.0125 * (j < nPj)
+							cylind 0.03, r_sic + 0.0004
+							del 1
+							material matScaf
+						endif
 						! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
 						if postShape = 1 and isLite = 0 then
 							add -0.0275, -0.003, 0
@@ -596,10 +621,14 @@ for il = 1 to nLv
 			if skipH = 0 and il > 1 and hugMode = 1 then
 				r_t = 0.0486 / 2
 				for sd = 0 to 1
-					add x - 0.05, -rowW + (2 * sd - 1) * tubeOff, z
-					roty 90
-					cylind spans[ip] + 0.10, r_t
-					del 2
+					! 規定の長さの単管の通し（継ぎは隣の布・上下の層とずらす）
+					add x, -rowW + (2 * sd - 1) * tubeOff, z
+					runX = x
+					runP = 1 + (sd + il) - 2 * int((sd + il) / 2)
+					nL = spans[ip]
+					gosub 832
+					runP = 0
+					del 1
 				next sd
 				! 3連クランプ（日建 P3CR、カタログ p384）: 建地と両側の布2本を1個で抱く。建地ごと（終点の建地も）
 				if isLite = 0 then
@@ -619,7 +648,10 @@ for il = 1 to nLv
 				for row = rowStart to 1
 					add x, -row * rowW, z
 					nL = spans[ip]
+					runX = x
+					runP = 2 - row
 					gosub 830
+					runP = 0
 					del 1
 				next row
 			endif
@@ -686,13 +718,17 @@ for il = 1 to nLv
 					gosub 850
 					del 1
 				else
+					runX = x
 					add x, -rowW, z + railTop
 					nL = spans[ip]
+					runP = 1 + il - 2 * int(il / 2)
 					gosub 830
 					del 1
 					add x, -rowW, z + railMid
 					nL = spans[ip]
+					runP = 3 - runP
 					gosub 830
+					runP = 0
 					del 1
 				endif
 			endif
@@ -705,13 +741,17 @@ for il = 1 to nLv
 						abs(z - bkH[ik2]) < 0.001 then inBk = 1
 			next ik2
 			if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
+				runX = x
 				add x, 0, z + railTop
 				nL = spans[ip]
+				runP = 2 - il + 2 * int(il / 2)
 				gosub 830
 				del 1
 				add x, 0, z + railMid
 				nL = spans[ip]
+				runP = 3 - runP
 				gosub 830
+				runP = 0
 				del 1
 			endif
 			! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
@@ -1917,6 +1957,15 @@ return
 840:	! ---- 支柱の継ぎ目（利用者の指摘 2026-10-21: 支柱の継ぎ目が分かるように）: 継手の帯（上下の支柱の
 	! 突き合わせ。コマ φ106 の円盤とは形を変え、縦長の帯にする）と、継ぎ目の線（帯の中央の細い溝）。
 	! 軽量でも描く（積んだ支柱の長さ 2700・3600 が3Dと立面で読めるように）
+	! 単管の建地は直線ジョイント（PCJ、カタログ p377）: 管の中に差し込み、外に見えるのは中央の帯 25（φ48.6）
+	if serType = "T" then
+		if matScaf > 0 then material "ashiba_clamp_zinc"
+		addz -0.0125
+		cylind 0.025, r_sic + 0.0008
+		del 1
+		if matScaf > 0 then material matScaf
+		return
+	endif
 	addz -0.04
 	cylind 0.035, r_sic + 0.008
 	addz 0.045
@@ -2235,6 +2284,77 @@ return
 	endif
 	return
 
+832:	! ---- 単管の通しのこの区間の分（利用者の指定 2026-10-22: 規定の長さの単管を直線ジョイントで継ぐ）----
+	! 原点＝この区間の始点の建地の位置の管の芯、+X へ nL。runX＝面の始点からこの区間の始め、runP＝割付（1=A 2=B、
+	! 0 は通さない短い管）。面の最初と最後の区間は通しの始め（runS）・終わり（runE）まで出す
+	r_t = 0.0486 / 2
+	if runP = 0 or nRl[max(runP, 1)] = 0 then
+		add -0.05, 0, 0
+		roty 90
+		cylind nL + 0.10, r_t
+		del 2
+		return
+	endif
+	xs = 0
+	xe = nL
+	if runX < 0.001 then xs = runS - runX
+	if runX + nL > lineLen - 0.001 then xe = runE[runP] - runX
+	add xs, 0, 0
+	roty 90
+	cylind xe - xs, r_t
+	del 2
+	if isLite = 0 and matScaf > 0 then
+		! 単管の両端の識別色と、継ぎの直線ジョイント（PCJ: 管の中に差し込み、外に見えるのは中央の帯 25）
+		pa = runS
+		for k = 1 to nRl[runP]
+			pb = pa + rl[runP][k]
+			cL = rl[runP][k]
+			ga = 0
+			if k > 1 then ga = 0.0125
+			gb = 0
+			if k < nRl[runP] then gb = 0.0125
+			for e832 = 0 to 1
+				bx = pa + ga - runX
+				if e832 = 1 then bx = pb - gb - 0.03 - runX
+				if bx >= xs - 0.001 and bx < xe - 0.001 then
+					gosub 846
+					add bx, 0, 0
+					roty 90
+					cylind 0.03, r_t + 0.0004
+					del 2
+				endif
+			next e832
+			if k < nRl[runP] then
+				jx = pb - runX
+				if jx >= xs and jx < xe then
+					material "ashiba_clamp_zinc"
+					add jx - 0.0125, 0, 0
+					roty 90
+					cylind 0.025, r_t + 0.0008
+					del 2
+				endif
+			endif
+			pa = pb
+		next k
+		material matScaf
+	endif
+	return
+
+846:	! 単管の識別色（カタログ p372）。cL＝単管の長さ m
+	cK = int(cL * 10 + 0.5)
+	if cK = 60 then material "ashiba_tc_60"
+	if cK = 55 then material "ashiba_tc_55"
+	if cK = 50 then material "ashiba_tc_50"
+	if cK = 45 then material "ashiba_tc_45"
+	if cK = 40 then material "ashiba_tc_40"
+	if cK = 35 then material "ashiba_tc_35"
+	if cK = 30 then material "ashiba_tc_30"
+	if cK = 25 then material "ashiba_tc_25"
+	if cK = 20 then material "ashiba_tc_20"
+	if cK = 15 then material "ashiba_tc_15"
+	if cK = 10 then material "ashiba_tc_10"
+	return
+
 834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378）----
 	! 原点＝建地の芯（Z 向き）の留める高さ。布は +X 向きで芯は y = -clDy、半径 clR2。建地を掴む口と布を掴む口を
 	! 背中合わせにリベットで留めた形。口は銀色（亜鉛めっき）の本体の半割と、蝶番で開く黒いふたを、金色の
@@ -2331,17 +2451,19 @@ return
 	! p378）で留める。管は建地の外まで少し出す（次の管と重ねて留めるので）
 	if serType = "T" then
 		r_t = 0.0486 / 2
-		add -0.05, -tubeOff, 0
-		roty 90
-		cylind nL + 0.10, r_t
-		del 2
+		add 0, -tubeOff, 0
+		gosub 832
+		del 1
 		if isLite = 0 then
 			clDy = tubeOff
 			clR2 = r_t
 			for hd830 = 0 to 1
-				add hd830 * nL, 0, 0
-				gosub 834
-				del 1
+				! 通しは建地ごとに1個（終点の建地はこの面の最後の区間が留める）。短い管は両端
+				if hd830 = 0 or runP = 0 or runX + nL > lineLen - 0.001 then
+					add hd830 * nL, 0, 0
+					gosub 834
+					del 1
+				endif
 			next hd830
 		endif
 		return

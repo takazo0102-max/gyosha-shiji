@@ -25,12 +25,17 @@ class TestTubeSeries(unittest.TestCase):
         self.assertTrue(m.master.is_tube)
         self.assertEqual(m.master.system_name, "単管足場")
         self.assertTrue(all(s <= 1800 for e in m.plan.edges for s in e.spans))   # 建地間隔 1.85m 以下
-        ledgers = sum(_qty(r, "布材").values())
+        from ashiba.tube_runs import face_runs
+
+        short = sum(_qty(r, "布材").values())          # 腕木・出隅の短い管（両端をクランプ）
         braces = sum(_qty(r, "筋交").values())
+        runs = [face_runs(list(e.spans))[0] for e in m.plan.edges]
+        n_rows = sum(_qty(r, "単管").values()) // sum(len(a.pieces) for a in runs)
         clamps = _qty(r, "クランプ")
-        self.assertEqual(clamps["ARC1"], 2 * ledgers)
+        # 布・手すりの通しは建地ごとに1個（スパンごとの両端ではない）
+        self.assertEqual(clamps["ARC1"], 2 * short + n_rows * sum(len(e.spans) + 1 for e in m.plan.edges))
         self.assertEqual(clamps["ARC2"], 2 * braces)
-        self.assertGreater(_qty(r, "ジョイント").get("PCJ", 0), 0)
+        self.assertGreaterEqual(_qty(r, "ジョイント")["PCJ"], n_rows * sum(len(a.pieces) - 1 for a in runs))
         self.assertEqual(m.guard_rail_height_mm, 900)
         self.assertEqual(m.midrail_height_mm, 450)
         self.assertEqual(_check(r, 3).status, "OK")
@@ -100,12 +105,15 @@ class TestHugScaffold(unittest.TestCase):
         brk = solve_all({**BASE, "scaffold_form": "ブラケット足場", "bracket_post": "単管"})
         span = sum(len(e.spans) for e in hug.model.plan.edges)
         n = hug.model.elevation.n_levels
-        # 抱き足場は各層の床の高さに建地を両側から抱く布が2本（ブラケット足場は床の高さに布が無い）。
+        # 抱き足場は各層の床の高さに建地を両側から抱く布が2本の通し（ブラケット足場は床の高さに布が無い）。
         # 出隅の建地は隣の面と同じ1本なので、ブラケット足場の出隅の外側の升目（0.8m の管）が無い
+        from ashiba.tube_runs import face_runs
+
         self.assertEqual([e.spans for e in hug.model.plan.edges], [e.spans for e in brk.model.plan.edges])
-        self.assertNotIn("単管0.8M", _qty(hug, "布材"))
-        long_ = lambda r: sum(v for k, v in _qty(r, "布材").items() if k != "単管0.8M")
-        self.assertEqual(long_(hug) - long_(brk), 2 * span * n)
+        self.assertFalse(_qty(hug, "布材"))
+        per_run = sum(len(face_runs(list(e.spans))[0].pieces) for e in hug.model.plan.edges)
+        self.assertEqual(sum(_qty(hug, "単管").values()) - sum(_qty(brk, "単管").values()), 2 * n * per_run)
+        self.assertGreater(span, 0)
 
     def test_hug_corner_post_is_shared(self):
         # 出隅の建地は1本（利用者の指定 2026-10-22）。建地列は離れの線の上で、隣の面の端の建地・外側コーナー支柱は無い

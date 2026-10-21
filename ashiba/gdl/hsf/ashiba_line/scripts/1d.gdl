@@ -10,6 +10,9 @@
 dim spans[60]
 dim posts[40]
 dim postsA[40]
+dim rl[2][20]
+dim nRl[2]
+dim runE[2]
 dim ties[200]
 dim tieH[200]
 dim gl[61]
@@ -167,6 +170,34 @@ while strlen(rest) > 0 and nPostA < 40 do
 		postsA[nPostA] = v / 1000
 	endif
 endwhile
+
+! ---- tubeRunA・tubeRunB（単管の通しの割付。規定の長さの単管を直線ジョイントで継ぐ）をパース ----
+runS = tubeRunS
+for p832 = 1 to 2
+	nRl[p832] = 0
+	runE[p832] = runS
+	rest = tubeRunA
+	if p832 = 2 then rest = tubeRunB
+	while strlen(rest) > 0 and nRl[p832] < 20 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nRl[p832] = nRl[p832] + 1
+			rl[p832][nRl[p832]] = v / 1000
+			runE[p832] = runE[p832] + v / 1000
+		endif
+	endwhile
+next p832
+! 3D の布・手すりの呼び出し側が、この区間の通しの割付（runP: 0=通さない 1=A 2=B）と区間の始め（runX）を渡す
+runP = 0
+runX = 0
 
 ! ---- tieList をパース (mm→m) ----
 nTie = 0
