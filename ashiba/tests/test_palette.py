@@ -15,7 +15,7 @@ class TestEntries(unittest.TestCase):
     def test_three_buttons_call_existing_scripts(self):
         # パレットはメニュー＋よく使う3つ。ほかの操作はメニューから（利用者の指定 2026-10-21: まとめて使いやすく）
         self.assertEqual([e.title for e in ENTRIES], ["メニュー", "配置", "解き直し", "3D表示"])
-        self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "支柱だけ分解",
+        self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "条件", "条件の登録", "条件の呼び出し",
                                                      "帳票", "撤去"])
         for a in ACTIONS:
@@ -115,7 +115,7 @@ if __name__ == "__main__":
 class TestMenu(unittest.TestCase):
     def test_selection_puts_matching_actions_first(self):
         line = [a.title for a in menu_items({"line"})]
-        self.assertEqual(line[:6], ["解き直し", "区切る", "区切りを戻す", "支柱だけ分解", "分解を戻す", "3D表示"])
+        self.assertEqual(line[:7], ["解き直し", "区切る", "区切りを戻す", "面の切替", "支柱だけ分解", "分解を戻す", "3D表示"])
         slab = [a.title for a in menu_items({"slab"})]
         self.assertEqual(slab[:4], ["配置", "条件", "帳票", "撤去"])
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")

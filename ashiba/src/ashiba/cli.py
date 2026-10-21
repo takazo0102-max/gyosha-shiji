@@ -156,7 +156,7 @@ TOP_KEYS = {
     "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
-    "member_edits",
+    "member_edits", "face_forms",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -564,6 +564,13 @@ def validate_spec(spec: dict) -> None:
     form = spec.get("scaffold_form")
     if form is not None and form not in SCAFFOLD_FORMS:
         errors.append(f"scaffold_form: {'・'.join(SCAFFOLD_FORMS)} のどれかです（{form!r}）")
+    if spec.get("face_forms"):
+        from .face_forms import parse_face_forms
+
+        try:
+            parse_face_forms(spec.get("face_forms"))
+        except ValueError as e:
+            errors.append(str(e))
     bpost = spec.get("bracket_post", "支柱")
     if bpost not in ("支柱", "単管"):
         errors.append(f"bracket_post: 支柱 か 単管 です（{bpost!r}）")
@@ -1362,8 +1369,39 @@ def _manual_ties(spec: dict, model: ScaffoldModel):
     return out
 
 
+def all_face_names(spec: dict, master_csv: Path | None = None) -> list[str]:
+    """建てる面の名前（外形の辺の方位。入力の faces で絞っていればその面だけ）."""
+    master = load_master(resolve_series_id(spec), master_csv)
+    plan = solve_plan(spec["outline_mm"], master, StandoffSpec())
+    names = plan.face_names()
+    faces = _faces_from_spec(spec, plan)
+    return [n for e, n in zip(plan.edges, names) if faces is None or e.edge_index in faces]
+
+
+def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, PlanRun]]:
+    """面ごとの足場の切り替え（face_forms）を含む入力を、面の組ごとに解く → [(組の名前, 結果)].
+
+    切り替えが無ければ [("", solve_all(spec))]。組の名前は "" が切り替えていない面、ほかは種類（face_forms）。
+    """
+    from .face_forms import face_groups
+
+    if not spec.get("face_forms"):
+        return [("", solve_all(spec, master_csv))]
+    validate_spec(spec)
+    try:
+        groups = face_groups(spec, all_face_names(spec, master_csv))
+    except ValueError as e:
+        raise InputError(str(e))
+    return [(label, solve_all(sub, master_csv)) for label, sub in groups]
+
+
 def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
-    """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）."""
+    """入力仕様を解く（ファイル出力・Archicad配置は呼び側の仕事）.
+
+    面ごとの足場の切り替え（face_forms）は solve_groups で面の組に分けてから解く。
+    """
+    if spec.get("face_forms"):
+        raise InputError("face_forms（面ごとの足場の切り替え）は面の組ごとに解きます（solve_groups）")
     validate_spec(spec)
     model = build_model(spec, master_csv)
     check_edge_indices(spec, model)
@@ -1791,9 +1829,15 @@ def run(input_path: Path, out_dir: Path, master_csv: Path | None = None) -> dict
     # input_path だけ Path() していて out_dir はしていなかった
     out_dir = Path(out_dir)
     spec = load_spec(Path(input_path))
-    r = solve_all(spec, Path(master_csv) if master_csv is not None else None)
-    write_outputs(r, out_dir)
-    return result_dict(r, out_dir)
+    groups = solve_groups(spec, Path(master_csv) if master_csv is not None else None)
+    # 面ごとに足場を切り替えた組は「切替_種類」の下に帳票を出す
+    for label, r in groups:
+        write_outputs(r, out_dir / f"切替_{label}" if label else out_dir)
+    label, r = groups[0]
+    res = result_dict(r, out_dir / f"切替_{label}" if label else out_dir)
+    if len(groups) > 1:
+        res["face_groups"] = [{"form": lb or "（切り替えなし）", "faces": g.model.plan.face_names()} for lb, g in groups]
+    return res
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -57,6 +57,8 @@ FIELDS: tuple[Field, ...] = (
     Field("autoInBrk", "bool", ("auto_inner_bracket",), True),
     Field("stairLayout", "str", ("stairs", "layout"), "自動"),
     Field("facesOnly", "str", ("faces",), "", zero_is_unset=True),
+    # 面ごとの足場の切り替え（「南面=ブラケット足場（単管）;東面=単管抱き足場」。パレットの「面の切替」が書く）
+    Field("faceForms", "str", ("face_forms",), "", zero_is_unset=True),
     Field("netLevels", "intlist", ("horizontal_net_levels",), "", zero_is_unset=True),
     Field("hFromSlab", "bool", ("height_from_slabs",), True),
     # 範囲を指定した部材の編集。1行に「面 スパン 層 部材（→品番）」を ; 区切りで（255文字ずつ4欄）

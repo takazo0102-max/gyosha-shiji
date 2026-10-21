@@ -25,7 +25,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
-from ashiba.cli import result_dict, solve_all, write_outputs  # noqa: E402
+from ashiba.cli import result_dict, solve_all, solve_groups, write_outputs  # noqa: E402
 from ashiba.detail_sheet import place_detail_sheet  # noqa: E402
 from ashiba.pdf_publish import DEFAULT_PUBLISHER_SET, publish_scaffold_pdf  # noqa: E402
 from ashiba.project_info import fill_title_block  # noqa: E402
@@ -488,7 +488,10 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             spec["slabs"] = slabs
             print(f"高さ: 建物まわりのスラブ{len(slabs)}枚の天端から面ごとに決めます")
 
-    r = solve_all(spec)
+    # 面ごとに足場を切り替えた建物（face_forms）は面の組ごとに解く。先頭の組（切り替えていない面）を従来どおり
+    # 帳票・立面・詳細図まで出し、ほかの組は足場ラインと付属部品を置いて帳票を「切替_種類」に出す
+    groups = solve_groups(spec)
+    _label0, r = groups[0]
     write_outputs(r, OUT_DIR)
     write_sample_spec(OUT_DIR)
     result = result_dict(r, OUT_DIR)
@@ -505,6 +508,28 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         attach, attach_notes = [], [f"壁つなぎ・水平ネットの部品を置けませんでした（{e}）"]
     for n in attach_notes:
         print(f"  注意: {n}")
+    group_lines: list = []
+    for label, rg in groups[1:]:
+        gdir = OUT_DIR / f"切替_{label}"
+        write_outputs(rg, gdir)
+        lg = place_scaffold_lines(
+            rg.model, line_part, client, stair_plan=rg.stair_plan,
+            openings=rg.openings, platforms=rg.platforms, bracket_sections=rg.brackets,
+            terrain=rg.terrain,
+        )
+        try:
+            ag, ag_notes = place_attachments(client, rg, lg)
+        except TapirError as e:
+            ag, ag_notes = [], [f"壁つなぎ・水平ネットの部品を置けませんでした（{e}）"]
+        group_lines += lg + ag
+        vg = result_dict(rg, gdir)["verdict"]
+        print(f"  面の切替: {'・'.join(rg.model.plan.face_names())} を {label}（{rg.model.config.form_label}・"
+              f"{rg.model.master.system_name}）で 足場ライン{len(lg)}本 — " + ("成立" if vg["ok"] else "是正が必要")
+              + f"（帳票は {gdir.name}）")
+        for b in vg["blockers"]:
+            print(f"    是正: {b}")
+        for n in ag_notes:
+            print(f"    注意: {n}")
     # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
     plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
@@ -604,7 +629,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
     # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
     # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）
-    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details + attach}
+    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details + attach + group_lines}
     stale = [
         e for e in client.objects_for_slab(
             r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS,

@@ -19,7 +19,7 @@ from .spec_object import FIELDS, spec_from_params
 PRESET_DIR_NAME = "条件の登録"
 # 建物ごとに違う値。登録しない・呼び出しで上書きしない
 BUILDING_FIELDS = frozenset({
-    "projName", "siteName", "eavesH", "bldgH", "scaffH", "facesOnly",
+    "projName", "siteName", "eavesH", "bldgH", "scaffH", "facesOnly", "faceForms",
     "memberEdit1", "memberEdit2", "memberEdit3", "memberEdit4", "presetName",
 })
 PRESET_FIELDS = tuple(f.gdl for f in FIELDS if f.gdl not in BUILDING_FIELDS)

@@ -155,6 +155,10 @@
 			<Description><![CDATA["足場を掛ける面（例 南面,東面。空＝全周）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="faceForms">
+			<Description><![CDATA["面ごとの足場の切り替え（例 南面=ブラケット足場（単管）;東面=単管抱き足場。空＝全部同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="netLevels">
 			<Description><![CDATA["水平ネットを張る層（例 2,5。空＝張らない）"]]></Description>
 			<Value><![CDATA[""]]></Value>
