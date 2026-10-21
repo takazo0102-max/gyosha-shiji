@@ -237,3 +237,13 @@ def face_boards(spans: list[int], starts=None, end_window=None) -> tuple[BoardRu
     a = plan_boards(spans, starts=starts, end_window=end_window)
     return a, staggered_boards(a, spans, end_window)
 
+
+
+# 出隅の板（単管の足場。3D の GDL と同じ規則）: コーナーの単管（建地列の外、管の芯々 TUBE_OFF_MM 外）から
+# 始点側の面の最初の建地の先まで届く、いちばん短い足場板（1.0M→1.5M→2.0M）。幅木も同じ長さ
+TUBE_OFF_MM = 48.6 + 17.0
+
+
+def corner_board_mm(row_spacing_mm: float) -> int:
+    need = float(row_spacing_mm) + TUBE_OFF_MM + 200.0
+    return next((L for L in (1000, 1500, 2000) if L >= need), 2000)

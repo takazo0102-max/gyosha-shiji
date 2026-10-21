@@ -80,9 +80,9 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     n_boards = sum(len(face_boards(list(e.spans))[i % 2].pieces)
                                    for e in r.model.plan.edges for i in range(len(r.model.deck_widths_in_use)))
                     got = sum(l.qty for l in r.quantity.lines if l.part and l.part.category == cat)
-                    # 単管のブラケット足場は出隅ごと・層ごとにコーナーの足場板1枚
+                    # 単管の足場は出隅ごと・層ごと・床の列ごとにコーナーの足場板1枚
                     corner = (r.model.outer_corner_posts() * r.model.elevation.n_levels
-                              if r.model.config.scaffold_form == "一側足場" else 0)
+                              * len(r.model.deck_widths_in_use))
                     self.assertEqual(got, (n_boards * r.model.elevation.n_levels) + corner, name)
                     continue
                 note = next(n for n in r.quantity.notes if n.startswith(f"{cat}はスパン"))
