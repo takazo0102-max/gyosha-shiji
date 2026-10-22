@@ -1265,6 +1265,15 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         # 開口部幅木（NFG918）も L形で端を横切る（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
         self.assertIn("block 0.008, gyS + gR + 0.008 - gyO, 0.150", sub)
 
+    def test_stair_handrail_on_the_stair_side_at_1350(self):
+        # 専用階段手摺 NDKT は階段側（外側の建地列）だけ、床から 1350（利用者の指摘 2026-10-22: 今より450上、階段側だけ）
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        i = body.index("! 階段手すり（日建 ND1800専用階段手摺 NDKT")
+        sub = body[i:i + 1500]
+        self.assertIn("for sd = 0 to stOut", sub)
+        self.assertIn("add x0 + r_sic, ys, lv[il5] + 1.35", sub)
+
     def test_no_floating_toe_board_over_the_stair(self):
         # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"

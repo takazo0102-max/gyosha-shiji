@@ -286,12 +286,13 @@ class TestStairGuards(unittest.TestCase):
         q = take_off(m, stair_plan=plan)
         self.assertEqual(q.qty_of("踊り場"), 0)
 
-    def test_handrails_on_both_sides_and_one_guard_set_per_entrance(self):
+    def test_handrail_on_the_stair_side_and_one_guard_set_per_entrance(self):
+        # 階段手すりは階段側だけ（もう一方は開口部手摺）。利用者の指摘 2026-10-22
         m = self._model("nikken_nd1800")
         plan = auto_place_stairs(m)
         q = take_off(m, stair_plan=plan)
         n = m.elevation.n_levels
-        self.assertEqual(q.qty_of("階段手摺"), plan.count * n * 2)
+        self.assertEqual(q.qty_of("階段手摺"), plan.count * n)
         self.assertEqual(q.qty_of("階段開口部手摺"), plan.count * n)
         self.assertEqual(q.qty_of("階段開口部幅木"), plan.count * n)
 

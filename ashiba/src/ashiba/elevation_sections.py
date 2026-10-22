@@ -424,7 +424,8 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
         sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - start) < 1), 1800.0) / 1000.0
         if len(lv) >= 1:
             items.append((t0 + sgn * sp0 * 0.5, (first + lv[0]) / 2.0, name("階段", "昇降階段")))
-            items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 0.9, name("階段手摺", "階段手摺") + "（両側）"))
+            items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 1.35,
+                          name("階段手摺", "階段手摺") + ("（両側）" if outside else "")))
             # 1層目の上がり口（階段室の始点）の真上に立つ開口部手摺枠＋幅木（3d.gdl と同じ位置）。外付けには付けない
             if not outside:
                 items.append((t0 + sgn * 0.03, lv[0] + 0.90, name("階段開口部手摺", "階段開口部手摺") + "・幅木"))

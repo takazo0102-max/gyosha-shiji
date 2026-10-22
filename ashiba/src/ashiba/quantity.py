@@ -1352,7 +1352,7 @@ def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_level
                         outside: bool = False) -> None:
     """階段まわりの手すり類（2026-10-18 利用者の決め）.
 
-    - 専用階段手摺: 階段1つにつき両側の2本
+    - 専用階段手摺: 階段1つにつき階段側の1本（もう一方は開口部手摺。利用者の指摘 2026-10-22）。外付けは両側の2本
     - 階段開口部手摺・開口部幅木: 出入口1か所に1組。各層で下からの階段が上がってくる所が出入口
     踊り場の部材（ハッチ付布板）は使わない。2層ごとに階段室を出て外の作業床へ出る（踊り場を兼ねる）。
     マスタに無い部材は手配の注記に出す。
@@ -1360,7 +1360,9 @@ def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_level
     if not n_towers or not n_levels:
         return
     m = model.master
-    need = (("階段手摺", n_towers * n_levels * 2, "専用階段手摺（階段1つに両側2本）"),)
+    per = 2 if outside else 1
+    need = (("階段手摺", n_towers * n_levels * per,
+             "専用階段手摺（階段1つに両側2本）" if outside else "専用階段手摺（階段1つに階段側の1本）"),)
     # 外付けは階段の開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺・幅木は使わない
     if not outside:
         need += (("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),
