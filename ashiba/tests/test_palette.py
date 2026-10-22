@@ -144,6 +144,17 @@ class TestKomaInLiteMode(unittest.TestCase):
         self.assertEqual(g3.count("for ik = 1 to nKz\n"), 3)
         self.assertNotIn("komaPitch > 0 and isLite = 0", g3)
 
+    def test_drawing_views_use_the_drawing_form(self):
+        # 断面図・立面図では図面向き（細部を省き、コマを描かない、円柱は12角）。利用者の指定 2026-10-23（案2）
+        g3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(
+            encoding="utf-8")
+        for want in ("if GLOB_CONTEXT = 4 or GLOB_CONTEXT = 24 then isDwg = 1",
+                     "if isDwg = 1 and d3 <> 3 and d3 <> 4 then isLite = 1",
+                     "if isLite and isDwg = 0 then rN = 6",
+                     "if isDwg = 1 then nKz = 0"):
+            self.assertIn(want, g3)
+        self.assertLess(g3.index("if isDwg = 1 then nKz = 0"), g3.index("for ik = 1 to nKz\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1227,7 +1227,7 @@ class TestLight3D(unittest.TestCase):
 
     def test_levels_and_auto(self):
         self.assertIn("if nSpan * (nLv - 1) > 40 then d3 = 2", self.body)
-        self.assertIn("if isLite then rN = 6", self.body)
+        self.assertIn("if isLite and isDwg = 0 then rN = 6", self.body)
         self.assertNotIn("resol 12", self.body)          # 戻すときも rN（軽量では6のまま）
 
     def test_light_skips_small_parts(self):
