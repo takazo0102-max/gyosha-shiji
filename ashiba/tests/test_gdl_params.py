@@ -1262,6 +1262,8 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         # 端の手すり: 上桟・中桟が角で折れて開口の端を横切り、外側の建地に掛かる（長手と一体。利用者の指摘 2026-10-22）
         self.assertIn("gyO = -rowW + r_sic + 0.005", sub)
         self.assertIn("cylind gyS - gyO - 0.02, gR", sub)
+        # 開口部幅木（NFG918）も L形で端を横切る（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
+        self.assertIn("block 0.008, gyS + gR + 0.008 - gyO, 0.150", sub)
 
     def test_no_floating_toe_board_over_the_stair(self):
         # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）

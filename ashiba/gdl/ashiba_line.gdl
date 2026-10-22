@@ -3985,9 +3985,13 @@ for it5 = 1 to nSt
 		cylind gcz - zg + 0.10, gR
 		del 1
 		if mToe > 0 then material mToe
-		! 開口部幅木（NFG918）: 開口の長手、床の側に立てる
+		! 開口部幅木（NFG918、カタログ p010 の写真）: 手すりと同じL形。開口の長手（床の側）と、上がり口側の角で折れて
+		! 開口の端を横切り外側の建地まで（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
 		add x0 + r_sic, gyS + gR, zg + r_nuno + 0.045
 		block fl - 2 * r_sic, 0.008, 0.150
+		del 1
+		add gx0 - gR - 0.008, gyO, zg + r_nuno + 0.045
+		block 0.008, gyS + gR + 0.008 - gyO, 0.150
 		del 1
 		if matScaf > 0 then material matScaf
 		endif
