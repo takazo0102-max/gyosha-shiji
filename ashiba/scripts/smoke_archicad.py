@@ -36,13 +36,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from ashiba.cli import solve_all  # noqa: E402
 from ashiba.elevation_sections import (  # noqa: E402
     activate_floor_plan,
-    layout_name,
     load_record,
-    plan_layout_name,
     remove_elevations,
-    sheet_layout_name,
+    scaffold_layout_names,
 )
-from ashiba.detail_sheet import detail_layout_name  # noqa: E402
 from ashiba.gdl_params import FACE_COUNT_PARAMS, face_drawn_counts  # noqa: E402
 from ashiba.smoke import CaseReport, all_zero, cases, count_mismatches, placed_spec, select, summary_lines  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
