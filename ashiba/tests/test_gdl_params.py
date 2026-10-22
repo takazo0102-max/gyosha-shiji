@@ -1283,6 +1283,10 @@ class TestStairOpeningGuard3D(unittest.TestCase):
                 ).read_text(encoding="utf-8")
         self.assertIn("stCut = skipDeck", body)
         self.assertIn('if stCut = 1 and serType <> "T" then inSg = 1', body)
+        # 部品が書き戻す図示本数（1d.gdl）も同じく引く。引き忘れて実機スモークで qtyToe 部品35≠式30 になった
+        d1 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "1d.gdl"
+              ).read_text(encoding="utf-8")
+        self.assertIn('qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))', d1)
         from ashiba.cli import solve_all
 
         base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}

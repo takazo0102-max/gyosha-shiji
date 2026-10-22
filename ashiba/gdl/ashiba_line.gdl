@@ -1104,7 +1104,7 @@ for ip = 1 to nSpan
 			next il
 		endif
 	next ib
-	! 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側）。幅木・手すりは残る
+	! 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側）。外側の幅木も付けない、手すりは残る
 	qStairOpen = 0
 	for it = 1 to nSt
 		! 外付け（stOut）の階段は外の升目なので、本体の床は切らない
@@ -1126,7 +1126,8 @@ for ip = 1 to nSpan
 	! 作業床の高さにスパン方向の布材は付けない（アンチは腕木に掛ける）。根がらみ＋手すり・中桟だけ
 	qNuno = qNuno + nRows * (1 - qOpenNega) * segBase + (nIn - qOpenLv) * (qOuter + qInner)
 	qDeck = qDeck + max(0, nIn - qOpenLv - qStairOpen)
-	if railAdv = 0 then qToe = qToe + nIn - qOpenLv
+	! 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・gdl_params.face_drawn_counts と同じ）
+	if railAdv = 0 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
 	if railAdv = 1 then qAdv = qAdv + nIn - qOpenLv
 	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
 	if nEd > 0 then
