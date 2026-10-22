@@ -2382,9 +2382,10 @@ define material "ashiba_tc_25" 3, 0.08, 0.08, 0.08	! 2.5M 黒
 define material "ashiba_tc_20" 3, 0.95, 0.50, 0.10	! 2.0M オレンジ
 define material "ashiba_tc_15" 3, 0.15, 0.60, 0.25	! 1.5M 緑
 define material "ashiba_tc_10" 3, 0.50, 0.25, 0.65	! 1.0M 紫
-! 幅木の表面材。単管は足場板（床・幅木とも）を鉄の色（踏板の表面材）にする（利用者の指定 2026-10-22: 黄色はやめて）
+! 幅木の表面材は鉄の色（踏板の表面材）。黄色にしない（利用者の指定 2026-10-22: 黄色はやめて、巾木の色黄色くしないでね）。
+! 前に黄の matToe で置いた部品も、踏板の表面材があれば鉄の色で描く
 mToe = matToe
-if serType = "T" and matDeck > 0 then mToe = matDeck
+if matDeck > 0 then mToe = matDeck
 clW = 0.040		! クランプの口の幅
 clT = 0.0045	! 口の帯の厚み
 ! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、

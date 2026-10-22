@@ -567,11 +567,11 @@ class ArchicadClient:
     ALUMINIUM_SURFACES = ("金属 - アルミニウム", "Metal - Aluminium", "Metal - Aluminum")
 
     # 部材ごとの色（表面材の名前の候補を順に。無ければ次の候補、どれも無ければその部材は足場と同じ）。
-    # 足場（支柱・布材・手すり・階段）＝アルミ、踏板＝亜鉛めっき鋼、幅木＝黄（現場で目立たせる色）
+    # 足場（支柱・布材・手すり・階段）＝アルミ、踏板・幅木＝亜鉛めっき鋼（鉄の色。幅木を黄にしない。利用者の指定 2026-10-22）
     MEMBER_SURFACES = {
         "matScaf": (("金属 - アルミニウム", "Metal - Aluminium", "Metal - Aluminum"), ("アルミ", "Alumin")),
         "matDeck": (("金属 - 亜鉛", "Metal - Zinc"), ("亜鉛", "Zinc", "Galvan")),
-        "matToe": (("塗装 - 黄", "ペイント - 黄", "Paint - Yellow"), ("黄", "Yellow")),
+        "matToe": (("金属 - 亜鉛", "Metal - Zinc"), ("亜鉛", "Zinc", "Galvan")),
     }
 
     def find_member_surfaces(self) -> dict:
