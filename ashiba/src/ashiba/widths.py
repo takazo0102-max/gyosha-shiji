@@ -4,7 +4,8 @@
 幅の一覧を出す。センチ（メートル系: 60・90・120cm）とインチ（インチ系: 2・3・4フィート＝24・36・48インチ）の
 両方を並べ、選んだ幅の系（モジュール）に合わせる。系が変わるなら系列もその系の既定にする（信和A／日建ND1800）。
 選んだ幅は足場条件の部品（無ければ条件ファイル）に書くので、次からは聞かない。
-枠組（建枠の幅で決まる）・単管抱き足場・単管のブラケット足場（足場板1列）は幅を選ばない。
+単管抱き足場・単管のブラケット足場（足場板1列）は幅を選ばない。枠組は幅に近い建枠（1219・914・610）に
+なり、布板（アンチ）もその建枠に載る組に替わる（610 は1列）。
 """
 
 from __future__ import annotations
@@ -57,7 +58,7 @@ def needs_width_choice(spec: dict) -> bool:
         return False
     if form == "ブラケット足場" and str(spec.get("bracket_post") or "支柱") == "単管":
         return False
-    return str(spec.get("series_id") or "") != "waku"
+    return True
 
 
 def ordered_choices(spec: dict) -> list[WidthChoice]:
@@ -88,6 +89,9 @@ def apply_width_choice(spec: dict, choice: WidthChoice) -> tuple[dict, list[str]
     out = dict(spec)
     notes = [f"足場の幅 {choice.label}"]
     out["scaffold_width_mm"] = int(choice.width_mm)
+    if str(spec.get("series_id") or "") in ("waku", "tankan"):
+        # 枠組・単管は系列を替えない（枠組は幅に近い建枠 1219・914・610 になる。60cm を選んでも枠組のまま）
+        return out, notes
     if _module_of(spec) != choice.module:
         out["module"] = choice.module
         sid = str(spec.get("series_id") or "")

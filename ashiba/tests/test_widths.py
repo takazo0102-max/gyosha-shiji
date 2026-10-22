@@ -32,7 +32,7 @@ class TestWidths(unittest.TestCase):
         self.assertFalse(needs_width_choice({**BASE, "deck_widths": [400, 250]}))
         self.assertFalse(needs_width_choice({**BASE, "scaffold_form": "単管抱き足場"}))
         self.assertFalse(needs_width_choice({**BASE, "scaffold_form": "ブラケット足場", "bracket_post": "単管"}))
-        self.assertFalse(needs_width_choice({**BASE, "series_id": "waku"}))
+        self.assertTrue(needs_width_choice({**BASE, "series_id": "waku"}))     # 枠組も幅で建枠とアンチを選ぶ
 
     def test_inch_choice_switches_module_and_series(self):
         spec, notes = apply_width_choice({**BASE, "series_id": "shinwa_A", "module": "metric"}, find_choice("3ft"))
@@ -64,6 +64,27 @@ class TestWidths(unittest.TestCase):
         # 幅が決まっている建物は聞かない（そのまま）
         same = tb.choose_width_at_start(None, {**BASE, "scaffold_width_mm": 600}, interactive=True, persist=False)
         self.assertEqual(same["scaffold_width_mm"], 600)
+
+
+
+class TestFrameWidth(unittest.TestCase):
+    def test_frame_width_changes_the_anti(self):
+        # 枠組も幅で建枠と布板（アンチ）が替わる。614枠（610）はアンチ1列（利用者の指定 2026-10-23）
+        from ashiba.cli import solve_all
+        from ashiba.widths import apply_width_choice, find_choice, needs_width_choice
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                "series_id": "waku"}
+        want = {614: (610, (500,), "N6117S"), 914: (914, (500, 240), "A3055A"), 1219: (1219, (500, 500), "A4055B")}
+        for w, (row, decks, frame) in want.items():
+            r = solve_all({**base, "scaffold_width_mm": w})
+            self.assertEqual(r.model.post_row_spacing_mm, row)
+            self.assertEqual(tuple(r.model.deck_widths_in_use), decks)
+            self.assertTrue(any(ln.part and ln.part.model_no == frame and ln.qty > 0 for ln in r.quantity.lines))
+            self.assertFalse(any("枠組では使いません" in x for x in r.model.plan.warnings))
+        self.assertTrue(needs_width_choice({"series_id": "waku"}))
+        out, _ = apply_width_choice({"series_id": "waku", "module": "metric"}, find_choice("60cm"))
+        self.assertEqual(out["series_id"], "waku")                       # 60cm を選んでも枠組のまま
 
 
 if __name__ == "__main__":

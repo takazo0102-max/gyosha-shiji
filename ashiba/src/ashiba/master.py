@@ -308,7 +308,10 @@ class PartMaster:
         いちばん近い布材（日建は 610・914、信和は 600・900）。作業床は系列にある幅を2枚までで、
         建地列の間隔＋70（床は支柱芯より少し外まで掛かる）に収まるいちばん広い組（同じなら枚数の少ない方）。
         """
-        rows = sorted({p.nominal_dim for p in self.by_category("布材") if p.nominal_dim > 0})
+        # 枠組は建枠の幅（1219・914・610）から選び、布板（アンチ）はその建枠に載る組（利用者の指定 2026-10-23:
+        # 幅を変えるとアンチも変更、614枠はアンチ1列）。建枠は布板が載る最小の幅を model が選ぶ（frame_width_for）
+        rows = (sorted(w for w in self.frame_widths() if w > 0) if self.is_frame else
+                sorted({p.nominal_dim for p in self.by_category("布材") if p.nominal_dim > 0}))
         row = min(rows, key=lambda v: (abs(v - width_mm), v)) if rows else int(width_mm)
         avail = sorted(self.deck_widths_available(), reverse=True)
         if self.is_tube and avail:

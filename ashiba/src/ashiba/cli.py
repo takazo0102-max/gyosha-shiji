@@ -846,17 +846,17 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             "メッシュシート・防網等で確保してください（安衛則563条1項六号）"
         )
     # 足場の幅（600・900 など。利用者の指定 2026-10-20）: 腕木＝建地列の間隔と、そこに収まる作業床の組を決める。
-    # 作業床を deck_widths で指定していればそちらが優先。枠組は建枠の幅で決まるので使わない
+    # 作業床を deck_widths で指定していればそちらが優先。枠組は幅に近い建枠（1219・914・610）に載る布板の組にし、
+    # 建枠は布板の載る最小の幅（614枠＝610 はアンチ1列、914 は 500＋240、1219 は 500＋500。利用者の指定 2026-10-23）
     deck_ws = tuple(spec["deck_widths"]) if spec.get("deck_widths") else None
     row_mm = None
     width_mm = spec.get("scaffold_width_mm")
     if width_mm:
-        if master.is_frame:
-            plan.warnings.append(f"足場の幅 {int(width_mm)}mm の指定は枠組では使いません（建枠の幅で決まります）")
-        else:
-            row_mm, auto_ws = master.width_setup(int(width_mm))
-            if deck_ws is None and auto_ws:
-                deck_ws = auto_ws
+        w_row, auto_ws = master.width_setup(int(width_mm))
+        if not master.is_frame:
+            row_mm = w_row
+        if deck_ws is None and auto_ws:
+            deck_ws = auto_ws
     elif deck_ws is None and not master.is_frame and not spec.get("next_gen", False):
         # 幅も作業床も指定が無いとき、系列の既定の作業床（日建 500＋240＝760）が建地列の間隔（610）より
         # 広いと、内側の板が建地の内へ200ほどはみ出す（利用者の指摘 2026-10-20: 内側のアンチ何？）。
