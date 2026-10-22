@@ -211,6 +211,14 @@ def solve_elevation(
     if koma_pitch is None:
         koma_pitch = master.koma_pitch if master else 450
     lengths = sorted(set(post_lengths), reverse=True)
+    # くさび式はコマ（フック）が支柱ごとに上端から koma_pitch で並ぶので、コマピッチの倍数でない支柱
+    # （日建 ND・ストロングの 675・1125・1575、ミレニュームの 225）を積むと、その上下でコマの並びが半ピッチずれ、
+    # 最上の支柱のコマから決めた作業床・手すり・中桟の高さに下の支柱のコマが来ない（利用者の指摘 2026-10-22:
+    # 支柱のフック位置がずれている、布材とか先行手すりにかかってない）。積むのは倍数の支柱だけ（端数はジャッキ）
+    if koma_pitch and not (master is not None and master.is_tube):
+        mult = [L for L in lengths if L % koma_pitch == 0]
+        if mult:
+            lengths = mult
 
     # 支柱1本＋最小繰出しより低い足場は組めない
     min_buildable = jack_min + min(lengths)
@@ -374,6 +382,9 @@ def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaste
     rest = target - acc
     if rest > 0:
         lengths = sorted(master.post_lengths()) if not master.is_frame else sorted(set(elev.posts))
+        if master.koma_pitch and not master.is_frame and not master.is_tube:
+            # くさび式はコマピッチの倍数の支柱だけ（下の支柱とコマの並びを揃える）
+            lengths = [L for L in lengths if L % master.koma_pitch == 0] or lengths
         fit = next((L for L in lengths if L >= rest), None)
         if fit is None and lengths:
             fit = lengths[-1]
