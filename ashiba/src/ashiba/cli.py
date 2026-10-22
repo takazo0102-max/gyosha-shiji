@@ -41,7 +41,7 @@
   "pdf": true,                     // 足場のレイアウト（サブセット「仮設足場」）を ashiba_out/PDF に発行（断面図方式のとき）
   "pdf_publisher_set": "2 - レイアウト",  // 発行に使う Archicad の発行セット（レイアウトブックを映したもの）
   "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ／"object"=平面の下に2Dで並べる／"none"
-  "cross_section_mode": "drafted", // 断面図: "drafted"=2Dの作図の形の部品を 1/50 で／"section"=断面図ビューポイントで3Dを切る
+  "cross_section_mode": "section", // 断面図: "section"=断面図ビューポイントで3Dを切る（既定）／"drafted"=2Dの作図の形の部品を 1/50 で
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [

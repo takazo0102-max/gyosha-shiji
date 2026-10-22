@@ -620,12 +620,12 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                                             stair_plan=r.stair_plan,
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
-        # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は2Dの作図の形の部品（ashiba_xsec）を
-        # 平面の下の行に置いて 1/50 で切り抜く（利用者の指定 2026-10-23: 案1）。cross_section_mode=section なら
-        # Archicad の断面図ビューポイントで3Dを切る（案2）
+        # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は Archicad の断面図ビューポイントで
+        # 3Dを切る（案2）。cross_section_mode=drafted なら2Dの作図の形の部品（ashiba_xsec）を平面の下の行に置いて
+        # 1/50 で切り抜く（案1。利用者の指定 2026-10-23: 元に戻して → 既定を断面図ビューポイントに戻した）
         from ashiba.cross_sections import cross_layout_name, cross_section_specs, place_cross_sections, split_cross_specs
 
-        cross_mode = str(spec.get("cross_section_mode") or "drafted")
+        cross_mode = str(spec.get("cross_section_mode") or "section")
         try:
             if cross_mode == "section":
                 prev2 = load_record(OUT_DIR)
