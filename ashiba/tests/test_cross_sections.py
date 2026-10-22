@@ -117,5 +117,34 @@ class TestOutsideStair(unittest.TestCase):
         self.assertAlmostEqual(far(with_st) - far(plain), r.model.post_row_spacing_mm / 1000.0, delta=0.01)
 
 
+
+class TestSplitAt50(unittest.TestCase):
+    """断面図は面ごとに切って 1/50（利用者の指定 2026-10-23: 詳細もわかるように1/50でおさまるように）."""
+
+    def test_each_face_gets_a_short_section(self):
+        from ashiba.cross_sections import CLEAR_MM, INSIDE_MM, cross_sheet_name, split_cross_specs
+
+        r = solve_all(dict(RECT))
+        full = cross_section_specs(r.model, "X")
+        parts = split_cross_specs(r.model, full)
+        self.assertEqual([p.face_name for p in parts], ["A-A 南面", "A-A 北面", "B-B 東面", "B-B 西面"])
+        self.assertEqual(parts[0].name, cross_section_name("X", "A") + " 南面")
+        row = r.model.post_row_spacing_mm
+        for p in parts:
+            faces = cut_faces(r.model, p)
+            self.assertEqual(len(faces), 1)                                    # 1面だけを切る
+            f = faces[0]
+            self.assertIn(f.face_name, p.face_name)
+            # 足場の外 CLEAR_MM から躯体の内側 INSIDE_MM まで（30×20m の建物でも 1/50 で十数 m）
+            self.assertAlmostEqual(p.length_mm, CLEAR_MM + row + f.standoff_mm + INSIDE_MM, delta=2.0)
+            # 向きは元の断面と同じ（見る向きがそろう）
+            src = next(s for s in full if p.face_name.startswith(s.face_name))
+            d0 = (src.end_mm[0] - src.start_mm[0], src.end_mm[1] - src.start_mm[1])
+            d1 = (p.end_mm[0] - p.start_mm[0], p.end_mm[1] - p.start_mm[1])
+            self.assertGreater(d0[0] * d1[0] + d0[1] * d1[1], 0)
+            self.assertEqual(len(cross_section_annotations(r.model, p).dims), 3)   # 段・支柱・足場の高さ
+        self.assertEqual(cross_sheet_name("X", "A-A"), "X 足場断面図 A-A")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -110,8 +110,8 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
                     (f"図面{len(ds.drawing_guids)}・詳細図{n_det}・1/{ds.scale}" + ("; " + "; ".join(ds.notes) if ds.notes else ""))
                     if ds else "置いていない")
             pdf = res.get("pdf")
-            # 立面・平面・詳細に、断面図のレイアウト（A-A・B-B）を置いた工事は断面も（4枚）
-            rep.add("PDF の発行（立面・平面・詳細・断面）", bool(pdf) and len(pdf.files) in (3, 4),
+            # 立面（2面ごとに1枚）・平面・詳細・断面（A-A・B-B ごとに1枚）。少なくとも立面・平面・詳細の3枚
+            rep.add("PDF の発行（立面・平面・詳細・断面）", bool(pdf) and len(pdf.files) >= 3,
                     (f"{len(pdf.files)}枚" + ("; " + "; ".join(pdf.notes) if pdf.notes else "")) if pdf else "発行していない")
         else:
             rep.add("立面図（部品）", len(res["elevations"]) == len(edges), f"{len(res['elevations'])}面")
@@ -139,9 +139,7 @@ def _cleanup(client, spec: dict, outline, out_dir: Path, slab) -> None:
             client.delete_elements(objs)
         rec = load_record(out_dir)
         faces = [k[len(prefix) + 1:-len(" 足場立面")] for k in rec if k.startswith(prefix + " ")]
-        remove_elevations(client, list(rec), [layout_name(prefix, f) for f in faces]
-                          + [sheet_layout_name(prefix), plan_layout_name(prefix), detail_layout_name(prefix)],
-                          rec.values())
+        remove_elevations(client, list(rec), scaffold_layout_names(prefix, faces), rec.values())
         (out_dir / "elevation_sections.json").write_text("{}\n", encoding="utf-8")
         from ashiba.elevation_sections import building_key
         from ashiba.plan_labels import remove_plan_labels

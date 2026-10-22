@@ -124,8 +124,25 @@ def drawing_plan(section_length_mm: float, scaffold_height_mm: float, paper_mm: 
     return DrawingPlan(scale=scale, position_mm=(left + 10.0, bottom + title_band_mm), paper_mm=paper_mm)
 
 
-def sheet_layout_name(prefix: str) -> str:
-    return f"{prefix} 足場立面図"
+def sheet_layout_name(prefix: str, k: int = 0) -> str:
+    """立面図のレイアウト名. 2面ごとに1枚（利用者の指定 2026-10-23）なので k 枚目は「… 足場立面図 k」（1枚だけなら番号なし）."""
+    return f"{prefix} 足場立面図" + (f" {k}" if k else "")
+
+
+FACES_PER_SHEET = 2   # 立面図は1枚に2面（利用者の指定 2026-10-23: 立面は1枚の図面に2面毎）
+
+
+def sheet_layout_names(prefix: str, n: int = 8) -> list[str]:
+    """片付け用: 1枚の名前と番号付きの名前."""
+    return [sheet_layout_name(prefix)] + [sheet_layout_name(prefix, k) for k in range(1, n + 1)]
+
+
+def scaffold_layout_names(prefix: str, faces: Iterable[str] = ()) -> list[str]:
+    """片付け用: この工事の足場のレイアウトの名前すべて（面ごとの立面・2面ごとの立面・平面・詳細・断面）.
+    断面図は A-A などごと（cross_sections.cross_sheet_name）と、入らず面ごとに分けた「… 1」「… 2」も."""
+    cross = [f"{prefix} 足場断面図"] + [f"{prefix} 足場断面図 {c}-{c}{k}" for c in "ABCD" for k in ("", " 1", " 2")]
+    return ([layout_name(prefix, f) for f in faces] + sheet_layout_names(prefix)
+            + [f"{prefix} 足場平面図", f"{prefix} 足場詳細図"] + cross)
 
 
 @dataclass
@@ -920,7 +937,7 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
     if replace:
         prev = previous or {}
         _, _, left = remove_elevations(client, [s.name for s in specs],
-                                       [layout_name(prefix, s.face_name) for s in specs] + [sheet_layout_name(prefix)],
+                                       [layout_name(prefix, s.face_name) for s in specs] + sheet_layout_names(prefix),
                                        [prev.get(s.name, "") for s in specs])
         if left:
             stale_notes.append("前回の断面「" + "・".join(left) + "」は控えが無く消せませんでした。プロジェクトマップで手で消してください")
@@ -958,10 +975,14 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
     if annotate:
         by_name = {s.name: s for s in specs}
         # ラベルの文字幅は図面の縮尺で決まる（文字は用紙の mm）。縮尺は図面を置くまで決まらないので、
-        # A1 に全面を並べたときの縮尺で見積もる
-        est = arrange_on_one_sheet([s_.length_mm for s_ in specs], float(model.scaffold_height_mm), (841.0, 594.0),
-                                   extra_w_mm=NOTE_EXTRA_W_MM, extra_h_mm=NOTE_EXTRA_H_MM)
-        est_scale = float(est.scale) if est is not None else 200.0
+        # A1 に2面ずつ並べたときの縮尺で見積もる（面ごとに、その組の縮尺）
+        est_by: dict[str, float] = {}
+        for g in range(0, len(specs), FACES_PER_SHEET):
+            grp = specs[g:g + FACES_PER_SHEET]
+            est = arrange_on_one_sheet([s_.length_mm for s_ in grp], float(model.scaffold_height_mm), (841.0, 594.0),
+                                       extra_w_mm=NOTE_EXTRA_W_MM, extra_h_mm=NOTE_EXTRA_H_MM)
+            for s_ in grp:
+                est_by[s_.name] = float(est.scale) if est is not None else 200.0
         for pl in results:
             if not pl.section_item_guid or not pl.section_guid:
                 continue
@@ -972,7 +993,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
                     pl.notes.append("断面図のウィンドウが開かなかったので注記を置きませんでした（もう一度実行してください）")
                     continue
                 write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain,
-                                                                 stair_plan=stair_plan, text_scale=est_scale))
+                                                                 stair_plan=stair_plan,
+                                                                 text_scale=est_by.get(pl.section_name, 200.0)))
             except Exception as ex:          # 注記が置けなくても図面は置く
                 pl.notes.append(f"注記を置けませんでした: {ex}")
         activate_floor_plan(client)
@@ -980,13 +1002,21 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
     subset = ensure_subset(client)
     lb = _tree(client, "LayoutBook")
     master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]])
-    if one_sheet and all(pl.section_item_guid for pl in results) and results:
-        placed = _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate=annotate)
-        if placed:
+    left_over = set(range(len(results)))
+    if one_sheet and results:
+        # 2面ずつ1枚のレイアウト（「… 足場立面図 1」「… 2」。2面以下なら番号なし）。入らない組は面ごとのレイアウトへ
+        idx = [i for i, pl in enumerate(results) if pl.section_item_guid]
+        groups = [idx[g:g + FACES_PER_SHEET] for g in range(0, len(idx), FACES_PER_SHEET)]
+        for k, grp in enumerate(groups, start=1):
+            name = sheet_layout_name(prefix, k if len(groups) > 1 else 0)
+            if _place_on_one_sheet(client, model, prefix, [specs[i] for i in grp], [results[i] for i in grp],
+                                   subset, master, annotate=annotate, name=name):
+                left_over -= set(grp)
+        if not left_over:
             activate_floor_plan(client)
             return results
-    for pl, s in zip(results, specs):
-        if not pl.section_item_guid:
+    for i, (pl, s) in enumerate(zip(results, specs)):
+        if not pl.section_item_guid or i not in left_over:
             continue
         pl.layout_name = layout_name(prefix, pl.face_name)
         data = {"layoutName": pl.layout_name, "parentNavigatorItemId": {"guid": subset}}
@@ -1087,8 +1117,7 @@ def remove_stale_prefixes(client, record: dict, meta: dict, building: str, prefi
     rec = dict(record)
     for old, names in stale.items():
         faces = [n[len(old) + 1:-len(" 足場立面")] for n in names if n.endswith(" 足場立面")]
-        lays = [layout_name(old, f) for f in faces] + [sheet_layout_name(old), plan_layout_name(old), f"{old} 足場詳細図",
-                                                        f"{old} 足場断面図"]
+        lays = scaffold_layout_names(old, faces)
         activate_floor_plan(client)
         remove_elevations(client, names, lays, [rec.get(n, "") for n in names])
         for n in names:

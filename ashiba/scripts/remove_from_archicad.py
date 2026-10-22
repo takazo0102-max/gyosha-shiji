@@ -54,9 +54,9 @@ def _remove_section_elevations(client, all_buildings: bool) -> None:
         prefix = str(spec.get("project_name") or "足場")
         mine = {k: v for k, v in rec.items() if k.startswith(prefix + " ")}
         faces = [k[len(prefix) + 1:-len(" 足場立面")] for k in mine]
-        n_s, n_l, left = remove_elevations(client, list(mine), [f"{prefix} 足場立面図 {f}" for f in faces]
-                                           + [f"{prefix} 足場立面図", f"{prefix} 足場平面図", f"{prefix} 足場詳細図",
-                                              f"{prefix} 足場断面図"], mine.values())
+        from ashiba.elevation_sections import scaffold_layout_names
+
+        n_s, n_l, left = remove_elevations(client, list(mine), scaffold_layout_names(prefix, faces), mine.values())
         rest = {k: v for k, v in rec.items() if k not in mine}
         (OUT_DIR / ELEVATIONS_RECORD).write_text(json.dumps(rest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if n_s or n_l:

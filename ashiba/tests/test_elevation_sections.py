@@ -1,6 +1,7 @@
 """立面図を断面図ビューポイント（立面ツール相当）で作ってレイアウトに置く（elevation_sections）."""
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -164,6 +165,20 @@ class TestRecord(unittest.TestCase):
             rec = save_record(d, [ElevationPlacement("南面", "A 南面 足場立面", section_guid="g1")], {"B 南面 足場立面": "g0"})
             self.assertEqual(rec, {"B 南面 足場立面": "g0", "A 南面 足場立面": "g1"})
             self.assertEqual(load_record(d), rec)
+
+
+
+class TestTwoFacesPerSheet(unittest.TestCase):
+    def test_sheet_names(self):
+        # 立面は1枚に2面（利用者の指定 2026-10-23）。4面なら「… 足場立面図 1」「… 2」
+        from ashiba.elevation_sections import FACES_PER_SHEET, sheet_layout_name, sheet_layout_names
+
+        self.assertEqual(FACES_PER_SHEET, 2)
+        self.assertEqual(sheet_layout_name("X"), "X 足場立面図")
+        self.assertEqual(sheet_layout_name("X", 2), "X 足場立面図 2")
+        self.assertIn("X 足場立面図 3", sheet_layout_names("X"))
+        src = (Path(__file__).resolve().parents[1] / "src" / "ashiba" / "elevation_sections.py").read_text(encoding="utf-8")
+        self.assertIn("groups = [idx[g:g + FACES_PER_SHEET] for g in range(0, len(idx), FACES_PER_SHEET)]", src)
 
 
 if __name__ == "__main__":

@@ -71,7 +71,13 @@ class TestToolbarPlacesDetailSheet(unittest.TestCase):
         tb = (root / "scripts" / "run_from_archicad.py").read_text(encoding="utf-8")
         self.assertIn("place_detail_sheet(", tb)
         rm = (root / "scripts" / "remove_from_archicad.py").read_text(encoding="utf-8")
-        self.assertIn("足場詳細図", rm)
+        self.assertIn("scaffold_layout_names(prefix, faces)", rm)
+        from ashiba.elevation_sections import scaffold_layout_names
+
+        names = scaffold_layout_names("X", ["南面"])
+        for want in ("X 足場詳細図", "X 足場平面図", "X 足場立面図", "X 足場立面図 2", "X 足場立面図 南面",
+                     "X 足場断面図", "X 足場断面図 A-A", "X 足場断面図 B-B 1"):
+            self.assertIn(want, names)
 
 
 if __name__ == "__main__":

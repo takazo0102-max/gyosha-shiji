@@ -629,7 +629,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                                          on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
             save_record(OUT_DIR, cross, prev2, bkey, prefix)
             if cross:
-                print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{cross_layout_name(prefix)}」）")
+                lays = list(dict.fromkeys(pl.layout_name for pl in cross if pl.layout_name)) or [cross_layout_name(prefix)]
+                print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{'」「'.join(lays)}」）")
             for pl in cross:
                 for n in pl.notes:
                     print(f"  断面図（{pl.face_name}）: {n}")
@@ -707,8 +708,9 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     replaced = len(stale)
     v = result["verdict"]
     n_sec = sum(1 for pl in sections if pl.drawing_guid)
-    sheet = sections[0].layout_name if sections else ""
-    sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「{sheet}」{'に1枚' if sections and all(p.layout_name == sheet for p in sections) else '（面ごと）'}、1/{sections[0].scale}）・"
+    sheets = list(dict.fromkeys(pl.layout_name for pl in sections if pl.layout_name))
+    scales = "・".join(dict.fromkeys(f"1/{pl.scale}" for pl in sections if pl.drawing_guid)) or "-"
+    sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「{'」「'.join(sheets)}」、{scales}）・"
                if sections else f"立面図 {len(elevs)}面・")
     print(f"足場ライン {len(lines)}本・" + sec_txt
           + f"詳細図 {len(details)}枚を配置しました"

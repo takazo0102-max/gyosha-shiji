@@ -9,7 +9,10 @@
 - A-A: いちばん長い面に直交して建物を横切る。B-B: それに直交（A-A と平行な面を横切る）。
 - 切る位置は面のスパンの中央（支柱の位置で切ると支柱が切断面に重なって読みにくい）。
   階段室・開口部・荷受けステージのスパンは避ける（避けられなければ中央に近いスパン）。
-- 注記（寸法・高さ）は断面図ウィンドウに線と文字で書く（立面図と同じ書き方）。
+- 注記（寸法・高さ）は断面図ウィンドウに寸法と文字で書く（立面図と同じ書き方）。
+- 詳細も読めるよう 1/50 で置く（利用者の指定 2026-10-23: 断面図は詳細もわかるようにするので1/50でおさまるように）。
+  建物を横切る線のままでは 1/50 で用紙に入らないので、面ごとに切る（足場の外から躯体の内側少しまで。
+  split_cross_specs）。A-A の2面で1枚、B-B の2面で1枚のレイアウトにする。
 """
 
 from __future__ import annotations
@@ -28,6 +31,8 @@ CLEAR_MM = 3500.0          # 外側建地列から切断線の端まで（立面
 FAR_EXTRA_MM = 1500.0      # 反対側の面の離れ＋幅を越える分
 SECTION_LETTERS = ("A", "B", "C", "D")
 DIM_BELOW_M = -0.8         # 離れ・幅の寸法線（GL の下）
+INSIDE_MM = 2000.0         # 面ごとの断面: 躯体面から建物の内側へ切る長さ
+DETAIL_SCALE = 50          # 断面図の縮尺（詳細も読める）
 
 
 def cross_section_name(prefix: str, letter: str) -> str:
@@ -123,6 +128,31 @@ def cross_section_specs(model: ScaffoldModel, prefix: str = "足場", stair_plan
         out.append(SectionSpec(f"{c.letter}-{c.letter}", cross_section_name(prefix, c.letter), start, end,
                                1000.0, length, c.edge_index))
     return out
+
+
+def split_cross_specs(model: ScaffoldModel, specs: list[SectionSpec]) -> list[SectionSpec]:
+    """建物を横切る断面を面ごとに分ける（足場の外 CLEAR_MM から躯体の内側 INSIDE_MM まで、向きは元のまま）.
+    face_name は「A-A 南面」、name は「<prefix> 足場断面 A-A 南面」."""
+    out = []
+    for sp in specs:
+        ax = (sp.end_mm[0] - sp.start_mm[0]) / max(sp.length_mm, 1e-9)
+        ay = (sp.end_mm[1] - sp.start_mm[1]) / max(sp.length_mm, 1e-9)
+        s0 = section_x(sp, sp.start_mm)                         # 断面座標の始点（section_x は始点からではない）
+        for f in sorted(cut_faces(model, sp), key=lambda f: f.x_in):
+            outer = 1.0 if f.x_out > f.x_wall else -1.0          # 断面座標で外側の向き
+            a_m = f.x_out + outer * CLEAR_MM / 1000.0 - s0
+            b_m = f.x_wall - outer * INSIDE_MM / 1000.0 - s0
+            lo, hi = max(0.0, min(a_m, b_m)), min(sp.length_mm / 1000.0, max(a_m, b_m))
+            st = (sp.start_mm[0] + ax * lo * 1000.0, sp.start_mm[1] + ay * lo * 1000.0)
+            en = (sp.start_mm[0] + ax * hi * 1000.0, sp.start_mm[1] + ay * hi * 1000.0)
+            out.append(SectionSpec(f"{sp.face_name} {f.face_name}", f"{sp.name} {f.face_name}", st, en,
+                                   sp.depth_mm, (hi - lo) * 1000.0, f.edge_index))
+    return out
+
+
+def cross_sheet_name(prefix: str, letter_pair: str = "") -> str:
+    """断面図のレイアウト名（A-A・B-B ごと）. letter_pair が空なら従来の1枚の名前."""
+    return cross_layout_name(prefix) + (f" {letter_pair}" if letter_pair else "")
 
 
 def _segment_hit(p0, p1, q0, q1) -> Optional[float]:
@@ -230,12 +260,18 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
         find_items, open_section_window, pick_master_layout, remove_elevations, walk_tree, write_section_notes,
     )
 
-    specs = cross_section_specs(model, prefix, stair_plan, openings, platforms)
+    full = cross_section_specs(model, prefix, stair_plan, openings, platforms)
+    specs = split_cross_specs(model, full)
     if not specs:
         return []
     activate_floor_plan(client)
     prev = previous or {}
-    remove_elevations(client, [s.name for s in specs], [cross_layout_name(prefix)], [prev.get(s.name, "") for s in specs])
+    # 前回の断面（横切る1本の頃の名前・面ごとの名前）とレイアウト（1枚・A-A ごと）を消す
+    old_names = [s_.name for s_ in full] + [s_.name for s_ in specs]
+    remove_elevations(client, old_names,
+                      [cross_layout_name(prefix)] + [cross_sheet_name(prefix, f"{c}-{c}") + k for c in SECTION_LETTERS
+                                                     for k in ("", " 1", " 2")],
+                      [prev.get(n, "") for n in old_names])
     resp = client.tapir("CreateSections", {"sectionsData": [
         {"startCoordinate": {"x": s.start_mm[0] / 1000.0, "y": s.start_mm[1] / 1000.0},
          "endCoordinate": {"x": s.end_mm[0] / 1000.0, "y": s.end_mm[1] / 1000.0},
@@ -260,11 +296,7 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
             pl.section_item_guid = hit[-1]["guid"]
         else:
             pl.notes.append("プロジェクトマップに断面が見つかりません")
-    from .elevation_sections import arrange_boxes
-
-    est = arrange_boxes([(s.length_mm + 6000.0, float(model.scaffold_height_mm) + 7000.0) for s in specs],
-                        (841.0, 594.0), scales=CROSS_SCALES)
-    est_scale = float(est.scale) if est is not None else 200.0
+    est_scale = float(DETAIL_SCALE)                   # 文字の大きさは 1/50 の用紙で読める大きさ
     by_name = {s.name: s for s in specs}
     for pl in results:
         if not pl.section_item_guid or not pl.section_guid:
@@ -282,10 +314,25 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     lb = _tree(client, "LayoutBook")
     master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]])
     ok = [pl for pl in results if pl.section_item_guid]
-    if ok and not _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name] for pl in ok], ok, subset,
-                                      master, annotate=True, name=cross_layout_name(prefix), kind="足場断面図",
-                                      scales=CROSS_SCALES):
-        for pl in ok:
-            pl.notes.append("断面図が1枚の用紙に収まらないのでレイアウトに置きませんでした（断面図はプロジェクトマップにあります）")
+    # A-A の2面で1枚、B-B の2面で1枚（1/50）。2面で入らなければ面ごとに1枚（1/50）、それでも入らなければ縮尺を下げる
+    groups: dict[str, list] = {}
+    for pl in ok:
+        groups.setdefault(pl.face_name.split(" ")[0], []).append(pl)
+    for pair, pls in groups.items():
+        name = cross_sheet_name(prefix, pair)
+        sp = [by_name[pl.section_name] for pl in pls]
+        if _place_on_one_sheet(client, model, prefix, sp, pls, subset, master, annotate=True, name=name,
+                               kind="足場断面図", scales=(DETAIL_SCALE,)):
+            continue
+        for k, pl in enumerate(pls, start=1):
+            one = f"{name} {k}" if len(pls) > 1 else name
+            if _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name]], [pl], subset, master,
+                                   annotate=True, name=one, kind="足場断面図", scales=(DETAIL_SCALE,)):
+                continue
+            if _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name]], [pl], subset, master,
+                                   annotate=True, name=one, kind="足場断面図", scales=CROSS_SCALES):
+                pl.notes.append(f"断面図 {pl.face_name} は 1/{DETAIL_SCALE} で用紙に入らないので縮尺を下げて置きました")
+            else:
+                pl.notes.append("断面図が用紙に収まらないのでレイアウトに置きませんでした（断面図はプロジェクトマップにあります）")
     activate_floor_plan(client)
     return results
