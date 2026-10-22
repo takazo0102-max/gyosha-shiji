@@ -1180,6 +1180,50 @@ def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale
     return clip, position
 
 
+def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> list[dict]:
+    """切り抜いた図面を置き、置いた位置（pos）を読み戻して、ずれていれば1回置き直す。戻り値は CreateDrawings の elements.
+
+    clipped_drawing_geometry は「pos = position − 枠の最小角 × 比率」（プロジェクトマップのフロアでの関係）で位置を
+    決めるが、ビューマップのフロアにズームが保存されていると、pos がズームの左下の分だけずれて図面が白紙になった
+    （2026-10-23 実機: 平面図・詳細図・断面図がすべて白紙。ズームの左下 (-12.3, -7.1) m × 1/縮尺 だけずれていた）。
+    ずれは置く位置に依らない一定量なので、読み戻した差を足して置き直せば合う。
+    """
+    r = client.tapir("CreateDrawings", {"drawingsData": data})
+    els = list(r.get("elements") or [])
+    ok = [i for i, e in enumerate(els) if "elementId" in e]
+    if not ok:
+        return els
+    _activate(client, layout_item_guid)
+    try:
+        dets = client.get_details([els[i] for i in ok])
+    except Exception:
+        return els
+    redo = []
+    for i, det in zip(ok, dets):
+        pos = (det.get("details") or {}).get("pos")
+        d = data[i]
+        if not pos or not d.get("clipPolygon"):
+            continue
+        ratio = float(d.get("scale", 1.0))
+        want_x = d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio
+        want_y = d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio
+        dx, dy = want_x - float(pos["x"]), want_y - float(pos["y"])
+        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+            redo.append((i, dx, dy))
+    if not redo:
+        return els
+    try:
+        client.tapir("DeleteElements", {"elements": [els[i] for i, _, _ in redo]})
+        again = client.tapir("CreateDrawings", {"drawingsData": [
+            {**data[i], "position": {"x": data[i]["position"]["x"] + dx, "y": data[i]["position"]["y"] + dy}}
+            for i, dx, dy in redo]})
+        for (i, _, _), e in zip(redo, again.get("elements") or []):
+            els[i] = e
+    except Exception:
+        pass
+    return els
+
+
 def plan_source(client, floor_index: Optional[int] = None) -> tuple[Optional[dict], int, str]:
     """足場平面図・詳細図を切り抜く元の図と、その縮尺 → (項目, 元の縮尺, 注意).
 
@@ -1267,11 +1311,11 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
     clip, position = clipped_drawing_geometry(region, scale, pos, source_scale=src_scale)
     db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
     dbid = db["databases"][0]["databaseId"]
-    r = client.tapir("CreateDrawings", {"drawingsData": [{
+    els = create_clipped_drawings(client, [{
         "navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
         "clipPolygon": clip, "scale": src_scale / scale, "drawingScale": float(scale),
-        "name": f"足場平面図 1/{scale}"}]})
-    el = (r.get("elements") or [{}])[0]
+        "name": f"足場平面図 1/{scale}"}], lay)
+    el = (els or [{}])[0]
     if "elementId" in el:
         out.drawing_guid = el["elementId"]["guid"]
         try:

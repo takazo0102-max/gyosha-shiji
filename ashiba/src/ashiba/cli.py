@@ -41,6 +41,7 @@
   "pdf": true,                     // 足場のレイアウト（サブセット「仮設足場」）を ashiba_out/PDF に発行（断面図方式のとき）
   "pdf_publisher_set": "2 - レイアウト",  // 発行に使う Archicad の発行セット（レイアウトブックを映したもの）
   "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ／"object"=平面の下に2Dで並べる／"none"
+  "cross_section_mode": "drafted", // 断面図: "drafted"=2Dの作図の形の部品を 1/50 で／"section"=断面図ビューポイントで3Dを切る
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
@@ -153,7 +154,7 @@ TOP_KEYS = {
     "clearance_space_mm", "scaffold_form", "next_gen",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "elevation_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms",

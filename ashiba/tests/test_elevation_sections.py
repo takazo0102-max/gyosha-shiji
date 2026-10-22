@@ -181,6 +181,47 @@ class TestTwoFacesPerSheet(unittest.TestCase):
         self.assertIn("groups = [idx[g:g + FACES_PER_SHEET] for g in range(0, len(idx), FACES_PER_SHEET)]", src)
 
 
+
+class TestClippedDrawingReadback(unittest.TestCase):
+    """切り抜いた図面の位置を読み戻し、ずれていれば置き直す（2026-10-23 実機: ズームを保存したビューのフロアで
+    平面図・詳細図・断面図が白紙。pos がズームの左下ぶん一定量ずれていた）."""
+
+    def test_offset_is_corrected_once(self):
+        from ashiba.elevation_sections import clipped_drawing_geometry, create_clipped_drawings
+
+        clip, position = clipped_drawing_geometry((2000000.0, 1919000.0, 2009000.0, 1931000.0), 50, (100.0, 100.0), 100)
+        data = [{"navigatorItemId": {"guid": "S"}, "layoutDatabaseId": {}, "position": position, "clipPolygon": clip,
+                 "scale": 2.0, "drawingScale": 50.0, "name": "x"}]
+        C = (0.2464, 0.1422)          # ビューのズームで生じる一定のずれ
+
+        class Client:
+            def __init__(self):
+                self.made, self.calls = {}, []
+
+            def tapir(self, cmd, params):
+                self.calls.append(cmd)
+                if cmd == "CreateDrawings":
+                    out = []
+                    for d in params["drawingsData"]:
+                        g = f"G{len(self.made)}"
+                        self.made[g] = {"x": d["position"]["x"] + C[0], "y": d["position"]["y"] + C[1]}
+                        out.append({"elementId": {"guid": g}})
+                    return {"elements": out}
+                return {}
+
+            def get_details(self, els):
+                return [{"details": {"pos": self.made[e["elementId"]["guid"]]}} for e in els]
+
+        c = Client()
+        els = create_clipped_drawings(c, data, "LAY")
+        self.assertEqual(c.calls.count("CreateDrawings"), 2)
+        self.assertIn("DeleteElements", c.calls)
+        got = c.made[els[0]["elementId"]["guid"]]
+        want = (position["x"] - clip[0]["x"] * 2.0, position["y"] - clip[0]["y"] * 2.0)
+        self.assertAlmostEqual(got["x"], want[0], places=6)
+        self.assertAlmostEqual(got["y"], want[1], places=6)
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -44,7 +44,7 @@ class TapirError(Exception):
     pass
 
 
-def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member")) -> bool:
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec")) -> bool:
     """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
 
     埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で
@@ -482,7 +482,7 @@ class ArchicadClient:
     def objects_for_slab(
         self, outline_mm: list[tuple[float, float]], names: tuple = ("ashiba_line", "ashiba_detail"),
         elevation_offset_mm: float = -45000.0, detail_offset_mm: float = -20000.0,
-        margin_mm: float = 1000.0,
+        margin_mm: float = 1000.0, xsec_offset_mm: float = -80000.0,
     ) -> list[dict]:
         """そのスラブ（外形）に対して置いた足場ライン・立面図・詳細図のオブジェクトを集める.
 
@@ -516,6 +516,9 @@ class ArchicadClient:
             ox, oy = float(o.get("x", 0)) * 1000, float(o.get("y", 0)) * 1000
             in_plan = (x0 - margin_mm <= ox <= x1 + margin_mm) and (y0 - margin_mm <= oy <= y1 + margin_mm)
             in_row = (x0 - margin_mm <= ox <= row_x_max) and any(abs(oy - r) <= margin_mm for r in rows)
+            # 断面図（2D の断面の部品）の行。面ごとに4つ（1つ十数m）並ぶので、外周に依らず 4×25m まで
+            in_row = in_row or ((x0 - margin_mm <= ox <= x0 + 100000.0)
+                                and abs(oy - (y0 + xsec_offset_mm)) <= margin_mm)
             if in_plan or in_row:
                 out.append(e)
             elif is_ashiba_part(name, ("ashiba_member",)):

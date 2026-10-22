@@ -1,0 +1,129 @@
+﻿! ============================================================
+! 足場断面図 2Dシンボル マスタースクリプト
+! 利用者の指定（2026-10-23）: 断面図は2Dで書くときの形に（案1）。3Dの切断ではなく、足場を横から見た
+! 断面の約束で描く（支柱は2本線、面に沿う布材・手すり・中桟は切り口の丸、踏板は切り口の矩形に×、
+! 腕木・壁つなぎ・朝顔は見えがかりの線、コマは描かない）。値は Python（xsec.py）が面ごとに入れる。
+! 座標: x=0 が内側建地の芯、外側建地は x=-rowW、躯体面は x=+standoff。y=GL からの高さ（平面に置く）
+! ============================================================
+
+! ---- 部材の半径 ----
+r_sic = 0.0486 / 2
+if serType = "W" then r_sic = 0.0427 / 2
+r_nuno = 0.0427 / 2
+r_tie = 0.0272 / 2
+
+! ---- 文字（detScale の縮尺で読める大きさ。平面 1/100 に置いてレイアウトで 1/detScale に拡大するため） ----
+dScale = GLOB_SCALE
+if detScale > 0 then dScale = detScale
+define style "anno" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 1, 0
+define style "annoC" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 5, 0
+define style "annoR" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 3, 0
+txtH = texSiz * dScale / 1000
+txtLine = txtH * 1.8
+
+! ---- 一覧（mm のカンマ区切り）→ 配列（m） ----
+dim posts[]
+nPost = 0
+rest = postList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPost = nPost + 1
+		posts[nPost] = v / 1000
+	endif
+endwhile
+
+dim lvs[]
+nLvX = 0
+rest = lvList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLvX = nLvX + 1
+		lvs[nLvX] = v / 1000
+	endif
+endwhile
+
+dim ties[]
+nTie = 0
+rest = tieHList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTie = nTie + 1
+		ties[nTie] = v / 1000
+	endif
+endwhile
+
+dim asas[]
+nAsa = 0
+rest = asaList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nAsa = nAsa + 1
+		asas[nAsa] = v / 1000
+	endif
+endwhile
+
+dim fls[]
+nFl = 0
+rest = flList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nFl = nFl + 1
+		fls[nFl] = v / 1000
+	endif
+endwhile
+
+! ---- 支柱の天端 ----
+postTop = jackOut
+for i = 1 to nPost
+	postTop = postTop + posts[i]
+next i
+
+! ---- 高さの寸法線の位置（外側建地から外へ。段の高さ・支柱の高さ・足場の高さ） ----
+dimX1 = -rowW - 1.2
+dimX2 = -rowW - 2.6
+dimX3 = -rowW - 4.0

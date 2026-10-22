@@ -1,0 +1,129 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="ttlTxt">
+			<Description><![CDATA["図の名前（例: A-A 南面 足場断面図）"]]></Description>
+			<Value><![CDATA["足場断面図"]]></Value>
+		</String>
+		<String Name="serType">
+			<Description><![CDATA["系列の種類 K=くさび W=枠組 T=単管"]]></Description>
+			<Value><![CDATA["K"]]></Value>
+		</String>
+		<Length Name="rowW">
+			<Description><![CDATA["建地列の間隔（足場の幅）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="standoff">
+			<Description><![CDATA["離れ（躯体面から内側建地の芯）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="jackOut">
+			<Description><![CDATA["ジャッキの繰出し（GLから支柱の下端）"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<String Name="postList">
+			<Description><![CDATA["支柱の長さ mm（下から。例 2700,3600,450）"]]></Description>
+			<Value><![CDATA["2700,3600,450"]]></Value>
+		</String>
+		<String Name="lvList">
+			<Description><![CDATA["作業床の高さ mm（GLから）"]]></Description>
+			<Value><![CDATA["2400,4200,6000"]]></Value>
+		</String>
+		<Length Name="negaH">
+			<Description><![CDATA["根がらみの高さ"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="railH">
+			<Description><![CDATA["手すりの高さ（床から）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="midH">
+			<Description><![CDATA["中桟の高さ（床から）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="railAdv">
+			<Description><![CDATA["先行手すり 1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="railIn">
+			<Description><![CDATA["内側の手すり・中桟 1"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="toeOn">
+			<Description><![CDATA["幅木 1"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="deckW1">
+			<Description><![CDATA["外側の踏板の幅"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="deckW2">
+			<Description><![CDATA["内側の踏板の幅（0で1枚）"]]></Description>
+			<Value>0.24</Value>
+		</Length>
+		<String Name="tieHList">
+			<Description><![CDATA["壁つなぎの高さ mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="asaList">
+			<Description><![CDATA["朝顔の高さ mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="asaProj">
+			<Description><![CDATA["朝顔の張り出し"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<RealNum Name="asaAng">
+			<Description><![CDATA["朝顔の傾き（度）"]]></Description>
+			<Value>20</Value>
+		</RealNum>
+		<Length Name="bldgH">
+			<Description><![CDATA["躯体の高さ（0で描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="flList">
+			<Description><![CDATA["躯体の床の高さ mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Boolean Name="showDim">
+			<Description><![CDATA["寸法・名前の表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<Integer Name="detScale">
+			<Description><![CDATA["図の縮尺の分母 0で表示の縮尺"]]></Description>
+			<Value>50</Value>
+		</Integer>
+	</Parameters>
+</ParamSection>

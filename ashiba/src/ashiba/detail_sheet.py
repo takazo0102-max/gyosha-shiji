@@ -27,6 +27,7 @@ from .elevation_sections import (
     plan_source,
     arrange_boxes,
     clipped_drawing_geometry,
+    create_clipped_drawings,
     ensure_subset,
     pick_master_layout,
     walk_tree,
@@ -166,10 +167,10 @@ def place_detail_sheet(client, details: list[dict], titles: list[str], prefix: s
         data.append({"navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
                      "clipPolygon": clip, "scale": drawing_ratio(plan.scale, src_scale), "drawingScale": float(plan.scale),
                      "name": f"{title} 1/{plan.scale}"})
-    r = client.tapir("CreateDrawings", {"drawingsData": data})
-    els = [e for e in (r.get("elements") or []) if "elementId" in e]
+    made = create_clipped_drawings(client, data, lay)
+    els = [e for e in made if "elementId" in e]
     out.drawing_guids = [e["elementId"]["guid"] for e in els]
-    bad = [e for e in (r.get("elements") or []) if "elementId" not in e]
+    bad = [e for e in made if "elementId" not in e]
     if bad:
         out.notes.append(f"置けなかった図面 {len(bad)}枚: {bad[0].get('error', bad[0])}")
     if els:

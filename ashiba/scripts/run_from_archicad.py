@@ -48,6 +48,7 @@ from ashiba.elevation_sections import (  # noqa: E402
     building_key,
     load_record,
     load_record_meta,
+    remove_elevations,
     remove_stale_prefixes,
     place_plan_sheet,
     place_section_elevations,
@@ -68,7 +69,7 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
-ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member")
+ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -619,21 +620,48 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                                             stair_plan=r.stair_plan,
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
-        # 足場断面図（建物を横切る A-A・B-B。離れ・幅・各層の高さ）も同じサブセットのレイアウトへ
-        from ashiba.cross_sections import cross_layout_name, place_cross_sections
+        # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は2Dの作図の形の部品（ashiba_xsec）を
+        # 平面の下の行に置いて 1/50 で切り抜く（利用者の指定 2026-10-23: 案1）。cross_section_mode=section なら
+        # Archicad の断面図ビューポイントで3Dを切る（案2）
+        from ashiba.cross_sections import cross_layout_name, cross_section_specs, place_cross_sections, split_cross_specs
 
+        cross_mode = str(spec.get("cross_section_mode") or "drafted")
         try:
-            prev2 = load_record(OUT_DIR)
-            cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
-                                         stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
-                                         on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
-            save_record(OUT_DIR, cross, prev2, bkey, prefix)
-            if cross:
-                lays = list(dict.fromkeys(pl.layout_name for pl in cross if pl.layout_name)) or [cross_layout_name(prefix)]
-                print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{'」「'.join(lays)}」）")
-            for pl in cross:
-                for n in pl.notes:
-                    print(f"  断面図（{pl.face_name}）: {n}")
+            if cross_mode == "section":
+                prev2 = load_record(OUT_DIR)
+                cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
+                                             stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
+                                             on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
+                save_record(OUT_DIR, cross, prev2, bkey, prefix)
+                if cross:
+                    lays = list(dict.fromkeys(pl.layout_name for pl in cross if pl.layout_name)) or [cross_layout_name(prefix)]
+                    print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{'」「'.join(lays)}」）")
+                for pl in cross:
+                    for n in pl.notes:
+                        print(f"  断面図（{pl.face_name}）: {n}")
+            else:
+                # 前に断面図ビューポイントで作った断面（A-A など）とそのレイアウトは片付ける
+                prev2 = load_record(OUT_DIR)
+                full = cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)
+                old_names = [x.name for x in full] + [x.name for x in split_cross_specs(r.model, full)]
+                if any(n in prev2 for n in old_names):
+                    activate_floor_plan(client)
+                    remove_elevations(client, [n for n in old_names if n in prev2], [cross_layout_name(prefix)],
+                                      [prev2[n] for n in old_names if n in prev2])
+                    rec = {k: v for k, v in prev2.items() if k not in old_names}
+                    (OUT_DIR / "elevation_sections.json").write_text(
+                        json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                from ashiba.xsec import XSEC_OBJECT, XSEC_OFFSET_MM, place_xsec
+
+                stories_mm = [float(st.get("level_mm", 0.0)) for st in (spec.get("stories") or [])]
+                xsec_parts, xs = place_xsec(client, r.model, versioned_part_name(XSEC_OBJECT), (x0, y0 + XSEC_OFFSET_MM),
+                                            prefix, r.stair_plan, r.openings, r.platforms, stories_mm,
+                                            floor_index=line_floor(client, lines))
+                attach.extend(xsec_parts)
+                if xs.layouts:
+                    print(f"  断面図: {len(xsec_parts)}面を2Dの断面の形で（レイアウト「{'」「'.join(xs.layouts)}」に 1/{xs.scale}）")
+                for n in xs.notes:
+                    print(f"  断面図: {n}")
         except TapirError as e:
             print(f"  断面図: 作れませんでした（{e}）")
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
