@@ -426,9 +426,10 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
             items.append((t0 + sgn * sp0 * 0.5, (first + lv[0]) / 2.0, name("階段", "昇降階段")))
             items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 1.35,
                           name("階段手摺", "階段手摺") + ("（両側）" if outside else "")))
-            # 1層目の上がり口（階段室の始点）の真上に立つ開口部手摺枠＋幅木（3d.gdl と同じ位置）。外付けには付けない
+            # 1層目の開口の長手に沿う開口部手摺（SG918SW、高さ922）＋開口部幅木（3d.gdl と同じ。上がり口側で折れて端も塞ぐ）。
+            # 外付けには付けない
             if not outside:
-                items.append((t0 + sgn * 0.03, lv[0] + 0.90, name("階段開口部手摺", "階段開口部手摺") + "・幅木"))
+                items.append((t0 + sgn * sp0 * 0.5, lv[0] + 0.92, name("階段開口部手摺", "階段開口部手摺") + "・幅木"))
     bottom = sorted([it for it in items if it[1] < top / 2.0], key=lambda it: it[0])
     upper = sorted([it for it in items if it[1] >= top / 2.0], key=lambda it: it[0])
     h = text_height_mm * text_scale / 1000.0                      # 文字高（モデル m）
