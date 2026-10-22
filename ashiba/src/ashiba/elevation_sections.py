@@ -856,7 +856,7 @@ def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale:
     ratio = (1.0 / scale) / src_scale
     data = [{"navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
              "position": {"x": pos[0] / 1000.0, "y": pos[1] / 1000.0},
-             "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} {kind} 1/{scale}"}
+             "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} {kind} {scale_caption(scale)}"}
             for pl, pos in zip(results, positions_mm)]
     dr = client.tapir("CreateDrawings", {"drawingsData": data})
     made = []
@@ -876,9 +876,53 @@ def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale:
     return made
 
 
+def scale_caption(scale: int) -> str:
+    """図面名に添える縮尺（A1 の縮尺と、半分に縮めた A3 の縮尺。例の仮設計画図に倣う）."""
+    return f"A1 1/{int(scale)}・A3 1/{int(scale) * 2}"
+
+
+def _with_panel(margins: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """右の帯（凡例・荷重表・共通事項。sheet_panel）の分だけ右の余白を広げる."""
+    from .sheet_panel import PANEL_GAP_MM, PANEL_W_MM
+
+    return (margins[0], margins[1], margins[2] + PANEL_W_MM + PANEL_GAP_MM, margins[3])
+
+
+def _write_panel(client, model, lay, paper, margins, kind: str, stair_plan=None, cuts=None,
+                 top_mm: Optional[float] = None) -> list[str]:
+    """図面を置いたレイアウトの右の帯に書く。書けなければ注意の文を返す（図面の配置は止めない）."""
+    from .sheet_panel import panel_content, write_panel
+
+    try:
+        write_panel(client, lay, paper, margins, panel_content(kind, model, stair_plan, cuts), top_mm)
+        return []
+    except Exception as e:
+        return [f"凡例・荷重表・共通事項を書けませんでした（{e}）"]
+
+
+def panel_spot(plan: "SheetPlan", boxes_mm: list[tuple[float, float]], paper: tuple[float, float],
+               margins: tuple[float, float, float, float], panel_h_mm: float, title_band_mm: float = 60.0,
+               caption_mm: float = 15.0) -> Optional[float]:
+    """帯を置ける上端（用紙 mm の y）. 右上が空いていれば右上、だめなら図面の下の右（表題欄の上）。どちらも無理なら None."""
+    from .sheet_panel import PANEL_GAP_MM, PANEL_W_MM
+
+    occ = [(x, y - caption_mm, x + bw / plan.scale, y + bh / plan.scale)
+           for (x, y), (bw, bh) in zip(plan.positions_mm, boxes_mm)]
+    x_left = paper[0] - margins[2] - PANEL_W_MM - 2.0 - PANEL_GAP_MM
+    top = paper[1] - margins[1] - 4.0
+    if all(o[2] <= x_left or o[1] >= top or o[3] <= top - panel_h_mm for o in occ):
+        return top
+    low = min([o[1] for o in occ if o[2] > x_left] + [top])
+    floor = margins[3] + title_band_mm
+    if low - PANEL_GAP_MM - panel_h_mm >= floor:
+        return low - PANEL_GAP_MM
+    return None
+
+
 def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate: bool = False,
                         name: Optional[str] = None, kind: str = "足場立面図",
-                        scales: Iterable[int] = SCALE_CANDIDATES) -> bool:
+                        scales: Iterable[int] = SCALE_CANDIDATES, panel_kind: Optional[str] = None,
+                        stair_plan=None, cuts=None) -> bool:
     """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）.
 
     1) 元の大きさ（比率1）で仮置きして実寸を測る（注記・フロアマーカーの張り出しまで入る）
@@ -906,6 +950,20 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
         boxes = [(s_.length_mm + ex_w, float(model.scaffold_height_mm) + 2000.0 + ex_h) for s_ in specs]
         src = 0.01
     plan = arrange_boxes(boxes, paper, margins, scales=scales)
+    panel_top: Optional[float] = None
+    if panel_kind:
+        # 右の帯は、図面を並べて右上か下の右が空いていればそこに。空かなければ右の余白を広げて並べ直す
+        from .sheet_panel import panel_content, panel_height_mm
+
+        ph = panel_height_mm(panel_content(panel_kind, model, stair_plan, cuts))
+        panel_top = panel_spot(plan, boxes, paper, margins, ph) if plan is not None else None
+        if panel_top is None and plan is not None:
+            reserved = arrange_boxes(boxes, paper, _with_panel(margins), scales=scales)
+            if reserved is not None and reserved.scale == plan.scale:
+                plan = reserved
+            else:
+                # 帯の分を空けると縮尺が下がるか入らない → 図面を優先し、帯は書かない（立面の2面・断面の2面を1枚に）
+                panel_kind = None
     if not _delete_drawings(client, lay, probe):
         for pl in results:
             pl.notes.append("仮置きした図面を消せませんでした（レイアウトに重なって残っています）")
@@ -917,6 +975,11 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
             pl.layout_item_guid = ""
         return False
     _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src, kind)
+    if panel_kind:
+        # 右の帯: 凡例・最大積載荷重・注意（例の仮設計画図に倣う。利用者の指定 2026-10-23）
+        notes = _write_panel(client, model, lay, paper, margins, panel_kind, stair_plan, cuts, panel_top)
+        if notes and results:
+            results[0].notes.extend(notes)
     return True
 
 
@@ -1010,7 +1073,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         for k, grp in enumerate(groups, start=1):
             name = sheet_layout_name(prefix, k if len(groups) > 1 else 0)
             if _place_on_one_sheet(client, model, prefix, [specs[i] for i in grp], [results[i] for i in grp],
-                                   subset, master, annotate=annotate, name=name):
+                                   subset, master, annotate=annotate, name=name, panel_kind="elev",
+                                   stair_plan=stair_plan):
                 left_over -= set(grp)
         if not left_over:
             activate_floor_plan(client)
@@ -1277,7 +1341,7 @@ class PlanSheet:
 
 
 def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
-                     floor_index: Optional[int] = None) -> PlanSheet:
+                     floor_index: Optional[int] = None, stair_plan=None) -> PlanSheet:
     """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く."""
     out = PlanSheet(layout_name=plan_layout_name(prefix))
     activate_floor_plan(client)
@@ -1298,7 +1362,8 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
         out.notes.append("レイアウトを作れませんでした")
         return out
     out.layout_item_guid = lay
-    paper, margins = _layout_paper_mm(client, lay)
+    paper, margins0 = _layout_paper_mm(client, lay)
+    margins = _with_panel(margins0)                 # 右の帯（方位・凡例・荷重表・共通事項）の分を空ける
     region = plan_region_mm(model)
     box = (region[2] - region[0], region[3] - region[1])
     scale = fit_scale(box, paper, margins)
@@ -1314,7 +1379,7 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
     els = create_clipped_drawings(client, [{
         "navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
         "clipPolygon": clip, "scale": src_scale / scale, "drawingScale": float(scale),
-        "name": f"足場平面図 1/{scale}"}], lay)
+        "name": f"足場平面図 {scale_caption(scale)}"}], lay)
     el = (els or [{}])[0]
     if "elementId" in el:
         out.drawing_guid = el["elementId"]["guid"]
@@ -1324,5 +1389,6 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
             pass
     else:
         out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
+    out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan))
     activate_floor_plan(client)
     return out

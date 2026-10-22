@@ -29,6 +29,7 @@ from .elevation_sections import (
     clipped_drawing_geometry,
     create_clipped_drawings,
     ensure_subset,
+    scale_caption,
     pick_master_layout,
     walk_tree,
 )
@@ -166,7 +167,7 @@ def place_detail_sheet(client, details: list[dict], titles: list[str], prefix: s
         clip, position = clipped_drawing_geometry(region, plan.scale, pos, src_scale)
         data.append({"navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
                      "clipPolygon": clip, "scale": drawing_ratio(plan.scale, src_scale), "drawingScale": float(plan.scale),
-                     "name": f"{title} 1/{plan.scale}"})
+                     "name": f"{title} {scale_caption(plan.scale)}"})
     made = create_clipped_drawings(client, data, lay)
     els = [e for e in made if "elementId" in e]
     out.drawing_guids = [e["elementId"]["guid"] for e in els]

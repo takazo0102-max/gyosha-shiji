@@ -183,7 +183,7 @@ def place_xsec(client, model: ScaffoldModel, part_name: str, origin_mm: tuple[fl
             clip, position = clipped_drawing_geometry(regions[i], scale, pos, src_scale)
             data.append({"navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
                          "clipPolygon": clip, "scale": drawing_ratio(scale, src_scale), "drawingScale": float(scale),
-                         "name": f"{items[i].title} 1/{scale}"})
+                         "name": f"{items[i].title} A1 1/{scale}・A3 1/{scale * 2}"})
         made = create_clipped_drawings(client, data, lay)
         els = [x for x in made if "elementId" in x]
         sheets.drawing_guids += [x["elementId"]["guid"] for x in els]

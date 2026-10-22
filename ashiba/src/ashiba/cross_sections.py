@@ -318,19 +318,24 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     groups: dict[str, list] = {}
     for pl in ok:
         groups.setdefault(pl.face_name.split(" ")[0], []).append(pl)
+    # キープラン用の切断線（建物を横切る元の線）
+    cuts_by = {s_.face_name: {"label": s_.face_name.split("-")[0], "start": s_.start_mm, "end": s_.end_mm} for s_ in full}
     for pair, pls in groups.items():
         name = cross_sheet_name(prefix, pair)
         sp = [by_name[pl.section_name] for pl in pls]
+        cuts = [cuts_by[pair]] if pair in cuts_by else []
         if _place_on_one_sheet(client, model, prefix, sp, pls, subset, master, annotate=True, name=name,
-                               kind="足場断面図", scales=(DETAIL_SCALE,)):
+                               kind="足場断面図", scales=(DETAIL_SCALE,), panel_kind="cross", cuts=cuts):
             continue
         for k, pl in enumerate(pls, start=1):
             one = f"{name} {k}" if len(pls) > 1 else name
             if _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name]], [pl], subset, master,
-                                   annotate=True, name=one, kind="足場断面図", scales=(DETAIL_SCALE,)):
+                                   annotate=True, name=one, kind="足場断面図", scales=(DETAIL_SCALE,),
+                                   panel_kind="cross", cuts=cuts):
                 continue
             if _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name]], [pl], subset, master,
-                                   annotate=True, name=one, kind="足場断面図", scales=CROSS_SCALES):
+                                   annotate=True, name=one, kind="足場断面図", scales=CROSS_SCALES,
+                                   panel_kind="cross", cuts=cuts):
                 pl.notes.append(f"断面図 {pl.face_name} は 1/{DETAIL_SCALE} で用紙に入らないので縮尺を下げて置きました")
             else:
                 pl.notes.append("断面図が用紙に収まらないのでレイアウトに置きませんでした（断面図はプロジェクトマップにあります）")
