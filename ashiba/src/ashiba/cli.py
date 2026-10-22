@@ -151,7 +151,8 @@ TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
-    "clearance_space_mm", "scaffold_form", "next_gen",
+    "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary",
+    "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
@@ -1393,7 +1394,16 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
         groups = face_groups(spec, all_face_names(spec, master_csv))
     except ValueError as e:
         raise InputError(str(e))
-    return [(label, solve_all(sub, master_csv)) for label, sub in groups]
+    out = [(label, solve_all(sub, master_csv)) for label, sub in groups]
+    # 階段の無い組は、ほかの組の面の階段で昇降する（足場は面の組をまたいでつながっている）
+    stair_faces = [r.model.face_name(t.edge_index) for _l, r in out
+                   for t in (getattr(r.stair_plan, "towers", None) or [])]
+    if stair_faces:
+        for k, ((label, sub), (_l, r)) in enumerate(zip(groups, out)):
+            if not getattr(r.stair_plan, "towers", None) and any(
+                    c.check_id == 12 and c.status != "OK" for c in r.checks):
+                out[k] = (label, solve_all({**sub, "stairs_elsewhere": list(dict.fromkeys(stair_faces))}, master_csv))
+    return out
 
 
 def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
@@ -1406,6 +1416,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     validate_spec(spec)
     model = build_model(spec, master_csv)
     check_edge_indices(spec, model)
+    model.stairs_elsewhere = [str(f) for f in (spec.get("stairs_elsewhere") or [])]
     site = build_site(spec)
     # 開口部を先に解く（壁つなぎの最適化は抜いた支柱を避けた状態で検定する。
     # 階段の自動配置も梁枠の区間（通路）を避ける）
@@ -1494,7 +1505,25 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 上り口＋階段＋降り口（利用者の指摘 2026-10-20: 上り口と降り口に横のスパンが要る）なので2スパン長い
     from .stairs import decide_outside
 
-    outside, why = decide_outside(model, st.get("layout", "inside"), float(spec.get("clearance_space_mm", 2000)))
+    # 敷地境界線があれば、面ごとの足場の外の空き（境界までの離れ）を測る。外付け階段の自動はいちばん空いた面で決める
+    from .site_boundary import face_clearances, parse_boundary
+
+    bnd, roads = parse_boundary(spec)
+    clearances = face_clearances(model, bnd, roads) if bnd else []
+    if bnd:
+        model.site_boundary_mm = bnd
+        model.site_road_edges = roads
+    if clearances:
+        # 躯体外面から敷地境界までの水平スペース（法規#1 本足場原則・収まり）は、建てる面のうちいちばん狭い面の値
+        from .site_boundary import POST_R_MM
+
+        so = {e.edge_index: float(e.standoff) for e in model.plan.edges}
+        model.clearance_space_mm = min(c.min_mm + POST_R_MM + float(model.post_row_spacing_mm) + so.get(c.edge_index, 0.0)
+                                       for c in clearances)
+    space = float(spec.get("clearance_space_mm", 2000))
+    if clearances:
+        space = min(space, max(c.min_mm for c in clearances))
+    outside, why = decide_outside(model, st.get("layout", "inside"), space)
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
     hug_no_stairs = model.no_stair_tower and not st.get("positions") and not st.get("count")
     if hug_no_stairs:
@@ -1552,6 +1581,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     conflicts = check_conflicts(
         model, openings, stair_plan=stair_plan, platforms=platforms, brackets=brackets
     )
+    if clearances:
+        from .site_boundary import boundary_issues
+
+        conflicts += boundary_issues(model, clearances, stair_plan)
     # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
     terrain = solve_post_feet(model, build_ground(spec))
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)

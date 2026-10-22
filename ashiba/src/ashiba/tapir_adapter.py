@@ -716,7 +716,10 @@ def place_scaffold_lines(
     # 途中で失敗したら、置いた分を消してから投げる。中途半端な足場が
     # モデルに残ると、どこまで置けたのか利用者が確かめる羽目になる
     with _rollback_on_error(client, placed):
-        for ep, edge in zip(model.plan.edges, model.plan.outline.edges):
+        # 面の向きはその面の躯体の辺から（plan.edges は建てる面だけ。一部の面だけ建てる・面ごとに切り替えた組では
+        # 並びが躯体の辺とずれる。並びで組み合わせていて、西面だけの組の足場が東向きに置かれた 2026-10-23）
+        for ep in model.plan.edges:
+            edge = model.plan.outline.edges[ep.edge_index]
             # 下の屋根の上に建てる足場（セットバックの上の部分）は、その屋根の高さに置く
             elem = client.create_object(
                 object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0))

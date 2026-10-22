@@ -1207,7 +1207,11 @@ def plan_region_mm(model: ScaffoldModel, margin_mm: float = 1500.0) -> tuple[flo
     ys = [float(v[1]) for v in model.plan.outline.vertices]
     standoff = max((float(e.standoff) for e in model.plan.edges), default=300.0)
     grow = standoff + float(model.post_row_spacing_mm) + CLEARANCE_MM + margin_mm
-    return (min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow)
+    box = [min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow]
+    # 敷地境界線も入れる（境界と足場の離れが読めるように）
+    for bx, by in getattr(model, "site_boundary_mm", None) or []:
+        box = [min(box[0], bx - margin_mm), min(box[1], by - margin_mm), max(box[2], bx + margin_mm), max(box[3], by + margin_mm)]
+    return tuple(box)
 
 
 def fit_scale(box_mm: tuple[float, float], paper_mm: tuple[float, float],
@@ -1390,5 +1394,13 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
     else:
         out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
     out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan))
+    if getattr(model, "site_boundary_mm", None):
+        # 敷地境界線（一点鎖線）と面ごとの境界までの離れ（ビューのレイヤーで境界が隠れていても図に出す）
+        from .sheet_panel import boundary_overlay, write_overlay
+
+        try:
+            write_overlay(client, lay, boundary_overlay(model, region, scale, pos))
+        except Exception as e:
+            out.notes.append(f"敷地境界線を書けませんでした（{e}）")
     activate_floor_plan(client)
     return out

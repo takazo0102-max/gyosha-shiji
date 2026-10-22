@@ -115,6 +115,8 @@ def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None) -
     sheet = str(getattr(model.config, "sheet_type", "") or "")
     if sheet and sheet != "なし":
         rows.append(("sheet", f"{sheet}（外側の構面）"))
+    if getattr(model, "site_boundary_mm", None):
+        rows.append(("bnd", "敷地境界線（道路・隣地。数は足場の外から境界まで）"))
     top = y
     for key, label in rows:
         yc = y - 4.0
@@ -131,6 +133,8 @@ def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None) -
             items["lines"] += [[(6, yc - 1.5), (32, yc + 1.5)], [(6, yc - 2.5), (20, yc - 0.5)]]
         elif key == "sheet":
             items["lines"] += [[(4 + 4 * k, yc), (6 + 4 * k, yc)] for k in range(8)]
+        elif key == "bnd":
+            items["lines"] += [[(4 + 9 * k, yc), (10 + 9 * k, yc)] for k in range(4)]
         _t(items, 40, yc - 1.2, label)
         items["lines"].append([(0, y - 8.0), (w, y - 8.0)])
         y -= 8.0
@@ -269,5 +273,74 @@ def write_panel(client, layout_item_guid: str, paper_mm: tuple[float, float],
                 d["pen"] = int(red)
             data.append(d)
         r = client.tapir("CreateTexts", {"textsData": data})
+        n += sum(1 for e in r.get("elements", []) if "elementId" in e)
+    return n
+
+
+def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float, float], scale: int,
+                     paper_pos_mm: tuple[float, float]) -> dict:
+    """平面図の上に重ねる敷地境界線（破線）と名前・面ごとの境界までの離れ（用紙 mm の絶対座標）.
+
+    平面図のビューのレイヤー組み合わせで境界線のレイヤーが隠れていても図に出るよう、レイアウトに直接書く。
+    """
+    from .site_boundary import face_clearances
+
+    items: dict = {"texts": [], "lines": []}
+    bnd = list(getattr(model, "site_boundary_mm", None) or [])
+    if len(bnd) < 3:
+        return items
+    roads = set(getattr(model, "site_road_edges", None) or set())
+    tr = lambda p: (paper_pos_mm[0] + (p[0] - region_mm[0]) / scale, paper_pos_mm[1] + (p[1] - region_mm[1]) / scale)
+    dash, gap = 6.0, 2.5
+    for i in range(len(bnd)):
+        a, b = tr(bnd[i]), tr(bnd[(i + 1) % len(bnd)])
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-6:
+            continue
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        s = 0.0
+        while s < L:
+            e = min(L, s + dash)
+            items["lines"].append([(a[0] + ux * s, a[1] + uy * s), (a[0] + ux * e, a[1] + uy * e)])
+            s = e + gap
+            if s < L:                              # 一点鎖線（境界線の約束）
+                items["lines"].append([(a[0] + ux * (s - gap / 2), a[1] + uy * (s - gap / 2)),
+                                       (a[0] + ux * (s - gap / 2 + 0.4), a[1] + uy * (s - gap / 2 + 0.4))])
+        mid = ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
+        _t(items, mid[0] + 2.0 * uy, mid[1] - 2.0 * ux + 1.0, "道路境界線" if i in roads else "隣地境界線",
+           h=2.5, red=True)
+    for c in face_clearances(model, bnd, roads):
+        ep = next(e for e in model.plan.edges if e.edge_index == c.edge_index)
+        (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+        L = math.hypot(ex - sx, ey - sy) or 1.0
+        ux, uy = (ex - sx) / L, (ey - sy) / L
+        row = float(model.post_row_spacing_mm)
+        p = (sx + ux * L * 0.25 - uy * (row + 400.0), sy + uy * L * 0.25 + ux * (row + 400.0))
+        q = tr(p)
+        _t(items, q[0], q[1], f"境界まで {c.min_mm:.0f}", h=2.2, red=c.min_mm < 300.0)
+    return items
+
+
+def write_overlay(client, layout_item_guid: str, items: dict) -> int:
+    """boundary_overlay の中身（用紙 mm の絶対座標）をレイアウトに書く."""
+    from .elevation_sections import _activate
+
+    if not items["lines"] and not items["texts"]:
+        return 0
+    _activate(client, layout_item_guid)
+    try:
+        red = client.find_red_pen()
+    except Exception:
+        red = 20
+    n = 0
+    if items["lines"]:
+        r = client.tapir("CreatePolylines", {"polylinesData": [
+            {"coordinates": [{"x": x / 1000.0, "y": y / 1000.0} for x, y in pts]} for pts in items["lines"]]})
+        n += sum(1 for e in r.get("elements", []) if "elementId" in e)
+    if items["texts"]:
+        r = client.tapir("CreateTexts", {"textsData": [
+            {"coordinate": {"x": t["x"] / 1000.0, "y": t["y"] / 1000.0, "z": 0.0}, "text": t["text"],
+             "height": float(t["h"]), "justification": "Center", **({"pen": int(red)} if t.get("red") else {})}
+            for t in items["texts"]]})
         n += sum(1 for e in r.get("elements", []) if "elementId" in e)
     return n

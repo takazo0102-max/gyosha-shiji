@@ -541,6 +541,15 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             spec["stories"] = [{"name": s["name"], "level_mm": float(s["level"]) * 1000.0} for s in st]
         except (TapirError, KeyError, TypeError, ValueError):
             pass
+    # 敷地境界線（レイヤー名に 敷地・境界 のポリライン。道路 のレイヤーに沿う辺は道路境界）。条件で指定が無ければ拾う
+    if not spec.get("site_boundary_mm"):
+        from ashiba.site_boundary import read_boundary_from_archicad
+
+        bnd, roads = read_boundary_from_archicad(client, spec["outline_mm"])
+        if bnd:
+            spec["site_boundary_mm"] = [list(p) for p in bnd]
+            spec["road_edges"] = sorted(roads)
+            print(f"  敷地境界線: {len(bnd)}辺" + (f"（道路境界 {len(roads)}辺）" if roads else ""))
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
     ground = read_ground_model(client, outline_mm=spec["outline_mm"])
     if ground.ignored_meshes:
@@ -557,6 +566,12 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
 
     # 面ごとに足場を切り替えた建物（face_forms）は面の組ごとに解く。先頭の組（切り替えていない面）を従来どおり
     # 帳票・立面・詳細図まで出し、ほかの組は足場ラインと付属部品を置いて帳票を「切替_種類」に出す
+    # 敷地境界を越える面は、張り出しの小さい形式（一側足場→単管抱き足場）に替えて解き直す（繰り返し）
+    from ashiba.site_boundary import plan_within_boundary
+
+    spec, fit_notes = plan_within_boundary(spec)
+    for n in fit_notes:
+        print(f"  敷地境界: {n}")
     groups = solve_groups(spec)
     _label0, r = groups[0]
     write_outputs(r, OUT_DIR)

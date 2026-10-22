@@ -304,6 +304,14 @@ def check_stairs(m: ScaffoldModel, stair_plan=None) -> CheckResult:
             "階段の配置が未指定のため判定できません",
             basis,
         )
+    elsewhere = list(getattr(m, "stairs_elsewhere", None) or [])
+    if not stair_plan.towers and elsewhere:
+        # 面ごとに足場を切り替えた建物（面の組）で、この組には階段が無いが、ほかの組の面に階段がある
+        return CheckResult(
+            12, "昇降設備", OK,
+            f"この面の組には階段がありません。昇降は {'・'.join(elsewhere)} の階段を使います（足場はつながっている）",
+            basis,
+        )
     if not stair_plan.towers and m.config.ladders > 0:
         return CheckResult(
             12, "昇降設備", OK,

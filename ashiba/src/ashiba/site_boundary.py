@@ -1,0 +1,265 @@
+"""敷地境界線と足場の離れ（利用者の指定 2026-10-23: 建物と敷地境界線を作成して足場計画を繰り返してみて）.
+
+足場の外は敷地境界線まで。境界を越える足場は組めない（道路側は道路占用の許可が要る）。面ごとに、足場の
+外側建地列から外向きに敷地境界線までの距離（離れ）を測り、
+- 越える（離れ < 0）            → NG「境界を越えます」
+- 足場の外の作業・養生の余裕が無い（離れ < WARN_MM） → 要確認
+- 朝顔（張り出し）が境界を越える → 要確認（道路側は道路占用、隣地側は隣地の承諾）
+- 外付けの階段室が入らない      → NG（足場の中に組むか、面を替える）
+を出す。外付け階段を自動で決めるときの「足場の外の空き」にも面ごとの離れを使う。
+
+入力: site_boundary_mm: [[x, y], ...]（敷地境界線の閉じた多角形、躯体外形と同じ座標）、
+      road_edges: [0, 2]（道路境界線の辺の番号。境界の i 番目の頂点から i+1 番目まで）。
+Archicad からは、レイヤー名に「敷地」か「境界」を含む閉じたポリラインを拾う（名前に「道路」を含む
+レイヤーのポリラインは、その辺を道路境界とみなす）。
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import Optional
+
+from .model import ScaffoldModel
+
+WARN_MM = 300.0            # これより狭いと足場の外の作業・養生（シート・朝顔）の余裕が無い
+SAMPLE_PITCH_MM = 250.0
+POST_R_MM = 25.0
+
+
+@dataclass
+class FaceClearance:
+    edge_index: int
+    face: str
+    min_mm: float              # 外側建地の外面から敷地境界線までの最小（負なら越える）
+    at_mm: float               # 最小になる位置（面の始点の支柱から）
+    road: bool                 # その位置の境界が道路境界か
+    over_from_mm: float = 0.0  # 越える区間（越えなければ 0, 0）
+    over_to_mm: float = 0.0
+
+
+def parse_boundary(spec: dict) -> tuple[list[tuple[float, float]], set[int]]:
+    pts = [(float(p[0]), float(p[1])) for p in (spec.get("site_boundary_mm") or [])]
+    if len(pts) >= 2 and math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 1.0:
+        pts = pts[:-1]
+    roads = {int(i) for i in (spec.get("road_edges") or [])}
+    return (pts if len(pts) >= 3 else []), roads
+
+
+def _ray_hit(p, d, a, b) -> Optional[float]:
+    """点 p から向き d（単位）の半直線と線分 a-b の交点までの距離（無ければ None）."""
+    ex, ey = b[0] - a[0], b[1] - a[1]
+    den = d[0] * ey - d[1] * ex
+    if abs(den) < 1e-12:
+        return None
+    qx, qy = a[0] - p[0], a[1] - p[1]
+    t = (qx * ey - qy * ex) / den
+    u = (qx * d[1] - qy * d[0]) / den
+    if t >= -1e-6 and -1e-9 <= u <= 1 + 1e-9:
+        return t
+    return None
+
+
+def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
+                    road_edges: Optional[set[int]] = None) -> list[FaceClearance]:
+    """面ごとの、外側建地の外面から敷地境界線までの離れ（外向きに測る）."""
+    if len(boundary) < 3:
+        return []
+    road_edges = road_edges or set()
+    row = float(model.post_row_spacing_mm)
+    segs = [(boundary[i], boundary[(i + 1) % len(boundary)], i) for i in range(len(boundary))]
+    out: list[FaceClearance] = []
+    for ep in model.plan.edges:
+        (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+        L = math.hypot(ex - sx, ey - sy)
+        if L < 1.0:
+            continue
+        ux, uy = (ex - sx) / L, (ey - sy) / L
+        ox, oy = uy, -ux                     # 外向き（躯体の反対。躯体側が左手）
+        n = max(2, int(L // SAMPLE_PITCH_MM) + 1)
+        best = None
+        over = []
+        for k in range(n + 1):
+            s = L * k / n
+            p = (sx + ux * s + ox * row, sy + uy * s + oy * row)       # 外側建地の芯
+            if not _inside(p, boundary):
+                # 外側建地が境界の外に出ている: 越えた量＝いちばん近い境界の辺までの距離（＋支柱の半径）
+                d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
+                c = -d - POST_R_MM
+            else:
+                hits = [(t, i) for a, b, i in segs if (t := _ray_hit(p, (ox, oy), a, b)) is not None]
+                if not hits:
+                    continue
+                t, i = min(hits)
+                c = t - POST_R_MM
+            if best is None or c < best[0]:
+                best = (c, s, i in road_edges)
+            if c < 0:
+                over.append(s)
+        if best is None:
+            continue
+        out.append(FaceClearance(ep.edge_index, model.face_name(ep.edge_index), best[0], best[1], best[2],
+                                 min(over) if over else 0.0, max(over) if over else 0.0))
+    return out
+
+
+def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair_plan=None) -> list:
+    """離れから NG・要確認（conflicts.ConflictIssue の形）."""
+    from .conflicts import ConflictIssue
+
+    out = []
+    basis = "敷地境界（民法234条・道路法32条の道路占用）"
+    asg = getattr(model.config, "asagao", None)
+    asa_proj = float(getattr(asg, "projection_mm", 0.0) or 0.0) if model.asagao_heights() else 0.0
+    towers = list(getattr(stair_plan, "towers", []) or [])
+    outside = bool(getattr(stair_plan, "outside", False))
+    for c in clearances:
+        side = "道路境界" if c.road else "隣地境界"
+        if c.min_mm < 0:
+            out.append(ConflictIssue(
+                "足場×敷地境界", "NG",
+                f"{c.face}: 足場の外側建地が{side}線を最大 {-c.min_mm:.0f}mm 越えます"
+                f"（面の始点から {c.over_from_mm:.0f}〜{c.over_to_mm:.0f}mm）。離れを詰める・幅を狭める・"
+                f"一側足場にする{'・道路占用の許可を取る' if c.road else ''}", basis))
+            continue
+        if c.min_mm < WARN_MM:
+            out.append(ConflictIssue(
+                "足場×敷地境界", "WARN",
+                f"{c.face}: 足場の外から{side}線まで {c.min_mm:.0f}mm しかありません（養生シート・作業の余裕に注意）",
+                basis))
+        if asa_proj > 0 and c.min_mm < asa_proj:
+            out.append(ConflictIssue(
+                "朝顔×敷地境界", "WARN",
+                f"{c.face}: 朝顔の張り出し {asa_proj:.0f}mm が{side}線を越えます（境界まで {c.min_mm:.0f}mm）。"
+                + ("道路占用の許可が要ります" if c.road else "隣地の承諾を取るか、張り出しの短い防護棚にします"),
+                basis))
+        if outside and any(t.edge_index == c.edge_index for t in towers):
+            need = float(model.post_row_spacing_mm) + 100.0
+            if c.min_mm < need:
+                out.append(ConflictIssue(
+                    "外付け階段×敷地境界", "NG",
+                    f"{c.face}: 外付けの階段室（{need:.0f}mm）が{side}線まで {c.min_mm:.0f}mm に入りません。"
+                    "足場の中に組むか、ほかの面にします", basis))
+    return out
+
+
+def _inside(pt, poly) -> bool:
+    x, y = pt
+    inside = False
+    n = len(poly)
+    for i in range(n):
+        (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / ((y2 - y1) or 1e-12) + x1:
+            inside = not inside
+    return inside
+
+
+def _seg_dist(p, a, b) -> float:
+    ex, ey = b[0] - a[0], b[1] - a[1]
+    L2 = ex * ex + ey * ey or 1e-12
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / L2))
+    return math.hypot(p[0] - a[0] - t * ex, p[1] - a[1] - t * ey)
+
+
+def pick_boundary(polylines: list[dict], outline_mm: list[tuple[float, float]]) -> tuple[list[tuple[float, float]], set[int]]:
+    """レイヤー名つきのポリライン [{"layer": 名前, "pts": [(x,y)mm...]}] から、建物を囲む敷地境界線と道路境界の辺.
+
+    敷地境界: レイヤー名に「敷地」か「境界」を含み、閉じていて建物の重心を囲むもののうち最も小さいもの。
+    道路境界: レイヤー名に「道路」を含むポリラインに沿う（中点が 200mm 以内の）境界の辺。
+    """
+    if not outline_mm:
+        return [], set()
+    cx = sum(p[0] for p in outline_mm) / len(outline_mm)
+    cy = sum(p[1] for p in outline_mm) / len(outline_mm)
+    best = None
+    for pl in polylines:
+        name = str(pl.get("layer") or "")
+        if not any(k in name for k in ("敷地", "境界")):
+            continue
+        pts = [(float(x), float(y)) for x, y in pl.get("pts") or []]
+        if len(pts) >= 2 and math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 1.0:
+            pts = pts[:-1]
+        if len(pts) < 3 or not _inside((cx, cy), pts):
+            continue
+        area = abs(sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+                       for i in range(len(pts)))) / 2.0
+        if best is None or area < best[0]:
+            best = (area, pts)
+    if best is None:
+        return [], set()
+    pts = best[1]
+    roads: set[int] = set()
+    road_lines = [[(float(x), float(y)) for x, y in pl.get("pts") or []] for pl in polylines
+                  if "道路" in str(pl.get("layer") or "")]
+    for i in range(len(pts)):
+        a, b = pts[i], pts[(i + 1) % len(pts)]
+        mid = ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
+        for rl in road_lines:
+            if any(_seg_dist(mid, rl[j], rl[j + 1]) < 200.0 for j in range(len(rl) - 1)):
+                roads.add(i)
+    return pts, roads
+
+
+def read_boundary_from_archicad(client, outline_mm) -> tuple[list[tuple[float, float]], set[int]]:
+    """Archicad の平面のポリライン（レイヤー名に 敷地・境界・道路）から敷地境界線を拾う. 無ければ ([], set())."""
+    try:
+        layers = {int(a.get("index", -1)): str(a.get("name", ""))
+                  for a in client.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])}
+        want = {i for i, n in layers.items() if any(k in n for k in ("敷地", "境界", "道路"))}
+        if not want:
+            return [], set()
+        els = client.tapir("GetElementsByType", {"elementType": "PolyLine"}).get("elements", [])
+        if not els:
+            return [], set()
+        dets = client.get_details(els)
+    except Exception:
+        return [], set()
+    polys = []
+    for d in dets:
+        li = int(d.get("layerIndex", -1))
+        if li not in want:
+            continue
+        coords = (d.get("details") or {}).get("coordinates") or []
+        polys.append({"layer": layers.get(li, ""), "pts": [(c["x"] * 1000.0, c["y"] * 1000.0) for c in coords]})
+    return pick_boundary(polys, [tuple(p) for p in outline_mm])
+
+
+# 境界を越える面を、張り出しの小さい形式に順に替える（一側足場は建地1列、単管抱き足場は建地の線の上だけ）
+FIT_FORMS = ("一側足場", "単管抱き足場")
+
+
+def plan_within_boundary(spec: dict, max_rounds: int = 3) -> tuple[dict, list[str]]:
+    """敷地境界を越える面の足場の形式を替えて解き直す（越えなくなるか、替える形式が無くなるまで）.
+
+    戻り値は (使う入力, 何をしたかの文)。境界が無い・越えない・fit_boundary=false なら入力のまま。
+    """
+    from .cli import solve_groups
+    from .face_forms import format_face_forms, parse_face_forms
+
+    if not spec.get("site_boundary_mm") or spec.get("fit_boundary") is False:
+        return spec, []
+    spec = dict(spec)
+    notes: list[str] = []
+    for rnd in range(1, max_rounds + 1):
+        bad = []
+        for _label, r in solve_groups(spec):
+            for c in r.conflicts:
+                if c.kind == "足場×敷地境界" and c.severity == "NG":
+                    bad.append(c.message.split(":", 1)[0])
+        if not bad:
+            return spec, notes
+        ff = parse_face_forms(spec.get("face_forms"))
+        changed = False
+        for face in dict.fromkeys(bad):
+            cur = ff.get(face, "")
+            i = FIT_FORMS.index(cur) + 1 if cur in FIT_FORMS else 0
+            if i < len(FIT_FORMS):
+                ff[face] = FIT_FORMS[i]
+                notes.append(f"{face}: 敷地境界を越えるので {FIT_FORMS[i]} にしました（{rnd}回目）")
+                changed = True
+            else:
+                notes.append(f"{face}: {cur} でも敷地境界を越えます（離れ・境界を見直してください）")
+        if not changed:
+            break
+        spec["face_forms"] = format_face_forms(ff)
+    return spec, notes
