@@ -1272,7 +1272,10 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         i = body.index("! 階段手すり（日建 ND1800専用階段手摺 NDKT")
         sub = body[i:i + 1500]
         self.assertIn("for sd = 0 to stOut", sub)
-        self.assertIn("add x0 + r_sic, ys, lv[il5] + 1.35", sub)
+        self.assertIn("hKT = 1.35", sub)
+        self.assertIn("add x0 + r_sic, ys, lv[il5] + hKT", sub)
+        # 最上層へ上がる階段は支柱の上（床から900まで）に浮かないよう、コマ1つ下げる（利用者の指摘 2026-10-22: 手すり浮いてる）
+        self.assertIn("if lv[il5 + 1] + hKT > postTop - 0.03 then hKT = hKT - 0.45", sub)
 
     def test_no_floating_toe_board_over_the_stair(self):
         # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）
