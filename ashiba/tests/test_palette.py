@@ -12,9 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestEntries(unittest.TestCase):
-    def test_three_buttons_call_existing_scripts(self):
-        # パレットはメニュー＋よく使う3つ。ほかの操作はメニューから（利用者の指定 2026-10-21: まとめて使いやすく）
-        self.assertEqual([e.title for e in ENTRIES], ["メニュー", "配置", "解き直し", "3D表示"])
+    def test_one_entry_opens_the_palette(self):
+        # Tapir の一覧には入口1つ（パレットの窓を開く）。操作はすべて窓のボタン
+        # （利用者の指定 2026-10-22: Tapirの足場を一つにパレットとしてまとめて）
+        self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
         self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "条件", "条件の登録", "条件の呼び出し",
                                                      "帳票", "撤去"])
@@ -22,8 +23,44 @@ class TestEntries(unittest.TestCase):
             self.assertTrue((ROOT / "scripts" / a.script).exists(), a.script)
         for e in ENTRIES:
             self.assertTrue((ROOT / "scripts" / e.script).exists(), e.script)
-            self.assertTrue(e.file.startswith("足場") and e.file.endswith(".py"))
-        self.assertEqual(next(e for e in ENTRIES if e.title == "解き直し").args, ("--apply",))
+        self.assertEqual(next(a for a in ACTIONS if a.title == "解き直し").args, ("--apply",))
+
+    def test_panel_groups_cover_every_action_once(self):
+        from ashiba.palette import PANEL_GROUPS, panel_layout
+
+        titles = [t for _, ts in PANEL_GROUPS for t in ts]
+        self.assertEqual(sorted(titles), sorted(a.title for a in ACTIONS))
+        self.assertEqual(len(titles), len(set(titles)))
+        lay = panel_layout()
+        self.assertEqual([g["group"] for g in lay], ["建てる", "直す", "見る・出す"])
+        self.assertEqual(lay[0]["actions"][0]["title"], "配置")
+        self.assertIn("slab", lay[0]["actions"][0]["when"])
+        self.assertTrue(all(a["hint"] for g in lay for a in g["actions"]))     # 指を置くと出る説明
+
+    def test_quiet_entry_does_not_wait_for_a_dialog(self):
+        src = entry_source(ENTRIES[0])
+        self.assertIn("QUIET = True", src)
+        self.assertIn("stdout=subprocess.DEVNULL", src)        # 窓のプロセスに出力を握らせて入口が待たない
+
+    def test_panel_window(self):
+        sw = (ROOT / "tapir" / "palette_panel.swift").read_text(encoding="utf-8")
+        self.assertIn(".nonactivatingPanel", sw)                 # 押しても Archicad の選択が外れない
+        self.assertIn("panel.isFloatingPanel = true", sw)
+        self.assertIn('"--kinds"', sw)                           # 選んでいるものを見て★
+        self.assertIn('buttons[i].title = (hit ? "★ " : "") + a.title', sw)
+        self.assertIn('if a.title == "撤去" {', sw)              # 消す操作は確かめる
+        launcher = (ROOT / "scripts" / "ashiba_palette.py").read_text(encoding="utf-8")
+        self.assertIn('["swiftc", "-O", str(PANEL), "-o", str(exe)]', launcher)
+        self.assertIn("start_new_session=True", launcher)
+
+    def test_run_action_reports_unknown_and_summary(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import palette_run
+
+        code, text = palette_run.run_action("ない操作")
+        self.assertEqual(code, 2)
+        self.assertTrue(text.startswith("止まりました"))
 
     def test_entry_is_valid_python_with_uv_header_and_port(self):
         for e in ENTRIES:
@@ -31,7 +68,7 @@ class TestEntries(unittest.TestCase):
             ast.parse(src)
             self.assertTrue(src.startswith("#!/usr/bin/env python3\n# /// script"))    # uv run --script
             self.assertIn(MARK, src)
-            self.assertIn('env["ASHIBA_PORT"] = port', src)
+            self.assertIn('env["ASHIBA_PORT"] = port', src)          # 窓は ASHIBA_PORT を受け継いで操作に渡す
             self.assertIn(f'SCRIPT = os.path.join(ROOT, "scripts", "{e.script}")', src)
             self.assertIn("_desktop_ok()", src)          # 許可待ちで黙って止まらない
 

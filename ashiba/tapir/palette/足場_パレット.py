@@ -5,11 +5,11 @@
 # ///
 # -*- coding: utf-8 -*-
 # ashiba-palette-entry
-"""仮設足場 配置
+"""仮設足場 パレット
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-躯体スラブを選んでから押す。条件は「足場条件」部品の設定で変える
-本体は <ashiba>/scripts/run_from_archicad.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
+仮設足場のパレットの窓を開く。窓のボタンで配置・解き直し・区切る・3D表示などを実行する（★は今の選択に合う操作）
+本体は <ashiba>/scripts/ashiba_palette.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os
 import subprocess
@@ -17,9 +17,10 @@ import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))           # <ashiba>/tapir/palette（リンクをたどる）
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SCRIPT = os.path.join(ROOT, "scripts", "run_from_archicad.py")
+SCRIPT = os.path.join(ROOT, "scripts", "ashiba_palette.py")
 ARGS = ()
-TITLE = "仮設足場 配置"
+TITLE = "仮設足場 パレット"
+QUIET = True
 OUT = os.path.join(os.path.expanduser("~"), "Desktop", "ashiba_out")
 
 
@@ -90,6 +91,9 @@ def main():
     port = _port()
     if port:
         env["ASHIBA_PORT"] = port
+    if QUIET:                                            # 窓を開くだけ（結果は窓に出る）
+        return subprocess.run([py, SCRIPT] + list(ARGS), env=env, cwd=ROOT,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
     proc = subprocess.run([py, SCRIPT] + list(ARGS), capture_output=True, text=True, env=env, cwd=ROOT)
     out = (proc.stdout or "") + (proc.stderr or "")
     try:

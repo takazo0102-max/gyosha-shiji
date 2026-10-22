@@ -82,7 +82,7 @@ def main() -> int:
         print(f"リンク: {link} → {PALETTE_DIR / e.file}")
         if not dry:
             link.symlink_to(PALETTE_DIR / e.file)
-    print("Tapir パレットの一覧の「Reload scripts...」で読み直すと「足場1_配置」などが出ます")
+    print("Tapir パレットの一覧の「Reload scripts...」で読み直すと「足場_パレット」が出ます（押すと仮設足場のパレットの窓が開く）")
     return 0
 
 

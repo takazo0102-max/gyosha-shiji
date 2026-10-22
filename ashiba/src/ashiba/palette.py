@@ -1,4 +1,11 @@
-"""Tapir パレットのボタン（Phase 10-3）: 「メニュー」（すべての操作を選んでいるものに合わせて並べる）と「配置」「解き直し」「3D表示」.
+"""Tapir パレットの入口（Phase 10-3）: 「足場_パレット」1つ。押すと仮設足場のパレット（浮いた小窓）が開く.
+
+利用者の指定（2026-10-22）「Tapirの足場を一つにパレットとしてまとめて、使いやすいように工夫して」。Tapir の一覧には
+入口を1つだけ置き、すべての操作はパレットの窓のボタンに並べる（組: 建てる・直す・見る／出す）。窓は Archicad の前に
+浮いたまま残り、押しても Archicad の選択は外れない。選んでいるもの（躯体スラブ・足場・分解した支柱・足場条件の部品）
+を数秒ごとに見て、合う操作のボタンに★を付ける。結果の要点は窓の下に出す（ダイアログを出さない）。
+窓は tapir/palette_panel.swift（AppKit。tkinter は使えない Python で、osascript の JavaScript は窓の
+ボタンを受ける仕組みが止まった）。初めて開くときに swiftc で作る。
 
 Tapir のパレットは ~/Documents/Tapir の下のフォルダにある .py を一覧に出し、
 `uv run --script ファイル --port 番号` で起動する（配筋ツールで確かめた仕組み。Tapir は
@@ -27,6 +34,7 @@ class Entry:
     title: str = ""
     hint: str = ""     # ダイアログの先頭に出す一言
     when: tuple = ()   # メニューで上に出す選択の種類（slab・line・member・spec・none）
+    quiet: bool = False   # 入口が終わりのダイアログを出さない（パレットの窓を開くだけの入口）
 
 
 # パレットのすべての操作。利用者の指定（2026-10-21）「タピアーコマンドをまとめて使いやすいものに」: パレットには
@@ -70,17 +78,26 @@ def _action(title: str) -> Entry:
     return next(a for a in ACTIONS if a.title == title)
 
 
-def _button(n: int, a: Entry) -> Entry:
-    return Entry(f"足場{n}_{a.title}.py", a.script, a.args, a.title, a.hint, a.when)
+# パレットの窓の組（ACTIONS のすべてをどれか1つの組に）
+PANEL_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("建てる", ("配置", "条件", "条件の登録", "条件の呼び出し")),
+    ("直す", ("解き直し", "区切る", "区切りを戻す", "面の切替", "支柱だけ分解", "分解を戻す")),
+    ("見る・出す", ("3D表示", "帳票", "撤去")),
+)
 
 
-# パレットに並べる入口（メニュー＋よく使う3つ）
+def panel_layout() -> list[dict]:
+    """パレットの窓に渡す並び [{group, actions: [{title, hint, when}]}]."""
+    return [{"group": g, "actions": [{"title": a.title, "hint": a.hint, "when": list(a.when)}
+                                     for a in (_action(t) for t in titles)]}
+            for g, titles in PANEL_GROUPS]
+
+
+# Tapir の一覧に置く入口は1つ（パレットの窓を開く）。以前はメニュー＋よく使う3つの4つだった
 ENTRIES: tuple[Entry, ...] = (
-    Entry("足場1_メニュー.py", "ashiba_menu.py", (), "メニュー",
-          "選んでいるもの（躯体スラブ・足場・分解した支柱・足場条件の部品）に合う操作を上に出す。選んで「実行」"),
-    _button(2, _action("配置")),
-    _button(3, _action("解き直し")),
-    _button(4, _action("3D表示")),
+    Entry("足場_パレット.py", "ashiba_palette.py", (), "パレット",
+          "仮設足場のパレットの窓を開く。窓のボタンで配置・解き直し・区切る・3D表示などを実行する"
+          "（★は今の選択に合う操作）", quiet=True),
 )
 
 
@@ -128,6 +145,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 SCRIPT = os.path.join(ROOT, "scripts", "{script}")
 ARGS = {args!r}
 TITLE = "仮設足場 {title}"
+QUIET = {quiet}
 OUT = os.path.join(os.path.expanduser("~"), "Desktop", "ashiba_out")
 
 
@@ -185,6 +203,9 @@ def main():
     port = _port()
     if port:
         env["ASHIBA_PORT"] = port
+    if QUIET:                                            # 窓を開くだけ（結果は窓に出る）
+        return subprocess.run([py, SCRIPT] + list(ARGS), env=env, cwd=ROOT,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
     proc = subprocess.run([py, SCRIPT] + list(ARGS), capture_output=True, text=True, env=env, cwd=ROOT)
     out = (proc.stdout or "") + (proc.stderr or "")
     try:
@@ -213,4 +234,5 @@ if __name__ == "__main__":
 def entry_source(e: Entry) -> str:
     """入口ファイルの中身（要点の関数は summary をそのまま埋め込む）."""
     return ENTRY_TEMPLATE.format(mark=MARK, title=e.title, hint=e.hint, script=e.script, args=tuple(e.args),
+                                 quiet=bool(e.quiet),
                                  summary_src=inspect.getsource(summary))
