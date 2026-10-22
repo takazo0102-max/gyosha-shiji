@@ -1259,6 +1259,9 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         self.assertIn("gzT = zg + 0.922", sub)
         self.assertIn("block fl - 2 * r_sic, 0.008, 0.150", sub)                         # 開口部幅木は長手に沿う
         self.assertNotIn("block 0.02, gw, 0.157", body)
+        # 端の手すり: 上桟・中桟が角で折れて開口の端を横切り、外側の建地に掛かる（長手と一体。利用者の指摘 2026-10-22）
+        self.assertIn("gyO = -rowW + r_sic + 0.005", sub)
+        self.assertIn("cylind gyS - gyO - 0.02, gR", sub)
 
     def test_no_floating_toe_board_over_the_stair(self):
         # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）
