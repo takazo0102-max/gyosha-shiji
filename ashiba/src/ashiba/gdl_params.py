@@ -201,6 +201,8 @@ def line_params(
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
         # 単管の足場板の枚数（3枚以上は deckW1 と同じ幅で並べる）。くさび・枠組は0
         "deckN": len(widths) if model.master.is_tube else 0,
+        # 階段を外側の板の位置に寄せ、内側の板（ハーフアンチ）を階段の層も敷く（model.stair_half_deck）
+        "stHalf": 1 if model.stair_half_deck else 0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
         # 3D の天端のホットスポット（足場高さの編集）。部品の天端（ジャッキ＋支柱）と同じ値で送り、
         # 食い違ったら「引かれた」とみなして層を足し引きする（vl.gdl）

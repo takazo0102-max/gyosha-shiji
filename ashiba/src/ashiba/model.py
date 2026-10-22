@@ -32,6 +32,8 @@ FRAME_GUARD_RAIL_HEIGHT_MM = 900
 from .elevation_solver import (  # noqa: E402,F401
     TUBE_GUARD_RAIL_HEIGHT_MM, TUBE_MIDRAIL_HEIGHT_MM, TUBE_POST_ABOVE_RAIL_MM,
 )
+# アルミ階段枠の外幅（日建 NDAL4518K・信和 AL3055SW）
+STAIR_FRAME_WIDTH_MM = 481
 FRAME_MIDRAIL_HEIGHT_MM = 450       # 建枠の中桟（建枠と一体）
 
 # 手すり方式
@@ -377,6 +379,18 @@ class ScaffoldModel:
             if e.edge_index == edge_index:
                 return n
         return f"辺{edge_index}"
+
+    @property
+    def stair_half_deck(self) -> bool:
+        """階段を外側に寄せ、内側の床（ハーフアンチ）を残すか.
+
+        利用者の指摘（2026-10-22: 914幅の階段、階段外側に寄せて、上にハーフアンチいるよ）。くさびの本足場で床が
+        2枚（外側の広い板＋内側の細い板。日建914幅は 500＋240）のとき、階段枠（外幅 481）は外側の板の幅に収まる
+        ので外側に寄せ、階段が上がってくる層でも内側の板（ハーフアンチ）は敷いて通れるようにする。
+        """
+        ws = self.deck_widths_in_use
+        return (not self.master.is_frame and not self.master.is_tube and self.config.scaffold_form == "本足場"
+                and len(ws) == 2 and ws[0] >= STAIR_FRAME_WIDTH_MM)
 
     @property
     def no_stair_tower(self) -> bool:

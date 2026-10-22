@@ -449,6 +449,10 @@
 			<Description><![CDATA["足場板の敷き始め（面の始点の建地から。負＝手前に出す）"]]></Description>
 			<Value>-0.1</Value>
 		</Length>
+		<Integer Name="stHalf">
+			<Description><![CDATA["階段を外側に寄せ、内側の板（ハーフアンチ）を階段の層も敷く（1）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="deckN">
 			<Description><![CDATA["単管の足場板の枚数（3枚以上は1枚目と同じ幅で並べる。0＝deckW1・deckW2）"]]></Description>
 			<Value>0</Value>

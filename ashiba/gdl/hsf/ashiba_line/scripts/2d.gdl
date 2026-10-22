@@ -296,6 +296,12 @@ for it2 = 1 to nSt
 			if iq <= nSpan then xq = xq + spans[iq]
 		next iq
 	endif
+	! 階段を外側の板の位置に寄せる床（stHalf）は、外側の板の幅だけタスキ（内側はハーフアンチの床）
+	if stHalf = 1 and stOut = 0 then
+		y0 = -rowW + 0.05 + deckW1 - 0.01
+		y1 = -rowW + 0.05
+		line2 fx0, y0, fx1, y0
+	endif
 	line2 fx0, y0, fx0, y1
 	line2 fx1, y0, fx1, y1
 	line2 fx0, y0, fx1, y1

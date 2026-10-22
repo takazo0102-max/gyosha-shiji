@@ -559,10 +559,12 @@ def _take_off_one(
     for s, cells in open_cut.items():
         deck_cells[s] = max(0, deck_cells.get(s, 0) - cells)
     stair_cut_cells = 0
+    stair_cells: dict[int, int] = {}
     if stair_plan is not None and stair_plan.towers and not getattr(stair_plan, "outside", False):
         # 階段室は各層で階段が上がってくる1スパンだけ開口（もう一方のスパンには床を敷く）。外構面の幅木は残る
         from .stairs import stair_open_cells
-        for s, n in stair_open_cells(model, stair_plan, n_levels).items():
+        stair_cells = stair_open_cells(model, stair_plan, n_levels)
+        for s, n in stair_cells.items():
             deck_cells[s] = max(0, deck_cells.get(s, 0) - n)
             stair_cut_cells += n
     if model.deck_widths_in_use:         # 単管抱き足場は床材が無い（抱き合わせた単管2本）
@@ -584,9 +586,18 @@ def _take_off_one(
         _count_tube_boards(model, deck_widths, n_levels, add, notes,
                            sum(n * n_levels for n in span_counts.values()) - sum(deck_cells.values()))
     else:
-        for w in deck_widths:
+        half = model.stair_half_deck and bool(stair_cells)
+        for i, w in enumerate(deck_widths):
             for s, cells in deck_cells.items():
+                # 階段を外側に寄せる床（幅914 の 500＋240 など）は、階段が上がってくる層も内側の板（ハーフアンチ）を敷く
+                if half and i >= 1:
+                    cells += stair_cells.get(s, 0)
                 add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
+        if half:
+            notes.append(
+                f"階段室は階段（外幅481）を外側の幅{deck_widths[0]}の板の位置に寄せ、階段が上がってくる層も内側の幅"
+                f"{deck_widths[1]}の板（ハーフアンチ）を敷いて通れるようにしています（{sum(stair_cells.values())}枚）"
+            )
     if rows == 1 and not model.config.is_hug:
         # 建地が1列なので床は片持ち。受けるブラケットが要る（本足場には無い部材）。単管は足場板2枚の幅で選ぶ
         need_w = deck_widths[0] if not m.is_tube else sum(deck_widths) + 20 * (len(deck_widths) - 1)

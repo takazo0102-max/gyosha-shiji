@@ -53,5 +53,32 @@ class TestKomaAlignment(unittest.TestCase):
             self.assertEqual(_off_koma(m, e), [], e.posts)
 
 
+
+class TestStairHalfDeck(unittest.TestCase):
+    def test_914_stair_moves_outside_and_keeps_the_half_anti(self):
+        # 幅914（500＋240）の階段は外側に寄せ、階段が上がってくる層も内側の 240（ハーフアンチ）を敷く
+        # （利用者の指摘 2026-10-22: 階段外側に寄せて、上にハーフアンチいるよ）
+        from pathlib import Path
+
+        from ashiba.gdl_params import line_params
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "module": "inch", "eaves_height_mm": 6000}
+        r = solve_all({**base, "scaffold_width_mm": 914})
+        m = r.model
+        self.assertTrue(m.stair_half_deck)
+        q = {ln.part.model_no: ln.qty for ln in r.quantity.lines if ln.part and ln.part.category == "踏板"}
+        outer = sum(v for k, v in q.items() if not k.endswith("24"))
+        inner = sum(v for k, v in q.items() if k.endswith("24"))
+        n_open = len(m.elevation.level_heights) * len(r.stair_plan.towers)
+        self.assertEqual(inner - outer, n_open)
+        self.assertEqual(line_params(m, m.plan.edges[0])["stHalf"], 1)
+        narrow = solve_all({**base, "scaffold_width_mm": 610}).model
+        self.assertFalse(narrow.stair_half_deck)                       # 1枚敷き（610）は従来どおり全幅を開ける
+        d3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+              ).read_text(encoding="utf-8")
+        self.assertIn("if stHalf = 1 and stOut = 0 then fy0 = -rowW + 0.05 + (deckW1 - 0.01 - fw) / 2", d3)
+        self.assertIn("if skipDeck = 1 and stHalf = 1 and stOut = 0 then", d3)
+
+
 if __name__ == "__main__":
     unittest.main()
