@@ -3246,7 +3246,7 @@ if showDeck then
 			! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
 			if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
 				! 階段室は各層で階段が上がってくる1スパンだけ床を敷かない（奇数層は始点側、偶数層は終点側。
-				! もう一方のスパンには床を敷く）。外構面の幅木は残る（階段側の落下防止）。
+				! もう一方のスパンには床を敷く）。外側の幅木も付けない（載せる布板が無く宙に浮く。利用者の指摘 2026-10-22）。
 				! 開口部（梁枠より下）は通路なので床も幅木も無い。数量もこの区別で拾っている
 				skipDeck = 0
 				for it4 = 1 to nSt
@@ -3266,6 +3266,7 @@ if showDeck then
 						endif
 					endif
 				next it4
+				stCut = skipDeck
 				skipAll = 0
 				for ib4 = 1 to nBm
 					if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
@@ -3388,6 +3389,7 @@ if showDeck then
 							if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
 						next it6
 					endif
+					if stCut = 1 and serType <> "T" then inSg = 1
 					if railAdv = 0 and inSg = 0 and eoT = 0 then
 						if mToe > 0 then material mToe
 						! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
@@ -3924,30 +3926,58 @@ for it5 = 1 to nSt
 			block 0.04, 0.04, 0.06
 			del 1
 		next sd
-		! 階段開口部手摺枠＋開口部幅木（出入口1か所に1組。数量の「階段開口部手摺・幅木」と同じ）。
-		! 上の層では、この階段の上がり口（下端 x0）の真上が床と開口の境になる。床の側から開口へ
-		! 落ちないよう、床幅いっぱいに手すり（高さ900）・中桟（450）・幅木（157）の枠を立てる
+		! 上の層の開口（x0〜x0+fl）。床と開口の境の線: 階段を外側に寄せる床（stHalf）は外側の板とハーフアンチの間、
+		! 全幅の開口は内側の建地列の内
 		zg = lv[il5 + 1]
-		gy0 = yb + 0.05
-		gw = rowW - 0.10
+		gyS = -r_sic - 0.03
+		if stHalf = 1 then gyS = -rowW + 0.05 + deckW1 - 0.005
 		! 外付けは開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺・幅木は付けない
 		if stOut = 0 then
-		for gk = 0 to 1
-			add x0 + 0.03, gy0 + gk * gw, zg
-			cylind 0.95, r_nuno
-			del 1
-		next gk
-		add x0 + 0.03, gy0, zg + 0.90
-		rotx -90
-		cylind gw, r_nuno
+		! 階段開口部手摺（日建 SG918SW・信和 SG918SW、長さ1829・高さ922、カタログ p010）と階段開口部幅木（NFG918）:
+		! 出入口1か所に1組（数量と同じ）。開口の長手に沿って、上がり口側（x0）の端は支柱にフックで掛け、上り切る側
+		! （x0+fl）の端は曲げて階段枠の上端へ下ろす。以前は上がり口に床幅いっぱいの枠を横に立てていた（利用者の指摘 2026-10-22）
+		gR = 0.0272 / 2
+		gx0 = x0 + r_sic + 0.03
+		gx1 = x0 + fl - 0.06
+		gRb = 0.10
+		gzT = zg + 0.922
+		add gx0, gyS, gzT
+		roty 90
+		cylind gx1 - gRb - gx0, gR
 		del 2
-		add x0 + 0.03, gy0, zg + 0.45
-		rotx -90
-		cylind gw, r_nuno
+		add gx0, gyS, zg + 0.46
+		roty 90
+		cylind gx1 - gx0, gR
 		del 2
+		! 上がり口側の縦管（床から上桟まで）と、支柱に掛けるフック
+		add gx0, gyS, zg + 0.03
+		cylind gzT - zg - 0.03, gR
+		del 1
+		add x0 + r_sic, gyS - 0.012, zg + 0.68
+		block gx0 - x0 - r_sic, 0.024, 0.04
+		del 1
+		! 上り切る側: 上桟を半径100で曲げて下ろし、床を抜けて階段枠の上端まで
+		gcx = gx1 - gRb
+		gcz = gzT - gRb
+		for gb = 0 to 2
+			ga0 = 90 - gb * 30
+			ga1 = ga0 - 30
+			gxa = gcx + gRb * cos(ga0)
+			gza = gcz + gRb * sin(ga0)
+			gdx = gcx + gRb * cos(ga1) - gxa
+			gdz = gcz + gRb * sin(ga1) - gza
+			add gxa, gyS, gza
+			roty 180 + atn(gdx / gdz)
+			cylind sqr(gdx * gdx + gdz * gdz), gR
+			del 2
+		next gb
+		add gx1, gyS, zg - 0.10
+		cylind gcz - zg + 0.10, gR
+		del 1
 		if mToe > 0 then material mToe
-		add x0 + 0.01, gy0, zg + 0.045
-		block 0.02, gw, 0.157
+		! 開口部幅木（NFG918）: 開口の長手、床の側に立てる
+		add x0 + r_sic, gyS + gR, zg + r_nuno + 0.045
+		block fl - 2 * r_sic, 0.008, 0.150
 		del 1
 		if matScaf > 0 then material matScaf
 		endif

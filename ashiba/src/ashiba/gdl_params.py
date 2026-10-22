@@ -632,7 +632,8 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         if adv:
             advq += n_levels - open_lv
         else:
-            toe += n_levels - open_lv
+            # 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・数量と同じ）
+            toe += max(0, n_levels - open_lv - (0 if model.master.is_tube else stair_open))
         x += sp
     ev_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     ev_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)

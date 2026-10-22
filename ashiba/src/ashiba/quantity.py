@@ -561,12 +561,15 @@ def _take_off_one(
     stair_cut_cells = 0
     stair_cells: dict[int, int] = {}
     if stair_plan is not None and stair_plan.towers and not getattr(stair_plan, "outside", False):
-        # 階段室は各層で階段が上がってくる1スパンだけ開口（もう一方のスパンには床を敷く）。外構面の幅木は残る
+        # 階段室は各層で階段が上がってくる1スパンだけ開口（もう一方のスパンには床を敷く）。外側の幅木も付けない
+        # （載せる布板が無く宙に浮く。利用者の指摘 2026-10-22。開口の縁は階段開口部幅木）
         from .stairs import stair_open_cells
         stair_cells = stair_open_cells(model, stair_plan, n_levels)
         for s, n in stair_cells.items():
             deck_cells[s] = max(0, deck_cells.get(s, 0) - n)
             stair_cut_cells += n
+            if not m.is_tube:
+                toe_cells[s] = max(0, toe_cells.get(s, 0) - n)
     if model.deck_widths_in_use:         # 単管抱き足場は床材が無い（抱き合わせた単管2本）
         _note_deck_cells(
             notes, m.deck_category, sum(span_counts.values()), n_levels,
@@ -2074,9 +2077,13 @@ def _count_frame_parts(
 
     # ---- 幅木・壁つなぎ・階段枠 ----
     if model.config.has_toe_board:
-        # 開口部（梁枠より下）は床が無いので幅木も無い（階段室の外構面には残す）
+        # 開口部（梁枠より下）は床が無いので幅木も無い。階段が上がってくるスパンも外側の幅木は付けない（宙に浮く）
+        st_cut: dict[int, int] = {}
+        if stair_plan is not None and stair_plan.towers and not getattr(stair_plan, "outside", False):
+            from .stairs import stair_open_cells
+            st_cut = stair_open_cells(model, stair_plan, n_levels)
         for s, n in span_counts.items():
-            add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0)), f"幅木{s}")
+            add(m.find("幅木", s), max(0, n * n_levels - open_cut.get(s, 0) - st_cut.get(s, 0)), f"幅木{s}")
     kt = next(iter(m.by_category("壁つなぎ")), None)
     _add_wall_ties(model, platforms, kt, add, notes, openings=openings)
     stair = next(iter(m.by_category("階段")), None)

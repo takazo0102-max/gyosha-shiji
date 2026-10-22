@@ -1246,16 +1246,34 @@ class TestLight3D(unittest.TestCase):
 
 
 class TestStairOpeningGuard3D(unittest.TestCase):
-    """階段開口部手摺枠＋幅木を、各層の階段の上がり口の真上に描く（数量の出入口1か所に1組と同じ）."""
+    """階段開口部手摺（SG918SW 長さ1829・高さ922）と開口部幅木を、上の層の開口の長手に沿って描く（数量の出入口1か所に
+    1組と同じ）。以前は上がり口に床幅いっぱいの枠を横に立てていた（利用者の指摘 2026-10-22: これいるよ）."""
 
-    def test_guard_frame_at_low_end_of_flight(self):
+    def test_guard_along_the_opening(self):
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        i = body.index("! 階段開口部手摺枠＋開口部幅木")
-        sub = body[i:i + 1200]
+        i = body.index("! 上の層の開口（x0〜x0+fl）")
+        sub = body[i:i + 3000]
         self.assertIn("zg = lv[il5 + 1]", sub)
-        self.assertIn("add x0 + 0.03, gy0, zg + 0.90", sub)
-        self.assertIn("block 0.02, gw, 0.157", sub)
+        self.assertIn("if stHalf = 1 then gyS = -rowW + 0.05 + deckW1 - 0.005", sub)   # 外側の板とハーフアンチの間
+        self.assertIn("gzT = zg + 0.922", sub)
+        self.assertIn("block fl - 2 * r_sic, 0.008, 0.150", sub)                         # 開口部幅木は長手に沿う
+        self.assertNotIn("block 0.02, gw, 0.157", body)
+
+    def test_no_floating_toe_board_over_the_stair(self):
+        # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("stCut = skipDeck", body)
+        self.assertIn('if stCut = 1 and serType <> "T" then inSg = 1', body)
+        from ashiba.cli import solve_all
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        with_st = solve_all(base)
+        no_st = solve_all({**base, "stairs": {"count": 0}})
+        n_open = with_st.model.elevation.n_levels * len(with_st.stair_plan.towers)
+        self.assertGreater(n_open, 0)
+        self.assertEqual(no_st.quantity.qty_of("幅木") - with_st.quantity.qty_of("幅木"), n_open)
 
 
 class TestSharedCornerPosts(unittest.TestCase):
