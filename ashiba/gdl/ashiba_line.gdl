@@ -2249,19 +2249,51 @@ pen 1
 
 if not(showDim) then return
 
-! ---- 高さ寸法（左側）: 各層と全高 ----
-dx = -0.35
-line2 dx, 0, dx, postTop
-! 数字は右詰め。左詰めのまま文字1つ分だけ左に置くと、桁数が増えたときに
-! 寸法線と足場の中へ数字がはみ出して読めなくなる（実機で確認）
-for il = 1 to nLv
-	line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
-	dimTxt = str(lv[il] * 1000, 6, 0)
-	text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, lv[il], dimTxt
-next il
-line2 dx - 0.06, postTop, dx + 0.06, postTop
-dimTxt = "H=" + str(postTop * 1000, 6, 0)
-text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, postTop, dimTxt
+! ---- 高さ寸法（左側）: 段の高さ・支柱の高さ・足場の高さの3本（断面図方式の立面と同じ） ----
+! 利用者の指定（2026-10-23）: 立面図・断面図は寸法に、層の高さは不要、段の高さ・支柱の高さ・全体の足場の高さ。
+! 区間の数は寸法線の左（右詰め。桁が増えても寸法線と足場に掛からない）、見出しは天端の上
+chGap = 1.2
+for ch = 1 to 3
+	dx = -0.35 - (ch - 1) * chGap
+	line2 dx, 0, dx, postTop
+	line2 dx - 0.06, 0, dx + 0.06, 0
+	line2 dx - 0.06, postTop, dx + 0.06, postTop
+	if ch = 1 then
+		chTxt = "段の高さ"
+		zA = 0
+		for il = 1 to nLv
+			if lv[il] > 0.001 and lv[il] < postTop - 0.001 then
+				line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
+				dimTxt = str((lv[il] - zA) * 1000, 6, 0)
+				text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, (zA + lv[il]) / 2, dimTxt
+				zA = lv[il]
+			endif
+		next il
+		dimTxt = str((postTop - zA) * 1000, 6, 0)
+		text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, (zA + postTop) / 2, dimTxt
+	endif
+	if ch = 2 then
+		chTxt = "支柱の高さ"
+		if jackOut > 0.001 then
+			line2 dx - 0.06, jackOut, dx + 0.06, jackOut
+			dimTxt = "ジャッキ" + str(jackOut * 1000, 4, 0)
+			text2 dx - stw(dimTxt) * GLOB_SCALE / 2000, -0.12 - txtLine, dimTxt
+		endif
+		zA = jackOut
+		for i = 1 to nPost
+			line2 dx - 0.06, zA + posts[i], dx + 0.06, zA + posts[i]
+			dimTxt = str(posts[i] * 1000, 6, 0)
+			text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, zA + posts[i] / 2, dimTxt
+			zA = zA + posts[i]
+		next i
+	endif
+	if ch = 3 then
+		chTxt = "足場の高さ"
+		dimTxt = str(postTop * 1000, 6, 0)
+		text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, postTop / 2, dimTxt
+	endif
+	text2 dx - stw(chTxt) * GLOB_SCALE / 2000, postTop + 0.15, chTxt
+next ch
 
 ! ---- スパン寸法（下側） ----
 dy = -0.45

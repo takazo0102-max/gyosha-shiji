@@ -658,7 +658,8 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
 
     def test_height_dimension_text_is_right_aligned(self):
         # 左詰めのままだと桁数が増えたとき寸法線と足場の中へはみ出す
-        for want in ("dimTxt = str(lv[il] * 1000, 6, 0)",
+        # 高さは段の高さ・支柱の高さ・足場の高さの3本（層の高さは書かない。利用者の指定 2026-10-23）
+        for want in ("dimTxt = str((lv[il] - zA) * 1000, 6, 0)", 'chTxt = "支柱の高さ"', 'chTxt = "足場の高さ"',
                      "stw(dimTxt) * GLOB_SCALE / 1000"):
             self.assertIn(want, self.body)
         self.assertNotIn('text2 dx - txtH, lv[il]', self.body)

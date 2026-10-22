@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .elevation_sections import (
-    LEVEL_DIM_OFFSET_M, SectionNotes, SectionSpec, _tick, label_text_width_m, section_x,
+    LEVEL_DIM_OFFSET_M, SectionNotes, SectionSpec, _tick, draw_height_chains, label_text_width_m, section_x,
 )
 from .model import ScaffoldModel
 
@@ -28,7 +28,6 @@ CLEAR_MM = 3500.0          # 外側建地列から切断線の端まで（立面
 FAR_EXTRA_MM = 1500.0      # 反対側の面の離れ＋幅を越える分
 SECTION_LETTERS = ("A", "B", "C", "D")
 DIM_BELOW_M = -0.8         # 離れ・幅の寸法線（GL の下）
-HEIGHT_DIM_EXTRA_M = 2.2   # 高さの寸法線から足場高さの寸法線まで
 
 
 def cross_section_name(prefix: str, letter: str) -> str:
@@ -170,17 +169,9 @@ def cut_faces(model: ScaffoldModel, spec: SectionSpec) -> list[CutFace]:
     return out
 
 
-def _left_text(x: float, y: float, text: str, side: float, text_scale: float) -> dict:
-    """寸法線の外側（side=+1 は右、-1 は左）に置く文字。左側は文字幅を見積もって左寄せで置く."""
-    if side >= 0:
-        return {"x": x + 0.25, "y": y + 0.05, "text": text, "just": "Left"}
-    return {"x": x - 0.25 - label_text_width_m(text, 0.25 * text_scale / 100.0), "y": y + 0.05,
-            "text": text, "just": "Left"}
-
-
 def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
                               text_scale: float = 100.0, stair_plan=None) -> SectionNotes:
-    """断面に置く注記: GL・離れと幅の寸法・根がらみと各作業床の高さ・足場高さ・面の名前・見出し."""
+    """断面に置く注記: GL・離れと幅の寸法・段の高さ・支柱の高さ・足場の高さの寸法・面の名前・見出し."""
     out = SectionNotes()
     faces = cut_faces(model, spec)
     if not faces:
@@ -204,35 +195,14 @@ def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=N
         out.texts.append({"x": (f.x_wall + f.x_in) / 2.0, "y": y + 0.12, "text": f"離れ{f.standoff_mm:.0f}",
                           "just": "Center"})
         out.texts.append({"x": (f.x_in + f.x_out) / 2.0, "y": y - 0.45, "text": f"{row_mm:.0f}", "just": "Center"})
-        # 高さ（外側に縦の寸法線。GL・根がらみ・各作業床・天端に目盛り、高さを外側、間隔を内側）。
+        # 高さ（外側に縦の寸法線を3本: 段の高さ・支柱の高さ・足場の高さ。層の高さの文字は書かない）。
         # 外付けの階段室がある面は3列目のさらに外から（寸法の文字が階段に重なっていた）
         ext = 0.0
         if getattr(stair_plan, "outside", False) and any(
                 t.edge_index == f.edge_index for t in getattr(stair_plan, "towers", []) or []):
             ext = float(model.post_row_spacing_mm) / 1000.0
-        xc = f.x_out + side * (ext + LEVEL_DIM_OFFSET_M)
-        marks = [("GL", 0.0), ("根がらみ", float(e.first_ledger_height))] + [
-            (f"{i}層", float(h)) for i, h in enumerate(e.level_heights, start=1)] + [("天端", top * 1000.0)]
-        out.lines.append([(xc, 0.0), (xc, top)])
-        prev = None
-        for label, h in marks:
-            yy = h / 1000.0
-            out.lines.append(_tick(xc, yy))
-            out.lines.append([(f.x_out + side * 0.1, yy), (xc - side * 0.15, yy)])
-            if label not in ("GL", "天端"):
-                out.texts.append(_left_text(xc, yy, f"{label} +{h:.0f}", side, text_scale))
-            if prev is not None and h - prev > 1.0:
-                gap = f"{h - prev:.0f}"
-                gx = xc - side * 0.15
-                if side >= 0:
-                    gx -= label_text_width_m(gap, 0.25 * text_scale / 100.0)
-                out.texts.append({"x": gx, "y": (prev + h) / 2000.0, "text": gap, "just": "Left", "gap": True})
-            prev = h
-        xd = xc + side * HEIGHT_DIM_EXTRA_M
-        out.lines.append([(xd, 0.0), (xd, top)])
-        out.lines.append(_tick(xd, 0.0))
-        out.lines.append(_tick(xd, top))
-        out.texts.append(_left_text(xd, top / 2.0, f"足場高さ {top * 1000:.0f}", side, text_scale))
+        draw_height_chains(out, e, f.x_out + side * ext, f.x_out + side * (ext + LEVEL_DIM_OFFSET_M), side,
+                           text_scale)
         # 面の名前（足場の上）
         out.texts.append({"x": (f.x_in + f.x_out) / 2.0, "y": top + 0.6, "text": f.face_name, "just": "Center"})
     from .master import SERIES_LABELS
@@ -244,8 +214,7 @@ def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=N
     out.texts.append({"x": lo, "y": -1.9, "text": "GL±0（離れは躯体面から内側建地の芯まで）", "just": "Left"})
     base = float(getattr(model, "base_height_mm", 0.0) or 0.0) / 1000.0
     if base:
-        out.texts = [{**t, "y": t["y"] + base} for t in out.texts]
-        out.lines = [[(x, y + base) for x, y in pts] for pts in out.lines]
+        out = out.shifted(base)
     return out
 
 

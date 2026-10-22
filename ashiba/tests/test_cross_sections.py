@@ -69,23 +69,26 @@ class TestNotes(unittest.TestCase):
         notes = cross_section_annotations(r.model, spec)
         texts = [t["text"] for t in notes.texts]
         e = r.model.elevation
-        for i, h in enumerate(e.level_heights, start=1):
-            self.assertEqual(texts.count(f"{i}層 +{h:.0f}"), 2)          # 両側の面
-        self.assertEqual(sum(1 for t in texts if t.startswith("足場高さ")), 2)
+        # 高さは寸法の3本（段・支柱・足場）を両側の面に。層の高さの文字は書かない（利用者の指定 2026-10-23）
+        self.assertFalse(any("層 +" in x for x in texts))
+        for title in ("段の高さ", "支柱の高さ", "足場の高さ"):
+            self.assertEqual(texts.count(title), 2)
+        totals = [d for d in notes.dims if d["chain"] == "足場の高さ"]
+        self.assertEqual([d["values"] for d in totals], [[e.total_height]] * 2)
         self.assertIn("南面", texts)
         self.assertIn("北面", texts)
         self.assertTrue(any(t.startswith("離れ") for t in texts))
         self.assertTrue(any("A-A 足場断面図" in t for t in texts))
         # 左側の面の文字は寸法線の左に置く（足場に重ならない）
         south = next(f for f in cut_faces(r.model, spec) if f.face_name == "南面")
-        lvl = [t for t in notes.texts if t["text"] == "1層 +%.0f" % e.level_heights[0]]
+        lvl = [t for t in notes.texts if t.get("chain_title") and t["text"] == "段の高さ"]
         left_one = min(lvl, key=lambda t: t["x"])
         self.assertLess(left_one["x"], south.x_out)
 
     def test_setback_faces_use_their_own_height(self):
         r = solve_all({**RECT, "face_eaves_mm": {"南面": 9000, "東面": 9000, "西面": 9000, "北面": 6000}})
         spec = cross_section_specs(r.model, "X")[0]
-        tops = sorted(t["text"] for t in cross_section_annotations(r.model, spec).texts if t["text"].startswith("足場高さ"))
+        tops = sorted(d["values"][0] for d in cross_section_annotations(r.model, spec).dims if d["chain"] == "足場の高さ")
         self.assertEqual(len(set(tops)), 2)
 
     def test_raised_base_moves_notes_up(self):
@@ -109,7 +112,7 @@ class TestOutsideStair(unittest.TestCase):
         plain = cross_section_annotations(r.model, spec)
         with_st = cross_section_annotations(r.model, spec, stair_plan=r.stair_plan)
         def far(n):
-            return max(abs(t_["x"] - f.x_out) for t_ in n.texts if t_["text"].startswith("足場高さ")
+            return max(abs(t_["x"] - f.x_out) for t_ in n.texts if t_.get("chain_title") and t_["text"] == "足場の高さ"
                        and (t_["x"] - f.x_in) * (f.x_out - f.x_in) > 0)
         self.assertAlmostEqual(far(with_st) - far(plain), r.model.post_row_spacing_mm / 1000.0, delta=0.01)
 

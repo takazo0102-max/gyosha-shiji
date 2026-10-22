@@ -251,26 +251,35 @@ class TestSectionAnnotations(unittest.TestCase):
         notes = section_annotations(self.m, self.specs["南面"])
         texts = [t["text"] for t in notes.texts]
         e = self.m.elevation
-        for i, h in enumerate(e.level_heights, start=1):
-            self.assertIn(f"{i}層 +{h:.0f}", texts)
-        self.assertIn(f"根がらみ +{e.first_ledger_height:.0f}", texts)
-        self.assertIn(f"足場高さ {self.m.scaffold_height_mm:.0f}", texts)
+        # 高さは寸法の3本（段の高さ・支柱の高さ・足場の高さ）。層の高さの文字は書かない（利用者の指定 2026-10-23）
+        self.assertFalse(any("層 +" in x or x.startswith("根がらみ +") for x in texts))
+        for title in ("段の高さ", "支柱の高さ", "足場の高さ"):
+            self.assertIn(title, texts)
+        # 高さ・スパンは寸法ツールの寸法（測る区間の値）。置けなかったときの線と文字は fallback
+        by = {d["chain"]: d for d in notes.dims}
+        steps = [0] + list(e.level_heights) + [e.total_height]
+        self.assertEqual(by["段の高さ"]["values"], [b - a for a, b in zip(steps, steps[1:])])
+        self.assertEqual(by["支柱の高さ"]["values"], [e.jack_extension] + list(e.posts))
+        self.assertEqual(by["足場の高さ"]["values"], [self.m.scaffold_height_mm])
+        self.assertIn(f"ジャッキ{e.jack_extension:.0f}", texts)                 # 短い区間は名前を添える
+        fb = [x["text"] for x in by["段の高さ"]["fallback"]["texts"]]
+        self.assertEqual(fb, [f"{b - a:.0f}" for a, b in zip(steps, steps[1:])])
         self.assertTrue(any(t.startswith("南面 足場立面図") for t in texts))
         self.assertTrue(any("壁つなぎ" in t and "◎印" in t for t in texts))
         self.assertIn("GL±0", texts)
         ep = next(x for x in self.m.plan.edges if x.edge_index == self.specs["南面"].edge_index)
-        spans = [t for t in notes.texts if t.get("just") == "Center" and not t.get("total")]
-        self.assertEqual([t["text"] for t in spans], [f"{s:.0f}" for s in ep.spans])   # スパン寸法を2Dで
-        total = [t for t in notes.texts if t.get("total")]
-        self.assertEqual([t["text"] for t in total], [f"{sum(ep.spans):.0f}"])           # 全長
+        self.assertEqual(by["スパン"]["values"], [float(s) for s in ep.spans])        # スパン寸法
+        spans = [t for t in by["スパン"]["fallback"]["texts"]]
+        self.assertEqual([t["text"] for t in spans], [f"{s:.0f}" for s in ep.spans])
+        self.assertEqual(by["全長"]["values"], [float(sum(ep.spans))])                # 全長
 
     def test_notes_sit_beside_and_above_the_scaffold(self):
         s = self.specs["南面"]
         ep = next(e for e in self.m.plan.edges if e.edge_index == s.edge_index)
         hi = section_x(s, ep.end_post) + self.m.post_row_spacing_mm / 1000.0
         notes = section_annotations(self.m, s)
-        level_texts = [t for t in notes.texts if "層 +" in t["text"]]
-        self.assertTrue(all(t["x"] > hi for t in level_texts))            # 右側
+        level_texts = [t for t in notes.texts if t.get("chain") or t.get("chain_title")]
+        self.assertTrue(level_texts and all(t["x"] > hi for t in level_texts))   # 右側
         summary = [t for t in notes.texts if "足場立面図" in t["text"]][0]
         self.assertGreater(summary["y"], self.m.scaffold_height_mm / 1000.0)   # 上
         self.assertTrue(all(len(pts) >= 2 for pts in notes.lines))
@@ -282,13 +291,50 @@ class TestSectionAnnotations(unittest.TestCase):
         s = self.specs["南面"]
         top = self.m.scaffold_height_mm / 1000.0
         notes = section_annotations(self.m, s)
-        spans = [t for t in notes.texts if t.get("just") == "Center" and not t.get("total")]
-        self.assertTrue(all(t["y"] > top + 1.0 for t in spans))
+        by = {d["chain"]: d for d in notes.dims}
+        self.assertGreater(by["スパン"]["ref"][1], top + 1.0)
         self.assertGreaterEqual(SPAN_DIM_OFFSET_M, 1.0)
         self.assertGreaterEqual(LEVEL_DIM_OFFSET_M, 1.0)
-        # 各層の間隔（1800 など）も高さの寸法線の横に書く
-        gaps = [t for t in notes.texts if t.get("gap")]
-        self.assertEqual(len(gaps), len(self.m.elevation.level_heights) + 2)   # GL→根がらみ→各層→天端
+        # 高さの寸法: 測る点は外側の建地の線、寸法線はその右に 段の高さ→支柱の高さ→足場の高さ の順
+        ep = next(e for e in self.m.plan.edges if e.edge_index == s.edge_index)
+        hi = section_x(s, ep.end_post) + self.m.post_row_spacing_mm / 1000.0
+        xs = [by[c]["ref"][0] for c in ("段の高さ", "支柱の高さ", "足場の高さ")]
+        self.assertEqual(xs, sorted(xs))
+        self.assertGreaterEqual(xs[0] - hi, 1.0)
+        self.assertTrue(all(abs(x - hi) < 1e-6 for x, _ in by["段の高さ"]["points"]))
+        self.assertEqual(len(by["段の高さ"]["points"]), len(self.m.elevation.level_heights) + 2)   # GL→各作業床→天端
+
+    def test_dims_fall_back_to_lines_when_the_tool_fails(self):
+        """寸法を置けないとき（古い Tapir など）は、線と文字で描いた寸法になる."""
+        from ashiba.elevation_sections import write_section_notes
+
+        notes = section_annotations(self.m, self.specs["南面"])
+
+        class Client:
+            def __init__(self, dims_ok):
+                self.dims_ok, self.calls = dims_ok, []
+
+            def tapir(self, cmd, params):
+                self.calls.append((cmd, params))
+                if cmd == "CreateAssociativeDimensions":
+                    if not self.dims_ok:
+                        raise RuntimeError("no command")
+                    return {"elements": [{"elementId": {"guid": "D"}} for _ in params["dimensionsData"]]}
+                key = next(iter(params))
+                return {"elements": [{"elementId": {"guid": "E"}} for _ in params[key]]}
+
+        def texts(c):
+            return [t["text"] for cmd, p in c.calls if cmd == "CreateTexts" for t in p["textsData"]]
+
+        ok = Client(True)
+        write_section_notes(ok, notes)
+        dims = [p for cmd, p in ok.calls if cmd == "CreateAssociativeDimensions"][0]["dimensionsData"]
+        self.assertEqual(len(dims), len(notes.dims))
+        self.assertEqual(len(dims[0]["witnessPoints"]), len(notes.dims[0]["points"]))
+        self.assertNotIn("1800", texts(ok))                  # 寸法の数は寸法ツールが書く
+        ng = Client(False)
+        write_section_notes(ng, notes)
+        self.assertIn("1800", texts(ng))
 
     def test_member_labels_point_at_members(self):
         """部材名は引出線つきのラベル。下段は GL の下、上段は寸法の上に並び、矢先は部材の高さ."""

@@ -201,6 +201,23 @@ class SectionNotes:
     texts: list[dict] = field(default_factory=list)                    # {"x","y","text","just"}（m、断面座標）
     lines: list[list[tuple[float, float]]] = field(default_factory=list)
     labels: list[dict] = field(default_factory=list)                   # {"beg","mid","end","text"}（引出線つき）
+    # 寸法ツールの寸法（利用者の指定 2026-10-23: 立面図・断面図は寸法に）。{"points": 測る点, "ref": 寸法線の通る点,
+    # "dir": 寸法線の向き, "fallback": {"lines", "texts"}}。点は見えない所に置く「寸法の芯」の線の頂点に取り、
+    # 寸法を置けなければ fallback（線と文字で描いた寸法）を描く
+    dims: list[dict] = field(default_factory=list)
+
+    def shifted(self, dy: float) -> "SectionNotes":
+        """全体を上へ dy ずらした写し（下の屋根の上に建てた足場）."""
+        mv = lambda pts: [(x, y + dy) for x, y in pts]
+        return SectionNotes(
+            texts=[{**t, "y": t["y"] + dy} for t in self.texts],
+            lines=[mv(pts) for pts in self.lines],
+            labels=[{**lb, "beg": (lb["beg"][0], lb["beg"][1] + dy), "mid": (lb["mid"][0], lb["mid"][1] + dy),
+                     "end": (lb["end"][0], lb["end"][1] + dy)} for lb in self.labels],
+            dims=[{**d, "points": mv(d["points"]), "ref": (d["ref"][0], d["ref"][1] + dy),
+                   "fallback": {"lines": [mv(pts) for pts in d["fallback"]["lines"]],
+                                "texts": [{**t, "y": t["y"] + dy} for t in d["fallback"]["texts"]]}}
+                  for d in self.dims])
 
 
 def section_axis(spec: SectionSpec) -> tuple[float, float]:
@@ -247,8 +264,9 @@ def tie_marks(ep, spec: SectionSpec, wall_ties) -> list[tuple[float, float]]:
 # （参考: micotoworks「足場図面の書き方」の立面・平面。寸法は足場の外に離し、部材名は引出線のラベルで）
 SPAN_DIM_OFFSET_M = 1.2       # 天端からスパン寸法の寸法線まで
 TOTAL_DIM_OFFSET_M = 2.0      # 天端から全長の寸法線まで
-LEVEL_DIM_OFFSET_M = 1.5      # 外側（右端の建地）から高さの寸法線まで
-HEIGHT_DIM_OFFSET_M = 5.0     # 外側から足場高さの寸法線まで
+LEVEL_DIM_OFFSET_M = 1.5      # 外側（右端の建地）から高さの寸法線（1本目＝段の高さ）まで
+CHAIN_GAP_M = 1.8             # 高さの寸法線の間隔（段の高さ → 支柱の高さ → 足場の高さ）
+HEIGHT_DIM_OFFSET_M = LEVEL_DIM_OFFSET_M + 2 * CHAIN_GAP_M   # 外側から足場の高さの寸法線まで
 LABEL_ROW_BOTTOM_M = -1.6     # 下段のラベル（GL の下）
 LABEL_ROW_TOP_OFFSET_M = 3.2  # 上段のラベル（全長の寸法の上）
 HEADER_OFFSET_M = 4.3         # 面の要約（上段のラベルの上）
@@ -260,9 +278,63 @@ def _tick(x: float, y: float) -> list[tuple[float, float]]:
     return [(x - TICK_M, y - TICK_M), (x + TICK_M, y + TICK_M)]
 
 
+def height_chains(e) -> list[tuple[str, list[float], list[str]]]:
+    """高さの寸法の3本（利用者の指定 2026-10-23: 立面図・断面図は寸法に、層の高さは不要、段の高さ・支柱の高さ・
+    全体の足場の高さ）. [(見出し, 目盛りの高さ mm, 区間の文字)]。区間の文字は目盛りの間の数.
+
+    - 段の高さ: GL・各作業床・天端（支柱の上端）
+    - 支柱の高さ: GL・ジャッキの上・支柱の継ぎ目・天端（区間は ジャッキの繰出し・支柱の長さ）
+    - 足場の高さ: GL・天端
+    """
+    top = float(e.total_height)
+    steps = [0.0] + [float(h) for h in e.level_heights if 0.0 < float(h) < top - 1.0] + [top]
+    jack = float(e.jack_extension)
+    posts = [0.0] + ([jack] if jack > 1.0 else [])
+    for ln in e.posts:
+        posts.append(posts[-1] + float(ln))
+    post_texts = ([f"ジャッキ{jack:.0f}"] if jack > 1.0 else []) + [f"{float(ln):.0f}" for ln in e.posts]
+    return [("段の高さ", steps, [f"{b - a:.0f}" for a, b in zip(steps, steps[1:])]),
+            ("支柱の高さ", posts, post_texts),
+            ("足場の高さ", [0.0, top], [f"{top:.0f}"])]
+
+
+def draw_height_chains(out: "SectionNotes", e, x_scaffold: float, x_first: float, side: float,
+                       text_scale: float = 100.0) -> float:
+    """高さの寸法を3本（寸法ツール）、足場の外（side=+1 は右、-1 は左）に x_first から CHAIN_GAP_M おきに置く.
+    測る点は外側の建地の線（x_scaffold）に取る。見出しは天端の上、ジャッキの繰出しは GL の下に文字で。
+    寸法を置けないときの描き方（線・目盛り・区間の数）は fallback に持つ。戻り値はいちばん外の寸法線の x."""
+    th = 0.25 * text_scale / 100.0
+    xc = x_first
+    for k, (title, marks, texts) in enumerate(height_chains(e)):
+        xc = x_first + side * k * CHAIN_GAP_M
+        top = marks[-1] / 1000.0
+        fb = {"lines": [[(xc, 0.0), (xc, top)]], "texts": []}
+        for h in marks:
+            y = h / 1000.0
+            fb["lines"].append(_tick(xc, y))
+            fb["lines"].append([(x_scaffold + side * 0.1 if k == 0 else xc - side * (CHAIN_GAP_M - 0.15), y),
+                                (xc - side * 0.15, y)])         # 補助線（足場から、または内側の寸法線から）
+        for (a, b), text in zip(zip(marks, marks[1:]), texts):
+            if text.startswith("ジャッキ"):
+                # ジャッキの区間は短い（150 など）ので、名前と数は GL の下、寸法線の真下に（寸法でも文字を添える）
+                out.texts.append({"x": xc - label_text_width_m(text, th) / 2.0, "y": -0.45, "text": text,
+                                  "just": "Left", "chain": title})
+                continue
+            gx = xc - side * 0.15
+            if side >= 0:
+                gx -= label_text_width_m(text, th)               # 右寄せが効かない版があるので幅を見積もって左寄せ
+            fb["texts"].append({"x": gx, "y": (a + b) / 2000.0, "text": text, "just": "Left", "gap": True,
+                                "chain": title})
+        out.dims.append({"points": [(x_scaffold, h / 1000.0) for h in marks], "ref": (xc, 0.0), "dir": (0.0, 1.0),
+                         "chain": title, "values": [b - a for a, b in zip(marks, marks[1:])], "fallback": fb})
+        out.texts.append({"x": xc - label_text_width_m(title, th) / 2.0, "y": top + 0.35, "text": title,
+                          "just": "Left", "chain_title": True})
+    return xc
+
+
 def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
                         label_pitch_m: float = 0.7, stair_plan=None, text_scale: float = 100.0) -> SectionNotes:
-    """断面立面に置く注記: GL線・寸法（スパン・全長・各層の間隔・足場高さ）・部材名のラベル・面の要約."""
+    """断面立面に置く注記: GL線・寸法（スパン・全長・段の高さ・支柱の高さ・足場の高さ）・部材名のラベル・面の要約."""
     ep = next(e for e in model.plan.edges if e.edge_index == spec.edge_index)
     e = model.elevation_of(ep.edge_index)
     row_w = float(model.post_row_spacing_mm) / 1000.0
@@ -276,51 +348,30 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
     diff = float(getattr(terrain, "gl_difference_mm", 0.0) or 0.0) if terrain is not None else 0.0
     if diff > 1.0:
         gl_note += f"（基準。敷地高低差 {diff:.0f}）"
-    # 高さの寸法（右に離して縦の寸法線。GL・根がらみ・各作業床・天端に目盛り、間隔を線の左、高さを右）
-    xc = hi + LEVEL_DIM_OFFSET_M
-    marks = [("GL", 0.0), ("根がらみ", float(e.first_ledger_height))] + [
-        (f"{i}層", float(h)) for i, h in enumerate(e.level_heights, start=1)] + [("天端", top * 1000.0)]
-    out.lines.append([(xc, 0.0), (xc, top)])
-    prev = None
-    for label, h in marks:
-        y = h / 1000.0
-        out.lines.append(_tick(xc, y))
-        out.lines.append([(hi + 0.1, y), (xc - 0.15, y)])            # 足場から寸法線への引出し（補助線）
-        if label == "GL":
-            out.texts.append({"x": xc + 0.25, "y": y + 0.05, "text": gl_note, "just": "Left"})
-        elif label != "天端":
-            out.texts.append({"x": xc + 0.25, "y": y + 0.05, "text": f"{label} +{h:.0f}", "just": "Left"})
-        if prev is not None and h - prev > 1.0:
-            # 間隔は寸法線の左。右寄せが効かない版があるので、文字幅を見積もって左寄せで置く
-            gap_text = f"{h - prev:.0f}"
-            out.texts.append({"x": xc - 0.15 - label_text_width_m(gap_text, 0.25 * text_scale / 100.0),
-                              "y": (prev + h) / 2000.0, "text": gap_text, "just": "Left", "gap": True})
-        prev = h
-    # 足場高さの寸法（さらに右に縦線と両端の目盛り）
-    xd = hi + HEIGHT_DIM_OFFSET_M
-    out.lines.append([(xd, 0.0), (xd, top)])
-    out.lines.append(_tick(xd, 0.0))
-    out.lines.append(_tick(xd, top))
-    out.texts.append({"x": xd + 0.2, "y": top / 2.0, "text": f"足場高さ {top * 1000:.0f}", "just": "Left"})
-    # スパン寸法（天端から離して寸法線。各支柱に目盛りと補助線）と全長
+    # 高さの寸法（右に離して縦の寸法線を3本: 段の高さ・支柱の高さ・足場の高さ。層の高さの文字は書かない）
+    xd = draw_height_chains(out, e, hi, hi + LEVEL_DIM_OFFSET_M, 1.0, text_scale)
+    out.texts.append({"x": xd + 0.25, "y": 0.05, "text": gl_note, "just": "Left"})
+    # スパン寸法と全長（寸法ツール。天端から離した寸法線、測る点は天端の支柱の位置）
     sgn = 1.0 if b >= a else -1.0
     ys = top + SPAN_DIM_OFFSET_M
     yt = top + TOTAL_DIM_OFFSET_M
     xs = [a + sgn * v / 1000.0 for v in _cumulative(ep.spans)]
-    out.lines.append([(min(xs), ys), (max(xs), ys)])
+    fb = {"lines": [[(min(xs), ys), (max(xs), ys)]], "texts": []}
     for k, x in enumerate(xs):
-        out.lines.append(_tick(x, ys))
-        out.lines.append([(x, top + 0.15), (x, ys + 0.15)])          # 補助線
+        fb["lines"].append(_tick(x, ys))
+        fb["lines"].append([(x, top + 0.15), (x, ys + 0.15)])          # 補助線
         if k < len(ep.spans):
-            out.texts.append({"x": (x + xs[k + 1]) / 2.0, "y": ys + 0.12, "text": f"{ep.spans[k]:.0f}",
-                              "just": "Center"})
-    out.lines.append([(min(xs), yt), (max(xs), yt)])
-    out.lines.append(_tick(min(xs), yt))
-    out.lines.append(_tick(max(xs), yt))
-    out.lines.append([(min(xs), ys + 0.15), (min(xs), yt + 0.15)])
-    out.lines.append([(max(xs), ys + 0.15), (max(xs), yt + 0.15)])
-    out.texts.append({"x": (min(xs) + max(xs)) / 2.0, "y": yt + 0.12,
-                      "text": f"{sum(ep.spans):.0f}", "just": "Center", "total": True})
+            fb["texts"].append({"x": (x + xs[k + 1]) / 2.0, "y": ys + 0.12, "text": f"{ep.spans[k]:.0f}",
+                                "just": "Center", "span": True})
+    out.dims.append({"points": [(x, top) for x in sorted(xs)], "ref": (min(xs), ys), "dir": (1.0, 0.0),
+                     "chain": "スパン", "values": [float(v) for v in (ep.spans if sgn > 0 else list(ep.spans)[::-1])],
+                     "fallback": fb})
+    fb = {"lines": [[(min(xs), yt), (max(xs), yt)], _tick(min(xs), yt), _tick(max(xs), yt),
+                    [(min(xs), ys + 0.15), (min(xs), yt + 0.15)], [(max(xs), ys + 0.15), (max(xs), yt + 0.15)]],
+          "texts": [{"x": (min(xs) + max(xs)) / 2.0, "y": yt + 0.12, "text": f"{sum(ep.spans):.0f}",
+                     "just": "Center", "total": True}]}
+    out.dims.append({"points": [(min(xs), top), (max(xs), top)], "ref": (min(xs), yt), "dir": (1.0, 0.0),
+                     "chain": "全長", "values": [float(sum(ep.spans))], "fallback": fb})
     # 壁つなぎの位置に ◎（2重の円）。3D の部品には持たせず、立面図の注記として描く
     for cx, cy in tie_marks(ep, spec, model.wall_ties):
         for r in TIE_MARK_RADII_M:
@@ -343,10 +394,7 @@ def section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=None,
     base = float(getattr(model, "base_height_mm", 0.0) or 0.0) / 1000.0
     if base:
         # 下の屋根の上に建てた足場（セットバックの上の部分）。注記の高さは立つ面からなので、断面の標高へずらす
-        out.texts = [{**t, "y": t["y"] + base} for t in out.texts]
-        out.lines = [[(x, y + base) for x, y in pts] for pts in out.lines]
-        out.labels = [{**lb, "beg": (lb["beg"][0], lb["beg"][1] + base), "mid": (lb["mid"][0], lb["mid"][1] + base),
-                       "end": (lb["end"][0], lb["end"][1] + base)} for lb in out.labels]
+        out = out.shifted(base)
         for t in out.texts:
             if t["text"].startswith("GL±0"):
                 t["text"] = f"足場の立つ面（下の屋根）GL+{base * 1000:.0f}"
@@ -470,9 +518,45 @@ def open_section_window(client, section_item_guid: str, tries: int = 3, wait_s: 
     return False
 
 
+def write_section_dims(client, dims: list[dict]) -> tuple[int, list[dict]]:
+    """寸法ツールの寸法を置く（現在の断面図ウィンドウ）. 測る点は寸法の芯の線（頂点＝点）に取る.
+    戻り値は (置いた要素の数, 置けなかった寸法の fallback の並び)."""
+    if not dims:
+        return 0, []
+    try:
+        r = client.tapir("CreatePolylines", {"polylinesData": [
+            {"coordinates": [{"x": x, "y": y} for x, y in d["points"]]} for d in dims]})
+        cores = [el.get("elementId") for el in r.get("elements", [])]
+    except Exception:
+        return 0, [d["fallback"] for d in dims]
+    n = sum(1 for c in cores if c)
+    data, owner = [], []
+    for d, core in zip(dims, cores):
+        if not core:
+            continue
+        data.append({"referencePoint": {"x": d["ref"][0], "y": d["ref"][1]},
+                     "direction": {"x": d["dir"][0], "y": d["dir"][1]},
+                     "witnessPoints": [{"elementId": core, "inIndex": i} for i in range(1, len(d["points"]) + 1)]})
+        owner.append(d)
+    made = []
+    if data:
+        try:
+            made = client.tapir("CreateAssociativeDimensions", {"dimensionsData": data}).get("elements", [])
+        except Exception:
+            made = []
+    ok = {id(d) for d, el in zip(owner, made) if "elementId" in el}
+    n += len(ok)
+    return n, [d["fallback"] for d in dims if id(d) not in ok]
+
+
 def write_section_notes(client, notes: SectionNotes, text_height_mm: float = 2.5) -> int:
-    """現在の断面図ウィンドウに注記を置く（ChangeWindow で開いてから呼ぶ）。置いた数を返す."""
-    n = 0
+    """現在の断面図ウィンドウに注記を置く（ChangeWindow で開いてから呼ぶ）。置いた数を返す.
+    寸法は寸法ツールで置き、置けなかった分だけ線と文字で描く."""
+    n, fallback = write_section_dims(client, notes.dims)
+    if fallback:
+        notes = SectionNotes(texts=list(notes.texts) + [t for fb in fallback for t in fb["texts"]],
+                             lines=list(notes.lines) + [pts for fb in fallback for pts in fb["lines"]],
+                             labels=notes.labels)
     if notes.texts:
         r = client.tapir("CreateTexts", {"textsData": [
             {"coordinate": {"x": t["x"], "y": t["y"], "z": 0.0}, "text": t["text"], "height": text_height_mm,
