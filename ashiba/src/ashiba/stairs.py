@@ -450,7 +450,8 @@ def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tu
             return True, (f"幅 {model.post_row_spacing_mm:.0f} の足場の階段は外付け（600 枠 2 列）にしますが、足場の外の空き"
                           f" {clearance_mm:.0f}mm は外付けに要る {need:.0f}mm より狭いです（幅 900 の足場にするか、"
                           "階段の位置を空いた面へ）")
-        return True, ("" if kind != "inside" else
+        # 中を明示したときだけ書く（既定のままなら外付けが当たり前なので要確認に入れない）
+        return True, ("" if str(layout or "").strip() != "inside" else
                       f"幅 {model.post_row_spacing_mm:.0f} の足場の中に階段は組めないので外付け（600 枠 2 列）にしました")
     if kind == "outside":
         if clearance_mm < need:

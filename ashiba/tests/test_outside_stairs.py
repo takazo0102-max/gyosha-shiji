@@ -45,6 +45,10 @@ class TestStairsNeed900OrDoubleRow(unittest.TestCase):
         self.assertTrue(r.stair_plan.outside)                      # 600 枠 2 列（外側にもう 1 列）
         self.assertTrue(any("600 枠 2 列" in w for w in r.stair_plan.warnings))
         self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))
+        # 中を指定しないなら外付けは当たり前なので要確認には書かない
+        plain = solve_all({**RECT, "scaffold_width_mm": 610})
+        self.assertTrue(plain.stair_plan.outside)
+        self.assertFalse(any("600 枠 2 列" in w for w in plain.stair_plan.warnings))
         wide = solve_all(dict(RECT))                                # 914 は足場の中（900 枠）
         self.assertFalse(wide.stair_plan.outside)
 

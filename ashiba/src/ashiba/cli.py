@@ -1541,7 +1541,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     space = float(spec.get("clearance_space_mm", 2000))
     if clearances:
         space = min(space, max(c.min_mm for c in clearances))
-    outside, why = decide_outside(model, st.get("layout", "inside"), space)
+    outside, why = decide_outside(model, st.get("layout"), space)
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
     hug_no_stairs = model.no_stair_tower and not st.get("positions") and not st.get("count")
     if hug_no_stairs:
