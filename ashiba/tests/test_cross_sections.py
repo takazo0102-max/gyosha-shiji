@@ -1,6 +1,7 @@
 """足場断面図（建物を横切る A-A・B-B。利用者の指定 2026-10-21「断面図も必要」）."""
 
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -129,6 +130,11 @@ class TestSplitAt50(unittest.TestCase):
 
     def test_each_face_gets_a_short_section(self):
         from ashiba.cross_sections import CLEAR_MM, INSIDE_MM, cross_sheet_name, split_cross_specs
+        # 断面は足場ラインの幕（躯体面の 1m 奥、3d.gdl の standoff + 1.0）の手前で止める
+        g3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("add -rowW - 0.05, standoff + 1.0, -3.0", g3)
+        self.assertLess(INSIDE_MM, 1000.0)
 
         r = solve_all(dict(RECT))
         full = cross_section_specs(r.model, "X")
