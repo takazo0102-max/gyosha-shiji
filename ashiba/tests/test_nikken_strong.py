@@ -90,9 +90,10 @@ class TestCatalogAttachments(unittest.TestCase):
                 self.assertGreater(q.get("MS1851", 0), 0)
                 self.assertTrue(any(n.startswith("メッシュシート（1.8×5.2m）") for n in r.quantity.notes))
 
-    def test_waku_stair_opening_toe_board(self):
+    def test_waku_stair_opening_has_no_toe_board(self):
+        # 階段上の幅木は不要（利用者の指定 2026-10-24: 階段上の幅木と布材不要）。手配の注記にも出さない
         r = solve_all({**RECT, "series_id": "waku"})
-        self.assertIn("NFG918", {l.part.model_no for l in r.quantity.lines})
+        self.assertNotIn("NFG918", {l.part.model_no for l in r.quantity.lines})
         self.assertFalse(any("階段開口部幅木" in w for w in r.quantity.warnings))
 
 

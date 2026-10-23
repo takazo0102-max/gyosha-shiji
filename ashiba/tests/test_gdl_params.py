@@ -1271,13 +1271,10 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         self.assertIn("zg = lv[il5 + 1]", sub)
         self.assertIn("if stHalf = 1 then gyS = -rowW + 0.05 + deckW1 - 0.005", sub)   # 外側の板とハーフアンチの間
         self.assertIn("gzT = zg + 0.922", sub)
-        self.assertIn("block fl - 2 * r_sic, 0.008, 0.150", sub)                         # 開口部幅木は長手に沿う
         self.assertNotIn("block 0.02, gw, 0.157", body)
-        # 端の手すり: 上桟・中桟が角で折れて開口の端を横切り、外側の建地に掛かる（長手と一体。利用者の指摘 2026-10-22）
-        self.assertIn("gyO = -rowW + r_sic + 0.005", sub)
-        self.assertIn("cylind gyS - gyO - 0.02, gR", sub)
-        # 開口部幅木（NFG918）も L形で端を横切る（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
-        self.assertIn("block 0.008, gyS + gR + 0.008 - gyO, 0.150", sub)
+        # 階段の上の幅木（開口部幅木）と、開口の端を横切る桟は付けない（利用者の指定 2026-10-24: 階段上の幅木と布材不要）
+        self.assertNotIn("block fl - 2 * r_sic, 0.008, 0.150", sub)
+        self.assertNotIn("cylind gyS - gyO - 0.02, gR", sub)
 
     def test_stair_handrail_on_the_stair_side_at_1350(self):
         # 専用階段手摺 NDKT は階段側（外側の建地列）だけ、床から 1350（利用者の指摘 2026-10-22: 今より450上、階段側だけ）
@@ -1287,7 +1284,9 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         sub = body[i:i + 1500]
         self.assertIn("for sd = 0 to stOut", sub)
         self.assertIn("hKT = 1.35", sub)
-        self.assertIn("add x0 + r_sic, ys, lv[il5] + hKT", sub)
+        # 2段（手すりと中桟。中桟は 450 下）を階段と平行に（利用者の指定 2026-10-24）
+        self.assertIn("hT = hKT - tk * 0.45", sub)
+        self.assertIn("add x0 + r_sic, ys, lv[il5] + hT", sub)
         # 最上層へ上がる階段は支柱の上（床から900まで）に浮かないよう、コマ1つ下げる（利用者の指摘 2026-10-22: 手すり浮いてる）
         self.assertIn("if lv[il5 + 1] + hKT > postTop - 0.03 then hKT = hKT - 0.45", sub)
 

@@ -96,7 +96,7 @@ def common_notes(model: ScaffoldModel, stair_plan=None) -> list[str]:
     else:
         out.append("壁つなぎは垂直5m・水平5.5m以内ごとに設ける（図の位置による）。")
     if stair_plan is not None and getattr(stair_plan, "towers", None):
-        out.append("階段の昇降口には開口部手すり・幅木を設け、昇降は階段を使用する。")
+        out.append("階段には手すり（2段）を設け、昇降口には開口部手すりを設けて、昇降は階段を使用する。")
     elif int(getattr(c, "ladders", 0) or 0) > 0:
         # 階段の入らない足場（単管抱き足場など。敷地境界に収めた計画）は、はしごで昇降する
         out.append(f"昇降設備は昇降用はしご {int(c.ladders)}箇所とし、水平移動30m以内に設ける（部材は別途手配）。")
@@ -118,7 +118,7 @@ def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None, e
     rows += [("scaf", lb) for lb in dict.fromkeys(scaffold_type_label(m) for m, _sp in owners)]
     rows.append(("tie", "壁つなぎ（平面 ▽・立面 ◎）"))
     if any(sp is not None and getattr(sp, "towers", None) for _m, sp in owners):
-        rows.append(("stair", "昇降階段（開口部手すり・幅木）"))
+        rows.append(("stair", "昇降階段（手すり2段・開口部手すり）"))
     if any(m.asagao_heights() for m, _sp in owners):
         rows.append(("asa", "朝顔（防護棚）"))
     sheet = str(getattr(model.config, "sheet_type", "") or "")

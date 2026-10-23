@@ -562,7 +562,7 @@ def _take_off_one(
     stair_cells: dict[int, int] = {}
     if stair_plan is not None and stair_plan.towers and not getattr(stair_plan, "outside", False):
         # 階段室は各層で階段が上がってくる1スパンだけ開口（もう一方のスパンには床を敷く）。外側の幅木も付けない
-        # （載せる布板が無く宙に浮く。利用者の指摘 2026-10-22。開口の縁は階段開口部幅木）
+        # （載せる布板が無く宙に浮く。利用者の指摘 2026-10-22。階段上の幅木も付けない 2026-10-24）
         from .stairs import stair_open_cells
         stair_cells = stair_open_cells(model, stair_plan, n_levels)
         for s, n in stair_cells.items():
@@ -1418,21 +1418,22 @@ def _count_stair_guards(model: ScaffoldModel, add, notes, n_towers: int, n_level
                         outside: bool = False) -> None:
     """階段まわりの手すり類（2026-10-18 利用者の決め）.
 
-    - 専用階段手摺: 階段1つにつき階段側の1本（もう一方は開口部手摺。利用者の指摘 2026-10-22）。外付けは両側の2本
-    - 階段開口部手摺・開口部幅木: 出入口1か所に1組。各層で下からの階段が上がってくる所が出入口
+    - 専用階段手摺: 2段（手すりと中桟。利用者の指定 2026-10-24: 足場の手すりはこのかたち 2段）。階段1つにつき
+      階段側（もう一方は開口部手摺。利用者の指摘 2026-10-22）。外付けは両側
+    - 階段開口部手摺: 出入口1か所に1組。各層で下からの階段が上がってくる所が出入口
+    - 階段開口部幅木は使わない（利用者の指定 2026-10-24: 階段上の幅木と布材不要）
     踊り場の部材（ハッチ付布板）は使わない。2層ごとに階段室を出て外の作業床へ出る（踊り場を兼ねる）。
     マスタに無い部材は手配の注記に出す。
     """
     if not n_towers or not n_levels:
         return
     m = model.master
-    per = 2 if outside else 1
+    per = (2 if outside else 1) * 2                     # 2段（手すりと中桟）
     need = (("階段手摺", n_towers * n_levels * per,
-             "専用階段手摺（階段1つに両側2本）" if outside else "専用階段手摺（階段1つに階段側の1本）"),)
-    # 外付けは階段の開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺・幅木は使わない
+             "専用階段手摺 2段（階段1つに両側）" if outside else "専用階段手摺 2段（階段1つに階段側）"),)
+    # 外付けは階段の開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺は使わない
     if not outside:
-        need += (("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),
-                 ("階段開口部幅木", n_towers * n_levels, "階段開口部幅木（出入口1か所に1組）"))
+        need += (("階段開口部手摺", n_towers * n_levels, "階段開口部手摺（出入口1か所に1組）"),)
     missing = []
     for cat, qty, label in need:
         part = next(iter(m.by_category(cat)), None)

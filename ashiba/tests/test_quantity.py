@@ -97,7 +97,7 @@ class TestQuantity(unittest.TestCase):
         q = take_off(self.model)
         self.assertGreater(q.qty_of("階段"), 0)
         self.assertEqual(q.qty_of("踊り場"), 0)
-        self.assertEqual(q.qty_of("階段手摺"), 2 * self.model.elevation.n_levels)
+        self.assertEqual(q.qty_of("階段手摺"), 2 * self.model.elevation.n_levels * 2)     # 2段
 
     def test_wide_standoff_notes_the_missing_inner_rail(self):
         """離れ300mm超は躯体側にも墜落防止措置が要る。躯体側手すりを外した計画では数量に無いことを書く."""

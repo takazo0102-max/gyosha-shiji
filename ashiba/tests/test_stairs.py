@@ -292,9 +292,9 @@ class TestStairGuards(unittest.TestCase):
         plan = auto_place_stairs(m)
         q = take_off(m, stair_plan=plan)
         n = m.elevation.n_levels
-        self.assertEqual(q.qty_of("階段手摺"), plan.count * n)
+        self.assertEqual(q.qty_of("階段手摺"), plan.count * n * 2)        # 2段（手すりと中桟。2026-10-24）
         self.assertEqual(q.qty_of("階段開口部手摺"), plan.count * n)
-        self.assertEqual(q.qty_of("階段開口部幅木"), plan.count * n)
+        self.assertEqual(q.qty_of("階段開口部幅木"), 0)                   # 階段上の幅木は不要（2026-10-24）
 
     def test_missing_guard_parts_go_to_the_order_list(self):
         """マスタに無い階段まわりの部材は、手配の注記に本数つきで出す."""

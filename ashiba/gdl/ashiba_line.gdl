@@ -4298,20 +4298,24 @@ for it5 = 1 to nSt
 		! （利用者の指摘 2026-10-22: 階段手すりは今より450上、階段側だけでいい。以前は両側の 900 だった）。
 		! 最上層へ上がる階段は、上端の支柱が床から 900（コマ2つ）までしか無いので 1350 では支柱の上に浮く。
 		! 支柱のある高さ（コマ1つ下）に下げる（利用者の指摘 2026-10-22: 手すり浮いてる）
+		! 手すりは 2 段（手すりと中桟。中桟は 450 下）を階段と平行に（利用者の指定 2026-10-24: 足場の手すりはこのかたち 2段）
 		hKT = 1.35
 		if lv[il5 + 1] + hKT > postTop - 0.03 then hKT = hKT - 0.45
 		for sd = 0 to stOut
 			ys = yb + r_sic + 0.03 + sd * (rowW - 2 * r_sic - 0.06)
-			add x0 + r_sic, ys, lv[il5] + hKT
-			roty 90 - atn(rise / (fl - 2 * r_sic))
-			cylind sqr((fl - 2 * r_sic) ^ 2 + rise ^ 2), 0.0217 / 2
-			del 2
-			add x0 + r_sic, ys - 0.02, lv[il5] + hKT - 0.03
-			block 0.04, 0.04, 0.06
-			del 1
-			add x0 + fl - r_sic - 0.04, ys - 0.02, lv[il5 + 1] + hKT - 0.03
-			block 0.04, 0.04, 0.06
-			del 1
+			for tk = 0 to 1
+				hT = hKT - tk * 0.45
+				add x0 + r_sic, ys, lv[il5] + hT
+				roty 90 - atn(rise / (fl - 2 * r_sic))
+				cylind sqr((fl - 2 * r_sic) ^ 2 + rise ^ 2), 0.0217 / 2
+				del 2
+				add x0 + r_sic, ys - 0.02, lv[il5] + hT - 0.03
+				block 0.04, 0.04, 0.06
+				del 1
+				add x0 + fl - r_sic - 0.04, ys - 0.02, lv[il5 + 1] + hT - 0.03
+				block 0.04, 0.04, 0.06
+				del 1
+			next tk
 		next sd
 		! 上の層の開口（x0〜x0+fl）。床と開口の境の線: 階段を外側に寄せる床（stHalf）は外側の板とハーフアンチの間、
 		! 全幅の開口は内側の建地列の内
@@ -4336,21 +4340,12 @@ for it5 = 1 to nSt
 		roty 90
 		cylind gx1 - gx0, gR
 		del 2
-		! 上がり口側の角の縦管（床から上桟まで）。上桟・中桟はここで直角に折れて開口の端を横切り、外側の建地に
-		! フックで掛かる（端の手すりは長手と一体。利用者の指摘 2026-10-22: 端にも手すりいるよ、繋がっている）
-		add gx0, gyS, zg + 0.03
-		cylind gzT - zg - 0.03, gR
-		del 1
-		gyO = -rowW + r_sic + 0.005
+		! 上がり口側の端は支柱にフックで掛ける。開口の端を横切る桟は付けない（利用者の指定 2026-10-24: 階段上の
+		! 幅木と布材不要。階段の上を横切る桟が布材のように見え、通り道を塞いでいた）
 		for gk = 0 to 1
 			gzk = gzT - gk * (gzT - zg - 0.46)
-			add gx0, gyS, gzk
-			sphere gR
-			rotx 90
-			cylind gyS - gyO - 0.02, gR
-			del 2
-			add gx0 - 0.02, gyO - 0.005, gzk - 0.02
-			block 0.04, 0.03, 0.04
+			add gx0 - 0.04, gyS - 0.02, gzk - 0.02
+			block 0.04, 0.04, 0.04
 			del 1
 		next gk
 		! 上り切る側: 上桟を半径100で曲げて下ろし、床を抜けて階段枠の上端まで
@@ -4371,16 +4366,7 @@ for it5 = 1 to nSt
 		add gx1, gyS, zg - 0.10
 		cylind gcz - zg + 0.10, gR
 		del 1
-		if mToe > 0 then material mToe
-		! 開口部幅木（NFG918、カタログ p010 の写真）: 平らな板。開口の長手（床の側）と、上がり口側の角で折れて
-		! 開口の端を横切り外側の建地まで（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
-		add x0 + r_sic, gyS + gR, zg + r_nuno + 0.045
-		block fl - 2 * r_sic, 0.008, 0.150
-		del 1
-		add gx0 - gR - 0.008, gyO, zg + r_nuno + 0.045
-		block 0.008, gyS + gR + 0.008 - gyO, 0.150
-		del 1
-		if matScaf > 0 then material matScaf
+		! 開口部幅木は付けない（利用者の指定 2026-10-24: 階段上の幅木と布材不要）
 		endif
 	next il5
 next it5
