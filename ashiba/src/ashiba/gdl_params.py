@@ -231,7 +231,22 @@ def drawn_section_lines(groups) -> list[tuple]:
     return out
 
 
-def label_positions(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None) -> dict:
+def _type_label_fits_elsewhere(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None) -> bool:
+    """同じ組のほかの面に、種類の名前を重ならずに書ける面があるか."""
+    for other in model.plan.edges:
+        if other.edge_index == ep.edge_index:
+            continue
+        if _type_label_free(model, other, stair_plan, openings, platforms):
+            return True
+    return False
+
+
+def _type_label_free(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None) -> bool:
+    return label_positions(model, ep, stair_plan, openings, platforms, _probe=True)["lblAt"] >= 0
+
+
+def label_positions(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None,
+                    _probe: bool = False) -> dict:
     """平面のラベル（種類・壁つなぎ・養生）の位置（面の始点から mm、-1 は GDL の既定の位置）.
 
     GDL は種類のラベルを面の 25%・養生を 70% に置くので、断面図の切断線の端（マーカーと「S-01」）や
@@ -269,7 +284,18 @@ def label_positions(model: ScaffoldModel, ep, stair_plan=None, openings=None, pl
     out = {"lblAt": -1.0, "lblTieAt": -1.0, "lblShAt": -1.0}
     taken: list[tuple[float, float]] = []
     near = lambda pref: sorted((k / 20.0 for k in range(20)), key=lambda f: (abs(f - pref), f))   # 5% 刻み、好みの位置から
-    hit = pick(near(0.25), width(tx["typeTxt"], tx["deckTxt"]), taken)
+    # 種類の名前は空いた所に。短い面で空きが無ければ、同じ種類のほかの面に書くのでこの面は書かない（-2。7×5m の建物で
+    # 西面と北面のラベルが隅で重なった 2026-10-24 実機）。面が1つだけの組は重なっても書く
+    hit = pick(near(0.25), width(tx["typeTxt"], tx["deckTxt"]), taken, fallback=False)
+    if _probe:
+        return {"lblAt": round(hit[0]) if hit else -1.0}
+    if hit is None and len(model.plan.edges) > 1 and (
+            _type_label_fits_elsewhere(model, ep, stair_plan, openings, platforms)
+            # どの面にも空きが無い（小さい建物）なら、いちばん長い面にだけ書く
+            or ep.edge_index != max(model.plan.edges, key=lambda e: (sum(e.spans), -e.edge_index)).edge_index):
+        out["lblAt"] = -2.0
+    else:
+        hit = hit or pick(near(0.25), width(tx["typeTxt"], tx["deckTxt"]), taken)
     if hit:
         out["lblAt"] = round(hit[0])
         taken.append((hit[1][0] - 300.0, hit[1][1] + 300.0))

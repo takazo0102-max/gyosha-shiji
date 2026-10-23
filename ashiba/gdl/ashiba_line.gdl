@@ -1919,8 +1919,13 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 	lbAy = -rowW / 2
 	lbT1 = typeTxt
 	lbT2 = deckTxt
-	gosub 986
-	lbEnd = max(lbAx, lbAx + lbS * (0.4 + lbW))
+	! lblAt = -2: 短い面で空きが無い（隅・ほかの面のラベルに重なる）。同じ種類はほかの面に書くので、この面は書かない
+	if lblAt > -1.5 then
+		gosub 986
+		lbEnd = max(lbAx, lbAx + lbS * (0.4 + lbW))
+	else
+		lbEnd = pxA
+	endif
 	! 壁つなぎ（この部品の範囲で、種類の名前より右の最初の壁つなぎ）
 	lbT1 = tieTxt
 	if strlen(lbT1) = 0 then lbT1 = "壁つなぎ"

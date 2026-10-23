@@ -117,6 +117,20 @@ class TestPlanDimensions(unittest.TestCase):
         self.assertLess(south["referencePoint"]["y"], r.model.plan.edges[0].start_post[1] / 1000.0 - SPAN_DIM_OUT_M)
 
 
+class TestTypeLabelOnShortFaces(unittest.TestCase):
+    """小さい建物で種類の名前が隅で重なる（7×5m、2026-10-24 実機）→ 空きの無い面は書かず、1つは必ず書く."""
+
+    def test_small_building_has_one_type_label(self):
+        from ashiba.gdl_params import label_positions
+
+        r = solve_all({"outline_mm": [[0, 0], [7000, 0], [7000, 5000], [0, 5000]], "eaves_height_mm": 6000})
+        at = [label_positions(r.model, e, r.stair_plan, r.openings, r.platforms)["lblAt"] for e in r.model.plan.edges]
+        self.assertEqual(sum(1 for a in at if a >= 0), 1)
+        self.assertTrue(all(a >= 0 or a == -2.0 for a in at))
+        g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if lblAt > -1.5 then", g2)
+
+
 class TestLabelPositions(unittest.TestCase):
     def test_labels_keep_off_section_markers_and_corners(self):
         """平面の GDL ラベルは断面図の切断線（とその端のマーカー）と面の両端を避けて置く."""
