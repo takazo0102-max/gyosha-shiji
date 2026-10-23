@@ -93,6 +93,9 @@ def common_notes(model: ScaffoldModel, stair_plan=None) -> list[str]:
         out.append("壁つなぎは垂直5m・水平5.5m以内ごとに設ける（図の位置による）。")
     if stair_plan is not None and getattr(stair_plan, "towers", None):
         out.append("階段の昇降口には開口部手すり・幅木を設け、昇降は階段を使用する。")
+    elif int(getattr(c, "ladders", 0) or 0) > 0:
+        # 階段の入らない足場（単管抱き足場など。敷地境界に収めた計画）は、はしごで昇降する
+        out.append(f"昇降設備は昇降用はしご {int(c.ladders)}箇所とし、水平移動30m以内に設ける（部材は別途手配）。")
     out.append("支柱の抜け止め（連結ピン等）の措置を行う。")
     return out
 

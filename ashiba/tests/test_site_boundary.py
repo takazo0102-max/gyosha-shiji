@@ -44,6 +44,29 @@ class TestClearance(unittest.TestCase):
             self.assertEqual(r.verdict["blockers"], [])                # 階段はほかの組の面のものを使う
         self.assertEqual(plan_within_boundary({**spec, "fit_boundary": False})[0], {**spec, "fit_boundary": False})
 
+    def test_tighten_the_standoff_when_the_smallest_form_still_crosses(self):
+        """単管抱き足場でも越える面は、その形式の離れを詰める（境界まで −床の外側 100、下限 200）."""
+        spec = {"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=300), "road_edges": [0]}
+        sp, notes = plan_within_boundary(spec)
+        self.assertEqual(sp["face_forms"], "西面=単管抱き足場")
+        self.assertEqual(sp["form_standoff"]["単管抱き足場"]["target"], 200.0)
+        self.assertIn("離れを 200mm に詰めました", notes[-1])
+        for _label, r in solve_groups(sp):
+            self.assertFalse([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"])
+        # 下限まで詰めても越えるなら、そう書いて止める
+        _sp, notes2 = plan_within_boundary({**spec, "site_boundary_mm": bnd(west=250)})
+        self.assertTrue(any("200mm まで詰めても敷地境界を越えます" in n for n in notes2), notes2)
+
+    def test_ladders_when_no_face_can_take_a_stair(self):
+        """四方とも単管抱き足場になって階段が入らないときは、はしご（外周 60m ごとに1箇所）."""
+        spec = {"outline_mm": B, "eaves_height_mm": 9000, "road_edges": [0],
+                "site_boundary_mm": [[-500, -500], [24500, -500], [24500, 10500], [-500, 10500]]}
+        sp, notes = plan_within_boundary(spec)
+        self.assertEqual(sp["ladders"], 2)                                   # 外周 68m
+        self.assertIn("はしご 2箇所", notes[-1])
+        (_label, r), = solve_groups(sp)
+        self.assertEqual(r.verdict["blockers"], [])
+
     def test_overlay_dimension_is_outside_the_scaffold(self):
         """境界までの寸法線は外側建地と境界の間（躯体側に書いて GDL のラベルに重なっていた）."""
         from ashiba.elevation_sections import plan_region_mm

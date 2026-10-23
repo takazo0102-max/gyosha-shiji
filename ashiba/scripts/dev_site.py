@@ -6,6 +6,7 @@
 
 使い方:
   python3 scripts/dev_site.py create [--at 3000000,2000000] [--road 1200] [--west 1500] [--east 3000] [--north 4000]
+  python3 scripts/dev_site.py boundary [--at ...] [--road ...] ...  # 境界線だけ引き直す（建物はそのまま）
   python3 scripts/dev_site.py place  [--at ...] [条件の JSON を ASHIBA_SPEC で]
   python3 scripts/dev_site.py clear  [--at ...]      # 作った境界線を消す（足場は remove_from_archicad で）
 建物は 24m×10m（--size 24000x10000）。境界までの距離は躯体の面から。
@@ -60,7 +61,7 @@ def _layer(c: ArchicadClient, name: str) -> int:
     return int(hit["index"])
 
 
-def create(c: ArchicadClient, s: dict) -> None:
+def create_boundary(c: ArchicadClient, s: dict) -> None:
     from ashiba.elevation_sections import activate_floor_plan
 
     activate_floor_plan(c)
@@ -69,6 +70,10 @@ def create(c: ArchicadClient, s: dict) -> None:
     c.tapir("CreatePolylines", {"polylinesData": [
         {"coordinates": [{"x": x / 1000.0, "y": y / 1000.0} for x, y in pts], "layerIndex": lb},
         {"coordinates": [{"x": x / 1000.0, "y": y / 1000.0} for x, y in s["road"]], "layerIndex": lr}]})
+
+
+def create(c: ArchicadClient, s: dict) -> None:
+    create_boundary(c, s)
     c.tapir("CreateSlabs", {"slabsData": [{"level": 0.0, "thickness": 0.2, "polygonCoordinates": [
         {"x": x / 1000.0, "y": y / 1000.0} for x, y in s["building"]]}]})
     print("建物と敷地境界線を作りました", json.dumps({k: v[:2] for k, v in s.items()}))
@@ -118,6 +123,10 @@ def main() -> int:
         create(c, s)
     elif cmd == "clear":
         clear(c, s)
+    elif cmd == "boundary":
+        clear(c, s)
+        create_boundary(c, s)
+        print("境界線を引き直しました", json.dumps(s["boundary"]))
     else:
         print(__doc__)
         return 2

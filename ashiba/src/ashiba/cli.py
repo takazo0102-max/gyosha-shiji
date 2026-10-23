@@ -158,7 +158,7 @@ TOP_KEYS = {
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
-    "member_edits", "face_forms",
+    "member_edits", "face_forms", "form_standoff",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},

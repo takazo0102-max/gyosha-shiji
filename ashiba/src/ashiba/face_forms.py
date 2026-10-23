@@ -24,7 +24,7 @@ FACE_FORM_SPECS: dict[str, dict] = {
 }
 FACE_FORMS = tuple(FACE_FORM_SPECS)
 # 切り替えた組では使わない入力（スパン・部材の指定は元の種類の割付に対するもの）
-_GROUP_DROP_KEYS = ("span_overrides", "member_edits", "face_forms")
+_GROUP_DROP_KEYS = ("span_overrides", "member_edits", "face_forms", "form_standoff")
 
 
 def parse_face_forms(value) -> dict[str, str]:
@@ -79,7 +79,7 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
     groups: list[tuple[str, dict]] = []
     rest = [f for f in all_faces if f not in ff]
     if rest:
-        base = {k: v for k, v in spec.items() if k not in ("face_forms",)}
+        base = {k: v for k, v in spec.items() if k not in ("face_forms", "form_standoff")}
         base["faces"] = rest
         groups.append(("", base))
     by_form: dict[str, list[str]] = {}
@@ -93,6 +93,10 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             # 系列を替える組はモジュール（インチ／メートル）の指定も外す（枠組・単管はメートル）
             sub.pop("module", None)
         sub.update(over)
+        # 種類ごとの離れ（form_standoff。敷地境界に収めるため単管抱き足場の離れだけ詰める等）
+        fs = (spec.get("form_standoff") or {}).get(form)
+        if fs:
+            sub["standoff"] = {**(spec.get("standoff") or {}), **fs}
         sub["faces"] = faces
         sub["project_name"] = f"{spec.get('project_name') or '足場'} {form}"
         groups.append((form, sub))

@@ -30,6 +30,8 @@ class TestContent(unittest.TestCase):
         self.assertTrue(any("垂直5m・水平5.5m" in n for n in ns))
         w = solve_all({**BASE, "series_id": "waku"})
         self.assertTrue(any("垂直9m・水平8m" in n for n in common_notes(w.model)))      # 枠組の壁つなぎ間隔
+        h = solve_all({**BASE, "scaffold_form": "単管抱き足場", "ladders": 2})
+        self.assertTrue(any("昇降用はしご 2箇所" in n for n in common_notes(h.model, h.stair_plan)))
 
     def test_kinds(self):
         r = solve_all(dict(BASE))

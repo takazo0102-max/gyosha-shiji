@@ -228,9 +228,19 @@ def read_boundary_from_archicad(client, outline_mm) -> tuple[list[tuple[float, f
 FIT_FORMS = ("一側足場", "単管抱き足場")
 
 
-def plan_within_boundary(spec: dict, max_rounds: int = 3) -> tuple[dict, list[str]]:
+HUG_FLOOR_OUT_MM = 100.0      # 単管抱き足場の床の離れの線より外（法規#1 の必要幅と同じ）
+MIN_FIT_STANDOFF_MM = 200.0   # 境界に収めるために詰める離れの下限
+
+
+def _floor10(v: float) -> float:
+    return math.floor(v / 10.0) * 10.0
+
+
+def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[str]]:
     """敷地境界を越える面の足場の形式を替えて解き直す（越えなくなるか、替える形式が無くなるまで）.
 
+    いちばん小さい形式（単管抱き足場）でも越える面は、その形式の離れを詰める（境界まで −床の外側 100、
+    下限 200）。どの組にも階段が入らない（全部の面が単管抱き足場など）ときは、はしごの箇所数を入れる。
     戻り値は (使う入力, 何をしたかの文)。境界が無い・越えない・fit_boundary=false なら入力のまま。
     """
     from .cli import solve_groups
@@ -240,17 +250,25 @@ def plan_within_boundary(spec: dict, max_rounds: int = 3) -> tuple[dict, list[st
         return spec, []
     spec = dict(spec)
     notes: list[str] = []
+    groups = []
     for rnd in range(1, max_rounds + 1):
-        bad = []
-        for _label, r in solve_groups(spec):
-            for c in r.conflicts:
-                if c.kind == "足場×敷地境界" and c.severity == "NG":
-                    bad.append(c.message.split(":", 1)[0])
+        groups = solve_groups(spec)
+        bad: dict[str, float] = {}           # 面 → 躯体から境界まで（越える区間の最小）
+        for _label, r in groups:
+            ng = {c.message.split(":", 1)[0] for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"}
+            if not ng:
+                continue
+            bnd, roads = parse_boundary({"site_boundary_mm": r.model.site_boundary_mm})
+            for fc in face_clearances(r.model, bnd, getattr(r.model, "site_road_edges", None) or roads):
+                if fc.face in ng:
+                    ep = next(e for e in r.model.plan.edges if e.edge_index == fc.edge_index)
+                    bad[fc.face] = fc.min_mm + float(ep.standoff) + float(r.model.post_row_spacing_mm) + POST_R_MM
         if not bad:
-            return spec, notes
+            break
         ff = parse_face_forms(spec.get("face_forms"))
         changed = False
-        for face in dict.fromkeys(bad):
+        tighten: dict[str, float] = {}
+        for face, wall_to_bnd in bad.items():
             cur = ff.get(face, "")
             i = FIT_FORMS.index(cur) + 1 if cur in FIT_FORMS else 0
             if i < len(FIT_FORMS):
@@ -258,8 +276,40 @@ def plan_within_boundary(spec: dict, max_rounds: int = 3) -> tuple[dict, list[st
                 notes.append(f"{face}: 敷地境界を越えるので {FIT_FORMS[i]} にしました（{rnd}回目）")
                 changed = True
             else:
-                notes.append(f"{face}: {cur} でも敷地境界を越えます（離れ・境界を見直してください）")
+                tighten[face] = wall_to_bnd
+        fs = dict(spec.get("form_standoff") or {})
+        if tighten:
+            form = FIT_FORMS[-1]
+            cur_so = fs.get(form) or dict(spec.get("standoff") or {})
+            cur_t = float(cur_so.get("target", 300))
+            want = _floor10(min(tighten.values()) - HUG_FLOOR_OUT_MM)
+            if want >= MIN_FIT_STANDOFF_MM and want < cur_t:
+                fs[form] = {"target": want, "max": want, "min": min(want, float(cur_so.get("min", 250))),
+                            "hard_min": min(want, float(cur_so.get("hard_min", 250)))}
+                notes.append(f"{'・'.join(tighten)}: {form} でも敷地境界を越えるので、{form}の離れを {want:.0f}mm に"
+                             f"詰めました（{rnd}回目）")
+                changed = True
+            else:
+                notes.append(f"{'・'.join(tighten)}: {form} の離れを {MIN_FIT_STANDOFF_MM:.0f}mm まで詰めても敷地境界を"
+                             "越えます（境界・形式を見直してください）")
         if not changed:
             break
         spec["face_forms"] = format_face_forms(ff)
+        if fs:
+            spec["form_standoff"] = fs
+    else:
+        groups = solve_groups(spec)
+    # 昇降設備: どの組にも階段が入らないなら、はしご（水平移動 30m 以内 → 外周 60m ごとに1箇所）
+    from .stairs import DEFAULT_MAX_TRAVEL_MM, MIN_HEIGHT_FOR_STAIRS_MM
+
+    if (groups and not spec.get("ladders") and spec.get("face_forms")
+            and not any(getattr(r.stair_plan, "towers", None) for _l, r in groups)
+            and max(r.model.scaffold_height_mm for _l, r in groups) > MIN_HEIGHT_FOR_STAIRS_MM):
+        pts = [(float(p[0]), float(p[1])) for p in spec["outline_mm"]]
+        per = sum(math.hypot(pts[(i + 1) % len(pts)][0] - pts[i][0], pts[(i + 1) % len(pts)][1] - pts[i][1])
+                  for i in range(len(pts)))
+        n = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
+        spec["ladders"] = n
+        notes.append(f"どの面にも階段が入らないので、昇降設備ははしご {n}箇所（外周 {per / 1000:.1f}m・"
+                     "水平移動 30m 以内。部材は別途手配）にしました")
     return spec, notes
