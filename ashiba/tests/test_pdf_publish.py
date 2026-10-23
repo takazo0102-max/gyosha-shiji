@@ -36,5 +36,37 @@ class TestSelect(unittest.TestCase):
         self.assertIn('if elevation_mode == "section" and spec.get("pdf", True):', src)
 
 
+class TestStalePdfs(unittest.TestCase):
+    def test_old_pdfs_of_this_project_are_removed(self):
+        """前回の同じ工事の足場の PDF で今回出なかったもの（「A-A 1」→「A-A」に変わった等）は消す。ほかは触らない."""
+        import os
+        import tempfile
+        import time
+
+        from ashiba.pdf_publish import publish_scaffold_pdf
+
+        with tempfile.TemporaryDirectory() as d:
+            sub = Path(d) / "名称未設定" / "2 仮設足場"
+            sub.mkdir(parents=True)
+            old = {n: sub / n for n in ("2.6 A棟 足場断面図 A-A 1.pdf", "2.1 B棟 足場平面図.pdf", "メモ.pdf")}
+            for q in old.values():
+                q.write_bytes(b"%PDF")
+                os.utime(q, (time.time() - 3600, time.time() - 3600))
+
+            class Client:
+                def tapir(self, cmd, params):
+                    if cmd == "GetNavigatorItemTree":
+                        return {"navigatorItemTree": TREE}
+                    (sub / "2.4 A棟 足場断面図 A-A.pdf").write_bytes(b"%PDF")
+                    return {}
+
+            res = publish_scaffold_pdf(Client(), Path(d), prefix="A棟")
+            self.assertEqual([f.name for f in res.files], ["2.4 A棟 足場断面図 A-A.pdf"])
+            self.assertFalse(old["2.6 A棟 足場断面図 A-A 1.pdf"].exists())
+            self.assertTrue(old["2.1 B棟 足場平面図.pdf"].exists())          # 別の工事
+            self.assertTrue(old["メモ.pdf"].exists())
+            self.assertIn("前回の PDF 1枚", res.notes[-1])
+
+
 if __name__ == "__main__":
     unittest.main()

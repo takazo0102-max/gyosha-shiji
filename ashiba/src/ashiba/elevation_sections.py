@@ -1213,7 +1213,10 @@ def plan_region_mm(model: ScaffoldModel, margin_mm: float = 1500.0) -> tuple[flo
     xs = [float(v[0]) for v in model.plan.outline.vertices]
     ys = [float(v[1]) for v in model.plan.outline.vertices]
     standoff = max((float(e.standoff) for e in model.plan.edges), default=300.0)
-    grow = standoff + float(model.post_row_spacing_mm) + CLEARANCE_MM + margin_mm
+    # 朝顔・ステージ・昇降機の張り出しの分も（平面の寸法とラベルの列はその外。入れないとラベルの文字が切れた）
+    from .plan_labels import outward_extra_m
+
+    grow = standoff + float(model.post_row_spacing_mm) + CLEARANCE_MM + margin_mm + outward_extra_m(model) * 1000.0
     box = [min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow]
     # 敷地境界線も入れる（境界と足場の離れが読めるように）
     for bx, by in getattr(model, "site_boundary_mm", None) or []:

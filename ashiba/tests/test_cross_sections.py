@@ -78,6 +78,12 @@ class TestNotes(unittest.TestCase):
         self.assertIn("南面", texts)
         self.assertIn("北面", texts)
         self.assertTrue(any(t.startswith("離れ") for t in texts))
+        self.assertTrue(any(x.endswith(f"幅 {r.model.post_row_spacing_mm:.0f}") for x in texts))
+        # 単管抱き足場（建地1列）は幅を書かない（「幅 0」と寸法の「0」が出ていた）
+        h = solve_all({**RECT, "scaffold_form": "単管抱き足場"})
+        ht = [t["text"] for t in cross_section_annotations(h.model, cross_section_specs(h.model, "X")[0]).texts]
+        self.assertFalse(any("幅 0" in x for x in ht), ht)
+        self.assertNotIn("0", ht)
         self.assertTrue(any("A-A 足場断面図" in t for t in texts))
         # 左側の面の文字は寸法線の左に置く（足場に重ならない）
         south = next(f for f in cut_faces(r.model, spec) if f.face_name == "南面")

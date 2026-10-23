@@ -76,4 +76,16 @@ def publish_scaffold_pdf(client, out_dir: Path, set_name: str = DEFAULT_PUBLISHE
     res.files = sorted(p for p in out_dir.rglob("*.pdf") if p.stat().st_mtime >= started)
     if not res.files:
         res.notes.append(f"発行は終わりましたが、{out_dir} に新しい PDF が見当たりません")
+    elif prefix:
+        # 同じ工事の前回の足場の PDF で今回出なかったもの（図面の名前が変わった・枚数が減った）を消す。
+        # 残すと「A-A 1」など古い図が新しい図と並び、どれが今の計画か分からなかった
+        gone = [q for d in {f.parent for f in res.files} for q in d.glob("*.pdf")
+                if q.stat().st_mtime < started and f" {prefix} 足場" in q.name]
+        for q in gone:
+            try:
+                q.unlink()
+            except OSError:
+                pass
+        if gone:
+            res.notes.append(f"前回の PDF {len(gone)}枚（今回は出ない図面）を消しました")
     return res

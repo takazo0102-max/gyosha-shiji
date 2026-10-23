@@ -19,6 +19,9 @@ class TestContent(unittest.TestCase):
                          [(scaffold_type_label(r.model), "250 kg", "370 kg")])      # 日建 914幅
         self.assertIn("W=914", scaffold_type_label(r.model))
         self.assertIn("500+240", scaffold_type_label(r.model))
+        hug = solve_all({**BASE, "scaffold_form": "単管抱き足場"})
+        self.assertNotIn("W=0", scaffold_type_label(hug.model))
+        self.assertNotIn("W=-", scaffold_type_label(hug.model))
         a = solve_all({**BASE, "series_id": "shinwa_A"})
         self.assertEqual(max_load_rows(a.model)[0][1:], ("250 kg", "400 kg"))
 

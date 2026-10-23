@@ -42,9 +42,13 @@ def scaffold_type_label(model: ScaffoldModel) -> str:
 
     kind = SERIES_LABELS.get(model.master.series_id, model.master.series_id)
     ws = list(model.deck_widths_in_use)
-    deck = "+".join(str(int(w)) for w in ws) if ws else "-"
     name = "布板" if model.master.is_frame else ("足場板" if model.master.is_tube else "踏板")
-    return f"{kind} W={int(model.post_row_spacing_mm)}（{name} W={deck}）"
+    # 単管抱き足場は建地1列で幅も床の幅も無い（「W=0（足場板 W=-）」と出ていた）
+    row = int(model.post_row_spacing_mm)
+    out = kind + (f" W={row}" if row > 0 else "")
+    if ws:
+        out += f"（{name} W={'+'.join(str(int(w)) for w in ws)}）"
+    return out
 
 
 def max_load_rows(model: ScaffoldModel) -> list[tuple[str, str, str]]:

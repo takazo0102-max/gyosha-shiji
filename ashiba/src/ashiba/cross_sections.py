@@ -224,7 +224,9 @@ def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=N
         row_mm = abs(f.x_out - f.x_in) * 1000.0
         out.texts.append({"x": (f.x_wall + f.x_in) / 2.0, "y": y + 0.12, "text": f"離れ{f.standoff_mm:.0f}",
                           "just": "Center"})
-        out.texts.append({"x": (f.x_in + f.x_out) / 2.0, "y": y - 0.45, "text": f"{row_mm:.0f}", "just": "Center"})
+        if row_mm > 1.0:                              # 単管抱き足場は建地1列（幅の「0」は書かない）
+            out.texts.append({"x": (f.x_in + f.x_out) / 2.0, "y": y - 0.45, "text": f"{row_mm:.0f}",
+                              "just": "Center"})
         # 高さ（外側に縦の寸法線を3本: 段の高さ・支柱の高さ・足場の高さ。層の高さの文字は書かない）。
         # 外付けの階段室がある面は3列目のさらに外から（寸法の文字が階段に重なっていた）
         ext = 0.0
@@ -239,8 +241,9 @@ def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=N
 
     kind = SERIES_LABELS.get(model.master.series_id, model.master.series_id)
     out.texts.append({"x": lo, "y": tall + 1.8,
-                      "text": f"{spec.face_name} 足場断面図　{kind}・階高 {model.master.floor_height}・"
-                              f"幅 {model.post_row_spacing_mm:.0f}", "just": "Left"})
+                      "text": f"{spec.face_name} 足場断面図　{kind}・階高 {model.master.floor_height}"
+                              + (f"・幅 {model.post_row_spacing_mm:.0f}" if model.post_row_spacing_mm > 0 else ""),
+                      "just": "Left"})
     out.texts.append({"x": lo, "y": -1.9, "text": "GL±0（離れは躯体面から内側建地の芯まで）", "just": "Left"})
     base = float(getattr(model, "base_height_mm", 0.0) or 0.0) / 1000.0
     if base:
