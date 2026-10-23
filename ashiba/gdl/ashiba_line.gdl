@@ -1619,14 +1619,7 @@ for ih = 1 to nHt
 			for rg = 0 to 3
 				line2 hxm - 0.25, hym - 0.15 + rg * 0.10, hxm - 0.15, hym - 0.15 + rg * 0.10
 			next rg
-			if showDim then
-				set style "annoC"
-				tdx = hxm + 0.10
-				tdy = hym
-				tdt = "昇降口"
-				gosub 985
-				set style "anno"
-			endif
+			! 名前（昇降口 ハッチ付布板 NDN6TA）は平面図のラベル（Python が置く）が引出線で書く。記号に文字を重ねない
 		endif
 	endif
 next ih

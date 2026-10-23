@@ -463,6 +463,10 @@ class TestLaddersWhenNoStairFits(unittest.TestCase):
         ei, k = r.model.hatch_ladders[0]
         ep = next(e for e in r.model.plan.edges if e.edge_index == ei)
         self.assertEqual(line_params(r.model, ep, stair_plan=r.stair_plan)["hatchList"], str(k + 1))
+        from ashiba.plan_labels import plan_label_items
+
+        # 平面のラベル（引出線）で「昇降口 ハッチ付布板 NDN6TA」。部品の中に文字は書かない（記号に重なった）
+        self.assertEqual(sum(1 for i in plan_label_items(r.model, r.stair_plan) if "昇降口 ハッチ付布板 NDN6TA" in i[2]), 1)
 
     def test_bracket_keeps_plain_ladders(self):
         """ブラケット足場（ハーフアンチ）はハッチ付布板が載らないので、はしご（別途手配）のまま."""

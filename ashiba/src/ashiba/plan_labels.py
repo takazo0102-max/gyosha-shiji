@@ -86,6 +86,18 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         y_mm = -row_w / 2.0 - (row_w if getattr(stair_plan, "outside", False) else 0.0)
         x, y = _pt(to, tu, tn, (t.start_mm + t.end_mm) / 2.0, y_mm)
         items.append((x, y, stair))
+    # ハッチ付布板（梯子内蔵）の昇降口（階段室が入らない小さい足場）。蓋の中央を指す
+    from .stairs import hatch_part
+
+    hp, hw = hatch_part(model)
+    for ei, k in getattr(model, "hatch_ladders", None) or []:
+        ep = next((e for e in edges if e.edge_index == ei), None)
+        if ep is None or hp is None or not (0 <= k < len(ep.spans)):
+            continue
+        ho, hu, hn = _frame(ep)
+        x0 = float(sum(ep.spans[:k]))
+        x, y = _pt(ho, hu, hn, x0 + ep.spans[k] / 2.0, -row_w + 50.0 + hw / 2.0)
+        items.append((x, y, f"昇降口 ハッチ付布板 {hp.model_no}"))
     return items
 
 
