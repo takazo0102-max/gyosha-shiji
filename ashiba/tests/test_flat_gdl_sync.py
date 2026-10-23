@@ -81,3 +81,19 @@ class TestFlatGdlSync(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNoScalarShadowsAnArray(unittest.TestCase):
+    """GDL の変数名は大文字小文字を区別しない。1d.gdl で dim した配列と同じ名前（rL と rl[][]）に 2D・3D で
+    値を入れると、部品が丸ごと描けなくなる（2026-10-23 実機: 平面の実寸モードの rL で足場が消えた）."""
+
+    def test_2d_3d_do_not_assign_to_master_arrays(self):
+        import re
+
+        root = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        dims = {m.lower() for m in re.findall(r"^\s*dim\s+(\w+)", (root / "1d.gdl").read_text(encoding="utf-8"), re.M)}
+        for name in ("2d.gdl", "3d.gdl"):
+            body = (root / name).read_text(encoding="utf-8")
+            assigned = {m.lower() for m in re.findall(r"^\s*(\w+)\s*=", body, re.M)}
+            loops = {m.lower() for m in re.findall(r"^\s*for\s+(\w+)\s*=", body, re.M | re.I)}
+            self.assertFalse(dims & (assigned | loops), (name, sorted(dims & (assigned | loops))))

@@ -57,21 +57,20 @@ end
 
 ! ============================================================
 940: ! ---- 平面 実寸: 布材（φ42.7）を建地列ごとに二重線、腕木を支柱ごとに二重線、コマ（緊結部）を支柱のまわりに ----
-rL = 0.0427 / 2
+rNuno = 0.0427 / 2	! 名前は rl（1d の配列 rl[][]）と別に。GDL の変数名は大文字小文字を区別しない
+! 一側足場は躯体側の建地列が無い
 for rr = 0 to 1
-	if rr = 0 and nRows < 2 then
-		! 一側足場は躯体側の建地列が無い
-	else
+	if rr = 1 or nRows >= 2 then
 		yy = -rr * rowW
-		line2 pxA, yy + rL, pxB, yy + rL
-		line2 pxA, yy - rL, pxB, yy - rL
+		line2 pxA, yy + rNuno, pxB, yy + rNuno
+		line2 pxA, yy - rNuno, pxB, yy - rNuno
 	endif
 next rr
 xq = 0
 for iq = 1 to nSpan + 1
 	if xq >= pxA - 0.001 and xq <= pxB + 0.001 then
-		line2 xq - rL, -rL, xq - rL, -rowW + rL
-		line2 xq + rL, -rL, xq + rL, -rowW + rL
+		line2 xq - rNuno, -rNuno, xq - rNuno, -rowW + rNuno
+		line2 xq + rNuno, -rNuno, xq + rNuno, -rowW + rNuno
 		! コマ（緊結部の受け。8 方向の爪を受ける円盤）
 		pen 2
 		if nRows >= 2 then circle2 xq, 0, r_sic + 0.025
@@ -82,22 +81,22 @@ for iq = 1 to nSpan + 1
 next iq
 ! 幅木（外側、t=12）
 if railAdv = 0 and hugMode = 0 then
-	line2 pxA, -rowW - rL - 0.005, pxB, -rowW - rL - 0.005
-	line2 pxA, -rowW - rL - 0.017, pxB, -rowW - rL - 0.017
+	line2 pxA, -rowW - rNuno - 0.005, pxB, -rowW - rNuno - 0.005
+	line2 pxA, -rowW - rNuno - 0.017, pxB, -rowW - rNuno - 0.017
 endif
 return
 
 945: ! ---- 平面 実寸: 1スパンの踏板（幅どおり。外側建地列から並べ、継ぎ目に爪の線） ----
-yq = -rowW + rL + 0.005
+yq = -rowW + rNuno + 0.005
 for kw = 1 to 2
 	wq = deckW1
 	if kw = 2 then wq = deckW2
 	if wq > 0.001 then
-		rect2 x + rL, yq, x + spans[ip] - rL, yq + wq
+		rect2 x + rNuno, yq, x + spans[ip] - rNuno, yq + wq
 		! 滑り止めの縞（長手方向の細線）
 		pen 2
 		for kr = 1 to 3
-			line2 x + rL + 0.05, yq + wq * kr / 4, x + spans[ip] - rL - 0.05, yq + wq * kr / 4
+			line2 x + rNuno + 0.05, yq + wq * kr / 4, x + spans[ip] - rNuno - 0.05, yq + wq * kr / 4
 		next kr
 		pen 1
 		yq = yq + wq + 0.01
