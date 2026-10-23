@@ -624,3 +624,27 @@ class TestHideMarkers(unittest.TestCase):
         moved = c.calls[-1][1]["elementsWithDetails"]
         self.assertEqual([m["details"]["layerIndex"] for m in moved], [49, 49])
         self.assertEqual(hide_section_markers(c, []), "")
+
+
+    def test_sections_on_the_hidden_layer_are_shown_before_deleting(self):
+        """隠したレイヤーの断面は API で消せない（not editable）。表示してから消し、また隠す."""
+        from ashiba.elevation_sections import SECTION_MARKER_LAYER, _delete_sections
+
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def tapir(self, cmd, params):
+                self.calls.append((cmd, params))
+                if cmd == "GetAttributesByType":
+                    return {"attributes": [{"name": SECTION_MARKER_LAYER, "index": 49},
+                                           {"name": "足場_立面マーカー", "index": 48}]}
+                return {}
+
+        c = Client()
+        _delete_sections(c, ["G1"])
+        seq = [(cmd, p["layerDataArray"][0]["isHidden"] if cmd == "CreateLayers" else None)
+               for cmd, p in c.calls if cmd != "GetAttributesByType"]
+        self.assertEqual(seq, [("CreateLayers", False), ("DeleteElements", None), ("CreateLayers", True)])
+        shown = next(p for cmd, p in c.calls if cmd == "CreateLayers")
+        self.assertEqual({d["name"] for d in shown["layerDataArray"]}, {SECTION_MARKER_LAYER, "足場_立面マーカー"})

@@ -761,7 +761,7 @@ def remove_elevations(client, names: Iterable[str], layout_names: Iterable[str],
     guids = [g for g in section_guids if g]
     n_sec = 0
     if guids:
-        client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
+        _delete_sections(client, guids)
         n_sec = len(guids)
     lb = _tree(client, "LayoutBook")
     lays = [it["guid"] for it in walk_tree(lb) if it["type"] == "LayoutItem" and it["name"] in layout_names]
@@ -782,7 +782,7 @@ def remove_all_scaffold_elevations(client, section_guids: Iterable[str] = (), pr
             and (prefix_contains in it["name"] or "足場平面図" in it["name"] or "足場断面図" in it["name"])]
     guids = [g for g in section_guids if g]
     if guids:
-        client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
+        _delete_sections(client, guids)
     n_l = _delete_items(client, lays)
     pm = _tree(client, "ProjectMap")
     secs = [it for it in walk_tree(pm) if it["type"] == "SectionItem"]
@@ -794,7 +794,7 @@ def remove_all_scaffold_elevations(client, section_guids: Iterable[str] = (), pr
         activate_floor_plan(client)
         extra = client.tapir("GetElementsByType", {"elementType": "CutPlane"}).get("elements", [])
         if extra:
-            client.tapir("DeleteElements", {"elements": extra})
+            _delete_sections(client, [e["elementId"]["guid"] for e in extra])
             n_extra = len(extra)
         left = [it["name"] for it in walk_tree(_tree(client, "ProjectMap"))
                 if it["type"] == "SectionItem" and (prefix_contains in it["name"] or "足場断面" in it["name"])]
@@ -1025,6 +1025,32 @@ def elevation_specs_with_owner(prefix: str, owners) -> list[tuple[SectionSpec, t
 
 
 SECTION_MARKER_LAYER = "足場_断面マーカー"
+
+
+def _delete_sections(client, guids: list[str]) -> None:
+    """断面（CutPlane）を消す。隠したレイヤーの要素は API で消せない（前回の断面が残って重なり、
+    図面の作成が1件60秒かかって止まった 2026-10-23）ので、マーカーのレイヤーを一度表示してから消し、また隠す."""
+    if not guids:
+        return
+    _set_marker_layer_hidden(client, False)
+    try:
+        client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
+    finally:
+        _set_marker_layer_hidden(client, True)
+
+
+OLD_MARKER_LAYERS = ("足場_立面マーカー",)   # 名前を変える前のマーカーのレイヤー（残っている断面を消すため）
+
+
+def _set_marker_layer_hidden(client, hidden: bool) -> None:
+    try:
+        attrs = client.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
+        have = {a.get("name") for a in attrs}
+        names = [SECTION_MARKER_LAYER] + [n for n in OLD_MARKER_LAYERS if n in have]
+        client.tapir("CreateLayers", {"layerDataArray": [{"name": n, "isHidden": bool(hidden)} for n in names],
+                                      "overwriteExisting": True})
+    except Exception:
+        pass
 
 
 def hide_section_markers(client, section_guids: list[str], layer_name: str = SECTION_MARKER_LAYER) -> str:
