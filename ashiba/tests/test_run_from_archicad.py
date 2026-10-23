@@ -113,5 +113,15 @@ class TestElevationTitles(unittest.TestCase):
         self.assertEqual(mod.elevation_face_titles(["南面"], None), ["南面"])
 
 
+class TestStaleBeforeDrawings(unittest.TestCase):
+    def test_previous_parts_go_before_the_drawings_and_pdf(self):
+        """前回の部品は図面・PDF より先に消す（後で消していたので古い版のラベルが PDF に重なった）."""
+        src = (ROOT / "scripts" / "run_from_archicad.py").read_text(encoding="utf-8")
+        gone = src.index("client.delete_elements(stale)")
+        for later in ("place_plan_annotations(client", "place_section_elevations(", "place_plan_sheet(",
+                      "place_details(", "publish_scaffold_pdf("):
+            self.assertLess(gone, src.rindex(later), later)
+
+
 if __name__ == "__main__":
     unittest.main()

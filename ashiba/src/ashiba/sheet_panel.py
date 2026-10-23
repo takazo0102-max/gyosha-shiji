@@ -214,10 +214,41 @@ def _key_plan(items, model: ScaffoldModel, cuts: list[dict], y: float, wpan: flo
     return oy - 10.0
 
 
-def panel_content(kind: str, model: ScaffoldModel, stair_plan=None, cuts: Optional[list[dict]] = None) -> dict:
+def red_notes(model: ScaffoldModel) -> list[str]:
+    """赤字の注意書き（例の立面図の左下の赤枠）. 作業床が40cm未満の面があればその注意も."""
+    out = []
+    if sum(model.deck_widths_in_use or [0]) < 400 or model.config.is_hug:
+        out.append("作業床が40cm未満の部分は、安全帯の使用を徹底し看板を設置する。")
+    if model.config.scaffold_form == "一側足場":
+        out.append("一側足場部分は、安全帯の使用を徹底し看板を設置する。")
+    out.append("足場上下層において、上下作業禁止。")
+    return out
+
+
+def _title(items, y: float, title: str) -> float:
+    """図の見出し（例の図面の右上の大きな枠: 「南立面図」など）."""
+    _t(items, 4.0, y - 12.0, title, h=8.0)
+    _box(items, 0, y, PANEL_W_MM, y - 17.0)
+    return y - 21.0
+
+
+def _red_box(items, model: ScaffoldModel, y: float) -> float:
+    lines = [ln for s in red_notes(model) for ln in _wrap("・" + s, 40)]
+    top = y
+    for k, ln in enumerate(lines):
+        _t(items, 2.5, y - 4.2 - k * 4.2, ln, h=2.4, red=True)
+    y -= 4.2 * len(lines) + 2.5
+    _box(items, 0, top, PANEL_W_MM, y)
+    return y - 5.0
+
+
+def panel_content(kind: str, model: ScaffoldModel, stair_plan=None, cuts: Optional[list[dict]] = None,
+                  title: str = "") -> dict:
     """帯の中身 {"texts": [...], "lines": [...]}（帯の左上を原点、mm、下が負）. kind: plan / elev / cross."""
     items: dict = {"texts": [], "lines": []}
     y = 0.0
+    if title and kind != "cross":
+        y = _title(items, y, title)
     if kind == "cross":
         # 断面図は図面で用紙が埋まりやすいので低い帯: 左にキープラン、右に赤字の注意2つ
         if cuts:
@@ -231,6 +262,8 @@ def panel_content(kind: str, model: ScaffoldModel, stair_plan=None, cuts: Option
     y -= 16.0
     if kind == "plan":
         y = _north(items, y + 16.0) - 4.0
+    if kind == "elev":
+        y = _red_box(items, model, y)
     if kind in ("plan", "elev"):
         y = _legend(items, model, y, kind, stair_plan)
     y = _load_table(items, model, y)
@@ -315,9 +348,26 @@ def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float,
         L = math.hypot(ex - sx, ey - sy) or 1.0
         ux, uy = (ex - sx) / L, (ey - sy) / L
         row = float(model.post_row_spacing_mm)
-        p = (sx + ux * L * 0.25 - uy * (row + 400.0), sy + uy * L * 0.25 + ux * (row + 400.0))
-        q = tr(p)
-        _t(items, q[0], q[1], f"境界まで {c.min_mm:.0f}", h=2.2, red=c.min_mm < 300.0)
+        # 外側建地の外面から境界までの寸法線（面の 40% の位置。足場ラインの GDL のラベルは躯体側の 25%・70% なので
+        # 外側に出す。躯体側に書いていたので「くさび緊結式足場 600」のラベルに重なった）
+        ox, oy = uy, -ux                                    # 外向き（躯体側は左手）
+        bx, by = sx + ux * L * 0.4, sy + uy * L * 0.4
+        d0 = row + 25.0
+        p0 = tr((bx + ox * d0, by + oy * d0))
+        txt = f"境界まで {c.min_mm:.0f}"
+        if c.min_mm > 0:
+            p1 = tr((bx + ox * (d0 + c.min_mm), by + oy * (d0 + c.min_mm)))
+            items["lines"].append([p0, p1])
+            for q in (p0, p1):                              # 端の斜めの止め
+                items["lines"].append([(q[0] - 0.7, q[1] - 0.7), (q[0] + 0.7, q[1] + 0.7)])
+            m = ((p0[0] + p1[0]) / 2.0, (p0[1] + p1[1]) / 2.0)
+        else:
+            m = (p0[0] + ox * 3.0, p0[1] + oy * 3.0)
+        h = 2.2
+        if abs(ux) >= abs(uy):                              # 横の面: 寸法線は縦 → 文字は線の右に
+            _t(items, m[0] + 1.5 + len(txt) * h * 0.45, m[1] + h / 2.0, txt, h=h, red=c.min_mm < 300.0)
+        else:                                               # 縦の面: 寸法線は横 → 文字は線の上に
+            _t(items, m[0], m[1] + 1.0 + h, txt, h=h, red=c.min_mm < 300.0)
     return items
 
 

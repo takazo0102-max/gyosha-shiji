@@ -2,6 +2,7 @@
 
 import tempfile
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -24,9 +25,20 @@ class TestPlanLabels(unittest.TestCase):
 
     def test_items(self):
         texts = [t for _x, _y, t in plan_label_items(self.r.model, self.r.stair_plan)]
-        self.assertTrue(any(t.startswith("壁つなぎ") for t in texts), texts)
+        self.assertFalse(any(t.startswith("壁つなぎ") for t in texts), texts)   # GDL のラベル（tieTxt）が描く
         self.assertIn("建地（支柱）", texts)
-        self.assertTrue(any(t.startswith("作業床（踏板") for t in texts), texts)
+        # 作業床は足場ラインの GDL のラベルが面ごとに描く（Python のラベルでは二重にしない）
+        self.assertFalse(any(t.startswith("作業床") for t in texts), texts)
+        g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then", g2)
+        from ashiba.gdl_params import label_texts
+        lt = label_texts(self.r.model)
+        self.assertEqual(lt["deckTxt"].split(" ")[0], "踏板")
+        self.assertTrue(lt["tieTxt"].startswith("壁つなぎ "), lt)
+        # 北・西を向く面では棚を逆に出し、文字を 180° 回す（上下逆に読めていた）
+        self.assertIn("lbF = (SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001)", g2)
+        self.assertIn("986:", g2)
         self.assertEqual(sum(1 for t in texts if "階段" in t), self.r.stair_plan.count)
 
     def test_text_rows_are_outside_the_scaffold_and_dimensions(self):

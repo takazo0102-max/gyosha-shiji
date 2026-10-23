@@ -1178,7 +1178,10 @@ class TestStandoffDimensionInPlan(unittest.TestCase):
                  ).read_text(encoding="utf-8")
         self.assertIn("if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2", body2)
         self.assertIn("line2 xd, 0, xd, standoff", body2)
-        self.assertIn("text2 xd + 0.08, standoff / 2, str(standoff * 1000, 4, 0)", body2)
+        # 値は線の脇（北・西を向く面でも読める向きに gosub 985 で）
+        self.assertIn("tdt = str(standoff * 1000, 4, 0)\n\ttdx = xd + 0.08 + stw(tdt) * GLOB_SCALE / 2000", body2)
+        plan = body2[body2.index("970:"):body2.index("\n200:")]
+        self.assertNotIn("text2", plan.replace("text2 0.05, txtH", ""))       # 平面の文字はすべて 985・986 経由
 
 
 class TestFarSideScreen(unittest.TestCase):

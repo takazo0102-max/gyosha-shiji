@@ -612,6 +612,21 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             print(f"    是正: {b}")
         for n in ag_notes:
             print(f"    注意: {n}")
+    # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
+    # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
+    # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）。
+    # 図面（立面・断面・平面・詳細）と PDF より先に消す。後で消していたので、前回の部品（古い版のラベル・
+    # 向きを誤った足場ライン）が PDF に重なって出ていた（2026-10-23 実機）
+    placed_now = {e["elementId"]["guid"] for e in lines + attach + group_lines}
+    stale = [
+        e for e in client.objects_for_slab(
+            r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS,
+            elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
+        ) if e["elementId"]["guid"] not in placed_now
+    ]
+    if stale:
+        client.delete_elements(stale)
+    replaced = len(stale)
     # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
     plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
@@ -736,19 +751,6 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             print(f"  PDF: {len(pdf.files)}枚を {OUT_DIR / 'PDF'} に発行（{'・'.join(p.stem for p in pdf.files)}）")
         activate_floor_plan(client)
 
-    # 同じスラブでの再実行は前回の配置を置き換える。外形や離れ・系列が変わると位置が
-    # ずれるので「同じ位置」ではなく「このスラブに対して置いたもの」（外形の範囲と
-    # 立面図・詳細図の行）で拾い、今回置いた分だけ残す（枠組→くさびの切替で7個残った）
-    placed_now = {e["elementId"]["guid"] for e in lines + elevs + details + attach + group_lines}
-    stale = [
-        e for e in client.objects_for_slab(
-            r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS,
-            elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
-        ) if e["elementId"]["guid"] not in placed_now
-    ]
-    if stale:
-        client.delete_elements(stale)
-    replaced = len(stale)
     v = result["verdict"]
     n_sec = sum(1 for pl in sections if pl.drawing_guid)
     sheets = list(dict.fromkeys(pl.layout_name for pl in sections if pl.layout_name))

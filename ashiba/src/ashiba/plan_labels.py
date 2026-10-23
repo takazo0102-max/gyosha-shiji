@@ -61,18 +61,10 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
     plain = [i for i in range(len(south.spans))
              if not any(xs[i] < t.end_mm - 1 and xs[i + 1] > t.start_mm + 1 for t in towers)] or list(range(len(south.spans)))
     items: list[tuple[float, float, str]] = []
-    ties = sorted((t for t in model.wall_ties if t.edge_index == south.edge_index), key=lambda t: t.position_mm)
-    if ties:
-        t = ties[len(ties) // 2]
-        x, y = _pt(o, u, nrm, t.position_mm, float(south.standoff) / 2.0)
-        items.append((x, y, _part_name(model, "壁つなぎ", "壁つなぎ")))
     i0 = plain[0]
     x, y = _pt(o, u, nrm, xs[i0], -row_w)
     items.append((x, y, "建地（支柱）"))
-    i1 = plain[min(1, len(plain) - 1)]
-    widths = "+".join(str(w) for w in model.deck_widths_in_use)
-    x, y = _pt(o, u, nrm, (xs[i1] + xs[i1 + 1]) / 2.0, -row_w / 2.0)
-    items.append((x, y, f"作業床（踏板 {widths}）" if widths else "作業床（踏板）"))
+    # 作業床（踏板の幅）・壁つなぎは足場ラインの GDL のラベル（「くさび緊結式足場 600／踏板 400+250」「壁つなぎ NK-3352II」）が面ごとに描く
     if model.config.horizontal_net_levels:
         i3 = plain[min(3, len(plain) - 1)]
         x, y = _pt(o, u, nrm, (xs[i3] + xs[i3 + 1]) / 2.0, float(south.standoff) / 2.0)

@@ -342,6 +342,12 @@ def draw_height_chains(out: "SectionNotes", e, x_scaffold: float, x_first: float
                 gx -= label_text_width_m(text, th)               # 右寄せが効かない版があるので幅を見積もって左寄せ
             fb["texts"].append({"x": gx, "y": (a + b) / 2000.0, "text": text, "just": "Left", "gap": True,
                                 "chain": title})
+        if k == 0:
+            # 段の番号（例の立面図: 段の高さの寸法線の外に 1・2・3…）。作業床の高さに
+            for n_lv, h in enumerate(marks[1:-1], start=1):
+                num = str(n_lv)
+                out.texts.append({"x": xc + side * 0.25 - (label_text_width_m(num, th) if side < 0 else 0.0),
+                                  "y": h / 1000.0 + 0.05, "text": num, "just": "Left", "level_no": n_lv})
         out.dims.append({"points": [(x_scaffold, h / 1000.0) for h in marks], "ref": (xc, 0.0), "dir": (0.0, 1.0),
                          "chain": title, "values": [b - a for a, b in zip(marks, marks[1:])], "fallback": fb})
         out.texts.append({"x": xc - label_text_width_m(title, th) / 2.0, "y": top + 0.35, "text": title,
@@ -889,12 +895,12 @@ def _with_panel(margins: tuple[float, float, float, float]) -> tuple[float, floa
 
 
 def _write_panel(client, model, lay, paper, margins, kind: str, stair_plan=None, cuts=None,
-                 top_mm: Optional[float] = None) -> list[str]:
+                 top_mm: Optional[float] = None, title: str = "") -> list[str]:
     """図面を置いたレイアウトの右の帯に書く。書けなければ注意の文を返す（図面の配置は止めない）."""
     from .sheet_panel import panel_content, write_panel
 
     try:
-        write_panel(client, lay, paper, margins, panel_content(kind, model, stair_plan, cuts), top_mm)
+        write_panel(client, lay, paper, margins, panel_content(kind, model, stair_plan, cuts, title), top_mm)
         return []
     except Exception as e:
         return [f"凡例・荷重表・共通事項を書けませんでした（{e}）"]
@@ -955,7 +961,8 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
         # 右の帯は、図面を並べて右上か下の右が空いていればそこに。空かなければ右の余白を広げて並べ直す
         from .sheet_panel import panel_content, panel_height_mm
 
-        ph = panel_height_mm(panel_content(panel_kind, model, stair_plan, cuts))
+        title = ("・".join(pl.face_name for pl in results) + " " + kind) if panel_kind == "elev" else ""
+        ph = panel_height_mm(panel_content(panel_kind, model, stair_plan, cuts, title))
         panel_top = panel_spot(plan, boxes, paper, margins, ph) if plan is not None else None
         if panel_top is None and plan is not None:
             reserved = arrange_boxes(boxes, paper, _with_panel(margins), scales=scales)
@@ -977,7 +984,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
     _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src, kind)
     if panel_kind:
         # 右の帯: 凡例・最大積載荷重・注意（例の仮設計画図に倣う。利用者の指定 2026-10-23）
-        notes = _write_panel(client, model, lay, paper, margins, panel_kind, stair_plan, cuts, panel_top)
+        notes = _write_panel(client, model, lay, paper, margins, panel_kind, stair_plan, cuts, panel_top, title)
         if notes and results:
             results[0].notes.extend(notes)
     return True
@@ -1393,7 +1400,7 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
             pass
     else:
         out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
-    out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan))
+    out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan, title="足場平面図"))
     if getattr(model, "site_boundary_mm", None):
         # 敷地境界線（一点鎖線）と面ごとの境界までの離れ（ビューのレイヤーで境界が隠れていても図に出す）
         from .sheet_panel import boundary_overlay, write_overlay

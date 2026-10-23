@@ -48,6 +48,18 @@ class TestContent(unittest.TestCase):
         xs = [x for pts in panel_content("plan", r.model, r.stair_plan)["lines"] for x, _ in pts]
         self.assertTrue(all(-0.1 <= x <= PANEL_W_MM + 0.1 for x in xs))
 
+    def test_title_red_notes_and_level_numbers(self):
+        from ashiba.elevation_sections import section_annotations, section_specs
+
+        r = solve_all(dict(BASE))
+        el = [t["text"] for t in panel_content("elev", r.model, r.stair_plan, title="南面・東面 足場立面図")["texts"]]
+        self.assertEqual(el[0], "南面・東面 足場立面図")                         # 見出しが帯のいちばん上
+        self.assertIn("・足場上下層において、上下作業禁止。", el)
+        # 段の番号（1・2・3…）を段の高さの寸法の外に
+        n = section_annotations(r.model, section_specs(r.model, "x")[0])
+        nums = [t["text"] for t in n.texts if t.get("level_no")]
+        self.assertEqual(nums, [str(i) for i in range(1, len(r.model.elevation.level_heights) + 1)])
+
 
 class TestWrite(unittest.TestCase):
     def test_writes_to_the_layout_with_red_pen(self):

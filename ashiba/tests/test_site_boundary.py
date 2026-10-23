@@ -44,6 +44,22 @@ class TestClearance(unittest.TestCase):
             self.assertEqual(r.verdict["blockers"], [])                # 階段はほかの組の面のものを使う
         self.assertEqual(plan_within_boundary({**spec, "fit_boundary": False})[0], {**spec, "fit_boundary": False})
 
+    def test_overlay_dimension_is_outside_the_scaffold(self):
+        """境界までの寸法線は外側建地と境界の間（躯体側に書いて GDL のラベルに重なっていた）."""
+        from ashiba.elevation_sections import plan_region_mm
+        from ashiba.sheet_panel import boundary_overlay
+
+        r = solve_all({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(), "road_edges": [0]})
+        region = plan_region_mm(r.model)
+        ov = boundary_overlay(r.model, region, 100, (0.0, 0.0))
+        to_mm = lambda q: (q[0] * 100 + region[0], q[1] * 100 + region[1])
+        texts = {t["text"]: to_mm((t["x"], t["y"])) for t in ov["texts"] if t["text"].startswith("境界まで")}
+        self.assertEqual(len(texts), 4)
+        for (x, y) in texts.values():
+            self.assertFalse(0 < x < 24000 and 0 < y < 10000, (x, y))      # 建物の外
+        south = next(v for k, v in texts.items() if v[1] < 0)
+        self.assertGreater(south[1], -1200 - 400)                          # 道路境界の内
+
 
 class TestPick(unittest.TestCase):
     def test_closed_polyline_around_the_building_and_road_edge(self):

@@ -149,6 +149,26 @@
 			<Description><![CDATA["壁つなぎは別の部品（ashiba_tie）で置く（この部品では描かない）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Boolean Name="lblOn">
+			<Description><![CDATA["平面に部材の名前（GDL のラベル。足場の種類と幅・踏板・壁つなぎ・養生）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="typeTxt">
+			<Description><![CDATA["ラベル: 足場の種類と幅（例: くさび緊結式足場 600）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="deckTxt">
+			<Description><![CDATA["ラベル: 作業床（例: 踏板 400+250）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieTxt">
+			<Description><![CDATA["ラベル: 壁つなぎ（例: 壁つなぎ NK-3352II）。空なら「壁つなぎ」"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="sheetTxt">
+			<Description><![CDATA["ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Boolean Name="dimTool">
 			<Description><![CDATA["平面のスパン寸法は寸法ツール（部品では描かない）"]]></Description>
 			<Value>0</Value>

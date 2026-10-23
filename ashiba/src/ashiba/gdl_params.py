@@ -153,6 +153,23 @@ def _bridge_list(model: ScaffoldModel, ep) -> str:
     )
 
 
+def label_texts(model: ScaffoldModel) -> dict:
+    """足場ラインが平面に描くラベルの文字（例の仮設計画図の「くさび緊結式足場 600」「踏板 400+250」）."""
+    m, c = model.master, model.config
+    row = int(model.post_row_spacing_mm)
+    if c.scaffold_form == "本足場":
+        typ = f"{m.system_name} {row}"
+    else:
+        typ = f"{c.form_label}（{m.system_name}）" + (f" {row}" if row > 0 else "")
+    ws = [str(int(w)) for w in (model.deck_widths_in_use or [])]
+    deck = (f"{'足場板' if m.is_tube else m.deck_category} {'+'.join(ws)}") if ws else ""
+    sheet = str(c.sheet_type or "")
+    tie = next(iter(m.by_category("壁つなぎ")), None)
+    return {"lblOn": True, "typeTxt": typ, "deckTxt": deck,
+            "tieTxt": f"壁つなぎ {tie.model_no}" if tie is not None and tie.model_no else "壁つなぎ",
+            "sheetTxt": f"{sheet}（防炎）" if sheet and sheet != "なし" else ""}
+
+
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
     platforms=None, bracket_sections=None, terrain=None,
@@ -220,6 +237,8 @@ def line_params(
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
         "mvoName": mvo_part_name(),
         "planSimple": False,
+        # 平面の部材の名前（GDL のラベル。部品が描く。利用者の指定 2026-10-23）
+        **label_texts(model),
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
         # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）
