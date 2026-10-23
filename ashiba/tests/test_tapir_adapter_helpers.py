@@ -340,7 +340,8 @@ class TestMemberSurfaces(unittest.TestCase):
         self.assertEqual(got, {"matScaf": 45, "matDeck": 47, "matToe": 47})
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
-        self.assertIn("if matDeck > 0 then mToe = matDeck", body)        # 前に黄で置いた部品も鉄の色で描く
+        # 幅木は黄にせず、踏板と少し違う鋼板色（利用者の指定 2026-10-24）。前に黄で置いた部品もこの色で描く
+        self.assertIn('mToe = IND(MATERIAL, "ashiba_toe_steel")', body)
 
     def test_missing_member_is_left_out(self):
         from ashiba.tapir_adapter import ArchicadClient, pick_member_surfaces

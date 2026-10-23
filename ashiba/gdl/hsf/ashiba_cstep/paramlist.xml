@@ -77,6 +77,10 @@
 			<Description><![CDATA["爪の出（布材に掛ける側。CS は 65）"]]></Description>
 			<Value>0.065</Value>
 		</Length>
+		<Length Name="deckTop">
+			<Description><![CDATA["床の上面の高さ（層の高さ＝布材の芯から。くさびは 布材の半径＋踏板の厚み 45）"]]></Description>
+			<Value>0.066</Value>
+		</Length>
 		<Boolean Name="flipX">
 			<Description><![CDATA["爪を隙間の +X の端に掛ける（面の始点の側の隙間）"]]></Description>
 			<Value>0</Value>

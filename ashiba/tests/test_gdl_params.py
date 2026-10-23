@@ -1135,9 +1135,10 @@ class TestRealMemberDimensions3D(unittest.TestCase):
         self.assertIn("! つかみ金具", sub)
 
     def test_toe_board_is_inside_the_outer_posts(self):
-        # 幅木（カタログ p010）: 外側の支柱の内側、布板の上の L 形（立ち上がり150・底140、スパン＋70）
+        # 幅木: 外側の支柱の内側、布板の上に立てる平らな板（高さ150、スパン＋70）。L形（底140）にしない（2026-10-24）
         self.assertIn("add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045", self.body)
-        self.assertIn("block spans[ip] + 0.07, 0.140, 0.004", self.body)
+        self.assertIn("block spans[ip] + 0.07, 0.008, 0.150", self.body)
+        self.assertNotIn("0.140, 0.004", self.body)
 
     def test_wedge_braces_are_phi42_with_clamps(self):
         # ブレース（カタログ p023）: φ42.7 の管、両端のクサビクランプで支柱を掴む。枠組の交差筋違は別

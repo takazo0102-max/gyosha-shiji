@@ -22,10 +22,10 @@ define material "ashiba_tc_25" 3, 0.08, 0.08, 0.08	! 2.5M 黒
 define material "ashiba_tc_20" 3, 0.95, 0.50, 0.10	! 2.0M オレンジ
 define material "ashiba_tc_15" 3, 0.15, 0.60, 0.25	! 1.5M 緑
 define material "ashiba_tc_10" 3, 0.50, 0.25, 0.65	! 1.0M 紫
-! 幅木の表面材は鉄の色（踏板の表面材）。黄色にしない（利用者の指定 2026-10-22: 黄色はやめて、巾木の色黄色くしないでね）。
-! 前に黄の matToe で置いた部品も、踏板の表面材があれば鉄の色で描く
-mToe = matToe
-if matDeck > 0 then mToe = matDeck
+! 幅木の表面材: 黄色にしない（利用者の指定 2026-10-22）。踏板と少し違う色（利用者の指定 2026-10-24: はばきは少し違う
+! 色にしてみようか）。踏板の鉄の色より少し濃い青みの鋼板色。前に黄の matToe で置いた部品もこの色で描く
+define material "ashiba_toe_steel" 2, 0.40, 0.47, 0.56
+mToe = IND(MATERIAL, "ashiba_toe_steel")
 clW = 0.040		! クランプの口の幅
 clT = 0.0045	! 口の帯の厚み
 ! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、
@@ -1043,8 +1043,8 @@ if showDeck then
 					if stCut = 1 and serType <> "T" then inSg = 1
 					if railAdv = 0 and inSg = 0 and eoT = 0 then
 						if mToe > 0 then material mToe
-						! 幅木（日建 兼用幅木 MDNFG、カタログ p010）: 外側の支柱の内側で布板の上に置く L形
-						! （立ち上がり150・底140、長さ＝スパン＋70）。以前は外側の支柱の外に板を立てていた
+						! 幅木: 外側の支柱の内側で布板の上に立てる平らな板（高さ150、長さ＝スパン＋70）。L形（底140）にしない
+						! （利用者の指定 2026-10-24: はばきL型にしないで）。以前は外側の支柱の外に板を立てていた
 						if serType = "T" then
 							! 単管は足場板を立てて幅木にする（高さ240）。抱き足場は足場板の外の縁。色は床の足場板と同じ鉄の色
 							if hugMode = 0 then
@@ -1071,7 +1071,6 @@ if showDeck then
 						else
 						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
 						block spans[ip] + 0.07, 0.008, 0.150
-						block spans[ip] + 0.07, 0.140, 0.004
 						del 1
 						endif
 					endif
@@ -1641,7 +1640,7 @@ for it5 = 1 to nSt
 		cylind gcz - zg + 0.10, gR
 		del 1
 		if mToe > 0 then material mToe
-		! 開口部幅木（NFG918、カタログ p010 の写真）: 手すりと同じL形。開口の長手（床の側）と、上がり口側の角で折れて
+		! 開口部幅木（NFG918、カタログ p010 の写真）: 平らな板。開口の長手（床の側）と、上がり口側の角で折れて
 		! 開口の端を横切り外側の建地まで（利用者の指摘 2026-10-22: ここだけ巾木があるみたい）
 		add x0 + r_sic, gyS + gR, zg + r_nuno + 0.045
 		block fl - 2 * r_sic, 0.008, 0.150
@@ -1825,11 +1824,10 @@ for ik = 1 to nBk
 		! 張出すと作業床の外縁が建地より外に出る。その縁は開放端なので
 		! 手すり・中桟・幅木が要る（数量にも計上している）
 		bkLen = bkE[ik] - bkS[ik]
-		! 外縁の幅木（L形）と手すり・中桟（φ42.7）
+		! 外縁の幅木（平らな板。L形にしない）と手すり・中桟（φ42.7）
 		if mToe > 0 then material mToe
 		add bkS[ik], -rowW - bkW[ik] + 0.004, bkH[ik] + r_nuno + 0.045
 		block bkLen, 0.008, 0.150
-		block bkLen, 0.140, 0.004
 		del 1
 		if matScaf > 0 then material matScaf
 		for ir3 = 1 to 2

@@ -291,6 +291,8 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
             # 踏板の幅は床の幅ごと（CS05＝500・CS02＝240）。始点の側の隙間は爪を +X の端（始点の支柱）に掛ける
             "plW1": widths[0] / 1000.0 if widths else 0.5, "plW2": widths[1] / 1000.0 if len(widths) > 1 else 0.0,
             "flipX": bool(getattr(cs, "at_start", False)),
+            # 踏板は床の上面に（足場ラインの床と同じ: 布材 φ42.7 の半径＋踏板の厚み 45）
+            "deckTop": 0.0427 / 2 + 0.045,
             "lineMode": bool(line_mode)}))
     return out
 

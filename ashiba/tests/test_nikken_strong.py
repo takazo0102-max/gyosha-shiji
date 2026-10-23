@@ -100,7 +100,9 @@ class TestOneSidedCornerStep(unittest.TestCase):
     def test_corner_step_replaces_the_order_note(self):
         r = solve_all({**RECT, "series_id": "nikken_nd1800", "scaffold_form": "一側足場"})
         q = {l.part.model_no: l.qty for l in r.quantity.lines}
-        self.assertEqual(q.get("NDCS05"), r.model.outer_corner_posts() * r.model.elevation.n_levels)
+        # ブラケット足場はハーフアンチ（240）1枚（利用者の指定 2026-10-24）→ コーナーステップも 240 用の NDCS02
+        self.assertEqual(q.get("NDCS02"), r.model.outer_corner_posts() * r.model.elevation.n_levels)
+        self.assertEqual(q.get("NDBK03C", 0) > 0, True)                  # 踏板240用 ブラケット350
         self.assertFalse(any("コーナー踏板" in w for w in r.quantity.warnings))
 
 

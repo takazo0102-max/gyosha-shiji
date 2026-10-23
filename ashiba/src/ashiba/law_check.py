@@ -137,14 +137,16 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
             "単管抱き足場の床は建地を両側から抱き合わせた単管2本です（布板なし）。一側足場は563条の作業床の規定の"
             "適用外ですが、高さ2m以上で作業するならブラケット足場・本足場や安全帯の使用を検討してください（墜落防止）",
             basis + "（一側足場は適用外）")
-    if width < 400 and m.master.is_tube and m.config.scaffold_form == "一側足場":
-        # 単管のブラケット足場は足場板1列（利用者の指定 2026-10-22）。一側足場は563条1項の作業床の規定の適用外
-        return CheckResult(
-            2, "作業床", WARN,
-            f"単管のブラケット足場の床は足場板1列（幅{width}mm）です。一側足場は563条の作業床の規定（幅40cm以上）の"
-            "適用外ですが、高さ2m以上で作業するなら幅40cm以上（足場板2列）や安全帯の使用を検討してください（墜落防止）",
-            basis + "（一側足場は適用外）")
-    if width < 400:
+    narrow_note = ""
+    if width < 400 and m.config.scaffold_form == "一側足場":
+        # 一側足場は563条1項の作業床の規定（幅40cm以上）の適用外。単管のブラケット足場は足場板1列（利用者の指定
+        # 2026-10-22）、くさびのブラケット足場はハーフアンチ1枚で狭いところに使う足場（利用者の指定 2026-10-24）。
+        # 幅だけを外す（床材の隙間・作業床の間隔は見る）
+        board = "足場板1列" if m.master.is_tube else "ハーフアンチ1枚"
+        wider = "足場板2列" if m.master.is_tube else "本足場か、幅の広い床"
+        narrow_note = (f"ブラケット足場の床は{board}（幅{width}mm）です。一側足場は563条の作業床の規定（幅40cm以上）の"
+                       f"適用外ですが、高さ2m以上で作業するなら幅40cm以上（{wider}）や安全帯の使用を検討してください（墜落防止）")
+    elif width < 400:
         problems.append(f"作業床幅{width}mm < 400mm")
     if m.config.deck_gap_mm > 30:
         problems.append(f"床材隙間{m.config.deck_gap_mm}mm > 30mm")
@@ -157,7 +159,9 @@ def check_working_deck(m: ScaffoldModel) -> CheckResult:
         if v_pitch > 2000:
             problems.append(f"作業床の垂直間隔{v_pitch}mm > 2000mm")
     if problems:
-        return CheckResult(2, "作業床", NG, "、".join(problems), basis)
+        return CheckResult(2, "作業床", NG, "、".join(problems + ([narrow_note] if narrow_note else [])), basis)
+    if narrow_note:
+        return CheckResult(2, "作業床", WARN, narrow_note, basis + "（一側足場は適用外）")
     return CheckResult(
         2, "作業床", OK,
         f"幅{width}mm・床材隙間{m.config.deck_gap_mm}mm・建地との隙間{m.config.deck_to_post_gap_mm}mm",

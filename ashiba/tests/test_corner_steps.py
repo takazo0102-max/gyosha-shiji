@@ -77,6 +77,7 @@ class TestCornerStepPart(unittest.TestCase):
         self.assertAlmostEqual(p.params["gapL"] * 1000, r.model.plan.corner_steps[0].gap_mm, delta=0.5)
         self.assertEqual(len(p.params["lvList"].split(",")), len(r.model.elevation.level_heights))
         self.assertEqual(p.params["stepName"], "NDCS05")                      # 610 幅は踏板 500
+        self.assertAlmostEqual(p.params["deckTop"], 0.0427 / 2 + 0.045)        # 足場ラインの床の上面と同じ高さ
 
     def test_quantity_counts_steps_per_level(self):
         r = _solve(RECT)
@@ -95,7 +96,9 @@ class TestCornerStepPart(unittest.TestCase):
         self.assertNotIn("line2 0, -rowW, gapL, 0", p2)
         self.assertIn("rect2 0, yB, plL, yA", p2)
         self.assertIn("block plL, w, 0.0032", p3)
-        for n in ("gapL", "rowW", "lvList", "stepName", "plW1", "plW2", "plL", "hookL", "flipX"):
+        # 踏板は床の上面に（利用者の指摘 2026-10-24: コーナー部分が渡れない。布材の高さに置いて床より沈んでいた）
+        self.assertIn("add 0, y0 - w, z + deckTop", p3)
+        for n in ("gapL", "rowW", "lvList", "stepName", "plW1", "plW2", "plL", "hookL", "flipX", "deckTop"):
             self.assertIn(f'Name="{n}"', (d / "paramlist.xml").read_text(encoding="utf-8"))
 
 

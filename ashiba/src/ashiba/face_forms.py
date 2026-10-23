@@ -93,6 +93,10 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             # 系列を替える組はモジュール（インチ／メートル）の指定も外す（枠組・単管はメートル）
             sub.pop("module", None)
         sub.update(over)
+        if over.get("scaffold_form") == "ブラケット足場" and over.get("bracket_post") == "支柱":
+            # ブラケット足場はハーフアンチ1枚の狭い足場（利用者の指定 2026-10-24）。本体の幅・作業床の指定は継がない
+            sub.pop("scaffold_width_mm", None)
+            sub.pop("deck_widths", None)
         # 種類ごとの離れ（form_standoff。敷地境界に収めるため単管抱き足場の離れだけ詰める等）
         fs = (spec.get("form_standoff") or {}).get(form)
         if fs:

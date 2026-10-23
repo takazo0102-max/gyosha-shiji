@@ -109,12 +109,10 @@ if kind = 3 then
 endif
 
 if kind = 4 then
-	! 幅木（L形 立ち上がり150・底140）
-	! 鉄の色（踏板の表面材）。黄色にしない（利用者の指定 2026-10-22）
-	if matToe > 0 then material matToe
-	if matDeck > 0 then material matDeck
+	! 幅木（平らな板 高さ150。L形にしない。利用者の指定 2026-10-24）。黄色にせず、踏板と少し違う鋼板色（足場ラインと同じ）
+	define material "ashiba_toe_steel" 2, 0.40, 0.47, 0.56
+	material "ashiba_toe_steel"
 	block memL, 0.008, 0.150
-	block memL, 0.140, 0.004
 endif
 
 if kind = 5 then
