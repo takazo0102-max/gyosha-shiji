@@ -1229,11 +1229,16 @@ pen 1
 mvPlan = 0
 mvNotes = 1
 mvOk = LIBRARYGLOBAL(mvoName, "planMode", mvPlan)
-if mvOk and mvPlan = 2 then planSimple = 1
-if mvOk and (mvPlan = 1 or mvPlan = 3) then planSimple = 0
+! 1＝詳細（部品の設定に従う。パレットの「平面表示」で部品ごとに 詳細／精細／単線）、2＝単線、3＝精細（実寸）
 ! 精細（実寸）: 利用者の指定 2026-10-23「平面も詳細モード機能追加して」
-if mvOk and mvPlan = 3 then planReal = 1
-if mvOk and (mvPlan = 1 or mvPlan = 2) then planReal = 0
+if mvOk and mvPlan = 2 then
+	planSimple = 1
+	planReal = 0
+endif
+if mvOk and mvPlan = 3 then
+	planSimple = 0
+	planReal = 1
+endif
 if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
 
 ! 寸法ツールの寸法が付く点（外側建地列の支柱位置）。平面では最初に出すので、ホットスポットの番号＝

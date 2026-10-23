@@ -130,9 +130,11 @@ class TestTogglePlan(unittest.TestCase):
         self.assertEqual(current_step({"planReal": True}), "精細")
         root = ROOT / "gdl" / "hsf"
         g2 = (root / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
-        self.assertIn("if mvOk and mvPlan = 3 then planReal = 1", g2)
+        self.assertIn("if mvOk and mvPlan = 3 then", g2)
         self.assertIn("940: ! ---- 平面 実寸", g2)
         self.assertIn('3, "精細（実寸）"', (root / "ashiba_mvo" / "scripts" / "vl.gdl").read_text(encoding="utf-8"))
+        # 表示設定の既定（1）は部品の設定に従う（パレットの切替が効く。2026-10-23 実機: 精細にしても変わらなかった）
+        self.assertNotIn("if mvOk and (mvPlan = 1", g2)
 
 
 class TestBlockMode(unittest.TestCase):
