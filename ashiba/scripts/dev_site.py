@@ -157,9 +157,9 @@ def main() -> int:
     elif cmd == "boundary":
         clear(c, s)
         create_boundary(c, s)
+        print("境界線を引き直しました", json.dumps(s["boundary"]))
     elif cmd == "zoom":
         zoom_to_building(c, s)
-        print("境界線を引き直しました", json.dumps(s["boundary"]))
     else:
         print(__doc__)
         return 2
