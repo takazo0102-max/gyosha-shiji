@@ -1024,10 +1024,10 @@ def elevation_specs_with_owner(prefix: str, owners) -> list[tuple[SectionSpec, t
     return sorted(pairs, key=lambda x: x[0].edge_index)
 
 
-ELEVATION_MARKER_LAYER = "足場_立面マーカー"
+SECTION_MARKER_LAYER = "足場_断面マーカー"
 
 
-def hide_section_markers(client, section_guids: list[str], layer_name: str = ELEVATION_MARKER_LAYER) -> str:
+def hide_section_markers(client, section_guids: list[str], layer_name: str = SECTION_MARKER_LAYER) -> str:
     """断面（CutPlane）を隠したレイヤーに移す（図面・断面図はそのまま）。できなければ注意の文を返す."""
     if not section_guids:
         return ""
@@ -1083,8 +1083,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         else:
             pl.notes.append(f"断面を作れませんでした（{el.get('error', {}).get('message', el)}）。同名の断面が残っていればそれを図面に使います")
         results.append(pl)
-    # 立面の断面のマーカーは平面図に要らない（面のまわりに「S-01」が12個並んで読みにくかった）。隠したレイヤーに移す。
-    # 断面図（A-A・B-B）のマーカーは平面図に残す
+    # 断面のマーカーは平面図に要らない（面のまわりに「S-01」が12個並んで読みにくかった）。隠したレイヤーに移す。
+    # 断面図 A-A・B-B は足場平面図に切断線と記号を書く（cut_overlay）
     note = hide_section_markers(client, [pl.section_guid for pl in results if pl.section_guid])
     if note and results:
         results[0].notes.append(note)
@@ -1421,8 +1421,12 @@ class PlanSheet:
 
 
 def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
-                     floor_index: Optional[int] = None, stair_plan=None, other_models=()) -> PlanSheet:
-    """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く."""
+                     floor_index: Optional[int] = None, stair_plan=None, other_models=(), cuts=()) -> PlanSheet:
+    """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く.
+
+    cuts は断面図の切断線 [{"label", "start", "end"}]（mm）。平面図に一点鎖線と記号（A・B）で書く
+    （Archicad の断面のマーカーは「S-01」で読めないので隠している）。
+    """
     out = PlanSheet(layout_name=plan_layout_name(prefix))
     activate_floor_plan(client)
     # 現在のフロアは断面を開いたりすると変わる。足場ラインのフロアを渡されればそれを使う
@@ -1471,6 +1475,13 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
         out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
     out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan, title="足場平面図",
                                   extra=[(m_, None) for m_ in other_models]))
+    if cuts:
+        from .sheet_panel import cut_overlay, write_overlay
+
+        try:
+            write_overlay(client, lay, cut_overlay(cuts, region, scale, pos))
+        except Exception as e:
+            out.notes.append(f"断面図の切断線を書けませんでした（{e}）")
     if getattr(model, "site_boundary_mm", None):
         # 敷地境界線（一点鎖線）と面ごとの境界までの離れ（ビューのレイヤーで境界が隠れていても図に出す）
         from .sheet_panel import boundary_overlay, write_overlay

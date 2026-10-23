@@ -287,7 +287,8 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     """
     from .elevation_sections import (
         ElevationPlacement, _place_on_one_sheet, _tree, activate_floor_plan, ensure_subset,
-        find_items, open_section_window, pick_master_layout, remove_elevations, walk_tree, write_section_notes,
+        find_items, hide_section_markers, open_section_window, pick_master_layout, remove_elevations, walk_tree,
+        write_section_notes,
     )
 
     full = cross_section_specs(model, prefix, stair_plan, openings, platforms)
@@ -300,6 +301,8 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     prev = previous or {}
     # 前回の断面（横切る1本の頃の名前・面ごとの名前）とレイアウト（1枚・A-A ごと）を消す
     old_names = [s_.name for s_ in full] + [s_.name for s_ in specs]
+    # 前回この工事で作って今回は作らない断面（面の組が変わって横切る面が変わった等）も控えから消す
+    old_names += [n for n in prev if n.startswith(f"{prefix} 足場断面 ") and n not in old_names]
     remove_elevations(client, old_names,
                       [cross_layout_name(prefix)] + [cross_sheet_name(prefix, f"{c}-{c}") + k for c in SECTION_LETTERS
                                                      for k in ("", " 1", " 2", " 3", " 4")],
@@ -316,6 +319,10 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
         else:
             pl.notes.append(f"断面を作れませんでした（{el.get('error', {}).get('message', el)}）")
         results.append(pl)
+    # Archicad のマーカー（「S-01」）は隠し、足場平面図に切断線と A・B を書く（place_plan_sheet の cuts）
+    note = hide_section_markers(client, [pl.section_guid for pl in results if pl.section_guid])
+    if note and results:
+        results[0].notes.append(note)
     if on_sections is not None:
         try:
             on_sections(results)

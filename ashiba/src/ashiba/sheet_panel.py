@@ -390,6 +390,59 @@ def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float,
     return items
 
 
+def _clip_segment(p, q, box):
+    """線分 p→q を箱 (xmin, ymin, xmax, ymax) で切る。箱に掛からなければ None."""
+    (x0, y0), (x1, y1) = p, q
+    t0, t1 = 0.0, 1.0
+    dx, dy = x1 - x0, y1 - y0
+    for pk, qk in ((-dx, x0 - box[0]), (dx, box[2] - x0), (-dy, y0 - box[1]), (dy, box[3] - y0)):
+        if abs(pk) < 1e-12:
+            if qk < 0:
+                return None
+            continue
+        r = qk / pk
+        if pk < 0:
+            t0 = max(t0, r)
+        else:
+            t1 = min(t1, r)
+        if t0 > t1:
+            return None
+    return (x0 + dx * t0, y0 + dy * t0), (x0 + dx * t1, y0 + dy * t1)
+
+
+def cut_overlay(cuts: list[dict], region_mm: tuple[float, float, float, float], scale: int,
+                paper_pos_mm: tuple[float, float]) -> dict:
+    """平面図の上に重ねる断面図の切断線（一点鎖線）と、両端の太い線と記号（A・B）. 用紙 mm の絶対座標."""
+    items: dict = {"texts": [], "lines": []}
+    tr = lambda p: (paper_pos_mm[0] + (p[0] - region_mm[0]) / scale, paper_pos_mm[1] + (p[1] - region_mm[1]) / scale)
+    for c in cuts:
+        # 平面図の切り抜きの範囲で切る（外に出た端の記号が図の外に書かれて見えなかった）
+        seg = _clip_segment(c["start"], c["end"], region_mm)
+        if seg is None:
+            continue
+        a, b = tr(seg[0]), tr(seg[1])
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-6:
+            continue
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        s = 0.0
+        while s < L:                                       # 一点鎖線（長い線 8・間 1.5・点 0.5・間 1.5）
+            e = min(L, s + 8.0)
+            items["lines"].append([(a[0] + ux * s, a[1] + uy * s), (a[0] + ux * e, a[1] + uy * e)])
+            d0 = e + 1.5
+            if d0 + 0.5 < L:
+                d1 = d0 + 0.5
+                items["lines"].append([(a[0] + ux * d0, a[1] + uy * d0), (a[0] + ux * d1, a[1] + uy * d1)])
+            s = d0 + 2.0
+        for p, sgn in ((a, 1.0), (b, -1.0)):
+            # 端の太い線（3本を 0.25mm ずらして重ねる）と記号
+            for k in (-0.25, 0.0, 0.25):
+                ox, oy = -uy * k, ux * k
+                items["lines"].append([(p[0] + ox, p[1] + oy), (p[0] + ox + sgn * ux * 6.0, p[1] + oy + sgn * uy * 6.0)])
+            _t(items, p[0] - sgn * ux * 4.0, p[1] - sgn * uy * 4.0 + 2.0, str(c["label"]), h=5.0, red=True)
+    return items
+
+
 def write_overlay(client, layout_item_guid: str, items: dict) -> int:
     """boundary_overlay の中身（用紙 mm の絶対座標）をレイアウトに書く."""
     from .elevation_sections import _activate

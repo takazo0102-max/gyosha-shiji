@@ -78,6 +78,24 @@ class TestContent(unittest.TestCase):
         alone = [t["text"] for t in panel_content("elev", m0, s0, title="x")["texts"]]
         self.assertNotIn(scaffold_type_label(m1), alone)
 
+    def test_cut_lines_with_letters_on_the_plan(self):
+        """断面図の切断線を平面図に一点鎖線と記号で（Archicad のマーカーは「S-01」で読めないので隠す）."""
+        from ashiba.sheet_panel import cut_overlay
+
+        ov = cut_overlay([{"label": "A", "start": (6000, -5000), "end": (6000, 13000)}],
+                         (-10000.0, -10000.0, 30000.0, 20000.0), 100, (0.0, 0.0))
+        self.assertEqual([t["text"] for t in ov["texts"]], ["A", "A"])
+        ys = sorted(t["y"] for t in ov["texts"])
+        self.assertLess(ys[0], 50.0 + 2.5)                 # 始点（y=-5000 → 用紙 50mm）の外
+        self.assertGreater(ys[1], 230.0)                   # 終点（y=13000 → 230mm）の外
+        self.assertTrue(all(abs(x - 160.0) < 1.0 for pts in ov["lines"][:5] for x, _y in pts))
+        # 切り抜きの範囲の外へ出る切断線は範囲で切る（端の記号が図の外に書かれていた）
+        ov2 = cut_overlay([{"label": "B", "start": (6000, -50000), "end": (6000, 90000)}],
+                          (-10000.0, -10000.0, 30000.0, 20000.0), 100, (0.0, 0.0))
+        ys2 = sorted(t["y"] for t in ov2["texts"])
+        self.assertAlmostEqual(ys2[0], 0.0 - 4.0 + 2.0, delta=0.01)
+        self.assertAlmostEqual(ys2[1], 300.0 + 4.0 + 2.0, delta=0.01)
+
 
 class TestWrite(unittest.TestCase):
     def test_writes_to_the_layout_with_red_pen(self):

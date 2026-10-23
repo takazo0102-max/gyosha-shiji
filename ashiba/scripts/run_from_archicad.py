@@ -704,9 +704,12 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         except TapirError as e:
             print(f"  断面図: 作れませんでした（{e}）")
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
+        cuts = ([{"label": s_.face_name.split("-")[0], "start": s_.start_mm, "end": s_.end_mm}
+                 for s_ in cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)]
+                if cross_mode == "section" else [])
         plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
                                       floor_index=line_floor(client, lines), stair_plan=r.stair_plan,
-                                      other_models=[rg.model for _lb, rg in groups[1:]])
+                                      other_models=[rg.model for _lb, rg in groups[1:]], cuts=cuts)
         for n in plan_sheet.notes:
             print(f"  平面図: {n}")
         if plan_sheet.drawing_guid:

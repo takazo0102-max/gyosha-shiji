@@ -606,7 +606,7 @@ class TestGroupFaces(unittest.TestCase):
 class TestHideMarkers(unittest.TestCase):
     def test_elevation_markers_go_to_a_hidden_layer(self):
         """立面の断面のマーカーは隠したレイヤーへ（平面図に「S-01」が12個並んでいた）."""
-        from ashiba.elevation_sections import ELEVATION_MARKER_LAYER, hide_section_markers
+        from ashiba.elevation_sections import SECTION_MARKER_LAYER, hide_section_markers
 
         class Client:
             def __init__(self):
@@ -615,7 +615,7 @@ class TestHideMarkers(unittest.TestCase):
             def tapir(self, cmd, params):
                 self.calls.append((cmd, params))
                 if cmd == "GetAttributesByType":
-                    return {"attributes": [{"name": "壁", "index": 1}, {"name": ELEVATION_MARKER_LAYER, "index": 49}]}
+                    return {"attributes": [{"name": "壁", "index": 1}, {"name": SECTION_MARKER_LAYER, "index": 49}]}
                 return {}
 
         c = Client()
