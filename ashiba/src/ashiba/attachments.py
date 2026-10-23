@@ -18,6 +18,7 @@ TIE_OBJECT = "ashiba_tie"
 NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
 SHEET_OBJECT = "ashiba_sheet"
+CSTEP_OBJECT = "ashiba_cstep"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
 SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400)}
@@ -255,3 +256,36 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[
             area += w / 1000.0 * top / 1000.0
             n += _m.ceil(w / size[0] - 1e-6) * _m.ceil(top / size[1] - 1e-6)
     return area, n
+
+
+def corner_step_name(model: ScaffoldModel) -> str:
+    """コーナーステップの品番（床の幅の組合せ。例: 踏板 500+240 → NDCS05＋NDCS02）."""
+    steps = list(model.master.by_category("コーナー踏板"))
+    names = []
+    for w in model.deck_widths_in_use or []:
+        hit = next((s for s in steps if int(s.nominal_dim) == int(w)), None)
+        names.append(hit.model_no if hit is not None else f"幅{int(w)}")
+    return "＋".join(names) or "コーナーステップ"
+
+
+def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
+    """くさびの隅の隙間（plan.corner_steps のうち面の終点のもの）ごとのコーナーステップ.
+
+    原点はその面の最後の支柱（内側建地列）。各層の床の高さに踏板を描く（利用者の指定 2026-10-23）。
+    """
+    out: list[Placement] = []
+    edges = {e.edge_index: e for e in model.plan.edges}
+    for cs in getattr(model.plan, "corner_steps", []) or []:
+        ep = edges.get(cs.edge_index)
+        if ep is None or cs.edge_index < 0:
+            continue
+        o, u, _nrm, ang = _frame(ep)
+        x = float(sum(ep.spans))
+        lv = [float(h) + model.base_height_mm for h in model.elevation_of(ep.edge_index).level_heights]
+        out.append(Placement(CSTEP_OBJECT, o[0] + u[0] * x, o[1] + u[1] * x, {
+            "faceAng": ang, "gapL": float(cs.gap_mm) / 1000.0,
+            "rowW": float(model.post_row_spacing_mm) / 1000.0,
+            "lvList": ",".join(f"{v:.0f}" for v in lv), "stepName": corner_step_name(model),
+            "lineMode": bool(line_mode)}))
+    return out
+

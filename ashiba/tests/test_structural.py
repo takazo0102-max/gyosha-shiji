@@ -602,7 +602,7 @@ class TestWallTieGridFixes(unittest.TestCase):
     def _solve(self, region):
         from ashiba.cli import solve_all
 
-        return solve_all({"module": "inch", "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+        return solve_all({"module": "inch", "corner_steps": False, "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
                           "eaves_height_mm": 15400, "building_height_mm": 16000, "site": {"region": region}})
 
     def test_no_duplicate_ties(self):

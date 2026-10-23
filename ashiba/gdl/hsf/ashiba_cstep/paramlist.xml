@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="gapL">
+			<Description><![CDATA["隙間の長さ（面に沿う方向。面の最後の支柱から隅まで）"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Length Name="rowW">
+			<Description><![CDATA["建地列の間隔（外側建地列は -rowW）"]]></Description>
+			<Value>0.61</Value>
+		</Length>
+		<String Name="lvList">
+			<Description><![CDATA["作業床の高さ mm（GLから）カンマ区切り"]]></Description>
+			<Value><![CDATA["1830,3630,5430"]]></Value>
+		</String>
+		<Boolean Name="railOn">
+			<Description><![CDATA["外側の手すり・中桟・幅木を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="railH">
+			<Description><![CDATA["手すりの高さ（床から）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matDeck">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<String Name="stepName">
+			<Description><![CDATA["品番（例: NDCS05＋NDCS02）"]]></Description>
+			<Value><![CDATA["コーナーステップ"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.0</Value>
+		</RealNum>
+	</Parameters>
+</ParamSection>

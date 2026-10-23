@@ -262,14 +262,18 @@ def write_report_md(
           f"（{z.kind} 幅{z.width_mm:.0f}mm、{z.span_count}スパン）。{how}"
           "（措置の本数は数量サマリの要確認）")
     if model.plan.corner_steps:
+        wedge = any(cs.edge_index >= 0 for cs in model.plan.corner_steps)
         a("")
-        a("## コーナーステップ（枠組: 離れ固定で余りをコーナーで吸収）")
+        a("## コーナーステップ（" + ("くさび: 離れを固定し、繋がらない隅はコーナーステップで納める"
+                                   if wedge else "枠組: 離れ固定で余りをコーナーで吸収") + "）")
         a("")
-        a("| コーナー | 隙間 | 判定 | 備考 |")
-        a("|---|---|---|---|")
+        a("| コーナー | 面 | 隙間 | 判定 | 備考 |")
+        a("|---|---|---|---|---|")
         for cs in model.plan.corner_steps:
-            a(f"| {cs.corner_index} | {cs.gap_mm:.0f}mm | "
-              f"{'OK' if cs.ok else 'NG'} | {cs.message or '建枠70mm以上・ステップ250mm以内'} |")
+            face = model.face_name(cs.edge_index) + "の終点" if cs.edge_index >= 0 else "-"
+            rule = "隙間 70〜400mm" if cs.edge_index >= 0 else "建枠70mm以上・ステップ250mm以内"
+            a(f"| {cs.corner_index} | {face} | {cs.gap_mm:.0f}mm | "
+              f"{'OK' if cs.ok else 'NG'} | {cs.message or rule} |")
     if stair_plan is not None and stair_plan.towers:
         a("")
         a("## 昇降設備（階段室）")

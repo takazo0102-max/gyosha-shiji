@@ -1,0 +1,58 @@
+﻿! ============================================================
+! コーナーステップ 3D: 各層の床の高さに踏板（隙間×建地列の間隔）、外側に手すり・中桟・幅木
+! 原点＝隙間を持つ面の最後の支柱（内側建地列）、+X＝面に沿う方向、外側建地列は -rowW
+! ============================================================
+pen 1
+resol 8
+rotz faceAng
+dim lv[]
+nLv = 0
+s = lvList
+while strlen(s) > 0 and nLv < 40 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	v = 0
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nLv = nLv + 1
+		lv[nLv] = v / 1000
+	endif
+endwhile
+if matDeck > 0 then
+	material matDeck
+else
+	define material "ashiba_cstep_steel" 2, 0.62, 0.64, 0.66
+	material "ashiba_cstep_steel"
+endif
+for i = 1 to nLv
+	z = lv[i]
+	if lineMode then
+		lin_ 0, -rowW, z, gapL, -rowW, z
+		lin_ gapL, -rowW, z, gapL, 0, z
+		lin_ gapL, 0, z, 0, 0, z
+		lin_ 0, 0, z, 0, -rowW, z
+	else
+		add 0, -rowW + 0.02, z - 0.04
+		block gapL, rowW - 0.04, 0.04
+		del 1
+		if railOn then
+			! 外側の幅木（H150）と手すり・中桟（φ27.2）
+			add 0, -rowW - 0.03, z
+			block gapL, 0.012, 0.15
+			del 1
+			for h = 1 to 2
+				add 0, -rowW - 0.02, z + railH * h / 2
+				roty 90
+				cylind gapL, 0.0136
+				del 2
+			next h
+		endif
+	endif
+next i
+del top

@@ -69,7 +69,8 @@ SPEC = {
 LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
-ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec")
+ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
+                      "ashiba_cstep")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -368,15 +369,16 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     置いた要素と注意を返す。壁つなぎが全部置けたら足場ラインの tieObj を True にして、ライン側の壁つなぎを消す
     （置けなければライン側に描いたまま）。
     """
-    from ashiba.attachments import (NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, TIE_OBJECT, net_placements,
-                                    sheet_placements, tie_placements)
+    from ashiba.attachments import (CSTEP_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, TIE_OBJECT,
+                                    cstep_placements, net_placements, sheet_placements, tie_placements)
 
     notes: list[str] = []
     line_mode = bool(r.model.config.line_mode_3d)
-    pls = tie_placements(r.model, line_mode) + net_placements(r.model, line_mode) + sheet_placements(r.model, line_mode, r.stair_plan)
+    pls = (tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
+           + sheet_placements(r.model, line_mode, r.stair_plan) + cstep_placements(r.model, line_mode))
     if not pls:
         return [], notes
-    names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT)}
+    names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, CSTEP_OBJECT)}
     mats = {}
     try:
         mats = client.find_member_surfaces()
@@ -392,6 +394,8 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
             extra["matTie"] = mats["matScaf"]
         if p.part == NETBK_OBJECT and (mats.get("matDeck") or mats.get("matScaf")):
             extra["matBk"] = mats.get("matDeck") or mats["matScaf"]   # NL500 は鋼製（溶融亜鉛めっき）
+        if p.part == CSTEP_OBJECT and mats.get("matDeck"):
+            extra["matDeck"] = mats["matDeck"]
         pairs.append((el, {**p.params, **extra}))
     client.set_gdl_parameters_many(pairs)
     placed = [el for el in els if el is not None]
@@ -408,6 +412,10 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     n_sheet = sum(1 for p in pls if p.part == SHEET_OBJECT)
     if n_sheet:
         print(f"  養生シート（{r.model.config.sheet_type}）{n_sheet}面")
+    n_cs = sum(1 for p in pls if p.part == CSTEP_OBJECT)
+    if n_cs:
+        print(f"  コーナーステップ {n_cs}箇所（隅の隙間 " + "・".join(
+            f"{c.gap_mm:.0f}" for c in r.model.plan.corner_steps if c.edge_index >= 0) + "mm）")
     return placed, notes
 
 

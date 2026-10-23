@@ -172,7 +172,8 @@ class TestTieRangeGap(unittest.TestCase):
         from ashiba.cli import load_spec, solve_all
 
         root = Path(__file__).resolve().parents[1]
-        r = solve_all(load_spec(root / "examples" / "combo_nd1800.json"))
+        # 隅を離れで閉じる解き方（離れ 245mm の面が出る）で、壁つなぎの長さの選び方を見る
+        r = solve_all({**load_spec(root / "examples" / "combo_nd1800.json"), "corner_steps": False})
         q = r.quantity
         need = {e.edge_index: round(wall_tie_required_length_mm(r.model, e.edge_index))
                 for e in r.model.plan.edges}

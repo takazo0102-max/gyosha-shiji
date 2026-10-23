@@ -41,6 +41,9 @@ class StandoffSpec:
     # 案件は入力の standoff.hard_min で下げる
     hard_min: float = 250.0
     fall_protection_limit: float = 300.0  # これを超えると墜落防止措置が必要
+    # フィート寸法のくさびで隅を閉じるのに離れが 300 を超えるとき、離れを固定して隅をコーナーステップで
+    # 納める（False なら従来どおり離れで閉じ、離れ 350 超の面は内ブラケットで詰める）
+    corner_steps: bool = True
 
 
 # 割付は基本スパン（1800・1829）で組む（利用者の指定 2026-10-22「割り付けは基本を1800 1829で考えて」）。
@@ -52,18 +55,29 @@ STANDOFF_TOL_MM = 3.0
 # 枠組足場のコーナー処理（仕様4.2の分岐）
 # くさび式: 端数は壁離れで吸収する（コーナーで足場板の調整をしない）
 # 枠組式  : 離れは固定し、端数はコーナーステップ・足場板で吸収する
+# くさびの出隅の隙間（コーナーステップで納める）。作業床どうしの隙間は 3cm 以下（仮設工業会 くさび緊結式足場の
+# 技術基準）なのでそのまま、コーナーステップの対応は出隅で 70〜400mm（杉孝のコーナーステップの対応寸法）
+WEDGE_GAP_CLOSED_MM = 30
+WEDGE_STEP_MIN_MM = 70
+WEDGE_STEP_MAX_MM = 400
 FRAME_CORNER_MIN_GAP_MM = 70    # 建枠を90度回して納めるのに要る最小隙間
 FRAME_CORNER_MAX_STEP_MM = 250  # コーナーステップで埋められる上限
 
 
 @dataclass
 class CornerStep:
-    """枠組のコーナーに生じる隙間（コーナーステップ・足場板で埋める）."""
+    """コーナーに生じる隙間（コーナーステップ・足場板で埋める）.
+
+    枠組は離れ固定で余りを各面の終点のコーナーに出す。くさびは離れを動かして隅を閉じるが、閉じるのに
+    離れが 300 を超える・範囲を外れるとき（フィート寸法で多い）は、離れを目標に固定して出隅に隙間を残し、
+    コーナーステップで納める（利用者の指定 2026-10-23: 繋がらないところは無理に繋がない）。
+    """
 
     corner_index: int        # 足場ループの頂点番号
     gap_mm: float            # 隙間の大きさ
-    ok: bool                 # 70〜250mmに納まっているか
+    ok: bool                 # 納まる範囲（枠組 70〜250、くさび 0〜30 か 70〜400）か
     message: str = ""
+    edge_index: int = -1     # 隙間を持つ面（その面の終点の側。くさび）
 
 
 @dataclass
@@ -362,6 +376,17 @@ def solve_plan(
             # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
             standoffs[idx] = round(d, 3)
 
+    # フィート寸法のくさびで、隅を閉じるのに離れが墜落防止の 300 を超える・範囲を外れるなら、無理に閉じず
+    # 離れを目標に固定して隅をコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
+    # 300mm 刻みで離れ 250〜350 の中で閉じられるので従来どおり）
+    if (spec.corner_steps and not master.is_tube and not fixed_spans and _is_feet_series(master)
+            and any(d > spec.fall_protection_limit + STANDOFF_TOL_MM or d > spec.max
+                    or d < spec.hard_min - STANDOFF_TOL_MM for d in standoffs)):
+        stepped = _solve_plan_wedge_steps(outline, spec, coins, main_span)
+        if stepped is not None:
+            stepped.bridged_zones = _locate_bridged_zones(outline, stepped.edges, stepped.standoffs)
+            return stepped
+
     # 結果組み立て
     scaffold_verts = scaffold_loop_vertices(outline, standoffs)
     plan_edges: list[EdgePlan] = []
@@ -631,6 +656,119 @@ def _lstsq_with_target(
                 f = m[r][col]
                 m[r] = [v - f * w for v, w in zip(m[r], m[col])]
     return [m[i][nvar] for i in range(nvar)]
+
+
+def _is_feet_series(master: PartMaster) -> bool:
+    from .master import MODULE_INCH, series_module
+
+    try:
+        return series_module(master.series_id) == MODULE_INCH
+    except Exception:
+        return False
+
+
+def _wedge_gap_ok(gap: float) -> bool:
+    return -0.5 <= gap <= WEDGE_GAP_CLOSED_MM or WEDGE_STEP_MIN_MM <= gap <= WEDGE_STEP_MAX_MM
+
+
+def _pick_spans(coins: list[int], target_len: float, main_span: int, need_exact: bool):
+    """target_len 以下で組むスパン列と隙間。need_exact なら隙間 0（入隅の面）."""
+    lo = max(min(coins), int(target_len - (0 if need_exact else WEDGE_STEP_MAX_MM)) - 1)
+    table = achievable_sums(coins, lo, int(target_len) + 1)
+    cands = []
+    for s, sp in table.items():
+        gap = target_len - s
+        if need_exact:
+            if abs(gap) > 0.5:
+                continue
+        elif not _wedge_gap_ok(gap):
+            continue
+        # 端数スパンの少なさ → スパンの少なさ → 隙間の小ささ（閉じる 0〜30 を先に）
+        cands.append(((_small_span_count(sp, main_span), len(sp), 0 if gap <= WEDGE_GAP_CLOSED_MM else 1, gap),
+                      sp, gap))
+    if not cands:
+        return None
+    _k, sp, gap = min(cands, key=lambda c: c[0])
+    return sp, gap
+
+
+def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[int],
+                            main_span: int) -> Optional[PlanResult]:
+    """くさびの割付を、離れを目標に固定し出隅の隙間をコーナーステップで納めて解く（解けなければ None）.
+
+    隙間は面の終点の側に置く（その面のスパンは隅の手前で終わり、次の面の出隅の升目は隅のまま）。
+    入隅で終わる面は、次の面の離れを顧客最小値〜300 で動かして閉じられれば閉じる。閉じられなければ
+    （フィート寸法の合計は 304.8mm 刻みに近い）入隅でも終点に隙間を残し、次の面の内側建地列との間を
+    コーナーステップで納める。
+    """
+    edges = outline.edges
+    n = len(edges)
+    d0 = max(spec.hard_min, min(spec.target, spec.fall_protection_limit))
+    standoffs = [float(d0)] * n
+    # 入隅で終わる面: 次の面の離れで閉じる（スパンは端数の少ないもの、離れは目標に近いもの）
+    order = sorted(range(n), key=lambda i: (edges[i].end_sign > 0, i))
+    exact: dict[int, list[int]] = {}
+    for i in order:
+        e = edges[i]
+        if e.end_sign > 0:
+            continue
+        nxt = (i + 1) % n
+        base = e.length + e.start_sign * standoffs[(i - 1) % n]        # 次の面の離れを除いた長さ
+        best = None
+        for d_next in range(int(spec.hard_min), int(spec.fall_protection_limit) + 1, 1):
+            tl = base + e.end_sign * d_next
+            got = _pick_spans(coins, tl, main_span, need_exact=True)
+            if got is None:
+                continue
+            sp, _g = got
+            key = (_small_span_count(sp, main_span), len(sp), abs(d_next - spec.target))
+            if best is None or key < best[0]:
+                best = (key, d_next, sp)
+        if best is None:
+            continue                     # 閉じられない（フィート寸法で多い）→ 入隅でも終点に隙間を残す
+        standoffs[nxt] = float(best[1])
+        exact[i] = best[2]
+    scaffold_verts = scaffold_loop_vertices(outline, standoffs)
+    plan_edges: list[EdgePlan] = []
+    warnings: list[str] = list(outline.notes)
+    corner_steps: list[CornerStep] = []
+    for e in edges:
+        tl = e.length + e.start_sign * standoffs[(e.index - 1) % n] + e.end_sign * standoffs[(e.index + 1) % n]
+        if e.index in exact:
+            spans, gap = exact[e.index], 0.0
+        else:
+            got = _pick_spans(coins, tl, main_span, need_exact=False)
+            if got is None:
+                return None
+            spans, gap = got
+        plan_edges.append(EdgePlan(
+            edge_index=e.index,
+            spans=spans,
+            scaffold_length=float(sum(spans)),
+            standoff=standoffs[e.index],
+            owned_post_count=len(spans),
+            start_post=scaffold_verts[e.index],
+            end_post=scaffold_verts[(e.index + 1) % n],
+            remedy=None,
+        ))
+        if gap > WEDGE_GAP_CLOSED_MM:
+            corner_steps.append(CornerStep((e.index + 1) % n, round(gap, 1), True, "", e.index))
+    result = PlanResult(
+        outline=outline,
+        edges=plan_edges,
+        standoffs=standoffs,
+        scaffold_vertices=scaffold_verts,
+        warnings=warnings,
+        corner_steps=corner_steps,
+        standoff_spec=spec,
+    )
+    if corner_steps:
+        faces = dict(zip([e.edge_index for e in plan_edges], result.face_names()))
+        warnings.append(
+            "隅を閉じると離れが 300mm を超えるので、離れを " + f"{d0:.0f}mm に固定し、出隅の隙間を"
+            "コーナーステップで納めます（" + "・".join(f"{faces[c.edge_index]}の終点 {c.gap_mm:.0f}mm"
+                                             for c in corner_steps) + "）")
+    return result
 
 
 def _solve_plan_frame(

@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
 class TestFormDescribesAutoBrackets(unittest.TestCase):
     def test_auto_inner_brackets_are_explained(self):
-        r = solve_all({"module": "inch", "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+        r = solve_all({"module": "inch", "corner_steps": False, "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
                        "eaves_height_mm": 15400, "building_height_mm": 16000})
         x = _sheets(r)["様式第20号(下書き)"]
         self.assertIn("うち4区間は離れ350超の面に躯体側へ踏板を足して隙間を詰めるもの（自動）", x)

@@ -666,6 +666,12 @@ def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:
     prev_i, next_i = (edge_index - 1) % n, (edge_index + 1) % n
     skip_s = prev_i in built and prev_i != edge_index and model.elevation_of(prev_i).total_height > h
     skip_e = next_i in built and next_i != edge_index and model.elevation_of(next_i).total_height >= h
+    # 隅に隙間（コーナーステップ）がある面は終点の支柱が隅に無いので共有しない。両方の面が自分で描く
+    gapped = {c.edge_index for c in getattr(model.plan, "corner_steps", []) if c.edge_index >= 0}
+    if prev_i in gapped:
+        skip_s = False
+    if edge_index in gapped:
+        skip_e = False
     return {"skipInS": 1 if skip_s else 0, "skipInE": 1 if skip_e else 0}
 
 

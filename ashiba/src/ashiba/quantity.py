@@ -677,6 +677,7 @@ def _take_off_one(
     _count_horizontal_net(model, add, notes)
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
+    _count_wedge_corner_steps(model, add, notes)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
     _count_platform_parts(model, platforms, add, notes)
@@ -796,6 +797,29 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
             f"出隅コーナーの床は長さ{udegi}の踏板（幅{'+'.join(str(w) for w in model.deck_widths_in_use)}）"
             f"を{n_corners}箇所×{n_levels}層で計上"
         )
+
+
+def _count_wedge_corner_steps(model: ScaffoldModel, add, notes) -> None:
+    """くさびの隅の隙間（コーナーステップで納める）: 隙間ごとに層の数 × 床の幅の品（NDCS05・NDCS02 など）."""
+    mine = {e.edge_index for e in model.plan.edges}           # 面ごとの数量ではその面の隙間だけ
+    gaps = [c for c in getattr(model.plan, "corner_steps", []) or []
+            if c.edge_index >= 0 and c.edge_index in mine]
+    if not gaps:
+        return
+    steps = list(model.master.by_category("コーナー踏板"))
+    total_lv = sum(len(model.elevation_of(c.edge_index).level_heights) for c in gaps)
+    missing = []
+    for w in model.deck_widths_in_use or []:
+        hit = next((s for s in steps if int(s.nominal_dim) == int(w)), None)
+        if hit is None:
+            missing.append(int(w))
+            continue
+        add(hit, total_lv, f"隅の隙間のコーナーステップ 幅{int(w)}")
+    notes.append(f"隅の隙間{len(gaps)}箇所（" + "・".join(f"{c.gap_mm:.0f}" for c in gaps)
+                 + f"mm）×各層はコーナーステップで計上（離れを固定し、隅は無理に繋がない）")
+    if missing:
+        notes.action(f"コーナーステップ（幅{'・'.join(str(w) for w in missing)}）がマスタにありません。"
+                     f"隅の隙間{len(gaps)}箇所×各層＝{total_lv}組を別途手配", Notes.ORDER)
 
 
 def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "") -> None:

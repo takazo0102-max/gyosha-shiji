@@ -158,7 +158,7 @@ TOP_KEYS = {
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
-    "member_edits", "face_forms", "form_standoff",
+    "member_edits", "face_forms", "form_standoff", "corner_steps",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -752,6 +752,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         min=so.get("min", 250),
         max=so.get("max", 350),
         hard_min=so.get("hard_min", 250),
+        # 隅をコーナーステップで納めるのは本足場（建地2列）。一側は出隅の升目をコーナーステップで塞ぐ別の決め
+        corner_steps=bool(spec.get("corner_steps", True)) and _form_from_spec(spec)[0] == "本足場",
     )
     plan = solve_plan(spec["outline_mm"], master, standoff)
     fixed = None

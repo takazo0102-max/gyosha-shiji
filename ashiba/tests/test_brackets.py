@@ -379,7 +379,7 @@ class TestAutoInnerBracket(unittest.TestCase):
     def _solve(self, **extra):
         from ashiba.cli import solve_all
 
-        spec = {"project_name": "内ブラ", "module": "inch",
+        spec = {"project_name": "内ブラ", "module": "inch", "corner_steps": False,
                 "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
                 "eaves_height_mm": 16000, "building_height_mm": 16000}
         spec.update(extra)
@@ -446,7 +446,7 @@ class TestAutoInnerAvoidsOuterBrackets(unittest.TestCase):
     def test_carves_around_the_outer_section(self):
         from ashiba.cli import solve_all
 
-        spec = {"project_name": "張出と内", "series_id": "nikken_nd1800",
+        spec = {"project_name": "張出と内", "series_id": "nikken_nd1800", "corner_steps": False,
                 "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
                 "eaves_height_mm": 16000, "building_height_mm": 16000,
                 "bracket_sections": [{"edge_index": 0, "start_mm": 0, "end_mm": 7316, "width": 350,

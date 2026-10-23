@@ -580,7 +580,7 @@ class TestLedgerCutNotesNameTheirReason(unittest.TestCase):
     def _q(self, **extra):
         from ashiba.cli import solve_all
 
-        spec = {"module": "inch", "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+        spec = {"module": "inch", "corner_steps": False, "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
                 "eaves_height_mm": 15400, "building_height_mm": 16000}
         spec.update(extra)
         return solve_all(spec).quantity
