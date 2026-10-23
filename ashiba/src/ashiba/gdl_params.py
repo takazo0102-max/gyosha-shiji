@@ -313,6 +313,9 @@ def line_params(
     from .terrain import terrain_step_mm
 
     foot_step = terrain_step_mm(model) / 1000.0 if gl_list else 0.0
+    from .plan_labels import standoff_dim_positions
+
+    _so_pos = standoff_dim_positions(model, ep)
     return fit_gdl_lists({
         "spanList": ",".join(str(s) for s in ep.spans),
         "postList": ",".join(str(p) for p in e.posts),
@@ -359,6 +362,9 @@ def line_params(
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
         "dimSoTool": False,
+        # 離れ寸法の位置（躯体に面した端のスパン中央。plan_labels.standoff_dim_positions）
+        "soDimX1": _so_pos[0] / 1000.0,
+        "soDimX2": _so_pos[1] / 1000.0,
         # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）
         "tieObj": False,
         # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）

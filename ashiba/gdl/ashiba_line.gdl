@@ -52,6 +52,8 @@
 !   sheetTxt        文字列  ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない                                            既定 ""
 !   dimTool         ブール  平面のスパン寸法は寸法ツール（部品では描かない）                                                          既定 0
 !   dimSoTool       ブール  平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）                                        既定 0
+!   soDimX1         長さ    離れ寸法の位置1（始点から。0 なら最初のスパン中央）                                                       既定 0
+!   soDimX2         長さ    離れ寸法の位置2（始点から。0 なら最後のスパン中央）                                                       既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
 !   planReal        ブール  平面を実寸で（支柱・コマ・布材・腕木を太さどおり、踏板を幅どおり、幅木）                                  既定 0
 !   mvoName         文字列  表示設定を読むライブラリグローバル部品名                                                                  既定 "ashiba_mvo"
@@ -1247,10 +1249,15 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	hotspot2 xh + rowW * cornerE, -rowW
 	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
 	! 躯体と足場の隙間も寸法ツールに
-	hotspot2 spans[1] / 2, 0
-	hotspot2 spans[1] / 2, standoff
-	hotspot2 xh - spans[nSpan] / 2, 0
-	hotspot2 xh - spans[nSpan] / 2, standoff
+	! 位置は躯体に面した端のスパン中央（Python が soDimX1・soDimX2 で渡す。延長の端のスパンは躯体の外）
+	sdx1 = spans[1] / 2
+	sdx2 = xh - spans[nSpan] / 2
+	if soDimX1 > 0.001 then sdx1 = soDimX1
+	if soDimX2 > 0.001 then sdx2 = soDimX2
+	hotspot2 sdx1, 0
+	hotspot2 sdx1, standoff
+	hotspot2 sdx2, 0
+	hotspot2 sdx2, standoff
 endif
 
 if viewMode = "elev" then
@@ -1931,6 +1938,8 @@ endif
 ! 面の途中の離れが違っても、両端を見れば分かる）。寸法線は面に直交、値は線の脇に
 for kd = 1 to 2 * (1 - dimSoTool)
 	if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2
+	if kd = 1 and segBase = 1 and sA = 1 and soDimX1 > 0.001 then xd = soDimX1
+	if kd = 2 and soDimX2 > 0.001 and soDimX2 > pxA and soDimX2 < pxB then xd = soDimX2
 	line2 xd, 0, xd, standoff
 	line2 xd - 0.05, 0.05, xd + 0.05, -0.05
 	line2 xd - 0.05, standoff + 0.05, xd + 0.05, standoff - 0.05

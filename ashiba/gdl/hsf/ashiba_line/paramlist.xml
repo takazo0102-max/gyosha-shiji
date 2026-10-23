@@ -189,6 +189,14 @@
 			<Description><![CDATA["平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Length Name="soDimX1">
+			<Description><![CDATA["離れ寸法の位置1（始点から。0 なら最初のスパン中央）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soDimX2">
+			<Description><![CDATA["離れ寸法の位置2（始点から。0 なら最後のスパン中央）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Boolean Name="planSimple">
 			<Description><![CDATA["平面を単線で（建地列・支柱位置・床の対角線だけ）"]]></Description>
 			<Value>0</Value>

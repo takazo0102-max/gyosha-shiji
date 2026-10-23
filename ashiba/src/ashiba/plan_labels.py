@@ -277,6 +277,26 @@ def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None,
     return out + standoff_dimension_data(model, lines)
 
 
+def standoff_dim_positions(model: ScaffoldModel, ep) -> tuple[float, float]:
+    """離れ寸法を引く2か所（足場ラインの始点からの mm）. 躯体に面したスパンのうち始点側・終点側の端のスパン中央.
+
+    ブラケットの面へ延ばした本足場の端のスパン（隅の外。corner_joins）や出隅を回る端数スパンは躯体に面して
+    いないので選ばない（実機 2026-10-23: 延長の 610 のスパンに離れ寸法が付いて躯体の無い所を測っていた）。
+    """
+    o, u, _n = _frame(ep)
+    oe = model.plan.outline.edges[ep.edge_index]
+    ts = sorted(((oe.start[0] - o[0]) * u[0] + (oe.start[1] - o[1]) * u[1],
+                 (oe.end[0] - o[0]) * u[0] + (oe.end[1] - o[1]) * u[1]))
+    mids, x = [], 0.0
+    for s in ep.spans:
+        mids.append(x + s / 2.0)
+        x += s
+    inside = [m for m in mids if ts[0] + 50.0 <= m <= ts[1] - 50.0]
+    if not inside:
+        return mids[0], mids[-1]
+    return inside[0], inside[-1]
+
+
 def standoff_dimension_data(model: ScaffoldModel, lines: list[dict]) -> list[dict]:
     """離れ寸法（躯体面〜内側建地列）を寸法ツールで。面ごとに両端のスパン中央の2本（利用者の指定 2026-10-23）.
 
@@ -287,7 +307,7 @@ def standoff_dimension_data(model: ScaffoldModel, lines: list[dict]) -> list[dic
     for ep, el in zip(model.plan.edges, lines):
         o, u, nrm = _frame(ep)
         n = len(ep.spans) + 1
-        xs = (ep.spans[0] / 2.0, float(sum(ep.spans)) - ep.spans[-1] / 2.0)
+        xs = standoff_dim_positions(model, ep)
         for k, x in enumerate(xs):
             ref = ((o[0] + u[0] * (x + 250.0)) / 1000.0, (o[1] + u[1] * (x + 250.0)) / 1000.0)
             out.append({

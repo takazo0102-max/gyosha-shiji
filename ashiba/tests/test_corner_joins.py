@@ -37,6 +37,17 @@ class TestWedgeReachesTheBracketPosts(unittest.TestCase):
         self.assertTrue(main.model.open_start(1))                        # 本足場の延長の端は開放端のまま
         self.assertTrue(any("ブラケットの支柱の列" in w for w in brk.model.plan.warnings))
 
+    def test_standoff_dimension_skips_the_extension_span(self):
+        """離れ寸法は躯体に面したスパンに（延長の 610 は隅の外で躯体が無い。2026-10-23 実機）."""
+        from ashiba.plan_labels import standoff_dim_positions
+
+        main, _brk = _solve("ブラケット足場（支柱）")
+        east = _edge(main, 1)
+        x1, x2 = standoff_dim_positions(main.model, east)
+        self.assertEqual(east.spans[0], 610)
+        self.assertAlmostEqual(x1, 610 + east.spans[1] / 2)
+        self.assertAlmostEqual(x2, sum(east.spans) - east.spans[-1] / 2)
+
     def test_tube_bracket_is_clamped_past_the_post_line(self):
         main, brk = _solve("ブラケット足場（単管）")
         east, south = _edge(main, 1), _edge(brk, 0)

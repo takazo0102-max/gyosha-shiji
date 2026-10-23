@@ -431,11 +431,12 @@ def line_floor(client, lines: list[dict]):
         return None
 
 
-def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, int]:
+def place_plan_annotations(client, r, out_dir, lines: list[dict], extra=()) -> tuple[int, int]:
     """平面図に寸法（寸法ツール）と部材名のラベルを置き、GUID を建物ごとに控える。(寸法数, ラベル数) を返す.
 
     前回この建物に置いた分は控えの GUID で消してから置く。寸法が置けた足場ラインは dimTool=True にして、
     部品が描くスパン寸法と二重にしない（置けなければ部品の寸法のまま）。失敗しても配置は止めない。
+    extra は面の切替の組 [(結果, その組の足場ライン)]。寸法は組の面にも付ける（ブラケットの面だけ部品の寸法だった）。
     """
     from ashiba.elevation_sections import building_key, create_labels, fit_scale, plan_region_mm
     from ashiba.plan_labels import plan_dimension_data, plan_labels, remove_plan_labels, save_label_record
@@ -448,30 +449,33 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, 
         remove_plan_labels(client, out_dir, bkey)
     except TapirError:
         pass
-    try:
-        res = client.tapir("CreateAssociativeDimensions",
-                           {"dimensionsData": plan_dimension_data(r.model, lines, r.platforms, r.stair_plan)})
-        made = [el for el in res.get("elements", [])]
-        ok = [el["elementId"]["guid"] for el in made if "elementId" in el]
-        guids += ok
-        n_dim = len(ok)
-        # 面ごとに2本（スパン・全長）。両方置けた面だけ部品の寸法を消す。その後ろに面ごとの離れ寸法 2本
-        nl = len(lines)
-        for k, line in enumerate(lines):
-            pair = made[2 * k:2 * k + 2]
-            so = made[2 * nl + 2 * k:2 * nl + 2 * k + 2]
-            upd = {}
-            if len(pair) == 2 and all("elementId" in el for el in pair):
-                upd["dimTool"] = True
-            if len(so) == 2 and all("elementId" in el for el in so):
-                upd["dimSoTool"] = True
-            if upd:
-                client.set_gdl_parameters(line, upd)
-        errs = [el.get("error", {}).get("message", "") for el in made if "elementId" not in el]
-        if errs:
-            print(f"  平面図: 寸法ツールで置けなかった寸法 {len(errs)}本（部品の寸法のまま）: {errs[0]}")
-    except TapirError as e:
-        print(f"  平面図: 寸法ツールの寸法を置けませんでした（部品の寸法のまま）: {e}")
+    for rr, ll in [(r, lines)] + [(rg, lg) for rg, lg in extra]:
+        if not ll:
+            continue
+        try:
+            res = client.tapir("CreateAssociativeDimensions",
+                               {"dimensionsData": plan_dimension_data(rr.model, ll, rr.platforms, rr.stair_plan)})
+            made = [el for el in res.get("elements", [])]
+            ok = [el["elementId"]["guid"] for el in made if "elementId" in el]
+            guids += ok
+            n_dim += len(ok)
+            # 面ごとに2本（スパン・全長）。両方置けた面だけ部品の寸法を消す。その後ろに面ごとの離れ寸法 2本
+            nl = len(ll)
+            for k, line in enumerate(ll):
+                pair = made[2 * k:2 * k + 2]
+                so = made[2 * nl + 2 * k:2 * nl + 2 * k + 2]
+                upd = {}
+                if len(pair) == 2 and all("elementId" in el for el in pair):
+                    upd["dimTool"] = True
+                if len(so) == 2 and all("elementId" in el for el in so):
+                    upd["dimSoTool"] = True
+                if upd:
+                    client.set_gdl_parameters(line, upd)
+            errs = [el.get("error", {}).get("message", "") for el in made if "elementId" not in el]
+            if errs:
+                print(f"  平面図: 寸法ツールで置けなかった寸法 {len(errs)}本（部品の寸法のまま）: {errs[0]}")
+        except TapirError as e:
+            print(f"  平面図: 寸法ツールの寸法を置けませんでした（部品の寸法のまま）: {e}")
     try:
         region = plan_region_mm(r.model)
         scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
@@ -614,6 +618,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     for n in attach_notes:
         print(f"  注意: {n}")
     group_lines: list = []
+    group_sets: list = []                   # 平面の寸法を付ける (組の結果, 組の足場ライン)
     for label, rg in groups[1:]:
         gdir = OUT_DIR / f"切替_{label}"
         write_outputs(rg, gdir)
@@ -627,6 +632,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         except TapirError as e:
             ag, ag_notes = [], [f"壁つなぎ・水平ネットの部品を置けませんでした（{e}）"]
         group_lines += lg + ag
+        group_sets.append((rg, lg))
         vg = result_dict(rg, gdir)["verdict"]
         print(f"  面の切替: {'・'.join(rg.model.plan.face_names())} を {label}（{rg.model.config.form_label}・"
               f"{rg.model.master.system_name}）で 足場ライン{len(lg)}本 — " + ("成立" if vg["ok"] else "是正が必要")
@@ -651,7 +657,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         client.delete_elements(stale)
     replaced = len(stale)
     # 平面の部材名ラベル（引出線つき）。前回この建物に置いたラベルは控えの GUID で消してから置く
-    plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines)
+    plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines, extra=group_sets)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
     elevs = []
