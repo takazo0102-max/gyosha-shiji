@@ -1563,7 +1563,22 @@ if cornerS = 1 and sA = 1 then
 	line2 -rowW, 0, -rowW, -rowW
 	line2 -rowW, -rowW, 0, -rowW
 	circle2 -rowW, -rowW, r_sic
-	if showDeck and hugMode = 0 then line2 -rowW, -rowW, 0, 0
+	if showDeck and hugMode = 0 then
+		if planReal then
+			! 精細: 出隅の升目の踏板も幅どおり（長さ＝建地列の間隔）
+			yq = -rowW + rNuno + 0.005
+			for kw = 1 to 2
+				wq = deckW1
+				if kw = 2 then wq = deckW2
+				if wq > 0.001 then
+					rect2 -rowW + rNuno, yq, -rNuno, yq + wq
+					yq = yq + wq + 0.01
+				endif
+			next kw
+		else
+			line2 -rowW, -rowW, 0, 0
+		endif
+	endif
 endif
 
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
