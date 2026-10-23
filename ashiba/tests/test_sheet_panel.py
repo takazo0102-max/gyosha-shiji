@@ -9,12 +9,12 @@ from ashiba.sheet_panel import (
     PANEL_W_MM, common_notes, max_load_rows, panel_content, scaffold_type_label, write_panel,
 )
 
-BASE = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+BASE = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000, "series_id": "shinwa_A"}
 
 
 class TestContent(unittest.TestCase):
     def test_load_table_from_capacity(self):
-        r = solve_all({**BASE, "module": "inch", "scaffold_width_mm": 914})
+        r = solve_all({**BASE, "series_id": "nikken_nd1800", "module": "inch", "scaffold_width_mm": 914})
         self.assertEqual(max_load_rows(r.model),
                          [(scaffold_type_label(r.model), "250 kg", "370 kg")])      # 日建 914幅
         self.assertIn("W=914", scaffold_type_label(r.model))

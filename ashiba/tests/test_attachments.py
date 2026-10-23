@@ -19,7 +19,7 @@ from ashiba.attachments import (
 )
 from ashiba.cli import solve_all
 
-RECT = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+RECT = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "series_id": "shinwa_A",
         "eaves_height_mm": 15400, "building_height_mm": 16000}
 
 

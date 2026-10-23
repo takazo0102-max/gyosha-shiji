@@ -28,7 +28,8 @@ class TestClearance(unittest.TestCase):
         self.assertAlmostEqual(r.model.clearance_space_mm, 1200, delta=1)
 
     def test_over_the_boundary_is_ng(self):
-        r = solve_all({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=700)})
+        r = solve_all({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=700),
+                       "series_id": "shinwa_A"})
         ng = [c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"]
         self.assertEqual(len(ng), 1)
         self.assertTrue(ng[0].message.startswith("西面:"))

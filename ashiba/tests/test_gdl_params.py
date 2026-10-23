@@ -1308,7 +1308,8 @@ class TestSharedCornerPosts(unittest.TestCase):
         from ashiba.cli import solve_all
         from ashiba.gdl_params import shared_corner_skips
 
-        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000})
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000,
+                       "series_id": "shinwa_A"})                     # 隅を閉じる系列（フィートは隅に隙間）
         n = len(r.model.plan.edges)
         sk = {e.edge_index: shared_corner_skips(r.model, e.edge_index) for e in r.model.plan.edges}
         for i in range(n):
@@ -1321,6 +1322,7 @@ class TestSharedCornerPosts(unittest.TestCase):
         from ashiba.gdl_params import shared_corner_skips
 
         r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 15000,
+                       "series_id": "shinwa_A",
                        "face_eaves_mm": {"0": 9000, "1": 15000, "2": 15000, "3": 15000}})
         m = r.model
         low = 0

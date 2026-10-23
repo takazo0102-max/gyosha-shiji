@@ -21,7 +21,7 @@ def _sheets(r):
 
 class TestCalcSheetsAreDrafts(unittest.TestCase):
     def test_every_calc_sheet_has_banner_and_confirm_block(self):
-        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "series_id": "shinwa_A",
                        "eaves_height_mm": 15400, "building_height_mm": 16000,
                        "openings": [{"face": "南面", "start_mm": 3600, "beam_span_mm": 3600, "level": 2}]})
         sheets = _sheets(r)

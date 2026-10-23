@@ -57,7 +57,7 @@ class TestGroups(unittest.TestCase):
         self.assertEqual(brk.plan.face_names(), ["南面"])
         self.assertEqual(brk.config.form_label, "ブラケット足場（単管）")
         self.assertTrue(brk.master.is_tube and hug.config.is_hug)
-        self.assertEqual(base.master.series_id, "shinwa_A")
+        self.assertEqual(base.master.series_id, "nikken_nd1800")             # 既定の系列（フィート寸法）
         # 隣の面を建てない端は開放端（妻側の手すり・幅木）
         e = brk.plan.edges[0].edge_index
         self.assertTrue(brk.open_end(e) or brk.open_start(e))

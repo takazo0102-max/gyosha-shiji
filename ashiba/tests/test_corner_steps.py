@@ -39,7 +39,7 @@ class TestFeetCorners(unittest.TestCase):
                 self.assertFalse([e for e in r.model.plan.edges if e.remedy])
 
     def test_metric_and_option_keep_the_old_way(self):
-        m = solve_all({"outline_mm": L, "eaves_height_mm": 9000})            # メートルは従来どおり
+        m = solve_all({"outline_mm": L, "eaves_height_mm": 9000, "series_id": "shinwa_A"})   # メートルは従来どおり
         self.assertEqual(m.model.plan.corner_steps, [])
         old = _solve(RECT, corner_steps=False)                                 # 入力で従来の解き方
         self.assertEqual(old.model.plan.corner_steps, [])

@@ -517,7 +517,7 @@ def write_plan_json(
 
     出力スキーマ（読む側の実装が推測しなくて済むよう明記する）:
     {
-      "series_id": "shinwa_A",          // 系列。混在は不可（系列ロック）
+      "series_id": "nikken_nd1800",     // 系列（既定は日建ND1800・フィート寸法）。混在は不可（系列ロック）
       "system_type": "くさび" | "枠組" | "単管",
       "koma_pitch": 450,                 // 枠組は0（コマの概念が無い）、単管は高さの刻み50
       "scaffold_height_mm": 16300,

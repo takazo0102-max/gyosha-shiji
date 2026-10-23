@@ -59,8 +59,9 @@ from ashiba.elevation_sections import (  # noqa: E402
 # キー名と既定値は入力JSONと同じ（ashiba/cli.py のスキーマ参照）
 SPEC = {
     "project_name": "足場計画",
-    "series_id": "shinwa_A",
-    "module": "",                  # "inch" でインチ（1829/1524/1219/914/610）。series_id を空にすれば既定の日建ND1800
+    # くさび式はフィート寸法の日建 ND1800 が既定（利用者の指定 2026-10-23: くさび式は 610・914・1219・1829）
+    "series_id": "nikken_nd1800",
+    "module": "",                  # "metric" でメートル（1800/1500/1200/900/600）。series_id を空にすれば既定の系列
     "eaves_height_mm": 15400,      # 軒高
     "guard_extra_mm": 900,         # 最上層作業床固定点 = 軒高 + 手すり分
     "period_days": 90,
@@ -108,8 +109,8 @@ SAMPLE_SPEC = {
     "_説明": "このファイルを ~/Desktop/ashiba_spec.json にコピーして値を変えると、ツールバー実行の条件になります。"
              "\"_\" で始まるキーはコメントなので残して構いません。外形（outline_mm）は選択したスラブから取ります",
     "project_name": "足場計画",
-    "series_id": "shinwa_A",
-    "_series_id": "shinwa_A / shinwa_B / nikken_nd1800 / nikken_nd1900 / waku（枠組）",
+    "series_id": "nikken_nd1800",
+    "_series_id": "nikken_nd1800（既定・フィート寸法）/ nikken_nd1900 / shinwa_A / shinwa_B / waku（枠組）",
     "module": "",
     "_module": "\"inch\"（インチ: 1829/1524/1219/914/610）か \"metric\"（メートル: 1800/1500/1200/900/600）。series_id を空にすれば既定の系列（インチ=nikken_nd1800、メートル=shinwa_A）。両方書いて食い違うと止まる",
     "eaves_height_mm": 15400,

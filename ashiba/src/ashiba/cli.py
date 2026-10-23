@@ -21,8 +21,8 @@
 入力JSONスキーマ（examples/参照）:
 {
   "project_name": "サンプル",
-  "series_id": "shinwa_A",
-  "module": "metric",              // "metric"（メートル: 1800/1500/1200/900/600）／"inch"（インチ: 1829/1524/1219/914/610）。series_id を省くと既定の系列（信和A／日建ND1800）
+  "series_id": "nikken_nd1800",
+  "module": "inch",                // "inch"（インチ: 1829/1524/1219/914/610）／"metric"（メートル: 1800/1500/1200/900/600）。両方省くと日建ND1800（フィート寸法）
   "outline_mm": [[0,0],[30000,0],[30000,20000],[0,20000]],
   "eaves_height_mm": 15400,        // 軒高
   "guard_extra_mm": 900,           // 軒高に足す手すり分（最上層作業床固定点）
@@ -728,7 +728,7 @@ def resolve_series_id(spec: dict) -> str:
         return "tankan"
     mod_in = spec.get("module")
     if mod_in is None or str(mod_in).strip() == "":
-        return str(sid or "shinwa_A")
+        return str(sid or "nikken_nd1800")
     module = normalize_module(mod_in)
     if not sid:
         return DEFAULT_SERIES_BY_MODULE[module]

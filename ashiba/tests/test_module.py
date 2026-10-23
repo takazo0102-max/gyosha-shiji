@@ -29,7 +29,8 @@ class TestModule(unittest.TestCase):
     def test_module_alone_picks_the_default_series(self):
         self.assertEqual(resolve_series_id({"module": "インチ"}), DEFAULT_SERIES_BY_MODULE["inch"])
         self.assertEqual(resolve_series_id({"module": "metric"}), "shinwa_A")
-        self.assertEqual(resolve_series_id({}), "shinwa_A")
+        # 何も指定しなければ日建 ND1800（フィート寸法。利用者の指定 2026-10-23）
+        self.assertEqual(resolve_series_id({}), "nikken_nd1800")
         self.assertEqual(resolve_series_id({"series_id": "nikken_nd1900", "module": "inch"}), "nikken_nd1900")
 
     def test_mismatch_is_an_input_error(self):
