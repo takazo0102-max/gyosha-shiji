@@ -277,7 +277,9 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
     notes: list[str] = []
     groups = []
     for rnd in range(1, max_rounds + 1):
-        groups = solve_groups(spec)
+        # ブラケットの面へ延ばす本足場の端（corner_joins）はブラケットの支柱の列までで、ブラケットが収まれば収まる。
+        # 形式を選ぶ間は延ばさずに見る（延ばした端を本足場の面の越えと取ると、その面まで形式を替えてしまう）
+        groups = solve_groups({**spec, "corner_joins": False})
         bad: dict[str, float] = {}           # 面 → 躯体から境界まで（越える区間の最小）
         corner: dict[str, str] = {}          # 角の支柱だけ越える面 → 角を決める隣の面
         for _label, r in groups:

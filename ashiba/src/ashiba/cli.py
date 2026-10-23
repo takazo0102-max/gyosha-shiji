@@ -159,7 +159,7 @@ TOP_KEYS = {
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
-    "member_edits", "face_forms", "form_standoff", "corner_steps",
+    "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
@@ -902,6 +902,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         import dataclasses as _dc
 
         plan = _dc.replace(plan, edges=[e for e in plan.edges if e.edge_index in faces])
+    # ブラケット足場と本足場の出隅を繋ぐ割付（面の組を解き直すとき solve_groups が渡す。corner_joins）
+    joins = spec.get("_joins")
+    if joins:
+        from .corner_joins import apply_joins
+
+        plan = apply_joins(plan, joins)
     model = ScaffoldModel(
         master=master,
         plan=plan,
@@ -912,6 +918,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
     model.faces_only = faces
+    model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
     model.obstacles = obstacles
     model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
@@ -1413,6 +1420,15 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     except ValueError as e:
         raise InputError(str(e))
     out = [(label, solve_all(sub, master_csv)) for label, sub in groups]
+    # ブラケット足場と本足場の出隅: 本足場をブラケットの支柱の列まで延ばして解き直す（利用者の指定 2026-10-23）
+    from .corner_joins import bracket_corner_joins
+
+    if spec.get("corner_joins", True):
+        joins = bracket_corner_joins(out)
+        if joins:
+            groups = [(label, {**sub, "_joins": joins[k]} if k in joins else sub) for k, (label, sub) in enumerate(groups)]
+            out = [(label, solve_all(sub, master_csv)) if k in joins else out[k]
+                   for k, (label, sub) in enumerate(groups)]
     # 階段の無い組は、ほかの組の面の階段で昇降する（足場は面の組をまたいでつながっている）
     stair_faces = [r.model.face_name(t.edge_index) for _l, r in out
                    for t in (getattr(r.stair_plan, "towers", None) or [])]

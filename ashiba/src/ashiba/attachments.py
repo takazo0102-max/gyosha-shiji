@@ -280,7 +280,8 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
         if ep is None or cs.edge_index < 0:
             continue
         o, u, _nrm, ang = _frame(ep)
-        x = float(sum(ep.spans))
+        # 隙間は面の終点の先（始点の側の隙間は始点の手前）
+        x = -float(cs.gap_mm) if getattr(cs, "at_start", False) else float(sum(ep.spans))
         lv = [float(h) + model.base_height_mm for h in model.elevation_of(ep.edge_index).level_heights]
         out.append(Placement(CSTEP_OBJECT, o[0] + u[0] * x, o[1] + u[1] * x, {
             "faceAng": ang, "gapL": float(cs.gap_mm) / 1000.0,

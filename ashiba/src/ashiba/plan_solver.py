@@ -78,6 +78,7 @@ class CornerStep:
     ok: bool                 # 納まる範囲（枠組 70〜250、くさび 0〜30 か 70〜400）か
     message: str = ""
     edge_index: int = -1     # 隙間を持つ面（その面の終点の側。くさび）
+    at_start: bool = False   # 隙間がその面の始点の側（ブラケットの面へ延ばした本足場の始点。corner_joins）
 
 
 @dataclass
