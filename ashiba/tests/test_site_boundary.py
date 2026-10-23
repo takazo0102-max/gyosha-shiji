@@ -86,6 +86,9 @@ class TestClearance(unittest.TestCase):
             self.assertFalse(0 < x < 24000 and 0 < y < 10000, (x, y))      # 建物の外
         south = next(v for k, v in texts.items() if v[1] < 0)
         self.assertGreater(south[1], -1200 - 400)                          # 道路境界の内
+        north = next(v for k, v in texts.items() if v[1] > 10000)
+        self.assertGreater(north[1], 10000 + 2000)                         # 境界の側（足場の外の寸法線から離す）
+        self.assertLess(north[1], 10000 + 4000)
 
 
 class TestPick(unittest.TestCase):

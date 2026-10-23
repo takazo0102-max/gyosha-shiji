@@ -363,7 +363,9 @@ def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float,
             items["lines"].append([p0, p1])
             for q in (p0, p1):                              # 端の斜めの止め
                 items["lines"].append([(q[0] - 0.7, q[1] - 0.7), (q[0] + 0.7, q[1] + 0.7)])
-            m = ((p0[0] + p1[0]) / 2.0, (p0[1] + p1[1]) / 2.0)
+            # 文字は境界の側に寄せる（中央だと足場の外の寸法線（全長・スパン）に重なった）
+            k = max(0.5, 1.0 - (2.2 * 0.8 + 1.0) / max(math.hypot(p1[0] - p0[0], p1[1] - p0[1]), 1e-6))
+            m = (p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k)
         else:
             m = (p0[0] + ox * 3.0, p0[1] + oy * 3.0)
         h = 2.2
