@@ -73,6 +73,29 @@ def layout_name(prefix: str, face_name: str) -> str:
     return f"{prefix} 足場立面図 {face_name}"
 
 
+CURTAIN_BEHIND_MM = 1000.0   # 足場ラインの幕は躯体面のこれだけ奥（3d.gdl の standoff + 1.0）
+
+
+def _end_ext(model: ScaffoldModel, edge_index: int, side: int, end_ext_mm: float) -> float:
+    """立面の切断線を面の端（始点 -1・終点 +1）から延ばす長さ。入隅の端は隣の面の幕の手前まで."""
+    verts = [(float(x), float(y)) for x, y in model.plan.outline.vertices]
+    n = len(verts)
+    if n < 3:
+        return end_ext_mm
+    a, b = verts[edge_index], verts[(edge_index + 1) % n]
+    if side < 0:
+        p, q = verts[(edge_index - 1) % n], a                 # 前の辺 p→a、この辺 a→b
+        cross = (a[0] - p[0]) * (b[1] - a[1]) - (a[1] - p[1]) * (b[0] - a[0])
+    else:
+        q = verts[(edge_index + 2) % n]                       # この辺 a→b、次の辺 b→q
+        cross = (b[0] - a[0]) * (q[1] - b[1]) - (b[1] - a[1]) * (q[0] - b[0])
+    if cross >= 0:                                            # 出隅（反時計回りで左折）
+        return end_ext_mm
+    adj = (edge_index + side) % n
+    so = next((float(e.standoff) for e in model.plan.edges if e.edge_index == adj), 300.0)
+    return min(end_ext_mm, so + CURTAIN_BEHIND_MM / 2.0)
+
+
 def section_specs(model: ScaffoldModel, prefix: str = "足場",
                   clearance_mm: float = CLEARANCE_MM, end_ext_mm: float = END_EXT_MM) -> list[SectionSpec]:
     """面ごとの切断線（mm, 絶対座標）と奥行き.
@@ -95,13 +118,17 @@ def section_specs(model: ScaffoldModel, prefix: str = "足場",
         ox, oy = uy, -ux
         nx, ny = -ox, -oy
         off = row_w + clearance_mm
-        s = (sx + ox * off - ux * end_ext_mm, sy + oy * off - uy * end_ext_mm)
-        e = (ex + ox * off + ux * end_ext_mm, ey + oy * off + uy * end_ext_mm)
+        # 入隅の端は延ばしすぎない。隣の面の足場ラインが躯体面の 1m 奥に立てる幕（3d.gdl）を切ると、
+        # 切り口が縦の線になって立面図に出た（L 字の入隅の面、2026-10-23 実機）
+        ext_s = _end_ext(model, ep.edge_index, -1, end_ext_mm)
+        ext_e = _end_ext(model, ep.edge_index, +1, end_ext_mm)
+        s = (sx + ox * off - ux * ext_s, sy + oy * off - uy * ext_s)
+        e = (ex + ox * off + ux * ext_e, ey + oy * off + uy * ext_e)
         # 奥行き: 切断線から躯体の最も遠い頂点まで
         far = max(((vx - s[0]) * nx + (vy - s[1]) * ny) for vx, vy in verts) if verts else off
         depth = max(far, off) + DEPTH_MARGIN_MM
         face = model.face_name(ep.edge_index)
-        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth, length + 2 * end_ext_mm, ep.edge_index))
+        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth, length + ext_s + ext_e, ep.edge_index))
     return out
 
 
@@ -895,12 +922,12 @@ def _with_panel(margins: tuple[float, float, float, float]) -> tuple[float, floa
 
 
 def _write_panel(client, model, lay, paper, margins, kind: str, stair_plan=None, cuts=None,
-                 top_mm: Optional[float] = None, title: str = "") -> list[str]:
+                 top_mm: Optional[float] = None, title: str = "", extra=()) -> list[str]:
     """図面を置いたレイアウトの右の帯に書く。書けなければ注意の文を返す（図面の配置は止めない）."""
     from .sheet_panel import panel_content, write_panel
 
     try:
-        write_panel(client, lay, paper, margins, panel_content(kind, model, stair_plan, cuts, title), top_mm)
+        write_panel(client, lay, paper, margins, panel_content(kind, model, stair_plan, cuts, title, extra), top_mm)
         return []
     except Exception as e:
         return [f"凡例・荷重表・共通事項を書けませんでした（{e}）"]
@@ -928,7 +955,7 @@ def panel_spot(plan: "SheetPlan", boxes_mm: list[tuple[float, float]], paper: tu
 def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, annotate: bool = False,
                         name: Optional[str] = None, kind: str = "足場立面図",
                         scales: Iterable[int] = SCALE_CANDIDATES, panel_kind: Optional[str] = None,
-                        stair_plan=None, cuts=None) -> bool:
+                        stair_plan=None, cuts=None, extra=()) -> bool:
     """全面を1枚のレイアウトに。用紙に収まらなければ何もせず False（面ごとの配置に戻る）.
 
     1) 元の大きさ（比率1）で仮置きして実寸を測る（注記・フロアマーカーの張り出しまで入る）
@@ -962,7 +989,7 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
         from .sheet_panel import panel_content, panel_height_mm
 
         title = ("・".join(pl.face_name for pl in results) + " " + kind) if panel_kind == "elev" else ""
-        ph = panel_height_mm(panel_content(panel_kind, model, stair_plan, cuts, title))
+        ph = panel_height_mm(panel_content(panel_kind, model, stair_plan, cuts, title, extra))
         panel_top = panel_spot(plan, boxes, paper, margins, ph) if plan is not None else None
         if panel_top is None and plan is not None:
             reserved = arrange_boxes(boxes, paper, _with_panel(margins), scales=scales)
@@ -984,23 +1011,33 @@ def _place_on_one_sheet(client, model, prefix, specs, results, subset, master, a
     _create_drawings(client, dbid, results, plan.positions_mm, plan.scale, src, kind)
     if panel_kind:
         # 右の帯: 凡例・最大積載荷重・注意（例の仮設計画図に倣う。利用者の指定 2026-10-23）
-        notes = _write_panel(client, model, lay, paper, margins, panel_kind, stair_plan, cuts, panel_top, title)
+        notes = _write_panel(client, model, lay, paper, margins, panel_kind, stair_plan, cuts, panel_top, title, extra)
         if notes and results:
             results[0].notes.extend(notes)
     return True
 
 
+def elevation_specs_with_owner(prefix: str, owners) -> list[tuple[SectionSpec, tuple]]:
+    """面の組ごとの (模型, 階段, 地盤) → 全部の面の切断線と、その面の組 [(spec, owner)]（外形の辺の順）."""
+    pairs = [(s, tuple(own)) for own in owners for s in section_specs(own[0], prefix)]
+    return sorted(pairs, key=lambda x: x[0].edge_index)
+
+
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
                              previous: Optional[dict] = None, one_sheet: bool = True,
                              annotate: bool = True, terrain=None, on_sections=None,
-                             stair_plan=None) -> list[ElevationPlacement]:
+                             stair_plan=None, others=()) -> list[ElevationPlacement]:
     """面ごとの断面図を作り、サブセット「仮設足場」の下のレイアウトに図面として置く.
 
     previous は前回の控え {断面名: 要素GUID}（run_from_archicad が書く）。再実行で置き換える。
     one_sheet なら、全面が1枚の用紙に収まるときは1枚のレイアウト「<prefix> 足場立面図」にまとめ、
     収まらなければ面ごとのレイアウトにする。
+    others は面の組（face_forms）のほかの組の (模型, 階段, 地盤)。その面も同じ並び（辺の順）で立面図にする
+    （先頭の組の面しか立面図が無く、境界に合わせて替えた面の図が出ていなかった）。
     """
-    specs = section_specs(model, prefix)
+    pairs = elevation_specs_with_owner(prefix, [(model, stair_plan, terrain), *others])
+    specs = [s for s, _own in pairs]
+    owner_of = {s.name: own for s, own in pairs}
     stale_notes: list[str] = []
     if not activate_floor_plan(client):
         stale_notes.append("平面図のウィンドウを前面にできませんでした。断面の作成・削除は平面図が前面のときだけ通ります")
@@ -1049,7 +1086,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         est_by: dict[str, float] = {}
         for g in range(0, len(specs), FACES_PER_SHEET):
             grp = specs[g:g + FACES_PER_SHEET]
-            est = arrange_on_one_sheet([s_.length_mm for s_ in grp], float(model.scaffold_height_mm), (841.0, 594.0),
+            est = arrange_on_one_sheet([s_.length_mm for s_ in grp],
+                                       max(float(owner_of[s_.name][0].scaffold_height_mm) for s_ in grp), (841.0, 594.0),
                                        extra_w_mm=NOTE_EXTRA_W_MM, extra_h_mm=NOTE_EXTRA_H_MM)
             for s_ in grp:
                 est_by[s_.name] = float(est.scale) if est is not None else 200.0
@@ -1062,8 +1100,8 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
                     # （2026-10-18 実機: 平面図の y≈-687m に立面の注記が53個入り、足場平面図が白紙になった）
                     pl.notes.append("断面図のウィンドウが開かなかったので注記を置きませんでした（もう一度実行してください）")
                     continue
-                write_section_notes(client, section_annotations(model, by_name[pl.section_name], terrain,
-                                                                 stair_plan=stair_plan,
+                om, osp, ot = owner_of[pl.section_name]
+                write_section_notes(client, section_annotations(om, by_name[pl.section_name], ot, stair_plan=osp,
                                                                  text_scale=est_by.get(pl.section_name, 200.0)))
             except Exception as ex:          # 注記が置けなくても図面は置く
                 pl.notes.append(f"注記を置けませんでした: {ex}")
@@ -1079,9 +1117,12 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         groups = [idx[g:g + FACES_PER_SHEET] for g in range(0, len(idx), FACES_PER_SHEET)]
         for k, grp in enumerate(groups, start=1):
             name = sheet_layout_name(prefix, k if len(groups) > 1 else 0)
-            if _place_on_one_sheet(client, model, prefix, [specs[i] for i in grp], [results[i] for i in grp],
+            # 帯の凡例・荷重表は図にある面の組ぶん（先頭の面の組と、ほかの組を extra に）
+            sheet_owners = list({id(owner_of[specs[i].name][0]): owner_of[specs[i].name] for i in grp}.values())
+            om, osp, _ot = sheet_owners[0]
+            if _place_on_one_sheet(client, om, prefix, [specs[i] for i in grp], [results[i] for i in grp],
                                    subset, master, annotate=annotate, name=name, panel_kind="elev",
-                                   stair_plan=stair_plan):
+                                   stair_plan=osp, extra=[(m_, sp_) for m_, sp_, _t in sheet_owners[1:]]):
                 left_over -= set(grp)
         if not left_over:
             activate_floor_plan(client)
@@ -1103,7 +1144,7 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": pl.layout_item_guid}}]})
         dbid = db["databases"][0]["databaseId"]
         paper, margins = _layout_paper_mm(client, pl.layout_item_guid)
-        plan = drawing_plan(s.length_mm, float(model.scaffold_height_mm), paper, margins)
+        plan = drawing_plan(s.length_mm, float(owner_of[s.name][0].scaffold_height_mm), paper, margins)
         # 断面の元ビューは 1/100（Archicad の断面の既定）。比率で縮尺を付ける
         _create_drawings(client, dbid, [pl], [plan.position_mm], plan.scale, 0.01)
     activate_floor_plan(client)
@@ -1403,7 +1444,8 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
             pass
     else:
         out.notes.append(f"図面を置けませんでした: {el.get('error', el)}")
-    out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan, title="足場平面図"))
+    out.notes.extend(_write_panel(client, model, lay, paper, margins0, "plan", stair_plan, title="足場平面図",
+                                  extra=[(m_, None) for m_ in other_models]))
     if getattr(model, "site_boundary_mm", None):
         # 敷地境界線（一点鎖線）と面ごとの境界までの離れ（ビューのレイヤーで境界が隠れていても図に出す）
         from .sheet_panel import boundary_overlay, write_overlay

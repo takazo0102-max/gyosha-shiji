@@ -108,16 +108,18 @@ def _wrap(s: str, n: int = WRAP) -> list[str]:
     return [s[i:i + n] for i in range(0, len(s), n)] or [""]
 
 
-def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None) -> float:
+def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None, extra=()) -> float:
     w = PANEL_W_MM
     _t(items, w / 2 - 5, y - 5, "凡例", h=3.5)
     y -= 8.0
+    owners = [(model, stair_plan), *extra]
     rows = []
-    rows.append(("scaf", scaffold_type_label(model)))
+    # 足場の種類は図にある面の組ぶん（面ごとに足場を替えた建物で、替えた面の種類が凡例に無かった）
+    rows += [("scaf", lb) for lb in dict.fromkeys(scaffold_type_label(m) for m, _sp in owners)]
     rows.append(("tie", "壁つなぎ（平面 ▽・立面 ◎）"))
-    if stair_plan is not None and getattr(stair_plan, "towers", None):
+    if any(sp is not None and getattr(sp, "towers", None) for _m, sp in owners):
         rows.append(("stair", "昇降階段（開口部手すり・幅木）"))
-    if model.asagao_heights():
+    if any(m.asagao_heights() for m, _sp in owners):
         rows.append(("asa", "朝顔（防護棚）"))
     sheet = str(getattr(model.config, "sheet_type", "") or "")
     if sheet and sheet != "なし":
@@ -150,8 +152,8 @@ def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None) -
     return y - 6.0
 
 
-def _load_table(items, model: ScaffoldModel, y: float) -> float:
-    rows = max_load_rows(model)
+def _load_table(items, model: ScaffoldModel, y: float, extra=()) -> float:
+    rows = list(dict.fromkeys(r for m in (model, *(m_ for m_, _sp in extra)) for r in max_load_rows(m)))
     if not rows:
         return y
     w = PANEL_W_MM
@@ -239,8 +241,9 @@ def _title(items, y: float, title: str) -> float:
     return y - 21.0
 
 
-def _red_box(items, model: ScaffoldModel, y: float) -> float:
-    lines = [ln for s in red_notes(model) for ln in _wrap("・" + s, 40)]
+def _red_box(items, model: ScaffoldModel, y: float, extra=()) -> float:
+    notes = dict.fromkeys(s for m in (model, *(m_ for m_, _sp in extra)) for s in red_notes(m))
+    lines = [ln for s in notes for ln in _wrap("・" + s, 40)]
     top = y
     for k, ln in enumerate(lines):
         _t(items, 2.5, y - 4.2 - k * 4.2, ln, h=2.4, red=True)
@@ -250,8 +253,11 @@ def _red_box(items, model: ScaffoldModel, y: float) -> float:
 
 
 def panel_content(kind: str, model: ScaffoldModel, stair_plan=None, cuts: Optional[list[dict]] = None,
-                  title: str = "") -> dict:
-    """帯の中身 {"texts": [...], "lines": [...]}（帯の左上を原点、mm、下が負）. kind: plan / elev / cross."""
+                  title: str = "", extra=()) -> dict:
+    """帯の中身 {"texts": [...], "lines": [...]}（帯の左上を原点、mm、下が負）. kind: plan / elev / cross.
+
+    extra は同じ図にあるほかの面の組の (模型, 階段)。凡例・荷重表・赤字の注意に足す。
+    """
     items: dict = {"texts": [], "lines": []}
     y = 0.0
     if title and kind != "cross":
@@ -270,10 +276,10 @@ def panel_content(kind: str, model: ScaffoldModel, stair_plan=None, cuts: Option
     if kind == "plan":
         y = _north(items, y + 16.0) - 4.0
     if kind == "elev":
-        y = _red_box(items, model, y)
+        y = _red_box(items, model, y, extra)
     if kind in ("plan", "elev"):
-        y = _legend(items, model, y, kind, stair_plan)
-    y = _load_table(items, model, y)
+        y = _legend(items, model, y, kind, stair_plan, extra)
+    y = _load_table(items, model, y, extra)
     if kind == "plan":
         y = _notes(items, model, y, stair_plan)
     return items

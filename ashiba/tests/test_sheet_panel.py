@@ -65,6 +65,19 @@ class TestContent(unittest.TestCase):
         nums = [t["text"] for t in n.texts if t.get("level_no")]
         self.assertEqual(nums, [str(i) for i in range(1, len(r.model.elevation.level_heights) + 1)])
 
+    def test_sheet_with_faces_of_two_groups_lists_both_scaffolds(self):
+        """面ごとに足場を替えた建物の立面図の帯は、図にある面の組ぶんの種類・荷重・注意を書く."""
+        from ashiba.cli import solve_groups
+
+        gs = solve_groups({**BASE, "face_forms": "東面=一側足場"})
+        (m0, s0), (m1, s1) = [(r.model, r.stair_plan) for _l, r in gs]
+        texts = [t["text"] for t in panel_content("elev", m0, s0, title="x", extra=[(m1, s1)])["texts"]]
+        self.assertIn(scaffold_type_label(m0), texts)
+        self.assertIn(scaffold_type_label(m1), texts)
+        self.assertTrue(any("一側足場部分" in x for x in texts), texts)
+        alone = [t["text"] for t in panel_content("elev", m0, s0, title="x")["texts"]]
+        self.assertNotIn(scaffold_type_label(m1), alone)
+
 
 class TestWrite(unittest.TestCase):
     def test_writes_to_the_layout_with_red_pen(self):

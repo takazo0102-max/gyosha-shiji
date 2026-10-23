@@ -9,7 +9,7 @@
   python3 scripts/dev_site.py boundary [--at ...] [--road ...] ...  # 境界線だけ引き直す（建物はそのまま）
   python3 scripts/dev_site.py place  [--at ...] [条件の JSON を ASHIBA_SPEC で]
   python3 scripts/dev_site.py clear  [--at ...]      # 作った境界線を消す（足場は remove_from_archicad で）
-建物は 24m×10m（--size 24000x10000）。境界までの距離は躯体の面から。
+建物は 24m×10m（--size 24000x10000）。--shape L で北東を欠いた L 字。境界までの距離は躯体の面から。
 """
 
 from __future__ import annotations
@@ -44,7 +44,12 @@ def site(ox: float, oy: float) -> dict:
     w, h = (float(v) for v in _arg("size", "24000x10000").split("x"))
     road, west, east, north = (float(_arg(k, d)) for k, d in
                                (("road", "1200"), ("west", "1500"), ("east", "3000"), ("north", "4000")))
-    building = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)]
+    if _arg("shape", "rect") == "L":
+        # L字（北東を欠く）。入隅の面（東面(辺3)・北面(辺2)）は境界から遠い
+        building = [(ox, oy), (ox + w, oy), (ox + w, oy + h / 2), (ox + w / 2, oy + h / 2), (ox + w / 2, oy + h),
+                    (ox, oy + h)]
+    else:
+        building = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)]
     boundary = [(ox - west, oy - road), (ox + w + east, oy - road), (ox + w + east, oy + h + north),
                 (ox - west, oy + h + north)]
     road_line = [(ox - west - 3000, oy - road), (ox + w + east + 3000, oy - road)]
@@ -98,14 +103,20 @@ def clear(c: ArchicadClient, s: dict) -> None:
     els = c.tapir("GetElementsByType", {"elementType": "PolyLine"}).get("elements", [])
     names = {int(a["index"]): a.get("name") for a in
              c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])}
-    cx = sum(p[0] for p in s["building"]) / 4.0
-    cy = sum(p[1] for p in s["building"]) / 4.0
+    # 建物の南辺の中央から 1m 内側（長方形でも L 字でも建物の中）
+    cx = (s["building"][0][0] + s["building"][1][0]) / 2.0
+    cy = s["building"][0][1] + 1000.0
     gone = []
     for e, d in zip(els, c.get_details(els) if els else []):
         if names.get(int(d.get("layerIndex", -1))) not in (BOUNDARY_LAYER, ROAD_LAYER):
             continue
         pts = [(p["x"] * 1000.0, p["y"] * 1000.0) for p in (d.get("details") or {}).get("coordinates") or []]
-        if pts and (_inside((cx, cy), pts) or min(abs(p[1] - s["road"][0][1]) for p in pts) < 1.0):
+        # 境界線は建物を囲むもの。道路境界線は建物の近く（外形から 10m 以内）にあるもの（前の条件で引いた分も）
+        xs = [p[0] for p in s["building"]]
+        ys = [p[1] for p in s["building"]]
+        near = pts and any(min(xs) - 10000 <= x <= max(xs) + 10000 and min(ys) - 10000 <= y <= max(ys) + 10000
+                           for x, y in pts)
+        if pts and (_inside((cx, cy), pts) or (names.get(int(d.get("layerIndex", -1))) == ROAD_LAYER and near)):
             gone.append(e)
     if gone:
         c.tapir("DeleteElements", {"elements": gone})

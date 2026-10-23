@@ -648,6 +648,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             print(f"  立面: 工事名を変えたので、前の名前（{'・'.join(gone)}）の断面とレイアウトを片付けました")
         sections = place_section_elevations(r.model, client, prefix=prefix, previous=prev, terrain=r.terrain,
                                             stair_plan=r.stair_plan,
+                                            others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
                                             on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
         save_record(OUT_DIR, sections, prev, bkey, prefix)
         # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は Archicad の断面図ビューポイントで

@@ -569,3 +569,35 @@ class TestNotesOnlyIntoSections(unittest.TestCase):
 
         self.assertTrue(open_section_window(C(["FloorPlan", "Section"]), "g", wait_s=0))
         self.assertFalse(open_section_window(C(["FloorPlan"] * 5), "g", tries=3, wait_s=0))
+
+
+class TestInnerCornerCut(unittest.TestCase):
+    def test_elevation_cut_stops_before_the_next_faces_curtain(self):
+        """L 字の入隅の面の立面の切断線は、隣の面の幕（躯体面の 1m 奥）の手前で止める（切り口が縦の線で出た）."""
+        from ashiba.cli import solve_all
+        from ashiba.elevation_sections import CURTAIN_BEHIND_MM, END_EXT_MM, section_specs
+
+        L = [[0, 0], [24000, 0], [24000, 8000], [12000, 8000], [12000, 16000], [0, 16000]]
+        r = solve_all({"outline_mm": L, "eaves_height_mm": 9000})
+        sp = {s.face_name: s for s in section_specs(r.model, "x")}
+        n2, e3 = sp["北面(辺2)"], sp["東面(辺3)"]
+        self.assertGreater(n2.end_mm[0], 12000 - CURTAIN_BEHIND_MM)       # 東面(辺3) の幕は x=11000
+        self.assertGreater(e3.start_mm[1], 8000 - CURTAIN_BEHIND_MM)      # 北面(辺2) の幕は y=7000
+        # 出隅の端はこれまでどおり END_EXT_MM 延ばす
+        self.assertAlmostEqual(sp["南面"].start_mm[0], r.model.plan.edges[0].start_post[0] - END_EXT_MM, delta=1)
+
+
+class TestGroupFaces(unittest.TestCase):
+    def test_switched_faces_get_elevations_in_outline_order(self):
+        """面の組のほかの組（境界に合わせて替えた面）も立面図にする。並びは外形の辺の順."""
+        from ashiba.cli import solve_groups
+        from ashiba.elevation_sections import elevation_specs_with_owner
+
+        gs = solve_groups({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000,
+                           "face_forms": "東面=単管抱き足場"})
+        owners = [(r.model, r.stair_plan, r.terrain) for _l, r in gs]
+        pairs = elevation_specs_with_owner("x", owners)
+        self.assertEqual([s.face_name for s, _o in pairs], ["南面", "東面", "北面", "西面"])
+        east = next(o for s, o in pairs if s.face_name == "東面")
+        self.assertTrue(east[0].config.is_hug)
+        self.assertEqual(len({s.name for s, _o in pairs}), 4)
