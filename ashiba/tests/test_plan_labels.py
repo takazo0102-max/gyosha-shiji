@@ -133,3 +133,18 @@ class TestLabelPositions(unittest.TestCase):
         g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
             encoding="utf-8")
         self.assertIn("if lblAt >= 0 and lblAt / 1000 >= pxA and lblAt / 1000 <= pxB then lbAx = lblAt / 1000", g2)
+
+
+class TestInnerFaceRow(unittest.TestCase):
+    def test_stair_on_an_inner_face_is_labelled_outside_that_face(self):
+        """L 字の入隅の北面の階段は、その面の外の列にラベル（建物の上の段まで引出線を引いていた）."""
+        from ashiba.plan_labels import plan_labels
+
+        L = [[0, 0], [24000, 0], [24000, 8000], [12000, 8000], [12000, 16000], [0, 16000]]
+        r = solve_all({"outline_mm": L, "eaves_height_mm": 9000})
+        labels = plan_labels(r.model, r.stair_plan)
+        inner = [lb for lb in labels if 7.5 < lb["beg"][1] < 9.5]
+        self.assertTrue(inner, labels)
+        for lb in inner:
+            self.assertLess(lb["mid"][1], 16.0)                      # 建物の北端より下（その面の外の列）
+            self.assertLess(abs(lb["mid"][1] - lb["beg"][1]), 6.0)

@@ -89,6 +89,36 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
     return items
 
 
+def _local_row(model: ScaffoldModel, x: float, y: float, w: float, h: float, standoff: float, row_w: float,
+               out_dist: float, y_bottom: float, y_top: float):
+    """部材 (x, y)（m）が外形の上下の端でない南北の面にあり、その面の外の列に空きがあれば (列の名前, y, 向き)."""
+    verts = [(float(a) / 1000.0, float(b) / 1000.0) for a, b in model.plan.outline.vertices]
+    n = len(verts)
+    for i in range(n):
+        (ax, ay), (bx, by) = verts[i], verts[(i + 1) % n]
+        if abs(ay - by) > 1e-6 or abs(bx - ax) < 1e-6:
+            continue                                       # 南北を向く（x 方向の）辺だけ
+        north = bx < ax                                    # 反時計回り: 西へ向かう辺は北向き
+        lo, hi = min(ax, bx), max(ax, bx)
+        d = (y - ay) if north else (ay - y)                # 外向きの距離
+        if not (lo <= x <= hi and 0.0 <= d <= standoff + row_w + 0.5):
+            continue
+        y0 = ay + (out_dist if north else -out_dist)
+        if (north and y0 >= y_top - 0.5) or (not north and y0 <= y_bottom + 0.5):
+            return None                                    # 外形の端の面: いつもの上段・下段
+        # 列の文字の範囲が建物と足場（離れ＋建地列＋1m）から離れていること
+        x0, x1 = x - 0.5, x - 0.5 + w
+        y_lo, y_hi = (y0 - 3.0 * h, y0 + h) if north else (y0 - h, y0 + 3.0 * h)
+        keep = standoff + row_w + 1.0
+        for j in range(n):
+            (cx, cy_), (ex, ey) = verts[j], verts[(j + 1) % n]
+            if (min(cx, ex) - keep < x1 and max(cx, ex) + keep > x0
+                    and min(cy_, ey) - keep < y_hi and max(cy_, ey) + keep > y_lo):
+                return None
+        return (f"face{i}", y0, h * 2.8 if north else -h * 2.8)
+    return None
+
+
 def outward_extra_m(model: ScaffoldModel, platforms=None) -> float:
     """外へ張り出すもの（朝顔・荷受けステージ・昇降機）の出（m）。平面の寸法はその外（2d.gdl の dOff）."""
     extra = 0.0
@@ -124,8 +154,18 @@ def plan_labels(model: ScaffoldModel, stair_plan=None, text_scale: float = 100.0
     h = text_height_mm * text_scale / 1000.0
     pitch = h * 2.8
     out: list[dict] = []
-    for row, y0, step in ((sorted([it for it in items if it[1] < cy]), y_bottom, -pitch),
-                          (sorted([it for it in items if it[1] >= cy]), y_top, pitch)):
+    # 列: 下段（南）・上段（北）。L 字の入隅など、外形の上下の端でない南北の面の部材（階段）は、その面の外に
+    # 空きがあればその面の外の列に（上段まで引くと引出線が建物を縦断した）
+    rows: dict = {"bottom": ([], y_bottom, -pitch), "top": ([], y_top, pitch)}
+    for it in items:
+        local = _local_row(model, it[0], it[1], label_text_width_m(it[2], h) + 0.4 + 1.2 * h, h,
+                           standoff, row_w, out_dist, y_bottom, y_top)
+        if local is not None:
+            key, y0, step = local
+            rows.setdefault(key, ([], y0, step))[0].append(it)
+        else:
+            rows["bottom" if it[1] < cy else "top"][0].append(it)
+    for row, y0, step in ((sorted(r_[0]), r_[1], r_[2]) for r_ in rows.values()):
         ends: list[float] = []
         for x, y, text in row:
             w = label_text_width_m(text, h) + 0.4 + 1.2 * h
