@@ -53,9 +53,13 @@ class TestClearance(unittest.TestCase):
         self.assertIn("離れを 200mm に詰めました", notes[-1])
         for _label, r in solve_groups(sp):
             self.assertFalse([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"])
-        # 下限まで詰めても越えるなら、そう書いて止める
-        _sp, notes2 = plan_within_boundary({**spec, "site_boundary_mm": bnd(west=250)})
+        # 下限まで詰めても越えるなら、そう書いて止める。南面・北面は角の支柱だけが西の境界を越える（角の位置は
+        # 西面の離れで決まる）ので、南面・北面の形式は替えない（替えていた）
+        sp2, notes2 = plan_within_boundary({**spec, "site_boundary_mm": bnd(west=250)})
         self.assertTrue(any("200mm まで詰めても敷地境界を越えます" in n for n in notes2), notes2)
+        self.assertEqual(sp2["face_forms"], "西面=単管抱き足場")
+        self.assertIn("南面: 角の支柱だけが敷地境界を越えます（角の位置は西面の離れで決まるので、西面で直します）", notes2)
+        self.assertEqual(len(notes2), len(set(notes2)))
 
     def test_ladders_when_no_face_can_take_a_stair(self):
         """四方とも単管抱き足場になって階段が入らないときは、はしご（外周 60m ごとに1箇所）."""

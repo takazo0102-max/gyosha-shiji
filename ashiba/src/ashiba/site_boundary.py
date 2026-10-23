@@ -228,6 +228,31 @@ def read_boundary_from_archicad(client, outline_mm) -> tuple[list[tuple[float, f
 FIT_FORMS = ("一側足場", "単管抱き足場")
 
 
+def _corner_side(fc: "FaceClearance", length_mm: float, tol_mm: float = 1.0) -> int:
+    """越える区間が面の端の支柱1本だけなら、その端（始点 -1・終点 +1）。そうでなければ 0."""
+    if fc.over_to_mm - fc.over_from_mm > tol_mm:
+        return 0
+    if fc.over_from_mm <= tol_mm:
+        return -1
+    if fc.over_to_mm >= length_mm - tol_mm:
+        return 1
+    return 0
+
+
+def _adjacent_edge(model, edge_index: int, side: int) -> int:
+    n = len(model.plan.outline.vertices)
+    return (edge_index + side) % n
+
+
+def _outline_face_name(model, edge_index: int) -> str:
+    """外形の辺の面の名前（面の組で建てていない面でも。model.face_name は建てる面しか引けない）."""
+    from .plan_solver import _compass
+
+    raw = [_compass(e.outward) for e in model.plan.outline.edges]
+    n = raw[edge_index]
+    return f"{n}面(辺{edge_index})" if raw.count(n) > 1 else f"{n}面"
+
+
 HUG_FLOOR_OUT_MM = 100.0      # 単管抱き足場の床の離れの線より外（法規#1 の必要幅と同じ）
 MIN_FIT_STANDOFF_MM = 200.0   # 境界に収めるために詰める離れの下限
 
@@ -254,6 +279,7 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
     for rnd in range(1, max_rounds + 1):
         groups = solve_groups(spec)
         bad: dict[str, float] = {}           # 面 → 躯体から境界まで（越える区間の最小）
+        corner: dict[str, str] = {}          # 角の支柱だけ越える面 → 角を決める隣の面
         for _label, r in groups:
             ng = {c.message.split(":", 1)[0] for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"}
             if not ng:
@@ -262,7 +288,17 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
             for fc in face_clearances(r.model, bnd, getattr(r.model, "site_road_edges", None) or roads):
                 if fc.face in ng:
                     ep = next(e for e in r.model.plan.edges if e.edge_index == fc.edge_index)
-                    bad[fc.face] = fc.min_mm + float(ep.standoff) + float(r.model.post_row_spacing_mm) + POST_R_MM
+                    wall = fc.min_mm + float(ep.standoff) + float(r.model.post_row_spacing_mm) + POST_R_MM
+                    side = _corner_side(fc, float(sum(ep.spans)))
+                    if side:
+                        # 角の支柱だけが越える: 角の位置は隣の面の離れで決まる。この面の形式は替えない
+                        corner[fc.face] = _outline_face_name(r.model, _adjacent_edge(r.model, fc.edge_index, side))
+                    else:
+                        bad[fc.face] = wall
+        # 角だけ越える面の隣の面が越えていなければ、この面を替える（隣の面では直らない）
+        for face, adj in corner.items():
+            if adj not in bad:
+                bad.setdefault(face, float("inf"))
         if not bad:
             break
         ff = parse_face_forms(spec.get("face_forms"))
@@ -275,7 +311,7 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
                 ff[face] = FIT_FORMS[i]
                 notes.append(f"{face}: 敷地境界を越えるので {FIT_FORMS[i]} にしました（{rnd}回目）")
                 changed = True
-            else:
+            elif wall_to_bnd < float("inf"):
                 tighten[face] = wall_to_bnd
         fs = dict(spec.get("form_standoff") or {})
         if tighten:
@@ -292,6 +328,9 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
             else:
                 notes.append(f"{'・'.join(tighten)}: {form} の離れを {MIN_FIT_STANDOFF_MM:.0f}mm まで詰めても敷地境界を"
                              "越えます（境界・形式を見直してください）")
+        for face, adj in corner.items():
+            if adj in bad:
+                notes.append(f"{face}: 角の支柱だけが敷地境界を越えます（角の位置は{adj}の離れで決まるので、{adj}で直します）")
         if not changed:
             break
         spec["face_forms"] = format_face_forms(ff)
@@ -312,4 +351,4 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         spec["ladders"] = n
         notes.append(f"どの面にも階段が入らないので、昇降設備ははしご {n}箇所（外周 {per / 1000:.1f}m・"
                      "水平移動 30m 以内。部材は別途手配）にしました")
-    return spec, notes
+    return spec, list(dict.fromkeys(notes))         # 回ごとに同じ文（角の支柱）が並ばないように
