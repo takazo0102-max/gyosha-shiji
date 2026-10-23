@@ -494,5 +494,6 @@ class TestNoLedgerRailsAtTheStair(unittest.TestCase):
         # 2スパンの階段室: 最上層以外は両スパン、最上層は上がってくるスパンだけ
         self.assertEqual(sum(cells.values()), len(a.stair_plan.towers) * (2 * (n - 1) + 1))
         nuno = lambda r: sum(l.qty for l in r.quantity.lines if l.part.category == "布材")
-        self.assertEqual(nuno(b) - nuno(a), 2 * sum(cells.values()))
-        self.assertTrue(any("階段手すり（2段）" in x for x in a.quantity.notes))
+        # 外側の手すり（上の段）だけ外し、中桟は残す（利用者の指定 2026-10-24: 階段の1段目の布材だけある）
+        self.assertEqual(nuno(b) - nuno(a), sum(cells.values()))
+        self.assertTrue(any("階段手すり（2段）" in x and "中桟だけ残して" in x for x in a.quantity.notes))

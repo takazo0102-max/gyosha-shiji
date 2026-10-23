@@ -755,8 +755,9 @@ for il = 1 to nLv
 					if bittest(edE[ie], 4) then eoI = 1
 				endif
 			next ie
-			! 足場の中の階段室: その層へ上がってくる階段・その層から上がる階段のスパンは、外側の手すり・中桟（布材）を
-			! 付けない（階段手すり 2段が外側に沿う。利用者の指定 2026-10-24: 階段のところは布材不要）。数量と同じセル
+			! 足場の中の階段室: その層へ上がってくる階段・その層から上がる階段のスパンは、外側の手すり（上の段の布材）を
+			! 付けず、中桟（下の段）だけ残す（階段手すり 2段が外側に沿う。利用者の指定 2026-10-24: 階段のところは布材不要、
+			! 階段の1段目の布材だけある）。数量と同じセル
 			stRl = 0
 			if stOut = 0 and il > 1 then
 				kk = il - 1
@@ -778,7 +779,7 @@ for il = 1 to nLv
 				next it7
 			endif
 			! 外側手すり・中桟（作業層のみ）
-			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 and (stRl = 0 or railAdv = 1) then
+			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
 				if railAdv = 1 then
 					! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
 					! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける
@@ -788,11 +789,13 @@ for il = 1 to nLv
 					del 1
 				else
 					runX = x
-					add x, -rowW, z + railTop
-					nL = spans[ip]
 					runP = 1 + il - 2 * int(il / 2)
-					gosub 830
-					del 1
+					if stRl = 0 then
+						add x, -rowW, z + railTop
+						nL = spans[ip]
+						gosub 830
+						del 1
+					endif
 					add x, -rowW, z + railMid
 					nL = spans[ip]
 					runP = 3 - runP

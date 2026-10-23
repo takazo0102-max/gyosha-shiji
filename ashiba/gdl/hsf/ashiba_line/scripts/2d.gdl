@@ -1042,8 +1042,8 @@ for il = 2 to nLv
 		! 枠組の中間層は布材の手すり・中桟を描かない（交差筋交＋幅木。数量と同じ）
 		frMid = 0
 		if serType = "W" and il < nLv then frMid = 1
-		! 足場の中の階段室: 上がってくる・上がっていく階段のスパンは外側の手すり・中桟（布材）を付けない
-		! （階段手すり 2段が沿う。利用者の指定 2026-10-24: 階段のところは布材不要。3D・数量と同じセル）
+		! 足場の中の階段室: 上がってくる・上がっていく階段のスパンは外側の手すり（上の段）を付けず、中桟だけ
+		! （階段手すり 2段が沿う。利用者の指定 2026-10-24: 階段の1段目の布材だけある。3D・数量と同じセル）
 		stRl = 0
 		if stOut = 0 and railAdv = 0 then
 			kk = il - 1
@@ -1071,7 +1071,8 @@ for il = 2 to nLv
 			if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			if inSg = 0 and frMid = 0 then line2 xs, z + railTop, xe, z + railTop
 			if inSg >= 1 or frMid = 1 then
-				! ステージの間口・乗り込み口・階段室: 躯体側の手すり・中桟だけ
+				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ。階段室は外側の中桟（と躯体側）
+				if inSg = 3 then line2 xs, z + railMid, xe, z + railMid
 				if railIn = 1 and nRows >= 2 and inBk = 0 then
 					line2 xs, z + railTop, xe, z + railTop
 					line2 xs, z + railMid, xe, z + railMid
