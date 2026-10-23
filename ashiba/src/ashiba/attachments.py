@@ -275,6 +275,7 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
     """
     out: list[Placement] = []
     edges = {e.edge_index: e for e in model.plan.edges}
+    widths = [float(w) for w in (model.deck_widths_in_use or [])][:2]
     for cs in getattr(model.plan, "corner_steps", []) or []:
         ep = edges.get(cs.edge_index)
         if ep is None or cs.edge_index < 0:
@@ -287,6 +288,9 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
             "faceAng": ang, "gapL": float(cs.gap_mm) / 1000.0,
             "rowW": float(model.post_row_spacing_mm) / 1000.0,
             "lvList": ",".join(f"{v:.0f}" for v in lv), "stepName": corner_step_name(model),
+            # 踏板の幅は床の幅ごと（CS05＝500・CS02＝240）。始点の側の隙間は爪を +X の端（始点の支柱）に掛ける
+            "plW1": widths[0] / 1000.0 if widths else 0.5, "plW2": widths[1] / 1000.0 if len(widths) > 1 else 0.0,
+            "flipX": bool(getattr(cs, "at_start", False)),
             "lineMode": bool(line_mode)}))
     return out
 

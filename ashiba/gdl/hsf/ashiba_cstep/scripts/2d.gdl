@@ -1,20 +1,63 @@
 ﻿! ============================================================
-! コーナーステップ 2D（平面）: 隙間の枠と×、「CS 隙間」の文字
-! 利用者の指定（2026-10-23）: くさびの隅が寸法で繋がらないところは無理に繋がず、コーナーステップで納める
+! コーナーステップ 2D（平面）: 隅の隙間に掛けるコーナーステップをカタログの形で描く
+! 利用者の指定（2026-10-23）: 繋がらない隅はコーナーステップで納める。隙間の×は不要、ステップは詳細に
+!   CS05（踏板 500）・CS02（踏板 240）: 爪 65（布材に掛ける）＋縞鋼板 460、t=3.2
+! 原点＝隙間を持つ面の最後の支柱（内側建地列 y=0、外側建地列 y=-rowW）。踏板は爪を面の布材に掛け、
+! 隙間をまたいで隣の面の隅の床に載る
 ! ============================================================
 define style "csTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
 pen 1
 rot2 faceAng
-rect2 0, -rowW, gapL, 0
-line2 0, -rowW, gapL, 0
-line2 0, 0, gapL, -rowW
+if flipX then
+	add2 gapL, 0
+	mul2 -1, 1
+endif
+! 踏板（建地列の間に並べる。床と同じく内側から）
+nPl = 1
+if plW2 > 0.001 then nPl = 2
+totW = plW1 + plW2
+y0 = -(rowW - totW) / 2
+for ip = 1 to nPl
+	w = plW1
+	if ip = 2 then w = plW2
+	yA = y0
+	yB = y0 - w
+	! 縞鋼板の外形と、先端の折り曲げ（20 手前）
+	rect2 0, yB, plL, yA
+	line2 plL - 0.02, yB, plL - 0.02, yA
+	! 縞模様（斜めの短い線を交互に。カタログの縞鋼板の見え方）
+	pen 2
+	dx = 0.06
+	nx = int((plL - 0.04) / dx)
+	ny = int(w / dx)
+	for ix = 0 to nx - 1
+		for iy = 0 to ny - 1
+			cx = 0.03 + ix * dx + dx / 2
+			cy = yA - iy * dx - dx / 2
+			if ix + iy - 2 * int((ix + iy) / 2) = 0 then
+				line2 cx - 0.015, cy - 0.008, cx + 0.015, cy + 0.008
+			else
+				line2 cx - 0.015, cy + 0.008, cx + 0.015, cy - 0.008
+			endif
+		next iy
+	next ix
+	pen 1
+	! 爪（布材に掛けるフック。踏板の両端に1つずつ）
+	rect2 -hookL, yA - 0.035, 0, yA
+	rect2 -hookL, yB, 0, yB + 0.035
+	circle2 -hookL / 2, yA - 0.0175, 0.008
+	circle2 -hookL / 2, yB + 0.0175, 0.008
+	y0 = yB
+next ip
+del top
+rot2 faceAng
 hotspot2 0, 0
 hotspot2 gapL, 0
 hotspot2 gapL, -rowW
 hotspot2 0, -rowW
-! 文字は足場の外側（北・西を向く面でも読める向きに）
+! 品番は足場の外側（北・西を向く面でも読める向きに）
 set style "csTx"
 add2 gapL / 2, -rowW - 0.25
 if faceAng > 90.001 and faceAng < 270.001 then rot2 180
-text2 0, 0, "CS " + str(gapL * 1000, 3, 0)
+text2 0, 0, stepName
 del top

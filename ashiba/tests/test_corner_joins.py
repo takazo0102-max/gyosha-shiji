@@ -37,21 +37,33 @@ class TestWedgeReachesTheBracketPosts(unittest.TestCase):
         self.assertTrue(main.model.open_start(1))                        # 本足場の延長の端は開放端のまま
         self.assertTrue(any("ブラケットの支柱の列" in w for w in brk.model.plan.warnings))
 
-    def test_gap_at_the_start_of_a_main_face_gets_a_corner_step(self):
-        from ashiba.attachments import cstep_placements
-
+    def test_tube_bracket_is_clamped_past_the_post_line(self):
         main, brk = _solve("ブラケット足場（単管）")
+        east, south = _edge(main, 1), _edge(brk, 0)
+        post_y = -(south.standoff + brk.model.post_row_spacing_mm)
+        # 単管はクランプで留めるので、くさびは支柱の列を越えて定尺で止める（隙間・コーナーステップなし）
+        self.assertLessEqual(east.start_post[1], post_y + 0.5)
+        self.assertLess(post_y - east.start_post[1], 610)
+        self.assertFalse([c for c in main.model.plan.corner_steps if c.at_start])
+        self.assertFalse([c for c in brk.model.plan.corner_steps if c.edge_index == 0])
+
+    def test_step_at_the_start_hooks_on_the_start_post(self):
+        import dataclasses
+
+        from ashiba.attachments import cstep_placements
+        from ashiba.plan_solver import CornerStep
+
+        main, _brk = _solve("ブラケット足場（支柱）")
+        m = main.model
         east = _edge(main, 1)
-        cs = [c for c in main.model.plan.corner_steps if c.edge_index == 1 and c.at_start]
-        self.assertEqual(len(cs), 1)
-        south = _edge(brk, 0)
-        self.assertAlmostEqual(east.start_post[1] - cs[0].gap_mm, -(south.standoff + brk.model.post_row_spacing_mm))
-        pl = [p for p in cstep_placements(main.model) if abs(p.x_mm - east.start_post[0]) < 1]
-        self.assertTrue(any(abs(p.y_mm - (east.start_post[1] - cs[0].gap_mm)) < 1 for p in pl))
+        m.plan = dataclasses.replace(m.plan, corner_steps=[CornerStep(1, 200.0, True, "", 1, at_start=True)])
+        p = cstep_placements(m)[0]
+        self.assertAlmostEqual(p.y_mm, east.start_post[1] - 200.0)       # 隙間は始点の手前
+        self.assertTrue(p.params["flipX"])                                 # 爪は始点の支柱（+X の端）に掛ける
 
     def test_can_be_turned_off(self):
         main, brk = _solve("ブラケット足場（支柱）", corner_joins=False)
-        self.assertAlmostEqual(_edge(main, 1).start_post[1], -300.0)
+        self.assertGreater(_edge(main, 1).start_post[1], -400.0)          # 隅のまま（ブラケットの支柱の列まで延ばさない）
         self.assertFalse(brk.model.joined_ends)
         self.assertTrue(brk.model.open_start(0))
 

@@ -5,6 +5,10 @@
 pen 1
 resol 8
 rotz faceAng
+if flipX then
+	addx gapL
+	mulx -1
+endif
 dim lv[]
 nLv = 0
 s = lvList
@@ -38,9 +42,22 @@ for i = 1 to nLv
 		lin_ gapL, 0, z, 0, 0, z
 		lin_ 0, 0, z, 0, -rowW, z
 	else
-		add 0, -rowW + 0.02, z - 0.04
-		block gapL, rowW - 0.04, 0.04
-		del 1
+		! 縞鋼板（t=3.2）を床の上に。爪は布材に掛ける（踏板の両端）
+		y0 = -(rowW - plW1 - plW2) / 2
+		for ip = 1 to 2
+			w = plW1
+			if ip = 2 then w = plW2
+			if w > 0.001 then
+				add 0, y0 - w, z
+				block plL, w, 0.0032
+				add -hookL, 0, -0.03
+				block hookL, 0.035, 0.035
+				add 0, w - 0.035, 0
+				block hookL, 0.035, 0.035
+				del 3
+				y0 = y0 - w
+			endif
+		next ip
 		if railOn then
 			! 外側の幅木（H150）と手すり・中桟（φ27.2）
 			add 0, -rowW - 0.03, z

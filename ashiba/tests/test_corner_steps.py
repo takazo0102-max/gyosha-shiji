@@ -9,7 +9,8 @@ from _path import SRC  # noqa: F401
 from ashiba.cli import solve_all
 from ashiba.plan_solver import WEDGE_GAP_CLOSED_MM, WEDGE_STEP_MAX_MM, WEDGE_STEP_MIN_MM
 
-RECT = [[0, 0], [24000, 0], [24000, 10000], [0, 10000]]
+RECT = [[0, 0], [30000, 0], [30000, 20000], [0, 20000]]           # 離れ 270〜350 でも隅が閉じない
+CLOSABLE = [[0, 0], [24000, 0], [24000, 10000], [0, 10000]]       # 離れ 334・346 で全部の隅が閉じる
 L = [[0, 0], [24000, 0], [24000, 8000], [12000, 8000], [12000, 16000], [0, 16000]]
 U = [[0, 0], [30000, 0], [30000, 18000], [20000, 18000], [20000, 6000], [10000, 6000], [10000, 18000], [0, 18000]]
 
@@ -19,12 +20,12 @@ def _solve(outline, **extra):
 
 
 class TestFeetCorners(unittest.TestCase):
-    def test_standoff_stays_at_300_and_gaps_are_steps(self):
+    def test_standoff_stays_in_the_band_and_gaps_are_steps(self):
         for name, o in (("長方形", RECT), ("L字", L), ("コの字", U)):
             r = _solve(o)
             with self.subTest(name):
-                # 離れは顧客最小値〜300（隅を閉じるために 300 を超えない）
-                self.assertTrue(all(250 - 3 <= e.standoff <= 300 + 1e-6 for e in r.model.plan.edges),
+                # 離れは 270〜350 の帯（利用者の指定 2026-10-23: 270〜350 くらいの隙間感でいい）
+                self.assertTrue(all(270 - 1e-6 <= e.standoff <= 350 + 1e-6 for e in r.model.plan.edges),
                                 [e.standoff for e in r.model.plan.edges])
                 self.assertTrue(r.model.plan.corner_steps)
                 for cs in r.model.plan.corner_steps:
@@ -38,10 +39,18 @@ class TestFeetCorners(unittest.TestCase):
                     self.assertTrue(-0.5 <= rest <= WEDGE_GAP_CLOSED_MM, (e.edge_index, rest))
                 self.assertFalse([e for e in r.model.plan.edges if e.remedy])
 
+    def test_corners_close_when_the_band_allows(self):
+        r = _solve(CLOSABLE)
+        self.assertEqual(r.model.plan.corner_steps, [])
+        self.assertTrue(all(270 <= e.standoff <= 350 for e in r.model.plan.edges))
+        for e in r.model.plan.edges:
+            (sx, sy), (ex, ey) = e.start_post, e.end_post
+            self.assertLessEqual(abs(ex - sx) + abs(ey - sy) - sum(e.spans), WEDGE_GAP_CLOSED_MM)
+
     def test_metric_and_option_keep_the_old_way(self):
         m = solve_all({"outline_mm": L, "eaves_height_mm": 9000, "series_id": "shinwa_A"})   # メートルは従来どおり
         self.assertEqual(m.model.plan.corner_steps, [])
-        old = _solve(RECT, corner_steps=False)                                 # 入力で従来の解き方
+        old = _solve(CLOSABLE, corner_steps=False)                                 # 入力で従来の解き方
         self.assertEqual(old.model.plan.corner_steps, [])
         self.assertTrue(any(e.standoff > 300 for e in old.model.plan.edges))
 
@@ -82,9 +91,11 @@ class TestCornerStepPart(unittest.TestCase):
         d = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_cstep"
         p2 = (d / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         p3 = (d / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertIn('"CS " + str(gapL * 1000, 3, 0)', p2)
-        self.assertIn("block gapL, rowW - 0.04, 0.04", p3)
-        for n in ("gapL", "rowW", "lvList", "stepName"):
+        # 隙間の×は描かない（利用者の指定 2026-10-23）。カタログの形（爪 65＋縞鋼板 460、t=3.2）で描く
+        self.assertNotIn("line2 0, -rowW, gapL, 0", p2)
+        self.assertIn("rect2 0, yB, plL, yA", p2)
+        self.assertIn("block plL, w, 0.0032", p3)
+        for n in ("gapL", "rowW", "lvList", "stepName", "plW1", "plW2", "plL", "hookL", "flipX"):
             self.assertIn(f'Name="{n}"', (d / "paramlist.xml").read_text(encoding="utf-8"))
 
 

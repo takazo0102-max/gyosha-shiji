@@ -60,6 +60,10 @@ STANDOFF_TOL_MM = 3.0
 WEDGE_GAP_CLOSED_MM = 30
 WEDGE_STEP_MIN_MM = 70
 WEDGE_STEP_MAX_MM = 400
+# くさびの隅を閉じるのに動かしてよい離れの帯（利用者の指定 2026-10-23: 270〜350 くらいの躯体との隙間感でいい）。
+# 300 を超える面は内側に手すり（内ブラケット・内側の手すり）で墜落を防ぐ
+WEDGE_STANDOFF_LO_MM = 270
+WEDGE_STANDOFF_STEP_MM = 5
 FRAME_CORNER_MIN_GAP_MM = 70    # 建枠を90度回して納めるのに要る最小隙間
 FRAME_CORNER_MAX_STEP_MM = 250  # コーナーステップで埋められる上限
 
@@ -263,8 +267,12 @@ def solve_plan(
     standoff: Optional[StandoffSpec] = None,
     fixed_spans: Optional[dict[int, list[int]]] = None,
     face_min: Optional[dict[int, float]] = None,
+    fixed_standoffs: Optional[dict[int, float]] = None,
 ) -> PlanResult:
     """fixed_spans: {辺番号: スパン列（始点から）}。その面はこの構成で固定し、離れだけを解く.
+
+    fixed_standoffs: {辺番号: 離れ mm}。面の組（face_forms）で、ほかの組が建てる隣の面の離れ（その組で解いた値）。
+    フィート寸法のくさびでは隅の位置をその離れで決める（隣の面の線で終わる）。
 
     face_min: {辺番号: 最小の離れ mm}（庇・バルコニーの先端をかわす。obstacles）。その面の躯体線を
     （最小 − 目標）だけ外へずらした外形で割り付け、離れにずらした分を足して返す（隣の面はずらした分だけ
@@ -377,13 +385,14 @@ def solve_plan(
             # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
             standoffs[idx] = round(d, 3)
 
-    # フィート寸法のくさびで、隅を閉じるのに離れが墜落防止の 300 を超える・範囲を外れるなら、無理に閉じず
-    # 離れを目標に固定して隅をコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
+    # フィート寸法のくさびで、隅を閉じるのに離れが 270〜350 の帯を外れるなら、無理に閉じず、帯の中で閉じられる
+    # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
     # 300mm 刻みで離れ 250〜350 の中で閉じられるので従来どおり）
+    lo_band = _wedge_band_lo(spec)
     if (spec.corner_steps and not master.is_tube and not fixed_spans and _is_feet_series(master)
-            and any(d > spec.fall_protection_limit + STANDOFF_TOL_MM or d > spec.max
-                    or d < spec.hard_min - STANDOFF_TOL_MM for d in standoffs)):
-        stepped = _solve_plan_wedge_steps(outline, spec, coins, main_span)
+            and (fixed_standoffs or any(d > spec.max + STANDOFF_TOL_MM or d < lo_band - STANDOFF_TOL_MM
+                                        for d in standoffs))):
+        stepped = _solve_plan_wedge_steps(outline, spec, coins, main_span, fixed_standoffs)
         if stepped is not None:
             stepped.bridged_zones = _locate_bridged_zones(outline, stepped.edges, stepped.standoffs)
             return stepped
@@ -693,42 +702,123 @@ def _pick_spans(coins: list[int], target_len: float, main_span: int, need_exact:
     return sp, gap
 
 
-def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[int],
-                            main_span: int) -> Optional[PlanResult]:
-    """くさびの割付を、離れを目標に固定し出隅の隙間をコーナーステップで納めて解く（解けなければ None）.
+def _wedge_band_lo(spec: StandoffSpec) -> float:
+    """離れの帯の下限. 既定（顧客最小値 250 以上）は 270。入力で顧客最小値を下げていればその値."""
+    return float(WEDGE_STANDOFF_LO_MM) if spec.hard_min >= 250 - STANDOFF_TOL_MM else float(spec.hard_min)
 
+
+def _pick_from_table(table: dict[int, list[int]], tl: float, main_span: int):
+    """_pick_spans と同じ選び方を、前もって作った合計の表から（離れの組合せを何度も試すので速く）."""
+    cands = []
+    for s, sp in table.items():
+        gap = tl - s
+        if not _wedge_gap_ok(gap):
+            continue
+        cands.append(((_small_span_count(sp, main_span), len(sp), 0 if gap <= WEDGE_GAP_CLOSED_MM else 1, gap),
+                      sp, gap))
+    if not cands:
+        return None
+    _k, sp, gap = min(cands, key=lambda c: c[0])
+    return sp, gap
+
+
+def _closing_spans(table: dict[int, list[int]], tl: float, main_span: int) -> Optional[list[int]]:
+    """合計が tl−30〜tl（隙間 30 以下は閉じたとみなす）のスパン列。端数スパンの少ないもの."""
+    c = [(_small_span_count(sp, main_span), len(sp), tl - s, sp) for s, sp in table.items()
+         if -0.5 <= tl - s <= WEDGE_GAP_CLOSED_MM]
+    return min(c, key=lambda v: v[:3])[3] if c else None
+
+
+def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[int],
+                            main_span: int, fixed: Optional[dict[int, float]] = None) -> Optional[PlanResult]:
+    """くさびの割付を、離れを 270〜350 の帯で動かして閉じられる隅を最も多くし、閉じない隅はコーナーステップで
+    納めて解く（解けなければ None）.
+
+    面 i の足場長は 辺長＋始点側の符号×前の面の離れ＋終点側の符号×次の面の離れ なので、面 i が閉じるかは
+    離れ d[i-1] と d[i+1] で決まる。離れの並びを 2 つ飛びにたどると輪になるので、輪ごとに先頭の値を固定した
+    動的計画法で「閉じない面の数」最小（同じなら目標 300 からのずれの合計が最小）の離れを選ぶ。
     隙間は面の終点の側に置く（その面のスパンは隅の手前で終わり、次の面の出隅の升目は隅のまま）。
-    入隅で終わる面は、次の面の離れを顧客最小値〜300 で動かして閉じられれば閉じる。閉じられなければ
-    （フィート寸法の合計は 304.8mm 刻みに近い）入隅でも終点に隙間を残し、次の面の内側建地列との間を
-    コーナーステップで納める。
     """
     edges = outline.edges
     n = len(edges)
-    d0 = max(spec.hard_min, min(spec.target, spec.fall_protection_limit))
-    standoffs = [float(d0)] * n
-    # 入隅で終わる面: 次の面の離れで閉じる（スパンは端数の少ないもの、離れは目標に近いもの）
-    order = sorted(range(n), key=lambda i: (edges[i].end_sign > 0, i))
-    exact: dict[int, list[int]] = {}
-    for i in order:
+    lo = int(_wedge_band_lo(spec))
+    hi = int(spec.max)
+    if hi < lo:
+        return None
+    vals = sorted(set(range(lo, hi + 1, WEDGE_STANDOFF_STEP_MM)) | {int(min(max(spec.target, lo), hi))})
+    tables = {}
+    for e in edges:
+        tables[e.index] = achievable_sums(coins, max(1, int(e.length - 2 * hi) - WEDGE_STEP_MAX_MM - 1),
+                                          int(e.length + 2 * hi) + 1)
+
+    def tl_of(i: int, a: float, b: float) -> float:
         e = edges[i]
-        if e.end_sign > 0:
+        return e.length + e.start_sign * a + e.end_sign * b
+
+    cost_cache: dict[tuple[int, float], float] = {}
+
+    def open_cost(face: int, a: float, b: float) -> float:
+        """面の費用: 隙間（コーナーステップ）1 ＋ 端数スパン 1本 0.1. 端数だらけで閉じるより隙間を残す方を採る."""
+        tl = tl_of(face, a, b)
+        k = (face, round(tl, 1))                      # 費用は足場長だけで決まる
+        if k not in cost_cache:
+            sp = _closing_spans(tables[face], tl, main_span)
+            c = 0.1 * _small_span_count(sp, main_span) if sp is not None else float("inf")
+            got = _pick_from_table(tables[face], tl, main_span)
+            if got is not None:
+                c = min(c, 1.0 + 0.1 * _small_span_count(got[0], main_span))
+            cost_cache[k] = c if c < float("inf") else 10.0
+        return cost_cache[k]
+
+    def unary(v: int) -> float:
+        return abs(v - spec.target) * 1e-4
+
+    standoffs = [float(spec.target)] * n
+    seen: set[int] = set()
+    for s0 in range(n):
+        if s0 in seen:
             continue
-        nxt = (i + 1) % n
-        base = e.length + e.start_sign * standoffs[(i - 1) % n]        # 次の面の離れを除いた長さ
+        cyc = []
+        v = s0
+        while v not in cyc:
+            cyc.append(v)
+            v = (v + 2) % n
+        seen.update(cyc)
+        m = len(cyc)
         best = None
-        for d_next in range(int(spec.hard_min), int(spec.fall_protection_limit) + 1, 1):
-            tl = base + e.end_sign * d_next
-            got = _pick_spans(coins, tl, main_span, need_exact=True)
-            if got is None:
-                continue
-            sp, _g = got
-            key = (_small_span_count(sp, main_span), len(sp), abs(d_next - spec.target))
-            if best is None or key < best[0]:
-                best = (key, d_next, sp)
-        if best is None:
-            continue                     # 閉じられない（フィート寸法で多い）→ 入隅でも終点に隙間を残す
-        standoffs[nxt] = float(best[1])
-        exact[i] = best[2]
+        fixed = fixed or {}
+
+        def vals_of(var: int):
+            return [fixed[var]] if var in fixed else vals
+
+        for first in vals_of(cyc[0]):
+            # cost[v] = (費用, 並び) 直前の変数の値ごと
+            layer = {first: (unary(first), [first])}
+            for k in range(1, m):
+                face = (cyc[k - 1] + 1) % n
+                nxt = {}
+                for b in vals_of(cyc[k]):
+                    cand = None
+                    for a, (ca, path) in layer.items():
+                        c = ca + open_cost(face, a, b) + unary(b)
+                        if cand is None or c < cand[0]:
+                            cand = (c, path + [b])
+                    nxt[b] = cand
+                layer = nxt
+            face = (cyc[-1] + 1) % n
+            for a, (ca, path) in layer.items():
+                c = ca + open_cost(face, a, first)
+                if best is None or c < best[0] - 1e-9:
+                    best = (c, path)
+        for var, val in zip(cyc, best[1]):
+            standoffs[var] = float(val)
+    exact: dict[int, list[int]] = {}
+    for e in edges:
+        tl = tl_of(e.index, standoffs[(e.index - 1) % n], standoffs[(e.index + 1) % n])
+        sp = _closing_spans(tables[e.index], tl, main_span)
+        if sp is not None and open_cost(e.index, standoffs[(e.index - 1) % n],
+                                        standoffs[(e.index + 1) % n]) < 1.0 - 1e-9:
+            exact[e.index] = sp
     scaffold_verts = scaffold_loop_vertices(outline, standoffs)
     plan_edges: list[EdgePlan] = []
     warnings: list[str] = list(outline.notes)
@@ -736,9 +826,10 @@ def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[in
     for e in edges:
         tl = e.length + e.start_sign * standoffs[(e.index - 1) % n] + e.end_sign * standoffs[(e.index + 1) % n]
         if e.index in exact:
-            spans, gap = exact[e.index], 0.0
+            spans = exact[e.index]
+            gap = tl - sum(spans)
         else:
-            got = _pick_spans(coins, tl, main_span, need_exact=False)
+            got = _pick_from_table(tables[e.index], tl, main_span)
             if got is None:
                 return None
             spans, gap = got
@@ -765,9 +856,11 @@ def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[in
     )
     if corner_steps:
         faces = dict(zip([e.edge_index for e in plan_edges], result.face_names()))
+        lo_s, hi_s = min(standoffs), max(standoffs)
+        band = f"{lo_s:.0f}mm" if abs(hi_s - lo_s) < 0.5 else f"{lo_s:.0f}〜{hi_s:.0f}mm"
         warnings.append(
-            "隅を閉じると離れが 300mm を超えるので、離れを " + f"{d0:.0f}mm に固定し、出隅の隙間を"
-            "コーナーステップで納めます（" + "・".join(f"{faces[c.edge_index]}の終点 {c.gap_mm:.0f}mm"
+            f"フィート寸法では全部の隅を離れ {lo}〜{hi}mm の中で閉じられないので、離れを {band} にし、閉じない隅の"
+            "隙間をコーナーステップで納めます（" + "・".join(f"{faces[c.edge_index]}の終点 {c.gap_mm:.0f}mm"
                                              for c in corner_steps) + "）")
     return result
 

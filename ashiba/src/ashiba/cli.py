@@ -756,7 +756,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         # 隅をコーナーステップで納めるのは本足場（建地2列）。一側は出隅の升目をコーナーステップで塞ぐ別の決め
         corner_steps=bool(spec.get("corner_steps", True)) and _form_from_spec(spec)[0] == "本足場",
     )
-    plan = solve_plan(spec["outline_mm"], master, standoff)
+    # 面の組で、ほかの組が建てる隣の面の離れ（solve_groups が渡す）。隅はその面の線で終わる
+    nb_so = {int(k): float(v) for k, v in (spec.get("_neighbor_standoffs") or {}).items()} or None
+    plan = solve_plan(spec["outline_mm"], master, standoff, fixed_standoffs=nb_so)
     fixed = None
     # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
     # その面を固定して離れを解き直す
@@ -1420,6 +1422,23 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     except ValueError as e:
         raise InputError(str(e))
     out = [(label, solve_all(sub, master_csv)) for label, sub in groups]
+    # 隣の面がほかの組なら、その面の離れはその組で解いた値（隅の位置が組ごとにずれないように）
+    own = {e.edge_index: float(e.standoff) for _l, r in out for e in r.model.plan.edges}
+    n_out = len(out[0][1].model.plan.outline.edges) if out else 0
+    again = {}
+    for k, (_label, r) in enumerate(out):
+        mine = {e.edge_index for e in r.model.plan.edges}
+        nb = {}
+        for ei in mine:
+            for adj in ((ei - 1) % n_out, (ei + 1) % n_out):
+                if adj not in mine and adj in own and abs(own[adj] - float(r.model.plan.standoffs[adj])) > 0.5:
+                    nb[adj] = own[adj]
+        if nb:
+            again[k] = nb
+    if again:
+        groups = [(label, {**sub, "_neighbor_standoffs": again[k]} if k in again else sub)
+                  for k, (label, sub) in enumerate(groups)]
+        out = [(label, solve_all(sub, master_csv)) if k in again else out[k] for k, (label, sub) in enumerate(groups)]
     # ブラケット足場と本足場の出隅: 本足場をブラケットの支柱の列まで延ばして解き直す（利用者の指定 2026-10-23）
     from .corner_joins import bracket_corner_joins
 

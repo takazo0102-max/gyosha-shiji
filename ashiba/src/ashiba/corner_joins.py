@@ -18,7 +18,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Optional
 
-from .plan_solver import WEDGE_GAP_CLOSED_MM, CornerStep, _pick_spans, _wedge_gap_ok
+from .plan_solver import WEDGE_GAP_CLOSED_MM, CornerStep, _pick_spans, _wedge_gap_ok, achievable_sums
 
 
 def _kind(model) -> str:
@@ -42,9 +42,17 @@ def _coins(model) -> list[int]:
     return sorted({int(s) for s in model.master.span_lengths()})
 
 
-def _extension(coins: list[int], need: float) -> Optional[tuple[list[int], float]]:
-    """本足場の面の延長: 合計 need 以下のスパン列と、残る隙間（0〜30 か 70〜400）。延長なし（隙間だけ）も可."""
+def _extension(coins: list[int], need: float, clamp: bool = False) -> Optional[tuple[list[int], float]]:
+    """本足場の面の延長: 合計 need 以下のスパン列と、残る隙間（0〜30 か 70〜400）。延長なし（隙間だけ）も可.
+
+    clamp（単管のブラケット）: 単管はクランプでどこにでも留まるので、支柱の列を少し越えて延ばしてもよい
+    （隙間は負＝越えた分。コーナーステップは要らない）。
+    """
     cands = []
+    if clamp:
+        over = sorted(s for s in achievable_sums(coins, int(need), int(need) + max(coins)) if s >= need - 0.5)
+        if over:
+            cands.append((achievable_sums(coins, over[0], over[0])[over[0]], need - over[0]))
     if _wedge_gap_ok(need) or need <= WEDGE_GAP_CLOSED_MM:
         cands.append(([], need))
     got = _pick_spans(coins, need, max(coins), need_exact=False) if need >= min(coins) - WEDGE_GAP_CLOSED_MM else None
@@ -53,7 +61,7 @@ def _extension(coins: list[int], need: float) -> Optional[tuple[list[int], float
     if not cands:
         return None
     # 揃う（隙間 30 以下）を先に、次にスパンの少ない方
-    return min(cands, key=lambda c: (0 if c[1] <= WEDGE_GAP_CLOSED_MM else 1, len(c[0]), c[1]))
+    return min(cands, key=lambda c: (0 if c[1] <= WEDGE_GAP_CLOSED_MM else 1, len(c[0]), abs(c[1])))
 
 
 def bracket_corner_joins(runs: list) -> dict[int, dict]:
@@ -102,17 +110,19 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
         lo, hi = (int(so.hard_min), int(so.max)) if so and not fixed else (int(epb.standoff), int(epb.standoff))
         target = float(so.target) if so else 300.0
         best = None
-        for s_b in range(lo, hi + 1):
+        for s2 in range(2 * lo, 2 * hi + 1):              # 0.5mm 刻み（本足場の離れは 334.5 など半端もある）
+            s_b = s2 / 2.0
             d_b = s_b + row_b
             exts = []
             for ei, at_end, p in ends:
-                got = _extension(_coins(runs[owner[ei]][1].model), d_b - p) if d_b - p >= 0 else None
+                got = (_extension(_coins(runs[owner[ei]][1].model), d_b - p, clamp=mb.master.is_tube)
+                       if d_b - p >= 0 else None)
                 if got is None:
                     break
                 exts.append(got)
             else:
                 key = (sum(1 for _sp, g in exts if g > WEDGE_GAP_CLOSED_MM), sum(len(sp) for sp, _g in exts),
-                       abs(s_b - target))
+                       round(sum(abs(g) for _sp, g in exts), 1), abs(s_b - target))
                 if best is None or key < best[0]:
                     best = (key, float(s_b), exts)
         if best is None:
@@ -165,7 +175,7 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
         slot(kb)["edges"][b] = dataclasses.replace(epb, spans=spans, scaffold_length=float(sum(spans)), standoff=s_b,
                                                    owned_post_count=len(spans), start_post=sp, end_post=epp)
         slot(kb)["drop_steps"].append(b)
-        if gap > WEDGE_GAP_CLOSED_MM:
+        if gap > WEDGE_GAP_CLOSED_MM and not mb.master.is_tube:     # 単管はクランプで留めるので隙間は布の重ねで
             slot(kb)["steps"].append(CornerStep(nxt, round(gap, 1), True, "", b))
         if at_s:
             slot(kb)["joined"].append((b, "s"))
@@ -175,7 +185,9 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
             f"{mb.face_name(b)}（ブラケット）の出隅は、隣のくさびの本足場をブラケットの支柱の列（壁から"
             f"{s_b + row_b:.0f}mm）まで延ばして繋ぎます（{'／'.join(msgs)}）。ブラケットの面は離れ {s_b:.0f}mm、"
             f"本足場の内側建地列の間に {'+'.join(str(s) for s in spans)}"
-            + (f"、端の隙間 {gap:.0f}mm はコーナーステップ" if gap > WEDGE_GAP_CLOSED_MM else "") + "（利用者の指定 2026-10-23）")
+            + (("" if gap <= WEDGE_GAP_CLOSED_MM else
+                f"、端の隙間 {gap:.0f}mm は単管の布を重ねてクランプで留める" if mb.master.is_tube else
+                f"、端の隙間 {gap:.0f}mm はコーナーステップ")) + "（利用者の指定 2026-10-23）")
     return joins
 
 

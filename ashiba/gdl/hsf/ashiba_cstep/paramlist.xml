@@ -61,6 +61,26 @@
 			<Description><![CDATA["表面材（0＝既定）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<Length Name="plW1">
+			<Description><![CDATA["踏板1枚目の幅（CS05＝0.50、CS02＝0.24）"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="plW2">
+			<Description><![CDATA["踏板2枚目の幅（無ければ 0）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="plL">
+			<Description><![CDATA["踏板の長さ（爪の付け根から先端。CS は 460）"]]></Description>
+			<Value>0.46</Value>
+		</Length>
+		<Length Name="hookL">
+			<Description><![CDATA["爪の出（布材に掛ける側。CS は 65）"]]></Description>
+			<Value>0.065</Value>
+		</Length>
+		<Boolean Name="flipX">
+			<Description><![CDATA["爪を隙間の +X の端に掛ける（面の始点の側の隙間）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<String Name="stepName">
 			<Description><![CDATA["品番（例: NDCS05＋NDCS02）"]]></Description>
 			<Value><![CDATA["コーナーステップ"]]></Value>
