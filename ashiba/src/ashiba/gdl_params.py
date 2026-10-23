@@ -170,6 +170,121 @@ def label_texts(model: ScaffoldModel) -> dict:
             "sheetTxt": f"{sheet}（防炎）" if sheet and sheet != "なし" else ""}
 
 
+LABEL_TEXT_H_M = 0.25          # 平面のラベルの文字高（texSiz 2.5mm × 1/100）
+LABEL_CORNER_MM = 2000.0       # 面の両端（隅）はラベルを置かない
+LABEL_AVOID_CUT_MM = 1000.0    # 断面の切断線・その端（マーカーと「S-01」）からラベルを離す
+
+
+def _cut_crossings(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None) -> list[float]:
+    """平面の断面マーカーが掛かる位置（面の始点から mm）.
+
+    断面図（A-A・B-B を面ごとに分けたもの）と立面図の切断線が、この面の建地列を横切る位置と、
+    切断線の端（マーカーと「S-01」）がこの面の躯体側 3m 以内に来る位置。L 字の入隅では隣の面の立面の
+    切断線の端がこの面のラベルの所に来た。
+    """
+    from .cross_sections import cross_section_specs, split_cross_specs
+    from .elevation_sections import section_specs
+
+    # 面の組（face_forms）では、実際に描く切断線（先頭の組の断面図と全部の面の立面図）を配置側が渡す
+    given = getattr(model, "section_lines_mm", None)
+    try:
+        if given is not None:
+            lines = [(tuple(a), tuple(b)) for a, b, ei in given if ei != ep.edge_index]
+        else:
+            lines = [(s.start_mm, s.end_mm) for s in
+                     split_cross_specs(model, cross_section_specs(model, "x", stair_plan, openings, platforms))]
+            lines += [(s.start_mm, s.end_mm) for s in section_specs(model, "x") if s.edge_index != ep.edge_index]
+    except Exception:
+        return []
+    (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+    L = math.hypot(ex - sx, ey - sy) or 1.0
+    ux, uy = (ex - sx) / L, (ey - sy) / L
+    out = []
+    for (ax, ay), (bx, by) in lines:
+        den = (ex - sx) * (by - ay) - (ey - sy) * (bx - ax)
+        if abs(den) > 1e-9:
+            tf = ((ax - sx) * (by - ay) - (ay - sy) * (bx - ax)) / den      # 面の上の割合
+            tc = ((ax - sx) * (ey - sy) - (ay - sy) * (ex - sx)) / den      # 切断線の上の割合
+            if 0.0 <= tf <= 1.0 and 0.0 <= tc <= 1.0:
+                out.append(tf * L)
+        for px, py in ((ax, ay), (bx, by)):
+            along = (px - sx) * ux + (py - sy) * uy
+            inward = -(px - sx) * uy + (py - sy) * ux                    # 躯体側（左手）が正
+            if 0.0 <= along <= L and 0.0 <= inward <= 3000.0:
+                out.append(along)
+    return out
+
+
+def drawn_section_lines(groups) -> list[tuple]:
+    """面の組ごとの解 [(名前, 結果)] → 図に描く切断線 [(始点, 終点, 立面の辺番号 or -1)]（mm）.
+
+    断面図は先頭の組の模型で切り、立面図は全部の組の面ぶん（run_from_archicad と同じ）。
+    """
+    from .cross_sections import cross_section_specs, split_cross_specs
+    from .elevation_sections import section_specs
+
+    _l, r0 = groups[0]
+    out = [(s.start_mm, s.end_mm, -1) for s in split_cross_specs(
+        r0.model, cross_section_specs(r0.model, "x", r0.stair_plan, r0.openings, r0.platforms))]
+    for _l, r in groups:
+        out += [(s.start_mm, s.end_mm, s.edge_index) for s in section_specs(r.model, "x")]
+    return out
+
+
+def label_positions(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None) -> dict:
+    """平面のラベル（種類・壁つなぎ・養生）の位置（面の始点から mm、-1 は GDL の既定の位置）.
+
+    GDL は種類のラベルを面の 25%・養生を 70% に置くので、断面図の切断線の端（マーカーと「S-01」）や
+    階段に重なった（L 字の入隅、2026-10-23 実機）。それらを避ける位置を選んで渡す。
+    北・西を向く面（GDL で 180° 回す面）では棚は始点の側へ出る。
+    """
+    from .elevation_sections import label_text_width_m
+
+    (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+    L = math.hypot(ex - sx, ey - sy)
+    ang = math.degrees(math.atan2(ey - sy, ex - sx)) % 360.0
+    flip = 90.001 < ang < 270.001
+    tx = label_texts(model)
+    width = lambda *ss: (0.4 + max(label_text_width_m(s_, LABEL_TEXT_H_M) for s_ in ss) + 0.2) * 1000.0
+    ext = lambda x, w: (x - w, x) if flip else (x, x + w)
+    avoid = [(c - LABEL_AVOID_CUT_MM, c + LABEL_AVOID_CUT_MM)
+             for c in _cut_crossings(model, ep, stair_plan, openings, platforms)]
+    avoid += [(t_.start_mm - 300.0, t_.start_mm + t_.length_mm + 300.0)
+              for t_ in getattr(stair_plan, "towers", None) or [] if t_.edge_index == ep.edge_index]
+    # 面の両端の 2m は隣の面のラベル（躯体面の 0.9m 奥の段）と寸法の取り合い（隅で西面と北面のラベルが重なった）
+    avoid += [(-1.0, LABEL_CORNER_MM), (L - LABEL_CORNER_MM, L + 1.0)]
+    over = lambda a, b, taken: sum(max(0.0, min(b, e) - max(a, s)) for s, e in avoid + taken)
+
+    def pick(fracs, w, taken, fallback=True):
+        """空いている位置。無ければ重なりのいちばん少ない位置（fallback）。面に入らなければ None."""
+        cands = [(f * L, ext(f * L, w)) for f in fracs]
+        cands = [(x, ab) for x, ab in cands if ab[0] >= 0.0 and ab[1] <= L]
+        free = [(x, ab) for x, ab in cands if over(ab[0], ab[1], taken) == 0.0]
+        if free:
+            return free[0]
+        if fallback and cands:
+            return min(cands, key=lambda c: over(c[1][0], c[1][1], taken))
+        return None
+
+    out = {"lblAt": -1.0, "lblTieAt": -1.0, "lblShAt": -1.0}
+    taken: list[tuple[float, float]] = []
+    near = lambda pref: sorted((k / 20.0 for k in range(20)), key=lambda f: (abs(f - pref), f))   # 5% 刻み、好みの位置から
+    hit = pick(near(0.25), width(tx["typeTxt"], tx["deckTxt"]), taken)
+    if hit:
+        out["lblAt"] = round(hit[0])
+        taken.append((hit[1][0] - 300.0, hit[1][1] + 300.0))
+    ties = sorted(t_.position_mm for t_ in model.wall_ties if t_.edge_index == ep.edge_index)
+    hit = pick([x / L for x in ties], width(tx["tieTxt"]), taken, fallback=False) if L > 0 and ties else None
+    if hit:
+        out["lblTieAt"] = round(hit[0])
+        taken.append((hit[1][0] - 300.0, hit[1][1] + 300.0))
+    if tx["sheetTxt"]:
+        hit = pick(near(0.7), width(tx["sheetTxt"]), taken, fallback=False)   # 種類のラベルと同じ段。重ねない
+        if hit:
+            out["lblShAt"] = round(hit[0])
+    return out
+
+
 def line_params(
     model: ScaffoldModel, ep, rules=None, stair_plan=None, openings=None,
     platforms=None, bracket_sections=None, terrain=None,
@@ -239,6 +354,7 @@ def line_params(
         "planSimple": False,
         # 平面の部材の名前（GDL のラベル。部品が描く。利用者の指定 2026-10-23）
         **label_texts(model),
+        **label_positions(model, ep, stair_plan, openings, platforms),
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
         # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）

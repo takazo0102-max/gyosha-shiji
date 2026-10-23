@@ -46,6 +46,9 @@
 !   typeTxt         文字列  ラベル: 足場の種類と幅（例: くさび緊結式足場 600）                                                        既定 ""
 !   deckTxt         文字列  ラベル: 作業床（例: 踏板 400+250）                                                                        既定 ""
 !   tieTxt          文字列  ラベル: 壁つなぎ（例: 壁つなぎ NK-3352II）。空なら「壁つなぎ」                                            既定 ""
+!   lblAt           実数    ラベル: 種類の位置 mm（面の始点から。-1 は面の 25%）                                                      既定 -1
+!   lblTieAt        実数    ラベル: 壁つなぎの位置 mm（-1 は種類のラベルより先の最初の壁つなぎ）                                      既定 -1
+!   lblShAt         実数    ラベル: 養生の位置 mm（-1 は面の 70%）                                                                    既定 -1
 !   sheetTxt        文字列  ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない                                            既定 ""
 !   dimTool         ブール  平面のスパン寸法は寸法ツール（部品では描かない）                                                          既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
@@ -1785,7 +1788,9 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 	lbS = 1 - 2 * lbF
 	lbY = standoff + 0.9
 	! 足場の種類と幅（1行目）・作業床（2行目）
+	! 位置は Python が断面図の切断線の端・階段を避けて選ぶ（lblAt。-1 か、この部品の範囲の外なら面の 25%）
 	lbAx = pxA + (pxB - pxA) * 0.25
+	if lblAt >= 0 and lblAt / 1000 >= pxA and lblAt / 1000 <= pxB then lbAx = lblAt / 1000
 	lbAy = -rowW / 2
 	lbT1 = typeTxt
 	lbT2 = deckTxt
@@ -1796,9 +1801,13 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 	if strlen(lbT1) = 0 then lbT1 = "壁つなぎ"
 	tkW = stw(lbT1) * GLOB_SCALE / 1000 + 0.15
 	tkX = -1
-	for it = 1 to nTie
-		if tkX < 0 and min(ties[it], ties[it] + lbS * (0.4 + tkW)) > lbEnd + 0.3 and ties[it] < gxB - 0.001 then tkX = ties[it]
-	next it
+	if lblTieAt >= 0 and lblTieAt / 1000 >= pxA and lblTieAt / 1000 < gxB - 0.001 then
+		tkX = lblTieAt / 1000
+	else
+		for it = 1 to nTie
+			if tkX < 0 and min(ties[it], ties[it] + lbS * (0.4 + tkW)) > lbEnd + 0.3 and ties[it] < gxB - 0.001 then tkX = ties[it]
+		next it
+	endif
 	if tkX > 0 then
 		lbAx = tkX
 		lbAy = standoff / 2
@@ -1811,6 +1820,7 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 		lbT1 = sheetTxt
 		shW = stw(sheetTxt) * GLOB_SCALE / 1000 + 0.15
 		lbAx = max(lbEnd + 0.5 + lbF * (0.4 + shW), pxA + (pxB - pxA) * 0.70)
+		if lblShAt >= 0 and lblShAt / 1000 >= pxA and lblShAt / 1000 <= pxB then lbAx = lblShAt / 1000
 		if max(lbAx, lbAx + lbS * (0.4 + shW)) < pxB - 0.3 then
 			lbAy = -rowW - 0.05
 			lbT2 = ""

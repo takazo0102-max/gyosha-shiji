@@ -107,3 +107,29 @@ class TestPlanDimensions(unittest.TestCase):
         south = data[0]
         self.assertAlmostEqual(south["direction"]["x"], 1.0)
         self.assertLess(south["referencePoint"]["y"], r.model.plan.edges[0].start_post[1] / 1000.0 - SPAN_DIM_OUT_M)
+
+
+class TestLabelPositions(unittest.TestCase):
+    def test_labels_keep_off_section_markers_and_corners(self):
+        """平面の GDL ラベルは断面図の切断線（とその端のマーカー）と面の両端を避けて置く."""
+        from ashiba.elevation_sections import label_text_width_m
+        from ashiba.gdl_params import (LABEL_AVOID_CUT_MM, LABEL_CORNER_MM, LABEL_TEXT_H_M, _cut_crossings,
+                                       label_positions, label_texts)
+
+        r = solve_all({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000})
+        south = r.model.plan.edges[0]
+        L = sum(south.spans)
+        cuts = _cut_crossings(r.model, south, r.stair_plan, r.openings, r.platforms)
+        self.assertTrue(cuts)
+        pos = label_positions(r.model, south, r.stair_plan, r.openings, r.platforms)
+        tx = label_texts(r.model)
+        w = (0.4 + max(label_text_width_m(tx["typeTxt"], LABEL_TEXT_H_M),
+                       label_text_width_m(tx["deckTxt"], LABEL_TEXT_H_M)) + 0.2) * 1000.0
+        a, b = pos["lblAt"], pos["lblAt"] + w                       # 南面は 180° 回さない（棚は終点の側へ）
+        self.assertGreaterEqual(a, LABEL_CORNER_MM)
+        self.assertLessEqual(b, L - LABEL_CORNER_MM)
+        for c in cuts:
+            self.assertFalse(a < c + LABEL_AVOID_CUT_MM and b > c - LABEL_AVOID_CUT_MM, (a, b, c))
+        g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("if lblAt >= 0 and lblAt / 1000 >= pxA and lblAt / 1000 <= pxB then lbAx = lblAt / 1000", g2)

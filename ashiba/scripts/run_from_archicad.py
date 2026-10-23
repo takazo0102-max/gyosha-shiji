@@ -574,6 +574,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         print(f"  敷地境界: {n}")
     groups = solve_groups(spec)
     _label0, r = groups[0]
+    if len(groups) > 1:
+        # 平面のラベルは、実際に描く切断線（先頭の組の断面図・全部の面の立面図）の端を避ける
+        from ashiba.gdl_params import drawn_section_lines
+
+        lines = drawn_section_lines(groups)
+        for _lb, rg in groups:
+            rg.model.section_lines_mm = lines
     write_outputs(r, OUT_DIR)
     write_sample_spec(OUT_DIR)
     result = result_dict(r, OUT_DIR)

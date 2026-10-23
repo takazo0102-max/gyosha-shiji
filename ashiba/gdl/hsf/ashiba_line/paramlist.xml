@@ -165,6 +165,18 @@
 			<Description><![CDATA["ラベル: 壁つなぎ（例: 壁つなぎ NK-3352II）。空なら「壁つなぎ」"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<RealNum Name="lblAt">
+			<Description><![CDATA["ラベル: 種類の位置 mm（面の始点から。-1 は面の 25%）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
+		<RealNum Name="lblTieAt">
+			<Description><![CDATA["ラベル: 壁つなぎの位置 mm（-1 は種類のラベルより先の最初の壁つなぎ）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
+		<RealNum Name="lblShAt">
+			<Description><![CDATA["ラベル: 養生の位置 mm（-1 は面の 70%）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
 		<String Name="sheetTxt">
 			<Description><![CDATA["ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない"]]></Description>
 			<Value><![CDATA[""]]></Value>

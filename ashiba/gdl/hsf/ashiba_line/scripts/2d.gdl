@@ -577,7 +577,9 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 	lbS = 1 - 2 * lbF
 	lbY = standoff + 0.9
 	! 足場の種類と幅（1行目）・作業床（2行目）
+	! 位置は Python が断面図の切断線の端・階段を避けて選ぶ（lblAt。-1 か、この部品の範囲の外なら面の 25%）
 	lbAx = pxA + (pxB - pxA) * 0.25
+	if lblAt >= 0 and lblAt / 1000 >= pxA and lblAt / 1000 <= pxB then lbAx = lblAt / 1000
 	lbAy = -rowW / 2
 	lbT1 = typeTxt
 	lbT2 = deckTxt
@@ -588,9 +590,13 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 	if strlen(lbT1) = 0 then lbT1 = "壁つなぎ"
 	tkW = stw(lbT1) * GLOB_SCALE / 1000 + 0.15
 	tkX = -1
-	for it = 1 to nTie
-		if tkX < 0 and min(ties[it], ties[it] + lbS * (0.4 + tkW)) > lbEnd + 0.3 and ties[it] < gxB - 0.001 then tkX = ties[it]
-	next it
+	if lblTieAt >= 0 and lblTieAt / 1000 >= pxA and lblTieAt / 1000 < gxB - 0.001 then
+		tkX = lblTieAt / 1000
+	else
+		for it = 1 to nTie
+			if tkX < 0 and min(ties[it], ties[it] + lbS * (0.4 + tkW)) > lbEnd + 0.3 and ties[it] < gxB - 0.001 then tkX = ties[it]
+		next it
+	endif
 	if tkX > 0 then
 		lbAx = tkX
 		lbAy = standoff / 2
@@ -603,6 +609,7 @@ if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
 		lbT1 = sheetTxt
 		shW = stw(sheetTxt) * GLOB_SCALE / 1000 + 0.15
 		lbAx = max(lbEnd + 0.5 + lbF * (0.4 + shW), pxA + (pxB - pxA) * 0.70)
+		if lblShAt >= 0 and lblShAt / 1000 >= pxA and lblShAt / 1000 <= pxB then lbAx = lblShAt / 1000
 		if max(lbAx, lbAx + lbS * (0.4 + shW)) < pxB - 0.3 then
 			lbAy = -rowW - 0.05
 			lbT2 = ""
