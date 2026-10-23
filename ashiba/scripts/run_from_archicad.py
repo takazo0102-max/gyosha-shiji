@@ -669,6 +669,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
                 prev2 = load_record(OUT_DIR)
                 cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
                                              stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
+                                             others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
                                              on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
                 save_record(OUT_DIR, cross, prev2, bkey, prefix)
                 if cross:

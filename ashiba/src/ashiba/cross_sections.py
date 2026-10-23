@@ -27,6 +27,7 @@ from .elevation_sections import (
 from .model import ScaffoldModel
 
 CROSS_SCALES = (50, 100, 200)   # 断面は 1/50 から（離れ・幅・手すりの高さが読める）
+PARALLEL_CLEAR_MM = 1500.0   # 切断線に平行な面の足場（離れ＋建地列）から切断線を離す
 CLEAR_MM = 3500.0          # 外側建地列から切断線の端まで（立面図と同じ余裕）
 FAR_EXTRA_MM = 1500.0      # 反対側の面の離れ＋幅を越える分
 SECTION_LETTERS = ("A", "B", "C", "D")
@@ -106,9 +107,22 @@ def choose_cuts(model: ScaffoldModel, stair_plan=None, openings=None, platforms=
     others = [e for e in edges if abs(direction(e)[0] * u0[0] + direction(e)[1] * u0[1]) < 0.5]
     picks = [first] + ([max(others, key=length)] if others else [])
     cuts = []
+    verts = [(float(x), float(y)) for x, y in model.plan.outline.vertices]
+    clear = max((float(e.standoff) for e in edges), default=300.0) + float(model.post_row_spacing_mm) + PARALLEL_CLEAR_MM
     for letter, ep in zip(SECTION_LETTERS, picks):
         ux, uy = direction(ep)
-        d = _cut_on_edge(ep, _avoid_ranges(model, ep.edge_index, stair_plan, openings, platforms))
+        avoid = _avoid_ranges(model, ep.edge_index, stair_plan, openings, platforms)
+        # 切断線に平行な外形の辺（入隅の面など）の足場に沿って切らない（L 字で B-B が入隅の北面の足場の上を
+        # 通り、断面図がその面の足場を縦に切った姿になった）
+        sx, sy = ep.start_post
+        for i in range(len(verts)):
+            (ax, ay), (bx, by) = verts[i], verts[(i + 1) % len(verts)]
+            L = math.hypot(bx - ax, by - ay)
+            if L < 1e-6 or abs(((bx - ax) * ux + (by - ay) * uy) / L) > 0.1:
+                continue                                       # この面と直交する（切断線と平行な）辺だけ
+            c = (ax - sx) * ux + (ay - sy) * uy
+            avoid.append((c - clear, c + clear))
+        d = _cut_on_edge(ep, avoid)
         sx, sy = ep.start_post
         cuts.append(CrossCut(letter, (sx + ux * d, sy + uy * d), (uy, -ux), ep.edge_index))
     return cuts
@@ -135,20 +149,29 @@ def cross_section_specs(model: ScaffoldModel, prefix: str = "足場", stair_plan
 def split_cross_specs(model: ScaffoldModel, specs: list[SectionSpec]) -> list[SectionSpec]:
     """建物を横切る断面を面ごとに分ける（足場の外 CLEAR_MM から躯体の内側 INSIDE_MM まで、向きは元のまま）.
     face_name は「A-A 南面」、name は「<prefix> 足場断面 A-A 南面」."""
+    return [s for s, _own in split_cross_specs_with_owner([(model,)], specs)]
+
+
+def split_cross_specs_with_owner(owners, specs: list[SectionSpec]) -> list[tuple[SectionSpec, tuple]]:
+    """split_cross_specs を面の組ごとの模型で（owners は (模型, …) の並び）→ [(面ごとの断面, その面の組)].
+
+    面ごとに足場を替えた建物で、先頭の組の模型だけで分けると替えた面の断面図が出なかった。
+    """
     out = []
     for sp in specs:
         ax = (sp.end_mm[0] - sp.start_mm[0]) / max(sp.length_mm, 1e-9)
         ay = (sp.end_mm[1] - sp.start_mm[1]) / max(sp.length_mm, 1e-9)
         s0 = section_x(sp, sp.start_mm)                         # 断面座標の始点（section_x は始点からではない）
-        for f in sorted(cut_faces(model, sp), key=lambda f: f.x_in):
+        faces = sorted(((f, tuple(own)) for own in owners for f in cut_faces(own[0], sp)), key=lambda x: x[0].x_in)
+        for f, own in faces:
             outer = 1.0 if f.x_out > f.x_wall else -1.0          # 断面座標で外側の向き
             a_m = f.x_out + outer * CLEAR_MM / 1000.0 - s0
             b_m = f.x_wall - outer * INSIDE_MM / 1000.0 - s0
             lo, hi = max(0.0, min(a_m, b_m)), min(sp.length_mm / 1000.0, max(a_m, b_m))
             st = (sp.start_mm[0] + ax * lo * 1000.0, sp.start_mm[1] + ay * lo * 1000.0)
             en = (sp.start_mm[0] + ax * hi * 1000.0, sp.start_mm[1] + ay * hi * 1000.0)
-            out.append(SectionSpec(f"{sp.face_name} {f.face_name}", f"{sp.name} {f.face_name}", st, en,
-                                   sp.depth_mm, (hi - lo) * 1000.0, f.edge_index))
+            out.append((SectionSpec(f"{sp.face_name} {f.face_name}", f"{sp.name} {f.face_name}", st, en,
+                                    sp.depth_mm, (hi - lo) * 1000.0, f.edge_index), own))
     return out
 
 
@@ -254,11 +277,13 @@ def cross_section_annotations(model: ScaffoldModel, spec: SectionSpec, terrain=N
 
 
 def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", previous: Optional[dict] = None,
-                         terrain=None, stair_plan=None, openings=None, platforms=None, on_sections=None) -> list:
+                         terrain=None, stair_plan=None, openings=None, platforms=None, on_sections=None,
+                         others=()) -> list:
     """断面 A-A・B-B を作り、注記を書いて、レイアウト「<prefix> 足場断面図」に1枚で置く.
 
     previous は前回の控え {断面名: 要素GUID}（立面図と同じ控え elevation_sections.json）。再実行で置き換える。
     戻り値は立面図と同じ ElevationPlacement の並び（face_name に "A-A" など）。
+    others は面の組（face_forms）のほかの組の (模型, 階段, 地盤)。切断線は先頭の組で決め、横切る面はどの組の面も。
     """
     from .elevation_sections import (
         ElevationPlacement, _place_on_one_sheet, _tree, activate_floor_plan, ensure_subset,
@@ -266,7 +291,9 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     )
 
     full = cross_section_specs(model, prefix, stair_plan, openings, platforms)
-    specs = split_cross_specs(model, full)
+    owned = split_cross_specs_with_owner([(model, stair_plan, terrain), *others], full)
+    specs = [s for s, _own in owned]
+    owner_of = {s.name: own for s, own in owned}
     if not specs:
         return []
     activate_floor_plan(client)
@@ -275,7 +302,7 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
     old_names = [s_.name for s_ in full] + [s_.name for s_ in specs]
     remove_elevations(client, old_names,
                       [cross_layout_name(prefix)] + [cross_sheet_name(prefix, f"{c}-{c}") + k for c in SECTION_LETTERS
-                                                     for k in ("", " 1", " 2")],
+                                                     for k in ("", " 1", " 2", " 3", " 4")],
                       [prev.get(n, "") for n in old_names])
     resp = client.tapir("CreateSections", {"sectionsData": [
         {"startCoordinate": {"x": s.start_mm[0] / 1000.0, "y": s.start_mm[1] / 1000.0},
@@ -310,8 +337,9 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
             if not open_section_window(client, pl.section_item_guid):
                 pl.notes.append("断面図のウィンドウが開かなかったので注記を置きませんでした（もう一度実行してください）")
                 continue
-            write_section_notes(client, cross_section_annotations(model, by_name[pl.section_name], terrain,
-                                                                  text_scale=est_scale, stair_plan=stair_plan))
+            om, osp, ot = owner_of[pl.section_name]
+            write_section_notes(client, cross_section_annotations(om, by_name[pl.section_name], ot,
+                                                                  text_scale=est_scale, stair_plan=osp))
         except Exception as ex:
             pl.notes.append(f"注記を置けませんでした: {ex}")
     activate_floor_plan(client)
@@ -332,7 +360,23 @@ def place_cross_sections(model: ScaffoldModel, client, prefix: str = "足場", p
         if _place_on_one_sheet(client, model, prefix, sp, pls, subset, master, annotate=True, name=name,
                                kind="足場断面図", scales=(DETAIL_SCALE,), panel_kind="cross", cuts=cuts):
             continue
-        for k, pl in enumerate(pls, start=1):
+        # 入らなければ2面ずつ（L 字で B-B が3面を横切ると1面ずつ3枚になっていた）、それでも入らない組は1面ずつ
+        rest, k = [], 0
+        if len(pls) > 2:
+            for g in range(0, len(pls), 2):
+                pair2 = pls[g:g + 2]
+                k += 1
+                if len(pair2) == 2 and _place_on_one_sheet(
+                        client, model, prefix, [by_name[pl.section_name] for pl in pair2], pair2, subset, master,
+                        annotate=True, name=f"{name} {k}", kind="足場断面図", scales=(DETAIL_SCALE,),
+                        panel_kind="cross", cuts=cuts):
+                    continue
+                k -= 1
+                rest += pair2
+        else:
+            rest = pls
+        for pl in rest:
+            k += 1
             one = f"{name} {k}" if len(pls) > 1 else name
             if _place_on_one_sheet(client, model, prefix, [by_name[pl.section_name]], [pl], subset, master,
                                    annotate=True, name=one, kind="足場断面図", scales=(DETAIL_SCALE,),

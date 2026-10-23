@@ -160,3 +160,34 @@ class TestSplitAt50(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGroupCrossSections(unittest.TestCase):
+    def test_switched_faces_get_their_half_of_the_cut(self):
+        """面ごとに足場を替えた建物でも、切断線が横切る替えた面の断面図を出す（先頭の組の面だけだった）."""
+        from ashiba.cli import solve_groups
+        from ashiba.cross_sections import cross_section_specs, split_cross_specs_with_owner
+
+        gs = solve_groups({**RECT, "face_forms": "北面=一側足場"})
+        (_l0, r0), (_l1, r1) = gs
+        full = cross_section_specs(r0.model, "X", r0.stair_plan, r0.openings, r0.platforms)
+        owned = split_cross_specs_with_owner([(r.model, r.stair_plan, r.terrain) for _l, r in gs], full)
+        names = [s.face_name for s, _own in owned]
+        north = [(s, own) for s, own in owned if s.face_name.endswith("北面")]
+        self.assertEqual(len(north), 1, names)
+        self.assertIs(north[0][1][0], r1.model)                     # 北面の注記は一側足場の組の模型で
+        self.assertEqual(len(names), 4)
+
+
+class TestCutAwayFromParallelFaces(unittest.TestCase):
+    def test_cut_does_not_run_along_an_inner_face(self):
+        """L 字で切断線が入隅の面の足場に沿って通らない（B-B が入隅の北面の足場の上を通っていた）."""
+        from ashiba.cross_sections import PARALLEL_CLEAR_MM, cross_section_specs
+
+        L = [[0, 0], [24000, 0], [24000, 8000], [12000, 8000], [12000, 16000], [0, 16000]]
+        r = solve_all({"outline_mm": L, "eaves_height_mm": 9000})
+        specs = {s.face_name: s for s in cross_section_specs(r.model, "X", r.stair_plan, r.openings, r.platforms)}
+        bb_y = specs["B-B"].start_mm[1]
+        aa_x = specs["A-A"].start_mm[0]
+        self.assertGreater(abs(bb_y - 8000), PARALLEL_CLEAR_MM)            # 入隅の北面(辺2)
+        self.assertGreater(abs(aa_x - 12000), PARALLEL_CLEAR_MM)           # 入隅の東面(辺3)

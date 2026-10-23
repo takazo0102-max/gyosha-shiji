@@ -167,7 +167,8 @@ def sheet_layout_names(prefix: str, n: int = 8) -> list[str]:
 def scaffold_layout_names(prefix: str, faces: Iterable[str] = ()) -> list[str]:
     """片付け用: この工事の足場のレイアウトの名前すべて（面ごとの立面・2面ごとの立面・平面・詳細・断面）.
     断面図は A-A などごと（cross_sections.cross_sheet_name）と、入らず面ごとに分けた「… 1」「… 2」も."""
-    cross = [f"{prefix} 足場断面図"] + [f"{prefix} 足場断面図 {c}-{c}{k}" for c in "ABCD" for k in ("", " 1", " 2")]
+    cross = [f"{prefix} 足場断面図"] + [f"{prefix} 足場断面図 {c}-{c}{k}" for c in "ABCD"
+                                     for k in ("", " 1", " 2", " 3", " 4")]
     return ([layout_name(prefix, f) for f in faces] + sheet_layout_names(prefix)
             + [f"{prefix} 足場平面図", f"{prefix} 足場詳細図"] + cross)
 

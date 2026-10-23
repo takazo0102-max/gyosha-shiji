@@ -220,12 +220,12 @@ def drawn_section_lines(groups) -> list[tuple]:
 
     断面図は先頭の組の模型で切り、立面図は全部の組の面ぶん（run_from_archicad と同じ）。
     """
-    from .cross_sections import cross_section_specs, split_cross_specs
+    from .cross_sections import cross_section_specs, split_cross_specs_with_owner
     from .elevation_sections import section_specs
 
     _l, r0 = groups[0]
-    out = [(s.start_mm, s.end_mm, -1) for s in split_cross_specs(
-        r0.model, cross_section_specs(r0.model, "x", r0.stair_plan, r0.openings, r0.platforms))]
+    full = cross_section_specs(r0.model, "x", r0.stair_plan, r0.openings, r0.platforms)
+    out = [(s.start_mm, s.end_mm, -1) for s, _own in split_cross_specs_with_owner([(r.model,) for _l, r in groups], full)]
     for _l, r in groups:
         out += [(s.start_mm, s.end_mm, s.edge_index) for s in section_specs(r.model, "x")]
     return out
