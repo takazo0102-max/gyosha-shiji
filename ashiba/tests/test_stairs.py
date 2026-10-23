@@ -427,10 +427,11 @@ class TestSingleRowStairsNeedADoubleRowSection(unittest.TestCase):
             p = Path(d) / "s.json"
             p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
             r = solve_all(load_spec(p))
-        self.assertTrue(r.stair_plan.towers)
-        hit = [w[2] for w in r.warnings if "階段枠" in w[2] and "収まりません" in w[2]]
-        self.assertEqual(len(hit), 1, r.warnings)
-        self.assertIn("本足場", hit[0])
+        # 一側（ブラケット）足場には階段を付けない（床の幅に階段枠が入らない。利用者の指摘 2026-10-23）。
+        # 昇降ははしご（外周 60m ごと）にして、そう書く
+        self.assertFalse(r.stair_plan.towers)
+        self.assertGreater(r.model.config.ladders, 0)
+        self.assertTrue(any("階段を付けられない寸法" in w for w in r.model.plan.warnings), r.model.plan.warnings)
 
 
 if __name__ == "__main__":

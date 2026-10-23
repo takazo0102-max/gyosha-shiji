@@ -38,7 +38,11 @@ class TestLevelQuantity(unittest.TestCase):
         r = solve_all({**RECT, "series_id": "nikken_nd1800"})
         lt = _lt(r)
         posts = {row.part.nominal_dim: row.per_level for row in lt.rows if row.part.category == "支柱"}
-        positions = r.model.plan.total_posts * 2 + r.model.outer_corner_posts()
+        from ashiba.quantity import outside_stair_counts
+
+        # 外付けの階段室（幅 610 の足場の階段は 600 枠 2 列）の 3 列目の支柱も
+        positions = (r.model.plan.total_posts * 2 + r.model.outer_corner_posts()
+                     + outside_stair_counts(r.model, r.stair_plan)[0])
         self.assertEqual(posts[2700][0], positions)
         self.assertEqual(sum(posts[3600]), positions * r.model.elevation.posts.count(3600))
         self.assertEqual(posts[3600][0], 0)

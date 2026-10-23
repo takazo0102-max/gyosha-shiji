@@ -80,9 +80,12 @@ class TestBracketScaffold(unittest.TestCase):
         self.assertFalse([ln for ln in r.quantity.lines if ln.part and "階段" in ln.part.category])
         self.assertTrue(any("階段は入らない" in w for w in r.model.plan.warnings))
         self.assertEqual(_check(r, 12).status, "OK")                    # はしご等で昇降設備あり
-        # 支柱のブラケット足場（くさび）は従来どおり階段を置く
+        # 支柱のブラケット足場（くさび）も階段を付けられない寸法（利用者の指摘 2026-10-23）。はしごを外周から入れる
         k = solve_all({**BASE, "series_id": "shinwa_A", "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})
-        self.assertFalse(k.model.no_stair_tower)
+        self.assertTrue(k.model.no_stair_tower)
+        self.assertFalse(k.stair_plan.towers)
+        self.assertGreater(k.model.config.ladders, 0)
+        self.assertEqual(_check(k, 12).status, "OK")
 
     def test_post_bracket_keeps_the_series(self):
         r = solve_all({**BASE, "series_id": "shinwa_A", "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})

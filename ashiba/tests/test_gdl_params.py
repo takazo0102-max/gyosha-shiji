@@ -1065,8 +1065,17 @@ class TestFaceDrawnCounts(unittest.TestCase):
         widths = list(m.deck_widths_in_use)
         # 出隅コーナーの床（長さ＝建地列間隔の踏板）は面の図示本数に入らない（幅木と同じ扱い）
         corner_decks = m.outer_corner_posts() * m.elevation.n_levels * len(widths)
-        self.assertEqual(tot["qtyDeck"] * len(widths), q.qty_of(m.master.deck_category) - corner_decks)
-        self.assertEqual(tot["qtyToe"], q.qty_of("幅木") - m.outer_corner_posts() * 2 * m.elevation.n_levels)
+        # 外付けの階段室（幅 900 未満の足場の階段は 600 枠 2 列で外に組む）の床も面の部品の外
+        from ashiba.quantity import outside_stair_counts
+
+        out_pos, out_cells = outside_stair_counts(m, r.stair_plan)
+        self.assertGreater(out_pos, 0)
+        self.assertEqual(tot["qtyDeck"] * len(widths),
+                         q.qty_of(m.master.deck_category) - corner_decks - out_cells * len(widths))
+        from ashiba.stairs import tower_spans
+
+        out_toe = sum(len(tower_spans(m, t)) * m.elevation_of(t.edge_index).n_levels for t in r.stair_plan.towers)
+        self.assertEqual(tot["qtyToe"], q.qty_of("幅木") - m.outer_corner_posts() * 2 * m.elevation.n_levels - out_toe)
         # 布材（面に沿う分）: 数量表の1スパンあたりの式と同じ
         rules = QuantityRules()
         per_span = rules.ledgers_negarami + m.elevation.n_levels * (rules.ledgers_per_level_floor + rules.rails_per_level_outer + 2)
@@ -1293,7 +1302,8 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         self.assertIn('qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))', d1)
         from ashiba.cli import solve_all
 
-        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                "scaffold_width_mm": 914}                      # 足場の中の階段（900 枠）
         with_st = solve_all(base)
         no_st = solve_all({**base, "stairs": {"count": 0}})
         n_open = with_st.model.elevation.n_levels * len(with_st.stair_plan.towers)

@@ -7,8 +7,10 @@ from _path import SRC  # noqa: F401
 from ashiba.cli import solve_all
 from ashiba.gdl_params import face_drawn_counts, line_params
 
+# 足場の中にも外付けにも階段を組める幅 914（900 枠）で比べる。幅 610 の足場の中には組めない（下の
+# TestStairsNeed900OrDoubleRow。利用者の指定 2026-10-23: 階段は 900 枠か 600 枠 2 列）
 RECT = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000,
-        "series_id": "nikken_nd1800"}
+        "series_id": "nikken_nd1800", "scaffold_width_mm": 914}
 
 
 def _qty(r):
@@ -35,6 +37,16 @@ class TestLayoutChoice(unittest.TestCase):
     def test_frame_series_stays_inside(self):
         r = solve_all({**RECT, "series_id": "waku", "stairs": {"layout": "outside"}})
         self.assertFalse(r.stair_plan.outside)
+
+
+class TestStairsNeed900OrDoubleRow(unittest.TestCase):
+    def test_610_wide_scaffold_puts_the_stair_outside(self):
+        r = solve_all({**RECT, "scaffold_width_mm": 610, "stairs": {"layout": "inside"}})
+        self.assertTrue(r.stair_plan.outside)                      # 600 枠 2 列（外側にもう 1 列）
+        self.assertTrue(any("600 枠 2 列" in w for w in r.stair_plan.warnings))
+        self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))
+        wide = solve_all(dict(RECT))                                # 914 は足場の中（900 枠）
+        self.assertFalse(wide.stair_plan.outside)
 
 
 class TestOutsideQuantities(unittest.TestCase):

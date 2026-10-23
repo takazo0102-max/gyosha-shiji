@@ -11,7 +11,8 @@ from ashiba.gdl_params import GDL_ARRAY_CAP, face_drawn_counts, line_params
 from ashiba.member_edits import cell_parts
 
 RECT = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000,
-        "series_id": "nikken_nd1800", "stairs": {"count": 1, "positions": [{"face": "北面", "start_mm": 3600}]}}
+        "series_id": "nikken_nd1800", "scaffold_width_mm": 914,
+        "stairs": {"count": 1, "positions": [{"face": "北面", "start_mm": 3600}]}}
 ROOT = Path(__file__).resolve().parents[1]
 
 

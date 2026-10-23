@@ -132,6 +132,7 @@ from .report import (
 )
 from .stairs import (
     DEFAULT_MAX_TRAVEL_MM,
+    MIN_HEIGHT_FOR_STAIRS_MM,
     auto_place_stairs,
     place_stairs_at,
     validate_stairs,
@@ -1113,6 +1114,21 @@ def build_openings(spec: dict) -> list:
     ]
 
 
+def _tight_faces_for_outside(model: ScaffoldModel, clearances) -> dict[int, list[tuple[float, float]]]:
+    """外付けの階段に足場の外の空き（建地列の間隔＋余裕）が足りない面 → 面全体を避ける区間に.
+
+    空いた面が1つも無ければ避けない（どこかに置いて、空きが足りない注意を出す）。
+    """
+    from .stairs import OUTSIDE_SPACE_MARGIN_MM
+
+    need = float(model.post_row_spacing_mm) + OUTSIDE_SPACE_MARGIN_MM
+    tight = {c.edge_index for c in clearances or [] if c.min_mm < need}
+    roomy = {e.edge_index for e in model.plan.edges} - tight
+    if not tight or not roomy:
+        return {}
+    return {e.edge_index: [(0.0, float(e.scaffold_length))] for e in model.plan.edges if e.edge_index in tight}
+
+
 def _merge_ranges(*maps: dict) -> dict[int, list[tuple[float, float]]]:
     """辺ごとの区間一覧を結合する（階段室の自動配置が避ける区間）."""
     out: dict[int, list[tuple[float, float]]] = {}
@@ -1402,8 +1418,8 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
                    for t in (getattr(r.stair_plan, "towers", None) or [])]
     if stair_faces:
         for k, ((label, sub), (_l, r)) in enumerate(zip(groups, out)):
-            if not getattr(r.stair_plan, "towers", None) and any(
-                    c.check_id == 12 and c.status != "OK" for c in r.checks):
+            if not getattr(r.stair_plan, "towers", None) and (getattr(r.model, "auto_ladders", False) or any(
+                    c.check_id == 12 and c.status != "OK" for c in r.checks)):
                 out[k] = (label, solve_all({**sub, "stairs_elsewhere": list(dict.fromkeys(stair_faces))}, master_csv))
     return out
 
@@ -1529,10 +1545,20 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
     hug_no_stairs = model.no_stair_tower and not st.get("positions") and not st.get("count")
     if hug_no_stairs:
-        # 単管抱き足場（布2本の床）・単管のブラケット足場（足場板1列）に階段は入らない。昇降ははしご等を別に
-        # （数量・図に階段を出さない。利用者の指摘 2026-10-22: 階段はつけれない）
+        # 単管抱き足場（布2本の床）・ブラケット足場（一側）に階段は入らない。昇降はほかの面の階段か、はしご等を別に
+        # （数量・図に階段を出さない。利用者の指摘 2026-10-22・23: 階段はつけれない寸法）
         stair_plan = auto_place_stairs(model, max_travel_mm=st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM),
                                        tower_spans=tspans, count=0)
+        if (not model.config.ladders and not model.stairs_elsewhere
+                and model.scaffold_height_mm > MIN_HEIGHT_FOR_STAIRS_MM):
+            # ほかの面の階段も、入力のはしごも無い → はしごを外周 60m ごとに1箇所（水平移動 30m 以内）
+            per = sum(float(e.scaffold_length) for e in model.plan.edges)
+            model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
+            model.auto_ladders = True
+            model.plan.warnings.append(
+                f"{model.config.form_label}は階段を付けられない寸法（床の幅に階段枠が入らない）なので、昇降は"
+                f"はしご {model.config.ladders}箇所（水平移動 30m 以内）にしました。独立の階段（900 枠か 600 枠 2 列）を"
+                "別に立てる場合は stairs で位置を指定してください")
     elif st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
         stair_plan = place_stairs_at(
@@ -1550,7 +1576,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             # 移動距離から自動算出（n_stairs は既定値1なので、明示時だけ効かせる）
             count=st.get("count"),
             min_per_face=st.get("min_per_face", 0),
-            avoid=_merge_ranges(opening_ranges(openings), platform_ranges(model, platforms)),
+            avoid=_merge_ranges(opening_ranges(openings), platform_ranges(model, platforms),
+                                _tight_faces_for_outside(model, clearances) if outside else {}),
             # 外付けは足場の外に出るので、上り口・降り口のスパンがコーナーに掛かってよい
             corner_gap=0 if outside else 1,
         )

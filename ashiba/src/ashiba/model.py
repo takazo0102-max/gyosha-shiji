@@ -394,11 +394,12 @@ class ScaffoldModel:
 
     @property
     def no_stair_tower(self) -> bool:
-        """階段が入らない足場の形式. 単管抱き足場（布2本の床）と単管のブラケット足場（足場板1列）.
+        """階段が入らない足場の形式. 単管抱き足場（布2本の床）と、ブラケット足場（一側。床は 1 列）.
 
-        利用者の指摘（2026-10-22）: 単管のブラケット足場に階段はつけれない。昇降ははしご等を別に（入力 ladders）
+        利用者の指摘（2026-10-22）: 単管のブラケット足場に階段はつけれない。2026-10-23: くさびのブラケットの足場にも
+        階段はつけれない寸法（床 400 に階段枠 450 は入らない）。昇降はほかの面の階段か、はしご等を別に（入力 ladders）
         """
-        return self.config.is_hug or (self.master.is_tube and self.config.scaffold_form == "一側足場")
+        return self.config.is_hug or self.config.scaffold_form == "一側足場"
 
     @property
     def tie_post_offset_mm(self) -> float:

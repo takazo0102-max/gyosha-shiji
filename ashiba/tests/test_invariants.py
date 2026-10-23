@@ -101,6 +101,11 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     corner = sum(1 for e in r.model.plan.outline.edges
                                  if e.start_corner == "出隅") * r.model.elevation.n_levels
                     per_width = {w: n - corner for w, n in per_width.items()}
+                # 外付けの階段室の床（上り口・降り口・階段の脇。幅 900 未満の足場の階段は外付け）もセル数の外
+                from ashiba.quantity import outside_stair_counts
+
+                _pos, out_cells = outside_stair_counts(r.model, r.stair_plan)
+                per_width = {w: n - out_cells for w, n in per_width.items()}
                 # 標準幅（ステージ等の追加が無い幅）はセル数と一致する。作業床が1枚敷き（日建の幅610は 500 の
                 # 1枚）だとステージ・ブラケットの追加もその幅に入るので、セル数以上であればよい
                 if len(per_width) == 1:
@@ -113,7 +118,11 @@ class TestCrossCuttingInvariants(unittest.TestCase):
             with self.subTest(name):
                 m = r.model
                 rows = 1 if m.config.scaffold_form == "一側足場" else 2
-                feet = m.plan.total_posts * rows + m.outer_corner_posts() - r.openings.removed_posts
+                from ashiba.quantity import outside_stair_counts
+
+                # 外付けの階段室の 3 列目の支柱もジャッキを1つずつ
+                feet = (m.plan.total_posts * rows + m.outer_corner_posts() - r.openings.removed_posts
+                        + outside_stair_counts(m, r.stair_plan)[0])
                 jacks = sum(l.qty for l in r.quantity.lines
                             if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
                 self.assertEqual(jacks, feet, name)

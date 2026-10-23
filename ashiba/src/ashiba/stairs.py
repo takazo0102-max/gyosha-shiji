@@ -434,6 +434,7 @@ STAIR_LAYOUTS = {"inside": "inside", "内": "inside", "中": "inside", "足場�
                  "outside": "outside", "外付け": "outside", "外": "outside", "3列": "outside", "4列": "outside",
                  "auto": "auto", "自動": "auto"}
 OUTSIDE_SPACE_MARGIN_MM = 600    # 外付けにするには、足場の外に建地列の間隔＋この余裕が要る
+STAIR_INSIDE_MIN_ROW_MM = 900    # 足場の中に階段を組める幅（900 枠）。それより狭いと外付け（600 枠 2 列）
 
 
 def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tuple[bool, str]:
@@ -442,6 +443,15 @@ def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tu
     if model.master.is_frame or model.config.scaffold_form == "一側足場":
         return False, ("枠組・一側足場は階段を足場の中に組みます（外付けの指定は使いません）" if kind == "outside" else "")
     need = model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
+    # 階段は 900 枠の中か、600 枠 2 列（利用者の指定 2026-10-23）。幅 900 未満の本足場の中に階段枠（幅 450）を
+    # 入れると、昇り口の脇を人が通れない → 外付け（外側建地列の外にもう 1 列）にする
+    if model.post_row_spacing_mm < STAIR_INSIDE_MIN_ROW_MM:
+        if clearance_mm < need:
+            return True, (f"幅 {model.post_row_spacing_mm:.0f} の足場の階段は外付け（600 枠 2 列）にしますが、足場の外の空き"
+                          f" {clearance_mm:.0f}mm は外付けに要る {need:.0f}mm より狭いです（幅 900 の足場にするか、"
+                          "階段の位置を空いた面へ）")
+        return True, ("" if kind != "inside" else
+                      f"幅 {model.post_row_spacing_mm:.0f} の足場の中に階段は組めないので外付け（600 枠 2 列）にしました")
     if kind == "outside":
         if clearance_mm < need:
             return True, (f"階段を外付けにしましたが、足場の外の空き {clearance_mm:.0f}mm は"

@@ -1306,6 +1306,27 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
                  f"面ごとに {area:.0f}m²・{n}枚で計上" + ("" if part is not None else "（系列のマスタに無いので別途手配）"))
 
 
+def outside_stair_counts(model: ScaffoldModel, stair_plan) -> tuple[int, int]:
+    """外付けの階段室の (支柱位置の数, 床のセル数（床の幅1列あたり）). 外付けでなければ (0, 0)."""
+    if stair_plan is None or not stair_plan.towers or not getattr(stair_plan, "outside", False):
+        return 0, 0
+    from .stairs import flight_span_index, flight_spans, tower_spans
+
+    n_pos = n_cells = 0
+    for t in stair_plan.towers:
+        ts = tower_spans(model, t)
+        if not ts:
+            continue
+        first, fl = flight_spans(model, t, True)
+        n_lv = model.elevation_of(t.edge_index).n_levels
+        n_pos += len(ts) + 1
+        for i, _sp in enumerate(ts):
+            j = i - first
+            n_cells += sum(1 for k in range(1, n_lv + 1)
+                           if not (0 <= j < len(fl)) or (len(fl) > 1 and j != flight_span_index(k, len(fl))))
+    return n_pos, n_cells
+
+
 def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
     """外付けの階段室: 外側建地列の外に建地1列（3列目）を立て、区間を 上り口＋階段2スパン＋降り口 にする.
 
@@ -1346,6 +1367,9 @@ def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
         for p in m.by_category("支柱附属"):
             if "最下部" in p.note:
                 add(p, pos * _units_per_place(p), f"{p.model_no}（外付け階段の支柱最下部）")
+            elif "継ぎ目" in p.note:
+                # 支柱を継ぐ金具（NDストロングの NSジョイント）も本体と同じく継ぎ目ごとに（抜けていた）
+                add(p, pos * max(0, len(ev.posts) - 1), f"{p.model_no}（外付け階段の支柱の継ぎ目）")
         add(m.find("布材", row), pos * (n_lv + 1), f"腕木（外付け階段、布材{row}）")
         add(m.find("布材", row), 2 * 2 * n_lv, f"外付け階段の妻側の手すり・中桟（布材{row}）")
         cells: dict[int, int] = {}

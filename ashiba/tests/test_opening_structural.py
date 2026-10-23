@@ -115,9 +115,12 @@ class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):
         self.assertGreater(r.openings.removed_posts, 0)
         expect = r.model.plan.total_posts * 2 + r.model.outer_corner_posts() - r.openings.removed_posts
         self.assertEqual(r.structural.post.n_posts, expect)
+        from ashiba.quantity import outside_stair_counts
+
+        # ジャッキは外付けの階段室の 3 列目の支柱の分だけ多い（本体の建地の荷重の分担には入れない）
         jacks = sum(l.qty for l in r.quantity.lines
                     if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
-        self.assertEqual(r.structural.post.n_posts, jacks)
+        self.assertEqual(r.structural.post.n_posts + outside_stair_counts(r.model, r.stair_plan)[0], jacks)
 
 
 if __name__ == "__main__":
