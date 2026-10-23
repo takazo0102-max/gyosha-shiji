@@ -699,6 +699,14 @@ def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
 SCAFFOLD_FORMS = ("本足場", "一側足場", "ブラケット足場", "抱き足場", "単管抱き足場")
 
 
+def narrow_width_mm(master):
+    """本足場のいちばん細い幅（くさび: 床を載せられる最小の腕木＝布材 500 以上の最小）. 単管・枠組は None（既定のまま）."""
+    if master.is_tube or master.is_frame:
+        return None
+    rows = [p.nominal_dim for p in master.by_category("布材") if p.nominal_dim >= 500]
+    return int(min(rows)) if rows else None
+
+
 def bracket_for_deck(master, deck_w):
     """一側足場の床受けブラケット: 床の幅以上でいちばん短い品（張出用・内ブラケットを除く。数量と同じ選び方）."""
     return next((p for p in sorted(master.by_category("ブラケット"), key=lambda q: q.nominal_dim)
@@ -864,6 +872,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     deck_ws = tuple(spec["deck_widths"]) if spec.get("deck_widths") else None
     row_mm = None
     width_mm = spec.get("scaffold_width_mm")
+    if spec.get("_narrow") and not width_mm:
+        width_mm = narrow_width_mm(master)
     if width_mm:
         w_row, auto_ws = master.width_setup(int(width_mm))
         if not master.is_frame:
@@ -1472,6 +1482,15 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
             if not getattr(r.stair_plan, "towers", None) and (getattr(r.model, "auto_ladders", False) or any(
                     c.check_id == 12 and c.status != "OK" for c in r.checks)):
                 out[k] = (label, solve_all({**sub, "stairs_elsewhere": list(dict.fromkeys(stair_faces))}, master_csv))
+                continue
+            # 切り替えた組（境界に合わせた狭い面など）の階段が敷地境界に当たるなら、ほかの組の階段を使う
+            # （2026-10-24: 道路側を本足場（狭い幅）にしたら、その面に外付け階段を置いて道路境界に当たった）
+            others = [f for f in stair_faces if f not in {r.model.face_name(t.edge_index)
+                                                           for t in (r.stair_plan.towers or [])}]
+            hit = [c for c in r.conflicts if c.severity == "NG" and "階段" in c.message]
+            if label and others and hit and not (sub.get("stairs") or {}).get("positions"):
+                out[k] = (label, solve_all({**sub, "stairs": {**(sub.get("stairs") or {}), "count": 0},
+                                            "stairs_elsewhere": list(dict.fromkeys(others))}, master_csv))
     return out
 
 

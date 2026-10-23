@@ -15,6 +15,9 @@ from typing import Optional
 # 切り替えられる足場の種類 → 入力に重ねる値。series_id を持つ種類は系列も替える（module は外す）
 FACE_FORM_SPECS: dict[str, dict] = {
     "本足場": {"scaffold_form": "本足場"},
+    # 系列でいちばん細い建地間隔の本足場（くさびは床を載せられる最小の腕木。日建 610・信和 600）。敷地境界に収める
+    # とき、一側足場にする前に試す（利用者の指定 2026-10-24 の流れ: 1m 以上空くなら本足場が原則）
+    "本足場（狭い幅）": {"scaffold_form": "本足場", "_narrow": True},
     "一側足場": {"scaffold_form": "一側足場"},
     "ブラケット足場（支柱）": {"scaffold_form": "ブラケット足場", "bracket_post": "支柱"},
     "ブラケット足場（単管）": {"scaffold_form": "ブラケット足場", "bracket_post": "単管"},
@@ -93,7 +96,8 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             # 系列を替える組はモジュール（インチ／メートル）の指定も外す（枠組・単管はメートル）
             sub.pop("module", None)
         sub.update(over)
-        if over.get("scaffold_form") == "ブラケット足場" and over.get("bracket_post") == "支柱":
+        if over.get("_narrow") or (over.get("scaffold_form") in ("ブラケット足場", "一側足場")
+                                   and over.get("bracket_post", "支柱") == "支柱" and "series_id" not in over):
             # ブラケット足場はハーフアンチ1枚の狭い足場（利用者の指定 2026-10-24）。本体の幅・作業床の指定は継がない
             sub.pop("scaffold_width_mm", None)
             sub.pop("deck_widths", None)

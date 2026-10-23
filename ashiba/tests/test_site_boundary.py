@@ -160,3 +160,24 @@ class TestSubsetFaceDirection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNarrowFullScaffoldFirst(unittest.TestCase):
+    """境界に収めるときは、一側足場の前に本足場（いちばん細い幅）を試す（1m 以上空くなら本足場が原則。
+    2026-10-24 実機: 幅 914 が道路境界 1200 に入らず一側→単管抱き足場にしていた）."""
+
+    def test_road_side_becomes_a_narrow_full_scaffold(self):
+        from ashiba.cli import solve_groups
+        from ashiba.site_boundary import plan_within_boundary
+
+        bnd_ = [[-1500, -1200], [27000, -1200], [27000, 14000], [-1500, 14000]]
+        sp, notes = plan_within_boundary({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd_,
+                                          "road_edges": [0], "scaffold_width_mm": 914})
+        self.assertEqual(sp["face_forms"], "南面=本足場（狭い幅）")
+        runs = solve_groups(sp)
+        narrow = next(r for lb, r in runs if lb == "本足場（狭い幅）")
+        self.assertEqual(narrow.model.config.scaffold_form, "本足場")
+        self.assertEqual(narrow.model.post_row_spacing_mm, 610)
+        self.assertFalse(narrow.stair_plan.towers)                    # 階段はほかの組の面のものを使う
+        for _lb, r in runs:
+            self.assertEqual(r.verdict["blockers"], [], _lb)

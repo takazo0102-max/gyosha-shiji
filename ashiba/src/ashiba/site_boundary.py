@@ -225,7 +225,31 @@ def read_boundary_from_archicad(client, outline_mm) -> tuple[list[tuple[float, f
 
 
 # 境界を越える面を、張り出しの小さい形式に順に替える（一側足場は建地1列、単管抱き足場は建地の線の上だけ）
-FIT_FORMS = ("一側足場", "単管抱き足場")
+FIT_FORMS = ("本足場（狭い幅）", "一側足場", "単管抱き足場")
+
+
+def _narrow_helps(spec: dict) -> bool:
+    """本足場（狭い幅）にして細くなるか（指定の幅が系列のいちばん細い幅より広い）."""
+    try:
+        from .cli import narrow_width_mm, resolve_series_id
+        from .master import load_master
+
+        nw = narrow_width_mm(load_master(resolve_series_id(spec)))
+    except Exception:  # noqa: BLE001 — 系列が引けなければ試さない
+        return False
+    w = spec.get("scaffold_width_mm")
+    if nw is None:
+        return False
+    if w:
+        return int(w) > nw
+    # 幅の指定が無い: 既定の幅（系列の既定の床）がいちばん細い幅より広ければ
+    from .cli import build_model
+
+    try:
+        m = build_model({k: v for k, v in spec.items() if k not in ("face_forms", "form_standoff")})
+    except Exception:  # noqa: BLE001
+        return False
+    return m.config.scaffold_form == "本足場" and m.post_row_spacing_mm > nw
 
 
 def _corner_side(fc: "FaceClearance", length_mm: float, tol_mm: float = 1.0) -> int:
@@ -306,9 +330,12 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         ff = parse_face_forms(spec.get("face_forms"))
         changed = False
         tighten: dict[str, float] = {}
+        narrow_ok = _narrow_helps(spec)
         for face, wall_to_bnd in bad.items():
             cur = ff.get(face, "")
             i = FIT_FORMS.index(cur) + 1 if cur in FIT_FORMS else 0
+            if i == 0 and not narrow_ok:
+                i = 1                                   # 細くならないなら一側足場から
             if i < len(FIT_FORMS):
                 ff[face] = FIT_FORMS[i]
                 notes.append(f"{face}: 敷地境界を越えるので {FIT_FORMS[i]} にしました（{rnd}回目）")
