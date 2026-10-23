@@ -452,6 +452,7 @@ class TestLaddersWhenNoStairFits(unittest.TestCase):
         self.assertEqual(len(r.model.hatch_ladders), 1)
         self.assertEqual(next(c for c in r.checks if c.check_id == 12).status, "OK")
         self.assertTrue(any("階段室" in w and "ハッチ付布板" in w for w in r.model.plan.warnings))
+        self.assertFalse(r.stair_plan.warnings)                          # 階段室を置けなかった文は残さない
         q = {l.part.model_no: l.qty for l in r.quantity.lines}
         n_lv = r.model.elevation.n_levels
         self.assertEqual(q.get("NDN6TA"), n_lv)

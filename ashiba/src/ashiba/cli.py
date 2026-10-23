@@ -1643,6 +1643,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         per = sum(float(e.scaffold_length) for e in model.plan.edges)
         model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
         model.auto_ladders = True
+        # 階段室を置こうとして出た「置けない・昇降設備が無い」の文は、昇降口・はしごに替えたので外す
+        stair_plan.warnings = []
         # くさびの本足場は、ハッチ付布板（梯子内蔵。日建 NDN6TA）で昇降口を作る（はしごを別に立てない。現場の定番）
         from .stairs import hatch_part, place_hatch_ladders
 
