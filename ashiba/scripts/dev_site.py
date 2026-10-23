@@ -9,6 +9,7 @@
   python3 scripts/dev_site.py boundary [--at ...] [--road ...] ...  # 境界線だけ引き直す（建物はそのまま）
   python3 scripts/dev_site.py place  [--at ...] [条件の JSON を ASHIBA_SPEC で]
   python3 scripts/dev_site.py clear  [--at ...]      # 作った境界線を消す（足場は remove_from_archicad で）
+  python3 scripts/dev_site.py zoom   [--at ...]      # 平面図をこの建物の足場に合わせる（place の後にも自動で）
 建物は 24m×10m（--size 24000x10000）。--shape L で北東を欠いた L 字。境界までの距離は躯体の面から。
 """
 
@@ -94,7 +95,26 @@ def place(s: dict) -> int:
         spec.update(json.loads(Path(extra).read_text(encoding="utf-8")))
     run_from_archicad.main(outline_mm=s["building"], spec_override=spec, use_spec_object=False, fill_title=False,
                            out_dir=ROOT / "out" / "dev_site")
+    zoom_to_building(ArchicadClient(timeout=60), s)
     return 0
+
+
+def zoom_to_building(c: ArchicadClient, s: dict) -> None:
+    """平面図をこの建物の足場に合わせる（建物は原点から離れた所に置くので、開いたままだと何も映らない）."""
+    from ashiba.elevation_sections import activate_floor_plan
+
+    activate_floor_plan(c)
+    els = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+    xs = [p[0] for p in s["building"]]
+    ys = [p[1] for p in s["building"]]
+    mine = []
+    for e, d in zip(els, c.get_details(els) if els else []):
+        o = (d.get("details") or {}).get("origin") or {}
+        x, y = float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0
+        if min(xs) - 5000 <= x <= max(xs) + 5000 and min(ys) - 5000 <= y <= max(ys) + 5000:
+            mine.append(e)
+    if mine:
+        c.tapir("FitInWindow", {"elements": mine})
 
 
 def clear(c: ArchicadClient, s: dict) -> None:
@@ -137,6 +157,8 @@ def main() -> int:
     elif cmd == "boundary":
         clear(c, s)
         create_boundary(c, s)
+    elif cmd == "zoom":
+        zoom_to_building(c, s)
         print("境界線を引き直しました", json.dumps(s["boundary"]))
     else:
         print(__doc__)
