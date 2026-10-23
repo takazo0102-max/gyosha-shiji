@@ -141,6 +141,7 @@
 !   cutAtX          長さ    縦に区切る位置（3Dの上端のつまみで引く。次の支柱に吸着。0＝区切らない）                                   既定 0
 !   cutAtZ          長さ    横に区切る位置（3Dの始点のつまみで引く。次の作業床に吸着。0＝区切らない）                                 既定 0
 !   editList        文字列  外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」      既定 ""
+!   hatchList       文字列  ハッチ付布板（梯子内蔵）の昇降口のスパン番号（1〜、カンマ区切り）                                         既定 ""
 !   stairList       文字列  階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）                                                   既定 ""
 !   asagaoList      文字列  朝顔の設置高さ mm カンマ区切り（GLから）                                                                  既定 ""
 !   asaCutList      文字列  朝顔を切り欠く区間 mm 「開始,終了」の繰り返し（昇降機の通る位置）                                         既定 ""
@@ -184,6 +185,7 @@ dim shO[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
+dim htI[16]
 dim asa[8]
 dim cutS[8]
 dim cutE[8]
@@ -604,6 +606,25 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- hatchList をパース（ハッチ付布板の昇降口のスパン番号） ----
+nHt = 0
+rest = hatchList
+while strlen(rest) > 0 and nHt < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nHt = nHt + 1
+		htI[nHt] = v
 	endif
 endwhile
 
@@ -1580,6 +1601,35 @@ if cornerS = 1 and sA = 1 then
 		endif
 	endif
 endif
+
+! ハッチ付布板（梯子内蔵）の昇降口: 外側の板の位置に蓋（600×450）と梯子の踏ざん
+for ih = 1 to nHt
+	kq = htI[ih]
+	if kq >= 1 and kq <= nSpan then
+		hx0 = 0
+		for iq = 1 to kq - 1
+			hx0 = hx0 + spans[iq]
+		next iq
+		if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+			hxm = hx0 + spans[kq] / 2
+			hym = -rowW + 0.05 + deckW1 / 2
+			rect2 hxm - 0.30, hym - 0.225, hxm + 0.30, hym + 0.225
+			line2 hxm - 0.25, hym - 0.17, hxm - 0.25, hym + 0.17
+			line2 hxm - 0.15, hym - 0.17, hxm - 0.15, hym + 0.17
+			for rg = 0 to 3
+				line2 hxm - 0.25, hym - 0.15 + rg * 0.10, hxm - 0.15, hym - 0.15 + rg * 0.10
+			next rg
+			if showDim then
+				set style "annoC"
+				tdx = hxm + 0.10
+				tdy = hym
+				tdt = "昇降口"
+				gosub 985
+				set style "anno"
+			endif
+		endif
+	endif
+next ih
 
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
 for it2 = 1 to nSt
@@ -3725,6 +3775,50 @@ if showDeck then
 			x = x + spans[ip]
 		next ip
 	next il
+endif
+
+! ---- ハッチ付布板（梯子内蔵。日建 NDN6TA）の昇降口: 階段室が入らない小さい足場（利用者の指摘 2026-10-24 の続き）----
+! 外側の板（幅 deckW1）の位置で、各層の床にハッチの蓋（600×450）、その下に下の層まで梯子
+if showDeck and nHt > 0 then
+	define material "ashiba_hatch_alu" 2, 0.78, 0.80, 0.82
+	for ih = 1 to nHt
+		kq = htI[ih]
+		if kq >= 1 and kq <= nSpan then
+			hx0 = 0
+			for iq = 1 to kq - 1
+				hx0 = hx0 + spans[iq]
+			next iq
+			if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+				hxm = hx0 + spans[kq] / 2
+				hym = -rowW + 0.05 + deckW1 / 2
+				for il = 2 to nLv
+					z = lv[il]
+					zt = z + r_nuno + 0.045
+					material "ashiba_hatch_alu"
+					add hxm - 0.30, hym - 0.225, zt
+					block 0.60, 0.45, 0.006
+					del 1
+					! 梯子（ハッチの下から下の層の床まで。踏ざん 300 ピッチ）
+					zb = lv[il - 1] + r_nuno + 0.045
+					if il = 2 then zb = 0
+					for sr = -1 to 1 step 2
+						add hxm - 0.20, hym + sr * 0.17, zb
+						cylind zt - zb, 0.012
+						del 1
+					next sr
+					zr = zb + 0.30
+					while zr < zt - 0.05 do
+						add hxm - 0.20, hym - 0.17, zr
+						rotx -90
+						cylind 0.34, 0.010
+						del 2
+						zr = zr + 0.30
+					endwhile
+				next il
+				if matScaf > 0 then material matScaf
+			endif
+		endif
+	next ih
 endif
 
 ! ---- ブレス（外側構面、交さ2方向＝X） ----

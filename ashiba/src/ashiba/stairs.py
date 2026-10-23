@@ -640,3 +640,46 @@ def validate_stairs(
                     f"（{a.start_mm:.0f}-{a.end_mm:.0f} と {b.start_mm:.0f}-{b.end_mm:.0f}）"
                 )
     return issues
+
+
+def hatch_part(model: ScaffoldModel):
+    """ハッチ付布板（梯子内蔵。日建 NDN6TA）と、その幅. 系列に無い・床の幅に合わなければ (None, 0)."""
+    m = model.master
+    if m.is_tube or m.is_frame or model.config.scaffold_form != "本足場":
+        return None, 0
+    for p in m.by_category("踊り場"):
+        if "梯子" not in p.note:
+            continue
+        w = next((int(tok[1:]) for tok in p.note.split() if tok.startswith("幅") and tok[1:].isdigit()), 0)
+        if w and w in tuple(model.deck_widths_in_use):
+            return p, w
+    return None, 0
+
+
+def place_hatch_ladders(model: ScaffoldModel, n: int) -> list[tuple[int, int]]:
+    """ハッチ付布板（梯子内蔵）を置くスパン [(辺番号, スパンの番号 0〜)]。布板と同じ長さのスパン（面の中。隅の升目ではない）
+    から外周に均等に n 箇所. 置けなければ []."""
+    part, _w = hatch_part(model)
+    if part is None or n <= 0:
+        return []
+    cands = []
+    acc = 0.0
+    for ep in model.plan.edges:
+        x = 0.0
+        for i, s in enumerate(ep.spans):
+            if int(s) == int(part.nominal_dim):
+                cands.append((acc + x + s / 2.0, ep.edge_index, i))
+            x += s
+        acc += ep.scaffold_length
+    if not cands:
+        return []
+    loop = acc
+    out: list[tuple[int, int]] = []
+    for k in range(n):
+        target = loop * (k + 0.25) / n
+        free = [c for c in cands if (c[1], c[2]) not in out]
+        if not free:
+            break
+        best = min(free, key=lambda c: min(abs(c[0] - target), loop - abs(c[0] - target)))
+        out.append((best[1], best[2]))
+    return out

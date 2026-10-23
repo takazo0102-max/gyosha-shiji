@@ -590,12 +590,30 @@ def _take_off_one(
                            sum(n * n_levels for n in span_counts.values()) - sum(deck_cells.values()))
     else:
         half = model.stair_half_deck and bool(stair_cells)
+        # ハッチ付布板（梯子内蔵）の昇降口: そのスパンの同じ幅の踏板を各層ハッチ付布板に替える
+        from .stairs import hatch_part
+
+        hp, hw = hatch_part(model)
+        mine = {e.edge_index: e for e in model.plan.edges
+                if model.edge_subset is None or e.edge_index in model.edge_subset}
+        hatch_cells: dict[int, int] = {}
+        for ei, k in getattr(model, "hatch_ladders", None) or []:
+            if ei in mine and hp is not None and 0 <= k < len(mine[ei].spans):
+                s = int(mine[ei].spans[k])
+                hatch_cells[s] = hatch_cells.get(s, 0) + n_levels
         for i, w in enumerate(deck_widths):
             for s, cells in deck_cells.items():
                 # 階段を外側に寄せる床（幅914 の 500＋240 など）は、階段が上がってくる層も内側の板（ハーフアンチ）を敷く
                 if half and i >= 1:
                     cells += stair_cells.get(s, 0)
+                if hatch_cells and w == hw and i == list(deck_widths).index(hw):
+                    cells = max(0, cells - hatch_cells.get(s, 0))
                 add(m.deck_parts(w, s), cells, f"踏板 幅{w}×{s}")
+        if hatch_cells:
+            n_h = sum(hatch_cells.values())
+            add(hp, n_h, f"ハッチ付布板（梯子内蔵）昇降口 {n_h // max(1, n_levels)}箇所×{n_levels}層")
+            notes.append(f"昇降口はハッチ付布板（梯子内蔵 {hp.model_no}）{n_h // max(1, n_levels)}箇所×各層。"
+                         f"その升目の幅{hw}の踏板は差し引いています")
         if half:
             notes.append(
                 f"階段室は階段（外幅481）を外側の幅{deck_widths[0]}の板の位置に寄せ、階段が上がってくる層も内側の幅"

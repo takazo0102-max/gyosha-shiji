@@ -366,6 +366,35 @@ if cornerS = 1 and sA = 1 then
 	endif
 endif
 
+! ハッチ付布板（梯子内蔵）の昇降口: 外側の板の位置に蓋（600×450）と梯子の踏ざん
+for ih = 1 to nHt
+	kq = htI[ih]
+	if kq >= 1 and kq <= nSpan then
+		hx0 = 0
+		for iq = 1 to kq - 1
+			hx0 = hx0 + spans[iq]
+		next iq
+		if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+			hxm = hx0 + spans[kq] / 2
+			hym = -rowW + 0.05 + deckW1 / 2
+			rect2 hxm - 0.30, hym - 0.225, hxm + 0.30, hym + 0.225
+			line2 hxm - 0.25, hym - 0.17, hxm - 0.25, hym + 0.17
+			line2 hxm - 0.15, hym - 0.17, hxm - 0.15, hym + 0.17
+			for rg = 0 to 3
+				line2 hxm - 0.25, hym - 0.15 + rg * 0.10, hxm - 0.15, hym - 0.15 + rg * 0.10
+			next rg
+			if showDim then
+				set style "annoC"
+				tdx = hxm + 0.10
+				tdy = hym
+				tdt = "昇降口"
+				gosub 985
+				set style "anno"
+			endif
+		endif
+	endif
+next ih
+
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
 for it2 = 1 to nSt
 	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then

@@ -1643,9 +1643,19 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         per = sum(float(e.scaffold_length) for e in model.plan.edges)
         model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
         model.auto_ladders = True
-        model.plan.warnings.append(
-            f"足場が小さく階段室（{tspans}スパン連続）が入らないので、昇降ははしご {model.config.ladders}箇所に"
-            "しました（安衛則526条）。独立の階段を別に立てる場合は stairs で位置を指定してください")
+        # くさびの本足場は、ハッチ付布板（梯子内蔵。日建 NDN6TA）で昇降口を作る（はしごを別に立てない。現場の定番）
+        from .stairs import hatch_part, place_hatch_ladders
+
+        model.hatch_ladders = place_hatch_ladders(model, model.config.ladders)
+        if model.hatch_ladders:
+            hp, _hw = hatch_part(model)
+            model.plan.warnings.append(
+                f"足場が小さく階段室（{tspans}スパン連続）が入らないので、昇降口はハッチ付布板（梯子内蔵 {hp.model_no}）"
+                f"{len(model.hatch_ladders)}箇所にしました（各層。安衛則526条）。独立の階段を別に立てる場合は stairs で位置を指定してください")
+        else:
+            model.plan.warnings.append(
+                f"足場が小さく階段室（{tspans}スパン連続）が入らないので、昇降ははしご {model.config.ladders}箇所に"
+                "しました（安衛則526条）。独立の階段を別に立てる場合は stairs で位置を指定してください")
     stair_issues = [] if (hug_no_stairs or (model.config.ladders and not stair_plan.towers)) else validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )

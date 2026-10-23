@@ -441,11 +441,33 @@ if __name__ == "__main__":
 class TestLaddersWhenNoStairFits(unittest.TestCase):
     """階段室が入らない小さい足場は、はしごを自動で入れる（2026-10-24 実機: 2.6×2.4m で昇降設備 NG）."""
 
-    def test_tiny_scaffold_gets_a_ladder(self):
+    def test_tiny_scaffold_gets_a_hatch_ladder(self):
+        """くさびの本足場はハッチ付布板（梯子内蔵 NDN6TA）で昇降口を作る。その升目の踏板は差し引く."""
         from ashiba.cli import solve_all
+        from ashiba.gdl_params import line_params
 
         r = solve_all({"outline_mm": [[0, 0], [2600, 0], [2600, 2400], [0, 2400]], "eaves_height_mm": 3000})
         self.assertFalse(r.stair_plan.towers)
         self.assertEqual(r.model.config.ladders, 1)
+        self.assertEqual(len(r.model.hatch_ladders), 1)
         self.assertEqual(next(c for c in r.checks if c.check_id == 12).status, "OK")
-        self.assertTrue(any("階段室" in w and "はしご" in w for w in r.model.plan.warnings))
+        self.assertTrue(any("階段室" in w and "ハッチ付布板" in w for w in r.model.plan.warnings))
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        n_lv = r.model.elevation.n_levels
+        self.assertEqual(q.get("NDN6TA"), n_lv)
+        plain = solve_all({"outline_mm": [[0, 0], [2600, 0], [2600, 2400], [0, 2400]], "eaves_height_mm": 3000,
+                           "ladders": 1})                                # はしごを入力した足場（ハッチ無し）
+        qp = {l.part.model_no: l.qty for l in plain.quantity.lines}
+        self.assertEqual(qp.get("NDN6", 0) - q.get("NDN6", 0), n_lv)
+        ei, k = r.model.hatch_ladders[0]
+        ep = next(e for e in r.model.plan.edges if e.edge_index == ei)
+        self.assertEqual(line_params(r.model, ep, stair_plan=r.stair_plan)["hatchList"], str(k + 1))
+
+    def test_bracket_keeps_plain_ladders(self):
+        """ブラケット足場（ハーフアンチ）はハッチ付布板が載らないので、はしご（別途手配）のまま."""
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                       "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})
+        self.assertFalse(r.model.hatch_ladders)
+        self.assertGreater(r.model.config.ladders, 0)

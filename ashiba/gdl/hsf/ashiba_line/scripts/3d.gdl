@@ -1082,6 +1082,50 @@ if showDeck then
 	next il
 endif
 
+! ---- ハッチ付布板（梯子内蔵。日建 NDN6TA）の昇降口: 階段室が入らない小さい足場（利用者の指摘 2026-10-24 の続き）----
+! 外側の板（幅 deckW1）の位置で、各層の床にハッチの蓋（600×450）、その下に下の層まで梯子
+if showDeck and nHt > 0 then
+	define material "ashiba_hatch_alu" 2, 0.78, 0.80, 0.82
+	for ih = 1 to nHt
+		kq = htI[ih]
+		if kq >= 1 and kq <= nSpan then
+			hx0 = 0
+			for iq = 1 to kq - 1
+				hx0 = hx0 + spans[iq]
+			next iq
+			if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+				hxm = hx0 + spans[kq] / 2
+				hym = -rowW + 0.05 + deckW1 / 2
+				for il = 2 to nLv
+					z = lv[il]
+					zt = z + r_nuno + 0.045
+					material "ashiba_hatch_alu"
+					add hxm - 0.30, hym - 0.225, zt
+					block 0.60, 0.45, 0.006
+					del 1
+					! 梯子（ハッチの下から下の層の床まで。踏ざん 300 ピッチ）
+					zb = lv[il - 1] + r_nuno + 0.045
+					if il = 2 then zb = 0
+					for sr = -1 to 1 step 2
+						add hxm - 0.20, hym + sr * 0.17, zb
+						cylind zt - zb, 0.012
+						del 1
+					next sr
+					zr = zb + 0.30
+					while zr < zt - 0.05 do
+						add hxm - 0.20, hym - 0.17, zr
+						rotx -90
+						cylind 0.34, 0.010
+						del 2
+						zr = zr + 0.30
+					endwhile
+				next il
+				if matScaf > 0 then material matScaf
+			endif
+		endif
+	next ih
+endif
+
 ! ---- ブレス（外側構面、交さ2方向＝X） ----
 ! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
 ! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う

@@ -26,6 +26,7 @@ dim shO[61]
 dim fls[20]
 dim lv[42]
 dim levIn[40]
+dim htI[16]
 dim asa[8]
 dim cutS[8]
 dim cutE[8]
@@ -446,6 +447,25 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- hatchList をパース（ハッチ付布板の昇降口のスパン番号） ----
+nHt = 0
+rest = hatchList
+while strlen(rest) > 0 and nHt < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nHt = nHt + 1
+		htI[nHt] = v
 	endif
 endwhile
 

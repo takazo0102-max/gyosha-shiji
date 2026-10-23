@@ -388,6 +388,9 @@ def line_params(
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
         "dimSoTool": False,
+        # ハッチ付布板（梯子内蔵）の昇降口のスパン（1〜。stairs.place_hatch_ladders）
+        "hatchList": ",".join(str(k + 1) for ei, k in (getattr(model, "hatch_ladders", None) or [])
+                              if ei == ep.edge_index),
         # 離れ寸法の位置（躯体に面した端のスパン中央。plan_labels.standoff_dim_positions）
         "soDimX1": _so_pos[0] / 1000.0,
         "soDimX2": _so_pos[1] / 1000.0,

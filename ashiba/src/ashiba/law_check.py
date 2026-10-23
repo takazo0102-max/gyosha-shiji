@@ -326,6 +326,13 @@ def check_stairs(m: ScaffoldModel, stair_plan=None) -> CheckResult:
             f"この面の組には階段がありません。昇降は {'・'.join(elsewhere)} の階段を使います（足場はつながっている）",
             basis,
         )
+    hatches = list(getattr(m, "hatch_ladders", None) or [])
+    if not stair_plan.towers and hatches:
+        return CheckResult(
+            12, "昇降設備", OK,
+            f"ハッチ付布板（梯子内蔵）の昇降口{len(hatches)}箇所（各層。水平移動30m以内に配置）",
+            basis,
+        )
     if not stair_plan.towers and m.config.ladders > 0:
         return CheckResult(
             12, "昇降設備", OK,

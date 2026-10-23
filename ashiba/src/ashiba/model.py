@@ -170,6 +170,8 @@ class ScaffoldModel:
     edge_subset: Optional[set] = None
     # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる
     faces_only: Optional[set] = None
+    # ハッチ付布板（梯子内蔵）の昇降口 [(辺番号, スパンの番号 0〜)]。階段室が入らない小さい足場（stairs.place_hatch_ladders）
+    hatch_ladders: list = field(default_factory=list)
     # ほかの組の本足場に繋いだ端（(辺, "s"|"e")。corner_joins）。開放端の妻側の手すりを付けない
     joined_ends: set = field(default_factory=set)
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
