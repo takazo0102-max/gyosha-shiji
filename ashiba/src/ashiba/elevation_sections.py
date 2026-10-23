@@ -1024,6 +1024,25 @@ def elevation_specs_with_owner(prefix: str, owners) -> list[tuple[SectionSpec, t
     return sorted(pairs, key=lambda x: x[0].edge_index)
 
 
+ELEVATION_MARKER_LAYER = "足場_立面マーカー"
+
+
+def hide_section_markers(client, section_guids: list[str], layer_name: str = ELEVATION_MARKER_LAYER) -> str:
+    """断面（CutPlane）を隠したレイヤーに移す（図面・断面図はそのまま）。できなければ注意の文を返す."""
+    if not section_guids:
+        return ""
+    try:
+        client.tapir("CreateLayers", {"layerDataArray": [{"name": layer_name, "isHidden": True}],
+                                      "overwriteExisting": True})
+        attrs = client.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
+        li = next(int(a["index"]) for a in attrs if a.get("name") == layer_name)
+        client.tapir("SetDetailsOfElements", {"elementsWithDetails": [
+            {"elementId": {"guid": g}, "details": {"layerIndex": li}} for g in section_guids]})
+        return ""
+    except Exception as e:
+        return f"立面の断面のマーカーを隠せませんでした（{e}）"
+
+
 def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
                              previous: Optional[dict] = None, one_sheet: bool = True,
                              annotate: bool = True, terrain=None, on_sections=None,
@@ -1064,6 +1083,11 @@ def place_section_elevations(model: ScaffoldModel, client, prefix: str = "足場
         else:
             pl.notes.append(f"断面を作れませんでした（{el.get('error', {}).get('message', el)}）。同名の断面が残っていればそれを図面に使います")
         results.append(pl)
+    # 立面の断面のマーカーは平面図に要らない（面のまわりに「S-01」が12個並んで読みにくかった）。隠したレイヤーに移す。
+    # 断面図（A-A・B-B）のマーカーは平面図に残す
+    note = hide_section_markers(client, [pl.section_guid for pl in results if pl.section_guid])
+    if note and results:
+        results[0].notes.append(note)
     # 作った断面はすぐ控える（この後で時間切れ等で止まっても、次回の実行で消せるように）
     if on_sections is not None:
         try:

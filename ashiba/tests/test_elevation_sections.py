@@ -601,3 +601,26 @@ class TestGroupFaces(unittest.TestCase):
         east = next(o for s, o in pairs if s.face_name == "東面")
         self.assertTrue(east[0].config.is_hug)
         self.assertEqual(len({s.name for s, _o in pairs}), 4)
+
+
+class TestHideMarkers(unittest.TestCase):
+    def test_elevation_markers_go_to_a_hidden_layer(self):
+        """立面の断面のマーカーは隠したレイヤーへ（平面図に「S-01」が12個並んでいた）."""
+        from ashiba.elevation_sections import ELEVATION_MARKER_LAYER, hide_section_markers
+
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def tapir(self, cmd, params):
+                self.calls.append((cmd, params))
+                if cmd == "GetAttributesByType":
+                    return {"attributes": [{"name": "壁", "index": 1}, {"name": ELEVATION_MARKER_LAYER, "index": 49}]}
+                return {}
+
+        c = Client()
+        self.assertEqual(hide_section_markers(c, ["G1", "G2"]), "")
+        self.assertTrue(c.calls[0][1]["layerDataArray"][0]["isHidden"])
+        moved = c.calls[-1][1]["elementsWithDetails"]
+        self.assertEqual([m["details"]["layerIndex"] for m in moved], [49, 49])
+        self.assertEqual(hide_section_markers(c, []), "")
