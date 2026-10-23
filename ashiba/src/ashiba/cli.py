@@ -1636,6 +1636,16 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         stair_plan.outside = outside
         if why:
             stair_plan.warnings.append(why)
+    elif (not hug_no_stairs and not st.get("positions") and not st.get("count") and not model.config.ladders
+          and not model.stairs_elsewhere and model.scaffold_height_mm > MIN_HEIGHT_FOR_STAIRS_MM):
+        # 階段室（連続スパン）が入らない小さい足場（2.6×2.4m 等、2026-10-24 実機で昇降設備 NG）。はしごを外周 60m
+        # ごとに入れる（ブラケット足場と同じ）
+        per = sum(float(e.scaffold_length) for e in model.plan.edges)
+        model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
+        model.auto_ladders = True
+        model.plan.warnings.append(
+            f"足場が小さく階段室（{tspans}スパン連続）が入らないので、昇降ははしご {model.config.ladders}箇所に"
+            "しました（安衛則526条）。独立の階段を別に立てる場合は stairs で位置を指定してください")
     stair_issues = [] if (hug_no_stairs or (model.config.ladders and not stair_plan.towers)) else validate_stairs(
         model, stair_plan, st.get("max_travel_mm", DEFAULT_MAX_TRAVEL_MM)
     )

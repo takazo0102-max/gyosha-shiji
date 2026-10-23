@@ -436,3 +436,16 @@ class TestSingleRowStairsNeedADoubleRowSection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaddersWhenNoStairFits(unittest.TestCase):
+    """階段室が入らない小さい足場は、はしごを自動で入れる（2026-10-24 実機: 2.6×2.4m で昇降設備 NG）."""
+
+    def test_tiny_scaffold_gets_a_ladder(self):
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [2600, 0], [2600, 2400], [0, 2400]], "eaves_height_mm": 3000})
+        self.assertFalse(r.stair_plan.towers)
+        self.assertEqual(r.model.config.ladders, 1)
+        self.assertEqual(next(c for c in r.checks if c.check_id == 12).status, "OK")
+        self.assertTrue(any("階段室" in w and "はしご" in w for w in r.model.plan.warnings))
