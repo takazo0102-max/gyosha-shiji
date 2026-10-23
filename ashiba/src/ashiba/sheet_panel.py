@@ -318,10 +318,11 @@ def write_panel(client, layout_item_guid: str, paper_mm: tuple[float, float],
 
 
 def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float, float], scale: int,
-                     paper_pos_mm: tuple[float, float]) -> dict:
+                     paper_pos_mm: tuple[float, float], other_models=()) -> dict:
     """平面図の上に重ねる敷地境界線（破線）と名前・面ごとの境界までの離れ（用紙 mm の絶対座標）.
 
     平面図のビューのレイヤー組み合わせで境界線のレイヤーが隠れていても図に出るよう、レイアウトに直接書く。
+    other_models は面の組（face_forms）のほかの組の模型（その面の離れも書く。先頭の組の面しか書いていなかった）。
     """
     from .site_boundary import face_clearances
 
@@ -346,15 +347,18 @@ def boundary_overlay(model: ScaffoldModel, region_mm: tuple[float, float, float,
             if s < L:                              # 一点鎖線（境界線の約束）
                 items["lines"].append([(a[0] + ux * (s - gap / 2), a[1] + uy * (s - gap / 2)),
                                        (a[0] + ux * (s - gap / 2 + 0.4), a[1] + uy * (s - gap / 2 + 0.4))])
-        mid = ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
-        _t(items, mid[0] + 2.0 * uy, mid[1] - 2.0 * ux + 1.0, "道路境界線" if i in roads else "隣地境界線",
-           h=2.5, red=True)
-    for c in face_clearances(model, bnd, roads):
-        ep = next(e for e in model.plan.edges if e.edge_index == c.edge_index)
+        # 境界の名前は辺の始点寄り（20%）。中央だと面の 40% に書く「境界まで」に重なった
+        mid = (a[0] + (b[0] - a[0]) * 0.2, a[1] + (b[1] - a[1]) * 0.2)
+        # 外側へ。縦の辺は文字（横書き・中央揃え）の半分の幅だけさらに外へ（線と足場のラベルに掛かっていた）
+        name = "道路境界線" if i in roads else "隣地境界線"
+        off = 2.0 + abs(uy) * len(name) * 2.5 * 0.55
+        _t(items, mid[0] + off * uy, mid[1] - 2.0 * ux + 1.0, name, h=2.5, red=True)
+    for mdl, c in [(m_, c_) for m_ in (model, *other_models) for c_ in face_clearances(m_, bnd, roads)]:
+        ep = next(e for e in mdl.plan.edges if e.edge_index == c.edge_index)
         (sx, sy), (ex, ey) = ep.start_post, ep.end_post
         L = math.hypot(ex - sx, ey - sy) or 1.0
         ux, uy = (ex - sx) / L, (ey - sy) / L
-        row = float(model.post_row_spacing_mm)
+        row = float(mdl.post_row_spacing_mm)
         # 外側建地の外面から境界までの寸法線（面の 40% の位置。足場ラインの GDL のラベルは躯体側の 25%・70% なので
         # 外側に出す。躯体側に書いていたので「くさび緊結式足場 600」のラベルに重なった）
         ox, oy = uy, -ux                                    # 外向き（躯体側は左手）

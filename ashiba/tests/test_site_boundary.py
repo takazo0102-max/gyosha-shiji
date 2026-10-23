@@ -90,6 +90,25 @@ class TestClearance(unittest.TestCase):
         self.assertGreater(north[1], 10000 + 2000)                         # 境界の側（足場の外の寸法線から離す）
         self.assertLess(north[1], 10000 + 4000)
 
+    def test_asagao_does_not_depend_on_the_face_form(self):
+        """同じ建物で単管抱き足場の面だけ朝顔が付いていた（単管は手すりの上に建地を100出して 10.03m）."""
+        gs = solve_groups({"outline_mm": B, "eaves_height_mm": 9000, "face_forms": "西面=単管抱き足場"})
+        self.assertEqual([r.model.asagao_heights() for _l, r in gs], [[], []])
+        self.assertEqual(gs[-1][1].model.scaffold_height_mm, 10030)
+
+    def test_overlay_writes_the_faces_of_the_other_groups(self):
+        """面の組のほかの組（西面だけ単管抱き足場）の面にも「境界まで」を書く（先頭の組の面だけだった）."""
+        from ashiba.elevation_sections import plan_region_mm
+        from ashiba.sheet_panel import boundary_overlay
+
+        sp, _ = plan_within_boundary({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=300)})
+        gs = solve_groups(sp)
+        m0 = gs[0][1].model
+        region = plan_region_mm(m0)
+        count = lambda ov: sum(1 for t in ov["texts"] if t["text"].startswith("境界まで"))
+        self.assertEqual(count(boundary_overlay(m0, region, 100, (0.0, 0.0))), 3)
+        self.assertEqual(count(boundary_overlay(m0, region, 100, (0.0, 0.0), [r.model for _l, r in gs[1:]])), 4)
+
 
 class TestPick(unittest.TestCase):
     def test_closed_polyline_around_the_building_and_road_edge(self):

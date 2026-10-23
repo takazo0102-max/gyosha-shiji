@@ -97,7 +97,7 @@ from pathlib import Path
 
 from .brackets import BracketSection, validate_bracket_sections
 from .elevation_solver import solve_elevation
-from .law_check import required_asagao_stages, run_all_checks, summary
+from .law_check import asagao_height_mm, required_asagao_stages, run_all_checks, summary
 from .master import MasterDataError, SeriesLockError, load_master
 from .model import (
     ASAGAO_KIND_ASAGAO, ASAGAO_KIND_SAFE_WING, ASAGAO_KINDS, SAFE_WING_ANGLE_DEG, SAFE_WING_PROJECTION_MM,
@@ -891,7 +891,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         auto_inner_bracket=bool(spec.get("auto_inner_bracket", True)),
         post_reinforcement=spec.get("post_reinforcement", ""),
         period_days=spec.get("period_days", 60),
-        asagao=build_asagao(spec, elevation.total_height, master),
+        asagao=build_asagao(spec, asagao_height_mm(elevation.total_height, master), master),
     )
     # 足場を掛ける面（一部の面だけ）。隣の面を掛けない端は開放端（妻側の手すり・幅木）
     faces = _faces_from_spec(spec, plan)

@@ -57,6 +57,16 @@ def run_all_checks(
     return sorted(results, key=lambda r: r.check_id)
 
 
+def asagao_height_mm(height_mm: float, master) -> float:
+    """朝顔の段数を決める高さ。単管は手すりの上に建地を 100 出すが、そこは作業する高さではないので除く.
+
+    除かないと同じ建物で単管抱き足場の面だけ 10.03m になって朝顔が付いた（ほかの面は 9.93m で付かない）。
+    """
+    from .elevation_solver import TUBE_POST_ABOVE_RAIL_MM
+
+    return float(height_mm) - (TUBE_POST_ABOVE_RAIL_MM if master is not None and master.is_tube else 0.0)
+
+
 def required_asagao_stages(height_mm: float) -> int:
     """必要な朝顔の段数: 10m以上で1段、20m以上で2段."""
     if height_mm >= 20000:
@@ -465,8 +475,11 @@ def check_asagao(m: ScaffoldModel, terrain=None) -> CheckResult:
     # 落下物防護は地盤からの高さで決まる。敷地の低い側では継ぎ足した分だけ
     # 高くなるので、名目ではなく実高さで段数を決める
     h_mm, extra = actual_max_height_mm(m, terrain)
+    h_mm = asagao_height_mm(h_mm, m.master)
     need = required_asagao_stages(h_mm)
     spec = m.config.asagao
+    if m.master.is_tube:
+        basis += "／高さは手すりまで（単管の手すりの上の建地の出100は除く）"
     h_m = h_mm / 1000.0
     if extra > 1:
         basis += f"／敷地の低い側の実高さ{h_m:.2f}m（名目{m.scaffold_height_mm / 1000:.2f}m）で判定"

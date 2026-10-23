@@ -1355,7 +1355,7 @@ class PlanSheet:
 
 
 def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", replace: bool = True,
-                     floor_index: Optional[int] = None, stair_plan=None) -> PlanSheet:
+                     floor_index: Optional[int] = None, stair_plan=None, other_models=()) -> PlanSheet:
     """配置フロアの平面図を足場の範囲で切り抜き、サブセット「仮設足場」のレイアウト「<prefix> 足場平面図」に置く."""
     out = PlanSheet(layout_name=plan_layout_name(prefix))
     activate_floor_plan(client)
@@ -1409,7 +1409,7 @@ def place_plan_sheet(model: ScaffoldModel, client, prefix: str = "足場", repla
         from .sheet_panel import boundary_overlay, write_overlay
 
         try:
-            write_overlay(client, lay, boundary_overlay(model, region, scale, pos))
+            write_overlay(client, lay, boundary_overlay(model, region, scale, pos, other_models))
         except Exception as e:
             out.notes.append(f"敷地境界線を書けませんでした（{e}）")
     activate_floor_plan(client)

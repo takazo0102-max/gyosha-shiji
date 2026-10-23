@@ -696,7 +696,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             print(f"  断面図: 作れませんでした（{e}）")
         # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
         plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
-                                      floor_index=line_floor(client, lines), stair_plan=r.stair_plan)
+                                      floor_index=line_floor(client, lines), stair_plan=r.stair_plan,
+                                      other_models=[rg.model for _lb, rg in groups[1:]])
         for n in plan_sheet.notes:
             print(f"  平面図: {n}")
         if plan_sheet.drawing_guid:
