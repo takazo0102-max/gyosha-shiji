@@ -460,6 +460,9 @@ def _take_off_one(
     # 内ブラケットで床を拡幅した区間は躯体との隙間が小さいので、躯体側の手すり・中桟は付けない
     from .brackets import inner_edge_cells
     inner_cut_cells = inner_edge_cells(model, bracket_sections or []) if rails_inner else {}
+    # 足場の中の階段室は外側の手すり・中桟（布材）を付けない（階段手すり 2段が代わる。利用者の指定 2026-10-24）
+    from .stairs import stair_rail_cells
+    stair_rail = stair_rail_cells(model, stair_plan, n_levels) if (stair_plan is not None and rails_outer) else {}
     # 差し引く布材は理由ごとに数えて注記する（以前は全部を「開口部」の本数として書いていた。
     # 開口部の無い計画で内ブラケットの手すり外しが「開口部の布材928本」と出ていた）
     open_rail_cut = stage_rail_cut = inner_rail_cut = 0
@@ -467,16 +470,22 @@ def _take_off_one(
         c_open = open_cut.get(s, 0) * per_level_rails + open_spans.get(s, 0) * negarami_n
         c_stage = stage_cells.get(s, 0) * rails_outer
         c_inner = inner_cut_cells.get(s, 0) * rails_inner
+        c_stage += stair_rail.get(s, 0) * rails_outer           # 階段室の外側の手すり・中桟（別に注記する）
         open_rail_cut += c_open
-        stage_rail_cut += c_stage
+        stage_rail_cut += c_stage - stair_rail.get(s, 0) * rails_outer
         inner_rail_cut += c_inner
         if not m.is_tube:
             add(m.find("布材", s), max(0, n * per_span_rails - c_open - c_stage - c_inner), f"布材{s}")
+    stair_rail_cut = sum(stair_rail.values()) * rails_outer
     # 単管は布・手すり・中桟・根がらみを規定の長さの単管で面の端から端まで通し、直線ジョイントで継ぐ
     # （スパンごとの1本ではない。利用者の指定 2026-10-22）
     tube_stats = (_count_tube_runs(model, per_span_rails, n_levels, add, notes,
-                                   open_rail_cut + stage_rail_cut + inner_rail_cut)
+                                   open_rail_cut + stage_rail_cut + inner_rail_cut + stair_rail_cut)
                   if m.is_tube else None)
+    if stair_rail:
+        notes.append(
+            f"足場の中の階段室（{sum(stair_rail.values())}スパン×層）は階段手すり（2段）が外側に沿うので、外側の"
+            f"手すり・中桟（布材{sum(stair_rail.values()) * rails_outer}本）は付けていません")
     if inner_cut_cells:
         notes.append(
             f"内ブラケットで床を拡幅した区間（{sum(inner_cut_cells.values())}スパン×層）は躯体との隙間が"

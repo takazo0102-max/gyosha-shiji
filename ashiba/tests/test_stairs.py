@@ -476,3 +476,23 @@ class TestLaddersWhenNoStairFits(unittest.TestCase):
                        "scaffold_form": "ブラケット足場", "bracket_post": "支柱"})
         self.assertFalse(r.model.hatch_ladders)
         self.assertGreater(r.model.config.ladders, 0)
+
+
+class TestNoLedgerRailsAtTheStair(unittest.TestCase):
+    """足場の中の階段室は外側の手すり・中桟（布材）を付けない（利用者の指定 2026-10-24: 階段のところは布材不要）."""
+
+    def test_rails_cut_in_stair_cells(self):
+        from ashiba.cli import solve_all
+        from ashiba.stairs import stair_rail_cells
+
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                "scaffold_width_mm": 914}
+        a = solve_all(base)
+        b = solve_all({**base, "stairs": {"count": 0}})
+        n = a.model.elevation.n_levels
+        cells = stair_rail_cells(a.model, a.stair_plan, n)
+        # 2スパンの階段室: 最上層以外は両スパン、最上層は上がってくるスパンだけ
+        self.assertEqual(sum(cells.values()), len(a.stair_plan.towers) * (2 * (n - 1) + 1))
+        nuno = lambda r: sum(l.qty for l in r.quantity.lines if l.part.category == "布材")
+        self.assertEqual(nuno(b) - nuno(a), 2 * sum(cells.values()))
+        self.assertTrue(any("階段手すり（2段）" in x for x in a.quantity.notes))

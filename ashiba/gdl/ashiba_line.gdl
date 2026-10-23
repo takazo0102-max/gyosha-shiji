@@ -2278,16 +2278,36 @@ for il = 2 to nLv
 		! 枠組の中間層は布材の手すり・中桟を描かない（交差筋交＋幅木。数量と同じ）
 		frMid = 0
 		if serType = "W" and il < nLv then frMid = 1
+		! 足場の中の階段室: 上がってくる・上がっていく階段のスパンは外側の手すり・中桟（布材）を付けない
+		! （階段手すり 2段が沿う。利用者の指定 2026-10-24: 階段のところは布材不要。3D・数量と同じセル）
+		stRl = 0
+		if stOut = 0 and railAdv = 0 then
+			kk = il - 1
+			for it7 = 1 to nSt
+				if xs >= stS[it7] - 0.001 and xe <= stS[it7] + stL[it7] + 0.001 then
+					jj = 0
+					if abs(xs - stS[it7]) > 0.001 then jj = 1
+					ja = 0
+					jb = 0
+					if stL[it7] > spans[ip] + 0.001 then
+						ja = 1 - (kk - 2 * int(kk / 2))
+						jb = 1 - ((kk + 1) - 2 * int((kk + 1) / 2))
+					endif
+					if jj = ja then stRl = 1
+					if kk < nLv - 1 and jj = jb then stRl = 1
+				endif
+			next it7
+		endif
+		if stRl = 1 and inSg = 0 then inSg = 3
 		if noAll = 0 then
 			! 布板（作業床）。階段室は段板で上がるので敷かない
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
-			! 幅木は階段室にも残る（階段側の落下防止）。数量もそう拾っている
+			! 幅木は床のある升目だけ（階段が上がってくる升目は床が無いので付けない。3D・数量と同じ）
 			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
-			if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
-			! 手すり・中桟は階段室にも要る
+			if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			if inSg = 0 and frMid = 0 then line2 xs, z + railTop, xe, z + railTop
 			if inSg >= 1 or frMid = 1 then
-				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ
+				! ステージの間口・乗り込み口・階段室: 躯体側の手すり・中桟だけ
 				if railIn = 1 and nRows >= 2 and inBk = 0 then
 					line2 xs, z + railTop, xe, z + railTop
 					line2 xs, z + railMid, xe, z + railMid
@@ -3443,8 +3463,30 @@ for il = 1 to nLv
 					if bittest(edE[ie], 4) then eoI = 1
 				endif
 			next ie
+			! 足場の中の階段室: その層へ上がってくる階段・その層から上がる階段のスパンは、外側の手すり・中桟（布材）を
+			! 付けない（階段手すり 2段が外側に沿う。利用者の指定 2026-10-24: 階段のところは布材不要）。数量と同じセル
+			stRl = 0
+			if stOut = 0 and il > 1 then
+				kk = il - 1
+				for it7 = 1 to nSt
+					if x >= stS[it7] - 0.001 and x + spans[ip] <= stS[it7] + stL[it7] + 0.001 then
+						jj = 0
+						if abs(x - stS[it7]) > 0.001 then jj = 1
+						if jj <= 1 then
+							ja = 0
+							jb = 0
+							if stL[it7] > spans[ip] + 0.001 then
+								ja = 1 - (kk - 2 * int(kk / 2))
+								jb = 1 - ((kk + 1) - 2 * int((kk + 1) / 2))
+							endif
+							if jj = ja then stRl = 1
+							if kk < nLv - 1 and jj = jb then stRl = 1
+						endif
+					endif
+				next it7
+			endif
 			! 外側手すり・中桟（作業層のみ）
-			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
+			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 and (stRl = 0 or railAdv = 1) then
 				if railAdv = 1 then
 					! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
 					! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける

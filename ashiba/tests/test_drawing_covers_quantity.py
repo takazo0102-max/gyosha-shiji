@@ -180,15 +180,13 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("cylind nL - 2 * (r_sic + fitL), 0.0272 / 2", sub)   # 手すり φ27.2（カタログ p006）
         self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip] + 0.07, 0.008, 0.150"))
         body2 = self._script("2d.gdl")
-        self.assertIn("if railAdv = 0 and inSg = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
+        self.assertIn("if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
         self.assertIn("line2 xe, z + railTop, xs, z + 0.02", body2)
 
-    def test_stair_bays_keep_their_toe_board(self):
-        """階段室は床を敷かないが幅木は残る（数量もそう拾っている）.
-
-        3Dも立面も床と幅木を同じ条件で消していたため、階段室のスパンだけ
-        図面から幅木が消え、部材表の枚数と合わなかった。
-        """
+    def test_stair_bays_toe_board_only_where_the_deck_is(self):
+        """階段が上がってくる升目は床が無いので幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる。数量も
+        そのセルを引く）。立面も 3D・数量と同じく床のある升目だけ。階段室の外側の手すり・中桟（布材）も付けない
+        （利用者の指定 2026-10-24: 階段のところは布材不要）."""
         body3 = self._script("3d.gdl")
         # 床は階段室＋開口部で消す、幅木は開口部だけで消す
         self.assertIn("if skipAll = 0 then", body3)
@@ -198,7 +196,9 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("skipDeck", body3[:i])
         body2 = self._script("2d.gdl")
         self.assertIn("if noDeck = 0 then rect2 xs, z, xe, z + 0.05", body2)
-        self.assertIn("幅木は階段室にも残る", body2)
+        self.assertIn("noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
+        self.assertIn("if stRl = 1 and inSg = 0 then inSg = 3", body2)
+        self.assertIn("(stRl = 0 or railAdv = 1)", body3)
 
     def test_opening_bays_have_no_ledgers_in_any_view(self):
         """開口部（梁枠より下）は通路。布材・手すり・根がらみが入らない.

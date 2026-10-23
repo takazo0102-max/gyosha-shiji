@@ -615,6 +615,38 @@ def stair_open_cells(model: ScaffoldModel, plan: StairPlan, n_levels: int) -> di
     return out
 
 
+def stair_rail_cells(model: ScaffoldModel, plan: StairPlan, n_levels: int) -> dict[int, int]:
+    """足場の中の階段室で外側の手すり・中桟（布材）を付けないセル（呼び寸法→スパン×層の数）.
+
+    階段手すり（2段）が外側の建地列に沿うので、布材の手すり・中桟は要らない（利用者の指定 2026-10-24: 階段の
+    ところは布材不要）。各層で、その層へ下から上がってくる階段のスパンと、その層から上へ上がる階段のスパン。
+    最上層は上がってくるスパンだけ（もう一方は床があり、上へ上がる階段が無い）。外付けの階段室は対象外.
+    """
+    out: dict[int, int] = {}
+    if plan is None or getattr(plan, "outside", False):
+        return out
+    for tower in plan.towers:
+        edge = next((e for e in model.plan.edges if e.edge_index == tower.edge_index), None)
+        if edge is None:
+            continue
+        acc = 0.0
+        tspans: list[int] = []
+        for s in edge.spans:
+            if tower.start_mm - 1e-6 <= acc < tower.end_mm - 1e-6:
+                tspans.append(s)
+            acc += s
+        if not tspans:
+            continue
+        for k in range(1, n_levels + 1):
+            cells = {flight_span_index(k, len(tspans[:2]))}
+            if k < n_levels:
+                cells.add(flight_span_index(k + 1, len(tspans[:2])))
+            for j in cells:
+                s = tspans[j]
+                out[s] = out.get(s, 0) + 1
+    return out
+
+
 def validate_stairs(
     model: ScaffoldModel, plan: StairPlan, max_travel_mm: float = DEFAULT_MAX_TRAVEL_MM
 ) -> list[str]:
