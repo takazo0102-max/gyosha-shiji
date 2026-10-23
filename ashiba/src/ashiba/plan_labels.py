@@ -274,4 +274,26 @@ def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None,
                 "direction": {"x": u[0], "y": u[1]},
                 "witnessPoints": [{"elementId": el["elementId"], "inIndex": i} for i in idx],
             })
+    return out + standoff_dimension_data(model, lines)
+
+
+def standoff_dimension_data(model: ScaffoldModel, lines: list[dict]) -> list[dict]:
+    """離れ寸法（躯体面〜内側建地列）を寸法ツールで。面ごとに両端のスパン中央の2本（利用者の指定 2026-10-23）.
+
+    点は足場ラインの平面のホットスポット nSpan+4〜nSpan+7（2d.gdl の最初のホットスポットの並び）。
+    寸法線は面に直交し、点から面に沿って 0.25m ずらした所に引く。plan_dimension_data の後ろに面ごとに2本ずつ並ぶ。
+    """
+    out = []
+    for ep, el in zip(model.plan.edges, lines):
+        o, u, nrm = _frame(ep)
+        n = len(ep.spans) + 1
+        xs = (ep.spans[0] / 2.0, float(sum(ep.spans)) - ep.spans[-1] / 2.0)
+        for k, x in enumerate(xs):
+            ref = ((o[0] + u[0] * (x + 250.0)) / 1000.0, (o[1] + u[1] * (x + 250.0)) / 1000.0)
+            out.append({
+                "referencePoint": {"x": ref[0], "y": ref[1]},
+                "direction": {"x": nrm[0], "y": nrm[1]},
+                "witnessPoints": [{"elementId": el["elementId"], "inIndex": n + 3 + 2 * k},
+                                  {"elementId": el["elementId"], "inIndex": n + 4 + 2 * k}],
+            })
     return out

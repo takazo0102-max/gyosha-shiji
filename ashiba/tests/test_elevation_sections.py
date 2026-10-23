@@ -72,13 +72,14 @@ class TestSectionGeometry(unittest.TestCase):
 class TestDrawingPlan(unittest.TestCase):
     def test_scale_fits_the_paper(self):
         a1 = (841.0, 594.0)
-        self.assertEqual(drawing_plan(34600, 16300, a1).scale, 100)      # 346mm ≤ 791mm
-        self.assertEqual(drawing_plan(90000, 16300, a1).scale, 200)      # 900mm は入らない → 1/200
+        # 入るいちばん大きい縮尺（1/50 から。利用者の指定 2026-10-23: なるべく大きく）
+        self.assertEqual(drawing_plan(34600, 16300, a1).scale, 50)       # 692mm ≤ 791mm
+        self.assertEqual(drawing_plan(90000, 16300, a1).scale, 150)      # 1/100 で 900mm は入らない → 1/150
         self.assertEqual(drawing_plan(34600, 45000, a1).scale, 100)      # 高さ 47m/100=470 ≤ 494
-        self.assertEqual(drawing_plan(34600, 55000, a1).scale, 200)      # 高さが入らない → 1/200
+        self.assertEqual(drawing_plan(34600, 55000, a1).scale, 150)      # 高さが入らない → 1/150
         a3 = (420.0, 297.0)
         self.assertEqual(drawing_plan(34600, 16300, a3).scale, 100)      # 346 ≤ 370
-        self.assertEqual(drawing_plan(40000, 16300, a3).scale, 200)
+        self.assertEqual(drawing_plan(40000, 16300, a3).scale, 150)
 
     def test_position_clears_the_margin_and_title_band(self):
         p = drawing_plan(34600, 16300, (841.0, 594.0), margins_mm=(15.0, 10.0, 10.0, 10.0))
@@ -486,7 +487,8 @@ class TestPlanSheet(unittest.TestCase):
         from ashiba.elevation_sections import fit_scale
 
         self.assertEqual(fit_scale((41000, 31000), (841.0, 594.0)), 100)
-        self.assertEqual(fit_scale((90000, 60000), (841.0, 594.0)), 200)
+        self.assertEqual(fit_scale((90000, 60000), (841.0, 594.0)), 150)
+        self.assertEqual(fit_scale((30000, 20000), (841.0, 594.0)), 50)       # 小さい建物は 1/50 で大きく
         self.assertIsNone(fit_scale((500000, 400000), (841.0, 594.0)))
 
     def test_clip_and_position(self):

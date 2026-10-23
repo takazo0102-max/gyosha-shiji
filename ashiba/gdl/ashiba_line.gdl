@@ -51,7 +51,9 @@
 !   lblShAt         実数    ラベル: 養生の位置 mm（-1 は面の 70%）                                                                    既定 -1
 !   sheetTxt        文字列  ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない                                            既定 ""
 !   dimTool         ブール  平面のスパン寸法は寸法ツール（部品では描かない）                                                          既定 0
+!   dimSoTool       ブール  平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）                                        既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
+!   planReal        ブール  平面を実寸で（支柱・コマ・布材・腕木を太さどおり、踏板を幅どおり、幅木）                                  既定 0
 !   mvoName         文字列  表示設定を読むライブラリグローバル部品名                                                                  既定 "ashiba_mvo"
 !   qtyPostPos      整数    図示本数: 支柱位置（この面が所有する始点・中間＋出隅コーナー）                                            既定 0
 !   qtyPost         整数    図示本数: 支柱（位置×積み上げ本数）                                                                       既定 0
@@ -1226,7 +1228,10 @@ mvPlan = 0
 mvNotes = 1
 mvOk = LIBRARYGLOBAL(mvoName, "planMode", mvPlan)
 if mvOk and mvPlan = 2 then planSimple = 1
-if mvOk and mvPlan = 1 then planSimple = 0
+if mvOk and (mvPlan = 1 or mvPlan = 3) then planSimple = 0
+! 精細（実寸）: 利用者の指定 2026-10-23「平面も詳細モード機能追加して」
+if mvOk and mvPlan = 3 then planReal = 1
+if mvOk and (mvPlan = 1 or mvPlan = 2) then planReal = 0
 if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
 
 ! 寸法ツールの寸法が付く点（外側建地列の支柱位置）。平面では最初に出すので、ホットスポットの番号＝
@@ -1240,6 +1245,12 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
 	hotspot2 -rowW * cornerS, -rowW
 	hotspot2 xh + rowW * cornerE, -rowW
+	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
+	! 躯体と足場の隙間も寸法ツールに
+	hotspot2 spans[1] / 2, 0
+	hotspot2 spans[1] / 2, standoff
+	hotspot2 xh - spans[nSpan] / 2, 0
+	hotspot2 xh - spans[nSpan] / 2, standoff
 endif
 
 if viewMode = "elev" then
@@ -1256,6 +1267,56 @@ else
 	endif
 endif
 end
+
+! ============================================================
+940: ! ---- 平面 実寸: 布材（φ42.7）を建地列ごとに二重線、腕木を支柱ごとに二重線、コマ（緊結部）を支柱のまわりに ----
+rL = 0.0427 / 2
+for rr = 0 to 1
+	if rr = 0 and nRows < 2 then
+		! 一側足場は躯体側の建地列が無い
+	else
+		yy = -rr * rowW
+		line2 pxA, yy + rL, pxB, yy + rL
+		line2 pxA, yy - rL, pxB, yy - rL
+	endif
+next rr
+xq = 0
+for iq = 1 to nSpan + 1
+	if xq >= pxA - 0.001 and xq <= pxB + 0.001 then
+		line2 xq - rL, -rL, xq - rL, -rowW + rL
+		line2 xq + rL, -rL, xq + rL, -rowW + rL
+		! コマ（緊結部の受け。8 方向の爪を受ける円盤）
+		pen 2
+		if nRows >= 2 then circle2 xq, 0, r_sic + 0.025
+		circle2 xq, -rowW, r_sic + 0.025
+		pen 1
+	endif
+	if iq <= nSpan then xq = xq + spans[iq]
+next iq
+! 幅木（外側、t=12）
+if railAdv = 0 and hugMode = 0 then
+	line2 pxA, -rowW - rL - 0.005, pxB, -rowW - rL - 0.005
+	line2 pxA, -rowW - rL - 0.017, pxB, -rowW - rL - 0.017
+endif
+return
+
+945: ! ---- 平面 実寸: 1スパンの踏板（幅どおり。外側建地列から並べ、継ぎ目に爪の線） ----
+yq = -rowW + rL + 0.005
+for kw = 1 to 2
+	wq = deckW1
+	if kw = 2 then wq = deckW2
+	if wq > 0.001 then
+		rect2 x + rL, yq, x + spans[ip] - rL, yq + wq
+		! 滑り止めの縞（長手方向の細線）
+		pen 2
+		for kr = 1 to 3
+			line2 x + rL + 0.05, yq + wq * kr / 4, x + spans[ip] - rL - 0.05, yq + wq * kr / 4
+		next kr
+		pen 1
+		yq = yq + wq + 0.01
+	endif
+next kw
+return
 
 ! ============================================================
 950: ! ---- 平面 単線（割付検討用: 建地列・支柱位置・床の対角線・付帯設備の占有範囲） ----
@@ -1349,8 +1410,12 @@ return
 ! ============================================================
 100: ! ---- 平面図 ----
 ! 区切った部品は自分のスパン（pxA〜pxB）だけ描く。付帯設備・壁つなぎは始まりが範囲 [gxA, gxB) にある部品が描く
+if planReal then
+	gosub 940
+else
 line2 pxA, 0, pxB, 0
 line2 pxA, -rowW, pxB, -rowW
+endif
 
 ! スパン区切り線と布板の対角線。平面図で「作業床が敷いてある区画」を表す
 ! 慣用表記で、実務の足場平面図はこの見え方になる。対角線の向きは全スパン
@@ -1359,7 +1424,7 @@ x = 0
 for ip = 1 to nSpan
 	inSeg = 0
 	if ip >= sA and ip <= sB then inSeg = 1
-	if inSeg then line2 x, 0, x, -rowW
+	if inSeg and planReal = 0 then line2 x, 0, x, -rowW
 	! 階段室は最上層で階段が上がってくる1スパンだけ床が無い（奇数層は始点側、偶数層は終点側。
 	! 3D・数量と同じ）。平面は最上層を上から見た状態なので、もう一方のスパンには対角線を引く
 	inStair = 0
@@ -1384,7 +1449,13 @@ for ip = 1 to nSpan
 	for ib3 = 1 to nBm
 		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
 	next ib3
-	if showDeck and hugMode = 0 and inStair = 0 and inSeg then line2 x, -rowW, x + spans[ip], 0
+	if showDeck and hugMode = 0 and inStair = 0 and inSeg then
+		if planReal then
+			gosub 945
+		else
+			line2 x, -rowW, x + spans[ip], 0
+		endif
+	endif
 	x = x + spans[ip]
 next ip
 line2 pxB, 0, pxB, -rowW
@@ -1523,18 +1594,34 @@ for it2 = 1 to nSt
 	endif
 	line2 fx0, y0, fx0, y1
 	line2 fx1, y0, fx1, y1
-	line2 fx0, y0, fx1, y1
-	line2 fx0, y1, fx1, y0
-	sx = fx0
-	ex = fx1
-	set style "annoC"
-	if showDim then
-		tdx = (sx + ex) / 2
-		tdy = (y0 + y1) / 2
-		tdt = "階段"
-		gosub 985
-	endif
-	set style "anno"
+	! 階段の平面表示（利用者の指定 2026-10-23: 画面のような感じに）: タスキをやめ、階段枠（幅 450）の外形と
+	! 踏面の線（約 250 ピッチ）、上る向きの矢印。スパンの継ぎ目（支柱）ごとに階段枠を分ける
+	stWd = 0.45
+	if stWd > abs(y1 - y0) - 0.06 then stWd = abs(y1 - y0) - 0.06
+	yc2 = (y0 + y1) / 2
+	ya = yc2 + stWd / 2
+	yb = yc2 - stWd / 2
+	xq = 0
+	for iq = 1 to nSpan
+		qa = xq
+		qb = xq + spans[iq]
+		if qa >= fx0 - 0.001 and qb <= fx1 + 0.001 then
+			rect2 qa + 0.05, yb, qb - 0.05, ya
+			nT = int((qb - qa - 0.10) / 0.25)
+			if nT < 1 then nT = 1
+			pT = (qb - qa - 0.10) / nT
+			for itr = 1 to nT - 1
+				line2 qa + 0.05 + itr * pT, yb, qa + 0.05 + itr * pT, ya
+			next itr
+		endif
+		xq = qb
+	next iq
+	! 上る向き（始点→終点）の矢印
+	line2 fx0 + 0.15, yc2, fx1 - 0.15, yc2
+	line2 fx1 - 0.15, yc2, fx1 - 0.35, yc2 + 0.10
+	line2 fx1 - 0.15, yc2, fx1 - 0.35, yc2 - 0.10
+	circle2 fx0 + 0.15, yc2, 0.04
+	! 名前（昇降階段・品番）は平面図のラベル（Python が置く GDL ラベル）が引出線で書く。踏面の線に文字を重ねない
 	endif
 next it2
 
@@ -1711,9 +1798,21 @@ if nAsa > 0 then
 	set style "anno"
 endif
 
-! 躯体面の参照線（離れ表示）
+! 躯体面の参照線（離れ表示）。線種 3 は縮尺で点にしか見えないので、一点鎖線を図面上の長さで描く
+! （利用者の指摘 2026-10-23: 足場平面の下に変の線がある）
+line_type 1
+dl = 0.006 * GLOB_SCALE
+dg = 0.0015 * GLOB_SCALE
+xs = pxA
+while xs < pxB - 0.001 do
+	xe = xs + dl
+	if xe > pxB then xe = pxB
+	line2 xs, standoff, xe, standoff
+	xc = xe + dg
+	if xc < pxB then line2 xc, standoff, xc + 0.0004 * GLOB_SCALE, standoff
+	xs = xe + 2 * dg
+endwhile
 line_type 3
-line2 pxA, standoff, pxB, standoff
 ! 渡した区間: 実際の躯体線は離れが増える。破線で示す
 ! （凹み＝区間内が奥へ、張り出し＝区間外（両隣）が奥へ）
 for ibr = 1 to nBr
@@ -1831,7 +1930,7 @@ endif
 
 ! 離れ寸法: 躯体面と内側建地列の間（面の両端のスパン中央に1本ずつ。端数スパンや渡しで
 ! 面の途中の離れが違っても、両端を見れば分かる）。寸法線は面に直交、値は線の脇に
-for kd = 1 to 2
+for kd = 1 to 2 * (1 - dimSoTool)
 	if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2
 	line2 xd, 0, xd, standoff
 	line2 xd - 0.05, 0.05, xd + 0.05, -0.05

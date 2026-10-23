@@ -1001,7 +1001,7 @@ class TestModelViewOptionPart(unittest.TestCase):
         for name in ("planMode", "planNotes", "mode3d"):
             self.assertIn(f'Name="{name}"', xml)
         vl = (root / "scripts" / "vl.gdl").read_text(encoding="utf-8")
-        self.assertIn('"planMode", 1, "詳細", 2, "単線"', vl)
+        self.assertIn('"planMode", 1, "詳細", 3, "精細（実寸）", 2, "単線"', vl)
 
     def test_line_part_reads_the_mvo_and_falls_back_to_its_own_params(self):
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"

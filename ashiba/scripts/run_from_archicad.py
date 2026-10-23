@@ -455,11 +455,18 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict]) -> tuple[int, 
         ok = [el["elementId"]["guid"] for el in made if "elementId" in el]
         guids += ok
         n_dim = len(ok)
-        # 面ごとに2本（スパン・全長）。両方置けた面だけ部品の寸法を消す
+        # 面ごとに2本（スパン・全長）。両方置けた面だけ部品の寸法を消す。その後ろに面ごとの離れ寸法 2本
+        nl = len(lines)
         for k, line in enumerate(lines):
             pair = made[2 * k:2 * k + 2]
+            so = made[2 * nl + 2 * k:2 * nl + 2 * k + 2]
+            upd = {}
             if len(pair) == 2 and all("elementId" in el for el in pair):
-                client.set_gdl_parameters(line, {"dimTool": True})
+                upd["dimTool"] = True
+            if len(so) == 2 and all("elementId" in el for el in so):
+                upd["dimSoTool"] = True
+            if upd:
+                client.set_gdl_parameters(line, upd)
         errs = [el.get("error", {}).get("message", "") for el in made if "elementId" not in el]
         if errs:
             print(f"  平面図: 寸法ツールで置けなかった寸法 {len(errs)}本（部品の寸法のまま）: {errs[0]}")

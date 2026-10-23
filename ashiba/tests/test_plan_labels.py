@@ -95,7 +95,15 @@ class TestPlanDimensions(unittest.TestCase):
         r = solve_all(dict(RECT))
         lines = [{"elementId": {"guid": f"G{i}"}} for i in range(len(r.model.plan.edges))]
         data = plan_dimension_data(r.model, lines)
-        self.assertEqual(len(data), 2 * len(lines))
+        # スパン・全長が面ごとに2本、その後ろに離れ寸法（躯体〜内側建地列）が面ごとに2本
+        self.assertEqual(len(data), 4 * len(lines))
+        nl = len(lines)
+        for k, ep in enumerate(r.model.plan.edges):
+            n = len(ep.spans) + 1
+            a, b = data[2 * nl + 2 * k], data[2 * nl + 2 * k + 1]
+            self.assertEqual([w["inIndex"] for w in a["witnessPoints"]], [n + 3, n + 4])
+            self.assertEqual([w["inIndex"] for w in b["witnessPoints"]], [n + 5, n + 6])
+        self.assertAlmostEqual(data[2 * nl]["direction"]["y"], 1.0)        # 南面の離れ寸法は面に直交（躯体側 +y）
         for k, ep in enumerate(r.model.plan.edges):
             spans, total = data[2 * k], data[2 * k + 1]
             # 長方形は四隅とも出隅: 始点の角の支柱（nSpan+2）→ 支柱 1〜nSpan+1 → 終点の角の支柱（nSpan+3）

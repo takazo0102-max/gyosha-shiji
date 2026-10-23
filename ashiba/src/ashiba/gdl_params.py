@@ -352,11 +352,13 @@ def line_params(
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
         "mvoName": mvo_part_name(),
         "planSimple": False,
+        "planReal": False,
         # 平面の部材の名前（GDL のラベル。部品が描く。利用者の指定 2026-10-23）
         **label_texts(model),
         **label_positions(model, ep, stair_plan, openings, platforms),
         # 平面のスパン寸法を寸法ツールで付けたら True にする（配置後に。部品の寸法と二重にしない）
         "dimTool": False,
+        "dimSoTool": False,
         # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）
         "tieObj": False,
         # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）

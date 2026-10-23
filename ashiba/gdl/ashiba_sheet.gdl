@@ -35,19 +35,23 @@
 ! ==== 2Dスクリプト ====
 ! ==========================================================
 ! ============================================================
-! 養生シート 2D（平面）: 外側建地列の外の線と、1枚の幅ごとの短い目盛り
+! 養生シート 2D（平面）: 外側建地列の外の破線
+! 利用者の指摘（2026-10-23）: 足場平面の下に変の線がある。線種 3 は縮尺で点にしか見えず、1枚ごとの目盛りが
+! 足場の外に短い縦線で残っていた。破線は図面上で 3mm・間 1.5mm を自分で描き、目盛りはやめる
 ! ============================================================
 pen 1
 rot2 faceAng
-line_type 3
-line2 x0, -offY, x1, -offY
-line_type 1
-nW = int((x1 - x0) / sheetW + 0.999)
-for iw = 0 to nW
-	xs = x0 + iw * sheetW
-	if xs > x1 then xs = x1
-	line2 xs, -offY - 0.05, xs, -offY + 0.05
-next iw
+dl = 0.003 * GLOB_SCALE
+dg = 0.0015 * GLOB_SCALE
+if dl < 0.05 then dl = 0.05
+if dg < 0.025 then dg = 0.025
+xs = x0
+while xs < x1 - 0.001 do
+	xe = xs + dl
+	if xe > x1 then xe = x1
+	line2 xs, -offY, xe, -offY
+	xs = xs + dl + dg
+endwhile
 hotspot2 x0, -offY
 hotspot2 x1, -offY
 del 1

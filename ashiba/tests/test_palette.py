@@ -17,7 +17,7 @@ class TestEntries(unittest.TestCase):
         # （利用者の指定 2026-10-22: Tapirの足場を一つにパレットとしてまとめて）
         self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
         self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "支柱だけ分解",
-                                                     "分解を戻す", "3D表示", "条件", "条件の登録", "条件の呼び出し",
+                                                     "分解を戻す", "3D表示", "平面表示", "条件", "条件の登録", "条件の呼び出し",
                                                      "帳票", "撤去"])
         for a in ACTIONS:
             self.assertTrue((ROOT / "scripts" / a.script).exists(), a.script)
@@ -116,6 +116,25 @@ class TestToggle3D(unittest.TestCase):
         self.assertEqual(next_step(1), (0, "自動"))
 
 
+class TestTogglePlan(unittest.TestCase):
+    """平面も詳細モード（利用者の指定 2026-10-23）: 詳細 → 精細（実寸）→ 単線."""
+
+    def test_cycle_and_gdl(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from toggle_plan import current_step, next_step
+
+        self.assertEqual(next_step("詳細"), ("精細", False, True))
+        self.assertEqual(next_step("精細"), ("単線", True, False))
+        self.assertEqual(next_step("単線"), ("詳細", False, False))
+        self.assertEqual(current_step({"planReal": True}), "精細")
+        root = ROOT / "gdl" / "hsf"
+        g2 = (root / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if mvOk and mvPlan = 3 then planReal = 1", g2)
+        self.assertIn("940: ! ---- 平面 実寸", g2)
+        self.assertIn('3, "精細（実寸）"', (root / "ashiba_mvo" / "scripts" / "vl.gdl").read_text(encoding="utf-8"))
+
+
 class TestBlockMode(unittest.TestCase):
     """3D の「ブロック」表示（参考: smartCON Planner）: 部材を描かずスパン×層の箱."""
 
@@ -167,7 +186,7 @@ class TestMenu(unittest.TestCase):
         slab = [a.title for a in menu_items({"slab"})]
         self.assertEqual(slab[:4], ["配置", "条件", "帳票", "撤去"])
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
-        self.assertEqual([a.title for a in menu_items(set())][:3], ["3D表示", "条件", "帳票"])
+        self.assertEqual([a.title for a in menu_items(set())][:4], ["3D表示", "平面表示", "条件", "帳票"])
         # どの選択でも全部の操作が一覧にある
         for k in ("line", "slab", "member", "spec", "none"):
             self.assertEqual(len(menu_items({k})), len(ACTIONS))

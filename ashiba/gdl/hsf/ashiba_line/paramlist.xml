@@ -185,8 +185,16 @@
 			<Description><![CDATA["平面のスパン寸法は寸法ツール（部品では描かない）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Boolean Name="dimSoTool">
+			<Description><![CDATA["平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Boolean Name="planSimple">
 			<Description><![CDATA["平面を単線で（建地列・支柱位置・床の対角線だけ）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="planReal">
+			<Description><![CDATA["平面を実寸で（支柱・コマ・布材・腕木を太さどおり、踏板を幅どおり、幅木）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
 		<String Name="mvoName">

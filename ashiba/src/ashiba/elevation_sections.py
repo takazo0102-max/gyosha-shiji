@@ -28,7 +28,8 @@ SUBSET_NAME = "仮設足場"
 CLEARANCE_MM = 3500.0        # 外側建地列から切断線まで（ステージ出1500・昇降機の搬器と マストの外側 ≈2.5m を越える）
 END_EXT_MM = 2000.0          # 面の両端の延長（出隅コーナー・隣の面の端部が入る）
 DEPTH_MARGIN_MM = 300.0      # 躯体の最遠点からの余裕
-SCALE_CANDIDATES = (100, 200, 300, 500)
+# 用紙に入るいちばん大きい縮尺から（利用者の指定 2026-10-23: 出力の図面はなるべく大きくして縮尺変えて）
+SCALE_CANDIDATES = (50, 60, 100, 150, 200, 300, 500)
 
 
 @dataclass
@@ -1331,7 +1332,7 @@ def plan_region_mm(model: ScaffoldModel, margin_mm: float = 1500.0) -> tuple[flo
 def fit_scale(box_mm: tuple[float, float], paper_mm: tuple[float, float],
               margins_mm: tuple[float, float, float, float] = (20.0, 20.0, 20.0, 20.0),
               title_band_mm: float = 60.0, caption_mm: float = 15.0) -> Optional[int]:
-    """モデル mm の箱が用紙に収まる最大の縮尺（1/100 から）。収まらなければ None."""
+    """モデル mm の箱が用紙に収まる最大の縮尺（1/50 から）。収まらなければ None."""
     pw, ph = paper_mm
     left, top, right, bottom = margins_mm
     uw = pw - left - right - 10.0
