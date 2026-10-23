@@ -416,8 +416,10 @@ def cut_overlay(cuts: list[dict], region_mm: tuple[float, float, float, float], 
     items: dict = {"texts": [], "lines": []}
     tr = lambda p: (paper_pos_mm[0] + (p[0] - region_mm[0]) / scale, paper_pos_mm[1] + (p[1] - region_mm[1]) / scale)
     for c in cuts:
-        # 平面図の切り抜きの範囲で切る（外に出た端の記号が図の外に書かれて見えなかった）
-        seg = _clip_segment(c["start"], c["end"], region_mm)
+        # 平面図の切り抜きの範囲の 16mm（用紙）内側で切る（外に出た端の記号が図枠の外に書かれて見えなかった）
+        inset = 16.0 * scale                               # 記号（文字高 5mm）が図枠に掛からない
+        box = (region_mm[0] + inset, region_mm[1] + inset, region_mm[2] - inset, region_mm[3] - inset)
+        seg = _clip_segment(c["start"], c["end"], box)
         if seg is None:
             continue
         a, b = tr(seg[0]), tr(seg[1])

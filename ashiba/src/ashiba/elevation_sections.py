@@ -1032,9 +1032,21 @@ def _delete_sections(client, guids: list[str]) -> None:
     図面の作成が1件60秒かかって止まった 2026-10-23）ので、マーカーのレイヤーを一度表示してから消し、また隠す."""
     if not guids:
         return
+    # 今ある断面だけを1つずつ消す（控えの無い古い GUID と一緒にまとめて渡すと、今ある断面が
+    # 「Failed to delete the element」で残った 2026-10-23 実機）
+    try:
+        r = client.tapir("GetElementsByType", {"elementType": "CutPlane"})
+        if isinstance(r, dict) and "elements" in r:
+            have = {e["elementId"]["guid"] for e in r["elements"]}
+            guids = [g for g in guids if g in have]
+    except Exception:
+        pass
+    if not guids:
+        return
     _set_marker_layer_hidden(client, False)
     try:
-        client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}} for g in guids]})
+        for g in guids:
+            client.tapir("DeleteElements", {"elements": [{"elementId": {"guid": g}}]})
     finally:
         _set_marker_layer_hidden(client, True)
 

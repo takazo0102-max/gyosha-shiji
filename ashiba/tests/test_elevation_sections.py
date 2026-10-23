@@ -639,12 +639,18 @@ class TestHideMarkers(unittest.TestCase):
                 if cmd == "GetAttributesByType":
                     return {"attributes": [{"name": SECTION_MARKER_LAYER, "index": 49},
                                            {"name": "足場_立面マーカー", "index": 48}]}
+                if cmd == "GetElementsByType":
+                    return {"elements": [{"elementId": {"guid": "G1"}}, {"elementId": {"guid": "G2"}}]}
                 return {}
 
         c = Client()
-        _delete_sections(c, ["G1"])
+        _delete_sections(c, ["G1", "G2", "OLD"])
         seq = [(cmd, p["layerDataArray"][0]["isHidden"] if cmd == "CreateLayers" else None)
-               for cmd, p in c.calls if cmd != "GetAttributesByType"]
-        self.assertEqual(seq, [("CreateLayers", False), ("DeleteElements", None), ("CreateLayers", True)])
+               for cmd, p in c.calls if cmd not in ("GetAttributesByType", "GetElementsByType")]
+        self.assertEqual(seq, [("CreateLayers", False), ("DeleteElements", None), ("DeleteElements", None),
+                               ("CreateLayers", True)])
+        # 今ある断面だけを1つずつ（控えの古い GUID は渡さない）
+        self.assertEqual([p["elements"][0]["elementId"]["guid"] for cmd, p in c.calls if cmd == "DeleteElements"],
+                         ["G1", "G2"])
         shown = next(p for cmd, p in c.calls if cmd == "CreateLayers")
         self.assertEqual({d["name"] for d in shown["layerDataArray"]}, {SECTION_MARKER_LAYER, "足場_立面マーカー"})

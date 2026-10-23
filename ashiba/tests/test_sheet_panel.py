@@ -93,8 +93,8 @@ class TestContent(unittest.TestCase):
         ov2 = cut_overlay([{"label": "B", "start": (6000, -50000), "end": (6000, 90000)}],
                           (-10000.0, -10000.0, 30000.0, 20000.0), 100, (0.0, 0.0))
         ys2 = sorted(t["y"] for t in ov2["texts"])
-        self.assertAlmostEqual(ys2[0], 0.0 - 4.0 + 2.0, delta=0.01)
-        self.assertAlmostEqual(ys2[1], 300.0 + 4.0 + 2.0, delta=0.01)
+        self.assertAlmostEqual(ys2[0], 16.0 - 4.0 + 2.0, delta=0.01)          # 範囲の 16mm 内側で切る
+        self.assertAlmostEqual(ys2[1], 284.0 + 4.0 + 2.0, delta=0.01)
 
 
 class TestWrite(unittest.TestCase):
