@@ -199,6 +199,9 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
         self.assertIn("if stRl = 1 and inSg = 0 then inSg = 3", body2)
         self.assertIn("(stRl = 0 or railAdv = 1)", body3)
+        # 立面の階段手すりも 3D と同じ 2段（床から 1350 と 900、階段と平行）
+        self.assertIn("line2 x0, lv[il5] + hT, x0 + fl, lv[il5 + 1] + hT", body2)
+        self.assertNotIn("line2 x0, lv[il5] + 0.95, x0 + fl, lv[il5 + 1] + 0.95", body2)
 
     def test_opening_bays_have_no_ledgers_in_any_view(self):
         """開口部（梁枠より下）は通路。布材・手すり・根がらみが入らない.
