@@ -10,7 +10,7 @@
   python3 scripts/dev_site.py place  [--at ...] [条件の JSON を ASHIBA_SPEC で]
   python3 scripts/dev_site.py clear  [--at ...]      # 作った境界線を消す（足場は remove_from_archicad で）
   python3 scripts/dev_site.py zoom   [--at ...]      # 平面図をこの建物の足場に合わせる（place の後にも自動で）
-建物は 24m×10m（--size 24000x10000）。--shape L で北東を欠いた L 字。境界までの距離は躯体の面から。
+建物は 24m×10m（--size 24000x10000）。--shape L で北東を欠いた L 字、--shape U で北に中庭のあるコの字。境界までの距離は躯体の面から。
 """
 
 from __future__ import annotations
@@ -45,7 +45,11 @@ def site(ox: float, oy: float) -> dict:
     w, h = (float(v) for v in _arg("size", "24000x10000").split("x"))
     road, west, east, north = (float(_arg(k, d)) for k, d in
                                (("road", "1200"), ("west", "1500"), ("east", "3000"), ("north", "4000")))
-    if _arg("shape", "rect") == "L":
+    if _arg("shape", "rect") == "U":
+        # コの字（北に開いた中庭。幅 w/3・奥行き 2h/3）。中庭の面が向かい合う
+        building = [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox + 2 * w / 3, oy + h), (ox + 2 * w / 3, oy + h / 3),
+                    (ox + w / 3, oy + h / 3), (ox + w / 3, oy + h), (ox, oy + h)]
+    elif _arg("shape", "rect") == "L":
         # L字（北東を欠く）。入隅の面（東面(辺3)・北面(辺2)）は境界から遠い
         building = [(ox, oy), (ox + w, oy), (ox + w, oy + h / 2), (ox + w / 2, oy + h / 2), (ox + w / 2, oy + h),
                     (ox, oy + h)]
