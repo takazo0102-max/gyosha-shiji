@@ -124,3 +124,19 @@ class TestSmallBuilding(unittest.TestCase):
                        "series_id": "nikken_nd1800", "module": "inch", "stairs": {"layout": "outside"}})
         self.assertTrue(r.stair_plan.towers)
         self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))
+
+
+class TestFewStairsWhenOnlySomeFacesAreFree(unittest.TestCase):
+    """外付け階段が敷地境界に詰まった面を避けるとき、空きの中央へ足し続けて数だけ増やさない
+    （2026-10-23 実機: 30×20m の建物に東・北で 7 箇所置いていた）."""
+
+    def test_two_towers_cover_the_loop(self):
+        from ashiba.cli import solve_all
+
+        B = [[0, 0], [30000, 0], [30000, 20000], [0, 20000]]
+        bnd = [[-1500, -1200], [33000, -1200], [33000, 24000], [-1500, 24000]]
+        r = solve_all({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd, "road_edges": [0]})
+        self.assertTrue(r.stair_plan.outside)
+        self.assertEqual(len(r.stair_plan.towers), 2)
+        self.assertLessEqual(r.stair_plan.max_travel_mm, 30000)
+        self.assertEqual(next(c for c in r.checks if c.check_id == 12).status, "OK")

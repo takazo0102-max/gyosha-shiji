@@ -119,6 +119,27 @@ def auto_place_stairs(
         plan.towers.append(tower)
         return True
 
+    def _add_if_shorter(pos: float, reason: str) -> bool:
+        """いちばん空いた所の中央に足す。置ける区間が別の面へずれて移動距離が縮まないなら足さない.
+
+        外付けの階段が敷地境界に詰まった面を避けると、空きの中央は置けない面にあり、足した階段は
+        置ける面の隣へずれる。縮まないのに足し続けて 30×20m の建物に 7 箇所置いていた（2026-10-23 実機）。
+        """
+        # 狙った空き（pos を含む隣り合う階段の間）の中に入れば足す。入らなければ移動距離は縮まない
+        prev_pos = sorted(tw.loop_position_mm for tw in plan.towers)
+        if not _add(_place_at(model, pos, tower_spans, occupied, corner_gap), reason):
+            return False
+        if not prev_pos:
+            return True
+        lo = max((q for q in prev_pos if q <= pos), default=prev_pos[-1] - loop_len)
+        hi = min((q for q in prev_pos if q > pos), default=prev_pos[0] + loop_len)
+        q = plan.towers[-1].loop_position_mm
+        if any(lo + 1.0 < x < hi - 1.0 for x in (q, q - loop_len, q + loop_len)):
+            return True
+        tw = plan.towers.pop()
+        occupied[tw.edge_index].remove((tw.start_mm, tw.end_mm))
+        return False
+
     if min_per_face > 0:
         for ep in model.plan.edges:
             placed = 0
@@ -156,10 +177,9 @@ def auto_place_stairs(
                     and actual_max_travel(plan.towers, loop_len) <= max_travel_mm):
                 break
             pos = _largest_gap_center(plan.towers, loop_len)
-            if not _add(
-                _place_at(model, pos, tower_spans, occupied, corner_gap),
-                f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加",
-            ):
+            placer = _add_if_shorter if len(plan.towers) >= n else (
+                lambda q, why: _add(_place_at(model, q, tower_spans, occupied, corner_gap), why))
+            if not placer(pos, f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加"):
                 plan.warnings.append(
                     f"階段を{max(n, len(plan.towers) + 1)}箇所置きたいところ"
                     f"{len(plan.towers)}箇所しか置けません"
@@ -192,12 +212,24 @@ def auto_place_stairs(
             while (plan.towers
                    and actual_max_travel(plan.towers, loop_len) > max_travel_mm):
                 pos = _largest_gap_center(plan.towers, loop_len)
-                if not _add(
-                    _place_at(model, pos, tower_spans, occupied, corner_gap),
-                    f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加"
-                    "（開口部等を避けて位置がずれた分）",
-                ):
+                if not _add_if_shorter(pos, f"移動距離{max_travel_mm / 1000:.0f}m以内にするための追加"
+                                            "（開口部等を避けて位置がずれた分）"):
                     break
+
+    # 箇所数を指定していないとき、置ける区間が一部の面に限られる（外付けの階段が敷地境界に詰まった面を
+    # 避ける等）と、均等配置＋空きの中央への追加では移動距離が縮まないまま数だけ増える。置ける区間の
+    # 組合せから、移動距離が収まるいちばん少ない箇所数で、移動距離が最小のものを探して置き換える
+    if count is None and min_per_face == 0 and plan.towers and (
+            len(plan.towers) > need or actual_max_travel(plan.towers, loop_len) > max_travel_mm):
+        best = _best_tower_set(model, tower_spans, avoid or {}, corner_gap, loop_len, need,
+                               max_travel_mm, len(plan.towers))
+        if best is not None and (len(best) < len(plan.towers) or (
+                actual_max_travel(best, loop_len) < actual_max_travel(plan.towers, loop_len) - 1.0
+                and len(best) <= len(plan.towers))):
+            for tw in best:
+                tw.reason = (f"昇降設備{len(best)}箇所（置ける区間の組合せで水平移動"
+                             f"{actual_max_travel(best, loop_len) / 1000:.1f}m が最小。安衛則526条）")
+            plan.towers = best
 
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）
@@ -221,6 +253,67 @@ def auto_place_stairs(
         if issue not in plan.warnings:
             plan.warnings.append(issue)
     return plan
+
+
+def _best_tower_set(model: ScaffoldModel, tower_spans: int, avoid: dict, corner_gap: int, loop_len: float,
+                    need: int, max_travel_mm: float, upto: int) -> Optional[list[StairTower]]:
+    """置ける区間（avoid と重ならない、tower_spans スパン連続）の組合せのうち、移動距離が max_travel_mm 以下になる
+    いちばん少ない箇所数で移動距離が最小のもの。need〜upto 箇所を試し、収まらなければ upto 箇所で最小のもの."""
+    import itertools
+
+    cands = []
+    acc = 0.0
+    for ep in model.plan.edges:
+        spans = ep.spans
+        starts = [0.0]
+        for s in spans:
+            starts.append(starts[-1] + s)
+        taken = avoid.get(ep.edge_index, [])
+        for i in range(corner_gap, len(spans) - tower_spans - corner_gap + 1):
+            st, ln = starts[i], float(sum(spans[i:i + tower_spans]))
+            if any(st < b and a < st + ln for a, b in taken):
+                continue
+            cands.append((ep.edge_index, st, ln, acc + st, len(spans[:i])))
+        acc += ep.scaffold_length
+    if not cands:
+        return None
+
+    def overlap(sel) -> bool:
+        for a, b in itertools.combinations(sel, 2):
+            if a[0] == b[0] and a[1] < b[1] + b[2] and b[1] < a[1] + a[2]:
+                return True
+        return False
+
+    def travel(sel) -> float:
+        pos = sorted(c[3] for c in sel)
+        if len(pos) == 1:
+            return loop_len / 2
+        gaps = [pos[i + 1] - pos[i] for i in range(len(pos) - 1)] + [loop_len - pos[-1] + pos[0]]
+        return max(gaps) / 2
+
+    best_any = None
+    for k in range(max(1, need), max(need, upto) + 1):
+        best = None
+        combos = itertools.combinations(cands, k)
+        for n_try, sel in enumerate(combos):
+            if n_try > 60000:
+                break
+            if overlap(sel):
+                continue
+            tv = travel(sel)
+            if best is None or tv < best[0] - 1e-6:
+                best = (tv, sel)
+        if best is None:
+            continue
+        if best_any is None or best[0] < best_any[0]:
+            best_any = best
+        if best[0] <= max_travel_mm:
+            best_any = best
+            break
+    if best_any is None:
+        return None
+    return [StairTower(edge_index=c[0], start_mm=c[1], span_count=tower_spans, length_mm=c[2], loop_position_mm=c[3])
+            for c in sorted(best_any[1], key=lambda c: c[3])]
 
 
 def _largest_gap_center(towers: list[StairTower], loop_len_mm: float) -> float:

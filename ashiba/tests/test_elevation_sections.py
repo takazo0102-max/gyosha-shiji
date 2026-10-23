@@ -486,7 +486,7 @@ class TestPlanSheet(unittest.TestCase):
     def test_fit_scale(self):
         from ashiba.elevation_sections import fit_scale
 
-        self.assertEqual(fit_scale((41000, 31000), (841.0, 594.0)), 100)
+        self.assertEqual(fit_scale((41000, 31000), (841.0, 594.0)), 80)        # 1/80（JIS の許容）
         self.assertEqual(fit_scale((90000, 60000), (841.0, 594.0)), 150)
         self.assertEqual(fit_scale((30000, 20000), (841.0, 594.0)), 50)       # 小さい建物は 1/50 で大きく
         self.assertIsNone(fit_scale((500000, 400000), (841.0, 594.0)))
