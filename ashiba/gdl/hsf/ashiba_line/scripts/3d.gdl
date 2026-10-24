@@ -565,16 +565,25 @@ for ie9 = 0 to 1
 	if isOpen9 = 1 then
 		for il = 2 to nLv
 			z = lv[il]
-			add xe9, 0, z + railTop
-			rotz -90
-			nL = rowW
-			gosub 830
-			del 2
-			add xe9, 0, z + railMid
-			rotz -90
-			nL = rowW
-			gosub 830
-			del 2
+			if endBrace = 1 then
+				! 妻側をブレス材（先行手すり。手すり＋X の斜材）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択）
+				add xe9, 0, z
+				rotz -90
+				nL = rowW
+				gosub 850
+				del 2
+			else
+				add xe9, 0, z + railTop
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+				add xe9, 0, z + railMid
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			endif
 			if showDeck and hugMode = 0 and toeOn = 1 then
 				if mToe > 0 then material mToe
 				add xe9 - 0.01, -rowW, z + r_nuno + 0.045

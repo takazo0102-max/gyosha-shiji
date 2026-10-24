@@ -20,6 +20,7 @@ SERIES_AUTO = "自動（幅に合わせる）"
 WIDTH_DEFAULT = "系列の既定"
 RAILS = {"布材（手すり＋中桟＋幅木）": "布材", "先行手すり": "先行手すり"}
 INNER = {"付ける（手すり＋中桟）": True, "付けない": False}
+ENDS = {"布材（手すり＋中桟）": "布材", "ブレス材（先行手すり）": "ブレス材"}
 ONOFF = {"付ける": True, "付けない": False}
 NET = {"張らない": False, "張る": True}
 NET_AUTO = "自動（幅木ありは2層毎・なしは全層）"
@@ -28,7 +29,7 @@ SHEETS = ("メッシュシート", "防音シート", "密閉シート", "防音
 ELEV = {"作る": "section", "作らない（平面・3Dだけ・速い）": "none"}
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
-FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail",
+FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard",
                  "toeBoard", "netLevels", "netBrackets",
                  "stairLayout", "sheetType", "hoardH", "eavesH", "hFromSlab", "elevMode")
 
@@ -98,6 +99,9 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "inner", "label": "内側（躯体側）の手すり", "kind": "choice", "options": list(INNER),
          "value": _key(INNER, bool(spec.get("inner_guard_rail", True)), "付ける（手すり＋中桟）"),
          "help": "躯体と作業床の間が 300 を超えるところの墜落防止。躯体に近く要らなければ付けない"},
+        {"key": "end", "label": "妻側（足場の端）", "kind": "choice", "options": list(ENDS),
+         "value": _key(ENDS, spec.get("end_guard") or "布材", "布材（手すり＋中桟）"),
+         "help": "一部の面だけの足場の端など開いた端の墜落防止。ブレス材はくさび式だけ（単管・枠組は布材）"},
         {"key": "toe", "label": "幅木", "kind": "choice", "options": list(ONOFF),
          "value": _key(ONOFF, spec.get("toe_board", True) is not False, "付ける"),
          "help": "作業床の外側の幅木（先行手すりのときは付けない）。付けないときは落下物防止をメッシュシート等で"},
@@ -195,6 +199,8 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         out["net_brackets"] = ONOFF[values["net_bk"]]
     if values.get("inner") in INNER:
         out["inner_guard_rail"] = INNER[values["inner"]]
+    if values.get("end") in ENDS:
+        out["end_guard"] = ENDS[values["end"]]
     if values.get("sheet") in SHEETS:
         out["site"] = {**(out.get("site") or {}), "sheet_type": values["sheet"]}
     try:

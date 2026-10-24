@@ -107,6 +107,10 @@
 			<Description><![CDATA["躯体側の手すり（布材）"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<String Name="endGuard">
+			<Description><![CDATA["妻側（足場の端）の墜落防止 布材／ブレス材"]]></Description>
+			<Value><![CDATA["布材"]]></Value>
+		</String>
 		<Boolean Name="toeBoard">
 			<Description><![CDATA["幅木を付ける"]]></Description>
 			<Value>1</Value>

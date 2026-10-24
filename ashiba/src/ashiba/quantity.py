@@ -1491,6 +1491,8 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
     参考: smartCON Planner の「墜落の危険箇所に手すりを設置（つま先板つき）」「エンドストッパー」。
     """
+    from .gdl_params import end_brace
+
     m = model.master
     row = model.post_row_spacing_mm
     n_ends = 0
@@ -1503,11 +1505,20 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
         n_ends += k
         if not k:
             continue
-        add(m.find("布材", row), k * lv * 2, f"開放端の妻側の手すり・中桟（布材{row}）")
+        if end_brace(model):
+            # 妻側をブレス材（先行手すり）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択する仕組み）
+            part = m.find("先行手摺", row)
+            if part is None:
+                notes.action(f"開放端の妻側のブレス材（先行手すり{row}・{k * lv}本）がマスタにありません。別途手配してください")
+            else:
+                add(part, k * lv, f"開放端の妻側のブレス材（先行手すり{row}）")
+        else:
+            add(m.find("布材", row), k * lv * 2, f"開放端の妻側の手すり・中桟（布材{row}）")
         if model.config.has_toe_board:
             add(m.find("幅木", row), k * lv, f"開放端の妻側の幅木{row}")
     if n_ends:
-        notes.append(f"一部の面だけの足場の端・入隅でつないだ升目の躯体側の開放端{n_ends}箇所は、各層に妻側の手すり・中桟"
+        notes.append(f"一部の面だけの足場の端・入隅でつないだ升目の躯体側の開放端{n_ends}箇所は、各層に妻側の"
+                     + ("ブレス材（先行手すり）" if end_brace(model) else "手すり・中桟")
                      + ("・幅木" if model.config.has_toe_board else "") + "を計上")
 
 

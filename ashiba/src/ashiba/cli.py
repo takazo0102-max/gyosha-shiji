@@ -155,7 +155,7 @@ TOP_KEYS = {
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
     "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary",
     "stairs_elsewhere",
-    "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
+    "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
@@ -930,6 +930,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         pens=parse_pens(spec.get("pens")),
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
+        end_guard=parse_end_guard(spec.get("end_guard")),
         line_mode_3d=bool(spec.get("line_mode_3d", False)),
         horizontal_net_levels=net_levels_from_spec(spec, elevation.n_levels),
         auto_inner_bracket=bool(spec.get("auto_inner_bracket", True)),
@@ -1232,6 +1233,16 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
         tie_every_spans=a.get("tie_every_spans", 2),
         faces=parse_asagao_faces(a.get("faces")),
     )
+
+
+def parse_end_guard(value) -> str:
+    """妻側の墜落防止: "布材"（既定）か "ブレス材"（「ブレス」「先行手すり」も）."""
+    v = str(value or "").strip()
+    if v in ("ブレス材", "ブレス", "先行手すり", "先行手摺", "brace"):
+        return "ブレス材"
+    if v in ("", "布材", "手すり", "rail"):
+        return "布材"
+    raise InputError(f"end_guard: 布材 か ブレス材 です（{value!r}）")
 
 
 def parse_asagao_faces(value) -> list[str]:

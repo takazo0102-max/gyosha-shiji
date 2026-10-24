@@ -46,6 +46,8 @@ FIELDS: tuple[Field, ...] = (
     Field("scaffW", "int", ("scaffold_width_mm",), 0, zero_is_unset=True),
     Field("railType", "str", ("guard_rail_type",), "布材"),
     Field("innerRail", "bool", ("inner_guard_rail",), True),
+    # 妻側（足場の端）の墜落防止 布材／ブレス材（利用者の指定 2026-10-24）
+    Field("endGuard", "str", ("end_guard",), "布材"),
     # 幅木・ネットブラケットの付け外し（利用者の指定 2026-10-24）
     Field("toeBoard", "bool", ("toe_board",), True),
     Field("netBrackets", "bool", ("net_brackets",), True),

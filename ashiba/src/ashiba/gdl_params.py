@@ -469,6 +469,8 @@ def line_params(
         "endOpenS": 1 if (model.open_start(ep.edge_index)
                           or (model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail)) else 0,
         "endOpenE": 1 if model.open_end(ep.edge_index) else 0,
+        # 妻側を先行手すり（ブレス材）で塞ぐ（くさび式。単管・枠組は布材のまま。利用者の指定 2026-10-24）
+        "endBrace": 1 if end_brace(model) else 0,
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
         "cornerG": 1 if (model.master.is_frame
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
@@ -526,6 +528,13 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+def end_brace(model: ScaffoldModel) -> bool:
+    """妻側（開放端）をブレス材（先行手すり）で塞ぐか（くさび式の本足場だけ。単管・枠組・抱き足場は布材）."""
+    m = model.master
+    return (getattr(model.config, "end_guard", "布材") == "ブレス材" and not m.is_frame and not m.is_tube
+            and not model.config.is_hug)
 
 
 def _koma_const(model: ScaffoldModel, key: str, default=0):

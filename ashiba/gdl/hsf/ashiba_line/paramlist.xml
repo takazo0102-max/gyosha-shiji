@@ -449,6 +449,10 @@
 			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="endBrace">
+			<Description><![CDATA["妻側（開放端）を先行手すり（ブレス材）で塞ぐ 0/1（0 は布材の手すり＋中桟）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="railIn">
 			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
 			<Value>1</Value>
