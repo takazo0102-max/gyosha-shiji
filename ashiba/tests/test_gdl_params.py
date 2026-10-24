@@ -1272,23 +1272,24 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         self.assertIn("if stHalf = 1 then gyS = -rowW + 0.05 + deckW1 - 0.005", sub)   # 外側の板とハーフアンチの間
         self.assertIn("gzT = zg + 0.922", sub)
         self.assertNotIn("block 0.02, gw, 0.157", body)
-        # 階段の上の幅木（開口部幅木）と、開口の端を横切る桟は付けない（利用者の指定 2026-10-24: 階段上の幅木と布材不要）
+        # 階段の上の幅木（開口部幅木）は付けない（利用者の指定 2026-10-24: 階段上の幅木不要）
         self.assertNotIn("block fl - 2 * r_sic, 0.008, 0.150", sub)
-        self.assertNotIn("cylind gyS - gyO - 0.02, gR", sub)
+        # 開口部手摺は上がり口側で直角に折れて開口の端を横切り、外側の建地まで回す（利用者の指摘 2026-10-24:
+        # 階段開口部手すりが回ってない）
+        self.assertIn("cylind gyS - gyO - 0.02, gR", sub)
 
-    def test_stair_handrail_on_the_stair_side_at_1350(self):
-        # 専用階段手摺 NDKT は階段側（外側の建地列）だけ、床から 1350（利用者の指摘 2026-10-22: 今より450上、階段側だけ）
+    def test_stair_handrail_on_the_stair_side_at_rail_heights(self):
+        # 専用階段手摺 NDKT は階段側（外側の建地列）だけ（利用者の指摘 2026-10-22: 階段側だけ）。2段（手すりと中桟）を
+        # 階段と平行に、床の手すり・中桟と同じ高さ（段鼻の線から 900・450。利用者の指定 2026-10-24: 高さを下げる）
         body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
                 ).read_text(encoding="utf-8")
         i = body.index("! 階段手すり（日建 ND1800専用階段手摺 NDKT")
         sub = body[i:i + 1500]
         self.assertIn("for sd = 0 to stOut", sub)
-        self.assertIn("hKT = 1.35", sub)
-        # 2段（手すりと中桟。中桟は 450 下）を階段と平行に（利用者の指定 2026-10-24）
-        self.assertIn("hT = hKT - tk * 0.45", sub)
+        self.assertIn("hT = railTop", sub)
+        self.assertIn("if tk = 1 then hT = railMid", sub)
         self.assertIn("add x0 + r_sic, ys, lv[il5] + hT", sub)
-        # 最上層へ上がる階段は支柱の上（床から900まで）に浮かないよう、コマ1つ下げる（利用者の指摘 2026-10-22: 手すり浮いてる）
-        self.assertIn("if lv[il5 + 1] + hKT > postTop - 0.03 then hKT = hKT - 0.45", sub)
+        self.assertNotIn("hKT = 1.35", sub)
 
     def test_no_floating_toe_board_over_the_stair(self):
         # 階段が上がってくるスパンは布板が無いので外側の幅木も付けない（利用者の指摘 2026-10-22: 巾木が宙に浮いてる）

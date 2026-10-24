@@ -525,7 +525,7 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
         sp0 = next((sp for x0, sp in zip(xs, ep.spans) if abs(x0 - start) < 1), 1800.0) / 1000.0
         if len(lv) >= 1:
             items.append((t0 + sgn * sp0 * 0.5, (first + lv[0]) / 2.0, name("階段", "昇降階段")))
-            items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 1.35,
+            items.append((t0 + sgn * sp0 * 0.25, (first + lv[0]) / 2.0 + 0.90,
                           name("階段手摺", "階段手摺") + ("（両側）" if outside else "")))
             # 1層目の開口の長手に沿う開口部手摺（SG918SW、高さ922）＋開口部幅木（3d.gdl と同じ。上がり口側で折れて端も塞ぐ）。
             # 外付けには付けない

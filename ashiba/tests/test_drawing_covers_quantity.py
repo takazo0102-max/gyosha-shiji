@@ -200,7 +200,7 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         self.assertIn("if stRl = 1 and inSg = 0 then inSg = 3", body2)
         self.assertIn("if stRl = 0 then", body3)                                    # 階段室は中桟だけ
         self.assertIn("if inSg = 3 then line2 xs, z + railMid, xe, z + railMid", body2)
-        # 立面の階段手すりも 3D と同じ 2段（床から 1350 と 900、階段と平行）
+        # 立面の階段手すりも 3D と同じ 2段（床の手すり・中桟と同じ高さ、階段と平行）
         self.assertIn("line2 x0, lv[il5] + hT, x0 + fl, lv[il5 + 1] + hT", body2)
         self.assertNotIn("line2 x0, lv[il5] + 0.95, x0 + fl, lv[il5 + 1] + 0.95", body2)
 
