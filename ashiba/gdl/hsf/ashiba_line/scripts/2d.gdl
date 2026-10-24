@@ -314,15 +314,28 @@ for ip = 1 to nSpan + 1
 next ip
 
 pen penEquip
-! 梁枠の区間（平面では太い二重線と文字）。区切った部品は範囲の中だけ
+! 梁枠の区間（平面では内外の建地列から足場の帯の中へすぼまる台形と文字）。利用者の指定 2026-10-24（線で描いた形を整えて）:
+! 両端の建地から斜めに入り、建地列と平行に通して、もう一方の端の建地へ斜めに戻る。深さは建地列の間隔の 0.38 倍（内外とも）、
+! 斜めの横幅は立面の梁枠の端の区画（1スパンの 1/4）と同じで左右対称。区切った部品は範囲の中だけ（途中で切れる側は斜めを描かない）
 for ib = 1 to nBm
 	bs = max(bmS[ib], pxA)
 	be = min(bmS[ib] + bmL[ib], pxB)
 	if be > bs + 0.001 then
-	line2 bs, -rowW, be, -rowW
-	line2 bs, -rowW - 0.06, be, -rowW - 0.06
-	line2 bs, -rowW, bs, -rowW - 0.06
-	line2 be, -rowW, be, -rowW - 0.06
+	bDp = rowW * 0.38
+	bCh = 1.829 / 4
+	if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
+	for rr = rowStart to 1
+		yR = -rr * rowW
+		sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
+		yIn = yR - sgY * bDp
+		cL = bCh
+		cR = bCh
+		if bs > bmS[ib] + 0.001 then cL = 0
+		if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
+		if cL > 0 then line2 bs, yR, bs + cL, yIn
+		line2 bs + cL, yIn, be - cR, yIn
+		if cR > 0 then line2 be - cR, yIn, be, yR
+	next rr
 	set style "annoC"
 	if showDim then
 		tdx = (bs + be) / 2

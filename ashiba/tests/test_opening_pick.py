@@ -201,3 +201,16 @@ class TestEndPlaneUnderBeam(unittest.TestCase):
         self.assertTrue(any("ブレス材（先行手すり）4本" in n and "ミレニュームにも" in n for n in r.quantity.notes),
                         r.quantity.notes)
         self.assertEqual(sum(l.qty for l in r.quantity.lines if l.part.model_no == "STXC609G"), 4)
+
+
+class TestBeamPlanSymbol(unittest.TestCase):
+    """平面の梁枠の表現（利用者の指定 2026-10-24: 線で描いた形を整えて取り入れて）."""
+
+    def test_plan_draws_tapered_trapezoids_from_both_rows(self):
+        p2 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        i = p2.index("! 梁枠の区間（平面では内外の建地列から")
+        block = p2[i:i + 2200]
+        self.assertIn("bDp = rowW * 0.38", block)
+        self.assertIn("bCh = 1.829 / 4", block)
+        self.assertIn("line2 bs + cL, yIn, be - cR, yIn", block)
+        self.assertNotIn("line2 bs, -rowW - 0.06, be, -rowW - 0.06", block)     # 以前の外側の二重線
