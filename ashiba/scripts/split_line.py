@@ -1,6 +1,9 @@
 """足場ラインを区切る／区切りを戻す（パレットのボタン「区切る」「区切りを戻す」）.
 
-利用者の指定（2026-10-21）: 「垂直と水平で区切れるようにして」「クリックした次のところから区切るようなコマンド、3Dで」。
+利用者の指定（2026-10-24）「区切るも3Dでなく平面で線で区切るように変更して」: 平面で、区切りたいところに足場を横切る線を
+引き（何本でも）、その線を選んで押すと、線にいちばん近い支柱で縦に区切る（目印の線は消す）。線を選ばずに足場ラインを
+選んで押したときは前のとおり 3D のつまみの位置で区切る（横の区切りは 3D のつまみだけ）。
+以前の指定（2026-10-21）: 「垂直と水平で区切れるようにして」「クリックした次のところから区切るようなコマンド、3Dで」。
 3D で足場ラインを選ぶと、上端に縦の区切りのつまみ、始点の支柱の外に横の区切りのつまみが出る。引いた位置の次の
 支柱の芯・次の作業床に吸着して赤い面が出る（足場ライン vl.gdl・3d.gdl）。このスクリプトがそこで部品を分ける:
 元の部品は始点側・下側の範囲になり、残りの範囲は同じ足場ラインの写し（範囲だけ違う）を置く。区切った部品は
@@ -94,6 +97,57 @@ def split(c: ArchicadClient, lines) -> int:
     return made_total
 
 
+def split_by_guides(c: ArchicadClient, guides) -> int:
+    """平面の目印の線（足場を横切る）ごとに、線にいちばん近い支柱で縦に区切る → 足した部品の数."""
+    from ashiba.plan_pick import across, nearest_post
+    from ashiba.segments import piece_of
+    from ashiba.span_readback import match_edge
+    from guide_lines import building_plan
+
+    pts = [p for _e, segs in guides for seg in segs for p in seg]
+    plan = building_plan(pts)
+    if plan is None:
+        print("区切る: 線の近くの足場の配置の控え（plan.json）がありません。先に「配置」してください")
+        return 0
+    edges = plan.get("edges") or []
+    made = 0
+    for _e, segs in guides:
+        for a, b in segs:
+            hit = across(edges, a, b)
+            if hit is None:
+                print("区切る: 足場を横切っていない線がありました（区切りたいところで足場の帯をまたぐように引いてください）")
+                continue
+            e, t = hit
+            xp = nearest_post(e, t)
+            face = str(e.get("face") or f"辺{e['edge_index']}")
+            # その面の部品のうち、支柱 xp を内側に持つもの（区切った部品は同じ原点）
+            target = None
+            objs = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+            for el, d in zip(objs, c.get_details(objs) if objs else []):
+                dd = d.get("details") or {}
+                if not is_ashiba_part((dd.get("libPart") or {}).get("name", ""), ("ashiba_line",)):
+                    continue
+                o = dd.get("origin") or {}
+                if match_edge([e], (float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0)) is None:
+                    continue
+                p = _params(c, el)
+                try:
+                    pc = piece_of(p)
+                except ValueError:
+                    continue
+                if pc.lA == 1 and pc.pxA * 1000 + 1.0 < xp < pc.pxB * 1000 - 1.0:
+                    target = (el, dd, pc)
+                    break
+            if target is None:
+                print(f"区切る: {face}の {xp:.0f} で区切れる部品がありません（もう区切ってあるか、面の端です）")
+                continue
+            el, dd, pc = target
+            c.set_gdl_parameters_many([(el, {"cutAtX": xp / 1000.0 - pc.pxA, "cutAtZ": 0.0})])
+            print(f"区切る: {face}の始点から {xp:.0f} の支柱で区切ります（線は {t:.0f}）")
+            made += split(c, [(el, dd)])
+    return made
+
+
 def merge(c: ArchicadClient, lines, members) -> int:
     """選んだ部品の面（segGroup が同じ部品）を1つに戻す。始点・下端の部品を残し、ほかは消す."""
     groups = set()
@@ -158,10 +212,20 @@ def main(argv=None) -> int:
             elif not n:
                 print("戻す区切りがありません（区切った足場ラインを選んでから押してください）")
             return 0
-        if not lines:
-            print("足場ラインを選んでから押してください（3Dで足場をクリックし、つまみで区切る位置を決める）")
+        from guide_lines import delete_guides, not_in_plan_hint, selected_guides
+
+        guides = selected_guides(c)
+        if guides:
+            n = split_by_guides(c, guides)
+            if n:
+                delete_guides(c, guides)
+                print("区切る: 目印の線を消しました")
+        elif not lines:
+            print("区切る: 平面で、区切りたいところに足場を横切る線を引き、その線を選んでから押してください"
+                  + not_in_plan_hint(c) + "（横に区切るときは 3D で足場を選び、つまみで位置を決めて押す）")
             return 1
-        n = split(c, lines)
+        else:
+            n = split(c, lines)
     except TapirError as e:
         print(f"エラー: {e}")
         return 2
