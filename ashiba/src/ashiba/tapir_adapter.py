@@ -801,6 +801,7 @@ def read_ground_model(client: Optional[ArchicadClient] = None, outline_mm=None):
 
     client = client or ArchicadClient()
     points: list[tuple[float, float, float]] = []
+    outlines: list = []
     ignored = 0
     try:
         meshes = client.tapir(
@@ -829,7 +830,9 @@ def read_ground_model(client: Optional[ArchicadClient] = None, outline_mm=None):
         take(d.get("polygonCoordinates"))
         for sub in d.get("sublines", []) or []:
             take(sub.get("coordinates"))
-    return GroundModel(points=points, ignored_meshes=ignored)
+        if len(poly) >= 3:
+            outlines.append(poly)
+    return GroundModel(points=points, ignored_meshes=ignored, mesh_outlines=outlines)
 
 
 def place_elevations(

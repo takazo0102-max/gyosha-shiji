@@ -26,16 +26,18 @@ from .elevation_solver import JACK_MAX_EXTENSION, JACK_MIN_EXTENSION, _compose_t
 from .model import ScaffoldModel
 
 JACK_HARD_MAX_EXTENSION = 450   # ジャッキの機械的な最大繰出し（270は実務上限）
+SLOPE_SHIM_LIMIT = 0.10         # 足元の勾配がこれを超えたら傾斜対応のベースか段切り（10%）
 SHIM_UNIT_MM = 35               # 敷板1枚の厚さ（杉敷板 厚35）。実務上限超えの脚を敷板で持ち上げる単位
 
 
 @dataclass
 class GroundModel:
-    """敷地の標高サンプル点群. 任意座標の標高を逆距離加重(IDW)で補間する.
+    """敷地の標高サンプル点群. 任意座標の標高を、近い点（k 点）に重み付きで当てた平面で求める.
 
     Archicadの敷地メッシュ頂点をそのまま入れる想定。
-    ⚠️ 三角形分割による厳密な内挿ではなく近傍点の加重平均。
-    急変する地形では実測値の確認が必要。
+    近い点に平面を当てるので、一様な勾配の敷地ではその勾配のとおりに出る（足元の勾配に合わせる。利用者の指定
+    2026-10-24: 足元の勾配に合わせるように配置）。点が一直線に並ぶ・少ないときは逆距離加重(IDW)。
+    ⚠️ 三角形分割による厳密な内挿ではない。急変する地形では実測値の確認が必要。
     """
 
     points: list[tuple[float, float, float]] = field(default_factory=list)  # (x,y,z) mm
@@ -43,14 +45,73 @@ class GroundModel:
     power: float = 2.0
     # 建物の範囲に掛からず無視した敷地メッシュの数（read_ground_model が建物外形で絞ったとき）
     ignored_meshes: int = 0
+    # 建物に掛かる敷地メッシュの外形（平面 mm）。敷地境界線のポリラインが無いときの敷地境界に使う
+    mesh_outlines: list = field(default_factory=list)
+    plane_k: int = 6
 
     @property
     def is_flat(self) -> bool:
         return not self.points
 
+    def _plane(self, x: float, y: float):
+        """(x, y) の近くの点に当てた平面 z = a(x−x)+b(y−y)+c → (a, b, c)。当てられなければ None."""
+        if len(self.points) < 3:
+            return None
+        near = sorted(self.points, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)[: max(3, self.plane_k)]
+        # 重み付き最小二乗（重み 1/(d+1m)²）。原点を (x, y) に置いて解く
+        sw = sxx = sxy = syy = sx = sy = sz = sxz = syz = 0.0
+        for px, py, pz in near:
+            dx, dy = px - x, py - y
+            w = 1.0 / (math.hypot(dx, dy) + 1000.0) ** 2
+            sw += w
+            sx += w * dx
+            sy += w * dy
+            sz += w * pz
+            sxx += w * dx * dx
+            sxy += w * dx * dy
+            syy += w * dy * dy
+            sxz += w * dx * pz
+            syz += w * dy * pz
+        m = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, sw]]
+        r = [sxz, syz, sz]
+        det = (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+               + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+        scale = (sxx + syy) * sw
+        if scale <= 0 or abs(det) < 1e-9 * scale * (sxx + syy + 1.0):
+            return None
+
+        def d3(a):
+            return (a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+                    + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]))
+        cols = []
+        for k in range(3):
+            mk = [row[:] for row in m]
+            for i in range(3):
+                mk[i][k] = r[i]
+            cols.append(d3(mk) / det)
+        a, b, c = cols
+        zs = [p[2] for p in near]
+        span = max(zs) - min(zs)
+        if not (min(zs) - span - 1.0 <= c <= max(zs) + span + 1.0):
+            return None                      # 外挿が暴れる（点の並びが悪い）
+        return a, b, c
+
+    def slope_at(self, x: float, y: float) -> float:
+        """(x, y) の地盤の勾配（高さ／水平。0.05＝5%）。平らか当てられなければ 0."""
+        pl = self._plane(x, y)
+        return math.hypot(pl[0], pl[1]) if pl else 0.0
+
     def elevation_at(self, x: float, y: float, default: float = 0.0) -> float:
         if not self.points:
             return default
+        for px, py, pz in self.points:
+            if (px - x) ** 2 + (py - y) ** 2 < 1e-6:
+                return pz
+        pl = self._plane(x, y)
+        if pl is not None:
+            # 点の高さの範囲に収める（メッシュの外へ勾配を延ばして、敷地より高い・低い地盤を作らない）
+            near = sorted(self.points, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)[: max(3, self.plane_k)]
+            return min(max(pl[2], min(p[2] for p in near)), max(p[2] for p in near))
         dists = []
         for px, py, pz in self.points:
             d2 = (px - x) ** 2 + (py - y) ** 2
@@ -88,6 +149,7 @@ class PostFoot:
     base_plate_adjust_mm: float = 0.0   # 敷板で追加調整が必要な量
     warnings: list[str] = field(default_factory=list)
     row: int = 0              # 建地列（0＝内側（躯体側）、1＝外側）
+    slope: float = 0.0        # 足元の地盤の勾配（高さ／水平）
 
     @property
     def jack_top_mm(self) -> float:
@@ -347,6 +409,21 @@ def solve_post_feet(
             "（敷板または床掘りでの調整量を一覧に明示しています）"
         )
 
+    # 足元の勾配（脚ごと）。勾配のある脚はジャッキベースを傾斜に合わせ、敷板を勾配に沿わせて据える（利用者の指定
+    # 2026-10-24: 足元の勾配に合わせるように配置）
+    slopes = [(ground.slope_at(f.x, f.y), f) for f in feet] if not ground.is_flat else []
+    for sl, f in slopes:
+        f.slope = sl
+    steep = [f for sl, f in slopes if sl > SLOPE_SHIM_LIMIT]
+    if slopes:
+        mx = max(sl for sl, _f in slopes)
+        if steep:
+            warnings.append(
+                f"足元の勾配が {SLOPE_SHIM_LIMIT * 100:.0f}% を超える{vm}が{len(steep)}本あります（最大 {mx * 100:.1f}%）。"
+                "敷板を段切りして水平に据えるか、傾斜対応のジャッキベース（自在ジャッキベース）で受けてください"
+                "（ジャッキ量一覧の勾配の列）")
+        elif mx > 0.005:
+            notes.append(f"足元の勾配は最大 {mx * 100:.1f}%。敷板は勾配に沿わせて据え、ジャッキで高さを合わせます")
     deck_levels_abs = [
         ref_jack_top - ref_jack + lvl for lvl in model.elevation.level_heights
     ]
@@ -466,13 +543,14 @@ def jack_table_rows(result: TerrainResult) -> list[list]:
     vm = result.vertical_member_name
     rows = [[
         "No", "列", "X(mm)", "Y(mm)", "GL標高(mm)", "下げ段数",
-        "ジャッキ繰出し(mm)", "敷板調整(mm)", f"{vm}構成", "備考",
+        "ジャッキ繰出し(mm)", "敷板調整(mm)", f"{vm}構成", "勾配(%)", "備考",
     ]]
     for f in result.all_feet:
         rows.append([
             f.index + 1, "外" if f.row == 1 else "内", round(f.x), round(f.y), round(f.gl_mm, 1), f.koma_offset,
             round(f.jack_mm, 1), round(f.base_plate_adjust_mm, 1),
             spans_text(f.posts),
+            round(f.slope * 100.0, 1),
             " / ".join(f.warnings) if f.warnings else "",
         ])
     return rows

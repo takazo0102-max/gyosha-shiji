@@ -223,7 +223,7 @@ class TestSheetsMatchThePlan(unittest.TestCase):
         terrain = solve_post_feet(m, ground)
         flat = {s.key: s for s in required_details(m)}["base"]
         slope = {s.key: s for s in required_details(m, terrain=terrain)}["base"]
-        worst = max(f.jack_mm for f in terrain.feet)
+        worst = max(f.jack_mm for f in terrain.all_feet)          # 内外の列のうち最も伸びた脚
         self.assertGreater(worst, m.elevation.jack_extension)
         self.assertAlmostEqual(slope.params["jackOut"], round(worst) / 1000.0, 3)
         self.assertGreater(slope.params["jackOut"], flat.params["jackOut"])

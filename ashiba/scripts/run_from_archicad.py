@@ -629,6 +629,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             spec["stories"] = [{"name": s["name"], "level_mm": float(s["level"]) * 1000.0} for s in st]
         except (TapirError, KeyError, TypeError, ValueError):
             pass
+    # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
+    ground = read_ground_model(client, outline_mm=spec["outline_mm"])
+    if ground.ignored_meshes:
+        print(f"敷地メッシュ{ground.ignored_meshes}個は建物の範囲外（{MESH_MARGIN_MM / 1000:.0f}m以上離れている）"
+              "なので、この棟の地盤には使いません")
+    if not ground.is_flat:
+        spec["ground_points_mm"] = [list(p) for p in ground.points]
     # 敷地境界線（レイヤー名に 敷地・境界 のポリライン。道路 のレイヤーに沿う辺は道路境界）。条件で指定が無ければ拾う
     if not spec.get("site_boundary_mm"):
         from ashiba.site_boundary import read_boundary_from_archicad
@@ -638,13 +645,14 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             spec["site_boundary_mm"] = [list(p) for p in bnd]
             spec["road_edges"] = sorted(roads)
             print(f"  敷地境界線: {len(bnd)}辺" + (f"（道路境界 {len(roads)}辺）" if roads else ""))
-    # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
-    ground = read_ground_model(client, outline_mm=spec["outline_mm"])
-    if ground.ignored_meshes:
-        print(f"敷地メッシュ{ground.ignored_meshes}個は建物の範囲外（{MESH_MARGIN_MM / 1000:.0f}m以上離れている）"
-              "なので、この棟の地盤には使いません")
-    if not ground.is_flat:
-        spec["ground_points_mm"] = [list(p) for p in ground.points]
+        elif spec.get("boundary_from_mesh", True) and ground.mesh_outlines:
+            # 境界線のポリラインが無ければ、敷地メッシュの外形を敷地境界にする（利用者の指定 2026-10-24）
+            from ashiba.site_boundary import boundary_from_meshes
+
+            bnd = boundary_from_meshes(ground.mesh_outlines, spec["outline_mm"])
+            if bnd:
+                spec["site_boundary_mm"] = [list(p) for p in bnd]
+                print(f"  敷地境界線: 敷地メッシュの外形から {len(bnd)}辺")
     # 高さはスラブの天端から（面ごと・セットバック対応。足場条件の「高さをスラブから」を外せば軒高の入力どおり）
     if spec.get("height_from_slabs", True) and not spec.get("slabs"):
         slabs = read_slabs_near(client, spec["outline_mm"])

@@ -793,7 +793,9 @@ class TestTerrainReachesTheDrawing(unittest.TestCase):
             jk = [int(v) for v in p["jackList"].split(",")]
             self.assertEqual(len(gl), ep.span_count + 1, ep.edge_index)
             self.assertEqual(len(jk), ep.span_count + 1)
-            self.assertLessEqual(max(gl), 0)            # 基準は最も高い地盤
+            # 基準は最も高い地盤（名目のジャッキ天端に合わせる差 shift だけ、コマ1つ未満で上下する。勾配を平面で当てる
+            # ようにしてから、外側の列の脚が内側と別の高さになり基準が動く。利用者の指定 2026-10-24）
+            self.assertLessEqual(max(gl), 450)
             self.assertTrue(all(v >= 30 for v in jk))   # ジャッキ最小以上
         # 辺0は x=0 側が高い（drop）→ 地盤高は x=0 で 0、終点で -2000 付近
         p0 = line_params(m, m.plan.edges[0], terrain=t)

@@ -153,7 +153,7 @@ TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
-    "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary",
+    "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",

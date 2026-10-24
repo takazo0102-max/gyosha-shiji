@@ -201,6 +201,14 @@ def pick_boundary(polylines: list[dict], outline_mm: list[tuple[float, float]]) 
     return pts, roads
 
 
+def boundary_from_meshes(mesh_outlines: list, outline_mm) -> list[tuple[float, float]]:
+    """敷地メッシュの外形を敷地境界線にする（境界線のポリラインが無いとき。利用者の指定 2026-10-24: メッシュの敷地境界線
+    として）。建物の重心を囲むメッシュの外形のうち、いちばん小さいもの。無ければ []."""
+    pts, _roads = pick_boundary([{"layer": "敷地メッシュ", "pts": list(p)} for p in mesh_outlines or []],
+                                [tuple(p) for p in outline_mm])
+    return pts
+
+
 def read_boundary_from_archicad(client, outline_mm) -> tuple[list[tuple[float, float]], set[int]]:
     """Archicad の平面のポリライン（レイヤー名に 敷地・境界・道路）から敷地境界線を拾う. 無ければ ([], set())."""
     try:
