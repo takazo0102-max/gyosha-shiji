@@ -1293,6 +1293,29 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         notes.append(f"梁枠の補強のつなぎ材 {sum(ties_by_span.values())}本（梁枠の高さで開口の両隣のスパン、床の高さで開口の上の"
                      "スパン。内外の建地列ごと）を計上")
 
+    # 妻面のブレス材（先行手すり）と妻面幅木（日建 カタログ p010。3D と同じ）: 開口の両端の妻面に、梁枠より下の各段（根がらみの段
+    # と作業床の段）の先行手すり、作業床の段に幅木。長さは建地列の間隔（利用者の指定 2026-10-24: 妻面のブレスと妻面幅木も入れて）
+    if rows == 2 and not m.is_frame and not m.is_tube and not model.config.is_hug:
+        row = int(round(model.post_row_spacing_mm))
+        n_br = n_toe = 0
+        for i, o in enumerate(openings.openings):
+            ev = model.elevation_of(o.edge_index)
+            bh = float(openings.beam_heights.get(i, 0.0))
+            below = [z for z in [ev.first_ledger_height] + list(ev.level_heights) if z < bh - 1e-6]
+            n_br += 2 * len(below)
+            n_toe += 2 * sum(1 for z in ev.level_heights if z < bh - 1e-6)
+        for cat, n, what in (("先行手摺", n_br, "ブレス材（先行手すり）"), ("幅木", n_toe, "妻面幅木")):
+            if not n:
+                continue
+            part = m.find(cat, row)
+            if part is None:
+                notes.action(f"梁枠下の妻面の{what}（長さ{row}・{n}本）がマスタにありません。別途手配してください")
+            else:
+                add(part, n, f"梁枠下の妻面の{what}{row}")
+        if n_br:
+            notes.append(f"梁枠下の妻面（開口の両端の建地の内外）に、各段のブレス材（先行手すり）{n_br}本と作業床の段の妻面幅木"
+                         f"{n_toe}本を計上（日建 カタログ p010「梁枠下の妻面全段」）")
+
     # 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）の前踏み側の先行手すり筋交い（ミレニューム Q16）
     from .openings import beam_rules, front_adv_spans
 

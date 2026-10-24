@@ -4596,6 +4596,31 @@ for ib2 = 1 to nBm
 			if iq <= nSpan then xq = xq + spans[iq]
 		next iq
 	endif
+	! 妻面のブレス材と妻面幅木（日建 カタログ p010「ブレス材（先行手すり）は梁枠下の妻面全段に取付る事」「ブレス材（先行
+	! 手すり）の下には妻面幅木を取付る事」。利用者の指定 2026-10-24）: 開口の両端の建地の内外をつなぐ面に、梁枠より下の各段
+	! （根がらみの段と作業床の段）の先行手すりを入れ、作業床の段はその下（両隣の床の縁）に幅木を立てる
+	if nRows >= 2 and hugMode = 0 and serType <> "W" and serType <> "T" then
+		for be = 0 to 1
+			xe = bs + be * bl
+			for il8 = 1 to nLv
+				z8 = lv[il8]
+				if z8 < bh - 0.001 then
+					add xe, 0, z8
+					rotz -90
+					nL = rowW
+					gosub 850
+					del 2
+					if il8 > 1 then
+						if mToe > 0 then material mToe
+						add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
+						block 0.012, rowW - 2 * r_sic, 0.157
+						del 1
+						if matScaf > 0 then material matScaf
+					endif
+				endif
+			next il8
+		next be
+	endif
 	! 補強のつなぎ材: 梁枠の高さで両隣のスパン、床の高さで開口の上のスパン（内外）
 	xq = 0
 	for iq = 1 to nSpan

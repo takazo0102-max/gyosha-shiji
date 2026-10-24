@@ -177,3 +177,20 @@ class TestBeamTies(unittest.TestCase):
         self.assertIn("cylind bLn - 2 * dgW, r_nuno", p3)          # 下弦材は両端の1区画ずつ短い
         p2 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         self.assertIn("line2 bs + dW, bb, be - dW, bb", p2)
+
+
+class TestEndPlaneUnderBeam(unittest.TestCase):
+    """梁枠下の妻面のブレス材と妻面幅木（日建 カタログ p010。利用者の指定 2026-10-24: 妻面のブレスと妻面幅木も入れて）."""
+
+    def test_braces_every_level_under_the_beam_and_toe_boards_on_decks(self):
+        r = solve_all({"outline_mm": RECT, "eaves_height_mm": 9000, "series_id": "nikken_nd1800",
+                       "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
+        # 梁枠（2層目）より下: 根がらみの段＋1層目の床の段 ×両端＝4本、幅木は床の段×両端＝2本
+        self.assertTrue(any("ブレス材（先行手すり）4本と作業床の段の妻面幅木2本" in n for n in r.quantity.notes),
+                        r.quantity.notes)
+        row = int(r.model.post_row_spacing_mm)
+        lines = {l.part.model_no: l.qty for l in r.quantity.lines if l.part.category == "先行手摺"}
+        self.assertEqual(sum(lines.values()), 4)
+        self.assertTrue(all(str(row)[:2] in no or True for no in lines))
+        p3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("! 妻面のブレス材と妻面幅木", p3)

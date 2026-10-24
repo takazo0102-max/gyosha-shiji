@@ -147,7 +147,8 @@ class TestOpeningQuantity(unittest.TestCase):
                     if 3600 - 1e-6 <= sum(edge.spans[:i]) < 3600 + 5400 - 1e-6)
         cells = spans * 2
         self.assertEqual(base.qty_of("踏板") - q.qty_of("踏板"), cells * 2)
-        self.assertEqual(base.qty_of("幅木") - q.qty_of("幅木"), cells)
+        # 梁枠下の妻面幅木（両端×梁枠より下の作業床の段 2。日建 カタログ p010。2026-10-24）を足す
+        self.assertEqual(base.qty_of("幅木") - q.qty_of("幅木"), cells - 2 * 2)
 
     def test_opening_at_the_lowest_level_removes_nothing(self):
         """1層目に梁枠を置く指定では、下に層が無いので差し引きも無い."""
