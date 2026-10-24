@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,9 @@ def kinds_json() -> str:
 
 def run_action(title: str) -> tuple[int, str]:
     """操作を実行 → (終了コード, 窓に出す文: 1行目が結果、続けて要点)."""
+    # パレットの窓（Swift の Process）は引数を NFD に分解して渡す（「ペ」→「ヘ」＋半濁点）。合成して比べる
+    # （利用者の指摘 2026-10-24: ペンのところができない。「条件の呼び出し」の「び」も同じ）
+    title = unicodedata.normalize("NFC", title)
     act = next((a for a in ACTIONS if a.title == title), None)
     if act is None:
         return 2, f"止まりました\n「{title}」という操作はありません"

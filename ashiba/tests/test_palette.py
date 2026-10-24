@@ -62,6 +62,27 @@ class TestEntries(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue(text.startswith("止まりました"))
 
+    def test_titles_from_the_swift_window_are_composed(self):
+        """パレットの窓（Swift の Process）は引数を NFD で渡す（「ペ」→「ヘ」＋半濁点）。合成して操作を探す
+        （利用者の指摘 2026-10-24: ペンのところができない）."""
+        import sys
+        import unicodedata
+        from unittest import mock
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import palette_run
+
+        import tempfile
+
+        seen = []
+        with mock.patch.object(palette_run, "OUT", Path(tempfile.mkdtemp())), \
+                mock.patch.object(palette_run.subprocess, "run",
+                               side_effect=lambda cmd, **kw: seen.append(cmd) or mock.Mock(returncode=0, stdout="", stderr="")):
+            for title in ("ペン", "条件の呼び出し"):
+                code, text = palette_run.run_action(unicodedata.normalize("NFD", title))
+                self.assertNotIn("という操作はありません", text, title)
+        self.assertTrue(any("pen_colors.py" in " ".join(map(str, c)) for c in seen), seen)
+
     def test_entry_is_valid_python_with_uv_header_and_port(self):
         for e in ENTRIES:
             src = entry_source(e)
