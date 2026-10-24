@@ -93,6 +93,8 @@ class ScaffoldConfig:
     next_gen: bool = False                 # 次世代足場（くさび派生・踏板幅500）
     # 養生材（メッシュシート・防音シート・密閉シート・防音パネル。空・なしは張らない）。風荷重の充実率と同じ指定
     sheet_type: str = ""
+    # 図面のペン {"post": 3, ...}（ashiba.pens。パレットの「ペン」で選ぶ。無ければ 1）
+    pens: dict = field(default_factory=dict)
     deck_gap_mm: int = 20                  # 床材間の隙間
     post_row_spacing_mm: Optional[int] = None  # 内外建地列の芯々間隔（Noneで自動）
     deck_to_post_gap_mm: int = 100         # 床材と建地の隙間

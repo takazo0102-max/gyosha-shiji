@@ -97,5 +97,9 @@
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<PenColor Name="penSheet">
+			<Description><![CDATA["ペン: 養生シート・防音パネル"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>

@@ -7,7 +7,15 @@ define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
 ! 中央揃え。スパン寸法や部位名は基準点が中心でないと位置がずれて見える
 define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 set style "anno"
-pen 1
+! ペン（利用者の指定 2026-10-24: ペンカラーを選べるコマンド作って）: 区分ごとにパレットの「ペン」で選ぶ。0 は 1 と同じ
+if penPost < 1 then penPost = 1
+if penLine < 1 then penLine = 1
+if penDeck < 1 then penDeck = 1
+if penStair < 1 then penStair = 1
+if penEquip < 1 then penEquip = 1
+if penTie < 1 then penTie = 1
+if penDim < 1 then penDim = 1
+pen penLine
 ! 出隅の外側の升目の辺（前の面・次の面の幅の向き）。幅の違う本足場の組と出会う隅は長方形（2026-10-24）
 cSW = cornerSW
 if cSW < 0.001 then cSW = rowW
@@ -92,10 +100,10 @@ for iq = 1 to nSpan + 1
 		line2 xq - rNuno, -rNuno, xq - rNuno, -rowW + rNuno
 		line2 xq + rNuno, -rNuno, xq + rNuno, -rowW + rNuno
 		! コマ（緊結部の受け。8 方向の爪を受ける円盤）
-		pen 2
+		pen penPost
 		if nRows >= 2 then circle2 xq, 0, r_sic + 0.025
 		circle2 xq, -rowW, r_sic + 0.025
-		pen 1
+		pen penLine
 	endif
 	if iq <= nSpan then xq = xq + spans[iq]
 next iq
@@ -107,6 +115,7 @@ endif
 return
 
 945: ! ---- 平面 実寸: 1スパンの踏板（幅どおり。外側建地列から並べ、継ぎ目に爪の線） ----
+pen penDeck
 yq = -rowW + rNuno + 0.005
 for kw = 1 to 2
 	wq = deckW1
@@ -114,14 +123,13 @@ for kw = 1 to 2
 	if wq > 0.001 then
 		rect2 x + rNuno, yq, x + spans[ip] - rNuno, yq + wq
 		! 滑り止めの縞（長手方向の細線）
-		pen 2
 		for kr = 1 to 3
 			line2 x + rNuno + 0.05, yq + wq * kr / 4, x + spans[ip] - rNuno - 0.05, yq + wq * kr / 4
 		next kr
-		pen 1
 		yq = yq + wq + 0.01
 	endif
 next kw
+pen penLine
 return
 
 ! ============================================================
@@ -205,12 +213,23 @@ hotspot2 pxB, -rowW
 return
 
 ! ============================================================
-960:	! ---- 壁つなぎの記号（平面）: 逆三角 ▽、頂点が躯体側（+y） ----
+960:	! ---- 壁つなぎの記号（平面）: 逆三角 ▽、頂点が躯体側（+y）。塗りつぶす（利用者の指定 2026-10-24: 壁繋ぎの逆三角を
+	! 塗りつぶして）。塗りは壁つなぎのペン、塗りつぶし「100 %」が無いプロジェクトは輪郭だけ ----
 tx3 = ties[it]
 ty3 = standoff / 2
-line2 tx3 - 0.11, ty3 - 0.09, tx3 + 0.11, ty3 - 0.09
-line2 tx3 + 0.11, ty3 - 0.09, tx3, ty3 + 0.11
-line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09
+fiTie = IND(FILL, "100 %")
+if fiTie > 0 then
+	fill fiTie
+	poly2_b 4, 7, penTie, 0,
+		tx3 - 0.11, ty3 - 0.09, 1,
+		tx3 + 0.11, ty3 - 0.09, 1,
+		tx3, ty3 + 0.11, 1,
+		tx3 - 0.11, ty3 - 0.09, -1
+else
+	line2 tx3 - 0.11, ty3 - 0.09, tx3 + 0.11, ty3 - 0.09
+	line2 tx3 + 0.11, ty3 - 0.09, tx3, ty3 + 0.11
+	line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09
+endif
 return
 
 ! ============================================================
@@ -259,13 +278,16 @@ for ip = 1 to nSpan
 		if planReal then
 			gosub 945
 		else
+			pen penDeck
 			line2 x, -rowW, x + spans[ip], 0
+			pen penLine
 		endif
 	endif
 	x = x + spans[ip]
 next ip
 line2 pxB, 0, pxB, -rowW
 
+pen penPost
 x = 0
 for ip = 1 to nSpan + 1
 	! 梁枠の内側の支柱は抜いてある。描くと実際には無い建地を示すことになる
@@ -291,6 +313,7 @@ for ip = 1 to nSpan + 1
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
+pen penEquip
 ! 梁枠の区間（平面では太い二重線と文字）。区切った部品は範囲の中だけ
 for ib = 1 to nBm
 	bs = max(bmS[ib], pxA)
@@ -310,6 +333,7 @@ for ib = 1 to nBm
 	set style "anno"
 	endif
 next ib
+pen penLine
 hotspot2 pxA, -rowW
 hotspot2 pxB, -rowW
 ! スパン境界の編集ホットスポット（外側建地列の支柱位置。引くとパラメータスクリプトが
@@ -357,12 +381,12 @@ endif
 if cornerS = 1 and sA = 1 then
 	line2 -cSW, 0, -cSW, -rowW
 	line2 -cSW, -rowW, 0, -rowW
-	circle2 -cSW, -rowW, r_sic
 	! 前の面が隅の隙間の手前で止まる出隅: 升目の前の面の側の建地と布材（3D と同じ）
-	if cornerSP = 1 then
-		circle2 -cSW, 0, r_sic
-		line2 -cSW, 0, 0, 0
-	endif
+	if cornerSP = 1 then line2 -cSW, 0, 0, 0
+	pen penPost
+	circle2 -cSW, -rowW, r_sic
+	if cornerSP = 1 then circle2 -cSW, 0, r_sic
+	pen penDeck
 	if showDeck and hugMode = 0 then
 		if planReal then
 			! 精細: 出隅の升目の踏板も幅どおり（長さ＝前の面の建地列の間隔）
@@ -381,6 +405,7 @@ if cornerS = 1 and sA = 1 then
 	endif
 endif
 
+pen penDeck
 ! ハッチ付布板（梯子内蔵）の昇降口: 外側の板の位置に蓋（600×450）と梯子の踏ざん
 for ih = 1 to nHt
 	kq = htI[ih]
@@ -403,6 +428,7 @@ for ih = 1 to nHt
 	endif
 next ih
 
+pen penStair
 ! 階段室（平面では区間を囲ってタスキと文字で示す）
 for it2 = 1 to nSt
 	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then
@@ -473,6 +499,7 @@ for it2 = 1 to nSt
 	endif
 next it2
 
+pen penLine
 ! 範囲を指定して外した部材（editList）: 区間を破線で囲み、層と部材を書く（平面は1枚なので層は文字で示す）
 for ie = 1 to nEd
 	exs = 0
@@ -506,6 +533,7 @@ for ie = 1 to nEd
 	endif
 next ie
 
+pen penEquip
 ! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
 for ik = 1 to nBk
 	drawn = 0
@@ -678,6 +706,7 @@ if nAsa > 0 then
 	set style "anno"
 endif
 
+pen penLine
 ! 躯体面の参照線（離れ表示）。線種 3 は縮尺で点にしか見えないので、一点鎖線を図面上の長さで描く
 ! （利用者の指摘 2026-10-23: 足場平面の下に変の線がある）
 line_type 1
@@ -744,6 +773,7 @@ for ibr = 1 to nBr
 next ibr
 line_type 1
 
+pen penTie
 ! 壁つなぎ位置（実務の記号は逆三角 ▽。頂点を躯体側に向けて、足場と躯体の間に置く）
 ! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、その部品が ▽ を描く
 nTieDraw = nTie
@@ -757,6 +787,7 @@ next it
 
 if not(showDim) then return
 
+pen penDim
 ! ---- 部材の名前（GDL のラベル。利用者の指定 2026-10-23: 必要なものは GDL ラベルで）----
 ! 部品の値（typeTxt・deckTxt・sheetTxt と壁つなぎの位置）から描くので、幅や種類を変えると名前も変わる。
 ! 例の仮設計画図に倣い、引出線の先に下線つきの文字。躯体の側（+Y）に並べる（外側は寸法で埋まる）
@@ -905,6 +936,7 @@ return
 200: ! ---- 立面図 ----
 ! 作図順（実務）: GL・ジャッキ → 1段目 → 上へ積上げ → 壁つなぎ → 寸法・特記
 
+pen penLine
 ! GL と地盤ハッチ。敷地高低差があれば支柱位置ごとの地盤高（glList）を結ぶ
 ! （平坦のまま描くと、継ぎ足した支柱もジャッキの差も図に出ない）
 if nGl >= 2 then
@@ -954,6 +986,7 @@ for ifl = 1 to nFL
 next ifl
 line_type 1
 
+pen penPost
 ! 支柱（ジャッキ＋積上げ）と ジョイント位置
 x = 0
 for ip = 1 to nSpan + 1
@@ -994,6 +1027,7 @@ for ip = 1 to nSpan + 1
 	if ip <= nSpan then x = x + spans[ip]
 next ip
 
+pen penLine
 ! 根がらみ（最下コマ）＝ lv[1]
 ! 開口部はGLから梁枠までの通路なので、その区間には根がらみも入らない
 ! （足元に横材が通っていたら通れない）。数量でも同じ区間を引いている
@@ -1185,6 +1219,7 @@ if cornerS = 1 then
 	next il
 endif
 
+pen penStair
 ! 階段室（立面では区間の各層に斜めの段板を示す）
 for it2 = 1 to nSt
 	sx = stS[it2]
@@ -1237,6 +1272,7 @@ for it2 = 1 to nSt
 	set style "anno"
 next it2
 
+pen penEquip
 ! ブラケット区間（立面では該当層の床を太線にして幅を注記する）
 ! 平面と3Dには出ているのに立面だけ描いておらず、区間指定が図から消えていた
 for ik2 = 1 to nBk
@@ -1359,13 +1395,14 @@ for ia = 1 to nAsa
 next ia
 
 ! 壁つなぎ: 形状を描いても判別できないので記号で示す。立面の記号は◎（中心が取付点）。平面は▽
-pen warnPen
+! 立面の壁つなぎは注記強調のペン（warnPen）。壁つなぎのペンを選んだら（1 以外）そのペン
+if penTie > 1 then pen penTie else pen warnPen
 ! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
 for it = 1 to nTiePair
 	circle2 ties[it], tieH[it], 0.12
 	circle2 ties[it], tieH[it], 0.065
 next it
-pen 1
+pen penDim
 
 if not(showDim) then return
 

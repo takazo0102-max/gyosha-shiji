@@ -57,5 +57,9 @@
 			<Description><![CDATA["表面材（0＝既定）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<PenColor Name="penTie">
+			<Description><![CDATA["ペン: 壁つなぎ"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>

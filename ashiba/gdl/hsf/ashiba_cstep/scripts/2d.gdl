@@ -6,7 +6,9 @@
 ! 隙間をまたいで隣の面の隅の床に載る
 ! ============================================================
 define style "csTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
-pen 1
+pD = penDeck
+if pD < 1 then pD = 1
+pen pD
 rot2 faceAng
 if flipX then
 	add2 gapL, 0
@@ -41,7 +43,7 @@ for ip = 1 to nPl
 			endif
 		next iy
 	next ix
-	pen 1
+	pen pD
 	! 爪（布材に掛けるフック。踏板の両端に1つずつ）
 	rect2 -hookL, yA - 0.035, 0, yA
 	rect2 -hookL, yB, 0, yB + 0.035

@@ -617,5 +617,33 @@
 			<Description><![CDATA["文字高mm"]]></Description>
 			<Value>2.5</Value>
 		</RealNum>
+		<PenColor Name="penPost">
+			<Description><![CDATA["ペン: 支柱"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penLine">
+			<Description><![CDATA["ペン: 足場の線（建地列・布材・手すり）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床（対角線・踏板）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penStair">
+			<Description><![CDATA["ペン: 階段"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["ペン: 付帯設備（ステージ・昇降機・朝顔・ブラケット・梁枠）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penTie">
+			<Description><![CDATA["ペン: 壁つなぎ"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDim">
+			<Description><![CDATA["ペン: 寸法・文字"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>

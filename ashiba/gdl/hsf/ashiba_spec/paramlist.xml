@@ -143,6 +143,10 @@
 			<Description><![CDATA["仮囲いの高さ（外部シートの下端。0＝地面から）"]]></Description>
 			<Value>3</Value>
 		</Length>
+		<String Name="penList">
+			<Description><![CDATA["図面のペン（パレットの「ペン」で選ぶ。例 post=3,deck=5）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="siteName">
 			<Description><![CDATA["現場名（設置届）"]]></Description>
 			<Value><![CDATA[""]]></Value>

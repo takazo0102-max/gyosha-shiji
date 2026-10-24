@@ -9,8 +9,9 @@ import AppKit
 struct Field: Decodable {
     let key: String
     let label: String
-    let kind: String            // "choice" / "text" / "number" / "check" / "section"
+    let kind: String            // "choice" / "text" / "number" / "check" / "section" / "pen"
     let options: [String]?
+    let colors: [String]?       // "pen": 選択肢ごとの色 "#RRGGBB"（ペンセットのペンの色。色見本を付けて並べる）
     let value: String?
     let help: String?
 }
@@ -79,6 +80,17 @@ final class FormWindow: NSObject, NSWindowDelegate {
                 p.addItems(withTitles: f.options ?? [])
                 if let val = f.value, p.itemTitles.contains(val) { p.selectItem(withTitle: val) }
                 c = p
+            case "pen":
+                // ペンの色（利用者の指定 2026-10-24: ペンカラーを選べるコマンド作って）。選択肢に色見本を付ける
+                let p = NSPopUpButton(frame: NSRect(x: cx, y: y - RH + 1, width: cw, height: 25), pullsDown: false)
+                let titles = f.options ?? []
+                let cols = f.colors ?? []
+                for (i, t) in titles.enumerated() {
+                    p.addItem(withTitle: t)
+                    if i < cols.count, let item = p.lastItem { item.image = swatch(cols[i]) }
+                }
+                if let val = f.value, p.itemTitles.contains(val) { p.selectItem(withTitle: val) }
+                c = p
             case "check":
                 let b = NSButton(checkboxWithTitle: f.help ?? "", target: nil, action: nil)
                 b.frame = NSRect(x: cx, y: y - RH + 4, width: cw, height: 20)
@@ -117,6 +129,21 @@ final class FormWindow: NSObject, NSWindowDelegate {
             bx -= 8
         }
         window.center()
+    }
+
+    func swatch(_ hex: String) -> NSImage {
+        var v: UInt64 = 0
+        Scanner(string: hex.replacingOccurrences(of: "#", with: "")).scanHexInt64(&v)
+        let col = NSColor(srgbRed: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255,
+                          blue: CGFloat(v & 0xff) / 255, alpha: 1)
+        let img = NSImage(size: NSSize(width: 28, height: 14))
+        img.lockFocus()
+        col.setFill()
+        NSRect(x: 0, y: 0, width: 28, height: 14).fill()
+        NSColor.gray.setStroke()
+        NSBezierPath(rect: NSRect(x: 0.5, y: 0.5, width: 27, height: 13)).stroke()
+        img.unlockFocus()
+        return img
     }
 
     func values() -> [String: String] {

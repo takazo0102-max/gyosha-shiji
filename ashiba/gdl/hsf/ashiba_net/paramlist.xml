@@ -57,5 +57,9 @@
 			<Description><![CDATA["名称"]]></Description>
 			<Value><![CDATA["水平ネット"]]></Value>
 		</String>
+		<PenColor Name="penNet">
+			<Description><![CDATA["ペン: 層間ネット"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>

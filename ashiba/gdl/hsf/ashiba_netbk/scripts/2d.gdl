@@ -14,7 +14,9 @@ tip = armL
 if tip < yP + 0.30 then tip = yP + 0.30
 if tip > yP + 0.47 then tip = yP + 0.47
 zA = -rO
-pen 1
+pN = penNet
+if pN < 1 then pN = 1
+pen pN
 rot2 faceAng
 circle2 0, 0, rP + 0.010
 rect2 -(rO + 0.006), yP, rO + 0.006, yP + 0.075

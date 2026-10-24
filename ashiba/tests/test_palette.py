@@ -18,7 +18,7 @@ class TestEntries(unittest.TestCase):
         self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
         self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "平面表示", "条件", "条件の登録", "条件の呼び出し",
-                                                     "帳票", "撤去"])
+                                                     "ペン", "帳票", "撤去"])
         for a in ACTIONS:
             self.assertTrue((ROOT / "scripts" / a.script).exists(), a.script)
         for e in ENTRIES:
@@ -189,7 +189,8 @@ class TestMenu(unittest.TestCase):
         slab = [a.title for a in menu_items({"slab"})]
         self.assertEqual(slab[:4], ["配置", "条件", "帳票", "撤去"])
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
-        self.assertEqual([a.title for a in menu_items(set())][:4], ["3D表示", "平面表示", "条件", "帳票"])
+        # 何も選んでいないときはペン（図面のペン。2026-10-24）も上に出る
+        self.assertEqual([a.title for a in menu_items(set())][:5], ["3D表示", "平面表示", "条件", "ペン", "帳票"])
         # どの選択でも全部の操作が一覧にある
         for k in ("line", "slab", "member", "spec", "none"):
             self.assertEqual(len(menu_items({k})), len(ACTIONS))

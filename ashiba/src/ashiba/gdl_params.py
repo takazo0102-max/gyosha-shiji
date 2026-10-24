@@ -11,6 +11,7 @@ import math
 
 from .model import ScaffoldModel
 from .model import GUARD_RAIL_ADVANCE
+from .pens import gdl_pens
 from .segments import WHOLE
 
 
@@ -437,6 +438,8 @@ def line_params(
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 前の面が隅の隙間の手前で止まる出隅は、升目の前の面の側にも建地と布材（model.gap_corner_post_start）
         "cornerSP": 1 if model.gap_corner_post_start(ep.edge_index) else 0,
+        # 図面のペン（区分ごと。パレットの「ペン」で選ぶ。利用者の指定 2026-10-24）
+        **gdl_pens(model.config.pens, "ashiba_line"),
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
         # 出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔）・次の面の幅（寸法の外側の角）。同じ組なら rowW と

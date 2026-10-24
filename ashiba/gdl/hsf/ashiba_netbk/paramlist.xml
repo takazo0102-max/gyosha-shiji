@@ -49,5 +49,9 @@
 			<Description><![CDATA["表面材（0＝既定）"]]></Description>
 			<Value>0</Value>
 		</Material>
+		<PenColor Name="penNet">
+			<Description><![CDATA["ペン: 層間ネット・ネットブラケット"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>

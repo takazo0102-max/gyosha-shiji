@@ -75,6 +75,15 @@ class Placement:
     params: dict = field(default_factory=dict)
 
 
+def _with_pens(model: ScaffoldModel, pls: list[Placement]) -> list[Placement]:
+    """部品の図面のペン（区分ごと。ashiba.pens）を足す."""
+    from .pens import gdl_pens
+
+    for p in pls:
+        p.params.update(gdl_pens(model.config.pens, p.part))
+    return pls
+
+
 def _frame(ep):
     sx, sy = ep.start_post
     ex, ey = ep.end_post
@@ -115,7 +124,7 @@ def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
             "faceAng": ang, "zH": (z + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
             "wallD": wall / 1000.0,
             "tieName": tie_name(model, need), "lineMode": bool(line_mode)}))
-    return out
+    return _with_pens(model, out)
 
 
 def net_heights_mm(model: ScaffoldModel, edge_index: int = None) -> list[float]:
@@ -150,7 +159,7 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
                     "faceAng": b_ang, "zH": z / 1000.0, "armL": b_arm / 1000.0,
                     "lineMode": bool(line_mode)}))
                 x += float(sp)
-    return out
+    return _with_pens(model, out)
 
 
 def netbk_corner_aim(model: ScaffoldModel, ep, post, ang: float, arm: float) -> tuple[float, float]:
@@ -440,7 +449,7 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (2 * row + SHEET_GAP_MM) / 1000.0,
                 "zB": sheet_bottom_mm(model, ep.edge_index) / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
                 "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
-    return out
+    return _with_pens(model, out)
 
 
 def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[float, int]:
@@ -553,5 +562,5 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
             # 踏板は床の上面に（足場ラインの床と同じ: 布材 φ42.7 の半径＋踏板の厚み 45）
             "deckTop": 0.0427 / 2 + 0.045,
             "lineMode": bool(line_mode)}))
-    return out
+    return _with_pens(model, out)
 

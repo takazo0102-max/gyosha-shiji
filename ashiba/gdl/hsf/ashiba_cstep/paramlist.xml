@@ -85,5 +85,9 @@
 			<Description><![CDATA["文字高mm"]]></Description>
 			<Value>2.0</Value>
 		</RealNum>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床（コーナーステップ）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
 	</Parameters>
 </ParamSection>
