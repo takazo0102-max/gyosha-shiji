@@ -660,9 +660,8 @@ for ik = 1 to nIk
 	qB = min(ikB[ik], pxB)
 	if qB > qA + 0.001 then
 		pen penEquip
-		line_type 3
+		! 範囲は実線（線種3 は縮尺で点にしか見えない。実機 2026-10-24）
 		rect2 qA, -rowW - 0.05, qB, -rowW - 0.35
-		line_type 1
 		line2 qA, -rowW - 0.35, qB, -rowW - 0.05
 		line2 qA, -rowW - 0.05, qB, -rowW - 0.35
 		set style "annoC"
@@ -677,16 +676,18 @@ for ik = 1 to nIk
 	endif
 next ik
 
-! 跳ね出しブラケット（張り出した上の階の上段。3D と同じ支柱の位置ごと、躯体の面から外側の建地列の外まで。破線）
+! 跳ね出しブラケット（張り出した上の階の上段。3D と同じ支柱の位置ごと、躯体の面から外側の建地列の外まで。二重線
+! で水平材の幅を見せる。線種3 は縮尺で点にしか見えない。実機 2026-10-24）
 if haneD > 0.001 then
 	pen penEquip
-	line_type 3
 	xh7 = 0
 	for ih7 = 1 to nSpan + 1
-		if xh7 >= gxA - 0.001 and xh7 < gxB - 0.001 then line2 xh7, standoff, xh7, -rowW - 0.10
+		if xh7 >= gxA - 0.001 and xh7 < gxB - 0.001 then
+			line2 xh7 - 0.03, standoff, xh7 - 0.03, -rowW - 0.10
+			line2 xh7 + 0.03, standoff, xh7 + 0.03, -rowW - 0.10
+		endif
 		if ih7 <= nSpan then xh7 = xh7 + spans[ih7]
 	next ih7
-	line_type 1
 	set style "annoC"
 	if showDim and sA = 1 then
 		tdx = (pxA + pxB) / 2
