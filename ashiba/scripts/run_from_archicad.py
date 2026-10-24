@@ -270,6 +270,36 @@ def choose_width_at_start(client, spec: dict, interactive: bool, persist: bool =
     return new
 
 
+def ask_conditions(client, spec: dict, ok: tuple, extra: tuple = ()) -> tuple[dict, object, bool]:
+    """条件の窓を出す → (新しい条件, 押したボタンの id か False（やめた）, 窓を出せたか).
+
+    選んだ値はこの建物の足場条件の部品に書く。窓を作れない（swiftc が無い等）ときは今の条件のまま続ける。
+    """
+    from ashiba.spec_form import apply_form, form_spec, object_params
+    from ashiba.spec_object import pick_spec_object
+    from form_dialog import show_form
+
+    intro = ("この建物の足場の条件です。変えたいところを選んで「" + ok[1] + "」を押してください。"
+             "選んだ値は建物の左下の「足場条件」の部品に控え、次からはその値が出ます。")
+    try:
+        res = show_form(form_spec(spec, "仮設足場の条件", intro, [ok, *extra, ("cancel", "やめる")]))
+    except (RuntimeError, OSError) as e:
+        print(f"注意: 条件の窓を開けませんでした（{e}）。今の条件で続けます")
+        return spec, ok[0], False
+    if not res or res.get("button") in (None, "cancel"):
+        return spec, False, True
+    new, notes = apply_form(spec, res.get("values") or {})
+    print("条件: " + "・".join(notes))
+    try:
+        hit = pick_spec_object(read_spec_objects(client), new["outline_mm"])
+        if hit is not None:
+            client.set_gdl_parameters(hit[0], object_params(new))
+            print("足場条件: 選んだ条件を部品に控えました")
+    except TapirError as e:
+        print(f"注意: 足場条件の部品に書けませんでした（{e}）。今回の配置は選んだ条件で続けます")
+    return new, res.get("button"), True
+
+
 def apply_spec_object(client, spec: dict) -> dict:
     """この建物の足場条件部品を読んで条件に重ねる。無ければ今の条件で部品を置く."""
     from ashiba.spec_object import merge_object_into_spec, params_from_spec, pick_spec_object, spec_from_params, spec_object_position
@@ -552,8 +582,18 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
     if use_spec_object:
         spec = apply_spec_object(client, spec)
+    # 条件の窓（足場の種類・系列・幅・手すり・階段・朝顔・養生・高さ・立面断面）を出して選んでから置く
+    # （利用者の指定 2026-10-24: 配置の時 足場の種類選べるようにして。条件の部分がどうやるのかわからない）。
+    # 選んだ値は足場条件の部品に書く。スクリプトから（spec_override・ASHIBA_ASK_SPEC=0）は出さない
+    asked = False
+    if use_spec_object and spec_override is None and os.environ.get("ASHIBA_ASK_SPEC", "1") != "0":
+        spec, go, asked = ask_conditions(client, spec, ("place", "配置"))
+        if not go:
+            print("配置: やめました（足場は置き直していません）")
+            return {"cancelled": True}
     # 足場の幅を始めに選ぶ（幅がまだ無い建物だけ。センチとインチの一覧。選んだ幅は部品・条件ファイルに控える）
-    spec = choose_width_at_start(client, spec, interactive=spec_override is None, persist=use_spec_object)
+    if not asked:
+        spec = choose_width_at_start(client, spec, interactive=spec_override is None, persist=use_spec_object)
     # 建物のフロア（層別数量にフロア名を付け、フロアごとに合計する）
     if not spec.get("stories"):
         try:
