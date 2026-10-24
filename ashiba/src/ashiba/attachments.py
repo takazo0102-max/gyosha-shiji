@@ -211,9 +211,12 @@ def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
 
 
 def sheet_panels(model: ScaffoldModel, ep, stair_plan=None, sheet_w: float = 1829.0) -> list[list[tuple[float, float, bool]]]:
-    """シートの割付（区間ごとに [(始点, 終点, 特殊か)] mm）。継ぎ目は足場の支柱の位置（スパン）にそろえ、1枚の幅
-    （sheet_w）と同じスパンは標準のシート、違う幅のスパンと、端の隅・隙間の分は特殊シートとして伸ばす
-    （利用者の指定 2026-10-24: 外部シートの割り付けは足場と同じにして、間が開いてる部分は特殊シートとして伸ばす）."""
+    """シートの割付（区間ごとに [(始点, 終点, 特殊か)] mm）。継ぎ目は足場の支柱の位置（スパン）にそろえる.
+
+    足場のスパンと同じ幅（インチ 610〜1829・メートル 600〜1800。どの幅のシートも普通にある）は標準のシート、
+    スパンに無い幅（端の角の升目・隅の隙間・入隅の取り合い）だけ特殊シートとして伸ばす（利用者の指定 2026-10-24:
+    外部シートの割り付けは足場と同じに、間が開いてる部分は特殊シート。インチも普通にあるから特殊シートじゃない）."""
+    coins = [float(c) for c in model.master.span_lengths()] or [float(sheet_w)]
     posts = [0.0]
     for sp in ep.spans:
         posts.append(posts[-1] + float(sp))
@@ -224,9 +227,29 @@ def sheet_panels(model: ScaffoldModel, ep, stair_plan=None, sheet_w: float = 182
         for a, b in zip(cuts, cuts[1:]):
             if b - a < 1.0:
                 continue
-            panels.append((a, b, abs((b - a) - sheet_w) > 1.0))
+            panels.append((a, b, not any(abs((b - a) - c) <= 1.0 for c in coins)))
         out.append(panels)
     return out
+
+
+def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
+    """シートクランプを付ける高さ mm（GLから）: 根がらみと各層の手すり（シートを外側建地の布材に留める）."""
+    ev = model.elevation_of(edge_index)
+    out = [float(ev.first_ledger_height)] if getattr(ev, "has_negarami", True) else []
+    out += [float(h) + float(model.guard_rail_height_mm) for h in ev.level_heights[1:]]
+    return sorted({round(v) for v in out if 0 < v <= ev.total_height})
+
+
+def sheet_clamp_positions(model: ScaffoldModel, ep, stair_plan=None) -> list[float]:
+    """シートクランプを付ける面に沿った位置 mm（シートの継ぎ目＝支柱と、区間の両端の角の支柱）."""
+    xs: list[float] = []
+    for panels in sheet_panels(model, ep, stair_plan):
+        if not panels:
+            continue
+        xs.append(panels[0][0] + SHEET_GAP_MM)                 # 端は角の支柱（シートはあきだけ外へ出ている）
+        xs += [a for a, _b, _s in panels[1:]]
+        xs.append(panels[-1][1] - SHEET_GAP_MM)
+    return xs
 
 
 def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float, float]]:
@@ -285,7 +308,9 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zB": 0.0, "zT": top / 1000.0,
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 # 継ぎ目は足場の支柱の位置。「始点,終点,特殊(0/1)」の繰り返し mm（特殊シートは色を替える）
-                "panelList": ",".join(f"{a:.0f},{b:.0f},{int(sp)}" for a, b, sp in panels)}))
+                "panelList": ",".join(f"{a:.0f},{b:.0f},{int(sp)}" for a, b, sp in panels),
+                # シートクランプ（継ぎ目と端の支柱に、根がらみと各層の手すりの高さで。利用者の指定 2026-10-24）
+                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index))}))
         # 外付け階段室の妻側: 部品の x を面の外向きにして（面の向き−90°）、外側建地列から3列目まで
         row = float(model.post_row_spacing_mm)
         for pos, shift in sheet_end_pieces(model, ep, stair_plan):
@@ -298,30 +323,20 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
 
 
 def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[float, int]:
-    """養生シートの面積（m²）と標準のシートの枚数（足場のスパンと同じ幅の升目 × 高さ÷1枚の高さ）。size で1枚の大きさを
-    替えられる。特殊シート（幅の違うスパン・隅・隙間）は special_sheets で別に数える."""
-    import math as _m
-
-    size = size or SHEET_SIZES.get(model.config.sheet_type or "")
-    if size is None:
+    """養生シートの面積（m²）と、足場のスパンと同じ幅のシートの枚数（升目 × 高さ÷1枚の高さ）。size で1枚の大きさを
+    替えられる。幅ごとの内訳は standard_sheets、特殊シート（角・隙間）は special_sheets."""
+    if (size or SHEET_SIZES.get(model.config.sheet_type or "")) is None:
         return 0.0, 0
     area = 0.0
-    n = 0
     for ep in model.plan.edges:
         top = float(model.elevation_of(ep.edge_index).total_height)
-        rows = _m.ceil(top / size[1] - 1e-6)
-        for panels in sheet_panels(model, ep, stair_plan, float(size[0])):
-            for a, b, sp in panels:
-                area += (b - a) / 1000.0 * top / 1000.0
-                if not sp:
-                    n += rows
-        for _ in sheet_end_pieces(model, ep, stair_plan):
-            area += float(model.post_row_spacing_mm) / 1000.0 * top / 1000.0
-    return area, n
+        for panels in sheet_panels(model, ep, stair_plan):
+            area += sum(b - a for a, b, _sp in panels) / 1000.0 * top / 1000.0
+        area += len(sheet_end_pieces(model, ep, stair_plan)) * float(model.post_row_spacing_mm) / 1000.0 * top / 1000.0
+    return area, sum(standard_sheets(model, stair_plan, size).values())
 
 
-def special_sheets(model: ScaffoldModel, stair_plan=None, size=None) -> dict[int, int]:
-    """特殊シート（足場の割付に合わない幅）の {幅 mm: 枚数}。幅の違うスパン、隅・隙間に伸ばす分、外付け階段の妻側."""
+def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> dict[int, int]:
     import math as _m
 
     size = size or SHEET_SIZES.get(model.config.sheet_type or "")
@@ -331,12 +346,34 @@ def special_sheets(model: ScaffoldModel, stair_plan=None, size=None) -> dict[int
     for ep in model.plan.edges:
         top = float(model.elevation_of(ep.edge_index).total_height)
         rows = _m.ceil(top / size[1] - 1e-6)
-        ws = [b - a for panels in sheet_panels(model, ep, stair_plan, float(size[0])) for a, b, sp in panels if sp]
-        ws += [float(model.post_row_spacing_mm)] * len(sheet_end_pieces(model, ep, stair_plan))
+        ws = [b - a for panels in sheet_panels(model, ep, stair_plan) for a, b, sp in panels if sp == special]
+        # 外付け階段の妻側は建地列の間隔の幅（スパンにある幅なら標準）
+        row = float(model.post_row_spacing_mm)
+        row_std = any(abs(row - c) <= 1.0 for c in model.master.span_lengths())
+        if special != row_std:
+            ws += [row] * len(sheet_end_pieces(model, ep, stair_plan))
         for w in ws:
             k = int(round(w))
             out[k] = out.get(k, 0) + rows
     return dict(sorted(out.items()))
+
+
+def standard_sheets(model: ScaffoldModel, stair_plan=None, size=None) -> dict[int, int]:
+    """足場のスパンと同じ幅のシートの {幅 mm: 枚数}（インチ・メートルとも普通にある幅）."""
+    return _sheets_by_width(model, stair_plan, size, False)
+
+
+def special_sheets(model: ScaffoldModel, stair_plan=None, size=None) -> dict[int, int]:
+    """特殊シート（スパンに無い幅）の {幅 mm: 枚数}。角の升目・隅の隙間・入隅の取り合い、外付け階段の妻側."""
+    return _sheets_by_width(model, stair_plan, size, True)
+
+
+def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
+    """シートクランプの数（sheet_placements の clampList と同じ: 継ぎ目と端の支柱 × 根がらみと各層の手すり）."""
+    if SHEET_SIZES.get(model.config.sheet_type or "") is None:
+        return 0
+    return sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
+               for ep in model.plan.edges)
 
 
 def corner_step_name(model: ScaffoldModel) -> str:

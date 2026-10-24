@@ -24,6 +24,7 @@
 !   sheetW     長さ    シート1枚の幅（継ぎ目の線）                                                                 既定 1.8
 !   sheetKind  文字列  養生材                                                                                      既定 "メッシュシート"
 !   panelList  文字列  シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）  既定 ""
+!   clampList  文字列  シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）           既定 ""
 !   matSheet   表面材  表面材（0＝養生材の既定色）                                                                 既定 0
 ! ==========================================================
 
@@ -156,6 +157,58 @@ else
 			del 1
 			if ip > 1 then lin_ pA[ip], -offY - 0.002, zB, pA[ip], -offY - 0.002, zT
 		next ip
+		! シートクランプ（利用者の指定 2026-10-24: シートクランプGDLも作成してつけて）: シートの継ぎ目と端の支柱に、
+		! 根がらみと各層の手すりの高さで。外側建地（シートの面からあき 60 の内）を抱く本体と、シートのハトメに掛ける爪
+		dim cZ[]
+		nC = 0
+		rest = clampList
+		while strlen(rest) > 0 and nC < 60 do
+			pc = strstr(rest, ",")
+			if pc > 0 then
+				item = strsub(rest, 1, pc - 1)
+				rest = strsub(rest, pc + 1, strlen(rest) - pc)
+			else
+				item = rest
+				rest = ""
+			endif
+			kk = split(item, "%n", vv)
+			if kk > 0 then
+				nC = nC + 1
+				cZ[nC] = vv / 1000
+			endif
+		endwhile
+		if nC > 0 then
+			define material "ashiba_sclamp_zinc" 2, 0.80, 0.81, 0.83
+			material "ashiba_sclamp_zinc"
+			resol 8
+			for ic = 1 to nP + 1
+				if ic = 1 then
+					xc = pA[1] + 0.06
+				else
+					if ic = nP + 1 then
+						xc = pB[nP] - 0.06
+					else
+						xc = pA[ic]
+					endif
+				endif
+				for jz = 1 to nC
+					zc = cZ[jz]
+					if zc > zB and zc < zT then
+						! 建地を抱く本体（φ48.6 の外に厚み）
+						add xc, -offY + 0.06, zc - 0.025
+						cylind 0.05, 0.033
+						del 1
+						! シートの面へ出る腕と爪
+						add xc - 0.008, -offY - 0.004, zc - 0.006
+						block 0.016, 0.034, 0.012
+						del 1
+						add xc - 0.008, -offY - 0.010, zc - 0.006
+						block 0.016, 0.006, 0.030
+						del 1
+					endif
+				next jz
+			next ic
+		endif
 	endif
 endif
 hotspot x0, -offY, zB

@@ -179,9 +179,11 @@ class TestSheetPanelsFollowTheScaffold(unittest.TestCase):
             panels = [p for seg in sheet_panels(m, ep, r.stair_plan) for p in seg]
             inner = [a for a, _b, _s in panels[1:]]
             self.assertTrue(all(any(abs(a - p) < 0.5 for p in posts) for a in inner), m.face_name(ep.edge_index))
-            # 1829 のスパンは標準、ほかの幅のスパンと端（角・隙間）は特殊
+            # 足場のスパンと同じ幅（インチの 610〜1829 はどれも普通にある）は標準、スパンに無い幅（角・隙間）だけ特殊
+            # （利用者の指摘 2026-10-24: インチも普通にあるから特殊シートじゃない）
             for a, b, sp in panels:
-                self.assertEqual(sp, abs((b - a) - 1829) > 1.0)
+                self.assertEqual(sp, not any(abs((b - a) - c) <= 1.0 for c in (610, 914, 1219, 1524, 1829)))
+            self.assertFalse(any(sp for a, b, sp in panels[1:-1]))      # 中のスパンは全部標準
         gaps = [c for c in m.plan.corner_steps if c.edge_index >= 0]
         for c in gaps:                                   # 隙間（コーナーステップ）も覆う
             ep = next(e for e in m.plan.edges if e.edge_index == c.edge_index)
@@ -190,3 +192,29 @@ class TestSheetPanelsFollowTheScaffold(unittest.TestCase):
         self.assertTrue(special_sheets(m, r.stair_plan))
         self.assertTrue(all(p.params.get("panelList") for p in sheet_placements(m, stair_plan=r.stair_plan)))
         self.assertTrue(any("特殊シート" in w for w in r.quantity.warnings))
+
+
+class TestSheetClamps(unittest.TestCase):
+    """シートクランプ（利用者の指定 2026-10-24: シートクランプGDLも作成してつけて）."""
+
+    def test_clamps_on_seams_and_ends(self):
+        from ashiba.attachments import (sheet_clamp_count, sheet_clamp_heights, sheet_clamp_positions,
+                                        sheet_placements, standard_sheets)
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000,
+                       "series_id": "nikken_nd1800", "scaffold_width_mm": 914})
+        m = r.model
+        ep = m.plan.edges[0]
+        hs = sheet_clamp_heights(m, ep.edge_index)
+        ev = m.elevation_of(ep.edge_index)
+        self.assertEqual(len(hs), 1 + len(ev.level_heights) - 1)          # 根がらみ＋2層目からの手すり
+        xs = sheet_clamp_positions(m, ep, r.stair_plan)
+        self.assertEqual(len(xs), len(ep.spans) + 3)                      # 支柱（中）＋両端の角の支柱
+        self.assertEqual(sheet_clamp_count(m, r.stair_plan),
+                         sum(len(sheet_clamp_positions(m, e, r.stair_plan)) * len(sheet_clamp_heights(m, e.edge_index))
+                             for e in m.plan.edges))
+        pl = next(p for p in sheet_placements(m, stair_plan=r.stair_plan) if p.params.get("panelList"))
+        self.assertEqual(pl.params["clampList"], ",".join(f"{h:.0f}" for h in hs))
+        self.assertTrue(any("シートクランプ" in w for w in r.quantity.warnings + r.quantity.notes))
+        self.assertIn(914, standard_sheets(m, r.stair_plan))              # インチの幅も標準のシート

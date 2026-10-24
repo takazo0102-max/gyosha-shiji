@@ -73,6 +73,10 @@
 			<Description><![CDATA["シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="clampList">
+			<Description><![CDATA["シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Material Name="matSheet">
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>
