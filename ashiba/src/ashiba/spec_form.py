@@ -105,7 +105,7 @@ def form_fields(spec: dict) -> list[dict]:
          "value": "張る" if spec.get("horizontal_net_levels") else "張らない",
          "help": "躯体と足場の隙間に張る水平ネット"},
         {"key": "net_levels", "label": "ネットを張る層", "kind": "text", "value": _net_levels_text(spec),
-         "help": "自動（幅木ありは2層毎・なしは全層）・全部・2,4,6 のように作業層の番号（1＝最下段）"},
+         "help": "自動（幅木ありは2層毎・なしは全層）・全部・2,4,6 のように作業層の番号（1＝最下段。自動・全部は1段目を除く）"},
         {"key": "net_bk", "label": "ネットブラケット", "kind": "choice", "options": list(ONOFF),
          "value": _key(ONOFF, spec.get("net_brackets", True) is not False, "付ける"),
          "help": "層間ネットを内側建地ごとのネットブラケット（NL500）で受ける。付けないときは取付け金具を別途"},

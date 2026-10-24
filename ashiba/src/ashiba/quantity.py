@@ -1346,12 +1346,12 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     have = sorted(model.config.horizontal_net_levels)
     n_lv = model.elevation.n_levels
     if not model.config.has_toe_board:
-        miss = [k for k in range(1, n_lv + 1) if k not in have]
+        miss = [k for k in range(2, n_lv + 1) if k not in have]              # 1段目は要らない
         if miss:
             notes.action(f"幅木を付けないので層間ネットは全層に要ります（第{'・'.join(str(k) for k in miss)}層に無い）",
                          Notes.SITE)
     else:
-        gaps = [have[0]] + [b - a for a, b in zip(have, have[1:])] + [n_lv + 1 - have[-1]]
+        gaps = [have[0] - 1] + [b - a for a, b in zip(have, have[1:])] + [n_lv + 1 - have[-1]]   # 1段目から数える
         if max(gaps) > 2:
             notes.action("幅木を付けるときも層間ネットは2層毎に要ります（張る層 第" + lv + "層。間が3層以上空いている）",
                          Notes.SITE)

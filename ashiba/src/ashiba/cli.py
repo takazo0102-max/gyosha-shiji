@@ -1456,12 +1456,14 @@ def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
     raw = spec.get("horizontal_net_levels")
     if raw is None:
         return []
+    # 1段目（最下段の作業床）は地面に近いので層間ネットは張らない（利用者の指摘 2026-10-24: 1段目はそうかんネット
+    # いらないのでは）。「全部」「自動」は第2層から。番号で 1 を書いたときだけ張る
     if isinstance(raw, str) and raw.strip() in ("全部", "全層", "すべて", "全て"):
-        return list(range(1, n_levels + 1))
+        return list(range(2, n_levels + 1))
     if isinstance(raw, str) and raw.strip().startswith("自動"):
-        # 層間ネットの決まり（利用者の資料 2026-10-24）: 幅木を使うなら2層毎、使わないなら全層
+        # 層間ネットの決まり（利用者の資料 2026-10-24）: 幅木を使うなら2層毎、使わないなら全層（どちらも1段目は除く）
         if spec.get("toe_board", True) is False:
-            return list(range(1, n_levels + 1))
+            return list(range(2, n_levels + 1))
         return list(range(2, n_levels + 1, 2))
     return sorted({v for v in parse_int_list(raw) if 1 <= v <= n_levels})
 

@@ -165,7 +165,7 @@ class TestToeBoardAndNets(unittest.TestCase):
         self.assertEqual(new["horizontal_net_levels"], "全部")
         self.assertEqual(object_params(new)["netLevels"], "全部")
         r = solve_all(new)
-        self.assertEqual(r.model.config.horizontal_net_levels, list(range(1, r.model.elevation.n_levels + 1)))
+        self.assertEqual(r.model.config.horizontal_net_levels, list(range(2, r.model.elevation.n_levels + 1)))
         kinds = {p.part for p in net_placements(r.model)}
         self.assertIn(NET_OBJECT, kinds)
         self.assertNotIn(NETBK_OBJECT, kinds)
@@ -188,7 +188,7 @@ class TestNetRules(unittest.TestCase):
         n = r.model.elevation.n_levels
         self.assertEqual(r.model.config.horizontal_net_levels, list(range(2, n + 1, 2)))
         off = solve_all({**BASE, "horizontal_net_levels": "自動", "toe_board": False})
-        self.assertEqual(off.model.config.horizontal_net_levels, list(range(1, n + 1)))
+        self.assertEqual(off.model.config.horizontal_net_levels, list(range(2, n + 1)))   # 1段目は要らない
 
     def test_net_pieces_are_counted_by_the_sheet(self):
         import math
