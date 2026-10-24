@@ -358,6 +358,11 @@ if cornerS = 1 and sA = 1 then
 	line2 -cSW, 0, -cSW, -rowW
 	line2 -cSW, -rowW, 0, -rowW
 	circle2 -cSW, -rowW, r_sic
+	! 前の面が隅の隙間の手前で止まる出隅: 升目の前の面の側の建地と布材（3D と同じ）
+	if cornerSP = 1 then
+		circle2 -cSW, 0, r_sic
+		line2 -cSW, 0, 0, 0
+	endif
 	if showDeck and hugMode = 0 then
 		if planReal then
 			! 精細: 出隅の升目の踏板も幅どおり（長さ＝前の面の建地列の間隔）

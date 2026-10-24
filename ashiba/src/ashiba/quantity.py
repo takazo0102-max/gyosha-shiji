@@ -353,7 +353,9 @@ def _take_off_one(
     # 出隅の外側コーナー支柱（内側列は隣の面とコーナー支柱を共有するが、外側列は
     # 面ごとに躯体コーナーで終わるので、四隅の外側に1本ずつ立つ）。3Dも同じ規則で描く
     n_corners = model.outer_corner_posts()
-    n_posts = posts_per_line * rows + n_corners
+    # 隙間（コーナーステップ）のある出隅は、升目の前の面の側にも1本（model.gap_corner_post_start。3D と同じ）
+    n_gap_posts = model.gap_corner_posts()
+    n_posts = posts_per_line * rows + n_corners + n_gap_posts
     n_levels = elev.n_levels
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
@@ -390,9 +392,9 @@ def _take_off_one(
         for nominal in elev.posts:
             counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
     totals_posts = {k: v * (per_foot if feet else n_posts) for k, v in counts_posts.items()}
-    if feet and n_corners:
+    if feet and n_corners + n_gap_posts:
         for nominal in elev.posts:
-            totals_posts[nominal] = totals_posts.get(nominal, 0) + n_corners
+            totals_posts[nominal] = totals_posts.get(nominal, 0) + n_corners + n_gap_posts
     # 開口部で抜いた支柱は梁枠上（作業床〜天端）だけの短い構成に置き換える。
     # 全高のまま数えると梁枠より下の分が余計に入る（以前は「拾い直して」と注記していた）
     _replace_opening_stacks(
@@ -522,6 +524,17 @@ def _take_off_one(
     # ---- 出隅コーナーの升目（外側コーナー支柱までの布材・手すり・踏板・幅木） ----
     if n_corners:
         _count_corner_parts(model, m, rules, add, notes, n_corners, n_levels)
+    if n_gap_posts and not m.is_tube:
+        # 隙間のある出隅の升目の前の面の側の布材（根がらみ＋各層の床。前の面の建地列間隔）
+        for wa in sorted({model.row_spacing_of((e.index - 1) % len(model.plan.outline.edges))
+                          for e in model.plan.outline.edges if model.gap_corner_post_start(e.index)}):
+            k = len([e for e in model.plan.outline.edges if model.gap_corner_post_start(e.index)
+                     and abs(model.row_spacing_of((e.index - 1) % len(model.plan.outline.edges)) - wa) < 0.5
+                     and (model.edge_subset is None or e.index in model.edge_subset)
+                     and (model.faces_only is None or e.index in model.faces_only)])
+            add(m.find("布材", int(round(wa))), k * (1 + n_levels), f"隙間のある出隅の升目の布材{int(round(wa))}")
+        notes.append(f"隅の隙間（コーナーステップ）のある出隅{n_gap_posts}箇所は、升目の前の面の側に建地1本（支柱位置数に"
+                     f"含む）と布材（根がらみ＋各層の床）を足して、4本の建地で独り立ちさせて計上")
 
     # ---- 先行手摺（手すり先行工法の場合。スパン×層に1本） ----
     if advance_rail:
@@ -1448,7 +1461,7 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
                          "系列のマスタに品番が無いので別途手配してください", Notes.ORDER)
     hb = getattr(model, "hoarding_height_mm", 0.0) or 0.0
     if hb > 0:
-        notes.append(f"{kind}は仮囲いの天端（{hb:.0f}）から上に、天端から上へ1枚の高さずつ割り付けています（いちばん下の段は残りの高さ）")
+        notes.append(f"{kind}は仮囲いの天端（{hb:.0f}）から上に張り、足場の天端から下へ1枚の高さずつ割り付けています（いちばん下の段は残りの高さ）")
 
 
 def outside_stair_counts(model: ScaffoldModel, stair_plan) -> tuple[int, int]:

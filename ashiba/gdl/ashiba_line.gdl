@@ -101,6 +101,7 @@
 !   midH            長さ    中桟高さ 作業床から 0で自動                                                                               既定 0
 !   railAdv         整数    手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）                                      既定 0
 !   cornerS         整数    始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1                                        既定 0
+!   cornerSP        整数    始点の出隅で前の面が隙間（コーナーステップ）の手前で止まる: 前の面の外側列の延長の根元に建地を立てる 0/1  既定 0
 !   endOpenS        整数    始点が開放端（隣の面を掛けない）0/1: 妻側の手すり・中桟・幅木                                             既定 0
 !   endOpenE        整数    終点が開放端 0/1                                                                                          既定 0
 !   cornerG         整数    枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1                                        既定 0
@@ -1110,7 +1111,7 @@ txtLine = txtH * 1.8
 ! 区切った部品は自分の範囲（スパン sA〜sB・作業層 lA〜lB）だけを数える。支柱は下端が範囲の高さにある1本ずつ、
 ! 支柱の位置数・根がらみは下の端の部品（segBase）が持つ
 qPos0 = (sB - sA + 1) * nRows
-if sA = 1 then qPos0 = qPos0 + cornerS
+if sA = 1 then qPos0 = qPos0 + cornerS + cornerSP
 qSeg = 0
 zq = jackOut
 for j = 1 to nPost
@@ -1600,6 +1601,11 @@ if cornerS = 1 and sA = 1 then
 	line2 -cSW, 0, -cSW, -rowW
 	line2 -cSW, -rowW, 0, -rowW
 	circle2 -cSW, -rowW, r_sic
+	! 前の面が隅の隙間の手前で止まる出隅: 升目の前の面の側の建地と布材（3D と同じ）
+	if cornerSP = 1 then
+		circle2 -cSW, 0, r_sic
+		line2 -cSW, 0, 0, 0
+	endif
 	if showDeck and hugMode = 0 then
 		if planReal then
 			! 精細: 出隅の升目の踏板も幅どおり（長さ＝前の面の建地列の間隔）
@@ -3141,8 +3147,14 @@ if cornerS = 1 then
 	if nGlO >= 1 then gv = glO[1]
 	if nJkO >= 1 then jo = jkO[1]
 	if nShO >= 1 then sv = shO[1]
-	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く
-	add -cSW, -rowW, gv
+	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く。
+	! 前の面が隅の隙間（コーナーステップ）の手前で止まる出隅は、前の面の外側列の延長の根元（-cSW, 0）にも建地が要る
+	! （前の面の終点の建地は隙間の向こう。布材・手すりの緊結部が宙に浮いていた。利用者の指摘 2026-10-24: コーナー部分の
+	! 支柱がない部分がある）。この升目は4本の建地で独り立ちする
+	for iq = 1 to 1 + cornerSP
+	yq = -rowW
+	if iq = 2 then yq = 0
+	add -cSW, yq, gv
 	gosub 820
 	addz jo
 	if nGl >= 2 then
@@ -3170,15 +3182,23 @@ if cornerS = 1 then
 		resol 6
 		for ik = 1 to nKz
 			if not(explodeMask > 0 and kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
-				add -cSW, -rowW, kz[ik] - 0.003
+				add -cSW, yq, kz[ik] - 0.003
 				cylind 0.006, 0.053
 				del 1
 			endif
 		next ik
 		resol rN
 	endif
+	next iq
 	for il = 1 to nLv
 		z = lv[il]
+		! 隙間のある出隅: 升目の前の面の側（y=0）の布材。床と、隙間に掛けるコーナーステップの先を受ける
+		if cornerSP = 1 then
+			add -cSW, 0, z
+			nL = cSW
+			gosub 830
+			del 1
+		endif
 		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
 		add -cSW, 0, z
 		rotz -90
@@ -5637,6 +5657,7 @@ if cornerS = 1 then
 	gv = 0
 	if nGl >= 1 then gv = gl[1]
 	lin_ -cSW, -rowW, gv, -cSW, -rowW, postTop
+	if cornerSP = 1 then lin_ -cSW, 0, gv, -cSW, 0, postTop
 	for il = 1 to nLv
 		z = lv[il]
 		lin_ 0, 0, z, -cSW, 0, z

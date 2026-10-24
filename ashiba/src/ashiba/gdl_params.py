@@ -435,6 +435,8 @@ def line_params(
         # 単管抱き足場は建地列が線の上で、出隅の建地は隣の面と同じ1本（skipInS・skipInE で片方が描く）
         "cornerS": 1 if (not model.master.is_frame and not model.config.is_hug
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
+        # 前の面が隅の隙間の手前で止まる出隅は、升目の前の面の側にも建地と布材（model.gap_corner_post_start）
+        "cornerSP": 1 if model.gap_corner_post_start(ep.edge_index) else 0,
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
         # 出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔）・次の面の幅（寸法の外側の角）。同じ組なら rowW と
@@ -851,7 +853,7 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
     ev_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
     brace = 2 * sum(1 for il in range(n_levels) if il % ev_l == 0) * sum(1 for ip in range(len(ep.spans)) if ip % ev_s == 0)
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
-    post_pos = len(ep.spans) * rows + corner
+    post_pos = len(ep.spans) * rows + corner + (1 if model.gap_corner_post_start(ep.edge_index) else 0)
     # 範囲を指定して外した部材（1d.gdl の editList と同じ）
     from .member_edits import drawn_deltas
 

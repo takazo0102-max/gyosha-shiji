@@ -43,7 +43,7 @@ def _coins(model) -> list[int]:
 
 
 def _extension(coins: list[int], need: float, clamp: bool = False) -> Optional[tuple[list[int], float]]:
-    """本足場の面の延長: 合計 need 以下のスパン列と、残る隙間（0〜30 か 70〜400）。延長なし（隙間だけ）も可.
+    """本足場の面の延長: 合計 need 以下のスパン列と、残る隙間（0〜30 か 150〜400）。延長なし（隙間だけ）も可.
 
     clamp（単管のブラケット）: 単管はクランプでどこにでも留まるので、支柱の列を少し越えて延ばしてもよい
     （隙間は負＝越えた分。コーナーステップは要らない）。

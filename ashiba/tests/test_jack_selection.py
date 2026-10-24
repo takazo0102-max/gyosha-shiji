@@ -45,7 +45,7 @@ class TestJackSelection(unittest.TestCase):
     def test_flat_site_uses_the_standard_jack_only(self):
         m = build("nikken_nd1800")
         q = take_off(m)
-        self.assertEqual(qty(q, "ND752P"), 2 * m.plan.total_posts + m.outer_corner_posts())
+        self.assertEqual(qty(q, "ND752P"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
         self.assertEqual(qty(q, "ND752SP"), 0)
 
     def test_terraced_site_switches_the_long_feet_to_the_long_jack(self):
@@ -55,7 +55,7 @@ class TestJackSelection(unittest.TestCase):
         self.assertGreater(long_feet, 0)
         q = take_off(m, terrain=t)
         self.assertEqual(qty(q, "ND752SP"), 2 * long_feet)
-        feet_total = 2 * m.plan.total_posts + m.outer_corner_posts()
+        feet_total = 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts()
         self.assertEqual(qty(q, "ND752P") + qty(q, "ND752SP"), feet_total)
         # アンダーベースは脚の数のまま
         self.assertEqual(qty(q, "ECOPS"), feet_total)
@@ -66,7 +66,7 @@ class TestJackSelection(unittest.TestCase):
         m = build("shinwa_A")
         t = terrace(m, 1200)
         q = take_off(m, terrain=t)
-        self.assertEqual(qty(q, "SE-6"), 2 * m.plan.total_posts + m.outer_corner_posts())
+        self.assertEqual(qty(q, "SE-6"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
 
 
 class TestOpeningHint(unittest.TestCase):

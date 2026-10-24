@@ -945,7 +945,7 @@ txtLine = txtH * 1.8
 ! 区切った部品は自分の範囲（スパン sA〜sB・作業層 lA〜lB）だけを数える。支柱は下端が範囲の高さにある1本ずつ、
 ! 支柱の位置数・根がらみは下の端の部品（segBase）が持つ
 qPos0 = (sB - sA + 1) * nRows
-if sA = 1 then qPos0 = qPos0 + cornerS
+if sA = 1 then qPos0 = qPos0 + cornerS + cornerSP
 qSeg = 0
 zq = jackOut
 for j = 1 to nPost

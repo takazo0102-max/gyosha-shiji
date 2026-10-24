@@ -135,11 +135,33 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
                 "lineMode": bool(line_mode)}))
             x = 0.0
             for sp in (ep.spans if model.config.net_brackets else []):     # 終点の建地は次の面が受け持つ
-                out.append(Placement(NETBK_OBJECT, o[0] + u[0] * x, o[1] + u[1] * x, {
-                    "faceAng": ang, "zH": z / 1000.0, "armL": arm / 1000.0,
+                bx, by = o[0] + u[0] * x, o[1] + u[1] * x
+                b_ang, b_arm = ang, arm
+                if x == 0.0:
+                    b_ang, b_arm = netbk_corner_aim(model, ep, (bx, by), ang, arm)
+                out.append(Placement(NETBK_OBJECT, bx, by, {
+                    "faceAng": b_ang, "zH": z / 1000.0, "armL": b_arm / 1000.0,
                     "lineMode": bool(line_mode)}))
                 x += float(sp)
     return out
+
+
+def netbk_corner_aim(model: ScaffoldModel, ep, post, ang: float, arm: float) -> tuple[float, float]:
+    """面の始点の建地のネットブラケットの向き（度）と腕の先端（建地芯から mm）.
+
+    躯体の出隅の角に立つ建地は、ブラケットを躯体の角へ斜めに向ける（2面のネットの角を1本で受ける）。利用者の指定
+    2026-10-24: コーナーのネットブラケットは斜めにして。それ以外（入隅・開放端・角から外れた建地）は面に直角のまま.
+    """
+    if model.corner_kind_start(ep.edge_index) != "出隅":
+        return ang, arm
+    cx, cy = model.plan.outline.edges[ep.edge_index].start
+    vx, vy = cx - post[0], cy - post[1]
+    _o, u, nrm, _a = _frame(ep)
+    if vx * u[0] + vy * u[1] < 1.0 or vx * nrm[0] + vy * nrm[1] < 1.0:
+        return ang, arm
+    diag, _fits = netbk_arm_mm(math.hypot(vx, vy))
+    # 部品の +Y が腕の向き（faceAng で回す）
+    return math.degrees(math.atan2(vy, vx)) - 90.0, diag
 
 
 def net_quantities(model: ScaffoldModel) -> tuple[float, int]:

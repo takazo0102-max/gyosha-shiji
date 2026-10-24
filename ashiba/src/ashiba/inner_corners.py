@@ -27,7 +27,7 @@ def _gap_ok(gap: float) -> bool:
 
 
 def _pick(coins: list[int], target: float, main: int, prefer_exact: bool = True) -> Optional[tuple[list[int], float]]:
-    """合計が target 以下で隙間が 0〜30 か 70〜400 のスパン列（隙間の小さい・端数の少ない順）."""
+    """合計が target 以下で隙間が 0〜30 か 150〜400 のスパン列（隙間の小さい・端数の少ない順）."""
     lo = max(min(coins), int(target - WEDGE_STEP_MAX_MM) - 1)
     table = achievable_sums(coins, lo, int(target) + 1)
     cands = []

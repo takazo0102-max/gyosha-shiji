@@ -271,7 +271,7 @@ def write_report_md(
         a("|---|---|---|---|---|")
         for cs in model.plan.corner_steps:
             face = model.face_name(cs.edge_index) + "の終点" if cs.edge_index >= 0 else "-"
-            rule = "隙間 70〜400mm" if cs.edge_index >= 0 else "建枠70mm以上・ステップ250mm以内"
+            rule = "隙間 150〜400mm（コマが当たらない）" if cs.edge_index >= 0 else "建枠70mm以上・ステップ250mm以内"
             a(f"| {cs.corner_index} | {face} | {cs.gap_mm:.0f}mm | "
               f"{'OK' if cs.ok else 'NG'} | {cs.message or rule} |")
     if stair_plan is not None and stair_plan.towers:

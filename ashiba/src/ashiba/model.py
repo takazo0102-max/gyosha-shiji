@@ -483,6 +483,25 @@ class ScaffoldModel:
                     and (self.edge_subset is None or e.index in self.edge_subset)
                     and (self.faces_only is None or e.index in self.faces_only)])
 
+    def gap_corner_post_start(self, edge_index: int) -> bool:
+        """始点の出隅で、前の面が隅の隙間（コーナーステップ）の手前で止まるか.
+
+        そのときは出隅の外側の升目の前の面の側（前の面の外側列の延長の根元）に建地が要る（前の面の終点の建地は隙間の
+        向こう）。升目は4本の建地と、その側の布材（根がらみ＋各層の床）で独り立ちする。利用者の指摘 2026-10-24:
+        コーナー部分の支柱がない部分がある。3D・平面・数量で同じ規則を使う。
+        """
+        if self.master.is_frame or self.config.is_hug or self.corner_kind_start(edge_index) != "出隅":
+            return False
+        prev = (edge_index - 1) % self._n_outline()
+        return any(c.edge_index == prev and not getattr(c, "at_start", False)
+                   for c in getattr(self.plan, "corner_steps", None) or [])
+
+    def gap_corner_posts(self) -> int:
+        """隙間のある出隅に足す建地の本数（gap_corner_post_start の面の数。面を絞った数量ではその面だけ）."""
+        return len([e for e in self.plan.outline.edges if self.gap_corner_post_start(e.index)
+                    and (self.edge_subset is None or e.index in self.edge_subset)
+                    and (self.faces_only is None or e.index in self.faces_only)])
+
     def outer_corner_prev_widths(self) -> list[float]:
         """出隅の外側コーナーごとの、前の面の建地列間隔 mm（outer_corner_posts と同じ隅の並び）.
 

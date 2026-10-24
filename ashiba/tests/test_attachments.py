@@ -76,7 +76,8 @@ class TestNet(unittest.TestCase):
         r = solve_all({**RECT, "horizontal_net_levels": [2]})
         self.assertTrue(netbk_clash_faces(r.model))                # 既定の離れ 300 では届きすぎる
         self.assertTrue(any("NL500" in w and "躯体に当たります" in w for w in r.quantity.warnings), r.quantity.warnings)
-        bk = next(p for p in net_placements(r.model) if p.part == NETBK_OBJECT)
+        # 面の途中の建地（出隅の角の建地は躯体の角へ斜めに向けるので腕が長い）
+        bk = [p for p in net_placements(r.model) if p.part == NETBK_OBJECT][1]
         self.assertAlmostEqual(bk.params["armL"], 0.342)
 
     def test_quantity_note_and_order(self):

@@ -410,8 +410,14 @@ if cornerS = 1 then
 	if nGlO >= 1 then gv = glO[1]
 	if nJkO >= 1 then jo = jkO[1]
 	if nShO >= 1 then sv = shO[1]
-	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く
-	add -cSW, -rowW, gv
+	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く。
+	! 前の面が隅の隙間（コーナーステップ）の手前で止まる出隅は、前の面の外側列の延長の根元（-cSW, 0）にも建地が要る
+	! （前の面の終点の建地は隙間の向こう。布材・手すりの緊結部が宙に浮いていた。利用者の指摘 2026-10-24: コーナー部分の
+	! 支柱がない部分がある）。この升目は4本の建地で独り立ちする
+	for iq = 1 to 1 + cornerSP
+	yq = -rowW
+	if iq = 2 then yq = 0
+	add -cSW, yq, gv
 	gosub 820
 	addz jo
 	if nGl >= 2 then
@@ -439,15 +445,23 @@ if cornerS = 1 then
 		resol 6
 		for ik = 1 to nKz
 			if not(explodeMask > 0 and kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
-				add -cSW, -rowW, kz[ik] - 0.003
+				add -cSW, yq, kz[ik] - 0.003
 				cylind 0.006, 0.053
 				del 1
 			endif
 		next ik
 		resol rN
 	endif
+	next iq
 	for il = 1 to nLv
 		z = lv[il]
+		! 隙間のある出隅: 升目の前の面の側（y=0）の布材。床と、隙間に掛けるコーナーステップの先を受ける
+		if cornerSP = 1 then
+			add -cSW, 0, z
+			nL = cSW
+			gosub 830
+			del 1
+		endif
 		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
 		add -cSW, 0, z
 		rotz -90
@@ -2906,6 +2920,7 @@ if cornerS = 1 then
 	gv = 0
 	if nGl >= 1 then gv = gl[1]
 	lin_ -cSW, -rowW, gv, -cSW, -rowW, postTop
+	if cornerSP = 1 then lin_ -cSW, 0, gv, -cSW, 0, postTop
 	for il = 1 to nLv
 		z = lv[il]
 		lin_ 0, 0, z, -cSW, 0, z

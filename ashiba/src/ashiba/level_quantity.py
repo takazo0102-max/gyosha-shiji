@@ -152,7 +152,7 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
                     tower_pos[t.edge_index] = tower_pos.get(t.edge_index, 0) + len(ts) + 1
         for ev, edges in face_height_groups(model):
             sub = _sub_model(model, ev, edges)
-            positions = sub.plan.total_posts * rows_n + sub.outer_corner_posts()
+            positions = sub.plan.total_posts * rows_n + sub.outer_corner_posts() + sub.gap_corner_posts()
             positions += sum(tower_pos.get(i, 0) for i in edges)
             z = float(ev.jack_extension)
             for nominal in ev.posts:
