@@ -194,3 +194,10 @@ class TestEndPlaneUnderBeam(unittest.TestCase):
         self.assertTrue(all(str(row)[:2] in no or True for no in lines))
         p3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("! 妻面のブレス材と妻面幅木", p3)
+
+    def test_millennium_also_gets_the_end_plane(self):
+        r = solve_all({"outline_mm": RECT, "eaves_height_mm": 12000, "series_id": "nikken_millennium",
+                       "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
+        self.assertTrue(any("ブレス材（先行手すり）4本" in n and "ミレニュームにも" in n for n in r.quantity.notes),
+                        r.quantity.notes)
+        self.assertEqual(sum(l.qty for l in r.quantity.lines if l.part.model_no == "STXC609G"), 4)

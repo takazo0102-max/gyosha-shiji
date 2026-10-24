@@ -1313,8 +1313,12 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
             else:
                 add(part, n, f"梁枠下の妻面の{what}{row}")
         if n_br:
+            # ミレニュームは Q&A Q16 に妻面の記載が無いが、ND と同じに入れる（利用者の指定 2026-10-24: ミレニュームにも妻面の
+            # ブレスと幅木入れて）
+            src = ("日建 カタログ p010「梁枠下の妻面全段」と同じ扱い（ミレニュームにも入れる。利用者の指定 2026-10-24）"
+                   if m.series_id == "nikken_millennium" else "日建 カタログ p010「梁枠下の妻面全段」")
             notes.append(f"梁枠下の妻面（開口の両端の建地の内外）に、各段のブレス材（先行手すり）{n_br}本と作業床の段の妻面幅木"
-                         f"{n_toe}本を計上（日建 カタログ p010「梁枠下の妻面全段」）")
+                         f"{n_toe}本を計上（{src}）")
 
     # 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）の前踏み側の先行手すり筋交い（ミレニューム Q16）
     from .openings import beam_rules, front_adv_spans
