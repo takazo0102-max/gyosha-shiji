@@ -717,7 +717,8 @@ endif
 ! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
 ! 昇降機が通る区間（asaCutList）は切り欠いて描く
 if nAsa > 0 then
-	line_type 3
+	! 輪郭は実線の二重線（利用者の指摘 2026-10-24: 朝顔の平面図の輪郭が見にくい。線種3 は縮尺で点にしか見えなかった）
+	line_type 1
 	! 外付けの階段室の区間は階段室の外側（3列目）から張り出す（3D と同じ）。出隅はコーナー部で隅まで
 	for isg = 1 to nAsg
 		pA = asgA[isg]
@@ -742,12 +743,15 @@ if nAsa > 0 then
 			qB = min(pB, pxB)
 			if qB > qA + 0.001 then
 				line2 qA, ybA - asagaoProj, qB, ybA - asagaoProj
+				line2 qA, ybA - asagaoProj + 0.04, qB, ybA - asagaoProj + 0.04
 				line2 qA, ybA, qA, ybA - asagaoProj
 				line2 qB, ybA, qB, ybA - asagaoProj
-				! 張り出しの中は 45° の斜線（実線・0.5m ごと）。朝顔の付く範囲が平面でひと目で分かるように
+				line2 qA + 0.04, ybA, qA + 0.04, ybA - asagaoProj + 0.04
+				line2 qB - 0.04, ybA, qB - 0.04, ybA - asagaoProj + 0.04
+				! 張り出しの中は 45° の斜線（実線・0.8m ごと。輪郭より目立たないよう間を広く）。朝顔の付く範囲が平面でひと目で分かるように
 				! （利用者の指定 2026-10-24: 朝顔の平面図に表記して）。塗りつぶしの名前に頼らず線で引く
 				line_type 1
-				ahT = qA + 0.5
+				ahT = qA + 0.8
 				while ahT < qB + asagaoProj - 0.001 do
 					ahX0 = ahT
 					ahY0 = ybA
@@ -762,9 +766,8 @@ if nAsa > 0 then
 						ahX1 = qA
 					endif
 					if ahX0 > ahX1 + 0.001 and ahY0 > ahY1 + 0.001 then line2 ahX0, ahY0, ahX1, ahY1
-					ahT = ahT + 0.5
+					ahT = ahT + 0.8
 				endwhile
-				line_type 3
 			endif
 			pA = pB
 		endwhile
