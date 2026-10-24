@@ -35,8 +35,9 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 		if ip <= nSpan then xh = xh + spans[ip]
 	next ip
 	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
-	hotspot2 -rowW * cornerS, -rowW
-	hotspot2 xh + rowW * cornerE, -rowW
+	! 隅に隙間（コーナーステップ）がある面は、隙間の先の隅から外側の角の支柱まで（gapS・gapE）
+	hotspot2 -gapS - rowW * cornerS, -rowW
+	hotspot2 xh + gapE + rowW * cornerE, -rowW
 	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
 	! 躯体と足場の隙間も寸法ツールに
 	! 位置は躯体に面した端のスパン中央（Python が soDimX1・soDimX2 で渡す。延長の端のスパンは躯体の外）
@@ -48,6 +49,10 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	hotspot2 sdx1, standoff
 	hotspot2 sdx2, 0
 	hotspot2 sdx2, standoff
+	! nSpan+8・nSpan+9: 隅の隙間の端（終点の隙間の先・始点の隙間の手前。隙間が無ければ端の支柱と同じ点）。
+	! 利用者の指定 2026-10-24: 隙間部分も寸法入れて
+	hotspot2 xh + gapE, -rowW
+	hotspot2 -gapS, -rowW
 endif
 
 if viewMode = "elev" then

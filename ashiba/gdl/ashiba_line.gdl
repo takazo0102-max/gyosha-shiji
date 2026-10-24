@@ -52,6 +52,8 @@
 !   sheetTxt        文字列  ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない                                            既定 ""
 !   dimTool         ブール  平面のスパン寸法は寸法ツール（部品では描かない）                                                          既定 0
 !   dimSoTool       ブール  平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）                                        既定 0
+!   gapS            長さ    始点の隅の隙間（コーナーステップ。寸法を隅まで張る）                                                      既定 0
+!   gapE            長さ    終点の隅の隙間（コーナーステップ。寸法を隅まで張る）                                                      既定 0
 !   soDimX1         長さ    離れ寸法の位置1（始点から。0 なら最初のスパン中央）                                                       既定 0
 !   soDimX2         長さ    離れ寸法の位置2（始点から。0 なら最後のスパン中央）                                                       既定 0
 !   planSimple      ブール  平面を単線で（建地列・支柱位置・床の対角線だけ）                                                          既定 0
@@ -1271,8 +1273,9 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 		if ip <= nSpan then xh = xh + spans[ip]
 	next ip
 	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
-	hotspot2 -rowW * cornerS, -rowW
-	hotspot2 xh + rowW * cornerE, -rowW
+	! 隅に隙間（コーナーステップ）がある面は、隙間の先の隅から外側の角の支柱まで（gapS・gapE）
+	hotspot2 -gapS - rowW * cornerS, -rowW
+	hotspot2 xh + gapE + rowW * cornerE, -rowW
 	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
 	! 躯体と足場の隙間も寸法ツールに
 	! 位置は躯体に面した端のスパン中央（Python が soDimX1・soDimX2 で渡す。延長の端のスパンは躯体の外）
@@ -1284,6 +1287,10 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	hotspot2 sdx1, standoff
 	hotspot2 sdx2, 0
 	hotspot2 sdx2, standoff
+	! nSpan+8・nSpan+9: 隅の隙間の端（終点の隙間の先・始点の隙間の手前。隙間が無ければ端の支柱と同じ点）。
+	! 利用者の指定 2026-10-24: 隙間部分も寸法入れて
+	hotspot2 xh + gapE, -rowW
+	hotspot2 -gapS, -rowW
 endif
 
 if viewMode = "elev" then

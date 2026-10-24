@@ -92,6 +92,9 @@ for ip = 1 to nPl
 next ip
 del top
 rot2 faceAng
+! 隙間の区間にも建地列の線（外側の手すり・中桟、躯体側の線）を通す（利用者の指摘 2026-10-24: 足場の線が消えてしまってる）
+line2 0, 0, gapL, 0
+line2 0, -rowW, gapL, -rowW
 hotspot2 0, 0
 hotspot2 gapL, 0
 hotspot2 gapL, -rowW

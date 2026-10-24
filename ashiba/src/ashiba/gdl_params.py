@@ -245,6 +245,20 @@ def _type_label_free(model: ScaffoldModel, ep, stair_plan=None, openings=None, p
     return label_positions(model, ep, stair_plan, openings, platforms, _probe=True)["lblAt"] >= 0
 
 
+def corner_gaps_m(model: ScaffoldModel, edge_index: int) -> dict:
+    """面の始点・終点の隅の隙間（コーナーステップ。m）→ {"gapS", "gapE"}. くさびの隙間は面の終点、ブラケットへ
+    延ばした本足場の始点の側の隙間は始点（corner_joins）。枠組のコーナーステップ（edge_index -1）は含めない."""
+    gs = ge = 0.0
+    for c in getattr(model.plan, "corner_steps", None) or []:
+        if c.edge_index != edge_index:
+            continue
+        if getattr(c, "at_start", False):
+            gs = float(c.gap_mm) / 1000.0
+        else:
+            ge = float(c.gap_mm) / 1000.0
+    return {"gapS": gs, "gapE": ge}
+
+
 def label_positions(model: ScaffoldModel, ep, stair_plan=None, openings=None, platforms=None,
                     _probe: bool = False) -> dict:
     """平面のラベル（種類・壁つなぎ・養生）の位置（面の始点から mm、-1 は GDL の既定の位置）.
@@ -423,6 +437,8 @@ def line_params(
         # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
         "cornerE": 1 if (not model.master.is_frame and not model.config.is_hug
                          and model.corner_kind_end(ep.edge_index) == "出隅") else 0,
+        # 隅の隙間（コーナーステップ）。平面の寸法を隙間の先の隅まで張る（利用者の指定 2026-10-24: 隙間部分も寸法入れて）
+        **corner_gaps_m(model, ep.edge_index),
         # 数量拾いと同じ間隔で描く。全構面に描くと部材表と食い違う
         "braceEveryS": brace_s,
         "braceEveryL": brace_l,

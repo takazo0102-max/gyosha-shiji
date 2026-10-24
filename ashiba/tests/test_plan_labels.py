@@ -104,17 +104,41 @@ class TestPlanDimensions(unittest.TestCase):
             self.assertEqual([w["inIndex"] for w in a["witnessPoints"]], [n + 3, n + 4])
             self.assertEqual([w["inIndex"] for w in b["witnessPoints"]], [n + 5, n + 6])
         self.assertAlmostEqual(data[2 * nl]["direction"]["y"], 1.0)        # 南面の離れ寸法は面に直交（躯体側 +y）
+
         for k, ep in enumerate(r.model.plan.edges):
             spans, total = data[2 * k], data[2 * k + 1]
             # 長方形は四隅とも出隅: 始点の角の支柱（nSpan+2）→ 支柱 1〜nSpan+1 → 終点の角の支柱（nSpan+3）
             n = len(ep.spans) + 1
-            self.assertEqual([w["inIndex"] for w in spans["witnessPoints"]], [n + 1] + list(range(1, n + 1)) + [n + 2])
+            # 隅の隙間（コーナーステップ）がある面は、隙間の端（nSpan+8・nSpan+9）も並びに入る（2026-10-24）
+            from ashiba.gdl_params import corner_gaps_m
+
+            gp = corner_gaps_m(r.model, ep.edge_index)
+            exp = ([n + 1] + ([n + 8] if gp["gapS"] > 0 else []) + list(range(1, n + 1))
+                   + ([n + 7] if gp["gapE"] > 0 else []) + [n + 2])
+            self.assertEqual([w["inIndex"] for w in spans["witnessPoints"]], exp)
             self.assertEqual([w["inIndex"] for w in total["witnessPoints"]], [n + 1, n + 2])
             self.assertTrue(all(w["elementId"]["guid"] == f"G{k}" for w in spans["witnessPoints"]))
         # 南面（辺0, +x 方向）: 寸法線は外側（-y）へ、建地列＋朝顔の出＋0.9m
         south = data[0]
         self.assertAlmostEqual(south["direction"]["x"], 1.0)
         self.assertLess(south["referencePoint"]["y"], r.model.plan.edges[0].start_post[1] / 1000.0 - SPAN_DIM_OUT_M)
+
+    def test_corner_gap_is_in_the_span_chain(self):
+        """隙間部分も寸法に（利用者の指定 2026-10-24）: くさびの隅の隙間がある面は、最後の支柱→隙間の先→隅の外側の支柱."""
+        from ashiba.plan_labels import plan_dimension_data
+
+        r = solve_all({"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000})
+        self.assertTrue(r.model.plan.corner_steps)
+        lines = [{"elementId": {"guid": f"G{i}"}} for i in range(len(r.model.plan.edges))]
+        data = plan_dimension_data(r.model, lines)
+        ep = r.model.plan.edges[0]
+        n = len(ep.spans) + 1
+        idx = [w["inIndex"] for w in data[0]["witnessPoints"]]
+        self.assertEqual(idx[-3:], [n, n + 7, n + 2])
+        g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("hotspot2 xh + gapE + rowW * cornerE, -rowW", g2)
+        c2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_cstep" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("line2 0, -rowW, gapL, -rowW", c2)                     # 隙間の区間にも建地列の線
 
 
 class TestTypeLabelOnShortFaces(unittest.TestCase):

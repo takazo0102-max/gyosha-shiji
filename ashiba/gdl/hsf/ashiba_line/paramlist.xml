@@ -189,6 +189,14 @@
 			<Description><![CDATA["平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Length Name="gapS">
+			<Description><![CDATA["始点の隅の隙間（コーナーステップ。寸法を隅まで張る）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="gapE">
+			<Description><![CDATA["終点の隅の隙間（コーナーステップ。寸法を隅まで張る）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="soDimX1">
 			<Description><![CDATA["離れ寸法の位置1（始点から。0 なら最初のスパン中央）"]]></Description>
 			<Value>0</Value>

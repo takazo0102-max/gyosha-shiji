@@ -277,7 +277,13 @@ def plan_dimension_data(model: ScaffoldModel, lines: list[dict], platforms=None,
         corner = not model.master.is_frame
         head = [n + 1] if corner and model.corner_kind_start(ep.edge_index) == "出隅" else []
         tail = [n + 2] if corner and model.corner_kind_end(ep.edge_index) == "出隅" else []
-        chain = head + list(range(1, n + 1)) + tail
+        # 隅の隙間（コーナーステップ）は寸法の並びに入れる（ホットスポット nSpan+8・nSpan+9）
+        from .gdl_params import corner_gaps_m
+
+        gp = corner_gaps_m(model, ep.edge_index)
+        g_s = [n + 8] if gp["gapS"] > 0 else []
+        g_e = [n + 7] if gp["gapE"] > 0 else []
+        chain = head + g_s + list(range(1, n + 1)) + g_e + tail
         off = row_w + face_outward_m(model, ep, platforms, stair_plan)
         for dist, idx in ((off + SPAN_DIM_OUT_M, chain), (off + TOTAL_DIM_OUT_M, [chain[0], chain[-1]])):
             ref = (o[0] / 1000.0 - nrm[0] * dist, o[1] / 1000.0 - nrm[1] * dist)
