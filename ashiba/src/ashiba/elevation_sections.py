@@ -878,6 +878,29 @@ def _activate(client, item_guid: str) -> None:
         pass
 
 
+def refresh_scaffold_drawings(client, prefix: str) -> int:
+    """この工事の立面図・断面図のレイアウトの図面を更新する（足場ラインを書き換えたあと。断面図ビューポイントは 3D からの
+    投影なので、図面を更新すれば変えた足場が出る）。更新した図面の数を返す.
+
+    朝顔の面のように全部を置き直さないボタンが使う（利用者の指定 2026-10-24: 立面も朝顔の面で一緒に直して）。
+    """
+    lb = _tree(client, "LayoutBook")
+    lays = [it for it in find_items(lb, "LayoutItem")
+            if it["name"].startswith(f"{prefix} 足場立面図") or it["name"].startswith(f"{prefix} 足場断面図")]
+    n = 0
+    for it in lays:
+        _activate(client, it["guid"])
+        try:
+            els = client.tapir("GetElementsByType", {"elementType": "Drawing"}).get("elements", [])
+            if els:
+                client.tapir("UpdateDrawings", {"elements": els})
+                n += len(els)
+        except Exception:
+            continue
+    activate_floor_plan(client)
+    return n
+
+
 def _delete_drawings(client, layout_item_guid: str, made: list[dict]) -> bool:
     """図面の削除はそのレイアウトが前面のときだけ通る."""
     if not made:

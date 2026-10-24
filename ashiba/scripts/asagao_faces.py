@@ -224,9 +224,11 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
                 n_add += sum(1 for el in made if el is not None)
     _lb0, r0 = groups[0]
     # 平面の部材名ラベル（「朝顔（突出 2000）」など。寸法はそのまま）も直す（利用者の指定 2026-10-24: 朝顔の面でラベルも一緒に直して）
+    from ashiba.elevation_sections import activate_floor_plan
+
     n_lab = 0
     try:
-        from ashiba.elevation_sections import activate_floor_plan, building_key, fit_scale, plan_region_mm
+        from ashiba.elevation_sections import building_key, fit_scale, plan_region_mm
         from ashiba.plan_labels import plan_labels, replace_plan_labels
 
         activate_floor_plan(c)
@@ -238,10 +240,32 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
         n_lab = replace_plan_labels(c, OUT_DIR, building_key(r0.model.plan.outline.vertices), labels, floor_index=floor)
     except Exception as e:
         print(f"朝顔の面: 平面のラベルを直せませんでした（{e}）")
+    # 立面図・断面図（断面図ビューポイントは 3D からの投影）の図面を更新し、PDF を出し直す（利用者の指定 2026-10-24:
+    # 立面も朝顔の面で一緒に直して）。立面を作らない設定（elevation_mode none）なら何もしない
+    n_drw, pdf_n = 0, 0
+    prefix = str(spec.get("project_name") or "足場")
+    if str(spec.get("elevation_mode") or "section") == "section":
+        try:
+            from ashiba.elevation_sections import refresh_scaffold_drawings
+
+            n_drw = refresh_scaffold_drawings(c, prefix)
+            if n_drw and spec.get("pdf", True):
+                from ashiba.pdf_publish import DEFAULT_PUBLISHER_SET, publish_scaffold_pdf
+
+                pdf = publish_scaffold_pdf(c, OUT_DIR / "PDF", str(spec.get("pdf_publisher_set") or DEFAULT_PUBLISHER_SET),
+                                           prefix=prefix)
+                pdf_n = len(pdf.files)
+                activate_floor_plan(c)
+        except Exception as e:
+            print(f"朝顔の面: 立面図・断面図を更新できませんでした（{e}）。次の「配置」で直ります")
+    else:
+        print("朝顔の面: 立面・断面は作らない設定なので、立面図はありません（条件の窓の「立面・断面」で作るにして「配置」すると出ます）")
     write_outputs(r0, OUT_DIR)
     used[0].write_text(json.dumps(spec, ensure_ascii=False, default=str), encoding="utf-8")
     print(f"朝顔の面: {'・'.join(sorted(changed))} の朝顔を直しました（足場ライン {n_line}本・壁つなぎ {n_del}本を"
           f" {n_add}本に入れ替え、平面のラベル {n_lab}個を置き直し。ほかの部品はそのまま）。帳票も書き直しました")
+    if n_drw:
+        print(f"朝顔の面: 立面図・断面図の図面 {n_drw}枚を更新" + (f"、PDF {pdf_n}枚を出し直しました" if pdf_n else "しました"))
     return True
 
 
