@@ -67,6 +67,7 @@ def main() -> int:
     spec = dict(R.SPEC)
     spec.update(R.load_spec_override())
     spec["outline_mm"] = outline
+    R.ensure_parts(c)                            # 新しい版の足場条件の部品（項目が増えた）を入れておく
     spec = R.apply_spec_object(c, spec)          # 部品があれば読む。無ければ今の条件で置く
     _new, button, _asked = R.ask_conditions(c, spec, ("place", "保存して配置"), (("save", "保存"),))
     if not button:

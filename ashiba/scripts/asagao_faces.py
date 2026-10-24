@@ -77,6 +77,9 @@ def main() -> int:
     every = all_face_names({"outline_mm": outline})
     hit = None
     try:
+        # 古い版の部品（「付ける面」の項目が無い）は今の版に置き換えてから書く（無い項目を送ると全部落ちる）
+        tb.ensure_parts(c)
+        tb.apply_spec_object(c, {**tb.SPEC, **tb.load_spec_override(), "outline_mm": outline})
         hit = pick_spec_object(tb.read_spec_objects(c), outline)
     except Exception:          # 部品が読めなくても JSON に書けば通る
         hit = None

@@ -270,6 +270,25 @@ def choose_width_at_start(client, spec: dict, interactive: bool, persist: bool =
     return new
 
 
+def ensure_parts(client) -> tuple[str, str]:
+    """同梱の配布GSM（足場ライン・詳細図・表示設定・足場条件・付属部品）を埋め込みライブラリに入れる → (足場ライン, 詳細図) の部品名.
+
+    配置のほか、足場条件の部品を書き換えるボタン（条件・朝顔の面）も先に呼ぶ（新しい版の部品が無いと置き換えられない）。
+    """
+    line_part = versioned_part_name(LINE_OBJECT)
+    detail_part = versioned_part_name(DETAIL_OBJECT)
+    # MVO部品は置かないが、ライブラリに入っていればモデル表示オプションに「仮設足場の表示設定」が出る
+    added = client.ensure_embedded_parts([
+        (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
+        (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
+        (GDL_DIR / f"{SPEC_OBJECT}.gsm", versioned_part_name(SPEC_OBJECT)),
+        *((GDL_DIR / f"{b}.gsm", versioned_part_name(b)) for b in ATTACHMENT_OBJECTS),
+    ])
+    if added:
+        print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
+    return line_part, detail_part
+
+
 def ask_conditions(client, spec: dict, ok: tuple, extra: tuple = ()) -> tuple[dict, object, bool]:
     """条件の窓を出す → (新しい条件, 押したボタンの id か False（やめた）, 窓を出せたか).
 
@@ -568,17 +587,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # いなくても止まらないように（既に入っていれば何もしない）
     # 埋め込んだ部品は Tapir から上書きできないので、GSM の版（HSFのハッシュ）を
     # 名前に付けて埋め込む。GSM を更新すれば新しい名前で入り、古い部品は置き換え時に消える
-    line_part = versioned_part_name(LINE_OBJECT)
-    detail_part = versioned_part_name(DETAIL_OBJECT)
-    # MVO部品は置かないが、ライブラリに入っていればモデル表示オプションに「仮設足場の表示設定」が出る
-    added = client.ensure_embedded_parts([
-        (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
-        (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
-        (GDL_DIR / f"{SPEC_OBJECT}.gsm", versioned_part_name(SPEC_OBJECT)),
-        *((GDL_DIR / f"{b}.gsm", versioned_part_name(b)) for b in ATTACHMENT_OBJECTS),
-    ])
-    if added:
-        print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
+    line_part, detail_part = ensure_parts(client)
     # 足場条件の部品: あればその条件を JSON より優先して使う。無ければいまの条件で置く
     if use_spec_object:
         spec = apply_spec_object(client, spec)
