@@ -701,6 +701,9 @@ def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
 SCAFFOLD_FORMS = ("本足場", "一側足場", "ブラケット足場", "抱き足場", "単管抱き足場")
 
 
+BRACKET_WIDTH_MM = 300     # ブラケット足場（ハーフアンチ1枚）の建地から床の外端までの幅（利用者の指定 2026-10-24）
+
+
 def narrow_width_mm(master):
     """本足場のいちばん細い幅（くさび: 床を載せられる最小の腕木＝布材 500 以上の最小）. 単管・枠組は None（既定のまま）."""
     if master.is_tube or master.is_frame:
@@ -903,15 +906,16 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                 row_mm = max(rows)
     form, kind, post = _form_from_spec(spec)
     # ブラケット足場（くさびの支柱）はハーフアンチ1枚で狭いところに使う足場（利用者の指定 2026-10-24）。幅・作業床の
-    # 指定が無ければ、系列のいちばん細い作業床（日建 240・信和 250）と、その床用のブラケット（日建 NDBK03C 350・
-    # 信和 SB-25 400）の長さを建地列の間隔にする。以前は本足場と同じ 500 の板と 610 の腕で、狭いところに入らなかった
+    # 指定が無ければ、系列のいちばん細い作業床（日建 240・信和 250）を1枚、建地から床の外端までの幅は 300
+    # （BRACKET_WIDTH_MM。利用者の指定 2026-10-24: ブラケット足場はハーフアンチだけなので幅300として）。ブラケットは
+    # その床用の品（日建 NDBK03C・信和 SB-25）。以前は本足場と同じ 500 の板と 610 の腕で、狭いところに入らなかった
     if (form == "一側足場" and kind == "ブラケット" and not master.is_tube and not master.is_frame
             and not spec.get("deck_widths") and not width_mm):
         half = min((w for w in master.deck_widths_available() if w >= 200), default=None)
         brk = bracket_for_deck(master, half) if half else None
         if brk is not None:
             deck_ws = (half,)
-            row_mm = int(brk.nominal_dim)
+            row_mm = BRACKET_WIDTH_MM
     config = ScaffoldConfig(
         scaffold_form=form,
         single_row_kind=kind,

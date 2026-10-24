@@ -38,8 +38,9 @@ class TestClearance(unittest.TestCase):
     def test_plan_again_with_smaller_forms(self):
         spec = {"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=700), "road_edges": [0]}
         sp, notes = plan_within_boundary(spec)
-        self.assertEqual(sp["face_forms"], "西面=単管抱き足場")       # 一側足場でも越える → 単管抱き足場
-        self.assertEqual(len(notes), 2)
+        # ブラケット足場（一側）の幅が 300 になり（利用者の指定 2026-10-24）、一側足場で境界に収まる
+        self.assertEqual(sp["face_forms"], "西面=一側足場")
+        self.assertEqual(len(notes), 1)
         for _label, r in solve_groups(sp):
             self.assertFalse([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"])
             self.assertEqual(r.verdict["blockers"], [])                # 階段はほかの組の面のものを使う
