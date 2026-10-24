@@ -631,7 +631,7 @@ class TestCatalogShapesStairAsagao(unittest.TestCase):
         self.assertGreaterEqual(sub.count("gosub 895"), 3)
         g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(
             encoding="utf-8")
-        self.assertIn("line2 -rowW, -rowW, -rowW - asagaoProj, aY - asagaoProj", g2)
+        self.assertIn("line2 -cSW, -rowW, -cSW - asagaoProj, aY - asagaoProj", g2)
 
 
 if __name__ == "__main__":
@@ -1221,8 +1221,8 @@ class TestPlanDimensions(unittest.TestCase):
         self.assertIn("yd = -rowW - dOff - 0.90", self.body)
         self.assertIn("line2 xs, yd, xe, yd", self.body)
         # 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
-        self.assertIn("xs = pxA - rowW * cS", self.body)
-        self.assertIn("xe = pxB + rowW * cE", self.body)
+        self.assertIn("xs = pxA - cSW * cS", self.body)
+        self.assertIn("xe = pxB + cEW * cE", self.body)
         self.assertIn("if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35", self.body)
 
     def test_text_turns_to_read_from_below_or_right(self):

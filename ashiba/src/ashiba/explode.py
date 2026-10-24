@@ -143,7 +143,8 @@ def line_members(p: dict) -> list[Member]:
 
     # ---- 出隅の外側コーナー支柱（くさび式。始点側の部品が持つ） ----
     if not frame and _i(p, "cornerS") == 1 and pc.sA == 1:
-        stack(-row_w, -row_w, "（出隅）")
+        # 幅の違う本足場の組と出会う隅は、前の面の幅の位置（cornerSW）
+        stack(-(_f(p, "cornerSW") or row_w), -row_w, "（出隅）")
     return out
 
 

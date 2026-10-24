@@ -947,6 +947,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
     model.faces_only = faces
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
+    model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
     model.obstacles = obstacles
     model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
@@ -1433,6 +1434,30 @@ def all_face_names(spec: dict, master_csv: Path | None = None) -> list[str]:
     return [n for e, n in zip(plan.edges, names) if faces is None or e.edge_index in faces]
 
 
+def _group_neighbors(out: list) -> dict[int, dict]:
+    """面の組の結果 → {組の番号: {隣の面の辺番号: {"row", "height"}}}. 本足場どうしの出隅だけ（ブラケットは corner_joins）."""
+    from .corner_joins import _kind
+
+    owner = {e.edge_index: k for k, (_l, r) in enumerate(out) for e in r.model.plan.edges}
+    if not owner:
+        return {}
+    outline = out[0][1].model.plan.outline
+    n = len(outline.edges)
+    res: dict[int, dict] = {}
+    for ei, k in owner.items():
+        m = out[k][1].model
+        if _kind(m) != "main":
+            continue
+        for adj, corner in (((ei - 1) % n, outline.edges[ei].start_corner), ((ei + 1) % n, outline.edges[ei].end_corner)):
+            ka = owner.get(adj)
+            if ka is None or ka == k or corner != "出隅" or _kind(out[ka][1].model) != "main":
+                continue
+            ma = out[ka][1].model
+            res.setdefault(k, {})[adj] = {"row": float(ma.post_row_spacing_mm),
+                                          "height": float(ma.elevation_of(adj).total_height)}
+    return res
+
+
 def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, PlanRun]]:
     """面ごとの足場の切り替え（face_forms）を含む入力を、面の組ごとに解く → [(組の名前, 結果)].
 
@@ -1461,10 +1486,15 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
                     nb[adj] = own[adj]
         if nb:
             again[k] = nb
-    if again:
-        groups = [(label, {**sub, "_neighbor_standoffs": again[k]} if k in again else sub)
+    # 本足場どうし（幅の違う本足場など）の出隅は、組をまたいでも同じ組の隅と同じに納める（外側の升目を始点の面が
+    # 描き、妻側の手すりは付けず、隅の内側建地は1本）。利用者の指摘 2026-10-24: 端部が重なったり、回れないようになってる
+    nbs = _group_neighbors(out)
+    if again or nbs:
+        groups = [(label, {**sub, **({"_neighbor_standoffs": again[k]} if k in again else {}),
+                           **({"_group_neighbors": nbs[k]} if k in nbs else {})})
                   for k, (label, sub) in enumerate(groups)]
-        out = [(label, solve_all(sub, master_csv)) if k in again else out[k] for k, (label, sub) in enumerate(groups)]
+        out = [(label, solve_all(sub, master_csv)) if (k in again or k in nbs) else out[k]
+               for k, (label, sub) in enumerate(groups)]
     # ブラケット足場と本足場の出隅: 本足場をブラケットの支柱の列まで延ばして解き直す（利用者の指定 2026-10-23）
     from .corner_joins import bracket_corner_joins
 

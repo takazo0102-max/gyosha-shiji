@@ -136,7 +136,7 @@ class TestPlanDimensions(unittest.TestCase):
         idx = [w["inIndex"] for w in data[0]["witnessPoints"]]
         self.assertEqual(idx[-3:], [n, n + 7, n + 2])
         g2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
-        self.assertIn("hotspot2 xh + gapE + rowW * cornerE, -rowW", g2)
+        self.assertIn("hotspot2 xh + gapE + cEW * cornerE, -rowW", g2)
         c2 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_cstep" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         self.assertIn("line2 0, -rowW, gapL, -rowW", c2)                     # 隙間の区間にも建地列の線
 

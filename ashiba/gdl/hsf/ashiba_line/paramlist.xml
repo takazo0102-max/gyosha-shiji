@@ -421,6 +421,14 @@
 			<Description><![CDATA["終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="cornerSW">
+			<Description><![CDATA["始点の出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔。0＝rowW）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cornerEW">
+			<Description><![CDATA["終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="railIn">
 			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
 			<Value>1</Value>

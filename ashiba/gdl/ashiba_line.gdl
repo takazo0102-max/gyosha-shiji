@@ -110,6 +110,8 @@
 !   skipInS         整数    始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）                                     既定 0
 !   skipInE         整数    終点の内側建地は隣の面が描く 0/1                                                                          既定 0
 !   cornerE         整数    終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）                              既定 0
+!   cornerSW        長さ    始点の出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔。0＝rowW）                             既定 0
+!   cornerEW        長さ    終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）                             既定 0
 !   railIn          整数    躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1                                                        既定 1
 !   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                      既定 ""
 !   brktList2       文字列  ブラケット区間（続き2）                                                                                   既定 ""
@@ -1246,6 +1248,11 @@ define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
 define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 set style "anno"
 pen 1
+! 出隅の外側の升目の辺（前の面・次の面の幅の向き）。幅の違う本足場の組と出会う隅は長方形（2026-10-24）
+cSW = cornerSW
+if cSW < 0.001 then cSW = rowW
+cEW = cornerEW
+if cEW < 0.001 then cEW = rowW
 
 ! モデル表示オプション（ashiba_mvo）があればそちらが優先。無ければ部品の設定
 ! （planSimple / showDim）。図面の用途ごとに部品を1つずつ触らなくてよい
@@ -1274,8 +1281,8 @@ if viewMode <> "elev" and sA = 1 and segBase = 1 then
 	next ip
 	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
 	! 隅に隙間（コーナーステップ）がある面は、隙間の先の隅から外側の角の支柱まで（gapS・gapE）
-	hotspot2 -gapS - rowW * cornerS, -rowW
-	hotspot2 xh + gapE + rowW * cornerE, -rowW
+	hotspot2 -gapS - cSW * cornerS, -rowW
+	hotspot2 xh + gapE + cEW * cornerE, -rowW
 	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
 	! 躯体と足場の隙間も寸法ツールに
 	! 位置は躯体に面した端のスパン中央（Python が soDimX1・soDimX2 で渡す。延長の端のスパンは躯体の外）
@@ -1588,23 +1595,23 @@ endif
 
 ! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
 if cornerS = 1 and sA = 1 then
-	line2 -rowW, 0, -rowW, -rowW
-	line2 -rowW, -rowW, 0, -rowW
-	circle2 -rowW, -rowW, r_sic
+	line2 -cSW, 0, -cSW, -rowW
+	line2 -cSW, -rowW, 0, -rowW
+	circle2 -cSW, -rowW, r_sic
 	if showDeck and hugMode = 0 then
 		if planReal then
-			! 精細: 出隅の升目の踏板も幅どおり（長さ＝建地列の間隔）
+			! 精細: 出隅の升目の踏板も幅どおり（長さ＝前の面の建地列の間隔）
 			yq = -rowW + rNuno + 0.005
 			for kw = 1 to 2
 				wq = deckW1
 				if kw = 2 then wq = deckW2
 				if wq > 0.001 then
-					rect2 -rowW + rNuno, yq, -rNuno, yq + wq
+					rect2 -cSW + rNuno, yq, -rNuno, yq + wq
 					yq = yq + wq + 0.01
 				endif
 			next kw
 		else
-			line2 -rowW, -rowW, 0, 0
+			line2 -cSW, -rowW, 0, 0
 		endif
 	endif
 endif
@@ -1850,9 +1857,9 @@ if nAsa > 0 then
 				if stS[it8] < 0.001 then aY = -2 * rowW
 			next it8
 		endif
-		line2 -rowW - asagaoProj, aY - asagaoProj, 0, aY - asagaoProj
-		line2 -rowW - asagaoProj, aY - asagaoProj, -rowW - asagaoProj, 0
-		line2 -rowW, -rowW, -rowW - asagaoProj, aY - asagaoProj
+		line2 -cSW - asagaoProj, aY - asagaoProj, 0, aY - asagaoProj
+		line2 -cSW - asagaoProj, aY - asagaoProj, -cSW - asagaoProj, 0
+		line2 -cSW, -rowW, -cSW - asagaoProj, aY - asagaoProj
 	endif
 	line_type 1
 	set style "annoC"
@@ -2050,8 +2057,8 @@ cS = cornerS
 if sA > 1 then cS = 0
 cE = cornerE
 if sB < nSpan then cE = 0
-xs = pxA - rowW * cS
-xe = pxB + rowW * cE
+xs = pxA - cSW * cS
+xe = pxB + cEW * cE
 line2 xs, yd, xe, yd
 line2 xs, yt, xe, yt
 if cS then
@@ -2059,15 +2066,15 @@ if cS then
 	line2 xs - 0.07, yd - 0.07, xs + 0.07, yd + 0.07
 	tdx = xs / 2
 	tdy = yd + 0.16
-	tdt = str(rowW * 1000, 5, 0)
+	tdt = str(cSW * 1000, 5, 0)
 	gosub 985
 endif
 if cE then
 	line2 xe, -rowW - 0.10, xe, yd - 0.10
 	line2 xe - 0.07, yd - 0.07, xe + 0.07, yd + 0.07
-	tdx = pxB + rowW / 2
+	tdx = pxB + cEW / 2
 	tdy = yd + 0.16
-	tdt = str(rowW * 1000, 5, 0)
+	tdt = str(cEW * 1000, 5, 0)
 	gosub 985
 endif
 x = 0
@@ -2366,15 +2373,15 @@ next ip
 if cornerS = 1 then
 	gv = 0
 	if nGl >= 1 then gv = gl[1]
-	line2 -rowW, gv, -rowW, postTop
+	line2 -cSW, gv, -cSW, postTop
 	for il = 1 to nLv
 		z = lv[il]
-		line2 -rowW, z, 0, z
+		line2 -cSW, z, 0, z
 		if il > 1 then
-			line2 -rowW, z + railTop, 0, z + railTop
-			line2 -rowW, z + railMid, 0, z + railMid
-			rect2 -rowW, z, 0, z + 0.05
-			if railAdv = 0 then rect2 -rowW, z + 0.05, 0, z + 0.05 + 0.157
+			line2 -cSW, z + railTop, 0, z + railTop
+			line2 -cSW, z + railMid, 0, z + railMid
+			rect2 -cSW, z, 0, z + 0.05
+			if railAdv = 0 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
 		endif
 	next il
 endif
@@ -2726,6 +2733,11 @@ return
 pen 1
 ! 表面材: 配置時に Python がプロジェクトのアルミ（金属 - アルミニウム）を入れる。0 は既定のまま
 if matScaf > 0 then material matScaf
+! 出隅の外側の升目の辺（前の面・次の面の幅の向き）。幅の違う本足場の組と出会う隅は長方形（2026-10-24）
+cSW = cornerSW
+if cSW < 0.001 then cSW = rowW
+cEW = cornerEW
+if cEW < 0.001 then cEW = rowW
 ! 単管のクランプは金色（利用者の指定 2026-10-22: クランプは金色にして）。本体・ふた・T ボルト・ナットとも。
 ! 直線ジョイント（PCJ）の帯は亜鉛めっきの銀。
 ! 足場の表面材（matScaf）が入っている部品だけ色を替える（0 の部品では描いたあと戻す材質が無い）
@@ -3127,7 +3139,7 @@ if cornerS = 1 then
 	if nJkO >= 1 then jo = jkO[1]
 	if nShO >= 1 then sv = shO[1]
 	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く
-	add -rowW, -rowW, gv
+	add -cSW, -rowW, gv
 	gosub 820
 	addz jo
 	if nGl >= 2 then
@@ -3155,7 +3167,7 @@ if cornerS = 1 then
 		resol 6
 		for ik = 1 to nKz
 			if not(explodeMask > 0 and kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
-				add -rowW, -rowW, kz[ik] - 0.003
+				add -cSW, -rowW, kz[ik] - 0.003
 				cylind 0.006, 0.053
 				del 1
 			endif
@@ -3165,32 +3177,32 @@ if cornerS = 1 then
 	for il = 1 to nLv
 		z = lv[il]
 		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
-		add -rowW, 0, z
+		add -cSW, 0, z
 		rotz -90
 		nL = rowW
 		gosub 830
 		del 2
-		add -rowW, -rowW, z
-		nL = rowW
+		add -cSW, -rowW, z
+		nL = cSW
 		gosub 830
 		del 1
 		if il > 1 then
-			add -rowW, 0, z + railTop
+			add -cSW, 0, z + railTop
 			rotz -90
 			nL = rowW
 			gosub 830
 			del 2
-			add -rowW, -rowW, z + railTop
-			nL = rowW
+			add -cSW, -rowW, z + railTop
+			nL = cSW
 			gosub 830
 			del 1
-			add -rowW, 0, z + railMid
+			add -cSW, 0, z + railMid
 			rotz -90
 			nL = rowW
 			gosub 830
 			del 2
-			add -rowW, -rowW, z + railMid
-			nL = rowW
+			add -cSW, -rowW, z + railMid
+			nL = cSW
 			gosub 830
 			del 1
 			if showDeck and hugMode = 0 and serType = "T" then
@@ -3200,27 +3212,27 @@ if cornerS = 1 then
 				! 載る（足場板の deck で1枚分上げる）。幅木は足場板を2枚、外側2辺それぞれ面の幅木の内側に重ねて立てる。
 				! 板の長さは コーナーの単管から最初の建地の先まで届く 1.0M・1.5M・2.0M（数量の tube_runs.corner_board_mm と同じ）
 				cbL = 1.0
-				if rowW + tubeOff + 0.2 > 1.0 then cbL = 1.5
-				if rowW + tubeOff + 0.2 > 1.5 then cbL = 2.0
+				if cSW + tubeOff + 0.2 > 1.0 then cbL = 1.5
+				if cSW + tubeOff + 0.2 > 1.5 then cbL = 2.0
 				if matDeck > 0 then material matDeck
-				add -rowW - tubeOff - 0.05, -rowW + 0.05, z + 0.0243 + 0.028
+				add -cSW - tubeOff - 0.05, -rowW + 0.05, z + 0.0243 + 0.028
 				block cbL, deckW1 - 0.01, 0.028
 				del 1
 				if deckW2 > 0 then
-					add -rowW - tubeOff - 0.05, -rowW + 0.05 + deckW1 + 0.02, z + 0.0243 + 0.028
+					add -cSW - tubeOff - 0.05, -rowW + 0.05 + deckW1 + 0.02, z + 0.0243 + 0.028
 					block cbL, deckW2 - 0.01, 0.028
 					del 1
 				endif
 				for cbw = 3 to deckN
-					add -rowW - tubeOff - 0.05, -rowW + 0.05 + (cbw - 1) * (deckW1 + 0.02), z + 0.0243 + 0.028
+					add -cSW - tubeOff - 0.05, -rowW + 0.05 + (cbw - 1) * (deckW1 + 0.02), z + 0.0243 + 0.028
 					block cbL, deckW1 - 0.01, 0.028
 					del 1
 				next cbw
 				if railAdv = 0 then
-					add -rowW + r_sic + 0.004, -rowW + r_sic + 0.032, z + 0.0243 + 0.056
+					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.032, z + 0.0243 + 0.056
 					block cbL, 0.028, 0.24
 					del 1
-					add -rowW + r_sic + 0.032, -rowW + r_sic + 0.060, z + 0.0243 + 0.084
+					add -cSW + r_sic + 0.032, -rowW + r_sic + 0.060, z + 0.0243 + 0.084
 					block 0.028, cbL, 0.24
 					del 1
 				endif
@@ -3230,13 +3242,13 @@ if cornerS = 1 then
 				! コーナー踏板と、外側2辺の幅木（単管抱き足場は床材・幅木が無い）。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
 				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
 				if matDeck > 0 then material matDeck
-				add -rowW + 0.05, -rowW + 0.05, z + r_nuno
-				block rowW - 0.05, rowW - 0.05, 0.045
+				add -cSW + 0.05, -rowW + 0.05, z + r_nuno
+				block cSW - 0.05, rowW - 0.05, 0.045
 				del 1
 				if railAdv = 0 then
 					if mToe > 0 then material mToe
-					add -rowW + r_sic + 0.004, -rowW + r_sic + 0.004, z + r_nuno + 0.045
-					block rowW - r_sic, 0.008, 0.150
+					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+					block cSW - r_sic, 0.008, 0.150
 					block 0.008, rowW - r_sic, 0.150
 					del 1
 				endif
@@ -5599,15 +5611,15 @@ next ip
 if cornerS = 1 then
 	gv = 0
 	if nGl >= 1 then gv = gl[1]
-	lin_ -rowW, -rowW, gv, -rowW, -rowW, postTop
+	lin_ -cSW, -rowW, gv, -cSW, -rowW, postTop
 	for il = 1 to nLv
 		z = lv[il]
-		lin_ 0, 0, z, -rowW, 0, z
-		lin_ -rowW, 0, z, -rowW, -rowW, z
-		lin_ -rowW, -rowW, z, 0, -rowW, z
+		lin_ 0, 0, z, -cSW, 0, z
+		lin_ -cSW, 0, z, -cSW, -rowW, z
+		lin_ -cSW, -rowW, z, 0, -rowW, z
 		if il > 1 then
-			lin_ -rowW, 0, z + railTop, -rowW, -rowW, z + railTop
-			lin_ -rowW, -rowW, z + railTop, 0, -rowW, z + railTop
+			lin_ -cSW, 0, z + railTop, -cSW, -rowW, z + railTop
+			lin_ -cSW, -rowW, z + railTop, 0, -rowW, z + railTop
 		endif
 	next il
 endif

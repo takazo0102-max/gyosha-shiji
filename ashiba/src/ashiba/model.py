@@ -174,6 +174,10 @@ class ScaffoldModel:
     hatch_ladders: list = field(default_factory=list)
     # ほかの組の本足場に繋いだ端（(辺, "s"|"e")。corner_joins）。開放端の妻側の手すりを付けない
     joined_ends: set = field(default_factory=set)
+    # ほかの組の本足場の隣の面で、出隅を同じ組の隅と同じに納める面（辺番号 → {"row": 建地列間隔 mm, "height": 高さ mm}）。
+    # 南面だけ本足場（狭い幅）にした組で、隅の外側の升目が抜け、両方の面の端に妻側の手すりが付いて回れず、隅の内側
+    # 建地が2本重なっていた（利用者の指摘 2026-10-24: 端部が重なったり、回れないようになってる）。cli.solve_groups が渡す
+    group_neighbors: dict = field(default_factory=dict)
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
     member_edits: list = field(default_factory=list)
     # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
@@ -184,10 +188,22 @@ class ScaffoldModel:
         return len(self.plan.outline.edges)
 
     def _no_prev(self, edge_index: int) -> bool:
-        return self.faces_only is not None and (edge_index - 1) % self._n_outline() not in self.faces_only
+        prev = (edge_index - 1) % self._n_outline()
+        return self.faces_only is not None and prev not in self.faces_only and prev not in self.group_neighbors
 
     def _no_next(self, edge_index: int) -> bool:
-        return self.faces_only is not None and (edge_index + 1) % self._n_outline() not in self.faces_only
+        nxt = (edge_index + 1) % self._n_outline()
+        return self.faces_only is not None and nxt not in self.faces_only and nxt not in self.group_neighbors
+
+    def row_spacing_of(self, edge_index: int) -> float:
+        """その面の建地列間隔 mm（ほかの組の隣の面はその組の値。出隅の外側の升目の辺の長さ）."""
+        nb = self.group_neighbors.get(edge_index)
+        return float(nb["row"]) if nb else float(self.post_row_spacing_mm)
+
+    def height_of(self, edge_index: int) -> float:
+        """その面の足場の高さ mm（ほかの組の隣の面はその組の値）."""
+        nb = self.group_neighbors.get(edge_index)
+        return float(nb["height"]) if nb else float(self.elevation_of(edge_index).total_height)
 
     def open_start(self, edge_index: int) -> bool:
         """その面の始点が開放端か（一部の面だけの足場で、前の面を掛けない）.
@@ -436,6 +452,19 @@ class ScaffoldModel:
         return len([e for e in self.plan.outline.edges if self.corner_kind_start(e.index) == "出隅"
                     and (self.edge_subset is None or e.index in self.edge_subset)
                     and (self.faces_only is None or e.index in self.faces_only)])
+
+    def outer_corner_prev_widths(self) -> list[float]:
+        """出隅の外側コーナーごとの、前の面の建地列間隔 mm（outer_corner_posts と同じ隅の並び）.
+
+        同じ組の隅はこの組の建地列間隔。ほかの組の幅の違う本足場と出会う隅は、升目がその幅×この面の幅の長方形になる。
+        """
+        if self.master.is_frame or self.config.is_hug:
+            return []
+        n = self._n_outline()
+        return [self.row_spacing_of((e.index - 1) % n) for e in self.plan.outline.edges
+                if self.corner_kind_start(e.index) == "出隅"
+                and (self.edge_subset is None or e.index in self.edge_subset)
+                and (self.faces_only is None or e.index in self.faces_only)]
 
     def edges_without_wall_ties(self) -> list[int]:
         """壁つなぎが1本も無い辺の番号.

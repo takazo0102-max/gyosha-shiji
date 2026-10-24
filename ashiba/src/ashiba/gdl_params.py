@@ -434,6 +434,10 @@ def line_params(
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
+        # 出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔）・次の面の幅（寸法の外側の角）。同じ組なら rowW と
+        # 同じ。幅の違う本足場の組（本足場（狭い幅）など）と出会う隅は 610×914 のような長方形になる（2026-10-24）
+        "cornerSW": model.row_spacing_of((ep.edge_index - 1) % len(model.plan.outline.edges)) / 1000.0,
+        "cornerEW": model.row_spacing_of((ep.edge_index + 1) % len(model.plan.outline.edges)) / 1000.0,
         # 終点が出隅か（コーナーは次の面が描く）。平面の寸法を外側の角の支柱まで張るのに使う
         "cornerE": 1 if (not model.master.is_frame and not model.config.is_hug
                          and model.corner_kind_end(ep.edge_index) == "出隅") else 0,
@@ -714,11 +718,12 @@ def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:
     隣の面を建てていない（上の部分だけ・面の一部だけ）ときは自分で描く。
     """
     n = len(model.plan.outline.edges)
-    built = {e.edge_index for e in model.plan.edges}
-    h = model.elevation_of(edge_index).total_height
+    # ほかの組の本足場の隣の面（group_neighbors）も隅の支柱を共有する（両方が描いて2本重なっていた。2026-10-24）
+    built = {e.edge_index for e in model.plan.edges} | set(model.group_neighbors)
+    h = model.height_of(edge_index)
     prev_i, next_i = (edge_index - 1) % n, (edge_index + 1) % n
-    skip_s = prev_i in built and prev_i != edge_index and model.elevation_of(prev_i).total_height > h
-    skip_e = next_i in built and next_i != edge_index and model.elevation_of(next_i).total_height >= h
+    skip_s = prev_i in built and prev_i != edge_index and model.height_of(prev_i) > h
+    skip_e = next_i in built and next_i != edge_index and model.height_of(next_i) >= h
     # 隅に隙間（コーナーステップ）がある面は終点の支柱が隅に無いので共有しない。両方の面が自分で描く
     gapped = {c.edge_index for c in getattr(model.plan, "corner_steps", []) if c.edge_index >= 0}
     if prev_i in gapped:

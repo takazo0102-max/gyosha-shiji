@@ -756,6 +756,31 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
     外側列の手前の2本を、根がらみ＋各層（床レベル＋手すり＋中桟）に入れる。
     """
     udegi = rules.udegi_nominal or model.post_row_spacing_mm
+    if not m.is_tube and model.config.scaffold_form != "一側足場":
+        # 幅の違う本足場の組（本足場（狭い幅）など）と出会う隅は、前の面の幅×この面の幅の長方形（3D・平面と同じ。
+        # 2026-10-24）。布材・幅木は2辺の長さで、踏板は前の面の幅の長さで拾う
+        mixed = [w for w in model.outer_corner_prev_widths() if abs(w - model.post_row_spacing_mm) > 0.5]
+        for wa in sorted(set(mixed)):
+            k = mixed.count(wa)
+            wa_n = int(round(wa))
+            per_side = 1 + n_levels * 3
+            add(m.find("布材", udegi), k * per_side, f"出隅コーナーの布材{udegi}")
+            add(m.find("布材", wa_n), k * per_side, f"出隅コーナーの布材{wa_n}（隣の組の幅）")
+            if model.config.has_toe_board:
+                add(m.find("幅木", udegi), k * n_levels, f"出隅コーナーの幅木{udegi}")
+                add(m.find("幅木", wa_n), k * n_levels, f"出隅コーナーの幅木{wa_n}（隣の組の幅）")
+            for w in model.deck_widths_in_use:
+                part = m.deck_parts(w, wa_n)
+                if part is None:
+                    notes.action(f"出隅コーナー（{wa_n}×{udegi}）の床に敷く長さ{wa_n}の踏板（幅{w}）がマスタにありません"
+                                 "（コーナー踏板または隙間塞ぎを別途手配）", Notes.ORDER)
+                    continue
+                add(part, k * n_levels, f"出隅コーナーの踏板 幅{w}×{wa_n}")
+            notes.append(f"幅の違う本足場と出会う出隅{k}箇所は、升目 {wa_n}×{udegi} の布材（2辺×〈根がらみ1＋各層の床・"
+                         f"手すり・中桟3〉×{n_levels}層）・幅木・長さ{wa_n}の踏板で計上")
+        n_corners -= len(mixed)
+        if n_corners <= 0:
+            return
     per_corner = 2 * (1 + n_levels * 3)
     add(m.find("布材", udegi), n_corners * per_corner, f"出隅コーナーの布材{udegi}")
     notes.append(
