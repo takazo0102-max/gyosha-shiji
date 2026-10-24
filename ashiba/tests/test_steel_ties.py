@@ -37,6 +37,18 @@ class TestSteelTies(unittest.TestCase):
         self.assertAlmostEqual(p["steelD"], 0.15)
         self.assertTrue(any("ビームクランプ" in w for w in r.quantity.warnings))
 
+    def test_clamp_count_is_not_doubled_by_height_groups(self):
+        # 実機 2026-10-24: 面ごとに高さが違う建物で、組ごとに全部の壁つなぎの数でビームクランプを出していた
+        from test_setback_tiers import SPEC as SB
+
+        from ashiba.cli import solve_groups
+
+        g = solve_groups({**SB, "tie_source": "鉄骨", "stories": STORIES})
+        r = g[0][1]
+        import re
+        got = sum(int(m) for w in r.quantity.warnings for m in re.findall(r"ビームクランプ (\d+)個", w))
+        self.assertEqual(got, len(r.model.wall_ties))
+
     def test_beam_heights_can_be_given(self):
         r = solve_all({**SPEC, "tie_source": "鉄骨", "steel_beam_heights_mm": [4000, 8000, 12000]})
         self.assertEqual(sorted({t.height_mm - 300 for t in r.model.wall_ties if t.kind == "grid"}), [4000, 8000, 12000])

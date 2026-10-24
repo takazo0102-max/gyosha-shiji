@@ -59,6 +59,11 @@ class TestInteriorStage(unittest.TestCase):
         self.assertEqual(p["spanU"], "1829,1829,1829,1829,1829,1829")
         self.assertAlmostEqual(p["deckH"], 6.0)
 
+    def test_deck_is_the_nearest_level(self):
+        r = solve(deck_mm=4000)
+        self.assertLessEqual(abs(r.deck_mm - 4000), 300)
+        self.assertEqual(r.levels[-1], r.deck_mm)
+
     def test_too_small(self):
         with self.assertRaises(ValueError):
             solve(corners_mm=[[0, 0], [500, 0], [500, 500], [0, 500]])

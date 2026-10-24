@@ -100,9 +100,9 @@ def main() -> int:
     if old:
         c.delete_elements(old)
     (el,) = c.create_objects([(name, st.origin[0], st.origin[1])])
-    from ashiba.pens import gdl_pens
+    from ashiba.pens import gdl_pens, parse_pens
 
-    params = {**stage_params(st), **gdl_pens(spec.get("pens"), STAGE_OBJECT)}
+    params = {**stage_params(st), **gdl_pens(parse_pens(spec.get("pens")), STAGE_OBJECT)}
     try:
         mats = c.find_member_surfaces()
         if mats.get("matScaf"):

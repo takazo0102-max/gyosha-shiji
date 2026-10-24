@@ -1491,9 +1491,10 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
 
 def _count_intakes(model: ScaffoldModel, notes) -> None:
     """取り入れ口（資材の取り込み口。利用者の指定 2026-10-24）: 可動手すり・クランプとシートの開け方を手配に出す."""
-    if not getattr(model, "intakes", None):
+    from .intakes import intake_note, mine
+
+    if not mine(model):
         return
-    from .intakes import intake_note
 
     notes.action(intake_note(model), Notes.ORDER)
 
@@ -1891,8 +1892,10 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
         relocate_unreachable_ties(model, label="取付部の壁つなぎ")
     if notes is not None and getattr(model.config, "tie_source", "") == "鉄骨":
         # 鉄骨から取る（利用者の指定 2026-10-24）: 仕上げの奥の梁の上フランジにビームクランプ。長さは梁まで
-        n = len(model.wall_ties)
-        hs = sorted({int(t.height_mm) for t in model.wall_ties})
+        # 面ごとに高さが違えば数量は面の組ごと。その組の面の壁つなぎだけ数える（二重に手配しない）
+        mine_t = [t for t in model.wall_ties if model.edge_subset is None or t.edge_index in model.edge_subset]
+        n = len(mine_t)
+        hs = sorted({int(t.height_mm) for t in mine_t})
         notes.action(f"壁つなぎは鉄骨の梁からビームクランプで取ります（仕上げ面から梁まで {model.config.steel_depth_mm:.0f}mm を"
                      f"足した長さで品を選定、取付の高さは梁の高さ {len(hs)}段）。ビームクランプ {n}個を手配し、仕上げ（外壁）に"
                      "壁つなぎを通す穴・目地を外装と打ち合わせてください", Notes.ORDER)

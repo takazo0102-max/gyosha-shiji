@@ -90,15 +90,25 @@ def intake_list(model, ep) -> str:
     return ",".join(parts)
 
 
+def mine(model) -> list[Intake]:
+    """この模型の数量で数える取り入れ口（面ごとに高さが違うときは、その面の組だけ。二重に手配しない）."""
+    return [t for t in getattr(model, "intakes", None) or []
+            if model.edge_subset is None or t.edge_index in model.edge_subset]
+
+
 def intake_cells(model) -> int:
-    return sum((t.span_to - t.span_from + 1) * (t.level_to - t.level_from + 1)
-               for t in getattr(model, "intakes", None) or [])
+    return sum((t.span_to - t.span_from + 1) * (t.level_to - t.level_from + 1) for t in mine(model))
+
+
+def _rng(a: int, b: int) -> str:
+    return f"{a}" if a == b else f"{a}〜{b}"
 
 
 def intake_note(model) -> str:
     items = []
-    for t in getattr(model, "intakes", None) or []:
-        items.append(f"{model.face_name(t.edge_index)} {t.span_from}〜{t.span_to}スパン目・{t.level_from}〜{t.level_to}層")
+    for t in mine(model):
+        items.append(f"{model.face_name(t.edge_index)} {_rng(t.span_from, t.span_to)}スパン目・"
+                     f"{_rng(t.level_from, t.level_to)}層")
     n = intake_cells(model)
     return (f"取り入れ口（{'、'.join(items)}）は外側の固定の手すり・中桟と幅木を外し、可動手すり（単管2本を自在クランプ"
             f"で留め、取り込むときだけ外す）{n}組とクランプ {n * 4}個、シートは巻き上げ式で開ける。取り込み中は"

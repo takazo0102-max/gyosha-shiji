@@ -76,6 +76,12 @@ def main() -> int:
         import run_from_archicad as R
 
         os.environ["ASHIBA_ASK_SPEC"] = "0"
+        # 足場条件の部品は条件ファイルより優先されるので、試験の条件（ASHIBA_DEV_SPEC）を効かせるため先に消す
+        from ashiba.spec_object import pick_spec_object
+
+        hit = pick_spec_object(R.read_spec_objects(c), rec[kind]["outline_mm"], reach_mm=12000.0)
+        if hit is not None:
+            c.delete_elements([hit[0]])
         # 窓を出さない（幅の選択の窓も。利用者の画面に出て止まった）。条件は条件の上書き＋ここで足す値
         extra = json.loads(os.environ.get("ASHIBA_DEV_SPEC") or "{}")
         R.main(outline_mm=rec[kind]["outline_mm"],

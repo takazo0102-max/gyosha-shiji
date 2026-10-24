@@ -122,10 +122,11 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         raise ValueError(f"{name}: 作業床の高さ（deck_mm）を 1000 以上で指定してください")
     guard = 2 * int(master.koma_pitch) + int(getattr(master, "koma_top_gap", 0) or 0)
     elev = solve_elevation(int(round(deck_req)) + guard, master=master)
-    levels = [int(elev.first_ledger_height)] + [int(h) for h in elev.level_heights if h <= deck_req + 1.0]
-    if len(levels) < 2:
-        levels = [int(elev.first_ledger_height)] + [int(h) for h in elev.level_heights[:1]]
-    deck = levels[-1]
+    # 作業床は指定にいちばん近い段（コマの位置で決まるので少し上下する。実機 2026-10-24: 4000 の指定で 4025 を捨てて
+    # 2225 になった）
+    hs = [int(h) for h in elev.level_heights]
+    deck = min(hs, key=lambda h: (abs(h - deck_req), h)) if hs else int(deck_req)
+    levels = [int(elev.first_ledger_height)] + [h for h in hs if h <= deck]
     live = float(item.get("live_kn_m2", LIVE_DEFAULT_KN_M2) or LIVE_DEFAULT_KN_M2)
     res = StageResult(name, origin, u, v, su, sv, levels, deck, float(item.get("base_mm", 0.0) or 0.0),
                       list(elev.posts), int(elev.jack_extension), live)
