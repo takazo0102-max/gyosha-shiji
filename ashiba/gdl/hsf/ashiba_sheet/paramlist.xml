@@ -77,6 +77,14 @@
 			<Description><![CDATA["シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="sheetH">
+			<Description><![CDATA["シート1枚の高さ（下から段に積む。0＝1段）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="fineOn">
+			<Description><![CDATA["縁の縫い代とハトメを描く（詳細）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<Material Name="matSheet">
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>

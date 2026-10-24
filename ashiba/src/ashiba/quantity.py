@@ -1395,14 +1395,13 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
 def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     """養生シート（足場の外側の構面）。マスタに無ければ枚数と面積を注記に出す（リースの別手配が多い）."""
-    from .attachments import SHEET_SIZES, sheet_clamp_count, sheet_quantities, special_sheets, standard_sheets
+    from .attachments import SHEET_SIZES, sheet_clamp_count, sheet_quantities, sheet_size, special_sheets, standard_sheets
 
     kind = model.config.sheet_type or ""
     if kind not in SHEET_SIZES:
         return
-    part = next((p for p in model.master.by_category("養生シート") if kind in p.note), None)
-    # 系列にある品はその大きさ（日建スプリングメッシュは 1829×5160）で数える
-    w, h = (part.nominal_dim, part.actual_dim) if part is not None and part.actual_dim else SHEET_SIZES[kind]
+    # 系列にある品はその大きさ（日建スプリングメッシュは 1829×5160、防音シート ♯1000 は 1.8×3.4）で数える
+    w, h = sheet_size(model)
     area, n = sheet_quantities(model, stair_plan, (w, h))
     std = standard_sheets(model, stair_plan, (w, h))
     sp = special_sheets(model, stair_plan, (w, h))
@@ -1411,8 +1410,9 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     # 足場のスパンと同じ幅のシート（インチ・メートルとも普通にある幅）。系列のマスタにある幅はその品で、無い幅は手配に
     other = {}
     for wd, k in std.items():
-        hit = next((p for p in model.master.by_category("養生シート") if kind in p.note and abs(p.nominal_dim - wd) <= 1),
-                   None)
+        # インチのスパンにはメートルの幅の品（1.8・1.5…）を当てる（50 以内の近い幅）
+        cands = [p for p in model.master.by_category("養生シート") if kind in p.note and abs(p.nominal_dim - wd) <= 50]
+        hit = min(cands, key=lambda p: abs(p.nominal_dim - wd)) if cands else None
         if hit is not None:
             add(hit, k, f"{kind} 幅{wd}")
         else:

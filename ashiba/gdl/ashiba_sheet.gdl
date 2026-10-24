@@ -25,6 +25,8 @@
 !   sheetKind  文字列  養生材                                                                                      既定 "メッシュシート"
 !   panelList  文字列  シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）  既定 ""
 !   clampList  文字列  シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）           既定 ""
+!   sheetH     長さ    シート1枚の高さ（下から段に積む。0＝1段）                                                   既定 0
+!   fineOn     ブール  縁の縫い代とハトメを描く（詳細）                                                            既定 1
 !   matSheet   表面材  表面材（0＝養生材の既定色）                                                                 既定 0
 ! ==========================================================
 
@@ -82,21 +84,23 @@ if lineMode then
 	lin_ x1, -offY, zT, x0, -offY, zT
 	lin_ x0, -offY, zT, x0, -offY, zB
 else
-	if matSheet > 0 then
-		material matSheet
-	else
-		! 既定色: メッシュシートは灰（透過）、防音・密閉シートは白っぽい不透明に近い色
-		if sheetKind = "メッシュシート" then
-			! 汎用（type 0）で透過率を指定する。ガラス（type 4）は透けが弱く、中の足場が見えなかった（実機 2026-10-20）
-			! 色 r,g,b・環境光・拡散・反射・透過 0.75・光沢・透過の減衰・反射色・発光色・発光の減衰
-			define material "ashiba_mesh_sheet" 0, 0.55, 0.60, 0.66, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
-			material "ashiba_mesh_sheet"
-		else
-			define material "ashiba_solid_sheet" 1, 0.86, 0.88, 0.86
-			material "ashiba_solid_sheet"
-		endif
-	endif
-	! 割付（panelList）: 継ぎ目は足場の支柱の位置。特殊シート（スパンと幅の違う升目・隅・隙間に伸ばす分）は色を替える
+	! 既定色: メッシュシートは灰（透過）、防音シート（協和 ♯1000 の灰）・密閉シートは不透明
+	! 汎用（type 0）で透過率を指定する。ガラス（type 4）は透けが弱く、中の足場が見えなかった（実機 2026-10-20）
+	! 色 r,g,b・環境光・拡散・反射・透過・光沢・透過の減衰・反射色・発光色・発光の減衰
+	define material "ashiba_mesh_sheet" 0, 0.55, 0.60, 0.66, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_solid_sheet" 0, 0.62, 0.64, 0.65, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_sheet_special" 0, 0.78, 0.70, 0.45, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_sheet_hem" 0, 0.50, 0.52, 0.54, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_grommet_brass" 2, 0.80, 0.66, 0.30
+	! クランプ: 電気亜鉛めっき＋クロメート（Ep-Fe/Zn5/CM2）の金色
+	define material "ashiba_sclamp_gold" 2, 0.86, 0.72, 0.30
+	mSh = IND(MATERIAL, "ashiba_mesh_sheet")
+	if sheetKind <> "メッシュシート" then mSh = IND(MATERIAL, "ashiba_solid_sheet")
+	if matSheet > 0 then mSh = matSheet
+	! シートの厚み（防音シート ♯1000 は 1.0mm。メッシュは網目の薄い膜）
+	tS = 0.001
+	if sheetKind = "メッシュシート" then tS = 0.0005
+	! 割付（panelList）: 継ぎ目は足場の支柱の位置。特殊シート（角・隙間などスパンに無い幅）は色を替える
 	! （利用者の指定 2026-10-24: 外部シートの割り付けは足場と同じにして、間が開いてる部分は特殊シートとして伸ばす）
 	dim pA[], pB[], pS[]
 	nP = 0
@@ -123,92 +127,144 @@ else
 			endif
 		endif
 	endwhile
+	hasPanels = nP > 0
 	if nP = 0 then
-		add x0, -offY - 0.001, zB
-		block x1 - x0, 0.002, zT - zB
-		del 1
-		! 継ぎ目（1枚の幅ごと）
-		nW = int((x1 - x0) / sheetW + 0.999)
-		for iw = 1 to nW - 1
-			xs = x0 + iw * sheetW
-			lin_ xs, -offY - 0.002, zB, xs, -offY - 0.002, zT
-		next iw
-	else
-		mStd = 0
-		if matSheet > 0 then mStd = matSheet
-		for ip = 1 to nP
+		nP = 1
+		pA[1] = x0
+		pB[1] = x1
+		pS[1] = 0
+	endif
+	! シートの段（1枚の高さ sheetH ごとに下から積む。最上段は天端までの残り）
+	shH = sheetH
+	if shH < 0.5 then shH = zT - zB
+	nRow = int((zT - zB) / shH - 0.001) + 1
+	for ip = 1 to nP
+		wP = pB[ip] - pA[ip]
+		for ir = 1 to nRow
+			zLo = zB + (ir - 1) * shH
+			zHi = min(zT, zLo + shH)
 			if pS[ip] = 1 and matSheet = 0 then
-				! 特殊シート: 少し黄みの色（標準のシートと見分ける）
-				define material "ashiba_sheet_special" 0, 0.78, 0.70, 0.45, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
 				material "ashiba_sheet_special"
 			else
-				if matSheet > 0 then
-					material matSheet
-				else
-					if sheetKind = "メッシュシート" then
-						material "ashiba_mesh_sheet"
-					else
-						material "ashiba_solid_sheet"
-					endif
-				endif
+				material mSh
 			endif
-			add pA[ip], -offY - 0.001, zB
-			block pB[ip] - pA[ip], 0.002, zT - zB
+			add pA[ip], -offY - tS, zLo
+			block wP, tS, zHi - zLo
 			del 1
-			if ip > 1 then lin_ pA[ip], -offY - 0.002, zB, pA[ip], -offY - 0.002, zT
-		next ip
-		! シートクランプ（利用者の指定 2026-10-24: シートクランプGDLも作成してつけて）: シートの継ぎ目と端の支柱に、
-		! 根がらみと各層の手すりの高さで。外側建地（シートの面からあき 60 の内）を抱く本体と、シートのハトメに掛ける爪
-		dim cZ[]
-		nC = 0
-		rest = clampList
-		while strlen(rest) > 0 and nC < 60 do
-			pc = strstr(rest, ",")
-			if pc > 0 then
-				item = strsub(rest, 1, pc - 1)
-				rest = strsub(rest, pc + 1, strlen(rest) - pc)
-			else
-				item = rest
-				rest = ""
+			lin_ pA[ip], -offY - tS - 0.0005, zLo, pB[ip], -offY - tS - 0.0005, zLo
+			if fineOn then
+				! 縁の縫い代（帯 40・30）と真鍮のハトメ（上下の辺は約300ごと、左右の辺は約450ごと。協和 防音シートの写真）
+				material "ashiba_sheet_hem"
+				add pA[ip], -offY - tS - 0.0006, zLo
+				block wP, 0.0006, 0.04
+				del 1
+				add pA[ip], -offY - tS - 0.0006, zHi - 0.04
+				block wP, 0.0006, 0.04
+				del 1
+				add pA[ip], -offY - tS - 0.0006, zLo
+				block 0.03, 0.0006, zHi - zLo
+				del 1
+				add pB[ip] - 0.03, -offY - tS - 0.0006, zLo
+				block 0.03, 0.0006, zHi - zLo
+				del 1
+				material "ashiba_grommet_brass"
+				resol 6
+				nH = max(2, int(wP / 0.30 + 0.5) + 1)
+				for ih = 1 to nH
+					xh = pA[ip] + 0.03 + (wP - 0.06) * (ih - 1) / (nH - 1)
+					for ie = 0 to 1
+						zg = zLo + 0.02 + ie * (zHi - zLo - 0.04)
+						add xh, -offY - tS - 0.0012, zg
+						rotx 90
+						cylind 0.0012, 0.009
+						del 2
+					next ie
+				next ih
+				nV = max(2, int((zHi - zLo) / 0.45 + 0.5) + 1)
+				for iv = 2 to nV - 1
+					zg = zLo + 0.02 + (zHi - zLo - 0.04) * (iv - 1) / (nV - 1)
+					for ie = 0 to 1
+						xh = pA[ip] + 0.015 + ie * (wP - 0.03)
+						add xh, -offY - tS - 0.0012, zg
+						rotx 90
+						cylind 0.0012, 0.009
+						del 2
+					next ie
+				next iv
 			endif
-			kk = split(item, "%n", vv)
-			if kk > 0 then
-				nC = nC + 1
-				cZ[nC] = vv / 1000
-			endif
-		endwhile
-		if nC > 0 then
-			define material "ashiba_sclamp_zinc" 2, 0.80, 0.81, 0.83
-			material "ashiba_sclamp_zinc"
-			resol 8
-			for ic = 1 to nP + 1
-				if ic = 1 then
-					xc = pA[1] + 0.06
-				else
-					if ic = nP + 1 then
-						xc = pB[nP] - 0.06
-					else
-						xc = pA[ic]
-					endif
-				endif
-				for jz = 1 to nC
-					zc = cZ[jz]
-					if zc > zB and zc < zT then
-						! 建地を抱く本体（φ48.6 の外に厚み）
-						add xc, -offY + 0.06, zc - 0.025
-						cylind 0.05, 0.033
-						del 1
-						! シートの面へ出る腕と爪
-						add xc - 0.008, -offY - 0.004, zc - 0.006
-						block 0.016, 0.034, 0.012
-						del 1
-						add xc - 0.008, -offY - 0.010, zc - 0.006
-						block 0.016, 0.006, 0.030
-						del 1
-					endif
-				next jz
-			next ic
+		next ir
+		if ip > 1 then lin_ pA[ip], -offY - tS - 0.0005, zB, pA[ip], -offY - tS - 0.0005, zT
+	next ip
+	! シートクランプ（日本セイフティー 次世代シートクランプ 図面 1603-019-A02-A。利用者の指定 2026-10-24）:
+	! 支柱（φ48.6・φ42.7 兼用）を本体とふたで抱き、トップボルト＋フランジナットで締める。φ9 のフック2本（間隔32）が
+	! 支柱の芯から 68 先へ出て、J 形に上へ曲がりシートのハトメを掛ける。シートの継ぎ目と端の支柱に、各段のシートの上下で
+	dim cZ[]
+	nC = 0
+	rest = clampList
+	while strlen(rest) > 0 and nC < 60 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
 		endif
+		kk = split(item, "%n", vv)
+		if kk > 0 then
+			nC = nC + 1
+			cZ[nC] = vv / 1000
+		endif
+	endwhile
+	if nC > 0 and hasPanels then
+		material "ashiba_sclamp_gold"
+		yp = -offY + 0.06
+		for ic = 1 to nP + 1
+			if ic = 1 then
+				xc = pA[1] + 0.06
+			else
+				if ic = nP + 1 then
+					xc = pB[nP] - 0.06
+				else
+					xc = pA[ic]
+				endif
+			endif
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc > zB and zc < zT then
+					resol 10
+					! 支柱を抱く本体・ふた（帯の厚み 4.5、高さ 48）
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					! 本体の胴（支柱からフックの根元まで）
+					add xc - 0.024, yp - 0.0405, zc - 0.024
+					block 0.048, 0.022, 0.048
+					del 1
+					! トップボルトとフランジナット（支柱の横）
+					resol 6
+					add xc + 0.034, yp + 0.012, zc - 0.006
+					rotx 90
+					cylind 0.04, 0.006
+					del 2
+					add xc + 0.034, yp - 0.028, zc - 0.009
+					rotx 90
+					cylind 0.009, 0.011
+					del 2
+					! フック φ9 ×2（間隔32）: 外へ 27.5、先を上へ 14.5
+					resol 8
+					for hk = -1 to 1 step 2
+						add xc + hk * 0.016, yp - 0.0405, zc
+						rotx 90
+						cylind 0.0275, 0.0045
+						del 2
+						add xc + hk * 0.016, yp - 0.068, zc
+						cylind 0.0145, 0.0045
+						del 1
+					next hk
+				endif
+			next jz
+		next ic
 	endif
 endif
 hotspot x0, -offY, zB

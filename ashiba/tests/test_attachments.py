@@ -208,7 +208,11 @@ class TestSheetClamps(unittest.TestCase):
         ep = m.plan.edges[0]
         hs = sheet_clamp_heights(m, ep.edge_index)
         ev = m.elevation_of(ep.edge_index)
-        self.assertEqual(len(hs), 1 + len(ev.level_heights) - 1)          # 根がらみ＋2層目からの手すり
+        # 各段のシートの上下（下端・段の継ぎ目・天端）。メッシュ MS1851 は1枚の高さ 5160（次世代シートクランプの取付図）
+        import math
+        self.assertEqual(len(hs), math.ceil(ev.total_height / 5160) + 1)
+        self.assertEqual(hs[0], 150)
+        self.assertIn(5160, hs)
         xs = sheet_clamp_positions(m, ep, r.stair_plan)
         self.assertEqual(len(xs), len(ep.spans) + 3)                      # 支柱（中）＋両端の角の支柱
         self.assertEqual(sheet_clamp_count(m, r.stair_plan),
@@ -216,5 +220,18 @@ class TestSheetClamps(unittest.TestCase):
                              for e in m.plan.edges))
         pl = next(p for p in sheet_placements(m, stair_plan=r.stair_plan) if p.params.get("panelList"))
         self.assertEqual(pl.params["clampList"], ",".join(f"{h:.0f}" for h in hs))
-        self.assertTrue(any("シートクランプ" in w for w in r.quantity.warnings + r.quantity.notes))
         self.assertIn(914, standard_sheets(m, r.stair_plan))              # インチの幅も標準のシート
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        self.assertEqual(q.get("次世代シートクランプ"), sheet_clamp_count(m, r.stair_plan))
+
+    def test_soundproof_sheet_uses_the_maker_sizes(self):
+        # 協和 防音シート ♯1000（1.8/1.5/1.2/0.9/0.6×3.4）。インチのスパンには近い幅の品を当てる
+        from ashiba.attachments import sheet_size
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000,
+                       "series_id": "nikken_nd1800", "scaffold_width_mm": 914, "site": {"sheet_type": "防音シート"}})
+        self.assertEqual(sheet_size(r.model), (1800.0, 3400.0))
+        q = {l.part.model_no: l.qty for l in r.quantity.lines}
+        self.assertGreater(q.get("♯1000 1.8×3.4", 0), 0)
+        self.assertGreater(q.get("♯1000 0.9×3.4", 0), 0)

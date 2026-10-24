@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import math
 from dataclasses import dataclass, field
 
@@ -232,12 +234,34 @@ def sheet_panels(model: ScaffoldModel, ep, stair_plan=None, sheet_w: float = 182
     return out
 
 
+def sheet_size(model: ScaffoldModel) -> Optional[tuple[float, float]]:
+    """シート1枚の (幅, 高さ) mm。系列のマスタにその種類の品があればその大きさ（幅はいちばん広い品）、無ければ既定."""
+    kind = model.config.sheet_type or ""
+    parts = [p for p in model.master.by_category("養生シート") if kind and kind in p.note and p.nominal_dim]
+    if parts:
+        top = max(parts, key=lambda p: p.nominal_dim)
+        return float(top.nominal_dim), float(top.actual_dim or SHEET_SIZES.get(kind, (0, 5100))[1])
+    size = SHEET_SIZES.get(kind)
+    return (float(size[0]), float(size[1])) if size else None
+
+
 def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
-    """シートクランプを付ける高さ mm（GLから）: 根がらみと各層の手すり（シートを外側建地の布材に留める）."""
-    ev = model.elevation_of(edge_index)
-    out = [float(ev.first_ledger_height)] if getattr(ev, "has_negarami", True) else []
-    out += [float(h) + float(model.guard_rail_height_mm) for h in ev.level_heights[1:]]
-    return sorted({round(v) for v in out if 0 < v <= ev.total_height})
+    """シートクランプを付ける高さ mm（足場の立つ面から）: 各段のシートの上下（下端・段の継ぎ目・天端）.
+
+    日本セイフティー 次世代シートクランプのカタログの取付図（支柱の上部・下部でシートを掛ける）。段の継ぎ目は上下の
+    シートのハトメを1つのクランプで掛ける（利用者の資料 2026-10-24）。
+    """
+    size = sheet_size(model)
+    top = float(model.elevation_of(edge_index).total_height)
+    if size is None or top <= 0:
+        return []
+    out = [150.0]
+    k = 1
+    while k * size[1] < top - 150.0:
+        out.append(k * size[1])
+        k += 1
+    out.append(top - 100.0)
+    return sorted({round(v) for v in out if 0 < v < top})
 
 
 def sheet_clamp_positions(model: ScaffoldModel, ep, stair_plan=None) -> list[float]:
@@ -290,13 +314,9 @@ def sheet_end_pieces(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[fl
 
 def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=None) -> list[Placement]:
     """養生シート（面の区間ごとに1部品）。足場の外側の構面を、地面から支柱の天端まで覆う."""
-    size = SHEET_SIZES.get(model.config.sheet_type or "")
+    size = sheet_size(model)
     if size is None:
         return []
-    # 系列にある品（日建スプリングメッシュ 1829×5160）なら継ぎ目はその幅で
-    part = next((p for p in model.master.by_category("養生シート") if (model.config.sheet_type or "") in p.note), None)
-    if part is not None and part.nominal_dim:
-        size = (part.nominal_dim, part.actual_dim or size[1])
     out: list[Placement] = []
     for ep in model.plan.edges:
         o, _u, _n, ang = _frame(ep)
@@ -309,8 +329,10 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 # 継ぎ目は足場の支柱の位置。「始点,終点,特殊(0/1)」の繰り返し mm（特殊シートは色を替える）
                 "panelList": ",".join(f"{a:.0f},{b:.0f},{int(sp)}" for a, b, sp in panels),
-                # シートクランプ（継ぎ目と端の支柱に、根がらみと各層の手すりの高さで。利用者の指定 2026-10-24）
-                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index))}))
+                # シートクランプ（継ぎ目と端の支柱に、各段のシートの上下で。利用者の指定・資料 2026-10-24）
+                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index)),
+                # 段の高さ（1枚の高さ）と、縁の縫い代・ハトメを描くか（線表示では描かない）
+                "sheetH": size[1] / 1000.0, "fineOn": not bool(line_mode)}))
         # 外付け階段室の妻側: 部品の x を面の外向きにして（面の向き−90°）、外側建地列から3列目まで
         row = float(model.post_row_spacing_mm)
         for pos, shift in sheet_end_pieces(model, ep, stair_plan):
@@ -325,7 +347,7 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
 def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[float, int]:
     """養生シートの面積（m²）と、足場のスパンと同じ幅のシートの枚数（升目 × 高さ÷1枚の高さ）。size で1枚の大きさを
     替えられる。幅ごとの内訳は standard_sheets、特殊シート（角・隙間）は special_sheets."""
-    if (size or SHEET_SIZES.get(model.config.sheet_type or "")) is None:
+    if (size or sheet_size(model)) is None:
         return 0.0, 0
     area = 0.0
     for ep in model.plan.edges:
@@ -339,7 +361,7 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[
 def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> dict[int, int]:
     import math as _m
 
-    size = size or SHEET_SIZES.get(model.config.sheet_type or "")
+    size = size or sheet_size(model)
     if size is None:
         return {}
     out: dict[int, int] = {}
@@ -370,7 +392,7 @@ def special_sheets(model: ScaffoldModel, stair_plan=None, size=None) -> dict[int
 
 def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
     """シートクランプの数（sheet_placements の clampList と同じ: 継ぎ目と端の支柱 × 根がらみと各層の手すり）."""
-    if SHEET_SIZES.get(model.config.sheet_type or "") is None:
+    if sheet_size(model) is None:
         return 0
     return sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
                for ep in model.plan.edges)
