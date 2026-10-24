@@ -385,6 +385,14 @@
 			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="faceOff">
+			<Description><![CDATA["面の区間だけの部品: 元の面の始点から区間の始めまで（面の途中で種類を切り替えたとき）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="faceLen">
+			<Description><![CDATA["元の面の長さ（区間だけの部品が元の面のどこかを読むため）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="cornerSP">
 			<Description><![CDATA["始点の出隅で前の面が隙間（コーナーステップ）の手前で止まる: 前の面の外側列の延長の根元に建地を立てる 0/1"]]></Description>
 			<Value>0</Value>

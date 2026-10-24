@@ -1,11 +1,13 @@
-"""選んだ足場の面（区切った部品・複数の面＝ブロックでもよい）を別の種類の足場に切り替える（パレットの「面の切替」）.
+"""選んだ足場（区切った部品なら、その部品の範囲だけ）を別の種類の足場に切り替える（パレットの「面の切替」）.
 
-利用者の指定（2026-10-24）「足場の切り替えも線の位置で変更できるようにして」: 平面で、切り替えたい面に沿って線（ポリライン
-なら角を回って何面でも）を引き、その線を選んで押してもよい。線が沿う面を切り替える（面の一部に引いても面全体。目印の線は消す）。
-以前の指定（2026-10-22）「面ごとやブロックを違う足場に切り替えれるようコマンド作って」。足場ラインを選んで押すと
+利用者の指定（2026-10-24）「面の切り替えはやめて選択した足場の変更に切り替えて」: 区切った部品を選んで押すと、その部品の
+範囲（区間）だけを切り替える（face_forms の「南面[10974-16461]=ブラケット足場（支柱）」。面の途中で種類が変わり、切れ目は
+開放端）。区切っていない足場ラインを選んだときは面全体。区間を「元に戻す」と、その区間は元の足場に戻る。
+
+利用者の指定（2026-10-22）「面ごとやブロックを違う足場に切り替えれるようコマンド作って」。足場ラインを選んで押すと
 種類の一覧（本足場・一側足場・ブラケット足場（支柱・単管）・単管抱き足場・単管本足場・枠組足場・元に戻す）を出し、
 選んだ面をその種類にして「配置」を実行し直す。切り替えは足場条件の部品の「面の切替」（faceForms）に書く
-（部品が無ければ条件ファイル ashiba_spec.json の face_forms）。区切った部品を選んだときは、その面全体を切り替える。
+（部品が無ければ条件ファイル ashiba_spec.json の face_forms）。
 
 使い方（Archicad で足場ラインを選んでから）:
   python3 scripts/switch_face_form.py                     # 一覧から種類を選ぶ
@@ -46,42 +48,52 @@ def _choose(faces: list[str]) -> str | None:
     return None if r.returncode != 0 or not out or out == "false" else out
 
 
+def piece_key(face: str, p: dict) -> str:
+    """選んだ足場ラインの部品 → 切り替えの面の名前（面全体なら「南面」、区切った部品なら区間つき「南面[a-b]」）.
+
+    区間は元の割付の面の始点の支柱から mm（部品の faceOff＋部品の範囲 pxA〜pxB）。faceLen は元の面の長さ。
+    """
+    from ashiba.face_forms import range_key
+    from ashiba.segments import piece_of, spans_m
+
+    try:
+        pc = piece_of(p)
+    except ValueError:
+        return face
+    off = float(p.get("faceOff") or 0.0)
+    full = float(p.get("faceLen") or 0.0) or sum(spans_m(p))
+    a, b = (off + pc.pxA) * 1000.0, (off + pc.pxB) * 1000.0
+    if a < 1.0 and b > full * 1000.0 - 1.0:
+        return face
+    return range_key(face, a, b)
+
+
 def main() -> int:
+    from explode_line import _params
+
     c = ArchicadClient()
     sel = c.get_selected_elements()
-    origins = []
+    picked = []
     for e, d in zip(sel, c.get_details(sel) if sel else []):
         dd = d.get("details") or {}
         if not is_ashiba_part((dd.get("libPart") or {}).get("name", ""), ("ashiba_line",)):
             continue
         o = dd.get("origin") or {}
-        origins.append((float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0))
-    from guide_lines import building_plan, delete_guides, not_in_plan_hint, selected_guides
-
-    guides = [] if origins else selected_guides(c)
-    if guides:
-        from ashiba.plan_pick import along
-
-        plan = building_plan([p for _e, segs in guides for seg in segs for p in seg])
-        faces = []
-        for _e, segs in guides:
-            for a, b in segs:
-                hit = along((plan or {}).get("edges") or [], a, b)
-                if hit is not None:
-                    name = str(hit[0].get("face") or f"辺{hit[0]['edge_index']}")
-                    if name not in faces:
-                        faces.append(name)
-        if plan is not None and not faces:
-            print("面の切替: 足場に沿った線が見つかりません。切り替えたい面に沿って線を引いてください")
-            return 1
-    elif not origins:
-        print("面の切替: 平面で、切り替えたい面に沿って線を引いて選ぶか、足場ライン（区切った部品でもよい）を選んでから"
-              "押してください" + not_in_plan_hint(c))
+        picked.append(((float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0), _params(c, e)))
+    if not picked:
+        print("面の切替: 切り替える足場ライン（区切った部品ならその範囲だけ）を選んでから押してください")
         return 1
-    else:
-        plans = [json.loads(p.read_text(encoding="utf-8"))
-                 for p in sorted(OUT_DIR.rglob("*_plan.json"), key=lambda p: -p.stat().st_mtime)]
-        plan, faces = faces_of_lines(plans, origins)
+    plans = [json.loads(p.read_text(encoding="utf-8"))
+             for p in sorted(OUT_DIR.rglob("*_plan.json"), key=lambda p: -p.stat().st_mtime)]
+    plan, faces = None, []
+    for origin, p in picked:
+        pl, fs = faces_of_lines(plans, [origin])
+        if pl is None or not fs:
+            continue
+        plan = plan or pl
+        key = piece_key(fs[0], p)
+        if key not in faces:
+            faces.append(key)
     if plan is None or not faces:
         print(f"面の切替: 選んだ足場の配置の控え（plan.json）が {OUT_DIR} にありません。先に「配置」してください")
         return 1
@@ -121,9 +133,6 @@ def main() -> int:
     os.environ["ASHIBA_SPEC"] = str(SPEC_DEFAULT)
     print("---- 配置し直します")
     tb.main(outline_mm=outline, out_dir=OUT_DIR)
-    if guides:
-        delete_guides(c, guides)
-        print("面の切替: 目印の線を消しました")
     return 0
 
 

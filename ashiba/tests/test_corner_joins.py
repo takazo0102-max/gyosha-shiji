@@ -26,10 +26,10 @@ class TestWedgeReachesTheBracketPosts(unittest.TestCase):
         south = _edge(brk, 0)
         post_y = -(south.standoff + brk.model.post_row_spacing_mm)     # ブラケットの支柱の列
         east, west = _edge(main, 1), _edge(main, 3)
-        # ブラケットはハーフアンチ 240 で幅 300（利用者の指定 2026-10-24: ハーフアンチだけなので幅300として）。支柱の列は
-        # 壁から約 600 で、本足場の端からの隙間はスパンにならないのでコーナーステップで支柱の列まで渡す
+        # ブラケットはハーフアンチ 240＋ブラケット 350（利用者の指定 2026-10-24）。支柱の列は壁から約 600 で、本足場の
+        # 端からの隙間はスパンにならないのでコーナーステップで支柱の列まで渡す
         self.assertEqual(brk.model.deck_widths_in_use, (240,))
-        self.assertEqual(brk.model.post_row_spacing_mm, 300)
+        self.assertEqual(brk.model.post_row_spacing_mm, 350)
         gaps = {(c.edge_index, c.at_start): c.gap_mm for c in main.model.plan.corner_steps}
         self.assertAlmostEqual(east.start_post[1] - gaps[(1, True)], post_y)    # 東面の始点の手前の隙間
         self.assertAlmostEqual(west.end_post[1], post_y)                # 西面の端も支柱の列まで（隙間はコーナーステップ）

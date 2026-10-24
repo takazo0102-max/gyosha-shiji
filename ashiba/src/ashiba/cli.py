@@ -701,9 +701,6 @@ def _resolve_span_overrides(spec: dict, plan) -> dict[int, list[int]]:
 SCAFFOLD_FORMS = ("本足場", "一側足場", "ブラケット足場", "抱き足場", "単管抱き足場")
 
 
-BRACKET_WIDTH_MM = 300     # ブラケット足場（ハーフアンチ1枚）の建地から床の外端までの幅（利用者の指定 2026-10-24）
-
-
 def narrow_width_mm(master):
     """本足場のいちばん細い幅（くさび: 床を載せられる最小の腕木＝布材 500 以上の最小）. 単管・枠組は None（既定のまま）."""
     if master.is_tube or master.is_frame:
@@ -906,16 +903,16 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                 row_mm = max(rows)
     form, kind, post = _form_from_spec(spec)
     # ブラケット足場（くさびの支柱）はハーフアンチ1枚で狭いところに使う足場（利用者の指定 2026-10-24）。幅・作業床の
-    # 指定が無ければ、系列のいちばん細い作業床（日建 240・信和 250）を1枚、建地から床の外端までの幅は 300
-    # （BRACKET_WIDTH_MM。利用者の指定 2026-10-24: ブラケット足場はハーフアンチだけなので幅300として）。ブラケットは
-    # その床用の品（日建 NDBK03C・信和 SB-25）。以前は本足場と同じ 500 の板と 610 の腕で、狭いところに入らなかった
+    # 指定が無ければ、系列のいちばん細い作業床（日建 240・信和 250）を1枚、その床用のブラケット（日建 NDBK03C 350・
+    # 信和 SB-25 400）の長さを建地列の間隔にする（2026-10-24 に一度 300 にしたが、利用者の指定で 350 のまま: 「ごめん
+    # ブラケットはば350でいいよ」）。以前は本足場と同じ 500 の板と 610 の腕で、狭いところに入らなかった
     if (form == "一側足場" and kind == "ブラケット" and not master.is_tube and not master.is_frame
             and not spec.get("deck_widths") and not width_mm):
         half = min((w for w in master.deck_widths_available() if w >= 200), default=None)
         brk = bracket_for_deck(master, half) if half else None
         if brk is not None:
             deck_ws = (half,)
-            row_mm = BRACKET_WIDTH_MM
+            row_mm = int(brk.nominal_dim)
     config = ScaffoldConfig(
         scaffold_form=form,
         single_row_kind=kind,
@@ -978,6 +975,10 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             model.wall_ties = generate_wall_ties(plan2, elevation, config)
             model.inner_corner_joins = ic_joins
         model.plan.warnings.extend(ic_notes)
+    # 面の区間だけ残す（面の途中で足場の種類を切り替えた組。face_forms の「南面[a-b]」→ _face_range）。区間を切り替えた
+    # 面は、先に解いた組の面の形（スパン・始点と終点の支柱・離れ）をそのまま使う（_face_edge。切れ目の支柱と離れがそろう）
+    if spec.get("_face_range"):
+        _apply_face_range(model, spec["_face_range"], spec.get("_face_edge") or {})
     # 朝顔を付ける面（面名 → 辺番号）。面の組では、この組の面だけ
     asg = model.config.asagao
     if asg is not None and asg.faces:
@@ -992,6 +993,67 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
     return model
+
+
+def _apply_face_range(model: ScaffoldModel, ranges: dict, given: dict | None = None) -> None:
+    """面を区間 [始め, 終わり]（元の割付の面の始点の支柱から mm。終わり -1 は面の終点）だけ残す.
+
+    面全体を同じスパンで解いたあとで、区間に入るスパンだけを残し、始点・終点の支柱を区間の端へ動かす。区間の端
+    （面の途中）は開放端（range_ends）。区間の端にあった隅の隙間・入隅のつなぎは外し、壁つなぎは区間で作り直す。
+    """
+    import dataclasses as _dc
+    import math as _m
+
+    from .model import generate_wall_ties
+
+    names = dict(zip(model.plan.face_names(), (e.edge_index for e in model.plan.edges)))
+    edges = []
+    ends: set = set()
+    offsets: dict = {}
+    full_edges: dict = {}
+    for ep in model.plan.edges:
+        name = next((k for k, v in names.items() if v == ep.edge_index), "")
+        rng = ranges.get(name)
+        if not rng:
+            edges.append(ep)
+            continue
+        g = (given or {}).get(name)
+        if g:
+            ep = _dc.replace(ep, spans=list(g["spans"]), start_post=tuple(g["start_post"]), end_post=tuple(g["end_post"]),
+                             standoff=float(g["standoff"]), scaffold_length=float(sum(g["spans"])),
+                             owned_post_count=len(g["spans"]))
+        full_edges[name] = {"spans": list(ep.spans), "start_post": list(ep.start_post), "end_post": list(ep.end_post),
+                            "standoff": float(ep.standoff)}
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        a = float(rng[0])
+        b = posts[-1] if float(rng[1]) < 0 else float(rng[1])
+        i0 = min(range(len(posts)), key=lambda i: abs(posts[i] - a))
+        i1 = min(range(len(posts)), key=lambda i: abs(posts[i] - b))
+        if i1 <= i0:
+            continue
+        (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+        ln = _m.hypot(ex - sx, ey - sy) or 1.0
+        ux, uy = (ex - sx) / ln, (ey - sy) / ln
+        spans = list(ep.spans[i0:i1])
+        x0, x1 = posts[i0], posts[i1]
+        edges.append(_dc.replace(ep, spans=spans, scaffold_length=float(sum(spans)), owned_post_count=len(spans),
+                                 start_post=(sx + ux * x0, sy + uy * x0), end_post=(sx + ux * x1, sy + uy * x1)))
+        if i0 > 0:
+            ends.add((ep.edge_index, "s"))
+        if i1 < len(posts) - 1:
+            ends.add((ep.edge_index, "e"))
+        offsets[ep.edge_index] = (x0, posts[-1])
+    steps = [c for c in (model.plan.corner_steps or [])
+             if (c.edge_index, "s" if getattr(c, "at_start", False) else "e") not in ends]
+    model.plan = _dc.replace(model.plan, edges=edges, corner_steps=steps)
+    model.range_ends = ends
+    model.face_offsets = offsets
+    model.face_full_edges = full_edges
+    model.inner_corner_joins = [j for j in (getattr(model, "inner_corner_joins", None) or [])
+                                if (j[0], "e") not in ends and (j[1], "s") not in ends]
+    model.wall_ties = generate_wall_ties(model.plan, model.elevation, model.config)
 
 
 def _obstacles_from_spec(spec: dict, plan, face_eaves: dict[int, float]):
@@ -1506,27 +1568,50 @@ def all_face_names(spec: dict, master_csv: Path | None = None) -> list[str]:
     return [n for e, n in zip(plan.edges, names) if faces is None or e.edge_index in faces]
 
 
+def corner_owners(out: list) -> tuple[dict[int, int], dict[int, int]]:
+    """面の組の結果 → ({辺: 面の始点の隅まで来ている組}, {辺: 面の終点の隅まで来ている組}).
+
+    面の区間を切り替えると同じ面が複数の組に入る。隅で隣と繋ぐのは、その隅まで来ている区間の組（range_ends で
+    切れ目の側の端を持たない組）。
+    """
+    own_s: dict[int, int] = {}
+    own_e: dict[int, int] = {}
+    for k, (_l, r) in enumerate(out):
+        m = r.model
+        for e in m.plan.edges:
+            if (e.edge_index, "s") not in m.range_ends:
+                own_s.setdefault(e.edge_index, k)
+            if (e.edge_index, "e") not in m.range_ends:
+                own_e.setdefault(e.edge_index, k)
+    return own_s, own_e
+
+
 def _group_neighbors(out: list) -> dict[int, dict]:
     """面の組の結果 → {組の番号: {隣の面の辺番号: {"row", "height"}}}. 本足場どうしの出隅だけ（ブラケットは corner_joins）."""
     from .corner_joins import _kind
 
-    owner = {e.edge_index: k for k, (_l, r) in enumerate(out) for e in r.model.plan.edges}
-    if not owner:
+    own_s, own_e = corner_owners(out)
+    if not own_s and not own_e:
         return {}
     outline = out[0][1].model.plan.outline
     n = len(outline.edges)
     res: dict[int, dict] = {}
-    for ei, k in owner.items():
-        m = out[k][1].model
+    for k, (_l, r) in enumerate(out):
+        m = r.model
         if _kind(m) != "main":
             continue
-        for adj, corner in (((ei - 1) % n, outline.edges[ei].start_corner), ((ei + 1) % n, outline.edges[ei].end_corner)):
-            ka = owner.get(adj)
-            if ka is None or ka == k or corner != "出隅" or _kind(out[ka][1].model) != "main":
-                continue
-            ma = out[ka][1].model
-            res.setdefault(k, {})[adj] = {"row": float(ma.post_row_spacing_mm),
-                                          "height": float(ma.elevation_of(adj).total_height)}
+        for e in m.plan.edges:
+            ei = e.edge_index
+            prev, nxt = (ei - 1) % n, (ei + 1) % n
+            for end, adj, corner, ka in (("s", prev, outline.edges[ei].start_corner, own_e.get(prev)),
+                                         ("e", nxt, outline.edges[ei].end_corner, own_s.get(nxt))):
+                if (ei, end) in m.range_ends:          # 区間の切れ目は隅ではない
+                    continue
+                if ka is None or ka == k or corner != "出隅" or _kind(out[ka][1].model) != "main":
+                    continue
+                ma = out[ka][1].model
+                res.setdefault(k, {})[adj] = {"row": float(ma.post_row_spacing_mm),
+                                              "height": float(ma.elevation_of(adj).total_height)}
     return res
 
 
@@ -1544,7 +1629,20 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
         groups = face_groups(spec, all_face_names(spec, master_csv))
     except ValueError as e:
         raise InputError(str(e))
-    out = [(label, solve_all(sub, master_csv)) for label, sub in groups]
+    # 面の区間を切り替えた面は、どの組も同じスパン（先に解いた組の、区間で切る前のスパン）で解いてから区間で切る。
+    # 区間の切れ目の支柱が組どうしでそろう（利用者の指定 2026-10-24: 選んだ部品だけ足場を変える）
+    out = []
+    full_edges: dict = {}
+    for i, (label, sub) in enumerate(groups):
+        rng = sub.get("_face_range") or {}
+        given = {f: full_edges[f] for f in rng if f in full_edges}
+        if given:
+            sub = {**sub, "_face_edge": given}
+            groups[i] = (label, sub)
+        r = solve_all(sub, master_csv)
+        for f, fe in (getattr(r.model, "face_full_edges", None) or {}).items():
+            full_edges.setdefault(f, fe)
+        out.append((label, r))
     # 隣の面がほかの組なら、その面の離れはその組で解いた値（隅の位置が組ごとにずれないように）
     own = {e.edge_index: float(e.standoff) for _l, r in out for e in r.model.plan.edges}
     n_out = len(out[0][1].model.plan.outline.edges) if out else 0

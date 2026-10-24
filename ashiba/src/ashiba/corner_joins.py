@@ -68,45 +68,48 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
     """面の組の結果 [(組の名前, PlanRun)] → {組の番号: _joins}. 繋ぐ隅が無ければ {}."""
     if len(runs) < 2:
         return {}
-    owner: dict[int, int] = {}
-    for k, (_lb, r) in enumerate(runs):
-        for e in r.model.plan.edges:
-            owner[e.edge_index] = k
+    # 面の区間を切り替えると同じ面が複数の組に入る。隅で繋ぐのは、その隅まで来ている区間の組（corner_owners）
+    from .cli import corner_owners
+
+    own_s, own_e = corner_owners(runs)
     kinds = [_kind(r.model) for _lb, r in runs]
     outline = runs[0][1].model.plan.outline
     n = len(outline.edges)
-    eps = {e.edge_index: e for _lb, r in runs for e in r.model.plan.edges}
+    eps_s = {e.edge_index: e for k, (_lb, r) in enumerate(runs) for e in r.model.plan.edges if own_s.get(e.edge_index) == k}
+    eps_e = {e.edge_index: e for k, (_lb, r) in enumerate(runs) for e in r.model.plan.edges if own_e.get(e.edge_index) == k}
     joins: dict[int, dict] = {}
 
     def slot(k: int) -> dict:
         return joins.setdefault(k, {"edges": {}, "steps": [], "drop_steps": [], "joined": [], "notes": []})
 
-    for b, kb in sorted(owner.items()):
-        if kinds[kb] != "bracket":
-            continue
+    brackets = sorted({(e.edge_index, k) for k, (_lb, r) in enumerate(runs) if kinds[k] == "bracket"
+                       for e in r.model.plan.edges})
+    for b, kb in brackets:
         ob = outline.edges[b]
         prev, nxt = (b - 1) % n, (b + 1) % n
-        at_s = (ob.start_corner == "出隅" and prev in owner and owner[prev] != kb and kinds[owner[prev]] == "main")
-        at_e = (ob.end_corner == "出隅" and nxt in owner and owner[nxt] != kb and kinds[owner[nxt]] == "main")
+        mb = runs[kb][1].model
+        at_s = (ob.start_corner == "出隅" and (b, "s") not in mb.range_ends and prev in own_e and own_e[prev] != kb
+                and kinds[own_e[prev]] == "main")
+        at_e = (ob.end_corner == "出隅" and (b, "e") not in mb.range_ends and nxt in own_s and own_s[nxt] != kb
+                and kinds[own_s[nxt]] == "main")
         if not (at_s or at_e):
             continue
-        mb = runs[kb][1].model
-        epb = eps[b]
+        epb = next(e for e in mb.plan.edges if e.edge_index == b)
         row_b = float(mb.post_row_spacing_mm)
         u_b, n_b = ob.direction, ob.outward
         # 本足場の面の、ブラケットの面の側の端の支柱（壁の線からの距離）
         ends = []                                      # (本足場の辺, 終点側か, 端の支柱の距離)
         if at_s:
-            ep = eps[prev]
+            ep = eps_e[prev]
             q = (ep.start_post[0] + outline.edges[prev].direction[0] * sum(ep.spans),
                  ep.start_post[1] + outline.edges[prev].direction[1] * sum(ep.spans))
             ends.append((prev, True, _dot(_sub(q, ob.start), n_b)))
         if at_e:
-            ep = eps[nxt]
+            ep = eps_s[nxt]
             ends.append((nxt, False, _dot(_sub(ep.start_post, ob.start), n_b)))
         # 同じ組の隣の面と隅を共有していれば離れは動かせない（その隅が崩れる）
         so = mb.plan.standoff_spec
-        fixed = ((not at_s and prev in owner and owner[prev] == kb) or (not at_e and nxt in owner and owner[nxt] == kb))
+        fixed = ((not at_s and own_e.get(prev) == kb) or (not at_e and own_s.get(nxt) == kb))
         lo, hi = (int(so.hard_min), int(so.max)) if so and not fixed else (int(epb.standoff), int(epb.standoff))
         target = float(so.target) if so else 300.0
         best = None
@@ -115,7 +118,8 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
             d_b = s_b + row_b
             exts = []
             for ei, at_end, p in ends:
-                got = (_extension(_coins(runs[owner[ei]][1].model), d_b - p, clamp=mb.master.is_tube)
+                km0 = own_e[ei] if at_end else own_s[ei]
+                got = (_extension(_coins(runs[km0][1].model), d_b - p, clamp=mb.master.is_tube)
                        if d_b - p >= 0 else None)
                 if got is None:
                     break
@@ -134,8 +138,8 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
         # 本足場の面を延ばす
         msgs = []
         for (ei, at_end, _p), (ext, gap) in zip(ends, exts):
-            km = owner[ei]
-            ep = eps[ei]
+            km = own_e[ei] if at_end else own_s[ei]
+            ep = eps_e[ei] if at_end else eps_s[ei]
             oe = outline.edges[ei]
             if at_end:
                 new = dataclasses.replace(ep, spans=list(ep.spans) + list(ext),
@@ -162,9 +166,9 @@ def bracket_corner_joins(runs: list) -> dict[int, dict]:
         t0 = _dot(_sub(epb.start_post, ob.start), u_b)
         t1 = _dot(_sub(epb.end_post, ob.start), u_b)
         if at_s:
-            t0 = -float(eps[prev].standoff)
+            t0 = -float(eps_e[prev].standoff)
         if at_e:
-            t1 = ob.length + float(eps[nxt].standoff)
+            t1 = ob.length + float(eps_s[nxt].standoff)
         got = _pick_spans(_coins(mb), t1 - t0, max(_coins(mb)), need_exact=False)
         if got is None:
             slot(kb)["notes"].append(f"{mb.face_name(b)}（ブラケット）を本足場の建地列の間に割り付けられません")

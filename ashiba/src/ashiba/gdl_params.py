@@ -439,6 +439,9 @@ def line_params(
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 前の面が隅の隙間の手前で止まる出隅は、升目の前の面の側にも建地と布材（model.gap_corner_post_start）
         "cornerSP": 1 if model.gap_corner_post_start(ep.edge_index) else 0,
+        # 面の区間だけ残した部品の、元の面の始点からの区間の始め・元の面の長さ（m。部品を選んで切り替えるとき読む）
+        "faceOff": float((getattr(model, "face_offsets", {}) or {}).get(ep.edge_index, (0.0, 0.0))[0]) / 1000.0,
+        "faceLen": float((getattr(model, "face_offsets", {}) or {}).get(ep.edge_index, (0.0, sum(ep.spans)))[1]) / 1000.0,
         # 図面のペン（区分ごと。パレットの「ペン」で選ぶ。利用者の指定 2026-10-24）
         **gdl_pens(model.config.pens, "ashiba_line"),
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
@@ -739,6 +742,12 @@ def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:
     prev_i, next_i = (edge_index - 1) % n, (edge_index + 1) % n
     skip_s = prev_i in built and prev_i != edge_index and model.height_of(prev_i) > h
     skip_e = next_i in built and next_i != edge_index and model.height_of(next_i) >= h
+    # 面の区間の切れ目（面の途中で種類を切り替えた端）と、隣の面がこの組では隅まで来ない端は、自分で描く
+    ends = getattr(model, "range_ends", set()) or set()
+    if (edge_index, "s") in ends or ((prev_i, "e") in ends and prev_i not in model.group_neighbors):
+        skip_s = False
+    if (edge_index, "e") in ends or ((next_i, "s") in ends and next_i not in model.group_neighbors):
+        skip_e = False
     # 隅に隙間（コーナーステップ）がある面は終点の支柱が隅に無いので共有しない。両方の面が自分で描く
     gapped = {c.edge_index for c in getattr(model.plan, "corner_steps", []) if c.edge_index >= 0}
     if prev_i in gapped:

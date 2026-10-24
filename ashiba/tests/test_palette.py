@@ -212,7 +212,7 @@ class TestMenu(unittest.TestCase):
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
         # 何も選んでいないときはペン（図面のペン。2026-10-24）も上に出る
         # 何も選んでいない（平面に目印の線を引いて選んだときも同じ）ときは、線で指す操作が上に出る（2026-10-24）
-        self.assertEqual([a.title for a in menu_items(set())][:5], ["区切る", "面の切替", "階段の位置", "開口", "3D表示"])
+        self.assertEqual([a.title for a in menu_items(set())][:5], ["区切る", "階段の位置", "開口", "3D表示", "平面表示"])
         # どの選択でも全部の操作が一覧にある
         for k in ("line", "slab", "member", "spec", "none"):
             self.assertEqual(len(menu_items({k})), len(ACTIONS))

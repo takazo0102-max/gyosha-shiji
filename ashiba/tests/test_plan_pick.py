@@ -44,7 +44,7 @@ class TestPlanPick(unittest.TestCase):
         self.assertEqual(spans_covered(SOUTH, 3000, 3100), (1829.0, 1))      # 半分かからない短い線はいちばん近い1スパン
 
     def test_scripts_use_plan_lines(self):
-        for f in ("split_line.py", "switch_face_form.py", "stair_move_run.py"):
+        for f in ("split_line.py", "stair_move_run.py"):
             self.assertIn("selected_guides", (ROOT / "scripts" / f).read_text(encoding="utf-8"), f)
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 

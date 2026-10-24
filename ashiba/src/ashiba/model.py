@@ -184,6 +184,10 @@ class ScaffoldModel:
     hatch_ladders: list = field(default_factory=list)
     # ほかの組の本足場に繋いだ端（(辺, "s"|"e")。corner_joins）。開放端の妻側の手すりを付けない
     joined_ends: set = field(default_factory=set)
+    # 面の区間だけ残した端（(辺, "s"|"e")。面の途中で足場の種類を切り替えた切れ目。face_forms の「南面[a-b]」）。開放端
+    range_ends: set = field(default_factory=set)
+    # 区間だけ残した面の、元の面の始点からの区間の始め・元の面の長さ mm（{辺: (始め, 長さ)}。部品を選んで切り替えるとき使う）
+    face_offsets: dict = field(default_factory=dict)
     # ほかの組の本足場の隣の面で、出隅を同じ組の隅と同じに納める面（辺番号 → {"row": 建地列間隔 mm, "height": 高さ mm}）。
     # 南面だけ本足場（狭い幅）にした組で、隅の外側の升目が抜け、両方の面の端に妻側の手すりが付いて回れず、隅の内側
     # 建地が2本重なっていた（利用者の指摘 2026-10-24: 端部が重なったり、回れないようになってる）。cli.solve_groups が渡す
@@ -207,11 +211,23 @@ class ScaffoldModel:
 
     def _no_prev(self, edge_index: int) -> bool:
         prev = (edge_index - 1) % self._n_outline()
-        return self.faces_only is not None and prev not in self.faces_only and prev not in self.group_neighbors
+        if (edge_index, "s") in self.range_ends:                 # 区間の切れ目は隅ではない
+            return True
+        if prev in self.group_neighbors:
+            return False
+        if (prev, "e") in self.range_ends:                       # 前の面はこの組では隅まで来ない
+            return True
+        return self.faces_only is not None and prev not in self.faces_only
 
     def _no_next(self, edge_index: int) -> bool:
         nxt = (edge_index + 1) % self._n_outline()
-        return self.faces_only is not None and nxt not in self.faces_only and nxt not in self.group_neighbors
+        if (edge_index, "e") in self.range_ends:
+            return True
+        if nxt in self.group_neighbors:
+            return False
+        if (nxt, "s") in self.range_ends:
+            return True
+        return self.faces_only is not None and nxt not in self.faces_only
 
     def row_spacing_of(self, edge_index: int) -> float:
         """その面の建地列間隔 mm（ほかの組の隣の面はその組の値。出隅の外側の升目の辺の長さ）."""
