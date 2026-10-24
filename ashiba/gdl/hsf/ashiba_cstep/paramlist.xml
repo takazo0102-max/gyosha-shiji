@@ -45,14 +45,6 @@
 			<Description><![CDATA["作業床の高さ mm（GLから）カンマ区切り"]]></Description>
 			<Value><![CDATA["1830,3630,5430"]]></Value>
 		</String>
-		<Boolean Name="railOn">
-			<Description><![CDATA["外側の手すり・中桟を描く"]]></Description>
-			<Value>1</Value>
-		</Boolean>
-		<Length Name="railH">
-			<Description><![CDATA["手すりの高さ（床から）"]]></Description>
-			<Value>0.9</Value>
-		</Length>
 		<Boolean Name="lineMode">
 			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
 			<Value>0</Value>
