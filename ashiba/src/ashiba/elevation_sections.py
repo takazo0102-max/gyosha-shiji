@@ -887,16 +887,17 @@ def _delete_drawings(client, layout_item_guid: str, made: list[dict]) -> bool:
 
 
 def _create_drawings(client, dbid, results, positions_mm, scale: int, src_scale: float,
-                     kind: str = "足場立面図") -> list[dict]:
+                     kind: str = "足場立面図", layout_item_guid: str = "") -> list[dict]:
     """図面を置く。比率 = (1/scale) / 元ビューの縮尺（元が 1/100 なら 1/200 は 0.5）."""
     ratio = (1.0 / scale) / src_scale
     data = [{"navigatorItemId": {"guid": pl.section_item_guid}, "layoutDatabaseId": dbid,
              "position": {"x": pos[0] / 1000.0, "y": pos[1] / 1000.0},
              "scale": ratio, "drawingScale": float(scale), "name": f"{pl.face_name} {kind} {scale_caption(scale)}"}
             for pl, pos in zip(results, positions_mm)]
-    dr = client.tapir("CreateDrawings", {"drawingsData": data})
+    # 1回の作成の最初の1枚が白紙になる不具合を避ける（_create_drawings_safely）
     made = []
-    for pl, el in zip(results, dr.get("elements", [])):
+    for pl, el in zip(results, _create_drawings_safely(client, data, layout_item_guid or (results[0].layout_item_guid
+                                                                                      if results else ""))):
         pl.scale = scale
         if "elementId" in el:
             pl.drawing_guid = el["elementId"]["guid"]
@@ -1364,6 +1365,28 @@ def clipped_drawing_geometry(region_mm: tuple[float, float, float, float], scale
     return clip, position
 
 
+def _create_drawings_safely(client, data: list[dict], layout_item_guid: str = "") -> list[dict]:
+    """CreateDrawings の先頭に捨てる図面を1枚入れて作り、それを消す. 戻り値は data と同じ並びの elements.
+
+    原点が移ったプロジェクト（保存・再起動で Archicad が原点を要素の近くへ寄せる）では、1回の CreateDrawings で
+    作る図面のうち最初の1枚だけ中身が映らない（白紙）。2枚目以降は正しく映る（2026-10-24 実機で何度も確かめた）。
+    """
+    if not data:
+        return []
+    r = client.tapir("CreateDrawings", {"drawingsData": [{**data[0], "name": "（捨てる図面）"}] + list(data)})
+    els = list(r.get("elements") or [])
+    if els and "elementId" in els[0]:
+        try:
+            # 図面の削除はそのレイアウトが前面のときだけ通る（_delete_drawings）
+            if layout_item_guid:
+                _delete_drawings(client, layout_item_guid, [els[0]])
+            else:
+                client.tapir("DeleteElements", {"elements": [els[0]]})
+        except Exception:
+            pass
+    return els[1:]
+
+
 def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> list[dict]:
     """切り抜いた図面を置き、置いた位置（pos）を読み戻して、ずれていれば1回置き直す。戻り値は CreateDrawings の elements.
 
@@ -1371,37 +1394,51 @@ def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> 
     決めるが、ビューマップのフロアにズームが保存されていると、pos がズームの左下の分だけずれて図面が白紙になった
     （2026-10-23 実機: 平面図・詳細図・断面図がすべて白紙。ズームの左下 (-12.3, -7.1) m × 1/縮尺 だけずれていた）。
     ずれは置く位置に依らない一定量なので、読み戻した差を足して置き直せば合う。
+
+    原点が移ったプロジェクト（modelOffset）では、中身は「いまの座標＋ずれ」で映る（元の原点が中身の左下に来る）。
+    ずれ×1/縮尺 だけ手前に置き直す。このとき読み戻す pos は当てにならないので使わない（2026-10-24 実機）。
     """
-    r = client.tapir("CreateDrawings", {"drawingsData": data})
-    els = list(r.get("elements") or [])
+    els = _create_drawings_safely(client, data, layout_item_guid)
     ok = [i for i, e in enumerate(els) if "elementId" in e]
     if not ok:
         return els
     _activate(client, layout_item_guid)
+    try:
+        # 原点のずれ（modelOffset）は図面を更新してから読める（置いた直後は 0）
+        client.tapir("UpdateDrawings", {"elements": [els[i] for i in ok]})
+    except Exception:
+        pass
     try:
         dets = client.get_details([els[i] for i in ok])
     except Exception:
         return els
     redo = []
     for i, det in zip(ok, dets):
-        pos = (det.get("details") or {}).get("pos")
+        dd = det.get("details") or {}
+        pos = dd.get("pos")
         d = data[i]
         if not pos or not d.get("clipPolygon"):
             continue
-        ratio = float(d.get("scale", 1.0))
-        want_x = d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio
-        want_y = d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio
-        dx, dy = want_x - float(pos["x"]), want_y - float(pos["y"])
+        off = dd.get("modelOffset") or {}
+        ox, oy = float(off.get("x", 0.0) or 0.0), float(off.get("y", 0.0) or 0.0)
+        if abs(ox) > 1e-6 or abs(oy) > 1e-6:
+            k = 1.0 / float(d.get("drawingScale") or 100.0)
+            dx, dy = -ox * k, -oy * k
+        else:
+            ratio = float(d.get("scale", 1.0))
+            want_x = d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio
+            want_y = d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio
+            dx, dy = want_x - float(pos["x"]), want_y - float(pos["y"])
         if abs(dx) > 1e-6 or abs(dy) > 1e-6:
             redo.append((i, dx, dy))
     if not redo:
         return els
     try:
         client.tapir("DeleteElements", {"elements": [els[i] for i, _, _ in redo]})
-        again = client.tapir("CreateDrawings", {"drawingsData": [
+        again = _create_drawings_safely(client, [
             {**data[i], "position": {"x": data[i]["position"]["x"] + dx, "y": data[i]["position"]["y"] + dy}}
-            for i, dx, dy in redo]})
-        for (i, _, _), e in zip(redo, again.get("elements") or []):
+            for i, dx, dy in redo], layout_item_guid)
+        for (i, _, _), e in zip(redo, again):
             els[i] = e
     except Exception:
         pass
@@ -1411,30 +1448,47 @@ def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> 
 def plan_source(client, floor_index: Optional[int] = None) -> tuple[Optional[dict], int, str]:
     """足場平面図・詳細図を切り抜く元の図と、その縮尺 → (項目, 元の縮尺, 注意).
 
-    プロジェクトマップのフロアは「いまの平面図ウィンドウの縮尺」で図面になる。平面図を 1:50 にして作業して
-    いると、1:100 前提の位置合わせがずれて白紙になった（2026-10-20 実機）。ビューマップに同じフロアの
-    ビュー（縮尺が固定・読める）があればそれを元にし、無ければプロジェクトマップのフロアを 1:100 とみなす。
+    元はプロジェクトマップのフロア。ビューマップの同じフロアのビューはズームが保存されていると、その範囲しか
+    図面に映らない（2026-10-24 実機: 保存・再起動で原点が移り、見本がズームの範囲 x −12〜30m の外に出て平面図が
+    白紙）。プロジェクトマップのフロアは「いまの平面図ウィンドウの縮尺」で図面になるので、その縮尺は試しの図面を
+    1枚置いて読む（以前は 1:100 とみなし、平面図を 1:50 にしていると位置がずれて白紙になった。2026-10-20 実機）。
     """
     story = active_story_item(client, floor_index)
     if story is None:
         return None, 100, "フロアがプロジェクトマップに見つかりません"
-    try:
-        items = list(walk_tree(_tree(client, "PublicViewMap")))
-    except Exception:
-        items = []
-    for it in items:
-        if it.get("type") != "StoryItem" or it.get("name") != story.get("name"):
-            continue
-        try:
-            vs = client.tapir("GetViewSettings", {"navigatorItemIds": [{"navigatorItemId": {"guid": it["guid"]}}]})
-            v = (vs.get("viewSettings") or [{}])[0]
-        except Exception:
-            continue
-        sc = v.get("drawingScale")
-        if sc and abs(float(v.get("rotation", 0) or 0)) < 1e-9:
-            return it, int(round(float(sc))), ""
-    return story, 100, (f"ビューマップに「{story.get('name')}」のビューが無いので、平面図ウィンドウの縮尺を 1:100 とみなして"
+    sc = _probe_drawing_scale(client, story["guid"])
+    if sc:
+        return story, sc, ""
+    return story, 100, (f"「{story.get('name')}」の図面の縮尺を読めないので、平面図ウィンドウの縮尺を 1:100 とみなして"
                         "切り抜きます（平面図を 1:100 以外にしているとずれます）")
+
+
+def _probe_drawing_scale(client, item_guid: str) -> Optional[int]:
+    """その項目を図面にしたときの元の縮尺（1/n の n）. いちばん上のレイアウトに試しの図面を置いて読み、消す."""
+    try:
+        lays = [it for it in walk_tree(_tree(client, "LayoutBook")) if it.get("type") == "LayoutItem"]
+        if not lays:
+            return None
+        lay = lays[0]["guid"]
+        db = client.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})
+        dbid = db["databases"][0]["databaseId"]
+        r = client.tapir("CreateDrawings", {"drawingsData": [{
+            "navigatorItemId": {"guid": item_guid}, "layoutDatabaseId": dbid, "position": {"x": 0.0, "y": 0.0},
+            "clipPolygon": [{"x": 0.0, "y": 0.0}, {"x": 0.01, "y": 0.0}, {"x": 0.01, "y": 0.01}, {"x": 0.0, "y": 0.01}],
+            "scale": 1.0, "drawingScale": 100.0, "name": "縮尺の確認（消す）"}]})
+        el = (r.get("elements") or [{}])[0]
+        if "elementId" not in el:
+            return None
+        try:
+            _activate(client, lay)
+            det = (client.get_details([el]) or [{}])[0].get("details") or {}
+        finally:
+            client.tapir("DeleteElements", {"elements": [el]})
+            activate_floor_plan(client)
+        ds = float(det.get("drawingScale") or 0.0)
+        return int(round(1.0 / ds)) if ds > 0 else None
+    except Exception:
+        return None
 
 
 def active_story_item(client, floor_index: Optional[int] = None) -> Optional[dict]:

@@ -444,16 +444,19 @@ class TestDrawingScaleIsARatio(unittest.TestCase):
             def tapir(self, command, params):
                 if command == "CreateDrawings":
                     self.sent = params["drawingsData"]
-                    return {"elements": [{"elementId": {"guid": "d1"}}]}
+                    return {"elements": [{"elementId": {"guid": f"d{i}"}} for i in range(len(self.sent))]}
                 return {}
 
         c = C()
         pl = ElevationPlacement("南面", "x", section_item_guid="s")
         _create_drawings(c, {"guid": "db"}, [pl], [(30.0, 80.0)], 200, 0.01)
-        self.assertAlmostEqual(c.sent[0]["scale"], 0.5)
-        self.assertEqual(c.sent[0]["drawingScale"], 200.0)
+        # 先頭は捨てる図面（1回の作成の最初の1枚が白紙になる不具合を避ける。2026-10-24 実機）
+        self.assertEqual(len(c.sent), 2)
+        self.assertEqual(c.sent[0]["name"], "（捨てる図面）")
+        self.assertAlmostEqual(c.sent[1]["scale"], 0.5)
+        self.assertEqual(c.sent[1]["drawingScale"], 200.0)
         self.assertEqual(pl.scale, 200)
-        self.assertEqual(pl.drawing_guid, "d1")
+        self.assertEqual(pl.drawing_guid, "d1")                          # 捨てる図面の次
 
     def test_boxes_from_measured_bounds(self):
         from ashiba.elevation_sections import _drawing_boxes
