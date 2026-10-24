@@ -46,7 +46,7 @@
 			<Value><![CDATA["1830,3630,5430"]]></Value>
 		</String>
 		<Boolean Name="railOn">
-			<Description><![CDATA["外側の手すり・中桟・幅木を描く"]]></Description>
+			<Description><![CDATA["外側の手すり・中桟を描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
 		<Length Name="railH">
