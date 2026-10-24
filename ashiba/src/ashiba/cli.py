@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -1262,6 +1262,38 @@ STEEL_DEPTH_DEFAULT_MM = 150.0   # 仕上げ面（ALC・ECP・胴縁）から鉄
 STEEL_BEAM_BELOW_FLOOR_MM = 150.0  # 梁の上フランジ（壁つなぎを取る所）は床の天端からこれだけ下
 
 
+def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
+    """地足場（利用者の指定 2026-10-24: 地足場機能も追加して）: 地上に低く組む足場（基礎・1階まわりの作業用）.
+
+    ground_scaffold: true か {"levels": 1〜3}。作業床をその層数だけ（軒高＝層数×系列の層の高さ）にし、スラブからの
+    高さ・上段・屋上への渡り・朝顔は使わない。2層以下は階段室を置かず、はしご（外周 60m ごと）で昇降する。
+    """
+    g = spec.get("ground_scaffold")
+    if not g or spec.get("_ground_done"):
+        return spec
+    n = int(g.get("levels", 1) if isinstance(g, dict) else 1)
+    if not 1 <= n <= 3:
+        raise InputError(f"ground_scaffold.levels: 地足場は 1〜3 層です（{n}）")
+    master = load_master(resolve_series_id(spec), master_csv)
+    fh = int(master.floor_height or 1800)
+    out = {**spec, "eaves_height_mm": n * fh, "height_from_slabs": False, "roof_bridge": False,
+           "setback_tiers": False, "asagao": False, "_ground_done": True}
+    out.setdefault("building_height_mm", n * fh)
+    st = dict(out.get("stairs") or {})
+    if n <= 2 and not st.get("positions"):
+        st["count"] = 0
+        out["stairs"] = st
+        out["ladders"] = int(spec.get("ladders") or 0) or 1
+    return out
+
+
+def ground_scaffold_note(spec: dict) -> str:
+    g = spec.get("ground_scaffold")
+    n = int(g.get("levels", 1) if isinstance(g, dict) else 1)
+    return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。"
+            + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す")
+
+
 def parse_tie_source(value) -> str:
     """壁つなぎの取り方: "仕上げ"（既定）か "鉄骨"（「鉄骨から」「梁」も）."""
     v = str(value or "").strip()
@@ -1699,6 +1731,7 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     """
     from .setback_tiers import tier_note, tier_specs
 
+    spec = ground_scaffold_spec(spec, master_csv)
     out = _solve_face_groups(spec, master_csv)
     for label, sub in tier_specs(spec, lambda ol: all_face_names({**spec, "outline_mm": ol, "faces": None}, master_csv)):
         r = solve_all(sub, master_csv)
@@ -1791,8 +1824,11 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     """
     if spec.get("face_forms"):
         raise InputError("face_forms（面ごとの足場の切り替え）は面の組ごとに解きます（solve_groups）")
+    spec = ground_scaffold_spec(spec, master_csv)
     validate_spec(spec)
     model = build_model(spec, master_csv)
+    if spec.get("ground_scaffold"):
+        model.plan.warnings.append(ground_scaffold_note(spec))
     check_edge_indices(spec, model)
     model.stairs_elsewhere = [str(f) for f in (spec.get("stairs_elsewhere") or [])]
     site = build_site(spec)
