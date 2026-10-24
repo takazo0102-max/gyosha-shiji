@@ -121,3 +121,44 @@ class TestBeamDetailAndBraces(unittest.TestCase):
         self.assertIn("! 梁渡し（NDHW）", p3)
         self.assertIn("! 両隣のスパンのつなぎ材", p3)
         self.assertNotIn("sgn ", p3)                 # GDL の組み込み関数 SGN と同じ名前の変数は 3D が止まる
+
+
+class TestMillenniumBeamRules(unittest.TestCase):
+    """ミレニューム Q&A Q16（梁枠を用いて開口部を設ける場合の組み立て方。利用者の資料 2026-10-24）."""
+
+    def _solve(self, span, eaves=12000, level=2):
+        return solve_all({"outline_mm": RECT, "eaves_height_mm": eaves, "series_id": "nikken_millennium",
+                          "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": span, "level": level}]})
+
+    def test_support_per_post_on_the_beam(self):
+        for span, allow in ((3658, 7.5), (5487, 11.0), (7316, 11.0)):
+            oc = self._solve(span).structural.openings[0]
+            self.assertEqual(oc.support_allow_kn, allow, span)
+            self.assertIn("Q16", oc.support_source)
+
+    def test_end_post_reinforcement_is_proposed(self):
+        r = self._solve(7316)
+        oc = r.structural.openings[0]
+        self.assertFalse(oc.end_post_ok)
+        self.assertTrue(any("2本組（許容15.2kN" in w for w in r.structural.warnings), r.structural.warnings)
+
+    def test_levels_of_advance_rails_above_the_beam(self):
+        r = self._solve(5487, eaves=6000, level=2)          # 梁枠の上が3層に足りない
+        self.assertTrue(any("先行手すり筋交いを3層以上" in i.message for i in r.openings.issues))
+
+    def test_front_side_advance_rails_in_the_hatched_zone(self):
+        from ashiba.gdl_params import line_params
+        from ashiba.openings import front_adv_spans
+
+        r = self._solve(3658)
+        m = r.model
+        zones = front_adv_spans(m, 0, r.openings)
+        self.assertEqual(sorted((a, b) for a, b, _z in zones), [(0.0, 1829.0), (1829.0, 5487.0), (5487.0, 7316.0)])
+        p = line_params(m, m.plan.edges[0], stair_plan=r.stair_plan, openings=r.openings)
+        self.assertTrue(p["advInList"].startswith("1829,5487,"))
+        self.assertTrue(any("前踏み側にも先行手すり筋交い" in n for n in r.quantity.notes))
+        self.assertGreater(r.quantity.qty_of("先行手摺"), 0)
+        # ほかの系列は入れない
+        nd = solve_all({"outline_mm": RECT, "eaves_height_mm": 12000, "series_id": "nikken_nd1800",
+                        "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
+        self.assertEqual(front_adv_spans(nd.model, 0, nd.openings), [])

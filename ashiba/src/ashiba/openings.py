@@ -19,6 +19,55 @@ from typing import Optional
 from .model import ScaffoldModel
 
 MIN_HEADROOM_MM = 1800.0   # 通路として使う開口の頭上高さの目安
+
+# 系列ごとの梁枠の決め。ミレニューム Q&A「Q16. 梁枠を用いて開口部を設ける場合の組み立て方」（利用者の資料 2026-10-24。
+# 組み立て条件は本足場の承認図書）:
+# - 梁枠上の支柱1本あたりの許容支持力（2スパン 7.5kN は梁枠上に先行手すり筋交いを1層以上、3・4スパン 11.0kN は3層以上）
+# - 網掛け部（開口の両隣1スパンの全高と、梁枠より上）は前踏み側にも先行手すり筋交いを設置する
+# - 梁枠を支持する両端の支柱は必要に応じて補強（2本組 15.2・補剛材 19.6kN は本足場、26・33kN 仕様は型枠支保工の承認）
+BEAM_RULES = {
+    "nikken_millennium": {
+        "support_kn": {3658: 7.5, 5487: 11.0, 7316: 11.0},
+        "adv_levels": {3658: 1, 5487: 3, 7316: 3},
+        "front_adv": True,
+        "end_post_options": (("2本組", 15.2, "本足場の承認図書"), ("補剛材", 19.6, "本足場の承認図書"),
+                             ("26kN仕様", 26.0, "型枠支保工の承認図書"), ("33kN仕様", 33.0, "型枠支保工の承認図書")),
+        "source": "ミレニューム Q&A Q16（梁枠を用いて開口部を設ける場合の組み立て方。利用者の資料 2026-10-24）",
+    },
+}
+
+
+def beam_rules(model) -> dict:
+    """系列の梁枠の決め（無ければ空）."""
+    return BEAM_RULES.get(model.master.series_id, {})
+
+
+def front_adv_spans(model, edge_index: int, result) -> list[tuple[float, float, float]]:
+    """前踏み側に先行手すり筋交いを入れる区間 [(始点, 終点, この高さ以上の作業層 mm)]（Q16 の網掛け部）.
+
+    開口の両隣1スパンは全高（0 以上）、開口の上は梁枠の高さ（梁枠の上の床）から上。系列に決めが無ければ空。
+    """
+    if not beam_rules(model).get("front_adv") or result is None:
+        return []
+    ep = _edge(model, edge_index)
+    if ep is None:
+        return []
+    posts = [0.0]
+    for s in ep.spans:
+        posts.append(posts[-1] + float(s))
+    out = []
+    for i, o in enumerate(result.openings):
+        if o.edge_index != edge_index:
+            continue
+        h = float(result.beam_heights.get(i, 0.0))
+        out.append((o.start_mm, o.end_mm, h))
+        k0 = next((j for j, p in enumerate(posts) if abs(p - o.start_mm) < 1.0), None)
+        k1 = next((j for j, p in enumerate(posts) if abs(p - o.end_mm) < 1.0), None)
+        if k0 is not None and k0 > 0:
+            out.append((posts[k0 - 1], posts[k0], 0.0))
+        if k1 is not None and k1 < len(posts) - 1:
+            out.append((posts[k1], posts[k1 + 1], 0.0))
+    return out
 # 梁枠の直近に壁つなぎが要る距離の目安
 TIE_NEAR_MM = 1800.0
 
@@ -157,6 +206,18 @@ def validate_openings(
                 "通路として使うなら梁枠を1層上げてください",
                 "通路の頭上高さ（実務の目安）",
             ))
+
+        # 梁枠上の先行手すり筋交いの層数（系列の決め。ミレニューム Q16: 2スパン 1層以上、3・4スパン 3層以上）
+        need_adv = beam_rules(model).get("adv_levels", {}).get(int(o.beam_span_mm))
+        if need_adv:
+            above = sum(1 for z in levels if z >= h - 1e-6)
+            if above < need_adv:
+                result.issues.append(OpeningIssue(
+                    i, "WARN",
+                    f"{model.face_name(o.edge_index)}の梁枠（{o.beam_span_mm}mm）の上の作業層が{above}層です。"
+                    f"梁枠上に先行手すり筋交いを{need_adv}層以上設けた場合の許容支持力で検定しているので、"
+                    "梁枠を下げるか足場を上げてください",
+                    beam_rules(model)["source"]))
 
         near = [
             t for t in model.wall_ties

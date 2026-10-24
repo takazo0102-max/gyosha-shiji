@@ -737,6 +737,38 @@ while strlen(rest) > 0 and nBm < 8 do
 	endif
 endwhile
 
+! ---- advInList をパース「開始,終点,高さ」の繰り返し (mm→m) ----
+! 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）は前踏み側にも先行手すり筋交い（ミレニューム Q16。利用者の資料 2026-10-24）
+dim aiS[24], aiE[24], aiZ[24]
+nAi = 0
+aiIdx = 0
+aiT1 = 0
+aiT2 = 0
+rest = advInList
+while strlen(rest) > 0 and nAi < 24 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		aiIdx = aiIdx + 1
+		md = aiIdx - 3 * int(aiIdx / 3)
+		if md = 1 then aiT1 = v / 1000
+		if md = 2 then aiT2 = v / 1000
+		if md = 0 then
+			nAi = nAi + 1
+			aiS[nAi] = aiT1
+			aiE[nAi] = aiT2
+			aiZ[nAi] = v / 1000
+		endif
+	endif
+endwhile
+
 ! ---- stairList をパース「開始,長さ」の繰り返し (mm→m) ----
 ! 階段室は数量（踏板の差引）にも帳票にも出るのに、図面に位置が
 ! 出ていなかった。昇降設備の位置は計画図の主要情報

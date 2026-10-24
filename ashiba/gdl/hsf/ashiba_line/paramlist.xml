@@ -473,6 +473,10 @@
 			<Description><![CDATA["昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="advInList">
+			<Description><![CDATA["前踏み側の先行手すり筋交い mm 「開始,終点,この高さ以上の作業層」の繰り返し（梁枠の網掛け部。ミレニューム Q16）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="beamList">
 			<Description><![CDATA["梁枠 mm 「開始,スパン,梁下高さ」の繰り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>

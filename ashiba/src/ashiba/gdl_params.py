@@ -11,6 +11,7 @@ import math
 
 from .model import ScaffoldModel
 from .model import GUARD_RAIL_ADVANCE
+from .openings import front_adv_spans
 from .pens import gdl_pens
 from .segments import WHOLE
 
@@ -480,6 +481,8 @@ def line_params(
         "hoEdit": _list_edit(_hoist_list(model, ep, platforms), 5),
         # 梁枠。「開始,スパン,梁下高さ」の繰り返し
         "beamList": _beam_list(model, ep, openings),
+        # 梁枠の網掛け部の前踏み側の先行手すり筋交い（系列の決め。ミレニューム Q16）
+        "advInList": ",".join(f"{a:.0f},{b:.0f},{z:.0f}" for a, b, z in front_adv_spans(model, ep.edge_index, openings)),
         # 荷受けステージ。「開始,長さ,出,設置高さ,方杖」の繰り返し
         "stageList": _stage_list(model, ep, platforms),
         # 昇降機。「位置,到達高さ」／乗り込み口「位置,作業床高さ」の繰り返し。

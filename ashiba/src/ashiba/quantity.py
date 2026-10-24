@@ -1268,6 +1268,30 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
                 )
             else:
                 add(saddle, n_inner, f"梁渡し（{model.face_name(o.edge_index)}の梁枠上の支柱{n_inner}本）")
+    # 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）の前踏み側の先行手すり筋交い（ミレニューム Q16）
+    from .openings import beam_rules, front_adv_spans
+
+    if beam_rules(model).get("front_adv"):
+        per_span: dict[int, int] = {}
+        for ep in model.plan.edges:
+            lv = list(model.elevation_of(ep.edge_index).level_heights)
+            starts = [0.0]
+            for s in ep.spans:
+                starts.append(starts[-1] + float(s))
+            for a, b, z in front_adv_spans(model, ep.edge_index, openings):
+                n_lv = sum(1 for h in lv if h >= z - 1e-6)
+                for s0, sp in zip(starts, ep.spans):
+                    if s0 >= a - 1.0 and s0 + sp <= b + 1.0:
+                        per_span[int(sp)] = per_span.get(int(sp), 0) + n_lv
+        for sp, n in sorted(per_span.items()):
+            part = m.find("先行手摺", sp)
+            if part is None:
+                notes.action(f"前踏み側の先行手すり筋交い（スパン{sp}・{n}本）がマスタにありません。別途手配してください")
+            else:
+                add(part, n, f"梁枠の網掛け部の前踏み側の先行手すり筋交い スパン{sp}")
+        if per_span:
+            notes.append("梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）は、前踏み側にも先行手すり筋交いを"
+                         f"{sum(per_span.values())}本入れる（{beam_rules(model)['source']}。前踏み側の手すり・中桟は差し引いていない）")
     if openings.removed_posts:
         vm = model.master.vertical_member_name
         # 補強・積載低減が要ることは openings.issues が開口部ごとに言う。

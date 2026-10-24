@@ -840,7 +840,18 @@ for il = 1 to nLv
 				if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
 						abs(z - bkH[ik2]) < 0.001 then inBk = 1
 			next ik2
-			if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 then
+			! 梁枠の網掛け部は前踏み側にも先行手すり筋交い（手すり・中桟の代わり。ミレニューム Q16）
+			advIn = 0
+			for iai = 1 to nAi
+				if x >= aiS[iai] - 0.001 and x + spans[ip] <= aiE[iai] + 0.001 and z >= aiZ[iai] - 0.001 then advIn = 1
+			next iai
+			if il > 1 and skipH = 0 and nRows >= 2 and advIn = 1 then
+				add x, 0, z
+				nL = spans[ip]
+				gosub 850
+				del 1
+			endif
+			if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 and advIn = 0 then
 				runX = x
 				add x, 0, z + railTop
 				nL = spans[ip]

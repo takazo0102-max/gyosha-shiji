@@ -694,7 +694,11 @@ def check_openings(
         # 梁枠に乗る支柱1本: 梁枠より上の自重＋その支柱が受け持つ1スパン分の積載
         frac = max(0.0, (height - beam_h) / height)
         support = post.dead_load_kn * frac + live_design / n_spans
-        allow = beam_support_allowable_kn(beam)
+        from .openings import beam_rules
+
+        rules = beam_rules(model)
+        allow = rules.get("support_kn", {}).get(int(o.beam_span_mm)) or beam_support_allowable_kn(beam)
+        allow_src = rules["source"] if rules.get("support_kn", {}).get(int(o.beam_span_mm)) else beam.note
         support_ok = allow is None or support <= allow + 1e-9
         # 両端支柱: 通常の軸力に梁枠の反力（内側支柱の軸力と梁枠自重の半分）
         beam_kn = beam.weight_kg * 9.80665 / 1000.0
@@ -706,7 +710,7 @@ def check_openings(
             index=i, edge_index=o.edge_index, beam_span_mm=o.beam_span_mm, beam_model=beam.model_no,
             n_inner_posts=len(inner), live_above_kn=round(live_above, 3), live_limit_kn=live_limit,
             live_ok=live_ok, live_per_span_limit_kn=(round(per_span_limit, 3) if per_span_limit else None),
-            support_kn=round(support, 3), support_allow_kn=allow, support_source=beam.note,
+            support_kn=round(support, 3), support_allow_kn=allow, support_source=allow_src,
             support_ok=support_ok, reaction_kn=round(reaction, 3), end_post_kn=round(end_post, 3),
             end_post_allow_kn=end_allow, end_post_ok=end_ok,
         )
@@ -729,9 +733,15 @@ def check_openings(
                 "梁枠上の積載の低減か、支点の多い梁枠への変更が必要です"
             )
         if not end_ok:
+            # 系列に補強の決めがあれば、足りるいちばん軽い補強を出す（ミレニューム Q16）
+            opts = [(n, kn, src) for n, kn, src in rules.get("end_post_options", ()) if end_post <= kn + 1e-9]
+            fix = (f"両端{vm}を{opts[0][0]}（許容{opts[0][1]:.1f}kN・{opts[0][2]}）で補強してください"
+                   if opts else (f"系列の補強（" + "・".join(f"{n} {kn:.1f}kN" for n, kn, _s in rules["end_post_options"])
+                                 + "）でも足りません。梁枠を短くするか積載を下げてください"
+                                 if rules.get("end_post_options") else f"両端{vm}の2本組等の補強が必要です"))
             warnings.append(
                 f"{where}: 両端{vm}の軸力{end_post:.2f}kN（通常{post.dead_load_kn + post.live_load_kn:.2f}"
-                f"＋反力{reaction:.2f}）が許容{end_allow:.2f}kNを超えます。両端{vm}の2本組等の補強が必要です"
+                f"＋反力{reaction:.2f}）が許容{end_allow:.2f}kNを超えます。{fix}"
             )
         else:
             notes.append(
