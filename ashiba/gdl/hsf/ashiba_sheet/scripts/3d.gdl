@@ -69,15 +69,16 @@ else
 		pB[1] = x1
 		pS[1] = 0
 	endif
-	! シートの段（1枚の高さ sheetH ごとに下から積む。最上段は天端までの残り）
+	! シートの段: 天端から1枚の高さ sheetH ずつ下へ割り付ける（いちばん下の段が仮囲いの天端 zB までの残り。
+	! 利用者の指定 2026-10-24: 上から割り付けて、仮囲いまでにする）
 	shH = sheetH
 	if shH < 0.5 then shH = zT - zB
 	nRow = int((zT - zB) / shH - 0.001) + 1
 	for ip = 1 to nP
 		wP = pB[ip] - pA[ip]
 		for ir = 1 to nRow
-			zLo = zB + (ir - 1) * shH
-			zHi = min(zT, zLo + shH)
+			zHi = zT - (ir - 1) * shH
+			zLo = max(zB, zHi - shH)
 			if pS[ip] = 1 and matSheet = 0 then
 				material "ashiba_sheet_special"
 			else
@@ -164,9 +165,13 @@ else
 					xc = pA[ic]
 				endif
 			endif
+			! 出隅の角: 始点はコーナー用（下で描く）、終点は次の面のコーナー用に任せる
+			drawC = 1
+			if ic = 1 and clampCS = 1 then drawC = 0
+			if ic = nP + 1 and clampSkipE = 1 then drawC = 0
 			for jz = 1 to nC
 				zc = cZ[jz]
-				if zc > zB and zc < zT then
+				if drawC = 1 and zc > zB and zc < zT then
 					resol 10
 					! 支柱を抱く本体・ふた（帯の厚み 4.5、高さ 48）
 					add xc, yp, zc - 0.024
@@ -200,6 +205,49 @@ else
 				endif
 			next jz
 		next ic
+		! 養生クランプ コーナー用（利用者の写真 2026-10-24: コーナーはコーナー用にして）: 出隅の角の建地を抱く本体に L 形の
+		! 板を付け、この面のシートへのフックと、隣の面（始点の手前で直交する面）のシートへのフックを直角に出す
+		if clampCS = 1 then
+			xc = pA[1] + 0.06
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc > zB and zc < zT then
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					resol 6
+					add xc + 0.034, yp + 0.012, zc - 0.006
+					rotx 90
+					cylind 0.04, 0.006
+					del 2
+					! L 形の板（この面の側と隣の面の側。厚み 3.2）
+					add xc - 0.036, yp - 0.0352, zc - 0.03
+					block 0.066, 0.0032, 0.06
+					del 1
+					add xc - 0.0392, yp - 0.0352, zc - 0.03
+					block 0.0032, 0.066, 0.06
+					del 1
+					resol 8
+					! この面のシートへのフック（外へ出て上へ）
+					add xc, yp - 0.0352, zc
+					rotx 90
+					cylind 0.0328, 0.0045
+					del 2
+					add xc, yp - 0.068, zc
+					cylind 0.03, 0.0045
+					del 1
+					! 隣の面のシートへのピン（始点の手前へ出て上へ立つ）
+					add xc - 0.0392, yp, zc
+					roty -90
+					cylind 0.0288, 0.0045
+					del 2
+					add xc - 0.068, yp, zc
+					cylind 0.05, 0.0045
+					del 1
+				endif
+			next jz
+		endif
 	endif
 endif
 hotspot x0, -offY, zB

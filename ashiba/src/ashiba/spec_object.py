@@ -56,6 +56,8 @@ FIELDS: tuple[Field, ...] = (
     Field("region", "str", ("site", "region"), "関東(内陸)"),
     Field("roughness", "str", ("site", "roughness"), "III"),
     Field("sheetType", "str", ("site", "sheet_type"), "メッシュシート"),
+    # 仮囲いの高さ（外部シートの下端。0＝地面から。利用者の指定 2026-10-24: 仮囲いまでにする）
+    Field("hoardH", "len", ("hoarding_height_mm",), 3.0),
     Field("siteName", "str", ("notification", "site_name"), "", zero_is_unset=True),
     Field("elevMode", "str", ("elevation_mode",), "section"),
     Field("lineMode3d", "bool", ("line_mode_3d",), False),

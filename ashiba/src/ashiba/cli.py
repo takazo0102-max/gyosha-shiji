@@ -155,7 +155,7 @@ TOP_KEYS = {
     "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
-    "toe_board", "net_brackets",
+    "toe_board", "net_brackets", "hoarding_height_mm",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
@@ -958,6 +958,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.faces_only = faces
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
+    # 仮囲いの高さ（外部シートの下端。既定 3000＝仮囲いの鋼板 H3m。0 なら地面から）
+    model.hoarding_height_mm = max(0.0, float(spec.get("hoarding_height_mm", 3000) or 0))
     # 入隅の升目の重なりを直す（隅から始まる面を通し、隅で終わる面はその外側建地列で止める。利用者の指摘
     # 2026-10-24: 入りすみが重なっているよ）。建地列間隔が決まってから（ScaffoldModel の後で）
     if not master.is_frame and form == "本足場":

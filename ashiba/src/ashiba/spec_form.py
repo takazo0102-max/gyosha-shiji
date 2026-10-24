@@ -30,7 +30,7 @@ ELEV = {"作る": "section", "作らない（平面・3Dだけ・速い）": "no
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
 FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail",
                  "toeBoard", "netLevels", "netBrackets",
-                 "stairLayout", "sheetType", "eavesH", "hFromSlab", "elevMode")
+                 "stairLayout", "sheetType", "hoardH", "eavesH", "hFromSlab", "elevMode")
 
 
 def _series_labels() -> dict[str, str]:
@@ -113,6 +113,9 @@ def form_fields(spec: dict) -> list[dict]:
          "value": _key(STAIRS, (spec.get("stairs") or {}).get("layout") or "自動", "自動（幅900以上は足場の中）")},
         {"key": "sheet", "label": "養生", "kind": "choice", "options": list(SHEETS),
          "value": str((spec.get("site") or {}).get("sheet_type") or "メッシュシート")},
+        {"key": "hoarding", "label": "仮囲いの高さ", "kind": "number",
+         "value": f"{float(spec.get('hoarding_height_mm', 3000) or 0):.0f}",
+         "help": "mm（外部シートはこの上から。0＝地面から）"},
         {"key": "", "label": "高さ・図面", "kind": "section"},
         {"key": "eaves", "label": "軒高", "kind": "number", "value": "" if eaves is None else f"{float(eaves):.0f}",
          "help": "mm（スラブから決めるときは使わない）"},
@@ -174,6 +177,11 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         notes += wn
     out["guard_rail_type"] = RAILS.get(values.get("rail") or "", out.get("guard_rail_type") or "布材")
     out["stairs"] = {**(out.get("stairs") or {}), "layout": STAIRS.get(values.get("stairs") or "", "自動")}
+    if str(values.get("hoarding") or "").strip():
+        try:
+            out["hoarding_height_mm"] = max(0, int(round(float(str(values["hoarding"]).replace(",", "")))))
+        except ValueError:
+            notes.append(f"仮囲いの高さ「{values.get('hoarding')}」は数字ではないので前のままにします")
     if values.get("toe") in ONOFF:
         out["toe_board"] = ONOFF[values["toe"]]
     if values.get("net") in NET:

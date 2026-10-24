@@ -85,6 +85,14 @@
 			<Description><![CDATA["縁の縫い代とハトメを描く（詳細）"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Integer Name="clampCS">
+			<Description><![CDATA["始点の角を養生クランプ コーナー用で留める 0/1（出隅）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="clampSkipE">
+			<Description><![CDATA["終点の角のクランプを付けない 0/1（出隅は次の面のコーナー用）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Material Name="matSheet">
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>

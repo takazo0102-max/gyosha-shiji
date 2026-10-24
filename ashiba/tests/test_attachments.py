@@ -208,13 +208,18 @@ class TestSheetClamps(unittest.TestCase):
         ep = m.plan.edges[0]
         hs = sheet_clamp_heights(m, ep.edge_index)
         ev = m.elevation_of(ep.edge_index)
-        # 各段のシートの上下（下端・段の継ぎ目・天端）。メッシュ MS1851 は1枚の高さ 5160（次世代シートクランプの取付図）
-        import math
-        self.assertEqual(len(hs), math.ceil(ev.total_height / 5160) + 1)
-        self.assertEqual(hs[0], 150)
-        self.assertIn(5160, hs)
+        top = ev.total_height
+        # 上から割り付ける（天端から 5160 ずつ下へ）。下端は仮囲いの天端 3000（利用者の指定 2026-10-24）
+        self.assertEqual(hs[-1], round(top - 100))
+        self.assertEqual(hs[0], 3150)
+        self.assertIn(round(top - 5160), hs)
         xs = sheet_clamp_positions(m, ep, r.stair_plan)
-        self.assertEqual(len(xs), len(ep.spans) + 3)                      # 支柱（中）＋両端の角の支柱
+        # 継ぎ目（支柱）だけ。出隅の角は両端とも養生クランプ コーナー用（始点はこの面、終点は次の面）
+        self.assertEqual(len(xs), len(ep.spans) + 1)
+        from ashiba.attachments import sheet_corner_clamp_count
+
+        self.assertEqual(sheet_corner_clamp_count(m, r.stair_plan),
+                         sum(len(sheet_clamp_heights(m, e.edge_index)) for e in m.plan.edges))
         self.assertEqual(sheet_clamp_count(m, r.stair_plan),
                          sum(len(sheet_clamp_positions(m, e, r.stair_plan)) * len(sheet_clamp_heights(m, e.edge_index))
                              for e in m.plan.edges))

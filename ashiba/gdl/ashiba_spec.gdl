@@ -39,6 +39,7 @@
 !   region        文字列  地域（基準風速）                                                                                    既定 "関東(内陸)"
 !   roughness     文字列  地表面粗度区分                                                                                      既定 "III"
 !   sheetType     文字列  養生材                                                                                              既定 "メッシュシート"
+!   hoardH        長さ    仮囲いの高さ（外部シートの下端。0＝地面から）                                                       既定 3
 !   siteName      文字列  現場名（設置届）                                                                                    既定 ""
 !   elevMode      文字列  立面図 section＝断面図→レイアウト／object＝平面の下に2D／none                                       既定 "section"
 !   lineMode3d    ブール  3Dを線で表示                                                                                        既定 0
@@ -157,6 +158,8 @@ ui_infield "roughness", 300, 134, 50, 20
 ui_infield "sheetType", 360, 134, 110, 20
 ui_outfield "立面図", 10, 164, 140, 18
 ui_infield "elevMode", 160, 162, 160, 20
+ui_outfield "仮囲いの高さ", 330, 164, 70, 18
+ui_infield "hoardH", 402, 162, 80, 20
 ui_infield "lineMode3d", 10, 190, 300, 20
 ui_infield "autoInBrk", 10, 214, 400, 20
 ui_outfield "水平ネットの層（例 2,5・全部）", 10, 242, 140, 18

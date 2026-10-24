@@ -1395,7 +1395,8 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
 def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     """養生シート（足場の外側の構面）。マスタに無ければ枚数と面積を注記に出す（リースの別手配が多い）."""
-    from .attachments import SHEET_SIZES, sheet_clamp_count, sheet_quantities, sheet_size, special_sheets, standard_sheets
+    from .attachments import (SHEET_SIZES, sheet_clamp_count, sheet_corner_clamp_count, sheet_quantities, sheet_size,
+                              special_sheets, standard_sheets)
 
     kind = model.config.sheet_type or ""
     if kind not in SHEET_SIZES:
@@ -1434,8 +1435,20 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
         if clamp is not None:
             add(clamp, n_cl, "シートクランプ（継ぎ目と端の建地に、根がらみと各層の手すりの高さで）")
         else:
-            notes.action(f"シートクランプ {n_cl}個（シートの継ぎ目と端の建地に、根がらみと各層の手すりの高さで）。"
+            notes.action(f"シートクランプ {n_cl}個（シートの継ぎ目と端の建地に、各段のシートの上下で）。"
                          "系列のマスタに品番が無いので別途手配してください", Notes.ORDER)
+    # 出隅の角は「養生クランプ コーナー用」1つで2面のシートを留める（利用者の指定 2026-10-24: コーナーはコーナー用に）
+    n_cc = sheet_corner_clamp_count(model, stair_plan)
+    if n_cc:
+        cc = next(iter(model.master.by_category("コーナー用シートクランプ")), None)
+        if cc is not None:
+            add(cc, n_cc, "養生クランプ コーナー用（出隅の角の建地に、各段のシートの上下で）")
+        else:
+            notes.action(f"養生クランプ コーナー用 {n_cc}個（出隅の角の建地で2面のシートを留める。各段のシートの上下）。"
+                         "系列のマスタに品番が無いので別途手配してください", Notes.ORDER)
+    hb = getattr(model, "hoarding_height_mm", 0.0) or 0.0
+    if hb > 0:
+        notes.append(f"{kind}は仮囲いの天端（{hb:.0f}）から上に、天端から上へ1枚の高さずつ割り付けています（いちばん下の段は残りの高さ）")
 
 
 def outside_stair_counts(model: ScaffoldModel, stair_plan) -> tuple[int, int]:
