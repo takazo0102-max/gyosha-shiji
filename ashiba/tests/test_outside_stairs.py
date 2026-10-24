@@ -24,10 +24,14 @@ class TestLayoutChoice(unittest.TestCase):
     def test_inside_is_the_cli_default(self):
         self.assertFalse(solve_all(dict(RECT)).stair_plan.outside)
 
-    def test_auto_uses_the_space_outside(self):
-        self.assertTrue(solve_all({**RECT, "stairs": {"layout": "自動"}}).stair_plan.outside)
+    def test_auto_puts_the_stair_inside_a_900_scaffold(self):
+        # 幅 900 以上は足場の中に入れる（利用者の指定 2026-10-24: 900以上の時は中に入れれる）。外が空いていても中
+        self.assertFalse(solve_all({**RECT, "stairs": {"layout": "自動"}}).stair_plan.outside)
         narrow = solve_all({**RECT, "stairs": {"layout": "auto"}, "clearance_space_mm": 800})
         self.assertFalse(narrow.stair_plan.outside)
+        # 幅 900 未満は外付け（600 枠 2 列）
+        thin = solve_all({**RECT, "scaffold_width_mm": 610, "stairs": {"layout": "自動"}})
+        self.assertTrue(thin.stair_plan.outside)
 
     def test_forced_outside_warns_when_narrow(self):
         r = solve_all({**RECT, "stairs": {"layout": "外付け"}, "clearance_space_mm": 800})

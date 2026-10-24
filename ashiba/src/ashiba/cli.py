@@ -1631,7 +1631,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             "面名指定もできます）"
         )
     st = spec.get("stairs", {})
-    # 階段の付け方（足場の中／外付け／自動。自動は足場の外の空きで決める）。外付けの区間は
+    # 階段の付け方（足場の中／外付け／自動。自動は幅 900 以上なら中、900 未満なら外付け）。外付けの区間は
     # 上り口＋階段＋降り口（利用者の指摘 2026-10-20: 上り口と降り口に横のスパンが要る）なので2スパン長い
     from .stairs import decide_outside
 

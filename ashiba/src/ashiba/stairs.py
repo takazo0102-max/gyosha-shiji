@@ -531,7 +531,7 @@ STAIR_INSIDE_MIN_ROW_MM = 900    # 足場の中に階段を組める幅（900 �
 
 
 def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tuple[bool, str]:
-    """階段を外付けにするか。auto は足場の外の空き（clearance_space_mm）で決める."""
+    """階段を外付けにするか。auto は幅 900 以上なら足場の中、900 未満なら外付け（600 枠 2 列）."""
     kind = STAIR_LAYOUTS.get(str(layout or "inside").strip(), "inside")
     if model.master.is_frame or model.config.scaffold_form == "一側足場":
         return False, ("枠組・一側足場は階段を足場の中に組みます（外付けの指定は使いません）" if kind == "outside" else "")
@@ -552,8 +552,9 @@ def decide_outside(model: ScaffoldModel, layout: str, clearance_mm: float) -> tu
                           f"外付けに要る {need:.0f}mm（建地列の間隔＋{OUTSIDE_SPACE_MARGIN_MM}）より狭いです")
         return True, ""
     if kind == "auto":
-        # 決めた結果は数量の注記（外付けの部材）と図に出るので、要確認には入れない
-        return clearance_mm >= need, ""
+        # 幅 900 以上の本足場は階段を足場の中に入れる（利用者の指定 2026-10-24: 900以上の時は中に入れれる）。
+        # 外付けは 900 未満（上で決めた）か、外付けを指定したときだけ
+        return False, ""
     return False, ""
 
 
