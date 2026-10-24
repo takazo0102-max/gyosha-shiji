@@ -234,7 +234,13 @@ def auto_place_stairs(
     # 最大移動距離は理想配置の式ではなく実配置から求める
     # （スロットへの丸めやコーナー回避で位置がずれるため）
     plan.max_travel_mm = actual_max_travel(plan.towers, loop_len)
-    if not plan.towers:
+    if not plan.towers and count == 0:
+        # 階段なしの指定（階段の位置の「全部（階段なし）」・地足場）。規模のせいにしない（実機 2026-10-24: 地足場で
+        # 「階段室が入る区間が無い規模です」と出た）。はしごを入れていれば昇降設備の検定がそれを見る
+        if not getattr(model.config, "ladders", 0):
+            plan.warnings.append("階段は置かない指定です（stairs の count 0）。はしご・移動式昇降設備等での昇降を"
+                                 "別途計画してください（安衛則526条）")
+    elif not plan.towers:
         # 階段室が1つも入らない規模。距離を「inf m」と書いても読めないので、
         # 何で代替するのかを書く（526条は階段に限らず昇降設備を求めている）
         plan.warnings.append(
@@ -653,7 +659,8 @@ def validate_stairs(
 ) -> list[str]:
     """配置済みの階段を検証して警告を返す."""
     issues: list[str] = []
-    if model.scaffold_height_mm > MIN_HEIGHT_FOR_STAIRS_MM and not plan.towers:
+    # はしご（ladders）を入れていれば昇降設備はある（法規チェック#12 がその本数と間隔を見る。地足場・階段なし）
+    if model.scaffold_height_mm > MIN_HEIGHT_FOR_STAIRS_MM and not plan.towers and not getattr(model.config, "ladders", 0):
         issues.append(
             f"足場高さ{model.scaffold_height_mm / 1000:.1f}mに対し昇降設備がありません"
             "（安衛則526条）"

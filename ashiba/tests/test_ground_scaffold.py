@@ -21,6 +21,8 @@ class TestGroundScaffold(unittest.TestCase):
         self.assertIsNone(r.model.config.asagao)
         self.assertEqual(r.model.roof_bridges, [])
         self.assertTrue(any("地足場（1層" in w for w in r.model.plan.warnings))
+        # 実機 2026-10-24: 「階段室が入る区間が無い規模」「昇降設備がありません」と出た（はしごで昇降する）
+        self.assertFalse(any("入る区間が無い規模" in w or "昇降設備がありません" in w for w in r.stair_plan.warnings))
 
     def test_three_levels_keep_stairs(self):
         r = solve_all({**SPEC, "ground_scaffold": {"levels": 3}})
