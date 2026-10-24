@@ -449,6 +449,10 @@
 			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="haneD">
+			<Description><![CDATA["跳ね出しブラケットの方杖の下がり（0＝なし。張り出した上の階の上段は床スラブの縁から持ち出す受けの上に立つ）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="frGapE">
 			<Description><![CDATA["枠組の終点の出隅の建枠どうしの隙間（単管で繋ぐ。0＝なし）"]]></Description>
 			<Value>0</Value>

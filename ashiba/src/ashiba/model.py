@@ -179,6 +179,8 @@ class ScaffoldModel:
     face_elevations: dict = field(default_factory=dict)
     # 足場の立つ高さ（下の屋根の上に建てるとき。GL＝0 からの mm。図面・部品はこの高さに置く）
     base_height_mm: float = 0.0
+    # 跳ね出しブラケット（床スラブの縁から外へ持ち出す受け）の上に立つ足場（張り出した上の階の上段。setback_tiers）
+    hane_bracket: bool = False
     # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
     edge_subset: Optional[set] = None
     # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる

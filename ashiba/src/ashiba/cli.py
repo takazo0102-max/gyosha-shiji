@@ -961,6 +961,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
     model.faces_only = faces
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
+    # 張り出した上の階の上段は跳ね出しブラケットの上に立つ（setback_tiers。足場ラインの haneD）
+    model.hane_bracket = bool(spec.get("_hane"))
     # セットバックの上段の端（本体の足場に繋ぐ。setback_tiers）
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
@@ -1087,6 +1089,9 @@ def _obstacles_from_spec(spec: dict, plan, face_eaves: dict[int, float]):
     obs, _sb, notes = from_spec(spec, names)
     if spec.get("slabs") and spec.get("height_from_slabs", True):
         limit = {ei: base + v + 2000.0 for ei, v in face_eaves.items()}
+        # 張り出した上の階（上段で跳ね出しブラケットに載せる）は、本体の足場の庇としてかわさない
+        for ei, cap in (spec.get("_overhang_caps") or {}).items():
+            limit[ei] = min(limit.get(ei, cap), cap - 1.0)
         slabs = [s for s in spec["slabs"] if float(s["top_mm"]) > base + 300.0]
         found = detect_eaves(plan.outline.edges, slabs, top_limit=limit or None)
         manual = {o.edge_index for o in obs}
@@ -1160,6 +1165,16 @@ def _face_eaves_from_spec(spec: dict, plan) -> dict[int, float]:
         for ei, top in tops.items():
             if top - base > 0:
                 out[ei] = top - base
+        # 上の階が外へ張り出す（拡張）: 本体の足場は跳ね出しブラケットの下で止める（setback_tiers.overhang_caps）
+        from .setback_tiers import HANE_GUARD_MM, overhang_caps
+
+        caps = overhang_caps(spec)
+        if caps:
+            spec["_overhang_caps"] = caps
+            for ei, cap in caps.items():
+                lim = cap - HANE_GUARD_MM - base
+                if lim > 0:
+                    out[ei] = min(out.get(ei, lim), lim)
     if spec.get("setbacks") and spec.get("avoid_obstacles", True):
         from .obstacles import from_spec as _sb_spec
 

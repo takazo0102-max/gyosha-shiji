@@ -654,6 +654,27 @@ for ih = 1 to nHo
 next ih
 line_type 1
 
+! 跳ね出しブラケット（張り出した上の階の上段。3D と同じ支柱の位置ごと、躯体の面から外側の建地列の外まで。破線）
+if haneD > 0.001 then
+	pen penEquip
+	line_type 3
+	xh7 = 0
+	for ih7 = 1 to nSpan + 1
+		if xh7 >= gxA - 0.001 and xh7 < gxB - 0.001 then line2 xh7, standoff, xh7, -rowW - 0.10
+		if ih7 <= nSpan then xh7 = xh7 + spans[ih7]
+	next ih7
+	line_type 1
+	set style "annoC"
+	if showDim and sA = 1 then
+		tdx = (pxA + pxB) / 2
+		tdy = standoff / 2 + 0.25
+		tdt = "跳ね出しブラケットの上に建てる（床スラブの縁から）"
+		gosub 985
+	endif
+	set style "anno"
+	pen penLine
+endif
+
 ! 枠組の終点の出隅: 建枠どうしの隙間を繋ぐ単管（内外の建地列。3D と同じ。利用者の指定 2026-10-24）
 if frGapE > 0.001 and serType = "W" and pxB > lineLen - 0.001 then
 	pen penLine

@@ -733,6 +733,7 @@ def _take_off_one(
     _count_horizontal_net(model, add, notes)
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
+    _count_hane_brackets(model, notes)
     _count_wedge_corner_steps(model, add, notes)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
@@ -1484,6 +1485,21 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if missing:
         notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
                      + "。別途手配してください", Notes.ORDER)
+
+
+def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
+    """跳ね出しブラケット（張り出した上の階の上段の足場を、床スラブの縁から持ち出して受ける。利用者の指定 2026-10-24:
+    上階で拡張する仕組み）。系列のマスタに無い（現場ごとの製作・リース品）ので、内側建地列の支柱の位置の数を手配に出す."""
+    if not getattr(model, "hane_bracket", False):
+        return
+    n = sum(len(e.spans) + 1 for e in model.plan.edges
+            if model.edge_subset is None or e.edge_index in model.edge_subset)
+    n -= sum(1 for e in model.plan.edges if model.corner_kind_end(e.edge_index))     # 隅の支柱は隣の面と1本
+    notes.action(f"跳ね出しブラケット {n}箇所（張り出した上の階の上段の支柱を床スラブの縁から受ける。受け金物・アンカー"
+                 f"・方杖の下がり {HANE_NOTE_DEPTH}mm）はマスタに無いので別途手配・構造の確認をしてください", Notes.ORDER)
+
+
+HANE_NOTE_DEPTH = 600
 
 
 def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
@@ -2494,3 +2510,4 @@ def _count_frame_parts(
     _count_horizontal_net(model, add, notes)
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
+    _count_hane_brackets(model, notes)

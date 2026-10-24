@@ -474,6 +474,8 @@ def line_params(
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
         # 枠組の終点の出隅の建枠どうしの隙間（m）。内外の建地列を各層で単管で繋ぐ（利用者の指定 2026-10-24）
         "frGapE": model.frame_gap_end_mm(ep.edge_index) / 1000.0,
+        # 張り出した上の階の上段: 跳ね出しブラケット（床スラブの縁から持ち出す受け）の方杖の下がり（m。利用者の指定 2026-10-24）
+        "haneD": HANE_DEPTH_M if getattr(model, "hane_bracket", False) else 0.0,
         "cornerG": 1 if (model.master.is_frame
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）
@@ -530,6 +532,9 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+HANE_DEPTH_M = 0.6           # 跳ね出しブラケットの方杖の下がり（setback_tiers.HANE_DEPTH_MM と同じ）
 
 
 def end_brace(model: ScaffoldModel) -> bool:

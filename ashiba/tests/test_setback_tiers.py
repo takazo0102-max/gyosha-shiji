@@ -49,5 +49,39 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertEqual(len(solve_groups({**SPEC, "setback_tiers": False})), 1)
 
 
+BIG = [[0, -2000], [24000, -2000], [24000, 10000], [0, 10000]]    # 2階から上が南へ 2000 張り出す
+SL_OVER = ([{"polygon_mm": LOW, "top_mm": 0}]
+           + [{"polygon_mm": BIG, "top_mm": t} for t in (3000, 6000, 9000, 12000)])
+
+
+class TestOverhangTier(unittest.TestCase):
+    """上の階が外へ張り出す（拡張。利用者の指定 2026-10-24: 上階で拡張する仕組みと拡小する仕組みを作って）."""
+
+    SP = {"project_name": "H", "outline_mm": LOW, "slabs": SL_OVER, "module": "inch", "eaves_height_mm": 12000}
+
+    def test_upper_tier_stands_on_brackets(self):
+        g = solve_groups(self.SP)
+        self.assertEqual([lb for lb, _r in g], ["", "上段（張り出し）"])
+        main, tier = g[0][1].model, g[1][1].model
+        self.assertTrue(tier.hane_bracket)
+        self.assertEqual(tier.base_height_mm, 3000.0)
+        self.assertEqual(len(tier.plan.edges), 4)                                      # 全周
+        self.assertAlmostEqual(line_params(tier, tier.plan.edges[0])["haneD"], 0.6)
+        self.assertEqual(line_params(main, main.plan.edges[0])["haneD"], 0.0)
+        # 本体の足場はブラケットの下端（3000−600）より下で止まる。張り出しを庇としてかわさない（離れはそのまま）
+        for e in main.plan.edges:
+            self.assertLessEqual(main.elevation_of(e.edge_index).total_height, 2400)
+        self.assertLess(max(e.standoff for e in main.plan.edges), 600)
+        self.assertTrue(any("跳ね出しブラケット" in w for w in g[1][1].quantity.warnings))
+        self.assertTrue(any("張り出した上の階" in w for w in main.plan.warnings))
+
+    def test_gdl_draws_the_brackets(self):
+        from pathlib import Path
+
+        gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        self.assertIn("if haneD > 0.001 then", (gdl / "3d.gdl").read_text(encoding="utf-8"))
+        self.assertIn("跳ね出しブラケットの上に建てる", (gdl / "2d.gdl").read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()
