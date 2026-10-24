@@ -100,7 +100,7 @@ for iq = 1 to nSpan + 1
 	if iq <= nSpan then xq = xq + spans[iq]
 next iq
 ! 幅木（外側、t=12）
-if railAdv = 0 and hugMode = 0 then
+if railAdv = 0 and hugMode = 0 and toeOn = 1 then
 	line2 pxA, -rowW - rNuno - 0.005, pxB, -rowW - rNuno - 0.005
 	line2 pxA, -rowW - rNuno - 0.017, pxB, -rowW - rNuno - 0.017
 endif
@@ -1078,7 +1078,7 @@ for il = 2 to nLv
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
 			! 幅木は床のある升目だけ（階段が上がってくる升目は床が無いので付けない。3D・数量と同じ）
 			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
-			if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			if railAdv = 0 and toeOn = 1 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			if inSg = 0 and frMid = 0 then line2 xs, z + railTop, xe, z + railTop
 			if inSg >= 1 or frMid = 1 then
 				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ。階段室は外側の中桟（と躯体側）
@@ -1141,7 +1141,7 @@ if cornerS = 1 then
 			line2 -cSW, z + railTop, 0, z + railTop
 			line2 -cSW, z + railMid, 0, z + railMid
 			rect2 -cSW, z, 0, z + 0.05
-			if railAdv = 0 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
+			if railAdv = 0 and toeOn = 1 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
 		endif
 	next il
 endif

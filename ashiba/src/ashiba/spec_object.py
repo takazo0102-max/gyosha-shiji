@@ -46,6 +46,9 @@ FIELDS: tuple[Field, ...] = (
     Field("scaffW", "int", ("scaffold_width_mm",), 0, zero_is_unset=True),
     Field("railType", "str", ("guard_rail_type",), "布材"),
     Field("innerRail", "bool", ("inner_guard_rail",), True),
+    # 幅木・ネットブラケットの付け外し（利用者の指定 2026-10-24）
+    Field("toeBoard", "bool", ("toe_board",), True),
+    Field("netBrackets", "bool", ("net_brackets",), True),
     Field("nextGen", "bool", ("next_gen",), False),
     Field("asagaoStages", "int", ("asagao", "stages"), 0, zero_is_unset=True),
     # 朝顔を付ける面（空＝全部の面。パレットの「朝顔の面」が書く。利用者の指定 2026-10-24）
@@ -69,6 +72,7 @@ FIELDS: tuple[Field, ...] = (
     Field("memberEdit3", "edits", ("member_edits",), "", zero_is_unset=True),
     Field("memberEdit4", "edits", ("member_edits",), "", zero_is_unset=True),
 )
+ALL_LEVEL_WORDS = ("全部", "全層", "すべて", "全て")
 EDIT_FIELDS = tuple(f.gdl for f in FIELDS if f.kind == "edits")
 EDIT_FIELD_MAX = 250
 
@@ -122,9 +126,12 @@ def spec_from_params(params: dict) -> dict:
         elif f.kind == "bool":
             v = bool(v) if not isinstance(v, str) else v.strip().lower() in ("1", "true", "yes", "on")
         elif f.kind == "intlist":
-            v = parse_int_list(v)
-            if f.zero_is_unset and not v:
-                continue
+            if str(v or "").strip() in ALL_LEVEL_WORDS:
+                v = "全部"                                  # 全部の層（水平ネット）
+            else:
+                v = parse_int_list(v)
+                if f.zero_is_unset and not v:
+                    continue
         elif f.kind == "edits":
             from .member_edits import parse_edit_text
 
@@ -169,7 +176,7 @@ def params_from_spec(spec: dict) -> dict:
         elif f.kind == "bool":
             out[f.gdl] = bool(v)
         elif f.kind == "intlist":
-            out[f.gdl] = ",".join(str(i) for i in parse_int_list(v))
+            out[f.gdl] = "全部" if str(v).strip() in ALL_LEVEL_WORDS else ",".join(str(i) for i in parse_int_list(v))
         elif f.gdl == "seriesId":
             from .master import SERIES_LABELS, series_from_label
 

@@ -1317,7 +1317,7 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     m = model.master
     lv = "・".join(str(v) for v in model.config.horizontal_net_levels)
     bk = next(iter(m.by_category("ネットブラケット")), None)
-    if bk is not None:
+    if bk is not None and n_bk:
         add(bk, n_bk, f"ネットブラケット（第{lv}層・内側建地ごと）")
     net = next(iter(m.by_category("水平ネット")), None)
     if net is not None:
@@ -1326,10 +1326,14 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     missing = []
     if net is None:
         missing.append(f"水平ネット {area:.1f}m²")
-    if bk is None:
+    if bk is None and n_bk:
         missing.append(f"ネットブラケット（ネット専用ブラケット {NETBK_MODEL} 相当）{n_bk}個")
-    notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m²、ネットブラケットは内側建地ごと"
-                 f" {n_bk}個で計上")
+    if model.config.net_brackets:
+        notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m²、ネットブラケットは内側建地ごと"
+                     f" {n_bk}個で計上")
+    else:
+        notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m² で計上。ネットブラケットは"
+                     "付けない指定（ネットの取付け金具は別途）")
     clash = netbk_clash_faces(model)
     if clash:
         need = NETBK_PLATE_MM + NETBK_REACH_MIN_MM + NET_GAP_MM

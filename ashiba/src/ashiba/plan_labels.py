@@ -69,7 +69,7 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         i3 = plain[min(3, len(plain) - 1)]
         x, y = _pt(o, u, nrm, (xs[i3] + xs[i3 + 1]) / 2.0, float(south.standoff) / 2.0)
         lv = "・".join(str(v) for v in model.config.horizontal_net_levels)
-        items.append((x, y, f"水平ネット（第{lv}層）・ネットブラケット"))
+        items.append((x, y, f"水平ネット（第{lv}層）" + ("・ネットブラケット" if model.config.net_brackets else "")))
     asg = getattr(model.config, "asagao", None)
     if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0 and model.asagao_on(south.edge_index):
         proj = float(getattr(asg, "projection_mm", 2000.0) or 2000.0)

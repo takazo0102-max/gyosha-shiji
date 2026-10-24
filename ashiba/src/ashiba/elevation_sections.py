@@ -514,7 +514,8 @@ def section_labels(model: ScaffoldModel, spec: SectionSpec, ep, stair_plan, lo: 
     from .attachments import net_heights_mm
     nets = net_heights_mm(model)
     if nets:
-        items.append((at(3, 0.0), nets[0] / 1000.0, "水平ネット・ネットブラケット"))
+        items.append((at(3, 0.0), nets[0] / 1000.0,
+                      "水平ネット・ネットブラケット" if model.config.net_brackets else "水平ネット"))
     outside = bool(getattr(stair_plan, "outside", False))
     for t in towers[:1]:
         start = t.start_mm

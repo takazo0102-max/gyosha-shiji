@@ -390,6 +390,8 @@ def line_params(
         "railAdv": 1 if (model.config.guard_rail_type == GUARD_RAIL_ADVANCE and not model.master.is_frame) else 0,
         # 躯体側の手すり・中桟（布材）。数量の rails_inner と同じ条件（列数はGDL側の nRows で見る）
         "railIn": 1 if (model.config.inner_guard_rail and not model.master.is_frame) else 0,
+        # 幅木（先行手すり・単管抱き足場・付けない指定のときは 0）
+        "toeOn": 1 if model.config.has_toe_board else 0,
         # 3Dの線表示（Boolean は bool で送る。int だと Tapir が全パラメータを落とす）
         "lineMode": bool(model.config.line_mode_3d),
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
@@ -840,7 +842,7 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         deck += max(0, n_levels - open_lv - stair_open)
         if adv:
             advq += n_levels - open_lv
-        else:
+        elif model.config.has_toe_board:
             # 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・数量と同じ）
             toe += max(0, n_levels - open_lv - (0 if model.master.is_tube else stair_open))
         x += sp

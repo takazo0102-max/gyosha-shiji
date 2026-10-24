@@ -132,7 +132,7 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
                 "faceAng": ang, "zH": z / 1000.0, "netL": length / 1000.0, "netW": width / 1000.0,
                 "lineMode": bool(line_mode)}))
             x = 0.0
-            for sp in ep.spans:          # 終点の建地は次の面が受け持つ
+            for sp in (ep.spans if model.config.net_brackets else []):     # 終点の建地は次の面が受け持つ
                 out.append(Placement(NETBK_OBJECT, o[0] + u[0] * x, o[1] + u[1] * x, {
                     "faceAng": ang, "zH": z / 1000.0, "armL": arm / 1000.0,
                     "lineMode": bool(line_mode)}))
@@ -150,13 +150,13 @@ def net_quantities(model: ScaffoldModel) -> tuple[float, int]:
             if width <= 0:
                 continue
             area += float(sum(ep.spans)) / 1000.0 * width / 1000.0
-            n_bk += len(ep.spans)
+            n_bk += len(ep.spans) if model.config.net_brackets else 0
     return area, n_bk
 
 
 def netbk_clash_faces(model: ScaffoldModel) -> list[tuple[int, float]]:
     """ネットを張る面のうち、NL500 が最短でも躯体に当たる面（辺番号, 離れ mm）."""
-    if not model.config.horizontal_net_levels:
+    if not model.config.horizontal_net_levels or not model.config.net_brackets:
         return []
     return [(ep.edge_index, float(ep.standoff)) for ep in model.plan.edges
             if net_heights_mm(model, ep.edge_index) and not netbk_arm_mm(ep.standoff)[1]]

@@ -19,6 +19,8 @@ SERIES_AUTO = "自動（幅に合わせる）"
 WIDTH_DEFAULT = "系列の既定"
 RAILS = {"布材（手すり＋中桟＋幅木）": "布材", "先行手すり": "先行手すり"}
 INNER = {"付ける（手すり＋中桟）": True, "付けない": False}
+ONOFF = {"付ける": True, "付けない": False}
+NET = {"張らない": False, "張る": True}
 ASAGAO_ALL = "全部の面"
 STAIRS = {"自動（幅900以上は足場の中）": "自動", "足場の中": "足場の中", "外付け": "外付け"}
 ASAGAO = ("自動（高さで決める）", "1段", "2段", "3段")
@@ -27,6 +29,7 @@ ELEV = {"作る": "section", "作らない（平面・3Dだけ・速い）": "no
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
 FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail",
+                 "toeBoard", "netLevels", "netBrackets",
                  "stairLayout", "asagaoStages", "asagaoFaces", "sheetType", "eavesH", "hFromSlab", "elevMode")
 
 
@@ -50,6 +53,15 @@ def current_kind(spec: dict) -> str:
     if sid == "tankan":
         return "単管本足場"
     return "本足場"
+
+
+def _net_levels_text(spec: dict) -> str:
+    v = spec.get("horizontal_net_levels")
+    if not v:
+        return "全部"
+    if isinstance(v, str):
+        return v
+    return ",".join(str(i) for i in v)
 
 
 def _asagao_faces_text(spec: dict) -> str:
@@ -94,6 +106,17 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "inner", "label": "内側（躯体側）の手すり", "kind": "choice", "options": list(INNER),
          "value": _key(INNER, bool(spec.get("inner_guard_rail", True)), "付ける（手すり＋中桟）"),
          "help": "躯体と作業床の間が 300 を超えるところの墜落防止。躯体に近く要らなければ付けない"},
+        {"key": "toe", "label": "幅木", "kind": "choice", "options": list(ONOFF),
+         "value": _key(ONOFF, spec.get("toe_board", True) is not False, "付ける"),
+         "help": "作業床の外側の幅木（先行手すりのときは付けない）。付けないときは落下物防止をメッシュシート等で"},
+        {"key": "net", "label": "層間ネット", "kind": "choice", "options": list(NET),
+         "value": "張る" if spec.get("horizontal_net_levels") else "張らない",
+         "help": "躯体と足場の隙間に張る水平ネット"},
+        {"key": "net_levels", "label": "ネットを張る層", "kind": "text", "value": _net_levels_text(spec),
+         "help": "全部・2,5 のように作業層の番号（1＝最下段）"},
+        {"key": "net_bk", "label": "ネットブラケット", "kind": "choice", "options": list(ONOFF),
+         "value": _key(ONOFF, spec.get("net_brackets", True) is not False, "付ける"),
+         "help": "層間ネットを内側建地ごとのネットブラケット（NL500）で受ける。付けないときは取付け金具を別途"},
         {"key": "stairs", "label": "階段の付け方", "kind": "choice", "options": list(STAIRS),
          "value": _key(STAIRS, (spec.get("stairs") or {}).get("layout") or "自動", "自動（幅900以上は足場の中）")},
         {"key": "asagao", "label": "朝顔", "kind": "choice", "options": list(ASAGAO),
@@ -173,6 +196,16 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         out["asagao"] = asg
     else:
         out.pop("asagao", None)
+    if values.get("toe") in ONOFF:
+        out["toe_board"] = ONOFF[values["toe"]]
+    if values.get("net") in NET:
+        if NET[values["net"]]:
+            lv = str(values.get("net_levels") or "").strip() or "全部"
+            out["horizontal_net_levels"] = "全部" if lv in ("全部", "全層", "すべて", "全て") else lv
+        else:
+            out.pop("horizontal_net_levels", None)
+    if values.get("net_bk") in ONOFF:
+        out["net_brackets"] = ONOFF[values["net_bk"]]
     if values.get("inner") in INNER:
         out["inner_guard_rail"] = INNER[values["inner"]]
     if "asagao_faces" in values:

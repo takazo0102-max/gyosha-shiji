@@ -429,6 +429,10 @@
 			<Description><![CDATA["終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Integer Name="toeOn">
+			<Description><![CDATA["幅木を付ける 0/1（利用者の指定 2026-10-24: 幅木のオンオフ）"]]></Description>
+			<Value>1</Value>
+		</Integer>
 		<Integer Name="railIn">
 			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
 			<Value>1</Value>

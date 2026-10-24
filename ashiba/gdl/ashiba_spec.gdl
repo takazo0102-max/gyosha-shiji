@@ -31,6 +31,8 @@
 !   bracketPost   文字列  ブラケット足場の建地（支柱＝くさび等の支柱／単管＝単管とクランプ式ブラケット）                      既定 "支柱"
 !   railType      文字列  手すり 布材／先行手すり                                                                             既定 "布材"
 !   innerRail     ブール  躯体側の手すり（布材）                                                                              既定 1
+!   toeBoard      ブール  幅木を付ける                                                                                        既定 1
+!   netBrackets   ブール  水平ネットをネットブラケットで受ける                                                                既定 1
 !   nextGen       ブール  次世代足場                                                                                          既定 0
 !   asagaoStages  整数    朝顔の段数（0＝自動判定）                                                                           既定 0
 !   asagaoFaces   文字列  朝顔を付ける面（空＝全部の面。例 南面・東面）                                                       既定 ""
@@ -45,7 +47,7 @@
 !   stairLayout   文字列  階段の付け方（足場の中／外付け（上り口・降り口つき）／自動＝幅900以上は足場の中、900未満は外付け）  既定 "自動"
 !   facesOnly     文字列  足場を掛ける面（例 南面,東面。空＝全周）                                                            既定 ""
 !   faceForms     文字列  面ごとの足場の切り替え（例 南面=ブラケット足場（単管）;東面=単管抱き足場。空＝全部同じ）            既定 ""
-!   netLevels     文字列  水平ネットを張る層（例 2,5。空＝張らない）                                                          既定 ""
+!   netLevels     文字列  水平ネットを張る層（例 2,5・全部。空＝張らない）                                                    既定 ""
 !   memberEdit1   文字列  部材編集1（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                            既定 ""
 !   memberEdit2   文字列  部材編集2（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                            既定 ""
 !   memberEdit3   文字列  部材編集3（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                            既定 ""
@@ -143,6 +145,7 @@ ui_outfield "安全・表示", 10, 5, 300, 18
 ui_outfield "手すり", 10, 30, 140, 18
 ui_infield "railType", 160, 28, 160, 20
 ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "toeBoard", 320, 56, 150, 20
 ui_infield "nextGen", 10, 80, 300, 20
 ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
 ui_infield "asagaoStages", 160, 106, 80, 20
@@ -156,8 +159,9 @@ ui_outfield "立面図", 10, 164, 140, 18
 ui_infield "elevMode", 160, 162, 160, 20
 ui_infield "lineMode3d", 10, 190, 300, 20
 ui_infield "autoInBrk", 10, 214, 400, 20
-ui_outfield "水平ネットの層（例 2,5）", 10, 242, 140, 18
+ui_outfield "水平ネットの層（例 2,5・全部）", 10, 242, 140, 18
 ui_infield "netLevels", 160, 240, 160, 20
+ui_infield "netBrackets", 330, 240, 150, 20
 ui_infield "hFromSlab", 10, 266, 400, 20
 ui_outfield "階段の付け方", 10, 292, 140, 18
 ui_infield "stairLayout", 160, 290, 160, 20

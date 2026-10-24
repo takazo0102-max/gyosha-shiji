@@ -45,6 +45,7 @@ ui_outfield "安全・表示", 10, 5, 300, 18
 ui_outfield "手すり", 10, 30, 140, 18
 ui_infield "railType", 160, 28, 160, 20
 ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "toeBoard", 320, 56, 150, 20
 ui_infield "nextGen", 10, 80, 300, 20
 ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
 ui_infield "asagaoStages", 160, 106, 80, 20
@@ -58,8 +59,9 @@ ui_outfield "立面図", 10, 164, 140, 18
 ui_infield "elevMode", 160, 162, 160, 20
 ui_infield "lineMode3d", 10, 190, 300, 20
 ui_infield "autoInBrk", 10, 214, 400, 20
-ui_outfield "水平ネットの層（例 2,5）", 10, 242, 140, 18
+ui_outfield "水平ネットの層（例 2,5・全部）", 10, 242, 140, 18
 ui_infield "netLevels", 160, 240, 160, 20
+ui_infield "netBrackets", 330, 240, 150, 20
 ui_infield "hFromSlab", 10, 266, 400, 20
 ui_outfield "階段の付け方", 10, 292, 140, 18
 ui_infield "stairLayout", 160, 290, 160, 20

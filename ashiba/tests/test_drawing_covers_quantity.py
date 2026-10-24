@@ -178,9 +178,12 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
         sub = body3[body3.index("850:"):body3.index("830:")]
         self.assertEqual(sub.count("cylind advL"), 2)                     # X 形の斜材 φ21.7
         self.assertIn("cylind nL - 2 * (r_sic + fitL), 0.0272 / 2", sub)   # 手すり φ27.2（カタログ p006）
-        self.assertLess(body3.index("if railAdv = 0 then"), body3.index("block spans[ip] + 0.07, 0.008, 0.150"))
+        # 幅木は先行手すりでなく、付ける指定（toeOn。利用者の指定 2026-10-24: 幅木のおんオフ）のときだけ
+        self.assertLess(body3.index("if railAdv = 0 and toeOn = 1 and inSg = 0 and eoT = 0 then"),
+                        body3.index("block spans[ip] + 0.07, 0.008, 0.150"))
         body2 = self._script("2d.gdl")
-        self.assertIn("if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157", body2)
+        self.assertIn("if railAdv = 0 and toeOn = 1 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, "
+                      "z + 0.05 + 0.157", body2)
         self.assertIn("line2 xe, z + railTop, xs, z + 0.02", body2)
 
     def test_stair_bays_toe_board_only_where_the_deck_is(self):

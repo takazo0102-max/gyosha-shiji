@@ -112,6 +112,7 @@
 !   cornerE         整数    終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）                              既定 0
 !   cornerSW        長さ    始点の出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔。0＝rowW）                             既定 0
 !   cornerEW        長さ    終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）                             既定 0
+!   toeOn           整数    幅木を付ける 0/1（利用者の指定 2026-10-24: 幅木のオンオフ）                                               既定 1
 !   railIn          整数    躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1                                                        既定 1
 !   brktList        文字列  ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                      既定 ""
 !   brktList2       文字列  ブラケット区間（続き2）                                                                                   既定 ""
@@ -1164,7 +1165,7 @@ for ip = 1 to nSpan
 	qNuno = qNuno + nRows * (1 - qOpenNega) * segBase + (nIn - qOpenLv) * (qOuter + qInner)
 	qDeck = qDeck + max(0, nIn - qOpenLv - qStairOpen)
 	! 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・gdl_params.face_drawn_counts と同じ）
-	if railAdv = 0 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
+	if railAdv = 0 and toeOn = 1 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
 	if railAdv = 1 then qAdv = qAdv + nIn - qOpenLv
 	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
 	if nEd > 0 then
@@ -1198,7 +1199,7 @@ for ip = 1 to nSpan
 			if eoD1 = 1 and eoD2 = 1 then eoD = 1
 			if qBlk = 0 then
 				if eoD = 1 and qInStair = 0 then qDeck = qDeck - 1
-				if eoT = 1 and railAdv = 0 then qToe = qToe - 1
+				if eoT = 1 and railAdv = 0 and toeOn = 1 then qToe = qToe - 1
 				if eoR = 1 and railAdv = 1 then qAdv = qAdv - 1
 				if eoR = 1 and railAdv = 0 and serType <> "W" then qNuno = qNuno - 2
 				if eoI = 1 then qNuno = qNuno - qInner
@@ -1340,7 +1341,7 @@ for iq = 1 to nSpan + 1
 	if iq <= nSpan then xq = xq + spans[iq]
 next iq
 ! 幅木（外側、t=12）
-if railAdv = 0 and hugMode = 0 then
+if railAdv = 0 and hugMode = 0 and toeOn = 1 then
 	line2 pxA, -rowW - rNuno - 0.005, pxB, -rowW - rNuno - 0.005
 	line2 pxA, -rowW - rNuno - 0.017, pxB, -rowW - rNuno - 0.017
 endif
@@ -2318,7 +2319,7 @@ for il = 2 to nLv
 			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
 			! 幅木は床のある升目だけ（階段が上がってくる升目は床が無いので付けない。3D・数量と同じ）
 			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
-			if railAdv = 0 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			if railAdv = 0 and toeOn = 1 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
 			if inSg = 0 and frMid = 0 then line2 xs, z + railTop, xe, z + railTop
 			if inSg >= 1 or frMid = 1 then
 				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ。階段室は外側の中桟（と躯体側）
@@ -2381,7 +2382,7 @@ if cornerS = 1 then
 			line2 -cSW, z + railTop, 0, z + railTop
 			line2 -cSW, z + railMid, 0, z + railMid
 			rect2 -cSW, z, 0, z + 0.05
-			if railAdv = 0 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
+			if railAdv = 0 and toeOn = 1 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
 		endif
 	next il
 endif
@@ -3227,7 +3228,7 @@ if cornerS = 1 then
 					block cbL, deckW1 - 0.01, 0.028
 					del 1
 				next cbw
-				if railAdv = 0 then
+				if railAdv = 0 and toeOn = 1 then
 					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.032, z + 0.0243 + 0.056
 					block cbL, 0.028, 0.24
 					del 1
@@ -3244,7 +3245,7 @@ if cornerS = 1 then
 				add -cSW + 0.05, -rowW + 0.05, z + r_nuno
 				block cSW - 0.05, rowW - 0.05, 0.045
 				del 1
-				if railAdv = 0 then
+				if railAdv = 0 and toeOn = 1 then
 					if mToe > 0 then material mToe
 					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.004, z + r_nuno + 0.045
 					block cSW - r_sic, 0.008, 0.150
@@ -3279,7 +3280,7 @@ for ie9 = 0 to 1
 			nL = rowW
 			gosub 830
 			del 2
-			if showDeck and hugMode = 0 then
+			if showDeck and hugMode = 0 and toeOn = 1 then
 				if mToe > 0 then material mToe
 				add xe9 - 0.01, -rowW, z + r_nuno + 0.045
 				block 0.008, rowW, 0.150
@@ -3798,7 +3799,7 @@ if showDeck then
 						next it6
 					endif
 					if stCut = 1 and serType <> "T" then inSg = 1
-					if railAdv = 0 and inSg = 0 and eoT = 0 then
+					if railAdv = 0 and toeOn = 1 and inSg = 0 and eoT = 0 then
 						if mToe > 0 then material mToe
 						! 幅木: 外側の支柱の内側で布板の上に立てる平らな板（高さ150、長さ＝スパン＋70）。L形（底140）にしない
 						! （利用者の指定 2026-10-24: はばきL型にしないで）。以前は外側の支柱の外に板を立てていた
@@ -4543,11 +4544,13 @@ if stOut = 1 then
 					nL = sp7
 					gosub 830
 					del 1
-					if mToe > 0 then material mToe
-					add xp, yo - 0.02, z + 0.045
-					block sp7, 0.02, 0.157
-					del 1
-					if matScaf > 0 then material matScaf
+					if toeOn = 1 then
+						if mToe > 0 then material mToe
+						add xp, yo - 0.02, z + 0.045
+						block sp7, 0.02, 0.157
+						del 1
+						if matScaf > 0 then material matScaf
+					endif
 				endif
 				! 床: 両端（上り口・降り口）は各層。中の階段のスパンは、下から階段が上がってくるスパン
 				! （奇数層は中の1つ目、偶数層は中の2つ目）以外
@@ -4622,11 +4625,13 @@ for ik = 1 to nBk
 		! 手すり・中桟・幅木が要る（数量にも計上している）
 		bkLen = bkE[ik] - bkS[ik]
 		! 外縁の幅木（平らな板。L形にしない）と手すり・中桟（φ42.7）
-		if mToe > 0 then material mToe
-		add bkS[ik], -rowW - bkW[ik] + 0.004, bkH[ik] + r_nuno + 0.045
-		block bkLen, 0.008, 0.150
-		del 1
-		if matScaf > 0 then material matScaf
+		if toeOn = 1 then
+			if mToe > 0 then material mToe
+			add bkS[ik], -rowW - bkW[ik] + 0.004, bkH[ik] + r_nuno + 0.045
+			block bkLen, 0.008, 0.150
+			del 1
+			if matScaf > 0 then material matScaf
+		endif
 		for ir3 = 1 to 2
 			hgt = railH
 			if ir3 = 2 then hgt = midH
@@ -4645,7 +4650,7 @@ for ik = 1 to nBk
 				cylind bkW[ik], r_nuno
 				del 2
 			next ir2
-			if railAdv = 0 then
+			if railAdv = 0 and toeOn = 1 then
 				add xk - 0.01, -rowW - bkW[ik], bkH[ik] + 0.045
 				block 0.02, bkW[ik], 0.157
 				del 1

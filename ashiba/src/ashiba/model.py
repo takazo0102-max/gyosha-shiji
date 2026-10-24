@@ -117,6 +117,8 @@ class ScaffoldConfig:
     line_mode_3d: bool = False
     # 水平ネット（躯体と足場の隙間）を張る作業層。ネットブラケットは内側建地ごと（利用者の指定 2026-10-20）
     horizontal_net_levels: list = field(default_factory=list)
+    # 層間ネットをネットブラケット（NL500）で受けるか。False なら建地・布材に直に結ぶ等、ブラケットを置かず数えない
+    net_brackets: bool = True
     # 離れが目標上限を超える面に内ブラケット（躯体側に踏板）を自動で付ける
     auto_inner_bracket: bool = True
     toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）

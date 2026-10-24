@@ -1001,7 +1001,7 @@ for ip = 1 to nSpan
 	qNuno = qNuno + nRows * (1 - qOpenNega) * segBase + (nIn - qOpenLv) * (qOuter + qInner)
 	qDeck = qDeck + max(0, nIn - qOpenLv - qStairOpen)
 	! 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・gdl_params.face_drawn_counts と同じ）
-	if railAdv = 0 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
+	if railAdv = 0 and toeOn = 1 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
 	if railAdv = 1 then qAdv = qAdv + nIn - qOpenLv
 	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
 	if nEd > 0 then
@@ -1035,7 +1035,7 @@ for ip = 1 to nSpan
 			if eoD1 = 1 and eoD2 = 1 then eoD = 1
 			if qBlk = 0 then
 				if eoD = 1 and qInStair = 0 then qDeck = qDeck - 1
-				if eoT = 1 and railAdv = 0 then qToe = qToe - 1
+				if eoT = 1 and railAdv = 0 and toeOn = 1 then qToe = qToe - 1
 				if eoR = 1 and railAdv = 1 then qAdv = qAdv - 1
 				if eoR = 1 and railAdv = 0 and serType <> "W" then qNuno = qNuno - 2
 				if eoI = 1 then qNuno = qNuno - qInner

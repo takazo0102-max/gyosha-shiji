@@ -134,3 +134,47 @@ class TestInnerRailAndAsagaoFaces(unittest.TestCase):
         self.assertEqual(updated_asagao_faces("南面", every, [], ASAGAO_MODES[2]), "")
         r = solve_all({**BASE, "eaves_height_mm": 15000, "height_from_slabs": False, "asagao": {"faces": "なし"}})
         self.assertEqual(r.model.asagao_edges, set())
+
+
+class TestToeBoardAndNets(unittest.TestCase):
+    """幅木のオンオフ・層間ネットとネットブラケットのオンオフ（利用者の指定 2026-10-24）."""
+
+    def test_toe_board_off(self):
+        from ashiba.gdl_params import line_params
+
+        new, _n = apply_form(BASE, {**_vals(BASE), "toe": "付けない"})
+        self.assertIs(new["toe_board"], False)
+        self.assertFalse(object_params(new)["toeBoard"])
+        r = solve_all(new)
+        self.assertFalse(r.model.config.has_toe_board)
+        self.assertEqual(r.quantity.qty_of("幅木"), 0)
+        from ashiba.gdl_params import face_drawn_counts
+
+        ep = r.model.plan.edges[0]
+        self.assertEqual(line_params(r.model, ep, stair_plan=r.stair_plan)["toeOn"], 0)
+        self.assertEqual(face_drawn_counts(r.model, ep, stair_plan=r.stair_plan)["qtyToe"], 0)
+        self.assertTrue(any("幅木は付けない" in w for w in r.model.plan.warnings))
+        self.assertGreater(solve_all(BASE).quantity.qty_of("幅木"), 0)
+
+    def test_nets_on_all_levels_without_brackets(self):
+        from ashiba.attachments import NETBK_OBJECT, NET_OBJECT, net_placements
+
+        v = _vals(BASE)
+        self.assertEqual((v["net"], v["net_bk"]), ("張らない", "付ける"))
+        new, _n = apply_form(BASE, {**v, "net": "張る", "net_levels": "全部", "net_bk": "付けない"})
+        self.assertEqual(new["horizontal_net_levels"], "全部")
+        self.assertEqual(object_params(new)["netLevels"], "全部")
+        r = solve_all(new)
+        self.assertEqual(r.model.config.horizontal_net_levels, list(range(1, r.model.elevation.n_levels + 1)))
+        kinds = {p.part for p in net_placements(r.model)}
+        self.assertIn(NET_OBJECT, kinds)
+        self.assertNotIn(NETBK_OBJECT, kinds)
+        self.assertEqual(r.quantity.qty_of("ネットブラケット"), 0)
+        with_bk = solve_all({**new, "net_brackets": True})
+        self.assertGreater(with_bk.quantity.qty_of("ネットブラケット"), 0)
+
+    def test_net_levels_from_the_object(self):
+        from ashiba.spec_object import spec_from_params
+
+        self.assertEqual(spec_from_params({"netLevels": "全部"})["horizontal_net_levels"], "全部")
+        self.assertEqual(spec_from_params({"netLevels": "2,5"})["horizontal_net_levels"], [2, 5])

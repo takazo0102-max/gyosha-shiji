@@ -155,6 +155,7 @@ TOP_KEYS = {
     "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
+    "toe_board", "net_brackets",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
@@ -861,6 +862,13 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # 先行手すり方式（くさび系）は幅木を付けない（先行手すりは手すり＋X斜材が一体。
     # 落下物防止はメッシュシート・防網等で）。図面・数量・法規チェックを同じ前提にする
     no_toe = rail_type == GUARD_RAIL_ADVANCE and not master.is_frame
+    # 幅木・層間ネットのネットブラケットの付け外し（利用者の指定 2026-10-24: 幅木のおんオフ、そうかんネットと
+    # ネットブラケットのおんオフ）
+    toe_off = spec.get("toe_board", True) is False and not no_toe
+    if toe_off:
+        plan.warnings.append(
+            "幅木は付けない指定です（図面・数量とも）。落下物防止はメッシュシート・防網等で確保してください"
+            "（安衛則563条1項六号）")
     if no_toe:
         plan.warnings.append(
             "先行手すり方式のため幅木は付けていません（図面・数量とも）。落下物防止は"
@@ -909,7 +917,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         bracket_post=post,
         ladders=int(spec.get("ladders", 0) or 0),
         # 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
-        has_toe_board=not no_toe and kind != "抱き",
+        has_toe_board=not no_toe and not toe_off and kind != "抱き",
+        net_brackets=spec.get("net_brackets", True) is not False,
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=deck_ws,
         post_row_spacing_mm=row_mm,
@@ -1446,6 +1455,8 @@ def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
     raw = spec.get("horizontal_net_levels")
     if raw is None:
         return []
+    if isinstance(raw, str) and raw.strip() in ("全部", "全層", "すべて", "全て"):
+        return list(range(1, n_levels + 1))
     return sorted({v for v in parse_int_list(raw) if 1 <= v <= n_levels})
 
 
