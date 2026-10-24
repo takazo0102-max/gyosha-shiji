@@ -49,6 +49,10 @@
 			<Description><![CDATA["建地芯から躯体面まで（0 なら長さと同じ）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Length Name="steelD">
+			<Description><![CDATA["鉄骨から取るとき仕上げ面から鉄骨の梁までの奥行き（0＝仕上げにアンカー）。先はビームクランプ"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="tieName">
 			<Description><![CDATA["品番"]]></Description>
 			<Value><![CDATA[""]]></Value>

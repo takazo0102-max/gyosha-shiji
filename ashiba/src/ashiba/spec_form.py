@@ -21,6 +21,7 @@ WIDTH_DEFAULT = "系列の既定"
 RAILS = {"布材（手すり＋中桟＋幅木）": "布材", "先行手すり": "先行手すり"}
 INNER = {"付ける（手すり＋中桟）": True, "付けない": False}
 ENDS = {"布材（手すり＋中桟）": "布材", "ブレス材（先行手すり）": "ブレス材"}
+TIES = {"仕上げから（外壁にアンカー）": "仕上げ", "鉄骨から（梁にビームクランプ）": "鉄骨"}
 ONOFF = {"付ける": True, "付けない": False}
 NET = {"張らない": False, "張る": True}
 NET_AUTO = "自動（幅木ありは2層毎・なしは全層）"
@@ -30,7 +31,7 @@ SHEETS = ("メッシュシート", "防音シート", "密閉シート", "防音
 ELEV = {"最後に作る（図面を作るボタン）": "section", "配置のたびに作る": "each", "作らない（平面・3Dだけ・速い）": "none"}
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
-FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard",
+FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard", "tieSource",
                  "toeBoard", "netLevels", "netBrackets",
                  "stairLayout", "sheetType", "hoardH", "eavesH", "hFromSlab", "elevMode")
 
@@ -103,6 +104,9 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "end", "label": "妻側（足場の端）", "kind": "choice", "options": list(ENDS),
          "value": _key(ENDS, spec.get("end_guard") or "布材", "布材（手すり＋中桟）"),
          "help": "一部の面だけの足場の端など開いた端の墜落防止。ブレス材はくさび式だけ（単管・枠組は布材）"},
+        {"key": "tie", "label": "壁つなぎ", "kind": "choice", "options": list(TIES),
+         "value": _key(TIES, spec.get("tie_source") or "仕上げ", "仕上げから（外壁にアンカー）"),
+         "help": "鉄骨造は仕上げの奥の梁から取る（梁の高さで、長さは仕上げ面から梁まで 150 を足す）"},
         {"key": "toe", "label": "幅木", "kind": "choice", "options": list(ONOFF),
          "value": _key(ONOFF, spec.get("toe_board", True) is not False, "付ける"),
          "help": "作業床の外側の幅木（先行手すりのときは付けない）。付けないときは落下物防止をメッシュシート等で"},
@@ -202,6 +206,8 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         out["inner_guard_rail"] = INNER[values["inner"]]
     if values.get("end") in ENDS:
         out["end_guard"] = ENDS[values["end"]]
+    if values.get("tie") in TIES:
+        out["tie_source"] = TIES[values["tie"]]
     if values.get("sheet") in SHEETS:
         out["site"] = {**(out.get("site") or {}), "sheet_type": values["sheet"]}
     try:

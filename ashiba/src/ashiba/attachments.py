@@ -124,6 +124,9 @@ def tie_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
                              o[1] + u[1] * t.position_mm - nrm[1] * off, {
             "faceAng": ang, "zH": (z + model.base_height_mm) / 1000.0, "tieL": need / 1000.0,
             "wallD": wall / 1000.0,
+            # 鉄骨から取る: 仕上げの奥の梁まで延ばし、先はビームクランプ（利用者の指定 2026-10-24）
+            "steelD": (float(model.config.steel_depth_mm) / 1000.0
+                       if getattr(model.config, "tie_source", "") == "鉄骨" else 0.0),
             "tieName": tie_name(model, need), "lineMode": bool(line_mode)}))
     return _with_pens(model, out)
 

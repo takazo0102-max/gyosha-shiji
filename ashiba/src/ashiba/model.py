@@ -133,6 +133,11 @@ class ScaffoldConfig:
     n_stairs: int = 1                      # 階段設置箇所数
     wall_tie_span_step: int = 3            # 壁つなぎ水平間隔（スパン数、実務推奨3以内）
     wall_tie_level_step: int = 2           # 壁つなぎ垂直間隔（作業層数、実務推奨2以内）
+    # 壁つなぎの取り方（利用者の指定 2026-10-24: 鉄骨の足場の壁繋ぎ機能つけて鉄骨からとる時と仕上げから取るときの
+    # 両方が必要）: "仕上げ"＝仕上げ面（外壁）にアンカー、"鉄骨"＝仕上げの奥の鉄骨の梁にビームクランプで取る
+    tie_source: str = "仕上げ"
+    steel_depth_mm: float = 0.0            # 仕上げ面から鉄骨（梁の外面）までの奥行き（鉄骨から取るとき）
+    steel_tie_heights: list = field(default_factory=list)   # 梁の高さ（足場の立つ高さから mm）
     # 角から1.8m未満の支柱にも壁つなぎを入れるか（最密でも風荷重を満たせないときだけ最適化が使う。
     # 端のスパンが短いと角の手前の支柱が外れ、端の領域を1本で受ける形になった）
     wall_tie_near_corner: bool = False
@@ -659,6 +664,9 @@ class ScaffoldModel:
         return (v_max, h_max)
 
 
+STEEL_TIE_DROP_MM = 300.0     # attachments.TIE_BELOW_DECK_MM と同じ（壁つなぎの高さは作業床の高さで持つ）
+
+
 def generate_wall_ties(
     plan: PlanResult, elevation: ElevationResult, config: ScaffoldConfig
 ) -> list[WallTie]:
@@ -675,6 +683,12 @@ def generate_wall_ties(
         return ties
     tie_levels = list(reversed(levels))[:: config.wall_tie_level_step]
     tie_levels = sorted(tie_levels)
+    if getattr(config, "tie_source", "仕上げ") == "鉄骨" and getattr(config, "steel_tie_heights", None):
+        # 鉄骨から取る: 梁の高さで取る（ビームクランプ）。高さは「作業床の高さ」の意味で持つので、取付の下げ分を足す
+        lo, hi = float(elevation.first_ledger_height), float(levels[-1])
+        beams = sorted(float(h) for h in config.steel_tie_heights if lo <= float(h) <= hi + STEEL_TIE_DROP_MM)
+        if beams:
+            tie_levels = [int(round(h + STEEL_TIE_DROP_MM)) for h in beams]
 
     for e in plan.edges:
         # 支柱位置（始点からの累積距離）。両端コーナーから1スパンを除外

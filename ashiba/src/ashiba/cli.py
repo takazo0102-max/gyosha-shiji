@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -931,6 +931,10 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         guard_rail_type=rail_type,
         inner_guard_rail=bool(spec.get("inner_guard_rail", True)),
         end_guard=parse_end_guard(spec.get("end_guard")),
+        tie_source=parse_tie_source(spec.get("tie_source")),
+        steel_depth_mm=(float(spec.get("steel_depth_mm", STEEL_DEPTH_DEFAULT_MM) or 0.0)
+                        if parse_tie_source(spec.get("tie_source")) == "鉄骨" else 0.0),
+        steel_tie_heights=steel_beam_heights(spec),
         line_mode_3d=bool(spec.get("line_mode_3d", False)),
         horizontal_net_levels=net_levels_from_spec(spec, elevation.n_levels),
         auto_inner_bracket=bool(spec.get("auto_inner_bracket", True)),
@@ -1252,6 +1256,29 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
         tie_every_spans=a.get("tie_every_spans", 2),
         faces=parse_asagao_faces(a.get("faces")),
     )
+
+
+STEEL_DEPTH_DEFAULT_MM = 150.0   # 仕上げ面（ALC・ECP・胴縁）から鉄骨の梁の外面まで（既定）
+STEEL_BEAM_BELOW_FLOOR_MM = 150.0  # 梁の上フランジ（壁つなぎを取る所）は床の天端からこれだけ下
+
+
+def parse_tie_source(value) -> str:
+    """壁つなぎの取り方: "仕上げ"（既定）か "鉄骨"（「鉄骨から」「梁」も）."""
+    v = str(value or "").strip()
+    if v in ("鉄骨", "鉄骨から", "梁", "鉄骨梁", "steel"):
+        return "鉄骨"
+    if v in ("", "仕上げ", "仕上げから", "外壁", "躯体", "finish"):
+        return "仕上げ"
+    raise InputError(f"tie_source: 仕上げ か 鉄骨 です（{value!r}）")
+
+
+def steel_beam_heights(spec: dict) -> list[float]:
+    """鉄骨の梁の高さ（足場の立つ高さから mm）: steel_beam_heights_mm（GL から）か、階（stories）の床の高さの少し下."""
+    base = float(spec.get("base_height_mm", 0) or 0)
+    if spec.get("steel_beam_heights_mm"):
+        return [float(h) - base for h in spec["steel_beam_heights_mm"]]
+    return [float(st.get("level_mm", 0.0)) - STEEL_BEAM_BELOW_FLOOR_MM - base for st in (spec.get("stories") or [])
+            if float(st.get("level_mm", 0.0)) - base > 1000.0]
 
 
 def parse_end_guard(value) -> str:

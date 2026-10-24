@@ -111,6 +111,10 @@
 			<Description><![CDATA["妻側（足場の端）の墜落防止 布材／ブレス材"]]></Description>
 			<Value><![CDATA["布材"]]></Value>
 		</String>
+		<String Name="tieSource">
+			<Description><![CDATA["壁つなぎの取り方 仕上げ（外壁にアンカー）／鉄骨（梁にビームクランプ）"]]></Description>
+			<Value><![CDATA["仕上げ"]]></Value>
+		</String>
 		<Boolean Name="toeBoard">
 			<Description><![CDATA["幅木を付ける"]]></Description>
 			<Value>1</Value>

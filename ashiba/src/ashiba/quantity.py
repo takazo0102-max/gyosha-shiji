@@ -1865,7 +1865,9 @@ def wall_tie_required_length_mm(
     posts = model.master.by_category(model.master.vertical_member_name if not model.master.is_frame else "建枠")
     dia = next((p.diameter for p in posts if p.diameter > 0), 42.7)
     extra = bridged_extra_standoff_mm(model, edge_index, position_mm) if position_mm is not None else 0.0
-    return standoff + model.tie_post_offset_mm + extra + dia / 2.0
+    # 鉄骨から取るときは仕上げの奥の梁まで（利用者の指定 2026-10-24）
+    steel = float(getattr(model.config, "steel_depth_mm", 0.0) or 0.0) if getattr(model.config, "tie_source", "") == "鉄骨" else 0.0
+    return standoff + model.tie_post_offset_mm + extra + dia / 2.0 + steel
 
 
 def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, openings=None) -> None:
@@ -1885,6 +1887,13 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
     if not has_attachment_ties(model):
         merge_attachment_ties(model, platforms, openings)
         relocate_unreachable_ties(model, label="取付部の壁つなぎ")
+    if notes is not None and getattr(model.config, "tie_source", "") == "鉄骨":
+        # 鉄骨から取る（利用者の指定 2026-10-24）: 仕上げの奥の梁の上フランジにビームクランプ。長さは梁まで
+        n = len(model.wall_ties)
+        hs = sorted({int(t.height_mm) for t in model.wall_ties})
+        notes.action(f"壁つなぎは鉄骨の梁からビームクランプで取ります（仕上げ面から梁まで {model.config.steel_depth_mm:.0f}mm を"
+                     f"足した長さで品を選定、取付の高さは梁の高さ {len(hs)}段）。ビームクランプ {n}個を手配し、仕上げ（外壁）に"
+                     "壁つなぎを通す穴・目地を外装と打ち合わせてください", Notes.ORDER)
     cands = [p for p in model.master.by_category("壁つなぎ") if p.adjustable_range()]
     # 1品だけでも伸縮範囲が書いてあれば、面の必要長さが範囲外なら手配項目に出す
     if not cands or kt is None:
