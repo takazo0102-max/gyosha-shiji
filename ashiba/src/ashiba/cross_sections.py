@@ -30,7 +30,7 @@ CROSS_SCALES = (50, 100, 200)   # 断面は 1/50 から（離れ・幅・手す�
 PARALLEL_CLEAR_MM = 1500.0   # 切断線に平行な面の足場（離れ＋建地列）から切断線を離す
 CLEAR_MM = 3500.0          # 外側建地列から切断線の端まで（立面図と同じ余裕）
 FAR_EXTRA_MM = 1500.0      # 反対側の面の離れ＋幅を越える分
-SECTION_LETTERS = ("A", "B", "C", "D")
+SECTION_LETTERS = ("A", "B", "C", "D", "E", "F", "G", "H")
 DIM_BELOW_M = -0.8         # 離れ・幅の寸法線（GL の下）
 # 面ごとの断面: 躯体面から建物の内側へ切る長さ。足場ラインは断面・立面で躯体面の 1m 奥に向こう側を隠す幕を
 # 立てる（3d.gdl）ので、その手前で止める。2m 切っていたときは幕の切り口が縦の線になって断面図に出た
@@ -130,10 +130,23 @@ def choose_cuts(model: ScaffoldModel, stair_plan=None, openings=None, platforms=
 
 def cross_section_specs(model: ScaffoldModel, prefix: str = "足場", stair_plan=None, openings=None,
                         platforms=None) -> list[SectionSpec]:
-    """切断線（外側から建物を横切って反対側の足場の外まで）。奥行きは立面図と同じく無限扱い."""
+    """切断線（外側から建物を横切って反対側の足場の外まで）。奥行きは立面図と同じく無限扱い.
+
+    平面に引いた線で切断線を決めていれば（model.cross_cuts_mm。利用者の指定 2026-10-24: 断面は線で好きなところを
+    作るようにしたい）、その線を引いた向きのまま A-A・B-B・C-C… にする。
+    """
     verts = [(float(x), float(y)) for x, y in model.plan.outline.vertices]
     row = float(model.post_row_spacing_mm)
     out = []
+    cuts = list(getattr(model, "cross_cuts_mm", None) or [])
+    if cuts:
+        for letter, (a, b) in zip(SECTION_LETTERS, cuts):
+            length = math.hypot(b[0] - a[0], b[1] - a[1])
+            if length < 100.0:
+                continue
+            out.append(SectionSpec(f"{letter}-{letter}", cross_section_name(prefix, letter), tuple(a), tuple(b),
+                                   1000.0, length, -1))
+        return out
     for c in choose_cuts(model, stair_plan, openings, platforms):
         (px, py), (nx, ny) = c.point_mm, c.normal
         far = max(((px - vx) * nx + (py - vy) * ny) for vx, vy in verts) if verts else 0.0

@@ -40,7 +40,7 @@
   "auto_inner_bracket": true,      // 離れが目標上限（350）を超える面に内ブラケット＋踏板を自動で付ける
   "pdf": true,                     // 足場のレイアウト（サブセット「仮設足場」）を ashiba_out/PDF に発行（断面図方式のとき）
   "pdf_publisher_set": "2 - レイアウト",  // 発行に使う Archicad の発行セット（レイアウトブックを映したもの）
-  "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ／"object"=平面の下に2Dで並べる／"none"
+  "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ（配置では作らずパレットの「図面を作る」で）／"each"=配置のたびに作る／"object"=平面の下に2Dで並べる／"none"
   "cross_section_mode": "section", // 断面図: "section"=断面図ビューポイントで3Dを切る（既定）／"drafted"=2Dの作図の形の部品を 1/50 で
   "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -1013,6 +1013,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
     model.eaves_by_face = dict(face_eaves or {})
+    model.cross_cuts_mm = [(tuple(map(float, a)), tuple(map(float, b))) for a, b in (spec.get("cross_cuts_mm") or [])]
     return model
 
 

@@ -118,9 +118,12 @@ class TestStaleBeforeDrawings(unittest.TestCase):
         """前回の部品は図面・PDF より先に消す（後で消していたので古い版のラベルが PDF に重なった）."""
         src = (ROOT / "scripts" / "run_from_archicad.py").read_text(encoding="utf-8")
         gone = src.index("client.delete_elements(stale)")
-        for later in ("place_plan_annotations(client", "place_section_elevations(", "place_plan_sheet(",
-                      "place_details(", "publish_scaffold_pdf("):
-            self.assertLess(gone, src.rindex(later), later)
+        self.assertLess(gone, src.rindex("place_plan_annotations(client"))
+        # 図面・PDF は make_drawings（配置の最後、またはパレットの「図面を作る」。利用者の指定 2026-10-24）
+        self.assertLess(gone, src.index("    dw = make_drawings("))
+        body = src[src.index("def make_drawings("):src.index("def main(")]
+        for later in ("place_section_elevations(", "place_plan_sheet(", "place_details(", "publish_scaffold_pdf("):
+            self.assertIn(later, body)
 
 
 if __name__ == "__main__":

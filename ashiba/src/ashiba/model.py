@@ -184,6 +184,8 @@ class ScaffoldModel:
     # 面ごとの軒高（屋上の床。足場の立つ高さから mm。スラブから決めたとき）と、屋上への渡り（roof_bridges.RoofBridge）
     eaves_by_face: dict = field(default_factory=dict)
     roof_bridges: list = field(default_factory=list)
+    # 平面に引いた線で決めた断面の切断線 [((x, y), (x, y)) mm]（パレットの「図面を作る」。無ければ A-A・B-B を自動で）
+    cross_cuts_mm: list = field(default_factory=list)
     # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
     edge_subset: Optional[set] = None
     # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる

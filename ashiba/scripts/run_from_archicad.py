@@ -555,6 +555,144 @@ def place_plan_annotations(client, r, out_dir, lines: list[dict], extra=()) -> t
     return n_dim, n_lab
 
 
+def make_drawings(client, spec: dict, r, groups, lines: list, attach: list, line_part: str, detail_part: str,
+                  tapir_v: str, mode: str | None = None, fill_title: bool = True) -> dict:
+    """立面図・断面図・平面図・詳細図のレイアウトと PDF を作る（配置の最後、またはパレットの「図面を作る」）.
+
+    mode を渡さなければ条件の elevation_mode。配置では "section" も作らず最後に回す（defer_drawings）。
+    """
+    x0 = min(v[0] for v in r.model.plan.outline.vertices)
+    y0 = min(v[1] for v in r.model.plan.outline.vertices)
+    elevs = []
+    elevation_mode, mode_notes = choose_elevation_mode(str(mode or spec.get("elevation_mode") or ELEVATION_MODE), tapir_v)
+    for n in mode_notes:
+        print(f"  立面: {n}")
+    sections = []
+    plan_sheet = None
+    if elevation_mode == "section":
+        # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
+        prefix = str(spec.get("project_name") or "足場")
+        bkey = building_key(r.model.plan.outline.vertices)
+        prev = load_record(OUT_DIR)
+        # 同じ建物で工事名を変えたときは、古い名前の断面・レイアウトを先に片付ける
+        prev, gone = remove_stale_prefixes(client, prev, load_record_meta(OUT_DIR), bkey, prefix)
+        if gone:
+            print(f"  立面: 工事名を変えたので、前の名前（{'・'.join(gone)}）の断面とレイアウトを片付けました")
+        sections = place_section_elevations(r.model, client, prefix=prefix, previous=prev, terrain=r.terrain,
+                                            stair_plan=r.stair_plan,
+                                            others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
+                                            on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
+        save_record(OUT_DIR, sections, prev, bkey, prefix)
+        # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は Archicad の断面図ビューポイントで
+        # 3Dを切る（案2）。cross_section_mode=drafted なら2Dの作図の形の部品（ashiba_xsec）を平面の下の行に置いて
+        # 1/50 で切り抜く（案1。利用者の指定 2026-10-23: 元に戻して → 既定を断面図ビューポイントに戻した）
+        from ashiba.cross_sections import cross_layout_name, cross_section_specs, place_cross_sections, split_cross_specs
+
+        cross_mode = str(spec.get("cross_section_mode") or "section")
+        try:
+            if cross_mode == "section":
+                prev2 = load_record(OUT_DIR)
+                cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
+                                             stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
+                                             others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
+                                             on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
+                save_record(OUT_DIR, cross, prev2, bkey, prefix)
+                if cross:
+                    lays = list(dict.fromkeys(pl.layout_name for pl in cross if pl.layout_name)) or [cross_layout_name(prefix)]
+                    print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{'」「'.join(lays)}」）")
+                for pl in cross:
+                    for n in pl.notes:
+                        print(f"  断面図（{pl.face_name}）: {n}")
+            else:
+                # 前に断面図ビューポイントで作った断面（A-A など）とそのレイアウトは片付ける
+                prev2 = load_record(OUT_DIR)
+                full = cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)
+                old_names = [x.name for x in full] + [x.name for x in split_cross_specs(r.model, full)]
+                if any(n in prev2 for n in old_names):
+                    activate_floor_plan(client)
+                    remove_elevations(client, [n for n in old_names if n in prev2], [cross_layout_name(prefix)],
+                                      [prev2[n] for n in old_names if n in prev2])
+                    rec = {k: v for k, v in prev2.items() if k not in old_names}
+                    (OUT_DIR / "elevation_sections.json").write_text(
+                        json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                from ashiba.xsec import XSEC_OBJECT, XSEC_OFFSET_MM, place_xsec
+
+                stories_mm = [float(st.get("level_mm", 0.0)) for st in (spec.get("stories") or [])]
+                xsec_parts, xs = place_xsec(client, r.model, versioned_part_name(XSEC_OBJECT), (x0, y0 + XSEC_OFFSET_MM),
+                                            prefix, r.stair_plan, r.openings, r.platforms, stories_mm,
+                                            floor_index=line_floor(client, lines))
+                attach.extend(xsec_parts)
+                if xs.layouts:
+                    print(f"  断面図: {len(xsec_parts)}面を2Dの断面の形で（レイアウト「{'」「'.join(xs.layouts)}」に 1/{xs.scale}）")
+                for n in xs.notes:
+                    print(f"  断面図: {n}")
+        except TapirError as e:
+            print(f"  断面図: 作れませんでした（{e}）")
+        # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
+        cuts = ([{"label": s_.face_name.split("-")[0], "start": s_.start_mm, "end": s_.end_mm}
+                 for s_ in cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)]
+                if cross_mode == "section" else [])
+        plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
+                                      floor_index=line_floor(client, lines), stair_plan=r.stair_plan,
+                                      other_models=[rg.model for _lb, rg in groups[1:]], cuts=cuts)
+        for n in plan_sheet.notes:
+            print(f"  平面図: {n}")
+        if plan_sheet.drawing_guid:
+            print(f"  平面図: レイアウト「{plan_sheet.layout_name}」に 1/{plan_sheet.scale}")
+        for pl in sections:
+            for n in pl.notes:
+                print(f"  立面（{pl.face_name}）: {n}")
+    if PLACE_ELEVATIONS and elevation_mode == "object":
+        # 面名は指定しなければ方位（南面・東面…）が入る
+        elevs = place_elevations(
+            r.model, line_part, stair_plan=r.stair_plan, openings=r.openings,
+            platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
+            origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
+            floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
+            face_names=elevation_face_titles(r.model.plan.face_names(), spec.get("project_name")),
+        )
+    details = []
+    detail_sheet = None
+    if PLACE_DETAILS:
+        details = place_details(
+            r.model, r.detail_sheets, detail_part,
+            origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
+        )
+        if elevation_mode == "section" and details:
+            # 詳細図もサブセット「仮設足場」のレイアウトへ（部品を 1/20 の文字で描かせ、詰め直して切り抜く）
+            detail_sheet = place_detail_sheet(client, details, [s.title for s in r.detail_sheets],
+                                              prefix=str(spec.get("project_name") or "足場"),
+                                              floor_index=line_floor(client, lines))
+            for n in detail_sheet.notes:
+                print(f"  詳細図: {n}")
+            if detail_sheet.drawing_guids:
+                print(f"  詳細図: レイアウト「{detail_sheet.layout_name}」に {len(detail_sheet.drawing_guids)}枚、1/{detail_sheet.scale}")
+
+    # レイアウトの表題欄: 工事名・敷地住所・施工者・計画作成者をプロジェクト情報へ（空の項目と、前回ツールが
+    # 書いた値のままの項目だけ。利用者が入れた値は変えない）
+    if fill_title and elevation_mode == "section":
+        written, title_notes = fill_title_block(client, spec, OUT_DIR)
+        if written:
+            print("  表題欄: プロジェクト情報に " + "・".join(f"{k}={v}" for k, v in written.items()))
+        for n in title_notes:
+            print(f"  表題欄: {n}")
+
+    # 足場のレイアウト一式を PDF に（サブセット「仮設足場」だけ。失敗しても配置は止めない）
+    pdf = None
+    if elevation_mode == "section" and spec.get("pdf", True):
+        pdf = publish_scaffold_pdf(client, OUT_DIR / "PDF",
+                                   str(spec.get("pdf_publisher_set") or DEFAULT_PUBLISHER_SET),
+                                   prefix=str(spec.get("project_name") or "足場"))
+        for n in pdf.notes:
+            print(f"  PDF: {n}")
+        if pdf.files:
+            print(f"  PDF: {len(pdf.files)}枚を {OUT_DIR / 'PDF'} に発行（{'・'.join(p.stem for p in pdf.files)}）")
+        activate_floor_plan(client)
+
+    return {"elevations": elevs, "sections": sections, "plan_sheet": plan_sheet, "details": details,
+            "detail_sheet": detail_sheet, "pdf": pdf, "elevation_mode": elevation_mode}
+
+
 def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
     """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
 
@@ -744,131 +882,19 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     plan_dim_n, plan_label_n = place_plan_annotations(client, r, OUT_DIR, lines, extra=group_sets)
     x0 = min(v[0] for v in r.model.plan.outline.vertices)
     y0 = min(v[1] for v in r.model.plan.outline.vertices)
-    elevs = []
-    elevation_mode, mode_notes = choose_elevation_mode(str(spec.get("elevation_mode") or ELEVATION_MODE), tapir_v)
-    for n in mode_notes:
-        print(f"  立面: {n}")
-    sections = []
-    plan_sheet = None
-    if elevation_mode == "section":
-        # 立面は断面図ビューポイント（立面ツール相当）で作り、サブセット「仮設足場」のレイアウトに図面として置く
-        prefix = str(spec.get("project_name") or "足場")
-        bkey = building_key(r.model.plan.outline.vertices)
-        prev = load_record(OUT_DIR)
-        # 同じ建物で工事名を変えたときは、古い名前の断面・レイアウトを先に片付ける
-        prev, gone = remove_stale_prefixes(client, prev, load_record_meta(OUT_DIR), bkey, prefix)
-        if gone:
-            print(f"  立面: 工事名を変えたので、前の名前（{'・'.join(gone)}）の断面とレイアウトを片付けました")
-        sections = place_section_elevations(r.model, client, prefix=prefix, previous=prev, terrain=r.terrain,
-                                            stair_plan=r.stair_plan,
-                                            others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
-                                            on_sections=lambda res: save_record(OUT_DIR, res, prev, bkey, prefix))
-        save_record(OUT_DIR, sections, prev, bkey, prefix)
-        # 足場断面図（A-A・B-B の面ごと）も同じサブセットのレイアウトへ。既定は Archicad の断面図ビューポイントで
-        # 3Dを切る（案2）。cross_section_mode=drafted なら2Dの作図の形の部品（ashiba_xsec）を平面の下の行に置いて
-        # 1/50 で切り抜く（案1。利用者の指定 2026-10-23: 元に戻して → 既定を断面図ビューポイントに戻した）
-        from ashiba.cross_sections import cross_layout_name, cross_section_specs, place_cross_sections, split_cross_specs
-
-        cross_mode = str(spec.get("cross_section_mode") or "section")
-        try:
-            if cross_mode == "section":
-                prev2 = load_record(OUT_DIR)
-                cross = place_cross_sections(r.model, client, prefix=prefix, previous=prev2, terrain=r.terrain,
-                                             stair_plan=r.stair_plan, openings=r.openings, platforms=r.platforms,
-                                             others=[(rg.model, rg.stair_plan, rg.terrain) for _lb, rg in groups[1:]],
-                                             on_sections=lambda res: save_record(OUT_DIR, res, prev2, bkey, prefix))
-                save_record(OUT_DIR, cross, prev2, bkey, prefix)
-                if cross:
-                    lays = list(dict.fromkeys(pl.layout_name for pl in cross if pl.layout_name)) or [cross_layout_name(prefix)]
-                    print(f"  断面図: {'・'.join(pl.face_name for pl in cross)}（レイアウト「{'」「'.join(lays)}」）")
-                for pl in cross:
-                    for n in pl.notes:
-                        print(f"  断面図（{pl.face_name}）: {n}")
-            else:
-                # 前に断面図ビューポイントで作った断面（A-A など）とそのレイアウトは片付ける
-                prev2 = load_record(OUT_DIR)
-                full = cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)
-                old_names = [x.name for x in full] + [x.name for x in split_cross_specs(r.model, full)]
-                if any(n in prev2 for n in old_names):
-                    activate_floor_plan(client)
-                    remove_elevations(client, [n for n in old_names if n in prev2], [cross_layout_name(prefix)],
-                                      [prev2[n] for n in old_names if n in prev2])
-                    rec = {k: v for k, v in prev2.items() if k not in old_names}
-                    (OUT_DIR / "elevation_sections.json").write_text(
-                        json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-                from ashiba.xsec import XSEC_OBJECT, XSEC_OFFSET_MM, place_xsec
-
-                stories_mm = [float(st.get("level_mm", 0.0)) for st in (spec.get("stories") or [])]
-                xsec_parts, xs = place_xsec(client, r.model, versioned_part_name(XSEC_OBJECT), (x0, y0 + XSEC_OFFSET_MM),
-                                            prefix, r.stair_plan, r.openings, r.platforms, stories_mm,
-                                            floor_index=line_floor(client, lines))
-                attach.extend(xsec_parts)
-                if xs.layouts:
-                    print(f"  断面図: {len(xsec_parts)}面を2Dの断面の形で（レイアウト「{'」「'.join(xs.layouts)}」に 1/{xs.scale}）")
-                for n in xs.notes:
-                    print(f"  断面図: {n}")
-        except TapirError as e:
-            print(f"  断面図: 作れませんでした（{e}）")
-        # 足場平面図も同じサブセットのレイアウトへ（配置フロアの平面を足場の範囲で切り抜く）
-        cuts = ([{"label": s_.face_name.split("-")[0], "start": s_.start_mm, "end": s_.end_mm}
-                 for s_ in cross_section_specs(r.model, prefix, r.stair_plan, r.openings, r.platforms)]
-                if cross_mode == "section" else [])
-        plan_sheet = place_plan_sheet(r.model, client, prefix=str(spec.get("project_name") or "足場"),
-                                      floor_index=line_floor(client, lines), stair_plan=r.stair_plan,
-                                      other_models=[rg.model for _lb, rg in groups[1:]], cuts=cuts)
-        for n in plan_sheet.notes:
-            print(f"  平面図: {n}")
-        if plan_sheet.drawing_guid:
-            print(f"  平面図: レイアウト「{plan_sheet.layout_name}」に 1/{plan_sheet.scale}")
-        for pl in sections:
-            for n in pl.notes:
-                print(f"  立面（{pl.face_name}）: {n}")
-    if PLACE_ELEVATIONS and elevation_mode == "object":
-        # 面名は指定しなければ方位（南面・東面…）が入る
-        elevs = place_elevations(
-            r.model, line_part, stair_plan=r.stair_plan, openings=r.openings,
-            platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain,
-            origin_mm=(x0, y0 + ELEVATION_OFFSET_MM),
-            floor_levels_mm=FLOOR_LEVELS_MM or None, client=client,
-            face_names=elevation_face_titles(r.model.plan.face_names(), spec.get("project_name")),
-        )
-    details = []
-    detail_sheet = None
-    if PLACE_DETAILS:
-        details = place_details(
-            r.model, r.detail_sheets, detail_part,
-            origin_mm=(x0, y0 + DETAIL_OFFSET_MM), client=client,
-        )
-        if elevation_mode == "section" and details:
-            # 詳細図もサブセット「仮設足場」のレイアウトへ（部品を 1/20 の文字で描かせ、詰め直して切り抜く）
-            detail_sheet = place_detail_sheet(client, details, [s.title for s in r.detail_sheets],
-                                              prefix=str(spec.get("project_name") or "足場"),
-                                              floor_index=line_floor(client, lines))
-            for n in detail_sheet.notes:
-                print(f"  詳細図: {n}")
-            if detail_sheet.drawing_guids:
-                print(f"  詳細図: レイアウト「{detail_sheet.layout_name}」に {len(detail_sheet.drawing_guids)}枚、1/{detail_sheet.scale}")
-
-    # レイアウトの表題欄: 工事名・敷地住所・施工者・計画作成者をプロジェクト情報へ（空の項目と、前回ツールが
-    # 書いた値のままの項目だけ。利用者が入れた値は変えない）
-    if fill_title and elevation_mode == "section":
-        written, title_notes = fill_title_block(client, spec, OUT_DIR)
-        if written:
-            print("  表題欄: プロジェクト情報に " + "・".join(f"{k}={v}" for k, v in written.items()))
-        for n in title_notes:
-            print(f"  表題欄: {n}")
-
-    # 足場のレイアウト一式を PDF に（サブセット「仮設足場」だけ。失敗しても配置は止めない）
-    pdf = None
-    if elevation_mode == "section" and spec.get("pdf", True):
-        pdf = publish_scaffold_pdf(client, OUT_DIR / "PDF",
-                                   str(spec.get("pdf_publisher_set") or DEFAULT_PUBLISHER_SET),
-                                   prefix=str(spec.get("project_name") or "足場"))
-        for n in pdf.notes:
-            print(f"  PDF: {n}")
-        if pdf.files:
-            print(f"  PDF: {len(pdf.files)}枚を {OUT_DIR / 'PDF'} に発行（{'・'.join(p.stem for p in pdf.files)}）")
-        activate_floor_plan(client)
+    # 立面図・断面図は、足場を調整し終えてからパレットの「図面を作る」で作る（利用者の指定 2026-10-24: 立面図断面図は
+    # 最後に調整してから作るようにして）。配置のたびに作るのは elevation_mode "each" のときだけ
+    req = str(spec.get("elevation_mode") or ELEVATION_MODE)
+    if req == "each":
+        req = "section"
+    elif req == "section" and os.environ.get("ASHIBA_DRAWINGS_NOW") != "1":
+        req = "later"
+        print("  図面: 立面図・断面図・平面図のレイアウトは、調整が済んだらパレットの「図面を作る」で作ります"
+              "（断面は平面に線を引いて選んでから押すと、その線で切ります）")
+    dw = make_drawings(client, spec, r, groups, lines, attach, line_part, detail_part, tapir_v, mode=req,
+                       fill_title=fill_title)
+    elevs, sections, plan_sheet = dw["elevations"], dw["sections"], dw["plan_sheet"]
+    details, detail_sheet, pdf, elevation_mode = dw["details"], dw["detail_sheet"], dw["pdf"], dw["elevation_mode"]
 
     v = result["verdict"]
     n_sec = sum(1 for pl in sections if pl.drawing_guid)

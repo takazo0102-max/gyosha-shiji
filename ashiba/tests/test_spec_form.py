@@ -28,7 +28,7 @@ class TestFormFields(unittest.TestCase):
         self.assertEqual(v["stairs"], "自動（幅900以上は足場の中）")
         self.assertNotIn("asagao", v)                                     # 朝顔は窓に出さない（2026-10-24）
         self.assertNotIn("asagao_faces", v)
-        self.assertEqual(v["elev"], "作る")
+        self.assertEqual(v["elev"], "最後に作る（図面を作るボタン）")
 
     def test_kinds_round_trip(self):
         for kind in KINDS:

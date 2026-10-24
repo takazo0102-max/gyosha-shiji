@@ -18,7 +18,7 @@ class TestEntries(unittest.TestCase):
         self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
         self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "朝顔の範囲", "階段の位置", "開口", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "平面表示", "条件", "条件の登録", "条件の呼び出し",
-                                                     "ペン", "帳票", "撤去"])
+                                                     "図面を作る", "ペン", "帳票", "撤去"])
         for a in ACTIONS:
             self.assertTrue((ROOT / "scripts" / a.script).exists(), a.script)
         for e in ENTRIES:
@@ -208,7 +208,7 @@ class TestMenu(unittest.TestCase):
         self.assertEqual(line[:8], ["解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "支柱だけ分解", "分解を戻す",
                                     "3D表示"])
         slab = [a.title for a in menu_items({"slab"})]
-        self.assertEqual(slab[:4], ["配置", "条件", "帳票", "撤去"])
+        self.assertEqual(slab[:5], ["配置", "条件", "図面を作る", "帳票", "撤去"])
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
         # 何も選んでいないときはペン（図面のペン。2026-10-24）も上に出る
         # 何も選んでいない（平面に目印の線を引いて選んだときも同じ）ときは、線で指す操作が上に出る（2026-10-24）

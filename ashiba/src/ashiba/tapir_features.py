@@ -38,7 +38,8 @@ def choose_elevation_mode(requested: str, tapir_version: str) -> tuple[str, list
     """
     # none＝立面・断面を作らない（3D を直している間など。利用者の指定 2026-10-22: 立面断面の生成は不要）。
     # 以前は section・object 以外を section にしていて、none を指定しても断面方式で作っていた
-    mode = requested if requested in ("section", "object", "none") else "section"
+    # later＝配置では作らず、調整が済んでからパレットの「図面を作る」で作る（利用者の指定 2026-10-24）
+    mode = requested if requested in ("section", "object", "none", "later") else "section"
     if mode != "section":
         return mode, []
     v = parse_version(tapir_version)

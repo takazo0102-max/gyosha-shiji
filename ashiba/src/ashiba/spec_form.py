@@ -26,7 +26,8 @@ NET = {"張らない": False, "張る": True}
 NET_AUTO = "自動（幅木ありは2層毎・なしは全層）"
 STAIRS = {"自動（幅900以上は足場の中）": "自動", "足場の中": "足場の中", "外付け": "外付け"}
 SHEETS = ("メッシュシート", "防音シート", "密閉シート", "防音パネル")
-ELEV = {"作る": "section", "作らない（平面・3Dだけ・速い）": "none"}
+# 立面・断面: 既定は配置では作らず、調整が済んでからパレットの「図面を作る」で作る（利用者の指定 2026-10-24）
+ELEV = {"最後に作る（図面を作るボタン）": "section", "配置のたびに作る": "each", "作らない（平面・3Dだけ・速い）": "none"}
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
 FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard",
@@ -126,7 +127,7 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "from_slabs", "label": "高さ", "kind": "check", "value": "1" if spec.get("height_from_slabs", True) else "0",
          "help": "建物のスラブの天端から面ごとに決める"},
         {"key": "elev", "label": "立面・断面", "kind": "choice", "options": list(ELEV),
-         "value": _key(ELEV, spec.get("elevation_mode") or "section", "作る")},
+         "value": _key(ELEV, spec.get("elevation_mode") or "section", "最後に作る（図面を作るボタン）")},
     ]
 
 
