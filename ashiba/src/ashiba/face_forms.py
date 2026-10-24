@@ -108,7 +108,8 @@ def face_segments(ff: dict[str, str], face: str) -> list[tuple[float, Optional[f
             out.append((cur, a, base))
         out.append((max(a, cur), b, form))
         cur = max(cur, b)
-    out.append((cur, None, base))
+    if cur < FACE_END_MM:                    # 区間が面の終点まで（FACE_END_MM）なら、その先の区間は無い
+        out.append((cur, None, base))
     return [seg for seg in out if seg[1] is None or seg[1] - seg[0] > 1.0]
 
 
@@ -150,6 +151,9 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
     区間で残す面は _face_range {面: [始め, 終わり（-1 は面の終点）]} を持つ。all_faces は建てる面の名前（辺の順）。
     """
     ff = parse_face_forms(spec.get("face_forms"))
+    # セットバックの先（上段の線より外の、途中の屋根の上）を低く止める区間（setback_tiers.setback_junctions が入れる）
+    for f, (a, b) in (spec.get("_low_ranges") or {}).items():
+        ff[range_key(f, a, b)] = LOW_FORM
     if not ff:
         return [("", spec)]
     unknown = sorted({split_key(k)[0] for k in ff} - set(all_faces))
@@ -170,6 +174,13 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
         if form == "":
             sub = {kk: v for kk, v in spec.items() if kk not in ("face_forms", "form_standoff")}
             label = "" if k == 0 else f"元の足場（{k + 1}）"
+        elif form == LOW_FORM:
+            # 下段: 本体と同じ条件で、高さだけ途中の屋根まで（利用者の指定 2026-10-25: セットバックより先の足場は不要）
+            sub = {kk: v for kk, v in spec.items()
+                   if kk not in ("face_forms", "form_standoff", "_low_ranges", "_low_spec", "_open_above")}
+            sub.update(spec.get("_low_spec") or {})
+            label = "下段" if k == 0 else f"下段（{k + 1}）"
+            sub["project_name"] = f"{spec.get('project_name') or '足場'} {label}"
         else:
             sub = {kk: v for kk, v in spec.items() if kk not in _GROUP_DROP_KEYS}
             over = FACE_FORM_SPECS[form]
@@ -199,6 +210,9 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
 
 
 RESET = "元に戻す"
+FACE_END_MM = 1.0e8          # 区間の終わりを「面の終点まで」にするときの値（range_key に入れる）
+# 面の組の内部の種類: セットバックの先を途中の屋根の高さで止める「下段」（足場の種類は本体と同じ）
+LOW_FORM = "@下段"
 
 
 def faces_of_lines(plans: list[dict], origins: list[tuple[float, float]], tol_mm: float = 5.0) -> tuple[Optional[dict], list[str]]:

@@ -356,6 +356,8 @@ def _take_off_one(
     # 隙間（コーナーステップ）のある出隅は、升目の前の面の側にも1本（model.gap_corner_post_start。3D と同じ）
     n_gap_posts = model.gap_corner_posts()
     n_posts = posts_per_line * rows + n_corners + n_gap_posts
+    # セットバックの上段の端は本体の支柱に乗る（支柱・ジャッキを描かない・数えない。利用者の指定 2026-10-25）
+    n_posts -= rows * len(getattr(model, "skip_end_posts", None) or ())
     n_levels = elev.n_levels
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
@@ -734,6 +736,7 @@ def _take_off_one(
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
+    _count_sill_boards(model, notes, terrain)
     _count_roof_bridges(model, notes)
     _count_intakes(model, notes)
     _count_wedge_corner_steps(model, add, notes)
@@ -1510,6 +1513,31 @@ def _count_roof_bridges(model: ScaffoldModel, notes) -> None:
 
     notes.action(bridge_note(bs, model) + f"。{len(bs)}箇所の渡り桟橋（足場板・手すり・中桟・幅木つき）を手配してください",
                  Notes.ORDER)
+
+
+def _count_sill_boards(model: ScaffoldModel, notes, terrain=None) -> None:
+    """ジャッキベースの下の敷板（杉の足場板 幅240・厚35。利用者の指定 2026-10-25: ジャッキベースの下に敷板規格の長さ…を
+    配置して）。平らな地盤は支柱の列に沿って規格の長さで通し、高低差のある地盤は脚ごとに 1m を1枚（図と同じ）."""
+    from .gdl_params import SILL_LENGTHS_MM, SILL_T_MM, SILL_W_MM, sill_on, sill_pieces
+
+    if not sill_on(model):
+        return
+    rows = 1 if model.config.scaffold_form == "一側足場" or model.master.is_tube and model.config.is_hug else 2
+    sloped = bool(terrain is not None and getattr(terrain, "feet", None) and terrain.gl_difference_mm > 0.5)
+    counts: dict[int, int] = {}
+    for e in model.plan.edges:
+        if model.edge_subset is not None and e.edge_index not in model.edge_subset:
+            continue
+        if sloped:
+            counts[SILL_LENGTHS_MM[-1]] = counts.get(SILL_LENGTHS_MM[-1], 0) + rows * (len(e.spans) + 1)
+        else:
+            for ln in sill_pieces(sum(e.spans)):
+                counts[ln] = counts.get(ln, 0) + rows
+    if not counts:
+        return
+    txt = "・".join(f"{ln / 1000:g}m×{n}" for ln, n in sorted(counts.items(), reverse=True))
+    notes.action(f"ジャッキベースの下の敷板（杉の足場板 幅{SILL_W_MM:.0f}・厚{SILL_T_MM:.0f}）{txt}枚を手配してください"
+                 "（建地の列に沿って通す。ジャッキの繰出しは敷板の上から）", Notes.ORDER)
 
 
 def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
@@ -2547,5 +2575,6 @@ def _count_frame_parts(
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
+    _count_sill_boards(model, notes, terrain)
     _count_roof_bridges(model, notes)
     _count_intakes(model, notes)

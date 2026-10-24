@@ -117,9 +117,17 @@
 !   cornerEW        長さ      終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）                                   既定 0
 !   toeOn           整数      幅木を付ける 0/1（利用者の指定 2026-10-24: 幅木のオンオフ）                                                     既定 1
 !   shitaSan        整数      幅木を付けないとき下さん（床から300の桟）を描く 0/1                                                             既定 0
+!   sillT           長さ      ジャッキベースの下の敷板の厚さ（0＝敷かない）                                                                   既定 0
+!   sillW           長さ      敷板の幅                                                                                                        既定 0.24
+!   sillLens        文字列    敷板の規格の長さ mm（長い順、カンマ区切り）                                                                     既定 "4000,3000,2000,1500,1000"
+!   jkBlue          整数      ジャッキベースの底面を青に（日建 ND752P の識別色） 0/1                                                          既定 0
 !   intkList        文字列    取り入れ口 mm・層「始め,終わり,層始め,層終わり」の繰り返し（可動手すりを描く）                                  既定 ""
 !   haneD           長さ      跳ね出しブラケットの方杖の下がり（0＝なし。張り出した上の階の上段は床スラブの縁から持ち出す受けの上に立つ）     既定 0
 !   frGapE          長さ      枠組の終点の出隅の建枠どうしの隙間（単管で繋ぐ。0＝なし）                                                       既定 0
+!   skipPS          整数      始点の支柱を描かない（セットバックの上段の端は本体の支柱に乗る） 0/1                                            既定 0
+!   skipPE          整数      終点の支柱を描かない 0/1                                                                                        既定 0
+!   endOpenZS       長さ      始点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）                                                       既定 0
+!   endOpenZE       長さ      終点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）                                                       既定 0
 !   endBrace        整数      妻側（開放端）を先行手すり（ブレス材）で塞ぐ 0/1（0 は布材の手すり＋中桟）                                      既定 0
 !   railIn          整数      躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1                                                              既定 1
 !   brktList        文字列    ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm                                            既定 ""
@@ -197,6 +205,7 @@ dim nRl[2]
 dim runE[2]
 dim ties[200]
 dim brOn[60]
+dim slL[8]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
@@ -3113,6 +3122,10 @@ define material "ashiba_clamp_zinc" 2, 0.80, 0.81, 0.83
 define material "ashiba_fence_frame" 2, 0.50, 0.55, 0.58
 define material "ashiba_fence_mesh" 0, 0.62, 0.66, 0.68, 0.6, 0.6, 0.1, 0.8, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "ashiba_clamp_gold" 2, 0.86, 0.68, 0.22
+! ジャッキベースの識別色（日建 ND752P はベース板の底面が青）
+define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
+! 敷板（杉の足場板）
+define material "ashiba_sill_wood" 2, 0.72, 0.55, 0.36
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
 define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
 define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
@@ -3382,6 +3395,66 @@ endif
 ! 支柱だけ分解した部品（explodeMask）は、自分の持つ支柱（位置 x が [gxA, gxB)、下端が [gzA, gzB)）を分解した部材
 ! （ashiba_member）が描くので描かない。持たない支柱（隣の部品の区切り目の支柱など）は切り取った範囲の分だけ描く。
 ! ジャッキは足場ラインのまま。区切った部品の範囲の外の支柱は描かない（切り取られるので、描く手間だけ省く）
+! ---- 敷板（支柱の列に沿って、ジャッキベースの下に規格の長さの敷板を通す。利用者の指定 2026-10-25: ジャッキベースの下に
+! 敷板規格の長さ…を配置して）----
+! 平らな地盤は列ごとに端の支柱の 150 外から、長いものから詰めて最後は残りに足りる最短の規格。高低差のある地盤は脚ごとに
+! いちばん短い規格を1枚（地盤の高さに合わせる）。幅 sillW・厚 sillT
+if sillT > 0.001 and isLite = 0 then
+	material "ashiba_sill_wood"
+	nSl = 0
+	rest = sillLens
+	while strlen(rest) > 0 and nSl < 8 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSl = nSl + 1
+			slL[nSl] = v / 1000
+		endif
+	endwhile
+	for row = rowStart to 1
+		slY = -row * rowW - sillW / 2
+		if nGl >= 2 then
+			slX = 0
+			for ip = 1 to nSpan + 1
+				slG = 0
+				if row = 1 and nGlO >= 2 then
+					if ip <= nGlO then slG = glO[ip]
+				else
+					if ip <= nGl then slG = gl[ip]
+				endif
+				add slX - slL[nSl] / 2, slY, slG
+				block slL[nSl], sillW, sillT
+				del 1
+				if ip <= nSpan then slX = slX + spans[ip]
+			next ip
+		else
+			slX = -0.15
+			slEnd = lineLen + 0.15
+			while slX < slEnd - 0.01 do
+				slLen = slL[1]
+				if slEnd - slX < slL[1] then
+					slLen = slL[1]
+					for slI = 1 to nSl
+						if slL[slI] >= slEnd - slX - 0.001 then slLen = slL[slI]
+					next slI
+				endif
+				add slX, slY, 0
+				block slLen - 0.005, sillW, sillT
+				del 1
+				slX = slX + slLen
+			endwhile
+		endif
+	next row
+	if matScaf > 0 then material matScaf
+endif
+
 x = 0
 for ip = 1 to nSpan + 1
 	bBase = 0
@@ -3410,6 +3483,8 @@ for ip = 1 to nSpan + 1
 		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
 		skipP = 0
 		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		! セットバックの上段の端は本体の支柱に乗る（支柱もジャッキベースも描かない。利用者の指定 2026-10-25）
+		if (ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1) then skipP = 1
 		if x < gxA - 0.1 or x > gxB + 0.1 then skipP = 1
 		if skipP = 1 then
 			! 隣の面・隣の部品が描く
@@ -3653,8 +3728,12 @@ for ie9 = 0 to 1
 		xe9 = lineLen
 	endif
 	if isOpen9 = 1 then
+		zOp9 = endOpenZS
+		if ie9 = 1 then zOp9 = endOpenZE
 		for il = 2 to nLv
 			z = lv[il]
+			! 下段に続く区間の切れ目は、途中の屋根より上の層だけ妻側を塞ぐ（下の層は下段の床に続く）
+			if z >= zOp9 - 0.001 then
 			if endBrace = 1 then
 				! 妻側をブレス材（先行手すり。手すり＋X の斜材）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択）
 				add xe9, 0, z
@@ -3680,6 +3759,7 @@ for ie9 = 0 to 1
 				block 0.008, rowW, 0.150
 				del 1
 				if matScaf > 0 then material matScaf
+			endif
 			endif
 		next il
 	endif
@@ -3821,6 +3901,7 @@ if nKz > 0 then
 		for row = rowStart to 1
 			! 隅の内側建地は隣の面が支柱もコマも描く
 			if not((row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
+					not((ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1)) and \
 					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
 					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
@@ -5422,33 +5503,76 @@ endif
 return
 
 ! ============================================================
-820: ! ---- ジャッキベース（敷板＋アンダーベース＋ねじ棒＋ハンドル付きナット） ----
-! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。以前は細い棒1本で
-! 敷板もナットも無く、ジャッキに見えなかった（ユーザー指摘）。
-! 寸法: アンダーベース140角（SPB-24S）、ねじ棒φ38.1（SE-6）、ナットはハンドル付き。
-! jo はジャッキ繰出し（敷板 sv を含む）。敷板があれば杉敷板300×210を sv の厚さに重ね、
-! アンダーベースとねじ棒はその上から（ねじ棒の長さは jo - sv）
+820: ! ---- ジャッキベース（敷板＋ベース板＋ねじ棒＋ハンドル付きナット） ----
+! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。
+! 日建 カタログ（パイプジャッキベース ND752P・ジャッキベース A752。利用者の指定 2026-10-25: ジャッキベースの詳細どあげて）:
+!   ベース板 140角 t6・取付穴 4-φ14（ピッチ 85）・中央の受け（高さ 38）、ねじ棒 φ35、ハンドル付きナット（羽根2枚）、
+!   ナットの上は支柱の中へ 120。ND752P はベース板の底面が青（識別色）
+! jo はジャッキ繰出し（敷板 sv と通しの敷板 sillT を含む）。通しの敷板は 3d の別の箇所で支柱の列に沿って敷く。
+! 継ぎ足しの敷板（sv）は杉敷板300×210を重ね、ベース板とねじ棒はその上から（ねじ棒の長さは jo - sv - sillT）
+jb0 = sillT
 if sv > 0.001 then
-	add -0.15, -0.105, 0
+	add -0.15, -0.105, jb0
 	block 0.30, 0.21, sv
 	del 1
 endif
-add -0.07, -0.07, sv
-block 0.14, 0.14, 0.006
+jb0 = jb0 + sv
+jsL = jo - jb0
+if jsL < 0.02 then jsL = 0.02
+if jkBlue = 1 then material "ashiba_jack_blue"
+if isLite = 1 then
+	add -0.07, -0.07, jb0
+	block 0.14, 0.14, 0.006
+	del 1
+else
+	! ベース板（穴4つ）
+	addz jb0
+	prism_ 41, 0.006,
+		-0.07, -0.07, 15, 0.07, -0.07, 15, 0.07, 0.07, 15, -0.07, 0.07, 15, -0.07, -0.07, -1,
+		-0.0355, -0.0425, 15, -0.0375, -0.0375, 15, -0.0425, -0.0355, 15, -0.0475, -0.0375, 15, -0.0495, -0.0425, 15, -0.0475, -0.0475, 15, -0.0425, -0.0495, 15, -0.0375, -0.0475, 15, -0.0355, -0.0425, -1,
+		0.0495, -0.0425, 15, 0.0475, -0.0375, 15, 0.0425, -0.0355, 15, 0.0375, -0.0375, 15, 0.0355, -0.0425, 15, 0.0375, -0.0475, 15, 0.0425, -0.0495, 15, 0.0475, -0.0475, 15, 0.0495, -0.0425, -1,
+		0.0495, 0.0425, 15, 0.0475, 0.0475, 15, 0.0425, 0.0495, 15, 0.0375, 0.0475, 15, 0.0355, 0.0425, 15, 0.0375, 0.0375, 15, 0.0425, 0.0355, 15, 0.0475, 0.0375, 15, 0.0495, 0.0425, -1,
+		-0.0355, 0.0425, 15, -0.0375, 0.0475, 15, -0.0425, 0.0495, 15, -0.0475, 0.0475, 15, -0.0495, 0.0425, 15, -0.0475, 0.0375, 15, -0.0425, 0.0355, 15, -0.0375, 0.0375, 15, -0.0355, 0.0425, -1
+	del 1
+endif
+if matScaf > 0 then material matScaf
+if jkBlue = 1 and matScaf = 0 then material "ashiba_clamp_zinc"
+! 中央の受け（ねじ棒の根元）
+add 0, 0, jb0 + 0.006
+cylind 0.032, 0.024
 del 1
-add 0, 0, sv
-cylind jo - sv, 0.0381 / 2
+! ねじ棒 φ35（ナットの上は支柱の中へ 120）。ねじ山は細い輪を並べて見せる
+add 0, 0, jb0 + 0.006
+cylind jsL + 0.12 - 0.006, 0.035 / 2
 del 1
-add 0, 0, jo - 0.03
-resol 6
-cylind 0.03, 0.045
-resol rN
 if isLite = 0 then
-	addz 0.015
-	roty 90
-	add 0, 0, -0.09
-	cylind 0.18, 0.006
-	del 3
+	jzt = jb0 + 0.05
+	while jzt < jb0 + jsL - 0.05 do
+		add 0, 0, jzt
+		cylind 0.004, 0.0185
+		del 1
+		jzt = jzt + 0.025
+	endwhile
+endif
+! ハンドル付きナット（六角＋座金）と羽根2枚
+add 0, 0, jb0 + jsL - 0.035
+resol 6
+cylind 0.035, 0.034
+resol rN
+addz 0.035
+cylind 0.004, 0.040
+del 1
+if isLite = 0 then
+	for hw = 0 to 1
+		if hw = 1 then rotz 180
+		add 0.030, -0.006, 0.010
+		block 0.090, 0.012, 0.010
+		del 1
+		add 0.115, 0, 0.010
+		cylind 0.028, 0.008
+		del 1
+		if hw = 1 then del 1
+	next hw
 endif
 del 1
 return
@@ -6240,6 +6364,8 @@ for ip = 1 to nSpan + 1
 		yr = -row * rowW
 		skipP = 0
 		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		! セットバックの上段の端は本体の支柱に乗る（支柱もジャッキベースも描かない。利用者の指定 2026-10-25）
+		if (ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1) then skipP = 1
 		if bBase = 0 and skipP = 0 then
 			lin_ x, yr, gv, x, yr, postTop
 			lin_ x - 0.07, yr - 0.07, gv, x + 0.07, yr - 0.07, gv

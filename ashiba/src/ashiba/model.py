@@ -136,6 +136,8 @@ class ScaffoldConfig:
     # 壁つなぎの取り方（利用者の指定 2026-10-24: 鉄骨の足場の壁繋ぎ機能つけて鉄骨からとる時と仕上げから取るときの
     # 両方が必要）: "仕上げ"＝仕上げ面（外壁）にアンカー、"鉄骨"＝仕上げの奥の鉄骨の梁にビームクランプで取る
     tie_source: str = "仕上げ"
+    # ジャッキベースの下に敷く敷板（杉の足場板 幅240・厚35 を規格の長さで支柱の列に沿って通す。利用者の指定 2026-10-25）
+    sill_boards: bool = True
     steel_depth_mm: float = 0.0            # 仕上げ面から鉄骨（梁の外面）までの奥行き（鉄骨から取るとき）
     steel_tie_heights: list = field(default_factory=list)   # 梁の高さ（足場の立つ高さから mm）
     # 角から1.8m未満の支柱にも壁つなぎを入れるか（最密でも風荷重を満たせないときだけ最適化が使う。
@@ -186,6 +188,10 @@ class ScaffoldModel:
     base_height_mm: float = 0.0
     # 跳ね出しブラケット（床スラブの縁から外へ持ち出す受け）の上に立つ足場（張り出した上の階の上段。setback_tiers）
     hane_bracket: bool = False
+    # 支柱を描かない端（(辺, "s"|"e")。セットバックの上段の端は本体の支柱に乗る。ジャッキベースも無し）
+    skip_end_posts: set = field(default_factory=set)
+    # 端の妻側の手すりを付けるのはこの高さ（足場の立つ高さから mm）より上だけ（下段に続く本体の区間の切れ目）
+    open_above_mm: dict = field(default_factory=dict)
     # 面ごとの軒高（屋上の床。足場の立つ高さから mm。スラブから決めたとき）と、屋上への渡り（roof_bridges.RoofBridge）
     eaves_by_face: dict = field(default_factory=dict)
     roof_bridges: list = field(default_factory=list)

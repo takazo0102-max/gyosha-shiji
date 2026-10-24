@@ -449,6 +449,22 @@
 			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="sillT">
+			<Description><![CDATA["ジャッキベースの下の敷板の厚さ（0＝敷かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="sillW">
+			<Description><![CDATA["敷板の幅"]]></Description>
+			<Value>0.24</Value>
+		</Length>
+		<String Name="sillLens">
+			<Description><![CDATA["敷板の規格の長さ mm（長い順、カンマ区切り）"]]></Description>
+			<Value><![CDATA["4000,3000,2000,1500,1000"]]></Value>
+		</String>
+		<Integer Name="jkBlue">
+			<Description><![CDATA["ジャッキベースの底面を青に（日建 ND752P の識別色） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<String Name="intkList">
 			<Description><![CDATA["取り入れ口 mm・層「始め,終わり,層始め,層終わり」の繰り返し（可動手すりを描く）"]]></Description>
 			<Value><![CDATA[""]]></Value>
@@ -459,6 +475,22 @@
 		</Length>
 		<Length Name="frGapE">
 			<Description><![CDATA["枠組の終点の出隅の建枠どうしの隙間（単管で繋ぐ。0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="skipPS">
+			<Description><![CDATA["始点の支柱を描かない（セットバックの上段の端は本体の支柱に乗る） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipPE">
+			<Description><![CDATA["終点の支柱を描かない 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="endOpenZS">
+			<Description><![CDATA["始点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="endOpenZE">
+			<Description><![CDATA["終点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）"]]></Description>
 			<Value>0</Value>
 		</Length>
 		<Integer Name="endBrace">

@@ -30,8 +30,8 @@ class TestSetbackTiers(unittest.TestCase):
 
     def test_upper_tier_is_a_group_standing_on_the_roof(self):
         g = solve_groups(SPEC)
-        self.assertEqual([lb for lb, _r in g], ["", "上段"])
-        main, tier = g[0][1].model, g[1][1].model
+        self.assertEqual([lb for lb, _r in g], ["", "下段", "上段"])
+        main, low, tier = g[0][1].model, g[1][1].model, g[2][1].model
         self.assertLess(main.elevation_of(0).total_height, main.elevation.total_height)   # 本体の南は途中の屋根まで
         self.assertEqual(tier.base_height_mm, 9000.0)
         self.assertEqual(tier.plan.face_names(), ["南面"])
@@ -39,11 +39,41 @@ class TestSetbackTiers(unittest.TestCase):
         # 端は本体の足場（東・西）に繋ぐ。妻側の手すりは付けない
         p = line_params(tier, tier.plan.edges[0])
         self.assertEqual((p["endOpenS"], p["endOpenE"]), (0, 0))
-        # 上段の端は本体の東西の足場の内側建地列の線まで
-        xs = sorted(x for e in main.plan.edges for x, _y in (e.start_post, e.end_post))
-        self.assertAlmostEqual(tier.plan.edges[0].start_post[0], xs[0], delta=1.0)
-        self.assertAlmostEqual(tier.plan.edges[0].end_post[0], xs[-1], delta=1.0)
         self.assertTrue(any("途中の屋根（GL+9000）" in w for w in main.plan.warnings))
+
+    def test_tier_ends_sit_on_main_posts_and_the_far_side_is_low(self):
+        # 利用者の指定 2026-10-25: セットバックより先の足場は不要・セットバックから支柱が繋がるように割り付け・両端のジャッキなし
+        g = solve_groups(SPEC)
+        main, low, tier = g[0][1].model, g[1][1].model, g[2][1].model
+        te = tier.plan.edges[0]
+        y_in = te.start_post[1]                                   # 上段の内側の建地の列
+        y_out = y_in - main.post_row_spacing_mm                   # 外側の列（南へ）
+        for face in ("東面", "西面"):
+            ep = next(e for e in main.plan.edges if main.face_name(e.edge_index) == face)
+            ys = {round(ep.start_post[1] + (ep.end_post[1] - ep.start_post[1]) * t / sum(ep.spans))
+                  for t in [sum(ep.spans[:k]) for k in range(len(ep.spans) + 1)]}
+            # 本体の面の支柱が上段の内側・外側の列の両方に来る（本体は上段の外側の列から北だけ、上まで上がる）
+            self.assertTrue(any(abs(y - y_in) <= 2 for y in ys), (face, y_in, sorted(ys)))
+            self.assertTrue(any(abs(y - y_out) <= 2 for y in ys), (face, y_out, sorted(ys)))
+            self.assertGreaterEqual(min(ys), y_out - 2)
+        # セットバックの先（上段の外側の列より南）は下段: 途中の屋根の高さで止まる
+        self.assertEqual(sorted(low.plan.face_names()), ["東面", "西面"])
+        for e in low.plan.edges:
+            self.assertLessEqual(max(e.start_post[1], e.end_post[1]), y_out + 2)
+        self.assertLess(low.elevation.total_height, main.elevation.total_height)
+        # 上段の両端は本体の支柱に乗る: 支柱・ジャッキベースを描かない
+        p = line_params(tier, te)
+        self.assertEqual((p["skipPS"], p["skipPE"]), (1, 1))
+        # 本体の切れ目は途中の屋根より上の層だけ妻側を塞ぎ、下段の切れ目は塞がない
+        opens = [line_params(main, e) for e in main.plan.edges]
+        self.assertTrue(any(abs(q["endOpenZS"] - 9.0) < 1e-6 or abs(q["endOpenZE"] - 9.0) < 1e-6 for q in opens))
+        self.assertTrue(all(not (line_params(low, e)["endOpenS"] and line_params(low, e)["endOpenE"]) for e in low.plan.edges))
+        # 上段の端の支柱は数量でも数えない
+        import re
+
+        jl = next(l for l in g[2][1].quantity.lines if l.part.model_no == "ND752P")
+        n_main = int(re.search(r"ジャッキ (\d+)本", jl.note).group(1)) if "内訳" in jl.note else jl.qty
+        self.assertEqual(n_main, 2 * tier.plan.total_posts - 4)       # 両端の内外 2本ずつを引く
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった

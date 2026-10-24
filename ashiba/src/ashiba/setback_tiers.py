@@ -224,3 +224,201 @@ def tier_note(label: str, sub: dict) -> Optional[str]:
                 f"上に全周の足場を建てます（軒高 {sub['eaves_height_mm']}）。本体の足場はブラケットの下で止めます")
     return (f"{label}: セットバックした上の階の {'・'.join(sub['faces'])} は、途中の屋根（GL+{sub['base_height_mm']:.0f}）の"
             f"上から足場を建て、端は本体の足場に繋ぎます（軒高 {sub['eaves_height_mm']}）")
+
+
+# ---- 上段の端と本体の足場の納まり（利用者の指定 2026-10-25: セットバックの時は この左右のセットバックより先の足場は
+# 不要です。セットバックから支柱が繋がるように配置して割り付けしてください セットバックの両端のジャッキベースなしにして）----
+
+def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
+    """直線 p+t·d と q+s·e の交点."""
+    den = d[0] * e[1] - d[1] * e[0]
+    if abs(den) < 1e-9:
+        return None
+    t = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / den
+    return p[0] + d[0] * t, p[1] + d[1] * t
+
+
+def _best_spans(coins: list[int], length: float, slack: float = 400.0) -> list[int]:
+    """長さにいちばん近い（以下を先に）スパンの並び（本数の少ないもの）. 長さが 0 以下なら []."""
+    from .plan_solver import achievable_sums
+
+    if length < min(coins) - 1.0:
+        return []
+    table = achievable_sums(coins, max(min(coins), int(length - slack)), int(length + slack))
+    if not table:
+        return []
+    # 30 以内に入るものの中で本数の少ない（長いスパンの）もの。入らなければいちばん近いもの
+    best = min(table, key=lambda s: (abs(s - length) > 30.0, len(table[s]) if abs(s - length) <= 30.0 else 0,
+                                     abs(s - length)))
+    return sorted(table[best], reverse=True)
+
+
+def _exact(coins: list[int], length: int) -> Optional[list[int]]:
+    from .plan_solver import achievable_sums
+
+    if length <= 0:
+        return [] if length == 0 else None
+    t = achievable_sums(coins, length, length)
+    return sorted(t[length], reverse=True) if length in t else None
+
+
+def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of) -> tuple[dict, list[tuple[str, dict]], list[str]]:
+    """セットバックの上段の端（本体の足場に繋ぐ端）の納まりを決める → (本体の入力, 上段の入力, 案内).
+
+    - 上段の端が当たる本体の面（上まで上がる面）に、上段の内側・外側の建地の列の位置に支柱が来るスパンを固定する
+      （span_overrides）。上段の線はその支柱に合わせる（上段の離れを固定。_neighbor_standoffs）
+    - その面の、上段の線より外（セットバックの先。途中の屋根の上）の区間は「下段」として途中の屋根の高さで止める
+      （_low_ranges。face_forms と同じ面の区間の組）。上段の端は本体の支柱に乗るので、支柱・ジャッキを描かない（_skip_end_posts）
+    solve(spec) は本体だけを解く関数、names_of(outline) は面の名前。
+    """
+    from .geometry import build_outline
+
+    notes: list[str] = []
+    setback = [(lb, t) for lb, t in tiers if not t.get("_hane") and t.get("_joined_ends")]
+    if not setback or spec.get("setback_join") is False:
+        return spec, tiers, notes
+    r0 = solve(spec)
+    m0 = r0.model
+    coins = sorted({int(s) for s in m0.master.span_lengths()})
+    w = float(m0.post_row_spacing_mm)
+    main_edges = {e.edge_index: e for e in m0.plan.edges}
+    main_ol = m0.plan.outline
+    names = m0.plan.face_names()
+    name_of = dict(zip([e.edge_index for e in m0.plan.edges], names))
+    target = float((spec.get("standoff") or {}).get("target", 300.0))
+    overrides: dict[str, list[int]] = {}
+    low: dict[str, list[float]] = {}
+    low_top = None
+    plan_t: list[dict] = []
+    heads: dict[int, tuple] = {}
+    for lb, t in setback:
+        tol = build_outline([tuple(map(float, p)) for p in t["outline_mm"]])
+        tnames = names_of(t["outline_mm"])
+        idx = {n: i for i, n in enumerate(tnames)}
+        juncs = []
+        for ei, end in t["_joined_ends"]:
+            te = tol.edges[int(ei)]
+            pc = te.start if end == "s" else te.end
+            # 上段の端の点が載る本体の外形の辺（上段の面と平行でない）
+            hit = None
+            for oe in main_ol.edges:
+                if abs(oe.direction[0] * te.direction[0] + oe.direction[1] * te.direction[1]) > 0.5:
+                    continue
+                ax, ay = oe.start
+                ux, uy = oe.direction
+                tt = (pc[0] - ax) * ux + (pc[1] - ay) * uy
+                dist = abs((pc[0] - ax) * uy - (pc[1] - ay) * ux)
+                if dist < 5.0 and -1.0 <= tt <= oe.length + 1.0 and oe.index in main_edges:
+                    hit = oe
+            if hit is None:
+                continue
+            ep = main_edges[hit.index]
+            sp = ep.start_post
+            u = ((ep.end_post[0] - sp[0]) / max(1e-9, float(sum(ep.spans))),
+                 (ep.end_post[1] - sp[1]) / max(1e-9, float(sum(ep.spans))))
+            a = (pc[0] + te.outward[0] * target, pc[1] + te.outward[1] * target)
+            x = _line_hit(a, te.direction, sp, u)
+            if x is None:
+                continue
+            p_in = (x[0] - sp[0]) * u[0] + (x[1] - sp[1]) * u[1]
+            sgn = 1.0 if te.outward[0] * u[0] + te.outward[1] * u[1] > 0 else -1.0
+            juncs.append((ei, end, ep, p_in, sgn))
+        for ei, end, ep, p_in, sgn in juncs:
+            if int(round(w)) not in coins:
+                notes.append(f"{lb}: 建地列の間隔 {w:.0f} の布材が系列に無いので、上段の端の支柱を本体の支柱に揃えられません")
+                continue
+            lo = min(p_in, p_in + sgn * w)
+            first = _best_spans(coins, lo)
+            heads[ep.edge_index] = (first, float(sum(ep.spans)), sgn, t)
+        plan_t.append({"label": lb, "sub": t, "juncs": juncs, "idx": idx, "names": tnames})
+    # 向かい合う（平行な）面の合計の長さは同じでないと割付が解けない。平行な面の組ごとに、元の長さに近く、
+    # どの面も残りがちょうど組める合計 T を探す
+    def axis(ei):
+        ep = main_edges[ei]
+        dx, dy = ep.end_post[0] - ep.start_post[0], ep.end_post[1] - ep.start_post[1]
+        return 0 if abs(dx) >= abs(dy) else 1
+    for ax in (0, 1):
+        group = [ei for ei in heads if axis(ei) == ax]
+        if not group:
+            continue
+        L0 = max(h[1] for ei, h in heads.items() if ei in group)
+        best_T = None
+        for dT in sorted(range(-300, 301), key=abs):
+            T = int(round(L0)) + dT
+            rests = {ei: _exact(coins, T - int(round(sum(heads[ei][0]))) - int(round(w))) for ei in group}
+            if all(v is not None for v in rests.values()):
+                best_T = (T, rests)
+                break
+        if best_T is None:
+            notes.append("上段の端の支柱を本体の支柱に揃える割付が見つかりません（面の長さと布材の規格）。揃えずに置きます")
+            continue
+        T, rests = best_T
+        for ei in group:
+            first, _L, sgn, t = heads[ei]
+            a2 = float(sum(first))
+            spans = first + [int(round(w))] + rests[ei]
+            fname = name_of[ei]
+            overrides[fname] = spans
+            # セットバックの先: 上段の外側の列より外（上段の外向きの側）
+            low[fname] = [0.0, a2] if sgn < 0 else [a2 + w, 1.0e9]     # 1e9＝面の終点まで（face_forms.FACE_END_MM 以上）
+            low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
+    if not overrides:
+        return spec, tiers, notes
+    base = float(spec.get("base_height_mm", 0) or 0)
+    idx_of = {n: ei for ei, n in name_of.items()}
+    # 切れ目: 下段の側は本体に続く（妻側を塞がない）、本体の側は途中の屋根より上だけ塞ぐ
+    low_join = [[idx_of[f], "e" if a < 0.5 else "s"] for f, (a, _b) in low.items()]
+    open_above = [[idx_of[f], "s" if a < 0.5 else "e", low_top - base] for f, (a, _b) in low.items()]
+    main = {**spec, "span_overrides": list(spec.get("span_overrides") or [])
+            + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
+            "_low_ranges": low, "_open_above": open_above,
+            "_low_spec": {"eaves_height_mm": int(round(low_top - base)), "height_from_slabs": False,
+                          "roof_bridge": False, "_joined_ends": low_join}}
+    # 揃えたスパンで解き直した本体の支柱の位置に、上段の線を合わせる
+    r1 = solve({k: v for k, v in main.items() if k not in ("_low_ranges", "_low_spec")})
+    m1 = r1.model
+    e1 = {e.edge_index: e for e in m1.plan.edges}
+    out_tiers = []
+    done = {id(p["sub"]) for p in plan_t}
+    for lb, t in tiers:
+        if id(t) not in done:
+            out_tiers.append((lb, t))
+            continue
+        pt = next(p for p in plan_t if p["sub"] is t)
+        tol = build_outline([tuple(map(float, p)) for p in t["outline_mm"]])
+        fixed: dict[int, float] = {}
+        skip = []
+        so_t = None
+        for ei, end, ep0, p_in, sgn in pt["juncs"]:
+            ep = e1.get(ep0.edge_index)
+            if ep is None:
+                continue
+            te = tol.edges[int(ei)]
+            # 上段の内側の列が通る本体の支柱（固定したスパンの w の両端のうち、上段の躯体側）
+            posts = [0.0]
+            for s_ in ep.spans:
+                posts.append(posts[-1] + float(s_))
+            lo = float(low[name_of[ep.edge_index]][1]) if sgn < 0 else float(low[name_of[ep.edge_index]][0]) - w
+            x_in = lo + w if sgn < 0 else lo
+            u = ((ep.end_post[0] - ep.start_post[0]) / max(1e-9, posts[-1]),
+                 (ep.end_post[1] - ep.start_post[1]) / max(1e-9, posts[-1]))
+            X = (ep.start_post[0] + u[0] * x_in, ep.start_post[1] + u[1] * x_in)
+            pc = te.start if end == "s" else te.end
+            s_need = (X[0] - pc[0]) * te.outward[0] + (X[1] - pc[1]) * te.outward[1]
+            so_t = s_need if so_t is None else so_t
+            if abs(s_need - so_t) > 30.0:
+                notes.append(f"{lb}: 両端で本体の支柱の位置が {abs(s_need - so_t):.0f}mm ずれます（上段の離れ {so_t:.0f}）")
+            # 上段の端の面（本体の面と同じ線）の離れは本体と同じ
+            nb = (int(ei) - 1) % len(tol.edges) if end == "s" else (int(ei) + 1) % len(tol.edges)
+            fixed[nb] = float(ep.standoff)
+            skip.append([int(ei), end])
+        if so_t is None:
+            out_tiers.append((lb, t))
+            continue
+        for ei, _e in skip:
+            fixed[int(ei)] = round(so_t, 1)
+        t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip}
+        out_tiers.append((lb, t2))
+        notes.append(f"{lb}: 上段の端の支柱は本体の支柱に乗せる（ジャッキベースなし）。上段の離れ {so_t:.0f}、"
+                     f"セットバックの先（{'・'.join(low)}）の本体の足場は途中の屋根（GL+{low_top:.0f}）で止める")
+    return main, out_tiers, notes

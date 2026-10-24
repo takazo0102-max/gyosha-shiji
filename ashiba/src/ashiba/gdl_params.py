@@ -469,11 +469,22 @@ def line_params(
         "endOpenS": 1 if (model.open_start(ep.edge_index)
                           or (model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail)) else 0,
         "endOpenE": 1 if model.open_end(ep.edge_index) else 0,
+        # 妻側の手すりを付ける高さの下限（下段に続く区間の切れ目は途中の屋根より上だけ。m）
+        "endOpenZS": float((getattr(model, "open_above_mm", {}) or {}).get((ep.edge_index, "s"), 0.0)) / 1000.0,
+        "endOpenZE": float((getattr(model, "open_above_mm", {}) or {}).get((ep.edge_index, "e"), 0.0)) / 1000.0,
+        # 端の支柱を描かない（セットバックの上段の端は本体の支柱に乗る。ジャッキベースも無し）
+        "skipPS": 1 if (ep.edge_index, "s") in (getattr(model, "skip_end_posts", None) or set()) else 0,
+        "skipPE": 1 if (ep.edge_index, "e") in (getattr(model, "skip_end_posts", None) or set()) else 0,
         # 妻側を先行手すり（ブレス材）で塞ぐ（くさび式。単管・枠組は布材のまま。利用者の指定 2026-10-24）
         "endBrace": 1 if end_brace(model) else 0,
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
         # 枠組の終点の出隅の建枠どうしの隙間（m）。内外の建地列を各層で単管で繋ぐ（利用者の指定 2026-10-24）
         "frGapE": model.frame_gap_end_mm(ep.edge_index) / 1000.0,
+        # ジャッキベースの下の敷板（規格の長さで列に沿って）とジャッキの識別色（日建 ND752P は底面が青）
+        "sillT": SILL_T_MM / 1000.0 if sill_on(model) else 0.0,
+        "sillW": SILL_W_MM / 1000.0,
+        "sillLens": ",".join(str(v) for v in SILL_LENGTHS_MM),
+        "jkBlue": 1 if str(model.master.series_id).startswith(("nikken_nd", "nikken_strong")) else 0,
         # 張り出した上の階の上段: 跳ね出しブラケット（床スラブの縁から持ち出す受け）の方杖の下がり（m。利用者の指定 2026-10-24）
         "haneD": HANE_DEPTH_M if getattr(model, "hane_bracket", False) else 0.0,
         "cornerG": 1 if (model.master.is_frame
@@ -534,6 +545,32 @@ def line_params(
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
     }, ep.edge_index)
+
+
+# 敷板（杉の足場板。ジャッキベースの下に支柱の列に沿って通す。利用者の指定 2026-10-25）
+SILL_T_MM = 35.0
+SILL_W_MM = 240.0
+SILL_LENGTHS_MM = (4000, 3000, 2000, 1500, 1000)
+
+
+def sill_on(model: ScaffoldModel) -> bool:
+    """敷板を敷くか（地盤に立つ足場。跳ね出しブラケットの上・枠組の建枠は敷く、ブラケットの上の上段は敷かない）."""
+    return bool(getattr(model.config, "sill_boards", True)) and not getattr(model, "hane_bracket", False)
+
+
+def sill_pieces(length_mm: float) -> list[int]:
+    """列の長さ（端の支柱の 150 外まで）→ 敷板の長さの並び（長いものから詰め、最後は残りに足りる最短の規格）. GDL と同じ."""
+    out: list[int] = []
+    x, end = -150.0, float(length_mm) + 150.0
+    big = SILL_LENGTHS_MM[0]
+    while x < end - 10.0:
+        if end - x >= big:
+            ln = big
+        else:
+            ln = min((v for v in SILL_LENGTHS_MM if v >= end - x - 1.0), default=big)
+        out.append(ln)
+        x += ln
+    return out
 
 
 HANE_DEPTH_M = 0.6           # 跳ね出しブラケットの方杖の下がり（setback_tiers.HANE_DEPTH_MM と同じ）
