@@ -645,6 +645,12 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         print(f"  敷地境界: {n}")
     groups = solve_groups(spec)
     _label0, r = groups[0]
+    # 解いた条件の控え（朝顔の面のように、全部を置き直さずに一部の部品だけ直すボタンが同じ条件で解き直す）
+    try:
+        (OUT_DIR / f"{r.file_stem}_spec_used.json").write_text(
+            json.dumps(spec, ensure_ascii=False, default=str), encoding="utf-8")
+    except OSError:
+        pass
     if len(groups) > 1:
         # 平面のラベルは、実際に描く切断線（先頭の組の断面図・全部の面の立面図）の端を避ける
         from ashiba.gdl_params import drawn_section_lines
