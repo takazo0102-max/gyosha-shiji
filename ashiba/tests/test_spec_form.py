@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from ashiba.cli import solve_all
-from ashiba.spec_form import (ASAGAO, KINDS, SERIES_AUTO, WIDTH_DEFAULT, apply_form, current_kind, form_fields,
+from ashiba.spec_form import (KINDS, SERIES_AUTO, WIDTH_DEFAULT, apply_form, current_kind, form_fields,
                               object_params)
 
 BASE = {"project_name": "足場計画", "outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]],
@@ -26,7 +26,8 @@ class TestFormFields(unittest.TestCase):
         self.assertEqual(v["series"], SERIES_AUTO)
         self.assertEqual(v["width"], "3フィート＝36インチ（914mm）")      # インチ系の 900 → 914
         self.assertEqual(v["stairs"], "自動（幅900以上は足場の中）")
-        self.assertEqual(v["asagao"], ASAGAO[0])
+        self.assertNotIn("asagao", v)                                     # 朝顔は窓に出さない（2026-10-24）
+        self.assertNotIn("asagao_faces", v)
         self.assertEqual(v["elev"], "作る")
 
     def test_kinds_round_trip(self):
@@ -59,19 +60,19 @@ class TestApplyForm(unittest.TestCase):
         self.assertNotIn("series_id", back)                               # 枠組の系列を引きずらない
 
     def test_options_reach_the_spec_and_the_object(self):
-        new, _n = apply_form(BASE, {**_vals(BASE), "rail": "先行手すり", "stairs": "外付け", "asagao": "2段",
+        new, _n = apply_form(BASE, {**_vals(BASE), "rail": "先行手すり", "stairs": "外付け",
                                     "sheet": "防音シート", "eaves": "12000", "from_slabs": "0",
                                     "elev": "作らない（平面・3Dだけ・速い）"})
         self.assertEqual(new["guard_rail_type"], "先行手すり")
         self.assertEqual(new["stairs"]["layout"], "外付け")
-        self.assertEqual(new["asagao"]["stages"], 2)
         self.assertEqual(new["site"]["sheet_type"], "防音シート")
         self.assertEqual(new["eaves_height_mm"], 12000)
         self.assertFalse(new["height_from_slabs"])
         self.assertEqual(new["elevation_mode"], "none")
         p = object_params(new)
-        self.assertEqual((p["railType"], p["stairLayout"], p["asagaoStages"], p["elevMode"]),
-                         ("先行手すり", "外付け", 2, "none"))
+        self.assertEqual((p["railType"], p["stairLayout"], p["elevMode"]), ("先行手すり", "外付け", "none"))
+        self.assertNotIn("asagaoStages", p)                               # 窓は部品の朝顔に触らない
+        self.assertNotIn("asagaoFaces", p)
         self.assertAlmostEqual(p["eavesH"], 12.0)
 
 
@@ -105,12 +106,11 @@ class TestInnerRailAndAsagaoFaces(unittest.TestCase):
     def test_asagao_on_chosen_faces_only(self):
         from ashiba.gdl_params import line_params
 
+        from ashiba.spec_object import params_from_spec
+
         tall = {**BASE, "eaves_height_mm": 15000, "height_from_slabs": False}
-        v = _vals(tall)
-        self.assertEqual(v["asagao_faces"], "全部の面")
-        new, _n = apply_form(tall, {**v, "asagao_faces": "南面・東面"})
-        self.assertEqual(new["asagao"]["faces"], ["南面", "東面"])
-        self.assertEqual(object_params(new)["asagaoFaces"], "南面・東面")
+        new = {**tall, "asagao": {"faces": "南面・東面"}}           # パレットの「朝顔の面」が部品に書く値
+        self.assertEqual(params_from_spec(new)["asagaoFaces"], "南面・東面")
         r = solve_all(new)
         m = r.model
         on = {m.face_name(e.edge_index): bool(line_params(m, e, stair_plan=r.stair_plan)["asagaoList"])

@@ -2,7 +2,8 @@
 
 利用者の指定（2026-10-24）「配置の時 足場の種類選べるようにして。条件の部分がどうやるのかわからない」。
 足場条件の部品の設定ダイアログ（⌘T）を探さなくても、配置・条件のボタンで窓が前に出て、足場の種類・系列・幅・
-手すり・階段・朝顔・養生・高さ・立面断面を選べる。選んだ値は足場条件の部品に書く（次からはその値が出る）。
+手すり・幅木・層間ネット・階段・養生・高さ・立面断面を選べる。選んだ値は足場条件の部品に書く（次からはその値が出る）。
+朝顔は窓に出さない（利用者の指定 2026-10-24: 条件のところに朝顔入れないで）。段数は高さで自動、付ける面はパレットの「朝顔の面」。
 窓は tapir/spec_form.swift（scripts/form_dialog.py が開く）。ここは窓に依らない部分（試験できる）。
 """
 
@@ -22,16 +23,14 @@ INNER = {"付ける（手すり＋中桟）": True, "付けない": False}
 ONOFF = {"付ける": True, "付けない": False}
 NET = {"張らない": False, "張る": True}
 NET_AUTO = "自動（幅木ありは2層毎・なしは全層）"
-ASAGAO_ALL = "全部の面"
 STAIRS = {"自動（幅900以上は足場の中）": "自動", "足場の中": "足場の中", "外付け": "外付け"}
-ASAGAO = ("自動（高さで決める）", "1段", "2段", "3段")
 SHEETS = ("メッシュシート", "防音シート", "密閉シート")
 ELEV = {"作る": "section", "作らない（平面・3Dだけ・速い）": "none"}
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
 FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail",
                  "toeBoard", "netLevels", "netBrackets",
-                 "stairLayout", "asagaoStages", "asagaoFaces", "sheetType", "eavesH", "hFromSlab", "elevMode")
+                 "stairLayout", "sheetType", "eavesH", "hFromSlab", "elevMode")
 
 
 def _series_labels() -> dict[str, str]:
@@ -65,13 +64,6 @@ def _net_levels_text(spec: dict) -> str:
     return ",".join(str(i) for i in v)
 
 
-def _asagao_faces_text(spec: dict) -> str:
-    from .cli import parse_asagao_faces
-
-    faces = parse_asagao_faces((spec.get("asagao") or {}).get("faces") if isinstance(spec.get("asagao"), dict) else None)
-    return "・".join(faces) if faces else ASAGAO_ALL
-
-
 def _key(d: dict, value, default: str) -> str:
     return next((k for k, v in d.items() if v == value), default)
 
@@ -89,7 +81,6 @@ def form_fields(spec: dict) -> list[dict]:
     """窓の項目（いまの条件の値を入れて）."""
     labels = _series_labels()
     sid = str(spec.get("series_id") or "")
-    stages = int(((spec.get("asagao") or {}).get("stages")) or 0)
     eaves = spec.get("eaves_height_mm")
     return [
         {"key": "", "label": "足場", "kind": "section"},
@@ -120,10 +111,6 @@ def form_fields(spec: dict) -> list[dict]:
          "help": "層間ネットを内側建地ごとのネットブラケット（NL500）で受ける。付けないときは取付け金具を別途"},
         {"key": "stairs", "label": "階段の付け方", "kind": "choice", "options": list(STAIRS),
          "value": _key(STAIRS, (spec.get("stairs") or {}).get("layout") or "自動", "自動（幅900以上は足場の中）")},
-        {"key": "asagao", "label": "朝顔", "kind": "choice", "options": list(ASAGAO),
-         "value": f"{stages}段" if stages in (1, 2, 3) else ASAGAO[0]},
-        {"key": "asagao_faces", "label": "朝顔を付ける面", "kind": "text", "value": _asagao_faces_text(spec),
-         "help": "全部の面・なし・面の名前（例 南面・東面）。配置のあとで、パレットの「朝顔の面」で足場を選んで付け外しもできる"},
         {"key": "sheet", "label": "養生", "kind": "choice", "options": list(SHEETS),
          "value": str((spec.get("site") or {}).get("sheet_type") or "メッシュシート")},
         {"key": "", "label": "高さ・図面", "kind": "section"},
@@ -187,16 +174,6 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         notes += wn
     out["guard_rail_type"] = RAILS.get(values.get("rail") or "", out.get("guard_rail_type") or "布材")
     out["stairs"] = {**(out.get("stairs") or {}), "layout": STAIRS.get(values.get("stairs") or "", "自動")}
-    st = values.get("asagao") or ASAGAO[0]
-    asg = dict(out.get("asagao") or {})
-    if st in ASAGAO[1:]:
-        asg["stages"] = int(st[0])
-    else:
-        asg.pop("stages", None)
-    if asg:
-        out["asagao"] = asg
-    else:
-        out.pop("asagao", None)
     if values.get("toe") in ONOFF:
         out["toe_board"] = ONOFF[values["toe"]]
     if values.get("net") in NET:
@@ -210,19 +187,6 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         out["net_brackets"] = ONOFF[values["net_bk"]]
     if values.get("inner") in INNER:
         out["inner_guard_rail"] = INNER[values["inner"]]
-    if "asagao_faces" in values:
-        from .cli import parse_asagao_faces
-
-        faces = parse_asagao_faces(values.get("asagao_faces") or "")
-        asg = dict(out.get("asagao") or {})
-        if faces:
-            asg["faces"] = faces
-        else:
-            asg.pop("faces", None)
-        if asg:
-            out["asagao"] = asg
-        else:
-            out.pop("asagao", None)
     if values.get("sheet") in SHEETS:
         out["site"] = {**(out.get("site") or {}), "sheet_type": values["sheet"]}
     try:
