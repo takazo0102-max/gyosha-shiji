@@ -119,6 +119,9 @@ class ScaffoldConfig:
     horizontal_net_levels: list = field(default_factory=list)
     # 層間ネットをネットブラケット（NL500）で受けるか。False なら建地・布材に直に結ぶ等、ブラケットを置かず数えない
     net_brackets: bool = True
+    # 幅木を付けない指定のとき、作業床の外側に下さん（高さ15〜40cmの桟）を入れる（利用者の資料 2026-10-24: 幅木を
+    # 使用しない場合、下さんは必要・層間ネットは全層に必要）
+    shita_san: bool = False
     # 離れが目標上限を超える面に内ブラケット（躯体側に踏板）を自動で付ける
     auto_inner_bracket: bool = True
     toe_board_height_mm: int = 157         # 幅木高さ（落下物防止は10cm以上）

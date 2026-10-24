@@ -35,7 +35,9 @@ class TestNikkenNd1800Master(unittest.TestCase):
         self.assertEqual((m.koma_pitch, m.floor_height), (450, 1800))
         # 型番仮は1行も残っていない。全行にカタログページが書いてある
         self.assertFalse([p for p in m.parts if "型番仮" in p.note])
-        self.assertTrue(all("カタログVol.10p" in p.note for p in m.parts), [p for p in m.parts if "カタログVol.10p" not in p.note])
+        # 出典はカタログのページ、カタログに無い品は利用者の資料（層間ネット KSK-HV。2026-10-24）
+        src = [p for p in m.parts if "カタログVol.10p" not in p.note and "利用者の資料" not in p.note]
+        self.assertFalse(src, src)
 
     def test_catalog_weights_are_the_real_ones(self):
         m = load_master("nikken_nd1800")

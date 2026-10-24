@@ -128,6 +128,8 @@ def spec_from_params(params: dict) -> dict:
         elif f.kind == "intlist":
             if str(v or "").strip() in ALL_LEVEL_WORDS:
                 v = "全部"                                  # 全部の層（水平ネット）
+            elif str(v or "").strip().startswith("自動"):
+                v = "自動"                                  # 幅木ありは2層毎・なしは全層（cli.net_levels_from_spec）
             else:
                 v = parse_int_list(v)
                 if f.zero_is_unset and not v:
@@ -176,7 +178,9 @@ def params_from_spec(spec: dict) -> dict:
         elif f.kind == "bool":
             out[f.gdl] = bool(v)
         elif f.kind == "intlist":
-            out[f.gdl] = "全部" if str(v).strip() in ALL_LEVEL_WORDS else ",".join(str(i) for i in parse_int_list(v))
+            t = str(v).strip()
+            out[f.gdl] = ("全部" if t in ALL_LEVEL_WORDS else "自動" if t.startswith("自動")
+                          else ",".join(str(i) for i in parse_int_list(v)))
         elif f.gdl == "seriesId":
             from .master import SERIES_LABELS, series_from_label
 

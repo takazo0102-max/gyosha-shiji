@@ -154,6 +154,20 @@ def net_quantities(model: ScaffoldModel) -> tuple[float, int]:
     return area, n_bk
 
 
+def net_pieces(model: ScaffoldModel, length_mm: float = 6000.0, width_mm: float = 500.0) -> int:
+    """層間ネットの枚数（1枚 幅×長さ。面ごと・層ごとに面の長さを長さで、隙間の幅を幅で割って切り上げ）."""
+    import math
+
+    n = 0
+    for ep in model.plan.edges:
+        width = net_width_mm(ep.standoff)
+        if width <= 0:
+            continue
+        per = math.ceil(float(sum(ep.spans)) / length_mm) * max(1, math.ceil(width / width_mm - 1e-6))
+        n += per * len(net_heights_mm(model, ep.edge_index))
+    return n
+
+
 def netbk_clash_faces(model: ScaffoldModel) -> list[tuple[int, float]]:
     """ネットを張る面のうち、NL500 が最短でも躯体に当たる面（辺番号, 離れ mm）."""
     if not model.config.horizontal_net_levels or not model.config.net_brackets:

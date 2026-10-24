@@ -919,6 +919,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         # 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
         has_toe_board=not no_toe and not toe_off and kind != "抱き",
         net_brackets=spec.get("net_brackets", True) is not False,
+        shita_san=toe_off and kind != "抱き",
         # 未指定なら系列の既定（A:400/250、B:405/240、次世代:500）を使う
         deck_widths=deck_ws,
         post_row_spacing_mm=row_mm,
@@ -1457,6 +1458,11 @@ def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
         return []
     if isinstance(raw, str) and raw.strip() in ("全部", "全層", "すべて", "全て"):
         return list(range(1, n_levels + 1))
+    if isinstance(raw, str) and raw.strip().startswith("自動"):
+        # 層間ネットの決まり（利用者の資料 2026-10-24）: 幅木を使うなら2層毎、使わないなら全層
+        if spec.get("toe_board", True) is False:
+            return list(range(1, n_levels + 1))
+        return list(range(2, n_levels + 1, 2))
     return sorted({v for v in parse_int_list(raw) if 1 <= v <= n_levels})
 
 

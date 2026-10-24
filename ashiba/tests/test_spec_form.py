@@ -178,3 +178,39 @@ class TestToeBoardAndNets(unittest.TestCase):
 
         self.assertEqual(spec_from_params({"netLevels": "全部"})["horizontal_net_levels"], "全部")
         self.assertEqual(spec_from_params({"netLevels": "2,5"})["horizontal_net_levels"], [2, 5])
+
+
+class TestNetRules(unittest.TestCase):
+    """層間ネット: 幅木ありは2層毎・幅木なしは全層（＋下さん）。ネットは KSK-HV 0.5×6m（利用者の資料 2026-10-24）."""
+
+    def test_auto_levels_follow_the_toe_board(self):
+        r = solve_all({**BASE, "horizontal_net_levels": "自動"})
+        n = r.model.elevation.n_levels
+        self.assertEqual(r.model.config.horizontal_net_levels, list(range(2, n + 1, 2)))
+        off = solve_all({**BASE, "horizontal_net_levels": "自動", "toe_board": False})
+        self.assertEqual(off.model.config.horizontal_net_levels, list(range(1, n + 1)))
+
+    def test_net_pieces_are_counted_by_the_sheet(self):
+        import math
+
+        from ashiba.attachments import net_heights_mm, net_width_mm
+
+        r = solve_all({**BASE, "horizontal_net_levels": [2]})
+        m = r.model
+        want = sum(math.ceil(sum(e.spans) / 6000) * max(1, math.ceil(net_width_mm(e.standoff) / 500 - 1e-6))
+                   * len(net_heights_mm(m, e.edge_index)) for e in m.plan.edges if net_width_mm(e.standoff) > 0)
+        line = next(l for l in r.quantity.lines if l.part.model_no == "KSK-HV")
+        self.assertEqual(line.qty, want)
+
+    def test_no_toe_board_needs_shita_san_and_nets_on_every_level(self):
+        from ashiba.gdl_params import line_params
+
+        r = solve_all({**BASE, "toe_board": False, "horizontal_net_levels": [2]})
+        self.assertTrue(r.model.config.shita_san)
+        self.assertEqual(line_params(r.model, r.model.plan.edges[0], stair_plan=r.stair_plan)["shitaSan"], 1)
+        self.assertTrue(any("下さん" in n for n in r.quantity.notes))
+        self.assertTrue(any("層間ネットは全層に要ります" in w for w in r.quantity.warnings))
+        ok = solve_all({**BASE, "horizontal_net_levels": "自動"})
+        self.assertFalse(any("層間ネット" in w for w in ok.quantity.warnings))
+        sparse = solve_all({**BASE, "horizontal_net_levels": [1]})
+        self.assertTrue(any("2層毎に要ります" in w for w in sparse.quantity.warnings))

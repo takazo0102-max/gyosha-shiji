@@ -29,7 +29,7 @@ class TestNikkenNd1900(unittest.TestCase):
         self.assertEqual(m.post_lengths(), [3800, 2850, 1900, 1425, 950, 475])
         self.assertEqual(m.deck_widths_available(), {500, 240})
         self.assertFalse([p for p in m.parts if "型番仮" in p.note])
-        self.assertTrue(all("カタログVol.10p" in p.note for p in m.parts))
+        self.assertFalse([p for p in m.parts if "カタログVol.10p" not in p.note and "利用者の資料" not in p.note])
         by_no = {p.model_no: p for p in m.parts}
         self.assertEqual(by_no["NHP38N"].weight_kg, 11.60)      # p026
         self.assertEqual(by_no["NHX18"].weight_kg, 6.50)        # p029

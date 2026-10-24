@@ -81,7 +81,12 @@ def common_notes(model: ScaffoldModel, stair_plan=None) -> list[str]:
            "ジャッキベースの下には敷板を敷き、釘止めして脚部の滑動を防止する。"]
     nets = list(getattr(c, "horizontal_net_levels", []) or [])
     if nets:
-        out.append(f"水平養生ネットを {'・'.join(str(n) for n in nets)} 層に設置する。")
+        net = next(iter(model.master.by_category("水平ネット")), None)
+        what = f"層間ネット（{net.model_no}・防炎）" if net is not None else "層間ネット"
+        out.append(f"{what}を {'・'.join(str(n) for n in nets)} 層に設置する"
+                   + ("（幅木を付けないので全層）" if not c.has_toe_board else "") + "。")
+    if getattr(c, "shita_san", False):
+        out.append("幅木を付けない作業床の外側には下さん（高さ15〜40cmの桟）を設ける。")
     if getattr(c, "inner_guard_rail", False) and not model.master.is_frame:
         out.append("躯体と足場の離れが300以上となる部分は内側に手すり（布材）を設け、墜落防止措置を行う。")
     out.append("足場の組立て・解体・変更の作業ではフルハーネス型墜落制止用器具を使用する。")

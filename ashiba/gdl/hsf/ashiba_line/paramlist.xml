@@ -433,6 +433,10 @@
 			<Description><![CDATA["幅木を付ける 0/1（利用者の指定 2026-10-24: 幅木のオンオフ）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<Integer Name="shitaSan">
+			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Integer Name="railIn">
 			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
 			<Value>1</Value>

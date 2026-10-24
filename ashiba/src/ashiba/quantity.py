@@ -682,6 +682,11 @@ def _take_off_one(
     elif model.config.has_toe_board:
         for s, cells in toe_cells.items():
             add(m.find("幅木", s), cells, f"幅木{s}")
+    elif model.config.shita_san and not advance_rail:
+        # 下さん（幅木を付けないとき。高さ15〜40cmの桟。利用者の資料 2026-10-24: 幅木を使用しない場合は下さんが必要）
+        for s, cells in toe_cells.items():
+            add(m.find("下さん", s), cells, f"下さん{s}（幅木の代わり・床から300の桟）")
+        notes.append("幅木を付けないので、作業床の外側に下さん（高さ15〜40cmの桟）を各層に計上しています")
 
     # ---- 壁つなぎ ----
     kt = next(iter(m.by_category("壁つなぎ")), None)
@@ -1321,8 +1326,11 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
         add(bk, n_bk, f"ネットブラケット（第{lv}層・内側建地ごと）")
     net = next(iter(m.by_category("水平ネット")), None)
     if net is not None:
-        import math as _math
-        add(net, int(_math.ceil(area)), f"水平ネット m²（第{lv}層）")
+        # 層間ネット KSK-HV は 0.5×6m の1枚もの（利用者の資料 2026-10-24）。面ごと・層ごとに長さ6m・幅0.5m で割る
+        from .attachments import net_pieces
+
+        n_net = net_pieces(model, float(net.nominal_dim), float(net.actual_dim))
+        add(net, n_net, f"層間ネット {net.actual_dim / 1000:.1f}×{net.nominal_dim / 1000:.0f}m（第{lv}層）")
     missing = []
     if net is None:
         missing.append(f"水平ネット {area:.1f}m²")
@@ -1330,10 +1338,23 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
         missing.append(f"ネットブラケット（ネット専用ブラケット {NETBK_MODEL} 相当）{n_bk}個")
     if model.config.net_brackets:
         notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m²、ネットブラケットは内側建地ごと"
-                     f" {n_bk}個で計上")
+                     f" {n_bk}個で計上（ネットブラケットは起立式。開口部で作業するときはパイプを立てる）")
     else:
         notes.append(f"水平ネットは第{lv}層の床下（躯体と足場の隙間）に面ごと {area:.1f}m² で計上。ネットブラケットは"
                      "付けない指定（ネットの取付け金具は別途）")
+    # 層間ネットの決まり（利用者の資料 2026-10-24）: 幅木を使うなら2層毎、使わないなら全層
+    have = sorted(model.config.horizontal_net_levels)
+    n_lv = model.elevation.n_levels
+    if not model.config.has_toe_board:
+        miss = [k for k in range(1, n_lv + 1) if k not in have]
+        if miss:
+            notes.action(f"幅木を付けないので層間ネットは全層に要ります（第{'・'.join(str(k) for k in miss)}層に無い）",
+                         Notes.SITE)
+    else:
+        gaps = [have[0]] + [b - a for a, b in zip(have, have[1:])] + [n_lv + 1 - have[-1]]
+        if max(gaps) > 2:
+            notes.action("幅木を付けるときも層間ネットは2層毎に要ります（張る層 第" + lv + "層。間が3層以上空いている）",
+                         Notes.SITE)
     clash = netbk_clash_faces(model)
     if clash:
         need = NETBK_PLATE_MM + NETBK_REACH_MIN_MM + NET_GAP_MM

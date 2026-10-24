@@ -1105,6 +1105,14 @@ if showDeck then
 						endif
 					endif
 					if matScaf > 0 then material matScaf
+					! 下さん: 幅木を付けないときの作業床の外側の桟（高さ15〜40cm。床から300に φ48.6。利用者の資料 2026-10-24:
+					! 幅木を使用しない場合は下さんが必要）
+					if railAdv = 0 and toeOn = 0 and shitaSan = 1 and inSg = 0 and eoT = 0 and hugMode = 0 then
+						add x + r_sic, -rowW, z + 0.30
+						roty 90
+						cylind spans[ip] - 2 * r_sic, 0.0243
+						del 2
+					endif
 				endif
 			endif
 			x = x + spans[ip]

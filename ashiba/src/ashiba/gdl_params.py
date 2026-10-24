@@ -392,6 +392,7 @@ def line_params(
         "railIn": 1 if (model.config.inner_guard_rail and not model.master.is_frame) else 0,
         # 幅木（先行手すり・単管抱き足場・付けない指定のときは 0）
         "toeOn": 1 if model.config.has_toe_board else 0,
+        "shitaSan": 1 if model.config.shita_san else 0,
         # 3Dの線表示（Boolean は bool で送る。int だと Tapir が全パラメータを落とす）
         "lineMode": bool(model.config.line_mode_3d),
         # 表示設定を読むライブラリグローバル部品の名前（配布部品は版付きで埋め込まれる）
