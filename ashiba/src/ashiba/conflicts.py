@@ -50,6 +50,8 @@ def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssu
     from .platforms import hoist_cut_ranges
 
     for i, h in enumerate(hoists):
+        if not model.asagao_on(h.edge_index):
+            continue
         cut = hoist_cut_ranges(model, h.edge_index, [h])
         rng = "・".join(_rng(s0, s1) for s0, s1 in cut) or f"{h.position_mm:.0f}mm付近"
         out.append(ConflictIssue(

@@ -48,6 +48,8 @@ ui_infield "innerRail", 10, 56, 300, 20
 ui_infield "nextGen", 10, 80, 300, 20
 ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
 ui_infield "asagaoStages", 160, 106, 80, 20
+ui_outfield "付ける面（空＝全部）", 250, 108, 120, 18
+ui_infield "asagaoFaces", 372, 106, 110, 20
 ui_outfield "地域・粗度・養生材", 10, 136, 140, 18
 ui_infield "region", 160, 134, 130, 20
 ui_infield "roughness", 300, 134, 50, 20

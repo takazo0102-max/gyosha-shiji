@@ -163,7 +163,7 @@ TOP_KEYS = {
 }
 NESTED_KEYS = {
     "standoff": {"target", "min", "max", "hard_min"},
-    "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans", "kind"},
+    "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans", "kind", "faces"},
     "site": {"region", "v0_ms", "roughness", "sheet_type", "adjacent_factor",
              "region_factor", "gamma", "correction_f",
              "simultaneous_loaded_levels"},
@@ -960,6 +960,15 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             model.wall_ties = generate_wall_ties(plan2, elevation, config)
             model.inner_corner_joins = ic_joins
         model.plan.warnings.extend(ic_notes)
+    # 朝顔を付ける面（面名 → 辺番号）。面の組では、この組の面だけ
+    asg = model.config.asagao
+    if asg is not None and asg.faces:
+        names = dict(zip(model.plan.face_names(), (e.edge_index for e in model.plan.edges)))
+        model.asagao_edges = {names[f] for f in asg.faces if f in names}
+        unknown = [f for f in asg.faces if f not in names and f != "なし"]
+        if unknown and not spec.get("face_forms") and not spec.get("_group_neighbors") and not spec.get("faces"):
+            model.plan.warnings.append(f"朝顔を付ける面「{'・'.join(unknown)}」は足場の面にありません"
+                                       f"（面: {'・'.join(names)}）")
     model.obstacles = obstacles
     model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
@@ -1116,6 +1125,7 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
         return AsagaoSpec(
             stages=a.get("stages", need or 1),
             kind=kind,
+            faces=parse_asagao_faces(a.get("faces")),
             projection_mm=a.get("projection_mm", float(wing.nominal_dim) if wing else SAFE_WING_PROJECTION_MM),
             angle_deg=a.get("angle_deg", SAFE_WING_ANGLE_DEG),
             tie_every_spans=a.get("tie_every_spans", 2),
@@ -1125,7 +1135,29 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
         projection_mm=a.get("projection_mm", 2000.0),
         angle_deg=a.get("angle_deg", 25.0),
         tie_every_spans=a.get("tie_every_spans", 2),
+        faces=parse_asagao_faces(a.get("faces")),
     )
+
+
+def parse_asagao_faces(value) -> list[str]:
+    """朝顔を付ける面: ["南面", "東面"]・"南面・東面"・"全部"・空 → 面名の並び（空は全部の面）."""
+    if not value:
+        return []
+    if isinstance(value, str) and value.strip() == "なし":
+        return ["なし"]                                     # どの面にも付けない
+    if isinstance(value, str):
+        for sep in ("、", ",", ";", "；", " ", "　"):
+            value = value.replace(sep, "・")
+        items = value.split("・")
+    else:
+        items = [str(v) for v in value]
+    out = []
+    for t in items:
+        t = t.strip()
+        if not t or t in ("全部", "全て", "すべて", "全面", "全部の面"):
+            continue
+        out.append(t if t.endswith("面") or "(" in t else t + "面")
+    return out
 
 
 def build_brackets(spec: dict) -> list[BracketSection]:

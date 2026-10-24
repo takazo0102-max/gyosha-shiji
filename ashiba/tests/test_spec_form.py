@@ -89,3 +89,48 @@ class TestDialogAnswer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInnerRailAndAsagaoFaces(unittest.TestCase):
+    """手すりは外と内で選べる・朝顔は付ける面を選べる（利用者の指定 2026-10-24）."""
+
+    def test_inner_rail_choice(self):
+        v = _vals(BASE)
+        self.assertEqual(v["inner"], "付ける（手すり＋中桟）")
+        new, _n = apply_form(BASE, {**v, "inner": "付けない"})
+        self.assertFalse(new["inner_guard_rail"])
+        self.assertFalse(object_params(new)["innerRail"])
+        self.assertFalse(solve_all(new).model.config.inner_guard_rail)
+
+    def test_asagao_on_chosen_faces_only(self):
+        from ashiba.gdl_params import line_params
+
+        tall = {**BASE, "eaves_height_mm": 15000, "height_from_slabs": False}
+        v = _vals(tall)
+        self.assertEqual(v["asagao_faces"], "全部の面")
+        new, _n = apply_form(tall, {**v, "asagao_faces": "南面・東面"})
+        self.assertEqual(new["asagao"]["faces"], ["南面", "東面"])
+        self.assertEqual(object_params(new)["asagaoFaces"], "南面・東面")
+        r = solve_all(new)
+        m = r.model
+        on = {m.face_name(e.edge_index): bool(line_params(m, e, stair_plan=r.stair_plan)["asagaoList"])
+              for e in m.plan.edges}
+        self.assertEqual(on, {"南面": True, "東面": True, "北面": False, "西面": False})
+        self.assertFalse(any(t.kind == "asagao" and m.face_name(t.edge_index) in ("北面", "西面") for t in m.wall_ties))
+        full = solve_all(tall)
+        self.assertLess(r.quantity.qty_of("朝顔"), full.quantity.qty_of("朝顔"))
+        law = next(c for c in r.checks if c.check_id == 10)
+        self.assertEqual(law.status, "WARN")
+        self.assertIn("北面・西面には付けていません", law.message)
+
+    def test_toggle_faces_later(self):
+        from ashiba.spec_form import ASAGAO_MODES, updated_asagao_faces
+
+        every = ["南面", "東面", "北面", "西面"]
+        self.assertEqual(updated_asagao_faces("", every, ["北面"], ASAGAO_MODES[1]), "南面・東面・西面")
+        self.assertEqual(updated_asagao_faces("南面", every, ["東面"], ASAGAO_MODES[0]), "南面・東面")
+        self.assertEqual(updated_asagao_faces("南面・東面", every, ["北面", "西面"], ASAGAO_MODES[0]), "")
+        self.assertEqual(updated_asagao_faces("南面", every, ["南面"], ASAGAO_MODES[1]), "なし")
+        self.assertEqual(updated_asagao_faces("南面", every, [], ASAGAO_MODES[2]), "")
+        r = solve_all({**BASE, "eaves_height_mm": 15000, "height_from_slabs": False, "asagao": {"faces": "なし"}})
+        self.assertEqual(r.model.asagao_edges, set())

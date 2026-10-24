@@ -110,7 +110,7 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
     out = []
     basis = "敷地境界（民法234条・道路法32条の道路占用）"
     asg = getattr(model.config, "asagao", None)
-    asa_proj = float(getattr(asg, "projection_mm", 0.0) or 0.0) if model.asagao_heights() else 0.0
+    asa_full = float(getattr(asg, "projection_mm", 0.0) or 0.0) if model.asagao_heights() else 0.0
     towers = list(getattr(stair_plan, "towers", []) or [])
     outside = bool(getattr(stair_plan, "outside", False))
     for c in clearances:
@@ -127,6 +127,7 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
                 "足場×敷地境界", "WARN",
                 f"{c.face}: 足場の外から{side}線まで {c.min_mm:.0f}mm しかありません（養生シート・作業の余裕に注意）",
                 basis))
+        asa_proj = asa_full if model.asagao_on(c.edge_index) else 0.0
         if asa_proj > 0 and c.min_mm < asa_proj:
             out.append(ConflictIssue(
                 "朝顔×敷地境界", "WARN",

@@ -502,7 +502,8 @@ def line_params(
         "footStep": foot_step,
         "tieList": ",".join(str(int(t.position_mm)) for t in ties),
         "tieHeightList": ",".join(str(int(t.height_mm)) for t in ties),
-        "asagaoList": ",".join(str(h) for h in model.asagao_heights()),
+        # 朝顔を付けない面は空（利用者の指定 2026-10-24: 朝顔あとで必要箇所を選べるようにしたい）
+        "asagaoList": ",".join(str(h) for h in model.asagao_heights_of(ep.edge_index)),
         # 朝顔を切り欠く区間「開始,終了」の繰り返し（昇降機のマスト・搬器が通るスパン）。
         # 衝突検査が切り欠きを指示するのに、図面と3Dは全長の板のままだった
         "asaCutList": _asagao_cut_list(model, ep, platforms),

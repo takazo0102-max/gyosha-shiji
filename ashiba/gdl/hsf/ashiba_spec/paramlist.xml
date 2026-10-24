@@ -115,6 +115,10 @@
 			<Description><![CDATA["朝顔の段数（0＝自動判定）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<String Name="asagaoFaces">
+			<Description><![CDATA["朝顔を付ける面（空＝全部の面。例 南面・東面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="region">
 			<Description><![CDATA["地域（基準風速）"]]></Description>
 			<Value><![CDATA["関東(内陸)"]]></Value>

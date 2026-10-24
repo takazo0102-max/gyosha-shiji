@@ -119,7 +119,7 @@ def _legend(items, model: ScaffoldModel, y: float, kind: str, stair_plan=None, e
     rows.append(("tie", "壁つなぎ（平面 ▽・立面 ◎）"))
     if any(sp is not None and getattr(sp, "towers", None) for _m, sp in owners):
         rows.append(("stair", "昇降階段（手すり2段・開口部手すり）"))
-    if any(m.asagao_heights() for m, _sp in owners):
+    if any(m.asagao_heights() and any(m.asagao_on(e.edge_index) for e in m.plan.edges) for m, _sp in owners):
         rows.append(("asa", "朝顔（防護棚）"))
     sheet = str(getattr(model.config, "sheet_type", "") or "")
     if sheet and sheet != "なし":

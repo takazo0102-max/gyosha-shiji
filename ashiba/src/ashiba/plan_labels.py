@@ -71,7 +71,7 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         lv = "・".join(str(v) for v in model.config.horizontal_net_levels)
         items.append((x, y, f"水平ネット（第{lv}層）・ネットブラケット"))
     asg = getattr(model.config, "asagao", None)
-    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0:
+    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0 and model.asagao_on(south.edge_index):
         proj = float(getattr(asg, "projection_mm", 2000.0) or 2000.0)
         i2 = plain[min(2, len(plain) - 1)]
         x, y = _pt(o, u, nrm, (xs[i2] + xs[i2 + 1]) / 2.0, -row_w - proj / 2.0)
@@ -255,7 +255,7 @@ def face_outward_m(model: ScaffoldModel, ep, platforms=None, stair_plan=None) ->
         if getattr(st, "edge_index", None) == ep.edge_index:
             d = max(d, float(getattr(st, "projection_mm", 0.0) or 0.0) / 1000.0 + 0.10)
     asg = getattr(model.config, "asagao", None)
-    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0:
+    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0 and model.asagao_on(ep.edge_index):
         d = max(d, float(getattr(asg, "projection_mm", 2000.0) or 2000.0) / 1000.0 + 0.35)
     return d
 

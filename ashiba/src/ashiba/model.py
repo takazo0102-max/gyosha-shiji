@@ -71,6 +71,9 @@ class AsagaoSpec:
     angle_deg: float = 25.0          # 水平面からの傾斜
     tie_every_spans: int = 2         # 取付部の壁つなぎ間隔（スパン数）
     heights_mm: list[int] = field(default_factory=list)  # 設置高さ（空なら自動）
+    # 付ける面の名前（空なら全部の面。利用者の指定 2026-10-24: 朝顔あとで必要箇所を選べるようにしたい）。
+    # 割付の面の番号へは build_model が直して ScaffoldModel.asagao_edges に入れる
+    faces: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -182,6 +185,8 @@ class ScaffoldModel:
     # （inner_corners）。隙間が無ければ A の終点の内側建地は B の始点の外側建地と同じ1本、B の最初のスパンは外側の
     # 手すり・幅木を付けない
     inner_corner_joins: list = field(default_factory=list)
+    # 朝顔を付ける面（辺番号の集合。None＝全部の面）。AsagaoSpec.faces の面名から build_model が決める
+    asagao_edges: Optional[set] = None
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
     member_edits: list = field(default_factory=list)
     # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
@@ -261,6 +266,16 @@ class ScaffoldModel:
     @property
     def scaffold_height_mm(self) -> int:
         return self.elevation.total_height
+
+    def asagao_on(self, edge_index: int) -> bool:
+        """その面に朝顔を付けるか（段数があり、付ける面に入っている）."""
+        a = self.config.asagao
+        return bool(a is not None and a.stages > 0
+                    and (self.asagao_edges is None or edge_index in self.asagao_edges))
+
+    def asagao_heights_of(self, edge_index: int) -> list[int]:
+        """その面の朝顔の高さ（付けない面は空）."""
+        return self.asagao_heights() if self.asagao_on(edge_index) else []
 
     def asagao_heights(self) -> list[int]:
         """朝顔の設置高さ（GLから、下から昇順）.

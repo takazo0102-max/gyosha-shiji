@@ -75,7 +75,7 @@ def xsec_params(model: ScaffoldModel, edge_index: int, title: str, stories_mm: O
         "deckW1": float(ws[0]) / 1000.0,
         "deckW2": float(ws[1]) / 1000.0 if len(ws) > 1 else 0.0,
         "tieHList": _mm_list(ties),
-        "asaList": _mm_list(model.asagao_heights()),
+        "asaList": _mm_list(model.asagao_heights_of(edge_index)),
         "asaProj": float(getattr(asa, "projection_mm", 2000.0) or 2000.0) / 1000.0 if asa else 2.0,
         "asaAng": float(getattr(asa, "angle_deg", 20.0) or 20.0) if asa else 20.0,
         "bldgH": bldg / 1000.0,

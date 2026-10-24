@@ -552,6 +552,17 @@ def check_asagao(m: ScaffoldModel, terrain=None) -> CheckResult:
         problems.append(f"取付部の壁つなぎが{spec.tie_every_spans}スパン毎 > 2スパン毎")
     if problems:
         return CheckResult(10, "朝顔", NG, "、".join(problems), basis)
+    # 付ける面を選んだ計画（利用者の指定 2026-10-24: 朝顔あとで必要箇所を選べるようにしたい）。付けない面は、
+    # 道路・隣地・人の通る側でない（落下物が及ばない）ことを確かめる
+    off = [n for e, n in zip(m.plan.edges, m.plan.face_names()) if not m.asagao_on(e.edge_index)]
+    if off:
+        on = [n for e, n in zip(m.plan.edges, m.plan.face_names()) if m.asagao_on(e.edge_index)]
+        return CheckResult(
+            10, "朝顔", WARN,
+            f"{spec.stages}段（必要{need}段）を{'・'.join(on) or 'どの面にも'}に設置。{'・'.join(off)}には付けていません"
+            "（道路・隣地・人の通る側でないこと、落下物の及ぶ範囲を立入禁止にすることを確認）",
+            basis,
+        )
     return CheckResult(
         10, "朝顔", OK,
         f"{spec.stages}段（必要{need}段）・突出{spec.projection_mm:.0f}mm・"

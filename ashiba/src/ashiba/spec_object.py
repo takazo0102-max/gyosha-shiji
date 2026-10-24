@@ -48,6 +48,8 @@ FIELDS: tuple[Field, ...] = (
     Field("innerRail", "bool", ("inner_guard_rail",), True),
     Field("nextGen", "bool", ("next_gen",), False),
     Field("asagaoStages", "int", ("asagao", "stages"), 0, zero_is_unset=True),
+    # 朝顔を付ける面（空＝全部の面。パレットの「朝顔の面」が書く。利用者の指定 2026-10-24）
+    Field("asagaoFaces", "str", ("asagao", "faces"), "", zero_is_unset=True),
     Field("region", "str", ("site", "region"), "関東(内陸)"),
     Field("roughness", "str", ("site", "roughness"), "III"),
     Field("sheetType", "str", ("site", "sheet_type"), "メッシュシート"),
@@ -172,6 +174,8 @@ def params_from_spec(spec: dict) -> dict:
             from .master import SERIES_LABELS, series_from_label
 
             out[f.gdl] = SERIES_LABELS.get(series_from_label(v), str(v))
+        elif isinstance(v, (list, tuple)):
+            out[f.gdl] = "・".join(str(t) for t in v)          # 面名の並び（朝顔を付ける面）
         else:
             out[f.gdl] = str(v)
     return out

@@ -584,9 +584,11 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         spec = apply_spec_object(client, spec)
     # 条件の窓（足場の種類・系列・幅・手すり・階段・朝顔・養生・高さ・立面断面）を出して選んでから置く
     # （利用者の指定 2026-10-24: 配置の時 足場の種類選べるようにして。条件の部分がどうやるのかわからない）。
-    # 選んだ値は足場条件の部品に書く。スクリプトから（spec_override・ASHIBA_ASK_SPEC=0）は出さない
+    # 選んだ値は足場条件の部品に書く。スクリプトから（spec_override・ASHIBA_ASK_SPEC=0）や、解き直し・面の切替など
+    # 外形を渡して置き直すとき（outline_mm）は出さない
     asked = False
-    if use_spec_object and spec_override is None and os.environ.get("ASHIBA_ASK_SPEC", "1") != "0":
+    if (use_spec_object and spec_override is None and outline_mm is None
+            and os.environ.get("ASHIBA_ASK_SPEC", "1") != "0"):
         spec, go, asked = ask_conditions(client, spec, ("place", "配置"))
         if not go:
             print("配置: やめました（足場は置き直していません）")

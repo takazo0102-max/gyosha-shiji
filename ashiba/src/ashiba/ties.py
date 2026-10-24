@@ -44,6 +44,8 @@ def _asagao_ties(model: ScaffoldModel) -> list[WallTie]:
     out: list[WallTie] = []
     for h in model.asagao_heights():
         for e in model.plan.edges:
+            if not model.asagao_on(e.edge_index):
+                continue
             n = max(1, e.span_count // every)
             starts = [0.0]
             for sp in e.spans:

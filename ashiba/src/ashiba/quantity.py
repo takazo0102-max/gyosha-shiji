@@ -979,6 +979,11 @@ def _count_asagao_parts(
     if not asagao or asagao.stages <= 0:
         return
     m = model.master
+    span_counts, posts_per_line, skipped = _asagao_faces_only(model, span_counts, posts_per_line)
+    if not span_counts:
+        return
+    if skipped:
+        notes.append(f"朝顔は {'・'.join(skipped)} には付けていません（付ける面を選んだ計画）")
     if asagao.kind == ASAGAO_KIND_SAFE_WING:
         _count_safe_wing_parts(model, span_counts, posts_per_line, add, notes)
         return
@@ -1030,7 +1035,8 @@ def _count_asagao_parts(
     # 出隅はそれを始点に持つ面に属する（面の組・面ごとの数量で二重にしない）
     corners = [e for e in model.plan.outline.edges if model.corner_kind_start(e.index) == "出隅"
                and (model.edge_subset is None or e.index in model.edge_subset)
-               and (model.faces_only is None or e.index in model.faces_only)]
+               and (model.faces_only is None or e.index in model.faces_only)
+               and model.asagao_on(e.index) and model.asagao_on((e.index - 1) % len(model.plan.outline.edges))]
     if corners:
         corner_part = next((p for p in m.by_category("朝顔") if "コーナー" in p.note), None)
         if corner_part is not None:
@@ -1049,6 +1055,27 @@ def _count_asagao_parts(
 
     # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
     # 数える（図面にも出る。同じ位置の格子の金具で兼ねる分は二重に数えない）
+
+
+def _asagao_faces_only(model: ScaffoldModel, span_counts: dict, posts_per_line: int):
+    """朝顔を付ける面を選んだ計画（model.asagao_edges）なら、その面だけのスパン数・支柱数 → (スパン数, 支柱数, 付けない面名).
+
+    付ける面が全部なら渡されたまま。支柱は面のスパン数＋1 を足し、隣り合う付ける面どうしの隅の支柱は1本に数える。
+    """
+    if model.asagao_edges is None:
+        return span_counts, posts_per_line, []
+    mine = [e for e in model.plan.edges if model.asagao_on(e.edge_index)
+            and (model.edge_subset is None or e.edge_index in model.edge_subset)]
+    counts: dict[int, int] = {}
+    for e in mine:
+        for sp in e.spans:
+            counts[sp] = counts.get(sp, 0) + 1
+    n = len(model.plan.outline.edges)
+    on = {e.edge_index for e in mine}
+    posts = sum(len(e.spans) + (0 if (e.edge_index + 1) % n in on else 1) for e in mine)
+    names = dict(zip([e.edge_index for e in model.plan.edges], model.plan.face_names()))
+    skipped = [names[e.edge_index] for e in model.plan.edges if e.edge_index not in on]
+    return counts, posts, skipped
 
 
 def _count_safe_wing_parts(
