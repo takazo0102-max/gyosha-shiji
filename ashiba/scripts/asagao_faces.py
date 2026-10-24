@@ -223,10 +223,25 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
                 c.set_gdl_parameters_many([(el, {**pl.params, **extra}) for pl, el in zip(mine, made) if el is not None])
                 n_add += sum(1 for el in made if el is not None)
     _lb0, r0 = groups[0]
+    # 平面の部材名ラベル（「朝顔（突出 2000）」など。寸法はそのまま）も直す（利用者の指定 2026-10-24: 朝顔の面でラベルも一緒に直して）
+    n_lab = 0
+    try:
+        from ashiba.elevation_sections import activate_floor_plan, building_key, fit_scale, plan_region_mm
+        from ashiba.plan_labels import plan_labels, replace_plan_labels
+
+        activate_floor_plan(c)
+        region = plan_region_mm(r0.model)
+        scale = fit_scale((region[2] - region[0], region[3] - region[1]), (841.0, 594.0)) or 200
+        labels = plan_labels(r0.model, r0.stair_plan, text_scale=float(scale), platforms=r0.platforms)
+        first_line = next((els[0] for els in lines_by_face.values() if els), None)
+        floor = tb.line_floor(c, [first_line]) if first_line is not None else None
+        n_lab = replace_plan_labels(c, OUT_DIR, building_key(r0.model.plan.outline.vertices), labels, floor_index=floor)
+    except Exception as e:
+        print(f"朝顔の面: 平面のラベルを直せませんでした（{e}）")
     write_outputs(r0, OUT_DIR)
     used[0].write_text(json.dumps(spec, ensure_ascii=False, default=str), encoding="utf-8")
     print(f"朝顔の面: {'・'.join(sorted(changed))} の朝顔を直しました（足場ライン {n_line}本・壁つなぎ {n_del}本を"
-          f" {n_add}本に入れ替え。ほかの部品はそのまま）。帳票も書き直しました")
+          f" {n_add}本に入れ替え、平面のラベル {n_lab}個を置き直し。ほかの部品はそのまま）。帳票も書き直しました")
     return True
 
 

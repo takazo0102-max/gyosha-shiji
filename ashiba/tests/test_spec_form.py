@@ -214,3 +214,23 @@ class TestNetRules(unittest.TestCase):
         self.assertFalse(any("層間ネット" in w for w in ok.quantity.warnings))
         sparse = solve_all({**BASE, "horizontal_net_levels": [1]})
         self.assertTrue(any("2層毎に要ります" in w for w in sparse.quantity.warnings))
+
+
+class TestAsagaoLabelFollowsTheFaces(unittest.TestCase):
+    """朝顔の面でラベルも直す（利用者の指定 2026-10-24）。代表面（南）に朝顔が無ければ、付いている面で指す."""
+
+    def test_label_moves_to_a_face_with_asagao(self):
+        from ashiba.plan_labels import plan_label_items
+
+        tall = {**BASE, "eaves_height_mm": 15000, "height_from_slabs": False}
+
+        def asagao_label(spec):
+            r = solve_all(spec)
+            return next(((x, y) for x, y, t in plan_label_items(r.model, r.stair_plan) if t.startswith("朝顔")), None)
+
+        south = asagao_label(tall)
+        self.assertIsNotNone(south)
+        moved = asagao_label({**tall, "asagao": {"faces": "東面・北面・西面"}})
+        self.assertIsNotNone(moved)
+        self.assertNotEqual(south, moved)
+        self.assertIsNone(asagao_label({**tall, "asagao": {"faces": "なし"}}))

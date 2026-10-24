@@ -71,10 +71,17 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         lv = "・".join(str(v) for v in model.config.horizontal_net_levels)
         items.append((x, y, f"水平ネット（第{lv}層）" + ("・ネットブラケット" if model.config.net_brackets else "")))
     asg = getattr(model.config, "asagao", None)
-    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0 and model.asagao_on(south.edge_index):
+    # 朝顔は代表面（南）に付いていればそこ、外していれば朝顔の付いている面で指す（朝顔の面で付け外しする。2026-10-24）
+    asa_ep = south if model.asagao_on(south.edge_index) else next(
+        (e for e in sorted(edges, key=outward_y) if model.asagao_on(e.edge_index)), None)
+    if asg is not None and int(getattr(asg, "stages", 0) or 0) > 0 and asa_ep is not None:
         proj = float(getattr(asg, "projection_mm", 2000.0) or 2000.0)
-        i2 = plain[min(2, len(plain) - 1)]
-        x, y = _pt(o, u, nrm, (xs[i2] + xs[i2 + 1]) / 2.0, -row_w - proj / 2.0)
+        ao, au, an = _frame(asa_ep)
+        ax = [0.0]
+        for sp in asa_ep.spans:
+            ax.append(ax[-1] + float(sp))
+        i2 = (plain[min(2, len(plain) - 1)] if asa_ep is south else min(2, len(asa_ep.spans) - 1))
+        x, y = _pt(ao, au, an, (ax[i2] + ax[i2 + 1]) / 2.0, -row_w - proj / 2.0)
         items.append((x, y, f"朝顔（突出 {proj:.0f}）"))
     stair = _part_name(model, "階段", "昇降階段")
     for t in getattr(stair_plan, "towers", None) or []:
@@ -216,6 +223,36 @@ def save_label_record(out_dir, building: str, guids: list[str]) -> None:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     (Path(out_dir) / PLAN_LABELS_RECORD).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n",
                                                     encoding="utf-8")
+
+
+def replace_plan_labels(client, out_dir, building: str, labels, floor_index=None) -> int:
+    """平面の部材名ラベルだけを置き直す（寸法はそのまま）。控えの GUID のうち寸法でないものを消して、labels を置く.
+
+    朝顔の面のように一部だけ直すボタンが使う（利用者の指定 2026-10-24: 朝顔の面でラベルも一緒に直して）。置いた数を返す.
+    """
+    from .elevation_sections import create_labels
+
+    guids = load_label_record(out_dir).get(building, [])
+    keep, gone = [], []
+    if guids:
+        els = [{"elementId": {"guid": g}} for g in guids]
+        try:
+            det = client.tapir("GetDetailsOfElements", {"elements": els}).get("detailsOfElements", [])
+        except Exception:
+            det = []
+        for g, d in zip(guids, det):
+            typ = str((d or {}).get("type") or "")
+            if not typ:
+                continue                       # 手で消されたもの
+            (keep if "Dimension" in typ else gone).append(g)
+    if gone:
+        try:
+            client.delete_elements([{"elementId": {"guid": g}} for g in gone])
+        except Exception:
+            pass
+    made = create_labels(client, labels, floor_index=floor_index) if labels else []
+    save_label_record(out_dir, building, keep + list(made))
+    return len(made)
 
 
 def remove_plan_labels(client, out_dir, building: Optional[str] = None) -> int:
