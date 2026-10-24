@@ -5,7 +5,7 @@
 配置（run_from_archicad.main）はこの敷地境界線を拾い、面ごとの境界までの離れで NG・要確認を出す。
 
 使い方:
-  python3 scripts/dev_site.py create [--at 3000000,2000000] [--road 1200] [--west 1500] [--east 3000] [--north 4000]
+  python3 scripts/dev_site.py create [--at -27016,-4656] [--road 1200] [--west 1500] [--east 3000] [--north 4000]
   python3 scripts/dev_site.py boundary [--at ...] [--road ...] ...  # 境界線だけ引き直す（建物はそのまま）
   python3 scripts/dev_site.py place  [--at ...] [条件の JSON を ASHIBA_SPEC で]
   python3 scripts/dev_site.py clear  [--at ...]      # 作った境界線を消す（足場は remove_from_archicad で）
@@ -148,7 +148,9 @@ def clear(c: ArchicadClient, s: dict) -> None:
 
 
 def main() -> int:
-    ox, oy = (float(v) for v in _arg("at", "3000000,2000000").split(","))
+    # 既定は 24×10m の見本の位置。2026-10-24 の保存・再起動で実機の原点が移り、見本は旧座標 −(3327016, 2004656) に
+    # なった（以前の既定 3000000,2000000 は 3km 先の何も無い所）
+    ox, oy = (float(v) for v in _arg("at", "-27016,-4656").split(","))
     s = site(ox, oy)
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "place":
