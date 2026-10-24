@@ -264,6 +264,20 @@ class ScaffoldModel:
         """始点の隅の種類（出隅／入隅／空）。開放端・ほかの組に繋いだ端は隅として扱わない."""
         return "" if self._no_prev(edge_index) else self.plan.outline.edges[edge_index].start_corner
 
+    def frame_gap_end_mm(self, edge_index: int) -> float:
+        """枠組の面の終点の出隅で、建枠どうしの隙間 mm（単管で繋ぐ。0 は隙間なし・枠組でない・出隅でない）.
+
+        枠組は離れを固定して余りを各面の終点の隅に出す（plan_solver._solve_plan_frame。70mm 以上）。建枠は隣の面の
+        建枠と繋がらないので、隙間を単管（直交クランプ）で繋ぐ（利用者の指定 2026-10-24）。
+        """
+        if not self.master.is_frame or self.corner_kind_end(edge_index) != "出隅":
+            return 0.0
+        n = len(self.plan.outline.edges)
+        for c in getattr(self.plan, "corner_steps", None) or []:
+            if c.edge_index < 0 and c.corner_index == (edge_index + 1) % n:
+                return float(c.gap_mm)
+        return 0.0
+
     def corner_kind_end(self, edge_index: int) -> str:
         return "" if self._no_next(edge_index) else self.plan.outline.edges[edge_index].end_corner
 

@@ -2291,6 +2291,22 @@ def _count_frame_corners(model: ScaffoldModel, add, notes, n_levels: int) -> Non
     else:
         add(rail, cells * 4, f"出隅の手すり・中桟（外周2辺、{rail.model_no}）")
     notes.append(f"枠組の出隅{n_corners}箇所×{n_levels}層はギャプレス（コーナー布受け）で納め、升目の床・外周2辺の手すりを計上")
+    # 建枠どうしは繋がらないので、出隅の隙間（70mm 以上）は内外の建地列を根がらみ＋各層で単管（直交クランプ2個）で繋ぐ
+    # （利用者の指定 2026-10-24: 枠足場は繋がらないから70mm離して単管で繋げけるようにして。3D・平面と同じ）
+    gaps = [model.frame_gap_end_mm(e.edge_index) for e in model.plan.edges
+            if model.edge_subset is None or e.edge_index in model.edge_subset]
+    gaps = [g for g in gaps if g > 0.5]
+    if gaps:
+        n_tube = len(gaps) * 2 * (n_levels + 1)
+        tube = next(iter(m.by_category("単管")), None)
+        orth = next((p for p in m.by_category("クランプ") if "直交" in p.note), None)
+        if tube is None or orth is None:
+            missing.append(f"出隅の連結用の単管 {n_tube}本・直交クランプ {2 * n_tube}個")
+        else:
+            add(tube, n_tube, f"出隅の建枠どうしを繋ぐ単管{tube.nominal_dim // 1000:.0f}m")
+            add(orth, 2 * n_tube, "出隅の連結単管の直交クランプ")
+        notes.append(f"枠組の出隅{len(gaps)}箇所は建枠どうしが繋がらないので隙間（{'・'.join(f'{g:.0f}' for g in sorted(set(gaps)))}mm）を"
+                     f"空け、内外の建地列を根がらみと各層で単管{n_tube}本（直交クランプ{2 * n_tube}個）で繋ぐ")
     if missing:
         notes.action("枠組の出隅の部材が系列のマスタにありません: " + "・".join(missing) + "。別途手配してください")
 

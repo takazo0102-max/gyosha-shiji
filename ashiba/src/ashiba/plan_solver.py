@@ -68,6 +68,9 @@ WEDGE_STANDOFF_LO_MM = 270
 WEDGE_STANDOFF_STEP_MM = 5
 FRAME_CORNER_MIN_GAP_MM = 70    # 建枠を90度回して納めるのに要る最小隙間
 FRAME_CORNER_MAX_STEP_MM = 250  # コーナーステップで埋められる上限
+# 枠組の出隅は建枠どうしが繋がらないので 70mm 離し、単管（直交クランプ）で繋ぐ。隙間はこの値までに寄せる
+# （利用者の指定 2026-10-24: 枠足場は繋がらないから70mm離して単管で繋げけるようにして）
+FRAME_TUBE_GAP_MAX_MM = 120
 
 
 @dataclass
@@ -892,7 +895,7 @@ def _solve_plan_frame(
     best_d, best_key = spec.target, None
     for d_try in sorted({spec.target} | set(range(int(spec.min), int(spec.max) + 1, 10)),
                         key=lambda v: abs(v - spec.target)):
-        bad = n_small = n_sp = 0
+        bad = n_small = n_sp = n_far = 0
         for e in edges:
             tl = e.length + (e.start_sign + e.end_sign) * d_try
             if tl < min_span:
@@ -901,9 +904,11 @@ def _solve_plan_frame(
             sp, gap = _frame_spans_and_gap(coins, tl)
             if not (FRAME_CORNER_MIN_GAP_MM <= gap <= FRAME_CORNER_MAX_STEP_MM):
                 bad += 1
+            if gap > FRAME_TUBE_GAP_MAX_MM:
+                n_far += 1               # 70mm に寄らない隅（単管で繋ぐ隙間が広い）
             n_small += sum(1 for v in sp if v < main)
             n_sp += len(sp)
-        key = (bad, n_small, n_sp, abs(d_try - spec.target))
+        key = (bad, n_small, n_sp, n_far, abs(d_try - spec.target))
         if best_key is None or key < best_key:
             best_d, best_key = d_try, key
     d = float(best_d)                    # 離れは全面固定

@@ -472,6 +472,8 @@ def line_params(
         # 妻側を先行手すり（ブレス材）で塞ぐ（くさび式。単管・枠組は布材のまま。利用者の指定 2026-10-24）
         "endBrace": 1 if end_brace(model) else 0,
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
+        # 枠組の終点の出隅の建枠どうしの隙間（m）。内外の建地列を各層で単管で繋ぐ（利用者の指定 2026-10-24）
+        "frGapE": model.frame_gap_end_mm(ep.edge_index) / 1000.0,
         "cornerG": 1 if (model.master.is_frame
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）
