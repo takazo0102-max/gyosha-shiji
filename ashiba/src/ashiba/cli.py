@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -961,6 +961,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
     model.faces_only = faces
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
+    # セットバックの上段の端（本体の足場に繋ぐ。setback_tiers）
+    model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
     # 仮囲いの高さ（外部シートの下端。既定 3000＝仮囲いの鋼板 H3m。0 なら地面から）
     model.hoarding_height_mm = max(0.0, float(spec.get("hoarding_height_mm", 3000) or 0))
@@ -1197,8 +1199,8 @@ def _apply_face_eaves(model: ScaffoldModel, face_eaves: dict[int, float]) -> Non
         lines.append(f"{n} 軒高{ev / 1000:.2f}m→{fe.n_levels}層・足場高さ{fe.total_height / 1000:.2f}m")
     model.clip_ties_to_faces()
     if model.face_elevations:
-        model.plan.warnings.append("面ごとの高さ（スラブの天端から。セットバックした上の部分は、上のスラブを選んで"
-                                   "もう一度実行すると下の屋根の上から建てます）: " + "／".join(lines))
+        model.plan.warnings.append("面ごとの高さ（スラブの天端から。大きくセットバックした上の階は、途中の屋根の上から"
+                                   "上段の足場を建てて繋ぎます）: " + "／".join(lines))
     elif lines:
         model.plan.warnings.append("軒高はスラブの天端から: " + "／".join(lines))
 
@@ -1648,7 +1650,22 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     """面ごとの足場の切り替え（face_forms）を含む入力を、面の組ごとに解く → [(組の名前, 結果)].
 
     切り替えが無ければ [("", solve_all(spec))]。組の名前は "" が切り替えていない面、ほかは種類（face_forms）。
+    大きなセットバックの上の階は、途中の屋根の上から建てる「上段」の組を後ろに足す（setback_tiers。
+    利用者の指定 2026-10-24: セットバックの時は途中の屋根から足場が繋がるようにする仕組みを作って）。
     """
+    from .setback_tiers import tier_note, tier_specs
+
+    out = _solve_face_groups(spec, master_csv)
+    for label, sub in tier_specs(spec, lambda ol: all_face_names({**spec, "outline_mm": ol, "faces": None}, master_csv)):
+        r = solve_all(sub, master_csv)
+        out.append((label, r))
+        note = tier_note(label, sub)
+        if note:
+            out[0][1].model.plan.warnings.append(note)
+    return out
+
+
+def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, PlanRun]]:
     from .face_forms import face_groups
 
     if not spec.get("face_forms"):

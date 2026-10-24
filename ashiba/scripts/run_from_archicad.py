@@ -692,7 +692,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     group_lines: list = []
     group_sets: list = []                   # 平面の寸法を付ける (組の結果, 組の足場ライン)
     for label, rg in groups[1:]:
-        gdir = OUT_DIR / f"切替_{label}"
+        tier = label.startswith("上段")          # セットバックの上の階（途中の屋根の上から。setback_tiers）
+        gdir = OUT_DIR / (label if tier else f"切替_{label}")
         write_outputs(rg, gdir)
         lg = place_scaffold_lines(
             rg.model, line_part, client, stair_plan=rg.stair_plan,
@@ -706,7 +707,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         group_lines += lg + ag
         group_sets.append((rg, lg))
         vg = result_dict(rg, gdir)["verdict"]
-        print(f"  面の切替: {'・'.join(rg.model.plan.face_names())} を {label}（{rg.model.config.form_label}・"
+        print(f"  {'上段（途中の屋根から）' if tier else '面の切替'}: {'・'.join(rg.model.plan.face_names())} を {label}（{rg.model.config.form_label}・"
               f"{rg.model.master.system_name}）で 足場ライン{len(lg)}本 — " + ("成立" if vg["ok"] else "是正が必要")
               + f"（帳票は {gdir.name}）")
         for b in vg["blockers"]:
