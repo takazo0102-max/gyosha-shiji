@@ -1235,7 +1235,7 @@ next il
 x = 0
 for ip = 1 to nSpan
 	for il = 1 to nLv - 1
-		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and brOn[il] = 1 then
 			! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ。利用者の指摘 2026-10-24）
 			bk1 = x
 			bk2 = x + spans[ip]

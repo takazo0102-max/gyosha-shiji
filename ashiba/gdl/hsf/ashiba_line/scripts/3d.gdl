@@ -1203,7 +1203,7 @@ endif
 ! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
 if showBrace then
 	for il = 1 to nLv - 1
-		if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+		if brOn[il] = 1 then
 			z1 = lv[il]
 			z2 = lv[il + 1]
 			x = 0

@@ -665,6 +665,12 @@ def _take_off_one(
         every_s = max(1, rules.brace_every_spans)
         every_l = max(1, rules.brace_every_levels)
         level_groups = math.ceil(n_levels / every_l) if n_levels else 0
+        # 根がらみ〜1段目の床が低い（1.0m 未満）層にはブレスを掛けず、1つ上の層へ入れる（図と同じ。利用者の指摘 2026-10-24:
+        # 前も言ったけど1段目に変なブレス）。全層に入れる（1層ごと）ときは、その低い層の分だけ減る
+        lv0 = list(getattr(elev, "level_heights", None) or [])
+        first_lift = (float(lv0[0]) - float(getattr(elev, "first_ledger_height", 0) or 0)) if lv0 else 9999.0
+        if every_l == 1 and first_lift < 999.0 and level_groups > 0:
+            level_groups -= 1
         n_locations = 0
         shortfall = 0
         for e in plan.edges:

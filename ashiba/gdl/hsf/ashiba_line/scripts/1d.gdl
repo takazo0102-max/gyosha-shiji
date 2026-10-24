@@ -16,6 +16,7 @@ dim nBd[2]
 dim nRl[2]
 dim runE[2]
 dim ties[200]
+dim brOn[60]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
@@ -959,6 +960,21 @@ bEvS = braceEveryS
 if bEvS < 1 then bEvS = 1
 bEvL = braceEveryL
 if bEvL < 1 then bEvL = 1
+! 斜材を入れる層 brOn[il]（層 il は lv[il]〜lv[il+1]）: bEvL 層ごと。根がらみ〜1段目の床のように低い層（1.0m 未満）には
+! ブレスが掛からない（平べったい山形になっていた。利用者の指摘 2026-10-24: 前も言ったけど1段目に変なブレス）ので、その層の
+! 分は1つ上の層に入れる（本数は同じ。数量の quantity と合わせる）
+for il = 1 to nLv - 1
+	brOn[il] = 0
+next il
+for il = 1 to nLv - 1
+	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+		if lv[il + 1] - lv[il] > 0.999 then
+			brOn[il] = 1
+		else
+			if il + 1 <= nLv - 1 then brOn[il + 1] = 1
+		endif
+	endif
+next il
 
 ! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
 ! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
@@ -1089,7 +1105,7 @@ next ip
 ! 斜材: 3D と同じ間隔（bEvL 層・bEvS スパンごと、1箇所2本）。下端の高さの部品が持つ
 qBrace = 0
 for il = 1 to nLv - 1
-	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 and lv[il] >= gzA - 0.001 and lv[il] < gzB - 0.001 then
+	if brOn[il] = 1 and lv[il] >= gzA - 0.001 and lv[il] < gzB - 0.001 then
 		for ip = sA to sB
 			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
 				! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ）。1本ずつ数える
