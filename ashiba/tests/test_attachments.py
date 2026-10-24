@@ -160,3 +160,33 @@ class TestSheetEndsOfOutsideStairs(unittest.TestCase):
         self.assertEqual(len(pls), faces + 2 * towers + 2 * towers)   # 区間3つ（＋2）と妻側2枚（＋2）
         ends = [p for p in pls if abs(p.params["x1"] - p.params["x0"] - r.model.post_row_spacing_mm / 1000) < 1e-9]
         self.assertEqual(len(ends), 2 * towers)
+
+
+class TestSheetPanelsFollowTheScaffold(unittest.TestCase):
+    """外部シートの割付は足場と同じ（継ぎ目は支柱）。間が開いている部分は特殊シートとして伸ばす（利用者の指定 2026-10-24）."""
+
+    def test_seams_on_posts_and_special_sheets(self):
+        from ashiba.attachments import sheet_panels, sheet_placements, special_sheets
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000,
+                       "series_id": "nikken_nd1800", "scaffold_width_mm": 914})
+        m = r.model
+        for ep in m.plan.edges:
+            posts = [0.0]
+            for sp in ep.spans:
+                posts.append(posts[-1] + sp)
+            panels = [p for seg in sheet_panels(m, ep, r.stair_plan) for p in seg]
+            inner = [a for a, _b, _s in panels[1:]]
+            self.assertTrue(all(any(abs(a - p) < 0.5 for p in posts) for a in inner), m.face_name(ep.edge_index))
+            # 1829 のスパンは標準、ほかの幅のスパンと端（角・隙間）は特殊
+            for a, b, sp in panels:
+                self.assertEqual(sp, abs((b - a) - 1829) > 1.0)
+        gaps = [c for c in m.plan.corner_steps if c.edge_index >= 0]
+        for c in gaps:                                   # 隙間（コーナーステップ）も覆う
+            ep = next(e for e in m.plan.edges if e.edge_index == c.edge_index)
+            last = [p for seg in sheet_panels(m, ep, r.stair_plan) for p in seg][-1]
+            self.assertGreater(last[1], sum(ep.spans) + c.gap_mm)
+        self.assertTrue(special_sheets(m, r.stair_plan))
+        self.assertTrue(all(p.params.get("panelList") for p in sheet_placements(m, stair_plan=r.stair_plan)))
+        self.assertTrue(any("特殊シート" in w for w in r.quantity.warnings))

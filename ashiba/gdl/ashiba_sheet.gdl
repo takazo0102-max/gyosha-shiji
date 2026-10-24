@@ -13,17 +13,18 @@
 ! 3Dは透ける膜と1枚の幅（1.8m）ごとの継ぎ目、平面は外側の破線と目盛り。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   faceAng    角度    面の向き（度）                                    既定 0
-!   zH         長さ    足場の立つ高さ（下の屋根から建てた上の部分）      既定 0
-!   lineMode   ブール  3Dを線で（軽い）                                  既定 0
-!   offY       長さ    シートの面（内側建地芯から外へ。外側建地列＋60）  既定 0.67
-!   x0         長さ    始点（面に沿って）                                既定 0
-!   x1         長さ    終点（面に沿って）                                既定 5.4
-!   zB         長さ    下端                                              既定 0
-!   zT         長さ    上端                                              既定 5.1
-!   sheetW     長さ    シート1枚の幅（継ぎ目の線）                       既定 1.8
-!   sheetKind  文字列  養生材                                            既定 "メッシュシート"
-!   matSheet   表面材  表面材（0＝養生材の既定色）                       既定 0
+!   faceAng    角度    面の向き（度）                                                                              既定 0
+!   zH         長さ    足場の立つ高さ（下の屋根から建てた上の部分）                                                既定 0
+!   lineMode   ブール  3Dを線で（軽い）                                                                            既定 0
+!   offY       長さ    シートの面（内側建地芯から外へ。外側建地列＋60）                                            既定 0.67
+!   x0         長さ    始点（面に沿って）                                                                          既定 0
+!   x1         長さ    終点（面に沿って）                                                                          既定 5.4
+!   zB         長さ    下端                                                                                        既定 0
+!   zT         長さ    上端                                                                                        既定 5.1
+!   sheetW     長さ    シート1枚の幅（継ぎ目の線）                                                                 既定 1.8
+!   sheetKind  文字列  養生材                                                                                      既定 "メッシュシート"
+!   panelList  文字列  シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）  既定 ""
+!   matSheet   表面材  表面材（0＝養生材の既定色）                                                                 既定 0
 ! ==========================================================
 
 ! ==========================================================
@@ -94,15 +95,68 @@ else
 			material "ashiba_solid_sheet"
 		endif
 	endif
-	add x0, -offY - 0.001, zB
-	block x1 - x0, 0.002, zT - zB
-	del 1
-	! 継ぎ目（1枚の幅ごと）
-	nW = int((x1 - x0) / sheetW + 0.999)
-	for iw = 1 to nW - 1
-		xs = x0 + iw * sheetW
-		lin_ xs, -offY - 0.002, zB, xs, -offY - 0.002, zT
-	next iw
+	! 割付（panelList）: 継ぎ目は足場の支柱の位置。特殊シート（スパンと幅の違う升目・隅・隙間に伸ばす分）は色を替える
+	! （利用者の指定 2026-10-24: 外部シートの割り付けは足場と同じにして、間が開いてる部分は特殊シートとして伸ばす）
+	dim pA[], pB[], pS[]
+	nP = 0
+	rest = panelList
+	k3 = 0
+	while strlen(rest) > 0 and nP < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		kk = split(item, "%n", vv)
+		if kk > 0 then
+			k3 = k3 + 1
+			if k3 = 1 then pA[nP + 1] = vv / 1000
+			if k3 = 2 then pB[nP + 1] = vv / 1000
+			if k3 = 3 then
+				nP = nP + 1
+				pS[nP] = vv
+				k3 = 0
+			endif
+		endif
+	endwhile
+	if nP = 0 then
+		add x0, -offY - 0.001, zB
+		block x1 - x0, 0.002, zT - zB
+		del 1
+		! 継ぎ目（1枚の幅ごと）
+		nW = int((x1 - x0) / sheetW + 0.999)
+		for iw = 1 to nW - 1
+			xs = x0 + iw * sheetW
+			lin_ xs, -offY - 0.002, zB, xs, -offY - 0.002, zT
+		next iw
+	else
+		mStd = 0
+		if matSheet > 0 then mStd = matSheet
+		for ip = 1 to nP
+			if pS[ip] = 1 and matSheet = 0 then
+				! 特殊シート: 少し黄みの色（標準のシートと見分ける）
+				define material "ashiba_sheet_special" 0, 0.78, 0.70, 0.45, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
+				material "ashiba_sheet_special"
+			else
+				if matSheet > 0 then
+					material matSheet
+				else
+					if sheetKind = "メッシュシート" then
+						material "ashiba_mesh_sheet"
+					else
+						material "ashiba_solid_sheet"
+					endif
+				endif
+			endif
+			add pA[ip], -offY - 0.001, zB
+			block pB[ip] - pA[ip], 0.002, zT - zB
+			del 1
+			if ip > 1 then lin_ pA[ip], -offY - 0.002, zB, pA[ip], -offY - 0.002, zT
+		next ip
+	endif
 endif
 hotspot x0, -offY, zB
 hotspot x1, -offY, zB

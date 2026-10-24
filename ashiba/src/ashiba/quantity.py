@@ -1395,7 +1395,7 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
 def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     """養生シート（足場の外側の構面）。マスタに無ければ枚数と面積を注記に出す（リースの別手配が多い）."""
-    from .attachments import SHEET_SIZES, sheet_quantities
+    from .attachments import SHEET_SIZES, sheet_quantities, special_sheets
 
     kind = model.config.sheet_type or ""
     if kind not in SHEET_SIZES:
@@ -1404,12 +1404,18 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     # 系列にある品はその大きさ（日建スプリングメッシュは 1829×5160）で数える
     w, h = (part.nominal_dim, part.actual_dim) if part is not None and part.actual_dim else SHEET_SIZES[kind]
     area, n = sheet_quantities(model, stair_plan, (w, h))
-    if n <= 0:
+    sp = special_sheets(model, stair_plan, (w, h))
+    if n <= 0 and not sp:
         return
-    if part is not None:
+    if part is not None and n:
         add(part, n, f"{kind}")
-    notes.append(f"{kind}（{w / 1000:.1f}×{h / 1000:.1f}m）は外側の構面を地面から足場の天端まで、"
-                 f"面ごとに {area:.0f}m²・{n}枚で計上" + ("" if part is not None else "（系列のマスタに無いので別途手配）"))
+    notes.append(f"{kind}（{w / 1000:.1f}×{h / 1000:.1f}m）は外側の構面を地面から足場の天端まで、継ぎ目を足場のスパンに"
+                 f"そろえて {area:.0f}m²・標準 {n}枚で計上" + ("" if part is not None else "（系列のマスタに無いので別途手配）"))
+    if sp:
+        # 足場のスパンと幅の違う升目、隅・隙間に伸ばす分は特殊シート（利用者の指定 2026-10-24）
+        notes.action(f"特殊シート（{kind}・高さ {h / 1000:.1f}m）: "
+                     + "・".join(f"幅{wd}×{k}枚" for wd, k in sp.items())
+                     + "。足場のスパンと幅の違う升目と、隅・隙間に伸ばす分。別途手配してください", Notes.ORDER)
 
 
 def outside_stair_counts(model: ScaffoldModel, stair_plan) -> tuple[int, int]:
