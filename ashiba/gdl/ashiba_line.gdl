@@ -2702,24 +2702,31 @@ for ib = 1 to nBm
 	if komaPitch > 0.001 then bDr = komaPitch
 	bt = bmH[ib] - bDr
 	bb = bt - 0.37
-	line2 bs, bt, be, bt
-	line2 bs, bb, be, bb
-	line2 bs, bb, bs, bt
-	line2 be, bb, be, bt
 	nPn = max(1, int(bmL[ib] / 1.829 + 0.5))
+	nd = 4 * nPn
+	dW = bmL[ib] / nd
+	! 上弦材は通し、下弦材は両端の1区画ずつ短い（両端がすぼまる。カタログ p010 の図）
+	line2 bs, bt, be, bt
+	line2 bs + dW, bb, be - dW, bb
 	for iv = 1 to nPn - 1
 		line2 bs + bmL[ib] * iv / nPn, bb, bs + bmL[ib] * iv / nPn, bt
 	next iv
-	nd = 4 * nPn
 	for id = 0 to nd - 1
-		dx1 = bs + bmL[ib] * id / nd
-		dx2 = bs + bmL[ib] * (id + 1) / nd
-		if id - 2 * int(id / 2) = 0 then
+		dx1 = bs + dW * id
+		dx2 = dx1 + dW
+		if id - 2 * int(id / 2) = 1 then
 			line2 dx1, bb, dx2, bt
 		else
 			line2 dx1, bt, dx2, bb
 		endif
 	next id
+	! 補強のつなぎ材（梁枠の高さで両隣のスパン、床の高さで開口の上）
+	xq = 0
+	for iq = 1 to nSpan
+		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - be) < 0.001 then line2 xq, bt, xq + spans[iq], bt
+		if xq >= bs - 0.001 and xq + spans[iq] <= be + 0.001 then line2 xq, bmH[ib], xq + spans[iq], bmH[ib]
+		xq = xq + spans[iq]
+	next iq
 	set style "annoC"
 	if showDim then text2 (bs + be) / 2, bb - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
 	set style "anno"
@@ -4495,12 +4502,14 @@ for ih = 1 to nHo
 	next it3
 next ih
 
-! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部、梁渡し、両隣のつなぎ材 ----
-! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）・NDH72（4スパン）、カタログ p011–013: せい 370、上下弦材 φ42.7、
-! ワーレントラスの斜材 φ27.2（1スパンを4区画）、1829 ごとの束材。上弦材の両端の緊結部を、作業床の1段下のコマ
-! （bmDrop）に掛け、下弦材の両端は建地に当てる受け金具。梁枠の上の建地は、内外の梁枠の上弦材に渡した梁渡し（NDHW、
-! 建地列の間隔の長さ）のほぞに立てる。取付の高さで開口の両隣のスパンにつなぎ材（補強の布材）を内外に入れる
-! （カタログ「取付位置は布板の1段下のディスク、両サイドにつなぎ材」。利用者の指定 2026-10-24: 梁枠の詳細上げて）
+! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部・ホゾ、梁渡し、補強のつなぎ材 ----
+! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）・NDH72（4スパン）、カタログ p010–011 の図: せい 370、上下弦材 φ42.7、
+! 下弦材は上弦材より1区画ずつ短く両端がすぼまる（端の斜材が上弦材の端の緊結部へ上がる）、ワーレンの斜材 φ27.2（1スパン
+! 4区画）、1829 ごとの束材と、その上の上弦材に上の建地を受けるホゾ。上弦材の両端の緊結部を作業床の1段下のコマ（bmDrop）に
+! 掛ける。梁枠の上の建地は内外の梁枠に渡した梁渡し（NDHW）のほぞに立ち、コマが両隣と同じ床の高さに来る。
+! 補強のつなぎ材（カタログ「梁枠の両サイドには、つなぎ材（補強）」、組立の標準例の図）: 梁枠の高さで開口の両隣のスパンに、
+! 床の高さで開口の上（梁枠の上の建地の間）に、内外とも入れる。両端の建地を上下2段で押さえる（利用者の指定 2026-10-24:
+! 梁枠の詳細上げて／つなぎ材も数量に入れて、モデルもこのようにして）
 for ib2 = 1 to nBm
 	bs = bmS[ib2]
 	bl = bmL[ib2]
@@ -4509,17 +4518,20 @@ for ib2 = 1 to nBm
 	bzb = bzt - bmDep
 	bx0 = bs + r_sic + 0.05
 	bLn = bl - 2 * (r_sic + 0.05)
+	nPn2 = max(1, int(bl / 1.829 + 0.5))
+	nDg = max(2, 4 * nPn2)
+	dgW = bLn / nDg
 	for row2 = rowStart to 1
 		yb3 = -row2 * rowW
-		! 上下弦材
-		for bc = 0 to 1
-			bz = bzt
-			if bc = 1 then bz = bzb
-			add bx0, yb3, bz
-			roty 90
-			cylind bLn, r_nuno
-			del 2
-		next bc
+		! 上弦材（通し）と下弦材（両端の1区画ずつ短い）
+		add bx0, yb3, bzt
+		roty 90
+		cylind bLn, r_nuno
+		del 2
+		add bx0 + dgW, yb3, bzb
+		roty 90
+		cylind bLn - 2 * dgW, r_nuno
+		del 2
 		if isLite = 0 then
 			for be = 0 to 1
 				xe = bs + be * bl
@@ -4531,33 +4543,29 @@ for ib2 = 1 to nBm
 				add xe + sgE * (r_sic + 0.025), yb3, bzt + 0.04
 				cylind 0.05, 0.006
 				del 1
-				! 下弦材の端の受け金具（建地に当てる半割りの当て板）と端の縦材
-				add xe + sgE * r_sic - (1 - sgE) / 2 * 0.012, yb3 - 0.03, bzb - 0.05
-				block 0.012, 0.06, 0.10
-				del 1
-				add xe + sgE * (r_sic + 0.05), yb3, bzb
-				cylind bmDep, 0.017
-				del 1
 			next be
 		endif
-		! 束材（1829 ごと）
-		nPn2 = max(1, int(bl / 1.829 + 0.5))
+		! 束材と、その上の上弦材のホゾ（上の建地を受ける。1829 ごと）
 		for iv = 1 to nPn2 - 1
 			xv = bx0 + iv * bLn / nPn2
 			add xv, yb3, bzb
 			cylind bmDep, 0.0136
 			del 1
+			if isLite = 0 then
+				add xv, yb3, bzt + r_nuno
+				cylind 0.12, r_sic - 0.006
+				del 1
+			endif
 		next iv
-		! 斜材（ワーレン。1スパンを4区画）と、斜材が弦材に付く節点のガセット
-		nDg = max(2, 4 * nPn2)
-		dgW = bLn / nDg
+		! 斜材（ワーレン。1スパンを4区画）。両端の区画は上弦材の端から下弦材の端へ下りる
 		for id2 = 0 to nDg - 1
 			x1 = bx0 + id2 * dgW
-			z1d = bzb
-			z2d = bzt
+			! 偶数の区画は上弦材から下弦材へ下り、奇数の区画は上がる（両端の区画が上弦材の端の緊結部に付く）
+			z1d = bzt
+			z2d = bzb
 			if id2 - 2 * int(id2 / 2) = 1 then
-				z1d = bzt
-				z2d = bzb
+				z1d = bzb
+				z2d = bzt
 			endif
 			dgL = sqr(dgW * dgW + bmDep * bmDep)
 			add x1, yb3, z1d
@@ -4588,12 +4596,15 @@ for ib2 = 1 to nBm
 			if iq <= nSpan then xq = xq + spans[iq]
 		next iq
 	endif
-	! 両隣のスパンのつなぎ材（補強の布材。梁枠の取付の高さで内外）
+	! 補強のつなぎ材: 梁枠の高さで両隣のスパン、床の高さで開口の上のスパン（内外）
 	xq = 0
 	for iq = 1 to nSpan
-		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then
+		zTn = -1
+		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then zTn = bzt
+		if xq >= bs - 0.001 and xq + spans[iq] <= bs + bl + 0.001 then zTn = bh
+		if zTn >= 0 then
 			for row3 = rowStart to 1
-				add xq, -row3 * rowW, bzt
+				add xq, -row3 * rowW, zTn
 				nL = spans[iq]
 				gosub 830
 				del 1

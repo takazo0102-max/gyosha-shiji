@@ -1392,24 +1392,31 @@ for ib = 1 to nBm
 	if komaPitch > 0.001 then bDr = komaPitch
 	bt = bmH[ib] - bDr
 	bb = bt - 0.37
-	line2 bs, bt, be, bt
-	line2 bs, bb, be, bb
-	line2 bs, bb, bs, bt
-	line2 be, bb, be, bt
 	nPn = max(1, int(bmL[ib] / 1.829 + 0.5))
+	nd = 4 * nPn
+	dW = bmL[ib] / nd
+	! 上弦材は通し、下弦材は両端の1区画ずつ短い（両端がすぼまる。カタログ p010 の図）
+	line2 bs, bt, be, bt
+	line2 bs + dW, bb, be - dW, bb
 	for iv = 1 to nPn - 1
 		line2 bs + bmL[ib] * iv / nPn, bb, bs + bmL[ib] * iv / nPn, bt
 	next iv
-	nd = 4 * nPn
 	for id = 0 to nd - 1
-		dx1 = bs + bmL[ib] * id / nd
-		dx2 = bs + bmL[ib] * (id + 1) / nd
-		if id - 2 * int(id / 2) = 0 then
+		dx1 = bs + dW * id
+		dx2 = dx1 + dW
+		if id - 2 * int(id / 2) = 1 then
 			line2 dx1, bb, dx2, bt
 		else
 			line2 dx1, bt, dx2, bb
 		endif
 	next id
+	! 補強のつなぎ材（梁枠の高さで両隣のスパン、床の高さで開口の上）
+	xq = 0
+	for iq = 1 to nSpan
+		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - be) < 0.001 then line2 xq, bt, xq + spans[iq], bt
+		if xq >= bs - 0.001 and xq + spans[iq] <= be + 0.001 then line2 xq, bmH[ib], xq + spans[iq], bmH[ib]
+		xq = xq + spans[iq]
+	next iq
 	set style "annoC"
 	if showDim then text2 (bs + be) / 2, bb - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
 	set style "anno"

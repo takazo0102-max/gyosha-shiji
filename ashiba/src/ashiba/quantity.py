@@ -1268,6 +1268,31 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
                 )
             else:
                 add(saddle, n_inner, f"梁渡し（{model.face_name(o.edge_index)}の梁枠上の支柱{n_inner}本）")
+    # 補強のつなぎ材（日建 カタログ p010「梁枠の両サイドには、つなぎ材（補強）」と組立の標準例の図。3D と同じ）: 梁枠の高さで
+    # 開口の両隣のスパン、床の高さで開口の上のスパンに、内外の建地列ごとに布材1本（利用者の指定 2026-10-24: つなぎ材も数量に入れて）
+    ties_by_span: dict[int, int] = {}
+    for o in openings.openings:
+        ep = next((e for e in model.plan.edges if e.edge_index == o.edge_index), None)
+        if ep is None:
+            continue
+        x = 0.0
+        for sp in ep.spans:
+            sp = float(sp)
+            beside = abs(x + sp - o.start_mm) < 1.0 or abs(x - o.end_mm) < 1.0
+            over = x >= o.start_mm - 1.0 and x + sp <= o.end_mm + 1.0
+            if beside or over:
+                ties_by_span[int(round(sp))] = ties_by_span.get(int(round(sp)), 0) + rows
+            x += sp
+    for sp, n in sorted(ties_by_span.items()):
+        part = m.find("布材", sp)
+        if part is None:
+            notes.action(f"梁枠の補強のつなぎ材（布材{sp}・{n}本）がマスタにありません。別途手配してください")
+        else:
+            add(part, n, f"梁枠の補強のつなぎ材{sp}（梁枠の高さで両隣・床の高さで開口の上）")
+    if ties_by_span:
+        notes.append(f"梁枠の補強のつなぎ材 {sum(ties_by_span.values())}本（梁枠の高さで開口の両隣のスパン、床の高さで開口の上の"
+                     "スパン。内外の建地列ごと）を計上")
+
     # 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）の前踏み側の先行手すり筋交い（ミレニューム Q16）
     from .openings import beam_rules, front_adv_spans
 

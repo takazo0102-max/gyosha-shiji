@@ -119,7 +119,7 @@ class TestBeamDetailAndBraces(unittest.TestCase):
         p3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("if komaPitch > 0.001 then bmDrop = komaPitch", p3)
         self.assertIn("! 梁渡し（NDHW）", p3)
-        self.assertIn("! 両隣のスパンのつなぎ材", p3)
+        self.assertIn("! 補強のつなぎ材", p3)
         self.assertNotIn("sgn ", p3)                 # GDL の組み込み関数 SGN と同じ名前の変数は 3D が止まる
 
 
@@ -162,3 +162,18 @@ class TestMillenniumBeamRules(unittest.TestCase):
         nd = solve_all({"outline_mm": RECT, "eaves_height_mm": 12000, "series_id": "nikken_nd1800",
                         "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
         self.assertEqual(front_adv_spans(nd.model, 0, nd.openings), [])
+
+
+class TestBeamTies(unittest.TestCase):
+    """補強のつなぎ材（利用者の指定 2026-10-24: つなぎ材も数量に入れて、モデルもこのようにして）."""
+
+    def test_ties_beside_at_beam_level_and_over_at_deck_level(self):
+        r = solve_all({"outline_mm": RECT, "eaves_height_mm": 9000, "series_id": "nikken_nd1800",
+                       "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
+        # 両隣2スパン×内外＋開口の上2スパン×内外
+        self.assertTrue(any("補強のつなぎ材 8本" in n for n in r.quantity.notes), r.quantity.notes)
+        p3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if xq >= bs - 0.001 and xq + spans[iq] <= bs + bl + 0.001 then zTn = bh", p3)
+        self.assertIn("cylind bLn - 2 * dgW, r_nuno", p3)          # 下弦材は両端の1区画ずつ短い
+        p2 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("line2 bs + dW, bb, be - dW, bb", p2)
