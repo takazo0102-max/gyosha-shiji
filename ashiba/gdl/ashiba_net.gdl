@@ -30,20 +30,33 @@
 ! ==== 2Dスクリプト ====
 ! ==========================================================
 ! ============================================================
-! 水平ネット 2D（平面）: 範囲の枠と網目（0.5m の格子）。参考図の「落下防止養生ネット張り」の表記
+! 水平ネット 2D（平面）: 範囲の枠と網目（塗りつぶし「タイル-クロス」）。参考図の「落下防止養生ネット張り」の表記
 ! ============================================================
 pen 1
 rot2 faceAng
-rect2 0, 0, netL, netW
-nx = int(netL / 0.5)
-for i = 1 to nx
-	x1 = i * 0.5
-	if x1 - netW >= 0 then
-		line2 x1, 0, x1 - netW, netW
-	else
-		line2 x1, 0, 0, x1
-	endif
-next i
+! 網は塗りつぶし「タイル-クロス」で表す（利用者の指定 2026-10-24: ネットの塗りつぶし平面表記はタイルクロスにして）。
+! 塗りつぶしがプロジェクトに無いときは、以前の斜めの網目の線で描く
+fiNet = IND(FILL, "タイル-クロス")
+if fiNet > 0 then
+	fill fiNet
+	poly2_b 5, 7, 1, 0,
+		0, 0, 1,
+		netL, 0, 1,
+		netL, netW, 1,
+		0, netW, 1,
+		0, 0, -1
+else
+	rect2 0, 0, netL, netW
+	nx = int(netL / 0.5)
+	for i = 1 to nx
+		x1 = i * 0.5
+		if x1 - netW >= 0 then
+			line2 x1, 0, x1 - netW, netW
+		else
+			line2 x1, 0, 0, x1
+		endif
+	next i
+endif
 hotspot2 0, 0
 hotspot2 netL, 0
 hotspot2 netL, netW
