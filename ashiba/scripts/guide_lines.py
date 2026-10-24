@@ -46,7 +46,8 @@ def building_plan(points) -> dict | None:
         return None
     mx = sum(p[0] for p in points) / len(points)
     my = sum(p[1] for p in points) / len(points)
-    for plan_p in sorted(OUT_DIR.rglob("*_plan.json"), key=lambda p: -p.stat().st_mtime):
+    # 本体の控え（ashiba_out 直下）を先に。上段・面の切替の組の控え（下のフォルダ）は外形が違うことがある
+    for plan_p in sorted(OUT_DIR.rglob("*_plan.json"), key=lambda p: (p.parent != OUT_DIR, -p.stat().st_mtime)):
         plan = json.loads(plan_p.read_text(encoding="utf-8"))
         ol = plan.get("outline_mm") or []
         if not ol:

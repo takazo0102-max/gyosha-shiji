@@ -1500,7 +1500,9 @@ def _count_intakes(model: ScaffoldModel, notes) -> None:
 
 def _count_roof_bridges(model: ScaffoldModel, notes) -> None:
     """屋上への渡り（足場の最上段の床から屋上へ。利用者の指定 2026-10-24）。渡り桟橋は系列のマスタに無いので手配に出す."""
-    bs = getattr(model, "roof_bridges", None) or []
+    # 面ごとに高さが違えば数量は同じ高さの面の組ごと。渡りはその面の組でだけ出す（二重に手配しない）
+    bs = [b for b in getattr(model, "roof_bridges", None) or []
+          if model.edge_subset is None or b.edge_index in model.edge_subset]
     if not bs:
         return
     from .roof_bridges import bridge_note

@@ -176,14 +176,21 @@ def split_cross_specs_with_owner(owners, specs: list[SectionSpec]) -> list[tuple
         ay = (sp.end_mm[1] - sp.start_mm[1]) / max(sp.length_mm, 1e-9)
         s0 = section_x(sp, sp.start_mm)                         # 断面座標の始点（section_x は始点からではない）
         faces = sorted(((f, tuple(own)) for own in owners for f in cut_faces(own[0], sp)), key=lambda x: x[0].x_in)
+        used: dict[str, int] = {}
         for f, own in faces:
+            # 同じ名前の面を2つ横切る（セットバックの上段の南面と本体の南面）ときは名前を分ける（実機 2026-10-24: 断面の
+            # 名前が重なった）。途中の屋根・ブラケットの上に立つ組は「（上段）」
+            fname = f.face_name
+            if fname in used:
+                fname = f"{fname}（上段）" if float(getattr(own[0], "base_height_mm", 0) or 0) > 0 else f"{fname}（{used[f.face_name] + 1}）"
+            used[f.face_name] = used.get(f.face_name, 0) + 1
             outer = 1.0 if f.x_out > f.x_wall else -1.0          # 断面座標で外側の向き
             a_m = f.x_out + outer * CLEAR_MM / 1000.0 - s0
             b_m = f.x_wall - outer * INSIDE_MM / 1000.0 - s0
             lo, hi = max(0.0, min(a_m, b_m)), min(sp.length_mm / 1000.0, max(a_m, b_m))
             st = (sp.start_mm[0] + ax * lo * 1000.0, sp.start_mm[1] + ay * lo * 1000.0)
             en = (sp.start_mm[0] + ax * hi * 1000.0, sp.start_mm[1] + ay * hi * 1000.0)
-            out.append((SectionSpec(f"{sp.face_name} {f.face_name}", f"{sp.name} {f.face_name}", st, en,
+            out.append((SectionSpec(f"{sp.face_name} {fname}", f"{sp.name} {fname}", st, en,
                                     sp.depth_mm, (hi - lo) * 1000.0, f.edge_index), own))
     return out
 

@@ -33,6 +33,21 @@ class TestRoofBridges(unittest.TestCase):
         self.assertEqual((b.x_mm, b.parapet_mm), (3000.0, 600.0))
         self.assertAlmostEqual(bridge_placements(r.model)[0].params["paraH"], 0.6)
 
+    def test_bridge_starts_at_the_level_nearest_the_roof(self):
+        # 実機 2026-10-24: セットバックの低い面で最上段が屋根より 1775 上になり「下り1775」の渡りになった
+        from test_setback_tiers import SPEC as SB
+
+        from ashiba.cli import solve_groups
+
+        g = solve_groups({**SB, "stairs": {"layout": "自動"}})
+        main = g[0][1]
+        for b in main.model.roof_bridges:
+            self.assertLessEqual(abs(b.z_to_mm - b.z_from_mm), 900)
+        # 面の組ごとの数量で二重に手配しない
+        notes = [w for w in main.quantity.warnings if "屋上への渡り" in w]
+        self.assertEqual(len(notes), 1)
+        self.assertNotIn("辺0", notes[0])
+
     def test_off(self):
         self.assertEqual(solve_all({**SPEC, "roof_bridge": False}).model.roof_bridges, [])
 

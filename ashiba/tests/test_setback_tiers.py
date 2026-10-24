@@ -45,6 +45,17 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertAlmostEqual(tier.plan.edges[0].end_post[0], xs[-1], delta=1.0)
         self.assertTrue(any("途中の屋根（GL+9000）" in w for w in main.plan.warnings))
 
+    def test_section_names_stay_unique(self):
+        # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった
+        from ashiba.cross_sections import cross_section_specs, split_cross_specs_with_owner
+
+        g = solve_groups({**SPEC, "cross_cuts_mm": [[[12000, -6000], [12000, 15000]]]})
+        owners = [(r.model, r.stair_plan, r.terrain) for _lb, r in g]
+        specs = [s for s, _o in split_cross_specs_with_owner(owners, cross_section_specs(g[0][1].model, "x"))]
+        names = [s.face_name for s in specs]
+        self.assertEqual(len(names), len(set(names)), names)
+        self.assertIn("A-A 南面（上段）", names)
+
     def test_can_be_turned_off(self):
         self.assertEqual(len(solve_groups({**SPEC, "setback_tiers": False})), 1)
 

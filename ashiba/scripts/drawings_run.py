@@ -97,7 +97,10 @@ def main() -> int:
     if old_details:
         c.delete_elements(old_details)
     tapir_v, _ac = c.versions()
-    dw = R.make_drawings(c, spec, r, groups, lines, [], line_part, detail_part, tapir_v, mode="section")
+    import os
+
+    dw = R.make_drawings(c, spec, r, groups, lines, [], line_part, detail_part, tapir_v, mode="section",
+                         fill_title=os.environ.get("ASHIBA_NO_TITLE") != "1")   # 試験の建物では表題欄を書かない
     if guides:
         delete_guides(c, guides)
         print("図面を作る: 目印の線を消しました")

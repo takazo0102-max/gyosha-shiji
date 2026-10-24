@@ -57,8 +57,9 @@ def roof_bridges(model, stair_plan, spec: dict) -> tuple[list[RoofBridge], list[
         lv = list(model.elevation_of(ei).level_heights)
         if not lv:
             return
-        z_from = float(lv[-1])
         z_to = float(eaves.get(ei, default_eaves))
+        # 屋上の床にいちばん近い段から渡す（最上段は屋根より1段上のことがある。実機 2026-10-24: 下り1775 になった）
+        z_from = float(min(lv, key=lambda h: (abs(float(h) - z_to), -float(h))))
         name = model.face_name(ei)
         if abs(z_to - z_from) > ROOF_MAX_STEP_MM:
             notes.append(f"屋上への渡り: {name}は最上段の床（{z_from:.0f}）と屋上（{z_to:.0f}）の差が"
