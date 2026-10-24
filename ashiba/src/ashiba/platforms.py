@@ -45,6 +45,9 @@ class LoadingStage:
     has_toe_board: bool = True
     has_load_sign: bool = True      # 最大積載荷重の表示
     has_hozue: bool = True          # 方杖
+    # 侵入落下防止柵（利用者の指定 2026-10-24。GLOOBE の「荷受けステージと侵入落下防止柵」）: ステージの先端・妻側に
+    # 金網の落下防止柵（荷が手すりの間から落ちない）、足場側の間口に開閉式の侵入防止柵（荷の取り込み中に人が出ない）
+    has_fence: bool = True
     note: str = ""
 
     def length_mm(self, model: ScaffoldModel) -> float:
@@ -430,6 +433,19 @@ def platform_part_demands(
                 "荷受けステージ 先端手すり支柱", "支柱", post, n_posts * n_levels,
                 detail="張出ブラケット先端に立て、先端の手すり・中桟を受ける",
             ))
+        if s.has_fence:
+            # 侵入落下防止柵: 先端・妻側は金網の柵（1枚の幅 FENCE_PANEL_MAX_MM 以下で割る）、足場側の間口はスパンごとの
+            # 開閉式の柵。3D・平面と同じ枚数
+            n_front, n_side, n_gate = stage_fence_panels(model, s)
+            out.append(PartDemand(
+                "荷受けステージ 落下防止柵（金網）", "落下防止柵", None, (n_front + n_side) * n_levels,
+                detail=f"先端{n_front}枚・妻側{n_side}枚×{n_levels}層、高さ{FENCE_HEIGHT_MM:.0f}（荷が手すりの間から落ちない）",
+            ))
+            out.append(PartDemand(
+                "荷受けステージ 侵入防止柵（開閉式）", "侵入防止柵", None, n_gate * n_levels,
+                detail=f"足場側の間口の扉{n_gate}枚（足場の床の中へ開く幅に割る）×{n_levels}層、高さ{FENCE_HEIGHT_MM:.0f}"
+                       "（荷の取り込み中は閉めて人をステージへ出さない）",
+            ))
         # 妻側（張出しの左右）も開放端。前面だけ手すりを立てても横から落ちる
         side = _side_nominal(model, s.projection_mm)
         if side is not None:
@@ -451,6 +467,21 @@ def platform_part_demands(
     # 取付部・マスト控えの壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に
     # 入れて数える（図面にも出る）。ここで別に足すと二重計上になる
     return out
+
+
+FENCE_HEIGHT_MM = 1800.0        # 侵入落下防止柵の高さ（床から。金網のフェンスパネル H1800）
+FENCE_PANEL_MAX_MM = 1800.0     # 落下防止柵1枚の最大幅
+
+
+def stage_fence_panels(model: ScaffoldModel, stage: "LoadingStage") -> tuple[int, int, int]:
+    """侵入落下防止柵の1層あたりの枚数 (先端, 妻側2面の計, 足場側の開閉式). GDL の 3D・平面と同じ割り方."""
+    length = stage.length_mm(model)
+    n_front = max(1, math.ceil(length / FENCE_PANEL_MAX_MM - 1e-6)) if length > 0 else 0
+    n_side = 2 * max(1, math.ceil(float(stage.projection_mm) / FENCE_PANEL_MAX_MM - 1e-6))
+    # 足場側の扉は足場の床の中へ開くので、1枚の幅は建地列の間隔−120 以下に割る（610 幅で 1829 のスパンは4枚）
+    leaf = max(1.0, float(model.post_row_spacing_mm) - 120.0)
+    n_gate = sum(max(1, math.ceil((float(sp) - 100.0) / leaf - 1e-6)) for sp in stage.spans(model))
+    return n_front, n_side, n_gate
 
 
 def _rail_post_nominal(model: ScaffoldModel) -> Optional[int]:

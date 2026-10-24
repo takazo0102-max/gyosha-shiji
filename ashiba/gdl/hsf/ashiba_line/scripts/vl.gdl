@@ -223,7 +223,7 @@ if editSpan and nSg > 0 then
 		next ig
 		sl = ""
 		for ig = 1 to nSg
-			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig], 1, 0)
+			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig] + 2 * sgF[ig], 1, 0)
 			if sl = "" then sl = item else sl = sl + "," + item
 		next ig
 		parameters stageList = sl

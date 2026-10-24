@@ -1414,6 +1414,9 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     kind = model.config.sheet_type or ""
     if kind not in SHEET_SIZES:
         return
+    if kind == "防音パネル":
+        _count_sound_panels(model, add, notes, stair_plan)
+        return
     # 系列にある品はその大きさ（日建スプリングメッシュは 1829×5160、防音シート ♯1000 は 1.8×3.4）で数える
     w, h = sheet_size(model)
     area, n = sheet_quantities(model, stair_plan, (w, h))
@@ -1462,6 +1465,52 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     hb = getattr(model, "hoarding_height_mm", 0.0) or 0.0
     if hb > 0:
         notes.append(f"{kind}は仮囲いの天端（{hb:.0f}）から上に張り、足場の天端から下へ1枚の高さずつ割り付けています（いちばん下の段は残りの高さ）")
+
+
+def _count_sound_panels(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
+    """防音パネル（日本セイフティー 防音パネル・BG）: スパンごとの長さのパネル × 段、出隅のコーナーパネル、専用クランプ・
+    三つ爪クランプ（利用者の指定 2026-10-24: 防音パネルを追加して）. 割付・段・クランプの位置は図の部品と同じ."""
+    from .attachments import (panel_corner_count, panel_corner_pieces, sheet_clamp_count, sheet_corner_clamp_count,
+                              sheet_quantities, sheet_rows, sheet_size, special_sheets, standard_sheets)
+
+    w, h = sheet_size(model)
+    area, _n = sheet_quantities(model, stair_plan, (w, h))
+    std = standard_sheets(model, stair_plan, (w, h))
+    sp = special_sheets(model, stair_plan, (w, h))
+    panels = [p for p in model.master.by_category("防音パネル") if p.nominal_dim]
+    other = {}
+    for wd, k in std.items():
+        hit = next((p for p in panels if abs(p.nominal_dim - wd) <= 1), None)
+        if hit is not None:
+            add(hit, k, f"防音パネル スパン{wd}")
+        else:
+            other[wd] = k
+    n_rows = max((len(sheet_rows(model, e.edge_index)) for e in model.plan.edges), default=0)
+    notes.append(f"防音パネル（高さ{h:.0f}・厚み40）は外側の構面に、継ぎ目を足場のスパンにそろえて {area:.0f}m²・"
+                 + "・".join(f"スパン{wd}×{k}枚" for wd, k in std.items())
+                 + f" で計上。上から1枚ずつ割り付け、いちばん下の段は仮囲いの天端に重ねる（最大{n_rows}段）")
+    if other:
+        notes.action("防音パネル: " + "・".join(f"スパン{wd}×{k}枚" for wd, k in other.items())
+                     + f"（系列 {model.master.series_id} のマスタに無い長さ）を別途手配してください", Notes.ORDER)
+    if sp:
+        notes.action("防音パネルの隙間（隅の隙間・入隅の取り合いなどスパンに無い幅）: "
+                     + "・".join(f"幅{wd}×{k}段" for wd, k in sp.items())
+                     + "。パネルが無い幅なので、防音シートか合板で塞いでください", Notes.ORDER)
+    n_corner = panel_corner_pieces(model, stair_plan)
+    if n_corner:
+        cp = next((p for p in model.master.by_category("防音パネル") if not p.nominal_dim), None)
+        if cp is not None:
+            add(cp, n_corner, "防音パネル コーナー（出隅の角 × 段）")
+        else:
+            notes.action(f"防音パネル コーナー {n_corner}枚（出隅の角 × 段）を別途手配してください", Notes.ORDER)
+    n_cl = sheet_clamp_count(model, stair_plan)
+    if n_cl:
+        notes.action(f"防音パネルの専用クランプ {n_cl}個（継ぎ目と端の建地に、段の継ぎ目ごと＝下端・継ぎ目・天端。"
+                     "ピンで隣り合うパネルの枠を留める）。系列のマスタに品番が無いので別途手配してください", Notes.ORDER)
+    n_cc = sheet_corner_clamp_count(model, stair_plan)
+    if n_cc:
+        notes.action(f"三つ爪クランプ {n_cc}個（出隅の角 {panel_corner_count(model, stair_plan)}箇所。コーナーパネルの数"
+                     f"{n_corner}＋コーナーの箇所数。日本セイフティーのよくある質問の目安）。別途手配してください", Notes.ORDER)
 
 
 def outside_stair_counts(model: ScaffoldModel, stair_plan) -> tuple[int, int]:

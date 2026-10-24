@@ -23,7 +23,14 @@ SHEET_OBJECT = "ashiba_sheet"
 CSTEP_OBJECT = "ashiba_cstep"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
-SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400)}
+SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400),
+               "防音パネル": (1829, 862)}
+# 防音パネル（日本セイフティー 防音パネル・BG。利用者の指定 2026-10-24: 防音パネルを追加して）: 厚み 40、高さはインチ規格
+# 862・メーター規格 850。長さはスパン−10（1829→1819）。継ぎ目の建地の専用クランプのピンで隣り合うパネルの枠を留め、
+# 出隅の角はコーナーパネルを三つ爪クランプで留める（三つ爪の数＝コーナーパネルの数＋コーナーの箇所数。同社のよくある質問）
+PANEL_KIND = "防音パネル"
+PANEL_T_MM = 40.0
+PANEL_H_MM = {"inch": 862.0, "metric": 850.0}
 SHEET_GAP_MM = 60.0          # 外側建地列の芯からシートの面まで（緊結金具の出）
 
 TIE_BELOW_DECK_MM = 300.0  # 壁つなぎの取付位置（作業床の高さから下へ。床の高さは腕木・ネットブラケットと同じコマ）
@@ -200,6 +207,21 @@ def netbk_clash_faces(model: ScaffoldModel) -> list[tuple[int, float]]:
             if net_heights_mm(model, ep.edge_index) and not netbk_arm_mm(ep.standoff)[1]]
 
 
+def is_panel(model: ScaffoldModel) -> bool:
+    """外側の養生が防音パネルか（シートと同じ割付・段・クランプの決めで、板を建地にクランプで留める）."""
+    return (model.config.sheet_type or "") == PANEL_KIND
+
+
+def panel_height_mm(model: ScaffoldModel) -> float:
+    """防音パネル1枚の高さ（インチ規格 862・メーター規格 850）."""
+    from .master import series_module
+
+    try:
+        return PANEL_H_MM[series_module(model.master.series_id)]
+    except KeyError:
+        return PANEL_H_MM["inch"]
+
+
 def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
     """シートの面に沿った範囲（mm。内側建地列の始点から）。出隅は外側の角の支柱の外まで回し、
     入隅は隣の面のシートの面で止める（外側建地列＋シートのあきだけ戻る）.
@@ -220,11 +242,13 @@ def _sheet_extent(model: ScaffoldModel, ep) -> tuple[float, float]:
                 ge = float(c.gap_mm)
     d_s = model.row_spacing_of((ei - 1) % n) + SHEET_GAP_MM
     d_e = model.row_spacing_of((ei + 1) % n) + SHEET_GAP_MM
+    # 防音パネルは出隅の角の建地で止める（角はコーナーパネルで塞ぐ）。シートは角の建地の外まで回す
+    wrap = 0.0 if is_panel(model) else SHEET_GAP_MM
     sc, ec = model.corner_kind_start(ei), model.corner_kind_end(ei)
-    x0 = -gs - d_s if sc == "出隅" else (d_s if sc == "入隅" else -gs)
+    x0 = -gs - (d_s - SHEET_GAP_MM + wrap) if sc == "出隅" else (d_s if sc == "入隅" else -gs)
     joined_end = next((g for a, _b, g in getattr(model, "inner_corner_joins", None) or [] if a == ei), None)
     if ec == "出隅":
-        x1 = length + ge + d_e
+        x1 = length + ge + d_e - SHEET_GAP_MM + wrap
     elif ec == "入隅" and joined_end is not None:
         x1 = length + float(joined_end) - SHEET_GAP_MM
     elif ec == "入隅":
@@ -244,6 +268,12 @@ def sheet_panels(model: ScaffoldModel, ep, stair_plan=None, sheet_w: float = 182
     posts = [0.0]
     for sp in ep.spans:
         posts.append(posts[-1] + float(sp))
+    if is_panel(model):
+        # 防音パネルは隅の隙間の両側の建地でも切る（隙間は特殊な幅、角の升目はスパンにある幅のパネル）
+        for c in getattr(model.plan, "corner_steps", None) or []:
+            if c.edge_index == ep.edge_index:
+                posts.append(-float(c.gap_mm) if getattr(c, "at_start", False) else posts[len(ep.spans)] + float(c.gap_mm))
+        posts.sort()
     out = []
     for x0, x1, _off in sheet_segments(model, ep, stair_plan):
         cuts = [x0] + [p for p in posts if x0 + 1.0 < p < x1 - 1.0] + [x1]
@@ -259,6 +289,9 @@ def sheet_panels(model: ScaffoldModel, ep, stair_plan=None, sheet_w: float = 182
 def sheet_size(model: ScaffoldModel) -> Optional[tuple[float, float]]:
     """シート1枚の (幅, 高さ) mm。系列のマスタにその種類の品があればその大きさ（幅はいちばん広い品）、無ければ既定."""
     kind = model.config.sheet_type or ""
+    if kind == PANEL_KIND:
+        coins = model.master.span_lengths() or [1829]
+        return float(max(coins)), panel_height_mm(model)
     parts = [p for p in model.master.by_category("養生シート") if kind and kind in p.note and p.nominal_dim]
     if parts:
         top = max(parts, key=lambda p: p.nominal_dim)
@@ -281,6 +314,10 @@ def sheet_rows(model: ScaffoldModel, edge_index: int) -> list[tuple[float, float
     bottom = sheet_bottom_mm(model, edge_index)
     if size is None or top <= bottom:
         return []
+    if is_panel(model):
+        # 防音パネルは切れない。上から1枚ずつ下ろし、いちばん下の段は仮囲いの天端に重ねて隙間を残さない
+        n_rows = int(math.ceil((top - bottom) / size[1] - 1e-6))
+        return [(top - (i + 1) * size[1], top - i * size[1]) for i in reversed(range(n_rows))]
     out = []
     hi = top
     while hi > bottom + 1.0:
@@ -299,6 +336,9 @@ def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
     rows = sheet_rows(model, edge_index)
     if not rows:
         return []
+    if is_panel(model):
+        # 防音パネルは段の継ぎ目ごと（下端・継ぎ目・天端）に専用クランプのピンで上下のパネルの枠を留める
+        return sorted({round(v) for v in [lo for lo, _hi in rows] + [rows[-1][1]]})
     out = [rows[0][0] + 150.0] + [hi for _lo, hi in rows[:-1]] + [rows[-1][1] - 100.0]
     return sorted({round(v) for v in out})
 
@@ -315,13 +355,15 @@ def sheet_clamp_positions(model: ScaffoldModel, ep, stair_plan=None) -> list[flo
     """普通のシートクランプを付ける面に沿った位置 mm（シートの継ぎ目＝支柱と、区間の端の支柱。出隅の角はコーナー用）."""
     corner_s, skip_e = sheet_clamp_ends(model, ep)
     segs = [p for p in sheet_panels(model, ep, stair_plan) if p]
+    # 端は角の支柱（シートはあきだけ外へ出ている。防音パネルは角の建地で止まる）
+    wrap = 0.0 if is_panel(model) else SHEET_GAP_MM
     xs: list[float] = []
     for k, panels in enumerate(segs):
         if not (k == 0 and corner_s):
-            xs.append(panels[0][0] + SHEET_GAP_MM)             # 端は角の支柱（シートはあきだけ外へ出ている）
+            xs.append(panels[0][0] + wrap)
         xs += [a for a, _b, _s in panels[1:]]
         if not (k == len(segs) - 1 and skip_e):
-            xs.append(panels[-1][1] - SHEET_GAP_MM)
+            xs.append(panels[-1][1] - wrap)
     return xs
 
 
@@ -376,8 +418,10 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
             out.append(Placement(SHEET_OBJECT, o[0], o[1], {
                 "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
                 "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zT": top / 1000.0,
-                # 下端は仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）
-                "zB": sheet_bottom_mm(model, ep.edge_index) / 1000.0,
+                # 下端は仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）。防音パネルはいちばん下の段の下端
+                # （仮囲いの天端に重なる）
+                "zB": (sheet_rows(model, ep.edge_index)[0][0] if is_panel(model) and sheet_rows(model, ep.edge_index)
+                       else sheet_bottom_mm(model, ep.edge_index)) / 1000.0,
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 # 出隅の角はコーナー用のクランプ（始点を受け持ち、終点は次の面）
                 "clampCS": int(segi == 0 and sheet_clamp_ends(model, ep)[0]),
@@ -450,6 +494,19 @@ def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
         return 0
     return sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
                for ep in model.plan.edges)
+
+
+def panel_corner_count(model: ScaffoldModel, stair_plan=None) -> int:
+    """防音パネルの出隅の角の数（始点が出隅で、その面にパネルを張るもの）."""
+    if not is_panel(model):
+        return 0
+    return len([ep for ep in model.plan.edges if sheet_clamp_ends(model, ep)[0] and any(sheet_panels(model, ep, stair_plan))])
+
+
+def panel_corner_pieces(model: ScaffoldModel, stair_plan=None) -> int:
+    """コーナーパネルの枚数（出隅の角 × 段）."""
+    return sum(len(sheet_rows(model, ep.edge_index)) for ep in model.plan.edges
+               if is_panel(model) and sheet_clamp_ends(model, ep)[0] and any(sheet_panels(model, ep, stair_plan)))
 
 
 def sheet_corner_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:

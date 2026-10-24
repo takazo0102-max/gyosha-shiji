@@ -5,6 +5,33 @@
 ! ============================================================
 pen 1
 rot2 faceAng
+if sheetKind = "防音パネル" then
+	! 防音パネル（厚み 40 の板）: 外形を実線で、継ぎ目（建地の位置）に短い区切り
+	rect2 x0, -offY - 0.04, x1, -offY
+	nP2 = 0
+	rest2 = panelList
+	k32 = 0
+	while strlen(rest2) > 0 and nP2 < 200 do
+		pc2 = strstr(rest2, ",")
+		if pc2 > 0 then
+			it2 = strsub(rest2, 1, pc2 - 1)
+			rest2 = strsub(rest2, pc2 + 1, strlen(rest2) - pc2)
+		else
+			it2 = rest2
+			rest2 = ""
+		endif
+		kk2 = split(it2, "%n", vv2)
+		if kk2 > 0 then
+			k32 = k32 + 1
+			if k32 = 1 and vv2 / 1000 > x0 + 0.001 then line2 vv2 / 1000, -offY - 0.04, vv2 / 1000, -offY
+			if k32 = 3 then k32 = 0
+		endif
+	endwhile
+	hotspot2 x0, -offY
+	hotspot2 x1, -offY
+	del 1
+	end
+endif
 dl = 0.003 * GLOB_SCALE
 dg = 0.0015 * GLOB_SCALE
 if dl < 0.05 then dl = 0.05

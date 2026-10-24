@@ -212,6 +212,7 @@ dim sgL[8]
 dim sgP[8]
 dim sgH[8]
 dim sgZ[8]
+dim sgF[8]
 dim hoP[4]
 dim hoR[4]
 dim hoW[4]
@@ -790,7 +791,9 @@ while strlen(rest) > 0 and nSg < 8 do
 			sgL[nSg] = sgB
 			sgP[nSg] = sgC
 			sgH[nSg] = sgD
-			sgZ[nSg] = v                  ! 方杖 0/1（mm換算しない）
+			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2（mm換算しない。2 で割った余りが方杖、商が柵）
+			sgZ[nSg] = v - 2 * int(v / 2)
+			sgF[nSg] = int(v / 2)
 		endif
 	endif
 endwhile
@@ -1791,11 +1794,43 @@ for ig = 1 to nSg
 	line2 gs, gy, ge, gy
 	line2 gs, -rowW, ge, gy
 	line2 gs, gy, ge, -rowW
+	if sgF[ig] = 1 then
+		! 侵入落下防止柵: 先端・妻側の落下防止柵は線と内向きの短い目盛り（柵の記号）、足場側の開閉式の侵入防止柵は
+		! スパンごとの扉（開く向きの円弧。足場の床の側へ開く）。3D と同じ位置
+		line2 gs + 0.04, gy + 0.04, ge - 0.04, gy + 0.04
+		line2 gs + 0.04, gy + 0.04, gs + 0.04, -rowW
+		line2 ge - 0.04, gy + 0.04, ge - 0.04, -rowW
+		nTk = int((ge - gs - 0.08) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04 + itk * 0.3, gy + 0.04, gs + 0.04 + itk * 0.3, gy + 0.10
+		next itk
+		nTk = int((sgP[ig] - 0.04) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04, gy + 0.04 + itk * 0.3, gs + 0.10, gy + 0.04 + itk * 0.3
+			line2 ge - 0.04, gy + 0.04 + itk * 0.3, ge - 0.10, gy + 0.04 + itk * 0.3
+		next itk
+		xq = 0
+		for ipq = 1 to nSpan
+			if xq >= gs - 0.001 and xq + spans[ipq] <= ge + 0.001 then
+				! 扉（1枚の幅は建地列の間隔−0.12 以下。足場の床の中へ開く）: 閉じた線と、吊り元から開いた扉・軌跡の円弧
+				nLf = int((spans[ipq] - 0.10) / (rowW - 0.12) - 0.001) + 1
+				fWq = (spans[ipq] - 0.10) / nLf
+				line2 xq + 0.05, -rowW + 0.06, xq + spans[ipq] - 0.05, -rowW + 0.06
+				for ilf = 0 to nLf - 1
+					xa = xq + 0.05 + ilf * fWq
+					line2 xa, -rowW + 0.06, xa, -rowW + 0.06 + fWq
+					arc2 xa, -rowW + 0.06, fWq, 0, 90
+				next ilf
+			endif
+			xq = xq + spans[ipq]
+		next ipq
+	endif
 	set style "annoC"
 	if showDim then
 		tdx = (gs + ge) / 2
 		tdy = gy - 0.15
 		tdt = "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgF[ig] = 1 then tdt = tdt + "・侵入落下防止柵 H1800"
 		gosub 985
 	endif
 	set style "anno"
@@ -2751,6 +2786,9 @@ if cEW < 0.001 then cEW = rowW
 ! 直線ジョイント（PCJ）の帯は亜鉛めっきの銀。
 ! 足場の表面材（matScaf）が入っている部品だけ色を替える（0 の部品では描いたあと戻す材質が無い）
 define material "ashiba_clamp_zinc" 2, 0.80, 0.81, 0.83
+! 侵入落下防止柵（荷受けステージ）: 枠は塗装の灰、金網は向こうが透ける膜
+define material "ashiba_fence_frame" 2, 0.50, 0.55, 0.58
+define material "ashiba_fence_mesh" 0, 0.62, 0.66, 0.68, 0.6, 0.6, 0.1, 0.8, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "ashiba_clamp_gold" 2, 0.86, 0.68, 0.22
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
 define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
@@ -4111,6 +4149,45 @@ for ig = 1 to nSg
 	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.05
 	block sgL[ig], 0.02, 0.157
 	del 1
+	! 侵入落下防止柵（利用者の指定 2026-10-24。GLOOBE の「荷受けステージと侵入落下防止柵」）: 先端・妻側の手すりの内側に
+	! 金網の落下防止柵（荷が手すりの間から落ちない。1枚の幅 1.8 以下に割る）、足場側の間口にスパンごとの開閉式の侵入防止柵
+	! （荷の取り込み中は閉めて人をステージへ出さない。閉めた形で描く）。高さ 1.8。数量 platforms.stage_fence_panels と同じ枚数
+	if sgF[ig] = 1 then
+		fH = 1.8
+		zf = sgH[ig] + r_nuno + 0.045
+		nfF = int(sgL[ig] / 1.8 - 0.001) + 1
+		fW = sgL[ig] / nfF - 0.01
+		for ifc = 1 to nfF
+			add sgS[ig] + (ifc - 1) * (fW + 0.01) + 0.005, -rowW - sgP[ig] + 0.04, zf
+			gosub 865
+			del 1
+		next ifc
+		nfS = int(sgP[ig] / 1.8 - 0.001) + 1
+		fW = (sgP[ig] - 0.04) / nfS - 0.01
+		for ie = 0 to 1
+			for ifc = 1 to nfS
+				add sgS[ig] + 0.04 + ie * (sgL[ig] - 0.08), -rowW - 0.005 - (ifc - 1) * (fW + 0.01), zf
+				rotz -90
+				gosub 865
+				del 2
+			next ifc
+		next ie
+		xb = 0
+		for ipb = 1 to nSpan
+			if xb >= sgS[ig] - 0.001 and xb + spans[ipb] <= sgS[ig] + sgL[ig] + 0.001 then
+				! 扉は足場の床の中へ開くので、1枚の幅は建地列の間隔−0.12 以下に割る（610 幅の足場で 1829 のスパンは4枚）
+				nLf = int((spans[ipb] - 0.10) / (rowW - 0.12) - 0.001) + 1
+				fW = (spans[ipb] - 0.10) / nLf - 0.01
+				for ilf = 0 to nLf - 1
+					add xb + 0.05 + ilf * (fW + 0.01), -rowW + 0.06, zf
+					gosub 865
+					del 1
+				next ilf
+			endif
+			xb = xb + spans[ipb]
+		next ipb
+		if matScaf > 0 then material matScaf
+	endif
 	! 張出ブラケットと方杖。床だけ描くとステージが宙に浮いて見えるうえ、
 	! 数量では建地位置ぶん拾っている（張出ブラケット・方杖）
 	xb = 0
@@ -5058,6 +5135,26 @@ return
 	addz 0.045
 	cylind 0.035, r_sic + 0.008
 	del 2
+	return
+
+865:	! ---- 侵入落下防止柵の1枚（金網のフェンスパネル）: 原点＝パネルの下端の始点、+X へ幅 fW、高さ fH、枠 φ27.2 ----
+	material "ashiba_fence_frame"
+	resol 8
+	for fe = 0 to 1
+		add fe * fW, 0, 0
+		cylind fH, 0.0136
+		del 1
+	next fe
+	for fz = 0 to 2
+		add 0, 0, fz * fH / 2
+		roty 90
+		cylind fW, 0.0136
+		del 2
+	next fz
+	material "ashiba_fence_mesh"
+	add 0.0136, -0.001, 0.0136
+	block fW - 0.0272, 0.002, fH - 0.0272
+	del 1
 	return
 
 870:	! ---- 布板（アップロック式鋼製布板）: 原点＝支柱芯の床の高さ・板の外側の端、+X へ dkL、+Y へ幅 dkW。
@@ -6027,7 +6124,7 @@ if editSpan and nSg > 0 then
 		next ig
 		sl = ""
 		for ig = 1 to nSg
-			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig], 1, 0)
+			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig] + 2 * sgF[ig], 1, 0)
 			if sl = "" then sl = item else sl = sl + "," + item
 		next ig
 		parameters stageList = sl

@@ -648,7 +648,8 @@ def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
             parts += [
                 str(int(st.start_mm)), str(int(length)),
                 str(int(st.projection_mm)), str(int(levels[idx])),
-                "1" if st.has_hozue else "0",
+                # 方杖 0/1 ＋ 侵入落下防止柵 2（GDL は 2 で割った余りが方杖、商が柵）
+                str((1 if st.has_hozue else 0) + (2 if getattr(st, "has_fence", False) else 0)),
             ]
     return ",".join(parts)
 

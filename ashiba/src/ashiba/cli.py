@@ -185,7 +185,7 @@ LIST_ITEM_KEYS = {
     "loading_stages": (
         {"edge_index", "face", "start_mm", "span_count", "projection_mm", "load_kn",
          "levels", "has_guard_rail", "has_toe_board", "has_load_sign",
-         "has_hozue", "note"},
+         "has_hozue", "has_fence", "note"},
         {"edge_index", "start_mm"},
     ),
     "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
@@ -1244,6 +1244,7 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             has_toe_board=s.get("has_toe_board", True),
             has_load_sign=s.get("has_load_sign", True),
             has_hozue=s.get("has_hozue", True),
+            has_fence=s.get("has_fence", True),
             note=s.get("note", ""),
         )
         for s in spec.get("loading_stages", [])

@@ -548,11 +548,43 @@ for ig = 1 to nSg
 	line2 gs, gy, ge, gy
 	line2 gs, -rowW, ge, gy
 	line2 gs, gy, ge, -rowW
+	if sgF[ig] = 1 then
+		! 侵入落下防止柵: 先端・妻側の落下防止柵は線と内向きの短い目盛り（柵の記号）、足場側の開閉式の侵入防止柵は
+		! スパンごとの扉（開く向きの円弧。足場の床の側へ開く）。3D と同じ位置
+		line2 gs + 0.04, gy + 0.04, ge - 0.04, gy + 0.04
+		line2 gs + 0.04, gy + 0.04, gs + 0.04, -rowW
+		line2 ge - 0.04, gy + 0.04, ge - 0.04, -rowW
+		nTk = int((ge - gs - 0.08) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04 + itk * 0.3, gy + 0.04, gs + 0.04 + itk * 0.3, gy + 0.10
+		next itk
+		nTk = int((sgP[ig] - 0.04) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04, gy + 0.04 + itk * 0.3, gs + 0.10, gy + 0.04 + itk * 0.3
+			line2 ge - 0.04, gy + 0.04 + itk * 0.3, ge - 0.10, gy + 0.04 + itk * 0.3
+		next itk
+		xq = 0
+		for ipq = 1 to nSpan
+			if xq >= gs - 0.001 and xq + spans[ipq] <= ge + 0.001 then
+				! 扉（1枚の幅は建地列の間隔−0.12 以下。足場の床の中へ開く）: 閉じた線と、吊り元から開いた扉・軌跡の円弧
+				nLf = int((spans[ipq] - 0.10) / (rowW - 0.12) - 0.001) + 1
+				fWq = (spans[ipq] - 0.10) / nLf
+				line2 xq + 0.05, -rowW + 0.06, xq + spans[ipq] - 0.05, -rowW + 0.06
+				for ilf = 0 to nLf - 1
+					xa = xq + 0.05 + ilf * fWq
+					line2 xa, -rowW + 0.06, xa, -rowW + 0.06 + fWq
+					arc2 xa, -rowW + 0.06, fWq, 0, 90
+				next ilf
+			endif
+			xq = xq + spans[ipq]
+		next ipq
+	endif
 	set style "annoC"
 	if showDim then
 		tdx = (gs + ge) / 2
 		tdy = gy - 0.15
 		tdt = "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgF[ig] = 1 then tdt = tdt + "・侵入落下防止柵 H1800"
 		gosub 985
 	endif
 	set style "anno"

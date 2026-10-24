@@ -315,7 +315,8 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         self.assertEqual(int(vals[2]), int(pf.stages[0].projection_mm))
         self.assertEqual(int(vals[3]), m.elevation.level_heights[2])
         # 方杖は数量拾いと同じ指定を渡す（図だけ勝手に方杖を付けない）
-        self.assertEqual(vals[4], "1" if pf.stages[0].has_hozue else "0")
+        # 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2（2026-10-24）
+        self.assertEqual(vals[4], str((1 if pf.stages[0].has_hozue else 0) + (2 if pf.stages[0].has_fence else 0)))
 
     def test_hozue_flag_follows_the_input(self):
         from ashiba.platforms import LoadingStage, validate_platforms
@@ -323,7 +324,7 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         m = build("shinwa_A")
         pf = validate_platforms(m, [LoadingStage(
             edge_index=0, start_mm=12600, span_count=2, levels=[3],
-            has_hozue=False)])
+            has_hozue=False, has_fence=False)])
         vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
         self.assertEqual(vals[4], "0")
 

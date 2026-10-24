@@ -47,6 +47,33 @@
 ! ============================================================
 pen 1
 rot2 faceAng
+if sheetKind = "防音パネル" then
+	! 防音パネル（厚み 40 の板）: 外形を実線で、継ぎ目（建地の位置）に短い区切り
+	rect2 x0, -offY - 0.04, x1, -offY
+	nP2 = 0
+	rest2 = panelList
+	k32 = 0
+	while strlen(rest2) > 0 and nP2 < 200 do
+		pc2 = strstr(rest2, ",")
+		if pc2 > 0 then
+			it2 = strsub(rest2, 1, pc2 - 1)
+			rest2 = strsub(rest2, pc2 + 1, strlen(rest2) - pc2)
+		else
+			it2 = rest2
+			rest2 = ""
+		endif
+		kk2 = split(it2, "%n", vv2)
+		if kk2 > 0 then
+			k32 = k32 + 1
+			if k32 = 1 and vv2 / 1000 > x0 + 0.001 then line2 vv2 / 1000, -offY - 0.04, vv2 / 1000, -offY
+			if k32 = 3 then k32 = 0
+		endif
+	endwhile
+	hotspot2 x0, -offY
+	hotspot2 x1, -offY
+	del 1
+	end
+endif
 dl = 0.003 * GLOB_SCALE
 dg = 0.0015 * GLOB_SCALE
 if dl < 0.05 then dl = 0.05
@@ -102,6 +129,15 @@ else
 	! シートの厚み（防音シート ♯1000 は 1.0mm。メッシュは網目の薄い膜）
 	tS = 0.001
 	if sheetKind = "メッシュシート" then tS = 0.0005
+	! 防音パネル（日本セイフティー 防音パネル・BG。利用者の指定 2026-10-24）: 厚み 40 の板。長さはスパン−10、
+	! 高さ sheetH（インチ 862・メーター 850）。周りの鋼製の枠と、継ぎ目の建地の専用クランプのピンで留める
+	isPnl = sheetKind = "防音パネル"
+	if isPnl then tS = 0.04
+	gP = 0.06          ! 外側建地の芯からパネルの面まで（クランプの出。シートのあきと同じ）
+	define material "ashiba_spanel" 0, 0.80, 0.82, 0.80, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_spanel_frame" 0, 0.55, 0.58, 0.60, 0.7, 0.7, 0.10, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	if isPnl then mSh = IND(MATERIAL, "ashiba_spanel")
+	if isPnl and matSheet > 0 then mSh = matSheet
 	! 割付（panelList）: 継ぎ目は足場の支柱の位置。特殊シート（角・隙間などスパンに無い幅）は色を替える
 	! （利用者の指定 2026-10-24: 外部シートの割り付けは足場と同じにして、間が開いてる部分は特殊シートとして伸ばす）
 	dim pA[], pB[], pS[]
@@ -151,11 +187,33 @@ else
 			else
 				material mSh
 			endif
+			if isPnl then
+				! 板（両端 5 ずつあけてスパン−10）と枠（幅 25 の鋼製の枠を表裏に見せる）
+				add pA[ip] + 0.005, -offY - tS, zLo + 0.001
+				block wP - 0.01, tS, zHi - zLo - 0.002
+				del 1
+				if fineOn then
+					material "ashiba_spanel_frame"
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zLo + 0.001
+					block wP - 0.01, 0.0008, 0.025
+					del 1
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zHi - 0.026
+					block wP - 0.01, 0.0008, 0.025
+					del 1
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zLo + 0.001
+					block 0.025, 0.0008, zHi - zLo - 0.002
+					del 1
+					add pB[ip] - 0.03, -offY - tS - 0.0008, zLo + 0.001
+					block 0.025, 0.0008, zHi - zLo - 0.002
+					del 1
+				endif
+			else
 			add pA[ip], -offY - tS, zLo
 			block wP, tS, zHi - zLo
 			del 1
 			lin_ pA[ip], -offY - tS - 0.0005, zLo, pB[ip], -offY - tS - 0.0005, zLo
-			if fineOn then
+			endif
+			if fineOn and not(isPnl) then
 				! 縁の縫い代（帯 40・30）と真鍮のハトメ（上下の辺は約300ごと、左右の辺は約450ごと。協和 防音シートの写真）
 				material "ashiba_sheet_hem"
 				add pA[ip], -offY - tS - 0.0006, zLo
@@ -196,8 +254,22 @@ else
 				next iv
 			endif
 		next ir
-		if ip > 1 then lin_ pA[ip], -offY - tS - 0.0005, zB, pA[ip], -offY - tS - 0.0005, zT
+		if ip > 1 and not(isPnl) then lin_ pA[ip], -offY - tS - 0.0005, zB, pA[ip], -offY - tS - 0.0005, zT
 	next ip
+	! 出隅のコーナーパネル（始点の角。L 形の板で2面のパネルの角を塞ぐ。段ごとに1枚）
+	if isPnl and clampCS = 1 and hasPanels then
+		material "ashiba_spanel_frame"
+		for ir = 1 to nRow
+			zHi = zT - (ir - 1) * shH
+			zLo = max(zB, zHi - shH)
+			add pA[1] - gP - tS, -offY - tS, zLo + 0.001
+			block gP + tS + 0.005, tS, zHi - zLo - 0.002
+			del 1
+			add pA[1] - gP - tS, -offY - tS, zLo + 0.001
+			block tS, gP + tS + 0.005, zHi - zLo - 0.002
+			del 1
+		next ir
+	endif
 	! シートクランプ（日本セイフティー 次世代シートクランプ 図面 1603-019-A02-A。利用者の指定 2026-10-24）:
 	! 支柱（φ48.6・φ42.7 兼用）を本体とふたで抱き、トップボルト＋フランジナットで締める。φ9 のフック2本（間隔32）が
 	! 支柱の芯から 68 先へ出て、J 形に上へ曲がりシートのハトメを掛ける。シートの継ぎ目と端の支柱に、各段のシートの上下で
@@ -223,11 +295,13 @@ else
 		material "ashiba_sclamp_gold"
 		yp = -offY + 0.06
 		for ic = 1 to nP + 1
+			wrapC = 0.06
+			if isPnl then wrapC = 0
 			if ic = 1 then
-				xc = pA[1] + 0.06
+				xc = pA[1] + wrapC
 			else
 				if ic = nP + 1 then
-					xc = pB[nP] - 0.06
+					xc = pB[nP] - wrapC
 				else
 					xc = pA[ic]
 				endif
@@ -238,7 +312,21 @@ else
 			if ic = nP + 1 and clampSkipE = 1 then drawC = 0
 			for jz = 1 to nC
 				zc = cZ[jz]
-				if drawC = 1 and zc > zB and zc < zT then
+				if drawC = 1 and isPnl and zc >= zB - 0.001 and zc <= zT + 0.001 then
+					! 防音パネルの専用クランプ: 建地を抱く本体から、パネルの継ぎ目へ板を出し、ピンで両側のパネルの枠を留める
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					add xc - 0.02, -offY + 0.0005, zc - 0.024
+					block 0.04, gP - 0.03, 0.048
+					del 1
+					resol 6
+					add xc, -offY - tS / 2, zc - 0.03
+					cylind 0.06, 0.006
+					del 1
+				endif
+				if drawC = 1 and not(isPnl) and zc > zB and zc < zT then
 					resol 10
 					! 支柱を抱く本体・ふた（帯の厚み 4.5、高さ 48）
 					add xc, yp, zc - 0.024
@@ -274,7 +362,34 @@ else
 		next ic
 		! 養生クランプ コーナー用（利用者の写真 2026-10-24: コーナーはコーナー用にして）: 出隅の角の建地を抱く本体に L 形の
 		! 板を付け、この面のシートへのフックと、隣の面（始点の手前で直交する面）のシートへのフックを直角に出す
-		if clampCS = 1 then
+		if clampCS = 1 and isPnl then
+			! 三つ爪クランプ（出隅の角の建地。2面のパネルとコーナーパネルを3本の爪で留める）
+			xc = pA[1]
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc >= zB - 0.001 and zc <= zT + 0.001 then
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					resol 6
+					add xc, yp - 0.0295, zc
+					rotx 90
+					cylind gP - 0.0295, 0.006
+					del 2
+					add xc - 0.0295, yp, zc
+					roty -90
+					cylind gP - 0.0295, 0.006
+					del 2
+					add xc - 0.021, yp - 0.021, zc
+					rotz 225
+					roty 90
+					cylind gP * 0.9, 0.006
+					del 3
+				endif
+			next jz
+		endif
+		if clampCS = 1 and not(isPnl) then
 			xc = pA[1] + 0.06
 			for jz = 1 to nC
 				zc = cZ[jz]
