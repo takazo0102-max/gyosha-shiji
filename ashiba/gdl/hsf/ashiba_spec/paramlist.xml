@@ -147,6 +147,10 @@
 			<Description><![CDATA["図面のペン（パレットの「ペン」で選ぶ。例 post=3,deck=5）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="openList">
+			<Description><![CDATA["開口（梁枠）: 面 始点mm 梁枠mm 層 理由 を ; で区切る（パレットの「開口」で線から書く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="siteName">
 			<Description><![CDATA["現場名（設置届）"]]></Description>
 			<Value><![CDATA[""]]></Value>

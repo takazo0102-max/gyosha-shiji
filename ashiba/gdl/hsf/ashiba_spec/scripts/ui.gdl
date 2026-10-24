@@ -69,6 +69,8 @@ ui_outfield "階段の付け方", 10, 292, 140, 18
 ui_infield "stairLayout", 160, 290, 160, 20
 ui_outfield "図面のペン（パレットの「ペン」）", 10, 318, 140, 18
 ui_infield "penList", 160, 316, 300, 20
+ui_outfield "開口（梁枠）", 10, 344, 140, 18
+ui_infield "openList", 160, 342, 300, 20
 ui_page 4, -1, "部材編集"
 ui_outfield "部材編集（範囲を指定して外す・置き換える）", 10, 5, 400, 18
 ui_outfield "1件ずつ「面 スパン 層 部材」を ; で区切る。層を省くと全部の層", 10, 28, 460, 18

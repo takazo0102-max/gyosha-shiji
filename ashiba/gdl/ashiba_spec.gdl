@@ -41,6 +41,7 @@
 !   sheetType     文字列  養生材                                                                                              既定 "メッシュシート"
 !   hoardH        長さ    仮囲いの高さ（外部シートの下端。0＝地面から）                                                       既定 3
 !   penList       文字列  図面のペン（パレットの「ペン」で選ぶ。例 post=3,deck=5）                                            既定 ""
+!   openList      文字列  開口（梁枠）: 面 始点mm 梁枠mm 層 理由 を ; で区切る（パレットの「開口」で線から書く）              既定 ""
 !   siteName      文字列  現場名（設置届）                                                                                    既定 ""
 !   elevMode      文字列  立面図 section＝断面図→レイアウト／object＝平面の下に2D／none                                       既定 "section"
 !   lineMode3d    ブール  3Dを線で表示                                                                                        既定 0
@@ -171,6 +172,8 @@ ui_outfield "階段の付け方", 10, 292, 140, 18
 ui_infield "stairLayout", 160, 290, 160, 20
 ui_outfield "図面のペン（パレットの「ペン」）", 10, 318, 140, 18
 ui_infield "penList", 160, 316, 300, 20
+ui_outfield "開口（梁枠）", 10, 344, 140, 18
+ui_infield "openList", 160, 342, 300, 20
 ui_page 4, -1, "部材編集"
 ui_outfield "部材編集（範囲を指定して外す・置き換える）", 10, 5, 400, 18
 ui_outfield "1件ずつ「面 スパン 層 部材」を ; で区切る。層を省くと全部の層", 10, 28, 460, 18

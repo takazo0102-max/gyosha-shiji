@@ -60,6 +60,8 @@ FIELDS: tuple[Field, ...] = (
     Field("hoardH", "len", ("hoarding_height_mm",), 3.0),
     # 図面のペン「post=3,deck=5」（パレットの「ペン」で選ぶ。ashiba.pens）
     Field("penList", "str", ("pens",), "", zero_is_unset=True),
+    # 開口（梁枠）「南面 7316 3658 1 搬入口; …」（パレットの「開口」で線から書く。ashiba.opening_pick）
+    Field("openList", "openings", ("openings",), "", zero_is_unset=True),
     Field("siteName", "str", ("notification", "site_name"), "", zero_is_unset=True),
     Field("elevMode", "str", ("elevation_mode",), "section"),
     Field("lineMode3d", "bool", ("line_mode_3d",), False),
@@ -138,6 +140,15 @@ def spec_from_params(params: dict) -> dict:
                 v = parse_int_list(v)
                 if f.zero_is_unset and not v:
                     continue
+        elif f.kind == "openings":
+            from .opening_pick import parse_openings
+
+            items, errs = parse_openings(v)
+            for e in errs:
+                out.setdefault("_edit_errors", []).append(f"{f.gdl}: 読めない開口「{e}」（面 始点 梁枠 層 理由）")
+            if items:
+                out["openings"] = items
+            continue
         elif f.kind == "edits":
             from .member_edits import parse_edit_text
 
@@ -169,6 +180,11 @@ def params_from_spec(spec: dict) -> dict:
     for f in FIELDS:
         if f.kind == "edits":
             out[f.gdl] = edit_lines.pop(0) if edit_lines else ""
+            continue
+        if f.kind == "openings":
+            from .opening_pick import format_openings
+
+            out[f.gdl] = format_openings(spec.get("openings") or [])
             continue
         v = _get(spec, f.path)
         if v is None:
@@ -265,15 +281,19 @@ def pick_spec_object(objects: list[tuple[dict, tuple[float, float], dict]], outl
     """(要素, 原点mm, パラメータ) の一覧から、この建物の足場条件部品を選ぶ.
 
     外形の外接矩形から reach 以内にあるもののうち、いちばん近いもの。隣の建物の部品は拾わない。
+    同じ所に2つあれば（古い版を置き換えたときに残ったもの）、今の項目を多く持つ新しい版を選ぶ
+    （2026-10-24 実機: 古い版を拾って新しい項目 openList を書けなかった）。
     """
     x0, y0, x1, y1 = _bbox(outline_mm)
+    known = {f.gdl for f in FIELDS}
     best = None
     for el, (ox, oy), params in objects:
         dx = max(x0 - ox, 0.0, ox - x1)
         dy = max(y0 - oy, 0.0, oy - y1)
         d = (dx * dx + dy * dy) ** 0.5
-        if d <= reach_mm and (best is None or d < best[0]):
-            best = (d, el, params)
+        key = (round(d), -len(known & set(params or {})))
+        if d <= reach_mm and (best is None or key < best[0]):
+            best = (key, el, params)
     return (best[1], best[2]) if best else None
 
 
