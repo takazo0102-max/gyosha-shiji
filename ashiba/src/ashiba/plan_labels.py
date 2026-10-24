@@ -81,7 +81,11 @@ def plan_label_items(model: ScaffoldModel, stair_plan=None) -> list[tuple[float,
         for sp in asa_ep.spans:
             ax.append(ax[-1] + float(sp))
         i2 = (plain[min(2, len(plain) - 1)] if asa_ep is south else min(2, len(asa_ep.spans) - 1))
-        x, y = _pt(ao, au, an, (ax[i2] + ax[i2 + 1]) / 2.0, -row_w - proj / 2.0)
+        xm = (ax[i2] + ax[i2 + 1]) / 2.0
+        parts = model.asagao_parts(asa_ep.edge_index)
+        if parts and not any(a <= xm <= b for a, b in parts):
+            xm = (parts[0][0] + parts[0][1]) / 2.0          # 面の一部だけの朝顔は、その範囲の中を指す
+        x, y = _pt(ao, au, an, xm, -row_w - proj / 2.0)
         items.append((x, y, f"朝顔（突出 {proj:.0f}）"))
     stair = _part_name(model, "階段", "昇降階段")
     for t in getattr(stair_plan, "towers", None) or []:

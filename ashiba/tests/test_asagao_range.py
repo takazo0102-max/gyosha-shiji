@@ -106,6 +106,32 @@ class TestAsagaoRange(unittest.TestCase):
         self.assertIsNone(r.model.asagao_parts(_south(r.model).edge_index))
 
 
+class TestAsagaoOnThePlan(unittest.TestCase):
+    """朝顔の平面の表記（利用者の指定 2026-10-24: 朝顔の平面図に表記して）: 張り出しに斜線、範囲ごとに文字、ラベルは範囲の中."""
+
+    def test_plan_script_draws_hatch_and_a_label_per_range(self):
+        src = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        blk = src[src.index("! 朝顔の突出範囲"):src.index("pen penLine", src.index("! 朝顔の突出範囲"))]
+        self.assertIn("45° の斜線", blk)
+        self.assertIn("line2 ahX0, ahY0, ahX1, ahY1", blk)
+        self.assertIn('tdt = "朝顔 突出"', blk)
+        self.assertIn("（範囲 ", blk)
+        self.assertIn("next isg", blk[blk.index('tdt = "朝顔 突出"'):])            # 範囲（連続区間）ごと
+        self.assertIn("hoIn = 1", blk)                                                # 「朝顔切欠」は昇降機の所だけ
+
+    def test_label_points_into_the_range(self):
+        from ashiba.plan_labels import plan_label_items
+
+        full = solve_all({**TALL, "asagao": {"faces": "南面"}})
+        ep = _south(full.model)
+        posts = _posts(ep)
+        a, b = posts[-4], posts[-2]
+        r = solve_all({**TALL, "asagao": {"faces": f"南面[{a:.0f}-{b:.0f}]"}})
+        x, _y = next((x, y) for x, y, t in plan_label_items(r.model, r.stair_plan) if t.startswith("朝顔"))
+        x0 = float(_south(r.model).start_post[0])
+        self.assertTrue(x0 + a - 1.0 <= x * 1000.0 <= x0 + b + 1.0, (x, x0 + a, x0 + b))     # ラベルの点は m
+
+
 class TestUpdatedFacesWithRanges(unittest.TestCase):
     L = {"南面": 24000.0, "東面": 10000.0, "北面": 24000.0, "西面": 10000.0}
 

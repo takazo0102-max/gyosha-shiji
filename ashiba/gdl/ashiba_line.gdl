@@ -2002,9 +2002,46 @@ if nAsa > 0 then
 				line2 qA, ybA - asagaoProj, qB, ybA - asagaoProj
 				line2 qA, ybA, qA, ybA - asagaoProj
 				line2 qB, ybA, qB, ybA - asagaoProj
+				! 張り出しの中は 45° の斜線（実線・0.5m ごと）。朝顔の付く範囲が平面でひと目で分かるように
+				! （利用者の指定 2026-10-24: 朝顔の平面図に表記して）。塗りつぶしの名前に頼らず線で引く
+				line_type 1
+				ahT = qA + 0.5
+				while ahT < qB + asagaoProj - 0.001 do
+					ahX0 = ahT
+					ahY0 = ybA
+					if ahX0 > qB then
+						ahY0 = ybA - (ahX0 - qB)
+						ahX0 = qB
+					endif
+					ahX1 = ahT - asagaoProj
+					ahY1 = ybA - asagaoProj
+					if ahX1 < qA then
+						ahY1 = ybA - (ahT - qA)
+						ahX1 = qA
+					endif
+					if ahX0 > ahX1 + 0.001 and ahY0 > ahY1 + 0.001 then line2 ahX0, ahY0, ahX1, ahY1
+					ahT = ahT + 0.5
+				endwhile
+				line_type 3
 			endif
 			pA = pB
 		endwhile
+		! 範囲ごとの文字（張り出しの外側。この部品に見える長さが 1.2m 以上の範囲だけ）: 朝顔 突出・角度・段数と高さ
+		qA = max(asgA[isg], pxA)
+		qB = min(asgB[isg], pxB)
+		if showDim and qB > qA + 1.2 then
+			set style "annoC"
+			tdx = (qA + qB) / 2
+			tdy = -rowW - asagaoProj - 0.15
+			tdt = "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(asagaoAngle, 1, 0) + "° " + str(nAsa, 1, 0) + "段 GL+"
+			for ia = 1 to nAsa
+				if ia > 1 then tdt = tdt + "・"
+				tdt = tdt + str(asa[ia] * 1000, 4, 0)
+			next ia
+			if qA > 0.001 or qB < lineLen - 0.001 then tdt = tdt + "（範囲 " + str(qA * 1000, 4, 0) + "〜" + str(qB * 1000, 4, 0) + "）"
+			gosub 985
+			set style "anno"
+		endif
 	next isg
 	if (cornerS = 1 or cornerG = 1) and sA = 1 and asaCrnOff = 0 then
 		aY = -rowW
@@ -2018,16 +2055,14 @@ if nAsa > 0 then
 		line2 -cSW, -rowW, -cSW - asagaoProj, aY - asagaoProj
 	endif
 	line_type 1
-	set style "annoC"
-	if showDim then
-		tdx = (pxA + pxB) / 2
-		tdy = -rowW - asagaoProj - 0.15
-		tdt = "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(nAsa, 1, 0) + "段"
-		gosub 985
-	endif
+	! 「朝顔切欠」は昇降機が通る切り欠きだけ（面の一部だけの朝顔の範囲の外は切欠ではない）
 	for ic = 1 to nCut
 		set style "annoC"
-		if showDim and cutS[ic] >= gxA - 0.001 and cutS[ic] < gxB - 0.001 then
+		hoIn = 0
+		for ihc = 1 to nHo
+			if hoP[ihc] > cutS[ic] - 0.001 and hoP[ihc] < cutE[ic] + 0.001 then hoIn = 1
+		next ihc
+		if showDim and hoIn = 1 and cutS[ic] >= gxA - 0.001 and cutS[ic] < gxB - 0.001 then
 			tdx = (cutS[ic] + cutE[ic]) / 2
 			tdy = -rowW - asagaoProj / 2
 			tdt = "朝顔切欠"
