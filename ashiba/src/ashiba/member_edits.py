@@ -51,6 +51,8 @@ class MemberEdit:
     action: str = "外す"    # "外す" / "置換"
     to: str = ""            # 置換先の品番
     reason: str = ""
+    # ツールが自分で入れた編集（入隅のつなぎで床を渡る升目の手すり・幅木など）。墜落の危険の要確認は出さない
+    auto: bool = False
 
     @property
     def code(self) -> int:
@@ -150,6 +152,23 @@ def parse_member_edits(items, model: ScaffoldModel, resolve_face=None) -> tuple[
         edits.append(MemberEdit(ep.edge_index, sr[0], sr[1], lr[0], lr[1], tuple(parts), act, to,
                                 str(it.get("reason") or "")))
     return edits, errors
+
+
+def inner_corner_edits(model: ScaffoldModel) -> list[MemberEdit]:
+    """入隅でつないだ隅（model.inner_corner_joins）: 隅から始まる面の最初のスパンは外側の手すり・幅木を付けない.
+
+    隅で終わる面の床から、その升目を通って歩いて渡る（inner_corners。利用者の指摘 2026-10-24: 入りすみが重なっている）。
+    """
+    out = []
+    by_edge = {e.edge_index: e for e in model.plan.edges}
+    for a, b, _gap in getattr(model, "inner_corner_joins", None) or []:
+        if b not in by_edge:
+            continue
+        n_lv = min(model.elevation_of(a).n_levels, model.elevation_of(b).n_levels)
+        if n_lv >= 1:
+            out.append(MemberEdit(b, 1, 1, 1, n_lv, ("外側手すり", "幅木"), reason="入隅のつなぎ（床を渡る）",
+                                  auto=True))
+    return out
 
 
 def edit_list(model: ScaffoldModel, ep, edits) -> str:
@@ -340,7 +359,7 @@ def apply_member_edits(result, model: ScaffoldModel, rules=None, openings=None, 
         if short:
             msg += f"。数量表に無い分{short}本は引けませんでした"
         result.notes.append(msg)
-        if ed.action == "外す" and any(p in ("外側手すり", "内側手すり", "幅木") for p in ed.parts):
+        if ed.action == "外す" and not ed.auto and any(p in ("外側手すり", "内側手すり", "幅木") for p in ed.parts):
             msg2 = (f"{where}の手すり・幅木を外しています。作業床が残る升目は墜落の危険があるので、"
                     "立入禁止の措置か別の防護を確認してください")
             result.notes.append(msg2)

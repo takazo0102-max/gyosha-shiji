@@ -1321,14 +1321,15 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
     参考: smartCON Planner の「墜落の危険箇所に手すりを設置（つま先板つき）」「エンドストッパー」。
     """
-    if model.faces_only is None:
-        return
     m = model.master
     row = model.post_row_spacing_mm
     n_ends = 0
     for ep in model.plan.edges:
         lv = model.elevation_of(ep.edge_index).n_levels
         k = int(model.open_start(ep.edge_index)) + int(model.open_end(ep.edge_index))
+        # 入隅でつないだ隅から始まる面の始点（躯体側に開く升目。gdl_params の endOpenS と同じ）
+        if model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail and not model.open_start(ep.edge_index):
+            k += 1
         n_ends += k
         if not k:
             continue
@@ -1336,7 +1337,7 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
         if model.config.has_toe_board:
             add(m.find("幅木", row), k * lv, f"開放端の妻側の幅木{row}")
     if n_ends:
-        notes.append(f"一部の面だけの足場の開放端{n_ends}箇所は、各層に妻側の手すり・中桟"
+        notes.append(f"一部の面だけの足場の端・入隅でつないだ升目の躯体側の開放端{n_ends}箇所は、各層に妻側の手すり・中桟"
                      + ("・幅木" if model.config.has_toe_board else "") + "を計上")
 
 

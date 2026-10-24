@@ -453,7 +453,9 @@ def line_params(
         "postDia": _post_diameter_m(model),
         # 一部の面だけの足場の開放端（隣の面を掛けない端）は、妻側に手すり・中桟・幅木を付ける
         # （参考: smartCON Planner の「墜落の危険箇所に手すり」「エンドストッパー」）
-        "endOpenS": 1 if model.open_start(ep.edge_index) else 0,
+        # 入隅でつないだ隅から始まる面（inner_corners）の始点の升目は、躯体（隅で終わる面の壁）側が開くので同じく塞ぐ
+        "endOpenS": 1 if (model.open_start(ep.edge_index)
+                          or (model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail)) else 0,
         "endOpenE": 1 if model.open_end(ep.edge_index) else 0,
         # 枠組の出隅はギャプレス（コーナー布受け）で納める（日建カタログ p104〜105）
         "cornerG": 1 if (model.master.is_frame
@@ -730,6 +732,13 @@ def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:
         skip_s = False
     if edge_index in gapped:
         skip_e = False
+    # 入隅でつないだ面（inner_corners）: 隅から始まる面 B が隅の内側建地を描く。隅で終わる面 A は B の外側建地列で
+    # 止まり、隙間が無ければ A の終点の内側建地は B の始点の外側建地と同じ1本（B が低ければ A が描く）
+    for a, b, gap in getattr(model, "inner_corner_joins", None) or []:
+        if b == edge_index:
+            skip_s = False
+        if a == edge_index:
+            skip_e = gap <= 30.0 and model.height_of(b) >= h
     return {"skipInS": 1 if skip_s else 0, "skipInE": 1 if skip_e else 0}
 
 

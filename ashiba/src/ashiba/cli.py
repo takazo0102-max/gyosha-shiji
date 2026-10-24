@@ -948,6 +948,18 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.faces_only = faces
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
+    # 入隅の升目の重なりを直す（隅から始まる面を通し、隅で終わる面はその外側建地列で止める。利用者の指摘
+    # 2026-10-24: 入りすみが重なっているよ）。建地列間隔が決まってから（ScaffoldModel の後で）
+    if not master.is_frame and form == "本足場":
+        from .inner_corners import trim_inner_corners
+        from .model import generate_wall_ties
+
+        plan2, ic_joins, ic_notes = trim_inner_corners(model.plan, model.post_row_spacing_mm, master.span_lengths())
+        if ic_joins:
+            model.plan = plan2
+            model.wall_ties = generate_wall_ties(plan2, elevation, config)
+            model.inner_corner_joins = ic_joins
+        model.plan.warnings.extend(ic_notes)
     model.obstacles = obstacles
     model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
@@ -1745,6 +1757,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
 
         model.member_edits, edit_errors = parse_member_edits(spec["member_edits"], model, resolve_face_name)
         model.plan.warnings.extend(f"部材編集を効かせられません: {m}" for m in edit_errors)
+    if model.inner_corner_joins:
+        from .member_edits import inner_corner_edits
+
+        model.member_edits = list(model.member_edits or []) + inner_corner_edits(model)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms, openings=openings, terrain=terrain,

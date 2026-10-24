@@ -178,6 +178,10 @@ class ScaffoldModel:
     # 南面だけ本足場（狭い幅）にした組で、隅の外側の升目が抜け、両方の面の端に妻側の手すりが付いて回れず、隅の内側
     # 建地が2本重なっていた（利用者の指摘 2026-10-24: 端部が重なったり、回れないようになってる）。cli.solve_groups が渡す
     group_neighbors: dict = field(default_factory=dict)
+    # 入隅でつないだ面 [(隅で終わる面 A, 隅から始まる面 B, A の終点の隙間 mm)]。B を通し A は B の外側建地列で止める
+    # （inner_corners）。隙間が無ければ A の終点の内側建地は B の始点の外側建地と同じ1本、B の最初のスパンは外側の
+    # 手すり・幅木を付けない
+    inner_corner_joins: list = field(default_factory=list)
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
     member_edits: list = field(default_factory=list)
     # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
@@ -215,6 +219,10 @@ class ScaffoldModel:
     def open_end(self, edge_index: int) -> bool:
         """その面の終点が開放端か（次の面を掛けない）."""
         return self._no_next(edge_index) and (edge_index, "e") not in self.joined_ends
+
+    def inner_join_start(self, edge_index: int) -> bool:
+        """入隅でつないだ隅から始まる面か（inner_corners）. その始点の升目は躯体側に開くので妻側の手すり・幅木を付ける."""
+        return any(b == edge_index for _a, b, _g in self.inner_corner_joins)
 
     def corner_kind_start(self, edge_index: int) -> str:
         """始点の隅の種類（出隅／入隅／空）。開放端・ほかの組に繋いだ端は隅として扱わない."""
