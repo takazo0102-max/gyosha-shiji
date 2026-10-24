@@ -50,6 +50,18 @@ def _asagao_ties(model: ScaffoldModel) -> list[WallTie]:
             starts = [0.0]
             for sp in e.spans:
                 starts.append(starts[-1] + sp)
+            parts = model.asagao_parts(e.edge_index)
+            if parts is not None:
+                # 面の一部だけの朝顔: 区間ごとに、区間の支柱から every スパンごと（区間が短ければ区間の中ほどの支柱）
+                for a, b in parts:
+                    run = [x for x in starts if a - 1.0 <= x <= b + 1.0]
+                    if len(run) < 2:
+                        continue
+                    k = len(run) - 1
+                    xs = [run[k // 2]] if k < every else [run[i * every] for i in range(1, k // every + 1)]
+                    xs = [min(x, starts[-2]) if len(starts) > 2 else x for x in xs]
+                    out += [WallTie(e.edge_index, x, int(h), "asagao") for x in xs]
+                continue
             if e.span_count < every:
                 xs = [starts[len(e.spans) // 2]]
             else:

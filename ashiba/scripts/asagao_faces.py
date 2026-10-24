@@ -2,7 +2,7 @@
 
 利用者の指定（2026-10-24）「朝顔あとで必要箇所を選べるようにしたい」。配置のあとで、朝顔の要る面（道路・隣地・人の通る側）
 の足場ラインを選んで押すと「朝顔を付ける／朝顔を外す／全部の面に付ける」の一覧を出し、足場条件の部品の「朝顔を付ける面」
-（asagaoFaces。空＝全部の面）に書いて配置し直す。部品が無ければ条件ファイル ashiba_spec.json の asagao.faces に書く。
+（asagaoFaces。空＝付けない・「全部」＝全部の面）に書いて配置し直す。部品が無ければ条件ファイル ashiba_spec.json の asagao.faces に書く。
 
 使い方（Archicad で足場ラインを選んでから）:
   python3 scripts/asagao_faces.py                       # 一覧から選ぶ
@@ -69,12 +69,23 @@ def main() -> int:
     if mode not in ASAGAO_MODES:
         print(f"朝顔の面: 「{mode}」は {'・'.join(ASAGAO_MODES)} のどれかです")
         return 2
-    import run_from_archicad as tb
     from ashiba.cli import all_face_names
-    from ashiba.spec_object import pick_spec_object
 
     outline = plan.get("outline_mm") or []
     every = all_face_names({"outline_mm": outline})
+    old, new, where = write_asagao_faces(c, outline, every, faces, mode)
+    print(f"朝顔の面: {'・'.join(faces)} → {mode}（{where}）。朝顔を付ける面: {new}")
+    if "--no-apply" in sys.argv:
+        return 0
+    return apply_change(c, plan, every, old, new, "朝顔の面")
+
+
+def write_asagao_faces(c, outline, every: list[str], picked: list[str], mode: str,
+                       lengths: dict | None = None) -> tuple[str, str, str]:
+    """朝顔を付ける面・区間を足場条件の部品（無ければ条件ファイル asagao.faces）に書く → (前, 後, 書いた所)."""
+    import run_from_archicad as tb
+    from ashiba.spec_object import pick_spec_object
+
     hit = None
     try:
         # 古い版の部品（「付ける面」の項目が無い）は今の版に置き換えてから書く（無い項目を送ると全部落ちる）
@@ -85,29 +96,26 @@ def main() -> int:
         hit = None
     if hit is not None and hit[1]:
         old = str((hit[1] or {}).get("asagaoFaces") or "")
-        new = updated_asagao_faces(old, every, faces, mode)
+        new = updated_asagao_faces(old, every, picked, mode, lengths)
         c.set_gdl_parameters(hit[0], {"asagaoFaces": new})
-        where = "足場条件の部品「朝顔を付ける面」"
-    else:
-        spec = json.loads(SPEC_DEFAULT.read_text(encoding="utf-8")) if SPEC_DEFAULT.exists() else {}
-        asg = spec.get("asagao") if isinstance(spec.get("asagao"), dict) else {}
-        old = asg.get("faces") or ""
-        new = updated_asagao_faces(old, every, faces, mode)
-        if new:
-            asg["faces"] = new
-        else:
-            asg.pop("faces", None)
-        if asg:
-            spec["asagao"] = asg
-        else:
-            spec.pop("asagao", None)
-        SPEC_DEFAULT.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        where = str(SPEC_DEFAULT)
-    print(f"朝顔の面: {'・'.join(faces)} → {mode}（{where}）。朝顔を付ける面: {new or '全部の面'}")
-    if "--no-apply" in sys.argv:
-        return 0
+        return old, new, "足場条件の部品「朝顔を付ける面」"
+    spec = json.loads(SPEC_DEFAULT.read_text(encoding="utf-8")) if SPEC_DEFAULT.exists() else {}
+    asg = spec.get("asagao") if isinstance(spec.get("asagao"), dict) else {}
+    old = str(asg.get("faces") or "")
+    new = updated_asagao_faces(old, every, picked, mode, lengths)
+    asg["faces"] = new
+    spec["asagao"] = asg
+    SPEC_DEFAULT.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return old, new, str(SPEC_DEFAULT)
+
+
+def apply_change(c, plan: dict, every: list[str], old: str, new: str, title: str) -> int:
+    """付け外しが変わった面だけ直す（直せなければ全部を置き直す）."""
+    import run_from_archicad as tb
+
+    outline = plan.get("outline_mm") or []
     if not outline:
-        print("朝顔の面: plan.json に躯体外形がありません。スラブを選んで「配置」してください")
+        print(f"{title}: plan.json に躯体外形がありません。スラブを選んで「配置」してください")
         return 1
     # 全部を置き直さない（利用者の指摘 2026-10-24: 朝顔の配置が再度配置してしまう）。付け外しが変わった面の足場ラインの
     # 朝顔と、その面の壁つなぎ（朝顔の取付部）だけを入れ替え、帳票を書き直す
@@ -115,7 +123,7 @@ def main() -> int:
         if update_in_place(c, plan, every, old, new):
             return 0
     except Exception as e:     # 直せなければ全部を置き直す（前の動き）
-        print(f"朝顔の面: その面だけ直せませんでした（{e}）。全部を置き直します")
+        print(f"{title}: その面だけ直せませんでした（{e}）。全部を置き直します")
     os.environ["ASHIBA_SPEC"] = str(SPEC_DEFAULT)
     print("---- 配置し直します")
     tb.main(outline_mm=outline, out_dir=OUT_DIR)
@@ -129,7 +137,8 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
     """
     import run_from_archicad as tb
     from ashiba.attachments import TIE_OBJECT, _frame, tie_placements
-    from ashiba.cli import parse_asagao_faces, solve_groups, write_outputs
+    from ashiba.cli import solve_groups, write_outputs
+    from ashiba.spec_form import asagao_on_map
     from ashiba.gdl_params import line_params
     from ashiba.span_readback import match_edge
 
@@ -139,17 +148,14 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
     if not used:
         return False
     spec = json.loads(used[0].read_text(encoding="utf-8"))
-    on_old = set(parse_asagao_faces(old) or every) - {"なし"}
-    on_new = set(parse_asagao_faces(new) or every) - {"なし"}
-    changed = (on_old ^ on_new) & set(every)
+    on_old, on_new = asagao_on_map(old, every), asagao_on_map(new, every)
+    changed = {f for f in every if on_old.get(f) != on_new.get(f)}
+    # 隣の面も（出隅のコーナー部は、両側の朝顔が隅まで来るときだけ始点側の面が描く）
+    n = len(every)
+    changed |= {every[(every.index(f) + d) % n] for f in list(changed) for d in (-1, 1)}
     asg = dict(spec.get("asagao") or {}) if isinstance(spec.get("asagao"), dict) else {}
-    if new:
-        asg["faces"] = new
-    else:
-        asg.pop("faces", None)
+    asg["faces"] = new
     spec["asagao"] = asg
-    if not asg:
-        spec.pop("asagao", None)
     groups = solve_groups(spec)
     if not changed:
         print("朝顔の面: 付け外しは変わりませんでした")

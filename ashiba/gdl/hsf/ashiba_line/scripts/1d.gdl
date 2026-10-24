@@ -857,6 +857,12 @@ for i = 1 to nSpan
 next i
 
 ! 朝顔の連続区間（切り欠きを除いた asgA〜asgB）。区間は Python 側で昇順・非重複
+! 最初の切り欠きが 0 から始まる（長さ 0 の「0,0」も）ときは始点の隅のコーナー部を付けない（面の一部だけの朝顔・
+! 前の面の朝顔が隅まで来ない）
+asaCrnOff = 0
+if nCut > 0 then
+	if cutS[1] < 0.001 then asaCrnOff = 1
+endif
 nAsg = 0
 cutX = 0
 for ic = 1 to nCut

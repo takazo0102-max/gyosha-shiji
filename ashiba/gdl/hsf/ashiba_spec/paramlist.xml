@@ -124,7 +124,7 @@
 			<Value>0</Value>
 		</Integer>
 		<String Name="asagaoFaces">
-			<Description><![CDATA["朝顔を付ける面（空＝全部の面。例 南面・東面）"]]></Description>
+			<Description><![CDATA["朝顔を付ける面（空＝付けない・全部＝全部の面。例 南面・東面[3600-9000]）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="region">

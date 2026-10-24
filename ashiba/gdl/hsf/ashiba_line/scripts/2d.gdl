@@ -688,7 +688,7 @@ if nAsa > 0 then
 			pA = pB
 		endwhile
 	next isg
-	if (cornerS = 1 or cornerG = 1) and sA = 1 then
+	if (cornerS = 1 or cornerG = 1) and sA = 1 and asaCrnOff = 0 then
 		aY = -rowW
 		if stOut = 1 then
 			for it8 = 1 to nSt

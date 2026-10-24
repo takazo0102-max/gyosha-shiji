@@ -16,7 +16,7 @@ class TestEntries(unittest.TestCase):
         # Tapir の一覧には入口1つ（パレットの窓を開く）。操作はすべて窓のボタン
         # （利用者の指定 2026-10-22: Tapirの足場を一つにパレットとしてまとめて）
         self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
-        self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "階段の位置", "開口", "支柱だけ分解",
+        self.assertEqual([a.title for a in ACTIONS], ["配置", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "朝顔の範囲", "階段の位置", "開口", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "平面表示", "条件", "条件の登録", "条件の呼び出し",
                                                      "ペン", "帳票", "撤去"])
         for a in ACTIONS:
@@ -212,7 +212,7 @@ class TestMenu(unittest.TestCase):
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
         # 何も選んでいないときはペン（図面のペン。2026-10-24）も上に出る
         # 何も選んでいない（平面に目印の線を引いて選んだときも同じ）ときは、線で指す操作が上に出る（2026-10-24）
-        self.assertEqual([a.title for a in menu_items(set())][:5], ["区切る", "階段の位置", "開口", "3D表示", "平面表示"])
+        self.assertEqual([a.title for a in menu_items(set())][:5], ["区切る", "朝顔の範囲", "階段の位置", "開口", "3D表示"])
         # どの選択でも全部の操作が一覧にある
         for k in ("line", "slab", "member", "spec", "none"):
             self.assertEqual(len(menu_items({k})), len(ACTIONS))

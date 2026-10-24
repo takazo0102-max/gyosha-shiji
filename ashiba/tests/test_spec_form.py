@@ -127,11 +127,14 @@ class TestInnerRailAndAsagaoFaces(unittest.TestCase):
         from ashiba.spec_form import ASAGAO_MODES, updated_asagao_faces
 
         every = ["南面", "東面", "北面", "西面"]
-        self.assertEqual(updated_asagao_faces("", every, ["北面"], ASAGAO_MODES[1]), "南面・東面・西面")
+        # 空は付けない（配置で勝手に付けない。利用者の指定 2026-10-24）、「全部」で全部の面
+        self.assertEqual(updated_asagao_faces("", every, ["北面"], ASAGAO_MODES[1]), "なし")
+        self.assertEqual(updated_asagao_faces("全部", every, ["北面"], ASAGAO_MODES[1]), "南面・東面・西面")
+        self.assertEqual(updated_asagao_faces("", every, ["東面"], ASAGAO_MODES[0]), "東面")
         self.assertEqual(updated_asagao_faces("南面", every, ["東面"], ASAGAO_MODES[0]), "南面・東面")
-        self.assertEqual(updated_asagao_faces("南面・東面", every, ["北面", "西面"], ASAGAO_MODES[0]), "")
+        self.assertEqual(updated_asagao_faces("南面・東面", every, ["北面", "西面"], ASAGAO_MODES[0]), "全部")
         self.assertEqual(updated_asagao_faces("南面", every, ["南面"], ASAGAO_MODES[1]), "なし")
-        self.assertEqual(updated_asagao_faces("南面", every, [], ASAGAO_MODES[2]), "")
+        self.assertEqual(updated_asagao_faces("南面", every, [], ASAGAO_MODES[2]), "全部")
         r = solve_all({**BASE, "eaves_height_mm": 15000, "height_from_slabs": False, "asagao": {"faces": "なし"}})
         self.assertEqual(r.model.asagao_edges, set())
 

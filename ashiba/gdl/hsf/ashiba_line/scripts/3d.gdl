@@ -2218,7 +2218,7 @@ for ia = 1 to nAsa
 		endwhile
 	next isg
 	! 出隅のコーナー部（始点側。外側コーナー支柱から斜め45°のセンター材と扇形の万能板）
-	if cornerS = 1 or cornerG = 1 then gosub 890
+	if (cornerS = 1 or cornerG = 1) and asaCrnOff = 0 then gosub 890
 next ia
 
 gosub 990

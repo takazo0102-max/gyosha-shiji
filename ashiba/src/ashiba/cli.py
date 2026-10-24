@@ -982,9 +982,24 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # 朝顔を付ける面（面名 → 辺番号）。面の組では、この組の面だけ
     asg = model.config.asagao
     if asg is not None and asg.faces:
+        from .face_forms import split_key
+
         names = dict(zip(model.plan.face_names(), (e.edge_index for e in model.plan.edges)))
         model.asagao_edges = {names[f] for f in asg.faces if f in names}
-        unknown = [f for f in asg.faces if f not in names and f != "なし"]
+        # 面の一部だけ（「南面[a-b]」。元の面の始点の支柱から mm）。区間だけ残した面（face_offsets）は区間の始めを引く
+        unknown = []
+        for f in asg.faces:
+            face, a, b = split_key(f)
+            if a is None:
+                if f not in names and f != "なし":
+                    unknown.append(f)
+                continue
+            if face not in names:
+                continue
+            ei = names[face]
+            x0 = float((model.face_offsets.get(ei) or (0.0, 0.0))[0])
+            model.asagao_ranges.setdefault(ei, []).append((a - x0, b - x0))
+        model.asagao_ranges = {ei: rs for ei, rs in model.asagao_ranges.items() if model.asagao_parts(ei)}
         if unknown and not spec.get("face_forms") and not spec.get("_group_neighbors") and not spec.get("faces"):
             model.plan.warnings.append(f"朝顔を付ける面「{'・'.join(unknown)}」は足場の面にありません"
                                        f"（面: {'・'.join(names)}）")
@@ -1220,7 +1235,10 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
 
 
 def parse_asagao_faces(value) -> list[str]:
-    """朝顔を付ける面: ["南面", "東面"]・"南面・東面"・"全部"・空 → 面名の並び（空は全部の面）."""
+    """朝顔を付ける面: ["南面", "東面"]・"南面・東面"・"全部"・空 → 面名の並び（空は全部の面）.
+
+    面の一部だけなら区間つき「南面[3600-9000]」（元の面の始点の支柱から mm）。"なし" はどの面にも付けない。
+    """
     if not value:
         return []
     if isinstance(value, str) and value.strip() == "なし":
@@ -1236,7 +1254,7 @@ def parse_asagao_faces(value) -> list[str]:
         t = t.strip()
         if not t or t in ("全部", "全て", "すべて", "全面", "全部の面"):
             continue
-        out.append(t if t.endswith("面") or "(" in t else t + "面")
+        out.append(t if t.endswith("面") or "(" in t or "[" in t else t + "面")
     return out
 
 
@@ -1855,7 +1873,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         stair_plan.outside = outside
         if why:
             stair_plan.warnings.append(why)
-    elif (not hug_no_stairs and not st.get("positions") and not st.get("count") and not model.config.ladders
+    elif (not hug_no_stairs and not st.get("positions") and not st.get("count") and "count" not in st
+          and not model.config.ladders
           and not model.stairs_elsewhere and model.scaffold_height_mm > MIN_HEIGHT_FOR_STAIRS_MM):
         # 階段室（連続スパン）が入らない小さい足場（2.6×2.4m 等、2026-10-24 実機で昇降設備 NG）。はしごを外周 60m
         # ごとに入れる（ブラケット足場と同じ）

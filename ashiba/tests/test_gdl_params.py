@@ -620,7 +620,7 @@ class TestCatalogShapesStairAsagao(unittest.TestCase):
         self.assertIn("ybA = -2 * rowW", blk)
         self.assertIn("plane 4, bx, -rowW - r_sic, za", blk)                 # 段差の妻側の板
         # 出隅のコーナー部（センター材と扇形の万能板 4枚の三角形）
-        self.assertIn("if cornerS = 1 or cornerG = 1 then gosub 890", blk)
+        self.assertIn("if (cornerS = 1 or cornerG = 1) and asaCrnOff = 0 then gosub 890", blk)
         sub = self.body[self.body.index("890:"):self.body.index("895:")]
         # 片側の万能板は1枚の面（板ごとの三角形に分けると割れて見えた）。小・中・大の継ぎ目は板の上の線材
         self.assertEqual(sub.count("plane 4,"), 1)

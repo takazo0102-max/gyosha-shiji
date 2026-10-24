@@ -225,23 +225,102 @@ def form_spec(spec: dict, title: str, intro: str, buttons: list[tuple[str, str]]
 
 
 ASAGAO_MODES = ("朝顔を付ける", "朝顔を外す", "全部の面に付ける")
+ASAGAO_ALL = "全部"
 
 
-def updated_asagao_faces(current: str, all_faces: list[str], picked: list[str], mode: str) -> str:
-    """朝顔を付ける面（足場条件の部品の asagaoFaces。空＝全部の面）に、選んだ面を付ける・外した結果.
+def asagao_on_map(current: str, all_faces: list[str], lengths: dict | None = None) -> dict[str, list]:
+    """朝顔を付ける面（asagaoFaces の文字）→ {面: [(始め, 終わり)]}（面全体は [(0, 面の長さ)]）.
 
-    利用者の指定（2026-10-24）「朝顔あとで必要箇所を選べるようにしたい」。全部の面に付くときは空にする。
+    Archicad の配置では空＝付けない（配置で勝手に付けない。利用者の指定 2026-10-24）。「全部」で全部の面。
+    lengths は面の長さ mm（無い面は ∞ とみなす）。
     """
     from .cli import parse_asagao_faces
+    from .face_forms import split_key
 
-    on = parse_asagao_faces(current) or list(all_faces)
+    lengths = lengths or {}
+    full = lambda f: (0.0, float(lengths.get(f) or float("inf")))
+    if str(current or "").strip() in ("全部", "全て", "すべて", "全面", "全部の面"):
+        return {f: [full(f)] for f in all_faces}
+    on: dict[str, list] = {}
+    for t in parse_asagao_faces(current):
+        f, a, b = split_key(t)
+        if f not in all_faces:
+            continue
+        on.setdefault(f, []).append(full(f) if a is None else (a, b))
+    return {f: _merge_ranges(rs) for f, rs in on.items()}
+
+
+def _merge_ranges(rs: list) -> list:
+    out: list = []
+    for a, b in sorted(rs):
+        if out and a <= out[-1][1] + 1.0:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        elif b > a + 1.0:
+            out.append((a, b))
+    return out
+
+
+def _minus(rs: list, a: float, b: float) -> list:
+    out = []
+    for x, y in rs:
+        if y <= a + 1.0 or x >= b - 1.0:
+            out.append((x, y))
+            continue
+        if x < a - 1.0:
+            out.append((x, a))
+        if y > b + 1.0:
+            out.append((b, y))
+    return out
+
+
+def asagao_faces_text(on: dict[str, list], all_faces: list[str], lengths: dict | None = None) -> str:
+    """{面: 区間} → asagaoFaces の文字（全部の面に全長なら「全部」、どこにも無ければ「なし」）."""
+    from .face_forms import range_key
+
+    lengths = lengths or {}
+    toks = []
+    whole = 0
+    for f in all_faces:
+        rs = _merge_ranges(on.get(f) or [])
+        if not rs:
+            continue
+        ln = float(lengths.get(f) or float("inf"))
+        if len(rs) == 1 and rs[0][0] < 1.0 and rs[0][1] >= ln - 1.0:
+            toks.append(f)
+            whole += 1
+        else:
+            toks += [range_key(f, a, min(b, ln) if min(b, ln) < float("inf") else 9999999.0) for a, b in rs]
+    if whole == len(all_faces) and len(toks) == whole:
+        return ASAGAO_ALL
+    return "・".join(toks) if toks else "なし"
+
+
+def updated_asagao_faces(current: str, all_faces: list[str], picked: list[str], mode: str,
+                         lengths: dict | None = None) -> str:
+    """朝顔を付ける面（足場条件の部品の asagaoFaces）に、選んだ面・区間（「南面[a-b]」）を付ける・外した結果.
+
+    利用者の指定（2026-10-24）「朝顔あとで必要箇所を選べるようにしたい」「配置で朝顔が勝手に配置される。なしして線で
+    朝顔の範囲追加できるようにして」。空＝付けない、「全部」＝全部の面、どこにも無ければ「なし」。lengths（面の長さ mm）が
+    あれば、面全体に付いた面から区間を外せる・区間が面の全長になれば面の名前にまとめる。
+    """
+    from .face_forms import split_key
+
+    lengths = lengths or {}
+    on = asagao_on_map(current, all_faces, lengths)
     if mode == ASAGAO_MODES[2]:
-        on = list(all_faces)
-    elif mode == ASAGAO_MODES[1]:
-        on = [f for f in on if f not in picked]
-    else:
-        on = on + [f for f in picked if f not in on]
-    on = [f for f in all_faces if f in on]
-    if set(on) == set(all_faces):
-        return ""
-    return "・".join(on) if on else "なし"
+        return ASAGAO_ALL
+    for key in picked:
+        f, a, b = split_key(key)
+        if f not in all_faces:
+            continue
+        if a is None:
+            a, b = 0.0, float(lengths.get(f) or float("inf"))
+        if mode == ASAGAO_MODES[1]:
+            rs = _minus(on.get(f) or [], a, b)
+            if rs:
+                on[f] = rs
+            else:
+                on.pop(f, None)
+        else:
+            on[f] = _merge_ranges((on.get(f) or []) + [(a, b)])
+    return asagao_faces_text(on, all_faces, lengths)

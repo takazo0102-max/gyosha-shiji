@@ -51,7 +51,8 @@ FIELDS: tuple[Field, ...] = (
     Field("netBrackets", "bool", ("net_brackets",), True),
     Field("nextGen", "bool", ("next_gen",), False),
     Field("asagaoStages", "int", ("asagao", "stages"), 0, zero_is_unset=True),
-    # 朝顔を付ける面（空＝全部の面。パレットの「朝顔の面」が書く。利用者の指定 2026-10-24）
+    # 朝顔を付ける面（空＝付けない・「全部」＝全部の面・「南面[a-b]」＝面の一部。パレットの「朝顔の面」「朝顔の範囲」が書く。
+    # 利用者の指定 2026-10-24: 配置で朝顔が勝手に配置される。なしして線で朝顔の範囲追加できるようにして）
     Field("asagaoFaces", "str", ("asagao", "faces"), "", zero_is_unset=True),
     Field("region", "str", ("site", "region"), "関東(内陸)"),
     Field("roughness", "str", ("site", "roughness"), "III"),

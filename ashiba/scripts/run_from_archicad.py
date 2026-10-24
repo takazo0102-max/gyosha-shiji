@@ -345,6 +345,16 @@ def upgrade_spec_object(client, el: dict, new_params: dict, added) -> dict:
     return new_params
 
 
+def asagao_off_by_default(spec: dict) -> dict:
+    """朝顔を付ける面の指定が無ければ付けない（「なし」）。利用者の指定（2026-10-24）「配置で朝顔が勝手に配置される。
+    なしして線で朝顔の範囲追加できるようにして」。付けるのはパレットの「朝顔の範囲」（線）・「朝顔の面」（足場ライン）で、
+    全部の面は「全部」。段数は高さで決まるので、要る高さで付けていなければ法規チェック#10 が知らせる."""
+    a = spec.get("asagao")
+    if a is False or (isinstance(a, dict) and a.get("faces")):
+        return spec
+    return {**spec, "asagao": {**(a if isinstance(a, dict) else {}), "faces": "なし"}}
+
+
 def apply_spec_object(client, spec: dict) -> dict:
     """この建物の足場条件部品を読んで条件に重ねる。無ければ今の条件で部品を置く."""
     from ashiba.spec_object import merge_object_into_spec, params_from_spec, pick_spec_object, spec_from_params, spec_object_position
@@ -644,6 +654,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 敷地境界を越える面は、張り出しの小さい形式（一側足場→単管抱き足場）に替えて解き直す（繰り返し）
     from ashiba.site_boundary import plan_within_boundary
 
+    spec = asagao_off_by_default(spec)
     spec, fit_notes = plan_within_boundary(spec)
     for n in fit_notes:
         print(f"  敷地境界: {n}")

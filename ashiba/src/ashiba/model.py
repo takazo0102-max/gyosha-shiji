@@ -200,6 +200,9 @@ class ScaffoldModel:
     inner_corner_joins: list = field(default_factory=list)
     # 朝顔を付ける面（辺番号の集合。None＝全部の面）。AsagaoSpec.faces の面名から build_model が決める
     asagao_edges: Optional[set] = None
+    # 面の一部だけに付ける朝顔（{辺番号: [(始め, 終わり), …]}。辺の始点の支柱から mm）。AsagaoSpec.faces の「南面[a-b]」から
+    # build_model が決める（利用者の指定 2026-10-24: 線で朝顔の範囲追加できるようにして）
+    asagao_ranges: dict = field(default_factory=dict)
     # 範囲を指定した部材の編集（外す・置換）。member_edits.MemberEdit の並び
     member_edits: list = field(default_factory=list)
     # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
@@ -296,7 +299,44 @@ class ScaffoldModel:
         """その面に朝顔を付けるか（段数があり、付ける面に入っている）."""
         a = self.config.asagao
         return bool(a is not None and a.stages > 0
-                    and (self.asagao_edges is None or edge_index in self.asagao_edges))
+                    and (self.asagao_edges is None or edge_index in self.asagao_edges
+                         or bool(self.asagao_ranges.get(edge_index))))
+
+    def asagao_parts(self, edge_index: int) -> Optional[list]:
+        """その面の朝顔を付ける区間 [(始め, 終わり)]（辺の始点の支柱から mm、昇順・重なりなし）。面全体なら None、付けなければ []."""
+        if not self.asagao_on(edge_index):
+            return []
+        if self.asagao_edges is None or edge_index in self.asagao_edges:
+            return None
+        ep = next((e for e in self.plan.edges if e.edge_index == edge_index), None)
+        length = float(sum(ep.spans)) if ep is not None else float("inf")
+        out: list = []
+        for a, b in sorted(self.asagao_ranges.get(edge_index) or []):
+            a, b = max(0.0, float(a)), min(length, float(b))
+            if b <= a + 1.0:
+                continue
+            if out and a <= out[-1][1] + 1.0:
+                out[-1] = (out[-1][0], max(out[-1][1], b))
+            else:
+                out.append((a, b))
+        return out
+
+    def asagao_at(self, edge_index: int, x_mm: float) -> bool:
+        """面の始点から x_mm の位置に朝顔が付くか（区間の端も含む）."""
+        parts = self.asagao_parts(edge_index)
+        return parts is None or any(a - 1.0 <= x_mm <= b + 1.0 for a, b in parts)
+
+    def asagao_reaches(self, edge_index: int, at_end: bool) -> bool:
+        """その面の朝顔が隅（始点か終点）まで来ているか（出隅のコーナー部を付けるか）."""
+        parts = self.asagao_parts(edge_index)
+        if parts is None:
+            return True
+        if not parts:
+            return False
+        if not at_end:
+            return parts[0][0] < 1.0
+        ep = next((e for e in self.plan.edges if e.edge_index == edge_index), None)
+        return ep is not None and parts[-1][1] > float(sum(ep.spans)) - 1.0
 
     def asagao_heights_of(self, edge_index: int) -> list[int]:
         """その面の朝顔の高さ（付けない面は空）."""

@@ -541,15 +541,41 @@ def _edit_list(model: ScaffoldModel, ep) -> str:
 
 
 def _asagao_cut_list(model: ScaffoldModel, ep, platforms) -> str:
-    """この辺の朝顔（セーフウイング）を切り欠く区間を「開始,終了」の繰り返しで返す."""
-    if not model.asagao_heights() or platforms is None or not getattr(platforms, "hoists", None):
-        return ""
-    from .platforms import hoist_cut_ranges
+    """この辺の朝顔（セーフウイング）を切り欠く区間を「開始,終了」の繰り返しで返す.
 
-    parts = []
-    for s0, e0 in hoist_cut_ranges(model, ep.edge_index, platforms.hoists):
-        parts += [str(int(round(s0))), str(int(round(e0)))]
-    return ",".join(parts)
+    昇降機が通るスパンと、面の一部だけに付ける朝顔（model.asagao_parts）の区間の外。始点の隅のコーナー部を付けない
+    （前の面の朝顔が隅まで来ない・この面の朝顔が始点から始まらない）ときは、先頭に長さ 0 の「0,0」を置く（GDL は
+    最初の切り欠きが 0 から始まればコーナー部を描かない）。
+    """
+    if not model.asagao_heights() or not model.asagao_on(ep.edge_index):
+        return ""
+    cuts: list[tuple[float, float]] = []
+    if platforms is not None and getattr(platforms, "hoists", None):
+        from .platforms import hoist_cut_ranges
+
+        cuts += hoist_cut_ranges(model, ep.edge_index, platforms.hoists)
+    parts = model.asagao_parts(ep.edge_index)
+    length = float(sum(ep.spans))
+    if parts is not None:
+        x = 0.0
+        for a, b in parts:
+            if a > x + 1.0:
+                cuts.append((x, a))
+            x = max(x, b)
+        if length > x + 1.0:
+            cuts.append((x, length))
+    merged: list[tuple[float, float]] = []
+    for s0, e0 in sorted(cuts):
+        if merged and s0 <= merged[-1][1] + 1e-6:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e0))
+        else:
+            merged.append((s0, e0))
+    n = len(model.plan.outline.edges)
+    prev = (ep.edge_index - 1) % n
+    if (model.asagao_parts(prev) is not None or parts is not None) and not (merged and merged[0][0] < 1.0) \
+            and not model.asagao_reaches(prev, at_end=True):
+        merged.insert(0, (0.0, 0.0))
+    return ",".join(f"{int(round(s0))},{int(round(e0))}" for s0, e0 in merged[:8])
 
 
 def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
