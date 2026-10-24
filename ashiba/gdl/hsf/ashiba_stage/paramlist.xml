@@ -1,0 +1,89 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["長手の向き（度。配置時に Python が入れる。+X＝長手、+Y＝短手）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<String Name="spanU">
+			<Description><![CDATA["長手のスパン mm カンマ区切り"]]></Description>
+			<Value><![CDATA["1829,1829,1829"]]></Value>
+		</String>
+		<String Name="spanV">
+			<Description><![CDATA["短手のスパン mm カンマ区切り"]]></Description>
+			<Value><![CDATA["1829,1829"]]></Value>
+		</String>
+		<String Name="lvList">
+			<Description><![CDATA["根がらみと各段の高さ mm（配置した高さから。最後が作業床）"]]></Description>
+			<Value><![CDATA["375,2175,3975"]]></Value>
+		</String>
+		<Length Name="deckH">
+			<Description><![CDATA["作業床の高さ（配置した高さから）"]]></Description>
+			<Value>3.975</Value>
+		</Length>
+		<Length Name="zBase">
+			<Description><![CDATA["足場の立つ高さ（配置した高さから。ジャッキの下端）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="stName">
+			<Description><![CDATA["名前"]]></Description>
+			<Value><![CDATA["内部ステージ足場"]]></Value>
+		</String>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matScaf">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matDeck">
+			<Description><![CDATA["床の表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penPost">
+			<Description><![CDATA["ペン: 支柱"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penLine">
+			<Description><![CDATA["ペン: 足場の線"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

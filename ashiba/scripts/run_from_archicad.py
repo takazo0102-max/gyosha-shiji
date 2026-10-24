@@ -72,6 +72,8 @@ DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
 ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
                       "ashiba_cstep", "ashiba_bridge")
+# 配置とは別に置く部品（内部ステージ足場。配置の置き直しでは消さない）
+SEPARATE_OBJECTS = ("ashiba_stage",)
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -282,7 +284,7 @@ def ensure_parts(client) -> tuple[str, str]:
         (GDL_DIR / f"{LINE_OBJECT}.gsm", line_part), (GDL_DIR / f"{DETAIL_OBJECT}.gsm", detail_part),
         (GDL_DIR / f"{MVO_OBJECT}.gsm", versioned_part_name(MVO_OBJECT)),
         (GDL_DIR / f"{SPEC_OBJECT}.gsm", versioned_part_name(SPEC_OBJECT)),
-        *((GDL_DIR / f"{b}.gsm", versioned_part_name(b)) for b in ATTACHMENT_OBJECTS),
+        *((GDL_DIR / f"{b}.gsm", versioned_part_name(b)) for b in ATTACHMENT_OBJECTS + SEPARATE_OBJECTS),
     ])
     if added:
         print(f"配布GSMを埋め込みライブラリへ追加: {', '.join(added)}")
