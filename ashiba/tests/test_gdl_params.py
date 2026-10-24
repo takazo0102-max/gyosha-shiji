@@ -698,7 +698,7 @@ class TestElevationAnnotationsDoNotCollide(unittest.TestCase):
         self.assertEqual(QuantityRules().braces_per_location, 2)
         body2 = self.body
         i = body2.index("! ブレス")
-        block = body2[i:i + 700]
+        block = body2[i:i + 2400]
         self.assertIn("line2 x, lv[il], x + spans[ip], lv[il + 1]", block)
         self.assertIn("line2 x + spans[ip], lv[il], x, lv[il + 1]", block)
         body3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"

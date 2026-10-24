@@ -1226,7 +1226,31 @@ qBrace = 0
 for il = 1 to nLv - 1
 	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 and lv[il] >= gzA - 0.001 and lv[il] < gzB - 0.001 then
 		for ip = sA to sB
-			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then qBrace = qBrace + 2
+			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+				! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ）。1本ずつ数える
+				xq9 = 0
+				for jq9 = 1 to ip - 1
+					xq9 = xq9 + spans[jq9]
+				next jq9
+				for bf9 = 0 to 1
+					qa9 = xq9
+					qb9 = xq9 + spans[ip]
+					if bf9 = 1 and serType <> "W" then
+						if ip < nSpan then
+							qa9 = xq9 + spans[ip]
+							qb9 = qa9 + spans[ip + 1]
+						else
+							qb9 = xq9
+							qa9 = xq9 - spans[max(1, ip - 1)]
+						endif
+					endif
+					qs9 = 0
+					for ib9 = 1 to nBm
+						if lv[il] < bmH[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
+					next ib9
+					if qs9 = 0 then qBrace = qBrace + 1
+				next bf9
+			endif
 		next ip
 	endif
 next il
@@ -2267,7 +2291,10 @@ for ip = 1 to nSpan + 1
 	if bBase = 0 then
 		rect2 x - r_sic, gv + jo, x + r_sic, postTop
 	else
-		rect2 x - r_sic, bBase, x + r_sic, postTop
+		! 梁枠の上の建地は梁渡しの上（上弦材＝作業床の1段下のコマ）から（3D と同じ）
+		bDrP = 0.06
+		if komaPitch > 0.001 then bDrP = komaPitch
+		rect2 x - r_sic, bBase - bDrP + 0.07, x + r_sic, postTop
 	endif
 	! 縦継ぎ（ジョイント）位置に短い横線。継ぎ足しは下側なので天端から数える
 	jh = postTop
@@ -2438,17 +2465,42 @@ x = 0
 for ip = 1 to nSpan
 	for il = 1 to nLv - 1
 		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
-			line2 x, lv[il], x + spans[ip], lv[il + 1]
+			! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ。利用者の指摘 2026-10-24）
+			bk1 = x
+			bk2 = x + spans[ip]
+			if serType <> "W" then
+				if ip < nSpan then
+					bk3 = x + spans[ip]
+					bk4 = x + spans[ip] + spans[ip + 1]
+				else
+					spb = spans[ip]
+					if ip > 1 then spb = spans[ip - 1]
+					bk3 = x - spb
+					bk4 = x
+				endif
+			else
+				bk3 = x
+				bk4 = x + spans[ip]
+			endif
+			bS1 = 0
+			bS2 = 0
+			for ib9 = 1 to nBm
+				if lv[il] < bmH[ib9] - 0.001 then
+					if min(bk2, bmS[ib9] + bmL[ib9]) - max(bk1, bmS[ib9]) > 0.001 then bS1 = 1
+					if min(bk4, bmS[ib9] + bmL[ib9]) - max(bk3, bmS[ib9]) > 0.001 then bS2 = 1
+				endif
+			next ib9
+			if bS1 = 0 then line2 x, lv[il], x + spans[ip], lv[il + 1]
+			if bS2 = 0 then
 			if serType = "W" then
 				line2 x + spans[ip], lv[il], x, lv[il + 1]
 			else
 				if ip < nSpan then
 					line2 x + spans[ip] + spans[ip + 1], lv[il], x + spans[ip], lv[il + 1]
 				else
-					spb = spans[ip]
-					if ip > 1 then spb = spans[ip - 1]
 					line2 x, lv[il], x - spb, lv[il + 1]
 				endif
+			endif
 			endif
 		endif
 	next il
@@ -2612,23 +2664,31 @@ next il2
 for ib = 1 to nBm
 	bs = bmS[ib]
 	be = bs + bmL[ib]
-	bh = bmH[ib]
-	line2 bs, bh, be, bh
-	line2 bs, bh - 0.45, be, bh - 0.45
-	line2 bs, bh - 0.45, bs, bh
-	line2 be, bh - 0.45, be, bh
-	nd = 4
+	! 上弦材は作業床の1段下のコマ、せい 370（3D と同じ。日建 カタログ p011）。斜材は1スパン4区画、束材は 1829 ごと
+	bDr = 0.06
+	if komaPitch > 0.001 then bDr = komaPitch
+	bt = bmH[ib] - bDr
+	bb = bt - 0.37
+	line2 bs, bt, be, bt
+	line2 bs, bb, be, bb
+	line2 bs, bb, bs, bt
+	line2 be, bb, be, bt
+	nPn = max(1, int(bmL[ib] / 1.829 + 0.5))
+	for iv = 1 to nPn - 1
+		line2 bs + bmL[ib] * iv / nPn, bb, bs + bmL[ib] * iv / nPn, bt
+	next iv
+	nd = 4 * nPn
 	for id = 0 to nd - 1
 		dx1 = bs + bmL[ib] * id / nd
 		dx2 = bs + bmL[ib] * (id + 1) / nd
 		if id - 2 * int(id / 2) = 0 then
-			line2 dx1, bh - 0.45, dx2, bh
+			line2 dx1, bb, dx2, bt
 		else
-			line2 dx1, bh, dx2, bh - 0.45
+			line2 dx1, bt, dx2, bb
 		endif
 	next id
 	set style "annoC"
-	if showDim then text2 (bs + be) / 2, bh - 0.65, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+	if showDim then text2 (bs + be) / 2, bb - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
 	set style "anno"
 next ib
 
@@ -2826,6 +2886,11 @@ cSW = cornerSW
 if cSW < 0.001 then cSW = rowW
 cEW = cornerEW
 if cEW < 0.001 then cEW = rowW
+! 梁枠の上弦材は作業床の1段下のコマ（日建 NDH、カタログ p011「取付位置は布板の1段下（450）のディスク」）。梁枠の上の
+! 建地は内外の梁枠に渡した梁渡し（NDHW）の上に立つ。コマの無い枠組は床のすぐ下（利用者の指定 2026-10-24: 梁枠の詳細上げて）
+bmDrop = 0.06
+if komaPitch > 0.001 then bmDrop = komaPitch
+bmDep = 0.37
 ! 単管のクランプは金色（利用者の指定 2026-10-22: クランプは金色にして）。本体・ふた・T ボルト・ナットとも。
 ! 直線ジョイント（PCJ）の帯は亜鉛めっきの銀。
 ! 足場の表面材（matScaf）が入っている部品だけ色を替える（0 の部品では描いたあと戻す材質が無い）
@@ -3198,10 +3263,11 @@ for ip = 1 to nSpan + 1
 				del nPj + 2
 			endif
 		else
-			! 梁枠上に乗る支柱（梁下から天端まで1本で描く）
+			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）
 			if not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
-				add x, -row * rowW, bBase
-				cylind postTop - bBase, r_sic
+				zPb = bBase - bmDrop + r_nuno + 0.05
+				add x, -row * rowW, zPb
+				cylind postTop - zPb, r_sic
 				del 1
 			endif
 		endif
@@ -4043,6 +4109,14 @@ if showBrace then
 								endif
 								sg = -1
 							endif
+							! 開口の通路（梁枠より下）に掛かる筋かいは描かない。建地を抜いてあり、通路へ飛び出していた
+							! （利用者の指摘 2026-10-24: 1層目の両サイドに謎のブレス）。数量は隣の構面へ移す扱いで同じ
+							bSkip = 0
+							for ib9 = 1 to nBm
+								if z1 < bmH[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
+										max(min(xa, xa + sg * spb), bmS[ib9]) > 0.001 then bSkip = 1
+							next ib9
+							if bSkip = 0 then
 							bl = sqr(spb ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
 							ang = atn((z2 - z1 - 2 * brZ) / spb)
 							rBr = 0.0427 / 2
@@ -4069,9 +4143,14 @@ if showBrace then
 									del 1
 								endif
 							next ce
+							endif
 						next bf
 					endif
-					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" then
+					bSkipW = 0
+					for ib9 = 1 to nBm
+						if z1 < bmH[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
+					next ib9
+					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" and bSkipW = 0 then
 						! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
 						! 筋違ピン（ロックピン）に掛ける。ピンは建枠の上下から 0.24（1700枠で A寸法 1219）。以前は丸棒で
 						! 建枠の天端から天端へ掛けていた
@@ -4372,60 +4451,112 @@ for ih = 1 to nHo
 	next it3
 next ih
 
-! ---- 梁枠（開口部）: 上下弦材と斜材 ----
-! 平面・立面には出ているのに3Dに無く、開口部の通り抜けを確認できなかった。
-! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）、カタログ p011: せい 370、上下弦材 φ42.7、ワーレントラスの
-! 斜材（1スパンを4区画）、1829 ごとの束材、両端の緊結部で支柱のコマに掛ける。以前は四角い棒の折れ線だった
+! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部、梁渡し、両隣のつなぎ材 ----
+! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）・NDH72（4スパン）、カタログ p011–013: せい 370、上下弦材 φ42.7、
+! ワーレントラスの斜材 φ27.2（1スパンを4区画）、1829 ごとの束材。上弦材の両端の緊結部を、作業床の1段下のコマ
+! （bmDrop）に掛け、下弦材の両端は建地に当てる受け金具。梁枠の上の建地は、内外の梁枠の上弦材に渡した梁渡し（NDHW、
+! 建地列の間隔の長さ）のほぞに立てる。取付の高さで開口の両隣のスパンにつなぎ材（補強の布材）を内外に入れる
+! （カタログ「取付位置は布板の1段下のディスク、両サイドにつなぎ材」。利用者の指定 2026-10-24: 梁枠の詳細上げて）
 for ib2 = 1 to nBm
 	bs = bmS[ib2]
 	bl = bmL[ib2]
 	bh = bmH[ib2]
-	bzt = bh - 0.06
-	bzb = bzt - 0.37
+	bzt = bh - bmDrop
+	bzb = bzt - bmDep
+	bx0 = bs + r_sic + 0.05
+	bLn = bl - 2 * (r_sic + 0.05)
 	for row2 = rowStart to 1
 		yb3 = -row2 * rowW
-		! 上下弦材（両端は支柱の外面から緊結部の分を空ける）
+		! 上下弦材
 		for bc = 0 to 1
 			bz = bzt
 			if bc = 1 then bz = bzb
-			add bs + r_sic + 0.05, yb3, bz
+			add bx0, yb3, bz
 			roty 90
-			cylind bl - 2 * (r_sic + 0.05), r_nuno
+			cylind bLn, r_nuno
 			del 2
-			if isLite = 0 then
-				for be = 0 to 1
-					add bs + r_sic + be * (bl - 2 * r_sic - 0.05), yb3 - 0.02, bz - 0.04
-					block 0.05, 0.04, 0.08
-					del 1
-				next be
-			endif
 		next bc
-		! 束材（両端と 1829 ごと）
+		if isLite = 0 then
+			for be = 0 to 1
+				xe = bs + be * bl
+				sgE = 1 - 2 * be
+				! 上弦材の端の緊結部（コマを上下から挟む受け）とクサビ
+				add xe + sgE * r_sic - (1 - sgE) / 2 * 0.05, yb3 - 0.021, bzt - 0.04
+				block 0.05, 0.042, 0.08
+				del 1
+				add xe + sgE * (r_sic + 0.025), yb3, bzt + 0.04
+				cylind 0.05, 0.006
+				del 1
+				! 下弦材の端の受け金具（建地に当てる半割りの当て板）と端の縦材
+				add xe + sgE * r_sic - (1 - sgE) / 2 * 0.012, yb3 - 0.03, bzb - 0.05
+				block 0.012, 0.06, 0.10
+				del 1
+				add xe + sgE * (r_sic + 0.05), yb3, bzb
+				cylind bmDep, 0.017
+				del 1
+			next be
+		endif
+		! 束材（1829 ごと）
 		nPn2 = max(1, int(bl / 1.829 + 0.5))
-		for iv = 0 to nPn2
-			xv = bs + r_sic + 0.05 + iv * (bl - 2 * (r_sic + 0.05)) / nPn2
+		for iv = 1 to nPn2 - 1
+			xv = bx0 + iv * bLn / nPn2
 			add xv, yb3, bzb
-			cylind 0.37, 0.0136
+			cylind bmDep, 0.0136
 			del 1
 		next iv
-		! 斜材（ワーレン。1スパンを4区画）
+		! 斜材（ワーレン。1スパンを4区画）と、斜材が弦材に付く節点のガセット
 		nDg = max(2, 4 * nPn2)
-		dgW = (bl - 2 * (r_sic + 0.05)) / nDg
+		dgW = bLn / nDg
 		for id2 = 0 to nDg - 1
-			x1 = bs + r_sic + 0.05 + id2 * dgW
+			x1 = bx0 + id2 * dgW
 			z1d = bzb
 			z2d = bzt
 			if id2 - 2 * int(id2 / 2) = 1 then
 				z1d = bzt
 				z2d = bzb
 			endif
-			dgL = sqr(dgW * dgW + 0.37 * 0.37)
+			dgL = sqr(dgW * dgW + bmDep * bmDep)
 			add x1, yb3, z1d
 			roty 90 - atn((z2d - z1d) / dgW)
 			cylind dgL, 0.0136
 			del 2
+			if isLite = 0 and id2 > 0 then
+				add x1 - 0.03, yb3 - 0.0025, z1d - 0.02
+				block 0.06, 0.005, 0.04
+				del 1
+			endif
 		next id2
 	next row2
+	! 梁渡し（NDHW）: 梁枠の上の建地ごとに、内外の上弦材の上に渡す溝形の材と、建地を受けるほぞ
+	if nRows >= 2 and hugMode = 0 then
+		xq = 0
+		for iq = 1 to nSpan + 1
+			if xq > bs + 0.001 and xq < bs + bl - 0.001 then
+				add xq - 0.03, -rowW - 0.04, bzt + r_nuno
+				block 0.06, rowW + 0.08, 0.05
+				del 1
+				for row3 = 0 to 1
+					add xq, -row3 * rowW, bzt + r_nuno + 0.05
+					cylind 0.10, r_sic - 0.006
+					del 1
+				next row3
+			endif
+			if iq <= nSpan then xq = xq + spans[iq]
+		next iq
+	endif
+	! 両隣のスパンのつなぎ材（補強の布材。梁枠の取付の高さで内外）
+	xq = 0
+	for iq = 1 to nSpan
+		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then
+			for row3 = rowStart to 1
+				add xq, -row3 * rowW, bzt
+				nL = spans[iq]
+				gosub 830
+				del 1
+			next row3
+		endif
+		xq = xq + spans[iq]
+	next iq
 next ib2
 
 ! ---- 階段室（段板・側桁・階段手すり） ----
@@ -5889,9 +6020,10 @@ for ib2 = 1 to nBm
 	bh = bmH[ib2]
 	for row2 = rowStart to 1
 		yr = -row2 * rowW
-		lin_ bs, yr, bh - 0.45, bs + bl, yr, bh - 0.45
-		lin_ bs, yr, bh - 0.45, bs, yr, bh
-		lin_ bs + bl, yr, bh - 0.45, bs + bl, yr, bh
+		lin_ bs, yr, bh - bmDrop, bs + bl, yr, bh - bmDrop
+		lin_ bs, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop - bmDep
+		lin_ bs, yr, bh - bmDrop - bmDep, bs, yr, bh - bmDrop
+		lin_ bs + bl, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop
 	next row2
 next ib2
 ! 荷受けステージ: 張出し床の輪郭と先端の手すり

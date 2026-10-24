@@ -1053,7 +1053,31 @@ qBrace = 0
 for il = 1 to nLv - 1
 	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 and lv[il] >= gzA - 0.001 and lv[il] < gzB - 0.001 then
 		for ip = sA to sB
-			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then qBrace = qBrace + 2
+			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+				! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ）。1本ずつ数える
+				xq9 = 0
+				for jq9 = 1 to ip - 1
+					xq9 = xq9 + spans[jq9]
+				next jq9
+				for bf9 = 0 to 1
+					qa9 = xq9
+					qb9 = xq9 + spans[ip]
+					if bf9 = 1 and serType <> "W" then
+						if ip < nSpan then
+							qa9 = xq9 + spans[ip]
+							qb9 = qa9 + spans[ip + 1]
+						else
+							qb9 = xq9
+							qa9 = xq9 - spans[max(1, ip - 1)]
+						endif
+					endif
+					qs9 = 0
+					for ib9 = 1 to nBm
+						if lv[il] < bmH[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
+					next ib9
+					if qs9 = 0 then qBrace = qBrace + 1
+				next bf9
+			endif
 		next ip
 	endif
 next il

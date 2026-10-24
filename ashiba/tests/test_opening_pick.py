@@ -93,3 +93,31 @@ class TestStoreAndPlace(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBeamDetailAndBraces(unittest.TestCase):
+    """梁枠の詳細と、開口の通路に掛かる筋かい（利用者の指摘 2026-10-24: 梁枠の詳細上げて／1層目の両サイドに謎のブレス）."""
+
+    def test_braces_over_the_passage_are_not_drawn(self):
+        from ashiba.gdl_params import face_drawn_counts
+
+        base = {"outline_mm": RECT, "eaves_height_mm": 9000, "series_id": "nikken_nd1800"}
+        plain = solve_all(base)
+        r = solve_all({**base, "openings": [{"face": "南面", "start_mm": 1829, "beam_span_mm": 3658, "level": 2}]})
+        ep = r.model.plan.edges[0]
+        n_open = face_drawn_counts(r.model, ep, r.stair_plan, r.openings)["qtyBrace"]
+        n_plain = face_drawn_counts(plain.model, plain.model.plan.edges[0], plain.stair_plan, plain.openings)["qtyBrace"]
+        self.assertLess(n_open, n_plain)
+        # 数量は隣の構面へ移す扱いで同じ
+        self.assertEqual(r.quantity.qty_of("筋交"), plain.quantity.qty_of("筋交"))
+        self.assertTrue(any("隣の構面へ移して" in n for n in r.quantity.notes))
+        d = ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts"
+        for f in ("3d.gdl", "2d.gdl", "1d.gdl"):
+            self.assertIn("bmH[ib9]", (d / f).read_text(encoding="utf-8"), f)
+
+    def test_beam_hangs_one_koma_below_the_deck_with_saddles(self):
+        p3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if komaPitch > 0.001 then bmDrop = komaPitch", p3)
+        self.assertIn("! 梁渡し（NDHW）", p3)
+        self.assertIn("! 両隣のスパンのつなぎ材", p3)
+        self.assertNotIn("sgn ", p3)                 # GDL の組み込み関数 SGN と同じ名前の変数は 3D が止まる

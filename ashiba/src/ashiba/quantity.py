@@ -679,6 +679,10 @@ def _take_off_one(
             f"（{n_locations}箇所×{rules.braces_per_location}本）。"
             "全構面に入れる場合は QuantityRules の brace_every_spans/levels を1にしてください"
         )
+        if openings is not None and getattr(openings, "openings", None):
+            # 開口の通路（梁枠より下）は建地を抜くので筋かいを掛けられない。図には描かず、数量は隣の構面へ移す扱いで同じ
+            # （利用者の指摘 2026-10-24: 1層目の両サイドに謎のブレス）
+            notes.append("開口の通路（梁枠より下）に掛かる斜材は図に描かず、隣の構面へ移して入れる扱い（数量は同じ）")
         if shortfall > 0:
             notes.action(
                 f"斜材を入れる規格スパン（{brace.nominal_dim}）が"

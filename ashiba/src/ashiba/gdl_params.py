@@ -855,7 +855,27 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         x += sp
     ev_s = 1 if model.master.is_frame else max(1, rules.brace_every_spans)
     ev_l = 1 if model.master.is_frame else max(1, rules.brace_every_levels)
-    brace = 2 * sum(1 for il in range(n_levels) if il % ev_l == 0) * sum(1 for ip in range(len(ep.spans)) if ip % ev_s == 0)
+    # 筋かいは1箇所2本（このスパンの「／」と隣のスパンの「＼」）。開口の通路（梁枠より下）に掛かるものは描かない（1d.gdl と同じ）
+    starts = _span_starts(ep.spans)
+    brace = 0
+    for il in range(n_levels):
+        if il % ev_l:
+            continue
+        z1 = levels[il]
+        for ip in range(len(ep.spans)):
+            if ip % ev_s:
+                continue
+            a = starts[ip]
+            pair = [(a, a + ep.spans[ip])]
+            if model.master.is_frame:
+                pair.append((a, a + ep.spans[ip]))
+            elif ip + 1 < len(ep.spans):
+                pair.append((a + ep.spans[ip], a + ep.spans[ip] + ep.spans[ip + 1]))
+            else:
+                pair.append((a - ep.spans[max(0, ip - 1)], a))
+            for b0, b1 in pair:
+                if not any(bh is not None and z1 < bh - 1e-6 and min(b1, e0) - max(b0, s0) > 1.0 for s0, e0, bh in beams):
+                    brace += 1
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     post_pos = len(ep.spans) * rows + corner + (1 if model.gap_corner_post_start(ep.edge_index) else 0)
     # 範囲を指定して外した部材（1d.gdl の editList と同じ）
