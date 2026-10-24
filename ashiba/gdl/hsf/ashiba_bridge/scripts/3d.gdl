@@ -1,0 +1,98 @@
+﻿! ============================================================
+! 屋上への渡り 3D: 足場の最上段の床（zFrom）から屋上（zTo）へ。踏板（足場板 t40）・斜路は踏桟、段差は踏段、
+! パラペットがあれば天端の上を越える。両側に手すり（H950）・中桟（H450）・幅木（H150）
+! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側。y=-0.3 から足場の床に掛ける
+! ============================================================
+pen penEquip
+resol 8
+rotz faceAng
+if matDeck > 0 then material matDeck
+yS = -0.30
+! 渡りの床の折れ点（上面）
+dim pY[], pZ[]
+nP = 1
+pY[1] = yS
+pZ[1] = zFrom
+zC = zFrom
+if paraH > 0.001 then
+	zC = max(zFrom, zTo + paraH + 0.05)
+	nP = nP + 1
+	pY[nP] = paraX - 0.15
+	pZ[nP] = zC
+	nP = nP + 1
+	pY[nP] = paraX + 0.35
+	pZ[nP] = zC
+endif
+nP = nP + 1
+pY[nP] = brL
+pZ[nP] = zTo
+! 床: 高低差の小さい区間は踏板（斜路は踏桟つき）、大きい区間は踏段
+for ip = 1 to nP - 1
+	y1 = pY[ip]
+	z1 = pZ[ip]
+	y2 = pY[ip + 1]
+	z2 = pZ[ip + 1]
+	if y2 > y1 + 0.01 then
+		if abs(z2 - z1) <= 0.25 then
+			ag = atn((z2 - z1) / (y2 - y1))
+			add 0.025, y1, z1
+			rotx ag
+			addz -0.04
+			block brW - 0.05, sqr((y2 - y1) ^ 2 + (z2 - z1) ^ 2), 0.04
+			del 3
+			if abs(z2 - z1) > 0.03 then
+				yc = y1 + 0.15
+				while yc < y2 - 0.1 do
+					add 0.04, yc, z1 + (z2 - z1) * (yc - y1) / (y2 - y1)
+					block brW - 0.08, 0.025, 0.02
+					del 1
+					yc = yc + 0.30
+				endwhile
+			endif
+		else
+			nS = int(abs(z2 - z1) / 0.20 - 0.001) + 1
+			tL = (y2 - y1) / nS
+			for iS2 = 0 to nS - 1
+				zs = z1 + (z2 - z1) * (iS2 + 1) / nS
+				add 0.025, y1 + iS2 * tL, zs - 0.04
+				block brW - 0.05, tL, 0.04
+				del 1
+			next iS2
+			! 側桁
+			for sd = 0 to 1
+				add sd * (brW - 0.012), y1, min(z1, z2) - 0.15
+				block 0.012, y2 - y1, abs(z2 - z1) + 0.15
+				del 1
+			next sd
+		endif
+	endif
+next ip
+! 手すり・中桟・幅木（両側。床の折れ点に沿って）と支柱
+for sd = 0 to 1
+	xr = sd * brW
+	for ip = 1 to nP
+		add xr, pY[ip], pZ[ip]
+		cylind 0.95, 0.0243
+		del 1
+	next ip
+	for ip = 1 to nP - 1
+		dy = pY[ip + 1] - pY[ip]
+		dz = pZ[ip + 1] - pZ[ip]
+		if dy > 0.01 then
+			ag = atn(dz / dy)
+			for hk = 1 to 2
+				hh = 0.95
+				if hk = 2 then hh = 0.45
+				add xr, pY[ip], pZ[ip] + hh
+				rotx -(90 - ag)
+				cylind sqr(dy * dy + dz * dz), 0.0243
+				del 2
+			next hk
+			add xr - 0.006 + sd * 0.0, pY[ip], pZ[ip]
+			rotx ag
+			block 0.012, sqr(dy * dy + dz * dz), 0.15
+			del 2
+		endif
+	next ip
+next sd
+del top

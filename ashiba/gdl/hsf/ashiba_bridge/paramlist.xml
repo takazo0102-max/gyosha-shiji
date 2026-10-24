@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="brW">
+			<Description><![CDATA["渡りの幅（面に沿う方向。手すりの芯々）"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="brL">
+			<Description><![CDATA["渡りの長さ（内側建地列 y=0 から躯体側へ。離れ＋パラペット＋屋上側の掛かり）"]]></Description>
+			<Value>1.2</Value>
+		</Length>
+		<Length Name="zFrom">
+			<Description><![CDATA["足場の最上段の床の高さ（配置した高さから）"]]></Description>
+			<Value>9.0</Value>
+		</Length>
+		<Length Name="zTo">
+			<Description><![CDATA["屋上の床（渡りの降り口）の高さ（配置した高さから）"]]></Description>
+			<Value>9.0</Value>
+		</Length>
+		<Length Name="paraH">
+			<Description><![CDATA["パラペットの天端（屋上の床から。0＝なし。渡りはパラペットを越える）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="paraX">
+			<Description><![CDATA["パラペットの位置（内側建地列から躯体側へ。離れ）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<String Name="brName">
+			<Description><![CDATA["平面に書く名前"]]></Description>
+			<Value><![CDATA["屋上への渡り"]]></Value>
+		</String>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matDeck">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.0</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["ペン: 付帯設備（渡り）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

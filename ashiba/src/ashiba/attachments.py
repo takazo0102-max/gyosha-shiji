@@ -21,6 +21,7 @@ NET_OBJECT = "ashiba_net"
 NETBK_OBJECT = "ashiba_netbk"
 SHEET_OBJECT = "ashiba_sheet"
 CSTEP_OBJECT = "ashiba_cstep"
+BRIDGE_OBJECT = "ashiba_bridge"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
 SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400),
@@ -564,3 +565,21 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
             "lineMode": bool(line_mode)}))
     return _with_pens(model, out)
 
+
+
+def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
+    """屋上への渡り（model.roof_bridges）ごとの部品. 原点は渡りの始めの位置の内側建地列（利用者の指定 2026-10-24）."""
+    out: list[Placement] = []
+    edges = {e.edge_index: e for e in model.plan.edges}
+    base = float(model.base_height_mm or 0.0)
+    for b in getattr(model, "roof_bridges", None) or []:
+        ep = edges.get(b.edge_index)
+        if ep is None:
+            continue
+        o, u, _nrm, ang = _frame(ep)
+        out.append(Placement(BRIDGE_OBJECT, o[0] + u[0] * b.x_mm, o[1] + u[1] * b.x_mm, {
+            "faceAng": ang, "brW": b.width_mm / 1000.0, "brL": b.length_mm / 1000.0,
+            "zFrom": (base + b.z_from_mm) / 1000.0, "zTo": (base + b.z_to_mm) / 1000.0,
+            "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0,
+            "lineMode": bool(line_mode)}))
+    return _with_pens(model, out)

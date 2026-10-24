@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -1012,6 +1012,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.setbacks = spec.get("_setbacks") or []
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
+    model.eaves_by_face = dict(face_eaves or {})
     return model
 
 
@@ -1981,6 +1982,13 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         from .member_edits import inner_corner_edits
 
         model.member_edits = list(model.member_edits or []) + inner_corner_edits(model)
+    # 屋上への渡り（最上段の床から屋上へ。階段室の隣に1箇所。利用者の指定 2026-10-24）
+    from .roof_bridges import bridge_note, roof_bridges
+
+    model.roof_bridges, rb_notes = roof_bridges(model, stair_plan, spec)
+    model.plan.warnings.extend(rb_notes)
+    if model.roof_bridges:
+        model.plan.warnings.append(bridge_note(model.roof_bridges, model))
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms, openings=openings, terrain=terrain,

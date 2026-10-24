@@ -30,6 +30,7 @@ PART_PENS = {
     "ashiba_netbk": ("net",),
     "ashiba_sheet": ("sheet",),
     "ashiba_cstep": ("deck",),
+    "ashiba_bridge": ("equip",),
 }
 
 
