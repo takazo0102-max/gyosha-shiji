@@ -449,6 +449,10 @@
 			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<String Name="intkList">
+			<Description><![CDATA["取り入れ口 mm・層「始め,終わり,層始め,層終わり」の繰り返し（可動手すりを描く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="haneD">
 			<Description><![CDATA["跳ね出しブラケットの方杖の下がり（0＝なし。張り出した上の階の上段は床スラブの縁から持ち出す受けの上に立つ）"]]></Description>
 			<Value>0</Value>

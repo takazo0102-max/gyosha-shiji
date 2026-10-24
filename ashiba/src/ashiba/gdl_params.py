@@ -499,6 +499,8 @@ def line_params(
         # 出ていたのに、図面には昇降機がまったく現れていなかった
         "hoistList": _hoist_list(model, ep, platforms),
         "landingList": _landing_list(model, ep, platforms),
+        # 取り入れ口「始め,終わり,層始め,層終わり」（固定の手すり・幅木は editList で外し、可動手すりを描く）
+        "intkList": _intake_list(model, ep),
         # ブラケット区間。「開始,終了,幅,向き,高さ」の繰り返し
         "brktList": _bracket_list(model, ep, bracket_sections),
         # 壁つなぎ。平面にも描画コードがあるのに立面でしか渡しておらず、
@@ -615,6 +617,12 @@ def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
                   str(int(getattr(h, "cage_depth_mm", 2000) or 2000)),
                   str(int(getattr(h, "tie_every_mm", 3600) or 3600))]
     return ",".join(parts)
+
+
+def _intake_list(model: ScaffoldModel, ep) -> str:
+    from .intakes import intake_list
+
+    return intake_list(model, ep)
 
 
 def _landing_list(model: ScaffoldModel, ep, platforms) -> str:

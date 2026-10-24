@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -1979,6 +1979,13 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
 
         model.member_edits, edit_errors = parse_member_edits(spec["member_edits"], model, resolve_face_name)
         model.plan.warnings.extend(f"部材編集を効かせられません: {m}" for m in edit_errors)
+    if spec.get("intakes"):
+        # 取り入れ口（利用者の指定 2026-10-24: 取り入れ口を作る仕組みを考えて作成して）
+        from .intakes import intake_edits, parse_intakes
+
+        model.intakes, ik_errors = parse_intakes(spec["intakes"], model, resolve_face_name)
+        model.plan.warnings.extend(f"取り入れ口: {m}" for m in ik_errors)
+        model.member_edits = list(model.member_edits or []) + intake_edits(model.intakes)
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 

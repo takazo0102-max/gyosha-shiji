@@ -54,6 +54,10 @@ dim hoW[4]
 dim hoD[4]
 dim hoTp[4]
 dim laP[40]
+dim ikA[8]
+dim ikB[8]
+dim ikL1[8]
+dim ikL2[8]
 dim laH[40]
 dim bkS[24]
 dim bkE[24]
@@ -668,6 +672,36 @@ while strlen(rest) > 0 and nHo < 4 do
 		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000
 		if hoM = 4 and nHo > 0 then hoD[nHo] = v / 1000
 		if hoM = 5 and nHo > 0 and v > 0 then hoTp[nHo] = v / 1000
+	endif
+endwhile
+
+! ---- intkList をパース「始め,終わり,層始め,層終わり」の繰り返し（取り入れ口。mm→m・層番号） ----
+nIk = 0
+ikIdx = 0
+rest = intkList
+while strlen(rest) > 0 and nIk < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		ikIdx = ikIdx + 1
+		ikM = ikIdx - 4 * int((ikIdx - 1) / 4)
+		if ikM = 1 then ikT1 = v / 1000
+		if ikM = 2 then ikT2 = v / 1000
+		if ikM = 3 then ikT3 = v
+		if ikM = 4 then
+			nIk = nIk + 1
+			ikA[nIk] = ikT1
+			ikB[nIk] = ikT2
+			ikL1[nIk] = ikT3
+			ikL2[nIk] = v
+		endif
 	endif
 endwhile
 

@@ -735,6 +735,7 @@ def _take_off_one(
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
     _count_roof_bridges(model, notes)
+    _count_intakes(model, notes)
     _count_wedge_corner_steps(model, add, notes)
 
     _count_bracket_parts(model, bracket_sections, add, notes, counts)
@@ -1486,6 +1487,15 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if missing:
         notes.action("水平ネットの部材が系列 " + m.series_id + " のマスタにありません: " + "・".join(missing)
                      + "。別途手配してください", Notes.ORDER)
+
+
+def _count_intakes(model: ScaffoldModel, notes) -> None:
+    """取り入れ口（資材の取り込み口。利用者の指定 2026-10-24）: 可動手すり・クランプとシートの開け方を手配に出す."""
+    if not getattr(model, "intakes", None):
+        return
+    from .intakes import intake_note
+
+    notes.action(intake_note(model), Notes.ORDER)
 
 
 def _count_roof_bridges(model: ScaffoldModel, notes) -> None:
@@ -2524,3 +2534,4 @@ def _count_frame_parts(
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
     _count_roof_bridges(model, notes)
+    _count_intakes(model, notes)

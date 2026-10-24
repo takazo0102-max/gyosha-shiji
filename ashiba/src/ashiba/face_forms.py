@@ -112,7 +112,7 @@ def face_segments(ff: dict[str, str], face: str) -> list[tuple[float, Optional[f
     return [seg for seg in out if seg[1] is None or seg[1] - seg[0] > 1.0]
 
 
-_SHIFT_ITEMS = (("openings", "start_mm"), ("loading_stages", "start_mm"), ("hoists", "position_mm"))
+_SHIFT_ITEMS = (("openings", "start_mm"), ("loading_stages", "start_mm"), ("hoists", "position_mm"), ("intakes", "start_mm"))
 
 
 def _shift_items(sub: dict, face: str, face_names: list[str], a: float, b: Optional[float]) -> None:

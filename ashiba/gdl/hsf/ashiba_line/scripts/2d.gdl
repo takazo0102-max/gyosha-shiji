@@ -654,6 +654,29 @@ for ih = 1 to nHo
 next ih
 line_type 1
 
+! 取り入れ口: 外側建地列の外に範囲の破線と「取り入れ口（3〜5層）」（3D の可動手すりと同じ範囲）
+for ik = 1 to nIk
+	qA = max(ikA[ik], pxA)
+	qB = min(ikB[ik], pxB)
+	if qB > qA + 0.001 then
+		pen penEquip
+		line_type 3
+		rect2 qA, -rowW - 0.05, qB, -rowW - 0.35
+		line_type 1
+		line2 qA, -rowW - 0.35, qB, -rowW - 0.05
+		line2 qA, -rowW - 0.05, qB, -rowW - 0.35
+		set style "annoC"
+		if showDim then
+			tdx = (qA + qB) / 2
+			tdy = -rowW - 0.55
+			tdt = "取り入れ口（" + str(ikL1[ik], 1, 0) + "〜" + str(ikL2[ik], 1, 0) + "層・可動手すり）"
+			gosub 985
+		endif
+		set style "anno"
+		pen penLine
+	endif
+next ik
+
 ! 跳ね出しブラケット（張り出した上の階の上段。3D と同じ支柱の位置ごと、躯体の面から外側の建地列の外まで。破線）
 if haneD > 0.001 then
 	pen penEquip

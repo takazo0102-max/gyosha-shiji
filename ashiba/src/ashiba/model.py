@@ -186,6 +186,8 @@ class ScaffoldModel:
     roof_bridges: list = field(default_factory=list)
     # 平面に引いた線で決めた断面の切断線 [((x, y), (x, y)) mm]（パレットの「図面を作る」。無ければ A-A・B-B を自動で）
     cross_cuts_mm: list = field(default_factory=list)
+    # 取り入れ口（資材の取り込み口。intakes.Intake）
+    intakes: list = field(default_factory=list)
     # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
     edge_subset: Optional[set] = None
     # 足場を掛ける面（None＝全周）。一部の面だけのときは、隣の面が無い端が開放端になる
