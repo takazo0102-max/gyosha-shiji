@@ -1394,19 +1394,27 @@ def _match_top(elevation, top_abs: float, base: float, master):
     if koma > 0:
         lengths = [v for v in lengths if v % koma == 0] or lengths
 
+    from .elevation_solver import _compose_table, _rest_with_top
+
+    table = _compose_table(need, sorted(lengths, reverse=True))
+    # いちばん上の支柱は最上層の床より下から手すりの上まで1本（solve_elevation と同じ決め）
+    top_min = int(master.koma_top_gap) + 2 * koma
+
     def restack(posts):
-        keep, tot = [], 0
-        for p in posts:
-            if tot + p > need:
-                break
-            keep.append(p)
-            tot += p
-        rest = need - tot
-        for v in lengths:
-            while rest >= v:
-                keep.append(v)
-                rest -= v
-        return keep if rest == 0 else None
+        # 下から積んだ支柱をできるだけ残し、残りを長い順＋いちばん上は top_min 以上で積み直す
+        for k in range(len(posts), -1, -1):
+            keep = list(posts[:k])
+            rem = need - sum(keep)
+            if rem < 0:
+                continue
+            if rem == 0:
+                if keep and keep[-1] >= top_min:
+                    return keep
+                continue
+            rest = _rest_with_top(rem, table, sorted(lengths, reverse=True), top_min)
+            if rest and rest[-1] >= top_min:
+                return keep + rest
+        return None
 
     posts = restack(list(elevation.posts))
     alt = restack(list(elevation.posts_alt)) if elevation.posts_alt else []

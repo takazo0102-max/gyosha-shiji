@@ -252,7 +252,9 @@ class TestSingleRowOpening(unittest.TestCase):
         jacks = sum(l.qty for l in r.quantity.lines
                     if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
         # 建地1列（抜いた1本を除く）＋出隅の外側コーナー支柱
-        self.assertEqual(jacks, r.model.plan.total_posts - 1 + r.model.outer_corner_posts())
+        from ashiba.quantity import standing_post_positions
+
+        self.assertEqual(jacks, standing_post_positions(r.model, 1) - 1)
         self.assertEqual(len(r.structural.openings), 1)
 
 

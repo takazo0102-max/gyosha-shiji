@@ -1247,11 +1247,17 @@ txtLine = txtH * 1.8
 ! Archicad の一覧表（スケジュール）で面ごと・建物ごとに集計できる（bim-arekore の
 ! 次世代足場.gsm が部材本数をパラメータに持つのと同じ）。発注数量の正は Python の
 ! 数量表（ステージ・ブラケット区間・高低差の継ぎ足し・コーナー部材まで入る）で、
-! ここは図面との照合用。支柱は始点・中間を所有し終点は次の面（二重計上しない）
+! ここは図面との照合用。支柱は 3D と同じく両端を含めて数え、隅で共有する内側建地（skipInS・skipInE）と
+! セットバックの上段の端（skipPS・skipPE）は除く（利用者の指摘 2026-10-25: 支柱の本数の数え漏れも直して。各面の
+! 外側の列の終点の支柱が抜けていた）。単管抱き足場は終点を次の面に任せる
 ! 区切った部品は自分の範囲（スパン sA〜sB・作業層 lA〜lB）だけを数える。支柱は下端が範囲の高さにある1本ずつ、
 ! 支柱の位置数・根がらみは下の端の部品（segBase）が持つ
 qPos0 = (sB - sA + 1) * nRows
+qIn = 0
+if nRows >= 2 then qIn = 1
 if sA = 1 then qPos0 = qPos0 + cornerS + cornerSP
+if sA = 1 and hugMode = 0 then qPos0 = qPos0 - skipPS * nRows - skipInS * qIn
+if sB >= nSpan and hugMode = 0 then qPos0 = qPos0 + nRows - skipPE * nRows - skipInE * qIn
 qSeg = 0
 zq = jackOut
 for j = 1 to nPost

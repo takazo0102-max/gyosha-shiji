@@ -981,7 +981,15 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
                 if not any(bh is not None and z1 < bh - 1e-6 and min(b1, e0) - max(b0, s0) > 1.0 for s0, e0, bh in beams):
                     brace += 1
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
-    post_pos = len(ep.spans) * rows + corner + (1 if model.gap_corner_post_start(ep.edge_index) else 0)
+    # 支柱の位置は両端を含めて数える（数量と同じ quantity.face_post_positions。利用者の指摘 2026-10-25: 支柱の本数の
+    # 数え漏れも直して）。単管抱き足場は線の上の1列で、終点は次の面と同じ1本
+    if model.config.is_hug:
+        post_pos = len(ep.spans) * rows
+    else:
+        from .quantity import face_post_positions
+
+        post_pos = face_post_positions(model, ep, rows)
+    post_pos += corner + (1 if model.gap_corner_post_start(ep.edge_index) else 0)
     # 範囲を指定して外した部材（1d.gdl の editList と同じ）
     from .member_edits import drawn_deltas
 

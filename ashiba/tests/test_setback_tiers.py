@@ -77,7 +77,7 @@ class TestSetbackTiers(unittest.TestCase):
 
         jl = next(l for l in g[2][1].quantity.lines if l.part.model_no == "A752")
         n_main = int(re.search(r"ジャッキ (\d+)本", jl.note).group(1)) if "内訳" in jl.note else jl.qty
-        self.assertEqual(n_main, 2 * tier.plan.total_posts - 4)       # 両端の内外 2本ずつを引く
+        self.assertEqual(n_main, 2 * (tier.plan.total_posts + 1) - 4)  # 両端を含む位置から両端の内外 2本ずつを引く
 
     def test_floors_line_up_and_spans_are_mostly_1829(self):
         # 利用者の指摘 2026-10-25: 610使いすぎ・床の高さは揃えるようにして

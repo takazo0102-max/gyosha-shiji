@@ -111,9 +111,11 @@ class TestSingleRowScaffold(unittest.TestCase):
         double = self._model("本足場")
         jacks_single = take_off(single).qty_of("ジャッキ")
         jacks_double = take_off(double).qty_of("ジャッキ")
-        # 本足場は出隅の外側コーナー支柱（ジャッキ＋アンダーベース）が加わる
-        self.assertEqual(jacks_double - 2 * double.outer_corner_posts(),
-                         2 * (jacks_single - 2 * single.outer_corner_posts()))
+        # 本足場は外側の列に加えて内側の列（隅は隣の面と共有）。どちらも出隅の外側コーナー支柱が加わる
+        from ashiba.quantity import standing_post_positions
+
+        self.assertEqual(jacks_double, 2 * standing_post_positions(double, 2))
+        self.assertEqual(jacks_single, 2 * standing_post_positions(single, 1))
         self.assertEqual(
             line_params(double, double.plan.edges[0])["nRows"],
             2 * line_params(single, single.plan.edges[0])["nRows"],
@@ -1062,7 +1064,9 @@ class TestFaceDrawnCounts(unittest.TestCase):
         for ep in m.plan.edges:
             for k, v in face_drawn_counts(m, ep, stair_plan=r.stair_plan, openings=r.openings).items():
                 tot[k] = tot.get(k, 0) + v
-        self.assertEqual(tot["qtyPostPos"], m.plan.total_posts * 2 + m.outer_corner_posts())
+        from ashiba.quantity import standing_post_positions
+
+        self.assertEqual(tot["qtyPostPos"], standing_post_positions(m, 2))
         self.assertEqual(tot["qtyTie"], len(m.wall_ties))
         self.assertEqual(tot["qtyStair"], r.stair_plan.count * m.elevation.n_levels)
         widths = list(m.deck_widths_in_use)

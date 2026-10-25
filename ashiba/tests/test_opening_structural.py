@@ -113,7 +113,9 @@ class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         r = solve_all(load_spec(root / "examples" / "opening_beam.json"))
         self.assertGreater(r.openings.removed_posts, 0)
-        expect = r.model.plan.total_posts * 2 + r.model.outer_corner_posts() - r.openings.removed_posts
+        from ashiba.quantity import standing_post_positions
+
+        expect = standing_post_positions(r.model, 2) - r.openings.removed_posts
         self.assertEqual(r.structural.post.n_posts, expect)
         from ashiba.quantity import outside_stair_counts
 

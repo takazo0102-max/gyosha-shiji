@@ -93,6 +93,28 @@ def _order_with_first(pieces: list[int], first: int) -> list[int]:
     return _order_bottom_up(rest)
 
 
+def _rest_with_top(total: int, table: dict[int, list[int]], lengths: list[int], top_min: int) -> Optional[list[int]]:
+    """合計 total の支柱の並び（下から。長い順に積み、いちばん上は top_min 以上の支柱）. 本数がいちばん少なく、同じなら
+    いちばん上が短いもの（長い支柱を下に）。top_min 以上で組めなければ長い順（端数は最上部）."""
+    plain = table.get(total)
+    if not top_min:
+        return _order_bottom_up(plain) if plain is not None else None
+    best = None
+    for top in sorted(v for v in lengths if v >= top_min):
+        if top > total:
+            continue
+        mid = [] if total == top else table.get(total - top)
+        if mid is None:
+            continue
+        cand = _order_bottom_up(mid) + [top]
+        key = (len(cand), -min(cand), top)
+        if best is None or key < best[0]:
+            best = (key, cand)
+    if best is not None:
+        return best[1]
+    return _order_bottom_up(plain) if plain is not None else None
+
+
 def _stagger_order(pieces: list[int], first: int, floor_height: int, table: dict[int, list[int]]) -> list[int]:
     """千鳥（選んだときだけ）: 隣の支柱の1段目を first−階高（2700→900）にし、その上は長い順で同じ天端まで。
     継ぎ目がちょうど1層ずれる（2026-10-25 の調査: メーカーの要領書は全支柱同じ積み方で、千鳥の決まりは無い。
@@ -277,6 +299,13 @@ def solve_elevation(
     first = int(round(floor_height * 1.5))
     if first not in lengths:
         first = 0
+    # いちばん上の支柱は最上層の床より下から手すりの上まで1本で通す（継ぎ目を最上層の床より下に）。2700+3600+3600+450 の
+    # ように天端に 450 を継ぐと、継ぎ目が床＋505（中桟と手すりの間）に来て、手すりを 125 のほぞで差しただけの短い支柱で
+    # 受けることになり、ぐらつく・最上層の床の上で短い支柱を立てて手すりを掛ける手間も危なさもある（利用者の指摘
+    # 2026-10-25: 最上部が450となってるが施工できるの職人目線で考えてみて）。単管・枠組は別
+    top_min = 0
+    if master is not None and not master.is_tube and koma_pitch:
+        top_min = int(master.koma_top_gap) + 2 * int(koma_pitch)
     best: Optional[tuple[tuple, int, list[int]]] = None
     best_band: Optional[tuple[tuple, int, list[int]]] = None
     # 支柱の和は5mmの倍数なので、繰出しは要求高さと5mmの端数を揃えて回す（スラブの天端から決めた
@@ -291,19 +320,22 @@ def solve_elevation(
             lead = 1
             if first and posts_total >= first:
                 rest = posts_total - first
-                rest_pieces = [] if rest == 0 else table.get(rest)
+                rest_pieces = [] if rest == 0 else _rest_with_top(rest, table, lengths, top_min)
                 if rest_pieces is not None:
                     pieces = [first] + list(rest_pieces)
                     lead = 0
             if pieces is None:
-                pieces = table.get(posts_total)
+                pieces = _rest_with_top(posts_total, table, lengths, top_min)
             if pieces is None:
                 continue
-            score = (lead, abs(delta), len(pieces), jack - jack_min)
+            top_bad = int(bool(top_min) and pieces[-1] < top_min)
+            # 2層分より短い支柱（450 など）を途中に挟むと継ぎ目が 450 おきに2つ並ぶ。同じ高さで挟まずに組めればそちら
+            short = int(bool(top_min) and any(v < 2 * koma_pitch for v in pieces))
+            score = (lead, top_bad, abs(delta), short, len(pieces), jack - jack_min)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
             if band_lo <= jack <= band_hi:
-                bscore = (lead, abs(delta), len(pieces), abs(jack - (band_lo + band_hi) / 2))
+                bscore = (lead, top_bad, abs(delta), short, len(pieces), abs(jack - (band_lo + band_hi) / 2))
                 if best_band is None or bscore < best_band[0]:
                     best_band = (bscore, jack, pieces)
     if best is None:
@@ -313,7 +345,8 @@ def solve_elevation(
         )
     _score, jack, pieces = best
 
-    posts = _order_with_first(pieces, first)
+    # 並びは下から 1段目（2700）→ 長い順 → いちばん上（_rest_with_top が決めた天端の支柱）
+    posts = list(pieces)
     # くさび・枠組は全支柱同じ積み方（継ぎ目をそろえる。日建 ND1800 の要領書は「1段目 2700 か 900、2段目から上は
     # 3600 か 1800」を全支柱一律に推奨し、継ぎ目を千鳥にする決まりは法令・技術基準・メーカーの資料に無い）。
     # 千鳥を選んだときだけ隣の支柱の継ぎ目を1層ずらす

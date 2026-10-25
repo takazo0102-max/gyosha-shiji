@@ -390,7 +390,9 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             # （利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして）
             "_tier_passage": [[ei, a, b, low_top - base] for ei, a, b in passage],
             # 下段は本体と同じ立面を途中の屋根で切る（床の高さが本体とそろう。別に解くとジャッキ・段がずれた）
+            # 下段の本体側の端の支柱は本体の支柱（全高）と同じ位置。下段は描かず数えない（二重に立っていた）
             "_low_spec": {"height_from_slabs": False, "roof_bridge": False, "_joined_ends": low_join,
+                          "_skip_end_posts": low_join,
                           "scaffold_height_mm": "__MAIN__",
                           "face_eaves_mm": {f: int(round(low_top - base)) for f in low}}}
     # 揃えたスパンで解き直した本体の支柱の位置に、上段の線を合わせる

@@ -32,13 +32,38 @@ class TestQuantity(unittest.TestCase):
         by_note = {("アンダーベース" in l.part.note): l.qty for l in jacks}
         self.assertEqual(by_note[True], by_note[False])
         # ＋出隅の外側コーナー支柱（四隅）
-        self.assertEqual(by_note[False], self.plan.total_posts * 2 + 4)
+        # 各面の両端を含む支柱の位置（隅の内側建地は共有）。外側の列の終点の支柱も（利用者の指摘 2026-10-25: 支柱の
+        # 本数の数え漏れも直して）
+        from ashiba.quantity import standing_post_positions
+
+        self.assertEqual(by_note[False], standing_post_positions(self.model, 2))
+        self.assertEqual(by_note[False], self.plan.total_posts * 2 + 4 + 4)
         self.assertEqual(self.model.outer_corner_posts(), 4)
+
+    def test_posts_match_what_the_line_draws(self):
+        # 3d.gdl と同じ描き分け（面ごとに両端を含む位置 × 内外、隅の内側建地は共有、出隅の外側の角）で数えた本数と
+        # 数量の脚の数が一致する（利用者の指摘 2026-10-25: 支柱の本数の数え漏れも直して）
+        from ashiba.gdl_params import line_params
+
+        drawn = 0
+        for ep in self.model.plan.edges:
+            p = line_params(self.model, ep)
+            for row in (0, 1):
+                for i in range(len(ep.spans) + 1):
+                    first, last = i == 0, i == len(ep.spans)
+                    if row == 0 and ((first and p["skipInS"]) or (last and p["skipInE"])):
+                        continue
+                    if (first and p["skipPS"]) or (last and p["skipPE"]):
+                        continue
+                    drawn += 1
+            drawn += p["cornerS"] + p["cornerSP"]
+        jacks = [l for l in self.q.lines if l.part.category == "ジャッキ" and "アンダー" not in l.part.note]
+        self.assertEqual(sum(l.qty for l in jacks), drawn)
 
     def test_post_counts(self):
         per_line = len(self.elev.posts)
         total = self.q.qty_of("支柱")
-        self.assertEqual(total, (self.plan.total_posts * 2 + 4) * per_line)
+        self.assertEqual(total, (self.plan.total_posts * 2 + 4 + 4) * per_line)
 
     def test_corner_ledgers_and_toe_boards(self):
         """出隅の外側コーナー升目: 布材（腕木寸法）2辺×(根がらみ1＋各層3)、幅木2辺×層."""
@@ -158,7 +183,8 @@ class TestQuantity(unittest.TestCase):
         q = take_off(model)
         jacks = [l for l in q.lines if l.part.category == "ジャッキ" and "アンダー" not in l.part.note]
         # 建地1列＋出隅の外側コーナー支柱（一側でも付く）
-        self.assertEqual(jacks[0].qty, self.plan.total_posts + model.outer_corner_posts())
+        # 建地1列（各面の両端を含む）＋出隅の外側コーナー支柱（一側でも付く）
+        self.assertEqual(jacks[0].qty, self.plan.total_posts + len(self.plan.edges) + model.outer_corner_posts())
 
 
 class TestBreakdownReconcilesWithTheDrawing(unittest.TestCase):

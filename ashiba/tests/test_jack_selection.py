@@ -12,7 +12,7 @@ from ashiba.elevation_solver import solve_elevation
 from ashiba.master import load_master
 from ashiba.model import ScaffoldConfig, ScaffoldModel
 from ashiba.plan_solver import solve_plan
-from ashiba.quantity import take_off
+from ashiba.quantity import take_off, standing_post_positions
 from ashiba.terrain import GroundModel, solve_post_feet
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
@@ -47,7 +47,7 @@ class TestJackSelection(unittest.TestCase):
     def test_flat_site_uses_the_standard_jack_only(self):
         m = build("nikken_nd1800")
         q = take_off(m)
-        self.assertEqual(qty(q, "A752"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
+        self.assertEqual(qty(q, "A752"), standing_post_positions(m, 2))
         self.assertEqual(qty(q, "ND752SP"), 0)
 
     def test_terraced_site_switches_the_long_feet_to_the_long_jack(self):
@@ -57,7 +57,7 @@ class TestJackSelection(unittest.TestCase):
         self.assertGreater(long_feet, 0)
         q = take_off(m, terrain=t)
         self.assertEqual(qty(q, "ND752SP"), 2 * long_feet)
-        feet_total = 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts()
+        feet_total = standing_post_positions(m, 2)
         self.assertEqual(qty(q, "A752") + qty(q, "ND752SP"), feet_total)
         # アンダーベースは脚の数のまま
         self.assertEqual(qty(q, "ECOPS"), feet_total)
@@ -68,7 +68,7 @@ class TestJackSelection(unittest.TestCase):
         m = build("shinwa_A")
         t = terrace(m, 1200)
         q = take_off(m, terrain=t)
-        self.assertEqual(qty(q, "SE-6"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
+        self.assertEqual(qty(q, "SE-6"), standing_post_positions(m, 2))
 
 
 class TestOpeningHint(unittest.TestCase):

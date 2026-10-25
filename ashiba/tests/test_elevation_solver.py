@@ -124,6 +124,20 @@ class TestJointStaggering(unittest.TestCase):
                     self.assertEqual(e.posts_alt[0], e.posts[0] - m.floor_height)  # 2700→900（1層ずらす）
                     self.assertTrue(e.is_staggered(), (e.posts, e.posts_alt))   # 継ぎ目が重ならない
 
+    def test_top_post_runs_from_below_the_top_floor(self):
+        # 利用者の指摘 2026-10-25: 最上部が450となってるが施工できるの職人目線で考えてみて。いちばん上の支柱は最上層の
+        # 床より下から手すりの上まで1本（継ぎ目を床＋505 の中桟と手すりの間に作らない）
+        for sid in ("nikken_nd1800", "nikken_nd1900", "nikken_millennium", "shinwa_A"):
+            m = load_master(sid)
+            for h in (5650, 9000, 10600, 12900, 16370, 31000):
+                with self.subTest(sid=sid, h=h):
+                    e = solve_elevation(h, master=m)
+                    joints = e.joint_heights()
+                    if joints:
+                        self.assertLessEqual(joints[-1], max(e.level_heights), (e.posts, e.level_heights))
+        e = solve_elevation(10600, master=load_master("nikken_nd1800"))
+        self.assertEqual(e.posts, [2700, 3600, 2700, 1350])            # 前は 2700+3600+3600+450
+
     def test_the_jack_is_kept_low(self):
         # 優先は 偏差 → 本数 → 繰出しの小さい方（2026-10-25 の調査: 繰出しは低く抑える）
         m = load_master("tankan")

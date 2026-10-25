@@ -121,7 +121,11 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                 from ashiba.quantity import outside_stair_counts
 
                 # 外付けの階段室の 3 列目の支柱もジャッキを1つずつ
-                feet = (m.plan.total_posts * rows + m.outer_corner_posts() - r.openings.removed_posts
+                from ashiba.quantity import standing_post_positions
+
+                # 枠組は建枠の位置（始点＋中間）× 2脚
+                pos = m.plan.total_posts * rows if m.master.is_frame else standing_post_positions(m, rows)
+                feet = (pos - r.openings.removed_posts
                         + outside_stair_counts(m, r.stair_plan)[0])
                 jacks = sum(l.qty for l in r.quantity.lines
                             if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)

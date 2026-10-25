@@ -205,6 +205,7 @@ def _sub_model(model: ScaffoldModel, ev, edges: set) -> ScaffoldModel:
     sub.face_elevations = {}
     sub.edge_subset = set(edges)
     sub.wall_ties = [t for t in model.wall_ties if t.edge_index in edges]
+    sub._parent_model = model          # 隅の支柱の共有は面を絞る前の模型で決める（図と同じ）
     return sub
 
 
@@ -239,6 +240,48 @@ def _sub_terrain(terrain, model: ScaffoldModel, edges: set):
 
     return dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges],
                                feet_outer=[f for f in getattr(terrain, "feet_outer", []) if nearest(f) in edges])
+
+
+def standing_post_positions(model: ScaffoldModel, rows: int) -> int:
+    """地盤に立つ支柱の位置の数（足場ラインの 3D と同じ。出隅の外側の角・隙間のある隅の支柱を含む）.
+
+    面ごとに両端を含む支柱の位置 × 列から、隅で共有する内側建地と上段の端を除く。「始点＋中間（終点は次の面）」
+    （plan.total_posts）× 列で数えると、各面の外側の列の終点の支柱と、隣の面の無い端の支柱が抜けていた（利用者の
+    指摘 2026-10-25: 支柱の本数の数え漏れも直して）。単管抱き足場は建地が線の上の1列で、隅は隣の面と同じ1本.
+    """
+    n_extra = model.outer_corner_posts() + model.gap_corner_posts()
+    if model.config.is_hug:
+        return (model.plan.total_posts * rows + n_extra
+                - rows * len(getattr(model, "skip_end_posts", None) or ()))
+    return drawn_post_count(model, rows) + n_extra
+
+
+def drawn_post_count(model: ScaffoldModel, rows: int) -> int:
+    """足場ラインが描く支柱の位置の数（出隅の外側の角の支柱は除く）. 3d.gdl の支柱の描き分けと同じ.
+
+    面ごとに支柱の位置（スパン数＋1）× 列。内側の列の隅の支柱は隣の面と共有して片方だけ（shared_corner_skips）、
+    セットバックの上段の端（skip_end_posts）は両方の列とも描かない。一側足場は外側の1列.
+    """
+    return sum(face_post_positions(model, ep, rows) for ep in model.plan.edges
+               if model.edge_subset is None or ep.edge_index in model.edge_subset)
+
+
+def face_post_positions(model: ScaffoldModel, ep, rows: int) -> int:
+    """1つの面の足場ラインが描く支柱の位置の数（両端を含む × 列。隅で共有する内側建地・上段の端は除く。出隅の
+    外側の角の支柱は含まない）."""
+    from .gdl_params import shared_corner_skips
+
+    ei = ep.edge_index
+    skip = getattr(model, "skip_end_posts", None) or set()
+    sk = shared_corner_skips(getattr(model, "_parent_model", None) or model, ei)
+    n = 0
+    for row in ([1] if rows == 1 else [0, 1]):
+        c = len(ep.spans) + 1
+        if row == 0:
+            c -= int(sk["skipInS"]) + int(sk["skipInE"])
+        c -= int((ei, "s") in skip) + int((ei, "e") in skip)
+        n += max(0, c)
+    return n
 
 
 def _feet_by_row(terrain, rows: int) -> tuple[list, int]:
@@ -359,9 +402,7 @@ def _take_off_one(
     n_corners = model.outer_corner_posts()
     # 隙間（コーナーステップ）のある出隅は、升目の前の面の側にも1本（model.gap_corner_post_start。3D と同じ）
     n_gap_posts = model.gap_corner_posts()
-    n_posts = posts_per_line * rows + n_corners + n_gap_posts
-    # セットバックの上段の端は本体の支柱に乗る（支柱・ジャッキを描かない・数えない。利用者の指定 2026-10-25）
-    n_posts -= rows * len(getattr(model, "skip_end_posts", None) or ())
+    n_posts = standing_post_positions(model, rows)
     n_levels = elev.n_levels
 
     # 枠組式は建枠が支柱＋腕木＋手すりを兼ねるため、部材構成がくさび式と根本的に違う
@@ -2129,7 +2170,7 @@ def _note_double_posts_if_tall(model: ScaffoldModel, notes) -> None:
         return
     below = h - DOUBLE_POST_HEIGHT_MM
     rows = 1 if model.config.scaffold_form == "一側足場" else 2
-    lines = model.plan.total_posts * rows
+    lines = standing_post_positions(model, rows)
     notes.action(
         f"足場高さ{h / 1000:.2f}mは31mを超えます。最高部から31mを超える部分"
         f"（GL〜{below / 1000:.2f}m）の建地は2本組が必要ですが、追加の支柱・"

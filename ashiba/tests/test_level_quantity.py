@@ -41,7 +41,9 @@ class TestLevelQuantity(unittest.TestCase):
         from ashiba.quantity import outside_stair_counts
 
         # 外付けの階段室（幅 610 の足場の階段は 600 枠 2 列）の 3 列目の支柱も
-        positions = (r.model.plan.total_posts * 2 + r.model.outer_corner_posts() + r.model.gap_corner_posts()
+        from ashiba.quantity import standing_post_positions
+
+        positions = (standing_post_positions(r.model, 2)
                      + outside_stair_counts(r.model, r.stair_plan)[0])
         self.assertEqual(posts[2700][0], positions)
         self.assertEqual(sum(posts[3600]), positions * r.model.elevation.posts.count(3600))

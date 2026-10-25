@@ -128,7 +128,11 @@ class TestGapCorner(unittest.TestCase):
         self.assertEqual(m.gap_corner_posts(), len(nxt))
         # 図示の支柱位置数にも1本ずつ足す（数量のジャッキは test_jack_selection）
         drawn = sum(face_drawn_counts(m, ep, r.stair_plan)["qtyPostPos"] for ep in m.plan.edges)
-        self.assertEqual(drawn, m.plan.total_posts * 2 + m.outer_corner_posts() + m.gap_corner_posts())
+        from ashiba.quantity import standing_post_positions
+
+        self.assertEqual(drawn, standing_post_positions(m, 2))
+        # 隙間の手前で止まる面の終点の支柱（内外）も立つ（隅で共有しない）
+        self.assertGreater(drawn, m.plan.total_posts * 2 + m.outer_corner_posts() + m.gap_corner_posts())
         self.assertTrue(any("コーナーステップ）のある出隅" in n for n in r.quantity.notes), r.quantity.notes)
 
     def test_gdl_draws_the_gap_corner_post(self):

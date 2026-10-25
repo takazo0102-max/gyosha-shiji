@@ -454,8 +454,9 @@ class TestFrameLegs(unittest.TestCase):
             config=ScaffoldConfig(), building_height_mm=16000,
         )
         # くさび式は出隅の外側コーナー支柱（ジャッキ＋アンダーベース）が四隅に加わる
+        # くさび式は各面の外側の列の終点の支柱（隅の升目の4本目）も立つ。枠組は建枠を面ごとに回して納める
         self.assertEqual(
-            take_off(wedge).qty_of("ジャッキ") - 2 * wedge.outer_corner_posts(), self.q.qty_of("ジャッキ")
+            take_off(wedge).qty_of("ジャッキ") - 2 * 2 * wedge.outer_corner_posts(), self.q.qty_of("ジャッキ")
         )
 
 
