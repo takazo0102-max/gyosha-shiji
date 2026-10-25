@@ -158,6 +158,24 @@ class TestHeightReadback(unittest.TestCase):
         h, _ = height_from_readback(self.PLAN, [self._rb(lv)])
         self.assertEqual(h, 16300 - 3600)
 
+    def test_lower_face_as_placed_is_not_a_change(self):
+        # 実機 2026-10-25: セットバックの低い東面（2層）を全体の立面（5層）と比べて「天端を引き下げた」と読み、足場高さを
+        # 5200 に書き換えていた（上まで伸びなくなっている）。比べるのはその面を置いたときの作業床
+        from ashiba.span_readback import height_from_readback
+
+        full = [2445, 4245, 6045, 7845, 9645]
+        low = [2445, 4245]
+        plan = {"scaffold_height_mm": 10600, "elevation": {"level_heights": full},
+                "edges": [{"edge_index": 0, "face": "南面", "placement": {"x_mm": 0, "y_mm": 0},
+                           "gdl_params": {"levelList": ",".join(str(v) for v in full)}},
+                          {"edge_index": 1, "face": "東面", "placement": {"x_mm": 30000, "y_mm": 0},
+                           "gdl_params": {"levelList": ",".join(str(v) for v in low)}}]}
+        rbs = [self._rb(full), self._rb(low, origin=(30000, 0))]
+        self.assertEqual(height_from_readback(plan, rbs), (None, []))
+        # 低い面を1層上げたら、その面の差（+1800）を全体に
+        h, _ = height_from_readback(plan, [self._rb(full), self._rb(low + [6045], origin=(30000, 0))])
+        self.assertEqual(h, 10600 + 1800)
+
     def test_different_faces_take_the_largest_and_say_so(self):
         from ashiba.span_readback import height_from_readback
 

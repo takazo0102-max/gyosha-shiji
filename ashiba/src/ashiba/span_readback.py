@@ -290,15 +290,18 @@ def height_from_readback(plan: dict, readbacks: Iterable[tuple[tuple[float, floa
     base = plan.get("scaffold_height_mm")
     if not old_levels or base is None:
         return None, []
-    old_top = old_levels[-1]
     deltas: list[tuple[int, str]] = []
     for origin, params in readbacks:
         got = levels_from_params(params)
-        if not got or got == old_levels:
-            continue
         e = match_edge(plan.get("edges") or [], origin)
+        # 比べるのはその面を置いたときの作業床（面ごとに高さが違う建物・セットバックの低い面は全体の立面と違う。
+        # 全体と比べると、低い面を「天端を引き下げた」と読んで足場高さを 5200 に書き換えていた。実機 2026-10-25:
+        # 上まで伸びなくなっている）。部品の控えが無ければ全体の立面と比べる
+        placed = levels_from_params((e or {}).get("gdl_params") or {}) or old_levels
+        if not got or got == placed:
+            continue
         label = (e.get("face") if e else None) or (f"辺{e.get('edge_index')}" if e else "足場ライン")
-        deltas.append((got[-1] - old_top, label))
+        deltas.append((got[-1] - placed[-1], label))
     deltas = [(d, lb) for d, lb in deltas if d != 0]
     if not deltas:
         return None, []
