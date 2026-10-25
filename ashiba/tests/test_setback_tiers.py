@@ -393,6 +393,16 @@ class TestOverhangTier(unittest.TestCase):
         self.assertIn("補強単管", w)
         self.assertIn("床スラブの外の端の支柱を受ける渡し梁", " ".join(dict(g)["上段（張り出し）"].quantity.warnings))
         self.assertTrue(any("拡幅ブラケット305を1回だけ" in x for x in main.plan.warnings))
+        # 構造検定（利用者の指定 2026-10-25: 構造検定も直して）: ブラケットを付けた組の支柱は拡幅部の許容（日建 ND1800
+        # 8.8kN/本）で、ブラケットは1基ずつ許容支持力（6.0kN）で。先端の支柱は隅の升目の天端まで（自重に入る）
+        for lb, n_b in (("", 2), ("上段（張り出し）", 2 * 1)):
+            st = dict(g)[lb].structural
+            self.assertTrue(st.post.widened)
+            self.assertAlmostEqual(st.post.allowable_kn, 8.8)
+            self.assertEqual(len(st.brackets), n_b)
+            self.assertTrue(all(b.ok and b.allowable_kn == 6.0 for b in st.brackets))
+        self.assertGreater(min(b.load_kn for b in g[0][1].structural.brackets), 1.3)
+        self.assertGreaterEqual(main.own_height(name["北面"].edge_index), 10000)   # 下段の組の値（5650）ではなく
 
     def test_gdl_draws_the_widening_brackets(self):
         from pathlib import Path

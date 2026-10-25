@@ -1732,7 +1732,7 @@ def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
         n_wide[w] = n_wide.get(w, 0) + 2
         n_tube += 2
         # 先端の支柱: ブラケットの床から隅の升目の天端まで（長い支柱から積む）
-        top = max(model.height_of(ei), model.height_of((ei - 1) % n_out))
+        top = max(model.own_height(ei), model.own_height((ei - 1) % n_out))
         need = top - lv[0]
         stack: list[int] = []
         rest = need

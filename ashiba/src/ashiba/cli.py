@@ -1959,12 +1959,18 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
 
 
 def _retake_quantity(r: "PlanRun") -> None:
-    """解いたあとに部材を足した組（拡幅ブラケットなど）の数量と、数量から出る注意を拾い直す."""
+    """解いたあとに部材を足した組（拡幅・張出ブラケットなど）の数量・構造検定（拡幅部の支柱・ブラケット）・注意・
+    総合判定を拾い直す（利用者の指定 2026-10-25: 構造検定も直して）."""
     q = take_off(r.model, bracket_sections=r.brackets, stair_plan=r.stair_plan,
                  platforms=r.platforms, openings=r.openings, terrain=r.terrain)
-    r.warnings = collect_warnings(r.structural, r.model, r.bracket_issues, r.stair_plan, r.stair_issues,
+    st = run_structural(r.model, q, r.site, platforms=r.platforms, terrain=r.terrain,
+                        bracket_sections=r.brackets, openings=r.openings)
+    r.warnings = collect_warnings(st, r.model, r.bracket_issues, r.stair_plan, r.stair_issues,
                                   r.openings, r.terrain, r.platforms, r.checks, q, r.conflicts)
+    r.verdict = build_verdict(summary(r.checks), st, r.platforms, r.openings, r.bracket_issues, r.warnings,
+                              r.conflicts)
     r.quantity = q
+    r.structural = st
 
 
 def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:

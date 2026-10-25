@@ -268,6 +268,13 @@ class ScaffoldModel:
         nb = self.group_neighbors.get(edge_index)
         return float(nb["height"]) if nb else float(self.elevation_of(edge_index).total_height)
 
+    def own_height(self, edge_index: int) -> float:
+        """その面の足場の高さ mm. この組で建てる面はこの組の立面（面を組に分けた面は、ほかの組の値ではなく自分の値）、
+        建てない面は height_of（ほかの組の値）. 出隅の升目の高さ・拡幅の先端の支柱で使う."""
+        if any(e.edge_index == edge_index for e in self.plan.edges):
+            return float(self.elevation_of(edge_index).total_height)
+        return self.height_of(edge_index)
+
     def open_start(self, edge_index: int) -> bool:
         """その面の始点が開放端か（一部の面だけの足場で、前の面を掛けない）.
 

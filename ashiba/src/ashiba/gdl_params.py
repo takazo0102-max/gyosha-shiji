@@ -846,10 +846,10 @@ def corner_tower_params(model: ScaffoldModel, ep) -> dict:
     built = {e.edge_index for e in model.plan.edges}
     out = {"skipOutS": 0, "skipOutE": 0, "cnrPosts": "", "cnrLevels": "", "cnrJack": 0.0, "cnrNega": 0.0,
            "cnrLowS": 0.0, "cnrLowP": 0.0}
-    h = model.height_of(ei)
+    h = model.own_height(ei)
     prev_i, next_i = (ei - 1) % n, (ei + 1) % n
     if _draws_start_corner(model, ei) and prev_i in built and prev_i != ei:
-        hp = model.height_of(prev_i)
+        hp = model.own_height(prev_i)
         if hp > h + 1.0:
             e_p, e_f = model.elevation_of(prev_i), model.elevation_of(ei)
             out.update({"cnrPosts": ",".join(str(p) for p in e_p.posts),
@@ -861,7 +861,7 @@ def corner_tower_params(model: ScaffoldModel, ep) -> dict:
             lv = model.elevation_of(prev_i).level_heights
             out["cnrLowP"] = float(lv[-1]) / 1000.0 if lv else 0.001
     if (next_i in built and next_i != ei and _draws_start_corner(model, next_i)
-            and model.height_of(next_i) > h + 1.0 and not model.gap_corner_post_start(next_i)):
+            and model.own_height(next_i) > h + 1.0 and not model.gap_corner_post_start(next_i)):
         out["skipOutE"] = 1
     return out
 

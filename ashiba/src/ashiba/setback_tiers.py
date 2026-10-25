@@ -911,12 +911,12 @@ def _bridge_corner(main, caps: dict, e, ep, post: tuple, end: str) -> Optional[t
         if end == "s":
             prev = (mi - 1) % n
             if (main.corner_kind_start(mi) != "出隅" or prev not in built
-                    or main.height_of(prev) <= main.height_of(mi) + 1.0):
+                    or main.own_height(prev) <= main.own_height(mi) + 1.0):
                 continue
             return mi, 0, gap
         nxt = (mi + 1) % n
         if (nxt not in built or main.corner_kind_start(nxt) != "出隅"
-                or main.height_of(nxt) <= main.height_of(mi) + 1.0):
+                or main.own_height(nxt) <= main.own_height(mi) + 1.0):
             continue
         return nxt, 1, gap
     return None

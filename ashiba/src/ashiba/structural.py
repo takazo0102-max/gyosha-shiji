@@ -332,10 +332,115 @@ class StructuralResult:
     unverified_rows: list[UnverifiedCapacity] = field(default_factory=list)
     # 開口部（梁枠）ごとの検定。無ければ空
     openings: list[OpeningCheck] = field(default_factory=list)
+    # 拡幅・張出ブラケット1基ごとの検定（check_widen_brackets）。無ければ空
+    brackets: list["BracketCheck"] = field(default_factory=list)
 
     @property
     def all_ok(self) -> bool:
-        return self.wall_tie.ok and self.post.ok
+        return self.wall_tie.ok and self.post.ok and all(b.ok for b in self.brackets)
+
+
+@dataclass
+class BracketCheck:
+    """拡幅・張出ブラケット1基の検定（作用 N ≦ ブラケットの許容支持力）."""
+
+    name: str
+    load_kn: float
+    allowable_kn: float
+    detail: str
+    source: str = ""
+
+    @property
+    def ratio(self) -> float:
+        return self.load_kn / self.allowable_kn if self.allowable_kn else float("inf")
+
+    @property
+    def ok(self) -> bool:
+        return self.ratio <= 1.0
+
+    def describe(self) -> str:
+        return (f"{self.name}: N={self.load_kn:.2f}kN（{self.detail}）≦ 許容{self.allowable_kn}kN"
+                f"（検定比{self.ratio:.2f}）{'OK' if self.ok else 'NG'}")
+
+
+def widened_by_bridges(model: ScaffoldModel) -> bool:
+    """張り出しの横の本体の足場の隅を拡幅ブラケットで広げたか、跳ね出しの上段の端に張出ブラケットを出したか
+    （setback_tiers.hane_bridges）. そのブラケットを付けた支柱は拡幅部の許容支持力で検定する（日建 ND1800 11.0→8.8kN/本）."""
+    return bool(getattr(model, "corner_bridges", None) or getattr(model, "hane_end_ext", None))
+
+
+def check_widen_brackets(model: ScaffoldModel, caps: dict, site: SiteCondition) -> tuple[list[BracketCheck], list[str]]:
+    """拡幅・張出ブラケット1基の検定（reports/くさび式足場の拡幅ブラケット.md。3D の gosub 758／759・数量と同じ組み方）.
+
+    拡幅（隅の升目の外、全高で1回）: ブラケットに先端の支柱が載る。先端の支柱1本の軸力 = 先端の支柱の自重 ＋ 各層の
+    布材（先端側の半分）・床（1/4） ＋ 積載（作業床許容積載荷重 1スパン分を拡幅した升目の4本で分担、同時載荷の層数まで）。
+    張出（跳ね出しの上段の端、各層）: 床をブラケット2基で受ける。1基 = 床・先端の手すり柱・手すりの自重（半分）＋
+    積載（作業床許容積載荷重 1スパン分の半分）。どちらも1スパン分の許容積載を小さな床に載せる安全側の見方.
+    返り値は（検定, 注記）。ブラケットの許容支持力の行が無い系列は検定せず、注記で知らせる."""
+    m = model.master
+    g = 9.80665 / 1000.0
+    row = int(model.post_row_spacing_mm)
+    cap_deck = caps.get(("作業床許容積載荷重", "スパン"))
+    live_span = cap_deck.value if cap_deck else 0.0
+    out: list[BracketCheck] = []
+    notes: list[str] = []
+
+    def kg(part) -> float:
+        return float(part.weight_kg) if part is not None else 0.0
+
+    def post_kg(nominal: int) -> float:
+        p = next((p for p in m.by_category("支柱") if p.nominal_dim == nominal and "根がらみ" not in p.note), None)
+        return kg(p)
+
+    n_out = len(model.plan.outline.edges)
+    lengths = sorted({p.nominal_dim for p in m.by_category("支柱")
+                      if "根がらみ" not in p.note and "屋根" not in p.note and p.nominal_dim > 0}, reverse=True)
+    for ei, cb in (getattr(model, "corner_bridges", None) or {}).items():
+        if model.edge_subset is not None and ei not in model.edge_subset:
+            continue
+        w, side, lv = int(cb[0]), cb[1], list(cb[2])
+        cap = caps.get(("ブラケット許容支持力", "拡幅"))
+        if cap is None:
+            notes.append(f"拡幅ブラケット{w}の許容支持力が capacity.csv に無いため、ブラケット単体は検定していません"
+                         f"（系列 {m.series_id}。メーカー値を確認してください）")
+            continue
+        cl = row if side == 1 else int(model.row_spacing_of((ei - 1) % n_out))
+        k = len(lv)
+        top = max(model.own_height(ei), model.own_height((ei - 1) % n_out))
+        rest, tip_kg = top - lv[0], 0.0
+        while rest > 10 and lengths:
+            pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
+            tip_kg += post_kg(pick)
+            rest -= pick
+        rail_w, rail_c = m.find("布材", w), m.find("布材", cl)
+        deck = m.deck_parts(240, cl)
+        per_level = 3 * kg(rail_w) / 2 + kg(rail_c) / 2 + kg(deck) / 4
+        dead = (tip_kg + k * per_level) * g
+        live = live_span * min(k, site.simultaneous_loaded_levels) / 4.0
+        out.append(BracketCheck(
+            f"拡幅ブラケット{w}（{model.face_name(ei)}の隅の升目の先端の支柱）", round(dead + live, 3), cap.value,
+            f"自重{dead:.2f}＋積載{live:.2f}（{min(k, site.simultaneous_loaded_levels)}層×{live_span}kN÷4本）",
+            cap.source))
+    for (ei, end), w in (getattr(model, "hane_end_ext", None) or {}).items():
+        if model.edge_subset is not None and ei not in model.edge_subset:
+            continue
+        w = int(w)
+        cap = caps.get(("ブラケット許容支持力", "張出"))
+        if cap is None:
+            notes.append(f"張出ブラケット{w}の許容支持力が capacity.csv に無いため、ブラケット単体は検定していません"
+                         f"（系列 {m.series_id}。メーカー値を確認してください）")
+            continue
+        deck = m.deck_parts(500 if w > 540 else 240, row)
+        dead = (kg(deck) / 2 + post_kg(1350) + 2 * kg(m.find("布材", row)) / 2 + 2 * kg(m.find("布材", w)) / 2) * g
+        live = live_span / 2.0
+        out.append(BracketCheck(
+            f"張出ブラケット{w}（{model.face_name(ei)}の{'始点' if end == 's' else '終点'}の先）", round(dead + live, 3),
+            cap.value, f"自重{dead:.2f}＋積載{live:.2f}（{live_span}kN÷2基）", cap.source))
+    if out:
+        worst = max(out, key=lambda b: b.ratio)
+        notes.append("ブラケットの検定（1基あたり）: " + worst.describe()
+                     + ("" if len(out) == 1 else f"（ほか{len(out) - 1}基は検定比がこれ以下）"))
+    return out, notes
 
 
 # ---- 計算本体 -------------------------------------------------------------
@@ -1025,7 +1130,9 @@ def run_structural(
         max_jack = int(round(worst.jack_mm))
         if max_jack > model.elevation.jack_extension:
             governing_foot = worst
-    widened = any(getattr(b, "direction", "") == "張出" for b in (bracket_sections or []))
+    # 張出ブラケットの区間、または隅の拡幅・跳ね出しの端の張出ブラケット（hane_bridges）があれば、支柱は拡幅部の値で
+    widened = (any(getattr(b, "direction", "") == "張出" for b in (bracket_sections or []))
+               or widened_by_bridges(model))
     post = check_post(model, quantity, site, caps, extra, source, max_jack, widened=widened,
                       removed_posts=(openings.removed_posts if openings is not None else 0))
     if platforms is not None and platforms.max_inner_uplift_kn > 0:
@@ -1149,9 +1256,18 @@ def run_structural(
             f"建地圧縮が耐力不足です（検定比{post.ratio:.2f}、支配: {post.governing}）。"
             + remedy
         )
+    brackets, b_notes = check_widen_brackets(model, caps, site)
+    notes += b_notes
+    if widened_by_bridges(model) and post.widened and not post.widened_note:
+        notes.append("張り出しの横の本体の足場の隅を拡幅ブラケットで広げた・跳ね出しの上段の端に張出ブラケットを出したので、"
+                     f"{model.master.vertical_member_name}は拡幅部の許容支持力で検定しています")
+    for b in brackets:
+        if not b.ok:
+            warnings.append(f"ブラケットが耐力不足です: {b.describe()}。ブラケットの出を小さくする、強力型（日建 NDBK03HS・"
+                            "06HS）にする、または積載を下げてください")
     return StructuralResult(
         site=site, wind=wind, wall_tie=tie, post=post,
         warnings=warnings, notes=notes, unverified_used=unverified,
         unverified_rows=list(by_row.values()),
-        openings=opening_checks,
+        openings=opening_checks, brackets=brackets,
     )
