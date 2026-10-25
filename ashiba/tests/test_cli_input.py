@@ -733,7 +733,7 @@ class TestAdvanceRailHasNoToeBoard(unittest.TestCase):
             return solve_all(load_spec(p))
 
     def test_advance(self):
-        r = self._solve(guard_rail_type=GUARD_RAIL_ADVANCE)
+        r = self._solve(guard_rail_type=GUARD_RAIL_ADVANCE, roof_bridge=False)   # 屋上への渡りの幅木は別
         self.assertFalse(r.model.config.has_toe_board)
         self.assertEqual(r.quantity.qty_of("幅木"), 0)
         self.assertTrue(any("幅木は付けていません" in w[2] for w in r.warnings), r.warnings)

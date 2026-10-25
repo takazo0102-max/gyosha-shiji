@@ -1,11 +1,21 @@
-"""屋上への渡り（足場の最上段の床から屋上へ渡る桟橋。部品 ashiba_bridge）.
+"""屋上への渡り（足場の床から屋上へ。部品 ashiba_bridge）.
 
 利用者の指定（2026-10-24）「屋上への渡りもGDL作成して 平面に表記するようにして」。階段で最上段まで上がり、
 そこから屋上（パラペットを越えて）へ渡る。既定は階段室の隣のスパン（階段の降り口の先）に1箇所。
+
+組み方（利用者の指定 2026-10-26。現場の写真: くさびの布材で屋上に支柱を立てた渡り、屋上に立てた階段）:
+  渡りは足場の部材で組む。足場の1スパン（内側建地列の2本の支柱の間）から躯体側へ
+  - くさび: 布材を出して屋上に支柱（ジャッキ付き）を立てる「支柱」、または張出ブラケットで浮かせる「ブラケット」。
+    床はアンチ（布板）を内側建地列と屋上の支柱の布材に掛けて敷き、両脇の手すり・中桟も布材（幅木つき）
+  - 枠組・単管: 単管と足場板。単管を建地（建枠の脚）にクランプで留めて屋上に単管の支柱（ベース付き）を立てるか、
+    単管を跳ね出して浮かせ、足場板を敷く。手すり・中桟も単管
+  - パラペットがあれば避ける: 渡りの床はパラペットの天端より上、屋上の支柱はパラペットの内側（内面から 150）
+  - 渡りの床が屋上より高ければ、屋上側に踏段（昇降ステップ）で下りる。足場の床より高ければ足場側に踏み台
 条件ファイル:
   roof_bridge: false                       # 自動で置かない
-  roof_bridges: [{"face": "南面", "position_mm": 7300, "width_mm": 600, "parapet_mm": 600}]   # 位置を指定
+  roof_bridges: [{"face": "南面", "position_mm": 7300, "parapet_mm": 600, "parapet_t_mm": 150}]   # 位置を指定
   roof_parapet_mm: 600                     # パラペットの高さ（屋上の床から。既定 0）
+  roof_parapet_t_mm: 150                   # パラペットの厚さ（既定 150）
 最上段の床と屋上の床の差が ROOF_MAX_STEP_MM を超える面には置かず、案内を出す。
 """
 
@@ -14,131 +24,53 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-BRIDGE_W_MM = 600.0          # 渡りの幅（手すりの芯々）
-ROOF_LANDING_MM = 600.0      # 屋上側の掛かり（躯体の外面・パラペットの先の平らな床）
-ROOF_MAX_STEP_MM = 1800.0    # 最上段の床と屋上の床の差がこれを超えたら渡りは置かない（1層以上の差）
-# 渡りの形（安衛則552条 架設通路: 勾配 30°以下、15°を超えるものは踏桟。それより急なら踏段（階段））
-DECK_START_MM = 300.0        # 足場の床に掛ける長さ（内側建地列から外へ。足場の床の通路を半分残す）
-DECK_START_MAX_MM = 500.0    # 段が足りないときに足場の床へ延ばす上限（610 の床で通路 110 は残す）
-FLAT_STEP_MM = 30.0          # これ以下の高低差は平らな踏板（床のすき間・段差の扱い）
-RAMP_PLAIN_DEG = 15.0        # 踏桟なしの斜路の上限
-RAMP_MAX_DEG = 30.0          # 斜路の上限（これより急なら踏段）
-STEP_RISE_MM = 200.0         # 踏段のけあげの上限
-STEP_TREAD_MM = 200.0        # 踏段の踏面の下限
-PARAPET_CLEAR_MM = 50.0      # パラペットの天端と渡りの床のあき
-PARAPET_TOP_MM = 300.0       # パラペットの天端を越える平らな区間（躯体の外面の 50 手前から）
+BRIDGE_W_MM = 600.0          # 位置を指定するときの既定の幅（実際は置くスパンの幅）
+ROOF_MAX_STEP_MM = 1800.0    # 足場の床と屋上の床の差がこれを超えたら渡りは置かない（1層以上の差）
+PARAPET_CLEAR_MM = 50.0      # パラペットの天端と渡りの床（アンチ・足場板の下）のあき
+PARAPET_T_MM = 150.0         # パラペットの厚さの既定
+ROOF_POST_IN_MM = 150.0      # 屋上の支柱はパラペットの内面（なければ躯体の外面）からこれだけ内側
+FLUSH_MM = 30.0              # 渡りの床と足場の床・屋上の床の段差がこれ以下なら段差なし（床のすき間の扱い）
+POST_MIN_DROP_MM = 300.0     # 渡りの床が屋上よりこれ以上高ければ屋上に支柱を立てる（低ければ浮かせる）
+STEP_RISE_MM = 230.0         # 踏段・踏み台のけあげの上限
+STEP_TREAD_MM = 250.0        # 踏段の踏面
+TUBE_OVERHANG_MM = 100.0     # 足場板の長さの余り（受けの単管はスパンの両端の 50 内側、そこから両端に 100 以上出す）
 
 
 @dataclass
 class RoofBridge:
     edge_index: int
-    x_mm: float              # 面の始点の支柱から、渡りの始めの位置
-    width_mm: float
-    z_from_mm: float         # 最上段の床（足場の立つ高さから）
+    x_mm: float              # 面の始点の支柱から、渡りを掛けるスパンの始めの支柱
+    width_mm: float          # スパンの幅（渡りの両脇の手すりの芯々）
+    z_from_mm: float         # 渡りへ出る足場の床（足場の立つ高さから）
     z_to_mm: float           # 屋上の床（足場の立つ高さから）
-    length_mm: float         # 内側建地列から躯体側へ
+    length_mm: float         # 内側建地列から躯体側へ（布材・ブラケット・単管の長さ）
     parapet_mm: float = 0.0
     manual: bool = False
-    # 渡りの床の折れ点（内側建地列からの奥行き mm、足場の立つ高さからの床の上面 mm）と、区間ごとの形
-    # （0 平らな踏板、1 斜路（踏桟なし）、2 斜路（踏桟つき）、3 踏段）。bridge_profile
-    profile: list = field(default_factory=list)
-    kinds: list = field(default_factory=list)
+    kind: str = "支柱"        # 支柱（屋上に支柱を立てる）／ブラケット（浮かせる）／単管支柱／単管跳ね出し
+    z_deck_mm: float = 0.0   # 渡りの床（足場の立つ高さから）
+    parapet_t_mm: float = 0.0
+    standoff_mm: float = 0.0
+    post_mm: float = 0.0     # 屋上の支柱の長さ（くさびの支柱・単管）
+    jack_mm: float = 0.0     # 屋上の支柱のジャッキの繰出し（くさび）
+    deck: list = field(default_factory=list)   # 床の幅の並び（アンチ 500・240、足場板 240）
+    deck_len_mm: float = 0.0                   # 床材の長さ（アンチは布材と同じ呼び、足場板は規格の長さ）
+    tube: bool = False       # 単管と足場板で組む（枠組・単管）
+    bracket: str = ""        # ブラケットの品名（すき間を塞ぐ渡り）
 
+    @property
+    def step_up_mm(self) -> float:
+        """足場の床から渡りの床へ上がる段差（踏み台）."""
+        d = self.z_deck_mm - self.z_from_mm
+        return d if d > FLUSH_MM else 0.0
 
-def _rise(y0: float, z0: float, z1: float, run_max: float, notes: list, ahead: bool) -> tuple[list, list]:
-    """高低差 z0→z1 の区間 → (折れ点, [形]).
+    @property
+    def drop_mm(self) -> float:
+        """渡りの床から屋上へ下りる段差（踏段）."""
+        d = self.z_deck_mm - self.z_to_mm
+        return d if d > FLUSH_MM else 0.0
 
-    ahead=False: y0 で z1 に着くよう手前へ（足場の床の上と離れの隙間。長さ run_max まで）。斜路が入れば使える長さ
-    いっぱいにゆるく、入らなければ踏段。ahead=True: y0 から先へ（屋上の上。15°の斜路が 1.2m 以内ならそれ、次に
-    30°の斜路（踏桟）、それより長ければ踏段）。
-    """
-    dz = abs(z1 - z0)
-    run15 = dz / math.tan(math.radians(RAMP_PLAIN_DEG))
-    run30 = dz / math.tan(math.radians(RAMP_MAX_DEG))
-    run = None
-    if not ahead and run30 <= run_max + 1e-6:
-        run = run_max
-    elif ahead and run15 <= 1200.0:
-        run = run15
-    elif ahead and run30 <= 1200.0:
-        run = run30
-    if run is not None:
-        kind = 1 if math.degrees(math.atan2(dz, run)) <= RAMP_PLAIN_DEG + 1e-6 else 2
-        return ([(y0 + run, z1)] if ahead else [(y0 - run, z0), (y0, z1)]), [kind]
-    n_rise = max(2, math.ceil(dz / STEP_RISE_MM))
-    run = (n_rise - 1) * STEP_TREAD_MM
-    if not ahead and run > run_max + 1e-6:
-        notes.append(f"踏段の踏面が {run_max / (n_rise - 1):.0f}mm しか取れません（{STEP_TREAD_MM:.0f} 以上が要る）。"
-                     "足場の最上段の床の高さを屋上に近づけるか、踏み台（可搬式の昇降ステップ）を使ってください")
-        run = run_max
-    return ([(y0 + run, z1)] if ahead else [(y0 - run, z0), (y0, z1)]), [3]
-
-
-def bridge_profile(z_from: float, z_to: float, edge_mm: float, parapet_mm: float,
-                   deck_mm: float) -> tuple[list, list, list[str]]:
-    """渡りの床の折れ点と区間の形 → ([(y, z)], [形], 案内). y は内側建地列から躯体側へ mm（躯体の外面＝edge_mm）.
-
-    熟練者の組み方（安衛則552条・563条）: 高低差は躯体の外面の手前（足場の床の上と離れの隙間）か、屋上の上で
-    取り、床は折れ点のあいだで平ら・斜路（30°以下、15°超は踏桟）・踏段のどれか。屋上が高ければ外面までに上がり
-    きり（段・側桁が屋上のスラブに食い込まない）、屋上が低ければ外面まで床の高さのまま渡って屋上の上で下りる。
-    パラペットは天端の 50 上を平らに越え、屋上の上で下りる。屋上の上は ROOF_LANDING_MM の平らな床。
-    """
-    notes: list[str] = []
-    y_s = -DECK_START_MM
-    y_far = -min(DECK_START_MAX_MM, max(DECK_START_MM, deck_mm - 110.0))
-    top = z_to + parapet_mm + PARAPET_CLEAR_MM if parapet_mm > 0 else z_to
-    pts: list = [(y_s, z_from)]
-    kinds: list = []
-    if top - z_from > FLAT_STEP_MM:
-        # 外面の手前で上がりきる（パラペットがあれば外面の 50 手前で天端の 50 上に）
-        y_e = edge_mm - (PARAPET_CLEAR_MM if parapet_mm > 0 else 0.0)
-        tmp: list = []
-        p, k = _rise(y_e, z_from, top, y_e - y_s, tmp, False)
-        if k == [3]:
-            p, k = _rise(y_e, z_from, top, y_e - y_far, notes, False)
-        if p[0][0] < y_s - 1.0:
-            pts = [p[0]]
-        elif p[0][0] > y_s + 1.0:
-            pts.append(p[0])
-            kinds.append(0)
-        pts.append(p[1])
-        kinds += k
-    else:
-        # 高低差 30 以下（またはパラペットの天端が床より低い）: 床の高さのまま外面まで渡す。屋上の床へは平らに掛ける
-        pts.append((edge_mm, z_from if parapet_mm > 0 or z_from - z_to > FLAT_STEP_MM else z_to))
-        kinds.append(0)
-    if parapet_mm > 0:
-        pts.append((edge_mm + PARAPET_TOP_MM - PARAPET_CLEAR_MM, pts[-1][1]))
-        kinds.append(0)
-    # 屋上の上で下りる（屋上が低い・パラペットを越えた）
-    if pts[-1][1] - z_to > FLAT_STEP_MM:
-        p, k = _rise(pts[-1][0], pts[-1][1], z_to, 0.0, notes, True)
-        pts += p
-        kinds += k
-    pts.append((pts[-1][0] + ROOF_LANDING_MM, z_to if abs(pts[-1][1] - z_to) > FLAT_STEP_MM else pts[-1][1]))
-    kinds.append(0)
-    # 続く平らな区間はまとめる
-    out_p, out_k = [pts[0]], []
-    for (y, z), k in zip(pts[1:], kinds):
-        if out_k and k == 0 and out_k[-1] == 0 and abs(out_p[-1][1] - z) < 1e-6 and abs(out_p[-2][1] - z) < 1e-6:
-            out_p[-1] = (y, z)
-            continue
-        out_p.append((y, z))
-        out_k.append(k)
-    return [(round(y, 1), round(z, 1)) for y, z in out_p], out_k, notes
-
-
-def profile_words(b: "RoofBridge") -> str:
-    """渡りの形の要約（「斜路 22° 踏桟」「踏段 2段」）."""
-    words = []
-    for (y0, z0), (y1, z1), k in zip(b.profile, b.profile[1:], b.kinds):
-        if k in (1, 2):
-            ang = math.degrees(math.atan2(abs(z1 - z0), max(1.0, y1 - y0)))
-            words.append(f"斜路{ang:.0f}°" + ("・踏桟" if k == 2 else ""))
-        elif k == 3:
-            words.append(f"踏段{max(2, math.ceil(abs(z1 - z0) / STEP_RISE_MM))}段（けあげ"
-                         f"{abs(z1 - z0) / max(2, math.ceil(abs(z1 - z0) / STEP_RISE_MM)):.0f}）")
-    return "・".join(words)
+    def steps(self, rise_mm: float) -> int:
+        return max(1, math.ceil(rise_mm / STEP_RISE_MM)) if rise_mm > FLUSH_MM else 0
 
 
 def _face_index(model, face) -> int | None:
@@ -147,6 +79,169 @@ def _face_index(model, face) -> int | None:
         return int(face)
     key = str(face).replace("面", "")
     return next((ei for n, ei in names.items() if n == face or n.replace("面", "") == key), None)
+
+
+def _deck_level(levels: list[float], roof: float, para: float, koma: float,
+                tube: bool) -> tuple[float, float, str] | None:
+    """(渡りへ出る足場の床, 渡りの床, 形). 形は "gap"（屋上とほぼ同じ高さ: 躯体の外面まですき間を塞ぐ）か
+    "posts"（屋上より高い: 屋上に支柱を立てる）.
+
+    パラペットが無く、足場の床が屋上の床の 230 下〜30 上なら、その床のまま躯体の外面まで渡す（すき間を塞ぐ。屋上へは
+    段差なしか1段上がる）。それより高い床なら屋上に支柱を立てて渡し、屋上へ踏段で下りる。どの床も屋上より低ければ、
+    足場の床の上のコマ（単管は任意の高さ）に渡りの床を上げ、足場側に踏み台を置く。パラペットがあれば渡りの床は
+    天端の 50 上より上（パラペットを越える）。
+    """
+    if para <= 0:
+        near = [h for h in levels if roof - STEP_RISE_MM <= h <= roof + FLUSH_MM]
+        if near:
+            return max(near), max(near), "gap"
+        need = roof + PARAPET_CLEAR_MM
+    else:
+        need = roof + para + PARAPET_CLEAR_MM
+    above = [h for h in levels if h >= need - 1.0]
+    below = [h for h in levels if h < need - 1.0]
+    flush = (min(above), min(above)) if above else None
+    raised = None
+    if below:
+        zl = max(below)
+        zb = zl + math.ceil((need - zl) / koma - 1e-9) * koma if (koma and not tube) else math.ceil(need / 10.0) * 10.0
+        raised = (zl, zb)
+    got = flush or raised
+    if flush and raised and flush[1] - need > 900.0 and raised[1] - raised[0] <= 450.0 + 1.0:
+        # 屋上へ大きく下りるより、足場側の小さな踏み台（1コマ以内）で上がる方がよい
+        got = raised
+    return (got[0], got[1], "posts") if got else None
+
+
+def _deck_list(depth: float, unit: int, wall_clear: float = 30.0) -> list[int]:
+    """奥行き depth に並べる床材の幅（くさび: アンチ 500 を並べて残りに 240、単管: 足場板 240）."""
+    room = depth - wall_clear
+    if unit == 240:
+        return [240] * max(1, int(room // 240))
+    n5 = int(room // 500)
+    out = [500] * n5
+    if room - 500 * n5 >= 240:
+        out.append(240)
+    return out or [240]
+
+
+def _wedge_post(drop: float, master) -> tuple[float, float]:
+    """屋上の支柱（長さ, ジャッキの繰出し）: 渡りの床・中桟・手すりがコマに来るよう、支柱の天端を手すりのコマ＋上端の
+    コマの下がり（＋コマの倍数）にする。ジャッキの繰出しはコマの並びで決まる（30〜ジャッキの上限）."""
+    koma = float(master.koma_pitch or 450.0)
+    gap = float(master.koma_top_gap or 0.0)
+    jmax = float(master.jack_hard_max_mm() or 270.0)
+    lengths = sorted(L for L in master.post_lengths() if koma and L % koma == 0) or sorted(master.post_lengths())
+    cands = []
+    for L in lengths:
+        for k in range(0, 4):
+            j = drop + 2 * koma + gap + k * koma - L
+            if 30.0 <= j <= jmax:
+                cands.append((j, k, L))
+    if cands:
+        j, _k, L = min(cands)
+        return float(L), float(j)
+    return float(lengths[0]), max(30.0, drop + 2 * koma + gap - lengths[0])
+
+
+def _tube_len(need: float, master) -> float:
+    lens = sorted(p.nominal_dim for p in master.by_category("単管"))
+    return float(next((L for L in lens if L >= need), lens[-1] if lens else math.ceil(need / 500.0) * 500.0))
+
+
+def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: float, manual: bool,
+                notes: list[str]) -> RoofBridge | None:
+    """1箇所の渡りの組み方を決める（面 ei の位置 x を含むスパン）."""
+    ep = next((e for e in model.plan.edges if e.edge_index == ei), None)
+    if ep is None or not ep.spans:
+        return None
+    m = model.master
+    tube = bool(m.is_tube or m.is_frame)
+    name = model.face_name(ei)
+    # 渡りを掛けるスパン（内側建地列の2本の支柱の間）
+    acc, x0, w = 0.0, 0.0, float(ep.spans[0])
+    for sp in ep.spans:
+        x0, w = acc, float(sp)
+        if x < acc + sp:
+            break
+        acc += float(sp)
+    lv = [float(h) for h in model.elevation_of(ei).level_heights]
+    if not lv:
+        return None
+    para_t = para_t if para > 0 else 0.0
+    got = _deck_level(lv, z_to, para, float(m.koma_pitch or 0), tube)
+    if got is None:
+        return None
+    zl, zb, mode = got
+    if zb - z_to > ROOF_MAX_STEP_MM or z_to - zl > ROOF_MAX_STEP_MM:
+        notes.append(f"屋上への渡り: {name}は足場の床（{zl:.0f}）と屋上（{z_to:.0f}）の差が"
+                     f"{ROOF_MAX_STEP_MM:.0f} を超えるので置いていません（足場の高さ・屋上の高さを確かめてください）")
+        return None
+    so = float(ep.standoff)
+    b = RoofBridge(ei, x0, w, zl, z_to, 0.0, para, manual, z_deck_mm=zb, parapet_t_mm=para_t, standoff_mm=so,
+                   tube=tube)
+    if mode == "gap":
+        # 屋上とほぼ同じ高さ: 躯体の外面まで床を出してすき間を塞ぐ（床材は面に沿って2本のブラケット・単管に掛ける）
+        if tube:
+            b.kind = "単管跳ね出し"
+            b.length_mm = so - FLUSH_MM
+            b.deck = _deck_list(so, 240)
+            b.deck_len_mm = plank_len(w + TUBE_OVERHANG_MM, m)
+        else:
+            br = sorted((p for p in m.by_category("ブラケット") if "張出" in p.note and "荷取り" not in p.note),
+                        key=lambda p: p.nominal_dim)
+            fit = [p for p in br if p.nominal_dim <= so + 10.0] or br[:1]
+            b.kind = "ブラケット"
+            b.length_mm = float(fit[-1].nominal_dim) if fit else so
+            b.bracket = (f"{fit[-1].model_no} " + ("拡幅ブラケット" if "拡幅" in fit[-1].note else "張出ブラケット")
+                         + f"{fit[-1].nominal_dim:.0f}") if fit else "ブラケット"
+            b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), 240 if b.length_mm < 500 else 500)
+            b.deck_len_mm = w
+        if sum(b.deck) > so - 10.0:
+            notes.append(f"屋上への渡り（{name}）: 離れ {so:.0f} に床材 {'＋'.join(map(str, b.deck))} が入りきりません"
+                         "（躯体に当たらないか確かめてください）")
+    else:
+        drop = zb - z_to
+        reach_need = so + para_t + ROOF_POST_IN_MM
+        if tube:
+            b.kind = "単管支柱"
+            # 奥行きは足場板（幅 240）が並ぶ寸法に（すき間を残さない）
+            b.length_mm = math.ceil((reach_need - 40.0) / 240.0) * 240.0 + 40.0
+            # 足場板は横引き（面に沿って、両脇の単管に掛ける。利用者の指定 2026-10-26）
+            b.deck = _deck_list(b.length_mm, 240)
+            b.deck_len_mm = plank_len(w + TUBE_OVERHANG_MM, m)
+            b.post_mm = _tube_len(drop + 1000.0, m)
+        else:
+            spans = sorted(m.span_lengths())
+            b.kind = "支柱"
+            b.length_mm = float(next((L for L in spans if L >= reach_need), spans[-1]))
+            # アンチも横引き（面に沿って、両脇の腕木の布材に掛ける。長さはスパンと同じ呼び）
+            b.deck = _deck_list(b.length_mm, 500)
+            b.deck_len_mm = w
+            b.post_mm, b.jack_mm = _wedge_post(drop, m)
+    row = float(model.row_spacing_of(ei)) or 600.0
+    if b.step_up_mm and (b.steps(b.step_up_mm) - 1) * STEP_TREAD_MM > row - 100.0:
+        notes.append(f"屋上への渡り（{name}）: 足場の床（{zl:.0f}）から渡りの床（{zb:.0f}）まで {b.step_up_mm:.0f} 上がります。"
+                     "踏み台が足場の床に入りきらないので、足場の最上段の床をパラペット・屋上より上にするか、昇降用の"
+                     "階段を別に設けてください")
+    if mode == "gap" and z_to - zb > FLUSH_MM:
+        notes.append(f"屋上への渡り（{name}）: 渡りの床から屋上へ {z_to - zb:.0f} 上がります（1段）")
+    top = float(model.elevation_of(ei).total_height)
+    if top < zb + 900.0:
+        notes.append(f"屋上への渡り（{name}）: 内側の支柱の天端（{top:.0f}）が渡りの手すり（{zb + 900:.0f}）より低いので、"
+                     "手すりの高さまで支柱を継ぎ足してください")
+    return b
+
+
+def planks(m) -> list:
+    """足場板（単管は踏板の「足場板…」、枠組は渡り用の「足場板」）. 長さは実長（actual_dim）."""
+    return sorted({p.model_no: p for p in m.parts if p.model_no.startswith("足場板")}.values(),
+                  key=lambda p: p.actual_dim)
+
+
+def plank_len(need: float, m) -> float:
+    ps = planks(m)
+    return float(next((p.actual_dim for p in ps if p.actual_dim >= need), ps[-1].actual_dim if ps else need))
 
 
 def roof_bridges(model, stair_plan, spec: dict) -> tuple[list[RoofBridge], list[str]]:
@@ -158,59 +253,64 @@ def roof_bridges(model, stair_plan, spec: dict) -> tuple[list[RoofBridge], list[
     eaves = getattr(model, "eaves_by_face", None) or {}
     default_eaves = float(spec.get("eaves_height_mm") or 0.0)
     para0 = float(spec.get("roof_parapet_mm", 0) or 0)
-    edges = {e.edge_index: e for e in model.plan.edges}
+    t0 = float(spec.get("roof_parapet_t_mm", PARAPET_T_MM) or PARAPET_T_MM)
 
-    def make(ei: int, x: float, w: float, para: float, manual: bool) -> None:
-        ep = edges.get(ei)
-        if ep is None:
+    def make(ei: int, x: float, para: float, para_t: float, manual: bool) -> None:
+        if not any(e.edge_index == ei for e in model.plan.edges):
             notes.append(f"屋上への渡り: 面（辺{ei}）に足場がありません")
             return
-        lv = list(model.elevation_of(ei).level_heights)
-        if not lv:
-            return
-        z_to = float(eaves.get(ei, default_eaves))
-        # 屋上の床にいちばん近い段から渡す（最上段は屋根より1段上のことがある。実機 2026-10-24: 下り1775 になった）
-        z_from = float(min(lv, key=lambda h: (abs(float(h) - z_to), -float(h))))
-        name = model.face_name(ei)
-        if abs(z_to - z_from) > ROOF_MAX_STEP_MM:
-            notes.append(f"屋上への渡り: {name}は最上段の床（{z_from:.0f}）と屋上（{z_to:.0f}）の差が"
-                         f"{ROOF_MAX_STEP_MM:.0f} を超えるので置いていません（足場の高さ・屋上の高さを確かめてください）")
-            return
-        length = float(sum(ep.spans))
-        x = max(0.0, min(float(x), length - w))
-        prof, kinds, pnotes = bridge_profile(z_from, z_to, float(ep.standoff), para,
-                                             float(model.row_spacing_of(ei)) or 600.0)
-        notes.extend(f"屋上への渡り（{name}）: {t}" for t in pnotes)
-        out.append(RoofBridge(ei, x, w, z_from, z_to, prof[-1][0], para, manual, prof, kinds))
+        b = plan_bridge(model, ei, x, float(eaves.get(ei, default_eaves)), para, para_t, manual, notes)
+        if b is not None:
+            out.append(b)
 
     manual = spec.get("roof_bridges") or []
-    for b in manual:
-        ei = _face_index(model, b.get("face", b.get("edge_index")))
+    for item in manual:
+        ei = _face_index(model, item.get("face", item.get("edge_index")))
         if ei is None:
-            notes.append(f"屋上への渡り: 面「{b.get('face')}」が分かりません")
+            notes.append(f"屋上への渡り: 面「{item.get('face')}」が分かりません")
             continue
-        make(ei, float(b.get("position_mm", 0.0)), float(b.get("width_mm", BRIDGE_W_MM)),
-             float(b.get("parapet_mm", para0) or 0), True)
+        make(ei, float(item.get("position_mm", 0.0)), float(item.get("parapet_mm", para0) or 0),
+             float(item.get("parapet_t_mm", t0) or t0), True)
     if manual:
         return out, notes
     towers = list(getattr(stair_plan, "towers", None) or [])
     if not towers:
         return out, notes
     t = towers[0]
-    ep = edges.get(t.edge_index)
+    ep = next((e for e in model.plan.edges if e.edge_index == t.edge_index), None)
     if ep is None:
         return out, notes
     # 階段室の終点の側の隣のスパン（入らなければ始点の側）
     length = float(sum(ep.spans))
-    x = float(t.end_mm) if float(t.end_mm) + BRIDGE_W_MM <= length - 1.0 else float(t.start_mm) - BRIDGE_W_MM
-    make(t.edge_index, max(0.0, x), BRIDGE_W_MM, para0, False)
+    x = float(t.end_mm) + 1.0 if float(t.end_mm) + 600.0 <= length - 1.0 else float(t.start_mm) - 600.0
+    make(t.edge_index, max(0.0, x), para0, t0, False)
     return out, notes
 
 
+def bridge_words(b: RoofBridge) -> str:
+    """渡りの組み方の要約（「布材914・屋上に支柱 1350＋ジャッキ・アンチ 500×3＋240」）."""
+    if b.kind == "支柱":
+        s = f"布材{b.length_mm:.0f}・屋上に支柱{b.post_mm:.0f}（ジャッキ{b.jack_mm:.0f}）"
+    elif b.kind == "ブラケット":
+        s = f"{b.bracket}で躯体の外面までのすき間を塞ぐ"
+    elif b.kind == "単管支柱":
+        s = f"単管{b.length_mm / 1000:.2f}m・屋上に単管の支柱{b.post_mm / 1000:.1f}m（ベース）"
+    else:
+        s = f"単管を躯体の外面まで跳ね出してすき間を塞ぐ"
+    if b.tube:
+        s += f"・足場板{b.deck_len_mm / 1000:.1f}m×{len(b.deck)}枚"
+    else:
+        s += "・アンチ " + "＋".join(str(w) for w in b.deck)
+    s += "・手すり・中桟" + ("（単管）" if b.tube else "（布材）") + "・幅木"
+    if b.step_up_mm:
+        s += f"・足場側に踏み台（{b.steps(b.step_up_mm)}段・{b.step_up_mm:.0f}上がる）"
+    if b.drop_mm:
+        s += f"・屋上へ踏段（{b.steps(b.drop_mm)}段・{b.drop_mm:.0f}下りる）"
+    if b.parapet_mm > 0:
+        s += f"・パラペット{b.parapet_mm:.0f}の上を越える"
+    return s
+
+
 def bridge_note(bridges: list[RoofBridge], model) -> str:
-    parts = [f"{model.face_name(b.edge_index)} {b.x_mm:.0f}〜（幅{b.width_mm:.0f}・長さ{b.length_mm:.0f}"
-             + (f"・上り{b.z_to_mm - b.z_from_mm:.0f}" if b.z_to_mm - b.z_from_mm > 1 else
-                f"・下り{b.z_from_mm - b.z_to_mm:.0f}" if b.z_from_mm - b.z_to_mm > 1 else "")
-             + (f"・パラペット{b.parapet_mm:.0f}越え" if b.parapet_mm > 0 else "")
-             + (f"・{profile_words(b)}" if profile_words(b) else "") + "）" for b in bridges]
+    parts = [f"{model.face_name(b.edge_index)} {b.x_mm:.0f}〜（幅{b.width_mm:.0f}・{bridge_words(b)}）" for b in bridges]
     return "屋上への渡り: " + "、".join(parts)

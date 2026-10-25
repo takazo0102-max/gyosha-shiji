@@ -16,7 +16,7 @@ GDL = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scr
 
 class TestFrameCornerTube(unittest.TestCase):
     def setUp(self):
-        self.r = solve_all(RECT)
+        self.r = solve_all({**RECT, "roof_bridge": False})      # 屋上への渡りの単管・クランプは外して数える
         self.m = self.r.model
 
     def test_gaps_are_near_70(self):

@@ -136,7 +136,8 @@ class TestBoards(unittest.TestCase):
         from ashiba.cli import solve_all
         from ashiba.tube_runs import corner_board_mm
 
-        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000}
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                "roof_bridge": False}                                   # 屋上への渡りの足場板は別
         r = solve_all({**base, "series_id": "tankan"})
         m = r.model
         cb = corner_board_mm(m.post_row_spacing_mm)

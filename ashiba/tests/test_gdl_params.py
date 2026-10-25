@@ -1315,7 +1315,7 @@ class TestStairOpeningGuard3D(unittest.TestCase):
         from ashiba.cli import solve_all
 
         base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
-                "scaffold_width_mm": 914}                      # 足場の中の階段（900 枠）
+                "scaffold_width_mm": 914, "roof_bridge": False}  # 足場の中の階段（900 枠）。屋上への渡りの幅木は外して比べる
         with_st = solve_all(base)
         no_st = solve_all({**base, "stairs": {"count": 0}})
         n_open = with_st.model.elevation.n_levels * len(with_st.stair_plan.towers)

@@ -885,7 +885,8 @@ def cstep_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Plac
 
 
 def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
-    """屋上への渡り（model.roof_bridges）ごとの部品. 原点は渡りの始めの位置の内側建地列（利用者の指定 2026-10-24）."""
+    """屋上への渡り（model.roof_bridges）ごとの部品. 原点は渡りを掛けるスパンの始めの内側建地（足場の部材で組む。
+    利用者の指定 2026-10-26）."""
     out: list[Placement] = []
     edges = {e.edge_index: e for e in model.plan.edges}
     base = float(model.base_height_mm or 0.0)
@@ -894,14 +895,15 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
         if ep is None:
             continue
         o, u, _nrm, ang = _frame(ep)
+        kinds = {"支柱": 0, "ブラケット": 1, "単管支柱": 2, "単管跳ね出し": 3}
         out.append(Placement(BRIDGE_OBJECT, o[0] + u[0] * b.x_mm, o[1] + u[1] * b.x_mm, {
             "faceAng": ang, "brW": b.width_mm / 1000.0, "brL": b.length_mm / 1000.0,
-            "zFrom": (base + b.z_from_mm) / 1000.0, "zTo": (base + b.z_to_mm) / 1000.0,
-            "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0,
-            # 床の折れ点と区間の形（roof_bridges.bridge_profile。高低差は躯体の外面の手前か屋上の上で取る）
-            "prfY": ",".join(f"{y:.0f}" for y, _z in (b.profile or [])),
-            "prfZ": ",".join(f"{base + z:.0f}" for _y, z in (b.profile or [])),
-            "prfK": ",".join(str(int(k)) for k in (b.kinds or [])),
+            "brKind": kinds.get(b.kind, 0),
+            "zFrom": (base + b.z_from_mm) / 1000.0, "zDeck": (base + b.z_deck_mm) / 1000.0,
+            "zTo": (base + b.z_to_mm) / 1000.0,
+            "postL": b.post_mm / 1000.0, "jackOut": b.jack_mm / 1000.0,
+            "deckList": ",".join(str(int(w)) for w in b.deck), "deckLen": b.deck_len_mm / 1000.0,
+            "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0, "paraT": b.parapet_t_mm / 1000.0,
             "lineMode": bool(line_mode)}))
     return _with_pens(model, out)
 

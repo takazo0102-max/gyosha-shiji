@@ -71,6 +71,8 @@ def _truncated(model: ScaffoldModel, top_mm: float) -> ScaffoldModel:
     m.elevation = truncate_elevation(model.elevation, top_mm, master)
     m.face_elevations = {i: truncate_elevation(ev, top_mm, master) for i, ev in model.face_elevations.items()}
     m.wall_ties = [t for t in model.wall_ties if t.height_mm <= top_mm + 1]
+    # 屋上への渡りは、渡りへ出る足場の床の層に入れる
+    m.roof_bridges = [b for b in getattr(model, "roof_bridges", None) or [] if b.z_from_mm <= top_mm + 1]
     return m
 
 
@@ -159,6 +161,11 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
                 band = next((i for i, h in enumerate(levels) if z < h - 1), n - 1)
                 geo.setdefault(nominal, [0] * n)[band] += positions
                 z += nominal
+        # 屋上への渡りの屋上の支柱（くさび）は、渡りへ出る足場の床の層に
+        for b in getattr(model, "roof_bridges", None) or []:
+            if b.kind == "支柱" and b.post_mm:
+                band = next((i for i, h in enumerate(levels) if b.z_from_mm <= h + 1), n - 1)
+                geo.setdefault(int(b.post_mm), [0] * n)[band] += 2
         for key in [k for k in keys if k[1] == post_cat]:
             part = parts[key]
             want = full.get(key, 0)

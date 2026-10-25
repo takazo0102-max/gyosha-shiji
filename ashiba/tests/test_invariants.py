@@ -125,8 +125,10 @@ class TestCrossCuttingInvariants(unittest.TestCase):
 
                 # 枠組は建枠の位置（始点＋中間）× 2脚
                 pos = m.plan.total_posts * rows if m.master.is_frame else standing_post_positions(m, rows)
+                # 屋上への渡りの屋上の支柱（くさび。ジャッキ付き）も数える（roof_bridges。2026-10-26）
                 feet = (pos - r.openings.removed_posts
-                        + outside_stair_counts(m, r.stair_plan)[0])
+                        + outside_stair_counts(m, r.stair_plan)[0]
+                        + 2 * sum(1 for b in m.roof_bridges if b.kind == "支柱"))
                 jacks = sum(l.qty for l in r.quantity.lines
                             if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
                 self.assertEqual(jacks, feet, name)

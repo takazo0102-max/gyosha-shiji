@@ -817,7 +817,7 @@ def _take_off_one(
     _count_widen_brackets(model, add, notes)
     _count_width_change(model, add, sub, notes, stair_plan)
     _count_sill_boards(model, notes, terrain, stair_plan)
-    _count_roof_bridges(model, notes)
+    _count_roof_bridges(model, add, notes)
     _count_intakes(model, notes)
     _count_wedge_corner_steps(model, add, notes)
 
@@ -1593,17 +1593,70 @@ def _count_intakes(model: ScaffoldModel, notes) -> None:
     notes.action(intake_note(model), Notes.ORDER)
 
 
-def _count_roof_bridges(model: ScaffoldModel, notes) -> None:
-    """屋上への渡り（足場の最上段の床から屋上へ。利用者の指定 2026-10-24）。渡り桟橋は系列のマスタに無いので手配に出す."""
+def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
+    """屋上への渡り（足場の部材で組む。roof_bridges）の部材を拾う（利用者の指定 2026-10-26: 布材かブラケット出して
+    支柱で足元つくかブラケットで浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板）."""
     # 面ごとに高さが違えば数量は同じ高さの面の組ごと。渡りはその面の組でだけ出す（二重に手配しない）
     bs = [b for b in getattr(model, "roof_bridges", None) or []
           if model.edge_subset is None or b.edge_index in model.edge_subset]
     if not bs:
         return
-    from .roof_bridges import bridge_note
+    from .roof_bridges import bridge_note, plank_len
 
-    notes.action(bridge_note(bs, model) + f"。{len(bs)}箇所の渡り桟橋（足場板・手すり・中桟・幅木つき）を手配してください",
-                 Notes.ORDER)
+    m = model.master
+    for b in bs:
+        w, L = int(round(b.width_mm)), int(round(b.length_mm))
+        tag = "屋上への渡り"
+        if b.kind == "支柱":
+            # 布材: 両脇の腕木（アンチを横引きで掛ける）・中桟・手すり（L×6）、屋上の支柱どうし（スパン×1）
+            add(m.find("布材", L), 6, f"布材{L}（{tag}の両脇の腕木・中桟・手すり）")
+            add(m.find("布材", w), 1, f"布材{w}（{tag}の屋上の支柱どうし）")
+            add(m.find("支柱", int(b.post_mm)), 2, f"支柱{b.post_mm:.0f}（{tag}の屋上の支柱）")
+            jack = next(iter(sorted(m.by_category("ジャッキ"), key=lambda p: p.nominal_dim, reverse=True)), None)
+            add(jack, 2, f"ジャッキ（{tag}の屋上の支柱）")
+            for dw in b.deck:
+                add(m.deck_parts(int(dw), w), 1, f"アンチ 幅{dw}×{w}（{tag}。横引き）")
+            add(m.find("幅木", L), 2, f"幅木{L}（{tag}の両脇）")
+        elif b.kind == "ブラケット":
+            br = m.get(b.bracket.split()[0]) if b.bracket else None
+            add(br, 2, f"{b.bracket}（{tag}）")
+            if m.find("布材", L) is not None:
+                add(m.find("布材", L), 4, f"布材{L}（{tag}の両脇の中桟・手すり）")
+            else:
+                notes.action(f"{tag}: ブラケット{L}の長さの布材が系列のマスタに無いので、両脇の手すり・中桟は単管"
+                             f"（1.0m）4本と直交クランプ8個で組みます。別途手配してください", Notes.ORDER)
+            koma = int(m.koma_pitch or 450)
+            tip = min((L for L in m.post_lengths() if L >= 1000 and L % koma == 0), default=max(m.post_lengths()))
+            add(m.find("支柱", tip), 2, f"支柱{tip}（{tag}のブラケットの先端のホゾに立てて手すりを受ける）")
+            for dw in b.deck:
+                add(m.deck_parts(int(dw), w), 1, f"アンチ 幅{dw}×{w}（{tag}）")
+        else:
+            # 単管と足場板（枠組・単管）。単管は両脇の受け・中桟・手すり（3本×2）、2 は足場板の受け2本と屋上の支柱2本
+            tube_need = L + 200.0
+            n_side = 6
+            from .roof_bridges import _tube_len
+
+            add(m.find("単管", int(_tube_len(tube_need, m))), n_side, f"単管（{tag}の両脇の受け・中桟・手すり）")
+            n_clamp = 2 * n_side
+            if b.kind == "単管支柱":
+                add(m.find("単管", int(_tube_len(w + 200.0, m))), 1, f"単管（{tag}の屋上の支柱どうし）")
+                add(m.find("単管", int(b.post_mm)), 2, f"単管（{tag}の屋上の支柱）")
+                base = m.get("A15")
+                add(base, 2, f"ベース（{tag}の屋上の支柱）")
+                n_clamp += 2 + 6
+            else:
+                add(m.find("単管", 1000), 2, f"単管（{tag}の先端の手すり柱）")
+                n_clamp += 4
+            clamp = m.get("ARC1")
+            add(clamp, n_clamp, f"直交クランプ（{tag}）")
+            plank = next((p for p in m.parts if p.model_no.startswith("足場板") and p.actual_dim == b.deck_len_mm), None)
+            add(plank, len(b.deck), f"足場板（{tag}の床）")
+            toe = next((p for p in m.parts if p.model_no.startswith("足場板") and p.actual_dim == plank_len(L + 200.0, m)),
+                       None)
+            add(toe, 2, f"足場板（{tag}の幅木）")
+    # 部材は数量に含める（足場の部材で組む）。組み方と段差は現場で確かめる項目として要確認へ
+    notes.action(bridge_note(bs, model) + "。部材は数量に含めています（足場の部材で組む）。組み方・段差を現場で確かめてください",
+                 Notes.SITE)
 
 
 def _count_sill_boards(model: ScaffoldModel, notes, terrain=None, stair_plan=None) -> None:
@@ -3009,5 +3062,5 @@ def _count_frame_parts(
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
     _count_sill_boards(model, notes, terrain, stair_plan)
-    _count_roof_bridges(model, notes)
+    _count_roof_bridges(model, add, notes)
     _count_intakes(model, notes)

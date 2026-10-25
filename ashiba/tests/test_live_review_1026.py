@@ -6,7 +6,6 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.cli import solve_all, solve_groups
-from ashiba.roof_bridges import RAMP_MAX_DEG, RAMP_PLAIN_DEG, STEP_RISE_MM, bridge_profile
 
 SQ = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
 # 利用者の建物の形（南面だけ本足場、東面は下屋の単管抱き足場、北・西は一側足場。屋根は東の下屋 3.0m）
@@ -62,53 +61,70 @@ class TestConvergedStandoffs(unittest.TestCase):
                     self.assertAlmostEqual(r.model.plan.standoffs[adj], own[adj], delta=0.5, msg=(lb, adj))
 
 
-class TestRoofBridgeProfile(unittest.TestCase):
-    def _segments(self, prof, kinds):
-        return list(zip(prof, prof[1:], kinds))
+class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
+    """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
+    浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""
 
-    def test_roof_higher_rises_before_the_building_face(self):
-        # 実機の値: 足場の床 8681・屋上 9000・離れ 310。高低差は躯体の外面（y=310）までに取り、屋上の上は平ら
-        prof, kinds, _n = bridge_profile(8681, 9000, 310, 0, 610)
-        for (y0, z0), (y1, z1), k in self._segments(prof, kinds):
-            if y1 > 310 + 1:
-                self.assertEqual((z0, z1, k), (9000, 9000, 0))
-            if k in (1, 2):
-                ang = math.degrees(math.atan2(abs(z1 - z0), y1 - y0))
-                self.assertLessEqual(ang, RAMP_MAX_DEG + 0.01)        # 安衛則552条 30°以下
-                self.assertEqual(k, 2 if ang > RAMP_PLAIN_DEG else 1)  # 15°を超えれば踏桟
-        self.assertGreaterEqual(prof[-1][0], 310 + 600)
+    B = [[0, 0], [24000, 0], [24000, 10000], [0, 10000]]
 
-    def test_roof_lower_steps_down_on_the_roof(self):
-        prof, kinds, _n = bridge_profile(9000, 8100, 300, 0, 914)
-        # 躯体の外面までは床の高さのまま、屋上の上で踏段を下りる（段がスラブより下に出ない）
-        self.assertEqual(prof[:2], [(-300.0, 9000), (300, 9000)])
-        steps = [s for s in self._segments(prof, kinds) if s[2] == 3]
-        self.assertEqual(len(steps), 1)
-        (y0, z0), (y1, z1), _k = steps[0]
-        self.assertGreaterEqual(y0, 300)
-        n = math.ceil(abs(z1 - z0) / STEP_RISE_MM)
-        self.assertGreaterEqual((y1 - y0) / (n - 1), 200 - 0.1)       # 踏面 200 以上
-        self.assertTrue(all(z >= 8100 for _y, z in prof))
+    def _bridge(self, **kw):
+        r = solve_all({"outline_mm": self.B, "eaves_height_mm": 9000, "module": "inch", **kw})
+        (b,) = r.model.roof_bridges
+        return r, b
 
-    def test_parapet_is_crossed_above_its_top(self):
-        prof, kinds, _n = bridge_profile(9300, 9000, 300, 300, 610)
-        top = max(z for _y, z in prof)
-        self.assertAlmostEqual(top, 9000 + 300 + 50)
-        over = [y for y, z in prof if z == top]
-        self.assertLessEqual(min(over), 300 - 50 + 0.1)
-        self.assertGreaterEqual(max(over), 300 + 250 - 0.1)
-        self.assertEqual(prof[-1][1], 9000)
+    def _delta(self, r, **kw):
+        r0 = solve_all({"outline_mm": self.B, "eaves_height_mm": 9000, "module": "inch", "roof_bridge": False, **kw})
+        q0 = {ln.part.model_no: ln.qty for ln in r0.quantity.lines}
+        return {ln.part.model_no: ln.qty - q0.get(ln.part.model_no, 0) for ln in r.quantity.lines
+                if ln.qty != q0.get(ln.part.model_no, 0)}
 
-    def test_bridge_carries_its_profile_to_the_part(self):
+    def test_flush_with_the_roof_closes_the_gap_with_brackets(self):
+        r, b = self._bridge()
+        self.assertEqual(b.kind, "ブラケット")
+        self.assertEqual(b.z_deck_mm, b.z_from_mm)                          # 足場の床のまま
+        self.assertLessEqual(b.length_mm, b.standoff_mm + 10)                # 躯体の外面まで（屋上スラブに食い込まない）
+        self.assertEqual(b.width_mm, 1829)                                   # 掛けるスパンの幅
+        d = self._delta(r)
+        self.assertEqual(d.get("NDBK03H"), 2)                               # 拡幅ブラケット 305 を両脇に
+        self.assertEqual(d.get("NDN624"), 1)                                 # アンチ 240×1829
+
+    def test_deck_above_the_roof_stands_posts_on_the_roof(self):
+        r, b = self._bridge(eaves_height_mm=8700)
+        self.assertEqual(b.kind, "支柱")
+        self.assertGreater(b.z_deck_mm, b.z_to_mm)
+        self.assertGreaterEqual(b.length_mm, b.standoff_mm + 150)           # 屋上の支柱は躯体の外面から内側
+        koma = r.model.master.koma_pitch
+        # 床・中桟・手すりが屋上の支柱のコマに来る（支柱の天端 − 上端の下がり − 2コマ ＝ 床）
+        top = b.z_to_mm + b.jack_mm + b.post_mm - r.model.master.koma_top_gap
+        self.assertEqual((top - b.z_deck_mm) % koma, 0)
+        d = self._delta(r, eaves_height_mm=8700)
+        self.assertEqual(d.get(r.model.master.find("支柱", int(b.post_mm)).model_no), 2)
+        self.assertGreaterEqual(d.get("NDT06", 0), 6)                         # 布材の腕木・中桟・手すり
+        self.assertEqual(b.steps(b.drop_mm), 2)                               # 屋上へ踏段
+
+    def test_parapet_is_cleared(self):
+        _r, b = self._bridge(roof_parapet_mm=300)
+        self.assertEqual(b.kind, "支柱")
+        self.assertGreaterEqual(b.z_deck_mm, b.z_to_mm + 300 + 50)           # パラペットの天端の 50 上より上
+        self.assertGreaterEqual(b.length_mm, b.standoff_mm + b.parapet_t_mm + 150)
+
+    def test_frame_scaffold_uses_tubes_and_planks(self):
+        r, b = self._bridge(series_id="waku")
+        self.assertTrue(b.tube)
+        self.assertIn(b.kind, ("単管支柱", "単管跳ね出し"))
+        d = self._delta(r, series_id="waku")
+        self.assertTrue(any(k.startswith("足場板") for k in d), d)
+        self.assertGreater(d.get("ARC1", 0), 0)
+        self.assertTrue(any(k.startswith("単管") for k in d), d)
+
+    def test_part_gets_the_members(self):
         from ashiba.attachments import bridge_placements
 
-        r = solve_all({"outline_mm": [[0, 0], [24000, 0], [24000, 10000], [0, 10000]], "eaves_height_mm": 9000,
-                       "module": "inch"})
-        (b,) = r.model.roof_bridges
+        r, b = self._bridge(eaves_height_mm=8700)
         (p,) = bridge_placements(r.model)
-        self.assertEqual(len(p.params["prfY"].split(",")), len(b.profile))
-        self.assertEqual(len(p.params["prfK"].split(",")), len(b.profile) - 1)
-        self.assertAlmostEqual(p.params["brL"] * 1000, b.profile[-1][0])
+        self.assertEqual(p.params["brKind"], 0)
+        self.assertEqual(p.params["deckList"], ",".join(str(w) for w in b.deck))
+        self.assertAlmostEqual(p.params["postL"] * 1000, b.post_mm)
 
 
 class TestAttachmentsGoToTheirGroup(unittest.TestCase):

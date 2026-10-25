@@ -34,41 +34,57 @@
 			<Value>0</Value>
 		</Angle>
 		<Length Name="brW">
-			<Description><![CDATA["渡りの幅（面に沿う方向。手すりの芯々）"]]></Description>
-			<Value>0.6</Value>
+			<Description><![CDATA["渡りの幅（面に沿う方向。掛けるスパンの内側建地列の支柱の芯々）"]]></Description>
+			<Value>1.829</Value>
 		</Length>
 		<Length Name="brL">
-			<Description><![CDATA["渡りの長さ（内側建地列 y=0 から躯体側へ。離れ＋パラペット＋屋上側の掛かり）"]]></Description>
-			<Value>1.2</Value>
+			<Description><![CDATA["渡りの奥行き（内側建地列 y=0 から躯体側へ。布材・ブラケット・単管の長さ）"]]></Description>
+			<Value>0.914</Value>
 		</Length>
+		<Integer Name="brKind">
+			<Description><![CDATA["組み方 0＝布材＋屋上に支柱 1＝ブラケット（すき間を塞ぐ） 2＝単管＋屋上に単管の支柱 3＝単管の跳ね出し（すき間を塞ぐ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="zFrom">
-			<Description><![CDATA["足場の最上段の床の高さ（配置した高さから）"]]></Description>
+			<Description><![CDATA["渡りへ出る足場の床の高さ（配置した高さから）"]]></Description>
+			<Value>9.0</Value>
+		</Length>
+		<Length Name="zDeck">
+			<Description><![CDATA["渡りの床の高さ（配置した高さから）"]]></Description>
 			<Value>9.0</Value>
 		</Length>
 		<Length Name="zTo">
-			<Description><![CDATA["屋上の床（渡りの降り口）の高さ（配置した高さから）"]]></Description>
+			<Description><![CDATA["屋上の床の高さ（配置した高さから）"]]></Description>
 			<Value>9.0</Value>
 		</Length>
+		<Length Name="postL">
+			<Description><![CDATA["屋上の支柱の長さ（くさびの支柱・単管）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="jackOut">
+			<Description><![CDATA["屋上の支柱のジャッキの繰出し（くさび）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<String Name="deckList">
+			<Description><![CDATA["床材の幅 mm カンマ区切り（アンチ 500・240／足場板 240）"]]></Description>
+			<Value><![CDATA["500,500,500,240"]]></Value>
+		</String>
+		<Length Name="deckLen">
+			<Description><![CDATA["床材の長さ（アンチは布材と同じ呼び、足場板は規格の長さ）"]]></Description>
+			<Value>0.914</Value>
+		</Length>
 		<Length Name="paraH">
-			<Description><![CDATA["パラペットの天端（屋上の床から。0＝なし。渡りはパラペットを越える）"]]></Description>
+			<Description><![CDATA["パラペットの高さ（屋上の床から。0＝なし）"]]></Description>
 			<Value>0</Value>
 		</Length>
 		<Length Name="paraX">
-			<Description><![CDATA["パラペットの位置（内側建地列から躯体側へ。離れ）"]]></Description>
+			<Description><![CDATA["躯体の外面（パラペットの外面）の位置（内側建地列から躯体側へ。離れ）"]]></Description>
 			<Value>0.3</Value>
 		</Length>
-		<String Name="prfY">
-			<Description><![CDATA["床の折れ点の奥行き mm カンマ区切り（内側建地列から躯体側へ。roof_bridges.bridge_profile）"]]></Description>
-			<Value><![CDATA[""]]></Value>
-		</String>
-		<String Name="prfZ">
-			<Description><![CDATA["床の折れ点の高さ mm カンマ区切り（部品の原点の高さから・床の上面）"]]></Description>
-			<Value><![CDATA[""]]></Value>
-		</String>
-		<String Name="prfK">
-			<Description><![CDATA["区間の形 カンマ区切り（0 平らな踏板・1 斜路・2 斜路＋踏桟・3 踏段）"]]></Description>
-			<Value><![CDATA[""]]></Value>
-		</String>
+		<Length Name="paraT">
+			<Description><![CDATA["パラペットの厚さ"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="brName">
 			<Description><![CDATA["平面に書く名前"]]></Description>
 			<Value><![CDATA["屋上への渡り"]]></Value>

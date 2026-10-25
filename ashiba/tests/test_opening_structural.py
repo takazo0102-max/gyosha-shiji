@@ -122,7 +122,9 @@ class TestDeadLoadUsesTheStandingPosts(unittest.TestCase):
         # ジャッキは外付けの階段室の 3 列目の支柱の分だけ多い（本体の建地の荷重の分担には入れない）
         jacks = sum(l.qty for l in r.quantity.lines
                     if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
-        self.assertEqual(r.structural.post.n_posts + outside_stair_counts(r.model, r.stair_plan)[0], jacks)
+        # 屋上への渡りの屋上の支柱（ジャッキ付き。本体の荷重は受けない）も別に
+        bridge = 2 * sum(1 for b in r.model.roof_bridges if b.kind == "支柱")
+        self.assertEqual(r.structural.post.n_posts + outside_stair_counts(r.model, r.stair_plan)[0] + bridge, jacks)
 
 
 if __name__ == "__main__":

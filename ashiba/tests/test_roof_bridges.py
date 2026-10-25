@@ -19,7 +19,7 @@ class TestRoofBridges(unittest.TestCase):
         (b,) = r.model.roof_bridges
         t = r.stair_plan.towers[0]
         self.assertEqual(b.edge_index, t.edge_index)
-        self.assertAlmostEqual(b.x_mm, t.end_mm)                      # 階段室の降り口の先のスパン
+        self.assertAlmostEqual(b.x_mm, t.end_mm)                      # 階段室の降り口の先のスパン（スパンの始めの支柱）
         self.assertEqual(b.z_from_mm, r.model.elevation.level_heights[-1])
         self.assertTrue(any("屋上への渡り" in w for w in r.quantity.warnings))
         (p,) = bridge_placements(r.model)
@@ -30,7 +30,11 @@ class TestRoofBridges(unittest.TestCase):
         r = solve_all({**SPEC, "roof_bridges": [{"face": "北面", "position_mm": 3000, "parapet_mm": 600}]})
         (b,) = r.model.roof_bridges
         self.assertEqual(r.model.face_name(b.edge_index), "北面")
-        self.assertEqual((b.x_mm, b.parapet_mm), (3000.0, 600.0))
+        ep = next(e for e in r.model.plan.edges if e.edge_index == b.edge_index)
+        posts = [sum(ep.spans[:i]) for i in range(len(ep.spans) + 1)]
+        self.assertIn(b.x_mm, posts)                                    # 3000 を含むスパンの始めの支柱から
+        self.assertLessEqual(b.x_mm, 3000.0)
+        self.assertEqual(b.parapet_mm, 600.0)
         self.assertAlmostEqual(bridge_placements(r.model)[0].params["paraH"], 0.6)
 
     def test_bridge_starts_at_the_level_nearest_the_roof(self):
@@ -55,8 +59,8 @@ class TestRoofBridges(unittest.TestCase):
         d2 = (HSF / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         d3 = (HSF / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("text2 0, 0, tx", d2)                  # 平面に「屋上への渡り 幅600 …」
-        self.assertIn("rect2 0, yS, brW, yE", d2)
-        self.assertIn("cylind 0.95, 0.0243", d3)             # 手すりの支柱
+        self.assertIn("rect2 0, 0, brW, brL", d2)
+        self.assertIn("cylind postL, r_p", d3)              # 屋上の支柱
         self.assertIn("パラペット", d3)
         self.assertTrue((HSF.parents[1] / "ashiba_bridge.gsm").exists())
 

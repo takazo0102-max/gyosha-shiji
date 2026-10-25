@@ -62,7 +62,8 @@ class TestStairHalfDeck(unittest.TestCase):
 
         from ashiba.gdl_params import line_params
 
-        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "module": "inch", "eaves_height_mm": 6000}
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "module": "inch", "eaves_height_mm": 6000,
+                "roof_bridge": False}                                  # 屋上への渡りのアンチは外して比べる
         r = solve_all({**base, "scaffold_width_mm": 914})
         m = r.model
         self.assertTrue(m.stair_half_deck)

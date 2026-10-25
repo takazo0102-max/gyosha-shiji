@@ -20,7 +20,7 @@ def _check(r, cid):
 
 class TestTubeSeries(unittest.TestCase):
     def test_tube_full_scaffold_counts_clamps_and_joints(self):
-        r = solve_all({**BASE, "series_id": "tankan"})
+        r = solve_all({**BASE, "series_id": "tankan", "roof_bridge": False})   # 屋上への渡りの単管・クランプは別
         m = r.model
         self.assertTrue(m.master.is_tube)
         self.assertEqual(m.master.system_name, "単管足場")
