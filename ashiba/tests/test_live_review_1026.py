@@ -61,6 +61,26 @@ class TestConvergedStandoffs(unittest.TestCase):
                     self.assertAlmostEqual(r.model.plan.standoffs[adj], own[adj], delta=0.5, msg=(lb, adj))
 
 
+class TestCornersAgreeAcrossGroups(unittest.TestCase):
+    """面の組をまたぐ隅で、どの組も隣の面の離れを同じ値で見る（建地の位置が組ごとにずれない）.
+    メートルの一側足場の東面で本体が 300 と見込み 50 ずれた、インチで 27.5 ずれた（2026-10-26 のループ）."""
+
+    def test_every_group_sees_the_same_standoff(self):
+        R = [[0, 0], [12000, 0], [12000, 8000], [0, 8000]]
+        for mod in ("inch", "metric"):
+            for ff in ("東面=一側足場", "北面=一側足場;西面=一側足場", "東面=単管抱き足場;北面=一側足場;西面=一側足場"):
+                with self.subTest(mod=mod, ff=ff):
+                    g = solve_groups({"outline_mm": R, "eaves_height_mm": 9000, "module": mod, "face_forms": ff})
+                    own = {e.edge_index: (lb, e.standoff) for lb, r in g for e in r.model.plan.edges}
+                    for lb, r in g:
+                        so = r.model.plan.standoffs
+                        self.assertTrue(all(240 <= x <= 360 for x in so), (lb, so))
+                        for e in r.model.plan.edges:
+                            for adj in ((e.edge_index - 1) % 4, (e.edge_index + 1) % 4):
+                                if adj in own and own[adj][0] != lb:
+                                    self.assertAlmostEqual(so[adj], own[adj][1], delta=1.0, msg=(lb, adj))
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""

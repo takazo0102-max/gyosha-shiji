@@ -2075,6 +2075,12 @@ def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:
                     break
 
 
+def _feet_series(master) -> bool:
+    from .plan_solver import _is_feet_series
+
+    return _is_feet_series(master)
+
+
 def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, PlanRun]]:
     from .face_forms import face_groups
 
@@ -2116,7 +2122,19 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
             for k, (_label, r) in enumerate(out):
                 mine = {e.edge_index for e in r.model.plan.edges}
                 nb = {}
+                # 隅に隙間（コーナーステップ）を残して合わせられる本足場（フィート寸法のくさび）は、隣の一側・ブラケット
+                # 足場（隙間で合わせられない）がこの組の面に見込んだ離れを採る（一側の面が閉じず隅が 27.5 ずれた）
+                flex = (k not in tube and r.model.config.scaffold_form == "本足場" and not r.model.master.is_frame
+                        and _feet_series(r.model.master))
                 for ei in mine:
+                    if flex:
+                        for adj in ((ei - 1) % n_out, (ei + 1) % n_out):
+                            ka = owner.get(adj)
+                            if (ka is not None and ka != k and ka not in tube
+                                    and out[ka][1].model.config.scaffold_form != "本足場"):
+                                view = float(out[ka][1].model.plan.standoffs[ei])
+                                if abs(view - float(r.model.plan.standoffs[ei])) > 0.5 or ei in given.get(k, {}):
+                                    nb.setdefault(ei, view)
                     if k in tube:
                         # 自分の面の離れは、隣の面を建てるくさび・枠の組がこの面に見込んだ値（始点の側の組を先に）。その組の
                         # 離れの範囲（敷地境界に収めるため詰めた form_standoff など）の中で

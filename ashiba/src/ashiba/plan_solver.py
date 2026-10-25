@@ -381,7 +381,15 @@ def solve_plan(
         grp = [e for e in edges if e.axis == axis]
         if not grp:
             continue
-        combo, d_solved, feas, extra = _solve_axis(grp, candidates, edges, spec, main_span)
+        # 隣の面がほかの組なら、その組の離れで閉じる組合せを先に探す（無ければ自由に解き、隅は組の間で合わない）
+        got = None
+        if fixed_standoffs and not fixed_spans and not master.is_tube:
+            try:
+                got = _solve_axis(grp, candidates, edges, spec, main_span,
+                                  {int(k): float(v) for k, v in fixed_standoffs.items()})
+            except ValidationError:
+                got = None
+        combo, d_solved, feas, extra = got or _solve_axis(grp, candidates, edges, spec, main_span)
         best_combo.update(combo)
         feasible_standoffs.update(feas)
         extra_small.update(extra)
@@ -609,8 +617,11 @@ def _solve_axis(
     all_edges: list,
     spec: StandoffSpec,
     main_span: int,
+    fixed: Optional[dict[int, float]] = None,
 ) -> tuple[dict[int, tuple[int, list[int]]], dict[int, float], dict[int, set[int]]]:
     """1軸分の辺グループについて、スパン合計の組合せと離れを同時に解く.
+
+    fixed: {辺番号: 離れ}。ほかの組が建てる隣の面の離れ（その値で閉じる組合せだけを採る）。
 
     未知数: グループの辺に隣接する直交面の離れ d
     式:     S_i = L_i + start_sign*d_prev + end_sign*d_next
@@ -640,8 +651,18 @@ def _solve_axis(
             row[pos[(e.index + 1) % n_all]] += e.end_sign
             rows.append(row)
             rhs.append(s_sum - e.length)
-        d = _lstsq_with_target(rows, rhs, len(d_indices), spec.target)
-        if d is None:
+        fx = [(pos[di], float(v)) for di, v in (fixed or {}).items() if di in pos]
+        rows_x, rhs_x = list(rows), list(rhs)
+        for k, v in fx:
+            # 固定する離れは重みの大きい式で押さえ、あとの整合チェックで外れた組合せを捨てる
+            rows_x.append([1000.0 if i == k else 0.0 for i in range(len(d_indices))])
+            rhs_x.append(1000.0 * v)
+        d = _lstsq_with_target(rows_x, rhs_x, len(d_indices), spec.target)
+        if d is None or any(abs(d[k] - v) > 0.5 for k, v in fx):
+            continue
+        if fx and any(not (spec.hard_min - STANDOFF_TOL_MM <= x <= spec.max + STANDOFF_TOL_MM)
+                      for i, x in enumerate(d) if i not in {k for k, _v in fx}):
+            # 隣の離れで閉じても、自分の面の離れが範囲を外れるなら採らない（西面が 513 になった）
             continue
         # 整合チェック（真物のみ→式は厳密に成立する必要がある）
         ok = True
