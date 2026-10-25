@@ -5,6 +5,8 @@
 
   python3 scripts/dev_cases.py create setback  [--at -60000,-82000]   # 1〜3階 24×10m、4〜6階は南を 3m 下げる
   python3 scripts/dev_cases.py create overhang [--at -20000,-82000]   # 1階 24×10m、2〜4階は南へ 2m 張り出す
+  python3 scripts/dev_cases.py create sidebridge --at x,y              # 1〜2階 6×5m、3〜4階は西へ 1m 張り出す（張り出しの
+                                                                        # 横の面の隅を拡幅・張出ブラケットで繋ぐ形の確認）
   python3 scripts/dev_cases.py place <名前>                           # その建物の足場を置く（条件の窓なし）
   python3 scripts/dev_cases.py clear [<名前>]                          # 足場と作ったスラブを消す
 """
@@ -40,7 +42,11 @@ def floors(kind: str, ox: float, oy: float) -> list[tuple[list, float]]:
         low = _rect(ox, oy, 0, 0, 24000, 10000)
         big = _rect(ox, oy, 0, -2000, 24000, 10000)
         return [(low, 0.0)] + [(big, h) for h in (3000.0, 6000.0, 9000.0, 12000.0)]
-    raise SystemExit(f"形が分かりません: {kind}（setback / overhang）")
+    if kind == "sidebridge":
+        low = _rect(ox, oy, 0, 0, 6000, 5000)
+        big = _rect(ox, oy, -1000, 0, 6000, 5000)
+        return [(low, 0.0), (low, 3000.0)] + [(big, h) for h in (6000.0, 9000.0)]
+    raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge）")
 
 
 def load() -> dict:

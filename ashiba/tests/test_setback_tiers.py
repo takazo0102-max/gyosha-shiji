@@ -404,6 +404,19 @@ class TestOverhangTier(unittest.TestCase):
         self.assertGreater(min(b.load_kn for b in g[0][1].structural.brackets), 1.3)
         self.assertGreaterEqual(main.own_height(name["北面"].edge_index), 10000)   # 下段の組の値（5650）ではなく
 
+    def test_bridge_when_tier_end_stops_short_of_the_corner(self):
+        # 実機の見本（6×5m、3〜4階が西へ 1m 張り出す）: 跳ね出しの上段のスパン（1829×3）が本体の隅の線まで届かず、
+        # 終点の支柱が 153 手前で止まる。張出ブラケットの床が本体の隅の升目と 400 以上並ぶので、南西も繋ぐ
+        low = [[0, 0], [6000, 0], [6000, 5000], [0, 5000]]
+        big = [[-1000, 0], [6000, 0], [6000, 5000], [-1000, 5000]]
+        slabs = ([{"polygon_mm": low, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": big, "top_mm": t} for t in (6000, 9000)])
+        g = solve_groups({"project_name": "B", "outline_mm": low, "slabs": slabs, "module": "inch",
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 610, "eaves_height_mm": 9000})
+        main, hane = g[0][1].model, dict(g)["上段（張り出し）"].model
+        self.assertEqual(sorted(hane.hane_end_ext), [(3, "e"), (3, "s")])
+        self.assertEqual(sorted(main.corner_bridges), [0, 3])
+
     def test_gdl_draws_the_widening_brackets(self):
         from pathlib import Path
 

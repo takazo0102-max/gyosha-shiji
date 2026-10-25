@@ -786,6 +786,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
 WIDEN_DEFAULT_MM = (305.0,)  # 系列のマスタに拡幅ブラケットが無いときの幅
 WIDEN_POST_CLEAR_MM = 45.0   # 本体の隅の拡幅ブラケットの先（先端の支柱の芯）と、跳ね出しの上段の内側建地（芯）とのあき
 DECK_GAP_MAX_MM = 30.0       # 床材と床材のすき間（安衛則563条1項2号ロ: 3cm 以下）
+MIN_TRANSFER_MM = 400.0      # 2つの床が並ぶ長さ（渡り。作業床の幅 40cm 以上と同じ）
+BRIDGE_REACH_MM = 50.0       # 跳ね出しの上段の端の支柱が本体の隅の線を越えてよい分
 
 
 def widen_widths(master) -> list[float]:
@@ -906,7 +908,10 @@ def _bridge_corner(main, caps: dict, e, ep, post: tuple, end: str) -> Optional[t
         if gap < 0 or gap > 1500.0:
             continue
         mx, my = mep.start_post if end == "s" else mep.end_post
-        if abs((post[0] - mx) * d[0] + (post[1] - my) * d[1]) > 50.0:
+        # 跳ね出しの上段の端の支柱が本体の隅の升目の内側の列の線のどこにあるか（スパンの割付で数百手前で止まることがある）。
+        # 端の先へ出す張出ブラケットの床が、本体の隅の升目（建地列間隔 row）と 400 以上並ぶ範囲なら繋ぐ
+        along = (post[0] - mx) * d[0] + (post[1] - my) * d[1]
+        if (along if end == "s" else -along) < -BRIDGE_REACH_MM or abs(along) > row - MIN_TRANSFER_MM:
             continue
         if end == "s":
             prev = (mi - 1) % n
