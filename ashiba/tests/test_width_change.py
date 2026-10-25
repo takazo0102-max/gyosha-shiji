@@ -167,6 +167,18 @@ class TestWidthChangeRange(unittest.TestCase):
         m2 = solve_all(_spec(914, 610, 3, faces=["東面[0-3658]"])).model
         self.assertEqual(start_corner(m2, m2.plan.edges[1]), "self")
 
+    def test_site_boundary_sees_the_widened_range(self):
+        # 敷地メッシュの外形などの敷地境界までの離れは、拡幅した上の層の外側の建地で測る（実機 2026-10-25）
+        from ashiba.site_boundary import face_clearances
+
+        bnd = [(-5000, -1300), (35000, -1300), (35000, 25000), (-5000, 25000)]
+        base = solve_all(_spec(610, 914, 3, faces=["北面"])).model
+        wide = solve_all(_spec(610, 914, 3, faces=["南面[3658-9145]"])).model
+        c0 = next(c for c in face_clearances(base, bnd) if c.face == "南面")
+        c1 = next(c for c in face_clearances(wide, bnd) if c.face == "南面")
+        self.assertAlmostEqual(c0.min_mm - c1.min_mm, 304, delta=1)
+        self.assertTrue(3658 - 1 <= c1.at_mm <= 9145 + 1)
+
     def test_palette_range_merge(self):
         self.assertEqual(merged_faces(["南面[0-3658]"], ["東面"], True), ["南面[0-3658]", "東面"])
         self.assertEqual(merged_faces(["南面[0-3658]", "東面"], ["南面[1829-5487]"], False), ["東面"])

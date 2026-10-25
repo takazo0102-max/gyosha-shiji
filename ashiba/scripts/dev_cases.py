@@ -7,6 +7,9 @@
   python3 scripts/dev_cases.py create overhang [--at -20000,-82000]   # 1階 24×10m、2〜4階は南へ 2m 張り出す
   python3 scripts/dev_cases.py create sidebridge --at x,y              # 1〜2階 6×5m、3〜4階は西へ 1m 張り出す（張り出しの
                                                                         # 横の面の隅を拡幅・張出ブラケットで繋ぐ形の確認）
+  python3 scripts/dev_cases.py create slope --at x,y                   # 12×8m・3階（軒 9m）と、建物を囲む斜面の敷地メッシュ
+                                                                        # （西が高く東へ 1.5m 下がる。南は境界が近い）。メッシュの
+                                                                        # 外形を敷地境界にする・足元の勾配の確認
   python3 scripts/dev_cases.py place <名前>                           # その建物の足場を置く（条件の窓なし）
   python3 scripts/dev_cases.py clear [<名前>]                          # 足場と作ったスラブを消す
 """
@@ -42,11 +45,30 @@ def floors(kind: str, ox: float, oy: float) -> list[tuple[list, float]]:
         low = _rect(ox, oy, 0, 0, 24000, 10000)
         big = _rect(ox, oy, 0, -2000, 24000, 10000)
         return [(low, 0.0)] + [(big, h) for h in (3000.0, 6000.0, 9000.0, 12000.0)]
+    if kind == "slope":
+        low = _rect(ox, oy, 0, 0, 12000, 8000)
+        return [(low, 0.0)] + [(low, h) for h in (3000.0, 6000.0, 9000.0)]
     if kind == "sidebridge":
         low = _rect(ox, oy, 0, 0, 6000, 5000)
         big = _rect(ox, oy, -1000, 0, 6000, 5000)
         return [(low, 0.0), (low, 3000.0)] + [(big, h) for h in (6000.0, 9000.0)]
-    raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge）")
+    raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge / slope）")
+
+
+# 斜面の見本の敷地メッシュ（建物の外形から 西 4m・東 4m・北 3m・南 1.3m。西の端が GL±0、東の端が −1.5m）
+SLOPE_SITE = (-4000.0, -1300.0, 16000.0, 11000.0)
+SLOPE_DROP_MM = 1500.0
+
+
+def slope_mesh(ox: float, oy: float) -> dict:
+    """斜面の見本の敷地メッシュ（Tapir CreateMeshes の meshesData の1件。m）."""
+    x0, y0, x1, y1 = SLOPE_SITE
+
+    def z(x):
+        return -SLOPE_DROP_MM * (x - x0) / (x1 - x0) / 1000.0
+
+    pts = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    return {"level": 0.0, "polygonCoordinates": [{"x": (ox + x) / 1000.0, "y": (oy + y) / 1000.0, "z": z(x)} for x, y in pts]}
 
 
 def load() -> dict:
@@ -73,9 +95,15 @@ def main() -> int:
         for poly, top in floors(kind, ox, oy):
             el = c.create_slab(poly, level=top / 1000.0, thickness=0.2)
             guids.append(el["elementId"]["guid"])
+        if kind == "slope":
+            res = c.tapir("CreateMeshes", {"meshesData": [slope_mesh(ox, oy)]}).get("elements", [])
+            if res and "elementId" in res[0]:
+                guids.append(res[0]["elementId"]["guid"])
+            else:
+                print(f"slope: 敷地メッシュを作れませんでした（{res}）")
         rec[kind] = {"guids": guids, "outline_mm": [list(p) for p in floors(kind, ox, oy)[0][0]]}
         save(rec)
-        print(f"{kind}: スラブ {len(guids)}枚を作りました（地面の床 {guids[0][:8]}）")
+        print(f"{kind}: スラブ・メッシュ {len(guids)}個を作りました（地面の床 {guids[0][:8]}）")
         return 0
     if a[0] == "place":
         kind = a[1]

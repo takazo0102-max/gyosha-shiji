@@ -391,3 +391,27 @@ class TestOuterRow(unittest.TestCase):
         r = solve_post_feet(m, self._cross_slope())
         self.assertEqual(r.feet_outer, [])
         self.assertTrue(all(f.row == 1 for f in r.feet))
+
+
+class TestMillenniumSlope(unittest.TestCase):
+    """日建ミレニュームの斜面（カタログ Q12。利用者の資料 2026-10-25）: 最下段の支柱 P27 を地盤の高い所でそろえ、
+    低い所は調整支柱（P2.25・P4.5・P9…）を最下段の下に入れ、ジャッキ 50〜300 で補う（225 刻み）."""
+
+    def test_adjust_posts_go_under_the_base_post(self):
+        from ashiba.cli import solve_all
+        from ashiba.master import load_master
+        from ashiba.terrain import adjust_post_mm
+
+        self.assertEqual(adjust_post_mm(load_master("nikken_millennium")), 225)
+        self.assertEqual(adjust_post_mm(load_master("nikken_nd1800")), 0)
+        s = {"project_name": "s", "series_id": "nikken_millennium",
+             "outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 9000,
+             "scaffold_width_mm": 610,
+             "ground_points_mm": [[-3000, -3000, 0], [15000, -3000, -1500], [15000, 11000, -1500], [-3000, 11000, 0]]}
+        feet = solve_all(s).terrain.feet
+        self.assertEqual({f.koma_offset for f in feet} >= {1, 2, 3}, True)
+        for f in feet:
+            adj = f.posts[:len(f.posts) - 3] if f.koma_offset else []
+            self.assertEqual(sum(adj), 225 * f.koma_offset)          # 調整支柱は最下段の下に、刻みの合計どおり
+            self.assertEqual(f.posts[len(adj)], 2700)                # その上は基準の脚と同じ（P27 から）
+            self.assertTrue(50 <= f.jack_mm <= 300, f.jack_mm)       # ジャッキはカタログの 50〜300

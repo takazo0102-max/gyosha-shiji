@@ -232,6 +232,11 @@ def solve_post_feet(
     koma = model.master.koma_pitch
     # 枠組にコマは無い。段差の刻みは最小の建枠（調整枠）の高さになる
     step_name = "コマピッチ"
+    # 調整支柱のある系列（ミレニューム P2.25G）は、その長さの刻みで最下段の下に入れる
+    adj = adjust_post_mm(model.master)
+    if adj:
+        koma = adj
+        step_name = "調整支柱"
     if koma <= 0:
         # 枠組はコマの概念がないので、建枠高さの最小値を刻みとする
         koma = min(model.master.frame_heights() or [model.master.floor_height])
@@ -338,7 +343,11 @@ def solve_post_feet(
 
         # コマを下げた分だけ支柱を長くする
         posts = base_posts
-        if m > 0:
+        if m > 0 and adj:
+            # 最下段の下に調整支柱（短い順に下から。カタログ Q12「MN-P2.25 | P13.5（左が下段）」）。上の支柱はそのまま
+            extra = table.get(int(m * koma))
+            posts = sorted(extra) + list(base_posts) if extra else base_posts
+        elif m > 0:
             extra = table.get(base_total + int(m * koma))
             posts = sorted(extra, reverse=True) if extra else base_posts
             if extra is None:
@@ -556,12 +565,27 @@ def jack_table_rows(result: TerrainResult) -> list[list]:
     return rows
 
 
+def adjust_post_mm(master) -> int:
+    """斜面で最下段に入れる調整支柱の刻み（コマピッチを割り切れる、コマピッチより短い支柱。無ければ 0）.
+
+    日建ミレニュームの斜面の組み方（カタログ Q12。利用者の資料 2026-10-25）: 地盤のいちばん高い所を基準に最下段の
+    支柱（MN-P27）をそろえ、低い所は調整用の支柱（MN-P2.25・P4.5・P9・P13.5 の組み合わせ）を最下段の下に入れて、
+    ジャッキの繰出し（50〜300）と合わせて補う。225 の調整支柱がある系列は 225 刻みで下げる."""
+    koma = int(master.koma_pitch or 0)
+    if koma <= 0:
+        return 0
+    shorts = [int(p.nominal_dim) for p in master.by_category("支柱")
+              if 0 < p.nominal_dim < koma and "根がらみ" not in p.note and koma % int(p.nominal_dim) == 0
+              and p.nominal_dim >= 200]
+    return min(shorts) if shorts else 0
+
+
 def terrain_step_mm(model: ScaffoldModel) -> float:
-    """下げ段数の刻み。くさびはコマピッチ、枠組は調整枠（最小の建枠）の高さ."""
+    """下げ段数の刻み。くさびはコマピッチ（調整支柱のある系列はその長さ）、枠組は調整枠（最小の建枠）の高さ."""
     koma = model.master.koma_pitch
     if koma <= 0:
         koma = min(model.master.frame_heights() or [model.master.floor_height])
-    return float(koma)
+    return float(adjust_post_mm(model.master) or koma)
 
 
 def datum_first_ledger_mm(model: ScaffoldModel, terrain) -> float:
@@ -616,9 +640,12 @@ def extra_negarami(model: ScaffoldModel, terrain) -> dict[int, list[tuple[int, f
         if max(idx) >= len(feet):
             continue
         rows = []
+        half = step < float(model.master.koma_pitch or 0) - 0.5     # 調整支柱が半コマ（ミレニューム 225）
         for i in range(ep.span_count):
-            m = min(feet[idx[i]].koma_offset, feet[idx[i + 1]].koma_offset)
-            if m >= 1:
+            ma, mb = feet[idx[i]].koma_offset, feet[idx[i + 1]].koma_offset
+            m = min(ma, mb)
+            if m >= 1 or (half and abs(ma - mb) % 2 == 1 and max(ma, mb) >= 1):
+                # 半コマの調整支柱で下げ段数の偶奇が違う区間は、脚から脚へ斜めに渡す（3d.gdl と同じ。高さは浅い脚の側）
                 rows.append((i, nega - m * step))
         if rows:
             out[ep.edge_index] = rows

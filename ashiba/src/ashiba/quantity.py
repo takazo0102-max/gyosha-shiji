@@ -1803,7 +1803,7 @@ def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
 
 def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) -> None:
     """拡幅・縮幅（width_change）: 幅を変える範囲の床から上の腕木・布板・出隅の升目を新しい幅に替え、拡幅ブラケット・
-    元の支柱の継ぎ足し（NDP09N）・つなぎ材 NDT03・範囲の端の支柱と出隅の角の納まりを足す（attachments._width_change_kbrk
+    元の支柱の継ぎ足し（日建 ND1800 は NDP09N）・つなぎ材（NDT03）・範囲の端の支柱と出隅の角の納まりを足す（attachments._width_change_kbrk
     と同じ）.
 
     範囲の中の外側の支柱は幅を変える床で継ぎ、上はブラケットの先端のホゾに立てる（本数は元の外側の支柱と同じとみなす）。
@@ -1925,6 +1925,9 @@ def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) 
     add(post_of(EXT_POST_MM), n_ext, f"{tag}で元の外側の支柱に継ぎ足す支柱{EXT_POST_MM}")
     add(m.find("布材", WIDTH_STEP_MM), n_tie, f"{tag}の元の支柱と新しい支柱のつなぎ材{WIDTH_STEP_MM}")
     add(m.find("布材", w2), n_ud, f"{tag}の範囲の終わりの端の腕木（布材{w2}）")
+    ext_p, tie_p = post_of(EXT_POST_MM), m.find("布材", WIDTH_STEP_MM)
+    ext_no = ext_p.model_no if ext_p is not None else f"支柱{EXT_POST_MM}"
+    tie_no = tie_p.model_no if tie_p is not None else f"{WIDTH_STEP_MM}"
     if order:
         notes.action(f"{wc.label}で別途手配: " + "、".join(order), Notes.ORDER)
     # 外付け階段は外側の建地列に付く。幅を変えた範囲に階段の升目があると、上の層で外側の支柱が 305 ずれて食い違う
@@ -1946,9 +1949,9 @@ def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) 
     notes.append(
         f"{wc.label}: {'・'.join(faces_done) or '隅の升目'}で、元の外側の支柱{n_br}本に拡幅ブラケット{WIDTH_STEP_MM}を掛け（"
         + ("外へ" if wc.mode == "拡幅" else "躯体側へ")
-        + f"）、先端のホゾに新しい外側の支柱を天端まで立てます。元の支柱には NDP09N を継ぎ足してつなぎ材"
-        f"{WIDTH_STEP_MM}で繋ぎます" + (f"。範囲の端{n_ends}箇所は元の支柱を天端まで残し、各層の手すり・中桟の高さの"
-                                         f"つなぎ材{WIDTH_STEP_MM}で塞ぎます" if n_ends else "")
+        + f"）、先端のホゾに新しい外側の支柱を天端まで立てます。元の支柱には {ext_no} を継ぎ足してつなぎ材"
+        f"{tie_no}で繋ぎます" + (f"。範囲の端{n_ends}箇所は元の支柱を天端まで残し、各層の手すり・中桟の高さの"
+                                 f"つなぎ材{tie_no}で塞ぎます" if n_ends else "")
         + f"。範囲の上の腕木・布板・出隅の升目は幅{w2}で計上。幅を変えるのは全高で1回、幅を変えた層の上下は前踏み側の"
         "全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を確かめてください")
 

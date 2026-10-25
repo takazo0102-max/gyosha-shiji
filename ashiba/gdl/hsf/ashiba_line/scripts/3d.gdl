@@ -1273,11 +1273,25 @@ if nGl >= 2 and footStep > 0.001 then
 			endif
 			mlo = ma
 			if mb < mlo then mlo = mb
-			if mlo >= 1 and inOpen = 0 then
-				add x, -row * rowW, lv[1] - mlo * footStep
-				nL = spans[ip]
+			! 調整支柱が半コマ（ミレニューム P2.25G 225）の系列で、隣の脚と下げ段数の偶奇が違うときは、同じ高さに
+			! コマが無いので脚から脚へ斜めに渡す（カタログ Q12 の斜面の組み立て例）
+			dOdd = 0
+			if komaPitch > footStep + 0.001 and abs(ma - mb) - 2 * int(abs(ma - mb) / 2) = 1 then dOdd = 1
+			if dOdd = 1 and (ma >= 1 or mb >= 1) and inOpen = 0 then
+				za = lv[1] - ma * footStep
+				zb = lv[1] - mb * footStep
+				add x, -row * rowW, za
+				roty atn((za - zb) / spans[ip])
+				nL = sqr(spans[ip] ^ 2 + (za - zb) ^ 2)
 				gosub 830
-				del 1
+				del 2
+			else
+				if mlo >= 1 and inOpen = 0 then
+					add x, -row * rowW, lv[1] - mlo * footStep
+					nL = spans[ip]
+					gosub 830
+					del 1
+				endif
 			endif
 		next row
 		x = x + spans[ip]

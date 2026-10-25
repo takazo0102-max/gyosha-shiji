@@ -415,3 +415,19 @@ def range_ends(model, ep) -> list[tuple[float, str]]:
     if sr[1] < len(ep.spans):
         out.append((xs[sr[1]], "e"))
     return out
+
+
+def outer_row_at(model, ep, x: float) -> float:
+    """面の始点から x mm の外側の建地列の、躯体側の建地列からのいちばん外の位置 mm（拡幅した範囲は新しい幅）.
+
+    敷地境界までの離れ（site_boundary.face_clearances）を、幅を広げた上の層でも測るため."""
+    row = float(model.post_row_spacing_mm)
+    wc = getattr(model, "width_change", None)
+    if wc is None or wc.to_mm <= wc.from_mm:
+        return row
+    sr = span_range(model, ep)
+    if not sr:
+        return row
+    xs = posts_x(ep)
+    return float(wc.to_mm) if xs[sr[0] - 1] - 1.0 <= x <= xs[sr[1]] + 1.0 else row
+

@@ -67,6 +67,9 @@ def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
         return []
     road_edges = road_edges or set()
     row = float(model.post_row_spacing_mm)
+    from .width_change import outer_row_at
+
+    wide = getattr(model, "width_change", None) is not None
     segs = [(boundary[i], boundary[(i + 1) % len(boundary)], i) for i in range(len(boundary))]
     out: list[FaceClearance] = []
     for ep in model.plan.edges:
@@ -81,7 +84,9 @@ def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
         over = []
         for k in range(n + 1):
             s = L * k / n
-            p = (sx + ux * s + ox * row, sy + uy * s + oy * row)       # 外側建地の芯
+            # 外側建地の芯（途中の床から拡幅した範囲は、広げた上の層の外側の建地。width_change）
+            r_s = outer_row_at(model, ep, s) if wide else row
+            p = (sx + ux * s + ox * r_s, sy + uy * s + oy * r_s)
             if not _inside(p, boundary):
                 # 外側建地が境界の外に出ている: 越えた量＝いちばん近い境界の辺までの距離（＋支柱の半径）
                 d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
