@@ -1045,6 +1045,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                                        f"（面: {'・'.join(names)}）")
     model.obstacles = obstacles
     model.setbacks = spec.get("_setbacks") or []
+    base_h = float(spec.get("base_height_mm", 0) or 0)
+    model.overhang_caps_rel = {int(k): float(v) - base_h - HANE_CAP_CLEAR_MM
+                               for k, v in (spec.get("_overhang_caps") or {}).items()}
     if face_eaves:
         _apply_face_eaves(model, face_eaves)
     model.eaves_by_face = dict(face_eaves or {})
@@ -1081,6 +1084,34 @@ def _apply_face_range(model: ScaffoldModel, ranges: dict, given: dict | None = N
                              owned_post_count=len(g["spans"]))
         full_edges[name] = {"spans": list(ep.spans), "start_post": list(ep.start_post), "end_post": list(ep.end_post),
                             "standoff": float(ep.standoff)}
+        if len(rng) >= 3 and rng[2] == "fit":
+            # 跳ね出しの上段の、張り出しの横の短い面（hane_face_ranges）: 隅の側の支柱から長さ以下（＋あきの半分まで）の
+            # いちばん長いスパンの並びで割り直す。反対の端は開放端
+            from .setback_tiers import HANE_END_CLEAR_MM, _main_first_table
+
+            at_start = float(rng[0]) >= 0
+            limit = float(rng[1]) if at_start else -float(rng[0])
+            tab = _main_first_table(sorted(model.master.span_lengths()), int(limit + HANE_END_CLEAR_MM / 2) + 1)
+            fit = [v for v in tab if v <= limit + HANE_END_CLEAR_MM / 2]
+            if not fit:
+                continue
+            S = max(fit)
+            spans_fit = tab[S]
+            (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+            ln = _m.hypot(ex - sx, ey - sy) or 1.0
+            ux, uy = (ex - sx) / ln, (ey - sy) / ln
+            if at_start:
+                sp_, ep_ = (sx, sy), (sx + ux * S, sy + uy * S)
+                ends.add((ep.edge_index, "e"))
+                offsets[ep.edge_index] = (0.0, S)
+            else:
+                spans_fit = list(reversed(spans_fit))
+                sp_, ep_ = (ex - ux * S, ey - uy * S), (ex, ey)
+                ends.add((ep.edge_index, "s"))
+                offsets[ep.edge_index] = (0.0, S)
+            edges.append(_dc.replace(ep, spans=list(spans_fit), scaffold_length=float(S), owned_post_count=len(spans_fit),
+                                     start_post=sp_, end_post=ep_))
+            continue
         posts = [0.0]
         for sp in ep.spans:
             posts.append(posts[-1] + float(sp))
@@ -1235,17 +1266,27 @@ def _face_eaves_from_spec(spec: dict, plan) -> dict[int, float]:
     return out
 
 
+HANE_CAP_CLEAR_MM = 100.0   # 張り出しの下の面の支柱の天端と、跳ね出しブラケットの方杖の下端のあき
+
+
 def _apply_face_eaves(model: ScaffoldModel, face_eaves: dict[int, float]) -> None:
     """低い面の立面を全体の立面から切り出し、その面の上の壁つなぎを外す。面ごとの高さを警告に書く."""
     from .elevation_solver import truncate_elevation
 
     names = model.plan.face_names()
     lines = []
+    caps = getattr(model, "overhang_caps_rel", None) or {}
     for e, n in zip(model.plan.edges, names):
         ev = face_eaves.get(e.edge_index)
         if ev is None:
             continue
-        fe = truncate_elevation(model.elevation, ev, model.master)
+        if e.edge_index in caps:
+            # 張り出した上の階の下の面: 支柱の天端を跳ね出しブラケットの下端より下に（setback_tiers.overhang_caps）
+            from .elevation_solver import cap_elevation
+
+            fe = cap_elevation(model.elevation, caps[e.edge_index], model.master)
+        else:
+            fe = truncate_elevation(model.elevation, ev, model.master)
         if fe is not model.elevation:
             model.face_elevations[e.edge_index] = fe
         lines.append(f"{n} 軒高{ev / 1000:.2f}m→{fe.n_levels}層・足場高さ{fe.total_height / 1000:.2f}m")
@@ -1886,6 +1927,15 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
         spec, tiers, j_notes = setback_junctions(spec, tiers, lambda sp: solve_all(sp, master_csv), names_of)
     out = _solve_face_groups(spec, master_csv)
     for label, sub in tiers:
+        if sub.get("_hane") and sub.get("_overhang_faces"):
+            # 張り出しの横の短い面は、本体の隅の升目の手前まで（本体を解いてから決める）
+            from .setback_tiers import hane_face_ranges
+
+            sub = hane_face_ranges(sub, out[0][1].model, names_of)
+            # 床の高さ・足場の天端は本体（地上から上まで通る面）にそろえる
+            m0 = out[0][1].model
+            sub = {**sub, "_align_levels_mm": [float(h) + float(m0.base_height_mm or 0) for h in m0.elevation.level_heights],
+                   "_align_top_mm": float(m0.elevation.total_height) + float(m0.base_height_mm or 0)}
         r = solve_all(sub, master_csv)
         out.append((label, r))
         note = tier_note(label, sub)

@@ -427,6 +427,48 @@ def solve_elevation(
     )
 
 
+def cap_elevation(elev: ElevationResult, top_max_mm: float, master: PartMaster) -> ElevationResult:
+    """全体の立面を、支柱の天端が top_max 以下になるよう切った立面（張り出した上の階の下の面: 跳ね出しブラケットの下で
+    止める）. 作業床は全体の並びのうち、手すり分（全体と同じ）を足しても top_max に収まる層。1層も収まらなければ、
+    根がらみの1コマ上から top_max−手すり分 までのコマの高さに作業床を1層（1階の壁の作業用）。支柱は下から全体の構成を
+    積み、天端までの残りはコマピッチの倍数の短い支柱で埋める（コマの並びは隣の面とそろう）."""
+    levels = list(elev.level_heights)
+    margin = elev.total_height - levels[-1] if levels else 0
+    keep = [h for h in levels if h + margin <= top_max_mm + 1]
+    pitch = int(master.koma_pitch or 0)
+    if not keep and pitch and margin:
+        gap = int(master.koma_top_gap)
+        offs = master.post_koma_offsets(elev.posts[0]) if elev.posts else []
+        komas = sorted(elev.jack_extension + o for o in offs)
+        cand = [k for k in komas if elev.first_ledger_height + pitch - 1 <= k <= top_max_mm - margin + 1]
+        if cand:
+            keep = [int(max(cand))]
+    target = (keep[-1] + margin) if keep else min(top_max_mm, elev.total_height)
+    lengths = sorted(master.post_lengths()) if not master.is_frame else sorted(set(elev.posts))
+    if pitch and not master.is_frame and not master.is_tube:
+        lengths = [L for L in lengths if L % pitch == 0] or lengths
+    acc = elev.jack_extension
+    posts: list[int] = []
+    for p in elev.posts:
+        if acc + p > target + 1:
+            break
+        posts.append(p)
+        acc += p
+    rest = target - acc
+    for L in sorted(lengths, reverse=True):
+        while rest >= L - 1:
+            posts.append(int(L))
+            rest -= L
+    if not posts:
+        return elev
+    return ElevationResult(
+        required_height=int(target), jack_extension=elev.jack_extension, posts=posts,
+        posts_alt=list(posts), has_negarami=elev.has_negarami,
+        first_ledger_height=elev.first_ledger_height, n_levels=len(keep), level_heights=keep,
+        warnings=[],
+    )
+
+
 def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaster) -> ElevationResult:
     """全体の立面（いちばん高い面）を、低い面の軒高で切った立面（セットバックの面ごとの高さ）.
 

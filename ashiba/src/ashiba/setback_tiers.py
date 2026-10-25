@@ -40,7 +40,7 @@ SAME_POLY_MM = 50.0          # 同じ外形とみなす頂点のずれ
 _DROP = ("outline_mm", "slabs", "face_forms", "form_standoff", "faces", "openings", "loading_stages", "hoists",
          "bracket_sections", "span_overrides", "face_eaves_mm", "base_height_mm", "eaves_height_mm",
          "building_height_mm", "scaffold_height_mm", "setbacks", "obstacles", "ground_points_mm", "member_edits",
-         "corner_steps", "site_boundary_mm", "road_edges", "wall_ties_manual")
+         "corner_steps", "site_boundary_mm", "road_edges", "wall_ties_manual", "_overhang_faces", "_face_range")
 
 
 def _area(poly) -> float:
@@ -145,6 +145,101 @@ def overhang_tiers(outline_mm, slabs: list[dict], min_depth: float = SETBACK_MAX
     return sorted(out, key=lambda t: t["base_mm"])
 
 
+def overhang_faces(big_mm, main_mm, min_depth: float = SETBACK_MAX_MM) -> dict[int, tuple[str, float]]:
+    """張り出した上の階の外形の面のうち、本体の外形より外へ出ている面 → {辺番号: (範囲, 長さ)}.
+
+    範囲 "all"＝面全体が外（張り出した面）。"s"・"e"＝面の始点側・終点側だけが外（張り出しの横の短い面。外の部分の
+    長さ mm。その先は本体の面と同じ線で、本体の足場が地上から上まで通る）。外へ出ていない面は入れない。
+    """
+    from .geometry import build_outline
+
+    main = [tuple(map(float, p)) for p in main_mm]
+    ol = build_outline([tuple(map(float, p)) for p in big_mm])
+    off = min_depth + 200.0
+
+    def outside(e, d: float) -> bool:
+        ux, uy = e.direction
+        ox, oy = e.outward
+        x = e.start[0] + ux * d - ox * off
+        y = e.start[1] + uy * d - oy * off
+        return not _inside((x, y), main)
+
+    out: dict[int, tuple[str, float]] = {}
+    for e in ol.edges:
+        L = e.length
+        n = 48
+        flags = [outside(e, L * (k + 0.5) / n) for k in range(n)]
+        if not any(flags):
+            continue
+        if all(flags):
+            out[e.index] = ("all", L)
+            continue
+        if flags[0] and not flags[-1]:
+            lo, hi = 0.0, L
+            for _ in range(30):
+                mid = (lo + hi) / 2.0
+                lo, hi = (mid, hi) if outside(e, mid) else (lo, mid)
+            out[e.index] = ("s", lo)
+        elif flags[-1] and not flags[0]:
+            lo, hi = 0.0, L
+            for _ in range(30):
+                mid = (lo + hi) / 2.0
+                lo, hi = (lo, mid) if outside(e, mid) else (mid, hi)
+            out[e.index] = ("e", L - hi)
+        else:
+            out[e.index] = ("all", L)
+    return out
+
+
+HANE_END_CLEAR_MM = 150.0    # 張り出しの横の面の上段の端と、本体の隅の升目（外側の建地の列）のあき（半分までは詰めてよい）
+
+
+def hane_face_ranges(sub: dict, main_model, names_of) -> dict:
+    """跳ね出しの上段の入力に、張り出しの横の短い面の区間（_face_range）を入れて返す.
+
+    横の面は張り出した部分だけ建て、本体の隅の升目（本体の面の離れ＋建地列間隔）の手前で止める（端は開放端）。区間は
+    上段の面の始点の支柱から mm（終点側は負＝終点から）。"""
+    parts = sub.get("_overhang_faces") or {}
+    if not parts:
+        return sub
+    from .geometry import build_outline
+
+    names = names_of(sub["outline_mm"])
+    ol = build_outline([tuple(map(float, p)) for p in sub["outline_mm"]])
+    row = float(main_model.post_row_spacing_mm)
+    target = float((sub.get("standoff") or {}).get("target", 300.0))
+    rng = {}
+    for ei_s, (kind, length) in parts.items():
+        ei = int(ei_s)
+        if kind == "all":
+            continue
+        e = ol.edges[ei]
+        # 張り出しの外の部分が終わる点（本体の隅）で、この面と直交する本体の面の離れ
+        d = length if kind == "s" else e.length - length
+        px, py = e.start[0] + e.direction[0] * d, e.start[1] + e.direction[1] * d
+        so_perp = target
+        best = None
+        for me in main_model.plan.edges:
+            mo = main_model.plan.outline.edges[me.edge_index]
+            if abs(mo.direction[0] * e.direction[0] + mo.direction[1] * e.direction[1]) > 0.5:
+                continue
+            dist = abs((px - mo.start[0]) * mo.direction[1] - (py - mo.start[1]) * mo.direction[0])
+            if best is None or dist < best:
+                best, so_perp = dist, float(me.standoff)
+        # 上段の面の始点の支柱は、前の面（張り出した面）の離れだけ外の位置から
+        limit = length - so_perp - row - HANE_END_CLEAR_MM + target
+        if limit < 500.0:
+            rng[names[ei]] = None
+            continue
+        rng[names[ei]] = [0.0, limit, "fit"] if kind == "s" else [-limit, -1.0, "fit"]
+    faces = [f for f in (sub.get("faces") or []) if rng.get(f, 1) is not None]
+    out = {**sub, "faces": faces}
+    rr = {f: r for f, r in rng.items() if r is not None}
+    if rr:
+        out["_face_range"] = rr
+    return out
+
+
 def overhang_caps(spec: dict) -> dict[int, float]:
     """張り出した上の階があれば、本体の面ごとの足場の天端の上限（GL から mm。跳ね出しブラケットの下端−手すり分）."""
     if spec.get("_tier") or not spec.get("slabs") or not spec.get("height_from_slabs", True) \
@@ -155,8 +250,21 @@ def overhang_caps(spec: dict) -> dict[int, float]:
     tiers = overhang_tiers(spec["outline_mm"], spec["slabs"], float(spec.get("setback_bracket_max_mm", SETBACK_MAX_MM)))
     if not tiers:
         return {}
-    cap = min(t["base_mm"] for t in tiers) - HANE_DEPTH_MM
-    return {e.index: cap for e in build_outline([tuple(map(float, p)) for p in spec["outline_mm"]]).edges}
+    # 張り出しの下になる本体の面だけ、ブラケットの下で止める（面の外 600 の点が張り出した上の階の外形の中）。張り出して
+    # いない面は地上から上まで通す（利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして）
+    out: dict[int, float] = {}
+    for e in build_outline([tuple(map(float, p)) for p in spec["outline_mm"]]).edges:
+        for t in tiers:
+            big = [tuple(map(float, p)) for p in t["outline_mm"]]
+            hits = 0
+            for k in range(1, 8):
+                x = e.start[0] + (e.end[0] - e.start[0]) * k / 8.0 + e.outward[0] * PROBE_OUT_MM
+                y = e.start[1] + (e.end[1] - e.start[1]) * k / 8.0 + e.outward[1] * PROBE_OUT_MM
+                hits += int(_inside((x, y), big))
+            if hits >= 4:
+                cap = float(t["base_mm"]) - HANE_DEPTH_MM
+                out[e.index] = min(out.get(e.index, cap), cap)
+    return out
 
 
 def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
@@ -172,6 +280,9 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
     out = []
     for k, t in enumerate(overhang_tiers(spec["outline_mm"], spec["slabs"], depth)):
         names = names_of(t["outline_mm"])
+        parts = overhang_faces(t["outline_mm"], spec["outline_mm"], depth)
+        if not parts:
+            continue
         sub = {kk: v for kk, v in spec.items() if kk not in _DROP}
         st = sub.get("stairs")
         if isinstance(st, dict) and "positions" in st:
@@ -188,7 +299,9 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
             # 屋根の上・ブラケットの上には仮囲いが無い。シートは足場の立つ面まで下ろす（利用者の指定 2026-10-25:
             # シートの高さも揃えて）
             "hoarding_height_mm": 0,
-            "faces": list(names),
+            # 張り出した面と、張り出しの横の短い面の張り出した部分だけ（区間は本体を解いてから hane_face_ranges）
+            "faces": [names[i] for i in sorted(parts)],
+            "_overhang_faces": {str(i): list(v) for i, v in parts.items()},
         })
         out.append((label, sub))
     for k, t in enumerate(tiers):

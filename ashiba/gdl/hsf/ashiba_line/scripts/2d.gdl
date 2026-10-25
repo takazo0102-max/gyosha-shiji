@@ -683,11 +683,22 @@ if haneD > 0.001 then
 	xh7 = 0
 	for ih7 = 1 to nSpan + 1
 		if xh7 >= gxA - 0.001 and xh7 < gxB - 0.001 then
-			line2 xh7 - 0.03, standoff, xh7 - 0.03, -rowW - 0.10
-			line2 xh7 + 0.03, standoff, xh7 + 0.03, -rowW - 0.10
+			! 腕（溝形鋼 幅50）と躯体の面の取付プレート（幅200）
+			line2 xh7 - 0.025, standoff, xh7 - 0.025, -rowW - 0.15
+			line2 xh7 + 0.025, standoff, xh7 + 0.025, -rowW - 0.15
+			line2 xh7 - 0.025, -rowW - 0.15, xh7 + 0.025, -rowW - 0.15
+			line2 xh7 - 0.10, standoff, xh7 + 0.10, standoff
+			line2 xh7 - 0.10, standoff - 0.012, xh7 + 0.10, standoff - 0.012
 		endif
 		if ih7 <= nSpan then xh7 = xh7 + spans[ih7]
 	next ih7
+	! 出隅の外側の角の支柱を受ける渡し梁（3D と同じ）
+	if cornerS = 1 and gxA < 0.001 then
+		line2 -cSW - 0.10, -rowW - 0.025, 0.05, -rowW - 0.025
+		line2 -cSW - 0.10, -rowW + 0.025, 0.05, -rowW + 0.025
+		line2 -cSW - 0.025, -rowW - 0.10, -cSW - 0.025, 0.05
+		line2 -cSW + 0.025, -rowW - 0.10, -cSW + 0.025, 0.05
+	endif
 	set style "annoC"
 	if showDim and sA = 1 then
 		tdx = (pxA + pxB) / 2

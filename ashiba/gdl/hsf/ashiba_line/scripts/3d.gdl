@@ -32,6 +32,8 @@ define material "ashiba_sill_wood" 2, 0.60, 0.47, 0.34
 ! 支柱の継ぎ目の帯は支柱の長さごとの色（利用者の指定 2026-10-25: 支柱の繋ぎの色は長さごとに変えて）。継ぎ目の下の帯は
 ! 下の支柱、上の帯は上の支柱の長さの色: 3600級 赤・2700級 青・1800級 黄・1350級 緑・1125 水色・900級 橙・675 紫・450級 白
 define material "ashiba_post_joint" 2, 0.86, 0.36, 0.16
+! 跳ね出しブラケット（溝形鋼・取付プレート。錆止め塗装のこげ茶）
+define material "ashiba_hane_steel" 2, 0.42, 0.30, 0.24
 define material "ashiba_pj_36" 2, 0.85, 0.15, 0.12
 define material "ashiba_pj_27" 2, 0.12, 0.32, 0.80
 define material "ashiba_pj_18" 2, 0.95, 0.82, 0.10
@@ -726,25 +728,52 @@ next ik
 ! 足場の立つ高さ（z=0）が床スラブの天端。支柱の位置ごとに、躯体の面（y=standoff）の受け金物から外側の建地列の外まで
 ! 水平材（角 60）、躯体の面の haneD 下から水平材の先へ方杖。支柱はその上に立つ（ジャッキは水平材に載る）
 if haneD > 0.001 then
+	! 跳ね出しブラケット（利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして もっと詳細にして）。支柱の位置ごとに、
+	! 床スラブの縁の取付プレート（アンカー M16×4）から溝形鋼［-100×50×5 の腕を外側の建地列の外まで持ち出し、方杖（φ48.6）
+	! を下の取付プレート（アンカー M16×2）から腕の先へ。腕の上の受けプレートにジャッキが載る。隣のブラケットとは腕の先と
+	! 躯体側を単管の水平つなぎで繋ぐ。始点の出隅の外側の角の支柱は、隣の面のブラケットとの間に渡した溝形鋼で受ける
 	xh = 0
 	for ih7 = 1 to nSpan + 1
 		if xh >= gxA - 0.001 and xh < gxB - 0.001 then
-			add xh - 0.03, -rowW - 0.10, -0.06
-			block 0.06, rowW + 0.10 + standoff, 0.06
+			add xh, 0, 0
+			gosub 760
 			del 1
-			add xh - 0.10, standoff, -haneD - 0.05
-			block 0.20, 0.012, haneD + 0.05
-			del 1
-			! 方杖（φ48.6）: 躯体の面の haneD 下から水平材の先（外側の建地列の外）へ
-			hdY = standoff + rowW + 0.05
-			hdZ = haneD - 0.06
-			add xh, standoff, -haneD
-			rotx atn(hdY / hdZ)
-			cylind sqr(hdY ^ 2 + hdZ ^ 2), 0.0243
-			del 2
+			! 水平つなぎ（次のブラケットまで。腕の先と躯体側の2本）
+			if ih7 <= nSpan then
+				material "ashiba_clamp_zinc"
+				if matScaf > 0 then material matScaf
+				for hbT = 0 to 1
+					hbY = -rowW - 0.10
+					if hbT = 1 then hbY = standoff - 0.20
+					add xh, hbY, -0.15
+					roty 90
+					cylind spans[ih7], 0.0243
+					del 2
+				next hbT
+			endif
 		endif
 		if ih7 <= nSpan then xh = xh + spans[ih7]
 	next ih7
+	! 出隅の外側の角の支柱（-cSW, -rowW）と、隙間の手前の建地（-cSW, 0）: 隣の面のブラケットの腕との間に渡し梁
+	if cornerS = 1 and gxA < 0.001 then
+		material "ashiba_hane_steel"
+		add -cSW - 0.10, -rowW - 0.025, -0.10
+		block cSW + 0.15, 0.05, 0.10
+		del 1
+		add -cSW - 0.025, -rowW - 0.10, -0.10
+		block 0.05, rowW + 0.15, 0.10
+		del 1
+		! 受けプレート
+		add -cSW - 0.075, -rowW - 0.075, 0
+		block 0.15, 0.15, 0.009
+		del 1
+		if cornerSP = 1 then
+			add -cSW - 0.075, -0.075, 0
+			block 0.15, 0.15, 0.009
+			del 1
+		endif
+		if matScaf > 0 then material matScaf
+	endif
 endif
 
 ! ---- 枠組の終点の出隅: 建枠どうしは繋がらないので 70mm 以上離し、単管（φ48.6）を直交クランプで留めて繋ぐ ----
@@ -2440,6 +2469,74 @@ endif
 return
 
 ! ============================================================
+760:	! ---- 跳ね出しブラケット1基（原点＝支柱の位置の内側建地列、z＝床スラブの天端。躯体の面は y＝standoff）----
+	material "ashiba_hane_steel"
+	hbE = -rowW - 0.15                    ! 腕の先
+	hbL = standoff - hbE                  ! 腕の長さ（躯体の面から）
+	! 溝形鋼［-100×50×5（上下のフランジとウェブ）
+	add -0.025, hbE, -0.0075
+	block 0.05, hbL, 0.0075
+	del 1
+	add -0.025, hbE, -0.10
+	block 0.05, hbL, 0.0075
+	del 1
+	add 0.02, hbE, -0.10
+	block 0.005, hbL, 0.10
+	del 1
+	! 腕の先の端板
+	add -0.03, hbE - 0.006, -0.10
+	block 0.06, 0.006, 0.10
+	del 1
+	! 上の取付プレート（200×250×12、床スラブの縁）とアンカーボルト M16×4（ナット・座金）
+	add -0.10, standoff - 0.012, -0.24
+	block 0.20, 0.012, 0.24
+	del 1
+	for hbA = 0 to 3
+		hbAx = -0.06 + 0.12 * (hbA - 2 * int(hbA / 2))
+		hbAz = -0.05 - 0.14 * int(hbA / 2)
+		resol 6
+		add hbAx, standoff - 0.012, hbAz
+		rotx 90
+		cylind 0.016, 0.014
+		del 2
+		resol 8
+		add hbAx, standoff - 0.028, hbAz
+		rotx 90
+		cylind 0.012, 0.008
+		del 2
+	next hbA
+	! 下の取付プレート（150×150×12、方杖の根元）とアンカーボルト M16×2
+	add -0.075, standoff - 0.012, -haneD - 0.075
+	block 0.15, 0.012, 0.15
+	del 1
+	for hbA = 0 to 1
+		resol 6
+		add -0.04 + 0.08 * hbA, standoff - 0.012, -haneD
+		rotx 90
+		cylind 0.016, 0.014
+		del 2
+	next hbA
+	! 方杖（φ48.6）: 下の取付プレートから腕の先の下へ。両端にガセット
+	hdY = standoff - 0.012 - (hbE + 0.05)
+	hdZ = haneD - 0.10
+	resol 10
+	add 0, standoff - 0.012, -haneD
+	rotx atn(hdY / hdZ)
+	cylind sqr(hdY ^ 2 + hdZ ^ 2), 0.0243
+	del 2
+	add -0.003, hbE + 0.02, -0.20
+	block 0.006, 0.10, 0.10
+	del 1
+	! 受けプレート（150×150×9。内外の建地の位置。ジャッキはこの上）
+	for hbR = 0 to 1
+		add -0.075, -hbR * rowW - 0.075, 0
+		block 0.15, 0.15, 0.009
+		del 1
+	next hbR
+	material "ashiba_clamp_zinc"
+	if matScaf > 0 then material matScaf
+	return
+
 820: ! ---- ジャッキベース（敷板＋ベース板＋ねじ棒＋ハンドル付きナット） ----
 ! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。
 ! 日建 カタログ（パイプジャッキベース ND752P・ジャッキベース A752。利用者の指定 2026-10-25: ジャッキベースの詳細どあげて）:

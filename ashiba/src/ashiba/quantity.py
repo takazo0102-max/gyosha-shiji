@@ -1626,14 +1626,25 @@ def sill_note(counts: dict[int, int], cut: int) -> str:
 
 def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
     """跳ね出しブラケット（張り出した上の階の上段の足場を、床スラブの縁から持ち出して受ける。利用者の指定 2026-10-24:
-    上階で拡張する仕組み）。系列のマスタに無い（現場ごとの製作・リース品）ので、内側建地列の支柱の位置の数を手配に出す."""
+    上階で拡張する仕組み・2026-10-25: もっと詳細にして）。系列のマスタに無い（現場ごとの製作・リース品）ので、3D と
+    同じ数え方で手配に出す: ブラケット（支柱の位置ごと。隅の支柱は両方の面から1基ずつ）、出隅の角の渡し梁、アンカー
+    M16（上の取付プレート4本・下2本）、水平つなぎの単管（スパンごとに腕の先と躯体側の2本）と直交クランプ."""
     if not getattr(model, "hane_bracket", False):
         return
-    n = sum(len(e.spans) + 1 for e in model.plan.edges
-            if model.edge_subset is None or e.edge_index in model.edge_subset)
-    n -= sum(1 for e in model.plan.edges if model.corner_kind_end(e.edge_index))     # 隅の支柱は隣の面と1本
-    notes.action(f"跳ね出しブラケット {n}箇所（張り出した上の階の上段の支柱を床スラブの縁から受ける。受け金物・アンカー"
-                 f"・方杖の下がり {HANE_NOTE_DEPTH}mm）はマスタに無いので別途手配・構造の確認をしてください", Notes.ORDER)
+    eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
+    n = sum(len(e.spans) + 1 for e in eps)
+    n_corner = sum(1 for e in eps if model.corner_kind_start(e.edge_index) == "出隅")
+    tubes: dict[int, int] = {}
+    for e in eps:
+        for sp in e.spans:
+            tubes[int(sp)] = tubes.get(int(sp), 0) + 2
+    n_tube = sum(tubes.values())
+    tube_txt = "・".join(f"{k}×{v}" for k, v in sorted(tubes.items(), reverse=True))
+    notes.action(f"跳ね出しブラケット {n}基（溝形鋼［-100×50×5 の腕・方杖 φ48.6・上の取付プレート 200×250×12・下の取付"
+                 f"プレート 150×150×12・受けプレート、方杖の下がり {HANE_NOTE_DEPTH}mm）、出隅の角の渡し梁（溝形鋼）"
+                 f"{2 * n_corner}本、あと施工アンカー M16 {6 * n}本、水平つなぎの単管 {n_tube}本（{tube_txt}）と直交クランプ"
+                 f" {2 * n_tube}個。マスタに無いので別途手配し、アンカーの引抜き・床スラブの縁の耐力を確認してください",
+                 Notes.ORDER)
 
 
 HANE_NOTE_DEPTH = 600

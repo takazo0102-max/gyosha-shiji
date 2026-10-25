@@ -282,26 +282,54 @@ class TestOverhangTier(unittest.TestCase):
     SP = {"project_name": "H", "outline_mm": LOW, "slabs": SL_OVER, "module": "inch", "eaves_height_mm": 12000}
 
     def test_upper_tier_stands_on_brackets(self):
+        # 利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして。張り出した南面と、張り出しの横の短い面（東・西の
+        # 張り出した部分）だけをブラケットの上に建てる。張り出していない本体の面（東・西・北）は地上から上まで通し、
+        # 張り出しの下になる本体の南面だけブラケットの下で止める
         g = solve_groups(self.SP)
         self.assertEqual([lb for lb, _r in g], ["", "上段（張り出し）"])
         main, tier = g[0][1].model, g[1][1].model
         self.assertTrue(tier.hane_bracket)
         self.assertEqual(tier.base_height_mm, 3000.0)
-        self.assertEqual(len(tier.plan.edges), 4)                                      # 全周
-        self.assertAlmostEqual(line_params(tier, tier.plan.edges[0])["haneD"], 0.6)
+        names = [tier.face_name(e.edge_index) for e in tier.plan.edges]
+        self.assertEqual(sorted(names), ["南面", "東面", "西面"])
+        south = next(e for e in tier.plan.edges if tier.face_name(e.edge_index) == "南面")
+        self.assertAlmostEqual(line_params(tier, south)["haneD"], 0.6)
         self.assertEqual(line_params(main, main.plan.edges[0])["haneD"], 0.0)
-        # 本体の足場はブラケットの下端（3000−600）より下で止まる。張り出しを庇としてかわさない（離れはそのまま）
-        for e in main.plan.edges:
-            self.assertLessEqual(main.elevation_of(e.edge_index).total_height, 2400)
+        # 横の短い面は張り出した部分だけ（本体の隅の升目の手前で止める。端は開放端）
+        row = main.post_row_spacing_mm
+        so_s = next(e.standoff for e in main.plan.edges if main.face_name(e.edge_index) == "南面")
+        for e in tier.plan.edges:
+            if tier.face_name(e.edge_index) == "南面":
+                continue
+            ys = (e.start_post[1], e.end_post[1])
+            self.assertLessEqual(max(ys), -so_s - row - 50)               # 本体の隅の升目（y≧−離れ−建地列間隔）に入らない
+            p = line_params(tier, e)
+            self.assertEqual(p["endOpenS"] + p["endOpenE"], 1)
+        tops = {main.face_name(e.edge_index): main.elevation_of(e.edge_index).total_height for e in main.plan.edges}
+        self.assertLessEqual(tops["南面"], 3000 - 600 - 100)                # ブラケットの方杖の下端より下
+        for f in ("東面", "西面", "北面"):
+            self.assertGreater(tops[f], 12000)                             # 地上から上まで
+        # 本体の南面にも作業床が1層（1階の壁の作業用）。コマは隣の面とそろう
+        self.assertEqual(main.elevation_of(0).n_levels, 1)
+        self.assertIn(main.elevation_of(0).level_heights[0], main.elevation.level_heights)
+        # 上段の床は本体の床にそろう
+        for h in tier.elevation.level_heights:
+            self.assertIn(round(h + tier.base_height_mm), {round(v) for v in main.elevation.level_heights})
         self.assertLess(max(e.standoff for e in main.plan.edges), 600)
-        self.assertTrue(any("跳ね出しブラケット" in w for w in g[1][1].quantity.warnings))
-        self.assertTrue(any("張り出した上の階" in w for w in main.plan.warnings))
+        w = [x for x in g[1][1].quantity.warnings if "跳ね出しブラケット" in x]
+        self.assertTrue(w and "アンカー M16" in w[0] and "渡し梁" in w[0], w)
 
     def test_gdl_draws_the_brackets(self):
         from pathlib import Path
 
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts"
-        self.assertIn("if haneD > 0.001 then", (gdl / "3d.gdl").read_text(encoding="utf-8"))
+        d3 = (gdl / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if haneD > 0.001 then", d3)
+        sub = d3[d3.index("760:\t! ---- 跳ね出しブラケット1基"):]
+        sub = sub[:sub.index("return\n")]
+        for word in ("溝形鋼", "取付プレート", "アンカーボルト M16×4", "方杖", "受けプレート"):
+            self.assertIn(word, sub)
+        self.assertIn("隣の面のブラケットの腕との間に渡し梁", d3)
         self.assertIn("跳ね出しブラケットの上に建てる", (gdl / "2d.gdl").read_text(encoding="utf-8"))
 
 
