@@ -2136,10 +2136,11 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
                                 if abs(view - float(r.model.plan.standoffs[ei])) > 0.5 or ei in given.get(k, {}):
                                     nb.setdefault(ei, view)
                     if k in tube:
-                        # 自分の面の離れは、隣の面を建てるくさび・枠の組がこの面に見込んだ値（始点の側の組を先に）。その組の
-                        # 離れの範囲（敷地境界に収めるため詰めた form_standoff など）の中で
+                        # 自分の面の離れは、隣の面を建てるくさび・枠の組がこの面に見込んだ値（始点の側の組を先に）。離れを
+                        # 指定した組（敷地境界に収めるため詰めた form_standoff など）はその範囲の中で。指定が無ければ隣の値の
+                        # まま（L 字のメートルで本体が 400 のとき、単管だけ 350 で止めて 50 ずれた）
                         so = groups[k][1].get("standoff") or {}
-                        lo, hi = float(so.get("min", 250)), float(so.get("max", 350))
+                        lo, hi = float(so.get("min", 0)), float(so.get("max", 1e9))
                         # 隅の隙間（コーナーステップ）で合わせられない組（一側・ブラケット足場）の値を先に。本足場は
                         # 受け取った離れで閉じなければ隅に隙間を残して納める
                         cands = []

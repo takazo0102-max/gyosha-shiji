@@ -81,6 +81,17 @@ class TestCornersAgreeAcrossGroups(unittest.TestCase):
                                     self.assertAlmostEqual(so[adj], own[adj][1], delta=1.0, msg=(lb, adj))
 
 
+    def test_hug_follows_an_l_shape_metric_main(self):
+        # L 字のメートルは本体の離れが 400 になる面がある。単管抱き足場は 350 で止めず本体の線にそろえる（50 ずれた）
+        L = [[0, 0], [16000, 0], [16000, 6000], [8000, 6000], [8000, 12000], [0, 12000]]
+        g = solve_groups({"outline_mm": L, "eaves_height_mm": 9000, "module": "metric",
+                          "face_forms": "東面(辺1)=単管抱き足場;西面=単管抱き足場"})
+        main = next(r.model for lb, r in g if lb == "")
+        hug = next(r.model for lb, r in g if "抱き" in lb)
+        for e in hug.plan.edges:
+            self.assertAlmostEqual(e.standoff, main.plan.standoffs[e.edge_index], delta=0.5)
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""
