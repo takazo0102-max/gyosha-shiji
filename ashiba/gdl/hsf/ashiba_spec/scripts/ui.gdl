@@ -40,10 +40,6 @@ ui_infield "soMin", 180, 168, 80, 20
 ui_infield "soMax", 270, 168, 80, 20
 ui_outfield "離れ 下限（未満は採らない）", 10, 198, 160, 18
 ui_infield "soHardMin", 180, 196, 120, 20
-ui_outfield "幅を変える（拡幅・縮幅）", 10, 228, 160, 18
-ui_infield "widthChg", 180, 226, 150, 20
-ui_infield "widthChgLv", 340, 226, 40, 20
-ui_outfield "段目の床から", 385, 228, 90, 18
 ui_page 3, -1, "安全・表示"
 ui_outfield "安全・表示", 10, 5, 300, 18
 ui_outfield "手すり", 10, 30, 140, 18

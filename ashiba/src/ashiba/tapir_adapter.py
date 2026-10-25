@@ -758,12 +758,12 @@ def place_width_change_lines(
     terrain=None,
     floor_index: Optional[int] = None,
 ) -> list[dict]:
-    """拡幅・縮幅の面の上の部品（新しい幅。幅を変える床から天端まで。width_change.upper_params）を置く.
+    """拡幅・縮幅の面の、区切った2つ目からの部品（範囲の下・上、範囲の後。width_change.line_pieces）を置く.
 
-    下の部品（元の幅）は place_scaffold_lines が segLevB で幅を変える床の下の段までにして置く。上の部品は面の並びの
-    足場ライン（寸法・図面が面の順で使う）とは別に返す。
+    最初の部品（範囲の前、または範囲の下）は place_scaffold_lines が置いた面の足場ラインそのもの（line_params が
+    line_pieces の先頭で上書きする）。足した部品は面の並びの足場ライン（寸法・図面が面の順で使う）とは別に返す。
     """
-    from .width_change import faces, upper_params
+    from .width_change import line_pieces
 
     if getattr(model, "width_change", None) is None:
         return []
@@ -771,24 +771,25 @@ def place_width_change_lines(
     placed: list[dict] = []
     mats = client.find_member_surfaces()
     with _rollback_on_error(client, placed):
-        for ep in faces(model):
+        for ep in model.plan.edges:
+            pieces = line_pieces(model, ep)[1:]
+            if not pieces:
+                continue
             edge = model.plan.outline.edges[ep.edge_index]
-            on_floor = {"floor_index": floor_index} if floor_index is not None and model.base_height_mm else {}
-            elem = client.create_object(
-                object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0), **on_floor)
-            placed.append(elem)
-            angle = math.atan2(edge.direction[1], edge.direction[0])
-            if abs(angle) > 1e-9:
-                client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
-            client.set_gdl_parameters(
-                elem,
-                {**line_params(
-                    model, ep, stair_plan=stair_plan, openings=openings,
-                    platforms=platforms, bracket_sections=bracket_sections,
-                    terrain=terrain,
-                ), **mats, **upper_params(model, ep)},
-                object_name,
-            )
+            base = {**line_params(
+                model, ep, stair_plan=stair_plan, openings=openings,
+                platforms=platforms, bracket_sections=bracket_sections,
+                terrain=terrain,
+            ), **mats}
+            for pc in pieces:
+                on_floor = {"floor_index": floor_index} if floor_index is not None and model.base_height_mm else {}
+                elem = client.create_object(
+                    object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0), **on_floor)
+                placed.append(elem)
+                angle = math.atan2(edge.direction[1], edge.direction[0])
+                if abs(angle) > 1e-9:
+                    client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
+                client.set_gdl_parameters(elem, {**base, **pc}, object_name)
     return placed
 
 

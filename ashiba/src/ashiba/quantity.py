@@ -1802,11 +1802,14 @@ def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
 
 
 def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) -> None:
-    """拡幅・縮幅（width_change）: 幅を変えた床から上の腕木・布板・出隅の升目を新しい幅に替え、拡幅ブラケット・
-    元の支柱の継ぎ足し（NDP09N）・つなぎ材 NDT03 と出隅の角の支柱の納まりを足す（attachments._width_change_kbrk と同じ）.
+    """拡幅・縮幅（width_change）: 幅を変える範囲の床から上の腕木・布板・出隅の升目を新しい幅に替え、拡幅ブラケット・
+    元の支柱の継ぎ足し（NDP09N）・つなぎ材 NDT03・範囲の端の支柱と出隅の角の納まりを足す（attachments._width_change_kbrk
+    と同じ）.
 
-    外側の支柱は幅を変える床で継ぎ、上はブラケットの先端のホゾに立てる（本数は元の外側の支柱と同じとみなす）."""
-    from .width_change import EXT_POST_MM, WIDTH_STEP_MM, change_height_mm, corner_point, faces, upper_levels
+    範囲の中の外側の支柱は幅を変える床で継ぎ、上はブラケットの先端のホゾに立てる（本数は元の外側の支柱と同じとみなす）。
+    範囲の端は元の支柱が天端まで残るので、新しい外側の支柱（幅を変える床から天端まで）を足す."""
+    from .width_change import (EXT_POST_MM, WIDTH_STEP_MM, bracket_specs, change_height_mm, corner_point, span_range,
+                               start_corner, upper_levels)
 
     wc = getattr(model, "width_change", None)
     if wc is None:
@@ -1815,12 +1818,8 @@ def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) 
     w1, w2 = int(wc.from_mm), int(wc.to_mm)
     d1 = list(model.deck_widths_in_use)
     d2 = list(wc.to_decks)
-    eps = [e for e in faces(model) if model.edge_subset is None or e.edge_index in model.edge_subset]
-    if not eps:
-        return
+    eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
     tag = f"{wc.mode}{w1}→{w2}"
-    n_br = 0
-    order: list[str] = []
     lengths = sorted({p.nominal_dim for p in m.by_category("支柱")
                       if "根がらみ" not in p.note and "屋根" not in p.note and p.nominal_dim > 0}, reverse=True)
 
@@ -1828,74 +1827,130 @@ def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) 
         return next((p for p in m.by_category("支柱") if p.nominal_dim == nominal
                      and "根がらみ" not in p.note and "屋根" not in p.note), None)
 
-    n_corner = n_tie_c = tube_c = 0
-    for ep in eps:
-        k = upper_levels(model, ep.edge_index)
-        nt = len(ep.spans) + (1 if model._no_next(ep.edge_index) else 0)
-        sub(m.find("布材", w1), nt * k, f"{tag}で差し引いた腕木{w1}")
-        add(m.find("布材", w2), nt * k, f"{tag}の腕木（布材{w2}）")
-        for s in ep.spans:
-            for w in d1:
-                sub(m.deck_parts(w, int(s)), k, f"{tag}で差し引いた踏板 幅{w}×{int(s)}")
-            for w in d2:
-                add(m.deck_parts(w, int(s)), k, f"{tag}の踏板 幅{w}×{int(s)}")
-        n_br += len(ep.spans) + 1
-        c = corner_point(model, ep)
-        if c is None:
-            continue
-        n_corner += 1
-        sub(m.find("布材", w1), 6 * k, f"{tag}で差し引いた出隅コーナーの布材{w1}")
-        add(m.find("布材", w2), 6 * k, f"{tag}の出隅コーナーの布材{w2}")
-        if model.config.has_toe_board:
-            sub(m.find("幅木", w1), 2 * k, f"{tag}で差し引いた出隅コーナーの幅木{w1}")
-            add(m.find("幅木", w2), 2 * k, f"{tag}の出隅コーナーの幅木{w2}")
-        for w in d1:
-            sub(m.deck_parts(w, w1), k, f"{tag}で差し引いた出隅コーナーの踏板 幅{w}×{w1}")
-        for w in d2:
-            add(m.deck_parts(w, w2), k, f"{tag}の出隅コーナーの踏板 幅{w}×{w2}")
-        if wc.mode == "拡幅":
-            # 角の支柱は地上から（幅を変える床まで。上は元の角の支柱の分で足りる）と、ジャッキ
-            rest = change_height_mm(model, ep.edge_index) - model.elevation_of(ep.edge_index).jack_extension
-            while rest > 10 and lengths:
-                pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
-                add(post_of(int(pick)), 1, f"{tag}の出隅の角の支柱（地上から）{int(pick)}")
-                rest -= pick
-            from .gdl_params import _default_jack_no
+    def stack(height: float, what: str) -> None:
+        rest = height
+        while rest > 10 and lengths:
+            pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
+            add(post_of(int(pick)), 1, f"{what}{int(pick)}")
+            rest -= pick
 
-            add(m.get(_default_jack_no(model)), 1, f"{tag}の出隅の角の支柱のジャッキ")
-            n_tie_c += wc.level        # 根がらみ＋幅を変える床の下の各層
-        else:
-            tube_c = 1500 if c["beam_mm"] <= 1450 else 2000
+    def swap(cat: str, a: int, b: int, qty: int, what: str) -> None:
+        sub(m.find(cat, a), qty, f"{tag}で差し引いた{what}{a}")
+        add(m.find(cat, b), qty, f"{tag}の{what}{b}")
+
+    n_br = n_ext = n_tie = n_ud = 0
+    n_corner = n_tie_c = tube_c = n_ends = 0
+    faces_done: list[str] = []
+    for ep in eps:
+        sr = span_range(model, ep)
+        corner = start_corner(model, ep)
+        if not sr and corner not in ("prev",):
+            continue
+        k = upper_levels(model, ep.edge_index)
+        if sr:
+            sa, sb = sr
+            n = len(ep.spans)
+            faces_done.append(model.face_name(ep.edge_index) + ("" if (sa, sb) == (1, n) else f"（{sa}〜{sb}スパン）"))
+            nt = (sb - sa + 1) + (1 if sb == n and model._no_next(ep.edge_index) else 0)
+            swap("布材", w1, w2, nt * k, "腕木（布材）")
+            for s in ep.spans[sa - 1:sb]:
+                for w in d1:
+                    sub(m.deck_parts(w, int(s)), k, f"{tag}で差し引いた踏板 幅{w}×{int(s)}")
+                for w in d2:
+                    add(m.deck_parts(w, int(s)), k, f"{tag}の踏板 幅{w}×{int(s)}")
+        zk = change_height_mm(model, ep.edge_index)
+        for b in bracket_specs(model, ep):
+            n_br += 1
+            n_tie += len(b["ties"])
+            n_ud += len(b["ud"])
+            if b["end"] == "s":
+                # 元の支柱は天端まで残る。新しい外側の支柱（足場ラインが描く）を幅を変える床から天端まで足す
+                n_ends += 1
+                stack(float(model.own_height(ep.edge_index)) - zk, f"{tag}の範囲の端の新しい外側の支柱")
+            elif b["end"] == "e":
+                n_ends += 1
+                stack(b["tip"], f"{tag}の範囲の端の新しい外側の支柱")
+            elif b["ext"] > 1.0:
+                n_ext += 1
+        if corner == "both":
+            n_corner += 1
+            swap("布材", w1, w2, 6 * k, "出隅コーナーの布材")
+            if model.config.has_toe_board:
+                swap("幅木", w1, w2, 2 * k, "出隅コーナーの幅木")
+            for w in d1:
+                sub(m.deck_parts(w, w1), k, f"{tag}で差し引いた出隅コーナーの踏板 幅{w}×{w1}")
+            for w in d2:
+                add(m.deck_parts(w, w2), k, f"{tag}の出隅コーナーの踏板 幅{w}×{w2}")
+            c = corner_point(model, ep)
+            if wc.mode == "拡幅":
+                stack(zk - model.elevation_of(ep.edge_index).jack_extension, f"{tag}の出隅の角の支柱（地上から）")
+                from .gdl_params import _default_jack_no
+
+                add(m.get(_default_jack_no(model)), 1, f"{tag}の出隅の角の支柱のジャッキ")
+                n_tie_c += wc.level        # 根がらみ＋幅を変える床の下の各層
+            else:
+                tube_c = 1500 if c["beam_mm"] <= 1450 else 2000
+        elif corner in ("self", "prev"):
+            # 隅の升目の1辺（建地列に直角な辺）だけ新しい幅（3本＝床・手すり・中桟、幅木1枚）。床は長さが前の面の幅
+            n_corner += 1
+            swap("布材", w1, w2, 3 * k, "出隅コーナーの布材")
+            if model.config.has_toe_board:
+                swap("幅木", w1, w2, k, "出隅コーナーの幅木")
+            n_out = len(model.plan.outline.edges)
+            w1p = int(model.row_spacing_of((ep.edge_index - 1) % n_out))
+            if corner == "self":
+                for w in d1:
+                    sub(m.deck_parts(w, w1p), k, f"{tag}で差し引いた出隅コーナーの踏板 幅{w}×{w1p}")
+                for w in d2:
+                    add(m.deck_parts(w, w1p), k, f"{tag}の出隅コーナーの踏板 幅{w}×{w1p}")
+            else:
+                for w in d1:
+                    sub(m.deck_parts(w, w1p), k, f"{tag}で差し引いた出隅コーナーの踏板 幅{w}×{w1p}")
+                    add(m.deck_parts(w, w2), k, f"{tag}の出隅コーナーの踏板 幅{w}×{w2}")
+    if not n_br and not n_corner:
+        return
+    order: list[str] = []
     if n_tie_c:
         order.append(f"出隅の角の支柱（地上から）を元の角の支柱へ繋ぐ単管 0.5m {n_tie_c}本と自在クランプ {2 * n_tie_c}個"
-                     f"（{n_corner}隅。根がらみと幅を変える床の下の各層）")
+                     "（根がらみと幅を変える床の下の各層）")
     if tube_c:
-        order.append(f"出隅の角の支柱を受ける対角の単管 {tube_c / 1000:.1f}m {n_corner}本と自在クランプ {3 * n_corner}個"
+        nb = sum(1 for ep in eps if start_corner(model, ep) == "both")
+        order.append(f"出隅の角の支柱を受ける対角の単管 {tube_c / 1000:.1f}m {nb}本と自在クランプ {3 * nb}個"
                      "（元の升目の内外の角の支柱に掛け、角の支柱は自在クランプで留める）")
     part = next((p for p in m.by_category("ブラケット") if p.nominal_dim == WIDTH_STEP_MM and "拡幅" in p.note), None)
     if part is not None:
         add(part, n_br, f"{tag}の拡幅ブラケット{WIDTH_STEP_MM}")
     else:
         order.append(f"拡幅ブラケット{WIDTH_STEP_MM} {n_br}基（系列のマスタに無い）")
-    add(post_of(EXT_POST_MM), n_br, f"{tag}で元の外側の支柱に継ぎ足す支柱{EXT_POST_MM}")
-    add(m.find("布材", WIDTH_STEP_MM), n_br, f"{tag}の継ぎ足した支柱と先端の支柱のつなぎ材{WIDTH_STEP_MM}")
+    add(post_of(EXT_POST_MM), n_ext, f"{tag}で元の外側の支柱に継ぎ足す支柱{EXT_POST_MM}")
+    add(m.find("布材", WIDTH_STEP_MM), n_tie, f"{tag}の元の支柱と新しい支柱のつなぎ材{WIDTH_STEP_MM}")
+    add(m.find("布材", w2), n_ud, f"{tag}の範囲の終わりの端の腕木（布材{w2}）")
     if order:
         notes.action(f"{wc.label}で別途手配: " + "、".join(order), Notes.ORDER)
-    # 外付け階段は外側の建地列に付く。幅を変えた面の階段の升目は、上の層で外側の支柱が 305 ずれて階段と食い違う
+    # 外付け階段は外側の建地列に付く。幅を変えた範囲に階段の升目があると、上の層で外側の支柱が 305 ずれて食い違う
     if stair_plan is not None and getattr(stair_plan, "outside", False):
-        hit = sorted({model.face_name(t.edge_index) for t in stair_plan.towers
-                      if any(e.edge_index == t.edge_index for e in eps)})
+        hit = []
+        for t in stair_plan.towers:
+            ep = next((e for e in eps if e.edge_index == t.edge_index), None)
+            sr = span_range(model, ep) if ep is not None else None
+            if sr:
+                from .width_change import posts_x
+
+                xs = posts_x(ep)
+                if t.start_mm < xs[sr[1]] - 1.0 and t.end_mm > xs[sr[0] - 1] + 1.0:
+                    hit.append(model.face_name(t.edge_index))
         if hit:
-            notes.action(f"{wc.label}: {'・'.join(hit)}の外付け階段は外側の建地列に付くため、幅を変えた層で階段の升目と"
-                         "外側の支柱が食い違います。階段のある面は幅を変えない（faces で面を選ぶ）か、階段を本体の中に"
-                         "入れてください", Notes.SITE)
+            notes.action(f"{wc.label}: {'・'.join(sorted(set(hit)))}の外付け階段の升目が幅を変える範囲にかかります。外付け"
+                         "階段は外側の建地列に付くため、幅を変えた層で階段と外側の支柱が食い違います。範囲から階段の升目を"
+                         "外してください", Notes.SITE)
     notes.append(
-        f"{wc.label}: 下の足場の外側の支柱{n_br}本に拡幅ブラケット{WIDTH_STEP_MM}を掛け（"
+        f"{wc.label}: {'・'.join(faces_done) or '隅の升目'}で、元の外側の支柱{n_br}本に拡幅ブラケット{WIDTH_STEP_MM}を掛け（"
         + ("外へ" if wc.mode == "拡幅" else "躯体側へ")
         + f"）、先端のホゾに新しい外側の支柱を天端まで立てます。元の支柱には NDP09N を継ぎ足してつなぎ材"
-        f"{WIDTH_STEP_MM}で繋ぎます。上の{len(eps)}面の腕木・布板・出隅の升目は幅{w2}で計上。幅を変えるのは全高で1回、"
-        "幅を変えた層の上下は前踏み側の全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を"
-        "確かめてください")
+        f"{WIDTH_STEP_MM}で繋ぎます" + (f"。範囲の端{n_ends}箇所は元の支柱を天端まで残し、各層の手すり・中桟の高さの"
+                                         f"つなぎ材{WIDTH_STEP_MM}で塞ぎます" if n_ends else "")
+        + f"。範囲の上の腕木・布板・出隅の升目は幅{w2}で計上。幅を変えるのは全高で1回、幅を変えた層の上下は前踏み側の"
+        "全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を確かめてください")
 
 
 def _count_open_ends(model: ScaffoldModel, add, notes) -> None:

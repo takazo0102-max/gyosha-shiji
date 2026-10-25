@@ -69,6 +69,22 @@
 			<Description><![CDATA["つなぎ材 NDT03 の高さ（腕から上へ。継ぎ足した支柱と先端の支柱を繋ぐ。0＝なし）"]]></Description>
 			<Value>0.0</Value>
 		</Length>
+		<String Name="railList">
+			<Description><![CDATA["つなぎ材 NDT03 の高さ m（腕から上。カンマ区切り。範囲の端を各層の手すり・中桟で塞ぐ。空なら tieZ の1本）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="tipH">
+			<Description><![CDATA["先端のホゾに立てる支柱の長さ（範囲の終わりの端。0＝足場ラインが描く）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="udW">
+			<Description><![CDATA["先端まで延ばす腕木の、ブラケットを付けた支柱から躯体側の支柱までの長さ（拡幅の範囲の終わりの端。0＝なし）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<String Name="udList">
+			<Description><![CDATA["先端まで延ばす腕木の高さ m（腕から上。カンマ区切り）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="cnrMode">
 			<Description><![CDATA["出隅の角の支柱の納まり 0＝ブラケット 1＝拡幅の角の地上からの支柱 2＝縮幅の角を受ける対角の単管"]]></Description>
 			<Value>0</Value>

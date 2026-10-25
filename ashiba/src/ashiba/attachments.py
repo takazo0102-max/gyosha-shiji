@@ -657,49 +657,99 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
 
 
 def _split_width_change(model: ScaffoldModel, ep, out: list, nseg: int) -> None:
-    """面のシート（out の末尾 nseg 個）を幅を変える床で上下に分ける. 下は元の外側の建地列のまま床の高さまで、上はその
-    床から天端まで、建地列の間隔の差だけ外（縮幅は内）へ。出隅の隣の面も幅を変えるなら、上は角の升目の辺も新しい幅."""
-    from .width_change import applies_face, change_height_mm
+    """拡幅・縮幅（width_change）: 面のシート（out の末尾 nseg 個）を幅を変える範囲の端で縦に分け、範囲は幅を変える床で
+    上下に分ける. 範囲の下は元の外側の建地列のまま床の高さまで、上はその床から天端まで、建地列の間隔の差だけ外（縮幅は
+    内）へ。出隅の升目の辺が新しい幅になる端（隣の面も隅まで幅を変える・前後の面だけ変える）は、上をその差だけ回す。
+    面の途中の範囲の端には、幅を変える床から天端まで、元と新しい外側の建地列の間に妻側のシートを張る."""
+    from .width_change import _neighbor, posts_x, span_range, start_corner, touched
 
-    if getattr(model, "width_change", None) is None or not applies_face(model, ep.edge_index) or nseg <= 0:
+    wc = getattr(model, "width_change", None)
+    if wc is None or nseg <= 0:
         return
-    wc = model.width_change
-    n = len(model.plan.outline.edges)
+    nxt = _neighbor(model, ep, 1)
+    corner = start_corner(model, ep)
+    ncorner = start_corner(model, nxt) if nxt is not None else None
+    if not touched(model, ep) and ncorner != "self":
+        return
     ei = ep.edge_index
-    zk = change_height_mm(model, ei)
+    sr = span_range(model, ep)
+    xs = posts_x(ep)
+    cuts = []
+    if sr and sr[0] > 1:
+        cuts.append(xs[sr[0] - 1])
+    if sr and sr[1] < len(ep.spans):
+        cuts.append(xs[sr[1]])
+    r0, r1 = (xs[sr[0] - 1], xs[sr[1]]) if sr else (None, None)
+    from .width_change import change_height_mm
+
+    zk = change_height_mm(model, ei) if sr or corner == "prev" or ncorner == "self" else None
+    if zk is None:
+        return
     d = float(wc.to_mm - wc.from_mm)
-    ds = d if model.corner_kind_start(ei) == "出隅" and applies_face(model, (ei - 1) % n) else 0.0
-    de = d if model.corner_kind_end(ei) == "出隅" and applies_face(model, (ei + 1) % n) else 0.0
-    top = sheet_top_mm(model, ei)
     lo_rows = sheet_rows(model, ei, top=zk)
     hi_rows = sheet_rows(model, ei, bottom=zk)
 
     def row_list(rows) -> str:
         return ",".join(f"{v:.0f}" for lo, hi in rows for v in (lo, hi))
 
+    def clamps(rows) -> str:
+        return ",".join(f"{h:.0f}" for h in _clamp_heights_of_rows(model, rows))
+
     base = out[-nseg:]
     del out[-nseg:]
+    face_x0 = min(p.params["x0"] for p in base) * 1000.0
+    face_x1 = max(p.params["x1"] for p in base) * 1000.0
     for p in base:
         q = dict(p.params)
-        lower = {**q, "zT": zk / 1000.0, "rowList": row_list(lo_rows),
-                 "clampList": ",".join(f"{h:.0f}" for h in _clamp_heights_of_rows(model, lo_rows))}
-        upper = {**q, "zB": zk / 1000.0, "rowList": row_list(hi_rows),
-                 "clampList": ",".join(f"{h:.0f}" for h in _clamp_heights_of_rows(model, hi_rows)),
-                 "offY": q["offY"] + d / 1000.0}
-        if abs(q["x0"] - base[0].params["x0"]) < 1e-9 and ds:
-            upper["x0"] = q["x0"] - ds / 1000.0
-        if abs(q["x1"] - base[-1].params["x1"]) < 1e-9 and de:
-            upper["x1"] = q["x1"] + de / 1000.0
-        if q.get("panelList"):
-            # 継ぎ目は支柱の位置のまま。端の区間だけ角の升目の辺の差を足す
-            pl = [[float(v) for v in t] for t in zip(*[iter(str(q["panelList"]).split(","))] * 3)]
-            if pl and ds and upper["x0"] != q["x0"]:
-                pl[0][0] -= ds
-            if pl and de and upper["x1"] != q["x1"]:
-                pl[-1][1] += de
-            upper["panelList"] = ",".join(f"{a:.0f},{b:.0f},{int(c)}" for a, b, c in pl)
-        out.append(Placement(p.part, p.x_mm, p.y_mm, lower))
-        out.append(Placement(p.part, p.x_mm, p.y_mm, upper))
+        a0, a1 = q["x0"] * 1000.0, q["x1"] * 1000.0
+        pl_all = [[float(v) for v in t] for t in zip(*[iter(str(q.get("panelList") or "").split(","))] * 3)]
+        bounds = [a0] + [c for c in cuts if a0 + 1.0 < c < a1 - 1.0] + [a1]
+        for x0, x1 in zip(bounds, bounds[1:]):
+            in_r = sr is not None and x0 >= r0 - 1.0 and x1 <= r1 + 1.0
+            at_s = abs(x0 - face_x0) < 1.0
+            at_e = abs(x1 - face_x1) < 1.0
+            dx0 = d if at_s and ((in_r and corner == "both") or (not in_r and corner == "prev")) else 0.0
+            dx1 = d if at_e and ((in_r and ncorner == "both") or (not in_r and ncorner == "self")) else 0.0
+            pl = [list(t) for t in pl_all if t[0] >= x0 - 1.0 and t[1] <= x1 + 1.0]
+            part = {**q, "x0": x0 / 1000.0, "x1": x1 / 1000.0}
+            if pl:
+                part.update({"panelList": ",".join(f"{a:.0f},{b:.0f},{int(c)}" for a, b, c in pl),
+                             "clampXS": _clamp_post(ep, pl[0][0]) / 1000.0, "clampXE": _clamp_post(ep, pl[-1][1]) / 1000.0})
+            # 出隅の角のクランプは面の端の区間だけ
+            part["clampCS"] = int(bool(q.get("clampCS")) and at_s)
+            part["clampSkipE"] = int(bool(q.get("clampSkipE")) and at_e)
+            if not (in_r or dx0 or dx1):
+                out.append(Placement(p.part, p.x_mm, p.y_mm, part))
+                continue
+            lower = {**part, "zT": zk / 1000.0, "rowList": row_list(lo_rows), "clampList": clamps(lo_rows)}
+            upper = {**part, "zB": zk / 1000.0, "rowList": row_list(hi_rows), "clampList": clamps(hi_rows),
+                     "offY": q["offY"] + (d / 1000.0 if in_r else 0.0),
+                     "x0": (x0 - dx0) / 1000.0, "x1": (x1 + dx1) / 1000.0}
+            if pl:
+                pu = [list(t) for t in pl]
+                pu[0][0] -= dx0
+                pu[-1][1] += dx1
+                if dx0:
+                    pu[0][2] = 1.0
+                if dx1:
+                    pu[-1][2] = 1.0
+                upper["panelList"] = ",".join(f"{a:.0f},{b:.0f},{int(c)}" for a, b, c in pu)
+            out.append(Placement(p.part, p.x_mm, p.y_mm, lower))
+            out.append(Placement(p.part, p.x_mm, p.y_mm, upper))
+    # 面の途中の範囲の端の妻側（元と新しい外側の建地列の間）
+    size = sheet_size(model)
+    o, u, _n, ang = _frame(ep)
+    w_lo, w_hi = sorted((float(wc.from_mm), float(wc.to_mm)))
+    a, b = w_lo + SHEET_GAP_MM, w_hi + SHEET_GAP_MM
+    for pos in cuts:
+        out.append(Placement(SHEET_OBJECT, o[0] + u[0] * pos, o[1] + u[1] * pos, {
+            "faceAng": ang - 90.0, "zH": model.base_height_mm / 1000.0, "offY": 0.0,
+            "x0": a / 1000.0, "x1": b / 1000.0, "zB": zk / 1000.0, "zT": sheet_top_mm(model, ei) / 1000.0,
+            "sheetW": size[0] / 1000.0, "rowList": row_list(hi_rows), "gromPitch": _sheet_pitch(model) / 1000.0,
+            "panelList": f"{a:.0f},{b:.0f},1", "clampList": clamps(hi_rows),
+            "clampEnd": 1, "clampXS": w_lo / 1000.0, "clampXE": w_hi / 1000.0,
+            "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(out and out[-1].params.get("lineMode")),
+            "fineOn": not bool(out and out[-1].params.get("lineMode"))}))
 
 
 def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[float, int]:
@@ -913,10 +963,11 @@ def kbrk_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Place
 
 
 def _width_change_kbrk(model: ScaffoldModel, line_mode: bool) -> list[Placement]:
-    """拡幅・縮幅（width_change）: 幅を変える床のコマで下の足場の外側の支柱ごとに拡幅ブラケット（拡幅は外へ・縮幅は
-    躯体側へ）、元の支柱に NDP09N の継ぎ足しとつなぎ材 NDT03。出隅の角は 拡幅＝地上からの支柱と元の角の支柱への単管、
-    縮幅＝元の升目の対角の単管（その上に角の支柱）."""
-    from .width_change import EXT_POST_MM, TIE_ABOVE_MM, WIDTH_STEP_MM, bracket_points, change_height_mm, corner_point, faces
+    """拡幅・縮幅（width_change）: 幅を変える床のコマで、範囲の元の外側の支柱ごとに拡幅ブラケット（拡幅は外へ・縮幅は
+    躯体側へ）、元の支柱の継ぎ足し（NDP09N）とつなぎ材 NDT03。範囲の端は元の支柱を天端まで・つなぎ材を各層の手すりと
+    中桟の高さに。出隅の角は、両方の面が幅を変えれば 拡幅＝地上からの支柱と元の角の支柱への単管、縮幅＝元の升目の
+    対角の単管、片方だけなら元の角の支柱にブラケット（width_change.bracket_specs・corner_point）."""
+    from .width_change import WIDTH_STEP_MM, bracket_specs, change_height_mm, corner_point
 
     wc = getattr(model, "width_change", None)
     if wc is None:
@@ -926,33 +977,43 @@ def _width_change_kbrk(model: ScaffoldModel, line_mode: bool) -> list[Placement]
     spec = _kbrk_spec(model, float(WIDTH_STEP_MM), "拡幅ブラケット")
     # 先端の管の芯を新しい建地列（芯々 305）に合わせる（部品の xT＝brW−管の半径）
     spec = {**spec, "brW": WIDTH_STEP_MM / 1000.0 + 0.0427 / 2}
-    for ep in faces(model):
+    wide = wc.mode == "拡幅"
+
+    def mm_list(vs) -> str:
+        return ",".join(f"{v / 1000.0:.3f}" for v in vs)
+
+    for ep in model.plan.edges:
         o, u, nrm, ang = _frame(ep)
-        zk = change_height_mm(model, ep.edge_index)
-        a = ang - 90.0 if wc.mode == "拡幅" else ang + 90.0
 
         def at(x, y):
             return o[0] + u[0] * x + nrm[0] * y, o[1] + u[1] * x + nrm[1] * y
 
-        for x, y in bracket_points(model, ep):
-            px, py = at(x, y)
+        for b in bracket_specs(model, ep):
+            # 面に直角: 拡幅は外（−nrm）、縮幅は躯体側。前の面に直角: 拡幅は −u（前の面の外）、縮幅は +u
+            if b["dir"] == "face":
+                a = ang - 90.0 if wide else ang + 90.0
+            else:
+                a = ang + 180.0 if wide else ang
+            px, py = at(b["x"], b["y"])
+            ties = b["ties"]
             out.append(Placement(KBRK_OBJECT, px, py, {
-                "faceAng": a, "zArm": (base + zk) / 1000.0, "reinf": 0.0, "lineMode": bool(line_mode), **spec,
-                "extUp": EXT_POST_MM / 1000.0, "tieZ": TIE_ABOVE_MM / 1000.0, "cnrMode": 0}))
+                "faceAng": a, "zArm": (base + b["z"]) / 1000.0, "reinf": 0.0, "lineMode": bool(line_mode), **spec,
+                "extUp": b["ext"] / 1000.0, "tieZ": (ties[0] / 1000.0 if len(ties) == 1 else 0.0),
+                "railList": mm_list(ties) if len(ties) > 1 else "", "tipH": b["tip"] / 1000.0,
+                "udW": float(wc.from_mm) / 1000.0 if b["ud"] else 0.0, "udList": mm_list(b["ud"]),
+                "cnrMode": 0}))
         c = corner_point(model, ep)
         if c is None:
             continue
-        if wc.mode == "拡幅":
-            frm, to = c["new"], c["old"]
-        else:
-            frm, to = c["old"], c["inner"]
+        zk = change_height_mm(model, ep.edge_index)
+        frm, to = (c["new"], c["old"]) if wide else (c["old"], c["inner"])
         fx, fy = at(*frm)
         tx, ty = at(*to)
-        cang = math.degrees(math.atan2(ty - fy, tx - fx))
-        common = {"faceAng": cang, "zArm": (base + zk) / 1000.0, "reinf": 0.0, "lineMode": bool(line_mode),
-                  **spec, "brName": "拡幅の角の支柱" if wc.mode == "拡幅" else "縮幅の角の受け単管",
+        common = {"faceAng": math.degrees(math.atan2(ty - fy, tx - fx)), "zArm": (base + zk) / 1000.0, "reinf": 0.0,
+                  "lineMode": bool(line_mode), **spec,
+                  "brName": "拡幅の角の支柱" if wide else "縮幅の角の受け単管",
                   "cnrL": math.hypot(tx - fx, ty - fy) / 1000.0}
-        if wc.mode == "拡幅":
+        if wide:
             e = model.elevation_of(ep.edge_index)
             zs = [e.first_ledger_height] + [h for h in e.level_heights[:wc.level - 1]]
             out.append(Placement(KBRK_OBJECT, fx, fy, {

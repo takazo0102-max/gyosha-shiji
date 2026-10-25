@@ -117,3 +117,18 @@ class TestNoBuiltinNames(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMaterialDefinedOnce(unittest.TestCase):
+    """同じ名前の define material をスクリプトの2か所に書くと（別々の if の中でも）、Archicad はその 3D を丸ごと
+    描かない。2026-10-25、拡幅ブラケット（ashiba_kbrk）の隅の支柱の分岐に金色をもう一度定義して、ブラケットが
+    実機の 3D から全部消えた（GetElementPreviewImage が白紙）."""
+
+    def test_every_script(self):
+        bad = []
+        for f in sorted(HSF.glob("*/scripts/*.gdl")):
+            names = re.findall(r'define\s+material\s+"([^"]+)"', f.read_text(encoding="utf-8-sig"), re.I)
+            dup = sorted({n for n in names if names.count(n) > 1})
+            if dup:
+                bad.append(f"{f.parent.parent.name}/{f.name}: {', '.join(dup)}")
+        self.assertEqual(bad, [])

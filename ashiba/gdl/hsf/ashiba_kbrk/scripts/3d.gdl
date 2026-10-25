@@ -8,6 +8,7 @@
 ! ============================================================
 pen 1
 resol 12
+dim tzs[]
 rotz faceAng
 addz zArm
 if matBk > 0 then
@@ -16,6 +17,8 @@ else
 	define material "ashiba_kbrk_zinc" 2, 0.74, 0.76, 0.78
 	material "ashiba_kbrk_zinc"
 endif
+! 補強単管・角の単管のクランプの色（同じ名前の define material を2か所に書くと 3D 全体が描けない。2026-10-25 実機）
+define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 rP = postR
 rA = 0.0427 / 2
 xT = brW - rA
@@ -37,7 +40,6 @@ if cnrMode = 1 then
 		cylind -0.1 - (zb + 0.2), rP
 		del 1
 	endif
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	rest = tieList
 	while strlen(rest) > 0 do
 		pc = strstr(rest, ",")
@@ -86,7 +88,6 @@ if cnrMode = 2 then
 	roty 90
 	cylind cnrL, 0.0243
 	del 2
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	material "ashiba_kbrk_gold"
 	add -0.03, -0.03, zt - 0.03
 	block 0.06, 0.06, 0.06
@@ -104,7 +105,8 @@ if lineMode then
 	lin_ rP, 0, -brDp, xT - 0.06, 0, -0.03
 	lin_ xT, 0, -tipDn, xT, 0, tipUp + hozoL
 	if extUp > 0.01 then lin_ 0, 0, 0, 0, 0, extUp
-	if tieZ > 0.01 then lin_ 0, 0, tieZ, xT, 0, tieZ
+	if tipH > 0.01 then lin_ xT, 0, 0, xT, 0, tipH
+	if tieZ > 0.01 and strlen(railList) = 0 then lin_ 0, 0, tieZ, xT, 0, tieZ
 	end
 endif
 ! 緊結部（腕の高さと方杖の下の2か所）: 支柱の外面からコマ（円盤）を上下に挟む受けと、縦に貫くクサビ
@@ -157,7 +159,6 @@ if reinf > 0.1 then
 	roty 90 - atn(bz / bx)
 	cylind sqr(bx ^ 2 + bz ^ 2), 0.0243
 	del 2
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	material "ashiba_kbrk_gold"
 	add xT - 0.035, ry - 0.035, -0.05 - 0.035
 	block 0.07, 0.07, 0.07
@@ -181,14 +182,63 @@ if extUp > 0.01 then
 	cylind 0.12, 0.0364 / 2
 	del 1
 endif
-if tieZ > 0.01 then
-	add rP, 0, tieZ
+! 先端のホゾに立てる支柱（範囲の終わりの端。後の区間の足場ラインはこの位置の支柱を持たない）
+if tipH > 0.01 then
+	add xT, 0, tipUp
+	cylind tipH - tipUp, rP
+	del 1
+endif
+! つなぎ材（railList の高さごと。空なら tieZ の1本）。範囲の端は各層の手すり・中桟の高さで塞ぐ
+nTz = 0
+rest = railList
+while strlen(rest) > 0 and nTz < 60 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", zv)
+	if k > 0 then
+		nTz = nTz + 1
+		tzs[nTz] = zv
+	endif
+endwhile
+if nTz = 0 and tieZ > 0.01 then
+	nTz = 1
+	tzs[1] = tieZ
+endif
+for it = 1 to nTz
+	add rP, 0, tzs[it]
 	roty 90
 	cylind xT - rA - rP, rA
 	del 2
 	for kk = 0 to 1
-		add rP + kk * (xT - rA - 2 * rP - 0.05), -0.02, tieZ - 0.035
+		add rP + kk * (xT - rA - 2 * rP - 0.05), -0.02, tzs[it] - 0.035
 		block 0.05, 0.04, 0.07
 		del 1
 	next kk
+next it
+! 先端まで延ばす腕木（拡幅の範囲の終わりの端。躯体側の支柱 −udW から先端の支柱まで、新しい幅の床を受ける）
+if udW > 0.01 then
+	rest = udList
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", zv)
+		if k > 0 then
+			add -udW + rP, 0.03, zv
+			roty 90
+			cylind udW + xT - 2 * rP, rA
+			del 2
+		endif
+	endwhile
 endif

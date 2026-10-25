@@ -1,6 +1,7 @@
 """拡幅・縮幅（途中の作業床から足場の幅を 305 変える。利用者の指定 2026-10-25: 両方作って 610→914と914→1219）."""
 
 import json
+import sys
 import unittest
 from pathlib import Path
 
@@ -9,9 +10,12 @@ from _path import SRC  # noqa: F401
 from ashiba.attachments import kbrk_placements, sheet_placements
 from ashiba.cli import InputError, solve_all, validate_spec
 from ashiba.gdl_params import line_params
-from ashiba.spec_form import WIDENS, apply_form, form_fields
-from ashiba.spec_object import params_from_spec, spec_from_params
-from ashiba.width_change import parse_spec, upper_params
+from ashiba.spec_form import form_fields
+from ashiba.spec_object import params_from_spec
+from ashiba.width_change import bracket_specs, labels_for, line_pieces, span_range, start_corner, upper_params
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from width_range_run import merged_faces, updated_width_change  # noqa: E402
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "nikken_nd1800_rect.json"
 
@@ -111,21 +115,66 @@ class TestWidthChange(unittest.TestCase):
         with self.assertRaises(InputError):
             validate_spec(_spec(610, 914, 1))
 
-    def test_form_and_spec_object(self):
-        f = {x["key"]: x for x in form_fields(_spec(610, 914))}
-        self.assertEqual(f["widen"]["value"], "拡幅 610→914")
-        self.assertEqual(f["widen_lv"]["value"], "4")
-        out, notes = apply_form({"scaffold_width_mm": 610}, {"widen": "縮幅 1219→914", "widen_lv": "5"})
-        self.assertEqual(out["width_change"], {"label": "縮幅 1219→914", "from_mm": 1219, "to_mm": 914, "level": 5})
-        self.assertEqual(out["scaffold_width_mm"], 1219)
-        self.assertIn("縮幅 1219→914", WIDENS)
-        out2, _n = apply_form(out, {"widen": "変えない"})
-        self.assertNotIn("width_change", out2)
-        p = params_from_spec(_spec(914, 1219, 3))
-        self.assertEqual((p["widthChg"], p["widthChgLv"]), ("拡幅 914→1219", 3))
-        back = spec_from_params({"widthChg": "拡幅 914→1219", "widthChgLv": 3})
-        self.assertEqual(parse_spec(back["width_change"])["to_mm"], 1219)
-        self.assertIsNone(parse_spec(spec_from_params({"widthChg": "", "widthChgLv": 3}).get("width_change")))
+    def test_lines_and_window_do_not_offer_whole_building_change(self):
+        # 利用者の指摘 2026-10-25: 拡張が全ての足場になってしまう → 条件の窓・足場条件の部品からは外し、パレットの
+        # 「幅の変更」で線を引いた範囲だけにする
+        keys = {x["key"] for x in form_fields(_spec(610, 914))}
+        self.assertNotIn("widen", keys)
+        self.assertNotIn("widthChg", params_from_spec(_spec(610, 914)))
+
+
+class TestWidthChangeRange(unittest.TestCase):
+    def test_range_in_the_middle_of_a_face(self):
+        r = solve_all(_spec(610, 914, 3, faces=["南面[3658-9145]"]))
+        m = r.model
+        ep = m.plan.edges[0]
+        self.assertEqual(span_range(m, ep), (3, 5))
+        pcs = line_pieces(m, ep)
+        self.assertEqual([(p["segSpanA"], p["segSpanB"], p["segLevA"], p["segLevB"]) for p in pcs],
+                         [(0, 2, 0, 0), (3, 5, 0, 2), (3, 5, 3, 0), (6, 0, 0, 0)])
+        self.assertAlmostEqual(pcs[2]["rowW"], 0.914)
+        self.assertNotIn("rowW", pcs[1])
+        # 範囲の外の面は変えない
+        self.assertEqual(line_pieces(m, m.plan.edges[1]), [])
+        br = bracket_specs(m, ep)
+        self.assertEqual(len(br), 4)
+        s_end = next(b for b in br if b["end"] == "s")
+        e_end = next(b for b in br if b["end"] == "e")
+        # 始まりの端は元の支柱を天端まで、終わりの端は先端の支柱を天端まで。どちらも各層の手すり・中桟で塞ぐ
+        self.assertGreater(s_end["ext"], 5000)
+        self.assertGreater(e_end["tip"], 5000)
+        self.assertEqual(len(s_end["ties"]), len(e_end["ties"]))
+        self.assertGreater(len(s_end["ties"]), 4)
+        self.assertTrue(e_end["ud"])
+        self.assertEqual(len([k for k in kbrk_placements(m)]), 4)
+        self.assertEqual(_qty(r, "NDBK03H"), 4)
+        # 範囲の端の妻側のシート
+        ends = [p for p in sheet_placements(m, False, r.stair_plan) if p.params.get("panelList", "").endswith(",1")
+                and abs(p.params["x1"] - p.params["x0"] - 0.304) < 1e-6]
+        self.assertEqual(len(ends), 2)
+
+    def test_corner_where_only_one_face_changes(self):
+        m = solve_all(_spec(610, 914, 3, faces=["南面[25000-40000]"])).model
+        south, east = m.plan.edges[0], m.plan.edges[1]
+        self.assertIsNone(start_corner(m, south))
+        self.assertEqual(start_corner(m, east), "prev")
+        pcs = line_pieces(m, east)
+        self.assertEqual(len(pcs), 2)
+        self.assertAlmostEqual(pcs[1]["cornerSW"], 0.914)
+        self.assertNotIn("rowW", pcs[1])
+        b = bracket_specs(m, east)
+        self.assertEqual([(x["x"], x["y"], x["dir"]) for x in b], [(-610.0, -610.0, "prev")])
+        m2 = solve_all(_spec(914, 610, 3, faces=["東面[0-3658]"])).model
+        self.assertEqual(start_corner(m2, m2.plan.edges[1]), "self")
+
+    def test_palette_range_merge(self):
+        self.assertEqual(merged_faces(["南面[0-3658]"], ["東面"], True), ["南面[0-3658]", "東面"])
+        self.assertEqual(merged_faces(["南面[0-3658]", "東面"], ["南面[1829-5487]"], False), ["東面"])
+        wc = updated_width_change(None, "拡幅 610→914", 3, ["南面[0-3658]"], "add")
+        self.assertEqual(wc, {"label": "拡幅 610→914", "from_mm": 610, "to_mm": 914, "level": 3, "faces": ["南面[0-3658]"]})
+        self.assertIsNone(updated_width_change(wc, "拡幅 610→914", 3, ["南面[0-3658]"], "remove"))
+        self.assertIsNone(updated_width_change(wc, "拡幅 610→914", 3, [], "clear"))
+        self.assertEqual(labels_for(914), ["拡幅 914→1219", "縮幅 914→610"])
 
 
 if __name__ == "__main__":

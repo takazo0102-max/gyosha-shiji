@@ -13,28 +13,32 @@
 ! 原点＝ブラケットを付ける支柱の芯、faceAng で腕の向き、zArm で腕の高さ。緊結部（腕と方杖の下）・背の縦材・腕・方杖・先端の管とホゾ φ36.4、拡幅時は補強単管とスーパークランプ S2C。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   faceAng   角度      腕の向き（度。配置時に Python が入れる。+X＝腕の先）                                            既定 0
-!   zArm      長さ      腕の高さ（GL から。腕を付けるコマ＝床の布材の高さ）                                             既定 7.8
-!   brW       長さ      出（支柱の芯から先端の管の外面まで。NDBK03H 0.305・NDBK06H 0.610）                              既定 0.305
-!   brDp      長さ      方杖の下の緊結部の下がり（NDBK03H 0.45＝1コマ・NDBK06H 0.90＝2コマ）                            既定 0.45
-!   tipUp     長さ      先端の管の腕の上への出                                                                          既定 0.04
-!   tipDn     長さ      先端の管の腕の下への出                                                                          既定 0.18
-!   hozoL     長さ      先端のホゾ φ36.4 の長さ（ND支柱専用）                                                           既定 0.12
-!   reinf     長さ      補強単管の下がり（拡幅時。先端から1層下の支柱へ。0＝なし）                                      既定 0.0
-!   extUp     長さ      元の支柱に継ぎ足す支柱の長さ（拡幅・縮幅。NDP09N 0.9。0＝なし）                                 既定 0.0
-!   tieZ      長さ      つなぎ材 NDT03 の高さ（腕から上へ。継ぎ足した支柱と先端の支柱を繋ぐ。0＝なし）                  既定 0.0
-!   cnrMode   整数      出隅の角の支柱の納まり 0＝ブラケット 1＝拡幅の角の地上からの支柱 2＝縮幅の角を受ける対角の単管  既定 0
-!   zBot      長さ      角の支柱の足元（GL から。cnrMode 1）                                                            既定 0.0
-!   tieList   文字列    角の支柱から元の角の支柱へ繋ぐ単管の高さ m（GL から。カンマ区切り。cnrMode 1）                  既定 ""
-!   cnrL      長さ      cnrMode 1: 元の角の支柱までの単管の長さ／2: 対角の単管の長さ（+X の向き）                       既定 0.0
-!   cnrAt     長さ      cnrMode 2: 角の支柱を立てる位置（対角の単管の始点から）                                         既定 0.0
-!   postR     長さ      支柱の半径（ND φ42.7）                                                                          既定 0.02135
-!   brName    文字列    品番（例: NDBK03H 拡幅ブラケット305）                                                           既定 "NDBK03H"
-!   showName  ブール    平面に品番を書く                                                                                既定 1
-!   lineMode  ブール    3Dを線で（軽い）                                                                                既定 0
-!   matBk     表面材    表面材（0＝既定の亜鉛めっき）                                                                   既定 0
-!   texSiz    実数      文字高mm                                                                                        既定 1.8
-!   penEquip  PenColor  ペン: 付帯設備（ブラケット）                                                                    既定 1
+!   faceAng   角度      腕の向き（度。配置時に Python が入れる。+X＝腕の先）                                                       既定 0
+!   zArm      長さ      腕の高さ（GL から。腕を付けるコマ＝床の布材の高さ）                                                        既定 7.8
+!   brW       長さ      出（支柱の芯から先端の管の外面まで。NDBK03H 0.305・NDBK06H 0.610）                                         既定 0.305
+!   brDp      長さ      方杖の下の緊結部の下がり（NDBK03H 0.45＝1コマ・NDBK06H 0.90＝2コマ）                                       既定 0.45
+!   tipUp     長さ      先端の管の腕の上への出                                                                                     既定 0.04
+!   tipDn     長さ      先端の管の腕の下への出                                                                                     既定 0.18
+!   hozoL     長さ      先端のホゾ φ36.4 の長さ（ND支柱専用）                                                                      既定 0.12
+!   reinf     長さ      補強単管の下がり（拡幅時。先端から1層下の支柱へ。0＝なし）                                                 既定 0.0
+!   extUp     長さ      元の支柱に継ぎ足す支柱の長さ（拡幅・縮幅。NDP09N 0.9。0＝なし）                                            既定 0.0
+!   tieZ      長さ      つなぎ材 NDT03 の高さ（腕から上へ。継ぎ足した支柱と先端の支柱を繋ぐ。0＝なし）                             既定 0.0
+!   railList  文字列    つなぎ材 NDT03 の高さ m（腕から上。カンマ区切り。範囲の端を各層の手すり・中桟で塞ぐ。空なら tieZ の1本）   既定 ""
+!   tipH      長さ      先端のホゾに立てる支柱の長さ（範囲の終わりの端。0＝足場ラインが描く）                                      既定 0.0
+!   udW       長さ      先端まで延ばす腕木の、ブラケットを付けた支柱から躯体側の支柱までの長さ（拡幅の範囲の終わりの端。0＝なし）  既定 0.0
+!   udList    文字列    先端まで延ばす腕木の高さ m（腕から上。カンマ区切り）                                                       既定 ""
+!   cnrMode   整数      出隅の角の支柱の納まり 0＝ブラケット 1＝拡幅の角の地上からの支柱 2＝縮幅の角を受ける対角の単管             既定 0
+!   zBot      長さ      角の支柱の足元（GL から。cnrMode 1）                                                                       既定 0.0
+!   tieList   文字列    角の支柱から元の角の支柱へ繋ぐ単管の高さ m（GL から。カンマ区切り。cnrMode 1）                             既定 ""
+!   cnrL      長さ      cnrMode 1: 元の角の支柱までの単管の長さ／2: 対角の単管の長さ（+X の向き）                                  既定 0.0
+!   cnrAt     長さ      cnrMode 2: 角の支柱を立てる位置（対角の単管の始点から）                                                    既定 0.0
+!   postR     長さ      支柱の半径（ND φ42.7）                                                                                     既定 0.02135
+!   brName    文字列    品番（例: NDBK03H 拡幅ブラケット305）                                                                      既定 "NDBK03H"
+!   showName  ブール    平面に品番を書く                                                                                           既定 1
+!   lineMode  ブール    3Dを線で（軽い）                                                                                           既定 0
+!   matBk     表面材    表面材（0＝既定の亜鉛めっき）                                                                              既定 0
+!   texSiz    実数      文字高mm                                                                                                   既定 1.8
+!   penEquip  PenColor  ペン: 付帯設備（ブラケット）                                                                               既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -107,6 +111,7 @@ endif
 ! ============================================================
 pen 1
 resol 12
+dim tzs[]
 rotz faceAng
 addz zArm
 if matBk > 0 then
@@ -115,6 +120,8 @@ else
 	define material "ashiba_kbrk_zinc" 2, 0.74, 0.76, 0.78
 	material "ashiba_kbrk_zinc"
 endif
+! 補強単管・角の単管のクランプの色（同じ名前の define material を2か所に書くと 3D 全体が描けない。2026-10-25 実機）
+define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 rP = postR
 rA = 0.0427 / 2
 xT = brW - rA
@@ -136,7 +143,6 @@ if cnrMode = 1 then
 		cylind -0.1 - (zb + 0.2), rP
 		del 1
 	endif
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	rest = tieList
 	while strlen(rest) > 0 do
 		pc = strstr(rest, ",")
@@ -185,7 +191,6 @@ if cnrMode = 2 then
 	roty 90
 	cylind cnrL, 0.0243
 	del 2
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	material "ashiba_kbrk_gold"
 	add -0.03, -0.03, zt - 0.03
 	block 0.06, 0.06, 0.06
@@ -203,7 +208,8 @@ if lineMode then
 	lin_ rP, 0, -brDp, xT - 0.06, 0, -0.03
 	lin_ xT, 0, -tipDn, xT, 0, tipUp + hozoL
 	if extUp > 0.01 then lin_ 0, 0, 0, 0, 0, extUp
-	if tieZ > 0.01 then lin_ 0, 0, tieZ, xT, 0, tieZ
+	if tipH > 0.01 then lin_ xT, 0, 0, xT, 0, tipH
+	if tieZ > 0.01 and strlen(railList) = 0 then lin_ 0, 0, tieZ, xT, 0, tieZ
 	end
 endif
 ! 緊結部（腕の高さと方杖の下の2か所）: 支柱の外面からコマ（円盤）を上下に挟む受けと、縦に貫くクサビ
@@ -256,7 +262,6 @@ if reinf > 0.1 then
 	roty 90 - atn(bz / bx)
 	cylind sqr(bx ^ 2 + bz ^ 2), 0.0243
 	del 2
-	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
 	material "ashiba_kbrk_gold"
 	add xT - 0.035, ry - 0.035, -0.05 - 0.035
 	block 0.07, 0.07, 0.07
@@ -280,15 +285,64 @@ if extUp > 0.01 then
 	cylind 0.12, 0.0364 / 2
 	del 1
 endif
-if tieZ > 0.01 then
-	add rP, 0, tieZ
+! 先端のホゾに立てる支柱（範囲の終わりの端。後の区間の足場ラインはこの位置の支柱を持たない）
+if tipH > 0.01 then
+	add xT, 0, tipUp
+	cylind tipH - tipUp, rP
+	del 1
+endif
+! つなぎ材（railList の高さごと。空なら tieZ の1本）。範囲の端は各層の手すり・中桟の高さで塞ぐ
+nTz = 0
+rest = railList
+while strlen(rest) > 0 and nTz < 60 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", zv)
+	if k > 0 then
+		nTz = nTz + 1
+		tzs[nTz] = zv
+	endif
+endwhile
+if nTz = 0 and tieZ > 0.01 then
+	nTz = 1
+	tzs[1] = tieZ
+endif
+for it = 1 to nTz
+	add rP, 0, tzs[it]
 	roty 90
 	cylind xT - rA - rP, rA
 	del 2
 	for kk = 0 to 1
-		add rP + kk * (xT - rA - 2 * rP - 0.05), -0.02, tieZ - 0.035
+		add rP + kk * (xT - rA - 2 * rP - 0.05), -0.02, tzs[it] - 0.035
 		block 0.05, 0.04, 0.07
 		del 1
 	next kk
+next it
+! 先端まで延ばす腕木（拡幅の範囲の終わりの端。躯体側の支柱 −udW から先端の支柱まで、新しい幅の床を受ける）
+if udW > 0.01 then
+	rest = udList
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", zv)
+		if k > 0 then
+			add -udW + rP, 0.03, zv
+			roty 90
+			cylind udW + xT - 2 * rP, rA
+			del 2
+		endif
+	endwhile
 endif
 

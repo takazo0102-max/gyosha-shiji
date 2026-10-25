@@ -50,9 +50,6 @@ FIELDS: tuple[Field, ...] = (
     Field("endGuard", "str", ("end_guard",), "布材"),
     # 跳ね出しブラケットの形 方杖／吊り（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？ コマンドでどっちか選べるようにして）
     Field("haneType", "str", ("hane_bracket_type",), "方杖"),
-    # 途中の作業床から幅を変える「拡幅 610→914」と、幅を変える床の段（利用者の指定 2026-10-25: 両方作って 610→914と914→1219）
-    Field("widthChg", "str", ("width_change", "label"), "", zero_is_unset=True),
-    Field("widthChgLv", "int", ("width_change", "level"), 0, zero_is_unset=True),
     # 壁つなぎの取り方 仕上げ／鉄骨（利用者の指定 2026-10-24: 鉄骨からとる時と仕上げから取るときの両方が必要）
     Field("tieSource", "str", ("tie_source",), "仕上げ"),
     # 幅木・ネットブラケットの付け外し（利用者の指定 2026-10-24）
@@ -197,13 +194,6 @@ def params_from_spec(spec: dict) -> dict:
             out[f.gdl] = format_openings(spec.get("openings") or [])
             continue
         v = _get(spec, f.path)
-        if f.gdl == "widthChg" and v is None:
-            from .width_change import parse_spec
-
-            wv = parse_spec(spec.get("width_change"))
-            if wv and wv.get("to_mm"):
-                a, b = int(wv.get("from_mm") or spec.get("scaffold_width_mm") or 0), int(wv["to_mm"])
-                v = f"{'拡幅' if b > a else '縮幅'} {a}→{b}" if a else None
         if v is None:
             v = f.default
         elif f.kind == "len":
