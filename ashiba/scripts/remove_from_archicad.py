@@ -37,6 +37,9 @@ from run_from_archicad import (  # noqa: E402
 )
 
 
+
+REMOVE_MARGIN_MM = 3500.0   # 外形の外に置いた足場部品を拾う余裕（張り出し 1〜2m＋離れ＋建地列間隔）
+
 def _remove_section_elevations(client, all_buildings: bool) -> None:
     """断面図方式の立面（断面要素・レイアウト）も消す。控え（elevation_sections.json）の GUID で消す."""
     import json
@@ -81,8 +84,10 @@ def main() -> int:
         from ashiba.tapir_adapter import slab_outline_mm_by_guid
         guid = os.environ.get("ASHIBA_SLAB", "").strip()
         outline = slab_outline_mm_by_guid(client, guid) if guid else get_selected_outline_mm(client)
+        # 張り出した上の階の上段（跳ね出し）の足場ラインは外形の外（張り出し＋離れ＋建地列間隔）に原点がある
         targets = client.objects_for_slab(
             outline, names, elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
+            margin_mm=REMOVE_MARGIN_MM,
         )
     if targets:
         client.delete_elements(targets)

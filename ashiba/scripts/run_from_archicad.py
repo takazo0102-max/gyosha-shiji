@@ -695,6 +695,22 @@ def make_drawings(client, spec: dict, r, groups, lines: list, attach: list, line
             "detail_sheet": detail_sheet, "pdf": pdf, "elevation_mode": elevation_mode}
 
 
+def stale_margin_mm(main_model, other_models) -> float:
+    """前回の配置を拾う範囲の、本体の外形からの余裕 mm. 張り出した上の階の上段（跳ね出し）の足場ラインは原点が
+    本体の外形の外（張り出し＋離れ）にあり、外形＋1m では拾えず置き直すたびに重なって残っていた（実機 2026-10-25:
+    跳ね出しの上段の足場ラインが3本重なっていた）. ほかの組の外形がはみ出す分と、その離れ・建地列間隔を足す."""
+    vs = main_model.plan.outline.vertices
+    x0, x1 = min(v[0] for v in vs), max(v[0] for v in vs)
+    y0, y1 = min(v[1] for v in vs), max(v[1] for v in vs)
+    extra = 0.0
+    for m in other_models:
+        out = max([0.0] + [max(x0 - v[0], v[0] - x1, y0 - v[1], v[1] - y1) for v in m.plan.outline.vertices])
+        if out > 1.0:
+            so = max((float(e.standoff) for e in m.plan.edges), default=0.0)
+            extra = max(extra, out + so + float(m.post_row_spacing_mm))
+    return 1000.0 + extra
+
+
 def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
     """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
 
@@ -876,6 +892,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         e for e in client.objects_for_slab(
             r.model.plan.outline.vertices, (LINE_OBJECT, DETAIL_OBJECT) + ATTACHMENT_OBJECTS,
             elevation_offset_mm=ELEVATION_OFFSET_MM, detail_offset_mm=DETAIL_OFFSET_MM,
+            margin_mm=stale_margin_mm(r.model, [rg.model for _lb, rg in groups[1:]]),
         ) if e["elementId"]["guid"] not in placed_now
     ]
     if stale:

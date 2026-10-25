@@ -89,7 +89,9 @@ def main() -> int:
     _lb, r = groups[0]
     line_part, detail_part = R.ensure_parts(c)
     outline = r.model.plan.outline.vertices
-    lines = c.objects_for_slab(outline, (R.LINE_OBJECT,))
+    # 張り出した上の階の上段の足場ラインは外形の外に原点がある（R.stale_margin_mm）
+    lines = c.objects_for_slab(outline, (R.LINE_OBJECT,),
+                               margin_mm=R.stale_margin_mm(r.model, [g.model for _l, g in groups[1:]]))
     # 詳細図の部品は作り直す（前の分は消す）
     old_details = c.objects_for_slab(outline, (R.DETAIL_OBJECT,), elevation_offset_mm=R.ELEVATION_OFFSET_MM,
                                      detail_offset_mm=R.DETAIL_OFFSET_MM)
