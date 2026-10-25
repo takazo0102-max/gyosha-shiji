@@ -484,7 +484,7 @@ def line_params(
         "sillT": SILL_T_MM / 1000.0 if sill_on(model) else 0.0,
         "sillW": SILL_W_MM / 1000.0,
         "sillLens": ",".join(str(v) for v in SILL_LENGTHS_MM),
-        "jkBlue": 1 if str(model.master.series_id).startswith(("nikken_nd", "nikken_strong")) else 0,
+        "jkBlue": 1 if _default_jack_no(model).startswith("ND752P") else 0,
         # 張り出した上の階の上段: 跳ね出しブラケット（床スラブの縁から持ち出す受け）の方杖の下がり（m。利用者の指定 2026-10-24）
         "haneD": HANE_DEPTH_M if getattr(model, "hane_bracket", False) else 0.0,
         "cornerG": 1 if (model.master.is_frame
@@ -551,6 +551,13 @@ def line_params(
 SILL_T_MM = 35.0
 SILL_W_MM = 240.0
 SILL_LENGTHS_MM = (4000, 3000, 2000, 1500, 1000)
+
+
+def _default_jack_no(model: ScaffoldModel) -> str:
+    """系列の標準のジャッキ（繰出し上限の短い方。アンダーベースは除く）の品番."""
+    js = [p for p in model.master.by_category("ジャッキ") if "アンダーベース" not in p.note]
+    js.sort(key=lambda p: (p.max_extension_mm() is None, p.max_extension_mm() or 0))
+    return js[0].model_no if js else ""
 
 
 def sill_on(model: ScaffoldModel) -> bool:

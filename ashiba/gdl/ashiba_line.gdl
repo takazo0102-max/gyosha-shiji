@@ -3124,6 +3124,8 @@ define material "ashiba_fence_mesh" 0, 0.62, 0.66, 0.68, 0.6, 0.6, 0.1, 0.8, 5, 
 define material "ashiba_clamp_gold" 2, 0.86, 0.68, 0.22
 ! ジャッキベースの識別色（日建 ND752P はベース板の底面が青）
 define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
+! ジャッキベース（支柱の灰と見分ける青みの鋼色。利用者の指定 2026-10-25: ジャッキベースは少し色変えて）
+define material "ashiba_jack_steel" 2, 0.36, 0.42, 0.52
 ! 敷板（杉の足場板）
 define material "ashiba_sill_wood" 2, 0.72, 0.55, 0.36
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
@@ -3175,6 +3177,7 @@ if isDwg = 1 and d3 <> 3 and d3 <> 4 then isLite = 1
 ! 円柱の分割数。既定36だと30m面1つの3D生成に約40秒（支柱・布材・コマで数千本）。
 ! 精細は12（見た目は保ったまま面数が1/3）、軽量は6。コマ・ナットは6
 rN = 12
+jkSill = 0
 if isLite and isDwg = 0 then rN = 6
 resol rN
 
@@ -3592,7 +3595,9 @@ if cornerS = 1 then
 	yq = -rowW
 	if iq = 2 then yq = 0
 	add -cSW, yq, gv
+	jkSill = 1
 	gosub 820
+	jkSill = 0
 	addz jo
 	if nGl >= 2 then
 		if not(explodeMask > 0 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
@@ -5176,7 +5181,9 @@ if stOut = 1 then
 			jo = jackOut
 			sv = 0
 			add xp, yo, gv
+			jkSill = 1
 			gosub 820
+			jkSill = 0
 			addz jo
 			for j = 1 to nPost
 				cylind posts[j], r_sic
@@ -5519,6 +5526,14 @@ endif
 jb0 = jb0 + sv
 jsL = jo - jb0
 if jsL < 0.02 then jsL = 0.02
+! 支柱の列の通しの敷板が無い脚（出隅の外側・外付け階段の3列目）は、この脚だけ 1m の敷板を敷く
+if jkSill = 1 and sillT > 0.001 then
+	material "ashiba_sill_wood"
+	add -0.50, -sillW / 2, 0
+	block 1.0, sillW, sillT
+	del 1
+endif
+material "ashiba_jack_steel"
 if jkBlue = 1 then material "ashiba_jack_blue"
 if isLite = 1 then
 	add -0.07, -0.07, jb0
@@ -5535,8 +5550,7 @@ else
 		-0.0355, 0.0425, 15, -0.0375, 0.0475, 15, -0.0425, 0.0495, 15, -0.0475, 0.0475, 15, -0.0495, 0.0425, 15, -0.0475, 0.0375, 15, -0.0425, 0.0355, 15, -0.0375, 0.0375, 15, -0.0355, 0.0425, -1
 	del 1
 endif
-if matScaf > 0 then material matScaf
-if jkBlue = 1 and matScaf = 0 then material "ashiba_clamp_zinc"
+material "ashiba_jack_steel"
 ! 中央の受け（ねじ棒の根元）
 add 0, 0, jb0 + 0.006
 cylind 0.032, 0.024
@@ -5575,6 +5589,7 @@ if isLite = 0 then
 	next hw
 endif
 del 1
+if matScaf > 0 then material matScaf
 return
 
 812:	! ---- 単管のブラケット: C付伸縮ブラケット フリー（日建リース TWL500F・TWL750F・TWL1000F、カタログ p108。

@@ -60,7 +60,9 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertEqual(sorted(low.plan.face_names()), ["東面", "西面"])
         for e in low.plan.edges:
             self.assertLessEqual(max(e.start_post[1], e.end_post[1]), y_out + 2)
-        self.assertLess(low.elevation.total_height, main.elevation.total_height)
+        # 下段は本体と同じ立面を途中の屋根で切る（面ごとの立面が低い）
+        for e in low.plan.edges:
+            self.assertLess(low.elevation_of(e.edge_index).total_height, main.elevation.total_height)
         # 上段の両端は本体の支柱に乗る: 支柱・ジャッキベースを描かない
         p = line_params(tier, te)
         self.assertEqual((p["skipPS"], p["skipPE"]), (1, 1))
@@ -71,9 +73,22 @@ class TestSetbackTiers(unittest.TestCase):
         # 上段の端の支柱は数量でも数えない
         import re
 
-        jl = next(l for l in g[2][1].quantity.lines if l.part.model_no == "ND752P")
+        jl = next(l for l in g[2][1].quantity.lines if l.part.model_no == "A752")
         n_main = int(re.search(r"ジャッキ (\d+)本", jl.note).group(1)) if "内訳" in jl.note else jl.qty
         self.assertEqual(n_main, 2 * tier.plan.total_posts - 4)       # 両端の内外 2本ずつを引く
+
+    def test_floors_line_up_and_spans_are_mostly_1829(self):
+        # 利用者の指摘 2026-10-25: 610使いすぎ・床の高さは揃えるようにして
+        g = solve_groups(SPEC)
+        main, low, tier = (r.model for _lb, r in g)
+        main_lv = {round(h + main.base_height_mm) for h in main.elevation.level_heights}
+        for m in (low, tier):
+            for h in m.elevation.level_heights:
+                self.assertIn(round(h + m.base_height_mm), main_lv)
+        for m in (main, low):
+            for e in m.plan.edges:
+                # 端数のスパンは、上段の端の建地列の間隔（1本）と調整の2本まで
+                self.assertLessEqual(sum(1 for v in e.spans if v != 1829), 3, (m.face_name(e.edge_index), e.spans))
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった

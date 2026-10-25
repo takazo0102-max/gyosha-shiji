@@ -65,7 +65,7 @@ class TestOutsideQuantities(unittest.TestCase):
         n_t = len(b.stair_plan.towers)
         n_lv = b.model.elevation.n_levels
         pos = sum(t.span_count + 1 for t in b.stair_plan.towers)   # 3列目（区間は 上り口＋階段2＋降り口）
-        self.assertEqual(qb["ND752P"] - qa["ND752P"], pos)                 # 3列目の脚
+        self.assertEqual(qb["A752"] - qa["A752"], pos)                 # 3列目の脚
         self.assertEqual(qb["NDP27N"] - qa["NDP27N"], pos * b.model.elevation.posts.count(2700))
         # 床: 本体は切らない（中の階段の開口ぶん）＋上り口・降り口（2スパン×各層）＋階段のスパンの踊り場（各層1スパン）
         def decks500(r):

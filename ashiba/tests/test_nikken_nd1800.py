@@ -48,7 +48,7 @@ class TestNikkenNd1800Master(unittest.TestCase):
         self.assertEqual(by_no["NDT18"].weight_kg, 5.03)         # p005
         self.assertEqual(by_no["NDN6"].weight_kg, 15.40)         # p007
         self.assertEqual(by_no["NDH36"].weight_kg, 24.50)        # p011
-        self.assertEqual(by_no["ND752P"].weight_kg, 2.82)        # p004
+        self.assertEqual(by_no["A752"].weight_kg, 3.96)        # p078（ジャッキベース。利用者の指定 2026-10-25）
         self.assertEqual(by_no["KS700"].weight_kg, 1.61)         # p100
         self.assertEqual(by_no["NDBS15"].weight_kg, 20.0)        # p018
         # アルミ軽量アサガオ直線部1スパン（受金具ALA7Nを除く）: 10.80×2+4.60+5.00+1.70+2.00×2+5.97×6
@@ -93,9 +93,9 @@ class TestNikkenNd1800Plan(unittest.TestCase):
     def test_jack_and_bottom_collar_follow_the_feet(self):
         r = solve_all(load_spec(ROOT / "examples" / "nikken_nd1800_rect.json"))
         q = r.quantity
-        self.assertEqual(qty_of_model(q, "ND752P"), qty_of_model(q, "ECOPS"))
-        self.assertEqual(qty_of_model(q, "NDBCN"), qty_of_model(q, "ND752P"))
-        self.assertGreater(qty_of_model(q, "ND752P"), 0)
+        self.assertEqual(qty_of_model(q, "A752"), qty_of_model(q, "ECOPS"))
+        self.assertEqual(qty_of_model(q, "NDBCN"), qty_of_model(q, "A752"))
+        self.assertGreater(qty_of_model(q, "A752"), 0)
 
     def test_asagao_set_counts_two_hangers_per_post_and_no_hozue(self):
         import json

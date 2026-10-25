@@ -238,7 +238,7 @@ def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
     return p[0] + d[0] * t, p[1] + d[1] * t
 
 
-def _best_spans(coins: list[int], length: float, slack: float = 400.0) -> list[int]:
+def _best_spans(coins: list[int], length: float, slack: float = 150.0) -> list[int]:
     """長さにいちばん近い（以下を先に）スパンの並び（本数の少ないもの）. 長さが 0 以下なら []."""
     from .plan_solver import achievable_sums
 
@@ -247,9 +247,11 @@ def _best_spans(coins: list[int], length: float, slack: float = 400.0) -> list[i
     table = achievable_sums(coins, max(min(coins), int(length - slack)), int(length + slack))
     if not table:
         return []
-    # 30 以内に入るものの中で本数の少ない（長いスパンの）もの。入らなければいちばん近いもの
-    best = min(table, key=lambda s: (abs(s - length) > 30.0, len(table[s]) if abs(s - length) <= 30.0 else 0,
-                                     abs(s - length)))
+    # 1829（いちばん長いスパン）を基本に、端数のスパンの少ないもの → 本数の少ないもの → 近いもの（実機 2026-10-25:
+    # 近さだけで選んで 1829×3 より 3mm 近い 610×9 を選んでいた。上段の離れが ±slack で合わせる）
+    main = max(coins)
+    near = [s for s in table if abs(s - length) <= slack]
+    best = min(near or table, key=lambda s: (sum(1 for v in table[s] if v != main), len(table[s]), abs(s - length)))
     return sorted(table[best], reverse=True)
 
 
@@ -343,16 +345,19 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             continue
         L0 = max(h[1] for ei, h in heads.items() if ei in group)
         best_T = None
+        main_span = max(coins)
         for dT in sorted(range(-300, 301), key=abs):
             T = int(round(L0)) + dT
             rests = {ei: _exact(coins, T - int(round(sum(heads[ei][0]))) - int(round(w))) for ei in group}
             if all(v is not None for v in rests.values()):
-                best_T = (T, rests)
-                break
+                # 1829 以外のスパンの数がいちばん少ない合計（同じなら元の長さに近い方）
+                key = (sum(1 for v in rests.values() for x in v if x != main_span), abs(dT))
+                if best_T is None or key < best_T[0]:
+                    best_T = (key, T, rests)
         if best_T is None:
             notes.append("上段の端の支柱を本体の支柱に揃える割付が見つかりません（面の長さと布材の規格）。揃えずに置きます")
             continue
-        T, rests = best_T
+        _key, T, rests = best_T
         for ei in group:
             first, _L, sgn, t = heads[ei]
             a2 = float(sum(first))
@@ -372,11 +377,17 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     main = {**spec, "span_overrides": list(spec.get("span_overrides") or [])
             + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
             "_low_ranges": low, "_open_above": open_above,
-            "_low_spec": {"eaves_height_mm": int(round(low_top - base)), "height_from_slabs": False,
-                          "roof_bridge": False, "_joined_ends": low_join}}
+            # 下段は本体と同じ立面を途中の屋根で切る（床の高さが本体とそろう。別に解くとジャッキ・段がずれた）
+            "_low_spec": {"height_from_slabs": False, "roof_bridge": False, "_joined_ends": low_join,
+                          "scaffold_height_mm": "__MAIN__",
+                          "face_eaves_mm": {f: int(round(low_top - base)) for f in low}}}
     # 揃えたスパンで解き直した本体の支柱の位置に、上段の線を合わせる
-    r1 = solve({k: v for k, v in main.items() if k not in ("_low_ranges", "_low_spec")})
+    r1 = solve({k: v for k, v in main.items() if k not in ("_low_ranges", "_low_spec", "_open_above")})
     m1 = r1.model
+    # 下段は本体と同じ足場高さで解いて途中の屋根で切る（面ごとの軒高を入れると全体の軒高まで低くなって段がずれた）
+    main["_low_spec"]["scaffold_height_mm"] = int(m1.elevation.total_height)
+    main["_low_spec"]["eaves_height_mm"] = int(round(max((m1.eaves_by_face or {}).values(),
+                                                         default=float(spec.get("eaves_height_mm") or 0))))
     e1 = {e.edge_index: e for e in m1.plan.edges}
     out_tiers = []
     done = {id(p["sub"]) for p in plan_t}
@@ -417,7 +428,9 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             continue
         for ei, _e in skip:
             fixed[int(ei)] = round(so_t, 1)
-        t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip}
+        # 床の高さを本体の床（GL から）にそろえる（利用者の指定 2026-10-25: 床の高さは揃えるようにして）
+        lv_abs = [float(h) + float(m1.base_height_mm or 0) for h in m1.elevation.level_heights]
+        t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip, "_align_levels_mm": lv_abs}
         out_tiers.append((lb, t2))
         notes.append(f"{lb}: 上段の端の支柱は本体の支柱に乗せる（ジャッキベースなし）。上段の離れ {so_t:.0f}、"
                      f"セットバックの先（{'・'.join(low)}）の本体の足場は途中の屋根（GL+{low_top:.0f}）で止める")

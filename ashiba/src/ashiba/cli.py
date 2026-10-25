@@ -838,6 +838,13 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         if spec.get("scaffold_height_mm") is not None:
             raise InputError(f"scaffold_height_mm: {e}")
         raise
+    if spec.get("_align_levels_mm"):
+        # 上段の床の高さを本体の床の高さ（GL からの段）にそろえる（ジャッキの繰出しで足場ごと上下させる。利用者の指定
+        # 2026-10-25: 床の高さは揃えるようにして）
+        elevation, align_note = _align_elevation(elevation, spec["_align_levels_mm"],
+                                                 float(spec.get("base_height_mm", 0) or 0), master)
+        if align_note:
+            spec.setdefault("_align_notes", []).append(align_note)
     if height_note:
         # 指定高さで最上層作業床が軒より下に来るなら、その差を書く（足場高さだけ見ると
         # 軒より高いのに、作業床は軒に届いていない、という見落としを防ぐ）
@@ -972,6 +979,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}
     model.open_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_above") or [])}
+    model.plan.warnings.extend(spec.get("_align_notes") or [])
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
     # 仮囲いの高さ（外部シートの下端。既定 3000＝仮囲いの鋼板 H3m。0 なら地面から）
     model.hoarding_height_mm = max(0.0, float(spec.get("hoarding_height_mm", 3000) or 0))
@@ -1295,6 +1303,61 @@ def ground_scaffold_note(spec: dict) -> str:
     n = int(g.get("levels", 1) if isinstance(g, dict) else 1)
     return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。"
             + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す")
+
+
+def _align_elevation(elevation, levels_abs: list, base: float, master):
+    """作業床の高さ（base から）を本体の床の高さ（GL から）にそろえた立面 → (立面, 案内).
+
+    足場の高さ（要求高さ）を −450〜+900 の範囲で 5mm ずつ変えて立面を解き直し、どの床も本体の床の高さに重なる
+    もの（要求高さの変化のいちばん小さいもの）を採る。支柱の積み方・ジャッキの繰出しは立面の決めのまま。
+    """
+    from .elevation_solver import solve_elevation
+
+    if not elevation.level_heights or not levels_abs:
+        return elevation, ""
+    main = sorted(float(v) for v in levels_abs)
+
+    def aligned(e) -> bool:
+        return bool(e.level_heights) and all(any(abs(base + h - m) <= 1.0 for m in main) for h in e.level_heights
+                                             if base + h <= main[-1] + 1.0)
+
+    if aligned(elevation):
+        return elevation, ""
+    req0 = int(elevation.required_height)
+    for d in sorted(range(-450, 901, 5), key=abs):
+        try:
+            e = solve_elevation(req0 + d, master=master)
+        except ValueError:
+            continue
+        if aligned(e) and e.level_heights and base + max(e.level_heights) >= base + max(elevation.level_heights) - 900:
+            return e, (f"上段の床の高さを本体の床にそろえました（足場高さ {req0}→{req0 + d}mm、ジャッキの繰出し "
+                       f"{e.jack_extension}mm）")
+    # 支柱の積み方はそのまま、ジャッキの繰出しを変えてコマの位置を本体の床にそろえ、本体と同じ高さの段を床にする
+    import dataclasses as _dc
+
+    from .elevation_solver import JACK_MIN_EXTENSION
+
+    koma = float(master.koma_pitch or 0)
+    jmax = max((p.max_extension_mm() or 0 for p in master.by_category("ジャッキ") if p.max_extension_mm()), default=450)
+    if koma > 0:
+        h0 = base + float(elevation.level_heights[0])
+        d0 = (main[0] - h0) % koma            # コマの位置をそろえるずらし（0〜コマピッチ）
+        for dd in sorted({d0, d0 - koma, d0 + koma}, key=abs):
+            j = elevation.jack_extension + dd
+            if not (JACK_MIN_EXTENSION <= j <= jmax):
+                continue
+            fl = elevation.first_ledger_height + dd
+            top = max(elevation.level_heights) + dd
+            lv = [m - base for m in main if m - base >= fl + koma - 1.0 and m - base <= top + 1.0]
+            if not lv:
+                continue
+            di = int(round(dd))
+            e = _dc.replace(elevation, jack_extension=int(round(j)), first_ledger_height=int(round(fl)),
+                            level_heights=[int(round(v)) for v in lv], n_levels=len(lv),
+                            required_height=int(elevation.required_height + di))
+            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、"
+                       f"床 {len(lv)}段）")
+    return elevation, "上段の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
 
 
 def parse_tie_source(value) -> str:

@@ -57,7 +57,7 @@ class TestNikkenNd1900(unittest.TestCase):
         self.assertTrue(post.ok)
         q = r.quantity
         self.assertGreater(qty_of_model(q, "NHP38N"), 0)
-        self.assertEqual(qty_of_model(q, "ND752P"), qty_of_model(q, "NDBCN"))
+        self.assertEqual(qty_of_model(q, "A752"), qty_of_model(q, "NDBCN"))
         self.assertEqual(qty_of_model(q, "ALA7N"), 2 * r.model.plan.total_posts)   # 朝顔受けはコーナー支柱に無い
         self.assertEqual(qty_of_model(q, "ALAC-SETW"), 4)
 

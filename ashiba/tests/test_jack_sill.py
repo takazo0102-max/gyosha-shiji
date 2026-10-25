@@ -21,14 +21,17 @@ class TestJackDetail(unittest.TestCase):
         blk = blk[:blk.index("return\n")]
         self.assertIn("prism_ 41, 0.006", blk)              # ベース板 140角 t6・穴 4-φ14
         self.assertIn("cylind jsL + 0.12 - 0.006, 0.035 / 2", blk)   # ねじ棒 φ35、支柱の中へ 120
-        self.assertIn("ashiba_jack_blue", blk)              # ND752P の底面の青
+        self.assertIn('material "ashiba_jack_steel"', blk)   # 支柱と見分ける色（利用者の指定 2026-10-25）
+        self.assertIn("if jkSill = 1 and sillT > 0.001 then", blk)   # 通しの敷板の無い脚は 1m の敷板
         self.assertIn("for hw = 0 to 1", blk)               # ハンドルの羽根2枚
 
-    def test_blue_for_nd_only(self):
+    def test_standard_jack_is_a752_and_long_nd752sp(self):
+        # 利用者の指定 2026-10-25: ジャッキベースはジャッキベースかロングジャッキを基本に
         r = solve_all(SPEC)
-        self.assertEqual(line_params(r.model, r.model.plan.edges[0])["jkBlue"], 1)
-        r2 = solve_all({**SPEC, "series_id": "shinwa_A"})
-        self.assertEqual(line_params(r2.model, r2.model.plan.edges[0])["jkBlue"], 0)
+        self.assertEqual(line_params(r.model, r.model.plan.edges[0])["jkBlue"], 0)
+        nos = {l.part.model_no for l in r.quantity.lines if l.part.category == "ジャッキ"}
+        self.assertIn("A752", nos)
+        self.assertNotIn("ND752P", nos)
 
 
 class TestSillBoards(unittest.TestCase):

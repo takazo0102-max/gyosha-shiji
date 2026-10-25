@@ -38,25 +38,25 @@ class TestJackSelection(unittest.TestCase):
     def test_master_knows_the_extension_limits(self):
         m = load_master("nikken_nd1800")
         by = {p.model_no: p for p in m.by_category("ジャッキ")}
-        self.assertEqual(by["ND752P"].max_extension_mm(), 292)
+        self.assertEqual(by["A752"].max_extension_mm(), 282)
         self.assertEqual(by["ND752SP"].max_extension_mm(), 432)
         self.assertIsNone(by["ECOPS"].max_extension_mm())
 
     def test_flat_site_uses_the_standard_jack_only(self):
         m = build("nikken_nd1800")
         q = take_off(m)
-        self.assertEqual(qty(q, "ND752P"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
+        self.assertEqual(qty(q, "A752"), 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts())
         self.assertEqual(qty(q, "ND752SP"), 0)
 
     def test_terraced_site_switches_the_long_feet_to_the_long_jack(self):
         m = build("nikken_nd1800")
         t = terrace(m, 1200)
-        long_feet = sum(1 for f in t.feet if f.jack_mm > 292)
+        long_feet = sum(1 for f in t.feet if f.jack_mm > 282)      # A752 の繰出し最大 282（2026-10-25 から標準）
         self.assertGreater(long_feet, 0)
         q = take_off(m, terrain=t)
         self.assertEqual(qty(q, "ND752SP"), 2 * long_feet)
         feet_total = 2 * m.plan.total_posts + m.outer_corner_posts() + m.gap_corner_posts()
-        self.assertEqual(qty(q, "ND752P") + qty(q, "ND752SP"), feet_total)
+        self.assertEqual(qty(q, "A752") + qty(q, "ND752SP"), feet_total)
         # アンダーベースは脚の数のまま
         self.assertEqual(qty(q, "ECOPS"), feet_total)
         # 届かない脚は無い（432mmまでロングで受ける）ので敷板調整の手配は出ない
