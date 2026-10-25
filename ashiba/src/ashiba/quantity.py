@@ -800,6 +800,7 @@ def _take_off_one(
     _count_sheets(model, add, notes, stair_plan)
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
+    _count_widen_brackets(model, add, notes)
     _count_sill_boards(model, notes, terrain, stair_plan)
     _count_roof_bridges(model, notes)
     _count_intakes(model, notes)
@@ -1632,7 +1633,21 @@ def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
     if not getattr(model, "hane_bracket", False):
         return
     eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
-    n = sum(len(e.spans) + 1 for e in eps)
+    # 床スラブの外の端の支柱はブラケットを壁に留められず、床スラブの端の手前に足したブラケットから渡し梁で受ける
+    # （setback_tiers.hane_bridges の hane_slab_range。3D と同じ）
+    rng = getattr(model, "hane_slab_range", None) or {}
+    n = 0
+    n_beam = 0
+    for e in eps:
+        x0, x1 = rng.get(e.edge_index, (0.0, float(sum(e.spans))))
+        xs = [0.0]
+        for sp in e.spans:
+            xs.append(xs[-1] + sp)
+        n += sum(1 for x in xs if x0 - 1.0 <= x <= x1 + 1.0)
+        for xa, xe in ((x0, 0.0), (x1, xs[-1])):
+            if abs(xe - xa) > 10.0:
+                n += 1
+                n_beam += 2
     n_corner = sum(1 for e in eps if model.corner_kind_start(e.edge_index) == "出隅")
     tubes: dict[int, int] = {}
     for e in eps:
@@ -1641,13 +1656,82 @@ def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
     n_tube = sum(tubes.values())
     tube_txt = "・".join(f"{k}×{v}" for k, v in sorted(tubes.items(), reverse=True))
     notes.action(f"跳ね出しブラケット {n}基（溝形鋼［-100×50×5 の腕・床スラブの縁の取付プレート 200×250×12・吊り材 φ48.6×2・"
-                 f"上の階の壁の取付プレート 150×150×12×2（床の天端から {HANE_NOTE_DEPTH}mm 上）・受けプレート）、出隅の角の"
-                 f"渡し梁（溝形鋼）{2 * n_corner}本、あと施工アンカー M16 {8 * n}本、水平つなぎの単管 {n_tube}本（{tube_txt}）と直交クランプ"
+                 f"上の階の壁の取付プレート 150×150×12×2（床の天端から {HANE_NOTE_DEPTH}mm 上）・受けプレート）"
+                 + (f"、出隅の角の渡し梁（溝形鋼）{2 * n_corner}本" if n_corner else "")
+                 + (f"、床スラブの外の端の支柱を受ける渡し梁（溝形鋼）{n_beam}本" if n_beam else "")
+                 + f"、あと施工アンカー M16 {8 * n}本、水平つなぎの単管 {n_tube}本（{tube_txt}）と直交クランプ"
                  f" {2 * n_tube}個。マスタに無いので別途手配し、アンカーの引抜き・床スラブの縁の耐力を確認してください",
                  Notes.ORDER)
 
 
 HANE_NOTE_DEPTH = 600
+
+
+def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
+    """拡幅ブラケット（跳ね出しの上段の端と、張り出しの横の本体の足場の隅の升目の外。setback_tiers.hane_bridges・
+    3D の gosub 758 と同じ）と、高さの違う出隅で低い面の天端より上の升目の辺の布材・手すり（gdl_params.corner_tower_params）.
+
+    1か所の1層ごとに、ブラケット2基・方杖・ブラケット支柱、床はハーフアンチ（240 幅の布板）を2基に渡し、手すり・中桟."""
+    from .gdl_params import corner_tower_params
+
+    m = model.master
+    row = int(model.post_row_spacing_mm)
+    eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
+    # (出 mm, 床の長さ mm, 層の数, 手すりを付ける脇の数, 腕の先に手すりを付けるか)。跳ね出しの上段の端は外側の脇と
+    # 腕の先（躯体側の脇は本体の隅の拡幅床へ渡る）、本体の隅の升目の外は両脇（腕の先は跳ね出しの床へ渡る）
+    places: list[tuple[int, int, int, int, bool]] = []
+    for (ei, _end), w in (getattr(model, "hane_end_ext", None) or {}).items():
+        if model.edge_subset is not None and ei not in model.edge_subset:
+            continue
+        places.append((int(w), row, len(model.elevation_of(ei).level_heights), 1, True))
+    for ei, (w, side, lv) in (getattr(model, "corner_bridges", None) or {}).items():
+        if model.edge_subset is not None and ei not in model.edge_subset:
+            continue
+        cl = row if side == 1 else int(model.row_spacing_of((ei - 1) % len(model.plan.outline.edges)))
+        places.append((int(w), cl, len(lv), 2, False))
+    by_w: dict[int, int] = {}
+    no_rail: dict[int, int] = {}
+    for w, cl, k, nr, far_rail in places:
+        by_w[w] = by_w.get(w, 0) + 2 * k
+        n_plate = max(1, int((w - 30) // 240))
+        add(m.deck_parts(240, cl), n_plate * k, f"拡幅ブラケットの床（ハーフアンチ {cl}）")
+        rail = m.find("布材", w)
+        if rail is not None:
+            add(rail, 2 * nr * k, f"拡幅ブラケットの床の脇の手すり・中桟（布材{w}）")
+        else:
+            no_rail[w] = no_rail.get(w, 0) + 2 * nr * k
+        far = m.find("布材", cl)
+        if far_rail:
+            add(far, 2 * k, f"拡幅ブラケットの床の先の手すり・中桟（布材{cl}）")
+    for w, qty in sorted(by_w.items(), reverse=True):
+        part = next((p for p in m.by_category("ブラケット") if p.nominal_dim == w and "拡幅" in p.note), None)
+        if part is not None:
+            add(part, qty, f"拡幅ブラケット{w}")
+        else:
+            notes.action(f"拡幅ブラケット{w}（方杖 1425・ブラケット支柱付き）{qty}基は系列のマスタにありません。別途手配して"
+                         "ください（張り出した上の階の上段と本体の足場を繋ぐ床）", Notes.ORDER)
+    for w, qty in sorted(no_rail.items(), reverse=True):
+        notes.action(f"拡幅ブラケット{w}の床の脇の手すり・中桟 {qty}本（布材{w}）はマスタに無い長さです。単管とクランプで"
+                     "付けるか、別途手配してください", Notes.ORDER)
+    if by_w:
+        notes.append("張り出した上の階の上段の端と、張り出しの横の本体の足場の隅は、拡幅ブラケット（"
+                     + "・".join(f"{w}×{q}基" for w, q in sorted(by_w.items(), reverse=True))
+                     + "）の床を並べて繋ぎます（支柱の許容荷重は拡幅部の値で確認）")
+    # 高さの違う出隅: 低い面の天端より上の層の、升目の低い面の側の辺（床の布材と躯体側の手すり・中桟）
+    n_rail = 0
+    for ep in eps:
+        if model.master.is_frame:
+            break
+        c = corner_tower_params(model, ep)
+        low = c["cnrLowS"] or c["cnrLowP"]
+        if not low:
+            continue
+        lv = c["cnrLevels"] and [float(v) for v in c["cnrLevels"].split(",")] or list(model.elevation_of(ep.edge_index).level_heights)
+        k = sum(1 for h in lv if h / 1000.0 > low + 0.01)
+        n_rail += k * (1 + (2 if model.config.inner_guard_rail else 0))
+    if n_rail:
+        add(m.find("布材", row), n_rail, f"高さの違う出隅の升目の上の層の辺の布材・手すり（布材{row}）")
+
 
 
 def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
@@ -1662,7 +1746,10 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
     n_ends = 0
     for ep in model.plan.edges:
         lv = model.elevation_of(ep.edge_index).n_levels
-        k = int(model.open_start(ep.edge_index)) + int(model.open_end(ep.edge_index))
+        # 跳ね出しの上段の端に拡幅ブラケットを出した端は、その先の床の手すりが塞ぐ（_count_widen_brackets）
+        ext = getattr(model, "hane_end_ext", None) or {}
+        k = (int(model.open_start(ep.edge_index) and (ep.edge_index, "s") not in ext)
+             + int(model.open_end(ep.edge_index) and (ep.edge_index, "e") not in ext))
         # 入隅でつないだ隅から始まる面の始点（躯体側に開く升目。gdl_params の endOpenS と同じ）
         if model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail and not model.open_start(ep.edge_index):
             k += 1

@@ -450,6 +450,10 @@ def line_params(
         **gdl_pens(model.config.pens, "ashiba_line"),
         # 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く
         **shared_corner_skips(model, ep.edge_index),
+        # 高さの違う出隅の升目は高い方の面まで（利用者の指定 2026-10-25: 張り出しの横の面も足場入れて）
+        **corner_tower_params(model, ep),
+        # 拡幅ブラケットで跳ね出しの上段と繋ぐ（同上: ブラケットで繋がるようにしてみて）
+        **bridge_params(model, ep),
         # 出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔）・次の面の幅（寸法の外側の角）。同じ組なら rowW と
         # 同じ。幅の違う本足場の組（本足場（狭い幅）など）と出会う隅は 610×914 のような長方形になる（2026-10-24）
         "cornerSW": model.row_spacing_of((ep.edge_index - 1) % len(model.plan.outline.edges)) / 1000.0,
@@ -470,9 +474,12 @@ def line_params(
         # 一部の面だけの足場の開放端（隣の面を掛けない端）は、妻側に手すり・中桟・幅木を付ける
         # （参考: smartCON Planner の「墜落の危険箇所に手すり」「エンドストッパー」）
         # 入隅でつないだ隅から始まる面（inner_corners）の始点の升目は、躯体（隅で終わる面の壁）側が開くので同じく塞ぐ
-        "endOpenS": 1 if (model.open_start(ep.edge_index)
-                          or (model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail)) else 0,
-        "endOpenE": 1 if model.open_end(ep.edge_index) else 0,
+        # 跳ね出しの上段の端に拡幅ブラケットを出した端は、その先の床が手すりで塞ぐ（hane_bridges）
+        "endOpenS": 1 if ((model.open_start(ep.edge_index)
+                           or (model.inner_join_start(ep.edge_index) and model.config.inner_guard_rail))
+                          and (ep.edge_index, "s") not in (getattr(model, "hane_end_ext", None) or {})) else 0,
+        "endOpenE": 1 if (model.open_end(ep.edge_index)
+                          and (ep.edge_index, "e") not in (getattr(model, "hane_end_ext", None) or {})) else 0,
         # 妻側の手すりを付ける高さの下限（下段に続く区間の切れ目は途中の屋根より上だけ。m）
         "endOpenZS": float((getattr(model, "open_above_mm", {}) or {}).get((ep.edge_index, "s"), 0.0)) / 1000.0,
         "endOpenZE": float((getattr(model, "open_above_mm", {}) or {}).get((ep.edge_index, "e"), 0.0)) / 1000.0,
@@ -818,6 +825,63 @@ def _runs_north_south(model: ScaffoldModel, edge_index: int) -> bool:
     """その面の辺が南北（Y）に走るか."""
     e = model.plan.outline.edges[edge_index]
     return abs(e.direction[1]) > abs(e.direction[0])
+
+
+def _draws_start_corner(model: ScaffoldModel, edge_index: int) -> bool:
+    """その面が始点の出隅の外側の升目を描くか（gdl の cornerS と同じ条件）."""
+    return (not model.master.is_frame and not model.config.is_hug
+            and model.corner_kind_start(edge_index) == "出隅")
+
+
+def corner_tower_params(model: ScaffoldModel, ep) -> dict:
+    """出隅の升目を、隅を挟む2つの面の高い方まで立てる（利用者の指定 2026-10-25: 張り出しの横の面も足場入れて）.
+
+    升目は始点の隅を持つ面（cornerS）が描く。その面が張り出しの下で止まる（低い）と、上まで通る隣の面の端が上の階で
+    升目も手すりも無くなっていた。隣の面（前の面）が高ければ前の面の積み方・作業床で描き（cnrPosts・cnrLevels）、
+    この面の始点の外側建地もそこで立てる（skipOutS）。この面が高ければ、前の面の終点の外側建地をこの面の積み方で
+    立てる（前の面は skipOutE）。低い面の天端より上の層は、升目の低い面の側の辺に床の布材と躯体側の手すり・中桟.
+    """
+    ei = ep.edge_index
+    n = len(model.plan.outline.edges)
+    built = {e.edge_index for e in model.plan.edges}
+    out = {"skipOutS": 0, "skipOutE": 0, "cnrPosts": "", "cnrLevels": "", "cnrJack": 0.0, "cnrNega": 0.0,
+           "cnrLowS": 0.0, "cnrLowP": 0.0}
+    h = model.height_of(ei)
+    prev_i, next_i = (ei - 1) % n, (ei + 1) % n
+    if _draws_start_corner(model, ei) and prev_i in built and prev_i != ei:
+        hp = model.height_of(prev_i)
+        if hp > h + 1.0:
+            e_p, e_f = model.elevation_of(prev_i), model.elevation_of(ei)
+            out.update({"cnrPosts": ",".join(str(p) for p in e_p.posts),
+                        "cnrLevels": ",".join(str(int(v)) for v in e_p.level_heights),
+                        "cnrJack": e_p.jack_extension / 1000.0, "cnrNega": e_p.first_ledger_height / 1000.0,
+                        "cnrLowS": float(e_f.level_heights[-1]) / 1000.0 if e_f.level_heights else 0.001,
+                        "skipOutS": 1})
+        elif h > hp + 1.0 and not model.gap_corner_post_start(ei):
+            lv = model.elevation_of(prev_i).level_heights
+            out["cnrLowP"] = float(lv[-1]) / 1000.0 if lv else 0.001
+    if (next_i in built and next_i != ei and _draws_start_corner(model, next_i)
+            and model.height_of(next_i) > h + 1.0 and not model.gap_corner_post_start(next_i)):
+        out["skipOutE"] = 1
+    return out
+
+
+def bridge_params(model: ScaffoldModel, ep) -> dict:
+    """拡幅ブラケット（setback_tiers.hane_bridges）: 本体の隅の升目の外（cnrBk*）と跳ね出しの上段の端（hbExt*）、
+    跳ね出しブラケットを壁に留められる区間（haneX0・haneX1）."""
+    ei = ep.edge_index
+    cb = (getattr(model, "corner_bridges", None) or {}).get(ei)
+    ext = getattr(model, "hane_end_ext", None) or {}
+    rng = (getattr(model, "hane_slab_range", None) or {}).get(ei)
+    return {
+        "cnrBkW": cb[0] / 1000.0 if cb else 0.0,
+        "cnrBkP": int(cb[1]) if cb else 0,
+        "cnrBkLv": ",".join(str(int(round(v))) for v in cb[2]) if cb else "",
+        "hbExtS": float(ext.get((ei, "s"), 0.0)) / 1000.0,
+        "hbExtE": float(ext.get((ei, "e"), 0.0)) / 1000.0,
+        "haneX0": rng[0] / 1000.0 if rng else 0.0,
+        "haneX1": rng[1] / 1000.0 if rng else 0.0,
+    }
 
 
 def shared_corner_skips(model: ScaffoldModel, edge_index: int) -> dict:

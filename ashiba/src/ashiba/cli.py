@@ -1943,8 +1943,28 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
             out[0][1].model.plan.warnings.append(note)
     out[0][1].model.plan.warnings.extend(j_notes)
     if len(out) > 1:
+        # 跳ね出しの上段の端を、張り出しの横の本体の足場の隅へ拡幅ブラケットで繋ぐ（利用者の指定 2026-10-25）
+        from .setback_tiers import hane_bridges
+
+        b_notes = hane_bridges(out)
+        if b_notes:
+            out[0][1].model.plan.warnings.extend(b_notes)
+            # 拡幅ブラケット・渡し梁は解いたあとに決まるので、決めた組の数量を拾い直す
+            for _label, r in out:
+                if getattr(r.model, "corner_bridges", None) or getattr(r.model, "hane_end_ext", None) \
+                        or getattr(r.model, "hane_slab_range", None):
+                    _retake_quantity(r)
         _layout_sills_across(out)
     return out
+
+
+def _retake_quantity(r: "PlanRun") -> None:
+    """解いたあとに部材を足した組（拡幅ブラケットなど）の数量と、数量から出る注意を拾い直す."""
+    q = take_off(r.model, bracket_sections=r.brackets, stair_plan=r.stair_plan,
+                 platforms=r.platforms, openings=r.openings, terrain=r.terrain)
+    r.warnings = collect_warnings(r.structural, r.model, r.bracket_issues, r.stair_plan, r.stair_issues,
+                                  r.openings, r.terrain, r.platforms, r.checks, q, r.conflicts)
+    r.quantity = q
 
 
 def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:

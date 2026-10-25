@@ -777,3 +777,119 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
         notes.append(f"{lb}: 上段の端の支柱は本体の支柱に乗せる（ジャッキベースなし）。上段の離れ {so_t:.0f}、"
                      f"セットバックの先（{'・'.join(low)}）の本体の足場は途中の屋根（GL+{low_top:.0f}）で止める")
     return main, out_tiers, notes
+
+
+# 拡幅ブラケット（日建 拡幅ブラケット。利用者の指定 2026-10-25 のカタログ: 497・305、方杖 1425 で下のコマへ）
+HANE_EXT_MM = 497.0          # 跳ね出しの上段の端の先へ出す拡幅ブラケット（本体の隅の拡幅床の脇まで床を伸ばす）
+WIDEN_BRACKETS_MM = (497.0, 305.0)
+WIDEN_POST_CLEAR_MM = 45.0   # 本体の隅の拡幅ブラケットの先と、跳ね出しの上段の内側建地（芯）とのあき（支柱の半径＋手が入る分）
+
+
+def hane_bridges(out: list) -> list[str]:
+    """跳ね出しの上段の端を、張り出しの横の面の本体の足場（隅の升目）へ拡幅ブラケットで繋ぐ（利用者の指定 2026-10-25:
+    張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて）. 決めたことを組のモデルに書き、注記を返す.
+
+    張り出しの下の本体の面（overhang_caps_rel）は張り出しの下で止まるが、その面と張り出しの横の面（上まで通る）の出隅の
+    升目は高い方の面の高さまで立つ（gdl_params.corner_tower_params）。上の階では、その升目の外側（張り出しの側）の
+    2本の建地に拡幅ブラケット（305 か 497。跳ね出しの上段の内側建地の手前 45 まで）を付け、跳ね出しの上段の端の内外の
+    支柱から端の先へ拡幅ブラケット 497 を出す。2つの拡幅床が並び、そのあいだ（50 程度）を渡る.
+
+    また跳ね出しの上段の面の端の支柱が床スラブの外（躯体の角の先）にあれば、その支柱はブラケットを壁に留められないので、
+    床スラブの端の手前（角から HANE_END_CLEAR_MM）にブラケットを足し、そこから渡し梁で受ける（model.hane_slab_range）.
+    """
+    if not out:
+        return []
+    main = out[0][1].model
+    caps = getattr(main, "overhang_caps_rel", None) or {}
+    notes: list[str] = []
+    for label, r in out[1:]:
+        m = r.model
+        if not getattr(m, "hane_bracket", False):
+            continue
+        m.hane_slab_range = {}
+        m.hane_end_ext = {}
+        ol = m.plan.outline
+        for ep in m.plan.edges:
+            ei = ep.edge_index
+            e = ol.edges[ei]
+            d = e.direction
+            total = float(sum(ep.spans))
+            sx, sy = ep.start_post
+            x_e0 = (e.start[0] - sx) * d[0] + (e.start[1] - sy) * d[1]
+            x0, x1 = x_e0 + HANE_END_CLEAR_MM, x_e0 + e.length - HANE_END_CLEAR_MM
+            if x0 > 1.0 or x1 < total - 1.0:
+                m.hane_slab_range[ei] = (max(0.0, x0), min(total, x1))
+            for end in ("s", "e"):
+                if not (m.open_start(ei) if end == "s" else m.open_end(ei)):
+                    continue
+                px, py = (sx, sy) if end == "s" else (sx + d[0] * total, sy + d[1] * total)
+                hit = _bridge_corner(main, caps, e, ep, (px, py), end)
+                if hit is None:
+                    continue
+                owner, side, gap = hit
+                wm = next((w for w in WIDEN_BRACKETS_MM if w + WIDEN_POST_CLEAR_MM <= gap + 0.5), 0.0)
+                base_m = float(main.base_height_mm or 0)
+                base_t = float(m.base_height_mm or 0)
+                # 隅の升目の最上の作業床（隅を挟む2つの面の高い方）
+                prev = (owner - 1) % len(main.plan.outline.edges)
+                faces = [owner] + ([prev] if prev in {x.edge_index for x in main.plan.edges} else [])
+                top_floor = max(float(main.elevation_of(f).level_heights[-1]) for f in faces)
+                lv = [h + base_t - base_m for h in m.elevation_of(ei).level_heights]
+                lv = [h for h in lv if h <= top_floor + 1.0]
+                if not lv:
+                    continue
+                m.hane_end_ext[(ei, end)] = HANE_EXT_MM
+                if wm > 0:
+                    cb = getattr(main, "corner_bridges", None) or {}
+                    cb[owner] = (wm, side, lv)
+                    main.corner_bridges = cb
+                notes.append(
+                    f"{label}: {m.face_name(ei)}の{'始点' if end == 's' else '終点'}の端は、端の内外の支柱から拡幅ブラケット"
+                    f"{int(HANE_EXT_MM)}を端の先へ出し"
+                    + (f"、張り出しの横の本体の足場の隅の升目（上の階まで立てる）の外側の2本から拡幅ブラケット{int(wm)}を"
+                       f"張り出しの側へ出して、2つの床を並べて繋ぎます（あき {int(round(gap - wm))}mm）" if wm > 0 else
+                       f"て本体の足場の隅の升目の脇へ床を伸ばします（あき {int(round(gap))}mm）"))
+        if m.hane_slab_range:
+            notes.append(f"{label}: 床スラブの外（躯体の角の先）に出る端の支柱は、床スラブの端の手前（角から "
+                         f"{int(HANE_END_CLEAR_MM)}）に足した跳ね出しブラケットから渡し梁（溝形鋼）で受けます")
+    return notes
+
+
+def _bridge_corner(main, caps: dict, e, ep, post: tuple, end: str) -> Optional[tuple]:
+    """跳ね出しの上段の面の端（post＝端の内側建地）に向き合う、本体の張り出しの下の面の出隅 → (隅の升目を描く面, 辺, あき).
+
+    辺は 0＝張り出しの下の面が隅の升目を描く（その面の始点の隅。外側の列から外へ）、1＝次の面が描く（前の面の外側の
+    列の延長から始点の先へ）。あきは本体の外側の建地列から跳ね出しの上段の内側建地列まで（mm）."""
+    n_out = e.outward
+    d = e.direction
+    built = {x.edge_index for x in main.plan.edges}
+    n = len(main.plan.outline.edges)
+    row = float(main.post_row_spacing_mm)
+    for mep in main.plan.edges:
+        mi = mep.edge_index
+        if mi not in caps:
+            continue
+        me = main.plan.outline.edges[mi]
+        if me.direction[0] * d[0] + me.direction[1] * d[1] < 0.99:
+            continue
+        # 本体の面の外側の建地列と、跳ね出しの上段の内側建地列の、外向きの位置
+        m_outer = me.start[0] * n_out[0] + me.start[1] * n_out[1] + float(mep.standoff) + row
+        t_inner = e.start[0] * n_out[0] + e.start[1] * n_out[1] + float(ep.standoff)
+        gap = t_inner - m_outer
+        if gap < 0 or gap > 1500.0:
+            continue
+        mx, my = mep.start_post if end == "s" else mep.end_post
+        if abs((post[0] - mx) * d[0] + (post[1] - my) * d[1]) > 50.0:
+            continue
+        if end == "s":
+            prev = (mi - 1) % n
+            if (main.corner_kind_start(mi) != "出隅" or prev not in built
+                    or main.height_of(prev) <= main.height_of(mi) + 1.0):
+                continue
+            return mi, 0, gap
+        nxt = (mi + 1) % n
+        if (nxt not in built or main.corner_kind_start(nxt) != "出隅"
+                or main.height_of(nxt) <= main.height_of(mi) + 1.0):
+            continue
+        return nxt, 1, gap
+    return None

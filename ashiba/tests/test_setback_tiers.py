@@ -343,6 +343,74 @@ class TestOverhangTier(unittest.TestCase):
         west = next(e for e in main.plan.edges if main.face_name(e.edge_index) == "西面")
         self.assertLessEqual(main.elevation_of(west.edge_index).total_height, 6000 - 300)   # ブラケットの下で止める
 
+    def test_side_faces_join_by_widening_brackets(self):
+        # 利用者の指定 2026-10-25: 張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて（拡幅ブラケット 497・305）。
+        # 西へ 1000 張り出した上の階: 本体の西面は張り出しの下で止まるが、北西・南西の隅の升目は北面・南面（上まで通る）の
+        # 高さまで立ち、その外側の2本から拡幅ブラケット 305 を西へ。跳ね出しの上段の両端の支柱から端の先へ拡幅ブラケット 497
+        full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
+        up = [[-1000, 0], [5000, 0], [5000, 10000], [-1000, 10000]]
+        slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": up, "top_mm": t} for t in (6000, 9000, 9700)])
+        g = solve_groups({"project_name": "W", "outline_mm": full, "slabs": slabs, "module": "inch",
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 610, "eaves_height_mm": 15400})
+        main, hane = g[0][1].model, dict(g)["上段（張り出し）"].model
+        name = {main.face_name(e.edge_index): e for e in main.plan.edges}
+        pw, ps = line_params(main, name["西面"]), line_params(main, name["南面"])
+        # 北西: 西面（低い）が描く隅の升目を北面の積み方で。西面の始点・終点の外側建地は隅の升目の側が立てる
+        self.assertTrue(pw["cnrPosts"] and pw["cnrLevels"])
+        self.assertEqual((pw["skipOutS"], pw["skipOutE"]), (1, 1))
+        self.assertGreater(pw["cnrLowS"], 0)
+        # 南西: 南面（高い）が描く隅の升目に、西面の終点の外側建地と、西面の天端より上の層の辺
+        self.assertGreater(ps["cnrLowP"], 0)
+        self.assertEqual(ps["cnrPosts"], "")
+        # 拡幅ブラケット: 本体の隅は 305（跳ね出しの上段の内側建地の手前 45 以上あける）、上段の端は 497
+        for p, side in ((pw, 0), (ps, 1)):
+            self.assertAlmostEqual(p["cnrBkW"], 0.305)
+            self.assertEqual(p["cnrBkP"], side)
+            lv = [int(v) for v in p["cnrBkLv"].split(",")]
+            self.assertEqual(lv, [round(h + hane.base_height_mm) for h in hane.elevation.level_heights])
+        he = hane.plan.edges[0]
+        ph = line_params(hane, he)
+        self.assertAlmostEqual(ph["hbExtS"], 0.497)
+        self.assertAlmostEqual(ph["hbExtE"], 0.497)
+        self.assertEqual((ph["endOpenS"], ph["endOpenE"]), (0, 0))   # 端の先の床の手すりが塞ぐ
+        # 本体の外側の建地列＋305 と、上段の内側建地列のあき
+        row = main.post_row_spacing_mm
+        gap = (1000 + he.standoff) - (name["西面"].standoff + row) - 305
+        self.assertGreaterEqual(gap, 45)
+        # 上段の端の支柱は床スラブの外（躯体の角の先）: 壁に留められる区間は角から 150 内側まで
+        self.assertGreater(ph["haneX0"], 0)
+        self.assertLess(ph["haneX1"], sum(he.spans) / 1000.0)
+        self.assertAlmostEqual(ph["haneX1"] - ph["haneX0"], (10000 - 300) / 1000.0, places=3)
+        # 数量: 本体の拡幅ブラケット 305（日建 NDBK03H）2隅×2基×層、上段の 497 はマスタに無いので手配の注意
+        n_lv = len(hane.elevation.level_heights)
+        self.assertEqual(g[0][1].quantity.qty_of("ブラケット", 305), 2 * 2 * n_lv)
+        w = " ".join(dict(g)["上段（張り出し）"].quantity.warnings)
+        self.assertIn("拡幅ブラケット497", w)
+        self.assertIn("床スラブの外の端の支柱を受ける渡し梁", w)
+        self.assertTrue(any("拡幅ブラケット" in x for x in main.plan.warnings))
+
+    def test_gdl_draws_the_widening_brackets(self):
+        from pathlib import Path
+
+        d = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
+        d3 = (d / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        sub = d3[d3.index("758:\t! ---- 拡幅ブラケットの張り出し床1層"):]
+        sub = sub[:sub.index("\treturn\n")]
+        for word in ("方杖 1425", "ブラケット支柱", "ハーフアンチ", "gosub 870", "gosub 830"):
+            self.assertIn(word, sub)
+        # 隅の升目（cornerS）の外と、跳ね出しの上段の端（hbExtS・hbExtE）から
+        self.assertIn("if cnrBkW > 0.001 and nCBk > 0 then", d3)
+        self.assertIn("xbW = hbExtS", d3)
+        # 隅の升目は高い方の面の積み方（gosub 757）、低い面の隅の外側建地は skipOut で描かない
+        self.assertIn("gosub 757", d3)
+        self.assertIn("skipOutS = 1", d3)
+        pl = (d / "paramlist.xml").read_text(encoding="utf-8")
+        for n in ("cnrPosts", "cnrLevels", "cnrBkW", "hbExtS", "haneX0", "skipOutE"):
+            self.assertIn(f'Name="{n}"', pl)
+        self.assertIn("cnrBkLv", (d / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
+        self.assertIn("拡幅ブラケット", (d / "scripts" / "2d.gdl").read_text(encoding="utf-8"))
+
     def test_gdl_draws_the_brackets(self):
         from pathlib import Path
 

@@ -139,7 +139,9 @@ class TestGapCorner(unittest.TestCase):
         d = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
         self.assertIn('Name="cornerSP"', (d / "paramlist.xml").read_text(encoding="utf-8"))
         p3 = (d / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertIn("for iq = 1 to 1 + cornerSP", p3)
+        # 隅の升目の建地の並び（隙間の手前の建地 (-cSW, 0) は cornerSP のとき）
+        self.assertIn("if cornerSP = 1 or cnrLowP > 0.001 then", p3)
+        self.assertIn("for iq = 1 to nCq", p3)
         self.assertIn("circle2 -cSW, 0, r_sic", (d / "scripts" / "2d.gdl").read_text(encoding="utf-8"))
         self.assertIn("cornerS + cornerSP", (d / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
 

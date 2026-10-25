@@ -19,6 +19,9 @@ dim ties[200]
 dim brOn[60]
 dim slL[8]
 dim slV[36]
+dim cPo[40]
+dim cLvIn[40]
+dim cBkLv[20]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
@@ -1035,6 +1038,43 @@ for tc = 1 to 2
 		if k > 0 then
 			nSv = nSv + 1
 			slV[nSv] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- 出隅の升目の高さ（隣の面が高いとき。利用者の指定 2026-10-25: 張り出しの横の面も足場入れて）----
+! cnrPosts・cnrLevels: 隅の升目と、低い面の隅の外側建地を立てる積み方・作業床（mm）。空なら自分の面のまま。
+! cnrBkLv: 隅の升目の外の拡幅ブラケットを付ける作業床の高さ（mm）
+nCPo = 0
+nCLvIn = 0
+nCBk = 0
+for tc = 1 to 3
+	rest = cnrPosts
+	if tc = 2 then rest = cnrLevels
+	if tc = 3 then rest = cnrBkLv
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			if tc = 1 and nCPo < 40 then
+				nCPo = nCPo + 1
+				cPo[nCPo] = v / 1000
+			endif
+			if tc = 2 and nCLvIn < 40 then
+				nCLvIn = nCLvIn + 1
+				cLvIn[nCLvIn] = v / 1000
+			endif
+			if tc = 3 and nCBk < 20 then
+				nCBk = nCBk + 1
+				cBkLv[nCBk] = v / 1000
+			endif
 		endif
 	endwhile
 next tc

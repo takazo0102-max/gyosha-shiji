@@ -178,12 +178,13 @@ class TestKomaInLiteMode(unittest.TestCase):
     def test_lite_mode_keeps_hook_komas(self):
         g3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(
             encoding="utf-8")
-        i = g3.index("! ---- コマ（緊結部）の高さ kz")
-        block = g3[i:g3.index("! ---- 支柱（各スパン境界に内外1対）")]
+        # コマの高さは gosub 756（出隅の升目を高い方の面の積み方で描くときも同じ規則で回す）
+        i = g3.index("756:\t! ---- コマの高さ kz")
+        block = g3[i:g3.index("\treturn\n", i)]
         self.assertIn("abs(kzAll[ik] - lv[il] - railMid) < 0.005", block)
         self.assertIn("abs(kzAll[ik] - lv[il] - railTop) < 0.005", block)
         # コマを描く3箇所（本体の支柱・出隅の支柱・外付け階段の建地）はどれも kz を使い、軽量で省かない
-        self.assertEqual(g3.count("for ik = 1 to nKz\n"), 3)
+        self.assertEqual(g3.count("for ik = 1 to nKz\n") + g3.count("for ik = 1 to nCKz\n"), 3)
         self.assertNotIn("komaPitch > 0 and isLite = 0", g3)
 
     def test_drawing_views_use_the_drawing_form(self):
@@ -195,7 +196,10 @@ class TestKomaInLiteMode(unittest.TestCase):
                      "if isLite and isDwg = 0 then rN = 6",
                      "if isDwg = 1 then nKz = 0"):
             self.assertIn(want, g3)
-        self.assertLess(g3.index("if isDwg = 1 then nKz = 0"), g3.index("for ik = 1 to nKz\n"))
+        # コマの高さ（gosub 756）は描く前に求め、その中で図面向きはコマを無しにする
+        self.assertLess(g3.index("gosub 756"), g3.index("for ik = 1 to nKz\n"))
+        i = g3.index("756:\t! ---- コマの高さ kz")
+        self.assertIn("if isDwg = 1 then nKz = 0", g3[i:g3.index("\treturn\n", i)])
 
 
 if __name__ == "__main__":

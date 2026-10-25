@@ -237,74 +237,14 @@ dim kzAll[]
 dim pj[40]
 dim kzSeg[]
 dim kzSegA[]
-nKz = 0
-nKzA = 0
-if komaPitch > 0 then
-	zb = jackOut
-	for j = 1 to nPost
-		pl = posts[j]
-		zz = pl - komaGap
-		while zz >= 0.1 - 0.0001 do
-			nKzA = nKzA + 1
-			kzAll[nKzA] = zb + zz
-			kzSegA[nKzA] = zb
-			zz = zz - komaPitch
-		endwhile
-		! 根がらみ用のコマ
-		isNg = 0
-		rest = negaLens
-		while strlen(rest) > 0 do
-			pc = strstr(rest, ",")
-			if pc > 0 then
-				item = strsub(rest, 1, pc - 1)
-				rest = strsub(rest, pc + 1, strlen(rest) - pc)
-			else
-				item = rest
-				rest = ""
-			endif
-			k = split(item, "%n", v)
-			if k > 0 then
-				if abs(v / 1000 - pl) < 0.0005 then isNg = 1
-			endif
-		endwhile
-		if isNg = 1 and komaNega > 0.001 then
-			nKzA = nKzA + 1
-			kzAll[nKzA] = zb + komaNega
-			kzSegA[nKzA] = zb
-			! すぐ上（3/4 ピッチ以内）にコマが無ければ komaPitch−komaGap にも
-			zm = pl - komaGap
-			while zm - komaPitch > komaNega + 0.001 do
-				zm = zm - komaPitch
-			endwhile
-			if zm > komaNega + 0.75 * komaPitch + 0.001 and komaPitch - komaGap < pl then
-				nKzA = nKzA + 1
-				kzAll[nKzA] = zb + komaPitch - komaGap
-				kzSegA[nKzA] = zb
-			endif
-		endif
-		zb = zb + pl
-	next j
-	for ik = 1 to nKzA
-		keep = 1
-		if isLite = 1 then
-			keep = 0
-			for il = 1 to nLv
-				if abs(kzAll[ik] - lv[il]) < 0.005 then keep = 1
-				if il > 1 then
-					if abs(kzAll[ik] - lv[il] - railMid) < 0.005 then keep = 1
-					if abs(kzAll[ik] - lv[il] - railTop) < 0.005 then keep = 1
-				endif
-			next il
-		endif
-		if keep = 1 then
-			nKz = nKz + 1
-			kz[nKz] = kzAll[ik]
-			kzSeg[nKz] = kzSegA[ik]
-		endif
-	next ik
-	! 断面図・立面図ではコマを描かない（isDwg）
-	if isDwg = 1 then nKz = 0
-endif
+dim cLv[42]
+dim cKz[]
+dim cKzS[]
+dim sPo[40]
+dim sLv[42]
+dim cqx[3]
+dim cqy[3]
+gosub 756
 
 ! ---- 支柱（各スパン境界に内外1対） ----
 ! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
@@ -414,6 +354,8 @@ for ip = 1 to nSpan + 1
 		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
 		! セットバックの上段の端は本体の支柱に乗る（支柱もジャッキベースも描かない。利用者の指定 2026-10-25）
 		if (ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1) then skipP = 1
+		! 高さの違う出隅で低い面の隅の外側建地は、隅の升目を描く面が高い方の積み方で立てる（gosub 757）
+		if row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1)) then skipP = 1
 		if x < gxA - 0.1 or x > gxB + 0.1 then skipP = 1
 		if skipP = 1 then
 			! 隣の面・隣の部品が描く
@@ -519,42 +461,61 @@ if cornerS = 1 then
 	! 前の面が隅の隙間（コーナーステップ）の手前で止まる出隅は、前の面の外側列の延長の根元（-cSW, 0）にも建地が要る
 	! （前の面の終点の建地は隙間の向こう。布材・手すりの緊結部が宙に浮いていた。利用者の指摘 2026-10-24: コーナー部分の
 	! 支柱がない部分がある）。この升目は4本の建地で独り立ちする
-	for iq = 1 to 1 + cornerSP
-	yq = -rowW
-	if iq = 2 then yq = 0
-	add -cSW, yq, gv
+	! 隅の升目は高い方の面の高さまで立てる（gosub 757: cPo・nCPo・cJo・cTop・cLv・nCLv・cKz・nCKz）。隣の面（前の面）が
+	! 高ければその面の積み方・作業床で、この面の始点の外側建地（0, -rowW）もここで立てる（この面は skipOutS で描かない）。
+	! この面が高ければ前の面の終点の外側建地（-cSW, 0）をここで立てる（前の面は skipOutE）。張り出しの下で止めた面の隅が
+	! 止めた高さで切れ、張り出しの横の面の足場の端が上の階で升目も手すりも無くなっていた（利用者の指定 2026-10-25:
+	! 張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて）
+	gosub 757
+	if cOvr = 1 then jo = cJo
+	nCq = 1
+	cqx[1] = -cSW
+	cqy[1] = -rowW
+	if cornerSP = 1 or cnrLowP > 0.001 then
+		nCq = nCq + 1
+		cqx[nCq] = -cSW
+		cqy[nCq] = 0
+	endif
+	if cnrLowS > 0.001 then
+		nCq = nCq + 1
+		cqx[nCq] = 0
+		cqy[nCq] = -rowW
+	endif
+	for iq = 1 to nCq
+	yq = cqy[iq]
+	add cqx[iq], yq, gv
 	jkSill = 1
 	gosub 820
 	jkSill = 0
 	addz jo
 	if nGl >= 2 then
 		if not(explodeMask > 0 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
-			cylind postTop - gv - jo, r_sic
+			cylind cTop - gv - jo, r_sic
 		endif
 		del 2
 	else
 		zs = gv + jo
-		for j = 1 to nPost
+		for j = 1 to nCPo
 			if not(explodeMask > 0 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
-				cylind posts[j], r_sic
-				addz posts[j]
-				if j < nPost then
-					jLo = posts[j]
-					jUp = posts[j + 1]
+				cylind cPo[j], r_sic
+				addz cPo[j]
+				if j < nCPo then
+					jLo = cPo[j]
+					jUp = cPo[j + 1]
 					gosub 840
 				endif
 			else
-				addz posts[j]
+				addz cPo[j]
 			endif
-			zs = zs + posts[j]
+			zs = zs + cPo[j]
 		next j
-		del nPost + 2
+		del nCPo + 2
 	endif
-	if nKz > 0 then
+	if nCKz > 0 then
 		resol 6
-		for ik = 1 to nKz
-			if not(explodeMask > 0 and kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
-				add -cSW, yq, kz[ik] - 0.003
+		for ik = 1 to nCKz
+			if not(explodeMask > 0 and cKzS[ik] >= gzA - 0.001 and cKzS[ik] < gzB - 0.001) then
+				add cqx[iq], yq, cKz[ik] - 0.003
 				cylind 0.006, 0.053
 				del 1
 			endif
@@ -562,14 +523,46 @@ if cornerS = 1 then
 		resol rN
 	endif
 	next iq
-	for il = 1 to nLv
-		z = lv[il]
+	for il = 1 to nCLv
+		z = cLv[il]
 		! 隙間のある出隅: 升目の前の面の側（y=0）の布材。床と、隙間に掛けるコーナーステップの先を受ける
-		if cornerSP = 1 then
+		! 前の面が低い隅は、その面の天端より上の層も y=0 の辺（前の面の終点の升目の境）に床の布材と躯体側の手すり・中桟
+		cqLP = 0
+		if cnrLowP > 0.001 and il > 1 and z > cnrLowP + 0.01 then cqLP = 1
+		if cornerSP = 1 or cqLP = 1 then
 			add -cSW, 0, z
 			nL = cSW
 			gosub 830
 			del 1
+		endif
+		! この面が低い隅は、この面の天端より上の層の x=0 の辺（この面の始点の升目の境）に床の布材
+		cqLS = 0
+		if cnrLowS > 0.001 and il > 1 and z > cnrLowS + 0.01 then cqLS = 1
+		if cqLS = 1 then
+			add 0, 0, z
+			rotz -90
+			nL = rowW
+			gosub 830
+			del 2
+		endif
+		if railIn = 1 and (cqLP = 1 or cqLS = 1) then
+			for hr7 = 1 to 2
+				zr7 = z + railTop
+				if hr7 = 2 then zr7 = z + railMid
+				if cqLP = 1 then
+					add -cSW, 0, zr7
+					nL = cSW
+					gosub 830
+					del 1
+				endif
+				if cqLS = 1 then
+					add 0, 0, zr7
+					rotz -90
+					nL = rowW
+					gosub 830
+					del 2
+				endif
+			next hr7
 		endif
 		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
 		add -cSW, 0, z
@@ -651,6 +644,29 @@ if cornerS = 1 then
 			endif
 		endif
 	next il
+	! 隅の升目の外の拡幅ブラケット（跳ね出しの上段の端へ床を繋ぐ。cnrBkP=0: この面の外側の列（y=-rowW）の2本から
+	! 外（-Y）へ、1: 前の面の外側の列の延長（x=-cSW）の2本から始点の先（-X）へ）。腕の先の向こうは跳ね出しの床
+	! （手すりを付けずに渡る）、両脇に手すり・中桟
+	if cnrBkW > 0.001 and nCBk > 0 then
+		if cnrBkP = 0 then
+			add 0, -rowW, 0
+			rotz -90
+			xbL = cSW
+		else
+			add -cSW, -rowW, 0
+			rotz 180
+			xbL = rowW
+		endif
+		xbW = cnrBkW
+		xbRA = 1
+		xbRB = 1
+		xbRF = 0
+		for ib7 = 1 to nCBk
+			xbZ = cBkLv[ib7]
+			gosub 758
+		next ib7
+		del 2
+	endif
 endif
 
 ! ---- 開放端（一部の面だけの足場で隣の面を掛けない端）: 妻側の手すり・中桟・幅木 ----
@@ -737,7 +753,22 @@ if haneD > 0.001 then
 	for ih7 = 1 to nSpan + 1
 		if xh >= gxA - 0.001 and xh < gxB - 0.001 then
 			add xh, 0, 0
-			gosub 760
+			! 床スラブの外（面の端が躯体の角の先）の支柱はブラケットを壁に留められない。手前に足したブラケットから渡し梁で受ける
+			hbIn = 1
+			if haneX1 > haneX0 + 0.01 then
+				if xh < haneX0 - 0.001 or xh > haneX1 + 0.001 then hbIn = 0
+			endif
+			if hbIn = 1 then
+				gosub 760
+			else
+				material "ashiba_hane_steel"
+				for hbR = 0 to 1
+					add -0.075, -hbR * rowW - 0.075, 0
+					block 0.15, 0.15, 0.009
+					del 1
+				next hbR
+				if matScaf > 0 then material matScaf
+			endif
 			del 1
 			! 水平つなぎ（次のブラケットまで。腕の先と躯体側の2本）
 			if ih7 <= nSpan then
@@ -755,6 +786,56 @@ if haneD > 0.001 then
 		endif
 		if ih7 <= nSpan then xh = xh + spans[ih7]
 	next ih7
+	! 床スラブの端の手前（角から 150）に足すブラケットと、そこから床スラブの外の端の支柱までの渡し梁（溝形鋼、内外の建地列の下）
+	if haneX1 > haneX0 + 0.01 then
+		for ie9 = 0 to 1
+			xa9 = haneX0
+			xe9 = 0
+			if ie9 = 1 then
+				xa9 = haneX1
+				xe9 = lineLen
+			endif
+			if abs(xe9 - xa9) > 0.01 and ((ie9 = 0 and xa9 > 0.001) or (ie9 = 1 and xa9 < lineLen - 0.001)) and \
+					xa9 >= gxA - 0.001 and xa9 < gxB - 0.001 then
+				add xa9, 0, 0
+				gosub 760
+				del 1
+				material "ashiba_hane_steel"
+				for hbR = 0 to 1
+					add min(xa9, xe9) - 0.075, -hbR * rowW - 0.025, -0.10
+					block abs(xe9 - xa9) + 0.15, 0.05, 0.10
+					del 1
+				next hbR
+				if matScaf > 0 then material matScaf
+			endif
+		next ie9
+	endif
+	! 端の拡幅ブラケット（張り出しの横の本体の足場の隅へ床を繋ぐ。利用者の指定 2026-10-25）: hbExtS は始点の先（-X）、
+	! hbExtE は終点の先（+X）へ、端の内外の支柱から。腕の先と外側の脇に手すり・中桟、躯体側の脇は本体の隅の拡幅床へ渡る
+	for ie8 = 0 to 1
+		xbW = hbExtS
+		if ie8 = 1 then xbW = hbExtE
+		if xbW > 0.001 then
+			xbL = rowW
+			xbRF = 1
+			if ie8 = 0 then
+				add 0, -rowW, 0
+				rotz 180
+				xbRA = 1
+				xbRB = 0
+			else
+				add lineLen, 0, 0
+				rotz 0
+				xbRA = 0
+				xbRB = 1
+			endif
+			for il = 2 to nLv
+				xbZ = lv[il]
+				gosub 758
+			next il
+			del 2
+		endif
+	next ie8
 	! 出隅の外側の角の支柱（-cSW, -rowW）と、隙間の手前の建地（-cSW, 0）: 隣の面のブラケットの腕との間に渡し梁
 	if cornerS = 1 and gxA < 0.001 then
 		material "ashiba_hane_steel"
@@ -865,6 +946,7 @@ if nKz > 0 then
 			! 隅の内側建地は隣の面が支柱もコマも描く
 			if not((row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
 					not((ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1)) and \
+					not(row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1))) and \
 					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
 					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
@@ -2470,6 +2552,217 @@ endif
 return
 
 ! ============================================================
+756:	! ---- コマの高さ kz[1..nKz]（支柱の積み方 posts・nPost・jackOut と作業床 lv・nLv から。上の説明のとおり）----
+	nKz = 0
+	nKzA = 0
+	if komaPitch > 0 then
+		zb = jackOut
+		for j = 1 to nPost
+			pl = posts[j]
+			zz = pl - komaGap
+			while zz >= 0.1 - 0.0001 do
+				nKzA = nKzA + 1
+				kzAll[nKzA] = zb + zz
+				kzSegA[nKzA] = zb
+				zz = zz - komaPitch
+			endwhile
+			! 根がらみ用のコマ
+			isNg = 0
+			rest = negaLens
+			while strlen(rest) > 0 do
+				pc = strstr(rest, ",")
+				if pc > 0 then
+					item = strsub(rest, 1, pc - 1)
+					rest = strsub(rest, pc + 1, strlen(rest) - pc)
+				else
+					item = rest
+					rest = ""
+				endif
+				k = split(item, "%n", v)
+				if k > 0 then
+					if abs(v / 1000 - pl) < 0.0005 then isNg = 1
+				endif
+			endwhile
+			if isNg = 1 and komaNega > 0.001 then
+				nKzA = nKzA + 1
+				kzAll[nKzA] = zb + komaNega
+				kzSegA[nKzA] = zb
+				! すぐ上（3/4 ピッチ以内）にコマが無ければ komaPitch−komaGap にも
+				zm = pl - komaGap
+				while zm - komaPitch > komaNega + 0.001 do
+					zm = zm - komaPitch
+				endwhile
+				if zm > komaNega + 0.75 * komaPitch + 0.001 and komaPitch - komaGap < pl then
+					nKzA = nKzA + 1
+					kzAll[nKzA] = zb + komaPitch - komaGap
+					kzSegA[nKzA] = zb
+				endif
+			endif
+			zb = zb + pl
+		next j
+		for ik = 1 to nKzA
+			keep = 1
+			if isLite = 1 then
+				keep = 0
+				for il = 1 to nLv
+					if abs(kzAll[ik] - lv[il]) < 0.005 then keep = 1
+					if il > 1 then
+						if abs(kzAll[ik] - lv[il] - railMid) < 0.005 then keep = 1
+						if abs(kzAll[ik] - lv[il] - railTop) < 0.005 then keep = 1
+					endif
+				next il
+			endif
+			if keep = 1 then
+				nKz = nKz + 1
+				kz[nKz] = kzAll[ik]
+				kzSeg[nKz] = kzSegA[ik]
+			endif
+		next ik
+		! 断面図・立面図ではコマを描かない（isDwg）
+		if isDwg = 1 then nKz = 0
+	endif
+	return
+
+757:	! ---- 隅の升目の積み方（cnrPosts があればその積み方・作業床 cnrLevels、無ければこの面のもの）----
+	! 出す: cOvr（1＝隣の面の積み方）・cPo[1..nCPo]・cJo・cTop・cLv[1..nCLv]・cKz[1..nCKz]・cKzS
+	cOvr = 0
+	if nCPo > 0 then cOvr = 1
+	if cOvr = 0 then
+		nCPo = nPost
+		for j = 1 to nPost
+			cPo[j] = posts[j]
+		next j
+		cJo = jackOut
+		nCLv = nLv
+		for j = 1 to nLv
+			cLv[j] = lv[j]
+		next j
+		nCKz = nKz
+		for j = 1 to nKz
+			cKz[j] = kz[j]
+			cKzS[j] = kzSeg[j]
+		next j
+	else
+		cJo = cnrJack
+		cLv[1] = cnrNega
+		if cLv[1] <= 0 then cLv[1] = cJo + komaPitch
+		for j = 1 to nCLvIn
+			cLv[j + 1] = cLvIn[j]
+		next j
+		nCLv = nCLvIn + 1
+		! コマはこの面と同じ規則（gosub 756）を隅の積み方で回して受け取り、この面の値に戻す
+		sNP = nPost
+		for j = 1 to nPost
+			sPo[j] = posts[j]
+		next j
+		sJo = jackOut
+		sNL = nLv
+		for j = 1 to nLv
+			sLv[j] = lv[j]
+		next j
+		nPost = nCPo
+		for j = 1 to nCPo
+			posts[j] = cPo[j]
+		next j
+		jackOut = cJo
+		nLv = nCLv
+		for j = 1 to nCLv
+			lv[j] = cLv[j]
+		next j
+		gosub 756
+		nCKz = nKz
+		for j = 1 to nKz
+			cKz[j] = kz[j]
+			cKzS[j] = kzSeg[j]
+		next j
+		nPost = sNP
+		for j = 1 to sNP
+			posts[j] = sPo[j]
+		next j
+		jackOut = sJo
+		nLv = sNL
+		for j = 1 to sNL
+			lv[j] = sLv[j]
+		next j
+		gosub 756
+	endif
+	cTop = cJo
+	for j = 1 to nCPo
+		cTop = cTop + cPo[j]
+	next j
+	return
+
+758:	! ---- 拡幅ブラケットの張り出し床1層（日建 拡幅ブラケット・カタログの 497／305 の形。利用者の指定 2026-10-25）----
+	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。腕は +X へ xbW（支柱芯から腕の先まで）、高さ xbZ（作業床）。
+	! 腕（角形の受け）・方杖 1425（腕の先から下のコマへ）・腕の先のブラケット支柱（497 は 1390、305 は 1357。手すりを掛ける）・
+	! 床はハーフアンチ（240 幅の布板）を2本の腕に渡す。手すり・中桟は xbRA（y=0 の脇）・xbRB（y=-xbL の脇）・xbRF（腕の先）
+	xbPH = 1.357
+	if xbW > 0.40 then xbPH = 1.390
+	xbDz = sqr(max(0.01, 1.425 ^ 2 - (xbW - 0.06) ^ 2))
+	for xbS = 0 to 1
+		xbY = -xbS * xbL
+		! 緊結部と腕（腕の上面が布材の上面にそろう）
+		add r_sic, xbY - 0.020, xbZ - 0.040
+		block 0.042, 0.040, 0.082
+		del 1
+		add r_sic + 0.04, xbY - 0.020, xbZ + r_nuno - 0.050
+		block xbW - r_sic - 0.04, 0.040, 0.050
+		del 1
+		! 方杖（腕の先から支柱の下のコマへ）と下の緊結部
+		bx1 = xbW - 0.05
+		by1 = xbY
+		bz1 = xbZ - 0.03
+		bx2 = r_sic + 0.02
+		by2 = xbY
+		bz2 = xbZ - xbDz
+		brR = 0.0136
+		gosub 895
+		add r_sic, xbY - 0.020, xbZ - xbDz - 0.03
+		block 0.042, 0.040, 0.06
+		del 1
+		! 腕の先のブラケット支柱
+		add xbW, xbY, xbZ - 0.05
+		cylind xbPH, r_sic
+		del 1
+	next xbS
+	if showDeck then
+		if matDeck > 0 then material matDeck
+		xbN = max(1, int((xbW - 0.03) / 0.24))
+		for xbD = 1 to xbN
+			add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZ
+			rotz -90
+			dkL = xbL
+			dkW = 0.235
+			gosub 870
+			del 2
+		next xbD
+		if matScaf > 0 then material matScaf
+	endif
+	for xbH = 1 to 2
+		zr8 = xbZ + railTop
+		if xbH = 2 then zr8 = xbZ + railMid
+		if xbRA = 1 then
+			add 0, 0, zr8
+			nL = xbW
+			gosub 830
+			del 1
+		endif
+		if xbRB = 1 then
+			add 0, -xbL, zr8
+			nL = xbW
+			gosub 830
+			del 1
+		endif
+		if xbRF = 1 then
+			add xbW, 0, zr8
+			rotz -90
+			nL = xbL
+			gosub 830
+			del 2
+		endif
+	next xbH
+	return
+
 760:	! ---- 跳ね出しブラケット1基（原点＝支柱の位置の内側建地列、z＝床スラブの天端。躯体の面は y＝standoff）----
 	material "ashiba_hane_steel"
 	hbE = -rowW - 0.15                    ! 腕の先

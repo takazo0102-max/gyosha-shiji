@@ -497,6 +497,66 @@
 			<Description><![CDATA["終点の支柱を描かない 0/1"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="skipOutS">
+			<Description><![CDATA["始点の外側建地を描かない（高さの違う出隅で、隅の升目を描く面が高い方の積み方で立てる） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipOutE">
+			<Description><![CDATA["終点の外側建地を描かない 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="cnrPosts">
+			<Description><![CDATA["始点の出隅の升目の支柱の積み方 mm（前の面が高いとき。空＝この面のもの）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="cnrLevels">
+			<Description><![CDATA["始点の出隅の升目の作業床の高さ mm（cnrPosts と組）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="cnrJack">
+			<Description><![CDATA["始点の出隅の升目のジャッキの繰出し（cnrPosts と組）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrNega">
+			<Description><![CDATA["始点の出隅の升目の根がらみの高さ（cnrPosts と組）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrLowS">
+			<Description><![CDATA["この面が隅より低いとき、この面の最上の作業床の高さ（その上の層は隅の升目の x=0 の辺に布材）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrLowP">
+			<Description><![CDATA["前の面が隅より低いとき、前の面の最上の作業床の高さ（その上の層は y=0 の辺に布材）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrBkW">
+			<Description><![CDATA["始点の出隅の升目の外の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="cnrBkP">
+			<Description><![CDATA["拡幅ブラケットを付ける辺 0＝この面の外側の列から外へ／1＝前の面の外側の列の延長から始点の先へ"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="cnrBkLv">
+			<Description><![CDATA["拡幅ブラケットを付ける作業床の高さ mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="hbExtS">
+			<Description><![CDATA["跳ね出しの上段の始点の先の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hbExtE">
+			<Description><![CDATA["跳ね出しの上段の終点の先の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="haneX0">
+			<Description><![CDATA["跳ね出しブラケットを壁に留められる区間の始め（面の始点から。haneX1 と組、同じなら全部）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="haneX1">
+			<Description><![CDATA["跳ね出しブラケットを壁に留められる区間の終わり"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="endOpenZS">
 			<Description><![CDATA["始点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）"]]></Description>
 			<Value>0</Value>
