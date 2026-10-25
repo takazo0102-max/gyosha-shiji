@@ -122,7 +122,7 @@ class TestInput(unittest.TestCase):
             {"face": "南面", "spans": 1, "parts": "踏板", "action": "置換"}]})
         w = [x for x in r.model.plan.warnings if "部材編集" in x]
         self.assertEqual(len(w), 3)
-        self.assertEqual(r.model.member_edits, [])
+        self.assertEqual([e for e in r.model.member_edits if not e.auto], [])   # ツールが入れる編集（渡りの出入口）は除く
 
     def test_unknown_key_is_rejected(self):
         from ashiba.cli import InputError
@@ -189,7 +189,7 @@ class TestSpecPart(unittest.TestCase):
         obj = spec_from_params(params)
         self.assertEqual(len(obj["member_edits"]), 1)
         r = solve_all({**spec, "member_edits": obj["member_edits"]})
-        self.assertEqual(len(r.model.member_edits), 1)
+        self.assertEqual(len([e for e in r.model.member_edits if not e.auto]), 1)
         # 部品の欄を空にしたら、JSON の編集も効かない（部品が正）
         params["memberEdit1"] = ""
         merged = merge_object_into_spec(spec, spec_from_params(params))

@@ -714,7 +714,7 @@ hH = hoistH
 if hH <= 0.001 then hH = 6 * floorH
 hg = hoistGap
 cx0 = -hg - hoistD                     ! 搬器の外側端（足場外側建地を x=0 とし、外側が -x）
-mx = cx0 - 0.15                        ! マスト中心（搬器の外側に立つ）
+mx = cx0 + hoistD / 2                  ! マスト中心（ロングスパン: 荷台の両端の外に立ち、側面では荷台の奥行の中央）
 
 ! --- 立面（面に直交する方向から見る: 左が外、右が躯体側） ---
 ! 足場: 外側建地・内側建地（建地列間隔 rowW）と作業床
@@ -775,7 +775,12 @@ cy0 = py + (spanW - hoistW) / 2
 rect2 px - hg - hoistD, cy0, px - hg, cy0 + hoistW
 line2 px - hg - hoistD, cy0, px - hg, cy0 + hoistW
 line2 px - hg - hoistD, cy0 + hoistW, px - hg, cy0
-rect2 px - hg - hoistD - 0.30, py + spanW / 2 - 0.15, px - hg - hoistD, py + spanW / 2 + 0.15
+! マスト2本（荷台の左右の両端の外）
+for imx = 0 to 1
+	myd = cy0 - 0.20 - 0.15
+	if imx = 1 then myd = cy0 + hoistW + 0.20 - 0.15
+	rect2 px - hg - hoistD / 2 - 0.15, myd, px - hg - hoistD / 2 + 0.15, myd + 0.30
+next imx
 ! 乗り込み口の開閉式手すり（搬器の幅、外側建地位置）
 if hoistGate = 1 then
 	line_type 3

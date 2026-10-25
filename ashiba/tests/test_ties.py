@@ -40,7 +40,7 @@ class TestMerge(unittest.TestCase):
         self.assertEqual(len(m.wall_ties), before + sum(added.values()))
         # 同じ位置は同じ金具で兼ねる → ステージ両端が格子と重なれば足さない
         counts = tie_counts(m)
-        self.assertEqual(counts.get("hoist", 0), 4)          # 16300 // 3600
+        self.assertEqual(counts.get("hoist", 0), 2 * 4)      # マスト2本（ロングスパン）× 16300 // 3600
         # 間口の各支柱（スパン数+1）にブラケットの上下で2箇所
         st = pf.stages[0]
         self.assertLessEqual(counts.get("stage", 0), 2 * (st.span_count + 1))
@@ -285,7 +285,8 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
 
         root = Path(__file__).resolve().parents[1]
         spec = json.loads((root / "examples" / "opening_beam.json").read_text(encoding="utf-8"))
-        spec["hoists"] = [{"edge_index": 0, "position_mm": 5400, "tie_every_mm": 3600}]   # 通路の真ん中
+        # 通路の真ん中。荷台を短く（1.0m）して両端のマストも通路（3600〜7200）の中に立てる
+        spec["hoists"] = [{"edge_index": 0, "position_mm": 5400, "tie_every_mm": 3600, "cage_width_mm": 1000}]
         # 1層目を 1.8m 前後にそろえると2層目の床（梁枠）が 3375 になり、高さ 3600 のマスト控えが梁枠より上に出る。
         # 梁枠を1層上げて、マスト控えが通路（梁枠より下）に当たる形にする
         for o in spec["openings"]:

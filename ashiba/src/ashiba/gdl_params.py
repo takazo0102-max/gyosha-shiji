@@ -679,8 +679,8 @@ def _hoist_list(model: ScaffoldModel, ep, platforms) -> str:
         reach = h.reach_height_mm or top
         # 搬器の幅・奥行も渡す（詳細図と同じ寸法で平面・立面・3Dに出す）
         parts += [str(int(h.position_mm)), str(int(reach)),
-                  str(int(getattr(h, "cage_width_mm", 2000) or 2000)),
-                  str(int(getattr(h, "cage_depth_mm", 2000) or 2000)),
+                  str(int(getattr(h, "cage_width_mm", 4600) or 4600)),
+                  str(int(getattr(h, "cage_depth_mm", 1300) or 1300)),
                   str(int(getattr(h, "tie_every_mm", 3600) or 3600))]
     return ",".join(parts)
 

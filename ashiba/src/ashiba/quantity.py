@@ -750,9 +750,9 @@ def _take_off_one(
         n_locations = 0
         shortfall = 0
         for e in plan.edges:
-            # 斜材は規格スパン（1800）の構面に入れる
+            # 斜材は規格スパン（1800）の構面に入れる。面の両端の構面には必ず（3d.gdl と同じ。brace_starts）
             fit_bays = sum(1 for s in e.spans if s == brace.nominal_dim)
-            want = math.ceil(e.span_count / every_s) if e.span_count else 0
+            want = len(brace_starts(e.span_count, every_s))
             n_locations += min(want, fit_bays) * level_groups
             shortfall += max(0, want - fit_bays) * level_groups
         add(brace, n_locations * rules.braces_per_location, "斜材（ブレス）")
@@ -800,6 +800,10 @@ def _take_off_one(
     # 単管抱き足場・単管のブラケット足場は階段が入らない（はしご等を別に。cli が階段を置かない）
     if model.no_stair_tower and stair_plan is not None and not stair_plan.towers:
         n_towers = 0
+    # はしごで昇降する計画（地足場の2層以下など。ladders）で階段室を置いていなければ階段は数えない（既定の階段数1で
+    # 階段2台・階段手すり4本を数えていた。実機 2026-10-25）
+    if stair_plan is not None and not stair_plan.towers and int(getattr(model.config, "ladders", 0) or 0) > 0:
+        n_towers = 0
     add(stair, n_towers * n_levels, "階段")
     _count_stair_guards(model, add, notes, n_towers, n_levels,
                         outside=bool(getattr(stair_plan, "outside", False)))
@@ -831,8 +835,8 @@ def _take_off_one(
 def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
     """本体の外側手すり・中桟・幅木を外すセル（スパン呼び寸法 → スパン数×層数）.
 
-    荷受けステージの間口（設置層）と、昇降機の乗り込み口（乗り込む層の、位置を含む
-    1スパン。固定の手すりの代わりに開閉式手すりが付く）。3D・立面も同じ区間を空ける
+    荷受けステージの間口（設置層）と、昇降機の乗り込み口（乗り込む層の、荷台の長さに掛かる
+    スパン。固定の手すりの代わりに開閉式手すりが付く）。3D・立面も同じ区間を空ける
     """
     from .platforms import _edge, _span_index
 
@@ -845,9 +849,10 @@ def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
         edge = _edge(model, h.edge_index)
         if edge is None or not edge.spans:
             continue
-        i = min(_span_index(edge, h.position_mm), len(edge.spans) - 1)
-        nominal = edge.spans[i]
-        out[nominal] = out.get(nominal, 0) + len(h.landings(model))
+        # 荷台の長さに掛かるスパン（ロングスパンの荷台は 2〜3 スパンに掛かる。3D の開閉式手すりと同じ）
+        for i in (h.gate_spans(model) or [min(_span_index(edge, h.position_mm), len(edge.spans) - 1)]):
+            nominal = edge.spans[i]
+            out[nominal] = out.get(nominal, 0) + len(h.landings(model))
     return out
 
 
@@ -1954,6 +1959,18 @@ def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) 
                                  f"つなぎ材{tie_no}で塞ぎます" if n_ends else "")
         + f"。範囲の上の腕木・布板・出隅の升目は幅{w2}で計上。幅を変えるのは全高で1回、幅を変えた層の上下は前踏み側の"
         "全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を確かめてください")
+
+
+def brace_starts(n_spans: int, every: int) -> list[int]:
+    """斜材（交さ2方向の1組＝隣り合う2スパン）を入れるスパン（1 始まり）. 始点から every スパンごと、間隔の最後の組が
+    終点の2スパンに届かなければ終点の手前のスパンにも1組（面の両端の構面には必ず入れる。利用者の指定 2026-10-25）."""
+    if n_spans <= 0:
+        return []
+    every = max(1, int(every))
+    out = list(range(1, n_spans + 1, every))
+    if n_spans >= 2 and out[-1] < n_spans - 1:
+        out.append(n_spans - 1)
+    return out
 
 
 def _count_open_ends(model: ScaffoldModel, add, notes) -> None:

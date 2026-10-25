@@ -834,7 +834,8 @@ class TestAsagaoCutList(unittest.TestCase):
         from ashiba.platforms import Hoist, validate_platforms
 
         m = self._model()
-        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        # 荷台 2.0m（支柱の真上→両隣のスパンを結合）。既定のロングスパン 4.6m は下の試験
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000, cage_width_mm=2000)])
         p = line_params(m, m.plan.edges[0], platforms=pf)
         self.assertEqual(p["asaCutList"], "7200,10800")
         other = line_params(m, m.plan.edges[1], platforms=pf)
@@ -942,7 +943,7 @@ class TestHoistMastInModel(unittest.TestCase):
         for key in ("マスト控え", "渡し板", "hoTp[ih]", "cylind 2.2, 0.02", "cylind mh, 0.02"):
             self.assertIn(key, body3)
         body2 = (gdl / "2d.gdl").read_text(encoding="utf-8")
-        self.assertIn("-rowW - 0.40 - hoD[ih]", body2)          # 平面にマストの角
+        self.assertIn("mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)", body2)   # 平面・立面にマスト2本（荷台の両端）
         self.assertIn("hoR[ih] + 1.0", body2)                    # 立面にマスト（到達+1m）と搬器
         self.assertIn("cz2 + 2.2", body2)
 
@@ -1037,9 +1038,10 @@ class TestFaceDrawnCounts(unittest.TestCase):
     def _solve(self, **extra):
         from ashiba.cli import solve_all
 
+        # 屋上への渡りの出入口で外す躯体側の手すりは、1スパンあたりの式の外（roof_bridge は別の試験）
         spec = {"project_name": "図示本数", "series_id": "shinwa_A",
                 "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
-                "eaves_height_mm": 16000, "building_height_mm": 16000}
+                "eaves_height_mm": 16000, "building_height_mm": 16000, "roof_bridge": False}
         spec.update(extra)
         return solve_all(spec)
 

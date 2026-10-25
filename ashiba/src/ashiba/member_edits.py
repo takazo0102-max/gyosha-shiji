@@ -365,6 +365,13 @@ def edit_effects(model: ScaffoldModel, edits, rules=None, openings=None, stair_p
                     for p, n in cell_parts(model, ep, si, lv, part, rules):
                         k = (p.model_no, p.category)
                         eff.removed[k] = eff.removed.get(k, 0) + n
+                        # 単管の足場の管（布・手すり）は両端の直交クランプも一緒に外す（数量の _count_tube_parts と同じ）
+                        if model.master.is_tube and p.category == "布材" and ed.action == "外す":
+                            orth = next((q for q in model.master.by_category("クランプ")
+                                         if "直交" in q.note and "3連" not in q.note), None)
+                            if orth is not None:
+                                ok = (orth.model_no, orth.category)
+                                eff.removed[ok] = eff.removed.get(ok, 0) + 2 * n
                         if ed.action == "置換":
                             tp = model.master.get(ed.to)
                             tk = (tp.model_no, tp.category)
@@ -538,3 +545,27 @@ def format_edit_items(items) -> list[str]:
             s += f" #{it['reason']}"
         out.append(s)
     return out
+
+
+def bridge_passage_edits(model: ScaffoldModel) -> list[MemberEdit]:
+    """屋上への渡り（model.roof_bridges）の出入口: 渡りを掛ける段・スパンの躯体側の手すり・中桟を外す（外さないと
+    最上段の床から渡りへ出られない。2026-10-25 実機の確認）."""
+    out = []
+    by_edge = {e.edge_index: e for e in model.plan.edges}
+    for b in getattr(model, "roof_bridges", None) or []:
+        ep = by_edge.get(b.edge_index)
+        if ep is None:
+            continue
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        lo, hi = float(b.x_mm), float(b.x_mm) + float(b.width_mm)
+        ks = [i + 1 for i in range(len(ep.spans)) if posts[i] < hi - 1.0 and posts[i + 1] > lo + 1.0]
+        lv = list(model.elevation_of(b.edge_index).level_heights)
+        lk = next((i + 1 for i, h in enumerate(lv) if abs(float(h) - float(b.z_from_mm)) < 1.0), None)
+        if not ks or lk is None:
+            continue
+        out.append(MemberEdit(b.edge_index, ks[0], ks[-1], lk, lk, ("内側手すり",), reason="屋上への渡りの出入口",
+                              auto=True))
+    return out
+

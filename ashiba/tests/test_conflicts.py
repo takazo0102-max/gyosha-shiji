@@ -173,7 +173,7 @@ class TestAsagaoVersusAttachments(unittest.TestCase):
 
     def test_hoist_mast_through_the_asagao_is_flagged_with_the_span(self):
         m = self._model()
-        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000, cage_width_mm=2000)])
         hits = [c for c in check_conflicts(m, platforms=pf) if c.kind == "昇降機×朝顔"]
         self.assertEqual(len(hits), 1)
         self.assertEqual(hits[0].severity, "WARN")

@@ -888,8 +888,8 @@ while strlen(rest) > 0 and nHo < 4 do
 			nHo = nHo + 1
 			hoP[nHo] = hoT
 			hoR[nHo] = v / 1000
-			hoW[nHo] = 2.0
-			hoD[nHo] = 2.0
+			hoW[nHo] = 4.6
+			hoD[nHo] = 1.3
 			hoTp[nHo] = 3.6
 		endif
 		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000
@@ -2124,7 +2124,12 @@ for ih = 1 to nHo
 	line_type 3
 	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
 	line_type 1
-	rect2 hx - 0.15, -rowW - 0.10 - hoD[ih], hx + 0.15, -rowW - 0.40 - hoD[ih]
+	! マストは荷台の左右の両端（ロングスパン）
+	myc2 = -rowW - 0.10 - hoD[ih] / 2
+	for imx = -1 to 1 step 2
+		mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)
+		rect2 mxc2 - 0.15, myc2 - 0.15, mxc2 + 0.15, myc2 + 0.15
+	next imx
 	set style "annoC"
 	if showDim then
 		tdx = hx
@@ -3038,7 +3043,10 @@ for ih = 1 to nHo
 	line_type 3
 	rect2 hx - hoW[ih] / 2, 0, hx + hoW[ih] / 2, hoR[ih]
 	line_type 1
-	rect2 hx - 0.15, 0, hx + 0.15, hoR[ih] + 1.0
+	for imx = -1 to 1 step 2
+		mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)
+		rect2 mxc2 - 0.15, 0, mxc2 + 0.15, hoR[ih] + 1.0
+	next imx
 	cz2 = 0.20
 	for il6 = 1 to nLa
 		if abs(laP[il6] - hx) < 0.001 then
@@ -4367,9 +4375,13 @@ for il = 1 to nLv
 				if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
 						abs(z - sgH[ig2]) < 0.001 then inSg = 1
 			next ig2
-			! 昇降機の乗り込み口（位置を含むスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
+			! 昇降機の乗り込み口（荷台の長さに掛かるスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
 			for il4 = 1 to nLa
-				if laP[il4] >= x - 0.001 and laP[il4] < x + spans[ip] - 0.001 and \
+				lw4 = 2.0
+				for ih4 = 1 to nHo
+					if abs(hoP[ih4] - laP[il4]) < 0.001 then lw4 = hoW[ih4]
+				next ih4
+				if laP[il4] - lw4 / 2 < x + spans[ip] - 0.001 and laP[il4] + lw4 / 2 > x + 0.001 and \
 						abs(z - laH[il4]) < 0.001 then inSg = 2
 			next il4
 			! 張出しブラケットで床を広げた層・スパンは、建地位置の手すりは外し、新しい縁の手すりに任せる
@@ -4846,6 +4858,11 @@ endif
 ! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
 ! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
 if showBrace then
+	! 面の両端の構面には必ず入れる（利用者の指定 2026-10-25: 両サイドの1段目ブレス確認）。間隔で入れた最後の組が
+	! 終点の2スパンに届かなければ、終点の手前のスパンから1組足す（数量 quantity.brace_starts と同じ）
+	sLastB = 1 + bEvS * int((nSpan - 1) / bEvS)
+	ipEndB = 0
+	if nSpan >= 2 and sLastB < nSpan - 1 then ipEndB = nSpan - 1
 	for il = 1 to nLv - 1
 		if brOn[il] = 1 then
 			z1 = lv[il]
@@ -4864,7 +4881,7 @@ if showBrace then
 							if bittest(edE[ie], 3) then eoB = 1
 						endif
 					next ie
-					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType <> "W" then
+					if (ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 or ip = ipEndB) and eoB = 0 and serType <> "W" then
 						! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
 						! 交さ2方向の2本は、このスパンに「／」、隣のスパンに「＼」（山形）。同じスパンに重ねて X にすると
 						! 先行手すり（X の斜材）と見分けがつかなかった（利用者の指摘 2026-10-22: 1段目の端部が先行手すりに
@@ -5137,40 +5154,48 @@ for ig = 1 to nSg
 	next ipb
 next ig
 
-! ---- ロングスパンエレベーター（マスト＋搬器＋渡し板＋マスト控え） ----
-! 詳細図と同じ取合い: 外側建地から隙間0.10mを空けて搬器（hoW×hoD、手すり枠高さ2.2m）、
-! その外側に0.30角のラック付きマスト（0.5mごとの横材）。搬器は最下の乗り込み口の
-! 高さに置く。以前は4隅の細い柱と床板だけでマストが無く、干渉確認に使えなかった
+! ---- ロングスパンエレベーター（マスト2本＋荷台＋渡し板＋マスト控え） ----
+! ロングスパン建設用リフトは、面に沿って長い荷台（3〜10m）の左右の両端にラック付きのガイドレール（マスト）を立てる
+! （日本建設機械施工協会「建設用リフト」図2.4.8・2.4.9。2026-10-25 実機の確認で、搬器の外の中央にマスト1本の
+! 一本構の形だったのを直した）。外側建地から隙間0.10mを空けて荷台（hoW×hoD、手すり枠高さ2.2m）、荷台の両端の外に
+! 0.30角のマスト（0.5mごとの横材）。荷台は最下の乗り込み口の高さに置く
 for ih = 1 to nHo
 	hx = hoP[ih]
 	hg = 0.10
-	cy = -rowW - hg              ! 搬器の足場側端
-	cyo = cy - hoD[ih]           ! 搬器の外側端
-	myc = cyo - 0.15             ! マスト中心（y）
+	cy = -rowW - hg              ! 荷台の足場側端
+	cyo = cy - hoD[ih]           ! 荷台の外側端
+	myc = cy - hoD[ih] / 2       ! マスト中心（y。荷台の奥行の中央）
 	mh = hoR[ih] + 1.0           ! マスト頂部（到達高さ＋余長）
-	! マスト: 4隅の主材＋0.5mごとの横材
-	for icx = -1 to 1 step 2
-		for icy = -1 to 1 step 2
-			add hx + 0.15 * icx, myc + 0.15 * icy, 0
-			cylind mh, 0.02
+	for imx = -1 to 1 step 2
+		mxc = hx + imx * (hoW[ih] / 2 + 0.20)      ! マスト中心（x。荷台の端の外）
+		! マスト: 4隅の主材＋0.5mごとの横材
+		for icx = -1 to 1 step 2
+			for icy = -1 to 1 step 2
+				add mxc + 0.15 * icx, myc + 0.15 * icy, 0
+				cylind mh, 0.02
+				del 1
+			next icy
+		next icx
+		nm3 = int(mh / 0.5)
+		for im3 = 1 to nm3
+			add mxc - 0.15, myc - 0.165, im3 * 0.5 - 0.015
+			block 0.30, 0.03, 0.03
 			del 1
-		next icy
-	next icx
-	nm3 = int(mh / 0.5)
-	for im3 = 1 to nm3
-		add hx - 0.15, myc - 0.165, im3 * 0.5 - 0.015
-		block 0.30, 0.03, 0.03
+			add mxc - 0.15, myc + 0.135, im3 * 0.5 - 0.015
+			block 0.30, 0.03, 0.03
+			del 1
+			add mxc - 0.165, myc - 0.15, im3 * 0.5 - 0.015
+			block 0.03, 0.30, 0.03
+			del 1
+			add mxc + 0.135, myc - 0.15, im3 * 0.5 - 0.015
+			block 0.03, 0.30, 0.03
+			del 1
+		next im3
+		! マストの基礎（敷鉄板の上のベース）
+		add mxc - 0.35, myc - 0.35, 0
+		block 0.70, 0.70, 0.05
 		del 1
-		add hx - 0.15, myc + 0.135, im3 * 0.5 - 0.015
-		block 0.30, 0.03, 0.03
-		del 1
-		add hx - 0.165, myc - 0.15, im3 * 0.5 - 0.015
-		block 0.03, 0.30, 0.03
-		del 1
-		add hx + 0.135, myc - 0.15, im3 * 0.5 - 0.015
-		block 0.03, 0.30, 0.03
-		del 1
-	next im3
+	next imx
 	! 搬器: 床＋4隅の枠柱＋上枠（4辺）＋中桟（外側・妻側。足場側は乗降口）
 	cz = 0.20
 	cz0 = 0
@@ -5218,16 +5243,19 @@ for ih = 1 to nHo
 			del 1
 		endif
 	next il3
-	! マスト控え（控えピッチごとにマストから足場の外側建地へ。足場側は壁つなぎで躯体へ）
+	! マスト控え（控えピッチごとに両方のマストから足場の外側建地へ。足場側は壁つなぎで躯体へ）
 	tp3 = hoTp[ih]
 	if tp3 < 0.5 then tp3 = 3.6
 	nt3 = int(hoR[ih] / tp3)
-	for it3 = 1 to nt3
-		add hx, myc + 0.15, it3 * tp3
-		rotx -90
-		cylind -rowW - myc - 0.15, r_tie
-		del 2
-	next it3
+	for imx = -1 to 1 step 2
+		mxc = hx + imx * (hoW[ih] / 2 + 0.20)
+		for it3 = 1 to nt3
+			add mxc, myc + 0.15, it3 * tp3
+			rotx -90
+			cylind -rowW - myc - 0.15, r_tie
+			del 2
+		next it3
+	next imx
 next ih
 
 ! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部・ホゾ、梁渡し、補強のつなぎ材 ----

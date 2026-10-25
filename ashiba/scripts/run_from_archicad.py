@@ -406,8 +406,10 @@ def apply_spec_object(client, spec: dict) -> dict:
     return spec
 
 
-def read_slabs_near(client, outline_mm, margin_mm: float = 30000.0) -> list[dict]:
-    """建物の外形のまわり（margin まで）にあるスラブの外形と天端（入力の slabs の形）."""
+def read_slabs_near(client, outline_mm, margin_mm: float = 10000.0) -> list[dict]:
+    """建物の外形のまわり（margin まで）にあるスラブの外形と天端（入力の slabs の形）.
+
+    張り出した上の階は外形から数 m。30m まで拾っていたので、28m 離れた別棟のスラブまで数えていた（実機 2026-10-25）。"""
     from ashiba.slab_heights import slabs_from_details
 
     try:

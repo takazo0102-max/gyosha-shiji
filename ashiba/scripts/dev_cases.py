@@ -10,6 +10,7 @@
   python3 scripts/dev_cases.py create slope --at x,y                   # 12×8m・3階（軒 9m）と、建物を囲む斜面の敷地メッシュ
                                                                         # （西が高く東へ 1.5m 下がる。南は境界が近い）。メッシュの
                                                                         # 外形を敷地境界にする・足元の勾配の確認
+  python3 scripts/dev_cases.py create box --at x,y                     # 12×8m・3階（軒 9m）の平らな建物（枠組・昇降機などの確認）
   python3 scripts/dev_cases.py place <名前>                           # その建物の足場を置く（条件の窓なし）
   python3 scripts/dev_cases.py clear [<名前>]                          # 足場と作ったスラブを消す
 """
@@ -45,14 +46,14 @@ def floors(kind: str, ox: float, oy: float) -> list[tuple[list, float]]:
         low = _rect(ox, oy, 0, 0, 24000, 10000)
         big = _rect(ox, oy, 0, -2000, 24000, 10000)
         return [(low, 0.0)] + [(big, h) for h in (3000.0, 6000.0, 9000.0, 12000.0)]
-    if kind == "slope":
+    if kind in ("slope", "box"):
         low = _rect(ox, oy, 0, 0, 12000, 8000)
         return [(low, 0.0)] + [(low, h) for h in (3000.0, 6000.0, 9000.0)]
     if kind == "sidebridge":
         low = _rect(ox, oy, 0, 0, 6000, 5000)
         big = _rect(ox, oy, -1000, 0, 6000, 5000)
         return [(low, 0.0), (low, 3000.0)] + [(big, h) for h in (6000.0, 9000.0)]
-    raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge / slope）")
+    raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge / slope / box）")
 
 
 # 斜面の見本の敷地メッシュ（建物の外形から 西 4m・東 4m・北 3m・南 1.3m。西の端が GL±0、東の端が −1.5m）

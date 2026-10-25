@@ -123,7 +123,7 @@ from .notification import (
     write_notification_xlsx,
 )
 from .plan_solver import StandoffSpec, solve_plan
-from .platforms import Hoist, LoadingStage, platform_ranges, validate_platforms
+from .platforms import HOIST_CAGE_D_MM, HOIST_CAGE_W_MM, Hoist, LoadingStage, platform_ranges, validate_platforms
 from .quantity import take_off
 from .report import (
     write_jack_table_csv,
@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "hane_bracket_type", "width_change", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "elevation_lines_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -1084,6 +1084,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         _apply_face_eaves(model, face_eaves)
     model.eaves_by_face = dict(face_eaves or {})
     model.cross_cuts_mm = [(tuple(map(float, a)), tuple(map(float, b))) for a, b in (spec.get("cross_cuts_mm") or [])]
+    model.elevation_lines_mm = [(tuple(map(float, a)), tuple(map(float, b)))
+                                for a, b in (spec.get("elevation_lines_mm") or [])]
     # 途中の作業床から幅を変える（拡幅・縮幅。利用者の指定 2026-10-25: 両方作って 610→914と914→1219）
     from .width_change import build as build_width_change
 
@@ -1660,8 +1662,8 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             tie_every_mm=h.get("tie_every_mm", 3600),
             landing_levels=[int(v) for v in h.get("landing_levels", [])],
             note=h.get("note", ""),
-            cage_width_mm=float(h.get("cage_width_mm", 2000)),
-            cage_depth_mm=float(h.get("cage_depth_mm", 2000)),
+            cage_width_mm=float(h.get("cage_width_mm", HOIST_CAGE_W_MM)),
+            cage_depth_mm=float(h.get("cage_depth_mm", HOIST_CAGE_D_MM)),
             load_kn=float(h.get("load_kn", 0.0)),
         )
         for h in spec.get("hoists", [])
@@ -2383,6 +2385,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     model.plan.warnings.extend(rb_notes)
     if model.roof_bridges:
         model.plan.warnings.append(bridge_note(model.roof_bridges, model))
+        # 渡りの出入口（渡りを掛ける段・スパン）の躯体側の手すり・中桟を外す（外さないと渡りへ出られない）
+        from .member_edits import bridge_passage_edits
+
+        model.member_edits = list(model.member_edits or []) + bridge_passage_edits(model)
     quantity = take_off(
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms, openings=openings, terrain=terrain,

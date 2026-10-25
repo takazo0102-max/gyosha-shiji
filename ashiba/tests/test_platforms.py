@@ -182,22 +182,25 @@ class TestHoist(unittest.TestCase):
         """乗り込み口は足場側の開口。口数ぶんの防護が要る."""
         from ashiba.platforms import platform_part_demands
 
-        r = validate_platforms(
-            self.m, hoists=[Hoist(edge_index=2, position_mm=0,
-                                  landing_levels=[2, 4])])
+        h = Hoist(edge_index=2, position_mm=0, landing_levels=[2, 4])
+        r = validate_platforms(self.m, hoists=[h])
         demand = [d for d in platform_part_demands(self.m, r)
                   if "乗り込み口" in d.label][0]
-        self.assertEqual(demand.qty, 2)
+        # 荷台の長さ（ロングスパン 4.6m）に掛かるスパンごと×口数
+        n_sp = len(h.gate_spans(self.m))
+        self.assertGreaterEqual(n_sp, 2)
+        self.assertEqual(demand.qty, 2 * n_sp)
         self.assertIn("563", demand.detail)
         self.assertIn("作業層2・4", demand.detail)
 
     def test_landing_defaults_to_every_level(self):
         from ashiba.platforms import platform_part_demands
 
-        r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=0)])
+        h = Hoist(edge_index=2, position_mm=0)
+        r = validate_platforms(self.m, hoists=[h])
         demand = [d for d in platform_part_demands(self.m, r)
                   if "乗り込み口" in d.label][0]
-        self.assertEqual(demand.qty, self.m.elevation.n_levels)
+        self.assertEqual(demand.qty, self.m.elevation.n_levels * len(h.gate_spans(self.m)))
 
     def test_missing_part_becomes_one_order_note(self):
         """開閉式手すりはマスタに無い。手配項目に出すが、同じ話を2行にしない."""
@@ -428,13 +431,15 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
         self.assertEqual(st.quantity.qty_of("先行手摺"), base.quantity.qty_of("先行手摺") - 2)
 
     def test_hoist_landing_bays(self):
-        """乗り込み口（位置を含むスパン×乗り込む層）も固定手すり・幅木を外す（開閉式手すりに置き換わる）."""
+        """乗り込み口（荷台の長さに掛かるスパン×乗り込む層）も固定手すり・幅木を外す（開閉式手すりに置き換わる）."""
         base = self._run()
         h = self._run(hoists=[{"edge_index": 0, "position_mm": 9000, "landing_levels": [2, 5]}])
-        self.assertEqual(h.quantity.qty_of("布材"), base.quantity.qty_of("布材") - 2 * 2)
-        self.assertEqual(h.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") - 2)
-        # 開閉式手すりはマスタに無い系列では手配注記になる（どちらでも2箇所が出ること）
-        mentioned = (h.quantity.qty_of("開閉式手すり") == 2
+        n_sp = len(h.platforms.hoists[0].gate_spans(h.model))
+        self.assertGreaterEqual(n_sp, 2)
+        self.assertEqual(h.quantity.qty_of("布材"), base.quantity.qty_of("布材") - 2 * 2 * n_sp)
+        self.assertEqual(h.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") - 2 * n_sp)
+        # 開閉式手すりはマスタに無い系列では手配注記になる（どちらでも口数×スパン数が出ること）
+        mentioned = (h.quantity.qty_of("開閉式手すり") == 2 * n_sp
                      or any("開閉式手すり" in n for n in h.quantity.notes))
         self.assertTrue(mentioned, h.quantity.notes)
 

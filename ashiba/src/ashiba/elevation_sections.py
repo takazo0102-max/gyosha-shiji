@@ -126,12 +126,78 @@ def section_specs(model: ScaffoldModel, prefix: str = "足場",
         ext_e = _end_ext(model, ep.edge_index, +1, end_ext_mm)
         s = (sx + ox * off - ux * ext_s, sy + oy * off - uy * ext_s)
         e = (ex + ox * off + ux * ext_e, ey + oy * off + uy * ext_e)
+        # 平面に引いた線で立面の位置を決めた面は、その線で見る（利用者の指定 2026-10-25: 立面 断面の位置も線でする）
+        line = elevation_line_for(model, ep)
+        if line is not None:
+            s, e = line
         # 奥行き: 切断線から躯体の最も遠い頂点まで
         far = max(((vx - s[0]) * nx + (vy - s[1]) * ny) for vx, vy in verts) if verts else off
         depth = max(far, off) + DEPTH_MARGIN_MM
         face = model.face_name(ep.edge_index)
-        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth, length + ext_s + ext_e, ep.edge_index))
+        out.append(SectionSpec(face, section_name(prefix, face), s, e, depth,
+                               math.hypot(e[0] - s[0], e[1] - s[1]), ep.edge_index))
     return out
+
+
+ELEV_LINE_MAX_DEG = 20.0     # 立面の線と面のなす角がこれ以下なら、その面の立面の線とみなす
+
+
+def crosses_outline(outline, a, b) -> bool:
+    """線が躯体の外形（頂点の並び mm）を横切るか（横切る線は断面、横切らない線は立面）."""
+    verts = [(float(x), float(y)) for x, y in outline]
+
+    def ccw(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    for i in range(len(verts)):
+        p, q = verts[i], verts[(i + 1) % len(verts)]
+        if ccw(a, b, p) * ccw(a, b, q) < 0 and ccw(p, q, a) * ccw(p, q, b) < 0:
+            return True
+    return False
+
+
+def assign_elevation_line(model: ScaffoldModel, a, b):
+    """面に沿って足場の外に引いた線 → (辺番号, 始点, 終点)（始点→終点は面の向き。左手が躯体）. 当てはまらなければ None.
+
+    線と向きの近い面（ELEV_LINE_MAX_DEG 以内）のうち、線が外側建地列より外にあって面と重なる、いちばん近い面."""
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    L = math.hypot(bx - ax, by - ay)
+    if L < 1.0:
+        return None
+    best = None
+    for ep in model.plan.edges:
+        sx, sy = ep.start_post
+        ex, ey = ep.end_post
+        fl = math.hypot(ex - sx, ey - sy)
+        if fl < 1.0:
+            continue
+        ux, uy = (ex - sx) / fl, (ey - sy) / fl
+        ox, oy = uy, -ux
+        cos = abs(((bx - ax) * ux + (by - ay) * uy) / L)
+        if cos < math.cos(math.radians(ELEV_LINE_MAX_DEG)):
+            continue
+        t1 = (ax - sx) * ux + (ay - sy) * uy
+        t2 = (bx - sx) * ux + (by - sy) * uy
+        d = ((ax - sx) * ox + (ay - sy) * oy + (bx - sx) * ox + (by - sy) * oy) / 2.0
+        if d < float(model.post_row_spacing_mm) + 100.0:
+            continue                                  # 足場の外に引いていない
+        if max(t1, t2) < 0.0 or min(t1, t2) > fl:
+            continue                                  # 面と重ならない
+        if best is None or d < best[0]:
+            lo, hi = min(t1, t2), max(t1, t2)
+            best = (d, ep.edge_index, (sx + ux * lo + ox * d, sy + uy * lo + oy * d),
+                    (sx + ux * hi + ox * d, sy + uy * hi + oy * d))
+    return None if best is None else best[1:]
+
+
+def elevation_line_for(model: ScaffoldModel, ep):
+    """この面の立面を平面に引いた線で決めていれば (始点, 終点)、無ければ None."""
+    for a, b in getattr(model, "elevation_lines_mm", None) or []:
+        hit = assign_elevation_line(model, a, b)
+        if hit is not None and hit[0] == ep.edge_index:
+            return hit[1], hit[2]
+    return None
 
 
 def drawing_plan(section_length_mm: float, scaffold_height_mm: float, paper_mm: tuple[float, float],

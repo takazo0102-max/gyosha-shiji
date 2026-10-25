@@ -216,6 +216,16 @@ def params_from_spec(spec: dict) -> dict:
             out[f.gdl] = "・".join(str(t) for t in v)          # 面名の並び（朝顔を付ける面）
         else:
             out[f.gdl] = str(v)
+    # モジュールは系列に合わせる（系列だけ書いた条件で、部品のモジュールが既定のメートルのまま ND（インチ）の系列と食い違い、
+    # 次の実行が「module がメートルなのに系列はインチ」で止まった。実機 2026-10-25）
+    sid = str(spec.get("series_id") or "")
+    if sid:
+        from .master import series_module
+
+        try:
+            out["moduleKind"] = series_module(sid)
+        except Exception:
+            pass
     return out
 
 

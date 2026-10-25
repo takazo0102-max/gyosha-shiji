@@ -53,6 +53,8 @@ class StageResult:
     quantity: list[tuple[str, int, int, str]] = field(default_factory=list)   # (分類, 呼び寸法, 数, 用途)
     checks: list[StageCheck] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    top_mm: int = 0                   # 支柱の天端（足場の立つ面から mm）
+    ceiling_mm: Optional[float] = None   # 天井（上の階の床の下端。足場の立つ面から mm。分からなければ None）
 
     @property
     def length_u(self) -> float:
@@ -130,6 +132,9 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     live = float(item.get("live_kn_m2", LIVE_DEFAULT_KN_M2) or LIVE_DEFAULT_KN_M2)
     res = StageResult(name, origin, u, v, su, sv, levels, deck, float(item.get("base_mm", 0.0) or 0.0),
                       list(elev.posts), int(elev.jack_extension), live)
+    res.top_mm = int(elev.jack_extension + sum(elev.posts))
+    ceil_mm = item.get("ceiling_mm")
+    res.ceiling_mm = float(ceil_mm) if ceil_mm else None
     _quantity(res, master)
     _checks(res, master, capacities)
     return res
@@ -223,6 +228,21 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
                               "（作業床の隙間 3cm 以下・開口部は手すりで囲う）"))
     else:
         out.append(StageCheck("墜落防止・昇降", "OK", f"作業床 {r.deck_mm}mm（2m 未満）: 外周の手すり・はしごは計上済み"))
+    # 5. 天井（上の階の床の下端）との取り合い（実機 2026-10-25: 階高 3m の部屋に既定の 4000 で置き、手すりと支柱が
+    #    上の階の床を突き抜けた）
+    ceil = getattr(r, "ceiling_mm", None)
+    if ceil:
+        top = float(getattr(r, "top_mm", 0) or 0)
+        head = ceil - r.deck_mm
+        if top > ceil - 30.0:
+            out.append(StageCheck("天井との取り合い", "NG",
+                                  f"支柱・手すりの天端 {top:.0f} が天井（上の床の下端 {ceil:.0f}）に当たる。作業床を "
+                                  f"{ceil - 1800:.0f} 前後（天井から 1.8m 下）に下げる"))
+        elif head < 1500 or head > 2100:
+            out.append(StageCheck("天井との取り合い", "WARN",
+                                  f"作業床から天井まで {head:.0f}mm。天井の作業は 1.6〜1.8m 前後が楽（頭上 {head:.0f}）"))
+        else:
+            out.append(StageCheck("天井との取り合い", "OK", f"作業床から天井（上の床の下端 {ceil:.0f}）まで {head:.0f}mm"))
     if r.deck_mm < 1800:
         r.notes.append("作業床の高さが低いので、ステージの上の天井作業の姿勢（頭上の空き）を確かめてください")
 

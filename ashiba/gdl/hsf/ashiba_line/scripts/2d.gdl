@@ -643,7 +643,12 @@ for ih = 1 to nHo
 	line_type 3
 	rect2 hx - hoW[ih] / 2, -rowW - 0.10, hx + hoW[ih] / 2, -rowW - 0.10 - hoD[ih]
 	line_type 1
-	rect2 hx - 0.15, -rowW - 0.10 - hoD[ih], hx + 0.15, -rowW - 0.40 - hoD[ih]
+	! マストは荷台の左右の両端（ロングスパン）
+	myc2 = -rowW - 0.10 - hoD[ih] / 2
+	for imx = -1 to 1 step 2
+		mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)
+		rect2 mxc2 - 0.15, myc2 - 0.15, mxc2 + 0.15, myc2 + 0.15
+	next imx
 	set style "annoC"
 	if showDim then
 		tdx = hx
@@ -1557,7 +1562,10 @@ for ih = 1 to nHo
 	line_type 3
 	rect2 hx - hoW[ih] / 2, 0, hx + hoW[ih] / 2, hoR[ih]
 	line_type 1
-	rect2 hx - 0.15, 0, hx + 0.15, hoR[ih] + 1.0
+	for imx = -1 to 1 step 2
+		mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)
+		rect2 mxc2 - 0.15, 0, mxc2 + 0.15, hoR[ih] + 1.0
+	next imx
 	cz2 = 0.20
 	for il6 = 1 to nLa
 		if abs(laP[il6] - hx) < 0.001 then

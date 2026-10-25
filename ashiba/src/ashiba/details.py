@@ -66,8 +66,8 @@ def hoist_detail_specs(model: ScaffoldModel, platforms) -> list[dict]:
             "tie_every_mm": float(h.tie_every_mm),
             "landing_levels": list(landings),
             "landing_heights_mm": [float(levels[lv - 1]) for lv in landings if 1 <= lv <= len(levels)],
-            "cage_width_mm": float(getattr(h, "cage_width_mm", 2000.0)),
-            "cage_depth_mm": float(getattr(h, "cage_depth_mm", 2000.0)),
+            "cage_width_mm": float(getattr(h, "cage_width_mm", 4600.0)),
+            "cage_depth_mm": float(getattr(h, "cage_depth_mm", 1300.0)),
             "load_kn": float(getattr(h, "load_kn", 0.0)),
         })
     return out
@@ -214,7 +214,7 @@ def required_details(
         hspecs = [{"face": "南面", "position_mm": 9000.0, "reach_height_mm": float(model.scaffold_height_mm),
                    "tie_every_mm": 3600.0, "landing_levels": [1, 2],
                    "landing_heights_mm": [float(v) for v in e.level_heights[:2]],
-                   "cage_width_mm": 2000.0, "cage_depth_mm": 2000.0, "load_kn": 0.0}]
+                   "cage_width_mm": 4600.0, "cage_depth_mm": 1300.0, "load_kn": 0.0}]
     for i, h in enumerate(hspecs):
         load = float(h.get("load_kn") or 0.0)
         if load >= HOIST_NOTIFY_KN:
@@ -231,8 +231,8 @@ def required_details(
                 key="hoist",
                 title=DETAIL_NAMES["hoist"] + (f"（昇降機{i + 1}）" if len(hspecs) > 1 else ""),
                 params={**common,
-                        "hoistW": float(h.get("cage_width_mm", 2000.0)) / 1000.0,
-                        "hoistD": float(h.get("cage_depth_mm", 2000.0)) / 1000.0,
+                        "hoistW": float(h.get("cage_width_mm", 4600.0)) / 1000.0,
+                        "hoistD": float(h.get("cage_depth_mm", 1300.0)) / 1000.0,
                         "hoistH": float(h.get("reach_height_mm") or model.scaffold_height_mm) / 1000.0,
                         "mastTie": float(h.get("tie_every_mm") or 3600.0) / 1000.0,
                         "hoistGap": 0.10,       # 搬器と足場の隙間（図示用。乗場の渡し板で塞ぐ）

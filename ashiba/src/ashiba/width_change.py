@@ -142,6 +142,9 @@ def build(spec: dict, model) -> tuple[Optional[WidthChange], list[str]]:
     v = parse_spec(spec.get("width_change"))
     if v is None:
         return None, []
+    # 範囲を面で決めた指定は、その面がこの組（面の切替・上段）に無ければ関係ない（注意も出さない）
+    if v.get("faces") is not None and not _ranges_from(v.get("faces"), model):
+        return None, []
     m = model.master
     if m.is_frame or m.is_tube or model.config.scaffold_form != "本足場":
         return None, ["幅を変える（拡幅・縮幅）のは、くさび式の本足場だけです（この足場では幅を変えずに計画しました）"]

@@ -73,6 +73,10 @@ class LoadingStage:
         return list(edge.spans[i:i + self.span_count])
 
 
+HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
+HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
+
+
 @dataclass
 class Hoist:
     """昇降機（工事用エレベータ・ホイスト）1基."""
@@ -84,10 +88,23 @@ class Hoist:
     # 乗り込み口を設ける作業層（空なら全層）。足場側の開口なので本ツールの範囲
     landing_levels: list[int] = field(default_factory=list)
     note: str = ""
-    # 搬器の見付け（詳細図用。機種で違うので既定は図示用の2.0×2.0m）と積載荷重
-    cage_width_mm: float = 2000.0
-    cage_depth_mm: float = 2000.0
+    # 荷台の見付け（面に沿った長さ×奥行。ロングスパン建設用リフトの荷台は 3〜10m と長く、両端にマスト。機種で違うので
+    # 既定は図示用の 4.6×1.3m。日本建設機械施工協会「建設用リフト」図2.4.8・2.4.9）と積載荷重
+    cage_width_mm: float = HOIST_CAGE_W_MM
+    cage_depth_mm: float = HOIST_CAGE_D_MM
     load_kn: float = 0.0            # 積載荷重（0=未指定。設置届/設置報告の要否判定に使う）
+
+    def gate_spans(self, model: ScaffoldModel) -> list[int]:
+        """乗り込み口の開閉式手すりを付けるスパン（0 始まり）: 荷台の長さ（位置を中心に）に掛かるスパン（3D と同じ）."""
+        edge = _edge(model, self.edge_index)
+        if edge is None or not edge.spans:
+            return []
+        half = float(self.cage_width_mm or HOIST_CAGE_W_MM) / 2.0
+        posts = [0.0]
+        for sp in edge.spans:
+            posts.append(posts[-1] + float(sp))
+        return [k for k in range(len(edge.spans))
+                if posts[k] < self.position_mm + half - 1.0 and posts[k + 1] > self.position_mm - half + 1.0]
 
     def landings(self, model: ScaffoldModel) -> list[int]:
         n = model.elevation.n_levels
@@ -457,11 +474,12 @@ def platform_part_demands(
     for h in result.hoists:
         landings = h.landings(model)
         if landings:
+            n_sp = len(h.gate_spans(model)) or 1
             out.append(PartDemand(
                 "昇降機 乗り込み口の開閉式手すり", "開閉式手すり", None,
-                len(landings),
+                len(landings) * n_sp,
                 detail="作業層" + "・".join(str(lv) for lv in landings)
-                       + "。乗り込み口は足場側の開口で、防護しないと"
+                       + f"×荷台の長さに掛かる{n_sp}スパン。乗り込み口は足場側の開口で、防護しないと"
                          "各層に開放端ができます（安衛則563条）",
             ))
     # 取付部・マスト控えの壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に
@@ -567,7 +585,7 @@ def hoist_cut_ranges(model: ScaffoldModel, edge_index: int, hoists) -> list[tupl
         x = h.position_mm
         # 搬器の幅ぶん（位置を中心に）掛かるスパンを取る。点だけで見ると、幅2.4mの
         # 搬器がスパン境界の近くに立つとき隣のスパンの朝顔が切り欠かれない
-        half = float(getattr(h, "cage_width_mm", 2000.0) or 2000.0) / 2.0
+        half = float(getattr(h, "cage_width_mm", HOIST_CAGE_W_MM) or HOIST_CAGE_W_MM) / 2.0
         raw += [(posts[k], posts[k + 1]) for k in range(len(ep.spans))
                 if posts[k] < x + half - 1e-6 and posts[k + 1] > x - half + 1e-6]
     out: list[tuple[float, float]] = []

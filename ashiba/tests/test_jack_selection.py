@@ -100,7 +100,8 @@ class TestHoistGate(unittest.TestCase):
         for name in ("combo_nd1800.json", "waku_composite.json"):
             with self.subTest(name):
                 r = solve_all(load_spec(root / "examples" / name))
-                n_landings = sum(len(h.landings(r.model)) for h in r.platforms.hoists)
+                # 荷台の長さに掛かるスパンごとに開閉式手すり（ロングスパン）
+                n_landings = sum(len(h.landings(r.model)) * len(h.gate_spans(r.model)) for h in r.platforms.hoists)
                 self.assertGreater(n_landings, 0)
                 self.assertEqual(qty(r.quantity, "KSSD"), n_landings)
                 self.assertFalse([w for w in r.quantity.warnings if "開閉式手すり" in w and "ありません" in w],

@@ -93,12 +93,14 @@ class TestQuantity(unittest.TestCase):
         全スパン×全層で拾うと1桁多く発注してしまう。
         """
         import math
+
+        from ashiba.quantity import brace_starts
         rules = QuantityRules()
         level_groups = math.ceil(self.elev.n_levels / rules.brace_every_levels)
         expect = 0
         for e in self.plan.edges:
             fit = sum(1 for s in e.spans if s == 1800)
-            want = math.ceil(e.span_count / rules.brace_every_spans)
+            want = len(brace_starts(e.span_count, rules.brace_every_spans))   # 面の両端の構面には必ず
             expect += min(want, fit) * level_groups
         self.assertEqual(
             self.q.qty_of("筋交"), expect * rules.braces_per_location

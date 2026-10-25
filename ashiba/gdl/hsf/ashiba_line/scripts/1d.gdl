@@ -670,8 +670,8 @@ while strlen(rest) > 0 and nHo < 4 do
 			nHo = nHo + 1
 			hoP[nHo] = hoT
 			hoR[nHo] = v / 1000
-			hoW[nHo] = 2.0
-			hoD[nHo] = 2.0
+			hoW[nHo] = 4.6
+			hoD[nHo] = 1.3
 			hoTp[nHo] = 3.6
 		endif
 		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000

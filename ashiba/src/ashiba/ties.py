@@ -105,9 +105,14 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
             continue
         reach = ho.reach_height_mm or model.scaffold_height_mm
         n_ties = max(1, int(reach // ho.tie_every_mm))
-        for k in range(1, n_ties + 1):
-            h = int(min(k * ho.tie_every_mm, reach))
-            out.append(WallTie(ho.edge_index, float(ho.position_mm), h, "hoist"))
+        # ロングスパンはマストが荷台の両端に2本（3D と同じ。各マストの控えを足場へ取り、足場側は壁つなぎで躯体へ）
+        length = float(sum(edge.spans))
+        half = float(getattr(ho, "cage_width_mm", 0.0) or 0.0) / 2.0 + 200.0
+        xs = sorted({min(max(float(ho.position_mm) + sg * half, 0.0), length) for sg in (-1, 1)})
+        for x in xs:
+            for k in range(1, n_ties + 1):
+                h = int(min(k * ho.tie_every_mm, reach))
+                out.append(WallTie(ho.edge_index, x, h, "hoist"))
     return out
 
 
@@ -143,7 +148,16 @@ def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -
         (t.edge_index, round(t.position_mm), int(t.height_mm)) for t in model.wall_ties
     }
     added: dict[str, int] = {}
+    # 鉄骨から取る壁つなぎは梁の高さでしか取れない。取付部（朝顔・ステージ・マスト控え・梁枠）の壁つなぎも、いちばん近い
+    # 梁の高さに寄せる（マスト控えの 3600 ごとの高さに、梁の無い所へ壁つなぎを付けていた。実機 2026-10-25）
+    beams = []
+    if getattr(model.config, "tie_source", "仕上げ") == "鉄骨":
+        from .model import STEEL_TIE_DROP_MM
+
+        beams = sorted(int(round(float(h) + STEEL_TIE_DROP_MM)) for h in (model.config.steel_tie_heights or []))
     for t in _asagao_ties(model) + _platform_ties(model, platforms) + _beam_ties(model, openings):
+        if beams:
+            t.height_mm = min(beams, key=lambda b: abs(b - float(t.height_mm)))
         key = (t.edge_index, round(t.position_mm), int(t.height_mm))
         if key in existing:
             continue

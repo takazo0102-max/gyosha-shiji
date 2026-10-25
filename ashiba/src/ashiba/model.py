@@ -200,6 +200,8 @@ class ScaffoldModel:
     roof_bridges: list = field(default_factory=list)
     # 平面に引いた線で決めた断面の切断線 [((x, y), (x, y)) mm]（パレットの「図面を作る」。無ければ A-A・B-B を自動で）
     cross_cuts_mm: list = field(default_factory=list)
+    # 平面に引いた線で決めた立面の位置 [((x, y), (x, y)) mm]（面に沿って足場の外に引いた線。無ければ面ごとに自動で）
+    elevation_lines_mm: list = field(default_factory=list)
     # 取り入れ口（資材の取り込み口。intakes.Intake）
     intakes: list = field(default_factory=list)
     # 数量を面の組ごとに出すときの対象の面（None＝全部）。出隅の外側コーナーをこの面だけで数える
@@ -428,6 +430,10 @@ class ScaffoldModel:
         部材表は腕木600を発注するのに図面は670で描く、という食い違いが
         出ていた。発注する部材の寸法を正とする。
         """
+        # 単管抱き足場は足場の幅の指定（面の切替で本体の幅が付いてくる）があっても建地列は線の上（間隔 0）。幅 610 の
+        # 本体と組にした抱き足場の面が 600 の間隔で描かれ、平面の表記と 3D の建地がずれた（利用者の指摘 2026-10-25）
+        if self.config.is_hug:
+            return 0
         if self.config.post_row_spacing_mm is not None:
             return self.config.post_row_spacing_mm
         if self.config.is_hug:

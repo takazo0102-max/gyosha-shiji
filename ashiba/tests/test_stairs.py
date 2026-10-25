@@ -486,7 +486,7 @@ class TestNoLedgerRailsAtTheStair(unittest.TestCase):
         from ashiba.stairs import stair_rail_cells
 
         base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 6000,
-                "scaffold_width_mm": 914}
+                "scaffold_width_mm": 914, "roof_bridge": False}     # 渡りの出入口の手すりは別（階段の有無で位置が変わる）
         a = solve_all(base)
         b = solve_all({**base, "stairs": {"count": 0}})
         n = a.model.elevation.n_levels

@@ -45,6 +45,33 @@ def _inside(p, corners) -> bool:
     return inside(p, [tuple(c) for c in corners])
 
 
+def room_heights(c, corners, slabs=None) -> tuple[float, float, float | None]:
+    """範囲の中央の床（スラブの天端）と天井（その上のスラブの下端）と、いま開いている階の高さ（mm）.
+
+    部品はいま開いている階に置くので、ステージの足元（base_mm）は床の天端 − 階の高さ。床のスラブが無ければ階の高さ、
+    上のスラブが無ければ天井は None."""
+    from ashiba.obstacles import _inside as inside
+
+    try:
+        st = c.tapir("GetStories", {})
+        act = int(st.get("actStory", 0))
+        story = next((float(s["level"]) * 1000.0 for s in st.get("stories", []) if int(s.get("index", -99)) == act), 0.0)
+    except Exception:
+        story = 0.0
+    if slabs is None:
+        import run_from_archicad as R
+
+        slabs = R.read_slabs_near(c, corners, margin_mm=1000.0)
+    cx = sum(p[0] for p in corners) / len(corners)
+    cy = sum(p[1] for p in corners) / len(corners)
+    hit = [sl for sl in slabs if inside((cx, cy), [tuple(p) for p in sl["polygon_mm"]])]
+    floors = [float(sl["top_mm"]) for sl in hit if float(sl["top_mm"]) <= story + 300.0]
+    floor = max(floors) if floors else story
+    ceils = [float(sl["top_mm"]) - float(sl.get("thickness_mm") or 0.0) for sl in hit]
+    ceils = [v for v in ceils if v > floor + 500.0]
+    return floor, story, (min(ceils) if ceils else None)
+
+
 def main() -> int:
     import run_from_archicad as R
     from form_dialog import show_form
@@ -61,10 +88,17 @@ def main() -> int:
         print("内部足場: 平面で、ステージを組む範囲に長方形（ポリラインの4点か対角の線1本）を引いて選んでから押してください"
               + not_in_plan_hint(c))
         return 1
+    # 建てる所の床と天井（スラブから）。床の天端に建て、作業床の既定は天井の 1.8m 下（利用者の指定 2026-10-25: 内部足場
+    # 建てるところにして。階高 3m の部屋に既定の 4000 で置いて上の階の床を突き抜けていた）
+    floor, story, ceil = room_heights(c, corners)
+    deck0 = int((ceil - floor - 1800.0) // 50 * 50) if ceil else 4000
+    deck0 = max(1000, deck0)
+    where = (f"床（スラブの天端 {floor:.0f}）から天井（上の床の下端 {ceil:.0f}）まで {ceil - floor:.0f}mm。" if ceil
+             else f"床（{floor:.0f}）の上に建てます（上の床が見つからないので天井は確かめません）。")
     res = show_form({"title": "内部足場（内部ステージ足場）", "intro": "範囲に支柱を格子に立て、最上段に全面の作業床を張ります。"
-                     "作業床の高さは床から（天井の作業なら 天井高−1800 前後）。",
+                     + where + "作業床の高さは床から（天井の作業なら 天井高−1800 前後）。",
                      "fields": [{"key": "name", "label": "名前", "kind": "text", "value": "内部ステージ足場"},
-                                {"key": "deck", "label": "作業床の高さ mm", "kind": "number", "value": "4000"},
+                                {"key": "deck", "label": "作業床の高さ mm", "kind": "number", "value": str(deck0)},
                                 {"key": "live", "label": "積載 kN/m²", "kind": "number", "value": f"{LIVE_DEFAULT_KN_M2}"}],
                      "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "place":
@@ -72,7 +106,9 @@ def main() -> int:
         return 0
     vals = res.get("values") or {}
     item = {"name": str(vals.get("name") or "内部ステージ足場"), "corners_mm": corners,
-            "deck_mm": float(str(vals.get("deck") or "4000").replace(",", "")),
+            "deck_mm": float(str(vals.get("deck") or str(deck0)).replace(",", "")),
+            "base_mm": floor - story,
+            **({"ceiling_mm": ceil - floor} if ceil else {}),
             "live_kn_m2": float(str(vals.get("live") or LIVE_DEFAULT_KN_M2))}
     spec = {**R.SPEC, **R.load_spec_override()}
     sid = resolve_series_id(spec)
