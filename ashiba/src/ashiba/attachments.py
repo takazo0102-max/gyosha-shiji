@@ -364,20 +364,33 @@ def sheet_clamp_ends(model: ScaffoldModel, ep) -> tuple[bool, bool]:
     return (model.corner_kind_start(ep.edge_index) == "出隅", model.corner_kind_end(ep.edge_index) == "出隅")
 
 
+def _clamp_post(ep, x: float) -> float:
+    """シートの端 x にいちばん近い支柱の位置 mm（面の始点の支柱から）."""
+    posts = [0.0]
+    for sp in ep.spans:
+        posts.append(posts[-1] + float(sp))
+    return min(posts, key=lambda p: abs(p - x))
+
+
 def sheet_clamp_positions(model: ScaffoldModel, ep, stair_plan=None) -> list[float]:
     """普通のシートクランプを付ける面に沿った位置 mm（シートの継ぎ目＝支柱と、区間の端の支柱。出隅の角はコーナー用）."""
     corner_s, skip_e = sheet_clamp_ends(model, ep)
     segs = [p for p in sheet_panels(model, ep, stair_plan) if p]
-    # 端は角の支柱（シートはあきだけ外へ出ている。防音パネルは角の建地で止まる）
-    wrap = 0.0 if is_panel(model) else SHEET_GAP_MM
+    # 端のクランプは、シートの端にいちばん近い支柱に付ける。出隅はシートが角の支柱の外へあきだけ回り、範囲の端・
+    # セットバックの継ぎ目・入隅はシートの端が支柱から外れている（シートの端の 60 先に付けると宙に浮く。
+    # 実機 2026-10-25: シートクランプが浮いてる箇所がある）
     xs: list[float] = []
     for k, panels in enumerate(segs):
         if not (k == 0 and corner_s):
-            xs.append(panels[0][0] + wrap)
+            xs.append(_clamp_post(ep, panels[0][0]))
         xs += [a for a, _b, _s in panels[1:]]
         if not (k == len(segs) - 1 and skip_e):
-            xs.append(panels[-1][1] - wrap)
-    return xs
+            xs.append(_clamp_post(ep, panels[-1][1]))
+    out: list[float] = []
+    for x in xs:
+        if not out or abs(x - out[-1]) > 1.0:
+            out.append(x)
+    return out
 
 
 def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[float, float, float]]:
@@ -439,6 +452,10 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 # 出隅の角はコーナー用のクランプ（始点を受け持ち、終点は次の面）
                 "clampCS": int(segi == 0 and sheet_clamp_ends(model, ep)[0]),
                 "clampSkipE": int(segi == nseg - 1 and sheet_clamp_ends(model, ep)[1]),
+                # 区間の端のクランプは、シートの端にいちばん近い支柱に（sheet_clamp_positions と同じ）
+                "clampEnd": 1 if panels else 0,
+                "clampXS": (_clamp_post(ep, panels[0][0]) if panels else 0.0) / 1000.0,
+                "clampXE": (_clamp_post(ep, panels[-1][1]) if panels else 0.0) / 1000.0,
                 # 継ぎ目は足場の支柱の位置。「始点,終点,特殊(0/1)」の繰り返し mm（特殊シートは色を替える）
                 "panelList": ",".join(f"{a:.0f},{b:.0f},{int(sp)}" for a, b, sp in panels),
                 # シートクランプ（継ぎ目と端の支柱に、各段のシートの上下で。利用者の指定・資料 2026-10-24）

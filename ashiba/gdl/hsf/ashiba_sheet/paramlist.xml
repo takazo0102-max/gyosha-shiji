@@ -93,6 +93,18 @@
 			<Description><![CDATA["終点の角のクランプを付けない 0/1（出隅は次の面のコーナー用）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Integer Name="clampEnd">
+			<Description><![CDATA["区間の端のクランプを clampXS・clampXE（いちばん近い支柱）に付ける 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="clampXS">
+			<Description><![CDATA["始点の端のクランプの位置（支柱）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="clampXE">
+			<Description><![CDATA["終点の端のクランプの位置（支柱）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Material Name="matSheet">
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>

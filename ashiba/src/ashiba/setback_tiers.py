@@ -290,6 +290,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     target = float((spec.get("standoff") or {}).get("target", 300.0))
     overrides: dict[str, list[int]] = {}
     low: dict[str, list[float]] = {}
+    passage: list[list[float]] = []
     low_top = None
     plan_t: list[dict] = []
     heads: dict[int, tuple] = {}
@@ -366,6 +367,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             overrides[fname] = spans
             # セットバックの先: 上段の外側の列より外（上段の外向きの側）
             low[fname] = [0.0, a2] if sgn < 0 else [a2 + w, 1.0e9]     # 1e9＝面の終点まで（face_forms.FACE_END_MM 以上）
+            # 上段の内外の建地の列の間のスパン（上段の床から本体の床へ歩いて渡る升目）
+            passage.append([ei, a2, a2 + w])
             low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
     if not overrides:
         return spec, tiers, notes
@@ -377,6 +380,9 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     main = {**spec, "span_overrides": list(spec.get("span_overrides") or [])
             + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
             "_low_ranges": low, "_open_above": open_above,
+            # 上段の床から本体の床へ渡る升目は、途中の屋根より上の層で本体の内側の手すり（布材）を付けない
+            # （利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして）
+            "_tier_passage": [[ei, a, b, low_top - base] for ei, a, b in passage],
             # 下段は本体と同じ立面を途中の屋根で切る（床の高さが本体とそろう。別に解くとジャッキ・段がずれた）
             "_low_spec": {"height_from_slabs": False, "roof_bridge": False, "_joined_ends": low_join,
                           "scaffold_height_mm": "__MAIN__",

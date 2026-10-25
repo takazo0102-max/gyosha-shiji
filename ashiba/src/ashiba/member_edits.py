@@ -171,6 +171,35 @@ def inner_corner_edits(model: ScaffoldModel) -> list[MemberEdit]:
     return out
 
 
+def tier_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
+    """セットバックの上段が本体に繋がる升目（setback_junctions の _tier_passage「面, 始め, 終わり, 屋根の高さ」。位置は元の
+    面の始点の支柱から mm）: 途中の屋根より上の層で本体の内側の手すりを付けない（上段の床から本体の床へ回れる）.
+
+    利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして。
+    """
+    out = []
+    by_edge = {e.edge_index: e for e in model.plan.edges}
+    for ei, a, b, z0 in passages or []:
+        ep = by_edge.get(int(ei))
+        if ep is None or (model.edge_subset is not None and int(ei) not in model.edge_subset):
+            continue
+        off = float((getattr(model, "face_offsets", {}) or {}).get(int(ei), (0.0, 0.0))[0])
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        k = next((i for i in range(len(ep.spans)) if abs(posts[i] - (float(a) - off)) < 2.0
+                  and abs(posts[i + 1] - (float(b) - off)) < 2.0), None)
+        if k is None:
+            continue
+        lv = list(model.elevation_of(int(ei)).level_heights)
+        l0 = next((i + 1 for i, h in enumerate(lv) if float(h) >= float(z0) - 1.0), None)
+        if l0 is None:
+            continue
+        out.append(MemberEdit(int(ei), k + 1, k + 1, l0, len(lv), ("内側手すり",), reason="上段への通り（セットバック）",
+                              auto=True))
+    return out
+
+
 def edit_list(model: ScaffoldModel, ep, edits) -> str:
     """足場ラインへ渡す editList「スパン始,スパン終,層始,層終,ビット」の繰り返し（外すものだけ）."""
     out = []

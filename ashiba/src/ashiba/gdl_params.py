@@ -21,21 +21,22 @@ from .segments import WHOLE
 # 長いリストは続きパラメータ（name2, name3, …）に分けて渡し、GDL側で続けて読む。
 GDL_STR_MAX = 255
 LIST_CHUNKS = {"tieList": 5, "tieHeightList": 5, "spanList": 2, "brktList": 4,
-               "glList": 2, "jackList": 2, "shimList": 2, "glListO": 2, "jackListO": 2, "shimListO": 2}
+               "glList": 2, "jackList": 2, "shimList": 2, "glListO": 2, "jackListO": 2, "shimListO": 2,
+               "sillList": 2}
 # レコード単位のリストは、レコードの途中で切らない（GDLは項目を順に読む）
-LIST_GROUP = {"brktList": 6}
+LIST_GROUP = {"brktList": 6, "sillList": 3}
 # GDL側の配列上限（1d.gdl の dim と一致させる。テストで突き合わせる）
 GDL_ARRAY_CAP = {"spanList": 60, "postList": 40, "tieList": 200,
                  "tieHeightList": 200, "brktList": 24 * 6,
                  "glList": 61, "jackList": 61, "shimList": 61, "bridgeList": 8 * 4,
                  "glListO": 61, "jackListO": 61, "shimListO": 61,
-                 "editList": 16 * 5}
+                 "editList": 16 * 5, "sillList": 12 * 3}
 _LIST_LABEL = {"spanList": "スパン", "postList": "支柱構成", "tieList": "壁つなぎ",
                "tieHeightList": "壁つなぎ高さ", "brktList": "ブラケット区間の項目",
                "glList": "支柱位置の地盤高", "jackList": "支柱位置のジャッキ",
                "shimList": "支柱位置の敷板調整",
                "glListO": "外側の列の地盤高", "jackListO": "外側の列のジャッキ", "shimListO": "外側の列の敷板調整",
-               "bridgeList": "渡した区間の項目", "editList": "部材編集の項目"}
+               "bridgeList": "渡した区間の項目", "editList": "部材編集の項目", "sillList": "敷板の列の項目"}
 
 
 class GdlCapacityError(ValueError):
@@ -484,6 +485,9 @@ def line_params(
         "sillT": SILL_T_MM / 1000.0 if sill_on(model) else 0.0,
         "sillW": SILL_W_MM / 1000.0,
         "sillLens": ",".join(str(v) for v in SILL_LENGTHS_MM),
+        # 敷板の列（「y,始め,終わり」mm。隅の重なりを除き、端は脚の少し先まで。sill_boards。利用者の指摘 2026-10-25:
+        # 敷板が飛び出ている 繋がるようにして）
+        "sillList": _sill_list(model, ep, stair_plan) if sill_on(model) else "",
         "jkBlue": 1 if _default_jack_no(model).startswith("ND752P") else 0,
         # 張り出した上の階の上段: 跳ね出しブラケット（床スラブの縁から持ち出す受け）の方杖の下がり（m。利用者の指定 2026-10-24）
         "haneD": HANE_DEPTH_M if getattr(model, "hane_bracket", False) else 0.0,
@@ -560,24 +564,15 @@ def _default_jack_no(model: ScaffoldModel) -> str:
     return js[0].model_no if js else ""
 
 
+def _sill_list(model: ScaffoldModel, ep, stair_plan) -> str:
+    from .sill_boards import sill_list
+
+    return sill_list(model, ep, stair_plan)
+
+
 def sill_on(model: ScaffoldModel) -> bool:
     """敷板を敷くか（地盤に立つ足場。跳ね出しブラケットの上・枠組の建枠は敷く、ブラケットの上の上段は敷かない）."""
     return bool(getattr(model.config, "sill_boards", True)) and not getattr(model, "hane_bracket", False)
-
-
-def sill_pieces(length_mm: float) -> list[int]:
-    """列の長さ（端の支柱の 150 外まで）→ 敷板の長さの並び（長いものから詰め、最後は残りに足りる最短の規格）. GDL と同じ."""
-    out: list[int] = []
-    x, end = -150.0, float(length_mm) + 150.0
-    big = SILL_LENGTHS_MM[0]
-    while x < end - 10.0:
-        if end - x >= big:
-            ln = big
-        else:
-            ln = min((v for v in SILL_LENGTHS_MM if v >= end - x - 1.0), default=big)
-        out.append(ln)
-        x += ln
-    return out
 
 
 HANE_DEPTH_M = 0.6           # 跳ね出しブラケットの方杖の下がり（setback_tiers.HANE_DEPTH_MM と同じ）

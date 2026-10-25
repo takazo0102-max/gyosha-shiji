@@ -461,6 +461,14 @@
 			<Description><![CDATA["敷板の規格の長さ mm（長い順、カンマ区切り）"]]></Description>
 			<Value><![CDATA["4000,3000,2000,1500,1000"]]></Value>
 		</String>
+		<String Name="sillList">
+			<Description><![CDATA["敷板の列「y,始め,終わり」mm の繰り返し（隅の重なりを除いた範囲）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="sillList2">
+			<Description><![CDATA["敷板の列（続き）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="jkBlue">
 			<Description><![CDATA["ジャッキベースの底面を青に（日建 ND752P の識別色） 0/1"]]></Description>
 			<Value>0</Value>

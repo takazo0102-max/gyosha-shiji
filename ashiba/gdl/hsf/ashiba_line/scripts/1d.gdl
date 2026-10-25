@@ -18,6 +18,7 @@ dim runE[2]
 dim ties[200]
 dim brOn[60]
 dim slL[8]
+dim slV[36]
 dim tieH[200]
 dim gl[61]
 dim jk[61]
@@ -1015,6 +1016,28 @@ next il
 ! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
 rowStart = 0
 if nRows < 2 then rowStart = 1
+
+! ---- 敷板の列 sillList（続きは sillList2）「y,始め,終わり」の繰り返し (mm→m)。3D で規格の長さに割って並べる ----
+nSv = 0
+for tc = 1 to 2
+	rest = sillList
+	if tc = 2 then rest = sillList2
+	while strlen(rest) > 0 and nSv < 36 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSv = nSv + 1
+			slV[nSv] = v / 1000
+		endif
+	endwhile
+next tc
 
 r_sic  = 0.0486 / 2	! 支柱 φ48.6
 ! 足場の種類ごとの支柱の径（日建ND は φ42.7、ストロング・信和は φ48.6）

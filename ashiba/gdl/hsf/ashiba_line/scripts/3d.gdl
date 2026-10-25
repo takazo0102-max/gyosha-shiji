@@ -28,7 +28,7 @@ define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
 ! ジャッキベース（支柱の灰と見分ける青みの鋼色。利用者の指定 2026-10-25: ジャッキベースは少し色変えて）
 define material "ashiba_jack_steel" 2, 0.36, 0.42, 0.52
 ! 敷板（杉の足場板）
-define material "ashiba_sill_wood" 2, 0.72, 0.55, 0.36
+define material "ashiba_sill_wood" 2, 0.60, 0.47, 0.34
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
 define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
 define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
@@ -301,8 +301,10 @@ endif
 ! ジャッキは足場ラインのまま。区切った部品の範囲の外の支柱は描かない（切り取られるので、描く手間だけ省く）
 ! ---- 敷板（支柱の列に沿って、ジャッキベースの下に規格の長さの敷板を通す。利用者の指定 2026-10-25: ジャッキベースの下に
 ! 敷板規格の長さ…を配置して）----
-! 平らな地盤は列ごとに端の支柱の 150 外から、長いものから詰めて最後は残りに足りる最短の規格。高低差のある地盤は脚ごとに
-! いちばん短い規格を1枚（地盤の高さに合わせる）。幅 sillW・厚 sillT
+! 平らな地盤は sillList の列（「y,始め,終わり」。端は脚のベース板の少し先まで、隅で直交する列と重なるところは除いて
+! ある。sill_boards）に、長いものから詰め、最後は残りの長さに切って並べる（残りが最短の規格に満たないときは1つ手前を
+! 短い規格に。利用者の指摘 2026-10-25: 敷板が飛び出ている 繋がるようにして 規格の大きさを基本でカット）。
+! 高低差のある地盤は脚ごとにいちばん短い規格を1枚（地盤の高さに合わせる）。幅 sillW・厚 sillT
 if sillT > 0.001 and isLite = 0 then
 	material "ashiba_sill_wood"
 	nSl = 0
@@ -322,9 +324,9 @@ if sillT > 0.001 and isLite = 0 then
 			slL[nSl] = v / 1000
 		endif
 	endwhile
-	for row = rowStart to 1
-		slY = -row * rowW - sillW / 2
-		if nGl >= 2 then
+	if nGl >= 2 then
+		for row = rowStart to 1
+			slY = -row * rowW - sillW / 2
 			slX = 0
 			for ip = 1 to nSpan + 1
 				slG = 0
@@ -338,24 +340,34 @@ if sillT > 0.001 and isLite = 0 then
 				del 1
 				if ip <= nSpan then slX = slX + spans[ip]
 			next ip
-		else
-			slX = -0.15
-			slEnd = lineLen + 0.15
-			while slX < slEnd - 0.01 do
+		next row
+	else
+		! sillList（続きは sillList2）はマスタースクリプトで slV・nSv に読んである
+		for iSr = 1 to int(nSv / 3)
+			slY = slV[3 * iSr - 2] - sillW / 2
+			slX = slV[3 * iSr - 1]
+			slRest = slV[3 * iSr] - slX
+			while slRest > slL[1] + 0.001 do
 				slLen = slL[1]
-				if slEnd - slX < slL[1] then
-					slLen = slL[1]
-					for slI = 1 to nSl
-						if slL[slI] >= slEnd - slX - 0.001 then slLen = slL[slI]
+				if slRest - slL[1] < slL[nSl] then
+					slLen = slL[nSl]
+					for slI = nSl to 1 step -1
+						if slRest - slL[slI] >= slL[nSl] then slLen = slL[slI]
 					next slI
 				endif
 				add slX, slY, 0
 				block slLen - 0.005, sillW, sillT
 				del 1
 				slX = slX + slLen
+				slRest = slRest - slLen
 			endwhile
-		endif
-	next row
+			if slRest > 0.001 then
+				add slX, slY, 0
+				block slRest, sillW, sillT
+				del 1
+			endif
+		next iSr
+	endif
 	if matScaf > 0 then material matScaf
 endif
 
@@ -2427,8 +2439,9 @@ endif
 jb0 = jb0 + sv
 jsL = jo - jb0
 if jsL < 0.02 then jsL = 0.02
-! 支柱の列の通しの敷板が無い脚（出隅の外側・外付け階段の3列目）は、この脚だけ 1m の敷板を敷く
-if jkSill = 1 and sillT > 0.001 then
+! 高低差のある地盤で、列の脚ごとの敷板が無い脚（出隅の外側・外付け階段の3列目）は、この脚だけ 1m の敷板を敷く
+! （平らな地盤はこれらの脚も sillList の列に入っている）
+if jkSill = 1 and sillT > 0.001 and nGl >= 2 then
 	material "ashiba_sill_wood"
 	add -0.50, -sillW / 2, 0
 	block 1.0, sillW, sillT

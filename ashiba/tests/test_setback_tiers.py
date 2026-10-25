@@ -90,6 +90,33 @@ class TestSetbackTiers(unittest.TestCase):
                 # 端数のスパンは、上段の端の建地列の間隔（1本）と調整の2本まで
                 self.assertLessEqual(sum(1 for v in e.spans if v != 1829), 3, (m.face_name(e.edge_index), e.spans))
 
+    def test_sheet_clamps_sit_on_posts(self):
+        # 利用者の指摘 2026-10-25: シートクランプが浮いてる箇所がある（範囲の端・上段の端でシートの端の 60 先に付けていた）
+        from ashiba.attachments import sheet_clamp_positions
+
+        for _lb, r in solve_groups(SPEC):
+            m = r.model
+            for e in m.plan.edges:
+                posts = [0.0]
+                for v in e.spans:
+                    posts.append(posts[-1] + v)
+                for x in sheet_clamp_positions(m, e, r.stair_plan):
+                    self.assertTrue(any(abs(x - p) < 1.0 for p in posts), (m.face_name(e.edge_index), x))
+
+    def test_main_inner_rail_is_open_where_the_tier_joins(self):
+        # 利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして
+        g = solve_groups(SPEC)
+        main, tier = g[0][1].model, g[2][1].model
+        eds = [e for e in main.member_edits if e.reason.startswith("上段への通り")]
+        self.assertEqual(len(eds), 2)                                    # 東・西の面の、上段の内外の建地の列の間
+        for e in eds:
+            ep = next(x for x in main.plan.edges if x.edge_index == e.edge_index)
+            self.assertEqual(ep.spans[e.span_from - 1], round(main.post_row_spacing_mm))
+            self.assertEqual(e.parts, ("内側手すり",))
+            z = main.elevation_of(e.edge_index).level_heights[e.level_from - 1] + main.base_height_mm
+            self.assertGreaterEqual(z, tier.base_height_mm)              # 途中の屋根より上の層だけ
+            self.assertIn(f",{e.level_from},", line_params(main, ep)["editList"])
+
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった
         from ashiba.cross_sections import cross_section_specs, split_cross_specs_with_owner

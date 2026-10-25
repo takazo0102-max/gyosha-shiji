@@ -200,14 +200,19 @@ else
 	if nC > 0 and hasPanels then
 		material "ashiba_sclamp_gold"
 		yp = -offY + 0.06
+		xPrev = -1000
 		for ic = 1 to nP + 1
 			wrapC = 0.06
 			if isPnl then wrapC = 0
 			if ic = 1 then
 				xc = pA[1] + wrapC
+				! 区間の端はシートの端にいちばん近い支柱（範囲の端・セットバックの継ぎ目・入隅でシートの端の先に付けると
+				! 宙に浮く。実機 2026-10-25）
+				if clampEnd = 1 then xc = clampXS
 			else
 				if ic = nP + 1 then
 					xc = pB[nP] - wrapC
+					if clampEnd = 1 then xc = clampXE
 				else
 					xc = pA[ic]
 				endif
@@ -216,6 +221,8 @@ else
 			drawC = 1
 			if ic = 1 and clampCS = 1 then drawC = 0
 			if ic = nP + 1 and clampSkipE = 1 then drawC = 0
+			if abs(xc - xPrev) < 0.001 then drawC = 0
+			if drawC = 1 then xPrev = xc
 			for jz = 1 to nC
 				zc = cZ[jz]
 				if drawC = 1 and isPnl and zc >= zB - 0.001 and zc <= zT + 0.001 then

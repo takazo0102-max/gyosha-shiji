@@ -1812,7 +1812,47 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
         if note:
             out[0][1].model.plan.warnings.append(note)
     out[0][1].model.plan.warnings.extend(j_notes)
+    if len(out) > 1:
+        _layout_sills_across(out)
     return out
+
+
+def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:
+    """組をまたいで敷板を割り付け直す（同じ線の上で続く組の板が重ならない・本体の隅の板と下段の板が重ならない）.
+    数量の敷板の注記も割り付け直した枚数にする."""
+    from .quantity import SILL_NOTE_HEAD, sill_note
+    from .sill_boards import counts, layout_models
+
+    layout_models([(r.model, r.stair_plan) for _l, r in out])
+    for _l, r in out:
+        q = r.quantity
+        t = r.terrain
+        if q is None or (t is not None and getattr(t, "feet", None) and t.gl_difference_mm > 0.5):
+            continue
+        m = r.model
+        by_name = {m.face_name(e.edge_index): e.edge_index for e in m.plan.edges}
+        done_w: set[int] = set()
+        for old in [n for n in q.notes if SILL_NOTE_HEAD in str(n)]:
+            # 面ごとに高さが違う模型の注記は「【南面・北面（5層）】…」と面の組ごと
+            head, sep, _rest = str(old).partition(SILL_NOTE_HEAD)
+            edges = m.edge_subset
+            if head.startswith("【"):
+                names = head.strip("【】").split("（")[0].split("・")
+                edges = {by_name[n] for n in names if n in by_name}
+            cnt, cut = counts(m, r.stair_plan, edges)
+            if not cnt:
+                continue
+            new = head + sill_note(cnt, cut)
+            q.notes[:] = [new if n == old else n for n in q.notes]
+            # 要確認の一覧は面の組の見出しなしで持つ（同じ文の組が2つあることもあるので、前から1つずつ）
+            for o, nw in ((old, new), (sep + _rest, sill_note(cnt, cut))):
+                i = next((k for k, w in enumerate(q.warnings) if w == o and k not in done_w), None)
+                if i is not None:
+                    q.warnings[i] = nw
+                    done_w.add(i)
+                    if o in q.warning_kinds:
+                        q.warning_kinds[nw] = q.warning_kinds[o]
+                    break
 
 
 def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, PlanRun]]:
@@ -2122,6 +2162,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model.intakes, ik_errors = parse_intakes(spec["intakes"], model, resolve_face_name)
         model.plan.warnings.extend(f"取り入れ口: {m}" for m in ik_errors)
         model.member_edits = list(model.member_edits or []) + intake_edits(model.intakes)
+    if spec.get("_tier_passage"):
+        from .member_edits import tier_passage_edits
+
+        model.member_edits = list(model.member_edits or []) + tier_passage_edits(model, spec["_tier_passage"])
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 
