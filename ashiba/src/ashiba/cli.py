@@ -157,7 +157,7 @@ TOP_KEYS = {
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
-    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
+    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
@@ -760,6 +760,22 @@ def resolve_series_id(spec: dict) -> str:
     return sid
 
 
+def _shift_aligned_faces(plan, spec: dict) -> None:
+    """小さな張り出しの跳ね出しの上段の面を、建地列が本体の外側建地の列にそろう離れまで外へ平行に移す
+    （setback_tiers.hane_face_ranges の _aligned_standoff。両隣の面は建てないので、スパンはそのまま）."""
+    aligned = {int(k): float(v) for k, v in (spec.get("_aligned_standoff") or {}).items()}
+    for ep in plan.edges:
+        s = aligned.get(ep.edge_index)
+        if s is None:
+            continue
+        o = plan.outline.edges[ep.edge_index].outward
+        d = s - float(ep.standoff)
+        ep.standoff = s
+        ep.start_post = (ep.start_post[0] + o[0] * d, ep.start_post[1] + o[1] * d)
+        ep.end_post = (ep.end_post[0] + o[0] * d, ep.end_post[1] + o[1] * d)
+        plan.standoffs[ep.edge_index] = s
+
+
 def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     master = load_master(resolve_series_id(spec), master_csv)
     so = spec.get("standoff", {})
@@ -775,6 +791,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # 面の組で、ほかの組が建てる隣の面の離れ（solve_groups が渡す）。隅はその面の線で終わる
     nb_so = {int(k): float(v) for k, v in (spec.get("_neighbor_standoffs") or {}).items()} or None
     plan = solve_plan(spec["outline_mm"], master, standoff, fixed_standoffs=nb_so)
+    _shift_aligned_faces(plan, spec)
     fixed = None
     # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
     # その面を固定して離れを解き直す

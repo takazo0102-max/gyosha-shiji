@@ -1697,8 +1697,10 @@ def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
             continue
         w = int(w)
         k = len(model.elevation_of(ei).level_heights)
-        n_over[w] = n_over.get(w, 0) + 2 * k
-        add(post_of(1350), 2 * k, "張出ブラケットの先端の手すり柱（支柱1350）")
+        # 内側の支柱を本体の隅の升目と共有する端は、ブラケット・先端の手すり柱が外側の1本だけ
+        nb = 1 if (ei, _end) in (getattr(model, "hane_shared_ends", None) or set()) else 2
+        n_over[w] = n_over.get(w, 0) + nb * k
+        add(post_of(1350), nb * k, "張出ブラケットの先端の手すり柱（支柱1350）")
         if w > 540:
             add(m.deck_parts(500, row), k, f"張出ブラケットの床（布板 500×{row}）")
         else:

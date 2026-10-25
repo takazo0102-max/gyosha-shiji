@@ -30,6 +30,10 @@ from typing import Optional
 from .obstacles import SETBACK_MAX_MM, _inside
 
 PROBE_OUT_MM = 600.0         # 上段の面の外側（足場の下）の点
+# これより外へ張り出した上の階は拡張（跳ね出し）にする。セットバックの奥行きの上限（内ブラケットでかわす 900）とは別:
+# 上の階の壁の前に本体の足場を通すと、上の壁との離れ（最小 250）と下の壁との離れ（最大 350）が両立しない（実機
+# 2026-10-25: 300出してるのにできてない拡張に。庇として離れ 384 で通し、上の壁まで 84 しかなかった）
+OVERHANG_MIN_MM = 200.0
 OVERHANG_MAX_MM = 4500.0     # これより外へ広がる外形は張り出した上の階とみなさない（敷地・別棟）
 HANE_DEPTH_MM = 600.0        # 跳ね出しブラケットの吊り材の上の取付プレートの高さ（床の天端からこれだけ上の壁）
 HANE_BELOW_MM = 300.0        # ブラケットの床の天端から下へ出る寸法（取付プレート 240＋あき。張り出しの下の本体の足場はこれより下）
@@ -260,6 +264,28 @@ def hane_face_ranges(sub: dict, main_model, names_of) -> dict:
             if dist < 5.0:
                 nb[e.index] = float(me.standoff)
                 break
+    # 小さな張り出し（300 など）: 普通の離れで建てると跳ね出しの上段の建地列が本体の隅の升目の列と重なる。張り出した面の
+    # 内側建地の列を、その下の本体の面の外側建地の列にそろえる（離れ＝本体の離れ＋建地列間隔−張り出し。躯体との隙間は
+    # 内ブラケットで詰める）。端は本体の隅の升目の外側の支柱を共有し、張出ブラケットで隅の外へ床を持ち出して繋ぐ
+    # （hane_bridges。利用者の指定 2026-10-25: 300出してるのにできてない拡張に）
+    so_min = float((sub.get("standoff") or {}).get("min", 250.0))
+    for ei_s, (kind, _length) in parts.items():
+        if kind != "all":
+            continue
+        e = ol.edges[int(ei_s)]
+        for me in main_model.plan.edges:
+            mo = main_model.plan.outline.edges[me.edge_index]
+            if mo.direction[0] * e.direction[0] + mo.direction[1] * e.direction[1] < 0.99:
+                continue
+            d = ((e.start[0] - mo.start[0]) * mo.outward[0] + (e.start[1] - mo.start[1]) * mo.outward[1])
+            if not (1.0 < d < float(me.standoff) + row):
+                continue
+            s_al = float(me.standoff) + row - d
+            if s_al >= so_min:
+                al = dict(out.get("_aligned_standoff") or {})
+                al[str(e.index)] = round(s_al, 1)
+                out["_aligned_standoff"] = al
+            break
     if nb:
         out["_neighbor_standoffs"] = nb
     rr = {f: r for f, r in rng.items() if r is not None}
@@ -275,19 +301,21 @@ def overhang_caps(spec: dict) -> dict[int, float]:
         return {}
     from .geometry import build_outline
 
-    tiers = overhang_tiers(spec["outline_mm"], spec["slabs"], float(spec.get("setback_bracket_max_mm", SETBACK_MAX_MM)))
+    tiers = overhang_tiers(spec["outline_mm"], spec["slabs"], float(spec.get("overhang_min_mm", OVERHANG_MIN_MM)))
     if not tiers:
         return {}
     # 張り出しの下になる本体の面だけ、ブラケットの下で止める（面の外 600 の点が張り出した上の階の外形の中）。張り出して
     # いない面は地上から上まで通す（利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして）
     out: dict[int, float] = {}
+    # 面の外の点は、拡張とみなす奥行きの半分（小さな張り出し 300 でも外形の中に入る）
+    probe = 0.5 * float(spec.get("overhang_min_mm", OVERHANG_MIN_MM))
     for e in build_outline([tuple(map(float, p)) for p in spec["outline_mm"]]).edges:
         for t in tiers:
             big = [tuple(map(float, p)) for p in t["outline_mm"]]
             hits = 0
             for k in range(1, 8):
-                x = e.start[0] + (e.end[0] - e.start[0]) * k / 8.0 + e.outward[0] * PROBE_OUT_MM
-                y = e.start[1] + (e.end[1] - e.start[1]) * k / 8.0 + e.outward[1] * PROBE_OUT_MM
+                x = e.start[0] + (e.end[0] - e.start[0]) * k / 8.0 + e.outward[0] * probe
+                y = e.start[1] + (e.end[1] - e.start[1]) * k / 8.0 + e.outward[1] * probe
                 hits += int(_inside((x, y), big))
             if hits >= 4:
                 cap = float(t["base_mm"]) - HANE_BELOW_MM
@@ -306,9 +334,10 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
     depth = float(spec.get("setback_bracket_max_mm", SETBACK_MAX_MM))
     tiers = setback_tiers(spec["outline_mm"], spec["slabs"], depth)
     out = []
-    for k, t in enumerate(overhang_tiers(spec["outline_mm"], spec["slabs"], depth)):
+    odepth = float(spec.get("overhang_min_mm", OVERHANG_MIN_MM))
+    for k, t in enumerate(overhang_tiers(spec["outline_mm"], spec["slabs"], odepth)):
         names = names_of(t["outline_mm"])
-        parts = overhang_faces(t["outline_mm"], spec["outline_mm"], depth)
+        parts = overhang_faces(t["outline_mm"], spec["outline_mm"], odepth)
         if not parts:
             continue
         sub = {kk: v for kk, v in spec.items() if kk not in _DROP}
@@ -831,6 +860,7 @@ def hane_bridges(out: list) -> list[str]:
             continue
         m.hane_slab_range = {}
         m.hane_end_ext = {}
+        m.hane_shared_ends = set()
         ol = m.plan.outline
         ext_w = overhang_bracket_width(m.master, float(main.post_row_spacing_mm))
         for ep in m.plan.edges:
@@ -868,8 +898,22 @@ def hane_bridges(out: list) -> list[str]:
                     cb = getattr(main, "corner_bridges", None) or {}
                     cb[owner] = (wm, side, lv, rest)
                     main.corner_bridges = cb
+                elif abs(gap) <= 5.0:
+                    # 建地列をそろえた小さな張り出し（hane_face_ranges の _aligned_standoff）: 跳ね出しの上段の端の内側の
+                    # 支柱は本体の隅の升目の外側の支柱と同じ1本（跳ね出し側は描かない）。張出ブラケットは外側の支柱だけに
+                    # 付け、床の内側は隅の升目の布材に掛ける。隅の升目のその辺は手すり・中桟を外して渡る
+                    m.hane_shared_ends = set(getattr(m, "hane_shared_ends", set()) or set()) | {(ei, end)}
+                    co = getattr(main, "corner_open", None) or {}
+                    co[owner] = (side, lv)
+                    main.corner_open = co
                 fill = (f"。2つの床のあき {int(round(rest))}mm は 3cm を超えるので、各層ですき間板を敷いてふさぎます"
                         if rest > DECK_GAP_MAX_MM else "")
+                if wm <= 0 and abs(gap) <= 5.0:
+                    notes.append(
+                        f"{label}: {m.face_name(ei)}の{'始点' if end == 's' else '終点'}の端は、建地列を本体の外側の列に"
+                        f"そろえたので内側の支柱を本体の隅の升目と共有し、外側の支柱から各層で張出ブラケット{int(ext_w)}を"
+                        "端の先へ出して床を隅の升目の布材に掛け、隅の升目の脇へ並べます")
+                    continue
                 notes.append(
                     f"{label}: {m.face_name(ei)}の{'始点' if end == 's' else '終点'}の端は、端の内外の支柱から各層で張出ブラケット"
                     f"{int(ext_w)}を端の先へ出して床を持ち出し"
@@ -905,7 +949,7 @@ def _bridge_corner(main, caps: dict, e, ep, post: tuple, end: str) -> Optional[t
         m_outer = me.start[0] * n_out[0] + me.start[1] * n_out[1] + float(mep.standoff) + row
         t_inner = e.start[0] * n_out[0] + e.start[1] * n_out[1] + float(ep.standoff)
         gap = t_inner - m_outer
-        if gap < 0 or gap > 1500.0:
+        if gap < -5.0 or gap > 1500.0:
             continue
         mx, my = mep.start_post if end == "s" else mep.end_post
         # 跳ね出しの上段の端の支柱が本体の隅の升目の内側の列の線のどこにあるか（スパンの割付で数百手前で止まることがある）。

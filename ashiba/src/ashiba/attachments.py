@@ -853,7 +853,9 @@ def kbrk_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Place
         spec = _kbrk_spec(model, float(w), "張出ブラケット")
         x = 0.0 if end == "s" else float(sum(ep.spans))
         a = ang + 180.0 if end == "s" else ang
+        # 内側の支柱を本体の隅の升目と共有する端（建地列をそろえた小さな張り出し）は外側の支柱だけ
+        ys = (-row,) if (ei, end) in (getattr(model, "hane_shared_ends", None) or set()) else (0.0, -row)
         for h in model.elevation_of(ei).level_heights:
-            for y in (0.0, -row):
+            for y in ys:
                 put(o, u, nrm, x, y, a, base + float(h), spec)
     return _with_pens(model, out)

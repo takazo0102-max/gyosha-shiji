@@ -449,6 +449,34 @@ class TestOverhangTier(unittest.TestCase):
             self.assertIn(word, d3)
         self.assertIn("if brkObj = 0 then", (d.parent / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8"))
 
+    def test_small_overhang_is_expansion(self):
+        # 実機 2026-10-25: 300出してるのにできてない拡張に（庇として離れ 384 で上まで通し、上の階の壁まで 84 しかなかった）。
+        # 300 の張り出しも跳ね出しの上段にする。普通の離れでは本体の隅の升目と建地列が重なるので、跳ね出しの上段の
+        # 内側建地の列を本体の外側建地の列にそろえ（離れ＝本体の離れ＋建地列間隔−300）、端の内側の支柱は隅の升目と共有、
+        # 張出ブラケットは外側の支柱だけ。南面を組に分けた本体の南東の隅に 10.6m の升目を立てない（おかしなことになった）
+        full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
+        up = [[-300, 0], [5000, 0], [5000, 10000], [-300, 10000]]
+        slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": up, "top_mm": t} for t in (6000, 9000, 9700)])
+        g = solve_groups({"project_name": "W3", "outline_mm": full, "slabs": slabs, "module": "inch",
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 610, "eaves_height_mm": 15400})
+        self.assertIn("上段（張り出し）", [lb for lb, _r in g])
+        main, hane = g[0][1].model, dict(g)["上段（張り出し）"].model
+        name = {main.face_name(e.edge_index): e for e in main.plan.edges}
+        self.assertLessEqual(main.elevation_of(name["西面"].edge_index).total_height, 6000 - 300)
+        self.assertLess(name["西面"].standoff, 350)
+        he = hane.plan.edges[0]
+        row = main.post_row_spacing_mm
+        self.assertAlmostEqual(he.standoff + 300, name["西面"].standoff + row, delta=1.0)
+        self.assertEqual(hane.hane_shared_ends, {(he.edge_index, "s"), (he.edge_index, "e")})
+        self.assertEqual(set(main.corner_open), {name["西面"].edge_index, name["南面"].edge_index})
+        ph = line_params(hane, he)
+        self.assertEqual((ph["hbShS"], ph["hbShE"], ph["skipInS"], ph["skipInE"]), (1, 1, 1, 1))
+        from ashiba.attachments import kbrk_placements
+
+        self.assertEqual(len(kbrk_placements(hane)), 2 * len(hane.elevation.level_heights))   # 外側だけ
+        self.assertFalse(line_params(main, name["東面"])["cnrPosts"])
+
     def test_gdl_draws_the_widening_brackets(self):
         from pathlib import Path
 

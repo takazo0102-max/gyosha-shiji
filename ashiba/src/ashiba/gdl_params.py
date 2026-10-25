@@ -850,6 +850,13 @@ def corner_tower_params(model: ScaffoldModel, ep) -> dict:
            "cnrLowS": 0.0, "cnrLowP": 0.0}
     h = model.own_height(ei)
     prev_i, next_i = (ei - 1) % n, (ei + 1) % n
+    # 面を組に分けた面（面の区間の切れ目 range_ends）がこの組では隅まで来ていなければ、その隅は比べない（実機 2026-10-25:
+    # 南面の西寄りだけの本体の組の高さ 10.6m で南東の隅の升目を立て、東の低い足場の上に柱と手すりが突き出していた）
+    ends = getattr(model, "range_ends", set()) or set()
+    if (ei, "s") in ends or (prev_i, "e") in ends:
+        prev_i = -1
+    if (ei, "e") in ends or (next_i, "s") in ends:
+        next_i = -1
     if _draws_start_corner(model, ei) and prev_i in built and prev_i != ei:
         hp = model.own_height(prev_i)
         if hp > h + 1.0:
@@ -875,7 +882,21 @@ def bridge_params(model: ScaffoldModel, ep) -> dict:
     cb = (getattr(model, "corner_bridges", None) or {}).get(ei)
     ext = getattr(model, "hane_end_ext", None) or {}
     rng = (getattr(model, "hane_slab_range", None) or {}).get(ei)
+    shared = getattr(model, "hane_shared_ends", None) or set()
+    co = (getattr(model, "corner_open", None) or {}).get(ei)
+    # 建地列をそろえた小さな張り出しの端: 内側の端の支柱は本体の隅の升目と共有（描かない）
+    skips = {}
+    if (ei, "s") in shared:
+        skips["skipInS"] = 1
+    if (ei, "e") in shared:
+        skips["skipInE"] = 1
     return {
+        **skips,
+        "hbShS": 1 if (ei, "s") in shared else 0,
+        "hbShE": 1 if (ei, "e") in shared else 0,
+        # 隅の升目の、跳ね出しの上段の張出の床へ渡る辺（1＝この面の外側の列、2＝前の面の外側の列の延長）と、その高さから上
+        "cnrOpen": (int(co[0]) + 1) if co else 0,
+        "cnrOpenZ": (float(co[1][0]) / 1000.0 - 0.01) if co else 0.0,
         "cnrBkW": cb[0] / 1000.0 if cb else 0.0,
         "cnrBkP": int(cb[1]) if cb else 0,
         "cnrBkLv": ",".join(str(int(round(v))) for v in cb[2]) if cb else "",
