@@ -3153,8 +3153,17 @@ define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
 define material "ashiba_jack_steel" 2, 0.36, 0.42, 0.52
 ! 敷板（杉の足場板）
 define material "ashiba_sill_wood" 2, 0.60, 0.47, 0.34
-! 支柱の継ぎ目の帯は支柱と見分ける朱色（利用者の指定 2026-10-25: 支柱の継ぎ目は色変えてわかるようにして）
+! 支柱の継ぎ目の帯は支柱の長さごとの色（利用者の指定 2026-10-25: 支柱の繋ぎの色は長さごとに変えて）。継ぎ目の下の帯は
+! 下の支柱、上の帯は上の支柱の長さの色: 3600級 赤・2700級 青・1800級 黄・1350級 緑・1125 水色・900級 橙・675 紫・450級 白
 define material "ashiba_post_joint" 2, 0.86, 0.36, 0.16
+define material "ashiba_pj_36" 2, 0.85, 0.15, 0.12
+define material "ashiba_pj_27" 2, 0.12, 0.32, 0.80
+define material "ashiba_pj_18" 2, 0.95, 0.82, 0.10
+define material "ashiba_pj_135" 2, 0.15, 0.62, 0.25
+define material "ashiba_pj_1125" 2, 0.40, 0.78, 0.92
+define material "ashiba_pj_09" 2, 0.95, 0.50, 0.10
+define material "ashiba_pj_0675" 2, 0.55, 0.30, 0.70
+define material "ashiba_pj_045" 2, 0.95, 0.95, 0.95
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
 define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
 define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
@@ -3584,6 +3593,8 @@ for ip = 1 to nSpan + 1
 						endif
 						addz pj[j]
 						if j < nPj then
+							jLo = pj[j]
+							jUp = pj[j + 1]
 							gosub 840
 						endif
 					else
@@ -3650,6 +3661,8 @@ if cornerS = 1 then
 				cylind posts[j], r_sic
 				addz posts[j]
 				if j < nPost then
+					jLo = posts[j]
+					jUp = posts[j + 1]
 					gosub 840
 				endif
 			else
@@ -5236,6 +5249,8 @@ if stOut = 1 then
 				endif
 				addz posts[j]
 				if j < nPost then
+					jLo = posts[j]
+					jUp = posts[j + 1]
 					gosub 840
 				endif
 			next j
@@ -5818,13 +5833,28 @@ return
 		if matScaf > 0 then material matScaf
 		return
 	endif
-	material "ashiba_post_joint"
+	jLen = jLo
+	gosub 847
 	addz -0.04
 	cylind 0.035, r_sic + 0.008
+	jLen = jUp
+	gosub 847
 	addz 0.045
 	cylind 0.035, r_sic + 0.008
 	del 2
 	if matScaf > 0 then material matScaf
+	return
+
+847:	! 支柱の長さ jLen（m）の識別色（継ぎ目の帯）
+	material "ashiba_post_joint"
+	if jLen > 0.001 then material "ashiba_pj_045"
+	if jLen >= 0.60 then material "ashiba_pj_0675"
+	if jLen >= 0.85 then material "ashiba_pj_09"
+	if jLen >= 1.00 then material "ashiba_pj_1125"
+	if jLen >= 1.30 then material "ashiba_pj_135"
+	if jLen >= 1.70 then material "ashiba_pj_18"
+	if jLen >= 2.60 then material "ashiba_pj_27"
+	if jLen >= 3.50 then material "ashiba_pj_36"
 	return
 
 865:	! ---- 侵入落下防止柵の1枚（金網のフェンスパネル）: 原点＝パネルの下端の始点、+X へ幅 fW、高さ fH、枠 φ27.2 ----

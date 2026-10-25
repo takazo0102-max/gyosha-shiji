@@ -67,9 +67,10 @@ class TestSetbackTiers(unittest.TestCase):
         # 上段の両端は本体の支柱に乗る: 支柱・ジャッキベースを描かない
         p = line_params(tier, te)
         self.assertEqual((p["skipPS"], p["skipPE"]), (1, 1))
-        # 本体の切れ目は途中の屋根より上の層だけ妻側を塞ぎ、下段の切れ目は塞がない
+        # 本体の切れ目は下段の足場の天端より上の層だけ妻側を塞ぎ（下段の床の層は下段に続く）、下段の切れ目は塞がない
+        z_low = max(low.elevation_of(e.edge_index).total_height for e in low.plan.edges) / 1000.0
         opens = [line_params(main, e) for e in main.plan.edges]
-        self.assertTrue(any(abs(q["endOpenZS"] - 9.0) < 1e-6 or abs(q["endOpenZE"] - 9.0) < 1e-6 for q in opens))
+        self.assertTrue(any(abs(q["endOpenZS"] - z_low) < 1e-6 or abs(q["endOpenZE"] - z_low) < 1e-6 for q in opens))
         self.assertTrue(all(not (line_params(low, e)["endOpenS"] and line_params(low, e)["endOpenE"]) for e in low.plan.edges))
         # 上段の端の支柱は数量でも数えない
         import re
@@ -137,12 +138,23 @@ class TestSetbackTiers(unittest.TestCase):
         # 利用者の指摘 2026-10-25: 妻側にもシートいるよ
         from ashiba.attachments import SHEET_OBJECT, open_end_sheets, sheet_placements
 
+        from ashiba.attachments import sheet_clamp_heights_from
+
         g = solve_groups(SPEC)
-        main = g[0][1].model
+        main, low = g[0][1].model, g[1][1].model
         ends = {(e.edge_index, end): z for e in main.plan.edges for end, z in open_end_sheets(main, e)}
         self.assertEqual(len(ends), 2)                                   # 東・西の面の、セットバックの先の端
-        self.assertTrue(all(abs(z - 9000) < 1 for z in ends.values()))  # 途中の屋根より上だけ
-        pls = [p for p in sheet_placements(main) if p.part == SHEET_OBJECT and abs(p.params["zB"] - 9.0) < 0.001]
+        for (ei, _end), z in ends.items():
+            # 下段の足場の天端より上だけ（利用者の指定 2026-10-25: セットバックのメッシュは低いところの足場までにして）
+            self.assertAlmostEqual(z, low.elevation_of(ei).total_height, delta=1)
+            self.assertAlmostEqual(line_params(main, next(e for e in main.plan.edges if e.edge_index == ei))[
+                "endOpenZS" if _end == "s" else "endOpenZE"] * 1000, z, delta=1)
+            # クランプはシートの上と下（利用者の指定 2026-10-25: メッシュクランプは上と下につけて）
+            hs = sheet_clamp_heights_from(main, ei, z)
+            self.assertAlmostEqual(hs[0], z + 150, delta=1)
+            self.assertAlmostEqual(hs[-1], main.elevation_of(ei).total_height - 100, delta=1)
+        pls = [p for p in sheet_placements(main) if p.part == SHEET_OBJECT
+               and any(abs(p.params["zB"] * 1000 - z) < 1 for z in ends.values()) and p.params.get("clampEnd")]
         self.assertEqual(len(pls), 2)
 
     def test_nets_stay_out_from_under_the_tier(self):

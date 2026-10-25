@@ -368,6 +368,18 @@ def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
     return sorted({round(v) for v in out})
 
 
+def sheet_clamp_heights_from(model: ScaffoldModel, edge_index: int, z0: float) -> list[float]:
+    """下端 z0 から上だけ張るシート（開放端の妻側）のクランプの高さ: シートの下端と上端、その間の段の継ぎ目
+    （利用者の指定 2026-10-25: メッシュクランプは上と下につけて）."""
+    rows = [(max(lo, z0), hi) for lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0]
+    if not rows:
+        return []
+    if is_panel(model):
+        return sorted({round(v) for v in [lo for lo, _hi in rows] + [rows[-1][1]]})
+    out = [rows[0][0] + 150.0] + [hi for _lo, hi in rows[:-1]] + [rows[-1][1] - 100.0]
+    return sorted({round(v) for v in out})
+
+
 def sheet_clamp_ends(model: ScaffoldModel, ep) -> tuple[bool, bool]:
     """(始点の角にコーナー用のクランプを付けるか, 終点の角のクランプを付けないか).
 
@@ -519,7 +531,7 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "offY": gap / 1000.0, "x0": a / 1000.0, "x1": b / 1000.0,
                 "zB": z0 / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
                 "panelList": f"{a:.0f},{b:.0f},{int(not any(abs(row - c) <= 1.0 for c in model.master.span_lengths()))}",
-                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index) if h >= z0 - 1.0),
+                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights_from(model, ep.edge_index, z0)),
                 "clampEnd": 1, "clampXS": cs / 1000.0, "clampXE": ce / 1000.0,
                 "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 "fineOn": not bool(line_mode)}))
@@ -587,7 +599,7 @@ def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
     # 開放端の妻側のシート（端の内側・外側の建地）
     for ep in model.plan.edges:
         for _e, z0 in open_end_sheets(model, ep):
-            n += 2 * sum(1 for h in sheet_clamp_heights(model, ep.edge_index) if h >= z0 - 1.0)
+            n += 2 * len(sheet_clamp_heights_from(model, ep.edge_index, z0))
     return n
 
 

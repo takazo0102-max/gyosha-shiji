@@ -400,6 +400,12 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     main["_low_spec"]["scaffold_height_mm"] = int(m1.elevation.total_height)
     main["_low_spec"]["eaves_height_mm"] = int(round(max((m1.eaves_by_face or {}).values(),
                                                          default=float(spec.get("eaves_height_mm") or 0))))
+    # 本体の切れ目の妻側は、下段の足場の天端より上だけ塞ぐ（下段の床の層は下段に続く。シートも下段の足場の天端から上。
+    # 利用者の指定 2026-10-25: セットバックのメッシュは低いところの足場までにして）
+    from .elevation_solver import truncate_elevation
+
+    low_top_rel = float(truncate_elevation(m1.elevation, low_top - base, m1.master).total_height)
+    main["_open_above"] = [[ei, end, low_top_rel] for ei, end, _z in main["_open_above"]]
     e1 = {e.edge_index: e for e in m1.plan.edges}
     out_tiers = []
     done = {id(p["sub"]) for p in plan_t}

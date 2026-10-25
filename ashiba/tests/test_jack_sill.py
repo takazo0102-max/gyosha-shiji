@@ -30,9 +30,16 @@ class TestJackDetail(unittest.TestCase):
         # 利用者の指定 2026-10-25: 支柱の継ぎ目は色変えてわかるようにして
         src = D3.read_text(encoding="utf-8")
         blk = src[src.index("840:\t! ---- 支柱の継ぎ目"):]
-        blk = blk[:blk.index("return\n", blk.index('material "ashiba_post_joint"'))]
-        self.assertIn('material "ashiba_post_joint"', blk)
+        blk = blk[:blk.index("847:")]
         self.assertIn('define material "ashiba_post_joint"', src)
+        # 長さごとの色（利用者の指定 2026-10-25: 支柱の繋ぎの色は長さごとに変えて）。下の帯は下の支柱、上の帯は上の支柱
+        self.assertIn("jLen = jLo", blk)
+        self.assertIn("jLen = jUp", blk)
+        sub = src[src.index("847:\t! 支柱の長さ jLen"):]
+        sub = sub[:sub.index("return\n")]
+        for mat in ("ashiba_pj_36", "ashiba_pj_27", "ashiba_pj_18", "ashiba_pj_09", "ashiba_pj_045"):
+            self.assertIn(f'material "{mat}"', sub)
+        self.assertEqual(src.count("jUp = "), 3)                      # 支柱を積む3か所とも
 
     def test_standard_jack_is_a752_and_long_nd752sp(self):
         # 利用者の指定 2026-10-25: ジャッキベースはジャッキベースかロングジャッキを基本に
