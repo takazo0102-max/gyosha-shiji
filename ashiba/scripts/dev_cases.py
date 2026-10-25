@@ -102,7 +102,7 @@ def main() -> int:
             if not r:
                 continue
             objs = c.objects_for_slab(r["outline_mm"], ("ashiba_line", "ashiba_detail", "ashiba_tie", "ashiba_net",
-                                                        "ashiba_netbk", "ashiba_sheet", "ashiba_cstep", "ashiba_bridge", "ashiba_stage",
+                                                        "ashiba_netbk", "ashiba_sheet", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_kbrk",
                                                         "ashiba_spec"), margin_mm=6000.0)
             # 足場条件の部品は建物の左下の外（9m 下）に置くので、外形の範囲では拾えない。この建物の部品を選んで消す
             import run_from_archicad as R
