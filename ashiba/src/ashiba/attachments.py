@@ -325,17 +325,72 @@ def sheet_size(model: ScaffoldModel) -> Optional[tuple[float, float]]:
     return (float(size[0]), float(size[1])) if size else None
 
 
+GROMMET_EDGE_MM = 20.0       # シートの縁からハトメの芯まで（上下の辺）
+GROMMET_SIDE_MM = 16.0       # シートの左右の辺からハトメの芯まで（クランプのフック φ9 ×2 の間隔 32 の半分。継ぎ目の支柱の
+                             # クランプの2本のフックが左右のシートのハトメに掛かる）
+SHEET_OVERLAP_MIN_MM = 100.0  # 上下のシートの重ね（段の継ぎ目）の最小
+
+
+def _sheet_pitch(model: ScaffoldModel) -> float:
+    """シートの左右の辺のハトメの間隔＝段の送りの単位 mm（くさびはコマのピッチ。単管・枠組は 450）."""
+    m = model.master
+    p = float(m.koma_pitch or 0)
+    return p if not m.is_tube and not m.is_frame and p >= 300 else 450.0
+
+
+def sheet_top_mm(model: ScaffoldModel, edge_index: int) -> float:
+    """シートの天端 mm（足場の立つ面から）.
+
+    くさびは、いちばん上のハトメ（天端の 20 下）が最上のコマとその下のコマのちょうど中ほどに来る高さ。クランプは
+    ハトメの高さに付くので、どのクランプもコマから半ピッチ離れて先行手すり・布材を掛けるコマをふさがない
+    （利用者の指摘 2026-10-25: これだと先行手すりかけれないよ・フックとメッシュの穴の位置合わせて）。
+    防音パネル・単管・枠組は支柱の天端。
+    """
+    return sheet_top_of(model, model.elevation_of(edge_index))
+
+
+def sheet_top_of(model: ScaffoldModel, ev) -> float:
+    """立面 ev の足場に張るシートの天端 mm（sheet_top_mm の決め）."""
+    top = float(ev.total_height)
+    m = model.master
+    if is_panel(model) or m.is_tube or m.is_frame or float(m.koma_pitch or 0) < 300 or not ev.posts:
+        return top
+    pitch = float(m.koma_pitch)
+    offs = m.post_koma_offsets(int(ev.posts[-1]))
+    z_top_koma = (float(ev.jack_extension) + float(sum(ev.posts[:-1])) + max(offs)) if offs \
+        else top - float(m.koma_top_gap)
+    return z_top_koma - pitch / 2.0 + GROMMET_EDGE_MM
+
+
 def sheet_bottom_mm(model: ScaffoldModel, edge_index: int) -> float:
-    """外部シートの下端 mm（足場の立つ面から）＝仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）."""
-    top = float(model.elevation_of(edge_index).total_height)
+    """外部シートの下端 mm（足場の立つ面から）＝仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）.
+
+    セットバックの上段は、下段の足場（低い所のメッシュ）の天端から上だけ（sheet_bottom_override_mm。利用者の指定
+    2026-10-25: セットバック部分もメッシュシートは低いところのメッシュの高さまででいいよ）."""
+    top = sheet_top_mm(model, edge_index)
+    over = getattr(model, "sheet_bottom_override_mm", None)
+    if over is not None:
+        return min(max(0.0, float(over)), max(0.0, top - 500.0))
     return min(max(0.0, float(getattr(model, "hoarding_height_mm", 0.0) or 0.0)), max(0.0, top - 500.0))
 
 
-def sheet_rows(model: ScaffoldModel, edge_index: int) -> list[tuple[float, float]]:
-    """シートの段 [(下, 上) mm] を上から割り付ける（天端から1枚の高さずつ下へ。いちばん下の段が仮囲いの天端までの
-    残り。利用者の指定 2026-10-24: 上から割り付けて）。下から順に返す."""
+def sheet_step_mm(model: ScaffoldModel) -> float:
+    """シートの段の送り mm: 1枚の高さから重ね（100 以上）を引いた、ハトメの間隔の倍数。上の段の下のハトメと下の段の
+    上のハトメが同じ高さに重なり、1つのクランプで両方を掛ける."""
     size = sheet_size(model)
-    top = float(model.elevation_of(edge_index).total_height)
+    if size is None:
+        return 0.0
+    if is_panel(model):
+        return float(size[1])
+    p = _sheet_pitch(model)
+    return p * max(1, math.floor((float(size[1]) - SHEET_OVERLAP_MIN_MM) / p))
+
+
+def sheet_rows(model: ScaffoldModel, edge_index: int) -> list[tuple[float, float]]:
+    """シートの段 [(下, 上) mm] を上から割り付ける（天端から段の送りずつ下へ。上下の段は重ねる。いちばん下の段は
+    仮囲いの天端までの残り。利用者の指定 2026-10-24: 上から割り付けて）。下から順に返す."""
+    size = sheet_size(model)
+    top = sheet_top_mm(model, edge_index)
     bottom = sheet_bottom_mm(model, edge_index)
     if size is None or top <= bottom:
         return []
@@ -343,41 +398,66 @@ def sheet_rows(model: ScaffoldModel, edge_index: int) -> list[tuple[float, float
         # 防音パネルは切れない。上から1枚ずつ下ろし、いちばん下の段は仮囲いの天端に重ねて隙間を残さない
         n_rows = int(math.ceil((top - bottom) / size[1] - 1e-6))
         return [(top - (i + 1) * size[1], top - i * size[1]) for i in reversed(range(n_rows))]
+    step = sheet_step_mm(model)
     out = []
     hi = top
     while hi > bottom + 1.0:
-        lo = max(bottom, hi - size[1])
-        out.append((lo, hi))
-        hi = lo
+        out.append((max(bottom, hi - size[1]), hi))
+        if hi - size[1] <= bottom + 1.0:
+            break
+        hi -= step
     return list(reversed(out))
 
 
-def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
-    """シートクランプを付ける高さ mm（足場の立つ面から）: 各段のシートの上下（天端・段の継ぎ目・下端）.
+def sheet_grommet_heights(model: ScaffoldModel, lo: float, hi: float) -> list[float]:
+    """シートの段 (lo, hi) の左右の辺のハトメの高さ mm（上の縁の 20 下から間隔ごとに下へ。下から順）. GDL と同じ."""
+    p = _sheet_pitch(model)
+    out = []
+    z = hi - GROMMET_EDGE_MM
+    while z >= lo + GROMMET_EDGE_MM - 0.5:
+        out.append(z)
+        z -= p
+    return list(reversed(out))
 
-    日本セイフティー 次世代シートクランプのカタログの取付図（支柱の上部・下部でシートを掛ける）。段の継ぎ目は上下の
-    シートのハトメを1つのクランプで掛ける（利用者の資料 2026-10-24）。段は上から割り付ける。
-    """
-    rows = sheet_rows(model, edge_index)
+
+def _clamp_heights_of_rows(model: ScaffoldModel, rows) -> list[float]:
     if not rows:
         return []
     if is_panel(model):
         # 防音パネルは段の継ぎ目ごと（下端・継ぎ目・天端）に専用クランプのピンで上下のパネルの枠を留める
         return sorted({round(v) for v in [lo for lo, _hi in rows] + [rows[-1][1]]})
-    out = [rows[0][0] + 150.0] + [hi for _lo, hi in rows[:-1]] + [rows[-1][1] - 100.0]
-    return sorted({round(v) for v in out})
+    # 各段のシートの上と下のハトメ（利用者の指定 2026-10-25: メッシュクランプは上と下につけて）。上下の段の重ねでは
+    # 上の段の下のハトメと下の段の上のハトメが同じ高さで、1つのクランプで掛ける
+    out: list[float] = []
+    for lo, hi in rows:
+        g = sheet_grommet_heights(model, lo, hi)
+        if g:
+            out += [g[0], g[-1]]
+    hs: list[float] = []
+    for v in sorted(round(v) for v in out):
+        if not hs or v - hs[-1] > 5:
+            hs.append(v)
+    return hs
+
+
+def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
+    """シートクランプを付ける高さ mm（足場の立つ面から）: 各段のシートの上と下のハトメ.
+
+    日本セイフティー 次世代シートクランプのカタログの取付図（支柱の上部・下部でシートを掛ける）。段の継ぎ目は上下の
+    シートのハトメを1つのクランプで掛ける（利用者の資料 2026-10-24）。段は上から割り付ける。
+    """
+    return _clamp_heights_of_rows(model, sheet_rows(model, edge_index))
+
+
+def sheet_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> list[tuple[float, float]]:
+    """下端 z0 から上だけ張るシートの段（面の段を z0 で切る）."""
+    return [(max(lo, z0), hi) for lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0]
 
 
 def sheet_clamp_heights_from(model: ScaffoldModel, edge_index: int, z0: float) -> list[float]:
-    """下端 z0 から上だけ張るシート（開放端の妻側）のクランプの高さ: シートの下端と上端、その間の段の継ぎ目
+    """下端 z0 から上だけ張るシート（開放端の妻側）のクランプの高さ: 各段のシートの上と下のハトメ
     （利用者の指定 2026-10-25: メッシュクランプは上と下につけて）."""
-    rows = [(max(lo, z0), hi) for lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0]
-    if not rows:
-        return []
-    if is_panel(model):
-        return sorted({round(v) for v in [lo for lo, _hi in rows] + [rows[-1][1]]})
-    out = [rows[0][0] + 150.0] + [hi for _lo, hi in rows[:-1]] + [rows[-1][1] - 100.0]
-    return sorted({round(v) for v in out})
+    return _clamp_heights_of_rows(model, sheet_rows_from(model, edge_index, z0))
 
 
 def sheet_clamp_ends(model: ScaffoldModel, ep) -> tuple[bool, bool]:
@@ -462,9 +542,10 @@ def open_end_sheets(model: ScaffoldModel, ep) -> list[tuple[str, float]]:
     if sheet_size(model) is None or model.master.is_frame and is_panel(model):
         return []
     out = []
-    above = getattr(model, "open_above_mm", {}) or {}
+    # 妻側のシートは下段のシートの天端から（無ければ妻側を塞ぐ高さから）
+    above = {**(getattr(model, "open_above_mm", {}) or {}), **(getattr(model, "open_sheet_above_mm", {}) or {})}
     bottom = sheet_bottom_mm(model, ep.edge_index)
-    top = float(model.elevation_of(ep.edge_index).total_height)
+    top = sheet_top_mm(model, ep.edge_index)
     for end, is_open in (("s", model.open_start(ep.edge_index)), ("e", model.open_end(ep.edge_index))):
         if not is_open:
             continue
@@ -474,7 +555,7 @@ def open_end_sheets(model: ScaffoldModel, ep) -> list[tuple[str, float]]:
     return out
 
 
-def _sheet_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> int:
+def _n_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> int:
     return sum(1 for _lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0)
 
 
@@ -484,13 +565,25 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
     if size is None:
         return []
     out: list[Placement] = []
+    pitch = _sheet_pitch(model) / 1000.0
+
+    def row_list(rows) -> str:
+        return ",".join(f"{v:.0f}" for lo, hi in rows for v in (lo, hi))
+
     for ep in model.plan.edges:
         o, _u, _n, ang = _frame(ep)
-        top = float(model.elevation_of(ep.edge_index).total_height)
+        top = sheet_top_mm(model, ep.edge_index)
+        rows = sheet_rows(model, ep.edge_index)
+        ends = dict(open_end_sheets(model, ep))
         segs = list(zip(sheet_segments(model, ep, stair_plan), sheet_panels(model, ep, stair_plan, float(size[0]))))
         nseg = len(segs)
         for segi, ((x0, x1, off), panels) in enumerate(segs):
             out.append(Placement(SHEET_OBJECT, o[0], o[1], {
+                # シートの段（下,上 mm。上下の段は重ねる）と左右の辺のハトメの間隔（クランプの高さと同じ並び）
+                "rowList": row_list(rows), "gromPitch": pitch,
+                # 開放端の妻側にシートを張る高さから上は、端の建地のクランプを妻側のシートのコーナー用に任せる
+                "clampSZ": (ends.get("s", 0.0) if segi == 0 else 0.0) / 1000.0,
+                "clampEZ": (ends.get("e", 0.0) if segi == nseg - 1 else 0.0) / 1000.0,
                 "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
                 "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zT": top / 1000.0,
                 # 下端は仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）。防音パネルはいちばん下の段の下端
@@ -518,9 +611,11 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "faceAng": ang - 90.0, "zH": model.base_height_mm / 1000.0, "offY": shift / 1000.0,
                 "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (2 * row + SHEET_GAP_MM) / 1000.0,
                 "zB": sheet_bottom_mm(model, ep.edge_index) / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
+                "rowList": row_list(rows), "gromPitch": pitch,
                 "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
         # 開放端の妻側: 始点は x を外向き（面の向き−90°）、終点は x を躯体向き（面の向き＋90°）にして、シートの面を端の
-        # 支柱のあきだけ外へ。クランプは端の内側・外側の建地に（部品の +y 側が建地）
+        # 支柱のあきだけ外へ。クランプは端の内側の建地に普通のもの、外側の建地（面のシートとの角）にコーナー用
+        # （利用者の指定 2026-10-25: コーナー部分はコーナー用にして）。部品の +y 側が建地
         gap = SHEET_GAP_MM
         for end, z0 in open_end_sheets(model, ep):
             pos = 0.0 if end == "s" else float(sum(ep.spans))
@@ -530,9 +625,11 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "faceAng": ang - 90.0 if end == "s" else ang + 90.0, "zH": model.base_height_mm / 1000.0,
                 "offY": gap / 1000.0, "x0": a / 1000.0, "x1": b / 1000.0,
                 "zB": z0 / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
+                "rowList": row_list(sheet_rows_from(model, ep.edge_index, z0)), "gromPitch": pitch,
                 "panelList": f"{a:.0f},{b:.0f},{int(not any(abs(row - c) <= 1.0 for c in model.master.span_lengths()))}",
                 "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights_from(model, ep.edge_index, z0)),
                 "clampEnd": 1, "clampXS": cs / 1000.0, "clampXE": ce / 1000.0,
+                "clampCS": int(end == "e"), "clampCE": int(end == "s"), "clampSkipE": int(end == "s"),
                 "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 "fineOn": not bool(line_mode)}))
     return _with_pens(model, out)
@@ -545,11 +642,11 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[
         return 0.0, 0
     area = 0.0
     for ep in model.plan.edges:
-        top = float(model.elevation_of(ep.edge_index).total_height) - sheet_bottom_mm(model, ep.edge_index)
+        top = sheet_top_mm(model, ep.edge_index) - sheet_bottom_mm(model, ep.edge_index)
         for panels in sheet_panels(model, ep, stair_plan):
             area += sum(b - a for a, b, _sp in panels) / 1000.0 * top / 1000.0
         area += len(sheet_end_pieces(model, ep, stair_plan)) * float(model.post_row_spacing_mm) / 1000.0 * top / 1000.0
-        full = float(model.elevation_of(ep.edge_index).total_height)
+        full = sheet_top_mm(model, ep.edge_index)
         area += sum(float(model.post_row_spacing_mm) / 1000.0 * (full - z0) / 1000.0 for _e, z0 in open_end_sheets(model, ep))
     return area, sum(standard_sheets(model, stair_plan, size).values())
 
@@ -576,7 +673,7 @@ def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> d
         if special != row_std:
             for _e, z0 in open_end_sheets(model, ep):
                 k = int(round(row))
-                out[k] = out.get(k, 0) + _sheet_rows_from(model, ep.edge_index, z0)
+                out[k] = out.get(k, 0) + _n_rows_from(model, ep.edge_index, z0)
     return dict(sorted(out.items()))
 
 
@@ -596,10 +693,12 @@ def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
         return 0
     n = sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
             for ep in model.plan.edges)
-    # 開放端の妻側のシート（端の内側・外側の建地）
+    # 開放端の妻側のシート: 端の内側の建地に普通のもの（外側の建地の角はコーナー用。面のシートの端の建地のクランプも
+    # その高さから上はコーナー用に任せる）
     for ep in model.plan.edges:
         for _e, z0 in open_end_sheets(model, ep):
-            n += 2 * len(sheet_clamp_heights_from(model, ep.edge_index, z0))
+            hs = sheet_clamp_heights_from(model, ep.edge_index, z0)
+            n += len(hs) - sum(1 for h in sheet_clamp_heights(model, ep.edge_index) if h >= z0 - 1.0)
     return n
 
 
@@ -620,8 +719,12 @@ def sheet_corner_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
     """出隅の角の「養生クランプ コーナー用」の数（始点が出隅の面 × 各段のシートの上下）."""
     if sheet_size(model) is None:
         return 0
-    return sum(len(sheet_clamp_heights(model, ep.edge_index)) for ep in model.plan.edges
-               if sheet_clamp_ends(model, ep)[0] and any(sheet_panels(model, ep, stair_plan)))
+    n = sum(len(sheet_clamp_heights(model, ep.edge_index)) for ep in model.plan.edges
+            if sheet_clamp_ends(model, ep)[0] and any(sheet_panels(model, ep, stair_plan)))
+    # 開放端の妻側のシートと面のシートの角（外側の建地）
+    n += sum(len(sheet_clamp_heights_from(model, ep.edge_index, z0)) for ep in model.plan.edges
+             for _e, z0 in open_end_sheets(model, ep))
+    return n
 
 
 def corner_step_name(model: ScaffoldModel) -> str:

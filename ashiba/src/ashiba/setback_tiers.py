@@ -404,8 +404,15 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     # 利用者の指定 2026-10-25: セットバックのメッシュは低いところの足場までにして）
     from .elevation_solver import truncate_elevation
 
-    low_top_rel = float(truncate_elevation(m1.elevation, low_top - base, m1.master).total_height)
+    from .attachments import sheet_top_of
+
+    low_ev = truncate_elevation(m1.elevation, low_top - base, m1.master)
+    low_top_rel = float(low_ev.total_height)
     main["_open_above"] = [[ei, end, low_top_rel] for ei, end, _z in main["_open_above"]]
+    # 妻側のシート・上段のシートは下段のシート（低い所のメッシュ）の天端から上（利用者の指定 2026-10-25: セットバック
+    # 部分もメッシュシートは低いところのメッシュの高さまででいいよ）
+    low_sheet_rel = float(sheet_top_of(m1, low_ev))
+    main["_open_sheet_above"] = [[ei, end, low_sheet_rel] for ei, end, _z in main["_open_above"]]
     e1 = {e.edge_index: e for e in m1.plan.edges}
     out_tiers = []
     done = {id(p["sub"]) for p in plan_t}
@@ -450,8 +457,11 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
         lv_abs = [float(h) + float(m1.base_height_mm or 0) for h in m1.elevation.level_heights]
         # 足場の天端（シートの天端）も本体にそろえる（利用者の指定 2026-10-25: シートの高さも揃えて）
         top_abs = float(m1.elevation.total_height) + float(m1.base_height_mm or 0)
+        # 上段のシートは下段の足場（低い所のメッシュ）の天端から上だけ（利用者の指定 2026-10-25: セットバック部分も
+        # メッシュシートは低いところのメッシュの高さまででいいよ。屋根の上は下段のシートの内側）
         t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip, "_align_levels_mm": lv_abs,
-              "_align_top_mm": top_abs}
+              "_align_top_mm": top_abs,
+              "_sheet_bottom_mm": base + low_sheet_rel - float(t["base_height_mm"])}
         out_tiers.append((lb, t2))
         notes.append(f"{lb}: 上段の端の支柱は本体の支柱に乗せる（ジャッキベースなし）。上段の離れ {so_t:.0f}、"
                      f"セットバックの先（{'・'.join(low)}）の本体の足場は途中の屋根（GL+{low_top:.0f}）で止める")

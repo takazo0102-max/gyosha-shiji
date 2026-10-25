@@ -122,7 +122,10 @@ class TestSheets(unittest.TestCase):
         d = (r.model.post_row_spacing_mm + 60) / 1000.0
         self.assertAlmostEqual(p.params["x0"], -d)                      # 出隅は角の外まで回す
         self.assertAlmostEqual(p.params["x1"], sum(ep.spans) / 1000.0 + d)
-        self.assertAlmostEqual(p.params["zT"], r.model.elevation.total_height / 1000.0)
+        from ashiba.attachments import sheet_top_mm
+
+        self.assertAlmostEqual(p.params["zT"], sheet_top_mm(r.model, ep.edge_index) / 1000.0)
+        self.assertLessEqual(p.params["zT"], r.model.elevation.total_height / 1000.0)
 
     def test_none_when_no_sheet(self):
         from ashiba.attachments import sheet_placements, sheet_quantities
@@ -196,6 +199,18 @@ class TestSheetPanelsFollowTheScaffold(unittest.TestCase):
 
 
 class TestSheetClamps(unittest.TestCase):
+    def test_gdl_puts_grommets_on_the_hooks(self):
+        # 利用者の指定 2026-10-25: フックとメッシュの穴の位置合わせて・コーナー部分はコーナー用にして
+        from pathlib import Path
+
+        src = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_sheet" / "scripts" / "3d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("xh = pA[ip] + 0.016 + ie * (wP - 0.032)", src)     # 左右の辺のハトメ＝フックの間隔 32 の半分
+        self.assertIn("zg = zHi - 0.02 - gmP", src)                        # 上の縁の 20 下から gromPitch ごと
+        self.assertIn("rest = rowList", src)
+        self.assertIn("if clampCE = 1 and not(isPnl) then", src)
+        self.assertIn("zSkip = clampEZ", src)
+
     """シートクランプ（利用者の指定 2026-10-24: シートクランプGDLも作成してつけて）."""
 
     def test_clamps_on_seams_and_ends(self):
@@ -207,13 +222,27 @@ class TestSheetClamps(unittest.TestCase):
                        "series_id": "nikken_nd1800", "scaffold_width_mm": 914})
         m = r.model
         ep = m.plan.edges[0]
+        from ashiba.attachments import sheet_rows, sheet_step_mm, sheet_top_mm
+
         hs = sheet_clamp_heights(m, ep.edge_index)
         ev = m.elevation_of(ep.edge_index)
-        top = ev.total_height
-        # 上から割り付ける（天端から 5160 ずつ下へ）。下端は仮囲いの天端 3000（利用者の指定 2026-10-24）
-        self.assertEqual(hs[-1], round(top - 100))
-        self.assertEqual(hs[0], 3150)
-        self.assertIn(round(top - 5160), hs)
+        top = sheet_top_mm(m, ep.edge_index)
+        # クランプはハトメの高さ（各段のシートの上と下）。上から割り付け、上下の段は重ねて重ねの中のハトメを1つの
+        # クランプで掛ける。下端は仮囲いの天端 3000（利用者の指定 2026-10-24・2026-10-25: メッシュクランプは上と下に・
+        # フックとメッシュの穴の位置合わせて）
+        self.assertEqual(hs[-1], round(top - 20))
+        self.assertTrue(3020 <= hs[0] < 3020 + 450, hs)
+        self.assertIn(round(top - 20 - sheet_step_mm(m)), hs)
+        rows = sheet_rows(m, ep.edge_index)
+        self.assertGreater(rows[0][1], rows[1][0])                       # 上下の段は重なる
+        # どのクランプもコマから半ピッチ離れる（先行手すり・布材を掛けるコマをふさがない。利用者の指摘 2026-10-25:
+        # これだと先行手すりかけれないよ）
+        komas, z = [], ev.jack_extension
+        for p in ev.posts:
+            komas += [z + o for o in m.master.post_koma_offsets(p)]
+            z += p
+        for h in hs:
+            self.assertAlmostEqual(min(abs(h - k) for k in komas), m.master.koma_pitch / 2, delta=1)
         xs = sheet_clamp_positions(m, ep, r.stair_plan)
         # 継ぎ目（支柱）だけ。出隅の角は両端とも養生クランプ コーナー用（始点はこの面、終点は次の面）
         self.assertEqual(len(xs), len(ep.spans) + 1)

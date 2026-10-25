@@ -984,6 +984,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}
     model.open_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_above") or [])}
+    model.open_sheet_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_sheet_above") or [])}
+    if spec.get("_sheet_bottom_mm") is not None:
+        model.sheet_bottom_override_mm = float(spec["_sheet_bottom_mm"])
     model.plan.warnings.extend(spec.get("_align_notes") or [])
     model.group_neighbors = {int(k): dict(v) for k, v in (spec.get("_group_neighbors") or {}).items()}
     # 仮囲いの高さ（外部シートの下端。既定 3000＝仮囲いの鋼板 H3m。0 なら地面から）

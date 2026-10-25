@@ -105,6 +105,26 @@
 			<Description><![CDATA["終点の端のクランプの位置（支柱）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<String Name="rowList">
+			<Description><![CDATA["シートの段「下,上」mm の繰り返し（下から。上下の段は重ねる。空なら sheetH ずつ上から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="gromPitch">
+			<Description><![CDATA["左右の辺のハトメの間隔（上の縁の 20 下から。コマのピッチ）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="clampCE">
+			<Description><![CDATA["終点の角を養生クランプ コーナー用で留める 0/1（開放端の妻側のシート）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="clampSZ">
+			<Description><![CDATA["始点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける。妻側のコーナー用に任せる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="clampEZ">
+			<Description><![CDATA["終点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Material Name="matSheet">
 			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
 			<Value>0</Value>

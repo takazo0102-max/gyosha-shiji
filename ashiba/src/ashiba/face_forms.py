@@ -177,7 +177,7 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
         elif form == LOW_FORM:
             # 下段: 本体と同じ条件で、高さだけ途中の屋根まで（利用者の指定 2026-10-25: セットバックより先の足場は不要）
             sub = {kk: v for kk, v in spec.items()
-                   if kk not in ("face_forms", "form_standoff", "_low_ranges", "_low_spec", "_open_above")}
+                   if kk not in ("face_forms", "form_standoff", "_low_ranges", "_low_spec", "_open_above", "_open_sheet_above")}
             sub.update(spec.get("_low_spec") or {})
             label = "下段" if k == 0 else f"下段（{k + 1}）"
             sub["project_name"] = f"{spec.get('project_name') or '足場'} {label}"

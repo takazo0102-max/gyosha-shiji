@@ -121,18 +121,21 @@ class TestSetbackTiers(unittest.TestCase):
 
     def test_tier_top_and_sheet_rows_match_the_main(self):
         # 利用者の指定 2026-10-25: シートの高さも揃えて（上段の天端が本体より 450 高く、シートは屋根の上 3m から下が無かった）
-        from ashiba.attachments import sheet_bottom_mm, sheet_rows
+        from ashiba.attachments import sheet_bottom_mm, sheet_rows, sheet_top_mm
 
         g = solve_groups(SPEC)
-        main, tier = g[0][1].model, g[2][1].model
+        main, low, tier = (r.model for _lb, r in g)
         top = main.elevation.total_height + main.base_height_mm
         self.assertEqual(tier.elevation.total_height + tier.base_height_mm, top)
-        self.assertEqual(sheet_bottom_mm(tier, 0), 0.0)                  # 屋根の上に仮囲いは無い
         ei = tier.plan.edges[0].edge_index
         main_joints = {round(hi + main.base_height_mm) for e in main.plan.edges
                        for _lo, hi in sheet_rows(main, e.edge_index)}
         for _lo, hi in sheet_rows(tier, ei):
             self.assertIn(round(hi + tier.base_height_mm), main_joints)
+        # 上段のシートは下段のシート（低い所のメッシュ）の天端から上だけ（利用者の指定 2026-10-25: セットバック部分も
+        # メッシュシートは低いところのメッシュの高さまででいいよ）
+        low_top = max(sheet_top_mm(low, e.edge_index) for e in low.plan.edges) + low.base_height_mm
+        self.assertAlmostEqual(sheet_bottom_mm(tier, ei) + tier.base_height_mm, low_top, delta=1)
 
     def test_open_ends_above_the_roof_get_end_sheets(self):
         # 利用者の指摘 2026-10-25: 妻側にもシートいるよ
@@ -142,20 +145,28 @@ class TestSetbackTiers(unittest.TestCase):
 
         g = solve_groups(SPEC)
         main, low = g[0][1].model, g[1][1].model
+        from ashiba.attachments import sheet_top_mm
+
         ends = {(e.edge_index, end): z for e in main.plan.edges for end, z in open_end_sheets(main, e)}
         self.assertEqual(len(ends), 2)                                   # 東・西の面の、セットバックの先の端
         for (ei, _end), z in ends.items():
-            # 下段の足場の天端より上だけ（利用者の指定 2026-10-25: セットバックのメッシュは低いところの足場までにして）
-            self.assertAlmostEqual(z, low.elevation_of(ei).total_height, delta=1)
+            # 妻側を塞ぐのは下段の足場の天端より上の層、シートは下段のシートの天端から上（利用者の指定 2026-10-25:
+            # セットバックのメッシュは低いところの足場までにして・低いところのメッシュの高さまで）
+            self.assertAlmostEqual(z, sheet_top_mm(low, ei), delta=1)
             self.assertAlmostEqual(line_params(main, next(e for e in main.plan.edges if e.edge_index == ei))[
-                "endOpenZS" if _end == "s" else "endOpenZE"] * 1000, z, delta=1)
-            # クランプはシートの上と下（利用者の指定 2026-10-25: メッシュクランプは上と下につけて）
+                "endOpenZS" if _end == "s" else "endOpenZE"] * 1000, low.elevation_of(ei).total_height, delta=1)
+            # クランプはシートの上と下のハトメ（利用者の指定 2026-10-25: メッシュクランプは上と下につけて）
             hs = sheet_clamp_heights_from(main, ei, z)
-            self.assertAlmostEqual(hs[0], z + 150, delta=1)
-            self.assertAlmostEqual(hs[-1], main.elevation_of(ei).total_height - 100, delta=1)
+            self.assertTrue(z + 20 <= hs[0] < z + 20 + 450, hs)
+            self.assertAlmostEqual(hs[-1], sheet_top_mm(main, ei) - 20, delta=1)
         pls = [p for p in sheet_placements(main) if p.part == SHEET_OBJECT
                and any(abs(p.params["zB"] * 1000 - z) < 1 for z in ends.values()) and p.params.get("clampEnd")]
         self.assertEqual(len(pls), 2)
+        # 面のシートとの角（外側の建地）はコーナー用（利用者の指定 2026-10-25: コーナー部分はコーナー用にして）
+        self.assertEqual(sorted(p.params["clampCS"] + p.params["clampCE"] for p in pls), [1, 1])
+        faces = [p for p in sheet_placements(main) if p.part == SHEET_OBJECT and p.params.get("rowList")
+                 and (p.params.get("clampSZ") or p.params.get("clampEZ"))]
+        self.assertEqual(len(faces), 2)
 
     def test_nets_stay_out_from_under_the_tier(self):
         # 利用者の指摘 2026-10-25: ネットクランプが足場の下まで入っている

@@ -192,6 +192,9 @@ class ScaffoldModel:
     skip_end_posts: set = field(default_factory=set)
     # 端の妻側の手すりを付けるのはこの高さ（足場の立つ高さから mm）より上だけ（下段に続く本体の区間の切れ目）
     open_above_mm: dict = field(default_factory=dict)
+    open_sheet_above_mm: dict = field(default_factory=dict)   # 妻側のシートを張る高さ（開放端。無ければ open_above_mm）
+    # シートの下端（足場の立つ面から mm）を仮囲いの天端の代わりに決める（セットバックの上段: 下段の足場の天端）
+    sheet_bottom_override_mm: Optional[float] = None
     # 面ごとの軒高（屋上の床。足場の立つ高さから mm。スラブから決めたとき）と、屋上への渡り（roof_bridges.RoofBridge）
     eaves_by_face: dict = field(default_factory=dict)
     roof_bridges: list = field(default_factory=list)
