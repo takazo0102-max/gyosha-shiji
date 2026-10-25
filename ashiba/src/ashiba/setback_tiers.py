@@ -41,8 +41,10 @@ HANE_TYPES = ("方杖", "吊り")
 
 
 def hane_type(spec: dict) -> str:
-    """跳ね出しブラケットの形 "方杖"（既定）か "吊り"."""
+    """拡張（張り出した上の階）の作り方 "方杖"（既定）・"吊り"・"なし"（跳ね出さず、本体の足場を上まで通して庇としてかわす）."""
     v = str(spec.get("hane_bracket_type") or "").strip()
+    if v in ("なし", "跳ね出さない", "通す", "none"):
+        return "なし"
     return "吊り" if v in ("吊り", "吊", "吊り材", "hang") else "方杖"
 
 
@@ -333,6 +335,8 @@ def overhang_caps(spec: dict) -> dict[int, float]:
         return {}
     from .geometry import build_outline
 
+    if hane_type(spec) == "なし":
+        return {}
     tiers = overhang_tiers(spec["outline_mm"], spec["slabs"], float(spec.get("overhang_min_mm", OVERHANG_MIN_MM)))
     if not tiers:
         return {}
@@ -372,7 +376,9 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
     tiers = setback_tiers(spec["outline_mm"], spec["slabs"], depth)
     out = []
     odepth = float(spec.get("overhang_min_mm", OVERHANG_MIN_MM))
-    for k, t in enumerate(overhang_tiers(spec["outline_mm"], spec["slabs"], odepth)):
+    # 跳ね出さない（本体の足場を上まで通して庇としてかわす）ときは張り出しの上段を作らない
+    over = [] if hane_type(spec) == "なし" else overhang_tiers(spec["outline_mm"], spec["slabs"], odepth)
+    for k, t in enumerate(over):
         names = names_of(t["outline_mm"])
         parts = overhang_faces(t["outline_mm"], spec["outline_mm"], odepth)
         if not parts:

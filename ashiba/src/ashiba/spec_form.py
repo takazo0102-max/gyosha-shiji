@@ -21,7 +21,10 @@ WIDTH_DEFAULT = "系列の既定"
 RAILS = {"布材（手すり＋中桟＋幅木）": "布材", "先行手すり": "先行手すり"}
 INNER = {"付ける（手すり＋中桟）": True, "付けない": False}
 ENDS = {"布材（手すり＋中桟）": "布材", "ブレス材（先行手すり）": "ブレス材"}
-HANE = {"方杖（腕の先から下の階の壁へ突っ張る）": "方杖", "吊り（腕の先を上の階の壁から吊る）": "吊り"}
+# 拡張（張り出した上の階）の足場の作り方（利用者の指定 2026-10-25: 配置のところでブラケットの拡張タイプも追加して）
+HANE = {"跳ね出し・方杖（ブラケットの腕の先から下の階の壁へ突っ張る）": "方杖",
+        "跳ね出し・吊り（ブラケットの腕の先を上の階の壁から吊る）": "吊り",
+        "跳ね出さない（本体の足場を上まで通して張り出しをかわす）": "なし"}
 TIES = {"仕上げから（外壁にアンカー）": "仕上げ", "鉄骨から（梁にビームクランプ）": "鉄骨"}
 ONOFF = {"付ける": True, "付けない": False}
 NET = {"張らない": False, "張る": True}
@@ -96,6 +99,11 @@ def form_fields(spec: dict) -> list[dict]:
          "help": "単管・枠組は足場の種類で決まります。自動は幅（センチ／インチ）に合う既定の系列"},
         {"key": "width", "label": "足場の幅", "kind": "choice", "options": [WIDTH_DEFAULT] + [c.label for c in WIDTH_CHOICES],
          "value": current_width(spec), "help": "建地列の間隔。階段を足場の中に入れるなら 900 以上"},
+        {"key": "hane", "label": "拡張（張り出した上の階）", "kind": "choice", "options": list(HANE),
+         "value": _key(HANE, spec.get("hane_bracket_type") or "方杖",
+                       "跳ね出し・方杖（ブラケットの腕の先から下の階の壁へ突っ張る）"),
+         "help": "上の階が外へ張り出すときの足場。跳ね出しは張り出した床から出すブラケットの上に建て、張り出しの下の本体の"
+                 "足場はブラケット（方杖は方杖の下端）の下で止める。跳ね出さないは本体の足場の離れを広げて上まで通す"},
         {"key": "", "label": "安全・設備", "kind": "section"},
         {"key": "rail", "label": "外側の手すり", "kind": "choice", "options": list(RAILS),
          "value": _key(RAILS, spec.get("guard_rail_type") or "布材", "布材（手すり＋中桟＋幅木）")},
@@ -105,9 +113,6 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "end", "label": "妻側（足場の端）", "kind": "choice", "options": list(ENDS),
          "value": _key(ENDS, spec.get("end_guard") or "布材", "布材（手すり＋中桟）"),
          "help": "一部の面だけの足場の端など開いた端の墜落防止。ブレス材はくさび式だけ（単管・枠組は布材）"},
-        {"key": "hane", "label": "跳ね出しブラケット", "kind": "choice", "options": list(HANE),
-         "value": _key(HANE, spec.get("hane_bracket_type") or "方杖", "方杖（腕の先から下の階の壁へ突っ張る）"),
-         "help": "張り出した上の階の上段を受けるブラケット。方杖は張り出しの下の本体の足場を方杖の下端より下で止める"},
         {"key": "tie", "label": "壁つなぎ", "kind": "choice", "options": list(TIES),
          "value": _key(TIES, spec.get("tie_source") or "仕上げ", "仕上げから（外壁にアンカー）"),
          "help": "鉄骨造は仕上げの奥の梁から取る（梁の高さで、長さは仕上げ面から梁まで 150 を足す）"},

@@ -286,6 +286,21 @@ class TestOverhangTier(unittest.TestCase):
     SP = {"project_name": "H", "outline_mm": LOW, "slabs": SL_OVER, "module": "inch", "eaves_height_mm": 12000,
           "hane_bracket_type": "吊り"}
 
+    def test_expansion_type_in_the_placement_form(self):
+        # 利用者の指定 2026-10-25: 配置のところでブラケットの拡張タイプも追加して。配置の窓の「足場」の欄に「拡張
+        # （張り出した上の階）」: 跳ね出し・方杖／跳ね出し・吊り／跳ね出さない（本体の足場を上まで通して庇としてかわす）
+        from ashiba.spec_form import HANE, apply_form, form_fields
+
+        f = form_fields({})
+        keys = [x["key"] for x in f]
+        self.assertLess(keys.index("hane"), keys.index("rail"))
+        self.assertEqual(sorted(HANE.values()), sorted(["方杖", "吊り", "なし"]))
+        new, _n = apply_form({}, {"hane": next(k for k, v in HANE.items() if v == "なし")})
+        self.assertEqual(new["hane_bracket_type"], "なし")
+        g = solve_groups({**self.SP, "hane_bracket_type": "なし"})
+        self.assertEqual([lb for lb, _r in g], [""])                       # 張り出しの上段を作らない
+        self.assertGreater(g[0][1].model.elevation_of(0).total_height, 12000)
+
     def test_brace_type_stops_main_below_strut(self):
         # 利用者の指定 2026-10-25: ブラケットの向き反対じゃない？ コマンドでどっちか選べるようにして。既定は方杖（腕の先から
         # 下の階の壁へ突っ張る）。張り出しの下の本体の面は方杖の下端（下の階の壁の取付プレート）より下で止める

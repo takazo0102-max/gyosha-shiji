@@ -112,7 +112,7 @@
 			<Value><![CDATA["布材"]]></Value>
 		</String>
 		<String Name="haneType">
-			<Description><![CDATA["跳ね出しブラケットの形 方杖（下の階の壁へ突っ張る）／吊り（上の階の壁から吊る）"]]></Description>
+			<Description><![CDATA["拡張（張り出した上の階）の作り方 方杖（跳ね出し・下の階の壁へ突っ張る）／吊り（跳ね出し・上の階の壁から吊る）／なし（跳ね出さず本体の足場を上まで通す）"]]></Description>
 			<Value><![CDATA["方杖"]]></Value>
 		</String>
 		<String Name="tieSource">

@@ -73,7 +73,7 @@ ui_outfield "階段の付け方", 10, 292, 140, 18
 ui_infield "stairLayout", 160, 290, 160, 20
 ui_outfield "図面のペン（パレットの「ペン」）", 10, 318, 140, 18
 ui_infield "penList", 160, 316, 300, 20
-ui_outfield "跳ね出しブラケット", 10, 344, 140, 18
+ui_outfield "拡張（張り出した上の階）", 10, 344, 140, 18
 ui_infield "haneType", 160, 342, 160, 20
 ui_outfield "開口（梁枠）", 10, 344, 140, 18
 ui_infield "openList", 160, 342, 300, 20
