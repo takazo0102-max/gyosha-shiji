@@ -102,7 +102,10 @@ class TestOneSidedCornerStep(unittest.TestCase):
         r = solve_all({**RECT, "series_id": "nikken_nd1800", "scaffold_form": "一側足場"})
         q = {l.part.model_no: l.qty for l in r.quantity.lines}
         # ブラケット足場はハーフアンチ（240）1枚（利用者の指定 2026-10-24）→ コーナーステップも 240 用の NDCS02
-        self.assertEqual(q.get("NDCS02"), r.model.outer_corner_posts() * r.model.elevation.n_levels)
+        # 出隅の升目＋隅の隙間（離れを帯に収めるため隅に残した隙間。2026-10-26 のループで一側足場にも。以前は離れ 364〜394）
+        gaps = len([c for c in r.model.plan.corner_steps if c.edge_index >= 0])
+        self.assertTrue(all(270 <= x <= 350 for x in r.model.plan.standoffs), r.model.plan.standoffs)
+        self.assertEqual(q.get("NDCS02"), (r.model.outer_corner_posts() + gaps) * r.model.elevation.n_levels)
         self.assertEqual(q.get("NDBK03C", 0) > 0, True)                  # 踏板240用 ブラケット350
         self.assertFalse(any("コーナー踏板" in w for w in r.quantity.warnings))
 

@@ -92,6 +92,15 @@ class TestCornersAgreeAcrossGroups(unittest.TestCase):
             self.assertAlmostEqual(e.standoff, main.plan.standoffs[e.edge_index], delta=0.5)
 
 
+class TestOneSidedCornerGaps(unittest.TestCase):
+    def test_inch_one_sided_l_shape_keeps_the_standoff(self):
+        # インチの一側足場は隅を閉じようとして離れが 403〜435 になった。隅に隙間（コーナーステップ）を残して 350 以下に
+        L = [[0, 0], [16000, 0], [16000, 6000], [8000, 6000], [8000, 12000], [0, 12000]]
+        r = solve_all({"outline_mm": L, "eaves_height_mm": 9000, "module": "inch", "scaffold_form": "一側足場"})
+        self.assertTrue(all(250 <= x <= 350 for x in r.model.plan.standoffs), r.model.plan.standoffs)
+        self.assertTrue(r.model.plan.corner_steps)
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""

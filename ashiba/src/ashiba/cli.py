@@ -788,8 +788,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         min=so.get("min", 250),
         max=so.get("max", 350),
         hard_min=so.get("hard_min", 250),
-        # 隅をコーナーステップで納めるのは本足場（建地2列）。一側は出隅の升目をコーナーステップで塞ぐ別の決め
-        corner_steps=bool(spec.get("corner_steps", True)) and _form_from_spec(spec)[0] == "本足場",
+        # 隅を隙間（コーナーステップ）で納めるのは、くさびの本足場と一側足場（単管・枠組は除く）。一側足場もフィート寸法で
+        # 隅を閉じようとすると離れが 400 を超えた（L 字。2026-10-26 のループ）。一側の出隅の升目のコーナーステップとは別
+        corner_steps=bool(spec.get("corner_steps", True)) and _form_from_spec(spec)[0] in ("本足場", "一側足場"),
     )
     # 面の組で、ほかの組が建てる隣の面の離れ（solve_groups が渡す）。隅はその面の線で終わる
     nb_so = {int(k): float(v) for k, v in (spec.get("_neighbor_standoffs") or {}).items()} or None
