@@ -530,23 +530,27 @@
 			<Value>0</Value>
 		</Length>
 		<Length Name="cnrBkW">
-			<Description><![CDATA["始点の出隅の升目の外の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Description><![CDATA["始点の出隅の升目の外の拡幅ブラケットの出（0＝なし。cnrBkLv のいちばん下の床に1回だけ付け、先端に支柱を天端まで立てる）"]]></Description>
 			<Value>0</Value>
 		</Length>
 		<Integer Name="cnrBkP">
 			<Description><![CDATA["拡幅ブラケットを付ける辺 0＝この面の外側の列から外へ／1＝前の面の外側の列の延長から始点の先へ"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Length Name="cnrBkG">
+			<Description><![CDATA["拡幅した升目の先端の支柱と隣の足場（跳ね出しの上段）の内側建地のあき（3cm を超えればすき間板）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="cnrBkLv">
-			<Description><![CDATA["拡幅ブラケットを付ける作業床の高さ mm"]]></Description>
+			<Description><![CDATA["拡幅した升目の作業床の高さ mm（いちばん下にブラケット）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<Length Name="hbExtS">
-			<Description><![CDATA["跳ね出しの上段の始点の先の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Description><![CDATA["跳ね出しの上段の始点の先の張出ブラケットの出（0＝なし。各層）"]]></Description>
 			<Value>0</Value>
 		</Length>
 		<Length Name="hbExtE">
-			<Description><![CDATA["跳ね出しの上段の終点の先の拡幅ブラケットの出（0＝なし）"]]></Description>
+			<Description><![CDATA["跳ね出しの上段の終点の先の張出ブラケットの出（0＝なし。各層）"]]></Description>
 			<Value>0</Value>
 		</Length>
 		<Length Name="haneX0">

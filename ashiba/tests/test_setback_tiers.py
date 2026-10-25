@@ -344,9 +344,11 @@ class TestOverhangTier(unittest.TestCase):
         self.assertLessEqual(main.elevation_of(west.edge_index).total_height, 6000 - 300)   # ブラケットの下で止める
 
     def test_side_faces_join_by_widening_brackets(self):
-        # 利用者の指定 2026-10-25: 張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて（拡幅ブラケット 497・305）。
-        # 西へ 1000 張り出した上の階: 本体の西面は張り出しの下で止まるが、北西・南西の隅の升目は北面・南面（上まで通る）の
-        # 高さまで立ち、その外側の2本から拡幅ブラケット 305 を西へ。跳ね出しの上段の両端の支柱から端の先へ拡幅ブラケット 497
+        # 利用者の指定 2026-10-25: 張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて／拡張ブラケットリサーチして
+        # 修正して（reports/くさび式足場の拡幅ブラケット.md）。西へ 1000 張り出した上の階: 本体の西面は張り出しの下で止まるが、
+        # 北西・南西の隅の升目は北面・南面（上まで通る）の高さまで立つ。その外側の2本に拡幅ブラケット 305（日建 NDBK03H）を
+        # 跳ね出しの上段のいちばん下の床で1回だけ付けて先端に支柱を立て、跳ね出しの上段の両端からは各層で張出ブラケット 610
+        # （NDBK06H）で床を持ち出す。2つの床のあき（50）は 3cm を超えるのですき間板
         full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
         up = [[-1000, 0], [5000, 0], [5000, 10000], [-1000, 10000]]
         slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
@@ -363,53 +365,62 @@ class TestOverhangTier(unittest.TestCase):
         # 南西: 南面（高い）が描く隅の升目に、西面の終点の外側建地と、西面の天端より上の層の辺
         self.assertGreater(ps["cnrLowP"], 0)
         self.assertEqual(ps["cnrPosts"], "")
-        # 拡幅ブラケット: 本体の隅は 305（跳ね出しの上段の内側建地の手前 45 以上あける）、上段の端は 497
+        # 拡幅ブラケット: 本体の隅は 305（跳ね出しの上段の内側建地の手前 45 以上あける）。拡幅する層は跳ね出しの上段の床
+        lv_t = [round(h + hane.base_height_mm) for h in hane.elevation.level_heights]
         for p, side in ((pw, 0), (ps, 1)):
             self.assertAlmostEqual(p["cnrBkW"], 0.305)
             self.assertEqual(p["cnrBkP"], side)
-            lv = [int(v) for v in p["cnrBkLv"].split(",")]
-            self.assertEqual(lv, [round(h + hane.base_height_mm) for h in hane.elevation.level_heights])
+            self.assertEqual([int(v) for v in p["cnrBkLv"].split(",")], lv_t)
+            self.assertGreater(p["cnrBkG"], 0.03)                          # すき間板が要る
         he = hane.plan.edges[0]
         ph = line_params(hane, he)
-        self.assertAlmostEqual(ph["hbExtS"], 0.497)
-        self.assertAlmostEqual(ph["hbExtE"], 0.497)
-        self.assertEqual((ph["endOpenS"], ph["endOpenE"]), (0, 0))   # 端の先の床の手すりが塞ぐ
-        # 本体の外側の建地列＋305 と、上段の内側建地列のあき
         row = main.post_row_spacing_mm
+        self.assertAlmostEqual(ph["hbExtS"], row / 1000.0)                  # 張出ブラケット 610（本体の外側の列まで）
+        self.assertAlmostEqual(ph["hbExtE"], row / 1000.0)
+        self.assertEqual((ph["endOpenS"], ph["endOpenE"]), (0, 0))         # 端の先の床の手すりが塞ぐ
         gap = (1000 + he.standoff) - (name["西面"].standoff + row) - 305
         self.assertGreaterEqual(gap, 45)
         # 上段の端の支柱は床スラブの外（躯体の角の先）: 壁に留められる区間は角から 150 内側まで
         self.assertGreater(ph["haneX0"], 0)
         self.assertLess(ph["haneX1"], sum(he.spans) / 1000.0)
         self.assertAlmostEqual(ph["haneX1"] - ph["haneX0"], (10000 - 300) / 1000.0, places=3)
-        # 数量: 本体の拡幅ブラケット 305（日建 NDBK03H）2隅×2基×層、上段の 497 はマスタに無いので手配の注意
+        # 数量: 拡幅ブラケット 305（日建 NDBK03H）は2隅×2基（全高で1回）、張出ブラケット 610（NDBK06H）は2端×2基×層
         n_lv = len(hane.elevation.level_heights)
-        self.assertEqual(g[0][1].quantity.qty_of("ブラケット", 305), 2 * 2 * n_lv)
-        w = " ".join(dict(g)["上段（張り出し）"].quantity.warnings)
-        self.assertIn("拡幅ブラケット497", w)
-        self.assertIn("床スラブの外の端の支柱を受ける渡し梁", w)
-        self.assertTrue(any("拡幅ブラケット" in x for x in main.plan.warnings))
+        self.assertEqual(g[0][1].quantity.qty_of("ブラケット", 305), 2 * 2)
+        self.assertEqual(dict(g)["上段（張り出し）"].quantity.qty_of("ブラケット", 610), 2 * 2 * n_lv)
+        w = " ".join(g[0][1].quantity.warnings)
+        self.assertIn("すき間板", w)
+        self.assertIn("補強単管", w)
+        self.assertIn("床スラブの外の端の支柱を受ける渡し梁", " ".join(dict(g)["上段（張り出し）"].quantity.warnings))
+        self.assertTrue(any("拡幅ブラケット305を1回だけ" in x for x in main.plan.warnings))
 
     def test_gdl_draws_the_widening_brackets(self):
         from pathlib import Path
 
         d = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
         d3 = (d / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        sub = d3[d3.index("758:\t! ---- 拡幅ブラケットの張り出し床1層"):]
-        sub = sub[:sub.index("\treturn\n")]
-        for word in ("方杖 1425", "ブラケット支柱", "ハーフアンチ", "gosub 870", "gosub 830"):
-            self.assertIn(word, sub)
-        # 隅の升目（cornerS）の外と、跳ね出しの上段の端（hbExtS・hbExtE）から
+        wide = d3[d3.index("759:\t! ---- 拡幅ブラケットで升目を広げる"):]
+        wide = wide[:wide.index("\treturn\n")]
+        for word in ("補強単管", "先端の支柱", "すき間板", "gosub 754", "gosub 870", "gosub 753"):
+            self.assertIn(word, wide)
+        over = d3[d3.index("758:\t! ---- 張出ブラケットの床1層"):]
+        over = over[:over.index("\treturn\n")]
+        for word in ("2 * komaPitch", "手すり柱", "dkW = 0.49"):
+            self.assertIn(word, over)
+        # 隅の升目（cornerS）の外は拡幅（gosub 759）、跳ね出しの上段の端（hbExtS・hbExtE）は張出（gosub 758）
         self.assertIn("if cnrBkW > 0.001 and nCBk > 0 then", d3)
+        self.assertIn("gosub 759", d3)
         self.assertIn("xbW = hbExtS", d3)
         # 隅の升目は高い方の面の積み方（gosub 757）、低い面の隅の外側建地は skipOut で描かない
         self.assertIn("gosub 757", d3)
         self.assertIn("skipOutS = 1", d3)
         pl = (d / "paramlist.xml").read_text(encoding="utf-8")
-        for n in ("cnrPosts", "cnrLevels", "cnrBkW", "hbExtS", "haneX0", "skipOutE"):
+        for n in ("cnrPosts", "cnrLevels", "cnrBkW", "cnrBkG", "hbExtS", "haneX0", "skipOutE"):
             self.assertIn(f'Name="{n}"', pl)
         self.assertIn("cnrBkLv", (d / "scripts" / "1d.gdl").read_text(encoding="utf-8"))
-        self.assertIn("拡幅ブラケット", (d / "scripts" / "2d.gdl").read_text(encoding="utf-8"))
+        d2 = (d / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("拡幅ブラケット", d2)
+        self.assertIn("張出ブラケット", d2)
 
     def test_gdl_draws_the_brackets(self):
         from pathlib import Path

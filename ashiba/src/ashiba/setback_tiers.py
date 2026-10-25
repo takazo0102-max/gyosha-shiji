@@ -779,20 +779,40 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     return main, out_tiers, notes
 
 
-# 拡幅ブラケット（日建 拡幅ブラケット。利用者の指定 2026-10-25 のカタログ: 497・305、方杖 1425 で下のコマへ）
-HANE_EXT_MM = 497.0          # 跳ね出しの上段の端の先へ出す拡幅ブラケット（本体の隅の拡幅床の脇まで床を伸ばす）
-WIDEN_BRACKETS_MM = (497.0, 305.0)
-WIDEN_POST_CLEAR_MM = 45.0   # 本体の隅の拡幅ブラケットの先と、跳ね出しの上段の内側建地（芯）とのあき（支柱の半径＋手が入る分）
+# 拡幅ブラケット・張出ブラケット（reports/くさび式足場の拡幅ブラケット.md。利用者の指定 2026-10-25: 拡張ブラケット
+# リサーチして修正して）。拡幅ブラケットは先端に上の層の外側の支柱を立てて足場の幅を広げる部材（全高で1回だけ）、
+# 張出ブラケットは床だけを持ち出す部材（先端のホゾに手すり柱）。日建 ND1800: 拡幅 NDBK03H 305（方杖は1コマ下・先端から
+# 下の層の支柱へ補強単管）、張出 NDBK06H 610（方杖は2コマ下）
+WIDEN_DEFAULT_MM = (305.0,)  # 系列のマスタに拡幅ブラケットが無いときの幅
+WIDEN_POST_CLEAR_MM = 45.0   # 本体の隅の拡幅ブラケットの先（先端の支柱の芯）と、跳ね出しの上段の内側建地（芯）とのあき
+DECK_GAP_MAX_MM = 30.0       # 床材と床材のすき間（安衛則563条1項2号ロ: 3cm 以下）
+
+
+def widen_widths(master) -> list[float]:
+    """系列の拡幅ブラケットの幅（大きい順）. マスタに無ければ 305."""
+    ws = sorted({float(p.nominal_dim) for p in master.by_category("ブラケット") if "拡幅ブラケット" in p.note},
+                reverse=True)
+    return ws or list(WIDEN_DEFAULT_MM)
+
+
+def overhang_bracket_width(master, row: float) -> float:
+    """跳ね出しの上段の端の先へ床を持ち出す張出ブラケットの幅: 本体の建地列間隔（隅の升目の外側の列まで届く）以下で
+    いちばん大きい張出ブラケット. マスタに無ければ建地列間隔."""
+    ws = [float(p.nominal_dim) for p in master.by_category("ブラケット")
+          if "張出ブラケット" in p.note and float(p.nominal_dim) <= row + 1.0]
+    return max(ws) if ws else row
 
 
 def hane_bridges(out: list) -> list[str]:
-    """跳ね出しの上段の端を、張り出しの横の面の本体の足場（隅の升目）へ拡幅ブラケットで繋ぐ（利用者の指定 2026-10-25:
-    張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて）. 決めたことを組のモデルに書き、注記を返す.
+    """跳ね出しの上段の端を、張り出しの横の面の本体の足場（隅の升目）へ繋ぐ（利用者の指定 2026-10-25: 張り出しの横の面も
+    足場入れて ブラケットで繋がるようにしてみて／拡張ブラケットリサーチして修正して）. 決めたことを組のモデルに書き、注記を返す.
 
     張り出しの下の本体の面（overhang_caps_rel）は張り出しの下で止まるが、その面と張り出しの横の面（上まで通る）の出隅の
-    升目は高い方の面の高さまで立つ（gdl_params.corner_tower_params）。上の階では、その升目の外側（張り出しの側）の
-    2本の建地に拡幅ブラケット（305 か 497。跳ね出しの上段の内側建地の手前 45 まで）を付け、跳ね出しの上段の端の内外の
-    支柱から端の先へ拡幅ブラケット 497 を出す。2つの拡幅床が並び、そのあいだ（50 程度）を渡る.
+    升目は高い方の面の高さまで立つ（gdl_params.corner_tower_params）。その升目の外側（張り出しの側）の2本の建地に、
+    跳ね出しの上段のいちばん下の床の高さで拡幅ブラケット（跳ね出しの上段の内側建地の手前 45 までに入る幅。日建 NDBK03H 305）を
+    1回だけ付け、先端に支柱を天端まで立てて升目を広げる（各層に 305 の布材・床・手すり）。跳ね出しの上段の端の内外の支柱
+    からは、各層で端の先へ張出ブラケット（本体の建地列間隔まで。日建 NDBK06H 610）を出して床を持ち出す。2つの床は
+    並び、あき（50 程度）は 3cm を超えるのですき間板でふさぐ.
 
     また跳ね出しの上段の面の端の支柱が床スラブの外（躯体の角の先）にあれば、その支柱はブラケットを壁に留められないので、
     床スラブの端の手前（角から HANE_END_CLEAR_MM）にブラケットを足し、そこから渡し梁で受ける（model.hane_slab_range）.
@@ -802,6 +822,7 @@ def hane_bridges(out: list) -> list[str]:
     main = out[0][1].model
     caps = getattr(main, "overhang_caps_rel", None) or {}
     notes: list[str] = []
+    widths = widen_widths(main.master)
     for label, r in out[1:]:
         m = r.model
         if not getattr(m, "hane_bracket", False):
@@ -809,6 +830,7 @@ def hane_bridges(out: list) -> list[str]:
         m.hane_slab_range = {}
         m.hane_end_ext = {}
         ol = m.plan.outline
+        ext_w = overhang_bracket_width(m.master, float(main.post_row_spacing_mm))
         for ep in m.plan.edges:
             ei = ep.edge_index
             e = ol.edges[ei]
@@ -827,7 +849,7 @@ def hane_bridges(out: list) -> list[str]:
                 if hit is None:
                     continue
                 owner, side, gap = hit
-                wm = next((w for w in WIDEN_BRACKETS_MM if w + WIDEN_POST_CLEAR_MM <= gap + 0.5), 0.0)
+                wm = next((w for w in widths if w + WIDEN_POST_CLEAR_MM <= gap + 0.5), 0.0)
                 base_m = float(main.base_height_mm or 0)
                 base_t = float(m.base_height_mm or 0)
                 # 隅の升目の最上の作業床（隅を挟む2つの面の高い方）
@@ -838,16 +860,21 @@ def hane_bridges(out: list) -> list[str]:
                 lv = [h for h in lv if h <= top_floor + 1.0]
                 if not lv:
                     continue
-                m.hane_end_ext[(ei, end)] = HANE_EXT_MM
+                m.hane_end_ext[(ei, end)] = ext_w
+                rest = gap - wm
                 if wm > 0:
                     cb = getattr(main, "corner_bridges", None) or {}
-                    cb[owner] = (wm, side, lv)
+                    cb[owner] = (wm, side, lv, rest)
                     main.corner_bridges = cb
+                fill = (f"。2つの床のあき {int(round(rest))}mm は 3cm を超えるので、各層ですき間板を敷いてふさぎます"
+                        if rest > DECK_GAP_MAX_MM else "")
                 notes.append(
-                    f"{label}: {m.face_name(ei)}の{'始点' if end == 's' else '終点'}の端は、端の内外の支柱から拡幅ブラケット"
-                    f"{int(HANE_EXT_MM)}を端の先へ出し"
-                    + (f"、張り出しの横の本体の足場の隅の升目（上の階まで立てる）の外側の2本から拡幅ブラケット{int(wm)}を"
-                       f"張り出しの側へ出して、2つの床を並べて繋ぎます（あき {int(round(gap - wm))}mm）" if wm > 0 else
+                    f"{label}: {m.face_name(ei)}の{'始点' if end == 's' else '終点'}の端は、端の内外の支柱から各層で張出ブラケット"
+                    f"{int(ext_w)}を端の先へ出して床を持ち出し"
+                    + (f"、張り出しの横の本体の足場の隅の升目（上の階まで立てる）の外側の2本に、GL+{int(round(lv[0] + base_m))}"
+                       f" の床の高さで拡幅ブラケット{int(wm)}を1回だけ付けて先端に支柱を立て、升目を張り出しの側へ広げて"
+                       f"2つの床を並べます{fill}。拡幅した層の上下は前踏み側の全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重を"
+                       "確かめてください" if wm > 0 else
                        f"て本体の足場の隅の升目の脇へ床を伸ばします（あき {int(round(gap))}mm）"))
         if m.hane_slab_range:
             notes.append(f"{label}: 床スラブの外（躯体の角の先）に出る端の支柱は、床スラブの端の手前（角から "

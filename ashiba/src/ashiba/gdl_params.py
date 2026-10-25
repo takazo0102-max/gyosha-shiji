@@ -867,7 +867,7 @@ def corner_tower_params(model: ScaffoldModel, ep) -> dict:
 
 
 def bridge_params(model: ScaffoldModel, ep) -> dict:
-    """拡幅ブラケット（setback_tiers.hane_bridges）: 本体の隅の升目の外（cnrBk*）と跳ね出しの上段の端（hbExt*）、
+    """拡幅・張出ブラケット（setback_tiers.hane_bridges）: 本体の隅の升目の外の拡幅（cnrBk*）と跳ね出しの上段の端の張出（hbExt*）、
     跳ね出しブラケットを壁に留められる区間（haneX0・haneX1）."""
     ei = ep.edge_index
     cb = (getattr(model, "corner_bridges", None) or {}).get(ei)
@@ -877,6 +877,8 @@ def bridge_params(model: ScaffoldModel, ep) -> dict:
         "cnrBkW": cb[0] / 1000.0 if cb else 0.0,
         "cnrBkP": int(cb[1]) if cb else 0,
         "cnrBkLv": ",".join(str(int(round(v))) for v in cb[2]) if cb else "",
+        # 拡幅した升目の先端の支柱と跳ね出しの上段の内側建地のあき（3cm を超えればすき間板を描く）
+        "cnrBkG": float(cb[3]) / 1000.0 if cb and len(cb) > 3 else 0.0,
         "hbExtS": float(ext.get((ei, "s"), 0.0)) / 1000.0,
         "hbExtE": float(ext.get((ei, "e"), 0.0)) / 1000.0,
         "haneX0": rng[0] / 1000.0 if rng else 0.0,

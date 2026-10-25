@@ -644,9 +644,9 @@ if cornerS = 1 then
 			endif
 		endif
 	next il
-	! 隅の升目の外の拡幅ブラケット（跳ね出しの上段の端へ床を繋ぐ。cnrBkP=0: この面の外側の列（y=-rowW）の2本から
-	! 外（-Y）へ、1: 前の面の外側の列の延長（x=-cSW）の2本から始点の先（-X）へ）。腕の先の向こうは跳ね出しの床
-	! （手すりを付けずに渡る）、両脇に手すり・中桟
+	! 隅の升目を拡幅ブラケットで張り出しの側へ広げる（跳ね出しの上段の端へ床を繋ぐ。cnrBkP=0: この面の外側の列
+	! （y=-rowW）の2本から外（-Y）へ、1: 前の面の外側の列の延長（x=-cSW）の2本から始点の先（-X）へ）。ブラケットは
+	! いちばん下の床に1回だけ、先端に支柱を升目の天端まで立て、各層に布材・床・手すり（gosub 759）
 	if cnrBkW > 0.001 and nCBk > 0 then
 		if cnrBkP = 0 then
 			add 0, -rowW, 0
@@ -658,13 +658,9 @@ if cornerS = 1 then
 			xbL = rowW
 		endif
 		xbW = cnrBkW
-		xbRA = 1
-		xbRB = 1
-		xbRF = 0
-		for ib7 = 1 to nCBk
-			xbZ = cBkLv[ib7]
-			gosub 758
-		next ib7
+		xbTop = cTop
+		xbG = cnrBkG
+		gosub 759
 		del 2
 	endif
 endif
@@ -810,8 +806,8 @@ if haneD > 0.001 then
 			endif
 		next ie9
 	endif
-	! 端の拡幅ブラケット（張り出しの横の本体の足場の隅へ床を繋ぐ。利用者の指定 2026-10-25）: hbExtS は始点の先（-X）、
-	! hbExtE は終点の先（+X）へ、端の内外の支柱から。腕の先と外側の脇に手すり・中桟、躯体側の脇は本体の隅の拡幅床へ渡る
+	! 端の張出ブラケット（張り出しの横の本体の足場の隅へ床を繋ぐ。利用者の指定 2026-10-25）: hbExtS は始点の先（-X）、
+	! hbExtE は終点の先（+X）へ、端の内外の支柱から各層。腕の先と外側の脇に手すり・中桟、躯体側の脇は本体の隅の拡幅床へ渡る
 	for ie8 = 0 to 1
 		xbW = hbExtS
 		if ie8 = 1 then xbW = hbExtE
@@ -2692,55 +2688,64 @@ return
 	next j
 	return
 
-758:	! ---- 拡幅ブラケットの張り出し床1層（日建 拡幅ブラケット・カタログの 497／305 の形。利用者の指定 2026-10-25）----
-	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。腕は +X へ xbW（支柱芯から腕の先まで）、高さ xbZ（作業床）。
-	! 腕（角形の受け）・方杖 1425（腕の先から下のコマへ）・腕の先のブラケット支柱（497 は 1390、305 は 1357。手すりを掛ける）・
-	! 床はハーフアンチ（240 幅の布板）を2本の腕に渡す。手すり・中桟は xbRA（y=0 の脇）・xbRB（y=-xbL の脇）・xbRF（腕の先）
-	xbPH = 1.357
-	if xbW > 0.40 then xbPH = 1.390
-	xbDz = sqr(max(0.01, 1.425 ^ 2 - (xbW - 0.06) ^ 2))
+758:	! ---- 張出ブラケットの床1層（日建 張出ブラケット NDBK06H 610・カタログ Vol.10 p014。reports/くさび式足場の拡幅ブラケット.md）----
+	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。腕は +X へ xbW（支柱芯から先端まで）、高さ xbZ（作業床。腕は床の布材と
+	! 同じコマ）。方杖は腕の先の手前から支柱の下のコマへ（610 は2コマ下、それより短いものは1コマ下）。先端のホゾに手すり柱
+	! （支柱 1350）を立てて手すり・中桟を掛ける。床は2基の腕に渡す（610 は 500 幅の布板1枚、短いものは 240 幅）。
+	! 手すり・中桟は xbRA（y=0 の脇）・xbRB（y=-xbL の脇）・xbRF（腕の先）
+	xbDp = komaPitch
+	if xbW > 0.40 then xbDp = 2 * komaPitch
+	if xbDp < 0.3 then xbDp = 0.45
 	for xbS = 0 to 1
 		xbY = -xbS * xbL
-		! 緊結部と腕（腕の上面が布材の上面にそろう）
-		add r_sic, xbY - 0.020, xbZ - 0.040
-		block 0.042, 0.040, 0.082
-		del 1
-		add r_sic + 0.04, xbY - 0.020, xbZ + r_nuno - 0.050
-		block xbW - r_sic - 0.04, 0.040, 0.050
-		del 1
-		! 方杖（腕の先から支柱の下のコマへ）と下の緊結部
-		bx1 = xbW - 0.05
-		by1 = xbY
-		bz1 = xbZ - 0.03
-		bx2 = r_sic + 0.02
-		by2 = xbY
-		bz2 = xbZ - xbDz
-		brR = 0.0136
-		gosub 895
-		add r_sic, xbY - 0.020, xbZ - xbDz - 0.03
-		block 0.042, 0.040, 0.06
-		del 1
-		! 腕の先のブラケット支柱
-		add xbW, xbY, xbZ - 0.05
-		cylind xbPH, r_sic
-		del 1
+		gosub 754
 	next xbS
 	if showDeck then
 		if matDeck > 0 then material matDeck
-		xbN = max(1, int((xbW - 0.03) / 0.24))
-		for xbD = 1 to xbN
-			add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZ
+		if xbW > 0.54 then
+			add (xbW - 0.49) / 2, 0, xbZ
 			rotz -90
 			dkL = xbL
-			dkW = 0.235
+			dkW = 0.49
 			gosub 870
 			del 2
-		next xbD
+		else
+			xbN = max(1, int((xbW - 0.03) / 0.24))
+			for xbD = 1 to xbN
+				add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZ
+				rotz -90
+				dkL = xbL
+				dkW = 0.235
+				gosub 870
+				del 2
+			next xbD
+		endif
 		if matScaf > 0 then material matScaf
 	endif
+	! 先端の手すり柱（支柱 1350）とコマ
+	for xbS = 0 to 1
+		add xbW, -xbS * xbL, xbZ
+		cylind 1.35, r_sic
+		resol 6
+		for xbK = 0 to 2
+			zk = 0
+			if xbK = 1 then zk = railMid
+			if xbK = 2 then zk = railTop
+			add 0, 0, zk - 0.003
+			cylind 0.006, 0.053
+			del 1
+		next xbK
+		resol rN
+		del 1
+	next xbS
+	xbZr = xbZ
+	gosub 753
+	return
+
+753:	! ---- ブラケットの床の脇・先の手すりと中桟（高さ xbZr。xbRA・xbRB・xbRF。長さは腕 xbW・幅 xbL）----
 	for xbH = 1 to 2
-		zr8 = xbZ + railTop
-		if xbH = 2 then zr8 = xbZ + railMid
+		zr8 = xbZr + railTop
+		if xbH = 2 then zr8 = xbZr + railMid
 		if xbRA = 1 then
 			add 0, 0, zr8
 			nL = xbW
@@ -2761,6 +2766,127 @@ return
 			del 2
 		endif
 	next xbH
+	return
+
+754:	! ---- ブラケット1基の腕と組み込みの方杖（原点＝支柱の芯、y=xbY、腕の高さ xbZ、+X へ xbW、方杖の下がり xbDp）----
+	! 緊結部（支柱の外面からコマを挟む）・腕 φ42.7・先端の受け（ホゾ φ36.4）・方杖 φ27.2 と下の緊結部
+	add r_sic, xbY - 0.020, xbZ + 0.003
+	block 0.042, 0.040, 0.042
+	del 1
+	add r_sic, xbY - 0.020, xbZ - 0.040
+	block 0.042, 0.040, 0.037
+	del 1
+	add r_sic + 0.042, xbY, xbZ
+	roty 90
+	cylind xbW - r_sic - 0.042 - 0.03, r_nuno
+	del 2
+	add xbW - 0.03, xbY - 0.03, xbZ - 0.06
+	block 0.06, 0.06, 0.09
+	del 1
+	add r_sic, xbY - 0.020, xbZ - xbDp - 0.03
+	block 0.042, 0.040, 0.06
+	del 1
+	bx1 = r_sic + 0.03
+	by1 = xbY
+	bz1 = xbZ - xbDp
+	bx2 = xbW - 0.06
+	by2 = xbY
+	bz2 = xbZ - 0.03
+	brR = 0.0136
+	gosub 895
+	return
+
+759:	! ---- 拡幅ブラケットで升目を広げる（日建 拡幅ブラケット NDBK03H 305・カタログ Vol.10 p014。reports/くさび式足場の拡幅ブラケット.md）----
+	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。+X へ xbW 広げる。拡幅は全高で1回だけ: いちばん下の床 cBkLv[1] の
+	! コマに2基のブラケット（方杖は1コマ下、先端から1層下の支柱へ補強単管をクランプで）、先端のホゾに支柱を xbTop まで
+	! 立てる。各層 cBkLv[] に、元の支柱と先端の支柱を xbW の布材（床・手すり・中桟）でつなぎ、先端の2本を床の布材で
+	! つなぐ。床は 240 幅の布板を2本の布材に渡す。先端の向こう（隣の足場の床）とのあき xbG が 3cm を超えれば、すき間板
+	xbZ = cBkLv[1]
+	xbDp = komaPitch
+	if xbDp < 0.3 then xbDp = 0.45
+	for xbS = 0 to 1
+		xbY = -xbS * xbL
+		gosub 754
+		! 補強単管（φ48.6、先端から1層下の元の支柱へ。両端はクランプ）
+		bx1 = xbW - 0.03
+		by1 = xbY - 0.05
+		bz1 = xbZ - 0.08
+		bx2 = r_sic + 0.04
+		by2 = xbY - 0.05
+		bz2 = xbZ - floorH + 0.10
+		brR = 0.0243
+		gosub 895
+		material "ashiba_clamp_gold"
+		add bx1 - 0.035, by1 - 0.035, bz1 - 0.035
+		block 0.07, 0.07, 0.07
+		del 1
+		add bx2 - 0.035, by2 - 0.035, bz2 - 0.035
+		block 0.07, 0.07, 0.07
+		del 1
+		if matScaf > 0 then material matScaf
+		! 先端の支柱（ホゾに挿して天端まで）
+		if xbTop > xbZ + 0.1 then
+			add xbW, xbY, xbZ
+			cylind xbTop - xbZ, r_sic
+			del 1
+		endif
+	next xbS
+	for ib7 = 1 to nCBk
+		xbZr = cBkLv[ib7]
+		! 先端の支柱のコマ（床・中桟・手すり）
+		resol 6
+		for xbS = 0 to 1
+			for xbK = 0 to 2
+				zk = xbZr
+				if xbK = 1 then zk = xbZr + railMid
+				if xbK = 2 then zk = xbZr + railTop
+				if zk < xbTop - 0.05 then
+					add xbW, -xbS * xbL, zk - 0.003
+					cylind 0.006, 0.053
+					del 1
+				endif
+			next xbK
+		next xbS
+		resol rN
+		! 床の布材（元の支柱から先端の支柱へ2本、先端の2本の間に1本。1層目はブラケットの腕が受ける）
+		if ib7 > 1 then
+			for xbS = 0 to 1
+				add 0, -xbS * xbL, xbZr
+				nL = xbW
+				gosub 830
+				del 1
+			next xbS
+		endif
+		add xbW, 0, xbZr
+		rotz -90
+		nL = xbL
+		gosub 830
+		del 2
+		if showDeck then
+			if matDeck > 0 then material matDeck
+			xbN = max(1, int((xbW - 0.03) / 0.24))
+			for xbD = 1 to xbN
+				add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZr
+				rotz -90
+				dkL = xbL
+				dkW = 0.235
+				gosub 870
+				del 2
+			next xbD
+			! すき間板（隣の足場の床とのあきが 3cm を超えるとき。安衛則563条1項2号ロ）
+			if xbG > 0.03 then
+				add xbW - 0.08, -xbL + 0.03, xbZr + r_nuno + 0.045
+				block xbG + 0.16, xbL - 0.06, 0.004
+				del 1
+			endif
+			if matScaf > 0 then material matScaf
+		endif
+		! 両脇の手すり・中桟（先端の向こうは隣の足場の床へ渡るので付けない）
+		xbRA = 1
+		xbRB = 1
+		xbRF = 0
+		gosub 753
+	next ib7
 	return
 
 760:	! ---- 跳ね出しブラケット1基（原点＝支柱の位置の内側建地列、z＝床スラブの天端。躯体の面は y＝standoff）----

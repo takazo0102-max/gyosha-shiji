@@ -1668,55 +1668,110 @@ HANE_NOTE_DEPTH = 600
 
 
 def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
-    """拡幅ブラケット（跳ね出しの上段の端と、張り出しの横の本体の足場の隅の升目の外。setback_tiers.hane_bridges・
-    3D の gosub 758 と同じ）と、高さの違う出隅で低い面の天端より上の升目の辺の布材・手すり（gdl_params.corner_tower_params）.
+    """跳ね出しの上段の端の張出ブラケットと、張り出しの横の本体の足場の隅の升目を広げる拡幅ブラケット（setback_tiers.
+    hane_bridges・3D の gosub 758／759 と同じ。reports/くさび式足場の拡幅ブラケット.md）と、高さの違う出隅で低い面の
+    天端より上の升目の辺の布材・手すり（gdl_params.corner_tower_params）.
 
-    1か所の1層ごとに、ブラケット2基・方杖・ブラケット支柱、床はハーフアンチ（240 幅の布板）を2基に渡し、手すり・中桟."""
+    張出（端の先、各層）: ブラケット2基・先端の手すり柱（支柱 1350）2本・床（610 は 500 幅の布板1枚）・腕の先と外側の
+    脇の手すり・中桟。拡幅（隅の升目の外、全高で1回）: ブラケット2基・補強単管2本（クランプ4個）・先端の支柱（天端まで）
+    2本、各層に元の支柱と先端の支柱をつなぐ布材（床・手すり・中桟）・先端どうしの床の布材・240 幅の布板、隣の足場の
+    床とのあきが 3cm を超えればすき間板."""
     from .gdl_params import corner_tower_params
 
     m = model.master
     row = int(model.post_row_spacing_mm)
     eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
-    # (出 mm, 床の長さ mm, 層の数, 手すりを付ける脇の数, 腕の先に手すりを付けるか)。跳ね出しの上段の端は外側の脇と
-    # 腕の先（躯体側の脇は本体の隅の拡幅床へ渡る）、本体の隅の升目の外は両脇（腕の先は跳ね出しの床へ渡る）
-    places: list[tuple[int, int, int, int, bool]] = []
+
+    def post_of(nominal: int):
+        return next((p for p in m.by_category("支柱") if p.nominal_dim == nominal
+                     and "根がらみ" not in p.note and "屋根" not in p.note), None)
+
+    def bracket(w: int, kind: str):
+        return next((p for p in m.by_category("ブラケット") if p.nominal_dim == w and kind in p.note), None)
+
+    order: list[str] = []
+    # ---- 張出ブラケット（跳ね出しの上段の端の先、各層） ----
+    n_over: dict[int, int] = {}
     for (ei, _end), w in (getattr(model, "hane_end_ext", None) or {}).items():
         if model.edge_subset is not None and ei not in model.edge_subset:
             continue
-        places.append((int(w), row, len(model.elevation_of(ei).level_heights), 1, True))
-    for ei, (w, side, lv) in (getattr(model, "corner_bridges", None) or {}).items():
+        w = int(w)
+        k = len(model.elevation_of(ei).level_heights)
+        n_over[w] = n_over.get(w, 0) + 2 * k
+        add(post_of(1350), 2 * k, "張出ブラケットの先端の手すり柱（支柱1350）")
+        if w > 540:
+            add(m.deck_parts(500, row), k, f"張出ブラケットの床（布板 500×{row}）")
+        else:
+            add(m.deck_parts(240, row), max(1, (w - 30) // 240) * k, f"張出ブラケットの床（布板 240×{row}）")
+        add(m.find("布材", row), 2 * k, f"張出ブラケットの床の先の手すり・中桟（布材{row}）")
+        side = m.find("布材", w)
+        if side is not None:
+            add(side, 2 * k, f"張出ブラケットの床の外側の脇の手すり・中桟（布材{w}）")
+        else:
+            order.append(f"張出ブラケット{w}の床の外側の脇の手すり・中桟 {2 * k}本（布材{w} がマスタに無い長さ。単管とクランプで）")
+    for w, qty in sorted(n_over.items(), reverse=True):
+        part = bracket(w, "張出ブラケット")
+        if part is not None:
+            add(part, qty, f"張出ブラケット{w}")
+        else:
+            order.append(f"張出ブラケット{w} {qty}基（系列のマスタに無い）")
+    # ---- 拡幅ブラケット（張り出しの横の本体の足場の隅の升目の外、全高で1回） ----
+    n_wide: dict[int, int] = {}
+    n_tube = 0
+    gaps: list[str] = []
+    lengths = sorted({p.nominal_dim for p in m.by_category("支柱")
+                      if "根がらみ" not in p.note and "屋根" not in p.note and p.nominal_dim > 0}, reverse=True)
+    n_out = len(model.plan.outline.edges)
+    for ei, cb in (getattr(model, "corner_bridges", None) or {}).items():
         if model.edge_subset is not None and ei not in model.edge_subset:
             continue
-        cl = row if side == 1 else int(model.row_spacing_of((ei - 1) % len(model.plan.outline.edges)))
-        places.append((int(w), cl, len(lv), 2, False))
-    by_w: dict[int, int] = {}
-    no_rail: dict[int, int] = {}
-    for w, cl, k, nr, far_rail in places:
-        by_w[w] = by_w.get(w, 0) + 2 * k
-        n_plate = max(1, int((w - 30) // 240))
-        add(m.deck_parts(240, cl), n_plate * k, f"拡幅ブラケットの床（ハーフアンチ {cl}）")
-        rail = m.find("布材", w)
-        if rail is not None:
-            add(rail, 2 * nr * k, f"拡幅ブラケットの床の脇の手すり・中桟（布材{w}）")
+        w, side_, lv = int(cb[0]), cb[1], list(cb[2])
+        gap = float(cb[3]) if len(cb) > 3 else 0.0
+        cl = row if side_ == 1 else int(model.row_spacing_of((ei - 1) % n_out))
+        k = len(lv)
+        n_wide[w] = n_wide.get(w, 0) + 2
+        n_tube += 2
+        # 先端の支柱: ブラケットの床から隅の升目の天端まで（長い支柱から積む）
+        top = max(model.height_of(ei), model.height_of((ei - 1) % n_out))
+        need = top - lv[0]
+        stack: list[int] = []
+        rest = need
+        while rest > 10 and lengths:
+            pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
+            stack.append(int(pick))
+            rest -= pick
+        for L in stack:
+            add(post_of(L), 2, f"拡幅ブラケットの先端の支柱{L}")
+        rail_w = m.find("布材", w)
+        if rail_w is not None:
+            add(rail_w, (2 * (k - 1) + 4 * k), f"拡幅した升目の床・手すり・中桟の布材{w}")
         else:
-            no_rail[w] = no_rail.get(w, 0) + 2 * nr * k
-        far = m.find("布材", cl)
-        if far_rail:
-            add(far, 2 * k, f"拡幅ブラケットの床の先の手すり・中桟（布材{cl}）")
-    for w, qty in sorted(by_w.items(), reverse=True):
-        part = next((p for p in m.by_category("ブラケット") if p.nominal_dim == w and "拡幅" in p.note), None)
+            order.append(f"拡幅した升目の布材{w} {2 * (k - 1) + 4 * k}本（マスタに無い長さ）")
+        add(m.find("布材", cl), k, f"拡幅した升目の先端の支柱どうしの床の布材{cl}")
+        add(m.deck_parts(240, cl), max(1, (w - 30) // 240) * k, f"拡幅した升目の床（布板 240×{cl}）")
+        if gap > 30.0:
+            gaps.append(f"すき間板（幅 {int(round(gap + 160))}×長さ {cl - 60}）{k}枚")
+    for w, qty in sorted(n_wide.items(), reverse=True):
+        part = bracket(w, "拡幅ブラケット")
         if part is not None:
             add(part, qty, f"拡幅ブラケット{w}")
         else:
-            notes.action(f"拡幅ブラケット{w}（方杖 1425・ブラケット支柱付き）{qty}基は系列のマスタにありません。別途手配して"
-                         "ください（張り出した上の階の上段と本体の足場を繋ぐ床）", Notes.ORDER)
-    for w, qty in sorted(no_rail.items(), reverse=True):
-        notes.action(f"拡幅ブラケット{w}の床の脇の手すり・中桟 {qty}本（布材{w}）はマスタに無い長さです。単管とクランプで"
-                     "付けるか、別途手配してください", Notes.ORDER)
-    if by_w:
-        notes.append("張り出した上の階の上段の端と、張り出しの横の本体の足場の隅は、拡幅ブラケット（"
-                     + "・".join(f"{w}×{q}基" for w, q in sorted(by_w.items(), reverse=True))
-                     + "）の床を並べて繋ぎます（支柱の許容荷重は拡幅部の値で確認）")
+            order.append(f"拡幅ブラケット{w} {qty}基（系列のマスタに無い）")
+    if n_tube:
+        order.append(f"拡幅ブラケットの補強単管 2.0m {n_tube}本とクランプ（日建 スーパークランプ S2C 相当）{2 * n_tube}個"
+                     "（先端から1層下の元の支柱へ）")
+    order.extend(gaps)
+    if order:
+        notes.action("拡幅・張出ブラケットまわりで別途手配: " + "、".join(order)
+                     + "。すき間板は床と床のあきを 3cm 以下にするため（安衛則563条1項2号ロ）", Notes.ORDER)
+    if n_over:
+        notes.append("張り出した上の階の上段の端は、各層で張出ブラケット（"
+                     + "・".join(f"{w}×{q}基" for w, q in sorted(n_over.items())) + "）で端の先へ床を持ち出します")
+    if n_wide:
+        notes.append("張り出しの横の本体の足場の隅の升目は、拡幅ブラケット（"
+                     + "・".join(f"{w}×{q}基" for w, q in sorted(n_wide.items())) + "）で1回だけ広げて先端に支柱を立てます。"
+                     "拡幅した層の上下は前踏み側の全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を"
+                     "確かめてください")
     # 高さの違う出隅: 低い面の天端より上の層の、升目の低い面の側の辺（床の布材と躯体側の手すり・中桟）
     n_rail = 0
     for ep in eps:
