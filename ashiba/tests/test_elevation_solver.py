@@ -182,3 +182,39 @@ class TestJackNearTheLimitGetsAnAlternative(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFirstLevelAround18(unittest.TestCase):
+    """1層目の作業床は 1.8m 前後（階高±半コマ）。天端を上げてそろえる（利用者の指定 2026-10-25: 1層目は1.8m前後にそろえて。
+    最上層の床と軒の兼ね合いは「天端を上げる」）."""
+
+    def test_every_height(self):
+        from ashiba.master import load_master
+
+        for sid in ("nikken_nd1800", "nikken_millennium", "shinwa_A"):
+            m = load_master(sid)
+            lo, hi = m.floor_height - m.koma_pitch // 2, m.floor_height + m.koma_pitch // 2
+            for h in range(5000, 30001, 700):
+                e = solve_elevation(h, master=m, first_level=True)
+                self.assertTrue(lo <= e.level_heights[0] <= hi, (sid, h, e.level_heights[:2]))
+                top = e.jack_extension + sum(e.posts)
+                self.assertTrue(h - 150 <= top <= h + m.floor_height, (sid, h, top))
+
+    def test_off_by_default_and_noted(self):
+        from ashiba.master import load_master
+
+        m = load_master("nikken_nd1800")
+        self.assertEqual(solve_elevation(16300, master=m).level_heights[0], 945)
+        e = solve_elevation(16300, master=m, first_level=True)
+        self.assertTrue(any("1.8m前後" in w for w in e.warnings), e.warnings)
+
+    def test_main_scaffold_uses_it(self):
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 15400,
+                       "series_id": "nikken_nd1800"})
+        self.assertTrue(1575 <= r.model.elevation.level_heights[0] <= 2025)
+        # 足場高さを直接指定したとき（天端のつまみ・地足場）は指定のまま
+        r2 = solve_all({"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 15400,
+                        "series_id": "nikken_nd1800", "scaffold_height_mm": 16300})
+        self.assertEqual(r2.model.elevation.level_heights[0], 945)

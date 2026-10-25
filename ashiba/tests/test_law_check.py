@@ -175,7 +175,7 @@ class TestFirstLedgerBasisBySystem(unittest.TestCase):
 
     def test_wedge_cites_tanken_provision(self):
         c = [r for r in run_all_checks(self._model("shinwa_A")) if r.check_id == 4][0]
-        self.assertIn("571条1項四号", c.basis)
+        self.assertIn("571条1項二号", c.basis)
         self.assertIn("単管足場に準じる", c.basis)
 
     def test_frame_does_not_cite_tanken_571(self):

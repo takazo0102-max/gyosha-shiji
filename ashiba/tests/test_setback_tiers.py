@@ -350,7 +350,9 @@ class TestOverhangTier(unittest.TestCase):
             self.assertGreater(tops[f], 12000)                             # 地上から上まで
         # 本体の南面にも作業床が1層（1階の壁の作業用）。コマは隣の面とそろう
         self.assertEqual(main.elevation_of(0).n_levels, 1)
-        self.assertIn(main.elevation_of(0).level_heights[0], main.elevation.level_heights)
+        # （1層目を 1.8m 前後にそろえると、ブラケットの下に収まる床は本体の1層目より下のコマになる）
+        self.assertEqual((main.elevation_of(0).level_heights[0] - main.elevation.level_heights[0])
+                         % main.master.koma_pitch, 0)
         # 上段の床は本体の床にそろう（ジャッキの上限で届かない分は敷板を重ねず 120 まで低い）
         for h in tier.elevation.level_heights:
             self.assertTrue(any(0 <= v - (h + tier.base_height_mm) <= 120 for v in main.elevation.level_heights),

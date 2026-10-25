@@ -286,6 +286,10 @@ class TestTiesLeaveTheOpening(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         spec = json.loads((root / "examples" / "opening_beam.json").read_text(encoding="utf-8"))
         spec["hoists"] = [{"edge_index": 0, "position_mm": 5400, "tie_every_mm": 3600}]   # 通路の真ん中
+        # 1層目を 1.8m 前後にそろえると2層目の床（梁枠）が 3375 になり、高さ 3600 のマスト控えが梁枠より上に出る。
+        # 梁枠を1層上げて、マスト控えが通路（梁枠より下）に当たる形にする
+        for o in spec["openings"]:
+            o["level"] = o.get("level", 2) + 1
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"
             p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")

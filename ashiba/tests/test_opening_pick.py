@@ -143,7 +143,7 @@ class TestMillenniumBeamRules(unittest.TestCase):
         self.assertTrue(any("2本組（許容15.2kN" in w for w in r.structural.warnings), r.structural.warnings)
 
     def test_levels_of_advance_rails_above_the_beam(self):
-        r = self._solve(5487, eaves=6000, level=2)          # 梁枠の上が3層に足りない
+        r = self._solve(5487, eaves=6000, level=3)          # 梁枠の上が3層に足りない（1層目 1.8m 前後で層が1つ上がる）
         self.assertTrue(any("先行手すり筋交いを3層以上" in i.message for i in r.openings.issues))
 
     def test_front_side_advance_rails_in_the_hatched_zone(self):

@@ -139,7 +139,9 @@ class TestStaggerAndShim(unittest.TestCase):
         slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
                  + [{"polygon_mm": west, "top_mm": t} for t in (6000, 9000, 9700)])
         g = solve_groups({"project_name": "S", "outline_mm": full, "slabs": slabs, "module": "inch",
-                          "series_id": "nikken_nd1800", "scaffold_width_mm": 914, "eaves_height_mm": 15400})
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 914, "eaves_height_mm": 15400,
+                          # 本体の床の高さを 1層目 2465 の並びに固定（1層目を 1.8m 前後にそろえると上段は届いてしまう）
+                          "scaffold_height_mm": 10620})
         tier = g[2][1]
         e = tier.model.elevation
         jmax = max(p.max_extension_mm() or 0 for p in tier.model.master.by_category("ジャッキ"))

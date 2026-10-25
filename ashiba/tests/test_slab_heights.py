@@ -32,7 +32,8 @@ class TestSetback(unittest.TestCase):
     def test_each_face_gets_its_own_height(self):
         south = self.m.elevation_of(self.by["南面"])
         north = self.m.elevation_of(self.by["北面"])
-        self.assertEqual(north.level_heights[-1], 15000)               # 上の階が面一の面は上の屋根まで
+        # 上の階が面一の面は上の屋根まで（1層目を 1.8m 前後にそろえるので、最上層は屋根から階高の範囲で上に出ることがある）
+        self.assertTrue(15000 <= north.level_heights[-1] < 15000 + self.m.master.floor_height, north.level_heights)
         self.assertGreaterEqual(south.level_heights[-1], 9000)         # 引っ込んだ面は下の屋根まで
         self.assertLess(south.n_levels, north.n_levels)
         self.assertEqual(south.level_heights, north.level_heights[:south.n_levels])   # 作業床の高さは共通

@@ -215,7 +215,7 @@ def check_guard_rail(m: ScaffoldModel) -> CheckResult:
 # ---- #4 第一の布 ---------------------------------------------------------
 
 def check_first_ledger(m: ScaffoldModel, terrain=None) -> CheckResult:
-    # 「地上第一の布は2m以下」は単管足場（安衛則571条1項四号）の規定。
+    # 「地上第一の布は2m以下」は単管足場（安衛則571条1項二号）の規定。
     # くさびは単管に準じる。枠組は建枠脚部（根がらみ）が最下の横架材なので、
     # 同条ではなく建枠脚部が低いことの確認として扱う
     h = m.elevation.first_ledger_height
@@ -240,7 +240,7 @@ def check_first_ledger(m: ScaffoldModel, terrain=None) -> CheckResult:
         basis = "安衛則570条・仮設工業会技術基準（建枠脚部・根がらみをできる限り低く）"
     else:
         name = "第一の布"
-        basis = "安衛則571条1項四号（単管足場に準じる: 地上第一の布は2m以下）"
+        basis = "安衛則571条1項二号（単管足場に準じる: 地上第一の布は2m以下）"
     if h > 2000:
         return CheckResult(4, "第一の布", NG, f"{name}高さ{h}mm > 2000mm{site_note}", basis)
     return CheckResult(4, "第一の布", OK, f"{name}高さ{h}mm ≦ 2000mm{site_note}", basis)
@@ -578,15 +578,16 @@ MAX_SPAN_ALONG_MM = 1850    # 桁行方向（スパン方向）
 MAX_SPAN_ACROSS_MM = 1500   # 梁間方向（内外建地間隔）
 
 
-MAX_FRAME_HEIGHT_MM = 2000   # わく組足場の主わく高さ（571条1項一号）
+MAX_FRAME_HEIGHT_MM = 2000   # わく組足場の主わく高さ（571条1項七号）
 
 
 def check_post_spacing(m: ScaffoldModel) -> CheckResult:
     """建地（枠組は主わく）の間隔.
 
-    571条は足場の種類で条文が違う:
-      一号 わく組足場: 主わく高さ2m以下・主わく間隔1.85m以下
-      二号 それ以外の支柱式: 桁行1.85m以下・梁間1.5m以下
+    571条1項は足場の種類で号が違う（単管足場は一〜四号、わく組足場は五〜七号）:
+      一号 単管足場（くさび式も準じる）: 建地の間隔 桁行1.85m以下・梁間1.5m以下
+      七号 わく組足場: 高さ20m超・重量物の積載を伴う作業では主わく高さ2m以下・主わく間隔1.85m以下
+    （2026-10-25 に e-Gov の条文で号を直した。以前は一号・二号を取り違え、第一の布を四号としていた）
 
     梁間1.5mの制限はわく組には無い（建枠の幅で決まる）ので当てない。
     スパン割は真物の呼び寸法から決まるので通常は満たすが、
@@ -597,7 +598,7 @@ def check_post_spacing(m: ScaffoldModel) -> CheckResult:
     problems = []
 
     if m.master.is_frame:
-        basis = "安衛則571条1項一号（わく組足場: 主わく高さ2m以下・主わく間隔1.85m以下）"
+        basis = "安衛則571条1項七号（わく組足場: 高さ20m超・重量物の積載を伴う作業では主わく高さ2m以下・主わく間隔1.85m以下）"
         if longest > MAX_SPAN_ALONG_MM:
             problems.append(f"主わくの間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm")
         frame_h = max(m.elevation.posts) if m.elevation.posts else 0
@@ -609,7 +610,7 @@ def check_post_spacing(m: ScaffoldModel) -> CheckResult:
             11, "建地間隔", OK, f"主わく間隔{longest}mm・主わく高さ{frame_h}mm", basis
         )
 
-    basis = "安衛則571条1項二号（支柱式足場の建地間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
+    basis = "安衛則571条1項一号（単管足場に準じる建地の間隔: 桁行方向1.85m以下・梁間方向1.5m以下）"
     if longest > MAX_SPAN_ALONG_MM:
         problems.append(f"桁行方向の建地間隔{longest}mm > {MAX_SPAN_ALONG_MM}mm")
     # 梁間方向の建地間隔は建地列の芯々。作業床の被覆幅ではない

@@ -865,7 +865,12 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             height_note += "。指定高さが軒高より低いので、最上層は軒に届きません"
     try:
         # 支柱の継ぎ目は既定でそろえる。"post_stagger": true で隣の支柱と1層ずらす（2026-10-25 の調査）
-        elevation = solve_elevation(required, master=master, stagger=bool(spec.get("post_stagger")))
+        # 1層目の作業床は 1.8m 前後（利用者の指定 2026-10-25）。足場高さを直接指定したとき（天端のつまみ・地足場）と、
+        # 床を本体にそろえる上段は指定の高さのまま
+        elevation = solve_elevation(required, master=master, stagger=bool(spec.get("post_stagger")),
+                                    first_level=(spec.get("scaffold_height_mm") is None
+                                                 and not spec.get("_align_levels_mm")
+                                                 and not float(spec.get("base_height_mm") or 0)))
     except ValueError as e:
         if spec.get("scaffold_height_mm") is not None:
             raise InputError(f"scaffold_height_mm: {e}")

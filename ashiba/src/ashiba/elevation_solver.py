@@ -248,11 +248,13 @@ def solve_elevation(
     jack_max: int = JACK_MAX_EXTENSION,
     jack_min: int = JACK_MIN_EXTENSION,
     stagger: bool = False,
+    first_level: bool = False,
 ) -> ElevationResult:
     """要求高さ（ジャッキベース下端→支柱天端）から支柱構成を解く.
 
     post_lengths を渡すとマスタより優先（テスト・実例再現用）。
     stagger: くさびの支柱の継ぎ目を隣の支柱と1層ずらす（既定はそろえる。メーカーの要領書どおり）。
+    first_level: 1層目の作業床を 1.8m 前後（階高±半コマ）にそろえる（外部足場の本体。天端は最大で階高ぶん上がる）。
     枠組系列のマスタが渡された場合は建枠の積み上げ（solve_elevation_frame）へ委譲する。
     """
     if post_lengths is None and master is not None and master.is_frame:
@@ -287,6 +289,8 @@ def solve_elevation(
     # 優先順位: 要求高さとの偏差最小 → 支柱本数最小 → 繰り出し小（繰出しは低く抑える。2026-10-25 の調査:
     # ジャッキの繰出しは小さいほど安定し、上への調整代も残る。利用者の指定 2026-10-25: 1〜4直して）
     under_allow, over_allow = 150, koma_pitch
+    if first_level and master is not None and not master.is_tube and koma_pitch:
+        over_allow = max(over_allow, floor_height)     # 1層目を 1.8m 前後にする分（下の first_lo）
     # 単管の建地は1m刻みで、布・手すりはどの高さにもクランプで付く。天端は手すりより上へ出てよい
     if master is not None and master.is_tube:
         over_allow = max(over_allow, 1000)
@@ -306,6 +310,24 @@ def solve_elevation(
     top_min = 0
     if master is not None and not master.is_tube and koma_pitch:
         top_min = int(master.koma_top_gap) + 2 * int(koma_pitch)
+    # 1層目の作業床は 1.8m 前後（階高±半コマ。利用者の指定 2026-10-25: 1層目は1.8m前後にそろえて）。床は最上層から
+    # 階高ずつ下ろすので、天端の高さ次第で 945 のような低い1層目ができていた。天端を最大1コマ上げてでも 1層目が
+    # この範囲に入る構成を、要求高さとの差より先に選ぶ（単管はクランプでどの高さにも付くので別）
+    first_lo = first_hi = 0
+    if first_level and master is not None and not master.is_tube and koma_pitch:
+        first_lo, first_hi = floor_height - koma_pitch // 2, floor_height + koma_pitch // 2
+    gap0 = master.koma_top_gap if master is not None else 0
+
+    def first_level(jack: int, pieces: list[int]) -> int:
+        offs0 = master.post_koma_offsets(pieces[0]) if master is not None else []
+        ledger = jack + (min(offs0) if offs0 else koma_pitch)
+        h = jack + sum(pieces) - gap0 - 2 * koma_pitch
+        if h <= ledger + koma_pitch:
+            return 0
+        while h - floor_height > ledger + koma_pitch:
+            h -= floor_height
+        return h
+
     best: Optional[tuple[tuple, int, list[int]]] = None
     best_band: Optional[tuple[tuple, int, list[int]]] = None
     # 支柱の和は5mmの倍数なので、繰出しは要求高さと5mmの端数を揃えて回す（スラブの天端から決めた
@@ -331,11 +353,17 @@ def solve_elevation(
             top_bad = int(bool(top_min) and pieces[-1] < top_min)
             # 2層分より短い支柱（450 など）を途中に挟むと継ぎ目が 450 おきに2つ並ぶ。同じ高さで挟まずに組めればそちら
             short = int(bool(top_min) and any(v < 2 * koma_pitch for v in pieces))
-            score = (lead, top_bad, abs(delta), short, len(pieces), jack - jack_min)
+            # 1層目が 1.8m 前後か（作業床の無い低い足場は問わない）。天端を1コマより上げるのは、1層目をそろえるためだけ
+            low_bad = over = 0
+            if first_lo:
+                l1 = first_level(jack, pieces)
+                low_bad = int(bool(l1) and not first_lo <= l1 <= first_hi)
+                over = int(delta > koma_pitch)
+            score = (low_bad, over, lead, top_bad, abs(delta), short, len(pieces), jack - jack_min)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
             if band_lo <= jack <= band_hi:
-                bscore = (lead, top_bad, abs(delta), short, len(pieces), abs(jack - (band_lo + band_hi) / 2))
+                bscore = (low_bad, over, lead, top_bad, abs(delta), short, len(pieces), abs(jack - (band_lo + band_hi) / 2))
                 if best_band is None or bscore < best_band[0]:
                     best_band = (bscore, jack, pieces)
     if best is None:
@@ -362,6 +390,11 @@ def solve_elevation(
             posts_alt = [half] + list(pieces[:-1]) + [half]
 
     warnings = []
+    if first_lo:
+        raise_mm = jack + sum(pieces) - required_height
+        if raise_mm > koma_pitch:
+            warnings.append(f"1層目の作業床を {first_level(jack, pieces)}mm（1.8m前後）にそろえるため、足場の天端を要求高さより "
+                            f"{raise_mm}mm 上げています（最上層の床が軒より上に出ます）")
     # 繰出しが実務上限に張り付くと、地盤の凹凸を上へ吸収できない（L字棟で270mmちょうどが
     # 選ばれた）。調整代のある帯の構成を案として添える（採るかは計画者の判断）
     if jack > band_hi and best_band is not None and (best_band[1], best_band[2]) != (jack, pieces):
