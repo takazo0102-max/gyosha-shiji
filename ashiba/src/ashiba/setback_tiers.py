@@ -237,6 +237,9 @@ def tier_note(label: str, sub: dict) -> Optional[str]:
 # ---- 上段の端と本体の足場の納まり（利用者の指定 2026-10-25: セットバックの時は この左右のセットバックより先の足場は
 # 不要です。セットバックから支柱が繋がるように配置して割り付けしてください セットバックの両端のジャッキベースなしにして）----
 
+TIER_STANDOFF_MIN_MM = 200.0    # 上段の離れの最小の既定（setback_standoff_min）
+
+
 def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
     """直線 p+t·d と q+s·e の交点."""
     den = d[0] * e[1] - d[1] * e[0]
@@ -322,9 +325,13 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     name_of = dict(zip([e.edge_index for e in m0.plan.edges], names))
     target = float((spec.get("standoff") or {}).get("target", 300.0))
     so_min = float((spec.get("standoff") or {}).get("min", 250.0))
+    # 上段の離れの最小（既定 200）。上段は改修・塗装程度の作業で 200 前後でも足りる。本体を最小まで詰めて上段を少し狭く
+    # する方が、本体の面の離れを広げて内ブラケットを付けるより部材が少ない（利用者の指定 2026-10-25: 本体250・上段236で）
+    tier_min = float(spec.get("setback_standoff_min", TIER_STANDOFF_MIN_MM))
     so_max = float((spec.get("standoff") or {}).get("max", 350.0))
     overrides: dict[str, list[int]] = {}
     span_so_max = 0.0                       # 上段の離れを合わせるために広げた本体の面の離れ（内ブラケット）
+    prev_so: dict[int, float] = {}          # 上段の離れを合わせるために決めた本体の面の離れ（隅の前の面）
     low: dict[str, list[float]] = {}
     passage: list[list[float]] = []
     low_top = None
@@ -369,7 +376,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             lo = min(p_in, p_in + sgn * w)
             prev = (ep.edge_index - 1) % len(main_ol.edges)
             so_prev = float(main_edges[prev].standoff) if prev in main_edges else target
-            heads[ep.edge_index] = (lo, float(sum(ep.spans)), sgn, t, so_prev, lb)
+            heads[ep.edge_index] = (lo, float(sum(ep.spans)), sgn, t, so_prev, lb, prev)
         plan_t.append({"label": lb, "sub": t, "juncs": juncs, "idx": idx, "names": tnames})
     # 向かい合う（平行な）面の合計の長さは同じでないと割付が解けない。平行な面の組ごとに、元の長さに近く、
     # どの面も残りがちょうど組める合計 T を探す
@@ -395,60 +402,84 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
         def outside(v: float, lo_v: float, hi_v: float) -> float:
             return max(0.0, lo_v - v, v - hi_v)
 
+        import bisect
+
+        keys_sorted = sorted(span_tab)
+        # 上段の端が当たる面の始点の隅の前の面（その離れで面の始めの支柱が動く）。2つの面が向かい合う隅の面（例: 南面は
+        # 西面、北面は東面）なら、両方の離れの和が T−L0 だけ変わり、配分は自由（本体は全部同じ離れでなくていい）
+        prevs = sorted({heads[ei][6] for ei in group})
+        base_so = {pv: next(heads[ei][4] for ei in group if heads[ei][6] == pv) for pv in prevs}
+
+        def pick_for(ei, lo_s, T, s_ref):
+            lo, _L, sgn, _t, _so, _lb, _pv = heads[ei]
+            best = None
+            i0 = bisect.bisect_left(keys_sorted, lo_s - 700)
+            i1 = bisect.bisect_right(keys_sorted, lo_s + 700)
+            for S in keys_sorted[i0:i1]:
+                sp = span_tab[S]
+                st = target + (S - lo_s) * sgn
+                if s_ref is not None and abs(st - s_ref) > 5.0:
+                    continue
+                # 向かい合う面の合計はちょうど T（割付の式は真物で厳密に成り立つ必要がある）
+                r_len = T - S - int(round(w))
+                rest = [] if r_len == 0 else span_tab.get(r_len) if r_len > 0 else None
+                if rest is None:
+                    continue
+                key = (outside(st, tier_min, so_max), sum(1 for x in sp + rest if x != main_span), abs(st - target))
+                if best is None or key < best[0]:
+                    best = (key, st, sorted(sp, reverse=True), rest)
+            return best
+
         for T in sorted(totals, key=lambda v: abs(v - L0)):
-            shift = (T - L0) / 2.0
-            picks = {}
-            s_ref = None
-            for ei in sorted(group, key=lambda e: heads[e][0]):
-                lo, _L, sgn, _t, so_prev, _lb = heads[ei]
-                lo_s = lo + shift
-                best = None
-                for S, sp in span_tab.items():
-                    st = target + (S - lo_s) * sgn
-                    if abs(S - lo_s) > 700 or (s_ref is not None and abs(st - s_ref) > 5.0):
-                        continue
-                    # インチの寸法は mm で端数が出るので、面の合計は T と ±2 まで（離れで吸収）
-                    rest = None
-                    for dd in (0, -1, 1, -2, 2):
-                        r_len = T - S - int(round(w)) + dd
-                        cand = [] if r_len == 0 else span_tab.get(r_len) if r_len > 0 else None
-                        if cand is not None and (rest is None or sum(1 for x in cand if x != main_span)
-                                                 < sum(1 for x in rest if x != main_span)):
-                            rest = cand
-                    if rest is None:
-                        continue
-                    key = (outside(st, so_min, so_max), sum(1 for x in sp + rest if x != main_span), abs(st - target))
-                    if best is None or key < best[0]:
-                        best = (key, st, sorted(sp, reverse=True), rest)
-                if best is None:
-                    break
-                picks[ei] = best
-                s_ref = best[1] if s_ref is None else s_ref
+            extra = T - L0
+            # 隅の前の面の離れの配分（2面なら A を動かし B は残り、1面なら半分ずつ）
+            if len(prevs) == 2:
+                a, b = prevs
+                splits = []
+                for va in range(int(math.ceil(so_min)), int(so_max + 300) + 1, 2):
+                    vb = base_so[a] + base_so[b] + extra - va
+                    if so_min - 0.5 <= vb <= so_max + 300:
+                        splits.append({a: va - base_so[a], b: vb - base_so[b]})
             else:
-                tier_out = max(b[0][0] for b in picks.values())
-                # 本体の離れは最小より狭くしない（作業床と躯体の隙間）。最大を超えるのは内ブラケットで詰める
-                so_new = [heads[ei][4] + shift for ei in group]
+                splits = [{pv: extra / 2.0 for pv in prevs}]
+            for dl in splits:
+                so_new = [base_so[pv] + dl[pv] for pv in prevs]
                 if min(so_new) < so_min - 0.5:
                     continue
                 main_out = max(outside(v, so_min, so_max) for v in so_new)
-                # 上段の離れ → 端数のスパンの少なさ → 本体の離れの広げ幅（50 刻みで見る）→ 元の長さとの差
-                key = (tier_out, sum(b[0][1] for b in picks.values()), round(main_out / 50.0), abs(T - L0))
-                if best_T is None or key < best_T[0]:
-                    best_T = (key, T, picks)
+                picks = {}
+                s_ref = None
+                for ei in sorted(group, key=lambda e: heads[e][0]):
+                    b_ = pick_for(ei, heads[ei][0] + dl[heads[ei][6]], T, s_ref)
+                    if b_ is None:
+                        break
+                    picks[ei] = b_
+                    s_ref = b_[1] if s_ref is None else s_ref
+                else:
+                    tier_out = max(b_[0][0] for b_ in picks.values())
+                    # 上段の離れ → 本体の離れの広げ幅（50 刻み。範囲の内なら 0）→ 端数のスパンの少なさ → 元の長さとの差
+                    # → 本体の離れの偏り
+                    st_any = next(iter(picks.values()))[1]
+                    key = (tier_out, round(main_out / 50.0), sum(b_[0][1] for b_ in picks.values()), abs(T - L0),
+                           round(abs(st_any - target) / 10.0), abs(so_new[0] - so_new[-1]))
+                    if best_T is None or key < best_T[0]:
+                        best_T = (key, T, picks, {pv: base_so[pv] + dl[pv] for pv in prevs})
         if best_T is None:
             notes.append("上段の端の支柱を本体の支柱に揃える割付が見つかりません（面の長さと布材の規格）。揃えずに置きます")
             continue
-        key, T, picks = best_T
+        key, T, picks, so_set = best_T
         rests = {ei: picks[ei][3] for ei in group}
-        so_wide = max(heads[ei][4] for ei in group) + (T - L0) / 2.0
+        so_wide = max(so_set.values())
         if so_wide > so_max + 0.5:
             span_so_max = max(span_so_max, so_wide + 5.0)
+        if len(so_set) == 2 or any(abs(v - base_so[pv]) > 0.5 for pv, v in so_set.items()):
+            prev_so.update({pv: round(v, 1) for pv, v in so_set.items()})
         for ei in group:
-            lo, L, sgn, t, so_prev, lbl = heads[ei]
+            lo, L, sgn, t, so_prev, lbl, _pv = heads[ei]
             heads[ei] = (picks[ei][2], L, sgn, t)
         st_any = next(iter(picks.values()))[1]
         if key[0] > 0.5:
-            notes.append(f"上段の離れを {so_min:.0f}〜{so_max:.0f} に収める割付がありません。いちばん近い {st_any:.0f} で置きます")
+            notes.append(f"上段の離れを {tier_min:.0f}〜{so_max:.0f} に収める割付がありません。いちばん近い {st_any:.0f} で置きます")
         if key[1] > 0.5:
             notes.append(f"上段の離れを {st_any:.0f} にするため、本体の上段の両脇の面の離れを広げています（{so_min:.0f}〜"
                          f"{so_max:.0f} を外れた面は内ブラケットで床と躯体の隙間を詰めます）")
@@ -465,8 +496,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
     if not overrides:
         return spec, tiers, notes
-    if span_so_max:
-        # 本体の面の離れを広げるのは上段の端が当たる面の隅の前後の面だけ。そのほかの面のスパンは元のまま（広げた
+    if span_so_max or prev_so:
+        # 本体の面の離れを広げる・配分を変えるのは上段の端が当たる面の隅の前後の面だけ。そのほかの面のスパンは元のまま（広げた
         # 面の長さの方向の離れを変えない）
         for ei, ep in main_edges.items():
             fn = name_of[ei]
@@ -481,6 +512,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
             "_low_ranges": low, "_open_above": open_above,
             **({"_span_standoff_max": round(span_so_max, 1)} if span_so_max else {}),
+            **({"_span_standoffs": {int(k): v for k, v in prev_so.items()}} if prev_so else {}),
             # 上段の床から本体の床へ渡る升目は、途中の屋根より上の層で本体の内側の手すり（布材）を付けない
             # （利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして）
             "_tier_passage": [[ei, a, b, low_top - base] for ei, a, b in passage],

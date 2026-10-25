@@ -389,6 +389,12 @@ def solve_plan(
             # 最小二乗の解には微小な数値誤差が乗る。丸めずに閾値比較すると
             # 「ちょうど300mm」が300超と判定され、不要な墜落防止措置の警告が出る
             standoffs[idx] = round(d, 3)
+    if fixed_spans and fixed_standoffs:
+        # スパンを固定した面の両端の離れの配分を指定どおりに（合計はスパンで決まる。セットバックの上段の離れを合わせる
+        # ため本体の面ごとに離れを変える。setback_junctions）
+        for idx, v in fixed_standoffs.items():
+            if 0 <= int(idx) < n:
+                standoffs[int(idx)] = round(float(v), 3)
 
     # フィート寸法のくさびで、隅を閉じるのに離れが 270〜350 の帯を外れるなら、無理に閉じず、帯の中で閉じられる
     # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
