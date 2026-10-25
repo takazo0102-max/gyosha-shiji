@@ -1,28 +1,54 @@
 ﻿! ============================================================
-! 屋上への渡り 2D（平面）: 渡りの外形・踏板の継ぎ・両側の手すり（太線）・パラペット（破線）・進む向きの矢印と名前
+! 屋上への渡り 2D（平面）: 渡りの外形・踏板の継ぎ・踏段の段鼻・両側の手すり（太線）・パラペット（破線）・
+! 進む向きの矢印と名前（幅・高低差・形）
 ! 利用者の指定（2026-10-24）: 屋上への渡りもGDL作成して 平面に表記するようにして
-! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側（屋上）。渡りは y=-0.3（足場の床に掛かる）〜 brL
+! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側（屋上）。渡りは yS（足場の床に掛かる）〜 brL
 ! ============================================================
 define style "brTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
 pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 rot2 faceAng
-yS = -0.30
-! 外形と踏板の継ぎ（0.6 ごと）
-rect2 0, yS, brW, brL
-yk = yS + 0.6
-while yk < brL - 0.05 do
-	line2 0.02, yk, brW - 0.02, yk
-	yk = yk + 0.6
-endwhile
-! 両側の手すり（二重線で太く見せる）
+yE = pY[nP]
+! 外形
+rect2 0, yS, brW, yE
+! 区間ごとに: 踏段は段鼻、斜路は踏桟の間隔の細線、平らな床は踏板の継ぎ（0.6 ごと）
+for ip = 1 to nP - 1
+	y1 = pY[ip]
+	y2 = pY[ip + 1]
+	if pK[ip] = 3 then
+		nS = int(abs(pZ[ip + 1] - pZ[ip]) / 0.20 - 0.001) + 1
+		if nS < 2 then nS = 2
+		! 段鼻（踏面の境。踏面は (nS-1) 枚を y1 の側から）
+		for iS2 = 0 to nS - 1
+			yk = y1 + (y2 - y1) * iS2 / (nS - 1)
+			line2 0.02, yk, brW - 0.02, yk
+		next iS2
+	else
+		if ip > 1 then line2 0.02, y1, brW - 0.02, y1
+		if pK[ip] = 2 then
+			yk = y1 + 0.15
+			while yk < y2 - 0.1 do
+				line2 0.06, yk, brW - 0.06, yk
+				yk = yk + 0.30
+			endwhile
+		else
+			yk = y1 + 0.6
+			while yk < y2 - 0.05 do
+				line2 0.02, yk, brW - 0.02, yk
+				yk = yk + 0.6
+			endwhile
+		endif
+	endif
+next ip
+! 両側の手すり（二重線で太く見せる）と支柱
 for sd = 0 to 1
 	xr = sd * brW
-	line2 xr, yS, xr, brL
-	line2 xr + 0.03 * (1 - 2 * sd), yS, xr + 0.03 * (1 - 2 * sd), brL
-	circle2 xr, yS, 0.025
-	circle2 xr, brL, 0.025
+	line2 xr, yS, xr, yE
+	line2 xr + 0.03 * (1 - 2 * sd), yS, xr + 0.03 * (1 - 2 * sd), yE
+	for ip = 1 to nP
+		circle2 xr, pY[ip], 0.025
+	next ip
 next sd
 ! パラペット（越える所）
 if paraH > 0.001 then
@@ -31,14 +57,14 @@ if paraH > 0.001 then
 	line_type 1
 endif
 ! 進む向き（足場→屋上）の矢印
-line2 brW / 2, yS + 0.10, brW / 2, brL - 0.15
-line2 brW / 2, brL - 0.15, brW / 2 - 0.08, brL - 0.30
-line2 brW / 2, brL - 0.15, brW / 2 + 0.08, brL - 0.30
+line2 brW / 2, yS + 0.10, brW / 2, yE - 0.15
+line2 brW / 2, yE - 0.15, brW / 2 - 0.08, yE - 0.30
+line2 brW / 2, yE - 0.15, brW / 2 + 0.08, yE - 0.30
 hotspot2 0, 0
 hotspot2 brW, 0
-hotspot2 0, brL
-hotspot2 brW, brL
-! 名前（幅・高低差）。北・西を向く面では上下逆になるので回して読める向きに
+hotspot2 0, yE
+hotspot2 brW, yE
+! 名前（幅・高低差・形）。北・西を向く面では上下逆になるので回して読める向きに
 set style "brTx"
 tx = brName + " 幅" + str(brW * 1000, 3, 0)
 dz = (zTo - zFrom) * 1000
@@ -46,8 +72,16 @@ if abs(dz) > 1 then
 	if dz > 0 then tx = tx + " 上り" + str(dz, 4, 0)
 	if dz < 0 then tx = tx + " 下り" + str(-dz, 4, 0)
 endif
+kS = 0
+kR = 0
+for ip = 1 to nP - 1
+	if pK[ip] = 3 then kS = 1
+	if pK[ip] = 2 then kR = 1
+next ip
+if kS = 1 then tx = tx + "・踏段"
+if kR = 1 then tx = tx + "・斜路（踏桟）"
 if paraH > 0.001 then tx = tx + "・パラペット越え"
-add2 brW + 0.15, (yS + brL) / 2
+add2 brW + 0.15, (yS + yE) / 2
 rot2 90
 if SYMB_ROTANGLE + faceAng > 90.001 and SYMB_ROTANGLE + faceAng < 270.001 then rot2 180
 text2 0, 0, tx

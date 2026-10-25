@@ -2634,6 +2634,7 @@ def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes,
     hug_rows = 2 * n_levels if model.config.is_hug else 0
     clamps = joints = 0
     lines = []
+    eave_lines = []
     for ep in model.plan.edges:
         a, _b = face_runs(list(ep.spans))
         for L in a.pieces:
@@ -2642,11 +2643,22 @@ def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes,
         clamps += (len(ep.spans) + 1) * (rows - hug_rows)
         joints += (len(a.pieces) - 1) * rows
         lines.append("+".join(f"{L / 1000:.1f}" for L in a.pieces))
+        # 軒先の手すり（下屋の面。屋根からの墜落防止に軒先から 450・900。elevation_solver.truncate_elevation）
+        eave = list(getattr(model.elevation_of(ep.edge_index), "eave_rails_mm", None) or [])
+        if eave:
+            for L in a.pieces:
+                add(m.find("単管", L), len(eave), f"単管{L / 1000:.1f}M（軒先の手すり）")
+            clamps += (len(ep.spans) + 1) * len(eave)
+            joints += (len(a.pieces) - 1) * len(eave)
+            eave_lines.append(f"{model.face_name(ep.edge_index)} " + "・".join(f"{h / 1000:.2f}" for h in eave) + "m")
     notes.append(
         f"単管の通し（根がらみ・" + ("床の布2本・" if hug_rows else "") + "手すり・中桟）は、面ごとに規定の長さの単管を"
         f"直線ジョイントで継いで通す（{'／'.join(lines)} m。継ぎは建地のクランプから離し、隣の通しとずらす）×"
         f"1面あたり{rows}通りで計上"
     )
+    if eave_lines:
+        notes.append("下屋の面は最上段の床を軒の下にし、屋根からの墜落防止に軒先の手すり（上端の桟は軒先から概ね 90cm 以上。"
+                     "仮設工業会 技術基準）を通しで足しています: " + "／".join(eave_lines))
     if cut:
         notes.append(f"単管の通しは開口部・ステージ等の区間（スパン換算{cut}本分）も面の通しのまま計上しています（切らずに通す）")
     return {"clamps": clamps, "joints": joints}

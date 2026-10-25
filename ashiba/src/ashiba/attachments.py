@@ -898,6 +898,10 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
             "faceAng": ang, "brW": b.width_mm / 1000.0, "brL": b.length_mm / 1000.0,
             "zFrom": (base + b.z_from_mm) / 1000.0, "zTo": (base + b.z_to_mm) / 1000.0,
             "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0,
+            # 床の折れ点と区間の形（roof_bridges.bridge_profile。高低差は躯体の外面の手前か屋上の上で取る）
+            "prfY": ",".join(f"{y:.0f}" for y, _z in (b.profile or [])),
+            "prfZ": ",".join(f"{base + z:.0f}" for _y, z in (b.profile or [])),
+            "prfK": ",".join(str(int(k)) for k in (b.kinds or [])),
             "lineMode": bool(line_mode)}))
     return _with_pens(model, out)
 

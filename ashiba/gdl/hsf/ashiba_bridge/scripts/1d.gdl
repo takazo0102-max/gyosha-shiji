@@ -1,1 +1,37 @@
 ﻿! 屋上への渡り（足場の最上段の床から屋上へ。手すり・中桟・幅木つきの渡り桟橋）。1箇所に1部品
+! 床の折れ点（Python の roof_bridges.bridge_profile。mm→m）。無ければ足場の床から屋上へ1本の区間
+dim pY[12], pZ[12], pK[12]
+nP = 0
+for iq = 1 to 3
+	if iq = 1 then rest = prfY
+	if iq = 2 then rest = prfZ
+	if iq = 3 then rest = prfK
+	nq = 0
+	while strlen(rest) > 0 and nq < 12 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nq = nq + 1
+			if iq = 1 then pY[nq] = v / 1000
+			if iq = 2 then pZ[nq] = v / 1000
+			if iq = 3 then pK[nq] = v
+		endif
+	endwhile
+	if iq = 1 then nP = nq
+next iq
+if nP < 2 then
+	nP = 2
+	pY[1] = -0.30
+	pZ[1] = zFrom
+	pY[2] = brL
+	pZ[2] = zTo
+	pK[1] = 0
+endif
+yS = pY[1]

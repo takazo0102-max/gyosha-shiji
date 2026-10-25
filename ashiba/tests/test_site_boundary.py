@@ -95,7 +95,9 @@ class TestClearance(unittest.TestCase):
         """同じ建物で単管抱き足場の面だけ朝顔が付いていた（単管は手すりの上に建地を100出して 10.03m）."""
         gs = solve_groups({"outline_mm": B, "eaves_height_mm": 9000, "face_forms": "西面=単管抱き足場"})
         self.assertEqual([r.model.asagao_heights() for _l, r in gs], [[], []])
-        self.assertEqual(gs[-1][1].model.scaffold_height_mm, 10030)
+        # 単管の床は本足場の床の高さにそろえる（2026-10-26）。天端は最上段の床＋手すり 900＋建地の出 100 前後
+        self.assertEqual(gs[-1][1].model.elevation.level_heights, gs[0][1].model.elevation.level_heights)
+        self.assertEqual(gs[-1][1].model.scaffold_height_mm, 10050)
 
     def test_overlay_writes_the_faces_of_the_other_groups(self):
         """面の組のほかの組（西面だけ単管抱き足場）の面にも「境界まで」を書く（先頭の組の面だけだった）."""

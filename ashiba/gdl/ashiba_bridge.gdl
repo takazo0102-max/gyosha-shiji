@@ -13,53 +13,118 @@
 ! 原点＝足場の内側建地列、faceAng で面の向き。床（踏板・斜路の踏桟・段差は踏段、パラペットは天端の上を越える）と両側の手すり・中桟・幅木。平面は外形・手すり・矢印・名前。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   faceAng   角度      面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）         既定 0
-!   brW       長さ      渡りの幅（面に沿う方向。手すりの芯々）                                       既定 0.6
-!   brL       長さ      渡りの長さ（内側建地列 y=0 から躯体側へ。離れ＋パラペット＋屋上側の掛かり）  既定 1.2
-!   zFrom     長さ      足場の最上段の床の高さ（配置した高さから）                                   既定 9.0
-!   zTo       長さ      屋上の床（渡りの降り口）の高さ（配置した高さから）                           既定 9.0
-!   paraH     長さ      パラペットの天端（屋上の床から。0＝なし。渡りはパラペットを越える）          既定 0
-!   paraX     長さ      パラペットの位置（内側建地列から躯体側へ。離れ）                             既定 0.3
-!   brName    文字列    平面に書く名前                                                               既定 "屋上への渡り"
-!   lineMode  ブール    3Dを線で（軽い）                                                             既定 0
-!   matDeck   表面材    表面材（0＝既定）                                                            既定 0
-!   texSiz    実数      文字高mm                                                                     既定 2.0
-!   penEquip  PenColor  ペン: 付帯設備（渡り）                                                       既定 1
+!   faceAng   角度      面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）                       既定 0
+!   brW       長さ      渡りの幅（面に沿う方向。手すりの芯々）                                                     既定 0.6
+!   brL       長さ      渡りの長さ（内側建地列 y=0 から躯体側へ。離れ＋パラペット＋屋上側の掛かり）                既定 1.2
+!   zFrom     長さ      足場の最上段の床の高さ（配置した高さから）                                                 既定 9.0
+!   zTo       長さ      屋上の床（渡りの降り口）の高さ（配置した高さから）                                         既定 9.0
+!   paraH     長さ      パラペットの天端（屋上の床から。0＝なし。渡りはパラペットを越える）                        既定 0
+!   paraX     長さ      パラペットの位置（内側建地列から躯体側へ。離れ）                                           既定 0.3
+!   prfY      文字列    床の折れ点の奥行き mm カンマ区切り（内側建地列から躯体側へ。roof_bridges.bridge_profile）  既定 ""
+!   prfZ      文字列    床の折れ点の高さ mm カンマ区切り（部品の原点の高さから・床の上面）                         既定 ""
+!   prfK      文字列    区間の形 カンマ区切り（0 平らな踏板・1 斜路・2 斜路＋踏桟・3 踏段）                        既定 ""
+!   brName    文字列    平面に書く名前                                                                             既定 "屋上への渡り"
+!   lineMode  ブール    3Dを線で（軽い）                                                                           既定 0
+!   matDeck   表面材    表面材（0＝既定）                                                                          既定 0
+!   texSiz    実数      文字高mm                                                                                   既定 2.0
+!   penEquip  PenColor  ペン: 付帯設備（渡り）                                                                     既定 1
 ! ==========================================================
 
 ! ==========================================================
 ! ==== マスタースクリプト ====
 ! ==========================================================
 ! 屋上への渡り（足場の最上段の床から屋上へ。手すり・中桟・幅木つきの渡り桟橋）。1箇所に1部品
+! 床の折れ点（Python の roof_bridges.bridge_profile。mm→m）。無ければ足場の床から屋上へ1本の区間
+dim pY[12], pZ[12], pK[12]
+nP = 0
+for iq = 1 to 3
+	if iq = 1 then rest = prfY
+	if iq = 2 then rest = prfZ
+	if iq = 3 then rest = prfK
+	nq = 0
+	while strlen(rest) > 0 and nq < 12 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nq = nq + 1
+			if iq = 1 then pY[nq] = v / 1000
+			if iq = 2 then pZ[nq] = v / 1000
+			if iq = 3 then pK[nq] = v
+		endif
+	endwhile
+	if iq = 1 then nP = nq
+next iq
+if nP < 2 then
+	nP = 2
+	pY[1] = -0.30
+	pZ[1] = zFrom
+	pY[2] = brL
+	pZ[2] = zTo
+	pK[1] = 0
+endif
+yS = pY[1]
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
 ! ============================================================
-! 屋上への渡り 2D（平面）: 渡りの外形・踏板の継ぎ・両側の手すり（太線）・パラペット（破線）・進む向きの矢印と名前
+! 屋上への渡り 2D（平面）: 渡りの外形・踏板の継ぎ・踏段の段鼻・両側の手すり（太線）・パラペット（破線）・
+! 進む向きの矢印と名前（幅・高低差・形）
 ! 利用者の指定（2026-10-24）: 屋上への渡りもGDL作成して 平面に表記するようにして
-! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側（屋上）。渡りは y=-0.3（足場の床に掛かる）〜 brL
+! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側（屋上）。渡りは yS（足場の床に掛かる）〜 brL
 ! ============================================================
 define style "brTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
 pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 rot2 faceAng
-yS = -0.30
-! 外形と踏板の継ぎ（0.6 ごと）
-rect2 0, yS, brW, brL
-yk = yS + 0.6
-while yk < brL - 0.05 do
-	line2 0.02, yk, brW - 0.02, yk
-	yk = yk + 0.6
-endwhile
-! 両側の手すり（二重線で太く見せる）
+yE = pY[nP]
+! 外形
+rect2 0, yS, brW, yE
+! 区間ごとに: 踏段は段鼻、斜路は踏桟の間隔の細線、平らな床は踏板の継ぎ（0.6 ごと）
+for ip = 1 to nP - 1
+	y1 = pY[ip]
+	y2 = pY[ip + 1]
+	if pK[ip] = 3 then
+		nS = int(abs(pZ[ip + 1] - pZ[ip]) / 0.20 - 0.001) + 1
+		if nS < 2 then nS = 2
+		! 段鼻（踏面の境。踏面は (nS-1) 枚を y1 の側から）
+		for iS2 = 0 to nS - 1
+			yk = y1 + (y2 - y1) * iS2 / (nS - 1)
+			line2 0.02, yk, brW - 0.02, yk
+		next iS2
+	else
+		if ip > 1 then line2 0.02, y1, brW - 0.02, y1
+		if pK[ip] = 2 then
+			yk = y1 + 0.15
+			while yk < y2 - 0.1 do
+				line2 0.06, yk, brW - 0.06, yk
+				yk = yk + 0.30
+			endwhile
+		else
+			yk = y1 + 0.6
+			while yk < y2 - 0.05 do
+				line2 0.02, yk, brW - 0.02, yk
+				yk = yk + 0.6
+			endwhile
+		endif
+	endif
+next ip
+! 両側の手すり（二重線で太く見せる）と支柱
 for sd = 0 to 1
 	xr = sd * brW
-	line2 xr, yS, xr, brL
-	line2 xr + 0.03 * (1 - 2 * sd), yS, xr + 0.03 * (1 - 2 * sd), brL
-	circle2 xr, yS, 0.025
-	circle2 xr, brL, 0.025
+	line2 xr, yS, xr, yE
+	line2 xr + 0.03 * (1 - 2 * sd), yS, xr + 0.03 * (1 - 2 * sd), yE
+	for ip = 1 to nP
+		circle2 xr, pY[ip], 0.025
+	next ip
 next sd
 ! パラペット（越える所）
 if paraH > 0.001 then
@@ -68,14 +133,14 @@ if paraH > 0.001 then
 	line_type 1
 endif
 ! 進む向き（足場→屋上）の矢印
-line2 brW / 2, yS + 0.10, brW / 2, brL - 0.15
-line2 brW / 2, brL - 0.15, brW / 2 - 0.08, brL - 0.30
-line2 brW / 2, brL - 0.15, brW / 2 + 0.08, brL - 0.30
+line2 brW / 2, yS + 0.10, brW / 2, yE - 0.15
+line2 brW / 2, yE - 0.15, brW / 2 - 0.08, yE - 0.30
+line2 brW / 2, yE - 0.15, brW / 2 + 0.08, yE - 0.30
 hotspot2 0, 0
 hotspot2 brW, 0
-hotspot2 0, brL
-hotspot2 brW, brL
-! 名前（幅・高低差）。北・西を向く面では上下逆になるので回して読める向きに
+hotspot2 0, yE
+hotspot2 brW, yE
+! 名前（幅・高低差・形）。北・西を向く面では上下逆になるので回して読める向きに
 set style "brTx"
 tx = brName + " 幅" + str(brW * 1000, 3, 0)
 dz = (zTo - zFrom) * 1000
@@ -83,8 +148,16 @@ if abs(dz) > 1 then
 	if dz > 0 then tx = tx + " 上り" + str(dz, 4, 0)
 	if dz < 0 then tx = tx + " 下り" + str(-dz, 4, 0)
 endif
+kS = 0
+kR = 0
+for ip = 1 to nP - 1
+	if pK[ip] = 3 then kS = 1
+	if pK[ip] = 2 then kR = 1
+next ip
+if kS = 1 then tx = tx + "・踏段"
+if kR = 1 then tx = tx + "・斜路（踏桟）"
 if paraH > 0.001 then tx = tx + "・パラペット越え"
-add2 brW + 0.15, (yS + brL) / 2
+add2 brW + 0.15, (yS + yE) / 2
 rot2 90
 if SYMB_ROTANGLE + faceAng > 90.001 and SYMB_ROTANGLE + faceAng < 270.001 then rot2 180
 text2 0, 0, tx
@@ -94,48 +167,53 @@ del top
 ! ==== 3Dスクリプト ====
 ! ==========================================================
 ! ============================================================
-! 屋上への渡り 3D: 足場の最上段の床（zFrom）から屋上（zTo）へ。踏板（足場板 t40）・斜路は踏桟、段差は踏段、
-! パラペットがあれば天端の上を越える。両側に手すり（H950）・中桟（H450）・幅木（H150）
-! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側。y=-0.3 から足場の床に掛ける
+! 屋上への渡り 3D: 足場の最上段の床から屋上へ。床は折れ点（pY・pZ。マスタスクリプト）のあいだを区間の形（pK）で:
+! 0 平らな踏板（足場板 t40）、1 斜路、2 斜路＋踏桟（30cm ごと）、3 踏段（けあげ 200 以下・ささら桁）。
+! 高低差は躯体の外面の手前か屋上の上で取り、段・側桁は屋上のスラブに食い込まない（Python の roof_bridges.bridge_profile。
+! 安衛則552条: 勾配 30°以下、15°を超えるものは踏桟）。パラペットがあれば天端の上を越える。
+! 両側に手すり（H950）・中桟（H450）・幅木（H150）と支柱。利用者の指摘 2026-10-26: 屋上の渡りが適当
+! 原点＝足場の内側建地列（y=0）、+X＝面に沿う方向、+Y＝躯体側
 ! ============================================================
 pen penEquip
 resol 8
 rotz faceAng
 if matDeck > 0 then material matDeck
-yS = -0.30
-! 渡りの床の折れ点（上面）
-dim pY[], pZ[]
-nP = 1
-pY[1] = yS
-pZ[1] = zFrom
-zC = zFrom
-if paraH > 0.001 then
-	zC = max(zFrom, zTo + paraH + 0.05)
-	nP = nP + 1
-	pY[nP] = paraX - 0.15
-	pZ[nP] = zC
-	nP = nP + 1
-	pY[nP] = paraX + 0.35
-	pZ[nP] = zC
-endif
-nP = nP + 1
-pY[nP] = brL
-pZ[nP] = zTo
-! 床: 高低差の小さい区間は踏板（斜路は踏桟つき）、大きい区間は踏段
+! ---- 床 ----
 for ip = 1 to nP - 1
 	y1 = pY[ip]
 	z1 = pZ[ip]
 	y2 = pY[ip + 1]
 	z2 = pZ[ip + 1]
 	if y2 > y1 + 0.01 then
-		if abs(z2 - z1) <= 0.25 then
+		if pK[ip] = 3 then
+			! 踏段: けあげ 200 以下で nS 段、踏面は (nS-1) 枚。上りも下りも y1 の側から並べ、最後の段で z2 に着く
+			nS = int(abs(z2 - z1) / 0.20 - 0.001) + 1
+			if nS < 2 then nS = 2
+			tL = (y2 - y1) / (nS - 1)
+			zLo = min(z1, z2)
+			for iS2 = 1 to nS - 1
+				zs = z1 + (z2 - z1) * iS2 / nS
+				ya = y1 + (iS2 - 1) * tL
+				add 0.025, ya, zs - 0.04
+				block brW - 0.05, tL, 0.04
+				del 1
+				! ささら桁（両側。踏面の下から低い方の床まで。屋上・足場の床より下には出さない）
+				zb = max(zLo, zs - 0.25)
+				for sd = 0 to 1
+					add sd * (brW - 0.012), ya, zb
+					block 0.012, tL, zs - zb
+					del 1
+				next sd
+			next iS2
+		else
 			ag = atn((z2 - z1) / (y2 - y1))
 			add 0.025, y1, z1
 			rotx ag
 			addz -0.04
 			block brW - 0.05, sqr((y2 - y1) ^ 2 + (z2 - z1) ^ 2), 0.04
 			del 3
-			if abs(z2 - z1) > 0.03 then
+			if pK[ip] = 2 then
+				! 踏桟（30cm ごと）
 				yc = y1 + 0.15
 				while yc < y2 - 0.1 do
 					add 0.04, yc, z1 + (z2 - z1) * (yc - y1) / (y2 - y1)
@@ -144,25 +222,10 @@ for ip = 1 to nP - 1
 					yc = yc + 0.30
 				endwhile
 			endif
-		else
-			nS = int(abs(z2 - z1) / 0.20 - 0.001) + 1
-			tL = (y2 - y1) / nS
-			for iS2 = 0 to nS - 1
-				zs = z1 + (z2 - z1) * (iS2 + 1) / nS
-				add 0.025, y1 + iS2 * tL, zs - 0.04
-				block brW - 0.05, tL, 0.04
-				del 1
-			next iS2
-			! 側桁
-			for sd = 0 to 1
-				add sd * (brW - 0.012), y1, min(z1, z2) - 0.15
-				block 0.012, y2 - y1, abs(z2 - z1) + 0.15
-				del 1
-			next sd
 		endif
 	endif
 next ip
-! 手すり・中桟・幅木（両側。床の折れ点に沿って）と支柱
+! ---- 手すり・中桟・幅木（両側。床の折れ点に沿って）と支柱（折れ点ごと、長い区間は 1.8 以下ごと） ----
 for sd = 0 to 1
 	xr = sd * brW
 	for ip = 1 to nP
@@ -174,6 +237,12 @@ for sd = 0 to 1
 		dy = pY[ip + 1] - pY[ip]
 		dz = pZ[ip + 1] - pZ[ip]
 		if dy > 0.01 then
+			nM = int(dy / 1.8 - 0.001)
+			for im = 1 to nM
+				add xr, pY[ip] + dy * im / (nM + 1), pZ[ip] + dz * im / (nM + 1)
+				cylind 0.95, 0.0243
+				del 1
+			next im
 			ag = atn(dz / dy)
 			for hk = 1 to 2
 				hh = 0.95
@@ -183,7 +252,7 @@ for sd = 0 to 1
 				cylind sqr(dy * dy + dz * dz), 0.0243
 				del 2
 			next hk
-			add xr - 0.006 + sd * 0.0, pY[ip], pZ[ip]
+			add xr - 0.006, pY[ip], pZ[ip]
 			rotx ag
 			block 0.012, sqr(dy * dy + dz * dz), 0.15
 			del 2

@@ -838,7 +838,11 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                              f"{ep.standoff:.0f}mm にしました（内側建地と先端の間 {100:.0f}mm 以上）")
         plan.warnings.extend(notes)
     if face_eaves:
-        spec["eaves_height_mm"] = int(round(max(face_eaves.values())))
+        # 面の組（face_forms）はその組の面の軒高まで（下屋の単管抱き足場が建物全体の高さで解かれ、建地・通しを
+        # 11m 分拾っていた。利用者の指摘 2026-10-26）
+        fs = _faces_from_spec(spec, plan) if spec.get("faces") else None
+        mine = [v for k, v in face_eaves.items() if fs is None or k in fs] or list(face_eaves.values())
+        spec["eaves_height_mm"] = int(round(max(mine)))
         spec.setdefault("building_height_mm", spec["eaves_height_mm"])
         if float(spec.get("building_height_mm") or 0) < spec["eaves_height_mm"]:
             spec["building_height_mm"] = spec["eaves_height_mm"]
@@ -879,7 +883,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         # 上段の床の高さを本体の床の高さ（GL からの段）にそろえる（ジャッキの繰出しで足場ごと上下させる。利用者の指定
         # 2026-10-25: 床の高さは揃えるようにして）
         elevation, align_note = _align_elevation(elevation, spec["_align_levels_mm"],
-                                                 float(spec.get("base_height_mm", 0) or 0), master)
+                                                 float(spec.get("base_height_mm", 0) or 0), master,
+                                                 str(spec.get("_align_what") or "上段"))
         if align_note:
             spec.setdefault("_align_notes", []).append(align_note)
         if spec.get("_align_top_mm"):
@@ -887,6 +892,22 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                                              float(spec.get("base_height_mm", 0) or 0), master)
             if top_note:
                 spec.setdefault("_align_notes", []).append(top_note)
+    if master.is_tube and elevation.level_heights and spec.get("scaffold_height_mm") is None:
+        # 単管の最上段の床が軒の下になったとき（床を隣の組にそろえた下屋の面）、軒先の手すりを足し、建地をその上まで
+        from .elevation_solver import tube_eave_rails
+
+        rails = tube_eave_rails(float(max(elevation.level_heights)), float(spec["eaves_height_mm"]))
+        if rails:
+            import dataclasses as _dc
+
+            extra = max(0, rails[-1] + TUBE_POST_ABOVE_RAIL_MM - elevation.total_height)
+            posts = list(elevation.posts)
+            if extra:
+                fit = next((L for L in sorted(master.post_lengths()) if L >= posts[-1] + extra), None)
+                posts[-1] = fit or posts[-1] + extra
+            elevation = _dc.replace(elevation, eave_rails_mm=rails, posts=posts,
+                                    posts_alt=list(posts) if list(elevation.posts_alt) == list(elevation.posts)
+                                    else elevation.posts_alt)
     if height_note:
         # 指定高さで最上層作業床が軒より下に来るなら、その差を書く（足場高さだけ見ると
         # 軒より高いのに、作業床は軒に届いていない、という見落としを防ぐ）
@@ -1405,7 +1426,7 @@ def ground_scaffold_note(spec: dict) -> str:
             + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す")
 
 
-def _align_elevation(elevation, levels_abs: list, base: float, master):
+def _align_elevation(elevation, levels_abs: list, base: float, master, what: str = "上段"):
     """作業床の高さ（base から）を本体の床の高さ（GL から）にそろえた立面 → (立面, 案内).
 
     足場の高さ（要求高さ）を −450〜+900 の範囲で 5mm ずつ変えて立面を解き直し、どの床も本体の床の高さに重なる
@@ -1430,7 +1451,7 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
         except ValueError:
             continue
         if aligned(e) and e.level_heights and base + max(e.level_heights) >= base + max(elevation.level_heights) - 900:
-            return e, (f"上段の床の高さを本体の床にそろえました（足場高さ {req0}→{req0 + d}mm、ジャッキの繰出し "
+            return e, (f"{what}の床の高さを本体の床にそろえました（足場高さ {req0}→{req0 + d}mm、ジャッキの繰出し "
                        f"{e.jack_extension}mm）")
     # 支柱の積み方はそのまま、ジャッキの繰出しを変えてコマの位置を本体の床にそろえ、本体と同じ高さの段を床にする
     import dataclasses as _dc
@@ -1462,11 +1483,11 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
             e = _dc.replace(elevation, jack_extension=int(round(j)), first_ledger_height=int(round(fl)),
                             level_heights=[int(round(v)) for v in lv], n_levels=len(lv),
                             required_height=int(elevation.required_height + di), base_shim=0)
-            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、床 {len(lv)}段）"
+            return e, (f"{what}の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、床 {len(lv)}段）"
                        if low_by < 1.0 else
-                       f"上段の床はジャッキの繰出しの上限（{int(jmax)}mm）で本体の床より {int(round(low_by))}mm 低くなります"
+                       f"{what}の床はジャッキの繰出しの上限（{int(jmax)}mm）で本体の床より {int(round(low_by))}mm 低くなります"
                        f"（敷板は重ねない。床 {len(lv)}段。本体の床へ渡るところは段差に注意）")
-    return elevation, "上段の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
+    return elevation, f"{what}の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
 
 
 TOP_MATCH_MAX_MM = 1350.0     # 上段の天端を本体の天端にそろえる差の上限（これより違えば上段の高さのまま）
@@ -2078,19 +2099,92 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
         for f, fe in (getattr(r.model, "face_full_edges", None) or {}).items():
             full_edges.setdefault(f, fe)
         out.append((label, r))
-    # 隣の面がほかの組なら、その面の離れはその組で解いた値（隅の位置が組ごとにずれないように）
-    own = {e.edge_index: float(e.standoff) for _l, r in out for e in r.model.plan.edges}
-    n_out = len(out[0][1].model.plan.outline.edges) if out else 0
+
+    def settle(groups, out):
+        # 隣の面がほかの組なら、その面の離れはその組で解いた値（隅の位置が組ごとにずれないように）
+        # 解き直すと離れが変わる組もあるので、受け渡す値が変わらなくなるまで繰り返す（1回だけだと最初の値 334.5 を渡したまま、
+        # 解き直した本足場は 320 になり、単管抱き足場の隅が 70 ずれた。利用者の指摘 2026-10-26）
+        n_out = len(out[0][1].model.plan.outline.edges) if out else 0
+        given: dict[int, dict[int, float]] = {}
+        # 単管（抱き足場など）は建地の間隔が自由なので、隣のくさび・枠の組が閉じられる離れを単管の組が採る（単管の離れを
+        # くさびの組へ押し付けると、インチの規格寸法で閉じられず隅に隙間が出た）
+        tube = {k for k, (_l, r) in enumerate(out) if r.model.master.is_tube}
+        owner = {e.edge_index: k for k, (_l, r) in enumerate(out) for e in r.model.plan.edges}
+        for _round in range(4):
+            own = {e.edge_index: float(e.standoff) for _l, r in out for e in r.model.plan.edges}
+            again = {}
+            for k, (_label, r) in enumerate(out):
+                mine = {e.edge_index for e in r.model.plan.edges}
+                nb = {}
+                for ei in mine:
+                    if k in tube:
+                        # 自分の面の離れは、隣の面を建てるくさび・枠の組がこの面に見込んだ値（始点の側の組を先に）。その組の
+                        # 離れの範囲（敷地境界に収めるため詰めた form_standoff など）の中で
+                        so = groups[k][1].get("standoff") or {}
+                        lo, hi = float(so.get("min", 250)), float(so.get("max", 350))
+                        # 隅の隙間（コーナーステップ）で合わせられない組（一側・ブラケット足場）の値を先に。本足場は
+                        # 受け取った離れで閉じなければ隅に隙間を残して納める
+                        cands = []
+                        for j, adj in enumerate(((ei - 1) % n_out, (ei + 1) % n_out)):
+                            ka = owner.get(adj)
+                            if ka is not None and ka not in tube:
+                                stiff = out[ka][1].model.config.scaffold_form != "本足場"
+                                cands.append((0 if stiff else 1, j, float(out[ka][1].model.plan.standoffs[ei])))
+                        if cands:
+                            nb[ei] = min(hi, max(lo, min(cands)[2]))
+                    for adj in ((ei - 1) % n_out, (ei + 1) % n_out):
+                        if adj in mine or adj not in own or (owner[adj] in tube and owner[adj] not in given):
+                            continue
+                        if adj in given.get(k, {}) or abs(own[adj] - float(r.model.plan.standoffs[adj])) > 0.5:
+                            nb[adj] = own[adj]
+                if nb and any(abs(v - given.get(k, {}).get(a, -1e9)) > 0.5 for a, v in nb.items()):
+                    again[k] = nb
+            if not again:
+                break
+            given.update(again)
+            groups = [(label, {**sub, "_neighbor_standoffs": again[k]} if k in again else sub)
+                      for k, (label, sub) in enumerate(groups)]
+            out = [(label, solve_all(sub, master_csv)) if k in again else out[k] for k, (label, sub) in enumerate(groups)]
+        for k in tube:
+            # 床の高さは隣のくさび・枠の組にそろえる（単管の段は上から 1800 刻みで、本足場の床と 0.7m 食い違い乗り移れ
+            # なかった。熟練者は床の高さをそろえるのを第一にする。単管の布はどの高さにもクランプで付く）
+            m = out[k][1].model
+            ka = next((owner[a] for e in m.plan.edges for a in ((e.edge_index - 1) % n_out, (e.edge_index + 1) % n_out)
+                       if a in owner and owner[a] not in tube), None)
+            sub = groups[k][1]
+            if ka is not None and not sub.get("_align_levels_mm") and sub.get("scaffold_height_mm") is None:
+                ma = out[ka][1].model
+                sub = {**sub, "_align_levels_mm": [float(h) + float(ma.base_height_mm or 0)
+                                                   for h in ma.elevation.level_heights],
+                       "_align_what": out[k][0] or "単管"}
+                groups[k] = (groups[k][0], sub)
+                out[k] = (groups[k][0], solve_all(sub, master_csv))
+                m = out[k][1].model
+            # 隅の建地が隣の組の端の建地と同じ位置なら描かない（同じ所に2本立っていた）。隣の建地がこの組のいちばん上の
+            # 手すり（軒先の手すり）より上まであれば、その建地に留める
+            h_own = {}
+            for e in m.plan.edges:
+                ev = m.elevation_of(e.edge_index)
+                h_own[e.edge_index] = max([max(ev.level_heights or [0]) + TUBE_GUARD_RAIL_HEIGHT_MM]
+                                          + list(ev.eave_rails_mm or [])) + 50.0
+            skip = []
+            for e in m.plan.edges:
+                for end, pt in (("s", e.start_post), ("e", e.end_post)):
+                    if (e.edge_index, end) in (getattr(m, "range_ends", None) or set()):
+                        continue
+                    if any(math.dist(pt, q) < 2.0 and ra.model.height_of(ea.edge_index) >= h_own[e.edge_index] - 1.0
+                           for ka2, (_l, ra) in enumerate(out) if ka2 != k and ka2 not in tube
+                           for ea in ra.model.plan.edges for q in (ea.start_post, ea.end_post)):
+                        skip.append([e.edge_index, end])
+            have = [list(j) for j in (sub.get("_skip_end_posts") or [])]
+            if sorted(skip) != sorted(have):
+                sub = {**sub, "_skip_end_posts": skip}
+                groups[k] = (groups[k][0], sub)
+                out[k] = (groups[k][0], solve_all(sub, master_csv))
+        return groups, out
+
+    groups, out = settle(groups, out)
     again = {}
-    for k, (_label, r) in enumerate(out):
-        mine = {e.edge_index for e in r.model.plan.edges}
-        nb = {}
-        for ei in mine:
-            for adj in ((ei - 1) % n_out, (ei + 1) % n_out):
-                if adj not in mine and adj in own and abs(own[adj] - float(r.model.plan.standoffs[adj])) > 0.5:
-                    nb[adj] = own[adj]
-        if nb:
-            again[k] = nb
     # 本足場どうし（幅の違う本足場など）の出隅は、組をまたいでも同じ組の隅と同じに納める（外側の升目を始点の面が
     # 描き、妻側の手すりは付けず、隅の内側建地は1本）。利用者の指摘 2026-10-24: 端部が重なったり、回れないようになってる
     nbs = _group_neighbors(out)
@@ -2109,6 +2203,9 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
             groups = [(label, {**sub, "_joins": joins[k]} if k in joins else sub) for k, (label, sub) in enumerate(groups)]
             out = [(label, solve_all(sub, master_csv)) if k in joins else out[k]
                    for k, (label, sub) in enumerate(groups)]
+    if nbs or (spec.get("corner_joins", True) and joins):
+        # 隅の納め・ブラケットへの延長で解き直した組の離れを、もう一度隣の組へ渡す
+        groups, out = settle(groups, out)
     # 階段の無い組は、ほかの組の面の階段で昇降する（足場は面の組をまたいでつながっている）
     stair_faces = [r.model.face_name(t.edge_index) for _l, r in out
                    for t in (getattr(r.stair_plan, "towers", None) or [])]

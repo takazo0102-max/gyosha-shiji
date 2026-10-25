@@ -57,6 +57,18 @@
 			<Description><![CDATA["パラペットの位置（内側建地列から躯体側へ。離れ）"]]></Description>
 			<Value>0.3</Value>
 		</Length>
+		<String Name="prfY">
+			<Description><![CDATA["床の折れ点の奥行き mm カンマ区切り（内側建地列から躯体側へ。roof_bridges.bridge_profile）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="prfZ">
+			<Description><![CDATA["床の折れ点の高さ mm カンマ区切り（部品の原点の高さから・床の上面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="prfK">
+			<Description><![CDATA["区間の形 カンマ区切り（0 平らな踏板・1 斜路・2 斜路＋踏桟・3 踏段）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="brName">
 			<Description><![CDATA["平面に書く名前"]]></Description>
 			<Value><![CDATA["屋上への渡り"]]></Value>

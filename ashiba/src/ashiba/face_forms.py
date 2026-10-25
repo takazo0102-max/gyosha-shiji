@@ -143,6 +143,18 @@ def _shift_items(sub: dict, face: str, face_names: list[str], a: float, b: Optio
         sub["stairs"] = {**st, "positions": moved(st["positions"], "start_mm")}
 
 
+def _item_face(item, all_faces: list[str]) -> Optional[str]:
+    """付帯設備の指定（face か edge_index）→ 面名。分からなければ None（どの組にも渡す）."""
+    if not isinstance(item, dict):
+        return None
+    if item.get("face") is not None:
+        return _face_key(str(item["face"]))
+    ei = item.get("edge_index")
+    if ei is not None and not isinstance(ei, bool) and 0 <= int(ei) < len(all_faces):
+        return all_faces[int(ei)]
+    return None
+
+
 def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
     """入力 → [(組の名前, その組の入力)]. 切り替えが無ければ [("", spec)]。
 
@@ -200,6 +212,11 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             label = form if k == 0 else f"{form}（{k + 1}）"
             sub["project_name"] = f"{spec.get('project_name') or '足場'} {label}"
         sub["faces"] = [f for f, _a, _b in items]
+        # 面を決めた付帯設備（開口部・ステージ・昇降機・ブラケット区間）は、その面を建てる組にだけ渡す（昇降機の無い組で
+        # 「辺0は存在しません」と止まった。2026-10-26 実機）
+        for key in ("openings", "loading_stages", "hoists", "bracket_sections"):
+            if isinstance(sub.get(key), list):
+                sub[key] = [it for it in sub[key] if _item_face(it, all_faces) in (None, *sub["faces"])]
         ranges = {f: [a, -1.0 if b is None else b] for f, a, b in items if a > 0.5 or b is not None}
         if ranges:
             sub["_face_range"] = ranges

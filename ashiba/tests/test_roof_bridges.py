@@ -55,7 +55,7 @@ class TestRoofBridges(unittest.TestCase):
         d2 = (HSF / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         d3 = (HSF / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("text2 0, 0, tx", d2)                  # 平面に「屋上への渡り 幅600 …」
-        self.assertIn("rect2 0, yS, brW, brL", d2)
+        self.assertIn("rect2 0, yS, brW, yE", d2)
         self.assertIn("cylind 0.95, 0.0243", d3)             # 手すりの支柱
         self.assertIn("パラペット", d3)
         self.assertTrue((HSF.parents[1] / "ashiba_bridge.gsm").exists())

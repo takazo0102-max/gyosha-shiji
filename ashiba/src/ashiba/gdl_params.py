@@ -385,6 +385,8 @@ def line_params(
         # 階段を外側の板の位置に寄せ、内側の板（ハーフアンチ）を階段の層も敷く（model.stair_half_deck）
         "stHalf": 1 if model.stair_half_deck else 0,
         "levelList": ",".join(str(int(h)) for h in e.level_heights),
+        # 軒先の手すり（下屋の単管の面。elevation_solver.truncate_elevation）
+        "eaveRails": ",".join(str(int(h)) for h in (getattr(e, "eave_rails_mm", None) or [])),
         # 3D の天端のホットスポット（足場高さの編集）。部品の天端（ジャッキ＋支柱）と同じ値で送り、
         # 食い違ったら「引かれた」とみなして層を足し引きする（vl.gdl）
         "topEdit": (e.jack_extension + sum(e.posts)) / 1000.0,

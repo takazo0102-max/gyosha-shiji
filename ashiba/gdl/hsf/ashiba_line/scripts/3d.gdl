@@ -999,6 +999,25 @@ if nKz > 0 then
 	resol rN
 endif
 
+! ---- 軒先の手すり（下屋の単管の面で最上段の床を軒の下にしたとき、屋根からの墜落防止に軒先から 450・900。
+! 仮設工業会 技術基準「上端の桟は軒先から概ね 90cm 以上」。利用者の指摘 2026-10-26） ----
+for ie = 1 to nEaR
+	z = eaR[ie]
+	if hugMode = 1 then z = z + hugDz
+	x = 0
+	for ip = 1 to nSpan
+		if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+			runX = x
+			runP = 0
+			add x, -rowW, z
+			nL = spans[ip]
+			gosub 830
+			del 1
+		endif
+		x = x + spans[ip]
+	next ip
+next ie
+
 ! ---- 水平材（根がらみ＋各作業層） ----
 for il = 1 to nLv
 	z = lv[il]

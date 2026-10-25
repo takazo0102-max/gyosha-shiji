@@ -22,6 +22,11 @@ TUBE_MIDRAIL_HEIGHT_MM = 450
 # 単管の建地の天端は手すりより上に出す（手すりのクランプが管の端に掛からないように）
 TUBE_POST_ABOVE_RAIL_MM = 100
 
+# 下屋の面（単管）の最上段の床は軒から +300 まで（それより上なら1つ下の層）。軒先の手すりは軒から 900 以上
+EAVE_DECK_TOL_MM = 300
+EAVE_RAIL_ABOVE_MM = 900
+EAVE_RAIL_MIN_MM = 850        # 床の手すりが軒先からこれ以上あれば足さない（安衛則563条の手すり 85cm）
+
 JACK_MAX_EXTENSION = 270  # mm 安衛則上の実務上限（超過は法規チェックで警告）
 JACK_MIN_EXTENSION = 30   # mm 調整代として最低限残す
 
@@ -40,6 +45,9 @@ class ElevationResult:
     # 全部の脚のジャッキの下に重ねる敷板の高さ [mm]（jack_extension の内数。ジャッキの繰出し上限を超える分。
     # セットバックの上段で床の高さを本体にそろえるとき）
     base_shim: int = 0
+    # 軒先の手すりの高さ [mm, GLから]。下屋の面で最上段の床を軒の下にしたとき、屋根からの墜落防止に足す手すり
+    # （仮設工業会 技術基準「上端の桟は軒先から概ね 90cm 以上」。中桟は軒先から 450）
+    eave_rails_mm: list[int] = field(default_factory=list)
 
     @property
     def total_height(self) -> int:
@@ -502,6 +510,22 @@ def cap_elevation(elev: ElevationResult, top_max_mm: float, master: PartMaster) 
     )
 
 
+def tube_eave_rails(top_deck_mm: float, eaves_mm: float) -> list[int]:
+    """単管の最上段の床が軒の下にあるとき、屋根からの墜落防止に足す軒先の手すりの高さ（GL から mm）.
+
+    上端の桟は軒先から 900（仮設工業会 技術基準「概ね 90cm 以上」）。床の手すり・中桟が軒先から 250〜600 に無ければ
+    中桟を軒先から 450 にも足す（下屋足場の組み方）。床の手すりが軒先から 900 以上に届けば足さない。
+    """
+    have = (top_deck_mm + TUBE_MIDRAIL_HEIGHT_MM, top_deck_mm + TUBE_GUARD_RAIL_HEIGHT_MM)
+    if top_deck_mm > eaves_mm + EAVE_DECK_TOL_MM or max(have) >= eaves_mm + EAVE_RAIL_MIN_MM:
+        return []
+    rails = []
+    if not any(eaves_mm + 250 <= h <= eaves_mm + 600 for h in have):
+        rails.append(int(round(eaves_mm + TUBE_MIDRAIL_HEIGHT_MM)))
+    rails.append(int(round(eaves_mm + EAVE_RAIL_ABOVE_MM)))
+    return rails
+
+
 def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaster) -> ElevationResult:
     """全体の立面（いちばん高い面）を、低い面の軒高で切った立面（セットバックの面ごとの高さ）.
 
@@ -514,9 +538,18 @@ def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaste
     if not levels or eaves_mm >= levels[-1] - 1:
         return elev
     k = next((i for i, h in enumerate(levels) if h >= eaves_mm - 1), len(levels) - 1)
-    keep = levels[:k + 1]
     margin = elev.total_height - levels[-1]           # 最上層の床から支柱天端まで（手すり分）
-    target = keep[-1] + margin
+    rails: list[int] = []
+    if master.is_tube:
+        # 単管の下屋の面は、最上段の床を軒の下の層にする（軒より上の層まで建てると床が屋根より 1.6m 上に出て、
+        # 軒先の作業ができない。利用者の指摘 2026-10-26）。屋根からの墜落防止に、軒先から 90cm（中桟 45cm）の高さに
+        # 手すりを足し、建地はその上まで出す（単管はどの高さにもクランプで付く。下屋足場の組み方）
+        below = [i for i, h in enumerate(levels) if h <= eaves_mm + EAVE_DECK_TOL_MM]
+        if below:
+            k = below[-1]
+            rails = tube_eave_rails(levels[k], eaves_mm)
+    keep = levels[:k + 1]
+    target = max(keep[-1] + margin, rails[-1] + TUBE_POST_ABOVE_RAIL_MM if rails else 0)
     acc = elev.jack_extension
     posts: list[int] = []
     for p in elev.posts:
@@ -539,5 +572,5 @@ def truncate_elevation(elev: ElevationResult, eaves_mm: float, master: PartMaste
         required_height=int(target), jack_extension=elev.jack_extension, posts=posts,
         posts_alt=_alt_order(posts), has_negarami=elev.has_negarami,
         first_ledger_height=elev.first_ledger_height, n_levels=len(keep), level_heights=keep,
-        warnings=[],
+        warnings=[], eave_rails_mm=rails,
     )

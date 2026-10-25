@@ -395,6 +395,20 @@ def solve_plan(
         for idx, v in fixed_standoffs.items():
             if 0 <= int(idx) < n:
                 standoffs[int(idx)] = round(float(v), 3)
+    if master.is_tube and fixed_standoffs and not fixed_spans:
+        # 単管は建地の間隔が自由（布は長い管を重ねて留める）。隣の面がほかの組なら、その面の離れの線で終わるよう
+        # 端のスパンで合わせる（利用者の指摘 2026-10-26: 単管抱き足場の始点の建地が本足場の端の建地から 70 ずれて2本立った）
+        for idx, v in fixed_standoffs.items():
+            if 0 <= int(idx) < n:
+                standoffs[int(idx)] = round(float(v), 3)
+        for e in edges:
+            s_sum, spans = best_combo[e.index]
+            dp = e.start_sign * standoffs[(e.index - 1) % n]
+            dn = e.end_sign * standoffs[(e.index + 1) % n]
+            target = e.length + dp + dn
+            if abs(target - s_sum) > 0.5:
+                best_combo[e.index] = (round(target), _refit_tube_spans(
+                    spans, round(target) - sum(spans), (e.index - 1) % n in fixed_standoffs, max(coins)))
 
     # フィート寸法のくさびで、隅を閉じるのに離れが 270〜350 の帯を外れるなら、無理に閉じず、帯の中で閉じられる
     # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
@@ -556,6 +570,37 @@ def _feasibility_hint(
                 + f"ため、離れを{abs(chosen - (spec.min if chosen < spec.min else spec.max)):.1f}mm" \
                 + ("下げて" if chosen < spec.min else "上げて") + "端数を減らす方を採っています"
     return text + "）"
+
+
+def _refit_tube_spans(spans: list[int], delta: int, at_start: bool, max_span: int) -> list[int]:
+    """単管のスパン列の端（隣の組の面の側）で delta を吸収する。建地の間隔は max_span 以下（安衛則571条一号 1.85m）に、
+    300 未満の端数は隣のスパンと合わせる."""
+    sp = list(spans) or [0]
+    if not at_start:
+        sp.reverse()
+    if delta > 0 and sp[0] + delta > max_span:
+        # 端に入らない分は、いちばん短いスパンに足せるならそこへ（本数を増やさない。1500 → 1668 など）
+        k = min(range(len(sp)), key=lambda i: sp[i])
+        if sp[k] + delta <= max_span:
+            sp[k] += int(delta)
+            delta = 0
+    sp[0] += int(delta)
+    while len(sp) > 1 and sp[0] < 300:
+        v = sp.pop(0)
+        sp[0] += v
+    head = sp.pop(0)
+    while head > max_span:
+        # 長くなった端は規格の間隔を1本ずつ切り出し、最後の端数は半分（900）と残りに分ける
+        if head - max_span // 2 <= max_span:
+            sp[:0] = [max_span // 2]
+            head -= max_span // 2
+        else:
+            sp[:0] = [max_span]
+            head -= max_span
+    sp.insert(0, head)
+    if not at_start:
+        sp.reverse()
+    return sp
 
 
 def _solve_axis(

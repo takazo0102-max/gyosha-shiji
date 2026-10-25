@@ -361,6 +361,10 @@
 			<Description><![CDATA["作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="eaveRails">
+			<Description><![CDATA["軒先の手すり高さ mm カンマ区切り（GLから。下屋の単管の面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="topEdit">
 			<Description><![CDATA["足場高さ（3Dの天端のホットスポットで引く。作業層単位に吸着）"]]></Description>
 			<Value>0</Value>

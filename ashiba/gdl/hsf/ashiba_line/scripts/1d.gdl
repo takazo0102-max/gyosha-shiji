@@ -8,6 +8,7 @@
 ! 2D/3Dとも一切描画されない（実機で確認済み）。
 ! ============================================================
 dim spans[60]
+dim eaR[4]
 dim posts[40]
 dim postsA[40]
 dim rl[2][20]
@@ -458,6 +459,26 @@ while strlen(rest) > 0 and nLevIn < 40 do
 	if k > 0 then
 		nLevIn = nLevIn + 1
 		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- eaveRails をパース（軒先の手すり。下屋の単管の面で最上段の床を軒の下にしたとき、屋根からの墜落防止に
+! 軒先から 450・900 の高さに足す手すり。mm→m。elevation_solver.truncate_elevation） ----
+nEaR = 0
+rest = eaveRails
+while strlen(rest) > 0 and nEaR < 4 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nEaR = nEaR + 1
+		eaR[nEaR] = v / 1000
 	endif
 endwhile
 
