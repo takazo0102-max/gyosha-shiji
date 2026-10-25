@@ -22,6 +22,7 @@ NETBK_OBJECT = "ashiba_netbk"
 SHEET_OBJECT = "ashiba_sheet"
 CSTEP_OBJECT = "ashiba_cstep"
 BRIDGE_OBJECT = "ashiba_bridge"
+KBRK_OBJECT = "ashiba_kbrk"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
 SHEET_SIZES = {"メッシュシート": (1800, 5100), "防音シート": (1800, 3400), "密閉シート": (1800, 3400),
@@ -798,4 +799,61 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
             "zFrom": (base + b.z_from_mm) / 1000.0, "zTo": (base + b.z_to_mm) / 1000.0,
             "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0,
             "lineMode": bool(line_mode)}))
+    return _with_pens(model, out)
+
+
+def _kbrk_spec(model: ScaffoldModel, w: float, kind: str) -> dict:
+    """拡幅・張出ブラケット1基の形（日建 ND カタログ Vol.10 p014。reports/くさび式足場の拡幅ブラケット.md）.
+    方杖の緊結部の下がりはコマで: 拡幅 305 は1コマ、張出 610 は2コマ（ND1800 は 450・900）."""
+    pitch = float(model.master.koma_pitch or 450.0)
+    part = next((p for p in model.master.by_category("ブラケット")
+                 if int(p.nominal_dim) == int(round(w)) and kind in p.note), None)
+    name = f"{part.model_no} {kind}{int(round(w))}" if part is not None else f"{kind}{int(round(w))}"
+    wide = kind == "拡幅ブラケット"
+    return {"brW": w / 1000.0, "brDp": (pitch if wide else 2 * pitch) / 1000.0,
+            "tipUp": 0.04 if wide else 0.10, "tipDn": 0.18 if wide else 0.12, "brName": name}
+
+
+def kbrk_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placement]:
+    """拡幅・張出ブラケット1基ごとの部品（利用者の指定 2026-10-25: 拡張ブラケットGDL作って 配置してみて）.
+
+    本体の隅の升目の外（model.corner_bridges）: 拡幅ブラケットを跳ne出しの上段のいちばん下の床で1回だけ、隅の升目の
+    外側の2本に。先端から下層の支柱へ補強単管（1層下）。跳ね出しの上段の端（model.hane_end_ext）: 張出ブラケットを
+    各層で端の内外の支柱に。足場ラインの GDL（gosub 758／759）と同じ位置・向き."""
+    out: list[Placement] = []
+    edges = {e.edge_index: e for e in model.plan.edges}
+    base = float(model.base_height_mm or 0.0)
+    row = float(model.post_row_spacing_mm)
+    n_out = len(model.plan.outline.edges)
+
+    def put(o, u, nrm, x, y, ang, z, spec, reinf=0.0):
+        out.append(Placement(KBRK_OBJECT, o[0] + u[0] * x + nrm[0] * y, o[1] + u[1] * x + nrm[1] * y, {
+            "faceAng": ang, "zArm": z / 1000.0, "reinf": reinf, "lineMode": bool(line_mode), **spec}))
+
+    for ei, cb in (getattr(model, "corner_bridges", None) or {}).items():
+        ep = edges.get(ei)
+        if ep is None:
+            continue
+        w, side, lv = float(cb[0]), cb[1], list(cb[2])
+        o, u, nrm, ang = _frame(ep)
+        csw = float(model.row_spacing_of((ei - 1) % n_out))
+        spec = _kbrk_spec(model, w, "拡幅ブラケット")
+        reinf = float(model.master.floor_height or 1800.0) / 1000.0
+        if side == 0:
+            pts, a = [(0.0, -row), (-csw, -row)], ang - 90.0
+        else:
+            pts, a = [(-csw, 0.0), (-csw, -row)], ang + 180.0
+        for x, y in pts:
+            put(o, u, nrm, x, y, a, base + lv[0], spec, reinf)
+    for (ei, end), w in (getattr(model, "hane_end_ext", None) or {}).items():
+        ep = edges.get(ei)
+        if ep is None:
+            continue
+        o, u, nrm, ang = _frame(ep)
+        spec = _kbrk_spec(model, float(w), "張出ブラケット")
+        x = 0.0 if end == "s" else float(sum(ep.spans))
+        a = ang + 180.0 if end == "s" else ang
+        for h in model.elevation_of(ei).level_heights:
+            for y in (0.0, -row):
+                put(o, u, nrm, x, y, a, base + float(h), spec)
     return _with_pens(model, out)

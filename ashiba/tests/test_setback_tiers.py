@@ -417,6 +417,38 @@ class TestOverhangTier(unittest.TestCase):
         self.assertEqual(sorted(hane.hane_end_ext), [(3, "e"), (3, "s")])
         self.assertEqual(sorted(main.corner_bridges), [0, 3])
 
+    def test_widening_bracket_parts(self):
+        # 利用者の指定 2026-10-25: 拡張ブラケットGDL作って 配置してみて（日建 カタログ Vol.10 p014 の NDBK03H・NDBK06H）。
+        # ブラケット1基に1部品（ashiba_kbrk）: 本体の隅は拡幅 305 を1層だけ2基（補強単管は1層下まで）、跳ね出しの端は
+        # 張出 610 を各層2基。方杖の緊結部はコマで 1コマ（450）・2コマ（900）
+        from pathlib import Path
+
+        from ashiba.attachments import KBRK_OBJECT, kbrk_placements
+
+        full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
+        up = [[-1000, 0], [5000, 0], [5000, 10000], [-1000, 10000]]
+        slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": up, "top_mm": t} for t in (6000, 9000, 9700)])
+        g = solve_groups({"project_name": "W", "outline_mm": full, "slabs": slabs, "module": "inch",
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 610, "eaves_height_mm": 15400})
+        main, hane = g[0][1].model, dict(g)["上段（張り出し）"].model
+        wide = kbrk_placements(main)
+        self.assertEqual(len(wide), 4)
+        self.assertTrue(all(p.part == KBRK_OBJECT and p.params["brName"].startswith("NDBK03H") for p in wide))
+        self.assertTrue(all(abs(p.params["brDp"] - 0.45) < 1e-9 and p.params["reinf"] > 1.0 for p in wide))
+        self.assertTrue(all(abs(p.x_mm - (-945)) < 2 for p in wide))                  # 隅の升目の外側の列（西）
+        self.assertTrue(all(abs(abs(p.params["faceAng"]) - 180) < 1e-6 for p in wide))   # 腕は張り出しの側（西）へ
+        over = kbrk_placements(hane)
+        n_lv = len(hane.elevation.level_heights)
+        self.assertEqual(len(over), 2 * 2 * n_lv)
+        self.assertTrue(all(p.params["brName"].startswith("NDBK06H") and abs(p.params["brDp"] - 0.9) < 1e-9
+                            and p.params["reinf"] == 0 for p in over))
+        d = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_kbrk"
+        d3 = (d / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for word in ("緊結部", "背の縦材", "方杖", "ホゾ", "補強単管", "スーパークランプ S2C"):
+            self.assertIn(word, d3)
+        self.assertIn("if brkObj = 0 then", (d.parent / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8"))
+
     def test_gdl_draws_the_widening_brackets(self):
         from pathlib import Path
 

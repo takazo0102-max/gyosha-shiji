@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+				<Angle Name="faceAng">
+			<Description><![CDATA["腕の向き（度。配置時に Python が入れる。+X＝腕の先）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="zArm">
+			<Description><![CDATA["腕の高さ（GL から。腕を付けるコマ＝床の布材の高さ）"]]></Description>
+			<Value>7.8</Value>
+		</Length>
+		<Length Name="brW">
+			<Description><![CDATA["出（支柱の芯から先端の管の外面まで。NDBK03H 0.305・NDBK06H 0.610）"]]></Description>
+			<Value>0.305</Value>
+		</Length>
+		<Length Name="brDp">
+			<Description><![CDATA["方杖の下の緊結部の下がり（NDBK03H 0.45＝1コマ・NDBK06H 0.90＝2コマ）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="tipUp">
+			<Description><![CDATA["先端の管の腕の上への出"]]></Description>
+			<Value>0.04</Value>
+		</Length>
+		<Length Name="tipDn">
+			<Description><![CDATA["先端の管の腕の下への出"]]></Description>
+			<Value>0.18</Value>
+		</Length>
+		<Length Name="hozoL">
+			<Description><![CDATA["先端のホゾ φ36.4 の長さ（ND支柱専用）"]]></Description>
+			<Value>0.12</Value>
+		</Length>
+		<Length Name="reinf">
+			<Description><![CDATA["補強単管の下がり（拡幅時。先端から1層下の支柱へ。0＝なし）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="postR">
+			<Description><![CDATA["支柱の半径（ND φ42.7）"]]></Description>
+			<Value>0.02135</Value>
+		</Length>
+		<String Name="brName">
+			<Description><![CDATA["品番（例: NDBK03H 拡幅ブラケット305）"]]></Description>
+			<Value><![CDATA["NDBK03H"]]></Value>
+		</String>
+		<Boolean Name="showName">
+			<Description><![CDATA["平面に品番を書く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matBk">
+			<Description><![CDATA["表面材（0＝既定の亜鉛めっき）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>1.8</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["ペン: 付帯設備（ブラケット）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

@@ -2696,10 +2696,13 @@ return
 	xbDp = komaPitch
 	if xbW > 0.40 then xbDp = 2 * komaPitch
 	if xbDp < 0.3 then xbDp = 0.45
-	for xbS = 0 to 1
-		xbY = -xbS * xbL
-		gosub 754
-	next xbS
+	! ブラケット（腕・方杖）は部品 ashiba_kbrk で置いたら描かない
+	if brkObj = 0 then
+		for xbS = 0 to 1
+			xbY = -xbS * xbL
+			gosub 754
+		next xbS
+	endif
 	if showDeck then
 		if matDeck > 0 then material matDeck
 		if xbW > 0.54 then
@@ -2806,6 +2809,8 @@ return
 	if xbDp < 0.3 then xbDp = 0.45
 	for xbS = 0 to 1
 		xbY = -xbS * xbL
+		! ブラケット（腕・方杖）と補強単管は部品 ashiba_kbrk で置いたら描かない
+		if brkObj = 0 then
 		gosub 754
 		! 補強単管（φ48.6、先端から1層下の元の支柱へ。両端はクランプ）
 		bx1 = xbW - 0.03
@@ -2824,6 +2829,7 @@ return
 		block 0.07, 0.07, 0.07
 		del 1
 		if matScaf > 0 then material matScaf
+		endif
 		! 先端の支柱（ホゾに挿して天端まで）
 		if xbTop > xbZ + 0.1 then
 			add xbW, xbY, xbZ

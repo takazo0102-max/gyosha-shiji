@@ -31,6 +31,7 @@ PART_PENS = {
     "ashiba_sheet": ("sheet",),
     "ashiba_cstep": ("deck",),
     "ashiba_bridge": ("equip",),
+    "ashiba_kbrk": ("equip",),
     "ashiba_stage": ("post", "line", "deck"),
 }
 

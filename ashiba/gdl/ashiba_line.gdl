@@ -139,6 +139,7 @@
 !   cnrLowP         長さ      前の面が隅より低いとき、前の面の最上の作業床の高さ（その上の層は y=0 の辺に布材）                                       既定 0
 !   cnrBkW          長さ      始点の出隅の升目の外の拡幅ブラケットの出（0＝なし。cnrBkLv のいちばん下の床に1回だけ付け、先端に支柱を天端まで立てる）  既定 0
 !   cnrBkP          整数      拡幅ブラケットを付ける辺 0＝この面の外側の列から外へ／1＝前の面の外側の列の延長から始点の先へ                           既定 0
+!   brkObj          ブール    拡幅・張出ブラケットを部品（ashiba_kbrk）で置いた（腕・方杖・補強単管を描かない）                                       既定 0
 !   cnrBkG          長さ      拡幅した升目の先端の支柱と隣の足場（跳ね出しの上段）の内側建地のあき（3cm を超えればすき間板）                          既定 0
 !   cnrBkLv         文字列    拡幅した升目の作業床の高さ mm（いちばん下にブラケット）                                                                 既定 ""
 !   hbExtS          長さ      跳ね出しの上段の始点の先の張出ブラケットの出（0＝なし。各層）                                                           既定 0
@@ -5970,10 +5971,13 @@ return
 	xbDp = komaPitch
 	if xbW > 0.40 then xbDp = 2 * komaPitch
 	if xbDp < 0.3 then xbDp = 0.45
-	for xbS = 0 to 1
-		xbY = -xbS * xbL
-		gosub 754
-	next xbS
+	! ブラケット（腕・方杖）は部品 ashiba_kbrk で置いたら描かない
+	if brkObj = 0 then
+		for xbS = 0 to 1
+			xbY = -xbS * xbL
+			gosub 754
+		next xbS
+	endif
 	if showDeck then
 		if matDeck > 0 then material matDeck
 		if xbW > 0.54 then
@@ -6080,6 +6084,8 @@ return
 	if xbDp < 0.3 then xbDp = 0.45
 	for xbS = 0 to 1
 		xbY = -xbS * xbL
+		! ブラケット（腕・方杖）と補強単管は部品 ashiba_kbrk で置いたら描かない
+		if brkObj = 0 then
 		gosub 754
 		! 補強単管（φ48.6、先端から1層下の元の支柱へ。両端はクランプ）
 		bx1 = xbW - 0.03
@@ -6098,6 +6104,7 @@ return
 		block 0.07, 0.07, 0.07
 		del 1
 		if matScaf > 0 then material matScaf
+		endif
 		! 先端の支柱（ホゾに挿して天端まで）
 		if xbTop > xbZ + 0.1 then
 			add xbW, xbY, xbZ

@@ -419,6 +419,8 @@ def line_params(
         "soDimX2": _so_pos[1] / 1000.0,
         # 壁つなぎを別の部品（ashiba_tie）で置けたら True にする（配置後に。部品の壁つなぎと二重にしない）
         "tieObj": False,
+        # 拡幅・張出ブラケットを別の部品（ashiba_kbrk）で置けたら True にする（配置後に。腕・方杖・補強単管を二重にしない）
+        "brkObj": False,
         # 平面のホットスポット編集。吸着先は系列の布材の呼び寸法（xEdit は部品が作る）
         "editSpan": True,
         "sizeList": ",".join(str(v) for v in model.master.span_lengths()),

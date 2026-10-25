@@ -537,6 +537,10 @@
 			<Description><![CDATA["拡幅ブラケットを付ける辺 0＝この面の外側の列から外へ／1＝前の面の外側の列の延長から始点の先へ"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Boolean Name="brkObj">
+			<Description><![CDATA["拡幅・張出ブラケットを部品（ashiba_kbrk）で置いた（腕・方杖・補強単管を描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Length Name="cnrBkG">
 			<Description><![CDATA["拡幅した升目の先端の支柱と隣の足場（跳ね出しの上段）の内側建地のあき（3cm を超えればすき間板）"]]></Description>
 			<Value>0</Value>

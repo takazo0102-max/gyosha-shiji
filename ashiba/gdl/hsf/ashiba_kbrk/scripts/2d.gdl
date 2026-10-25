@@ -1,0 +1,26 @@
+﻿! ============================================================
+! 拡幅・張出ブラケット 2D（平面）: 腕（φ42.7 の二重線）・先端の管・方杖（破線）・品番
+! 原点＝ブラケットを付ける支柱の芯、+X＝腕の先（3D と同じ）
+! ============================================================
+define style "kbTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+rP = postR
+rA = 0.0427 / 2
+xT = brW - rA
+line2 rP, -rA, xT - rA, -rA
+line2 rP, rA, xT - rA, rA
+circle2 xT, 0, rA
+circle2 xT, 0, 0.0364 / 2
+rect2 rP, -0.020, rP + 0.050, 0.020
+if reinf > 0.1 then
+	line2 rP + 0.03, -0.06, xT, -0.06
+endif
+hotspot2 0, 0
+hotspot2 xT, 0
+if showName then
+	style "kbTx"
+	text2 brW / 2, 0.08, brName
+endif

@@ -1,0 +1,86 @@
+﻿! ============================================================
+! 拡幅・張出ブラケット 3D（ブラケット1基）。日建リース ND カタログ Vol.10 p014 の形（利用者の指定 2026-10-25:
+! これだよ拡張ブラケット 作り直して／拡張ブラケットGDL作って 配置してみて。reports/くさび式足場の拡幅ブラケット.md）
+!   NDBK03H 拡幅ブラケット: 出 305（20.5＋241＋42.7）、方杖の緊結部は腕の 450 下（1コマ）、先端ホゾ φ36.4（ND支柱専用）。
+!     拡幅時は先端から下層の支柱へ補強単管（φ48.6）をスーパークランプ S2C で取付（つなぎ材の付近）
+!   NDBK06H 張出ブラケット: 出 610（20.5＋546＋42.7）、方杖の緊結部は 900 下（2コマ）
+! 原点＝ブラケットを付ける支柱の芯（z は GL）、+X＝腕の先。腕は床の布材と同じコマ（zArm）に掛ける
+! ============================================================
+pen 1
+resol 12
+rotz faceAng
+addz zArm
+if matBk > 0 then
+	material matBk
+else
+	define material "ashiba_kbrk_zinc" 2, 0.74, 0.76, 0.78
+	material "ashiba_kbrk_zinc"
+endif
+rP = postR
+rA = 0.0427 / 2
+xT = brW - rA
+if lineMode then
+	lin_ rP, 0, 0, xT, 0, 0
+	lin_ rP, 0, -brDp, xT - 0.06, 0, -0.03
+	lin_ xT, 0, -tipDn, xT, 0, tipUp + hozoL
+	end
+endif
+! 緊結部（腕の高さと方杖の下の2か所）: 支柱の外面からコマ（円盤）を上下に挟む受けと、縦に貫くクサビ
+for k = 0 to 1
+	zk = 0
+	if k = 1 then zk = -brDp
+	add rP, -0.020, zk + 0.003
+	block 0.050, 0.040, 0.042
+	del 1
+	add rP, -0.020, zk - 0.040
+	block 0.050, 0.040, 0.037
+	del 1
+	add rP + 0.016, -0.006, zk - 0.075
+	block 0.010, 0.012, 0.150
+	del 1
+next k
+! 背の縦材（支柱に沿って、腕の緊結部から方杖の緊結部まで。角形 24）
+add rP + 0.050, -0.012, -brDp - 0.02
+block 0.024, 0.024, brDp + 0.02
+del 1
+! 腕（φ42.7。背の縦材から先端の管まで）
+add rP + 0.05, 0, 0
+roty 90
+cylind xT - rP - 0.05, rA
+del 2
+! 方杖（φ27.2。下の緊結部から腕の先の手前へ）
+bx = xT - 0.07 - (rP + 0.074)
+bz = brDp - 0.03
+add rP + 0.074, 0, -brDp + 0.01
+roty 90 - atn(bz / bx)
+cylind sqr(bx ^ 2 + bz ^ 2), 0.0136
+del 2
+! 腕と方杖の付け根のプレート
+add xT - 0.09, -0.003, -0.07
+block 0.06, 0.006, 0.07
+del 1
+! 先端の管（φ42.7）とホゾ（φ36.4。ND支柱を挿す）
+add xT, 0, -tipDn
+cylind tipDn + tipUp, rA
+del 1
+add xT, 0, tipUp
+cylind hozoL, 0.0364 / 2
+del 1
+! 補強単管（拡幅時。先端の管から下層の支柱へ φ48.6、両端はスーパークランプ S2C）
+if reinf > 0.1 then
+	ry = -0.06
+	bx = xT - (rP + 0.03)
+	bz = reinf - 0.10 - 0.05
+	add rP + 0.03, ry, -reinf + 0.10
+	roty 90 - atn(bz / bx)
+	cylind sqr(bx ^ 2 + bz ^ 2), 0.0243
+	del 2
+	define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
+	material "ashiba_kbrk_gold"
+	add xT - 0.035, ry - 0.035, -0.05 - 0.035
+	block 0.07, 0.07, 0.07
+	del 1
+	add rP + 0.03 - 0.035, ry - 0.035, -reinf + 0.10 - 0.035
+	block 0.07, 0.07, 0.07
+	del 1
+endif
