@@ -328,7 +328,6 @@ def sheet_size(model: ScaffoldModel) -> Optional[tuple[float, float]]:
 GROMMET_EDGE_MM = 20.0       # シートの縁からハトメの芯まで（上下の辺）
 GROMMET_SIDE_MM = 16.0       # シートの左右の辺からハトメの芯まで（クランプのフック φ9 ×2 の間隔 32 の半分。継ぎ目の支柱の
                              # クランプの2本のフックが左右のシートのハトメに掛かる）
-SHEET_OVERLAP_MIN_MM = 100.0  # 上下のシートの重ね（段の継ぎ目）の最小
 
 
 def _sheet_pitch(model: ScaffoldModel) -> float:
@@ -374,39 +373,54 @@ def sheet_bottom_mm(model: ScaffoldModel, edge_index: int) -> float:
     return min(max(0.0, float(getattr(model, "hoarding_height_mm", 0.0) or 0.0)), max(0.0, top - 500.0))
 
 
-def sheet_step_mm(model: ScaffoldModel) -> float:
-    """シートの段の送り mm: 1枚の高さから重ね（100 以上）を引いた、ハトメの間隔の倍数。上の段の下のハトメと下の段の
-    上のハトメが同じ高さに重なり、1つのクランプで両方を掛ける."""
-    size = sheet_size(model)
-    if size is None:
-        return 0.0
-    if is_panel(model):
-        return float(size[1])
-    p = _sheet_pitch(model)
-    return p * max(1, math.floor((float(size[1]) - SHEET_OVERLAP_MIN_MM) / p))
+def sheet_rows(model: ScaffoldModel, edge_index: int, bottom: Optional[float] = None) -> list[tuple[float, float]]:
+    """シートの段 [(下, 上) mm] を上から割り付ける（下から順に返す）。bottom を渡すとその高さまで（妻側のシート）.
 
-
-def sheet_rows(model: ScaffoldModel, edge_index: int) -> list[tuple[float, float]]:
-    """シートの段 [(下, 上) mm] を上から割り付ける（天端から段の送りずつ下へ。上下の段は重ねる。いちばん下の段は
-    仮囲いの天端までの残り。利用者の指定 2026-10-24: 上から割り付けて）。下から順に返す."""
+    段の継ぎ目は作業床の高さにそろえる: 床（コマ）の半ピッチ上（床＋225）で、上の段の下のハトメと下の段の上のハトメが
+    同じ高さに来て1つのクランプで掛ける（上下 20 ずつ重なる）。1枚の高さに収まる範囲でいちばん下の床で継ぐ（5.1m の
+    シートは2層ごと）。余る長さは継ぎ目で内側へ折り返す扱い。いちばん下の段は仮囲いの天端まで（利用者の指定
+    2026-10-24: 上から割り付けて・2026-10-25: メッシュに変な割り付けになっているよ→段の継ぎ目の高さ）。
+    """
     size = sheet_size(model)
     top = sheet_top_mm(model, edge_index)
-    bottom = sheet_bottom_mm(model, edge_index)
+    if bottom is None:
+        bottom = sheet_bottom_mm(model, edge_index)
     if size is None or top <= bottom:
         return []
     if is_panel(model):
         # 防音パネルは切れない。上から1枚ずつ下ろし、いちばん下の段は仮囲いの天端に重ねて隙間を残さない
         n_rows = int(math.ceil((top - bottom) / size[1] - 1e-6))
         return [(top - (i + 1) * size[1], top - i * size[1]) for i in reversed(range(n_rows))]
-    step = sheet_step_mm(model)
+    h = float(size[1])
+    p = _sheet_pitch(model)
+    e = GROMMET_EDGE_MM
+    joints = sorted({float(f) + p / 2.0 for f in model.elevation_of(edge_index).level_heights})
     out = []
     hi = top
-    while hi > bottom + 1.0:
-        out.append((max(bottom, hi - size[1]), hi))
-        if hi - size[1] <= bottom + 1.0:
+    while True:
+        if hi - bottom <= h + 0.5:
+            out.append((bottom, hi))
             break
-        hi -= step
+        # 継ぎ目 J: 上の段の下端（J−20）が1枚の高さに収まる、いちばん下の床。床が無ければハトメの並びで1枚いっぱい
+        cand = [j for j in joints if j - e >= hi - h - 0.5 and j + e < hi - p]
+        j = min(cand) if cand else hi - e - p * math.floor((h - 2 * e) / p)
+        if j - e <= bottom + 1.0:
+            out.append((bottom, hi))
+            break
+        out.append((j - e, hi))
+        hi = j + e
     return list(reversed(out))
+
+
+def sheet_step_mm(model: ScaffoldModel) -> float:
+    """シートの段の送りの目安 mm（1枚の高さに収まる作業床の層の数 × 階高）."""
+    size = sheet_size(model)
+    if size is None:
+        return 0.0
+    if is_panel(model):
+        return float(size[1])
+    fh = float(model.master.floor_height or 1800)
+    return fh * max(1, math.floor((float(size[1]) - 2 * GROMMET_EDGE_MM) / fh))
 
 
 def sheet_grommet_heights(model: ScaffoldModel, lo: float, hi: float) -> list[float]:
@@ -450,8 +464,10 @@ def sheet_clamp_heights(model: ScaffoldModel, edge_index: int) -> list[float]:
 
 
 def sheet_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> list[tuple[float, float]]:
-    """下端 z0 から上だけ張るシートの段（面の段を z0 で切る）."""
-    return [(max(lo, z0), hi) for lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0]
+    """下端 z0 から上だけ張るシートの段（天端から z0 まで割り付け直す。継ぎ目は面のシートと同じ床の高さ）."""
+    if is_panel(model):
+        return [(max(lo, z0), hi) for lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0]
+    return sheet_rows(model, edge_index, bottom=z0)
 
 
 def sheet_clamp_heights_from(model: ScaffoldModel, edge_index: int, z0: float) -> list[float]:
@@ -556,7 +572,7 @@ def open_end_sheets(model: ScaffoldModel, ep) -> list[tuple[str, float]]:
 
 
 def _n_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> int:
-    return sum(1 for _lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0)
+    return len(sheet_rows_from(model, edge_index, z0))
 
 
 def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=None) -> list[Placement]:

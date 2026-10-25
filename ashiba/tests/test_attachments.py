@@ -232,9 +232,17 @@ class TestSheetClamps(unittest.TestCase):
         # フックとメッシュの穴の位置合わせて）
         self.assertEqual(hs[-1], round(top - 20))
         self.assertTrue(3020 <= hs[0] < 3020 + 450, hs)
-        self.assertIn(round(top - 20 - sheet_step_mm(m)), hs)
         rows = sheet_rows(m, ep.edge_index)
-        self.assertGreater(rows[0][1], rows[1][0])                       # 上下の段は重なる
+        self.assertGreater(rows[0][1], rows[1][0])                       # 上下の段は重なる（ハトメの 20 ずつ）
+        # 段の継ぎ目は作業床の高さ（床＋半ピッチ）。上の段の下のハトメと下の段の上のハトメが同じ高さで1つのクランプ
+        # （利用者の指摘 2026-10-25: メッシュに変な割り付けになっているよ→段の継ぎ目の高さ）
+        joint = rows[0][1] - 20
+        self.assertEqual(joint, rows[1][0] + 20)
+        self.assertIn(round(joint), hs)
+        self.assertTrue(any(abs(joint - (f + m.master.koma_pitch / 2)) < 1 for f in ev.level_heights), joint)
+        for lo, hi in rows:
+            self.assertLessEqual(hi - lo, 5160 + 1)                         # 1枚の高さに収まる
+        self.assertGreater(sheet_step_mm(m), 0)
         # どのクランプもコマから半ピッチ離れる（先行手すり・布材を掛けるコマをふさがない。利用者の指摘 2026-10-25:
         # これだと先行手すりかけれないよ）
         komas, z = [], ev.jack_extension
