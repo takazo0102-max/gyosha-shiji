@@ -135,6 +135,19 @@ for sd = 0 to 1
 	block 0.012, brL - 0.04, hT
 	del 1
 next sd
+! ---- 内側の支柱の継ぎ足し（渡りの手すりが支柱の天端より上のとき。くさびは天端に差す支柱、単管は建地に重ねてクランプ） ----
+if extL > 0.001 then
+	for sd = 0 to 1
+		if isTube = 0 then
+			add sd * brW, 0, postTop
+			cylind extL, r_p
+		else
+			add sd * brW + (1 - 2 * sd) * r_p * 2, -r_p * 2, postTop - 0.30
+			cylind extL, r_p
+		endif
+		del 1
+	next sd
+endif
 ! ---- 足場側の踏み台（渡りの床が足場の床より高いとき） ----
 if nUp > 0 then
 	for iS = 1 to nUp - 1

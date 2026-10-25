@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "hane_bracket_type", "width_change", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "elevation_lines_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "roof_parapet_t_mm", "cross_cuts_mm", "elevation_lines_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",

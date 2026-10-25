@@ -85,6 +85,14 @@
 			<Description><![CDATA["パラペットの厚さ"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Length Name="extL">
+			<Description><![CDATA["掛けるスパンの内側の支柱2本に継ぎ足す長さ（渡りの手すりを受ける。0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="postTop">
+			<Description><![CDATA["内側の支柱の天端の高さ（配置した高さから）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="brName">
 			<Description><![CDATA["平面に書く名前"]]></Description>
 			<Value><![CDATA["屋上への渡り"]]></Value>

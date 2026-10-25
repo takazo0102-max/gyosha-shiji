@@ -27,6 +27,8 @@
 !   paraH     長さ      パラペットの高さ（屋上の床から。0＝なし）                                                                             既定 0
 !   paraX     長さ      躯体の外面（パラペットの外面）の位置（内側建地列から躯体側へ。離れ）                                                  既定 0.3
 !   paraT     長さ      パラペットの厚さ                                                                                                      既定 0
+!   extL      長さ      掛けるスパンの内側の支柱2本に継ぎ足す長さ（渡りの手すりを受ける。0＝なし）                                            既定 0
+!   postTop   長さ      内側の支柱の天端の高さ（配置した高さから）                                                                            既定 0
 !   brName    文字列    平面に書く名前                                                                                                        既定 "屋上への渡り"
 !   lineMode  ブール    3Dを線で（軽い）                                                                                                      既定 0
 !   matDeck   表面材    表面材（0＝既定）                                                                                                     既定 0
@@ -139,7 +141,7 @@ set style "brTx"
 tx = brName
 if brKind = 0 then tx = tx + "（布材＋屋上に支柱）"
 if brKind = 1 then tx = tx + "（ブラケット）"
-if brKind = 2 then tx = tx + "（単管＋屋上に支柱）"
+if brKind = 2 then tx = tx + "（単管＋屋上に建地）"
 if brKind = 3 then tx = tx + "（単管の跳ね出し）"
 if nUp > 0 then tx = tx + " 踏み台" + str(upH * 1000, 4, 0)
 if nDn > 0 then tx = tx + " 踏段" + str(dnH * 1000, 4, 0)
@@ -290,6 +292,19 @@ for sd = 0 to 1
 	block 0.012, brL - 0.04, hT
 	del 1
 next sd
+! ---- 内側の支柱の継ぎ足し（渡りの手すりが支柱の天端より上のとき。くさびは天端に差す支柱、単管は建地に重ねてクランプ） ----
+if extL > 0.001 then
+	for sd = 0 to 1
+		if isTube = 0 then
+			add sd * brW, 0, postTop
+			cylind extL, r_p
+		else
+			add sd * brW + (1 - 2 * sd) * r_p * 2, -r_p * 2, postTop - 0.30
+			cylind extL, r_p
+		endif
+		del 1
+	next sd
+endif
 ! ---- 足場側の踏み台（渡りの床が足場の床より高いとき） ----
 if nUp > 0 then
 	for iS = 1 to nUp - 1

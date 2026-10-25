@@ -61,7 +61,7 @@ set style "brTx"
 tx = brName
 if brKind = 0 then tx = tx + "（布材＋屋上に支柱）"
 if brKind = 1 then tx = tx + "（ブラケット）"
-if brKind = 2 then tx = tx + "（単管＋屋上に支柱）"
+if brKind = 2 then tx = tx + "（単管＋屋上に建地）"
 if brKind = 3 then tx = tx + "（単管の跳ね出し）"
 if nUp > 0 then tx = tx + " 踏み台" + str(upH * 1000, 4, 0)
 if nDn > 0 then tx = tx + " 踏段" + str(dnH * 1000, 4, 0)

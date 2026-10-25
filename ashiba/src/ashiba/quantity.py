@@ -1639,10 +1639,10 @@ def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
             add(m.find("単管", int(_tube_len(tube_need, m))), n_side, f"単管（{tag}の両脇の受け・中桟・手すり）")
             n_clamp = 2 * n_side
             if b.kind == "単管支柱":
-                add(m.find("単管", int(_tube_len(w + 200.0, m))), 1, f"単管（{tag}の屋上の支柱どうし）")
-                add(m.find("単管", int(b.post_mm)), 2, f"単管（{tag}の屋上の支柱）")
+                add(m.find("単管", int(_tube_len(w + 200.0, m))), 1, f"単管（{tag}の屋上の建地どうし）")
+                add(m.find("単管", int(b.post_mm)), 2, f"単管（{tag}の屋上の建地）")
                 base = m.get("A15")
-                add(base, 2, f"ベース（{tag}の屋上の支柱）")
+                add(base, 2, f"ベース（{tag}の屋上の建地）")
                 n_clamp += 2 + 6
             else:
                 add(m.find("単管", 1000), 2, f"単管（{tag}の先端の手すり柱）")
@@ -1655,6 +1655,13 @@ def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
                        None)
             add(toe, 2, f"足場板（{tag}の幅木）")
     # 部材は数量に含める（足場の部材で組む）。組み方と段差は現場で確かめる項目として要確認へ
+    for b in bs:
+        if b.ext_mm:
+            if b.tube:
+                add(m.find("単管", int(b.ext_mm)), 2, "単管（屋上への渡りの手すりを受ける建地の継ぎ足し）")
+                add(m.get("ARC1"), 4, "直交クランプ（屋上への渡りの建地の継ぎ足し）")
+            else:
+                add(m.find("支柱", int(b.ext_mm)), 2, f"支柱{b.ext_mm:.0f}（屋上への渡りの手すりを受ける内側の支柱の継ぎ足し）")
     notes.action(bridge_note(bs, model) + "。部材は数量に含めています（足場の部材で組む）。組み方・段差を現場で確かめてください",
                  Notes.SITE)
 

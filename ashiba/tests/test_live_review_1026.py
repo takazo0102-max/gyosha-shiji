@@ -117,6 +117,24 @@ class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
         self.assertGreater(d.get("ARC1", 0), 0)
         self.assertTrue(any(k.startswith("単管") for k in d), d)
 
+    def test_inner_posts_are_extended_for_the_rails(self):
+        # 渡りの手すりが足場の内側の支柱の天端より上になるとき、掛けるスパンの内側の支柱2本を継ぎ足す（案内だけだった）
+        r, b = self._bridge(roof_parapet_mm=300)
+        koma = r.model.master.koma_pitch
+        self.assertGreater(b.ext_mm, 0)
+        self.assertEqual(b.ext_mm % koma, 0)                                # コマの並びを崩さない
+        self.assertGreaterEqual(b.post_top_mm + b.ext_mm, b.z_deck_mm + 900)
+        d = self._delta(r, roof_parapet_mm=300)
+        ext = r.model.master.find("支柱", int(b.ext_mm)).model_no
+        self.assertGreaterEqual(d.get(ext, 0), 2)
+
+    def test_anti_fill_the_depth(self):
+        # 横引きのアンチが奥行きにすき間なく並ぶ長さを選ぶ（914 に 500＋240 だと 134 残った）
+        from ashiba.roof_bridges import deck_gap_mm
+
+        _r, b = self._bridge(roof_parapet_mm=300)
+        self.assertLessEqual(deck_gap_mm(b.length_mm, b.deck), 90)
+
     def test_part_gets_the_members(self):
         from ashiba.attachments import bridge_placements
 

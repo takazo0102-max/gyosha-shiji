@@ -904,6 +904,7 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
             "postL": b.post_mm / 1000.0, "jackOut": b.jack_mm / 1000.0,
             "deckList": ",".join(str(int(w)) for w in b.deck), "deckLen": b.deck_len_mm / 1000.0,
             "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0, "paraT": b.parapet_t_mm / 1000.0,
+            "extL": b.ext_mm / 1000.0, "postTop": (base + b.post_top_mm) / 1000.0,
             "lineMode": bool(line_mode)}))
     return _with_pens(model, out)
 

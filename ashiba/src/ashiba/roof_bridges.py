@@ -56,6 +56,8 @@ class RoofBridge:
     deck_len_mm: float = 0.0                   # 床材の長さ（アンチは布材と同じ呼び、足場板は規格の長さ）
     tube: bool = False       # 単管と足場板で組む（枠組・単管）
     bracket: str = ""        # ブラケットの品名（すき間を塞ぐ渡り）
+    ext_mm: float = 0.0      # 渡りの手すりを受けるために継ぎ足す、掛けるスパンの内側の支柱2本の長さ（0 は不要）
+    post_top_mm: float = 0.0 # 内側の支柱の天端（足場の立つ高さから）
 
     @property
     def step_up_mm(self) -> float:
@@ -114,15 +116,27 @@ def _deck_level(levels: list[float], roof: float, para: float, koma: float,
 
 
 def _deck_list(depth: float, unit: int, wall_clear: float = 30.0) -> list[int]:
-    """奥行き depth に並べる床材の幅（くさび: アンチ 500 を並べて残りに 240、単管: 足場板 240）."""
+    """奥行き depth に並べる床材の幅（くさび: アンチ 500 と 240 の組み合わせでいちばん埋まるもの、単管: 足場板 240）.
+    床材の間は 10 あける."""
     room = depth - wall_clear
     if unit == 240:
-        return [240] * max(1, int(room // 240))
-    n5 = int(room // 500)
-    out = [500] * n5
-    if room - 500 * n5 >= 240:
-        out.append(240)
-    return out or [240]
+        return [240] * max(1, int((room + 10) // 250))
+    best: list[int] = [240]
+    for n5 in range(int(room // 500) + 1):
+        n24 = int((room - n5 * 510 + 10) // 250) if room - n5 * 510 + 10 >= 250 else 0
+        ws = [500] * n5 + [240] * n24
+        if ws and _filled(ws) <= room and _filled(ws) > _filled(best):
+            best = ws
+    return best
+
+
+def _filled(ws: list[int]) -> float:
+    return float(sum(ws) + 10 * max(0, len(ws) - 1))
+
+
+def deck_gap_mm(depth: float, ws: list[int], wall_clear: float = 30.0) -> float:
+    """床材を並べた残り（両端の受けとのすき間の合計）."""
+    return depth - wall_clear - _filled(ws)
 
 
 def _wedge_post(drop: float, master) -> tuple[float, float]:
@@ -214,7 +228,10 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
         else:
             spans = sorted(m.span_lengths())
             b.kind = "支柱"
-            b.length_mm = float(next((L for L in spans if L >= reach_need), spans[-1]))
+            # 奥行きはアンチがすき間なく並ぶ布材の長さ（安衛則563条: 床材のすき間 3cm 以下。残りは受けの両端で 90 まで＝ND の 610 の床と同じ）
+            cands = [L for L in spans if L >= reach_need] or spans[-1:]
+            b.length_mm = float(next((L for L in cands if deck_gap_mm(L, _deck_list(L, 500)) <= 90.0),
+                                     min(cands, key=lambda L: deck_gap_mm(L, _deck_list(L, 500)))))
             # アンチも横引き（面に沿って、両脇の腕木の布材に掛ける。長さはスパンと同じ呼び）
             b.deck = _deck_list(b.length_mm, 500)
             b.deck_len_mm = w
@@ -226,10 +243,23 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
                      "階段を別に設けてください")
     if mode == "gap" and z_to - zb > FLUSH_MM:
         notes.append(f"屋上への渡り（{name}）: 渡りの床から屋上へ {z_to - zb:.0f} 上がります（1段）")
+    # 渡りの手すりは掛けるスパンの内側の支柱2本に留める。天端が足りなければ、その2本を継ぎ足す（くさびはコマの並びを
+    # 崩さないコマの倍数の支柱、枠組・単管は建地に重ねてクランプで留める単管）
     top = float(model.elevation_of(ei).total_height)
-    if top < zb + 900.0:
-        notes.append(f"屋上への渡り（{name}）: 内側の支柱の天端（{top:.0f}）が渡りの手すり（{zb + 900:.0f}）より低いので、"
-                     "手すりの高さまで支柱を継ぎ足してください")
+    b.post_top_mm = top
+    gap = 100.0 if tube else float(m.koma_top_gap or 0.0)
+    need = zb + 900.0 + gap - top
+    if need > 1.0:
+        if tube:
+            b.ext_mm = _tube_len(need + 300.0, m)
+        else:
+            koma = float(m.koma_pitch or 450.0)
+            want = math.ceil(need / koma - 1e-9) * koma
+            b.ext_mm = float(min((L for L in m.post_lengths() if L >= want and L % koma == 0),
+                                 default=max(m.post_lengths())))
+        post = "建地" if tube else "支柱"
+        notes.append(f"屋上への渡り（{name}）: 渡りの手すり（{zb + 900:.0f}）が内側の{post}の天端（{top:.0f}）より上になるので、"
+                     f"掛けるスパンの内側の{post}2本に{'単管' if tube else '支柱'}{b.ext_mm:.0f}を継ぎ足しています")
     return b
 
 
@@ -294,7 +324,7 @@ def bridge_words(b: RoofBridge) -> str:
     elif b.kind == "ブラケット":
         s = f"{b.bracket}で躯体の外面までのすき間を塞ぐ"
     elif b.kind == "単管支柱":
-        s = f"単管{b.length_mm / 1000:.2f}m・屋上に単管の支柱{b.post_mm / 1000:.1f}m（ベース）"
+        s = f"単管{b.length_mm / 1000:.2f}m・屋上に単管の建地{b.post_mm / 1000:.1f}m（ベース）"
     else:
         s = f"単管を躯体の外面まで跳ね出してすき間を塞ぐ"
     if b.tube:
@@ -308,6 +338,8 @@ def bridge_words(b: RoofBridge) -> str:
         s += f"・屋上へ踏段（{b.steps(b.drop_mm)}段・{b.drop_mm:.0f}下りる）"
     if b.parapet_mm > 0:
         s += f"・パラペット{b.parapet_mm:.0f}の上を越える"
+    if b.ext_mm:
+        s += f"・内側の{'建地' if b.tube else '支柱'}2本を{b.ext_mm:.0f}継ぎ足す"
     return s
 
 
