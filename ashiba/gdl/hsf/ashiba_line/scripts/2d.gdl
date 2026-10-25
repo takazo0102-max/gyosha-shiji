@@ -721,11 +721,11 @@ if haneD > 0.001 then
 	for ie8 = 0 to 1
 		xbW = hbExtS
 		xb0 = -hbExtS
-		xbT = -hbExtS
+		xbT = -hbExtS + 0.02135
 		if ie8 = 1 then
 			xbW = hbExtE
 			xb0 = lineLen
-			xbT = lineLen + hbExtE
+			xbT = lineLen + hbExtE - 0.02135
 		endif
 		if xbW > 0.001 then
 			pen penLine
@@ -767,14 +767,14 @@ if cornerS = 1 and cnrBkW > 0.001 and nCBk > 0 and gxA < 0.001 then
 	pen penLine
 	if cnrBkP = 0 then
 		rect2 -cSW, -rowW - cnrBkW, 0, -rowW
-		circle2 0, -rowW - cnrBkW, r_sic
-		circle2 -cSW, -rowW - cnrBkW, r_sic
+		circle2 0, -rowW - cnrBkW + 0.02135, r_sic
+		circle2 -cSW, -rowW - cnrBkW + 0.02135, r_sic
 		tdx = -cSW / 2
 		tdy = -rowW - cnrBkW - 0.25
 	else
 		rect2 -cSW - cnrBkW, -rowW, -cSW, 0
-		circle2 -cSW - cnrBkW, 0, r_sic
-		circle2 -cSW - cnrBkW, -rowW, r_sic
+		circle2 -cSW - cnrBkW + 0.02135, 0, r_sic
+		circle2 -cSW - cnrBkW + 0.02135, -rowW, r_sic
 		tdx = -cSW - cnrBkW / 2
 		tdy = 0.25
 	endif

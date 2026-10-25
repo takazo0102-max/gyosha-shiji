@@ -2191,11 +2191,11 @@ if haneD > 0.001 then
 	for ie8 = 0 to 1
 		xbW = hbExtS
 		xb0 = -hbExtS
-		xbT = -hbExtS
+		xbT = -hbExtS + 0.02135
 		if ie8 = 1 then
 			xbW = hbExtE
 			xb0 = lineLen
-			xbT = lineLen + hbExtE
+			xbT = lineLen + hbExtE - 0.02135
 		endif
 		if xbW > 0.001 then
 			pen penLine
@@ -2237,14 +2237,14 @@ if cornerS = 1 and cnrBkW > 0.001 and nCBk > 0 and gxA < 0.001 then
 	pen penLine
 	if cnrBkP = 0 then
 		rect2 -cSW, -rowW - cnrBkW, 0, -rowW
-		circle2 0, -rowW - cnrBkW, r_sic
-		circle2 -cSW, -rowW - cnrBkW, r_sic
+		circle2 0, -rowW - cnrBkW + 0.02135, r_sic
+		circle2 -cSW, -rowW - cnrBkW + 0.02135, r_sic
 		tdx = -cSW / 2
 		tdy = -rowW - cnrBkW - 0.25
 	else
 		rect2 -cSW - cnrBkW, -rowW, -cSW, 0
-		circle2 -cSW - cnrBkW, 0, r_sic
-		circle2 -cSW - cnrBkW, -rowW, r_sic
+		circle2 -cSW - cnrBkW + 0.02135, 0, r_sic
+		circle2 -cSW - cnrBkW + 0.02135, -rowW, r_sic
 		tdx = -cSW - cnrBkW / 2
 		tdy = 0.25
 	endif
@@ -5968,6 +5968,8 @@ return
 	! 同じコマ）。方杖は腕の先の手前から支柱の下のコマへ（610 は2コマ下、それより短いものは1コマ下）。先端のホゾに手すり柱
 	! （支柱 1350）を立てて手すり・中桟を掛ける。床は2基の腕に渡す（610 は 500 幅の布板1枚、短いものは 240 幅）。
 	! 手すり・中桟は xbRA（y=0 の脇）・xbRB（y=-xbL の脇）・xbRF（腕の先）
+	! 先端の管（φ42.7）の芯。出 xbW は支柱の芯から先端の管の外面まで（カタログの 305＝20.5＋241＋42.7）
+	xbT = xbW - 0.02135
 	xbDp = komaPitch
 	if xbW > 0.40 then xbDp = 2 * komaPitch
 	if xbDp < 0.3 then xbDp = 0.45
@@ -6002,7 +6004,7 @@ return
 	endif
 	! 先端の手すり柱（支柱 1350）とコマ
 	for xbS = 0 to 1
-		add xbW, -xbS * xbL, xbZ
+		add xbT, -xbS * xbL, xbZ
 		cylind 1.35, r_sic
 		resol 6
 		for xbK = 0 to 2
@@ -6026,18 +6028,18 @@ return
 		if xbH = 2 then zr8 = xbZr + railMid
 		if xbRA = 1 then
 			add 0, 0, zr8
-			nL = xbW
+			nL = xbT
 			gosub 830
 			del 1
 		endif
 		if xbRB = 1 then
 			add 0, -xbL, zr8
-			nL = xbW
+			nL = xbT
 			gosub 830
 			del 1
 		endif
 		if xbRF = 1 then
-			add xbW, 0, zr8
+			add xbT, 0, zr8
 			rotz -90
 			nL = xbL
 			gosub 830
@@ -6056,9 +6058,9 @@ return
 	del 1
 	add r_sic + 0.042, xbY, xbZ
 	roty 90
-	cylind xbW - r_sic - 0.042 - 0.03, r_nuno
+	cylind xbT - r_sic - 0.042, r_nuno
 	del 2
-	add xbW - 0.03, xbY - 0.03, xbZ - 0.06
+	add xbT - 0.03, xbY - 0.03, xbZ - 0.06
 	block 0.06, 0.06, 0.09
 	del 1
 	add r_sic, xbY - 0.020, xbZ - xbDp - 0.03
@@ -6067,7 +6069,7 @@ return
 	bx1 = r_sic + 0.03
 	by1 = xbY
 	bz1 = xbZ - xbDp
-	bx2 = xbW - 0.06
+	bx2 = xbT - 0.06
 	by2 = xbY
 	bz2 = xbZ - 0.03
 	brR = 0.0136
@@ -6080,6 +6082,7 @@ return
 	! 立てる。各層 cBkLv[] に、元の支柱と先端の支柱を xbW の布材（床・手すり・中桟）でつなぎ、先端の2本を床の布材で
 	! つなぐ。床は 240 幅の布板を2本の布材に渡す。先端の向こう（隣の足場の床）とのあき xbG が 3cm を超えれば、すき間板
 	xbZ = cBkLv[1]
+	xbT = xbW - 0.02135
 	xbDp = komaPitch
 	if xbDp < 0.3 then xbDp = 0.45
 	for xbS = 0 to 1
@@ -6088,7 +6091,7 @@ return
 		if brkObj = 0 then
 		gosub 754
 		! 補強単管（φ48.6、先端から1層下の元の支柱へ。両端はクランプ）
-		bx1 = xbW - 0.03
+		bx1 = xbT
 		by1 = xbY - 0.05
 		bz1 = xbZ - 0.08
 		bx2 = r_sic + 0.04
@@ -6107,7 +6110,7 @@ return
 		endif
 		! 先端の支柱（ホゾに挿して天端まで）
 		if xbTop > xbZ + 0.1 then
-			add xbW, xbY, xbZ
+			add xbT, xbY, xbZ
 			cylind xbTop - xbZ, r_sic
 			del 1
 		endif
@@ -6122,7 +6125,7 @@ return
 				if xbK = 1 then zk = xbZr + railMid
 				if xbK = 2 then zk = xbZr + railTop
 				if zk < xbTop - 0.05 then
-					add xbW, -xbS * xbL, zk - 0.003
+					add xbT, -xbS * xbL, zk - 0.003
 					cylind 0.006, 0.053
 					del 1
 				endif
@@ -6133,12 +6136,12 @@ return
 		if ib7 > 1 then
 			for xbS = 0 to 1
 				add 0, -xbS * xbL, xbZr
-				nL = xbW
+				nL = xbT
 				gosub 830
 				del 1
 			next xbS
 		endif
-		add xbW, 0, xbZr
+		add xbT, 0, xbZr
 		rotz -90
 		nL = xbL
 		gosub 830
@@ -6156,7 +6159,7 @@ return
 			next xbD
 			! すき間板（隣の足場の床とのあきが 3cm を超えるとき。安衛則563条1項2号ロ）
 			if xbG > 0.03 then
-				add xbW - 0.08, -xbL + 0.03, xbZr + r_nuno + 0.045
+				add xbT - 0.06, -xbL + 0.03, xbZr + r_nuno + 0.045
 				block xbG + 0.16, xbL - 0.06, 0.004
 				del 1
 			endif
