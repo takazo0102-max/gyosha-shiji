@@ -41,6 +41,7 @@ from ashiba.tapir_adapter import (  # noqa: E402
     place_details,
     place_elevations,
     place_scaffold_lines,
+    place_width_change_lines,
     read_ground_model,
 )
 from ashiba.elevation_sections import (  # noqa: E402
@@ -441,11 +442,22 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
 
     notes: list[str] = []
     line_mode = bool(r.model.config.line_mode_3d)
+    # 拡幅・縮幅の面の上の部品（新しい幅の足場ライン）。壁つなぎ・ブラケットを部品で置いたときの切り替えも同じに
+    upper: list[dict] = []
+    if getattr(r.model, "width_change", None) is not None:
+        try:
+            upper = place_width_change_lines(
+                r.model, versioned_part_name(LINE_OBJECT), client, stair_plan=r.stair_plan, openings=r.openings,
+                platforms=r.platforms, bracket_sections=r.brackets, terrain=r.terrain, floor_index=line_floor(client, lines))
+            print(f"  {r.model.width_change.label}: 上の足場ライン {len(upper)}本")
+        except TapirError as e:
+            notes.append(f"拡幅・縮幅の上の足場ラインを置けませんでした（{e}）")
+    lines = list(lines) + upper
     pls = (tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
            + sheet_placements(r.model, line_mode, r.stair_plan) + cstep_placements(r.model, line_mode)
            + bridge_placements(r.model, line_mode) + kbrk_placements(r.model, line_mode))
     if not pls:
-        return [], notes
+        return upper, notes
     names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, CSTEP_OBJECT,
                                                  BRIDGE_OBJECT, KBRK_OBJECT)}
     mats = {}
@@ -469,7 +481,7 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
             extra["matBk"] = mats["matDeck"]     # 拡幅・張出ブラケットは鋼製（溶融亜鉛めっき）
         pairs.append((el, {**p.params, **extra}))
     client.set_gdl_parameters_many(pairs)
-    placed = [el for el in els if el is not None]
+    placed = upper + [el for el in els if el is not None]
     n_tie = sum(1 for p in pls if p.part == TIE_OBJECT)
     tie_ok = sum(1 for p, el in zip(pls, els) if p.part == TIE_OBJECT and el is not None)
     if n_tie and tie_ok == n_tie:

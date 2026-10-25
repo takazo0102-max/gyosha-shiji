@@ -203,6 +203,8 @@ if showDim then
 	tdx = (pxA + pxB) / 2
 	tdy = -rowW / 2
 	tdt = "上部 " + str(lA, 1, 0) + "〜" + str(lB, 1, 0) + "層"
+	! 拡幅・縮幅の上の部品（width_change）は幅と段を書く
+	if strlen(segNote) > 0 then tdt = segNote + "（" + str(lA, 1, 0) + "段目の床から）"
 	gosub 985
 	set style "anno"
 endif

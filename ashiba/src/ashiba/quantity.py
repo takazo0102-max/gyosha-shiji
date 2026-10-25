@@ -395,6 +395,16 @@ def _take_off_one(
         by = breakdown.setdefault(key, {})
         by[what] = by.get(what, 0) + qty
 
+    def sub(part: Optional[Part], qty: int, what: str) -> None:
+        """数えた部材を差し引く（拡幅・縮幅で幅の違う腕木・布板に替える層など。内訳には負の数で残す）."""
+        if qty <= 0 or part is None:
+            return
+        key = (part.model_no, part.category)
+        counts[key] = max(0, counts.get(key, 0) - qty)
+        parts[key] = part
+        by = breakdown.setdefault(key, {})
+        by[what] = by.get(what, 0) - qty
+
     rows = 1 if model.config.scaffold_form == "一側足場" else rules.rows
     posts_per_line = plan.total_posts        # 帰属ルールで二重計上なし
     # 出隅の外側コーナー支柱（内側列は隣の面とコーナー支柱を共有するが、外側列は
@@ -801,6 +811,7 @@ def _take_off_one(
     _count_open_ends(model, add, notes)
     _count_hane_brackets(model, notes)
     _count_widen_brackets(model, add, notes)
+    _count_width_change(model, add, sub, notes, stair_plan)
     _count_sill_boards(model, notes, terrain, stair_plan)
     _count_roof_bridges(model, notes)
     _count_intakes(model, notes)
@@ -1788,6 +1799,103 @@ def _count_widen_brackets(model: ScaffoldModel, add, notes) -> None:
     if n_rail:
         add(m.find("布材", row), n_rail, f"高さの違う出隅の升目の上の層の辺の布材・手すり（布材{row}）")
 
+
+
+def _count_width_change(model: ScaffoldModel, add, sub, notes, stair_plan=None) -> None:
+    """拡幅・縮幅（width_change）: 幅を変えた床から上の腕木・布板・出隅の升目を新しい幅に替え、拡幅ブラケット・
+    元の支柱の継ぎ足し（NDP09N）・つなぎ材 NDT03 と出隅の角の支柱の納まりを足す（attachments._width_change_kbrk と同じ）.
+
+    外側の支柱は幅を変える床で継ぎ、上はブラケットの先端のホゾに立てる（本数は元の外側の支柱と同じとみなす）."""
+    from .width_change import EXT_POST_MM, WIDTH_STEP_MM, change_height_mm, corner_point, faces, upper_levels
+
+    wc = getattr(model, "width_change", None)
+    if wc is None:
+        return
+    m = model.master
+    w1, w2 = int(wc.from_mm), int(wc.to_mm)
+    d1 = list(model.deck_widths_in_use)
+    d2 = list(wc.to_decks)
+    eps = [e for e in faces(model) if model.edge_subset is None or e.edge_index in model.edge_subset]
+    if not eps:
+        return
+    tag = f"{wc.mode}{w1}→{w2}"
+    n_br = 0
+    order: list[str] = []
+    lengths = sorted({p.nominal_dim for p in m.by_category("支柱")
+                      if "根がらみ" not in p.note and "屋根" not in p.note and p.nominal_dim > 0}, reverse=True)
+
+    def post_of(nominal: int):
+        return next((p for p in m.by_category("支柱") if p.nominal_dim == nominal
+                     and "根がらみ" not in p.note and "屋根" not in p.note), None)
+
+    n_corner = n_tie_c = tube_c = 0
+    for ep in eps:
+        k = upper_levels(model, ep.edge_index)
+        nt = len(ep.spans) + (1 if model._no_next(ep.edge_index) else 0)
+        sub(m.find("布材", w1), nt * k, f"{tag}で差し引いた腕木{w1}")
+        add(m.find("布材", w2), nt * k, f"{tag}の腕木（布材{w2}）")
+        for s in ep.spans:
+            for w in d1:
+                sub(m.deck_parts(w, int(s)), k, f"{tag}で差し引いた踏板 幅{w}×{int(s)}")
+            for w in d2:
+                add(m.deck_parts(w, int(s)), k, f"{tag}の踏板 幅{w}×{int(s)}")
+        n_br += len(ep.spans) + 1
+        c = corner_point(model, ep)
+        if c is None:
+            continue
+        n_corner += 1
+        sub(m.find("布材", w1), 6 * k, f"{tag}で差し引いた出隅コーナーの布材{w1}")
+        add(m.find("布材", w2), 6 * k, f"{tag}の出隅コーナーの布材{w2}")
+        if model.config.has_toe_board:
+            sub(m.find("幅木", w1), 2 * k, f"{tag}で差し引いた出隅コーナーの幅木{w1}")
+            add(m.find("幅木", w2), 2 * k, f"{tag}の出隅コーナーの幅木{w2}")
+        for w in d1:
+            sub(m.deck_parts(w, w1), k, f"{tag}で差し引いた出隅コーナーの踏板 幅{w}×{w1}")
+        for w in d2:
+            add(m.deck_parts(w, w2), k, f"{tag}の出隅コーナーの踏板 幅{w}×{w2}")
+        if wc.mode == "拡幅":
+            # 角の支柱は地上から（幅を変える床まで。上は元の角の支柱の分で足りる）と、ジャッキ
+            rest = change_height_mm(model, ep.edge_index) - model.elevation_of(ep.edge_index).jack_extension
+            while rest > 10 and lengths:
+                pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
+                add(post_of(int(pick)), 1, f"{tag}の出隅の角の支柱（地上から）{int(pick)}")
+                rest -= pick
+            from .gdl_params import _default_jack_no
+
+            add(m.get(_default_jack_no(model)), 1, f"{tag}の出隅の角の支柱のジャッキ")
+            n_tie_c += wc.level        # 根がらみ＋幅を変える床の下の各層
+        else:
+            tube_c = 1500 if c["beam_mm"] <= 1450 else 2000
+    if n_tie_c:
+        order.append(f"出隅の角の支柱（地上から）を元の角の支柱へ繋ぐ単管 0.5m {n_tie_c}本と自在クランプ {2 * n_tie_c}個"
+                     f"（{n_corner}隅。根がらみと幅を変える床の下の各層）")
+    if tube_c:
+        order.append(f"出隅の角の支柱を受ける対角の単管 {tube_c / 1000:.1f}m {n_corner}本と自在クランプ {3 * n_corner}個"
+                     "（元の升目の内外の角の支柱に掛け、角の支柱は自在クランプで留める）")
+    part = next((p for p in m.by_category("ブラケット") if p.nominal_dim == WIDTH_STEP_MM and "拡幅" in p.note), None)
+    if part is not None:
+        add(part, n_br, f"{tag}の拡幅ブラケット{WIDTH_STEP_MM}")
+    else:
+        order.append(f"拡幅ブラケット{WIDTH_STEP_MM} {n_br}基（系列のマスタに無い）")
+    add(post_of(EXT_POST_MM), n_br, f"{tag}で元の外側の支柱に継ぎ足す支柱{EXT_POST_MM}")
+    add(m.find("布材", WIDTH_STEP_MM), n_br, f"{tag}の継ぎ足した支柱と先端の支柱のつなぎ材{WIDTH_STEP_MM}")
+    if order:
+        notes.action(f"{wc.label}で別途手配: " + "、".join(order), Notes.ORDER)
+    # 外付け階段は外側の建地列に付く。幅を変えた面の階段の升目は、上の層で外側の支柱が 305 ずれて階段と食い違う
+    if stair_plan is not None and getattr(stair_plan, "outside", False):
+        hit = sorted({model.face_name(t.edge_index) for t in stair_plan.towers
+                      if any(e.edge_index == t.edge_index for e in eps)})
+        if hit:
+            notes.action(f"{wc.label}: {'・'.join(hit)}の外付け階段は外側の建地列に付くため、幅を変えた層で階段の升目と"
+                         "外側の支柱が食い違います。階段のある面は幅を変えない（faces で面を選ぶ）か、階段を本体の中に"
+                         "入れてください", Notes.SITE)
+    notes.append(
+        f"{wc.label}: 下の足場の外側の支柱{n_br}本に拡幅ブラケット{WIDTH_STEP_MM}を掛け（"
+        + ("外へ" if wc.mode == "拡幅" else "躯体側へ")
+        + f"）、先端のホゾに新しい外側の支柱を天端まで立てます。元の支柱には NDP09N を継ぎ足してつなぎ材"
+        f"{WIDTH_STEP_MM}で繋ぎます。上の{len(eps)}面の腕木・布板・出隅の升目は幅{w2}で計上。幅を変えるのは全高で1回、"
+        "幅を変えた層の上下は前踏み側の全スパンに壁つなぎを付け、拡幅部の支柱の許容荷重（日建 ND1800 は 8.8kN/本）を"
+        "確かめてください")
 
 
 def _count_open_ends(model: ScaffoldModel, add, notes) -> None:

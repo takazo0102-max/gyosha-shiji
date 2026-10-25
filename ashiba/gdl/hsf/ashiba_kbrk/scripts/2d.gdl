@@ -10,6 +10,28 @@ rot2 faceAng
 rP = postR
 rA = 0.0427 / 2
 xT = brW - rA
+! 出隅の角の支柱（拡幅・縮幅）: 角の支柱と単管
+if cnrMode > 0 then
+	if cnrMode = 1 then
+		circle2 0, 0, rP
+		line2 0, 0.024, cnrL, 0.024
+		line2 0, -0.024, cnrL, -0.024
+		if showName then
+			style "kbTx"
+			text2 0, -0.15, "拡幅の角の支柱（地上から）"
+		endif
+	else
+		line2 0, 0.024, cnrL, 0.024
+		line2 0, -0.024, cnrL, -0.024
+		circle2 cnrAt, 0, rP
+		if showName then
+			style "kbTx"
+			text2 cnrAt, -0.15, "縮幅の角の受け単管"
+		endif
+	endif
+	hotspot2 0, 0
+	end
+endif
 line2 rP, -rA, xT - rA, -rA
 line2 rP, rA, xT - rA, rA
 circle2 xT, 0, rA

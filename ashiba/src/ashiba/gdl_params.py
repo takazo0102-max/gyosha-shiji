@@ -565,7 +565,17 @@ def line_params(
                        if model.config.asagao else 2.0),
         "asagaoAngle": (model.config.asagao.angle_deg
                         if model.config.asagao else 25.0),
+        # 拡幅・縮幅の上の部品の注記（下の部品は空。width_change.upper_params）
+        "segNote": "",
+        # 途中の床から幅を変える面は、元の幅の部品をその床の下の段まで（上の部品は width_change.upper_params で別に置く）
+        **_width_lower(model, ep),
     }, ep.edge_index)
+
+
+def _width_lower(model: ScaffoldModel, ep) -> dict:
+    from .width_change import lower_params
+
+    return lower_params(model, ep) if getattr(model, "width_change", None) else {}
 
 
 # 敷板（杉の足場板。ジャッキベースの下に支柱の列に沿って通す。利用者の指定 2026-10-25）

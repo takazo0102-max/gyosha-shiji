@@ -25,6 +25,9 @@ ENDS = {"布材（手すり＋中桟）": "布材", "ブレス材（先行手す
 HANE = {"跳ね出し・方杖（ブラケットの腕の先から下の階の壁へ突っ張る）": "方杖",
         "跳ね出し・吊り（ブラケットの腕の先を上の階の壁から吊る）": "吊り",
         "跳ね出さない（本体の足場を上まで通して張り出しをかわす）": "なし"}
+# 途中の作業床から足場の幅を変える（拡幅ブラケット 305 の1回分。利用者の指定 2026-10-25: 両方作って 610→914と914→1219）
+WIDEN_NONE = "変えない"
+WIDENS = (WIDEN_NONE, "拡幅 610→914", "拡幅 914→1219", "縮幅 914→610", "縮幅 1219→914")
 TIES = {"仕上げから（外壁にアンカー）": "仕上げ", "鉄骨から（梁にビームクランプ）": "鉄骨"}
 ONOFF = {"付ける": True, "付けない": False}
 NET = {"張らない": False, "張る": True}
@@ -35,7 +38,7 @@ SHEETS = ("メッシュシート", "防音シート", "密閉シート", "防音
 ELEV = {"最後に作る（図面を作るボタン）": "section", "配置のたびに作る": "each", "作らない（平面・3Dだけ・速い）": "none"}
 
 # 窓で変える足場条件の部品の項目（ここに無い項目は部品のまま）
-FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard", "haneType", "tieSource",
+FORM_GDL_KEYS = ("projName", "moduleKind", "seriesId", "scaffForm", "bracketPost", "scaffW", "railType", "innerRail", "endGuard", "haneType", "widthChg", "widthChgLv", "tieSource",
                  "toeBoard", "netLevels", "netBrackets",
                  "stairLayout", "sheetType", "hoardH", "eavesH", "hFromSlab", "elevMode")
 
@@ -84,6 +87,17 @@ def current_width(spec: dict) -> str:
     return min(cands, key=lambda c: abs(c.width_mm - float(w))).label
 
 
+def _current_widen(spec: dict) -> str:
+    from .width_change import parse_spec
+
+    v = parse_spec(spec.get("width_change"))
+    if not v:
+        return WIDEN_NONE
+    a, b = int(v.get("from_mm") or spec.get("scaffold_width_mm") or 0), int(v.get("to_mm") or 0)
+    lab = f"{'拡幅' if b > a else '縮幅'} {a}→{b}"
+    return lab if lab in WIDENS else WIDEN_NONE
+
+
 def form_fields(spec: dict) -> list[dict]:
     """窓の項目（いまの条件の値を入れて）."""
     labels = _series_labels()
@@ -104,6 +118,13 @@ def form_fields(spec: dict) -> list[dict]:
                        "跳ね出し・方杖（ブラケットの腕の先から下の階の壁へ突っ張る）"),
          "help": "上の階が外へ張り出すときの足場。跳ね出しは張り出した床から出すブラケットの上に建て、張り出しの下の本体の"
                  "足場はブラケット（方杖は方杖の下端）の下で止める。跳ね出さないは本体の足場の離れを広げて上まで通す"},
+        {"key": "widen", "label": "途中で幅を変える", "kind": "choice", "options": list(WIDENS),
+         "value": _current_widen(spec),
+         "help": "拡幅ブラケット（日建 NDBK03H 305）で、決めた床から上の足場の幅を 305 広げる（拡幅）・狭める（縮幅）。"
+                 "下の足場の幅は左の数字（足場の幅もこの値にします）。全高で1回だけ、上下の層は前踏み側の全スパンに壁つなぎ"},
+        {"key": "widen_lv", "label": "幅を変える床（段）", "kind": "text",
+         "value": str((spec.get("width_change") or {}).get("level") or "") if isinstance(spec.get("width_change"), dict) else "",
+         "help": "この段の床から上が新しい幅（1＝最下段の床）。ブラケットはこの床のコマで下の外側の支柱に掛ける"},
         {"key": "", "label": "安全・設備", "kind": "section"},
         {"key": "rail", "label": "外側の手すり", "kind": "choice", "options": list(RAILS),
          "value": _key(RAILS, spec.get("guard_rail_type") or "布材", "布材（手すり＋中桟＋幅木）")},
@@ -217,6 +238,23 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
         out["end_guard"] = ENDS[values["end"]]
     if values.get("hane") in HANE:
         out["hane_bracket_type"] = HANE[values["hane"]]
+    if values.get("widen") in WIDENS:
+        if values["widen"] == WIDEN_NONE:
+            out.pop("width_change", None)
+        else:
+            a, b = (int(t) for t in values["widen"].split()[1].split("→"))
+            try:
+                lv = int(str(values.get("widen_lv") or "").strip())
+            except ValueError:
+                lv = 0
+            if lv < 2:
+                notes.append(f"幅を変える床の段「{values.get('widen_lv')}」は 2 以上の数字にしてください（幅は変えません）")
+                out.pop("width_change", None)
+            else:
+                out["width_change"] = {"label": values["widen"], "from_mm": a, "to_mm": b, "level": lv}
+                if int(out.get("scaffold_width_mm") or 0) != a:
+                    notes.append(f"下の足場の幅を {a} にします（{values['widen']}）")
+                    out["scaffold_width_mm"] = a
     if values.get("tie") in TIES:
         out["tie_source"] = TIES[values["tie"]]
     if values.get("sheet") in SHEETS:

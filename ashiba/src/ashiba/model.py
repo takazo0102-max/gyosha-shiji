@@ -234,6 +234,8 @@ class ScaffoldModel:
     # かわした庇・バルコニーとセットバック（obstacles.Obstacle・Setback の並び）
     obstacles: list = field(default_factory=list)
     setbacks: list = field(default_factory=list)
+    # 途中の作業床から足場の幅を変える（拡幅・縮幅。width_change.WidthChange。None＝変えない）
+    width_change: Optional[object] = None
 
     def _n_outline(self) -> int:
         return len(self.plan.outline.edges)

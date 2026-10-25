@@ -115,6 +115,14 @@
 			<Description><![CDATA["拡張（張り出した上の階）の作り方 方杖（跳ね出し・下の階の壁へ突っ張る）／吊り（跳ね出し・上の階の壁から吊る）／なし（跳ね出さず本体の足場を上まで通す）"]]></Description>
 			<Value><![CDATA["方杖"]]></Value>
 		</String>
+		<String Name="widthChg">
+			<Description><![CDATA["途中の床から幅を変える（空＝変えない／拡幅 610→914／拡幅 914→1219／縮幅 914→610／縮幅 1219→914）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Integer Name="widthChgLv">
+			<Description><![CDATA["幅を変える作業床の段（1＝最下段。この床から上が新しい幅）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<String Name="tieSource">
 			<Description><![CDATA["壁つなぎの取り方 仕上げ（外壁にアンカー）／鉄骨（梁にビームクランプ）"]]></Description>
 			<Value><![CDATA["仕上げ"]]></Value>

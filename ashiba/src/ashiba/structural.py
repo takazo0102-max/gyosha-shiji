@@ -366,7 +366,8 @@ class BracketCheck:
 def widened_by_bridges(model: ScaffoldModel) -> bool:
     """張り出しの横の本体の足場の隅を拡幅ブラケットで広げたか、跳ね出しの上段の端に張出ブラケットを出したか
     （setback_tiers.hane_bridges）. そのブラケットを付けた支柱は拡幅部の許容支持力で検定する（日建 ND1800 11.0→8.8kN/本）."""
-    return bool(getattr(model, "corner_bridges", None) or getattr(model, "hane_end_ext", None))
+    return bool(getattr(model, "corner_bridges", None) or getattr(model, "hane_end_ext", None)
+                or getattr(model, "width_change", None))
 
 
 def check_widen_brackets(model: ScaffoldModel, caps: dict, site: SiteCondition) -> tuple[list[BracketCheck], list[str]]:
@@ -436,6 +437,35 @@ def check_widen_brackets(model: ScaffoldModel, caps: dict, site: SiteCondition) 
         out.append(BracketCheck(
             f"張出ブラケット{w}（{model.face_name(ei)}の{'始点' if end == 's' else '終点'}の先）", round(dead + live, 3),
             cap.value, f"自重{dead:.2f}＋積載{live:.2f}（{live_span}kN÷2基）", cap.source))
+    # 拡幅・縮幅（width_change）: 幅を変える床の拡幅ブラケット1基に、先端の支柱（新しい外側の支柱）1本が載る。
+    # 先端の支柱の軸力 = 支柱の自重 ＋ 各層の外側の布材（床・手すり・中桟。両隣のスパンの半分ずつ＝1スパン分）・腕木の半分・
+    # 床の外側の半分 ＋ 積載（作業床許容積載荷重 1スパン分の半分を外側の支柱が受ける、同時載荷の層数まで）
+    from .width_change import change_height_mm, faces, upper_levels
+
+    wc = getattr(model, "width_change", None)
+    for ep in (faces(model) if wc is not None else []):
+        if model.edge_subset is not None and ep.edge_index not in model.edge_subset:
+            continue
+        cap = caps.get(("ブラケット許容支持力", "拡幅"))
+        if cap is None:
+            notes.append(f"{wc.label}の拡幅ブラケットの許容支持力が capacity.csv に無いため、ブラケット単体は検定していません"
+                         f"（系列 {m.series_id}。メーカー値を確認してください）")
+            break
+        k = upper_levels(model, ep.edge_index)
+        sp = int(max(ep.spans))
+        rest, tip_kg = model.own_height(ep.edge_index) - change_height_mm(model, ep.edge_index), 0.0
+        while rest > 10 and lengths:
+            pick = next((L for L in lengths if L <= rest + 10), lengths[-1])
+            tip_kg += post_kg(pick)
+            rest -= pick
+        per_level = (3 * kg(m.find("布材", sp)) + kg(m.find("布材", wc.to_mm)) / 2
+                     + sum(kg(m.deck_parts(w, sp)) for w in wc.to_decks) / 2)
+        dead = (tip_kg + k * per_level) * g
+        live = live_span * min(k, site.simultaneous_loaded_levels) / 2.0
+        out.append(BracketCheck(
+            f"拡幅ブラケット305（{wc.label}・{model.face_name(ep.edge_index)}の先端の支柱 スパン{sp}）", round(dead + live, 3),
+            cap.value, f"自重{dead:.2f}＋積載{live:.2f}（{min(k, site.simultaneous_loaded_levels)}層×{live_span}kN÷2）",
+            cap.source))
     if out:
         worst = max(out, key=lambda b: b.ratio)
         notes.append("ブラケットの検定（1基あたり）: " + worst.describe()
@@ -1259,7 +1289,7 @@ def run_structural(
     brackets, b_notes = check_widen_brackets(model, caps, site)
     notes += b_notes
     if widened_by_bridges(model) and post.widened and not post.widened_note:
-        notes.append("張り出しの横の本体の足場の隅を拡幅ブラケットで広げた・跳ね出しの上段の端に張出ブラケットを出したので、"
+        notes.append("拡幅ブラケット・張出ブラケットで足場を広げた（隅の升目の拡幅・跳ね出しの上段の端・途中の床からの拡幅／縮幅）ので、"
                      f"{model.master.vertical_member_name}は拡幅部の許容支持力で検定しています")
     for b in brackets:
         if not b.ok:

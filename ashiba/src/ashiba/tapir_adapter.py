@@ -747,6 +747,51 @@ def place_scaffold_lines(
     return placed
 
 
+def place_width_change_lines(
+    model: ScaffoldModel,
+    object_name: str = "ashiba_line",
+    client: Optional[ArchicadClient] = None,
+    stair_plan=None,
+    openings=None,
+    platforms=None,
+    bracket_sections=None,
+    terrain=None,
+    floor_index: Optional[int] = None,
+) -> list[dict]:
+    """拡幅・縮幅の面の上の部品（新しい幅。幅を変える床から天端まで。width_change.upper_params）を置く.
+
+    下の部品（元の幅）は place_scaffold_lines が segLevB で幅を変える床の下の段までにして置く。上の部品は面の並びの
+    足場ライン（寸法・図面が面の順で使う）とは別に返す。
+    """
+    from .width_change import faces, upper_params
+
+    if getattr(model, "width_change", None) is None:
+        return []
+    client = client or ArchicadClient()
+    placed: list[dict] = []
+    mats = client.find_member_surfaces()
+    with _rollback_on_error(client, placed):
+        for ep in faces(model):
+            edge = model.plan.outline.edges[ep.edge_index]
+            on_floor = {"floor_index": floor_index} if floor_index is not None and model.base_height_mm else {}
+            elem = client.create_object(
+                object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0), **on_floor)
+            placed.append(elem)
+            angle = math.atan2(edge.direction[1], edge.direction[0])
+            if abs(angle) > 1e-9:
+                client.rotate_element(elem, angle, ep.start_post[0], ep.start_post[1])
+            client.set_gdl_parameters(
+                elem,
+                {**line_params(
+                    model, ep, stair_plan=stair_plan, openings=openings,
+                    platforms=platforms, bracket_sections=bracket_sections,
+                    terrain=terrain,
+                ), **mats, **upper_params(model, ep)},
+                object_name,
+            )
+    return placed
+
+
 def place_details(
     model: ScaffoldModel,
     sheets: Optional[list] = None,

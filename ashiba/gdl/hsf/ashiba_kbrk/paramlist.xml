@@ -61,6 +61,34 @@
 			<Description><![CDATA["補強単管の下がり（拡幅時。先端から1層下の支柱へ。0＝なし）"]]></Description>
 			<Value>0.0</Value>
 		</Length>
+		<Length Name="extUp">
+			<Description><![CDATA["元の支柱に継ぎ足す支柱の長さ（拡幅・縮幅。NDP09N 0.9。0＝なし）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="tieZ">
+			<Description><![CDATA["つなぎ材 NDT03 の高さ（腕から上へ。継ぎ足した支柱と先端の支柱を繋ぐ。0＝なし）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Integer Name="cnrMode">
+			<Description><![CDATA["出隅の角の支柱の納まり 0＝ブラケット 1＝拡幅の角の地上からの支柱 2＝縮幅の角を受ける対角の単管"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="zBot">
+			<Description><![CDATA["角の支柱の足元（GL から。cnrMode 1）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<String Name="tieList">
+			<Description><![CDATA["角の支柱から元の角の支柱へ繋ぐ単管の高さ m（GL から。カンマ区切り。cnrMode 1）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="cnrL">
+			<Description><![CDATA["cnrMode 1: 元の角の支柱までの単管の長さ／2: 対角の単管の長さ（+X の向き）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cnrAt">
+			<Description><![CDATA["cnrMode 2: 角の支柱を立てる位置（対角の単管の始点から）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Length Name="postR">
 			<Description><![CDATA["支柱の半径（ND φ42.7）"]]></Description>
 			<Value>0.02135</Value>

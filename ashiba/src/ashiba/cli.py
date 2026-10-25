@@ -157,7 +157,7 @@ TOP_KEYS = {
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
-    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "hane_bracket_type", "bracket_post", "ladders",
+    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "hane_bracket_type", "width_change", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
@@ -477,6 +477,9 @@ def validate_spec(spec: dict) -> None:
     sw = spec.get("scaffold_width_mm")
     if sw not in (None, 0) and (not _num(sw) or not 300 <= sw <= 1500):
         errors.append(f"scaffold_width_mm: 足場の幅は 600・900 などを mm で指定してください（{sw!r}）")
+    from .width_change import check as check_width_change
+
+    errors.extend(check_width_change(spec.get("width_change"), 0))
     dw = spec.get("deck_widths")
     if dw is not None and (
         not isinstance(dw, list) or not (1 <= len(dw) <= 2)
@@ -1076,6 +1079,11 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         _apply_face_eaves(model, face_eaves)
     model.eaves_by_face = dict(face_eaves or {})
     model.cross_cuts_mm = [(tuple(map(float, a)), tuple(map(float, b))) for a, b in (spec.get("cross_cuts_mm") or [])]
+    # 途中の作業床から幅を変える（拡幅・縮幅。利用者の指定 2026-10-25: 両方作って 610→914と914→1219）
+    from .width_change import build as build_width_change
+
+    model.width_change, wc_notes = build_width_change(spec, model)
+    model.plan.warnings.extend(wc_notes)
     return model
 
 

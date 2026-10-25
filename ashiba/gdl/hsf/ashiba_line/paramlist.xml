@@ -737,6 +737,10 @@
 			<Description><![CDATA["区切る前の面（同じ面の部品は同じ値）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="segNote">
+			<Description><![CDATA["区切った上の部品の平面の注記（拡幅・縮幅。空なら層の範囲）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="cutAtX">
 			<Description><![CDATA["縦に区切る位置（3Dの上端のつまみで引く。次の支柱に吸着。0＝区切らない）"]]></Description>
 			<Value>0</Value>
