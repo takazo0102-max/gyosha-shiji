@@ -120,6 +120,7 @@
 !   sillT           長さ      ジャッキベースの下の敷板の厚さ（0＝敷かない）                                                                   既定 0
 !   sillW           長さ      敷板の幅                                                                                                        既定 0.24
 !   sillLens        文字列    敷板の規格の長さ mm（長い順、カンマ区切り）                                                                     既定 "4000,3000,2000,1500,1000"
+!   shimAll         長さ      全部の脚のジャッキの下に重ねる敷板（繰出しの内数）                                                              既定 0
 !   sillList        文字列    敷板の列「y,始め,終わり」mm の繰り返し（隅の重なりを除いた範囲）                                                既定 ""
 !   sillList2       文字列    敷板の列（続き）                                                                                                既定 ""
 !   jkBlue          整数      ジャッキベースの底面を青に（日建 ND752P の識別色） 0/1                                                          既定 0
@@ -2516,7 +2517,7 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
@@ -3515,7 +3516,7 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
@@ -3526,7 +3527,7 @@ for ip = 1 to nSpan + 1
 		if row = 1 and nGlO >= 2 then
 			gv = 0
 			jo = jackOut
-			sv = 0
+			sv = shimAll
 			if ip <= nGlO then gv = glO[ip]
 			if ip <= nJkO then jo = jkO[ip]
 			if ip <= nShO then sv = shO[ip]
@@ -3629,7 +3630,7 @@ next ip
 if cornerS = 1 then
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
 	if nSh >= 1 then sv = sh[1]
@@ -5231,7 +5232,7 @@ if stOut = 1 then
 		for ip7 = 1 to ns7 + 1
 			gv = 0
 			jo = jackOut
-			sv = 0
+			sv = shimAll
 			add xp, yo, gv
 			jkSill = 1
 			gosub 820

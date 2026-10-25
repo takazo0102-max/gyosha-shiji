@@ -364,8 +364,11 @@ def line_params(
         "postList": ",".join(str(p) for p in e.posts),
         # 単管の建地は継手を千鳥にする（偶数番目の建地はこの並び。利用者の指定 2026-10-22）。くさび・枠組は空
         "postListAlt": (",".join(str(p) for p in e.posts_alt)
-                        if model.master.is_tube and list(e.posts_alt) != list(e.posts) else ""),
+                        if list(e.posts_alt) != list(e.posts) else ""),
         "jackOut": e.jack_extension / 1000.0,
+        # 全部の脚のジャッキの下に重ねる敷板（繰出しの内数。セットバックの上段で床の高さをそろえるとき）
+        "shimAll": float(getattr(e, "base_shim", 0) or 0) / 1000.0,
+        # 千鳥（選んだとき）: 偶数番目の支柱の積み方（くさび。単管は下の postListAlt）
         # 単管はコマが無い（高さの刻みは描かない）
         "komaPitch": 0.0 if model.master.is_tube else model.master.koma_pitch / 1000.0,
         # コマの位置（カタログの支柱図。master.post_koma_offsets と同じ規則を 3d.gdl で支柱1本ごとに計算）

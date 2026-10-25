@@ -245,6 +245,10 @@ def _feet_by_row(terrain, rows: int) -> tuple[list, int]:
     """数える脚と倍数。外側の列も地盤から解いてあれば内外の脚をそのまま（倍数1）、無ければ内側の列×列数."""
     feet = list(getattr(terrain, "feet", []) or [])
     outer = list(getattr(terrain, "feet_outer", []) or [])
+    # 平らな地盤は図（足場ラインは高低差0なら脚ごとの地盤高・ジャッキを渡さない）と同じく立面の構成で数える
+    # （上段で床の高さをそろえたジャッキ・敷板、千鳥の積み方が脚の一覧に入っていなかった）
+    if feet and float(getattr(terrain, "gl_difference_mm", 0.0) or 0.0) <= 0.5:
+        return [], rows
     if feet and outer:
         return feet + outer, 1
     return feet, rows
@@ -394,6 +398,14 @@ def _take_off_one(
         for nominal in elev.posts:
             counts_posts[nominal] = counts_posts.get(nominal, 0) + 1
     totals_posts = {k: v * (per_foot if feet else n_posts) for k, v in counts_posts.items()}
+    # 千鳥（選んだとき）: 1本おきの支柱は隣の積み方（posts_alt）。3D と同じく半分を置き換える
+    if not feet and sorted(elev.posts_alt or []) != sorted(elev.posts) and elev.posts_alt:
+        n_alt = n_posts // 2
+        for nominal in elev.posts:
+            totals_posts[nominal] = totals_posts.get(nominal, 0) - n_alt
+        for nominal in elev.posts_alt:
+            totals_posts[nominal] = totals_posts.get(nominal, 0) + n_alt
+        totals_posts = {k: v for k, v in totals_posts.items() if v > 0}
     if feet and n_corners + n_gap_posts:
         for nominal in elev.posts:
             totals_posts[nominal] = totals_posts.get(nominal, 0) + n_corners + n_gap_posts
@@ -418,9 +430,20 @@ def _take_off_one(
     # 開口部で抜いた支柱は地面に達しないので、ジャッキもアンダーベースも要らない
     removed = openings.removed_posts if openings is not None else 0
     n_feet = max(0, n_posts - removed)
-    _count_jacks(m, feet, per_foot, n_feet, add, notes)
+    shim0 = int(getattr(elev, "base_shim", 0) or 0)
+    _count_jacks(m, feet, per_foot, n_feet, add, notes, flat_need=float(elev.jack_extension - shim0))
     add(under, n_feet, "アンダーベース")
     _count_shims(m, feet, per_foot, add, notes)
+    if not feet and shim0 > 0:
+        # 全部の脚の下に重ねる敷板（セットバックの上段で床の高さをそろえるとき。ジャッキの上限を超える分）
+        sp = next(iter(m.by_category("敷板")), None)
+        mt = re.search(r"厚\s*(\d+)", sp.note) if sp is not None else None
+        th = int(mt.group(1)) if mt else 35
+        n_sh = int(math.ceil(shim0 / th - 1e-9))
+        if sp is not None:
+            add(sp, n_feet * n_sh, f"敷板調整（全脚 {shim0}mm・厚{th}mm×{n_sh}枚）")
+        notes.action(f"ジャッキの繰出し上限を超える {shim0}mm は、全部の脚（{n_feet}脚）のジャッキの下に敷板を {n_sh}枚ずつ"
+                     "重ねて持ち上げてください（床の高さを本体にそろえるため）", Notes.ORDER)
     # 支柱最下部にだけ付く附属品（日建NDの下部カラー材など）。脚の数だけ
     for p in m.by_category("支柱附属"):
         if "最下部" in p.note:
@@ -909,7 +932,8 @@ def _count_wedge_corner_steps(model: ScaffoldModel, add, notes) -> None:
                      f"隅の隙間{len(gaps)}箇所×各層＝{total_lv}組を別途手配", Notes.ORDER)
 
 
-def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "") -> None:
+def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix: str = "",
+                 flat_need: Optional[float] = None) -> None:
     """ジャッキを脚ごとの繰出し量に合う品で数える.
 
     敷地に高低差があると脚ごとに繰出し量が違う。日建 ND752P は繰出し最大292mmで、
@@ -923,8 +947,17 @@ def _count_jacks(m: PartMaster, feet, rows: int, n_feet: int, add, notes, suffix
         return
     ranked = sorted(jacks, key=lambda p: (p.max_extension_mm() is None, p.max_extension_mm() or 0))
     default = ranked[0]
-    if not feet or all(p.max_extension_mm() is None for p in jacks):
+    if all(p.max_extension_mm() is None for p in jacks):
         add(default, n_feet, "ジャッキ" + suffix)
+        return
+    if not feet:
+        # 平らな地盤: 全部の脚が同じ繰出し。受けられる中で最も短い品（標準のジャッキベースで届かなければロング）
+        fit = default
+        if flat_need is not None:
+            fit = next((p for p in ranked if p.max_extension_mm() is None or flat_need <= p.max_extension_mm() + 1e-6),
+                       ranked[-1])
+        add(fit, n_feet, "ジャッキ" + suffix if fit is default
+            else f"ジャッキ（繰出し{default.max_extension_mm()}mm超: {fit.model_no}）" + suffix)
         return
     # 脚ごとに、繰出し量を受けられる中で最も短い品。どれも届かない脚は最長の品で数え、
     # 差は敷板調整（ジャッキ量一覧の備考）として残る

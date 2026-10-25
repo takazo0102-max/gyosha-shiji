@@ -158,7 +158,7 @@ TOP_KEYS = {
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
     "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "bracket_post", "ladders",
-    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "setback_join", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
+    "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
     "member_edits", "face_forms", "form_standoff", "corner_steps", "corner_joins",
@@ -833,7 +833,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         if required < int(spec["eaves_height_mm"]):
             height_note += "。指定高さが軒高より低いので、最上層は軒に届きません"
     try:
-        elevation = solve_elevation(required, master=master)
+        # 支柱の継ぎ目は既定でそろえる。"post_stagger": true で隣の支柱と1層ずらす（2026-10-25 の調査）
+        elevation = solve_elevation(required, master=master, stagger=bool(spec.get("post_stagger")))
     except ValueError as e:
         if spec.get("scaffold_height_mm") is not None:
             raise InputError(f"scaffold_height_mm: {e}")
@@ -1334,7 +1335,7 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
     req0 = int(elevation.required_height)
     for d in sorted(range(-450, 901, 5), key=abs):
         try:
-            e = solve_elevation(req0 + d, master=master)
+            e = solve_elevation(req0 + d, master=master, stagger=list(elevation.posts_alt) != list(elevation.posts))
         except ValueError:
             continue
         if aligned(e) and e.level_heights and base + max(e.level_heights) >= base + max(elevation.level_heights) - 900:
@@ -1350,9 +1351,13 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
     if koma > 0:
         h0 = base + float(elevation.level_heights[0])
         d0 = (main[0] - h0) % koma            # コマの位置をそろえるずらし（0〜コマピッチ）
+        from .terrain import SHIM_UNIT_MM
+
         for dd in sorted({d0, d0 - koma, d0 + koma}, key=abs):
             j = elevation.jack_extension + dd
-            if not (JACK_MIN_EXTENSION <= j <= jmax):
+            # ジャッキの上限を超える分は、全部の脚のジャッキの下に敷板を重ねて持ち上げる（3枚まで）
+            shim = int(math.ceil(max(0.0, j - jmax) / SHIM_UNIT_MM - 1e-9)) * SHIM_UNIT_MM
+            if not (JACK_MIN_EXTENSION <= j and shim <= 3 * SHIM_UNIT_MM):
                 continue
             fl = elevation.first_ledger_height + dd
             top = max(elevation.level_heights) + dd
@@ -1362,9 +1367,10 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
             di = int(round(dd))
             e = _dc.replace(elevation, jack_extension=int(round(j)), first_ledger_height=int(round(fl)),
                             level_heights=[int(round(v)) for v in lv], n_levels=len(lv),
-                            required_height=int(elevation.required_height + di))
-            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、"
-                       f"床 {len(lv)}段）")
+                            required_height=int(elevation.required_height + di), base_shim=shim)
+            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension - shim}mm"
+                       + (f"＋敷板 {shim // SHIM_UNIT_MM}枚（{shim}mm）" if shim else "")
+                       + f"・{di:+d}mm、床 {len(lv)}段）")
     return elevation, "上段の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
 
 

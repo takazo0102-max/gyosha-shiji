@@ -1110,7 +1110,7 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]

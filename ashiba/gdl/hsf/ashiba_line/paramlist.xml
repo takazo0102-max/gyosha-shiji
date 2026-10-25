@@ -461,6 +461,10 @@
 			<Description><![CDATA["敷板の規格の長さ mm（長い順、カンマ区切り）"]]></Description>
 			<Value><![CDATA["4000,3000,2000,1500,1000"]]></Value>
 		</String>
+		<Length Name="shimAll">
+			<Description><![CDATA["全部の脚のジャッキの下に重ねる敷板（繰出しの内数）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="sillList">
 			<Description><![CDATA["敷板の列「y,始め,終わり」mm の繰り返し（隅の重なりを除いた範囲）"]]></Description>
 			<Value><![CDATA[""]]></Value>

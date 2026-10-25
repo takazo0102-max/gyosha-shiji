@@ -105,7 +105,30 @@ class TestDegenerateHeights(unittest.TestCase):
 
 
 class TestJointStaggering(unittest.TestCase):
-    """千鳥（隣接支柱で縦継ぎ位置をずらす）は指示書§4.4の要求."""
+    """千鳥（隣接支柱で縦継ぎ位置をずらす）は指示書§4.4の要求。2026-10-25 から既定はそろえ、"post_stagger" で選ぶ
+    （調査: メーカーの要領書は全支柱同じ積み方で、千鳥の決まりは法令・技術基準・メーカーの資料に無い。利用者の指定
+    2026-10-25: 1〜4直して）."""
+
+    def test_wedge_joints_line_up_by_default(self):
+        e = solve_elevation(10600, master=load_master("nikken_nd1800"))
+        self.assertEqual(e.posts, e.posts_alt)
+        self.assertEqual(e.posts[0], 2700)                           # 1段目 2700、その上は 3600（ND1800 の要領書）
+
+    def test_stagger_shifts_the_neighbour_by_one_level(self):
+        for sid in ("nikken_nd1800", "nikken_nd1900", "shinwa_A"):
+            m = load_master(sid)
+            for h in (5650, 10600, 16370, 31000):
+                with self.subTest(sid=sid, h=h):
+                    e = solve_elevation(h, master=m, stagger=True)
+                    self.assertEqual(sum(e.posts), sum(e.posts_alt))           # 天端はそろう
+                    self.assertEqual(e.posts_alt[0], e.posts[0] - m.floor_height)  # 2700→900（1層ずらす）
+                    self.assertTrue(e.is_staggered(), (e.posts, e.posts_alt))   # 継ぎ目が重ならない
+
+    def test_the_jack_is_kept_low(self):
+        # 優先は 偏差 → 本数 → 繰出しの小さい方（2026-10-25 の調査: 繰出しは低く抑える）
+        m = load_master("tankan")
+        e = solve_elevation(9000, master=m)
+        self.assertLessEqual(e.jack_extension, 100)
 
     def test_joint_heights_are_cumulative_from_the_jack(self):
         m = load_master("shinwa_A")
@@ -119,7 +142,7 @@ class TestJointStaggering(unittest.TestCase):
         self.assertEqual(len(got), len(e.posts) - 1)
 
     def test_single_length_cannot_stagger_and_says_so(self):
-        e = solve_elevation(7200, post_lengths=[1800], koma_pitch=450)
+        e = solve_elevation(7200, post_lengths=[1800], koma_pitch=450, stagger=True)
         self.assertEqual(len(set(e.posts)), 1)
         self.assertFalse(e.is_staggered())
         self.assertTrue(any("千鳥" in w for w in e.warnings), e.warnings)

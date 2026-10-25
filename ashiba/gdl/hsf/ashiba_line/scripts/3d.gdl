@@ -391,7 +391,7 @@ for ip = 1 to nSpan + 1
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if ip <= nGl then gv = gl[ip]
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
@@ -402,7 +402,7 @@ for ip = 1 to nSpan + 1
 		if row = 1 and nGlO >= 2 then
 			gv = 0
 			jo = jackOut
-			sv = 0
+			sv = shimAll
 			if ip <= nGlO then gv = glO[ip]
 			if ip <= nJkO then jo = jkO[ip]
 			if ip <= nShO then sv = shO[ip]
@@ -505,7 +505,7 @@ next ip
 if cornerS = 1 then
 	gv = 0
 	jo = jackOut
-	sv = 0
+	sv = shimAll
 	if nGl >= 1 then gv = gl[1]
 	if nJk >= 1 then jo = jk[1]
 	if nSh >= 1 then sv = sh[1]
@@ -2107,7 +2107,7 @@ if stOut = 1 then
 		for ip7 = 1 to ns7 + 1
 			gv = 0
 			jo = jackOut
-			sv = 0
+			sv = shimAll
 			add xp, yo, gv
 			jkSill = 1
 			gosub 820

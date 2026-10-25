@@ -37,6 +37,9 @@ class ElevationResult:
     n_levels: int                 # 作業層数
     level_heights: list[int]      # 各作業床高さ [mm, GLから]
     warnings: list[str] = field(default_factory=list)
+    # 全部の脚のジャッキの下に重ねる敷板の高さ [mm]（jack_extension の内数。ジャッキの繰出し上限を超える分。
+    # セットバックの上段で床の高さを本体にそろえるとき）
+    base_shim: int = 0
 
     @property
     def total_height(self) -> int:
@@ -88,6 +91,33 @@ def _order_with_first(pieces: list[int], first: int) -> list[int]:
         rest.remove(first)
         return [first] + _order_bottom_up(rest)
     return _order_bottom_up(rest)
+
+
+def _stagger_order(pieces: list[int], first: int, floor_height: int, table: dict[int, list[int]]) -> list[int]:
+    """千鳥（選んだときだけ）: 隣の支柱の1段目を first−階高（2700→900）にし、その上は長い順で同じ天端まで。
+    継ぎ目がちょうど1層ずれる（2026-10-25 の調査: メーカーの要領書は全支柱同じ積み方で、千鳥の決まりは無い。
+    ずらすなら1層）。組めなければ同じ並び."""
+    total = sum(pieces)
+    lead = first - floor_height if first else 0
+    main = _order_with_first(pieces, first)
+    if lead > 0 and total > lead:
+        rest = table.get(total - lead)
+        if rest is not None:
+            joints = set(_joints(main))
+            desc = _order_bottom_up(rest)
+            # 長い順を基本に、いちばん短い支柱の位置を動かして本体の継ぎ目と重ならない並びを選ぶ
+            cands = [desc] + [desc[:-1][:i] + [desc[-1]] + desc[:-1][i:] for i in range(len(desc) - 1)]
+            best = min(cands, key=lambda c: (len(joints & set(_joints([lead] + c))), cands.index(c)))
+            return [lead] + best
+    return main
+
+
+def _joints(posts: list[int]) -> list[int]:
+    out, h = [], 0
+    for p in posts[:-1]:
+        h += p
+        out.append(h)
+    return out
 
 
 def _alt_order(pieces: list[int]) -> list[int]:
@@ -195,10 +225,12 @@ def solve_elevation(
     koma_pitch: Optional[int] = None,
     jack_max: int = JACK_MAX_EXTENSION,
     jack_min: int = JACK_MIN_EXTENSION,
+    stagger: bool = False,
 ) -> ElevationResult:
     """要求高さ（ジャッキベース下端→支柱天端）から支柱構成を解く.
 
     post_lengths を渡すとマスタより優先（テスト・実例再現用）。
+    stagger: くさびの支柱の継ぎ目を隣の支柱と1層ずらす（既定はそろえる。メーカーの要領書どおり）。
     枠組系列のマスタが渡された場合は建枠の積み上げ（solve_elevation_frame）へ委譲する。
     """
     if post_lengths is None and master is not None and master.is_frame:
@@ -230,9 +262,8 @@ def solve_elevation(
 
     # 端数は最下部のジャッキで吸収。要求高さと厳密一致しない場合は
     # ±許容窓（下-150〜上+1コマ）内で偏差最小の解を許す。
-    # 優先順位: 要求高さとの偏差最小 → 支柱本数最小 → 繰り出し大（短支柱削減）
-    # （受け入れ基準の実例 G(ジャッキ270)+3800×4+900=16370 を再現するため、この順は変えない。
-    # 繰出しが上限に張り付いた場合は、調整代のある代替構成を警告で添える）
+    # 優先順位: 要求高さとの偏差最小 → 支柱本数最小 → 繰り出し小（繰出しは低く抑える。2026-10-25 の調査:
+    # ジャッキの繰出しは小さいほど安定し、上への調整代も残る。利用者の指定 2026-10-25: 1〜4直して）
     under_allow, over_allow = 150, koma_pitch
     # 単管の建地は1m刻みで、布・手すりはどの高さにもクランプで付く。天端は手すりより上へ出てよい
     if master is not None and master.is_tube:
@@ -268,7 +299,7 @@ def solve_elevation(
                 pieces = table.get(posts_total)
             if pieces is None:
                 continue
-            score = (lead, abs(delta), len(pieces), jack_max - jack)
+            score = (lead, abs(delta), len(pieces), jack - jack_min)
             if best is None or score < best[0]:
                 best = (score, jack, pieces)
             if band_lo <= jack <= band_hi:
@@ -283,7 +314,13 @@ def solve_elevation(
     _score, jack, pieces = best
 
     posts = _order_with_first(pieces, first)
-    posts_alt = _alt_order(pieces)
+    # くさび・枠組は全支柱同じ積み方（継ぎ目をそろえる。日建 ND1800 の要領書は「1段目 2700 か 900、2段目から上は
+    # 3600 か 1800」を全支柱一律に推奨し、継ぎ目を千鳥にする決まりは法令・技術基準・メーカーの資料に無い）。
+    # 千鳥を選んだときだけ隣の支柱の継ぎ目を1層ずらす
+    if master is not None and master.is_tube:
+        posts_alt = _alt_order(pieces)
+    else:
+        posts_alt = _stagger_order(pieces, first, floor_height, table) if stagger else list(posts)
     # 単管の建地は継手を千鳥にする（利用者の指定 2026-10-22）。同じ長さだけの構成は、隣の建地の最下部に半分の長さ
     # （6m→3m、4m→2m）を入れて上に回し、継ぎ目の高さを半分ずらす（本数・総長は同じ）
     if master is not None and master.is_tube and len(set(pieces)) < 2 and pieces:
@@ -304,7 +341,7 @@ def solve_elevation(
             f"（要求高さとの差{alt_total - required_height:+d}mm）の構成も検討してください"
             "（scaffold_height_mm で高さを指定すれば切り替えられます）"
         )
-    if len(set(pieces)) < 2 and len(pieces) > 1:
+    if (stagger or (master is not None and master.is_tube)) and posts_alt == posts and len(pieces) > 1:
         warnings.append(
             "支柱が単一寸法のため千鳥（ジョイント位置ずらし）を構成できません。"
             "隣接支柱の最下部を根がらみ用支柱等に置換してください"

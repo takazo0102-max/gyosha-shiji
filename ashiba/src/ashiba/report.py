@@ -216,8 +216,13 @@ def write_report_md(
     a(f"- {vm}構成（下から）: ジャッキ{e.jack_extension} + "
       + spans_text(e.posts).replace("+", " + ")
       + f" = {e.total_height}mm")
-    a(f"- 千鳥用代替構成: " + spans_text(e.posts_alt).replace("+", " + ")
-      + ("（千鳥成立）" if e.is_staggered() else "（要確認）"))
+    if list(e.posts_alt) != list(e.posts):
+        a(f"- 千鳥（1本おきの{vm}）: " + spans_text(e.posts_alt).replace("+", " + ")
+          + ("（継ぎ目が重ならない）" if e.is_staggered() else "（継ぎ目が重なる所あり。要確認）"))
+    else:
+        a(f"- 継ぎ目: 全部の{vm}で同じ積み方（そろえる。千鳥にするなら \"post_stagger\": true）")
+    if getattr(e, "base_shim", 0):
+        a(f"- ジャッキの下の敷板: 全部の脚に {e.base_shim}mm（ジャッキの繰出しは {e.jack_extension - e.base_shim}mm）")
     a(f"- 1層あたり{vm}位置数: {model.plan.total_posts}（二重計上なし）")
     widths = model.deck_widths_in_use
     deck_desc = "＋".join(f"{w}" for w in widths) + f" ＝ 幅{sum(widths)}mm"
