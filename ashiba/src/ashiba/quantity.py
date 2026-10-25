@@ -1629,7 +1629,7 @@ def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
     """跳ね出しブラケット（張り出した上の階の上段の足場を、床スラブの縁から持ち出して受ける。利用者の指定 2026-10-24:
     上階で拡張する仕組み・2026-10-25: もっと詳細にして）。系列のマスタに無い（現場ごとの製作・リース品）ので、3D と
     同じ数え方で手配に出す: ブラケット（支柱の位置ごと。隅の支柱は両方の面から1基ずつ）、出隅の角の渡し梁、アンカー
-    M16（床スラブの縁の取付プレート4本・上の階の壁の吊り材の取付プレート2枚×2本）、水平つなぎの単管（スパンごとに腕の先と躯体側の2本）と直交クランプ."""
+    M16（床スラブの縁の取付プレート4本・方杖／吊り材の取付プレート2枚×2本）、横に流す H形鋼（内外の建地列の下に面の端から端まで）."""
     if not getattr(model, "hane_bracket", False):
         return
     eps = [e for e in model.plan.edges if model.edge_subset is None or e.edge_index in model.edge_subset]
@@ -1637,7 +1637,7 @@ def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
     # （setback_tiers.hane_bridges の hane_slab_range。3D と同じ）
     rng = getattr(model, "hane_slab_range", None) or {}
     n = 0
-    n_beam = 0
+    beams: list[float] = []
     for e in eps:
         x0, x1 = rng.get(e.edge_index, (0.0, float(sum(e.spans))))
         xs = [0.0]
@@ -1647,21 +1647,20 @@ def _count_hane_brackets(model: ScaffoldModel, notes) -> None:
         for xa, xe in ((x0, 0.0), (x1, xs[-1])):
             if abs(xe - xa) > 10.0:
                 n += 1
-                n_beam += 2
+        # 横に流す H形鋼（内外の建地列の下に面の端から端まで。3D と同じ。利用者の指定 2026-10-25: 横に流すHこうもいるんじゃない？）
+        beams += [xs[-1] + 150.0] * 2
     n_corner = sum(1 for e in eps if model.corner_kind_start(e.edge_index) == "出隅")
-    tubes: dict[int, int] = {}
-    for e in eps:
-        for sp in e.spans:
-            tubes[int(sp)] = tubes.get(int(sp), 0) + 2
-    n_tube = sum(tubes.values())
-    tube_txt = "・".join(f"{k}×{v}" for k, v in sorted(tubes.items(), reverse=True))
-    notes.action(f"跳ね出しブラケット {n}基（溝形鋼［-100×50×5 の腕・床スラブの縁の取付プレート 200×250×12・吊り材 φ48.6×2・"
-                 f"上の階の壁の取付プレート 150×150×12×2（床の天端から {HANE_NOTE_DEPTH}mm 上）・受けプレート）"
+    brace = getattr(model, "hane_type", "方杖") == "方杖"
+    strut = (f"方杖 φ48.6×2・下の階の壁の取付プレート 150×150×12×2（床の天端から "
+             f"{int(round(float(getattr(model, 'hane_drop_mm', 900.0))))}mm 下）" if brace else
+             f"吊り材 φ48.6×2・上の階の壁の取付プレート 150×150×12×2（床の天端から {HANE_NOTE_DEPTH}mm 上）")
+    beam_txt = "・".join(f"L={v / 1000:.2f}m" for v in beams)
+    notes.action(f"跳ね出しブラケット（{'方杖' if brace else '吊り'}）{n}基（溝形鋼［-100×50×5 の腕・床スラブの縁の取付プレート "
+                 f"200×250×12・{strut}・受けプレート）、横に流す H形鋼 H-150×75×5×7 {len(beams)}本（{beam_txt}。内外の"
+                 "建地列の下、支柱は H形鋼の上の受けプレートに立つ）"
                  + (f"、出隅の角の渡し梁（溝形鋼）{2 * n_corner}本" if n_corner else "")
-                 + (f"、床スラブの外の端の支柱を受ける渡し梁（溝形鋼）{n_beam}本" if n_beam else "")
-                 + f"、あと施工アンカー M16 {8 * n}本、水平つなぎの単管 {n_tube}本（{tube_txt}）と直交クランプ"
-                 f" {2 * n_tube}個。マスタに無いので別途手配し、アンカーの引抜き・床スラブの縁の耐力を確認してください",
-                 Notes.ORDER)
+                 + f"、あと施工アンカー M16 {8 * n}本。マスタに無いので別途手配し、アンカーの引抜き・床スラブの縁の"
+                 "耐力・H形鋼の曲げを確認してください", Notes.ORDER)
 
 
 HANE_NOTE_DEPTH = 600

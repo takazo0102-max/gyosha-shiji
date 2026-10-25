@@ -34,9 +34,41 @@ PROBE_OUT_MM = 600.0         # 上段の面の外側（足場の下）の点
 # 上の階の壁の前に本体の足場を通すと、上の壁との離れ（最小 250）と下の壁との離れ（最大 350）が両立しない（実機
 # 2026-10-25: 300出してるのにできてない拡張に。庇として離れ 384 で通し、上の壁まで 84 しかなかった）
 OVERHANG_MIN_MM = 200.0
+# 跳ね出しブラケットの形（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？ コマンドでどっちか選べるようにして）:
+#   方杖（既定）: 腕の先から方杖で下の階の壁へ突っ張る（写真の形）。張り出しの下の本体の足場は方杖の下端より下で止める
+#   吊り: 腕の先から吊り材で上の階の壁へ吊る
+HANE_TYPES = ("方杖", "吊り")
+
+
+def hane_type(spec: dict) -> str:
+    """跳ね出しブラケットの形 "方杖"（既定）か "吊り"."""
+    v = str(spec.get("hane_bracket_type") or "").strip()
+    return "吊り" if v in ("吊り", "吊", "吊り材", "hang") else "方杖"
+
+
+def brace_drop_mm(depth_mm: float, row_mm: float) -> float:
+    """方杖の下端の、床の天端からの下がり mm（腕の長さ＝張り出し＋離れ＋建地列間隔＋先の分 の 0.6、600〜1800）."""
+    return max(600.0, min(1800.0, 0.6 * (float(depth_mm) + float(row_mm) + 450.0)))
+
+
+def overhang_depth_mm(big_mm, main_mm) -> float:
+    """張り出した上の階の外形が本体の外形から外へ出ているいちばん大きい奥行き mm（張り出した面と、その下の本体の面の距離）."""
+    from .geometry import build_outline
+
+    big = build_outline([tuple(map(float, p)) for p in big_mm])
+    main = build_outline([tuple(map(float, p)) for p in main_mm])
+    best = 0.0
+    for e in big.edges:
+        for me in main.edges:
+            if e.direction[0] * me.direction[0] + e.direction[1] * me.direction[1] < 0.99:
+                continue
+            d = (e.start[0] - me.start[0]) * me.outward[0] + (e.start[1] - me.start[1]) * me.outward[1]
+            if 1.0 < d <= OVERHANG_MAX_MM:
+                best = max(best, d)
+    return best
 OVERHANG_MAX_MM = 4500.0     # これより外へ広がる外形は張り出した上の階とみなさない（敷地・別棟）
 HANE_DEPTH_MM = 600.0        # 跳ね出しブラケットの吊り材の上の取付プレートの高さ（床の天端からこれだけ上の壁）
-HANE_BELOW_MM = 300.0        # ブラケットの床の天端から下へ出る寸法（取付プレート 240＋あき。張り出しの下の本体の足場はこれより下）
+HANE_BELOW_MM = 450.0        # ブラケットの床の天端から下へ出る寸法（横に流す H形鋼 150＋取付プレート 240＋あき。張り出しの下の本体の足場はこれより下）
 HANE_GUARD_MM = 1100.0       # 本体の足場の天端（手すり分込み）をブラケットの下端からこれだけ下に収める
 MIN_RISE_MM = 1000.0         # 途中の屋根から上段の天端までこれ以上
 SAME_POLY_MM = 50.0          # 同じ外形とみなす頂点のずれ
@@ -319,6 +351,11 @@ def overhang_caps(spec: dict) -> dict[int, float]:
                 hits += int(_inside((x, y), big))
             if hits >= 4:
                 cap = float(t["base_mm"]) - HANE_BELOW_MM
+                if hane_type(spec) == "方杖":
+                    # 方杖の下端（下の階の壁の取付プレート）より下で止める
+                    drop = brace_drop_mm(overhang_depth_mm(big, spec["outline_mm"]),
+                                         float(spec.get("scaffold_width_mm") or 610))
+                    cap = float(t["base_mm"]) - drop - 100.0
                 out[e.index] = min(out.get(e.index, cap), cap)
     return out
 
@@ -353,6 +390,10 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
             "project_name": f"{spec.get('project_name') or '足場'} {label}",
             "_tier": True,
             "_hane": True,
+            "_hane_type": hane_type(spec),
+            "_hane_drop_mm": brace_drop_mm(overhang_depth_mm(t["outline_mm"], spec["outline_mm"]),
+                                           float(spec.get("scaffold_width_mm") or 610)),
+            "_hane_wall_mm": overhang_depth_mm(t["outline_mm"], spec["outline_mm"]),
             # 屋根の上・ブラケットの上には仮囲いが無い。シートは足場の立つ面まで下ろす（利用者の指定 2026-10-25:
             # シートの高さも揃えて）
             "hoarding_height_mm": 0,

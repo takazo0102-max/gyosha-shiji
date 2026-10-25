@@ -503,6 +503,11 @@ def line_params(
         "jkBlue": 1 if _default_jack_no(model).startswith("ND752P") else 0,
         # 張り出した上の階の上段: 跳ね出しブラケット（床スラブの縁から持ち出す受け）の方杖の下がり（m。利用者の指定 2026-10-24）
         "haneD": HANE_DEPTH_M if getattr(model, "hane_bracket", False) else 0.0,
+        # 跳ね出しブラケットの形 1＝方杖（下の階の壁へ突っ張る）0＝吊り（上の階の壁から吊る）、方杖の下端の下がり、
+        # 足場の面から下の階の壁までの奥行き（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？）
+        "haneTyp": 1 if getattr(model, "hane_type", "方杖") == "方杖" else 0,
+        "haneDn": float(getattr(model, "hane_drop_mm", 900.0) or 900.0) / 1000.0,
+        "haneWall": float(getattr(model, "hane_wall_mm", 0.0) or 0.0) / 1000.0,
         "cornerG": 1 if (model.master.is_frame
                          and model.corner_kind_start(ep.edge_index) == "出隅") else 0,
         # 支柱の形（NDストロングは φ42.7・φ48.6 の異形断面）

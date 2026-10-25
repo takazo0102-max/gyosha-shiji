@@ -48,6 +48,8 @@ FIELDS: tuple[Field, ...] = (
     Field("innerRail", "bool", ("inner_guard_rail",), True),
     # 妻側（足場の端）の墜落防止 布材／ブレス材（利用者の指定 2026-10-24）
     Field("endGuard", "str", ("end_guard",), "布材"),
+    # 跳ね出しブラケットの形 方杖／吊り（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？ コマンドでどっちか選べるようにして）
+    Field("haneType", "str", ("hane_bracket_type",), "方杖"),
     # 壁つなぎの取り方 仕上げ／鉄骨（利用者の指定 2026-10-24: 鉄骨からとる時と仕上げから取るときの両方が必要）
     Field("tieSource", "str", ("tie_source",), "仕上げ"),
     # 幅木・ネットブラケットの付け外し（利用者の指定 2026-10-24）

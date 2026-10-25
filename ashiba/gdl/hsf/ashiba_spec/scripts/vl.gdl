@@ -6,6 +6,7 @@ values "scaffW" 0, 600, 610, 900, 914, 1200, 1219
 values "railType" "布材", "先行手すり"
 values "endGuard" "布材", "ブレス材"
 values "tieSource" "仕上げ", "鉄骨"
+values "haneType" "方杖", "吊り"
 values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
 values "roughness" "I", "II", "III", "IV"
 values "sheetType" "なし", "メッシュシート", "防音シート", "密閉シート", "防音パネル"

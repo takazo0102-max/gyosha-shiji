@@ -779,19 +779,6 @@ if haneD > 0.001 then
 				if matScaf > 0 then material matScaf
 			endif
 			del 1
-			! 水平つなぎ（次のブラケットまで。腕の先と躯体側の2本）
-			if ih7 <= nSpan then
-				material "ashiba_clamp_zinc"
-				if matScaf > 0 then material matScaf
-				for hbT = 0 to 1
-					hbY = -rowW - 0.10
-					if hbT = 1 then hbY = standoff - 0.20
-					add xh, hbY, -0.15
-					roty 90
-					cylind spans[ih7], 0.0243
-					del 2
-				next hbT
-			endif
 		endif
 		if ih7 <= nSpan then xh = xh + spans[ih7]
 	next ih7
@@ -809,16 +796,30 @@ if haneD > 0.001 then
 				add xa9, 0, 0
 				gosub 760
 				del 1
-				material "ashiba_hane_steel"
-				for hbR = 0 to 1
-					add min(xa9, xe9) - 0.075, -hbR * rowW - 0.025, -0.10
-					block abs(xe9 - xa9) + 0.15, 0.05, 0.10
-					del 1
-				next hbR
-				if matScaf > 0 then material matScaf
 			endif
 		next ie9
 	endif
+	! 横に流す H形鋼（H-150×75×5×7。利用者の指定 2026-10-25: 横に流すHこうもいるんじゃない？）: 内外の建地列の下に面の
+	! 端から端まで通し、ブラケットの腕の上に載せる。支柱はその上の受けプレートに立つ（床スラブの外の端の支柱もこれで受ける）
+	material "ashiba_hane_steel"
+	hxA = max(0, gxA)
+	hxB = min(lineLen, gxB)
+	if hxB > hxA + 0.01 then
+		for hbR = 0 to 1
+			add hxA - 0.075, -hbR * rowW, 0
+			add 0, -0.0375, -0.007
+			block hxB - hxA + 0.15, 0.075, 0.007
+			del 1
+			add 0, -0.0375, -hbH
+			block hxB - hxA + 0.15, 0.075, 0.007
+			del 1
+			add 0, -0.0025, -hbH + 0.007
+			block hxB - hxA + 0.15, 0.005, hbH - 0.014
+			del 1
+			del 1
+		next hbR
+	endif
+	if matScaf > 0 then material matScaf
 	! 端の張出ブラケット（張り出しの横の本体の足場の隅へ床を繋ぐ。利用者の指定 2026-10-25）: hbExtS は始点の先（-X）、
 	! hbExtE は終点の先（+X）へ、端の内外の支柱から各層。腕の先と外側の脇に手すり・中桟、躯体側の脇は本体の隅の拡幅床へ渡る
 	for ie8 = 0 to 1
@@ -2923,6 +2924,8 @@ return
 
 760:	! ---- 跳ね出しブラケット1基（原点＝支柱の位置の内側建地列、z＝床スラブの天端。躯体の面は y＝standoff）----
 	material "ashiba_hane_steel"
+	! 腕は横に流す H形鋼（高さ hbH）の下。腕・取付プレート・方杖／吊り材は H形鋼の高さだけ下げて描く
+	addz -hbH
 	hbE = -rowW - 0.15                    ! 腕の先
 	hbL = standoff - hbE                  ! 腕の長さ（躯体の面から）
 	! 溝形鋼［-100×50×5（上下のフランジとウェブ）
@@ -2957,33 +2960,62 @@ return
 		cylind 0.012, 0.008
 		del 2
 	next hbA
-	! 吊り材（φ48.6 を支柱の両脇に2本）: 腕の先から上の階の壁の取付プレート（床の天端から haneD 上、150×150×12、
-	! アンカー M16×2）へ。張り出した床の下には壁が無い（下の階の壁は奥、そこは本体の足場）ので方杖を下に出せない
-	! （実機 2026-10-25: 1000mm はねだしている うまくいってない）
-	for hbS = -1 to 1 step 2
-		add hbS * 0.06 - 0.075, standoff - 0.012, haneD - 0.075
-		block 0.15, 0.012, 0.15
-		del 1
-		for hbA = 0 to 1
-			resol 6
-			add hbS * 0.06 - 0.04 + 0.08 * hbA, standoff - 0.012, haneD
-			rotx 90
-			cylind 0.016, 0.014
+	if haneTyp = 1 then
+		! 方杖（φ48.6 を支柱の両脇に2本）: 腕の先から下の階の壁の取付プレート（足場の面から haneWall 奥、床の天端から
+		! haneDn 下、150×150×12、アンカー M16×2）へ突っ張る（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？
+		! 写真の形）。張り出しの下の本体の足場は方杖の下端より下で止める（setback_tiers.overhang_caps）
+		hwY = standoff + haneWall
+		for hbS = -1 to 1 step 2
+			add hbS * 0.06 - 0.075, hwY - 0.012, -haneDn + hbH - 0.075
+			block 0.15, 0.012, 0.15
+			del 1
+			for hbA = 0 to 1
+				resol 6
+				add hbS * 0.06 - 0.04 + 0.08 * hbA, hwY - 0.012, -haneDn + hbH
+				rotx 90
+				cylind 0.016, 0.014
+				del 2
+			next hbA
+			resol 10
+			bx1 = hbS * 0.06
+			by1 = hbE + 0.06
+			bz1 = -0.10
+			bx2 = hbS * 0.06
+			by2 = hwY - 0.03
+			bz2 = -haneDn + hbH
+			brR = 0.0243
+			gosub 895
+		next hbS
+	else
+		! 吊り材（φ48.6 を支柱の両脇に2本）: 腕の先から上の階の壁の取付プレート（床の天端から haneD 上、150×150×12、
+		! アンカー M16×2）へ（吊り。方杖を下へ出すと張り出しの下の本体の足場を下げて止めることになるとき）
+		! （実機 2026-10-25: 1000mm はねだしている うまくいってない）
+		for hbS = -1 to 1 step 2
+			add hbS * 0.06 - 0.075, standoff - 0.012, haneD + hbH - 0.075
+			block 0.15, 0.012, 0.15
+			del 1
+			for hbA = 0 to 1
+				resol 6
+				add hbS * 0.06 - 0.04 + 0.08 * hbA, standoff - 0.012, haneD + hbH
+				rotx 90
+				cylind 0.016, 0.014
+				del 2
+			next hbA
+			hdY = standoff - 0.012 - (hbE + 0.05)
+			hdZ = haneD + hbH
+			resol 10
+			add hbS * 0.06, hbE + 0.05, 0
+			rotx -atn(hdY / hdZ)
+			cylind sqr(hdY ^ 2 + hdZ ^ 2), 0.0243
 			del 2
-		next hbA
-		hdY = standoff - 0.012 - (hbE + 0.05)
-		hdZ = haneD
-		resol 10
-		add hbS * 0.06, hbE + 0.05, 0
-		rotx -atn(hdY / hdZ)
-		cylind sqr(hdY ^ 2 + hdZ ^ 2), 0.0243
-		del 2
-	next hbS
+		next hbS
+	endif
 	! 腕の先のガセット（吊り材の受け）
 	add -0.09, hbE + 0.02, 0
 	block 0.18, 0.006, 0.08
 	del 1
-	! 受けプレート（150×150×9。内外の建地の位置。ジャッキはこの上）
+	del 1
+	! 受けプレート（150×150×9。内外の建地の位置。H形鋼の上、ジャッキはこの上）
 	for hbR = 0 to 1
 		add -0.075, -hbR * rowW - 0.075, 0
 		block 0.15, 0.15, 0.009

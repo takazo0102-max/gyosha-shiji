@@ -157,7 +157,7 @@ TOP_KEYS = {
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
-    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "bracket_post", "ladders",
+    "obstacles", "setbacks", "avoid_obstacles", "setback_bracket_max_mm", "overhang_min_mm", "hane_bracket_type", "bracket_post", "ladders",
     "face_eaves_mm", "base_height_mm", "setback_tiers", "roof_bridge", "roof_bridges", "roof_parapet_mm", "cross_cuts_mm", "intakes", "ground_scaffold", "sill_boards", "post_stagger", "setback_join", "setback_standoff_min", "tie_source", "steel_depth_mm", "steel_beam_heights_mm", "elevation_mode", "cross_section_mode", "auto_inner_bracket", "pdf", "pdf_publisher_set", "post_reinforcement", "openings", "asagao", "bracket_sections",
     "loading_stages",
     "hoists", "ground_points_mm", "site", "notification", "stairs", "wall_ties_manual", "stories", "faces",
@@ -1009,6 +1009,10 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
     # 張り出した上の階の上段は跳ね出しブラケットの上に立つ（setback_tiers。足場ラインの haneD）
     model.hane_bracket = bool(spec.get("_hane"))
+    # 跳ね出しブラケットの形（方杖／吊り）と、方杖の下端の下がり・下の階の壁までの奥行き（setback_tiers.tier_specs）
+    model.hane_type = str(spec.get("_hane_type") or "方杖")
+    model.hane_drop_mm = float(spec.get("_hane_drop_mm") or 900.0)
+    model.hane_wall_mm = float(spec.get("_hane_wall_mm") or 0.0)
     # セットバックの上段の端（本体の足場に繋ぐ。setback_tiers）
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}

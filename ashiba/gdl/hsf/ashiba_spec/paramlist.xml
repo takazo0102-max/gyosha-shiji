@@ -111,6 +111,10 @@
 			<Description><![CDATA["妻側（足場の端）の墜落防止 布材／ブレス材"]]></Description>
 			<Value><![CDATA["布材"]]></Value>
 		</String>
+		<String Name="haneType">
+			<Description><![CDATA["跳ね出しブラケットの形 方杖（下の階の壁へ突っ張る）／吊り（上の階の壁から吊る）"]]></Description>
+			<Value><![CDATA["方杖"]]></Value>
+		</String>
 		<String Name="tieSource">
 			<Description><![CDATA["壁つなぎの取り方 仕上げ（外壁にアンカー）／鉄骨（梁にビームクランプ）"]]></Description>
 			<Value><![CDATA["仕上げ"]]></Value>

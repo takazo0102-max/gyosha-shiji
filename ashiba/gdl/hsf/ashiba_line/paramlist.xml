@@ -485,6 +485,18 @@
 			<Description><![CDATA["跳ね出しブラケットの方杖の下がり（0＝なし。張り出した上の階の上段は床スラブの縁から持ち出す受けの上に立つ）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Integer Name="haneTyp">
+			<Description><![CDATA["跳ね出しブラケットの形 1＝方杖（腕の先から下の階の壁へ突っ張る）／0＝吊り（上の階の壁から吊る）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="haneDn">
+			<Description><![CDATA["方杖の下端（下の階の壁の取付プレート）の床の天端からの下がり"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="haneWall">
+			<Description><![CDATA["張り出した上の階の壁（足場の面）から下の階の壁までの奥行き（方杖の下端の取付け先）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="frGapE">
 			<Description><![CDATA["枠組の終点の出隅の建枠どうしの隙間（単管で繋ぐ。0＝なし）"]]></Description>
 			<Value>0</Value>

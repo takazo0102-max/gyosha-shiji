@@ -3,6 +3,7 @@
 
 import math
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -279,7 +280,27 @@ SL_OVER = ([{"polygon_mm": LOW, "top_mm": 0}]
 class TestOverhangTier(unittest.TestCase):
     """上の階が外へ張り出す（拡張。利用者の指定 2026-10-24: 上階で拡張する仕組みと拡小する仕組みを作って）."""
 
-    SP = {"project_name": "H", "outline_mm": LOW, "slabs": SL_OVER, "module": "inch", "eaves_height_mm": 12000}
+    SP = {"project_name": "H", "outline_mm": LOW, "slabs": SL_OVER, "module": "inch", "eaves_height_mm": 12000,
+          "hane_bracket_type": "吊り"}
+
+    def test_brace_type_stops_main_below_strut(self):
+        # 利用者の指定 2026-10-25: ブラケットの向き反対じゃない？ コマンドでどっちか選べるようにして。既定は方杖（腕の先から
+        # 下の階の壁へ突っ張る）。張り出しの下の本体の面は方杖の下端（下の階の壁の取付プレート）より下で止める
+        from ashiba.setback_tiers import brace_drop_mm
+
+        g = solve_groups({**self.SP, "hane_bracket_type": "方杖"})
+        main, tier = g[0][1].model, g[1][1].model
+        self.assertEqual(tier.hane_type, "方杖")
+        drop = brace_drop_mm(2000, main.post_row_spacing_mm)
+        self.assertAlmostEqual(tier.hane_drop_mm, drop)
+        self.assertLessEqual(main.elevation_of(0).total_height, 3000 - drop - 100)
+        self.assertEqual(line_params(tier, tier.plan.edges[0])["haneTyp"], 1)
+        g2 = solve_groups(self.SP)
+        self.assertEqual(line_params(g2[1][1].model, g2[1][1].model.plan.edges[0])["haneTyp"], 0)
+        d3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(
+            encoding="utf-8")
+        self.assertIn("if haneTyp = 1 then", d3)
+        self.assertIn("横に流す H形鋼", d3)
 
     def test_upper_tier_stands_on_brackets(self):
         # 利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして。張り出した南面と、張り出しの横の短い面（東・西の
@@ -391,7 +412,7 @@ class TestOverhangTier(unittest.TestCase):
         w = " ".join(g[0][1].quantity.warnings)
         self.assertIn("すき間板", w)
         self.assertIn("補強単管", w)
-        self.assertIn("床スラブの外の端の支柱を受ける渡し梁", " ".join(dict(g)["上段（張り出し）"].quantity.warnings))
+        self.assertIn("横に流す H形鋼", " ".join(dict(g)["上段（張り出し）"].quantity.warnings))
         self.assertTrue(any("拡幅ブラケット305を1回だけ" in x for x in main.plan.warnings))
         # 構造検定（利用者の指定 2026-10-25: 構造検定も直して）: ブラケットを付けた組の支柱は拡幅部の許容（日建 ND1800
         # 8.8kN/本）で、ブラケットは1基ずつ許容支持力（6.0kN）で。先端の支柱は隅の升目の天端まで（自重に入る）
