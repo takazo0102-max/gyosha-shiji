@@ -178,6 +178,14 @@ def tier_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
     利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして。
     """
     out = []
+    for ei, k, _x0, _x1, l0, n_lv in tier_passage_spans(model, passages):
+        out.append(MemberEdit(ei, k, k, l0, n_lv, ("内側手すり",), reason="上段への通り（セットバック）", auto=True))
+    return out
+
+
+def tier_passage_spans(model: ScaffoldModel, passages) -> list[tuple[int, int, float, float, int, int]]:
+    """上段が本体に繋がる升目 → [(面, スパン番号, 始め, 終わり（この模型の面の始点の支柱から mm）, 層の始め, 層の数)]."""
+    out = []
     by_edge = {e.edge_index: e for e in model.plan.edges}
     for ei, a, b, z0 in passages or []:
         ep = by_edge.get(int(ei))
@@ -195,8 +203,7 @@ def tier_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
         l0 = next((i + 1 for i, h in enumerate(lv) if float(h) >= float(z0) - 1.0), None)
         if l0 is None:
             continue
-        out.append(MemberEdit(int(ei), k + 1, k + 1, l0, len(lv), ("内側手すり",), reason="上段への通り（セットバック）",
-                              auto=True))
+        out.append((int(ei), k + 1, posts[k], posts[k + 1], l0, len(lv)))
     return out
 
 

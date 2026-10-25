@@ -842,6 +842,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         print(f"  注意: {n}")
     group_lines: list = []
     group_sets: list = []                   # 平面の寸法を付ける (組の結果, 組の足場ライン)
+    main_floor = line_floor(client, lines)  # 上段も本体と同じ階に置く（その階の平面に出す）
     for label, rg in groups[1:]:
         tier = label.startswith("上段")          # セットバックの上の階（途中の屋根の上から。setback_tiers）
         gdir = OUT_DIR / (label if tier else f"切替_{label}")
@@ -849,7 +850,7 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
         lg = place_scaffold_lines(
             rg.model, line_part, client, stair_plan=rg.stair_plan,
             openings=rg.openings, platforms=rg.platforms, bracket_sections=rg.brackets,
-            terrain=rg.terrain,
+            terrain=rg.terrain, floor_index=main_floor,
         )
         try:
             ag, ag_notes = place_attachments(client, rg, lg)

@@ -183,6 +183,9 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
             "project_name": f"{spec.get('project_name') or '足場'} {label}",
             "_tier": True,
             "_hane": True,
+            # 屋根の上・ブラケットの上には仮囲いが無い。シートは足場の立つ面まで下ろす（利用者の指定 2026-10-25:
+            # シートの高さも揃えて）
+            "hoarding_height_mm": 0,
             "faces": list(names),
         })
         out.append((label, sub))
@@ -211,6 +214,9 @@ def tier_specs(spec: dict, names_of) -> list[tuple[str, dict]]:
             "project_name": f"{spec.get('project_name') or '足場'} {label}",
             "_tier": True,
             "_joined_ends": joined,
+            # 屋根の上・ブラケットの上には仮囲いが無い。シートは足場の立つ面まで下ろす（利用者の指定 2026-10-25:
+            # シートの高さも揃えて）
+            "hoarding_height_mm": 0,
         })
         out.append((label, sub))
     return out
@@ -436,7 +442,10 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             fixed[int(ei)] = round(so_t, 1)
         # 床の高さを本体の床（GL から）にそろえる（利用者の指定 2026-10-25: 床の高さは揃えるようにして）
         lv_abs = [float(h) + float(m1.base_height_mm or 0) for h in m1.elevation.level_heights]
-        t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip, "_align_levels_mm": lv_abs}
+        # 足場の天端（シートの天端）も本体にそろえる（利用者の指定 2026-10-25: シートの高さも揃えて）
+        top_abs = float(m1.elevation.total_height) + float(m1.base_height_mm or 0)
+        t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip, "_align_levels_mm": lv_abs,
+              "_align_top_mm": top_abs}
         out_tiers.append((lb, t2))
         notes.append(f"{lb}: 上段の端の支柱は本体の支柱に乗せる（ジャッキベースなし）。上段の離れ {so_t:.0f}、"
                      f"セットバックの先（{'・'.join(low)}）の本体の足場は途中の屋根（GL+{low_top:.0f}）で止める")

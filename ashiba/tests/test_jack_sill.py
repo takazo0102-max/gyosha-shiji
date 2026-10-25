@@ -26,6 +26,14 @@ class TestJackDetail(unittest.TestCase):
         self.assertIn("if jkSill = 1 and sillT > 0.001 and nGl >= 2 then", blk)   # 高低差のある地盤で列の無い脚は 1m
         self.assertIn("for hw = 0 to 1", blk)               # ハンドルの羽根2枚
 
+    def test_post_joints_have_their_own_colour(self):
+        # 利用者の指定 2026-10-25: 支柱の継ぎ目は色変えてわかるようにして
+        src = D3.read_text(encoding="utf-8")
+        blk = src[src.index("840:\t! ---- 支柱の継ぎ目"):]
+        blk = blk[:blk.index("return\n", blk.index('material "ashiba_post_joint"'))]
+        self.assertIn('material "ashiba_post_joint"', blk)
+        self.assertIn('define material "ashiba_post_joint"', src)
+
     def test_standard_jack_is_a752_and_long_nd752sp(self):
         # 利用者の指定 2026-10-25: ジャッキベースはジャッキベースかロングジャッキを基本に
         r = solve_all(SPEC)

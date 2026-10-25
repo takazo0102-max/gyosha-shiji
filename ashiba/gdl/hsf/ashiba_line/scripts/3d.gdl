@@ -29,6 +29,8 @@ define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
 define material "ashiba_jack_steel" 2, 0.36, 0.42, 0.52
 ! 敷板（杉の足場板）
 define material "ashiba_sill_wood" 2, 0.60, 0.47, 0.34
+! 支柱の継ぎ目の帯は支柱と見分ける朱色（利用者の指定 2026-10-25: 支柱の継ぎ目は色変えてわかるようにして）
+define material "ashiba_post_joint" 2, 0.86, 0.36, 0.16
 ! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
 define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
 define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
@@ -2692,11 +2694,13 @@ return
 		if matScaf > 0 then material matScaf
 		return
 	endif
+	material "ashiba_post_joint"
 	addz -0.04
 	cylind 0.035, r_sic + 0.008
 	addz 0.045
 	cylind 0.035, r_sic + 0.008
 	del 2
+	if matScaf > 0 then material matScaf
 	return
 
 865:	! ---- 侵入落下防止柵の1枚（金網のフェンスパネル）: 原点＝パネルの下端の始点、+X へ幅 fW、高さ fH、枠 φ27.2 ----

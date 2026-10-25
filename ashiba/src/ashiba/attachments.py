@@ -150,11 +150,27 @@ def net_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Placem
                 continue
             arm, _fits = netbk_arm_mm(ep.standoff)
             length = float(sum(ep.spans))
-            out.append(Placement(NET_OBJECT, o[0] + nrm[0] * NET_EDGE_MM, o[1] + nrm[1] * NET_EDGE_MM, {
-                "faceAng": ang, "zH": z / 1000.0, "netL": length / 1000.0, "netW": width / 1000.0,
+            # セットバックの上段が本体に繋がる升目（上段の床の下）は張らない（利用者の指摘 2026-10-25: ネットクランプが
+            # 足場の下まで入っている）。ネットはその升目の手前の建地で止め、升目の中の建地のブラケットも付けない
+            n0, n1 = 0.0, length
+            for pe, x0, x1, zp in getattr(model, "tier_passages", None) or []:
+                if pe != ep.edge_index or z - model.base_height_mm < zp - NET_BELOW_DECK_MM - 1.0:
+                    continue
+                if x0 <= 1.0:
+                    n0 = max(n0, x1)
+                else:
+                    n1 = min(n1, x0)
+            if n1 - n0 < 100.0:
+                continue
+            out.append(Placement(NET_OBJECT, o[0] + nrm[0] * NET_EDGE_MM + u[0] * n0,
+                                 o[1] + nrm[1] * NET_EDGE_MM + u[1] * n0, {
+                "faceAng": ang, "zH": z / 1000.0, "netL": (n1 - n0) / 1000.0, "netW": width / 1000.0,
                 "lineMode": bool(line_mode)}))
             x = 0.0
             for sp in (ep.spans if model.config.net_brackets else []):     # 終点の建地は次の面が受け持つ
+                if x < n0 - 1.0 or x > n1 + 1.0:
+                    x += float(sp)
+                    continue
                 bx, by = o[0] + u[0] * x, o[1] + u[1] * x
                 b_ang, b_arm = ang, arm
                 if x == 0.0:
@@ -188,27 +204,23 @@ def net_quantities(model: ScaffoldModel) -> tuple[float, int]:
     """水平ネットの面積（m²）とネットブラケットの個数（net_placements と同じ数え方）."""
     area = 0.0
     n_bk = 0
-    for ep in model.plan.edges:
-        for _z in net_heights_mm(model, ep.edge_index):
-            width = net_width_mm(ep.standoff)
-            if width <= 0:
-                continue
-            area += float(sum(ep.spans)) / 1000.0 * width / 1000.0
-            n_bk += len(ep.spans) if model.config.net_brackets else 0
+    for p in net_placements(model):
+        if p.part == NET_OBJECT:
+            area += float(p.params["netL"]) * float(p.params["netW"])
+        elif p.part == NETBK_OBJECT:
+            n_bk += 1
     return area, n_bk
 
 
 def net_pieces(model: ScaffoldModel, length_mm: float = 6000.0, width_mm: float = 500.0) -> int:
-    """層間ネットの枚数（1枚 幅×長さ。面ごと・層ごとに面の長さを長さで、隙間の幅を幅で割って切り上げ）."""
+    """層間ネットの枚数（1枚 幅×長さ。面ごと・層ごとに張る長さを長さで、隙間の幅を幅で割って切り上げ）."""
     import math
 
     n = 0
-    for ep in model.plan.edges:
-        width = net_width_mm(ep.standoff)
-        if width <= 0:
-            continue
-        per = math.ceil(float(sum(ep.spans)) / length_mm) * max(1, math.ceil(width / width_mm - 1e-6))
-        n += per * len(net_heights_mm(model, ep.edge_index))
+    for p in net_placements(model):
+        if p.part == NET_OBJECT:
+            n += (math.ceil(float(p.params["netL"]) * 1000.0 / length_mm - 1e-6)
+                  * max(1, math.ceil(float(p.params["netW"]) * 1000.0 / width_mm - 1e-6)))
     return n
 
 
@@ -429,6 +441,31 @@ def sheet_end_pieces(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[fl
     return out
 
 
+def open_end_sheets(model: ScaffoldModel, ep) -> list[tuple[str, float]]:
+    """開放端の妻側のシート [(端 "s"/"e", 下端 mm（足場の立つ面から）)]: 内側建地列から外側のシートの面まで.
+
+    利用者の指摘 2026-10-25: 妻側にもシートいるよ（一部の面だけの足場の端・セットバックの先で本体を途中の屋根より上で
+    止めた端）。途中の屋根より上だけ開く端は、その高さから上だけ張る。
+    """
+    if sheet_size(model) is None or model.master.is_frame and is_panel(model):
+        return []
+    out = []
+    above = getattr(model, "open_above_mm", {}) or {}
+    bottom = sheet_bottom_mm(model, ep.edge_index)
+    top = float(model.elevation_of(ep.edge_index).total_height)
+    for end, is_open in (("s", model.open_start(ep.edge_index)), ("e", model.open_end(ep.edge_index))):
+        if not is_open:
+            continue
+        z0 = max(bottom, float(above.get((ep.edge_index, end), 0.0)))
+        if top - z0 > 100.0:
+            out.append((end, z0))
+    return out
+
+
+def _sheet_rows_from(model: ScaffoldModel, edge_index: int, z0: float) -> int:
+    return sum(1 for _lo, hi in sheet_rows(model, edge_index) if hi > z0 + 1.0)
+
+
 def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=None) -> list[Placement]:
     """養生シート（面の区間ごとに1部品）。足場の外側の構面を、地面から支柱の天端まで覆う."""
     size = sheet_size(model)
@@ -470,6 +507,22 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 "x0": (row + SHEET_GAP_MM) / 1000.0, "x1": (2 * row + SHEET_GAP_MM) / 1000.0,
                 "zB": sheet_bottom_mm(model, ep.edge_index) / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
                 "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode)}))
+        # 開放端の妻側: 始点は x を外向き（面の向き−90°）、終点は x を躯体向き（面の向き＋90°）にして、シートの面を端の
+        # 支柱のあきだけ外へ。クランプは端の内側・外側の建地に（部品の +y 側が建地）
+        gap = SHEET_GAP_MM
+        for end, z0 in open_end_sheets(model, ep):
+            pos = 0.0 if end == "s" else float(sum(ep.spans))
+            a, b = (0.0, row + gap) if end == "s" else (-(row + gap), 0.0)
+            cs, ce = (0.0, row) if end == "s" else (-row, 0.0)
+            out.append(Placement(SHEET_OBJECT, o[0] + _u[0] * pos, o[1] + _u[1] * pos, {
+                "faceAng": ang - 90.0 if end == "s" else ang + 90.0, "zH": model.base_height_mm / 1000.0,
+                "offY": gap / 1000.0, "x0": a / 1000.0, "x1": b / 1000.0,
+                "zB": z0 / 1000.0, "zT": top / 1000.0, "sheetW": size[0] / 1000.0,
+                "panelList": f"{a:.0f},{b:.0f},{int(not any(abs(row - c) <= 1.0 for c in model.master.span_lengths()))}",
+                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index) if h >= z0 - 1.0),
+                "clampEnd": 1, "clampXS": cs / 1000.0, "clampXE": ce / 1000.0,
+                "sheetH": size[1] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
+                "fineOn": not bool(line_mode)}))
     return _with_pens(model, out)
 
 
@@ -484,6 +537,8 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[
         for panels in sheet_panels(model, ep, stair_plan):
             area += sum(b - a for a, b, _sp in panels) / 1000.0 * top / 1000.0
         area += len(sheet_end_pieces(model, ep, stair_plan)) * float(model.post_row_spacing_mm) / 1000.0 * top / 1000.0
+        full = float(model.elevation_of(ep.edge_index).total_height)
+        area += sum(float(model.post_row_spacing_mm) / 1000.0 * (full - z0) / 1000.0 for _e, z0 in open_end_sheets(model, ep))
     return area, sum(standard_sheets(model, stair_plan, size).values())
 
 
@@ -505,6 +560,11 @@ def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> d
         for w in ws:
             k = int(round(w))
             out[k] = out.get(k, 0) + rows
+        # 開放端の妻側（建地列の間隔の幅。途中の屋根より上だけの端はその段だけ）
+        if special != row_std:
+            for _e, z0 in open_end_sheets(model, ep):
+                k = int(round(row))
+                out[k] = out.get(k, 0) + _sheet_rows_from(model, ep.edge_index, z0)
     return dict(sorted(out.items()))
 
 
@@ -522,8 +582,13 @@ def sheet_clamp_count(model: ScaffoldModel, stair_plan=None) -> int:
     """シートクランプの数（sheet_placements の clampList と同じ: 継ぎ目と端の支柱 × 根がらみと各層の手すり）."""
     if sheet_size(model) is None:
         return 0
-    return sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
-               for ep in model.plan.edges)
+    n = sum(len(sheet_clamp_positions(model, ep, stair_plan)) * len(sheet_clamp_heights(model, ep.edge_index))
+            for ep in model.plan.edges)
+    # 開放端の妻側のシート（端の内側・外側の建地）
+    for ep in model.plan.edges:
+        for _e, z0 in open_end_sheets(model, ep):
+            n += 2 * sum(1 for h in sheet_clamp_heights(model, ep.edge_index) if h >= z0 - 1.0)
+    return n
 
 
 def panel_corner_count(model: ScaffoldModel, stair_plan=None) -> int:

@@ -1,6 +1,7 @@
 """大きなセットバック: 上の階の面の足場を途中の屋根の上から建てて本体の足場に繋ぐ（利用者の指定 2026-10-24: セットバックの
 時は途中の屋根から足場が繋がるようにする仕組みを作って）."""
 
+import math
 import unittest
 
 from _path import SRC  # noqa: F401
@@ -116,6 +117,84 @@ class TestSetbackTiers(unittest.TestCase):
             z = main.elevation_of(e.edge_index).level_heights[e.level_from - 1] + main.base_height_mm
             self.assertGreaterEqual(z, tier.base_height_mm)              # 途中の屋根より上の層だけ
             self.assertIn(f",{e.level_from},", line_params(main, ep)["editList"])
+
+    def test_tier_top_and_sheet_rows_match_the_main(self):
+        # 利用者の指定 2026-10-25: シートの高さも揃えて（上段の天端が本体より 450 高く、シートは屋根の上 3m から下が無かった）
+        from ashiba.attachments import sheet_bottom_mm, sheet_rows
+
+        g = solve_groups(SPEC)
+        main, tier = g[0][1].model, g[2][1].model
+        top = main.elevation.total_height + main.base_height_mm
+        self.assertEqual(tier.elevation.total_height + tier.base_height_mm, top)
+        self.assertEqual(sheet_bottom_mm(tier, 0), 0.0)                  # 屋根の上に仮囲いは無い
+        ei = tier.plan.edges[0].edge_index
+        main_joints = {round(hi + main.base_height_mm) for e in main.plan.edges
+                       for _lo, hi in sheet_rows(main, e.edge_index)}
+        for _lo, hi in sheet_rows(tier, ei):
+            self.assertIn(round(hi + tier.base_height_mm), main_joints)
+
+    def test_open_ends_above_the_roof_get_end_sheets(self):
+        # 利用者の指摘 2026-10-25: 妻側にもシートいるよ
+        from ashiba.attachments import SHEET_OBJECT, open_end_sheets, sheet_placements
+
+        g = solve_groups(SPEC)
+        main = g[0][1].model
+        ends = {(e.edge_index, end): z for e in main.plan.edges for end, z in open_end_sheets(main, e)}
+        self.assertEqual(len(ends), 2)                                   # 東・西の面の、セットバックの先の端
+        self.assertTrue(all(abs(z - 9000) < 1 for z in ends.values()))  # 途中の屋根より上だけ
+        pls = [p for p in sheet_placements(main) if p.part == SHEET_OBJECT and abs(p.params["zB"] - 9.0) < 0.001]
+        self.assertEqual(len(pls), 2)
+
+    def test_nets_stay_out_from_under_the_tier(self):
+        # 利用者の指摘 2026-10-25: ネットクランプが足場の下まで入っている
+        from ashiba.attachments import NET_OBJECT, net_placements
+
+        g = solve_groups({**SPEC, "horizontal_net_levels": [4, 5, 6]})
+        main = g[0][1].model
+        self.assertEqual(len(main.tier_passages), 2)
+        for ei, x0, x1, zp in main.tier_passages:
+            ep = next(e for e in main.plan.edges if e.edge_index == ei)
+            o = ep.start_post
+            L = float(sum(ep.spans))
+            u = ((ep.end_post[0] - o[0]) / L, (ep.end_post[1] - o[1]) / L)
+            for p in net_placements(main):
+                if p.part != NET_OBJECT or abs(p.params["faceAng"] - math.degrees(math.atan2(u[1], u[0]))) > 0.1:
+                    continue
+                a = (p.x_mm - o[0]) * u[0] + (p.y_mm - o[1]) * u[1]
+                b = a + p.params["netL"] * 1000
+                if p.params["zH"] * 1000 >= zp - 500:
+                    self.assertTrue(b <= x0 + 1 or a >= x1 - 1, (ei, a, b, x0, x1))
+
+    def test_tier_lines_go_on_the_main_floor(self):
+        # 利用者の指定 2026-10-25: セットバックで上に配置した足場等は1階に表示するようにして（z だけで置くと屋根の高さの
+        # 階に入る）
+        from ashiba.tapir_adapter import place_scaffold_lines
+
+        class Fake:
+            def __init__(self):
+                self.calls = []
+
+            def create_object(self, name, x, y, z=0.0, floor_index=None):
+                self.calls.append((z, floor_index))
+                return {"elementId": {"guid": f"g{len(self.calls)}"}}
+
+            def rotate_element(self, *a, **kw):
+                pass
+
+            def set_gdl_parameters(self, *a, **kw):
+                pass
+
+            def delete_elements(self, *a):
+                pass
+
+            def find_member_surfaces(self):
+                return {}
+
+        g = solve_groups(SPEC)
+        c = Fake()
+        place_scaffold_lines(g[2][1].model, "ashiba_line", c, floor_index=0)
+        self.assertTrue(c.calls)
+        self.assertTrue(all(z == 9000.0 and f == 0 for z, f in c.calls), c.calls)
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった

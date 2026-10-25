@@ -265,20 +265,22 @@ class ArchicadClient:
         return elements[0]
 
     def create_object(
-        self, library_part_name: str, x_mm: float, y_mm: float, z_mm: float = 0.0
+        self, library_part_name: str, x_mm: float, y_mm: float, z_mm: float = 0.0,
+        floor_index: Optional[int] = None,
     ) -> dict:
-        data = {
-            "objectsData": [
-                {
-                    "libraryPartName": library_part_name,
-                    "coordinates": {
-                        "x": x_mm / 1000.0,
-                        "y": y_mm / 1000.0,
-                        "z": z_mm / 1000.0,
-                    },
-                }
-            ]
+        """部品を1つ置く。floor_index を渡すと、その階に置いたまま z の高さに上げる（渡さないと Archicad は z の高さが
+        入る階に置く。途中の屋根の上の上段が2階に行き、1階の平面に出なかった。実機 2026-10-25）."""
+        obj = {
+            "libraryPartName": library_part_name,
+            "coordinates": {
+                "x": x_mm / 1000.0,
+                "y": y_mm / 1000.0,
+                "z": z_mm / 1000.0,
+            },
         }
+        if floor_index is not None:
+            obj["floorIndex"] = int(floor_index)
+        data = {"objectsData": [obj]}
         elements = self.tapir("CreateObjects", data).get("elements", [])
         if not elements:
             raise TapirError(f"オブジェクト {library_part_name} を配置できませんでした")
@@ -703,8 +705,11 @@ def place_scaffold_lines(
     platforms=None,
     bracket_sections=None,
     terrain=None,
+    floor_index: Optional[int] = None,
 ) -> list[dict]:
     """割付結果の各辺に「足場ライン」オブジェクトを1つずつ配置する.
+
+    floor_index: 置く階（途中の屋根の上の上段も本体と同じ階に置いて、その階の平面に出す）。
 
     配置規約（GDL側と一致）: 原点=始点コーナー支柱（内側建地列）、+X=辺方向、+Y=躯体側。
     平面ループはCCWで躯体は進行方向左側 → 配置角は辺方向そのまま。
@@ -720,9 +725,11 @@ def place_scaffold_lines(
         # 並びが躯体の辺とずれる。並びで組み合わせていて、西面だけの組の足場が東向きに置かれた 2026-10-23）
         for ep in model.plan.edges:
             edge = model.plan.outline.edges[ep.edge_index]
-            # 下の屋根の上に建てる足場（セットバックの上の部分）は、その屋根の高さに置く
+            # 下の屋根の上に建てる足場（セットバックの上の部分）は、その屋根の高さに置く。階は本体と同じ（利用者の指定
+            # 2026-10-25: セットバックで上に配置した足場等は1階に表示するようにして）
+            on_floor = {"floor_index": floor_index} if floor_index is not None and model.base_height_mm else {}
             elem = client.create_object(
-                object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0))
+                object_name, ep.start_post[0], ep.start_post[1], float(model.base_height_mm or 0.0), **on_floor)
             placed.append(elem)
             angle = math.atan2(edge.direction[1], edge.direction[0])
             if abs(angle) > 1e-9:

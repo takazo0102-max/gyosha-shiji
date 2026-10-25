@@ -845,6 +845,11 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                                                  float(spec.get("base_height_mm", 0) or 0), master)
         if align_note:
             spec.setdefault("_align_notes", []).append(align_note)
+        if spec.get("_align_top_mm"):
+            elevation, top_note = _match_top(elevation, float(spec["_align_top_mm"]),
+                                             float(spec.get("base_height_mm", 0) or 0), master)
+            if top_note:
+                spec.setdefault("_align_notes", []).append(top_note)
     if height_note:
         # 指定高さで最上層作業床が軒より下に来るなら、その差を書く（足場高さだけ見ると
         # 軒より高いのに、作業床は軒に届いていない、という見落としを防ぐ）
@@ -1358,6 +1363,53 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
             return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、"
                        f"床 {len(lv)}段）")
     return elevation, "上段の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
+
+
+TOP_MATCH_MAX_MM = 1350.0     # 上段の天端を本体の天端にそろえる差の上限（これより違えば上段の高さのまま）
+
+
+def _match_top(elevation, top_abs: float, base: float, master):
+    """支柱の天端（＝シートの天端）を本体の天端（GL から）にそろえた立面 → (立面, 案内).
+
+    床の高さ（コマの位置）はそのまま、いちばん上の支柱から積み直して支柱の長さの合計を変える。最上層の床は天端の
+    900 下まで（手すりの高さが取れる床だけ残す）。
+    """
+    import dataclasses as _dc
+
+    need = int(round(top_abs - base - elevation.jack_extension))
+    have = sum(elevation.posts)
+    if need == have or need <= 0 or abs(need - have) > TOP_MATCH_MAX_MM:
+        return elevation, ""
+    lengths = sorted({int(v) for v in master.post_lengths()}, reverse=True)
+    koma = int(master.koma_pitch or 0)
+    if koma > 0:
+        lengths = [v for v in lengths if v % koma == 0] or lengths
+
+    def restack(posts):
+        keep, tot = [], 0
+        for p in posts:
+            if tot + p > need:
+                break
+            keep.append(p)
+            tot += p
+        rest = need - tot
+        for v in lengths:
+            while rest >= v:
+                keep.append(v)
+                rest -= v
+        return keep if rest == 0 else None
+
+    posts = restack(list(elevation.posts))
+    alt = restack(list(elevation.posts_alt)) if elevation.posts_alt else []
+    if posts is None or alt is None:
+        return elevation, ""
+    top_rel = need + elevation.jack_extension
+    lv = [h for h in elevation.level_heights if h <= top_rel - 900 + 1]
+    if not lv:
+        return elevation, ""
+    e = _dc.replace(elevation, posts=posts, posts_alt=alt, level_heights=lv, n_levels=len(lv),
+                    required_height=int(top_rel))
+    return e, f"上段の足場の天端を本体の天端（GL+{top_abs:.0f}）にそろえました（支柱 {'+'.join(map(str, posts))}）"
 
 
 def parse_tie_source(value) -> str:
@@ -2163,9 +2215,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model.plan.warnings.extend(f"取り入れ口: {m}" for m in ik_errors)
         model.member_edits = list(model.member_edits or []) + intake_edits(model.intakes)
     if spec.get("_tier_passage"):
-        from .member_edits import tier_passage_edits
+        from .member_edits import tier_passage_edits, tier_passage_spans
 
         model.member_edits = list(model.member_edits or []) + tier_passage_edits(model, spec["_tier_passage"])
+        # 水平ネットも上段の下に入れない（attachments.net_placements）
+        model.tier_passages = [(ei, x0, x1, float(model.elevation_of(ei).level_heights[l0 - 1]))
+                               for ei, _k, x0, x1, l0, _n in tier_passage_spans(model, spec["_tier_passage"])]
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 
