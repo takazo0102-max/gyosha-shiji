@@ -578,7 +578,7 @@ def sill_on(model: ScaffoldModel) -> bool:
     return bool(getattr(model.config, "sill_boards", True)) and not getattr(model, "hane_bracket", False)
 
 
-HANE_DEPTH_M = 0.6           # 跳ね出しブラケットの方杖の下がり（setback_tiers.HANE_DEPTH_MM と同じ）
+HANE_DEPTH_M = 0.6           # 跳ね出しブラケットの吊り材の上の取付プレートの高さ（setback_tiers.HANE_DEPTH_MM と同じ）
 
 
 def end_brace(model: ScaffoldModel) -> bool:

@@ -31,7 +31,8 @@ from .obstacles import SETBACK_MAX_MM, _inside
 
 PROBE_OUT_MM = 600.0         # 上段の面の外側（足場の下）の点
 OVERHANG_MAX_MM = 4500.0     # これより外へ広がる外形は張り出した上の階とみなさない（敷地・別棟）
-HANE_DEPTH_MM = 600.0        # 跳ね出しブラケットの方杖の下がり（ブラケットの下端は床の天端からこれだけ下）
+HANE_DEPTH_MM = 600.0        # 跳ね出しブラケットの吊り材の上の取付プレートの高さ（床の天端からこれだけ上の壁）
+HANE_BELOW_MM = 300.0        # ブラケットの床の天端から下へ出る寸法（取付プレート 240＋あき。張り出しの下の本体の足場はこれより下）
 HANE_GUARD_MM = 1100.0       # 本体の足場の天端（手すり分込み）をブラケットの下端からこれだけ下に収める
 MIN_RISE_MM = 1000.0         # 途中の屋根から上段の天端までこれ以上
 SAME_POLY_MM = 50.0          # 同じ外形とみなす頂点のずれ
@@ -79,7 +80,9 @@ def setback_tiers(outline_mm, slabs: list[dict], min_depth: float = SETBACK_MAX_
              for s in slabs or [] if len(s.get("polygon_mm") or []) >= 3]
     out = []
     for poly, tops in groups.values():
-        if abs(_area(poly)) >= 0.97 * a_main or not _within(poly, main):
+        # 本体より小さい上の階の外形（一部が本体の外へ張り出していてもよい: 西へ張り出し東へ下がる階。実機 2026-10-25）。
+        # 本体の中に1点も無い外形（別の建物）は除く
+        if abs(_area(poly)) >= 0.97 * a_main or not any(_inside(p, main) for p in _probe_points(poly)):
             continue
         top = max(tops)
         try:
@@ -101,6 +104,13 @@ def setback_tiers(outline_mm, slabs: list[dict], min_depth: float = SETBACK_MAX_
     return sorted(out, key=lambda t: t["top_mm"])
 
 
+def _probe_points(poly) -> list:
+    """外形の中の点（重心と、頂点と重心の中点）."""
+    cx = sum(p[0] for p in poly) / len(poly)
+    cy = sum(p[1] for p in poly) / len(poly)
+    return [(cx, cy)] + [((p[0] + cx) / 2.0, (p[1] + cy) / 2.0) for p in poly]
+
+
 def _contains(outer, inner, tol: float = 300.0) -> bool:
     return _within(inner, outer, tol)
 
@@ -119,7 +129,9 @@ def overhang_tiers(outline_mm, slabs: list[dict], min_depth: float = SETBACK_MAX
     xs, ys = [p[0] for p in main], [p[1] for p in main]
     out = []
     for poly, tops in groups.values():
-        if _within(poly, main) or not _contains(poly, main):
+        # 本体の外形の中に収まる外形（セットバックだけの階）は張り出しではない。本体を含まなくてもよい（一部の面だけ外へ
+        # 張り出す階。実機 2026-10-25: 1000mm はねだしている うまくいってない）
+        if _within(poly, main, tol=0.0) or not any(_inside(p, main) for p in _probe_points(poly)):
             continue
         # 地盤・敷地のスラブ（いちばん低い床と同じ高さ）や、本体から大きく外へ広がる外形（別の建物・敷地）は張り出しではない
         if min(tops) < floor0 + MIN_RISE_MM:
@@ -136,8 +148,8 @@ def overhang_tiers(outline_mm, slabs: list[dict], min_depth: float = SETBACK_MAX
             ox, oy = e.outward
             for k in range(1, 8):
                 t = k / 8.0
-                x = e.start[0] + (e.end[0] - e.start[0]) * t - ox * (min_depth + 200.0)
-                y = e.start[1] + (e.end[1] - e.start[1]) * t - oy * (min_depth + 200.0)
+                x = e.start[0] + (e.end[0] - e.start[0]) * t - ox * (min_depth + 1.0)
+                y = e.start[1] + (e.end[1] - e.start[1]) * t - oy * (min_depth + 1.0)
                 if not _inside((x, y), main):
                     far = True
         if far:
@@ -155,7 +167,7 @@ def overhang_faces(big_mm, main_mm, min_depth: float = SETBACK_MAX_MM) -> dict[i
 
     main = [tuple(map(float, p)) for p in main_mm]
     ol = build_outline([tuple(map(float, p)) for p in big_mm])
-    off = min_depth + 200.0
+    off = min_depth + 1.0          # 奥行きの上限（900）を超えて外へ出ている面（1000 の張り出しも）
 
     def outside(e, d: float) -> bool:
         ux, uy = e.direction
@@ -234,6 +246,22 @@ def hane_face_ranges(sub: dict, main_model, names_of) -> dict:
         rng[names[ei]] = [0.0, limit, "fit"] if kind == "s" else [-limit, -1.0, "fit"]
     faces = [f for f in (sub.get("faces") or []) if rng.get(f, 1) is not None]
     out = {**sub, "faces": faces}
+    # 建てない面（張り出していない面）のうち本体の面と同じ線の面は、本体の離れ（上段の面の端の支柱を本体の内側の建地の
+    # 列にそろえる。目標の離れのまま解くと上段の面の離れがインチの割付で 350 を超え、内ブラケットが出ていた）
+    nb = dict(sub.get("_neighbor_standoffs") or {})
+    for e in ol.edges:
+        if names[e.index] in faces:
+            continue
+        for me in main_model.plan.edges:
+            mo = main_model.plan.outline.edges[me.edge_index]
+            if abs(mo.direction[0] * e.direction[0] + mo.direction[1] * e.direction[1]) < 0.99:
+                continue
+            dist = abs((e.start[0] - mo.start[0]) * mo.direction[1] - (e.start[1] - mo.start[1]) * mo.direction[0])
+            if dist < 5.0:
+                nb[e.index] = float(me.standoff)
+                break
+    if nb:
+        out["_neighbor_standoffs"] = nb
     rr = {f: r for f, r in rng.items() if r is not None}
     if rr:
         out["_face_range"] = rr
@@ -262,7 +290,7 @@ def overhang_caps(spec: dict) -> dict[int, float]:
                 y = e.start[1] + (e.end[1] - e.start[1]) * k / 8.0 + e.outward[1] * PROBE_OUT_MM
                 hits += int(_inside((x, y), big))
             if hits >= 4:
-                cap = float(t["base_mm"]) - HANE_DEPTH_MM
+                cap = float(t["base_mm"]) - HANE_BELOW_MM
                 out[e.index] = min(out.get(e.index, cap), cap)
     return out
 
@@ -341,8 +369,9 @@ def tier_note(label: str, sub: dict) -> Optional[str]:
     if not sub.get("_tier"):
         return None
     if sub.get("_hane"):
-        return (f"{label}: 張り出した上の階（GL+{sub['base_height_mm']:.0f} から上）は、床スラブの縁から出す跳ね出しブラケットの"
-                f"上に全周の足場を建てます（軒高 {sub['eaves_height_mm']}）。本体の足場はブラケットの下で止めます")
+        return (f"{label}: 張り出した上の階（GL+{sub['base_height_mm']:.0f} から上）の {'・'.join(sub.get('faces') or [])} は、"
+                f"床スラブの縁から出す跳ね出しブラケットの上に足場を建てます（軒高 {sub['eaves_height_mm']}）。張り出しの下の"
+                "本体の面はブラケットの下で止め、ほかの本体の面は地上から上まで通します")
     ends = ("端は本体の足場の手前で止めて妻側を塞ぎます" if "_joined_ends" in sub and not sub["_joined_ends"]
             else "端は本体の足場に繋ぎます")
     return (f"{label}: セットバックした上の階の {'・'.join(sub['faces'])} は、途中の屋根（GL+{sub['base_height_mm']:.0f}）の"

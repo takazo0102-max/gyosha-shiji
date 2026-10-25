@@ -306,7 +306,7 @@ class TestOverhangTier(unittest.TestCase):
             p = line_params(tier, e)
             self.assertEqual(p["endOpenS"] + p["endOpenE"], 1)
         tops = {main.face_name(e.edge_index): main.elevation_of(e.edge_index).total_height for e in main.plan.edges}
-        self.assertLessEqual(tops["南面"], 3000 - 600 - 100)                # ブラケットの方杖の下端より下
+        self.assertLessEqual(tops["南面"], 3000 - 300 - 100)                # ブラケットの取付プレートの下端より下
         for f in ("東面", "西面", "北面"):
             self.assertGreater(tops[f], 12000)                             # 地上から上まで
         # 本体の南面にも作業床が1層（1階の壁の作業用）。コマは隣の面とそろう
@@ -319,6 +319,30 @@ class TestOverhangTier(unittest.TestCase):
         w = [x for x in g[1][1].quantity.warnings if "跳ね出しブラケット" in x]
         self.assertTrue(w and "アンカー M16" in w[0] and "渡し梁" in w[0], w)
 
+    def test_one_metre_overhang_with_a_setback(self):
+        # 実機 2026-10-25: 1000mm はねだしている うまくいってない。3階から上が西へ 1000 張り出し、東へ 5000 下がる。
+        # 張り出しの判定が「上の階の外形が本体を含む」、セットバックの判定が「本体の中に収まる」だったので、どちらにも
+        # ならず、西面を庇としてかわして離れ 1150 にしていた
+        full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
+        up = [[-1000, 0], [5000, 0], [5000, 10000], [-1000, 10000]]
+        slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": up, "top_mm": t} for t in (6000, 9000, 9700)])
+        g = solve_groups({"project_name": "W", "outline_mm": full, "slabs": slabs, "module": "inch",
+                          "series_id": "nikken_nd1800", "scaffold_width_mm": 610, "eaves_height_mm": 15400})
+        labels = [lb for lb, _r in g]
+        self.assertIn("上段（張り出し）", labels)
+        self.assertIn("上段", labels)
+        hane = dict(g)["上段（張り出し）"].model
+        self.assertTrue(hane.hane_bracket)
+        self.assertEqual(hane.base_height_mm, 6000.0)
+        self.assertEqual([hane.face_name(e.edge_index) for e in hane.plan.edges], ["西面"])
+        self.assertTrue(all(250 <= e.standoff <= 350 for e in hane.plan.edges))
+        main = g[0][1].model
+        so = {main.face_name(e.edge_index): e.standoff for e in main.plan.edges}
+        self.assertLess(so["西面"], 400)                                    # 庇としてかわさない
+        west = next(e for e in main.plan.edges if main.face_name(e.edge_index) == "西面")
+        self.assertLessEqual(main.elevation_of(west.edge_index).total_height, 6000 - 300)   # ブラケットの下で止める
+
     def test_gdl_draws_the_brackets(self):
         from pathlib import Path
 
@@ -327,7 +351,7 @@ class TestOverhangTier(unittest.TestCase):
         self.assertIn("if haneD > 0.001 then", d3)
         sub = d3[d3.index("760:\t! ---- 跳ね出しブラケット1基"):]
         sub = sub[:sub.index("return\n")]
-        for word in ("溝形鋼", "取付プレート", "アンカーボルト M16×4", "方杖", "受けプレート"):
+        for word in ("溝形鋼", "取付プレート", "アンカーボルト M16×4", "吊り材", "受けプレート"):
             self.assertIn(word, sub)
         self.assertIn("隣の面のブラケットの腕との間に渡し梁", d3)
         self.assertIn("跳ね出しブラケットの上に建てる", (gdl / "2d.gdl").read_text(encoding="utf-8"))
