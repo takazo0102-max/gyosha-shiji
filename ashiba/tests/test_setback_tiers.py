@@ -219,6 +219,29 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertTrue(c.calls)
         self.assertTrue(all(z == 9000.0 and f == 0 for z, f in c.calls), c.calls)
 
+    def test_tier_standoff_stays_between_250_and_350(self):
+        # 実機 2026-10-25: セットバックの躯体との隙間が153 かなり狭いので250~350の間で調整するようにして・本体は全部
+        # 同じ離れでなくていいよ。10m 角で西半分が上の階（壁の段差 5000）。インチの支柱は 304.8 刻みなので、上段の両脇の
+        # 本体の面（東・西）の離れを広げて（内ブラケット）上段を 250〜350 に入れる
+        full = [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]
+        west = [[0, 0], [5000, 0], [5000, 10000], [0, 10000]]
+        slabs = ([{"polygon_mm": full, "top_mm": t} for t in (0, 3000)]
+                 + [{"polygon_mm": west, "top_mm": t} for t in (6000, 9000, 9700)])
+        for spec in ({"project_name": "S", "outline_mm": full, "slabs": slabs, "module": "inch",
+                      "series_id": "nikken_nd1800", "scaffold_width_mm": 914, "eaves_height_mm": 15400}, SPEC):
+            g = solve_groups(spec)
+            tier = g[-1][1].model
+            for e in tier.plan.edges:
+                self.assertTrue(250 - 1 <= e.standoff <= 350 + 1, (spec["outline_mm"], e.standoff))
+        main = solve_groups({"project_name": "S", "outline_mm": full, "slabs": slabs, "module": "inch",
+                             "series_id": "nikken_nd1800", "scaffold_width_mm": 914, "eaves_height_mm": 15400})[0][1]
+        so = {main.model.face_name(e.edge_index): e.standoff for e in main.model.plan.edges}
+        self.assertTrue(250 <= so["南面"] <= 350 and 250 <= so["北面"] <= 350, so)   # 上段の端が当たる面はそのまま
+        widened = [n for n, v in so.items() if v > 350 + 1]
+        self.assertTrue(widened)
+        inner = {main.model.face_name(b.edge_index) for b in main.brackets if b.direction == "内"}
+        self.assertTrue(set(widened) <= inner, (widened, inner))            # 広げた面は内ブラケット
+
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった
         from ashiba.cross_sections import cross_section_specs, split_cross_specs_with_owner

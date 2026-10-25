@@ -780,10 +780,19 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # その面を固定して離れを解き直す
     if spec.get("span_overrides"):
         fixed = _resolve_span_overrides(spec, plan)
+        so_fixed = standoff
+        if spec.get("_span_standoff_max") and standoff is not None:
+            # セットバックの上段の離れを合わせるために本体の面の離れを広げるとき（setback_junctions）。広げた面は
+            # 内ブラケットで床と躯体の隙間を詰める（内ブラケットの判定は元の最大のまま）
+            import dataclasses as _dc
+
+            so_fixed = _dc.replace(standoff, max=max(float(standoff.max), float(spec["_span_standoff_max"])))
         try:
-            plan = solve_plan(spec["outline_mm"], master, standoff, fixed_spans=fixed)
+            plan = solve_plan(spec["outline_mm"], master, so_fixed, fixed_spans=fixed)
         except ValidationError as e:
             raise InputError(f"span_overrides: {e}")
+        if so_fixed is not standoff:
+            plan.standoff_spec = standoff        # 内ブラケット・離れの判定は元の範囲で
         for ei, sp in sorted(fixed.items()):
             plan.warnings.append(
                 f"{plan.face_names()[[e.edge_index for e in plan.edges].index(ei)]}のスパンは指定どおり"

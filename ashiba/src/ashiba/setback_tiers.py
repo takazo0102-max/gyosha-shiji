@@ -23,6 +23,8 @@
 
 from __future__ import annotations
 
+import math
+
 from typing import Optional
 
 from .obstacles import SETBACK_MAX_MM, _inside
@@ -244,21 +246,45 @@ def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
     return p[0] + d[0] * t, p[1] + d[1] * t
 
 
-def _best_spans(coins: list[int], length: float, slack: float = 150.0) -> list[int]:
-    """長さにいちばん近い（以下を先に）スパンの並び（本数の少ないもの）. 長さが 0 以下なら []."""
+def _best_spans(coins: list[int], length: float, slack: float = 150.0,
+                window: Optional[tuple[float, float]] = None) -> list[int]:
+    """長さにいちばん近い（以下を先に）スパンの並び（本数の少ないもの）. 長さが 0 以下なら [].
+
+    window=(下, 上) を渡すと、合計と長さの差がその範囲に入るものだけ（上段の離れを 250〜350 に収める）。"""
     from .plan_solver import achievable_sums
 
-    if length < min(coins) - 1.0:
+    lo_d, hi_d = window if window is not None else (-slack, slack)
+    if length + hi_d < min(coins) - 1.0:
         return []
-    table = achievable_sums(coins, max(min(coins), int(length - slack)), int(length + slack))
+    table = achievable_sums(coins, max(min(coins), int(math.floor(length + lo_d))), int(math.ceil(length + hi_d)))
     if not table:
         return []
     # 1829（いちばん長いスパン）を基本に、端数のスパンの少ないもの → 本数の少ないもの → 近いもの（実機 2026-10-25:
-    # 近さだけで選んで 1829×3 より 3mm 近い 610×9 を選んでいた。上段の離れが ±slack で合わせる）
+    # 近さだけで選んで 1829×3 より 3mm 近い 610×9 を選んでいた）
     main = max(coins)
-    near = [s for s in table if abs(s - length) <= slack]
-    best = min(near or table, key=lambda s: (sum(1 for v in table[s] if v != main), len(table[s]), abs(s - length)))
+    near = [v for v in table if lo_d - 0.5 <= v - length <= hi_d + 0.5]
+    if not near:
+        return []
+    best = min(near, key=lambda v: (sum(1 for x in table[v] if x != main), len(table[v]), abs(v - length)))
     return sorted(table[best], reverse=True)
+
+
+def _main_first_table(coins: list[int], max_total: int) -> dict[int, list[int]]:
+    """合計 → スパンの並び（1829 を基本に端数のスパンがいちばん少なく、次に本数の少ないもの。長い順）."""
+    main = max(coins)
+    best: dict[int, tuple[int, int, list[int]]] = {0: (0, 0, [])}
+    for total in range(1, max_total + 1):
+        cand = None
+        for c in coins:
+            prev = best.get(total - c)
+            if prev is None:
+                continue
+            key = (prev[0] + (c != main), prev[1] + 1)
+            if cand is None or key < cand[:2]:
+                cand = (key[0], key[1], prev[2] + [c])
+        if cand is not None:
+            best[total] = cand
+    return {v: sorted(c[2], reverse=True) for v, c in best.items() if v > 0}
 
 
 def _exact(coins: list[int], length: int) -> Optional[list[int]]:
@@ -280,6 +306,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     solve(spec) は本体だけを解く関数、names_of(outline) は面の名前。
     """
     from .geometry import build_outline
+    from .plan_solver import achievable_sums
 
     notes: list[str] = []
     setback = [(lb, t) for lb, t in tiers if not t.get("_hane") and t.get("_joined_ends")]
@@ -294,7 +321,10 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     names = m0.plan.face_names()
     name_of = dict(zip([e.edge_index for e in m0.plan.edges], names))
     target = float((spec.get("standoff") or {}).get("target", 300.0))
+    so_min = float((spec.get("standoff") or {}).get("min", 250.0))
+    so_max = float((spec.get("standoff") or {}).get("max", 350.0))
     overrides: dict[str, list[int]] = {}
+    span_so_max = 0.0                       # 上段の離れを合わせるために広げた本体の面の離れ（内ブラケット）
     low: dict[str, list[float]] = {}
     passage: list[list[float]] = []
     low_top = None
@@ -337,8 +367,9 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
                 notes.append(f"{lb}: 建地列の間隔 {w:.0f} の布材が系列に無いので、上段の端の支柱を本体の支柱に揃えられません")
                 continue
             lo = min(p_in, p_in + sgn * w)
-            first = _best_spans(coins, lo)
-            heads[ep.edge_index] = (first, float(sum(ep.spans)), sgn, t)
+            prev = (ep.edge_index - 1) % len(main_ol.edges)
+            so_prev = float(main_edges[prev].standoff) if prev in main_edges else target
+            heads[ep.edge_index] = (lo, float(sum(ep.spans)), sgn, t, so_prev, lb)
         plan_t.append({"label": lb, "sub": t, "juncs": juncs, "idx": idx, "names": tnames})
     # 向かい合う（平行な）面の合計の長さは同じでないと割付が解けない。平行な面の組ごとに、元の長さに近く、
     # どの面も残りがちょうど組める合計 T を探す
@@ -353,18 +384,74 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
         L0 = max(h[1] for ei, h in heads.items() if ei in group)
         best_T = None
         main_span = max(coins)
-        for dT in sorted(range(-300, 301), key=abs):
-            T = int(round(L0)) + dT
-            rests = {ei: _exact(coins, T - int(round(sum(heads[ei][0]))) - int(round(w))) for ei in group}
-            if all(v is not None for v in rests.values()):
-                # 1829 以外のスパンの数がいちばん少ない合計（同じなら元の長さに近い方）
-                key = (sum(1 for v in rests.values() for x in v if x != main_span), abs(dT))
+        # 合計 T と、各面の上段の内側の列までのスパン S を一緒に選ぶ。T を変えると本体の両端の面（隅の前・後の面）の離れが
+        # (T−L0)/2 ずつ動き、上段の離れ s＝目標＋(S−lo−(T−L0)/2)×向き も動く。上段の離れを 250〜350 に収めるのを先に、
+        # 本体の離れは 250〜350 を外れてもよい（外れた面は内ブラケット。利用者の指定 2026-10-25: 上段の隙間 153 は狭い・
+        # 本体は全部同じ離れでなくていいよ）
+        lo_T, hi_T = int(L0) - 2 * 300, int(L0) + 2 * 400
+        span_tab = _main_first_table(coins, hi_T)
+        totals = {v: c for v, c in span_tab.items() if lo_T <= v <= hi_T}
+
+        def outside(v: float, lo_v: float, hi_v: float) -> float:
+            return max(0.0, lo_v - v, v - hi_v)
+
+        for T in sorted(totals, key=lambda v: abs(v - L0)):
+            shift = (T - L0) / 2.0
+            picks = {}
+            s_ref = None
+            for ei in sorted(group, key=lambda e: heads[e][0]):
+                lo, _L, sgn, _t, so_prev, _lb = heads[ei]
+                lo_s = lo + shift
+                best = None
+                for S, sp in span_tab.items():
+                    st = target + (S - lo_s) * sgn
+                    if abs(S - lo_s) > 700 or (s_ref is not None and abs(st - s_ref) > 5.0):
+                        continue
+                    # インチの寸法は mm で端数が出るので、面の合計は T と ±2 まで（離れで吸収）
+                    rest = None
+                    for dd in (0, -1, 1, -2, 2):
+                        r_len = T - S - int(round(w)) + dd
+                        cand = [] if r_len == 0 else span_tab.get(r_len) if r_len > 0 else None
+                        if cand is not None and (rest is None or sum(1 for x in cand if x != main_span)
+                                                 < sum(1 for x in rest if x != main_span)):
+                            rest = cand
+                    if rest is None:
+                        continue
+                    key = (outside(st, so_min, so_max), sum(1 for x in sp + rest if x != main_span), abs(st - target))
+                    if best is None or key < best[0]:
+                        best = (key, st, sorted(sp, reverse=True), rest)
+                if best is None:
+                    break
+                picks[ei] = best
+                s_ref = best[1] if s_ref is None else s_ref
+            else:
+                tier_out = max(b[0][0] for b in picks.values())
+                # 本体の離れは最小より狭くしない（作業床と躯体の隙間）。最大を超えるのは内ブラケットで詰める
+                so_new = [heads[ei][4] + shift for ei in group]
+                if min(so_new) < so_min - 0.5:
+                    continue
+                main_out = max(outside(v, so_min, so_max) for v in so_new)
+                # 上段の離れ → 端数のスパンの少なさ → 本体の離れの広げ幅（50 刻みで見る）→ 元の長さとの差
+                key = (tier_out, sum(b[0][1] for b in picks.values()), round(main_out / 50.0), abs(T - L0))
                 if best_T is None or key < best_T[0]:
-                    best_T = (key, T, rests)
+                    best_T = (key, T, picks)
         if best_T is None:
             notes.append("上段の端の支柱を本体の支柱に揃える割付が見つかりません（面の長さと布材の規格）。揃えずに置きます")
             continue
-        _key, T, rests = best_T
+        key, T, picks = best_T
+        rests = {ei: picks[ei][3] for ei in group}
+        so_wide = max(heads[ei][4] for ei in group) + (T - L0) / 2.0
+        if so_wide > so_max + 0.5:
+            span_so_max = max(span_so_max, so_wide + 5.0)
+        for ei in group:
+            lo, L, sgn, t, so_prev, lbl = heads[ei]
+            heads[ei] = (picks[ei][2], L, sgn, t)
+        st_any = next(iter(picks.values()))[1]
+        if key[0] > 0.5:
+            notes.append(f"上段の離れを {so_min:.0f}〜{so_max:.0f} に収める割付がありません。いちばん近い {st_any:.0f} で置きます")
+        if key[1] > 0.5:
+            notes.append(f"上段の離れを {st_any:.0f} にするため、本体の上段の両脇の面の離れを広げています（{so_min:.0f}〜"
+                         f"{so_max:.0f} を外れた面は内ブラケットで床と躯体の隙間を詰めます）")
         for ei in group:
             first, _L, sgn, t = heads[ei]
             a2 = float(sum(first))
@@ -378,6 +465,13 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
     if not overrides:
         return spec, tiers, notes
+    if span_so_max:
+        # 本体の面の離れを広げるのは上段の端が当たる面の隅の前後の面だけ。そのほかの面のスパンは元のまま（広げた
+        # 面の長さの方向の離れを変えない）
+        for ei, ep in main_edges.items():
+            fn = name_of[ei]
+            if fn not in overrides and not any(axis(ei) == axis(j) for j in heads):
+                overrides[fn] = [int(v) for v in ep.spans]
     base = float(spec.get("base_height_mm", 0) or 0)
     idx_of = {n: ei for ei, n in name_of.items()}
     # 切れ目: 下段の側は本体に続く（妻側を塞がない）、本体の側は途中の屋根より上だけ塞ぐ
@@ -386,6 +480,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     main = {**spec, "span_overrides": list(spec.get("span_overrides") or [])
             + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
             "_low_ranges": low, "_open_above": open_above,
+            **({"_span_standoff_max": round(span_so_max, 1)} if span_so_max else {}),
             # 上段の床から本体の床へ渡る升目は、途中の屋根より上の層で本体の内側の手すり（布材）を付けない
             # （利用者の指摘 2026-10-25: セットバックの足場が本体と回らないようになっている布材を配置しないようにして）
             "_tier_passage": [[ei, a, b, low_top - base] for ei, a, b in passage],
