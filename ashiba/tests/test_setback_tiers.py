@@ -235,19 +235,26 @@ class TestSetbackTiers(unittest.TestCase):
             tier = g[-1][1].model
             for e in tier.plan.edges:
                 self.assertTrue(200 - 1 <= e.standoff <= 350 + 1, (spec["outline_mm"], e.standoff))
+        # 上段の端を本体の支柱に揃えると東面の離れが 418（内ブラケット）になる。無理に繋げず、上段は自前の支柱で離れ 300、
+        # 端は本体の内側の建地の列の 150 手前で止めて妻側を塞ぐ（利用者の指定 2026-10-25: ブラケット出てるところがある
+        # 無理に繋げなくてもいいよ）。本体の離れはどの面も 250〜350 のまま、内ブラケットは出ない
+        from ashiba.gdl_params import line_params
+
         g = solve_groups(user)
         main, tier = g[0][1], g[-1][1].model
-        so = {main.model.face_name(e.edge_index): e.standoff for e in main.model.plan.edges}
-        self.assertAlmostEqual(tier.plan.edges[0].standoff, 236, delta=2)
-        self.assertAlmostEqual(so["西面"], 251, delta=2)
-        self.assertTrue(250 <= so["南面"] <= 350 and 250 <= so["北面"] <= 350, so)   # 上段の端が当たる面はそのまま
-        self.assertTrue(all(v >= 250 - 1 for v in so.values()), so)
-        widened = [n for n, v in so.items() if v > 350 + 1]
-        inner = {main.model.face_name(b.edge_index) for b in main.brackets if b.direction == "内"}
-        self.assertTrue(set(widened) <= inner, (widened, inner))            # 広げた面は内ブラケット
-        # 上段の離れの最小を 250 にすれば上段は 250〜350（本体の面を広げて内ブラケット）
-        t2 = solve_groups({**user, "setback_standoff_min": 250})[-1][1].model
-        self.assertTrue(250 - 1 <= t2.plan.edges[0].standoff <= 350 + 1, t2.plan.edges[0].standoff)
+        self.assertTrue(all(250 <= e.standoff <= 350 for e in main.model.plan.edges),
+                        [e.standoff for e in main.model.plan.edges])
+        self.assertFalse([b for b in main.brackets if b.direction == "内"])
+        te = tier.plan.edges[0]
+        self.assertAlmostEqual(te.standoff, 300, delta=30)
+        p = line_params(tier, te)
+        self.assertEqual((p["skipPS"], p["skipPE"]), (0, 0))                 # 自前の支柱・ジャッキ
+        self.assertEqual((p["endOpenS"], p["endOpenE"]), (1, 1))             # 妻側を塞ぐ
+        inner_y = sorted(e.start_post[1] for e in main.model.plan.edges if abs(e.start_post[1] - e.end_post[1]) < 1)
+        ys = sorted((te.start_post[1], te.end_post[1]))
+        self.assertAlmostEqual(ys[0] - inner_y[0], 150, delta=2)           # 本体の内側の建地の列の 150 手前
+        self.assertAlmostEqual(inner_y[-1] - ys[1], 150, delta=2)
+        self.assertFalse([e for e in main.model.member_edits if e.reason.startswith("上段への通り")])
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった

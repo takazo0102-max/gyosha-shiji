@@ -230,14 +230,17 @@ def tier_note(label: str, sub: dict) -> Optional[str]:
     if sub.get("_hane"):
         return (f"{label}: 張り出した上の階（GL+{sub['base_height_mm']:.0f} から上）は、床スラブの縁から出す跳ね出しブラケットの"
                 f"上に全周の足場を建てます（軒高 {sub['eaves_height_mm']}）。本体の足場はブラケットの下で止めます")
+    ends = ("端は本体の足場の手前で止めて妻側を塞ぎます" if "_joined_ends" in sub and not sub["_joined_ends"]
+            else "端は本体の足場に繋ぎます")
     return (f"{label}: セットバックした上の階の {'・'.join(sub['faces'])} は、途中の屋根（GL+{sub['base_height_mm']:.0f}）の"
-            f"上から足場を建て、端は本体の足場に繋ぎます（軒高 {sub['eaves_height_mm']}）")
+            f"上から足場を建て、{ends}（軒高 {sub['eaves_height_mm']}）")
 
 
 # ---- 上段の端と本体の足場の納まり（利用者の指定 2026-10-25: セットバックの時は この左右のセットバックより先の足場は
 # 不要です。セットバックから支柱が繋がるように配置して割り付けしてください セットバックの両端のジャッキベースなしにして）----
 
 TIER_STANDOFF_MIN_MM = 200.0    # 上段の離れの最小の既定（setback_standoff_min）
+FREE_TIER_CLEAR_MM = 150.0      # 本体に繋げない上段の端と本体の内側の建地の列のあき
 
 
 def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
@@ -331,6 +334,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     so_max = float((spec.get("standoff") or {}).get("max", 350.0))
     overrides: dict[str, list[int]] = {}
     span_so_max = 0.0                       # 上段の離れを合わせるために広げた本体の面の離れ（内ブラケット）
+    free_tiers: set[int] = set()            # 本体に繋げない上段（id(入力)）
     prev_so: dict[int, float] = {}          # 上段の離れを合わせるために決めた本体の面の離れ（隅の前の面）
     low: dict[str, list[float]] = {}
     passage: list[list[float]] = []
@@ -468,6 +472,28 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             notes.append("上段の端の支柱を本体の支柱に揃える割付が見つかりません（面の長さと布材の規格）。揃えずに置きます")
             continue
         key, T, picks, so_set = best_T
+        if key[0] > 0.5 or max(so_set.values()) > so_max + 0.5:
+            # 上段の端を本体の支柱に乗せると、上段の離れが範囲を外れるか本体の面の離れを最大より広げる（内ブラケットが出る）。
+            # 無理に繋げず、上段は自前の支柱で目標の離れに建て、端は本体の内側の建地の列の手前で止めて妻側を塞ぐ
+            # （利用者の指定 2026-10-25: ブラケット出てるところがある 無理に繋げなくてもいいよ）
+            for ei in group:
+                lo, L, sgn, t, so_prev, lbl, _pv = heads[ei]
+                ep = main_edges[ei]
+                posts = [0.0]
+                for v in ep.spans:
+                    posts.append(posts[-1] + float(v))
+                fname = name_of[ei]
+                if sgn > 0:
+                    cut = next((x for x in posts if x >= lo + w - 1.0), posts[-1])
+                    low[fname] = [cut, 1.0e9]
+                else:
+                    cut = max((x for x in posts if x <= lo + 1.0), default=0.0)
+                    low[fname] = [0.0, cut]
+                low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
+                free_tiers.add(id(t))
+            notes.append(f"{heads[group[0]][5]}: 上段の端を本体の支柱に揃えると上段の離れか本体の離れが範囲を外れるので、上段は"
+                         "本体に繋げず自前の支柱で建て、端は本体の内側の建地の列の手前で止めて妻側を塞ぎます")
+            continue
         rests = {ei: picks[ei][3] for ei in group}
         so_wide = max(so_set.values())
         if so_wide > so_max + 0.5:
@@ -494,7 +520,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             # 上段の内外の建地の列の間のスパン（上段の床から本体の床へ歩いて渡る升目）
             passage.append([ei, a2, a2 + w])
             low_top = float(t["base_height_mm"]) if low_top is None else min(low_top, float(t["base_height_mm"]))
-    if not overrides:
+    if not overrides and not low:
         return spec, tiers, notes
     if span_so_max or prev_so:
         # 本体の面の離れを広げる・配分を変えるのは上段の端が当たる面の隅の前後の面だけ。そのほかの面のスパンは元のまま（広げた
@@ -551,6 +577,22 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             continue
         pt = next(p for p in plan_t if p["sub"] is t)
         tol = build_outline([tuple(map(float, p)) for p in t["outline_mm"]])
+        lv_abs = [float(h) + float(m1.base_height_mm or 0) for h in m1.elevation.level_heights]
+        top_abs = float(m1.elevation.total_height) + float(m1.base_height_mm or 0)
+        if id(t) in free_tiers:
+            # 本体に繋げない上段: 端の面（本体の面と同じ線）の離れを本体の離れ − あき にして、本体の内側の建地の列の手前で
+            # 止める。端は開放端（妻側の手すり・シート）。床・天端・シートの下端は本体にそろえる
+            fixed_f: dict[int, float] = {}
+            for ei, end, ep0, _p_in, _sgn in pt["juncs"]:
+                ep = e1.get(ep0.edge_index)
+                if ep is None:
+                    continue
+                nb = (int(ei) - 1) % len(tol.edges) if end == "s" else (int(ei) + 1) % len(tol.edges)
+                fixed_f[nb] = max(0.0, float(ep.standoff) - FREE_TIER_CLEAR_MM)
+            t2 = {**t, "_neighbor_standoffs": fixed_f, "_joined_ends": [], "_align_levels_mm": lv_abs,
+                  "_align_top_mm": top_abs, "_sheet_bottom_mm": base + low_sheet_rel - float(t["base_height_mm"])}
+            out_tiers.append((lb, t2))
+            continue
         fixed: dict[int, float] = {}
         skip = []
         so_t = None
@@ -582,10 +624,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             continue
         for ei, _e in skip:
             fixed[int(ei)] = round(so_t, 1)
-        # 床の高さを本体の床（GL から）にそろえる（利用者の指定 2026-10-25: 床の高さは揃えるようにして）
-        lv_abs = [float(h) + float(m1.base_height_mm or 0) for h in m1.elevation.level_heights]
-        # 足場の天端（シートの天端）も本体にそろえる（利用者の指定 2026-10-25: シートの高さも揃えて）
-        top_abs = float(m1.elevation.total_height) + float(m1.base_height_mm or 0)
+        # 床の高さ（lv_abs）・足場の天端（top_abs）は本体にそろえる（利用者の指定 2026-10-25: 床の高さは揃えるようにして・
+        # シートの高さも揃えて）
         # 上段のシートは下段の足場（低い所のメッシュ）の天端から上だけ（利用者の指定 2026-10-25: セットバック部分も
         # メッシュシートは低いところのメッシュの高さまででいいよ。屋根の上は下段のシートの内側）
         t2 = {**t, "_neighbor_standoffs": fixed, "_skip_end_posts": skip, "_align_levels_mm": lv_abs,
