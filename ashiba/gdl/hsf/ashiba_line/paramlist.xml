@@ -561,6 +561,14 @@
 			<Description><![CDATA["拡幅した升目の作業床の高さ mm（いちばん下にブラケット）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="tGapS">
+			<Description><![CDATA["始点の先のすき間板（本体に繋げない上段の端から本体の内側の建地の列までのあき。0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="tGapE">
+			<Description><![CDATA["終点の先のすき間板（同上）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="hbShS">
 			<Description><![CDATA["跳ね出しの上段の始点の内側の支柱を本体の隅の升目と共有（張出ブラケットは外側だけ） 0/1"]]></Description>
 			<Value>0</Value>

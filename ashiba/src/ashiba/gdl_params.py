@@ -897,6 +897,9 @@ def bridge_params(model: ScaffoldModel, ep) -> dict:
         skips["skipInE"] = 1
     return {
         **skips,
+        # 本体に繋げない上段の端のすき間板（本体の内側の建地の列までのあき。setback_junctions）
+        "tGapS": float((getattr(model, "free_gap_ends", None) or {}).get((ei, "s"), 0.0)) / 1000.0,
+        "tGapE": float((getattr(model, "free_gap_ends", None) or {}).get((ei, "e"), 0.0)) / 1000.0,
         "hbShS": 1 if (ei, "s") in shared else 0,
         "hbShE": 1 if (ei, "e") in shared else 0,
         # 隅の升目の、跳ね出しの上段の張出の床へ渡る辺（1＝この面の外側の列、2＝前の面の外側の列の延長）と、その高さから上

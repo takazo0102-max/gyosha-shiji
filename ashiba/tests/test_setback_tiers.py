@@ -250,12 +250,15 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertAlmostEqual(te.standoff, 300, delta=30)
         p = line_params(tier, te)
         self.assertEqual((p["skipPS"], p["skipPE"]), (0, 0))                 # 自前の支柱・ジャッキ
-        self.assertEqual((p["endOpenS"], p["endOpenE"]), (1, 1))             # 妻側を塞ぐ
+        # 端は開けて本体の床へ渡る。あき 150 はすき間板、本体の躯体側の手すりはその区間で外す（利用者の指摘 2026-10-25:
+        # セットバックのコーナー部分ができてない）
+        self.assertEqual((p["endOpenS"], p["endOpenE"]), (0, 0))
+        self.assertEqual((p["tGapS"], p["tGapE"]), (0.15, 0.15))
+        self.assertTrue([x for x in main.model.member_edits if x.reason == "上段への通り（セットバック）"])
         inner_y = sorted(e.start_post[1] for e in main.model.plan.edges if abs(e.start_post[1] - e.end_post[1]) < 1)
         ys = sorted((te.start_post[1], te.end_post[1]))
         self.assertAlmostEqual(ys[0] - inner_y[0], 150, delta=2)           # 本体の内側の建地の列の 150 手前
         self.assertAlmostEqual(inner_y[-1] - ys[1], 150, delta=2)
-        self.assertFalse([e for e in main.model.member_edits if e.reason.startswith("上段への通り")])
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった
@@ -333,9 +336,10 @@ class TestOverhangTier(unittest.TestCase):
         # 本体の南面にも作業床が1層（1階の壁の作業用）。コマは隣の面とそろう
         self.assertEqual(main.elevation_of(0).n_levels, 1)
         self.assertIn(main.elevation_of(0).level_heights[0], main.elevation.level_heights)
-        # 上段の床は本体の床にそろう
+        # 上段の床は本体の床にそろう（ジャッキの上限で届かない分は敷板を重ねず 120 まで低い）
         for h in tier.elevation.level_heights:
-            self.assertIn(round(h + tier.base_height_mm), {round(v) for v in main.elevation.level_heights})
+            self.assertTrue(any(0 <= v - (h + tier.base_height_mm) <= 120 for v in main.elevation.level_heights),
+                            (h, main.elevation.level_heights))
         self.assertLess(max(e.standoff for e in main.plan.edges), 600)
         w = [x for x in g[1][1].quantity.warnings if "跳ね出しブラケット" in x]
         self.assertTrue(w and "アンカー M16" in w[0] and "渡し梁" in w[0], w)

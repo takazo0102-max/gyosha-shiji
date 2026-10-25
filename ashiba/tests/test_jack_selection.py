@@ -128,7 +128,8 @@ class TestStaggerAndShim(unittest.TestCase):
         self.assertLess(qty(st.quantity, "NDP27N"), qty(plain.quantity, "NDP27N"))
 
     def test_setback_tier_lifts_the_jacks_with_sill_shims(self):
-        # ロングを 350 で止めると上段の床をそろえる繰出し 400 に届かない。足りない分は全部の脚の下に敷板
+        # ロングを 350 で止めると上段の床をそろえる繰出し 400 に届かない。敷板は重ねず（利用者の指定 2026-10-25: やはりこの
+        # 敷板を積み重ねるのはやめる）、ジャッキを上限まで出して上段の床を本体より少し低くする
         from ashiba.cli import solve_groups
         from ashiba.gdl_params import line_params
 
@@ -142,11 +143,11 @@ class TestStaggerAndShim(unittest.TestCase):
         tier = g[2][1]
         e = tier.model.elevation
         jmax = max(p.max_extension_mm() or 0 for p in tier.model.master.by_category("ジャッキ"))
-        self.assertLessEqual(e.jack_extension - e.base_shim, jmax)
-        self.assertEqual(e.base_shim % 35, 0)
-        self.assertAlmostEqual(line_params(tier.model, tier.model.plan.edges[0])["shimAll"], e.base_shim / 1000.0)
-        self.assertGreater(e.base_shim, 0)                                # 実機では繰出し 330 ＋敷板2枚（70）
-        self.assertTrue(any("敷板を" in n for n in tier.quantity.notes), tier.quantity.notes)
+        self.assertLessEqual(e.jack_extension, jmax)
+        self.assertEqual(e.base_shim, 0)
+        self.assertEqual(line_params(tier.model, tier.model.plan.edges[0])["shimAll"], 0.0)
+        self.assertFalse(any("敷板を" in n and "重ねて" in n for n in tier.quantity.notes), tier.quantity.notes)
+        self.assertTrue(any("低くなります" in w for w in tier.model.plan.warnings), tier.model.plan.warnings)
         # 標準のジャッキベース（262）で届かない繰出しはロングで数える
         self.assertGreater(qty(tier.quantity, "ND752SP"), 0)
         self.assertEqual(qty(tier.quantity, "A752"), 0)

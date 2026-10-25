@@ -183,6 +183,30 @@ def tier_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
     return out
 
 
+def free_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
+    """本体に繋げない上段の端が当たる区間（setback_junctions の _free_passage「面, 始め, 終わり, 屋根の高さ」。位置は元の
+    面の始点の支柱から mm）に重なるスパンで、途中の屋根より上の層の本体の躯体側の手すり・中桟を外す."""
+    out = []
+    by_edge = {e.edge_index: e for e in model.plan.edges}
+    for ei, a, b, z0 in passages or []:
+        ep = by_edge.get(int(ei))
+        if ep is None or (model.edge_subset is not None and int(ei) not in model.edge_subset):
+            continue
+        off = float((getattr(model, "face_offsets", {}) or {}).get(int(ei), (0.0, 0.0))[0])
+        lo, hi = float(a) - off, float(b) - off
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        ks = [i + 1 for i in range(len(ep.spans)) if posts[i] < hi - 1.0 and posts[i + 1] > lo + 1.0]
+        lv = list(model.elevation_of(int(ei)).level_heights)
+        l0 = next((i + 1 for i, h in enumerate(lv) if float(h) >= float(z0) - 1.0), None)
+        if not ks or l0 is None:
+            continue
+        out.append(MemberEdit(int(ei), ks[0], ks[-1], l0, len(lv), ("内側手すり",), reason="上段への通り（セットバック）",
+                              auto=True))
+    return out
+
+
 def tier_passage_spans(model: ScaffoldModel, passages) -> list[tuple[int, int, float, float, int, int]]:
     """上段が本体に繋がる升目 → [(面, スパン番号, 始め, 終わり（この模型の面の始点の支柱から mm）, 層の始め, 層の数)]."""
     out = []

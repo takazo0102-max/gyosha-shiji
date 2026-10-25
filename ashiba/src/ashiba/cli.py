@@ -1016,6 +1016,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     # セットバックの上段の端（本体の足場に繋ぐ。setback_tiers）
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}
+    # 本体に繋げない上段の端（本体の内側の建地の列の手前で止めた端）: すき間板で本体の床へ渡る
+    model.free_gap_ends = {(int(j[0]), str(j[1])): float(spec.get("_free_gap_mm") or 150.0)
+                           for j in (spec.get("_free_gap_ends") or [])}
     model.open_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_above") or [])}
     model.open_sheet_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_sheet_above") or [])}
     if spec.get("_sheet_bottom_mm") is not None:
@@ -1428,22 +1431,26 @@ def _align_elevation(elevation, levels_abs: list, base: float, master):
 
         for dd in sorted({d0, d0 - koma, d0 + koma}, key=abs):
             j = elevation.jack_extension + dd
-            # ジャッキの上限を超える分は、全部の脚のジャッキの下に敷板を重ねて持ち上げる（3枚まで）
-            shim = int(math.ceil(max(0.0, j - jmax) / SHIM_UNIT_MM - 1e-9)) * SHIM_UNIT_MM
-            if not (JACK_MIN_EXTENSION <= j and shim <= 3 * SHIM_UNIT_MM):
+            # ジャッキの上限を超える分は、敷板を重ねて持ち上げずに（利用者の指定 2026-10-25: やはりこの敷板を積み重ねるのは
+            # やめる）ジャッキを上限まで出し、上段の床を本体の床よりその分だけ低くする（120 まで）
+            low_by = max(0.0, j - jmax)
+            if not (JACK_MIN_EXTENSION <= j and low_by <= 120.0):
                 continue
+            j -= low_by
+            dd -= low_by
             fl = elevation.first_ledger_height + dd
             top = max(elevation.level_heights) + dd
-            lv = [m - base for m in main if m - base >= fl + koma - 1.0 and m - base <= top + 1.0]
+            lv = [m - base - low_by for m in main if m - base - low_by >= fl + koma - 1.0 and m - base - low_by <= top + 1.0]
             if not lv:
                 continue
             di = int(round(dd))
             e = _dc.replace(elevation, jack_extension=int(round(j)), first_ledger_height=int(round(fl)),
                             level_heights=[int(round(v)) for v in lv], n_levels=len(lv),
-                            required_height=int(elevation.required_height + di), base_shim=shim)
-            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension - shim}mm"
-                       + (f"＋敷板 {shim // SHIM_UNIT_MM}枚（{shim}mm）" if shim else "")
-                       + f"・{di:+d}mm、床 {len(lv)}段）")
+                            required_height=int(elevation.required_height + di), base_shim=0)
+            return e, (f"上段の床の高さを本体の床にそろえました（ジャッキの繰出し {e.jack_extension}mm・{di:+d}mm、床 {len(lv)}段）"
+                       if low_by < 1.0 else
+                       f"上段の床はジャッキの繰出しの上限（{int(jmax)}mm）で本体の床より {int(round(low_by))}mm 低くなります"
+                       f"（敷板は重ねない。床 {len(lv)}段。本体の床へ渡るところは段差に注意）")
     return elevation, "上段の床の高さを本体の床にそろえられませんでした（支柱・ジャッキの組み合わせで届かない）"
 
 
@@ -2346,6 +2353,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         # 水平ネットも上段の下に入れない（attachments.net_placements）
         model.tier_passages = [(ei, x0, x1, float(model.elevation_of(ei).level_heights[l0 - 1]))
                                for ei, _k, x0, x1, l0, _n in tier_passage_spans(model, spec["_tier_passage"])]
+    if spec.get("_free_passage"):
+        # 本体に繋げない上段の端が当たるスパン: 途中の屋根より上の層で本体の躯体側の手すり・中桟を外す（上段の床から
+        # すき間板を渡って本体の床へ。setback_tiers.setback_junctions。利用者の指摘 2026-10-25: セットバックのコーナー部分ができてない）
+        from .member_edits import free_passage_edits
+
+        model.member_edits = list(model.member_edits or []) + free_passage_edits(model, spec["_free_passage"])
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 
