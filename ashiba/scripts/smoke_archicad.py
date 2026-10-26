@@ -106,6 +106,17 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
                 bad = count_mismatches(want, got)
                 rep.add(f"{face} 図示本数", not bad and not all_zero(got, FACE_COUNT_PARAMS),
                         "・".join(bad) or ("すべて0" if all_zero(got, FACE_COUNT_PARAMS) else "一致"))
+        # 付帯部品（屋上の渡り・コーナーステップ・ブラケット・壁つなぎなど）も、部品ごとに1つ 3D が白紙でないか
+        # （GDL の 3D スクリプトが止まると黙って何も描かない。同じ define material 2回など）
+        seen: dict = {}
+        for el in res.get("attachments") or []:
+            name = _lib_name(client, el)
+            base = name.rsplit("_", 1)[0] if "_" in name else name
+            if base and base not in seen and base != "ashiba_line":
+                seen[base] = el
+        for base, el in sorted(seen.items()):
+            blank = _preview_blank(client, el, "3D", out_dir / f"preview_{base}.png")
+            rep.add(f"{base} の 3D", not blank, "真っ白" if blank else "")
         if res["lines"]:
             for view in ("2D", "3D"):
                 blank = _preview_blank(client, res["lines"][0], view, out_dir / f"preview_{view}.png")

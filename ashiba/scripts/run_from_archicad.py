@@ -958,7 +958,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     print(f"帳票出力先: {OUT_DIR}")
     return {"result": r, "spec": spec, "lines": lines, "elevations": elevs, "details": details,
             "sections": sections, "plan_sheet": plan_sheet, "detail_sheet": detail_sheet, "pdf": pdf, "elevation_mode": elevation_mode,
-            "replaced": replaced, "verdict": v, "group_sets": group_sets}
+            "replaced": replaced, "verdict": v, "group_sets": group_sets,
+            "attachments": list(attach) + [e for _rg, lg in group_sets for e in lg] + list(group_lines)}
 
 
 if __name__ == "__main__":
