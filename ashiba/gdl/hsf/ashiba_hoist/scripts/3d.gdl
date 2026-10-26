@@ -1,0 +1,71 @@
+﻿! 昇降機 3D: マスト（ベース・壁つなぎ）・荷台（床・手すり・頭上覆い）・各階のフロアーゲート
+resol 8
+if matCage > 0 then material matCage
+rotz faceAng
+mastH = max(hoReach + 1.5, 3)
+for im = 1 to nMast
+	! ベース
+	add mx[im] - 0.40, my[im] - 0.40, 0
+	block 0.80, 0.80, 0.12
+	del 1
+	! マスト（ラック付きの角形。150 角）
+	add mx[im] - 0.075, my[im] - 0.075, 0.12
+	block 0.15, 0.15, mastH - 0.12
+	del 1
+	! マストの壁つなぎ（足場の外側建地の列まで）
+	if showTie then
+		zt = tieE
+		while zt < mastH - 0.5 do
+			add mx[im], my[im] + 0.075, zt
+			rotx -90
+			cylind max(0.05, -(my[im] + 0.075)), 0.0243
+			del 2
+			zt = zt + tieE
+		endwhile
+	endif
+next im
+! 荷台（いちばん下に止めた形）: 床・外側と両端の手すり（0.75・1.15）・頭上覆い
+zF = 0.30
+add -cageL / 2, yC1, zF
+block cageL, cageD, 0.06
+del 1
+for hr = 1 to 2
+	zr = zF + 0.35 + 0.40 * hr
+	add -cageL / 2, yC1 + 0.03, zr
+	roty 90
+	cylind cageL, 0.0243
+	del 2
+	for se = 0 to 1
+		add -cageL / 2 + se * cageL, yC1, zr
+		rotx -90
+		cylind cageD, 0.0243
+		del 2
+	next se
+next hr
+for cx = 0 to 1
+	for cy = 0 to 1
+		add -cageL / 2 + cx * cageL, yC1 + cy * cageD, zF
+		cylind 2.1, 0.0243
+		del 1
+	next cy
+next cx
+add -cageL / 2, yC1, zF + 2.1
+block cageL, cageD, 0.03
+del 1
+! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）
+if showGate and gateOpen > 0.01 then
+	for il = 1 to nLand
+		for hr = 1 to 2
+			add -gW / 2, -0.04, landH[il] + 0.45 * hr
+			roty 90
+			cylind gW, 0.0243
+			del 2
+		next hr
+		for se = 0 to 1
+			add -gW / 2 + se * gW, -0.04, landH[il]
+			cylind 1.0, 0.0243
+			del 1
+		next se
+	next il
+endif
+del top

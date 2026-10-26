@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。+X＝面に沿う向き、+Y＝躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<String Name="hoModel">
+			<Description><![CDATA["機種（data/hoist_models.csv）"]]></Description>
+			<Value><![CDATA["KSE600C"]]></Value>
+		</String>
+		<Length Name="hoReach">
+			<Description><![CDATA["到達高さ（マストの頂部の目安。配置で足場の天端を入れる）"]]></Description>
+			<Value>10</Value>
+		</Length>
+		<Length Name="gapOut">
+			<Description><![CDATA["足場の外側建地の列から荷台までのあき"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<String Name="landLevels">
+			<Description><![CDATA["乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="landList">
+			<Description><![CDATA["乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Boolean Name="showGate">
+			<Description><![CDATA["フロアーゲートを描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="showTie">
+			<Description><![CDATA["マストの壁つなぎを描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Material Name="matCage">
+			<Description><![CDATA["荷台・マストの材質"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

@@ -73,8 +73,8 @@ DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
 ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
                       "ashiba_cstep", "ashiba_bridge", "ashiba_kbrk")
-# 配置とは別に置く部品（内部ステージ足場。配置の置き直しでは消さない）
-SEPARATE_OBJECTS = ("ashiba_stage",)
+# 配置とは別に置く部品（内部ステージ足場・昇降機。配置の置き直しでは消さない。昇降機は配置で読み取って面に合わせ直す）
+SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -207,6 +207,30 @@ def read_spec_objects(client) -> list:
         item = (resp.get("gdlParametersOfElements") or [{}])[0]
         params = {p.get("name"): p.get("value") for p in item.get("gdlParameters", item.get("parameters", []))}
         found.append((e, (float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0), params))
+    return found
+
+
+def read_hoist_objects(client, outline_mm, reach_mm: float = 15000.0) -> list:
+    """建物（外形）のまわり reach_mm の中に置いてある昇降機の部品を (要素, 原点mm, パラメータ) の一覧で返す."""
+    xs = [float(p[0]) for p in outline_mm]
+    ys = [float(p[1]) for p in outline_mm]
+    objs = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+    found = []
+    for e, d in zip(objs, client.get_details(objs) if objs else []):
+        dd = d.get("details", {})
+        lp = dd.get("libPart") or {}
+        if not is_ashiba_part(lp.get("name", "") if isinstance(lp, dict) else "", ("ashiba_hoist",)):
+            continue
+        o = dd.get("origin") or {}
+        x, y = float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0
+        if not (min(xs) - reach_mm <= x <= max(xs) + reach_mm and min(ys) - reach_mm <= y <= max(ys) + reach_mm):
+            continue
+        resp = client.tapir("GetGDLParametersOfElements", {"elements": [e]})
+        item = (resp.get("gdlParametersOfElements") or [{}])[0]
+        raw = item.get("gdlParameters", item.get("parameters", []))
+        params = ({p.get("name"): p.get("value") for p in raw} if isinstance(raw, list) else
+                  {k: (v.get("value") if isinstance(v, dict) else v) for k, v in raw.items()})
+        found.append((e, (x, y), params))
     return found
 
 
@@ -438,9 +462,9 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     置いた要素と注意を返す。壁つなぎが全部置けたら足場ラインの tieObj を True にして、ライン側の壁つなぎを消す
     （置けなければライン側に描いたまま）。
     """
-    from ashiba.attachments import (BRIDGE_OBJECT, CSTEP_OBJECT, KBRK_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT,
-                                    TIE_OBJECT, bridge_placements, cstep_placements, kbrk_placements, net_placements,
-                                    sheet_placements, tie_placements)
+    from ashiba.attachments import (BRIDGE_OBJECT, CSTEP_OBJECT, HOIST_OBJECT, KBRK_OBJECT, NET_OBJECT, NETBK_OBJECT,
+                                    SHEET_OBJECT, TIE_OBJECT, bridge_placements, cstep_placements, hoist_placements,
+                                    kbrk_placements, net_placements, sheet_placements, tie_placements)
 
     notes: list[str] = []
     line_mode = bool(r.model.config.line_mode_3d)
@@ -457,11 +481,12 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     lines = list(lines) + upper
     pls = (tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
            + sheet_placements(r.model, line_mode, r.stair_plan) + cstep_placements(r.model, line_mode)
-           + bridge_placements(r.model, line_mode) + kbrk_placements(r.model, line_mode))
+           + bridge_placements(r.model, line_mode) + kbrk_placements(r.model, line_mode)
+           + hoist_placements(r.model, r.platforms))
     if not pls:
         return upper, notes
     names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, CSTEP_OBJECT,
-                                                 BRIDGE_OBJECT, KBRK_OBJECT)}
+                                                 BRIDGE_OBJECT, KBRK_OBJECT, HOIST_OBJECT)}
     mats = {}
     try:
         mats = client.find_member_surfaces()
@@ -843,6 +868,19 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     from ashiba.site_boundary import plan_within_boundary
 
     spec = asagao_off_by_default(spec)
+    # 置いてある昇降機の部品（ashiba_hoist）を読み、いちばん近い面に合わせて入力の hoists にする（利用者の指定 2026-10-27:
+    # 昇降機は別オブジェクトで配置できるように）。読んだ部品は消し、解いたあとで面に合わせた位置に置き直す
+    hoist_objs = read_hoist_objects(client, spec["outline_mm"])
+    if hoist_objs:
+        from ashiba.hoist_objects import hoists_from_objects
+
+        pre = solve_groups({k: v for k, v in spec.items() if k != "hoists"})
+        hs, h_notes = hoists_from_objects(hoist_objs, pre)
+        for n in h_notes:
+            print(f"  昇降機: {n}")
+        if hs:
+            spec["hoists"] = hs
+            client.delete_elements([e for e, _p, _q in hoist_objs])
     spec, fit_notes = plan_within_boundary(spec)
     for n in fit_notes:
         print(f"  敷地境界: {n}")

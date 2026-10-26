@@ -22,6 +22,7 @@ NETBK_OBJECT = "ashiba_netbk"
 SHEET_OBJECT = "ashiba_sheet"
 CSTEP_OBJECT = "ashiba_cstep"
 BRIDGE_OBJECT = "ashiba_bridge"
+HOIST_OBJECT = "ashiba_hoist"
 KBRK_OBJECT = "ashiba_kbrk"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
@@ -908,6 +909,37 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
             "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0, "paraT": b.parapet_t_mm / 1000.0,
             "extL": b.ext_mm / 1000.0, "postTop": (base + b.post_top_mm) / 1000.0,
             "lineMode": bool(line_mode)}))
+    return _with_pens(model, out)
+
+
+def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
+    """昇降機ごとの部品 ashiba_hoist（利用者の指定 2026-10-27: 昇降機は別オブジェクトで配置できるように）.
+
+    原点は足場の外側建地の列の上の昇降機の中心（面に沿って position_mm）、faceAng で面の向き。到達高さ（指定が無ければ
+    その面の足場の天端）と乗り込む作業床の高さ（フロアーゲートを描く）を入れる。機種の指定が無ければ荷台の大きさだけの形。
+    """
+    out: list[Placement] = []
+    if platforms is None or not getattr(platforms, "hoists", None):
+        return out
+    edges = {e.edge_index: e for e in model.plan.edges}
+    base = float(model.base_height_mm or 0.0)
+    for h in platforms.hoists:
+        ep = edges.get(h.edge_index)
+        if ep is None:
+            continue
+        o, u, nrm, ang = _frame(ep)
+        row = float(model.row_spacing_of(ep.edge_index))
+        x = o[0] + u[0] * h.position_mm - nrm[0] * row
+        y = o[1] + u[1] * h.position_mm - nrm[1] * row
+        ev = model.elevation_of(ep.edge_index)
+        levels = ev.level_heights
+        lands = [base + float(levels[lv - 1]) for lv in h.landings(model) if 1 <= lv <= len(levels)]
+        out.append(Placement(HOIST_OBJECT, x, y, {
+            "faceAng": ang, "hoModel": h.model_id or "",
+            # 利用者が部品の設定で選んだ乗り込む層は、置き直しても残す（空なら全部の層）
+            "landLevels": ",".join(str(int(v)) for v in (h.landing_levels or [])),
+            "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else base + float(ev.total_height)) / 1000.0,
+            "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands)}))
     return _with_pens(model, out)
 
 

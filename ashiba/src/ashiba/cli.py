@@ -190,7 +190,7 @@ LIST_ITEM_KEYS = {
         {"edge_index", "start_mm"},
     ),
     "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
-                "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn"},
+                "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn", "model"},
                {"edge_index", "position_mm"}),
     # 範囲を指定した部材の編集（外す・置換）。spans・levels は "3-5"・[3, 5]・3・"全部"
     "member_edits": ({"edge_index", "face", "spans", "levels", "parts", "part", "action", "to", "reason"},
@@ -1733,20 +1733,28 @@ def build_platforms(spec: dict) -> tuple[list, list]:
         )
         for s in spec.get("loading_stages", [])
     ]
-    hoists = [
-        Hoist(
+    from .hoist_models import hoist_model
+
+    hoists = []
+    for h in spec.get("hoists", []):
+        # 機種を選べば、荷台・積載・壁つなぎ間隔はその機種の値（個別に書いた値が優先。利用者の指定 2026-10-27）
+        hm = hoist_model(h.get("model"))
+        if h.get("model") and hm is None:
+            from .hoist_models import model_ids
+
+            raise InputError(f"hoists.model: 機種「{h.get('model')}」がありません（{'・'.join(model_ids())}）")
+        hoists.append(Hoist(
             edge_index=h["edge_index"],
             position_mm=float(h["position_mm"]),
             reach_height_mm=h.get("reach_height_mm", 0.0),
-            tie_every_mm=h.get("tie_every_mm", 3600),
+            tie_every_mm=h.get("tie_every_mm", hm.tie_every_mm if hm else 3600),
             landing_levels=[int(v) for v in h.get("landing_levels", [])],
             note=h.get("note", ""),
-            cage_width_mm=float(h.get("cage_width_mm", HOIST_CAGE_W_MM)),
-            cage_depth_mm=float(h.get("cage_depth_mm", HOIST_CAGE_D_MM)),
-            load_kn=float(h.get("load_kn", 0.0)),
-        )
-        for h in spec.get("hoists", [])
-    ]
+            cage_width_mm=float(h.get("cage_width_mm", hm.cage_len_mm if hm else HOIST_CAGE_W_MM)),
+            cage_depth_mm=float(h.get("cage_depth_mm", hm.cage_depth_mm if hm else HOIST_CAGE_D_MM)),
+            load_kn=float(h.get("load_kn", hm.load_kn if hm else 0.0)),
+            model_id=hm.model_id if hm else "",
+        ))
     return stages, hoists
 
 

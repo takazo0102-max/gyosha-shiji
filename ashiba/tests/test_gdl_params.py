@@ -353,9 +353,16 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         gdl = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line"
         body2 = (gdl / "scripts" / "2d.gdl").read_text(encoding="utf-8")
         body3 = (gdl / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertEqual(body2.count("hoP[ih]"), 3)     # 平面（詳細・単線）と立面
+        # 昇降機は別の部品 ashiba_hoist で機種の形を描く（利用者の指定 2026-10-27: 昇降機は別オブジェクトで配置できるように）。
+        # 足場ラインは立面の昇降機と乗込口だけ
+        self.assertEqual(body2.count("hoP[ih]"), 1)
         self.assertIn("乗込口", body2)
-        self.assertIn("hoR[ih]", body3)
+        self.assertNotIn("lin_ hx, cyo - 0.15, 0", body3)     # 足場ラインの線の昇降機は描かない
+        hoist = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_hoist" / "scripts"
+        h3 = (hoist / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("for im = 1 to nMast", "cylind gW, 0.0243", "block cageL, cageD"):
+            self.assertIn(key, h3)
+        self.assertIn("rect2 -cageL / 2, yC1, cageL / 2, yC0", (hoist / "2d.gdl").read_text(encoding="utf-8"))
 
     def test_one_group_per_level(self):
         m, pf = self._setup(levels=(3, 4))
@@ -971,7 +978,8 @@ class TestLineMode3D(unittest.TestCase):
         self.assertIn("900:\t! ---- 線表示 ----", body3)
         # 線表示でも開口部の支柱抜き・階段・ステージ・昇降機・壁つなぎは出す
         sub = body3[body3.index("900:"):]
-        for key in ("bBase = bmH[ib]", "for it5 = 1 to nSt", "for ig = 1 to nSg", "for ih = 1 to nHo",
+        # 昇降機は別の部品（ashiba_hoist）が描く
+        for key in ("bBase = bmH[ib]", "for it5 = 1 to nSt", "for ig = 1 to nSg",
                     "for it = 1 to nTieDraw", "cornerS = 1"):
             self.assertIn(key, sub)
         # 線表示の部分に立体（cylind/block/prism）は無い

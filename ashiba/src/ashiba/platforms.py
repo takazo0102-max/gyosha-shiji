@@ -93,6 +93,8 @@ class Hoist:
     cage_width_mm: float = HOIST_CAGE_W_MM
     cage_depth_mm: float = HOIST_CAGE_D_MM
     load_kn: float = 0.0            # 積載荷重（0=未指定。設置届/設置報告の要否判定に使う）
+    # 機種（data/hoist_models.csv の model_id。指定すれば荷台・積載・壁つなぎ間隔・マスト間隔・揚程・フロアーゲートが入る）
+    model_id: str = ""
 
     def gate_spans(self, model: ScaffoldModel) -> list[int]:
         """乗り込み口の開閉式手すりを付けるスパン（0 始まり）: 荷台の長さ（位置を中心に）に掛かるスパン（3D と同じ）."""
@@ -105,6 +107,13 @@ class Hoist:
             posts.append(posts[-1] + float(sp))
         return [k for k in range(len(edge.spans))
                 if posts[k] < self.position_mm + half - 1.0 and posts[k + 1] > self.position_mm - half + 1.0]
+
+    @property
+    def spec(self):
+        """機種（hoist_models.HoistModel）. 機種の指定が無ければ None."""
+        from .hoist_models import hoist_model
+
+        return hoist_model(self.model_id)
 
     def landings(self, model: ScaffoldModel) -> list[int]:
         n = model.elevation.n_levels
@@ -473,6 +482,27 @@ def platform_part_demands(
                 out.append(PartDemand("荷受けステージ 妻側幅木", "幅木", side, 2 * n_levels))
     for h in result.hoists:
         landings = h.landings(model)
+        hm = h.spec
+        if hm is not None:
+            # 機種を選んだ昇降機: 本体（レンタル1台）と、乗り込み口のフロアーゲート（乗り込む階ごとに1枚。単管 φ48.6 を
+            # クランプで建地に留める。建機サービス Floor-gate。利用者の指定 2026-10-27）
+            out.append(PartDemand(
+                f"昇降機 本体 {hm.name}", "昇降機", None, 1,
+                detail=f"{hm.maker or 'メーカー未記載'}・積載{hm.load_kg:.0f}kg"
+                       + (f"・定員{hm.persons}名" if hm.persons else "")
+                       + (f"・揚程{hm.max_lift_m:.0f}m" if hm.max_lift_m else "")
+                       + f"（{hm.source}）",
+            ))
+            if hm.gate and landings:
+                from .hoist_models import FLOOR_GATES
+
+                fg = FLOOR_GATES.get(hm.gate)
+                out.append(PartDemand(
+                    f"昇降機 乗り込み口の{fg['name'] if fg else 'フロアーゲート'}", "フロアーゲート", None, len(landings),
+                    detail="作業層" + "・".join(str(lv) for lv in landings)
+                           + "（単管 φ48.6 をクランプで建地に留める・リミット付ロック装置）",
+                ))
+                continue
         if landings:
             n_sp = len(h.gate_spans(model)) or 1
             out.append(PartDemand(

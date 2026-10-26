@@ -1,0 +1,32 @@
+﻿! 昇降機 2D（平面）: マスト・荷台の外形・頭上覆い（×）・フロアーゲート（太線）・機種名
+define style "hoTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+! 荷台
+rect2 -cageL / 2, yC1, cageL / 2, yC0
+line2 -cageL / 2, yC1, cageL / 2, yC0
+line2 -cageL / 2, yC0, cageL / 2, yC1
+! マスト
+for im = 1 to nMast
+	rect2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
+	line2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
+next im
+! フロアーゲート（足場の外側建地の列の外。乗り込み口）
+if showGate and nLand > 0 and gateOpen > 0.01 then
+	rect2 -gW / 2, -0.06, gW / 2, -0.02
+endif
+hotspot2 0, 0
+hotspot2 -cageL / 2, yC1
+hotspot2 cageL / 2, yC1
+set style "hoTx"
+tx = hoName
+if loadKg > 0 then tx = tx + "（" + str(loadKg, 4, 0) + "kg）"
+add2 0, yC1 - 0.45
+aTx = SYMB_ROTANGLE + faceAng
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
+text2 0, 0, tx
+del top
