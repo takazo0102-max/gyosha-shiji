@@ -705,9 +705,18 @@ SCAFFOLD_FORMS = ("本足場", "一側足場", "ブラケット足場", "抱き�
 
 
 def narrow_width_mm(master):
-    """本足場のいちばん細い幅（くさび: 床を載せられる最小の腕木＝布材 500 以上の最小）. 単管・枠組は None（既定のまま）."""
-    if master.is_tube or master.is_frame:
+    """本足場のいちばん細い幅（くさび: 床を載せられる最小の腕木＝布材 500 以上の最小。枠組: いちばん細い建枠の幅）.
+    単管は None（既定のまま）.
+
+    枠組を None にしていて、敷地境界まで 1000 の面で幅 610 の建枠の本足場（885 で収まる）を試さずに単管抱き足場へ落とし、
+    法規#1（1m 以上空くなら本足場）の NG になった（2026-10-27 のループ）。"""
+    if master.is_tube:
         return None
+    if master.is_frame:
+        import re
+
+        ws = [int(g.group(1)) for p in master.by_category("建枠") if (g := re.search(r"幅(\d+)", p.note))]
+        return min(ws) if ws else None
     rows = [p.nominal_dim for p in master.by_category("布材") if p.nominal_dim >= 500]
     return int(min(rows)) if rows else None
 
@@ -2157,6 +2166,9 @@ def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:
                     break
 
 
+TUBE_CLAMP_REACH_MM = 100.0     # 単管の端の建地を立てず隣の組の建地に留める、建地どうしのずれの上限
+
+
 def _tube_marks_from(m, others) -> dict[int, list[float]]:
     """単管の組 m の面ごとに、ほかの組の建地が面の線上（端の間）に立つ位置（面の始点から mm）."""
     pts = []
@@ -2337,6 +2349,7 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
                 h_own[e.edge_index] = max([max(ev.level_heights or [0]) + TUBE_GUARD_RAIL_HEIGHT_MM]
                                           + list(ev.eave_rails_mm or [])) + 50.0
             skip = []
+            tube_offs: list[str] = []
             joined: list = []                     # 単管の端と同じ位置で建地を共有する隣の組の端 (組, [辺, 端])
             mine_j = []                           # 隣の組の端と建地を共有する単管の端（高さによらず）
             for e in m.plan.edges:
@@ -2345,18 +2358,30 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
                         continue
                     hit = [(ka2, ea, eend, ra) for ka2, (_l, ra) in enumerate(out) if ka2 != k and ka2 not in tube
                            for ea in ra.model.plan.edges for eend, q in (("s", ea.start_post), ("e", ea.end_post))
-                           if math.dist(pt, q) < 2.0]
+                           if math.dist(pt, q) < TUBE_CLAMP_REACH_MM]
                     if not hit:
                         continue
+                    # 敷地境界に収めるため離れを詰めた単管の面は、隣の組の隅の建地と少しずれる（50 など）。端の建地は立てず
+                    # （2本が重なって立っていた）、単管を隣の組の隅の建地にクランプで留める（2026-10-27 のループ）
+                    off = min(math.dist(pt, q) for _k2, ea, eend, _ra in hit
+                              for q in ((ea.start_post if eend == "s" else ea.end_post),))
+                    if off >= 2.0:
+                        tube_offs.append(f"{m.face_name(e.edge_index)}の{'始点' if end == 's' else '終点'}（{off:.0f}mm）")
                     mine_j.append([e.edge_index, end])
                     joined += [(ka2, [ea.edge_index, eend]) for ka2, ea, eend, _ra in hit]
-                    if any(ra.model.height_of(ea.edge_index) >= h_own[e.edge_index] - 1.0 for _k2, ea, _e2, ra in hit):
+                    # ずれた端は2本並べて立てるより、隣の建地に留める方がまし（手すりの 150 下まで届けば留める）
+                    reach = 150.0 if off >= 2.0 else 1.0
+                    if any(ra.model.height_of(ea.edge_index) >= h_own[e.edge_index] - reach for _k2, ea, _e2, ra in hit):
                         skip.append([e.edge_index, end])
             have = [list(j) for j in (sub.get("_skip_end_posts") or [])]
             have_j = [list(j) for j in (sub.get("_joined_ends") or [])]
             if sorted(skip) != sorted(have) or any(j not in have_j for j in mine_j):
                 # 隣の組と建地を共有して繋いだ端は開放端ではない（妻側の手すり・シートを付けない）
                 sub = {**sub, "_skip_end_posts": skip, "_joined_ends": have_j + [j for j in mine_j if j not in have_j]}
+                if tube_offs:
+                    sub = {**sub, "_align_notes": list(dict.fromkeys(list(sub.get("_align_notes") or []) + [
+                        "単管の端は隣の組の隅の建地とずれる（" + "・".join(tube_offs) + "）ので、端の建地は立てず、単管を"
+                        "隣の組の隅の建地にクランプで留めます"]))}
                 groups[k] = (groups[k][0], sub)
                 out[k] = (groups[k][0], solve_all(sub, master_csv))
             # 隣の組の側の端も、単管と繋いだ端として開放端から外す（単管の通しがその建地に留まる）
@@ -2552,17 +2577,27 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model.site_road_edges = roads
     if clearances:
         # 躯体外面から敷地境界までの水平スペース（法規#1 本足場原則・収まり）は、建てる面のうちいちばん狭い面の値
-        from .site_boundary import POST_R_MM
+        from .site_boundary import HUG_FLOOR_OUT_MM, POST_R_MM
 
         so = {e.edge_index: float(e.standoff) for e in model.plan.edges}
-        model.clearance_space_mm = min(c.min_mm + POST_R_MM + float(model.post_row_spacing_mm) + so.get(c.edge_index, 0.0)
+        # 抱き足場は face_clearances が床の外側（建地の芯から HUG_FLOOR_OUT_MM）まで測るので、その分を戻す
+        out_r = HUG_FLOOR_OUT_MM if model.config.is_hug else POST_R_MM
+        model.clearance_space_mm = min(c.min_mm + out_r + float(model.post_row_spacing_mm) + so.get(c.edge_index, 0.0)
                                        for c in clearances)
     space = float(spec.get("clearance_space_mm", 2000))
     if clearances:
         space = min(space, max(c.min_mm for c in clearances))
     outside, why = decide_outside(model, st.get("layout"), space)
     tspans = int(st.get("tower_spans", 2)) + (2 if outside else 0)
-    hug_no_stairs = model.no_stair_tower and not st.get("positions") and not st.get("count")
+    # 外付けの階段室が、いちばん空いた面でも敷地境界に入らない（幅 900 未満の足場で外付けしかない）なら階段を置かず、
+    # はしごにする（外付けのまま置いて「外付け階段×敷地境界」の NG になっていた。2026-10-27 のループ）
+    from .stairs import OUTSIDE_SPACE_MARGIN_MM
+
+    no_room = bool(outside and clearances and space < model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM
+                   and str(st.get("layout") or "").strip() != "outside")
+    hug_no_stairs = (model.no_stair_tower or no_room) and not st.get("positions") and not st.get("count")
+    if no_room and hug_no_stairs:
+        why = ""
     if hug_no_stairs:
         # 単管抱き足場（布2本の床）・ブラケット足場（一側）に階段は入らない。昇降はほかの面の階段か、はしご等を別に
         # （数量・図に階段を出さない。利用者の指摘 2026-10-22・23: 階段はつけれない寸法）
@@ -2575,8 +2610,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
             model.auto_ladders = True
             model.plan.warnings.append(
-                f"{model.config.form_label}は階段を付けられない寸法（床の幅に階段枠が入らない）なので、昇降は"
-                f"はしご {model.config.ladders}箇所（水平移動 30m 以内）にしました。独立の階段（900 枠か 600 枠 2 列）を"
+                (f"外付けの階段室（{model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM:.0f}mm）がどの面でも敷地境界に"
+                 f"入らない（いちばん空いた面で {space:.0f}mm）ので" if no_room and not model.no_stair_tower else
+                 f"{model.config.form_label}は階段を付けられない寸法（床の幅に階段枠が入らない）なので")
+                + f"、昇降ははしご {model.config.ladders}箇所（水平移動 30m 以内）にしました。独立の階段（900 枠か 600 枠 2 列）を"
                 "別に立てる場合は stairs で位置を指定してください")
     elif st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）

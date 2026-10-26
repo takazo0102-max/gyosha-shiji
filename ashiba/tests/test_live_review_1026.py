@@ -133,6 +133,42 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestFitsNarrowSites(unittest.TestCase):
+    """敷地境界が近い敷地を、実機の配置と同じ前段（plan_within_boundary）で解く（2026-10-27 のループ）."""
+
+    def _solve(self, sid, module, g_south, g_other):
+        from ashiba.cli import solve_groups
+        from ashiba.site_boundary import plan_within_boundary
+
+        W, D = 12000, 8000
+        bnd = [[-g_other, -g_south], [W + g_other, -g_south], [W + g_other, D + g_other], [-g_other, D + g_other]]
+        sp, _notes = plan_within_boundary({"outline_mm": [[0, 0], [W, 0], [W, D], [0, D]], "eaves_height_mm": 9000,
+                                           "series_id": sid, "module": module, "site_boundary_mm": bnd})
+        return sp, solve_groups(sp)
+
+    def test_hug_tightens_to_the_boundary_and_clamps_to_the_corner_posts(self):
+        # 抱き足場の床の外側（建地の芯から 100）まで境界を測り、いまの離れ（350）と比べて詰める。隣の本体の隅の建地と
+        # 50 ずれる端の建地は立てず、隅の建地に留める
+        sp, g = self._solve("shinwa_A", "metric", 400, 3000)
+        self.assertTrue(all(r.verdict["ok"] for _l, r in g), [(l, r.verdict) for l, r in g])
+        hug = dict(g)["単管抱き足場"].model
+        self.assertLessEqual(hug.plan.edges[0].standoff, 300)
+        self.assertEqual(hug.skip_end_posts, {(0, "s"), (0, "e")})
+
+    def test_stairs_fall_back_to_ladders_when_no_face_has_room(self):
+        sp, g = self._solve("nikken_nd1800", "inch", 1000, 1000)
+        r = g[0][1]
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertFalse(getattr(r.stair_plan, "towers", None))
+        self.assertGreaterEqual(r.model.config.ladders, 1)
+
+    def test_frame_tries_the_narrow_frame_first(self):
+        # 枠組の 610 の建枠の本足場（885）は 1000 に収まる。単管抱き足場に落とすと法規#1 の NG だった
+        sp, g = self._solve("waku", "inch", 1000, 3000)
+        self.assertIn("本足場（狭い幅）", sp.get("face_forms"))
+        self.assertTrue(all(r.verdict["ok"] for _l, r in g))
+
+
 class TestSlopedSiteUsesTheRealHeight(unittest.TestCase):
     def test_asagao_and_ties_follow_the_low_side_height(self):
         # 高低差 2m の敷地で、低い側の実高さが 10m を超えるのに朝顔の自動の段数・壁つなぎの風荷重を名目の高さで決めていて、

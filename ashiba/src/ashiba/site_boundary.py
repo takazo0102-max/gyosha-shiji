@@ -67,6 +67,9 @@ def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
         return []
     road_edges = road_edges or set()
     row = float(model.post_row_spacing_mm)
+    # 単管抱き足場は床の単管が建地の芯から HUG_FLOOR_OUT_MM 外へ出る（法規#1 の必要幅と同じ所まで測る。建地の外面で
+    # 測っていて、離れ 350 の抱き足場が境界まで 400 の面を「越えない」とし、法規#1 だけが NG になった。2026-10-27 のループ）
+    hug_out = (HUG_FLOOR_OUT_MM - POST_R_MM) if getattr(model.config, "is_hug", False) else 0.0
     from .width_change import outer_row_at
 
     wide = getattr(model, "width_change", None) is not None
@@ -90,13 +93,13 @@ def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
             if not _inside(p, boundary):
                 # 外側建地が境界の外に出ている: 越えた量＝いちばん近い境界の辺までの距離（＋支柱の半径）
                 d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
-                c = -d - POST_R_MM
+                c = -d - POST_R_MM - hug_out
             else:
                 hits = [(t, i) for a, b, i in segs if (t := _ray_hit(p, (ox, oy), a, b)) is not None]
                 if not hits:
                     continue
                 t, i = min(hits)
-                c = t - POST_R_MM
+                c = t - POST_R_MM - hug_out
             if best is None or c < best[0]:
                 best = (c, s, i in road_edges)
             if c < 0:
@@ -319,6 +322,7 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         # 形式を選ぶ間は延ばさずに見る（延ばした端を本足場の面の越えと取ると、その面まで形式を替えてしまう）
         groups = solve_groups({**spec, "corner_joins": False})
         bad: dict[str, float] = {}           # 面 → 躯体から境界まで（越える区間の最小）
+        now_so: dict[str, float] = {}        # 面 → いまの離れ（隣の組の建地の線にそろえて目標より広いことがある）
         corner: dict[str, str] = {}          # 角の支柱だけ越える面 → 角を決める隣の面
         for _label, r in groups:
             ng = {c.message.split(":", 1)[0] for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"}
@@ -328,13 +332,15 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
             for fc in face_clearances(r.model, bnd, getattr(r.model, "site_road_edges", None) or roads):
                 if fc.face in ng:
                     ep = next(e for e in r.model.plan.edges if e.edge_index == fc.edge_index)
-                    wall = fc.min_mm + float(ep.standoff) + float(r.model.post_row_spacing_mm) + POST_R_MM
+                    wall = fc.min_mm + float(ep.standoff) + float(r.model.post_row_spacing_mm) + (
+                        HUG_FLOOR_OUT_MM if getattr(r.model.config, "is_hug", False) else POST_R_MM)
                     side = _corner_side(fc, float(sum(ep.spans)))
                     if side:
                         # 角の支柱だけが越える: 角の位置は隣の面の離れで決まる。この面の形式は替えない
                         corner[fc.face] = _outline_face_name(r.model, _adjacent_edge(r.model, fc.edge_index, side))
                     else:
                         bad[fc.face] = wall
+                        now_so[fc.face] = float(ep.standoff)
         # 角だけ越える面の隣の面が越えていなければ、この面を替える（隣の面では直らない）
         for face, adj in corner.items():
             if adj not in bad:
@@ -360,7 +366,9 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         if tighten:
             form = FIT_FORMS[-1]
             cur_so = fs.get(form) or dict(spec.get("standoff") or {})
-            cur_t = float(cur_so.get("target", 300))
+            # 比べるのはいまの離れ（目標 300 でも隣の本体の建地の線にそろえて 350 になっていると、詰めずに「200 まで詰めても
+            # 越えます」と誤って止まった。2026-10-27 のループ）
+            cur_t = max([float(cur_so.get("target", 300))] + [now_so[f] for f in tighten if f in now_so])
             want = _floor10(min(tighten.values()) - HUG_FLOOR_OUT_MM)
             if want >= MIN_FIT_STANDOFF_MM and want < cur_t:
                 fs[form] = {"target": want, "max": want, "min": min(want, float(cur_so.get("min", 250))),
