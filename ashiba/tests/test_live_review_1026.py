@@ -113,6 +113,26 @@ class TestOneSpanSectionTies(unittest.TestCase):
         self.assertIn("1スパンの面", c.message)
 
 
+class TestSwitchedFaceLowSection(unittest.TestCase):
+    def test_low_section_of_a_switched_face_continues_its_line(self):
+        # セットバックの西面を一側足場にすると「一側足場（下段）」が面の無い組になって壁つなぎの NG、直すと上の区間と
+        # 建地の線が 96 ずれた（2026-10-26 のループ）
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from dev_cases import floors
+
+        fl = floors("setback", 0, 0)
+        slabs = [{"polygon_mm": [list(p) for p in poly], "top_mm": top} for poly, top in fl]
+        g = dict(solve_groups({"outline_mm": [list(p) for p in fl[0][0]], "eaves_height_mm": 18000, "module": "inch",
+                               "slabs": slabs, "face_forms": "西面=一側足場"}))
+        up, low = g["一側足場"].model, g["一側足場（下段）"].model
+        self.assertTrue(low.plan.edges)
+        self.assertAlmostEqual(up.plan.edges[0].end_post[0], low.plan.edges[0].start_post[0], delta=0.5)
+        self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
+
+
 class TestConvergedStandoffs(unittest.TestCase):
     def test_groups_agree_on_every_corner(self):
         g = solve_groups(USER)

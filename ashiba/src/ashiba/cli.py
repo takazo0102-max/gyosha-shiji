@@ -2227,6 +2227,36 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
             groups = [(label, {**sub, "_neighbor_standoffs": again[k]} if k in again else sub)
                       for k, (label, sub) in enumerate(groups)]
             out = [(label, solve_all(sub, master_csv)) if k in again else out[k] for k, (label, sub) in enumerate(groups)]
+        # 面を区間で分けた組（「一側足場」と「一側足場（下段）」など）は、先の組の割付（建地の線・スパン）を引き継ぐ。
+        # 解き直した組の割付で引き継ぎ直す（古い割付のままで同じ面の建地の線が 96 ずれた。2026-10-26 のループ）
+        for _rr in range(2):
+            fe_now: dict = {}
+            redo = []
+            for k, (label, sub) in enumerate(groups):
+                rng = sub.get("_face_range") or {}
+                old_fe = sub.get("_face_edge") or {}
+                want = {}
+                for f in rng:
+                    if f not in fe_now:
+                        continue
+                    new_e, old_e = fe_now[f], old_fe.get(f)
+                    if old_e and list(new_e["spans"]) != list(old_e["spans"]):
+                        # 隅の繋ぎで解き直すと面の割付が短くなる（区間が消える）。スパンの並びは前のまま、建地の線の位置
+                        # （離れ・始点）だけを新しい割付に平行に動かす
+                        dx = new_e["start_post"][0] - old_e["start_post"][0]
+                        dy = new_e["start_post"][1] - old_e["start_post"][1]
+                        new_e = {**old_e, "standoff": new_e["standoff"],
+                                 "start_post": [old_e["start_post"][0] + dx, old_e["start_post"][1] + dy],
+                                 "end_post": [old_e["end_post"][0] + dx, old_e["end_post"][1] + dy]}
+                    want[f] = new_e
+                if want and want != old_fe:
+                    groups[k] = (label, {**sub, "_face_edge": want})
+                    out[k] = (label, solve_all(groups[k][1], master_csv))
+                    redo.append(k)
+                for f, fe in (getattr(out[k][1].model, "face_full_edges", None) or {}).items():
+                    fe_now.setdefault(f, fe)
+            if not redo:
+                break
         for k in tube:
             # 床の高さは隣のくさび・枠の組にそろえる（単管の段は上から 1800 刻みで、本足場の床と 0.7m 食い違い乗り移れ
             # なかった。熟練者は床の高さをそろえるのを第一にする。単管の布はどの高さにもクランプで付く）

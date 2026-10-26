@@ -182,7 +182,13 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             seen[form] = k + 1
             groups_of.setdefault((form, k), []).append((face, a, b))
     groups: list[tuple[str, dict]] = []
-    order = sorted(groups_of, key=lambda fk: (fk[0] != "", fk[1], FACE_FORMS.index(fk[0]) if fk[0] in FACE_FORMS else -1))
+    def _order(fk):
+        # 種類を切り替えた面の低い区間（「一側足場@下段」）は、その種類の組のあとに解く（区間の切れ目は先に解いた組の
+        # 割付で決まる。先に解くと切れ目が合わず面の無い組になった。2026-10-26 のループ）
+        base = fk[0][: -len(LOW_FORM)] if fk[0].endswith(LOW_FORM) and fk[0] != LOW_FORM else fk[0]
+        return (fk[0] != "", fk[1], FACE_FORMS.index(base) if base in FACE_FORMS else -1, fk[0] != base)
+
+    order = sorted(groups_of, key=_order)
     for form, k in order:
         items = groups_of[(form, k)]
         if form == "":
