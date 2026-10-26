@@ -239,6 +239,10 @@ class TestBridgeDeckFitsTheGap(unittest.TestCase):
         self.assertEqual(b.kind, "ブラケット")
         self.assertEqual(b.deck, [250])
         self.assertFalse([w for w in r.warnings if "入りきりません" in w[2]])
+        # アンチ 250 が載るのは SBH-25（呼び400）。SBH-20 には載らない（利用者の指定 2026-10-26）。離れより長いので注記
+        self.assertTrue(b.bracket.startswith("SBH-25"), b.bracket)
+        self.assertTrue([w for w in r.warnings if "SBH-25" in w[2] and "躯体に当たらないか" in w[2]])
+        self.assertEqual(r.quantity.qty_of("ブラケット") >= 2, True)
 
 
 class TestTubeStandoffFollowsTheTarget(unittest.TestCase):

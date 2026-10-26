@@ -218,19 +218,25 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             b.deck = _deck_list(so, 240)
             b.deck_len_mm = plank_len(w + TUBE_OVERHANG_MM, m)
         else:
-            br = sorted((p for p in m.by_category("ブラケット") if "張出" in p.note and "荷取り" not in p.note),
-                        key=lambda p: p.nominal_dim)
-            fit = [p for p in br if p.nominal_dim <= so + 10.0] or br[:1]
-            b.kind = "ブラケット"
-            b.length_mm = float(fit[-1].nominal_dim) if fit else so
-            b.bracket = (f"{fit[-1].model_no} " + ("拡幅ブラケット" if "拡幅" in fit[-1].note else "張出ブラケット")
-                         + f"{fit[-1].nominal_dim:.0f}") if fit else "ブラケット"
-            # 離れに入る幅から選ぶ（大きい2種だけだと信和Aは 500・400 になり、離れ 300 に 250 があるのに 400 で
+            # 床材は離れに入る幅から選ぶ（大きい2種だけだと信和Aは 500・400 になり、離れ 300 に 250 があるのに 400 で
             # 「入りきりません」になっていた。2026-10-26 のループ）
             avail = deck_widths_for(m, w, None)
             ws = [d for d in avail if d <= max(240.0, so - FLUSH_MM)][:2] or [min(avail)]
-            b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), ws)
+            b.deck = _deck_list(so, ws)
             b.deck_len_mm = w
+            # ブラケットは載せる床材の幅で選ぶ（その幅が載るいちばん短い張出・拡幅ブラケット）。信和Aのアンチ 250 は
+            # SBH-25（呼び400）。SBH-20（呼び200）には載らない（利用者の指定 2026-10-26）
+            br = sorted((p for p in m.by_category("ブラケット") if "張出" in p.note and "荷取り" not in p.note),
+                        key=lambda p: p.nominal_dim)
+            need = float(sum(b.deck) + 10 * max(0, len(b.deck) - 1))
+            pick = next((p for p in br if p.nominal_dim >= need), br[-1] if br else None)
+            b.kind = "ブラケット"
+            b.length_mm = float(pick.nominal_dim) if pick else so
+            b.bracket = (f"{pick.model_no} " + ("拡幅ブラケット" if "拡幅" in pick.note else "張出ブラケット")
+                         + f"{pick.nominal_dim:.0f}") if pick else "ブラケット"
+            if pick and pick.nominal_dim > so + 10.0:
+                notes.append(f"屋上への渡り（{name}）: {pick.model_no}（呼び{pick.nominal_dim:.0f}）は離れ {so:.0f} より"
+                             "長いので、先端・先端の支柱が躯体に当たらないか確かめてください")
             # ブラケットの先端のホゾに立てて手すり・中桟を受ける支柱（コマの倍数で 1000 以上のいちばん短いもの）
             koma = int(m.koma_pitch or 450)
             b.post_mm = float(min((L for L in m.post_lengths() if L >= 1000 and L % koma == 0),

@@ -459,6 +459,7 @@ def tier_note(label: str, sub: dict) -> Optional[str]:
 
 TIER_STANDOFF_MIN_MM = 200.0    # 上段の離れの最小の既定（setback_standoff_min）
 FREE_TIER_CLEAR_MM = 150.0      # 本体に繋げない上段の端と本体の内側の建地の列のあき
+FREE_TIER_IN_MM = 100.0         # 本体のあき 150 だと端の建地が途中の屋根の縁の外に出るとき、縁から内側に止める寸法
 
 
 def _line_hit(p, d, q, e) -> Optional[tuple[float, float]]:
@@ -518,6 +519,47 @@ def _exact(coins: list[int], length: int) -> Optional[list[int]]:
         return [] if length == 0 else None
     t = achievable_sums(coins, length, length)
     return sorted(t[length], reverse=True) if length in t else None
+
+
+def _fill_inset_tier(t2: dict, tol, gap_ends: list, fixed_f: dict, solve) -> dict:
+    """屋根の縁の内側で止めた上段の端（渡り板で本体へ渡る端）: 面の長さにいちばん近い真物のスパンの和で割り付け、
+    余りは止めた端に等分して、その分だけ端をさらに内側へ止める（余りが片方の端に寄って渡り板のあきが 784 になった）."""
+    from .plan_solver import achievable_sums
+
+    # 解くと _align_notes に床・天端をそろえた注記が足されるので、写しを渡す（同じ注記が2度出た）
+    r = solve({**t2, "_align_notes": list(t2.get("_align_notes") or [])})
+    m = r.model
+    coins = m.master.span_lengths()
+    n = len(tol.edges)
+    fixed = dict(fixed_f)
+    gaps = {(int(j[0]), str(j[1])): float(j[2]) for j in gap_ends}
+    for e in m.plan.edges:
+        ends = [end for end in ("s", "e") if (e.edge_index, end) in gaps
+                and fixed.get((e.edge_index - 1) % n if end == "s" else (e.edge_index + 1) % n, 1.0) < 0]
+        if not ends:
+            continue
+        L = int(math.floor(math.dist(e.start_post, e.end_post)))
+        table = achievable_sums(coins, max(min(coins), L - 2 * max(coins)), L)
+        if not table:
+            continue
+        best = max(table)
+        rest = float(L - best)
+        if rest <= 0.5:
+            continue
+        for end in ends:
+            nb = (e.edge_index - 1) % n if end == "s" else (e.edge_index + 1) % n
+            fixed[nb] = fixed[nb] - rest / len(ends)
+            gaps[(e.edge_index, end)] += rest / len(ends)
+    if fixed == fixed_f:
+        return t2
+    new_ends = [[ei, end, round(g, 1)] for (ei, end), g in gaps.items()]
+    notes = [x for x in t2.get("_align_notes") or [] if not x.startswith("上段の端は途中の屋根の縁の")]
+    ins = sorted({-v for v in fixed.values() if v < 0})
+    notes.append(f"上段の端は途中の屋根の縁の {'・'.join(f'{v:.0f}' for v in ins)}mm 内側で止め、本体の床まで渡り板（あき 約"
+                 + "・".join(f"{g:.0f}" for g in sorted({round(g) for g in gaps.values()})) + "mm）で繋ぎます"
+                 "（端の建地を屋根の無い所に立てない）")
+    return {**t2, "_neighbor_standoffs": fixed, "_joined_ends": new_ends, "_free_gap_ends": new_ends,
+            "_align_notes": notes}
 
 
 def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of) -> tuple[dict, list[tuple[str, dict]], list[str]]:
@@ -809,15 +851,17 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
                     continue
                 nb = (int(ei) - 1) % len(tol.edges) if end == "s" else (int(ei) + 1) % len(tol.edges)
                 fixed_f[nb] = max(0.0, float(ep.standoff) - FREE_TIER_CLEAR_MM)
+                gap = FREE_TIER_CLEAR_MM
                 if fixed_f[nb] > 1.0:
-                    # 上段の端の建地は躯体の線（途中の屋根の縁）より外に立つ。下に屋根が無い（宙）ので黙って通さない。上段の
-                    # 組の要確認に出す（2026-10-26 のループで利用者の建物の複製から見つけた）
-                    float_notes.append(f"上段の端の建地が途中の屋根の縁から {fixed_f[nb]:.0f}mm 外（屋根の無い所）に立ちます。"
-                                       "本体の足場の床に受け材（梁渡し・単管）を渡して受けるか、上段の端を屋根の縁の内側で"
-                                       "止めて本体の床まで渡り板で繋いでください")
+                    # あき 150 だと上段の端の建地が途中の屋根の縁より外（宙）に立つ。上段の端は屋根の縁の内側で止め、本体の
+                    # 床までは渡り板で繋ぐ（利用者の指定 2026-10-26。本体の床に受け材を渡して受ける案は採らない）
+                    fixed_f[nb] = -FREE_TIER_IN_MM
+                    gap = float(ep.standoff) + FREE_TIER_IN_MM
+                    float_notes.append(f"上段の端は途中の屋根の縁の {FREE_TIER_IN_MM:.0f}mm 内側で止め、本体の床まで渡り板"
+                                       f"（あき 約{gap:.0f}mm）で繋ぎます（端の建地を屋根の無い所に立てない）")
                 # 端は開けて本体の床へ渡る（利用者の指摘 2026-10-25: セットバックのコーナー部分ができてない）。あき 150 は
                 # すき間板で塞ぎ、本体の躯体側の手すり・中桟は上段の床が当たるスパンで外す
-                gap_ends.append([int(ei), end])
+                gap_ends.append([int(ei), end, gap])
                 lo_x, hi_x = sorted((p_in - sgn * 100.0, p_in + sgn * (w + 100.0)))
                 main.setdefault("_free_passage", []).append(
                     [ep0.edge_index, lo_x, hi_x, float(t["base_height_mm"]) - base])
@@ -825,6 +869,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
                   "_free_gap_mm": FREE_TIER_CLEAR_MM, "_align_levels_mm": lv_abs,
                   "_align_top_mm": top_abs, "_sheet_bottom_mm": base + low_sheet_rel - float(t["base_height_mm"]),
                   "_align_notes": list(dict.fromkeys(list(t.get("_align_notes") or []) + float_notes))}
+            if float_notes:
+                t2 = _fill_inset_tier(t2, tol, gap_ends, fixed_f, solve)
             out_tiers.append((lb, t2))
             continue
         fixed: dict[int, float] = {}

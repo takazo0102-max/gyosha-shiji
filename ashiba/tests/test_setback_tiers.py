@@ -250,15 +250,21 @@ class TestSetbackTiers(unittest.TestCase):
         self.assertAlmostEqual(te.standoff, 300, delta=30)
         p = line_params(tier, te)
         self.assertEqual((p["skipPS"], p["skipPE"]), (0, 0))                 # 自前の支柱・ジャッキ
-        # 端は開けて本体の床へ渡る。あき 150 はすき間板、本体の躯体側の手すりはその区間で外す（利用者の指摘 2026-10-25:
-        # セットバックのコーナー部分ができてない）
+        # 端は開けて本体の床へ渡る。本体の躯体側の手すりはその区間で外す（利用者の指摘 2026-10-25: セットバックの
+        # コーナー部分ができてない）。あき 150 だと上段の端の建地が途中の屋根の縁から 184 外（宙）に立つので、端は屋根の縁の
+        # 内側で止め、本体の床まで渡り板で繋ぐ（利用者の指定 2026-10-26）
         self.assertEqual((p["endOpenS"], p["endOpenE"]), (0, 0))
-        self.assertEqual((p["tGapS"], p["tGapE"]), (0.15, 0.15))
+        self.assertTrue(p["tGapS"] > 0.4 and p["tGapE"] > 0.4, (p["tGapS"], p["tGapE"]))
         self.assertTrue([x for x in main.model.member_edits if x.reason == "上段への通り（セットバック）"])
         inner_y = sorted(e.start_post[1] for e in main.model.plan.edges if abs(e.start_post[1] - e.end_post[1]) < 1)
-        ys = sorted((te.start_post[1], te.end_post[1]))
-        self.assertAlmostEqual(ys[0] - inner_y[0], 150, delta=2)           # 本体の内側の建地の列の 150 手前
-        self.assertAlmostEqual(inner_y[-1] - ys[1], 150, delta=2)
+        d = tier.plan.outline.edges[te.edge_index].direction
+        ys = sorted((te.start_post[1], te.start_post[1] + d[1] * sum(te.spans)))
+        self.assertGreaterEqual(ys[0], 100 - 1)                             # 屋根の縁（y=0・10000）の 100 以上内側
+        self.assertLessEqual(ys[1], 10000 - 100 + 1)
+        self.assertAlmostEqual(ys[0] - inner_y[0], p["tGapS"] * 1000, delta=2)   # 本体の内側の建地の列まで＝渡り板のあき
+        self.assertAlmostEqual(inner_y[-1] - ys[1], p["tGapE"] * 1000, delta=2)
+        self.assertLess(abs(p["tGapS"] - p["tGapE"]), 0.02)                 # 余りは両端に等分
+        self.assertTrue([n for n in g[-1][1].quantity.notes if "渡り板" in str(n)])
 
     def test_section_names_stay_unique(self):
         # 実機 2026-10-24: 断面 A-A が本体の南面と上段の南面を横切り、同じ名前「A-A 南面」が2つになった

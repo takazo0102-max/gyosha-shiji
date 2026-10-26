@@ -1061,8 +1061,14 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}
     # 本体に繋げない上段の端（本体の内側の建地の列の手前で止めた端）: すき間板で本体の床へ渡る
-    model.free_gap_ends = {(int(j[0]), str(j[1])): float(spec.get("_free_gap_mm") or 150.0)
+    model.free_gap_ends = {(int(j[0]), str(j[1])): float(j[2] if len(j) > 2 else (spec.get("_free_gap_mm") or 150.0))
                            for j in (spec.get("_free_gap_ends") or [])}
+    # 割付が面の長さに足りない分（フィート寸法の端数）は、その面の終点の端のあきに足す（終点の建地は端の手前に立つ）
+    for e in model.plan.edges:
+        if (e.edge_index, "e") in model.free_gap_ends:
+            rest = math.dist(e.start_post, e.end_post) - float(sum(e.spans))
+            if rest > 0.5:
+                model.free_gap_ends[(e.edge_index, "e")] += rest
     model.open_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_above") or [])}
     model.open_sheet_above_mm = {(int(j[0]), str(j[1])): float(j[2]) for j in (spec.get("_open_sheet_above") or [])}
     if spec.get("_sheet_bottom_mm") is not None:

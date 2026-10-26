@@ -839,6 +839,7 @@ def _take_off_one(
     _count_width_change(model, add, sub, notes, stair_plan)
     _count_sill_boards(model, notes, terrain, stair_plan)
     _count_roof_bridges(model, add, notes)
+    _note_tier_gangways(model, notes)
     _count_intakes(model, notes)
     _count_wedge_corner_steps(model, add, notes)
 
@@ -1633,6 +1634,27 @@ def _fit_longer(m: PartMaster, category: str, length: int, slack: int = 100):
         return hit
     longer = [p for p in m.by_category(category) if length < p.nominal_dim <= length + slack]
     return min(longer, key=lambda p: p.nominal_dim) if longer else None
+
+
+GANGWAY_MIN_GAP_MM = 200.0     # これより広いあきは渡り板（足場板 厚28）。狭いあきはすき間板
+
+
+def _note_tier_gangways(model: ScaffoldModel, notes) -> None:
+    """屋根の縁の内側で止めた上段の端から本体の床へ渡る渡り板（足場板）を手配の注記に出す（利用者の指定 2026-10-26）."""
+    ends = {k: g for k, g in (getattr(model, "free_gap_ends", None) or {}).items() if g > GANGWAY_MIN_GAP_MM}
+    if not ends:
+        return
+    levels = max(1, int(model.elevation.n_levels))
+    parts = []
+    total = 0
+    for (ei, end), g in sorted(ends.items(), key=lambda kv: (kv[0][0], kv[0][1] != "s")):
+        # 両側の床に 150 ずつ掛ける長さ。足場板は 1.0・1.5・2.0m
+        L = next((v for v in (1000, 1500, 2000) if v >= g + 300.0), 2000)
+        per = max(1, int(round((model.row_spacing_of(ei) - 60.0) / 240.0)))
+        total += per * levels
+        parts.append(f"{model.face_name(ei)}の{'始点' if end == 's' else '終点'}（あき {g:.0f}）足場板{L / 1000:.1f}M×{per}枚×{levels}層")
+    notes.action("上段の端から本体の床へ渡る渡り板: " + "・".join(parts) + f"（計 {total}枚）。両側の床に 150 以上掛けて"
+                 "番線で留め、渡り板の両脇は手すり・中桟で塞いでください（数量に含んでいません）", Notes.ORDER)
 
 
 def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
@@ -3132,4 +3154,5 @@ def _count_frame_parts(
     _count_hane_brackets(model, notes)
     _count_sill_boards(model, notes, terrain, stair_plan)
     _count_roof_bridges(model, add, notes)
+    _note_tier_gangways(model, notes)
     _count_intakes(model, notes)
