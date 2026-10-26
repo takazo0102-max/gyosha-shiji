@@ -2447,7 +2447,21 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
     # 取付部（朝顔・ステージ）の壁つなぎも最適化の検定に載せるため、付帯設備を先に解く
     platforms = validate_platforms(model, *build_platforms(spec))
-    tie_opt = optimize_wall_ties(model, site, openings=openings, platforms=platforms)
+    # 敷地の高低差で低い側の足場が伸びる実高さ（朝顔の段数・壁つなぎの風荷重は判定・検定と同じ実高さで決める）
+    h_act = None
+    if spec.get("ground_points_mm"):
+        from .terrain import actual_max_height_mm
+
+        h_act, extra = actual_max_height_mm(model, solve_post_feet(model, build_ground(spec)))
+        if extra > 0.5 and spec.get("asagao") is None:
+            # 朝顔の段数の自動は名目の高さで決めていて、低い側が 10m を超えると「朝顔が必要なのに付いていない」に
+            # なった（2026-10-26 のループ）
+            need = required_asagao_stages(asagao_height_mm(h_act, model.master))
+            if need > (model.config.asagao.stages if model.config.asagao else 0):
+                model.config.asagao = AsagaoSpec(stages=need)
+        if extra <= 0.5:
+            h_act = None
+    tie_opt = optimize_wall_ties(model, site, openings=openings, platforms=platforms, height_mm=h_act)
     model.plan.warnings.extend(tie_opt.notes)
     # 手で直した壁つなぎ（Archicad で部品を動かした・消した・足したのを解き直しが読み戻したもの）。
     # 最適化の配置の代わりにこの本数・位置で検定・数量・図を出す

@@ -133,6 +133,19 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestSlopedSiteUsesTheRealHeight(unittest.TestCase):
+    def test_asagao_and_ties_follow_the_low_side_height(self):
+        # 高低差 2m の敷地で、低い側の実高さが 10m を超えるのに朝顔の自動の段数・壁つなぎの風荷重を名目の高さで決めていて、
+        # 「朝顔が必要なのに付いていない」「壁つなぎ 検定比1.02」で不成立になった
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [15000, 0], [15000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+                       "series_id": "nikken_nd1800", "module": "inch",
+                       "ground_points_mm": [[0, 0, 0], [15000, 0, -2000], [15000, 8000, -2000], [0, 8000, 0]]})
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertGreaterEqual(r.model.config.asagao.stages, 1)
+
+
 class TestTubeRunStopsShortOfTheWall(unittest.TestCase):
     def test_end_room_moves_the_overrun_to_the_other_end(self):
         # L 字の入隅で、単管の通しが端の建地から 470 出て、離れ 350 の先の壁を 120 突き抜けていた

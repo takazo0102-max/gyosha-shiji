@@ -1004,8 +1004,12 @@ def optimize_wall_ties(
     apply: bool = True,
     openings=None,
     platforms=None,
+    height_mm: Optional[float] = None,
 ) -> TieOptimizeResult:
     """壁つなぎ間隔を構造計算から逆算して決める.
+
+    height_mm: 風の高さ補正に使う足場高さ（敷地の低い側で伸びた実高さ。run_structural と同じ高さで選ぶ。名目の高さで
+    選ぶと、高低差 2m の敷地で後の検定が 1.02〜1.07 で落ちた。2026-10-26 のループ）。
 
     法規上限（垂直5m×水平5.5m）を満たしていても風荷重で耐力不足になることがあるため、
     「法規に適合し、かつ P ≦ 許容耐力×1.3 を満たす最も緩い配置」を探索する。
@@ -1035,7 +1039,7 @@ def optimize_wall_ties(
 
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)
-    wind = compute_wind(model, site)
+    wind = compute_wind(model, site, height_mm=height_mm) if height_mm else compute_wind(model, site)
 
     original = list(model.wall_ties)
     base_span, base_level = (
