@@ -1019,7 +1019,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     if faces is not None:
         import dataclasses as _dc
 
+        all_names = dict(zip((e.edge_index for e in plan.edges), plan.face_names()))
         plan = _dc.replace(plan, edges=[e for e in plan.edges if e.edge_index in faces])
+        plan.warnings[:] = _own_face_warnings(plan.warnings, all_names, faces)
     # ブラケット足場と本足場の出隅を繋ぐ割付（面の組を解き直すとき solve_groups が渡す。corner_joins）
     joins = spec.get("_joins")
     if joins:
@@ -1229,6 +1231,24 @@ def _obstacles_from_spec(spec: dict, plan, face_eaves: dict[int, float]):
     av = plan_avoidance(plan.outline.edges, plan.standoffs, obs, names,
                         plan.standoff_spec.target if plan.standoff_spec else 300.0)
     return av.obstacles, av.face_min, notes + av.notes
+
+
+def _own_face_warnings(warnings: list[str], names: dict, faces) -> list[str]:
+    """割付の警告「南面・東面: 離れ…」を、この組で建てる面の名前だけに絞る（建てない面だけの警告は外す）. 面の組ごとの
+    要確認に、ほかの組の面まで並んで同じ文が組の数だけ重なっていた（2026-10-26 のループ）."""
+    own = {names[i] for i in faces if i in names}
+    every = set(names.values())
+    out = []
+    for w in warnings:
+        head, sep, rest = w.partition(": ")
+        parts = head.split("・") if sep else []
+        if parts and all(p in every for p in parts):
+            keep = [p for p in parts if p in own]
+            if not keep:
+                continue
+            w = "・".join(keep) + sep + rest
+        out.append(w)
+    return out
 
 
 def _faces_from_spec(spec: dict, plan):

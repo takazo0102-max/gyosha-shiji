@@ -37,6 +37,15 @@ class TestHugMeetsItsNeighbours(unittest.TestCase):
             self.assertFalse([w for w in ws if "開放端" in w or "幅0" in w or "布材0" in w], (lb, ws))
         self.assertEqual(self.hug.joined_ends, {(1, "s"), (1, "e")})
 
+    def test_group_warnings_name_only_its_own_faces(self):
+        # 本体（南面だけ）の要確認に「南面・東面・北面・西面: 離れ…」とほかの組の面まで並び、同じ文が組の数だけ重なった
+        for lb, r in self.g:
+            own = set(r.model.plan.face_names())
+            for w in r.model.plan.warnings:
+                head, sep, _rest = w.partition(": ")
+                if sep and "離れ" in _rest[:4]:
+                    self.assertTrue(set(head.split("・")) <= own, (lb, w))
+
     def test_tube_spans_stay_within_the_law(self):
         (ep,) = self.hug.plan.edges
         self.assertTrue(all(300 <= s <= 1800 for s in ep.spans), ep.spans)       # 安衛則571条一号 1.85m 以下
