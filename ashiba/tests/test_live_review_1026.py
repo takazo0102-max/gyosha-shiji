@@ -46,6 +46,12 @@ class TestHugMeetsItsNeighbours(unittest.TestCase):
                 if sep and "離れ" in _rest[:4]:
                     self.assertTrue(set(head.split("・")) <= own, (lb, w))
 
+    def test_aligned_face_says_it_follows_the_neighbour(self):
+        # 単管の面の離れは隣の組の線にそろえた値。「この形状で組める離れは他に 250mm」は当てはまらない
+        ws = [w for w in self.hug.plan.warnings if "離れ" in w]
+        self.assertTrue(ws)
+        self.assertFalse([w for w in ws if "他に" in w], ws)
+
     def test_tube_spans_stay_within_the_law(self):
         (ep,) = self.hug.plan.edges
         self.assertTrue(all(300 <= s <= 1800 for s in ep.spans), ep.spans)       # 安衛則571条一号 1.85m 以下

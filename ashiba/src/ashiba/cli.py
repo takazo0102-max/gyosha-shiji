@@ -1022,6 +1022,14 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         all_names = dict(zip((e.edge_index for e in plan.edges), plan.face_names()))
         plan = _dc.replace(plan, edges=[e for e in plan.edges if e.edge_index in faces])
         plan.warnings[:] = _own_face_warnings(plan.warnings, all_names, faces)
+        # 隣の組の離れにそろえた面（単管の組など）は「この形状で組める離れは他に…」が当てはまらない
+        aligned = {all_names[i] for i in faces if i in (nb_so or {}) and i in all_names}
+        if aligned:
+            import re as _re
+
+            plan.warnings[:] = [
+                _re.sub(r"（この形状で組める離れは他に[^）]*）", "（隣の組の足場の建地の線にそろえた離れ）", w)
+                if set(w.partition(": ")[0].split("・")) <= aligned else w for w in plan.warnings]
     # ブラケット足場と本足場の出隅を繋ぐ割付（面の組を解き直すとき solve_groups が渡す。corner_joins）
     joins = spec.get("_joins")
     if joins:
