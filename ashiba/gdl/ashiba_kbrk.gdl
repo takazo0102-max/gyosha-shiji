@@ -58,6 +58,12 @@ pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 rot2 faceAng
+! 文字は北・西を向く面でも読める向きに（置いた角度＋面の向きを 0〜360 に直して、左へ傾けば返す。逆さに出ていた。
+! 2026-10-26 のループ）
+aTx = SYMB_ROTANGLE + faceAng
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+flipTx = (aTx > 90.001 and aTx < 270.001)
 rP = postR
 rA = 0.0427 / 2
 xT = brW - rA
@@ -69,7 +75,10 @@ if cnrMode > 0 then
 		line2 0, -0.024, cnrL, -0.024
 		if showName then
 			style "kbTx"
-			text2 0, -0.15, "拡幅の角の支柱（地上から）"
+			add2 0, -0.15
+			if flipTx then rot2 180
+			text2 0, 0, "拡幅の角の支柱（地上から）"
+			del 1 + flipTx
 		endif
 	else
 		line2 0, 0.024, cnrL, 0.024
@@ -77,7 +86,10 @@ if cnrMode > 0 then
 		circle2 cnrAt, 0, rP
 		if showName then
 			style "kbTx"
-			text2 cnrAt, -0.15, "縮幅の角の受け単管"
+			add2 cnrAt, -0.15
+			if flipTx then rot2 180
+			text2 0, 0, "縮幅の角の受け単管"
+			del 1 + flipTx
 		endif
 	endif
 	hotspot2 0, 0
@@ -95,7 +107,10 @@ hotspot2 0, 0
 hotspot2 xT, 0
 if showName then
 	style "kbTx"
-	text2 brW / 2, 0.08, brName
+	add2 brW / 2, 0.08
+	if flipTx then rot2 180
+	text2 0, 0, brName
+	del 1 + flipTx
 endif
 
 ! ==========================================================

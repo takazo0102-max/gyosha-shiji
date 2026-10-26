@@ -103,7 +103,10 @@ hotspot2 0, -rowW
 ! 品番は足場の外側（北・西を向く面でも読める向きに）
 set style "csTx"
 add2 gapL / 2, -rowW - 0.25
-if faceAng > 90.001 and faceAng < 270.001 then rot2 180
+aTx = SYMB_ROTANGLE + faceAng
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
 text2 0, 0, stepName
 del top
 
