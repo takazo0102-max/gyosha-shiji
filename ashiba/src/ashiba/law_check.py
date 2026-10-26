@@ -94,6 +94,14 @@ def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
         # 本足場がいちばん細くても（離れ 250＋床を載せられる最小の建地間隔＋支柱の半径）収まらない空きなら困難
         rows = [p.nominal_dim for p in m.master.by_category("布材") if p.nominal_dim >= 500]
         full_need = 250.0 + float(min(rows) if rows else 600) + 25.0
+        tried = [f for f in (getattr(m, "full_scaffold_tried", None) or []) if f in m.plan.face_names()]
+        if tried:
+            return CheckResult(
+                1, "本足場原則", WARN,
+                f"躯体外面から水平{m.clearance_space_mm:.0f}mm≧1mですが、{'・'.join(tried)}は本足場の離れを詰めても隅の"
+                "割付（布材の長さの和で閉じる離れ）で敷地境界に収まらないため、一側足場としています（本足場の使用が困難な"
+                "場合のただし書き）。敷地境界・隣地との取り合いを記録に残してください", basis + "（ただし書き）",
+            )
         if full_need > m.clearance_space_mm + 1e-6:
             return CheckResult(
                 1, "本足場原則", WARN,

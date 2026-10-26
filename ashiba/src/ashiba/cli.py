@@ -800,6 +800,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         # 隅を隙間（コーナーステップ）で納めるのは、くさびの本足場と一側足場（単管・枠組は除く）。一側足場もフィート寸法で
         # 隅を閉じようとすると離れが 400 を超えた（L 字。2026-10-26 のループ）。一側の出隅の升目のコーナーステップとは別
         corner_steps=bool(spec.get("corner_steps", True)) and _form_from_spec(spec)[0] in ("本足場", "一側足場"),
+        face_caps={int(k): float(v) for k, v in (spec.get("_standoff_caps") or {}).items()} or None,
     )
     # 面の組で、ほかの組が建てる隣の面の離れ（solve_groups が渡す）。隅はその面の線で終わる
     nb_so = {int(k): float(v) for k, v in (spec.get("_neighbor_standoffs") or {}).items()} or None
@@ -1070,6 +1071,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     model.joined_ends |= {(int(j[0]), str(j[1])) for j in (spec.get("_joined_ends") or [])}
     model.skip_end_posts = {(int(j[0]), str(j[1])) for j in (spec.get("_skip_end_posts") or [])}
     # 本体に繋げない上段の端（本体の内側の建地の列の手前で止めた端）: すき間板で本体の床へ渡る
+    # 敷地境界に収めるのに本足場の離れを詰めても収まらなかった面（site_boundary.plan_within_boundary）
+    model.full_scaffold_tried = [str(f) for f in (spec.get("_full_tried") or [])]
     model.free_gap_ends = {(int(j[0]), str(j[1])): float(j[2] if len(j) > 2 else (spec.get("_free_gap_mm") or 150.0))
                            for j in (spec.get("_free_gap_ends") or [])}
     # 割付が面の長さに足りない分（フィート寸法の端数）は、その面の終点の端のあきに足す（終点の建地は端の手前に立つ）

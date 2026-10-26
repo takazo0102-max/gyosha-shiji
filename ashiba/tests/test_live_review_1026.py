@@ -162,6 +162,24 @@ class TestFitsNarrowSites(unittest.TestCase):
         self.assertFalse(getattr(r.stair_plan, "towers", None))
         self.assertGreaterEqual(r.model.config.ladders, 1)
 
+    def test_full_scaffold_is_capped_before_one_sided_and_otherwise_proviso(self):
+        # 信和A の L 字・境界 1000: 東西面は離れ 400 で閉じて本足場が越える。面ごとの上限 370 を渡しても隅の割付で
+        # 収まらない（入隅の面と組で閉じない）ので一側足場にし、法規#1 はただし書きの要確認（NG にしない）
+        ell = [[0, 0], [16000, 0], [16000, 6000], [8000, 6000], [8000, 12000], [0, 12000]]
+        from ashiba.cli import solve_groups
+        from ashiba.site_boundary import plan_within_boundary
+
+        g = 1000
+        bnd = [[-g, -g], [16000 + g, -g], [16000 + g, 12000 + g], [-g, 12000 + g]]
+        sp, _n = plan_within_boundary({"outline_mm": ell, "eaves_height_mm": 9000, "series_id": "shinwa_A",
+                                       "module": "metric", "site_boundary_mm": bnd})
+        self.assertTrue(sp.get("_standoff_caps"))
+        res = solve_groups(sp)
+        self.assertTrue(all(r.verdict["ok"] for _l, r in res), [(l, r.verdict) for l, r in res])
+        law = next(c for c in dict(res)["一側足場"].checks if c.check_id == 1)
+        self.assertEqual(law.status, "WARN")
+        self.assertIn("ただし書き", law.basis)
+
     def test_frame_tries_the_narrow_frame_first(self):
         # 枠組の 610 の建枠の本足場（885）は 1000 に収まる。単管抱き足場に落とすと法規#1 の NG だった
         sp, g = self._solve("waku", "inch", 1000, 3000)

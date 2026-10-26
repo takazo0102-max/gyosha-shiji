@@ -44,6 +44,9 @@ class StandoffSpec:
     # フィート寸法のくさびで隅を閉じるのに離れが 300 を超えるとき、離れを固定して隅をコーナーステップで
     # 納める（False なら従来どおり離れで閉じ、離れ 350 超の面は内ブラケットで詰める）
     corner_steps: bool = True
+    # 面ごとの越えない離れの上限 {辺番号: mm}（敷地境界に本足場を収める。site_boundary.plan_within_boundary）。
+    # 顧客最小値と同じく絶対の条件として割付を選ぶ（目標・上限を下げても、端数の少ない 400 を選んで越えた）
+    face_caps: Optional[dict] = None
 
 
 # 割付は基本スパン（1800・1829）で組む（利用者の指定 2026-10-22「割り付けは基本を1800 1829で考えて」）。
@@ -730,6 +733,8 @@ def _solve_axis(
         dev = sum(abs(x - spec.target) for x in d)
         n_over = sum(1 for x in d if x > spec.max or x < spec.min - STANDOFF_TOL_MM)
         n_hard = sum(1 for x in d if x < spec.hard_min - STANDOFF_TOL_MM)
+        caps = spec.face_caps or {}
+        n_cap = sum(1 for di, x in zip(d_indices, d) if di in caps and x > float(caps[di]) + STANDOFF_TOL_MM)
         # 墜落防止措置が要る面（離れ30cm超）は少ないほどよい
         n_fall = sum(1 for x in d if x > spec.fall_protection_limit)
         # 顧客最小値（hard_min）だけは絶対。それ以外は重み付きで足す。
@@ -738,7 +743,7 @@ def _solve_axis(
         # （インチ規格で実際に起きた）。目標帯外（250〜350の外）は帯内で300超
         # （墜落防止措置）より重く、目標帯外1面 ≒ 端数スパン6〜7本の重さにする
         score = (
-            n_hard,
+            n_hard, n_cap,
             20.0 * n_over + 10.0 * n_fall + SMALL_SPAN_WEIGHT * n_small + dev / 50.0,
             n_small, dev,
         )

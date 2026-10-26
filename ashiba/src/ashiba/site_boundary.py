@@ -322,6 +322,8 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         # 形式を選ぶ間は延ばさずに見る（延ばした端を本足場の面の越えと取ると、その面まで形式を替えてしまう）
         groups = solve_groups({**spec, "corner_joins": False})
         bad: dict[str, float] = {}           # 面 → 躯体から境界まで（越える区間の最小）
+        edge_of: dict[str, int] = {}         # 面 → 辺番号
+        row_of: dict[str, float] = {}        # 面 → 建地列の間隔
         now_so: dict[str, float] = {}        # 面 → いまの離れ（隣の組の建地の線にそろえて目標より広いことがある）
         corner: dict[str, str] = {}          # 角の支柱だけ越える面 → 角を決める隣の面
         for _label, r in groups:
@@ -341,6 +343,8 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
                     else:
                         bad[fc.face] = wall
                         now_so[fc.face] = float(ep.standoff)
+                        edge_of[fc.face] = fc.edge_index
+                        row_of[fc.face] = float(r.model.post_row_spacing_mm)
         # 角だけ越える面の隣の面が越えていなければ、この面を替える（隣の面では直らない）
         for face, adj in corner.items():
             if adj not in bad:
@@ -351,7 +355,31 @@ def plan_within_boundary(spec: dict, max_rounds: int = 4) -> tuple[dict, list[st
         changed = False
         tighten: dict[str, float] = {}
         narrow_ok = _narrow_helps(spec)
+        # 本足場のまま離れを詰めれば収まる面は、形式を替える前にその面の離れの上限（越えない上限）を割付に渡す（信和A の
+        # L 字で隅を閉じる離れ 400 の面を、離れ 250 でも閉じるのに一側足場へ落とし、法規#1 の NG になった。2026-10-27）
+        caps = dict(spec.get("_standoff_caps") or {})
+        hard = float((spec.get("standoff") or {}).get("hard_min", 250))
+        capped = []
         for face, wall_to_bnd in bad.items():
+            if ff.get(face, "") or face not in edge_of or wall_to_bnd == float("inf"):
+                continue
+            cap = _floor10(wall_to_bnd - row_of[face] - POST_R_MM)
+            key = str(edge_of[face])
+            if hard <= cap < now_so[face] and float(caps.get(key, float("inf"))) > cap:
+                caps[key] = cap
+                capped.append(face)
+        if capped:
+            spec["_standoff_caps"] = caps
+            notes.append(f"{'・'.join(capped)}: 本足場のまま敷地境界に収めるため、離れを "
+                         + "・".join(f"{caps[str(edge_of[f])]:.0f}" for f in capped) + f"mm 以下にしました（{rnd}回目）")
+            bad = {f: w for f, w in bad.items() if f not in capped}
+            changed = True
+        for face, wall_to_bnd in bad.items():
+            if face in edge_of and str(edge_of[face]) in caps and not ff.get(face, ""):
+                # 離れの上限を渡しても本足場が収まらない（隅の割付で詰められない）面。法規#1 はただし書きで一側足場に
+                tried = list(spec.get("_full_tried") or [])
+                if face not in tried:
+                    spec["_full_tried"] = tried + [face]
             cur = ff.get(face, "")
             i = FIT_FORMS.index(cur) + 1 if cur in FIT_FORMS else 0
             if i == 0 and not narrow_ok:
