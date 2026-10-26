@@ -165,7 +165,9 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
     ff = parse_face_forms(spec.get("face_forms"))
     # セットバックの先（上段の線より外の、途中の屋根の上）を低く止める区間（setback_tiers.setback_junctions が入れる）
     for f, (a, b) in (spec.get("_low_ranges") or {}).items():
-        ff[range_key(f, a, b)] = LOW_FORM
+        # 種類を切り替えた面の低い区間は、その種類のまま途中の屋根で止める（「一側足場@下段」。2026-10-26 のループ）
+        whole = ff.get(_face_key(f), "")
+        ff[range_key(f, a, b)] = (whole + LOW_FORM) if whole else LOW_FORM
     if not ff:
         return [("", spec)]
     unknown = sorted({split_key(k)[0] for k in ff} - set(all_faces))
@@ -194,7 +196,11 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             label = "下段" if k == 0 else f"下段（{k + 1}）"
             sub["project_name"] = f"{spec.get('project_name') or '足場'} {label}"
         else:
-            sub = {kk: v for kk, v in spec.items() if kk not in _GROUP_DROP_KEYS}
+            low = form.endswith(LOW_FORM)
+            if low:
+                form = form[: -len(LOW_FORM)]
+            sub = {kk: v for kk, v in spec.items() if kk not in _GROUP_DROP_KEYS
+                   and kk not in ("_low_ranges", "_low_spec", "_open_above", "_open_sheet_above")}
             over = FACE_FORM_SPECS[form]
             if "series_id" in over:
                 # 系列を替える組はモジュール（インチ／メートル）の指定も外す（枠組・単管はメートル）
@@ -210,6 +216,9 @@ def face_groups(spec: dict, all_faces: list[str]) -> list[tuple[str, dict]]:
             if fs:
                 sub["standoff"] = {**(spec.get("standoff") or {}), **fs}
             label = form if k == 0 else f"{form}（{k + 1}）"
+            if low:
+                sub.update(spec.get("_low_spec") or {})
+                label = f"{label}（下段）"
             sub["project_name"] = f"{spec.get('project_name') or '足場'} {label}"
         sub["faces"] = [f for f, _a, _b in items]
         # 面を決めた付帯設備（開口部・ステージ・昇降機・ブラケット区間）は、その面を建てる組にだけ渡す（昇降機の無い組で

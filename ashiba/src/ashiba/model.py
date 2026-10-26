@@ -664,7 +664,10 @@ class ScaffoldModel:
         for h in heights:
             v_max = max(v_max, h - prev)
             prev = h
-        v_max = max(v_max, self.scaffold_height_mm - prev)
+        # 最上段の壁つなぎから足場の天端まで（この組の面の高さ。途中の屋根で止めた下段は全体の高さで測っていた）
+        top = max((float(self.elevation_of(e.edge_index).total_height) for e in self.plan.edges),
+                  default=float(self.scaffold_height_mm))
+        v_max = max(v_max, top - prev)
         for e in self.plan.edges:
             xs = sorted(
                 t.position_mm for t in self.wall_ties if t.edge_index == e.edge_index

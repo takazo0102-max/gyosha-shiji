@@ -2015,9 +2015,13 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     names_of = lambda ol: all_face_names({**spec, "outline_mm": ol, "faces": None}, master_csv)  # noqa: E731
     tiers = tier_specs(spec, names_of)
     j_notes: list[str] = []
-    if tiers and not spec.get("face_forms"):
-        # 上段の端を本体の支柱に乗せ、セットバックの先の本体の足場を途中の屋根で止める（利用者の指定 2026-10-25）
-        spec, tiers, j_notes = setback_junctions(spec, tiers, lambda sp: solve_all(sp, master_csv), names_of)
+    if tiers:
+        # 上段の端を本体の支柱に乗せ、セットバックの先の本体の足場を途中の屋根で止める（利用者の指定 2026-10-25）。面を
+        # 切り替えた建物も通す（下屋の上まで本体を 11.7m 建て、壁つなぎの無い自立部分ができていた。2026-10-26 のループ）。
+        # 繋ぎは切り替える前の本体の割付で決める
+        spec, tiers, j_notes = setback_junctions(
+            spec, tiers, lambda sp: solve_all({k: v for k, v in sp.items() if k not in ("face_forms", "form_standoff")},
+                                              master_csv), names_of)
     out = _solve_face_groups(spec, master_csv)
     for label, sub in tiers:
         if sub.get("_hane") and sub.get("_overhang_faces"):

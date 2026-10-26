@@ -72,20 +72,25 @@ class TestHugMeetsItsNeighbours(unittest.TestCase):
 
 
 class TestTierFollowsTheGroups(unittest.TestCase):
-    def test_tier_ends_on_the_main_lines(self):
-        # 面を切り替えた建物は上段の繋ぎを通さず、上段の端の建地が本体の南面の線から 14 ずれた（実機の複製で見つけた）
+    def test_setback_junction_runs_with_switched_faces(self):
+        # 面を切り替えた建物は上段の繋ぎ（setback_junctions）を通さず、南面の本足場が下屋（3.0m）の上まで 11.7m で建ち
+        # （壁つなぎの取れない自立部分）、上段の端の建地が本体の建地と 152 ずれて宙に立った（実機の複製で見つけた）
         g = solve_groups({**USER, "face_eaves_mm": {"東面": 3000}, "eaves_height_mm": 9700,
                           "slabs": [{"polygon_mm": [[0, 0], [10000, 0], [10000, 10000], [0, 10000]], "top_mm": 3000},
                                     {"polygon_mm": [[0, 0], [5000, 0], [5000, 10000], [0, 10000]], "top_mm": 9700}]})
+        labels = [lb for lb, _r in g]
+        self.assertIn("下段", labels)                                     # 南面の下屋の上は途中の屋根で止める
+        self.assertIn("一側足場（下段）", labels)                         # 切り替えた北面も、その種類のまま止める
+        for lb, r in g:
+            if "下段" in lb:
+                self.assertLess(r.model.elevation_of(r.model.plan.edges[0].edge_index).total_height, 6000)
+            # 下段の壁つなぎの垂直間隔を全体の高さで測って NG（8155mm）にしていた
+            self.assertFalse([c for c in r.checks if c.status == "NG" and "壁つなぎ" in c.name], lb)
         main = next(r.model for lb, r in g if lb == "")
-        tier = [r.model for lb, r in g if lb.startswith("上段")]
-        if not tier:
-            self.skipTest("上段が出ない条件")
-        for e in tier[0].plan.edges:
-            for adj in ((e.edge_index - 1) % 4, (e.edge_index + 1) % 4):
-                ol = tier[0].plan.outline.edges[adj]
-                if ol.direction == main.plan.outline.edges[0].direction:
-                    self.assertAlmostEqual(tier[0].plan.standoffs[adj], main.plan.edges[0].standoff, delta=0.5)
+        tier = next(r.model for lb, r in g if lb.startswith("上段"))
+        # 上段は本体の内側の建地の列の手前で止める（本体の建地に乗せられない形）か、本体の線にそろう
+        y0 = tier.plan.edges[0].start_post[1]
+        self.assertGreaterEqual(y0, main.plan.edges[0].start_post[1] - 0.5)
 
 
 class TestConvergedStandoffs(unittest.TestCase):
