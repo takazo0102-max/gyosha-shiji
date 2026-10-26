@@ -134,6 +134,26 @@ class TestPostsByLevel(unittest.TestCase):
                 self.assertFalse([n for n in lt.notes if "1層目に入れています" in n], lt.notes)
 
 
+class TestFaceTakeoffAddsUp(unittest.TestCase):
+    def test_faces_sum_to_the_whole(self):
+        # 面ごとの数量の合計が全体と合う（開口部の抜いた支柱を全部の面で引いてジャッキが 18 本少なかった、面の終点の
+        # 脚がずれて継ぎ足し部の根がらみが抜けていた）
+        from pathlib import Path
+
+        from ashiba.cli import load_spec
+        from ashiba.level_quantity import take_off_by_face
+
+        root = Path(__file__).resolve().parents[1] / "examples"
+        for name in ("opening_beam", "sloped_site", "combo_nd1800", "waku_composite"):
+            with self.subTest(name):
+                r = solve_all(load_spec(root / f"{name}.json"))
+                ft = take_off_by_face(r.model, r.quantity, bracket_sections=r.brackets, stair_plan=r.stair_plan,
+                                      platforms=r.platforms, openings=r.openings, terrain=r.terrain)
+                bad = [(p.model_no, sum(v), ft.totals.get((p.model_no, p.category), 0)) for p, v in ft.rows
+                       if sum(v) != ft.totals.get((p.model_no, p.category), 0)]
+                self.assertEqual(bad, [])
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""

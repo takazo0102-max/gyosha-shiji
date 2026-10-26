@@ -238,8 +238,11 @@ def _sub_terrain(terrain, model: ScaffoldModel, edges: set):
                 best, bi = d, e.edge_index
         return bi
 
-    return dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges],
-                               feet_outer=[f for f in getattr(terrain, "feet_outer", []) if nearest(f) in edges])
+    sub = dataclasses.replace(terrain, feet=[f for f in terrain.feet if nearest(f) in edges],
+                              feet_outer=[f for f in getattr(terrain, "feet_outer", []) if nearest(f) in edges])
+    # 継ぎ足し部の根がらみは区間の両端の脚で決まる（面の終点の脚は次の面の始点）。全体の脚と割付も持たせる
+    object.__setattr__(sub, "_full", (getattr(terrain, "_full", None) or (terrain, model)))
+    return sub
 
 
 def standing_post_positions(model: ScaffoldModel, rows: int) -> int:
@@ -316,10 +319,22 @@ def _sub_platforms(platforms, edges: set):
 
 
 def _sub_openings(openings, edges: set):
+    """その面の開口部だけ. 抜いた支柱の本数・梁枠上の支柱・梁枠の高さ（開口部の番号で持つ）も付け直す（全体の抜いた
+    本数のまま面ごとに引いて、面ごとの数量でジャッキが 18 本少なかった。2026-10-26 のループ）."""
     if openings is None:
         return None
     import dataclasses
-    return dataclasses.replace(openings, openings=_only_edges(openings.openings, edges))
+
+    keep = [i for i, o in enumerate(openings.openings) if o.edge_index in edges]
+    total_inner = sum(len(v) for v in openings.inner_posts.values())
+    rows = (openings.removed_posts // total_inner) if total_inner else 0
+    inner = {k: openings.inner_posts[i] for k, i in enumerate(keep) if i in openings.inner_posts}
+    return dataclasses.replace(
+        openings, openings=[openings.openings[i] for i in keep],
+        inner_posts=inner,
+        beam_heights={k: openings.beam_heights[i] for k, i in enumerate(keep) if i in openings.beam_heights},
+        removed_posts=sum(len(v) for v in inner.values()) * rows,
+        issues=[dataclasses.replace(x, index=keep.index(x.index)) for x in openings.issues if x.index in keep])
 
 
 def _merge_results(model: ScaffoldModel, rules: QuantityRules, results: list) -> QuantityResult:
@@ -2338,10 +2353,14 @@ def _add_extra_negarami(model: ScaffoldModel, terrain, add, notes, rows: int) ->
     m = model.master
     n_extra = 0
     # 外側の列も地盤から解いてあれば、列ごとにその列の脚で数える（立面・3D と同じ）
-    outer = list(getattr(terrain, "feet_outer", []) or [])
-    per_row = [(terrain, 1), (dataclasses.replace(terrain, feet=outer), 1)] if outer and rows >= 2 else [(terrain, rows)]
+    # 面の組・面ごとの数量では、全体の脚と割付で区間を判定し、この組の面の分だけ数える（面の中で脚の番号を数え直すと
+    # 終点の脚がずれ、面ごとの根がらみが全体より少なかった。2026-10-26 のループ）
+    terrain_all, model_all = getattr(terrain, "_full", None) or (terrain, model)
+    outer = list(getattr(terrain_all, "feet_outer", []) or [])
+    per_row = ([(terrain_all, 1), (dataclasses.replace(terrain_all, feet=outer), 1)] if outer and rows >= 2
+               else [(terrain_all, rows)])
     for t, k in per_row:
-        rows_by_edge = extra_negarami(model, t)
+        rows_by_edge = extra_negarami(model_all, t)
         for ep in model.plan.edges:
             for i, _level in rows_by_edge.get(ep.edge_index, []):
                 s = ep.spans[i]
