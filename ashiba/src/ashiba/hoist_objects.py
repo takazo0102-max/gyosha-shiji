@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import math
 
+from .hoist_models import hoist_model
+from .platforms import frame_runs
+
 SNAP_MAX_MM = 3000.0     # 外側建地の列からこれより離れた部品は、その面の昇降機とみなさない
 
 
@@ -33,17 +36,25 @@ def hoists_from_objects(objs: list, groups: list) -> tuple[list[dict], list[str]
             nx, ny = -uy, ux                                  # 躯体側
             row = float(m.row_spacing_of(ep.edge_index))
             faces.append((ep.edge_index, m.face_name(ep.edge_index), sx - nx * row, sy - ny * row, ux, uy, nx, ny,
-                          float(sum(ep.spans))))
+                          float(sum(ep.spans)), list(ep.spans)))
     out: list[dict] = []
     notes: list[str] = []
     for _e, (x, y), params in objs:
         best = None
-        for ei, name, ox, oy, ux, uy, nx, ny, length in faces:
+        for ei, name, ox, oy, ux, uy, nx, ny, length, spans in faces:
             t = (x - ox) * ux + (y - oy) * uy
             d = abs((x - ox) * nx + (y - oy) * ny)
             if -500.0 <= t <= length + 500.0 and (best is None or d < best[0]):
-                best = (d, ei, name, min(max(t, 0.0), length))
+                best = (d, ei, name, min(max(t, 0.0), length), spans)
         model_id = str(params.get("hoModel") or "")
+        # ロングスパンは枠組の両端が足場の建地に乗る位置（スパンの続きの中心）へ寄せる（枠組間隔の半分以内）
+        hm = hoist_model(model_id)
+        if best is not None and hm is not None and hm.kind == "ロングスパン" and hm.frame_span_mm > 0:
+            runs = frame_runs(best[4], hm.frame_span_mm)
+            if runs:
+                c = min((c for _i, _j, c in runs), key=lambda c: abs(c - best[3]))
+                if abs(c - best[3]) <= hm.frame_span_mm / 2.0:
+                    best = best[:3] + (c,) + best[4:]
         if best is None or best[0] > SNAP_MAX_MM:
             notes.append(f"昇降機の部品（{model_id or '機種なし'}）が足場の面から離れています（{SNAP_MAX_MM / 1000:.0f}m 以上）。"
                          "面の外側に寄せて置き直してください")

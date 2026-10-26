@@ -155,6 +155,43 @@ def _edge(model: ScaffoldModel, edge_index: int):
     return None
 
 
+FRAME_TOL_MM = 60.0     # ロングスパンの枠組間隔と足場のスパンの続きの合計の許容差（インチ 3×1829＝5487 と 5490 は同じ）
+
+
+def frame_runs(spans, frame_mm: float) -> list[tuple[int, int, float]]:
+    """足場のスパンの続き（i〜j）で、合計がロングスパンの枠組間隔に合うもの → [(i, j, 区間の中心 mm)].
+
+    ロングスパンは足場の建枠（建地）の間に組む（枠組間隔 3600・5400・7200＝1800 の 2・3・4 スパン。インチの足場では
+    3660・5490・7320＝1829 の 2・3・4 スパン）。機種表の枠組間隔はメートルの値なので、インチ換算（×1829/1800）でも見る。
+    """
+    posts = [0.0]
+    for sp in spans:
+        posts.append(posts[-1] + float(sp))
+    targets = (float(frame_mm), float(frame_mm) * 1829.0 / 1800.0)
+    out = []
+    for i in range(len(spans)):
+        for j in range(i, len(spans)):
+            ln = posts[j + 1] - posts[i]
+            if any(abs(ln - t) <= FRAME_TOL_MM for t in targets):
+                out.append((i, j, (posts[i] + posts[j + 1]) / 2.0))
+            if ln > max(targets) + FRAME_TOL_MM:
+                break
+    return out
+
+
+def frame_center(model: ScaffoldModel, h) -> Optional[float]:
+    """ロングスパンの昇降機の、枠組の両端が足場の建地に乗る位置（いちばん近い区間の中心 mm）. 合う区間が無い・
+    ロングスパンでなければ None."""
+    hm = h.spec
+    edge = _edge(model, h.edge_index)
+    if hm is None or hm.kind != "ロングスパン" or hm.frame_span_mm <= 0 or edge is None:
+        return None
+    runs = frame_runs(edge.spans, hm.frame_span_mm)
+    if not runs:
+        return None
+    return min((c for _i, _j, c in runs), key=lambda c: abs(c - h.position_mm))
+
+
 def _span_index(edge, position_mm: float) -> int:
     acc = 0.0
     for i, s in enumerate(edge.spans):
@@ -396,6 +433,20 @@ def validate_platforms(
                     f"広く、両端に{(opening - fg['span_mm']) / 2:.0f}mmずつ手すりの無いすき間が残ります。"
                     "昇降機の位置をずらしてスパンを減らすか、残りを単管の手すりで塞いでください",
                     "安衛則第519条（開口部の囲い）"))
+        # ロングスパンは足場の建枠の間に組む。枠組の両端が建地に乗る位置でないと、ガーダ（荷台の受け）が掛からない
+        if hm is not None and hm.kind == "ロングスパン" and hm.frame_span_mm > 0:
+            fc = frame_center(model, h)
+            if fc is None:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "WARN",
+                    f"{model.face_name(h.edge_index)}のスパン割りに、機種 {hm.name} の枠組間隔{hm.frame_span_mm:.0f}mm に"
+                    "合う続きのスパンがありません。枠組の両端が足場の建地に乗らないので、スパン割りか機種を見直してください",
+                    "メーカーの組立要領"))
+            elif abs(fc - h.position_mm) > 50.0:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "WARN",
+                    f"機種 {hm.name} の枠組（{hm.frame_span_mm:.0f}mm）の両端が足場の建地に乗りません。位置を"
+                    f"{h.position_mm:.0f}mm から {fc:.0f}mm にしてください", "メーカーの組立要領"))
         # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
         if hm is not None and hm.persons == 0:
             result.issues.append(PlatformIssue(

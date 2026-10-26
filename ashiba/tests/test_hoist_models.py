@@ -123,6 +123,26 @@ class TestModelChecks(unittest.TestCase):
                                               "cage_width_mm": 4000}]})
         self.assertTrue([m for m in ng if "すき間が残ります" in m and "4.5スパン" in m])
 
+    def test_long_span_frame_sits_on_the_posts(self):
+        # ロングスパンは足場の建枠の間に組む: 5400（インチ 5490）＝3 スパン。枠組の両端が建地に乗る位置だけ黙って通す
+        from ashiba.platforms import frame_runs
+
+        self.assertEqual(frame_runs([1800, 1800, 1800, 1800], 5400), [(0, 2, 2700.0), (1, 3, 4500.0)])
+        self.assertEqual([r[:2] for r in frame_runs([1829, 1829, 1829], 5400)], [(0, 2)])      # インチ 5487
+        self.assertEqual(frame_runs([1829, 1219, 1829], 5400), [])
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE900-5.4"}]})
+        ep = r.model.plan.edges[0]
+        runs = frame_runs(ep.spans, 5400)
+        msgs = [i.message for i in r.platforms.issues if i.kind == "昇降機"]
+        on = min((c for _i, _j, c in runs), key=lambda c: abs(c - 6000))
+        if abs(on - 6000) > 50:
+            self.assertTrue([m for m in msgs if f"から {on:.0f}mm に" in m])
+        ok = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": on, "model": "KSE900-5.4"}]})
+        self.assertFalse([m for m in ok if "建地に乗りません" in m or "合う続きのスパン" in m])
+        # 荷台（枠組−600）は 3 スパンにちょうど収まり、乗り込み口の開口も 3 スパン
+        r2 = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": on, "model": "KSE900-5.4"}]})
+        self.assertEqual(len(r2.platforms.hoists[0].gate_spans(r2.model)), 3)
+
     def test_goods_only_hoist_says_no_riders(self):
         msgs = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "SL-240B"}]})
         self.assertTrue([m for m in msgs if "荷揚げ専用で人は乗れません" in m])
@@ -141,6 +161,16 @@ class TestReadPlacedObjects(unittest.TestCase):
         y = e1.start_post[1] + 3000
         hs, notes = hoists_from_objects([(None, (x, y), {"hoModel": "KSE600L", "landLevels": "2,4"})], g)
         self.assertEqual(hs, [{"edge_index": 1, "position_mm": 3000.0, "model": "KSE600L", "landing_levels": [2, 4]}])
+        # ロングスパンの部品は枠組の両端が建地に乗る位置へ寄せる
+        from ashiba.platforms import frame_runs
+
+        e0 = next(e for e in m.plan.edges if e.edge_index == 0)
+        c = min((c for _i, _j, c in frame_runs(e0.spans, 5400)), key=lambda c: abs(c - 5000))
+        x0 = e0.start_post[0] + 5000
+        y0 = e0.start_post[1] - m.row_spacing_of(0) - 900
+        ls, _ = hoists_from_objects([(None, (x0, y0), {"hoModel": "KSE900-5.4"})], g)
+        self.assertEqual(ls[0]["edge_index"], 0)
+        self.assertAlmostEqual(ls[0]["position_mm"], c, delta=0.1)
         far, n2 = hoists_from_objects([(None, (x + 20000, y), {"hoModel": "KSE600L"})], g)
         self.assertEqual(far, [])
         self.assertTrue(n2)
