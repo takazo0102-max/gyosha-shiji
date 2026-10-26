@@ -909,6 +909,9 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
             elevation = _dc.replace(elevation, eave_rails_mm=rails, posts=posts,
                                     posts_alt=list(posts) if list(elevation.posts_alt) == list(elevation.posts)
                                     else elevation.posts_alt)
+    if height_note and spec.get("_quiet_height_note"):
+        # 下段（本体と同じ立面を途中の屋根で切る）は本体の足場高さで解くための指定。指定値の案内は紛らわしいので出さない
+        height_note = None
     if height_note:
         # 指定高さで最上層作業床が軒より下に来るなら、その差を書く（足場高さだけ見ると
         # 軒より高いのに、作業床は軒に届いていない、という見落としを防ぐ）

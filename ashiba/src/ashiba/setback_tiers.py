@@ -764,7 +764,7 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             # 下段の本体側の端の支柱は本体の支柱（全高）と同じ位置。下段は描かず数えない（二重に立っていた）
             "_low_spec": {"height_from_slabs": False, "roof_bridge": False, "_joined_ends": low_join,
                           "_skip_end_posts": low_join,
-                          "scaffold_height_mm": "__MAIN__",
+                          "scaffold_height_mm": "__MAIN__", "_quiet_height_note": True,
                           "face_eaves_mm": {f: int(round(low_top - base)) for f in low}}}
     # 揃えたスパンで解き直した本体の支柱の位置に、上段の線を合わせる
     r1 = solve({k: v for k, v in main.items() if k not in ("_low_ranges", "_low_spec", "_open_above")})
