@@ -133,6 +133,20 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeStandoffFollowsTheTarget(unittest.TestCase):
+    def test_tube_face_keeps_300_by_trimming_a_non_standard_span(self):
+        # 単管は建地の間隔が自由なのに、規格スパンの和だけで解いて「離れ350mm > 300mm（スパン構成では動かせません）」だった
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [6300, 0], [6300, 5000], [0, 5000]], "eaves_height_mm": 9000,
+                       "building_height_mm": 9000, "series_id": "tankan", "module": "metric"})
+        self.assertTrue(all(d <= 300 + 1e-6 for d in r.model.plan.standoffs), r.model.plan.standoffs)
+        self.assertFalse([w for w in r.warnings if "離れ350" in w[2]])
+        # 縮めるのは 1800 でないスパン（規格の 1800 は斜材・シートの升目のまま）
+        east = r.model.plan.edges[1].spans
+        self.assertEqual(east.count(1800), 2, east)
+
+
 class TestTubeBoardsLongLap(unittest.TestCase):
     def test_boards_that_cannot_lap_300_on_a_bracket_lap_longer(self):
         # スパン 1800・1800・1500・600 は規定の長さの板の 300 重ねがブラケットに乗らず「足場板を割り付けられません」で止まった

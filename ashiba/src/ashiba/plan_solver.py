@@ -403,12 +403,20 @@ def solve_plan(
         for idx, v in fixed_standoffs.items():
             if 0 <= int(idx) < n:
                 standoffs[int(idx)] = round(float(v), 3)
-    if master.is_tube and fixed_standoffs and not fixed_spans:
+    tube_fix: dict[int, float] = {}
+    if master.is_tube and not fixed_spans:
         # 単管は建地の間隔が自由（布は長い管を重ねて留める）。隣の面がほかの組なら、その面の離れの線で終わるよう
         # 端のスパンで合わせる（利用者の指摘 2026-10-26: 単管抱き足場の始点の建地が本足場の端の建地から 70 ずれて2本立った）
-        for idx, v in fixed_standoffs.items():
-            if 0 <= int(idx) < n:
-                standoffs[int(idx)] = round(float(v), 3)
+        tube_fix = {int(k): float(v) for k, v in (fixed_standoffs or {}).items() if 0 <= int(k) < n}
+        # 規格のスパンの和で離れが原則（spec.min〜spec.max）を外れる面も、離れを目標に戻して端のスパンで合わせる
+        # （奥行 5m の単管足場が「離れ350mm > 300mm（スパン構成では動かせません）」になっていた。2026-10-26 のループ）
+        top = min(spec.max, spec.fall_protection_limit or spec.max)
+        for idx, d in enumerate(standoffs):
+            if idx not in tube_fix and not (spec.min - STANDOFF_TOL_MM <= d <= top + STANDOFF_TOL_MM):
+                tube_fix[idx] = float(min(spec.target, top))
+    if tube_fix:
+        for idx, v in tube_fix.items():
+            standoffs[idx] = round(v, 3)
         for e in edges:
             s_sum, spans = best_combo[e.index]
             dp = e.start_sign * standoffs[(e.index - 1) % n]
@@ -416,7 +424,7 @@ def solve_plan(
             target = e.length + dp + dn
             if abs(target - s_sum) > 0.5:
                 best_combo[e.index] = (round(target), _refit_tube_spans(
-                    spans, round(target) - sum(spans), (e.index - 1) % n in fixed_standoffs, max(coins)))
+                    spans, round(target) - sum(spans), (e.index - 1) % n in tube_fix, max(coins)))
 
     # フィート寸法のくさびで、隅を閉じるのに離れが 270〜350 の帯を外れるなら、無理に閉じず、帯の中で閉じられる
     # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
@@ -590,6 +598,12 @@ def _refit_tube_spans(spans: list[int], delta: int, at_start: bool, max_span: in
         # 端に入らない分は、いちばん短いスパンに足せるならそこへ（本数を増やさない。1500 → 1668 など）
         k = min(range(len(sp)), key=lambda i: sp[i])
         if sp[k] + delta <= max_span:
+            sp[k] += int(delta)
+            delta = 0
+    if delta < 0 and sp[0] >= max_span:
+        # 縮める分は規格の 1800（斜材・シートの升目）を崩さず、1800 でないスパンから引く（端に近い方から）
+        k = next((i for i, v in enumerate(sp) if v < max_span and v + delta >= 300), None)
+        if k is not None:
             sp[k] += int(delta)
             delta = 0
     sp[0] += int(delta)
