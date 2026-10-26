@@ -133,6 +133,19 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestBridgeDeckFitsTheGap(unittest.TestCase):
+    def test_bracket_bridge_picks_the_anti_that_fits_the_standoff(self):
+        # 信和A（アンチ 500・400・250）で、離れ 300 に大きい2種の 400 を選び「床材 400 が入りきりません」だった
+        from ashiba.cli import solve_all
+
+        r = solve_all({"outline_mm": [[0, 0], [9000, 0], [9000, 6000], [0, 6000]], "eaves_height_mm": 9000,
+                       "building_height_mm": 9000, "series_id": "shinwa_A", "module": "metric"})
+        b = r.model.roof_bridges[0]
+        self.assertEqual(b.kind, "ブラケット")
+        self.assertEqual(b.deck, [250])
+        self.assertFalse([w for w in r.warnings if "入りきりません" in w[2]])
+
+
 class TestTubeStandoffFollowsTheTarget(unittest.TestCase):
     def test_tube_face_keeps_300_by_trimming_a_non_standard_span(self):
         # 単管は建地の間隔が自由なのに、規格スパンの和だけで解いて「離れ350mm > 300mm（スパン構成では動かせません）」だった

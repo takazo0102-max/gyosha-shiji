@@ -134,8 +134,8 @@ def _deck_list(depth: float, unit, wall_clear: float = 30.0) -> list[int]:
     return best
 
 
-def deck_widths_for(m, length: float) -> list[int]:
-    """長さ length のアンチ（踏板）が系列にある幅（大きい順）. 無ければ [240]."""
+def deck_widths_for(m, length: float, n: int | None = 2) -> list[int]:
+    """長さ length のアンチ（踏板）が系列にある幅（大きい順に n 種類。None なら全部）. 無ければ [240]."""
     import re
 
     ws = set()
@@ -143,7 +143,7 @@ def deck_widths_for(m, length: float) -> list[int]:
         g = re.search(r"幅(\d+)", p.note)
         if g and "センター" not in p.note and m.deck_parts(int(g.group(1)), int(round(length))) is not None:
             ws.add(int(g.group(1)))
-    return sorted(ws, reverse=True)[:2] or [240]
+    return sorted(ws, reverse=True)[:n] or [240]
 
 
 def _filled(ws: list[int]) -> float:
@@ -225,8 +225,10 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             b.length_mm = float(fit[-1].nominal_dim) if fit else so
             b.bracket = (f"{fit[-1].model_no} " + ("拡幅ブラケット" if "拡幅" in fit[-1].note else "張出ブラケット")
                          + f"{fit[-1].nominal_dim:.0f}") if fit else "ブラケット"
-            avail = deck_widths_for(m, w)
-            ws = [d for d in avail if d <= max(240.0, so - FLUSH_MM)] or [min(avail)]
+            # 離れに入る幅から選ぶ（大きい2種だけだと信和Aは 500・400 になり、離れ 300 に 250 があるのに 400 で
+            # 「入りきりません」になっていた。2026-10-26 のループ）
+            avail = deck_widths_for(m, w, None)
+            ws = [d for d in avail if d <= max(240.0, so - FLUSH_MM)][:2] or [min(avail)]
             b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), ws)
             b.deck_len_mm = w
             # ブラケットの先端のホゾに立てて手すり・中桟を受ける支柱（コマの倍数で 1000 以上のいちばん短いもの）
