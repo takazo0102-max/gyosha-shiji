@@ -802,12 +802,19 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
             # 止める。端は開放端（妻側の手すり・シート）。床・天端・シートの下端は本体にそろえる
             fixed_f: dict[int, float] = {}
             gap_ends = []
+            float_notes: list[str] = []
             for ei, end, ep0, p_in, sgn in pt["juncs"]:
                 ep = e1.get(ep0.edge_index)
                 if ep is None:
                     continue
                 nb = (int(ei) - 1) % len(tol.edges) if end == "s" else (int(ei) + 1) % len(tol.edges)
                 fixed_f[nb] = max(0.0, float(ep.standoff) - FREE_TIER_CLEAR_MM)
+                if fixed_f[nb] > 1.0:
+                    # 上段の端の建地は躯体の線（途中の屋根の縁）より外に立つ。下に屋根が無い（宙）ので黙って通さない。上段の
+                    # 組の要確認に出す（2026-10-26 のループで利用者の建物の複製から見つけた）
+                    float_notes.append(f"上段の端の建地が途中の屋根の縁から {fixed_f[nb]:.0f}mm 外（屋根の無い所）に立ちます。"
+                                       "本体の足場の床に受け材（梁渡し・単管）を渡して受けるか、上段の端を屋根の縁の内側で"
+                                       "止めて本体の床まで渡り板で繋いでください")
                 # 端は開けて本体の床へ渡る（利用者の指摘 2026-10-25: セットバックのコーナー部分ができてない）。あき 150 は
                 # すき間板で塞ぎ、本体の躯体側の手すり・中桟は上段の床が当たるスパンで外す
                 gap_ends.append([int(ei), end])
@@ -816,7 +823,8 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
                     [ep0.edge_index, lo_x, hi_x, float(t["base_height_mm"]) - base])
             t2 = {**t, "_neighbor_standoffs": fixed_f, "_joined_ends": gap_ends, "_free_gap_ends": gap_ends,
                   "_free_gap_mm": FREE_TIER_CLEAR_MM, "_align_levels_mm": lv_abs,
-                  "_align_top_mm": top_abs, "_sheet_bottom_mm": base + low_sheet_rel - float(t["base_height_mm"])}
+                  "_align_top_mm": top_abs, "_sheet_bottom_mm": base + low_sheet_rel - float(t["base_height_mm"]),
+                  "_align_notes": list(dict.fromkeys(list(t.get("_align_notes") or []) + float_notes))}
             out_tiers.append((lb, t2))
             continue
         fixed: dict[int, float] = {}
