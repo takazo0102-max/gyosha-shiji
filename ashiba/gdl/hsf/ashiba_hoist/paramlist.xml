@@ -53,8 +53,16 @@
 			<Description><![CDATA["乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="gateA">
+			<Description><![CDATA["乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="gateB">
+			<Description><![CDATA["乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Boolean Name="showGate">
-			<Description><![CDATA["フロアーゲートを描く"]]></Description>
+			<Description><![CDATA["乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
 		<Boolean Name="showTie">

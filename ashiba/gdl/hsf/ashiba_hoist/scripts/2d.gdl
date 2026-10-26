@@ -13,9 +13,9 @@ for im = 1 to nMast
 	rect2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
 	line2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
 next im
-! フロアーゲート（足場の外側建地の列の外。乗り込み口）
-if showGate and nLand > 0 and gateOpen > 0.01 then
-	rect2 -gW / 2, -0.06, gW / 2, -0.02
+! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
+if showGate and nLand > 0 then
+	rect2 gA, -0.06, gB, -0.02
 endif
 hotspot2 0, 0
 hotspot2 -cageL / 2, yC1

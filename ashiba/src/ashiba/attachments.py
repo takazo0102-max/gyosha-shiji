@@ -934,12 +934,20 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
         ev = model.elevation_of(ep.edge_index)
         levels = ev.level_heights
         lands = [base + float(levels[lv - 1]) for lv in h.landings(model) if 1 <= lv <= len(levels)]
+        # 乗り込み口＝足場の固定の手すりを外したスパン（数量・足場の線の部品と同じ h.gate_spans）。フロアーゲートは
+        # この幅いっぱいに描く（荷台の長さだけだと両端に手すりの無いすき間が出る）
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        gs = h.gate_spans(model)
+        ga, gb = ((posts[min(gs)] - h.position_mm, posts[max(gs) + 1] - h.position_mm) if gs else (0.0, 0.0))
         out.append(Placement(HOIST_OBJECT, x, y, {
             "faceAng": ang, "hoModel": h.model_id or "",
             # 利用者が部品の設定で選んだ乗り込む層は、置き直しても残す（空なら全部の層）
             "landLevels": ",".join(str(int(v)) for v in (h.landing_levels or [])),
             "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else base + float(ev.total_height)) / 1000.0,
-            "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands)}))
+            "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
+            "gateA": ga / 1000.0, "gateB": gb / 1000.0}))
     return _with_pens(model, out)
 
 

@@ -4438,23 +4438,7 @@ for il = 1 to nLv
 					if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
 				next it6
 			endif
-			if il > 1 and skipH = 0 and inSg = 2 then
-				! 開閉式手すり（枠: 両端の縦材＋手すり＋中桟。数量は「開閉式手すり」で拾う）
-				add x + 0.05, -rowW, z + 0.10
-				cylind railTop - 0.10, 0.015
-				del 1
-				add x + spans[ip] - 0.05, -rowW, z + 0.10
-				cylind railTop - 0.10, 0.015
-				del 1
-				add x + 0.05, -rowW, z + railTop
-				roty 90
-				cylind spans[ip] - 0.10, 0.015
-				del 2
-				add x + 0.05, -rowW, z + railMid
-				roty 90
-				cylind spans[ip] - 0.10, 0.015
-				del 2
-			endif
+			! 乗り込み口の開閉式手すり・フロアーゲートは部品 ashiba_hoist が乗り込み口の幅いっぱいに描く（2026-10-27）。ここは固定の手すりを外すだけ
 			! 枠組の中間層は交差筋交＋幅木（＋上の建枠）で防護し、布材の手すり・中桟は
 			! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
 			frMid = 0
@@ -4789,8 +4773,13 @@ if showDeck then
 						if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
 								abs(z - sgH[ig3]) < 0.001 then inSg = 1
 					next ig3
+					! 乗り込み口は荷台の長さに掛かるスパン全部（手すりと同じ。数量の幅木も同じ区間を引いている）
 					for il5 = 1 to nLa
-						if laP[il5] >= x - 0.001 and laP[il5] < x + spans[ip] - 0.001 and \
+						lw5 = 2.0
+						for ih5 = 1 to nHo
+							if abs(hoP[ih5] - laP[il5]) < 0.001 then lw5 = hoW[ih5]
+						next ih5
+						if laP[il5] - lw5 / 2 < x + spans[ip] - 0.001 and laP[il5] + lw5 / 2 > x + 0.001 and \
 								abs(z - laH[il5]) < 0.001 then inSg = 2
 					next il5
 					for ik4 = 1 to nBk
@@ -5197,109 +5186,8 @@ for ig = 1 to nSg
 	next ipb
 next ig
 
-! ---- ロングスパンエレベーター（マスト2本＋荷台＋渡し板＋マスト控え） ----
-! ロングスパン建設用リフトは、面に沿って長い荷台（3〜10m）の左右の両端にラック付きのガイドレール（マスト）を立てる
-! （日本建設機械施工協会「建設用リフト」図2.4.8・2.4.9。2026-10-25 実機の確認で、搬器の外の中央にマスト1本の
-! 一本構の形だったのを直した）。外側建地から隙間0.10mを空けて荷台（hoW×hoD、手すり枠高さ2.2m）、荷台の両端の外に
-! 0.30角のマスト（0.5mごとの横材）。荷台は最下の乗り込み口の高さに置く
-for ih = 1 to nHo
-	hx = hoP[ih]
-	hg = 0.10
-	cy = -rowW - hg              ! 荷台の足場側端
-	cyo = cy - hoD[ih]           ! 荷台の外側端
-	myc = cy - hoD[ih] / 2       ! マスト中心（y。荷台の奥行の中央）
-	mh = hoR[ih] + 1.0           ! マスト頂部（到達高さ＋余長）
-	for imx = -1 to 1 step 2
-		mxc = hx + imx * (hoW[ih] / 2 + 0.20)      ! マスト中心（x。荷台の端の外）
-		! マスト: 4隅の主材＋0.5mごとの横材
-		for icx = -1 to 1 step 2
-			for icy = -1 to 1 step 2
-				add mxc + 0.15 * icx, myc + 0.15 * icy, 0
-				cylind mh, 0.02
-				del 1
-			next icy
-		next icx
-		nm3 = int(mh / 0.5)
-		for im3 = 1 to nm3
-			add mxc - 0.15, myc - 0.165, im3 * 0.5 - 0.015
-			block 0.30, 0.03, 0.03
-			del 1
-			add mxc - 0.15, myc + 0.135, im3 * 0.5 - 0.015
-			block 0.30, 0.03, 0.03
-			del 1
-			add mxc - 0.165, myc - 0.15, im3 * 0.5 - 0.015
-			block 0.03, 0.30, 0.03
-			del 1
-			add mxc + 0.135, myc - 0.15, im3 * 0.5 - 0.015
-			block 0.03, 0.30, 0.03
-			del 1
-		next im3
-		! マストの基礎（敷鉄板の上のベース）
-		add mxc - 0.35, myc - 0.35, 0
-		block 0.70, 0.70, 0.05
-		del 1
-	next imx
-	! 搬器: 床＋4隅の枠柱＋上枠（4辺）＋中桟（外側・妻側。足場側は乗降口）
-	cz = 0.20
-	cz0 = 0
-	for il3 = 1 to nLa
-		if abs(laP[il3] - hx) < 0.001 then
-			if cz0 = 0 or laH[il3] < cz0 then cz0 = laH[il3]
-		endif
-	next il3
-	if cz0 > 0 then cz = cz0
-	add hx - hoW[ih] / 2, cyo, cz
-	block hoW[ih], hoD[ih], 0.05
-	del 1
-	for icx = 0 to 1
-		for icy = 0 to 1
-			add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo + hoD[ih] * icy, cz
-			cylind 2.2, 0.02
-			del 1
-		next icy
-	next icx
-	for icy = 0 to 1
-		add hx - hoW[ih] / 2, cyo + hoD[ih] * icy, cz + 2.2
-		roty 90
-		cylind hoW[ih], 0.015
-		del 2
-	next icy
-	for icx = 0 to 1
-		add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo, cz + 2.2
-		rotx -90
-		cylind hoD[ih], 0.015
-		del 2
-		add hx - hoW[ih] / 2 + hoW[ih] * icx, cyo, cz + 1.1
-		rotx -90
-		cylind hoD[ih], 0.015
-		del 2
-	next icx
-	add hx - hoW[ih] / 2, cyo, cz + 1.1
-	roty 90
-	cylind hoW[ih], 0.015
-	del 2
-	! 各乗り込み口: 渡し板（搬器の床から作業床へ、隙間を塞ぐ）
-	for il3 = 1 to nLa
-		if abs(laP[il3] - hx) < 0.001 then
-			add hx - hoW[ih] / 2, cy - 0.10, laH[il3] + 0.045
-			block hoW[ih], hg + 0.25, 0.03
-			del 1
-		endif
-	next il3
-	! マスト控え（控えピッチごとに両方のマストから足場の外側建地へ。足場側は壁つなぎで躯体へ）
-	tp3 = hoTp[ih]
-	if tp3 < 0.5 then tp3 = 3.6
-	nt3 = int(hoR[ih] / tp3)
-	for imx = -1 to 1 step 2
-		mxc = hx + imx * (hoW[ih] / 2 + 0.20)
-		for it3 = 1 to nt3
-			add mxc, myc + 0.15, it3 * tp3
-			rotx -90
-			cylind -rowW - myc - 0.15, r_tie
-			del 2
-		next it3
-	next imx
-next ih
+! ---- 昇降機（マスト・荷台・渡し板・マスト控え・乗り込み口の防護）は別部品 ashiba_hoist が描く（利用者の指定 2026-10-27:
+! 昇降機は別オブジェクトで配置できるように）。ここでは乗り込み口の固定の手すりを外すだけ
 
 ! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部・ホゾ、梁渡し、補強のつなぎ材 ----
 ! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）・NDH72（4スパン）、カタログ p010–011 の図: せい 370、上下弦材 φ42.7、

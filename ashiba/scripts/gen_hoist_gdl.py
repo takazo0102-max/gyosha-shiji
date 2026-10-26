@@ -39,7 +39,9 @@ def paramlist(first: str) -> str:
         _param("Length", "gapOut", "足場の外側建地の列から荷台までのあき", 0.1),
         _param("String", "landLevels", "乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）", ""),
         _param("String", "landList", "乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）", ""),
-        _param("Boolean", "showGate", "フロアーゲートを描く", 1),
+        _param("Length", "gateA", "乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）", 0),
+        _param("Length", "gateB", "乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）", 0),
+        _param("Boolean", "showGate", "乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く", 1),
         _param("Boolean", "showTie", "マストの壁つなぎを描く", 1),
         "\t\t<Material Name=\"matCage\">\n\t\t\t<Description><![CDATA[\"荷台・マストの材質\"]]></Description>\n"
         "\t\t\t<Value>0</Value>\n\t\t</Material>\n",
@@ -119,6 +121,13 @@ def master(models) -> str:
         "! フロアーゲートの幅（荷台の長さとゲートの有効開口の小さい方）",
         "gW = cageL",
         "if gateOpen > 0.01 then gW = min(cageL, gateOpen)",
+        "! 乗り込み口（足場の手すりを外したスパン）。フロアーゲート・開閉式手すりはこの幅いっぱいに付けて開口を残さない",
+        "gA = -gW / 2",
+        "gB = gW / 2",
+        "if gateB - gateA > 0.1 then",
+        "\tgA = gateA",
+        "\tgB = gateB",
+        "endif",
     ]
     return "﻿" + "\n".join(lines) + "\n"
 
@@ -138,9 +147,9 @@ for im = 1 to nMast
 	rect2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
 	line2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
 next im
-! フロアーゲート（足場の外側建地の列の外。乗り込み口）
-if showGate and nLand > 0 and gateOpen > 0.01 then
-	rect2 -gW / 2, -0.06, gW / 2, -0.02
+! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
+if showGate and nLand > 0 then
+	rect2 gA, -0.06, gB, -0.02
 endif
 hotspot2 0, 0
 hotspot2 -cageL / 2, yC1
@@ -211,22 +220,29 @@ next cx
 add -cageL / 2, yC1, zF + 2.1
 block cageL, cageD, 0.03
 del 1
-! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）
-if showGate and gateOpen > 0.01 then
+! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）。機種にフロアーゲートが
+! 無ければ開閉式手すり（同じ高さの枠）。足場の線の部品は乗り込み口の固定の手すりを外すだけで、ここが防護を描く
+if showGate then
 	for il = 1 to nLand
 		for hr = 1 to 2
-			add -gW / 2, -0.04, landH[il] + 0.45 * hr
+			add gA, -0.04, landH[il] + 0.45 * hr
 			roty 90
-			cylind gW, 0.0243
+			cylind gB - gA, 0.0243
 			del 2
 		next hr
 		for se = 0 to 1
-			add -gW / 2 + se * gW, -0.04, landH[il]
+			add gA + se * (gB - gA), -0.04, landH[il]
 			cylind 1.0, 0.0243
 			del 1
 		next se
 	next il
 endif
+! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ。足場の外側建地の列から荷台の足場側の端の先 0.15 まで）
+for il = 1 to nLand
+	add -gW / 2, yC0 - 0.15, landH[il] + 0.02
+	block gW, gapOut + 0.15, 0.03
+	del 1
+next il
 del top
 """
 

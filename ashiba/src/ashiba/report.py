@@ -412,9 +412,16 @@ def write_report_md(
             face = model.face_name(h.edge_index)
             reach = h.reach_height_mm or model.scaffold_height_mm
             landings = h.landings(model)
-            a(f"- 昇降機: {face} 始点から{h.position_mm:.0f}mm・到達高さ{reach:.0f}mm"
-              f"・乗り込み口 第{'・'.join(str(l) for l in landings)}層"
-              "（各層の開口は開閉式手すりで防護／安衛則563条）")
+            hm = h.spec
+            guard = "開閉式手すり"
+            if hm is not None and hm.gate:
+                from .hoist_models import FLOOR_GATES
+
+                guard = FLOOR_GATES.get(hm.gate, {}).get("name", "フロアーゲート")
+            a(f"- 昇降機: {face} 始点から{h.position_mm:.0f}mm・"
+              + (f"機種 {hm.name}・" if hm is not None else "")
+              + f"到達高さ{reach:.0f}mm・乗り込み口 第{'・'.join(str(l) for l in landings)}層"
+              f"（各層の開口は{guard}で防護／安衛則563条）")
         if openings is not None and openings.removed_posts:
             vm = model.master.vertical_member_name
             a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"

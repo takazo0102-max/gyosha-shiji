@@ -305,3 +305,10 @@ endif
 ! フロアーゲートの幅（荷台の長さとゲートの有効開口の小さい方）
 gW = cageL
 if gateOpen > 0.01 then gW = min(cageL, gateOpen)
+! 乗り込み口（足場の手すりを外したスパン）。フロアーゲート・開閉式手すりはこの幅いっぱいに付けて開口を残さない
+gA = -gW / 2
+gB = gW / 2
+if gateB - gateA > 0.1 then
+	gA = gateA
+	gB = gateB
+endif

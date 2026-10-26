@@ -52,20 +52,27 @@ next cx
 add -cageL / 2, yC1, zF + 2.1
 block cageL, cageD, 0.03
 del 1
-! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）
-if showGate and gateOpen > 0.01 then
+! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）。機種にフロアーゲートが
+! 無ければ開閉式手すり（同じ高さの枠）。足場の線の部品は乗り込み口の固定の手すりを外すだけで、ここが防護を描く
+if showGate then
 	for il = 1 to nLand
 		for hr = 1 to 2
-			add -gW / 2, -0.04, landH[il] + 0.45 * hr
+			add gA, -0.04, landH[il] + 0.45 * hr
 			roty 90
-			cylind gW, 0.0243
+			cylind gB - gA, 0.0243
 			del 2
 		next hr
 		for se = 0 to 1
-			add -gW / 2 + se * gW, -0.04, landH[il]
+			add gA + se * (gB - gA), -0.04, landH[il]
 			cylind 1.0, 0.0243
 			del 1
 		next se
 	next il
 endif
+! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ。足場の外側建地の列から荷台の足場側の端の先 0.15 まで）
+for il = 1 to nLand
+	add -gW / 2, yC0 - 0.15, landH[il] + 0.02
+	block gW, gapOut + 0.15, 0.03
+	del 1
+next il
 del top

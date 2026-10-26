@@ -380,6 +380,22 @@ def validate_platforms(
                 "昇降機", i, "NG",
                 f"到達高さ{reach:.0f}mmが機種 {hm.name} の最大揚程{hm.max_lift_m:.0f}mを超えます。"
                 "揚程の高い機種に替えてください", "メーカーの仕様"))
+        # フロアーゲートの大きさで塞げる開口か。乗り込み口は荷台の長さに掛かるスパン全部で足場の手すりを外すので、
+        # 開口がゲートのスパンより広いと両端が開いたままになる
+        if hm is not None and hm.gate:
+            from .hoist_models import FLOOR_GATES
+
+            fg = FLOOR_GATES.get(hm.gate)
+            gs = h.gate_spans(model)
+            opening = sum(float(edge.spans[k]) for k in gs)
+            # 片側 100 までは単管クランプの掛かり（建地への留め位置）で納まる。インチの 4 スパン 7316 に 7.2 スパンは片側 58
+            if fg and opening > fg["span_mm"] + 200.0:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "WARN",
+                    f"乗り込み口の開口{opening:.0f}mm（{len(gs)}スパン）が{fg['name']}の幅{fg['span_mm']:.0f}mmより"
+                    f"広く、両端に{(opening - fg['span_mm']) / 2:.0f}mmずつ手すりの無いすき間が残ります。"
+                    "昇降機の位置をずらしてスパンを減らすか、残りを単管の手すりで塞いでください",
+                    "安衛則第519条（開口部の囲い）"))
         # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
         if hm is not None and hm.persons == 0:
             result.issues.append(PlatformIssue(

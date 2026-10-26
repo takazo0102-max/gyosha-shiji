@@ -78,6 +78,21 @@ class TestHoistInput(unittest.TestCase):
         self.assertEqual(p.params["hoModel"], "KSE-990")
         self.assertEqual(p.params["landLevels"], "3")
         self.assertEqual(len(p.params["landList"].split(",")), 1)
+        # 乗り込み口は足場の手すりを外したスパンの端から端（荷台の長さより広い）
+        h = r.platforms.hoists[0]
+        gs = h.gate_spans(r.model)
+        width = sum(ep.spans[k] for k in gs) / 1000.0
+        self.assertAlmostEqual(p.params["gateB"] - p.params["gateA"], width, places=3)
+        self.assertLess(p.params["gateA"], -h.cage_width_mm / 2000.0 + 1e-6)
+        self.assertGreater(p.params["gateB"], h.cage_width_mm / 2000.0 - 1e-6)
+
+    def test_line_part_leaves_the_hoist_to_its_own_part(self):
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertNotIn("ロングスパンエレベーター（マスト2本", d3)
+        self.assertNotIn("開閉式手すり（枠", d3)
+        h3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("cylind gB - gA, 0.0243", h3)
+        self.assertIn("渡し板", h3)
 
 
 class TestModelChecks(unittest.TestCase):
@@ -92,6 +107,15 @@ class TestModelChecks(unittest.TestCase):
         self.assertTrue([m for m in msgs if "最大揚程60m" in m])
         ok = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE900-5.4"}]})
         self.assertFalse([m for m in ok if "最大揚程" in m])
+
+    def test_opening_wider_than_the_gate_warns(self):
+        # KSE600C は 4.5 スパンのフロアーゲート。荷台 2.4m 前後でも支柱の上に立てると 2スパン（3.6m）で収まる。
+        # 位置をスパンの途中にずらし、荷台の長さを伸ばした入力で 3スパン（5.4m）にかかると 4.5 では塞げない
+        ok = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5400, "model": "KSE600C"}]})
+        self.assertFalse([m for m in ok if "すき間が残ります" in m])
+        ng = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6300, "model": "KSE600C",
+                                              "cage_width_mm": 4000}]})
+        self.assertTrue([m for m in ng if "すき間が残ります" in m and "4.5スパン" in m])
 
     def test_goods_only_hoist_says_no_riders(self):
         msgs = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "SL-240B"}]})

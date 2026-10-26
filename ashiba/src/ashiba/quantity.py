@@ -593,7 +593,7 @@ def _take_off_one(
             + (f"・布材{stage_rail_cut}本" if stage_rail_cut else "") + "）は本体の"
             + ("外側の手すり・中桟" if rails_outer else "先行手摺")
             + ("・幅木" if model.config.has_toe_board else "")
-            + "を外しています（ステージの先端・妻側の手すり／乗り込み口の開閉式手すり／張出し外縁の手すりで防護）"
+            + "を外しています（ステージの先端・妻側の手すり／乗り込み口のフロアーゲートか開閉式手すり／張出し外縁の手すりで防護）"
         )
     # 本数だけ出しても検算できない。1スパンあたりの内訳を書く
     per_level_parts = ([f"床レベル{floor_n}本"] if floor_n else []) + [
