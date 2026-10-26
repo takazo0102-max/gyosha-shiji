@@ -2188,19 +2188,37 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
                 h_own[e.edge_index] = max([max(ev.level_heights or [0]) + TUBE_GUARD_RAIL_HEIGHT_MM]
                                           + list(ev.eave_rails_mm or [])) + 50.0
             skip = []
+            joined: list = []                     # 単管の端と同じ位置で建地を共有する隣の組の端 (組, [辺, 端])
+            mine_j = []                           # 隣の組の端と建地を共有する単管の端（高さによらず）
             for e in m.plan.edges:
                 for end, pt in (("s", e.start_post), ("e", e.end_post)):
                     if (e.edge_index, end) in (getattr(m, "range_ends", None) or set()):
                         continue
-                    if any(math.dist(pt, q) < 2.0 and ra.model.height_of(ea.edge_index) >= h_own[e.edge_index] - 1.0
-                           for ka2, (_l, ra) in enumerate(out) if ka2 != k and ka2 not in tube
-                           for ea in ra.model.plan.edges for q in (ea.start_post, ea.end_post)):
+                    hit = [(ka2, ea, eend, ra) for ka2, (_l, ra) in enumerate(out) if ka2 != k and ka2 not in tube
+                           for ea in ra.model.plan.edges for eend, q in (("s", ea.start_post), ("e", ea.end_post))
+                           if math.dist(pt, q) < 2.0]
+                    if not hit:
+                        continue
+                    mine_j.append([e.edge_index, end])
+                    joined += [(ka2, [ea.edge_index, eend]) for ka2, ea, eend, _ra in hit]
+                    if any(ra.model.height_of(ea.edge_index) >= h_own[e.edge_index] - 1.0 for _k2, ea, _e2, ra in hit):
                         skip.append([e.edge_index, end])
             have = [list(j) for j in (sub.get("_skip_end_posts") or [])]
-            if sorted(skip) != sorted(have):
-                sub = {**sub, "_skip_end_posts": skip}
+            have_j = [list(j) for j in (sub.get("_joined_ends") or [])]
+            if sorted(skip) != sorted(have) or any(j not in have_j for j in mine_j):
+                # 隣の組と建地を共有して繋いだ端は開放端ではない（妻側の手すり・シートを付けない）
+                sub = {**sub, "_skip_end_posts": skip, "_joined_ends": have_j + [j for j in mine_j if j not in have_j]}
                 groups[k] = (groups[k][0], sub)
                 out[k] = (groups[k][0], solve_all(sub, master_csv))
+            # 隣の組の側の端も、単管と繋いだ端として開放端から外す（単管の通しがその建地に留まる）
+            for ka2 in sorted({ka2 for ka2, _j in joined}):
+                add = [j for kk, j in joined if kk == ka2]
+                sub2 = groups[ka2][1]
+                cur = [list(j) for j in (sub2.get("_joined_ends") or [])]
+                if any(j not in cur for j in add):
+                    sub2 = {**sub2, "_joined_ends": cur + [j for j in add if j not in cur]}
+                    groups[ka2] = (groups[ka2][0], sub2)
+                    out[ka2] = (groups[ka2][0], solve_all(sub2, master_csv))
         return groups, out
 
     groups, out = settle(groups, out)

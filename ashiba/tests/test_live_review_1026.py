@@ -30,6 +30,13 @@ class TestHugMeetsItsNeighbours(unittest.TestCase):
     def test_shared_corner_posts_are_drawn_once(self):
         self.assertEqual(self.hug.skip_end_posts, {(1, "s"), (1, "e")})
 
+    def test_shared_ends_are_not_open_ends(self):
+        # 単管と建地を共有して繋いだ端は開放端ではない（妻側の手すり「布材0」・幅0 のシート・一側の布材350 を出していた）
+        for lb, r in self.g:
+            ws = [w[2] for w in r.warnings]
+            self.assertFalse([w for w in ws if "開放端" in w or "幅0" in w or "布材0" in w], (lb, ws))
+        self.assertEqual(self.hug.joined_ends, {(1, "s"), (1, "e")})
+
     def test_tube_spans_stay_within_the_law(self):
         (ep,) = self.hug.plan.edges
         self.assertTrue(all(300 <= s <= 1800 for s in ep.spans), ep.spans)       # 安衛則571条一号 1.85m 以下

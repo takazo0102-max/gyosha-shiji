@@ -560,6 +560,8 @@ def open_end_sheets(model: ScaffoldModel, ep) -> list[tuple[str, float]]:
     """
     if sheet_size(model) is None or model.master.is_frame and is_panel(model):
         return []
+    if float(model.post_row_spacing_mm) <= 0.0:
+        return []           # 建地1列（単管抱き足場）は妻側に幅が無い（幅0のシートを手配に出していた）
     out = []
     # 妻側のシートは下段のシートの天端から（無ければ妻側を塞ぐ高さから）
     above = {**(getattr(model, "open_above_mm", {}) or {}), **(getattr(model, "open_sheet_above_mm", {}) or {})}

@@ -2083,6 +2083,8 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
 
     m = model.master
     row = model.post_row_spacing_mm
+    if row <= 0:
+        return              # 建地1列（単管抱き足場）は妻側に渡す長さが無い（布材0 を手配に出していた）
     n_ends = 0
     for ep in model.plan.edges:
         lv = model.elevation_of(ep.edge_index).n_levels
@@ -2103,10 +2105,19 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
                 notes.action(f"開放端の妻側のブレス材（先行手すり{row}・{k * lv}本）がマスタにありません。別途手配してください")
             else:
                 add(part, k * lv, f"開放端の妻側のブレス材（先行手すり{row}）")
+        elif m.find("布材", row) is None and not m.is_tube:
+            # 系列に無い長さ（日建の一側足場のブラケット 350 など）は単管とクランプで塞ぐ
+            notes.action(f"開放端の妻側の手すり・中桟（{row}mm・{k * lv * 2}本）は系列に無い長さなので、単管（1.0m）"
+                         f"{k * lv * 2}本と直交クランプ{k * lv * 4}個で組みます。別途手配してください", Notes.ORDER)
         else:
             add(m.find("布材", row), k * lv * 2, f"開放端の妻側の手すり・中桟（布材{row}）")
         if model.config.has_toe_board:
-            add(m.find("幅木", row), k * lv, f"開放端の妻側の幅木{row}")
+            toe = m.find("幅木", row)
+            if toe is None:
+                notes.action(f"開放端の妻側の幅木（{row}mm・{k * lv}本）が系列のマスタにありません。幅木（足場板・幅木の"
+                             "端材）を別途手配してください", Notes.ORDER)
+            else:
+                add(toe, k * lv, f"開放端の妻側の幅木{row}")
     if n_ends:
         notes.append(f"一部の面だけの足場の端・入隅でつないだ升目の躯体側の開放端{n_ends}箇所は、各層に妻側の"
                      + ("ブレス材（先行手すり）" if end_brace(model) else "手すり・中桟")
