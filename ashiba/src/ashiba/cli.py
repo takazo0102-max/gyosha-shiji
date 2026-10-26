@@ -2612,12 +2612,24 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             per = sum(float(e.scaffold_length) for e in model.plan.edges)
             model.config.ladders = max(1, math.ceil(per / (2.0 * DEFAULT_MAX_TRAVEL_MM)))
             model.auto_ladders = True
-            model.plan.warnings.append(
-                (f"外付けの階段室（{model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM:.0f}mm）がどの面でも敷地境界に"
-                 f"入らない（いちばん空いた面で {space:.0f}mm）ので" if no_room and not model.no_stair_tower else
-                 f"{model.config.form_label}は階段を付けられない寸法（床の幅に階段枠が入らない）なので")
-                + f"、昇降ははしご {model.config.ladders}箇所（水平移動 30m 以内）にしました。独立の階段（900 枠か 600 枠 2 列）を"
-                "別に立てる場合は stairs で位置を指定してください")
+            why_no = (f"外付けの階段室（{model.post_row_spacing_mm + OUTSIDE_SPACE_MARGIN_MM:.0f}mm）がどの面でも敷地境界に"
+                      f"入らない（いちばん空いた面で {space:.0f}mm）ので" if no_room and not model.no_stair_tower else
+                      f"{model.config.form_label}は階段を付けられない寸法（床の幅に階段枠が入らない）なので")
+            if no_room and not model.no_stair_tower:
+                # くさびの本足場は、ハッチ付布板（梯子内蔵）で昇降口を作る（小さい足場で階段室が入らないときと同じ。はしごを
+                # 別に立てず、図・数量に出る。2026-10-27 のループ）
+                from .stairs import hatch_part, place_hatch_ladders
+
+                model.hatch_ladders = place_hatch_ladders(model, model.config.ladders)
+            if getattr(model, "hatch_ladders", None):
+                hp, _hw = hatch_part(model)
+                model.plan.warnings.append(
+                    why_no + f"、昇降口はハッチ付布板（梯子内蔵 {hp.model_no}）{len(model.hatch_ladders)}箇所にしました（各層。"
+                    "安衛則526条）。独立の階段（900 枠か 600 枠 2 列）を別に立てる場合は stairs で位置を指定してください")
+            else:
+                model.plan.warnings.append(
+                    why_no + f"、昇降ははしご {model.config.ladders}箇所（水平移動 30m 以内）にしました。独立の階段（900 枠か"
+                    " 600 枠 2 列）を別に立てる場合は stairs で位置を指定してください")
     elif st.get("positions"):
         # 位置を指定した場合はそれを使う（自動配置と同じ検証は通す）
         stair_plan = place_stairs_at(

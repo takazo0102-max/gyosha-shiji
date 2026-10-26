@@ -161,6 +161,9 @@ class TestFitsNarrowSites(unittest.TestCase):
         self.assertTrue(r.verdict["ok"], r.verdict)
         self.assertFalse(getattr(r.stair_plan, "towers", None))
         self.assertGreaterEqual(r.model.config.ladders, 1)
+        # くさびの本足場はハッチ付布板（梯子内蔵）で昇降口を作り、数量に出す（はしごを別に立てない）
+        self.assertTrue(r.model.hatch_ladders)
+        self.assertGreater(sum(q.qty for q in r.quantity.lines if q.part and q.part.model_no == "NDN6TA"), 0)
 
     def test_full_scaffold_is_capped_before_one_sided_and_otherwise_proviso(self):
         # 信和A の L 字・境界 1000: 東西面は離れ 400 で閉じて本足場が越える。面ごとの上限 370 を渡しても隅の割付で
