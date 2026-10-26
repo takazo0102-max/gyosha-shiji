@@ -106,6 +106,11 @@ class TestCrossCuttingInvariants(unittest.TestCase):
 
                 _pos, out_cells = outside_stair_counts(r.model, r.stair_plan)
                 per_width = {w: n - out_cells for w, n in per_width.items()}
+                # 屋上への渡りのアンチ（横引き。roof_bridges）もセル数の外
+                for b in r.model.roof_bridges:
+                    if not b.tube:
+                        for dw in b.deck:
+                            per_width[f"幅{dw}"] = per_width.get(f"幅{dw}", 0) - 1
                 # 標準幅（ステージ等の追加が無い幅）はセル数と一致する。作業床が1枚敷き（日建の幅610は 500 の
                 # 1枚）だとステージ・ブラケットの追加もその幅に入るので、セル数以上であればよい
                 if len(per_width) == 1:

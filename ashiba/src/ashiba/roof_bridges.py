@@ -115,19 +115,35 @@ def _deck_level(levels: list[float], roof: float, para: float, koma: float,
     return (got[0], got[1], "posts") if got else None
 
 
-def _deck_list(depth: float, unit: int, wall_clear: float = 30.0) -> list[int]:
-    """奥行き depth に並べる床材の幅（くさび: アンチ 500 と 240 の組み合わせでいちばん埋まるもの、単管: 足場板 240）.
-    床材の間は 10 あける."""
+def _deck_list(depth: float, unit, wall_clear: float = 30.0) -> list[int]:
+    """奥行き depth に並べる床材の幅（いちばん埋まる組み合わせ。同じなら枚数の少ない方）. unit は使える幅の並び
+    （系列にあるアンチの幅。整数 1つなら その幅と 240）。床材の間は 10 あける."""
     room = depth - wall_clear
-    if unit == 240:
-        return [240] * max(1, int((room + 10) // 250))
-    best: list[int] = [240]
-    for n5 in range(int(room // 500) + 1):
-        n24 = int((room - n5 * 510 + 10) // 250) if room - n5 * 510 + 10 >= 250 else 0
-        ws = [500] * n5 + [240] * n24
-        if ws and _filled(ws) <= room and _filled(ws) > _filled(best):
-            best = ws
+    ws_ok = sorted({int(w) for w in (unit if isinstance(unit, (list, tuple)) else (unit, 240))}, reverse=True)
+    if ws_ok == [240] or (len(ws_ok) == 1):
+        w = ws_ok[0]
+        return [w] * max(1, int((room + 10) // (w + 10)))
+    best: list[int] = [ws_ok[-1]]
+    w1, w2 = ws_ok[0], ws_ok[1]
+    for n1 in range(int(room // w1) + 1):
+        rest = room - n1 * (w1 + 10) + 10
+        n2 = int(rest // (w2 + 10)) if rest >= w2 else 0
+        cand = [w1] * n1 + [w2] * n2
+        if cand and _filled(cand) <= room and (_filled(cand), -len(cand)) > (_filled(best), -len(best)):
+            best = cand
     return best
+
+
+def deck_widths_for(m, length: float) -> list[int]:
+    """長さ length のアンチ（踏板）が系列にある幅（大きい順）. 無ければ [240]."""
+    import re
+
+    ws = set()
+    for p in m.by_category(m.deck_category):
+        g = re.search(r"幅(\d+)", p.note)
+        if g and "センター" not in p.note and m.deck_parts(int(g.group(1)), int(round(length))) is not None:
+            ws.add(int(g.group(1)))
+    return sorted(ws, reverse=True)[:2] or [240]
 
 
 def _filled(ws: list[int]) -> float:
@@ -209,7 +225,9 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             b.length_mm = float(fit[-1].nominal_dim) if fit else so
             b.bracket = (f"{fit[-1].model_no} " + ("拡幅ブラケット" if "拡幅" in fit[-1].note else "張出ブラケット")
                          + f"{fit[-1].nominal_dim:.0f}") if fit else "ブラケット"
-            b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), 240 if b.length_mm < 500 else 500)
+            avail = deck_widths_for(m, w)
+            ws = [d for d in avail if d <= max(240.0, so - FLUSH_MM)] or [min(avail)]
+            b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), ws)
             b.deck_len_mm = w
         if sum(b.deck) > so - 10.0:
             notes.append(f"屋上への渡り（{name}）: 離れ {so:.0f} に床材 {'＋'.join(map(str, b.deck))} が入りきりません"
@@ -230,10 +248,11 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             b.kind = "支柱"
             # 奥行きはアンチがすき間なく並ぶ布材の長さ（安衛則563条: 床材のすき間 3cm 以下。残りは受けの両端で 90 まで＝ND の 610 の床と同じ）
             cands = [L for L in spans if L >= reach_need] or spans[-1:]
-            b.length_mm = float(next((L for L in cands if deck_gap_mm(L, _deck_list(L, 500)) <= 90.0),
-                                     min(cands, key=lambda L: deck_gap_mm(L, _deck_list(L, 500)))))
+            ws = deck_widths_for(m, w)
+            b.length_mm = float(next((L for L in cands if deck_gap_mm(L, _deck_list(L, ws)) <= 90.0),
+                                     min(cands, key=lambda L: deck_gap_mm(L, _deck_list(L, ws)))))
             # アンチも横引き（面に沿って、両脇の腕木の布材に掛ける。長さはスパンと同じ呼び）
-            b.deck = _deck_list(b.length_mm, 500)
+            b.deck = _deck_list(b.length_mm, ws)
             b.deck_len_mm = w
             b.post_mm, b.jack_mm = _wedge_post(drop, m)
     row = float(model.row_spacing_of(ei)) or 600.0

@@ -179,6 +179,13 @@ class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
         _r, b = self._bridge(roof_parapet_mm=300)
         self.assertLessEqual(deck_gap_mm(b.length_mm, b.deck), 90)
 
+    def test_anti_widths_come_from_the_series(self):
+        # 信和 A はアンチ 240 が無い（500・400）。渡りの床も系列にある幅で（凹み形状の見本で「該当部材がありません」）
+        for sid in ("shinwa_A", "shinwa_B", "nikken_nd1800"):
+            with self.subTest(sid):
+                r = solve_all({"outline_mm": self.B, "eaves_height_mm": 9000, "series_id": sid, "roof_parapet_mm": 300})
+                self.assertFalse([w for w in r.quantity.warnings if "該当部材がありません" in w and "渡り" in w])
+
     def test_part_gets_the_members(self):
         from ashiba.attachments import bridge_placements
 
