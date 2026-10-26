@@ -59,7 +59,9 @@ STANDOFF_TOL_MM = 3.0
 # 技術基準）なのでそのまま、コーナーステップの対応は出隅で 70〜400mm（杉孝のコーナーステップの対応寸法）。
 # ただし隙間の両側に建地が立つので、下限は 150（コマ φ106 どうしが当たらず、くさびを打つ手が入る）。
 # 利用者の指摘 2026-10-24: 隙間が狭すぎて輪っか部分が干渉している（80・109 の隙間でコマが重なっていた）
-WEDGE_GAP_CLOSED_MM = 30
+# 「閉じた」とみなす隙間は、くさびの遊びで吸収できる 10mm まで。30 にしていたら、面の最後の建地が隅の建地から
+# 30 手前に立って2本が重なり（φ48.6）、最後の布材も 30 足りなかった（2026-10-26 のループ。12m×8m のインチ）
+WEDGE_GAP_CLOSED_MM = 10
 WEDGE_STEP_MIN_MM = 150
 WEDGE_STEP_MAX_MM = 400
 # くさびの隅を閉じるのに動かしてよい離れの帯（利用者の指定 2026-10-23: 270〜350 くらいの躯体との隙間感でいい）。
@@ -854,7 +856,9 @@ def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[in
         k = (face, round(tl, 1))                      # 費用は足場長だけで決まる
         if k not in cost_cache:
             sp = _closing_spans(tables[face], tl, main_span)
-            c = 0.1 * _small_span_count(sp, main_span) if sp is not None else float("inf")
+            # 閉じた面も、隅の残り（くさびの遊びで吸収する分）が小さい方を採る（1mm あたり 1e-3。離れの目標 300
+            # からのずれ 1e-4/mm より重い）
+            c = (0.1 * _small_span_count(sp, main_span) + 1e-3 * (tl - sum(sp))) if sp is not None else float("inf")
             got = _pick_from_table(tables[face], tl, main_span)
             if got is not None:
                 c = min(c, 1.0 + 0.1 * _small_span_count(got[0], main_span))

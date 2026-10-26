@@ -133,6 +133,28 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestWedgeCornerClosesOrSteps(unittest.TestCase):
+    def test_feet_corners_close_within_the_wedge_play_or_take_a_corner_step(self):
+        # 隙間 30 以下を「閉じた」とみなしていて、12m×8m のインチで面の最後の建地が隅の建地から 30 手前に立ち、
+        # 2本が重なっていた（布材も 30 足りない）。閉じるのはくさびの遊び 10 まで、それ以外はコーナーステップ
+        import math
+
+        from ashiba.cli import solve_all
+        from ashiba.plan_solver import WEDGE_GAP_CLOSED_MM, WEDGE_STEP_MIN_MM
+
+        for W, D in ((12000, 8000), (9000, 6000), (20000, 10000), (15000, 7000)):
+            r = solve_all({"outline_mm": [[0, 0], [W, 0], [W, D], [0, D]], "eaves_height_mm": 9000,
+                           "series_id": "nikken_nd1800", "module": "inch"})
+            for e in r.model.plan.edges:
+                gap = math.dist(e.start_post, e.end_post) - sum(e.spans)
+                with self.subTest(W=W, D=D, face=e.edge_index):
+                    self.assertTrue(-0.5 <= gap <= WEDGE_GAP_CLOSED_MM or gap >= WEDGE_STEP_MIN_MM, gap)
+        r = solve_all({"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 9000,
+                       "series_id": "nikken_nd1800", "module": "inch"})
+        self.assertLessEqual(max(math.dist(e.start_post, e.end_post) - sum(e.spans) for e in r.model.plan.edges
+                                 if e.edge_index in (1, 3)), 5.0)
+
+
 class TestBridgeDeckFitsTheGap(unittest.TestCase):
     def test_bracket_bridge_picks_the_anti_that_fits_the_standoff(self):
         # 信和A（アンチ 500・400・250）で、離れ 300 に大きい2種の 400 を選び「床材 400 が入りきりません」だった
