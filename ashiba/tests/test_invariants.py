@@ -75,9 +75,9 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     continue
                 if r.model.master.is_tube:
                     # 単管の足場板はスパンごとではなく、規定の長さで面に沿って敷く（tube_runs.face_boards）
-                    from ashiba.tube_runs import face_boards
+                    from ashiba.tube_runs import board_limits, face_boards
 
-                    n_boards = sum(len(face_boards(list(e.spans))[i % 2].pieces)
+                    n_boards = sum(len(face_boards(list(e.spans), **board_limits(r.model, e))[i % 2].pieces)
                                    for e in r.model.plan.edges for i in range(len(r.model.deck_widths_in_use)))
                     got = sum(l.qty for l in r.quantity.lines if l.part and l.part.category == cat)
                     # 単管の足場は出隅ごと・層ごと・床の列ごとにコーナーの足場板1枚

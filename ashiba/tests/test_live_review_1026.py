@@ -133,6 +133,40 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeRunStopsShortOfTheWall(unittest.TestCase):
+    def test_end_room_moves_the_overrun_to_the_other_end(self):
+        # L 字の入隅で、単管の通しが端の建地から 470 出て、離れ 350 の先の壁を 120 突き抜けていた
+        from ashiba.tube_runs import plan_run
+
+        spans = [1800, 1800, 1800, 1616, 914]
+        free = plan_run(spans)
+        self.assertEqual(free.start_mm, -100)
+        held = plan_run(spans, end_room=300)
+        self.assertLessEqual(held.end_mm - sum(spans), 300)
+        self.assertGreaterEqual(held.end_mm - sum(spans), 100)
+        self.assertEqual(sorted(held.pieces), sorted(free.pieces))
+
+    def test_inner_corner_ends_of_a_tankan_ell_stay_off_the_walls(self):
+        from ashiba.cli import solve_all
+        from ashiba.tube_runs import board_limits, face_boards, face_runs, run_rooms
+
+        r = solve_all({"outline_mm": [[0, 0], [16000, 0], [16000, 6000], [8000, 6000], [8000, 12000], [0, 12000]],
+                       "eaves_height_mm": 9000, "series_id": "tankan", "module": "metric"})
+        m = r.model
+        hit = 0
+        for ep in m.plan.edges:
+            s_room, e_room = run_rooms(m, ep)
+            a, _b = face_runs(list(ep.spans), s_room, e_room)
+            if e_room is not None:
+                hit += 1
+                self.assertLessEqual(a.end_mm - sum(ep.spans), e_room + 1e-6)
+                self.assertLessEqual(face_boards(list(ep.spans), **board_limits(m, ep))[0].end_mm - sum(ep.spans),
+                                     e_room + 1e-6)
+            if s_room is not None:
+                self.assertLessEqual(-a.start_mm, s_room + 1e-6)
+        self.assertGreater(hit, 0)
+
+
 class TestTubeSharesPostsOnItsLine(unittest.TestCase):
     def test_tube_spans_put_a_post_at_the_mark(self):
         from ashiba.plan_solver import tube_spans_through

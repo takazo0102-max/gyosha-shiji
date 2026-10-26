@@ -64,45 +64,77 @@ def _clear_of_posts(x: float, posts: list[float]) -> bool:
     return all(abs(x - p) >= JOINT_CLEAR_MM for p in posts)
 
 
-def plan_run(spans: list[int], stock=STOCK_MM, max_over: int = MAX_OVER_MM) -> TubeRun:
+def plan_run(spans: list[int], stock=STOCK_MM, max_over: int = MAX_OVER_MM,
+             start_room: float | None = None, end_room: float | None = None) -> TubeRun:
     """面のスパン列から、通しの単管の割付（A）を決める.
 
     面の長さが規格管（500 刻み）の和に端の出 max_over 以内で収まらないとき（隣の組に合わせた半端なスパンの単管抱き
     足場など）は、端の出を 500 まで広げて解き直す（割り付けられずに止まっていた。2026-10-26 のループ）。
+
+    start_room・end_room: その端の建地から先に出してよい長さの上限（入隅で先が壁の端。隣の面の離れ − WALL_CLEAR_MM）。
+    出せない分は反対の端で出す（L 字の入隅で単管の通しが壁を 120 突き抜けていた。2026-10-26 のループ）。
     """
     try:
-        return _plan_run(spans, stock, max_over)
+        return _plan_run(spans, stock, max_over, start_room, end_room)
     except ValueError:
         if max_over >= MAX_OVER_MM + 500:
             raise
-        return _plan_run(spans, stock, MAX_OVER_MM + 500)
+        return _plan_run(spans, stock, MAX_OVER_MM + 500, start_room, end_room)
 
 
-def _plan_run(spans: list[int], stock, max_over: int) -> TubeRun:
+WALL_CLEAR_MM = 50      # 入隅の端の通しの先と壁のあき
+
+
+def _plan_run(spans: list[int], stock, max_over: int, start_room=None, end_room=None) -> TubeRun:
     posts = post_positions(spans)
-    need = int(round(posts[-1])) + 2 * END_MM
+    L = int(round(posts[-1]))
     stock = sorted(set(int(s) for s in stock), reverse=True)
-    # 位置（始点から mm）→ そこまでの最良の並び。少ない本数、同じなら長い単管が先（タプルの大きい方）
-    best: dict[int, tuple] = {0: ()}
-    for pos in sorted(range(0, need, 100)):
-        if pos not in best:
-            continue
-        seq = best[pos]
-        for L in stock:
-            q = pos + L
-            if q < need and not _clear_of_posts(q - END_MM, posts):
+    e_hi = END_MM + max_over if end_room is None else max(END_MM, int(end_room))
+    # 始めの出: 既定は END_MM。先が壁でない始点は、終点で出せない分を出せる（max_over まで）
+    s_hi = END_MM if start_room is None and end_room is None else (
+        END_MM + max_over if start_room is None else max(END_MM, int(start_room)))
+    found = None
+    for s_off in range(END_MM, s_hi + 1, 50):
+        need = L + s_off + END_MM
+        upper = L + s_off + e_hi
+        # 位置（通しの始めから mm）→ そこまでの最良の並び。少ない本数、同じなら長い単管が先（タプルの大きい方）
+        best: dict[int, tuple] = {0: ()}
+        for pos in sorted(range(0, need, 50)):
+            if pos not in best:
                 continue
-            if q > need + max_over:
-                continue
-            cand = seq + (L,)
-            old = best.get(q)
-            if old is None or (len(cand), tuple(-v for v in cand)) < (len(old), tuple(-v for v in old)):
-                best[q] = cand
-    ends = [(len(s), q - need, tuple(-v for v in s), q) for q, s in best.items() if q >= need]
-    if not ends:
-        raise ValueError(f"単管の通しを割り付けられません（長さ{need}mm）")
-    _n, _over, _neg, q = min(ends)
-    return TubeRun(start_mm=-END_MM, pieces=list(best[q]))
+            seq = best[pos]
+            for Lm in stock:
+                q = pos + Lm
+                if q < need and not _clear_of_posts(q - s_off, posts):
+                    continue
+                if q > upper:
+                    continue
+                cand = seq + (Lm,)
+                old = best.get(q)
+                if old is None or (len(cand), tuple(-v for v in cand)) < (len(old), tuple(-v for v in old)):
+                    best[q] = cand
+        for q, sq in best.items():
+            if q >= need:
+                key = (len(sq), q - need, s_off, tuple(-v for v in sq))
+                if found is None or key < found[0]:
+                    found = (key, s_off, sq)
+    if found is None:
+        raise ValueError(f"単管の通しを割り付けられません（長さ{L + 2 * END_MM}mm）")
+    return TubeRun(start_mm=-found[1], pieces=list(found[2]))
+
+
+def run_rooms(model, ep) -> tuple[float | None, float | None]:
+    """面の両端の通しの出の上限（入隅で先が壁の端だけ。隣の面の離れ − WALL_CLEAR_MM）。面の途中の区間の端は制限しない."""
+    oe = model.plan.outline.edges[ep.edge_index]
+    n = len(model.plan.outline.edges)
+    ends = getattr(model, "range_ends", set()) or set()
+    so = model.plan.standoffs
+    s_room = e_room = None
+    if oe.start_corner == "入隅" and (ep.edge_index, "s") not in ends:
+        s_room = float(so[(ep.edge_index - 1) % n]) - WALL_CLEAR_MM
+    if oe.end_corner == "入隅" and (ep.edge_index, "e") not in ends:
+        e_room = float(so[(ep.edge_index + 1) % n]) - WALL_CLEAR_MM
+    return s_room, e_room
 
 
 def staggered(run: TubeRun, spans: list[int]) -> TubeRun:
@@ -130,9 +162,9 @@ def staggered(run: TubeRun, spans: list[int]) -> TubeRun:
     return best
 
 
-def face_runs(spans: list[int]) -> tuple[TubeRun, TubeRun]:
+def face_runs(spans: list[int], start_room=None, end_room=None) -> tuple[TubeRun, TubeRun]:
     """面の通しの割付 A と B（同じ単管の組。継ぎをずらす）."""
-    a = plan_run(spans)
+    a = plan_run(spans, start_room=start_room, end_room=end_room)
     return a, staggered(a, spans)
 
 
@@ -319,6 +351,18 @@ def staggered_boards(run: BoardRun, spans: list[int], end_window=None) -> BoardR
 def face_boards(spans: list[int], starts=None, end_window=None) -> tuple[BoardRun, BoardRun]:
     a = plan_boards(spans, starts=starts, end_window=end_window)
     return a, staggered_boards(a, spans, end_window)
+
+
+def board_limits(model, ep) -> dict:
+    """入隅で先が壁の端は、足場板の出を壁の手前（隣の面の離れ − WALL_CLEAR_MM）までにする（face_boards の starts・end_window）."""
+    s_room, e_room = run_rooms(model, ep)
+    out = {}
+    if s_room is not None:
+        st = tuple(v for v in (-BOARD_BEAR_MM, -150, -200, -250, -BOARD_MAX_OVER_MM) if -v <= s_room)
+        out["starts"] = st or (-BOARD_BEAR_MM,)
+    if e_room is not None:
+        out["end_window"] = (BOARD_BEAR_MM, max(BOARD_BEAR_MM, min(BOARD_MAX_OVER_MM, int(e_room))))
+    return out
 
 
 

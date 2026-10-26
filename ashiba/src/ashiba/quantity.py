@@ -2698,13 +2698,13 @@ def _note_inner_rail_if_wide(model: ScaffoldModel, notes: list[str], bracket_sec
 
 def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, add, notes, cut_cells: int) -> None:
     """単管のブラケット足場の足場板: 面ごとの割付（tube_runs.face_boards）× 作業層 × 敷く枚数."""
-    from .tube_runs import BOARD_LAP_MM, face_boards
+    from .tube_runs import BOARD_LAP_MM, board_limits, face_boards
 
     m = model.master
     lines = []
     long_laps: dict[str, int] = {}
     for ep in model.plan.edges:
-        runs = face_boards(list(ep.spans))
+        runs = face_boards(list(ep.spans), **board_limits(model, ep))
         if runs[0].laps and max(runs[0].laps) > BOARD_LAP_MM:
             long_laps[model.face_name(ep.edge_index)] = max(runs[0].laps)
         for i, w in enumerate(deck_widths):
@@ -2726,12 +2726,12 @@ def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, a
 
 def _count_tube_toe_boards(model: ScaffoldModel, n_levels: int, add, notes, cut_cells: int) -> None:
     """単管の幅木（足場板を立てたもの）: 面ごとの足場板の割付（face_boards の A）× 作業層."""
-    from .tube_runs import BOARD_LAP_MM, face_boards
+    from .tube_runs import BOARD_LAP_MM, board_limits, face_boards
 
     m = model.master
     lines = []
     for ep in model.plan.edges:
-        run = face_boards(list(ep.spans))[0]
+        run = face_boards(list(ep.spans), **board_limits(model, ep))[0]
         for L in run.pieces:
             part = next((p for p in m.by_category("幅木") if p.actual_dim == L), None)
             add(part, n_levels, f"幅木（足場板）{L / 1000:.1f}M")
@@ -2750,7 +2750,7 @@ def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes,
     通しは建地ごとに直交クランプで留める（抱き足場の床の布2本は3連クランプなので数えない）。継ぎは直線ジョイント。
     返り値: {"clamps": 直交クランプ, "joints": 直線ジョイント}
     """
-    from .tube_runs import face_runs
+    from .tube_runs import face_runs, run_rooms
 
     m = model.master
     hug_rows = 2 * n_levels if model.config.is_hug else 0
@@ -2758,7 +2758,7 @@ def _count_tube_runs(model: ScaffoldModel, rows: int, n_levels: int, add, notes,
     lines = []
     eave_lines = []
     for ep in model.plan.edges:
-        a, _b = face_runs(list(ep.spans))
+        a, _b = face_runs(list(ep.spans), *run_rooms(model, ep))
         for L in a.pieces:
             part = m.find("単管", L)
             add(part, rows, f"単管{L / 1000:.1f}M（布・手すりの通し）")
