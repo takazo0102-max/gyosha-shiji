@@ -68,6 +68,11 @@ if nDn > 0 then tx = tx + " 踏段" + str(dnH * 1000, 4, 0)
 if paraH > 0.001 then tx = tx + "・パラペット越え"
 add2 brW + 0.15, (min(0, yUp) + yE) / 2
 rot2 90
-if SYMB_ROTANGLE + faceAng > 90.001 and SYMB_ROTANGLE + faceAng < 270.001 then rot2 180
+! 文字の向きは 置いた角度＋面の向き＋90（渡りの長さに沿わせる）。0〜360 に直して、左へ傾く（90〜270）なら返す
+! （東面の渡りで 180 になり逆さに出ていた。2026-10-26 のループ）
+aTx = SYMB_ROTANGLE + faceAng + 90
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
 text2 0, 0, tx
 del top

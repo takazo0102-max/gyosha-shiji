@@ -111,7 +111,11 @@ hotspot2 stLU, stLV
 hotspot2 0, stLV
 set style "stTx"
 add2 stLU / 2, stLV / 2
-if SYMB_ROTANGLE + faceAng > 90.001 and SYMB_ROTANGLE + faceAng < 270.001 then rot2 180
+! 文字の向き（置いた角度＋面の向き）を 0〜360 に直して、左へ傾く（90〜270）なら返す
+aTx = SYMB_ROTANGLE + faceAng
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
 text2 0, 0.15, stName
 text2 0, -0.25, "床高" + str((deckH - zBase) * 1000, 5, 0) + "（" + str(stLU * 1000, 5, 0) + "×" + str(stLV * 1000, 5, 0) + "）"
 del top
