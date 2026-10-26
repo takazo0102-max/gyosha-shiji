@@ -2411,6 +2411,19 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     spec = ground_scaffold_spec(spec, master_csv)
     validate_spec(spec)
     model = build_model(spec, master_csv)
+    # 張り出した上の階の下で、方杖の下端より下に作業床が1段も入らない面（高さ 0.9m の建地と根がらみだけが残り、数量にも
+    # 入っていた）は建てない。その面の下の階の壁は脚立・可搬式作業台で（2026-10-26 のループ）
+    caps = getattr(model, "overhang_caps_rel", None) or {}
+    stub = [e.edge_index for e in model.plan.edges
+            if e.edge_index in caps and model.elevation_of(e.edge_index).n_levels == 0]
+    if stub and not spec.get("faces") and not spec.get("_capped_off") and len(stub) < len(model.plan.edges):
+        names = dict(zip([e.edge_index for e in model.plan.edges], model.plan.face_names()))
+        keep = [e.edge_index for e in model.plan.edges if e.edge_index not in stub]
+        note = ("、".join(names[i] for i in stub) + "は張り出した上の階の跳ね出しブラケット（方杖）の下に作業床が1段も入らないので"
+                "足場を建てません。その面の下の階の壁は脚立・可搬式作業台で施工してください")
+        return solve_all({**spec, "faces": keep, "_capped_off": note}, master_csv)
+    if spec.get("_capped_off"):
+        model.plan.warnings.append(str(spec["_capped_off"]))
     if spec.get("ground_scaffold"):
         model.plan.warnings.append(ground_scaffold_note(spec))
     check_edge_indices(spec, model)

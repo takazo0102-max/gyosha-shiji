@@ -317,7 +317,12 @@ class TestOverhangTier(unittest.TestCase):
         self.assertEqual(tier.hane_type, "方杖")
         drop = brace_drop_mm(2000, main.post_row_spacing_mm)
         self.assertAlmostEqual(tier.hane_drop_mm, drop)
-        self.assertLessEqual(main.elevation_of(0).total_height, 3000 - drop - 100)
+        # 方杖の下端より下に作業床が1段も入らない（3m の張り出しの下）ので、張り出しの下の本体の南面は建てない（高さ 0.9m の
+        # 建地と根がらみだけが残っていた。2026-10-26 のループ）。建てるなら方杖の下端より下
+        if any(e.edge_index == 0 for e in main.plan.edges):
+            self.assertLessEqual(main.elevation_of(0).total_height, 3000 - drop - 100)
+        else:
+            self.assertTrue([w for w in main.plan.warnings if "足場を建てません" in w])
         self.assertEqual(line_params(tier, tier.plan.edges[0])["haneTyp"], 1)
         g2 = solve_groups(self.SP)
         self.assertEqual(line_params(g2[1][1].model, g2[1][1].model.plan.edges[0])["haneTyp"], 0)
