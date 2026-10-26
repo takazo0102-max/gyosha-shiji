@@ -373,6 +373,20 @@ def validate_platforms(
                 f"到達高さ{reach:.0f}mmが足場高さ{model.scaffold_height_mm}mmを超えます。"
                 "マスト頂部の控えを別途検討してください",
                 "工事用エレベータ構造規格"))
+        hm = h.spec
+        # 機種の揚程（最大）を超える高さは、その機種では昇れない（マストを継ぎ足しても届かない）
+        if hm is not None and hm.max_lift_m > 0 and reach > hm.max_lift_m * 1000.0 + 1e-6:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "NG",
+                f"到達高さ{reach:.0f}mmが機種 {hm.name} の最大揚程{hm.max_lift_m:.0f}mを超えます。"
+                "揚程の高い機種に替えてください", "メーカーの仕様"))
+        # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
+        if hm is not None and hm.persons == 0:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "WARN",
+                f"機種 {hm.name} は荷揚げ専用で人は乗れません。乗り込み口は荷の受け取り口として、"
+                "開口部は開閉式手すりで塞ぎ、搬器への立入りを禁止する表示をしてください",
+                "メーカーの仕様・安衛則第519条（開口部の囲い）"))
         if h.tie_every_mm <= 0:
             result.issues.append(PlatformIssue(
                 "昇降機", i, "NG",

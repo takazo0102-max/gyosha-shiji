@@ -80,6 +80,26 @@ class TestHoistInput(unittest.TestCase):
         self.assertEqual(len(p.params["landList"].split(",")), 1)
 
 
+class TestModelChecks(unittest.TestCase):
+    def _issues(self, spec):
+        r = solve_all(spec)
+        return [i.message for i in r.platforms.issues if i.kind == "昇降機"]
+
+    def test_lift_over_the_model_is_ng(self):
+        # SL-240B は揚程 60m。到達 65m（足場の上の控えの検討は別）は機種では届かない
+        msgs = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "SL-240B",
+                                                "reach_height_mm": 65000}]})
+        self.assertTrue([m for m in msgs if "最大揚程60m" in m])
+        ok = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE900-5.4"}]})
+        self.assertFalse([m for m in ok if "最大揚程" in m])
+
+    def test_goods_only_hoist_says_no_riders(self):
+        msgs = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "SL-240B"}]})
+        self.assertTrue([m for m in msgs if "荷揚げ専用で人は乗れません" in m])
+        ok = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE-990"}]})
+        self.assertFalse([m for m in ok if "荷揚げ専用" in m])
+
+
 class TestReadPlacedObjects(unittest.TestCase):
     def test_object_snaps_to_the_nearest_face(self):
         from ashiba.cli import solve_groups
