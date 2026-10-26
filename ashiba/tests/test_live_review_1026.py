@@ -93,6 +93,26 @@ class TestTierFollowsTheGroups(unittest.TestCase):
         self.assertGreaterEqual(y0, main.plan.edges[0].start_post[1] - 0.5)
 
 
+class TestOneSpanSectionTies(unittest.TestCase):
+    def test_one_span_section_is_a_warning_not_a_spacing_ng(self):
+        # 1スパンだけの面（面の区間の切れ端）は格子の壁つなぎが入らない前提。朝顔の取付部の1本だけで垂直間隔を測って
+        # 6355mm の NG にしていた（セットバックの東面を一側足場にした下段）
+        from ashiba.law_check import check_wall_ties
+        from ashiba.model import WallTie
+
+        r = solve_all({"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 9000,
+                       "module": "inch"})
+        m = r.model
+        import dataclasses
+
+        one = dataclasses.replace(m.plan.edges[0], spans=[1829], scaffold_length=1829.0)
+        m.plan = dataclasses.replace(m.plan, edges=[one])
+        m.wall_ties = [WallTie(one.edge_index, 0.0, 3600, "asagao")]
+        c = check_wall_ties(m)
+        self.assertEqual(c.status, "WARN")
+        self.assertIn("1スパンの面", c.message)
+
+
 class TestConvergedStandoffs(unittest.TestCase):
     def test_groups_agree_on_every_corner(self):
         g = solve_groups(USER)

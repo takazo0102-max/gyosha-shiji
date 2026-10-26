@@ -369,6 +369,14 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
     v_lim, h_lim, basis = m.wall_tie_limits()
     if not m.wall_ties:
         return CheckResult(7, "壁つなぎ", NG, "壁つなぎが配置されていません", basis)
+    if not [t for t in m.wall_ties if getattr(t, "kind", "grid") == "grid"] and all(len(e.spans) <= 1 for e in m.plan.edges):
+        # 1スパンだけの面（面の区間の切れ端など）は内側の建地が無く、格子の壁つなぎは入らない（両隣の面に支持される
+        # 前提）。朝顔の取付部の1本だけで垂直間隔を測って NG にしていた（2026-10-26 のループ）
+        names = "、".join(f"{m.face_name(e.edge_index)} {e.scaffold_length:.0f}mm" for e in m.plan.edges)
+        return CheckResult(
+            7, "壁つなぎ", WARN,
+            f"壁つなぎ（格子）が入らない1スパンの面: {names}。両隣の面（隣の区間）にコーナー・建地経由で支持される前提です。"
+            "単管等での別途拘束を検討してください", basis)
     v_max, h_max = m.wall_tie_max_spacing()
     problems = []
     if v_max > v_lim:
