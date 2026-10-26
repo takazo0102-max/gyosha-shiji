@@ -2030,6 +2030,13 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
             sub = {**sub, "_align_levels_mm": [float(h) + float(m0.base_height_mm or 0) for h in m0.elevation.level_heights],
                    "_align_top_mm": float(m0.elevation.total_height) + float(m0.base_height_mm or 0)}
         r = solve_all(sub, master_csv)
+        if spec.get("face_forms") and not sub.get("_neighbor_standoffs"):
+            # 面を切り替えた建物は上段の繋ぎ（setback_junctions）を通さないので、上段の外形の辺のうち面の組の面と同じ線に
+            # ある辺の離れを、その組の離れにそろえる（上段の端の建地が本体の線から 14 ずれた。2026-10-26 のループ）
+            fixed = _tier_line_standoffs(r.model, out)
+            if fixed:
+                sub = {**sub, "_neighbor_standoffs": fixed}
+                r = solve_all(sub, master_csv)
         out.append((label, r))
         note = tier_note(label, sub)
         if note:
@@ -2048,6 +2055,26 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
                         or getattr(r.model, "hane_slab_range", None):
                     _retake_quantity(r)
         _layout_sills_across(out)
+    return out
+
+
+def _tier_line_standoffs(tier_model, groups: list) -> dict[int, float]:
+    """上段の外形の辺のうち、面の組の面と同じ線（同じ向き・線の距離 1mm 未満）にある辺 → その組の離れ（上段の離れと違うものだけ）."""
+    out: dict[int, float] = {}
+    built = {e.edge_index for e in tier_model.plan.edges}
+    for te in tier_model.plan.outline.edges:
+        if te.index in built:
+            continue
+        (tx, ty), (dx, dy) = te.start, te.direction
+        for _lb, rg in groups:
+            for ep in rg.model.plan.edges:
+                ge = rg.model.plan.outline.edges[ep.edge_index]
+                if abs(ge.direction[0] - dx) > 1e-6 or abs(ge.direction[1] - dy) > 1e-6:
+                    continue
+                gx, gy = ge.start
+                if abs((tx - gx) * dy - (ty - gy) * dx) < 1.0 and abs(float(ep.standoff) -
+                                                                    float(tier_model.plan.standoffs[te.index])) > 0.5:
+                    out[te.index] = float(ep.standoff)
     return out
 
 

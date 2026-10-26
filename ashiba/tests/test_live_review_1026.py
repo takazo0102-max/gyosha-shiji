@@ -71,6 +71,23 @@ class TestHugMeetsItsNeighbours(unittest.TestCase):
         self.assertLess(e.total_height, 5000)                       # 建物全体の高さ（11m）で拾わない
 
 
+class TestTierFollowsTheGroups(unittest.TestCase):
+    def test_tier_ends_on_the_main_lines(self):
+        # 面を切り替えた建物は上段の繋ぎを通さず、上段の端の建地が本体の南面の線から 14 ずれた（実機の複製で見つけた）
+        g = solve_groups({**USER, "face_eaves_mm": {"東面": 3000}, "eaves_height_mm": 9700,
+                          "slabs": [{"polygon_mm": [[0, 0], [10000, 0], [10000, 10000], [0, 10000]], "top_mm": 3000},
+                                    {"polygon_mm": [[0, 0], [5000, 0], [5000, 10000], [0, 10000]], "top_mm": 9700}]})
+        main = next(r.model for lb, r in g if lb == "")
+        tier = [r.model for lb, r in g if lb.startswith("上段")]
+        if not tier:
+            self.skipTest("上段が出ない条件")
+        for e in tier[0].plan.edges:
+            for adj in ((e.edge_index - 1) % 4, (e.edge_index + 1) % 4):
+                ol = tier[0].plan.outline.edges[adj]
+                if ol.direction == main.plan.outline.edges[0].direction:
+                    self.assertAlmostEqual(tier[0].plan.standoffs[adj], main.plan.edges[0].standoff, delta=0.5)
+
+
 class TestConvergedStandoffs(unittest.TestCase):
     def test_groups_agree_on_every_corner(self):
         g = solve_groups(USER)
