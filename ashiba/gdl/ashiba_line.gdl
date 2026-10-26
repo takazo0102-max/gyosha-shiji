@@ -4041,6 +4041,20 @@ for ie6 = 0 to 1
 			del 1
 		next il
 		if matScaf > 0 then material matScaf
+		! 渡り板の両脇（躯体側と外側の建地の列の線）の手すり（床から 0.9）・中桟（0.45）。単管（利用者の指定
+		! 2026-10-26 の渡り板。外側は下の屋根へ落ちる縁）
+		if tg6 > 0.2 then
+			for il = 2 to nLv
+				for yr6 = 0 to 1
+					for hr6 = 1 to 2
+						add tx6, -yr6 * rowW, lv[il] + 0.45 * hr6
+						roty 90
+						cylind tg6 + 2 * te6, 0.0243
+						del 2
+					next hr6
+				next yr6
+			next il
+		endif
 	endif
 next ie6
 

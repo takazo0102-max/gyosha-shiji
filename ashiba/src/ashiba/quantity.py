@@ -1646,15 +1646,19 @@ def _note_tier_gangways(model: ScaffoldModel, notes) -> None:
         return
     levels = max(1, int(model.elevation.n_levels))
     parts = []
-    total = 0
+    total = tubes = 0
+    tube_l = 1000
     for (ei, end), g in sorted(ends.items(), key=lambda kv: (kv[0][0], kv[0][1] != "s")):
         # 両側の床に 150 ずつ掛ける長さ。足場板は 1.0・1.5・2.0m
         L = next((v for v in (1000, 1500, 2000) if v >= g + 300.0), 2000)
         per = max(1, int(round((model.row_spacing_of(ei) - 60.0) / 240.0)))
         total += per * levels
+        tubes += 4 * levels
+        tube_l = max(tube_l, L)
         parts.append(f"{model.face_name(ei)}の{'始点' if end == 's' else '終点'}（あき {g:.0f}）足場板{L / 1000:.1f}M×{per}枚×{levels}層")
     notes.action("上段の端から本体の床へ渡る渡り板: " + "・".join(parts) + f"（計 {total}枚）。両側の床に 150 以上掛けて"
-                 "番線で留め、渡り板の両脇は手すり・中桟で塞いでください（数量に含んでいません）", Notes.ORDER)
+                 f"番線で留め、両脇は手すり・中桟（単管{tube_l / 1000:.1f}M {tubes}本・直交クランプ {2 * tubes}個）で塞いでください"
+                 "（数量に含んでいません）", Notes.ORDER)
 
 
 def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
