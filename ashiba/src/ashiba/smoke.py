@@ -60,6 +60,13 @@ def cases(examples_dir: Path) -> list[Case]:
     small = {"eaves_height_mm": 9000, "building_height_mm": 9000}
     out.append(Case("pentagon", dict(small, outline_mm=PENTAGON)))
     out.append(Case("lshape", dict(small, outline_mm=LSHAPE, module="inch")))
+    # 面の切替（単管抱き足場・一側足場）と屋上の渡り（パラペット越え）。組ごとの足場ラインも照合する
+    box = [[0, 0], [12000, 0], [12000, 8000], [0, 8000]]
+    out.append(Case("forms_bridge", dict(small, outline_mm=box, module="inch",
+                                         face_forms="東面=単管抱き足場;北面=一側足場;西面=一側足場",
+                                         roof_bridges=[{"face": "南面", "position_mm": 2000, "parapet_mm": 300}])))
+    out.append(Case("waku_bridge", dict(small, outline_mm=box, series_id="waku",
+                                        roof_bridges=[{"face": "南面", "position_mm": 2000}])))
     return out
 
 

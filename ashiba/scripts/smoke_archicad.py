@@ -54,6 +54,12 @@ def _params(client, el) -> dict:
     return {p["name"]: p.get("value") for p in item.get("gdlParameters", item.get("parameters", []))}
 
 
+def _lib_name(client, el) -> str:
+    d = client.get_details([el])[0].get("details") or {}
+    lp = d.get("libPart")
+    return lp.get("name", "") if isinstance(lp, dict) else str(lp or "")
+
+
 def _preview_blank(client, el, view: str, save_to: Path) -> bool:
     resp = client.tapir("GetElementPreviewImage", {"elementId": el["elementId"], "imageType": view,
                                                    "width": 2400, "height": 1500})
@@ -90,6 +96,16 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
                 continue
             bad = count_mismatches(want, got)
             rep.add(f"{face} 図示本数", not bad, "・".join(bad) or f"{sum(k in got for k in want)}項目一致")
+        # 面の切替の組（単管抱き足場・一側足場など）の足場ラインも図示本数を照合する
+        for rg, lg in res.get("group_sets") or []:
+            lines_g = [el for el in lg if "ashiba_line" in str(_lib_name(client, el))]
+            for ep, el in zip(rg.model.plan.edges, lines_g):
+                face = f"{rg.model.config.form_label} {rg.model.face_name(ep.edge_index)}"
+                got = _params(client, el)
+                want = face_drawn_counts(rg.model, ep, stair_plan=rg.stair_plan, openings=rg.openings)
+                bad = count_mismatches(want, got)
+                rep.add(f"{face} 図示本数", not bad and not all_zero(got, FACE_COUNT_PARAMS),
+                        "・".join(bad) or ("すべて0" if all_zero(got, FACE_COUNT_PARAMS) else "一致"))
         if res["lines"]:
             for view in ("2D", "3D"):
                 blank = _preview_blank(client, res["lines"][0], view, out_dir / f"preview_{view}.png")
@@ -117,7 +133,12 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
         else:
             rep.add("立面図（部品）", len(res["elevations"]) == len(edges), f"{len(res['elevations'])}面")
 
-        offline = solve_all(res["spec"])
+        if res["spec"].get("face_forms"):
+            from ashiba.cli import solve_groups
+
+            offline = solve_groups(res["spec"])[0][1]
+        else:
+            offline = solve_all(res["spec"])
         same = list(offline.verdict["blockers"]) == list(res["verdict"]["blockers"])
         rep.add("総合判定が CLI と同じ", same, f"CLI {offline.verdict['blockers']}・実機 {res['verdict']['blockers']}")
     except (TapirError, Exception) as e:      # 1件の失敗で残りを止めない
