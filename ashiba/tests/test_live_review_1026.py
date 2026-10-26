@@ -133,6 +133,45 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeSharesPostsOnItsLine(unittest.TestCase):
+    def test_tube_spans_put_a_post_at_the_mark(self):
+        from ashiba.plan_solver import tube_spans_through
+
+        sp = tube_spans_through([1800, 1800, 1800, 1800, 730], [7320.0], 1800)
+        xs = [sum(sp[:i]) for i in range(len(sp) + 1)]
+        self.assertIn(7320, xs)
+        self.assertEqual(sum(sp), 7930)
+        self.assertTrue(all(300 <= v <= 1800 for v in sp), sp)
+        self.assertEqual(tube_spans_through([1800, 1800], [1800.0], 1800), [1800, 1800])
+
+    def test_hug_at_an_inner_corner_shares_the_main_outer_post(self):
+        # L 字の入隅で、単管抱き足場の建地が本足場の外側の建地から 120 ずれて立っていた
+        import math
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from dev_cases import floors
+
+        from ashiba.cli import solve_groups
+
+        fl = floors("ell", 0, 0)
+        slabs = [{"polygon_mm": [list(p) for p in poly], "top_mm": top} for poly, top in fl]
+        g = dict(solve_groups({"outline_mm": [list(p) for p in fl[0][0]], "eaves_height_mm": 9000, "module": "inch",
+                               "series_id": "nikken_nd1800", "slabs": slabs,
+                               "face_forms": "北面(辺2)=単管抱き足場"}))
+        hug = g["単管抱き足場"].model.plan.edges[0]
+        main = g[""].model
+        e3 = next(e for e in main.plan.edges if e.edge_index == 3)
+        oe = main.plan.outline.edges[3]
+        row = main.row_spacing_of(3)
+        outer = (e3.start_post[0] + oe.outward[0] * row, e3.start_post[1] + oe.outward[1] * row)
+        d = g["単管抱き足場"].model.plan.outline.edges[hug.edge_index].direction
+        xs = [sum(hug.spans[:i]) for i in range(len(hug.spans) + 1)]
+        pts = [(hug.start_post[0] + d[0] * x, hug.start_post[1] + d[1] * x) for x in xs]
+        self.assertLess(min(math.dist(p, outer) for p in pts), 2.0)
+
+
 class TestWedgeCornerClosesOrSteps(unittest.TestCase):
     def test_feet_corners_close_within_the_wedge_play_or_take_a_corner_step(self):
         # 隙間 30 以下を「閉じた」とみなしていて、12m×8m のインチで面の最後の建地が隅の建地から 30 手前に立ち、

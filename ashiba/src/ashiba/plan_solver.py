@@ -275,6 +275,7 @@ def solve_plan(
     fixed_spans: Optional[dict[int, list[int]]] = None,
     face_min: Optional[dict[int, float]] = None,
     fixed_standoffs: Optional[dict[int, float]] = None,
+    tube_marks: Optional[dict[int, list[float]]] = None,
 ) -> PlanResult:
     """fixed_spans: {辺番号: スパン列（始点から）}。その面はこの構成で固定し、離れだけを解く.
 
@@ -427,6 +428,14 @@ def solve_plan(
             if abs(target - s_sum) > 0.5:
                 best_combo[e.index] = (round(target), _refit_tube_spans(
                     spans, round(target) - sum(spans), (e.index - 1) % n in tube_fix, max(coins)))
+
+    if master.is_tube and tube_marks and not fixed_spans:
+        # 隣の組の建地がこの単管の面の線上に立つ所（L 字の入隅の本足場の外側の建地など）は、そこに単管の建地を
+        # 合わせて共有する（120 ずれて2本立っていた。2026-10-26 のループ）
+        for e in edges:
+            if tube_marks.get(e.index):
+                s_sum, spans = best_combo[e.index]
+                best_combo[e.index] = (s_sum, tube_spans_through(spans, tube_marks[e.index], max(coins)))
 
     # フィート寸法のくさびで、隅を閉じるのに離れが 270〜350 の帯を外れるなら、無理に閉じず、帯の中で閉じられる
     # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
@@ -588,6 +597,27 @@ def _feasibility_hint(
                 + f"ため、離れを{abs(chosen - (spec.min if chosen < spec.min else spec.max)):.1f}mm" \
                 + ("下げて" if chosen < spec.min else "上げて") + "端数を減らす方を採っています"
     return text + "）"
+
+
+def tube_spans_through(spans: list[int], marks: list[float], max_span: int) -> list[int]:
+    """単管のスパン列を、面の始点から marks（mm）の位置にも建地が立つように組み直す. 印から 300 未満の建地は
+    印へ寄せて（外して）、max_span を超える間は等分する。印がどれも建地と重なっていれば元のまま."""
+    xs = [0.0]
+    for v in spans:
+        xs.append(xs[-1] + v)
+    total = xs[-1]
+    mk = sorted(float(m) for m in marks if 1.0 < float(m) < total - 1.0)
+    if not mk or all(any(abs(m - x) < 2.0 for x in xs) for m in mk):
+        return list(spans)
+    keep = [x for x in xs[1:-1] if all(abs(x - m) >= 300.0 for m in mk)]
+    pts = sorted({0.0, total, *keep, *mk})
+    out: list[int] = []
+    for a, b in zip(pts, pts[1:]):
+        k = max(1, -(-int(round(b - a)) // int(max_span)))
+        base = [int(round((b - a) / k))] * k
+        base[-1] = int(round(b - a)) - sum(base[:-1])
+        out += base
+    return out
 
 
 def _refit_tube_spans(spans: list[int], delta: int, at_start: bool, max_span: int) -> list[int]:

@@ -794,7 +794,8 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
     )
     # 面の組で、ほかの組が建てる隣の面の離れ（solve_groups が渡す）。隅はその面の線で終わる
     nb_so = {int(k): float(v) for k, v in (spec.get("_neighbor_standoffs") or {}).items()} or None
-    plan = solve_plan(spec["outline_mm"], master, standoff, fixed_standoffs=nb_so)
+    marks = {int(k): [float(x) for x in v] for k, v in (spec.get("_tube_marks") or {}).items()} or None
+    plan = solve_plan(spec["outline_mm"], master, standoff, fixed_standoffs=nb_so, tube_marks=marks)
     _shift_aligned_faces(plan, spec)
     fixed = None
     # 面ごとのスパン指定（途中に900を入れる等）。面名は割付後の辺に解いてから、
@@ -2138,6 +2139,36 @@ def _layout_sills_across(out: list[tuple[str, "PlanRun"]]) -> None:
                     break
 
 
+def _tube_marks_from(m, others) -> dict[int, list[float]]:
+    """単管の組 m の面ごとに、ほかの組の建地が面の線上（端の間）に立つ位置（面の始点から mm）."""
+    pts = []
+    for om in others:
+        one = om.config.scaffold_form == "一側足場"
+        for e in om.plan.edges:
+            oe = om.plan.outline.edges[e.edge_index]
+            row = om.row_spacing_of(e.edge_index)
+            x = 0.0
+            for v in [0, *e.spans]:
+                x += v
+                p = (e.start_post[0] + oe.direction[0] * x, e.start_post[1] + oe.direction[1] * x)
+                if not one:
+                    pts.append(p)
+                if row > 0:
+                    pts.append((p[0] + oe.outward[0] * row, p[1] + oe.outward[1] * row))
+    marks: dict[int, list[float]] = {}
+    for e in m.plan.edges:
+        d = m.plan.outline.edges[e.edge_index].direction
+        total = float(sum(e.spans))
+        for p in pts:
+            vx, vy = p[0] - e.start_post[0], p[1] - e.start_post[1]
+            t = vx * d[0] + vy * d[1]
+            if abs(vx * d[1] - vy * d[0]) < 2.0 and 1.0 < t < total - 1.0:
+                ts = marks.setdefault(e.edge_index, [])
+                if all(abs(t - u) >= 2.0 for u in ts):
+                    ts.append(round(t, 1))
+    return {k: sorted(v) for k, v in marks.items()}
+
+
 def _feet_series(master) -> bool:
     from .plan_solver import _is_feet_series
 
@@ -2269,6 +2300,14 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
                 sub = {**sub, "_align_levels_mm": [float(h) + float(ma.base_height_mm or 0)
                                                    for h in ma.elevation.level_heights],
                        "_align_what": out[k][0] or "単管"}
+                groups[k] = (groups[k][0], sub)
+                out[k] = (groups[k][0], solve_all(sub, master_csv))
+                m = out[k][1].model
+            # 隣の組の建地がこの面の線上（端の間）に立つなら、そこに単管の建地を合わせて共有する（L 字の入隅で本足場の
+            # 外側の建地から 120 ずれて単管の建地が立っていた。2026-10-26 のループ）
+            marks = _tube_marks_from(m, [out[ka2][1].model for ka2 in range(len(out)) if ka2 != k and ka2 not in tube])
+            if marks != {int(kk): v for kk, v in (sub.get("_tube_marks") or {}).items()}:
+                sub = {**sub, "_tube_marks": marks}
                 groups[k] = (groups[k][0], sub)
                 out[k] = (groups[k][0], solve_all(sub, master_csv))
                 m = out[k][1].model
