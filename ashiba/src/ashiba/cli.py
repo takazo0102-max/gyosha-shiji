@@ -2330,9 +2330,14 @@ def _solve_face_groups(spec: dict, master_csv: Path | None = None) -> list[tuple
             sub = groups[k][1]
             if ka is not None and not sub.get("_align_levels_mm") and sub.get("scaffold_height_mm") is None:
                 ma = out[ka][1].model
-                sub = {**sub, "_align_levels_mm": [float(h) + float(ma.base_height_mm or 0)
-                                                   for h in ma.elevation.level_heights],
-                       "_align_what": out[k][0] or "単管"}
+                lv = [float(h) + float(ma.base_height_mm or 0) for h in ma.elevation.level_heights]
+                # 隣の組の床がこの組の高さより下で終わる（張り出しの下で止めた本体など）なら、同じ間隔で上へ積み足す（床が
+                # 2段で止まり、高さ 10m の単管抱き足場の上 6.5m に床も壁つなぎも無かった。2026-10-27 のループ）
+                step = (lv[-1] - lv[-2]) if len(lv) >= 2 else float(ma.master.floor_height or 1800)
+                top = float(m.base_height_mm or 0) + float(m.elevation.total_height)
+                while lv and step > 0 and lv[-1] + step + 900.0 <= top:
+                    lv.append(lv[-1] + step)
+                sub = {**sub, "_align_levels_mm": lv, "_align_what": out[k][0] or "単管"}
                 groups[k] = (groups[k][0], sub)
                 out[k] = (groups[k][0], solve_all(sub, master_csv))
                 m = out[k][1].model

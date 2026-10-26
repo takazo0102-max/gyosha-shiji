@@ -133,6 +133,30 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeLevelsContinueAboveTheNeighbour(unittest.TestCase):
+    def test_hug_keeps_floors_up_to_its_own_top(self):
+        # 脇の渡り（西へ張り出す上の階）の南・東・北を単管抱き足場にすると、隣の本体（張り出しの下で 4.5m で止めた西面）の
+        # 床 2段にそろえて、高さ 10m の単管抱き足場の上 6.5m に床も壁つなぎも無かった（壁つなぎの垂直間隔 6.5m の NG）
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from dev_cases import floors
+
+        from ashiba.cli import solve_groups
+
+        fl = floors("sidebridge", 0, 0)
+        slabs = [{"polygon_mm": [list(p) for p in poly], "top_mm": top} for poly, top in fl]
+        g = dict(solve_groups({"outline_mm": [list(p) for p in fl[0][0]], "eaves_height_mm": 9000, "module": "inch",
+                               "series_id": "nikken_nd1800", "slabs": slabs,
+                               "face_forms": "南面=単管抱き足場;東面=単管抱き足場;北面=単管抱き足場"}))
+        hug = g["単管抱き足場"]
+        for e in hug.model.plan.edges:
+            ev = hug.model.elevation_of(e.edge_index)
+            self.assertGreaterEqual(max(ev.level_heights), ev.total_height - 1800 - 1)
+        self.assertFalse([c for c in hug.checks if c.check_id == 7 and c.status == "NG"])
+
+
 class TestFitsNarrowSites(unittest.TestCase):
     """敷地境界が近い敷地を、実機の配置と同じ前段（plan_within_boundary）で解く（2026-10-27 のループ）."""
 
