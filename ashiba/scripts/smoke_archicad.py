@@ -110,6 +110,10 @@ def run_case(client, case, index: int, keep: bool) -> CaseReport:
             # 立面（2面ごとに1枚）・平面・詳細・断面（A-A・B-B ごとに1枚）。少なくとも立面・平面・詳細の3枚
             rep.add("PDF の発行（立面・平面・詳細・断面）", bool(pdf) and len(pdf.files) >= 3,
                     (f"{len(pdf.files)}枚" + ("; " + "; ".join(pdf.notes) if pdf.notes else "")) if pdf else "発行していない")
+        elif res["elevation_mode"] in ("later", "none"):
+            # 立面図・断面図は調整が済んでからパレットの「図面を作る」で作る（利用者の指定 2026-10-24）。配置では作らない
+            rep.add("立面図は「図面を作る」で後から（配置では作らない）", not res["elevations"],
+                    f"{len(res['elevations'])}面")
         else:
             rep.add("立面図（部品）", len(res["elevations"]) == len(edges), f"{len(res['elevations'])}面")
 
