@@ -239,6 +239,23 @@ class TestFitsNarrowSites(unittest.TestCase):
         self.assertEqual(law.status, "WARN")
         self.assertIn("ただし書き", law.basis)
 
+    def test_metric_corner_steps_when_the_neighbour_is_far_off(self):
+        # 信和A の L 字・境界 400: 北面(辺2)が隣の単管抱き足場の離れ 290 で閉じられず、本体の 400 で解いて隅の建地が境界を
+        # 25 越えた。隣と 100 を超えてずれるときはメートルでも隅をコーナーステップで納める（100 以内は単管がクランプで留める）
+        ell = [[0, 0], [16000, 0], [16000, 6000], [8000, 6000], [8000, 12000], [0, 12000]]
+        from ashiba.cli import solve_groups
+        from ashiba.site_boundary import plan_within_boundary
+
+        g = 400
+        bnd = [[-g, -g], [16000 + g, -g], [16000 + g, 12000 + g], [-g, 12000 + g]]
+        sp, _n = plan_within_boundary({"outline_mm": ell, "eaves_height_mm": 9000, "series_id": "shinwa_A",
+                                       "module": "metric", "site_boundary_mm": bnd})
+        res = solve_groups(sp)
+        self.assertTrue(all(r.verdict["ok"] for _l, r in res), [(l, r.verdict) for l, r in res])
+        main = res[0][1]
+        self.assertTrue(main.model.plan.corner_steps)
+        self.assertTrue([w for w in main.warnings if w[2].startswith("布材の規格寸法では")])
+
     def test_frame_tries_the_narrow_frame_first(self):
         # 枠組の 610 の建枠の本足場（885）は 1000 に収まる。単管抱き足場に落とすと法規#1 の NG だった
         sp, g = self._solve("waku", "inch", 1000, 3000)

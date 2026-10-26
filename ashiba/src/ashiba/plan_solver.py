@@ -66,6 +66,8 @@ STANDOFF_TOL_MM = 3.0
 # 30 手前に立って2本が重なり（φ48.6）、最後の布材も 30 足りなかった（2026-10-26 のループ。12m×8m のインチ）
 WEDGE_GAP_CLOSED_MM = 10
 WEDGE_STEP_MIN_MM = 150
+# 隣の組の離れで閉じられないとき、自由に解いた離れが隣とこれより離れたら隅をコーナーステップで納める（メートル。2026-10-27）
+FIXED_MISS_STEP_MM = 100.0
 WEDGE_STEP_MAX_MM = 400
 # くさびの隅を閉じるのに動かしてよい離れの帯（利用者の指定 2026-10-23: 270〜350 くらいの躯体との隙間感でいい）。
 # 300 を超える面は内側に手すり（内ブラケット・内側の手すり）で墜落を防ぐ
@@ -383,6 +385,7 @@ def solve_plan(
     # 形状から一意に決まるのかで打つ手が変わる
     feasible_standoffs: dict[int, set[int]] = {}
     extra_small: dict[int, dict[int, int]] = {}   # 面 → {離れ: 端数スパンが増える本数}
+    fixed_failed = False                     # 隣の組の離れで閉じる組合せが無かった軸がある
     for axis in ("x", "y"):
         grp = [e for e in edges if e.axis == axis]
         if not grp:
@@ -395,6 +398,9 @@ def solve_plan(
                                   {int(k): float(v) for k, v in fixed_standoffs.items()})
             except ValidationError:
                 got = None
+            if got is None and any(int(k) in {(e.index - 1) % n for e in grp} | {(e.index + 1) % n for e in grp}
+                                   for k in fixed_standoffs):
+                fixed_failed = True
         combo, d_solved, feas, extra = got or _solve_axis(grp, candidates, edges, spec, main_span)
         best_combo.update(combo)
         feasible_standoffs.update(feas)
@@ -444,10 +450,19 @@ def solve_plan(
     # 隅を最も多くし、閉じない隅はコーナーステップで納める（単管は長さが自由なので要らない。メートル寸法は
     # 300mm 刻みで離れ 250〜350 の中で閉じられるので従来どおり）
     lo_band = _wedge_band_lo(spec)
-    if (spec.corner_steps and not master.is_tube and not fixed_spans and _is_feet_series(master)
-            and (fixed_standoffs or any(d > spec.max + STANDOFF_TOL_MM or d < lo_band - STANDOFF_TOL_MM
-                                        for d in standoffs))):
-        stepped = _solve_plan_wedge_steps(outline, spec, coins, main_span, fixed_standoffs)
+    # メートルでも、隣の組の離れで閉じられない組（一側足場の面が隣の単管抱き足場の離れ 290 で閉じず、本体の 400 で解いて
+    # 隅の建地が敷地境界を越えた。2026-10-27 のループ）は、隅を隙間（コーナーステップ）で納める
+    # 隣と 100 以内のずれは、単管の組ならクランプで留められるので離れのまま（隅にコーナーステップを増やさない）
+    far_off = fixed_failed and bool(fixed_standoffs) and any(
+        abs(float(standoffs[int(k)]) - float(v)) > FIXED_MISS_STEP_MM
+        for k, v in fixed_standoffs.items() if 0 <= int(k) < n)
+    if (spec.corner_steps and not master.is_tube and not fixed_spans
+            and ((_is_feet_series(master)
+                  and (fixed_standoffs or any(d > spec.max + STANDOFF_TOL_MM or d < lo_band - STANDOFF_TOL_MM
+                                              for d in standoffs)))
+                 or far_off)):
+        stepped = _solve_plan_wedge_steps(outline, spec, coins, main_span, fixed_standoffs,
+                                          "フィート寸法" if _is_feet_series(master) else "布材の規格寸法")
         if stepped is not None:
             stepped.bridged_zones = _locate_bridged_zones(outline, stepped.edges, stepped.standoffs)
             return stepped
@@ -858,7 +873,8 @@ def _closing_spans(table: dict[int, list[int]], tl: float, main_span: int) -> Op
 
 
 def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[int],
-                            main_span: int, fixed: Optional[dict[int, float]] = None) -> Optional[PlanResult]:
+                            main_span: int, fixed: Optional[dict[int, float]] = None,
+                            unit_label: str = "フィート寸法") -> Optional[PlanResult]:
     """くさびの割付を、離れを 270〜350 の帯で動かして閉じられる隅を最も多くし、閉じない隅はコーナーステップで
     納めて解く（解けなければ None）.
 
@@ -989,7 +1005,7 @@ def _solve_plan_wedge_steps(outline: Outline, spec: StandoffSpec, coins: list[in
         lo_s, hi_s = min(standoffs), max(standoffs)
         band = f"{lo_s:.0f}mm" if abs(hi_s - lo_s) < 0.5 else f"{lo_s:.0f}〜{hi_s:.0f}mm"
         warnings.append(
-            f"フィート寸法では全部の隅を離れ {lo}〜{hi}mm の中で閉じられないので、離れを {band} にし、閉じない隅の"
+            f"{unit_label}では全部の隅を離れ {lo}〜{hi}mm の中で閉じられないので、離れを {band} にし、閉じない隅の"
             "隙間をコーナーステップで納めます（" + "・".join(f"{faces[c.edge_index]}の終点 {c.gap_mm:.0f}mm"
                                              for c in corner_steps) + "）")
     return result
