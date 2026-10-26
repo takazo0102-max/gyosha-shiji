@@ -608,7 +608,13 @@ def _take_off_one(
                      and abs(model.row_spacing_of((e.index - 1) % len(model.plan.outline.edges)) - wa) < 0.5
                      and (model.edge_subset is None or e.index in model.edge_subset)
                      and (model.faces_only is None or e.index in model.faces_only)])
-            add(m.find("布材", int(round(wa))), k * (1 + n_levels), f"隙間のある出隅の升目の布材{int(round(wa))}")
+            ledger = m.find("布材", int(round(wa)))
+            if ledger is None and not m.is_tube:
+                notes.action(f"隙間のある出隅{k}箇所の升目の布材（{int(round(wa))}mm）は系列に無い長さなので、単管（1.0m）"
+                             f"{k * (1 + n_levels)}本と直交クランプ{2 * k * (1 + n_levels)}個で組みます。別途手配してください",
+                             Notes.ORDER)
+            else:
+                add(ledger, k * (1 + n_levels), f"隙間のある出隅の升目の布材{int(round(wa))}")
         notes.append(f"隅の隙間（コーナーステップ）のある出隅{n_gap_posts}箇所は、升目の前の面の側に建地1本（支柱位置数に"
                      f"含む）と布材（根がらみ＋各層の床）を足して、4本の建地で独り立ちさせて計上")
 
@@ -897,12 +903,19 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
         if n_corners <= 0:
             return
     per_corner = 2 * (1 + n_levels * 3)
-    add(m.find("布材", udegi), n_corners * per_corner, f"出隅コーナーの布材{udegi}")
-    notes.append(
-        f"出隅コーナー{n_corners}箇所は、外側コーナー支柱1本（支柱位置数に含む）と"
-        f"呼び{udegi}mmの布材{per_corner}本（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
-        "ずつで計上"
-    )
+    if m.find("布材", udegi) is None and not m.is_tube:
+        # 系列に無い長さ（日建の一側足場のブラケット 350 の升目など）はくさびの布材で組めない。単管とクランプで組む
+        n_t = n_corners * per_corner
+        notes.action(f"出隅コーナー{n_corners}箇所の升目（{udegi}mm角）は系列 {m.series_id} に長さ{udegi}の布材が無いので、"
+                     f"単管（1.0m）{n_t}本と直交クランプ{2 * n_t}個（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
+                     "で組みます。別途手配してください", Notes.ORDER)
+    else:
+        add(m.find("布材", udegi), n_corners * per_corner, f"出隅コーナーの布材{udegi}")
+        notes.append(
+            f"出隅コーナー{n_corners}箇所は、外側コーナー支柱1本（支柱位置数に含む）と"
+            f"呼び{udegi}mmの布材{per_corner}本（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
+            "ずつで計上"
+        )
     if m.is_tube and model.deck_widths_in_use:
         # 単管の足場（本足場・ブラケット足場）の出隅は、足場板を床の列ごとに1枚、コーナーの単管から始点側の面の板の
         # 上に渡し、幅木（足場板）を外側2辺に2枚立てる（3D と同じ。利用者の指定 2026-10-22: 単管の本足場の出隅も
@@ -921,11 +934,13 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
                      + "で計上")
         return
     toe = m.find("幅木", udegi)
-    if model.config.has_toe_board:
+    if model.config.has_toe_board and toe is not None:
         add(toe, n_corners * n_levels * 2, f"出隅コーナーの幅木{udegi}")
     if toe is None and model.config.has_toe_board:
+        # 同じ部材を「マスタに該当部材がありません」と二重に出さない
         notes.action(
-            f"出隅コーナーの幅木（呼び{udegi}mm、{n_corners * n_levels * 2}本）がマスタにありません",
+            f"出隅コーナーの幅木（呼び{udegi}mm、{n_corners * n_levels * 2}本）が系列のマスタにありません。"
+            "幅木（足場板・幅木の端材）を別途手配してください",
             Notes.ORDER,
         )
     # コーナーの床（{udegi}mm角）は、長さ{udegi}の踏板を本体の床と同じ幅の組み合わせで敷く

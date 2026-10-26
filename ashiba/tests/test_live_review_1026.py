@@ -99,6 +99,10 @@ class TestOneSidedCornerGaps(unittest.TestCase):
         r = solve_all({"outline_mm": L, "eaves_height_mm": 9000, "module": "inch", "scaffold_form": "一側足場"})
         self.assertTrue(all(250 <= x <= 350 for x in r.model.plan.standoffs), r.model.plan.standoffs)
         self.assertTrue(r.model.plan.corner_steps)
+        # 出隅の升目（350 角）は日建に 350 の布材・幅木が無い。汎用の「該当部材がありません」ではなく単管とクランプで手配
+        ws = r.quantity.warnings
+        self.assertFalse(any("該当部材がありません" in w and "350" in w for w in ws), ws)
+        self.assertTrue(any("単管（1.0m）" in w and "直交クランプ" in w for w in ws))
 
 
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
