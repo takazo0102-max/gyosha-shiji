@@ -133,6 +133,33 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestAsagaoOnlyWhereTheFaceHasAFloor(unittest.TestCase):
+    def test_low_section_gets_no_stage_above_its_top(self):
+        # 傾いた敷地のセットバックで朝顔が2段（実高さ 20m 超）になり、2段目 14.4m の取付部の壁つなぎが、途中の屋根で止めた
+        # 下段（天端 10m）の上に残って壁つなぎの垂直間隔 5.4m の NG になった
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from dev_cases import floors
+
+        from ashiba.cli import solve_groups
+
+        fl = floors("setback", 0, 0)
+        slabs = [{"polygon_mm": [list(p) for p in poly], "top_mm": top} for poly, top in fl]
+        g = dict(solve_groups({"outline_mm": [list(p) for p in fl[0][0]], "eaves_height_mm": 18000, "module": "inch",
+                               "series_id": "nikken_nd1800", "slabs": slabs,
+                               "ground_points_mm": [[-3000, -3000, 0], [27000, -3000, -1500], [27000, 16000, -1500],
+                                                    [-3000, 16000, 0]]}))
+        low = g["下段"]
+        self.assertTrue(low.verdict["ok"], low.verdict)
+        top = max(low.model.elevation_of(e.edge_index).total_height for e in low.model.plan.edges)
+        self.assertTrue(all(t.height_mm <= top for t in low.model.wall_ties))
+        for e in low.model.plan.edges:
+            own = low.model.elevation_of(e.edge_index).level_heights
+            self.assertTrue(all(any(abs(h - v) <= 1 for v in own) for h in low.model.asagao_heights_of(e.edge_index)))
+
+
 class TestTubeLevelsContinueAboveTheNeighbour(unittest.TestCase):
     def test_hug_keeps_floors_up_to_its_own_top(self):
         # 脇の渡り（西へ張り出す上の階）の南・東・北を単管抱き足場にすると、隣の本体（張り出しの下で 4.5m で止めた西面）の

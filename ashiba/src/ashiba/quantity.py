@@ -34,6 +34,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import math
 import re
 from dataclasses import dataclass, field
@@ -1142,6 +1144,29 @@ def _count_asagao_parts(
         notes.append(f"朝顔は {'・'.join(skipped)} には付けていません（付ける面を選んだ計画）")
     if partial:
         notes.append(f"朝顔は {'、'.join(partial)}（面の始点の支柱から mm）だけに付けています（線で範囲を選んだ計画）")
+    stages = asagao.stages
+    # 途中の屋根で止めた面など、床の無い段の朝顔は付かない（asagao_heights_of）。面ごとの段数が全体の段数より少ない面が
+    # あれば、スパン・支柱を面ごとの段数で数え直す（全体の段数×全部の面で数えていた。2026-10-27 のループ）
+    own = {e.edge_index: len(model.asagao_heights_of(e.edge_index)) for e in model.plan.edges
+           if model.asagao_on(e.edge_index) and (model.edge_subset is None or e.edge_index in model.edge_subset)}
+    if own and any(v < stages for v in own.values()):
+        w_counts: dict[int, int] = {}
+        w_posts = 0
+        for e in model.plan.edges:
+            k = own.get(e.edge_index, 0)
+            if not k:
+                continue
+            x = 0.0
+            flags = []
+            for sp in e.spans:
+                flags.append(model.asagao_at(e.edge_index, x + sp / 2.0))
+                x += sp
+            for sp, f in zip(e.spans, flags):
+                if f:
+                    w_counts[sp] = w_counts.get(sp, 0) + k
+            w_posts += k * (sum(flags) + sum(1 for i, f in enumerate(flags) if f and (i == 0 or not flags[i - 1])))
+        span_counts, posts_per_line, stages = w_counts, w_posts, 1
+        asagao = dataclasses.replace(asagao, stages=1)
     if asagao.kind == ASAGAO_KIND_SAFE_WING:
         _count_safe_wing_parts(model, span_counts, posts_per_line, add, notes)
         return
@@ -1198,8 +1223,12 @@ def _count_asagao_parts(
                and model.asagao_reaches((e.index - 1) % len(model.plan.outline.edges), at_end=True)]
     if corners:
         corner_part = next((p for p in m.by_category("朝顔") if "コーナー" in p.note), None)
+        n_out = len(model.plan.outline.edges)
+        # 面ごとの段数で数え直したときは、隅を挟む2面の少ない方の段数
+        c_stages = (sum(min(own.get(e.index, 0), own.get((e.index - 1) % n_out, 0)) for e in corners)
+                    if stages == 1 and own and any(v != asagao.stages for v in own.values()) else len(corners) * asagao.stages)
         if corner_part is not None:
-            add(corner_part, len(corners) * asagao.stages, "朝顔コーナー（出隅）")
+            add(corner_part, c_stages, "朝顔コーナー（出隅）")
             notes.append(
                 f"出隅{len(corners)}箇所×{asagao.stages}段の隅部は朝顔コーナー"
                 f"（{corner_part.model_no}）で計上しています"

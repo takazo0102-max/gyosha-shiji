@@ -390,8 +390,12 @@ class ScaffoldModel:
         return ep is not None and parts[-1][1] > float(sum(ep.spans)) - 1.0
 
     def asagao_heights_of(self, edge_index: int) -> list[int]:
-        """その面の朝顔の高さ（付けない面は空）."""
-        return self.asagao_heights() if self.asagao_on(edge_index) else []
+        """その面の朝顔の高さ（付けない面は空）. 途中の屋根で止めた面などは、その面に床のある高さだけ（全体の高さで決めた
+        2段目 14.4m を 10m で止めた下段にも付け、取付部の壁つなぎが下段の上に残っていた。2026-10-27 のループ）."""
+        if not self.asagao_on(edge_index):
+            return []
+        own = self.elevation_of(edge_index).level_heights
+        return [h for h in self.asagao_heights() if any(abs(float(h) - float(v)) <= 1.0 for v in own)]
 
     def asagao_heights(self) -> list[int]:
         """朝顔の設置高さ（GLから、下から昇順）.
