@@ -67,6 +67,9 @@ def cases(examples_dir: Path) -> list[Case]:
                                          roof_bridges=[{"face": "南面", "position_mm": 2000, "parapet_mm": 300}])))
     out.append(Case("waku_bridge", dict(small, outline_mm=box, series_id="waku",
                                         roof_bridges=[{"face": "南面", "position_mm": 2000}])))
+    # 単管のブラケット足場。奥行 5m の面はスパン 1800・1800・1500・600 で、足場板の重ねを 400 に伸ばす（deckRun の負の数）
+    out.append(Case("tube_lap", dict(small, outline_mm=[[0, 0], [6300, 0], [6300, 5000], [0, 5000]],
+                                     series_id="tankan")))
     return out
 
 

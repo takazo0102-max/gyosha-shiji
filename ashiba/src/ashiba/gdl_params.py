@@ -835,7 +835,8 @@ def _tube_run_params(model: ScaffoldModel, ep) -> dict:
         from .tube_runs import face_boards
 
         da, db = face_boards(list(ep.spans))
-        out.update({"deckRunA": ",".join(str(v) for v in da.pieces), "deckRunB": ",".join(str(v) for v in db.pieces),
+        # 300 以外の重ね（割り付けられない面だけ長く重ねる）は板の後ろに負の数で入れる（tube_runs.BoardRun.items）
+        out.update({"deckRunA": ",".join(str(v) for v in da.items()), "deckRunB": ",".join(str(v) for v in db.items()),
                     "deckRunS": da.start_mm / 1000.0})
     return out
 

@@ -145,6 +145,7 @@ BOARD_STOCK_MM = (4000, 3000, 2000, 1500, 1000)
 BOARD_LAP_MM = 300
 BOARD_BEAR_MM = 100          # 重ね・端がブラケットに掛かる長さの下限
 BOARD_MAX_OVER_MM = 300      # 端のブラケットから先へ出す上限
+BOARD_LAP_MAX_MM = 600       # 300 重ねで割り付けられない面だけ、重ねをここまで伸ばす（ブラケットの上で重ねるのは同じ）
 
 
 @dataclass
@@ -154,13 +155,28 @@ class BoardRun:
     start_mm: float
     pieces: list[int]
     lap_mm: int = BOARD_LAP_MM
+    # 継ぎごとの重ね（len(pieces)−1。None なら全部 lap_mm）。300 重ねで割り付けられない面だけ長く重ねる
+    laps: list[int] | None = None
+
+    def lap_after(self, i: int) -> int:
+        return self.laps[i] if self.laps else self.lap_mm
 
     def spans_mm(self) -> list[tuple[float, float]]:
         """各板の（始め, 終わり）."""
         out, s = [], self.start_mm
-        for p in self.pieces:
+        for i, p in enumerate(self.pieces):
             out.append((s, s + p))
-            s = s + p - self.lap_mm
+            if i < len(self.pieces) - 1:
+                s = s + p - self.lap_after(i)
+        return out
+
+    def items(self) -> list[int]:
+        """GDL へ渡す並び（板の長さ。300 以外の重ねは、その継ぎの前の板の後ろに負の数で入れる）."""
+        out = []
+        for i, p in enumerate(self.pieces):
+            out.append(p)
+            if i < len(self.pieces) - 1 and self.lap_after(i) != BOARD_LAP_MM:
+                out.append(-self.lap_after(i))
         return out
 
     @property
@@ -179,7 +195,17 @@ def plan_boards(spans: list[int], stock=BOARD_STOCK_MM, starts=None, end_window=
     starts: 敷き始めの候補（面の始点の建地から mm。既定はブラケットから 100〜300 手前）。
     end_window: 終わりの、終点の建地からの出（下限, 上限）mm。既定は (100, 300)。
     出隅の割付（コーナーを通す・手前で止める）は face_boards_for が渡す。
+
+    300 重ねで割り付けられない面（スパン 1800・1800・1500・600 など。規定の長さの板の継ぎがブラケットに
+    乗らない）は、重ねを BOARD_LAP_MAX_MM まで伸ばして割り付け直す（止まっていた。2026-10-26 のループ）。
     """
+    try:
+        return _plan_boards(spans, stock, starts, end_window)
+    except ValueError:
+        return _plan_boards_long_laps(spans, stock, starts, end_window)
+
+
+def _plan_boards(spans, stock, starts, end_window) -> BoardRun:
     posts = post_positions(spans)
     L = int(round(posts[-1]))
     stock = sorted(set(int(s) for s in stock), reverse=True)
@@ -217,9 +243,53 @@ def plan_boards(spans: list[int], stock=BOARD_STOCK_MM, starts=None, end_window=
     return BoardRun(start_mm=float(best[1]), pieces=list(best[2]))
 
 
+def _plan_boards_long_laps(spans, stock, starts, end_window) -> BoardRun:
+    """重ねを 300〜BOARD_LAP_MAX_MM（100 刻み）で選べる割付. 重ねはブラケットの両側に 100 以上ずつ掛ける."""
+    posts = post_positions(spans)
+    L = int(round(posts[-1]))
+    stock = sorted(set(int(s) for s in stock), reverse=True)
+    if starts is None:
+        starts = (-BOARD_BEAR_MM, -150, -200, -250, -BOARD_MAX_OVER_MM)
+    lo, hi = end_window or (BOARD_BEAR_MM, BOARD_MAX_OVER_MM)
+    best = None
+    for start in starts:
+        # 次の板の始め → (板の並び, 重ねの並び)。少ない枚数・短い重ね・長い板が先
+        reach: dict[int, tuple] = {int(start): ((), ())}
+        frontier = [int(start)]
+        while frontier:
+            nxt = []
+            for pos in frontier:
+                seq, laps = reach[pos]
+                for Lb in stock:
+                    e = pos + Lb
+                    cand = seq + (Lb,)
+                    if L + lo <= e <= L + hi:
+                        key = (len(cand), sum(laps), e - L, tuple(-v for v in cand))
+                        if best is None or key < best[0]:
+                            best = (key, start, cand, laps)
+                        continue
+                    if e >= L:
+                        continue
+                    for lap in range(BOARD_LAP_MM, BOARD_LAP_MAX_MM + 1, 100):
+                        s2 = e - lap
+                        if not any(p - s2 >= BOARD_BEAR_MM and e - p >= BOARD_BEAR_MM for p in posts[1:-1]):
+                            continue
+                        if s2 <= pos:
+                            continue
+                        val = (cand, laps + (lap,))
+                        old = reach.get(s2)
+                        if old is None or (len(val[0]), sum(val[1])) < (len(old[0]), sum(old[1])):
+                            reach[s2] = val
+                            nxt.append(s2)
+            frontier = nxt
+    if best is None:
+        raise ValueError(f"足場板を割り付けられません（面の長さ{L}mm）")
+    return BoardRun(start_mm=float(best[1]), pieces=list(best[2]), laps=list(best[3]))
+
+
 def staggered_boards(run: BoardRun, spans: list[int], end_window=None) -> BoardRun:
     """隣の列（2枚敷きのもう1枚）: 同じ板を並べ替え、重ねの位置をずらす。成り立たなければ同じ."""
-    if len(run.pieces) < 2:
+    if len(run.pieces) < 2 or run.laps:
         return run
     posts = post_positions(spans)
     L = posts[-1]

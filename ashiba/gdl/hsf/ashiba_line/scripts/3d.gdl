@@ -1425,7 +1425,7 @@ if showDeck then
 												block bdLen[pb][kb], bWd, 0.028
 												del 1
 											endif
-											bs = bs + bdLen[pb][kb] - bdLap
+											bs = bs + bdLen[pb][kb] - bdLp[pb][kb]
 										next kb
 									endif
 									if bOk and nBd[pb] = 0 then
@@ -1493,7 +1493,7 @@ if showDeck then
 											block bdLen[1][kb], 0.028, 0.24
 											del 1
 										endif
-										bs = bs + bdLen[1][kb] - bdLap
+										bs = bs + bdLen[1][kb] - bdLp[1][kb]
 									next kb
 								else
 									add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028

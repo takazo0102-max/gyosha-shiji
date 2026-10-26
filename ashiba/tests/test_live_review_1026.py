@@ -133,6 +133,30 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeBoardsLongLap(unittest.TestCase):
+    def test_boards_that_cannot_lap_300_on_a_bracket_lap_longer(self):
+        # スパン 1800・1800・1500・600 は規定の長さの板の 300 重ねがブラケットに乗らず「足場板を割り付けられません」で止まった
+        from ashiba.tube_runs import BOARD_BEAR_MM, face_boards, post_positions
+
+        spans = [1800, 1800, 1500, 600]
+        a, _b = face_boards(spans)
+        posts = post_positions(spans)
+        sp = a.spans_mm()
+        for (s0, e0), (s1, _e1) in zip(sp, sp[1:]):
+            self.assertGreaterEqual(e0 - s1, 300)
+            self.assertTrue(any(p - s1 >= BOARD_BEAR_MM and e0 - p >= BOARD_BEAR_MM for p in posts[1:-1]))
+        self.assertTrue(posts[-1] + 100 <= sp[-1][1] <= posts[-1] + 300)
+        # GDL へは 300 以外の重ねを負の数で渡す
+        self.assertTrue(any(v < 0 for v in a.items()))
+
+    def test_ordinary_faces_keep_the_300_lap(self):
+        from ashiba.tube_runs import face_boards
+
+        a, _b = face_boards([1800] * 5)
+        self.assertIsNone(a.laps)
+        self.assertTrue(all(v > 0 for v in a.items()))
+
+
 class TestTubeRunOddLength(unittest.TestCase):
     def test_odd_tube_face_still_gets_runs(self):
         # 隣の組に合わせた半端なスパン（1669）の単管抱き足場で「単管の通しを割り付けられません（9069mm）」と止まった

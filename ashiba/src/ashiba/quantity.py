@@ -2702,8 +2702,11 @@ def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, a
 
     m = model.master
     lines = []
+    long_laps: dict[str, int] = {}
     for ep in model.plan.edges:
         runs = face_boards(list(ep.spans))
+        if runs[0].laps and max(runs[0].laps) > BOARD_LAP_MM:
+            long_laps[model.face_name(ep.edge_index)] = max(runs[0].laps)
         for i, w in enumerate(deck_widths):
             run = runs[i % 2]
             for L in run.pieces:
@@ -2714,6 +2717,9 @@ def _count_tube_boards(model: ScaffoldModel, deck_widths: list, n_levels: int, a
         f"足場板は規定の長さで面に沿って敷き、継ぎは{BOARD_LAP_MM}mm 重ねてブラケットの上に掛ける"
         f"（{'／'.join(lines)} m）× {len(deck_widths)}枚敷き × {n_levels}層で計上"
     )
+    if long_laps:
+        notes.append(f"足場板は{'・'.join(long_laps)}で規定の長さの継ぎがブラケットに乗らないため、重ねを最大"
+                     f"{max(long_laps.values())}mm に伸ばして割り付けています（ブラケットの上で重ね、両側に 100 以上掛ける）")
     if cut_cells:
         notes.append(f"足場板は階段・開口部の区間（{cut_cells}スパン×層）も面の通しのまま計上しています")
 

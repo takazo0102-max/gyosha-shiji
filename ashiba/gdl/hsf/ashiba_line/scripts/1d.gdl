@@ -13,6 +13,7 @@ dim posts[40]
 dim postsA[40]
 dim rl[2][20]
 dim bdLen[2][30]
+dim bdLp[2][30]
 dim nBd[2]
 dim nRl[2]
 dim runE[2]
@@ -211,6 +212,7 @@ for p832 = 1 to 2
 	endwhile
 next p832
 ! ---- deckRunA・deckRunB（単管のブラケット足場の足場板の割付。継ぎは bdLap 重ねる）をパース ----
+! 負の数はその前の板の後ろの継ぎの重ね（300 で割り付けられない面だけ長く重ねる。bdLp）
 bdS = deckRunS
 bdLap = 0.3
 for p870 = 1 to 2
@@ -228,8 +230,13 @@ for p870 = 1 to 2
 		endif
 		k = split(item, "%n", v)
 		if k > 0 then
-			nBd[p870] = nBd[p870] + 1
-			bdLen[p870][nBd[p870]] = v / 1000
+			if v < 0 then
+				if nBd[p870] > 0 then bdLp[p870][nBd[p870]] = -v / 1000
+			else
+				nBd[p870] = nBd[p870] + 1
+				bdLen[p870][nBd[p870]] = v / 1000
+				bdLp[p870][nBd[p870]] = bdLap
+			endif
 		endif
 	endwhile
 next p870
