@@ -28,6 +28,12 @@ class TestCatalog(unittest.TestCase):
         self.assertEqual(hoist_model("KSE900-5.4").masts, 2)
         self.assertEqual(hoist_model("KSE600C").masts, 1)
         self.assertIsNone(hoist_model("なし"))
+        # 図面の寸法線・寸法の文字から（2026-10-27 読み直し）: KSE900-7.2 の荷台は 6600（仕様表は 5.4 型の流用）、
+        # HSL の荷台は枠組の両側 315 ずつ内（有効長＝枠組−1130 は内のり）
+        self.assertEqual(hoist_model("KSE900-7.2").cage_len_mm, 6600)
+        self.assertEqual((hoist_model("HSL-900B-7.2").cage_len_mm, hoist_model("HSL-900B-7.2").cage_in_len_mm), (6570, 6070))
+        self.assertEqual((hoist_model("HSL-900C2-7.2").cage_len_mm, hoist_model("HSL-900C2-7.2").post_spacing_mm),
+                         (6570, 6690))
 
     def test_gate_opens_the_cage(self):
         # フロアーゲートは荷台の長さより広い有効開口のものを選んである（7.2 スパンは長い荷台）
