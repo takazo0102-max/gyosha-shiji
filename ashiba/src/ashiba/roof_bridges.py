@@ -229,6 +229,10 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             ws = [d for d in avail if d <= max(240.0, so - FLUSH_MM)] or [min(avail)]
             b.deck = _deck_list(min(so, b.length_mm + FLUSH_MM), ws)
             b.deck_len_mm = w
+            # ブラケットの先端のホゾに立てて手すり・中桟を受ける支柱（コマの倍数で 1000 以上のいちばん短いもの）
+            koma = int(m.koma_pitch or 450)
+            b.post_mm = float(min((L for L in m.post_lengths() if L >= 1000 and L % koma == 0),
+                                  default=max(m.post_lengths())))
         if sum(b.deck) > so - 10.0:
             notes.append(f"屋上への渡り（{name}）: 離れ {so:.0f} に床材 {'＋'.join(map(str, b.deck))} が入りきりません"
                          "（躯体に当たらないか確かめてください）")

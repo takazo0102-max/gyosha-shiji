@@ -1652,8 +1652,7 @@ def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
             else:
                 notes.action(f"{tag}: ブラケット{L}の長さの布材が系列のマスタに無いので、両脇の手すり・中桟は単管"
                              f"（1.0m）4本と直交クランプ8個で組みます。別途手配してください", Notes.ORDER)
-            koma = int(m.koma_pitch or 450)
-            tip = min((L for L in m.post_lengths() if L >= 1000 and L % koma == 0), default=max(m.post_lengths()))
+            tip = int(b.post_mm)
             add(m.find("支柱", tip), 2, f"支柱{tip}（{tag}のブラケットの先端のホゾに立てて手すりを受ける）")
             for dw in b.deck:
                 add(m.deck_parts(int(dw), w), 1, f"アンチ 幅{dw}×{w}（{tag}）")

@@ -116,6 +116,24 @@ class TestBracketEndRails(unittest.TestCase):
         self.assertFalse([w for w in r.quantity.warnings if "該当部材がありません" in w and "張出し妻側" in w])
 
 
+class TestPostsByLevel(unittest.TestCase):
+    def test_every_post_lands_in_its_level(self):
+        # 層ごとの数量で、支柱を全部の脚が同じ積み方として割り振り、差を「1層目に入れています」としていた
+        # （敷地の高低差・開口部の梁枠上・荷受けステージの先端の支柱・屋上の渡りの支柱）
+        from pathlib import Path
+
+        from ashiba.cli import load_spec
+        from ashiba.level_quantity import take_off_by_level
+
+        root = Path(__file__).resolve().parents[1] / "examples"
+        for name in ("sloped_site", "combo_nd1800", "opening_beam", "loading_stage", "nikken_nd1900_rect"):
+            with self.subTest(name):
+                r = solve_all(load_spec(root / f"{name}.json"))
+                lt = take_off_by_level(r.model, r.quantity, bracket_sections=r.brackets, stair_plan=r.stair_plan,
+                                       platforms=r.platforms, openings=r.openings, terrain=r.terrain)
+                self.assertFalse([n for n in lt.notes if "1層目に入れています" in n], lt.notes)
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""

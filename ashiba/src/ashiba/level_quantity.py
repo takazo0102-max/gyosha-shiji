@@ -152,20 +152,78 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
                 ts = tower_spans(model, t)
                 if ts:
                     tower_pos[t.edge_index] = tower_pos.get(t.edge_index, 0) + len(ts) + 1
-        for ev, edges in face_height_groups(model):
-            sub = _sub_model(model, ev, edges)
-            positions = standing_post_positions(sub, rows_n)
-            positions += sum(tower_pos.get(i, 0) for i in edges)
+        from .quantity import _feet_by_row
+
+        terrain = kw.get("terrain")
+        feet, per_foot = _feet_by_row(terrain, rows_n)
+        if feet:
+            # 敷地に高低差があれば脚ごとの積み方（数量と同じ脚・倍数）。支柱の下端の標高から層を決める（全部の脚を
+            # 同じ積み方として数え、差を 1層目に寄せていた。2026-10-26 のループ）
+            deck_abs = list(getattr(terrain, "deck_levels_abs_mm", None) or [])
+            for f in feet:
+                z = float(f.gl_mm) + float(f.jack_mm) + float(getattr(f, "base_plate_adjust_mm", 0.0) or 0.0)
+                for nominal in f.posts:
+                    band = next((i for i, h in enumerate(deck_abs[:n]) if z < h - 1), n - 1)
+                    geo.setdefault(nominal, [0] * n)[band] += per_foot
+                    z += nominal
+            corner_extra = model.outer_corner_posts() + model.gap_corner_posts()
+            stacks = [(model.elevation, corner_extra + sum(tower_pos.values()))]
+        else:
+            stacks = []
+            for ev, edges in face_height_groups(model):
+                sub = _sub_model(model, ev, edges)
+                stacks.append((ev, standing_post_positions(sub, rows_n) + sum(tower_pos.get(i, 0) for i in edges)))
+        for ev, positions in stacks:
             z = float(ev.jack_extension)
             for nominal in ev.posts:
                 band = next((i for i, h in enumerate(levels) if z < h - 1), n - 1)
                 geo.setdefault(nominal, [0] * n)[band] += positions
                 z += nominal
+        # 開口部で抜いた支柱は梁枠上（作業床〜天端）だけの短い構成（数量の _replace_opening_stacks と同じ）。全高の
+        # 積み方を引いて、梁枠の上から積み直す
+        ops = kw.get("openings")
+        if ops is not None and not master.is_frame:
+            from .elevation_solver import _compose_table
+            from .openings import opening_post_heights
+
+            hs = opening_post_heights(model, ops)
+            if hs:
+                table = _compose_table(int(round(max(hs))) + 1,
+                                       sorted(set(master.post_lengths(include_negarami=True)), reverse=True))
+                top = float(model.elevation.total_height)
+                for h in hs:
+                    comp = table.get(int(round(h)))
+                    if comp is None:
+                        continue
+                    z = float(model.elevation.jack_extension)
+                    for nominal in model.elevation.posts:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] -= 1
+                        z += nominal
+                    z = top - h
+                    for nominal in comp:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
+        # 荷受けステージの先端の手すり支柱は、ステージを付けた層の床の上（platforms.platform_part_demands と同じ本数）
+        plat = kw.get("platforms")
+        if plat is not None:
+            from .platforms import _rail_post_nominal
+
+            for st in getattr(plat, "stages", None) or []:
+                if not getattr(st, "has_guard_rail", False):
+                    continue
+                for lv in (st.levels or [1]):
+                    z = float(levels[min(max(lv, 1), n) - 1])
+                    band = next((i for i, h in enumerate(levels) if z < h - 1), n - 1)
+                    geo.setdefault(int(_rail_post_nominal(model)), [0] * n)[band] += st.span_count + 1
         # 屋上への渡りの屋上の支柱（くさび）は、渡りへ出る足場の床の層に
         for b in getattr(model, "roof_bridges", None) or []:
-            if b.kind == "支柱" and b.post_mm:
-                band = next((i for i, h in enumerate(levels) if b.z_from_mm <= h + 1), n - 1)
-                geo.setdefault(int(b.post_mm), [0] * n)[band] += 2
+            band = next((i for i, h in enumerate(levels) if b.z_from_mm <= h + 1), n - 1)
+            if b.kind in ("支柱", "ブラケット") and b.post_mm:
+                geo.setdefault(int(b.post_mm), [0] * n)[band] += 2      # 屋上の支柱・ブラケットの先端の支柱
+            if b.ext_mm and not b.tube:
+                geo.setdefault(int(b.ext_mm), [0] * n)[band] += 2       # 内側の支柱の継ぎ足し
         for key in [k for k in keys if k[1] == post_cat]:
             part = parts[key]
             want = full.get(key, 0)
