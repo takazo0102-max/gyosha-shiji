@@ -565,10 +565,12 @@ def check_asagao(m: ScaffoldModel, terrain=None) -> CheckResult:
     off = [n for e, n in zip(m.plan.edges, m.plan.face_names()) if not m.asagao_on(e.edge_index)]
     if off:
         on = [n for e, n in zip(m.plan.edges, m.plan.face_names()) if m.asagao_on(e.edge_index)]
+        # 付ける面が無いのに「どの面にもに設置。南面には付けていません」と食い違った文になっていた（2026-10-26 のループ）
+        head = (f"{spec.stages}段（必要{need}段）を{'・'.join(on)}に設置。{'・'.join(off)}には付けていません" if on
+                else f"朝顔（必要{need}段）をどの面（{'・'.join(off)}）にも付けていません")
         return CheckResult(
             10, "朝顔", WARN,
-            f"{spec.stages}段（必要{need}段）を{'・'.join(on) or 'どの面にも'}に設置。{'・'.join(off)}には付けていません"
-            "（道路・隣地・人の通る側でないこと、落下物の及ぶ範囲を立入禁止にすることを確認）",
+            head + "（道路・隣地・人の通る側でないこと、落下物の及ぶ範囲を立入禁止にすることを確認）",
             basis,
         )
     return CheckResult(

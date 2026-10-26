@@ -43,6 +43,9 @@ class TestAsagaoOffByDefault(unittest.TestCase):
         self.assertFalse(any(line_params(r.model, e, stair_plan=r.stair_plan)["asagaoList"] for e in r.model.plan.edges))
         # 法規チェック#10 は付けていないことを知らせる
         law = next(c for c in r.checks if c.check_id == 10)
+        # 付ける面が無いときは「どの面にもに設置。…には付けていません」と食い違わず、付けていないことだけを言う
+        self.assertNotIn("に設置", law.message)
+        self.assertIn("どの面", law.message)
         self.assertNotEqual(law.status, "OK")
         # 付ける面を書いたもの・「全部」・付けない指定（False）はそのまま
         self.assertEqual(asagao_off_by_default({**TALL, "asagao": {"faces": "南面"}})["asagao"], {"faces": "南面"})
