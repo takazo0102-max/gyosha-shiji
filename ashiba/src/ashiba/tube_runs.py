@@ -64,8 +64,21 @@ def _clear_of_posts(x: float, posts: list[float]) -> bool:
     return all(abs(x - p) >= JOINT_CLEAR_MM for p in posts)
 
 
-def plan_run(spans: list[int], stock=STOCK_MM) -> TubeRun:
-    """面のスパン列から、通しの単管の割付（A）を決める."""
+def plan_run(spans: list[int], stock=STOCK_MM, max_over: int = MAX_OVER_MM) -> TubeRun:
+    """面のスパン列から、通しの単管の割付（A）を決める.
+
+    面の長さが規格管（500 刻み）の和に端の出 max_over 以内で収まらないとき（隣の組に合わせた半端なスパンの単管抱き
+    足場など）は、端の出を 500 まで広げて解き直す（割り付けられずに止まっていた。2026-10-26 のループ）。
+    """
+    try:
+        return _plan_run(spans, stock, max_over)
+    except ValueError:
+        if max_over >= MAX_OVER_MM + 500:
+            raise
+        return _plan_run(spans, stock, MAX_OVER_MM + 500)
+
+
+def _plan_run(spans: list[int], stock, max_over: int) -> TubeRun:
     posts = post_positions(spans)
     need = int(round(posts[-1])) + 2 * END_MM
     stock = sorted(set(int(s) for s in stock), reverse=True)
@@ -79,7 +92,7 @@ def plan_run(spans: list[int], stock=STOCK_MM) -> TubeRun:
             q = pos + L
             if q < need and not _clear_of_posts(q - END_MM, posts):
                 continue
-            if q > need + MAX_OVER_MM:
+            if q > need + max_over:
                 continue
             cand = seq + (L,)
             old = best.get(q)

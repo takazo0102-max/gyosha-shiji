@@ -133,6 +133,15 @@ class TestSwitchedFaceLowSection(unittest.TestCase):
         self.assertAlmostEqual(up.plan.edges[0].end_post[1], low.plan.edges[0].start_post[1], delta=0.5)
 
 
+class TestTubeRunOddLength(unittest.TestCase):
+    def test_odd_tube_face_still_gets_runs(self):
+        # 隣の組に合わせた半端なスパン（1669）の単管抱き足場で「単管の通しを割り付けられません（9069mm）」と止まった
+        from ashiba.tube_runs import plan_run
+
+        run = plan_run([1800, 1800, 1800, 1800, 1669])
+        self.assertGreaterEqual(sum(run.pieces), 8869 + 200)
+
+
 class TestConvergedStandoffs(unittest.TestCase):
     def test_groups_agree_on_every_corner(self):
         g = solve_groups(USER)
