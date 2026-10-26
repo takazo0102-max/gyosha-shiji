@@ -1346,9 +1346,12 @@ def _count_bracket_parts(
             continue
         n_lv = len(sec.levels) if sec.levels else model.elevation.n_levels
         w = int(sec.width)
-        add(m.find("布材", w), 2 * 2 * n_lv, f"張出し妻側の手すり・中桟{w}")
+        # 張出しの幅ちょうどの部材が無ければ、系列にある少し長いもの（＋100 まで。幅 600 に枠組の 610 など）
+        rail = _fit_longer(m, "布材", w)
+        add(rail, 2 * 2 * n_lv, f"張出し妻側の手すり・中桟{rail.nominal_dim if rail else w}")
         if model.config.has_toe_board:
-            add(m.find("幅木", w), 2 * n_lv, f"張出し妻側の幅木{w}")
+            toe = _fit_longer(m, "幅木", w)
+            add(toe, 2 * n_lv, f"張出し妻側の幅木{toe.nominal_dim if toe else w}")
 
     # 区間で踏板幅を変える指定は、数量にも反映しないと現場で足りない
     for span, from_w, to_w, n_lv in bracket_deck_changes(model, bracket_sections):
@@ -1606,6 +1609,15 @@ def _count_intakes(model: ScaffoldModel, notes) -> None:
         return
 
     notes.action(intake_note(model), Notes.ORDER)
+
+
+def _fit_longer(m: PartMaster, category: str, length: int, slack: int = 100):
+    """長さ length の部材。ちょうどが無ければ、それより長く slack 以内のいちばん短いもの（無ければ None）."""
+    hit = m.find(category, length)
+    if hit is not None:
+        return hit
+    longer = [p for p in m.by_category(category) if length < p.nominal_dim <= length + slack]
+    return min(longer, key=lambda p: p.nominal_dim) if longer else None
 
 
 def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:

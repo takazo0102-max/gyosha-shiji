@@ -105,6 +105,17 @@ class TestOneSidedCornerGaps(unittest.TestCase):
         self.assertTrue(any("単管（1.0m）" in w and "直交クランプ" in w for w in ws))
 
 
+class TestBracketEndRails(unittest.TestCase):
+    def test_frame_bracket_end_rails_use_the_610_ledger(self):
+        # 枠組の張出し 600 の妻側の手すり・中桟・幅木は系列の 610（ちょうど 600 が無く「該当部材がありません」だった）
+        from pathlib import Path
+
+        from ashiba.cli import load_spec
+
+        r = solve_all(load_spec(Path(__file__).resolve().parents[1] / "examples" / "waku_composite.json"))
+        self.assertFalse([w for w in r.quantity.warnings if "該当部材がありません" in w and "張出し妻側" in w])
+
+
 class TestRoofBridgeFromScaffoldMembers(unittest.TestCase):
     """屋上への渡りは足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
     浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）."""
