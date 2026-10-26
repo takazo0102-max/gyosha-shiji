@@ -1028,6 +1028,13 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         period_days=spec.get("period_days", 60),
         asagao=build_asagao(spec, asagao_height_mm(elevation.total_height, master), master),
     )
+    if spec.get("_asagao_abs_mm") is not None and spec.get("asagao") is None:
+        # 上段の朝顔は、全体（本体）で決めた朝顔の高さ（GL から）のうち、上段に床のある段に付ける（上段の高さだけで決めて
+        # いて、全体の 2段目 14.4m が途中の屋根の上の上段に付かなかった。2026-10-27 のループ）
+        base_h = float(spec.get("base_height_mm") or 0)
+        rel = sorted({int(round(float(h) - base_h)) for h in spec["_asagao_abs_mm"]
+                      if any(abs(float(h) - base_h - float(lv)) <= 1.0 for lv in elevation.level_heights)})
+        config.asagao = AsagaoSpec(stages=len(rel), heights_mm=rel) if rel else None
     # 足場を掛ける面（一部の面だけ）。隣の面を掛けない端は開放端（妻側の手すり・幅木）
     faces = _faces_from_spec(spec, plan)
     if faces is not None:
@@ -2067,6 +2074,10 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
             m0 = out[0][1].model
             sub = {**sub, "_align_levels_mm": [float(h) + float(m0.base_height_mm or 0) for h in m0.elevation.level_heights],
                    "_align_top_mm": float(m0.elevation.total_height) + float(m0.base_height_mm or 0)}
+        m_main = out[0][1].model
+        if spec.get("asagao") is None and m_main.config.asagao and m_main.config.asagao.stages > 0:
+            # 全体の朝顔の高さ（GL から）を上段に渡す（上段の床のある段に付ける）
+            sub = {**sub, "_asagao_abs_mm": [float(h) + float(m_main.base_height_mm or 0) for h in m_main.asagao_heights()]}
         r = solve_all(sub, master_csv)
         if spec.get("face_forms") and not sub.get("_neighbor_standoffs"):
             # 面を切り替えた建物は上段の繋ぎ（setback_junctions）を通さないので、上段の外形の辺のうち面の組の面と同じ線に

@@ -158,6 +158,11 @@ class TestAsagaoOnlyWhereTheFaceHasAFloor(unittest.TestCase):
         for e in low.model.plan.edges:
             own = low.model.elevation_of(e.edge_index).level_heights
             self.assertTrue(all(any(abs(h - v) <= 1 for v in own) for h in low.model.asagao_heights_of(e.edge_index)))
+        # 全体の 2段目（GL+14.4m）は途中の屋根の上の上段に付く（上段の高さだけで決めて付いていなかった）
+        tier = g["上段"].model
+        abs_h = [tier.base_height_mm + h for e in tier.plan.edges for h in tier.asagao_heights_of(e.edge_index)]
+        main_h = [g[""].model.base_height_mm + h for h in g[""].model.asagao_heights()]
+        self.assertTrue(abs_h and set(abs_h) <= set(main_h), (abs_h, main_h))
 
 
 class TestTubeLevelsContinueAboveTheNeighbour(unittest.TestCase):
