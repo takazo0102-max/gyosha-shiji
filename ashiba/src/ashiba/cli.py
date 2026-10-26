@@ -2033,6 +2033,18 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
             spec, tiers, lambda sp: solve_all({k: v for k, v in sp.items() if k not in ("face_forms", "form_standoff")},
                                               master_csv), names_of)
     out = _solve_face_groups(spec, master_csv)
+    # 面の組の面がどれも張り出しの下で作業床が1段も入らない（方杖の下）なら、その組は建てない（張り出しの下の南面だけを
+    # 一側足場に切り替えると、高さ 0.9m の建地だけの組が残った。2026-10-26 のループ）
+    stub_groups = [(lb, r) for lb, r in out if r.model.plan.edges and all(
+        e.edge_index in (getattr(r.model, "overhang_caps_rel", None) or {})
+        and r.model.elevation_of(e.edge_index).n_levels == 0 for e in r.model.plan.edges)]
+    if stub_groups and len(stub_groups) < len(out):
+        out = [(lb, r) for lb, r in out if all(r is not r2 for _l, r2 in stub_groups)]
+        for lb, r in stub_groups:
+            msg = (f"{lb or '本体'}（{'、'.join(r.model.plan.face_names())}）は張り出した上の階の跳ね出しブラケット（方杖）の下に"
+                   "作業床が1段も入らないので足場を建てません。その面の下の階の壁は脚立・可搬式作業台で施工してください")
+            out[0][1].model.plan.warnings.append(msg)
+            out[0][1].warnings.append(("割付", "WARN", msg))
     for label, sub in tiers:
         if sub.get("_hane") and sub.get("_overhang_faces"):
             # 張り出しの横の短い面は、本体の隅の升目の手前まで（本体を解いてから決める）

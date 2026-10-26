@@ -331,6 +331,18 @@ class TestOverhangTier(unittest.TestCase):
         self.assertIn("if haneTyp = 1 then", d3)
         self.assertIn("横に流す H形鋼", d3)
 
+    def test_group_with_no_deck_under_the_overhang_is_dropped(self):
+        # 張り出しの下の南面だけを一側足場に切り替えると、方杖の下に作業床が1段も入らない高さ 0.9m の組が残った（2026-10-26
+        # のループ）。その組は建てず、下の階の壁は脚立・可搬式作業台でと注記する
+        g = solve_groups({**self.SP, "hane_bracket_type": "方杖", "face_forms": "南面=一側足場"})
+        self.assertNotIn("一側足場", [lb for lb, _r in g])
+        self.assertTrue([w for w in g[0][1].warnings if "足場を建てません" in w[2]])
+        for _lb, r in g:
+            self.assertTrue(all(r.model.elevation_of(e.edge_index).n_levels > 0 for e in r.model.plan.edges))
+        # 吊り（方杖が無い）なら張り出しの下にも作業床が入るので、組は残る
+        g2 = solve_groups({**self.SP, "face_forms": "南面=一側足場"})
+        self.assertIn("一側足場", [lb for lb, _r in g2])
+
     def test_upper_tier_stands_on_brackets(self):
         # 利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして。張り出した南面と、張り出しの横の短い面（東・西の
         # 張り出した部分）だけをブラケットの上に建てる。張り出していない本体の面（東・西・北）は地上から上まで通し、
