@@ -227,6 +227,20 @@ def check_conflicts(
                 "仮設工業会 張出しブラケット使用基準",
             ))
 
+    # 昇降機 × 荷受けステージ。ステージも外側の列の外へ張り出すので、搬器が通るスパンに重なればその層で当たる
+    for i, h in enumerate(hoists):
+        for s0, e0 in hoist_cut_ranges(model, h.edge_index, [h]):
+            for j, st in enumerate(stages):
+                if st.edge_index != h.edge_index or not _overlap(s0, e0, st.start_mm, st.end_mm(model)):
+                    continue
+                out.append(ConflictIssue(
+                    "昇降機×ステージ", "NG",
+                    f"{model.face_name(h.edge_index)}の昇降機{i + 1}の搬器が通るスパン（{_rng(s0, e0)}）に、荷受けステージ"
+                    f"{j + 1}（{_rng(st.start_mm, st.end_mm(model))}）が重なっています。ステージは外側の列の外へ張り出すので、"
+                    "地上から昇り降りする搬器と当たります。ステージを昇降機のスパンの外に移してください",
+                    "クレーン等安全規則（昇降路）・仮設工業会 張出しブラケット使用基準",
+                ))
+
     # 昇降機 × 外向きのブラケット区間。荷台は地上から到達高さまで外側の列のすぐ外（100）を昇り降りするので、
     # 同じスパンで床を外へ張り出すと、どの層でも荷台と当たる（2026-10-27 のループ）
     from .brackets import OUTER

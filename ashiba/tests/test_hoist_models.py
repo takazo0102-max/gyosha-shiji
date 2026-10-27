@@ -138,6 +138,15 @@ class TestHoistInput(unittest.TestCase):
                                                            "direction": "張出", "width": 610, "levels": [3]}]})
         self.assertFalse([c for c in off.conflicts if c.kind == "昇降機×ブラケット区間"])
 
+    def test_stage_on_the_hoist_spans_is_ng(self):
+        # ステージも外側の列の外へ張り出す: 搬器が通るスパンに重なれば NG、隣のスパンからなら通す
+        ho = {"hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4"}]}
+        on = solve_all({**BOX, **ho, "loading_stages": [{"edge_index": 0, "start_mm": 7316, "span_count": 2, "levels": [3]}]})
+        self.assertEqual([c.kind for c in on.conflicts], ["昇降機×ステージ"])
+        self.assertFalse(on.verdict["ok"])
+        off = solve_all({**BOX, **ho, "loading_stages": [{"edge_index": 0, "start_mm": 9145, "span_count": 2, "levels": [3]}]})
+        self.assertFalse([c for c in off.conflicts if c.kind == "昇降機×ステージ"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
