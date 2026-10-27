@@ -311,6 +311,15 @@ class TestHoistInput(unittest.TestCase):
         ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 3658, "model": "DECK-3.0-F", "landing_levels": [2]}]})
         self.assertFalse([x for x in ok.platforms.issues if "広く、両端" in x.message])
 
+    def test_landing_above_the_reach_is_ng(self):
+        # 到達高さを下げたのに上の層の乗り込み口が残っていると、搬器が届かない口に扉と金物を手配することになる
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE-990",
+                                          "reach_height_mm": 4000, "landing_levels": [2, 4]}]})
+        ng = [x.message for x in r.platforms.issues if x.severity == "NG" and "搬器が届きません" in x.message]
+        self.assertTrue(ng and "[4]" in ng[0], ng)
+        ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE-990", "landing_levels": [2, 4]}]})
+        self.assertFalse([x for x in ok.platforms.issues if "搬器が届きません" in x.message])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

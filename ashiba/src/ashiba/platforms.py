@@ -476,6 +476,14 @@ def validate_platforms(
                 "昇降機", i, "NG",
                 f"到達高さ{reach:.0f}mmが機種 {hm.name} の最大揚程{hm.max_lift_m:.0f}mを超えます。"
                 "揚程の高い機種に替えてください", "メーカーの仕様"))
+        # 到達高さより上の作業層は、搬器が届かないので乗り込めない（到達高さを下げて入力したとき、乗り込み口だけ残っていた）
+        levels = model.elevation.level_heights
+        above = [lv for lv in h.landings(model) if float(levels[lv - 1]) > reach + 1e-6]
+        if above:
+            result.issues.append(PlatformIssue(
+                "昇降機", i, "NG",
+                f"乗り込み口の作業層{above}（床の高さ{float(levels[above[0] - 1]):.0f}mm〜）が到達高さ{reach:.0f}mmより上で、"
+                "搬器が届きません。到達高さを上げるか、乗り込む層から外してください", "入力エラー"))
         # フロアーゲートの大きさで塞げる開口か。乗り込み口は荷台の長さに掛かるスパン全部で足場の手すりを外すので、
         # 開口がゲートのスパンより広いと両端が開いたままになる
         if hm is not None and hm.gate:
