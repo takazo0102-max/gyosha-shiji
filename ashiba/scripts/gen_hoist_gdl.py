@@ -35,6 +35,7 @@ def paramlist(first: str) -> str:
         _param("Length", "ZZYZX", "Height", 1, True),
         _param("Angle", "faceAng", "面の向き（度。+X＝面に沿う向き、+Y＝躯体側）", 0),
         _param("String", "hoModel", "機種（data/hoist_models.csv）", first),
+        _param("Length", "zH", "足場の立つ面の高さ（階の高さから。配置が入れる。高さはすべてここから）", 0),
         _param("Length", "hoReach", "到達高さ（マストの頂部の目安。配置で足場の天端を入れる）", 10),
         _param("Length", "gapOut", "足場の外側建地の列から荷台までのあき", 0.1),
         _param("String", "landLevels", "乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）", ""),
@@ -205,6 +206,7 @@ del top
 SCRIPT_3D = """﻿! 昇降機 3D: マスト（ベース・壁つなぎ）・荷台（床・手すり・頭上覆い）・各階のフロアーゲート
 resol 8
 if matCage > 0 then material matCage
+add 0, 0, zH
 rotz faceAng
 mastH = max(hoReach + 1.5, 3)
 for im = 1 to nMast

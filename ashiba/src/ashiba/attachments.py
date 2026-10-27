@@ -979,7 +979,8 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
         y = o[1] + u[1] * h.position_mm - nrm[1] * row
         ev = model.elevation_of(ep.edge_index)
         levels = ev.level_heights
-        lands = [base + float(levels[lv - 1]) for lv in h.landings(model) if 1 <= lv <= len(levels)]
+        # 高さは足場の立つ面から（部品を zH だけ持ち上げる。ほかの部品と同じ）。到達高さ・控えの段も足場と同じ所から数える
+        lands = [float(levels[lv - 1]) for lv in h.landings(model) if 1 <= lv <= len(levels)]
         # 乗り込み口＝足場の固定の手すりを外したスパン（数量・足場の線の部品と同じ h.gate_spans）。フロアーゲートは
         # この幅いっぱいに描く（荷台の長さだけだと両端に手すりの無いすき間が出る）
         posts = [0.0]
@@ -991,7 +992,8 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             "faceAng": ang, "hoModel": h.model_id or "",
             # 利用者が部品の設定で選んだ乗り込む層は、置き直しても残す（空なら全部の層）
             "landLevels": ",".join(str(int(v)) for v in (h.landing_levels or [])),
-            "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else base + float(ev.total_height)) / 1000.0,
+            "zH": base / 1000.0,
+            "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else float(ev.total_height)) / 1000.0,
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
             "gateA": ga / 1000.0, "gateB": gb / 1000.0,
             # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）

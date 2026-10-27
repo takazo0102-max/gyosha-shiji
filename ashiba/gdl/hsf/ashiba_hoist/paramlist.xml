@@ -37,6 +37,10 @@
 			<Description><![CDATA["機種（data/hoist_models.csv）"]]></Description>
 			<Value><![CDATA["KSE600C"]]></Value>
 		</String>
+		<Length Name="zH">
+			<Description><![CDATA["足場の立つ面の高さ（階の高さから。配置が入れる。高さはすべてここから）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="hoReach">
 			<Description><![CDATA["到達高さ（マストの頂部の目安。配置で足場の天端を入れる）"]]></Description>
 			<Value>10</Value>

@@ -1,6 +1,7 @@
 ﻿! 昇降機 3D: マスト（ベース・壁つなぎ）・荷台（床・手すり・頭上覆い）・各階のフロアーゲート
 resol 8
 if matCage > 0 then material matCage
+add 0, 0, zH
 rotz faceAng
 mastH = max(hoReach + 1.5, 3)
 for im = 1 to nMast

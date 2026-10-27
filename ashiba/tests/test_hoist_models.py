@@ -199,6 +199,17 @@ class TestHoistInput(unittest.TestCase):
         self.assertTrue([n for n in r.quantity.notes if "朝顔を切り欠くので、数量から引いています" in n])
         self.assertTrue([c for c in r.conflicts if "切り欠いたスパンを引いています" in c.message])
 
+    def test_part_stands_on_the_scaffold_base(self):
+        # 足場の立つ面が 0 でないとき、部品は zH だけ持ち上げ、到達高さ・乗り込む床は足場の立つ面から（ほかの部品と同じ）
+        r = solve_all({**BOX, "base_height_mm": 1200,
+                       "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2]}]})
+        p = hoist_placements(r.model, r.platforms)[0]
+        self.assertAlmostEqual(p.params["zH"], 1.2)
+        self.assertAlmostEqual(p.params["hoReach"], r.model.elevation_of(0).total_height / 1000.0)
+        self.assertAlmostEqual(float(p.params["landList"]), r.model.elevation_of(0).level_heights[1] / 1000.0, places=3)
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("add 0, 0, zH", d3)
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
