@@ -2286,6 +2286,12 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
             other[wd] = k
     notes.append(f"{kind}（{w / 1000:.1f}×{h / 1000:.1f}m）は外側の構面を地面から足場の天端まで、継ぎ目を足場のスパンに"
                  f"そろえて {area:.0f}m²・" + "・".join(f"幅{wd}×{k}枚" for wd, k in std.items()) + " で計上")
+    opened = [(model.face_name(ei), s0, e0) for ei, rs in (getattr(model, "sheet_open", None) or {}).items()
+              if any(e.edge_index == ei for e in model.plan.edges) for s0, e0, _b in rs]
+    if opened:
+        notes.append("荷受けステージの間口（" + "・".join(f"{f} {s0:.0f}〜{e0:.0f}" for f, s0, e0 in opened)
+                     + f"）は、ステージを置く層の作業床から手すりの高さに掛かる{kind}の段を外しています（ステージは外側の列の外へ"
+                     "張り出すので、張ったままでは足場の床とステージの間を塞ぐ）")
     cut = [(model.face_name(ei), s0, e0) for ei, rs in (getattr(model, "sheet_cuts", None) or {}).items()
            if any(e.edge_index == ei for e in model.plan.edges) for s0, e0 in rs]
     if cut:

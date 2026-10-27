@@ -107,6 +107,26 @@ class TestHoistInput(unittest.TestCase):
                                                                           plain.stair_plan) if s[0] < c1 and s[1] > c0)
         self.assertAlmostEqual(covered, c1 - c0, delta=1)            # 昇降機が無ければ同じ区間に張る
 
+    def test_sheet_opens_at_the_stage_level(self):
+        # 荷受けステージの間口は、ステージの層の床から手すりの高さに掛かる段だけ外す（床の少し上の継ぎ目の段は残す）
+        from ashiba.attachments import sheet_open_rows, sheet_placements, sheet_rows, sheet_segments, standard_sheets
+
+        st = {**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 3658, "span_count": 2, "levels": [3]}]}
+        r = solve_all(st)
+        ep = r.model.plan.edges[0]
+        rows = sheet_rows(r.model, 0)
+        segs = sheet_segments(r.model, ep, r.stair_plan)
+        gone = [sheet_open_rows(r.model, ep, a, b, rows) for a, b, _o in segs]
+        self.assertEqual([len(g) for g in gone].count(1), 1)               # 間口の区間で1段だけ
+        a, b, _o = segs[[len(g) for g in gone].index(1)]
+        self.assertEqual((round(a), round(b)), (3658, 7316))
+        plain = solve_all(BOX)
+        self.assertEqual(standard_sheets(plain.model, plain.stair_plan)[1829] - standard_sheets(r.model, r.stair_plan)[1829], 2)
+        pl = next(p for p in sheet_placements(r.model, stair_plan=r.stair_plan)
+                  if abs(p.params["x0"] - 3.658) < 1e-3 and abs(p.params.get("x1", 0) - 7.316) < 1e-3)
+        self.assertLess(pl.params["zT"], max(h for _l, h in rows) / 1000.0)  # 外した段の上まで膜・線を伸ばさない
+        self.assertTrue([n for n in r.quantity.notes if "荷受けステージの間口（" in n])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

@@ -2117,6 +2117,7 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     return out
 
 
+STAGE_OPEN_H_MM = 1100.0   # 荷受けステージの間口でシートの段を外す高さ（作業床から手すりの高さまで）
 FALL_REMEDY_ASK = "手すりの設置、または安全帯の使用等の墜落防止措置を講じてください"
 FALL_REMEDY_DONE = ("躯体側の手すり・中桟を各層に付けて墜落防止しています（数量に計上）。外壁の作業で外すときは"
                     "安全帯を使い、作業が済んだらすぐ戻してください")
@@ -2548,6 +2549,16 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
 
     model.sheet_cuts = {ep.edge_index: hoist_cut_ranges(model, ep.edge_index, platforms.hoists)
                         for ep in model.plan.edges if platforms.hoists}
+    # 荷受けステージの間口は、ステージを置く層の作業床から手すりの高さまでシートの段を外す（ステージは外側の列の外へ
+    # 張り出すので、張ったままでは足場の床とステージの間を塞ぐ）
+    opens: dict = {}
+    for st in platforms.stages:
+        lvs = model.elevation_of(st.edge_index).level_heights
+        bands = [(float(lvs[lv - 1]), float(lvs[lv - 1]) + STAGE_OPEN_H_MM)
+                 for lv in (st.levels or [1]) if 1 <= lv <= len(lvs)]
+        if bands:
+            opens.setdefault(st.edge_index, []).append((float(st.start_mm), float(st.end_mm(model)), bands))
+    model.sheet_open = opens
     # 敷地の高低差で低い側の足場が伸びる実高さ（朝顔の段数・壁つなぎの風荷重は判定・検定と同じ実高さで決める）
     h_act = None
     if spec.get("ground_points_mm"):

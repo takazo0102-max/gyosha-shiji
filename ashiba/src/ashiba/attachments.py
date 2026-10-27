@@ -539,6 +539,24 @@ def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[floa
         cur = max(cur, e0)
     if x1 > cur:
         out.append((cur, x1, off))
+    # 荷受けステージの間口の端で区間を分ける（間口の区間はステージの層の段を外す: sheet_open_rows）
+    for s0, e0, _bands in (getattr(model, "sheet_open", None) or {}).get(ep.edge_index, []):
+        split = []
+        for a, b, o2 in out:
+            pts = [a] + [x for x in (s0, e0) if a + 1.0 < x < b - 1.0] + [b]
+            split += [(p, q, o2) for p, q in zip(pts, pts[1:])]
+        out = split
+    return out
+
+
+def sheet_open_rows(model: ScaffoldModel, ep, a: float, b: float, rows=None) -> list[tuple[float, float]]:
+    """区間 a〜b のシートの段のうち、荷受けステージの間口で外す段（ステージの層の床から手すりの高さに掛かる段）."""
+    rows = sheet_rows(model, ep.edge_index) if rows is None else rows
+    out = []
+    for s0, e0, bands in (getattr(model, "sheet_open", None) or {}).get(ep.edge_index, []):
+        if a >= s0 - 1.0 and b <= e0 + 1.0:
+            # 段の継ぎ目は床の少し上（床＋225）なので、下の段は床の上に少し掛かるだけ。300 を超えて掛かる段だけ外す
+            out += [r for r in rows if any(min(r[1], hi) - max(r[0], lo) > 300.0 for lo, hi in bands) and r not in out]
     return out
 
 
@@ -603,17 +621,25 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
         segs = list(zip(sheet_segments(model, ep, stair_plan), sheet_panels(model, ep, stair_plan, float(size[0]))))
         nseg = len(segs)
         for segi, ((x0, x1, off), panels) in enumerate(segs):
+            # 荷受けステージの間口は、ステージの層の段を外す
+            gone = sheet_open_rows(model, ep, x0, x1, rows)
+            seg_rows = [r for r in rows if r not in gone]
+            if gone and not seg_rows:
+                continue
+            # 段を外した区間は、残る段の上下の端で膜の外形・継ぎ目の線を止める（天端まで線が伸びていた）
+            seg_top = max(r[1] for r in seg_rows) if gone else top
             out.append(Placement(SHEET_OBJECT, o[0], o[1], {
                 # シートの段（下,上 mm。上下の段は重ねる）と左右の辺のハトメの間隔（クランプの高さと同じ並び）
-                "rowList": row_list(rows), "gromPitch": pitch,
+                "rowList": row_list(seg_rows), "gromPitch": pitch,
                 # 開放端の妻側にシートを張る高さから上は、端の建地のクランプを妻側のシートのコーナー用に任せる
                 "clampSZ": (ends.get("s", 0.0) if segi == 0 else 0.0) / 1000.0,
                 "clampEZ": (ends.get("e", 0.0) if segi == nseg - 1 else 0.0) / 1000.0,
                 "faceAng": ang, "zH": model.base_height_mm / 1000.0, "offY": off / 1000.0,
-                "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zT": top / 1000.0,
+                "x0": x0 / 1000.0, "x1": x1 / 1000.0, "zT": seg_top / 1000.0,
                 # 下端は仮囲いの天端（利用者の指定 2026-10-24: 仮囲いまでにする）。防音パネルはいちばん下の段の下端
                 # （仮囲いの天端に重なる）
-                "zB": (sheet_rows(model, ep.edge_index)[0][0] if is_panel(model) and sheet_rows(model, ep.edge_index)
+                "zB": (min(r[0] for r in seg_rows) if gone else
+                       sheet_rows(model, ep.edge_index)[0][0] if is_panel(model) and sheet_rows(model, ep.edge_index)
                        else sheet_bottom_mm(model, ep.edge_index)) / 1000.0,
                 "sheetW": size[0] / 1000.0, "sheetKind": model.config.sheet_type, "lineMode": bool(line_mode),
                 # 出隅の角はコーナー用のクランプ（始点を受け持ち、終点は次の面）
@@ -626,7 +652,8 @@ def sheet_placements(model: ScaffoldModel, line_mode: bool = False, stair_plan=N
                 # 継ぎ目は足場の支柱の位置。「始点,終点,特殊(0/1)」の繰り返し mm（特殊シートは色を替える）
                 "panelList": ",".join(f"{a:.0f},{b:.0f},{int(sp)}" for a, b, sp in panels),
                 # シートクランプ（継ぎ目と端の支柱に、各段のシートの上下で。利用者の指定・資料 2026-10-24）
-                "clampList": ",".join(f"{h:.0f}" for h in sheet_clamp_heights(model, ep.edge_index)),
+                "clampList": ",".join(f"{h:.0f}" for h in (_clamp_heights_of_rows(model, seg_rows) if gone
+                                                             else sheet_clamp_heights(model, ep.edge_index))),
                 # 段の高さ（1枚の高さ）と、縁の縫い代・ハトメを描くか（線表示では描かない）
                 "sheetH": size[1] / 1000.0, "fineOn": not bool(line_mode)}))
         # 拡幅・縮幅の面: シートを幅を変える床で上下に分け、上は新しい外側の建地列の外へ（width_change）
@@ -766,8 +793,12 @@ def sheet_quantities(model: ScaffoldModel, stair_plan=None, size=None) -> tuple[
     area = 0.0
     for ep in model.plan.edges:
         top = sheet_top_mm(model, ep.edge_index) - sheet_bottom_mm(model, ep.edge_index)
+        all_rows = sheet_rows(model, ep.edge_index)
         for panels in sheet_panels(model, ep, stair_plan):
             area += sum(b - a for a, b, _sp in panels) / 1000.0 * top / 1000.0
+            # 荷受けステージの間口で外した段
+            area -= sum((b - a) / 1000.0 * (hi - lo) / 1000.0 for a, b, _sp in panels
+                        for lo, hi in sheet_open_rows(model, ep, a, b, all_rows))
         area += len(sheet_end_pieces(model, ep, stair_plan)) * float(model.post_row_spacing_mm) / 1000.0 * top / 1000.0
         full = sheet_top_mm(model, ep.edge_index)
         area += sum(float(model.post_row_spacing_mm) / 1000.0 * (full - z0) / 1000.0 for _e, z0 in open_end_sheets(model, ep))
@@ -782,8 +813,15 @@ def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> d
         return {}
     out: dict[int, int] = {}
     for ep in model.plan.edges:
-        rows = len(sheet_rows(model, ep.edge_index))
+        all_rows = sheet_rows(model, ep.edge_index)
+        rows = len(all_rows)
         ws = [b - a for panels in sheet_panels(model, ep, stair_plan) for a, b, sp in panels if sp == special]
+        # 荷受けステージの間口の升目は、ステージの層の段を外したぶん少ない
+        less = {int(round(b - a)): 0 for panels in sheet_panels(model, ep, stair_plan) for a, b, sp in panels}
+        for panels in sheet_panels(model, ep, stair_plan):
+            for a, b, sp in panels:
+                if sp == special:
+                    less[int(round(b - a))] += len(sheet_open_rows(model, ep, a, b, all_rows))
         # 外付け階段の妻側は建地列の間隔の幅（スパンにある幅なら標準）
         row = float(model.post_row_spacing_mm)
         row_std = any(abs(row - c) <= 1.0 for c in model.master.span_lengths())
@@ -792,6 +830,9 @@ def _sheets_by_width(model: ScaffoldModel, stair_plan, size, special: bool) -> d
         for w in ws:
             k = int(round(w))
             out[k] = out.get(k, 0) + rows
+        for k, n in less.items():
+            if n and k in out:
+                out[k] -= n
         # 開放端の妻側（建地列の間隔の幅。途中の屋根より上だけの端はその段だけ）
         if special != row_std:
             for _e, z0 in open_end_sheets(model, ep):
