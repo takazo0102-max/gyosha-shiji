@@ -993,7 +993,7 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             # 利用者が部品の設定で選んだ乗り込む層は、置き直しても残す（空なら全部の層）
             "landLevels": ",".join(str(int(v)) for v in (h.landing_levels or [])),
             "zH": base / 1000.0,
-            "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else float(ev.total_height)) / 1000.0,
+            "hoReach": h.reach_mm(model) / 1000.0,
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
             "gateA": ga / 1000.0, "gateB": gb / 1000.0, "rowSp": row / 1000.0,
             # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）

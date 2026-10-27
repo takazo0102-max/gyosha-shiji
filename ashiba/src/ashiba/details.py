@@ -69,7 +69,7 @@ def hoist_detail_specs(model: ScaffoldModel, platforms) -> list[dict]:
                       if hm is not None and hm.gate else "開閉式手すり"),
             "face": model.face_name(h.edge_index),
             "position_mm": float(h.position_mm),
-            "reach_height_mm": float(h.reach_height_mm or model.scaffold_height_mm),
+            "reach_height_mm": h.reach_mm(model),
             "tie_every_mm": float(h.tie_every_mm),
             "landing_levels": list(landings),
             "landing_heights_mm": [float(levels[lv - 1]) for lv in landings if 1 <= lv <= len(levels)],

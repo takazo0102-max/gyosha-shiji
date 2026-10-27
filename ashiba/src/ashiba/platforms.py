@@ -140,8 +140,16 @@ class Hoist:
 
         return hoist_model(self.model_id)
 
+    def reach_mm(self, model: ScaffoldModel) -> float:
+        """到達高さ（足場の立つ面から mm）. 指定が無ければ昇降機の立つ面の足場の高さ（面ごとに高さが違えばその面の）."""
+        return float(self.reach_height_mm or model.elevation_of(self.edge_index).total_height)
+
+    def level_heights(self, model: ScaffoldModel) -> list:
+        """昇降機の立つ面の作業層の床の高さ（面ごとの高さ。部品の配置・壁つなぎと同じ）."""
+        return model.elevation_of(self.edge_index).level_heights
+
     def landings(self, model: ScaffoldModel) -> list[int]:
-        n = model.elevation.n_levels
+        n = model.elevation_of(self.edge_index).n_levels
         if self.landing_levels:
             return [lv for lv in self.landing_levels if 1 <= lv <= n]
         return list(range(1, n + 1))
@@ -456,17 +464,19 @@ def validate_platforms(
         # landings() は範囲外の層を黙って読み飛ばす（層数が変わっても落ちないように）。
         # ここで指摘しないと「指定した層に乗り込み口が無い」まま数量・図面から
         # 静かに消える
-        bad_levels = [lv for lv in h.landing_levels if not (1 <= lv <= n_levels)]
+        # 層数・足場高さは昇降機の立つ面のもの（面ごとに高さが違う建物で、高い面の層を低い面に許していた）
+        face_ev = model.elevation_of(h.edge_index)
+        bad_levels = [lv for lv in h.landing_levels if not (1 <= lv <= face_ev.n_levels)]
         if bad_levels:
             result.issues.append(PlatformIssue(
                 "昇降機", i, "NG",
-                f"乗り込み口の作業層{bad_levels}は存在しません（1〜{n_levels}）。"
+                f"乗り込み口の作業層{bad_levels}は存在しません（1〜{face_ev.n_levels}）。"
                 "指定した層の乗り込み口は計上されません", "入力エラー"))
-        reach = h.reach_height_mm or model.scaffold_height_mm
-        if reach > model.scaffold_height_mm:
+        reach = h.reach_mm(model)
+        if reach > face_ev.total_height:
             result.issues.append(PlatformIssue(
                 "昇降機", i, "WARN",
-                f"到達高さ{reach:.0f}mmが足場高さ{model.scaffold_height_mm}mmを超えます。"
+                f"到達高さ{reach:.0f}mmが足場高さ{face_ev.total_height}mmを超えます。"
                 "マスト頂部の控えを別途検討してください",
                 "工事用エレベータ構造規格"))
         hm = h.spec
@@ -477,7 +487,7 @@ def validate_platforms(
                 f"到達高さ{reach:.0f}mmが機種 {hm.name} の最大揚程{hm.max_lift_m:.0f}mを超えます。"
                 "揚程の高い機種に替えてください", "メーカーの仕様"))
         # 到達高さより上の作業層は、搬器が届かないので乗り込めない（到達高さを下げて入力したとき、乗り込み口だけ残っていた）
-        levels = model.elevation.level_heights
+        levels = h.level_heights(model)
         above = [lv for lv in h.landings(model) if float(levels[lv - 1]) > reach + 1e-6]
         if above:
             result.issues.append(PlatformIssue(

@@ -104,7 +104,7 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
         edge = _edge(model, ho.edge_index)
         if edge is None or ho.tie_every_mm <= 0:
             continue
-        reach = ho.reach_height_mm or model.scaffold_height_mm
+        reach = ho.reach_mm(model)
         n_ties = max(1, int(reach // ho.tie_every_mm))
         for x in hoist_tie_posts(edge, ho):
             for k in range(1, n_ties + 1):
@@ -122,7 +122,7 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
                 posts.append(posts[-1] + float(sp))
             for lv in ho.landings(model):
                 for x in (posts[min(gs)], posts[max(gs) + 1]):
-                    out.append(WallTie(ho.edge_index, x, int(levels[lv - 1]), "landing"))
+                    out.append(WallTie(ho.edge_index, x, int(ho.level_heights(model)[lv - 1]), "landing"))
     return out
 
 

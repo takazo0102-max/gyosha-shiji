@@ -415,7 +415,7 @@ def write_report_md(
         # マストの位置・到達高さ・乗り込み口の層を出す（干渉と防護の確認用）
         for h in (getattr(platforms, "hoists", None) or []):
             face = model.face_name(h.edge_index)
-            reach = h.reach_height_mm or model.scaffold_height_mm
+            reach = h.reach_mm(model)
             landings = h.landings(model)
             hm = h.spec
             guard = "開閉式手すり"
