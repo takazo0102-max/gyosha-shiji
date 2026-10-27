@@ -64,6 +64,10 @@ class TestHoistInput(unittest.TestCase):
         self.assertTrue([n for n in notes if "昇降機 本体 KSE-900 5.4m" in n])
         self.assertTrue([n for n in notes if "フロアーゲート 7.2スパン" in n and "（2）" in n])
         self.assertFalse([n for n in notes if "開閉式手すり" in n and "マスタにありません" in n])
+        # 詳細図の説明に機種と乗り込み口の防護（フロアーゲート）を出す
+        reason = next(sheet.reason for sheet in r.detail_sheets if getattr(sheet, "key") == "hoist")
+        self.assertIn("KSE-900 5.4m", reason)
+        self.assertIn("フロアーゲート 7.2スパン", reason)
         # 地上の昇降路の囲い（搬器の下への立入禁止）も手配に出す
         self.assertTrue([n for n in notes if "昇降路の囲い" in n and "立入禁止" in n])
 

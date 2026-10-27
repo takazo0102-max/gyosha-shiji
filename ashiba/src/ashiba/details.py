@@ -57,9 +57,16 @@ def hoist_detail_specs(model: ScaffoldModel, platforms) -> list[dict]:
     """昇降機ごとの詳細図パラメータ（面・位置・乗り込み口の高さ・搬器・積載）を集める."""
     out: list[dict] = []
     levels = model.elevation.level_heights
+    from .hoist_models import FLOOR_GATES
+
     for h in (getattr(platforms, "hoists", None) or []):
         landings = h.landings(model)
+        hm = h.spec
         out.append({
+            # 機種（建機サービスの図面の機種表）と乗り込み口の防護（機種にフロアーゲートが無ければ開閉式手すり）
+            "model_name": hm.name if hm is not None else "",
+            "guard": (FLOOR_GATES.get(hm.gate, {}).get("name", "フロアーゲート")
+                      if hm is not None and hm.gate else "開閉式手すり"),
             "face": model.face_name(h.edge_index),
             "position_mm": float(h.position_mm),
             "reach_height_mm": float(h.reach_height_mm or model.scaffold_height_mm),
@@ -241,7 +248,8 @@ def required_details(
                         "landList": ",".join(f"{v:.0f}" for v in h.get("landing_heights_mm", [])),
                         },
                 reason=(f"{h.get('face', '')} 始点から{float(h.get('position_mm', 0)):.0f}mm の昇降機"
-                        f"（乗り込み口 第{lv_txt}層）の取合い（搬器・マスト控え・開閉式手すり）を示すため。"
+                        + (f"（{h['model_name']}）" if h.get("model_name") else "")
+                        + f"（乗り込み口 第{lv_txt}層）の取合い（搬器・マスト控え・{h.get('guard') or '開閉式手すり'}）を示すため。"
                         f"{notify}"),
             )
         )
