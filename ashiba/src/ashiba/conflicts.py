@@ -226,4 +226,22 @@ def check_conflicts(
                 "ブラケット区間を重ねると張出しが二重になります。区間か層を分けてください",
                 "仮設工業会 張出しブラケット使用基準",
             ))
+
+    # 昇降機 × 外向きのブラケット区間。荷台は地上から到達高さまで外側の列のすぐ外（100）を昇り降りするので、
+    # 同じスパンで床を外へ張り出すと、どの層でも荷台と当たる（2026-10-27 のループ）
+    from .brackets import OUTER
+
+    for i, h in enumerate(hoists):
+        for s0, e0 in hoist_cut_ranges(model, h.edge_index, [h]):
+            for j, b in enumerate(sections):
+                if b.edge_index != h.edge_index or getattr(b, "direction", None) != OUTER \
+                        or not _overlap(s0, e0, b.start_mm, b.end_mm):
+                    continue
+                out.append(ConflictIssue(
+                    "昇降機×ブラケット区間", "NG",
+                    f"{model.face_name(h.edge_index)}の昇降機{i + 1}の搬器が通るスパン（{_rng(s0, e0)}）に、外へ張り出す"
+                    f"ブラケット区間{j + 1}（{_rng(b.start_mm, b.end_mm)}）が重なっています。搬器は外側の列のすぐ外を"
+                    "地上から昇り降りするので、張出しの床と当たります。ブラケット区間を昇降機のスパンの外に移してください",
+                    "クレーン等安全規則（昇降路）・仮設工業会 張出しブラケット使用基準",
+                ))
     return out

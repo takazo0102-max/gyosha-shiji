@@ -127,6 +127,17 @@ class TestHoistInput(unittest.TestCase):
         self.assertLess(pl.params["zT"], max(h for _l, h in rows) / 1000.0)  # 外した段の上まで膜・線を伸ばさない
         self.assertTrue([n for n in r.quantity.notes if "荷受けステージの間口（" in n])
 
+    def test_outer_bracket_on_the_hoist_spans_is_ng(self):
+        # 搬器は外側の列のすぐ外を昇り降りする: 同じスパンに外へ張り出すブラケット区間は当たる（別のスパンなら通す）
+        ho = {"hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4"}]}
+        on = solve_all({**BOX, **ho, "bracket_sections": [{"edge_index": 0, "start_mm": 3658, "end_mm": 7316,
+                                                          "direction": "張出", "width": 610, "levels": [3]}]})
+        self.assertTrue([c for c in on.conflicts if c.kind == "昇降機×ブラケット区間" and c.severity == "NG"])
+        self.assertFalse(on.verdict["ok"])
+        off = solve_all({**BOX, **ho, "bracket_sections": [{"edge_index": 0, "start_mm": 10974, "end_mm": 12803,
+                                                           "direction": "張出", "width": 610, "levels": [3]}]})
+        self.assertFalse([c for c in off.conflicts if c.kind == "昇降機×ブラケット区間"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
