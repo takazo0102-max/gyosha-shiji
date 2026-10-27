@@ -337,7 +337,8 @@ class StructuralResult:
 
     @property
     def all_ok(self) -> bool:
-        return self.wall_tie.ok and self.post.ok and all(b.ok for b in self.brackets)
+        return (self.wall_tie.ok and self.post.ok and all(b.ok for b in self.brackets)
+                and all(o.ok for o in self.openings))
 
 
 @dataclass

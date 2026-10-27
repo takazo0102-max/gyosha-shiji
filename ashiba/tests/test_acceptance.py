@@ -278,7 +278,9 @@ class TestOverallVerdict(unittest.TestCase):
 
     # 是正になる例題と、その理由。くさび支柱の一般値6.86kN（信和の認定値は非公開）に
     # 1tの荷受けステージは載らない。ツールが正しく止める例として残している
-    EXPECTED_BLOCKERS = {"loading_stage.json": "建地圧縮"}
+    # opening_beam: 梁枠の両端の支柱が許容（信和A の一般値 6.86kN）を超える（2026-10-27 から総合判定に入れた。それまでは
+    # 構造の注意に「2本組等の補強が必要」と出ても「計画は成立」だった）
+    EXPECTED_BLOCKERS = {"loading_stage.json": "建地圧縮", "opening_beam.json": "開口部の梁枠の検定NG"}
 
     def test_every_example_has_the_expected_verdict(self):
         for f in sorted(EXAMPLES.glob("*.json")):

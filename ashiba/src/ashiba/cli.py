@@ -1877,6 +1877,14 @@ def build_verdict(
         )
     if not structural.post.ok:
         blockers.append(f"建地圧縮 検定比{structural.post.ratio}")
+    # 開口部の梁枠（支点・両端の支柱）と拡幅・張出ブラケット1基の検定。それぞれ成立か（ok）を持つのに、総合判定が
+    # 見ておらず、両端の支柱が許容を超えても「計画は成立」と出ていた（2026-10-27 のループ: opening_beam の例題）
+    bad_op = [c for c in getattr(structural, "openings", None) or [] if not c.ok]
+    if bad_op:
+        blockers.append(f"開口部の梁枠の検定NG {len(bad_op)}件")
+    bad_bk = [c for c in getattr(structural, "brackets", None) or [] if not c.ok]
+    if bad_bk:
+        blockers.append(f"拡幅・張出ブラケットの検定NG {len(bad_bk)}件（最大検定比{max(c.ratio for c in bad_bk):.2f}）")
     n_pf = len([i for i in platforms.issues if i.severity == "NG"])
     if n_pf:
         blockers.append(f"荷受けステージ・昇降機NG {n_pf}件")
