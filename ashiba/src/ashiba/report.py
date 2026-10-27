@@ -436,7 +436,8 @@ def write_report_md(
                     beam = (f"梁枠{n_sp}スパン×2本" if n_sp in LANDING_BEAM_SPANS
                             else f"乗り込み口{n_sp}スパンで梁枠（2・3スパン）が掛からず別計画")
                     a(f"  - 荷取りステージ: 荷取用金具4個/層＋{beam}・床先と搬器の床先のすき間40mm以内"
-                      f"・ステージ上の全積載{LANDING_STAGE_MAX_KG:.0f}kg以下・梁枠を受ける支柱に壁つなぎ")
+                      f"・ステージ上の全積載{LANDING_STAGE_MAX_KG:.0f}kg以下・梁枠を受ける支柱に壁つなぎ"
+                      + ("・その升目の本体の床はステージで代える（踏板を外す）" if n_sp in LANDING_BEAM_SPANS else ""))
                 else:
                     a("  - 荷取り床: 外側建地から腕で受ける（2か所/層）・床先と搬器の床先のすき間40mm以内")
         if openings is not None and openings.removed_posts:

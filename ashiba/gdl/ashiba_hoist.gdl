@@ -1289,6 +1289,12 @@ for il = 1 to nLand
 			cylind rowSp - 0.206 + 0.05 - yC0 - gapL - 0.05, 0.024
 			del 2
 		next k
+		! ステージの足場板（外側の建地の列から内側の建地の手前まで。本体の床の代わり＝足場の線の部品はこの升目の踏板を
+		! 描かない。利用者の指定 2026-10-28）
+		material mDk
+		add gA + 0.03, 0.10, landH[il] + 0.02
+		block gB - gA - 0.06, rowSp - 0.20, 0.04
+		del 1
 	endif
 	for pc = 1 to 2
 		xa2 = -gW / 2

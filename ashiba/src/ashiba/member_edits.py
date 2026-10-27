@@ -171,6 +171,30 @@ def inner_corner_edits(model: ScaffoldModel) -> list[MemberEdit]:
     return out
 
 
+def landing_stage_edits(model: ScaffoldModel, hoists) -> list[MemberEdit]:
+    """ロングスパンの荷取りステージを組む升目（乗り込み口のスパン×乗り込む層）: 本体の踏板を外す.
+
+    ステージ（荷取用金具＋梁枠＋ころばし＋足場板）が本体の床の代わりになる（利用者の指定 2026-10-28: ステージが床の
+    代わりになるので本体の床は外して）。梁枠が掛からない（2・3 スパン以外）乗り込み口は別計画なので外さない。
+    """
+    from .platforms import LANDING_BEAM_SPANS
+
+    out = []
+    for h in hoists or []:
+        hm = h.spec
+        if hm is None or hm.kind != "ロングスパン":
+            continue
+        if model.edge_subset is not None and h.edge_index not in model.edge_subset:
+            continue
+        gs = h.gate_spans(model)
+        if len(gs) not in LANDING_BEAM_SPANS:
+            continue
+        for lv in h.landings(model):
+            out.append(MemberEdit(h.edge_index, min(gs) + 1, max(gs) + 1, lv, lv, ("踏板",),
+                                  reason="昇降機の荷取りステージ（本体の床の代わり）", auto=True))
+    return out
+
+
 def tier_passage_edits(model: ScaffoldModel, passages) -> list[MemberEdit]:
     """セットバックの上段が本体に繋がる升目（setback_junctions の _tier_passage「面, 始め, 終わり, 屋根の高さ」。位置は元の
     面の始点の支柱から mm）: 途中の屋根より上の層で本体の内側の手すりを付けない（上段の床から本体の床へ回れる）.

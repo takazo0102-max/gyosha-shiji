@@ -2842,6 +2842,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         from .member_edits import free_passage_edits
 
         model.member_edits = list(model.member_edits or []) + free_passage_edits(model, spec["_free_passage"])
+    if platforms.hoists:
+        from .member_edits import landing_stage_edits
+
+        model.member_edits = list(model.member_edits or []) + landing_stage_edits(model, platforms.hoists)
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 

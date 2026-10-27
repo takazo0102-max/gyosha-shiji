@@ -320,6 +320,24 @@ class TestHoistInput(unittest.TestCase):
         ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE-990", "landing_levels": [2, 4]}]})
         self.assertFalse([x for x in ok.platforms.issues if "搬器が届きません" in x.message])
 
+    def test_landing_stage_replaces_the_scaffold_deck(self):
+        # 利用者の指定 2026-10-28: ステージが床の代わりになるので本体の床は外して。乗り込み口のスパン×乗り込む層の踏板を
+        # 数量から引き、足場の線の部品にも描かせない（部材編集）。ステージの足場板は昇降機の部品が描く
+        def deck(r):
+            return sum(ln.qty for ln in r.quantity.lines if ln.part.category == "踏板" and ln.part.nominal_dim == 1829)
+
+        base = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F", "landing_levels": [2, 4]}]})
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
+        eds = [e for e in r.model.member_edits if "荷取りステージ" in e.reason]
+        self.assertEqual([(e.edge_index, e.span_from, e.span_to, e.level_from, e.parts) for e in eds],
+                         [(0, 2, 4, 2, ("踏板",)), (0, 2, 4, 4, ("踏板",))])
+        self.assertEqual(deck(base) - deck(r), 3 * 2)
+        # 梁枠が掛からない乗り込み口（4スパン以上）は別計画なので本体の床は残す
+        wide = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEL-950LK-7.2F", "landing_levels": [2]}]})
+        self.assertFalse([e for e in wide.model.member_edits if "荷取りステージ" in e.reason])
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("block gB - gA - 0.06, rowSp - 0.20, 0.04", d3)
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
