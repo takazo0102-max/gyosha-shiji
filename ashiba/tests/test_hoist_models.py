@@ -80,6 +80,14 @@ class TestHoistInput(unittest.TestCase):
         self.assertNotIn("atn2", d3)                 # GDL に atn2 は無い
         # マストの壁つなぎは到達高さ（足場の天端）まで。数量の本数（到達高さ÷間隔）と同じ
         self.assertIn("while zt < hoReach + 0.001 do", d3)
+        # GDL は大文字小文字を区別しない: マスターの配列（dim）と同じ名前を平面・3D で値に使うと、その画が止まって白紙になる
+        # （tieList の配列 tX が平面の文字 tx とぶつかって平面が白紙だった）
+        import re
+
+        d1 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        for name in re.findall(r"^dim (\w+)\[", d1, re.M):
+            for body in (d2, d3):
+                self.assertIsNone(re.search(rf"^\s*{name}\s*=", body, re.M | re.I), name)
         self.assertNotIn("while zt < mastH - 0.5 do", d3)
 
     def test_sheet_is_left_off_the_hoist_spans(self):
@@ -176,6 +184,21 @@ class TestModelChecks(unittest.TestCase):
         # 荷台（枠組−600）は 3 スパンにちょうど収まり、乗り込み口の開口も 3 スパン
         r2 = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": on, "model": "KSE900-5.4"}]})
         self.assertEqual(len(r2.platforms.hoists[0].gate_spans(r2.model)), 3)
+
+    def test_long_span_ties_go_to_the_frame_posts(self):
+        # ロングスパンの控えは枠組の両端の足場の建地に取る（ポスト芯々の 2400 は建地の間の布材の上になる）
+        from ashiba.platforms import frame_runs
+        from ashiba.ties import _platform_ties
+
+        r0 = solve_all(BOX)
+        ep = r0.model.plan.edges[0]
+        i, j, c = min(frame_runs(ep.spans, 5400), key=lambda t: abs(t[2] - 6000))
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": c, "model": "KSE900-5.4"}]})
+        xs = {t.position_mm for t in _platform_ties(r.model, r.platforms) if t.kind == "hoist"}
+        self.assertEqual(xs, {posts[i], posts[j + 1]})
 
     def test_goods_only_hoist_says_no_riders(self):
         msgs = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "SL-240B"}]})

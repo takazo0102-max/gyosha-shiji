@@ -921,6 +921,8 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
     原点は足場の外側建地の列の上の昇降機の中心（面に沿って position_mm）、faceAng で面の向き。到達高さ（指定が無ければ
     その面の足場の天端）と乗り込む作業床の高さ（フロアーゲートを描く）を入れる。機種の指定が無ければ荷台の大きさだけの形。
     """
+    from .ties import hoist_tie_posts
+
     out: list[Placement] = []
     if platforms is None or not getattr(platforms, "hoists", None):
         return out
@@ -950,7 +952,9 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             "landLevels": ",".join(str(int(v)) for v in (h.landing_levels or [])),
             "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else base + float(ev.total_height)) / 1000.0,
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
-            "gateA": ga / 1000.0, "gateB": gb / 1000.0}))
+            "gateA": ga / 1000.0, "gateB": gb / 1000.0,
+            # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）
+            "tieList": ",".join(f"{(x - h.position_mm) / 1000.0:.3f}" for x in hoist_tie_posts(ep, h))}))
     return _with_pens(model, out)
 
 

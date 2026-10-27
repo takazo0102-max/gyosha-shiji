@@ -105,23 +105,32 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
             continue
         reach = ho.reach_height_mm or model.scaffold_height_mm
         n_ties = max(1, int(reach // ho.tie_every_mm))
-        # ロングスパンはマストが荷台の両端に2本（3D と同じ。各マストの控えを足場へ取り、足場側は壁つなぎで躯体へ）
-        length = float(sum(edge.spans))
-        half = float(getattr(ho, "cage_width_mm", 0.0) or 0.0) / 2.0 + 200.0
-        hm = getattr(ho, "spec", None)
-        if hm is not None and hm.masts == 1:
-            # マスト1本の機種（工事用エレベーター・荷揚げ機）は昇降機の中心に1本（部品 ashiba_hoist の mx と同じ）
-            offs = (0.0,)
-        elif hm is not None and hm.post_spacing_mm > 0:
-            offs = (-hm.post_spacing_mm / 2.0, hm.post_spacing_mm / 2.0)    # ロングスパンのポスト芯々
-        else:
-            offs = (-half, half)
-        xs = sorted({min(max(float(ho.position_mm) + o, 0.0), length) for o in offs})
-        for x in xs:
+        for x in hoist_tie_posts(edge, ho):
             for k in range(1, n_ties + 1):
                 h = int(min(k * ho.tie_every_mm, reach))
                 out.append(WallTie(ho.edge_index, x, h, "hoist"))
     return out
+
+
+def hoist_tie_posts(edge, ho) -> list[float]:
+    """昇降機のマスト控えを取る足場の外側の建地（面の始点から mm）. 部品 ashiba_hoist の 3D も同じ建地へ描く.
+
+    ロングスパンはマストが2本で、控えは枠組の両端（足場の建地）へ。マスト1本の機種（工事用エレベーター・荷揚げ機）は
+    中心のそばの建地へ1本。機種が無ければ荷台の両端の外。控えは建地に取る（建地と建地の間の布材には取らない）ので、
+    いちばん近い建地へ寄せる。
+    """
+    half = float(getattr(ho, "cage_width_mm", 0.0) or 0.0) / 2.0 + 200.0
+    hm = getattr(ho, "spec", None)
+    if hm is not None and hm.masts == 1:
+        offs = (0.0,)
+    elif hm is not None and hm.frame_span_mm > 0:
+        offs = (-hm.frame_span_mm / 2.0, hm.frame_span_mm / 2.0)
+    else:
+        offs = (-half, half)
+    posts = [0.0]
+    for sp in edge.spans:
+        posts.append(posts[-1] + float(sp))
+    return sorted({min(posts, key=lambda p: abs(p - (float(ho.position_mm) + o))) for o in offs})
 
 
 def _beam_ties(model: ScaffoldModel, openings) -> list[WallTie]:

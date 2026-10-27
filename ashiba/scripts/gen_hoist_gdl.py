@@ -39,6 +39,7 @@ def paramlist(first: str) -> str:
         _param("Length", "gapOut", "足場の外側建地の列から荷台までのあき", 0.1),
         _param("String", "landLevels", "乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）", ""),
         _param("String", "landList", "乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）", ""),
+        _param("String", "tieList", "マスト控えを取る足場の建地（中心から面に沿って m、カンマ区切り。配置が入れる。空はマストの正面）", ""),
         _param("Length", "gateA", "乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）", 0),
         _param("Length", "gateB", "乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）", 0),
         _param("Boolean", "showGate", "乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く", 1),
@@ -103,6 +104,25 @@ def master(models) -> str:
         "\tif k > 0 then",
         "\t\tnLand = nLand + 1",
         "\t\tlandH[nLand] = v",
+        "\tendif",
+        "endwhile",
+        "! マスト控えを取る足場の建地（中心から m）",
+        "dim tieX[8]",
+        "nTX = 0",
+        "rest = tieList",
+        "while strlen(rest) > 0 and nTX < 8 do",
+        "\tpc = strstr(rest, \",\")",
+        "\tif pc > 0 then",
+        "\t\titem = strsub(rest, 1, pc - 1)",
+        "\t\trest = strsub(rest, pc + 1, strlen(rest) - pc)",
+        "\telse",
+        "\t\titem = rest",
+        "\t\trest = \"\"",
+        "\tendif",
+        "\tk = split(item, \"%n\", v)",
+        "\tif k > 0 then",
+        "\t\tnTX = nTX + 1",
+        "\t\ttieX[nTX] = v",
         "\tendif",
         "endwhile",
         "! マストの位置（ロングスパンは荷台の両端、それ以外は荷台の外側に1本）",
@@ -199,12 +219,27 @@ for im = 1 to nMast
 	! マストの壁つなぎ（足場の外側建地の列まで）。到達高さ（足場の天端）まで tieE ごと。数量（platforms: 到達高さ÷間隔）と
 	! 同じ本数（マストの頂部まで描くと足場の天端より上に繋ぐ先の無い壁つなぎが1段出ていた）
 	if showTie then
+		! 控えの先はいちばん近い足場の建地（tieList。壁つなぎの一覧と同じ建地）。無ければマストの正面
+		txm = mx[im]
+		for it = 1 to nTX
+			if it = 1 or abs(tieX[it] - mx[im]) < abs(txm - mx[im]) then txm = tieX[it]
+		next it
+		tdx = txm - mx[im]
+		tdy = -(my[im] + 0.075)
+		tLen = max(0.05, sqr(tdx ^ 2 + tdy ^ 2))
+		if abs(tdx) < 0.0001 then
+			tAng = 90
+		else
+			tAng = atn(tdy / tdx)
+			if tdx < 0 then tAng = tAng + 180
+		endif
 		zt = tieE
 		while zt < hoReach + 0.001 do
 			add mx[im], my[im] + 0.075, zt
-			rotx -90
-			cylind max(0.05, -(my[im] + 0.075)), 0.0243
-			del 2
+			rotz tAng
+			roty 90
+			cylind tLen, 0.0243
+			del 3
 			zt = zt + tieE
 		endwhile
 	endif

@@ -288,6 +288,25 @@ while strlen(rest) > 0 and nLand < 40 do
 		landH[nLand] = v
 	endif
 endwhile
+! マスト控えを取る足場の建地（中心から m）
+dim tieX[8]
+nTX = 0
+rest = tieList
+while strlen(rest) > 0 and nTX < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTX = nTX + 1
+		tieX[nTX] = v
+	endif
+endwhile
 ! マストの位置（ロングスパンは荷台の両端、それ以外は荷台の外側に1本）
 yC0 = -gapOut
 yC1 = -gapOut - cageD

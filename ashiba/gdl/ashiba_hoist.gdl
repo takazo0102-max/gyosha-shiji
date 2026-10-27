@@ -13,20 +13,21 @@
 ! 機種（hoModel）を選ぶと data/hoist_models.csv の荷台・マスト・壁つなぎ間隔で描く（寸法表は scripts/gen_hoist_gdl.py が書き出す）。原点＝足場の外側建地の列の上の昇降機の中心、faceAng で面の向き。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   faceAng     角度      面の向き（度。+X＝面に沿う向き、+Y＝躯体側）                                          既定 0
-!   hoModel     文字列    機種（data/hoist_models.csv）                                                         既定 "KSE600C"
-!   hoReach     長さ      到達高さ（マストの頂部の目安。配置で足場の天端を入れる）                              既定 10
-!   gapOut      長さ      足場の外側建地の列から荷台までのあき                                                  既定 0.1
-!   landLevels  文字列    乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）                             既定 ""
-!   landList    文字列    乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）                          既定 ""
-!   gateA       長さ      乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）  既定 0
-!   gateB       長さ      乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）                            既定 0
-!   showGate    ブール    乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く                        既定 1
-!   showTie     ブール    マストの壁つなぎを描く                                                                既定 1
-!   showFence   ブール    地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く                              既定 1
-!   matCage     表面材    荷台・マストの材質                                                                    既定 0
-!   texSiz      実数      文字の大きさ（mm）                                                                    既定 2.5
-!   penEquip    PenColor  線のペン                                                                              既定 1
+!   faceAng     角度      面の向き（度。+X＝面に沿う向き、+Y＝躯体側）                                                      既定 0
+!   hoModel     文字列    機種（data/hoist_models.csv）                                                                     既定 "KSE600C"
+!   hoReach     長さ      到達高さ（マストの頂部の目安。配置で足場の天端を入れる）                                          既定 10
+!   gapOut      長さ      足場の外側建地の列から荷台までのあき                                                              既定 0.1
+!   landLevels  文字列    乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）                                         既定 ""
+!   landList    文字列    乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）                                      既定 ""
+!   tieList     文字列    マスト控えを取る足場の建地（中心から面に沿って m、カンマ区切り。配置が入れる。空はマストの正面）  既定 ""
+!   gateA       長さ      乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）              既定 0
+!   gateB       長さ      乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）                                        既定 0
+!   showGate    ブール    乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く                                    既定 1
+!   showTie     ブール    マストの壁つなぎを描く                                                                            既定 1
+!   showFence   ブール    地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く                                          既定 1
+!   matCage     表面材    荷台・マストの材質                                                                                既定 0
+!   texSiz      実数      文字の大きさ（mm）                                                                                既定 2.5
+!   penEquip    PenColor  線のペン                                                                                          既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -322,6 +323,25 @@ while strlen(rest) > 0 and nLand < 40 do
 		landH[nLand] = v
 	endif
 endwhile
+! マスト控えを取る足場の建地（中心から m）
+dim tieX[8]
+nTX = 0
+rest = tieList
+while strlen(rest) > 0 and nTX < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTX = nTX + 1
+		tieX[nTX] = v
+	endif
+endwhile
 ! マストの位置（ロングスパンは荷台の両端、それ以外は荷台の外側に1本）
 yC0 = -gapOut
 yC1 = -gapOut - cageD
@@ -418,12 +438,27 @@ for im = 1 to nMast
 	! マストの壁つなぎ（足場の外側建地の列まで）。到達高さ（足場の天端）まで tieE ごと。数量（platforms: 到達高さ÷間隔）と
 	! 同じ本数（マストの頂部まで描くと足場の天端より上に繋ぐ先の無い壁つなぎが1段出ていた）
 	if showTie then
+		! 控えの先はいちばん近い足場の建地（tieList。壁つなぎの一覧と同じ建地）。無ければマストの正面
+		txm = mx[im]
+		for it = 1 to nTX
+			if it = 1 or abs(tieX[it] - mx[im]) < abs(txm - mx[im]) then txm = tieX[it]
+		next it
+		tdx = txm - mx[im]
+		tdy = -(my[im] + 0.075)
+		tLen = max(0.05, sqr(tdx ^ 2 + tdy ^ 2))
+		if abs(tdx) < 0.0001 then
+			tAng = 90
+		else
+			tAng = atn(tdy / tdx)
+			if tdx < 0 then tAng = tAng + 180
+		endif
 		zt = tieE
 		while zt < hoReach + 0.001 do
 			add mx[im], my[im] + 0.075, zt
-			rotx -90
-			cylind max(0.05, -(my[im] + 0.075)), 0.0243
-			del 2
+			rotz tAng
+			roty 90
+			cylind tLen, 0.0243
+			del 3
 			zt = zt + tieE
 		endwhile
 	endif

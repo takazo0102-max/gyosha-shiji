@@ -53,6 +53,10 @@
 			<Description><![CDATA["乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="tieList">
+			<Description><![CDATA["マスト控えを取る足場の建地（中心から面に沿って m、カンマ区切り。配置が入れる。空はマストの正面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="gateA">
 			<Description><![CDATA["乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）"]]></Description>
 			<Value>0</Value>

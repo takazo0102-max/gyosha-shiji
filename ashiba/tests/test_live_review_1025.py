@@ -50,7 +50,11 @@ class TestLongSpanHoist(unittest.TestCase):
         self.assertGreaterEqual(len(h.gate_spans(r.model)), 3)            # 4.6m の荷台は 3 スパンに掛かる
         xs = sorted({t.position_mm for t in r.model.wall_ties if t.kind == "hoist"})
         self.assertEqual(len(xs), 2)                                        # マスト2本の控え
-        self.assertAlmostEqual(xs[1] - xs[0], 4600 + 400)
+        # 控えは荷台の両端の外（±2500）にいちばん近い足場の建地に取る（2026-10-27: 建地の間の布材には取らない）
+        ep = r.model.plan.edges[0]
+        posts = [sum(ep.spans[:k]) for k in range(len(ep.spans) + 1)]
+        self.assertTrue(all(any(abs(x - p) < 0.5 for p in posts) for x in xs))
+        self.assertGreaterEqual(xs[1] - xs[0], 4600)
 
 
 class TestSteelTiesAtBeams(unittest.TestCase):
