@@ -182,6 +182,23 @@ class TestHoistInput(unittest.TestCase):
         self.assertTrue([c for c in r.conflicts if c.kind == "ブラケット区間×敷地境界"])
         self.assertFalse([c for c in run(1800).conflicts if c.kind == "ブラケット区間×敷地境界"])
 
+    def test_asagao_count_leaves_out_the_hoist_spans(self):
+        # 昇降機が通るスパンは朝顔を切り欠く（図の asaCutList と同じ）。数量からも引く
+        import json
+
+        spec = json.loads((ROOT / "examples" / "combo_nd1800.json").read_text(encoding="utf-8"))
+        from ashiba.cli import solve_groups
+
+        def body(sp):
+            r = solve_groups(sp)[0][1]
+            return sum(l.qty for l in r.quantity.lines if l.part.category == "朝顔" and "防護棚" in l.part.note), r
+
+        with_h, r = body(spec)
+        without_h, _ = body({k: v for k, v in spec.items() if k != "hoists"})
+        self.assertEqual(without_h - with_h, 4)                 # 西面 5487〜12803 の 4 スパン×1段
+        self.assertTrue([n for n in r.quantity.notes if "朝顔を切り欠くので、数量から引いています" in n])
+        self.assertTrue([c for c in r.conflicts if "切り欠いたスパンを引いています" in c.message])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

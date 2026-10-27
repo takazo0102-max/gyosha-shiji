@@ -59,7 +59,7 @@ def _asagao_conflicts(model: ScaffoldModel, hoists, stages) -> list[ConflictIssu
             f"{model.face_name(h.edge_index)}の昇降機{i + 1}（始点から{h.position_mm:.0f}mm）のマスト・搬器は"
             f"{label}{len(heights)}段（高さ{hs}mm）を貫きます。該当スパン（{rng}）の{label}は"
             f"切り欠き、その開口は昇降機メーカー仕様の防護で塞いでください"
-            f"（{label}の数量は切り欠き前の全スパンで計上しています）",
+            f"（{label}の数量は切り欠いたスパンを引いています）",
             basis,
         ))
     for i, st in enumerate(stages):

@@ -2547,8 +2547,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 昇り降りし、乗り込み口のフロアーゲートもシートの面（列から 60）に付く（2026-10-27 のループ）
     from .platforms import hoist_cut_ranges
 
-    model.sheet_cuts = {ep.edge_index: hoist_cut_ranges(model, ep.edge_index, platforms.hoists)
-                        for ep in model.plan.edges if platforms.hoists}
+    model.hoist_spans = {ep.edge_index: hoist_cut_ranges(model, ep.edge_index, platforms.hoists)
+                         for ep in model.plan.edges if platforms.hoists}
+    model.sheet_cuts = model.hoist_spans
+    # 朝顔も同じスパンを切り欠く（図の asaCutList と同じ。数量は quantity._asagao_minus_hoists）
     # 荷受けステージの間口は、ステージを置く層の作業床から手すりの高さまでシートの段を外す（ステージは外側の列の外へ
     # 張り出すので、張ったままでは足場の床とステージの間を塞ぐ）
     opens: dict = {}

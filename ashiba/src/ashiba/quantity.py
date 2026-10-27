@@ -1167,6 +1167,7 @@ def _count_asagao_parts(
             w_posts += k * (sum(flags) + sum(1 for i, f in enumerate(flags) if f and (i == 0 or not flags[i - 1])))
         span_counts, posts_per_line, stages = w_counts, w_posts, 1
         asagao = dataclasses.replace(asagao, stages=1)
+    span_counts, posts_per_line = _asagao_minus_hoists(model, span_counts, posts_per_line, own, asagao.stages, notes)
     if asagao.kind == ASAGAO_KIND_SAFE_WING:
         _count_safe_wing_parts(model, span_counts, posts_per_line, add, notes)
         return
@@ -1243,6 +1244,42 @@ def _count_asagao_parts(
 
     # 取付部の壁つなぎは ties.merge_attachment_ties で格子と同じ一覧に入れて
     # 数える（図面にも出る。同じ位置の格子の金具で兼ねる分は二重に数えない）
+
+
+def _asagao_minus_hoists(model: ScaffoldModel, span_counts: dict, posts_per_line: int, own: dict, stages: int,
+                         notes) -> tuple[dict, int]:
+    """昇降機のマスト・搬器が通るスパン（model.hoist_spans。図の asaCutList と同じ）は朝顔を切り欠くので、数量から引く
+    （2026-10-27 のループ: 衝突の注意は「切り欠く」と言いながら、数量は切り欠き前の全スパンだった）.
+
+    span_counts は段数を掛ける前（面ごとの段数で数え直したときは段数込み）。受けの支柱は切り欠きの両側に残るので、
+    切り欠いたスパンの数−1 だけ減らす（面の端まで切り欠くときも安全側に同じ）。
+    """
+    spans_by_edge = getattr(model, "hoist_spans", None) or {}
+    if not spans_by_edge:
+        return span_counts, posts_per_line
+    counts = dict(span_counts)
+    posts = posts_per_line
+    cut_txt = []
+    for e in model.plan.edges:
+        if not model.asagao_on(e.edge_index) or (model.edge_subset is not None and e.edge_index not in model.edge_subset):
+            continue
+        k = own.get(e.edge_index, stages) if own and any(v < stages for v in own.values()) else 1
+        for s0, e0 in spans_by_edge.get(e.edge_index, []):
+            x = 0.0
+            n = 0
+            for sp in e.spans:
+                mid = x + sp / 2.0
+                if s0 - 1.0 <= mid <= e0 + 1.0 and model.asagao_at(e.edge_index, mid) and counts.get(sp, 0) >= k:
+                    counts[sp] -= k
+                    n += 1
+                x += sp
+            if n:
+                posts -= k * max(0, n - 1)
+                cut_txt.append(f"{model.face_name(e.edge_index)} {s0:.0f}〜{e0:.0f}（{n}スパン）")
+    if cut_txt:
+        notes.append("昇降機が通るスパン（" + "・".join(cut_txt) + "）は朝顔を切り欠くので、数量から引いています"
+                     "（その開口は昇降機メーカー仕様の防護で塞ぐ）")
+    return {sp: n for sp, n in counts.items() if n > 0}, max(0, posts)
 
 
 def _asagao_faces_only(model: ScaffoldModel, span_counts: dict, posts_per_line: int):
