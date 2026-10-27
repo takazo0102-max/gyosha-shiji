@@ -2793,10 +2793,11 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         from .site_boundary import boundary_issues
 
         conflicts += boundary_issues(model, clearances, stair_plan)
-    if bnd and platforms.hoists:
-        from .site_boundary import hoist_boundary_issues
+    if bnd and (platforms.hoists or platforms.stages):
+        from .site_boundary import hoist_boundary_issues, stage_boundary_issues
 
         conflicts += hoist_boundary_issues(model, bnd, roads, platforms.hoists)
+        conflicts += stage_boundary_issues(model, bnd, roads, platforms.stages)
     # 法規チェックは階段配置と敷地の解を使う（昇降設備・ジャッキ繰出し）
     terrain = solve_post_feet(model, build_ground(spec))
     checks = run_all_checks(model, stair_plan=stair_plan, terrain=terrain)

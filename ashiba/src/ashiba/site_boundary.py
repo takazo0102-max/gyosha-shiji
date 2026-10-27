@@ -152,6 +152,55 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
     return out
 
 
+def _beyond(model: ScaffoldModel, boundary, road_edges, edge_index: int, ts, reach_out: float):
+    """面 edge_index の始点から ts の位置で、外側へ reach_out（内側建地の芯から）出した点が境界の外に出る最大量
+    → (越える量 mm, 道路境界か)。どれも内側なら None."""
+    ep = next((e for e in model.plan.edges if e.edge_index == edge_index), None)
+    if ep is None:
+        return None
+    (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+    L = math.hypot(ex - sx, ey - sy)
+    if L < 1.0:
+        return None
+    ux, uy = (ex - sx) / L, (ey - sy) / L
+    ox, oy = uy, -ux
+    segs = [(boundary[i], boundary[(i + 1) % len(boundary)], i) for i in range(len(boundary))]
+    worst = None
+    for t in ts:
+        p = (sx + ux * t + ox * reach_out, sy + uy * t + oy * reach_out)
+        if _inside(p, boundary):
+            continue
+        d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
+        if worst is None or d > worst[0]:
+            worst = (d, i in (road_edges or set()))
+    return worst
+
+
+def stage_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, float]], road_edges: Optional[set[int]],
+                          stages) -> list:
+    """荷受けステージの張り出し（外側建地から projection_mm。先端の侵入落下防止柵まで）が敷地境界を越えないか.
+    面の離れ（face_clearances）は足場の外側建地までしか見ない（2026-10-27 のループ）."""
+    from .conflicts import ConflictIssue
+
+    if len(boundary) < 3:
+        return []
+    row = float(model.post_row_spacing_mm)
+    out = []
+    for k, st in enumerate(stages):
+        a, b = float(st.start_mm), float(st.end_mm(model))
+        worst = _beyond(model, boundary, road_edges, st.edge_index, (a, (a + b) / 2.0, b), row + float(st.projection_mm))
+        if worst is None:
+            continue
+        side = "道路境界" if worst[1] else "隣地境界"
+        out.append(ConflictIssue(
+            "ステージ×敷地境界", "NG",
+            f"{model.face_name(st.edge_index)}の荷受けステージ{k + 1}（{a:.0f}〜{b:.0f}mm・出{st.projection_mm:.0f}）が"
+            f"{side}線を最大 {worst[0]:.0f}mm 越えます。"
+            + ("道路占用の許可を取るか、" if worst[1] else "隣地の承諾を取るか、") + "出の短いステージかほかの面にしてください",
+            "敷地境界（民法234条・道路法32条の道路占用）"))
+    return out
+
+
 def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, float]], road_edges: Optional[set[int]],
                           hoists) -> list:
     """昇降機の搬器・地上の昇降路の囲いが敷地境界を越えないか. 面の離れ（face_clearances）は足場の外側建地までしか
@@ -165,32 +214,15 @@ def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, floa
 
     if len(boundary) < 3:
         return []
-    road_edges = road_edges or set()
-    segs = [(boundary[i], boundary[(i + 1) % len(boundary)], i) for i in range(len(boundary))]
     row = float(model.post_row_spacing_mm)
     out = []
     for k, h in enumerate(hoists):
-        ep = next((e for e in model.plan.edges if e.edge_index == h.edge_index), None)
-        if ep is None:
-            continue
-        (sx, sy), (ex, ey) = ep.start_post, ep.end_post
-        L = math.hypot(ex - sx, ey - sy)
-        if L < 1.0:
-            continue
-        ux, uy = (ex - sx) / L, (ey - sy) / L
-        ox, oy = uy, -ux
         hm = h.spec
         depth = float(h.cage_depth_mm or 1300.0)
         reach_out = row + 100.0 + depth + HOIST_FENCE_GAP_MM + (650.0 if hm is not None and hm.masts == 1 else 0.0)
         half = float(h.cage_width_mm or HOIST_CAGE_W_MM) / 2.0 + HOIST_FENCE_GAP_MM
-        worst = None
-        for t in (h.position_mm - half, h.position_mm, h.position_mm + half):
-            p = (sx + ux * t + ox * reach_out, sy + uy * t + oy * reach_out)
-            if _inside(p, boundary):
-                continue
-            d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
-            if worst is None or d > worst[0]:
-                worst = (d, i in road_edges)
+        worst = _beyond(model, boundary, road_edges, h.edge_index,
+                        (h.position_mm - half, h.position_mm, h.position_mm + half), reach_out)
         if worst is None:
             continue
         side = "道路境界" if worst[1] else "隣地境界"
