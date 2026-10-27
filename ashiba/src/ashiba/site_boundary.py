@@ -248,7 +248,13 @@ def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, floa
     for k, h in enumerate(hoists):
         hm = h.spec
         depth = float(h.cage_depth_mm or 1300.0)
-        reach_out = row + 100.0 + depth + HOIST_FENCE_GAP_MM + (650.0 if hm is not None and hm.masts == 1 else 0.0)
+        # マスト1本の機種はマストが荷台の外に出る（工事用エレベーターの格子マスト 450・荷揚げ機は巻上げ機も外側。部品の fY と同じ）
+        extra = 0.0
+        if hm is not None and hm.kind == "荷揚げ機":
+            extra = 1100.0
+        elif hm is not None and hm.masts == 1:
+            extra = 650.0
+        reach_out = row + 100.0 + depth + HOIST_FENCE_GAP_MM + extra
         half = float(h.cage_width_mm or HOIST_CAGE_W_MM) / 2.0 + HOIST_FENCE_GAP_MM
         worst = _beyond(model, boundary, road_edges, h.edge_index,
                         (h.position_mm - half, h.position_mm, h.position_mm + half), reach_out)

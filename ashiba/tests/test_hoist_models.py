@@ -71,6 +71,20 @@ class TestHoistInput(unittest.TestCase):
         # 地上の昇降路の囲い（搬器の下への立入禁止）も手配に出す
         self.assertTrue([n for n in notes if "昇降路の囲い" in n and "立入禁止" in n])
 
+    def test_each_kind_is_drawn_in_its_own_shape(self):
+        # 利用者の指定 2026-10-27: ロングスパンの詳細度上げて何かわからない 全種類作ってね。種類ごとの形で描く
+        d1 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        kinds = {"ロングスパン": 1, "工事用エレベーター": 2, "荷揚げ機": 3}
+        for mid, m in load_hoist_models().items():
+            block = d1.split(f'if hoModel = "{mid}" then', 1)[1].split("endif", 1)[0]
+            self.assertIn(f"hoKind = {kinds[m.kind]}", block, mid)
+        for sub in ('"longSpanCage":', '"elevatorCage":', '"liftCage":', '"postMast":', '"latticeMast":'):
+            self.assertIn(sub, d3)
+        for word in ("ジャバラ扉", "駆動装置", "ガイドローラ", "頭上覆い", "格子マスト", "巻上げ機", "ラック"):
+            self.assertIn(word, d3)
+        self.assertIn("mx[2] = max(postSp / 2, cageL / 2 + mastW / 2 + 0.05)", d1)   # ポストは荷台の端の外
+
     def test_part_draws_the_ground_fence(self):
         d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         d2 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "2d.gdl").read_text(encoding="utf-8")

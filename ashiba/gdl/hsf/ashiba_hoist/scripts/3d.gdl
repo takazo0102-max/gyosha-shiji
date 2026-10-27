@@ -1,28 +1,51 @@
-﻿! 昇降機 3D: マスト（ベース・壁つなぎ）・荷台（床・手すり・頭上覆い）・各階のフロアーゲート
+﻿! 昇降機 3D（機種ごと。建機サービスの図面の形）: ロングスパン＝両端のラック付きポスト・桁の付いた長い荷台・足場側のジャバラ扉・
+! 両端の駆動部（駆動装置・ガイドローラ・金網・頭上覆い）。工事用エレベーター＝格子マスト・金網で囲った搬器・扉・屋根の上の
+! 駆動装置。荷揚げ機＝ガイドレール・昇降フレームの荷台・地上の巻上げ機とワイヤ。共通: マストの壁つなぎ・各階のフロアーゲート・
+! 渡し板・地上の昇降路の囲い
 resol 8
-if matCage > 0 then material matCage
+define material "hoist_steel" 2, 0.62, 0.64, 0.67
+define material "hoist_mach" 2, 0.93, 0.72, 0.10
+define material "hoist_deck" 2, 0.38, 0.40, 0.43
+define material "hoist_mesh" 0, 0.55, 0.58, 0.60, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
+mSt = IND(MATERIAL, "hoist_steel")
+if matCage > 0 then mSt = matCage
+mMc = IND(MATERIAL, "hoist_mach")
+mDk = IND(MATERIAL, "hoist_deck")
+mMs = IND(MATERIAL, "hoist_mesh")
 add 0, 0, zH
 rotz faceAng
 mastH = max(hoReach + 1.5, 3)
+zF = 0.30
+xL = -cageL / 2
+xR = cageL / 2
+
+! ---- マスト ----
 for im = 1 to nMast
-	! ベース
-	add mx[im] - 0.40, my[im] - 0.40, 0
-	block 0.80, 0.80, 0.12
+	material mSt
+	! 基礎（コンクリート台）と台板
+	add mx[im] - mastW / 2 - 0.30, my[im] - mastW / 2 - 0.30, -0.15
+	block mastW + 0.60, mastW + 0.60, 0.15
 	del 1
-	! マスト（ラック付きの角形。150 角）
-	add mx[im] - 0.075, my[im] - 0.075, 0.12
-	block 0.15, 0.15, mastH - 0.12
+	add mx[im] - mastW / 2 - 0.15, my[im] - mastW / 2 - 0.15, 0
+	block mastW + 0.30, mastW + 0.30, 0.02
 	del 1
-	! マストの壁つなぎ（足場の外側建地の列まで）。到達高さ（足場の天端）まで tieE ごと。数量（platforms: 到達高さ÷間隔）と
-	! 同じ本数（マストの頂部まで描くと足場の天端より上に繋ぐ先の無い壁つなぎが1段出ていた）
+	sd = 1
+	if mx[im] > 0.001 then sd = -1
+	if hoKind = 2 then
+		gosub "latticeMast"
+	else
+		gosub "postMast"
+	endif
+	! マストの壁つなぎ（足場の外側建地の列まで）。到達高さ（足場の天端）まで tieE ごと。数量（platforms: 到達高さ÷間隔）と同じ本数。
+	! 控えの先はいちばん近い足場の建地（tieList。壁つなぎの一覧と同じ建地）。無ければマストの正面
 	if showTie then
-		! 控えの先はいちばん近い足場の建地（tieList。壁つなぎの一覧と同じ建地）。無ければマストの正面
+		material mSt
 		txm = mx[im]
 		for it = 1 to nTX
 			if it = 1 or abs(tieX[it] - mx[im]) < abs(txm - mx[im]) then txm = tieX[it]
 		next it
 		tdx = txm - mx[im]
-		tdy = -(my[im] + 0.075)
+		tdy = -(my[im] + mastW / 2)
 		tLen = max(0.05, sqr(tdx ^ 2 + tdy ^ 2))
 		if abs(tdx) < 0.0001 then
 			tAng = 90
@@ -32,45 +55,28 @@ for im = 1 to nMast
 		endif
 		zt = tieE
 		while zt < hoReach + 0.001 do
-			add mx[im], my[im] + 0.075, zt
+			add mx[im], my[im] + mastW / 2, zt
 			rotz tAng
 			roty 90
 			cylind tLen, 0.0243
 			del 3
+			! 控えの取付金具（マスト側）
+			add mx[im] - 0.08, my[im] + mastW / 2, zt - 0.06
+			block 0.16, 0.02, 0.12
+			del 1
 			zt = zt + tieE
 		endwhile
 	endif
 next im
-! 荷台（いちばん下に止めた形）: 床・外側と両端の手すり（0.75・1.15）・頭上覆い
-zF = 0.30
-add -cageL / 2, yC1, zF
-block cageL, cageD, 0.06
-del 1
-for hr = 1 to 2
-	zr = zF + 0.35 + 0.40 * hr
-	add -cageL / 2, yC1 + 0.03, zr
-	roty 90
-	cylind cageL, 0.0243
-	del 2
-	for se = 0 to 1
-		add -cageL / 2 + se * cageL, yC1, zr
-		rotx -90
-		cylind cageD, 0.0243
-		del 2
-	next se
-next hr
-for cx = 0 to 1
-	for cy = 0 to 1
-		add -cageL / 2 + cx * cageL, yC1 + cy * cageD, zF
-		cylind 2.1, 0.0243
-		del 1
-	next cy
-next cx
-add -cageL / 2, yC1, zF + 2.1
-block cageL, cageD, 0.03
-del 1
-! フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦）。機種にフロアーゲートが
+
+! ---- 搬器（いちばん下に止めた形） ----
+if hoKind = 1 then gosub "longSpanCage"
+if hoKind = 2 then gosub "elevatorCage"
+if hoKind = 3 then gosub "liftCage"
+
+! ---- フロアーゲート（各階の乗り込み口。単管 φ48.6 の扉: 手すり 0.9・中桟 0.45・両端の縦・中の縦桟）。機種にフロアーゲートが
 ! 無ければ開閉式手すり（同じ高さの枠）。足場の線の部品は乗り込み口の固定の手すりを外すだけで、ここが防護を描く
+material mSt
 if showGate then
 	for il = 1 to nLand
 		for hr = 1 to 2
@@ -79,14 +85,32 @@ if showGate then
 			cylind gB - gA, 0.0243
 			del 2
 		next hr
-		for se = 0 to 1
-			add gA + se * (gB - gA), -0.04, landH[il]
-			cylind 1.0, 0.0243
+		nV = max(1, int((gB - gA) / 0.6 + 0.5))
+		for se = 0 to nV
+			add gA + se * (gB - gA) / nV, -0.04, landH[il]
+			if se = 0 or se = nV then
+				cylind 1.0, 0.0243
+			else
+				cylind 0.9, 0.012
+			endif
 			del 1
 		next se
+		! リミット付ロック装置（扉の端）
+		material mMc
+		add gB - 0.10, -0.08, landH[il] + 0.80
+		block 0.08, 0.06, 0.12
+		del 1
+		material mSt
 	next il
 endif
-! 地上の昇降路の囲い（足場側を除く3方。支柱・笠木・中桟・下桟。搬器の下への立入禁止）
+! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ）
+material mDk
+for il = 1 to nLand
+	add -gW / 2, yC0 - 0.15, landH[il] + 0.02
+	block gW, gapOut + 0.15, 0.03
+	del 1
+next il
+! 地上の昇降路の囲い（足場側を除く3方。支柱・笠木・中桟・下桟・金網。搬器の下への立入禁止）
 if showFence then
 	for ip = 1 to 3
 		if ip = 1 then
@@ -112,6 +136,7 @@ if showFence then
 		endif
 		fLen = sqr((px1 - px0) ^ 2 + (py1 - py0) ^ 2)
 		nP = max(1, int(fLen / 1.8 + 0.99))
+		material mSt
 		for k = 0 to nP
 			add px0 + (px1 - px0) * k / nP, py0 + (py1 - py0) * k / nP, 0
 			cylind 1.8, 0.0243
@@ -124,12 +149,402 @@ if showFence then
 			cylind fLen, 0.0243
 			del 3
 		next hr
+		material mMs
+		add px0, py0, 0.1
+		rotz fA
+		block fLen, 0.005, 1.7
+		del 2
 	next ip
 endif
-! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ。足場の外側建地の列から荷台の足場側の端の先 0.15 まで）
-for il = 1 to nLand
-	add -gW / 2, yC0 - 0.15, landH[il] + 0.02
-	block gW, gapOut + 0.15, 0.03
-	del 1
-next il
 del top
+end
+
+! ==== ロングスパンのラック付きポスト・荷揚げ機のガイドレール ====
+"postMast":
+	material mSt
+	add mx[im] - mastW / 2, my[im] - mastW / 2, 0.02
+	block mastW, mastW, mastH - 0.02
+	del 1
+	! 継手のフランジ（1.5m ごと）
+	zj = 1.5
+	while zj < mastH - 0.1 do
+		add mx[im] - mastW / 2 - 0.03, my[im] - mastW / 2 - 0.03, zj - 0.006
+		block mastW + 0.06, mastW + 0.06, 0.012
+		del 1
+		zj = zj + 1.5
+	endwhile
+	if hoKind = 1 then
+		! ラック（荷台の側の面。歯は 0.1 ごと）
+		rx = mx[im] + sd * mastW / 2
+		add rx + (sd - 1) / 2 * 0.02, my[im] - 0.03, 0.02
+		block 0.02, 0.06, mastH - 0.02
+		del 1
+		zr = 0.1
+		while zr < mastH - 0.05 do
+			add rx + sd * 0.02 + (sd - 1) / 2 * 0.015, my[im] - 0.03, zr
+			block 0.015, 0.06, 0.03
+			del 1
+			zr = zr + 0.1
+		endwhile
+	else
+		! 荷揚げ機: 頂部のシーブ（ワイヤの滑車）
+		material mMc
+		add mx[im] + 0.10, my[im] - 0.15, mastH - 0.20
+		rotx -90
+		cylind 0.30, 0.15
+		del 2
+	endif
+return
+
+! ==== 工事用エレベーターの格子マスト（450 角・主材4本・1508 ごとの横材と斜材・ラック） ====
+"latticeMast":
+	material mSt
+	hw = mastW / 2 - 0.03
+	for cx = -1 to 1 step 2
+		for cy = -1 to 1 step 2
+			add mx[im] + cx * hw, my[im] + cy * hw, 0.02
+			cylind mastH - 0.02, 0.03
+			del 1
+		next cy
+	next cx
+	nS = int(mastH / 1.508)
+	for is = 0 to nS
+		z0 = 0.02 + is * 1.508
+		for cy = -1 to 1 step 2
+			add mx[im] - hw, my[im] + cy * hw, z0
+			roty 90
+			cylind 2 * hw, 0.015
+			del 2
+		next cy
+		for cx = -1 to 1 step 2
+			add mx[im] + cx * hw, my[im] - hw, z0
+			rotx -90
+			cylind 2 * hw, 0.015
+			del 2
+		next cx
+		if is < nS then
+			dAng = atn(2 * hw / 1.508)
+			dLen = sqr((2 * hw) ^ 2 + 1.508 ^ 2)
+			for cy = -1 to 1 step 2
+				add mx[im] - hw, my[im] + cy * hw, z0
+				roty dAng
+				cylind dLen, 0.012
+				del 2
+			next cy
+			for cx = -1 to 1 step 2
+				add mx[im] + cx * hw, my[im] - hw, z0
+				rotx -dAng
+				cylind dLen, 0.012
+				del 2
+			next cx
+		endif
+	next is
+	! ラック（搬器の側の面）
+	add mx[im] - 0.03, my[im] + hw + 0.03, 0.02
+	block 0.06, 0.02, mastH - 0.02
+	del 1
+	zr = 0.1
+	while zr < mastH - 0.05 do
+		add mx[im] - 0.03, my[im] + hw + 0.05, zr
+		block 0.06, 0.015, 0.03
+		del 1
+		zr = zr + 0.1
+	endwhile
+return
+
+! ==== ロングスパンの搬器: 床（縞鋼板）・両側の桁・横桁・両端の駆動部・足場側のジャバラ扉・外側の手すり ====
+"longSpanCage":
+	material mDk
+	add xL, yC1, zF
+	block cageL, cageD, 0.04
+	del 1
+	material mSt
+	for sy = 0 to 1
+		add xL, yC1 + sy * (cageD - 0.075), zF - 0.20
+		block cageL, 0.075, 0.20
+		del 1
+	next sy
+	nb = max(2, int(cageL / 0.9))
+	for ib = 0 to nb
+		add xL + (cageL - 0.06) * ib / nb, yC1 + 0.075, zF - 0.12
+		block 0.06, cageD - 0.15, 0.12
+		del 1
+	next ib
+	eU = min(0.80, cageL * 0.16)
+	for se = -1 to 1 step 2
+		x0 = xL
+		if se > 0 then x0 = xR - eU
+		xo = xL
+		if se > 0 then xo = xR
+		! 駆動部の枠（4本の柱 2.0・上枠）
+		material mSt
+		for cx = 0 to 1
+			for cy = 0 to 1
+				add x0 + cx * (eU - 0.05), yC1 + cy * (cageD - 0.05), zF + 0.04
+				block 0.05, 0.05, 1.96
+				del 1
+			next cy
+		next cx
+		for cy = 0 to 1
+			add x0, yC1 + cy * (cageD - 0.05), zF + 1.95
+			block eU, 0.05, 0.05
+			del 1
+		next cy
+		for cx = 0 to 1
+			add x0 + cx * (eU - 0.05), yC1, zF + 1.95
+			block 0.05, cageD, 0.05
+			del 1
+		next cx
+		! 金網（外側の面と端の面）
+		material mMs
+		add x0 + 0.05, yC1 + 0.02, zF + 0.10
+		block eU - 0.10, 0.005, 1.80
+		del 1
+		add xo - (se + 1) / 2 * 0.025 + (1 - se) / 2 * 0.02, yC1 + 0.05, zF + 0.10
+		block 0.005, cageD - 0.10, 1.80
+		del 1
+		! 頭上覆い（両端の駆動部の上。KRD 形は荷台全体のヘッドガードを別に描く）
+		if roofMode = 1 then
+			material mSt
+			add x0 - 0.05, yC1 - 0.05, zF + 2.00
+			block eU + 0.10, cageD + 0.10, 0.04
+			del 1
+		endif
+		! 駆動装置（電動機・減速機。マストの側）
+		mxd = xo
+		for im2 = 1 to nMast
+			if abs(mx[im2] - xo) < abs(mxd - xo) + 0.001 then mxd = mx[im2]
+		next im2
+		material mMc
+		add mxd - se * (mastW / 2 + 0.32), yC1 + 0.15, zF + 0.55
+		rotx -90
+		cylind 0.45, 0.13
+		del 2
+		add mxd - se * (mastW / 2 + 0.32) - 0.15, yC1 + 0.60, zF + 0.40
+		block 0.30, 0.30, 0.35
+		del 1
+		! ガイドローラ（マストを挟む。上下2段）
+		material mSt
+		for zz = 1 to 2
+			zg = zF + 0.15
+			if zz = 2 then zg = zF + 1.65
+			add mxd - mastW / 2 - 0.08, my[1] - mastW / 2 - 0.08, zg
+			block mastW + 0.16, 0.04, 0.08
+			del 1
+			add mxd - mastW / 2 - 0.08, my[1] + mastW / 2 + 0.04, zg
+			block mastW + 0.16, 0.04, 0.08
+			del 1
+			for cx = -1 to 1 step 2
+				for cy = -1 to 1 step 2
+					add mxd + cx * (mastW / 2 + 0.035), my[1] + cy * (mastW / 2 - 0.03), zg - 0.02
+					cylind 0.12, 0.035
+					del 1
+				next cy
+			next cx
+			! ローラの腕（マストから駆動部の枠まで）
+			ra = min(mxd - se * (mastW / 2 + 0.08), x0 + eU / 2)
+			rb = max(mxd - se * (mastW / 2 + 0.08), x0 + eU / 2)
+			if rb - ra > 0.01 then
+				add ra, my[1] - 0.04, zg
+				block rb - ra, 0.08, 0.08
+				del 1
+			endif
+		next zz
+	next se
+	if roofMode = 2 then
+		! ヘッドガード（荷台全体）と中間の支柱
+		material mSt
+		add xL - 0.05, yC1 - 0.05, zF + 2.00
+		block cageL + 0.10, cageD + 0.10, 0.04
+		del 1
+		nM = max(1, int((cageL - 2 * eU) / 1.8))
+		for k = 1 to nM - 1
+			add xL + eU + (cageL - 2 * eU) * k / nM - 0.025, yC1, zF + 0.04
+			block 0.05, 0.05, 1.96
+			del 1
+		next k
+	endif
+	! 足場側のジャバラ扉（駆動部の間。上下のレール・中の縦桟・菱形の格子）
+	material mSt
+	xa = xL + eU
+	xb = xR - eU
+	yJ = yC0 - 0.03
+	for hr = 0 to 1
+		add xa, yJ, zF + 0.10 + hr * 1.35
+		roty 90
+		cylind xb - xa, 0.02
+		del 2
+	next hr
+	nV = max(1, int((xb - xa) / 1.5 + 0.5))
+	for k = 0 to nV
+		add xa + (xb - xa) * k / nV, yJ, zF + 0.04
+		cylind 1.45, 0.02
+		del 1
+	next k
+	nJ = max(2, int((xb - xa) / 0.32 + 0.5))
+	wJ = (xb - xa) / nJ
+	hJ = 1.35 / 3
+	jAng = atn(wJ / hJ)
+	jLen = sqr(wJ ^ 2 + hJ ^ 2)
+	for k = 0 to nJ - 1
+		for rr = 0 to 2
+			add xa + k * wJ, yJ, zF + 0.10 + rr * hJ
+			roty jAng
+			cylind jLen, 0.007
+			del 2
+			add xa + (k + 1) * wJ, yJ, zF + 0.10 + rr * hJ
+			roty -jAng
+			cylind jLen, 0.007
+			del 2
+		next rr
+	next k
+	! 外側の手すり（1.10・中桟 0.55・幅木 0.15。駆動部の間）
+	yO = yC1 + 0.03
+	for hr = 1 to 2
+		add xa, yO, zF + 0.55 * hr
+		roty 90
+		cylind xb - xa, 0.0243
+		del 2
+	next hr
+	for k = 0 to nV
+		add xa + (xb - xa) * k / nV, yO, zF + 0.04
+		cylind 1.10, 0.0243
+		del 1
+	next k
+	add xa, yC1, zF + 0.04
+	block xb - xa, 0.02, 0.15
+	del 1
+return
+
+! ==== 工事用エレベーターの搬器: 床・四隅の柱・金網の壁（外側・両端）・足場側の扉・屋根・屋根の上の駆動装置 ====
+"elevatorCage":
+	material mDk
+	add xL, yC1, zF
+	block cageL, cageD, 0.05
+	del 1
+	material mSt
+	add xL, yC1, zF - 0.18
+	block cageL, cageD, 0.18
+	del 1
+	for cx = 0 to 1
+		for cy = 0 to 1
+			add xL + cx * (cageL - 0.06), yC1 + cy * (cageD - 0.06), zF + 0.05
+			block 0.06, 0.06, 2.20
+			del 1
+		next cy
+	next cx
+	! 屋根（天井の救出口つき）
+	add xL, yC1, zF + 2.25
+	block cageL, cageD, 0.04
+	del 1
+	material mMs
+	add xL + 0.06, yC1 + 0.01, zF + 0.10
+	block cageL - 0.12, 0.005, 2.10
+	del 1
+	for se = 0 to 1
+		add xL + se * (cageL - 0.01), yC1 + 0.06, zF + 0.10
+		block 0.005, cageD - 0.12, 2.10
+		del 1
+	next se
+	! 足場側の扉（2枚引き戸の枠と金網・取っ手）
+	material mSt
+	for k = 0 to 2
+		add xL + 0.06 + k * (cageL - 0.12) / 2 - 0.02, yC0 - 0.05, zF + 0.05
+		block 0.04, 0.04, 2.10
+		del 1
+	next k
+	for hr = 0 to 1
+		add xL + 0.06, yC0 - 0.05, zF + 0.05 + hr * 2.06
+		block cageL - 0.12, 0.04, 0.04
+		del 1
+	next hr
+	material mMs
+	add xL + 0.08, yC0 - 0.035, zF + 0.10
+	block cageL - 0.16, 0.005, 2.00
+	del 1
+	material mMc
+	add -0.06, yC0 - 0.08, zF + 1.00
+	block 0.12, 0.03, 0.20
+	del 1
+	! 搬器とマストをつなぐ駆動枠（ピニオンでラックをかむ）と屋根の上の駆動装置
+	material mSt
+	add mx[1] - 0.35, my[1] + mastW / 2, zF - 0.18
+	block 0.70, yC1 - my[1] - mastW / 2, 0.10
+	del 1
+	add mx[1] - 0.35, my[1] + mastW / 2, zF + 2.15
+	block 0.70, yC1 - my[1] - mastW / 2, 0.10
+	del 1
+	material mMc
+	for k = -1 to 1 step 2
+		add mx[1] + k * 0.22, yC1 + 0.10, zF + 2.29
+		rotx -90
+		cylind 0.40, 0.12
+		del 2
+	next k
+	add mx[1] - 0.30, yC1 + 0.50, zF + 2.29
+	block 0.60, 0.30, 0.30
+	del 1
+	! 制御盤（搬器の中）
+	add xR - 0.40, yC1 + 0.05, zF + 0.90
+	block 0.30, 0.15, 0.50
+	del 1
+return
+
+! ==== 荷揚げ機の荷台: 昇降フレーム・荷台（床・3方の手すり）・地上の巻上げ機とワイヤ ====
+"liftCage":
+	material mDk
+	add xL, yC1, zF
+	block cageL, cageD, 0.04
+	del 1
+	material mSt
+	! 荷台の手すり（外側・両端。足場側は荷の出し入れで開ける）
+	for hr = 1 to 2
+		add xL, yC1 + 0.02, zF + 0.45 * hr
+		roty 90
+		cylind cageL, 0.02
+		del 2
+		for se = 0 to 1
+			add xL + se * cageL, yC1, zF + 0.45 * hr
+			rotx -90
+			cylind cageD, 0.02
+			del 2
+		next se
+	next hr
+	for cx = 0 to 1
+		for cy = 0 to 1
+			add xL + cx * cageL, yC1 + cy * cageD, zF
+			cylind 0.92, 0.02
+			del 1
+		next cy
+	next cx
+	! 昇降フレーム（ガイドレールを抱く縦枠）
+	for k = -1 to 1 step 2
+		add mx[1] + k * 0.25 - 0.03, my[1] + mastW / 2, zF - 0.10
+		block 0.06, yC1 - my[1] - mastW / 2, 1.30
+		del 1
+	next k
+	add mx[1] - 0.28, my[1] + mastW / 2, zF + 1.14
+	block 0.56, 0.06, 0.06
+	del 1
+	for k = -1 to 1 step 2
+		add mx[1] + k * (mastW / 2 + 0.03), my[1], zF
+		cylind 1.20, 0.025
+		del 1
+	next k
+	! 巻上げ機（地上。マストの外側）・ドラム・ワイヤ（巻上げ機から頂部のシーブへ上がり、昇降フレームへ下りる）
+	material mMc
+	add mx[1] - 0.35, my[1] - mastW / 2 - 0.65, 0
+	block 0.70, 0.50, 0.50
+	del 1
+	add mx[1] - 0.30, my[1] - mastW / 2 - 0.15, 0.25
+	roty 90
+	cylind 0.60, 0.18
+	del 2
+	material mSt
+	add mx[1] + 0.10, my[1] - mastW / 2 - 0.12, 0.40
+	cylind mastH - 0.60, 0.006
+	del 1
+	add mx[1] + 0.10, my[1] + 0.02, zF + 1.20
+	cylind mastH - zF - 1.40, 0.006
+	del 1
+return

@@ -6,12 +6,39 @@ pen pE
 rot2 faceAng
 ! 荷台
 rect2 -cageL / 2, yC1, cageL / 2, yC0
-line2 -cageL / 2, yC1, cageL / 2, yC0
-line2 -cageL / 2, yC0, cageL / 2, yC1
-! マスト
+if hoKind = 1 then
+	! ロングスパン: 両端の駆動部（×）と足場側のジャバラ扉（ジグザグ）
+	eU = min(0.80, cageL * 0.16)
+	for se = -1 to 1 step 2
+		x0 = -cageL / 2
+		if se > 0 then x0 = cageL / 2 - eU
+		rect2 x0, yC1, x0 + eU, yC0
+		line2 x0, yC1, x0 + eU, yC0
+		line2 x0, yC0, x0 + eU, yC1
+	next se
+	xa = -cageL / 2 + eU
+	xb = cageL / 2 - eU
+	nJ = max(2, int((xb - xa) / 0.32 + 0.5))
+	wJ = (xb - xa) / nJ
+	for k = 0 to nJ - 1
+		line2 xa + k * wJ, yC0, xa + (k + 0.5) * wJ, yC0 - 0.06
+		line2 xa + (k + 0.5) * wJ, yC0 - 0.06, xa + (k + 1) * wJ, yC0
+	next k
+else
+	! 工事用エレベーター・荷揚げ機: 荷台に×、工事用エレベーターは足場側の扉（太線）
+	line2 -cageL / 2, yC1, cageL / 2, yC0
+	line2 -cageL / 2, yC0, cageL / 2, yC1
+	if hoKind = 2 then rect2 -cageL / 2 + 0.06, yC0 - 0.05, cageL / 2 - 0.06, yC0 - 0.01
+endif
+! マスト（工事用エレベーターは格子マスト: 外形と内側の枠と×）
 for im = 1 to nMast
-	rect2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
-	line2 mx[im] - 0.10, my[im] - 0.10, mx[im] + 0.10, my[im] + 0.10
+	hw = mastW / 2
+	rect2 mx[im] - hw, my[im] - hw, mx[im] + hw, my[im] + hw
+	line2 mx[im] - hw, my[im] - hw, mx[im] + hw, my[im] + hw
+	if hoKind = 2 then
+		rect2 mx[im] - hw + 0.03, my[im] - hw + 0.03, mx[im] + hw - 0.03, my[im] + hw - 0.03
+		line2 mx[im] - hw, my[im] + hw, mx[im] + hw, my[im] - hw
+	endif
 next im
 ! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
 if showGate and nLand > 0 then

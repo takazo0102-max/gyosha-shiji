@@ -8,6 +8,9 @@ gateOpen = 0
 tieE = 3.6
 loadKg = 0
 hoName = hoModel
+! 種類（1＝ロングスパン・2＝工事用エレベーター・3＝荷揚げ機）と頭上覆い（1＝両端の駆動部だけ・2＝荷台全体のヘッドガード）
+hoKind = 1
+roofMode = 1
 if hoModel = "KSE600C" then
 	cageL = 3.3000
 	cageD = 1.1000
@@ -17,6 +20,8 @@ if hoModel = "KSE600C" then
 	tieE = 3.6000
 	loadKg = 600
 	hoName = "KSE600C 型 工事用エレベーター"
+	hoKind = 2
+	roofMode = 1
 endif
 if hoModel = "KSE600L" then
 	cageL = 3.3000
@@ -27,6 +32,8 @@ if hoModel = "KSE600L" then
 	tieE = 3.6000
 	loadKg = 600
 	hoName = "KSE600L 型 工事用エレベーター"
+	hoKind = 2
+	roofMode = 1
 endif
 if hoModel = "KSE900-3.6" then
 	cageL = 3.0000
@@ -37,6 +44,8 @@ if hoModel = "KSE900-3.6" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "KSE-900 3.6m 型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KSE900-5.4" then
 	cageL = 4.8000
@@ -47,6 +56,8 @@ if hoModel = "KSE900-5.4" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "KSE-900 5.4m 型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KSE900-7.2" then
 	cageL = 6.6000
@@ -57,6 +68,8 @@ if hoModel = "KSE900-7.2" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "KSE-900 7.2m 型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KSE900-3-3.6" then
 	cageL = 3.0000
@@ -67,6 +80,8 @@ if hoModel = "KSE900-3-3.6" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "KSE900-3 3.6m 型 ロングスパン（細幅）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KSE900-3-5.4" then
 	cageL = 4.8000
@@ -77,6 +92,8 @@ if hoModel = "KSE900-3-5.4" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "KSE900-3 5.4m 型 ロングスパン（細幅）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KSE-990" then
 	cageL = 4.8000
@@ -87,6 +104,8 @@ if hoModel = "KSE-990" then
 	tieE = 3.6000
 	loadKg = 990
 	hoName = "KSE-990 型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C2-3.6" then
 	cageL = 2.9700
@@ -97,6 +116,8 @@ if hoModel = "HSL-900C2-3.6" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900CⅡ 3.6m ロングスパン（ジャバラ手すり）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C2-4.5" then
 	cageL = 3.8700
@@ -107,6 +128,8 @@ if hoModel = "HSL-900C2-4.5" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900CⅡ 4.5m ロングスパン（ジャバラ手すり）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C2-5.4" then
 	cageL = 4.7700
@@ -117,6 +140,8 @@ if hoModel = "HSL-900C2-5.4" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900CⅡ 5.4m ロングスパン（ジャバラ手すり）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C2-6.3" then
 	cageL = 5.6700
@@ -127,6 +152,8 @@ if hoModel = "HSL-900C2-6.3" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900CⅡ 6.3m ロングスパン（ジャバラ手すり）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C2-7.2" then
 	cageL = 6.5700
@@ -137,6 +164,8 @@ if hoModel = "HSL-900C2-7.2" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900CⅡ 7.2m ロングスパン（ジャバラ手すり）"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C3-5.4" then
 	cageL = 4.9000
@@ -147,6 +176,8 @@ if hoModel = "HSL-900C3-5.4" then
 	tieE = 3.6000
 	loadKg = 800
 	hoName = "HSL-900CⅢ 5.4m ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900C3-7.2" then
 	cageL = 6.7000
@@ -157,6 +188,8 @@ if hoModel = "HSL-900C3-7.2" then
 	tieE = 3.6000
 	loadKg = 800
 	hoName = "HSL-900CⅢ 7.2m ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900B-5.4" then
 	cageL = 4.7700
@@ -167,6 +200,8 @@ if hoModel = "HSL-900B-5.4" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900B 5.4m ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL-900B-7.2" then
 	cageL = 6.5700
@@ -177,6 +212,8 @@ if hoModel = "HSL-900B-7.2" then
 	tieE = 3.6000
 	loadKg = 900
 	hoName = "HSL-900B 7.2m ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL950L2" then
 	cageL = 6.6980
@@ -187,6 +224,8 @@ if hoModel = "HSL950L2" then
 	tieE = 3.6000
 	loadKg = 950
 	hoName = "HSL950L2 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "HSL990L2" then
 	cageL = 4.8980
@@ -197,6 +236,8 @@ if hoModel = "HSL990L2" then
 	tieE = 3.6000
 	loadKg = 990
 	hoName = "HSL990L2 ロングスパン"
+	hoKind = 1
+	roofMode = 1
 endif
 if hoModel = "KRD800-5.4" then
 	cageL = 4.2000
@@ -207,6 +248,8 @@ if hoModel = "KRD800-5.4" then
 	tieE = 6.0000
 	loadKg = 800
 	hoName = "KRD-800 ローターデッキ 3スパン"
+	hoKind = 1
+	roofMode = 2
 endif
 if hoModel = "KRD800-7.2" then
 	cageL = 6.2400
@@ -217,6 +260,8 @@ if hoModel = "KRD800-7.2" then
 	tieE = 6.0000
 	loadKg = 800
 	hoName = "KRD-800 ローターデッキ 4スパン"
+	hoKind = 1
+	roofMode = 2
 endif
 if hoModel = "KRD950-5.4" then
 	cageL = 4.4400
@@ -227,6 +272,8 @@ if hoModel = "KRD950-5.4" then
 	tieE = 6.0000
 	loadKg = 950
 	hoName = "KRD-950 ローターデッキ 3スパン"
+	hoKind = 1
+	roofMode = 2
 endif
 if hoModel = "KRD950-7.2" then
 	cageL = 6.2400
@@ -237,6 +284,8 @@ if hoModel = "KRD950-7.2" then
 	tieE = 6.0000
 	loadKg = 950
 	hoName = "KRD-950 ローターデッキ 4スパン"
+	hoKind = 1
+	roofMode = 2
 endif
 if hoModel = "NSE800" then
 	cageL = 3.0200
@@ -247,6 +296,8 @@ if hoModel = "NSE800" then
 	tieE = 3.6000
 	loadKg = 800
 	hoName = "サンラック NSE-800 ロングスパン"
+	hoKind = 1
+	roofMode = 2
 endif
 if hoModel = "HCE990GL" then
 	cageL = 4.1600
@@ -257,6 +308,8 @@ if hoModel = "HCE990GL" then
 	tieE = 9.0000
 	loadKg = 990
 	hoName = "HCE990GL 工事用エレベーター"
+	hoKind = 2
+	roofMode = 1
 endif
 if hoModel = "SL-240B" then
 	cageL = 1.2800
@@ -267,6 +320,8 @@ if hoModel = "SL-240B" then
 	tieE = 3.0000
 	loadKg = 240
 	hoName = "SL-240B 荷揚げ機"
+	hoKind = 3
+	roofMode = 1
 endif
 if tieE < 1 then tieE = 3.6
 ! 乗り込む作業床の高さ（m）
@@ -307,19 +362,24 @@ while strlen(rest) > 0 and nTX < 8 do
 		tieX[nTX] = v
 	endif
 endwhile
-! マストの位置（ロングスパンは荷台の両端、それ以外は荷台の外側に1本）
+! マストの位置と太さ（ロングスパンは荷台の両端のラック付きポスト 150 角、工事用エレベーターは荷台の外側の格子マスト
+! 450 角、荷揚げ機は荷台の外側のガイドレール 120 角）
 yC0 = -gapOut
 yC1 = -gapOut - cageD
+mastW = 0.15
+if hoKind = 2 then mastW = 0.45
+if hoKind = 3 then mastW = 0.12
 dim mx[2]
 dim my[2]
 if nMast = 2 then
-	mx[1] = -postSp / 2
-	mx[2] = postSp / 2
+	! ポストは荷台の端の外に立つ（芯々が荷台の長さと同じ機種もポストの半分＋50 は外へ）
+	mx[2] = max(postSp / 2, cageL / 2 + mastW / 2 + 0.05)
+	mx[1] = -mx[2]
 	my[1] = (yC0 + yC1) / 2
 	my[2] = (yC0 + yC1) / 2
 else
 	mx[1] = 0
-	my[1] = yC1 - 0.25
+	my[1] = yC1 - mastW / 2 - 0.05
 endif
 ! フロアーゲートの幅（荷台の長さとゲートの有効開口の小さい方）
 gW = cageL
@@ -329,8 +389,10 @@ fX = cageL / 2 + 0.3
 fY = yC1 - 0.3
 for im = 1 to nMast
 	fX = max(fX, abs(mx[im]) + 0.4)
-	fY = min(fY, my[im] - 0.4)
+	fY = min(fY, my[im] - mastW / 2 - 0.3)
 next im
+! 荷揚げ機は巻上げ機がマストの外側に出るので、囲いもその外まで
+if hoKind = 3 then fY = fY - 0.6
 ! 乗り込み口（足場の手すりを外したスパン）。フロアーゲート・開閉式手すりはこの幅いっぱいに付けて開口を残さない
 gA = -gW / 2
 gB = gW / 2
