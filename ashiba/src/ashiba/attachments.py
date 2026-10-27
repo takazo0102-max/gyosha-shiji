@@ -526,13 +526,16 @@ def sheet_segments(model: ScaffoldModel, ep, stair_plan=None) -> list[tuple[floa
     off = float(model.post_row_spacing_mm) + SHEET_GAP_MM
     cuts = []
     if stair_plan is not None and getattr(stair_plan, "outside", False):
-        cuts = sorted((t.start_mm, t.end_mm) for t in stair_plan.towers if t.edge_index == ep.edge_index)
+        cuts = sorted((t.start_mm, t.end_mm, True) for t in stair_plan.towers if t.edge_index == ep.edge_index)
+    # 昇降機の乗り込み口のスパンは張らない（model.sheet_cuts。荷台が通り、フロアーゲートが付く）
+    cuts = sorted(cuts + [(s0, e0, False) for s0, e0 in (getattr(model, "sheet_cuts", None) or {}).get(ep.edge_index, [])])
     out = []
     cur = x0
-    for s0, e0 in cuts:
+    for s0, e0, tower in cuts:
         if s0 > cur:
             out.append((cur, s0, off))
-        out.append((s0, e0, off + float(model.post_row_spacing_mm)))
+        if tower:
+            out.append((s0, e0, off + float(model.post_row_spacing_mm)))
         cur = max(cur, e0)
     if x1 > cur:
         out.append((cur, x1, off))

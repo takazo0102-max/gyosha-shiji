@@ -75,6 +75,23 @@ class TestHoistInput(unittest.TestCase):
         self.assertIn("line2 -fX, fY, fX, fY", d2)
         self.assertNotIn("atn2", d3)                 # GDL に atn2 は無い
 
+    def test_sheet_is_left_off_the_hoist_spans(self):
+        # 乗り込み口のスパン（荷台の長さに掛かるスパン）は外部シートを張らない。数量の注記にも出す
+        from ashiba.attachments import sheet_panels, sheet_segments
+        from ashiba.platforms import hoist_cut_ranges
+
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4"}]})
+        ep = r.model.plan.edges[0]
+        (c0, c1), = hoist_cut_ranges(r.model, 0, r.platforms.hoists)
+        segs = sheet_segments(r.model, ep, r.stair_plan)
+        self.assertFalse([s for s in segs if s[0] < c1 - 1 and s[1] > c0 + 1])
+        self.assertFalse([p for ps in sheet_panels(r.model, ep, r.stair_plan) for p in ps if p[0] < c1 - 1 and p[1] > c0 + 1])
+        self.assertTrue([n for n in r.quantity.notes if "乗り込み口のスパン" in n and f"{c0:.0f}〜{c1:.0f}" in n])
+        plain = solve_all(BOX)
+        covered = sum(min(s[1], c1) - max(s[0], c0) for s in sheet_segments(plain.model, plain.model.plan.edges[0],
+                                                                          plain.stair_plan) if s[0] < c1 and s[1] > c0)
+        self.assertAlmostEqual(covered, c1 - c0, delta=1)            # 昇降機が無ければ同じ区間に張る
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

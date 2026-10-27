@@ -2542,6 +2542,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
     # 取付部（朝顔・ステージ）の壁つなぎも最適化の検定に載せるため、付帯設備を先に解く
     platforms = validate_platforms(model, *build_platforms(spec))
+    # 昇降機の乗り込み口のスパン（荷台の長さに掛かるスパン）は外部シートを張らない: 荷台は外側建地の列から 100 の外を
+    # 昇り降りし、乗り込み口のフロアーゲートもシートの面（列から 60）に付く（2026-10-27 のループ）
+    from .platforms import hoist_cut_ranges
+
+    model.sheet_cuts = {ep.edge_index: hoist_cut_ranges(model, ep.edge_index, platforms.hoists)
+                        for ep in model.plan.edges if platforms.hoists}
     # 敷地の高低差で低い側の足場が伸びる実高さ（朝顔の段数・壁つなぎの風荷重は判定・検定と同じ実高さで決める）
     h_act = None
     if spec.get("ground_points_mm"):
