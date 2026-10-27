@@ -152,6 +152,57 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
     return out
 
 
+def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, float]], road_edges: Optional[set[int]],
+                          hoists) -> list:
+    """昇降機の搬器・地上の昇降路の囲いが敷地境界を越えないか. 面の離れ（face_clearances）は足場の外側建地までしか
+    見ないので、足場の外へさらに 1.5m 前後出る昇降機は別に見る（2026-10-27 のループ）.
+
+    外端＝外側建地の芯＋荷台までのあき 100＋荷台の奥行＋囲いのあき 300（マスト1本の機種はマストが荷台の外に出る分
+    650 を足す。部品 ashiba_hoist の fY と同じ）。面に沿っては荷台の長さ＋囲いのあき 300 ずつ。
+    """
+    from .conflicts import ConflictIssue
+    from .platforms import HOIST_CAGE_W_MM, HOIST_FENCE_GAP_MM
+
+    if len(boundary) < 3:
+        return []
+    road_edges = road_edges or set()
+    segs = [(boundary[i], boundary[(i + 1) % len(boundary)], i) for i in range(len(boundary))]
+    row = float(model.post_row_spacing_mm)
+    out = []
+    for k, h in enumerate(hoists):
+        ep = next((e for e in model.plan.edges if e.edge_index == h.edge_index), None)
+        if ep is None:
+            continue
+        (sx, sy), (ex, ey) = ep.start_post, ep.end_post
+        L = math.hypot(ex - sx, ey - sy)
+        if L < 1.0:
+            continue
+        ux, uy = (ex - sx) / L, (ey - sy) / L
+        ox, oy = uy, -ux
+        hm = h.spec
+        depth = float(h.cage_depth_mm or 1300.0)
+        reach_out = row + 100.0 + depth + HOIST_FENCE_GAP_MM + (650.0 if hm is not None and hm.masts == 1 else 0.0)
+        half = float(h.cage_width_mm or HOIST_CAGE_W_MM) / 2.0 + HOIST_FENCE_GAP_MM
+        worst = None
+        for t in (h.position_mm - half, h.position_mm, h.position_mm + half):
+            p = (sx + ux * t + ox * reach_out, sy + uy * t + oy * reach_out)
+            if _inside(p, boundary):
+                continue
+            d, i = min((_seg_dist(p, a, b), i) for a, b, i in segs)
+            if worst is None or d > worst[0]:
+                worst = (d, i in road_edges)
+        if worst is None:
+            continue
+        side = "道路境界" if worst[1] else "隣地境界"
+        out.append(ConflictIssue(
+            "昇降機×敷地境界", "NG",
+            f"{model.face_name(h.edge_index)}の昇降機{k + 1}（始点から{h.position_mm:.0f}mm）の搬器・地上の昇降路の囲いが"
+            f"{side}線を最大 {worst[0]:.0f}mm 越えます（足場の外側建地から {reach_out - row:.0f}mm 外まで出る）。"
+            + ("道路占用の許可を取るか、" if worst[1] else "") + "昇降機をほかの面か、境界まで余裕のある位置に移してください",
+            "敷地境界（民法234条・道路法32条の道路占用）"))
+    return out
+
+
 def _inside(pt, poly) -> bool:
     x, y = pt
     inside = False

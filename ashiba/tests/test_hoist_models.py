@@ -147,6 +147,17 @@ class TestHoistInput(unittest.TestCase):
         off = solve_all({**BOX, **ho, "loading_stages": [{"edge_index": 0, "start_mm": 9145, "span_count": 2, "levels": [3]}]})
         self.assertFalse([c for c in off.conflicts if c.kind == "昇降機×ステージ"])
 
+    def test_hoist_over_the_site_boundary_is_ng(self):
+        # 足場は境界に収まっても、搬器・地上の囲い（足場の外へ 1.4m 前後）が越えれば NG。余裕があれば出さない
+        def run(south):
+            bnd = [[-3000, -south], [15000, -south], [15000, 11000], [-3000, 11000]]
+            return solve_all({**BOX, "site_boundary_mm": bnd,
+                              "hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4"}]})
+
+        near = [c for c in run(1500).conflicts if c.kind == "昇降機×敷地境界"]
+        self.assertTrue(near and near[0].severity == "NG")
+        self.assertFalse([c for c in run(3500).conflicts if c.kind == "昇降機×敷地境界"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
