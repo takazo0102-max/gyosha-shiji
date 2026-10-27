@@ -201,6 +201,35 @@ def stage_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, floa
     return out
 
 
+def bracket_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, float]], road_edges: Optional[set[int]],
+                            sections) -> list:
+    """外へ張り出すブラケット区間（外側建地から呼び寸法＋外縁の手すりの支柱）が敷地境界を越えないか（2026-10-27 の
+    ループ: 面の離れは外側建地までしか見ていなかった）."""
+    from .brackets import OUTER
+    from .conflicts import ConflictIssue
+
+    if len(boundary) < 3:
+        return []
+    row = float(model.post_row_spacing_mm)
+    out = []
+    for k, b in enumerate(sections or []):
+        if getattr(b, "direction", None) != OUTER:
+            continue
+        a, e = float(b.start_mm), float(b.end_mm)
+        worst = _beyond(model, boundary, road_edges, b.edge_index, (a, (a + e) / 2.0, e),
+                        row + float(b.width) + POST_R_MM)
+        if worst is None:
+            continue
+        side = "道路境界" if worst[1] else "隣地境界"
+        out.append(ConflictIssue(
+            "ブラケット区間×敷地境界", "NG",
+            f"{model.face_name(b.edge_index)}の張出しブラケット区間{k + 1}（{a:.0f}〜{e:.0f}mm・{b.width}）が"
+            f"{side}線を最大 {worst[0]:.0f}mm 越えます。"
+            + ("道路占用の許可を取るか、" if worst[1] else "隣地の承諾を取るか、") + "張出しを短くするか内側に替えてください",
+            "敷地境界（民法234条・道路法32条の道路占用）"))
+    return out
+
+
 def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, float]], road_edges: Optional[set[int]],
                           hoists) -> list:
     """昇降機の搬器・地上の昇降路の囲いが敷地境界を越えないか. 面の離れ（face_clearances）は足場の外側建地までしか

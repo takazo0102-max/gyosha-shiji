@@ -170,6 +170,18 @@ class TestHoistInput(unittest.TestCase):
         self.assertTrue([c for c in r.conflicts if c.kind == "ステージ×敷地境界"])
         self.assertFalse([c for c in run(4000).conflicts if c.kind == "ステージ×敷地境界"])
 
+    def test_outer_bracket_over_the_site_boundary_is_ng(self):
+        # 張出しブラケットの床（外側建地から 610）も境界を越えれば NG。足場だけなら収まる敷地
+        def run(south):
+            bnd = [[-3000, -south], [15000, -south], [15000, 11000], [-3000, 11000]]
+            return solve_all({**BOX, "site_boundary_mm": bnd, "bracket_sections": [
+                {"edge_index": 0, "start_mm": 3658, "end_mm": 7316, "direction": "張出", "width": 610, "levels": [3]}]})
+
+        r = run(1300)
+        self.assertFalse([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"])
+        self.assertTrue([c for c in r.conflicts if c.kind == "ブラケット区間×敷地境界"])
+        self.assertFalse([c for c in run(1800).conflicts if c.kind == "ブラケット区間×敷地境界"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
