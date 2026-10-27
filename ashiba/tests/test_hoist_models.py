@@ -296,6 +296,21 @@ class TestHoistInput(unittest.TestCase):
         self.assertIn("梁枠（2・3スパン）が掛からず別計画", report("SEL-950LK-7.2F"))
         self.assertIn("荷取り床: 外側建地から腕で受ける", report("SEC-700-F"))
 
+    def test_cage_barely_touching_a_span_does_not_open_it(self):
+        # 1850 の搬器がスパン 1829 の両隣に 10 ずつ掛かるだけで 3 スパン（5.5m）の手すりを外していた。扉は荷台の端より
+        # 内側なので、150 以下しか掛からないスパンは開けない
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-980HS", "landing_levels": [2]}]})
+        self.assertEqual(r.platforms.hoists[0].gate_spans(r.model), [2])
+        self.assertFalse([x for x in r.platforms.issues if "広く、両端" in x.message])
+
+    def test_gate_warning_names_the_position_that_fits(self):
+        # 3m の搬器をスパンの中央に置くと 3 スパン開く。建地の芯に置けば 2 スパンでゲートに収まるので、その位置を示す
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "DECK-3.0-F", "landing_levels": [2]}]})
+        msg = [x.message for x in r.platforms.issues if "広く、両端" in x.message]
+        self.assertTrue(msg and "3658mm にずらせば2スパン" in msg[0], msg)
+        ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 3658, "model": "DECK-3.0-F", "landing_levels": [2]}]})
+        self.assertFalse([x for x in ok.platforms.issues if "広く、両端" in x.message])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
@@ -303,7 +318,8 @@ class TestHoistInput(unittest.TestCase):
             solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "XYZ"}]})
 
     def test_placement_sits_on_the_outer_row(self):
-        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE-990",
+        # 枠組の両端が建地に乗る位置（3スパン 1829〜7316 の中央）
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE-990",
                                           "landing_levels": [3]}]})
         pls = hoist_placements(r.model, r.platforms)
         self.assertEqual(len(pls), 1)

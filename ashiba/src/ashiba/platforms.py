@@ -76,6 +76,7 @@ class LoadingStage:
 HOIST_FENCE_GAP_MM = 300.0  # 地上の昇降路の囲いと荷台のあき
 HOIST_FENCE_H_MM = 1800.0    # 地上の昇降路の囲いの高さ
 HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
+GATE_MIN_OVERLAP_MM = 150.0  # 荷台がこれ以下しか掛からないスパンは乗り込み口にしない
 HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
 
 
@@ -107,8 +108,11 @@ class Hoist:
         posts = [0.0]
         for sp in edge.spans:
             posts.append(posts[-1] + float(sp))
+        # 荷台の端がスパンに少し掛かるだけ（搬器の枠の厚み程度）なら、そのスパンの手すりは外さない。乗り込む扉は荷台の
+        # 端より内側にある。1850 の搬器が 1829 のスパンの両隣に 10 ずつ掛かって 3 スパン（5.5m）も開けていた
+        lo, hi = self.position_mm - half, self.position_mm + half
         return [k for k in range(len(edge.spans))
-                if posts[k] < self.position_mm + half - 1.0 and posts[k + 1] > self.position_mm - half + 1.0]
+                if min(posts[k + 1], hi) - max(posts[k], lo) > GATE_MIN_OVERLAP_MM]
 
     @property
     def spec(self):
@@ -199,6 +203,33 @@ def frame_center(model: ScaffoldModel, h) -> Optional[float]:
     if not runs:
         return None
     return min((c for _i, _j, c in runs), key=lambda c: abs(c - h.position_mm))
+
+
+def _gate_fit_position(model: ScaffoldModel, h, limit_mm: float) -> Optional[tuple[float, int, float]]:
+    """乗り込み口の開口（手すりを外すスパンの合計）が limit_mm 以下になる位置 → (位置, スパン数, 開口). いちばん近いもの.
+
+    候補は建地の芯とスパンの中央（荷台の中心をそこに合わせる）。荷台が面からはみ出す位置は採らない。ロングスパンで
+    枠組を建地に乗せる位置が決まっている機種は、その位置しか取れないので探さない（frame_center の指摘に任せる）。
+    """
+    from dataclasses import replace
+
+    edge = _edge(model, h.edge_index)
+    hm = h.spec
+    if edge is None or not edge.spans or (hm is not None and hm.kind == "ロングスパン" and hm.frame_span_mm > 0):
+        return None
+    posts = [0.0]
+    for sp in edge.spans:
+        posts.append(posts[-1] + float(sp))
+    half = float(h.cage_width_mm or HOIST_CAGE_W_MM) / 2.0
+    cands = sorted(set(posts) | {(a + b) / 2.0 for a, b in zip(posts, posts[1:])}, key=lambda c: abs(c - h.position_mm))
+    for c in cands:
+        if c - half < 0 or c + half > posts[-1]:
+            continue
+        gs = replace(h, position_mm=c).gate_spans(model)
+        opening = sum(float(edge.spans[k]) for k in gs)
+        if gs and opening <= limit_mm:
+            return c, len(gs), opening
+    return None
 
 
 def _span_index(edge, position_mm: float) -> int:
@@ -436,11 +467,17 @@ def validate_platforms(
             opening = sum(float(edge.spans[k]) for k in gs)
             # 片側 100 までは単管クランプの掛かり（建地への留め位置）で納まる。インチの 4 スパン 7316 に 7.2 スパンは片側 58
             if fg and opening > fg["span_mm"] + 200.0:
+                # ずらせばゲートの幅に収まる位置（建地の芯か、スパンの中央）を探して示す
+                better = _gate_fit_position(model, h, fg["span_mm"] + 200.0)
+                move = (f"昇降機の位置を{h.position_mm:.0f}mm から {better[0]:.0f}mm にずらせば{better[1]}スパン"
+                        f"（{better[2]:.0f}mm）に収まります。" if better is not None
+                        else "枠組を建地に乗せる位置は動かせません。" if hm.kind == "ロングスパン" and hm.frame_span_mm > 0
+                        else "昇降機の位置をずらしてもスパンは減りません。")
                 result.issues.append(PlatformIssue(
                     "昇降機", i, "WARN",
                     f"乗り込み口の開口{opening:.0f}mm（{len(gs)}スパン）が{fg['name']}の幅{fg['span_mm']:.0f}mmより"
                     f"広く、両端に{(opening - fg['span_mm']) / 2:.0f}mmずつ手すりの無いすき間が残ります。"
-                    "昇降機の位置をずらしてスパンを減らすか、残りを単管の手すりで塞いでください",
+                    + move + "ずらせなければ残りを単管の手すりで塞いでください",
                     "安衛則第519条（開口部の囲い）"))
         # ロングスパンは足場の建枠の間に組む。枠組の両端が建地に乗る位置でないと、ガーダ（荷台の受け）が掛からない
         if hm is not None and hm.kind == "ロングスパン" and hm.frame_span_mm > 0:
