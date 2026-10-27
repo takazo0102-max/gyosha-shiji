@@ -41,12 +41,14 @@ def paramlist(first: str) -> str:
         _param("Length", "hoReach", "到達高さ（マストの頂部の目安。配置で足場の天端を入れる）", 10),
         _param("Length", "gapOut", "足場の外側建地の列から荷台までのあき", 0.1),
         _param("Length", "rowSp", "足場の内外の建地の間隔（配置が入れる。荷取りステージの内側の梁枠の位置）", 0.9),
-        _param("String", "landLevels", "乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）", ""),
+        _param("Boolean", "hoInside", "足場の幅の中に据える（914。昇降路の足場を抜いた中。外す＝外付け）", 0),
+        _param("String", "landLevels", "乗り込む所の番号（カンマ区切り「2,5」。ロングスパンの昇降路は建物のフロアの番号＝下から1,2,…、ほかは足場の作業層。空は全部）", ""),
         _param("String", "landList", "乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）", ""),
         _param("String", "tieList", "マスト控えを取る足場の建地（中心から面に沿って m、カンマ区切り。配置が入れる。空はマストの正面）", ""),
         _param("Length", "gateA", "乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）", 0),
         _param("Length", "gateB", "乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）", 0),
         _param("Boolean", "showGate", "乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く", 1),
+        _param("Boolean", "stObj", "荷取りステージとフロアーゲートは別の部品（ashiba_hstage）が描く（配置が入れる）", 0),
         _param("Boolean", "showTie", "マストの壁つなぎを描く", 1),
         _param("Boolean", "showFence", "地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く", 1),
         "\t\t<Material Name=\"matCage\">\n\t\t\t<Description><![CDATA[\"荷台・マストの材質\"]]></Description>\n"
@@ -187,6 +189,26 @@ def master(models) -> str:
         "\tgA = gateA",
         "\tgB = gateB",
         "endif",
+        "! フロアーゲートの面（外付けは足場の外側建地の列）",
+        "yG = -0.05",
+        "! 足場の幅の中に据える（利用者の指定 2026-10-28: 中に914幅で入れる）: 荷台を足場の幅の中央へ寄せ、ロングスパンの",
+        "! マストは昇降路の両横の足場の端の建地のすぐ内に立てる（枠組間隔の中）。乗り込み口は荷台の躯体側",
+        "if hoInside then",
+        "\tdyI = rowSp / 2 + cageD / 2 - yC0",
+        "\tyC0 = yC0 + dyI",
+        "\tyC1 = yC1 + dyI",
+        "\tfor im = 1 to nMast",
+        "\t\tmy[im] = my[im] + dyI",
+        "\tnext im",
+        "\tif hoKind = 1 and nMast = 2 then",
+        "\t\tmx[1] = gA + mastW / 2 + 0.10",
+        "\t\tmx[2] = gB - mastW / 2 - 0.10",
+        "\t\tmy[1] = rowSp / 2",
+        "\t\tmy[2] = rowSp / 2",
+        "\tendif",
+        "\tyG = yC0 + 0.03 + 0.05",
+        "\tfY = min(yC1, 0) - 0.3",
+        "endif",
     ]
     return "﻿" + "\n".join(lines) + "\n"
 
@@ -234,15 +256,15 @@ for im = 1 to nMast
 	endif
 next im
 ! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
-if showGate and nLand > 0 then
+if showGate and nLand > 0 and stObj = 0 then
 	rect2 gA, -0.06, gB, -0.02
 endif
 ! 地上の昇降路の囲い（破線。足場側を除く3方）
 if showFence then
 	line_type "Dashed"
-	line2 -fX, yC0, -fX, fY
+	if hoInside = 0 then line2 -fX, yC0, -fX, fY
 	line2 -fX, fY, fX, fY
-	line2 fX, fY, fX, yC0
+	if hoInside = 0 then line2 fX, fY, fX, yC0
 	line_type 1
 endif
 hotspot2 0, 0
@@ -269,11 +291,13 @@ define material "hoist_steel" 2, 0.62, 0.64, 0.67
 define material "hoist_mach" 2, 0.93, 0.72, 0.10
 define material "hoist_deck" 2, 0.38, 0.40, 0.43
 define material "hoist_mesh" 0, 0.55, 0.58, 0.60, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
+define material "hoist_wood" 2, 0.74, 0.56, 0.36
 mSt = IND(MATERIAL, "hoist_steel")
 if matCage > 0 then mSt = matCage
 mMc = IND(MATERIAL, "hoist_mach")
 mDk = IND(MATERIAL, "hoist_deck")
 mMs = IND(MATERIAL, "hoist_mesh")
+mWd = IND(MATERIAL, "hoist_wood")
 add 0, 0, zH
 rotz faceAng
 mastH = max(hoReach + 1.5, 3)
@@ -315,7 +339,45 @@ for im = 1 to nMast
 			tAng = atn(tdy / tdx)
 			if tdx < 0 then tAng = tAng + 180
 		endif
-		if hoKind = 1 and nMast = 2 then
+		if hoKind = 1 and nMast = 2 and hoInside then
+			! 足場の幅の中に据えたとき: マストは昇降路の横の足場の端の建地のすぐ内。足場の内外の列の外に単管を横引き2段
+			! （端の建地からマストの先まで）、縦の単管2列（内外の列の線）を横引きに留め、マストを縦の単管の間に渡した
+			! 金具で固定する（利用者の図: 内外の列の間にマストの取付け材）
+			sg = 1
+			if txm < mx[im] then sg = -1
+			xA = txm + sg * 0.05
+			xB = mx[im] - sg * (mastW / 2 + 0.08)
+			for rw = 0 to 1
+				yr = -0.06 + rw * (rowSp + 0.12)
+				add mx[im], yr + (1 - 2 * rw) * 0.049, 0.10
+				cylind mastH - 0.10, 0.0243
+				del 1
+			next rw
+			zt = tieE
+			while zt < hoReach + 0.001 do
+				for t2 = 0 to 1
+					zh = zt - 0.25 + t2 * 0.50
+					for rw = 0 to 1
+						yr = -0.06 + rw * (rowSp + 0.12)
+						add min(xA, xB), yr, zh
+						roty 90
+						cylind abs(xB - xA), 0.0243
+						del 2
+						add txm - 0.04, yr - 0.04, zh - 0.04
+						block 0.08, 0.08, 0.08
+						del 1
+						add mx[im] - 0.04, yr - 0.04, zh - 0.04
+						block 0.08, 0.08, 0.08
+						del 1
+					next rw
+					add mx[im] - 0.03, -0.01, zh - 0.05
+					block 0.06, rowSp + 0.02, 0.10
+					del 1
+				next t2
+				zt = zt + tieE
+			endwhile
+		endif
+		if hoKind = 1 and nMast = 2 and hoInside = 0 then
 			! ロングスパンのマストの固定（利用者の指定 2026-10-28: マストは支柱の外に単管を横引き2段、縦の単管を2列配置して
 			! マストと固定する）: 昇降路の横の足場の端の建地（内外）に単管を直交クランプで留めて外（マストの側）へ横に引き、
 			! 上下2段。その先にマストを挟む縦の単管を2列（マストの前後）立てて横引きに留め、マストを縦の単管に固定する
@@ -355,7 +417,8 @@ for im = 1 to nMast
 				next t2
 				zt = zt + tieE
 			endwhile
-		else
+		endif
+		if not(hoKind = 1 and nMast = 2) then
 			zt = tieE
 			while zt < hoReach + 0.001 do
 				add mx[im], my[im] + mastW / 2, zt
@@ -381,7 +444,7 @@ if hoKind = 3 then gosub "liftCage"
 ! ---- フロアーゲート（各階の乗り込み口）: アコーディオン式（ひし形の格子2段・高さ 1250・縦材のキャスター）。片端を足場の
 ! 建地にクランプで留め、反対の端にリミット付ロック装置（建機サービス Floor-gate の図・イーステック ステージガード C型と同じ形）。
 ! 機種にフロアーゲートが無ければ開閉式手すり（同じ形で描く）。足場の線の部品は乗り込み口の固定の手すりを外すだけ
-if showGate then
+if showGate and stObj = 0 then
 	for il = 1 to nLand
 		zg0 = landH[il] + 0.14
 		hG = 1.06
@@ -390,10 +453,10 @@ if showGate then
 		nV = max(1, int((gB - gA) / 2.0 + 0.5))
 		for se = 0 to nV
 			xv = gA + se * (gB - gA) / nV
-			add xv, -0.05, landH[il] + 0.08
+			add xv, yG, landH[il] + 0.08
 			cylind 1.17, 0.02
 			del 1
-			add xv, -0.08, landH[il] + 0.04
+			add xv, yG - 0.03, landH[il] + 0.04
 			rotx -90
 			cylind 0.06, 0.035
 			del 2
@@ -406,11 +469,11 @@ if showGate then
 		jL = sqr(wJ ^ 2 + hJ ^ 2)
 		for k = 0 to nJ - 1
 			for rr = 0 to 1
-				add gA + k * wJ, -0.05, zg0 + rr * hJ
+				add gA + k * wJ, yG, zg0 + rr * hJ
 				roty jA
 				cylind jL, 0.008
 				del 2
-				add gA + (k + 1) * wJ, -0.05, zg0 + rr * hJ
+				add gA + (k + 1) * wJ, yG, zg0 + rr * hJ
 				roty -jA
 				cylind jL, 0.008
 				del 2
@@ -418,13 +481,13 @@ if showGate then
 		next k
 		! 固定側の縦材を足場の建地に留めるクランプ（上下）
 		for zz = 0 to 1
-			add gA - 0.06, -0.08, landH[il] + 0.35 + zz * 0.65
+			add gA - 0.06, yG - 0.03, landH[il] + 0.35 + zz * 0.65
 			block 0.12, 0.06, 0.08
 			del 1
 		next zz
 		! リミット付ロック装置（扉の端）
 		material mMc
-		add gB - 0.10, -0.10, landH[il] + 0.80
+		add gB - 0.10, yG - 0.05, landH[il] + 0.80
 		block 0.08, 0.06, 0.12
 		del 1
 		material mSt
@@ -435,8 +498,50 @@ endif
 ! ロングスパンは荷取りステージ: 乗り込み口の両端の建地（外側・内側）に荷取用金具、そのフランジに梁枠を2本（外側の建地の
 ! 外 0.206・内側の建地の内 0.206）、梁枠の上にころばし、その上に足場板（スギコ アルバロングスパンEV荷取用金具の設置手順）
 gapL = 0.03
-for il = 1 to nLand
-	if hoKind = 1 then
+for il = 1 to nLand * (1 - stObj)
+	if hoInside then
+		! 足場の幅の中に据えたとき（利用者の指定 2026-10-28: 900枠の中に入れる時はステージはブラケット出して敷板を引く・
+		! ブラケットは両横の足場の端から）: 昇降路の両横の足場の端の建地（躯体側の列）から内側ブラケットを出し、敷板を
+		! 引く。床先は荷台の躯体側の縁の手前 30（規定 40mm 以内）
+		! 床の組み方（利用者の指定 2026-10-28: 詳細にして 足場板と敷板も）: 荷台の側の縁に敷板（幅 240・厚 50 の板。上に
+		! フロアーゲートが立つ）、その奥に足場板（幅 240・厚 40・4m）。ブラケットは腕（溝形）・方杖・建地に留める金具2つ・
+		! 先端の止め
+		ySt0 = yC0 + gapL
+		brW = ySt0 - rowSp + 0.48
+		material mSt
+		for se = 0 to 1
+			xS = gA + se * (gB - gA)
+			add xS - 0.025, rowSp, landH[il] - 0.11
+			block 0.05, brW, 0.06
+			del 1
+			add xS - 0.025, rowSp + brW - 0.03, landH[il] - 0.05
+			block 0.05, 0.03, 0.08
+			del 1
+			bA = atn(brW / 0.45)
+			add xS, rowSp, landH[il] - 0.56
+			rotx -bA
+			cylind sqr(brW ^ 2 + 0.45 ^ 2), 0.0243
+			del 2
+			for cz = 0 to 1
+				add xS - 0.045, rowSp - 0.045, landH[il] - 0.13 - cz * 0.45
+				block 0.09, 0.09, 0.08
+				del 1
+			next cz
+		next se
+		! 敷板（荷台の側の縁）
+		material mWd
+		add gA + 0.005, ySt0, landH[il] - 0.05
+		block gB - gA - 0.01, 0.24, 0.05
+		del 1
+		! 足場板
+		bxA = gA + 0.03
+		bxB = gB - 0.03
+		byA = ySt0 + 0.24
+		byB = ySt0 + 0.48
+		bzT = landH[il] - 0.01
+		gosub "boards"
+	endif
+	if hoKind = 1 and hoInside = 0 then
 		zS = landH[il] - 0.025
 		! 外側の金具は建地の外へ出すのが基本。搬器（1本構はガイドレール）が建地に近く外へ出せなければ内側へ付ける
 		yF0 = -0.206
@@ -483,12 +588,14 @@ for il = 1 to nLand
 		next k
 		! ステージの足場板（外側の建地の列から内側の建地の手前まで。本体の床の代わり＝足場の線の部品はこの升目の踏板を
 		! 描かない。利用者の指定 2026-10-28）
-		material mDk
-		add gA + 0.03, 0.10, landH[il] + 0.02
-		block gB - gA - 0.06, rowSp - 0.20, 0.04
-		del 1
+		bxA = gA + 0.03
+		bxB = gB - 0.03
+		byA = 0.10
+		byB = rowSp - 0.10
+		bzT = landH[il] + 0.06
+		gosub "boards"
 	endif
-	for pc = 1 to 2
+	for pc = 1 to 2 - 2 * hoInside
 		xa2 = -gW / 2
 		xb2 = gW / 2
 		if hoKind = 1 and nMast = 1 then
@@ -498,10 +605,12 @@ for il = 1 to nLand
 			if pc = 2 then xb2 = xa2
 		endif
 		if xb2 - xa2 > 0.05 then
-			material mDk
-			add xa2, yC0 + gapL, landH[il] + 0.02
-			block xb2 - xa2, -yC0 - gapL + 0.10, 0.04
-			del 1
+			bxA = xa2
+			bxB = xb2
+			byA = yC0 + gapL
+			byB = 0.10
+			bzT = landH[il] + 0.06
+			gosub "boards"
 			if hoKind <> 1 then
 				! 荷取用の金具（床を受ける腕。足場の外側建地の列から出す）
 				material mSt
@@ -516,7 +625,8 @@ for il = 1 to nLand
 next il
 ! 地上の昇降路の囲い（足場側を除く3方。支柱・笠木・中桟・下桟・金網。搬器の下への立入禁止）
 if showFence then
-	for ip = 1 to 3
+	! 足場の幅の中に据えたときは両横が足場なので、外側の1方だけ
+	for ip = 1 + hoInside to 3 - hoInside
 		if ip = 1 then
 			px0 = -fX
 			py0 = yC0
@@ -1151,6 +1261,22 @@ return
 		del 1
 		zr = zr + 0.1
 	endwhile
+return
+
+! ==== 足場板（幅 240・厚 40・長さ 4m まで。面に沿って並べ、継ぎは 10 あける）: bxA〜bxB × byA〜byB、上端 bzT ====
+"boards":
+	material mWd
+	nB = max(1, int((byB - byA) / 0.24 + 0.99))
+	wB = (byB - byA) / nB
+	nL = max(1, int((bxB - bxA) / 4.0 + 0.99))
+	lB = (bxB - bxA) / nL
+	for jb = 0 to nB - 1
+		for kb = 0 to nL - 1
+			add bxA + kb * lB + 0.005, byA + jb * wB + 0.005, bzT - 0.04
+			block lB - 0.01, wB - 0.01, 0.04
+			del 1
+		next kb
+	next jb
 return
 """
 

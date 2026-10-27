@@ -23,6 +23,7 @@ SHEET_OBJECT = "ashiba_sheet"
 CSTEP_OBJECT = "ashiba_cstep"
 BRIDGE_OBJECT = "ashiba_bridge"
 HOIST_OBJECT = "ashiba_hoist"
+HSTAGE_OBJECT = "ashiba_hstage"
 KBRK_OBJECT = "ashiba_kbrk"
 
 # 養生シート1枚の大きさ（幅, 高さ mm）。メッシュシート 1類は 1.8×5.1m、防音シートは 1.8×3.4m が標準
@@ -956,6 +957,57 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
     return _with_pens(model, out)
 
 
+def _stage_owned(model: ScaffoldModel, h) -> bool:
+    """荷取りステージを別の部品で置く昇降機か（ロングスパンの昇降路＝足場を抜いた区間に掛けるステージ）."""
+    from .openings import hoist_voids
+
+    return bool(hoist_voids(model, [h])) and bool(h.landing_points(model))
+
+
+def hoist_stage_placements(model: ScaffoldModel, platforms) -> list[Placement]:
+    """荷取りステージの部品 ashiba_hstage（乗り込む所1か所に1部品。利用者の指定 2026-10-28: ステージは高さの調整が
+    あるので別オブジェクトにして）.
+
+    原点は昇降機の部品と同じ。zSt＝床の高さ（建物のフロアの床の高さ。部品の設定で上下に調整した高さは、次の配置でも
+    残す＝Hoist.stage_z）。外付けは荷取用金具＋梁枠、足場の幅の中はクランプ式の内側ブラケット＋敷板。床先は荷台の縁の
+    手前 30（規定 40mm 以内）。
+    """
+    from .platforms import HOIST_CAGE_D_MM
+
+    out: list[Placement] = []
+    if platforms is None or not getattr(platforms, "hoists", None):
+        return out
+    edges = {e.edge_index: e for e in model.plan.edges}
+    base = float(model.base_height_mm or 0.0)
+    for h in platforms.hoists:
+        ep = edges.get(h.edge_index)
+        if ep is None or not _stage_owned(model, h):
+            continue
+        o, u, nrm, ang = _frame(ep)
+        row = float(model.row_spacing_of(ep.edge_index))
+        x = o[0] + u[0] * h.position_mm - nrm[0] * row
+        y = o[1] + u[1] * h.position_mm - nrm[1] * row
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        gs = h.gate_spans(model)
+        ga, gb = posts[min(gs)] - h.position_mm, posts[max(gs) + 1] - h.position_mm
+        hm = h.spec
+        cage_d = float(h.cage_depth_mm or HOIST_CAGE_D_MM)
+        one_rail = hm is not None and hm.kind == "ロングスパン" and hm.masts == 1
+        if getattr(h, "inside", False):
+            y_f = row / 2.0 + cage_d / 2.0 + 30.0
+        else:
+            y_f = -100.0 - (250.0 if one_rail else 0.0) + 30.0     # 荷台の足場側の縁（あき 100、1本構はレール 250 の外）の手前 30
+        for name, z in h.landing_points(model):
+            out.append(Placement(HSTAGE_OBJECT, x, y, {
+                "faceAng": ang, "zH": base / 1000.0, "zSt": z / 1000.0, "landName": name,
+                "stMode": 1 if getattr(h, "inside", False) else 0,
+                "stA": ga / 1000.0, "stB": gb / 1000.0, "rowSp": row / 1000.0, "yF": y_f / 1000.0,
+                "railX": 0.20 if one_rail else 0.0, "showGate": True}))
+    return _with_pens(model, out)
+
+
 def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
     """昇降機ごとの部品 ashiba_hoist（利用者の指定 2026-10-27: 昇降機は別オブジェクトで配置できるように）.
 
@@ -980,7 +1032,8 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
         ev = model.elevation_of(ep.edge_index)
         levels = ev.level_heights
         # 高さは足場の立つ面から（部品を zH だけ持ち上げる。ほかの部品と同じ）。到達高さ・控えの段も足場と同じ所から数える
-        lands = [float(levels[lv - 1]) for lv in h.landings(model) if 1 <= lv <= len(levels)]
+        # 乗り込み口の床の高さ（ロングスパンの昇降路は建物のフロアごと。利用者の指定 2026-10-28）
+        lands = [z for _n, z in h.landing_points(model)]
         # 乗り込み口＝足場の固定の手すりを外したスパン（数量・足場の線の部品と同じ h.gate_spans）。フロアーゲートは
         # この幅いっぱいに描く（荷台の長さだけだと両端に手すりの無いすき間が出る）
         posts = [0.0]
@@ -996,6 +1049,9 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             "hoReach": h.reach_mm(model) / 1000.0,
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
             "gateA": ga / 1000.0, "gateB": gb / 1000.0, "rowSp": row / 1000.0,
+            "hoInside": bool(getattr(h, "inside", False)),
+            # 荷取りステージを別の部品（ashiba_hstage）で置くときは、昇降機の部品はステージとフロアーゲートを描かない
+            "stObj": bool(_stage_owned(model, h)),
             # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）
             "tieList": ",".join(f"{(x - h.position_mm) / 1000.0:.3f}" for x in hoist_tie_posts(ep, h))}))
     return _with_pens(model, out)

@@ -121,9 +121,9 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
             posts = [0.0]
             for sp in edge.spans:
                 posts.append(posts[-1] + float(sp))
-            for lv in ho.landings(model):
+            for _name, z in ho.landing_points(model):
                 for x in (posts[min(gs)], posts[max(gs) + 1]):
-                    out.append(WallTie(ho.edge_index, x, int(ho.level_heights(model)[lv - 1]), "landing"))
+                    out.append(WallTie(ho.edge_index, x, int(round(z)), "landing"))
     return out
 
 

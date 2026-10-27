@@ -368,20 +368,22 @@ def hoist_voids(model: ScaffoldModel, hoists) -> list[Opening]:
     out: list[Opening] = []
     for h in hoists or []:
         hm = h.spec
-        if hm is None or hm.kind != "ロングスパン":
+        inside = bool(getattr(h, "inside", False))
+        # 足場の幅の中に据える昇降機（利用者の指定 2026-10-28）は機種によらず荷台の掛かるスパンを抜く
+        if not inside and (hm is None or hm.kind != "ロングスパン"):
             continue
         ep = _edge(model, h.edge_index)
         if ep is None or (model.edge_subset is not None and h.edge_index not in model.edge_subset):
             continue
         gs = h.gate_spans(model)
-        if len(gs) not in LANDING_BEAM_SPANS:
+        if not gs or (not inside and len(gs) not in LANDING_BEAM_SPANS):
             continue
         posts = [0.0]
         for sp in ep.spans:
             posts.append(posts[-1] + float(sp))
         a, b = posts[min(gs)], posts[max(gs) + 1]
         out.append(Opening(h.edge_index, a, int(round(b - a)), model.elevation_of(h.edge_index).n_levels + 1,
-                           reason=f"昇降機 {hm.name} の昇降路", void=True))
+                           reason=f"昇降機 {hm.name if hm else ''} の昇降路", void=True))
     return out
 
 

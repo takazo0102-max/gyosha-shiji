@@ -53,8 +53,12 @@
 			<Description><![CDATA["足場の内外の建地の間隔（配置が入れる。荷取りステージの内側の梁枠の位置）"]]></Description>
 			<Value>0.9</Value>
 		</Length>
+		<Boolean Name="hoInside">
+			<Description><![CDATA["足場の幅の中に据える（914。昇降路の足場を抜いた中。外す＝外付け）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<String Name="landLevels">
-			<Description><![CDATA["乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）"]]></Description>
+			<Description><![CDATA["乗り込む所の番号（カンマ区切り「2,5」。ロングスパンの昇降路は建物のフロアの番号＝下から1,2,…、ほかは足場の作業層。空は全部）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="landList">
@@ -76,6 +80,10 @@
 		<Boolean Name="showGate">
 			<Description><![CDATA["乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く"]]></Description>
 			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="stObj">
+			<Description><![CDATA["荷取りステージとフロアーゲートは別の部品（ashiba_hstage）が描く（配置が入れる）"]]></Description>
+			<Value>0</Value>
 		</Boolean>
 		<Boolean Name="showTie">
 			<Description><![CDATA["マストの壁つなぎを描く"]]></Description>

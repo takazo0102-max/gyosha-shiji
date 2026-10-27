@@ -77,6 +77,10 @@ HOIST_FENCE_GAP_MM = 300.0  # 地上の昇降路の囲いと荷台のあき
 HOIST_FENCE_H_MM = 1800.0    # 地上の昇降路の囲いの高さ
 HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
 TUBE_LENGTHS_MM = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0)  # 単管の規格の長さ
+MOUNT_OUTSIDE = "外付け"
+MOUNT_INSIDE = "内"
+INSIDE_STAGE_W_MM = 480.0   # 足場の幅の中に据えたときの荷取りステージの床の幅（敷板 240＋足場板 240）
+FLOOR_LANDING_MIN_MM = 500.0  # これより低いフロア（地上）は荷台へ地面から積むので乗り込み口にしない
 GATE_MIN_OVERLAP_MM = 150.0  # 荷台がこれ以下しか掛からないスパンは乗り込み口にしない
 HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
 
@@ -126,6 +130,17 @@ class Hoist:
     load_kn: float = 0.0            # 積載荷重（0=未指定。設置届/設置報告の要否判定に使う）
     # 機種（data/hoist_models.csv の model_id。指定すれば荷台・積載・壁つなぎ間隔・マスト間隔・揚程・フロアーゲートが入る）
     model_id: str = ""
+    # 取付け: "外付け"＝搬器は足場の外側建地の列の外を上下（荷取りステージは荷取用金具＋梁枠）、"内"＝昇降路の足場の幅
+    # （914）の中に据える（荷取りステージは両横の足場の端から内側ブラケットを出して敷板を引く）。利用者の指定 2026-10-28:
+    # 外つけか中に914幅で入れるか選べるようにして
+    mount: str = "外付け"
+    # 荷取りステージの床の高さを部品で調整した値（乗り込む所の名前 → 足場の立つ面からの mm）。次の配置でも残す
+    # （利用者の指定 2026-10-28: ステージは高さの調整があるので別オブジェクトにして）
+    stage_z: dict = field(default_factory=dict)
+
+    @property
+    def inside(self) -> bool:
+        return self.mount == MOUNT_INSIDE
 
     def gate_spans(self, model: ScaffoldModel) -> list[int]:
         """乗り込み口の開閉式手すりを付けるスパン（0 始まり）: 荷台の長さ（位置を中心に）に掛かるスパン（3D と同じ）."""
@@ -148,6 +163,32 @@ class Hoist:
     def level_heights(self, model: ScaffoldModel) -> list:
         """昇降機の立つ面の作業層の床の高さ（面ごとの高さ。部品の配置・壁つなぎと同じ）."""
         return model.elevation_of(self.edge_index).level_heights
+
+    def floor_landings(self, model: ScaffoldModel) -> bool:
+        """乗り込み口を建物のフロアごとに掛けるか（足場の作業層ではなく）. ロングスパンの昇降路（足場を抜いた区間）で、
+        建物のフロアが分かっているとき。荷取りステージはスラブの高さに合わせて掛ける（荷取用金具はクランプで高さを
+        合わせられる）。利用者の指定 2026-10-28: ステージは各階ではなくフロアごとにして."""
+        stories = getattr(model, "stories", None) or []
+        # フロアが分からない（足場の高さの中に地上より上のフロアが無い）建物は作業層のまま
+        if not any(FLOOR_LANDING_MIN_MM < z <= self.reach_mm(model) + 1.0 for _n, z in stories):
+            return False
+        from .openings import hoist_voids
+
+        return bool(hoist_voids(model, [self]))
+
+    def landing_points(self, model: ScaffoldModel) -> list[tuple[str, float]]:
+        """乗り込み口の (名前, 床の高さ mm・足場の立つ面から). フロアごとなら建物のフロア（いちばん下のフロア＝地上の
+        積み込みは除く。到達高さまで。landing_levels はフロアの番号＝下から 1, 2, …）、そうでなければ足場の作業層."""
+        adj = self.stage_z or {}
+        if self.floor_landings(model):
+            fl = [(n, z) for n, z in model.stories if z > FLOOR_LANDING_MIN_MM and z <= self.reach_mm(model) + 1.0]
+            if self.landing_levels:
+                allf = list(model.stories)
+                want = {allf[k - 1][0] for k in self.landing_levels if 1 <= k <= len(allf)}
+                fl = [(n, z) for n, z in fl if n in want]
+            return [(n, float(adj.get(n, z))) for n, z in fl]
+        lv = self.level_heights(model)
+        return [(f"第{k}層", float(adj.get(f"第{k}層", lv[k - 1]))) for k in self.landings(model)]
 
     def landings(self, model: ScaffoldModel) -> list[int]:
         n = model.elevation_of(self.edge_index).n_levels
@@ -489,13 +530,14 @@ def validate_platforms(
                 f"到達高さ{reach:.0f}mmが機種 {hm.name} の最大揚程{hm.max_lift_m:.0f}mを超えます。"
                 "揚程の高い機種に替えてください", "メーカーの仕様"))
         # 到達高さより上の作業層は、搬器が届かないので乗り込めない（到達高さを下げて入力したとき、乗り込み口だけ残っていた）
-        levels = h.level_heights(model)
-        above = [lv for lv in h.landings(model) if float(levels[lv - 1]) > reach + 1e-6]
-        if above:
-            result.issues.append(PlatformIssue(
-                "昇降機", i, "NG",
-                f"乗り込み口の作業層{above}（床の高さ{float(levels[above[0] - 1]):.0f}mm〜）が到達高さ{reach:.0f}mmより上で、"
-                "搬器が届きません。到達高さを上げるか、乗り込む層から外してください", "入力エラー"))
+        if not h.floor_landings(model):
+            levels = h.level_heights(model)
+            above = [lv for lv in h.landings(model) if float(levels[lv - 1]) > reach + 1e-6]
+            if above:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "NG",
+                    f"乗り込み口の作業層{above}（床の高さ{float(levels[above[0] - 1]):.0f}mm〜）が到達高さ{reach:.0f}mmより上で、"
+                    "搬器が届きません。到達高さを上げるか、乗り込む層から外してください", "入力エラー"))
         # フロアーゲートの大きさで塞げる開口か。乗り込み口は荷台の長さに掛かるスパン全部で足場の手すりを外すので、
         # 開口がゲートのスパンより広いと両端が開いたままになる
         if hm is not None and hm.gate:
@@ -534,7 +576,7 @@ def validate_platforms(
                     f"{h.position_mm:.0f}mm から {fc:.0f}mm にしてください", "メーカーの組立要領"))
         # 荷取りステージ（荷取用金具＋梁枠）の決め: 梁枠は 2・3 スパン、ステージ上の全積載 800kg 以下
         # （スギコ アルバロングスパンEV荷取用金具 50500 の使用上の注意）
-        if hm is not None and hm.kind == "ロングスパン" and h.landings(model):
+        if hm is not None and hm.kind == "ロングスパン" and h.landing_points(model) and not h.inside:
             gs = h.gate_spans(model)
             if len(gs) not in LANDING_BEAM_SPANS:
                 result.issues.append(PlatformIssue(
@@ -682,15 +724,21 @@ def platform_part_demands(
             if s.has_toe_board:
                 out.append(PartDemand("荷受けステージ 妻側幅木", "幅木", side, 2 * n_levels))
     for h in result.hoists:
-        landings = h.landings(model)
+        # 乗り込み口（ロングスパンの昇降路ならフロアごと、ほかは足場の作業層）
+        pts = h.landing_points(model)
+        landings = [n for n, _z in pts]
+        # 書き方: フロアごとなら「2FL・3FL」、作業層なら「作業層2・4」
+        lv_txt = "・".join(landings) if h.floor_landings(model) else "作業層" + "・".join(str(k) for k in h.landings(model))
         hm = h.spec
         # 地上の昇降路の囲い: 搬器が下りてくる荷台の外周（足場側を除く3方）を囲い、出入口は施錠できる扉。
         # 搬器の下への立入りを防ぐ（部品 ashiba_hoist の 3D と同じ: 荷台から 0.3 離して高さ 1.8m）
         fl = float(h.cage_width_mm or HOIST_CAGE_W_MM) + 2 * HOIST_FENCE_GAP_MM
         fd = float(h.cage_depth_mm or 1300.0) + HOIST_FENCE_GAP_MM + 100.0
+        # 足場の幅の中に据えたときは両横が足場なので、囲うのは外側の1方だけ（部品の 3D と同じ）
+        sides, run = ("外側の1方", fl) if h.inside else ("荷台の外周 3方", fl + 2 * fd)
         out.append(PartDemand(
             "昇降機 地上の昇降路の囲い", "昇降路の囲い", None, 1,
-            detail=f"荷台の外周 3方 延長{(fl + 2 * fd) / 1000:.1f}m・高さ{HOIST_FENCE_H_MM / 1000:.1f}m・施錠できる出入口の扉 1"
+            detail=f"{sides} 延長{run / 1000:.1f}m・高さ{HOIST_FENCE_H_MM / 1000:.1f}m・施錠できる出入口の扉 1"
                    "（搬器の下への立入禁止。クレーン等安全規則の建設用リフト・メーカーの組立要領）",
         ))
         if hm is not None:
@@ -709,29 +757,66 @@ def platform_part_demands(
                 # マストの外まで）、マストの前後に縦の単管2列。直交クランプは横引き1本に4個（建地2・縦の単管2）
                 n_fix = max(1, int(h.reach_mm(model) // h.tie_every_mm))
                 cage_d = float(h.cage_depth_mm or HOIST_CAGE_D_MM)
-                need_h = float(model.post_row_spacing_mm) + 100.0 + cage_d / 2.0 + 75.0 + 250.0
-                tube_h = next((L for L in TUBE_LENGTHS_MM if L >= need_h), TUBE_LENGTHS_MM[-1])
-                n_h = 2 * n_fix * hm.masts
                 v_len = h.reach_mm(model)
                 n_v = 2 * hm.masts * max(1, math.ceil(v_len / TUBE_LENGTHS_MM[-1]))
+                if h.inside:
+                    # 足場の幅の中: 横引きは内外の列の外に、端の建地からマストの先まで（マストは端の建地のすぐ内）。縦の単管は
+                    # 内外の列の線に2列、マストはその間に渡した金具で固定。直交クランプは横引き1本に2個（建地・縦の単管）
+                    need_h = 100.0 + 50.0 + 150.0 + 80.0 + 200.0
+                    n_h = 2 * 2 * n_fix * hm.masts
+                    per = 2
+                    where = "内外の列の外に、昇降路の横の足場の端の建地からマストの先まで"
+                    v_where = "内外の列の線に2列"
+                else:
+                    need_h = float(model.post_row_spacing_mm) + 100.0 + cage_d / 2.0 + 75.0 + 250.0
+                    n_h = 2 * n_fix * hm.masts
+                    per = 4
+                    where = "昇降路の横の足場の端の建地（内外）からマストの外まで"
+                    v_where = "前後2列"
+                tube_h = next((L for L in TUBE_LENGTHS_MM if L >= need_h), TUBE_LENGTHS_MM[-1])
                 out.append(PartDemand(
                     f"昇降機 マスト固定の横引き単管{tube_h / 1000:.1f}m", "単管", int(tube_h), n_h,
-                    detail=f"マスト{hm.masts}本×控えの段{n_fix}×上下2段。昇降路の横の足場の端の建地（内外）から"
-                           f"マストの外まで（必要長さ{need_h:.0f}）"))
+                    detail=f"マスト{hm.masts}本×控えの段{n_fix}×上下2段"
+                           + ("×内外" if h.inside else "") + f"。{where}（必要長さ{need_h:.0f}）"))
                 out.append(PartDemand(
                     f"昇降機 マスト固定の縦の単管{TUBE_LENGTHS_MM[-1] / 1000:.1f}m", "単管", int(TUBE_LENGTHS_MM[-1]), n_v,
-                    detail=f"マスト{hm.masts}本×前後2列、高さ{v_len / 1000:.1f}m（継ぎは直線ジョイント）"))
+                    detail=f"マスト{hm.masts}本×{v_where}、高さ{v_len / 1000:.1f}m（継ぎは直線ジョイント）"))
                 out.append(PartDemand(
-                    "昇降機 マスト固定の直交クランプ", "クランプ", None, 4 * n_h,
-                    detail="横引き1本に4個（足場の建地の内外・縦の単管2列）"))
-            if landings and hm.kind == "ロングスパン":
+                    "昇降機 マスト固定の直交クランプ", "クランプ", None, per * n_h,
+                    detail=f"横引き1本に{per}個" + ("（足場の建地・縦の単管）" if h.inside else "（足場の建地の内外・縦の単管2列）")))
+            if landings and h.inside:
+                # 足場の幅の中に据えたときの荷取りステージ（利用者の指定 2026-10-28: 900枠の中に入れる時はステージは
+                # ブラケット出して敷板を引く・ブラケットは両横の足場の端から）: 昇降路の両横の足場の端の建地（躯体側の列）から
+                # 内側ブラケットを出し、その上に敷板（幅 500）を昇降路の長さに引く。部品 ashiba_hoist の 3D と同じ
+                gs = h.gate_spans(model)
+                edge = _edge(model, h.edge_index)
+                opening = sum(float(edge.spans[k]) for k in gs) if edge is not None else 0.0
+                cage_d = float(h.cage_depth_mm or HOIST_CAGE_D_MM)
+                row = float(model.post_row_spacing_mm)
+                reach = max(0.0, cage_d / 2.0 - row / 2.0) + 30.0 + INSIDE_STAGE_W_MM
+                brk = next((p for p in sorted(model.master.by_category("ブラケット"), key=lambda q: q.nominal_dim)
+                            if p.nominal_dim >= reach and "張出" not in p.note), None)
+                out.append(PartDemand(
+                    f"昇降機 荷取りステージの内側ブラケット（出{reach:.0f}以上）", "ブラケット",
+                    brk.nominal_dim if brk is not None else None, 2 * len(landings),
+                    detail=f"{lv_txt}×2（昇降路の両横の足場の端の建地・躯体側の列）。床先は荷台の躯体側の縁とのすき間 40mm 以内"))
+                # 床（利用者の指定 2026-10-28: 詳細にして 足場板と敷板も。部品の 3D と同じ）: 荷台の側の縁に敷板（幅 240・
+                # 厚 50。上にフロアーゲート）、その奥に足場板（幅 240・厚 40・4m まで）を面に沿って引く
+                n_len = max(1, math.ceil(opening / 4000.0))
+                out.append(PartDemand(
+                    "昇降機 荷取りステージの敷板（幅240・厚50・4m）", "敷板", 4000, n_len * len(landings),
+                    detail=f"{lv_txt}×{n_len}枚（荷台の側の縁・昇降路の長さ{opening:.0f}。上にフロアーゲートを立てる）"))
+                n_board = math.ceil((INSIDE_STAGE_W_MM - 240.0) / 240.0) * n_len
+                out.append(PartDemand(
+                    "昇降機 荷取りステージの足場板（幅240・厚40・4m）", "足場板", 4000, n_board * len(landings),
+                    detail=f"{lv_txt}×{n_board}枚（敷板の奥・昇降路の長さ{opening:.0f}に引く）"))
+            elif landings and hm.kind == "ロングスパン":
                 # 荷取りステージ: 乗り込み口の両端の建地に荷取用金具を付け、そのフランジに梁枠を2本（搬器側・足場側）掛け、
                 # 布材・ころばし・足場板で床を組む（スギコ アルバロングスパンEV荷取用金具 50500 の設置手順）。床先は搬器の
                 # 床先とのすき間 40mm 以内（利用者の指定 2026-10-27: ステージとロングスパンの離れは40mm以内の規定がある）
                 gs = h.gate_spans(model)
                 edge = _edge(model, h.edge_index)
                 opening = sum(float(edge.spans[k]) for k in gs) if edge is not None else 0.0
-                lv_txt = "作業層" + "・".join(str(lv) for lv in landings)
                 out.append(PartDemand(
                     "昇降機 荷取りステージの荷取用金具", "荷取用金具", None, LANDING_FITTINGS_PER_STAGE * len(landings),
                     detail=f"{lv_txt}×{LANDING_FITTINGS_PER_STAGE}（梁枠2本の両端の建地。許容{LANDING_FITTING_KG:.0f}kg/個、"
@@ -750,7 +835,7 @@ def platform_part_demands(
                 # 3D と同じ）。床先は搬器の床先とのすき間 40mm 以内
                 out.append(PartDemand(
                     "昇降機 荷取り床の受け金物", "荷取用金具", None, 2 * len(landings),
-                    detail="作業層" + "・".join(str(lv) for lv in landings)
+                    detail=lv_txt
                            + "×2（乗り込み口の両端の外側建地）。足場の作業床を搬器の側へ出し、搬器の床先とのすき間を "
                              "40mm 以内に（床は搬器の通り道に入れない）",
                 ))
@@ -760,7 +845,7 @@ def platform_part_demands(
                 fg = FLOOR_GATES.get(hm.gate)
                 out.append(PartDemand(
                     f"昇降機 乗り込み口の{fg['name'] if fg else 'フロアーゲート'}", "フロアーゲート", None, len(landings),
-                    detail="作業層" + "・".join(str(lv) for lv in landings)
+                    detail=lv_txt
                            + "（単管 φ48.6 をクランプで建地に留める・リミット付ロック装置）",
                 ))
                 continue
@@ -769,7 +854,7 @@ def platform_part_demands(
             out.append(PartDemand(
                 "昇降機 乗り込み口の開閉式手すり", "開閉式手すり", None,
                 len(landings) * n_sp,
-                detail="作業層" + "・".join(str(lv) for lv in landings)
+                detail=lv_txt
                        + f"×荷台の長さに掛かる{n_sp}スパン。乗り込み口は足場側の開口で、防護しないと"
                          "各層に開放端ができます（安衛則563条）",
             ))

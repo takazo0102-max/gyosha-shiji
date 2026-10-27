@@ -998,3 +998,23 @@ if gateB - gateA > 0.1 then
 	gA = gateA
 	gB = gateB
 endif
+! フロアーゲートの面（外付けは足場の外側建地の列）
+yG = -0.05
+! 足場の幅の中に据える（利用者の指定 2026-10-28: 中に914幅で入れる）: 荷台を足場の幅の中央へ寄せ、ロングスパンの
+! マストは昇降路の両横の足場の端の建地のすぐ内に立てる（枠組間隔の中）。乗り込み口は荷台の躯体側
+if hoInside then
+	dyI = rowSp / 2 + cageD / 2 - yC0
+	yC0 = yC0 + dyI
+	yC1 = yC1 + dyI
+	for im = 1 to nMast
+		my[im] = my[im] + dyI
+	next im
+	if hoKind = 1 and nMast = 2 then
+		mx[1] = gA + mastW / 2 + 0.10
+		mx[2] = gB - mastW / 2 - 0.10
+		my[1] = rowSp / 2
+		my[2] = rowSp / 2
+	endif
+	yG = yC0 + 0.03 + 0.05
+	fY = min(yC1, 0) - 0.3
+endif

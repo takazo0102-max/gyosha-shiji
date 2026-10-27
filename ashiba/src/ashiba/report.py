@@ -421,7 +421,7 @@ def write_report_md(
         for h in (getattr(platforms, "hoists", None) or []):
             face = model.face_name(h.edge_index)
             reach = h.reach_mm(model)
-            landings = h.landings(model)
+            landings = [n for n, _z in h.landing_points(model)]
             hm = h.spec
             guard = "開閉式手すり"
             if hm is not None and hm.gate:
@@ -430,13 +430,18 @@ def write_report_md(
                 guard = FLOOR_GATES.get(hm.gate, {}).get("name", "フロアーゲート")
             a(f"- 昇降機: {face} 始点から{h.position_mm:.0f}mm・"
               + (f"機種 {hm.name}・" if hm is not None else "")
-              + f"到達高さ{reach:.0f}mm・乗り込み口 第{'・'.join(str(l) for l in landings)}層"
-              f"（各層の開口は{guard}で防護／安衛則563条）")
+              + f"到達高さ{reach:.0f}mm・乗り込み口 "
+              + ("・".join(landings) if h.floor_landings(model) else f"第{'・'.join(str(k) for k in h.landings(model))}層")
+              + f"（各層の開口は{guard}で防護／安衛則563条）")
             # 乗り込み口の床の組み方（ロングスパンは荷取用金具＋梁枠の荷取りステージ）。現場で決めごとを読める所に出す
             if landings and hm is not None:
                 from .platforms import LANDING_BEAM_SPANS, LANDING_STAGE_MAX_KG
 
-                if hm.kind == "ロングスパン":
+                if getattr(h, "inside", False):
+                    a("  - 足場の幅の中に据える（昇降路の足場を全高で抜く）。荷取りステージ: 両横の足場の端の建地から内側"
+                      "ブラケットを出し、荷台の側の縁に敷板（幅240・厚50）、その奥に足場板（幅240）を引く・床先と荷台の縁のすき間40mm以内。マストは横の足場の端の建地に"
+                      "単管（横引き2段・縦2列）で固定")
+                elif hm.kind == "ロングスパン":
                     n_sp = len(h.gate_spans(model))
                     beam = (f"梁枠{n_sp}スパン×2本" if n_sp in LANDING_BEAM_SPANS
                             else f"乗り込み口{n_sp}スパンで梁枠（2・3スパン）が掛からず別計画")

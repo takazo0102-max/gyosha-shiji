@@ -238,7 +238,7 @@ class TestHoistInput(unittest.TestCase):
         # 搬器の通り道に入れない（渡し板を搬器の上まで張り出すと通るたびに当たる）。荷取用の金具を手配に出す
         d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("gapL = 0.03", d3)
-        self.assertIn("add xa2, yC0 + gapL, landH[il] + 0.02", d3)
+        self.assertIn("byA = yC0 + gapL", d3)
         self.assertNotIn("yC0 - 0.15", d3)
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
         self.assertTrue([n for n in r.quantity.notes if "荷取用金具" in n and "（8）" in n and "40mm 以内" in n])
@@ -388,6 +388,144 @@ class TestHoistInput(unittest.TestCase):
         # エレベーター（マスト1本の格子マスト）は従来の控え
         ev = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F", "landing_levels": [2]}]})
         self.assertFalse([n for n in ev.quantity.notes if "マスト固定" in n])
+
+    def test_inside_mount_uses_a_bracket_stage_in_the_scaffold_width(self):
+        # 利用者の指定 2026-10-28: 外つけか中に914幅で入れるか選べるように。900枠の中に入れる時はステージはブラケット出して
+        # 敷板を引く（ブラケットは両横の足場の端から）
+        from ashiba.cli import parse_mount
+
+        self.assertEqual(parse_mount("中に914幅"), "内")
+        self.assertEqual(parse_mount("外付け"), "外付け")
+        self.assertEqual(parse_mount(None), "外付け")
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4",
+                                          "landing_levels": [2, 4], "mount": "内"}]})
+        h = r.platforms.hoists[0]
+        self.assertTrue(h.inside)
+        self.assertTrue([o for o in r.openings.openings if o.void])
+        out = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4",
+                                            "landing_levels": [2, 4]}]})
+
+        def brk(res):
+            return sum(ln.qty for ln in res.quantity.lines if ln.part.category == "ブラケット" and ln.part.nominal_dim == 600)
+
+        self.assertEqual(brk(r) - brk(out), 2 * 2)        # 内側ブラケット（出 588 以上 → 600）×両横×乗り込む2層
+        notes = r.quantity.notes
+        self.assertTrue([n for n in notes if "荷取りステージの敷板" in n and "×2枚" in n])
+        self.assertTrue([n for n in notes if "荷取りステージの足場板" in n and "×2枚" in n])
+        self.assertFalse([n for n in notes if "荷取用金具" in n])            # 荷取用金具＋梁枠は外付けのとき
+        self.assertTrue([n for n in notes if "昇降路の囲い" in n and "外側の1方" in n])
+        self.assertFalse([x for x in r.platforms.issues if "800kg" in x.message])
+        pl = hoist_placements(r.model, r.platforms)[0]
+        self.assertIs(pl.params["hoInside"], True)
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("if hoInside then", "brW = ySt0 - rowSp + 0.48", "for ip = 1 + hoInside to 3 - hoInside"):
+            self.assertIn(key, d3)
+        # 部品の設定で選んだ取付けを読む
+        from ashiba.cli import solve_groups
+
+        g = solve_groups(BOX)
+        m = g[0][1].model
+        e0 = next(e for e in m.plan.edges if e.edge_index == 0)
+        hs, _ = hoists_from_objects([(None, (e0.start_post[0] + 4572.5, e0.start_post[1] - 900),
+                                      {"hoModel": "KSE900-5.4", "hoInside": True})], g)
+        self.assertEqual(hs[0].get("mount"), "内")
+
+    def test_palette_places_a_hoist_from_a_line(self):
+        # 利用者の指定 2026-10-28: レールと線を引いて外つけか中に914幅で入れるか選べるように
+        from ashiba.palette import ACTIONS, PANEL_GROUPS
+
+        self.assertIn("昇降機", [a.title for a in ACTIONS])
+        self.assertIn("昇降機", dict(PANEL_GROUPS)["直す"])
+        self.assertTrue((ROOT / "scripts" / "hoist_run.py").exists())
+        import sys
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from hoist_run import face_of_line, model_choices
+
+        from ashiba.cli import solve_groups
+
+        g = solve_groups(BOX)
+        m = g[0][1].model
+        e0 = next(e for e in m.plan.edges if e.edge_index == 0)
+        (sx, sy), row = e0.start_post, m.row_spacing_of(0)
+        # 南面の外側の列の少し外に、3スパン（1829〜7316）に沿って線を引く
+        f = face_of_line(g, (sx + 1829, sy - row - 300), (sx + 7316, sy - row - 300))
+        self.assertEqual(f[0], 0)
+        self.assertAlmostEqual(f[2], 4572.5, delta=1)
+        self.assertAlmostEqual(f[3], 5487, delta=1)
+        # 線の長さ 5487 に枠組間隔が近いロングスパン（5.4m 型）が先頭
+        self.assertIn("5.4", model_choices(5487)[0])
+
+    def test_long_span_stages_are_per_building_floor(self):
+        # 利用者の指定 2026-10-28: ステージは各階ではなくフロアごとにして。建物のフロア（Archicad の階）の床の高さに掛け、
+        # いちばん下のフロア（地上）は除く。landing_levels はフロアの番号（下から 1, 2, …）
+        st = [{"name": "基礎下端", "level_mm": -2000, "height_mm": 2000}, {"name": "1FL", "level_mm": 0}, {"name": "2FL", "level_mm": 3000}, {"name": "3FL", "level_mm": 6000},
+              {"name": "RFL", "level_mm": 9000, "height_mm": 700}, {"name": "最高高さ", "level_mm": 9700, "height_mm": 0}]
+        r = solve_all({**BOX, "stories": st, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4"}]})
+        h = r.platforms.hoists[0]
+        self.assertEqual(h.landing_points(r.model), [("2FL", 3000.0), ("3FL", 6000.0), ("RFL", 9000.0)])
+        self.assertEqual(hoist_placements(r.model, r.platforms)[0].params["landList"], "3.000,6.000,9.000")
+        self.assertTrue([n for n in r.quantity.notes if "フロアーゲート" in n and "（3）" in n and "2FL・3FL・RFL" in n])
+        from ashiba.ties import _platform_ties
+
+        self.assertEqual(sorted({t.height_mm for t in _platform_ties(r.model, r.platforms) if t.kind == "landing"}),
+                         [3000, 6000, 9000])
+        pick = solve_all({**BOX, "stories": st, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4",
+                                                            "landing_levels": [2, 4]}]})
+        self.assertEqual([n for n, _z in pick.platforms.hoists[0].landing_points(pick.model)], ["2FL", "RFL"])
+        # 昇降路にしない機種（工事用エレベーターの外付け）は足場の作業層のまま
+        ev = solve_all({**BOX, "stories": st, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F"}]})
+        self.assertEqual(ev.platforms.hoists[0].landing_points(ev.model)[0][0], "第1層")
+
+    def test_stage_floor_is_drawn_board_by_board(self):
+        # 利用者の指定 2026-10-28: 詳細にして 足場板と敷板も。ステージの床は足場板（幅 240・厚 40・4m まで）を1枚ずつ、
+        # 足場の幅の中に据えたときは荷台の側の縁に敷板（幅 240・厚 50）、ブラケットは腕・方杖・留め金具・先端の止め
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for key in ('"boards":', 'define material "hoist_wood"', "nL = max(1, int((bxB - bxA) / 4.0 + 0.99))",
+                    "block gB - gA - 0.01, 0.24, 0.05", 'gosub "boards"'):
+            self.assertIn(key, d3)
+        self.assertEqual(d3.count('define material "hoist_wood"'), 1)
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4",
+                                          "landing_levels": [2], "mount": "内"}]})
+        notes = r.quantity.notes
+        self.assertTrue([n for n in notes if "敷板" in n and "幅240" in n])
+        self.assertTrue([n for n in notes if "足場板" in n and "荷取りステージ" in n])
+
+    def test_stage_is_its_own_part_and_keeps_its_height(self):
+        # 利用者の指定 2026-10-28: ブラケットも詳細にして ステージは高さの調整があるので別オブジェクトにして
+        from ashiba.attachments import HSTAGE_OBJECT, hoist_stage_placements
+
+        st = [{"name": "1FL", "level_mm": 0}, {"name": "2FL", "level_mm": 3000}, {"name": "3FL", "level_mm": 6000},
+              {"name": "RFL", "level_mm": 9000, "height_mm": 700}]
+        hoist = {"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "mount": "内"}
+        r = solve_all({**BOX, "stories": st, "hoists": [hoist]})
+        pls = hoist_stage_placements(r.model, r.platforms)
+        self.assertEqual([(p.part, p.params["landName"], p.params["zSt"]) for p in pls],
+                         [(HSTAGE_OBJECT, "2FL", 3.0), (HSTAGE_OBJECT, "3FL", 6.0), (HSTAGE_OBJECT, "RFL", 9.0)])
+        self.assertEqual(pls[0].params["stMode"], 1)
+        self.assertIs(hoist_placements(r.model, r.platforms)[0].params["stObj"], True)
+        # 部品で上げ下げした高さ（3FL を 6.15m に）を次の配置でも残す。壁つなぎもその高さ
+        adj = solve_all({**BOX, "stories": st, "hoists": [{**hoist, "stage_z": {"3FL": 6150}}]})
+        zs = {p.params["landName"]: p.params["zSt"] for p in hoist_stage_placements(adj.model, adj.platforms)}
+        self.assertEqual(zs["3FL"], 6.15)
+        # 置いてある部品から読む（原点が昇降機の部品と同じ所のステージ）
+        from ashiba.cli import solve_groups
+
+        g = solve_groups({**BOX, "stories": st})
+        m = g[0][1].model
+        e0 = next(e for e in m.plan.edges if e.edge_index == 0)
+        at = (e0.start_post[0] + 4572.5, e0.start_post[1] - m.row_spacing_of(0))
+        hs, _ = hoists_from_objects([(None, at, {"hoModel": "KSE900-5.4"})], g,
+                                    [(None, at, {"landName": "3FL", "zSt": 6.15})])
+        self.assertEqual(hs[0]["stage_z"], {"3FL": 6150.0})
+        # 外付けは荷取用金具＋梁枠（stMode 0）、昇降路にならない機種（エレベーターの外付け）はステージの部品を置かない
+        out = solve_all({**BOX, "stories": st, "hoists": [{**hoist, "mount": "外付け"}]})
+        self.assertEqual({p.params["stMode"] for p in hoist_stage_placements(out.model, out.platforms)}, {0})
+        ev = solve_all({**BOX, "stories": st, "hoists": [{**hoist, "model": "SEC-700-F", "mount": "外付け"}]})
+        self.assertFalse(hoist_stage_placements(ev.model, ev.platforms))
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hstage" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("建地に留めるクランプ", "腕（溝形", "方杖", "先端の止め", "板止め", "敷板", '"boards":', "荷取用金具"):
+            self.assertIn(key, d3)
 
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError

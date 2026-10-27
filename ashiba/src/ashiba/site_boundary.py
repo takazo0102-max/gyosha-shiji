@@ -255,6 +255,9 @@ def hoist_boundary_issues(model: ScaffoldModel, boundary: list[tuple[float, floa
         elif hm is not None and hm.masts == 1:
             extra = 650.0
         reach_out = row + 100.0 + depth + HOIST_FENCE_GAP_MM + extra
+        if getattr(h, "inside", False):
+            # 足場の幅の中に据えたとき: 荷台は足場の幅の中央。外側の列より外へ出るのは荷台の奥行の半分の残りと囲い
+            reach_out = row + max(0.0, depth / 2.0 - row / 2.0) + HOIST_FENCE_GAP_MM + extra
         half = float(h.cage_width_mm or HOIST_CAGE_W_MM) / 2.0 + HOIST_FENCE_GAP_MM
         worst = _beyond(model, boundary, road_edges, h.edge_index,
                         (h.position_mm - half, h.position_mm, h.position_mm + half), reach_out)

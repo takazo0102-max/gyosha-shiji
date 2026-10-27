@@ -2337,7 +2337,7 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
            if any(e.edge_index == ei for e in model.plan.edges) for s0, e0 in rs]
     if cut:
         notes.append(f"昇降機の乗り込み口のスパン（" + "・".join(f"{f} {s0:.0f}〜{e0:.0f}" for f, s0, e0 in cut)
-                     + f"）は{kind}を張っていません（荷台が外側建地の列のすぐ外を昇り降りし、乗り込み口にフロアーゲートが付く）")
+                     + f"）は{kind}を張っていません（荷台がこのスパンを昇り降りし、乗り込み口にフロアーゲートが付く）")
     if other:
         notes.action(f"{kind}（高さ {h / 1000:.1f}m）: " + "・".join(f"幅{wd}×{k}枚" for wd, k in other.items())
                      + f"（系列 {model.master.series_id} のマスタに無い幅）を別途手配してください", Notes.ORDER)

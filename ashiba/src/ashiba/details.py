@@ -72,7 +72,7 @@ def hoist_detail_specs(model: ScaffoldModel, platforms) -> list[dict]:
             "reach_height_mm": h.reach_mm(model),
             "tie_every_mm": float(h.tie_every_mm),
             "landing_levels": list(landings),
-            "landing_heights_mm": [float(levels[lv - 1]) for lv in landings if 1 <= lv <= len(levels)],
+            "landing_heights_mm": [z for _n, z in h.landing_points(model)],
             "cage_width_mm": float(getattr(h, "cage_width_mm", 4600.0)),
             "cage_depth_mm": float(getattr(h, "cage_depth_mm", 1300.0)),
             "load_kn": float(getattr(h, "load_kn", 0.0)),

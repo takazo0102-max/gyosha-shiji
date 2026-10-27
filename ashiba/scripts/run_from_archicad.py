@@ -72,7 +72,7 @@ LINE_OBJECT = "ashiba_line"
 DETAIL_OBJECT = "ashiba_detail"
 # 足場ラインから分けた部材（壁つなぎ・水平ネット・ネットブラケット）。置き換え・撤去で一緒に拾う
 ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
-                      "ashiba_cstep", "ashiba_bridge", "ashiba_kbrk")
+                      "ashiba_cstep", "ashiba_bridge", "ashiba_kbrk", "ashiba_hstage")
 # 配置とは別に置く部品（内部ステージ足場・昇降機。配置の置き直しでは消さない。昇降機は配置で読み取って面に合わせ直す）
 SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
@@ -210,8 +210,9 @@ def read_spec_objects(client) -> list:
     return found
 
 
-def read_hoist_objects(client, outline_mm, reach_mm: float = 15000.0) -> list:
-    """建物（外形）のまわり reach_mm の中に置いてある昇降機の部品を (要素, 原点mm, パラメータ) の一覧で返す."""
+def read_hoist_objects(client, outline_mm, reach_mm: float = 15000.0, part: str = "ashiba_hoist") -> list:
+    """建物（外形）のまわり reach_mm の中に置いてある昇降機の部品（part。荷取りステージは ashiba_hstage）を
+    (要素, 原点mm, パラメータ) の一覧で返す."""
     xs = [float(p[0]) for p in outline_mm]
     ys = [float(p[1]) for p in outline_mm]
     objs = client.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
@@ -219,7 +220,7 @@ def read_hoist_objects(client, outline_mm, reach_mm: float = 15000.0) -> list:
     for e, d in zip(objs, client.get_details(objs) if objs else []):
         dd = d.get("details", {})
         lp = dd.get("libPart") or {}
-        if not is_ashiba_part(lp.get("name", "") if isinstance(lp, dict) else "", ("ashiba_hoist",)):
+        if not is_ashiba_part(lp.get("name", "") if isinstance(lp, dict) else "", (part,)):
             continue
         o = dd.get("origin") or {}
         x, y = float(o.get("x", 0)) * 1000.0, float(o.get("y", 0)) * 1000.0
@@ -462,9 +463,10 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     置いた要素と注意を返す。壁つなぎが全部置けたら足場ラインの tieObj を True にして、ライン側の壁つなぎを消す
     （置けなければライン側に描いたまま）。
     """
-    from ashiba.attachments import (BRIDGE_OBJECT, CSTEP_OBJECT, HOIST_OBJECT, KBRK_OBJECT, NET_OBJECT, NETBK_OBJECT,
-                                    SHEET_OBJECT, TIE_OBJECT, bridge_placements, cstep_placements, hoist_placements,
-                                    kbrk_placements, net_placements, sheet_placements, tie_placements)
+    from ashiba.attachments import (BRIDGE_OBJECT, CSTEP_OBJECT, HOIST_OBJECT, HSTAGE_OBJECT, KBRK_OBJECT, NET_OBJECT,
+                                    NETBK_OBJECT, SHEET_OBJECT, TIE_OBJECT, bridge_placements, cstep_placements,
+                                    hoist_placements, hoist_stage_placements, kbrk_placements, net_placements,
+                                    sheet_placements, tie_placements)
 
     notes: list[str] = []
     line_mode = bool(r.model.config.line_mode_3d)
@@ -482,11 +484,11 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
     pls = (tie_placements(r.model, line_mode) + net_placements(r.model, line_mode)
            + sheet_placements(r.model, line_mode, r.stair_plan) + cstep_placements(r.model, line_mode)
            + bridge_placements(r.model, line_mode) + kbrk_placements(r.model, line_mode)
-           + hoist_placements(r.model, r.platforms))
+           + hoist_placements(r.model, r.platforms) + hoist_stage_placements(r.model, r.platforms))
     if not pls:
         return upper, notes
     names = {b: versioned_part_name(b) for b in (TIE_OBJECT, NET_OBJECT, NETBK_OBJECT, SHEET_OBJECT, CSTEP_OBJECT,
-                                                 BRIDGE_OBJECT, KBRK_OBJECT, HOIST_OBJECT)}
+                                                 BRIDGE_OBJECT, KBRK_OBJECT, HOIST_OBJECT, HSTAGE_OBJECT)}
     mats = {}
     try:
         mats = client.find_member_surfaces()
@@ -507,7 +509,12 @@ def place_attachments(client, r, lines: list[dict]) -> tuple[list[dict], list[st
         if p.part == KBRK_OBJECT and mats.get("matDeck"):
             extra["matBk"] = mats["matDeck"]     # 拡幅・張出ブラケットは鋼製（溶融亜鉛めっき）
         pairs.append((el, {**p.params, **extra}))
-    client.set_gdl_parameters_many(pairs)
+    # 設定に失敗した部品は既定の値のまま残る（昇降機が初期の機種のまま置かれていた: 真偽のパラメータに 0/1 を渡して
+    # 1回分まるごと失敗。2026-10-28）。黙って通さず数を出す
+    n_set = client.set_gdl_parameters_many(pairs)
+    if n_set < len(pairs):
+        notes.append(f"付属部品のパラメータを {n_set}/{len(pairs)} 個しか設定できませんでした（部品の版が古いか、値の型が"
+                     "違います。設定できなかった部品は既定の形のままです）")
     placed = upper + [el for el in els if el is not None]
     n_tie = sum(1 for p in pls if p.part == TIE_OBJECT)
     tie_ok = sum(1 for p, el in zip(pls, els) if p.part == TIE_OBJECT and el is not None)
@@ -828,7 +835,8 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     if not spec.get("stories"):
         try:
             st = client.tapir("GetStories", {}).get("stories", [])
-            spec["stories"] = [{"name": s["name"], "level_mm": float(s["level"]) * 1000.0} for s in st]
+            spec["stories"] = [{"name": s["name"], "level_mm": float(s["level"]) * 1000.0,
+                                "height_mm": float(s.get("height", 0.0) or 0.0) * 1000.0} for s in st]
         except (TapirError, KeyError, TypeError, ValueError):
             pass
     # 敷地メッシュがあれば高低差を拾う（無ければ平坦として解く）
@@ -871,11 +879,16 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     # 置いてある昇降機の部品（ashiba_hoist）を読み、いちばん近い面に合わせて入力の hoists にする（利用者の指定 2026-10-27:
     # 昇降機は別オブジェクトで配置できるように）。読んだ部品は消し、解いたあとで面に合わせた位置に置き直す
     hoist_objs = read_hoist_objects(client, spec["outline_mm"])
+    # 荷取りステージの部品（ashiba_hstage）も読む。部品で調整した床の高さを昇降機の入力に写し、部品は消して置き直す
+    # （原点が足場の外側建地の列の上なので、外形＋1m の範囲で拾う前回の配置の片付けでは拾えず、置くたびに重なった）
+    stage_objs = read_hoist_objects(client, spec["outline_mm"], part="ashiba_hstage")
+    if stage_objs:
+        client.delete_elements([e for e, _p, _q in stage_objs])
     if hoist_objs:
         from ashiba.hoist_objects import hoists_from_objects
 
         pre = solve_groups({k: v for k, v in spec.items() if k != "hoists"})
-        hs, h_notes = hoists_from_objects(hoist_objs, pre)
+        hs, h_notes = hoists_from_objects(hoist_objs, pre, stage_objs)
         for n in h_notes:
             print(f"  昇降機: {n}")
         if hs:

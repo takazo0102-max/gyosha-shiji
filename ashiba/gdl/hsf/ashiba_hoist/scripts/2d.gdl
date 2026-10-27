@@ -41,15 +41,15 @@ for im = 1 to nMast
 	endif
 next im
 ! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
-if showGate and nLand > 0 then
+if showGate and nLand > 0 and stObj = 0 then
 	rect2 gA, -0.06, gB, -0.02
 endif
 ! 地上の昇降路の囲い（破線。足場側を除く3方）
 if showFence then
 	line_type "Dashed"
-	line2 -fX, yC0, -fX, fY
+	if hoInside = 0 then line2 -fX, yC0, -fX, fY
 	line2 -fX, fY, fX, fY
-	line2 fX, fY, fX, yC0
+	if hoInside = 0 then line2 fX, fY, fX, yC0
 	line_type 1
 endif
 hotspot2 0, 0

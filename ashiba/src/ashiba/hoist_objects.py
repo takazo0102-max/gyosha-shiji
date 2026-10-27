@@ -24,8 +24,14 @@ def _levels(v) -> list[int]:
     return out
 
 
-def hoists_from_objects(objs: list, groups: list) -> tuple[list[dict], list[str]]:
-    """objs: [(要素, (x, y) mm, パラメータ)]、groups: solve_groups の結果（面を探す割付）→ (hoists の入力, 注意)."""
+STAGE_NEAR_MM = 1500.0   # 荷取りステージの部品は、原点がこの範囲の昇降機の部品のもの（原点は同じ所に置く）
+
+
+def hoists_from_objects(objs: list, groups: list, stage_objs: list = ()) -> tuple[list[dict], list[str]]:
+    """objs: [(要素, (x, y) mm, パラメータ)]、groups: solve_groups の結果（面を探す割付）→ (hoists の入力, 注意).
+
+    stage_objs: 置いてある荷取りステージの部品（同じ形）。部品の設定で調整した床の高さ（zSt）を、乗り込む所の名前ごとに
+    昇降機の入力（stage_z）へ写す（次の配置でもその高さで置く。利用者の指定 2026-10-28）。"""
     faces = []
     for _label, r in groups:
         m = r.model
@@ -70,6 +76,18 @@ def hoists_from_objects(objs: list, groups: list) -> tuple[list[dict], list[str]
         lv = _levels(params.get("landLevels"))
         if lv:
             h["landing_levels"] = lv
+        sz = {}
+        for _se, (sx, sy), sp in stage_objs or ():
+            if math.hypot(sx - x, sy - y) <= STAGE_NEAR_MM and sp.get("landName"):
+                try:
+                    sz[str(sp["landName"])] = round(float(sp.get("zSt") or 0.0) * 1000.0, 1)
+                except (TypeError, ValueError):
+                    pass
+        if sz:
+            h["stage_z"] = sz
+        # 取付け（部品の設定「足場の幅の中に据える（914）」。利用者の指定 2026-10-28）
+        if str(params.get("hoInside", "")).strip().lower() in ("1", "1.0", "true", "yes"):
+            h["mount"] = "内"
         out.append(h)
         notes.append(f"昇降機の部品（{model_id or '機種なし'}）を {best[2]} の始点から {best[3]:.0f}mm に合わせました")
     return out, notes

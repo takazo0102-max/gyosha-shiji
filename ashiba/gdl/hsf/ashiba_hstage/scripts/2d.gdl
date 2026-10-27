@@ -1,0 +1,21 @@
+﻿! 荷取りステージ 2D（平面）: 床の外形・板の継ぎ目・ゲートの線・乗り込む所の名前
+define style "hsTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+line_type 1
+rect2 stA, yF, stB, yB
+nL = max(1, int((stB - stA) / 4.0 + 0.99))
+for k = 1 to nL - 1
+	line2 stA + k * (stB - stA) / nL, yF, stA + k * (stB - stA) / nL, yB
+next k
+if stMode = 1 then line2 stA, yF + 0.24, stB, yF + 0.24
+if showGate then
+	line2 stA, yF + 0.05, stB, yF + 0.05
+	line2 stA, yF + 0.07, stB, yF + 0.07
+endif
+if showText then
+	style "hsTx"
+	text2 (stA + stB) / 2, yB + 0.15, "荷取りステージ " + landName
+endif

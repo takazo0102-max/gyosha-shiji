@@ -142,6 +142,9 @@ from .structural import SiteCondition, optimize_wall_ties, run_structural
 from .terrain import GroundModel, solve_post_feet
 
 
+FLOOR_BELOW_BASE_MM = 500.0   # 足場の立つ面からこれより下の階（基礎下端など）はフロアに数えない
+
+
 class InputError(ValueError):
     """入力JSONの誤り（綴り違い・型違い・矛盾）をまとめて知らせる."""
 
@@ -190,7 +193,7 @@ LIST_ITEM_KEYS = {
         {"edge_index", "start_mm"},
     ),
     "hoists": ({"edge_index", "face", "position_mm", "reach_height_mm", "tie_every_mm",
-                "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn", "model"},
+                "landing_levels", "note", "cage_width_mm", "cage_depth_mm", "load_kn", "model", "mount", "stage_z"},
                {"edge_index", "position_mm"}),
     # 範囲を指定した部材の編集（外す・置換）。spans・levels は "3-5"・[3, 5]・3・"全部"
     "member_edits": ({"edge_index", "face", "spans", "levels", "parts", "part", "action", "to", "reason"},
@@ -1754,8 +1757,24 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             cage_depth_mm=float(h.get("cage_depth_mm", hm.cage_depth_mm if hm else HOIST_CAGE_D_MM)),
             load_kn=float(h.get("load_kn", hm.load_kn if hm else 0.0)),
             model_id=hm.model_id if hm else "",
+            mount=parse_mount(h.get("mount")),
+            stage_z={str(k): float(v) for k, v in (h.get("stage_z") or {}).items()},
         ))
     return stages, hoists
+
+
+def parse_mount(v) -> str:
+    """昇降機の取付け: 「外」「外付け」「outside」→ 外付け、「内」「中」「914」「inside」→ 内（足場の幅の中）."""
+    from .platforms import MOUNT_INSIDE, MOUNT_OUTSIDE
+
+    t = str(v or "").strip().lower()
+    if not t:
+        return MOUNT_OUTSIDE
+    if any(k in t for k in ("内", "中", "914", "inside", "in")) and "外" not in t:
+        return MOUNT_INSIDE
+    if any(k in t for k in ("外", "outside", "out")):
+        return MOUNT_OUTSIDE
+    raise InputError(f"hoists.mount: 「{v}」は「外付け」か「内」で書いてください")
 
 
 def build_ground(spec: dict) -> GroundModel:
@@ -2544,6 +2563,15 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model.plan.warnings.append(ground_scaffold_note(spec))
     check_edge_indices(spec, model)
     model.stairs_elsewhere = [str(f) for f in (spec.get("stairs_elsewhere") or [])]
+    # 建物のフロア（名前, 足場の立つ面からの床の高さ mm）。ロングスパンの荷取りステージはフロアごとに掛ける（利用者の指定
+    # 2026-10-28: ステージは各階ではなくフロアごとにして）
+    base_h = float(spec.get("base_height_mm", 0) or 0)
+    # 高さ 0 の階（「最高高さ」のような目印の階）と、足場の立つ面より下の階（基礎下端など）はフロアにしない
+    # （フロアの番号は足場の立つ面のフロアを 1 として数える）
+    model.stories = sorted(((str(st.get("name", "")), float(st.get("level_mm", 0.0)) - base_h)
+                            for st in (spec.get("stories") or [])
+                            if (st.get("height_mm") is None or float(st.get("height_mm") or 0.0) > 0.0)
+                            and float(st.get("level_mm", 0.0)) - base_h > -FLOOR_BELOW_BASE_MM), key=lambda v: v[1])
     site = build_site(spec)
     # 開口部を先に解く（壁つなぎの最適化は抜いた支柱を避けた状態で検定する。
     # 階段の自動配置も梁枠の区間（通路）を避ける）

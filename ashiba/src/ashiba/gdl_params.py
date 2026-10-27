@@ -706,9 +706,8 @@ def _landing_list(model: ScaffoldModel, ep, platforms) -> str:
     for h in platforms.hoists:
         if h.edge_index != ep.edge_index or not levels:
             continue
-        for lv in h.landings(model):
-            idx = min(max(int(lv), 1), len(levels)) - 1
-            parts += [str(int(h.position_mm)), str(int(levels[idx]))]
+        for _n, z in h.landing_points(model):
+            parts += [str(int(h.position_mm)), str(int(round(z)))]
     return ",".join(parts)
 
 

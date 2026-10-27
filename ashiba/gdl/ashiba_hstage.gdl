@@ -1,0 +1,286 @@
+﻿! ==========================================================
+! 昇降機の荷取りステージ（乗り込む所1か所に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_hstage/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_hstage.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-28）: ブラケットも詳細にして／ステージは高さの調整があるので別オブジェクトにして。
+! 原点＝昇降機の部品と同じ（足場の外側建地の列の上の昇降機の中心）、faceAng で面の向き、zSt で床の高さ（上下に調整でき、次の配置でも残す）。stMode 0＝荷取用金具＋梁枠＋ころばし＋足場板、1＝クランプ式の内側ブラケット＋敷板＋足場板。フロアーゲートは床先に立てる。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   faceAng   角度      面の向き（度。+X＝面に沿う向き、+Y＝躯体側）                                既定 0
+!   zH        長さ      足場の立つ面の高さ（階の高さから。配置が入れる）                            既定 0
+!   zSt       長さ      ステージの床の高さ（足場の立つ面から。上下に調整できる。次の配置でも残す）  既定 3
+!   landName  文字列    乗り込む所（フロア名か作業層）                                              既定 "2FL"
+!   stMode    整数      取付け（0＝外付け: 荷取用金具＋梁枠、1＝足場の幅の中: ブラケット＋敷板）    既定 0
+!   stA       長さ      ステージの始点（昇降機の中心から面に沿って。乗り込み口の端の建地）          既定 -2.7435
+!   stB       長さ      ステージの終点（同上）                                                      既定 2.7435
+!   rowSp     長さ      足場の内外の建地の間隔                                                      既定 0.914
+!   yF        長さ      ステージの床先（荷台の側の縁。外側建地の列から +Y＝躯体側）                 既定 -0.07
+!   railX     長さ      1本構のガイドレールを避ける幅の半分（0＝無し）                              既定 0
+!   showGate  ブール    フロアーゲートを描く                                                        既定 1
+!   showText  ブール    平面に乗り込む所の名前を書く                                                既定 1
+!   matSt     表面材    金物の材質（0＝亜鉛めっきの色）                                             既定 0
+!   texSiz    実数      文字の大きさ（mm）                                                          既定 2.5
+!   penEquip  PenColor  線のペン                                                                    既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 荷取りステージ: 床の幅（外付けは外側建地の列から内側の建地の手前まで、足場の幅の中は敷板 240＋足場板 240）
+if stMode = 1 then
+	yB = yF + 0.48
+else
+	yB = rowSp - 0.10
+endif
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 荷取りステージ 2D（平面）: 床の外形・板の継ぎ目・ゲートの線・乗り込む所の名前
+define style "hsTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+line_type 1
+rect2 stA, yF, stB, yB
+nL = max(1, int((stB - stA) / 4.0 + 0.99))
+for k = 1 to nL - 1
+	line2 stA + k * (stB - stA) / nL, yF, stA + k * (stB - stA) / nL, yB
+next k
+if stMode = 1 then line2 stA, yF + 0.24, stB, yF + 0.24
+if showGate then
+	line2 stA, yF + 0.05, stB, yF + 0.05
+	line2 stA, yF + 0.07, stB, yF + 0.07
+endif
+if showText then
+	style "hsTx"
+	text2 (stA + stB) / 2, yB + 0.15, "荷取りステージ " + landName
+endif
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 昇降機の荷取りステージ 3D（乗り込む所1か所）。利用者の指定 2026-10-28: ブラケットも詳細にして／ステージは高さの
+! 調整があるので別オブジェクトにして。床先は荷台の縁の手前 30（規定 40mm 以内）
+! ============================================================
+resol 10
+define material "hstage_zinc" 2, 0.72, 0.74, 0.76
+define material "hstage_wood" 2, 0.74, 0.56, 0.36
+define material "hstage_gold" 2, 0.86, 0.68, 0.22
+mSt = IND(MATERIAL, "hstage_zinc")
+if matSt > 0 then mSt = matSt
+mWd = IND(MATERIAL, "hstage_wood")
+mAu = IND(MATERIAL, "hstage_gold")
+add 0, 0, zH + zSt
+rotz faceAng
+rP = 0.0243
+if stMode = 1 then
+	! ---- 足場の幅の中: 両横の足場の端の建地（躯体側の列 y＝rowSp）からクランプ式の内側ブラケット ----
+	brW = yB - rowSp
+	brD = 0.45
+	for se = 0 to 1
+		xS = stA + se * (stB - stA)
+		sx = 1 - 2 * se
+		! 建地に留めるクランプ（腕の高さと方杖の下）: 建地を巻く2つ割りの金物とボルト
+		for cz = 0 to 1
+			zc = -0.09 - cz * brD
+			material mAu
+			add xS, rowSp, zc - 0.035
+			cylind 0.07, rP + 0.008
+			del 1
+			add xS - 0.012, rowSp + rP, zc - 0.03
+			block 0.024, 0.035, 0.06
+			del 1
+			for bo = 0 to 1
+				add xS - 0.03 + bo * 0.06, rowSp + rP + 0.02, zc - 0.02 + bo * 0.04
+				rotx -90
+				cylind 0.04, 0.006
+				del 2
+			next bo
+		next cz
+		material mSt
+		! 背の縦材（2つのクランプをつなぐ角形 40）
+		add xS - 0.02, rowSp + rP + 0.035, -0.09 - brD
+		block 0.04, 0.04, brD
+		del 1
+		! 腕（溝形 75×40: ウェブと上下のフランジ。足場板・敷板はこの上に載る）
+		add xS - 0.02, rowSp + rP + 0.035, -0.08
+		block 0.004, brW - rP - 0.035, 0.075
+		del 1
+		add xS - 0.02, rowSp + rP + 0.035, -0.008
+		block 0.04, brW - rP - 0.035, 0.008
+		del 1
+		add xS - 0.02, rowSp + rP + 0.035, -0.08
+		block 0.04, brW - rP - 0.035, 0.008
+		del 1
+		! 方杖（φ27.2。下のクランプから腕の先の手前へ。両端に取付けの平鋼）
+		bLy = brW - rP - 0.12
+		add xS, rowSp + rP + 0.075, -0.09 - brD + 0.02
+		rotx -atn(bLy / (brD - 0.07))
+		cylind sqr(bLy ^ 2 + (brD - 0.07) ^ 2), 0.0136
+		del 2
+		add xS - 0.025, rowSp + rP + 0.06, -0.09 - brD
+		block 0.05, 0.03, 0.04
+		del 1
+		add xS - 0.025, yB - 0.10, -0.12
+		block 0.05, 0.04, 0.04
+		del 1
+		! 先端の止め（腕の先の立ち上がり）と、手すりを受けるホゾ（φ36.4）
+		add xS - 0.02, yB - 0.006, -0.08
+		block 0.04, 0.006, 0.13
+		del 1
+		add xS, yB - 0.03, 0.05
+		cylind 0.10, 0.0182
+		del 1
+		! 板止め（建地側の端。板が建地の側へずれないように）
+		add xS - 0.02, rowSp + rP + 0.035, 0
+		block 0.04, 0.006, 0.05
+		del 1
+	next se
+	! 敷板（荷台の側の縁。幅 240・厚 50。上にフロアーゲートが立つ）
+	material mWd
+	add stA + 0.005, yF, 0
+	block stB - stA - 0.01, 0.24, 0.05
+	del 1
+	! 足場板（幅 240・厚 40・4m まで）
+	bxA = stA + 0.03
+	bxB = stB - 0.03
+	byA = yF + 0.24
+	byB = yB
+	bzT = 0.04
+	gosub "boards"
+else
+	! ---- 外付け: 荷取用金具（建地の内外）＋梁枠2本＋ころばし＋足場板 ----
+	zS = -0.025
+	yF0 = -0.206
+	if railX > 0.01 or yF > -0.23 then yF0 = 0.206
+	for sy = 0 to 1
+		yS = yF0 + sy * (rowSp - 0.206 - yF0)
+		for se = 0 to 1
+			xS = stA + se * (stB - stA)
+			! 荷取用金具: 建地を巻くクランプ（金色）と、梁枠を受けるフランジ管（長さ 200）
+			material mAu
+			add xS, sy * rowSp, zS - 0.12
+			cylind 0.07, rP + 0.008
+			del 1
+			material mSt
+			add xS - 0.03, min(sy * rowSp, yS), zS - 0.10
+			block 0.06, 0.206, 0.04
+			del 1
+			add xS, yS, zS - 0.20
+			cylind 0.20, 0.03
+			del 1
+			add xS - 0.06, yS - 0.06, zS - 0.012
+			block 0.12, 0.12, 0.012
+			del 1
+		next se
+		! 梁枠（トラス。上弦材・下弦材・束・斜材）
+		material mSt
+		add stA, yS - 0.025, zS - 0.05
+		block stB - stA, 0.05, 0.05
+		del 1
+		add stA, yS - 0.025, zS - 0.40
+		block stB - stA, 0.05, 0.05
+		del 1
+		nT = max(2, int((stB - stA) / 0.6 + 0.5))
+		wT = (stB - stA) / nT
+		tAng = atn(wT / 0.35)
+		for k = 0 to nT - 1
+			if k - 2 * int(k / 2) = 0 then
+				add stA + k * wT, yS, zS - 0.375
+				roty tAng
+			else
+				add stA + (k + 1) * wT, yS, zS - 0.375
+				roty -tAng
+			endif
+			cylind sqr(wT ^ 2 + 0.35 ^ 2) - 0.05, 0.017
+			del 2
+		next k
+	next sy
+	! ころばし（梁枠に直交。床先から内側の梁枠まで）
+	nK = max(2, int((stB - stA) / 0.9 + 0.5))
+	for k = 0 to nK
+		add stA + 0.05 + k * (stB - stA - 0.10) / nK, yF + 0.05, zS + 0.024
+		rotx -90
+		cylind rowSp - 0.206 + 0.05 - yF - 0.05, 0.024
+		del 2
+	next k
+	! 足場板（1本構はガイドレールを避けて左右に分ける）
+	bzT = 0.06
+	byA = yF
+	byB = yB
+	if railX > 0.01 then
+		bxA = stA + 0.03
+		bxB = -railX
+		gosub "boards"
+		bxA = railX
+		bxB = stB - 0.03
+		gosub "boards"
+	else
+		bxA = stA + 0.03
+		bxB = stB - 0.03
+		gosub "boards"
+	endif
+endif
+! ---- フロアーゲート（アコーディオン式。ステージの荷台側の縁に立てる） ----
+if showGate then
+	yG = yF + 0.06
+	zg0 = 0.18
+	hG = 1.06
+	material mSt
+	nV = max(1, int((stB - stA) / 2.0 + 0.5))
+	for se = 0 to nV
+		xv = stA + se * (stB - stA) / nV
+		add xv, yG, 0.10
+		cylind 1.17, 0.02
+		del 1
+	next se
+	nJ = max(2, int((stB - stA) / 0.27 + 0.5))
+	wJ = (stB - stA) / nJ
+	hJ = hG / 2
+	jA = atn(wJ / hJ)
+	jL = sqr(wJ ^ 2 + hJ ^ 2)
+	for k = 0 to nJ - 1
+		for rr = 0 to 1
+			add stA + k * wJ, yG, zg0 + rr * hJ
+			roty jA
+			cylind jL, 0.008
+			del 2
+			add stA + (k + 1) * wJ, yG, zg0 + rr * hJ
+			roty -jA
+			cylind jL, 0.008
+			del 2
+		next rr
+	next k
+	material mAu
+	add stB - 0.10, yG - 0.05, 0.82
+	block 0.08, 0.06, 0.12
+	del 1
+endif
+end
+
+! ==== 足場板（幅 240・厚 40・長さ 4m まで。面に沿って並べ、継ぎは 10 あける）: bxA〜bxB × byA〜byB、上端 bzT ====
+"boards":
+	material mWd
+	nB = max(1, int((byB - byA) / 0.24 + 0.99))
+	wB = (byB - byA) / nB
+	nL = max(1, int((bxB - bxA) / 4.0 + 0.99))
+	lB = (bxB - bxA) / nL
+	for jb = 0 to nB - 1
+		for kb = 0 to nL - 1
+			add bxA + kb * lB + 0.005, byA + jb * wB + 0.005, bzT - 0.04
+			block lB - 0.01, wB - 0.01, 0.04
+			del 1
+		next kb
+	next jb
+return
+
