@@ -45,6 +45,7 @@ dim stL[8]
 dim bmS[8]
 dim bmL[8]
 dim bmH[8]
+dim bmBt[8]
 dim brS[8]
 dim brL[8]
 dim brD[8]
@@ -805,6 +806,28 @@ while strlen(rest) > 0 and nBm < 8 do
 	endif
 endwhile
 
+! ---- beamBotList をパース（梁枠の開口の下端。0＝地面から。途中の層の開口＝荷受けステージの間口はその層の床）----
+for ib = 1 to 8
+	bmBt[ib] = 0
+next ib
+nBt = 0
+rest = beamBotList
+while strlen(rest) > 0 and nBt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBt = nBt + 1
+		bmBt[nBt] = v / 1000
+	endif
+endwhile
+
 ! ---- advInList をパース「開始,終点,高さ」の繰り返し (mm→m) ----
 ! 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）は前踏み側にも先行手すり筋交い（ミレニューム Q16。利用者の資料 2026-10-24）
 dim aiS[24], aiE[24], aiZ[24]
@@ -1162,9 +1185,9 @@ for ip = 1 to nSpan
 	qOpenNega = 0
 	for ib = 1 to nBm
 		if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 then
-			if lv[1] < bmH[ib] - 0.001 then qOpenNega = 1
+			if lv[1] < bmH[ib] - 0.001 and bmBt[ib] < 0.001 then qOpenNega = 1
 			for il = lA + 1 to lB + 1
-				if lv[il] < bmH[ib] - 0.001 then qOpenLv = qOpenLv + 1
+				if lv[il] < bmH[ib] - 0.001 and lv[il] > bmBt[ib] + 0.001 then qOpenLv = qOpenLv + 1
 			next il
 		endif
 	next ib
@@ -1203,7 +1226,7 @@ for ip = 1 to nSpan
 			qBlk = 0
 			for ib = 1 to nBm
 				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
-						lv[il] < bmH[ib] - 0.001 then qBlk = 1
+						lv[il] < bmH[ib] - 0.001 and lv[il] >= bmBt[ib] - 0.001 then qBlk = 1
 			next ib
 			eoD = 0
 			eoR = 0
@@ -1260,7 +1283,7 @@ for il = 1 to nLv - 1
 					endif
 					qs9 = 0
 					for ib9 = 1 to nBm
-						if lv[il] < bmH[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
+						if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
 					next ib9
 					if qs9 = 0 then qBrace = qBrace + 1
 				next bf9

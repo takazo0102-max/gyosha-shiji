@@ -524,6 +524,7 @@ def line_params(
         "hoEdit": _list_edit(_hoist_list(model, ep, platforms), 5),
         # 梁枠。「開始,スパン,梁下高さ」の繰り返し
         "beamList": _beam_list(model, ep, openings),
+        "beamBotList": _beam_bottom_list(model, ep, openings),
         # 梁枠の網掛け部の前踏み側の先行手すり筋交い（系列の決め。ミレニューム Q16）
         "advInList": ",".join(f"{a:.0f},{b:.0f},{z:.0f}" for a, b, z in front_adv_spans(model, ep.edge_index, openings)),
         # 荷受けステージ。「開始,長さ,出,設置高さ,方杖」の繰り返し
@@ -755,6 +756,18 @@ def _beam_list(model: ScaffoldModel, ep, openings) -> str:
         h = cut_height(o, levels)
         parts += [str(int(o.start_mm)), str(int(o.beam_span_mm)), str(int(h))]
     return ",".join(parts)
+
+
+def _beam_bottom_list(model: ScaffoldModel, ep, openings) -> str:
+    """この辺の梁枠の開口の下端 mm を beamList と同じ順で返す（0＝地面から。途中の層の開口＝荷受けステージの間口は
+    その層の床の高さ。足場の線の部品はその下の支柱・床を残す）."""
+    if openings is None or not getattr(openings, "openings", None):
+        return ""
+    from .openings import cut_bottom
+
+    levels = model.elevation_of(ep.edge_index).level_heights
+    vals = [str(int(round(cut_bottom(o, levels)))) for o in openings.openings if o.edge_index == ep.edge_index]
+    return ",".join(vals) if any(v != "0" for v in vals) else ""
 
 
 def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
@@ -1035,9 +1048,9 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         # 梁下高さは _beam_list と同じ: 支柱を抜く層の作業床高さ
         for o in openings.openings:
             if o.edge_index == ep.edge_index and e.level_heights:
-                from .openings import cut_height
+                from .openings import cut_bottom, cut_height
 
-                beams.append((o.start_mm, o.end_mm, cut_height(o, e.level_heights)))
+                beams.append((o.start_mm, o.end_mm, cut_height(o, e.level_heights), cut_bottom(o, e.level_heights)))
     # 外付けの階段は本体の床を切らない（1d.gdl の stOut と同じ）
     outside = bool(getattr(stair_plan, "outside", False))
     all_towers = [(t.start_mm, t.start_mm + t.length_mm) for t in getattr(stair_plan, "towers", []) or []
@@ -1048,11 +1061,11 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
     for sp in ep.spans:
         open_lv = 0
         open_nega = 0
-        for s0, e0, bh in beams:
+        for s0, e0, bh, bb in beams:
             if x >= s0 - 1e-6 and x + sp <= e0 + 1e-6 and bh is not None:
-                if levels[0] < bh - 1e-6:
+                if levels[0] < bh - 1e-6 and bb <= 0.0:
                     open_nega = 1
-                open_lv += sum(1 for h in levels[1:] if h < bh - 1e-6)
+                open_lv += sum(1 for h in levels[1:] if bb + 1e-6 < h < bh - 1e-6)
         # 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側。1d.gdl と同じ）
         stair_open = 0
         for s0, e0 in towers:
@@ -1090,7 +1103,8 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
             else:
                 pair.append((a - ep.spans[max(0, ip - 1)], a))
             for b0, b1 in pair:
-                if not any(bh is not None and z1 < bh - 1e-6 and min(b1, e0) - max(b0, s0) > 1.0 for s0, e0, bh in beams):
+                if not any(bh is not None and bb - 1e-6 <= z1 < bh - 1e-6 and min(b1, e0) - max(b0, s0) > 1.0
+                           for s0, e0, bh, bb in beams):
                     brace += 1
     ties = sum(1 for t in model.wall_ties if t.edge_index == ep.edge_index)
     # 支柱の位置は両端を含めて数える（数量と同じ quantity.face_post_positions。利用者の指摘 2026-10-25: 支柱の本数の

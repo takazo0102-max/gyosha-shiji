@@ -607,7 +607,9 @@ def write_plan_json(
                  "landings_per_tower": 3, "towers": [...]},
       "openings": [{"edge_index": 0, "start_mm": 3600.0,
                     "beam_span_mm": 3600, "level": 2, "reason": "",
-                    "void": false}],      # void=true はロングスパンの昇降路（梁枠なしで全高を抜く）
+                    "void": false, "bottom_level": 0, "stage": false}],
+                    # void=true はロングスパンの昇降路（梁枠なしで全高を抜く）、bottom_level は途中の層の開口の
+                    # 下端の層（0＝地面から）、stage=true は荷受けステージの間口に入れた開口
       "platforms": {"stages": [...], "hoists": [...], "extra_wall_ties": 0},
       "bridged_zones": [{"kind": "凹み", "edge_index": 0, "start_mm": 12300.0,
                          "end_mm": 15900.0, "span_count": 3, "width_mm": 3600.0,

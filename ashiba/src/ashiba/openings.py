@@ -70,6 +70,12 @@ def front_adv_spans(model, edge_index: int, result) -> list[tuple[float, float, 
     return out
 # 梁枠の直近に壁つなぎが要る距離の目安
 TIE_NEAR_MM = 1800.0
+# 仮設工業会「はりわく等の使用基準」（2018 改正）: 開口部の寸法は幅4スパン以下・高さは原則3層以下。開口部端の支持部から
+# 外方に、はりわくの種類に応じたスパン数のわく組足場を設ける（1種＝2スパン用は1スパン以上、2種＝3スパン用は2、
+# 3種＝4スパン用は3）。開口部上方の全積載荷重は 1000kg 以下。外方のスパン内に建設用リフト等を設置しない
+OPENING_MAX_SPANS = 4
+OPENING_MAX_LEVELS = 3
+STAGE_OPENING_LEVELS = 2       # 荷受けステージの間口の開口の高さ（層）
 # 全高で抜く区間（void）の「梁下高さ」。足場より高い値にして、梁枠より下を抜く処理をそのまま全高に効かせる。
 # 足場の線の部品は 999m 以上を梁枠なしとみなす（梁枠・梁枠上の支柱を描かない）
 VOID_HEIGHT_MM = 999000.0
@@ -86,6 +92,10 @@ class Opening:
     reason: str = ""
     # 梁枠を入れず全高で抜く区間（ロングスパンの昇降路。両隣の足場の間に荷取りステージだけ掛ける）
     void: bool = False
+    # 途中の層の開口（0＝地面から）: この作業層の床から上だけ支柱を抜く。荷受けステージの間口（利用者の指定 2026-10-28:
+    # 取り入れ口のブラケットも足場は開口になる、開口のところは梁枠を入れて）。床（bottom_level の層）と、その下の支柱は残す
+    bottom_level: int = 0
+    stage: bool = False       # 荷受けステージの間口に自動で入れた開口（ステージ×開口部の衝突にしない）
 
     @property
     def end_mm(self) -> float:
@@ -104,7 +114,10 @@ class OpeningIssue:
 class OpeningResult:
     openings: list[Opening] = field(default_factory=list)
     issues: list[OpeningIssue] = field(default_factory=list)
-    removed_posts: int = 0        # 抜いた支柱の本数（内外列ぶん）
+    removed_posts: int = 0        # 抜いた支柱の本数（内外列ぶん。地面から抜くもの）
+    cut_posts: int = 0            # 途中の層の開口で、途中だけ抜いた支柱の本数（ジャッキと下の支柱は残る）
+    # 開口部ごとの、途中の層の開口の床の高さ（抜く区間の下端。地面から抜くものは入れない）
+    bottom_heights: dict = field(default_factory=dict)
     # 開口部ごとの、梁枠上に乗る支柱の位置（開口始点からのmm）
     inner_posts: dict = field(default_factory=dict)
     # 開口部ごとの梁枠下端＝開口高さ（GLからのmm）
@@ -185,7 +198,36 @@ def validate_openings(
             continue
 
         inner = [p for p in posts if o.start_mm + 1e-6 < p < o.end_mm - 1e-6]
-        result.removed_posts += len(inner) * rows
+        n_sp = len(inner) + 1
+        face = model.face_name(o.edge_index)
+        if not o.void:
+            # 仮設工業会 はりわく等の使用基準: 幅4スパン以下・高さ原則3層以下・開口部端から外方のスパン数
+            n_lv_open = max(0, o.level - max(o.bottom_level, 1)) if o.bottom_level > 0 else max(0, o.level - 1)
+            if n_sp > OPENING_MAX_SPANS:
+                result.issues.append(OpeningIssue(
+                    i, "NG", f"{face}の開口部（{o.start_mm:.0f}〜{o.end_mm:.0f}）は幅{n_sp}スパンで、はりわくの開口は"
+                             f"{OPENING_MAX_SPANS}スパン以下です", "仮設工業会 はりわく等の使用基準 2e"))
+            if n_lv_open > OPENING_MAX_LEVELS:
+                result.issues.append(OpeningIssue(
+                    i, "WARN", f"{face}の開口部の高さが{n_lv_open}層です。開口部の高さは原則3層以下です（障害物がある等"
+                               "やむを得ないとき以外）", "仮設工業会 はりわく等の使用基準 2e"))
+            need_out = max(1, n_sp - 1)
+            k0 = next((j for j, p in enumerate(posts) if abs(p - o.start_mm) < 1.0), None)
+            k1 = next((j for j, p in enumerate(posts) if abs(p - o.end_mm) < 1.0), None)
+            if k0 is not None and k1 is not None:
+                left, right = k0, len(posts) - 1 - k1
+                if min(left, right) < need_out:
+                    side = "始点側" if left < need_out else "終点側"
+                    result.issues.append(OpeningIssue(
+                        i, "WARN", f"{face}の開口部（{n_sp}スパン用のはりわく）の{side}の外方の足場が{min(left, right)}スパン"
+                                   f"しかありません。開口部端の支持部から外方へ{need_out}スパン以上のわく組足場が要ります"
+                                   "（足りないときは、はりわく支持部の建わくを補強）", "仮設工業会 はりわく等の使用基準 2f"))
+        if o.bottom_level > 0:
+            result.cut_posts += len(inner) * rows
+            lvb = model.elevation_of(o.edge_index).level_heights
+            result.bottom_heights[i] = float(lvb[o.bottom_level - 1]) if 0 < o.bottom_level <= len(lvb) else 0.0
+        else:
+            result.removed_posts += len(inner) * rows
         # 梁枠上に乗る支柱の位置。図がスパン割から推定すると、開口部だけ
         # 割付が違う場合（900+1800+900など）に本数が食い違う
         result.inner_posts[i] = [round(p - o.start_mm, 1) for p in inner]
@@ -204,7 +246,7 @@ def validate_openings(
         # 通路として使う開口なので、頭上の高さが要る
         levels = model.elevation.level_heights
         h = levels[o.level - 1] if 0 < o.level <= len(levels) else 0
-        if 0 < h < MIN_HEADROOM_MM:
+        if 0 < h - result.bottom_heights.get(i, 0.0) < MIN_HEADROOM_MM and o.bottom_level == 0:
             result.issues.append(OpeningIssue(
                 i, "WARN",
                 f"{model.face_name(o.edge_index)}の開口高さ{h:.0f}mm < {MIN_HEADROOM_MM:.0f}mm。"
@@ -260,9 +302,26 @@ def opening_post_heights(model: ScaffoldModel, result: Optional[OpeningResult]) 
     top = float(model.elevation.total_height)
     out: list[float] = []
     for i, _o in enumerate(result.openings):
+        if _o.bottom_level > 0:
+            continue                # 途中の層の開口は opening_mid_posts
         n = len(result.inner_posts.get(i, [])) * rows
         beam_h = float(result.beam_heights.get(i, 0.0))
         out.extend([max(0.0, top - beam_h)] * n)
+    return out
+
+
+def opening_mid_posts(model: ScaffoldModel, result: Optional[OpeningResult]) -> list[tuple[float, float]]:
+    """途中の層の開口で途中だけ抜いた支柱1本ごとの (下の支柱の高さ＝地面から床まで, 上の支柱の高さ＝梁枠上〜天端) mm."""
+    if result is None or not result.openings:
+        return []
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    top = float(model.elevation.total_height)
+    out: list[tuple[float, float]] = []
+    for i, o in enumerate(result.openings):
+        if o.bottom_level <= 0:
+            continue
+        n = len(result.inner_posts.get(i, [])) * rows
+        out.extend([(float(result.bottom_heights.get(i, 0.0)), max(0.0, top - float(result.beam_heights.get(i, 0.0))))] * n)
     return out
 
 
@@ -296,6 +355,8 @@ def opening_deck_deduction(
         if edge is None:
             continue
         below = max(0, o.level - 1)      # 梁枠のある層より下の層数
+        if o.bottom_level > 0:
+            below = max(0, o.level - o.bottom_level - 1)   # 途中の層の開口: 床（bottom_level）は残し、その上から梁枠まで
         if below == 0:
             continue
         acc = 0.0
@@ -319,8 +380,8 @@ def opening_span_counts(
         return out
     for o in result.openings:
         edge = _edge(model, o.edge_index)
-        if edge is None:
-            continue
+        if edge is None or o.bottom_level > 0:
+            continue                # 途中の層の開口は根がらみを残す
         acc = 0.0
         for sp in edge.spans:
             if o.start_mm - 1e-6 <= acc < o.end_mm - 1e-6:
@@ -342,7 +403,8 @@ def opening_removed_udegi(
     out = 0
     for i, o in enumerate(result.openings):
         inner = len(result.inner_posts.get(i, []))
-        out += inner * max(0, o.level)
+        # 途中の層の開口: 床（bottom_level）の腕木は残し、その上から梁枠の下まで
+        out += inner * (max(0, o.level - o.bottom_level - 1) if o.bottom_level > 0 else max(0, o.level))
     return out
 
 
@@ -427,3 +489,40 @@ def removed_posts_split(model: ScaffoldModel, result: Optional[OpeningResult]) -
         else:
             beam += n
     return beam, void
+
+
+def cut_bottom(o: Opening, levels) -> float:
+    """抜く区間の下端（途中の層の開口はその層の床の高さ、ほかは 0＝地面）."""
+    if o.bottom_level <= 0 or not levels:
+        return 0.0
+    return float(levels[min(o.bottom_level, len(levels)) - 1])
+
+
+def stage_openings(model: ScaffoldModel, stages) -> list[Opening]:
+    """荷受けステージの間口を途中の層の開口にする（利用者の指定 2026-10-28: 取り入れ口のブラケットも足場は開口になる、
+    開口のところは梁枠を入れて）. 間口の中の支柱を、ステージの層の床から1つ上の層の床まで抜き、そこに梁枠を入れて上の
+    支柱を受ける。間口が1スパン（中の支柱が無い）・最上層（上に支柱が無い）・規格の梁枠が無い長さは入れない。"""
+    out: list[Opening] = []
+    sizes = beam_sizes(model)
+    for st in stages or []:
+        ep = _edge(model, st.edge_index)
+        if ep is None or st.span_count < 2:
+            continue
+        length = int(round(st.length_mm(model)))
+        size = next((b for b in sizes if abs(b - length) <= 2), None)
+        if size is None:
+            continue
+        n = model.elevation_of(st.edge_index).n_levels
+        # 開口の高さは2層（ステージの床から2つ上の層の床まで。1層 1.8m では荷を立てて取り込めない。利用者の指定
+        # 2026-10-28: 荷物取り入れられないから1スパン上になると思う）。上に2層が無ければ1層。同じ間口で重なる層の
+        # ステージ（2層・3層など）は1つの開口にまとめる（下のステージの床から上のステージの開口の上まで）
+        groups: list[list[int]] = []
+        for lv in sorted(set(v for v in (st.levels or [1]) if 1 <= v < n)):
+            if groups and lv < min(groups[-1][-1] + STAGE_OPENING_LEVELS, n):
+                groups[-1].append(lv)
+            else:
+                groups.append([lv])
+        for g in groups:
+            out.append(Opening(st.edge_index, float(st.start_mm), int(size), min(g[-1] + STAGE_OPENING_LEVELS, n),
+                               reason="荷受けステージの間口", bottom_level=g[0], stage=True))
+    return out

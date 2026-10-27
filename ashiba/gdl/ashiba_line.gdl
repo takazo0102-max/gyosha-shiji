@@ -169,6 +169,7 @@
 !   landingList     文字列    昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し                                                                        既定 ""
 !   advInList       文字列    前踏み側の先行手すり筋交い mm 「開始,終点,この高さ以上の作業層」の繰り返し（梁枠の網掛け部。ミレニューム Q16）             既定 ""
 !   beamList        文字列    梁枠 mm 「開始,スパン,梁下高さ」の繰り返し                                                                                 既定 ""
+!   beamBotList     文字列    梁枠の開口の下端 mm（beamList と同じ順。0＝地面から、途中の層の開口＝その層の床）                                          既定 ""
 !   bridgeList      文字列    渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm                   既定 ""
 !   komaGap         長さ      支柱の上端から最上のコマまで（ND1800 55・ミレニューム 30）                                                                 既定 0
 !   komaNega        長さ      根がらみ用のコマの高さ（支柱の下端から。ND1800 170）                                                                       既定 0
@@ -264,6 +265,7 @@ dim stL[8]
 dim bmS[8]
 dim bmL[8]
 dim bmH[8]
+dim bmBt[8]
 dim brS[8]
 dim brL[8]
 dim brD[8]
@@ -1024,6 +1026,28 @@ while strlen(rest) > 0 and nBm < 8 do
 	endif
 endwhile
 
+! ---- beamBotList をパース（梁枠の開口の下端。0＝地面から。途中の層の開口＝荷受けステージの間口はその層の床）----
+for ib = 1 to 8
+	bmBt[ib] = 0
+next ib
+nBt = 0
+rest = beamBotList
+while strlen(rest) > 0 and nBt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBt = nBt + 1
+		bmBt[nBt] = v / 1000
+	endif
+endwhile
+
 ! ---- advInList をパース「開始,終点,高さ」の繰り返し (mm→m) ----
 ! 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）は前踏み側にも先行手すり筋交い（ミレニューム Q16。利用者の資料 2026-10-24）
 dim aiS[24], aiE[24], aiZ[24]
@@ -1381,9 +1405,9 @@ for ip = 1 to nSpan
 	qOpenNega = 0
 	for ib = 1 to nBm
 		if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 then
-			if lv[1] < bmH[ib] - 0.001 then qOpenNega = 1
+			if lv[1] < bmH[ib] - 0.001 and bmBt[ib] < 0.001 then qOpenNega = 1
 			for il = lA + 1 to lB + 1
-				if lv[il] < bmH[ib] - 0.001 then qOpenLv = qOpenLv + 1
+				if lv[il] < bmH[ib] - 0.001 and lv[il] > bmBt[ib] + 0.001 then qOpenLv = qOpenLv + 1
 			next il
 		endif
 	next ib
@@ -1422,7 +1446,7 @@ for ip = 1 to nSpan
 			qBlk = 0
 			for ib = 1 to nBm
 				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
-						lv[il] < bmH[ib] - 0.001 then qBlk = 1
+						lv[il] < bmH[ib] - 0.001 and lv[il] >= bmBt[ib] - 0.001 then qBlk = 1
 			next ib
 			eoD = 0
 			eoR = 0
@@ -1479,7 +1503,7 @@ for il = 1 to nLv - 1
 					endif
 					qs9 = 0
 					for ib9 = 1 to nBm
-						if lv[il] < bmH[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
+						if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
 					next ib9
 					if qs9 = 0 then qBrace = qBrace + 1
 				next bf9
@@ -1657,7 +1681,7 @@ for ip = 1 to nSpan
 		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
 	next it2
 	for ib3 = 1 to nBm
-		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
 	next ib3
 	if inStair = 0 and inSeg then line2 x, 0, x + spans[ip], -rowW
 	x = x + spans[ip]
@@ -1780,7 +1804,7 @@ for ip = 1 to nSpan
 	! 開口部（梁枠の区間）も同じ。この平面は支柱を抜いた状態を描いているので、
 	! 床だけ上層の状態を描くと1枚の図の中で辻褄が合わなくなる
 	for ib3 = 1 to nBm
-		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
 	next ib3
 	if showDeck and hugMode = 0 and inStair = 0 and inSeg then
 		if planReal then
@@ -1801,7 +1825,7 @@ for ip = 1 to nSpan + 1
 	! 梁枠の内側の支柱は抜いてある。描くと実際には無い建地を示すことになる
 	removed = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 and bmBt[ib] < 0.001 then removed = 1
 	next ib
 	if x < pxA - 0.001 or x > pxB + 0.001 then removed = 1
 	if removed = 0 then
@@ -2682,8 +2706,12 @@ x = 0
 for ip = 1 to nSpan + 1
 	! 梁枠の内側は支柱を抜き、梁下から上だけ描く
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
@@ -2693,7 +2721,8 @@ for ip = 1 to nSpan + 1
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
 	! ジャッキベース: 敷板（あれば）＋アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
-	if bBase = 0 then
+	! （途中の層の開口＝荷受けステージの間口は、下の支柱とジャッキが残る）
+	if bBase = 0 or bBot > 0.001 then
 		if sv > 0.001 then rect2 x - 0.15, gv, x + 0.15, gv + sv
 		rect2 x - 0.07, gv + sv, x + 0.07, gv + sv + 0.006
 		rect2 x - 0.019, gv + sv + 0.006, x + 0.019, gv + jo
@@ -2708,6 +2737,7 @@ for ip = 1 to nSpan + 1
 		bDrP = 0.06
 		if komaPitch > 0.001 then bDrP = komaPitch
 		rect2 x - r_sic, bBase - bDrP + 0.07, x + r_sic, postTop
+		if bBot > 0.001 then rect2 x - r_sic, gv + jo, x + r_sic, bBot
 	endif
 	! 縦継ぎ（ジョイント）位置に短い横線。継ぎ足しは下側なので天端から数える
 	jh = postTop
@@ -2802,7 +2832,7 @@ for il = 2 to nLv
 		next it3
 		for ib2 = 1 to nBm
 			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
-					z < bmH[ib2] - 0.001 then noAll = 1
+					z < bmH[ib2] - 0.001 and z > bmBt[ib2] + 0.001 then noAll = 1
 		next ib2
 		! 荷受けステージの間口は設置層で外側の手すり・中桟・幅木を外す（3D・数量と同じ）
 		inSg = 0
@@ -2912,7 +2942,7 @@ for ip = 1 to nSpan
 			bS1 = 0
 			bS2 = 0
 			for ib9 = 1 to nBm
-				if lv[il] < bmH[ib9] - 0.001 then
+				if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 then
 					if min(bk2, bmS[ib9] + bmL[ib9]) - max(bk1, bmS[ib9]) > 0.001 then bS1 = 1
 					if min(bk4, bmS[ib9] + bmL[ib9]) - max(bk3, bmS[ib9]) > 0.001 then bS2 = 1
 				endif
@@ -3497,7 +3527,7 @@ if d3 = 4 then
 			skB = 0
 			for ib = 1 to nBm
 				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
-						zb < bmH[ib] - 0.001 then skB = 1
+						zb < bmH[ib] - 0.001 and zb >= bmBt[ib] - 0.001 then skB = 1
 			next ib
 			if zt > zb + 0.001 and skB = 0 then
 				add x, -rowW, zb
@@ -3641,8 +3671,12 @@ endif
 x = 0
 for ip = 1 to nSpan + 1
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
@@ -3739,6 +3773,14 @@ for ip = 1 to nSpan + 1
 				del nPj + 2
 			endif
 		else
+			! 途中の層の開口（荷受けステージの間口）: 地面からその層の床までは支柱が残る（ジャッキも）
+			if bBot > 0.001 then
+				add x, -row * rowW, gv
+				gosub 820
+				addz jo
+				cylind bBot - gv - jo, r_sic
+				del 2
+			endif
 			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）。昇降路（999m）は支柱が無い
 			if bBase < 900 and not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
 				zPb = bBase - bmDrop + r_nuno + 0.05
@@ -4305,8 +4347,12 @@ if nKz > 0 then
 	x = 0
 	for ip = 1 to nSpan + 1
 		bBase = 0
+		bBot = 0
 		for ib = 1 to nBm
-			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+				bBase = bmH[ib]
+				bBot = bmBt[ib]
+			endif
 		next ib
 		! 支柱だけ分解した部品の持つ支柱のコマは、分解した部材が描く（コマの付く支柱の下端で判定）
 		ownX = 0
@@ -4318,7 +4364,7 @@ if nKz > 0 then
 					not(row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1))) and \
 					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
-					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
+					if (kz[ik] > bBase + 0.001 or kz[ik] < bBot - 0.001) and not(explodeMask > 0 and ownX = 1 and \
 							kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
 						add x, -row * rowW, kz[ik] - 0.003
 						cylind 0.006, 0.053
@@ -4374,7 +4420,7 @@ for il = 1 to nLv
 			skipH = 0
 			for ib6 = 1 to nBm
 				if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
-						z < bmH[ib6] - 0.001 then skipH = 1
+						z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
 			next ib6
 			! 単管抱き足場: 各層の床の高さに、建地を両側から抱く布を2本（その上に足場板）
 			if skipH = 0 and il > 1 and hugMode = 1 then
@@ -4542,7 +4588,7 @@ for il = 1 to nLv
 			noPost = 0
 			for ib7 = 1 to nBm
 				if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
-						z < bmH[ib7] - 0.001 then noPost = 1
+						z < bmH[ib7] - 0.001 and z > bmBt[ib7] + 0.001 then noPost = 1
 			next ib7
 			if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
 			if noPost = 0 then
@@ -4671,7 +4717,7 @@ if showDeck then
 				skipAll = 0
 				for ib4 = 1 to nBm
 					if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
-							z < bmH[ib4] - 0.001 then skipAll = 1
+							z < bmH[ib4] - 0.001 and z > bmBt[ib4] + 0.001 then skipAll = 1
 				next ib4
 				! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
 				! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
@@ -4944,7 +4990,7 @@ if showBrace then
 							! （利用者の指摘 2026-10-24: 1層目の両サイドに謎のブレス）。数量は隣の構面へ移す扱いで同じ
 							bSkip = 0
 							for ib9 = 1 to nBm
-								if z1 < bmH[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
+								if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
 										max(min(xa, xa + sg * spb), bmS[ib9]) > 0.001 then bSkip = 1
 							next ib9
 							if bSkip = 0 then
@@ -4979,7 +5025,7 @@ if showBrace then
 					endif
 					bSkipW = 0
 					for ib9 = 1 to nBm
-						if z1 < bmH[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
+						if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
 					next ib9
 					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" and bSkipW = 0 then
 						! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
@@ -5297,13 +5343,13 @@ for ib2 = 1 to nBm
 				xe = bs + be * bl
 				for il8 = 1 to nLv
 					z8 = lv[il8]
-					if z8 < bh - 0.001 then
+					if z8 < bh - 0.001 and z8 >= bmBt[ib2] - 0.001 then
 						add xe, 0, z8
 						rotz -90
 						nL = rowW
 						gosub 850
 						del 2
-						if il8 > 1 then
+						if il8 > 1 and z8 > bmBt[ib2] + 0.001 then
 							if mToe > 0 then material mToe
 							add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
 							block 0.012, rowW - 2 * r_sic, 0.157
@@ -5759,7 +5805,7 @@ for ia = 1 to nAsa
 		endif
 		! 開口部（梁枠）の内側で支柱を抜いた位置は、斜材を受ける下の主材受金具の支柱が無い（主材も付けない）
 		for ib9 = 1 to nBm
-			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 then inCut = 1
+			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 and za - floorH >= bmBt[ib9] - 0.001 then inCut = 1
 		next ib9
 		if inCut = 0 then
 			if inTw = 0 then
@@ -7205,8 +7251,12 @@ for ip = 1 to nSpan + 1
 	gv = 0
 	if ip <= nGl then gv = gl[ip]
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	for row = rowStart to 1
 		yr = -row * rowW
@@ -7228,6 +7278,7 @@ for ip = 1 to nSpan + 1
 			next jp
 		else
 			if bBase < 900 then lin_ x, yr, bBase, x, yr, postTop
+			if bBot > 0.001 and skipP = 0 then lin_ x, yr, gv, x, yr, bBot
 		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
@@ -7258,7 +7309,7 @@ for il = 1 to nLv
 		skipH = 0
 		for ib6 = 1 to nBm
 			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
-					z < bmH[ib6] - 0.001 then skipH = 1
+					z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
 		next ib6
 		if skipH = 0 then
 			for row = rowStart to 1

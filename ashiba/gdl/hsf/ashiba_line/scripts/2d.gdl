@@ -147,7 +147,7 @@ for ip = 1 to nSpan
 		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
 	next it2
 	for ib3 = 1 to nBm
-		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
 	next ib3
 	if inStair = 0 and inSeg then line2 x, 0, x + spans[ip], -rowW
 	x = x + spans[ip]
@@ -270,7 +270,7 @@ for ip = 1 to nSpan
 	! 開口部（梁枠の区間）も同じ。この平面は支柱を抜いた状態を描いているので、
 	! 床だけ上層の状態を描くと1枚の図の中で辻褄が合わなくなる
 	for ib3 = 1 to nBm
-		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 then inStair = 1
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
 	next ib3
 	if showDeck and hugMode = 0 and inStair = 0 and inSeg then
 		if planReal then
@@ -291,7 +291,7 @@ for ip = 1 to nSpan + 1
 	! 梁枠の内側の支柱は抜いてある。描くと実際には無い建地を示すことになる
 	removed = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then removed = 1
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 and bmBt[ib] < 0.001 then removed = 1
 	next ib
 	if x < pxA - 0.001 or x > pxB + 0.001 then removed = 1
 	if removed = 0 then
@@ -1172,8 +1172,12 @@ x = 0
 for ip = 1 to nSpan + 1
 	! 梁枠の内側は支柱を抜き、梁下から上だけ描く
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
 	gv = 0
@@ -1183,7 +1187,8 @@ for ip = 1 to nSpan + 1
 	if ip <= nJk then jo = jk[ip]
 	if ip <= nSh then sv = sh[ip]
 	! ジャッキベース: 敷板（あれば）＋アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
-	if bBase = 0 then
+	! （途中の層の開口＝荷受けステージの間口は、下の支柱とジャッキが残る）
+	if bBase = 0 or bBot > 0.001 then
 		if sv > 0.001 then rect2 x - 0.15, gv, x + 0.15, gv + sv
 		rect2 x - 0.07, gv + sv, x + 0.07, gv + sv + 0.006
 		rect2 x - 0.019, gv + sv + 0.006, x + 0.019, gv + jo
@@ -1198,6 +1203,7 @@ for ip = 1 to nSpan + 1
 		bDrP = 0.06
 		if komaPitch > 0.001 then bDrP = komaPitch
 		rect2 x - r_sic, bBase - bDrP + 0.07, x + r_sic, postTop
+		if bBot > 0.001 then rect2 x - r_sic, gv + jo, x + r_sic, bBot
 	endif
 	! 縦継ぎ（ジョイント）位置に短い横線。継ぎ足しは下側なので天端から数える
 	jh = postTop
@@ -1292,7 +1298,7 @@ for il = 2 to nLv
 		next it3
 		for ib2 = 1 to nBm
 			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
-					z < bmH[ib2] - 0.001 then noAll = 1
+					z < bmH[ib2] - 0.001 and z > bmBt[ib2] + 0.001 then noAll = 1
 		next ib2
 		! 荷受けステージの間口は設置層で外側の手すり・中桟・幅木を外す（3D・数量と同じ）
 		inSg = 0
@@ -1402,7 +1408,7 @@ for ip = 1 to nSpan
 			bS1 = 0
 			bS2 = 0
 			for ib9 = 1 to nBm
-				if lv[il] < bmH[ib9] - 0.001 then
+				if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 then
 					if min(bk2, bmS[ib9] + bmL[ib9]) - max(bk1, bmS[ib9]) > 0.001 then bS1 = 1
 					if min(bk4, bmS[ib9] + bmL[ib9]) - max(bk3, bmS[ib9]) > 0.001 then bS2 = 1
 				endif

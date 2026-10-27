@@ -140,8 +140,10 @@ def check_conflicts(
                     "通路で床が無く、階段室を組めません。階段位置か開口部をずらしてください",
                     "安衛則526条・563条（昇降設備・作業床）",
                 ))
-        # 荷受けステージ: 梁枠上は積載低減の区間で、集中荷重は受けられない
+        # 荷受けステージ: 梁枠上は積載低減の区間で、集中荷重は受けられない（ステージの間口に入れた開口そのものは除く）
         for i, st in enumerate(stages):
+            if o.stage:
+                break
             if st.edge_index == o.edge_index and _overlap(
                 st.start_mm, st.end_mm(model), o.start_mm, o.end_mm
             ):
@@ -179,6 +181,31 @@ def check_conflicts(
                     f"梁枠両端の{vm}で確認してください",
                     "仮設工業会 梁枠使用基準",
                 ))
+        # 昇降機: 開口部端の支持部から外方のスパン（はりわくの種類で 1〜3 スパン）に建設用リフト等を設置しない
+        # （仮設工業会 はりわく等の使用基準 3d）
+        ep_o = next((e for e in model.plan.edges if e.edge_index == o.edge_index), None)
+        if ep_o is not None:
+            posts_o = [0.0]
+            for sp in ep_o.spans:
+                posts_o.append(posts_o[-1] + float(sp))
+            n_sp_o = sum(1 for p in posts_o if o.start_mm + 1e-6 < p < o.end_mm - 1e-6) + 1
+            need_o = max(1, n_sp_o - 1)
+            k0 = next((j for j, p in enumerate(posts_o) if abs(p - o.start_mm) < 1.0), None)
+            k1 = next((j for j, p in enumerate(posts_o) if abs(p - o.end_mm) < 1.0), None)
+            if k0 is not None and k1 is not None:
+                zones = [(posts_o[max(0, k0 - need_o)], o.start_mm), (o.end_mm, posts_o[min(len(posts_o) - 1, k1 + need_o)])]
+                for i, h in enumerate(hoists):
+                    if h.edge_index != o.edge_index:
+                        continue
+                    hs = [(posts_o[k], posts_o[k + 1]) for k in h.gate_spans(model)]
+                    if any(_overlap(a, b, o.start_mm, o.end_mm) for a, b in hs):
+                        continue        # 開口部の中の昇降機は下の「昇降機×開口部」（控え・積載低減）で見る
+                    if any(_overlap(a, b, z0, z1) for a, b in hs for z0, z1 in zones):
+                        out.append(ConflictIssue(
+                            "昇降機×開口部", "NG",
+                            f"{model.face_name(o.edge_index)}の昇降機{i + 1}が開口部（{o_rng}）の端から外方{need_o}スパンの"
+                            "中にあります。はりわくの支持部の外方のスパンには建設用リフト等を設置できません。昇降機か開口部を"
+                            "ずらしてください", "仮設工業会 はりわく等の使用基準 3d"))
         # 昇降機: マスト控えを取る支柱が梁枠より下に無い
         for i, h in enumerate(hoists):
             if h.edge_index == o.edge_index and (

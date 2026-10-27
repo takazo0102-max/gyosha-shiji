@@ -46,8 +46,9 @@ class LoadingStage:
     has_load_sign: bool = True      # 最大積載荷重の表示
     has_hozue: bool = True          # 方杖
     # 侵入落下防止柵（利用者の指定 2026-10-24。GLOOBE の「荷受けステージと侵入落下防止柵」）: ステージの先端・妻側に
-    # 金網の落下防止柵（荷が手すりの間から落ちない）、足場側の間口に開閉式の侵入防止柵（荷の取り込み中に人が出ない）
-    has_fence: bool = True
+    # 金網の落下防止柵（荷が手すりの間から落ちない）、足場側の間口に開閉式の侵入防止柵（荷の取り込み中に人が出ない）。
+    # 既定は付けない（利用者の指定 2026-10-28: 手すりの後ろのフェンスいらない）。入力 has_fence: true で付ける
+    has_fence: bool = False
     note: str = ""
 
     def length_mm(self, model: ScaffoldModel) -> float:

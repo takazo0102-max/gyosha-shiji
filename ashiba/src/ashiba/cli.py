@@ -1731,7 +1731,7 @@ def build_platforms(spec: dict) -> tuple[list, list]:
             has_toe_board=s.get("has_toe_board", True),
             has_load_sign=s.get("has_load_sign", True),
             has_hozue=s.get("has_hozue", True),
-            has_fence=s.get("has_fence", True),
+            has_fence=s.get("has_fence", False),
             note=s.get("note", ""),
         )
         for s in spec.get("loading_stages", [])
@@ -1872,7 +1872,15 @@ def collect_warnings(
     out += [("付帯設備の衝突", i.severity,
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in (conflicts or [])]
-    return out
+    # 同じ本文は1件に（割付の注意が格子の検定と取付部の寄せ直しの両方から同じ文で来ることがある）
+    seen: set = set()
+    uniq = []
+    for w in out:
+        if w[2] in seen:
+            continue
+        seen.add(w[2])
+        uniq.append(w)
+    return uniq
 
 
 def build_verdict(
@@ -2575,7 +2583,11 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     site = build_site(spec)
     # 開口部を先に解く（壁つなぎの最適化は抜いた支柱を避けた状態で検定する。
     # 階段の自動配置も梁枠の区間（通路）を避ける）
-    openings = validate_openings(model, build_openings(spec))
+    # 荷受けステージの間口は途中の層の開口（ステージの層の床から1つ上の層の床まで支柱を抜き、梁枠で上の支柱を受ける。
+    # 利用者の指定 2026-10-28: 取り入れ口のブラケットも足場は開口になる、開口のところは梁枠を入れて）
+    from .openings import stage_openings
+
+    openings = validate_openings(model, build_openings(spec) + stage_openings(model, build_platforms(spec)[0]))
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
     # 取付部（朝顔・ステージ）の壁つなぎも最適化の検定に載せるため、付帯設備を先に解く
     platforms = validate_platforms(model, *build_platforms(spec))

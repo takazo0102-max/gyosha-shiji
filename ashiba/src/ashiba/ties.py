@@ -231,9 +231,11 @@ def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
             continue   # 成立していない開口部（両端が支柱に乗らない等）は触らない
         keep: list[WallTie] = []
         for t in model.wall_ties:
+            # 途中の層の開口（荷受けステージの間口）はその層の床から梁枠までだけ支柱が無い
+            bottom_h = float(getattr(openings, "bottom_heights", {}).get(i, -1.0))
             inside = (t.edge_index == o.edge_index
                       and o.start_mm + 1e-6 < t.position_mm < o.end_mm - 1e-6
-                      and t.height_mm < beam_h - 1e-6)
+                      and bottom_h + 1e-6 < t.height_mm < beam_h - 1e-6)
             if not inside:
                 keep.append(t)
                 continue

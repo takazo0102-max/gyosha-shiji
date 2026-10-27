@@ -261,10 +261,11 @@ def cell_blocked(model: ScaffoldModel, ep, span_i: int, level: int, openings=Non
     for o in openings.openings:
         if o.edge_index != ep.edge_index:
             continue
-        from .openings import cut_height
+        from .openings import cut_bottom, cut_height
 
         beam_h = cut_height(o, ev.level_heights)
-        if x >= o.start_mm - 1e-6 and x + sp <= o.end_mm + 1e-6 and z < beam_h - 1e-6:
+        bot = cut_bottom(o, ev.level_heights)
+        if x >= o.start_mm - 1e-6 and x + sp <= o.end_mm + 1e-6 and z < beam_h - 1e-6 and (bot <= 0.0 or z > bot + 1e-6):
             return True
     return False
 

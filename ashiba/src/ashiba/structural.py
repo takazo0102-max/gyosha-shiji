@@ -1038,7 +1038,8 @@ def optimize_wall_ties(
         notes += relocate_ties_off_openings(model, openings)
         # 渡した区間の深い所（最長品でも届かない）の壁つなぎは、届く支柱へ寄せる
         notes += relocate_unreachable_ties(model)
-        return notes
+        # 格子と取付部で同じ寄せ方の注意が2回出る（同じ文）。1つにまとめる
+        return list(dict.fromkeys(notes))
 
     site = site or SiteCondition(period_days=model.config.period_days)
     caps = load_capacities(model.master.series_id, capacity_path)

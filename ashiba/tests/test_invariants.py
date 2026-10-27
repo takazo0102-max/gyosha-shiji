@@ -41,10 +41,12 @@ class TestCrossCuttingInvariants(unittest.TestCase):
                     beam_h = op.beam_heights.get(i)
                     if beam_h is None:
                         continue
+                    # 途中の層の開口（荷受けステージの間口）はその層の床より上だけ支柱が無い
+                    bottom_h = float(getattr(op, "bottom_heights", {}).get(i, -1.0))
                     bad = [t for t in r.model.wall_ties
                            if t.edge_index == o.edge_index
                            and o.start_mm + 1e-6 < t.position_mm < o.end_mm - 1e-6
-                           and t.height_mm < beam_h - 1e-6]
+                           and bottom_h + 1e-6 < t.height_mm < beam_h - 1e-6]
                     self.assertEqual(bad, [], (name, i))
 
     def test_warnings_are_not_duplicated(self):

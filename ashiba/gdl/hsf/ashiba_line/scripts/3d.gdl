@@ -184,7 +184,7 @@ if d3 = 4 then
 			skB = 0
 			for ib = 1 to nBm
 				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
-						zb < bmH[ib] - 0.001 then skB = 1
+						zb < bmH[ib] - 0.001 and zb >= bmBt[ib] - 0.001 then skB = 1
 			next ib
 			if zt > zb + 0.001 and skB = 0 then
 				add x, -rowW, zb
@@ -328,8 +328,12 @@ endif
 x = 0
 for ip = 1 to nSpan + 1
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
 	gv = 0
@@ -426,6 +430,14 @@ for ip = 1 to nSpan + 1
 				del nPj + 2
 			endif
 		else
+			! 途中の層の開口（荷受けステージの間口）: 地面からその層の床までは支柱が残る（ジャッキも）
+			if bBot > 0.001 then
+				add x, -row * rowW, gv
+				gosub 820
+				addz jo
+				cylind bBot - gv - jo, r_sic
+				del 2
+			endif
 			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）。昇降路（999m）は支柱が無い
 			if bBase < 900 and not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
 				zPb = bBase - bmDrop + r_nuno + 0.05
@@ -992,8 +1004,12 @@ if nKz > 0 then
 	x = 0
 	for ip = 1 to nSpan + 1
 		bBase = 0
+		bBot = 0
 		for ib = 1 to nBm
-			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+				bBase = bmH[ib]
+				bBot = bmBt[ib]
+			endif
 		next ib
 		! 支柱だけ分解した部品の持つ支柱のコマは、分解した部材が描く（コマの付く支柱の下端で判定）
 		ownX = 0
@@ -1005,7 +1021,7 @@ if nKz > 0 then
 					not(row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1))) and \
 					x >= gxA - 0.1 and x <= gxB + 0.1 then
 				for ik = 1 to nKz
-					if kz[ik] > bBase + 0.001 and not(explodeMask > 0 and ownX = 1 and \
+					if (kz[ik] > bBase + 0.001 or kz[ik] < bBot - 0.001) and not(explodeMask > 0 and ownX = 1 and \
 							kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
 						add x, -row * rowW, kz[ik] - 0.003
 						cylind 0.006, 0.053
@@ -1061,7 +1077,7 @@ for il = 1 to nLv
 			skipH = 0
 			for ib6 = 1 to nBm
 				if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
-						z < bmH[ib6] - 0.001 then skipH = 1
+						z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
 			next ib6
 			! 単管抱き足場: 各層の床の高さに、建地を両側から抱く布を2本（その上に足場板）
 			if skipH = 0 and il > 1 and hugMode = 1 then
@@ -1229,7 +1245,7 @@ for il = 1 to nLv
 			noPost = 0
 			for ib7 = 1 to nBm
 				if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
-						z < bmH[ib7] - 0.001 then noPost = 1
+						z < bmH[ib7] - 0.001 and z > bmBt[ib7] + 0.001 then noPost = 1
 			next ib7
 			if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
 			if noPost = 0 then
@@ -1358,7 +1374,7 @@ if showDeck then
 				skipAll = 0
 				for ib4 = 1 to nBm
 					if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
-							z < bmH[ib4] - 0.001 then skipAll = 1
+							z < bmH[ib4] - 0.001 and z > bmBt[ib4] + 0.001 then skipAll = 1
 				next ib4
 				! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
 				! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
@@ -1631,7 +1647,7 @@ if showBrace then
 							! （利用者の指摘 2026-10-24: 1層目の両サイドに謎のブレス）。数量は隣の構面へ移す扱いで同じ
 							bSkip = 0
 							for ib9 = 1 to nBm
-								if z1 < bmH[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
+								if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
 										max(min(xa, xa + sg * spb), bmS[ib9]) > 0.001 then bSkip = 1
 							next ib9
 							if bSkip = 0 then
@@ -1666,7 +1682,7 @@ if showBrace then
 					endif
 					bSkipW = 0
 					for ib9 = 1 to nBm
-						if z1 < bmH[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
+						if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
 					next ib9
 					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" and bSkipW = 0 then
 						! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
@@ -1984,13 +2000,13 @@ for ib2 = 1 to nBm
 				xe = bs + be * bl
 				for il8 = 1 to nLv
 					z8 = lv[il8]
-					if z8 < bh - 0.001 then
+					if z8 < bh - 0.001 and z8 >= bmBt[ib2] - 0.001 then
 						add xe, 0, z8
 						rotz -90
 						nL = rowW
 						gosub 850
 						del 2
-						if il8 > 1 then
+						if il8 > 1 and z8 > bmBt[ib2] + 0.001 then
 							if mToe > 0 then material mToe
 							add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
 							block 0.012, rowW - 2 * r_sic, 0.157
@@ -2446,7 +2462,7 @@ for ia = 1 to nAsa
 		endif
 		! 開口部（梁枠）の内側で支柱を抜いた位置は、斜材を受ける下の主材受金具の支柱が無い（主材も付けない）
 		for ib9 = 1 to nBm
-			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 then inCut = 1
+			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 and za - floorH >= bmBt[ib9] - 0.001 then inCut = 1
 		next ib9
 		if inCut = 0 then
 			if inTw = 0 then
@@ -3892,8 +3908,12 @@ for ip = 1 to nSpan + 1
 	gv = 0
 	if ip <= nGl then gv = gl[ip]
 	bBase = 0
+	bBot = 0
 	for ib = 1 to nBm
-		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then bBase = bmH[ib]
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
 	next ib
 	for row = rowStart to 1
 		yr = -row * rowW
@@ -3915,6 +3935,7 @@ for ip = 1 to nSpan + 1
 			next jp
 		else
 			if bBase < 900 then lin_ x, yr, bBase, x, yr, postTop
+			if bBot > 0.001 and skipP = 0 then lin_ x, yr, gv, x, yr, bBot
 		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
@@ -3945,7 +3966,7 @@ for il = 1 to nLv
 		skipH = 0
 		for ib6 = 1 to nBm
 			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
-					z < bmH[ib6] - 0.001 then skipH = 1
+					z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
 		next ib6
 		if skipH = 0 then
 			for row = rowStart to 1

@@ -329,13 +329,19 @@ def _sub_openings(openings, edges: set):
 
     keep = [i for i, o in enumerate(openings.openings) if o.edge_index in edges]
     total_inner = sum(len(v) for v in openings.inner_posts.values())
-    rows = (openings.removed_posts // total_inner) if total_inner else 0
+    cut_total = getattr(openings, "cut_posts", 0)
+    rows = ((openings.removed_posts + cut_total) // total_inner) if total_inner else 0
     inner = {k: openings.inner_posts[i] for k, i in enumerate(keep) if i in openings.inner_posts}
+    mid = {k for k, i in enumerate(keep) if openings.openings[i].bottom_level > 0}
     return dataclasses.replace(
         openings, openings=[openings.openings[i] for i in keep],
         inner_posts=inner,
         beam_heights={k: openings.beam_heights[i] for k, i in enumerate(keep) if i in openings.beam_heights},
-        removed_posts=sum(len(v) for v in inner.values()) * rows,
+        bottom_heights={k: openings.bottom_heights[i] for k, i in enumerate(keep)
+                        if i in getattr(openings, "bottom_heights", {})},
+        # 途中の層の開口（荷受けステージの間口）は下の支柱が残るので、抜いた本数（ジャッキ）に入れない
+        removed_posts=sum(len(v) for k, v in inner.items() if k not in mid) * rows,
+        cut_posts=sum(len(v) for k, v in inner.items() if k in mid) * rows,
         issues=[dataclasses.replace(x, index=keep.index(x.index)) for x in openings.issues if x.index in keep])
 
 
@@ -864,9 +870,14 @@ def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
     """
     from .platforms import _edge, _span_index
 
+    from .openings import stage_openings
+
     out: dict[int, int] = {}
     for s in (getattr(platforms, "stages", None) or []):
-        n_lv = max(1, len(s.levels) or 1)
+        # 間口の開口（途中の層の開口）の中に入る層は開口の控除で外してあるので、ここでは引かない（二重に引いていた）
+        ops = stage_openings(model, [s])
+        n_lv = sum(1 for lv in (s.levels or [1])
+                   if not any(o.bottom_level < lv < o.level for o in ops))
         for nominal in s.spans(model):
             out[nominal] = out.get(nominal, 0) + n_lv
     from .openings import hoist_voids
@@ -1527,9 +1538,10 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         for i, o in enumerate(openings.openings):
             ev = model.elevation_of(o.edge_index)
             bh = float(openings.beam_heights.get(i, 0.0))
-            below = [z for z in [ev.first_ledger_height] + list(ev.level_heights) if z < bh - 1e-6]
+            bb = float(openings.bottom_heights.get(i, -1.0))       # 途中の層の開口は床から上だけ
+            below = [z for z in [ev.first_ledger_height] + list(ev.level_heights) if bb - 1e-6 <= z < bh - 1e-6]
             n_br += 2 * len(below)
-            n_toe += 2 * sum(1 for z in ev.level_heights if z < bh - 1e-6)
+            n_toe += 2 * sum(1 for z in ev.level_heights if bb + 1e-6 < z < bh - 1e-6)
         for cat, n, what in (("先行手摺", n_br, "ブレス材（先行手すり）"), ("幅木", n_toe, "妻面幅木")):
             if not n:
                 continue
@@ -2729,16 +2741,35 @@ def _replace_opening_stacks(model, openings, totals: dict[int, int], full_stack:
     組める構成が無い高さは全高のまま残し、要確認に出す。
     """
     from .elevation_solver import _compose_table
-    from .openings import opening_post_heights
+    from .openings import opening_mid_posts, opening_post_heights
 
     heights = opening_post_heights(model, openings)
-    if not heights or not lengths:
+    mids = opening_mid_posts(model, openings)
+    if not (heights or mids) or not lengths:
         return 0
-    table = _compose_table(int(round(max(heights))) + 1, sorted(set(lengths), reverse=True))
+    table = _compose_table(int(round(max(list(heights) + [max(a, b) for a, b in mids]))) + 1,
+                           sorted(set(lengths), reverse=True))
     replaced = 0
     joints_delta = 0
     missing: list[float] = []
     done: dict[int, int] = {}
+    # 途中の層の開口（荷受けステージの間口）で途中だけ抜いた支柱: 全高の構成を、下（地面〜床）と上（梁枠上〜天端）の
+    # 2本の構成に置き換える（ジャッキと下の支柱は残る）
+    mid_done = 0
+    for below, above in mids:
+        cb, ca = table.get(int(round(below))), table.get(int(round(above)))
+        if cb is None or ca is None:
+            missing.append(below if cb is None else above)
+            continue
+        for nominal in full_stack:
+            totals[nominal] = totals.get(nominal, 0) - 1
+        for nominal in list(cb) + list(ca):
+            totals[nominal] = totals.get(nominal, 0) + 1
+        joints_delta += (len(cb) - 1) + (len(ca) - 1) - (len(full_stack) - 1)
+        mid_done += 1
+    if mid_done:
+        notes.append(f"荷受けステージの間口（途中の層の開口）で途中を抜いた{label}{mid_done}本は、下（地面〜ステージの床）と"
+                     "梁枠上（〜天端）の2本の構成で計上しています")
     for h in heights:
         comp = table.get(int(round(h)))
         if comp is None:

@@ -425,9 +425,17 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
             p.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
             return solve_all(load_spec(p))
 
+    def _run_without_bay_opening(self, **extra):
+        # 間口の開口（梁枠。利用者の指定 2026-10-28）を入れない形で、ステージの手すりの付け外しだけを見る
+        from unittest import mock
+
+        with mock.patch("ashiba.openings.stage_openings", lambda model, stages: []):
+            return self._run(**extra)
+
     def test_ledger_method(self):
         base = self._run()
-        st = self._run(loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2, 3]}])
+        st = self._run_without_bay_opening(
+            loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2, 3]}])
         cells = 2 * 2                      # 2スパン×2層
         # ステージ側: 前面2スパン×2本＋妻側2箇所×2本＝8本/層、幅木 前面2＋妻側2＝4本/層。
         # 本体側: 外側手すり・中桟 2本×セル、幅木 1本×セル を外す
@@ -437,8 +445,9 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
 
     def test_advance_method(self):
         base = self._run(guard_rail_type="先行手すり")
-        st = self._run(guard_rail_type="先行手すり",
-                       loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2]}])
+        st = self._run_without_bay_opening(guard_rail_type="先行手すり",
+                                           loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2,
+                                                            "levels": [2]}])
         self.assertEqual(st.quantity.qty_of("先行手摺"), base.quantity.qty_of("先行手摺") - 2)
 
     def test_hoist_landing_bays(self):

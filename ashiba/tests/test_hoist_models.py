@@ -156,7 +156,7 @@ class TestHoistInput(unittest.TestCase):
         # ステージも外側の列の外へ張り出す: 搬器が通るスパンに重なれば NG、隣のスパンからなら通す
         ho = {"hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4"}]}
         on = solve_all({**BOX, **ho, "loading_stages": [{"edge_index": 0, "start_mm": 7316, "span_count": 2, "levels": [3]}]})
-        self.assertEqual([c.kind for c in on.conflicts], ["昇降機×ステージ"])
+        self.assertIn("昇降機×ステージ", [c.kind for c in on.conflicts])
         self.assertFalse(on.verdict["ok"])
         off = solve_all({**BOX, **ho, "loading_stages": [{"edge_index": 0, "start_mm": 9145, "span_count": 2, "levels": [3]}]})
         self.assertFalse([c for c in off.conflicts if c.kind == "昇降機×ステージ"])
@@ -526,6 +526,46 @@ class TestHoistInput(unittest.TestCase):
         d3 = (ROOT / "gdl" / "hsf" / "ashiba_hstage" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         for key in ("建地に留めるクランプ", "腕（溝形", "方杖", "先端の止め", "板止め", "敷板", '"boards":', "荷取用金具"):
             self.assertIn(key, d3)
+
+    def test_loading_stage_bay_is_an_opening_with_a_beam(self):
+        # 利用者の指定 2026-10-28: 取り入れ口のブラケットも足場は開口になる、開口のところは梁枠を入れて、手すりの後ろの
+        # フェンスいらない。ステージの層の床から1つ上の層の床まで間口の中の支柱を抜き、梁枠で上の支柱を受ける（床と下の
+        # 支柱は残す）
+        from ashiba.gdl_params import _beam_bottom_list, _beam_list
+
+        r = solve_all({**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 1829, "span_count": 2, "levels": [3]}]})
+        ops = [o for o in r.openings.openings if o.stage]
+        # 開口の高さは2層（3層目の床から5層目の床まで。利用者の指定 2026-10-28: 荷物取り入れられないから1スパン上に）
+        self.assertEqual([(o.start_mm, o.beam_span_mm, o.bottom_level, o.level) for o in ops], [(1829.0, 3658, 3, 5)])
+        self.assertEqual(r.openings.removed_posts, 0)          # ジャッキと下の支柱は残る
+        self.assertEqual(r.openings.cut_posts, 2)
+        self.assertTrue(r.verdict["ok"], r.verdict.get("blockers"))
+        self.assertFalse([c for c in r.conflicts if c.kind == "ステージ×開口部"])
+        self.assertEqual(r.quantity.qty_of("梁枠"), 2)                 # 内外の列に1本ずつ
+        ep = next(e for e in r.model.plan.edges if e.edge_index == 0)
+        lv = r.model.elevation_of(0).level_heights
+        self.assertEqual(_beam_list(r.model, ep, r.openings), f"1829,3658,{int(lv[4])}")
+        self.assertEqual(_beam_bottom_list(r.model, ep, r.openings), str(int(lv[2])))
+        # 1スパンの間口は中の支柱が無いので開口にしない。柵は既定で付けない
+        one = solve_all({**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 1829, "span_count": 1, "levels": [3]}]})
+        self.assertFalse([o for o in one.openings.openings if o.stage])
+        self.assertFalse(r.platforms.stages[0].has_fence)
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if bBot > 0.001 then", d3)
+
+    def test_opening_size_follows_the_beam_frame_standard(self):
+        # 仮設工業会 はりわく等の使用基準（2018 改正）: 幅4スパン以下・高さ原則3層以下・開口部端から外方へ（2スパン用1、
+        # 3スパン用2、4スパン用3）スパン以上の足場、外方のスパンに建設用リフトを置かない
+        r = solve_all({**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 1829, "span_count": 2, "levels": [3]}]})
+        st = [o for o in r.openings.openings if o.stage][0]
+        self.assertEqual(st.level - st.bottom_level, 2)        # 2層（3.6m）の開口
+        # 3スパンの間口が面の始点の1スパン目から: 始点側の外方は1スパンしかない（2スパン以上が要る）
+        w = solve_all({**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 1829, "span_count": 3, "levels": [3]}]})
+        self.assertTrue([x for x in w.openings.issues if "始点側の外方の足場が1スパン" in x.message])
+        # 昇降機を開口部の外方のスパンに置くと NG
+        h = solve_all({**BOX, "loading_stages": [{"edge_index": 0, "start_mm": 1829, "span_count": 2, "levels": [3]}],
+                       "hoists": [{"edge_index": 0, "position_mm": 6401.5, "model": "SEC-980HS"}]})
+        self.assertTrue([c for c in h.conflicts if c.kind == "昇降機×開口部" and "外方" in c.message])
 
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError

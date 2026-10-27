@@ -83,7 +83,9 @@ class TestSoundPanel(unittest.TestCase):
 
 class TestStageFence(unittest.TestCase):
     def setUp(self):
-        self.r = _solve(loading_stages=[{"edge_index": 0, "start_mm": 1829, "span_count": 2, "levels": [2, 3]}])
+        # 柵は既定では付けない（利用者の指定 2026-10-28: 手すりの後ろのフェンスいらない）。付けるときは has_fence: true
+        self.r = _solve(loading_stages=[{"edge_index": 0, "start_mm": 1829, "span_count": 2, "levels": [2, 3],
+                                         "has_fence": True}])
         self.m = self.r.model
         self.st = self.r.platforms.stages[0]
 
@@ -99,7 +101,8 @@ class TestStageFence(unittest.TestCase):
         self.assertIn(f"侵入防止柵（開閉式）がマスタにありません（{n_gate * 2}）", notes)
 
     def test_can_be_turned_off(self):
-        r = _solve(loading_stages=[{"edge_index": 0, "start_mm": 1829, "span_count": 2, "has_fence": False}])
+        # 既定（指定なし）は柵なし
+        r = _solve(loading_stages=[{"edge_index": 0, "start_mm": 1829, "span_count": 2}])
         self.assertFalse(any("防止柵" in n for n in r.quantity.notes))
 
     def test_gdl_gets_the_fence_bit(self):

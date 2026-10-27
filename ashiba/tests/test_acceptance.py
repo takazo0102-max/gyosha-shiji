@@ -253,10 +253,11 @@ class TestOverallVerdict(unittest.TestCase):
             openings=[{"edge_index": 2, "start_mm": 3600, "beam_span_mm": 7200}],
         )
         self.assertFalse(r["verdict"]["ok"])
-        # 開口部はNG1件＋常時の注意1件。要確認に数えるのは後者だけ
+        # 開口部はNG1件＋常時の注意1件＋開口部端から外方のスパン不足の注意1件（仮設工業会 はりわく等の使用基準 2f）。
+        # 要確認に数えるのは注意の2件だけ
         ng = [w for w in r["warnings"] if w.startswith("開口部") and "NG" in w]
         self.assertTrue(ng)
-        self.assertIn("開口部 1件", r["verdict"]["warn_breakdown"])
+        self.assertIn("開口部 2件", r["verdict"]["warn_breakdown"])
 
     def test_report_lists_every_warning_once(self):
         """冒頭の「要確認N件」が本文の一覧と一致すること."""
