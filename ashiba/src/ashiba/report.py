@@ -126,9 +126,13 @@ def _face_items(model: ScaffoldModel, edge_index: int, stair_plan, platforms, op
     n = count(getattr(stair_plan, "towers", None))
     if n:
         parts.append(f"階段{n}")
-    n = count(getattr(openings, "openings", None))
+    ops = getattr(openings, "openings", None) or []
+    n = count([o for o in ops if not o.void])
     if n:
         parts.append(f"梁枠{n}")
+    n = count([o for o in ops if o.void])
+    if n:
+        parts.append(f"昇降路{n}")
     n = count(getattr(platforms, "stages", None))
     if n:
         parts.append(f"ステージ{n}")
@@ -401,8 +405,9 @@ def write_report_md(
         extras.append(f"荷受けステージ {len(platforms.stages)}基")
     if platforms is not None and platforms.hoists:
         extras.append(f"昇降機 {len(platforms.hoists)}基")
-    if openings is not None and openings.openings:
-        extras.append(f"開口部（梁枠）{len(openings.openings)}箇所")
+    beams = [o for o in (openings.openings if openings is not None else []) if not o.void]
+    if beams:
+        extras.append(f"開口部（梁枠）{len(beams)}箇所")
     if extras:
         a("")
         a("## 付帯設備")
@@ -437,13 +442,21 @@ def write_report_md(
                             else f"乗り込み口{n_sp}スパンで梁枠（2・3スパン）が掛からず別計画")
                     a(f"  - 荷取りステージ: 荷取用金具4個/層＋{beam}・床先と搬器の床先のすき間40mm以内"
                       f"・ステージ上の全積載{LANDING_STAGE_MAX_KG:.0f}kg以下・梁枠を受ける支柱に壁つなぎ"
-                      + ("・その升目の本体の床はステージで代える（踏板を外す）" if n_sp in LANDING_BEAM_SPANS else ""))
+                      + ("・乗り込み口のスパンの足場は全高で抜き（昇降路）、両隣の足場の間にステージだけを掛ける"
+                         if n_sp in LANDING_BEAM_SPANS else ""))
                 else:
                     a("  - 荷取り床: 外側建地から腕で受ける（2か所/層）・床先と搬器の床先のすき間40mm以内")
         if openings is not None and openings.removed_posts:
+            from .openings import removed_posts_split
+
             vm = model.master.vertical_member_name
-            a(f"- 開口部で抜いた{vm}: {openings.removed_posts}本"
-              f"（両端{vm}の軸力と梁枠上の積載制限は構造計算の開口部の行を参照）")
+            n_beam, n_void = removed_posts_split(model, openings)
+            if n_beam:
+                a(f"- 開口部で抜いた{vm}: {n_beam}本"
+                  f"（両端{vm}の軸力と梁枠上の積載制限は構造計算の開口部の行を参照）")
+            if n_void:
+                a(f"- ロングスパンの昇降路で抜いた{vm}: {n_void}本（乗り込み口のスパンの足場を全高で抜き、両隣の足場の間に"
+                  "荷取りステージだけを掛ける。両隣の足場の端は妻面の手すり・幅木で囲う）")
         # ブラケット区間は「1箇所」だけでは何をするか分からない。
         # どの面のどの範囲を、どちら向きに、どの幅で持ち出す/追従するかを出す
         for b in (bracket_sections or []):
@@ -588,7 +601,8 @@ def write_plan_json(
       "stairs": {"count": 2, "max_travel_mm": 28800.0,
                  "landings_per_tower": 3, "towers": [...]},
       "openings": [{"edge_index": 0, "start_mm": 3600.0,
-                    "beam_span_mm": 3600, "level": 2, "reason": ""}],
+                    "beam_span_mm": 3600, "level": 2, "reason": "",
+                    "void": false}],      # void=true はロングスパンの昇降路（梁枠なしで全高を抜く）
       "platforms": {"stages": [...], "hoists": [...], "extra_wall_ties": 0},
       "bridged_zones": [{"kind": "凹み", "edge_index": 0, "start_mm": 12300.0,
                          "end_mm": 15900.0, "span_count": 3, "width_mm": 3600.0,

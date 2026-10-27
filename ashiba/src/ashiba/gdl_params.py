@@ -750,8 +750,10 @@ def _beam_list(model: ScaffoldModel, ep, openings) -> str:
     for o in openings.openings:
         if o.edge_index != ep.edge_index:
             continue
-        idx = min(max(o.level, 1), len(levels)) - 1 if levels else 0
-        h = levels[idx] if levels else 0
+        from .openings import cut_height
+
+        # 昇降路（void）は 999m（足場の線の部品は梁枠なしで全高を抜く）
+        h = cut_height(o, levels)
         parts += [str(int(o.start_mm)), str(int(o.beam_span_mm)), str(int(h))]
     return ",".join(parts)
 
@@ -1034,8 +1036,9 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         # 梁下高さは _beam_list と同じ: 支柱を抜く層の作業床高さ
         for o in openings.openings:
             if o.edge_index == ep.edge_index and e.level_heights:
-                idx = min(max(o.level, 1), len(e.level_heights)) - 1
-                beams.append((o.start_mm, o.end_mm, e.level_heights[idx]))
+                from .openings import cut_height
+
+                beams.append((o.start_mm, o.end_mm, cut_height(o, e.level_heights)))
     # 外付けの階段は本体の床を切らない（1d.gdl の stOut と同じ）
     outside = bool(getattr(stair_plan, "outside", False))
     all_towers = [(t.start_mm, t.start_mm + t.length_mm) for t in getattr(stair_plan, "towers", []) or []

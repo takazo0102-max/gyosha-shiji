@@ -320,23 +320,59 @@ class TestHoistInput(unittest.TestCase):
         ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE-990", "landing_levels": [2, 4]}]})
         self.assertFalse([x for x in ok.platforms.issues if "搬器が届きません" in x.message])
 
-    def test_landing_stage_replaces_the_scaffold_deck(self):
-        # 利用者の指定 2026-10-28: ステージが床の代わりになるので本体の床は外して。乗り込み口のスパン×乗り込む層の踏板を
-        # 数量から引き、足場の線の部品にも描かせない（部材編集）。ステージの足場板は昇降機の部品が描く
-        def deck(r):
-            return sum(ln.qty for ln in r.quantity.lines if ln.part.category == "踏板" and ln.part.nominal_dim == 1829)
+    def test_long_span_bay_has_no_scaffold_above_or_below_the_stage(self):
+        # 利用者の指摘 2026-10-28: ステージの上下は足場ないよ（施工写真: ロングスパンの前の足場は全高で抜き、両隣の足場の間に
+        # 各階の荷取りステージだけが掛かる）。乗り込み口のスパンを昇降路として全高で抜く（支柱・床・手すり・幅木・壁つなぎ）。
+        # 梁枠は入れず、両隣の足場の端は妻面のブレス材・幅木で囲う
+        from ashiba.openings import VOID_HEIGHT_MM
 
-        base = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F", "landing_levels": [2, 4]}]})
+        # 比べる相手も昇降機あり（階段室・屋上への渡りは昇降機の面を避けて別の面へ移るので、無しと比べると床がずれる）
+        none = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F", "landing_levels": [2, 4]}]})
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
-        eds = [e for e in r.model.member_edits if "荷取りステージ" in e.reason]
-        self.assertEqual([(e.edge_index, e.span_from, e.span_to, e.level_from, e.parts) for e in eds],
-                         [(0, 2, 4, 2, ("踏板",)), (0, 2, 4, 4, ("踏板",))])
-        self.assertEqual(deck(base) - deck(r), 3 * 2)
-        # 梁枠が掛からない乗り込み口（4スパン以上）は別計画なので本体の床は残す
-        wide = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEL-950LK-7.2F", "landing_levels": [2]}]})
-        self.assertFalse([e for e in wide.model.member_edits if "荷取りステージ" in e.reason])
-        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertIn("block gB - gA - 0.06, rowSp - 0.20, 0.04", d3)
+        voids = [o for o in r.openings.openings if o.void]
+        self.assertEqual([(o.edge_index, o.start_mm, o.beam_span_mm) for o in voids], [(0, 1829.0, 5487)])
+        self.assertTrue(r.verdict["ok"], r.verdict.get("blockers"))
+
+        def qty(res, cat, dim):
+            return sum(ln.qty for ln in res.quantity.lines if ln.part.category == cat and ln.part.nominal_dim == dim)
+
+        n_lv = r.model.elevation_of(0).n_levels
+        self.assertEqual(qty(none, "踏板", 1829) - qty(r, "踏板", 1829), 3 * n_lv)       # 3スパン×全層の床
+        # 幅木: エレベーターの側も乗り込み口（1スパン×2層）は外してあるので、差は 3スパン×全層 − 2
+        self.assertEqual(qty(none, "幅木", 1829) - qty(r, "幅木", 1829), 3 * n_lv - 2)
+        self.assertEqual(qty(none, "ジャッキ", 400) - qty(r, "ジャッキ", 400), 2 * 2)   # 中の支柱2本×内外
+        # 梁枠は荷取りステージの分（2本×乗り込む2層）だけで、昇降路には入れない
+        self.assertEqual(qty(r, "梁枠", 5487), 4)
+        self.assertFalse([t for t in r.model.wall_ties if t.edge_index == 0 and 1829 + 1 < t.position_mm < 7316 - 1])
+        # 足場の線の部品へは 999m の「梁下高さ」で渡す（全高で抜く・梁枠を描かない）
+        from ashiba.gdl_params import _beam_list
+
+        ep = next(e for e in r.model.plan.edges if e.edge_index == 0)
+        self.assertEqual(_beam_list(r.model, ep, r.openings), f"1829,5487,{int(VOID_HEIGHT_MM)}")
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if bBase < 900 and not(explodeMask", d3)
+        # 梁枠が掛からない乗り込み口（4スパン以上）・エレベーターは抜かない
+        for m in ("SEL-950LK-7.2F", "SEC-700-F"):
+            w = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": m, "landing_levels": [2]}]})
+            self.assertFalse([o for o in w.openings.openings if o.void], m)
+
+    def test_stair_in_the_hoist_bay_is_ng(self):
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}],
+                       "loading_stages": [{"edge_index": 0, "start_mm": 3658, "span_count": 1, "levels": [3]}]})
+        self.assertTrue([c for c in r.conflicts if c.kind == "荷受けステージ×昇降路" and c.severity == "NG"])
+
+    def test_long_span_needs_scaffold_on_both_sides(self):
+        # 利用者の指摘 2026-10-28: ロングスパンの横には足場いるよ。昇降フレームは両横の足場の建枠にクランプで上下2か所留め、
+        # 壁つなぎも両横の足場から取る（三葉工業 NSE-800 組立手順書）。昇降路が面の端に掛かれば NG
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 2743.5, "model": "KSE900-5.4", "landing_levels": [2]}]})
+        self.assertTrue([x for x in r.platforms.issues if x.severity == "NG" and "始点側に足場がありません" in x.message])
+        self.assertFalse(r.verdict["ok"])
+        ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}]})
+        self.assertFalse([x for x in ok.platforms.issues if "足場がありません" in x.message])
+        # 両横の足場の昇降路側の支柱は端部。荷受けステージは1スパン以上離す（杉孝 Q&A）
+        st = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}],
+                        "loading_stages": [{"edge_index": 0, "start_mm": 7316, "span_count": 1, "levels": [3]}]})
+        self.assertTrue([c for c in st.conflicts if c.kind == "荷受けステージ×昇降路" and "端部" in c.message])
 
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError

@@ -57,7 +57,7 @@ def front_adv_spans(model, edge_index: int, result) -> list[tuple[float, float, 
         posts.append(posts[-1] + float(s))
     out = []
     for i, o in enumerate(result.openings):
-        if o.edge_index != edge_index:
+        if o.edge_index != edge_index or o.void:
             continue
         h = float(result.beam_heights.get(i, 0.0))
         out.append((o.start_mm, o.end_mm, h))
@@ -70,6 +70,9 @@ def front_adv_spans(model, edge_index: int, result) -> list[tuple[float, float, 
     return out
 # 梁枠の直近に壁つなぎが要る距離の目安
 TIE_NEAR_MM = 1800.0
+# 全高で抜く区間（void）の「梁下高さ」。足場より高い値にして、梁枠より下を抜く処理をそのまま全高に効かせる。
+# 足場の線の部品は 999m 以上を梁枠なしとみなす（梁枠・梁枠上の支柱を描かない）
+VOID_HEIGHT_MM = 999000.0
 
 
 @dataclass
@@ -81,6 +84,8 @@ class Opening:
     beam_span_mm: int         # 梁枠が飛ばす距離。規格品のみ
     level: int = 1            # 支柱を抜く作業層（1=最下層）
     reason: str = ""
+    # 梁枠を入れず全高で抜く区間（ロングスパンの昇降路。両隣の足場の間に荷取りステージだけ掛ける）
+    void: bool = False
 
     @property
     def end_mm(self) -> float:
@@ -347,5 +352,76 @@ def opening_detail_specs(result: OpeningResult) -> list[dict]:
         {"beam_span_mm": o.beam_span_mm,
          "inner_posts_mm": result.inner_posts.get(i, []),
          "beam_height_mm": result.beam_heights.get(i, 0.0)}
-        for i, o in enumerate(result.openings)
+        for i, o in enumerate(result.openings) if not o.void
     ]
+
+
+def hoist_voids(model: ScaffoldModel, hoists) -> list[Opening]:
+    """ロングスパンの昇降路: 乗り込み口のスパン（荷台の掛かるスパン）の足場を全高で抜く区間.
+
+    両隣の足場を塔にして、その間に乗り込む層ごとの荷取りステージ（荷取用金具＋梁枠）だけを掛ける（利用者の指摘
+    2026-10-28: ステージの上下は足場ないよ。施工写真でもロングスパンの前の足場は抜いてあり、ステージだけが各階に掛かる）。
+    ステージの梁枠が掛かる 2・3 スパンのときだけ（それ以外は荷取りステージが別計画なので抜かない）。
+    """
+    from .platforms import LANDING_BEAM_SPANS
+
+    out: list[Opening] = []
+    for h in hoists or []:
+        hm = h.spec
+        if hm is None or hm.kind != "ロングスパン":
+            continue
+        ep = _edge(model, h.edge_index)
+        if ep is None or (model.edge_subset is not None and h.edge_index not in model.edge_subset):
+            continue
+        gs = h.gate_spans(model)
+        if len(gs) not in LANDING_BEAM_SPANS:
+            continue
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        a, b = posts[min(gs)], posts[max(gs) + 1]
+        out.append(Opening(h.edge_index, a, int(round(b - a)), model.elevation_of(h.edge_index).n_levels + 1,
+                           reason=f"昇降機 {hm.name} の昇降路", void=True))
+    return out
+
+
+def add_voids(model: ScaffoldModel, result: OpeningResult, voids: list[Opening]) -> None:
+    """全高で抜く区間を開口部の結果に足す（梁枠の検定・壁つなぎ・数量の梁枠は void を除いて扱う）."""
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    for o in voids:
+        ep = _edge(model, o.edge_index)
+        if ep is None:
+            continue
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        inner = [p for p in posts if o.start_mm + 1e-6 < p < o.end_mm - 1e-6]
+        i = len(result.openings)
+        result.openings.append(o)
+        result.removed_posts += len(inner) * rows
+        result.inner_posts[i] = [round(p - o.start_mm, 1) for p in inner]
+        result.beam_heights[i] = VOID_HEIGHT_MM
+
+
+def cut_height(o: Opening, levels) -> float:
+    """支柱・部材を抜く高さ（この高さより下を抜く）. 梁枠の開口は支柱を抜く層の床の高さ、void は全高."""
+    if o.void:
+        return VOID_HEIGHT_MM
+    if not levels:
+        return 0.0
+    return float(levels[min(max(o.level, 1), len(levels)) - 1])
+
+
+def removed_posts_split(model: ScaffoldModel, result: Optional[OpeningResult]) -> tuple[int, int]:
+    """抜いた支柱の本数を (梁枠の開口, 昇降路) に分けて返す."""
+    if result is None:
+        return 0, 0
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    beam = void = 0
+    for i, o in enumerate(result.openings):
+        n = len(result.inner_posts.get(i, [])) * rows
+        if o.void:
+            void += n
+        else:
+            beam += n
+    return beam, void

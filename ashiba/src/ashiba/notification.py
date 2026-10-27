@@ -300,10 +300,13 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
     if platforms is not None and getattr(platforms, "hoists", None):
         _kv(s, "昇降機", f"{len(platforms.hoists)}基",
             "乗り込み口は開閉式手すりで防護（安衛則563条）")
-    if openings is not None and getattr(openings, "openings", None):
-        _kv(s, "開口部（梁枠）", f"{len(openings.openings)}箇所",
-            "・".join(f"梁枠{o.beam_span_mm}mm" for o in openings.openings)
-            + f"／{model.master.vertical_member_name}{openings.removed_posts}本を抜き梁枠で受ける")
+    beams = [o for o in (getattr(openings, "openings", None) or []) if not o.void]
+    if beams:
+        from .openings import removed_posts_split
+
+        _kv(s, "開口部（梁枠）", f"{len(beams)}箇所",
+            "・".join(f"梁枠{o.beam_span_mm}mm" for o in beams)
+            + f"／{model.master.vertical_member_name}{removed_posts_split(model, openings)[0]}本を抜き梁枠で受ける")
     if bracket_sections:
         n_auto = sum(1 for b in bracket_sections if getattr(b, "auto", False))
         note = ("作業床の幅を局所的に変更（数量・図面に反映済み）" if not n_auto else

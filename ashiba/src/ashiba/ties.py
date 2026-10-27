@@ -160,8 +160,8 @@ def _beam_ties(model: ScaffoldModel, openings) -> list[WallTie]:
         return out
     for i, o in enumerate(openings.openings):
         h = openings.beam_heights.get(i)
-        if h is None or i not in openings.inner_posts:
-            continue    # 成立していない開口部（両端が支柱に乗らない等）
+        if h is None or i not in openings.inner_posts or o.void:
+            continue    # 成立していない開口部（両端が支柱に乗らない等）・梁枠の無い昇降路
         for x in (o.start_mm, o.end_mm):
             out.append(WallTie(o.edge_index, float(x), int(h), "beam"))
     return out

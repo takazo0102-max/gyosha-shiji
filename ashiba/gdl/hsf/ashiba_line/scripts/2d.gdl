@@ -316,32 +316,35 @@ pen penEquip
 ! 両端の建地から斜めに入り、建地列と平行に通して、もう一方の端の建地へ斜めに戻る。深さは建地列の間隔の 0.38 倍（内外とも）、
 ! 斜めの横幅は立面の梁枠の端の区画（1スパンの 1/4）と同じで左右対称。区切った部品は範囲の中だけ（途中で切れる側は斜めを描かない）
 for ib = 1 to nBm
-	bs = max(bmS[ib], pxA)
-	be = min(bmS[ib] + bmL[ib], pxB)
-	if be > bs + 0.001 then
-	bDp = rowW * 0.38
-	bCh = 1.829 / 4
-	if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
-	for rr = rowStart to 1
-		yR = -rr * rowW
-		sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
-		yIn = yR - sgY * bDp
-		cL = bCh
-		cR = bCh
-		if bs > bmS[ib] + 0.001 then cL = 0
-		if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
-		if cL > 0 then line2 bs, yR, bs + cL, yIn
-		line2 bs + cL, yIn, be - cR, yIn
-		if cR > 0 then line2 be - cR, yIn, be, yR
-	next rr
-	set style "annoC"
-	if showDim then
-		tdx = (bs + be) / 2
-		tdy = -rowW - 0.20
-		tdt = "梁枠 " + str(bmL[ib] * 1000, 5, 0)
-		gosub 985
-	endif
-	set style "anno"
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠は描かない
+	if bmH[ib] < 900 then
+		bs = max(bmS[ib], pxA)
+		be = min(bmS[ib] + bmL[ib], pxB)
+		if be > bs + 0.001 then
+		bDp = rowW * 0.38
+		bCh = 1.829 / 4
+		if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
+		for rr = rowStart to 1
+			yR = -rr * rowW
+			sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
+			yIn = yR - sgY * bDp
+			cL = bCh
+			cR = bCh
+			if bs > bmS[ib] + 0.001 then cL = 0
+			if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
+			if cL > 0 then line2 bs, yR, bs + cL, yIn
+			line2 bs + cL, yIn, be - cR, yIn
+			if cR > 0 then line2 be - cR, yIn, be, yR
+		next rr
+		set style "annoC"
+		if showDim then
+			tdx = (bs + be) / 2
+			tdy = -rowW - 0.20
+			tdt = "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+			gosub 985
+		endif
+		set style "anno"
+		endif
 	endif
 next ib
 pen penLine

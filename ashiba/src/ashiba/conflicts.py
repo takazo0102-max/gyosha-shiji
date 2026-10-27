@@ -100,6 +100,34 @@ def check_conflicts(
 
     for o in ops:
         o_rng = _rng(o.start_mm, o.end_mm)
+        if o.void:
+            # ロングスパンの昇降路（足場を全高で抜く区間）には、階段室・荷受けステージ・ブラケット区間は組めない
+            face = model.face_name(o.edge_index)
+            what = [("階段室", t.start_mm, t.end_mm) for t in towers if t.edge_index == o.edge_index]
+            what += [(f"荷受けステージ{i + 1}", st.start_mm, st.end_mm(model)) for i, st in enumerate(stages)
+                     if st.edge_index == o.edge_index]
+            what += [(f"ブラケット区間{i + 1}", b.start_mm, b.end_mm) for i, b in enumerate(sections)
+                     if b.edge_index == o.edge_index]
+            # 両横の足場の、昇降路に面した支柱はロングスパン部で縁が切れた足場の端部。荷受けステージ（荷受けフォーム）は
+            # 端部から1スパン以上離す（杉孝 Q&A「ロングスパンエレベーターを取り付けている支柱に荷受けフォームを取り付けられ
+            # ますか？」）
+            for i, st in enumerate(stages):
+                if st.edge_index == o.edge_index and not _overlap(st.start_mm, st.end_mm(model), o.start_mm, o.end_mm) and (
+                        abs(st.end_mm(model) - o.start_mm) < 1.0 or abs(st.start_mm - o.end_mm) < 1.0):
+                    out.append(ConflictIssue(
+                        "荷受けステージ×昇降路", "NG",
+                        f"{face}の荷受けステージ{i + 1}（{_rng(st.start_mm, st.end_mm(model))}）が{o.reason}の横の支柱に"
+                        "掛かっています。ロングスパン部で足場の縁が切れるので、その支柱は足場の端部です。荷受けステージは"
+                        "端部から1スパン以上離してください",
+                        "杉孝 Q&A（ロングスパンエレベーターを取り付けている支柱に荷受けフォームは取り付けられない）"))
+            for name, a0, b0 in what:
+                if _overlap(a0, b0, o.start_mm, o.end_mm):
+                    out.append(ConflictIssue(
+                        f"{name.rstrip('0123456789')}×昇降路", "NG",
+                        f"{face}の{name}（{_rng(a0, b0)}）が{o.reason}（{o_rng}）に重なっています。昇降路は足場を全高で"
+                        f"抜く区間で{vm}も床も無いので組めません。位置をずらしてください",
+                        "安衛則570条（足場の構造）"))
+            continue
         # 階段室: 梁枠より下は床も支柱も無く、段板を組めない
         for t in towers:
             if t.edge_index == o.edge_index and _overlap(

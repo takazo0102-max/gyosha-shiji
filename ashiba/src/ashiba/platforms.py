@@ -547,6 +547,23 @@ def validate_platforms(
                     f"機種 {hm.name} の積載{hm.load_kg:.0f}kgは、荷取りステージ上の全積載{LANDING_STAGE_MAX_KG:.0f}kgを"
                     "超えます。満載の荷を一度にステージへ降ろさず、ステージに最大積載荷重を表示してください",
                     "荷取用金具の使用上の注意・安衛則第655条（最大積載荷重の表示）"))
+        # ロングスパンの昇降路（足場を抜いた区間）の両横には足場が要る: 昇降フレーム（ガイドレール）は両横の足場の建枠に
+        # クランプで上下2か所留め、マスト控え・壁つなぎも両横の足場から取る（三葉工業 NSE-800 組立手順書「昇降路幅
+        # 3,600〜3,660mm を確保」「クランプを使用して上下二箇所を足場に固定」、金子機械「据付は枠組足場の幅の内側・壁つなぎは
+        # 枠組足場を利用」。利用者の指摘 2026-10-28: ロングスパンの横には足場いるよ）
+        from .openings import hoist_voids
+
+        for v in hoist_voids(model, [h]):
+            gs = h.gate_spans(model)
+            left, right = min(gs), len(edge.spans) - 1 - max(gs)
+            if left < 1 or right < 1:
+                side = "始点側" if left < 1 else "終点側"
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "NG",
+                    f"{model.face_name(h.edge_index)}のロングスパン（{v.start_mm:.0f}〜{v.end_mm:.0f}mm）の{side}に足場がありません"
+                    "（昇降路が面の端に掛かっています）。昇降フレームを留める足場が両横に要るので、昇降機を面の内側へ"
+                    "ずらすか、面を延ばしてください",
+                    "メーカーの組立手順書（昇降フレームを両横の足場にクランプで上下2か所固定）"))
         # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
         if hm is not None and hm.persons == 0:
             result.issues.append(PlatformIssue(

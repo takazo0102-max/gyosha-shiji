@@ -2551,6 +2551,12 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     # 壁つなぎは風荷重の検定から逆算して確定させる（数量・法規チェックに反映するため先に実行）
     # 取付部（朝顔・ステージ）の壁つなぎも最適化の検定に載せるため、付帯設備を先に解く
     platforms = validate_platforms(model, *build_platforms(spec))
+    # ロングスパンの昇降路: 乗り込み口のスパンの足場を全高で抜き、両隣の足場の間に荷取りステージだけを掛ける（利用者の指摘
+    # 2026-10-28: ステージの上下は足場ないよ）。梁枠の開口と同じ仕組みで、支柱・床・手すり・筋かい・壁つなぎを抜く
+    if platforms.hoists:
+        from .openings import add_voids, hoist_voids
+
+        add_voids(model, openings, hoist_voids(model, platforms.hoists))
     # 昇降機の乗り込み口のスパン（荷台の長さに掛かるスパン）は外部シートを張らない: 荷台は外側建地の列から 100 の外を
     # 昇り降りし、乗り込み口のフロアーゲートもシートの面（列から 60）に付く（2026-10-27 のループ）
     from .platforms import hoist_cut_ranges
@@ -2842,10 +2848,6 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         from .member_edits import free_passage_edits
 
         model.member_edits = list(model.member_edits or []) + free_passage_edits(model, spec["_free_passage"])
-    if platforms.hoists:
-        from .member_edits import landing_stage_edits
-
-        model.member_edits = list(model.member_edits or []) + landing_stage_edits(model, platforms.hoists)
     if model.inner_corner_joins:
         from .member_edits import inner_corner_edits
 
@@ -3030,7 +3032,8 @@ def result_dict(r: PlanRun, out_dir: Path) -> dict:
         ),
         "bracket_sections": len(brackets),
         "openings": {
-            "count": len(openings.openings),
+            "count": sum(1 for o in openings.openings if not o.void),
+            "hoist_voids": sum(1 for o in openings.openings if o.void),
             "removed_posts": openings.removed_posts,
             "ok": openings.ok,
         },

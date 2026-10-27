@@ -869,10 +869,12 @@ def _stage_cells(model: ScaffoldModel, platforms) -> dict[int, int]:
         n_lv = max(1, len(s.levels) or 1)
         for nominal in s.spans(model):
             out[nominal] = out.get(nominal, 0) + n_lv
+    from .openings import hoist_voids
+
     for h in (getattr(platforms, "hoists", None) or []):
         edge = _edge(model, h.edge_index)
-        if edge is None or not edge.spans:
-            continue
+        if edge is None or not edge.spans or hoist_voids(model, [h]):
+            continue    # 昇降路（足場を全高で抜く）のスパンは開口部の控除で全部抜いてある（二重に引かない）
         # 荷台の長さに掛かるスパン（ロングスパンの荷台は 2〜3 スパンに掛かる。3D の開閉式手すりと同じ）
         for i in (h.gate_spans(model) or [min(_span_index(edge, h.position_mm), len(edge.spans) - 1)]):
             nominal = edge.spans[i]
@@ -1466,6 +1468,8 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
     rows = 1 if model.config.scaffold_form == "一側足場" else 2
     saddles = m.by_category("梁渡し")
     for i, o in enumerate(openings.openings):
+        if o.void:
+            continue     # 昇降路（全高で抜く）は梁枠を入れない
         part = next(
             (p for p in m.by_category("梁枠") if p.nominal_dim == o.beam_span_mm),
             None,
@@ -1495,7 +1499,7 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
     ties_by_span: dict[int, int] = {}
     for o in openings.openings:
         ep = next((e for e in model.plan.edges if e.edge_index == o.edge_index), None)
-        if ep is None:
+        if ep is None or o.void:
             continue
         x = 0.0
         for sp in ep.spans:

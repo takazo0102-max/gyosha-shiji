@@ -1826,32 +1826,35 @@ pen penEquip
 ! 両端の建地から斜めに入り、建地列と平行に通して、もう一方の端の建地へ斜めに戻る。深さは建地列の間隔の 0.38 倍（内外とも）、
 ! 斜めの横幅は立面の梁枠の端の区画（1スパンの 1/4）と同じで左右対称。区切った部品は範囲の中だけ（途中で切れる側は斜めを描かない）
 for ib = 1 to nBm
-	bs = max(bmS[ib], pxA)
-	be = min(bmS[ib] + bmL[ib], pxB)
-	if be > bs + 0.001 then
-	bDp = rowW * 0.38
-	bCh = 1.829 / 4
-	if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
-	for rr = rowStart to 1
-		yR = -rr * rowW
-		sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
-		yIn = yR - sgY * bDp
-		cL = bCh
-		cR = bCh
-		if bs > bmS[ib] + 0.001 then cL = 0
-		if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
-		if cL > 0 then line2 bs, yR, bs + cL, yIn
-		line2 bs + cL, yIn, be - cR, yIn
-		if cR > 0 then line2 be - cR, yIn, be, yR
-	next rr
-	set style "annoC"
-	if showDim then
-		tdx = (bs + be) / 2
-		tdy = -rowW - 0.20
-		tdt = "梁枠 " + str(bmL[ib] * 1000, 5, 0)
-		gosub 985
-	endif
-	set style "anno"
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠は描かない
+	if bmH[ib] < 900 then
+		bs = max(bmS[ib], pxA)
+		be = min(bmS[ib] + bmL[ib], pxB)
+		if be > bs + 0.001 then
+		bDp = rowW * 0.38
+		bCh = 1.829 / 4
+		if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
+		for rr = rowStart to 1
+			yR = -rr * rowW
+			sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
+			yIn = yR - sgY * bDp
+			cL = bCh
+			cR = bCh
+			if bs > bmS[ib] + 0.001 then cL = 0
+			if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
+			if cL > 0 then line2 bs, yR, bs + cL, yIn
+			line2 bs + cL, yIn, be - cR, yIn
+			if cR > 0 then line2 be - cR, yIn, be, yR
+		next rr
+		set style "annoC"
+		if showDim then
+			tdx = (bs + be) / 2
+			tdy = -rowW - 0.20
+			tdt = "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+			gosub 985
+		endif
+		set style "anno"
+		endif
 	endif
 next ib
 pen penLine
@@ -3736,8 +3739,8 @@ for ip = 1 to nSpan + 1
 				del nPj + 2
 			endif
 		else
-			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）
-			if not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
+			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）。昇降路（999m）は支柱が無い
+			if bBase < 900 and not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
 				zPb = bBase - bmDrop + r_nuno + 0.05
 				add x, -row * rowW, zPb
 				cylind postTop - zPb, r_sic
@@ -5201,129 +5204,134 @@ for ib2 = 1 to nBm
 	bs = bmS[ib2]
 	bl = bmL[ib2]
 	bh = bmH[ib2]
-	bzt = bh - bmDrop
-	bzb = bzt - bmDep
-	bx0 = bs + r_sic + 0.05
-	bLn = bl - 2 * (r_sic + 0.05)
-	nPn2 = max(1, int(bl / 1.829 + 0.5))
-	nDg = max(2, 4 * nPn2)
-	dgW = bLn / nDg
-	for row2 = rowStart to 1
-		yb3 = -row2 * rowW
-		! 上弦材（通し）と下弦材（両端の1区画ずつ短い）
-		add bx0, yb3, bzt
-		roty 90
-		cylind bLn, r_nuno
-		del 2
-		add bx0 + dgW, yb3, bzb
-		roty 90
-		cylind bLn - 2 * dgW, r_nuno
-		del 2
-		if isLite = 0 then
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠と補強のつなぎ材は描かず、両端の妻面のブレス材・幅木だけ（全段）
+	if bmH[ib2] < 900 then
+		bzt = bh - bmDrop
+		bzb = bzt - bmDep
+		bx0 = bs + r_sic + 0.05
+		bLn = bl - 2 * (r_sic + 0.05)
+		nPn2 = max(1, int(bl / 1.829 + 0.5))
+		nDg = max(2, 4 * nPn2)
+		dgW = bLn / nDg
+		for row2 = rowStart to 1
+			yb3 = -row2 * rowW
+			! 上弦材（通し）と下弦材（両端の1区画ずつ短い）
+			add bx0, yb3, bzt
+			roty 90
+			cylind bLn, r_nuno
+			del 2
+			add bx0 + dgW, yb3, bzb
+			roty 90
+			cylind bLn - 2 * dgW, r_nuno
+			del 2
+			if isLite = 0 then
+				for be = 0 to 1
+					xe = bs + be * bl
+					sgE = 1 - 2 * be
+					! 上弦材の端の緊結部（コマを上下から挟む受け）とクサビ
+					add xe + sgE * r_sic - (1 - sgE) / 2 * 0.05, yb3 - 0.021, bzt - 0.04
+					block 0.05, 0.042, 0.08
+					del 1
+					add xe + sgE * (r_sic + 0.025), yb3, bzt + 0.04
+					cylind 0.05, 0.006
+					del 1
+				next be
+			endif
+			! 束材と、その上の上弦材のホゾ（上の建地を受ける。1829 ごと）
+			for iv = 1 to nPn2 - 1
+				xv = bx0 + iv * bLn / nPn2
+				add xv, yb3, bzb
+				cylind bmDep, 0.0136
+				del 1
+				if isLite = 0 then
+					add xv, yb3, bzt + r_nuno
+					cylind 0.12, r_sic - 0.006
+					del 1
+				endif
+			next iv
+			! 斜材（ワーレン。1スパンを4区画）。両端の区画は上弦材の端から下弦材の端へ下りる
+			for id2 = 0 to nDg - 1
+				x1 = bx0 + id2 * dgW
+				! 偶数の区画は上弦材から下弦材へ下り、奇数の区画は上がる（両端の区画が上弦材の端の緊結部に付く）
+				z1d = bzt
+				z2d = bzb
+				if id2 - 2 * int(id2 / 2) = 1 then
+					z1d = bzb
+					z2d = bzt
+				endif
+				dgL = sqr(dgW * dgW + bmDep * bmDep)
+				add x1, yb3, z1d
+				roty 90 - atn((z2d - z1d) / dgW)
+				cylind dgL, 0.0136
+				del 2
+				if isLite = 0 and id2 > 0 then
+					add x1 - 0.03, yb3 - 0.0025, z1d - 0.02
+					block 0.06, 0.005, 0.04
+					del 1
+				endif
+			next id2
+		next row2
+		! 梁渡し（NDHW）: 梁枠の上の建地ごとに、内外の上弦材の上に渡す溝形の材と、建地を受けるほぞ
+		if nRows >= 2 and hugMode = 0 then
+			xq = 0
+			for iq = 1 to nSpan + 1
+				if xq > bs + 0.001 and xq < bs + bl - 0.001 then
+					add xq - 0.03, -rowW - 0.04, bzt + r_nuno
+					block 0.06, rowW + 0.08, 0.05
+					del 1
+					for row3 = 0 to 1
+						add xq, -row3 * rowW, bzt + r_nuno + 0.05
+						cylind 0.10, r_sic - 0.006
+						del 1
+					next row3
+				endif
+				if iq <= nSpan then xq = xq + spans[iq]
+			next iq
+		endif
+	endif
+		! 妻面のブレス材と妻面幅木（日建 カタログ p010「ブレス材（先行手すり）は梁枠下の妻面全段に取付る事」「ブレス材（先行
+		! 手すり）の下には妻面幅木を取付る事」。利用者の指定 2026-10-24）: 開口の両端の建地の内外をつなぐ面に、梁枠より下の各段
+		! （根がらみの段と作業床の段）の先行手すりを入れ、作業床の段はその下（両隣の床の縁）に幅木を立てる
+		if nRows >= 2 and hugMode = 0 and serType <> "W" and serType <> "T" then
 			for be = 0 to 1
 				xe = bs + be * bl
-				sgE = 1 - 2 * be
-				! 上弦材の端の緊結部（コマを上下から挟む受け）とクサビ
-				add xe + sgE * r_sic - (1 - sgE) / 2 * 0.05, yb3 - 0.021, bzt - 0.04
-				block 0.05, 0.042, 0.08
-				del 1
-				add xe + sgE * (r_sic + 0.025), yb3, bzt + 0.04
-				cylind 0.05, 0.006
-				del 1
+				for il8 = 1 to nLv
+					z8 = lv[il8]
+					if z8 < bh - 0.001 then
+						add xe, 0, z8
+						rotz -90
+						nL = rowW
+						gosub 850
+						del 2
+						if il8 > 1 then
+							if mToe > 0 then material mToe
+							add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
+							block 0.012, rowW - 2 * r_sic, 0.157
+							del 1
+							if matScaf > 0 then material matScaf
+						endif
+					endif
+				next il8
 			next be
 		endif
-		! 束材と、その上の上弦材のホゾ（上の建地を受ける。1829 ごと）
-		for iv = 1 to nPn2 - 1
-			xv = bx0 + iv * bLn / nPn2
-			add xv, yb3, bzb
-			cylind bmDep, 0.0136
-			del 1
-			if isLite = 0 then
-				add xv, yb3, bzt + r_nuno
-				cylind 0.12, r_sic - 0.006
-				del 1
-			endif
-		next iv
-		! 斜材（ワーレン。1スパンを4区画）。両端の区画は上弦材の端から下弦材の端へ下りる
-		for id2 = 0 to nDg - 1
-			x1 = bx0 + id2 * dgW
-			! 偶数の区画は上弦材から下弦材へ下り、奇数の区画は上がる（両端の区画が上弦材の端の緊結部に付く）
-			z1d = bzt
-			z2d = bzb
-			if id2 - 2 * int(id2 / 2) = 1 then
-				z1d = bzb
-				z2d = bzt
-			endif
-			dgL = sqr(dgW * dgW + bmDep * bmDep)
-			add x1, yb3, z1d
-			roty 90 - atn((z2d - z1d) / dgW)
-			cylind dgL, 0.0136
-			del 2
-			if isLite = 0 and id2 > 0 then
-				add x1 - 0.03, yb3 - 0.0025, z1d - 0.02
-				block 0.06, 0.005, 0.04
-				del 1
-			endif
-		next id2
-	next row2
-	! 梁渡し（NDHW）: 梁枠の上の建地ごとに、内外の上弦材の上に渡す溝形の材と、建地を受けるほぞ
-	if nRows >= 2 and hugMode = 0 then
+	if bmH[ib2] < 900 then
+		! 補強のつなぎ材: 梁枠の高さで両隣のスパン、床の高さで開口の上のスパン（内外）
 		xq = 0
-		for iq = 1 to nSpan + 1
-			if xq > bs + 0.001 and xq < bs + bl - 0.001 then
-				add xq - 0.03, -rowW - 0.04, bzt + r_nuno
-				block 0.06, rowW + 0.08, 0.05
-				del 1
-				for row3 = 0 to 1
-					add xq, -row3 * rowW, bzt + r_nuno + 0.05
-					cylind 0.10, r_sic - 0.006
+		for iq = 1 to nSpan
+			zTn = -1
+			if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then zTn = bzt
+			if xq >= bs - 0.001 and xq + spans[iq] <= bs + bl + 0.001 then zTn = bh
+			if zTn >= 0 then
+				for row3 = rowStart to 1
+					add xq, -row3 * rowW, zTn
+					nL = spans[iq]
+					gosub 830
 					del 1
 				next row3
 			endif
-			if iq <= nSpan then xq = xq + spans[iq]
+			xq = xq + spans[iq]
 		next iq
 	endif
-	! 妻面のブレス材と妻面幅木（日建 カタログ p010「ブレス材（先行手すり）は梁枠下の妻面全段に取付る事」「ブレス材（先行
-	! 手すり）の下には妻面幅木を取付る事」。利用者の指定 2026-10-24）: 開口の両端の建地の内外をつなぐ面に、梁枠より下の各段
-	! （根がらみの段と作業床の段）の先行手すりを入れ、作業床の段はその下（両隣の床の縁）に幅木を立てる
-	if nRows >= 2 and hugMode = 0 and serType <> "W" and serType <> "T" then
-		for be = 0 to 1
-			xe = bs + be * bl
-			for il8 = 1 to nLv
-				z8 = lv[il8]
-				if z8 < bh - 0.001 then
-					add xe, 0, z8
-					rotz -90
-					nL = rowW
-					gosub 850
-					del 2
-					if il8 > 1 then
-						if mToe > 0 then material mToe
-						add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
-						block 0.012, rowW - 2 * r_sic, 0.157
-						del 1
-						if matScaf > 0 then material matScaf
-					endif
-				endif
-			next il8
-		next be
-	endif
-	! 補強のつなぎ材: 梁枠の高さで両隣のスパン、床の高さで開口の上のスパン（内外）
-	xq = 0
-	for iq = 1 to nSpan
-		zTn = -1
-		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then zTn = bzt
-		if xq >= bs - 0.001 and xq + spans[iq] <= bs + bl + 0.001 then zTn = bh
-		if zTn >= 0 then
-			for row3 = rowStart to 1
-				add xq, -row3 * rowW, zTn
-				nL = spans[iq]
-				gosub 830
-				del 1
-			next row3
-		endif
-		xq = xq + spans[iq]
-	next iq
 next ib2
 
 ! ---- 階段室（段板・側桁・階段手すり） ----
@@ -7219,7 +7227,7 @@ for ip = 1 to nSpan + 1
 				lin_ x - 0.06, yr, jh, x + 0.06, yr, jh
 			next jp
 		else
-			lin_ x, yr, bBase, x, yr, postTop
+			if bBase < 900 then lin_ x, yr, bBase, x, yr, postTop
 		endif
 	next row
 	if ip <= nSpan then x = x + spans[ip]
@@ -7315,16 +7323,19 @@ for it5 = 1 to nSt
 next it5
 ! 梁枠（開口部）: 上下弦材と両端の縦材
 for ib2 = 1 to nBm
-	bs = bmS[ib2]
-	bl = bmL[ib2]
-	bh = bmH[ib2]
-	for row2 = rowStart to 1
-		yr = -row2 * rowW
-		lin_ bs, yr, bh - bmDrop, bs + bl, yr, bh - bmDrop
-		lin_ bs, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop - bmDep
-		lin_ bs, yr, bh - bmDrop - bmDep, bs, yr, bh - bmDrop
-		lin_ bs + bl, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop
-	next row2
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠は描かない
+	if bmH[ib2] < 900 then
+		bs = bmS[ib2]
+		bl = bmL[ib2]
+		bh = bmH[ib2]
+		for row2 = rowStart to 1
+			yr = -row2 * rowW
+			lin_ bs, yr, bh - bmDrop, bs + bl, yr, bh - bmDrop
+			lin_ bs, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop - bmDep
+			lin_ bs, yr, bh - bmDrop - bmDep, bs, yr, bh - bmDrop
+			lin_ bs + bl, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop
+		next row2
+	endif
 next ib2
 ! 荷受けステージ: 張出し床の輪郭と先端の手すり
 for ig = 1 to nSg

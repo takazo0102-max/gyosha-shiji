@@ -816,6 +816,8 @@ def check_openings(
     height = float(model.scaffold_height_mm) or 1.0
     vm = model.master.vertical_member_name
     for i, o in enumerate(openings.openings):
+        if o.void:
+            continue     # 昇降路（全高で抜く）は梁枠が無い
         beam = model.master.find("梁枠", o.beam_span_mm)
         if beam is None:
             continue
