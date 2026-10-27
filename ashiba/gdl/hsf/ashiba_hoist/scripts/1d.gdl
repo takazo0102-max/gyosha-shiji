@@ -303,7 +303,7 @@ if hoModel = "HCE990GL" then
 	cageL = 4.1600
 	cageD = 1.2550
 	postSp = 5.2190
-	nMast = 1
+	nMast = 2
 	gateOpen = 3.9300
 	tieE = 9.0000
 	loadKg = 990
@@ -367,7 +367,7 @@ endwhile
 yC0 = -gapOut
 yC1 = -gapOut - cageD
 mastW = 0.15
-if hoKind = 2 then mastW = 0.45
+if hoKind = 2 and nMast = 1 then mastW = 0.45
 if hoKind = 3 then mastW = 0.12
 dim mx[2]
 dim my[2]

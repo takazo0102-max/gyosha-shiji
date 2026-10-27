@@ -48,8 +48,9 @@ class HoistModel:
 
     @property
     def masts(self) -> int:
-        """マストの本数（ロングスパンは両端の2本、工事用エレベーター・荷揚げ機は1本）."""
-        return 2 if self.post_spacing_mm > 0 and self.kind == "ロングスパン" else 1
+        """マストの本数（ロングスパンと、ポスト芯々のある工事用エレベーター＝HCE990GL のラック付き・ラック無しのポストは
+        荷台の両端の2本。ほかの工事用エレベーター・荷揚げ機は1本）."""
+        return 2 if self.post_spacing_mm > 0 and self.kind in ("ロングスパン", "工事用エレベーター") else 1
 
     @property
     def load_kn(self) -> float:

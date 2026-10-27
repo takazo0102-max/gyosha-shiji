@@ -31,7 +31,7 @@ for im = 1 to nMast
 	del 1
 	sd = 1
 	if mx[im] > 0.001 then sd = -1
-	if hoKind = 2 then
+	if hoKind = 2 and nMast = 1 then
 		gosub "latticeMast"
 	else
 		gosub "postMast"
@@ -173,8 +173,8 @@ end
 		del 1
 		zj = zj + 1.5
 	endwhile
-	if hoKind = 1 then
-		! ラック（荷台の側の面。歯は 0.1 ごと）
+	if hoKind = 1 or (hoKind = 2 and im = 1) then
+		! ラック（荷台の側の面。歯は 0.1 ごと。HCE990GL は片方がラック無しのポスト）
 		rx = mx[im] + sd * mastW / 2
 		add rx + (sd - 1) / 2 * 0.02, my[im] - 0.03, 0.02
 		block 0.02, 0.06, mastH - 0.02
@@ -466,22 +466,38 @@ return
 	add -0.06, yC0 - 0.08, zF + 1.00
 	block 0.12, 0.03, 0.20
 	del 1
-	! 搬器とマストをつなぐ駆動枠（ピニオンでラックをかむ）と屋根の上の駆動装置
-	material mSt
-	add mx[1] - 0.35, my[1] + mastW / 2, zF - 0.18
-	block 0.70, yC1 - my[1] - mastW / 2, 0.10
-	del 1
-	add mx[1] - 0.35, my[1] + mastW / 2, zF + 2.15
-	block 0.70, yC1 - my[1] - mastW / 2, 0.10
-	del 1
+	! 搬器とマストをつなぐ駆動枠（ピニオンでラックをかむ。マスト1本の機種）と屋根の上の駆動装置
+	xd = mx[1]
+	if nMast = 1 then
+		material mSt
+		add mx[1] - 0.35, my[1] + mastW / 2, zF - 0.18
+		block 0.70, yC1 - my[1] - mastW / 2, 0.10
+		del 1
+		add mx[1] - 0.35, my[1] + mastW / 2, zF + 2.15
+		block 0.70, yC1 - my[1] - mastW / 2, 0.10
+		del 1
+	else
+		! 両端のポストを抱くガイドローラの腕（上下）
+		material mSt
+		xd = 0
+		for im2 = 1 to 2
+			ra = min(mx[im2], xL + (im2 - 1) * cageL)
+			rb = max(mx[im2], xL + (im2 - 1) * cageL)
+			for zz = 0 to 1
+				add ra, my[im2] - 0.05, zF + 0.15 + zz * 1.90
+				block rb - ra, 0.10, 0.10
+				del 1
+			next zz
+		next im2
+	endif
 	material mMc
 	for k = -1 to 1 step 2
-		add mx[1] + k * 0.22, yC1 + 0.10, zF + 2.29
+		add xd + k * 0.22, yC1 + 0.10, zF + 2.29
 		rotx -90
 		cylind 0.40, 0.12
 		del 2
 	next k
-	add mx[1] - 0.30, yC1 + 0.50, zF + 2.29
+	add xd - 0.30, yC1 + 0.50, zF + 2.29
 	block 0.60, 0.30, 0.30
 	del 1
 	! 制御盤（搬器の中）

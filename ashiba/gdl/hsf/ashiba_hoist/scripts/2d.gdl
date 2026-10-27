@@ -35,7 +35,7 @@ for im = 1 to nMast
 	hw = mastW / 2
 	rect2 mx[im] - hw, my[im] - hw, mx[im] + hw, my[im] + hw
 	line2 mx[im] - hw, my[im] - hw, mx[im] + hw, my[im] + hw
-	if hoKind = 2 then
+	if hoKind = 2 and nMast = 1 then
 		rect2 mx[im] - hw + 0.03, my[im] - hw + 0.03, mx[im] + hw - 0.03, my[im] + hw - 0.03
 		line2 mx[im] - hw, my[im] + hw, mx[im] + hw, my[im] - hw
 	endif
