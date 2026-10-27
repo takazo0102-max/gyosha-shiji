@@ -374,6 +374,21 @@ class TestHoistInput(unittest.TestCase):
                         "loading_stages": [{"edge_index": 0, "start_mm": 7316, "span_count": 1, "levels": [3]}]})
         self.assertTrue([c for c in st.conflicts if c.kind == "荷受けステージ×昇降路" and "端部" in c.message])
 
+    def test_long_span_mast_is_fixed_with_tubes_to_the_side_scaffold(self):
+        # 利用者の指定 2026-10-28: マストは支柱の外に単管を横引き2段、縦の単管を2列配置してマストと固定する
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("for t2 = 0 to 1", "zh = zt - 0.25 + t2 * 0.50", "yv = my[im] + (2 * cv - 1) * (mastW / 2 + 0.03)"):
+            self.assertIn(key, d3)
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}]})
+        notes = [n for n in r.quantity.notes if "マスト固定" in n]
+        n_fix = int(r.platforms.hoists[0].reach_mm(r.model) // 3600)
+        self.assertTrue([n for n in notes if "横引き単管" in n and f"（{2 * n_fix * 2}）" in n], notes)
+        self.assertTrue([n for n in notes if "縦の単管" in n])
+        self.assertTrue([n for n in notes if "直交クランプ" in n and f"（{4 * 2 * n_fix * 2}）" in n], notes)
+        # エレベーター（マスト1本の格子マスト）は従来の控え
+        ev = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "SEC-700-F", "landing_levels": [2]}]})
+        self.assertFalse([n for n in ev.quantity.notes if "マスト固定" in n])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

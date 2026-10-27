@@ -315,19 +315,61 @@ for im = 1 to nMast
 			tAng = atn(tdy / tdx)
 			if tdx < 0 then tAng = tAng + 180
 		endif
-		zt = tieE
-		while zt < hoReach + 0.001 do
-			add mx[im], my[im] + mastW / 2, zt
-			rotz tAng
-			roty 90
-			cylind tLen, 0.0243
-			del 3
-			! 控えの取付金具（マスト側）
-			add mx[im] - 0.08, my[im] + mastW / 2, zt - 0.06
-			block 0.16, 0.02, 0.12
-			del 1
-			zt = zt + tieE
-		endwhile
+		if hoKind = 1 and nMast = 2 then
+			! ロングスパンのマストの固定（利用者の指定 2026-10-28: マストは支柱の外に単管を横引き2段、縦の単管を2列配置して
+			! マストと固定する）: 昇降路の横の足場の端の建地（内外）に単管を直交クランプで留めて外（マストの側）へ横に引き、
+			! 上下2段。その先にマストを挟む縦の単管を2列（マストの前後）立てて横引きに留め、マストを縦の単管に固定する
+			sg = 1
+			if txm < mx[im] then sg = -1
+			xh = txm - sg * 0.06
+			xv = xh - sg * 0.049
+			yA = rowSp + 0.10
+			yB = my[im] - mastW / 2 - 0.15
+			for cv = 0 to 1
+				yv = my[im] + (2 * cv - 1) * (mastW / 2 + 0.03)
+				add xv, yv, 0.10
+				cylind mastH - 0.10, 0.0243
+				del 1
+			next cv
+			zt = tieE
+			while zt < hoReach + 0.001 do
+				for t2 = 0 to 1
+					zh = zt - 0.25 + t2 * 0.50
+					add xh, yA, zh
+					rotx 90
+					cylind yA - yB, 0.0243
+					del 2
+					! 直交クランプ（横引き×足場の内外の建地、横引き×縦の単管2列）
+					for cp = 0 to 3
+						yc = 0
+						if cp = 1 then yc = rowSp
+						if cp >= 2 then yc = my[im] + (2 * (cp - 2) - 1) * (mastW / 2 + 0.03)
+						add xh - 0.04, yc - 0.04, zh - 0.04
+						block 0.08, 0.08, 0.08
+						del 1
+					next cp
+					! マストを縦の単管に固定する金具
+					add min(xv, mx[im] + sg * mastW / 2), my[im] - mastW / 2 - 0.03, zh - 0.05
+					block abs(xv - mx[im] - sg * mastW / 2) + 0.02, mastW + 0.06, 0.10
+					del 1
+				next t2
+				zt = zt + tieE
+			endwhile
+		else
+			zt = tieE
+			while zt < hoReach + 0.001 do
+				add mx[im], my[im] + mastW / 2, zt
+				rotz tAng
+				roty 90
+				cylind tLen, 0.0243
+				del 3
+				! 控えの取付金具（マスト側）
+				add mx[im] - 0.08, my[im] + mastW / 2, zt - 0.06
+				block 0.16, 0.02, 0.12
+				del 1
+				zt = zt + tieE
+			endwhile
+		endif
 	endif
 next im
 

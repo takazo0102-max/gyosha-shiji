@@ -76,6 +76,7 @@ class LoadingStage:
 HOIST_FENCE_GAP_MM = 300.0  # 地上の昇降路の囲いと荷台のあき
 HOIST_FENCE_H_MM = 1800.0    # 地上の昇降路の囲いの高さ
 HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
+TUBE_LENGTHS_MM = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0)  # 単管の規格の長さ
 GATE_MIN_OVERLAP_MM = 150.0  # 荷台がこれ以下しか掛からないスパンは乗り込み口にしない
 HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
 
@@ -702,6 +703,27 @@ def platform_part_demands(
                        + (f"・揚程{hm.max_lift_m:.0f}m" if hm.max_lift_m else "")
                        + f"（{hm.source}）",
             ))
+            if hm.kind == "ロングスパン" and hm.masts == 2 and h.tie_every_mm > 0:
+                # マストの固定（利用者の指定 2026-10-28: マストは支柱の外に単管を横引き2段、縦の単管を2列配置してマストと
+                # 固定する）。部品 ashiba_hoist の 3D と同じ: 控えの段ごとに横引き2段（昇降路の横の足場の端の建地の内外から
+                # マストの外まで）、マストの前後に縦の単管2列。直交クランプは横引き1本に4個（建地2・縦の単管2）
+                n_fix = max(1, int(h.reach_mm(model) // h.tie_every_mm))
+                cage_d = float(h.cage_depth_mm or HOIST_CAGE_D_MM)
+                need_h = float(model.post_row_spacing_mm) + 100.0 + cage_d / 2.0 + 75.0 + 250.0
+                tube_h = next((L for L in TUBE_LENGTHS_MM if L >= need_h), TUBE_LENGTHS_MM[-1])
+                n_h = 2 * n_fix * hm.masts
+                v_len = h.reach_mm(model)
+                n_v = 2 * hm.masts * max(1, math.ceil(v_len / TUBE_LENGTHS_MM[-1]))
+                out.append(PartDemand(
+                    f"昇降機 マスト固定の横引き単管{tube_h / 1000:.1f}m", "単管", int(tube_h), n_h,
+                    detail=f"マスト{hm.masts}本×控えの段{n_fix}×上下2段。昇降路の横の足場の端の建地（内外）から"
+                           f"マストの外まで（必要長さ{need_h:.0f}）"))
+                out.append(PartDemand(
+                    f"昇降機 マスト固定の縦の単管{TUBE_LENGTHS_MM[-1] / 1000:.1f}m", "単管", int(TUBE_LENGTHS_MM[-1]), n_v,
+                    detail=f"マスト{hm.masts}本×前後2列、高さ{v_len / 1000:.1f}m（継ぎは直線ジョイント）"))
+                out.append(PartDemand(
+                    "昇降機 マスト固定の直交クランプ", "クランプ", None, 4 * n_h,
+                    detail="横引き1本に4個（足場の建地の内外・縦の単管2列）"))
             if landings and hm.kind == "ロングスパン":
                 # 荷取りステージ: 乗り込み口の両端の建地に荷取用金具を付け、そのフランジに梁枠を2本（搬器側・足場側）掛け、
                 # 布材・ころばし・足場板で床を組む（スギコ アルバロングスパンEV荷取用金具 50500 の設置手順）。床先は搬器の
