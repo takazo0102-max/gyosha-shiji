@@ -422,7 +422,13 @@ class TestReadPlacedObjects(unittest.TestCase):
         x = e1.start_post[0] + m.row_spacing_of(1) + 900            # 外側の列から 900 外
         y = e1.start_post[1] + 3000
         hs, notes = hoists_from_objects([(None, (x, y), {"hoModel": "KSE600L", "landLevels": "2,4"})], g)
-        self.assertEqual(hs, [{"edge_index": 1, "position_mm": 3000.0, "model": "KSE600L", "landing_levels": [2, 4]}])
+        # 枠組の無い機種は、乗り込み口のスパンがいちばん少ない位置へ寄せる（3000 では 3300 の荷台が 3 スパンに掛かる。
+        # 建地の芯 3658 なら 2 スパン）
+        self.assertEqual(hs, [{"edge_index": 1, "position_mm": 3658.0, "model": "KSE600L", "landing_levels": [2, 4]}])
+        from ashiba.platforms import spans_under_cage
+
+        self.assertEqual(len(spans_under_cage(e1.spans, 3000.0, 3300.0)), 3)
+        self.assertEqual(len(spans_under_cage(e1.spans, 3658.0, 3300.0)), 2)
         # ロングスパンの部品は枠組の両端が建地に乗る位置へ寄せる
         from ashiba.platforms import frame_runs
 

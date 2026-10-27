@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 
 from .hoist_models import hoist_model
-from .platforms import frame_runs
+from .platforms import fewest_gate_spans_center, frame_runs
 
 SNAP_MAX_MM = 3000.0     # 外側建地の列からこれより離れた部品は、その面の昇降機とみなさない
 
@@ -55,6 +55,11 @@ def hoists_from_objects(objs: list, groups: list) -> tuple[list[dict], list[str]
                 c = min((c for _i, _j, c in runs), key=lambda c: abs(c - best[3]))
                 if abs(c - best[3]) <= hm.frame_span_mm / 2.0:
                     best = best[:3] + (c,) + best[4:]
+        elif best is not None and hm is not None and hm.cage_len_mm > 0:
+            # 枠組の無い機種（工事用エレベーター・1本構・荷揚げ機）は、乗り込み口の手すりを外すスパンがいちばん少ない位置
+            # （建地の芯かスパンの中央。半スパン以内）へ寄せる。スパンの中央に 3m の荷台を置くと 3 スパン開く
+            reach = max(best[4]) / 2.0 if best[4] else 0.0
+            best = best[:3] + (fewest_gate_spans_center(best[4], best[3], hm.cage_len_mm, reach),) + best[4:]
         if best is None or best[0] > SNAP_MAX_MM:
             notes.append(f"昇降機の部品（{model_id or '機種なし'}）が足場の面から離れています（{SNAP_MAX_MM / 1000:.0f}m 以上）。"
                          "面の外側に寄せて置き直してください")

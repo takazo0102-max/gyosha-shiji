@@ -80,6 +80,33 @@ GATE_MIN_OVERLAP_MM = 150.0  # 荷台がこれ以下しか掛からないスパ�
 HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
 
 
+def spans_under_cage(spans, center_mm: float, cage_len_mm: float) -> list[int]:
+    """荷台（中心 center_mm・長さ cage_len_mm）が掛かるスパン（0 始まり）＝乗り込み口で手すりを外すスパン.
+
+    荷台の端がスパンに少し掛かるだけ（搬器の枠の厚み程度）なら、そのスパンの手すりは外さない。乗り込む扉は荷台の
+    端より内側にある。1850 の搬器が 1829 のスパンの両隣に 10 ずつ掛かって 3 スパン（5.5m）も開けていた
+    """
+    posts = [0.0]
+    for sp in spans:
+        posts.append(posts[-1] + float(sp))
+    lo, hi = center_mm - cage_len_mm / 2.0, center_mm + cage_len_mm / 2.0
+    return [k for k in range(len(spans)) if min(posts[k + 1], hi) - max(posts[k], lo) > GATE_MIN_OVERLAP_MM]
+
+
+def fewest_gate_spans_center(spans, center_mm: float, cage_len_mm: float, reach_mm: float) -> float:
+    """center_mm から reach_mm 以内の建地の芯・スパンの中央のうち、乗り込み口のスパンがいちばん少ない位置（同数なら近い方）.
+    荷台が面からはみ出す位置は採らない。候補が無ければ center_mm のまま."""
+    posts = [0.0]
+    for sp in spans:
+        posts.append(posts[-1] + float(sp))
+    half = cage_len_mm / 2.0
+    cands = [c for c in sorted(set(posts) | {(a + b) / 2.0 for a, b in zip(posts, posts[1:])})
+             if abs(c - center_mm) <= reach_mm and c - half >= 0.0 and c + half <= posts[-1]]
+    if not cands:
+        return center_mm
+    return min(cands, key=lambda c: (len(spans_under_cage(spans, c, cage_len_mm)), abs(c - center_mm)))
+
+
 @dataclass
 class Hoist:
     """昇降機（工事用エレベータ・ホイスト）1基."""
@@ -104,15 +131,7 @@ class Hoist:
         edge = _edge(model, self.edge_index)
         if edge is None or not edge.spans:
             return []
-        half = float(self.cage_width_mm or HOIST_CAGE_W_MM) / 2.0
-        posts = [0.0]
-        for sp in edge.spans:
-            posts.append(posts[-1] + float(sp))
-        # 荷台の端がスパンに少し掛かるだけ（搬器の枠の厚み程度）なら、そのスパンの手すりは外さない。乗り込む扉は荷台の
-        # 端より内側にある。1850 の搬器が 1829 のスパンの両隣に 10 ずつ掛かって 3 スパン（5.5m）も開けていた
-        lo, hi = self.position_mm - half, self.position_mm + half
-        return [k for k in range(len(edge.spans))
-                if min(posts[k + 1], hi) - max(posts[k], lo) > GATE_MIN_OVERLAP_MM]
+        return spans_under_cage(edge.spans, self.position_mm, float(self.cage_width_mm or HOIST_CAGE_W_MM))
 
     @property
     def spec(self):
