@@ -12,10 +12,11 @@ for im = 1 to nMast
 	add mx[im] - 0.075, my[im] - 0.075, 0.12
 	block 0.15, 0.15, mastH - 0.12
 	del 1
-	! マストの壁つなぎ（足場の外側建地の列まで）
+	! マストの壁つなぎ（足場の外側建地の列まで）。到達高さ（足場の天端）まで tieE ごと。数量（platforms: 到達高さ÷間隔）と
+	! 同じ本数（マストの頂部まで描くと足場の天端より上に繋ぐ先の無い壁つなぎが1段出ていた）
 	if showTie then
 		zt = tieE
-		while zt < mastH - 0.5 do
+		while zt < hoReach + 0.001 do
 			add mx[im], my[im] + 0.075, zt
 			rotx -90
 			cylind max(0.05, -(my[im] + 0.075)), 0.0243

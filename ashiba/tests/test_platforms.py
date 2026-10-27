@@ -167,7 +167,18 @@ class TestHoist(unittest.TestCase):
 
     def test_adds_mast_wall_ties(self):
         r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=14400)])
-        self.assertEqual(r.hoists and r.extra_wall_ties, 4)  # 16300 // 3600
+        # 16300 // 3600 = 4 段 × マスト2本（機種の指定が無い昇降機は荷台の両端に2本。壁つなぎの一覧と同じ）
+        self.assertEqual(r.hoists and r.extra_wall_ties, 8)
+
+    def test_single_mast_model_ties_one_mast(self):
+        # マスト1本の機種（KSE600C）は控えも1本ぶん、位置は昇降機の中心（部品 ashiba_hoist と同じ）
+        from ashiba.ties import _platform_ties
+
+        r = validate_platforms(self.m, hoists=[Hoist(edge_index=2, position_mm=14400, model_id="KSE600C")])
+        self.assertEqual(r.extra_wall_ties, 4)
+        ts = [t for t in _platform_ties(self.m, r) if t.kind == "hoist"]
+        self.assertEqual({t.position_mm for t in ts}, {14400.0})
+        self.assertEqual(len(ts), 4)
 
     def test_tighter_tie_interval_adds_more(self):
         loose = validate_platforms(

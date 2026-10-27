@@ -473,12 +473,14 @@ def validate_platforms(
                     f"（{other.position_mm:.0f}mmと{h.position_mm:.0f}mm）に重なっています",
                     "入力エラー"))
         # マスト控えの壁つなぎ
-        n_ties = max(1, int(reach // h.tie_every_mm))
+        # マスト控えの壁つなぎ（マストごと。機種が無ければ荷台の両端の2本。ties._attachment_ties と同じ）
+        n_masts = hm.masts if hm is not None else 2
+        n_ties = max(1, int(reach // h.tie_every_mm)) * n_masts
         result.extra_wall_ties += n_ties
         result.issues.append(PlatformIssue(
             "昇降機", i, "WARN",
             f"昇降機本体の基礎・構造は本ツールの対象外です。"
-            f"マスト控えの壁つなぎ{n_ties}箇所を計上しました",
+            f"マスト控えの壁つなぎ{n_ties}箇所（マスト{n_masts}本）を計上しました",
             "メーカーの構造計算による"))
 
     return result

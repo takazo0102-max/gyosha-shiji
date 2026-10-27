@@ -108,7 +108,15 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
         # ロングスパンはマストが荷台の両端に2本（3D と同じ。各マストの控えを足場へ取り、足場側は壁つなぎで躯体へ）
         length = float(sum(edge.spans))
         half = float(getattr(ho, "cage_width_mm", 0.0) or 0.0) / 2.0 + 200.0
-        xs = sorted({min(max(float(ho.position_mm) + sg * half, 0.0), length) for sg in (-1, 1)})
+        hm = getattr(ho, "spec", None)
+        if hm is not None and hm.masts == 1:
+            # マスト1本の機種（工事用エレベーター・荷揚げ機）は昇降機の中心に1本（部品 ashiba_hoist の mx と同じ）
+            offs = (0.0,)
+        elif hm is not None and hm.post_spacing_mm > 0:
+            offs = (-hm.post_spacing_mm / 2.0, hm.post_spacing_mm / 2.0)    # ロングスパンのポスト芯々
+        else:
+            offs = (-half, half)
+        xs = sorted({min(max(float(ho.position_mm) + o, 0.0), length) for o in offs})
         for x in xs:
             for k in range(1, n_ties + 1):
                 h = int(min(k * ho.tie_every_mm, reach))

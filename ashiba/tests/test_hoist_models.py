@@ -78,6 +78,9 @@ class TestHoistInput(unittest.TestCase):
         self.assertIn("cylind 1.8, 0.0243", d3)
         self.assertIn("line2 -fX, fY, fX, fY", d2)
         self.assertNotIn("atn2", d3)                 # GDL に atn2 は無い
+        # マストの壁つなぎは到達高さ（足場の天端）まで。数量の本数（到達高さ÷間隔）と同じ
+        self.assertIn("while zt < hoReach + 0.001 do", d3)
+        self.assertNotIn("while zt < mastH - 0.5 do", d3)
 
     def test_sheet_is_left_off_the_hoist_spans(self):
         # 乗り込み口のスパン（荷台の長さに掛かるスパン）は外部シートを張らない。数量の注記にも出す
