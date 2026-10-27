@@ -196,6 +196,11 @@ def write_report_md(
             for kind, sev, text in (warnings or []):
                 if sev == "NG":
                     a(f"  - 是正: {kind}: {text}")
+            # 構造の是正（建地圧縮・壁つなぎ・梁枠・ブラケットの耐力不足）は判定には件数しか出ない。何がどれだけ超えて、
+            # どう直すかを要確認一覧まで探さずに読めるよう、構造の注意のうち是正にあたる文をここに出す
+            for w in (structural.warnings if structural is not None else []):
+                if "耐力不足" in w or ("を超えます" in w and ("両端" in w or "支点許容" in w)):
+                    a(f"  - 是正: 構造: {w}")
             if verdict["warn"]:
                 a(f"- ほかに要確認 {verdict['warn']}件: {detail}")
         a("")
