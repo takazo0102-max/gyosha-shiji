@@ -242,6 +242,9 @@ class TestHoistInput(unittest.TestCase):
         self.assertNotIn("yC0 - 0.15", d3)
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
         self.assertTrue([n for n in r.quantity.notes if "荷取用金具" in n and "（8）" in n and "40mm 以内" in n])
+        # 工事用エレベーターは乗り込み口の両端の外側建地から腕で床を受ける（3D と同じ 2 か所/層）
+        ev = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "SEC-700-F", "landing_levels": [2, 4]}]})
+        self.assertTrue([n for n in ev.quantity.notes if "荷取り床の受け金物" in n and "（4）" in n and "40mm 以内" in n])
 
     def test_landing_stage_follows_the_fitting_catalog(self):
         # 利用者が渡した PDF（スギコ アルバロングスパンEV荷取用金具 50500）: 金具は梁枠2本の両端の建地に4個（許容 500kg/個）、

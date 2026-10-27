@@ -631,6 +631,15 @@ def platform_part_demands(
                                f"{LANDING_LEDGER_PITCH_MM:.0f} ごとに{n_fab}本、ころばし・足場板で床。梁枠の上に足場は組めない。"
                                "梁枠を受ける支柱に壁つなぎ",
                     ))
+            elif landings:
+                # 工事用エレベーター・荷揚げ機: 乗り込み口の両端の外側建地から腕を出して荷取り床を受ける（部品 ashiba_hoist の
+                # 3D と同じ）。床先は搬器の床先とのすき間 40mm 以内
+                out.append(PartDemand(
+                    "昇降機 荷取り床の受け金物", "荷取用金具", None, 2 * len(landings),
+                    detail="作業層" + "・".join(str(lv) for lv in landings)
+                           + "×2（乗り込み口の両端の外側建地）。足場の作業床を搬器の側へ出し、搬器の床先とのすき間を "
+                             "40mm 以内に（床は搬器の通り道に入れない）",
+                ))
             if hm.gate and landings:
                 from .hoist_models import FLOOR_GATES
 
