@@ -92,7 +92,6 @@ def check_conflicts(
     """同じ辺・同じ区間に来た付帯設備と開口部の衝突を挙げる."""
     out: list[ConflictIssue] = []
     vm = model.master.vertical_member_name
-    n_levels = model.elevation.n_levels
     ops = list(openings.openings) if openings is not None else []
     towers = list(stair_plan.towers) if stair_plan is not None else []
     stages = list(platforms.stages) if platforms is not None else []
@@ -132,7 +131,7 @@ def check_conflicts(
                 b.start_mm, b.end_mm, o.start_mm, o.end_mm
             ):
                 continue
-            levels = list(b.levels) if b.levels else list(range(1, n_levels + 1))
+            levels = list(b.levels) if b.levels else list(range(1, model.elevation_of(b.edge_index).n_levels + 1))
             below = [lv for lv in levels if lv < o.level]
             if below:
                 out.append(ConflictIssue(
@@ -213,7 +212,7 @@ def check_conflicts(
                 st.start_mm, st.end_mm(model), b.start_mm, b.end_mm
             ):
                 continue
-            b_levels = set(b.levels) if b.levels else set(range(1, n_levels + 1))
+            b_levels = set(b.levels) if b.levels else set(range(1, model.elevation_of(b.edge_index).n_levels + 1))
             hit = sorted(st_levels & b_levels)
             if not hit:
                 continue

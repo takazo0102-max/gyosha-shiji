@@ -54,6 +54,18 @@ class TestSetback(unittest.TestCase):
         self.assertEqual(h.reach_mm(r.model), float(top_s))
         self.assertTrue(all(t.height_mm <= top_s for t in r.model.wall_ties if t.kind == "hoist"))
 
+    def test_stage_uses_its_own_face_levels(self):
+        # 低い面（南）の荷受けステージに高い面の最上層を指定すれば存在しない層。取付部の壁つなぎも南面の高さを越えない
+        south = self.by["南面"]
+        n_s = self.m.elevation_of(south).n_levels
+        n_n = self.m.elevation_of(self.by["北面"]).n_levels
+        r = solve_all({"outline_mm": FOOT, "eaves_height_mm": 1000, "slabs": slabs(),
+                       "loading_stages": [{"edge_index": south, "start_mm": 3658, "span_count": 2, "levels": [n_s, n_n]}]})
+        self.assertTrue([x for x in r.platforms.issues if f"作業層{n_n}は存在しません（1〜{n_s}）" in x.message])
+        top_s = r.model.elevation_of(south).total_height
+        self.assertTrue(all(t.height_mm <= top_s for t in r.model.wall_ties
+                            if t.kind == "stage" and t.edge_index == south))
+
     def test_ties_stop_at_each_face_top(self):
         for e in self.m.plan.edges:
             top = self.m.elevation_of(e.edge_index).level_heights[-1]

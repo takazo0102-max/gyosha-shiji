@@ -78,12 +78,13 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
     out: list[WallTie] = []
     if platforms is None:
         return out
-    levels = model.elevation.level_heights
-    n = model.elevation.n_levels
     for st in platforms.stages:
         edge = _edge(model, st.edge_index)
         if edge is None:
             continue
+        # ステージの付く面の層（面ごとに高さが違う建物で、低い面に高い面の層の高さで付けていた）
+        fev = model.elevation_of(st.edge_index)
+        levels, n = fev.level_heights, fev.n_levels
         # 荷取りブラケットの上下付近に必須（日建 p019/p039）。ブラケットは間口の
         # 各支柱に付くので、支柱ごとにブラケットの1つ上と1つ下の作業層に置く
         # （最下層なら根がらみ、最上層なら同じ層）。以前は間口の両端2本だけで、
@@ -91,7 +92,7 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
         posts = [float(st.start_mm)]
         for sp in st.spans(model):
             posts.append(posts[-1] + sp)
-        first = int(model.elevation.first_ledger_height)
+        first = int(fev.first_ledger_height)
         for lv in (st.levels or [1]):
             if not (1 <= lv <= n):
                 continue

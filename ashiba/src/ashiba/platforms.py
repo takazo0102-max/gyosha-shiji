@@ -317,7 +317,6 @@ def validate_platforms(
     stages = stages or []
     hoists = hoists or []
     result = PlatformResult(stages=stages, hoists=hoists)
-    n_levels = model.elevation.n_levels
 
     for i, s in enumerate(stages):
         edge = _edge(model, s.edge_index)
@@ -351,11 +350,13 @@ def validate_platforms(
                 f"最大積載荷重{s.load_kn:.1f}kNは0より大きい値で指定してください"
                 "（荷受けステージは積載が前提。0以下では検定にならない）",
                 "入力エラー"))
+        # 層数はステージの付く面のもの（面ごとに高さが違う建物で、高い面の層を低い面に許していた）
+        n_face = model.elevation_of(s.edge_index).n_levels
         for lv in s.levels:
-            if not (1 <= lv <= n_levels):
+            if not (1 <= lv <= n_face):
                 result.issues.append(PlatformIssue(
                     "ステージ", i, "NG",
-                    f"作業層{lv}は存在しません（1〜{n_levels}）", "入力エラー"))
+                    f"作業層{lv}は存在しません（1〜{n_face}）", "入力エラー"))
         if not s.has_guard_rail:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG", "荷受けステージには手すりが必要です", basis))
