@@ -2112,7 +2112,33 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
                         or getattr(r.model, "hane_slab_range", None):
                     _retake_quantity(r)
         _layout_sills_across(out)
+    for _label, r in out:
+        _finish_warnings(r)
     return out
+
+
+def _finish_warnings(r: "PlanRun") -> None:
+    """解き終えた組の要確認を作り直す: 面の高さの組ごとに別々に並んだ手配の行（敷板・シート・クランプ）を品目ごとに
+    足して1行にし（quantity.merge_counted_warnings）、敷板の割り付け直し・上段の注意のあとの数量と同じ文にする
+    （割付レポートの要確認一覧が割り付け直す前の敷板の枚数のままだった。2026-10-27 のループ）."""
+    from .quantity import merge_counted_warnings
+
+    q = r.quantity
+    if q is None or r.structural is None:
+        return
+    merged, mapping = merge_counted_warnings(list(q.warnings))
+    kinds = {}
+    for old, new in mapping.items():
+        if old in q.warning_kinds and new not in kinds:
+            kinds[new] = q.warning_kinds[old]
+    q.warnings[:] = merged
+    q.warning_kinds = {**{k: v for k, v in q.warning_kinds.items() if k in merged}, **kinds}
+    extra = [w for w in r.warnings if w[0] == "割付" and w[2] not in r.model.plan.warnings
+             and w[2] not in r.model.elevation.warnings]
+    r.warnings = collect_warnings(r.structural, r.model, r.bracket_issues, r.stair_plan, r.stair_issues,
+                                  r.openings, r.terrain, r.platforms, r.checks, q, r.conflicts) + extra
+    r.verdict = build_verdict(summary(r.checks), r.structural, r.platforms, r.openings, r.bracket_issues,
+                              r.warnings, r.conflicts)
 
 
 def _tier_line_standoffs(tier_model, groups: list) -> dict[int, float]:

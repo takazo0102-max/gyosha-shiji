@@ -1788,6 +1788,83 @@ def _count_sill_boards(model: ScaffoldModel, notes, terrain=None, stair_plan=Non
 SILL_NOTE_HEAD = "ジャッキベースの下の敷板"
 
 
+# 手配の行の「品目×数」の並び（敷板 4m×11・3m×1、シート 幅914×3枚・幅1524×3枚）と「N個・N枚・N箇所」
+_COUNT_RUN = re.compile(r"[^\s・：:、。（）()]+?×\d+(?![\d.])枚?(?:・[^\s・：:、。（）()]+?×\d+(?![\d.])枚?)*")
+_COUNT_ITEM = re.compile(r"([^\s・：:、。（）()]+?)×(\d+)(?![\d.])(枚?)")
+_COUNT_NUM = re.compile(r"(\d+)(個|枚|箇所)")
+_COUNT_SLOT = re.compile(r"\{L\}|#(個|枚|箇所)")
+
+
+def _count_shape(w: str):
+    runs = [[(m.group(1), int(m.group(2)), m.group(3)) for m in _COUNT_ITEM.finditer(r.group(0))]
+            for r in _COUNT_RUN.finditer(w)]
+    key = _COUNT_RUN.sub("{L}", w)
+    nums = [int(m.group(1)) for m in _COUNT_NUM.finditer(key)]
+    return _COUNT_NUM.sub(r"#\2", key), runs, nums
+
+
+def merge_counted_warnings(warnings: list[str]) -> tuple[list[str], dict[str, str]]:
+    """数だけが違う手配の行（面の高さの組ごとに拾った敷板・シート・クランプ）を、品目ごとに足して1行にする
+    → (まとめた一覧, 元の文 → まとめた文).
+
+    面ごとに高さが違う建物は同じ高さの面の組ごとに数量を拾う（_merge_results）。手配の行が組ごとに別々に並び、
+    合計がどこにも無かった（2026-10-27 のループ: 張り出しの検証で敷板が3行・特殊シートが3行）。
+    """
+    groups: dict[str, list] = {}
+    order: list[str] = []
+    for w in warnings:
+        key, runs, nums = _count_shape(w)
+        if not runs and not nums:
+            key = "\0" + w
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append((w, runs, nums))
+    out: list[str] = []
+    mapping: dict[str, str] = {}
+    for key in order:
+        g = groups[key]
+        if len(g) == 1 or key.startswith("\0"):
+            text = g[0][0]
+        else:
+            n_runs = max(len(x[1]) for x in g)
+            merged_runs = []
+            for k in range(n_runs):
+                tot: dict[str, int] = {}
+                suffix: dict[str, str] = {}
+                for _w, runs, _n in g:
+                    for name, cnt, suf in (runs[k] if k < len(runs) else []):
+                        tot[name] = tot.get(name, 0) + cnt
+                        suffix[name] = suf
+                names = list(tot)
+                lens = [re.fullmatch(r"(\d+(?:\.\d+)?)m", nm) for nm in names]
+                widths = [re.fullmatch(r"幅(\d+)", nm) for nm in names]
+                if all(lens):
+                    names.sort(key=lambda nm: -float(nm[:-1]))
+                elif all(widths):
+                    names.sort(key=lambda nm: int(nm[1:]))
+                # 「4m×4・3m×2枚」のように並びの末尾にだけ「枚」が付く書き方は、まとめても末尾にだけ付ける
+                tail = any(len(runs[k]) > 1 and not all(sf for _n, _c, sf in runs[k])
+                           for _w, runs, _n in g if k < len(runs))
+                if tail:
+                    end = next((sf for _w, runs, _n in g if k < len(runs) for _n2, _c, sf in runs[k] if sf), "")
+                    merged_runs.append("・".join(f"{nm}×{tot[nm]}" for nm in names) + end)
+                else:
+                    merged_runs.append("・".join(f"{nm}×{tot[nm]}{suffix[nm]}" for nm in names))
+            sums = [sum(x[2][k] for x in g) for k in range(len(g[0][2]))]
+            it_runs, it_nums = iter(merged_runs), iter(sums)
+
+            def fill(m, it_runs=it_runs, it_nums=it_nums):
+                return next(it_runs) if m.group(0) == "{L}" else f"{next(it_nums)}{m.group(1)}"
+
+            text = _COUNT_SLOT.sub(fill, key)
+        if text not in out:
+            out.append(text)
+        for w, _r, _n in g:
+            mapping[w] = text
+    return out, mapping
+
+
 def sill_note(counts: dict[int, int], cut: int) -> str:
     from .gdl_params import SILL_T_MM, SILL_W_MM
 
