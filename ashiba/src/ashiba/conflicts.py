@@ -259,3 +259,32 @@ def check_conflicts(
                     "クレーン等安全規則（昇降路）・仮設工業会 張出しブラケット使用基準",
                 ))
     return out
+
+
+def intake_hoist_conflicts(model: ScaffoldModel, intakes, hoists) -> list[ConflictIssue]:
+    """取り入れ口 × 昇降機. 取り入れ口はクレーンで吊った資材を足場越しに入れる口なので、搬器が昇り降りするスパンに
+    重なると吊り荷と搬器が当たる（2026-10-27 のループ）."""
+    from .platforms import hoist_cut_ranges
+
+    out: list[ConflictIssue] = []
+    for t in intakes or []:
+        ep = next((e for e in model.plan.edges if e.edge_index == t.edge_index), None)
+        if ep is None:
+            continue
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + float(sp))
+        a, b = posts[max(0, t.span_from - 1)], posts[min(len(ep.spans), t.span_to)]
+        for i, h in enumerate(hoists or []):
+            if h.edge_index != t.edge_index:
+                continue
+            for s0, e0 in hoist_cut_ranges(model, h.edge_index, [h]):
+                if _overlap(a, b, s0, e0):
+                    out.append(ConflictIssue(
+                        "取り入れ口×昇降機", "NG",
+                        f"{model.face_name(t.edge_index)}の取り入れ口（{_rng(a, b)}・{t.level_from}〜{t.level_to}層）が"
+                        f"昇降機{i + 1}の搬器が通るスパン（{_rng(s0, e0)}）に重なっています。吊り荷と搬器が当たるので、"
+                        "取り入れ口を昇降機のスパンの外に移してください",
+                        "クレーン等安全規則（昇降路・つり荷の下への立入禁止）"))
+                    break
+    return out

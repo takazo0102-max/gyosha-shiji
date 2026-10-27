@@ -210,6 +210,15 @@ class TestHoistInput(unittest.TestCase):
         d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("add 0, 0, zH", d3)
 
+    def test_intake_on_the_hoist_spans_is_ng(self):
+        # 取り入れ口（クレーンの吊り荷を入れる口）が搬器の通るスパンに重なれば NG、外なら通す
+        ho = {"hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4"}]}
+        on = solve_all({**BOX, **ho, "intakes": [{"face": "南面", "start_mm": 3658, "span_count": 1, "levels": "3-4"}]})
+        self.assertEqual([c.kind for c in on.conflicts], ["取り入れ口×昇降機"])
+        self.assertFalse(on.verdict["ok"])
+        off = solve_all({**BOX, **ho, "intakes": [{"face": "南面", "start_mm": 10974, "span_count": 1, "levels": "3-4"}]})
+        self.assertFalse([c for c in off.conflicts if c.kind == "取り入れ口×昇降機"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

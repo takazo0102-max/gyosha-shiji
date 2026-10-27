@@ -2825,6 +2825,10 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model.intakes, ik_errors = parse_intakes(spec["intakes"], model, resolve_face_name)
         model.plan.warnings.extend(f"取り入れ口: {m}" for m in ik_errors)
         model.member_edits = list(model.member_edits or []) + intake_edits(model.intakes)
+        if platforms.hoists:
+            from .conflicts import intake_hoist_conflicts
+
+            conflicts += intake_hoist_conflicts(model, model.intakes, platforms.hoists)
     if spec.get("_tier_passage"):
         from .member_edits import tier_passage_edits, tier_passage_spans
 
