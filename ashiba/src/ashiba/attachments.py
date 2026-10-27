@@ -995,7 +995,7 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             "zH": base / 1000.0,
             "hoReach": (float(h.reach_height_mm) if h.reach_height_mm else float(ev.total_height)) / 1000.0,
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
-            "gateA": ga / 1000.0, "gateB": gb / 1000.0,
+            "gateA": ga / 1000.0, "gateB": gb / 1000.0, "rowSp": row / 1000.0,
             # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）
             "tieList": ",".join(f"{(x - h.position_mm) / 1000.0:.3f}" for x in hoist_tie_posts(ep, h))}))
     return _with_pens(model, out)

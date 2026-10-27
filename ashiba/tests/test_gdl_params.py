@@ -360,7 +360,7 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
         self.assertNotIn("lin_ hx, cyo - 0.15, 0", body3)     # 足場ラインの線の昇降機は描かない
         hoist = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_hoist" / "scripts"
         h3 = (hoist / "3d.gdl").read_text(encoding="utf-8")
-        for key in ("for im = 1 to nMast", "cylind gB - gA, 0.0243", "block cageL, cageD"):
+        for key in ("for im = 1 to nMast", "nJ = max(2, int((gB - gA) / 0.27 + 0.5))", "block cageL, cageD"):
             self.assertIn(key, h3)
         self.assertIn("rect2 -cageL / 2, yC1, cageL / 2, yC0", (hoist / "2d.gdl").read_text(encoding="utf-8"))
 
@@ -950,7 +950,7 @@ class TestHoistMastInModel(unittest.TestCase):
         body3 = (gdl / "3d.gdl").read_text(encoding="utf-8")
         self.assertNotIn("cylind mh, 0.02", body3)
         h3 = (gdl.parents[1] / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        for key in ("壁つなぎ", "渡し板", "zt = zt + tieE", "for im = 1 to nMast"):
+        for key in ("壁つなぎ", "荷取り床", "zt = zt + tieE", "for im = 1 to nMast"):
             self.assertIn(key, h3)
         body2 = (gdl / "2d.gdl").read_text(encoding="utf-8")
         self.assertIn("mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)", body2)   # 平面・立面にマスト2本（荷台の両端）

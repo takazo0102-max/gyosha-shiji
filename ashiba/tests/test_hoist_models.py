@@ -233,6 +233,35 @@ class TestHoistInput(unittest.TestCase):
         off = solve_all({**BOX, **ho, "intakes": [{"face": "南面", "start_mm": 10974, "span_count": 1, "levels": "3-4"}]})
         self.assertFalse([c for c in off.conflicts if c.kind == "取り入れ口×昇降機"])
 
+    def test_landing_floor_stops_40mm_short_of_the_cage(self):
+        # 利用者の指定 2026-10-27: ステージとロングスパンの離れは40mm以内の規定がある。荷取り床は搬器の床先の手前 30 で止め、
+        # 搬器の通り道に入れない（渡し板を搬器の上まで張り出すと通るたびに当たる）。荷取用の金具を手配に出す
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("gapL = 0.03", d3)
+        self.assertIn("add xa2, yC0 + gapL, landH[il] + 0.02", d3)
+        self.assertNotIn("yC0 - 0.15", d3)
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
+        self.assertTrue([n for n in r.quantity.notes if "荷取用金具" in n and "（8）" in n and "40mm 以内" in n])
+
+    def test_landing_stage_follows_the_fitting_catalog(self):
+        # 利用者が渡した PDF（スギコ アルバロングスパンEV荷取用金具 50500）: 金具は梁枠2本の両端の建地に4個（許容 500kg/個）、
+        # 梁枠は 2・3 スパン、布材は上部フランジに 1829 ピッチ、ステージ上の全積載 800kg 以下
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
+        beams = [ln for ln in r.quantity.lines if ln.part.category == "梁枠"]
+        self.assertEqual([(ln.part.nominal_dim, ln.qty) for ln in beams], [(5487, 4)])
+        msgs = [x.message for x in r.platforms.issues]
+        self.assertTrue([m for m in msgs if "800kg" in m and "最大積載荷重を表示" in m])
+        self.assertFalse([m for m in msgs if "梁枠（2・3スパン）" in m])
+        # 7.2m 型は乗り込み口が 4 スパン以上に掛かり、梁枠（2・3 スパン）で荷取りステージが組めない
+        wide = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "SEL-950LK-7.2F", "landing_levels": [2]}]})
+        self.assertTrue([x for x in wide.platforms.issues if "梁枠（2・3スパン）" in x.message])
+        self.assertFalse([ln for ln in wide.quantity.lines if ln.part.category == "梁枠"])
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for key in ("yS = yF0 + sy * (rowSp - 0.206 - yF0)", "ころばし", "if nMast = 1 or yC0 + gapL > -0.26 then yF0 = 0.206"):
+            self.assertIn(key, d3)
+        pl = hoist_placements(r.model, r.platforms)[0]
+        self.assertAlmostEqual(pl.params["rowSp"], r.model.row_spacing_of(0) / 1000.0)
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
@@ -265,8 +294,8 @@ class TestHoistInput(unittest.TestCase):
         self.assertNotIn("ロングスパンエレベーター（マスト2本", d3)
         self.assertNotIn("開閉式手すり（枠", d3)
         h3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
-        self.assertIn("cylind gB - gA, 0.0243", h3)
-        self.assertIn("渡し板", h3)
+        self.assertIn("nJ = max(2, int((gB - gA) / 0.27 + 0.5))", h3)   # 乗り込み口いっぱいのアコーディオン式の格子
+        self.assertIn("荷取り床", h3)
 
 
 class TestModelChecks(unittest.TestCase):

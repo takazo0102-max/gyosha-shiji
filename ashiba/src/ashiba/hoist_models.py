@@ -45,6 +45,7 @@ class HoistModel:
     gate: str
     source: str
     note: str
+    cage_h_mm: float = 0.0     # 荷台の内のりの高さ（三成研機の仕様表）。あれば荷台全体を囲う形（ジャバラ扉・金網・屋根枠）で描く
 
     @property
     def masts(self) -> int:
@@ -75,7 +76,8 @@ def load_hoist_models(path: Path = DATA) -> dict[str, HoistModel]:
                 cage_len_mm=_f(r["cage_len_mm"]), cage_depth_mm=_f(r["cage_depth_mm"]),
                 cage_in_len_mm=_f(r["cage_in_len_mm"]), cage_in_depth_mm=_f(r["cage_in_depth_mm"]),
                 max_lift_m=_f(r["max_lift_m"]), tie_every_mm=_f(r["tie_every_mm"]) or 3600.0,
-                gate=(r["gate"] or "").strip(), source=r["source"], note=r["note"])
+                gate=(r["gate"] or "").strip(), source=r["source"], note=r["note"],
+                cage_h_mm=_f(r.get("cage_h_mm")))
     return out
 
 

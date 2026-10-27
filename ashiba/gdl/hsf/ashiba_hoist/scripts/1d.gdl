@@ -8,9 +8,12 @@ gateOpen = 0
 tieE = 3.6
 loadKg = 0
 hoName = hoModel
-! 種類（1＝ロングスパン・2＝工事用エレベーター・3＝荷揚げ機）と頭上覆い（1＝両端の駆動部だけ・2＝荷台全体のヘッドガード）
+! 種類（1＝ロングスパン・2＝工事用エレベーター・3＝荷揚げ機）と端の囲い（1＝両端の駆動部を金網で囲い頭上覆い（両屋根）・
+! 2＝片方の端だけ搭乗席を金網で囲いヘッドガード（コシハラ KRD・NSE。実物の写真: 中央と他方の端は手すりだけ））
 hoKind = 1
 roofMode = 1
+! 荷台の内のりの高さ（三成研機の仕様表）。あれば荷台全体を囲う形（全高のジャバラ扉・外側の金網・屋根枠・三角格子のポスト）
+cageH = 0
 if hoModel = "KSE600C" then
 	cageL = 3.3000
 	cageD = 1.1000
@@ -323,6 +326,591 @@ if hoModel = "SL-240B" then
 	hoKind = 3
 	roofMode = 1
 endif
+if hoModel = "SLF-990W" then
+	cageL = 6.8020
+	cageD = 1.1900
+	postSp = 6.7230
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 3.5000
+	loadKg = 990
+	hoName = "SLF-990W 低床4スパン型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SLF-900S" then
+	cageL = 5.0020
+	cageD = 1.1900
+	postSp = 4.9230
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 3.5000
+	loadKg = 900
+	hoName = "SLF-900S 低床3スパン型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SLF-900T" then
+	cageL = 4.5950
+	cageD = 1.1650
+	postSp = 4.5150
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 7.0000
+	loadKg = 900
+	hoName = "SLF-900T 低床3スパン型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SLF-900" then
+	cageL = 3.4000
+	cageD = 0.8900
+	postSp = 3.3350
+	nMast = 2
+	gateOpen = 3.9300
+	tieE = 3.5000
+	loadKg = 900
+	hoName = "SLF-900 低床2スパン型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SEL-950LK-5.4F" then
+	cageL = 4.9520
+	cageD = 1.1930
+	postSp = 5.5300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 4.5000
+	loadKg = 950
+	hoName = "SEL-950LK 5.4フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SEL-950LK-5.4P" then
+	cageL = 4.9520
+	cageD = 1.1930
+	postSp = 5.5300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 950
+	hoName = "SEL-950LK 5.4ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SEL-950LK-7.2F" then
+	cageL = 6.7520
+	cageD = 1.1930
+	postSp = 7.3300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 4.5000
+	loadKg = 950
+	hoName = "SEL-950LK 7.2フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SEL-950LK-7.2P" then
+	cageL = 6.7520
+	cageD = 1.1930
+	postSp = 7.3300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 950
+	hoName = "SEL-950LK 7.2ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.0000
+endif
+if hoModel = "SEL-950LW-5.4F" then
+	cageL = 4.9720
+	cageD = 1.4000
+	postSp = 5.5300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 4.0000
+	loadKg = 950
+	hoName = "SEL-950LW 5.4フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEL-950LW-5.4P" then
+	cageL = 4.9720
+	cageD = 1.4000
+	postSp = 5.5300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 950
+	hoName = "SEL-950LW 5.4ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEL-950LW-7.2F" then
+	cageL = 6.7720
+	cageD = 1.4000
+	postSp = 7.3300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 4.0000
+	loadKg = 950
+	hoName = "SEL-950LW 7.2フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEL-950LW-7.2P" then
+	cageL = 6.7720
+	cageD = 1.4000
+	postSp = 7.3300
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 950
+	hoName = "SEL-950LW 7.2ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEL-850LM" then
+	cageL = 3.1600
+	cageD = 0.9000
+	postSp = 3.0700
+	nMast = 2
+	gateOpen = 3.9300
+	tieE = 3.5000
+	loadKg = 850
+	hoName = "SEL-850LM 2スパン型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 1.8900
+endif
+if hoModel = "STR-900" then
+	cageL = 4.5900
+	cageD = 1.1450
+	postSp = 4.5100
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 7.0000
+	loadKg = 900
+	hoName = "STR-900 10人乗 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 1.9000
+endif
+if hoModel = "DECK-3.0-F" then
+	cageL = 3.0550
+	cageD = 1.2180
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 800
+	hoName = "DECK-3.0 フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0-P" then
+	cageL = 3.0550
+	cageD = 1.2180
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 800
+	hoName = "DECK-3.0 ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0A-F" then
+	cageL = 3.0550
+	cageD = 1.2180
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 800
+	hoName = "DECK-3.0A フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0A-P" then
+	cageL = 3.0550
+	cageD = 1.2180
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 800
+	hoName = "DECK-3.0A ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0B-F" then
+	cageL = 3.0800
+	cageD = 1.2300
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 800
+	hoName = "DECK-3.0B フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0B-P" then
+	cageL = 3.0800
+	cageD = 1.2300
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 800
+	hoName = "DECK-3.0B ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1150
+endif
+if hoModel = "DECK-3.0X-F" then
+	cageL = 3.0000
+	cageD = 1.1900
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 800
+	hoName = "DECK-3.0X 10人乗フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "DECK-3.0X-P" then
+	cageL = 3.0000
+	cageD = 1.1900
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 800
+	hoName = "DECK-3.0X 10人乗ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "WO-7-F" then
+	cageL = 3.0800
+	cageD = 1.3200
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.5000
+	loadKg = 700
+	hoName = "WO-7 フラット型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 1.9750
+endif
+if hoModel = "WO-7-P" then
+	cageL = 3.0800
+	cageD = 1.3200
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 700
+	hoName = "WO-7 ポスト型 ロングスパン"
+	hoKind = 1
+	roofMode = 1
+	cageH = 1.9750
+endif
+if hoModel = "SEL-990IV" then
+	cageL = 4.8700
+	cageD = 1.2000
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 990
+	hoName = "SEL-990IV 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0550
+endif
+if hoModel = "SEL-990HII" then
+	cageL = 4.8700
+	cageD = 1.2000
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 7.0000
+	loadKg = 990
+	hoName = "SEL-990HII 工事用エレベーター（2本構・40m/min）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0550
+endif
+if hoModel = "SEL-990CII-F" then
+	cageL = 4.8720
+	cageD = 1.2510
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 3.0000
+	loadKg = 990
+	hoName = "SEL-990CII フラット型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEL-990CII-P" then
+	cageL = 4.8720
+	cageD = 1.2510
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 990
+	hoName = "SEL-990CII ポスト型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEL-900-F" then
+	cageL = 4.8700
+	cageD = 1.1430
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 3.5000
+	loadKg = 900
+	hoName = "SEL-900 フラット型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEL-900H-F" then
+	cageL = 4.8700
+	cageD = 1.1430
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 3.5000
+	loadKg = 900
+	hoName = "SEL-900 ハイサッシ フラット型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEL-900-P" then
+	cageL = 4.8700
+	cageD = 1.1430
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 900
+	hoName = "SEL-900 ポスト型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEL-900H-P" then
+	cageL = 4.8700
+	cageD = 1.1430
+	postSp = 4.8200
+	nMast = 2
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 900
+	hoName = "SEL-900 ハイサッシ ポスト型 工事用エレベーター（2本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.5000
+endif
+if hoModel = "SEC-990LII" then
+	cageL = 4.2600
+	cageD = 1.1100
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 990
+	hoName = "SEC-990LII 工事用エレベーター（1本構・40m/min）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEC-990LIII" then
+	cageL = 4.2600
+	cageD = 1.1100
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 6.6300
+	tieE = 9.0000
+	loadKg = 990
+	hoName = "SEC-990LIII 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEC-990HS" then
+	cageL = 2.2500
+	cageD = 1.3500
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 12.0000
+	loadKg = 990
+	hoName = "SEC-990HS 工事用エレベーター（1本構・50m/min）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "SEC-980HS" then
+	cageL = 1.8500
+	cageD = 1.1900
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 980
+	hoName = "SEC-980HS 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 1.9910
+endif
+if hoModel = "SEC-750C" then
+	cageL = 1.8850
+	cageD = 1.0100
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 750
+	hoName = "SEC-750C 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "SEC-750B" then
+	cageL = 1.8850
+	cageD = 1.0100
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 750
+	hoName = "SEC-750B 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "SEC-700N-P" then
+	cageL = 1.9500
+	cageD = 0.9500
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 700
+	hoName = "SEC-700N ポスト型 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0350
+endif
+if hoModel = "SEC-700-F" then
+	cageL = 1.9500
+	cageD = 0.9950
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 700
+	hoName = "SEC-700 フラット型 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0350
+endif
+if hoModel = "SEC-700-P" then
+	cageL = 1.9500
+	cageD = 0.9950
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 700
+	hoName = "SEC-700 ポスト型 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0350
+endif
+if hoModel = "DECK-600-F" then
+	cageL = 1.0500
+	cageD = 1.0350
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 3.0000
+	loadKg = 600
+	hoName = "DECK-600 フラット型 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "DECK-600-P" then
+	cageL = 1.0500
+	cageD = 1.0350
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 600
+	hoName = "DECK-600 ポスト型 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.0500
+endif
+if hoModel = "SEC-500AII" then
+	cageL = 1.7000
+	cageD = 1.0000
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 500
+	hoName = "SEC-500AII 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.1000
+endif
+if hoModel = "SEC-500A" then
+	cageL = 1.5250
+	cageD = 1.0000
+	postSp = 0.0000
+	nMast = 1
+	gateOpen = 3.9300
+	tieE = 9.0000
+	loadKg = 500
+	hoName = "SEC-500A 工事用エレベーター（1本構）"
+	hoKind = 2
+	roofMode = 1
+	cageH = 2.1000
+endif
 if tieE < 1 then tieE = 3.6
 ! 乗り込む作業床の高さ（m）
 dim landH[40]
@@ -367,19 +955,29 @@ endwhile
 yC0 = -gapOut
 yC1 = -gapOut - cageD
 mastW = 0.15
+if cageH > 0 then mastW = 0.20
 if hoKind = 2 and nMast = 1 then mastW = 0.45
+! ロングスパンの1本構（三成研機 DECK・WO-7）: はしご形のガイドレールが足場と荷台の間に立ち、荷台はその外へ出る
+if hoKind = 1 and nMast = 1 then
+	mastW = 0.30
+	yC0 = -gapOut - 0.25
+	yC1 = yC0 - cageD
+endif
 if hoKind = 3 then mastW = 0.12
 dim mx[2]
 dim my[2]
 if nMast = 2 then
 	! ポストは荷台の端の外に立つ（芯々が荷台の長さと同じ機種もポストの半分＋50 は外へ）
 	mx[2] = max(postSp / 2, cageL / 2 + mastW / 2 + 0.05)
+	! 三成研機は図面のガイドレール芯どおり（低床型はレールが荷台の端の内側に入る）
+	if cageH > 0 then mx[2] = postSp / 2
 	mx[1] = -mx[2]
 	my[1] = (yC0 + yC1) / 2
 	my[2] = (yC0 + yC1) / 2
 else
 	mx[1] = 0
 	my[1] = yC1 - mastW / 2 - 0.05
+	if hoKind = 1 then my[1] = -gapOut - 0.125
 endif
 ! フロアーゲートの幅（荷台の長さとゲートの有効開口の小さい方）
 gW = cageL

@@ -49,6 +49,10 @@
 			<Description><![CDATA["足場の外側建地の列から荷台までのあき"]]></Description>
 			<Value>0.1</Value>
 		</Length>
+		<Length Name="rowSp">
+			<Description><![CDATA["足場の内外の建地の間隔（配置が入れる。荷取りステージの内側の梁枠の位置）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
 		<String Name="landLevels">
 			<Description><![CDATA["乗り込む作業層の番号（カンマ区切り「2,5」。空は全部の層）"]]></Description>
 			<Value><![CDATA[""]]></Value>

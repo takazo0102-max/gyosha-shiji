@@ -157,6 +157,13 @@ def _edge(model: ScaffoldModel, edge_index: int):
     return None
 
 
+# 荷取りステージ（スギコ アルバロングスパンEV荷取用金具 50500 のカタログ: 許容荷重 500kg/個、ステージ上の全積載 800kg 以下、
+# 梁枠は 2・3 スパン、布材は上部フランジに 1829 ピッチ。利用者が渡した PDF 2026-10-27）
+LANDING_FITTING_KG = 500.0
+LANDING_FITTINGS_PER_STAGE = 4
+LANDING_STAGE_MAX_KG = 800.0
+LANDING_BEAM_SPANS = (2, 3)
+LANDING_LEDGER_PITCH_MM = 1829.0
 FRAME_TOL_MM = 60.0     # ロングスパンの枠組間隔と足場のスパンの続きの合計の許容差（インチ 3×1829＝5487 と 5490 は同じ）
 
 
@@ -449,6 +456,22 @@ def validate_platforms(
                     "昇降機", i, "WARN",
                     f"機種 {hm.name} の枠組（{hm.frame_span_mm:.0f}mm）の両端が足場の建地に乗りません。位置を"
                     f"{h.position_mm:.0f}mm から {fc:.0f}mm にしてください", "メーカーの組立要領"))
+        # 荷取りステージ（荷取用金具＋梁枠）の決め: 梁枠は 2・3 スパン、ステージ上の全積載 800kg 以下
+        # （スギコ アルバロングスパンEV荷取用金具 50500 の使用上の注意）
+        if hm is not None and hm.kind == "ロングスパン" and h.landings(model):
+            gs = h.gate_spans(model)
+            if len(gs) not in LANDING_BEAM_SPANS:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "WARN",
+                    f"乗り込み口が{len(gs)}スパンに掛かり、荷取りステージの梁枠（2・3スパン）が掛けられません。"
+                    "昇降機の位置か機種を見直すか、荷取りステージを別に計画してください",
+                    "荷取用金具の使用上の注意（梁枠は2・3スパン）"))
+            if hm.load_kg > LANDING_STAGE_MAX_KG:
+                result.issues.append(PlatformIssue(
+                    "昇降機", i, "WARN",
+                    f"機種 {hm.name} の積載{hm.load_kg:.0f}kgは、荷取りステージ上の全積載{LANDING_STAGE_MAX_KG:.0f}kgを"
+                    "超えます。満載の荷を一度にステージへ降ろさず、ステージに最大積載荷重を表示してください",
+                    "荷取用金具の使用上の注意・安衛則第655条（最大積載荷重の表示）"))
         # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
         if hm is not None and hm.persons == 0:
             result.issues.append(PlatformIssue(
@@ -587,6 +610,27 @@ def platform_part_demands(
                        + (f"・揚程{hm.max_lift_m:.0f}m" if hm.max_lift_m else "")
                        + f"（{hm.source}）",
             ))
+            if landings and hm.kind == "ロングスパン":
+                # 荷取りステージ: 乗り込み口の両端の建地に荷取用金具を付け、そのフランジに梁枠を2本（搬器側・足場側）掛け、
+                # 布材・ころばし・足場板で床を組む（スギコ アルバロングスパンEV荷取用金具 50500 の設置手順）。床先は搬器の
+                # 床先とのすき間 40mm 以内（利用者の指定 2026-10-27: ステージとロングスパンの離れは40mm以内の規定がある）
+                gs = h.gate_spans(model)
+                edge = _edge(model, h.edge_index)
+                opening = sum(float(edge.spans[k]) for k in gs) if edge is not None else 0.0
+                lv_txt = "作業層" + "・".join(str(lv) for lv in landings)
+                out.append(PartDemand(
+                    "昇降機 荷取りステージの荷取用金具", "荷取用金具", None, LANDING_FITTINGS_PER_STAGE * len(landings),
+                    detail=f"{lv_txt}×{LANDING_FITTINGS_PER_STAGE}（梁枠2本の両端の建地。許容{LANDING_FITTING_KG:.0f}kg/個、"
+                           f"例 スギコ 50500）。ステージの床先と搬器の床先のすき間は 40mm 以内（床は搬器の通り道に入れない）",
+                ))
+                if len(gs) in LANDING_BEAM_SPANS:
+                    n_fab = int(opening // LANDING_LEDGER_PITCH_MM) + 1
+                    out.append(PartDemand(
+                        "昇降機 荷取りステージの梁枠", "梁枠", int(round(opening)), 2 * len(landings),
+                        detail=f"{lv_txt}×2本（{len(gs)}スパン {opening:.0f}）。梁枠の間に布材を上部フランジ"
+                               f"{LANDING_LEDGER_PITCH_MM:.0f} ごとに{n_fab}本、ころばし・足場板で床。梁枠の上に足場は組めない。"
+                               "梁枠を受ける支柱に壁つなぎ",
+                    ))
             if hm.gate and landings:
                 from .hoist_models import FLOOR_GATES
 
