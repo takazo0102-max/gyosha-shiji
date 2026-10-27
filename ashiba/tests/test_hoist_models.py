@@ -262,6 +262,18 @@ class TestHoistInput(unittest.TestCase):
         pl = hoist_placements(r.model, r.platforms)[0]
         self.assertAlmostEqual(pl.params["rowSp"], r.model.row_spacing_of(0) / 1000.0)
 
+    def test_landing_stage_posts_get_wall_ties(self):
+        # 荷取用金具の使用上の注意「梁枠支持部の支柱に壁つなぎを設置」: 乗り込み口の両端の建地に、乗り込む層ごと
+        from ashiba.ties import _platform_ties
+
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "KSE900-5.4", "landing_levels": [2, 4]}]})
+        lv = r.model.elevation.level_heights
+        got = sorted((t.position_mm, t.height_mm) for t in _platform_ties(r.model, r.platforms) if t.kind == "landing")
+        self.assertEqual(got, sorted((x, int(lv[k - 1])) for x in (1829.0, 7316.0) for k in (2, 4)))
+        # 梁枠が掛からない（4スパン以上）なら荷取りステージは別計画なので、ここでは足さない
+        wide = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "SEL-950LK-7.2F", "landing_levels": [2]}]})
+        self.assertFalse([t for t in _platform_ties(wide.model, wide.platforms) if t.kind == "landing"])
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 

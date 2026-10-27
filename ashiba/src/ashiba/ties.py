@@ -16,8 +16,9 @@ KIND_LABEL = {
     "stage": "荷受けステージ取付部の壁つなぎ",
     "hoist": "昇降機マスト控えの壁つなぎ",
     "beam": "梁枠取付部の壁つなぎ",
+    "landing": "昇降機 荷取りステージ取付部の壁つなぎ",
 }
-ATTACHMENT_KINDS = ("asagao", "stage", "hoist", "beam")
+ATTACHMENT_KINDS = ("asagao", "stage", "hoist", "beam", "landing")
 
 
 def kind_labels(model: ScaffoldModel) -> dict[str, str]:
@@ -109,6 +110,19 @@ def _platform_ties(model: ScaffoldModel, platforms) -> list[WallTie]:
             for k in range(1, n_ties + 1):
                 h = int(min(k * ho.tie_every_mm, reach))
                 out.append(WallTie(ho.edge_index, x, h, "hoist"))
+        # ロングスパンの荷取りステージ: 梁枠を受ける乗り込み口の両端の支柱に、乗り込む層ごとに壁つなぎ（スギコ
+        # アルバロングスパンEV荷取用金具の使用上の注意「梁枠支持部の支柱に壁つなぎを設置」）
+        from .platforms import LANDING_BEAM_SPANS
+
+        hm = getattr(ho, "spec", None)
+        gs = ho.gate_spans(model)
+        if hm is not None and hm.kind == "ロングスパン" and len(gs) in LANDING_BEAM_SPANS:
+            posts = [0.0]
+            for sp in edge.spans:
+                posts.append(posts[-1] + float(sp))
+            for lv in ho.landings(model):
+                for x in (posts[min(gs)], posts[max(gs) + 1]):
+                    out.append(WallTie(ho.edge_index, x, int(levels[lv - 1]), "landing"))
     return out
 
 
