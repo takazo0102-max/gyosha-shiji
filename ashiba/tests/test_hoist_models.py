@@ -277,6 +277,25 @@ class TestHoistInput(unittest.TestCase):
         wide = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": "SEL-950LK-7.2F", "landing_levels": [2]}]})
         self.assertFalse([t for t in _platform_ties(wide.model, wide.platforms) if t.kind == "landing"])
 
+    def test_report_says_how_the_landing_floor_is_built(self):
+        # 割付レポートの昇降機の行の下に、乗り込み口の床の組み方と決め（梁枠・40mm・800kg）を出す
+        import tempfile
+
+        from ashiba.report import write_report_md
+
+        def report(model_id):
+            r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572, "model": model_id, "landing_levels": [2]}]})
+            with tempfile.TemporaryDirectory() as d:
+                path = Path(d) / "r.md"
+                write_report_md(r.model, r.quantity, r.checks, path, "t", platforms=r.platforms)
+                return path.read_text(encoding="utf-8")
+
+        ls = report("KSE900-5.4")
+        self.assertIn("荷取りステージ: 荷取用金具4個/層＋梁枠3スパン×2本", ls)
+        self.assertIn("全積載800kg以下", ls)
+        self.assertIn("梁枠（2・3スパン）が掛からず別計画", report("SEL-950LK-7.2F"))
+        self.assertIn("荷取り床: 外側建地から腕で受ける", report("SEC-700-F"))
+
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError
 
