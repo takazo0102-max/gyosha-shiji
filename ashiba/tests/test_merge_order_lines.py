@@ -41,5 +41,23 @@ class TestReportMatchesQuantity(unittest.TestCase):
             self.assertLessEqual(sum(1 for w in r.quantity.warnings if w.startswith(SILL_NOTE_HEAD)), 1)
 
 
+class TestWideGapWithInnerRails(unittest.TestCase):
+    """離れ 300 超の面: 躯体側の手すり・中桟を付ける足場では「付けている」と書き、付けない足場だけ措置を求める."""
+
+    SPEC = {"project_name": "x", "outline_mm": [[0, 0], [10000, 0], [10000, 8000], [0, 8000]], "eaves_height_mm": 6000,
+            "series_id": "nikken_nd1800", "module": "inch"}
+
+    def test_rails_are_said_to_be_there(self):
+        from ashiba.cli import FALL_REMEDY_ASK, FALL_REMEDY_DONE, solve_all
+
+        r = solve_all(self.SPEC)
+        wide = [e for e in r.model.plan.edges if e.standoff > 300]
+        self.assertTrue(wide)
+        self.assertTrue(all(FALL_REMEDY_DONE in e.remedy for e in wide))
+        self.assertFalse([w for _k, _s, w in r.warnings if FALL_REMEDY_ASK in w])
+        r2 = solve_all({**self.SPEC, "inner_guard_rail": False})
+        self.assertTrue([w for _k, _s, w in r2.warnings if FALL_REMEDY_ASK in w])
+
+
 if __name__ == "__main__":
     unittest.main()

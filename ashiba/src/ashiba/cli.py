@@ -2117,6 +2117,23 @@ def solve_groups(spec: dict, master_csv: Path | None = None) -> list[tuple[str, 
     return out
 
 
+FALL_REMEDY_ASK = "手すりの設置、または安全帯の使用等の墜落防止措置を講じてください"
+FALL_REMEDY_DONE = ("躯体側の手すり・中桟を各層に付けて墜落防止しています（数量に計上）。外壁の作業で外すときは"
+                    "安全帯を使い、作業が済んだらすぐ戻してください")
+
+
+def _say_inner_rails_cover_wide_gaps(model) -> None:
+    """離れが 300 を超える面の「手すりの設置、または安全帯…を講じてください」を、躯体側の手すり・中桟を数量と 3D に
+    入れている足場では「付けている（外すときは安全帯）」に書き換える. 数量の注記（_note_inner_rail_if_wide）は計上済みなら
+    黙るのに、割付の注意だけが措置を求め続けていた（2026-10-27 のループ: 張り出しの検証の東西面 離れ 346）."""
+    if not model.config.inner_guard_rail or model.master.is_frame or model.config.scaffold_form == "一側足場":
+        return
+    for ep in model.plan.edges:
+        if ep.remedy and FALL_REMEDY_ASK in ep.remedy:
+            ep.remedy = ep.remedy.replace(FALL_REMEDY_ASK, FALL_REMEDY_DONE)
+    model.plan.warnings[:] = [w.replace(FALL_REMEDY_ASK, FALL_REMEDY_DONE) for w in model.plan.warnings]
+
+
 def _finish_warnings(r: "PlanRun") -> None:
     """解き終えた組の要確認を作り直す: 面の高さの組ごとに別々に並んだ手配の行（敷板・シート・クランプ）を品目ごとに
     足して1行にし（quantity.merge_counted_warnings）、敷板の割り付け直し・上段の注意のあとの数量と同じ文にする
@@ -2591,6 +2608,7 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
                 w = f"{'・'.join(faces)}: {rest}"
             kept.append(w)
         model.plan.warnings[:] = kept + auto_notes
+    _say_inner_rails_cover_wide_gaps(model)
     bracket_issues = validate_bracket_sections(model, brackets)
     # 枠組の手すりは建枠一体。先行手すり工法の指定は効かないので、黙って無視しない
     if model.master.is_frame and spec.get("guard_rail_type") == GUARD_RAIL_ADVANCE:
