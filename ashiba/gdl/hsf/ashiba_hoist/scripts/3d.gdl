@@ -69,6 +69,46 @@ if showGate then
 		next se
 	next il
 endif
+! 地上の昇降路の囲い（足場側を除く3方。支柱・笠木・中桟・下桟。搬器の下への立入禁止）
+if showFence then
+	for ip = 1 to 3
+		if ip = 1 then
+			px0 = -fX
+			py0 = yC0
+			px1 = -fX
+			py1 = fY
+			fA = -90
+		endif
+		if ip = 2 then
+			px0 = -fX
+			py0 = fY
+			px1 = fX
+			py1 = fY
+			fA = 0
+		endif
+		if ip = 3 then
+			px0 = fX
+			py0 = fY
+			px1 = fX
+			py1 = yC0
+			fA = 90
+		endif
+		fLen = sqr((px1 - px0) ^ 2 + (py1 - py0) ^ 2)
+		nP = max(1, int(fLen / 1.8 + 0.99))
+		for k = 0 to nP
+			add px0 + (px1 - px0) * k / nP, py0 + (py1 - py0) * k / nP, 0
+			cylind 1.8, 0.0243
+			del 1
+		next k
+		for hr = 1 to 3
+			add px0, py0, 0.1 + 0.85 * (hr - 1)
+			rotz fA
+			roty 90
+			cylind fLen, 0.0243
+			del 3
+		next hr
+	next ip
+endif
 ! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ。足場の外側建地の列から荷台の足場側の端の先 0.15 まで）
 for il = 1 to nLand
 	add -gW / 2, yC0 - 0.15, landH[il] + 0.02

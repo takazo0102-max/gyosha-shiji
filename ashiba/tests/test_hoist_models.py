@@ -64,6 +64,16 @@ class TestHoistInput(unittest.TestCase):
         self.assertTrue([n for n in notes if "昇降機 本体 KSE-900 5.4m" in n])
         self.assertTrue([n for n in notes if "フロアーゲート 7.2スパン" in n and "（2）" in n])
         self.assertFalse([n for n in notes if "開閉式手すり" in n and "マスタにありません" in n])
+        # 地上の昇降路の囲い（搬器の下への立入禁止）も手配に出す
+        self.assertTrue([n for n in notes if "昇降路の囲い" in n and "立入禁止" in n])
+
+    def test_part_draws_the_ground_fence(self):
+        d3 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        d2 = (ROOT / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if showFence then", d3)
+        self.assertIn("cylind 1.8, 0.0243", d3)
+        self.assertIn("line2 -fX, fY, fX, fY", d2)
+        self.assertNotIn("atn2", d3)                 # GDL に atn2 は無い
 
     def test_unknown_model_is_an_input_error(self):
         from ashiba.cli import InputError

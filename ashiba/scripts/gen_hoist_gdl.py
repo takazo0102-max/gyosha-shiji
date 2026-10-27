@@ -43,6 +43,7 @@ def paramlist(first: str) -> str:
         _param("Length", "gateB", "乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）", 0),
         _param("Boolean", "showGate", "乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く", 1),
         _param("Boolean", "showTie", "マストの壁つなぎを描く", 1),
+        _param("Boolean", "showFence", "地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く", 1),
         "\t\t<Material Name=\"matCage\">\n\t\t\t<Description><![CDATA[\"荷台・マストの材質\"]]></Description>\n"
         "\t\t\t<Value>0</Value>\n\t\t</Material>\n",
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -121,6 +122,13 @@ def master(models) -> str:
         "! フロアーゲートの幅（荷台の長さとゲートの有効開口の小さい方）",
         "gW = cageL",
         "if gateOpen > 0.01 then gW = min(cageL, gateOpen)",
+        "! 地上の昇降路の囲い（荷台から 0.3 離す。マストの外まで）",
+        "fX = cageL / 2 + 0.3",
+        "fY = yC1 - 0.3",
+        "for im = 1 to nMast",
+        "\tfX = max(fX, abs(mx[im]) + 0.4)",
+        "\tfY = min(fY, my[im] - 0.4)",
+        "next im",
         "! 乗り込み口（足場の手すりを外したスパン）。フロアーゲート・開閉式手すりはこの幅いっぱいに付けて開口を残さない",
         "gA = -gW / 2",
         "gB = gW / 2",
@@ -150,6 +158,14 @@ next im
 ! フロアーゲート（機種に無ければ開閉式手すり）。足場の外側建地の列の外、乗り込み口の幅いっぱい
 if showGate and nLand > 0 then
 	rect2 gA, -0.06, gB, -0.02
+endif
+! 地上の昇降路の囲い（破線。足場側を除く3方）
+if showFence then
+	line_type "Dashed"
+	line2 -fX, yC0, -fX, fY
+	line2 -fX, fY, fX, fY
+	line2 fX, fY, fX, yC0
+	line_type 1
 endif
 hotspot2 0, 0
 hotspot2 -cageL / 2, yC1
@@ -236,6 +252,46 @@ if showGate then
 			del 1
 		next se
 	next il
+endif
+! 地上の昇降路の囲い（足場側を除く3方。支柱・笠木・中桟・下桟。搬器の下への立入禁止）
+if showFence then
+	for ip = 1 to 3
+		if ip = 1 then
+			px0 = -fX
+			py0 = yC0
+			px1 = -fX
+			py1 = fY
+			fA = -90
+		endif
+		if ip = 2 then
+			px0 = -fX
+			py0 = fY
+			px1 = fX
+			py1 = fY
+			fA = 0
+		endif
+		if ip = 3 then
+			px0 = fX
+			py0 = fY
+			px1 = fX
+			py1 = yC0
+			fA = 90
+		endif
+		fLen = sqr((px1 - px0) ^ 2 + (py1 - py0) ^ 2)
+		nP = max(1, int(fLen / 1.8 + 0.99))
+		for k = 0 to nP
+			add px0 + (px1 - px0) * k / nP, py0 + (py1 - py0) * k / nP, 0
+			cylind 1.8, 0.0243
+			del 1
+		next k
+		for hr = 1 to 3
+			add px0, py0, 0.1 + 0.85 * (hr - 1)
+			rotz fA
+			roty 90
+			cylind fLen, 0.0243
+			del 3
+		next hr
+	next ip
 endif
 ! 渡し板（各階の乗り込み口で足場の作業床から荷台までのすき間を塞ぐ。足場の外側建地の列から荷台の足場側の端の先 0.15 まで）
 for il = 1 to nLand

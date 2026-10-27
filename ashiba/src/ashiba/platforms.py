@@ -73,6 +73,8 @@ class LoadingStage:
         return list(edge.spans[i:i + self.span_count])
 
 
+HOIST_FENCE_GAP_MM = 300.0  # 地上の昇降路の囲いと荷台のあき
+HOIST_FENCE_H_MM = 1800.0    # 地上の昇降路の囲いの高さ
 HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
 HOIST_CAGE_D_MM = 1300.0     # 荷台の奥行（既定）
 
@@ -564,6 +566,15 @@ def platform_part_demands(
     for h in result.hoists:
         landings = h.landings(model)
         hm = h.spec
+        # 地上の昇降路の囲い: 搬器が下りてくる荷台の外周（足場側を除く3方）を囲い、出入口は施錠できる扉。
+        # 搬器の下への立入りを防ぐ（部品 ashiba_hoist の 3D と同じ: 荷台から 0.3 離して高さ 1.8m）
+        fl = float(h.cage_width_mm or HOIST_CAGE_W_MM) + 2 * HOIST_FENCE_GAP_MM
+        fd = float(h.cage_depth_mm or 1300.0) + HOIST_FENCE_GAP_MM + 100.0
+        out.append(PartDemand(
+            "昇降機 地上の昇降路の囲い", "昇降路の囲い", None, 1,
+            detail=f"荷台の外周 3方 延長{(fl + 2 * fd) / 1000:.1f}m・高さ{HOIST_FENCE_H_MM / 1000:.1f}m・施錠できる出入口の扉 1"
+                   "（搬器の下への立入禁止。クレーン等安全規則の建設用リフト・メーカーの組立要領）",
+        ))
         if hm is not None:
             # 機種を選んだ昇降機: 本体（レンタル1台）と、乗り込み口のフロアーゲート（乗り込む階ごとに1枚。単管 φ48.6 を
             # クランプで建地に留める。建機サービス Floor-gate。利用者の指定 2026-10-27）
