@@ -614,7 +614,7 @@ def _take_off_one(
     if open_rail_cut:
         notes.append(
             f"開口部（梁枠より下）は通路なので、その区間の布材{open_rail_cut}本"
-            "（根がらみ・床レベル・手すり）を差し引いています"
+            "（根がらみ・床レベル・手すり）を差し引いています（荷受けステージの間口はステージの床より上の区間）"
         )
     # 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の
     # 地盤から離れるので、区間ごとに1段追加する（図面も同じ規則で描く）
@@ -2733,6 +2733,28 @@ def _add_wall_ties(model: ScaffoldModel, platforms, kt, add, notes=None, opening
         )
 
 
+def _stack_prefix(stack, need: float) -> list:
+    """全高の構成（下から）の下の部材を、合計が need 以上になるまで."""
+    out, acc = [], 0.0
+    for nominal in stack:
+        if acc >= need - 1.0:
+            break
+        out.append(nominal)
+        acc += float(nominal)
+    return out
+
+
+def mid_post_stacks(full_stack, table: dict, below: float, above: float) -> tuple[list, list]:
+    """途中の層の開口（荷受けステージの間口）で途中だけ抜いた支柱の (下の構成, 上の構成).
+
+    下: 全高の積み方の下の部材を、ステージの床を越える継ぎ目まで（規格の長さに合わなくても組める）。
+    上: 梁枠上から天端までの構成（組めなければ全高の積み方の上の部材を、梁枠上の高さを越えるまで）。
+    """
+    cb = _stack_prefix(list(full_stack), below)
+    ca = table.get(int(round(above))) or list(reversed(_stack_prefix(list(reversed(full_stack)), above)))
+    return cb, list(ca)
+
+
 def _replace_opening_stacks(model, openings, totals: dict[int, int], full_stack: list[int],
                             lengths: list[int], notes, label: str) -> int:
     """開口部で抜いた鉛直部材を、梁枠上（作業床〜天端）だけの構成に置き換える.
@@ -2757,9 +2779,9 @@ def _replace_opening_stacks(model, openings, totals: dict[int, int], full_stack:
     # 2本の構成に置き換える（ジャッキと下の支柱は残る）
     mid_done = 0
     for below, above in mids:
-        cb, ca = table.get(int(round(below))), table.get(int(round(above)))
-        if cb is None or ca is None:
-            missing.append(below if cb is None else above)
+        cb, ca = mid_post_stacks(full_stack, table, below, above)
+        if not cb or not ca:
+            missing.append(below if not cb else above)
             continue
         for nominal in full_stack:
             totals[nominal] = totals.get(nominal, 0) - 1

@@ -186,11 +186,35 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
             from .elevation_solver import _compose_table
             from .openings import opening_post_heights
 
+            from .openings import opening_mid_posts
+            from .quantity import mid_post_stacks
+
             hs = opening_post_heights(model, ops)
-            if hs:
-                table = _compose_table(int(round(max(hs))) + 1,
+            mids = opening_mid_posts(model, ops)
+            if hs or mids:
+                table = _compose_table(int(round(max(list(hs) + [max(a, b) for a, b in mids]))) + 1,
                                        sorted(set(master.post_lengths(include_negarami=True)), reverse=True))
                 top = float(model.elevation.total_height)
+                # 途中の層の開口（荷受けステージの間口）: 全高の積み方を引き、下（地面から）と上（梁枠の上から）を積み直す
+                for below, above in mids:
+                    cb, ca = mid_post_stacks(list(model.elevation.posts), table, below, above)
+                    if not cb or not ca:
+                        continue
+                    z = float(model.elevation.jack_extension)
+                    for nominal in model.elevation.posts:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] -= 1
+                        z += nominal
+                    z = float(model.elevation.jack_extension)
+                    for nominal in cb:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
+                    z = top - above
+                    for nominal in ca:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
                 for h in hs:
                     comp = table.get(int(round(h)))
                     if comp is None:
