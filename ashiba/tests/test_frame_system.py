@@ -380,10 +380,12 @@ class TestFrameWordingIsNotWedgeWording(unittest.TestCase):
             (x, y, -x * 0.05) for x in (0, 15000, 30000) for y in (0, 20000)
         ])
         t = solve_post_feet(self._model("waku"), ground)
-        over = [w for w in t.warnings if "可動域" in w]
+        # 実務上限超えの脚は敷板で上限内に収めるので「上限を超える」の警告は出ない。
+        # 残る警告（敷板・可動域）が建枠の言葉で書かれていること
+        over = [w for w in t.warnings if "可動域" in w or "敷板" in w]
         self.assertTrue(over)
-        self.assertIn("調整枠の高さ", over[0])
-        self.assertNotIn("コマピッチ", over[0])
+        self.assertTrue(all("建枠" in w for w in over), over)
+        self.assertFalse(any("コマピッチ" in w or "支柱" in w for w in t.warnings), t.warnings)
 
     def test_report_header_has_no_koma_pitch_for_frames(self):
         import tempfile

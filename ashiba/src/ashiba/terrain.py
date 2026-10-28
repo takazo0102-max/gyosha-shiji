@@ -28,6 +28,8 @@ from .model import ScaffoldModel
 JACK_HARD_MAX_EXTENSION = 450   # ジャッキの機械的な最大繰出し（270は実務上限）
 SLOPE_SHIM_LIMIT = 0.10         # 足元の勾配がこれを超えたら傾斜対応のベースか段切り（10%）
 SHIM_UNIT_MM = 35               # 敷板1枚の厚さ（杉敷板 厚35）。実務上限超えの脚を敷板で持ち上げる単位
+# 敷板をこの枚数以上重ねる脚は、敷角か床均しに替えるよう書き添える（重ねるほど据わりが悪い）
+SHIM_STACK_WARN = 3
 
 
 @dataclass
@@ -318,22 +320,18 @@ def solve_post_feet(
                 f"ジャッキ最小{jack_min}mmでも下端が高すぎます。"
                 f"床掘り等で{-adjust:.0f}mm下げる必要があります"
             )
-        elif jack_ideal > jack_hard_max:
-            jack = jack_hard_max
-            adjust = jack_ideal - jack_hard_max     # 正＝敷板で持ち上げる
-            foot_warnings.append(
-                f"ジャッキ最大{jack_hard_max}mmでも下端に届きません。"
-                f"敷板で{adjust:.0f}mm持ち上げる必要があります"
-            )
         elif jack > shim_limit:
-            # 実務上限（270）または系列の許容繰出しを超えるが可動域内。敷板（厚35）を重ねて
-            # 持ち上げ、繰出しを境目以下に収める。支柱下端（gl＋敷板＋ジャッキ）は変えないので
-            # 作業床は通る。以前は警告だけで敷板調整が0のままだった（実機で7本が警告のまま）
+            # 実務上限（270）または系列の許容繰出しを超える。敷板（厚35）を重ねて持ち上げ、
+            # 繰出しを境目以下に収める。支柱下端（gl＋敷板＋ジャッキ）は変えないので
+            # 作業床は通る。以前は警告だけで敷板調整が0のままだった（実機で7本が警告のまま）。
+            # 可動域（最大350）も超える脚も同じ扱い。以前は繰出し350のまま端数の敷板（80mm 等）を
+            # 書き、注記の「上限内にしています」と一覧の350が食い違っていた（枠組の見本で10本）
             n_shim = int(math.ceil((jack - shim_limit) / SHIM_UNIT_MM))
             adjust = n_shim * SHIM_UNIT_MM
             jack = jack_ideal - adjust
+            beyond = f"（最大{jack_hard_max}mmも超える）" if jack_ideal > jack_hard_max else ""
             foot_warnings.append(
-                f"ジャッキ繰出し{jack_ideal:.0f}mmは実務上限{shim_limit}mmを超えるので、"
+                f"ジャッキ繰出し{jack_ideal:.0f}mmは実務上限{shim_limit}mmを超える{beyond}ので、"
                 f"敷板{n_shim}枚（厚{SHIM_UNIT_MM}mm）で{adjust:.0f}mm持ち上げて繰出し{jack:.0f}mmにしています"
             )
         elif jack > jack_recommended_max:
@@ -372,13 +370,20 @@ def solve_post_feet(
     shimmed = [f for f in feet if f.base_plate_adjust_mm > 1e-6
                and any("実務上限" in w for w in f.warnings)]
     if shimmed:
-        n_sheets = sum(int(round(f.base_plate_adjust_mm / SHIM_UNIT_MM)) for f in shimmed)
+        per_foot = [int(round(f.base_plate_adjust_mm / SHIM_UNIT_MM)) for f in shimmed]
+        n_sheets = sum(per_foot)
         shim_msg = (
             f"ジャッキ繰出しが実務上限{shim_limit}mmを超える{vm}{len(shimmed)}本は、"
             f"敷板（厚{SHIM_UNIT_MM}mm）で持ち上げて上限内にしています（敷板 計{n_sheets}枚"
-            + ("・内外の列の合計。" if 1 in rows and 0 in rows else "・1列あたり。")
+            + ("・内外の列の合計" if 1 in rows and 0 in rows else "・1列あたり")
+            + (f"・1脚に最多{max(per_foot)}枚。" if max(per_foot) > 1 else "。")
             + "脚ごとの枚数はジャッキ量一覧の敷板調整欄）。床均しで高低差を縮めれば敷板は減らせます"
         )
+        # 敷板を何枚も重ねた脚は据わりが悪い。重ねる枚数の多い脚は敷角か床均しに替える
+        stacked = sum(1 for n in per_foot if n >= SHIM_STACK_WARN)
+        if stacked:
+            shim_msg += (f"。{SHIM_STACK_WARN}枚以上重ねる脚{stacked}本は、敷角に替えるか"
+                         "その脚の周りを床均しして重ねる枚数を減らしてください")
         warnings.append(shim_msg)
         over_jack_warning = shim_msg
     over = [f for f in feet if f.jack_mm > jack_recommended_max]
@@ -411,11 +416,14 @@ def solve_post_feet(
             f"（最大{max(f.koma_offset for f in cannot)}{step_name}分）。"
             "マスタの支柱長で構成できない段差です。床均しか支柱規格の追加を検討してください"
         )
-    need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6]
+    # 敷板で上限内に収めた脚は上の注記で数えたので重ねない（同じ脚が「上限内にしています」と
+    # 「吸収しきれない」の両方に数えられ、10本・12本・32本と食い違って見えた）
+    shimmed_ids = {id(f) for f in shimmed}
+    need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6 and id(f) not in shimmed_ids]
     if need_plate:
         warnings.append(
             f"ジャッキの可動域で吸収しきれない{vm}が{len(need_plate)}本あります"
-            "（敷板または床掘りでの調整量を一覧に明示しています）"
+            "（床掘りでの調整量を一覧に明示しています）"
         )
 
     # 足元の勾配（脚ごと）。勾配のある脚はジャッキベースを傾斜に合わせ、敷板を勾配に沿わせて据える（利用者の指定
