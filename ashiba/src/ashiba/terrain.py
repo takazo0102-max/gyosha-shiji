@@ -30,6 +30,8 @@ SLOPE_SHIM_LIMIT = 0.10         # 足元の勾配がこれを超えたら傾斜�
 SHIM_UNIT_MM = 35               # 敷板1枚の厚さ（杉敷板 厚35）。実務上限超えの脚を敷板で持ち上げる単位
 # 敷板をこの枚数以上重ねる脚は、敷角か床均しに替えるよう書き添える（重ねるほど据わりが悪い）
 SHIM_STACK_WARN = 3
+# 敷板この枚数までは床掘りより先に使う（並べて敷くのと変わらない）
+SHIM_LIGHT = 2
 
 
 @dataclass
@@ -244,6 +246,19 @@ def solve_post_feet(
         koma = min(model.master.frame_heights() or [model.master.floor_height])
         step_name = "調整枠の高さ"
 
+    # 敷板で持ち上げる境目。実務上限（270）を超えても、その繰出しを許容する品（日建の
+    # ロングジャッキ ND752SP 432 等）が系列にあればそれで受け、無ければ敷板で上限内に収める
+    # （信和 SE-6 は「繰出し最大450 許容繰出し270」なので許容270が境目）
+    rated: list[int] = []
+    for p in model.master.by_category("ジャッキ"):
+        if "アンダーベース" in p.note:
+            continue
+        mt = re.search(r"許容繰出し\s*(\d+)", p.note)
+        v = int(mt.group(1)) if mt else p.max_extension_mm()
+        if v:
+            rated.append(int(v))
+    shim_limit = max([jack_recommended_max] + rated)
+
     gls = [ground.elevation_at(x, y) for (x, y) in positions]
     gl_max = max(gls) if gls else 0.0
     gl_min = min(gls) if gls else 0.0
@@ -253,9 +268,7 @@ def solve_post_feet(
     # ジャッキの可動域(30〜270)はコマピッチ(450)より狭いため、
     # 連続的な斜面では必ず収まらない支柱が出る。せめてその本数を最小にする。
     ref_jack = model.elevation.jack_extension
-    ref_jack_top = _optimize_datum(
-        gls, gl_max, ref_jack, koma, jack_min, jack_hard_max, jack_recommended_max
-    )
+    ref_jack_top = _optimize_datum(gls, gl_max, ref_jack, koma, jack_min, shim_limit, jack_recommended_max)
 
     base_posts = list(model.elevation.posts)
     base_total = sum(base_posts)
@@ -265,9 +278,7 @@ def solve_post_feet(
     )
     # 何コマ下げれば、ジャッキ量が可動域に収まるか（脚ごと）
     offsets = [
-        _choose_koma_offset(
-            ref_jack_top, gl, koma, jack_min, jack_hard_max, jack_recommended_max
-        )
+        _choose_koma_offset(ref_jack_top, gl, koma, jack_min, shim_limit, jack_recommended_max)
         for gl in gls
     ]
     # 継ぎ足しの構成表は、実際に必要な最大コマ数まで作る。8コマ（3.6m）で
@@ -289,18 +300,6 @@ def solve_post_feet(
         base_total + int(koma) * max(8, max_offset), sorted(set(lengths), reverse=True)
     )
 
-    # 敷板で持ち上げる境目。実務上限（270）を超えても、その繰出しを許容する品（日建の
-    # ロングジャッキ ND752SP 432 等）が系列にあればそれで受け、無ければ敷板で上限内に収める
-    # （信和 SE-6 は「繰出し最大450 許容繰出し270」なので許容270が境目）
-    rated: list[int] = []
-    for p in model.master.by_category("ジャッキ"):
-        if "アンダーベース" in p.note:
-            continue
-        mt = re.search(r"許容繰出し\s*(\d+)", p.note)
-        v = int(mt.group(1)) if mt else p.max_extension_mm()
-        if v:
-            rated.append(int(v))
-    shim_limit = max([jack_recommended_max] + rated)
 
     feet: list[PostFoot] = []
     warnings: list[str] = []
@@ -422,8 +421,8 @@ def solve_post_feet(
     need_plate = [f for f in feet if abs(f.base_plate_adjust_mm) > 1e-6 and id(f) not in shimmed_ids]
     if need_plate:
         warnings.append(
-            f"ジャッキの可動域で吸収しきれない{vm}が{len(need_plate)}本あります"
-            "（床掘りでの調整量を一覧に明示しています）"
+            f"ジャッキを最小{jack_min}mmまで縮めても高すぎる{vm}が{len(need_plate)}本あります"
+            f"（最大{-min(f.base_plate_adjust_mm for f in need_plate):.0f}mm。脚ごとに床掘りで下げる深さを一覧に明示しています）"
         )
 
     # 足元の勾配（脚ごと）。勾配のある脚はジャッキベースを傾斜に合わせ、敷板を勾配に沿わせて据える（利用者の指定
@@ -476,19 +475,36 @@ def outer_post_positions(model: ScaffoldModel) -> list[tuple[float, float]]:
     return pts
 
 
+def _foot_cost(jack: float, jack_min: int, shim_limit: int) -> float:
+    """その繰出しの脚の足元の手間（敷板・床掘り）を mm で量る. 解の選び方にだけ使う.
+
+    敷板を重ねるのと床を掘り下げるのは、どちらも足元の手間で据わりにも響く。小さい方を選ぶ。
+    敷板2枚（70mm）までは並べて敷くのと変わらないので軽く見て、床掘りより先に使う。3枚目からは
+    重ねた厚さそのまま。以前は可動域（最大350〜450）に入ることを最優先したので、50mm 掘れば済む
+    脚に敷板6枚（210mm）を重ねていた（傾斜地の見本）。
+    """
+    if jack > shim_limit:
+        n = math.ceil((jack - shim_limit) / SHIM_UNIT_MM - 1e-9)
+        return SHIM_UNIT_MM * (n if n > SHIM_LIGHT else n / 2)
+    if jack < jack_min:
+        return jack_min - jack
+    return 0.0
+
+
 def _optimize_datum(
     gls: list[float],
     gl_max: float,
     ref_jack: int,
     koma: float,
     jack_min: int,
-    jack_hard_max: int,
+    shim_limit: int,
     jack_recommended_max: int,
 ) -> float:
     """基準面（ジャッキ天端の基準標高）を決める.
 
     基準面をδずらすと全支柱のジャッキ量が一様にδ動く。δはコマピッチ周期なので
-    [0, koma) を走査すれば十分。実務上限超過本数 → 敷板調整本数 → 逸脱量合計 の順に最小化する。
+    [0, koma) を走査すれば十分。足元の手間（敷板・床掘り）の合計 → 実務上限超えの本数
+    （ロングジャッキに頼る脚）→ 1脚の最大 の順に最小化する。
     """
     if not gls:
         return gl_max + ref_jack
@@ -498,29 +514,19 @@ def _optimize_datum(
     nominal_delta = int(round((ref_jack - jack_min) % koma))
     for delta in sorted(set(range(0, int(koma), step)) | {nominal_delta}):
         top = gl_max + jack_min + delta
+        costs = []
         n_over = 0
-        n_plate = 0
-        total_dev = 0.0
         for gl in gls:
-            m = _choose_koma_offset(
-                top, gl, koma, jack_min, jack_hard_max, jack_recommended_max
-            )
+            m = _choose_koma_offset(top, gl, koma, jack_min, shim_limit, jack_recommended_max)
             jack = top - m * koma - gl
-            if jack < jack_min:
-                n_plate += 1
-                total_dev += jack_min - jack
-            elif jack > jack_hard_max:
-                n_plate += 1
-                total_dev += jack - jack_hard_max
-            elif jack > jack_recommended_max:
-                n_over += 1
-                total_dev += jack - jack_recommended_max
+            costs.append(_foot_cost(jack, jack_min, shim_limit))
+            n_over += jack_recommended_max < jack <= shim_limit
         # 同点なら名目のジャッキ量（立面ソルバが端数吸収で決めた値）に最も近い基準面。
         # これが無いと平坦な敷地でも delta=0（ジャッキ30mm）が選ばれ、立面（名目100mm）と
         # ジャッキ量一覧（30mm）が食い違い、足場全体が70mm低く組まれることになる
         d = (jack_min + delta - ref_jack) % koma
         near = min(d, koma - d)
-        score = (n_plate, n_over, total_dev, near)
+        score = (round(sum(costs), 3), n_over, round(max(costs), 3), near)
         if best is None or score < best[0]:
             best = (score, top)
     return best[1]
@@ -531,25 +537,20 @@ def _choose_koma_offset(
     gl: float,
     koma: float,
     jack_min: int,
-    jack_hard_max: int,
+    shim_limit: int,
     jack_recommended_max: int,
 ) -> int:
-    """ジャッキ量が可動域に収まる下げコマ数を選ぶ（実務上限内を優先）."""
-    raw = (ref_jack_top - gl - jack_recommended_max) / koma
+    """足元の手間（敷板・床掘り）がいちばん小さい下げコマ数を選ぶ.
+
+    同じなら実務上限内（ロングジャッキに頼らない）、その次に下げの少ない方。
+    """
+    raw = (ref_jack_top - gl - shim_limit) / koma
     best = None
     for m in range(max(0, math.floor(raw) - 1), math.ceil(raw) + 3):
         if m < 0:
             continue
         jack = ref_jack_top - m * koma - gl
-        within_hard = jack_min <= jack <= jack_hard_max
-        within_rec = jack_min <= jack <= jack_recommended_max
-        # 実務上限内 → 可動域内 → 逸脱量最小 の順で選ぶ
-        deviation = 0.0
-        if jack < jack_min:
-            deviation = jack_min - jack
-        elif jack > jack_hard_max:
-            deviation = jack - jack_hard_max
-        score = (not within_rec, not within_hard, deviation, m)
+        score = (round(_foot_cost(jack, jack_min, shim_limit), 3), jack > jack_recommended_max, m)
         if best is None or score < best[0]:
             best = (score, m)
     return best[1] if best else 0

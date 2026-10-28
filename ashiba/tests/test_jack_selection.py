@@ -204,7 +204,7 @@ class TestShims(unittest.TestCase):
         raised = [f for f in t.feet if f.base_plate_adjust_mm > 0]
         q = take_off(m, terrain=t)
         if raised:
-            self.assertTrue([n for n in q.warnings if "敷板がマスタに無い" in n], q.warnings)
+            self.assertTrue([n for n in q.warnings if "敷板（厚35mm）計" in n and "マスタに無い" in n], q.warnings)
         else:
             self.assertFalse([n for n in q.warnings if "敷板" in n])
 

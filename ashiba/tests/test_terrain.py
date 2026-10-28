@@ -314,27 +314,28 @@ class TestOverRecommendedJackGetsShims(unittest.TestCase):
             self.assertTrue(any("敷板" in w and "実務上限" in w for w in f.warnings), f.warnings)
         self.assertTrue(any("敷板（厚35mm）で持ち上げて上限内" in w for w in r.warnings), r.warnings)
 
-    def test_beyond_hard_max_is_shimmed_with_whole_boards_too(self):
-        # 枠組の見本: 可動域（350）も超える脚が繰出し350・端数の敷板（80mm）のまま残り、
-        # 注記の「上限内にしています」と一覧が食い違っていた。同じ脚が「吸収しきれない」にも数えられていた
+    def test_steep_slope_digs_instead_of_stacking_boards(self):
+        # 枠組の見本: 可動域（350）も超える脚が繰出し350・端数の敷板（80mm）のまま残り、注記の「上限内に
+        # しています」と一覧が食い違っていた。傾斜地の見本は 50mm 掘れば済む脚に敷板6枚を重ねていた。
+        # 敷板は厚35の枚数で、繰出しは上限内。重ねるのは3枚まで（それ以上なら床掘りの方が小さい）
         from ashiba.terrain import SHIM_UNIT_MM
 
         m = build("waku", 16300)
         r = solve_post_feet(m, slope(0.20))
-        beyond = [f for f in r.feet if any("も超える" in w for w in f.warnings)]
-        self.assertTrue(beyond, "この斜面では最大繰出しを超える脚が出る前提")
-        for f in r.feet:
+        shims = [f.base_plate_adjust_mm for f in r.all_feet if f.base_plate_adjust_mm > 0]
+        self.assertTrue(shims, "この斜面では敷板調整が出る前提")
+        for f in r.all_feet:
             if f.base_plate_adjust_mm > 0:
                 self.assertAlmostEqual(f.base_plate_adjust_mm % SHIM_UNIT_MM, 0.0)
                 self.assertLessEqual(f.jack_mm, JACK_RECOMMENDED)
+        self.assertLessEqual(max(shims), 3 * SHIM_UNIT_MM)
+        # 敷板で収めた脚は床掘りの本数に重ねて数えない（同じ脚が10本・12本・32本と食い違って見えた）
         n_dig = sum(1 for f in r.all_feet if f.base_plate_adjust_mm < 0)          # 内外の列
-        rest = [w for w in r.warnings if "吸収しきれない" in w]
+        rest = [w for w in r.warnings if "縮めても高すぎる" in w]
         if n_dig:
             self.assertIn(f"{n_dig}本", rest[0])
         else:
             self.assertEqual(rest, [])
-        self.assertTrue(any("枚以上重ねる脚" in w for w in r.warnings), r.warnings)
-
 
 if __name__ == "__main__":
     unittest.main()

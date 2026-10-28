@@ -128,9 +128,11 @@ def _foot_lists(model: ScaffoldModel, ep, terrain, outer: bool = False) -> tuple
     from .terrain import datum_first_ledger_mm
 
     shift = datum_first_ledger_mm(model, terrain) - model.elevation_of(ep.edge_index).first_ledger_height
-    gl = ",".join(str(int(round(f.gl_mm - gl_ref - shift))) for f in picked)
+    # 床掘りの脚（調整が負）は掘り下げた地盤にジャッキを据えるので、地盤高を掘った深さだけ下げて渡す。
+    # ジャッキに足すと最小30を割った繰出し（負になることもある）で描かれていた
+    gl = ",".join(str(int(round(f.gl_mm - gl_ref - shift + min(0.0, f.base_plate_adjust_mm)))) for f in picked)
     jack = ",".join(
-        str(int(round(f.jack_mm + f.base_plate_adjust_mm))) for f in picked
+        str(int(round(f.jack_mm + max(0.0, f.base_plate_adjust_mm)))) for f in picked
     )
     # 敷板で持ち上げた分（正のみ）。図では敷板を重ねて描き、ねじ棒はその上から
     shim = ",".join(str(int(round(max(0.0, f.base_plate_adjust_mm)))) for f in picked)

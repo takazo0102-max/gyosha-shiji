@@ -1117,10 +1117,13 @@ def _count_shims(m: PartMaster, feet, rows: int, add, notes) -> None:
         mt = re.search(r"厚\s*(\d+)", shim.note)
         thick = int(mt.group(1)) if mt else None
     if shim is None or not thick:
-        total = sum(a for _, a in raises)
+        # 高低差の解は敷板（厚35）の枚数で持ち上げるので、マスタに無くても枚数で手配できる
+        from .terrain import SHIM_UNIT_MM
+
+        n = sum(math.ceil(a / SHIM_UNIT_MM - 1e-9) for _, a in raises) * rows
         notes.action(
-            f"敷板調整が要る脚が{len(raises) * rows}本あります（合計{total * rows:.0f}mm相当）。"
-            "敷板がマスタに無いので別途手配してください（ジャッキ量一覧の備考参照）",
+            f"敷板調整の脚{len(raises) * rows}本に敷板（厚{SHIM_UNIT_MM}mm）計{n}枚を別途手配してください"
+            "（系列のマスタに無い。ジャッキの下に重ねる短い板。脚ごとの枚数はジャッキ量一覧の敷板調整欄）",
         )
         return
     n = sum(math.ceil(a / thick - 1e-9) for _, a in raises) * rows

@@ -96,7 +96,8 @@ class TestNotificationUsesActualHeight(unittest.TestCase):
         self.assertIn("実高さ", cells[i + 1])   # 数値セルは<t>に出ないので次が単位注記
         self.assertIn("脚の伸び", cells[i + 1])
         h, _ = actual_max_height_mm(m, t)
-        self.assertIn(f"{h / 1000:.3f}", xml)
+        # 数値セルは <v> に入る（末尾の0は落ちる。21.290 → 21.29）
+        self.assertIn(f"<v>{round(h / 1000, 3):g}</v>", xml)
 
 
 class TestWindUsesActualHeight(unittest.TestCase):
