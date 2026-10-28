@@ -55,7 +55,12 @@ class TestInteriorStage(unittest.TestCase):
         q = {(c, d, why): n for c, d, n, why in r.quantity}
         self.assertEqual(q[("ジャッキ", 0, "内部ステージのジャッキベース")], 7 * 5)
         decks = sum(n for c, d, n, why in r.quantity if c == "踏板")
-        self.assertEqual(decks, 6 * 4 * 4)                     # 1829 を 500×3＋240×1 で埋める
+        # 1829 を 500×3＋240×1 で埋める。階段の升目は階段の通る幅（450×2＋100）を抜いて 500＋240（2026-10-29）
+        self.assertEqual(decks, 6 * 4 * 4 - 2)
+        # 昇降ははしごでなく階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）
+        self.assertNotIn("はしご", {c for c, *_ in r.quantity})
+        self.assertEqual(sum(n for c, _d, n, _w in r.quantity if c == "階段"), len(r.stair_flights))
+        self.assertTrue(r.stair_flights)
         txt = stage_report(r)
         self.assertIn("## 検証", txt)
         self.assertIn("支柱の軸力", txt)
@@ -256,9 +261,11 @@ class TestShaftStage(unittest.TestCase):
         self.assertFalse(r.guard)                                   # 壁との隙間 30cm 以下
         q = {(c, why) for c, _, _, why in r.quantity}
         self.assertFalse(any(c == "幅木" for c, _ in q))
-        n = {c: sum(k for cc, _, k, _ in r.quantity if cc == c) for c in ("壁つなぎ", "はしご")}
+        n = {c: sum(k for cc, _, k, _ in r.quantity if cc == c) for c in ("壁つなぎ", "はしご", "階段")}
         self.assertEqual(n["壁つなぎ"], 4 * 5)
-        self.assertEqual(n["はしご"], 5)
+        self.assertEqual(n["はしご"], 0)                            # 昇降は階段（層ごとに1台）
+        self.assertEqual(n["階段"], len(r.stair_flights))
+        self.assertEqual(r.stair_flights[-1][1], r.deck_mm)
         p = stage_params(r)
         self.assertFalse(p["guardOn"])
         self.assertEqual(len(p["deckList"].split(",")), 4)
@@ -275,6 +282,26 @@ class TestShaftStage(unittest.TestCase):
         wide = self.shaft(corners_mm=[[0, 0], [2700, 0], [2700, 2200], [0, 2200]])
         self.assertTrue(wide.guard)                                 # 長手の壁との隙間が 30cm を超える
         self.assertIn("EVシャフト", stage_report(r))
+
+
+class TestStairAccess(unittest.TestCase):
+    """内部ステージの昇降は階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）."""
+
+    def test_first_flight_from_the_ground(self):
+        ok = solve(deck_mm=3800)                    # 地面から 2000 の段・3800 の作業床で 2台
+        st = {c.item: c.status for c in ok.checks}
+        self.assertEqual(st["昇降の階段"], "OK")
+        self.assertEqual(ok.stair_flights[0][0], 0)
+        self.assertEqual(len(ok.stair_flights), 2)
+        off = solve(deck_mm=3000)                   # 最初の段 1325 は階段枠 1800 に合わない
+        msg = next(c for c in off.checks if c.item == "昇降の階段")
+        self.assertEqual(msg.status, "WARN")
+        self.assertIn("1800", msg.message)
+        lad = solve(deck_mm=3800, access="はしご")    # はしごを選んだときだけはしご
+        self.assertFalse(lad.stair_flights)
+        self.assertIn("はしご", {c for c, *_ in lad.quantity})
+        p = stage_params(ok)
+        self.assertEqual(p["stFl"], "0,2000,2000,3800")
 
 
 class TestStagePartParams(unittest.TestCase):

@@ -1462,7 +1462,7 @@ def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
     """地足場（利用者の指定 2026-10-24: 地足場機能も追加して）: 地上に低く組む足場（基礎・1階まわりの作業用）.
 
     ground_scaffold: true か {"levels": 1〜3}。作業床をその層数だけ（軒高＝層数×系列の層の高さ）にし、スラブからの
-    高さ・上段・屋上への渡り・朝顔は使わない。2層以下は階段室を置かず、はしご（外周 60m ごと）で昇降する。
+    高さ・上段・屋上への渡り・朝顔は使わない。昇降は階段室（はしごにしない。利用者の指定 2026-10-29）。
     """
     g = spec.get("ground_scaffold")
     if not g or spec.get("_ground_done"):
@@ -1483,11 +1483,7 @@ def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
         out["standoff"] = {"target": gso, "min": gso, "max": max(gso + 150.0, float(so.get("max", 0) or 0)),
                            "hard_min": gso - GROUND_STANDOFF_TOL_MM}
     out.setdefault("building_height_mm", n * fh)
-    st = dict(out.get("stairs") or {})
-    if n <= 2 and not st.get("positions"):
-        st["count"] = 0
-        out["stairs"] = st
-        out["ladders"] = int(spec.get("ladders") or 0) or 1
+    # 昇降ははしごでなく階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）。1〜2層でも階段室を置く
     return out
 
 
@@ -1507,7 +1503,7 @@ def ground_scaffold_note(spec: dict) -> str:
                + ("梁の上の筋に手が届きにくい。層を増やすか、ジャッキ・敷台で上げる" if d < lo else
                   "上端筋に手が届きにくい。層を減らすか、作業床の下に中段を設ける") + "）。")
     return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。" + fit
-            + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す。"
+            + "昇降は階段室。上の階の足場に組み上げるときは「配置」で建て直す。"
             f"躯体の面から {so:.0f}mm 離して型枠（せき板・端太・セパ）を収める。作業床は地中梁の天端（ふかし筋）＋500〜800 が目安。"
             "根切り底で壁つなぎを取る躯体がまだ無い間は、直交する足場とつなぐか控え（斜めの単管を捨てコン・地盤へ）で倒れを防ぐ。"
             "打設のとき躯体に埋まる建地・壁つなぎは打設の前に盛り替える"

@@ -80,11 +80,14 @@ class TestInteriorStageUnderTheCeiling(unittest.TestCase):
         self.assertTrue(any(c.item == "天井との取り合い" and c.status == "OK" for c in ok.checks))
 
 
-class TestGroundScaffoldLadders(unittest.TestCase):
-    def test_no_stairs_counted_with_ladders(self):
+class TestGroundScaffoldStairs(unittest.TestCase):
+    def test_stairs_not_ladders(self):
+        # 2026-10-25 は 2層以下ははしごで階段を数えなかったが、利用者の指定 2026-10-29「ハシゴじゃなくて階段を使う」で
+        # 地足場も階段室にした。階段は層の数×階段室の数だけ数え、はしごは数えない
         r = solve_all({"outline_mm": RECT, "eaves_height_mm": 9000, "series_id": "nikken_nd1800",
                        "ground_scaffold": {"levels": 2}})
-        self.assertEqual(r.quantity.qty_of("階段"), 0)
+        self.assertEqual(r.quantity.qty_of("階段"), 2 * len(r.stair_plan.towers))
+        self.assertEqual(r.model.config.ladders, 0)
 
 
 class TestSpecObjectModule(unittest.TestCase):

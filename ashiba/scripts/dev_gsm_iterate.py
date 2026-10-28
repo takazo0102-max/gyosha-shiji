@@ -77,7 +77,8 @@ PART_PROFILES = {
     "ashiba_stage": {
         "images": ("3D", "2D"),
         "params": {"spanU": "1829", "spanV": "1829", "lvList": "440,1565,3365,5165,6965,8765",
-                   "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1"},
+                   "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1",
+                   "stFl": "0,1565,1565,3365,3365,5165,5165,6965,6965,8765"},
     },
     # 階段の上（利用者の指定 2026-10-28）。--profile ashiba_stage_stair で使う
     "ashiba_stage_stair": {
@@ -91,7 +92,8 @@ PART_PROFILES = {
         "images": ("3D",),
         "params": {"spanU": "1829,1829,1829,1524", "spanV": "1829,1829", "lvList": "200,1325,3125", "deckH": 1.325,
                    "postTop": 4.08, "uheadExt": 0.145, "stName": "2F床 支保工",
-                   "postDia": 0.0427, "komaP": 0.45, "sysKind": 0, "jackExt": 0.03, "dkWs": "500,240"},
+                   "postDia": 0.0427, "komaP": 0.45, "sysKind": 0, "jackExt": 0.03, "dkWs": "500,240",
+                   "stFl": "0,1325,1325,3125"},
     },
     # 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）。--profile ashiba_hoist_guard
     "ashiba_hoist_guard": {

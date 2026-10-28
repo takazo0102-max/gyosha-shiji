@@ -182,12 +182,35 @@ if nW = 0 then
 	nW = 1
 	dw[1] = 0.5
 endif
+! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 下の段・上の段の組
+dim sf[]
+nS = 0
+s = stFl
+while strlen(s) > 0 and nS < 80 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nS = nS + 1
+		sf[nS] = v / 1000
+	endif
+endwhile
+stairOn = (nS >= 2)
+! 階段の通る幅（階段枠 450 を2列で折り返し、升目が狭ければ1列）
 ! 本体の足場の部材と同じ作り（利用者の指定 2026-10-29: 支保工も今作っている足場部材でやる）。寸法は足場ラインの
 ! 830 布材・870 布板・820 ジャッキ（部品 ashiba_member と同じ）
 r_sic = 0.0486 / 2
 if postDia > 0.01 then r_sic = postDia / 2
 r_nuno = 0.0427 / 2
 isWedge = (sysKind = 0)
+stLaneW = 0.55
+if sv[1] >= 2 * 0.45 + 0.1 then stLaneW = 2 * 0.45 + 0.1
 rP = r_sic
 topZ = deckH + 0.95
 if postTop > 0 then topZ = postTop
@@ -335,9 +358,13 @@ else
 	for id = 1 to nD
 		for i = 1 to nU
 			for j = 1 to nV
-				! スパンを布板の幅（広い順）で埋める（すき間 3cm 以下）
+				! スパンを布板の幅（広い順）で埋める（すき間 3cm 以下）。階段の升目は階段の通る幅を抜く
 				yp = yv[j] + 0.015
 				rest = sv[j] - 0.03
+				if stairOn and i = 1 and j = 1 then
+					yp = yv[j] + stLaneW + 0.015
+					rest = sv[j] - stLaneW - 0.03
+				endif
 				for iw = 1 to nW
 					while rest >= dw[iw] - 0.001 do
 						add xu[i], yp, dk[id]
@@ -352,6 +379,10 @@ else
 			next j
 		next i
 	next id
+	! 階段（隅の1スパンに折り返し。階段枠 幅450・ささら＋踏板＋両側の手すり）と、その升目の作業床の開口の手すり
+	if stairOn then
+		gosub "stairs"
+	endif
 	if matScaf > 0 then material matScaf
 	! 外周の手すり・中桟と幅木
 	if guardOn then
@@ -414,6 +445,7 @@ else
 	! 作業床ははしご口（ハッチ付きの踏板）で抜ける
 	yLad = -0.25
 	if not(guardOn) then yLad = 0.25
+	if stairOn then goto 2102
 	for sd = 0 to 1
 		add 0.20 + sd * 0.35, yLad, zBase + fu[1] + fv[1]
 		cylind topZ - zBase - fu[1] - fv[1], 0.0175
@@ -427,9 +459,74 @@ else
 		del 2
 		zr = zr + 0.30
 	endwhile
+2102:
 endif
 del top
 end
+
+"stairs":
+	sW = 0.45
+	sx0 = xu[1] + 0.08
+	sx1 = xu[2] - 0.08
+	sRun = sx1 - sx0
+	twoLane = (sv[1] >= 2 * sW + 0.1)
+	for kf = 1 to int(nS / 2)
+		zb = sf[2 * kf - 1]
+		zt = sf[2 * kf]
+		sRise = zt - zb
+		if sRise > 0.2 then
+			up = 1
+			ys = yv[1] + 0.05
+			if twoLane and kf mod 2 = 0 then
+				up = -1
+				ys = yv[1] + 0.10 + sW
+			endif
+			sA = atn(sRise / sRun)
+			sLen = sqr(sRun ^ 2 + sRise ^ 2)
+			xs = sx0
+			if up < 0 then xs = sx1
+			! ささら（両側）と手すり（踏面から 0.85）
+			for sd = 0 to 1
+				yy = ys + sd * sW
+				add xs, yy, zb
+				if up > 0 then
+					roty 90 - sA
+				else
+					roty -(90 - sA)
+				endif
+				cylind sLen, 0.02
+				del 2
+				add xs, yy, zb + 0.85
+				if up > 0 then
+					roty 90 - sA
+				else
+					roty -(90 - sA)
+				endif
+				cylind sLen, 0.0136
+				del 2
+			next sd
+			! 踏板（蹴上げ 0.2 前後）
+			nT = max(1, int(sRise / 0.2 + 0.5))
+			for kt = 1 to nT - 1
+				px = xs + up * sRun * kt / nT
+				add px - 0.12, ys, zb + sRise * kt / nT - 0.03
+				block 0.24, sW, 0.03
+				del 1
+			next kt
+		endif
+	next kf
+	! 階段の通る開口の脇（y＝yv[1]＋stLaneW）に手すり・中桟（開口部手摺。出入口の xu[2] の側は開ける）
+	for id = 1 to nD
+		for hk = 1 to 2
+			hh = 0.95
+			if hk = 2 then hh = 0.45
+			add xu[1], yv[1] + stLaneW, dk[id] + hh
+			roty 90
+			cylind su[1], 0.0136
+			del 2
+		next hk
+	next id
+return
 
 "post":
 	! 支柱（本体の足場ライン・ashiba_member の支柱と同じ: 管・コマ・上端の連結ホゾ）。原点＝下端、長さ pLen

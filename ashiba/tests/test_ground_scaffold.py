@@ -13,11 +13,11 @@ SPEC = {"project_name": "g", "outline_mm": [[0, 0], [24000, 0], [24000, 10000], 
 
 
 class TestGroundScaffold(unittest.TestCase):
-    def test_one_level_with_a_ladder(self):
+    def test_one_level_with_stairs(self):
+        # 昇降ははしごでなく階段室（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）
         r = solve_all({**SPEC, "ground_scaffold": True})
         self.assertEqual(r.model.elevation.level_heights, [1800])
-        self.assertEqual(len(r.stair_plan.towers), 0)
-        self.assertGreaterEqual(r.model.config.ladders, 1)
+        self.assertGreaterEqual(len(r.stair_plan.towers), 1)
         self.assertIsNone(r.model.config.asagao)
         self.assertEqual(r.model.roof_bridges, [])
         self.assertTrue(any("地足場（1層" in w for w in r.model.plan.warnings))
