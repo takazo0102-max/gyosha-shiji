@@ -357,6 +357,10 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
                           f"固定 {RC_KN_M3 * r.slab_mm / 1000:.2f}（鉄筋コンクリート 2400kg/m³×{r.slab_mm:.0f}mm）＋型枠 {FORM_KN_M2:.2f}"
                           f"＋積載 {SHORING_LIVE_KN_M2:.2f}（150kg/m²）＝{q:.2f}kN/m²（安衛則240条・計画届作成の手引 p261）"))
     n_kn = su * sv * q + POST_SELF_KN_PER_M * h_m
+    # 支柱の下の床（下の階のスラブ）が受ける力。打設の荷重がそのまま下の階へ降りる
+    r.notes.append(f"支柱の下の床（下の階のスラブ）は支柱1本 {n_kn:.1f}kN（{q:.1f}kN/m² 相当）を受ける。"
+                   "下の階のスラブの材齢・強度で受けられるか確かめ、受けられなければ下の階の支保工を残すか（盛り替え）、"
+                   "敷板・敷角で分散する")
     allow = _cap(caps, "支保工許容支持力", r.tie)
     if allow is None:
         scaf = _cap(caps, "支柱許容圧縮耐力")

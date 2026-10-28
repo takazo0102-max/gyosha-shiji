@@ -149,6 +149,7 @@ class TestShoringStage(unittest.TestCase):
         self.assertTrue(all(n > 0 and n % 2 == 0 for _, n, _ in inner))
         self.assertTrue(any("2段以上" in n for n in r.notes))
         self.assertTrue(any("型枠支保工の組立て等作業主任者" in n for n in r.notes))
+        self.assertTrue(any("下の階のスラブ" in n and "kN" in n for n in r.notes))
         self.assertIn("型枠支保工", stage_report(r))
         # 支柱の高さ 3.5m 以上は設置届の下書き（ND1800 は承認第88-164号）
         rep = stage_report(r)
