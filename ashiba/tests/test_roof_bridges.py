@@ -22,6 +22,8 @@ class TestRoofBridges(unittest.TestCase):
         self.assertAlmostEqual(b.x_mm, t.end_mm)                      # 階段室の降り口の先のスパン（スパンの始めの支柱）
         self.assertEqual(b.z_from_mm, r.model.elevation.level_heights[-1])
         self.assertTrue(any("屋上への渡り" in w for w in r.quantity.warnings))
+        # 要確認には1行だけ（割付の注記と数量の手配で同じ本文が2行並んでいた）
+        self.assertEqual(sum(w[2].startswith("屋上への渡り: ") for w in r.warnings), 1)
         (p,) = bridge_placements(r.model)
         self.assertEqual(p.part, BRIDGE_OBJECT)
         self.assertAlmostEqual(p.params["brL"] * 1000, b.length_mm)

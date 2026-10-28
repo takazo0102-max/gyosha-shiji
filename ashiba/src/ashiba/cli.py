@@ -1873,10 +1873,13 @@ def collect_warnings(
              f"{i.kind}[{i.severity}] {i.message}（{i.basis}）")
             for i in (conflicts or [])]
     # 同じ本文は1件に（割付の注意が格子の検定と取付部の寄せ直しの両方から同じ文で来ることがある）
+    # 同じ本文に手配・現場確認の一文を足したものが別にあれば、短い方は重ねない
+    # （屋上への渡りが割付と数量の両方から出て、要確認に2行並んでいた）
+    longer = [w[2] for w in out]
     seen: set = set()
     uniq = []
     for w in out:
-        if w[2] in seen:
+        if w[2] in seen or any(t.startswith(w[2] + "。") for t in longer):
             continue
         seen.add(w[2])
         uniq.append(w)
