@@ -2,6 +2,7 @@
 数える・機種ごとの形を3Dで描く・昇降機は別オブジェクトで配置できるように）."""
 
 import json
+import math
 import unittest
 from pathlib import Path
 
@@ -702,3 +703,45 @@ class TestReadPlacedObjects(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHoistwayGuard(unittest.TestCase):
+    """ロングスパンの昇降路の前養生（利用者の現場写真 2026-10-28・reports/ロングスパンEV昇降路の養生.md）."""
+
+    def _notes(self, **ho):
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4", **ho}]})
+        return r, [n for n in r.quantity.notes if "前養生" in n or "養生金網" in n]
+
+    def test_inside_mount_closes_the_front_and_partitions_the_sides(self):
+        r, notes = self._notes(mount="中")
+        h = r.platforms.hoists[0]
+        height = h.reach_mm(r.model) - 1800
+        txt = "\n".join(notes)
+        self.assertIn("前面・幅", txt)
+        self.assertNotIn("両横", txt.split("養生金網")[0])          # 足場の幅の中なら前面だけ
+        self.assertIn(f"高さ{height / 1000:.1f}m", txt)
+        self.assertIn("乗り込み口の階も外面は開けない", txt)
+        self.assertIn("養生金網", txt)                               # 両横の足場の端の構面の仕切り
+        rows = math.ceil(height / 1800) + 1
+        self.assertIn(f"横引き {rows}段", txt)
+
+    def test_outside_mount_returns_the_sides(self):
+        _r, notes = self._notes(mount="外付け")
+        txt = "\n".join(notes)
+        self.assertIn("前面と両横", txt)
+        self.assertIn("隅の縦の単管", txt)
+
+    def test_other_hoists_have_no_guard(self):
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000}]})
+        self.assertFalse([n for n in r.quantity.notes if "前養生で塞ぐ" in n])
+
+    def test_enclosure_basis_follows_the_kind(self):
+        from ashiba.platforms import _enclosure_basis
+
+        r, _n = self._notes()
+        self.assertIn("国交省", _enclosure_basis(r.platforms.hoists[0]))
+        self.assertNotIn("187条", _enclosure_basis(r.platforms.hoists[0]))     # ロングスパンは人が乗るのでエレベーター
+
+    def test_gdl_draws_the_guard(self):
+        d3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("if showGuard and hoKind = 1", d3)

@@ -93,6 +93,10 @@
 			<Description><![CDATA["地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="showGuard">
+			<Description><![CDATA["ロングスパンの昇降路の前養生（地上の囲いの上から到達高さまで、単管の枠とメッシュシート）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<Material Name="matCage">
 			<Description><![CDATA["荷台・マストの材質"]]></Description>
 			<Value>0</Value>

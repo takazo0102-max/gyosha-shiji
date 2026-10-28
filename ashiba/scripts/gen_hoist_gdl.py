@@ -51,6 +51,7 @@ def paramlist(first: str) -> str:
         _param("Boolean", "stObj", "荷取りステージとフロアーゲートは別の部品（ashiba_hstage）が描く（配置が入れる）", 0),
         _param("Boolean", "showTie", "マストの壁つなぎを描く", 1),
         _param("Boolean", "showFence", "地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く", 1),
+        _param("Boolean", "showGuard", "ロングスパンの昇降路の前養生（地上の囲いの上から到達高さまで、単管の枠とメッシュシート）を描く", 1),
         "\t\t<Material Name=\"matCage\">\n\t\t\t<Description><![CDATA[\"荷台・マストの材質\"]]></Description>\n"
         "\t\t\t<Value>0</Value>\n\t\t</Material>\n",
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -292,12 +293,14 @@ define material "hoist_mach" 2, 0.93, 0.72, 0.10
 define material "hoist_deck" 2, 0.38, 0.40, 0.43
 define material "hoist_mesh" 0, 0.55, 0.58, 0.60, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "hoist_wood" 2, 0.74, 0.56, 0.36
+define material "hoist_guard" 0, 0.16, 0.55, 0.26, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
 mSt = IND(MATERIAL, "hoist_steel")
 if matCage > 0 then mSt = matCage
 mMc = IND(MATERIAL, "hoist_mach")
 mDk = IND(MATERIAL, "hoist_deck")
 mMs = IND(MATERIAL, "hoist_mesh")
 mWd = IND(MATERIAL, "hoist_wood")
+mGd = IND(MATERIAL, "hoist_guard")
 add 0, 0, zH
 rotz faceAng
 mastH = max(hoReach + 1.5, 3)
@@ -669,6 +672,49 @@ if showFence then
 		block fLen, 0.005, 1.7
 		del 2
 	next ip
+endif
+! ロングスパンの昇降路の前養生（利用者の現場写真 2026-10-28・reports/ロングスパンEV昇降路の養生.md）: 地上の囲いと同じ
+! 平面を、囲いの天端 1.8m から到達高さまで単管の枠とメッシュシートで塞ぐ。横引きは 1.8m ごと、足場の外側の建地から腕を
+! 出して受ける。外付けは両横も返す。乗り込み口の階も外面は開けない（荷は躯体側で取る）
+if showGuard and hoKind = 1 and hoReach > 1.85 then
+	gH = hoReach - 1.8
+	gY0 = 0.05
+	nR = int(gH / 1.8 - 0.001) + 1
+	material mSt
+	for kr = 0 to nR
+		zr = min(1.8 + kr * 1.8, hoReach)
+		! 前面の横引き
+		add -fX - 0.15, fY, zr
+		roty 90
+		cylind 2 * fX + 0.3, 0.0243
+		del 2
+		! 腕（足場の外側の建地から前面へ。外付けは両横の返しの横引きを兼ねる）
+		for sg = -1 to 1 step 2
+			add sg * fX, gY0, zr
+			rotx 90
+			cylind gY0 - fY + 0.15, 0.0243
+			del 2
+		next sg
+	next kr
+	if hoInside = 0 then
+		! 前面の両端の縦の単管
+		for sg = -1 to 1 step 2
+			add sg * fX, fY, 1.8
+			cylind gH, 0.0243
+			del 1
+		next sg
+	endif
+	material mGd
+	add -fX, fY - 0.03, 1.8
+	block 2 * fX, 0.004, gH
+	del 1
+	if hoInside = 0 then
+		for sg = -1 to 1 step 2
+			add sg * fX - 0.002, fY, 1.8
+			block 0.004, gY0 - fY, gH
+			del 1
+		next sg
+	endif
 endif
 del top
 end

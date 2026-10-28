@@ -1638,6 +1638,15 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             continue
         add(cands[0], d.qty, d.label)
 
+    # 昇降路の前養生は張る範囲を注記に残す（マスタにある品で拾えると、手配の注記に範囲が出ない）
+    from .platforms import hoistway_guard_demands
+
+    for h in platforms.hoists or []:
+        g = hoistway_guard_demands(model, h)
+        if g:
+            notes.append(f"{model.face_name(h.edge_index)}の昇降機（始点から{h.position_mm:.0f}mm）の昇降路は前養生で塞ぐ: "
+                         + g[0].detail + "（足場のシートは昇降路で途切れるため。落下物の防護 安衛則537条・建築基準法施行令"
+                         "136条の5、国交省 建設工事安全マニュアル リフト工の養生囲い）")
     for st in platforms.stages:
         if _bracket_nominal(model, st.projection_mm) is None:
             notes.action(
@@ -2360,7 +2369,8 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
            if any(e.edge_index == ei for e in model.plan.edges) for s0, e0 in rs]
     if cut:
         notes.append(f"昇降機の乗り込み口のスパン（" + "・".join(f"{f} {s0:.0f}〜{e0:.0f}" for f, s0, e0 in cut)
-                     + f"）は{kind}を張っていません（荷台がこのスパンを昇り降りし、乗り込み口にフロアーゲートが付く）")
+                     + f"）は{kind}を張っていません（荷台がこのスパンを昇り降りし、乗り込み口にフロアーゲートが付く。"
+                     "ロングスパンの昇降路は外面を前養生で別に塞ぐ）")
     if other:
         notes.action(f"{kind}（高さ {h / 1000:.1f}m）: " + "・".join(f"幅{wd}×{k}枚" for wd, k in other.items())
                      + f"（系列 {model.master.series_id} のマスタに無い幅）を別途手配してください", Notes.ORDER)

@@ -95,8 +95,13 @@ class LoadingStage:
 
 HOIST_FENCE_GAP_MM = 300.0  # 地上の昇降路の囲いと荷台のあき
 HOIST_FENCE_H_MM = 1800.0    # 地上の昇降路の囲いの高さ
-HOIST_CAGE_W_MM = 4600.0     # ロングスパン建設用リフトの荷台の長さ（面に沿って。既定）
+HOIST_CAGE_W_MM = 4600.0     # ロングスパン工事用エレベーターの荷台の長さ（面に沿って。既定）
 TUBE_LENGTHS_MM = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0)  # 単管の規格の長さ
+GUARD_ROW_PITCH_MM = 1800.0    # 昇降路の前養生の横引きの段の間隔
+GUARD_TUBE_OVER_MM = 300.0     # 横引き・腕の掛かり（両端 150 ずつ）
+GUARD_TUBE_LAP_MM = 300.0      # 単管をつなぐ重ね
+GUARD_SHEET_MM = (1800.0, 5100.0)   # 前養生のメッシュシート（幅×高さ）
+GUARD_WIRE_MM = (1814.0, 860.0)     # 養生金網（長さ×高さ。L1814×H860・9kg の流通品）
 MOUNT_OUTSIDE = "外付け"
 MOUNT_INSIDE = "内"
 INSIDE_STAGE_W_MM = 480.0   # 足場の幅の中に据えたときの荷取りステージの床の幅（敷板 240＋足場板 240）
@@ -695,6 +700,100 @@ class PartDemand:
     detail: str = ""
 
 
+def _enclosure_basis(h: "Hoist") -> str:
+    """地上の昇降路の囲いの根拠. 荷だけの荷揚げ機は建設用リフト（クレーン則 第187条 立入禁止・建設用リフト構造規格 第15条）、
+    人が乗るロングスパン・工事用エレベーターはエレベーター（クレーン則 第4章。運転中の立入禁止の条文は無く、構造規格 第16条の
+    囲いもロングスパンを除く）なので、国交省の建設工事安全マニュアル（リフト工）の養生囲いとメーカーの組立要領による."""
+    hm = h.spec
+    if hm is not None and hm.kind == "荷揚げ機":
+        return "クレーン等安全規則 第187条・建設用リフト構造規格 第15条・メーカーの組立要領"
+    return "国交省 建設工事安全マニュアル（リフト工）の養生囲い・メーカーの組立要領"
+
+
+def _tube_run(need_mm: float) -> tuple[int, int]:
+    """長さ need_mm を単管で通すときの (1本の長さ, 本数). 規格の最長で足りなければ最長をつなぐ（重ね 300）."""
+    one = next((L for L in TUBE_LENGTHS_MM if L >= need_mm), None)
+    if one is not None:
+        return int(one), 1
+    top = TUBE_LENGTHS_MM[-1]
+    return int(top), 1 + math.ceil((need_mm - top) / (top - GUARD_TUBE_LAP_MM))
+
+
+def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand"]:
+    """ロングスパンの昇降路の前養生（利用者の現場写真 2026-10-28: 昇降路の前面だけ緑のメッシュシート. ロングスパンEV の
+    養生いる？ → リサーチ: reports/ロングスパンEV昇降路の養生.md）.
+
+    昇降路は足場を全高で抜くので、足場のシートがそこで途切れて外壁の前が開く。地上の昇降路の囲いと同じ平面（荷台・マストから
+    0.3 外）を、囲いの天端 1.8m から到達高さまで単管の枠とメッシュシートで塞ぐ（前養生）。単管は 1.8m ごとの横引きで、足場の
+    外側の建地から腕を出して受ける。外付けは荷台が足場の外へ出るので、両横も返して塞ぐ。乗り込み口の階でも外面は開けない
+    （荷は躯体側の荷取りステージで取る）。法令の囲いの規定（エレベーター構造規格 第16条）はロングスパンを除くが、国交省の
+    建設工事安全マニュアル（リフト工）は昇降路に人・長尺物が入らない養生囲いを求め、外部へは建築基準法施行令 第136条の5・
+    安衛則 第537条の落下物の防護が掛かる。
+    """
+    from .openings import hoist_voids
+
+    # ロングスパン（機種がロングスパンか、足場を抜いた昇降路）。外付けで足場を残す置き方でも、搬器は足場の外を昇り降りし、
+    # 乗り込み口のスパンはシートを張らないので、外面を塞ぐのは同じ
+    hm = h.spec
+    if not ((hm is not None and hm.kind == "ロングスパン") or hoist_voids(model, [h])):
+        return []
+    reach = h.reach_mm(model)
+    height = reach - HOIST_FENCE_H_MM
+    if height <= 0:
+        return []
+    width = float(h.cage_width_mm or HOIST_CAGE_W_MM) + 2 * HOIST_FENCE_GAP_MM
+    depth = 0.0 if h.inside else float(h.cage_depth_mm or HOIST_CAGE_D_MM) + HOIST_FENCE_GAP_MM + 100.0
+    rows = math.ceil(height / GUARD_ROW_PITCH_MM) + 1
+    sw, sh = GUARD_SHEET_MM
+    tiers = math.ceil(height / sh)
+    front_cols = math.ceil(width / sw)
+    side_cols = 2 * math.ceil(depth / sw) if depth > 0 else 0
+    out: list[PartDemand] = []
+    sides = "前面と両横" if depth > 0 else "前面"
+    out.append(PartDemand(
+        "昇降機 昇降路の前養生 メッシュシート", "養生シート", int(sw), (front_cols + side_cols) * tiers,
+        note_contains="メッシュシート",
+        detail=f"{sides}・幅{width / 1000:.1f}m" + (f"＋両横{depth / 1000:.1f}m" if depth > 0 else "")
+               + f"・高さ{height / 1000:.1f}m（地上の囲いの天端 1.8m から到達高さ {reach / 1000:.1f}m まで）。"
+               f"{sw / 1000:.1f}×{sh / 1000:.1f}m で {front_cols + side_cols}列×{tiers}段。防炎品。"
+               "はとめごと（35cm 以下）に緊結材で横引きの単管へ留める。乗り込み口の階も外面は開けない"))
+    L, n = _tube_run(width + GUARD_TUBE_OVER_MM)
+    out.append(PartDemand(
+        f"昇降機 前養生の横引き単管{L / 1000:.1f}m", "単管", L, n * rows,
+        detail=f"前面の横引き {rows}段（{GUARD_ROW_PITCH_MM / 1000:.1f}m ごと）×{n}本。荷台・マストから 0.3 外の面"))
+    arm_need = (depth if depth > 0 else HOIST_FENCE_GAP_MM) + GUARD_TUBE_OVER_MM
+    La, na = _tube_run(arm_need)
+    out.append(PartDemand(
+        f"昇降機 前養生の腕・返しの単管{La / 1000:.1f}m", "単管", La, 2 * na * rows,
+        detail=f"足場の外側の建地から前面へ出す腕（両端×{rows}段）" + ("。両横の返しの横引きを兼ねる" if depth > 0 else "")))
+    n_corner = 0
+    if depth > 0:
+        # 外付けは前面が足場から離れるので、前面の両端に縦の単管を立てて段をつなぐ
+        Lv, nv = _tube_run(height)
+        n_corner = 2 * nv
+        out.append(PartDemand(
+            f"昇降機 前養生の隅の縦の単管{Lv / 1000:.1f}m", "単管", Lv, n_corner,
+            detail=f"前面の両端に高さ{height / 1000:.1f}m（継ぎは直線ジョイント）"))
+    if hoist_voids(model, [h]):
+        # 昇降路の両横の足場の端の構面（内外の建地の間）を養生金網で仕切る（厚労省の見える化事例: 昇降路を竪穴として金網・
+        # メッシュシートで足場と区画）。足場の作業床から昇降路へ人・長尺物が出ない
+        row = float(model.post_row_spacing_mm)
+        cols = math.ceil(row / GUARD_WIRE_MM[0])
+        n_wire = 2 * cols * math.ceil(reach / GUARD_WIRE_MM[1])
+        out.append(PartDemand(
+            f"昇降機 昇降路の横の仕切り 養生金網（{GUARD_WIRE_MM[0]:.0f}×{GUARD_WIRE_MM[1]:.0f}）", "養生金網", None, n_wire,
+            detail=f"昇降路の両横の足場の端の構面（内外の建地の間 {row:.0f}）に地面から到達高さ {reach / 1000:.1f}m まで。"
+                   "オニクランプ（養生クランプ）で建地・布材に留める"))
+        out.append(PartDemand(
+            "昇降機 養生金網のオニクランプ", "養生クランプ", None, 2 * n_wire,
+            detail="金網1枚に2個（目安。メーカーの留め方に合わせる）"))
+    n_joint = (n - 1) * rows + (2 * (na - 1) * rows)
+    out.append(PartDemand(
+        "昇降機 前養生の直交クランプ", "クランプ", None, 2 * rows + 2 * rows + (2 * rows if depth > 0 else 0) + 2 * n_joint,
+        detail="横引きの両端・腕の根元（足場の建地）" + ("・隅の縦の単管" if depth > 0 else "") + "・単管の重ね"))
+    return out
+
+
 def platform_part_demands(
     model: ScaffoldModel, result: PlatformResult
 ) -> list[PartDemand]:
@@ -776,8 +875,9 @@ def platform_part_demands(
         out.append(PartDemand(
             "昇降機 地上の昇降路の囲い", "昇降路の囲い", None, 1,
             detail=f"{sides} 延長{run / 1000:.1f}m・高さ{HOIST_FENCE_H_MM / 1000:.1f}m・施錠できる出入口の扉 1"
-                   "（搬器の下への立入禁止。クレーン等安全規則の建設用リフト・メーカーの組立要領）",
+                   "（搬器の下への立入禁止。" + _enclosure_basis(h) + "）",
         ))
+        out.extend(hoistway_guard_demands(model, h))
         if hm is not None:
             # 機種を選んだ昇降機: 本体（レンタル1台）と、乗り込み口のフロアーゲート（乗り込む階ごとに1枚。単管 φ48.6 を
             # クランプで建地に留める。建機サービス Floor-gate。利用者の指定 2026-10-27）
