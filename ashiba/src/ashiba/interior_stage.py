@@ -367,6 +367,12 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
                           + ("" if have >= need else f"。内側の通りにも筋かいを足すか（各層・各方向あと {need - have}本）、"
                              "打設済みの柱・壁に水平力を預ける形を構造計算書で示す")
                           + "（安衛則240条3項4号・手引 p263）"))
+    if have < need:
+        # 足りない分を内側の通りに交さ筋かいで（各層・各方向。長さは長い方のスパン）
+        layers = max(1, len(r.levels) + len(r.upper_levels) - 1)
+        for spans, dir_ in ((r.spans_u, "長手"), (r.spans_v, "短手")):
+            r.quantity.append(("筋交", int(max(spans)), (need - have) * 2 * layers,
+                               f"支保工の水平荷重を受ける内側の交さ筋かい（{dir_}・{layers}層×{need - have}組）"))
     if r.uhead_ext_mm is not None:
         e = r.uhead_ext_mm
         if e < 0:
@@ -470,8 +476,9 @@ def _quantity(r: StageResult, master) -> None:
         q.append(("壁つなぎ", 0, 4 * max(1, len(r.floors_mm)), "EVシャフトの四方の壁へ（各階）"))
     # 外周の構面の筋かい（各辺 5スパン以下ごと・各段）
     n_br = 0
+    n_bands = n_lv + len(r.upper_levels) - 1          # 支保工は作業床より上の水平つなぎの段まで
     for spans in (r.spans_u, r.spans_u, r.spans_v, r.spans_v):
-        n_br += math.ceil(len(spans) / BRACE_EVERY_SPANS) * (n_lv - 1)
+        n_br += math.ceil(len(spans) / BRACE_EVERY_SPANS) * n_bands
     q.append(("筋交", int(max(r.spans_u)), n_br * 2, "内部ステージの外周の筋かい（交さ2方向）"))
     q.append(("はしご", 0, n_deck, "内部ステージの昇降（はしご）" + ("・作業床の段ごと" if n_deck > 1 else "")
               + ("。壁が近いので内側に立て、作業床ははしご口（ハッチ付きの踏板）で抜ける" if not r.guard else "")))

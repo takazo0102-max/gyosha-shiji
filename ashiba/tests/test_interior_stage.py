@@ -130,6 +130,11 @@ class TestShoringStage(unittest.TestCase):
         self.assertEqual(q["大引"], len(r.spans_v) + 1)
         h = next(c for c in r.checks if c.item == "支保工の水平荷重")
         self.assertIn("5.0%", h.message)
+        # 足りない筋かいは数量にも（各層・各方向・交さ）
+        self.assertEqual(h.status, "WARN")
+        inner = [(d, n, why) for c, d, n, why in r.quantity if c == "筋交" and "内側の交さ筋かい" in why]
+        self.assertEqual(len(inner), 2)
+        self.assertTrue(all(n > 0 and n % 2 == 0 for _, n, _ in inner))
         self.assertTrue(any("2段以上" in n for n in r.notes))
         self.assertTrue(any("型枠支保工の組立て等作業主任者" in n for n in r.notes))
         self.assertIn("型枠支保工", stage_report(r))
