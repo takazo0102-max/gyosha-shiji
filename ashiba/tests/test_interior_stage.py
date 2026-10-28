@@ -42,6 +42,10 @@ class TestInteriorStage(unittest.TestCase):
         self.assertEqual({c.item: c.status for c in light.checks}["作業床の積載"], "OK")
         tall = solve(corners_mm=[[0, 0], [12000, 0], [12000, 2500], [0, 2500]], deck_mm=12000)
         self.assertEqual({c.item: c.status for c in tall.checks}["高さと短辺の比"], "WARN")
+        self.assertIn("転倒安定度", next(c.message for c in tall.checks if c.item == "高さと短辺の比"))
+        # 転倒安定度 FS＝(b/2)/(0.025h) が 2.0 を割る細長い形は NG（指針の棚足場）
+        slim = solve(corners_mm=[[0, 0], [12000, 0], [12000, 2200], [0, 2200]], deck_mm=20000)
+        self.assertEqual({c.item: c.status for c in slim.checks}["高さと短辺の比"], "NG")
         heavy = solve(live_kn_m2=6.0)
         self.assertEqual({c.item: c.status for c in heavy.checks}["支柱の軸力"], "NG")
         self.assertFalse(heavy.ok)

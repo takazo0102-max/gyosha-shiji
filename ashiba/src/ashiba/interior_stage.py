@@ -35,6 +35,8 @@ CLEAR_MM = 150.0             # 壁から外周の支柱まで
 LIVE_DEFAULT_KN_M2 = 1.5     # 作業床の積載（軽作業・仕上げ）
 DECK_DEAD_KN_M2 = 0.25       # 踏板の自重
 POST_SELF_KN_PER_M = 0.15    # 支柱＋布材・筋かいの自重（支柱1本・高さ1m あたりの目安）
+STAGE_H_RATIO = 0.025        # 棚足場の照査水平荷重（自重に対する比。指針）
+STAGE_FS_MIN = 2.0           # 転倒安定度の下限
 HB_LIMIT = 4.0               # 高さ／短辺がこれを超えたら控え・壁つなぎ
 BRACE_EVERY_SPANS = 5
 FIT_SLACK_MM = 900.0         # 壁際の余り（片側 CLEAR_MM に足して両側でこれ以内）
@@ -539,9 +541,14 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
                               f"垂直の間隔 最大 {gap:.0f}mm" + ("" if gap <= vmax else f"（{vmax}mm を超えるので中間にも取る）")
                               + "（安衛則570条1項5号）"))
     else:
-        out.append(StageCheck("高さと短辺の比", "OK" if ratio <= HB_LIMIT else "WARN",
-                              f"高さ {h_m:.2f}m／短辺 {short:.2f}m＝{ratio:.1f}" + (
-                                  "（4 以下）" if ratio <= HB_LIMIT else "。4 を超えるので壁・柱から控え（壁つなぎ）を取る")))
+        # 転倒安定度（仮設工業会『足場・型枠支保工設計指針』の棚足場: 無積載・上端に自重の 2.5% の水平荷重で
+        # FS＝MS/MO＝(W·b/2)/(0.025W·h)≧2.0）。比 4 は目安で、FS より厳しい側（報告 地足場と内部足場 2026-10-28）
+        fs = (short / 2.0) / (STAGE_H_RATIO * h_m) if h_m > 0 else 99.0
+        st = "OK" if ratio <= HB_LIMIT and fs >= STAGE_FS_MIN else ("NG" if fs < STAGE_FS_MIN else "WARN")
+        out.append(StageCheck("高さと短辺の比", st,
+                              f"高さ {h_m:.2f}m／短辺 {short:.2f}m＝{ratio:.1f}、転倒安定度 {fs:.1f}（2.0 以上。水平荷重は自重の 2.5%）"
+                              + ("（比 4 以下）" if ratio <= HB_LIMIT else
+                                 "。比が目安の 4 を超えるので壁・柱から控え（壁つなぎ）を取る")))
     # 4. 墜落防止・昇降（作業床 2m 以上: 安衛則563条・526条）
     if r.use == "EVシャフト":
         gap_ok = r.wall_gap_mm <= SHAFT_WALL_GAP_MAX_MM
