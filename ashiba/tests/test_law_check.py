@@ -419,3 +419,26 @@ class TestSingleRowFootprint(unittest.TestCase):
         c2 = [r for r in run_all_checks(wide) if r.check_id == 1][0]
         self.assertEqual(c2.status, "OK", c2.message)
 
+
+
+class TestSheetedTieSpacing(unittest.TestCase):
+    """シート張りの足場の壁つなぎは原則 2層2スパン以内（計画届作成の手引 チェックリスト No.17）."""
+
+    def _check(self, sheet, span_step):
+        from ashiba.law_check import check_wall_ties
+        from ashiba.model import generate_wall_ties
+
+        m = make_good_model()
+        m.config.sheet_type = sheet
+        m.config.wall_tie_span_step = span_step
+        m.wall_ties = generate_wall_ties(m.plan, m.elevation, m.config)
+        return check_wall_ties(m)
+
+    def test_three_spans_with_mesh_is_warned(self):
+        r = self._check("メッシュシート", 3)
+        self.assertEqual(r.status, WARN)
+        self.assertIn("2層2スパン以内", r.message)
+
+    def test_two_spans_or_no_sheet_is_ok(self):
+        self.assertEqual(self._check("メッシュシート", 2).status, OK)
+        self.assertEqual(self._check("", 3).status, OK)

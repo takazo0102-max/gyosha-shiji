@@ -427,6 +427,26 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
             "両隣の面にコーナー経由で支持される前提です。単管等での別途拘束を検討してください",
             basis,
         )
+    # シート張りの足場は、風荷重の検定が通っても壁つなぎは原則 2層2スパン以内（建災防東京支部「計画届作成の手引」
+    # チェックリスト No.17。上部のはね出しは1層以内）。最適化で 3スパン毎などに広げた計画を黙って通さない
+    sheet = (m.config.sheet_type or "") not in ("", "なし")
+    lv = m.elevation.level_heights
+    pitch = max((b - a for a, b in zip(lv, lv[1:])), default=0)
+    span = max((s_ for e in m.plan.edges for s_ in e.spans), default=0)
+    # 垂直は壁つなぎの段どうしの間隔で見る（地面から最初の段までは脚部が支点）
+    rows: dict[int, set] = {}
+    for t in m.wall_ties:
+        if getattr(t, "kind", "grid") == "grid":
+            rows.setdefault(t.edge_index, set()).add(t.height_mm)
+    v_rows = max((b - a for hs in rows.values() for a, b in zip(sorted(hs), sorted(hs)[1:])), default=0)
+    if sheet and pitch and span and (v_rows > 2 * pitch + 1 or h_max > 2 * span + 1):
+        return CheckResult(
+            7, "壁つなぎ", WARN,
+            f"最大 垂直{v_rows:.0f}mm（段どうし）×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）は法規内ですが、"
+            f"{m.config.sheet_type}を張る足場の壁つなぎは原則 2層2スパン以内（垂直{2 * pitch:.0f}×水平{2 * span:.0f}）"
+            "です（計画届作成の手引 チェックリスト No.17）",
+            basis,
+        )
     return CheckResult(
         7, "壁つなぎ", OK,
         f"最大 垂直{v_max:.0f}mm×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）", basis,
