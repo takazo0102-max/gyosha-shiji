@@ -2400,6 +2400,23 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     hb = getattr(model, "hoarding_height_mm", 0.0) or 0.0
     if hb > 0:
         notes.append(f"{kind}は仮囲いの天端（{hb:.0f}）から上に張り、足場の天端から下へ1枚の高さずつ割り付けています（いちばん下の段は残りの高さ）")
+    # 最上段の手すりとシートの天端の隙間（利用者の確認 2026-10-28: シートの上隙間あるけどいいの？→ 今のまま、注記だけ）。
+    # くさびはハトメをコマの中ほどにそろえる（先行手すりのフックをふさがない）ので、天端は最上のコマの半ピッチ下で止まる
+    from .attachments import sheet_top_mm
+
+    gaps = []
+    for e in model.plan.edges:
+        ev = model.elevation_of(e.edge_index)
+        if not ev.level_heights:
+            continue
+        rail = float(ev.level_heights[-1]) + float(model.guard_rail_height_mm)
+        g = rail - sheet_top_mm(model, e.edge_index)
+        if g > 1.0:
+            gaps.append(g)
+    if gaps:
+        notes.append(f"{kind}の天端は最上段の手すりより最大{max(gaps):.0f}mm 下で止まります（ハトメをコマの中ほどにそろえ、先行手すりの"
+                     "フックをふさがないため）。手すり・中桟・幅木で墜落と落下物は防げますが、養生シートはすき間を残さず緊結するのが"
+                     "原則（計画届作成の手引 p248）。現場で隙間を確かめ、必要なら上の縁を手すりへ巻き込んで結束してください")
 
 
 def _count_sound_panels(model: ScaffoldModel, add, notes, stair_plan=None) -> None:

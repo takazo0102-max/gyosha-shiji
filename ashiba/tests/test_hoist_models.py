@@ -63,12 +63,12 @@ class TestHoistInput(unittest.TestCase):
         self.assertAlmostEqual(h.load_kn, 900 * 9.80665 / 1000)
         notes = [str(n) for n in r.quantity.notes]
         self.assertTrue([n for n in notes if "昇降機 本体 KSE-900 5.4m" in n])
-        self.assertTrue([n for n in notes if "フロアーゲート 7.2スパン" in n and "（2）" in n])
+        self.assertTrue([n for n in notes if "フロアーゲート（幅7.2m用" in n and "（2）" in n])
         self.assertFalse([n for n in notes if "開閉式手すり" in n and "マスタにありません" in n])
         # 詳細図の説明に機種と乗り込み口の防護（フロアーゲート）を出す
         reason = next(sheet.reason for sheet in r.detail_sheets if getattr(sheet, "key") == "hoist")
         self.assertIn("KSE-900 5.4m", reason)
-        self.assertIn("フロアーゲート 7.2スパン", reason)
+        self.assertIn("フロアーゲート（幅7.2m用", reason)
         # 地上の昇降路の囲い（搬器の下への立入禁止）も手配に出す
         self.assertTrue([n for n in notes if "昇降路の囲い" in n and "立入禁止" in n])
 
@@ -625,7 +625,7 @@ class TestModelChecks(unittest.TestCase):
         self.assertFalse([m for m in ok if "すき間が残ります" in m])
         ng = self._issues({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6300, "model": "KSE600C",
                                               "cage_width_mm": 4000}]})
-        self.assertTrue([m for m in ng if "すき間が残ります" in m and "4.5スパン" in m])
+        self.assertTrue([m for m in ng if "すき間が残ります" in m and "幅4.5m用" in m])
 
     def test_long_span_frame_sits_on_the_posts(self):
         # ロングスパンは足場の建枠の間に組む: 5400（インチ 5490）＝3 スパン。枠組の両端が建地に乗る位置だけ黙って通す
@@ -788,3 +788,13 @@ class TestMastSideScaffold(unittest.TestCase):
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE900-5.4", "mount": "中"}]})
         self.assertFalse([x for x in r.platforms.issues if "マストを支える" in x.message])
 
+
+
+class TestSheetTopGapNote(unittest.TestCase):
+    """シートの天端と最上段の手すりの隙間は注記に書く（利用者の確認 2026-10-28: 今のまま、注記だけ）."""
+
+    def test_gap_is_noted(self):
+        r = solve_all({**BOX, "series_id": "nikken_nd1800", "site": {"sheet_type": "メッシュシート"}})
+        notes = [n for n in r.quantity.notes if "最上段の手すりより" in n]
+        self.assertTrue(notes)
+        self.assertIn("計画届作成の手引 p248", notes[0])

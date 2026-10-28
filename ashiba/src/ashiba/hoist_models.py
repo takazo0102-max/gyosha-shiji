@@ -21,8 +21,8 @@ DATA = Path(__file__).resolve().parents[2] / "data" / "hoist_models.csv"
 
 # フロアーゲート（建機サービス Floor-gate 4.5・7.2 スパン。単管 φ48.6×2.3t をクランプで建地に留める、リミット付ロック装置）
 FLOOR_GATES = {
-    "4.5": {"name": "フロアーゲート 4.5スパン", "span_mm": 4500.0, "opening_mm": 3930.0, "fold_mm": 570.0},
-    "7.2": {"name": "フロアーゲート 7.2スパン", "span_mm": 7200.0, "opening_mm": 6630.0, "fold_mm": 681.0},
+    "4.5": {"name": "フロアーゲート（幅4.5m用・有効開口3930）", "span_mm": 4500.0, "opening_mm": 3930.0, "fold_mm": 570.0},
+    "7.2": {"name": "フロアーゲート（幅7.2m用・有効開口6630）", "span_mm": 7200.0, "opening_mm": 6630.0, "fold_mm": 681.0},
 }
 
 
