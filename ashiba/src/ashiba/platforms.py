@@ -100,6 +100,7 @@ TUBE_LENGTHS_MM = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0)  # �
 GUARD_ROW_PITCH_MM = 1800.0    # 昇降路の前養生の横引きの段の間隔
 GUARD_TUBE_OVER_MM = 300.0     # 横引き・腕の掛かり（両端 150 ずつ）
 GUARD_TUBE_LAP_MM = 300.0      # 単管をつなぐ重ね
+GUARD_RETURN_POSTS = 2         # 前養生の両横の返しの縦の単管（足場が無いので単管の枠で組む）
 GUARD_SHEET_MM = (1800.0, 5100.0)   # 前養生のメッシュシート（幅×高さ）
 GUARD_WIRE_MM = (1814.0, 860.0)     # 養生金網（長さ×高さ。L1814×H860・9kg の流通品）
 MOUNT_OUTSIDE = "外付け"
@@ -638,16 +639,22 @@ def validate_platforms(
         # 枠組足場を利用」。利用者の指摘 2026-10-28: ロングスパンの横には足場いるよ）
         from .openings import hoist_voids
 
+        # マストを支える足場は両横に定尺のスパンが1つ以上（利用者の指定 2026-10-28: ロングスパンの本体の両横にマストを支える
+        # 足場がいる、1スパン以上・角の端数は数えない。面の端の 1219 だけでは支えにならない）
         for v in hoist_voids(model, [h]):
             gs = h.gate_spans(model)
-            left, right = min(gs), len(edge.spans) - 1 - max(gs)
-            if left < 1 or right < 1:
-                side = "始点側" if left < 1 else "終点側"
+            full = max(edge.spans) - 1
+            left = [s_ for s_ in edge.spans[:min(gs)] if s_ >= full]
+            right = [s_ for s_ in edge.spans[max(gs) + 1:] if s_ >= full]
+            if not left or not right:
+                side = "始点側" if not left else "終点側"
+                rest = edge.spans[:min(gs)] if not left else edge.spans[max(gs) + 1:]
                 result.issues.append(PlatformIssue(
                     "昇降機", i, "NG",
-                    f"{model.face_name(h.edge_index)}のロングスパン（{v.start_mm:.0f}〜{v.end_mm:.0f}mm）の{side}に足場がありません"
-                    "（昇降路が面の端に掛かっています）。昇降フレームを留める足場が両横に要るので、昇降機を面の内側へ"
-                    "ずらすか、面を延ばしてください",
+                    f"{model.face_name(h.edge_index)}のロングスパン（{v.start_mm:.0f}〜{v.end_mm:.0f}mm）の{side}に、マストを支える"
+                    f"定尺のスパンの足場がありません（残りは{'・'.join(str(s_) for s_ in rest) or 'なし'}"
+                    f"{'。端数のスパンは数えない' if rest else ''}）。昇降フレーム・マストを留める足場が両横に1スパン以上要るので、"
+                    "昇降機を面の内側へずらすか、長い面へ移してください",
                     "メーカーの組立手順書（昇降フレームを両横の足場にクランプで上下2か所固定）"))
         # 荷揚げ専用の機種は人が乗れない。乗り込み口は荷の受け取り口で、人は階段で上がる
         if hm is not None and hm.persons == 0:
@@ -774,6 +781,22 @@ def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand
         out.append(PartDemand(
             f"昇降機 前養生の隅の縦の単管{Lv / 1000:.1f}m", "単管", Lv, n_corner,
             detail=f"前面の両端に高さ{height / 1000:.1f}m（継ぎは直線ジョイント）"))
+        # 両横の返しには足場が無いので、単管で枠を組む（利用者の指定 2026-10-28: 横に足場ないよ、この単管みたいに縦2本、
+        # 斜めのに単管で補強いるよ、クランプも忘れずに。ステージにつかない、本体の外部養生で使う単管。単管が重ならないように）。
+        # 返しの面に縦の単管2本（奥行の 1/3・2/3。腕の横引きの外に管1本ずらす）、2段（3.6m）ごとに斜めの単管
+        out.append(PartDemand(
+            f"昇降機 前養生の返しの縦の単管{Lv / 1000:.1f}m", "単管", Lv, GUARD_RETURN_POSTS * 2 * nv,
+            detail=f"両横の返しに{GUARD_RETURN_POSTS}本ずつ（奥行{depth / 1000:.1f}m の 1/3・2/3）、高さ{height / 1000:.1f}m。"
+                   "腕の横引きの外に沿わせ、横引きと重ねない"))
+        bands = max(1, math.ceil(height / (2 * GUARD_ROW_PITCH_MM)))
+        diag = math.hypot(depth, height / bands)
+        Ld, nd = _tube_run(diag)
+        out.append(PartDemand(
+            f"昇降機 前養生の返しの斜めの単管{Ld / 1000:.1f}m", "単管", Ld, 2 * bands * nd,
+            detail=f"両横の返しに2段ごと（{height / bands / 1000:.1f}m）{bands}本ずつ（長さ{diag / 1000:.1f}m）。縦の単管の外に沿わせる"))
+        out.append(PartDemand(
+            "昇降機 前養生の返しの自在クランプ", "クランプ", None, 2 * bands * (3 + 2 * (nd - 1)),
+            detail="斜めの単管1本に、上下の腕の横引きと途中の縦の単管（3か所）＋継ぎ"))
     if hoist_voids(model, [h]):
         # 昇降路の両横の足場の端の構面（内外の建地の間）を養生金網で仕切る（厚労省の見える化事例: 昇降路を竪穴として金網・
         # メッシュシートで足場と区画）。足場の作業床から昇降路へ人・長尺物が出ない
@@ -789,8 +812,9 @@ def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand
             detail="金網1枚に2個（目安。メーカーの留め方に合わせる）"))
     n_joint = (n - 1) * rows + (2 * (na - 1) * rows)
     out.append(PartDemand(
-        "昇降機 前養生の直交クランプ", "クランプ", None, 2 * rows + 2 * rows + (2 * rows if depth > 0 else 0) + 2 * n_joint,
-        detail="横引きの両端・腕の根元（足場の建地）" + ("・隅の縦の単管" if depth > 0 else "") + "・単管の重ね"))
+        "昇降機 前養生の直交クランプ", "クランプ", None,
+        2 * rows + 2 * rows + ((2 + 2 * GUARD_RETURN_POSTS) * rows if depth > 0 else 0) + 2 * n_joint,
+        detail="横引きの両端・腕の根元（足場の建地）" + ("・隅と返しの縦の単管×腕の横引き" if depth > 0 else "") + "・単管の重ね"))
     return out
 
 

@@ -366,10 +366,10 @@ class TestHoistInput(unittest.TestCase):
         # 利用者の指摘 2026-10-28: ロングスパンの横には足場いるよ。昇降フレームは両横の足場の建枠にクランプで上下2か所留め、
         # 壁つなぎも両横の足場から取る（三葉工業 NSE-800 組立手順書）。昇降路が面の端に掛かれば NG
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 2743.5, "model": "KSE900-5.4", "landing_levels": [2]}]})
-        self.assertTrue([x for x in r.platforms.issues if x.severity == "NG" and "始点側に足場がありません" in x.message])
+        self.assertTrue([x for x in r.platforms.issues if x.severity == "NG" and "始点側に、マストを支える" in x.message])
         self.assertFalse(r.verdict["ok"])
         ok = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}]})
-        self.assertFalse([x for x in ok.platforms.issues if "足場がありません" in x.message])
+        self.assertFalse([x for x in ok.platforms.issues if "マストを支える" in x.message])
         # 両横の足場の昇降路側の支柱は端部。荷受けステージは1スパン以上離す（杉孝 Q&A）
         st = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 4572.5, "model": "KSE900-5.4", "landing_levels": [2]}],
                         "loading_stages": [{"edge_index": 0, "start_mm": 7316, "span_count": 1, "levels": [3]}]})
@@ -730,6 +730,11 @@ class TestHoistwayGuard(unittest.TestCase):
         txt = "\n".join(notes)
         self.assertIn("前面と両横", txt)
         self.assertIn("隅の縦の単管", txt)
+        # 両横の返しは足場が無いので単管の枠: 縦2本・斜めの単管・クランプ（利用者の指定 2026-10-28）
+        self.assertIn("返しの縦の単管", txt)
+        self.assertIn("2本ずつ", txt)
+        self.assertIn("返しの斜めの単管", txt)
+        self.assertIn("返しの自在クランプ", txt)
 
     def test_other_hoists_have_no_guard(self):
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000}]})
@@ -764,3 +769,22 @@ class TestNoDoubleTiesAtTheHoistway(unittest.TestCase):
                 hs = sorted(hs)
                 gaps = [b - a for a, b in zip(hs, hs[1:])]
                 self.assertTrue(all(g > TIE_SHARE_MM for g in gaps), (mount, post, hs))
+
+
+class TestMastSideScaffold(unittest.TestCase):
+    """ロングスパンの両横にマストを支える足場が定尺のスパンで1つ以上（利用者の指定 2026-10-28: 角の端数は数えない）."""
+
+    def _ng(self, **ho):
+        r = solve_all({**BOX, "hoists": [{"edge_index": 1, "model": "KSE900-5.4", "mount": "中", **ho}]})
+        return [x for x in r.platforms.issues if x.severity == "NG" and "マストを支える" in x.message], r
+
+    def test_corner_remainder_span_does_not_count(self):
+        # 8m の面（スパン 1829×4＋端数）に 3スパンの昇降路: どこに置いても片側は端数か無し
+        ng, r = self._ng(position_mm=4572)
+        self.assertTrue(ng)
+        self.assertIn("端数", ng[0].message)
+
+    def test_long_face_with_spans_on_both_sides_is_ok(self):
+        r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000, "model": "KSE900-5.4", "mount": "中"}]})
+        self.assertFalse([x for x in r.platforms.issues if "マストを支える" in x.message])
+

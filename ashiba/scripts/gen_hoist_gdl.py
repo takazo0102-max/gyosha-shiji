@@ -697,11 +697,43 @@ if showGuard and hoKind = 1 and hoReach > 1.85 then
 		next sg
 	next kr
 	if hoInside = 0 then
-		! 前面の両端の縦の単管
+		! 前面の両端の縦の単管（前面の横引きの内側に沿わせ、重ねない）
 		for sg = -1 to 1 step 2
-			add sg * fX, fY, 1.8
+			add sg * fX, fY + 0.05, 1.8
 			cylind gH, 0.0243
 			del 1
+		next sg
+		! 両横の返しは足場が無いので単管の枠（利用者の指定 2026-10-28: 縦2本、斜めの単管で補強、クランプ。単管が
+		! 重ならないように）: 縦の単管2本（奥行の 1/3・2/3、腕の横引きの外に管1本ずらす）、2段ごとに斜めの単管（その外）
+		rD = gY0 - fY
+		nB = max(1, int(gH / 3.6 + 0.999))
+		bH = gH / nB
+		dL = sqr(rD ^ 2 + bH ^ 2)
+		dA = atn(rD / bH)
+		for sg = -1 to 1 step 2
+			for kv = 1 to 2
+				yv = gY0 - kv * rD / 3
+				add sg * (fX + 0.05), yv, 1.8
+				cylind gH, 0.0243
+				del 1
+				for kr = 0 to nR
+					add sg * (fX + 0.05) - 0.04, yv - 0.04, min(1.8 + kr * 1.8, hoReach) - 0.04
+					block 0.08, 0.08, 0.08
+					del 1
+				next kr
+			next kv
+			for kb = 1 to nB
+				z0 = 1.8 + (kb - 1) * bH
+				add sg * (fX + 0.10), gY0, z0
+				if kb mod 2 = 0 then
+					add 0, -rD, 0
+					rotx -dA
+				else
+					rotx dA
+				endif
+				cylind dL, 0.0243
+				del 2 + (kb mod 2 = 0)
+			next kb
 		next sg
 	endif
 	material mGd
