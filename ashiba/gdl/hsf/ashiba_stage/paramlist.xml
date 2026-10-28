@@ -61,6 +61,10 @@
 			<Description><![CDATA["支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Length Name="uheadExt">
+			<Description><![CDATA["支保工: 大引受けジャッキの繰出し（postTop の上。0＝描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Integer Name="footAxis">
 			<Description><![CDATA["階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）"]]></Description>
 			<Value>0</Value>

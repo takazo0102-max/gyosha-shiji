@@ -85,6 +85,12 @@ PART_PROFILES = {
         "params": {"spanU": "1829,1829,1829", "spanV": "1829", "lvList": "225,900,2700,4500", "deckH": 4.5,
                    "footAxis": 0, "footZ": "0,1080,2410,2880", "footNeg": "0,1575,2925,3375", "stName": "階段室"},
     },
+    # 型枠支保工（利用者の指定 2026-10-28）。--profile ashiba_stage_shoring で使う
+    "ashiba_stage_shoring": {
+        "images": ("3D",),
+        "params": {"spanU": "1829,1829,1829,1524", "spanV": "1829,1829", "lvList": "200,1325,3125", "deckH": 1.325,
+                   "postTop": 4.08, "uheadExt": 0.145, "stName": "2F床 支保工"},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）

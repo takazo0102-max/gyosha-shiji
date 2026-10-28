@@ -591,6 +591,7 @@ def stage_params(r: StageResult, line_mode: bool = False) -> dict:
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),
             "postTop": ((r.top_mm + r.base_mm) / 1000.0) if r.use == "支保工" else 0.0,
+            "uheadExt": (max(0, r.uhead_ext_mm or 0) / 1000.0) if r.use == "支保工" else 0.0,
             # 階段の上: 支柱の列ごとの足元（段の高さ＋敷板）
             "footAxis": 1 if (r.stair_feet and r.stair_feet[0]["axis"] == "v") else 0,
             "footZ": ",".join(str(int(f["z_mm"] + f["shim"] * SHIM_BOARD_MM)) for f in r.stair_feet),

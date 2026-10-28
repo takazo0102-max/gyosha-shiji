@@ -24,14 +24,24 @@ def main() -> int:
     res = show_form({"title": "地足場", "intro": "躯体スラブを選んでから押してください。地上に低く組む足場（基礎・1階まわりの"
                      "作業用）を置きます。2層以下は階段室を置かず、はしごで昇降します。",
                      "fields": [{"key": "levels", "label": "層数", "kind": "choice", "options": list(LEVELS),
-                                 "value": next(iter(LEVELS))}],
+                                 "value": next(iter(LEVELS))},
+                                {"key": "beam", "label": "地中梁の天端（ふかし筋）mm（足場の立つ面から・空なら見ない）",
+                                 "kind": "number", "value": ""}],
                      "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "place":
         print("地足場: やめました（何も置いていません）")
         return 0
-    n = LEVELS.get(str((res.get("values") or {}).get("levels") or ""), 1)
+    vals = res.get("values") or {}
+    n = LEVELS.get(str(vals.get("levels") or ""), 1)
+    g = {"levels": n}
+    try:
+        beam = float(str(vals.get("beam") or "").replace(",", ""))
+    except ValueError:
+        beam = 0.0
+    if beam > 0:
+        g["beam_top_mm"] = beam
     print(f"地足場: {n}層で置きます")
-    R.main(spec_override={**R.load_spec_override(), "ground_scaffold": {"levels": n}})
+    R.main(spec_override={**R.load_spec_override(), "ground_scaffold": g})
     return 0
 
 

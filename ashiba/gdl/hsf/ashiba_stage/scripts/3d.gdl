@@ -186,6 +186,32 @@ else
 			next j
 		next i
 	next il
+	! 支保工の頂部（利用者の指定 2026-10-28: 型枠支保工で使う）: 支柱の天端に大引受けジャッキ（ねじ棒＋U字の受け）、
+	! 長手の支柱の列ごとに大引（端太角 100 角）
+	if postTop > 0 and uheadExt > 0 then
+		for i = 1 to nU + 1
+			for j = 1 to nV + 1
+				add xu[i], yv[j], postTop
+				cylind uheadExt, 0.017
+				del 1
+				add xu[i] - 0.06, yv[j] - 0.06, postTop + uheadExt
+				block 0.12, 0.12, 0.008
+				del 1
+				for sd = 0 to 1
+					add xu[i] - 0.06, yv[j] - 0.058 + sd * 0.11, postTop + uheadExt
+					block 0.12, 0.006, 0.06
+					del 1
+				next sd
+			next j
+		next i
+		if matDeck > 0 then material matDeck
+		for j = 1 to nV + 1
+			add -0.15, yv[j] - 0.05, postTop + uheadExt + 0.008
+			block stLU + 0.30, 0.10, 0.10
+			del 1
+		next j
+		if matScaf > 0 then material matScaf
+	endif
 	! 階段の上の列ごとの根がらみ: 列の中（直角方向）と、足元の低い隣の列へ1スパン
 	for k = 1 to nN
 		if fn[k] > 0 then

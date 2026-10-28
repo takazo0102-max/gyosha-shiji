@@ -132,6 +132,11 @@ class TestShoringStage(unittest.TestCase):
         self.assertIn("5.0%", h.message)
         self.assertTrue(any("2段以上" in n for n in r.notes))
         self.assertIn("型枠支保工", stage_report(r))
+        # 部品: 支柱は大引の下まで、頂部に大引受けジャッキ
+        p = stage_params(r)
+        self.assertAlmostEqual(p["postTop"], r.top_mm / 1000.0)
+        self.assertAlmostEqual(p["uheadExt"], r.uhead_ext_mm / 1000.0)
+        self.assertEqual(stage_params(solve())["postTop"], 0.0)
 
 
 class TestStairStage(unittest.TestCase):

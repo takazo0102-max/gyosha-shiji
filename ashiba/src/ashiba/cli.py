@@ -1452,6 +1452,7 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
 
 
 STEEL_DEPTH_DEFAULT_MM = 150.0   # 仕上げ面（ALC・ECP・胴縁）から鉄骨の梁の外面まで（既定）
+GROUND_DECK_OVER_BEAM_MM = (500, 800)   # 地足場の作業床は地中梁の天端（ふかし筋）からこの範囲が目安
 GROUND_STANDOFF_MM = 500.0   # 地足場は躯体（基礎・地中梁）の面からこれ以上離す（型枠を収める）
 STEEL_BEAM_BELOW_FLOOR_MM = 150.0  # 梁の上フランジ（壁つなぎを取る所）は床の天端からこれだけ下
 
@@ -1492,7 +1493,18 @@ def ground_scaffold_note(spec: dict) -> str:
     g = spec.get("ground_scaffold")
     n = int(g.get("levels", 1) if isinstance(g, dict) else 1)
     so = float((spec.get("standoff") or {}).get("min", GROUND_STANDOFF_MM) or GROUND_STANDOFF_MM)
-    return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。"
+    # 地中梁の天端（ふかし筋）から作業床まで +500〜800 が目安（報告 地足場と内部足場 2026-10-28）
+    beam = float(g.get("beam_top_mm", 0) or 0) if isinstance(g, dict) else 0.0
+    fit = ""
+    if beam > 0:
+        top = float(spec["eaves_height_mm"])
+        d = top - beam
+        lo, hi = GROUND_DECK_OVER_BEAM_MM
+        fit = (f"作業床は地中梁の天端 {beam:.0f} から +{d:.0f}（目安 +{lo}〜{hi}）。" if lo <= d <= hi else
+               f"作業床が地中梁の天端 {beam:.0f} から {d:+.0f} で目安 +{lo}〜{hi} を外れる（"
+               + ("梁の上の筋に手が届きにくい。層を増やすか、ジャッキ・敷台で上げる" if d < lo else
+                  "上端筋に手が届きにくい。層を減らすか、作業床の下に中段を設ける") + "）。")
+    return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。" + fit
             + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す。"
             f"躯体の面から {so:.0f}mm 離して型枠（せき板・端太・セパ）を収める。作業床は地中梁の天端（ふかし筋）＋500〜800 が目安。"
             "根切り底で壁つなぎを取る躯体がまだ無い間は、直交する足場とつなぐか控え（斜めの単管を捨てコン・地盤へ）で倒れを防ぐ。"

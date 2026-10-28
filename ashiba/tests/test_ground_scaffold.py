@@ -48,6 +48,15 @@ class TestGroundScaffold(unittest.TestCase):
         normal = solve_all(SPEC)
         self.assertTrue(any(v < 450 for v in normal.model.plan.standoffs))
 
+    def test_deck_height_against_the_ground_beam(self):
+        # 作業床は地中梁の天端（ふかし筋）＋500〜800 が目安（報告 地足場と内部足場 2026-10-28）
+        ok = solve_all({**SPEC, "ground_scaffold": {"levels": 1, "beam_top_mm": 1150}})
+        note = next(w for w in ok.model.plan.warnings if "地足場（1層" in w)
+        self.assertIn("天端 1150 から +650", note)
+        low = solve_all({**SPEC, "ground_scaffold": {"levels": 1, "beam_top_mm": 1600}})
+        note = next(w for w in low.model.plan.warnings if "地足場（1層" in w)
+        self.assertIn("目安 +500〜800 を外れる", note)
+
     def test_palette(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
