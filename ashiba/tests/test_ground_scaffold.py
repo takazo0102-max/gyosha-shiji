@@ -35,6 +35,19 @@ class TestGroundScaffold(unittest.TestCase):
         with self.assertRaises(InputError):
             solve_all({**SPEC, "ground_scaffold": {"levels": 5}})
 
+    def test_standoff_clears_the_formwork(self):
+        # 躯体の面から 500 以上離す（型枠・端太・セパを収める。報告 地足場と内部足場 2026-10-28）
+        r = solve_all({**SPEC, "ground_scaffold": True})
+        # 離れはスパンの割付で数 mm 動く（インチの割付で 498）
+        self.assertTrue(all(v >= 490 for v in r.model.plan.standoffs), r.model.plan.standoffs)
+        note = next(w for w in r.model.plan.warnings if "地足場（1層" in w)
+        self.assertIn("控え", note)
+        self.assertIn("500mm 離して", note)
+        wide = solve_all({**SPEC, "ground_scaffold": {"levels": 1, "standoff_mm": 700}})
+        self.assertTrue(all(v >= 690 for v in wide.model.plan.standoffs), wide.model.plan.standoffs)
+        normal = solve_all(SPEC)
+        self.assertTrue(any(v < 450 for v in normal.model.plan.standoffs))
+
     def test_palette(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
