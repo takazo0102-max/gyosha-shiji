@@ -178,26 +178,35 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     shoring = str(item.get("use", "")) in ("支保工", "型枠支保工")
     ceil_mm = item.get("ceiling_mm")
     depth = float(item.get("form_depth_mm", FORM_DEPTH_MM) or FORM_DEPTH_MM)
+    base_up = 0
     if shoring and ceil_mm:
         # 支保工は支柱の天端を大引の下に合わせる: 大引受けジャッキの繰出しが UHEAD_EXT_TARGET_MM に近い支柱の積み方
+        # 大引受けジャッキだけで届かない（コマ 450 の刻みの間に落ちる）ときは、足元のジャッキも繰り出して上げる
+        # （天井 4200 で積み方が見つからず、支柱が天井を突き抜ける既定の積み方に戻っていた）
+        from .elevation_solver import JACK_MAX_EXTENSION
+
         want = float(ceil_mm) - depth
         best = None
         for req in range(max(1000, int(want) - 1200), int(want) + 1, 25):
             e = solve_elevation(req, master=master)
-            ext = want - (e.jack_extension + sum(e.posts))
-            if 0 <= ext <= UHEAD_EXT_MAX_MM and (best is None or abs(ext - UHEAD_EXT_TARGET_MM) < best[0]):
-                best = (abs(ext - UHEAD_EXT_TARGET_MM), e)
+            extra = want - (e.jack_extension + sum(e.posts))
+            if extra < 0:
+                continue
+            up = int(min(max(0.0, extra - UHEAD_EXT_TARGET_MM), max(0, JACK_MAX_EXTENSION - e.jack_extension)))
+            ext = extra - up
+            if ext <= UHEAD_EXT_MAX_MM and (best is None or abs(ext - UHEAD_EXT_TARGET_MM) < best[0]):
+                best = (abs(ext - UHEAD_EXT_TARGET_MM), e, up)
         if best is not None:
-            elev = best[1]
+            elev, base_up = best[1], best[2]
     # 作業床は指定にいちばん近い段（コマの位置で決まるので少し上下する。実機 2026-10-24: 4000 の指定で 4025 を捨てて
     # 2225 になった）
-    hs = [int(h) for h in elev.level_heights]
+    hs = [int(h) + base_up for h in elev.level_heights]
     deck = min(hs, key=lambda h: (abs(h - deck_req), h)) if hs else int(deck_req)
-    levels = [int(elev.first_ledger_height)] + [h for h in hs if h <= deck]
+    levels = [int(elev.first_ledger_height) + base_up] + [h for h in hs if h <= deck]
     live = float(item.get("live_kn_m2", LIVE_DEFAULT_KN_M2) or LIVE_DEFAULT_KN_M2)
     res = StageResult(name, origin, u, v, su, sv, levels, deck, float(item.get("base_mm", 0.0) or 0.0),
-                      list(elev.posts), int(elev.jack_extension), live)
-    res.top_mm = int(elev.jack_extension + sum(elev.posts))
+                      list(elev.posts), int(elev.jack_extension) + base_up, live)
+    res.top_mm = int(elev.jack_extension + base_up + sum(elev.posts))
     if shoring:
         # 作業床より上の段と、間隔が TIE_PITCH_MAX_MM を超える所に足す段（くさびはコマごとに布材を付けられる）
         add = [h for h in hs if deck < h < res.top_mm]
@@ -553,6 +562,14 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
     # 5. 天井（上の階の床の下端）との取り合い（実機 2026-10-25: 階高 3m の部屋に既定の 4000 で置き、手すりと支柱が
     #    上の階の床を突き抜けた）
     ceil = getattr(r, "ceiling_mm", None)
+    if ceil and r.use == "支保工":
+        # 支保工は支柱が大引の下まで伸びるので頭上の空きは見ず、作業床の手すりが大引に当たらないかだけ見る
+        under = ceil - FORM_DEPTH_MM
+        rail = r.deck_mm + GUARD_MM
+        if rail > under - 50:
+            out.append(StageCheck("天井との取り合い", "NG",
+                                  f"作業床の手すり {rail}mm が大引の下端（約 {under:.0f}）に当たる。作業床を 1 段下げる"))
+        return
     if ceil:
         top = float(getattr(r, "top_mm", 0) or 0)
         head = ceil - r.deck_mm

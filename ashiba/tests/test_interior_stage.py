@@ -113,13 +113,21 @@ class TestShoringStage(unittest.TestCase):
         self.assertEqual(st["大引受けジャッキ"], "OK")
         self.assertEqual(st["設置届"], "WARN")             # 支柱高さ 3.5m 以上
         self.assertEqual(st["水平つなぎ"], "OK")
+        self.assertNotIn("天井との取り合い", st)                 # 支保工は頭上の空きを見ない
+        # 作業床は支柱の天端より下の段から選ぶので、手すり（＋900）が大引に当たる形は出ない
+        for d in (2800, 3600, 4500):
+            hi = self.shore(deck_mm=d)
+            self.assertLessEqual(hi.deck_mm + 900, 4400 - 175 - 50)
         # 支柱の積み方を天井に合わせて選ぶ（繰出し 0〜350）
-        for ceil in (3500, 5200, 6100):
+        # 4200 は大引受けジャッキだけでは届かず、足元のジャッキも繰り出す（270 以下）
+        for ceil in (2900, 3500, 4200, 4250, 5200, 6100):
             r2 = self.shore(ceiling_mm=ceil)
             self.assertTrue(0 <= r2.uhead_ext_mm <= 350, (ceil, r2.uhead_ext_mm))
+            self.assertLessEqual(r2.jack_mm, 270)
+            self.assertEqual(r2.top_mm + r2.uhead_ext_mm, ceil - 175)
             lv = sorted(r2.levels + r2.upper_levels + [r2.top_mm])
             self.assertLessEqual(max(b - a for a, b in zip(lv, lv[1:])), 2000)    # 水平つなぎは 2m 以内ごと
-        low = self.shore(ceiling_mm=2900)                  # どの積み方でも支柱が大引に当たる
+        low = self.shore(ceiling_mm=1500)                  # 作業床より低い天井: どの積み方でも支柱が大引に当たる
         self.assertEqual({c.item: c.status for c in low.checks}["大引受けジャッキ"], "NG")
 
     def test_quantity_and_horizontal_load(self):
