@@ -68,6 +68,10 @@ PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半�
 SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
 SHIM_BOARDS_MAX = 2
 NEGARAMI_MAX_MM = 600        # 支柱の下端から最初の布材（根がらみ）までの上限の目安
+# 型枠支保工としての仮設工業会の承認（日建リース 足場カタログ ダーウィン 2024 の抜粋。報告 地足場と内部足場）
+SHORING_APPROVAL = {"nikken_nd1800": "仮設工業会 承認第88-164号（NDシステム1800型 型枠支保工）",
+                    "nikken_nd1900": "仮設工業会 承認第101-164号（NDシステム1900型 型枠支保工）",
+                    "nikken_strong": "仮設工業会 承認第128号（ストロング型 型わく支保工）"}
 SHORING_TIES = ("片方向つなぎ材", "両方向つなぎ材", "ブレース")   # 支保工の承認値はつなぎ方で決まる（日建 ND1800: 18／25／22kN）
 
 
@@ -101,6 +105,8 @@ class StageResult:
     slab_mm: float = 0.0              # 支保工: 受けるスラブの厚さ
     design_kn_m2: float = 0.0         # 支保工: 設計荷重（固定＋積載）
     tie: str = ""                     # 支保工: つなぎ方（SHORING_TIES）
+    series_id: str = ""               # 系列（設置届の承認番号に使う）
+    h_ratio: float = 0.0              # 支保工: 上端の水平荷重の比（5%、鋼管枠 2.5%）
     uhead_ext_mm: Optional[int] = None   # 支保工: 大引受けジャッキの繰出し（天井が分かるとき）
     upper_levels: list[int] = field(default_factory=list)   # 支保工: 作業床の段のほかに足す布材の段（水平つなぎ）
     stair_feet: list[dict] = field(default_factory=list)    # 階段の上の支柱（段の高さ・支柱・ジャッキ・敷板・踏面の端）
@@ -220,6 +226,7 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
                 add.append(a + int(round((b - a) * i / (n + 1) / koma)) * koma)
         res.upper_levels = sorted(set(add) - set(levels))
     res.ceiling_mm = float(ceil_mm) if ceil_mm else None
+    res.series_id = str(getattr(master, "series_id", "") or "")
     if shoring:
         res.use = "支保工"
         res.slab_mm = float(item.get("slab_mm", 200.0) or 200.0)
@@ -368,6 +375,7 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
                               + ("" if st == "OK" else "。支柱の間隔を詰めるか、つなぎ材を両方向に入れる")
                               + "（組み合わされた支保工はメーカー指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
     ratio = SHORING_H_RATIO_FRAME if master.system_type == FRAME else SHORING_H_RATIO
+    r.h_ratio = ratio
     area = r.length_u * r.length_v / 1e6
     hk = ratio * q * area
     need = math.ceil(hk * math.sqrt(2.0) / BRACE_CLAMP_KN)
@@ -617,7 +625,31 @@ def stage_report(r: StageResult) -> str:
                   f"{f['negarami_mm'] or '共通'} | {f['edge_mm']} |" for f in r.stair_feet]
     if r.notes:
         lines += ["", "## 注意", ""] + [f"- {n}" for n in r.notes]
+    if r.use == "支保工" and r.top_mm >= SHORING_NOTIFY_MM:
+        lines += [""] + shoring_notification_lines(r)
     return "\n".join(lines) + "\n"
+
+
+def shoring_notification_lines(r: StageResult) -> list[str]:
+    """型枠支保工の設置届（安衛則88条・別表第七 十の項・様式第20号）に書く内容の下書き."""
+    tie_lv = sorted(r.levels + r.upper_levels)
+    brace = sum(n for c, _, n, _ in r.quantity if c == "筋交")
+    return ["## 設置届（様式第20号）の記入の下書き（型枠支保工）", "",
+            "| 欄 | 記入 |", "|---|---|",
+            "| 機械等の種類 | 型枠支保工（支柱の高さ 3.5m 以上） |",
+            f"| 設置の場所 | {r.name} |",
+            f"| 構造・型式 | くさび緊結式のシステム支保工"
+            + (f"（{SHORING_APPROVAL[r.series_id]}）" if r.series_id in SHORING_APPROVAL else "（メーカーの承認品）")
+            + f"・つなぎ方 {r.tie} |",
+            f"| 計画の概要 | 支柱の高さ {r.top_mm}mm（大引受けジャッキの繰出し {r.uhead_ext_mm or 0}mm を除く）、"
+            f"支柱の間隔 長手 {max(r.spans_u)}mm・短手 {max(r.spans_v)}mm、範囲 {r.length_u:.0f}×{r.length_v:.0f}mm、"
+            f"水平つなぎ {'・'.join(map(str, tie_lv))}mm の段に直交2方向、筋かい {brace}本、"
+            f"受けるスラブ厚 {r.slab_mm:.0f}mm |",
+            f"| 設計荷重 | {r.design_kn_m2:.2f}kN/m²（鉄筋コンクリート＋型枠＋積載 1.47）、水平荷重 設計荷重の "
+            f"{r.h_ratio * 100:g}% |",
+            "| 添付 | 配置図、組立図（平面と直交2方向の立面）、構造計算書（この報告の検証）、支柱・大引受けジャッキの"
+            "承認の写し |",
+            "| 提出 | 設置の工事を始める日の30日前まで（安衛法88条1項）・所轄の労働基準監督署長 |"]
 
 
 def stage_params(r: StageResult, line_mode: bool = False) -> dict:
