@@ -341,7 +341,8 @@ class TestHoistInput(unittest.TestCase):
         self.assertEqual(qty(none, "踏板", 1829) - qty(r, "踏板", 1829), 3 * n_lv)       # 3スパン×全層の床
         # 幅木: エレベーターの側も乗り込み口（1スパン×2層）は外してあるので、差は 3スパン×全層 − 2
         self.assertEqual(qty(none, "幅木", 1829) - qty(r, "幅木", 1829), 3 * n_lv - 2)
-        self.assertEqual(qty(none, "ジャッキ", 400) - qty(r, "ジャッキ", 400), 2 * 2)   # 中の支柱2本×内外
+        # 中の支柱2本×内外が減り、前養生の両横（妻側）の足場1スパン×2か所の支柱4本ずつが増える（2026-10-29）
+        self.assertEqual(qty(none, "ジャッキ", 400) - qty(r, "ジャッキ", 400), 2 * 2 - 4 * 2)
         # 梁枠は荷取りステージの分（2本×乗り込む2層）だけで、昇降路には入れない
         self.assertEqual(qty(r, "梁枠", 5487), 4)
         self.assertFalse([t for t in r.model.wall_ties if t.edge_index == 0 and 1829 + 1 < t.position_mm < 7316 - 1])
@@ -729,12 +730,24 @@ class TestHoistwayGuard(unittest.TestCase):
         _r, notes = self._notes(mount="外付け")
         txt = "\n".join(notes)
         self.assertIn("前面と両横", txt)
-        self.assertIn("隅の縦の単管", txt)
-        # 両横の返しは足場が無いので単管の枠: 縦2本・斜めの単管・クランプ（利用者の指定 2026-10-28）
-        self.assertIn("返しの縦の単管", txt)
-        self.assertIn("2本ずつ", txt)
-        self.assertIn("返しの斜めの単管", txt)
-        self.assertIn("返しの自在クランプ", txt)
+        # 両横（妻側）は足場1スパン、正面に縦の単管2本と斜めの単管で補強（利用者の指定 2026-10-29: 妻側じゃない、
+        # 妻側は足場1スパンおく、正面に補強だよ）
+        self.assertNotIn("返しの縦の単管", txt)
+        self.assertIn("正面の縦の単管", txt)
+        self.assertIn("正面に2本", txt)
+        self.assertIn("正面の斜めの単管", txt)
+        self.assertIn("正面の自在クランプ", txt)
+        self.assertIn("両横の足場の前の建地", txt)
+        r, _n = self._notes(mount="外付け")
+        from ashiba.platforms import guard_side_bays
+
+        bay = guard_side_bays(r.model, r.platforms.hoists[0])
+        self.assertIn(bay["span_mm"], r.model.master.span_lengths())
+        cats = {d.category for d in bay["demands"]}
+        self.assertTrue({"支柱", "ジャッキ", "布材", "筋交"} <= cats)
+        self.assertIsNone(guard_side_bays(r.model, solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487,
+                                                                                  "model": "KSE900-5.4", "mount": "中"}]})
+                                         .platforms.hoists[0]))
 
     def test_other_hoists_have_no_guard(self):
         r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 6000}]})

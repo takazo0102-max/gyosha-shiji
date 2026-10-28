@@ -91,6 +91,12 @@ PART_PROFILES = {
         "params": {"spanU": "1829,1829,1829,1524", "spanV": "1829,1829", "lvList": "200,1325,3125", "deckH": 1.325,
                    "postTop": 4.08, "uheadExt": 0.145, "stName": "2F床 支保工"},
     },
+    # 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）。--profile ashiba_hoist_guard
+    "ashiba_hoist_guard": {
+        "images": ("3D",),
+        "params": {"hoModel": "KSE900-5.4", "hoReach": 9.955, "hoInside": False, "sideSpan": 1.524, "sideW": 0.61,
+                   "sideLvP": 1.8, "rowSp": 0.61},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）

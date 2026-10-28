@@ -30,6 +30,9 @@
 !   showTie     ブール    マストの壁つなぎを描く                                                                                                        既定 1
 !   showFence   ブール    地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く                                                                      既定 1
 !   showGuard   ブール    ロングスパンの昇降路の前養生（地上の囲いの上から到達高さまで、単管の枠とメッシュシート）を描く                                既定 1
+!   sideSpan    長さ      外付けの前養生の両横（妻側）の足場1スパンの奥行（0＝置かない。配置が入れる）                                                  既定 0
+!   sideW       長さ      両横の足場の幅（足場の建地列の間隔）                                                                                          既定 0.914
+!   sideLvP     長さ      両横の足場の層の高さ                                                                                                          既定 1.8
 !   matCage     表面材    荷台・マストの材質                                                                                                            既定 0
 !   texSiz      実数      文字の大きさ（mm）                                                                                                            既定 2.5
 !   penEquip    PenColor  線のペン                                                                                                                      既定 1
@@ -1526,7 +1529,125 @@ endif
 ! ロングスパンの昇降路の前養生（利用者の現場写真 2026-10-28・reports/ロングスパンEV昇降路の養生.md）: 地上の囲いと同じ
 ! 平面を、囲いの天端 1.8m から到達高さまで単管の枠とメッシュシートで塞ぐ。横引きは 1.8m ごと、足場の外側の建地から腕を
 ! 出して受ける。外付けは両横も返す。乗り込み口の階も外面は開けない（荷は躯体側で取る）
-if showGuard and hoKind = 1 and hoReach > 1.85 then
+if showGuard and hoKind = 1 and hoReach > 1.85 and hoInside = 0 and sideSpan > 0 then
+	! 外付け（利用者の指定 2026-10-29: 妻側じゃない、妻側は足場1スパンおく、正面に補強だよ）: 両横に足場1スパン
+	! （本体の足場の外側の建地列から 0.15 離した後ろの建地〜前の建地＝前養生の面）、正面は横引き＋縦の単管2本＋2段ごとの
+	! 斜めの単管。単管は重ねない（横引きは前の建地の外、縦はその外、斜めはさらに外）
+	gH = hoReach - 1.8
+	nR = int(gH / 1.8 - 0.001) + 1
+	yB = -0.15
+	yF = yB - sideSpan
+	gW = fX + sideW
+	material mSt
+	for sg = -1 to 1 step 2
+		xi = sg * fX
+		xo = sg * gW
+		for kx = 0 to 1
+			for ky = 0 to 1
+				px = xi + kx * (xo - xi)
+				py = yB + ky * (yF - yB)
+				add px, py, 0
+				cylind hoReach, 0.0243
+				del 1
+				add px - 0.07, py - 0.07, 0
+				block 0.14, 0.14, 0.01
+				del 1
+			next ky
+		next kx
+		zl = 0.2
+		while zl < hoReach + 0.001 do
+			for kx = 0 to 1
+				add xi + kx * (xo - xi), yB, zl
+				rotx 90
+				cylind sideSpan, 0.0214
+				del 2
+			next kx
+			for ky = 0 to 1
+				add min(xi, xo), yB + ky * (yF - yB), zl
+				roty 90
+				cylind sideW, 0.0214
+				del 2
+			next ky
+			if zl > 0.5 then
+				material mDk
+				add min(xi, xo) + 0.01, yF + 0.01, zl + 0.02
+				block sideW - 0.02, sideSpan - 0.02, 0.04
+				del 1
+				material mSt
+			endif
+			if zl = 0.2 then
+				zl = sideLvP
+			else
+				zl = zl + sideLvP
+			endif
+		endwhile
+		! 外面の筋かい（各層）
+		zl = 0.2
+		while zl + sideLvP < hoReach + 0.001 do
+			add xo, yB, zl
+			rotx 90 - atn(sideLvP / sideSpan)
+			cylind sqr(sideSpan ^ 2 + sideLvP ^ 2), 0.0214
+			del 2
+			if zl = 0.2 then
+				zl = sideLvP
+			else
+				zl = zl + sideLvP
+			endif
+		endwhile
+	next sg
+	! 正面の横引き（前の建地の外）
+	for kr = 0 to nR
+		zr = min(1.8 + kr * 1.8, hoReach)
+		add -gW - 0.15, yF - 0.05, zr
+		roty 90
+		cylind 2 * gW + 0.3, 0.0243
+		del 2
+	next kr
+	! 正面の縦の単管2本（1/3・2/3。横引きの外）と直交クランプ
+	for sg = -1 to 1 step 2
+		add sg * gW / 3, yF - 0.10, 1.8
+		cylind gH, 0.0243
+		del 1
+		for kr = 0 to nR
+			add sg * gW / 3 - 0.04, yF - 0.14, min(1.8 + kr * 1.8, hoReach) - 0.04
+			block 0.08, 0.08, 0.08
+			del 1
+		next kr
+	next sg
+	! 正面の斜めの単管（利用者の図 2026-10-29: 補強の斜めはこうだよ）: 段ごとに左右2本、両端の建地の上の角から内側へ
+	! 下がり、縦の単管の手前（幅の 1/3）で下の横引きに留める（＼　／）。横引きの外
+	dRun = 2 * gW / 3 - 0.15
+	for kr = 1 to nR
+		zt = min(1.8 + kr * 1.8, hoReach)
+		zb = 1.8 + (kr - 1) * 1.8
+		dH = zt - zb
+		if dH > 0.3 then
+			dL = sqr(dRun ^ 2 + dH ^ 2)
+			dA = atn(dH / dRun)
+			for sg = -1 to 1 step 2
+				add sg * gW, yF - 0.10, zt
+				if sg < 0 then
+					roty 90 + dA
+				else
+					roty 270 - dA
+				endif
+				cylind dL, 0.0243
+				del 2
+			next sg
+		endif
+	next kr
+	! メッシュシート（正面と両横の足場の外面）
+	material mGd
+	add -gW, yF - 0.20, 1.8
+	block 2 * gW, 0.004, gH
+	del 1
+	for sg = -1 to 1 step 2
+		add sg * gW + sg * 0.03 - 0.002, yF, 1.8
+		block 0.004, yB - yF, gH
+		del 1
+	next sg
+endif
+if showGuard and hoKind = 1 and hoReach > 1.85 and not(hoInside = 0 and sideSpan > 0) then
 	gH = hoReach - 1.8
 	gY0 = 0.05
 	nR = int(gH / 1.8 - 0.001) + 1

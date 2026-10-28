@@ -1050,11 +1050,24 @@ def hoist_placements(model: ScaffoldModel, platforms) -> list[Placement]:
             "landList": ",".join(f"{v / 1000.0:.3f}" for v in lands),
             "gateA": ga / 1000.0, "gateB": gb / 1000.0, "rowSp": row / 1000.0,
             "hoInside": bool(getattr(h, "inside", False)),
+            # 外付けのロングスパンの前養生の両横（妻側）の足場1スパン（利用者の指定 2026-10-29）
+            **_guard_bay_params(model, h),
             # 荷取りステージを別の部品（ashiba_hstage）で置くときは、昇降機の部品はステージとフロアーゲートを描かない
             "stObj": bool(_stage_owned(model, h)),
             # マスト控えを取る足場の建地（昇降機の中心から面に沿って m。壁つなぎの一覧と同じ ties.hoist_tie_posts）
             "tieList": ",".join(f"{(x - h.position_mm) / 1000.0:.3f}" for x in hoist_tie_posts(ep, h))}))
     return _with_pens(model, out)
+
+
+def _guard_bay_params(model: ScaffoldModel, h) -> dict:
+    from .platforms import guard_side_bays
+
+    hm = getattr(h, "spec", None)
+    bay = guard_side_bays(model, h) if hm is not None and hm.kind == "ロングスパン" else None
+    if not bay:
+        return {"sideSpan": 0.0}
+    return {"sideSpan": bay["span_mm"] / 1000.0, "sideW": bay["width_mm"] / 1000.0,
+            "sideLvP": float(model.master.floor_height or 1800) / 1000.0}
 
 
 def _kbrk_spec(model: ScaffoldModel, w: float, kind: str) -> dict:
