@@ -407,7 +407,8 @@ def write_report_md(
         extras.append(f"昇降機 {len(platforms.hoists)}基")
     beams = [o for o in (openings.openings if openings is not None else []) if not o.void]
     if beams:
-        extras.append(f"開口部（梁枠）{len(beams)}箇所")
+        n_st = sum(1 for o in beams if getattr(o, "stage", False))
+        extras.append(f"開口部（梁枠）{len(beams)}箇所" + (f"（うち荷受けステージの間口{n_st}）" if n_st else ""))
     if extras:
         a("")
         a("## 付帯設備")
