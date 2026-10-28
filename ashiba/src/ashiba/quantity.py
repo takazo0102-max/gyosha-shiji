@@ -1610,6 +1610,11 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
     from .platforms import _bracket_nominal, platform_part_demands
 
     m = model.master
+    # 盛り替えるステージは1組だけ手配する（上の層へ組み直して使う。層の数だけ掛けない）
+    for st in platforms.stages or []:
+        if st.relocate_levels:
+            notes.append(f"荷受けステージ（{model.face_name(st.edge_index)} 始点から{st.start_mm:.0f}mm）は"
+                         f"{st.relocation_text()}。部材は1組で計上")
     for d in platform_part_demands(model, platforms):
         if d.qty <= 0:
             continue

@@ -97,8 +97,9 @@ class TestStageFence(unittest.TestCase):
         leaf = self.m.post_row_spacing_mm - 120
         self.assertEqual(n_gate, sum(math.ceil((sp - 100) / leaf) for sp in self.st.spans(self.m)))
         notes = "\n".join(self.r.quantity.notes)
-        self.assertIn(f"落下防止柵（金網）がマスタにありません（{(n_front + n_side) * 2}）", notes)
-        self.assertIn(f"侵入防止柵（開閉式）がマスタにありません（{n_gate * 2}）", notes)
+        # levels [2, 3] は1フロアずつ盛り替えるので、柵も1組
+        self.assertIn(f"落下防止柵（金網）がマスタにありません（{n_front + n_side}）", notes)
+        self.assertIn(f"侵入防止柵（開閉式）がマスタにありません（{n_gate}）", notes)
 
     def test_can_be_turned_off(self):
         # 既定（指定なし）は柵なし

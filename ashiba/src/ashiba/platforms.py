@@ -50,6 +50,25 @@ class LoadingStage:
     # 既定は付けない（利用者の指定 2026-10-28: 手すりの後ろのフェンスいらない）。入力 has_fence: true で付ける
     has_fence: bool = False
     note: str = ""
+    # 盛り替え先の層。同じ間口の上下に開口を2つは作れないので、現場は1フロアずつ組み直してステージと開口を
+    # 上へ移す（利用者の指定 2026-10-28: 二つ開口作れないよ、実際は現場は組み直して1フロアずつステージ開口を作る）。
+    # levels に複数の層を書いたら、いちばん下の層に組み（図・数量・検定はその1組）、残りを盛り替え先にする
+    relocate_levels: list[int] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        lv = sorted(set(int(v) for v in (self.levels or [])))
+        if len(lv) > 1:
+            self.levels = lv[:1]
+            self.relocate_levels = sorted(set(lv[1:]) | set(self.relocate_levels or []))
+
+    def relocation_text(self) -> str:
+        """盛り替えの段取りの一文（盛り替えが無ければ空）."""
+        if not self.relocate_levels:
+            return ""
+        now = (self.levels or [1])[0]
+        return (f"1フロアずつ組み直して使う。図・数量は第{now}層の1組で、のち第"
+                + "・".join(str(v) for v in self.relocate_levels)
+                + "層へ盛り替え（ステージ・梁枠・抜いた支柱・壁つなぎを組み直す。同じ間口の上下に開口は2つ作れない）")
 
     def length_mm(self, model: ScaffoldModel) -> float:
         edge = _edge(model, self.edge_index)
@@ -361,6 +380,23 @@ def validate_platforms(
     hoists = hoists or []
     result = PlatformResult(stages=stages, hoists=hoists)
 
+    # 同じ間口（重なる区間）の上下にステージを2基置くと、開口（梁枠）を上下に2つ作ることになり組めない。
+    # 現場は1基を1フロアずつ組み直す（利用者の指定 2026-10-28）ので、levels に並べて盛り替えにする
+    for i, s in enumerate(stages):
+        for j in range(i):
+            o = stages[j]
+            if o.edge_index != s.edge_index or _edge(model, s.edge_index) is None:
+                continue
+            if s.start_mm < o.end_mm(model) - 1 and o.start_mm < s.end_mm(model) - 1:
+                lv = sorted(set(list(o.levels or [1]) + list(o.relocate_levels) + list(s.levels or [1])
+                                + list(s.relocate_levels)))
+                result.issues.append(PlatformIssue(
+                    "ステージ", i, "NG",
+                    f"{model.face_name(s.edge_index)}の荷受けステージ{j + 1}と{i + 1}が同じ間口に重なっています。"
+                    "同じ間口の上下に開口は2つ作れないので、1基にまとめて levels に"
+                    f"[{', '.join(str(v) for v in lv)}] と並べ、1フロアずつ盛り替えてください",
+                    "はりわく等の使用基準（開口部の上下の重ね）・現場の組み直し"))
+
     for i, s in enumerate(stages):
         edge = _edge(model, s.edge_index)
         basis = "安衛則563条・655条（作業床の手すり・幅木、最大積載荷重の表示）"
@@ -395,7 +431,7 @@ def validate_platforms(
                 "入力エラー"))
         # 層数はステージの付く面のもの（面ごとに高さが違う建物で、高い面の層を低い面に許していた）
         n_face = model.elevation_of(s.edge_index).n_levels
-        for lv in s.levels:
+        for lv in list(s.levels) + list(s.relocate_levels):      # 盛り替え先の層も同じく
             if not (1 <= lv <= n_face):
                 result.issues.append(PlatformIssue(
                     "ステージ", i, "NG",

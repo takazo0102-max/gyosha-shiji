@@ -364,11 +364,12 @@ class TestLoadingStagesReachTheDrawing(unittest.TestCase):
             self.assertIn(key, h3)
         self.assertIn("rect2 -cageL / 2, yC1, cageL / 2, yC0", (hoist / "2d.gdl").read_text(encoding="utf-8"))
 
-    def test_one_group_per_level(self):
+    def test_relocated_stage_draws_only_the_current_floor(self):
+        # 1フロアずつ組み直す（利用者の指定 2026-10-28）。図は今組む第3層の1組だけ（第4層は盛り替え先）
         m, pf = self._setup(levels=(3, 4))
         vals = line_params(m, m.plan.edges[0], platforms=pf)["stageList"].split(",")
-        self.assertEqual(len(vals), 10)
-        self.assertEqual(int(vals[8]), m.elevation.level_heights[3])
+        self.assertEqual(len(vals), 5)
+        self.assertEqual(int(vals[3]), m.elevation.level_heights[2])
 
     def test_length_comes_from_the_real_spans(self):
         m, pf = self._setup()

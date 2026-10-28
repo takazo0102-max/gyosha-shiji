@@ -422,6 +422,10 @@ def write_report_md(
         if platforms is not None and platforms.max_post_load_kn > 0:
             a(f"- ステージ直下の建地に加わる軸力: {platforms.max_post_load_kn:.2f}kN"
               f"（{platforms.governing}）")
+        # 盛り替えるステージは、いつどの層へ移すかを付帯設備の行で読めるようにする
+        for st in (getattr(platforms, "stages", None) or []):
+            if st.relocation_text():
+                a(f"- 荷受けステージ {model.face_name(st.edge_index)} 始点から{st.start_mm:.0f}mm: {st.relocation_text()}")
         # 昇降機は「1基」だけでは位置も乗り込み口も分からない。
         # マストの位置・到達高さ・乗り込み口の層を出す（干渉と防護の確認用）
         for h in (getattr(platforms, "hoists", None) or []):

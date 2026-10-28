@@ -514,8 +514,8 @@ def stage_openings(model: ScaffoldModel, stages) -> list[Opening]:
             continue
         n = model.elevation_of(st.edge_index).n_levels
         # 開口の高さは2層（ステージの床から2つ上の層の床まで。1層 1.8m では荷を立てて取り込めない。利用者の指定
-        # 2026-10-28: 荷物取り入れられないから1スパン上になると思う）。上に2層が無ければ1層。同じ間口で重なる層の
-        # ステージ（2層・3層など）は1つの開口にまとめる（下のステージの床から上のステージの開口の上まで）
+        # 2026-10-28: 荷物取り入れられないから1スパン上になると思う）。上に2層が無ければ1層。ステージは1フロアずつ
+        # 組み直す（levels を並べても今組むのは1層。残りは relocate_levels）ので、開口も今の層の1つだけ
         groups: list[list[int]] = []
         for lv in sorted(set(v for v in (st.levels or [1]) if 1 <= v < n)):
             if groups and lv < min(groups[-1][-1] + STAGE_OPENING_LEVELS, n):

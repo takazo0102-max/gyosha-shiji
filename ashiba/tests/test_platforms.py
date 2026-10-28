@@ -109,10 +109,25 @@ class TestStageLoad(unittest.TestCase):
         wide = stage_post_load_kn(stage(span_count=4), self.m)
         self.assertLess(wide, narrow)
 
-    def test_more_levels_raises_load(self):
+    def test_more_levels_are_relocations_not_extra_load(self):
+        # 同じ間口の上下に開口は2つ作れず、現場は1フロアずつ組み直す（利用者の指定 2026-10-28）。
+        # levels を並べても同時に載るのは1組なので、軸力は1層ぶん
         one = stage_post_load_kn(stage(levels=[3]), self.m)
-        two = stage_post_load_kn(stage(levels=[3, 4]), self.m)
-        self.assertAlmostEqual(two, one * 2, places=3)
+        s2 = stage(levels=[5, 3])
+        self.assertEqual(s2.levels, [3])
+        self.assertEqual(s2.relocate_levels, [5])
+        self.assertAlmostEqual(stage_post_load_kn(s2, self.m), one, places=3)
+        self.assertIn("のち第5層へ盛り替え", s2.relocation_text())
+        self.assertEqual(stage(levels=[3]).relocation_text(), "")
+
+    def test_two_stages_on_the_same_bay_is_ng(self):
+        r = validate_platforms(self.m, [stage(levels=[2]), stage(levels=[5])])
+        ng = [x for x in r.issues if x.severity == "NG" and "同じ間口" in x.message]
+        self.assertEqual(len(ng), 1)
+        self.assertIn("[2, 5]", ng[0].message)
+        # 間口がずれていれば別の開口なので組める
+        r2 = validate_platforms(self.m, [stage(levels=[2]), stage(start_mm=9000, levels=[5])])
+        self.assertFalse([x for x in r2.issues if "同じ間口" in x.message])
 
     def test_governing_stage_reported(self):
         r = validate_platforms(self.m, [stage(load_kn=4.9), stage(start_mm=3600, load_kn=19.6)])
@@ -436,11 +451,13 @@ class TestStageBayDropsTheOuterRails(unittest.TestCase):
         base = self._run()
         st = self._run_without_bay_opening(
             loading_stages=[{"edge_index": 0, "start_mm": 9000, "span_count": 2, "levels": [2, 3]}])
-        cells = 2 * 2                      # 2スパン×2層
+        # 2層を並べても組むのは1フロアずつ（第2層の1組。第3層は盛り替え先）
+        cells = 2 * 1                      # 2スパン×1層
         # ステージ側: 前面2スパン×2本＋妻側2箇所×2本＝8本/層、幅木 前面2＋妻側2＝4本/層。
         # 本体側: 外側手すり・中桟 2本×セル、幅木 1本×セル を外す
-        self.assertEqual(st.quantity.qty_of("布材"), base.quantity.qty_of("布材") + 8 * 2 - cells * 2)
-        self.assertEqual(st.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") + 4 * 2 - cells)
+        self.assertEqual(st.quantity.qty_of("布材"), base.quantity.qty_of("布材") + 8 - cells * 2)
+        self.assertEqual(st.quantity.qty_of("幅木"), base.quantity.qty_of("幅木") + 4 - cells)
+        self.assertTrue(any("盛り替え" in n and "部材は1組" in n for n in st.quantity.notes), st.quantity.notes)
         self.assertTrue(any("外側の手すり・中桟・幅木を外しています" in n for n in st.quantity.notes), st.quantity.notes)
 
     def test_advance_method(self):
