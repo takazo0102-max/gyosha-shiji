@@ -13,6 +13,9 @@
 0.39＋積載 1.47kN/m²、支柱1本の軸力をメーカーの支保工の承認値（つなぎ方別）と比べ、上端の水平荷重 5%（枠組 2.5%）を筋かいで受け、
 大引受けジャッキの繰出し・水平つなぎの間隔・設置届（支柱高さ 3.5m 以上）を見る。
 
+EVシャフトの中に組む（"use": "EVシャフト"・"floors_mm"。利用者の指定 2026-10-28）: 各階の床に近い段にも全面の作業床、
+壁との隙間 30cm 以下なら外周の手すりを省き、各階で四方の壁に壁つなぎ、作業床の段ごとにはしご。乗場開口の養生を注意に。
+
 階段の上に組む（"stair"。利用者の指定 2026-10-28）: 踏面ごとの支柱を段の高さだけ短くし、ジャッキ（足りなければ敷板 2枚まで）
 で作業床の段にそろえる。底板が段鼻・蹴上げにかかる列を知らせる。
 
@@ -53,6 +56,11 @@ FORM_DEPTH_MM = 175          # スラブ下端から大引の下端まで（せ�
 # 階段の上に組む（利用者の指定 2026-10-28: 内部足場は階段でよく使う）。踏面ごとに支柱を立て、作業床の段（コマ）に合わせて
 # 支柱を短くし、残りをジャッキで受ける。ジャッキで受けきれない分は敷板（2枚まで）。報告 地足場と内部足場: ジャッキは
 # 段差を埋める道具ではない・敷板／敷角は2段以上はさまない（安衛則242条の考え方）
+# EVシャフトの中に組む（利用者の指定 2026-10-28: 内部足場はステージとEV部分）。ピットから積み上げ、各階の床の高さに近い段に
+# 全面の作業床。四方の壁が近いので外周の手すりは張らず（壁との隙間 30cm 以下）、各階で四方の壁に壁つなぎ。乗場開口は
+# 安衛則519条の囲い・手すり・覆いと表示（報告 地足場と内部足場）
+SHAFT_WALL_GAP_MAX_MM = 300  # 作業床の端と壁の隙間がこれ以下なら外周の手すりを省く
+SHAFT_TIE_V_MAX_MM = {"wedge": 5000, "frame": 9000}   # 壁つなぎの垂直間隔（安衛則570条1項5号: 単管5m・わく組9m）
 PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半分。踏面の端（段鼻・蹴上げ）からこれ以上離す
 SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
 SHIM_BOARDS_MAX = 2
@@ -92,6 +100,10 @@ class StageResult:
     uhead_ext_mm: Optional[int] = None   # 支保工: 大引受けジャッキの繰出し（天井が分かるとき）
     upper_levels: list[int] = field(default_factory=list)   # 支保工: 作業床の段のほかに足す布材の段（水平つなぎ）
     stair_feet: list[dict] = field(default_factory=list)    # 階段の上の支柱（段の高さ・支柱・ジャッキ・敷板・踏面の端）
+    deck_levels: list[int] = field(default_factory=list)    # 最上段のほかの作業床の段（EVシャフトの各階）
+    floors_mm: list[float] = field(default_factory=list)    # EVシャフト: 各階の床の高さ（足場の立つ面から）
+    guard: bool = True                # 最上段の外周の手すり・中桟・幅木
+    wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
 
     @property
     def length_u(self) -> float:
@@ -204,6 +216,13 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         res.tie = tie if tie in SHORING_TIES else SHORING_TIES[0]
         if res.ceiling_mm:
             res.uhead_ext_mm = int(round(res.ceiling_mm - depth - res.top_mm))
+    res.wall_gap_mm = max(off_u, off_v)
+    if str(item.get("use", "")) in ("EVシャフト", "シャフト"):
+        res.use = "EVシャフト"
+        res.floors_mm = sorted(float(f) for f in (item.get("floors_mm") or []) if 0 < float(f) < deck + 1)
+        # 各階の床に近い段（最上段の作業床は除く）
+        res.deck_levels = sorted({min(levels[1:], key=lambda h: abs(h - f)) for f in res.floors_mm} - {deck})
+        res.guard = res.wall_gap_mm > SHAFT_WALL_GAP_MAX_MM
     if item.get("stair"):
         _stair_feet(res, master, dict(item["stair"]), off_u, off_v)
     _quantity(res, master)
@@ -401,23 +420,28 @@ def _quantity(r: StageResult, master) -> None:
                 if k:
                     decks[(int(s_u), w)] = decks.get((int(s_u), w), 0) + k
                     rest -= k * w
+    n_deck = 1 + len(r.deck_levels)
     for (s_u, w), k in sorted(decks.items()):
-        q.append(("踏板", s_u, k, f"内部ステージの全面の作業床（幅{w}）"))
-    # 外周の手すり・中桟（2本）と幅木
+        q.append(("踏板", s_u, k * n_deck, f"内部ステージの全面の作業床（幅{w}）"
+                  + (f"×{n_deck}段（各階）" if n_deck > 1 else "")))
+    # 外周の手すり・中桟（2本）と幅木（EVシャフトは壁が近いので無し）
     per = {}
     for s in r.spans_u:
         per[s] = per.get(s, 0) + 2
     for s in r.spans_v:
         per[s] = per.get(s, 0) + 2
-    for s, k in sorted(per.items()):
+    for s, k in sorted(per.items()) if r.guard else ():
         q.append(("布材", int(s), 2 * k, "内部ステージの外周の手すり・中桟"))
         q.append(("幅木", int(s), k, "内部ステージの外周の幅木"))
+    if r.use == "EVシャフト":
+        q.append(("壁つなぎ", 0, 4 * max(1, len(r.floors_mm)), "EVシャフトの四方の壁へ（各階）"))
     # 外周の構面の筋かい（各辺 5スパン以下ごと・各段）
     n_br = 0
     for spans in (r.spans_u, r.spans_u, r.spans_v, r.spans_v):
         n_br += math.ceil(len(spans) / BRACE_EVERY_SPANS) * (n_lv - 1)
     q.append(("筋交", int(max(r.spans_u)), n_br * 2, "内部ステージの外周の筋かい（交さ2方向）"))
-    q.append(("はしご", 0, 1, "内部ステージの昇降（はしご）"))
+    q.append(("はしご", 0, n_deck, "内部ステージの昇降（はしご）" + ("・作業床の段ごと" if n_deck > 1 else "")
+              + ("。壁が近いので内側に立て、作業床ははしご口（ハッチ付きの踏板）で抜ける" if not r.guard else "")))
 
 
 def _cap(caps: Optional[dict], item: str, key: str = "0") -> Optional[float]:
@@ -433,7 +457,9 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
     h_m = (r.deck_mm + GUARD_MM) / 1000.0
     # 1. 支柱の軸力（内側の支柱。受け持ち＝隣り合うスパンの半分ずつ）
     trib = su * sv
-    n_kn = trib * (r.live_kn_m2 + DECK_DEAD_KN_M2) + POST_SELF_KN_PER_M * h_m
+    # 作業床が何段もあるとき（EVシャフトの各階）は床の自重は全段、積載は同時に2層まで（日建 ND の使用基準）
+    n_deck = 1 + len(r.deck_levels)
+    n_kn = trib * (r.live_kn_m2 * min(2, n_deck) + DECK_DEAD_KN_M2 * n_deck) + POST_SELF_KN_PER_M * h_m
     allow = _cap(caps, "支柱許容圧縮耐力")
     if allow is None:
         out.append(StageCheck("支柱の軸力", "WARN", f"内側の支柱1本 {n_kn:.2f}kN（許容耐力が系列の資料に無いので確認）"))
@@ -452,14 +478,34 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
                f"積載 {r.live_kn_m2:.1f}kN/m² だと1スパン {bay:.2f}kN（{bay * 102:.0f}kg）で許容 {deck_allow:.2f}kN"
                f"（{deck_allow * 102:.0f}kg）を超える。1スパン {deck_allow * 102:.0f}kg 以下を掲示し、資材を分散して置く")
         out.append(StageCheck("作業床の積載", st, msg))
-    # 3. 高さと短辺の比（転倒・横揺れ）
+    # 3. 高さと短辺の比（転倒・横揺れ）。EVシャフトは各階で四方の壁に壁つなぎ
     short = min(r.length_u, r.length_v) / 1000.0
     ratio = h_m / max(short, 1e-6)
-    out.append(StageCheck("高さと短辺の比", "OK" if ratio <= HB_LIMIT else "WARN",
-                          f"高さ {h_m:.2f}m／短辺 {short:.2f}m＝{ratio:.1f}" + (
-                              "（4 以下）" if ratio <= HB_LIMIT else "。4 を超えるので壁・柱から控え（壁つなぎ）を取る")))
+    if r.use == "EVシャフト":
+        vmax = SHAFT_TIE_V_MAX_MM["frame" if master.system_type == FRAME else "wedge"]
+        lv = [0.0] + list(r.floors_mm) + [float(r.deck_mm)]
+        gap = max(b - a for a, b in zip(lv, lv[1:]))
+        out.append(StageCheck("壁つなぎ", "OK" if gap <= vmax else "WARN",
+                              f"高さ {h_m:.2f}m／短辺 {short:.2f}m＝{ratio:.1f}。各階で四方の壁に壁つなぎ（壁つなぎ用インサート）、"
+                              f"垂直の間隔 最大 {gap:.0f}mm" + ("" if gap <= vmax else f"（{vmax}mm を超えるので中間にも取る）")
+                              + "（安衛則570条1項5号）"))
+    else:
+        out.append(StageCheck("高さと短辺の比", "OK" if ratio <= HB_LIMIT else "WARN",
+                              f"高さ {h_m:.2f}m／短辺 {short:.2f}m＝{ratio:.1f}" + (
+                                  "（4 以下）" if ratio <= HB_LIMIT else "。4 を超えるので壁・柱から控え（壁つなぎ）を取る")))
     # 4. 墜落防止・昇降（作業床 2m 以上: 安衛則563条・526条）
-    if r.deck_mm >= 2000:
+    if r.use == "EVシャフト":
+        gap_ok = r.wall_gap_mm <= SHAFT_WALL_GAP_MAX_MM
+        out.append(StageCheck("墜落防止・昇降", "OK" if gap_ok else "WARN",
+                              f"作業床 {1 + len(r.deck_levels)}段（{'・'.join(str(h) for h in r.deck_levels + [r.deck_mm])}mm）。"
+                              f"作業床の端と壁の隙間 {r.wall_gap_mm:.0f}mm"
+                              + ("（30cm 以下なので外周の手すりは省く）" if gap_ok else
+                                 "（30cm を超えるので外周に手すり・中桟・幅木）")
+                              + "。昇降は作業床の段ごとのはしご"))
+        r.notes.append("乗場の開口は各階で手すり・養生枠で囲い（安衛則519条）、「開口部 立入禁止」を表示する。足場の解体後も"
+                       "養生枠でふさぎ、エレベーター業者の入場後は業者の養生に引き継ぐ")
+        r.notes.append("シャフトの中は上下の同時作業をしない（落下物）。資材の荷揚げは作業床の端で受け、開口から身を乗り出さない")
+    elif r.deck_mm >= 2000:
         out.append(StageCheck("墜落防止・昇降", "OK", f"作業床 {r.deck_mm}mm: 外周に手すり H{GUARD_MM}＋中桟＋幅木、昇降のはしご1箇所"
                               "（作業床の隙間 3cm 以下・開口部は手すりで囲う）"))
     else:
@@ -489,6 +535,9 @@ def stage_report(r: StageResult) -> str:
              f"短手 {'+'.join(map(str, r.spans_v))}）",
              f"- 作業床の高さ: {r.deck_mm} mm（段 {len(r.levels) - 1}・支柱 {'+'.join(map(str, r.posts))}・ジャッキ {r.jack_mm}）",
              f"- 積載: {r.live_kn_m2:.1f} kN/m²"]
+    if r.use == "EVシャフト":
+        lines.append(f"- 用途: EVシャフト（各階の床 {'・'.join(f'{f:.0f}' for f in r.floors_mm)}mm／作業床の段 "
+                     f"{'・'.join(str(h) for h in r.deck_levels + [r.deck_mm])}mm）")
     if r.use == "支保工":
         lines.append(f"- 用途: 型枠支保工（スラブ厚 {r.slab_mm:.0f}mm・設計荷重 {r.design_kn_m2:.2f} kN/m²・支柱高さ {r.top_mm}mm）")
     lines += ["", "## 検証", ""]
@@ -508,5 +557,8 @@ def stage_report(r: StageResult) -> str:
 def stage_params(r: StageResult, line_mode: bool = False) -> dict:
     """部品 ashiba_stage のパラメータ（原点は外周の支柱の始めの角、faceAng は長手の向き）."""
     return {"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
-            "lvList": ",".join(str(int(h + r.base_mm)) for h in r.levels), "deckH": (r.deck_mm + r.base_mm) / 1000.0,
+            "lvList": ",".join(str(int(h + r.base_mm)) for h in sorted(r.levels + r.upper_levels)),
+            "deckH": (r.deck_mm + r.base_mm) / 1000.0,
+            "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),
+            "postTop": ((r.top_mm + r.base_mm) / 1000.0) if r.use == "支保工" else 0.0,
             "zBase": r.base_mm / 1000.0, "stName": r.name, "lineMode": bool(line_mode)}

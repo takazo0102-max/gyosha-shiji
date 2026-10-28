@@ -77,6 +77,15 @@ STAIR_DIRS = {"なし": None, "長手の向きに上がる": ("u", False), "長�
               "短手の向きに上がる": ("v", False), "短手の向きに下がる": ("v", True)}
 
 
+def upper_floors(c, floor: float) -> list[float]:
+    """足場の立つ面（床の天端 floor）より上の階の高さ（floor から mm）. EVシャフトの各階の作業床の既定."""
+    try:
+        st = c.tapir("GetStories", {}).get("stories", [])
+    except Exception:
+        return []
+    return sorted(float(s["level"]) * 1000.0 - floor for s in st if float(s["level"]) * 1000.0 > floor + 500.0)
+
+
 def main() -> int:
     import run_from_archicad as R
     from form_dialog import show_form
@@ -106,8 +115,11 @@ def main() -> int:
                                 {"key": "deck", "label": "作業床の高さ mm", "kind": "number", "value": str(deck0)},
                                 {"key": "live", "label": "積載 kN/m²", "kind": "number", "value": f"{LIVE_DEFAULT_KN_M2}"},
                                 # 型枠支保工として使う（利用者の指定 2026-10-28: 型枠支保工で使うよ、内部足場はステージ）
-                                {"key": "use", "label": "用途", "kind": "choice", "options": ["足場", "支保工"],
+                                {"key": "use", "label": "用途", "kind": "choice", "options": ["足場", "支保工", "EVシャフト"],
                                  "value": "足場"},
+                                # EVシャフトの中（利用者の指定 2026-10-28: 内部足場はステージとEV部分）
+                                {"key": "floors", "label": "EVシャフト: 各階の床の高さ mm（足場の立つ面から・カンマ区切り）",
+                                 "kind": "text", "value": ",".join(f"{v:.0f}" for v in upper_floors(c, floor))},
                                 {"key": "slab", "label": "支保工: 受けるスラブの厚さ mm", "kind": "number", "value": "200"},
                                 {"key": "tie", "label": "支保工: つなぎ方", "kind": "choice", "options": list(SHORING_TIES),
                                  "value": SHORING_TIES[0]},
@@ -132,6 +144,9 @@ def main() -> int:
             "use": str(vals.get("use") or "足場"),
             "slab_mm": float(str(vals.get("slab") or "200").replace(",", "")),
             "tie": str(vals.get("tie") or SHORING_TIES[0])}
+    if item["use"] == "EVシャフト":
+        item["floors_mm"] = [float(t) for t in str(vals.get("floors") or "").replace("、", ",").split(",")
+                             if t.strip().replace(".", "", 1).isdigit()]
     sd = STAIR_DIRS.get(str(vals.get("stair") or ""))
     steps = int(float(str(vals.get("st_steps") or "0").replace(",", "")))
     if sd and steps > 0:

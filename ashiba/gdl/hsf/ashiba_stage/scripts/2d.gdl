@@ -100,11 +100,17 @@ for i = 1 to nU + 1
 		circle2 xu[i], yv[j], 0.025
 	next j
 next i
-! 外周の手すり（二重線）
-rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
-! はしご（始めの角の外）
-rect2 0.15, -0.45, 0.60, -0.10
-line2 0.15, -0.28, 0.60, -0.28
+! 外周の手すり（二重線。EVシャフトは壁が近いので無し）
+if guardOn then rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）
+if guardOn then
+	rect2 0.15, -0.45, 0.60, -0.10
+	line2 0.15, -0.28, 0.60, -0.28
+else
+	rect2 0.15, 0.10, 0.60, 0.45
+	line2 0.15, 0.10, 0.60, 0.45
+	line2 0.15, 0.45, 0.60, 0.10
+endif
 hotspot2 0, 0
 hotspot2 stLU, 0
 hotspot2 stLU, stLV
@@ -117,5 +123,7 @@ aTx = aTx - 360 * int(aTx / 360)
 if aTx < 0 then aTx = aTx + 360
 if aTx > 90.001 and aTx < 270.001 then rot2 180
 text2 0, 0.15, stName
-text2 0, -0.25, "床高" + str((deckH - zBase) * 1000, 5, 0) + "（" + str(stLU * 1000, 5, 0) + "×" + str(stLV * 1000, 5, 0) + "）"
+tDk = ""
+if strlen(deckList) > 0 then tDk = "・ほかに床 " + deckList
+text2 0, -0.25, "床高" + str((deckH - zBase) * 1000, 5, 0) + tDk + "（" + str(stLU * 1000, 5, 0) + "×" + str(stLV * 1000, 5, 0) + "）"
 del top

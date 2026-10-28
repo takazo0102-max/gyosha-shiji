@@ -177,3 +177,41 @@ class TestStairStage(unittest.TestCase):
         self.assertIn("階段の上の支柱（列ごと）", stage_report(r))
         moved = self.stair(from_mm=750)
         self.assertNotIn("踏面の端", {c.item for c in moved.checks})
+
+
+class TestShaftStage(unittest.TestCase):
+    """EVシャフトの中に組む内部足場（利用者の指定 2026-10-28: 内部足場はステージとEV部分）."""
+
+    def shaft(self, **kw):
+        m = load_master("nikken_nd1800")
+        item = {"name": "EV1", "corners_mm": [[0, 0], [2400, 0], [2400, 2200], [0, 2200]], "deck_mm": 16000,
+                "use": "EVシャフト", "floors_mm": [1500, 5000, 8500, 12000, 15500], **kw}
+        return solve_stage(item, m, load_capacities("nikken_nd1800"))
+
+    def test_decks_at_each_floor_and_no_perimeter_guard(self):
+        r = self.shaft()
+        self.assertEqual(r.use, "EVシャフト")
+        self.assertEqual(len(r.deck_levels), 4)                      # 最上段のほかに各階
+        for f, h in zip(r.floors_mm, r.deck_levels):
+            self.assertLess(abs(f - h), 900)
+        self.assertFalse(r.guard)                                   # 壁との隙間 30cm 以下
+        q = {(c, why) for c, _, _, why in r.quantity}
+        self.assertFalse(any(c == "幅木" for c, _ in q))
+        n = {c: sum(k for cc, _, k, _ in r.quantity if cc == c) for c in ("壁つなぎ", "はしご")}
+        self.assertEqual(n["壁つなぎ"], 4 * 5)
+        self.assertEqual(n["はしご"], 5)
+        p = stage_params(r)
+        self.assertFalse(p["guardOn"])
+        self.assertEqual(len(p["deckList"].split(",")), 4)
+
+    def test_checks_and_notes(self):
+        r = self.shaft()
+        st = {c.item: c.status for c in r.checks}
+        self.assertNotIn("高さと短辺の比", st)
+        self.assertEqual(st["壁つなぎ"], "OK")
+        self.assertTrue(any("519条" in n for n in r.notes))
+        sparse = self.shaft(floors_mm=[1500, 9000])                # 階の間が 5m を超える
+        self.assertEqual({c.item: c.status for c in sparse.checks}["壁つなぎ"], "WARN")
+        wide = self.shaft(corners_mm=[[0, 0], [2700, 0], [2700, 2200], [0, 2200]])
+        self.assertTrue(wide.guard)                                 # 長手の壁との隙間が 30cm を超える
+        self.assertIn("EVシャフト", stage_report(r))

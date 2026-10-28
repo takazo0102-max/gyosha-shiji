@@ -73,6 +73,12 @@ PART_PROFILES = {
             "standoff": 0.3,
         },
     },
+    # EVシャフトの内部足場（各階の床・外周の手すり無し。利用者の指定 2026-10-28）
+    "ashiba_stage": {
+        "images": ("3D", "2D"),
+        "params": {"spanU": "1829", "spanV": "1829", "lvList": "440,1565,3365,5165,6965,8765",
+                   "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1"},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）
