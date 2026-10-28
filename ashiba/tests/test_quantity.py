@@ -626,3 +626,5 @@ class TestLedgerCutNotesNameTheirReason(unittest.TestCase):
             {"face": "南面", "start_mm": 3658, "beam_span_mm": 3658, "level": 2}]).notes]
         op = next(n for n in notes if n.startswith("開口部（梁枠より下）は通路"))
         self.assertNotIn("928", op)
+        # 荷受けステージの間口が無い計画に、ステージの区間の断り書きを付けない
+        self.assertNotIn("荷受けステージ", op)
