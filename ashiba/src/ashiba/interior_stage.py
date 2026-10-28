@@ -59,6 +59,7 @@ FORM_DEPTH_MM = 175          # スラブ下端から大引の下端まで（せ�
 # EVシャフトの中に組む（利用者の指定 2026-10-28: 内部足場はステージとEV部分）。ピットから積み上げ、各階の床の高さに近い段に
 # 全面の作業床。四方の壁が近いので外周の手すりは張らず（壁との隙間 30cm 以下）、各階で四方の壁に壁つなぎ。乗場開口は
 # 安衛則519条の囲い・手すり・覆いと表示（報告 地足場と内部足場）
+SCAFFOLD_CHIEF_MM = 5000     # 吊り・張出し・高さ5m以上の足場の組立て等は作業主任者（安衛則565条）
 SHAFT_WALL_GAP_MAX_MM = 300  # 作業床の端と壁の隙間がこれ以下なら外周の手すりを省く
 SHAFT_TIE_V_MAX_MM = {"wedge": 5000, "frame": 9000}   # 壁つなぎの垂直間隔（安衛則570条1項5号: 単管5m・わく組9m）
 PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半分。踏面の端（段鼻・蹴上げ）からこれ以上離す
@@ -228,6 +229,8 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         _stair_feet(res, master, dict(item["stair"]), off_u, off_v)
     _quantity(res, master)
     _checks(res, master, capacities)
+    if res.top_mm >= SCAFFOLD_CHIEF_MM and res.use != "支保工":
+        res.notes.append(f"支柱の高さ {res.top_mm}mm（5m 以上）なので足場の組立て等作業主任者を選任する（安衛則565条・566条）")
     if res.stair_feet:
         _stair_checks(res)
     if res.use == "支保工":
@@ -393,6 +396,8 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
                            f"支柱高さ {r.top_mm}mm（3.5m 未満で届出不要）。組立図と構造計算書による組立は要る")))
     r.notes.append("敷板・敷角で沈下を防ぎ、根がらみで滑動を防ぐ。敷板・敷角は2段以上はさまない（安衛則242条・手引 p145・p268）")
     r.notes.append("大引は大引受けジャッキ（鋼製の受け金物）で固定し、継ぎは支柱の上で。根太・せき板は型枠の割付による")
+    r.notes.append("型枠支保工の組立て等作業主任者を選任して指揮させる（高さに関係なく。安衛則246条・247条）。コンクリートの打設は"
+                   "その日の作業前に支保工を点検し、偏らないよう打ち、異常があれば作業を止める（安衛則244条）")
 
 
 def _quantity(r: StageResult, master) -> None:

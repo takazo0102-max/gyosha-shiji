@@ -131,6 +131,7 @@ class TestShoringStage(unittest.TestCase):
         h = next(c for c in r.checks if c.item == "支保工の水平荷重")
         self.assertIn("5.0%", h.message)
         self.assertTrue(any("2段以上" in n for n in r.notes))
+        self.assertTrue(any("型枠支保工の組立て等作業主任者" in n for n in r.notes))
         self.assertIn("型枠支保工", stage_report(r))
         # 部品: 支柱は大引の下まで、頂部に大引受けジャッキ
         p = stage_params(r)
@@ -235,8 +236,39 @@ class TestShaftStage(unittest.TestCase):
         self.assertNotIn("高さと短辺の比", st)
         self.assertEqual(st["壁つなぎ"], "OK")
         self.assertTrue(any("519条" in n for n in r.notes))
+        self.assertTrue(any("足場の組立て等作業主任者" in n for n in r.notes))      # 高さ 5m 以上
         sparse = self.shaft(floors_mm=[1500, 9000])                # 階の間が 5m を超える
         self.assertEqual({c.item: c.status for c in sparse.checks}["壁つなぎ"], "WARN")
         wide = self.shaft(corners_mm=[[0, 0], [2700, 0], [2700, 2200], [0, 2200]])
         self.assertTrue(wide.guard)                                 # 長手の壁との隙間が 30cm を超える
         self.assertIn("EVシャフト", stage_report(r))
+
+
+class TestStagePartParams(unittest.TestCase):
+    """配置の時に渡すパラメータが部品 ashiba_stage にあって型が合う（実機で型が違うと設定が弾かれる。2026-10-28 guardOn）."""
+
+    def test_every_param_exists_with_the_right_type(self):
+        import re
+
+        xml = (ROOT / "gdl" / "hsf" / "ashiba_stage" / "paramlist.xml").read_text(encoding="utf-8")
+        kinds = dict((n, k) for k, n in re.findall(r'<(\w+) Name="(\w+)">', xml))
+        m = load_master("nikken_nd1800")
+        cases = [solve(), solve(deck_mm=2800, use="支保工", slab_mm=200, ceiling_mm=4400),
+                 solve_stage({"name": "EV", "corners_mm": [[0, 0], [2400, 0], [2400, 2200], [0, 2200]], "deck_mm": 9000,
+                              "use": "EVシャフト", "floors_mm": [1500, 5000]}, m),
+                 solve_stage({"name": "階段", "corners_mm": [[0, 0], [6000, 0], [6000, 2800], [0, 2800]], "deck_mm": 4500,
+                              "stair": {"axis": "u", "from_mm": 750, "tread_mm": 250, "riser_mm": 180, "steps": 16}}, m)]
+        want = {"Boolean": bool, "Integer": int, "Length": float, "RealNum": float, "Angle": float, "String": str}
+        for r in cases:
+            for k, v in stage_params(r).items():
+                with self.subTest(use=r.use, param=k):
+                    self.assertIn(k, kinds)
+                    t = want.get(kinds[k])
+                    if t is bool:
+                        self.assertIsInstance(v, bool)
+                    elif t is int:
+                        self.assertTrue(isinstance(v, int) and not isinstance(v, bool))
+                    elif t is float:
+                        self.assertIsInstance(v, (int, float))
+                    elif t is str:
+                        self.assertIsInstance(v, str)
