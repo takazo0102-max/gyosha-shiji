@@ -61,7 +61,8 @@ class TestNikkenNd1800Master(unittest.TestCase):
         for (item, key), c in caps.items():
             with self.subTest(item=item, key=key):
                 self.assertTrue(c.verified, (item, key))
-                self.assertIn("カタログVol.10 p", c.source)
+                # 支保工の承認値は Vol.10 に無く、足場カタログ（ダーウィン 2024 の抜粋）から
+                self.assertTrue("カタログVol.10 p" in c.source or "ダーウィン 2024" in c.source, c.source)
         self.assertEqual(caps[("支柱許容圧縮耐力", "0")].value, 11.0)
         self.assertEqual(caps[("支柱許容圧縮耐力[幅610]", "0")].value, 12.0)
         self.assertEqual(caps[("支柱許容圧縮耐力[幅914]", "0")].value, 12.0)

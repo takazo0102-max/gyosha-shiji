@@ -9,8 +9,15 @@
 - 検証: 支柱1本の軸力（自重＋作業床＋積載）と許容耐力、1スパンあたりの積載と作業床の許容積載、高さと短辺の比
   （4 を超えたら控え・壁つなぎ）、作業床の高さ 2m 以上の手すり・幅木・昇降設備
 
+型枠支保工として使う（"use": "支保工"。利用者の指定 2026-10-28）: 上のスラブの型枠を受ける。設計荷重＝23.5kN/m³×スラブ厚＋型枠
+0.39＋積載 1.47kN/m²、支柱1本の軸力をメーカーの支保工の承認値（つなぎ方別）と比べ、上端の水平荷重 5%（枠組 2.5%）を筋かいで受け、
+大引受けジャッキの繰出し・水平つなぎの間隔・設置届（支柱高さ 3.5m 以上）を見る。
+
+階段の上に組む（"stair"。利用者の指定 2026-10-28）: 踏面ごとの支柱を段の高さだけ短くし、ジャッキ（足りなければ敷板 2枚まで）
+で作業床の段にそろえる。底板が段鼻・蹴上げにかかる列を知らせる。
+
 入力: interior_stages: [{"name": "吹抜け", "corners_mm": [[x,y],[x,y],[x,y],[x,y]], "deck_mm": 6000,
-       "live_kn_m2": 1.5, "base_mm": 0}]
+       "live_kn_m2": 1.5, "base_mm": 0, "use": "足場"|"支保工", "slab_mm": 200, "tie": "片方向つなぎ材"}]
 """
 
 from __future__ import annotations
@@ -18,6 +25,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from typing import Optional
+
+from .master import FRAME
 
 CLEAR_MM = 150.0             # 壁から外周の支柱まで
 LIVE_DEFAULT_KN_M2 = 1.5     # 作業床の積載（軽作業・仕上げ）
@@ -27,6 +36,27 @@ HB_LIMIT = 4.0               # 高さ／短辺がこれを超えたら控え・�
 BRACE_EVERY_SPANS = 5
 FIT_SLACK_MM = 900.0         # 壁際の余り（片側 CLEAR_MM に足して両側でこれ以内）
 GUARD_MM = 900               # 手すりの高さ（作業床から）
+# 型枠支保工として使う（利用者の指定 2026-10-28: 型枠支保工で使うよ、内部足場はステージ）。建災防東京支部
+# 「計画届作成の手引（第6版）」14章・参考資料2: 設計荷重＝固定荷重（鉄筋コンクリート 2400kg/m³×厚さ＋型枠 40kg/m²）＋
+# 積載荷重 150kg/m²（安衛則240条）。水平荷重は設計荷重の 5%（鋼管枠を支柱にするときは 2.5%）。支柱高さ 3.5m 以上は設置届
+RC_KN_M3 = 23.5              # 鉄筋コンクリートの自重 2400kg/m³
+FORM_KN_M2 = 0.39            # 型枠の自重 40kg/m²
+SHORING_LIVE_KN_M2 = 1.47    # 積載荷重 150kg/m²（作業荷重＋衝撃荷重）
+SHORING_H_RATIO = 0.05       # 水平荷重（鋼管枠以外の支柱）
+SHORING_H_RATIO_FRAME = 0.025
+SHORING_NOTIFY_MM = 3500     # 支柱高さ（ベース板〜上部ベース板）がこれ以上なら設置届
+TIE_PITCH_MAX_MM = 2000      # 水平つなぎ（くさびは各段の布材）の間隔
+BRACE_CLAMP_KN = 3.43        # 単管の筋かいを留める自在クランプの許容耐力（350kgf。手引 p242）
+UHEAD_EXT_TARGET_MM = 150    # 支柱の積み方を選ぶときの繰出しのねらい（上下に調整の余地を残す）
+UHEAD_EXT_MAX_MM = 350       # 大引受けジャッキ（Uジャッキ）の繰出しの上限（仮設工業会の承認の組立基準）
+FORM_DEPTH_MM = 175          # スラブ下端から大引の下端まで（せき板12＋根太60＋大引100 の目安）
+# 階段の上に組む（利用者の指定 2026-10-28: 内部足場は階段でよく使う）。踏面ごとに支柱を立て、作業床の段（コマ）に合わせて
+# 支柱を短くし、残りをジャッキで受ける。ジャッキで受けきれない分は敷板（2枚まで）。報告 地足場と内部足場: ジャッキは
+# 段差を埋める道具ではない・敷板／敷角は2段以上はさまない（安衛則242条の考え方）
+PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半分。踏面の端（段鼻・蹴上げ）からこれ以上離す
+SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
+SHIM_BOARDS_MAX = 2
+SHORING_TIES = ("片方向つなぎ材", "両方向つなぎ材", "ブレース")   # 支保工の承認値はつなぎ方で決まる（日建 ND1800: 18／25／22kN）
 
 
 @dataclass
@@ -55,6 +85,13 @@ class StageResult:
     notes: list[str] = field(default_factory=list)
     top_mm: int = 0                   # 支柱の天端（足場の立つ面から mm）
     ceiling_mm: Optional[float] = None   # 天井（上の階の床の下端。足場の立つ面から mm。分からなければ None）
+    use: str = "足場"                 # "足場"（作業床だけ）か "支保工"（上のスラブの型枠を受ける）
+    slab_mm: float = 0.0              # 支保工: 受けるスラブの厚さ
+    design_kn_m2: float = 0.0         # 支保工: 設計荷重（固定＋積載）
+    tie: str = ""                     # 支保工: つなぎ方（SHORING_TIES）
+    uhead_ext_mm: Optional[int] = None   # 支保工: 大引受けジャッキの繰出し（天井が分かるとき）
+    upper_levels: list[int] = field(default_factory=list)   # 支保工: 作業床の段のほかに足す布材の段（水平つなぎ）
+    stair_feet: list[dict] = field(default_factory=list)    # 階段の上の支柱（段の高さ・支柱・ジャッキ・敷板・踏面の端）
 
     @property
     def length_u(self) -> float:
@@ -124,6 +161,20 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         raise ValueError(f"{name}: 作業床の高さ（deck_mm）を 1000 以上で指定してください")
     guard = 2 * int(master.koma_pitch) + int(getattr(master, "koma_top_gap", 0) or 0)
     elev = solve_elevation(int(round(deck_req)) + guard, master=master)
+    shoring = str(item.get("use", "")) in ("支保工", "型枠支保工")
+    ceil_mm = item.get("ceiling_mm")
+    depth = float(item.get("form_depth_mm", FORM_DEPTH_MM) or FORM_DEPTH_MM)
+    if shoring and ceil_mm:
+        # 支保工は支柱の天端を大引の下に合わせる: 大引受けジャッキの繰出しが UHEAD_EXT_TARGET_MM に近い支柱の積み方
+        want = float(ceil_mm) - depth
+        best = None
+        for req in range(max(1000, int(want) - 1200), int(want) + 1, 25):
+            e = solve_elevation(req, master=master)
+            ext = want - (e.jack_extension + sum(e.posts))
+            if 0 <= ext <= UHEAD_EXT_MAX_MM and (best is None or abs(ext - UHEAD_EXT_TARGET_MM) < best[0]):
+                best = (abs(ext - UHEAD_EXT_TARGET_MM), e)
+        if best is not None:
+            elev = best[1]
     # 作業床は指定にいちばん近い段（コマの位置で決まるので少し上下する。実機 2026-10-24: 4000 の指定で 4025 を捨てて
     # 2225 になった）
     hs = [int(h) for h in elev.level_heights]
@@ -133,20 +184,205 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     res = StageResult(name, origin, u, v, su, sv, levels, deck, float(item.get("base_mm", 0.0) or 0.0),
                       list(elev.posts), int(elev.jack_extension), live)
     res.top_mm = int(elev.jack_extension + sum(elev.posts))
-    ceil_mm = item.get("ceiling_mm")
+    if shoring:
+        # 作業床より上の段と、間隔が TIE_PITCH_MAX_MM を超える所に足す段（くさびはコマごとに布材を付けられる）
+        add = [h for h in hs if deck < h < res.top_mm]
+        lv = sorted(levels + add + [res.top_mm])
+        koma = int(master.koma_pitch) or 450
+        for a, b in zip(lv, lv[1:]):
+            n = math.ceil((b - a) / TIE_PITCH_MAX_MM) - 1
+            for i in range(1, n + 1):
+                add.append(a + int(round((b - a) * i / (n + 1) / koma)) * koma)
+        res.upper_levels = sorted(set(add) - set(levels))
     res.ceiling_mm = float(ceil_mm) if ceil_mm else None
+    if shoring:
+        res.use = "支保工"
+        res.slab_mm = float(item.get("slab_mm", 200.0) or 200.0)
+        res.live_kn_m2 = SHORING_LIVE_KN_M2
+        res.design_kn_m2 = RC_KN_M3 * res.slab_mm / 1000.0 + FORM_KN_M2 + SHORING_LIVE_KN_M2
+        tie = str(item.get("tie", "") or SHORING_TIES[0])
+        res.tie = tie if tie in SHORING_TIES else SHORING_TIES[0]
+        if res.ceiling_mm:
+            res.uhead_ext_mm = int(round(res.ceiling_mm - depth - res.top_mm))
+    if item.get("stair"):
+        _stair_feet(res, master, dict(item["stair"]), off_u, off_v)
     _quantity(res, master)
     _checks(res, master, capacities)
+    if res.stair_feet:
+        _stair_checks(res)
+    if res.use == "支保工":
+        _shoring(res, master, capacities)
     return res
+
+
+def _stair_feet(r: StageResult, master, st: dict, off_u: float, off_v: float) -> None:
+    """階段の上の支柱: 段の高さ z の脚は、下端を作業床の段（コマ）にそろう高さまで上げ、支柱を短くしてジャッキで受ける.
+
+    stair: {"axis": "u"（長手）か "v", "from_mm": 範囲の始めの辺から1段目の蹴上げまで, "tread_mm", "riser_mm", "steps"}。
+    踏面は始めの辺から遠い方へ上がる（"down": true なら下がる＝範囲の始めの側が高い）。
+    """
+    from .elevation_solver import JACK_MAX_EXTENSION, JACK_MIN_EXTENSION, _compose_table
+
+    axis = str(st.get("axis", "u"))
+    tread = float(st.get("tread_mm", 250) or 250)
+    riser = float(st.get("riser_mm", 180) or 180)
+    steps = int(st.get("steps", 0) or 0)
+    start = float(st.get("from_mm", 0) or 0)
+    down = bool(st.get("down", False))
+    spans, off = (r.spans_u, off_u) if axis == "u" else (r.spans_v, off_v)
+    xs, acc = [off], off
+    for sp in spans:
+        acc += sp
+        xs.append(acc)
+    koma = int(master.koma_pitch) or 450
+    hard = master.jack_hard_max_mm()
+    rated = max(JACK_MAX_EXTENSION, min(hard, 432))
+    lengths = sorted(set(master.post_lengths(include_negarami=True)), reverse=True)
+    table = _compose_table(r.top_mm, lengths)
+    for i, x in enumerate(xs):
+        k = 0 if x < start else min(steps, int((x - start) // tread) + 1)
+        z = (steps - k if down else k) * riser
+        edges = [start + j * tread for j in range(steps + 1)]
+        edge = min((abs(x - e) for e in edges), default=1e9)
+        ext = (r.jack_mm - z) % koma
+        if ext < JACK_MIN_EXTENSION:
+            ext += koma
+        shim = 0
+        if ext > rated:
+            shim = math.ceil((ext - rated) / SHIM_BOARD_MM)
+            ext -= shim * SHIM_BOARD_MM
+        need = int(round(r.top_mm - z - ext - shim * SHIM_BOARD_MM))
+        stack = list(r.posts) if z == 0 else table.get(need)
+        r.stair_feet.append({"axis": axis, "index": i, "x_mm": round(x), "z_mm": z, "jack_mm": int(round(ext)),
+                             "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge)})
+
+
+def _stair_checks(r: StageResult) -> None:
+    from .elevation_solver import JACK_MAX_EXTENSION
+
+    feet = r.stair_feet
+    out = r.checks
+    zs = sorted({f["z_mm"] for f in feet})
+    jacks = [f["jack_mm"] for f in feet]
+    over = [f for f in feet if f["shim"] > SHIM_BOARDS_MAX or f["posts"] is None]
+    shims = [f for f in feet if 0 < f["shim"] <= SHIM_BOARDS_MAX]
+    long_ = [f for f in feet if f["jack_mm"] > JACK_MAX_EXTENSION]
+    st = "NG" if over else ("WARN" if shims or long_ else "OK")
+    msg = (f"階段の上の支柱の列 {len(feet)}（段の高さ {'・'.join(f'{z:.0f}' for z in zs)}）: 支柱を段ごとに短くし、ジャッキの繰出し "
+           f"{min(jacks)}〜{max(jacks)}mm で作業床の段にそろえる")
+    if long_:
+        msg += f"。繰出しが {JACK_MAX_EXTENSION}mm を超える列 {len(long_)}（許容繰出しの大きいロングジャッキを使う）"
+    if shims:
+        msg += f"。敷板 {max(f['shim'] for f in shims)}枚で上げる列 {len(shims)}（{SHIM_BOARDS_MAX}枚まで）"
+    if over:
+        msg += (f"。{len(over)}列はジャッキ＋敷板 {SHIM_BOARDS_MAX}枚で受けきれない（敷角を重ねない。支柱の位置を踏面の"
+                "中ほどにずらすか、段ごとに建地を立てて調整する）")
+    out.append(StageCheck("階段の上の支柱", st, msg + "（ジャッキは段差を埋める道具ではない。報告 地足場と内部足場）"))
+    near = [f for f in feet if f["edge_mm"] < PLATE_HALF_MM]
+    if near:
+        out.append(StageCheck("踏面の端", "WARN",
+                              f"{len(near)}列の支柱が段鼻・蹴上げから {PLATE_HALF_MM}mm 以内（ジャッキの底板が踏面に乗りきらない）。"
+                              "踏面に敷板を渡して受けるか、スパンをずらす"))
+    r.notes.append("階段の上の支柱は段ごとに下端の高さが違うので、根がらみは段ごとにその支柱の最初のコマで取り、"
+                   "脚の滑り止め（踏面に敷板を釘止め・根がらみを2方向）を付ける")
+
+
+def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
+    """型枠支保工として使うときの部材と検定（手引 14章・参考資料2）."""
+    nu, nv = len(r.spans_u), len(r.spans_v)
+    n_posts = (nu + 1) * (nv + 1)
+    # 頂部: 大引受けジャッキ（鋼製の受け金物で大引を固定）、大引は長手の支柱の列ごと、根太・せき板は型枠大工
+    r.quantity.append(("大引受けジャッキ", 0, n_posts, "支保工の頂部（大引を受けて固定する）"))
+    r.quantity.append(("大引", int(r.length_u), nv + 1, "支保工の大引（長手の支柱の列ごと。端太角か単管。継ぎは支柱の上）"))
+    su, sv = max(r.spans_u) / 1000.0, max(r.spans_v) / 1000.0
+    h_m = r.top_mm / 1000.0
+    q = r.design_kn_m2
+    out = r.checks
+    # 足場としての支柱の軸力（作業床の積載だけ）は支保工の軸力に置き換える
+    out[:] = [c for c in out if c.item != "支柱の軸力"]
+    out.append(StageCheck("支保工の設計荷重", "OK",
+                          f"固定 {RC_KN_M3 * r.slab_mm / 1000:.2f}（鉄筋コンクリート 2400kg/m³×{r.slab_mm:.0f}mm）＋型枠 {FORM_KN_M2:.2f}"
+                          f"＋積載 {SHORING_LIVE_KN_M2:.2f}（150kg/m²）＝{q:.2f}kN/m²（安衛則240条・計画届作成の手引 p261）"))
+    n_kn = su * sv * q + POST_SELF_KN_PER_M * h_m
+    allow = _cap(caps, "支保工許容支持力", r.tie)
+    if allow is None:
+        scaf = _cap(caps, "支柱許容圧縮耐力")
+        if scaf is not None and n_kn <= scaf:
+            out.append(StageCheck("支保工の支柱の軸力", "OK",
+                                  f"内側の支柱1本 {n_kn:.2f}kN ≦ 足場としての許容 {scaf:.1f}kN（支保工の承認値は"
+                                  "これより大きいので足りる。手引 p143）"))
+        else:
+            out.append(StageCheck("支保工の支柱の軸力", "WARN",
+                                  f"内側の支柱1本 {n_kn:.2f}kN。この機種の支保工の許容支持力（承認値・つなぎ方別）を"
+                                  "メーカーに確かめる（組み合わされた支保工は指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
+    else:
+        st = "OK" if n_kn <= allow else "NG"
+        out.append(StageCheck("支保工の支柱の軸力", st,
+                              f"内側の支柱1本 {n_kn:.2f}kN {'≦' if st == 'OK' else '＞'} 許容 {allow:.1f}kN（{r.tie}）"
+                              + ("" if st == "OK" else "。支柱の間隔を詰めるか、つなぎ材を両方向に入れる")
+                              + "（組み合わされた支保工はメーカー指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
+    ratio = SHORING_H_RATIO_FRAME if master.system_type == FRAME else SHORING_H_RATIO
+    area = r.length_u * r.length_v / 1e6
+    hk = ratio * q * area
+    need = math.ceil(hk * math.sqrt(2.0) / BRACE_CLAMP_KN)
+    have = min(2 * math.ceil(len(sp) / BRACE_EVERY_SPANS) for sp in (r.spans_u, r.spans_v))
+    out.append(StageCheck("支保工の水平荷重", "OK" if have >= need else "WARN",
+                          f"設計荷重の {ratio * 100:.1f}%＝{hk:.1f}kN（{area:.0f}m²）を上端に見込む。筋かい（45°・自在クランプ "
+                          f"{BRACE_CLAMP_KN}kN。FD＝H/(n·cos45°)）で受けると各層・各方向 {need}本以上、外周の筋かいは {have}本"
+                          + ("" if have >= need else f"。内側の通りにも筋かいを足すか（各層・各方向あと {need - have}本）、"
+                             "打設済みの柱・壁に水平力を預ける形を構造計算書で示す")
+                          + "（安衛則240条3項4号・手引 p263）"))
+    if r.uhead_ext_mm is not None:
+        e = r.uhead_ext_mm
+        if e < 0:
+            st, msg = "NG", f"支柱の天端が大引の下端より {-e}mm 高い。短い支柱に替える"
+        elif e > UHEAD_EXT_MAX_MM:
+            st, msg = "NG", f"大引受けジャッキの繰出し {e}mm が {UHEAD_EXT_MAX_MM}mm を超える。支柱を足すか長い支柱に替える"
+        else:
+            st, msg = "OK", f"大引受けジャッキの繰出し {e}mm（{UHEAD_EXT_MAX_MM}mm 以下）"
+        out.append(StageCheck("大引受けジャッキ", st, msg + f"（スラブ下端 {r.ceiling_mm:.0f}mm から型枠の厚さを引いた位置まで）"))
+    # 根がらみから支柱の天端まで（作業床より上の段も入れる）。天端の上は大引受けジャッキ
+    lv = sorted(r.levels + r.upper_levels + [r.top_mm])
+    pitch = max((b - a for a, b in zip(lv, lv[1:])), default=0)
+    out.append(StageCheck("水平つなぎ", "OK" if pitch <= TIE_PITCH_MAX_MM else "NG",
+                          f"根がらみから支柱の天端まで布材の段の間隔 最大 {pitch}mm（{TIE_PITCH_MAX_MM}mm 以内ごとに直交2方向。"
+                          "手引 p141・p268）"))
+    if r.upper_levels:
+        nu, nv = len(r.spans_u), len(r.spans_v)
+        k = len(r.upper_levels)
+        for s, cnt in sorted({sp: r.spans_u.count(sp) for sp in r.spans_u}.items()):
+            r.quantity.append(("布材", int(s), cnt * (nv + 1) * k, "支保工の水平つなぎ（作業床の段のほか・長手）"))
+        for s, cnt in sorted({sp: r.spans_v.count(sp) for sp in r.spans_v}.items()):
+            r.quantity.append(("布材", int(s), cnt * (nu + 1) * k, "支保工の水平つなぎ（作業床の段のほか・短手）"))
+    need_notify = r.top_mm >= SHORING_NOTIFY_MM
+    out.append(StageCheck("設置届", "WARN" if need_notify else "OK",
+                          (f"支柱高さ {r.top_mm}mm（3.5m 以上）なので型枠支保工の設置届（安衛法88条・様式20号）。"
+                           "配置図・直交2方向の組立図・構造計算書を添付" if need_notify else
+                           f"支柱高さ {r.top_mm}mm（3.5m 未満で届出不要）。組立図と構造計算書による組立は要る")))
+    r.notes.append("敷板・敷角で沈下を防ぎ、根がらみで滑動を防ぐ。敷板・敷角は2段以上はさまない（安衛則242条・手引 p145・p268）")
+    r.notes.append("大引は大引受けジャッキ（鋼製の受け金物）で固定し、継ぎは支柱の上で。根太・せき板は型枠の割付による")
 
 
 def _quantity(r: StageResult, master) -> None:
     nu, nv = len(r.spans_u), len(r.spans_v)
     n_posts = (nu + 1) * (nv + 1)
     q = r.quantity
+    # 階段の上の列は段ごとに支柱の積み方が違う（列ごとに直角方向の本数だけ）
+    per_row = (nv + 1) if (r.stair_feet and r.stair_feet[0]["axis"] == "u") else (nu + 1)
+    counts: dict[int, int] = {}
+    stair_rows = [f for f in r.stair_feet if f["posts"]]
     for p in r.posts:
-        q.append(("支柱", int(p), n_posts, "内部ステージの支柱"))
+        counts[int(p)] = counts.get(int(p), 0) + n_posts - per_row * len(stair_rows)
+    for f in stair_rows:
+        for p in f["posts"]:
+            counts[int(p)] = counts.get(int(p), 0) + per_row
+    for p, k in sorted(counts.items(), reverse=True):
+        if k:
+            q.append(("支柱", p, k, "内部ステージの支柱" + ("（階段の上は段ごとの長さ）" if stair_rows else "")))
     q.append(("ジャッキ", 0, n_posts, "内部ステージのジャッキベース"))
+    n_shim = sum(f["shim"] for f in r.stair_feet) * per_row
+    if n_shim:
+        q.append(("敷板", 0, n_shim, "階段の上の支柱の高さ合わせ（1脚 2枚まで）"))
     n_lv = len(r.levels)                       # 根がらみ＋各段
     for s in sorted(set(r.spans_u)):
         k = r.spans_u.count(s) * (nv + 1) * n_lv
@@ -252,10 +488,18 @@ def stage_report(r: StageResult) -> str:
              f"- 範囲（支柱の芯）: {r.length_u:.0f} × {r.length_v:.0f} mm（スパン 長手 {'+'.join(map(str, r.spans_u))}／"
              f"短手 {'+'.join(map(str, r.spans_v))}）",
              f"- 作業床の高さ: {r.deck_mm} mm（段 {len(r.levels) - 1}・支柱 {'+'.join(map(str, r.posts))}・ジャッキ {r.jack_mm}）",
-             f"- 積載: {r.live_kn_m2:.1f} kN/m²", "", "## 検証", ""]
+             f"- 積載: {r.live_kn_m2:.1f} kN/m²"]
+    if r.use == "支保工":
+        lines.append(f"- 用途: 型枠支保工（スラブ厚 {r.slab_mm:.0f}mm・設計荷重 {r.design_kn_m2:.2f} kN/m²・支柱高さ {r.top_mm}mm）")
+    lines += ["", "## 検証", ""]
     lines += [f"- {c.item}: {c.status} — {c.message}" for c in r.checks]
     lines += ["", "## 数量", "", "| 分類 | 呼び寸法 | 数 | 用途 |", "|---|---|---|---|"]
     lines += [f"| {c} | {d or ''} | {n} | {why} |" for c, d, n, why in r.quantity]
+    if r.stair_feet:
+        lines += ["", "## 階段の上の支柱（列ごと）", "", "| 列 | 位置 | 段の高さ | 敷板 | ジャッキ | 支柱 | 踏面の端まで |",
+                  "|---|---|---|---|---|---|---|"]
+        lines += [f"| {f['index'] + 1} | {f['x_mm']} | {f['z_mm']:.0f} | {f['shim']} | {f['jack_mm']} | "
+                  f"{'+'.join(map(str, f['posts'])) if f['posts'] else '組めない'} | {f['edge_mm']} |" for f in r.stair_feet]
     if r.notes:
         lines += ["", "## 注意", ""] + [f"- {n}" for n in r.notes]
     return "\n".join(lines) + "\n"

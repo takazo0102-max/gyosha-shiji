@@ -1452,6 +1452,7 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
 
 
 STEEL_DEPTH_DEFAULT_MM = 150.0   # 仕上げ面（ALC・ECP・胴縁）から鉄骨の梁の外面まで（既定）
+GROUND_STANDOFF_MM = 500.0   # 地足場は躯体（基礎・地中梁）の面からこれ以上離す（型枠を収める）
 STEEL_BEAM_BELOW_FLOOR_MM = 150.0  # 梁の上フランジ（壁つなぎを取る所）は床の天端からこれだけ下
 
 
@@ -1471,6 +1472,13 @@ def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
     fh = int(master.floor_height or 1800)
     out = {**spec, "eaves_height_mm": n * fh, "height_from_slabs": False, "roof_bridge": False,
            "setback_tiers": False, "asagao": False, "_ground_done": True}
+    # 躯体（基礎・地中梁）の面から 500mm 以上離す: 型枠（せき板・端太・セパの突き出し）を収める（地足場の施工の目安。
+    # 報告 地足場と内部足場 2026-10-28）。ground_scaffold.standoff_mm で変えられる
+    gso = float(g.get("standoff_mm", GROUND_STANDOFF_MM) if isinstance(g, dict) else GROUND_STANDOFF_MM)
+    so = dict(spec.get("standoff") or {})
+    if float(so.get("min", 0) or 0) < gso:
+        out["standoff"] = {"target": gso, "min": gso, "max": max(gso + 150.0, float(so.get("max", 0) or 0)),
+                           "hard_min": gso}
     out.setdefault("building_height_mm", n * fh)
     st = dict(out.get("stairs") or {})
     if n <= 2 and not st.get("positions"):
@@ -1483,8 +1491,12 @@ def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
 def ground_scaffold_note(spec: dict) -> str:
     g = spec.get("ground_scaffold")
     n = int(g.get("levels", 1) if isinstance(g, dict) else 1)
+    so = float((spec.get("standoff") or {}).get("min", GROUND_STANDOFF_MM) or GROUND_STANDOFF_MM)
     return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。"
-            + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す")
+            + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す。"
+            f"躯体の面から {so:.0f}mm 離して型枠（せき板・端太・セパ）を収める。作業床は地中梁の天端（ふかし筋）＋500〜800 が目安。"
+            "根切り底で壁つなぎを取る躯体がまだ無い間は、直交する足場とつなぐか控え（斜めの単管を捨てコン・地盤へ）で倒れを防ぐ。"
+            "打設のとき躯体に埋まる建地・壁つなぎは打設の前に盛り替える")
 
 
 def _align_elevation(elevation, levels_abs: list, base: float, master, what: str = "上段"):

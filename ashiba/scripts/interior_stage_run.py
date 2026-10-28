@@ -72,12 +72,17 @@ def room_heights(c, corners, slabs=None) -> tuple[float, float, float | None]:
     return floor, story, (min(ceils) if ceils else None)
 
 
+# 階段の向き（範囲の長い辺＝長手）→ (軸, 下がるか)
+STAIR_DIRS = {"なし": None, "長手の向きに上がる": ("u", False), "長手の向きに下がる": ("u", True),
+              "短手の向きに上がる": ("v", False), "短手の向きに下がる": ("v", True)}
+
+
 def main() -> int:
     import run_from_archicad as R
     from form_dialog import show_form
 
     from ashiba.cli import resolve_series_id
-    from ashiba.interior_stage import LIVE_DEFAULT_KN_M2, solve_stage, stage_params, stage_report
+    from ashiba.interior_stage import LIVE_DEFAULT_KN_M2, SHORING_TIES, solve_stage, stage_params, stage_report
     from ashiba.master import load_master
     from ashiba.structural import load_capacities
 
@@ -99,7 +104,21 @@ def main() -> int:
                      + where + "作業床の高さは床から（天井の作業なら 天井高−1800 前後）。",
                      "fields": [{"key": "name", "label": "名前", "kind": "text", "value": "内部ステージ足場"},
                                 {"key": "deck", "label": "作業床の高さ mm", "kind": "number", "value": str(deck0)},
-                                {"key": "live", "label": "積載 kN/m²", "kind": "number", "value": f"{LIVE_DEFAULT_KN_M2}"}],
+                                {"key": "live", "label": "積載 kN/m²", "kind": "number", "value": f"{LIVE_DEFAULT_KN_M2}"},
+                                # 型枠支保工として使う（利用者の指定 2026-10-28: 型枠支保工で使うよ、内部足場はステージ）
+                                {"key": "use", "label": "用途", "kind": "choice", "options": ["足場", "支保工"],
+                                 "value": "足場"},
+                                {"key": "slab", "label": "支保工: 受けるスラブの厚さ mm", "kind": "number", "value": "200"},
+                                {"key": "tie", "label": "支保工: つなぎ方", "kind": "choice", "options": list(SHORING_TIES),
+                                 "value": SHORING_TIES[0]},
+                                # 階段の上に組む（利用者の指定 2026-10-28: 内部足場は階段でよく使う）
+                                {"key": "stair", "label": "階段の上に組む", "kind": "choice", "options": list(STAIR_DIRS),
+                                 "value": next(iter(STAIR_DIRS))},
+                                {"key": "st_from", "label": "階段: 範囲の始めの辺から1段目まで mm", "kind": "number",
+                                 "value": "0"},
+                                {"key": "st_tread", "label": "階段: 踏面 mm", "kind": "number", "value": "250"},
+                                {"key": "st_riser", "label": "階段: 蹴上げ mm", "kind": "number", "value": "180"},
+                                {"key": "st_steps", "label": "階段: 段数", "kind": "number", "value": "0"}],
                      "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "place":
         print("内部足場: やめました（何も置いていません）")
@@ -109,7 +128,16 @@ def main() -> int:
             "deck_mm": float(str(vals.get("deck") or str(deck0)).replace(",", "")),
             "base_mm": floor - story,
             **({"ceiling_mm": ceil - floor} if ceil else {}),
-            "live_kn_m2": float(str(vals.get("live") or LIVE_DEFAULT_KN_M2))}
+            "live_kn_m2": float(str(vals.get("live") or LIVE_DEFAULT_KN_M2)),
+            "use": str(vals.get("use") or "足場"),
+            "slab_mm": float(str(vals.get("slab") or "200").replace(",", "")),
+            "tie": str(vals.get("tie") or SHORING_TIES[0])}
+    sd = STAIR_DIRS.get(str(vals.get("stair") or ""))
+    steps = int(float(str(vals.get("st_steps") or "0").replace(",", "")))
+    if sd and steps > 0:
+        num = lambda k, d: float(str(vals.get(k) or d).replace(",", ""))
+        item["stair"] = {"axis": sd[0], "down": sd[1], "from_mm": num("st_from", "0"), "tread_mm": num("st_tread", "250"),
+                         "riser_mm": num("st_riser", "180"), "steps": steps}
     spec = {**R.SPEC, **R.load_spec_override()}
     sid = resolve_series_id(spec)
     master = load_master(sid)
