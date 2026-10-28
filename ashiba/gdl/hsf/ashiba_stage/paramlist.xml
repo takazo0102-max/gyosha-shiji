@@ -77,6 +77,30 @@
 			<Description><![CDATA["階段の上: 列ごとの根がらみの高さ mm（配置した高さから。0＝共通の根がらみ）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Length Name="postDia">
+			<Description><![CDATA["支柱の径（0＝φ48.6。本体の足場の部材と同じ作り。利用者の指定 2026-10-29）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="komaP">
+			<Description><![CDATA["コマの間隔（くさび）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="sysKind">
+			<Description><![CDATA["足場の種類（0＝くさび、1＝単管、2＝枠組）。単管・枠組はコマとくさびの頭を描かない"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="jackExt">
+			<Description><![CDATA["ジャッキの繰出し（平らな所の支柱）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<String Name="footJk">
+			<Description><![CDATA["階段の上: 列ごとのジャッキの繰出し mm（footZ と同じ並び）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="dkWs">
+			<Description><![CDATA["布板の幅 mm（広い順。スパンをこの幅で埋める）"]]></Description>
+			<Value><![CDATA["500,240"]]></Value>
+		</String>
 		<Length Name="zBase">
 			<Description><![CDATA["足場の立つ高さ（配置した高さから。ジャッキの下端）"]]></Description>
 			<Value>0</Value>

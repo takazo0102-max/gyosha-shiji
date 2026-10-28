@@ -25,6 +25,12 @@
 !   footAxis  整数      階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）                         既定 0
 !   footZ     文字列    階段の上: 支柱の列ごとの足元の高さ mm（zBase から。カンマ区切り。空＝平ら）        既定 ""
 !   footNeg   文字列    階段の上: 列ごとの根がらみの高さ mm（配置した高さから。0＝共通の根がらみ）         既定 ""
+!   postDia   長さ      支柱の径（0＝φ48.6。本体の足場の部材と同じ作り。利用者の指定 2026-10-29）          既定 0
+!   komaP     長さ      コマの間隔（くさび）                                                               既定 0.45
+!   sysKind   整数      足場の種類（0＝くさび、1＝単管、2＝枠組）。単管・枠組はコマとくさびの頭を描かない  既定 0
+!   jackExt   長さ      ジャッキの繰出し（平らな所の支柱）                                                 既定 0.1
+!   footJk    文字列    階段の上: 列ごとのジャッキの繰出し mm（footZ と同じ並び）                          既定 ""
+!   dkWs      文字列    布板の幅 mm（広い順。スパンをこの幅で埋める）                                      既定 "500,240"
 !   zBase     長さ      足場の立つ高さ（配置した高さから。ジャッキの下端）                                 既定 0
 !   stName    文字列    名前                                                                               既定 "内部ステージ足場"
 !   lineMode  ブール    3Dを線で（軽い）                                                                   既定 0
@@ -318,7 +324,56 @@ while strlen(s) > 0 and nN < 60 do
 		fn[nN] = v / 1000
 	endif
 endwhile
-rP = 0.0243
+! 列ごとのジャッキの繰出し（階段の上）と布板の幅
+dim fj[], dw[]
+for i = 1 to 60
+	fj[i] = jackExt
+next i
+nJ = 0
+s = footJk
+while strlen(s) > 0 and nJ < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nJ = nJ + 1
+		fj[nJ] = v / 1000
+	endif
+endwhile
+nW = 0
+s = dkWs
+while strlen(s) > 0 and nW < 6 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 and v > 50 then
+		nW = nW + 1
+		dw[nW] = v / 1000
+	endif
+endwhile
+if nW = 0 then
+	nW = 1
+	dw[1] = 0.5
+endif
+! 本体の足場の部材と同じ作り（利用者の指定 2026-10-29: 支保工も今作っている足場部材でやる）。寸法は足場ラインの
+! 830 布材・870 布板・820 ジャッキ（部品 ashiba_member と同じ）
+r_sic = 0.0486 / 2
+if postDia > 0.01 then r_sic = postDia / 2
+r_nuno = 0.0427 / 2
+isWedge = (sysKind = 0)
+rP = r_sic
 topZ = deckH + 0.95
 if postTop > 0 then topZ = postTop
 if lineMode then
@@ -328,15 +383,22 @@ if lineMode then
 		next j
 	next i
 else
-	! 支柱とジャッキ
+	! 支柱（コマ・上端の連結ホゾ）とジャッキベース
 	for i = 1 to nU + 1
 		for j = 1 to nV + 1
 			zf = zBase + fu[i] + fv[j]
+			jE = jackExt
+			if nJ > 0 then
+				if footAxis = 0 then jE = fj[min(i, 60)]
+				if footAxis = 1 then jE = fj[min(j, 60)]
+			endif
 			add xu[i], yv[j], zf
-			cylind topZ - zf, rP
+			gosub "jack"
 			del 1
-			add xu[i] - 0.07, yv[j] - 0.07, zf - 0.01
-			block 0.14, 0.14, 0.01
+			pb = zf + jE
+			add xu[i], yv[j], pb
+			pLen = topZ - pb
+			gosub "post"
 			del 1
 		next j
 	next i
@@ -348,9 +410,9 @@ else
 			for i = 1 to nU
 				if z > zBase + max(fu[i], fu[i + 1]) + fv[j] + 0.05 then
 					add xu[i], yv[j], z
-					roty 90
-					cylind su[i], 0.0214
-					del 2
+					nLd = su[i]
+					gosub "ledger"
+					del 1
 				endif
 			next i
 		next j
@@ -358,8 +420,9 @@ else
 			for j = 1 to nV
 				if z > zBase + fu[i] + max(fv[j], fv[j + 1]) + 0.05 then
 					add xu[i], yv[j], z
-					rotx -90
-					cylind sv[j], 0.0214
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
 					del 2
 				endif
 			next j
@@ -396,48 +459,55 @@ else
 		if fn[k] > 0 then
 			z = fn[k]
 			if footAxis = 0 and k <= nU + 1 then
-				add xu[k], 0, z
-				rotx -90
-				cylind stLV, 0.0214
-				del 2
+				for j = 1 to nV
+					add xu[k], yv[j], z
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				next j
 				for j = 1 to nV + 1
 					if k > 1 then
 						if fu[k - 1] < fu[k] then
 							add xu[k - 1], yv[j], z
-							roty 90
-							cylind su[k - 1], 0.0214
-							del 2
+							nLd = su[k - 1]
+							gosub "ledger"
+							del 1
 						endif
 					endif
 					if k <= nU then
 						if fu[k + 1] < fu[k] then
 							add xu[k], yv[j], z
-							roty 90
-							cylind su[k], 0.0214
-							del 2
+							nLd = su[k]
+							gosub "ledger"
+							del 1
 						endif
 					endif
 				next j
 			endif
 			if footAxis = 1 and k <= nV + 1 then
-				add 0, yv[k], z
-				roty 90
-				cylind stLU, 0.0214
-				del 2
+				for i = 1 to nU
+					add xu[i], yv[k], z
+					nLd = su[i]
+					gosub "ledger"
+					del 1
+				next i
 				for i = 1 to nU + 1
 					if k > 1 then
 						if fv[k - 1] < fv[k] then
 							add xu[i], yv[k - 1], z
-							rotx -90
-							cylind sv[k - 1], 0.0214
+							rotz 90
+							nLd = sv[k - 1]
+							gosub "ledger"
 							del 2
 						endif
 					endif
 					if k <= nV then
 						if fv[k + 1] < fv[k] then
 							add xu[i], yv[k], z
-							rotx -90
-							cylind sv[k], 0.0214
+							rotz 90
+							nLd = sv[k]
+							gosub "ledger"
 							del 2
 						endif
 					endif
@@ -450,9 +520,20 @@ else
 	for id = 1 to nD
 		for i = 1 to nU
 			for j = 1 to nV
-				add xu[i] + 0.0025, yv[j] + 0.0025, dk[id] + 0.021
-				block su[i] - 0.005, sv[j] - 0.005, 0.045
-				del 1
+				! スパンを布板の幅（広い順）で埋める（すき間 3cm 以下）
+				yp = yv[j] + 0.015
+				rest = sv[j] - 0.03
+				for iw = 1 to nW
+					while rest >= dw[iw] - 0.001 do
+						add xu[i], yp, dk[id]
+						pkL = su[i]
+						pkW = dw[iw]
+						gosub "plank"
+						del 1
+						yp = yp + dw[iw]
+						rest = rest - dw[iw]
+					endwhile
+				next iw
 			next j
 		next i
 	next id
@@ -463,14 +544,19 @@ else
 		hh = 0.95
 		if hk = 2 then hh = 0.45
 		for sd = 0 to 1
-			add 0, sd * stLV, deckH + hh
-			roty 90
-			cylind stLU, 0.0214
-			del 2
-			add sd * stLU, 0, deckH + hh
-			rotx -90
-			cylind stLV, 0.0214
-			del 2
+			for i = 1 to nU
+				add xu[i], sd * stLV, deckH + hh
+				nLd = su[i]
+				gosub "ledger"
+				del 1
+			next i
+			for j = 1 to nV
+				add sd * stLU, yv[j], deckH + hh
+				rotz 90
+				nLd = sv[j]
+				gosub "ledger"
+				del 2
+			next j
 		next sd
 	next hk
 	for sd = 0 to 1
@@ -492,7 +578,7 @@ else
 					ag = atn((z2 - z1) / su[i])
 					add xu[i], sd * stLV, z1
 					roty 90 - ag
-					cylind sqr(su[i] ^ 2 + (z2 - z1) ^ 2), 0.0214
+					cylind sqr(su[i] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
 					del 2
 				next sd
 			endif
@@ -503,7 +589,7 @@ else
 					ag = atn((z2 - z1) / sv[j])
 					add sd * stLU, yv[j], z1
 					rotx -(90 - ag)
-					cylind sqr(sv[j] ^ 2 + (z2 - z1) ^ 2), 0.0214
+					cylind sqr(sv[j] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
 					del 2
 				next sd
 			endif
@@ -528,4 +614,110 @@ else
 	endwhile
 endif
 del top
+end
+
+"post":
+	! 支柱（本体の足場ライン・ashiba_member の支柱と同じ: 管・コマ・上端の連結ホゾ）。原点＝下端、長さ pLen
+	cylind pLen, r_sic
+	if isWedge then
+		add 0, 0, pLen
+		cylind 0.125, 0.0182
+		del 1
+		resol 6
+		kz = lv[1] - komaP * int((lv[1] - pb) / komaP)
+		while kz < pb + pLen - 0.05 do
+			if kz > pb + 0.05 then
+				add 0, 0, kz - pb - 0.003
+				cylind 0.006, 0.053
+				del 1
+			endif
+			kz = kz + komaP
+		endwhile
+		resol 8
+	endif
+return
+
+"ledger":
+	! 布材（緊結部がコマを上下に挟み、クサビが縦に通る。管は緊結部の間）。原点＝支柱芯、+X へ nLd
+	if isWedge then
+		hdL = 0.050
+		add r_sic + hdL, 0, 0
+		roty 90
+		cylind nLd - 2 * (r_sic + hdL), r_nuno
+		del 2
+		for hd = 0 to 1
+			if hd = 0 then
+				add r_sic, 0, 0
+			else
+				add nLd - r_sic, 0, 0
+				mulx -1
+			endif
+			add 0, -0.020, 0.003
+			block hdL, 0.040, 0.042
+			del 1
+			add 0, -0.020, -0.040
+			block hdL, 0.040, 0.037
+			del 1
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+			if hd = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd
+	else
+		roty 90
+		cylind nLd, r_nuno
+		del 1
+	endif
+return
+
+"plank":
+	! 布板（アップロック式鋼製布板）: 原点＝支柱芯の高さ・板の始めの端、+X へ pkL、+Y へ幅 pkW
+	if matDeck > 0 then material matDeck
+	add 0.025, 0, r_nuno
+	block pkL - 0.05, pkW, 0.045
+	del 1
+	for hd = 0 to 1
+		if hd = 0 then
+			add 0, 0, 0
+		else
+			add pkL, 0, 0
+			mulx -1
+		endif
+		add 0.002, 0.04, r_nuno + 0.040
+		block 0.024, pkW - 0.08, 0.005
+		del 1
+		for hk = 0 to 1
+			add 0.004, 0.015 + hk * (pkW - 0.065), -r_nuno - 0.012
+			block 0.030, 0.035, 2 * r_nuno + 0.012
+			del 1
+		next hk
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+	if matScaf > 0 then material matScaf
+return
+
+"jack":
+	! ジャッキベース（ベース板 140角・ねじ棒・ハンドル付きナット）。原点＝足元、繰出し jE
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	cylind max(jE, 0.02), 0.035 / 2
+	add 0, 0, max(jE, 0.04) - 0.03
+	resol 6
+	cylind 0.03, 0.045
+	resol 8
+	addz 0.015
+	roty 90
+	add 0, 0, -0.09
+	cylind 0.18, 0.006
+	del 4
+return
 

@@ -710,9 +710,21 @@ def shoring_notification_lines(r: StageResult) -> list[str]:
             "| 提出 | 設置の工事を始める日の30日前まで（安衛法88条1項）・所轄の労働基準監督署長 |"]
 
 
-def stage_params(r: StageResult, line_mode: bool = False) -> dict:
-    """部品 ashiba_stage のパラメータ（原点は外周の支柱の始めの角、faceAng は長手の向き）."""
-    return {"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
+def stage_params(r: StageResult, line_mode: bool = False, master=None) -> dict:
+    """部品 ashiba_stage のパラメータ（原点は外周の支柱の始めの角、faceAng は長手の向き）.
+
+    master を渡すと、本体の足場と同じ部材の作り（支柱の径・コマの間隔・足場の種類）で描く（利用者の指定 2026-10-29:
+    支保工も今作っている足場部材でやる）."""
+    member = {}
+    if master is not None:
+        cat = "建枠" if master.is_frame else "支柱"
+        dia = next((p.diameter for p in master.by_category(cat) if p.diameter > 0), 0.0)
+        member = {"postDia": round(float(dia) / 1000.0, 4), "komaP": float(master.koma_pitch or 450) / 1000.0,
+                  "sysKind": 1 if master.system_type == TUBE else (2 if master.is_frame else 0)}
+        widths = sorted({int(w) for w in getattr(master, "deck_widths", (500, 240)) or (500, 240)}, reverse=True)
+        member["dkWs"] = ",".join(map(str, widths))
+    return {**member, "jackExt": r.jack_mm / 1000.0,
+            "footJk": ",".join(str(int(f["jack_mm"])) for f in r.stair_feet),"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
             "lvList": ",".join(str(int(h + r.base_mm)) for h in sorted(r.levels + r.upper_levels)),
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),

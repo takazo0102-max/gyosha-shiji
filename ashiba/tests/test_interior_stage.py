@@ -293,7 +293,11 @@ class TestStagePartParams(unittest.TestCase):
                               "stair": {"axis": "u", "from_mm": 750, "tread_mm": 250, "riser_mm": 180, "steps": 16}}, m)]
         want = {"Boolean": bool, "Integer": int, "Length": float, "RealNum": float, "Angle": float, "String": str}
         for r in cases:
-            for k, v in stage_params(r).items():
+            # master を渡すと本体の足場と同じ部材の作り（支柱の径・コマ・足場の種類・布板の幅。2026-10-29）
+            p = stage_params(r, master=m)
+            for key in ("postDia", "komaP", "sysKind", "jackExt", "dkWs"):
+                self.assertIn(key, p)
+            for k, v in p.items():
                 with self.subTest(use=r.use, param=k):
                     self.assertIn(k, kinds)
                     t = want.get(kinds[k])
