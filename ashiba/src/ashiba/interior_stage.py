@@ -29,7 +29,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .master import FRAME
+from .master import FRAME, TUBE
 
 CLEAR_MM = 150.0             # 壁から外周の支柱まで
 LIVE_DEFAULT_KN_M2 = 1.5     # 作業床の積載（軽作業・仕上げ）
@@ -182,7 +182,10 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     if deck_req < 1000.0:
         raise ValueError(f"{name}: 作業床の高さ（deck_mm）を 1000 以上で指定してください")
     guard = 2 * int(master.koma_pitch) + int(getattr(master, "koma_top_gap", 0) or 0)
-    elev = solve_elevation(int(round(deck_req)) + guard, master=master)
+    try:
+        elev, low_err = solve_elevation(int(round(deck_req)) + guard, master=master), None
+    except ValueError as ex:            # 系列の最小の高さを下回る（支保工は天井から積み方を選び直すので後で判断）
+        elev, low_err = None, ex
     shoring = str(item.get("use", "")) in ("支保工", "型枠支保工")
     ceil_mm = item.get("ceiling_mm")
     depth = float(item.get("form_depth_mm", FORM_DEPTH_MM) or FORM_DEPTH_MM)
@@ -196,7 +199,10 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         want = float(ceil_mm) - depth
         best = None
         for req in range(max(1000, int(want) - 1200), int(want) + 1, 25):
-            e = solve_elevation(req, master=master)
+            try:
+                e = solve_elevation(req, master=master)
+            except ValueError:
+                continue                # 系列の最小の高さを下回る（単管は 2030 未満が組めない）
             extra = want - (e.jack_extension + sum(e.posts))
             if extra < 0:
                 continue
@@ -206,6 +212,8 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
                 best = (abs(ext - UHEAD_EXT_TARGET_MM), e, up)
         if best is not None:
             elev, base_up = best[1], best[2]
+    if elev is None:
+        raise ValueError(f"{name}: {low_err}")
     # 作業床は指定にいちばん近い段（コマの位置で決まるので少し上下する。実機 2026-10-24: 4000 の指定で 4025 を捨てて
     # 2225 になった）
     hs = [int(h) + base_up for h in elev.level_heights]
@@ -278,27 +286,49 @@ def _stair_feet(r: StageResult, master, st: dict, off_u: float, off_v: float) ->
     koma = int(master.koma_pitch) or 450
     hard = master.jack_hard_max_mm()
     rated = max(JACK_MAX_EXTENSION, min(hard, 432))
-    lengths = sorted(set(master.post_lengths(include_negarami=True)), reverse=True)
-    table = _compose_table(r.top_mm, lengths)
+    # 枠組は建枠・調整枠の高さ、くさび・単管は支柱の長さ
+    lengths = sorted(set(master.frame_heights() if master.is_frame else master.post_lengths()), reverse=True)
+    if master.system_type not in (FRAME, TUBE):
+        # くさびはコマの倍数の支柱だけ（675・1125 などの半端な支柱を挟むとコマがずれて布材が掛からない）
+        lengths = [v for v in lengths if v % koma == 0] or lengths
+    table = _compose_table(r.top_mm + max(lengths), lengths)
     for i, x in enumerate(xs):
         k = 0 if x < start else min(steps, int((x - start) // tread) + 1)
         z = (steps - k if down else k) * riser
         edges = [start + j * tread for j in range(steps + 1)]
         edge = min((abs(x - e) for e in edges), default=1e9)
-        ext = (r.jack_mm - z) % koma
-        if ext < JACK_MIN_EXTENSION:
-            ext += koma
-        shim = 0
-        if ext > rated:
-            shim = math.ceil((ext - rated) / SHIM_BOARD_MM)
-            ext -= shim * SHIM_BOARD_MM
+        if z == 0:
+            ext, shim, stack = r.jack_mm, 0, list(r.posts)
+        elif master.system_type == TUBE:
+            # 単管はクランプでどこでも継げるので、ジャッキはそのままにして足りる長さ以上の最少の本数（上に出る分は手すり柱）
+            ext, shim = r.jack_mm, 0
+            need0 = int(round(r.top_mm - z - ext))
+            stack = next((table[t] for t in range(max(need0, 0), need0 + max(lengths) + 1) if t in table), None)
+        else:
+            # 支柱（建枠）の組み合わせで天端がそろうジャッキの繰出しを探す（くさびはコマ 450 の倍数の支柱なので段も
+            # そろう。枠組は建枠・調整枠の高さの組み合わせ）。敷板なし・実務上限 270 以内を先に、次に短い繰出し
+            stack, ext, shim = None, JACK_MIN_EXTENSION, 0
+            best = None
+            for sh in range(0, SHIM_BOARDS_MAX + 4):
+                for e in range(JACK_MIN_EXTENSION, rated + 1):
+                    t = int(round(r.top_mm - z - e - sh * SHIM_BOARD_MM))
+                    if t in table and table[t]:
+                        # 敷板が少なく、実務上限 270 以内、継ぎの少ない積み方、短い繰出しの順
+                        key = (sh, e > JACK_MAX_EXTENSION, len(table[t]), e)
+                        if best is None or key < best[0]:
+                            best = (key, e, sh, table[t])
+                if best is not None and best[0][0] == sh:
+                    break
+            if best is not None:
+                _, ext, shim, stack = best
+            else:
+                ext = min(rated, max(JACK_MIN_EXTENSION, int(r.top_mm - z) % max(koma, 1)))
         need = int(round(r.top_mm - z - ext - shim * SHIM_BOARD_MM))
-        stack = list(r.posts) if z == 0 else table.get(need)
         # 根がらみ: 支柱の下端から NEGARAMI_MAX_MM 以内に段（布材）が無い列は、その支柱の最初のコマに足す
         bottom = z + shim * SHIM_BOARD_MM + ext
         above = [h for h in r.levels if h > bottom + 100]
         neg = 0
-        if not above or above[0] > bottom + NEGARAMI_MAX_MM:
+        if not master.is_frame and (not above or above[0] > bottom + NEGARAMI_MAX_MM):
             neg = int(r.levels[0] + math.ceil((bottom + 100 - r.levels[0]) / koma) * koma)
         r.stair_feet.append({"axis": axis, "index": i, "x_mm": round(x), "z_mm": z, "jack_mm": int(round(ext)),
                              "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge), "negarami_mm": neg})
@@ -356,7 +386,7 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     out.append(StageCheck("支保工の設計荷重", "OK",
                           f"固定 {RC_KN_M3 * r.slab_mm / 1000:.2f}（鉄筋コンクリート 2400kg/m³×{r.slab_mm:.0f}mm）＋型枠 {FORM_KN_M2:.2f}"
                           f"＋積載 {SHORING_LIVE_KN_M2:.2f}（150kg/m²）＝{q:.2f}kN/m²（安衛則240条・計画届作成の手引 p261）"))
-    n_kn = su * sv * q + POST_SELF_KN_PER_M * h_m
+    n_kn = _trib_m2(r) * q + POST_SELF_KN_PER_M * h_m
     # 支柱の下の床（下の階のスラブ）が受ける力。打設の荷重がそのまま下の階へ降りる
     r.notes.append(f"支柱の下の床（下の階のスラブ）は支柱1本 {n_kn:.1f}kN（{q:.1f}kN/m² 相当）を受ける。"
                    "下の階のスラブの材齢・強度で受けられるか確かめ、受けられなければ下の階の支保工を残すか（盛り替え）、"
@@ -366,16 +396,16 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
         scaf = _cap(caps, "支柱許容圧縮耐力")
         if scaf is not None and n_kn <= scaf:
             out.append(StageCheck("支保工の支柱の軸力", "OK",
-                                  f"内側の支柱1本 {n_kn:.2f}kN ≦ 足場としての許容 {scaf:.1f}kN（支保工の承認値は"
+                                  f"{_post_label(r)}1本 {n_kn:.2f}kN ≦ 足場としての許容 {scaf:.1f}kN（支保工の承認値は"
                                   "これより大きいので足りる。手引 p143）"))
         else:
             out.append(StageCheck("支保工の支柱の軸力", "WARN",
-                                  f"内側の支柱1本 {n_kn:.2f}kN。この機種の支保工の許容支持力（承認値・つなぎ方別）を"
+                                  f"{_post_label(r)}1本 {n_kn:.2f}kN。この機種の支保工の許容支持力（承認値・つなぎ方別）を"
                                   "メーカーに確かめる（組み合わされた支保工は指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
     else:
         st = "OK" if n_kn <= allow else "NG"
         out.append(StageCheck("支保工の支柱の軸力", st,
-                              f"内側の支柱1本 {n_kn:.2f}kN {'≦' if st == 'OK' else '＞'} 許容 {allow:.1f}kN（{r.tie}）"
+                              f"{_post_label(r)}1本 {n_kn:.2f}kN {'≦' if st == 'OK' else '＞'} 許容 {allow:.1f}kN（{r.tie}）"
                               + ("" if st == "OK" else "。支柱の間隔を詰めるか、つなぎ材を両方向に入れる")
                               + "（組み合わされた支保工はメーカー指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
     ratio = SHORING_H_RATIO_FRAME if master.system_type == FRAME else SHORING_H_RATIO
@@ -507,6 +537,18 @@ def _quantity(r: StageResult, master) -> None:
               + ("。壁が近いので内側に立て、作業床ははしご口（ハッチ付きの踏板）で抜ける" if not r.guard else "")))
 
 
+def _post_label(r: StageResult) -> str:
+    n2 = (len(r.spans_u) >= 2) + (len(r.spans_v) >= 2)
+    return ("角の支柱", "端の支柱", "内側の支柱")[n2]
+
+
+def _trib_m2(r: StageResult) -> float:
+    """いちばん受け持ちの大きい支柱の受け持ち面積（m²）. 内側の支柱は隣り合うスパンの半分ずつで su×sv、
+    スパンが1つしかない向きは端の支柱なので半分（EVシャフトの1×1スパンは角の支柱4本で su×sv/4）."""
+    su, sv = max(r.spans_u) / 1000.0, max(r.spans_v) / 1000.0
+    return (su if len(r.spans_u) >= 2 else su / 2.0) * (sv if len(r.spans_v) >= 2 else sv / 2.0)
+
+
 def _cap(caps: Optional[dict], item: str, key: str = "0") -> Optional[float]:
     if not caps:
         return None
@@ -519,17 +561,17 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
     su, sv = max(r.spans_u) / 1000.0, max(r.spans_v) / 1000.0
     h_m = (r.deck_mm + GUARD_MM) / 1000.0
     # 1. 支柱の軸力（内側の支柱。受け持ち＝隣り合うスパンの半分ずつ）
-    trib = su * sv
+    trib = _trib_m2(r)
     # 作業床が何段もあるとき（EVシャフトの各階）は床の自重は全段、積載は同時に2層まで（日建 ND の使用基準）
     n_deck = 1 + len(r.deck_levels)
     n_kn = trib * (r.live_kn_m2 * min(2, n_deck) + DECK_DEAD_KN_M2 * n_deck) + POST_SELF_KN_PER_M * h_m
     allow = _cap(caps, "支柱許容圧縮耐力")
     if allow is None:
-        out.append(StageCheck("支柱の軸力", "WARN", f"内側の支柱1本 {n_kn:.2f}kN（許容耐力が系列の資料に無いので確認）"))
+        out.append(StageCheck("支柱の軸力", "WARN", f"{_post_label(r)}1本 {n_kn:.2f}kN（許容耐力が系列の資料に無いので確認）"))
     else:
         st = "OK" if n_kn <= allow else "NG"
-        out.append(StageCheck("支柱の軸力", st, f"内側の支柱1本 {n_kn:.2f}kN ≦ 許容 {allow:.1f}kN"
-                              if st == "OK" else f"内側の支柱1本 {n_kn:.2f}kN ＞ 許容 {allow:.1f}kN。スパンを詰めるか積載を下げる"))
+        out.append(StageCheck("支柱の軸力", st, f"{_post_label(r)}1本 {n_kn:.2f}kN ≦ 許容 {allow:.1f}kN"
+                              if st == "OK" else f"{_post_label(r)}1本 {n_kn:.2f}kN ＞ 許容 {allow:.1f}kN。スパンを詰めるか積載を下げる"))
     # 2. 1スパンあたりの積載と作業床の許容積載
     bay = su * sv * r.live_kn_m2
     deck_allow = _cap(caps, "作業床許容積載荷重", "スパン")

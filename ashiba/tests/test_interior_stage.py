@@ -296,3 +296,35 @@ class TestStagePartParams(unittest.TestCase):
                         self.assertIsInstance(v, (int, float))
                     elif t is str:
                         self.assertIsInstance(v, str)
+
+
+class TestAllSeries(unittest.TestCase):
+    """全系列（くさび・枠組・単管）× 足場・支保工・EVシャフト・階段で解ける（2026-10-29 の総当たりで見つけた3件）."""
+
+    CASES = {
+        "足場": {"corners_mm": RECT, "deck_mm": 4000},
+        "支保工": {"corners_mm": RECT, "deck_mm": 1800, "use": "支保工", "slab_mm": 200, "ceiling_mm": 4400},
+        "EV": {"corners_mm": [[0, 0], [2400, 0], [2400, 2200], [0, 2200]], "deck_mm": 12000, "use": "EVシャフト",
+               "floors_mm": [1500, 5000, 8500]},
+        "階段": {"corners_mm": [[0, 0], [6000, 0], [6000, 2800], [0, 2800]], "deck_mm": 4500,
+                 "stair": {"axis": "u", "from_mm": 750, "tread_mm": 250, "riser_mm": 180, "steps": 16}},
+    }
+
+    def test_every_series_and_use(self):
+        from ashiba.master import SERIES_CONST
+
+        for sid in SERIES_CONST:
+            m, caps = load_master(sid), load_capacities(sid)
+            for name, it in self.CASES.items():
+                with self.subTest(series=sid, case=name):
+                    r = solve_stage({"name": name, **it}, m, caps)       # 単管の支保工で例外になっていた
+                    stage_params(r)
+                    st = {c.item: c.status for c in r.checks}
+                    if name == "EV":
+                        # 1×1スパンのシャフトは角の支柱4本（内側の支柱の受け持ちで数えて NG になっていた）
+                        self.assertEqual(st["支柱の軸力"], "OK" if caps else st["支柱の軸力"])
+                        self.assertIn("角の支柱", next(c.message for c in r.checks if c.item == "支柱の軸力"))
+                    if name == "階段":
+                        # 枠組・単管でも段ごとの積み方が見つかる（コマ 450 を仮定して NG になっていた）
+                        self.assertNotEqual(st["階段の上の支柱"], "NG")
+                        self.assertTrue(all(f["posts"] for f in r.stair_feet))
