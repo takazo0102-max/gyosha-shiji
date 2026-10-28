@@ -331,7 +331,7 @@ if hoModel = "KRD950-7.2" then
 endif
 if hoModel = "NSE800" then
 	cageL = 3.0200
-	cageD = 1.1900
+	cageD = 0.9000
 	postSp = 3.0200
 	nMast = 2
 	gateOpen = 3.9300
