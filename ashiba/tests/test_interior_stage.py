@@ -68,6 +68,15 @@ class TestInteriorStage(unittest.TestCase):
         self.assertLessEqual(abs(r.deck_mm - 4000), 300)
         self.assertEqual(r.levels[-1], r.deck_mm)
 
+    def test_not_a_rectangle(self):
+        # 台形は長い辺から張った格子が範囲の外へはみ出すので止める（回した長方形は通す）
+        with self.assertRaises(ValueError):
+            solve(corners_mm=[[0, 0], [12000, 0], [9000, 8000], [3000, 8000]])
+        import math
+        c, s_ = math.cos(math.radians(30)), math.sin(math.radians(30))
+        rot = [[x * c - y * s_, x * s_ + y * c] for x, y in RECT]
+        self.assertAlmostEqual(solve(corners_mm=rot).length_u, solve().length_u)
+
     def test_too_small(self):
         with self.assertRaises(ValueError):
             solve(corners_mm=[[0, 0], [500, 0], [500, 500], [0, 500]])

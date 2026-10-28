@@ -37,6 +37,7 @@ DECK_DEAD_KN_M2 = 0.25       # 踏板の自重
 POST_SELF_KN_PER_M = 0.15    # 支柱＋布材・筋かいの自重（支柱1本・高さ1m あたりの目安）
 STAGE_H_RATIO = 0.025        # 棚足場の照査水平荷重（自重に対する比。指針）
 STAGE_FS_MIN = 2.0           # 転倒安定度の下限
+RIGHT_ANGLE_TOL_DEG = 2.0    # 範囲の角が直角からこれ以上ずれたら長方形でない
 HB_LIMIT = 4.0               # 高さ／短辺がこれを超えたら控え・壁つなぎ
 BRACE_EVERY_SPANS = 5
 FIT_SLACK_MM = 900.0         # 壁際の余り（片側 CLEAR_MM に足して両側でこれ以内）
@@ -140,6 +141,17 @@ def _frame(corners) -> tuple[tuple[float, float], tuple[float, float], tuple[flo
     area = sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4))
     if area < 0:
         pts.reverse()                                   # 左回りにそろえる
+    # 4つの角が直角でないと（台形・平行四辺形）、長い辺から張った格子が範囲の外へはみ出す（台形で壁の向こうまで出ていた）
+    for i in range(4):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % 4]
+        v1, v2 = (a[0] - b[0], a[1] - b[1]), (c[0] - b[0], c[1] - b[1])
+        n1, n2 = math.hypot(*v1), math.hypot(*v2)
+        if n1 < 1e-6 or n2 < 1e-6:
+            raise ValueError("内部足場の範囲の4点に重なった点があります")
+        cos = (v1[0] * v2[0] + v1[1] * v2[1]) / (n1 * n2)
+        if abs(cos) > math.sin(math.radians(RIGHT_ANGLE_TOL_DEG)):
+            ang = math.degrees(math.acos(max(-1.0, min(1.0, cos))))
+            raise ValueError(f"内部足場の範囲は長方形で指定してください（角が {ang:.0f}°。台形・平行四辺形は格子がはみ出す）")
     sides = [(i, math.hypot(pts[(i + 1) % 4][0] - pts[i][0], pts[(i + 1) % 4][1] - pts[i][1])) for i in range(4)]
     i0, la = max(sides, key=lambda s: s[1])
     p0, p1 = pts[i0], pts[(i0 + 1) % 4]
