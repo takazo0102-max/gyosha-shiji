@@ -21,6 +21,9 @@
 !   deckList  文字列    ほかの段の作業床の高さ mm（配置した高さから。カンマ区切り。EVシャフトの各階など）  既定 ""
 !   guardOn   ブール    最上段の外周の手すり・中桟・幅木（EVシャフトは壁が近いので無し）                   既定 1
 !   postTop   長さ      支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）          既定 0
+!   footAxis  整数      階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）                         既定 0
+!   footZ     文字列    階段の上: 支柱の列ごとの足元の高さ mm（zBase から。カンマ区切り。空＝平ら）        既定 ""
+!   footNeg   文字列    階段の上: 列ごとの根がらみの高さ mm（配置した高さから。0＝共通の根がらみ）         既定 ""
 !   zBase     長さ      足場の立つ高さ（配置した高さから。ジャッキの下端）                                 既定 0
 !   stName    文字列    名前                                                                               既定 "内部ステージ足場"
 !   lineMode  ブール    3Dを線で（軽い）                                                                   既定 0
@@ -266,43 +269,155 @@ for j = 1 to nV
 next j
 stLU = xu[nU + 1]
 stLV = yv[nV + 1]
+! 階段の上（利用者の指定 2026-10-28: 内部足場は階段でよく使う）: 支柱の列ごとの足元の高さ。fu[i]＋fv[j] が支柱 (i, j) の足元
+dim fu[], fv[]
+for i = 1 to nU + 1
+	fu[i] = 0
+next i
+for j = 1 to nV + 1
+	fv[j] = 0
+next j
+nF = 0
+s = footZ
+while strlen(s) > 0 and nF < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nF = nF + 1
+		if footAxis = 0 and nF <= nU + 1 then fu[nF] = v / 1000
+		if footAxis = 1 and nF <= nV + 1 then fv[nF] = v / 1000
+	endif
+endwhile
+! 列ごとの根がらみ（段の上の支柱の最初のコマ。0＝共通）
+dim fn[]
+for i = 1 to 60
+	fn[i] = 0
+next i
+nN = 0
+s = footNeg
+while strlen(s) > 0 and nN < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nN = nN + 1
+		fn[nN] = v / 1000
+	endif
+endwhile
 rP = 0.0243
 topZ = deckH + 0.95
 if postTop > 0 then topZ = postTop
 if lineMode then
 	for i = 1 to nU + 1
 		for j = 1 to nV + 1
-			lin_ xu[i], yv[j], zBase, xu[i], yv[j], topZ
+			lin_ xu[i], yv[j], zBase + fu[i] + fv[j], xu[i], yv[j], topZ
 		next j
 	next i
 else
 	! 支柱とジャッキ
 	for i = 1 to nU + 1
 		for j = 1 to nV + 1
-			add xu[i], yv[j], zBase
-			cylind topZ - zBase, rP
+			zf = zBase + fu[i] + fv[j]
+			add xu[i], yv[j], zf
+			cylind topZ - zf, rP
 			del 1
-			add xu[i] - 0.07, yv[j] - 0.07, zBase - 0.01
+			add xu[i] - 0.07, yv[j] - 0.07, zf - 0.01
 			block 0.14, 0.14, 0.01
 			del 1
 		next j
 	next i
 	! 根がらみと各段の布材（両方向）
+	! スパンごとに描き、両端の支柱の足元より下の布材は描かない（階段の上は段ごとに根がらみが上がる）
 	for il = 1 to nL
 		z = lv[il]
 		for j = 1 to nV + 1
-			add 0, yv[j], z
-			roty 90
-			cylind stLU, 0.0214
-			del 2
+			for i = 1 to nU
+				if z > zBase + max(fu[i], fu[i + 1]) + fv[j] + 0.05 then
+					add xu[i], yv[j], z
+					roty 90
+					cylind su[i], 0.0214
+					del 2
+				endif
+			next i
 		next j
 		for i = 1 to nU + 1
-			add xu[i], 0, z
-			rotx -90
-			cylind stLV, 0.0214
-			del 2
+			for j = 1 to nV
+				if z > zBase + fu[i] + max(fv[j], fv[j + 1]) + 0.05 then
+					add xu[i], yv[j], z
+					rotx -90
+					cylind sv[j], 0.0214
+					del 2
+				endif
+			next j
 		next i
 	next il
+	! 階段の上の列ごとの根がらみ: 列の中（直角方向）と、足元の低い隣の列へ1スパン
+	for k = 1 to nN
+		if fn[k] > 0 then
+			z = fn[k]
+			if footAxis = 0 and k <= nU + 1 then
+				add xu[k], 0, z
+				rotx -90
+				cylind stLV, 0.0214
+				del 2
+				for j = 1 to nV + 1
+					if k > 1 then
+						if fu[k - 1] < fu[k] then
+							add xu[k - 1], yv[j], z
+							roty 90
+							cylind su[k - 1], 0.0214
+							del 2
+						endif
+					endif
+					if k <= nU then
+						if fu[k + 1] < fu[k] then
+							add xu[k], yv[j], z
+							roty 90
+							cylind su[k], 0.0214
+							del 2
+						endif
+					endif
+				next j
+			endif
+			if footAxis = 1 and k <= nV + 1 then
+				add 0, yv[k], z
+				roty 90
+				cylind stLU, 0.0214
+				del 2
+				for i = 1 to nU + 1
+					if k > 1 then
+						if fv[k - 1] < fv[k] then
+							add xu[i], yv[k - 1], z
+							rotx -90
+							cylind sv[k - 1], 0.0214
+							del 2
+						endif
+					endif
+					if k <= nV then
+						if fv[k + 1] < fv[k] then
+							add xu[i], yv[k], z
+							rotx -90
+							cylind sv[k], 0.0214
+							del 2
+						endif
+					endif
+				next i
+			endif
+		endif
+	next k
 	! 全面の作業床（スパンごとの踏板。隙間 5mm）。最上段と deckList の段
 	if matDeck > 0 then material matDeck
 	for id = 1 to nD
@@ -345,7 +460,7 @@ else
 		z1 = lv[il] + 0.1
 		z2 = lv[il + 1] - 0.1
 		for i = 1 to nU
-			if i - 1 - 5 * int((i - 1) / 5) = 0 then
+			if i - 1 - 5 * int((i - 1) / 5) = 0 and z1 > zBase + max(fu[i], fu[i + 1]) + max(fv[1], fv[nV + 1]) then
 				for sd = 0 to 1
 					ag = atn((z2 - z1) / su[i])
 					add xu[i], sd * stLV, z1
@@ -356,7 +471,7 @@ else
 			endif
 		next i
 		for j = 1 to nV
-			if j - 1 - 5 * int((j - 1) / 5) = 0 then
+			if j - 1 - 5 * int((j - 1) / 5) = 0 and z1 > zBase + max(fu[1], fu[nU + 1]) + max(fv[j], fv[j + 1]) then
 				for sd = 0 to 1
 					ag = atn((z2 - z1) / sv[j])
 					add sd * stLU, yv[j], z1
@@ -372,11 +487,11 @@ else
 	yLad = -0.25
 	if not(guardOn) then yLad = 0.25
 	for sd = 0 to 1
-		add 0.20 + sd * 0.35, yLad, zBase
-		cylind topZ - zBase, 0.0175
+		add 0.20 + sd * 0.35, yLad, zBase + fu[1] + fv[1]
+		cylind topZ - zBase - fu[1] - fv[1], 0.0175
 		del 1
 	next sd
-	zr = zBase + 0.30
+	zr = zBase + fu[1] + fv[1] + 0.30
 	while zr < topZ - 0.1 do
 		add 0.20, yLad, zr
 		roty 90

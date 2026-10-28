@@ -79,6 +79,12 @@ PART_PROFILES = {
         "params": {"spanU": "1829", "spanV": "1829", "lvList": "440,1565,3365,5165,6965,8765",
                    "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1"},
     },
+    # 階段の上（利用者の指定 2026-10-28）。--profile ashiba_stage_stair で使う
+    "ashiba_stage_stair": {
+        "images": ("3D",),
+        "params": {"spanU": "1829,1829,1829", "spanV": "1829", "lvList": "225,900,2700,4500", "deckH": 4.5,
+                   "footAxis": 0, "footZ": "0,1080,2410,2880", "footNeg": "0,1575,2925,3375", "stName": "階段室"},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）
@@ -199,6 +205,8 @@ def main() -> None:
     if "--script3d" in sys.argv:
         script3d = Path(sys.argv[sys.argv.index("--script3d") + 1])
     profile = PART_PROFILES.get(part, {"images": ("2D",), "params": {}})
+    if "--profile" in sys.argv:
+        profile = PART_PROFILES[sys.argv[sys.argv.index("--profile") + 1]]
     params = dict(profile["params"])
     params.update(parse_params(sys.argv))
     suffix = params.get("detailType", "")

@@ -64,6 +64,7 @@ SHAFT_TIE_V_MAX_MM = {"wedge": 5000, "frame": 9000}   # 壁つなぎの垂直間
 PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半分。踏面の端（段鼻・蹴上げ）からこれ以上離す
 SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
 SHIM_BOARDS_MAX = 2
+NEGARAMI_MAX_MM = 600        # 支柱の下端から最初の布材（根がらみ）までの上限の目安
 SHORING_TIES = ("片方向つなぎ材", "両方向つなぎ材", "ブレース")   # 支保工の承認値はつなぎ方で決まる（日建 ND1800: 18／25／22kN）
 
 
@@ -272,8 +273,14 @@ def _stair_feet(r: StageResult, master, st: dict, off_u: float, off_v: float) ->
             ext -= shim * SHIM_BOARD_MM
         need = int(round(r.top_mm - z - ext - shim * SHIM_BOARD_MM))
         stack = list(r.posts) if z == 0 else table.get(need)
+        # 根がらみ: 支柱の下端から NEGARAMI_MAX_MM 以内に段（布材）が無い列は、その支柱の最初のコマに足す
+        bottom = z + shim * SHIM_BOARD_MM + ext
+        above = [h for h in r.levels if h > bottom + 100]
+        neg = 0
+        if not above or above[0] > bottom + NEGARAMI_MAX_MM:
+            neg = int(r.levels[0] + math.ceil((bottom + 100 - r.levels[0]) / koma) * koma)
         r.stair_feet.append({"axis": axis, "index": i, "x_mm": round(x), "z_mm": z, "jack_mm": int(round(ext)),
-                             "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge)})
+                             "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge), "negarami_mm": neg})
 
 
 def _stair_checks(r: StageResult) -> None:
@@ -297,6 +304,12 @@ def _stair_checks(r: StageResult) -> None:
         msg += (f"。{len(over)}列はジャッキ＋敷板 {SHIM_BOARDS_MAX}枚で受けきれない（敷角を重ねない。支柱の位置を踏面の"
                 "中ほどにずらすか、段ごとに建地を立てて調整する）")
     out.append(StageCheck("階段の上の支柱", st, msg + "（ジャッキは段差を埋める道具ではない。報告 地足場と内部足場）"))
+    # 作業床の段がその列の支柱の下端（段＋敷板＋ジャッキ）より低いと、その列に布材が掛からず床を受けられない
+    low = [f for f in feet if r.deck_mm < f["z_mm"] + f["shim"] * SHIM_BOARD_MM + f["jack_mm"] + 100]
+    if low:
+        out.append(StageCheck("作業床と踊り場", "NG",
+                              f"{len(low)}列（段の高さ {'・'.join(str(int(f['z_mm'])) for f in low)}）で作業床 {r.deck_mm}mm が"
+                              "支柱の下端より低く、布材が掛からない。作業床を上げるか、範囲を踊り場の手前で止める（踊り場は床の上で作業）"))
     near = [f for f in feet if f["edge_mm"] < PLATE_HALF_MM]
     if near:
         out.append(StageCheck("踏面の端", "WARN",
@@ -402,6 +415,21 @@ def _quantity(r: StageResult, master) -> None:
     n_shim = sum(f["shim"] for f in r.stair_feet) * per_row
     if n_shim:
         q.append(("敷板", 0, n_shim, "階段の上の支柱の高さ合わせ（1脚 2枚まで）"))
+    # 段ごとの根がらみ: その列の直角方向（列の中）と、足元の低い隣の列へ1スパンずつ
+    feet = r.stair_feet
+    cross = r.spans_v if (feet and feet[0]["axis"] == "u") else r.spans_u
+    along = r.spans_u if (feet and feet[0]["axis"] == "u") else r.spans_v
+    neg: dict[int, int] = {}
+    for k, f in enumerate(feet):
+        if not f["negarami_mm"]:
+            continue
+        for sp in cross:
+            neg[int(sp)] = neg.get(int(sp), 0) + 1
+        for nb, sp in ((k - 1, along[k - 1] if k > 0 else None), (k + 1, along[k] if k < len(along) else None)):
+            if sp is not None and 0 <= nb < len(feet) and feet[nb]["z_mm"] < f["z_mm"]:
+                neg[int(sp)] = neg.get(int(sp), 0) + per_row
+    for sp, k in sorted(neg.items()):
+        q.append(("布材", sp, k, "階段の上の段ごとの根がらみ"))
     n_lv = len(r.levels)                       # 根がらみ＋各段
     for s in sorted(set(r.spans_u)):
         k = r.spans_u.count(s) * (nv + 1) * n_lv
@@ -545,10 +573,12 @@ def stage_report(r: StageResult) -> str:
     lines += ["", "## 数量", "", "| 分類 | 呼び寸法 | 数 | 用途 |", "|---|---|---|---|"]
     lines += [f"| {c} | {d or ''} | {n} | {why} |" for c, d, n, why in r.quantity]
     if r.stair_feet:
-        lines += ["", "## 階段の上の支柱（列ごと）", "", "| 列 | 位置 | 段の高さ | 敷板 | ジャッキ | 支柱 | 踏面の端まで |",
-                  "|---|---|---|---|---|---|---|"]
+        lines += ["", "## 階段の上の支柱（列ごと）", "",
+                  "| 列 | 位置 | 段の高さ | 敷板 | ジャッキ | 支柱 | 根がらみ | 踏面の端まで |",
+                  "|---|---|---|---|---|---|---|---|"]
         lines += [f"| {f['index'] + 1} | {f['x_mm']} | {f['z_mm']:.0f} | {f['shim']} | {f['jack_mm']} | "
-                  f"{'+'.join(map(str, f['posts'])) if f['posts'] else '組めない'} | {f['edge_mm']} |" for f in r.stair_feet]
+                  f"{'+'.join(map(str, f['posts'])) if f['posts'] else '組めない'} | "
+                  f"{f['negarami_mm'] or '共通'} | {f['edge_mm']} |" for f in r.stair_feet]
     if r.notes:
         lines += ["", "## 注意", ""] + [f"- {n}" for n in r.notes]
     return "\n".join(lines) + "\n"
@@ -561,4 +591,8 @@ def stage_params(r: StageResult, line_mode: bool = False) -> dict:
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),
             "postTop": ((r.top_mm + r.base_mm) / 1000.0) if r.use == "支保工" else 0.0,
+            # 階段の上: 支柱の列ごとの足元（段の高さ＋敷板）
+            "footAxis": 1 if (r.stair_feet and r.stair_feet[0]["axis"] == "v") else 0,
+            "footZ": ",".join(str(int(f["z_mm"] + f["shim"] * SHIM_BOARD_MM)) for f in r.stair_feet),
+            "footNeg": ",".join(str(int(f["negarami_mm"] + r.base_mm) if f["negarami_mm"] else 0) for f in r.stair_feet),
             "zBase": r.base_mm / 1000.0, "stName": r.name, "lineMode": bool(line_mode)}

@@ -177,6 +177,26 @@ class TestStairStage(unittest.TestCase):
         self.assertIn("階段の上の支柱（列ごと）", stage_report(r))
         moved = self.stair(from_mm=750)
         self.assertNotIn("踏面の端", {c.item for c in moved.checks})
+        # 作業床 3000→3125 は踊り場（2880）の列の支柱の下端より低く、布材が掛からない
+        self.assertEqual(st["作業床と踊り場"], "NG")
+
+    def test_base_ties_per_step_and_part_params(self):
+        m = load_master("nikken_nd1800")
+        item = {"name": "階段室", "corners_mm": [[0, 0], [6000, 0], [6000, 2800], [0, 2800]], "deck_mm": 4500,
+                "stair": {"axis": "u", "from_mm": 750, "tread_mm": 250, "riser_mm": 180, "steps": 16}}
+        r = solve_stage(item, m, load_capacities("nikken_nd1800"))
+        self.assertNotIn("作業床と踊り場", {c.item for c in r.checks})
+        koma = 450
+        for f in r.stair_feet:
+            bottom = f["z_mm"] + f["shim"] * 35 + f["jack_mm"]
+            first = f["negarami_mm"] or min(h for h in r.levels if h > bottom + 100)
+            self.assertLessEqual(first - bottom, 600, f)               # 下端から 600 以内に根がらみ
+            if f["negarami_mm"]:
+                self.assertEqual((f["negarami_mm"] - r.levels[0]) % koma, 0)   # コマの位置
+        self.assertTrue(any(why == "階段の上の段ごとの根がらみ" for _, _, _, why in r.quantity))
+        p = stage_params(r)
+        self.assertEqual(len(p["footZ"].split(",")), len(r.stair_feet))
+        self.assertEqual(len(p["footNeg"].split(",")), len(r.stair_feet))
 
 
 class TestShaftStage(unittest.TestCase):
