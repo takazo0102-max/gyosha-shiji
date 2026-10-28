@@ -522,6 +522,18 @@ class TestNoDoubleReading(unittest.TestCase):
         for w in q.warnings:
             self.assertLessEqual(text.count(w), 1, w[:40])
 
+    def test_short_keeps_what_follows_the_parenthesis(self):
+        # 括弧の手前で切ると、同じ開口部の別の警告が「南面の開口部…」で2行並んで見分けられなかった
+        from ashiba.report import _short
+
+        a = "南面の開口部（梁枠SG-36N 3600mm）: 両端支柱の軸力9.09kN（通常5.71＋反力3.38）が許容6.86kNを超えます。補強"
+        b = "南面の開口部（梁枠SG-36N 3600mm）: 梁枠の支点当たり許容支持力がマスタに無く（a（b））、検定ができません"
+        sa, sb = _short(a, {a, b}), _short(b, {a, b})
+        self.assertNotEqual(sa, sb)
+        self.assertEqual(sa, "南面の開口部: 両端支柱の軸力9.09kNが許容6.86kNを超えます…（要確認一覧を参照）")
+        self.assertNotIn("（a", sb)                                 # 入れ子の括弧も落とす
+        self.assertEqual(_short(a, set()), a)                       # 一覧に無い文は切らない
+
     def test_structural_warning_is_shortened(self):
         text, _q = self._render()
         head = "未確認の耐力値が計算に使われています"

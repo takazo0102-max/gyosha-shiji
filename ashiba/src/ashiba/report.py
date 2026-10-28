@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from dataclasses import asdict
 from pathlib import Path
 
@@ -109,7 +110,11 @@ def _short(msg: str, listed: set) -> str:
     """末尾の一覧に載る文は、本文では1行に切り詰めて参照に回す."""
     if msg not in listed:
         return msg
-    head = msg.split("。")[0].split("（")[0]
+    # 括弧の中だけ落とし、その後ろは残す。括弧の手前で切ると「南面の開口部…」が
+    # 2行並び、どちらが軸力超過でどちらが許容値の欠けか見分けられなかった
+    head = msg.split("。")[0]
+    while (h := re.sub(r"（[^（）]*）", "", head)) != head:      # 入れ子の括弧は内から
+        head = h
     return f"{head[:60]}…（要確認一覧を参照）"
 
 
