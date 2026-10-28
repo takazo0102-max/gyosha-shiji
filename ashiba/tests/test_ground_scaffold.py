@@ -57,6 +57,19 @@ class TestGroundScaffold(unittest.TestCase):
         note = next(w for w in low.model.plan.warnings if "地足場（1層" in w)
         self.assertIn("目安 +500〜800 を外れる", note)
 
+    def test_standoff_kept_for_tube_and_frame(self):
+        # 単管は離れを 300 に引き戻していた。枠組は躯体側の手すりが割付・数量に入らないので注記で
+        from ashiba.master import series_module
+
+        for sid in ("tankan", "waku"):
+            r = solve_all({**SPEC, "series_id": sid, "module": series_module(sid), "ground_scaffold": {"levels": 2}})
+            self.assertTrue(all(v >= 470 for v in r.model.plan.standoffs), (sid, r.model.plan.standoffs))
+            note = next(w for w in r.model.plan.warnings if "地足場（2層" in w)
+            self.assertEqual("手すり枠" in note, sid == "waku")
+        # 割付で数 mm 下回っても「顧客最小値を下回る」とは言わない
+        r = solve_all({**SPEC, "ground_scaffold": {"levels": 2}})
+        self.assertFalse(any("顧客最小値" in w for w in r.model.plan.warnings))
+
     def test_palette(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 

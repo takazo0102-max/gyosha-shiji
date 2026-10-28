@@ -423,6 +423,9 @@ def solve_plan(
         # 規格のスパンの和で離れが原則（spec.min〜spec.max）を外れる面も、離れを目標に戻して端のスパンで合わせる
         # （奥行 5m の単管足場が「離れ350mm > 300mm（スパン構成では動かせません）」になっていた。2026-10-26 のループ）
         top = min(spec.max, spec.fall_protection_limit or spec.max)
+        if spec.min > (spec.fall_protection_limit or spec.max):
+            # 離れの下限そのものが 300 を超える指定（地足場は型枠を収めるため 500 以上）は、その帯に合わせる
+            top = spec.max
         for idx, d in enumerate(standoffs):
             if idx not in tube_fix and not (spec.min - STANDOFF_TOL_MM <= d <= top + STANDOFF_TOL_MM):
                 tube_fix[idx] = float(min(spec.target, top))

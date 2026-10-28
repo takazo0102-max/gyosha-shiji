@@ -1453,6 +1453,7 @@ def build_asagao(spec: dict, height_mm: int, master=None) -> AsagaoSpec | None:
 
 STEEL_DEPTH_DEFAULT_MM = 150.0   # 仕上げ面（ALC・ECP・胴縁）から鉄骨の梁の外面まで（既定）
 GROUND_DECK_OVER_BEAM_MM = (500, 800)   # 地足場の作業床は地中梁の天端（ふかし筋）からこの範囲が目安
+GROUND_STANDOFF_TOL_MM = 30.0   # 地足場の離れが割付でこれだけ下回るのは許す
 GROUND_STANDOFF_MM = 500.0   # 地足場は躯体（基礎・地中梁）の面からこれ以上離す（型枠を収める）
 STEEL_BEAM_BELOW_FLOOR_MM = 150.0  # 梁の上フランジ（壁つなぎを取る所）は床の天端からこれだけ下
 
@@ -1478,8 +1479,9 @@ def ground_scaffold_spec(spec: dict, master_csv: Path | None = None) -> dict:
     gso = float(g.get("standoff_mm", GROUND_STANDOFF_MM) if isinstance(g, dict) else GROUND_STANDOFF_MM)
     so = dict(spec.get("standoff") or {})
     if float(so.get("min", 0) or 0) < gso:
+        # 割付で数 mm 下回るのは許す（498 で「顧客最小値 500 を下回る・スパン構成の見直し」と出ていた）
         out["standoff"] = {"target": gso, "min": gso, "max": max(gso + 150.0, float(so.get("max", 0) or 0)),
-                           "hard_min": gso}
+                           "hard_min": gso - GROUND_STANDOFF_TOL_MM}
     out.setdefault("building_height_mm", n * fh)
     st = dict(out.get("stairs") or {})
     if n <= 2 and not st.get("positions"):
@@ -1508,7 +1510,9 @@ def ground_scaffold_note(spec: dict) -> str:
             + ("昇降ははしご。" if n <= 2 else "") + "上の階の足場に組み上げるときは「配置」で建て直す。"
             f"躯体の面から {so:.0f}mm 離して型枠（せき板・端太・セパ）を収める。作業床は地中梁の天端（ふかし筋）＋500〜800 が目安。"
             "根切り底で壁つなぎを取る躯体がまだ無い間は、直交する足場とつなぐか控え（斜めの単管を捨てコン・地盤へ）で倒れを防ぐ。"
-            "打設のとき躯体に埋まる建地・壁つなぎは打設の前に盛り替える")
+            "打設のとき躯体に埋まる建地・壁つなぎは打設の前に盛り替える"
+            + ("。枠組は離れ 300 超の躯体側（型枠側）に手すり・中桟（手すり枠）を別に付ける（割付・数量に入らない）"
+               if load_master(resolve_series_id(spec)).is_frame and so > 300 else ""))
 
 
 def _align_elevation(elevation, levels_abs: list, base: float, master, what: str = "上段"):
