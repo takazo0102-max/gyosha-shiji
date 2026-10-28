@@ -167,6 +167,10 @@ def _beam_ties(model: ScaffoldModel, openings) -> list[WallTie]:
     return out
 
 
+# 同じ建地でこの高さの差までの壁つなぎは1本で兼ねる（コマ1つ 450 の半分より小さい差）
+TIE_SHARE_MM = 150
+
+
 def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -> dict[str, int]:
     """取付部の壁つなぎを model.wall_ties に足す（同じ位置の金具は兼ねる）.
 
@@ -176,9 +180,12 @@ def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -
     # 足したことを記録する。寄せ直しで取付部の壁つなぎが格子の壁つなぎと1本にまとまると
     # 「取付部の壁つなぎが無い」に見え、数量側が届かない元の位置へ足し直していた（五角形の斜辺）
     model.attachments_merged = True
-    existing = {
-        (t.edge_index, round(t.position_mm), int(t.height_mm)) for t in model.wall_ties
-    }
+    # 同じ建地で高さが TIE_SHARE_MM 以内なら同じ金具で兼ねる（高さがぴったり同じときしか兼ねず、ロングスパンの昇降路の
+    # 端の建地に格子 3275・マスト控え 3300、格子 8675・荷取りステージ 8700 が 25mm 違いで2本ずつ入っていた。
+    # 利用者の指摘 2026-10-28: ロングスパンのステージのところ壁繋ぎがダブっている）。先にある方（格子＝作業床の高さ）を残す
+    heights: dict[tuple, list[int]] = {}
+    for t in model.wall_ties:
+        heights.setdefault((t.edge_index, round(t.position_mm)), []).append(int(t.height_mm))
     added: dict[str, int] = {}
     # 鉄骨から取る壁つなぎは梁の高さでしか取れない。取付部（朝顔・ステージ・マスト控え・梁枠）の壁つなぎも、いちばん近い
     # 梁の高さに寄せる（マスト控えの 3600 ごとの高さに、梁の無い所へ壁つなぎを付けていた。実機 2026-10-25）
@@ -190,10 +197,10 @@ def merge_attachment_ties(model: ScaffoldModel, platforms=None, openings=None) -
     for t in _asagao_ties(model) + _platform_ties(model, platforms) + _beam_ties(model, openings):
         if beams:
             t.height_mm = min(beams, key=lambda b: abs(b - float(t.height_mm)))
-        key = (t.edge_index, round(t.position_mm), int(t.height_mm))
-        if key in existing:
+        post = (t.edge_index, round(t.position_mm))
+        if any(abs(h - int(t.height_mm)) <= TIE_SHARE_MM for h in heights.get(post, [])):
             continue
-        existing.add(key)
+        heights.setdefault(post, []).append(int(t.height_mm))
         model.wall_ties.append(t)
         added[t.kind] = added.get(t.kind, 0) + 1
     return added
@@ -240,8 +247,10 @@ def relocate_ties_off_openings(model: ScaffoldModel, openings) -> list[str]:
                 keep.append(t)
                 continue
             new_x = o.start_mm if (t.position_mm - o.start_mm) <= (o.end_mm - t.position_mm) else o.end_mm
+            # 寄せた先の壁つなぎは、keep にまだ入っていない（並びが後ろの）ものも見る。keep だけ見ていたので、
+            # 足場の幅の中の昇降路で端の建地に同じ高さの壁つなぎが2本ずつ入っていた
             dup = any(k.edge_index == t.edge_index and abs(k.position_mm - new_x) < 1e-6
-                      and k.height_mm == t.height_mm for k in keep)
+                      and k.height_mm == t.height_mm for k in keep + model.wall_ties)
             if dup:
                 merged += 1
             else:

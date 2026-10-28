@@ -745,3 +745,22 @@ class TestHoistwayGuard(unittest.TestCase):
     def test_gdl_draws_the_guard(self):
         d3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_hoist" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
         self.assertIn("if showGuard and hoKind = 1", d3)
+
+
+class TestNoDoubleTiesAtTheHoistway(unittest.TestCase):
+    """昇降路の端の建地に、格子・マスト控え・荷取りステージの壁つなぎが近い高さで2本入らない（利用者の指摘 2026-10-28:
+    ロングスパンのステージのところ壁繋ぎがダブっている。格子 3275 とマスト控え 3300 が両方入っていた）."""
+
+    def test_close_ties_are_shared(self):
+        from ashiba.ties import TIE_SHARE_MM
+
+        for mount in ("中", "外付け"):
+            r = solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4",
+                                              "mount": mount}]})
+            by_post: dict = {}
+            for t in r.model.wall_ties:
+                by_post.setdefault((t.edge_index, round(t.position_mm)), []).append(int(t.height_mm))
+            for post, hs in by_post.items():
+                hs = sorted(hs)
+                gaps = [b - a for a, b in zip(hs, hs[1:])]
+                self.assertTrue(all(g > TIE_SHARE_MM for g in gaps), (mount, post, hs))
