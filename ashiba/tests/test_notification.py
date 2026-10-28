@@ -406,3 +406,88 @@ class TestFormListsWhatSitsOnEachFace(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestGuideStyleForm(unittest.TestCase):
+    """建災防東京支部「計画届作成の手引（第6版）」p4〜6・p105 の書き方."""
+
+    def setUp(self):
+        self.m = make_model()
+
+    def test_outline_text_names_each_face(self):
+        from ashiba.notification import plan_outline_text
+
+        t = plan_outline_text(self.m, NotificationInfo(contract_amount="1,200,000円"))
+        self.assertTrue(t.startswith("（足場）"))
+        for face in self.m.plan.face_names():
+            self.assertIn(face, t)
+        self.assertIn("壁つなぎ 垂直", t)
+        self.assertIn("請負金 1,200,000円", t)
+        self.assertIn("【記入】", plan_outline_text(self.m))       # 請負金が無ければ書く欄を残す
+
+    def _form(self, info):
+        q = take_off(self.m)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "n.xlsx"
+            write_notification_xlsx(self.m, q, run_all_checks(self.m), run_structural(self.m, q), path, info=info)
+            z = zipfile.ZipFile(path)
+            names = re.findall(r'<sheet name="([^"]+)"', z.read("xl/workbook.xml").decode())
+            return {n: z.read(f"xl/worksheets/sheet{i + 1}.xml").decode() for i, n in enumerate(names)}
+
+    def test_dates_are_the_scaffold_period(self):
+        xml = self._form(NotificationInfo(start_date=dt.date(2026, 11, 1), business_type="建築工事業"))["様式第20号(下書き)"]
+        self.assertIn("工事落成予定年月日", xml)
+        self.assertIn((dt.date(2026, 11, 1) + dt.timedelta(days=90)).isoformat(), xml)
+        self.assertIn("足場組立開始日", xml)
+        self.assertIn("「建築工事業」は中分類ではない", xml)            # 中分類は「総合工事業」
+
+    def test_parts_sheet_has_the_guide_header(self):
+        xml = self._form(NotificationInfo())["部材等明細書"]
+        for key in ("種類", "用途", "設置期間", "最大積載荷重", "落下物防護設備", "墜落防止設備", "材質", "主要寸法"):
+            self.assertIn(key, xml)
+
+    def test_material(self):
+        from ashiba.master import Part
+        from ashiba.notification import _material
+
+        self.assertEqual(_material(Part("x", "幅木", "ST2", 600, 600, 0, 2.2, "セーフアングル2型")), "鋼製")
+        self.assertEqual(_material(Part("x", "朝顔", "A", 1800, 1800, 0, 12, "シート朝顔SWは別")), "鋼製")
+        self.assertEqual(_material(Part("x", "敷板", "S", 4000, 4000, 0, 9, "杉")), "木製")
+        self.assertEqual(_material(Part("x", "養生シート", "M", 1800, 1800, 0, 4, "メッシュシート")), "合成繊維（防炎）")
+
+
+class TestGroundBearing(unittest.TestCase):
+    """脚部の地盤支持力（計画届作成の手引 p125・p132）."""
+
+    def test_board_spreads_the_jack_load(self):
+        from ashiba.structural import GROUND_BEARING_EXAMPLE_KN_M2, SiteCondition
+
+        m = make_model()
+        q = take_off(m)
+        st = run_structural(m, q)
+        g = st.ground
+        self.assertIsNotNone(g)
+        self.assertEqual(g.qa_kn_m2, GROUND_BEARING_EXAMPLE_KN_M2)
+        self.assertAlmostEqual(g.plate_kn_m2, g.foot_kn / (g.plate_mm / 1000) ** 2, delta=0.1)
+        self.assertAlmostEqual(g.board_kn_m2, g.foot_kn / (0.24 * g.board_len_m), delta=0.1)
+        self.assertLess(g.board_ratio, g.plate_ratio)   # 敷板で接地面積を増やして受ける
+        self.assertTrue(g.ok)                           # 敷板で受ける
+        self.assertTrue(any("手引の例（密実砂" in n for n in st.notes))
+        # 敷板の接地圧より許容が小さい軟弱な地盤なら敷板でも足りない
+        soft = run_structural(m, q, site=SiteCondition(ground_bearing_kn_m2=g.board_kn_m2 * 0.8))
+        self.assertFalse(soft.ground.ok)
+        self.assertFalse(soft.all_ok)
+        self.assertTrue(any("敷板の下の地盤が支持力不足" in w for w in soft.warnings))
+
+
+class TestTieBuckleRestraint(unittest.TestCase):
+    """壁つなぎは建地の座屈止めも兼ねる（計画届作成の手引 p130: 鉛直荷重×5%×作用スパン数）."""
+
+    def test_buckle_load(self):
+        m = make_model()
+        st = run_structural(m, take_off(m))
+        t = st.wall_tie
+        self.assertGreater(t.buckle_kn, 0)
+        self.assertAlmostEqual(t.buckle_kn, st.post.total_kn * 2 * 0.05 * t.buckle_spans, places=2)
+        self.assertGreaterEqual(t.buckle_spans, 1.0)
+        self.assertLess(t.buckle_ratio, 1.0)        # 普通の計画では風の検定の方が厳しい

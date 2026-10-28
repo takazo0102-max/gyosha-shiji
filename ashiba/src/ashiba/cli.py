@@ -171,10 +171,10 @@ NESTED_KEYS = {
     "asagao": {"stages", "projection_mm", "angle_deg", "tie_every_spans", "kind", "faces"},
     "site": {"region", "v0_ms", "roughness", "sheet_type", "adjacent_factor",
              "region_factor", "gamma", "correction_f",
-             "simultaneous_loaded_levels"},
+             "simultaneous_loaded_levels", "ground_bearing_kn_m2", "location", "typhoon_measures"},
     "notification": {"business_type", "site_name", "site_address", "worker_count",
                      "planner_name", "planner_career", "start_date", "contractor",
-                     "labor_office"},
+                     "labor_office", "workers_prime", "workers_sub", "contract_amount", "end_date"},
     "stairs": {"count", "tower_spans", "max_travel_mm", "min_per_face",
                "positions", "layout"},
 }
@@ -1793,10 +1793,13 @@ def build_site(spec: dict) -> SiteCondition:
         sheet_type=s.get("sheet_type", "メッシュシート"),
         adjacent_factor=s.get("adjacent_factor", 1.0),
         region_factor=s.get("region_factor", 1.0),
-        gamma=s.get("gamma", 0.0),
-        correction_f=s.get("correction_f", 1.0),
+        gamma=s.get("gamma"),
+        correction_f=s.get("correction_f"),
+        location=s.get("location", ""),
+        typhoon_measures=bool(s.get("typhoon_measures", False)),
         period_days=spec.get("period_days", 60),
         simultaneous_loaded_levels=s.get("simultaneous_loaded_levels", 2),
+        ground_bearing_kn_m2=s.get("ground_bearing_kn_m2"),
     )
 
 
@@ -1813,6 +1816,10 @@ def build_notification_info(spec: dict) -> NotificationInfo:
         start_date=_dt.date.fromisoformat(start) if start else None,
         contractor=n.get("contractor", ""),
         labor_office=n.get("labor_office", ""),
+        workers_prime=str(n.get("workers_prime", "")),
+        workers_sub=str(n.get("workers_sub", "")),
+        contract_amount=str(n.get("contract_amount", "")),
+        end_date=_dt.date.fromisoformat(n["end_date"]) if n.get("end_date") else None,
     )
 
 

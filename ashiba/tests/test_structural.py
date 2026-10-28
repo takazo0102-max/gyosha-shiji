@@ -9,7 +9,6 @@ from ashiba.model import ScaffoldConfig, ScaffoldModel, generate_wall_ties
 from ashiba.plan_solver import solve_plan
 from ashiba.quantity import take_off
 from ashiba.structural import (
-    CO_BASE,
     CapacityError,
     SiteCondition,
     height_factor,
@@ -34,24 +33,36 @@ def make_model():
 
 
 class TestWindFormula(unittest.TestCase):
+    """仮設工業会「風荷重に対する足場の安全技術指針」（計画届作成の手引 p227〜239）."""
+
     def test_force_coefficient_matches_spec(self):
-        # C = (0.11 + 0.09γ + 0.945×Co×R) × F、メッシュ R=0.7・Co=1.57
-        c = wind_force_coefficient(fill_ratio=0.7, gamma=0.0, f=1.0)
-        self.assertAlmostEqual(c, 0.11 + 0.945 * CO_BASE * 0.7, places=6)
-        # 養生なしなら 0.11 のみ
-        self.assertAlmostEqual(wind_force_coefficient(0.0), 0.11, places=6)
+        from ashiba.structural import basic_force_coefficient
+
+        # C = (0.11 + 0.09γ + 0.945×C0×R) × F。メッシュ φ=0.7 は C0=1.566（表1-9）
+        k, c0 = basic_force_coefficient(0.7)
+        self.assertAlmostEqual(k, 9.333, places=3)
+        self.assertAlmostEqual(c0, 1.566, places=3)
+        self.assertAlmostEqual(basic_force_coefficient(0.627)[1], 1.432, places=3)
+        self.assertEqual(basic_force_coefficient(1.0)[1], 2.0)
+        c = wind_force_coefficient(fill_ratio=0.7, gamma=0.0, f=1.0, r=0.6)
+        self.assertAlmostEqual(c, 0.11 + 0.945 * c0 * 0.6, places=6)
+        # 養生なしなら 0.11＋0.09γ のみ
+        self.assertAlmostEqual(wind_force_coefficient(0.0, gamma=0.0, f=1.0), 0.11, places=6)
         # γとFが効く
-        self.assertGreater(wind_force_coefficient(0.7, gamma=1.0), c)
-        self.assertAlmostEqual(wind_force_coefficient(0.7, f=2.0), c * 2, places=6)
+        self.assertGreater(wind_force_coefficient(0.7, gamma=1.0, f=1.0), c)
+        self.assertAlmostEqual(wind_force_coefficient(0.7, gamma=0.0, f=2.0), c * 2, places=6)
 
     def test_height_factor_increases_with_height(self):
         self.assertLess(height_factor(5, "III"), height_factor(30, "III"))
         # 粗度区分が粗いほど地表付近の係数は小さい
         self.assertGreater(height_factor(20, "I"), height_factor(20, "IV"))
+        # 表1-8 の値と合う（0〜5m は Zb の値、地域区分 V は Zb=20 まで一定）
+        self.assertAlmostEqual(height_factor(3, "III"), 1.35, delta=0.05)    # 表1-8 は段で丸めた値
+        self.assertAlmostEqual(height_factor(15, "V"), 1.07, delta=0.05)
 
     def test_unknown_roughness_and_region_rejected(self):
         with self.assertRaises(CapacityError):
-            height_factor(10, "V")
+            height_factor(10, "VI")
         with self.assertRaises(CapacityError):
             SiteCondition(region="火星").base_wind_speed()
         with self.assertRaises(CapacityError):
@@ -61,9 +72,49 @@ class TestWindFormula(unittest.TestCase):
         m = make_model()
         site = SiteCondition(region="関東(内陸)", adjacent_factor=1.2, region_factor=1.1)
         r = run_structural(m, take_off(m), site)
-        expect = r.wind.v0_ms * r.wind.k_height * 1.2 * 1.1
+        expect = r.wind.v0_ms * r.wind.ke * r.wind.k_height * 1.2 * 1.1
         self.assertAlmostEqual(r.wind.v_design_ms, expect, places=2)
-        self.assertAlmostEqual(r.wind.q_n_m2, 0.6 * expect**2, places=0)
+        self.assertAlmostEqual(r.wind.q_n_m2, 5 / 8 * expect**2, places=0)
+
+    def test_matches_the_worked_example(self):
+        """利用者の計算例（千葉市・地域区分IV・メッシュシートII類 φ0.70・足場高さ43.4m・長さ50.7m）と同じ値になる."""
+        from ashiba.structural import basic_force_coefficient, gust_and_profile, kasetsu_v0, shape_factor
+
+        v0, _src = kasetsu_v0("千葉県千葉市")
+        self.assertEqual(v0, 18.0)
+        g, e = gust_and_profile(43.4, "IV")
+        self.assertAlmostEqual(g, 1.71, places=2)
+        self.assertAlmostEqual(e, 0.86, places=2)
+        v = v0 * g * e
+        self.assertAlmostEqual(v, 26.32, places=2)
+        self.assertAlmostEqual(5 / 8 * v ** 2, 433.0, delta=0.5)
+        r = shape_factor(2 * 43.4 / 50.7)
+        self.assertAlmostEqual(r, 0.603, places=3)
+        c0 = basic_force_coefficient(0.7)[1]
+        self.assertAlmostEqual((0.11 + 0.09 * 0.3 + 0.945 * c0 * r) * 1.0, 1.03, places=2)          # 上層2層
+        self.assertAlmostEqual((0.11 + 0.09 * 0.3 + 0.945 * c0 * r) * (1 + 0.31 * 0.7), 1.25, places=2)  # その他
+
+    def test_top_tie_matches_the_worked_example(self):
+        """計算例「壁つなぎ上部2層部分の検討」: qz 0.43・C1 1.03・C2 1.25・b2 1.8・はね出し 1.0・下の段まで 2.85 → R=2.34kN."""
+        from ashiba.structural import top_tie_reaction
+
+        # 計算例は W1=0.80・W2=0.98 に丸めてから R を出している（丸めないと 2.32）
+        self.assertAlmostEqual(top_tie_reaction(0.43, 1.03, 1.25, 1.80, 1.00, 2.85), 2.34, delta=0.03)
+        m = make_model()
+        t = run_structural(m, take_off(m)).wall_tie
+        self.assertGreater(t.top_kn, 0)
+        self.assertIn("はね出し", t.top_where)
+
+    def test_base_wind_speed_by_location(self):
+        from ashiba.structural import kasetsu_v0
+
+        for loc, v in (("東京都23区", 18), ("東京都八王子市", 16), ("千葉県銚子市", 20), ("神奈川県横浜市", 18),
+                       ("北海道根室支庁根室市", 20), ("岡山県岡山市", 14), ("鹿児島県鹿児島市", 18),
+                       ("鹿児島県鹿屋市", 16)):
+            self.assertEqual(kasetsu_v0(loc)[0], v, loc)
+        self.assertEqual(SiteCondition(location="沖縄県那覇市").typhoon_factor()[0], 1.2)
+        self.assertEqual(SiteCondition(location="沖縄県那覇市", typhoon_measures=True).typhoon_factor()[0], 1.0)
+        self.assertEqual(SiteCondition(location="東京都23区").typhoon_factor()[0], 1.0)
 
 
 class TestCapacityGate(unittest.TestCase):
@@ -602,8 +653,10 @@ class TestWallTieGridFixes(unittest.TestCase):
     def _solve(self, region):
         from ashiba.cli import solve_all
 
+        # 指針の基準風速（表1-5）では沖縄でも角の手前まで要らなくなった。風の強い条件（海岸・海上で V0=24）で確かめる
+        site = {"v0_ms": 24, "roughness": "I"} if region == "沖縄" else {"region": region}
         return solve_all({"module": "inch", "corner_steps": False, "outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]],
-                          "eaves_height_mm": 15400, "building_height_mm": 16000, "site": {"region": region}})
+                          "eaves_height_mm": 15400, "building_height_mm": 16000, "site": site})
 
     def test_no_duplicate_ties(self):
         from collections import Counter

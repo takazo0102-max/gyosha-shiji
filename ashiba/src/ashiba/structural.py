@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,12 +36,27 @@ from .quantity import QuantityResult
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
-# 風力係数の定数（仮設工業会 風荷重指針）
-CO_BASE = 1.57          # 基本風力係数
+# 仮設工業会「風荷重に対する足場の安全技術指針」（建災防東京支部「計画届作成の手引（第6版）」p227〜239 に転載）
 WIND_INCREASE = 1.3     # 風荷重時の部材許容耐力の割増（30%）
-AIR_Q_COEF = 0.6        # 速度圧 q = 0.6 V^2 [N/m2]
+AIR_Q_COEF = 5.0 / 8.0  # 設計用速度圧 qz = 5/8 Vz² [N/m²]（式1・2）
+PEAK_FACTOR = 3.2       # ピークファクター g（瞬間風速の評価時間 2〜3 秒）
+V0_DEFAULT = 14.0       # 表1-5 に無い地域の基準風速（再現期間12ヶ月）
+TOP_LAYERS_M = 3.6      # 上層2層部分（F=1.0 の範囲。図1-18）
+# 表1-6 台風時割増係数 Ke（台風接近時に強風対策を行わない場合）
+TYPHOON_KE = {"山口県": 1.1, "福岡県": 1.1, "佐賀県": 1.1, "長崎県": 1.1, "熊本県": 1.1, "大分県": 1.1,
+              "宮崎県": 1.1, "鹿児島県": 1.2, "沖縄県": 1.2}
+PREFECTURES = ("北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県",
+               "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+               "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+               "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県",
+               "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県")
+# 所在地を入れていない計画の基準風速（旧来の地方の区分から表1-5 の代表値。所在地 site.location で引き直す）
+REGION_V0 = {"北海道(内陸)": 16.0, "北海道(沿岸)": 18.0, "東北(内陸)": 18.0, "東北(沿岸)": 18.0,
+             "関東(内陸)": 16.0, "関東(沿岸)": 18.0, "中部(内陸)": 16.0, "中部(沿岸)": 18.0,
+             "近畿(内陸)": 16.0, "近畿(沿岸)": 18.0, "中国": 16.0, "四国": 16.0, "九州(北部)": 16.0,
+             "九州(南部)": 18.0, "沖縄": 18.0}
 
-# 養生材の充実率 R
+# 養生材の充実率 φ（表1-9。メッシュシートは T-5001・♯1004 の 0.700）
 SHEET_FILL_RATIO = {
     "なし": 0.0,
     "メッシュシート": 0.7,
@@ -49,13 +65,13 @@ SHEET_FILL_RATIO = {
     "防音パネル": 1.0,     # 板（日本セイフティー 防音パネル・BG）。風を通さない
 }
 
-# 地表面粗度区分ごとの高さ補正係数 K の算定用（Zb, ZG, α）
-# 建築基準法告示1454号 Er の考え方に準拠した簡易実装
+# 表1-7 地域区分（地表面粗度）ごとの (Zb, Zg, α, κ)
 ROUGHNESS = {
-    "I": (5.0, 250.0, 0.10),
-    "II": (5.0, 350.0, 0.15),
-    "III": (5.0, 450.0, 0.20),
-    "IV": (10.0, 550.0, 0.27),
+    "I": (5.0, 250.0, 0.10, 0.0023),     # 海岸・海上
+    "II": (5.0, 350.0, 0.15, 0.0053),    # 草原・田園
+    "III": (5.0, 450.0, 0.20, 0.010),    # 郊外・森
+    "IV": (10.0, 550.0, 0.27, 0.018),    # 一般市街地
+    "V": (20.0, 650.0, 0.35, 0.034),     # 大都市市街地
 }
 
 
@@ -156,26 +172,46 @@ def load_wind_regions(path: Optional[Path] = None) -> dict[str, tuple[float, str
 class SiteCondition:
     """構造計算に必要な追加入力4項目."""
 
-    region: str = "関東(内陸)"          # 建設地（地域区分）
-    v0_ms: Optional[float] = None       # 基準風速。Noneならregionから引く
-    roughness: str = "III"              # 地表面粗度区分
+    region: str = "関東(内陸)"          # 建設地の地方（所在地 location が無いときの代表値）
+    v0_ms: Optional[float] = None       # 基準風速。None なら location（無ければ region）から表1-5 で引く
+    roughness: str = "III"              # 地域区分 I〜V（表1-7）
     sheet_type: str = "メッシュシート"   # 養生材仕様
-    adjacent_factor: float = 1.0        # 近接建物による補正 E（1.0〜1.3）
-    region_factor: float = 1.0          # 地域区分係数 S
-    gamma: float = 0.0                  # 風力係数式のγ（躯体側の充実率パラメータ）
-    correction_f: float = 1.0           # 風力係数の補正係数 F
+    adjacent_factor: float = 1.0        # 近接高層建築物による割増係数 EB（1.0〜1.3）
+    region_factor: float = 1.0          # 小地形による影響係数 Eg（崖上・傾斜地。ほかは 1.0）
+    gamma: Optional[float] = None       # 第2構面風力低減係数 γ。None なら 1−φ（式1・6-1）
+    correction_f: Optional[float] = None  # 設置位置による補正係数 F。None なら建物外壁に沿う足場 1+0.31φ（表1-10 B）
     period_days: int = 90               # 設置期間
     simultaneous_loaded_levels: int = 2  # 同時に積載する作業層数（実務: 2層以内）
+    # 地盤の許容支持力度（kN/m²）。None なら建災防東京支部「計画届作成の手引（第6版）」p124 の例（密実砂 中期
+    # 3kgf/cm²＝29N/cm²＝290kN/m²）で検定し、地盤調査の値を入れるよう書き添える
+    ground_bearing_kn_m2: Optional[float] = None
+    location: str = ""                  # 所在地（都道府県＋市区町村。例「千葉県千葉市」）。表1-5・表1-6 を引く
+    typhoon_measures: bool = False      # 台風接近時に強風対策をする（する計画なら Ke=1.0）
+
+    def prefecture(self) -> str:
+        loc = self.location or ""
+        if "23区" in loc or "特別区" in loc:
+            return "東京都"
+        return next((p for p in PREFECTURES if p in loc or p[:-1] == loc[:len(p) - 1]), "")
 
     def base_wind_speed(self) -> tuple[float, str]:
         if self.v0_ms is not None:
             return self.v0_ms, "利用者指定値"
-        regions = load_wind_regions()
-        if self.region not in regions:
+        if self.location:
+            return kasetsu_v0(self.location)
+        if self.region not in REGION_V0:
             raise CapacityError(
-                f"未知の地域区分です: {self.region}（候補: {', '.join(regions)}）"
+                f"未知の地域区分です: {self.region}（候補: {', '.join(REGION_V0)}）"
             )
-        return regions[self.region]
+        return REGION_V0[self.region], (f"{self.region}の代表値（表1-5）。所在地 site.location を入れると"
+                                        "市区町村で引き直す")
+
+    def typhoon_factor(self) -> tuple[float, str]:
+        if self.typhoon_measures:
+            return 1.0, "台風接近時に強風対策を行う"
+        pref = self.prefecture()
+        ke = TYPHOON_KE.get(pref, 1.0)
+        return ke, (f"表1-6（{pref}）" if ke > 1.0 else "表1-6 の地域外")
 
     def fill_ratio(self) -> float:
         if self.sheet_type not in SHEET_FILL_RATIO:
@@ -194,13 +230,27 @@ class WindResult:
     v0_ms: float
     v0_source: str
     height_m: float
-    k_height: float
-    e_adjacent: float
-    s_region: float
-    v_design_ms: float
-    q_n_m2: float
-    fill_ratio: float
-    c_force: float
+    k_height: float          # 瞬間風速分布係数 S＝G×E（式1・4）
+    e_adjacent: float        # 近接高層建築物による割増係数 EB
+    s_region: float          # 小地形による影響係数 Eg
+    v_design_ms: float       # Vz＝V0・Ke・S・EB・Eg
+    q_n_m2: float            # qz＝5/8 Vz²
+    fill_ratio: float        # φ
+    c_force: float           # その他の部分の風力係数（F＝1+0.31φ）
+    ke: float = 1.0
+    ke_source: str = ""
+    roughness: str = "III"
+    g_factor: float = 0.0    # ガストファクター G
+    e_factor: float = 0.0    # 鉛直分布係数 E
+    gamma: float = 0.0
+    k_resist: float = 0.0    # 抵抗係数 K＝1.2φ/(1−φ)²
+    c0: float = 0.0          # 基本風力係数 C0
+    aspect: float = 0.0      # 縦横比 2H/B
+    b_m: float = 0.0
+    r_shape: float = 0.0     # 形状補正係数 R
+    f_main: float = 1.0      # その他の部分の F
+    f_top: float = 1.0       # 上層2層部分の F
+    c_top: float = 0.0       # 上層2層部分の風力係数
 
 
 @dataclass
@@ -217,6 +267,21 @@ class WallTieResult:
     verified: bool
     governing: Optional[str] = None   # 支配的な壁つなぎの位置（どの1本が効いているか）
     unverified_caps: list["UnverifiedCapacity"] = field(default_factory=list)
+    # 建地が座屈するときに壁つなぎへ掛かる水平荷重（計画届作成の手引 p130: 1スパンの鉛直荷重×5%×受け持つスパン数）
+    buckle_kn: float = 0.0
+    buckle_spans: float = 0.0
+    # 上端の壁つなぎ（上層2層部分。足場の天端までのはね出しを張出梁、その下を単純梁とみた支点反力。手引 p244 図1-22a・
+    # 計算例「壁つなぎ上部2層部分の検討」R = (½W1·b²)/a + W1·b + ½W2·a、W1 = qz·C1·b2、W2 = qz·C2·b2）
+    top_kn: float = 0.0
+    top_where: str = ""
+
+    @property
+    def top_ratio(self) -> float:
+        return self.top_kn / self.allowable_increased_kn if self.allowable_increased_kn else 0.0
+
+    @property
+    def buckle_ratio(self) -> float:
+        return self.buckle_kn / self.allowable_increased_kn if self.allowable_increased_kn else 0.0
 
 
 def tie_remedy(tie: "WallTieResult") -> str:
@@ -334,11 +399,13 @@ class StructuralResult:
     openings: list[OpeningCheck] = field(default_factory=list)
     # 拡幅・張出ブラケット1基ごとの検定（check_widen_brackets）。無ければ空
     brackets: list["BracketCheck"] = field(default_factory=list)
+    # 脚部の地盤支持力（check_ground_bearing）
+    ground: Optional["GroundBearing"] = None
 
     @property
     def all_ok(self) -> bool:
         return (self.wall_tie.ok and self.post.ok and all(b.ok for b in self.brackets)
-                and all(o.ok for o in self.openings))
+                and all(o.ok for o in self.openings) and (self.ground is None or self.ground.ok))
 
 
 @dataclass
@@ -477,42 +544,113 @@ def check_widen_brackets(model: ScaffoldModel, caps: dict, site: SiteCondition) 
 # ---- 計算本体 -------------------------------------------------------------
 
 
-def height_factor(height_m: float, roughness: str = "III") -> float:
-    """高さ補正係数 K（告示1454号 Er に準拠した簡易式）."""
+def kasetsu_v0(location: str) -> tuple[float, str]:
+    """所在地から表1-5 の基準風速 V0（m/s）. 表に無い地域は 14m/s。市町村は表の名前（合併前の名前を含む）で探す."""
+    pref = SiteCondition(location=location).prefecture()
+    best = None
+    with open(DATA_DIR / "kasetsu_wind_v0.csv", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["pref"] != pref:
+                continue
+            areas = [a for a in row["areas"].split("|") if a]
+            excepts = [a for a in row["except"].split("|") if a]
+            if any(e in location for e in excepts):
+                continue
+            hit = [a for a in areas if a in location]
+            if areas and not hit:
+                continue
+            rank = max((len(a) for a in hit), default=0)
+            if best is None or rank > best[0]:
+                best = (rank, float(row["v0_ms"]), row["note"])
+    if best is None:
+        return V0_DEFAULT, f"表1-5 に無い地域（{pref or location}）は 14m/s"
+    return best[1], f"{best[2]}（{location}）"
+
+
+def gust_and_profile(height_m: float, roughness: str = "III") -> tuple[float, float]:
+    """(G, E): 変動風速のガストファクターと平均風速の鉛直分布係数（式1・4-2・1・4-3. Z<Zb は Zb で見る）."""
     if roughness not in ROUGHNESS:
-        raise CapacityError(f"未知の地表面粗度区分です: {roughness}")
-    zb, zg, alpha = ROUGHNESS[roughness]
-    h = max(height_m, 1.0)
-    if h <= zb:
-        return 1.7 * (zb / zg) ** alpha
-    return 1.7 * (h / zg) ** alpha
+        raise CapacityError(f"未知の地域区分です: {roughness}（I〜V）")
+    zb, zg, alpha, kappa = ROUGHNESS[roughness]
+    z = max(height_m, zb)
+    g = 1.0 + PEAK_FACTOR * math.sqrt(6.0 * kappa) * (10.0 / z) ** alpha
+    e = 1.7 * (z / zg) ** alpha
+    return g, e
 
 
-def wind_force_coefficient(fill_ratio: float, gamma: float = 0.0, f: float = 1.0) -> float:
-    """風力係数 C = (0.11 + 0.09γ + 0.945×Co×R) × F."""
-    return (0.11 + 0.09 * gamma + 0.945 * CO_BASE * fill_ratio) * f
+def height_factor(height_m: float, roughness: str = "III") -> float:
+    """瞬間風速分布係数 S＝G×E（式1・4-4）."""
+    g, e = gust_and_profile(height_m, roughness)
+    return g * e
+
+
+def basic_force_coefficient(phi: float) -> tuple[float, float]:
+    """(K, C0): 抵抗係数と基本風力係数（式1・7-1〜3。log は常用対数。φ=1 は C0=2.0）."""
+    if phi <= 0:
+        return 0.0, 0.0
+    if phi >= 1.0:
+        return float("inf"), 2.0
+    k = 1.2 * phi / (1.0 - phi) ** 2
+    if k <= 0.73:
+        return k, k / (1.0 + k / 4.0) ** 2
+    c0 = 2.8 * math.log10(k + 0.6 - math.sqrt(1.2 * k + 0.36)) - 2.8 * math.log10(k) + 2.0
+    return k, c0
+
+
+def shape_factor(aspect: float) -> float:
+    """形状補正係数 R（式1・8-2: 地上から建つ。2H/B ≦1.5 は 0.6、≧59 は 1.0）."""
+    if aspect <= 1.5:
+        return 0.6
+    if aspect >= 59:
+        return 1.0
+    return 0.5813 + 0.013 * aspect - 0.0001 * aspect ** 2
+
+
+def wind_force_coefficient(fill_ratio: float, gamma: Optional[float] = None, f: Optional[float] = None,
+                           r: float = 0.6) -> float:
+    """風力係数 C = (0.11 + 0.09γ + 0.945×C0×R) × F（式1・6-1）."""
+    g = (1.0 - fill_ratio) if gamma is None else gamma
+    ff = (1.0 + 0.31 * fill_ratio) if f is None else f
+    return (0.11 + 0.09 * g + 0.945 * basic_force_coefficient(fill_ratio)[1] * r) * ff
 
 
 def compute_wind(model: ScaffoldModel, site: SiteCondition, height_mm: Optional[float] = None) -> WindResult:
     v0, v0_src = site.base_wind_speed()
-    # 高さ補正は最も高い部分で見る。敷地の低い側で継ぎ足した分は名目より高い
+    ke, ke_src = site.typhoon_factor()
+    # 速度圧は最も高い部分（地上高さ Z＝足場の天端）で見る。敷地の低い側で継ぎ足した分は名目より高い
     h_m = (height_mm if height_mm else model.scaffold_height_mm) / 1000.0
-    k = height_factor(h_m, site.roughness)
-    v = v0 * k * site.adjacent_factor * site.region_factor
+    g, e = gust_and_profile(h_m, site.roughness)
+    sz = g * e
+    v = v0 * ke * sz * site.adjacent_factor * site.region_factor
     q = AIR_Q_COEF * v**2
-    r = site.fill_ratio()
-    c = wind_force_coefficient(r, site.gamma, site.correction_f)
+    phi = site.fill_ratio()
+    gamma = (1.0 - phi) if site.gamma is None else site.gamma
+    k_res, c0 = basic_force_coefficient(phi)
+    # 縦横比は地上から建つシートの 2H/B。B は面の長さの短い方（R が大きく出る安全側）
+    lengths = [e_.scaffold_length for e_ in model.plan.edges if e_.scaffold_length > 0]
+    b_m = (min(lengths) if lengths else 1000.0) / 1000.0
+    aspect = 2.0 * h_m / b_m
+    r = shape_factor(aspect)
+    f_main = (1.0 + 0.31 * phi) if site.correction_f is None else site.correction_f
+    f_top = 1.0
+    c = (0.11 + 0.09 * gamma + 0.945 * c0 * r) * f_main
+    c_top = (0.11 + 0.09 * gamma + 0.945 * c0 * r) * f_top
     return WindResult(
         v0_ms=v0,
         v0_source=v0_src,
         height_m=round(h_m, 3),
-        k_height=round(k, 4),
+        k_height=round(sz, 4),
         e_adjacent=site.adjacent_factor,
         s_region=site.region_factor,
         v_design_ms=round(v, 3),
         q_n_m2=round(q, 1),
-        fill_ratio=r,
+        fill_ratio=phi,
         c_force=round(c, 4),
+        ke=ke, ke_source=ke_src, roughness=site.roughness,
+        g_factor=round(g, 4), e_factor=round(e, 4), gamma=round(gamma, 4),
+        k_resist=round(k_res, 3) if k_res != float("inf") else k_res, c0=round(c0, 4),
+        aspect=round(aspect, 3), b_m=round(b_m, 3), r_shape=round(r, 4),
+        f_main=round(f_main, 4), f_top=f_top, c_top=round(c_top, 4),
     )
 
 
@@ -625,6 +763,52 @@ def tie_tributaries(model: ScaffoldModel) -> list[TieTributary]:
     return out
 
 
+def top_tie_reaction(q_kn_m2: float, c1: float, c2: float, b2: float, b: float, a: float) -> float:
+    """上端の壁つなぎの反力 R = (½W1·b²)/a + W1·b + ½W2·a（W1 = q·C1·b2、W2 = q·C2·b2）. b は天端までのはね出し、a は下の段まで."""
+    w1 = q_kn_m2 * c1 * b2
+    w2 = q_kn_m2 * c2 * b2
+    return (0.5 * w1 * b ** 2) / a + w1 * b + 0.5 * w2 * a
+
+
+def top_tie_force(model: ScaffoldModel, wind: WindResult) -> tuple[float, str]:
+    """上端の壁つなぎの反力（kN）と、その位置. 面ごとに、いちばん上の段の壁つなぎの水平間隔 b2（最大）、天端までの
+    はね出し b、その下の段までの間隔 a から R = (½W1·b²)/a + W1·b + ½W2·a."""
+    worst = (0.0, "")
+    by_face: dict[int, list] = {}
+    for t in model.wall_ties:
+        by_face.setdefault(t.edge_index, []).append(t)
+    q = wind.q_n_m2 / 1000.0
+    from .ties import unreachable_bands
+
+    bands = unreachable_bands(model)
+    for ei, ts in by_face.items():
+        hs = sorted({t.height_mm for t in ts})
+        if len(hs) < 2:
+            continue
+        top, below = hs[-1], hs[-2]
+        xs = sorted(t.position_mm for t in ts if t.height_mm == top)
+        ep = next((e for e in model.plan.edges if e.edge_index == ei), None)
+        if ep is None or not xs:
+            continue
+        # 受け持ち幅は両隣の壁つなぎとの中間まで。面の端は角（隣の面の足場）が支点になるので、角までの半分
+        # （全体の検定 tie_tributaries と同じ受け持ちの取り方）
+        # 壁つなぎが躯体に届かない帯（渡した区間の深い所）は検定の外（別途の控え。run_structural の警告）
+        lo, hi = 0.0, float(ep.scaffold_length)
+        for a0, b0 in bands.get(ei, []):
+            if a0 <= lo + 1.0 and b0 <= xs[0] + 1.0:
+                lo = max(lo, b0)
+            if b0 >= hi - 1.0 and a0 >= xs[-1] - 1.0:
+                hi = min(hi, a0)
+        pts = [min(lo, xs[0])] + xs + [max(hi, xs[-1])]
+        b2 = max((pts[i + 1] - pts[i - 1]) / 2.0 for i in range(1, len(pts) - 1)) / 1000.0
+        b = max(0.0, model.elevation_of(ei).total_height - top) / 1000.0
+        a = (top - below) / 1000.0
+        r = top_tie_reaction(q, wind.c_top, wind.c_force, b2, b, a)
+        if r > worst[0]:
+            worst = (round(r, 3), f"{model.face_name(ei)} 高さ{top}mm（はね出し{b:.2f}m・下の段まで{a:.2f}m・水平間隔{b2:.2f}m）")
+    return worst
+
+
 def check_wall_tie(
     model: ScaffoldModel, wind: WindResult, caps: dict
 ) -> WallTieResult:
@@ -662,6 +846,7 @@ def check_wall_tie(
     ]
     allow_inc = cap * WIND_INCREASE
     ratio = p_kn / allow_inc if allow_inc else float("inf")
+    top_kn, top_where = top_tie_force(model, wind)
     return WallTieResult(
         lh_m=round(lh, 3),
         lw_m=round(lw, 3),
@@ -670,11 +855,13 @@ def check_wall_tie(
         allowable_kn=cap,
         allowable_increased_kn=round(allow_inc, 3),
         ratio=round(ratio, 3),
-        ok=ratio <= 1.0,
+        ok=ratio <= 1.0 and (top_kn / allow_inc if allow_inc else 0.0) <= 1.0,
         source=cap_t.source,
         verified=verified,
         governing=governing,
         unverified_caps=unverified_caps,
+        top_kn=top_kn,
+        top_where=top_where,
     )
 
 
@@ -785,6 +972,60 @@ def check_post(
         widened=widened,
         widened_note=widened_note,
     )
+
+
+BUCKLE_RATIO = 0.05                    # 建地が座屈するときの水平荷重＝鉛直荷重の5%（手引 p130）
+GROUND_BEARING_EXAMPLE_KN_M2 = 290.0   # 手引 p124 の例: 密実砂 中期 3kgf/cm²（29N/cm²）
+SILL_BOARD_WIDTH_M = 0.24              # 建地の列に沿って通す敷板（杉の足場板）の幅
+JACK_PLATE_DEFAULT_MM = 140.0          # ベースジャッキの底板（手引 p124 の図 140 角）
+
+
+@dataclass
+class GroundBearing:
+    """脚部の地盤支持力（手引 p125・p132: ベースジャッキ直下と敷板の下）."""
+
+    foot_kn: float          # 脚1箇所の鉛直荷重（建地の検定の軸力）
+    plate_mm: float         # ベースジャッキの底板の一辺
+    board_w_m: float        # 敷板の幅
+    board_len_m: float      # 敷板の1脚あたりの負担長さ（スパン）
+    qa_kn_m2: float         # 地盤の許容支持力度
+    qa_source: str
+    plate_kn_m2: float
+    board_kn_m2: float
+
+    @property
+    def plate_ratio(self) -> float:
+        return self.plate_kn_m2 / self.qa_kn_m2
+
+    @property
+    def board_ratio(self) -> float:
+        return self.board_kn_m2 / self.qa_kn_m2
+
+    @property
+    def ok(self) -> bool:
+        # ジャッキの底板だけでは受けられないのが普通。敷板で面積を増やして受ければよい（手引 p133 の対策）
+        return self.board_ratio <= 1.0
+
+
+def check_ground_bearing(model: ScaffoldModel, post: "PostResult", site: SiteCondition) -> GroundBearing:
+    """建地1本の軸力を、ベースジャッキの底板と敷板（幅240をスパンの長さ）で地盤に伝えたときの接地圧."""
+    plate = JACK_PLATE_DEFAULT_MM
+    for p in list(model.master.by_category("ジャッキ")) + list(model.master.by_category("支柱附属")):
+        m = re.search(r"(\d{2,3})\s*角", p.note)
+        if m:
+            plate = float(m.group(1))
+            break
+    spans = [s for e in model.plan.edges for s in e.spans]
+    span = (max(set(spans), key=spans.count) if spans else 1800) / 1000.0
+    qa = site.ground_bearing_kn_m2
+    src = "利用者指定（site.ground_bearing_kn_m2）"
+    if qa is None:
+        qa, src = GROUND_BEARING_EXAMPLE_KN_M2, "計画届作成の手引 p124 の例（密実砂 中期 29N/cm²）"
+    n = post.total_kn
+    return GroundBearing(
+        foot_kn=n, plate_mm=plate, board_w_m=SILL_BOARD_WIDTH_M, board_len_m=span, qa_kn_m2=qa, qa_source=src,
+        plate_kn_m2=round(n / (plate / 1000.0) ** 2, 1),
+        board_kn_m2=round(n / (SILL_BOARD_WIDTH_M * span), 1))
 
 
 def beam_support_allowable_kn(part) -> Optional[float]:
@@ -1255,7 +1496,12 @@ def run_structural(
             "次の行を、メーカー認定値・仮設工業会認定値に差し替えて verified=yes に"
             "してから提出図書に使用してください: " + "、".join(lines)
         )
-    if not tie.ok:
+    if tie.top_ratio > 1.0:
+        warnings.append(
+            f"上端の壁つなぎが耐力不足です（{tie.top_where}: 反力{tie.top_kn:.2f}kN ＞ 許容{tie.allowable_increased_kn:.2f}kN、"
+            f"検定比{tie.top_ratio:.2f}）。最上段の壁つなぎの水平間隔を詰めるか、天端までのはね出しを短くしてください"
+            "（手引 p130・計算例「壁つなぎ上部2層部分の検討」）")
+    if not tie.ok and tie.ratio > 1.0:
         if not model.wall_ties:
             # 0本だと支配面積が定まらず検定比が発散する。数字を出す場面ではない
             warnings.append(
@@ -1294,6 +1540,34 @@ def run_structural(
             f"建地圧縮が耐力不足です（検定比{post.ratio:.2f}、支配: {post.governing}）。"
             + remedy
         )
+    # 建地の座屈止めとしての壁つなぎ（手引 p130）: 1スパンの鉛直荷重（内外の建地2本）の5%を、壁つなぎ1本が受け持つ
+    # スパン数ぶん受ける。風の検定とは別に、許容×1.3 と比べる
+    spans = [s_ for e in model.plan.edges for s_ in e.spans]
+    span_m = (max(set(spans), key=spans.count) if spans else 1800) / 1000.0
+    rows = 1 if model.config.scaffold_form == "一側足場" else 2
+    tie.buckle_spans = round(max(1.0, tie.lh_m / span_m), 2)
+    tie.buckle_kn = round(post.total_kn * rows * BUCKLE_RATIO * tie.buckle_spans, 3)
+    if tie.buckle_ratio > 1.0:
+        tie.ok = False
+        warnings.append(
+            f"壁つなぎが建地の座屈止めとして耐力不足です（水平荷重{tie.buckle_kn:.2f}kN＝1スパンの鉛直荷重×5%×"
+            f"{tie.buckle_spans:g}スパン ＞ 許容{tie.allowable_increased_kn:.2f}kN、検定比{tie.buckle_ratio:.2f}）。"
+            "壁つなぎの水平間隔を詰めるか、高耐力の壁つなぎにしてください（計画届作成の手引 p130）")
+    ground = check_ground_bearing(model, post, site)
+    if not ground.ok:
+        warnings.append(
+            f"敷板の下の地盤が支持力不足です（接地圧{ground.board_kn_m2:.0f}kN/m²＞許容{ground.qa_kn_m2:.0f}kN/m²、"
+            f"検定比{ground.board_ratio:.2f}。{ground.qa_source}）。敷角で受ける幅を広げる、地盤を改良する、"
+            "または土間コンクリートで受けてください")
+    else:
+        notes.append(
+            f"脚部の地盤支持力: ベースジャッキの底板（{ground.plate_mm:.0f}角）直下は{ground.plate_kn_m2:.0f}kN/m²で"
+            f"許容{ground.qa_kn_m2:.0f}kN/m²を" + ("超えるので" if ground.plate_ratio > 1 else "下回るが")
+            + f"、敷板（幅{ground.board_w_m * 1000:.0f}）を建地の列に沿って通して受ける（{ground.board_kn_m2:.0f}kN/m²、"
+            f"検定比{ground.board_ratio:.2f}）")
+    if site.ground_bearing_kn_m2 is None:
+        notes.append("地盤の許容支持力度は計画届作成の手引の例（密実砂 29N/cm²）で検定しています。地盤調査の値を "
+                     "site.ground_bearing_kn_m2（kN/m²）に入れて検定し直してください")
     brackets, b_notes = check_widen_brackets(model, caps, site)
     notes += b_notes
     if widened_by_bridges(model) and post.widened and not post.widened_note:
@@ -1307,5 +1581,5 @@ def run_structural(
         site=site, wind=wind, wall_tie=tie, post=post,
         warnings=warnings, notes=notes, unverified_used=unverified,
         unverified_rows=list(by_row.values()),
-        openings=opening_checks, brackets=brackets,
+        openings=opening_checks, brackets=brackets, ground=ground,
     )
