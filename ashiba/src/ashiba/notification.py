@@ -283,7 +283,9 @@ def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
         # 補強前提の耐力（capacity.csv の補強仕様の行）で建地を検定している。
         # 概要に書かないと、審査側は通常仕様の許容値で読む
         _kv(s, f"{model.master.vertical_member_name}補強", model.config.post_reinforcement,
-            "腕木を方杖付きの強力つなぎ材に交換（計算書3の許容支持力はこの仕様の値）")
+            ("作業床の段の腕木の下に強化方杖を取付け（計算書3の許容支持力はこの仕様の値）"
+             if model.config.post_reinforcement == "強化方杖"
+             else "腕木を方杖付きの強力つなぎ材に交換（計算書3の許容支持力はこの仕様の値）"))
     v_max, h_max = model.wall_tie_max_spacing()
     v_lim, h_lim, tie_basis = model.wall_tie_limits()
     _kv(s, "壁つなぎ", f"{len(model.wall_ties)}箇所",

@@ -251,8 +251,9 @@ def write_report_md(
     a(f"- 手すり方式: {model.guard_rail_method}")
     if getattr(model.config, "post_reinforcement", ""):
         # 補強前提の耐力で検定している。書かないと通常仕様の計画に見える
+        how = ("腕木の下に強化方杖を足し" if model.config.post_reinforcement == "強化方杖" else "腕木を方杖付きに替え")
         a(f"- {model.master.vertical_member_name}補強: {model.config.post_reinforcement}"
-          "（腕木を方杖付きに替え、支柱の許容支持力はその仕様の値で検定）")
+          f"（{how}、支柱の許容支持力はその仕様の値で検定）")
     a("- 設置届: " + ("**要**（高さ10m以上かつ60日以上 → 開始30日前までに労基署へ）"
                     if notification_required(model, terrain) else "不要"))
     a("")
@@ -587,7 +588,7 @@ def write_plan_json(
         "deck_widths": [400, 250],       // 実際に敷く幅（一側は1枚）
         "post_row_spacing_mm": 600,      // 内外建地列の芯々
         "guard_rail_type": "布材" | "先行手すり",
-        "post_reinforcement": "" | "強力つなぎ材",
+        "post_reinforcement": "" | "強力つなぎ材" | "強化方杖",
         "guard_rail_height_mm": 900, "midrail_height_mm": 450,
         "toe_board_height_mm": 157, "next_gen": false, "period_days": 90
       },

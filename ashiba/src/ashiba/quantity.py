@@ -670,7 +670,20 @@ def _take_off_one(
             + "（布材の合計にはこの分も含む）"
         )
         reinf = getattr(model.config, "post_reinforcement", "") or ""
-        if reinf:
+        if reinf == "強化方杖":
+            # アルバトロスの強化方杖（スギコ カタログ p035・p059）: 腕木は布材のまま、作業床の段の腕木の下に方杖を足す。
+            # 本数の決めはカタログに無いので、作業床の段ごとに腕木1本に1本と置く（根がらみの段には付けない）
+            add(m.find("布材", udegi), n_udegi, f"腕木（布材{udegi}）")
+            hozue = next((p for p in m.by_category("方杖") if "強化方杖" in p.note), None)
+            n_hz = max(0, posts_per_line * n_levels - udegi_cut)
+            add(hozue, n_hz, "強化方杖（作業床の段の腕木の下）")
+            if hozue is None:
+                notes.action(f"強化方杖が系列 {m.series_id} のマスタにありません（{n_hz}本）")
+            else:
+                notes.append(f"強化方杖は作業床の段の腕木1本に1本（支柱位置{posts_per_line}箇所×作業層{n_levels}）で計上。"
+                             "本数と付ける段はカタログに決めが無いので、スギコ（アルインコ）の組立基準で確かめる。"
+                             "強化方杖を使うときは壁つなぎが必要（カタログ p059）")
+        elif reinf:
             # 補強仕様: 腕木を強力つなぎ材（方杖付き）に替える。無ければ手配を出す
             strong = m.find("布材", udegi, reinf)
             add(strong, n_udegi, f"腕木（{reinf}{udegi}）")

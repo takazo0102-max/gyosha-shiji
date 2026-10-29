@@ -66,6 +66,29 @@ class TestAlbatrossCollars(unittest.TestCase):
         self.assertEqual(load_master("nikken_nd1800").by_category("調整カラー"), [])
 
 
+class TestAlbatrossStruts(unittest.TestCase):
+    """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
+
+    def test_struts_raise_the_post_allowance(self):
+        base = {**RECT, "eaves_height_mm": 40000, "guard_rail_type": "先行手すり", "site": {"sheet_type": "防音シート"}}
+        plain = solve_all(base)
+        strut = solve_all({**base, "post_reinforcement": "強化方杖"})
+        self.assertEqual(plain.structural.post.allowable_kn, 12.5)
+        self.assertEqual(strut.structural.post.allowable_kn, 23.5)   # ジャッキの暫定値（23.5）に頭を押さえられない
+        q = {l.part.model_no: l.qty for l in strut.quantity.lines if l.part}
+        n_levels = strut.model.elevation.n_levels
+        self.assertGreater(q["50810"], 0)
+        self.assertEqual(q["50810"] % n_levels, 0)
+        self.assertEqual(q.get("50212", 0), {l.part.model_no: l.qty for l in plain.quantity.lines if l.part}.get("50212", 0))
+        self.assertTrue(any("強化方杖を使うときは壁つなぎが必要" in n for n in strut.quantity.notes))
+
+    def test_struts_are_only_for_series_that_have_them(self):
+        from ashiba.structural import CapacityError
+
+        with self.assertRaises(CapacityError):
+            solve_all({**RECT, "series_id": "shinwa_A", "post_reinforcement": "強化方杖"})
+
+
 class TestAlbatrossSolve(unittest.TestCase):
     def test_solves_with_its_own_parts(self):
         r = solve_all({**RECT, "guard_rail_type": "先行手すり", "asagao": {"stages": 1}})

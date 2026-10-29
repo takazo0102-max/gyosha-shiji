@@ -42,7 +42,7 @@
   "pdf_publisher_set": "2 - レイアウト",  // 発行に使う Archicad の発行セット（レイアウトブックを映したもの）
   "elevation_mode": "section",     // 立面図: "section"=断面図ビューポイントで3Dから投影しレイアウトへ（配置では作らずパレットの「図面を作る」で）／"each"=配置のたびに作る／"object"=平面の下に2Dで並べる／"none"
   "cross_section_mode": "section", // 断面図: "section"=断面図ビューポイントで3Dを切る（既定）／"drafted"=2Dの作図の形の部品を 1/50 で
-  "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる。系列に値がある場合のみ）
+  "post_reinforcement": "",       // ""／"強力つなぎ材"（腕木を強力つなぎ材にして支柱の許容支持力を上げる）／"強化方杖"（アルバトロス: 腕木の下に方杖を足す）。系列に値がある場合のみ
   // 開口部（省略可）。支柱を抜いて通路にする箇所。梁枠は規格品のみ
   "openings": [
     {"edge_index": 0, "start_mm": 3600, "beam_span_mm": 3600, "reason": "現場出入口"}
@@ -586,8 +586,8 @@ def validate_spec(spec: dict) -> None:
     if bpost not in ("支柱", "単管"):
         errors.append(f"bracket_post: 支柱 か 単管 です（{bpost!r}）")
     reinf = spec.get("post_reinforcement", "")
-    if reinf not in ("", "強力つなぎ材"):
-        errors.append(f"post_reinforcement: \"\" か 強力つなぎ材 です（{reinf!r}）")
+    if reinf not in ("", "強力つなぎ材", "強化方杖"):
+        errors.append(f"post_reinforcement: \"\" か 強力つなぎ材 か 強化方杖（アルバトロス）です（{reinf!r}）")
 
     # 構造計算の敷地条件。未知の地域区分・粗度区分・養生材は解いている途中で
     # CapacityError（トレースバック）になっていた。入口で候補つきで弾く
