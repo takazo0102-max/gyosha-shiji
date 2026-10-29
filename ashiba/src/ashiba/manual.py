@@ -162,3 +162,108 @@ def solve_manual(a, b, spans: list[int], standoff: float, side: str, eaves_mm: f
     anchor = anchor_of(local.model.plan, ei, side)
     world = to_world(spec["outline_mm"], anchor, tuple(a), tuple(b))
     return world, {**spec, "outline_mm": world}, local
+
+
+# ---- 一周（閉じたポリライン）: 内側の建地の列を縦横の閉じたポリラインで描き、辺ごとにスパンを入れる ----
+# 向きは描いた線から、長さは入れたスパンの合計から決める（描いた長さは目安）。一周が閉じなければどの向きがいくつ合わないかを
+# 出して止める。躯体の外形は、その列を離れの分だけ内側にずらしたもの（scaffold_loop_vertices を内向きに使う）。
+
+def loop_directions(points: list) -> list[tuple[float, float]]:
+    """閉じたポリラインの点（最後の点が最初と同じでもよい）→ 辺ごとの向き（縦・横の単位ベクトル）。続けて同じ向きの辺は
+    そのまま返す（呼ぶ側でまとめる）."""
+    pts = [tuple(map(float, p)) for p in points]
+    if len(pts) > 2 and math.dist(pts[0], pts[-1]) < 1.0:
+        pts = pts[:-1]
+    if len(pts) < 4:
+        raise ValueError("一周の足場は、縦横の閉じたポリライン（4点以上）で描いてください")
+    return [axis_direction(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+
+
+def loop_inner_row(start, dirs: list[tuple[float, float]], spans_by_side: list[list[int]]
+                   ) -> tuple[list[tuple[float, float]], list[tuple[float, float]], list[list[int]]]:
+    """内側の建地の列の頂点（始点から、辺の長さ＝スパンの合計）. 同じ向きが続く辺はまとめる. (頂点, 向き, スパン)."""
+    if len(dirs) != len(spans_by_side):
+        raise ValueError("辺の数とスパンの組の数が合いません")
+    md: list[tuple[float, float]] = []
+    ms: list[list[int]] = []
+    for d, sp in zip(dirs, spans_by_side):
+        if md and md[-1] == d:
+            ms[-1] = ms[-1] + list(sp)
+        else:
+            md.append(d)
+            ms.append(list(sp))
+    if len(md) > 1 and md[0] == md[-1]:
+        md[0], ms[0] = md[-1], ms[-1] + ms[0]
+        md, ms = md[:-1], ms[:-1]
+    pts = [(float(start[0]), float(start[1]))]
+    for d, sp in zip(md, ms):
+        L = float(sum(sp))
+        pts.append((pts[-1][0] + d[0] * L, pts[-1][1] + d[1] * L))
+    gap = (pts[-1][0] - pts[0][0], pts[-1][1] - pts[0][1])
+    if abs(gap[0]) > 1.0 or abs(gap[1]) > 1.0:
+        ex = sum(sum(sp) for d, sp in zip(md, ms) if d[0] > 0.5)
+        wx = sum(sum(sp) for d, sp in zip(md, ms) if d[0] < -0.5)
+        ny = sum(sum(sp) for d, sp in zip(md, ms) if d[1] > 0.5)
+        sy = sum(sum(sp) for d, sp in zip(md, ms) if d[1] < -0.5)
+        msgs = []
+        if abs(gap[0]) > 1.0:
+            msgs.append(f"右向きの辺の合計 {ex}mm と左向きの辺の合計 {wx}mm が {abs(ex - wx)}mm 違う")
+        if abs(gap[1]) > 1.0:
+            msgs.append(f"上向きの辺の合計 {ny}mm と下向きの辺の合計 {sy}mm が {abs(ny - sy)}mm 違う")
+        raise ValueError("スパンで一周が閉じません: " + "・".join(msgs) + "（向かい合う辺の合計をそろえてください）")
+    return pts[:-1], md, ms
+
+
+def loop_outline(inner: list[tuple[float, float]], dirs: list[tuple[float, float]], standoff: float
+                 ) -> tuple[list[list[float]], list[list[int]], bool]:
+    """内側の建地の列（頂点・向き）→ 躯体の外形（左回り。辺 i が列の辺 i に対応）と、左回りにそろえたかどうか."""
+    n = len(inner)
+    area = sum(inner[i][0] * inner[(i + 1) % n][1] - inner[(i + 1) % n][0] * inner[i][1] for i in range(n)) / 2.0
+    ccw = area > 0
+    # 左回りなら躯体（内側）は進む向きの左。外形の辺 i は列の辺 i を内側へ離れの分ずらした線
+    lines = []
+    for i in range(n):
+        d = dirs[i]
+        inward = (-d[1], d[0]) if ccw else (d[1], -d[0])
+        lines.append(((inner[i][0] + inward[0] * standoff, inner[i][1] + inward[1] * standoff), d))
+    verts = []
+    for i in range(n):
+        (p1, d1), (p2, _d2) = lines[(i - 1) % n], lines[i]
+        verts.append([p2[0], p1[1]] if abs(d1[0]) > 0.5 else [p1[0], p2[1]])
+    return verts, ccw
+
+
+def solve_manual_loop(points: list, spans_by_side: list[list[int]], standoff: float, eaves_mm: float,
+                      extra: Optional[dict] = None):
+    """一周の手動配置を解く → (外形, 条件, 解いた結果). 外形は左回りにそろえ、スパンは左回りの向きに並べ直して渡す."""
+    from .cli import solve_all
+
+    pts = [tuple(map(float, p)) for p in points]
+    if len(pts) > 2 and math.dist(pts[0], pts[-1]) < 1.0:
+        pts = pts[:-1]
+    dirs = loop_directions(pts)
+    inner, md, ms = loop_inner_row(pts[0], dirs, spans_by_side)
+    outline, ccw = loop_outline(inner, md, standoff)
+    n = len(outline)
+    if not ccw:
+        # 右回りに描いたとき: 外形の頂点の順を逆にし、辺 i（頂点 i→i+1）が元のどの辺かを合わせてスパンも逆順に
+        outline = [outline[(n - k) % n] for k in range(n)]
+        ms = [list(reversed(ms[(n - 1 - k) % n])) for k in range(n)]
+    so = float(standoff)
+    spec = {**(extra or {}), "outline_mm": outline, "eaves_height_mm": float(eaves_mm),
+            "span_overrides": [{"edge_index": i, "spans_mm": sp} for i, sp in enumerate(ms)],
+            "standoff": {"target": so, "min": so, "max": so, "hard_min": so},
+            "height_from_slabs": False, "avoid_obstacles": False}
+    return outline, spec, solve_all(spec)
+
+
+def span_changes(spec: dict, result) -> list[str]:
+    """入れたスパン（span_overrides）と解いたスパンが違う辺（入隅は2つの面を 610 などの升目でつなぐので変わる）."""
+    want = {int(o["edge_index"]): list(o["spans_mm"]) for o in spec.get("span_overrides", [])}
+    names = dict(zip([e.edge_index for e in result.model.plan.edges], result.model.plan.face_names()))
+    out = []
+    for e in result.model.plan.edges:
+        w = want.get(e.edge_index)
+        if w is not None and list(e.spans) != w:
+            out.append(f"{names.get(e.edge_index, e.edge_index)}: {span_text(w)} → {span_text(list(e.spans))}（入隅のつなぎ）")
+    return out

@@ -7,8 +7,8 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.cli import solve_all
-from ashiba.manual import (SIDE_LEFT, SIDE_RIGHT, axis_direction, parse_spans, solve_manual, span_text,
-                           suggest_spans)
+from ashiba.manual import (SIDE_LEFT, SIDE_RIGHT, axis_direction, parse_spans, solve_manual, solve_manual_loop,
+                           span_changes, span_text, suggest_spans)
 
 
 class TestSpanText(unittest.TestCase):
@@ -81,6 +81,39 @@ class TestManualPlacement(unittest.TestCase):
         top = solve_all(spec).model.elevation.level_heights[-1]
         self.assertGreaterEqual(top, 12000)                    # 最上段の作業床は軒高まで（1層 1800 の刻みで上へ）
         self.assertLess(top, 12000 + 1800)
+
+
+
+class TestManualLoop(unittest.TestCase):
+    """一周（閉じたポリライン）: 辺ごとのスパンで一周を置く."""
+
+    RECT = [(0, 0), (8230, 0), (8230, 5487), (0, 5487)]
+    SIDES = [[1829] * 4 + [914], [1829] * 3, [1829] * 4 + [914], [1829] * 3]
+
+    def test_rectangle_both_directions(self):
+        for pts, sides in ((self.RECT, self.SIDES),
+                           (self.RECT[::-1], [self.SIDES[2], self.SIDES[1], self.SIDES[0], self.SIDES[3]])):
+            with self.subTest(ccw=pts == self.RECT):
+                out, spec, r = solve_manual_loop(pts, sides, 300, 6000, {"series_id": "nikken_nd1800"})
+                self.assertTrue(r.verdict["ok"], r.verdict)
+                corners = {tuple(round(v) for v in e.start_post) for e in r.model.plan.edges}
+                self.assertEqual(corners, {(0, 0), (8230, 0), (8230, 5487), (0, 5487)})   # 四隅の支柱が描いた所
+                self.assertTrue(all(abs(e.standoff - 300) < 1 for e in r.model.plan.edges))
+                self.assertEqual(span_changes(spec, r), [])
+
+    def test_not_closing_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "右向きの辺の合計 8230mm と左向きの辺の合計 7316mm が 914mm 違う"):
+            solve_manual_loop(self.RECT, [[1829] * 4 + [914], [1829] * 3, [1829] * 4, [1829] * 3], 300, 6000)
+
+    def test_concave_corner_changes_are_reported(self):
+        # 入隅は2つの面を 610 などの升目でつなぐのでスパンが変わる（置いたあとに知らせる）
+        pts = [(0, 0), (14632, 0), (14632, 5487), (7316, 5487), (7316, 10974), (0, 10974)]
+        sides = [[1829] * 8, [1829] * 3, [1829] * 4, [1829] * 3, [1829] * 4, [1829] * 6]
+        out, spec, r = solve_manual_loop(pts, sides, 300, 6000, {"series_id": "nikken_nd1800"})
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        ch = span_changes(spec, r)
+        self.assertEqual(len(ch), 2)
+        self.assertTrue(all("入隅のつなぎ" in c for c in ch))
 
 
 if __name__ == "__main__":
