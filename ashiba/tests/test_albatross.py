@@ -105,6 +105,15 @@ class TestAlbatrossSolve(unittest.TestCase):
         self.assertEqual(q.get("ALAC-SET"), 8)
         self.assertFalse(any("朝顔コーナーがマスタに無い" in n for n in r.quantity.notes))
 
+    def test_mesh_sheets_and_net_brackets_are_sugiko_parts(self):
+        # ライトネス（p357）は足場のスパンの幅どおり。ネットブラケット 27300（p356）は腕の寸法が資料に無いので NL500 で仮に判定
+        r = solve_all({**RECT, "horizontal_net_levels": [2], "site": {"sheet_type": "メッシュシート"}})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertGreater(q.get("81418", 0), 0)
+        self.assertGreater(q.get("27300", 0), 0)
+        self.assertFalse(any("マスタに無い幅" in n for n in r.quantity.notes))
+        self.assertTrue(any("27300 の腕の届きは資料に無い" in n for n in r.quantity.notes))
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 

@@ -1723,7 +1723,11 @@ def _count_horizontal_net(model: ScaffoldModel, add, notes) -> None:
     if clash:
         need = NETBK_PLATE_MM + NETBK_REACH_MIN_MM + NET_GAP_MM
         faces = "・".join(f"{model.face_name(i)}（離れ{so:.0f}mm）" for i, so in clash)
-        notes.action(f"ネットブラケット {NETBK_MODEL} の腕は受け板から {NETBK_REACH_MIN_MM:.0f}〜{NETBK_REACH_MAX_MM:.0f}mm"
+        # 系列のネットブラケットが NL500 でなければ（アルバトロスの 27300 など腕の寸法が資料に無い品）、NL500 の寸法で仮に
+        # 判定したと書く（系列の品の届きで確かめてもらう）
+        own = bk.model_no if bk is not None and bk.model_no != NETBK_MODEL else ""
+        notes.action((f"ネットブラケット {own} の腕の届きは資料に無いので {NETBK_MODEL} の寸法で仮に判定: " if own else "")
+                     + f"ネットブラケット {NETBK_MODEL} の腕は受け板から {NETBK_REACH_MIN_MM:.0f}〜{NETBK_REACH_MAX_MM:.0f}mm"
                      f"（建地芯から最短 {NETBK_PLATE_MM + NETBK_REACH_MIN_MM:.0f}mm）で、{faces} では最短でも躯体に当たります。"
                      f"離れを {need:.0f}mm 以上にするか、腕の短いブラケット・内ブラケットで隙間を塞ぐ方法を検討してください",
                      Notes.SITE)
