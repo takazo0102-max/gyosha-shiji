@@ -230,6 +230,17 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
                         key=lambda p: p.nominal_dim)
             need = float(sum(b.deck) + 10 * max(0, len(b.deck) - 1))
             pick = next((p for p in br if p.nominal_dim >= need), br[-1] if br else None)
+            if pick is not None and pick.nominal_dim > so + 10.0:
+                # ブラケットが離れより長くなるなら、細い床材（アルバトロスの 150幅鋼製板など）で離れに収まるブラケットを
+                # 選び直す（離れ 270 に 240 のアンチで 305 のブラケットを出し、躯体に当たっていた。2026-10-30 のループ）
+                for wn in sorted((d for d in avail if d < max(b.deck)), reverse=True):
+                    deck2 = _deck_list(so, [wn])
+                    need2 = float(sum(deck2) + 10 * max(0, len(deck2) - 1))
+                    pick2 = next((p for p in br if p.nominal_dim >= need2), None)
+                    if pick2 is not None and pick2.nominal_dim <= so + 10.0:
+                        b.deck, pick = deck2, pick2
+                        b.deck_len_mm = w
+                        break
             b.kind = "ブラケット"
             b.length_mm = float(pick.nominal_dim) if pick else so
             b.bracket = (f"{pick.model_no} " + ("拡幅ブラケット" if "拡幅" in pick.note else "張出ブラケット")

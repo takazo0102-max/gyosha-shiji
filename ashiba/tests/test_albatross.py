@@ -29,7 +29,7 @@ class TestAlbatrossMaster(unittest.TestCase):
         self.assertEqual(m.find("先行手摺", 1829).weight_kg, 6.9)
         self.assertEqual(m.find("幅木", 1219).model_no, "34852")
         deck = [p for p in m.by_category("踏板") if p.nominal_dim == 1829]
-        self.assertEqual(sorted(p.weight_kg for p in deck), [8.5, 15.8])
+        self.assertEqual(sorted(p.weight_kg for p in deck), [7.0, 8.5, 15.8])        # 500・240・150（狭小地）
         jack = m.by_category("ジャッキ")[0]
         self.assertEqual((jack.model_no, jack.max_extension_mm()), ("37751", 255))
         tie = [p for p in m.by_category("壁つなぎ") if p.covers(600)]
@@ -126,6 +126,19 @@ class TestAlbatrossSolve(unittest.TestCase):
         r = solve_all(RECT)
         self.assertFalse(any("アンダーベース（数量" in n for n in r.quantity.notes))
         self.assertTrue(any("敷板（敷角）の中心に置いて釘等で固定" in n for n in r.quantity.notes))
+
+    def test_narrow_boards_only_for_tight_spots(self):
+        # 150幅鋼製板（狭小地システム p043）は本体の床の組に入れない（p025: 幅610は500幅の布板）。屋上への渡りで
+        # 240 のアンチだとブラケット 305 が離れ 270 より長くなるので、150 の板と 153 のブラケットに選び直す
+        m = load_master("albatross")
+        self.assertNotIn(150, m.deck_widths_available())
+        self.assertEqual(m.width_setup(610)[1], (500,))
+        r = solve_all({**RECT, "guard_rail_type": "先行手すり"})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertNotIn("34669", q)                                 # 本体の床に 150 を敷かない
+        b = r.model.roof_bridges[0]
+        self.assertEqual((b.deck, b.bracket.split()[0]), ([150], "50353"))
+        self.assertFalse(any("より長いので" in str(w) for w in r.warnings))
 
     def test_spec_object_lists_the_series(self):
         from pathlib import Path

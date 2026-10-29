@@ -348,6 +348,10 @@ class PartMaster:
         """
         out: set[int] = set()
         for p in self.by_category(self.deck_category):
+            # 狭小地用の板（アルバトロスの 150幅鋼製板）は本体の床の組に入れない（610 に 500＋150 を敷いていた。カタログ
+            # p025「足場の幅610の場合は500幅の布板」）。屋上への渡りなど狭い所は roof_bridges が幅を直接拾う
+            if "狭小地" in p.note:
+                continue
             for token in p.note.split():
                 if token.startswith("幅"):
                     try:
