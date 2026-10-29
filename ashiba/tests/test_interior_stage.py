@@ -123,6 +123,19 @@ class TestShoringStage(unittest.TestCase):
         self.assertEqual(st(self.shore()), "NG")
         self.assertEqual(st(self.shore(tie="両方向つなぎ材")), "OK")
         self.assertEqual(st(self.shore(slab_mm=120)), "OK")
+        # 両方向つなぎ材で超えるときは、収まる支柱の間隔を案内する（「つなぎ材を両方向に」と言っていた）
+        thick = self.shore(tie="両方向つなぎ材", slab_mm=300)
+        msg = next(c.message for c in thick.checks if c.item == "支保工の支柱の軸力")
+        self.assertIn("以下に詰める", msg)
+        self.assertNotIn("両方向に入れる", msg)
+
+    def test_deck_snaps_to_the_nearest_koma(self):
+        # 天井から積み方を選び直しても、作業床は指定にいちばん近いコマの段（1800 の指定が 2465 になっていた）
+        for d, c in ((1800, 3800), (1800, 4400), (2500, 5200)):
+            r = self.shore(deck_mm=d, ceiling_mm=c)
+            self.assertLessEqual(abs(r.deck_mm - d), 225, (d, c, r.deck_mm))
+            lv = sorted(r.levels[1:] + r.upper_levels)
+            self.assertTrue(all((x - r.deck_mm) % 450 == 0 for x in lv), lv)
 
     def test_uhead_jack_and_notification(self):
         r = self.shore()

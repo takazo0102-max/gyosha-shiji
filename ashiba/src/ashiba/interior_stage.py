@@ -239,7 +239,22 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     # 2225 になった）
     hs = [int(h) + base_up for h in elev.level_heights]
     deck = min(hs, key=lambda h: (abs(h - deck_req), h)) if hs else int(deck_req)
-    levels = [int(elev.first_ledger_height) + base_up] + [h for h in hs if h <= deck]
+    root = int(elev.first_ledger_height) + base_up
+    koma = int(master.koma_pitch or 0)
+    if shoring and koma >= 300 and abs(deck - deck_req) > koma / 2:
+        # 支保工は天井から支柱の積み方を選び直すので、層の段が指定の作業床から離れることがある。くさびはコマごとに
+        # 布材を掛けられるので、指定にいちばん近いコマの高さを作業床の段にする（1800 の指定が 2465 になっていた）
+        # コマは層の段と同じ並び（根がらみはコマから半分ずれることがあるので、層の段から数える）
+        k = round((deck_req - deck) / koma)
+        cand = deck + k * koma
+        top0 = int(elev.jack_extension + base_up + sum(elev.posts))
+        while cand + GUARD_MM > top0 and cand - koma > root + koma / 2:
+            cand -= koma                    # 作業床の手すりが支柱の天端（大引の下）を超えない
+        while cand <= root + koma / 2:
+            cand += koma
+        deck = int(cand)
+        hs = sorted(set(hs) | {deck})
+    levels = [root] + [h for h in hs if h <= deck]
     live = float(item.get("live_kn_m2", LIVE_DEFAULT_KN_M2) or LIVE_DEFAULT_KN_M2)
     res = StageResult(name, origin, u, v, su, sv, levels, deck, float(item.get("base_mm", 0.0) or 0.0),
                       list(elev.posts), int(elev.jack_extension) + base_up, live)
@@ -252,7 +267,9 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         for a, b in zip(lv, lv[1:]):
             n = math.ceil((b - a) / TIE_PITCH_MAX_MM) - 1
             for i in range(1, n + 1):
-                add.append(a + int(round((b - a) * i / (n + 1) / koma)) * koma)
+                # コマは作業床の段と同じ並び（根がらみから数えるとコマから半分ずれることがある）
+                pos = a + (b - a) * i / (n + 1)
+                add.append(int(deck + round((pos - deck) / koma) * koma))
         res.upper_levels = sorted(set(add) - set(levels))
     res.ceiling_mm = float(ceil_mm) if ceil_mm else None
     res.series_id = str(getattr(master, "series_id", "") or "")
@@ -401,6 +418,22 @@ def _stair_checks(r: StageResult) -> None:
                    "脚の滑り止め（踏面に敷板を釘止め・根がらみを2方向）を付ける")
 
 
+def _shoring_spacing_hint(r: StageResult, master, caps: Optional[dict], q: float, h_m: float) -> str:
+    """支保工の軸力が許容を超えたときの案内: 今のつなぎ方で収まる支柱の間隔（定尺の組み合わせ）と、強いつなぎ方."""
+    allow = _cap(caps, "支保工許容支持力", r.tie) or 0.0
+    coins = sorted(master.span_lengths(), reverse=True)
+    fits = [(a, b) for a in coins for b in coins if b <= a
+            and (a / 1000.0) * (b / 1000.0) * q + POST_SELF_KN_PER_M * h_m <= allow]
+    msg = ""
+    if fits:
+        a, b = max(fits, key=lambda ab: ab[0] * ab[1])
+        msg = f"。支柱の間隔を {a}×{b} 以下に詰める"
+    stronger = [t for t in SHORING_TIES if (_cap(caps, "支保工許容支持力", t) or 0.0) > allow]
+    if stronger:
+        msg += f"{'か、' if msg else '。'}つなぎ方を {'・'.join(stronger)} にする"
+    return msg or "。支柱の間隔を詰める"
+
+
 def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     """型枠支保工として使うときの部材と検定（手引 14章・参考資料2）."""
     nu, nv = len(r.spans_u), len(r.spans_v)
@@ -437,7 +470,7 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
         st = "OK" if n_kn <= allow else "NG"
         out.append(StageCheck("支保工の支柱の軸力", st,
                               f"{_post_label(r)}1本 {n_kn:.2f}kN {'≦' if st == 'OK' else '＞'} 許容 {allow:.1f}kN（{r.tie}）"
-                              + ("" if st == "OK" else "。支柱の間隔を詰めるか、つなぎ材を両方向に入れる")
+                              + ("" if st == "OK" else _shoring_spacing_hint(r, master, caps, q, h_m))
                               + "（組み合わされた支保工はメーカー指定の最大使用荷重以下。安衛則240条3項2号・手引 p143）"))
     ratio = SHORING_H_RATIO_FRAME if master.system_type == FRAME else SHORING_H_RATIO
     r.h_ratio = ratio
