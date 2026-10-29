@@ -132,6 +132,16 @@ class TestAlbatrossSolve(unittest.TestCase):
                 e = solve_all({**RECT, "eaves_height_mm": h}).model.elevation
                 self.assertIn(e.posts[0], (2700, 1350, 900, 675, 225), e.posts)
 
+    def test_negarami_on_the_bottom_plate(self):
+        # 根がらみプレート付支柱（2700 等）の下端から約130 のプレートに根がらみを掛ける（入れる前は 450 の高さだった。
+        # p027 の図・p147「根がらみは最下端の根がらみフランジに」）
+        e = solve_all({**RECT, "eaves_height_mm": 9000}).model.elevation
+        self.assertEqual(e.posts[0], 2700)
+        self.assertEqual(e.first_ledger_height, e.jack_extension + 130)
+        m = load_master("albatross")
+        self.assertEqual(m.post_koma_offsets(2700)[:2], [130, 400])
+        self.assertEqual(m.post_koma_offsets(1800)[0], 400)            # 1800・3600 は根がらみプレート無し
+
     def test_no_under_base_but_sill_boards(self):
         # アンダーベースの品は無い（カタログ p083: ジャッキベースは敷板に釘等で固定）。「マスタに無い」と出さない
         r = solve_all(RECT)
