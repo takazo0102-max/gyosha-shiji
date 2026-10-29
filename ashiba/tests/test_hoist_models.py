@@ -745,6 +745,15 @@ class TestHoistwayGuard(unittest.TestCase):
         self.assertIn(bay["span_mm"], r.model.master.span_lengths())
         cats = {d.category for d in bay["demands"]}
         self.assertTrue({"支柱", "ジャッキ", "布材", "筋交"} <= cats)
+        # 枠組は建枠を足場の幅で引く（同じ高さで幅 1219・914・610 の品がある）
+        from ashiba.master import series_module
+
+        wk = solve_all({**BOX, "series_id": "waku", "module": series_module("waku"),
+                        "hoists": [{"edge_index": 0, "position_mm": 5487, "model": "KSE900-5.4", "mount": "外付け"}]})
+        wb = guard_side_bays(wk.model, wk.platforms.hoists[0])
+        frames = [d for d in wb["demands"] if d.category == "建枠"]
+        self.assertTrue(frames)
+        self.assertTrue(all(d.note_contains == f"幅{int(wb['width_mm'])}" for d in frames))
         self.assertIsNone(guard_side_bays(r.model, solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487,
                                                                                   "model": "KSE900-5.4", "mount": "中"}]})
                                          .platforms.hoists[0]))

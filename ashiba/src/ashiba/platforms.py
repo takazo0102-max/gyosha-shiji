@@ -853,7 +853,9 @@ def guard_side_bays(model: ScaffoldModel, h: "Hoist") -> Optional[dict]:
     post_cat = "建枠" if m.is_frame else "支柱"
     for v in sorted(set(stack), reverse=True):
         k = stack.count(v) * (2 if m.is_frame else 4) * 2
-        out.append(PartDemand(f"昇降機 前養生の{post_cat}", post_cat, int(v), k, detail=tag))
+        # 枠組の建枠は同じ高さでも幅（1219・914・610）で品が違うので、足場の幅で引く
+        out.append(PartDemand(f"昇降機 前養生の{post_cat}", post_cat, int(v), k,
+                              note_contains=f"幅{int(row)}" if m.is_frame else "", detail=tag))
     out.append(PartDemand("昇降機 前養生のジャッキ", "ジャッキ", None, 4 * 2, detail=tag))
     if not m.is_frame:
         out.append(PartDemand("昇降機 前養生の布材（奥行）", "布材", int(span), 2 * (n_lv + 1) * 2, detail=tag + "・根がらみと各層"))
