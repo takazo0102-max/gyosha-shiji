@@ -98,6 +98,13 @@ class TestAlbatrossSolve(unittest.TestCase):
             self.assertIn(code, q)
         self.assertFalse(any(k.startswith(("ND", "NDP", "SC")) for k in q), q)   # 日建の品が混ざらない
 
+    def test_asagao_corners_are_counted(self):
+        # 朝顔コーナー（スギコ カタログ p052〜053）: 出隅4か所×2段。入れる前は「マスタに無いので計上していない」だった
+        r = solve_all({**RECT, "asagao": {"stages": 2}})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertEqual(q.get("ALAC-SET"), 8)
+        self.assertFalse(any("朝顔コーナーがマスタに無い" in n for n in r.quantity.notes))
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 
