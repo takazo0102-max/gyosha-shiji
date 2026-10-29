@@ -506,7 +506,13 @@ def _take_off_one(
     n_feet = max(0, n_posts - removed)
     shim0 = int(getattr(elev, "base_shim", 0) or 0)
     _count_jacks(m, feet, per_foot, n_feet, add, notes, flat_need=float(elev.jack_extension - shim0))
-    add(under, n_feet, "アンダーベース")
+    if under is not None:
+        add(under, n_feet, "アンダーベース")
+    elif n_feet:
+        # アンダーベースの品が無い系列（スギコ アルバトロス: カタログ p083「ジャッキベースは敷板に釘等で固定」）は
+        # 「マスタに無い」と出さず、敷板の扱いを書く
+        notes.append(f"ジャッキベースは敷板（敷角）の中心に置いて釘等で固定する（{n_feet}脚。系列 {m.series_id} にアンダーベースの"
+                     "品は無い。敷板・敷角は現場手配）")
     _count_shims(m, feet, per_foot, add, notes)
     if not feet and shim0 > 0:
         # 全部の脚の下に重ねる敷板（セットバックの上段で床の高さをそろえるとき。ジャッキの上限を超える分）
@@ -2539,7 +2545,8 @@ def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
                          if p.nominal_dim == nominal and "根がらみ" not in p.note and "屋根" not in p.note), None)
             add(part, pos, f"支柱{nominal}（外付け階段）")
         _count_jacks(m, None, 1, pos, add, notes, suffix="（外付け階段）")
-        add(under, pos, "アンダーベース（外付け階段）")
+        if under is not None:
+            add(under, pos, "アンダーベース（外付け階段）")
         for p in m.by_category("支柱附属"):
             if "最下部" in p.note:
                 add(p, pos * _units_per_place(p), f"{p.model_no}（外付け階段の支柱最下部）")

@@ -114,6 +114,19 @@ class TestAlbatrossSolve(unittest.TestCase):
         self.assertFalse(any("マスタに無い幅" in n for n in r.quantity.notes))
         self.assertTrue(any("27300 の腕の届きは資料に無い" in n for n in r.quantity.notes))
 
+    def test_bottom_post_has_a_negarami_plate(self):
+        # 最下層の支柱は根がらみプレート付き（2700・1350・900・675・225。スギコ カタログ p062・p083）。1800・3600 は使えない
+        for h in (4000, 6500, 9000, 12000, 15400, 20000, 31000):
+            with self.subTest(h=h):
+                e = solve_all({**RECT, "eaves_height_mm": h}).model.elevation
+                self.assertIn(e.posts[0], (2700, 1350, 900, 675, 225), e.posts)
+
+    def test_no_under_base_but_sill_boards(self):
+        # アンダーベースの品は無い（カタログ p083: ジャッキベースは敷板に釘等で固定）。「マスタに無い」と出さない
+        r = solve_all(RECT)
+        self.assertFalse(any("アンダーベース（数量" in n for n in r.quantity.notes))
+        self.assertTrue(any("敷板（敷角）の中心に置いて釘等で固定" in n for n in r.quantity.notes))
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 
