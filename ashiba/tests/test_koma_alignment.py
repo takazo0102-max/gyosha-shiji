@@ -11,7 +11,7 @@ from _path import SRC  # noqa: F401
 
 from ashiba.cli import solve_all
 
-SERIES = ("shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "nikken_strong", "nikken_millennium")
+SERIES = ("shinwa_A", "shinwa_B", "nikken_nd1800", "nikken_nd1900", "nikken_strong", "nikken_millennium", "albatross")
 
 
 def _komas(m, e):

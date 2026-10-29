@@ -58,6 +58,7 @@ SERIES_LABELS = {
     "nikken_strong": "日建 NDシステム ストロング（くさび・高耐力）",
     "nikken_millennium": "日建 ミレニューム（くさび・次世代）",
     "waku": "日建 枠組（建枠）",
+    "albatross": "スギコ アルバトロス（くさび・先行手摺ブレス）",
     "shinwa_A": "信和 Aタイプ（くさび・メートル）",
     "shinwa_B": "信和 Bタイプ（くさび・メートル）",
     "tankan": "単管・クランプ（単管ブラケット足場・単管抱き足場）",
@@ -113,6 +114,13 @@ SERIES_CONST = {
                           "koma_top_gap": 30, "koma_nega": 120, "nega_koma_lengths": (2700,),
                           "hozo": 125, "module": "inch",
                           "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
+    # スギコ（アルインコ製）アルバトロス: 支柱 φ48.6・コマ（フランジ）450・階高1800、スパンはインチ（布材 1829〜153）、
+    # 先行手摺ブレス。支柱の継ぎは連結ピン（上下 130。ほぞ 130）。品番・重量はスギコ カタログvol.7 p025〜051
+    # （data/SUGIKO_CATALOG_NOTES.md）。利用者の指定 2026-10-29「アルバロスの材料も対応できるようにして」。
+    # 最上段のフランジの位置は図に寸法が無く、3600 支柱の図の縮尺から上端の下 約50 と読んだ
+    "albatross": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
+                  "koma_top_gap": 50, "hozo": 130, "module": "inch",
+                  "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 単管（φ48.6×2.4・日建 カタログVol.10p372 の単管パイプ、p377 直線ジョイント、p378 兼用クランプ、p078 ジャッキベース）。
     # クランプは建地のどこにでも留まるので、koma_pitch は高さの刻み（50）。スパンはメートル（建地間隔 1.85m 以下）
     "tankan": {"system_type": TUBE, "koma_pitch": 50, "floor_height": 1800,
