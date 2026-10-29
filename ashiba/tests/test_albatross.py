@@ -161,6 +161,16 @@ class TestAlbatrossSolve(unittest.TestCase):
         self.assertEqual((b.deck, b.bracket.split()[0]), ([150], "50353"))
         self.assertFalse(any("より長いので" in str(w) for w in r.warnings))
 
+    def test_ledger_rails_become_advance_braces(self):
+        # 外側の面の全層・全スパンに先行手摺ブレス（筋かいを兼ねる。p084）。布材だと筋かいが1本も無い足場になっていた
+        r = solve_all({**RECT, "guard_rail_type": "布材"})
+        self.assertEqual(r.model.config.guard_rail_type, "先行手すり")
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertGreater(q.get("50118", 0), 0)
+        self.assertTrue(any("先行手摺ブレス（筋かいを兼ねる）" in str(w) for w in r.warnings))
+        nd = solve_all({**RECT, "series_id": "nikken_nd1800", "guard_rail_type": "布材"})
+        self.assertEqual(nd.model.config.guard_rail_type, "布材")       # 日建は布材のまま（筋交 NDBR を数える）
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 

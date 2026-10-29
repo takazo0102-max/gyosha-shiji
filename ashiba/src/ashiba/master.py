@@ -122,7 +122,7 @@ SERIES_CONST = {
     # （図の縮尺: コマの間隔 46px に対して 13px。±10 の読み）
     "albatross": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
                   "koma_top_gap": 50, "koma_nega": 130, "nega_koma_lengths": (2700, 1350, 900, 675),
-                  "hozo": 130, "module": "inch",
+                  "hozo": 130, "module": "inch", "advance_rail_required": True,
                   "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 単管（φ48.6×2.4・日建 カタログVol.10p372 の単管パイプ、p377 直線ジョイント、p378 兼用クランプ、p078 ジャッキベース）。
     # クランプは建地のどこにでも留まるので、koma_pitch は高さの刻み（50）。スパンはメートル（建地間隔 1.85m 以下）

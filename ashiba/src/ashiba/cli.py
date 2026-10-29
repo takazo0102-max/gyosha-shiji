@@ -98,7 +98,7 @@ from pathlib import Path
 from .brackets import BracketSection, validate_bracket_sections
 from .elevation_solver import solve_elevation
 from .law_check import asagao_height_mm, required_asagao_stages, run_all_checks, summary
-from .master import MasterDataError, SeriesLockError, load_master
+from .master import SERIES_CONST, SERIES_LABELS, MasterDataError, SeriesLockError, load_master
 from .model import (
     ASAGAO_KIND_ASAGAO, ASAGAO_KIND_SAFE_WING, ASAGAO_KINDS, SAFE_WING_ANGLE_DEG, SAFE_WING_PROJECTION_MM,
     GUARD_RAIL_ADVANCE,
@@ -948,6 +948,13 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
                 f"（使える幅: {'・'.join(str(w) for w in sorted(avail, reverse=True))}）"
             )
     rail_type = spec.get("guard_rail_type", GUARD_RAIL_LEDGER)
+    if rail_type != GUARD_RAIL_ADVANCE and SERIES_CONST.get(master.series_id, {}).get("advance_rail_required"):
+        # スギコ アルバトロスは外側の面の全層・全スパンに先行手摺ブレス（筋かいを兼ねる。別の筋交の品は無い。カタログ
+        # p084「後踏み側の全層・全スパンに先行手摺ブレスを設置」）。布材だと筋かいが1本も無い足場になっていた
+        rail_type = GUARD_RAIL_ADVANCE
+        plan.warnings.append(
+            f"{SERIES_LABELS.get(master.series_id, master.series_id)} は外側の面の全層・全スパンに先行手摺ブレス（筋かいを兼ねる）を入れる系列なので、手すりの方式を"
+            "先行手すりにしました（布材の指定は使えない。カタログ p084）")
     # 先行手すり方式（くさび系）は幅木を付けない（先行手すりは手すり＋X斜材が一体。
     # 落下物防止はメッシュシート・防網等で）。図面・数量・法規チェックを同じ前提にする
     no_toe = rail_type == GUARD_RAIL_ADVANCE and not master.is_frame
