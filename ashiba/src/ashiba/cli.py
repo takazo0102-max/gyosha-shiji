@@ -1495,13 +1495,20 @@ def ground_scaffold_note(spec: dict) -> str:
     beam = float(g.get("beam_top_mm", 0) or 0) if isinstance(g, dict) else 0.0
     fit = ""
     if beam > 0:
+        # どの層の作業床で配筋・型枠を扱うかを見る（最上段だけ見て、下の段が目安に入っていても「外れる」と出ていた）
         top = float(spec["eaves_height_mm"])
-        d = top - beam
+        fh = top / max(n, 1)
         lo, hi = GROUND_DECK_OVER_BEAM_MM
-        fit = (f"作業床は地中梁の天端 {beam:.0f} から +{d:.0f}（目安 +{lo}〜{hi}）。" if lo <= d <= hi else
-               f"作業床が地中梁の天端 {beam:.0f} から {d:+.0f} で目安 +{lo}〜{hi} を外れる（"
-               + ("梁の上の筋に手が届きにくい。層を増やすか、ジャッキ・敷台で上げる" if d < lo else
-                  "上端筋に手が届きにくい。層を減らすか、作業床の下に中段を設ける") + "）。")
+        decks = [round(fh * k) for k in range(1, n + 1)]
+        hit = [z for z in decks if lo <= z - beam <= hi]
+        if hit:
+            fit = f"{hit[0]} の作業床が地中梁の天端 {beam:.0f} から +{hit[0] - beam:.0f}（目安 +{lo}〜{hi}）。"
+        else:
+            d = min((z - beam for z in decks), key=lambda v: min(abs(v - lo), abs(v - hi)))
+            fit = (f"作業床（{'・'.join(map(str, decks))}）がどれも地中梁の天端 {beam:.0f} から目安 +{lo}〜{hi} を外れる"
+                   f"（いちばん近いのは {d:+.0f}。"
+                   + ("梁の上の筋に手が届きにくい。層を増やすか、ジャッキ・敷台で上げる" if d < lo else
+                      "上端筋に手が届きにくい。作業床の下に中段を設ける") + "）。")
     return (f"地足場（{n}層・作業床の高さ {spec['eaves_height_mm']}）: 基礎・1階まわりの作業用に地上に低く組む。" + fit
             + "昇降は階段室。上の階の足場に組み上げるときは「配置」で建て直す。"
             f"躯体の面から {so:.0f}mm 離して型枠（せき板・端太・セパ）を収める。作業床は地中梁の天端（ふかし筋）＋500〜800 が目安。"

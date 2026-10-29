@@ -56,6 +56,10 @@ class TestGroundScaffold(unittest.TestCase):
         low = solve_all({**SPEC, "ground_scaffold": {"levels": 1, "beam_top_mm": 1600}})
         note = next(w for w in low.model.plan.warnings if "地足場（1層" in w)
         self.assertIn("目安 +500〜800 を外れる", note)
+        # 2層は下の段（1800）が目安に入れば OK（最上段 3600 だけ見て外れると出ていた。実機 2026-10-29）
+        two = solve_all({**SPEC, "ground_scaffold": {"levels": 2, "beam_top_mm": 1150}})
+        note = next(w for w in two.model.plan.warnings if "地足場（2層" in w)
+        self.assertIn("1800 の作業床が地中梁の天端 1150 から +650", note)
 
     def test_standoff_kept_for_tube_and_frame(self):
         # 単管は離れを 300 に引き戻していた。枠組は躯体側の手すりが割付・数量に入らないので注記で

@@ -442,7 +442,8 @@ def check_wall_ties(m: ScaffoldModel) -> CheckResult:
     if sheet and pitch and span and (v_rows > 2 * pitch + 1 or h_max > 2 * span + 1):
         return CheckResult(
             7, "壁つなぎ", WARN,
-            f"最大 垂直{v_rows:.0f}mm（段どうし）×水平{h_max:.0f}mm（{len(m.wall_ties)}箇所）は法規内ですが、"
+            (f"最大 垂直{v_rows:.0f}mm（段どうし）×水平{h_max:.0f}mm" if v_rows > 0 else f"壁つなぎ1段・最大 水平{h_max:.0f}mm")
+            + f"（{len(m.wall_ties)}箇所）は法規内ですが、"
             f"{m.config.sheet_type}を張る足場の壁つなぎは原則 2層2スパン以内（垂直{2 * pitch:.0f}×水平{2 * span:.0f}）"
             "です（計画届作成の手引 チェックリスト No.17）",
             basis,
