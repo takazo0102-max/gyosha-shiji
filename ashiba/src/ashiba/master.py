@@ -122,7 +122,7 @@ SERIES_CONST = {
     # （図の縮尺: コマの間隔 46px に対して 13px。±10 の読み）
     "albatross": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
                   "koma_top_gap": 50, "koma_nega": 130, "nega_koma_lengths": (2700, 1350, 900, 675),
-                  "hozo": 130, "module": "inch", "advance_rail_required": True,
+                  "hozo": 130, "module": "inch", "advance_rail_required": True, "min_span": 457,
                   "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 単管（φ48.6×2.4・日建 カタログVol.10p372 の単管パイプ、p377 直線ジョイント、p378 兼用クランプ、p078 ジャッキベース）。
     # クランプは建地のどこにでも留まるので、koma_pitch は高さの刻み（50）。スパンはメートル（建地間隔 1.85m 以下）
@@ -387,8 +387,14 @@ class PartMaster:
             reverse=True,
         )
 
-    def span_lengths(self, min_span: int = 600) -> list[int]:
-        """スパン割に使える布材呼び寸法（降順）。端数は真物のみで構成し切断調整は存在しない."""
+    def span_lengths(self, min_span: Optional[int] = None) -> list[int]:
+        """スパン割に使える布材呼び寸法（降順）。端数は真物のみで構成し切断調整は存在しない.
+
+        既定は 600 以上。アルバトロスは 457 も使う（457 の布材と調整部用踏板 457。スギコ カタログ p077「調整部や柱回りの
+        クランク部で便利」「457 の調整部にはコーナーステップを使わない」。隅が閉じてコーナーステップが要らなくなる）。
+        """
+        if min_span is None:
+            min_span = int(SERIES_CONST.get(self.series_id, {}).get("min_span", 600))
         return sorted(
             {p.nominal_dim for p in self.by_category("布材") if p.nominal_dim >= min_span},
             reverse=True,

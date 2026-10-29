@@ -22,7 +22,7 @@ class TestAlbatrossMaster(unittest.TestCase):
 
     def test_catalog_parts(self):
         m = load_master("albatross")
-        self.assertEqual(m.span_lengths(), [1829, 1524, 1219, 914, 610])
+        self.assertEqual(m.span_lengths(), [1829, 1524, 1219, 914, 610, 457])       # 457 は調整部（p077）
         post = {p.nominal_dim: p for p in m.by_category("支柱")}
         self.assertEqual((post[3600].model_no, post[3600].weight_kg, post[3600].actual_dim), ("50036", 12.6, 3730))
         self.assertEqual(m.find("布材", 1829).model_no, "50218")
@@ -142,7 +142,9 @@ class TestAlbatrossSolve(unittest.TestCase):
         q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
         self.assertGreater(q.get("81418", 0), 0)
         self.assertGreater(q.get("27300", 0), 0)
-        self.assertFalse(any("マスタに無い幅" in n for n in r.quantity.notes))
+        # スパンの幅のシートはライトネスで足りる（457 の調整部の幅だけはライトネスに無いので別手配）
+        self.assertFalse(any("マスタに無い幅" in n and "幅1829" in n for n in r.quantity.notes))
+        self.assertTrue(all("幅457" in n for n in r.quantity.notes if "マスタに無い幅" in n))
         self.assertTrue(any("27300 の腕の届きは資料に無い" in n for n in r.quantity.notes))
 
     def test_bottom_post_has_a_negarami_plate(self):
@@ -197,6 +199,17 @@ class TestAlbatrossSolve(unittest.TestCase):
         q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
         self.assertEqual(q.get("50840"), 10)                      # 610・端2か所×5層
         self.assertNotIn("50106", q)
+
+    def test_457_adjust_spans_close_the_corners(self):
+        # 457 の布材と調整部用踏板（p077）で隅を閉じる（入れる前は南・北の終点に 397mm の隅の隙間をコーナーステップで納めていた）
+        self.assertEqual(load_master("albatross").span_lengths()[-1], 457)
+        self.assertEqual(load_master("nikken_nd1800").span_lengths()[-1], 610)       # ほかの系列は 600 以上のまま
+        r = solve_all(RECT)
+        self.assertIn(457, r.model.plan.edges[0].spans)
+        self.assertFalse(any("コーナーステップで納めます" in str(w) for w in r.warnings))
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertGreater(q.get("34240", 0), 0)                  # 鋼製踏板500幅 457
+        self.assertTrue(any("先行手摺457は系列に無いので" in n for n in r.quantity.notes))   # 手すり・中桟は布材で計上
 
     def test_spec_object_lists_the_series(self):
         from pathlib import Path

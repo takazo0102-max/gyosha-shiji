@@ -172,7 +172,7 @@ class TestThreeViewsUseTheSameExclusions(unittest.TestCase):
     def test_advance_rail_draws_an_x_and_no_toe_board(self):
         """先行手すりは手すり＋X斜材2本。幅木は先行手すり方式では描かない（数量も0）."""
         body3 = self._script("3d.gdl")
-        i = body3.index("if railAdv = 1 then")
+        i = body3.index("if railAdv = 1 and spans[ip] > 0.599 then")       # 600 未満の升目は布材の手すり（先行手すりの品が無い）
         blk = body3[i:body3.index("else", i)]
         self.assertIn("gosub 850", blk)
         sub = body3[body3.index("850:"):body3.index("830:")]

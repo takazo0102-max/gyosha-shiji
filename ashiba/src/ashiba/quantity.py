@@ -655,10 +655,19 @@ def _take_off_one(
         for s, n in span_counts.items():
             part = m.find("先行手摺", s)
             if part is None:
-                notes.action(
-                    f"先行手摺{s}がマスタにありません（{n * n_levels}本）。"
-                    "この寸法は布材による手すり＋中桟で計画してください"
-                )
+                # その寸法の先行手すりが無い升目（アルバトロスの 457 の調整部など）は布材の手すり・中桟で塞ぐ。注記だけで
+                # 布材を数えていなかった
+                n_rail = max(0, n * n_levels - open_cut.get(s, 0) - stage_cells.get(s, 0))
+                ledger = m.find("布材", s)
+                if ledger is not None and n_rail:
+                    add(ledger, 2 * n_rail, f"先行手すりの無いスパン{s}の手すり・中桟（布材）")
+                    notes.append(f"先行手摺{s}は系列に無いので、そのスパン（{n_rail}升目）は布材の手すり・中桟（{2 * n_rail}本）で"
+                                 "塞いで計上（筋かいはほかのスパンの先行手摺が受け持つ）")
+                else:
+                    notes.action(
+                        f"先行手摺{s}がマスタにありません（{n * n_levels}本）。"
+                        "この寸法は布材による手すり＋中桟で計画してください"
+                    )
                 continue
             add(part, max(0, n * n_levels - open_cut.get(s, 0) - stage_cells.get(s, 0)), f"先行手摺{s}")
 
