@@ -66,6 +66,17 @@ class TestAlbatrossCollars(unittest.TestCase):
         self.assertEqual(load_master("nikken_nd1800").by_category("調整カラー"), [])
 
 
+class TestAlbatrossGapBoards(unittest.TestCase):
+    def test_stage_gap_is_closed_by_the_hooked_gap_board(self):
+        # 幅1219 に布板 500×2 で残る 189 は、フック付すきま埋め板（幅175、p045）で残り 14mm（3cm 以下）
+        from ashiba.interior_stage import solve_stage
+
+        r = solve_stage({"name": "s", "corners_mm": [[0, 0], [6000, 0], [6000, 4000], [0, 4000]], "deck_mm": 4000},
+                        load_master("albatross"), load_capacities("albatross"))
+        why = next(q[3] for q in r.quantity if q[0] == "すき間板")
+        self.assertIn("34818（幅175）を入れて残り 14mm", why)
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 

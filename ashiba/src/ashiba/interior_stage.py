@@ -27,6 +27,7 @@ EVシャフトの中に組む（"use": "EVシャフト"・"floors_mm"。利用�
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -736,8 +737,17 @@ def _quantity(r: StageResult, master) -> None:
                 key = (int(r.spans_u[0]), w)
                 decks[key] = decks.get(key, 0) - diff * open_lv / n_deck
     for (s_u, g), k in sorted(gaps.items()):
-        q.append(("すき間板", s_u, k * n_deck, f"布板のすき間 {g}mm をふさぐ（ステージは全面の作業床・すき間 3cm 以下）"
-                  + (f"×{n_deck}段" if n_deck > 1 else "")))
+        # 系列にすき間板の品があれば品番と幅を書き、入れても 3cm を超えて残らないか確かめる（アルバトロスの
+        # フック付すきま埋め板は幅175。カタログ p045）
+        gp = next((p for p in master.by_category("すき間板") if p.nominal_dim == s_u), None) if master else None
+        gw = int(re.search(r"幅(\d+)", gp.note).group(1)) if gp is not None and re.search(r"幅(\d+)", gp.note) else 0
+        what = f"布板のすき間 {g}mm をふさぐ（ステージは全面の作業床・すき間 3cm 以下）"
+        if gp is not None:
+            left = g - gw
+            what += (f"。{gp.model_no}（幅{gw}）" + (f"を入れて残り {left}mm" if 0 <= left <= DECK_GAP_MAX_MM else
+                     f"1枚では {left}mm 残るので2枚か布板の幅を組み替える" if left > DECK_GAP_MAX_MM else
+                     f"は {-left}mm 入らないので布板の幅を組み替える"))
+        q.append(("すき間板", s_u, k * n_deck, what + (f"×{n_deck}段" if n_deck > 1 else "")))
     for (s_u, w), k in sorted(decks.items()):
         n = int(round(k * n_deck))
         if n > 0:
