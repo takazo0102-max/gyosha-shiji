@@ -79,6 +79,15 @@ class TestGroundScaffold(unittest.TestCase):
         r = solve_all({**SPEC, "ground_scaffold": {"levels": 2}})
         self.assertFalse(any("顧客最小値" in w for w in r.model.plan.warnings))
 
+    def test_ties_become_braces_until_the_structure_rises(self):
+        # 根切り底では壁つなぎを取る躯体がまだ無いので、控え（単管＋自在クランプ）を手配に出す（2026-10-29）
+        r = solve_all({**SPEC, "ground_scaffold": {"levels": 2}})
+        n = len(r.model.wall_ties)
+        self.assertGreater(n, 0)
+        w = next(x for x in r.quantity.warnings if "控えで代える" in x)
+        self.assertIn(f"{n}本＋自在クランプ {2 * n}個", w)
+        self.assertFalse(any("控えで代える" in x for x in solve_all(SPEC).quantity.warnings))
+
     def test_palette(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 

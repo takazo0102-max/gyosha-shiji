@@ -2971,6 +2971,15 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
         model, bracket_sections=brackets, stair_plan=stair_plan,
         platforms=platforms, openings=openings, terrain=terrain,
     )
+    if spec.get("ground_scaffold") and model.wall_ties:
+        # 地足場は根切り底で、壁つなぎを取る躯体がまだ無い（立ち上がった所から取る）。それまでの控えを手配に出す
+        n_tie = len(model.wall_ties)
+        msg = (f"地足場の壁つなぎ {n_tie}箇所は、取る躯体（基礎・地中梁の立ち上がり）が打ち上がるまで控えで代える: "
+               f"単管（斜めに地盤・捨てコンへ、または直交する足場へ）{n_tie}本＋自在クランプ {2 * n_tie}個を別途手配。"
+               "躯体が立ち上がったら壁つなぎに替え、打設のとき埋まる控えは打設の前に外す")
+        quantity.notes.append(msg)
+        quantity.warnings.append(msg)
+        quantity.warning_kinds[msg] = "手配"
     # 詳細図は開口部があれば梁枠の図を足す
     from .details import hoist_detail_specs, required_details
 
