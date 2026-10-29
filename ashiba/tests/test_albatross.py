@@ -43,6 +43,29 @@ class TestAlbatrossMaster(unittest.TestCase):
         self.assertEqual(caps[("作業床許容積載荷重", "スパン")].value, 2.45)
 
 
+class TestAlbatrossCollars(unittest.TestCase):
+    def test_stair_feet_use_adjusting_collars(self):
+        """階段の上は調整カラーを支柱の下に継いで合わせる（ジャッキ 255 と敷板だけでは1列が受けきれず NG だった）."""
+        from ashiba.interior_stage import solve_stage, stage_report
+
+        r = solve_stage({"name": "階段室", "corners_mm": [[0, 0], [6000, 0], [6000, 2800], [0, 2800]], "deck_mm": 4500,
+                         "stair": {"axis": "u", "from_mm": 750, "tread_mm": 250, "riser_mm": 180, "steps": 16}},
+                        load_master("albatross"), load_capacities("albatross"))
+        c = next(c for c in r.checks if c.item == "階段の上の支柱")
+        self.assertEqual(c.status, "OK", c.message)
+        self.assertIn("頭つなぎ", c.message)
+        for f in r.stair_feet:
+            self.assertLessEqual(f["jack_mm"], 255)
+            self.assertEqual(f["shim"], 0)
+            # 段＋ジャッキ＋調整カラー＋支柱 ＝ 支柱の天端（コマは天端からそろう）
+            self.assertEqual(f["z_mm"] + f["jack_mm"] + f["collar_mm"] + sum(f["posts"]), r.top_mm)
+        self.assertTrue(any(q[0] == "調整カラー" for q in r.quantity))
+        self.assertIn("調整カラー", stage_report(r))
+
+    def test_no_collars_for_other_series(self):
+        self.assertEqual(load_master("nikken_nd1800").by_category("調整カラー"), [])
+
+
 class TestAlbatrossSolve(unittest.TestCase):
     def test_solves_with_its_own_parts(self):
         r = solve_all({**RECT, "guard_rail_type": "先行手すり", "asagao": {"stages": 1}})

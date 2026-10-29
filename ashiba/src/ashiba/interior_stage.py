@@ -383,11 +383,14 @@ def _stair_feet(r: StageResult, master, st: dict, off_u: float, off_v: float) ->
         # くさびはコマの倍数の支柱だけ（675・1125 などの半端な支柱を挟むとコマがずれて布材が掛からない）
         lengths = [v for v in lengths if v % koma == 0] or lengths
     table = _compose_table(r.top_mm + max(lengths), lengths)
+    # 調整カラー（アルバトロス 60・150・300。支柱の下に継いで高さを足す）。ジャッキと敷板の前に使う（1脚に1個）
+    collars = [0] + sorted({int(p.nominal_dim) for p in master.by_category("調整カラー") if p.nominal_dim > 0})
     for i, x in enumerate(xs):
         k = 0 if x < start else min(steps, int((x - start) // tread) + 1)
         z = (steps - k if down else k) * riser
         edges = [start + j * tread for j in range(steps + 1)]
         edge = min((abs(x - e) for e in edges), default=1e9)
+        col = 0
         if z == 0:
             ext, shim, stack = r.jack_mm, 0, list(r.posts)
         elif master.system_type == TUBE:
@@ -401,28 +404,30 @@ def _stair_feet(r: StageResult, master, st: dict, off_u: float, off_v: float) ->
             stack, ext, shim = None, JACK_MIN_EXTENSION, 0
             best = None
             for sh in range(0, SHIM_BOARDS_MAX + 4):
-                for e in range(JACK_MIN_EXTENSION, rated + 1):
-                    t = int(round(r.top_mm - z - e - sh * SHIM_BOARD_MM))
-                    if t in table and table[t]:
-                        # 敷板が少なく、実務上限 270 以内、継ぎの少ない積み方、短い繰出しの順
-                        key = (sh, e > JACK_MAX_EXTENSION, len(table[t]), e)
-                        if best is None or key < best[0]:
-                            best = (key, e, sh, table[t])
+                for c in collars:
+                    for e in range(JACK_MIN_EXTENSION, rated + 1):
+                        t = int(round(r.top_mm - z - e - sh * SHIM_BOARD_MM - c))
+                        if t in table and table[t]:
+                            # 敷板が少なく、実務上限 270 以内、調整カラー無し、継ぎの少ない積み方、短い繰出しの順
+                            key = (sh, e > JACK_MAX_EXTENSION, c > 0, len(table[t]), e)
+                            if best is None or key < best[0]:
+                                best = (key, e, sh, table[t], c)
                 if best is not None and best[0][0] == sh:
                     break
             if best is not None:
-                _, ext, shim, stack = best
+                _, ext, shim, stack, col = best
             else:
                 ext = min(rated, max(JACK_MIN_EXTENSION, int(r.top_mm - z) % max(koma, 1)))
-        need = int(round(r.top_mm - z - ext - shim * SHIM_BOARD_MM))
+        need = int(round(r.top_mm - z - ext - shim * SHIM_BOARD_MM - col))
         # 根がらみ: 支柱の下端から NEGARAMI_MAX_MM 以内に段（布材）が無い列は、その支柱の最初のコマに足す
-        bottom = z + shim * SHIM_BOARD_MM + ext
+        bottom = z + shim * SHIM_BOARD_MM + ext + col
         above = [h for h in r.levels if h > bottom + 100]
         neg = 0
         if not master.is_frame and (not above or above[0] > bottom + NEGARAMI_MAX_MM):
             neg = int(r.levels[0] + math.ceil((bottom + 100 - r.levels[0]) / koma) * koma)
         r.stair_feet.append({"axis": axis, "index": i, "x_mm": round(x), "z_mm": z, "jack_mm": int(round(ext)),
-                             "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge), "negarami_mm": neg})
+                             "shim": shim, "posts": stack, "post_mm": need, "edge_mm": round(edge), "negarami_mm": neg,
+                             "collar_mm": col})
 
 
 def _stair_checks(r: StageResult) -> None:
@@ -440,6 +445,10 @@ def _stair_checks(r: StageResult) -> None:
            f"{min(jacks)}〜{max(jacks)}mm で作業床の段にそろえる")
     if long_:
         msg += f"。繰出しが {JACK_MAX_EXTENSION}mm を超える列 {len(long_)}（許容繰出しの大きいロングジャッキを使う）"
+    cols = [f for f in feet if f.get("collar_mm")]
+    if cols:
+        msg += (f"。調整カラー（{'・'.join(str(c) for c in sorted({f['collar_mm'] for f in cols}))}）を継ぐ列 {len(cols)}"
+                "（斜めに並ぶので傾斜方向に単管で頭つなぎ。スギコ カタログ p027）")
     if shims:
         msg += f"。敷板 {max(f['shim'] for f in shims)}枚で上げる列 {len(shims)}（{SHIM_BOARDS_MAX}枚まで）"
     if over:
@@ -447,7 +456,7 @@ def _stair_checks(r: StageResult) -> None:
                 "中ほどにずらすか、段ごとに建地を立てて調整する）")
     out.append(StageCheck("階段の上の支柱", st, msg + "（ジャッキは段差を埋める道具ではない。報告 地足場と内部足場）"))
     # 作業床の段がその列の支柱の下端（段＋敷板＋ジャッキ）より低いと、その列に布材が掛からず床を受けられない
-    low = [f for f in feet if r.deck_mm < f["z_mm"] + f["shim"] * SHIM_BOARD_MM + f["jack_mm"] + 100]
+    low = [f for f in feet if r.deck_mm < f["z_mm"] + f["shim"] * SHIM_BOARD_MM + f["jack_mm"] + f.get("collar_mm", 0) + 100]
     if low:
         out.append(StageCheck("作業床と踊り場", "NG",
                               f"{len(low)}列（段の高さ {'・'.join(str(int(f['z_mm'])) for f in low)}）で作業床 {r.deck_mm}mm が"
@@ -652,6 +661,9 @@ def _quantity(r: StageResult, master) -> None:
     n_shim = sum(f["shim"] for f in r.stair_feet) * per_row
     if n_shim:
         q.append(("敷板", 0, n_shim, "階段の上の支柱の高さ合わせ（1脚 2枚まで）"))
+    for c in sorted({f.get("collar_mm", 0) for f in r.stair_feet} - {0}):
+        q.append(("調整カラー", c, sum(1 for f in r.stair_feet if f.get("collar_mm") == c) * per_row,
+                  "階段の上の支柱の高さ合わせ（支柱の下に継ぐ）"))
     # 段ごとの根がらみ: その列の直角方向（列の中）と、足元の低い隣の列へ1スパンずつ
     feet = r.stair_feet
     cross = r.spans_v if (feet and feet[0]["axis"] == "u") else r.spans_u
@@ -999,10 +1011,10 @@ def stage_report(r: StageResult) -> str:
     lines += [f"| {c} | {d or ''} | {n} | {why} |" for c, d, n, why in r.quantity]
     if r.stair_feet:
         lines += ["", "## 階段の上の支柱（列ごと）", "",
-                  "| 列 | 位置 | 段の高さ | 敷板 | ジャッキ | 支柱 | 根がらみ | 踏面の端まで |",
-                  "|---|---|---|---|---|---|---|---|"]
+                  "| 列 | 位置 | 段の高さ | 敷板 | ジャッキ | 調整カラー | 支柱 | 根がらみ | 踏面の端まで |",
+                  "|---|---|---|---|---|---|---|---|---|"]
         lines += [f"| {f['index'] + 1} | {f['x_mm']} | {f['z_mm']:.0f} | {f['shim']} | {f['jack_mm']} | "
-                  f"{'+'.join(map(str, f['posts'])) if f['posts'] else '組めない'} | "
+                  f"{f.get('collar_mm') or ''} | {'+'.join(map(str, f['posts'])) if f['posts'] else '組めない'} | "
                   f"{f['negarami_mm'] or '共通'} | {f['edge_mm']} |" for f in r.stair_feet]
     if r.notes:
         lines += ["", "## 注意", ""] + [f"- {n}" for n in r.notes]
