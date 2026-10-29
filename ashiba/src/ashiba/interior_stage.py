@@ -120,6 +120,7 @@ class StageResult:
     stair_feet: list[dict] = field(default_factory=list)    # 階段の上の支柱（段の高さ・支柱・ジャッキ・敷板・踏面の端）
     deck_levels: list[int] = field(default_factory=list)    # 最上段のほかの作業床の段（EVシャフトの各階）
     open_end: bool = False            # 長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）
+    end_post_kn: float = 0.0          # 出入口の辺の支柱1本に掛かるほかの荷重（仮設通路の反力。kN）
     floors_mm: list[float] = field(default_factory=list)    # EVシャフト: 各階の床の高さ（足場の立つ面から）
     guard: bool = True                # 最上段の外周の手すり・中桟・幅木
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
@@ -330,6 +331,7 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     access = str(item.get("access") or ("建物の階段" if item.get("stair") else ("ハッチ" if shaft else "階段")))
     res.access = access
     res.open_end = bool(item.get("open_end"))
+    res.end_post_kn = float(item.get("end_post_kn", 0.0) or 0.0)
     if access == "ハッチ":
         # 層ごとの段に1枚ずつ（地面から最初の段を含む）。上下で位置をずらす
         res.stair_fh = int(master.floor_height or 1800)
@@ -890,6 +892,18 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
         st = "OK" if n_kn <= allow else "NG"
         out.append(StageCheck("支柱の軸力", st, f"{_post_label(r)}1本 {n_kn:.2f}kN ≦ 許容 {allow:.1f}kN"
                               if st == "OK" else f"{_post_label(r)}1本 {n_kn:.2f}kN ＞ 許容 {allow:.1f}kN。スパンを詰めるか積載を下げる"))
+    # 1'. 出入口の辺の支柱（仮設通路のフックを受ける布材の両端）: 自分の受け持ち（長手の終わりのスパンの半分×短手の
+    # 半分ずつ）に通路の反力を足す（利用者の指定 2026-10-29 の仮設通路。島を単独で検定すると通路の重さが入らない）
+    if r.open_end and r.end_post_kn > 0:
+        e_trib = (r.spans_u[-1] / 1000.0 / 2.0) * (sv if len(r.spans_v) >= 2 else sv / 2.0)
+        e_kn = e_trib * (r.live_kn_m2 + DECK_DEAD_KN_M2) + POST_SELF_KN_PER_M * h_m + r.end_post_kn
+        body = f"通路を受ける支柱1本 {e_kn:.2f}kN（うち通路の反力 {r.end_post_kn:.2f}kN）"
+        if allow is None:
+            out.append(StageCheck("通路を受ける支柱", "WARN", body + "（許容耐力が系列の資料に無いので確認）"))
+        else:
+            ok = e_kn <= allow
+            out.append(StageCheck("通路を受ける支柱", "OK" if ok else "NG",
+                                  body + (f" ≦ 許容 {allow:.1f}kN" if ok else f" ＞ 許容 {allow:.1f}kN。島のスパンを詰めるか支柱を足す")))
     # 2. 1スパンあたりの積載と作業床の許容積載
     bay = su * sv * r.live_kn_m2
     deck_allow = _cap(caps, "作業床許容積載荷重", "スパン")

@@ -27,6 +27,7 @@ from typing import Optional
 
 DATA = Path(__file__).resolve().parents[2] / "data" / "walkway_models.csv"
 ISLAND_W_MM = 1219          # 島の短手（足場の幅。全幅 915 の通路が載る）
+G_KN_PER_KG = 9.80665 / 1000.0
 SLOPE_WARN = 0.10           # 両端の高さの差／長さ がこれを超えたらメーカーに勾配を確かめる（カタログは「多少の傾斜」）
 
 
@@ -137,9 +138,12 @@ def solve_walkway(item: dict, master, capacities: Optional[dict] = None) -> Walk
     # 島（両端の外に足場の幅の塔）。始めの島は2スパン（階段の升目と通路を受ける踊り場の升目）、終わりの島は1スパンで
     # 通路から渡るだけ（昇降を持たない）
     span = max(v for v in master.span_lengths() if v <= 1829)
+    # 通路の片端の反力（本体＋手すり＋安全荷重の半分）を、フックを受ける布材の両端の支柱2本で受ける
+    end_kn = ((model.total_kg * G_KN_PER_KG + model.load_kn) / 2.0 / 2.0) if model else 0.0
     for at, out, z, acc, n_sp, tag in ((s, -1.0, deck, "階段", 2, "始め"), (e, 1.0, end_deck, "なし", 1, "終わり")):
         st = solve_stage({"name": f"{name} の{tag}の島", "corners_mm": _island_corners(at, u, n_sp * span, out),
-                          "deck_mm": z, "base_mm": base, "access": acc, "open_end": True}, master, capacities)
+                          "deck_mm": z, "base_mm": base, "access": acc, "open_end": True,
+                          "end_post_kn": end_kn}, master, capacities)
         r.islands.append(st)
     # 島の床は支柱のコマの段に合わせて少し上下する（実機 2026-10-29: 2100 の指定が 2015）。通路はフックを島の布材に
     # 掛けるので、両端の高さは島の床の高さにそろえる（指定のままだと通路の端が島の床から浮く）
@@ -175,6 +179,15 @@ def _checks(r: WalkwayResult, models: list[WalkwayModel]) -> None:
             "積載", "OK",
             f"安全荷重 {m.load_kn}kN（{m.load_kn / 9.80665 * 1000:.0f}kg）。通路の入口に「最大積載 {m.load_kn / 9.80665 * 1000:.0f}kg」"
             "を掲示し、資材の仮置きをしない（安衛則562条）"))
+        # フックを受ける布材（島の短手）には通路の片端の荷重が布材の中ほど2点で掛かる。布材の許容荷重は系列の資料に
+        # 無いので、値を出して確かめる事項にする
+        end_kn = m.total_kg * G_KN_PER_KG / 2.0 + m.load_kn / 2.0
+        w = r.islands[0].spans_v[0] if r.islands and r.islands[0].spans_v else ISLAND_W_MM
+        r.checks.append(WalkwayCheck(
+            "フックを受ける布材", "WARN",
+            f"島の布材（{w}）1本に通路の片端 {end_kn:.2f}kN（本体＋手すり {m.total_kg * G_KN_PER_KG / 2.0:.2f}・積載 "
+            f"{m.load_kn / 2.0:.2f}）がフック2点で掛かる。布材の許容荷重を系列の資料・メーカーに確かめ、足りなければ"
+            "布材の下に単管を添えるか受けの支柱を足す"))
     dz = abs(r.end_deck_mm - r.deck_mm)
     slope = dz / r.length_mm if r.length_mm else 0.0
     if dz < 1.0:

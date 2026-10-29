@@ -110,6 +110,23 @@ class TestWalkway(unittest.TestCase):
         self.assertTrue(any("2100 → 2015" in n for n in r.notes))
         self.assertFalse(any("始めの島の床" in n for n in r.notes))
 
+    def test_walkway_reaction_on_island_posts(self):
+        """通路の片端の反力（本体＋手すり＋安全荷重の半分）を、フックを受ける布材の両端の支柱2本で受ける."""
+        from ashiba.structural import load_capacities
+
+        r = solve_walkway({"name": "通路", "start_mm": [0, 0], "end_mm": [6500, 0], "deck_mm": 1800}, M,
+                          load_capacities("nikken_nd1800"))
+        self.assertEqual(r.model.model, "LB-4572")                 # 合計 188kg
+        want = (188 * 9.80665 / 1000 + 2.45) / 4
+        for st in r.islands:
+            self.assertAlmostEqual(st.end_post_kn, want, places=3)
+            c = next(c for c in st.checks if c.item == "通路を受ける支柱")
+            self.assertEqual(c.status, "OK")
+            self.assertIn(f"{want:.2f}kN", c.message)
+        c = next(c for c in r.checks if c.item == "フックを受ける布材")
+        self.assertEqual(c.status, "WARN")
+        self.assertIn(f"{want * 2:.2f}kN", c.message)
+
     def test_params_and_report(self):
         r = walk([0, 5000], base_mm=-1500)
         p = walkway_params(r)
