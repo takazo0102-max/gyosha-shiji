@@ -20,6 +20,7 @@
 !   deckH     長さ      作業床の高さ（配置した高さから）                                                              既定 3.975
 !   deckList  文字列    ほかの段の作業床の高さ mm（配置した高さから。カンマ区切り。EVシャフトの各階など）             既定 ""
 !   guardOn   ブール    最上段の外周の手すり・中桟・幅木（EVシャフトは壁が近いので無し）                              既定 1
+!   gOpenE    ブール    長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）                既定 0
 !   postTop   長さ      支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）                     既定 0
 !   uheadExt  長さ      支保工: 大引受けジャッキの繰出し（postTop の上。0＝描かない）                                 既定 0
 !   footAxis  整数      階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）                                    既定 0
@@ -157,7 +158,16 @@ for i = 1 to nU + 1
 	next j
 next i
 ! 外周の手すり（二重線。EVシャフトは壁が近いので無し）
-if guardOn then rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+if guardOn then
+	if gOpenE then
+		! 長手の終わりの短辺は出入口（仮設通路の島）: 手すりの線をその辺に引かない
+		line2 stLU + 0.03, -0.03, -0.03, -0.03
+		line2 -0.03, -0.03, -0.03, stLV + 0.03
+		line2 -0.03, stLV + 0.03, stLU + 0.03, stLV + 0.03
+	else
+		rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+	endif
+endif
 ! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 隅の1スパンに階段枠 450 を2列（狭ければ1列）、
 ! 上り方向の矢印。階段が無いときだけはしご
 if strlen(stFl) > 0 then
@@ -678,22 +688,27 @@ else
 				gosub "ledger"
 				del 1
 			next i
-			for j = 1 to nV
-				add sd * stLU, yv[j], deckH + hh
-				rotz 90
-				nLd = sv[j]
-				gosub "ledger"
-				del 2
-			next j
+			! 長手の終わりの短辺を出入口にするとき（gOpenE。仮設通路の島）はその辺に掛けない
+			if not(sd = 1 and gOpenE) then
+				for j = 1 to nV
+					add sd * stLU, yv[j], deckH + hh
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				next j
+			endif
 		next sd
 	next hk
 	for sd = 0 to 1
 		add 0, sd * stLV - 0.006, deckH + 0.066
 		block stLU, 0.012, 0.15
 		del 1
-		add sd * stLU - 0.006, 0, deckH + 0.066
-		block 0.012, stLV, 0.15
-		del 1
+		if not(sd = 1 and gOpenE) then
+			add sd * stLU - 0.006, 0, deckH + 0.066
+			block 0.012, stLV, 0.15
+			del 1
+		endif
 	next sd
 	endif
 	! 支保工の水平荷重を受ける交さ筋かい（各層・各方向 inBrN 組。数量と同じ）: 内側の通りから順に、足りなければ外周の

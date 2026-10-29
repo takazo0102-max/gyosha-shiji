@@ -139,8 +139,15 @@ def solve_walkway(item: dict, master, capacities: Optional[dict] = None) -> Walk
     span = max(v for v in master.span_lengths() if v <= 1829)
     for at, out, z, acc, n_sp, tag in ((s, -1.0, deck, "階段", 2, "始め"), (e, 1.0, end_deck, "なし", 1, "終わり")):
         st = solve_stage({"name": f"{name} の{tag}の島", "corners_mm": _island_corners(at, u, n_sp * span, out),
-                          "deck_mm": z, "base_mm": base, "access": acc}, master, capacities)
+                          "deck_mm": z, "base_mm": base, "access": acc, "open_end": True}, master, capacities)
         r.islands.append(st)
+    # 島の床は支柱のコマの段に合わせて少し上下する（実機 2026-10-29: 2100 の指定が 2015）。通路はフックを島の布材に
+    # 掛けるので、両端の高さは島の床の高さにそろえる（指定のままだと通路の端が島の床から浮く）
+    asked = (r.deck_mm, r.end_deck_mm)
+    r.deck_mm, r.end_deck_mm = float(r.islands[0].deck_mm), float(r.islands[1].deck_mm)
+    for tag, want, got in (("始め", asked[0], r.deck_mm), ("終わり", asked[1], r.end_deck_mm)):
+        if abs(want - got) >= 1.0:
+            r.notes.append(f"{tag}の島の床は支柱のコマの段に合わせて {want:.0f} → {got:.0f}mm。通路の{tag}の端もこの高さに掛ける")
     _checks(r, models)
     _quantity(r)
     return r
@@ -182,7 +189,7 @@ def _checks(r: WalkwayResult, models: list[WalkwayModel]) -> None:
         if bad:
             r.checks.append(WalkwayCheck("島", "NG", f"{st.name}: " + "／".join(f"{c.item} {c.message}" for c in bad)))
     r.notes.append("島には必ず転倒防止（控え・壁つなぎ、または島どうしをつなぐ）を行う（カタログの設置手順）")
-    r.notes.append("島の通路が取り付く辺は外周の手すり・中桟・幅木を外して出入口にし、通路の手すりと島の手すりをすき間なくつなぐ")
+    r.notes.append("島の通路が取り付く辺は出入口（外周の手すり・中桟・幅木なし）。通路の手すりと島の手すりをすき間なくつなぐ")
     r.notes.append("通路は4点吊り（吊り環にワイヤー）で掛け、吊り込みは必ず介錯ロープを付ける。設置後に各所の締付ボルトを確かめ、"
                    "幅木は専用の固定金具（LBRVK）で付ける")
 
@@ -199,16 +206,10 @@ def _quantity(r: WalkwayResult) -> None:
             q.append(("仮設通路の幅木", 3850, 2 * m.toe_3850, "アルミ幅木 LBRV38（W28×H125×L3850・両側）"))
         n_toe = 2 * (m.toe_2100 + m.toe_3850)
         q.append(("仮設通路の幅木固定金具", 0, 2 * n_toe, "LBRVK（幅木1枚の両端。各手摺柱に設置・数は手摺柱に合わせて確かめる）"))
+    # 通路が取り付く辺（島の長手の終わりの短辺）は島の側で出入口にしてある（open_end。手すり・中桟・幅木なし）
     for st in r.islands:
-        # 通路が取り付く辺（短手 1本）は出入口にするので、外周の手すり・中桟（2本）と幅木（1枚）を除く
-        w = st.spans_v[0] if len(st.spans_v) == 1 else 0
         for cat, dim, n, why in st.quantity:
-            if dim == w and cat == "布材" and "外周の手すり" in why:
-                n, why = n - 2, why + "（通路の取り付く辺の2本を除く）"
-            elif dim == w and cat == "幅木" and "外周の幅木" in why:
-                n, why = n - 1, why + "（通路の取り付く辺を除く）"
-            if n > 0:
-                q.append((cat, dim, n, f"{st.name}: {why}"))
+            q.append((cat, dim, n, f"{st.name}: {why}"))
 
 
 def walkway_report(r: WalkwayResult) -> str:

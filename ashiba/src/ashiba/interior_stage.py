@@ -119,6 +119,7 @@ class StageResult:
     upper_levels: list[int] = field(default_factory=list)   # 支保工: 作業床の段のほかに足す布材の段（水平つなぎ）
     stair_feet: list[dict] = field(default_factory=list)    # 階段の上の支柱（段の高さ・支柱・ジャッキ・敷板・踏面の端）
     deck_levels: list[int] = field(default_factory=list)    # 最上段のほかの作業床の段（EVシャフトの各階）
+    open_end: bool = False            # 長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）
     floors_mm: list[float] = field(default_factory=list)    # EVシャフト: 各階の床の高さ（足場の立つ面から）
     guard: bool = True                # 最上段の外周の手すり・中桟・幅木
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
@@ -328,6 +329,7 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     shaft = str(item.get("use", "")) in ("EVシャフト", "シャフト")
     access = str(item.get("access") or ("建物の階段" if item.get("stair") else ("ハッチ" if shaft else "階段")))
     res.access = access
+    res.open_end = bool(item.get("open_end"))
     if access == "ハッチ":
         # 層ごとの段に1枚ずつ（地面から最初の段を含む）。上下で位置をずらす
         res.stair_fh = int(master.floor_height or 1800)
@@ -734,10 +736,11 @@ def _quantity(r: StageResult, master) -> None:
     for s in r.spans_u:
         per[s] = per.get(s, 0) + 2
     for s in r.spans_v:
-        per[s] = per.get(s, 0) + 2
+        per[s] = per.get(s, 0) + (1 if r.open_end else 2)
+    tail = "（終わりの短辺は出入口で除く）" if r.open_end else ""
     for s, k in sorted(per.items()) if r.guard else ():
-        q.append(("布材", int(s), 2 * k, "内部ステージの外周の手すり・中桟"))
-        q.append(("幅木", int(s), k, "内部ステージの外周の幅木"))
+        q.append(("布材", int(s), 2 * k, "内部ステージの外周の手すり・中桟" + tail))
+        q.append(("幅木", int(s), k, "内部ステージの外周の幅木" + tail))
     if r.use == "EVシャフト":
         q.append(("壁つなぎ", 0, 4 * max(1, len(r.floors_mm)), "EVシャフトの四方の壁へ（各階）"))
     # 外周の構面の筋かい（各辺 5スパン以下ごと・各段）
@@ -1038,7 +1041,7 @@ def stage_params(r: StageResult, line_mode: bool = False, master=None) -> dict:
             "hatchZ": ",".join(str(int(h + r.base_mm)) for h in r.hatch_levels),"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
             "lvList": ",".join(str(int(h + r.base_mm)) for h in sorted(r.levels + r.upper_levels)),
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
-            "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),
+            "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard), "gOpenE": bool(r.open_end),
             "postTop": ((r.top_mm + r.base_mm) / 1000.0) if r.use == "支保工" else 0.0,
             "uheadExt": (max(0, r.uhead_ext_mm or 0) / 1000.0) if r.use == "支保工" else 0.0,
             "inBrN": int(r.inner_braces),

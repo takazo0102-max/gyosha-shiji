@@ -4,6 +4,9 @@
 平面で、渡す所に線を1本（始め→終わりの向き。島の布材の間）引いて選んで押す。窓で名前・両端の床の高さ・機種を入れて
 「置く」と、両端の島（部品 ashiba_stage。始めは階段つき2スパン、終わりは1スパン）と通路（部品 ashiba_walkway）を置き、
 検証と数量を ashiba_out/仮設通路_<名前>.md に書く。同じ線の上に前に置いた通路と島は置き換える。目印の線は消す。
+
+実機の確認（窓なし）: python3 scripts/walkway_run.py --line x0,y0,x1,y1 [--deck 1800] [--end 2100] [--name 検証_仮設通路]
+片付け: python3 scripts/walkway_run.py --clear（--line で置いた部品を消す。GUID は ashiba_out/仮設通路_検証.json）
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from guide_lines import OUT_DIR, delete_guides, not_in_plan_hint, selected_guide
 from interior_stage_run import STAGE_OBJECT, room_heights  # noqa: E402
 
 WALKWAY_OBJECT = "ashiba_walkway"
+DEV_REC = OUT_DIR / "仮設通路_検証.json"
 AUTO = "自動（長さに合ういちばん軽い機種）"
 
 
@@ -64,8 +68,21 @@ def main() -> int:
     from ashiba.walkways import load_walkway_models, solve_walkway, walkway_params, walkway_report
 
     c = ArchicadClient()
-    guides = selected_guides(c)
-    segs = [s for _e, ss in guides for s in ss]
+    argv = sys.argv[1:]
+    opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
+    if "--clear" in argv:
+        guids = json.loads(DEV_REC.read_text(encoding="utf-8")) if DEV_REC.exists() else []
+        if guids:
+            c.delete_elements([{"elementId": {"guid": g}} for g in guids])
+        DEV_REC.unlink(missing_ok=True)
+        print(f"仮設通路: 検証で置いた {len(guids)}個を消しました")
+        return 0
+    if "--line" in argv:
+        x0, y0, x1, y1 = (float(t) for t in opt("--line").split(","))
+        guides, segs = [], [((x0, y0), (x1, y1))]
+    else:
+        guides = selected_guides(c)
+        segs = [s for _e, ss in guides for s in ss]
     if len(segs) != 1:
         print("仮設通路: 平面で、渡す所に線を1本（始め→終わりの向き。両端の島の布材の間）引いて選んでから押してください"
               + not_in_plan_hint(c))
@@ -73,15 +90,19 @@ def main() -> int:
     (s, e), = segs
     floor, story, _ceil = room_heights(c, [list(s), list(e), list(e), list(s)])
     models = load_walkway_models()
-    res = show_form({"title": "仮設通路（ライトブリッジ）", "intro":
-                     f"線の長さ {math.dist(s, e):.0f}mm。両端に島（足場の塔）を立て、その布材に通路のフックを掛けます。"
-                     f"始めの島に階段を付けます。床の高さは足場の立つ面（{floor:.0f}）から。",
-                     "fields": [{"key": "name", "label": "名前", "kind": "text", "value": "仮設通路"},
-                                {"key": "deck", "label": "始めの床の高さ mm", "kind": "number", "value": "1800"},
-                                {"key": "end", "label": "終わりの床の高さ mm（空は始めと同じ）", "kind": "number", "value": ""},
-                                {"key": "model", "label": "機種", "kind": "choice",
-                                 "options": [AUTO] + [m.model for m in models], "value": AUTO}],
-                     "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if "--line" in argv:
+        res = {"button": "place", "values": {"name": opt("--name", "検証_仮設通路"), "deck": opt("--deck", "1800"),
+                                             "end": opt("--end", ""), "model": AUTO}}
+    else:
+        res = show_form({"title": "仮設通路（ライトブリッジ）", "intro":
+                         f"線の長さ {math.dist(s, e):.0f}mm。両端に島（足場の塔）を立て、その布材に通路のフックを掛けます。"
+                         f"始めの島に階段を付けます。床の高さは足場の立つ面（{floor:.0f}）から。",
+                         "fields": [{"key": "name", "label": "名前", "kind": "text", "value": "仮設通路"},
+                                    {"key": "deck", "label": "始めの床の高さ mm", "kind": "number", "value": "1800"},
+                                    {"key": "end", "label": "終わりの床の高さ mm（空は始めと同じ）", "kind": "number", "value": ""},
+                                    {"key": "model", "label": "機種", "kind": "choice",
+                                     "options": [AUTO] + [m.model for m in models], "value": AUTO}],
+                         "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "place":
         print("仮設通路: やめました（何も置いていません）")
         return 0
@@ -109,14 +130,20 @@ def main() -> int:
         mats = c.find_member_surfaces()
     except Exception:
         mats = {}
+    made = []
     for st in r.islands:
         (el,) = c.create_objects([(R.versioned_part_name(STAGE_OBJECT), st.origin[0], st.origin[1])])
         params = {**stage_params(st, master=master), **gdl_pens(pens, STAGE_OBJECT)}
         params.update({k: v for k, v in mats.items() if k in ("matScaf", "matDeck") and v})
         c.set_gdl_parameters(el, params)
+        made.append(el)
     if r.model is not None:
         (el,) = c.create_objects([(R.versioned_part_name(WALKWAY_OBJECT), s[0], s[1])])
         c.set_gdl_parameters(el, {**walkway_params(r), **gdl_pens(pens, WALKWAY_OBJECT)})
+        made.append(el)
+    if "--line" in argv:
+        DEV_REC.parent.mkdir(parents=True, exist_ok=True)
+        DEV_REC.write_text(json.dumps([e["elementId"]["guid"] for e in made]), encoding="utf-8")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     rep = OUT_DIR / f"仮設通路_{r.name}.md"
     rep.write_text(walkway_report(r), encoding="utf-8")
@@ -126,7 +153,8 @@ def main() -> int:
     for ck in r.checks:
         print(f"  検証 {ck.item}: {ck.status} — {ck.message}")
     print(f"  数量と検証: {rep}")
-    delete_guides(c, guides)
+    if guides:
+        delete_guides(c, guides)
     return 0 if r.ok else 2
 
 

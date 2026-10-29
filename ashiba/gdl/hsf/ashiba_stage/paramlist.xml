@@ -57,6 +57,10 @@
 			<Description><![CDATA["最上段の外周の手すり・中桟・幅木（EVシャフトは壁が近いので無し）"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="gOpenE">
+			<Description><![CDATA["長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Length Name="postTop">
 			<Description><![CDATA["支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）"]]></Description>
 			<Value>0</Value>

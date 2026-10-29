@@ -446,22 +446,27 @@ else
 				gosub "ledger"
 				del 1
 			next i
-			for j = 1 to nV
-				add sd * stLU, yv[j], deckH + hh
-				rotz 90
-				nLd = sv[j]
-				gosub "ledger"
-				del 2
-			next j
+			! 長手の終わりの短辺を出入口にするとき（gOpenE。仮設通路の島）はその辺に掛けない
+			if not(sd = 1 and gOpenE) then
+				for j = 1 to nV
+					add sd * stLU, yv[j], deckH + hh
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				next j
+			endif
 		next sd
 	next hk
 	for sd = 0 to 1
 		add 0, sd * stLV - 0.006, deckH + 0.066
 		block stLU, 0.012, 0.15
 		del 1
-		add sd * stLU - 0.006, 0, deckH + 0.066
-		block 0.012, stLV, 0.15
-		del 1
+		if not(sd = 1 and gOpenE) then
+			add sd * stLU - 0.006, 0, deckH + 0.066
+			block 0.012, stLV, 0.15
+			del 1
+		endif
 	next sd
 	endif
 	! 支保工の水平荷重を受ける交さ筋かい（各層・各方向 inBrN 組。数量と同じ）: 内側の通りから順に、足りなければ外周の

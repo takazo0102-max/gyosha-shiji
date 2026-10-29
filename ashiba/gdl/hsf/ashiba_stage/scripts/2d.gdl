@@ -101,7 +101,16 @@ for i = 1 to nU + 1
 	next j
 next i
 ! 外周の手すり（二重線。EVシャフトは壁が近いので無し）
-if guardOn then rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+if guardOn then
+	if gOpenE then
+		! 長手の終わりの短辺は出入口（仮設通路の島）: 手すりの線をその辺に引かない
+		line2 stLU + 0.03, -0.03, -0.03, -0.03
+		line2 -0.03, -0.03, -0.03, stLV + 0.03
+		line2 -0.03, stLV + 0.03, stLU + 0.03, stLV + 0.03
+	else
+		rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+	endif
+endif
 ! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 隅の1スパンに階段枠 450 を2列（狭ければ1列）、
 ! 上り方向の矢印。階段が無いときだけはしご
 if strlen(stFl) > 0 then

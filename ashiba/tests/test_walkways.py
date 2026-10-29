@@ -71,16 +71,18 @@ class TestWalkway(unittest.TestCase):
         self.assertIn("250kg", next(c.message for c in r.checks if c.item == "積載"))
 
     def test_walkway_edge_rails_are_removed(self):
-        """通路の取り付く辺は出入口: 島の短手の外周の手すり・中桟 2本と幅木 1枚を数えない."""
+        """通路の取り付く辺は出入口: 島の短手の外周の手すり・中桟は1辺分（2本）、幅木 1枚。部品にも開ける指定を渡す
+        （実機 2026-10-29: 3D で島の手すりが通路の入口をふさいでいた）."""
         r = walk([5000, 0])
         for st in r.islands:
-            own = sum(n for c, d, n, why in st.quantity if c == "布材" and d == 1219 and "外周の手すり" in why)
-            got = sum(n for c, d, n, why in r.quantity if c == "布材" and d == 1219 and "外周の手すり" in why
-                      and why.startswith(st.name))
-            self.assertEqual(got, own - 2, st.name)
-            own_t = sum(n for c, d, n, why in st.quantity if c == "幅木" and d == 1219)
-            got_t = sum(n for c, d, n, why in r.quantity if c == "幅木" and d == 1219 and why.startswith(st.name))
-            self.assertEqual(got_t, own_t - 1, st.name)
+            self.assertTrue(st.open_end)
+            self.assertTrue(stage_params(st, master=M)["gOpenE"])
+            rails = sum(n for c, d, n, why in st.quantity if c == "布材" and d == 1219 and "外周の手すり" in why)
+            toes = sum(n for c, d, n, why in st.quantity if c == "幅木" and d == 1219)
+            self.assertEqual((rails, toes), (2, 1), st.name)
+        self.assertTrue(any("出入口で除く" in q[3] for q in r.quantity))
+        xml = (ROOT / "gdl" / "hsf" / "ashiba_stage" / "paramlist.xml").read_text(encoding="utf-8")
+        self.assertIn('Name="gOpenE"', xml)
 
     def test_too_long_and_too_short(self):
         r = walk([9000, 0])
@@ -98,6 +100,15 @@ class TestWalkway(unittest.TestCase):
         self.assertIn("日工セック", c.message)
         self.assertEqual(r.islands[1].deck_mm, 2400)
         self.assertEqual(next(c for c in walk([5000, 0], end_deck_mm=1900).checks if c.item == "勾配").status, "OK")
+
+    def test_ends_follow_the_island_floors(self):
+        """島の床はコマの段に合う（2100 → 2015）。通路の両端はその高さに掛ける（実機 2026-10-29: 端が 85mm 浮いていた）."""
+        r = walk([5000, 0], end_deck_mm=2100)
+        self.assertEqual(r.islands[1].deck_mm, 2015)
+        self.assertEqual(r.end_deck_mm, 2015)
+        self.assertAlmostEqual(walkway_params(r)["zEnd"], 2.015)
+        self.assertTrue(any("2100 → 2015" in n for n in r.notes))
+        self.assertFalse(any("始めの島の床" in n for n in r.notes))
 
     def test_params_and_report(self):
         r = walk([0, 5000], base_mm=-1500)
