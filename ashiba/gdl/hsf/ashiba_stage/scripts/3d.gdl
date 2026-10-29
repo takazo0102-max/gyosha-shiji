@@ -414,6 +414,54 @@ else
 		del 1
 	next sd
 	endif
+	! 支保工の水平荷重を受ける交さ筋かい（各層・各方向 inBrN 組。数量と同じ）: 内側の通りから順に、足りなければ外周の
+	! 通りの外周の筋かいの無い升目へ、1升目に1組ずつ配る
+	if inBrN > 0 then
+		for il = 1 to nL - 1
+			z1 = lv[il] + 0.1
+			z2 = lv[il + 1] - 0.1
+			for dirB = 0 to 1
+				nLine = nV + 1
+				nBay = nU
+				if dirB = 1 then
+					nLine = nU + 1
+					nBay = nV
+				endif
+				cnt = 0
+				for pass = 0 to 1
+					for ln = 1 to nLine
+						isEdge = (ln = 1 or ln = nLine)
+						if (pass = 0 and not(isEdge)) or (pass = 1 and isEdge) then
+							for bb = 1 to nBay
+								hasOuter = isEdge and (bb - 1 - 5 * int((bb - 1) / 5) = 0)
+								! 階段の入口の升目（短手の始めの面の1つ目）とずらした外周の筋かいの升目は空ける
+								if stairOn and dirB = 1 and ln = 1 and bb <= 2 then hasOuter = 1
+								if cnt < inBrN and not(hasOuter) then
+									cnt = cnt + 1
+									for xd = 0 to 1
+										if dirB = 0 then
+											bx1 = xu[bb] + xd * su[bb]
+											bx2 = xu[bb] + (1 - xd) * su[bb]
+											by1 = yv[ln]
+											by2 = yv[ln]
+										else
+											bx1 = xu[ln]
+											bx2 = xu[ln]
+											by1 = yv[bb] + xd * sv[bb]
+											by2 = yv[bb] + (1 - xd) * sv[bb]
+										endif
+										bz1 = z1
+										bz2 = z2
+										gosub "rod"
+									next xd
+								endif
+							next bb
+						endif
+					next ln
+				next pass
+			next dirB
+		next il
+	endif
 	! 外周の構面の筋かい（5スパンごと、各段のあいだ）
 	for il = 1 to nL - 1
 		z1 = lv[il] + 0.1
@@ -432,10 +480,13 @@ else
 		for j = 1 to nV
 			if j - 1 - 5 * int((j - 1) / 5) = 0 and z1 > zBase + max(fu[1], fu[nU + 1]) + max(fv[j], fv[j + 1]) then
 				for sd = 0 to 1
-					ag = atn((z2 - z1) / sv[j])
-					add sd * stLU, yv[j], z1
+					! 階段の入口（始めの短手の面の1つ目の升目）は塞がない: 隣の升目へずらす
+					jb = j
+					if stairOn and sd = 0 and j = 1 and nV >= 2 then jb = 2
+					ag = atn((z2 - z1) / sv[jb])
+					add sd * stLU, yv[jb], z1
 					rotx -(90 - ag)
-					cylind sqr(sv[j] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
+					cylind sqr(sv[jb] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
 					del 2
 				next sd
 			endif
@@ -463,6 +514,28 @@ else
 endif
 del top
 end
+
+"rod":
+	! 2点 (bx1,by1,bz1)〜(bx2,by2,bz2) を結ぶ筋かい φ42.7
+	rdx = bx2 - bx1
+	rdy = by2 - by1
+	rdz = bz2 - bz1
+	rdL = sqr(rdx ^ 2 + rdy ^ 2 + rdz ^ 2)
+	if rdL > 0.01 then
+		if abs(rdx) < 0.000001 then
+			rAz = 90
+			if rdy < 0 then rAz = -90
+		else
+			rAz = atn(rdy / rdx)
+			if rdx < 0 then rAz = rAz + 180
+		endif
+		add bx1, by1, bz1
+		rotz rAz
+		roty acs(rdz / rdL)
+		cylind rdL, 0.0427 / 2
+		del 3
+	endif
+return
 
 "stairs":
 	sW = 0.45

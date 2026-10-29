@@ -119,6 +119,7 @@ class StageResult:
     guard: bool = True                # 最上段の外周の手すり・中桟・幅木
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
     stair_fh: int = 0                 # 階段1台の高さ（系列の層の高さ）
+    inner_braces: int = 0             # 支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数）
     wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
 
     @property
@@ -444,6 +445,13 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
                           + ("" if have >= need else f"。内側の通りにも筋かいを足すか（各層・各方向あと {need - have}本）、"
                              "打設済みの柱・壁に水平力を預ける形を構造計算書で示す")
                           + "（安衛則240条3項4号・手引 p263）"))
+    r.inner_braces = max(0, need - have)
+    # 交さ筋かいを入れられる升目（外周の筋かいの升目を除く）が足りないと、組数を満たせない
+    room = min((len(r.spans_v) + 1) * len(r.spans_u), (len(r.spans_u) + 1) * len(r.spans_v)) - have
+    if need - have > room:
+        out.append(StageCheck("支保工の筋かいの入る升目", "NG",
+                              f"各層・各方向に交さ筋かい {need - have}組が要るが、入れられる升目は {room}。支柱の間隔を詰めて升目を"
+                              "増やすか、打設済みの柱・壁に水平力を預ける形を構造計算書で示す"))
     if have < need:
         # 足りない分を内側の通りに交さ筋かいで（各層・各方向。長さは長い方のスパン）
         layers = max(1, len(r.levels) + len(r.upper_levels) - 1)
@@ -805,6 +813,7 @@ def stage_params(r: StageResult, line_mode: bool = False, master=None) -> dict:
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),
             "postTop": ((r.top_mm + r.base_mm) / 1000.0) if r.use == "支保工" else 0.0,
             "uheadExt": (max(0, r.uhead_ext_mm or 0) / 1000.0) if r.use == "支保工" else 0.0,
+            "inBrN": int(r.inner_braces),
             # 階段の上: 支柱の列ごとの足元（段の高さ＋敷板）
             "footAxis": 1 if (r.stair_feet and r.stair_feet[0]["axis"] == "v") else 0,
             "footZ": ",".join(str(int(f["z_mm"] + f["shim"] * SHIM_BOARD_MM)) for f in r.stair_feet),

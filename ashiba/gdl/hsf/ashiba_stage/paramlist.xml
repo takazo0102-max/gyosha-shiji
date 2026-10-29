@@ -105,6 +105,10 @@
 			<Description><![CDATA["昇降の階段（下の段,上の段 を続けて mm。配置した高さから。空＝はしご）。隅の1スパンに折り返し"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Integer Name="inBrN">
+			<Description><![CDATA["支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数。数量と同じ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="zBase">
 			<Description><![CDATA["足場の立つ高さ（配置した高さから。ジャッキの下端）"]]></Description>
 			<Value>0</Value>

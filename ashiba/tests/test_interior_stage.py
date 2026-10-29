@@ -161,6 +161,13 @@ class TestShoringStage(unittest.TestCase):
         inner = [(d, n, why) for c, d, n, why in r.quantity if c == "筋交" and "内側の交さ筋かい" in why]
         self.assertEqual(len(inner), 2)
         self.assertTrue(all(n > 0 and n % 2 == 0 for _, n, _ in inner))
+        # 部品にも同じ組数を渡して描く（数量だけで 3D に無かった。2026-10-29）
+        self.assertEqual(stage_params(r)["inBrN"], r.inner_braces)
+        self.assertGreater(r.inner_braces, 0)
+        # 升目が足りないと組数を満たせない（幅 1スパンの細長い 30m・スラブ 600）
+        tight = solve(corners_mm=[[0, 0], [30000, 0], [30000, 2200], [0, 2200]], deck_mm=2800, use="支保工",
+                      slab_mm=600, ceiling_mm=4400)
+        self.assertEqual({c.item: c.status for c in tight.checks}.get("支保工の筋かいの入る升目"), "NG")
         self.assertTrue(any("2段以上" in n for n in r.notes))
         self.assertTrue(any("型枠支保工の組立て等作業主任者" in n for n in r.notes))
         self.assertTrue(any("下の階のスラブ" in n and "kN" in n for n in r.notes))
