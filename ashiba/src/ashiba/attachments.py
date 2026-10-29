@@ -1066,7 +1066,10 @@ def _guard_bay_params(model: ScaffoldModel, h) -> dict:
     bay = guard_side_bays(model, h) if hm is not None and hm.kind == "ロングスパン" else None
     if not bay:
         return {"sideSpan": 0.0}
-    return {"sideSpan": bay["span_mm"] / 1000.0, "sideW": bay["width_mm"] / 1000.0,
+    # 横の足場は昇降路の隣のスパンの前（左 sbL0〜sbL1・右 sbR0〜sbR1、昇降機の中心から m）、奥行 sideSpan
+    return {"sideSpan": bay["depth_mm"] / 1000.0,
+            "sbL0": bay["left"][0] / 1000.0, "sbL1": bay["left"][1] / 1000.0,
+            "sbR0": bay["right"][0] / 1000.0, "sbR1": bay["right"][1] / 1000.0,
             "sideLvP": float(model.master.floor_height or 1800) / 1000.0}
 
 

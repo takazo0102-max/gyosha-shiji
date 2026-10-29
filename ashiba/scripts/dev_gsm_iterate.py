@@ -76,7 +76,7 @@ PART_PROFILES = {
     # EVシャフトの内部足場（各階の床・外周の手すり無し。利用者の指定 2026-10-28）
     "ashiba_stage": {
         "images": ("3D", "2D"),
-        "params": {"spanU": "1829", "spanV": "1829", "lvList": "440,1565,3365,5165,6965,8765",
+        "params": {"spanU": "1829", "spanV": "1219", "lvList": "440,1565,3365,5165,6965,8765",
                    "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1",
                    "lvList": "440,1565,3365,5165,6965,8765", "deckList": "1565,3365,5165,6965",
                    "hatchZ": "1565,3365,5165,6965,8765", "ladOn": False},
@@ -91,7 +91,7 @@ PART_PROFILES = {
     # 型枠支保工（利用者の指定 2026-10-28）。--profile ashiba_stage_shoring で使う
     "ashiba_stage_shoring": {
         "images": ("3D", "2D"),
-        "params": {"spanU": "1829,1829,1829,1524", "spanV": "1829,1829", "lvList": "200,1325,3125", "deckH": 1.325,
+        "params": {"spanU": "1829,1829,1829,1524", "spanV": "1219,1219,1219", "lvList": "200,1325,3125", "deckH": 1.325,
                    "postTop": 4.08, "uheadExt": 0.145, "stName": "2F床 支保工",
                    "postDia": 0.0427, "komaP": 0.45, "sysKind": 0, "jackExt": 0.03, "dkWs": "500,240",
                    "stFl": "0,1325", "inBrN": 7},
@@ -99,8 +99,8 @@ PART_PROFILES = {
     # 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）。--profile ashiba_hoist_guard
     "ashiba_hoist_guard": {
         "images": ("3D", "2D"),
-        "params": {"hoModel": "KSE900-5.4", "hoReach": 9.955, "hoInside": False, "sideSpan": 1.524, "sideW": 0.61,
-                   "sideLvP": 1.8, "rowSp": 0.61},
+        "params": {"hoModel": "KSE-990", "hoReach": 9.955, "hoInside": False, "sideSpan": 1.219,
+                   "sbL0": -4.5725, "sbL1": -2.7435, "sbR0": 2.7435, "sbR1": 4.5725, "sideLvP": 1.8, "rowSp": 0.914},
     },
     "ashiba_detail": {
         "images": ("2D",),

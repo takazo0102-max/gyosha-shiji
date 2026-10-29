@@ -38,6 +38,8 @@ DECK_DEAD_KN_M2 = 0.25       # 踏板の自重
 POST_SELF_KN_PER_M = 0.15    # 支柱＋布材・筋かいの自重（支柱1本・高さ1m あたりの目安）
 STAGE_H_RATIO = 0.025        # 棚足場の照査水平荷重（自重に対する比。指針）
 STAGE_FS_MIN = 2.0           # 転倒安定度の下限
+DECK_GAP_MAX_MM = 30         # 作業床のすき間の上限（安衛則563条: 3cm 以下）
+STAGE_WIDTH_MAX_MM = 1219    # 足場の幅（短手のスパン）の上限（利用者の指定 2026-10-29）
 RIGHT_ANGLE_TOL_DEG = 2.0    # 範囲の角が直角からこれ以上ずれたら長方形でない
 HB_LIMIT = 4.0               # 高さ／短辺がこれを超えたら控え・壁つなぎ
 BRACE_EVERY_SPANS = 5
@@ -122,6 +124,7 @@ class StageResult:
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
     stair_fh: int = 0                 # 階段1台の高さ（系列の層の高さ）
     inner_braces: int = 0             # 支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数）
+    form: Optional[dict] = None       # 支保工: 型枠の計算（部材・間隔の上限・検定）
     access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）・"ハッチ"
     hatch_levels: list[int] = field(default_factory=list)   # ハッチ付布板（梯子内蔵）を置く段（EVシャフト）
     wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
@@ -171,13 +174,13 @@ def _frame(corners) -> tuple[tuple[float, float], tuple[float, float], tuple[flo
     return p0, u, v, la, lb
 
 
-def _fit_spans(coins: list[int], length: float) -> list[int]:
-    """長さ以下のスパン列: 壁際の余り FIT_SLACK_MM 以内でスパンの本数がいちばん少ない（長いスパン）もの、次に長いもの."""
+def _fit_spans(coins: list[int], length: float, slack: float = FIT_SLACK_MM) -> list[int]:
+    """長さ以下のスパン列: 壁際の余り slack 以内でスパンの本数がいちばん少ない（長いスパン）もの、次に長いもの."""
     from .plan_solver import achievable_sums
 
     if length < min(coins):
         return []
-    lo = max(min(coins), int(length - FIT_SLACK_MM))
+    lo = max(min(coins), int(length - slack))
     table = achievable_sums(coins, lo, int(length))
     if not table:
         table = achievable_sums(coins, min(coins), int(length))
@@ -192,9 +195,23 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     name = str(item.get("name") or "内部ステージ足場")
     p0, u, v, la, lb = _frame(item["corners_mm"])
     coins = master.span_lengths()
-    su = _fit_spans(coins, la - 2 * CLEAR_MM)
-    # 枠組は短手を建枠の幅（1219・914・610）で割る（建枠が短手のスパンを渡る。1829 では組めない）
-    sv = _fit_spans(master.frame_widths() if master.is_frame and master.frame_widths() else coins, lb - 2 * CLEAR_MM)
+    # EVシャフトは壁とのすき間を 30cm 以下にする（外周の手すりを省ける）ので、壁際の余りを小さく取る
+    shaft_use = str(item.get("use", "")) in ("EVシャフト", "シャフト")
+    slack = 2 * (SHAFT_WALL_GAP_MAX_MM - CLEAR_MM) if shaft_use else FIT_SLACK_MM
+    # 短手（足場の幅）は 1219 まで（利用者の指定 2026-10-29: 足場の幅は1200までだよ1219）。枠組は建枠の幅で割る
+    widths_v = (master.frame_widths() if master.is_frame and master.frame_widths()
+                else [c for c in coins if c <= STAGE_WIDTH_MAX_MM]) or coins
+    form = None
+    if str(item.get("use", "")) in ("支保工", "型枠支保工"):
+        # 型枠支保工は型枠の計算（せき板・根太・大引）と支柱1本の軸力で支柱の間隔を決める（利用者の指定 2026-10-29:
+        # 型枠の計算をしないとスパン決めれないよ、1800飛ばせないと思う）
+        form = _shoring_form_spans(item, master, capacities, coins, widths_v)
+        if form["spans"] is not None:
+            umax, vmax = form["spans"]
+            coins = [c for c in coins if c <= umax] or coins
+            widths_v = [c for c in widths_v if c <= vmax] or widths_v
+    su = _fit_spans(coins, la - 2 * CLEAR_MM, slack)
+    sv = _fit_spans(widths_v, lb - 2 * CLEAR_MM, slack)
     if not su or not sv:
         raise ValueError(f"{name}: 範囲（{la:.0f}×{lb:.0f}）が狭くて支柱が立ちません")
     # 割り付けた格子を範囲の中央に寄せる
@@ -274,6 +291,7 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
                 add.append(int(deck + round((pos - deck) / koma) * koma))
         res.upper_levels = sorted(set(add) - set(levels))
     res.ceiling_mm = float(ceil_mm) if ceil_mm else None
+    res.form = form
     res.series_id = str(getattr(master, "series_id", "") or "")
     if shoring:
         res.use = "支保工"
@@ -437,6 +455,48 @@ def _stair_checks(r: StageResult) -> None:
                    "脚の滑り止め（踏面に敷板を釘止め・根がらみを2方向）を付ける")
 
 
+def _form_checks(r: StageResult) -> None:
+    """型枠（せき板・根太・大引）の曲げとたわみを、実際の支柱の間隔（長手・短手の最大）で検定して書く."""
+    from .formwork import DEFLECTION_MAX_MM, NEDA_PITCH_MM, check
+
+    fm = r.form or {}
+    if not fm:
+        return
+    res = check(fm["q"], fm["q_dead"], max(r.spans_u), max(r.spans_v), fm["neda"], fm["obiki"])
+    ok = all(c.ok for c in res)
+    parts = "、".join(f"{c.part}（{c.member}・スパン {c.span_mm:.0f}）σ{c.sigma:.0f}/{c.fb:.0f}N/mm²・"
+                     f"δ{c.deflection_mm:.1f}/{DEFLECTION_MAX_MM:.0f}mm" for c in res)
+    lim = fm.get("spans")
+    r.checks.append(StageCheck("型枠（せき板・根太・大引）", "OK" if ok else "NG",
+                               f"{parts}。根太 @{NEDA_PITCH_MM:.0f}、単純梁（曲げは設計荷重、たわみは固定荷重）"
+                               + (f"。支柱の間隔は {lim[0]}×{lim[1]} まで（型枠の部材と支柱の軸力から）" if lim else
+                                  "。どの定尺の間隔でも通らない: 根太・大引を強い部材にするか支柱の間隔を詰める")))
+
+
+def _shoring_form_spans(item: dict, master, caps: Optional[dict], coins: list[int], widths_v: list[int]) -> dict:
+    """型枠支保工の支柱の間隔の上限: せき板・根太・大引（formwork）と支柱1本の軸力がみな通る、いちばん広い定尺の組."""
+    from .formwork import DEFAULT_NEDA, DEFAULT_OBIKI, NEDA, OBIKI, max_spans
+
+    slab = float(item.get("slab_mm", 200.0) or 200.0)
+    q_dead = RC_KN_M3 * slab / 1000.0 + FORM_KN_M2
+    q = q_dead + SHORING_LIVE_KN_M2
+    fm = dict(item.get("form") or {})
+    neda = str(fm.get("neda") or DEFAULT_NEDA)
+    obiki = str(fm.get("obiki") or DEFAULT_OBIKI)
+    neda = neda if neda in NEDA else DEFAULT_NEDA
+    obiki = obiki if obiki in OBIKI else DEFAULT_OBIKI
+    tie = str(item.get("tie", "") or SHORING_TIES[0])
+    allow = _cap(caps, "支保工許容支持力", tie if tie in SHORING_TIES else SHORING_TIES[0]) or \
+        _cap(caps, "支柱許容圧縮耐力") or 1e9
+    h_m = float(item.get("ceiling_mm") or 4000.0) / 1000.0
+
+    def post_ok(su: int, sv: int) -> bool:
+        return (su / 1000.0) * (sv / 1000.0) * q + POST_SELF_KN_PER_M * h_m <= allow
+
+    spans = max_spans(q, q_dead, sorted(coins, reverse=True), sorted(widths_v, reverse=True), post_ok, neda, obiki)
+    return {"neda": neda, "obiki": obiki, "q": q, "q_dead": q_dead, "spans": spans}
+
+
 def _shoring_spacing_hint(r: StageResult, master, caps: Optional[dict], q: float, h_m: float) -> str:
     """支保工の軸力が許容を超えたときの案内: 今のつなぎ方で収まる支柱の間隔（定尺の組み合わせ）と、強いつなぎ方."""
     allow = _cap(caps, "支保工許容支持力", r.tie) or 0.0
@@ -459,13 +519,24 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     n_posts = (nu + 1) * (nv + 1)
     # 頂部: 大引受けジャッキ（鋼製の受け金物で大引を固定）、大引は長手の支柱の列ごと、根太・せき板は型枠大工
     r.quantity.append(("大引受けジャッキ", 0, n_posts, "支保工の頂部（大引を受けて固定する）"))
-    r.quantity.append(("大引", int(r.length_u), nv + 1, "支保工の大引（長手の支柱の列ごと。端太角か単管。継ぎは支柱の上）"))
+    from .formwork import NEDA, OBIKI
+
+    fm = r.form or {}
+    ob = OBIKI[fm["obiki"]].name if fm.get("obiki") in OBIKI else "大引"
+    ne = NEDA[fm["neda"]].name if fm.get("neda") in NEDA else "根太"
+    r.quantity.append(("大引", int(r.length_u), nv + 1, f"支保工の大引（{ob}・長手の支柱の列ごと。継ぎは支柱の上）"))
+    if fm:
+        from .formwork import NEDA_PITCH_MM
+
+        n_neda = int(math.floor(r.length_u / NEDA_PITCH_MM)) + 1
+        r.quantity.append(("根太", int(r.length_v), n_neda, f"支保工の根太（{ne}・@{NEDA_PITCH_MM:.0f}・大引の上に短手の向き）"))
     su, sv = max(r.spans_u) / 1000.0, max(r.spans_v) / 1000.0
     h_m = r.top_mm / 1000.0
     q = r.design_kn_m2
     out = r.checks
     # 足場としての支柱の軸力（作業床の積載だけ）は支保工の軸力に置き換える
     out[:] = [c for c in out if c.item != "支柱の軸力"]
+    _form_checks(r)
     out.append(StageCheck("支保工の設計荷重", "OK",
                           f"固定 {RC_KN_M3 * r.slab_mm / 1000:.2f}（鉄筋コンクリート 2400kg/m³×{r.slab_mm:.0f}mm）＋型枠 {FORM_KN_M2:.2f}"
                           f"＋積載 {SHORING_LIVE_KN_M2:.2f}（150kg/m²）＝{q:.2f}kN/m²（安衛則240条・計画届作成の手引 p261）"))
@@ -606,6 +677,7 @@ def _quantity(r: StageResult, master) -> None:
     # 最上段の全面の踏板: 長手のスパンに掛け、短手のスパンを踏板の幅で埋める
     widths = sorted({int(w) for w in getattr(master, "deck_widths", (500, 240)) or (500, 240)}, reverse=True)
     decks: dict[tuple[int, int], int] = {}
+    gaps: dict[tuple[int, int], int] = {}      # (長手のスパン, すき間の幅) → 升目の数
     for s_u in r.spans_u:
         for s_v in r.spans_v:
             rest = float(s_v) - 30.0
@@ -614,6 +686,10 @@ def _quantity(r: StageResult, master) -> None:
                 if k:
                     decks[(int(s_u), w)] = decks.get((int(s_u), w), 0) + k
                     rest -= k * w
+            if rest > DECK_GAP_MAX_MM:
+                # 布板で埋めきれないすき間はすき間板でふさぐ（ステージは全面の作業床。すき間 3cm 以下）
+                key = (int(s_u), int(round(rest)))
+                gaps[key] = gaps.get(key, 0) + 1
     n_deck = 1 + len(r.deck_levels)
     if r.access == "ハッチ" and r.hatch_levels:
         # 作業床の段のハッチは幅500の布板1枚と入れ替える
@@ -641,6 +717,9 @@ def _quantity(r: StageResult, master) -> None:
             if diff:
                 key = (int(r.spans_u[0]), w)
                 decks[key] = decks.get(key, 0) - diff * open_lv / n_deck
+    for (s_u, g), k in sorted(gaps.items()):
+        q.append(("すき間板", s_u, k * n_deck, f"布板のすき間 {g}mm をふさぐ（ステージは全面の作業床・すき間 3cm 以下）"
+                  + (f"×{n_deck}段" if n_deck > 1 else "")))
     for (s_u, w), k in sorted(decks.items()):
         n = int(round(k * n_deck))
         if n > 0:

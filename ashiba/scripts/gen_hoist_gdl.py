@@ -52,8 +52,11 @@ def paramlist(first: str) -> str:
         _param("Boolean", "showTie", "マストの壁つなぎを描く", 1),
         _param("Boolean", "showFence", "地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く", 1),
         _param("Boolean", "showGuard", "ロングスパンの昇降路の前養生（地上の囲いの上から到達高さまで、単管の枠とメッシュシート）を描く", 1),
-        _param("Length", "sideSpan", "外付けの前養生の両横（妻側）の足場1スパンの奥行（0＝置かない。配置が入れる）", 0),
-        _param("Length", "sideW", "両横の足場の幅（足場の建地列の間隔）", 0.914),
+        _param("Length", "sideSpan", "外付けの前養生の両横の足場1スパンの奥行（足場の幅。0＝置かない。配置が入れる）", 0),
+        _param("Length", "sbL0", "左の横の足場の始め（昇降機の中心から。昇降路の隣のスパン）", -4.6),
+        _param("Length", "sbL1", "左の横の足場の終わり", -2.7),
+        _param("Length", "sbR0", "右の横の足場の始め", 2.7),
+        _param("Length", "sbR1", "右の横の足場の終わり", 4.6),
         _param("Length", "sideLvP", "両横の足場の層の高さ", 1.8),
         "\t\t<Material Name=\"matCage\">\n\t\t\t<Description><![CDATA[\"荷台・マストの材質\"]]></Description>\n"
         "\t\t\t<Value>0</Value>\n\t\t</Material>\n",
@@ -274,25 +277,26 @@ endif
 ! 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）: 両横の足場1スパン（支柱の
 ! 小円と外形）、前養生の面（正面の太線と両横の足場の外面）
 if showGuard and hoKind = 1 and hoInside = 0 and sideSpan > 0 then
-	yB = -0.15
-	yF = yB - sideSpan
-	gW = fX + sideW
-	for sg = -1 to 1 step 2
-		xi = sg * fX
-		xo = sg * gW
-		rect2 min(xi, xo), yF, max(xi, xo), yB
-		line2 xi, yF, xo, yB
-		for kx = 0 to 1
-			for ky = 0 to 1
-				circle2 xi + kx * (xo - xi), yB + ky * (yF - yB), 0.024
-			next ky
-		next kx
-	next sg
+	! 外付けのロングスパンの前養生（利用者の指定 2026-10-29: ロングスパンの横はこういう向き）: 昇降路の隣のスパンの前の
+	! 足場1スパン（外形・前の建地）と前養生の面
+	yF = -sideSpan
+	for sb = 0 to 1
+		bx0 = sbL0
+		bx1 = sbL1
+		if sb = 1 then
+			bx0 = sbR0
+			bx1 = sbR1
+		endif
+		rect2 bx0, yF, bx1, 0
+		line2 bx0, yF, bx1, 0
+		circle2 bx0, yF, 0.024
+		circle2 bx1, yF, 0.024
+	next sb
 	pen penEquip
-	line2 -gW, yF - 0.20, gW, yF - 0.20
-	line2 -gW, yF - 0.21, gW, yF - 0.21
-	line2 -gW - 0.03, yF, -gW - 0.03, yB
-	line2 gW + 0.03, yF, gW + 0.03, yB
+	line2 sbL0, yF - 0.20, sbR1, yF - 0.20
+	line2 sbL0, yF - 0.21, sbR1, yF - 0.21
+	line2 sbL0 - 0.03, yF, sbL0 - 0.03, 0
+	line2 sbR1 + 0.03, yF, sbR1 + 0.03, 0
 endif
 hotspot2 0, 0
 hotspot2 -cageL / 2, yC1
@@ -703,48 +707,47 @@ endif
 ! 平面を、囲いの天端 1.8m から到達高さまで単管の枠とメッシュシートで塞ぐ。横引きは 1.8m ごと、足場の外側の建地から腕を
 ! 出して受ける。外付けは両横も返す。乗り込み口の階も外面は開けない（荷は躯体側で取る）
 if showGuard and hoKind = 1 and hoReach > 1.85 and hoInside = 0 and sideSpan > 0 then
-	! 外付け（利用者の指定 2026-10-29: 妻側じゃない、妻側は足場1スパンおく、正面に補強だよ）: 両横に足場1スパン
-	! （本体の足場の外側の建地列から 0.15 離した後ろの建地〜前の建地＝前養生の面）、正面は横引き＋縦の単管2本＋2段ごとの
-	! 斜めの単管。単管は重ねない（横引きは前の建地の外、縦はその外、斜めはさらに外）
+	! 外付け（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強、ロングスパンの横はこういう向き）: 昇降路の隣の
+	! スパンの前に足場1スパン（長手は外壁に沿い、奥行＝足場の幅。後ろの建地は本体の足場と兼ね、前の建地2本を立てる）。
+	! 正面は横の足場の外端まで横引き、昇降路の前に縦の単管2本と段ごとの斜め（＼　／）。単管は重ねない
 	gH = hoReach - 1.8
 	nR = int(gH / 1.8 - 0.001) + 1
-	yB = -0.15
-	yF = yB - sideSpan
-	gW = fX + sideW
+	yF = -sideSpan
 	material mSt
-	for sg = -1 to 1 step 2
-		xi = sg * fX
-		xo = sg * gW
+	for sb = 0 to 1
+		bx0 = sbL0
+		bx1 = sbL1
+		if sb = 1 then
+			bx0 = sbR0
+			bx1 = sbR1
+		endif
+		! 前の建地とジャッキ
 		for kx = 0 to 1
-			for ky = 0 to 1
-				px = xi + kx * (xo - xi)
-				py = yB + ky * (yF - yB)
-				add px, py, 0
-				cylind hoReach, 0.0243
-				del 1
-				add px - 0.07, py - 0.07, 0
-				block 0.14, 0.14, 0.01
-				del 1
-			next ky
+			px = bx0 + kx * (bx1 - bx0)
+			add px, yF, 0
+			cylind hoReach, 0.0243
+			del 1
+			add px - 0.07, yF - 0.07, 0
+			block 0.14, 0.14, 0.01
+			del 1
 		next kx
 		zl = 0.2
 		while zl < hoReach + 0.001 do
+			! 前の通りの布材と奥行の布材（後ろは本体の足場の建地へ）
+			add bx0, yF, zl
+			roty 90
+			cylind bx1 - bx0, 0.0214
+			del 2
 			for kx = 0 to 1
-				add xi + kx * (xo - xi), yB, zl
+				add bx0 + kx * (bx1 - bx0), 0, zl
 				rotx 90
 				cylind sideSpan, 0.0214
 				del 2
 			next kx
-			for ky = 0 to 1
-				add min(xi, xo), yB + ky * (yF - yB), zl
-				roty 90
-				cylind sideW, 0.0214
-				del 2
-			next ky
 			if zl > 0.5 then
 				material mDk
-				add min(xi, xo) + 0.01, yF + 0.01, zl + 0.02
-				block sideW - 0.02, sideSpan - 0.02, 0.04
+				add bx0 + 0.02, yF + 0.01, zl + 0.02
+				block bx1 - bx0 - 0.04, sideSpan - 0.02, 0.04
 				del 1
 				material mSt
 			endif
@@ -754,12 +757,12 @@ if showGuard and hoKind = 1 and hoReach > 1.85 and hoInside = 0 and sideSpan > 0
 				zl = zl + sideLvP
 			endif
 		endwhile
-		! 外面の筋かい（各層）
+		! 前の面の筋かい（各層）
 		zl = 0.2
 		while zl + sideLvP < hoReach + 0.001 do
-			add xo, yB, zl
-			rotx 90 - atn(sideLvP / sideSpan)
-			cylind sqr(sideSpan ^ 2 + sideLvP ^ 2), 0.0214
+			add bx0, yF, zl
+			roty 90 - atn(sideLvP / (bx1 - bx0))
+			cylind sqr((bx1 - bx0) ^ 2 + sideLvP ^ 2), 0.0214
 			del 2
 			if zl = 0.2 then
 				zl = sideLvP
@@ -767,29 +770,30 @@ if showGuard and hoKind = 1 and hoReach > 1.85 and hoInside = 0 and sideSpan > 0
 				zl = zl + sideLvP
 			endif
 		endwhile
-	next sg
-	! 正面の横引き（前の建地の外）
+	next sb
+	! 正面の横引き（前の建地の外。左の足場の外端から右の足場の外端まで）
 	for kr = 0 to nR
 		zr = min(1.8 + kr * 1.8, hoReach)
-		add -gW - 0.15, yF - 0.05, zr
+		add sbL0 - 0.15, yF - 0.05, zr
 		roty 90
-		cylind 2 * gW + 0.3, 0.0243
+		cylind sbR1 - sbL0 + 0.3, 0.0243
 		del 2
 	next kr
-	! 正面の縦の単管2本（1/3・2/3。横引きの外）と直交クランプ
-	for sg = -1 to 1 step 2
-		add sg * gW / 3, yF - 0.10, 1.8
+	! 昇降路の前の縦の単管2本（両側の足場の内側の前の建地の間の 1/3・2/3。横引きの外）と直交クランプ
+	oW = sbR0 - sbL1
+	for sg = 1 to 2
+		xv = sbL1 + oW * sg / 3
+		add xv, yF - 0.10, 1.8
 		cylind gH, 0.0243
 		del 1
 		for kr = 0 to nR
-			add sg * gW / 3 - 0.04, yF - 0.14, min(1.8 + kr * 1.8, hoReach) - 0.04
+			add xv - 0.04, yF - 0.14, min(1.8 + kr * 1.8, hoReach) - 0.04
 			block 0.08, 0.08, 0.08
 			del 1
 		next kr
 	next sg
-	! 正面の斜めの単管（利用者の図 2026-10-29: 補強の斜めはこうだよ）: 段ごとに左右2本、両端の建地の上の角から内側へ
-	! 下がり、縦の単管の手前（幅の 1/3）で下の横引きに留める（＼　／）。横引きの外
-	dRun = 2 * gW / 3 - 0.15
+	! 斜めの単管（段ごとに左右2本、両側の足場の内側の前の建地の上の角から内側へ下がる「＼　／」）
+	dRun = oW / 3 - 0.15
 	for kr = 1 to nR
 		zt = min(1.8 + kr * 1.8, hoReach)
 		zb = 1.8 + (kr - 1) * 1.8
@@ -797,28 +801,27 @@ if showGuard and hoKind = 1 and hoReach > 1.85 and hoInside = 0 and sideSpan > 0
 		if dH > 0.3 then
 			dL = sqr(dRun ^ 2 + dH ^ 2)
 			dA = atn(dH / dRun)
-			for sg = -1 to 1 step 2
-				add sg * gW, yF - 0.10, zt
-				if sg < 0 then
-					roty 90 + dA
-				else
-					roty 270 - dA
-				endif
-				cylind dL, 0.0243
-				del 2
-			next sg
+			add sbL1, yF - 0.10, zt
+			roty 90 + dA
+			cylind dL, 0.0243
+			del 2
+			add sbR0, yF - 0.10, zt
+			roty 270 - dA
+			cylind dL, 0.0243
+			del 2
 		endif
 	next kr
-	! メッシュシート（正面と両横の足場の外面）
+	! メッシュシート（正面と両横の足場の外の面）
 	material mGd
-	add -gW, yF - 0.20, 1.8
-	block 2 * gW, 0.004, gH
+	add sbL0, yF - 0.20, 1.8
+	block sbR1 - sbL0, 0.004, gH
 	del 1
-	for sg = -1 to 1 step 2
-		add sg * gW + sg * 0.03 - 0.002, yF, 1.8
-		block 0.004, yB - yF, gH
-		del 1
-	next sg
+	add sbL0 - 0.03, yF, 1.8
+	block 0.004, sideSpan, gH
+	del 1
+	add sbR1 + 0.03, yF, 1.8
+	block 0.004, sideSpan, gH
+	del 1
 endif
 if showGuard and hoKind = 1 and hoReach > 1.85 and not(hoInside = 0 and sideSpan > 0) then
 	gH = hoReach - 1.8

@@ -100,7 +100,7 @@ TUBE_LENGTHS_MM = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0, 4000.0)  # �
 GUARD_ROW_PITCH_MM = 1800.0    # 昇降路の前養生の横引きの段の間隔
 GUARD_TUBE_OVER_MM = 300.0     # 横引き・腕の掛かり（両端 150 ずつ）
 GUARD_TUBE_LAP_MM = 300.0      # 単管をつなぐ重ね
-GUARD_BAY_GAP_MM = 150.0       # 両横の足場の後ろの建地と、本体の足場の外側の建地列のあき（シート・布材をかわす）
+GUARD_BAY_WIDTH_MAX_MM = 1219  # 両横の足場の奥行（足場の幅）の上限（利用者の指定 2026-10-29: 足場の幅は1200までだよ1219）
 GUARD_FRONT_POSTS = 2          # 前養生の正面の補強の縦の単管（利用者の指定 2026-10-29: 正面に補強だよ）
 GUARD_SHEET_MM = (1800.0, 5100.0)   # 前養生のメッシュシート（幅×高さ）
 GUARD_WIRE_MM = (1814.0, 860.0)     # 養生金網（長さ×高さ。L1814×H860・9kg の流通品）
@@ -756,9 +756,10 @@ def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand
     tiers = math.ceil(height / sh)
     out: list[PartDemand] = []
     bay = guard_side_bays(model, h) if depth > 0 else None
-    bw = float(bay["width_mm"]) if bay else 0.0
-    span = float(bay["span_mm"]) if bay else 0.0
-    front_w = width + 2 * bw
+    span = float(bay["depth_mm"]) if bay else 0.0
+    # 正面は左の足場の外端から右の足場の外端まで、昇降路の前は両側の足場の内側の前の建地の間
+    front_w = (bay["right"][1] - bay["left"][0]) if bay else width
+    open_w = (bay["right"][0] - bay["left"][1]) if bay else width
     front_cols = math.ceil(front_w / sw)
     side_cols = 2 * math.ceil(span / sw) if bay else 0
     sides = "前面と両横" if bay else "前面"
@@ -790,12 +791,12 @@ def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand
         Lv, nv = _tube_run(height)
         out.append(PartDemand(
             f"昇降機 前養生の正面の縦の単管{Lv / 1000:.1f}m", "単管", Lv, GUARD_FRONT_POSTS * nv,
-            detail=f"正面に{GUARD_FRONT_POSTS}本（幅{front_w / 1000:.1f}m の 1/3・2/3）、高さ{height / 1000:.1f}m。"
+            detail=f"昇降路の前に{GUARD_FRONT_POSTS}本（幅{open_w / 1000:.1f}m の 1/3・2/3）、高さ{height / 1000:.1f}m。"
                    "横引きの外に沿わせ、横引きと重ねない"))
         # 斜めは段ごとに左右2本、両端の建地の上の角から内側へ下がり、縦の単管の手前で下の横引きに留める（利用者の図
         # 2026-10-29: 補強の斜めはこうだよ。「＼　／」）
         bands = max(1, rows - 1)
-        diag = math.hypot(front_w / 3.0 - 150.0, GUARD_ROW_PITCH_MM)
+        diag = math.hypot(open_w / 3.0 - 150.0, GUARD_ROW_PITCH_MM)
         Ld, nd = _tube_run(diag)
         out.append(PartDemand(
             f"昇降機 前養生の正面の斜めの単管{Ld / 1000:.1f}m", "単管", Ld, 2 * bands * nd,
@@ -826,19 +827,32 @@ def hoistway_guard_demands(model: ScaffoldModel, h: "Hoist") -> list["PartDemand
 
 
 def guard_side_bays(model: ScaffoldModel, h: "Hoist") -> Optional[dict]:
-    """外付けのロングスパンの前養生の両横（妻側）に置く1スパンの足場（利用者の指定 2026-10-29: 妻側は足場1スパンおく）.
+    """外付けのロングスパンの前養生の両横に置く足場1スパン（利用者の指定 2026-10-29: 妻側は足場1スパンおく／ロング
+    スパンの横はこういう向き）.
 
-    足場の外側の建地列から前養生の面まで、荷台の奥行＋囲いのすき間を超える最短の定尺スパン1つ、幅は足場の建地列の間隔。
-    到達高さまで支柱を立て、層ごとに布材（両方向）・作業床・外面の筋かい。前養生の横引きはこの足場の前の建地で受ける。
+    昇降路のスパンのすぐ隣（左右）の本体の足場のスパンの前に、長手＝そのスパン（外壁に沿う）、奥行＝足場の幅（1219 まで。
+    荷台の奥行＋100 以上の最短）で1つずつ出す。後ろの建地は本体の足場の外側の建地と兼ね、前の建地2本を立てる。
+    層ごとに布材（前の通りと奥行の2本）・作業床・前の面の筋かい。前養生の横引きはこの足場の前の建地で受ける。
     """
     if h.inside:
         return None
+    ep = next((e for e in model.plan.edges if e.edge_index == h.edge_index), None)
+    gs = h.gate_spans(model) if ep is not None else []
+    if ep is None or not gs:
+        return None
+    iL, iR = min(gs) - 1, max(gs) + 1
+    if iL < 0 or iR >= len(ep.spans):
+        return None                     # 隣のスパンが無い（面の端）: 横の足場を出せない
+    posts = [0.0]
+    for sp in ep.spans:
+        posts.append(posts[-1] + float(sp))
+    left = (posts[iL] - h.position_mm, posts[iL + 1] - h.position_mm)
+    right = (posts[iR] - h.position_mm, posts[iR + 1] - h.position_mm)
     m = model.master
-    # 足場の外側の建地列から GUARD_BAY_GAP_MM 離して後ろの建地を立て、前の建地の列を前養生の面にする
-    need = float(h.cage_depth_mm or HOIST_CAGE_D_MM) + HOIST_FENCE_GAP_MM + 100.0 - GUARD_BAY_GAP_MM
-    spans = sorted(m.span_lengths())
-    span = next((s for s in spans if s >= need), spans[-1] if spans else need)
-    row = float(model.post_row_spacing_mm or 900)
+    widths = sorted(m.frame_widths() if m.is_frame and m.frame_widths()
+                    else [s for s in m.span_lengths() if s <= GUARD_BAY_WIDTH_MAX_MM]) or [GUARD_BAY_WIDTH_MAX_MM]
+    need = float(h.cage_depth_mm or HOIST_CAGE_D_MM) + 100.0
+    depth = float(next((w for w in widths if w >= need), widths[-1]))
     reach = float(h.reach_mm(model))
     fh = float(m.floor_height or 1800)
     n_lv = max(1, math.ceil(reach / fh))
@@ -848,23 +862,28 @@ def guard_side_bays(model: ScaffoldModel, h: "Hoist") -> Optional[dict]:
         pick = next((v for v in lengths if v <= rest + 1.0), lengths[-1])
         stack.append(pick)
         rest -= pick
+    spans = [int(round(left[1] - left[0])), int(round(right[1] - right[0]))]
     out: list[PartDemand] = []
-    tag = f"両横（妻側）の足場1スパン（奥行{span:.0f}×幅{row:.0f}・{n_lv}層・2か所）"
+    tag = (f"両横の足場1スパン（長手 {spans[0]}・{spans[1]}×奥行{depth:.0f}・{n_lv}層・2か所。後ろの建地は本体の足場と兼ねる）")
     post_cat = "建枠" if m.is_frame else "支柱"
     for v in sorted(set(stack), reverse=True):
-        k = stack.count(v) * (2 if m.is_frame else 4) * 2
-        # 枠組の建枠は同じ高さでも幅（1219・914・610）で品が違うので、足場の幅で引く
-        out.append(PartDemand(f"昇降機 前養生の{post_cat}", post_cat, int(v), k,
-                              note_contains=f"幅{int(row)}" if m.is_frame else "", detail=tag))
-    out.append(PartDemand("昇降機 前養生のジャッキ", "ジャッキ", None, 4 * 2, detail=tag))
+        # 前の建地2本×2か所（枠組は建枠を奥行の向きに2枚×2か所）
+        out.append(PartDemand(f"昇降機 前養生の{post_cat}", post_cat, int(v), stack.count(v) * 2 * 2,
+                              note_contains=f"幅{int(depth)}" if m.is_frame else "", detail=tag))
+    out.append(PartDemand("昇降機 前養生のジャッキ", "ジャッキ", None, 2 * 2, detail=tag))
     if not m.is_frame:
-        out.append(PartDemand("昇降機 前養生の布材（奥行）", "布材", int(span), 2 * (n_lv + 1) * 2, detail=tag + "・根がらみと各層"))
-        out.append(PartDemand("昇降機 前養生の布材（幅）", "布材", int(row), 2 * (n_lv + 1) * 2, detail=tag + "・根がらみと各層"))
+        for sp in sorted(set(spans)):
+            out.append(PartDemand("昇降機 前養生の布材（前の通り）", "布材", sp, spans.count(sp) * (n_lv + 1),
+                                  detail=tag + "・根がらみと各層"))
+        out.append(PartDemand("昇降機 前養生の布材（奥行）", "布材", int(depth), 2 * 2 * (n_lv + 1), detail=tag + "・根がらみと各層"))
     deck_w = max(model.config.deck_widths or [400])
-    out.append(PartDemand(f"昇降機 前養生の{m.deck_category}", m.deck_category, int(span),
-                          math.ceil(row / deck_w) * n_lv * 2, f"幅{deck_w}", detail=tag + "・各層の作業床"))
-    out.append(PartDemand("昇降機 前養生の筋交", "筋交", int(span), n_lv * 2, detail=tag + "・外面に各層"))
-    return {"span_mm": span, "width_mm": row, "levels": n_lv, "demands": out}
+    for sp in sorted(set(spans)):
+        out.append(PartDemand(f"昇降機 前養生の{m.deck_category}", m.deck_category, sp,
+                              spans.count(sp) * math.ceil((depth - 30) // deck_w or 1) * n_lv, f"幅{deck_w}",
+                              detail=tag + "・各層の作業床"))
+        out.append(PartDemand("昇降機 前養生の筋交", "筋交", sp, spans.count(sp) * n_lv, detail=tag + "・前の面に各層"))
+    return {"left": left, "right": right, "depth_mm": depth, "levels": n_lv, "demands": out,
+            "span_mm": depth, "width_mm": max(spans)}
 
 
 def platform_part_demands(

@@ -91,6 +91,7 @@ def main() -> int:
     from form_dialog import show_form
 
     from ashiba.cli import resolve_series_id
+    from ashiba.formwork import DEFAULT_NEDA, DEFAULT_OBIKI, NEDA, OBIKI
     from ashiba.interior_stage import LIVE_DEFAULT_KN_M2, SHORING_TIES, solve_stage, stage_params, stage_report
     from ashiba.master import load_master
     from ashiba.structural import load_capacities
@@ -123,6 +124,11 @@ def main() -> int:
                                 {"key": "slab", "label": "支保工: 受けるスラブの厚さ mm", "kind": "number", "value": "200"},
                                 {"key": "tie", "label": "支保工: つなぎ方", "kind": "choice", "options": list(SHORING_TIES),
                                  "value": SHORING_TIES[0]},
+                                # 型枠の計算で支柱の間隔を決める（利用者の指定 2026-10-29: 型枠の計算をしないとスパン決めれない）
+                                {"key": "neda", "label": "支保工: 根太", "kind": "choice", "options": list(NEDA),
+                                 "value": DEFAULT_NEDA},
+                                {"key": "obiki", "label": "支保工: 大引", "kind": "choice", "options": list(OBIKI),
+                                 "value": DEFAULT_OBIKI},
                                 # 階段の上に組む（利用者の指定 2026-10-28: 内部足場は階段でよく使う）
                                 {"key": "stair", "label": "階段の上に組む", "kind": "choice", "options": list(STAIR_DIRS),
                                  "value": next(iter(STAIR_DIRS))},
@@ -143,7 +149,8 @@ def main() -> int:
             "live_kn_m2": float(str(vals.get("live") or LIVE_DEFAULT_KN_M2)),
             "use": str(vals.get("use") or "足場"),
             "slab_mm": float(str(vals.get("slab") or "200").replace(",", "")),
-            "tie": str(vals.get("tie") or SHORING_TIES[0])}
+            "tie": str(vals.get("tie") or SHORING_TIES[0]),
+            "form": {"neda": str(vals.get("neda") or DEFAULT_NEDA), "obiki": str(vals.get("obiki") or DEFAULT_OBIKI)}}
     if item["use"] == "EVシャフト":
         item["floors_mm"] = [float(t) for t in str(vals.get("floors") or "").replace("、", ",").split(",")
                              if t.strip().replace(".", "", 1).isdigit()]

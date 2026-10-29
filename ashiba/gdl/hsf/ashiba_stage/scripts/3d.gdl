@@ -386,13 +386,14 @@ else
 					yp = yv[j] + stLaneW + 0.015
 					rest = sv[j] - stLaneW - 0.03
 				endif
-				! この段にハッチがあれば、隅の升目の 1枚目（奇数番目のハッチ）か 3枚目（偶数番目）の幅500をハッチにする
+				! この段にハッチがあれば、隅の升目の 1枚目（奇数番目のハッチ）か 2枚目（偶数番目）の幅500をハッチにする
+				! （足場の幅は 1219 まで: 幅500 は2枚。利用者の指定 2026-10-29）
 				hSlot = 0
 				if i = 1 and j = 1 then
 					for kh = 1 to nHz
 						if abs(hz[kh] - dk[id]) < 0.005 and hz[kh] - zBase > 0.65 then
 							hSlot = 1
-							if kh mod 2 = 0 then hSlot = 3
+							if kh mod 2 = 0 then hSlot = 2
 						endif
 					next kh
 				endif
@@ -419,6 +420,12 @@ else
 						rest = rest - dw[iw]
 					endwhile
 				next iw
+				! 布板で埋めきれないすき間はすき間板（薄い鋼板）でふさぐ（ステージは全面。すき間 3cm 以下）
+				if rest > 0.03 and not(stairOn and i = 1 and j = 1) then
+					add xu[i] + 0.03, yp, dk[id] + r_nuno + 0.040
+					block su[i] - 0.06, rest, 0.006
+					del 1
+				endif
 			next j
 		next i
 	next id

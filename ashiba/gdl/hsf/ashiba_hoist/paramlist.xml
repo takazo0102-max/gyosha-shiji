@@ -98,12 +98,24 @@
 			<Value>1</Value>
 		</Boolean>
 		<Length Name="sideSpan">
-			<Description><![CDATA["外付けの前養生の両横（妻側）の足場1スパンの奥行（0＝置かない。配置が入れる）"]]></Description>
+			<Description><![CDATA["外付けの前養生の両横の足場1スパンの奥行（足場の幅。0＝置かない。配置が入れる）"]]></Description>
 			<Value>0</Value>
 		</Length>
-		<Length Name="sideW">
-			<Description><![CDATA["両横の足場の幅（足場の建地列の間隔）"]]></Description>
-			<Value>0.914</Value>
+		<Length Name="sbL0">
+			<Description><![CDATA["左の横の足場の始め（昇降機の中心から。昇降路の隣のスパン）"]]></Description>
+			<Value>-4.6</Value>
+		</Length>
+		<Length Name="sbL1">
+			<Description><![CDATA["左の横の足場の終わり"]]></Description>
+			<Value>-2.7</Value>
+		</Length>
+		<Length Name="sbR0">
+			<Description><![CDATA["右の横の足場の始め"]]></Description>
+			<Value>2.7</Value>
+		</Length>
+		<Length Name="sbR1">
+			<Description><![CDATA["右の横の足場の終わり"]]></Description>
+			<Value>4.6</Value>
 		</Length>
 		<Length Name="sideLvP">
 			<Description><![CDATA["両横の足場の層の高さ"]]></Description>

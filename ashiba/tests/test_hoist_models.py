@@ -338,11 +338,17 @@ class TestHoistInput(unittest.TestCase):
             return sum(ln.qty for ln in res.quantity.lines if ln.part.category == cat and ln.part.nominal_dim == dim)
 
         n_lv = r.model.elevation_of(0).n_levels
-        self.assertEqual(qty(none, "踏板", 1829) - qty(r, "踏板", 1829), 3 * n_lv)       # 3スパン×全層の床
+        # 前養生の両横の足場（昇降路の隣のスパンの前・2026-10-29）の床と前の建地は増える
+        from ashiba.platforms import guard_side_bays
+
+        bay = guard_side_bays(r.model, r.platforms.hoists[0])
+        side = lambda cat, dim=None: sum(d.qty for d in bay["demands"] if d.category == cat
+                                         and (dim is None or d.nominal_dim == dim))
+        self.assertEqual(qty(none, "踏板", 1829) - qty(r, "踏板", 1829), 3 * n_lv - side("踏板", 1829))   # 3スパン×全層の床
         # 幅木: エレベーターの側も乗り込み口（1スパン×2層）は外してあるので、差は 3スパン×全層 − 2
         self.assertEqual(qty(none, "幅木", 1829) - qty(r, "幅木", 1829), 3 * n_lv - 2)
-        # 中の支柱2本×内外が減り、前養生の両横（妻側）の足場1スパン×2か所の支柱4本ずつが増える（2026-10-29）
-        self.assertEqual(qty(none, "ジャッキ", 400) - qty(r, "ジャッキ", 400), 2 * 2 - 4 * 2)
+        # 中の支柱2本×内外が減り、前養生の両横の足場の前の建地 2本×2か所が増える（2026-10-29）
+        self.assertEqual(qty(none, "ジャッキ", 400) - qty(r, "ジャッキ", 400), 2 * 2 - side("ジャッキ"))
         # 梁枠は荷取りステージの分（2本×乗り込む2層）だけで、昇降路には入れない
         self.assertEqual(qty(r, "梁枠", 5487), 4)
         self.assertFalse([t for t in r.model.wall_ties if t.edge_index == 0 and 1829 + 1 < t.position_mm < 7316 - 1])
@@ -734,7 +740,7 @@ class TestHoistwayGuard(unittest.TestCase):
         # 妻側は足場1スパンおく、正面に補強だよ）
         self.assertNotIn("返しの縦の単管", txt)
         self.assertIn("正面の縦の単管", txt)
-        self.assertIn("正面に2本", txt)
+        self.assertIn("昇降路の前に2本", txt)
         self.assertIn("正面の斜めの単管", txt)
         self.assertIn("正面の自在クランプ", txt)
         self.assertIn("両横の足場の前の建地", txt)
@@ -742,7 +748,19 @@ class TestHoistwayGuard(unittest.TestCase):
         from ashiba.platforms import guard_side_bays
 
         bay = guard_side_bays(r.model, r.platforms.hoists[0])
-        self.assertIn(bay["span_mm"], r.model.master.span_lengths())
+        # 向き（利用者の指定 2026-10-29: ロングスパンの横はこういう向き）: 昇降路の隣のスパンの前に、長手＝そのスパン、
+        # 奥行＝足場の幅（1219 まで）。後ろの建地は本体の足場と兼ねる
+        h = r.platforms.hoists[0]
+        ep = next(e for e in r.model.plan.edges if e.edge_index == 0)
+        posts = [0.0]
+        for sp in ep.spans:
+            posts.append(posts[-1] + sp)
+        gs = h.gate_spans(r.model)
+        self.assertAlmostEqual(bay["left"][1] + h.position_mm, posts[min(gs)])
+        self.assertAlmostEqual(bay["right"][0] + h.position_mm, posts[max(gs) + 1])
+        self.assertLessEqual(bay["depth_mm"], 1219)
+        self.assertGreaterEqual(bay["depth_mm"], float(h.cage_depth_mm) + 100)
+        self.assertEqual(sum(d.qty for d in bay["demands"] if d.category == "ジャッキ"), 4)   # 前の建地 2本×2か所
         cats = {d.category for d in bay["demands"]}
         self.assertTrue({"支柱", "ジャッキ", "布材", "筋交"} <= cats)
         # 枠組は建枠を足場の幅で引く（同じ高さで幅 1219・914・610 の品がある）
@@ -753,7 +771,7 @@ class TestHoistwayGuard(unittest.TestCase):
         wb = guard_side_bays(wk.model, wk.platforms.hoists[0])
         frames = [d for d in wb["demands"] if d.category == "建枠"]
         self.assertTrue(frames)
-        self.assertTrue(all(d.note_contains == f"幅{int(wb['width_mm'])}" for d in frames))
+        self.assertTrue(all(d.note_contains == f"幅{int(wb['depth_mm'])}" for d in frames))
         self.assertIsNone(guard_side_bays(r.model, solve_all({**BOX, "hoists": [{"edge_index": 0, "position_mm": 5487,
                                                                                   "model": "KSE900-5.4", "mount": "中"}]})
                                          .platforms.hoists[0]))

@@ -25,7 +25,7 @@ class TestInteriorStage(unittest.TestCase):
     def test_grid_fits_inside_with_long_spans(self):
         r = solve()
         self.assertEqual(r.spans_u, [1829] * 6)
-        self.assertEqual(r.spans_v, [1829] * 4)
+        self.assertEqual(r.spans_v, [1219] * 6)                 # 足場の幅は 1219 まで（利用者の指定 2026-10-29）
         self.assertLessEqual(r.length_u, 12000 - 300)
         self.assertEqual(r.deck_mm, 6000)
         self.assertEqual(r.levels[-1], 6000)
@@ -53,10 +53,11 @@ class TestInteriorStage(unittest.TestCase):
     def test_quantity_and_report(self):
         r = solve()
         q = {(c, d, why): n for c, d, n, why in r.quantity}
-        self.assertEqual(q[("ジャッキ", 0, "内部ステージのジャッキベース")], 7 * 5)
+        self.assertEqual(q[("ジャッキ", 0, "内部ステージのジャッキベース")], 7 * 7)
         decks = sum(n for c, d, n, why in r.quantity if c == "踏板")
-        # 1829 を 500×3＋240×1 で埋める。階段の升目は階段の通る幅（450×2＋100）を抜いて 500＋240（2026-10-29）
-        self.assertEqual(decks, 6 * 4 * 4 - 2)
+        # 幅 1219 を 500×2 で埋め、残り 189 はすき間板。階段の升目は階段の通る幅（450×2＋100）を抜く（2026-10-29）
+        self.assertEqual(decks, 6 * 6 * 2 - 2)
+        self.assertTrue(any(c == "すき間板" for c, *_ in r.quantity))
         # 昇降ははしごでなく階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）
         self.assertNotIn("はしご", {c for c, *_ in r.quantity})
         self.assertEqual(sum(n for c, _d, n, _w in r.quantity if c == "階段"), len(r.stair_flights))
@@ -117,17 +118,32 @@ class TestShoringStage(unittest.TestCase):
         self.assertNotIn("支柱の軸力", items)          # 足場の軸力は支保工の軸力に置き換える
         self.assertIn("支保工の支柱の軸力", items)
 
-    def test_post_load_against_the_approval_by_tie_method(self):
-        st = lambda r: {c.item: c.status for c in r.checks}["支保工の支柱の軸力"]
-        # 1829×1829 で 6.56kN/m² → 22.6kN/本。ND1800 は片方向つなぎ材 18kN・両方向 25kN
-        self.assertEqual(st(self.shore()), "NG")
-        self.assertEqual(st(self.shore(tie="両方向つなぎ材")), "OK")
-        self.assertEqual(st(self.shore(slab_mm=120)), "OK")
-        # 両方向つなぎ材で超えるときは、収まる支柱の間隔を案内する（「つなぎ材を両方向に」と言っていた）
-        thick = self.shore(tie="両方向つなぎ材", slab_mm=300)
-        msg = next(c.message for c in thick.checks if c.item == "支保工の支柱の軸力")
-        self.assertIn("以下に詰める", msg)
-        self.assertNotIn("両方向に入れる", msg)
+    def test_spans_from_the_formwork_calc(self):
+        # 支柱の間隔は型枠の計算（せき板・根太・大引）と支柱の軸力で決める（利用者の指定 2026-10-29: 型枠の計算を
+        # しないとスパン決めれないよ、1800飛ばせないと思う）。スラブ 200 は大引 □100×50 が 1829 を飛ばせない
+        st = lambda r: {c.item: c.status for c in r.checks}
+        r = self.shore()
+        self.assertLess(max(r.spans_u), 1829)
+        self.assertEqual(r.form["spans"], (1524, 1219))
+        self.assertEqual(st(r)["型枠（せき板・根太・大引）"], "OK")
+        self.assertEqual(st(r)["支保工の支柱の軸力"], "OK")
+        msg = next(c.message for c in r.checks if c.item == "型枠（せき板・根太・大引）")
+        for part in ("せき板", "根太", "大引"):
+            self.assertIn(part, msg)
+        # 厚いスラブは間隔を詰める（スラブ 300 で短手 914）
+        thick = self.shore(slab_mm=300, tie="両方向つなぎ材")
+        self.assertLessEqual(max(thick.spans_v), 914)
+        self.assertEqual(st(thick)["支保工の支柱の軸力"], "OK")
+        # 強い大引（単管2本は弱い）を選ぶと間隔が変わる
+        weak = self.shore(form={"obiki": "単管2本"})
+        self.assertLess(weak.form["spans"][0] * weak.form["spans"][1], 1524 * 1219)
+        q = {c: why for c, _d, _n, why in weak.quantity}
+        self.assertIn("単管 φ48.6×2.4 2本", q["大引"])
+        self.assertIn("根太", q)
+        # 型枠の計算に通る定尺が無い（極端に厚いスラブ）ときは NG と案内
+        none = self.shore(slab_mm=3000, tie="ブレース")
+        if none.form["spans"] is None:
+            self.assertEqual(st(none)["型枠（せき板・根太・大引）"], "NG")
 
     def test_deck_snaps_to_the_nearest_koma(self):
         # 天井から積み方を選び直しても、作業床は指定にいちばん近いコマの段（1800 の指定が 2465 になっていた）
@@ -177,9 +193,9 @@ class TestShoringStage(unittest.TestCase):
         # 部品にも同じ組数を渡して描く（数量だけで 3D に無かった。2026-10-29）
         self.assertEqual(stage_params(r)["inBrN"], r.inner_braces)
         self.assertGreater(r.inner_braces, 0)
-        # 升目が足りないと組数を満たせない（幅 1スパンの細長い 30m・スラブ 600）
-        tight = solve(corners_mm=[[0, 0], [30000, 0], [30000, 2200], [0, 2200]], deck_mm=2800, use="支保工",
-                      slab_mm=600, ceiling_mm=4400)
+        # 升目が足りないと組数を満たせない（幅 1スパンの細長い 40m・スラブ 1000）
+        tight = solve(corners_mm=[[0, 0], [40000, 0], [40000, 2200], [0, 2200]], deck_mm=2800, use="支保工",
+                      slab_mm=1000, ceiling_mm=4400)
         self.assertEqual({c.item: c.status for c in tight.checks}.get("支保工の筋かいの入る升目"), "NG")
         self.assertTrue(any("2段以上" in n for n in r.notes))
         self.assertTrue(any("型枠支保工の組立て等作業主任者" in n for n in r.notes))
@@ -326,7 +342,8 @@ class TestShaftStage(unittest.TestCase):
         sparse = self.shaft(floors_mm=[1500, 9000])                # 階の間が 5m を超える
         self.assertEqual({c.item: c.status for c in sparse.checks}["壁つなぎ"], "WARN")
         wide = self.shaft(corners_mm=[[0, 0], [2700, 0], [2700, 2200], [0, 2200]])
-        self.assertTrue(wide.guard)                                 # 長手の壁との隙間が 30cm を超える
+        self.assertLessEqual(wide.wall_gap_mm, 300)                 # シャフトは壁とのすき間 30cm 以下に割る
+        self.assertFalse(wide.guard)
         self.assertIn("EVシャフト", stage_report(r))
 
 
@@ -434,10 +451,25 @@ class TestAllSeries(unittest.TestCase):
                     stage_params(r)
                     st = {c.item: c.status for c in r.checks}
                     if name == "EV":
-                        # 1×1スパンのシャフトは角の支柱4本（内側の支柱の受け持ちで数えて NG になっていた）
-                        self.assertEqual(st["支柱の軸力"], "OK" if caps else st["支柱の軸力"])
-                        self.assertIn("角の支柱", next(c.message for c in r.checks if c.item == "支柱の軸力"))
+                        # シャフトは外周の支柱だけ（内側の支柱の受け持ちで数えて NG になっていた）。各層に作業床を張る
+                        # ので、許容の小さい系列（信和 A 6.86kN）は NG になってよい
+                        msg = next(c.message for c in r.checks if c.item == "支柱の軸力")
+                        self.assertRegex(msg, "角の支柱|端の支柱")
+                        if sid == "nikken_nd1800":
+                            self.assertEqual(st["支柱の軸力"], "OK")
                     if name == "階段":
                         # 枠組・単管でも段ごとの積み方が見つかる（コマ 450 を仮定して NG になっていた）
                         self.assertNotEqual(st["階段の上の支柱"], "NG")
                         self.assertTrue(all(f["posts"] for f in r.stair_feet))
+
+
+class TestFormworkCalc(unittest.TestCase):
+    def test_matches_the_kkl_worked_example(self):
+        # KKL 型枠支保工強度計算書の例（スラブ 400・合板 12・根太 角パイプ 60 @300・大引 @1219）: せき板 σ0.70kN/cm²・
+        # δ0.14cm、根太 σ8.9kN/cm²（単純梁）
+        from ashiba.formwork import check
+
+        sk, nd, _ob = check(15.0, 10.3, 1829, 1219, neda="角パイプ60")
+        self.assertAlmostEqual(sk.sigma / 10.0, 0.70, places=2)
+        self.assertAlmostEqual(sk.deflection_mm / 10.0, 0.14, places=2)
+        self.assertAlmostEqual(nd.sigma / 10.0, 8.9, delta=0.5)
