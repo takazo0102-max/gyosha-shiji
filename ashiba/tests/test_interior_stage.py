@@ -315,6 +315,19 @@ class TestStairAccess(unittest.TestCase):
         self.assertEqual(p["stFl"], "0,2000,2000,3800")
 
 
+class TestFrameStage(unittest.TestCase):
+    def test_frame_series_uses_frame_widths_and_frames(self):
+        # 枠組は短手を建枠の幅で割り、建枠・交差筋かいで数える（短手 1829・「支柱」で数えていた。2026-10-29）
+        m = load_master("waku")
+        r = solve_stage({"name": "枠", "corners_mm": RECT, "deck_mm": 3500}, m)
+        self.assertTrue(set(r.spans_v) <= set(m.frame_widths()))
+        cats = {c for c, *_ in r.quantity}
+        self.assertIn("建枠", cats)
+        self.assertNotIn("支柱", cats)
+        nu, nv = len(r.spans_u), len(r.spans_v)
+        self.assertEqual(sum(n for c, _d, n, _w in r.quantity if c == "建枠"), len(r.posts) * (nu + 1) * nv)
+
+
 class TestStagePartParams(unittest.TestCase):
     """配置の時に渡すパラメータが部品 ashiba_stage にあって型が合う（実機で型が違うと設定が弾かれる。2026-10-28 guardOn）."""
 

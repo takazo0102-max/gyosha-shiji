@@ -191,7 +191,8 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     p0, u, v, la, lb = _frame(item["corners_mm"])
     coins = master.span_lengths()
     su = _fit_spans(coins, la - 2 * CLEAR_MM)
-    sv = _fit_spans(coins, lb - 2 * CLEAR_MM)
+    # 枠組は短手を建枠の幅（1219・914・610）で割る（建枠が短手のスパンを渡る。1829 では組めない）
+    sv = _fit_spans(master.frame_widths() if master.is_frame and master.frame_widths() else coins, lb - 2 * CLEAR_MM)
     if not su or not sv:
         raise ValueError(f"{name}: 範囲（{la:.0f}×{lb:.0f}）が狭くて支柱が立ちません")
     # 割り付けた格子を範囲の中央に寄せる
@@ -509,9 +510,15 @@ def _quantity(r: StageResult, master) -> None:
     for f in stair_rows:
         for p in f["posts"]:
             counts[int(p)] = counts.get(int(p), 0) + per_row
-    for p, k in sorted(counts.items(), reverse=True):
-        if k:
-            q.append(("支柱", p, k, "内部ステージの支柱" + ("（階段の上は段ごとの長さ）" if stair_rows else "")))
+    if master.is_frame:
+        # 枠組: 長手の各通りに短手のスパンを渡る建枠を層ごとに立て、長手のスパンは交差筋かい（両面）でつなぐ
+        for p in sorted(set(r.posts), reverse=True):
+            k = r.posts.count(p) * (nu + 1) * nv
+            q.append(("建枠", int(p), k, f"内部ステージの建枠（高さ{p}・幅{'/'.join(str(v) for v in sorted(set(r.spans_v)))}）"))
+    else:
+        for p, k in sorted(counts.items(), reverse=True):
+            if k:
+                q.append(("支柱", p, k, "内部ステージの支柱" + ("（階段の上は段ごとの長さ）" if stair_rows else "")))
     q.append(("ジャッキ", 0, n_posts, "内部ステージのジャッキベース"))
     n_shim = sum(f["shim"] for f in r.stair_feet) * per_row
     if n_shim:
@@ -532,12 +539,18 @@ def _quantity(r: StageResult, master) -> None:
     for sp, k in sorted(neg.items()):
         q.append(("布材", sp, k, "階段の上の段ごとの根がらみ"))
     n_lv = len(r.levels)                       # 根がらみ＋各段
-    for s in sorted(set(r.spans_u)):
-        k = r.spans_u.count(s) * (nv + 1) * n_lv
-        q.append(("布材", int(s), k, "内部ステージの布材（長手）"))
-    for s in sorted(set(r.spans_v)):
-        k = r.spans_v.count(s) * (nu + 1) * n_lv
-        q.append(("布材", int(s), k, "内部ステージの布材（短手）"))
+    if master.is_frame:
+        n_fl = max(1, len(r.posts))           # 建枠の段数
+        for s in sorted(set(r.spans_u)):
+            q.append(("筋交", int(s), r.spans_u.count(s) * (nv + 1) * n_fl,
+                      "内部ステージの交差筋かい（長手のスパンを各通り・各段）"))
+    else:
+        for s in sorted(set(r.spans_u)):
+            k = r.spans_u.count(s) * (nv + 1) * n_lv
+            q.append(("布材", int(s), k, "内部ステージの布材（長手）"))
+        for s in sorted(set(r.spans_v)):
+            k = r.spans_v.count(s) * (nu + 1) * n_lv
+            q.append(("布材", int(s), k, "内部ステージの布材（短手）"))
     # 最上段の全面の踏板: 長手のスパンに掛け、短手のスパンを踏板の幅で埋める
     widths = sorted({int(w) for w in getattr(master, "deck_widths", (500, 240)) or (500, 240)}, reverse=True)
     decks: dict[tuple[int, int], int] = {}
