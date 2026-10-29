@@ -102,6 +102,11 @@ PART_PROFILES = {
         "params": {"hoModel": "KSE-990", "hoReach": 9.955, "hoInside": False, "sideSpan": 1.219,
                    "sbL0": -4.5725, "sbL1": -2.7435, "sbR0": 2.7435, "sbR1": 4.5725, "sideLvP": 1.8, "rowSp": 0.914},
     },
+    # 仮設通路（日工セック ライトブリッジ。利用者の指定 2026-10-29）。両端の高さに差をつけて傾きも見る
+    "ashiba_walkway": {
+        "images": ("3D", "2D"),
+        "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）

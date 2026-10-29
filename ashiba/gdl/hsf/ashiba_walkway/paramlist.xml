@@ -1,0 +1,101 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["通路の向き（度。+X＝始めの島から終わりの島へ）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="wkL">
+			<Description><![CDATA["長さ（島の布材の間・平面）"]]></Description>
+			<Value>5</Value>
+		</Length>
+		<Length Name="zDeck">
+			<Description><![CDATA["始めの床の高さ（階の高さから）"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="zEnd">
+			<Description><![CDATA["終わりの床の高さ（同上。差があれば傾けて渡す）"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<String Name="wkModel">
+			<Description><![CDATA["機種（data/walkway_models.csv）"]]></Description>
+			<Value><![CDATA["LB-4556"]]></Value>
+		</String>
+		<Length Name="deckW">
+			<Description><![CDATA["床幅（縞板）"]]></Description>
+			<Value>0.66</Value>
+		</Length>
+		<Length Name="frW">
+			<Description><![CDATA["外枠の幅"]]></Description>
+			<Value>0.766</Value>
+		</Length>
+		<Length Name="ovW">
+			<Description><![CDATA["全幅（手すりの外まで）"]]></Description>
+			<Value>0.915</Value>
+		</Length>
+		<Length Name="railSp">
+			<Description><![CDATA["手すりの間（芯々）"]]></Description>
+			<Value>0.854</Value>
+		</Length>
+		<Length Name="railH">
+			<Description><![CDATA["手すりの高さ（床から）"]]></Description>
+			<Value>0.966</Value>
+		</Length>
+		<Length Name="midH">
+			<Description><![CDATA["中桟の高さ（床から）"]]></Description>
+			<Value>0.484</Value>
+		</Length>
+		<Length Name="toeH">
+			<Description><![CDATA["幅木の高さ"]]></Description>
+			<Value>0.125</Value>
+		</Length>
+		<String Name="stName">
+			<Description><![CDATA["通路の名前"]]></Description>
+			<Value><![CDATA["仮設通路"]]></Value>
+		</String>
+		<Boolean Name="showText">
+			<Description><![CDATA["平面に機種と長さを書く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Material Name="matAl">
+			<Description><![CDATA["アルミの材質（0＝アルミの色）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

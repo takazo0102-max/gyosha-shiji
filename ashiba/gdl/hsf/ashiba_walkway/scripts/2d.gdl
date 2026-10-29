@@ -1,0 +1,29 @@
+﻿! 仮設通路 2D（平面）: 全幅の外形・床幅・手すり・伸縮の継ぎ目・両端のフック・機種と長さ
+define style "wkTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+hotspot2 0, 0
+hotspot2 L, 0
+line_type 1
+rect2 0, -ovW / 2, L, ovW / 2
+line2 0, -deckW / 2, L, -deckW / 2
+line2 0, deckW / 2, L, deckW / 2
+line2 0, -railSp / 2, L, -railSp / 2
+line2 0, railSp / 2, L, railSp / 2
+line2 xJ0, -frW / 2, xJ0, frW / 2
+line2 xJ1, -frW / 2, xJ1, frW / 2
+! 両端のフック（布材に掛ける所）
+for sd = -1 to 1 step 2
+	rect2 -0.08, sd * frW / 2 - 0.05, 0, sd * frW / 2 - 0.03
+	rect2 L, sd * frW / 2 - 0.05, L + 0.08, sd * frW / 2 - 0.03
+next sd
+! 向き（始め→終わり）
+line2 L / 2 - 0.25, 0, L / 2 + 0.25, 0
+line2 L / 2 + 0.25, 0, L / 2 + 0.15, 0.06
+line2 L / 2 + 0.25, 0, L / 2 + 0.15, -0.06
+if showText then
+	style "wkTx"
+	text2 L / 2, ovW / 2 + 0.15, "仮設通路 " + wkModel + " L=" + str(L * 1000, 4, 0)
+endif

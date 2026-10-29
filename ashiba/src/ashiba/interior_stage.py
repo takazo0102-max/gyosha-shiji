@@ -125,7 +125,7 @@ class StageResult:
     stair_fh: int = 0                 # 階段1台の高さ（系列の層の高さ）
     inner_braces: int = 0             # 支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数）
     form: Optional[dict] = None       # 支保工: 型枠の計算（部材・間隔の上限・検定）
-    access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）・"ハッチ"
+    access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）・"ハッチ"・"なし"（仮設通路の終わりの島）
     hatch_levels: list[int] = field(default_factory=list)   # ハッチ付布板（梯子内蔵）を置く段（EVシャフト）
     wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
 
@@ -166,7 +166,9 @@ def _frame(corners) -> tuple[tuple[float, float], tuple[float, float], tuple[flo
             ang = math.degrees(math.acos(max(-1.0, min(1.0, cos))))
             raise ValueError(f"内部足場の範囲は長方形で指定してください（角が {ang:.0f}°。台形・平行四辺形は格子がはみ出す）")
     sides = [(i, math.hypot(pts[(i + 1) % 4][0] - pts[i][0], pts[(i + 1) % 4][1] - pts[i][1])) for i in range(4)]
-    i0, la = max(sides, key=lambda s: s[1])
+    # 長さの同じ辺（長方形の向かい合う辺）は先の辺を取る（計算の誤差で後の辺にしない。始めの角を呼ぶ側が決められる）
+    la = max(s[1] for s in sides)
+    i0 = next(i for i, s in sides if s >= la - 0.5)
     p0, p1 = pts[i0], pts[(i0 + 1) % 4]
     u = ((p1[0] - p0[0]) / la, (p1[1] - p0[1]) / la)
     v = (-u[1], u[0])
@@ -771,6 +773,8 @@ def _quantity(r: StageResult, master) -> None:
     elif r.access == "建物の階段":
         if master.by_category("階段開口部手摺"):
             q.append(("階段開口部手摺", 0, 1, "建物の階段からの出入口（作業床の端）に1組"))
+    elif r.access == "なし":
+        pass                            # 仮設通路の終わりの島など、ほかから渡る（昇降を持たない）
     else:
         q.append(("はしご", 0, n_deck, "内部ステージの昇降（はしご）" + ("・作業床の段ごと" if n_deck > 1 else "")
                   + ("。壁が近いので内側に立て、作業床ははしご口（ハッチ付きの踏板）で抜ける" if not r.guard else "")))
@@ -782,6 +786,8 @@ def _post_label(r: StageResult) -> str:
 
 
 def _access_text(r: StageResult) -> str:
+    if r.access == "なし":
+        return "昇降はほかの足場・通路から渡る（この足場には持たない）"
     if r.access == "ハッチ":
         return f"昇降はハッチ付布板（梯子内蔵）{len(r.hatch_levels)}枚（各層・上下で位置をずらす）"
     if r.access == "建物の階段":
