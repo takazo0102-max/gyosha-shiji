@@ -1570,7 +1570,7 @@ def _count_opening_parts(model: ScaffoldModel, openings, add, notes) -> None:
         for cat, n, what in (("先行手摺", n_br, "ブレス材（先行手すり）"), ("幅木", n_toe, "妻面幅木")):
             if not n:
                 continue
-            part = m.find(cat, row)
+            part = (m.find("妻側ブレス", row) if cat == "先行手摺" else None) or m.find(cat, row)
             if part is None:
                 notes.action(f"梁枠下の妻面の{what}（長さ{row}・{n}本）がマスタにありません。別途手配してください")
             else:
@@ -2327,8 +2327,9 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
         if not k:
             continue
         if end_brace(model):
-            # 妻側をブレス材（先行手すり）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択する仕組み）
-            part = m.find("先行手摺", row)
+            # 妻側をブレス材（先行手すり）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択する仕組み）。
+            # 妻側専用の品（アルバトロス妻側ブレス。スギコ カタログ p029）があればそれ
+            part = m.find("妻側ブレス", row) or m.find("先行手摺", row)
             if part is None:
                 notes.action(f"開放端の妻側のブレス材（先行手すり{row}・{k * lv}本）がマスタにありません。別途手配してください")
             else:

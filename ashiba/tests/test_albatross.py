@@ -171,6 +171,13 @@ class TestAlbatrossSolve(unittest.TestCase):
         nd = solve_all({**RECT, "series_id": "nikken_nd1800", "guard_rail_type": "布材"})
         self.assertEqual(nd.model.config.guard_rail_type, "布材")       # 日建は布材のまま（筋交 NDBR を数える）
 
+    def test_open_ends_use_end_side_braces(self):
+        # 端の面（妻側）は妻側ブレス（認定品 p029）。入れる前は通常の先行手摺ブレス 50106 を当てていた
+        r = solve_all({**RECT, "end_guard": "ブレス材", "faces": ["南面"]})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertEqual(q.get("50840"), 10)                      # 610・端2か所×5層
+        self.assertNotIn("50106", q)
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 
