@@ -77,6 +77,26 @@ class TestAlbatrossGapBoards(unittest.TestCase):
         self.assertIn("34818（幅175）を入れて残り 14mm", why)
 
 
+class TestAlbatrossShoring(unittest.TestCase):
+    """型枠支保工（スギコ カタログ p060）: つなぎ方は梁間×桁行の組み方で、許容支持力 22.7〜33.5kN."""
+
+    def test_tie_choices_and_allowance(self):
+        from ashiba.interior_stage import shoring_ties, solve_stage
+
+        caps = load_capacities("albatross")
+        ties = shoring_ties(caps)
+        self.assertEqual(ties[0], "先行手摺ブレス×先行手摺ブレス")
+        self.assertIn("先行手摺ブレス＋布材×先行手摺ブレス＋布材", ties)
+        self.assertEqual(shoring_ties(load_capacities("nikken_nd1800")), ("片方向つなぎ材", "両方向つなぎ材", "ブレース"))
+        item = {"name": "s", "corners_mm": [[0, 0], [6000, 0], [6000, 4500], [0, 4500]], "deck_mm": 1800,
+                "use": "支保工", "slab_mm": 250, "ceiling_mm": 4000}
+        r = solve_stage(item, load_master("albatross"), caps)
+        c = next(c for c in r.checks if c.item == "支保工の支柱の軸力")
+        self.assertIn("許容 22.7kN（先行手摺ブレス×先行手摺ブレス）", c.message)
+        r2 = solve_stage({**item, "tie": "先行手摺ブレス＋布材×先行手摺ブレス＋布材"}, load_master("albatross"), caps)
+        self.assertIn("許容 33.5kN", next(c.message for c in r2.checks if c.item == "支保工の支柱の軸力"))
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 

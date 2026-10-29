@@ -80,8 +80,18 @@ NEGARAMI_MAX_MM = 600        # 支柱の下端から最初の布材（根がら�
 # 型枠支保工としての仮設工業会の承認（日建リース 足場カタログ ダーウィン 2024 の抜粋。報告 地足場と内部足場）
 SHORING_APPROVAL = {"nikken_nd1800": "仮設工業会 承認第88-164号（NDシステム1800型 型枠支保工）",
                     "nikken_nd1900": "仮設工業会 承認第101-164号（NDシステム1900型 型枠支保工）",
-                    "nikken_strong": "仮設工業会 承認第128号（ストロング型 型わく支保工）"}
+                    "nikken_strong": "仮設工業会 承認第128号（ストロング型 型わく支保工）",
+                    "albatross": "仮設工業会 システム承認（アルバトロス型枠支保工。承認番号はスギコに確かめる）"}
 SHORING_TIES = ("片方向つなぎ材", "両方向つなぎ材", "ブレース")   # 支保工の承認値はつなぎ方で決まる（日建 ND1800: 18／25／22kN）
+
+
+def shoring_ties(caps: Optional[dict]) -> tuple[str, ...]:
+    """系列の支保工のつなぎ方（capacity.csv の「支保工許容支持力」のキーの順）。無ければ日建の3種.
+
+    アルバトロスは梁間×桁行の組み方（先行手摺ブレス×先行手摺ブレス 22.7kN … 先行手摺ブレス＋布材×先行手摺ブレス＋布材
+    33.5kN。スギコ カタログ p060）."""
+    keys = [k for (item, k) in (caps or {}) if item == "支保工許容支持力"]
+    return tuple(dict.fromkeys(keys)) or SHORING_TIES
 
 
 @dataclass
@@ -303,8 +313,9 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         res.slab_mm = float(item.get("slab_mm", 200.0) or 200.0)
         res.live_kn_m2 = SHORING_LIVE_KN_M2
         res.design_kn_m2 = RC_KN_M3 * res.slab_mm / 1000.0 + FORM_KN_M2 + SHORING_LIVE_KN_M2
-        tie = str(item.get("tie", "") or SHORING_TIES[0])
-        res.tie = tie if tie in SHORING_TIES else SHORING_TIES[0]
+        ties = shoring_ties(capacities)
+        tie = str(item.get("tie", "") or ties[0])
+        res.tie = tie if tie in ties else ties[0]
         if res.ceiling_mm:
             res.uhead_ext_mm = int(round(res.ceiling_mm - depth - res.top_mm))
     res.wall_gap_mm = max(off_u, off_v)
@@ -501,8 +512,9 @@ def _shoring_form_spans(item: dict, master, caps: Optional[dict], coins: list[in
     obiki = str(fm.get("obiki") or DEFAULT_OBIKI)
     neda = neda if neda in NEDA else DEFAULT_NEDA
     obiki = obiki if obiki in OBIKI else DEFAULT_OBIKI
-    tie = str(item.get("tie", "") or SHORING_TIES[0])
-    allow = _cap(caps, "支保工許容支持力", tie if tie in SHORING_TIES else SHORING_TIES[0]) or \
+    ties = shoring_ties(caps)
+    tie = str(item.get("tie", "") or ties[0])
+    allow = _cap(caps, "支保工許容支持力", tie if tie in ties else ties[0]) or \
         _cap(caps, "支柱許容圧縮耐力") or 1e9
     h_m = float(item.get("ceiling_mm") or 4000.0) / 1000.0
 
@@ -523,7 +535,7 @@ def _shoring_spacing_hint(r: StageResult, master, caps: Optional[dict], q: float
     if fits:
         a, b = max(fits, key=lambda ab: ab[0] * ab[1])
         msg = f"。支柱の間隔を {a}×{b} 以下に詰める"
-    stronger = [t for t in SHORING_TIES if (_cap(caps, "支保工許容支持力", t) or 0.0) > allow]
+    stronger = [t for t in shoring_ties(caps) if (_cap(caps, "支保工許容支持力", t) or 0.0) > allow]
     if stronger:
         msg += f"{'か、' if msg else '。'}つなぎ方を {'・'.join(stronger)} にする"
     return msg or "。支柱の間隔を詰める"
