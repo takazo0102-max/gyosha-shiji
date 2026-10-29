@@ -286,8 +286,18 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     if str(item.get("use", "")) in ("EVシャフト", "シャフト"):
         res.use = "EVシャフト"
         res.floors_mm = sorted(float(f) for f in (item.get("floors_mm") or []) if 0 < float(f) < deck + 1)
-        # 各階の床に近い段（最上段の作業床は除く）
-        res.deck_levels = sorted({min(levels[1:], key=lambda h: abs(h - f)) for f in res.floors_mm} - {deck})
+        # 各階の床に近い段（最上段の作業床は除く）。くさびはコマごとに布材を掛けられるので、各階の床にいちばん近い
+        # コマの高さに作業床の段を足す（層の段だけから選ぶと 1500 の床に 2400 の作業床になっていた）
+        if koma >= 300:
+            near = set()
+            for f in res.floors_mm:
+                cand = deck + round((f - deck) / koma) * koma
+                if root + koma / 2 < cand < deck:
+                    near.add(int(cand))
+            res.deck_levels = sorted(near)
+            res.levels = sorted(set(res.levels) | near)
+        else:
+            res.deck_levels = sorted({min(levels[1:], key=lambda h: abs(h - f)) for f in res.floors_mm} - {deck})
         res.guard = res.wall_gap_mm > SHAFT_WALL_GAP_MAX_MM
     # 昇降は階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）。隅の1スパンに、層の高さの段どうしを階段枠でつなぐ
     # 階段の上（"stair"）は足元が建物の段で階段枠が据わらないので、指定が無ければ建物の階段から作業床の端へ出入りする

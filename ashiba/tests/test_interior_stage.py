@@ -279,9 +279,11 @@ class TestShaftStage(unittest.TestCase):
     def test_decks_at_each_floor_and_no_perimeter_guard(self):
         r = self.shaft()
         self.assertEqual(r.use, "EVシャフト")
-        self.assertEqual(len(r.deck_levels), 4)                      # 最上段のほかに各階
+        self.assertEqual(len(r.deck_levels), 5)                      # 最上段（15965）のほかに各階（15500 も）
+        # 各階の床にいちばん近いコマの段（層の段だけで選ぶと 1500 の床に 2400 になっていた。2026-10-29）
         for f, h in zip(r.floors_mm, r.deck_levels):
-            self.assertLess(abs(f - h), 900)
+            self.assertLessEqual(abs(f - h), 225)
+            self.assertIn(h, r.levels)                               # 布材の段にもある
         self.assertFalse(r.guard)                                   # 壁との隙間 30cm 以下
         q = {(c, why) for c, _, _, why in r.quantity}
         self.assertFalse(any(c == "幅木" for c, _ in q))
@@ -292,7 +294,7 @@ class TestShaftStage(unittest.TestCase):
         self.assertEqual(r.stair_flights[-1][1], r.deck_mm)
         p = stage_params(r)
         self.assertFalse(p["guardOn"])
-        self.assertEqual(len(p["deckList"].split(",")), 4)
+        self.assertEqual(len(p["deckList"].split(",")), 5)
 
     def test_checks_and_notes(self):
         r = self.shaft()
