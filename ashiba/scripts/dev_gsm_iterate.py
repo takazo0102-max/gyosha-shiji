@@ -97,7 +97,7 @@ PART_PROFILES = {
     },
     # 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）。--profile ashiba_hoist_guard
     "ashiba_hoist_guard": {
-        "images": ("3D",),
+        "images": ("3D", "2D"),
         "params": {"hoModel": "KSE900-5.4", "hoReach": 9.955, "hoInside": False, "sideSpan": 1.524, "sideW": 0.61,
                    "sideLvP": 1.8, "rowSp": 0.61},
     },

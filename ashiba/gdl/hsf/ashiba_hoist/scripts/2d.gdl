@@ -52,6 +52,29 @@ if showFence then
 	if hoInside = 0 then line2 fX, fY, fX, yC0
 	line_type 1
 endif
+! 外付けのロングスパンの前養生（利用者の指定 2026-10-29: 妻側は足場1スパン、正面に補強）: 両横の足場1スパン（支柱の
+! 小円と外形）、前養生の面（正面の太線と両横の足場の外面）
+if showGuard and hoKind = 1 and hoInside = 0 and sideSpan > 0 then
+	yB = -0.15
+	yF = yB - sideSpan
+	gW = fX + sideW
+	for sg = -1 to 1 step 2
+		xi = sg * fX
+		xo = sg * gW
+		rect2 min(xi, xo), yF, max(xi, xo), yB
+		line2 xi, yF, xo, yB
+		for kx = 0 to 1
+			for ky = 0 to 1
+				circle2 xi + kx * (xo - xi), yB + ky * (yF - yB), 0.024
+			next ky
+		next kx
+	next sg
+	pen penEquip
+	line2 -gW, yF - 0.20, gW, yF - 0.20
+	line2 -gW, yF - 0.21, gW, yF - 0.21
+	line2 -gW - 0.03, yF, -gW - 0.03, yB
+	line2 gW + 0.03, yF, gW + 0.03, yB
+endif
 hotspot2 0, 0
 hotspot2 -cageL / 2, yC1
 hotspot2 cageL / 2, yC1
