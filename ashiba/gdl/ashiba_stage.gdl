@@ -33,6 +33,7 @@
 !   dkWs      文字列    布板の幅 mm（広い順。スパンをこの幅で埋める）                                                 既定 "500,240"
 !   stFl      文字列    昇降の階段（下の段,上の段 を続けて mm。配置した高さから。空＝はしご）。隅の1スパンに折り返し  既定 ""
 !   inBrN     整数      支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数。数量と同じ）                          既定 0
+!   ladOn     ブール    はしごを描く（昇降が「はしご」のときだけ。階段・建物の階段のときは描かない）                  既定 1
 !   zBase     長さ      足場の立つ高さ（配置した高さから。ジャッキの下端）                                            既定 0
 !   stName    文字列    名前                                                                                          既定 "内部ステージ足場"
 !   lineMode  ブール    3Dを線で（軽い）                                                                              既定 0
@@ -185,7 +186,8 @@ if strlen(stFl) > 0 then
 	next kl
 	goto 2201
 endif
-! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）
+! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）。はしごを選んだときだけ
+if not(ladOn) then goto 2201
 if guardOn then
 	rect2 0.15, -0.45, 0.60, -0.10
 	line2 0.15, -0.28, 0.60, -0.28
@@ -713,7 +715,7 @@ else
 	! 作業床ははしご口（ハッチ付きの踏板）で抜ける
 	yLad = -0.25
 	if not(guardOn) then yLad = 0.25
-	if stairOn then goto 2102
+	if stairOn or not(ladOn) then goto 2102
 	for sd = 0 to 1
 		add 0.20 + sd * 0.35, yLad, zBase + fu[1] + fv[1]
 		cylind topZ - zBase - fu[1] - fv[1], 0.0175

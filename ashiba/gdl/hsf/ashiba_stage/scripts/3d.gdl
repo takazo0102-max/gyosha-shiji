@@ -496,7 +496,7 @@ else
 	! 作業床ははしご口（ハッチ付きの踏板）で抜ける
 	yLad = -0.25
 	if not(guardOn) then yLad = 0.25
-	if stairOn then goto 2102
+	if stairOn or not(ladOn) then goto 2102
 	for sd = 0 to 1
 		add 0.20 + sd * 0.35, yLad, zBase + fu[1] + fv[1]
 		cylind topZ - zBase - fu[1] - fv[1], 0.0175

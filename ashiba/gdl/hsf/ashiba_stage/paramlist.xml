@@ -109,6 +109,10 @@
 			<Description><![CDATA["支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数。数量と同じ）"]]></Description>
 			<Value>0</Value>
 		</Integer>
+		<Boolean Name="ladOn">
+			<Description><![CDATA["はしごを描く（昇降が「はしご」のときだけ。階段・建物の階段のときは描かない）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<Length Name="zBase">
 			<Description><![CDATA["足場の立つ高さ（配置した高さから。ジャッキの下端）"]]></Description>
 			<Value>0</Value>

@@ -708,6 +708,12 @@ def _stair_access_check(r: StageResult) -> None:
                                    f"地面から作業床 {r.deck_mm}mm まで階段 {nf}台（隅の1スパンに折り返し。1台目は地面から "
                                    f"{first}mm の段まで、敷板の上に据える。出入口に開口部手摺・幅木）"))
         return
+    if r.use == "EVシャフト":
+        # シャフトは最上段が最上階で決まるので作業床の高さは動かせない。最下段の段差で調整する
+        r.checks.append(StageCheck("昇降の階段", "WARN",
+                                   f"ピットの床から最初の段まで {first}mm で、階段枠の高さ {fh}mm に合わない。"
+                                   f"最下段は踏台・ハーフ階段か、ピットに架台を組んで {first - fh:+d}mm を調整する"))
+        return
     k = max(1, round(r.deck_mm / fh))
     good = [n * fh + d for n in (k - 1, k, k + 1) if n >= 1 for d in (0,)]
     r.checks.append(StageCheck("昇降の階段", "WARN",
@@ -889,7 +895,8 @@ def stage_params(r: StageResult, line_mode: bool = False, master=None) -> dict:
     return {**member, "jackExt": r.jack_mm / 1000.0,
             "footJk": ",".join(str(int(f["jack_mm"])) for f in r.stair_feet),
             # 昇降の階段（下の段,上の段 を続けて。2026-10-29 はしごをやめた）
-            "stFl": ",".join(f"{int(a + r.base_mm)},{int(b + r.base_mm)}" for a, b in r.stair_flights),"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
+            "stFl": ",".join(f"{int(a + r.base_mm)},{int(b + r.base_mm)}" for a, b in r.stair_flights),
+            "ladOn": r.access == "はしご","faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
             "lvList": ",".join(str(int(h + r.base_mm)) for h in sorted(r.levels + r.upper_levels)),
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),

@@ -302,6 +302,11 @@ class TestShaftStage(unittest.TestCase):
         self.assertNotIn("高さと短辺の比", st)
         self.assertEqual(st["壁つなぎ"], "OK")
         self.assertTrue(any("519条" in n for n in r.notes))
+        # 最初の段が階段枠に合わないとき、シャフトは作業床でなく最下段で調整する
+        acc = next((c for c in r.checks if c.item == "昇降の階段"), None)
+        if acc is not None and acc.status == "WARN":
+            self.assertIn("ピットの床", acc.message)
+            self.assertNotIn("作業床を", acc.message)
         self.assertTrue(any("足場の組立て等作業主任者" in n for n in r.notes))      # 高さ 5m 以上
         sparse = self.shaft(floors_mm=[1500, 9000])                # 階の間が 5m を超える
         self.assertEqual({c.item: c.status for c in sparse.checks}["壁つなぎ"], "WARN")

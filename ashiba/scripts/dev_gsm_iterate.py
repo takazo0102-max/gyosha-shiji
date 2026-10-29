@@ -85,7 +85,7 @@ PART_PROFILES = {
         "images": ("3D",),
         "params": {"spanU": "1829,1829,1829", "spanV": "1829", "lvList": "225,900,2700,4500", "deckH": 4.5,
                    "footAxis": 0, "footZ": "0,1080,2410,2880", "footNeg": "0,1575,2925,3375", "stName": "階段室",
-                   "postDia": 0.0427, "jackExt": 0.055, "footJk": "55,100,190,100"},
+                   "postDia": 0.0427, "jackExt": 0.055, "footJk": "55,100,190,100", "ladOn": False},
     },
     # 型枠支保工（利用者の指定 2026-10-28）。--profile ashiba_stage_shoring で使う
     "ashiba_stage_shoring": {

@@ -131,7 +131,8 @@ if strlen(stFl) > 0 then
 	next kl
 	goto 2201
 endif
-! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）
+! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）。はしごを選んだときだけ
+if not(ladOn) then goto 2201
 if guardOn then
 	rect2 0.15, -0.45, 0.60, -0.10
 	line2 0.15, -0.28, 0.60, -0.28
