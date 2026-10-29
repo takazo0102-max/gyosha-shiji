@@ -70,6 +70,7 @@ PLATE_HALF_MM = 70           # ジャッキベースの底板（140角）の半�
 SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
 SHIM_BOARDS_MAX = 2
 STAIR_LANE_MM = 450          # 階段枠の幅（ND NDAL4518K 450）
+LANDING_STEP_MAX_MM = 400    # 階段の上: 建物の踊り場と作業床の段差がこれを超えたら昇降を足す（踏み越えられる目安）
 STAIR_FIRST_TOL_MM = 300     # 階段の1台目（地面から最初の段）が層の高さからずれてよい幅
 NEGARAMI_MAX_MM = 600        # 支柱の下端から最初の布材（根がらみ）までの上限の目安
 # 型枠支保工としての仮設工業会の承認（日建リース 足場カタログ ダーウィン 2024 の抜粋。報告 地足場と内部足場）
@@ -120,6 +121,7 @@ class StageResult:
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
     stair_fh: int = 0                 # 階段1台の高さ（系列の層の高さ）
     inner_braces: int = 0             # 支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数）
+    access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）
     wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
 
     @property
@@ -270,7 +272,10 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
         res.deck_levels = sorted({min(levels[1:], key=lambda h: abs(h - f)) for f in res.floors_mm} - {deck})
         res.guard = res.wall_gap_mm > SHAFT_WALL_GAP_MAX_MM
     # 昇降は階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）。隅の1スパンに、層の高さの段どうしを階段枠でつなぐ
-    if str(item.get("access", "階段")) != "はしご":
+    # 階段の上（"stair"）は足元が建物の段で階段枠が据わらないので、指定が無ければ建物の階段から作業床の端へ出入りする
+    access = str(item.get("access") or ("建物の階段" if item.get("stair") else "階段"))
+    res.access = access
+    if access == "階段":
         fh = int(master.floor_height or 1800)
         res.stair_fh = fh
         # 本体の階段室と同じく、地面から最初の段までを1台目（足元は敷板の上）、あとは層ごとに1台
@@ -598,6 +603,9 @@ def _quantity(r: StageResult, master) -> None:
             q.append(("階段開口部手摺", 0, nf, "階段の出入口（上の段）に1組"))
         if master.by_category("階段開口部幅木"):
             q.append(("階段開口部幅木", 0, nf, "階段の出入口（上の段）に1組"))
+    elif r.access == "建物の階段":
+        if master.by_category("階段開口部手摺"):
+            q.append(("階段開口部手摺", 0, 1, "建物の階段からの出入口（作業床の端）に1組"))
     else:
         q.append(("はしご", 0, n_deck, "内部ステージの昇降（はしご）" + ("・作業床の段ごと" if n_deck > 1 else "")
                   + ("。壁が近いので内側に立て、作業床ははしご口（ハッチ付きの踏板）で抜ける" if not r.guard else "")))
@@ -609,9 +617,26 @@ def _post_label(r: StageResult) -> str:
 
 
 def _access_text(r: StageResult) -> str:
+    if r.access == "建物の階段":
+        return "昇降は建物の階段から（上の踊り場から作業床の端の出入口へ。出入口に開口部手摺）"
     if r.stair_flights:
         return f"昇降は隅の1スパンの階段 {len(r.stair_flights)}台（折り返し）"
     return "昇降は作業床の段ごとのはしご" if r.deck_levels else "昇降のはしご1箇所"
+
+
+def _landing_access_check(r: StageResult) -> None:
+    """階段の上: 建物の上の踊り場（段数×蹴上げ）から作業床へ出入りできるか. 段差が大きければ昇降を足す."""
+    if r.access != "建物の階段" or not r.stair_feet:
+        return
+    top = max(f["z_mm"] for f in r.stair_feet)
+    gap = r.deck_mm - top
+    if abs(gap) <= LANDING_STEP_MAX_MM:
+        r.checks.append(StageCheck("昇降（建物の階段）", "OK",
+                                   f"上の踊り場 {top:.0f}mm から作業床 {r.deck_mm}mm へ段差 {gap:+.0f}mm で出入り（出入口に開口部手摺）"))
+    else:
+        r.checks.append(StageCheck("昇降（建物の階段）", "WARN",
+                                   f"上の踊り場 {top:.0f}mm と作業床 {r.deck_mm}mm の段差 {gap:+.0f}mm が大きい。"
+                                   "踊り場から作業床へ階段枠を1台足すか、作業床の高さを踊り場に近づける"))
 
 
 def _stair_access_check(r: StageResult) -> None:
@@ -713,6 +738,7 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
     else:
         out.append(StageCheck("墜落防止・昇降", "OK", f"作業床 {r.deck_mm}mm（2m 未満）: 外周の手すり・{_access_text(r)}は計上済み"))
     _stair_access_check(r)
+    _landing_access_check(r)
     # 5. 天井（上の階の床の下端）との取り合い（実機 2026-10-25: 階高 3m の部屋に既定の 4000 で置き、手すりと支柱が
     #    上の階の床を突き抜けた）
     ceil = getattr(r, "ceiling_mm", None)

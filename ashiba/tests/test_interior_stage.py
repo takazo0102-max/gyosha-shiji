@@ -245,6 +245,10 @@ class TestStairStage(unittest.TestCase):
             if f["negarami_mm"]:
                 self.assertEqual((f["negarami_mm"] - r.levels[0]) % koma, 0)   # コマの位置
         self.assertTrue(any(why == "階段の上の段ごとの根がらみ" for _, _, _, why in r.quantity))
+        # 昇降は建物の階段から（足元が建物の段で階段枠が据わらない）。上の踊り場 2880 と作業床 4500 の段差が大きい
+        self.assertEqual(r.access, "建物の階段")
+        self.assertFalse(r.stair_flights)
+        self.assertEqual({c.item: c.status for c in r.checks}["昇降（建物の階段）"], "WARN")
         p = stage_params(r)
         self.assertEqual(len(p["footZ"].split(",")), len(r.stair_feet))
         self.assertEqual(len(p["footNeg"].split(",")), len(r.stair_feet))
