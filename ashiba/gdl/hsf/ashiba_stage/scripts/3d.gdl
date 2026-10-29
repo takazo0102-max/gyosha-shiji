@@ -202,6 +202,27 @@ while strlen(s) > 0 and nS < 80 do
 	endif
 endwhile
 stairOn = (nS >= 2)
+! ハッチ付布板（梯子内蔵）の段（利用者の指定 2026-10-29: エレベーターシャフトは階段ではなくハッチつきアンチ）
+dim hz[]
+nHz = 0
+s = hatchZ
+while strlen(s) > 0 and nHz < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nHz = nHz + 1
+		hz[nHz] = v / 1000
+	endif
+endwhile
+dim htPx[], htPy[], htPz[], htLn[], htWd[]
+nHtp = 0
 ! 階段の通る幅（階段枠 450 を2列で折り返し、升目が狭ければ1列）
 ! 本体の足場の部材と同じ作り（利用者の指定 2026-10-29: 支保工も今作っている足場部材でやる）。寸法は足場ラインの
 ! 830 布材・870 布板・820 ジャッキ（部品 ashiba_member と同じ）
@@ -365,12 +386,34 @@ else
 					yp = yv[j] + stLaneW + 0.015
 					rest = sv[j] - stLaneW - 0.03
 				endif
+				! この段にハッチがあれば、隅の升目の 1枚目（奇数番目のハッチ）か 3枚目（偶数番目）の幅500をハッチにする
+				hSlot = 0
+				if i = 1 and j = 1 then
+					for kh = 1 to nHz
+						if abs(hz[kh] - dk[id]) < 0.005 and hz[kh] - zBase > 0.65 then
+							hSlot = 1
+							if kh mod 2 = 0 then hSlot = 3
+						endif
+					next kh
+				endif
+				nSl = 0
 				for iw = 1 to nW
 					while rest >= dw[iw] - 0.001 do
+						nSl = nSl + 1
 						add xu[i], yp, dk[id]
 						pkL = su[i]
 						pkW = dw[iw]
-						gosub "plank"
+						if nSl = hSlot and dw[iw] >= 0.45 then
+							! ハッチは色を変えるので、ほかの部材を描き終えてから最後にまとめて描く
+							nHtp = nHtp + 1
+							htPx[nHtp] = xu[i]
+							htPy[nHtp] = yp
+							htPz[nHtp] = dk[id]
+							htLn[nHtp] = su[i]
+							htWd[nHtp] = dw[iw]
+						else
+							gosub "plank"
+						endif
 						del 1
 						yp = yp + dw[iw]
 						rest = rest - dw[iw]
@@ -511,9 +554,48 @@ else
 		zr = zr + 0.30
 	endwhile
 2102:
+	! ハッチ付布板（最後に。色を変えるため）
+	for kd = 1 to nHtp
+		add htPx[kd], htPy[kd], htPz[kd]
+		pkL = htLn[kd]
+		pkW = htWd[kd]
+		gosub "hatch"
+		del 1
+	next kd
 endif
 del top
 end
+
+"hatch":
+	! ハッチ付布板（アルミ・梯子内蔵。日建 NDN6TA）: 布板の枠とふたの線、内蔵の梯子を1層下まで下ろす（原点＝布板と同じ）
+	define material "ashiba_hatch" 2, 0.78, 0.80, 0.83
+	material "ashiba_hatch"
+	add 0.025, 0, r_nuno
+	block pkL - 0.05, pkW, 0.045
+	del 1
+	! ふた（開口 約 0.6×0.4）の見切り
+	add pkL * 0.25, 0.05, r_nuno + 0.046
+	block 0.62, pkW - 0.10, 0.003
+	del 1
+	! 内蔵の梯子（ふたの下から 1層下の段まで。わずかに傾けて下ろす）
+	lzTop = r_nuno
+	lzBot = -1.8
+	for sr = 0 to 1
+		add pkL * 0.25 + 0.05, 0.08 + sr * (pkW - 0.16), lzTop
+		roty 180 - 8
+		cylind lzTop - lzBot, 0.012
+		del 2
+	next sr
+	rg = 0.3
+	while rg < lzTop - lzBot - 0.1 do
+		add pkL * 0.25 + 0.05 + rg * sin(8), 0.08, lzTop - rg * cos(8)
+		rotx -90
+		cylind pkW - 0.16, 0.008
+		del 2
+		rg = rg + 0.3
+	endwhile
+	if matScaf > 0 then material matScaf
+return
 
 "rod":
 	! 2点 (bx1,by1,bz1)〜(bx2,by2,bz2) を結ぶ筋かい φ42.7

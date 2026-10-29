@@ -71,6 +71,7 @@ SHIM_BOARD_MM = 35           # 敷板1枚の厚さ
 SHIM_BOARDS_MAX = 2
 STAIR_LANE_MM = 450          # 階段枠の幅（ND NDAL4518K 450）
 LANDING_STEP_MAX_MM = 400    # 階段の上: 建物の踊り場と作業床の段差がこれを超えたら昇降を足す（踏み越えられる目安）
+LOW_LANDING_STEP_MM = 650   # EVシャフトのいちばん下の踊り場へ踏台で上がれる高さの目安
 STAIR_FIRST_TOL_MM = 300     # 階段の1台目（地面から最初の段）が層の高さからずれてよい幅
 NEGARAMI_MAX_MM = 600        # 支柱の下端から最初の布材（根がらみ）までの上限の目安
 # 型枠支保工としての仮設工業会の承認（日建リース 足場カタログ ダーウィン 2024 の抜粋。報告 地足場と内部足場）
@@ -121,7 +122,8 @@ class StageResult:
     stair_flights: list[tuple[int, int]] = field(default_factory=list)   # 昇降の階段（下の段, 上の段）。隅の1スパンに折り返し
     stair_fh: int = 0                 # 階段1台の高さ（系列の層の高さ）
     inner_braces: int = 0             # 支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数）
-    access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）
+    access: str = "階段"              # 昇降: "階段"（隅の1スパンの階段枠）・"はしご"・"建物の階段"（階段の上）・"ハッチ"
+    hatch_levels: list[int] = field(default_factory=list)   # ハッチ付布板（梯子内蔵）を置く段（EVシャフト）
     wall_gap_mm: float = 0.0          # 作業床の端と壁（範囲の辺）の隙間の大きい方
 
     @property
@@ -286,23 +288,30 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     if str(item.get("use", "")) in ("EVシャフト", "シャフト"):
         res.use = "EVシャフト"
         res.floors_mm = sorted(float(f) for f in (item.get("floors_mm") or []) if 0 < float(f) < deck + 1)
-        # 各階の床に近い段（最上段の作業床は除く）。くさびはコマごとに布材を掛けられるので、各階の床にいちばん近い
-        # コマの高さに作業床の段を足す（層の段だけから選ぶと 1500 の床に 2400 の作業床になっていた）
-        if koma >= 300:
-            near = set()
-            for f in res.floors_mm:
-                cand = deck + round((f - deck) / koma) * koma
-                if root + koma / 2 < cand < deck:
-                    near.add(int(cand))
-            res.deck_levels = sorted(near)
-            res.levels = sorted(set(res.levels) | near)
-        else:
-            res.deck_levels = sorted({min(levels[1:], key=lambda h: abs(h - f)) for f in res.floors_mm} - {deck})
+        # 作業床は各層（層の高さごと）に全面に張り、各層にハッチ付布板で昇降する（利用者の指定 2026-10-29: エレベーター
+        # シャフトは階段ではなくハッチつきアンチ／各層に作業床＋ハッチ）。各階の床の高さは壁つなぎの段に使う
+        res.deck_levels = sorted(set(levels[1:]) - {deck})
+        fh0 = int(master.floor_height or 1800)
+        first = min(levels[1:]) if levels[1:] else deck
+        low = first - fh0
+        if first > fh0 + STAIR_FIRST_TOL_MM and low > levels[0] + 100:
+            # 最初の段が高くハッチの梯子（層の高さ1つ分）がピットまで届かないので、1層下にいちばん下の踊り場を足す
+            # （梯子はそこまで、ピットの床から踊り場へは踏台）
+            res.levels = sorted(set(res.levels) | {low})
+            res.deck_levels = sorted(set(res.deck_levels) | {low})
+            levels = sorted(set(levels) | {low})
         res.guard = res.wall_gap_mm > SHAFT_WALL_GAP_MAX_MM
     # 昇降は階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）。隅の1スパンに、層の高さの段どうしを階段枠でつなぐ
     # 階段の上（"stair"）は足元が建物の段で階段枠が据わらないので、指定が無ければ建物の階段から作業床の端へ出入りする
-    access = str(item.get("access") or ("建物の階段" if item.get("stair") else "階段"))
+    # EVシャフトはハッチ付布板（梯子内蔵）で昇降する（利用者の指定 2026-10-29: エレベーターシャフトは階段ではなく
+    # ハッチつきアンチにして）
+    shaft = str(item.get("use", "")) in ("EVシャフト", "シャフト")
+    access = str(item.get("access") or ("建物の階段" if item.get("stair") else ("ハッチ" if shaft else "階段")))
     res.access = access
+    if access == "ハッチ":
+        # 層ごとの段に1枚ずつ（地面から最初の段を含む）。上下で位置をずらす
+        res.stair_fh = int(master.floor_height or 1800)
+        res.hatch_levels = sorted(set(levels[1:]))
     if access == "階段":
         fh = int(master.floor_height or 1800)
         res.stair_fh = fh
@@ -606,6 +615,12 @@ def _quantity(r: StageResult, master) -> None:
                     decks[(int(s_u), w)] = decks.get((int(s_u), w), 0) + k
                     rest -= k * w
     n_deck = 1 + len(r.deck_levels)
+    if r.access == "ハッチ" and r.hatch_levels:
+        # 作業床の段のハッチは幅500の布板1枚と入れ替える
+        n_rep = len({h for h in r.hatch_levels if h > LOW_LANDING_STEP_MM} & set(r.deck_levels + [r.deck_mm]))
+        key = (int(r.spans_u[0]), max(widths))
+        if n_rep and key in decks:
+            decks[key] = decks[key] - n_rep / n_deck
     # 階段の隅の1スパンは、階段が上がって来る作業床の段で床を張らない（開口部手摺で囲う）
     open_lv = len({b for _a, b in r.stair_flights} & set(r.deck_levels + [r.deck_mm]))
     if open_lv:
@@ -630,7 +645,9 @@ def _quantity(r: StageResult, master) -> None:
         n = int(round(k * n_deck))
         if n > 0:
             q.append(("踏板", s_u, n, f"内部ステージの全面の作業床（幅{w}）"
-                      + (f"×{n_deck}段（各階）" if n_deck > 1 else "") + ("・階段の開口を除く" if open_lv else "")))
+                      + (f"×{n_deck}段（{'各層' if r.use == 'EVシャフト' else '各段'}）" if n_deck > 1 else "")
+                      + ("・階段の開口を除く" if open_lv else "")
+                      + ("・ハッチの分を除く" if r.access == "ハッチ" else "")))
     # 外周の手すり・中桟（2本）と幅木（EVシャフトは壁が近いので無し）
     per = {}
     for s in r.spans_u:
@@ -659,6 +676,19 @@ def _quantity(r: StageResult, master) -> None:
             q.append(("階段開口部手摺", 0, nf, "階段の出入口（上の段）に1組"))
         if master.by_category("階段開口部幅木"):
             q.append(("階段開口部幅木", 0, nf, "階段の出入口（上の段）に1組"))
+    elif r.access == "ハッチ":
+        # いちばん下の踊り場（ピットから踏台）はハッチ不要（1つ上のハッチの梯子がそこまで届く）
+        nh = len([h for h in r.hatch_levels if h > LOW_LANDING_STEP_MM])
+        hatch = next(iter(master.by_category("踊り場")), None)
+        name = f"ハッチ付布板（梯子内蔵 {hatch.model_no}）" if hatch else "ハッチ付布板（梯子内蔵）"
+        q.append(("踊り場", int(hatch.nominal_dim) if hatch else int(r.spans_u[0]), nh,
+                  f"{name}を各層の昇降口に {nh}枚（上下で位置をずらす）"))
+        deck_set = set(r.deck_levels + [r.deck_mm])
+        extra = [h for h in r.hatch_levels if h not in deck_set]
+        if extra:
+            w0 = max(widths)
+            q.append(("踏板", int(r.spans_u[0]), len(extra),
+                      f"作業床の無い段のハッチの脇の踊り場（幅{w0}を1枚ずつ・{len(extra)}段）"))
     elif r.access == "建物の階段":
         if master.by_category("階段開口部手摺"):
             q.append(("階段開口部手摺", 0, 1, "建物の階段からの出入口（作業床の端）に1組"))
@@ -673,11 +703,32 @@ def _post_label(r: StageResult) -> str:
 
 
 def _access_text(r: StageResult) -> str:
+    if r.access == "ハッチ":
+        return f"昇降はハッチ付布板（梯子内蔵）{len(r.hatch_levels)}枚（各層・上下で位置をずらす）"
     if r.access == "建物の階段":
         return "昇降は建物の階段から（上の踊り場から作業床の端の出入口へ。出入口に開口部手摺）"
     if r.stair_flights:
         return f"昇降は隅の1スパンの階段 {len(r.stair_flights)}台（折り返し）"
     return "昇降は作業床の段ごとのはしご" if r.deck_levels else "昇降のはしご1箇所"
+
+
+def _hatch_access_check(r: StageResult) -> None:
+    """ハッチ付布板の梯子は層の高さ1つ分。地面（ピットの床）から最初の段がそれより高いと梯子が届かない."""
+    if r.access != "ハッチ" or not r.hatch_levels:
+        return
+    first = r.hatch_levels[0]
+    gaps = [b - a for a, b in zip(r.hatch_levels, r.hatch_levels[1:])]
+    if first <= LOW_LANDING_STEP_MM and all(g <= r.stair_fh + 10 for g in gaps[1:]):
+        r.checks.append(StageCheck("昇降（ハッチ）", "OK",
+                                   f"ハッチ付布板（梯子内蔵）を各層 {len(r.hatch_levels) - 1}枚、上下で位置をずらす。ピットの床から"
+                                   f"いちばん下の踊り場 {first}mm へは踏台で上がる"))
+    elif first <= r.stair_fh + STAIR_FIRST_TOL_MM and all(g <= r.stair_fh + 10 for g in gaps):
+        r.checks.append(StageCheck("昇降（ハッチ）", "OK",
+                                   f"ハッチ付布板（梯子内蔵）を各層 {len(r.hatch_levels)}枚、上下で位置をずらす。最初の段 {first}mm"))
+    else:
+        r.checks.append(StageCheck("昇降（ハッチ）", "WARN",
+                                   f"ピットの床から最初の段まで {first}mm で、ハッチの梯子（層の高さ {r.stair_fh}mm）が届かない。"
+                                   "最下段は移動はしご（上端を 60cm 以上出して固定）か踏台で上がる"))
 
 
 def _landing_access_check(r: StageResult) -> None:
@@ -801,6 +852,7 @@ def _checks(r: StageResult, master, caps: Optional[dict]) -> None:
         out.append(StageCheck("墜落防止・昇降", "OK", f"作業床 {r.deck_mm}mm（2m 未満）: 外周の手すり・{_access_text(r)}は計上済み"))
     _stair_access_check(r)
     _landing_access_check(r)
+    _hatch_access_check(r)
     # 5. 天井（上の階の床の下端）との取り合い（実機 2026-10-25: 階高 3m の部屋に既定の 4000 で置き、手すりと支柱が
     #    上の階の床を突き抜けた）
     ceil = getattr(r, "ceiling_mm", None)
@@ -896,7 +948,9 @@ def stage_params(r: StageResult, line_mode: bool = False, master=None) -> dict:
             "footJk": ",".join(str(int(f["jack_mm"])) for f in r.stair_feet),
             # 昇降の階段（下の段,上の段 を続けて。2026-10-29 はしごをやめた）
             "stFl": ",".join(f"{int(a + r.base_mm)},{int(b + r.base_mm)}" for a, b in r.stair_flights),
-            "ladOn": r.access == "はしご","faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
+            "ladOn": r.access == "はしご",
+            # ハッチ付布板の段（EVシャフト。2026-10-29 階段からハッチに）
+            "hatchZ": ",".join(str(int(h + r.base_mm)) for h in r.hatch_levels),"faceAng": r.angle_deg, "spanU": ",".join(map(str, r.spans_u)), "spanV": ",".join(map(str, r.spans_v)),
             "lvList": ",".join(str(int(h + r.base_mm)) for h in sorted(r.levels + r.upper_levels)),
             "deckH": (r.deck_mm + r.base_mm) / 1000.0,
             "deckList": ",".join(str(int(h + r.base_mm)) for h in r.deck_levels), "guardOn": bool(r.guard),

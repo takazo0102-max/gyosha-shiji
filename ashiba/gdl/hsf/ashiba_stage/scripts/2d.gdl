@@ -131,6 +131,18 @@ if strlen(stFl) > 0 then
 	next kl
 	goto 2201
 endif
+! ハッチ付布板（梯子内蔵。EVシャフト。利用者の指定 2026-10-29）: 隅の升目の1枚目と3枚目（上下で交互）に枠と×
+if strlen(hatchZ) > 0 then
+	for ks = 0 to 1
+		yh = yv[1] + 0.015 + ks * 1.0
+		if yh + 0.5 <= yv[2] + 0.01 then
+			rect2 xu[1] + 0.025, yh, xu[2] - 0.025, yh + 0.5
+			line2 xu[1] + 0.025, yh, xu[2] - 0.025, yh + 0.5
+			line2 xu[1] + 0.025, yh + 0.5, xu[2] - 0.025, yh
+		endif
+	next ks
+	goto 2201
+endif
 ! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）。はしごを選んだときだけ
 if not(ladOn) then goto 2201
 if guardOn then

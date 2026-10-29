@@ -276,25 +276,40 @@ class TestShaftStage(unittest.TestCase):
                 "use": "EVシャフト", "floors_mm": [1500, 5000, 8500, 12000, 15500], **kw}
         return solve_stage(item, m, load_capacities("nikken_nd1800"))
 
-    def test_decks_at_each_floor_and_no_perimeter_guard(self):
+    def test_decks_at_each_layer_and_no_perimeter_guard(self):
         r = self.shaft()
         self.assertEqual(r.use, "EVシャフト")
-        self.assertEqual(len(r.deck_levels), 5)                      # 最上段（15965）のほかに各階（15500 も）
-        # 各階の床にいちばん近いコマの段（層の段だけで選ぶと 1500 の床に 2400 になっていた。2026-10-29）
-        for f, h in zip(r.floors_mm, r.deck_levels):
-            self.assertLessEqual(abs(f - h), 225)
-            self.assertIn(h, r.levels)                               # 布材の段にもある
+        # 作業床は各層（層の高さごと。利用者の指定 2026-10-29: 各層に作業床＋ハッチ）。各階の床は壁つなぎの段に使う
+        lv = sorted(r.deck_levels + [r.deck_mm])
+        self.assertTrue(all(h in r.levels for h in lv))             # 布材の段にもある
+        self.assertTrue(all(b - a == 1800 for a, b in zip(lv[1:], lv[2:])))
         self.assertFalse(r.guard)                                   # 壁との隙間 30cm 以下
         q = {(c, why) for c, _, _, why in r.quantity}
         self.assertFalse(any(c == "幅木" for c, _ in q))
         n = {c: sum(k for cc, _, k, _ in r.quantity if cc == c) for c in ("壁つなぎ", "はしご", "階段")}
         self.assertEqual(n["壁つなぎ"], 4 * 5)
-        self.assertEqual(n["はしご"], 0)                            # 昇降は階段（層ごとに1台）
-        self.assertEqual(n["階段"], len(r.stair_flights))
-        self.assertEqual(r.stair_flights[-1][1], r.deck_mm)
+        self.assertEqual(n["はしご"], 0)
+        self.assertEqual(n["階段"], 0)                              # 昇降はハッチ付布板
         p = stage_params(r)
         self.assertFalse(p["guardOn"])
-        self.assertEqual(len(p["deckList"].split(",")), 5)
+        self.assertEqual(len(p["deckList"].split(",")), len(r.deck_levels))
+
+    def test_hatch_access_every_layer(self):
+        # 昇降はハッチ付布板（梯子内蔵）、作業床は各層（利用者の指定 2026-10-29: 階段ではなくハッチつきアンチ／各層に作業床＋ハッチ）
+        r = self.shaft()
+        self.assertEqual(r.access, "ハッチ")
+        self.assertFalse(r.stair_flights)
+        q = {c: sum(n for cc, _d, n, _w in r.quantity if cc == c) for c in ("踊り場", "階段", "はしご")}
+        self.assertEqual(q["階段"], 0)
+        self.assertEqual(q["はしご"], 0)
+        self.assertEqual(q["踊り場"], len([h for h in r.hatch_levels if h > 650]))
+        lv = [h for h in r.hatch_levels if h > 650]
+        self.assertTrue(all(b - a == 1800 for a, b in zip(lv, lv[1:])))       # 層ごと
+        self.assertEqual(set(r.deck_levels + [r.deck_mm]), set(r.hatch_levels))  # 各層に作業床
+        p = stage_params(r)
+        self.assertEqual(p["stFl"], "")
+        self.assertFalse(p["ladOn"])
+        self.assertEqual(len(p["hatchZ"].split(",")), len(r.hatch_levels))
 
     def test_checks_and_notes(self):
         r = self.shaft()
@@ -346,6 +361,20 @@ class TestFrameStage(unittest.TestCase):
         self.assertNotIn("支柱", cats)
         nu, nv = len(r.spans_u), len(r.spans_v)
         self.assertEqual(sum(n for c, _d, n, _w in r.quantity if c == "建枠"), len(r.posts) * (nu + 1) * nv)
+
+
+class TestStageGdlNames(unittest.TestCase):
+    def test_arrays_do_not_clash_with_scalars(self):
+        # GDL は名前の大文字小文字を区別しない。配列 hdL[] と布材の緊結部の長さ hdL が同じ名前で 3D が真っ白になった
+        # （2026-10-29 ハッチ付布板）
+        import re
+
+        for f in ("3d.gdl", "2d.gdl"):
+            body = (ROOT / "gdl" / "hsf" / "ashiba_stage" / "scripts" / f).read_text(encoding="utf-8")
+            arrays = {n.lower() for d in re.findall(r"^\s*dim\s+(.+)$", body, re.M) for n in re.findall(r"(\w+)\[", d)}
+            scalars = {n.lower() for n in re.findall(r"^\s*(\w+)\s*=", body, re.M)}
+            with self.subTest(script=f):
+                self.assertFalse(arrays & scalars, arrays & scalars)
 
 
 class TestStagePartParams(unittest.TestCase):

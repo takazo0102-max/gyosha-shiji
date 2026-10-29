@@ -78,7 +78,8 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"spanU": "1829", "spanV": "1829", "lvList": "440,1565,3365,5165,6965,8765",
                    "deckH": 8.765, "deckList": "1565,5165", "guardOn": False, "stName": "EV1",
-                   "stFl": "0,1565,1565,3365,3365,5165,5165,6965,6965,8765"},
+                   "lvList": "440,1565,3365,5165,6965,8765", "deckList": "1565,3365,5165,6965",
+                   "hatchZ": "1565,3365,5165,6965,8765", "ladOn": False},
     },
     # 階段の上（利用者の指定 2026-10-28）。--profile ashiba_stage_stair で使う
     "ashiba_stage_stair": {
