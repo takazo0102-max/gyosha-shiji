@@ -66,6 +66,11 @@ class TestGroundScaffold(unittest.TestCase):
             self.assertTrue(all(v >= 470 for v in r.model.plan.standoffs), (sid, r.model.plan.standoffs))
             note = next(w for w in r.model.plan.warnings if "地足場（2層" in w)
             self.assertEqual("手すり枠" in note, sid == "waku")
+        # 離れの注意は型枠の言い方（外壁の言い方のままだった。実機 2026-10-29）
+        r2 = solve_all({**SPEC, "ground_scaffold": {"levels": 2}})
+        txt = "\n".join(r2.model.plan.warnings) + "\n".join(e.remedy or "" for e in r2.model.plan.edges)
+        self.assertNotIn("外壁施工後の建物", txt)
+        self.assertIn("型枠を収めるため", txt)
         # 割付で数 mm 下回っても「顧客最小値を下回る」とは言わない
         r = solve_all({**SPEC, "ground_scaffold": {"levels": 2}})
         self.assertFalse(any("顧客最小値" in w for w in r.model.plan.warnings))

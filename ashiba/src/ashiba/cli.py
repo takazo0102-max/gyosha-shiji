@@ -2204,6 +2204,27 @@ def _say_inner_rails_cover_wide_gaps(model) -> None:
     model.plan.warnings[:] = [w.replace(FALL_REMEDY_ASK, FALL_REMEDY_DONE) for w in model.plan.warnings]
 
 
+GROUND_GAP_REWRITE = (
+    ("外壁施工後の建物と作業床の間隔は30cm以下が原則です。",
+     "地足場は型枠を収めるため躯体から離している（作業床と躯体の間隔が30cmを超える）。"),
+    ("外壁の作業で外すときは", "型枠・配筋の作業で外すときは"),
+)
+
+
+def _say_ground_gap_is_for_formwork(model) -> None:
+    """地足場の離れ 300 超の注意を、外壁の言い方から型枠の言い方に直す（実機 2026-10-29: 検証_ell の地足場で
+    「外壁施工後の建物と…」「外壁の作業で外すときは…」と出ていた）."""
+    def fix(t: str) -> str:
+        for a, b in GROUND_GAP_REWRITE:
+            t = t.replace(a, b)
+        return t
+
+    for ep in model.plan.edges:
+        if ep.remedy:
+            ep.remedy = fix(ep.remedy)
+    model.plan.warnings[:] = [fix(w) for w in model.plan.warnings]
+
+
 def _finish_warnings(r: "PlanRun") -> None:
     """解き終えた組の要確認を作り直す: 面の高さの組ごとに別々に並んだ手配の行（敷板・シート・クランプ）を品目ごとに
     足して1行にし（quantity.merge_counted_warnings）、敷板の割り付け直し・上段の注意のあとの数量と同じ文にする
@@ -2716,6 +2737,8 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
             kept.append(w)
         model.plan.warnings[:] = kept + auto_notes
     _say_inner_rails_cover_wide_gaps(model)
+    if spec.get("ground_scaffold"):
+        _say_ground_gap_is_for_formwork(model)
     bracket_issues = validate_bracket_sections(model, brackets)
     # 枠組の手すりは建枠一体。先行手すり工法の指定は効かないので、黙って無視しない
     if model.master.is_frame and spec.get("guard_rail_type") == GUARD_RAIL_ADVANCE:
