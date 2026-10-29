@@ -102,6 +102,35 @@ for i = 1 to nU + 1
 next i
 ! 外周の手すり（二重線。EVシャフトは壁が近いので無し）
 if guardOn then rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 隅の1スパンに階段枠 450 を2列（狭ければ1列）、
+! 上り方向の矢印。階段が無いときだけはしご
+if strlen(stFl) > 0 then
+	sx0 = xu[1] + 0.08
+	sx1 = xu[2] - 0.08
+	nLane = 1
+	if sv[1] >= 2 * 0.45 + 0.1 then nLane = 2
+	for kl = 1 to nLane
+		ys = yv[1] + 0.05 + (kl - 1) * 0.50
+		rect2 sx0, ys, sx1, ys + 0.45
+		! 踏面の線
+		for kt = 1 to 7
+			xt = sx0 + (sx1 - sx0) * kt / 8
+			line2 xt, ys, xt, ys + 0.45
+		next kt
+		! 上り方向の矢印（1列目は +X、2列目は -X）
+		ym = ys + 0.225
+		if kl = 1 then
+			line2 sx0 + 0.1, ym, sx1 - 0.1, ym
+			line2 sx1 - 0.1, ym, sx1 - 0.25, ym + 0.08
+			line2 sx1 - 0.1, ym, sx1 - 0.25, ym - 0.08
+		else
+			line2 sx1 - 0.1, ym, sx0 + 0.1, ym
+			line2 sx0 + 0.1, ym, sx0 + 0.25, ym + 0.08
+			line2 sx0 + 0.1, ym, sx0 + 0.25, ym - 0.08
+		endif
+	next kl
+	goto 2201
+endif
 ! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）
 if guardOn then
 	rect2 0.15, -0.45, 0.60, -0.10
@@ -111,6 +140,7 @@ else
 	line2 0.15, 0.10, 0.60, 0.45
 	line2 0.15, 0.45, 0.60, 0.10
 endif
+2201:
 hotspot2 0, 0
 hotspot2 stLU, 0
 hotspot2 stLU, stLV

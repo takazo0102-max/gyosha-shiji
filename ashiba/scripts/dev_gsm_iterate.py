@@ -89,7 +89,7 @@ PART_PROFILES = {
     },
     # 型枠支保工（利用者の指定 2026-10-28）。--profile ashiba_stage_shoring で使う
     "ashiba_stage_shoring": {
-        "images": ("3D",),
+        "images": ("3D", "2D"),
         "params": {"spanU": "1829,1829,1829,1524", "spanV": "1829,1829", "lvList": "200,1325,3125", "deckH": 1.325,
                    "postTop": 4.08, "uheadExt": 0.145, "stName": "2F床 支保工",
                    "postDia": 0.0427, "komaP": 0.45, "sysKind": 0, "jackExt": 0.03, "dkWs": "500,240",
