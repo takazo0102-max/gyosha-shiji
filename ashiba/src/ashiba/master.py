@@ -432,6 +432,17 @@ class PartMaster:
         covering = [p for p in cands if p.covers(width)]
         return min(covering, key=lambda p: p.nominal_dim) if covering else None
 
+    def bracket_sizes_text(self, outward: bool) -> str:
+        """区間指定に使えるブラケットの幅の一覧（定尺は呼び、伸縮品は範囲）。無ければ空."""
+        vals = []
+        for p in sorted((p for p in self.by_category("ブラケット") if ("張出" in p.note) == outward),
+                        key=lambda q: q.nominal_dim):
+            rng = p.adjustable_range()
+            t = f"{rng[0]}〜{rng[1]}" if rng else str(p.nominal_dim)
+            if t not in vals:
+                vals.append(t)
+        return "・".join(vals)
+
     def find(self, category: str, nominal_dim: int, note_contains: str = "") -> Optional[Part]:
         for p in self.by_category(category):
             if p.nominal_dim == nominal_dim and note_contains in p.note:

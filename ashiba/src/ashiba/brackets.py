@@ -123,6 +123,15 @@ def validate_bracket_sections(
                     i, "NG",
                     f"作業層{lv}は存在しません（1〜{n_levels}）", "入力エラー"))
 
+        if s.width > 0 and s.direction in (INNER, OUTER) and \
+                model.master.bracket_for(int(s.width), outward=(s.direction == OUTER)) is None:
+            have = model.master.bracket_sizes_text(outward=(s.direction == OUTER))
+            issues.append(BracketIssue(
+                i, "WARN",
+                f"{model.face_name(s.edge_index)}: 幅{s.width:.0f}の{s.direction}ブラケットは系列 {model.master.series_id} に"
+                "ありません（別途手配）。"
+                + (f"この系列で使える幅は {have}" if have else f"この系列には{s.direction}向きのブラケットがありません"),
+                "入力（系列の部材）"))
         if s.direction == OUTER:
             issues.append(BracketIssue(
                 i, "WARN",

@@ -39,6 +39,13 @@ class TestAlbatrossMaster(unittest.TestCase):
         """昇降機の乗り込み口の開閉式手すりは φ42.7 クランプの KSSD（手配の注記に落ちていた）."""
         self.assertEqual(load_master("albatross").by_category("開閉式手すり")[0].model_no, "KSSD")
 
+    def test_bracket_width_not_in_series(self):
+        """系列に無い幅のブラケットは入力の段階で、使える幅を添えて知らせる（数量で手配の注記に落ちるだけだった）."""
+        r = solve_all({**RECT, "bracket_sections": [{"edge_index": 0, "start_mm": 1829, "end_mm": 5487,
+                                                      "direction": "内", "width": 400}]})
+        msg = [i.message for i in r.bracket_issues if "系列 albatross" in i.message]
+        self.assertTrue(msg and "360" in msg[0] and "455〜610" in msg[0], msg)
+
     def test_capacities(self):
         caps = load_capacities("albatross")
         self.assertEqual(caps[("支柱許容圧縮耐力", "0")].value, 12.5)
