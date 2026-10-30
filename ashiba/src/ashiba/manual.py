@@ -122,8 +122,8 @@ def manual_spec(spans: list[int], standoff: float, side: str, eaves_mm: float, e
     spec = {**(extra or {}), "outline_mm": outline, "faces": [ei], "eaves_height_mm": float(eaves_mm),
             "span_overrides": [{"edge_index": ei, "spans_mm": sp}],
             "standoff": {"target": so, "min": so, "max": so, "hard_min": so},
-            # 入れた高さ・離れのとおりに置く（近くのスラブの高さ・庇で変えない）
-            "height_from_slabs": False, "avoid_obstacles": False}
+            # 入れた高さ・離れのとおりに置く（近くのスラブの高さ・庇で変えない）。外形は仮なので屋上への渡りは付けない
+            "height_from_slabs": False, "avoid_obstacles": False, "roof_bridge": False}
     return spec, ei
 
 
@@ -271,7 +271,7 @@ def solve_manual_loop(points: list, spans_by_side: list[list[int]], standoff: fl
             **({"faces": sorted(faces)} if faces is not None else {}),
             "span_overrides": [{"edge_index": i, "spans_mm": sp} for i, sp in enumerate(ms)],
             "standoff": {"target": so, "min": so, "max": so, "hard_min": so},
-            "height_from_slabs": False, "avoid_obstacles": False}
+            "height_from_slabs": False, "avoid_obstacles": False, "roof_bridge": False}
     return outline, spec, solve_all(spec)
 
 

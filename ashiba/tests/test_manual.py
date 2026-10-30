@@ -154,6 +154,19 @@ class TestManualLoop(unittest.TestCase):
         self.assertTrue(all("入隅のつなぎ" in c for c in ch))
 
 
+class TestManualNoRoofBridge(unittest.TestCase):
+    def test_no_roof_bridge_on_the_dummy_outline(self):
+        """手動配置の外形は仮なので、屋上への渡りを付けない（仮の屋上へ踏段 6段の渡りを付けていた）."""
+        from ashiba.manual import SIDE_RIGHT, solve_manual
+
+        _o, _spec, r = solve_manual((0, 0), (9145, 0), [1829] * 5, 300, SIDE_RIGHT, 6000, {"series_id": "albatross"})
+        self.assertEqual(r.model.roof_bridges, [])
+        _o, _spec, r = solve_manual_loop([(0, 0), (9145, 0), (9145, 5487), (0, 5487)],
+                                         [[1829] * 5, [1829] * 3, [1829] * 5, [1829] * 3], 300, 6000,
+                                         {"series_id": "albatross"})
+        self.assertEqual(r.model.roof_bridges, [])
+
+
 class TestManualOpenPath(unittest.TestCase):
     """開いたポリライン（2辺の角・3辺のコの字）: 向かい合う辺を同じスパンで仮に足して解き、描いた辺だけに置く."""
 
