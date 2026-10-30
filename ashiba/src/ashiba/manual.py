@@ -279,7 +279,7 @@ def span_changes(spec: dict, result) -> list[str]:
 
 # ---- 前回の入力（窓の初期値に使う。ashiba_out/手動配置_前回.json）----
 LAST_FILE = "手動配置_前回.json"
-LAST_KEYS = ("height", "standoff", "width", "rail", "series", "side", "spans", "sides")
+LAST_KEYS = ("height", "levels", "standoff", "width", "rail", "series", "side", "spans", "sides")
 
 
 def load_last(path) -> dict:
@@ -335,3 +335,11 @@ def close_open_path(points: list, spans_by_side: list[list[int]]) -> tuple[list,
         sides = [spans_by_side[0], spans_by_side[1], spans_by_side[2], list(reversed(spans_by_side[1]))]
         return pts[:4], sides, [0, 1, 2]
     raise ValueError("開いたポリラインは2辺（角）か3辺（コの字）まで。それより多いときは一周（閉じたポリライン）で描いてください")
+
+
+def eaves_for_levels(levels: int, floor_height: int = 1800) -> float:
+    """作業床の段数 → 解く高さ（軒高）. 最上段の作業床は軒高以上の段（1段目 1.8m 前後から層の高さ刻み）なので、
+    段数×層の高さより少し低く渡すと、ちょうどその段数になる（6000 を入れると 7180＝4段になっていた）."""
+    if levels < 1:
+        raise ValueError("作業床の段数は1以上で入れてください")
+    return float(levels * floor_height - 200)

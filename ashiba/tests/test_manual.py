@@ -103,6 +103,21 @@ class TestLastInputs(unittest.TestCase):
         self.assertEqual(default_spans(5500, coins, "1829×4, 914"), "1829×3")            # 遠ければ線の長さから
 
 
+class TestLevels(unittest.TestCase):
+    def test_levels_give_exactly_that_many_decks(self):
+        # 段数を入れたらその段数ちょうど（高さ 6000 だと最上段 7180＝4段になる）
+        from ashiba.manual import eaves_for_levels
+        from ashiba.master import load_master
+
+        for sid, big in (("albatross", 1829), ("nikken_nd1900", 1829), ("shinwa_A", 1800)):
+            fh = load_master(sid).floor_height
+            for n in (1, 3, 5):
+                with self.subTest(sid=sid, n=n):
+                    _w, spec, _l = solve_manual((0, 0), (8000, 0), [big] * 4, 300, SIDE_RIGHT, eaves_for_levels(n, fh),
+                                                {"series_id": sid})
+                    self.assertEqual(len(solve_all(spec).model.elevation.level_heights), n)
+
+
 class TestManualLoop(unittest.TestCase):
     """一周（閉じたポリライン）: 辺ごとのスパンで一周を置く."""
 

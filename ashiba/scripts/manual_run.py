@@ -53,6 +53,8 @@ def _common_fields(R, base, sid0, SERIES_LABELS, last: dict) -> list[dict]:
     pick = lambda k, opts, d: last[k] if last.get(k) in opts else d
     return [{"key": "height", "label": "高さ（軒高）mm", "kind": "number",
              "value": str(last.get("height") or int(R.SPEC.get("eaves_height_mm", 6000)))},
+            {"key": "levels", "label": "作業床の段数（入れると高さより優先）", "kind": "number",
+             "value": str(last.get("levels") or "")},
             {"key": "standoff", "label": "離れ mm（躯体から内側の建地まで）", "kind": "number",
              "value": str(last.get("standoff") or "300")},
             {"key": "width", "label": "足場の幅", "kind": "choice", "options": list(WIDTHS),
@@ -69,7 +71,7 @@ def main() -> int:
 
     from ashiba.cli import resolve_series_id
     from ashiba.manual import (LAST_FILE, SIDE_LEFT, SIDE_RIGHT, SIDES, axis_direction, close_open_path,
-                               default_spans, general_conditions,
+                               default_spans, eaves_for_levels, general_conditions,
                                load_last, loop_directions, parse_spans, save_last, solve_manual, solve_manual_loop,
                                span_changes, span_text, suggest_spans)
     from guide_lines import OUT_DIR
@@ -153,12 +155,16 @@ def main() -> int:
             return 0
         vals = res.get("values") or {}
     if headless:
-        vals.update({"height": opt("--height", "6000"), "standoff": opt("--standoff", "300"),
+        vals.update({"height": opt("--height", "6000"), "levels": opt("--levels", ""), "standoff": opt("--standoff", "300"),
                      "width": next((k for k, v in WIDTHS.items() if str(v) == str(opt("--width", "900"))), "900（914）"),
                      "rail": opt("--rail", RAILS[0]), "series": SERIES_LABELS.get(opt("--series", sid0), sid0)})
     sid = series_from_label(vals.get("series") or sid0)
     try:
         height = float(str(vals.get("height") or "6000").replace(",", ""))
+        lv_txt = str(vals.get("levels") or "").strip()
+        if lv_txt:
+            # 段数を入れたら、その段数ちょうどになる高さで解く（高さ 6000 で最上段 7180＝4段になるのを避ける）
+            height = eaves_for_levels(int(float(lv_txt)), int(load_master(sid).floor_height or 1800))
         standoff = float(str(vals.get("standoff") or "300").replace(",", ""))
         # 窓なし（実機の確認）は利用者の建物と工事名を分け、立面・断面は作らない（ashiba-live-test-cautions）
         dev = {"project_name": opt("--name", "検証_手動配置"), "elevation_mode": "none"} if headless else {}
@@ -184,12 +190,15 @@ def main() -> int:
         return 1
     print(f"手動配置: {what}・高さ {height:.0f}・離れ {standoff:.0f}・{SERIES_LABELS.get(sid, sid)} で置きます")
     if not headless:
-        keep = {k: vals.get(k) for k in ("height", "standoff", "width", "rail", "series", "side") if vals.get(k)}
+        keep = {k: vals.get(k) for k in ("height", "levels", "standoff", "width", "rail", "series", "side") if vals.get(k)}
         if loop is not None:
             keep["sides"] = [str(vals.get(f"s{i}") or "") for i in range(n_sides)]
         else:
             keep["spans"] = str(vals.get("spans") or "")
         save_last(OUT_DIR / LAST_FILE, keep)
+    lv = list(solved.model.elevation.level_heights)
+    if lv:
+        print(f"  作業床 {len(lv)}段（最上段 {lv[-1]:.0f}mm・1段目 {lv[0]:.0f}mm）")
     if loop is not None:
         for ch in span_changes(spec, solved):
             print(f"  スパンの変更: {ch}")
