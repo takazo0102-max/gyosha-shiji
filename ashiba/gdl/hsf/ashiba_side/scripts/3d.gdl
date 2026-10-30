@@ -1,0 +1,42 @@
+﻿! ============================================================
+! 足場の辺 3D（壁の形）: 内側の建地の列から外へ厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、
+! 作業床の段の高さに線
+! ============================================================
+resol 8
+! ---- 立つ高さのつまみ（始めの端の外。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot 0, -tk, 0, 1010, zBase, 1 + 128
+hotspot 0, -tk, zBase, 1011, zBase, 2
+hotspot 0, -tk, -1, 1012, zBase, 3
+add 0, 0, zBase
+define material "sd_1" 2, 0.95, 0.62, 0.25
+define material "sd_6" 2, 0.45, 0.70, 0.95
+define material "sd_9" 2, 0.45, 0.80, 0.45
+define material "sd_12" 2, 0.70, 0.55, 0.90
+if tk < 0.45 then
+	material "sd_1"
+else
+	if tk < 0.75 then
+		material "sd_6"
+	else
+		if tk < 1.05 then
+			material "sd_9"
+		else
+			material "sd_12"
+		endif
+	endif
+endif
+H = postH
+add 0, -tk, 0
+block lx + ex, tk, H
+del 1
+for lv = 1 to nL
+	zl = lev1 + (lv - 1) * floorH
+	lin_ 0, -tk - 0.003, zl, lx + ex, -tk - 0.003, zl
+	lin_ 0, 0.003, zl, lx, 0.003, zl
+next lv
+! ---- 段数のつまみ（終わりの端の上。引くと段の間隔に丸めて段数が変わる） ----
+hotspot lx, -tk, 0, 1000, topEdit, 1 + 128
+hotspot lx, -tk, topEdit, 1001, topEdit, 2
+hotspot lx, -tk, -1, 1002, topEdit, 3
+del 1
+end

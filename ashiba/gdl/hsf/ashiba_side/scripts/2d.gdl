@@ -1,0 +1,44 @@
+﻿! 足場の辺 2D（壁の形）: 内側の建地の列（y＝0）から外（−y）へ厚み tk の帯、スパンの区切り・寸法、種類と見出し、つまみ
+! （終わりの端＝長さ、中ほど＝厚み）
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "sdT" "ＭＳ Ｐゴシック", texSiz, 2, 0
+define style "sdB" "ＭＳ Ｐゴシック", texSiz, 8, 0
+gap = texSiz * GLOB_SCALE / 1000 * 0.6
+rect2 0, 0, lx, -tk
+xx = 0
+for i = 1 to nX + 1
+	line2 xx, 0, xx, -tk
+	if i <= nX then
+		style "sdT"
+		text2 xx + sx[i] / 2, -tk - gap, str(sx[i] * 1000, 1, 0)
+		xx = xx + sx[i]
+	endif
+next i
+! 終わりの出隅の升目（×）
+if cornerE then
+	rect2 lx, 0, lx + tk, -tk
+	line2 lx, 0, lx + tk, -tk
+	line2 lx, -tk, lx + tk, 0
+endif
+! 向き（始め→終わり）の矢印
+line2 lx / 2 - 0.3, -tk / 2, lx / 2 + 0.3, -tk / 2
+line2 lx / 2 + 0.3, -tk / 2, lx / 2 + 0.15, -tk / 2 + 0.08
+line2 lx / 2 + 0.3, -tk / 2, lx / 2 + 0.15, -tk / 2 - 0.08
+style "sdB"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, gap, "足場の辺 " + str(lx * 1000, 1, 0) + "・" + kind + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 0, -tk
+hotspot2 lx + ex, -tk
+hotspot2 lx + ex, 0
+! 伸び縮みのつまみ（終わりの端で長さ、中ほどで厚み）
+hotspot2 0, -tk / 2, 101, lenX, 1 + 128
+hotspot2 lenX, -tk / 2, 102, lenX, 2
+hotspot2 -1, -tk / 2, 103, lenX, 3
+hotspot2 lx / 4, 0, 107, thick, 1 + 128
+hotspot2 lx / 4, -thick, 108, thick, 2
+hotspot2 lx / 4, 1, 109, thick, 3

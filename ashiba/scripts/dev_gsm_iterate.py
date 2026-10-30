@@ -112,6 +112,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"spanX": "1829,1829,1829,914", "spanY": "1829,1829", "nLev": 3, "thick": 0.9},
     },
+    # 足場の辺（利用者の指定 2026-10-31: 箱は1辺ずつ別々に）
+    "ashiba_side": {
+        "images": ("3D", "2D"),
+        "params": {"spanX": "1829,1829,914", "nLev": 3, "thick": 0.3},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）

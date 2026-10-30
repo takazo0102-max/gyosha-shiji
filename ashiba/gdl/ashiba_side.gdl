@@ -1,0 +1,278 @@
+﻿! ==========================================================
+! 足場の辺（足場の箱を1辺ずつに分けたもの。辺ごとに厚み・段数を変え、消してコの字・L字にもできる） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_side/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_side.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-31）: 箱は1辺ずつ別々にしてちょ。
+! 原点＝内側の建地の列の始点、+X＝辺の向き、足場は −Y の側（建物は +Y）。終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み、3D の天端のつまみで段数。パレットの「箱を足場に」で、つながった辺を一周・コの字・L字・1本の足場一式に置き直す。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   lenX      長さ      長さ（内側の建地の列。つまみで引くと定尺の組み合わせに吸着）                               既定 7.316
+!   spanX     文字列    スパン（mm、カンマ区切り。始めから）                                                       既定 "1829,1829,1829,1829"
+!   szList    文字列    使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）                         既定 "1829,1524,1219,914,610"
+!   thick     長さ      厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）  既定 0.9
+!   nLev      整数      作業床の段数（3D の天端のつまみで増減）                                                    既定 4
+!   lev1      長さ      1段目の作業床の高さ                                                                        既定 1.78
+!   floorH    長さ      作業床の段の間隔                                                                           既定 1.8
+!   topEdit   長さ      最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）                            既定 7.18
+!   zBase     長さ      立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）            既定 0
+!   cornerE   ブール    終わりの出隅の升目もこの辺で描く                                                           既定 1
+!   seriesId  文字列    足場の種類（系列の ID。本体にするときに使う）                                              既定 ""
+!   standoff  長さ      離れ（躯体から内側の建地まで。本体にするときに使う）                                       既定 0.3
+!   texSiz    実数      文字の大きさ（mm）                                                                         既定 2.5
+!   penEquip  PenColor  線のペン                                                                                   既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 足場の辺: スパンの並びと定尺を読む（m）
+dim sx[]
+nX = 0
+rest = spanX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nX = nX + 1
+			sx[nX] = v / 1000
+		endif
+	endif
+endwhile
+dim sz[]
+nSz = 0
+rest = szList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nSz = nSz + 1
+			sz[nSz] = v / 1000
+		endif
+	endif
+endwhile
+if nX = 0 then
+	nX = 1
+	sx[1] = max(0.6, lenX)
+endif
+lx = 0
+for i = 1 to nX
+	lx = lx + sx[i]
+next i
+nL = max(1, nLev)
+deckTop = lev1 + (nL - 1) * floorH
+postH = deckTop + 1.0
+tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if tk < 0.45 then
+	kind = "一側足場"
+else
+	kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+endif
+ex = 0
+if cornerE then ex = tk
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 足場の辺 2D（壁の形）: 内側の建地の列（y＝0）から外（−y）へ厚み tk の帯、スパンの区切り・寸法、種類と見出し、つまみ
+! （終わりの端＝長さ、中ほど＝厚み）
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "sdT" "ＭＳ Ｐゴシック", texSiz, 2, 0
+define style "sdB" "ＭＳ Ｐゴシック", texSiz, 8, 0
+gap = texSiz * GLOB_SCALE / 1000 * 0.6
+rect2 0, 0, lx, -tk
+xx = 0
+for i = 1 to nX + 1
+	line2 xx, 0, xx, -tk
+	if i <= nX then
+		style "sdT"
+		text2 xx + sx[i] / 2, -tk - gap, str(sx[i] * 1000, 1, 0)
+		xx = xx + sx[i]
+	endif
+next i
+! 終わりの出隅の升目（×）
+if cornerE then
+	rect2 lx, 0, lx + tk, -tk
+	line2 lx, 0, lx + tk, -tk
+	line2 lx, -tk, lx + tk, 0
+endif
+! 向き（始め→終わり）の矢印
+line2 lx / 2 - 0.3, -tk / 2, lx / 2 + 0.3, -tk / 2
+line2 lx / 2 + 0.3, -tk / 2, lx / 2 + 0.15, -tk / 2 + 0.08
+line2 lx / 2 + 0.3, -tk / 2, lx / 2 + 0.15, -tk / 2 - 0.08
+style "sdB"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, gap, "足場の辺 " + str(lx * 1000, 1, 0) + "・" + kind + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 0, -tk
+hotspot2 lx + ex, -tk
+hotspot2 lx + ex, 0
+! 伸び縮みのつまみ（終わりの端で長さ、中ほどで厚み）
+hotspot2 0, -tk / 2, 101, lenX, 1 + 128
+hotspot2 lenX, -tk / 2, 102, lenX, 2
+hotspot2 -1, -tk / 2, 103, lenX, 3
+hotspot2 lx / 4, 0, 107, thick, 1 + 128
+hotspot2 lx / 4, -thick, 108, thick, 2
+hotspot2 lx / 4, 1, 109, thick, 3
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場の辺 3D（壁の形）: 内側の建地の列から外へ厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、
+! 作業床の段の高さに線
+! ============================================================
+resol 8
+! ---- 立つ高さのつまみ（始めの端の外。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot 0, -tk, 0, 1010, zBase, 1 + 128
+hotspot 0, -tk, zBase, 1011, zBase, 2
+hotspot 0, -tk, -1, 1012, zBase, 3
+add 0, 0, zBase
+define material "sd_1" 2, 0.95, 0.62, 0.25
+define material "sd_6" 2, 0.45, 0.70, 0.95
+define material "sd_9" 2, 0.45, 0.80, 0.45
+define material "sd_12" 2, 0.70, 0.55, 0.90
+if tk < 0.45 then
+	material "sd_1"
+else
+	if tk < 0.75 then
+		material "sd_6"
+	else
+		if tk < 1.05 then
+			material "sd_9"
+		else
+			material "sd_12"
+		endif
+	endif
+endif
+H = postH
+add 0, -tk, 0
+block lx + ex, tk, H
+del 1
+for lv = 1 to nL
+	zl = lev1 + (lv - 1) * floorH
+	lin_ 0, -tk - 0.003, zl, lx + ex, -tk - 0.003, zl
+	lin_ 0, 0.003, zl, lx, 0.003, zl
+next lv
+! ---- 段数のつまみ（終わりの端の上。引くと段の間隔に丸めて段数が変わる） ----
+hotspot lx, -tk, 0, 1000, topEdit, 1 + 128
+hotspot lx, -tk, topEdit, 1001, topEdit, 2
+hotspot lx, -tk, -1, 1002, topEdit, 3
+del 1
+end
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場の辺 パラメータスクリプト: つまみで引いた長さ（lenX）を定尺の組み合わせに吸着してスパンの並びを書き直す。
+! 定尺の最大を n 本並べ、端数を定尺 0〜2 本で埋める組のうち、引いた長さにいちばん近いもの（1本多いごとに 5mm 遠いとみる:
+! 9100 は 1829×4＋914×2＝9144 でなく 1829×5＝9145）。
+! 3D の天端のつまみ（topEdit）は段の間隔に丸めて作業床の段数（nLev）にする
+! ============================================================
+! どのパラメータを変えたかは GLOB_MODPAR_NAME に頼らず、値の食い違いで決める（つまみで引いても名前が来ないことがあり、
+! 名前で決めていたときは引いた長さをスパンの合計に戻してしまい、つまみが動かなかった。利用者 2026-10-30: つまみが動かない）
+if GLOB_MODPAR_NAME = "spanX" then
+	parameters lenX = lx
+else
+	if abs(lenX - lx) > 0.0005 and nSz > 0 then
+		want = lenX
+		gosub "snap"
+		parameters spanX = sOut, lenX = tBest
+	endif
+endif
+if zBase < 0 then parameters zBase = 0
+! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
+tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if abs(thick - tSn) > 0.0005 then parameters thick = tSn
+if GLOB_MODPAR_NAME = "nLev" or GLOB_MODPAR_NAME = "lev1" or GLOB_MODPAR_NAME = "floorH" then
+	parameters topEdit = deckTop
+else
+	if abs(topEdit - deckTop) > 0.0005 then
+		nNew = round_int((topEdit - lev1) / floorH) + 1
+		if nNew < 1 then nNew = 1
+		if nNew > 30 then nNew = 30
+		parameters nLev = nNew, topEdit = lev1 + (nNew - 1) * floorH
+	endif
+endif
+end
+
+"snap":
+	mx = sz[1]
+	tBest = 0
+	bd = 1e9
+	bn = 0
+	bi = 0
+	bj = 0
+	nTop = int(want / mx) + 1
+	for n = 0 to nTop
+		for i = 0 to nSz
+			for j = i to nSz
+				s = 0
+				if i > 0 then s = sz[i]
+				t = 0
+				if j > 0 then t = sz[j]
+				tt = n * mx + s + t
+				if tt > 0.1 then
+					d = abs(tt - want) + 0.005 * (n + (i > 0) + (j > 0))
+					if d < bd then
+						bd = d
+						tBest = tt
+						bn = n
+						bi = i
+						bj = j
+					endif
+				endif
+			next j
+		next i
+	next n
+	sOut = ""
+	for k = 1 to bn
+		if sOut = "" then
+			sOut = str(mx * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(mx * 1000, 1, 0)
+		endif
+	next k
+	if bi > 0 then
+		if sOut = "" then
+			sOut = str(sz[bi] * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(sz[bi] * 1000, 1, 0)
+		endif
+	endif
+	if bj > 0 then
+		if sOut = "" then
+			sOut = str(sz[bj] * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(sz[bj] * 1000, 1, 0)
+		endif
+	endif
+return
+
