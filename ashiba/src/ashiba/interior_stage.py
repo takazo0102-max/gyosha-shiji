@@ -608,13 +608,25 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     r.h_ratio = ratio
     area = r.length_u * r.length_v / 1e6
     hk = ratio * q * area
-    need = math.ceil(hk * math.sqrt(2.0) / BRACE_CLAMP_KN)
     have = min(2 * math.ceil(len(sp) / BRACE_EVERY_SPANS) for sp in (r.spans_u, r.spans_v))
+    strong = _strong_brace_caps(r, caps)
+    if strong is not None:
+        # 強力斜材（くさびで固定）は1構面あたりの許容水平耐力がカタログにある（p061）。桁行（長手）・梁間（短手）で別に数える
+        need_uv = (math.ceil(hk / strong[0]), math.ceil(hk / strong[1]))
+        need = max(need_uv)
+        how = (f"強力斜材の構面（許容水平耐力 桁行 {strong[0]:.1f}kN・梁間 {strong[1]:.1f}kN。カタログ p061）で受けると"
+               f"各層 桁行 {need_uv[0]}・梁間 {need_uv[1]}構面以上、外周の構面は各方向 {have}")
+    else:
+        need = math.ceil(hk * math.sqrt(2.0) / BRACE_CLAMP_KN)
+        need_uv = (need, need)
+        how = (f"筋かい（45°・自在クランプ {BRACE_CLAMP_KN}kN。FD＝H/(n·cos45°)）で受けると各層・各方向 {need}本以上、"
+               f"外周の筋かいは {have}本")
     out.append(StageCheck("支保工の水平荷重", "OK" if have >= need else "WARN",
-                          f"設計荷重の {ratio * 100:.1f}%＝{hk:.1f}kN（{area:.0f}m²）を上端に見込む。筋かい（45°・自在クランプ "
-                          f"{BRACE_CLAMP_KN}kN。FD＝H/(n·cos45°)）で受けると各層・各方向 {need}本以上、外周の筋かいは {have}本"
-                          + ("" if have >= need else f"。内側の通りにも筋かいを足すか（各層・各方向あと {need - have}本）、"
-                             "打設済みの柱・壁に水平力を預ける形を構造計算書で示す")
+                          f"設計荷重の {ratio * 100:.1f}%＝{hk:.1f}kN（{area:.0f}m²）を上端に見込む。" + how
+                          + ("" if have >= need else (f"。内側の通りにも筋かいを足すか（各層・各方向あと {need - have}本）、" if need_uv[0] == need_uv[1] else
+                             f"。内側の通りにも構面を足すか（各層 桁行あと {max(0, need_uv[0] - have)}・梁間あと "
+                             f"{max(0, need_uv[1] - have)}）、")
+                             + "打設済みの柱・壁に水平力を預ける形を構造計算書で示す")
                           + "（安衛則240条3項4号・手引 p263）"))
     r.inner_braces = max(0, need - have)
     # 交さ筋かいを入れられる升目（外周の筋かいの升目を除く）が足りないと、組数を満たせない
@@ -626,9 +638,12 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     if have < need:
         # 足りない分を内側の通りに交さ筋かいで（各層・各方向。長さは長い方のスパン）
         layers = max(1, len(r.levels) + len(r.upper_levels) - 1)
-        for spans, dir_ in ((r.spans_u, "長手"), (r.spans_v, "短手")):
-            r.quantity.append(("筋交", int(max(spans)), (need - have) * 2 * layers,
-                               f"支保工の水平荷重を受ける内側の交さ筋かい（{dir_}・{layers}層×{need - have}組）"))
+        for spans, dir_, nd in ((r.spans_u, "長手", need_uv[0]), (r.spans_v, "短手", need_uv[1])):
+            if nd <= have:
+                continue
+            what = "構面の強力斜材（H900 を1層に2段）" if strong is not None else "交さ筋かい"
+            r.quantity.append(("強力斜材" if strong is not None else "筋交", int(max(spans)), (nd - have) * 2 * layers,
+                               f"支保工の水平荷重を受ける内側の{what}（{dir_}・{layers}層×{nd - have}組）"))
     if r.uhead_ext_mm is not None:
         e = r.uhead_ext_mm
         if e < 0:
@@ -660,6 +675,21 @@ def _shoring(r: StageResult, master, caps: Optional[dict]) -> None:
     r.notes.append("大引は大引受けジャッキ（鋼製の受け金物）で固定し、継ぎは支柱の上で。根太・せき板は型枠の割付による")
     r.notes.append("型枠支保工の組立て等作業主任者を選任して指揮させる（高さに関係なく。安衛則246条・247条）。コンクリートの打設は"
                    "その日の作業前に支保工を点検し、偏らないよう打ち、異常があれば作業を止める（安衛則244条）")
+
+
+def _strong_brace_caps(r: StageResult, caps: Optional[dict]) -> Optional[tuple[float, float]]:
+    """強力斜材の支保工の構面の許容水平耐力（桁行, 梁間）。つなぎ方「桁行×梁間」の各側に 先行手摺ブレス があれば
+    先行手摺ブレス＋H900斜材、無ければ H900斜材 の値（capacity.csv の 支保工許容水平耐力）。強力斜材でなければ None."""
+    if r.use != "支保工" or "強力斜材" not in (r.tie or ""):
+        return None
+    vals = []
+    for side in (r.tie.split("×") + [r.tie])[:2]:
+        key = "先行手摺ブレス＋強力斜材" if "先行手摺ブレス" in side else "強力斜材"
+        v = _cap(caps, "支保工許容水平耐力", key)
+        if v is None:
+            return None
+        vals.append(v)
+    return vals[0], vals[1]
 
 
 def _quantity(r: StageResult, master) -> None:
@@ -798,7 +828,11 @@ def _quantity(r: StageResult, master) -> None:
     n_bands = n_lv + len(r.upper_levels) - 1          # 支保工は作業床より上の水平つなぎの段まで
     for spans in (r.spans_u, r.spans_u, r.spans_v, r.spans_v):
         n_br += math.ceil(len(spans) / BRACE_EVERY_SPANS) * n_bands
-    q.append(("筋交", int(max(r.spans_u)), n_br * 2, "内部ステージの外周の筋かい（交さ2方向）"))
+    if r.use == "支保工" and "強力斜材" in (r.tie or "") and master.by_category("強力斜材"):
+        # 強力斜材の支保工は外周の構面も強力斜材（H900 を1層に2段。p061 の図）
+        q.append(("強力斜材", int(max(r.spans_u)), n_br * 2, "支保工の外周の構面の強力斜材（H900 を1層に2段）"))
+    else:
+        q.append(("筋交", int(max(r.spans_u)), n_br * 2, "内部ステージの外周の筋かい（交さ2方向）"))
     if r.stair_flights:
         nf = len(r.stair_flights)
         stair = next(iter(master.by_category("階段")), None)

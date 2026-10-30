@@ -170,6 +170,28 @@ class TestAlbatrossStrongDiagonal(unittest.TestCase):
         self.assertEqual(bool(bad), min(r45.spans_u + r45.spans_v) < 914)
 
 
+class TestAlbatrossStrongBraceHorizontal(unittest.TestCase):
+    """強力斜材の支保工の水平荷重は p061 の許容水平耐力（H900斜材 10.0kN・先行手摺ブレス＋H900斜材 5.0kN）で数える."""
+
+    def _run(self, tie):
+        from ashiba.interior_stage import solve_stage
+
+        item = {"name": "s", "corners_mm": [[0, 0], [12000, 0], [12000, 9000], [0, 9000]], "deck_mm": 1800,
+                "use": "支保工", "slab_mm": 600, "ceiling_mm": 4000, "tie": tie}
+        return solve_stage(item, load_master("albatross"), load_capacities("albatross"))
+
+    def test_strong_brace_counts(self):
+        r = self._run("先行手摺ブレス＋強力斜材×強力斜材＋強力斜材")
+        msg = next(c.message for c in r.checks if c.item == "支保工の水平荷重")
+        self.assertIn("桁行 5.0kN・梁間 10.0kN", msg)
+        self.assertIn("各層 桁行 15・梁間 8構面以上", msg)          # 72kN ÷ 5.0 / ÷ 10.0
+        cats = {x[0] for x in r.quantity}
+        self.assertIn("強力斜材", cats)
+        self.assertNotIn("筋交", cats)                                # 単管の筋かいは使わない
+        plain = self._run("先行手摺ブレス×先行手摺ブレス")
+        self.assertIn("自在クランプ", next(c.message for c in plain.checks if c.item == "支保工の水平荷重"))
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 
