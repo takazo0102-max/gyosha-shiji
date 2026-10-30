@@ -117,3 +117,29 @@ def walkway_beam_checks(start, end, deck_abs_mm: float, end_deck_abs_mm: float, 
                         f"{deck - WALKWAY_UNDER_MM:.0f} と梁の上端のあき {gap:.0f}mm"
                     + ("" if st == "OK" else "（床を上げるか、通路の位置をずらす）")))
     return out
+
+
+GROUND_STEP_WARN_MM = 30.0  # 支柱の足元の地盤の高さの差がこれを超えたら、ジャッキ・敷板で合わせる量を知らせる
+GROUND_STEP_NG_MM = 250.0   # これを超える差はジャッキの繰出しの幅（30〜270 前後）で合わせきれない
+
+
+def ground_spread(posts: list, ground, floor_mm: float) -> Optional[tuple[float, float]]:
+    """支柱の足元の敷地メッシュの高さの、床（範囲の中央の高さ）からの (いちばん低い, いちばん高い) 差 mm.
+    メッシュが無ければ None（根切り底の法面にかかる内部足場・仮設通路の島）."""
+    if ground is None or getattr(ground, "is_flat", True):
+        return None
+    zs = [float(ground.elevation_at(p[0], p[1], floor_mm)) - floor_mm for p in posts]
+    return (min(zs), max(zs)) if zs else None
+
+
+def ground_spread_message(spread: Optional[tuple[float, float]]) -> Optional[tuple[str, str]]:
+    """(状態, 文)。差が GROUND_STEP_WARN_MM 以下なら None."""
+    if spread is None:
+        return None
+    lo, hi = spread
+    if hi - lo <= GROUND_STEP_WARN_MM:
+        return None
+    st = "NG" if hi - lo > GROUND_STEP_NG_MM else "WARN"
+    return st, (f"範囲の中で地盤の高さが {hi - lo:.0f}mm 違う（中央から {lo:+.0f}〜{hi:+.0f}）。法面・段差にかかっている。"
+                + ("ジャッキで合わせきれない脚・地面にめり込む脚がある。範囲を平らな所（根切り底）へずらすか、"
+                   "脚ごとに支柱を継ぎ足して合わせる" if st == "NG" else "低い脚はジャッキ・敷板で高さを合わせる"))

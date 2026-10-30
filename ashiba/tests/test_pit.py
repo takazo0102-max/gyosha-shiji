@@ -41,6 +41,22 @@ class TestPitGround(unittest.TestCase):
         self.assertFalse([w for w in far.warnings if "肩の近くに立つ" in str(w)])
 
 
+class TestGroundSpread(unittest.TestCase):
+    def test_slope_under_the_stage(self):
+        """範囲が法面にかかると脚ごとの地盤の高さが違う（中央の1点で建てていた）。根切り底の平らな所は何も出ない."""
+        from ashiba.beams import ground_spread, ground_spread_message
+
+        g = GroundModel(points=pit_points())
+        flat = [(x, y) for x in (4600, 6000, 7400) for y in (-10000, -7000, -5200)]
+        self.assertIsNone(ground_spread_message(ground_spread(flat, g, -2000.0)))
+        edge = [(x, y) for x in (4600, 6000, 7400) for y in (-3500, -2500, -1500)]
+        st, msg = ground_spread_message(ground_spread(edge, g, g.elevation_at(6000, -2500)))
+        self.assertEqual(st, "NG")
+        self.assertIn("2000mm 違う", msg)
+        small = [(6000, -2650), (6000, -2700)]                            # 法尻の 50mm の差はジャッキで合わせる
+        self.assertEqual(ground_spread_message(ground_spread(small, g, -2000.0))[0], "WARN")
+
+
 class TestBeams(unittest.TestCase):
     def test_details_use_zcoordinate(self):
         """zCoordinate はプロジェクトの原点からの高さ（level は階からの高さで、足すと二重になる）."""

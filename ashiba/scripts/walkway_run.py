@@ -126,6 +126,26 @@ def main() -> int:
     from ashiba.walkways import WalkwayCheck
 
     beams = read_beams(c, [list(s), list(e)])
+    # 島の足元の地盤の高さの差（根切り底の法面にかかる島）
+    try:
+        from ashiba.beams import ground_spread, ground_spread_message
+        from ashiba.tapir_adapter import read_ground_model
+
+        gmod = read_ground_model(c, outline_mm=[list(s), list(e), list(e), list(s)])
+        for isl in r.islands:
+            cu = [0.0]
+            for s_ in isl.spans_u:
+                cu.append(cu[-1] + s_)
+            cv = [0.0]
+            for s_ in isl.spans_v:
+                cv.append(cv[-1] + s_)
+            pts = [(isl.origin[0] + isl.u[0] * a + isl.v[0] * b, isl.origin[1] + isl.u[1] * a + isl.v[1] * b)
+                   for a in cu for b in cv]
+            gm = ground_spread_message(ground_spread(pts, gmod, floor))
+            if gm:
+                r.checks.append(WalkwayCheck(f"{isl.name}の足元", gm[0], gm[1]))
+    except Exception:
+        pass
     if beams:
         for st_, msg in walkway_beam_checks(s, e, floor + r.deck_mm, floor + r.end_deck_mm, beams):
             r.checks.append(WalkwayCheck("梁のまたぎ", st_, msg))

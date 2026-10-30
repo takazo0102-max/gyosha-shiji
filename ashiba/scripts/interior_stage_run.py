@@ -186,17 +186,27 @@ def main() -> int:
     from ashiba.interior_stage import StageCheck
 
     beams = read_beams(c, corners)
+    # 支柱の位置（地中梁・地盤の高さの差を見る）
+    grid = []
+    cu = [0.0]
+    for s_ in st.spans_u:
+        cu.append(cu[-1] + s_)
+    cv = [0.0]
+    for s_ in st.spans_v:
+        cv.append(cv[-1] + s_)
+    for a in cu:
+        for b in cv:
+            grid.append((st.origin[0] + st.u[0] * a + st.v[0] * b, st.origin[1] + st.u[1] * a + st.v[1] * b))
+    try:
+        from ashiba.beams import ground_spread, ground_spread_message
+        from ashiba.tapir_adapter import read_ground_model
+
+        gm = ground_spread_message(ground_spread(grid, read_ground_model(c, outline_mm=[tuple(p) for p in corners]), floor))
+        if gm:
+            st.checks.append(StageCheck("足元の地盤の高さ", gm[0], gm[1]))
+    except Exception:
+        pass
     if beams:
-        grid = []
-        cu = [0.0]
-        for s_ in st.spans_u:
-            cu.append(cu[-1] + s_)
-        cv = [0.0]
-        for s_ in st.spans_v:
-            cv.append(cv[-1] + s_)
-        for a in cu:
-            for b in cv:
-                grid.append((st.origin[0] + st.u[0] * a + st.v[0] * b, st.origin[1] + st.u[1] * a + st.v[1] * b))
         hit = posts_on_beams(grid, beams, floor)
         if hit:
             st.checks.append(StageCheck("地中梁の上の支柱", "WARN",
