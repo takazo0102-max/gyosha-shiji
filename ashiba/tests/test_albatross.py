@@ -188,6 +188,9 @@ class TestAlbatrossStrongBraceHorizontal(unittest.TestCase):
         cats = {x[0] for x in r.quantity}
         self.assertIn("強力斜材", cats)
         self.assertNotIn("筋交", cats)                                # 単管の筋かいは使わない
+        from ashiba.interior_stage import shoring_notification_lines
+
+        self.assertIn("強力斜材 138本", "".join(shoring_notification_lines(r)))   # 設置届の下書きも強力斜材の本数
         plain = self._run("先行手摺ブレス×先行手摺ブレス")
         self.assertIn("自在クランプ", next(c.message for c in plain.checks if c.item == "支保工の水平荷重"))
 

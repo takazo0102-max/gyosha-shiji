@@ -1097,6 +1097,8 @@ def shoring_notification_lines(r: StageResult) -> list[str]:
     """型枠支保工の設置届（安衛則88条・別表第七 十の項・様式第20号）に書く内容の下書き."""
     tie_lv = sorted(r.levels + r.upper_levels)
     brace = sum(n for c, _, n, _ in r.quantity if c == "筋交")
+    strong = sum(n for c, _, n, _ in r.quantity if c == "強力斜材")
+    brace_txt = f"筋かい {brace}本" if not strong else (f"強力斜材 {strong}本" + (f"・筋かい {brace}本" if brace else ""))
     return ["## 設置届（様式第20号）の記入の下書き（型枠支保工）", "",
             "| 欄 | 記入 |", "|---|---|",
             "| 機械等の種類 | 型枠支保工（支柱の高さ 3.5m 以上） |",
@@ -1106,7 +1108,7 @@ def shoring_notification_lines(r: StageResult) -> list[str]:
             + f"・つなぎ方 {r.tie} |",
             f"| 計画の概要 | 支柱の高さ {r.top_mm}mm（大引受けジャッキの繰出し {r.uhead_ext_mm or 0}mm を除く）、"
             f"支柱の間隔 長手 {max(r.spans_u)}mm・短手 {max(r.spans_v)}mm、範囲 {r.length_u:.0f}×{r.length_v:.0f}mm、"
-            f"水平つなぎ {'・'.join(map(str, tie_lv))}mm の段に直交2方向、筋かい {brace}本、"
+            f"水平つなぎ {'・'.join(map(str, tie_lv))}mm の段に直交2方向、{brace_txt}、"
             f"受けるスラブ厚 {r.slab_mm:.0f}mm |",
             f"| 設計荷重 | {r.design_kn_m2:.2f}kN/m²（鉄筋コンクリート＋型枠＋積載 1.47）、水平荷重 設計荷重の "
             f"{r.h_ratio * 100:g}% |",
