@@ -209,6 +209,20 @@ class TestAlbatrossStrutShoring(unittest.TestCase):
         self.assertLessEqual(max(r.spans_v), 1219)
 
 
+class TestAlbatrossSlope(unittest.TestCase):
+    def test_jack_stays_within_255(self):
+        """斜面の解はジャッキの伸びる長さ 255（37751）を境目にする（270 で見て 269 の脚が残り、手配の注記に落ちていた）.
+        外付け階段の 457 の升目は先行手摺が無いので布材の手すり・中桟."""
+        import json
+        from pathlib import Path
+
+        spec = json.loads((Path(__file__).resolve().parents[1] / "examples" / "sloped_site.json").read_text(encoding="utf-8"))
+        r = solve_all({**spec, "series_id": "albatross"})
+        self.assertLessEqual(r.terrain.jack_max_mm, 255)
+        self.assertFalse([n for n in r.quantity.notes if "ジャッキの上限" in str(n)])
+        self.assertFalse([w for w in r.warnings if "先行手摺457" in str(w)])
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 

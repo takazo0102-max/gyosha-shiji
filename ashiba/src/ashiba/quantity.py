@@ -2574,8 +2574,11 @@ def _count_outside_stairs(model: ScaffoldModel, stair_plan, add, notes) -> None:
         cells: dict[int, int] = {}
         for i, sp in enumerate(ts):
             add(m.find("布材", sp), 1, f"外付け階段の根がらみ（布材{sp}）")
-            if adv:
+            if adv and m.find("先行手摺", sp) is not None:
                 add(m.find("先行手摺", sp), n_lv, f"外付け階段の先行手摺{sp}")
+            elif adv:
+                # 先行手摺の無いスパン（アルバトロスの 457）は布材の手すり・中桟（本体と同じ扱い）
+                add(m.find("布材", sp), 2 * n_lv, f"外付け階段の先行手すりの無いスパン{sp}の手すり・中桟（布材）")
             else:
                 add(m.find("布材", sp), 2 * n_lv, f"外付け階段の手すり・中桟（布材{sp}）")
             if model.config.has_toe_board:

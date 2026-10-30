@@ -257,7 +257,8 @@ def solve_post_feet(
         v = int(mt.group(1)) if mt else p.max_extension_mm()
         if v:
             rated.append(int(v))
-    shim_limit = max([jack_recommended_max] + rated)
+    # ジャッキの伸びる長さ（アルバトロス 37751 は 255）を超えて敷板の境目にしない（270 で見て 269 の繰出しを残していた）
+    shim_limit = min(max([jack_recommended_max] + rated), max(int(jack_hard_max or 0), jack_min + 1))
 
     gls = [ground.elevation_at(x, y) for (x, y) in positions]
     gl_max = max(gls) if gls else 0.0
