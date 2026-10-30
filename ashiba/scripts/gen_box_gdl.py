@@ -10,6 +10,8 @@
 原点＝内側の建地の列の角（箱の左下の支柱）。+X＝長手、+Y＝短手、建物は箱の内側、足場は外へ厚み thick の壁の形で描く
 （利用者の指定 2026-10-30: もっと簡単な壁形状でいい・厚みで種類も変える）。厚みは 300・600・900・1200 に吸着し、300＝一側足場、
 600／900／1200＝幅 610／914／1219 の本足場（色を変える）。下の辺の左寄りのつまみで厚みを変える。
+立つ高さ（zBase。3D の右上の出隅のつまみ）を上げると、セットバックの上の階の足場（下の屋根の上から建つ）を箱で表せる
+（利用者の指定 2026-10-30: 高さも変えてセットバックにも対応できるようにして）。
   python3 scripts/gen_box_gdl.py     # gdl/hsf/ashiba_box を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
 
@@ -42,7 +44,8 @@ def paramlist() -> str:
         _param("Length", "lev1", "1段目の作業床の高さ", 1.78),
         _param("Length", "floorH", "作業床の段の間隔", 1.8),
         _param("Length", "jackH", "ジャッキの繰出し（図の目安）", 0.1),
-        _param("Length", "topEdit", "最上段の作業床（3D のつまみ。引くと段数が変わる）", 7.18),
+        _param("Length", "topEdit", "最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）", 7.18),
+        _param("Length", "zBase", "立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）", 0),
         _param("String", "seriesId", "足場の種類（系列の ID。本体にするときに使う）", ""),
         _param("Length", "standoff", "離れ（躯体から内側の建地まで。本体にするときに使う）", 0.3),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -137,6 +140,7 @@ else
 		parameters spanY = sOut, lenY = tBest
 	endif
 endif
+if zBase < 0 then parameters zBase = 0
 ! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
 tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
 if abs(thick - tSn) > 0.0005 then parameters thick = tSn
@@ -255,7 +259,9 @@ next cx
 style "bxC"
 text2 lx / 2, ly / 2, kind + "（厚み " + str(tk * 1000, 1, 0) + "）"
 style "bxT"
-text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str(deckTop * 1000, 1, 0) + "）"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
 hotspot2 0, 0
 hotspot2 lx, 0
 hotspot2 lx, ly
@@ -279,6 +285,11 @@ SCRIPT_3D = """﻿! ============================================================
 ! 厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、作業床の段の高さに外周の線
 ! ============================================================
 resol 8
+! ---- 立つ高さのつまみ（右上の出隅。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot lx + tk, ly + tk, 0, 1010, zBase, 1 + 128
+hotspot lx + tk, ly + tk, zBase, 1011, zBase, 2
+hotspot lx + tk, ly + tk, -1, 1012, zBase, 3
+add 0, 0, zBase
 define material "bx_1" 2, 0.95, 0.62, 0.25
 define material "bx_6" 2, 0.45, 0.70, 0.95
 define material "bx_9" 2, 0.45, 0.80, 0.45
@@ -332,6 +343,7 @@ next lv
 hotspot -tk, -tk, 0, 1000, topEdit, 1 + 128
 hotspot -tk, -tk, topEdit, 1001, topEdit, 2
 hotspot -tk, -tk, -1, 1002, topEdit, 3
+del 1
 end
 """
 

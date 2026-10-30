@@ -27,6 +27,14 @@ from .model import ScaffoldModel
 
 JACK_HARD_MAX_EXTENSION = 450   # ジャッキの機械的な最大繰出し（270は実務上限）
 SLOPE_SHIM_LIMIT = 0.10         # 足元の勾配がこれを超えたら傾斜対応のベースか段切り（10%）
+# 根切り・段差の肩（利用者の指定 2026-10-30: 根切りの縁の外部足場をテストして）: 脚のまわり EDGE_LOOK_MM まで地盤を見て、
+# 下がり始める所（肩。EDGE_START_MM 以上下がる最初の点）までの距離 s と、その範囲のいちばん深い下がり h を出す。
+# h が EDGE_DROP_MM 以上で、s が h（掘削の 1:1 の影響の線。最低 EDGE_MIN_MM）より近い脚は肩の近くに立つ
+EDGE_LOOK_MM = 2000.0
+EDGE_STEP_MM = 250.0
+EDGE_START_MM = 100.0
+EDGE_DROP_MM = 500.0
+EDGE_MIN_MM = 1000.0
 SHIM_UNIT_MM = 35               # 敷板1枚の厚さ（杉敷板 厚35）。実務上限超えの脚を敷板で持ち上げる単位
 # 敷板をこの枚数以上重ねる脚は、敷角か床均しに替えるよう書き添える（重ねるほど据わりが悪い）
 SHIM_STACK_WARN = 3
@@ -52,10 +60,77 @@ class GroundModel:
     # 建物に掛かる敷地メッシュの外形（平面 mm）。敷地境界線のポリラインが無いときの敷地境界に使う
     mesh_outlines: list = field(default_factory=list)
     plane_k: int = 6
+    # 点の三角形分割（ドロネー）。根切りのように段差のある敷地で、近い点の平面当てが外の地盤まで引き下げた
+    # （根切り底 −2000 の脇の GL±0 の地面が −620 になった。利用者の指定 2026-10-30: メッシュに根切り底と梁を置いてテストして）
+    _tin: Optional[list] = field(default=None, init=False, repr=False, compare=False)
 
     @property
     def is_flat(self) -> bool:
         return not self.points
+
+    def _triangles(self) -> list:
+        """点（平面で重なる点は最初の1つ）のドロネー三角形 [(p1, p2, p3)]（Bowyer-Watson）。3点未満・一直線なら []."""
+        if self._tin is not None:
+            return self._tin
+        pts, seen = [], set()
+        for p in self.points:
+            k = (round(p[0], 1), round(p[1], 1))
+            if k not in seen:
+                seen.add(k)
+                pts.append(p)
+        tris: list = []
+        if len(pts) >= 3:
+            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+            cx, cy = (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
+            d = max(max(xs) - min(xs), max(ys) - min(ys), 1.0) * 20.0
+            sup = [(cx - d, cy - d, 0.0), (cx + d, cy - d, 0.0), (cx, cy + d, 0.0)]
+            work = [tuple(sup)]
+
+            def circ(t):
+                (ax, ay, _), (bx, by, _), (qx, qy, _) = t
+                dd = 2.0 * (ax * (by - qy) + bx * (qy - ay) + qx * (ay - by))
+                if abs(dd) < 1e-12:
+                    return None
+                ux = ((ax * ax + ay * ay) * (by - qy) + (bx * bx + by * by) * (qy - ay) + (qx * qx + qy * qy) * (ay - by)) / dd
+                uy = ((ax * ax + ay * ay) * (qx - bx) + (bx * bx + by * by) * (ax - qx) + (qx * qx + qy * qy) * (bx - ax)) / dd
+                return ux, uy, (ax - ux) ** 2 + (ay - uy) ** 2
+
+            for p in pts:
+                bad = []
+                for t in work:
+                    c = circ(t)
+                    if c is not None and (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 < c[2] - 1e-9:
+                        bad.append(t)
+                edges: dict = {}
+                for t in bad:
+                    for e in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+                        k = frozenset(e)
+                        edges[k] = None if k in edges else e
+                work = [t for t in work if t not in bad]
+                for e in edges.values():
+                    if e is not None:
+                        work.append((e[0], e[1], p))
+            tris = [t for t in work if not any(v in sup for v in t)]
+        self._tin = tris
+        return tris
+
+    def _tin_plane(self, x: float, y: float):
+        """(x, y) を含む三角形の平面 → (a, b, z)（z はその点の高さ）。三角形の外なら None."""
+        for (ax, ay, az), (bx, by, bz), (cx, cy, cz) in self._triangles():
+            den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+            if abs(den) < 1e-9:
+                continue
+            l1 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / den
+            l2 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / den
+            l3 = 1.0 - l1 - l2
+            if min(l1, l2, l3) >= -1e-9:
+                z = l1 * az + l2 * bz + l3 * cz
+                # 平面の勾配（高さの変化／水平）
+                det = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+                a = ((bz - az) * (cy - ay) - (cz - az) * (by - ay)) / det
+                b = ((cz - az) * (bx - ax) - (bz - az) * (cx - ax)) / det
+                return a, b, z
+        return None
 
     def _plane(self, x: float, y: float):
         """(x, y) の近くの点に当てた平面 z = a(x−x)+b(y−y)+c → (a, b, c)。当てられなければ None."""
@@ -101,7 +176,10 @@ class GroundModel:
         return a, b, c
 
     def slope_at(self, x: float, y: float) -> float:
-        """(x, y) の地盤の勾配（高さ／水平。0.05＝5%）。平らか当てられなければ 0."""
+        """(x, y) の地盤の勾配（高さ／水平。0.05＝5%）。点の三角形の中はその面、外は近い点に当てた平面。平らなら 0."""
+        tp = self._tin_plane(x, y) if self.points else None
+        if tp is not None:
+            return math.hypot(tp[0], tp[1])
         pl = self._plane(x, y)
         return math.hypot(pl[0], pl[1]) if pl else 0.0
 
@@ -111,6 +189,9 @@ class GroundModel:
         for px, py, pz in self.points:
             if (px - x) ** 2 + (py - y) ** 2 < 1e-6:
                 return pz
+        tp = self._tin_plane(x, y)
+        if tp is not None:
+            return tp[2]
         pl = self._plane(x, y)
         if pl is not None:
             # 点の高さの範囲に収める（メッシュの外へ勾配を延ばして、敷地より高い・低い地盤を作らない）
@@ -441,6 +522,26 @@ def solve_post_feet(
                 "（ジャッキ量一覧の勾配の列）")
         elif mx > 0.005:
             notes.append(f"足元の勾配は最大 {mx * 100:.1f}%。敷板は勾配に沿わせて据え、ジャッキで高さを合わせます")
+    if not ground.is_flat:
+        near_edge = []
+        n_step = int(EDGE_LOOK_MM / EDGE_STEP_MM)
+        for f in feet:
+            for dx, dy in ((1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)):
+                s_edge, h = None, 0.0
+                for k in range(1, n_step + 1):
+                    d = k * EDGE_STEP_MM
+                    drop = f.gl_mm - ground.elevation_at(f.x + dx * d, f.y + dy * d, f.gl_mm)
+                    if s_edge is None and drop >= EDGE_START_MM:
+                        s_edge = d
+                    h = max(h, drop)
+                if s_edge is not None and h >= EDGE_DROP_MM and s_edge < max(EDGE_MIN_MM, h):
+                    near_edge.append((f, s_edge, h))
+                    break
+        if near_edge:
+            warnings.append(
+                f"根切り・段差の肩の近くに立つ{vm}が{len(near_edge)}本あります（肩まで最短 約{min(s for _f, s, _h in near_edge):.0f}mm・"
+                f"深さ 最大 {max(h for _f, _s, h in near_edge):.0f}mm。掘削の深さより肩に近い）。肩の崩れ・脚の沈下に注意し、敷板を"
+                "広く敷く・肩から離す・山留めや法面の養生を確かめてください（安衛則361条 地山の崩壊等による危険の防止）")
     deck_levels_abs = [
         ref_jack_top - ref_jack + lvl for lvl in model.elevation.level_heights
     ]

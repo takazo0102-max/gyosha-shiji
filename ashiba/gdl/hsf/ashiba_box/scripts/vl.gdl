@@ -23,6 +23,7 @@ else
 		parameters spanY = sOut, lenY = tBest
 	endif
 endif
+if zBase < 0 then parameters zBase = 0
 ! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
 tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
 if abs(thick - tSn) > 0.0005 then parameters thick = tSn

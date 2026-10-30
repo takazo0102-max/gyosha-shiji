@@ -243,6 +243,20 @@ def loop_outline(inner: list[tuple[float, float]], dirs: list[tuple[float, float
     return verts, ccw
 
 
+def loop_building(points: list, spans_by_side: list[list[int]], standoff: float) -> tuple[list[list[float]], list[list[int]]]:
+    """一周（内側の建地の列の点・辺ごとのスパン）→ 躯体の外形（左回り）と、外形の辺の順に並べ直したスパン."""
+    pts = [tuple(map(float, p)) for p in points]
+    if len(pts) > 2 and math.dist(pts[0], pts[-1]) < 1.0:
+        pts = pts[:-1]
+    inner, md, ms = loop_inner_row(pts[0], loop_directions(pts), spans_by_side)
+    outline, ccw = loop_outline(inner, md, standoff)
+    n = len(outline)
+    if not ccw:
+        outline = [outline[(n - k) % n] for k in range(n)]
+        ms = [list(reversed(ms[(n - 1 - k) % n])) for k in range(n)]
+    return outline, ms
+
+
 def solve_manual_loop(points: list, spans_by_side: list[list[int]], standoff: float, eaves_mm: float,
                       extra: Optional[dict] = None, keep_sides: Optional[list[int]] = None):
     """一周の手動配置を解く → (外形, 条件, 解いた結果). 外形は左回りにそろえ、スパンは左回りの向きに並べ直して渡す.

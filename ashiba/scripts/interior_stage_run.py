@@ -48,8 +48,8 @@ def _inside(p, corners) -> bool:
 def room_heights(c, corners, slabs=None) -> tuple[float, float, float | None]:
     """範囲の中央の床（スラブの天端）と天井（その上のスラブの下端）と、いま開いている階の高さ（mm）.
 
-    部品はいま開いている階に置くので、ステージの足元（base_mm）は床の天端 − 階の高さ。床のスラブが無ければ階の高さ、
-    上のスラブが無ければ天井は None."""
+    部品はいま開いている階に置くので、ステージの足元（base_mm）は床の天端 − 階の高さ。床のスラブが無ければ敷地メッシュの
+    高さ（根切り底など）、それも無ければ階の高さ。上のスラブが無ければ天井は None."""
     from ashiba.obstacles import _inside as inside
 
     try:
@@ -67,6 +67,17 @@ def room_heights(c, corners, slabs=None) -> tuple[float, float, float | None]:
     hit = [sl for sl in slabs if inside((cx, cy), [tuple(p) for p in sl["polygon_mm"]])]
     floors = [float(sl["top_mm"]) for sl in hit if float(sl["top_mm"]) <= story + 300.0]
     floor = max(floors) if floors else story
+    if not floors:
+        # 床のスラブが無い所（根切り底・地盤の上）は敷地メッシュの高さ（利用者の指定 2026-10-30: メッシュに根切り底と梁を
+        # 置いてテストして。床のスラブだけを見て、根切り底 −2000 の内部足場・仮設通路の島を階の高さ ±0 に立てていた）
+        try:
+            from ashiba.tapir_adapter import read_ground_model
+
+            g = read_ground_model(c, outline_mm=[tuple(p) for p in corners])
+            if g.points and any(inside((cx, cy), [tuple(q) for q in ol]) for ol in g.mesh_outlines):
+                floor = float(g.elevation_at(cx, cy, story))
+        except Exception:
+            pass
     ceils = [float(sl["top_mm"]) - float(sl.get("thickness_mm") or 0.0) for sl in hit]
     ceils = [v for v in ceils if v > floor + 500.0]
     return floor, story, (min(ceils) if ceils else None)
@@ -170,6 +181,30 @@ def main() -> int:
     except ValueError as e:
         print(f"内部足場: {e}")
         return 1
+    # 地中梁（根切り底）の上に乗る支柱（利用者の指定 2026-10-30: 根切り底と梁を置いてテストして）
+    from ashiba.beams import posts_on_beams, read_beams
+    from ashiba.interior_stage import StageCheck
+
+    beams = read_beams(c, corners)
+    if beams:
+        grid = []
+        cu = [0.0]
+        for s_ in st.spans_u:
+            cu.append(cu[-1] + s_)
+        cv = [0.0]
+        for s_ in st.spans_v:
+            cv.append(cv[-1] + s_)
+        for a in cu:
+            for b in cv:
+                grid.append((st.origin[0] + st.u[0] * a + st.v[0] * b, st.origin[1] + st.u[1] * a + st.v[1] * b))
+        hit = posts_on_beams(grid, beams, floor)
+        if hit:
+            st.checks.append(StageCheck("地中梁の上の支柱", "WARN",
+                                        f"支柱 {len(hit)}本が地中梁の上に乗る（梁の上端 {max(b.top_mm for _p, b in hit) - floor:.0f}mm"
+                                        "・床から）。支柱の高さが合わないので、範囲をずらして梁をよけるか、梁の上の支柱を短くして"
+                                        "ジャッキで高さを合わせる"))
+        else:
+            st.checks.append(StageCheck("地中梁の上の支柱", "OK", f"近くの梁 {len(beams)}本の上に支柱は乗らない"))
     R.ensure_parts(c)
     name = R.versioned_part_name(STAGE_OBJECT)
     # 同じ範囲に前に置いたステージは置き換える

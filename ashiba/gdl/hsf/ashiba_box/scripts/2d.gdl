@@ -47,7 +47,9 @@ next cx
 style "bxC"
 text2 lx / 2, ly / 2, kind + "（厚み " + str(tk * 1000, 1, 0) + "）"
 style "bxT"
-text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str(deckTop * 1000, 1, 0) + "）"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
 hotspot2 0, 0
 hotspot2 lx, 0
 hotspot2 lx, ly

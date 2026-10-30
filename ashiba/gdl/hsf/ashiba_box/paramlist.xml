@@ -70,8 +70,12 @@
 			<Value>0.1</Value>
 		</Length>
 		<Length Name="topEdit">
-			<Description><![CDATA["最上段の作業床（3D のつまみ。引くと段数が変わる）"]]></Description>
+			<Description><![CDATA["最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）"]]></Description>
 			<Value>7.18</Value>
+		</Length>
+		<Length Name="zBase">
+			<Description><![CDATA["立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）"]]></Description>
+			<Value>0</Value>
 		</Length>
 		<String Name="seriesId">
 			<Description><![CDATA["足場の種類（系列の ID。本体にするときに使う）"]]></Description>

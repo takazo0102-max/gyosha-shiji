@@ -12,6 +12,9 @@
                                                                         # 外形を敷地境界にする・足元の勾配の確認
   python3 scripts/dev_cases.py create box --at x,y                     # 12×8m・3階（軒 9m）の平らな建物（枠組・昇降機などの確認）
   python3 scripts/dev_cases.py create ell --at x,y                     # L 字 16×12m・3階（軒 9m）（一側足場の隅・面の組の隅の確認）
+  python3 scripts/dev_cases.py create pit --at x,y                     # 12×8m・3階と、南に深さ 2m の根切り（敷地メッシュ）・
+                                                                      # 根切り底の地中梁 2本（根切り底の内部足場・梁を渡る
+                                                                      # 仮設通路・根切りの縁の外部足場の確認）
   python3 scripts/dev_cases.py place <名前>                           # その建物の足場を置く（条件の窓なし）
   python3 scripts/dev_cases.py clear [<名前>]                          # 足場と作ったスラブを消す
 """
@@ -47,7 +50,7 @@ def floors(kind: str, ox: float, oy: float) -> list[tuple[list, float]]:
         low = _rect(ox, oy, 0, 0, 24000, 10000)
         big = _rect(ox, oy, 0, -2000, 24000, 10000)
         return [(low, 0.0)] + [(big, h) for h in (3000.0, 6000.0, 9000.0, 12000.0)]
-    if kind in ("slope", "box"):
+    if kind in ("slope", "box", "pit"):
         low = _rect(ox, oy, 0, 0, 12000, 8000)
         return [(low, 0.0)] + [(low, h) for h in (3000.0, 6000.0, 9000.0)]
     if kind == "ell":
@@ -60,6 +63,38 @@ def floors(kind: str, ox: float, oy: float) -> list[tuple[list, float]]:
         big = _rect(ox, oy, -1000, 0, 6000, 5000)
         return [(low, 0.0), (low, 3000.0)] + [(big, h) for h in (6000.0, 9000.0)]
     raise SystemExit(f"形が分かりません: {kind}（setback / overhang / sidebridge / slope / box / ell）")
+
+
+# 根切りの見本（利用者の指定 2026-10-30: 次足場はメッシュに根切り底と梁を置いてテストして）: 建物 12×8m の南に、深さ 2m の
+# 根切り（法肩 x −2000〜14000・y −1700〜−13700、法尻（根切り底）は 1m 内側）を敷地メッシュで、根切り底に地中梁 2本（南北）
+PIT_DEPTH_MM = 2000.0
+PIT_TOP = (-2000.0, -13700.0, 14000.0, -1700.0)        # 法肩（GL±0）
+PIT_BOTTOM = (-1000.0, -12700.0, 13000.0, -2700.0)     # 法尻（根切り底 −2000）
+PIT_SITE = (-8000.0, -20000.0, 20000.0, 14000.0)       # メッシュの外形（GL±0）
+PIT_BEAMS_X = (4000.0, 8000.0)                          # 地中梁の芯（南北に根切り底を渡る）
+PIT_BEAM_WH = (600.0, 1000.0)                           # 地中梁の幅・梁せい（根切り底から立ち上がる。上端は −1000）
+
+
+def pit_mesh(ox: float, oy: float) -> dict:
+    """根切りの見本の敷地メッシュ（外形は GL±0、法肩・法尻の矩形をレベル線で。m）."""
+    m = lambda x, y, z: {"x": (ox + x) / 1000.0, "y": (oy + y) / 1000.0, "z": z / 1000.0}
+    x0, y0, x1, y1 = PIT_SITE
+
+    def ring(r, z):
+        a0, b0, a1, b1 = r
+        return {"coordinates": [m(a0, b0, z), m(a1, b0, z), m(a1, b1, z), m(a0, b1, z), m(a0, b0, z)]}
+
+    return {"level": 0.0, "polygonCoordinates": [m(x0, y0, 0), m(x1, y0, 0), m(x1, y1, 0), m(x0, y1, 0)],
+            "sublines": [ring(PIT_TOP, 0.0), ring(PIT_BOTTOM, -PIT_DEPTH_MM)]}
+
+
+def pit_beams(ox: float, oy: float) -> list[dict]:
+    """根切り底の地中梁（Tapir CreateBeams の beamsData。南北に法尻から法尻まで。zCoordinate は梁の上端＝根切り底＋梁せい）."""
+    _a0, b0, _a1, b1 = PIT_BOTTOM
+    w, h = PIT_BEAM_WH
+    return [{"begCoordinate": {"x": (ox + x) / 1000.0, "y": (oy + b0) / 1000.0},
+             "endCoordinate": {"x": (ox + x) / 1000.0, "y": (oy + b1) / 1000.0},
+             "zCoordinate": (h - PIT_DEPTH_MM) / 1000.0, "width": w / 1000.0, "height": h / 1000.0} for x in PIT_BEAMS_X]
 
 
 # 斜面の見本の敷地メッシュ（建物の外形から 西 4m・東 4m・北 3m・南 1.3m。西の端が GL±0、東の端が −1.5m）
@@ -108,7 +143,16 @@ def main() -> int:
                 guids.append(res[0]["elementId"]["guid"])
             else:
                 print(f"slope: 敷地メッシュを作れませんでした（{res}）")
-        rec[kind] = {"guids": guids, "outline_mm": [list(p) for p in floors(kind, ox, oy)[0][0]]}
+        if kind == "pit":
+            for what, cmd, data in (("敷地メッシュ", "CreateMeshes", {"meshesData": [pit_mesh(ox, oy)]}),
+                                    ("地中梁", "CreateBeams", {"beamsData": pit_beams(ox, oy)})):
+                try:
+                    res = c.tapir(cmd, data).get("elements", [])
+                except Exception as e:
+                    print(f"pit: {what}を作れませんでした（{e}）")
+                    res = []
+                guids += [r["elementId"]["guid"] for r in res if "elementId" in r]
+        rec[kind] = {"guids": guids, "outline_mm": [list(p) for p in floors(kind, ox, oy)[0][0]], "at": [ox, oy]}
         save(rec)
         print(f"{kind}: スラブ・メッシュ {len(guids)}個を作りました（地面の床 {guids[0][:8]}）")
         return 0

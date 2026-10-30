@@ -967,6 +967,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             margin_mm=stale_margin_mm(r.model, [rg.model for _lb, rg in groups[1:]]),
         ) if e["elementId"]["guid"] not in placed_now
     ]
+    if stale and spec.get("_same_base_only"):
+        # 足場の箱から置くとき（box_run）: 同じ立つ高さの前の配置だけ片付ける。セットバックの上の階の箱は下の箱の範囲の中に
+        # あるので、範囲だけで拾うと下の箱の足場まで消していた
+        zb = float(spec.get("base_height_mm") or 0.0)
+        dets = client.get_details(stale)
+        stale = [e for e, d in zip(stale, dets)
+                 if abs(float(((d.get("details") or {}).get("origin") or {}).get("z", 0.0)) * 1000.0 - zb) < 500.0]
     if stale:
         client.delete_elements(stale)
     replaced = len(stale)

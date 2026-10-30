@@ -23,7 +23,8 @@
 !   lev1      長さ      1段目の作業床の高さ                                                                        既定 1.78
 !   floorH    長さ      作業床の段の間隔                                                                           既定 1.8
 !   jackH     長さ      ジャッキの繰出し（図の目安）                                                               既定 0.1
-!   topEdit   長さ      最上段の作業床（3D のつまみ。引くと段数が変わる）                                          既定 7.18
+!   topEdit   長さ      最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）                            既定 7.18
+!   zBase     長さ      立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）            既定 0
 !   seriesId  文字列    足場の種類（系列の ID。本体にするときに使う）                                              既定 ""
 !   standoff  長さ      離れ（躯体から内側の建地まで。本体にするときに使う）                                       既定 0.3
 !   texSiz    実数      文字の大きさ（mm）                                                                         既定 2.5
@@ -172,7 +173,9 @@ next cx
 style "bxC"
 text2 lx / 2, ly / 2, kind + "（厚み " + str(tk * 1000, 1, 0) + "）"
 style "bxT"
-text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str(deckTop * 1000, 1, 0) + "）"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
 hotspot2 0, 0
 hotspot2 lx, 0
 hotspot2 lx, ly
@@ -198,6 +201,11 @@ hotspot2 lx / 4, 1, 109, thick, 3
 ! 厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、作業床の段の高さに外周の線
 ! ============================================================
 resol 8
+! ---- 立つ高さのつまみ（右上の出隅。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot lx + tk, ly + tk, 0, 1010, zBase, 1 + 128
+hotspot lx + tk, ly + tk, zBase, 1011, zBase, 2
+hotspot lx + tk, ly + tk, -1, 1012, zBase, 3
+add 0, 0, zBase
 define material "bx_1" 2, 0.95, 0.62, 0.25
 define material "bx_6" 2, 0.45, 0.70, 0.95
 define material "bx_9" 2, 0.45, 0.80, 0.45
@@ -251,6 +259,7 @@ next lv
 hotspot -tk, -tk, 0, 1000, topEdit, 1 + 128
 hotspot -tk, -tk, topEdit, 1001, topEdit, 2
 hotspot -tk, -tk, -1, 1002, topEdit, 3
+del 1
 end
 
 ! ==========================================================
@@ -281,6 +290,7 @@ else
 		parameters spanY = sOut, lenY = tBest
 	endif
 endif
+if zBase < 0 then parameters zBase = 0
 ! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
 tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
 if abs(thick - tSn) > 0.0005 then parameters thick = tSn

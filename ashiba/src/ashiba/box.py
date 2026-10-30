@@ -75,6 +75,7 @@ def parse_box_params(params: dict) -> dict:
         raise ValueError("箱のスパンが読めません（spanX・spanY）")
     return {"sx": sx, "sy": sy, "levels": max(1, int(float(params.get("nLev") or DEFAULT_LEVELS))),
             "thick_mm": snap_thickness(float(params.get("thick") or 0.9) * 1000.0),
+            "base_mm": max(0.0, float(params.get("zBase") or 0.0) * 1000.0),
             "standoff": float(params.get("standoff") or 0.3) * 1000.0,
             "floor_mm": float(params.get("floorH") or 1.8) * 1000.0,
             "series_id": str(params.get("seriesId") or "")}
@@ -104,13 +105,46 @@ def width_nominal(row_mm: float) -> int:
 
 
 def box_params(sx: list[int], sy: list[int], coins: list[int], thick_mm: float, levels: int, lev1_mm: float,
-               floor_mm: float, series_id: str, standoff: float, pens: Optional[dict] = None) -> dict:
+               floor_mm: float, series_id: str, standoff: float, pens: Optional[dict] = None,
+               base_mm: float = 0.0) -> dict:
     """部品 ashiba_box に入れるパラメータ（m）."""
     out = {"spanX": ",".join(str(int(v)) for v in sx), "spanY": ",".join(str(int(v)) for v in sy),
            "szList": ",".join(str(int(c)) for c in sorted({int(c) for c in coins}, reverse=True)),
            "lenX": sum(sx) / 1000.0, "lenY": sum(sy) / 1000.0, "thick": snap_thickness(thick_mm) / 1000.0,
            "nLev": int(levels),
            "lev1": lev1_mm / 1000.0, "floorH": floor_mm / 1000.0,
-           "topEdit": (lev1_mm + (levels - 1) * floor_mm) / 1000.0, "seriesId": series_id, "standoff": standoff / 1000.0}
+           "topEdit": (lev1_mm + (levels - 1) * floor_mm) / 1000.0, "seriesId": series_id, "standoff": standoff / 1000.0,
+           "zBase": max(0.0, base_mm) / 1000.0}
     out.update(pens or {})
     return out
+
+
+def contains(outer_pts: list, inner_pts: list, tol: float = 1.0) -> bool:
+    """箱の内側の建地の列（四角）inner が outer の中（辺の上も含む）にあるか."""
+    xs, ys = [p[0] for p in outer_pts], [p[1] for p in outer_pts]
+    return all(min(xs) - tol <= p[0] <= max(xs) + tol and min(ys) - tol <= p[1] <= max(ys) + tol for p in inner_pts)
+
+
+def setback_spec(low: dict, uppers: list[dict], extra: dict) -> dict:
+    """下の箱と、その中に立つ高さを上げて重ねた上の階の箱 → 下の足場と上段をつないで一度に解く条件.
+
+    利用者の指定（2026-10-30）「下の足場と上段をつなげて」。建物の床から解くセットバック（setback_tiers）と同じ形にする:
+    下の箱の内側を途中の屋根の床（天端＝上の箱の立つ高さ）、上の箱の内側を上の階の床（天端＝立つ高さ＋その箱の高さ）とし、
+    本体は下の箱のスパン・離れで解く。上の階の面が下の箱の面にそろう所は本体の足場がそのまま上まで上がり、下がった面は屋根の
+    上から上段の足場を建てて端を本体の支柱に乗せる。本体から途中の屋根へは屋上への渡りを付ける。low・uppers は {"pts", "sides", "standoff", "base_mm", "levels", "floor_mm"}."""
+    from .manual import eaves_for_levels, loop_building
+
+    outline, ms = loop_building(low["pts"], low["sides"], low["standoff"])
+    roof = min(u["base_mm"] for u in uppers)
+    slabs = [{"polygon_mm": outline, "top_mm": roof, "thickness_mm": 200.0}]
+    for u in uppers:
+        ol, _ = loop_building(u["pts"], u["sides"], u["standoff"])
+        slabs.append({"polygon_mm": ol, "top_mm": u["base_mm"] + eaves_for_levels(u["levels"], int(u["floor_mm"])),
+                      "thickness_mm": 200.0})
+    so = float(low["standoff"])
+    return {**extra, "outline_mm": outline, "eaves_height_mm": roof, "slabs": slabs,
+            "span_overrides": [{"edge_index": i, "spans_mm": sp} for i, sp in enumerate(ms)],
+            "standoff": {"target": so, "min": so, "max": so, "hard_min": so},
+            # 屋根は利用者が箱で決めた本物の屋根なので、本体の足場から途中の屋根へ・上段から上の階の屋根へ渡る（上の箱が
+            # 下の箱の内側に収まって面がそろわないときも、本体から屋根へ渡って上段へ行ける）
+            "height_from_slabs": True, "avoid_obstacles": True, "roof_bridge": True}

@@ -121,6 +121,27 @@ def main() -> int:
     except ValueError as ex:
         print(f"仮設通路: {ex}")
         return 1
+    # 梁をまたぐ所のあき・島の支柱が梁に乗らないか（利用者の指定 2026-10-30: 根切り底と梁を置いてテストして）
+    from ashiba.beams import posts_on_beams, read_beams, walkway_beam_checks
+    from ashiba.walkways import WalkwayCheck
+
+    beams = read_beams(c, [list(s), list(e)])
+    if beams:
+        for st_, msg in walkway_beam_checks(s, e, floor + r.deck_mm, floor + r.end_deck_mm, beams):
+            r.checks.append(WalkwayCheck("梁のまたぎ", st_, msg))
+        for isl in r.islands:
+            cu = [0.0]
+            for s_ in isl.spans_u:
+                cu.append(cu[-1] + s_)
+            cv = [0.0]
+            for s_ in isl.spans_v:
+                cv.append(cv[-1] + s_)
+            grid = [(isl.origin[0] + isl.u[0] * a + isl.v[0] * b, isl.origin[1] + isl.u[1] * a + isl.v[1] * b)
+                    for a in cu for b in cv]
+            hit = posts_on_beams(grid, beams, floor)
+            if hit:
+                r.checks.append(WalkwayCheck("島の支柱と梁", "WARN", f"{isl.name}の支柱 {len(hit)}本が梁の上に乗る。島をずらす"
+                                             "か、梁の上の支柱を短くしてジャッキで高さを合わせる"))
     R.ensure_parts(c)
     old = _old_parts(c, r)
     if old:

@@ -3,6 +3,11 @@
 ! 厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、作業床の段の高さに外周の線
 ! ============================================================
 resol 8
+! ---- 立つ高さのつまみ（右上の出隅。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot lx + tk, ly + tk, 0, 1010, zBase, 1 + 128
+hotspot lx + tk, ly + tk, zBase, 1011, zBase, 2
+hotspot lx + tk, ly + tk, -1, 1012, zBase, 3
+add 0, 0, zBase
 define material "bx_1" 2, 0.95, 0.62, 0.25
 define material "bx_6" 2, 0.45, 0.70, 0.95
 define material "bx_9" 2, 0.45, 0.80, 0.45
@@ -56,4 +61,5 @@ next lv
 hotspot -tk, -tk, 0, 1000, topEdit, 1 + 128
 hotspot -tk, -tk, topEdit, 1001, topEdit, 2
 hotspot -tk, -tk, -1, 1002, topEdit, 3
+del 1
 end

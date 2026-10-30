@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.box import box_coins, box_loop, box_params, parse_box_params, snap_spans, thickness_conditions
+from ashiba.box import box_coins, box_loop, box_params, contains, parse_box_params, snap_spans, thickness_conditions
 from ashiba.manual import solve_manual_loop
 
 INCH = [1829, 1524, 1219, 914, 610]
@@ -51,6 +51,52 @@ class TestBoxLoop(unittest.TestCase):
         self.assertTrue(r.verdict["ok"], r.verdict)
         self.assertEqual([list(e.spans) for e in r.model.plan.edges],
                          [[1829] * 4, [1829] * 3, [1829] * 4, [1829] * 3])
+
+    def test_setback_box_stands_on_the_roof(self):
+        """セットバック（利用者の指定 2026-10-30: 高さも変えてセットバックにも対応）: 上の階の箱は立つ高さ zBase から建つ."""
+        p = box_params([1829] * 4, [1829] * 2, INCH, 600.0, 3, 1780.0, 1800.0, "albatross", 300.0, base_mm=5400.0)
+        b = parse_box_params({**p, "nLev": 3})
+        self.assertEqual((p["zBase"], b["base_mm"]), (5.4, 5400.0))
+        pts, sides = box_loop((0.0, 0.0), 0.0, b["sx"], b["sy"])
+        _w, _spec, r = solve_manual_loop(pts, sides, 300.0, 5200.0,
+                                         {"series_id": "albatross", "base_height_mm": b["base_mm"], "scaffold_width_mm": 600})
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertEqual(r.model.base_height_mm, 5400.0)
+
+    def test_setback_joins_the_main_scaffold(self):
+        """下の足場と上段をつなげる（利用者の指定 2026-10-30）: 南面だけ下がる上の階の箱 → 本体の東・北・西面は上まで、南面は
+        途中の屋根で止め、上段の南面の端を本体の支柱に乗せる."""
+        from ashiba.box import setback_spec
+        from ashiba.cli import solve_groups
+
+        lp, ls = box_loop((0.0, 0.0), 0.0, [1829] * 8, [1829] * 5)
+        up, us = box_loop((0.0, 3658.0), 0.0, [1829] * 8, [1829] * 3)
+        low = {"pts": lp, "sides": ls, "standoff": 300.0, "base_mm": 0.0, "levels": 3, "floor_mm": 1800.0}
+        upper = {"pts": up, "sides": us, "standoff": 300.0, "base_mm": 5400.0, "levels": 3, "floor_mm": 1800.0}
+        self.assertTrue(contains(lp, up))
+        groups = dict(solve_groups(setback_spec(low, [upper], {"series_id": "albatross"})))
+        self.assertEqual(set(groups), {"", "下段", "上段"})
+        self.assertTrue(all(g.verdict["ok"] for g in groups.values()), {k: g.verdict for k, g in groups.items()})
+        main, tier = groups[""].model, groups["上段"].model
+        self.assertEqual(tier.base_height_mm, 5400.0)
+        names = dict(zip([e.edge_index for e in main.plan.edges], main.plan.face_names()))
+        tops = {names[e.edge_index]: main.elevation_of(e.edge_index).total_height for e in main.plan.edges}
+        self.assertLess(tops["南面"], tops["北面"])                       # 南面は途中の屋根で止まる
+        self.assertTrue(any("本体の足場に繋ぎます" in str(w) for w in groups[""].warnings))
+        self.assertTrue(groups[""].model.roof_bridges)                    # 本体から途中の屋根へ渡る
+
+    def test_inset_tier_reached_by_a_roof_bridge(self):
+        """上の箱が下の箱の内側に収まる（面がそろわない）ときも、本体から途中の屋根へ渡って上段へ行ける."""
+        from ashiba.box import setback_spec
+        from ashiba.cli import solve_groups
+
+        lp, ls = box_loop((0.0, 0.0), 0.0, [1829] * 8, [1829] * 5)
+        up, us = box_loop((3658.0, 3658.0), 0.0, [1829] * 4, [1829] * 2)
+        low = {"pts": lp, "sides": ls, "standoff": 300.0, "base_mm": 0.0, "levels": 3, "floor_mm": 1800.0}
+        upper = {"pts": up, "sides": us, "standoff": 300.0, "base_mm": 5400.0, "levels": 3, "floor_mm": 1800.0}
+        groups = dict(solve_groups(setback_spec(low, [upper], {"series_id": "albatross"})))
+        self.assertTrue(all(g.verdict["ok"] for g in groups.values()))
+        self.assertTrue(any(b.z_to_mm == 5400.0 for b in groups[""].model.roof_bridges))
 
     def test_thickness_picks_the_scaffold(self):
         """厚みで足場の種類も変える（利用者の指定 2026-10-30）: 300＝一側足場、600／900／1200＝幅 610／914／1219 の本足場."""

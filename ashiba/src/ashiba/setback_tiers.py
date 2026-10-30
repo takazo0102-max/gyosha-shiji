@@ -794,7 +794,12 @@ def setback_junctions(spec: dict, tiers: list[tuple[str, dict]], solve, names_of
     # 切れ目: 下段の側は本体に続く（妻側を塞がない）、本体の側は途中の屋根より上だけ塞ぐ
     low_join = [[idx_of[f], "e" if a < 0.5 else "s"] for f, (a, _b) in low.items()]
     open_above = [[idx_of[f], "s" if a < 0.5 else "e", low_top - base] for f, (a, _b) in low.items()]
-    main = {**spec, "span_overrides": list(spec.get("span_overrides") or [])
+    # 入力にスパンの指定がある面（足場の箱から置くとき。利用者の指定 2026-10-30: 下の足場と上段をつなげて）は、上段の端を
+    # 本体の支柱に乗せる割付の方を使う（同じ面に指定が2つあると「重複」で止まっていた）
+    fixed_faces = set(overrides)
+    keep = [o for o in (spec.get("span_overrides") or [])
+            if str(o.get("face", name_of.get(o.get("edge_index"), ""))) not in fixed_faces]
+    main = {**spec, "span_overrides": keep
             + [{"face": f, "spans_mm": sp} for f, sp in overrides.items()],
             "_low_ranges": low, "_open_above": open_above,
             **({"_span_standoff_max": round(span_so_max, 1)} if span_so_max else {}),
