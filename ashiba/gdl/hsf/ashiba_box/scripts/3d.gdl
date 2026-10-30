@@ -1,0 +1,167 @@
+﻿! ============================================================
+! 足場の箱 3D（超簡易モードの形の確かめ）: 外周の支柱（内外の列と出隅の支柱）・各段の作業床・腕木・布材、外側の手すり・
+! 中桟（一周）。階段・壁つなぎ・シートは本体にしたときに付く。天端のつまみで作業床の段数を増減
+! ============================================================
+resol 8
+define material "bx_post" 2, 0.62, 0.64, 0.68
+define material "bx_deck" 2, 0.42, 0.45, 0.50
+define material "bx_jack" 2, 0.35, 0.35, 0.38
+mPo = IND(MATERIAL, "bx_post")
+mDe = IND(MATERIAL, "bx_deck")
+mJa = IND(MATERIAL, "bx_jack")
+rP = 0.0243
+rL = 0.0214
+! ---- 支柱の位置 ----
+dim px[], py[]
+nP = 0
+xx = 0
+for i = 1 to nX + 1
+	nP = nP + 1
+	px[nP] = xx
+	py[nP] = 0
+	nP = nP + 1
+	px[nP] = xx
+	py[nP] = -rowW
+	nP = nP + 1
+	px[nP] = xx
+	py[nP] = ly
+	nP = nP + 1
+	px[nP] = xx
+	py[nP] = ly + rowW
+	if i <= nX then xx = xx + sx[i]
+next i
+yy = 0
+for j = 1 to nY - 1
+	yy = yy + sy[j]
+	nP = nP + 1
+	px[nP] = 0
+	py[nP] = yy
+	nP = nP + 1
+	px[nP] = -rowW
+	py[nP] = yy
+	nP = nP + 1
+	px[nP] = lx
+	py[nP] = yy
+	nP = nP + 1
+	px[nP] = lx + rowW
+	py[nP] = yy
+next j
+for cx = 0 to 1
+	for cy = 0 to 1
+		nP = nP + 1
+		px[nP] = -rowW + cx * (lx + 2 * rowW)
+		py[nP] = -rowW + cy * (ly + 2 * rowW)
+	next cy
+next cx
+for k = 1 to nP
+	add px[k], py[k], 0
+	material mJa
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.008
+	del 1
+	cylind jackH, 0.017
+	material mPo
+	add 0, 0, jackH
+	cylind postH - jackH, rP
+	del 2
+next k
+! ---- 根がらみ（内外の列を一周） ----
+material mPo
+z = jackH + 0.15
+o = 0
+gosub "ring"
+o = rowW
+gosub "ring"
+! ---- 各段: 作業床・布材（内外）・腕木・外側の手すり・中桟 ----
+for lv = 1 to nL
+	zl = lev1 + (lv - 1) * floorH
+	material mPo
+	z = zl
+	o = 0
+	gosub "ring"
+	o = rowW
+	gosub "ring"
+	z = zl + 0.9
+	gosub "ring"
+	z = zl + 0.45
+	gosub "ring"
+	! 腕木（内外の列を結ぶ）
+	xx = 0
+	for i = 1 to nX + 1
+		add xx, 0, zl
+		rotx 90
+		cylind rowW, rL
+		del 2
+		add xx, ly, zl
+		rotx -90
+		cylind rowW, rL
+		del 2
+		if i <= nX then xx = xx + sx[i]
+	next i
+	yy = 0
+	for j = 1 to nY - 1
+		yy = yy + sy[j]
+		add 0, yy, zl
+		roty -90
+		cylind rowW, rL
+		del 2
+		add lx, yy, zl
+		roty 90
+		cylind rowW, rL
+		del 2
+	next j
+	! 作業床（スパンごと＋出隅の升目）
+	material mDe
+	xx = 0
+	for i = 1 to nX
+		add xx + 0.01, -rowW + 0.02, zl - 0.045
+		block sx[i] - 0.02, rowW - 0.04, 0.045
+		del 1
+		add xx + 0.01, ly + 0.02, zl - 0.045
+		block sx[i] - 0.02, rowW - 0.04, 0.045
+		del 1
+		xx = xx + sx[i]
+	next i
+	yy = 0
+	for j = 1 to nY
+		add -rowW + 0.02, yy + 0.01, zl - 0.045
+		block rowW - 0.04, sy[j] - 0.02, 0.045
+		del 1
+		add lx + 0.02, yy + 0.01, zl - 0.045
+		block rowW - 0.04, sy[j] - 0.02, 0.045
+		del 1
+		yy = yy + sy[j]
+	next j
+	for cx = 0 to 1
+		for cy = 0 to 1
+			add -rowW + 0.02 + cx * (lx + rowW), -rowW + 0.02 + cy * (ly + rowW), zl - 0.045
+			block rowW - 0.04, rowW - 0.04, 0.045
+			del 1
+		next cy
+	next cx
+next lv
+! ---- 段数のつまみ（出隅の支柱の上。引くと段の間隔に丸めて段数が変わる） ----
+hotspot -rowW, -rowW, 0, 1000, topEdit, 1 + 128
+hotspot -rowW, -rowW, topEdit, 1001, topEdit, 2
+hotspot -rowW, -rowW, -1, 1002, topEdit, 3
+end
+
+"ring":
+	! 内側の列（o = 0）か外側の列（o = rowW）を高さ z で一周
+	add -o, -o, z
+	roty 90
+	cylind lx + 2 * o, rL
+	del 2
+	add -o, ly + o, z
+	roty 90
+	cylind lx + 2 * o, rL
+	del 2
+	add -o, -o, z
+	rotx -90
+	cylind ly + 2 * o, rL
+	del 2
+	add lx + o, -o, z
+	rotx -90
+	cylind ly + 2 * o, rL
+	del 2
+return

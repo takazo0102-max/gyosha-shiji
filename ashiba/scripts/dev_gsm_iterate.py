@@ -107,6 +107,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},
     },
+    # 足場の箱（超簡易モード。利用者の指定 2026-10-30: 箱を作って自分で伸び縮み）
+    "ashiba_box": {
+        "images": ("3D", "2D"),
+        "params": {"spanX": "1829,1829,1829,914", "spanY": "1829,1829", "nLev": 3, "rowW": 0.914},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）

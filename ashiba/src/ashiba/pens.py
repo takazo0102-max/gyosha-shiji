@@ -34,6 +34,7 @@ PART_PENS = {
     "ashiba_kbrk": ("equip",),
     "ashiba_stage": ("post", "line", "deck"),
     "ashiba_walkway": ("equip",),
+    "ashiba_box": ("equip",),
 }
 
 
