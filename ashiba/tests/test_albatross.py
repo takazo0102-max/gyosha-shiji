@@ -228,6 +228,16 @@ class TestAlbatrossSlope(unittest.TestCase):
         self.assertTrue([n for n in r.quantity.notes if "457mm×4（610mmの品で計上）" in str(n)])
 
 
+class TestAlbatrossElevationJack(unittest.TestCase):
+    def test_elevation_jack_within_255(self):
+        """立面の割付もジャッキ 255 まで（実務上限 270 の構成を選び、伸びない繰出しになっていた）."""
+        from ashiba.elevation_solver import solve_elevation
+
+        m = load_master("albatross")
+        for h in range(3000, 20000, 37):
+            self.assertLessEqual(solve_elevation(h, master=m).jack_extension, 255, h)
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 

@@ -265,6 +265,9 @@ def solve_elevation(
     first_level: 1層目の作業床を 1.8m 前後（階高±半コマ）にそろえる（外部足場の本体。天端は最大で階高ぶん上がる）。
     枠組系列のマスタが渡された場合は建枠の積み上げ（solve_elevation_frame）へ委譲する。
     """
+    if master is not None and (master.jack_hard_max_mm() or 0) > jack_min:
+        # ジャッキの伸びる長さが実務上限より短い系列（アルバトロス 37751 は 255）はその長さまで（270 の構成を選んでいた）
+        jack_max = min(jack_max, int(master.jack_hard_max_mm()))
     if post_lengths is None and master is not None and master.is_frame:
         return solve_elevation_frame(required_height, master, jack_max, jack_min)
     if post_lengths is None:
