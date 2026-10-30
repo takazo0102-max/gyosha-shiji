@@ -381,3 +381,72 @@ def solve_side_job(job: dict, sides: list[dict], extra: dict):
         return world, spec, [("", r)]
     spec = {**spec, **({"face_forms": forms} if forms else {}), **({"face_eaves_mm": heights} if heights else {})}
     return world, spec, solve_groups(spec)
+
+
+# ---- 線から辺を置く（利用者の指定 2026-10-31: 線引っ張った範囲だけに配置するようにして 今一線だけで四角につくられてしまう）----
+# 線1本は1辺、ポリラインは折れ目ごとに1辺。長さは線の範囲を超えない定尺の組み合わせ。足場を出す側は、閉じたポリラインなら外回り、
+# 開いた線なら建物（近くのスラブ）の反対側、建物が無ければ線の右（始点から終点を見て）。
+
+def snap_within(length_mm: float, coins: list[int]) -> list[int]:
+    """線の長さを超えない定尺の組み合わせ（定尺の最大を並べ端数を定尺 0〜2 本で埋める組のうち、いちばん長いもの。1本多いごとに
+    PIECE_PENALTY_MM 短いとみる）。いちばん短い定尺より短い線はその1本."""
+    sz = sorted({int(c) for c in coins if c > 100}, reverse=True)
+    if not sz:
+        raise ValueError("定尺がありません")
+    mx = sz[0]
+    best = None
+    for n in range(0, int(length_mm // mx) + 1):
+        for i in range(0, len(sz) + 1):
+            for j in range(i, len(sz) + 1):
+                s = sz[i - 1] if i > 0 else 0
+                t = sz[j - 1] if j > 0 else 0
+                tot = n * mx + s + t
+                if tot <= 100 or tot > length_mm + 1.0:
+                    continue
+                d = (length_mm - tot) + PIECE_PENALTY_MM * (n + (i > 0) + (j > 0))
+                if best is None or d < best[0]:
+                    best = (d, [mx] * n + [v for v in (s, t) if v])
+    return best[1] if best else [sz[-1]]
+
+
+def _signed_area(pts: list) -> float:
+    n = len(pts)
+    return sum(pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1] for i in range(n)) / 2.0
+
+
+def orient_path(segs: list, building: Optional[list] = None) -> tuple[list, str]:
+    """線の区間の並び → 足場が進む向きの右に来るようにそろえた区間と、そろえ方の説明.
+    閉じた線は左回り（足場は外回り）。開いた線は建物の外形（building）の重心が右にあれば逆向きにする（足場は建物の反対側）."""
+    segs = [(tuple(map(float, a)), tuple(map(float, b))) for a, b in segs]
+    rev = [(b, a) for a, b in reversed(segs)]
+    closed = len(segs) >= 3 and math.dist(segs[0][0], segs[-1][1]) < 1.0
+    if closed:
+        return (segs if _signed_area([a for a, _b in segs]) > 0 else rev), "閉じた線の外回り"
+    if building:
+        cx = sum(p[0] for p in building) / len(building)
+        cy = sum(p[1] for p in building) / len(building)
+        # 重心にいちばん近い区間で、重心が線のどちら側か
+        def dist(seg):
+            (ax, ay), (bx, by) = seg
+            L2 = (bx - ax) ** 2 + (by - ay) ** 2 or 1.0
+            t = max(0.0, min(1.0, ((cx - ax) * (bx - ax) + (cy - ay) * (by - ay)) / L2))
+            return math.hypot(cx - ax - t * (bx - ax), cy - ay - t * (by - ay))
+        (ax, ay), (bx, by) = min(segs, key=dist)
+        right = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) < 0
+        return (rev if right else segs), "建物の反対側"
+    return segs, "線の右（始点から終点を見て。反対に出すときは線を逆向きに引く）"
+
+
+def sides_from_path(segs: list, coins: list[int]) -> list[tuple[tuple[float, float], float, list[int], bool]]:
+    """向きをそろえた区間の並び → 辺 [(始点, 向きの角度, スパン, 終わりの出隅を描くか)]. 長さは区間を超えない定尺の組み合わせ."""
+    from .manual import axis_direction
+
+    closed = len(segs) >= 3 and math.dist(segs[0][0], segs[-1][1]) < 1.0
+    dirs = [axis_direction(a, b) for a, b in segs]
+    out = []
+    for k, (a, b) in enumerate(segs):
+        d = dirs[k]
+        nxt = dirs[(k + 1) % len(segs)] if closed or k + 1 < len(segs) else None
+        corner = nxt is not None and d[0] * nxt[1] - d[1] * nxt[0] > 0.5      # 左に曲がる角（出隅）
+        out.append((a, math.atan2(d[1], d[0]), snap_within(math.dist(a, b), coins), corner))
+    return out

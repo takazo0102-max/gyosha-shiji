@@ -7,8 +7,9 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_sides, contains, parse_box_params,
-                        parse_side_params, plan_side_chain, side_axis, side_params, snap_spans, solve_side_job,
+from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_sides, contains, orient_path, parse_box_params,
+                        parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
+                        snap_within, solve_side_job,
                         thickness_conditions)
 from ashiba.manual import solve_manual_loop
 
@@ -200,6 +201,49 @@ class TestSides(unittest.TestCase):
         self.assertEqual((ch, closed), ([0, 1, 2, 3], False))
         with self.assertRaisesRegex(ValueError, "一周に閉じて"):
             plan_side_chain(sd, ch, closed)
+
+
+
+class TestSidesFromLines(unittest.TestCase):
+    """線の範囲だけに辺を置く（利用者の指定 2026-10-31: 線引っ張った範囲だけに配置するようにして 今一線だけで四角につくられてしまう）."""
+
+    def test_length_stays_within_the_line(self):
+        self.assertEqual(snap_within(7316, INCH), [1829] * 4)
+        self.assertEqual(snap_within(5000, INCH), [1829, 1829, 1219])       # 4877（5000 を超えない）
+        self.assertLessEqual(sum(snap_within(9100, INCH)), 9100)
+        self.assertEqual(snap_within(400, INCH), [610])                      # 定尺より短い線は1本
+
+    def test_one_line_is_one_side(self):
+        segs, how = orient_path([((0.0, 0.0), (5000.0, 0.0))])
+        self.assertIn("線の右", how)
+        sides = sides_from_path(segs, INCH)
+        self.assertEqual(len(sides), 1)
+        self.assertEqual((sides[0][0], sides[0][2], sides[0][3]), ((0.0, 0.0), [1829, 1829, 1219], False))
+        # 建物（スラブ）が線の右にあれば、逆向きにして足場を建物の反対側に出す
+        north = [(0.0, 1000.0), (5000.0, 1000.0), (5000.0, 9000.0), (0.0, 9000.0)]
+        south = [(x, -y) for x, y in north]
+        self.assertEqual(orient_path([((0.0, 0.0), (5000.0, 0.0))], north)[0], [((0.0, 0.0), (5000.0, 0.0))])
+        self.assertEqual(orient_path([((0.0, 0.0), (5000.0, 0.0))], south)[0], [((5000.0, 0.0), (0.0, 0.0))])
+
+    def test_closed_polyline_goes_outside(self):
+        """右回りに描いた四角も左回りにそろえて外回りに出す。出隅は各辺が終わりの角を描く."""
+        cw = [((0.0, 0.0), (0.0, 5487.0)), ((0.0, 5487.0), (7316.0, 5487.0)), ((7316.0, 5487.0), (7316.0, 0.0)),
+              ((7316.0, 0.0), (0.0, 0.0))]
+        segs, how = orient_path(cw)
+        self.assertEqual(how, "閉じた線の外回り")
+        sides = sides_from_path(segs, INCH)
+        self.assertEqual([(tuple(a), round(math.degrees(g)) % 360, sum(sp), ce) for a, g, sp, ce in sides],
+                         [((0.0, 0.0), 0, 7316, True), ((7316.0, 0.0), 90, 5487, True), ((7316.0, 5487.0), 180, 7316, True),
+                          ((0.0, 5487.0), 270, 5487, True)])
+        sd = [{"a": a, "dir": side_axis(g), "spans": sp, "base_mm": 0.0, "series_id": ""} for a, g, sp, _ce in sides]
+        self.assertEqual(chain_sides(sd), [([0, 1, 2, 3], True)])
+
+    def test_l_shape_inner_corner(self):
+        """L字の線（右に曲がる入隅）は終わりの出隅を描かない。最後の辺も描かない."""
+        segs, _ = orient_path([((0.0, 0.0), (5487.0, 0.0)), ((5487.0, 0.0), (5487.0, -3658.0))])
+        self.assertEqual([ce for *_x, ce in sides_from_path(segs, INCH)], [False, False])
+        segs, _ = orient_path([((0.0, 0.0), (5487.0, 0.0)), ((5487.0, 0.0), (5487.0, 3658.0))])
+        self.assertEqual([ce for *_x, ce in sides_from_path(segs, INCH)], [True, False])
 
 
 if __name__ == "__main__":

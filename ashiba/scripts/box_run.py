@@ -3,7 +3,11 @@
 利用者の指定（2026-10-30）「超簡易モードになってない いきなり足場が現れた」「なんか違う 箱を作って自分で伸び縮みするような
 感じ」→ 一周の箱（四角）・ボタンで本体にする。
 
-箱を置く（--place）: 平面で、箱の角にしたい所から長手の向きに線を1本引いて選んで押す（線の始点＝内側の建地の列の角、線の長さ＝
+箱を置く（--place）: 平面で、足場を置きたい所に線かポリライン（内側の建地の列）を引いて選んで押すと、線の範囲だけに足場の辺を
+  置く（利用者の指定 2026-10-31: 線引っ張った範囲だけに配置するようにして 今一線だけで四角につくられてしまう）。線1本は1辺、
+  ポリラインは折れ目ごとに1辺、長さは線を超えない定尺の組み合わせ。足場を出す側は、閉じたポリラインなら外回り、開いた線なら
+  近くのスラブ（建物）の反対側、建物が無ければ線の右（始点から終点を見て）。
+  --whole（前の一周の箱）: 箱の角にしたい所から長手の向きに線を1本引いて選んで押す（線の始点＝内側の建地の列の角、線の長さ＝
   長手の初めの長さ。短手はスパン3つ）。四角い足場の箱（部品 ashiba_box。厚みのある壁の形）が出るので、右の辺・上の辺の中ほどの
   つまみで伸び縮み（定尺に吸着）、下の辺の左寄りのつまみで厚み（300＝一側足場・600／900／1200＝幅の違う本足場）、3D の天端の
   つまみで作業床の段数を決める。
@@ -68,10 +72,15 @@ def place(c, argv) -> int:
         a, ang, length = (x0, y0), 0.0, float(opt("--len", "7316"))
     else:
         guides = selected_guides(c)
+        if not guides:
+            print("箱を置く: 平面で、足場を置きたい所に線（縦か横）かポリラインを引いて選んでから押してください（線の範囲だけに"
+                  "足場の辺を置きます。線は内側の建地の列。四角に囲むときは閉じたポリライン）" + not_in_plan_hint(c))
+            return 1
+        if "--whole" not in argv:
+            return place_on_lines(c, argv, guides)
         segs = [s for _e, ss in guides for s in ss]
         if len(segs) != 1:
-            print("箱を置く: 平面で、箱の角にしたい所から長手の向きに線を1本（縦か横）引いて選んでから押してください"
-                  "（線の始点が内側の建地の列の角、線の長さが長手の初めの長さ）" + not_in_plan_hint(c))
+            print("箱を置く: 一周の箱は、箱の角にしたい所から長手の向きに線を1本引いて選んでから押してください")
             return 1
         (a, b), = segs
         try:
@@ -124,6 +133,75 @@ def place(c, argv) -> int:
               "4辺別々に置きました。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み（300＝一側足場・"
               "600／900／1200＝本足場の幅）、3D の天端のつまみで段数。要らない辺は消す（コの字・L字・1本）。伸ばしたら隣の辺を"
               "動かして角に合わせ、決まったら辺をまとめて選んで「箱を足場に」")
+    for el in made:
+        print(f"BOX {el['elementId']['guid']}")
+    return 0
+
+
+def _levels(R, master, sid: str, base: dict, coins: list[int], thick: int, levels: int) -> tuple[list[float], float]:
+    """作業床の段の高さ（その系列で同じ段数の一周を解いて、1段目 1.8m 前後・層の高さ）と層の高さ."""
+    from ashiba.box import box_loop, thickness_conditions
+    from ashiba.manual import eaves_for_levels, solve_manual_loop
+    from ashiba.master import series_module
+
+    _kind, cond = thickness_conditions(thick, 300.0)
+    extra = {**base, **cond, "series_id": sid, "module": series_module(sid)}
+    pts, sides = box_loop((0.0, 0.0), 0.0, [coins[0]] * 3, [coins[0]] * 3)
+    _w, _spec, solved = solve_manual_loop(pts, sides, 300.0, eaves_for_levels(levels, int(master.floor_height or 1800)), extra)
+    lv = list(solved.model.elevation.level_heights) or [1800.0]
+    return lv, (float(lv[1] - lv[0]) if len(lv) > 1 else float(master.floor_height or 1800))
+
+
+def place_on_lines(c, argv, guides) -> int:
+    """選んだ線・ポリラインの範囲だけに足場の辺を置く（利用者の指定 2026-10-31: 線引っ張った範囲だけに配置するようにして
+    今一線だけで四角につくられてしまう）. 線1本は1辺、ポリラインは折れ目ごとに1辺. 長さは線を超えない定尺の組み合わせ."""
+    import run_from_archicad as R
+
+    from ashiba.box import (DEFAULT_LEVELS, SIDE_OBJECT, box_coins, orient_path, side_params, sides_from_path,
+                            snap_thickness)
+    from ashiba.master import load_master
+    from ashiba.pens import gdl_pens, parse_pens
+
+    opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
+    base, sid = _conditions(R, opt("--series", ""))
+    master = load_master(sid)
+    coins = box_coins(master.span_lengths())
+    levels = int(opt("--levels", DEFAULT_LEVELS))
+    thick = snap_thickness(float(opt("--thick", base.get("scaffold_width_mm") or 900)))
+    zb = float(opt("--zbase", "0") or 0)
+    pts = [p for _e, ss in guides for s in ss for p in s]
+    slabs = [s["polygon_mm"] for s in R.read_slabs_near(c, pts, margin_mm=5000.0)]
+    plan = []
+    try:
+        for _e, segs in guides:
+            mx = sum(p[0] for s in segs for p in s) / (2 * len(segs))
+            my = sum(p[1] for s in segs for p in s) / (2 * len(segs))
+            # 建物: 線のいちばん近くにあるスラブ（重心）
+            bld = min(slabs, key=lambda pg: math.hypot(sum(q[0] for q in pg) / len(pg) - mx,
+                                                       sum(q[1] for q in pg) / len(pg) - my)) if slabs else None
+            osegs, how = orient_path(segs, bld)
+            plan.append((osegs, how, sides_from_path(osegs, coins)))
+    except ValueError as e:
+        print(f"箱を置く: {e}")
+        return 1
+    lv, floor = _levels(R, master, sid, base, coins, thick, levels)
+    R.ensure_parts(c)
+    spec = {**R.SPEC, **R.load_spec_override()}
+    pens = gdl_pens(parse_pens(spec.get("pens")), SIDE_OBJECT)
+    made = []
+    for osegs, how, sides in plan:
+        els = c.create_objects([(R.versioned_part_name(SIDE_OBJECT), p[0], p[1]) for p, _g, _s, _ce in sides])
+        for el, (p, g, sp, ce) in zip(els, sides):
+            c.set_gdl_parameters(el, side_params(sp, coins, thick, len(lv), lv[0], floor, sid, 300.0, pens, base_mm=zb,
+                                                 corner_end=ce))
+            if abs(g) > 1e-6:
+                c.rotate_element(el, g, p[0], p[1])
+        made += els
+        got = "・".join(f"{sum(sp)}（線 {math.dist(a, b):.0f}）" for (a, b), (_p, _g, sp, _ce) in zip(osegs, sides))
+        print(f"箱を置く: 辺 {len(sides)}本 {got}・作業床 {len(lv)}段を {how}に置きました")
+    delete_guides(c, guides)
+    print("  長さは線を超えない定尺の組み合わせ。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み"
+          "（300＝一側足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。決まったら辺をまとめて選んで「箱を足場に」")
     for el in made:
         print(f"BOX {el['elementId']['guid']}")
     return 0
