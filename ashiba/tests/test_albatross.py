@@ -97,6 +97,26 @@ class TestAlbatrossShoring(unittest.TestCase):
         self.assertIn("許容 33.5kN", next(c.message for c in r2.checks if c.item == "支保工の支柱の軸力"))
 
 
+class TestAlbatrossStrongDiagonal(unittest.TestCase):
+    """強力斜材の支保工（p061〜062）: 45.0kN・49.1kN仕様と使用条件."""
+
+    def test_capacities_and_conditions(self):
+        from ashiba.interior_stage import solve_stage
+
+        caps = load_capacities("albatross")
+        item = {"name": "s", "corners_mm": [[0, 0], [6000, 0], [6000, 4500], [0, 4500]], "deck_mm": 1800,
+                "use": "支保工", "slab_mm": 600, "ceiling_mm": 4000, "tie": "強力斜材＋強力斜材×強力斜材＋強力斜材"}
+        r = solve_stage(item, load_master("albatross"), caps)
+        self.assertIn("許容 49.1kN", next(c.message for c in r.checks if c.item == "支保工の支柱の軸力"))
+        self.assertTrue(any("ジャッキ型ベース金具の繰出しは 270mm 以下" in n for n in r.notes))
+        self.assertEqual(len(load_master("albatross").by_category("強力斜材")), 14)
+        r45 = solve_stage({**item, "tie": "先行手摺ブレス＋強力斜材×強力斜材＋強力斜材", "corners_mm":
+                           [[0, 0], [3000, 0], [3000, 1200], [0, 1200]]}, load_master("albatross"), caps)
+        # 45.0kN仕様は支柱間隔 914〜1829（610 の升目があれば NG）
+        bad = [c for c in r45.checks if c.item == "強力斜材の使用条件"]
+        self.assertEqual(bool(bad), min(r45.spans_u + r45.spans_v) < 914)
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 
