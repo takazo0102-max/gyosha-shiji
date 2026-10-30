@@ -2368,6 +2368,9 @@ def _count_open_ends(model: ScaffoldModel, add, notes) -> None:
                      + ("・幅木" if model.config.has_toe_board else "") + "を計上")
 
 
+SHEET_LAP_MAX_MM = 200     # 合う幅のシートが無いスパンに一つ広い品を張って隣に重ねる余りの上限
+
+
 def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
     """養生シート（足場の外側の構面）。マスタに無ければ枚数と面積を注記に出す（リースの別手配が多い）."""
     from .attachments import (SHEET_SIZES, sheet_clamp_count, sheet_corner_clamp_count, sheet_quantities, sheet_size,
@@ -2388,10 +2391,19 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
         return
     # 足場のスパンと同じ幅のシート（インチ・メートルとも普通にある幅）。系列のマスタにある幅はその品で、無い幅は手配に
     other = {}
+    lapped = []
     for wd, k in std.items():
         # インチのスパンにはメートルの幅の品（1.8・1.5…）を当てる（50 以内の近い幅）
         cands = [p for p in model.master.by_category("養生シート") if kind in p.note and abs(p.nominal_dim - wd) <= 50]
         hit = min(cands, key=lambda p: abs(p.nominal_dim - wd)) if cands else None
+        if hit is None:
+            # 合う幅が無いスパン（アルバトロスの 457）は一つ広い品を張り、余りは隣のシートに重ねる（SHEET_LAP_MAX_MM まで）
+            wider = [p for p in model.master.by_category("養生シート") if kind in p.note
+                     and 0 < p.nominal_dim - wd <= SHEET_LAP_MAX_MM]
+            hit = min(wider, key=lambda p: p.nominal_dim) if wider else None
+            if hit is not None:
+                lapped.append(f"幅{wd}のスパン {k}枚は幅{hit.nominal_dim}（{hit.model_no}）を張って余り"
+                              f"{hit.nominal_dim - wd}mm を隣のシートに重ねる")
         if hit is not None:
             add(hit, k, f"{kind} 幅{wd}")
         else:
@@ -2410,6 +2422,8 @@ def _count_sheets(model: ScaffoldModel, add, notes, stair_plan=None) -> None:
         notes.append(f"昇降機の乗り込み口のスパン（" + "・".join(f"{f} {s0:.0f}〜{e0:.0f}" for f, s0, e0 in cut)
                      + f"）は{kind}を張っていません（荷台がこのスパンを昇り降りし、乗り込み口にフロアーゲートが付く。"
                      "ロングスパンの昇降路は外面を前養生で別に塞ぐ）")
+    if lapped:
+        notes.append(f"{kind}: " + "・".join(lapped) + "（その幅の品が系列に無い）")
     if other:
         notes.action(f"{kind}（高さ {h / 1000:.1f}m）: " + "・".join(f"幅{wd}×{k}枚" for wd, k in other.items())
                      + f"（系列 {model.master.series_id} のマスタに無い幅）を別途手配してください", Notes.ORDER)
