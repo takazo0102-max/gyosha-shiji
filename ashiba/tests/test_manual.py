@@ -17,7 +17,11 @@ class TestSpanText(unittest.TestCase):
         self.assertEqual(parse_spans("1800x2+900 600"), [1800, 1800, 900, 600])
         self.assertEqual(parse_spans("1829*2、610"), [1829, 1829, 610])
         self.assertEqual(span_text([1829, 1829, 1829, 914, 914]), "1829×3, 914×2")
-        for bad in ("", "abc", "1829×0"):
+        # 全角のまま打った数字・区切り・記号も読む
+        self.assertEqual(parse_spans("１８２９×４，９１４"), [1829] * 4 + [914])
+        self.assertEqual(parse_spans("1829ｘ4、914"), [1829] * 4 + [914])
+        self.assertEqual(parse_spans("1829Ｘ2　610"), [1829, 1829, 610])
+        for bad in ("", "abc", "1829×0", "1,829×2"):          # 桁区切りのカンマは 1 と 829 に割れるので止める
             with self.assertRaises(ValueError):
                 parse_spans(bad)
 

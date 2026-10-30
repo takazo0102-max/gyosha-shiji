@@ -39,12 +39,19 @@ SIDE_LEFT = "線の左側"
 SIDES = (SIDE_RIGHT, SIDE_LEFT)
 
 
+MIN_SPAN_MM = 150             # これより短いスパンは入力の誤り（桁区切りのカンマなど）
+
+
 def parse_spans(text) -> list[int]:
     """「1829×4, 914」「1829x4+914」「1800*3 900」→ [1829, 1829, 1829, 1829, 914]."""
+    import unicodedata
+
     if isinstance(text, (list, tuple)):
         text = ",".join(str(t) for t in text)
+    # 日本語入力のまま打った全角の数字・「，」「ｘ」「＊」・全角の空白も読む（半角にそろえる。× はそのまま）
+    text = unicodedata.normalize("NFKC", str(text or ""))
     out: list[int] = []
-    for tok in re.split(r"[,、+＋\s]+", str(text or "").strip()):
+    for tok in re.split(r"[,、+\s]+", text.strip()):
         if not tok:
             continue
         m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(?:[x×X*＊]\s*(\d+))?", tok)
@@ -53,6 +60,9 @@ def parse_spans(text) -> list[int]:
         v, n = int(round(float(m.group(1)))), int(m.group(2) or 1)
         if v <= 0 or n <= 0:
             raise ValueError(f"スパンは0より大きい値で入れてください（「{tok}」）")
+        if v < MIN_SPAN_MM:
+            # 「1,829×2」を 1 と 829×2 に読んで黙って誤ったスパンにしていた
+            raise ValueError(f"スパン {v}mm は短すぎます（いちばん短い布材でも 150 前後。桁区切りのカンマは入れないでください）")
         out += [v] * n
     if not out:
         raise ValueError("スパンを1本以上入れてください（例「1829×4, 914」）")
