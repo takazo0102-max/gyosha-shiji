@@ -125,6 +125,14 @@ class TestAlbatrossLoadForm(unittest.TestCase):
         self.assertIn("荷取り部", post.governing)
         self.assertEqual(post.allowable_kn, 20.0)
 
+    def test_drawn_as_load_form(self):
+        """図・3D は梁枠の形（stageList の5つ目に 荷受けフォーム 4 を足す）."""
+        from ashiba.gdl_params import line_params
+
+        r = solve_all({**RECT, "loading_stages": [self.STAGE]})
+        vals = line_params(r.model, r.model.plan.edges[0], platforms=r.platforms)["stageList"].split(",")
+        self.assertEqual((vals[2], int(vals[4]) // 4), ("1410", 1))
+
     def test_overload_is_ng(self):
         r = solve_all({**RECT, "loading_stages": [{**self.STAGE, "load_kn": 14.7}]})     # 750kg/スパン
         ng = [i.message for i in r.platforms.issues if i.severity == "NG"]

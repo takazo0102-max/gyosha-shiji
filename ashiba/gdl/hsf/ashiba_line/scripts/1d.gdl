@@ -56,6 +56,7 @@ dim sgP[8]
 dim sgH[8]
 dim sgZ[8]
 dim sgF[8]
+dim sgK[8]
 dim hoP[4]
 dim hoR[4]
 dim hoW[4]
@@ -664,9 +665,10 @@ while strlen(rest) > 0 and nSg < 8 do
 			sgL[nSg] = sgB
 			sgP[nSg] = sgC
 			sgH[nSg] = sgD
-			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2（mm換算しない。2 で割った余りが方杖、商が柵）
+			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2 ＋ 荷受けフォーム 4（mm換算しない。各桁を取り出す）
 			sgZ[nSg] = v - 2 * int(v / 2)
-			sgF[nSg] = int(v / 2)
+			sgF[nSg] = int(v / 2) - 2 * int(v / 4)
+			sgK[nSg] = int(v / 4)
 		endif
 	endif
 endwhile

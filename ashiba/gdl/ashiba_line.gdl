@@ -276,6 +276,7 @@ dim sgP[8]
 dim sgH[8]
 dim sgZ[8]
 dim sgF[8]
+dim sgK[8]
 dim hoP[4]
 dim hoR[4]
 dim hoW[4]
@@ -884,9 +885,10 @@ while strlen(rest) > 0 and nSg < 8 do
 			sgL[nSg] = sgB
 			sgP[nSg] = sgC
 			sgH[nSg] = sgD
-			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2（mm換算しない。2 で割った余りが方杖、商が柵）
+			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2 ＋ 荷受けフォーム 4（mm換算しない。各桁を取り出す）
 			sgZ[nSg] = v - 2 * int(v / 2)
-			sgF[nSg] = int(v / 2)
+			sgF[nSg] = int(v / 2) - 2 * int(v / 4)
+			sgK[nSg] = int(v / 4)
 		endif
 	endif
 endwhile
@@ -2160,6 +2162,7 @@ for ig = 1 to nSg
 		tdx = (gs + ge) / 2
 		tdy = gy - 0.15
 		tdt = "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgK[ig] = 1 then tdt = "荷受けフォーム 出" + str(sgP[ig] * 1000, 4, 0)
 		if sgF[ig] = 1 then tdt = tdt + "・侵入落下防止柵 H1800"
 		gosub 985
 	endif
@@ -5193,7 +5196,53 @@ for ig = 1 to nSg
 	! 数量では建地位置ぶん拾っている（張出ブラケット・方杖）
 	xb = 0
 	for ipb = 1 to nSpan + 1
-		if xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+		if sgK[ig] = 1 and xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			! スギコ アルバトロス荷受けフォーム（カタログ vol.7 p031・p057）: 梁枠（斜材付き）を取付金具で支柱に掛ける。
+			! 上弦は床の下で足場の幅を渡って外へ 1.41、高さ 0.419 のトラス、下の支柱の斜材受金具から先端寄りへ斜材
+			yIn = min(0.611, rowW)
+			for ich = 0 to 1
+				add xb, -rowW + yIn * (1 - ich), sgH[ig] - ich * 0.419
+				rotx 90
+				if ich = 0 then
+					cylind yIn + sgP[ig], r_nuno
+				else
+					cylind sgP[ig], r_nuno
+				endif
+				del 2
+			next ich
+			nPn = 4
+			for ipn = 0 to nPn
+				yv = -rowW - sgP[ig] * ipn / nPn
+				add xb, yv, sgH[ig] - 0.419
+				cylind 0.419, r_nuno * 0.8
+				del 1
+				if ipn < nPn then
+					dyp = sgP[ig] / nPn
+					add xb, yv, sgH[ig] - 0.419
+					rotx atn(dyp / 0.419)
+					cylind sqr(dyp * dyp + 0.419 * 0.419), r_nuno * 0.8
+					del 2
+				endif
+			next ipn
+			sgD = 1.45
+			sgX = sgP[ig] * 0.75
+			add xb, -rowW, sgH[ig] - 0.419 - sgD
+			rotx atn(sgX / sgD)
+			cylind sqr(sgX * sgX + sgD * sgD), r_nuno
+			del 2
+			if isLite = 0 then
+				for ich = 0 to 1
+					add xb - 0.03, -rowW - 0.04, sgH[ig] - 0.08 - ich * (0.419 + sgD)
+					block 0.06, 0.08, 0.159
+					del 1
+				next ich
+			endif
+			! 先端の手すり（手摺枠の縦・手摺柱）
+			add xb, -rowW - sgP[ig], sgH[ig]
+			cylind railH + 0.05, r_sic
+			del 1
+		endif
+		if sgK[ig] = 0 and xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
 			! 腕（支柱の緊結部から外へ）
 			add xb, -rowW, sgH[ig]
 			rotz -90
@@ -7651,7 +7700,7 @@ if editSpan and nSg > 0 then
 		next ig
 		sl = ""
 		for ig = 1 to nSg
-			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig] + 2 * sgF[ig], 1, 0)
+			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig] + 2 * sgF[ig] + 4 * sgK[ig], 1, 0)
 			if sl = "" then sl = item else sl = sl + "," + item
 		next ig
 		parameters stageList = sl

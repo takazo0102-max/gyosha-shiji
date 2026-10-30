@@ -626,6 +626,7 @@ for ig = 1 to nSg
 		tdx = (gs + ge) / 2
 		tdy = gy - 0.15
 		tdt = "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgK[ig] = 1 then tdt = "荷受けフォーム 出" + str(sgP[ig] * 1000, 4, 0)
 		if sgF[ig] = 1 then tdt = tdt + "・侵入落下防止柵 H1800"
 		gosub 985
 	endif

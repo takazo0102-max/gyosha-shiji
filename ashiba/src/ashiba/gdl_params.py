@@ -773,14 +773,17 @@ def _beam_bottom_list(model: ScaffoldModel, ep, openings) -> str:
 
 
 def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
-    """この辺の荷受けステージを「開始,長さ,出,設置高さ,方杖(0/1)」で返す.
+    """この辺の荷受けステージを「開始,長さ,出,設置高さ,方杖(1)＋柵(2)＋荷受けフォーム(4)」で返す.
 
     出1.5mの張り出し床で、構造計算では直下の建地を個別に検定している
     のに図面にも3Dにも出ていなかった。設置層が複数なら層ごとに1組。
     """
     if platforms is None or not getattr(platforms, "stages", None):
         return ""
+    from .platforms import uses_load_form
+
     levels = model.elevation_of(ep.edge_index).level_heights
+    form = 4 if uses_load_form(model) else 0     # 荷受けフォーム（アルバトロス）は梁枠の形で描く
     parts = []
     for st in platforms.stages:
         if st.edge_index != ep.edge_index or not levels:
@@ -792,7 +795,7 @@ def _stage_list(model: ScaffoldModel, ep, platforms) -> str:
                 str(int(st.start_mm)), str(int(length)),
                 str(int(st.projection_mm)), str(int(levels[idx])),
                 # 方杖 0/1 ＋ 侵入落下防止柵 2（GDL は 2 で割った余りが方杖、商が柵）
-                str((1 if st.has_hozue else 0) + (2 if getattr(st, "has_fence", False) else 0)),
+                str((1 if st.has_hozue else 0) + (2 if getattr(st, "has_fence", False) else 0) + form),
             ]
     return ",".join(parts)
 

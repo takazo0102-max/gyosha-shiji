@@ -113,7 +113,7 @@ class TestStageFence(unittest.TestCase):
         self.assertEqual(p["stageList"].split(",")[4], "3")              # 方杖1＋柵2
         d = GDL / "ashiba_line" / "scripts"
         self.assertIn("sgF[nSg] = int(v / 2)", (d / "1d.gdl").read_text(encoding="utf-8"))
-        self.assertIn("str(sgZ[ig] + 2 * sgF[ig], 1, 0)", (d / "vl.gdl").read_text(encoding="utf-8"))
+        self.assertIn("str(sgZ[ig] + 2 * sgF[ig] + 4 * sgK[ig], 1, 0)", (d / "vl.gdl").read_text(encoding="utf-8"))
         self.assertIn("865:", (d / "3d.gdl").read_text(encoding="utf-8"))
         self.assertIn("arc2 xa, -rowW + 0.06, fWq, 0, 90", (d / "2d.gdl").read_text(encoding="utf-8"))
 
