@@ -489,7 +489,20 @@ def _take_off_one(
         model, openings, totals_posts, list(elev.posts),
         m.post_lengths(include_negarami=True), notes, "支柱",
     )
+    # 最下段は根がらみプレート付の支柱（アルバトロス p062「最下層には根がらみプレート付支柱（225・675・900・1350・2700・
+    # 支柱450根がらみ用）」）。同じ長さに根がらみ用の品がある長さ（450）は、最下段の分をその品に替える（中間用で拾っていた）
+    nega_part = {p.nominal_dim: p for p in m.by_category("支柱") if "根がらみ用" in p.note}
+    bottoms: dict[int, int] = {}
+    for b in ([f.posts[0] for f in feet if f.posts] if feet else ([elev.posts[0]] if elev.posts else [])):
+        if b in nega_part and b in totals_posts:
+            bottoms[b] = bottoms.get(b, 0) + (per_foot if feet else n_posts)
+    for b, k in bottoms.items():
+        k = min(k, totals_posts[b])
+        totals_posts[b] -= k
+        add(nega_part[b], k, f"支柱{b}根がらみ用（最下段）")
     for nominal, total in totals_posts.items():
+        if total <= 0:
+            continue
         part = next(
             (p for p in m.by_category("支柱")
              if p.nominal_dim == nominal and "根がらみ" not in p.note and "屋根" not in p.note),

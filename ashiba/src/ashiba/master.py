@@ -121,7 +121,7 @@ SERIES_CONST = {
     # （2700・1350・900・675・225。p027 の図・p062「最下層には根がらみプレート付支柱」）は下端から 約130 にもプレートがある
     # （図の縮尺: コマの間隔 46px に対して 13px。±10 の読み）
     "albatross": {"system_type": WEDGE, "koma_pitch": 450, "floor_height": 1800,
-                  "koma_top_gap": 50, "koma_nega": 130, "nega_koma_lengths": (2700, 1350, 900, 675),
+                  "koma_top_gap": 50, "koma_nega": 130, "nega_koma_lengths": (2700, 1350, 900, 675, 225),
                   "hozo": 130, "module": "inch", "advance_rail_required": True, "min_span": 457,
                   "deck_widths": (500, 240), "next_gen_deck_widths": (500, 240)},
     # 単管（φ48.6×2.4・日建 カタログVol.10p372 の単管パイプ、p377 直線ジョイント、p378 兼用クランプ、p078 ジャッキベース）。

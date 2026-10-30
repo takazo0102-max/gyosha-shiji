@@ -228,6 +228,11 @@ class TestAlbatrossSlope(unittest.TestCase):
         self.assertLessEqual(r.terrain.jack_max_mm, 255)
         self.assertFalse([n for n in r.quantity.notes if "ジャッキの上限" in str(n)])
         self.assertFalse([w for w in r.warnings if "先行手摺457" in str(w)])
+        # 最下段の 450 は根がらみ用（50000。p062「最下層には根がらみプレート付支柱」）。中間用 50004 で拾っていた
+        got = {l.part.model_no: l.qty for l in r.quantity.lines if l.part.category == "支柱"}
+        self.assertGreater(got.get("50000", 0), 0)
+        self.assertNotIn("50004", got)
+        self.assertIn(130, load_master("albatross").post_koma_offsets(225))     # 225 も根がらみプレート付
         # 457 のスパンのメッシュシートは幅610を張って隣に重ねる（マスタに無い幅として手配に落ちていた）
         self.assertTrue([n for n in r.quantity.notes if "幅457のスパン" in str(n) and "81406" in str(n)])
         self.assertFalse([n for n in r.quantity.notes if "幅457×" in str(n) and "マスタに無い幅" in str(n)])
