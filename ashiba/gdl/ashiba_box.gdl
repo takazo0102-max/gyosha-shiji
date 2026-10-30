@@ -13,21 +13,21 @@
 ! 原点＝内側の建地の列の角。右の辺・上の辺の中ほどのつまみで長手・短手を伸び縮み（定尺の組み合わせに吸着してスパンを書き直す）、3D の天端のつまみで作業床の段数。パレットの「箱を足場に」でそのスパンと段数の足場一式に置き直す。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   lenX      長さ      長手（内側の建地の列。つまみで引くと定尺の組み合わせに吸着）        既定 7.316
-!   lenY      長さ      短手（同上）                                                        既定 5.487
-!   spanX     文字列    長手のスパン（mm、カンマ区切り。原点から）                          既定 "1829,1829,1829,1829"
-!   spanY     文字列    短手のスパン（同上）                                                既定 "1829,1829,1829"
-!   szList    文字列    使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）  既定 "1829,1524,1219,914,610"
-!   rowW      長さ      足場の幅（内外の建地の間）                                          既定 0.914
-!   nLev      整数      作業床の段数（3D の天端のつまみで増減）                             既定 4
-!   lev1      長さ      1段目の作業床の高さ                                                 既定 1.78
-!   floorH    長さ      作業床の段の間隔                                                    既定 1.8
-!   jackH     長さ      ジャッキの繰出し（図の目安）                                        既定 0.1
-!   topEdit   長さ      最上段の作業床（3D のつまみ。引くと段数が変わる）                   既定 7.18
-!   seriesId  文字列    足場の種類（系列の ID。本体にするときに使う）                       既定 ""
-!   standoff  長さ      離れ（躯体から内側の建地まで。本体にするときに使う）                既定 0.3
-!   texSiz    実数      文字の大きさ（mm）                                                  既定 2.5
-!   penEquip  PenColor  線のペン                                                            既定 1
+!   lenX      長さ      長手（内側の建地の列。つまみで引くと定尺の組み合わせに吸着）                               既定 7.316
+!   lenY      長さ      短手（同上）                                                                               既定 5.487
+!   spanX     文字列    長手のスパン（mm、カンマ区切り。原点から）                                                 既定 "1829,1829,1829,1829"
+!   spanY     文字列    短手のスパン（同上）                                                                       既定 "1829,1829,1829"
+!   szList    文字列    使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）                         既定 "1829,1524,1219,914,610"
+!   thick     長さ      厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）  既定 0.9
+!   nLev      整数      作業床の段数（3D の天端のつまみで増減）                                                    既定 4
+!   lev1      長さ      1段目の作業床の高さ                                                                        既定 1.78
+!   floorH    長さ      作業床の段の間隔                                                                           既定 1.8
+!   jackH     長さ      ジャッキの繰出し（図の目安）                                                               既定 0.1
+!   topEdit   長さ      最上段の作業床（3D のつまみ。引くと段数が変わる）                                          既定 7.18
+!   seriesId  文字列    足場の種類（系列の ID。本体にするときに使う）                                              既定 ""
+!   standoff  長さ      離れ（躯体から内側の建地まで。本体にするときに使う）                                       既定 0.3
+!   texSiz    実数      文字の大きさ（mm）                                                                         既定 2.5
+!   penEquip  PenColor  線のペン                                                                                   既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -113,11 +113,18 @@ next j
 nL = max(1, nLev)
 deckTop = lev1 + (nL - 1) * floorH
 postH = deckTop + 1.0
+tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if tk < 0.45 then
+	kind = "一側足場"
+else
+	kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+endif
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
-! 足場の箱 2D: 内外の建地の列・支柱・スパン寸法・見出しと、伸び縮みのつまみ（右の辺＝長手、上の辺＝短手）
+! 足場の箱 2D（壁の形）: 内側の建地の列から外へ厚み tk の帯、スパンの区切り・寸法、種類と見出し、つまみ
+! （右の辺＝長手、上の辺＝短手、下の辺の左寄り＝厚み）
 pE = penEquip
 if pE < 1 then pE = 1
 pen pE
@@ -125,234 +132,126 @@ define style "bxT" "ＭＳ Ｐゴシック", texSiz, 2, 0
 define style "bxB" "ＭＳ Ｐゴシック", texSiz, 8, 0
 define style "bxR" "ＭＳ Ｐゴシック", texSiz, 6, 0
 define style "bxL" "ＭＳ Ｐゴシック", texSiz, 4, 0
+define style "bxC" "ＭＳ Ｐゴシック", texSiz, 5, 0
 gap = texSiz * GLOB_SCALE / 1000 * 0.6
-rP = 0.03
 rect2 0, 0, lx, ly
-rect2 -rowW, -rowW, lx + rowW, ly + rowW
+rect2 -tk, -tk, lx + tk, ly + tk
 xx = 0
 for i = 1 to nX + 1
-	line2 xx, 0, xx, -rowW
-	line2 xx, ly, xx, ly + rowW
-	circle2 xx, 0, rP
-	circle2 xx, -rowW, rP
-	circle2 xx, ly, rP
-	circle2 xx, ly + rowW, rP
+	line2 xx, 0, xx, -tk
+	line2 xx, ly, xx, ly + tk
 	if i <= nX then
 		style "bxT"
-		text2 xx + sx[i] / 2, -rowW - gap, str(sx[i] * 1000, 1, 0)
+		text2 xx + sx[i] / 2, -tk - gap, str(sx[i] * 1000, 1, 0)
 		style "bxB"
-		text2 xx + sx[i] / 2, ly + rowW + gap, str(sx[i] * 1000, 1, 0)
+		text2 xx + sx[i] / 2, ly + tk + gap, str(sx[i] * 1000, 1, 0)
 		xx = xx + sx[i]
 	endif
 next i
 yy = 0
 for j = 1 to nY + 1
-	line2 0, yy, -rowW, yy
-	line2 lx, yy, lx + rowW, yy
-	circle2 -rowW, yy, rP
-	circle2 lx + rowW, yy, rP
-	if j > 1 and j <= nY then
-		circle2 0, yy, rP
-		circle2 lx, yy, rP
-	endif
+	line2 0, yy, -tk, yy
+	line2 lx, yy, lx + tk, yy
 	if j <= nY then
 		style "bxR"
-		text2 -rowW - gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
+		text2 -tk - gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
 		style "bxL"
-		text2 lx + rowW + gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
+		text2 lx + tk + gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
 		yy = yy + sy[j]
 	endif
 next j
-circle2 -rowW, -rowW, rP
-circle2 lx + rowW, -rowW, rP
-circle2 -rowW, ly + rowW, rP
-circle2 lx + rowW, ly + rowW, rP
+! 出隅の升目に×
+for cx = 0 to 1
+	for cy = 0 to 1
+		x0 = -tk + cx * (lx + tk)
+		y0 = -tk + cy * (ly + tk)
+		line2 x0, y0, x0 + tk, y0 + tk
+		line2 x0, y0 + tk, x0 + tk, y0
+	next cy
+next cx
+style "bxC"
+text2 lx / 2, ly / 2, kind + "（厚み " + str(tk * 1000, 1, 0) + "）"
 style "bxT"
-text2 lx / 2, -rowW - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str(deckTop * 1000, 1, 0) + "）"
+text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str(deckTop * 1000, 1, 0) + "）"
 hotspot2 0, 0
 hotspot2 lx, 0
 hotspot2 lx, ly
 hotspot2 0, ly
-hotspot2 -rowW, -rowW
-hotspot2 lx + rowW, ly + rowW
-! 伸び縮みのつまみ（右の辺の中ほどで長手、上の辺の中ほどで短手）
+hotspot2 -tk, -tk
+hotspot2 lx + tk, ly + tk
+! 伸び縮みのつまみ（右の辺の中ほどで長手、上の辺の中ほどで短手、下の辺の左寄りで厚み）
 hotspot2 0, ly / 2, 101, lenX, 1 + 128
 hotspot2 lenX, ly / 2, 102, lenX, 2
 hotspot2 -1, ly / 2, 103, lenX, 3
 hotspot2 lx / 2, 0, 104, lenY, 1 + 128
 hotspot2 lx / 2, lenY, 105, lenY, 2
 hotspot2 lx / 2, -1, 106, lenY, 3
+hotspot2 lx / 4, 0, 107, thick, 1 + 128
+hotspot2 lx / 4, -thick, 108, thick, 2
+hotspot2 lx / 4, 1, 109, thick, 3
 
 ! ==========================================================
 ! ==== 3Dスクリプト ====
 ! ==========================================================
 ! ============================================================
-! 足場の箱 3D（超簡易モードの形の確かめ）: 外周の支柱（内外の列と出隅の支柱）・各段の作業床・腕木・布材、外側の手すり・
-! 中桟（一周）。階段・壁つなぎ・シートは本体にしたときに付く。天端のつまみで作業床の段数を増減
+! 足場の箱 3D（壁の形。利用者の指定 2026-10-30: もっと簡単な壁形状でいい・厚みで種類も変える）: 内側の建地の列から外へ
+! 厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、作業床の段の高さに外周の線
 ! ============================================================
 resol 8
-define material "bx_post" 2, 0.62, 0.64, 0.68
-define material "bx_deck" 2, 0.42, 0.45, 0.50
-define material "bx_jack" 2, 0.35, 0.35, 0.38
-mPo = IND(MATERIAL, "bx_post")
-mDe = IND(MATERIAL, "bx_deck")
-mJa = IND(MATERIAL, "bx_jack")
-rP = 0.0243
-rL = 0.0214
-! ---- 支柱の位置 ----
-dim px[], py[]
-nP = 0
-xx = 0
-for i = 1 to nX + 1
-	nP = nP + 1
-	px[nP] = xx
-	py[nP] = 0
-	nP = nP + 1
-	px[nP] = xx
-	py[nP] = -rowW
-	nP = nP + 1
-	px[nP] = xx
-	py[nP] = ly
-	nP = nP + 1
-	px[nP] = xx
-	py[nP] = ly + rowW
-	if i <= nX then xx = xx + sx[i]
-next i
-yy = 0
-for j = 1 to nY - 1
-	yy = yy + sy[j]
-	nP = nP + 1
-	px[nP] = 0
-	py[nP] = yy
-	nP = nP + 1
-	px[nP] = -rowW
-	py[nP] = yy
-	nP = nP + 1
-	px[nP] = lx
-	py[nP] = yy
-	nP = nP + 1
-	px[nP] = lx + rowW
-	py[nP] = yy
-next j
-for cx = 0 to 1
-	for cy = 0 to 1
-		nP = nP + 1
-		px[nP] = -rowW + cx * (lx + 2 * rowW)
-		py[nP] = -rowW + cy * (ly + 2 * rowW)
-	next cy
-next cx
-for k = 1 to nP
-	add px[k], py[k], 0
-	material mJa
-	add -0.07, -0.07, 0
-	block 0.14, 0.14, 0.008
-	del 1
-	cylind jackH, 0.017
-	material mPo
-	add 0, 0, jackH
-	cylind postH - jackH, rP
-	del 2
-next k
-! ---- 根がらみ（内外の列を一周） ----
-material mPo
-z = jackH + 0.15
-o = 0
-gosub "ring"
-o = rowW
-gosub "ring"
-! ---- 各段: 作業床・布材（内外）・腕木・外側の手すり・中桟 ----
+define material "bx_1" 2, 0.95, 0.62, 0.25
+define material "bx_6" 2, 0.45, 0.70, 0.95
+define material "bx_9" 2, 0.45, 0.80, 0.45
+define material "bx_12" 2, 0.70, 0.55, 0.90
+if tk < 0.45 then
+	material "bx_1"
+else
+	if tk < 0.75 then
+		material "bx_6"
+	else
+		if tk < 1.05 then
+			material "bx_9"
+		else
+			material "bx_12"
+		endif
+	endif
+endif
+H = postH
+add -tk, -tk, 0
+block lx + 2 * tk, tk, H
+del 1
+add -tk, ly, 0
+block lx + 2 * tk, tk, H
+del 1
+add -tk, 0, 0
+block tk, ly, H
+del 1
+add lx, 0, 0
+block tk, ly, H
+del 1
+! 作業床の段の高さ（外周の外と内に線）
 for lv = 1 to nL
 	zl = lev1 + (lv - 1) * floorH
-	material mPo
-	z = zl
-	o = 0
-	gosub "ring"
-	o = rowW
-	gosub "ring"
-	z = zl + 0.9
-	gosub "ring"
-	z = zl + 0.45
-	gosub "ring"
-	! 腕木（内外の列を結ぶ）
-	xx = 0
-	for i = 1 to nX + 1
-		add xx, 0, zl
-		rotx 90
-		cylind rowW, rL
-		del 2
-		add xx, ly, zl
-		rotx -90
-		cylind rowW, rL
-		del 2
-		if i <= nX then xx = xx + sx[i]
-	next i
-	yy = 0
-	for j = 1 to nY - 1
-		yy = yy + sy[j]
-		add 0, yy, zl
-		roty -90
-		cylind rowW, rL
-		del 2
-		add lx, yy, zl
-		roty 90
-		cylind rowW, rL
-		del 2
-	next j
-	! 作業床（スパンごと＋出隅の升目）
-	material mDe
-	xx = 0
-	for i = 1 to nX
-		add xx + 0.01, -rowW + 0.02, zl - 0.045
-		block sx[i] - 0.02, rowW - 0.04, 0.045
-		del 1
-		add xx + 0.01, ly + 0.02, zl - 0.045
-		block sx[i] - 0.02, rowW - 0.04, 0.045
-		del 1
-		xx = xx + sx[i]
-	next i
-	yy = 0
-	for j = 1 to nY
-		add -rowW + 0.02, yy + 0.01, zl - 0.045
-		block rowW - 0.04, sy[j] - 0.02, 0.045
-		del 1
-		add lx + 0.02, yy + 0.01, zl - 0.045
-		block rowW - 0.04, sy[j] - 0.02, 0.045
-		del 1
-		yy = yy + sy[j]
-	next j
-	for cx = 0 to 1
-		for cy = 0 to 1
-			add -rowW + 0.02 + cx * (lx + rowW), -rowW + 0.02 + cy * (ly + rowW), zl - 0.045
-			block rowW - 0.04, rowW - 0.04, 0.045
-			del 1
-		next cy
-	next cx
+	for o = 0 to 1
+		if o = 0 then
+			r0 = -tk - 0.003
+			r1x = lx + tk + 0.003
+			r1y = ly + tk + 0.003
+		else
+			r0 = 0.003
+			r1x = lx - 0.003
+			r1y = ly - 0.003
+		endif
+		lin_ r0, r0, zl, r1x, r0, zl
+		lin_ r1x, r0, zl, r1x, r1y, zl
+		lin_ r1x, r1y, zl, r0, r1y, zl
+		lin_ r0, r1y, zl, r0, r0, zl
+	next o
 next lv
-! ---- 段数のつまみ（出隅の支柱の上。引くと段の間隔に丸めて段数が変わる） ----
-hotspot -rowW, -rowW, 0, 1000, topEdit, 1 + 128
-hotspot -rowW, -rowW, topEdit, 1001, topEdit, 2
-hotspot -rowW, -rowW, -1, 1002, topEdit, 3
+! ---- 段数のつまみ（出隅の上。引くと段の間隔に丸めて段数が変わる） ----
+hotspot -tk, -tk, 0, 1000, topEdit, 1 + 128
+hotspot -tk, -tk, topEdit, 1001, topEdit, 2
+hotspot -tk, -tk, -1, 1002, topEdit, 3
 end
-
-"ring":
-	! 内側の列（o = 0）か外側の列（o = rowW）を高さ z で一周
-	add -o, -o, z
-	roty 90
-	cylind lx + 2 * o, rL
-	del 2
-	add -o, ly + o, z
-	roty 90
-	cylind lx + 2 * o, rL
-	del 2
-	add -o, -o, z
-	rotx -90
-	cylind ly + 2 * o, rL
-	del 2
-	add lx + o, -o, z
-	rotx -90
-	cylind ly + 2 * o, rL
-	del 2
-return
 
 ! ==========================================================
 ! ==== パラメータスクリプト ====
@@ -382,6 +281,9 @@ else
 		parameters spanY = sOut, lenY = tBest
 	endif
 endif
+! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
+tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if abs(thick - tSn) > 0.0005 then parameters thick = tSn
 if GLOB_MODPAR_NAME = "nLev" or GLOB_MODPAR_NAME = "lev1" or GLOB_MODPAR_NAME = "floorH" then
 	parameters topEdit = deckTop
 else

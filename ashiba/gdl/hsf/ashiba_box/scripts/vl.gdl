@@ -23,6 +23,9 @@ else
 		parameters spanY = sOut, lenY = tBest
 	endif
 endif
+! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
+tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if abs(thick - tSn) > 0.0005 then parameters thick = tSn
 if GLOB_MODPAR_NAME = "nLev" or GLOB_MODPAR_NAME = "lev1" or GLOB_MODPAR_NAME = "floorH" then
 	parameters topEdit = deckTop
 else

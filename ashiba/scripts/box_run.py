@@ -4,11 +4,13 @@
 感じ」→ 一周の箱（四角）・ボタンで本体にする。
 
 箱を置く（--place）: 平面で、箱の角にしたい所から長手の向きに線を1本引いて選んで押す（線の始点＝内側の建地の列の角、線の長さ＝
-  長手の初めの長さ。短手はスパン3つ）。四角い足場の箱（部品 ashiba_box）が出るので、右の辺・上の辺の中ほどのつまみで伸び縮み
-  （定尺に吸着）、3D の天端のつまみで作業床の段数を決める。
+  長手の初めの長さ。短手はスパン3つ）。四角い足場の箱（部品 ashiba_box。厚みのある壁の形）が出るので、右の辺・上の辺の中ほどの
+  つまみで伸び縮み（定尺に吸着）、下の辺の左寄りのつまみで厚み（300＝一側足場・600／900／1200＝幅の違う本足場）、3D の天端の
+  つまみで作業床の段数を決める。
 箱を足場に（--build）: 箱を選んで押すと、そのスパンと段数で足場一式（階段・壁つなぎ・シート・数量・帳票）に置き直し、箱を消す。
 
-実機の確認（窓なし）: python3 scripts/box_run.py --place --at x,y [--len 9145] [--depth 5487] [--levels 4] [--series albatross]
+実機の確認（窓なし）: python3 scripts/box_run.py --place --at x,y [--len 9145] [--depth 5487] [--levels 4] [--thick 900]
+                       [--series albatross]
                      python3 scripts/box_run.py --build [--name 検証_箱]（選んだ箱を足場に）
 """
 
@@ -38,7 +40,8 @@ def _conditions(R, series: str = ""):
 def place(c, argv) -> int:
     import run_from_archicad as R
 
-    from ashiba.box import BOX_OBJECT, DEFAULT_LEVELS, box_loop, box_params, snap_spans
+    from ashiba.box import (BOX_OBJECT, DEFAULT_LEVELS, box_coins, box_loop, box_params, snap_spans, snap_thickness,
+                            thickness_conditions)
     from ashiba.manual import axis_direction, eaves_for_levels, solve_manual_loop
     from ashiba.master import load_master, series_module
     from ashiba.pens import gdl_pens, parse_pens
@@ -64,21 +67,22 @@ def place(c, argv) -> int:
         ang, length = math.atan2(u[1], u[0]), math.dist(a, b)
     base, sid = _conditions(R, opt("--series", ""))
     master = load_master(sid)
-    coins = sorted(master.span_lengths(), reverse=True)
+    coins = box_coins(master.span_lengths())
     sx = snap_spans(length, coins)
     sy = snap_spans(float(opt("--depth", "0") or 0) or 3 * coins[0], coins)
     levels = int(opt("--levels", DEFAULT_LEVELS))
-    # 段の高さと足場の幅は、その系列で同じ大きさの一周を解いて決める（1段目 1.8m 前後・層の高さ・建地の間隔）
-    extra = {**base, "series_id": sid, "module": series_module(sid)}
+    # 厚み（足場の種類）の初めは条件の足場の幅。段の高さはその系列で同じ大きさの一周を解いて決める（1段目 1.8m 前後・層の高さ）
+    thick = snap_thickness(float(opt("--thick", base.get("scaffold_width_mm") or 900)))
+    _kind, cond = thickness_conditions(thick, 300.0)
+    extra = {**base, **cond, "series_id": sid, "module": series_module(sid)}
     pts, sides = box_loop(a, 0.0, sx, sy)
     _w, _spec, solved = solve_manual_loop(pts, sides, 300.0, eaves_for_levels(levels, int(master.floor_height or 1800)), extra)
     lv = list(solved.model.elevation.level_heights) or [1800.0]
     floor = float(lv[1] - lv[0]) if len(lv) > 1 else float(master.floor_height or 1800)
-    row = float(solved.model.post_row_spacing_mm or 914.0)
     R.ensure_parts(c)
     (el,) = c.create_objects([(R.versioned_part_name(BOX_OBJECT), a[0], a[1])])
     spec = {**R.SPEC, **R.load_spec_override()}
-    c.set_gdl_parameters(el, box_params(sx, sy, coins, row, len(lv), lv[0], floor, sid, 300.0,
+    c.set_gdl_parameters(el, box_params(sx, sy, coins, thick, len(lv), lv[0], floor, sid, 300.0,
                                         gdl_pens(parse_pens(spec.get("pens")), BOX_OBJECT)))
     if abs(ang) > 1e-6:
         c.rotate_element(el, ang, a[0], a[1])
@@ -94,7 +98,7 @@ def place(c, argv) -> int:
 def build(c, argv) -> int:
     import run_from_archicad as R
 
-    from ashiba.box import BOX_OBJECT, box_loop, parse_box_params, width_nominal
+    from ashiba.box import BOX_OBJECT, box_loop, parse_box_params, thickness_conditions
     from ashiba.manual import eaves_for_levels, solve_manual_loop, span_changes, span_text
     from ashiba.master import SERIES_LABELS, series_module
 
@@ -121,8 +125,8 @@ def build(c, argv) -> int:
                               float(dd.get("angle") or 0.0), b["sx"], b["sy"])
         base, sid = _conditions(R, b["series_id"])
         dev = {"project_name": opt("--name"), "elevation_mode": "none"} if "--name" in argv else {}
-        extra = {**base, **dev, "series_id": sid, "module": series_module(sid),
-                 "scaffold_width_mm": width_nominal(b["row_mm"])}
+        kind, cond = thickness_conditions(b["thick_mm"], b["standoff"])
+        extra = {**base, **dev, **cond, "series_id": sid, "module": series_module(sid)}
         world, spec, solved = solve_manual_loop(pts, sides, b["standoff"], eaves_for_levels(b["levels"], int(b["floor_mm"])),
                                                 extra)
     except Exception as e:
@@ -130,7 +134,7 @@ def build(c, argv) -> int:
         return 1
     lv = list(solved.model.elevation.level_heights)
     print(f"箱を足場に: {sum(b['sx'])}×{sum(b['sy'])}（長手 {span_text(b['sx'])}／短手 {span_text(b['sy'])}）・"
-          f"作業床 {len(lv)}段（最上段 {lv[-1]:.0f}mm）・離れ {b['standoff']:.0f}・{SERIES_LABELS.get(sid, sid)} で置きます")
+          f"作業床 {len(lv)}段（最上段 {lv[-1]:.0f}mm）・{kind}・離れ {b['standoff']:.0f}・{SERIES_LABELS.get(sid, sid)} で置きます")
     for ch in span_changes(spec, solved):
         print(f"  スパンの変更: {ch}")
     R.main(outline_mm=world, spec_override={k: v for k, v in spec.items() if k != "outline_mm"}, use_spec_object=False)

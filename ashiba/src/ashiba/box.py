@@ -14,8 +14,15 @@ import math
 from typing import Optional
 
 BOX_OBJECT = "ashiba_box"
+BOX_MIN_SPAN_MM = 600     # 箱の吸着に使う定尺の下限（アルバトロスの 457 は端数の調整用で、先行手摺・シート・朝顔の合う品が無い）
 DEFAULT_LEVELS = 4
 AXIS_TOL_DEG = 2.0
+
+
+def box_coins(coins: list[int]) -> list[int]:
+    """箱の吸着に使う定尺（大きい順。BOX_MIN_SPAN_MM 未満は使わない。それしか無ければそのまま）."""
+    big = sorted({int(c) for c in coins if c >= BOX_MIN_SPAN_MM}, reverse=True)
+    return big or sorted({int(c) for c in coins}, reverse=True)
 
 
 def snap_spans(length_mm: float, coins: list[int]) -> list[int]:
@@ -67,23 +74,42 @@ def parse_box_params(params: dict) -> dict:
     if not sx or not sy:
         raise ValueError("箱のスパンが読めません（spanX・spanY）")
     return {"sx": sx, "sy": sy, "levels": max(1, int(float(params.get("nLev") or DEFAULT_LEVELS))),
-            "row_mm": float(params.get("rowW") or 0.914) * 1000.0,
+            "thick_mm": snap_thickness(float(params.get("thick") or 0.9) * 1000.0),
             "standoff": float(params.get("standoff") or 0.3) * 1000.0,
             "floor_mm": float(params.get("floorH") or 1.8) * 1000.0,
             "series_id": str(params.get("seriesId") or "")}
 
 
+THICKNESSES = (300, 600, 900, 1200)   # 箱の厚み（部品が吸着する値）: 300＝一側足場、600／900／1200＝本足場の幅
+
+
+def snap_thickness(t_mm: float) -> int:
+    return min(THICKNESSES, key=lambda t: abs(t - t_mm))
+
+
+def thickness_conditions(t_mm: float, standoff: float) -> tuple[str, dict]:
+    """箱の厚み → (種類の名前, 解く条件). 利用者の指定 2026-10-30: 厚みで種類も変える.
+
+    300 は一側足場。本足場が入らない狭い所の足場なので、使える幅を「離れ＋厚み＋100」とする（ブラケットの出 360 は収まり、
+    本足場の幅 610 は収まらない。安衛則561条の2 の本足場原則のただし書き）。600・900・1200 は幅 610・914・1219 の本足場。"""
+    t = snap_thickness(t_mm)
+    if t == 300:
+        return "一側足場", {"scaffold_form": "一側足場", "clearance_space_mm": standoff + t + 100.0}
+    return f"本足場 幅{t}", {"scaffold_form": "本足場", "scaffold_width_mm": t}
+
+
 def width_nominal(row_mm: float) -> int:
-    """箱の足場の幅（内外の建地の間 610・914・1219）→ 条件の足場の幅（600・900・1200）."""
+    """足場の幅（内外の建地の間 610・914・1219）→ 条件の足場の幅（600・900・1200）."""
     return min((600, 900, 1200), key=lambda w: abs(w - row_mm * 900.0 / 914.0))
 
 
-def box_params(sx: list[int], sy: list[int], coins: list[int], row_mm: float, levels: int, lev1_mm: float,
+def box_params(sx: list[int], sy: list[int], coins: list[int], thick_mm: float, levels: int, lev1_mm: float,
                floor_mm: float, series_id: str, standoff: float, pens: Optional[dict] = None) -> dict:
     """部品 ashiba_box に入れるパラメータ（m）."""
     out = {"spanX": ",".join(str(int(v)) for v in sx), "spanY": ",".join(str(int(v)) for v in sy),
            "szList": ",".join(str(int(c)) for c in sorted({int(c) for c in coins}, reverse=True)),
-           "lenX": sum(sx) / 1000.0, "lenY": sum(sy) / 1000.0, "rowW": row_mm / 1000.0, "nLev": int(levels),
+           "lenX": sum(sx) / 1000.0, "lenY": sum(sy) / 1000.0, "thick": snap_thickness(thick_mm) / 1000.0,
+           "nLev": int(levels),
            "lev1": lev1_mm / 1000.0, "floorH": floor_mm / 1000.0,
            "topEdit": (lev1_mm + (levels - 1) * floor_mm) / 1000.0, "seriesId": series_id, "standoff": standoff / 1000.0}
     out.update(pens or {})

@@ -110,7 +110,7 @@ PART_PROFILES = {
     # 足場の箱（超簡易モード。利用者の指定 2026-10-30: 箱を作って自分で伸び縮み）
     "ashiba_box": {
         "images": ("3D", "2D"),
-        "params": {"spanX": "1829,1829,1829,914", "spanY": "1829,1829", "nLev": 3, "rowW": 0.914},
+        "params": {"spanX": "1829,1829,1829,914", "spanY": "1829,1829", "nLev": 3, "thick": 0.9},
     },
     "ashiba_detail": {
         "images": ("2D",),

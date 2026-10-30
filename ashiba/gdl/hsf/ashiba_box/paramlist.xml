@@ -49,9 +49,9 @@
 			<Description><![CDATA["使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）"]]></Description>
 			<Value><![CDATA["1829,1524,1219,914,610"]]></Value>
 		</String>
-		<Length Name="rowW">
-			<Description><![CDATA["足場の幅（内外の建地の間）"]]></Description>
-			<Value>0.914</Value>
+		<Length Name="thick">
+			<Description><![CDATA["厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
+			<Value>0.9</Value>
 		</Length>
 		<Integer Name="nLev">
 			<Description><![CDATA["作業床の段数（3D の天端のつまみで増減）"]]></Description>
