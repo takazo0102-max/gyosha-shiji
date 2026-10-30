@@ -174,11 +174,14 @@ class TestShimsAndSaddlesFollowTheModel(unittest.TestCase):
                 continue
             with self.subTest(name):
                 raised = [f for f in r.terrain.feet if f.base_plate_adjust_mm > 0]
+                # 屋上への渡りの支柱のジャッキで届かない分も敷板（厚35の枚数）で上げる
+                bridge = sum(2 * round(b.shim_mm / 35) for b in getattr(r.model, "roof_bridges", None) or []
+                             if b.kind == "支柱")
                 shims = r.quantity.qty_of("敷板")
                 if raised:
-                    self.assertGreaterEqual(shims, len(raised))
+                    self.assertGreaterEqual(shims, len(raised) + bridge)
                 else:
-                    self.assertEqual(shims, 0)
+                    self.assertEqual(shims, bridge)
 
     def test_saddles_equal_inner_posts_on_beams(self):
         for name, r in self.runs:

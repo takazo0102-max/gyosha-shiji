@@ -69,3 +69,23 @@ class TestRoofBridges(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRoofPostReach(unittest.TestCase):
+    """屋上の支柱の高さがジャッキで届かないとき: 調整カラー（アルバトロス）か敷板（35 の枚数）で上げる（ジャッキ 1280 を書いていた）."""
+
+    def test_collars_and_shims(self):
+        from ashiba.master import load_master
+        from ashiba.roof_bridges import _wedge_post
+
+        alb = load_master("albatross")
+        for drop in range(0, 1800, 25):
+            L, j, cs, sh = _wedge_post(float(drop), alb)
+            self.assertTrue(30 <= j <= 255, (drop, j))
+            self.assertEqual(sh, 0.0)
+            self.assertLessEqual(len(cs), 2)
+        self.assertEqual(_wedge_post(375.0, alb)[2], [150, 60])
+        nd = load_master("nikken_nd1800")
+        L, j, cs, sh = _wedge_post(375.0, nd)
+        self.assertEqual((cs, sh % 35, j <= 350), ([], 0.0, True))
+

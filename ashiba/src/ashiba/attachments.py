@@ -949,7 +949,8 @@ def bridge_placements(model: ScaffoldModel, line_mode: bool = False) -> list[Pla
             "brKind": kinds.get(b.kind, 0),
             "zFrom": (base + b.z_from_mm) / 1000.0, "zDeck": (base + b.z_deck_mm) / 1000.0,
             "zTo": (base + b.z_to_mm) / 1000.0,
-            "postL": b.post_mm / 1000.0, "jackOut": b.jack_mm / 1000.0,
+            # 調整カラー・敷板はジャッキの長さに含めて描く（支柱の高さを合わせる）
+            "postL": b.post_mm / 1000.0, "jackOut": (b.jack_mm + b.collar_mm + b.shim_mm) / 1000.0,
             "deckList": ",".join(str(int(w)) for w in b.deck), "deckLen": b.deck_len_mm / 1000.0,
             "paraH": b.parapet_mm / 1000.0, "paraX": float(ep.standoff) / 1000.0, "paraT": b.parapet_t_mm / 1000.0,
             "extL": b.ext_mm / 1000.0, "postTop": (base + b.post_top_mm) / 1000.0,

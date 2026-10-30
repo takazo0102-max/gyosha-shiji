@@ -52,12 +52,18 @@ class RoofBridge:
     standoff_mm: float = 0.0
     post_mm: float = 0.0     # 屋上の支柱の長さ（くさびの支柱・単管）
     jack_mm: float = 0.0     # 屋上の支柱のジャッキの繰出し（くさび）
+    collars: list = field(default_factory=list)   # ジャッキと支柱の間に継ぐ調整カラー（アルバトロス 60・150。2本まで）
+    shim_mm: float = 0.0     # それでも届かない分をジャッキの下の敷板で上げる高さ
     deck: list = field(default_factory=list)   # 床の幅の並び（アンチ 500・240、足場板 240）
     deck_len_mm: float = 0.0                   # 床材の長さ（アンチは布材と同じ呼び、足場板は規格の長さ）
     tube: bool = False       # 単管と足場板で組む（枠組・単管）
     bracket: str = ""        # ブラケットの品名（すき間を塞ぐ渡り）
     ext_mm: float = 0.0      # 渡りの手すりを受けるために継ぎ足す、掛けるスパンの内側の支柱2本の長さ（0 は不要）
     post_top_mm: float = 0.0 # 内側の支柱の天端（足場の立つ高さから）
+
+    @property
+    def collar_mm(self) -> int:
+        return int(sum(self.collars))
 
     @property
     def step_up_mm(self) -> float:
@@ -155,9 +161,11 @@ def deck_gap_mm(depth: float, ws: list[int], wall_clear: float = 30.0) -> float:
     return depth - wall_clear - _filled(ws)
 
 
-def _wedge_post(drop: float, master) -> tuple[float, float]:
-    """屋上の支柱（長さ, ジャッキの繰出し）: 渡りの床・中桟・手すりがコマに来るよう、支柱の天端を手すりのコマ＋上端の
-    コマの下がり（＋コマの倍数）にする。ジャッキの繰出しはコマの並びで決まる（30〜ジャッキの上限）."""
+def _wedge_post(drop: float, master) -> tuple[float, float, list, float]:
+    """屋上の支柱（長さ, ジャッキの繰出し, 調整カラー, 敷板）: 渡りの床・中桟・手すりがコマに来るよう、支柱の天端を手すりの
+    コマ＋上端のコマの下がり（＋コマの倍数）にする。ジャッキの繰出しはコマの並びで決まる（30〜ジャッキの上限）。
+    ジャッキの幅がコマの間隔より狭い系列（アルバトロス 30〜255 と 450）で届かない高さは、調整カラーを継ぐか敷板で上げる
+    （届かないときジャッキ 1280 のような繰出しを書いていた）."""
     koma = float(master.koma_pitch or 450.0)
     gap = float(master.koma_top_gap or 0.0)
     jmax = float(master.jack_hard_max_mm() or 270.0)
@@ -170,8 +178,24 @@ def _wedge_post(drop: float, master) -> tuple[float, float]:
                 cands.append((j, k, L))
     if cands:
         j, _k, L = min(cands)
-        return float(L), float(j)
-    return float(lengths[0]), max(30.0, drop + 2 * koma + gap - lengths[0])
+        return float(L), float(j), [], 0.0
+    # ジャッキだけでは届かない: いちばん小さい余り（ジャッキの上限を超える分）の組に、調整カラーか敷板を足す
+    over = [(drop + 2 * koma + gap + k * koma - L, L) for L in lengths for k in range(0, 4)]
+    over = [(j, L) for j, L in over if j > jmax] or [(max(30.0, drop + 2 * koma + gap - lengths[0]), lengths[0])]
+    j, L = min(over)
+    if j <= jmax:
+        return float(L), float(j), [], 0.0
+    one = sorted({int(p.nominal_dim) for p in master.by_category("調整カラー")
+                  if p.nominal_dim > 0 and "近日導入予定" not in p.note})
+    # 1本、だめなら2本（連結ピンで継ぐ）。短い組から
+    combos = [[c] for c in one] + sorted(([a, b] for i, a in enumerate(one) for b in one[i:]), key=sum)
+    cs = next((cs for cs in combos if 30.0 <= j - sum(cs) <= jmax), None)
+    if cs:
+        return float(L), float(j - sum(cs)), sorted(cs, reverse=True), 0.0
+    from .terrain import SHIM_UNIT_MM
+
+    shim = math.ceil((j - jmax) / SHIM_UNIT_MM - 1e-9) * SHIM_UNIT_MM     # 敷板（厚35）の枚数で上げ、残りをジャッキで
+    return float(L), float(j - shim), [], float(shim)
 
 
 def _tube_len(need: float, master) -> float:
@@ -277,7 +301,7 @@ def plan_bridge(model, ei: int, x: float, z_to: float, para: float, para_t: floa
             # アンチも横引き（面に沿って、両脇の腕木の布材に掛ける。長さはスパンと同じ呼び）
             b.deck = _deck_list(b.length_mm, ws)
             b.deck_len_mm = w
-            b.post_mm, b.jack_mm = _wedge_post(drop, m)
+            b.post_mm, b.jack_mm, b.collars, b.shim_mm = _wedge_post(drop, m)
     row = float(model.row_spacing_of(ei)) or 600.0
     if b.step_up_mm and (b.steps(b.step_up_mm) - 1) * STEP_TREAD_MM > row - 100.0:
         notes.append(f"屋上への渡り（{name}）: 足場の床（{zl:.0f}）から渡りの床（{zb:.0f}）まで {b.step_up_mm:.0f} 上がります。"
@@ -362,7 +386,9 @@ def roof_bridges(model, stair_plan, spec: dict) -> tuple[list[RoofBridge], list[
 def bridge_words(b: RoofBridge) -> str:
     """渡りの組み方の要約（「布材914・屋上に支柱 1350＋ジャッキ・アンチ 500×3＋240」）."""
     if b.kind == "支柱":
-        s = f"布材{b.length_mm:.0f}・屋上に支柱{b.post_mm:.0f}（ジャッキ{b.jack_mm:.0f}）"
+        s = (f"布材{b.length_mm:.0f}・屋上に支柱{b.post_mm:.0f}（ジャッキ{b.jack_mm:.0f}"
+             + "".join(f"＋調整カラー{c}" for c in b.collars)
+             + (f"・ジャッキの下に敷板{b.shim_mm / 35:.0f}枚で{b.shim_mm:.0f}上げる" if b.shim_mm else "") + "）")
     elif b.kind == "ブラケット":
         s = f"{b.bracket}で躯体の外面までのすき間を塞ぐ"
     elif b.kind == "単管支柱":

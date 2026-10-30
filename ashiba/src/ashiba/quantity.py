@@ -1826,6 +1826,19 @@ def _count_roof_bridges(model: ScaffoldModel, add, notes) -> None:
             add(m.find("支柱", int(b.post_mm)), 2, f"支柱{b.post_mm:.0f}（{tag}の屋上の支柱）")
             jack = next(iter(sorted(m.by_category("ジャッキ"), key=lambda p: p.nominal_dim, reverse=True)), None)
             add(jack, 2, f"ジャッキ（{tag}の屋上の支柱）")
+            for c in b.collars:
+                add(next((p for p in m.by_category("調整カラー") if int(p.nominal_dim) == c), None), 2,
+                    f"調整カラー{c}（{tag}の屋上の支柱の下）")
+            if b.shim_mm:
+                from .terrain import SHIM_UNIT_MM
+
+                n_sh = 2 * int(round(b.shim_mm / SHIM_UNIT_MM))
+                shim = next(iter(m.by_category("敷板")), None)
+                if shim is not None:
+                    add(shim, n_sh, f"敷板（{tag}の屋上の支柱のジャッキの下）")
+                else:
+                    notes.action(f"{tag}の屋上の支柱2本のジャッキの下に敷板（厚{SHIM_UNIT_MM}mm）計{n_sh}枚を別途手配してください",
+                                 Notes.ORDER)
             for dw in b.deck:
                 add(m.deck_parts(int(dw), w), 1, f"アンチ 幅{dw}×{w}（{tag}。横引き）")
             add(m.find("幅木", L), 2, f"幅木{L}（{tag}の両脇）")
