@@ -35,10 +35,25 @@ final class FormWindow: NSObject, NSWindowDelegate {
     }
 
     func build() {
-        let W: CGFloat = 520, M: CGFloat = 16, LW: CGFloat = 150, RH: CGFloat = 28
+        // 項目名の幅はいちばん長い項目名に合わせる（手動配置の「辺1 →（描いた長さ 8230）」などが切れていた）
+        let M: CGFloat = 16, RH: CGFloat = 28
+        var longest: CGFloat = 0
+        for f in form.fields where f.kind != "section" {
+            longest = max(longest, NSAttributedString(string: f.label,
+                                                      attributes: [.font: NSFont.systemFont(ofSize: 13)]).size().width)
+        }
+        let LW: CGFloat = min(max(150, ceil(longest) + 8), 300)
+        let W: CGFloat = LW + 370
         var rows: CGFloat = 0
         for f in form.fields { rows += (f.kind == "section") ? 30 : RH }
-        let introH: CGFloat = (form.intro ?? "").isEmpty ? 0 : 44
+        // 説明文は行数に合わせた高さ（2行分の固定で、手動配置の説明の下が切れていた）
+        var introH: CGFloat = 0
+        if let intro = form.intro, !intro.isEmpty {
+            let probe = NSTextField(wrappingLabelWithString: intro)
+            probe.font = .systemFont(ofSize: 12)
+            probe.preferredMaxLayoutWidth = W - 2 * M
+            introH = ceil(probe.fittingSize.height) + 10
+        }
         let H = M + introH + rows + 16 + 32 + M
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
