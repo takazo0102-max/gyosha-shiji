@@ -267,3 +267,41 @@ def span_changes(spec: dict, result) -> list[str]:
         if w is not None and list(e.spans) != w:
             out.append(f"{names.get(e.edge_index, e.edge_index)}: {span_text(w)} → {span_text(list(e.spans))}（入隅のつなぎ）")
     return out
+
+
+# ---- 前回の入力（窓の初期値に使う。ashiba_out/手動配置_前回.json）----
+LAST_FILE = "手動配置_前回.json"
+LAST_KEYS = ("height", "standoff", "width", "rail", "series", "side", "spans", "sides")
+
+
+def load_last(path) -> dict:
+    """前回の入力（無い・壊れているときは空）."""
+    import json
+    from pathlib import Path
+
+    try:
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: v for k, v in d.items() if k in LAST_KEYS} if isinstance(d, dict) else {}
+
+
+def save_last(path, vals: dict) -> None:
+    import json
+    from pathlib import Path
+
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({k: v for k, v in vals.items() if k in LAST_KEYS}, ensure_ascii=False, indent=2),
+                 encoding="utf-8")
+
+
+def default_spans(length_mm: float, coins: list[int], last_text: str = "") -> str:
+    """スパンの初期値: 前回のスパンの合計が線の長さに近ければ（±300）前回のまま、でなければ線の長さに近い並び."""
+    if last_text:
+        try:
+            if abs(sum(parse_spans(last_text)) - length_mm) <= 300:
+                return str(last_text)
+        except ValueError:
+            pass
+    return span_text(suggest_spans(length_mm, coins))

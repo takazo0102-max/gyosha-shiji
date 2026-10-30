@@ -84,6 +84,25 @@ class TestManualPlacement(unittest.TestCase):
 
 
 
+class TestLastInputs(unittest.TestCase):
+    def test_remember_and_default_spans(self):
+        import tempfile
+        from pathlib import Path
+
+        from ashiba.manual import default_spans, load_last, save_last
+
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "前回.json"
+            self.assertEqual(load_last(p), {})
+            save_last(p, {"height": "9000", "spans": "1829×4, 914", "junk": 1})
+            self.assertEqual(load_last(p), {"height": "9000", "spans": "1829×4, 914"})
+            p.write_text("壊れた", encoding="utf-8")
+            self.assertEqual(load_last(p), {})
+        coins = [1829, 1524, 1219, 914, 610]
+        self.assertEqual(default_spans(8200, coins, "1829×4, 914"), "1829×4, 914")       # 合計 8230 は ±300 以内
+        self.assertEqual(default_spans(5500, coins, "1829×4, 914"), "1829×3")            # 遠ければ線の長さから
+
+
 class TestManualLoop(unittest.TestCase):
     """一周（閉じたポリライン）: 辺ごとのスパンで一周を置く."""
 

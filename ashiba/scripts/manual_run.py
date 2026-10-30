@@ -39,14 +39,19 @@ def _loop_points(segs) -> list | None:
     return [a for a, _b in segs]
 
 
-def _common_fields(R, base, sid0, SERIES_LABELS) -> list[dict]:
-    return [{"key": "height", "label": "高さ（軒高）mm", "kind": "number", "value": str(int(R.SPEC.get("eaves_height_mm", 6000)))},
-            {"key": "standoff", "label": "離れ mm（躯体から内側の建地まで）", "kind": "number", "value": "300"},
-            {"key": "width", "label": "足場の幅", "kind": "choice", "options": list(WIDTHS), "value": "900（914）"},
+def _common_fields(R, base, sid0, SERIES_LABELS, last: dict) -> list[dict]:
+    """高さ・離れ・幅・手すり・足場の種類（初期値は前回の入力。無ければ条件）."""
+    pick = lambda k, opts, d: last[k] if last.get(k) in opts else d
+    return [{"key": "height", "label": "高さ（軒高）mm", "kind": "number",
+             "value": str(last.get("height") or int(R.SPEC.get("eaves_height_mm", 6000)))},
+            {"key": "standoff", "label": "離れ mm（躯体から内側の建地まで）", "kind": "number",
+             "value": str(last.get("standoff") or "300")},
+            {"key": "width", "label": "足場の幅", "kind": "choice", "options": list(WIDTHS),
+             "value": pick("width", list(WIDTHS), "900（914）")},
             {"key": "rail", "label": "手すり", "kind": "choice", "options": list(RAILS),
-             "value": str(base.get("guard_rail_type") or RAILS[0])},
+             "value": pick("rail", RAILS, str(base.get("guard_rail_type") or RAILS[0]))},
             {"key": "series", "label": "足場の種類", "kind": "choice", "options": list(SERIES_LABELS.values()),
-             "value": SERIES_LABELS.get(sid0, sid0)}]
+             "value": pick("series", list(SERIES_LABELS.values()), SERIES_LABELS.get(sid0, sid0))}]
 
 
 def main() -> int:
@@ -54,8 +59,10 @@ def main() -> int:
     from form_dialog import show_form
 
     from ashiba.cli import resolve_series_id
-    from ashiba.manual import (SIDE_LEFT, SIDE_RIGHT, SIDES, general_conditions, loop_directions, parse_spans,
-                               solve_manual, solve_manual_loop, span_changes, span_text, suggest_spans)
+    from ashiba.manual import (LAST_FILE, SIDE_LEFT, SIDE_RIGHT, SIDES, default_spans, general_conditions,
+                               load_last, loop_directions, parse_spans, save_last, solve_manual, solve_manual_loop,
+                               span_changes, span_text, suggest_spans)
+    from guide_lines import OUT_DIR
     from ashiba.master import SERIES_LABELS, load_master, series_from_label, series_module
 
     argv = sys.argv[1:]
@@ -79,6 +86,8 @@ def main() -> int:
     sid0 = resolve_series_id({**R.SPEC, **base})
     coins = load_master(sid0).span_lengths()
     headless = "--line" in argv or "--loop" in argv
+    # 前回の入力を窓の初期値に（スパンを少し変えて置き直すことが多い）。窓なしの確認では読まず書かない
+    last = {} if headless else load_last(OUT_DIR / LAST_FILE)
     if loop is not None:
         try:
             dirs = loop_directions(loop)
@@ -96,8 +105,10 @@ def main() -> int:
                              "長さは目安。向かい合う辺の合計をそろえてください）。入隅は2つの面を 610 などの升目でつなぐので、そこだけ"
                              "スパンが変わることがあります（置いたあとに知らせます）。",
                              "fields": [{"key": f"s{i}", "label": f"辺{i + 1} {arrow.get(d, '')}（描いた長さ {lens[i]:.0f}）",
-                                         "kind": "text", "value": span_text(suggest_spans(lens[i], coins))}
-                                        for i, d in enumerate(dirs)] + _common_fields(R, base, sid0, SERIES_LABELS),
+                                         "kind": "text",
+                                         "value": default_spans(lens[i], coins, (last.get("sides") or [""] * len(dirs))[i]
+                                                                if len(last.get("sides") or []) == len(dirs) else "")}
+                                        for i, d in enumerate(dirs)] + _common_fields(R, base, sid0, SERIES_LABELS, last),
                              "buttons": [{"id": "place", "label": "配置"}, {"id": "cancel", "label": "やめる"}]})
             if not res or res.get("button") != "place":
                 print("手動配置: やめました（何も置いていません）")
@@ -112,10 +123,10 @@ def main() -> int:
                          f"線の長さ {length:.0f}mm（内側の建地の列。始点が1本目の支柱）。スパンを並べて入れ、高さを決めて「配置」を"
                          "押すと、その線の上に足場を置きます（建物を選ばなくてよい）。スパンは「1829×4, 914」のように入れます。",
                          "fields": [{"key": "spans", "label": "スパン（始点から）", "kind": "text",
-                                     "value": span_text(suggest_spans(length, coins))}]
-                         + _common_fields(R, base, sid0, SERIES_LABELS)
+                                     "value": default_spans(length, coins, str(last.get("spans") or ""))}]
+                         + _common_fields(R, base, sid0, SERIES_LABELS, last)
                          + [{"key": "side", "label": "足場を出す側", "kind": "choice", "options": list(SIDES),
-                             "value": SIDE_RIGHT}],
+                             "value": last.get("side") if last.get("side") in SIDES else SIDE_RIGHT}],
                          "buttons": [{"id": "place", "label": "配置"}, {"id": "cancel", "label": "やめる"}]})
         if not res or res.get("button") != "place":
             print("手動配置: やめました（何も置いていません）")
@@ -147,6 +158,13 @@ def main() -> int:
         print(f"手動配置: {e}")
         return 1
     print(f"手動配置: {what}・高さ {height:.0f}・離れ {standoff:.0f}・{SERIES_LABELS.get(sid, sid)} で置きます")
+    if not headless:
+        keep = {k: vals.get(k) for k in ("height", "standoff", "width", "rail", "series", "side") if vals.get(k)}
+        if loop is not None:
+            keep["sides"] = [str(vals.get(f"s{i}") or "") for i in range(len(loop))]
+        else:
+            keep["spans"] = str(vals.get("spans") or "")
+        save_last(OUT_DIR / LAST_FILE, keep)
     if loop is not None:
         for ch in span_changes(spec, solved):
             print(f"  スパンの変更: {ch}")
