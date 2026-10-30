@@ -167,6 +167,41 @@ class TestManualNoRoofBridge(unittest.TestCase):
         self.assertEqual(r.model.roof_bridges, [])
 
 
+class TestPreview(unittest.TestCase):
+    """超簡易モードは割付を見てから配置（利用者の指定 2026-10-30）: 平面に内外の建地の列・支柱の位置・スパンを出す."""
+
+    def test_single_line(self):
+        from ashiba.manual import preview_drawing
+
+        _o, _spec, r = solve_manual((0, 0), (8230, 0), [1829] * 4 + [914], 300, SIDE_RIGHT, 6000,
+                                    {"series_id": "albatross"})
+        d = preview_drawing(r, "割付の下見")
+        self.assertEqual(d["posts"], 6)                                   # 5スパンの支柱 6本
+        self.assertEqual([t["text"] for t in d["texts"][:5]], ["1829"] * 4 + ["914"])
+        self.assertEqual(d["texts"][-1]["text"], "割付の下見")
+        self.assertEqual(len(d["lines"]), 2 + 6)                          # 内外の列 2本＋支柱の目印 6本
+        # 線1本は局所座標で解くので、下見は描いた線の位置へ移して描く（移さないと 300 ずれた所に出た）
+        from ashiba.manual import line_xform
+
+        a, b = (100000.0, 50000.0), (100000.0, 58230.0)                    # 上向きの線
+        _o, spec, r = solve_manual(a, b, [1829] * 4 + [914], 300, SIDE_RIGHT, 6000, {"series_id": "albatross"})
+        d = preview_drawing(r, "", line_xform(r, spec, a, b, SIDE_RIGHT))
+        marks = d["lines"][2:]
+        ys = sorted({round(p[1]) for pts in marks for p in pts})
+        self.assertEqual(ys, [50000, 51829, 53658, 55487, 57316, 58230])  # 目印は描いた線の上の支柱の位置
+        self.assertTrue(all(any(abs(p[0] - 100000.0) < 1 or (p[0] - 100000.0) * (q[0] - 100000.0) < 0
+                                for p, q in [(pts[0], pts[1])]) for pts in marks))
+
+    def test_loop_only_placed_faces(self):
+        from ashiba.manual import close_open_path, preview_drawing
+
+        lp, sides, keep = close_open_path([(0, 0), (9145, 0), (9145, 5487)], [[1829] * 5, [1829] * 3])
+        _o, _spec, r = solve_manual_loop(lp, sides, 300, 6000, {"series_id": "albatross"}, keep_sides=keep)
+        d = preview_drawing(r)
+        self.assertEqual(d["posts"], 6 + 4)                                # 描いた2辺だけ（仮に足した辺は描かない）
+        self.assertEqual(len(d["texts"]), 5 + 3)
+
+
 class TestManualOpenPath(unittest.TestCase):
     """開いたポリライン（2辺の角・3辺のコの字）: 向かい合う辺を同じスパンで仮に足して解き、描いた辺だけに置く."""
 

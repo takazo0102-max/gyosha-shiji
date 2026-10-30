@@ -353,3 +353,67 @@ def eaves_for_levels(levels: int, floor_height: int = 1800) -> float:
     if levels < 1:
         raise ValueError("作業床の段数は1以上で入れてください")
     return float(levels * floor_height - 200)
+
+
+# ---- 割付の下見（利用者の指定 2026-10-30: 超簡易モードは割付を見てから配置）----
+PREVIEW_TEXT_MM = 2.5          # 下見の文字の高さ（図の上の mm）
+PREVIEW_TICK_MM = 150.0        # 支柱の目印（列から外へ出す長さ）
+PREVIEW_DIM_OFFSET_MM = 450.0  # スパン寸法の文字を外側の列から離す
+
+
+def line_xform(local, spec: dict, a, b, side: str):
+    """線1本の手動配置（局所座標で解いた結果）の点 → 世界座標の点（下見を描く位置）."""
+    anchor = anchor_of(local.model.plan, int((spec.get("faces") or [0])[0]), side)
+    return lambda p: tuple(to_world([[p[0], p[1]]], anchor, tuple(a), tuple(b))[0])
+
+
+def preview_drawing(result, title: str = "", xform=None) -> dict:
+    """解いた手動配置 → 平面に描く割付の下見（実寸 mm の座標）: 内外の建地の列の線、支柱の位置の目印、スパンの寸法.
+
+    {"lines": [[(x, y), …], …], "texts": [{"x", "y", "text"}], "posts": 支柱の本数（1列）}。置く面（faces）だけ描く。
+    xform は局所座標で解いた線1本の結果を世界座標へ移す（line_xform。一周・角は世界座標で解くので無し）。"""
+    model = result.model
+    keep = model.faces_only
+    lines, texts, n_posts = [], [], 0
+    for ep in model.plan.edges:
+        if keep is not None and ep.edge_index not in keep:
+            continue
+        edge = model.plan.outline.edges[ep.edge_index]
+        (dx, dy), (ox, oy) = edge.direction, edge.outward
+        row = float(model.row_spacing_of(ep.edge_index) or model.post_row_spacing_mm or 0.0)
+        x0, y0 = ep.start_post
+        xs = [0.0]
+        for s in ep.spans:
+            xs.append(xs[-1] + float(s))
+        mv = xform or (lambda p: p)
+        at = lambda d, off: mv((x0 + dx * d + ox * off, y0 + dy * d + oy * off))
+        for off in ((0.0, row) if row > 0 else (0.0,)):
+            lines.append([at(xs[0], off), at(xs[-1], off)])
+        for d in xs:
+            # 支柱の目印: 内外の列を結ぶ線（腕木の位置）と、外へ少し出した目盛り
+            lines.append([at(d, -PREVIEW_TICK_MM), at(d, row + PREVIEW_TICK_MM)])
+        n_posts += len(xs)
+        for a, b, s in zip(xs, xs[1:], ep.spans):
+            x, y = at((a + b) / 2.0, row + PREVIEW_DIM_OFFSET_MM)
+            texts.append({"x": x, "y": y, "text": str(int(s))})
+    if lines and title:
+        # 見出しは下見全体の下に1行（面ごとに書くと縦の面でスパンの文字と重なった）
+        xs_all = [x for pts in lines for x, _y in pts]
+        ys_all = [y for pts in lines for _x, y in pts]
+        texts.append({"x": (min(xs_all) + max(xs_all)) / 2.0, "y": min(ys_all) - 3 * PREVIEW_DIM_OFFSET_MM, "text": title})
+    return {"lines": lines, "texts": texts, "posts": n_posts}
+
+
+def place_preview(client, drawing: dict) -> list[dict]:
+    """下見を平面図に置く → 置いた要素（あとで消す）."""
+    made: list[dict] = []
+    if drawing["lines"]:
+        r = client.tapir("CreatePolylines", {"polylinesData": [
+            {"coordinates": [{"x": x / 1000.0, "y": y / 1000.0} for x, y in pts]} for pts in drawing["lines"]]})
+        made += [{"elementId": e["elementId"]} for e in r.get("elements", []) if "elementId" in e]
+    if drawing["texts"]:
+        r = client.tapir("CreateTexts", {"textsData": [
+            {"coordinate": {"x": t["x"] / 1000.0, "y": t["y"] / 1000.0, "z": 0.0}, "text": t["text"],
+             "height": PREVIEW_TEXT_MM, "justification": "Center"} for t in drawing["texts"]]})
+        made += [{"elementId": e["elementId"]} for e in r.get("elements", []) if "elementId" in e]
+    return made
