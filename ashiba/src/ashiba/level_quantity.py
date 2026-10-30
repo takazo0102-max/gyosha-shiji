@@ -231,7 +231,9 @@ def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> Lev
                         z += nominal
         # 荷受けステージの先端の手すり支柱は、ステージを付けた層の床の上（platforms.platform_part_demands と同じ本数）
         plat = kw.get("platforms")
-        if plat is not None:
+        from .platforms import uses_load_form
+
+        if plat is not None and not uses_load_form(model):     # 荷受けフォームの先端は手摺柱（支柱でない）
             from .platforms import _rail_post_nominal
 
             for st in getattr(plat, "stages", None) or []:

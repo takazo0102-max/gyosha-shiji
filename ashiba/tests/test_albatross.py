@@ -97,6 +97,40 @@ class TestAlbatrossShoring(unittest.TestCase):
         self.assertIn("許容 33.5kN", next(c.message for c in r2.checks if c.item == "支保工の支柱の軸力"))
 
 
+class TestAlbatrossLoadForm(unittest.TestCase):
+    """荷受けステージはアルバトロス荷受けフォームで組む（p031〜032・p057・p119）."""
+
+    STAGE = {"edge_index": 0, "start_mm": 1900, "span_count": 2, "levels": [2], "load_kn": 9.8}
+
+    def test_table(self):
+        from ashiba.platforms import load_form_max_kg
+
+        self.assertEqual(load_form_max_kg(1219, 9), 600)
+        self.assertEqual(load_form_max_kg(914, 5), 700)
+        self.assertEqual(load_form_max_kg(610, 23), 350)
+        self.assertIsNone(load_form_max_kg(457, 5))
+        self.assertIsNone(load_form_max_kg(1219, 25))
+
+    def test_parts_and_checks(self):
+        r = solve_all({**RECT, "loading_stages": [self.STAGE]})
+        self.assertFalse([i for i in r.platforms.issues if i.severity == "NG"], r.platforms.issues)
+        self.assertEqual(r.platforms.stages[0].projection_mm, 1410)          # 張出しは梁枠で決まる
+        got = {l.part.model_no: l.qty for l in r.quantity.lines}
+        # p119 の必要部材数（2スパン）: 梁枠3・金具3＋3・手摺枠2・巾木（小）2・手摺柱1・巾木1829 2・手摺桟4
+        self.assertEqual((got["88780"], got["88788"], got["88787"], got["88785"], got["88786"], got["88784"], got["35031"]),
+                         (3, 6, 2, 2, 1, 2, 4))
+        self.assertEqual(got["50810"], 3)                                    # 設置スパンの強化方杖
+        self.assertFalse(any("張出ブラケットでは受けられません" in str(n) for n in r.quantity.notes))
+        post = r.structural.post
+        self.assertIn("荷取り部", post.governing)
+        self.assertEqual(post.allowable_kn, 20.0)
+
+    def test_overload_is_ng(self):
+        r = solve_all({**RECT, "loading_stages": [{**self.STAGE, "load_kn": 14.7}]})     # 750kg/スパン
+        ng = [i.message for i in r.platforms.issues if i.severity == "NG"]
+        self.assertTrue(any("最大積載 600kg" in m for m in ng), ng)
+
+
 class TestAlbatrossStrongDiagonal(unittest.TestCase):
     """強力斜材の支保工（p061〜062）: 45.0kN・49.1kN仕様と使用条件."""
 

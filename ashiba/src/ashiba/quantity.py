@@ -1679,7 +1679,9 @@ def _count_platform_parts(model: ScaffoldModel, platforms, add, notes) -> None:
             notes.append(f"{model.face_name(h.edge_index)}の昇降機（始点から{h.position_mm:.0f}mm）の昇降路は前養生で塞ぐ: "
                          + g[0].detail + "（足場のシートは昇降路で途切れるため。落下物の防護 安衛則537条・建築基準法施行令"
                          "136条の5、国交省 建設工事安全マニュアル リフト工の養生囲い）")
-    for st in platforms.stages:
+    from .platforms import uses_load_form
+
+    for st in ([] if uses_load_form(model) else platforms.stages):
         if _bracket_nominal(model, st.projection_mm) is None:
             notes.action(
                 f"{model.face_name(st.edge_index)}のステージは出{st.projection_mm:.0f}mmで、"

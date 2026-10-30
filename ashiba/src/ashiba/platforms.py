@@ -264,6 +264,68 @@ LANDING_FITTINGS_PER_STAGE = 4
 LANDING_STAGE_MAX_KG = 800.0
 LANDING_BEAM_SPANS = (2, 3)
 LANDING_LEDGER_PITCH_MM = 1829.0
+# スギコ アルバトロス荷受けフォーム（カタログ vol.7 p031〜032・p057、必要部材数は p119 の表）: 支柱に取付金具で梁枠（斜材付き。
+# 全長 2021・張出し 1410・高さ 419）を掛け、鋼製踏板3枚・手摺枠（妻側）・手摺柱・手摺桟・巾木を付けるユニット式の荷受けステージ
+LOAD_FORM_PROJECTION_MM = 1410.0
+LOAD_FORM_POST_ALLOW_KN = 20.0     # 荷受けフォームを取り付けた足場の支柱の許容支持力（はり間 1219・けた行 1829 以下）
+LOAD_FORM_MAX_SPAN_MM = 1829
+LOAD_FORM_MAX_WIDTH_MM = 1219
+LOAD_FORM_DECKS_PER_SPAN = 3       # 鋼製踏板 N-6（幅500）を1スパン3枚
+# 足場のはり間方向の支柱間隔 → (層数の上限, 1スパン当たりの最大積載 kg)（p057。2層以上）
+LOAD_FORM_TABLE = {
+    1219: ((8, 700.0), (12, 600.0), (17, 500.0), (21, 400.0), (24, 350.0)),
+    914: ((5, 700.0), (10, 600.0), (16, 500.0), (22, 400.0), (24, 350.0)),
+    610: ((6, 600.0), (14, 500.0), (22, 400.0), (24, 350.0)),
+}
+
+
+def uses_load_form(model: ScaffoldModel) -> bool:
+    """荷受けステージを荷受けフォーム（アルバトロス）で組む系列か（マスタに荷受けフォームがある）."""
+    return bool(model.master.by_category("荷受けフォーム"))
+
+
+def load_form_max_kg(width_mm: float, n_levels: int) -> Optional[float]:
+    """荷受けフォームの1スパン当たりの最大積載（kg）。表の外（幅 610 未満・25層以上）は None."""
+    keys = [w for w in sorted(LOAD_FORM_TABLE) if w <= width_mm + 1]
+    if not keys:
+        return None
+    for top, kg in LOAD_FORM_TABLE[keys[-1]]:
+        if n_levels <= top:
+            return kg
+    return None
+
+
+def _check_load_form(model: ScaffoldModel, s: "LoadingStage", i: int, result: "PlatformResult") -> None:
+    """荷受けフォームの使用条件（p057）: 支柱間隔・層数ごとの最大積載."""
+    basis = "スギコ カタログvol.7 p057（荷受けフォームの積載荷重・支柱の許容支持力）"
+    long = [sp for sp in s.spans(model) if sp > LOAD_FORM_MAX_SPAN_MM + 1]
+    if long:
+        result.issues.append(PlatformIssue(
+            "ステージ", i, "NG",
+            f"荷受けフォームのけた行方向の支柱間隔は {LOAD_FORM_MAX_SPAN_MM} 以下です（間口に {max(long)} のスパン）", basis))
+    w = float(model.post_row_spacing_mm or 0)
+    if w > LOAD_FORM_MAX_WIDTH_MM + 1:
+        result.issues.append(PlatformIssue(
+            "ステージ", i, "NG",
+            f"荷受けフォームの足場のはり間方向の支柱間隔は {LOAD_FORM_MAX_WIDTH_MM} 以下です（{w:.0f}）", basis))
+    n_face = model.elevation_of(s.edge_index).n_levels
+    per_span_kg = s.load_kn * 1000.0 / GRAVITY / max(1, s.span_count)
+    allow = load_form_max_kg(w, n_face)
+    if n_face < 2:
+        result.issues.append(PlatformIssue(
+            "ステージ", i, "WARN",
+            f"足場が{n_face}層で、荷受けフォームの積載表（2層以上）の外です。メーカーに確認してください", basis))
+    elif allow is None:
+        result.issues.append(PlatformIssue(
+            "ステージ", i, "NG",
+            f"足場の幅{w:.0f}・{n_face}層は荷受けフォームの積載表（幅 610〜1219・2〜24層）の外です", basis))
+    elif per_span_kg > allow + 1e-6:
+        result.issues.append(PlatformIssue(
+            "ステージ", i, "NG",
+            f"荷受けフォームの積載 1スパン当たり{per_span_kg:.0f}kg（{s.load_kn:.1f}kN÷間口{s.span_count}スパン）が、"
+            f"足場の幅{w:.0f}・{n_face}層の最大積載 {allow:.0f}kg を超えます。積載を下げるか、間口を広げてください", basis))
+
+
 FRAME_TOL_MM = 60.0     # ロングスパンの枠組間隔と足場のスパンの続きの合計の許容差（インチ 3×1829＝5487 と 5490 は同じ）
 
 
@@ -404,9 +466,13 @@ def validate_platforms(
                     f"[{', '.join(str(v) for v in lv)}] と並べ、1フロアずつ盛り替えてください",
                     "はりわく等の使用基準（開口部の上下の重ね）・現場の組み直し"))
 
+    form = uses_load_form(model)
     for i, s in enumerate(stages):
         edge = _edge(model, s.edge_index)
         basis = "安衛則563条・655条（作業床の手すり・幅木、最大積載荷重の表示）"
+        if form:
+            # 荷受けフォームの張出しは梁枠で決まる（出の入力によらない。軸力・引抜き・図もこの出で）
+            s.projection_mm = LOAD_FORM_PROJECTION_MM
         if edge is None:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG", f"辺{s.edge_index}は存在しません", "入力エラー"))
@@ -494,7 +560,9 @@ def validate_platforms(
         # 1tのステージを受けさせても、ここで見なければ通ってしまう
         n_brk = s.span_count + 1
         per_bracket = s.load_kn / n_brk
-        brk = stage_bracket_part(model, s.projection_mm)
+        brk = stage_bracket_part(model, s.projection_mm) if not form else None
+        if form and edge is not None:
+            _check_load_form(model, s, i, result)
         if brk is not None:
             allow = bracket_allowable_kn(brk)
             if allow is None:
@@ -708,6 +776,45 @@ class PartDemand:
     detail: str = ""
 
 
+def _load_form_demands(model: ScaffoldModel, s: LoadingStage) -> list[PartDemand]:
+    """荷受けフォーム1基の部材（スギコ カタログvol.7 p119 の必要部材数: n スパンで梁枠 n+1・手摺枠 2・梁枠受／斜材受金具
+    各 n+1・巾木1829 n・巾木（小）2・手摺柱 n−1・手摺桟 2n・鋼製踏板 3n）. アルバトロスの取付金具は梁枠受・斜材受兼用."""
+    lv = max(1, len(s.levels) or 1)
+    n = s.span_count
+    spans = s.spans(model)
+    out = [
+        PartDemand("荷受けフォーム 梁枠（斜材付き）", "荷受けフォーム", 2021, (n + 1) * lv, "梁枠",
+                   detail="間口の支柱ごとに1本（張出し1410）"),
+        PartDemand("荷受けフォーム 取付金具（梁枠受・斜材受）", "荷受けフォーム", 159, 2 * (n + 1) * lv, "取付金具"),
+        PartDemand("荷受けフォーム 手摺枠（妻側）", "荷受けフォーム", 1340, 2 * lv, "手摺枠"),
+        PartDemand("荷受けフォーム 巾木（小）（妻側）", "荷受けフォーム", 1280, 2 * lv, "巾木（小）"),
+    ]
+    if n > 1:
+        out.append(PartDemand("荷受けフォーム 手摺柱（先端の中間）", "荷受けフォーム", 1087, (n - 1) * lv, "手摺柱"))
+    deck_cat = model.master.deck_category
+    n_face = model.elevation_of(s.edge_index).n_levels
+    for nominal in sorted(set(spans), reverse=True):
+        k = spans.count(nominal)
+        if nominal == 1829:
+            out.append(PartDemand("荷受けフォーム 巾木1829（先端）", "荷受けフォーム", 1829, k * lv, "巾木1829"))
+        else:
+            out.append(PartDemand("荷受けフォーム 先端の幅木", "幅木", nominal, k * lv))
+        out.append(PartDemand("荷受けフォーム 手摺桟（先端の手すり・中桟）", "手摺桟", nominal, 2 * k * lv))
+        out.append(PartDemand("荷受けフォーム 鋼製踏板", deck_cat, nominal, LOAD_FORM_DECKS_PER_SPAN * k * lv, "幅500"))
+        # 設置スパンは内外（前踏み・後踏み）に先行手摺ブレス（p057）。躯体側は普段付けないので、そのスパンの全層ぶん足す
+        out.append(PartDemand("荷受けフォーム 躯体側の先行手摺ブレス（設置スパン）", "先行手摺", nominal, k * max(1, n_face),
+                              detail="荷受けフォームを付けたスパンは内外に先行手摺ブレス（p057）"))
+    if (model.config.post_reinforcement or "") != "強化方杖":
+        out.append(PartDemand("荷受けフォーム 強化方杖（設置スパンの支柱）", "方杖", 450, (n + 1) * lv, "強化方杖",
+                              detail="荷受けフォーム設置スパンに強化方杖（p057）"))
+    if int(model.config.wall_tie_level_step or 1) >= 2:
+        # 壁つなぎ2層毎のときは、梁枠の下から1層下の支柱へ単管＋クランプで斜材（p057 の図）
+        out.append(PartDemand("荷受けフォーム 斜材の単管（壁つなぎ2層毎のとき）", "単管", None, (n + 1) * lv,
+                              detail=f"梁枠ごとに1本（φ48.6・長さ約2.5m）＋自在クランプ2個、計{2 * (n + 1) * lv}個。"
+                                     "壁つなぎを1層毎にすれば不要（p057）"))
+    return out
+
+
 def _enclosure_basis(h: "Hoist") -> str:
     """地上の昇降路の囲いの根拠. 荷だけの荷揚げ機は建設用リフト（クレーン則 第187条 立入禁止・建設用リフト構造規格 第15条）、
     人が乗るロングスパン・工事用エレベーターはエレベーター（クレーン則 第4章。運転中の立入禁止の条文は無く、構造規格 第16条の
@@ -896,7 +1003,11 @@ def platform_part_demands(
     1800決め打ちにせず、実際のスパン構成から拾う。
     """
     out: list[PartDemand] = []
+    form = uses_load_form(model)
     for s in result.stages:
+        if form:
+            out.extend(_load_form_demands(model, s))
+            continue
         n_levels = max(1, len(s.levels) or 1)
         n_posts = s.span_count + 1
         bracket = _bracket_nominal(model, s.projection_mm)
