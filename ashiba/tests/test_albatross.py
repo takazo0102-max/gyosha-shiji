@@ -35,6 +35,10 @@ class TestAlbatrossMaster(unittest.TestCase):
         tie = [p for p in m.by_category("壁つなぎ") if p.covers(600)]
         self.assertTrue(any(p.model_no == "28226" for p in tie))          # 自在4型 550〜740
 
+    def test_hoist_gate(self):
+        """昇降機の乗り込み口の開閉式手すりは φ42.7 クランプの KSSD（手配の注記に落ちていた）."""
+        self.assertEqual(load_master("albatross").by_category("開閉式手すり")[0].model_no, "KSSD")
+
     def test_capacities(self):
         caps = load_capacities("albatross")
         self.assertEqual(caps[("支柱許容圧縮耐力", "0")].value, 12.5)
