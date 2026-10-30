@@ -89,6 +89,19 @@ class TestBeams(unittest.TestCase):
         self.assertEqual((ok[0][0], ng[0][0]), ("OK", "NG"))
         self.assertIn("あき 680mm", ok[0][1])
 
+    def test_walkway_footprint(self):
+        """芯どうしが交わらなくても、通路の幅が梁の端にかかる所・梁に沿って通る所を拾う。勾配はいちばん低い所で見る."""
+        bm = Beam((4000.0, -12700.0), (4000.0, -2700.0), 600.0, -1000.0, -2000.0)
+        graze = ((3000.0, -2300.0), (5600.0, -2300.0))        # 芯は梁の端の 400 先、幅 900 の縁が梁にかかる
+        self.assertEqual(walkway_beam_checks(*graze, -1000.0, -1000.0, [bm]), [])
+        self.assertEqual(walkway_beam_checks(*graze, -1000.0, -1000.0, [bm], width_mm=900.0)[0][0], "NG")
+        along = walkway_beam_checks((4000.0, -12000.0), (4000.0, -4000.0), -900.0, -500.0, [bm], width_mm=900.0)
+        self.assertEqual(len(along), 1)
+        self.assertEqual(along[0][0], "NG")                     # 低い始めの側: −900−120 は梁の上端 −1000 より下
+        self.assertIn("〜", along[0][1])
+        slope = walkway_beam_checks((3000.0, -7600.0), (5000.0, -7600.0), -1000.0, 0.0, [bm], width_mm=900.0)
+        self.assertIn("あき 230mm", slope[0][1])                # 梁の幅の手前の縁（始めから 700）の床 −650
+
 
 if __name__ == "__main__":
     unittest.main()

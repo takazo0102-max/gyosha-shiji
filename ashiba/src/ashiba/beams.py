@@ -90,33 +90,40 @@ def posts_on_beams(posts: list, beams: list[Beam], floor_mm: float, base_r_mm: f
     return out
 
 
-def line_crossings(p, q, beams: list[Beam]) -> list[tuple[float, Beam]]:
-    """線分 p→q が梁の芯と交わる所 → [(p からの距離, 梁)]."""
+def _inside(p, bm: Beam) -> bool:
+    d, t = _dist_to_axis(p, bm)
+    return d <= bm.width / 2.0 and 0.0 <= t <= math.dist(bm.a, bm.b)
+
+
+def walkway_beam_checks(start, end, deck_abs_mm: float, end_deck_abs_mm: float, beams: list[Beam],
+                        width_mm: float = 0.0, step_mm: float = 25.0) -> list[tuple[str, str]]:
+    """仮設通路が梁の上を通る所の、通路の下端（床の上端−WALKWAY_UNDER_MM）と梁の上端のあき → [(状態, 文)].
+    通路の幅（width_mm）の帯と梁の幅の帯の重なりで見る: 芯どうしの交点だけでは、梁の端を通路の縁がかすめる所・梁に沿って
+    通る所を見落とし、勾配のある通路では梁の幅の中のいちばん低い所が交点とずれる."""
+    L = math.dist(start, end)
+    if L <= 0:
+        return []
+    ux, uy = (end[0] - start[0]) / L, (end[1] - start[1]) / L
+    offs = (0.0,) if width_mm <= 0 else (-width_mm / 2.0, 0.0, width_mm / 2.0)
+    n = max(1, int(math.ceil(L / step_mm)))
     out = []
     for bm in beams:
-        (x1, y1), (x2, y2), (x3, y3), (x4, y4) = p, q, bm.a, bm.b
-        den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-        if abs(den) < 1e-9:
+        hit = []
+        for i in range(n + 1):
+            s = L * i / n
+            if any(_inside((start[0] + ux * s - uy * o, start[1] + uy * s + ux * o), bm) for o in offs):
+                hit.append(s)
+        if not hit:
             continue
-        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den
-        u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den
-        if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
-            out.append((t * math.dist(p, q), bm))
-    return sorted(out, key=lambda x: x[0])
-
-
-def walkway_beam_checks(start, end, deck_abs_mm: float, end_deck_abs_mm: float, beams: list[Beam]) -> list[tuple[str, str]]:
-    """仮設通路が梁をまたぐ所の、通路の下端（床の上端−WALKWAY_UNDER_MM）と梁の上端のあき → [(状態, 文)]."""
-    out = []
-    L = math.dist(start, end) or 1.0
-    for s, bm in line_crossings(start, end, beams):
-        deck = deck_abs_mm + (end_deck_abs_mm - deck_abs_mm) * s / L
+        s0, s1 = hit[0], hit[-1]
+        deck = min(deck_abs_mm + (end_deck_abs_mm - deck_abs_mm) * s / L for s in (s0, s1))
         gap = deck - WALKWAY_UNDER_MM - bm.top_mm
         st = "NG" if gap <= 0 else ("WARN" if gap < CLEAR_MIN_MM else "OK")
-        out.append((st, f"始めから {s:.0f}mm で梁（上端 {bm.top_mm:.0f}・幅 {bm.width:.0f}）をまたぐ: 通路の下端 "
-                        f"{deck - WALKWAY_UNDER_MM:.0f} と梁の上端のあき {gap:.0f}mm"
-                    + ("" if st == "OK" else "（床を上げるか、通路の位置をずらす）")))
-    return out
+        where = f"始めから {s0:.0f}mm" if s1 - s0 < 1.0 else f"始めから {s0:.0f}〜{s1:.0f}mm"
+        out.append((s0, st, f"{where} で梁（上端 {bm.top_mm:.0f}・幅 {bm.width:.0f}）の上を通る: 通路の下端 "
+                            f"{deck - WALKWAY_UNDER_MM:.0f} と梁の上端のあき {gap:.0f}mm"
+                        + ("" if st == "OK" else "（床を上げるか、通路の位置をずらす）")))
+    return [(st, msg) for _s, st, msg in sorted(out, key=lambda x: x[0])]
 
 
 GROUND_STEP_WARN_MM = 30.0  # 支柱の足元の地盤の高さの差がこれを超えたら、ジャッキ・敷板で合わせる量を知らせる

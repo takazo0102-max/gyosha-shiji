@@ -147,7 +147,8 @@ def main() -> int:
     except Exception:
         pass
     if beams:
-        for st_, msg in walkway_beam_checks(s, e, floor + r.deck_mm, floor + r.end_deck_mm, beams):
+        for st_, msg in walkway_beam_checks(s, e, floor + r.deck_mm, floor + r.end_deck_mm, beams,
+                                                 r.model.overall_w_mm if r.model else 0.0):
             r.checks.append(WalkwayCheck("梁のまたぎ", st_, msg))
         for isl in r.islands:
             cu = [0.0]
