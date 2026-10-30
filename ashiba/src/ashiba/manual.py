@@ -234,23 +234,31 @@ def loop_outline(inner: list[tuple[float, float]], dirs: list[tuple[float, float
 
 
 def solve_manual_loop(points: list, spans_by_side: list[list[int]], standoff: float, eaves_mm: float,
-                      extra: Optional[dict] = None):
-    """一周の手動配置を解く → (外形, 条件, 解いた結果). 外形は左回りにそろえ、スパンは左回りの向きに並べ直して渡す."""
+                      extra: Optional[dict] = None, keep_sides: Optional[list[int]] = None):
+    """一周の手動配置を解く → (外形, 条件, 解いた結果). 外形は左回りにそろえ、スパンは左回りの向きに並べ直して渡す.
+
+    keep_sides を渡すと、その辺（描いた順の番号）だけに足場を置く（開いたポリラインを閉じた仮の辺は置かない）。"""
     from .cli import solve_all
 
     pts = [tuple(map(float, p)) for p in points]
     if len(pts) > 2 and math.dist(pts[0], pts[-1]) < 1.0:
         pts = pts[:-1]
     dirs = loop_directions(pts)
+    if keep_sides is not None and any(dirs[i] == dirs[(i + 1) % len(dirs)] for i in range(len(dirs))):
+        raise ValueError("同じ向きに続く辺があります（1本の線にまとめて描いてください）")
     inner, md, ms = loop_inner_row(pts[0], dirs, spans_by_side)
     outline, ccw = loop_outline(inner, md, standoff)
     n = len(outline)
+    faces = list(keep_sides) if keep_sides is not None else None
     if not ccw:
         # 右回りに描いたとき: 外形の頂点の順を逆にし、辺 i（頂点 i→i+1）が元のどの辺かを合わせてスパンも逆順に
         outline = [outline[(n - k) % n] for k in range(n)]
         ms = [list(reversed(ms[(n - 1 - k) % n])) for k in range(n)]
+        if faces is not None:
+            faces = [(n - 1 - j) % n for j in faces]
     so = float(standoff)
     spec = {**(extra or {}), "outline_mm": outline, "eaves_height_mm": float(eaves_mm),
+            **({"faces": sorted(faces)} if faces is not None else {}),
             "span_overrides": [{"edge_index": i, "spans_mm": sp} for i, sp in enumerate(ms)],
             "standoff": {"target": so, "min": so, "max": so, "hard_min": so},
             "height_from_slabs": False, "avoid_obstacles": False}
@@ -305,3 +313,25 @@ def default_spans(length_mm: float, coins: list[int], last_text: str = "") -> st
         except ValueError:
             pass
     return span_text(suggest_spans(length_mm, coins))
+
+
+def close_open_path(points: list, spans_by_side: list[list[int]]) -> tuple[list, list[list[int]], list[int]]:
+    """開いたポリライン（2辺の角・3辺のコの字）→ 向かい合う辺を同じスパン（逆向き）で足して閉じた一周と、置く辺の番号.
+
+    2辺: 4つ目の点を足して長方形。3辺: 最後の点から始点へ戻る辺を足す（1辺目と3辺目の合計がそろわなければ閉じない）。"""
+    pts = [tuple(map(float, p)) for p in points]
+    k = len(pts) - 1
+    if k == 2:
+        dirs = [axis_direction(pts[0], pts[1]), axis_direction(pts[1], pts[2])]
+        if dirs[0][0] * dirs[1][0] + dirs[0][1] * dirs[1][1] != 0:
+            raise ValueError("2辺の角は縦と横の線で描いてください")
+        L0, L1 = float(sum(spans_by_side[0])), float(sum(spans_by_side[1]))
+        p1 = (pts[0][0] + dirs[0][0] * L0, pts[0][1] + dirs[0][1] * L0)
+        p2 = (p1[0] + dirs[1][0] * L1, p1[1] + dirs[1][1] * L1)
+        p3 = (p2[0] - dirs[0][0] * L0, p2[1] - dirs[0][1] * L0)
+        sides = [spans_by_side[0], spans_by_side[1], list(reversed(spans_by_side[0])), list(reversed(spans_by_side[1]))]
+        return [pts[0], p1, p2, p3], sides, [0, 1]
+    if k == 3:
+        sides = [spans_by_side[0], spans_by_side[1], spans_by_side[2], list(reversed(spans_by_side[1]))]
+        return pts[:4], sides, [0, 1, 2]
+    raise ValueError("開いたポリラインは2辺（角）か3辺（コの字）まで。それより多いときは一周（閉じたポリライン）で描いてください")

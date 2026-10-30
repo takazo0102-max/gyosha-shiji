@@ -135,5 +135,36 @@ class TestManualLoop(unittest.TestCase):
         self.assertTrue(all("入隅のつなぎ" in c for c in ch))
 
 
+class TestManualOpenPath(unittest.TestCase):
+    """開いたポリライン（2辺の角・3辺のコの字）: 向かい合う辺を同じスパンで仮に足して解き、描いた辺だけに置く."""
+
+    def _solve(self, pts, sides):
+        from ashiba.manual import close_open_path
+
+        lp, all_sides, keep = close_open_path(pts, sides)
+        return solve_manual_loop(lp, all_sides, 300, 6000, {"series_id": "nikken_nd1800"}, keep_sides=keep)
+
+    def test_corner_both_directions(self):
+        for pts, sides, corner in (
+                ([(0, 0), (8000, 0), (8000, 5000)], [[1829] * 4 + [914], [1829] * 3], (8230, 0)),
+                ([(8000, 5000), (8000, 0), (0, 0)], [[1829] * 3, [914] + [1829] * 4], (8000, -487))):
+            with self.subTest(pts=pts):
+                _o, spec, r = self._solve(pts, sides)
+                self.assertTrue(r.verdict["ok"], r.verdict)
+                self.assertEqual(len(r.model.faces_only), 2)
+                posts = {tuple(round(v) for v in e.start_post) for e in r.model.plan.edges
+                         if e.edge_index in r.model.faces_only}
+                self.assertIn(corner, posts)
+                self.assertEqual(span_changes(spec, r), [])
+
+    def test_u_shape_and_mismatch(self):
+        _o, spec, r = self._solve([(0, 5487), (0, 0), (8230, 0), (8230, 5487)],
+                                  [[1829] * 3, [1829] * 4 + [914], [1829] * 3])
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertEqual(len(r.model.faces_only), 3)
+        with self.assertRaisesRegex(ValueError, "閉じません"):
+            self._solve([(0, 5487), (0, 0), (8230, 0), (8230, 5487)], [[1829] * 3, [1829] * 4 + [914], [1829] * 2])
+
+
 if __name__ == "__main__":
     unittest.main()

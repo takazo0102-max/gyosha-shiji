@@ -32,6 +32,15 @@ WIDTHS = {"600（610）": 600, "900（914）": 900, "1200（1219）": 1200}
 RAILS = ("布材", "先行手すり")
 
 
+def _open_points(segs) -> list | None:
+    """選んだ線の区間が開いたポリライン（2辺の角・3辺のコの字）ならその点."""
+    if len(segs) not in (2, 3) or math.dist(segs[0][0], segs[-1][1]) <= 1.0:
+        return None
+    if any(math.dist(segs[i][1], segs[i + 1][0]) > 1.0 for i in range(len(segs) - 1)):
+        return None
+    return [a for a, _b in segs] + [segs[-1][1]]
+
+
 def _loop_points(segs) -> list | None:
     """選んだ線の区間 → 閉じたポリラインの点（閉じていなければ None）."""
     if len(segs) < 3 or math.dist(segs[0][0], segs[-1][1]) > 1.0:
@@ -59,7 +68,8 @@ def main() -> int:
     from form_dialog import show_form
 
     from ashiba.cli import resolve_series_id
-    from ashiba.manual import (LAST_FILE, SIDE_LEFT, SIDE_RIGHT, SIDES, default_spans, general_conditions,
+    from ashiba.manual import (LAST_FILE, SIDE_LEFT, SIDE_RIGHT, SIDES, axis_direction, close_open_path,
+                               default_spans, general_conditions,
                                load_last, loop_directions, parse_spans, save_last, solve_manual, solve_manual_loop,
                                span_changes, span_text, suggest_spans)
     from guide_lines import OUT_DIR
@@ -74,33 +84,43 @@ def main() -> int:
     elif "--loop" in argv:
         pts = [tuple(float(v) for v in t.split(",")) for t in opt("--loop").split(";")]
         guides, segs = [], [(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+    elif "--path" in argv:
+        pts = [tuple(float(v) for v in t.split(",")) for t in opt("--path").split(";")]
+        guides, segs = [], [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
     else:
         guides = selected_guides(c)
         segs = [s for _e, ss in guides for s in ss]
     loop = _loop_points(segs)
+    opened = None if loop is not None else _open_points(segs)
+    if opened is not None:
+        loop = opened                                      # 開いたポリライン（角・コの字）も辺ごとのスパンで窓を出す
     if len(segs) != 1 and loop is None:
-        print("手動配置: 平面で、足場の内側の建地の列に線を1本（縦か横。始点が1本目の支柱）か、一周を縦横の閉じたポリラインで"
-              "引いて選んでから押してください" + not_in_plan_hint(c))
+        print("手動配置: 平面で、足場の内側の建地の列に線を1本（縦か横。始点が1本目の支柱）か、2〜3辺の開いたポリライン"
+              "（角・コの字）か、一周を縦横の閉じたポリラインで引いて選んでから押してください" + not_in_plan_hint(c))
         return 1
     base = general_conditions(R.load_spec_override())
     sid0 = resolve_series_id({**R.SPEC, **base})
     coins = load_master(sid0).span_lengths()
-    headless = "--line" in argv or "--loop" in argv
+    headless = "--line" in argv or "--loop" in argv or "--path" in argv
     # 前回の入力を窓の初期値に（スパンを少し変えて置き直すことが多い）。窓なしの確認では読まず書かない
     last = {} if headless else load_last(OUT_DIR / LAST_FILE)
     if loop is not None:
+        n_sides = len(loop) - 1 if opened is not None else len(loop)
         try:
-            dirs = loop_directions(loop)
+            dirs = ([axis_direction(loop[i], loop[i + 1]) for i in range(n_sides)] if opened is not None
+                    else loop_directions(loop))
         except ValueError as e:
             print(f"手動配置: {e}")
             return 1
         arrow = {(1.0, 0.0): "→", (-1.0, 0.0): "←", (0.0, 1.0): "↑", (0.0, -1.0): "↓"}
-        lens = [math.dist(loop[i], loop[(i + 1) % len(loop)]) for i in range(len(loop))]
+        lens = [math.dist(loop[i], loop[(i + 1) % len(loop)]) for i in range(n_sides)]
         if headless:
             side_txt = opt("--spans", "").split("/")
-            vals = {f"s{i}": (side_txt[i] if i < len(side_txt) else "") for i in range(len(loop))}
+            vals = {f"s{i}": (side_txt[i] if i < len(side_txt) else "") for i in range(n_sides)}
         else:
-            res = show_form({"title": "手動配置（一周・スパンを決めて置く）", "intro":
+            res = show_form({"title": "手動配置（" + ("角・コの字" if opened is not None else "一周") + "・スパンを決めて置く）",
+                             "intro": ("描いた2〜3辺だけに足場を置きます（向かい合う辺を同じスパンで仮に足して解く）。"
+                                       if opened is not None else "") +
                              "内側の建地の列を一周する閉じたポリライン。辺ごとにスパンを入れます（辺の長さはスパンの合計で決まり、描いた"
                              "長さは目安。向かい合う辺の合計をそろえてください）。入隅は2つの面を 610 などの升目でつなぐので、そこだけ"
                              "スパンが変わることがあります（置いたあとに知らせます）。",
@@ -146,9 +166,14 @@ def main() -> int:
                  "guard_rail_type": str(vals.get("rail") or RAILS[0]),
                  "scaffold_width_mm": WIDTHS.get(str(vals.get("width") or ""), 900)}
         if loop is not None:
-            sides = [parse_spans(vals.get(f"s{i}") or "") for i in range(len(loop))]
-            world, spec, solved = solve_manual_loop(loop, sides, standoff, height, extra)
-            what = f"一周 {len(sides)}辺（" + "／".join(span_text(sp) for sp in sides) + "）"
+            sides = [parse_spans(vals.get(f"s{i}") or "") for i in range(n_sides)]
+            if opened is not None:
+                lp, all_sides, keep_sides = close_open_path(loop, sides)
+                world, spec, solved = solve_manual_loop(lp, all_sides, standoff, height, extra, keep_sides=keep_sides)
+                what = f"{'角' if n_sides == 2 else 'コの字'} {n_sides}辺（" + "／".join(span_text(sp) for sp in sides) + "）"
+            else:
+                world, spec, solved = solve_manual_loop(loop, sides, standoff, height, extra)
+                what = f"一周 {len(sides)}辺（" + "／".join(span_text(sp) for sp in sides) + "）"
         else:
             (a, b), = segs
             spans = parse_spans(vals.get("spans") or span_text(suggest_spans(math.dist(a, b), coins)))
@@ -161,7 +186,7 @@ def main() -> int:
     if not headless:
         keep = {k: vals.get(k) for k in ("height", "standoff", "width", "rail", "series", "side") if vals.get(k)}
         if loop is not None:
-            keep["sides"] = [str(vals.get(f"s{i}") or "") for i in range(len(loop))]
+            keep["sides"] = [str(vals.get(f"s{i}") or "") for i in range(n_sides)]
         else:
             keep["spans"] = str(vals.get("spans") or "")
         save_last(OUT_DIR / LAST_FILE, keep)
