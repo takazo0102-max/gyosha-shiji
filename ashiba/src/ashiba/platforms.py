@@ -80,6 +80,13 @@ class LoadingStage:
             acc += s
         return acc
 
+    def post_start_mm(self, model: ScaffoldModel) -> float:
+        """間口の始めの支柱（位置を含むスパンの始点）。支柱の上でない位置を入れてもステージはそのスパンから組む."""
+        edge = _edge(model, self.edge_index)
+        if edge is None:
+            return self.start_mm
+        return float(sum(edge.spans[:_span_index(edge, self.start_mm)]))
+
     def end_mm(self, model: ScaffoldModel) -> float:
         """間口の終端。スパンは1800とは限らない（B系列・枠組・端数スパン）."""
         return self.start_mm + self.length_mm(model)
@@ -482,6 +489,10 @@ def validate_platforms(
                 "ステージ", i, "NG",
                 f"辺{s.edge_index}: 位置{s.start_mm:.0f}mmが面長"
                 f"{edge.scaffold_length:.0f}mmの範囲外です", "入力エラー"))
+        else:
+            # 間口の始めを支柱にそろえる（間口・軸力はもとから位置を含むスパンで数えていたが、図・開口は入れた位置のままで、
+            # インチの足場にメートルの位置を入れると梁枠の両端が支柱に乗らず NG・図の張出しが支柱からずれていた）
+            s.start_mm = s.post_start_mm(model)
         if s.span_count < 1:
             result.issues.append(PlatformIssue(
                 "ステージ", i, "NG", "間口は1スパン以上必要です", "入力エラー"))

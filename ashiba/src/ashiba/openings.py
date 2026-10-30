@@ -523,6 +523,6 @@ def stage_openings(model: ScaffoldModel, stages) -> list[Opening]:
             else:
                 groups.append([lv])
         for g in groups:
-            out.append(Opening(st.edge_index, float(st.start_mm), int(size), min(g[-1] + STAGE_OPENING_LEVELS, n),
+            out.append(Opening(st.edge_index, float(st.post_start_mm(model)), int(size), min(g[-1] + STAGE_OPENING_LEVELS, n),
                                reason="荷受けステージの間口", bottom_level=g[0], stage=True))
     return out

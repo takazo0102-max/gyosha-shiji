@@ -144,6 +144,13 @@ class TestAlbatrossLoadForm(unittest.TestCase):
         vals = line_params(r.model, r.model.plan.edges[0], platforms=r.platforms)["stageList"].split(",")
         self.assertEqual((vals[2], int(vals[4]) // 4), ("1410", 1))
 
+    def test_stage_start_snaps_to_a_post(self):
+        """支柱の上でない位置（インチの足場にメートルの位置）を入れても、間口は位置を含むスパンの支柱から組み、開口の梁枠も
+        その支柱に乗る（梁枠の両端が支柱に一致しないと NG・図の張出しがずれていた）."""
+        r = solve_all({**RECT, "loading_stages": [{**self.STAGE, "start_mm": 2000}]})
+        self.assertEqual(r.platforms.stages[0].start_mm, 1829)
+        self.assertFalse([i for i in r.openings.issues if i.severity == "NG"], r.openings.issues)
+
     def test_overload_is_ng(self):
         r = solve_all({**RECT, "loading_stages": [{**self.STAGE, "load_kn": 14.7}]})     # 750kg/スパン
         ng = [i.message for i in r.platforms.issues if i.severity == "NG"]
