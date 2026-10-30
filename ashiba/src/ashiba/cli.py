@@ -939,7 +939,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         plan.warnings.append(height_note)
     # マスタに無い幅の作業床は、解けてしまって数量表で床が丸ごと欠けるだけになる
     if spec.get("deck_widths"):
-        avail = master.deck_widths_available()
+        avail = master.deck_widths_available(narrow=_form_from_spec(spec)[0] == "一側足場")
         bad = [w for w in spec["deck_widths"] if int(w) not in avail]
         if bad:
             raise InputError(

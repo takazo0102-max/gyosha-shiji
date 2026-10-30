@@ -211,6 +211,18 @@ class TestAlbatrossSolve(unittest.TestCase):
         self.assertGreater(q.get("34240", 0), 0)                  # 鋼製踏板500幅 457
         self.assertTrue(any("先行手摺457は系列に無いので" in n for n in r.quantity.notes))   # 手すり・中桟は布材で計上
 
+    def test_narrow_site_system_for_one_side_scaffolds(self):
+        # 狭小地システム（p054）: 一側足場で床の幅に 150 を指定すると、ブラケット150（50315）と 150幅鋼製板。出隅の升目は布材 153
+        r = solve_all({**RECT, "scaffold_form": "一側足場", "deck_widths": [150],
+                       "site_boundary_mm": [[-700, -700], [12700, -700], [12700, 8700], [-700, 8700]]})
+        q = {l.part.model_no: l.qty for l in r.quantity.lines if l.part}
+        self.assertGreater(q.get("50315", 0), 0)
+        self.assertGreater(q.get("34665", 0), 0)
+        self.assertGreater(q.get("50201", 0), 0)
+        self.assertFalse(any("長さ150の布材が無いので" in n for n in r.quantity.notes))
+        self.assertNotIn(150, load_master("albatross").deck_widths_available())      # 本足場の床には使わない
+        self.assertIn(150, load_master("albatross").deck_widths_available(narrow=True))
+
     def test_spec_object_lists_the_series(self):
         from pathlib import Path
 

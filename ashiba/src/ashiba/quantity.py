@@ -965,17 +965,21 @@ def _count_corner_parts(model: ScaffoldModel, m: PartMaster, rules, add, notes,
         if n_corners <= 0:
             return
     per_corner = 2 * (1 + n_levels * 3)
-    if m.find("布材", udegi) is None and not m.is_tube:
+    # 呼びが 10mm 以内で違う布材でも組める（アルバトロスの狭小地システム: 150 の床の升目に布材 153）
+    ledger = m.find("布材", udegi) or next(
+        (p for p in sorted(m.by_category("布材"), key=lambda q: abs(q.nominal_dim - udegi))
+         if abs(p.nominal_dim - udegi) <= 10), None)
+    if ledger is None and not m.is_tube:
         # 系列に無い長さ（日建の一側足場のブラケット 350 の升目など）はくさびの布材で組めない。単管とクランプで組む
         n_t = n_corners * per_corner
         notes.action(f"出隅コーナー{n_corners}箇所の升目（{udegi}mm角）は系列 {m.series_id} に長さ{udegi}の布材が無いので、"
                      f"単管（1.0m）{n_t}本と直交クランプ{2 * n_t}個（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
                      "で組みます。別途手配してください", Notes.ORDER)
     else:
-        add(m.find("布材", udegi), n_corners * per_corner, f"出隅コーナーの布材{udegi}")
+        add(ledger, n_corners * per_corner, f"出隅コーナーの布材{ledger.nominal_dim if ledger else udegi}")
         notes.append(
             f"出隅コーナー{n_corners}箇所は、外側コーナー支柱1本（支柱位置数に含む）と"
-            f"呼び{udegi}mmの布材{per_corner}本（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
+            f"呼び{ledger.nominal_dim if ledger else udegi}mmの布材{per_corner}本（2辺×〈根がらみ1＋各層の床・手すり・中桟3〉×{n_levels}層）"
             "ずつで計上"
         )
     if m.is_tube and model.deck_widths_in_use:
