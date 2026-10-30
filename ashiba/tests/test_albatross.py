@@ -224,6 +224,8 @@ class TestAlbatrossSlope(unittest.TestCase):
         # 457 のスパンのメッシュシートは幅610を張って隣に重ねる（マスタに無い幅として手配に落ちていた）
         self.assertTrue([n for n in r.quantity.notes if "幅457のスパン" in str(n) and "81406" in str(n)])
         self.assertFalse([n for n in r.quantity.notes if "幅457×" in str(n) and "マスタに無い幅" in str(n)])
+        # 457 のスパンの朝顔は 610 のセットで（1829 を当てていた）
+        self.assertTrue([n for n in r.quantity.notes if "457mm×4（610mmの品で計上）" in str(n)])
 
 
 class TestAlbatrossStruts(unittest.TestCase):

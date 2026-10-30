@@ -1237,20 +1237,24 @@ def _count_asagao_parts(
             (q for q in m.by_category("朝顔")
              if "防護棚" in q.note and q.nominal_dim == sp), None
         )
+        # 合う寸法が無いスパン（アルバトロスの 457）は、それより長い品のうちいちばん短いもの（1829 を当てていた）
+        longer = sorted((q for q in m.by_category("朝顔") if "防護棚" in q.note and q.nominal_dim > sp),
+                        key=lambda q: q.nominal_dim)
+        alt = longer[0] if longer else panel
         if fit is not None:
             add(fit, n * asagao.stages, f"朝顔本体{sp}")
-        elif panel is not None:
-            odd[sp] = n
-            add(panel, n * asagao.stages,
-                f"朝顔本体（{sp}スパンに{panel.nominal_dim}）")
+        elif alt is not None:
+            odd[sp] = (n, alt.nominal_dim)
+            add(alt, n * asagao.stages,
+                f"朝顔本体（{sp}スパンに{alt.nominal_dim}）")
         else:
             add(None, n * asagao.stages, f"朝顔本体{sp}")
-    if odd and panel is not None:
+    if odd:
         notes.action(
             "朝顔本体の呼び寸法が合わないスパンがあります（"
-            + "、".join(f"{sp}mm×{n}" for sp, n in sorted(odd.items()))
-            + f"）。{panel.nominal_dim}mmの板で計上しているので、"
-            "現場で切り詰めるか、隙間を板・シートで塞いでください",
+            + "、".join(f"{sp}mm×{n}（{w}mmの品で計上）" for sp, (n, w) in sorted(odd.items()))
+            + "）。板は隣のスパンに重ねるか切り詰め、"
+            "隙間を板・シートで塞いでください",
             Notes.SITE,
         )
     n_places = posts_per_line * asagao.stages
