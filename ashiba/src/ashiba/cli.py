@@ -1903,7 +1903,9 @@ def collect_warnings(
             for i in openings.issues]
     # 法規チェックが同じ文面で挙げている事象は、そちらが条文つきで出るので重ねない
     said = {c.message for c in (checks or []) if c.status == "WARN"}
-    out += [("敷地", "WARN", f"敷地: {w}")
+    from .terrain import NG_MARK
+
+    out += [("敷地", "NG", f"敷地[NG]: {w[len(NG_MARK):].strip()}") if w.startswith(NG_MARK) else ("敷地", "WARN", f"敷地: {w}")
             for w in terrain.warnings if w not in said]
     # 「マスタに無い」「カタログ品では受けられない」は手配・検討が要る。
     # 数量注記に埋もれると発注漏れになる
@@ -1972,6 +1974,10 @@ def build_verdict(
     n_cf = len([i for i in (conflicts or []) if i.severity == "NG"])
     if n_cf:
         blockers.append(f"付帯設備の衝突NG {n_cf}件")
+    # 敷地の NG（法面に立つ脚など。terrain の NG_MARK）
+    n_site = len([w for w in warnings or [] if w[0] == "敷地" and w[1] == "NG"])
+    if n_site:
+        blockers.append(f"敷地NG {n_site}件")
     # 要確認の件数は法規チェックのWARNだけではない。離れの措置・未確認耐力値・
     # 階段の注意なども「読んで手を打つ」対象なので、まとめて数えて内訳を出す
     counts: dict[str, int] = {}

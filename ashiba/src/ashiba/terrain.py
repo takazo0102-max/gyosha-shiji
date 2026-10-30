@@ -27,6 +27,9 @@ from .model import ScaffoldModel
 
 JACK_HARD_MAX_EXTENSION = 450   # ジャッキの機械的な最大繰出し（270は実務上限）
 SLOPE_SHIM_LIMIT = 0.10         # 足元の勾配がこれを超えたら傾斜対応のベースか段切り（10%）
+# これを超える勾配（根切りの法面など。50%＝約27°）には脚を据えられない（段切り・敷板では受けきれず、滑る・崩れる）
+SLOPE_NG_LIMIT = 0.50
+NG_MARK = "[NG]"                # 敷地の注意のうち総合判定を止めるもの（cli が見て NG にする）
 # 根切り・段差の肩（利用者の指定 2026-10-30: 根切りの縁の外部足場をテストして）: 脚のまわり EDGE_LOOK_MM まで地盤を見て、
 # 下がり始める所（肩。EDGE_START_MM 以上下がる最初の点）までの距離 s と、その範囲のいちばん深い下がり h を出す。
 # h が EDGE_DROP_MM 以上で、s が h（掘削の 1:1 の影響の線。最低 EDGE_MIN_MM）より近い脚は肩の近くに立つ
@@ -512,9 +515,17 @@ def solve_post_feet(
     slopes = [(ground.slope_at(f.x, f.y), f) for f in feet] if not ground.is_flat else []
     for sl, f in slopes:
         f.slope = sl
-    steep = [f for sl, f in slopes if sl > SLOPE_SHIM_LIMIT]
+    too_steep = [f for sl, f in slopes if sl > SLOPE_NG_LIMIT]
+    steep = [f for sl, f in slopes if SLOPE_SHIM_LIMIT < sl <= SLOPE_NG_LIMIT]
+    if too_steep:
+        # 根切りの法面に脚が立つ（利用者の指定 2026-10-30 の根切りの試験: 勾配 200% の法面の脚を「段切りか自在ジャッキ」で
+        # 済ませていた）
+        warnings.append(
+            f"{NG_MARK} 足元の勾配が {SLOPE_NG_LIMIT * 100:.0f}% を超える{vm}が{len(too_steep)}本あります（最大 "
+            f"{max(sl for sl, _f in slopes) * 100:.0f}%。根切り・盛土の法面）。法面には脚を据えられないので、足場を法肩・法尻の"
+            "平らな所へずらすか、法面を段切りして水平な足元を作る（安衛則570条・仮設工業会の指針: 敷板・ジャッキで滑らないように）")
     if slopes:
-        mx = max(sl for sl, _f in slopes)
+        mx = max(sl for sl, _f in slopes if sl <= SLOPE_NG_LIMIT) if steep else max(sl for sl, _f in slopes)
         if steep:
             warnings.append(
                 f"足元の勾配が {SLOPE_SHIM_LIMIT * 100:.0f}% を超える{vm}が{len(steep)}本あります（最大 {mx * 100:.1f}%）。"

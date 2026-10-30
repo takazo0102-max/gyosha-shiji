@@ -41,6 +41,21 @@ class TestPitGround(unittest.TestCase):
         self.assertFalse([w for w in far.warnings if "肩の近くに立つ" in str(w)])
 
 
+class TestFeetOnTheSlope(unittest.TestCase):
+    def test_feet_on_the_excavation_slope_are_ng(self):
+        """根切りの法面（勾配 200%）に立つ脚は総合判定を止める（段切りか自在ジャッキの注意で済ませていた）."""
+        from ashiba.box import box_loop
+        from ashiba.manual import solve_manual_loop
+
+        ground = {"series_id": "albatross", "ground_points_mm": [list(p) for p in pit_points()]}
+        pts, sides = box_loop((1500.0, -4500.0), 0.0, [1829] * 4, [1829] * 2)      # 北側が法面にかかる
+        _w, _s, r = solve_manual_loop(pts, sides, 300.0, 6000.0, ground)
+        self.assertIn("敷地NG 1件", r.verdict["blockers"])
+        pts, sides = box_loop((1500.0, -10000.0), 0.0, [1829] * 4, [1829] * 2)     # 根切り底の中
+        _w, _s, r = solve_manual_loop(pts, sides, 300.0, 6000.0, ground)
+        self.assertTrue(r.verdict["ok"], r.verdict)
+
+
 class TestGroundSpread(unittest.TestCase):
     def test_slope_under_the_stage(self):
         """範囲が法面にかかると脚ごとの地盤の高さが違う（中央の1点で建てていた）。根切り底の平らな所は何も出ない."""
