@@ -82,6 +82,10 @@ SHORING_APPROVAL = {"nikken_nd1800": "仮設工業会 承認第88-164号（NDシ
                     "nikken_nd1900": "仮設工業会 承認第101-164号（NDシステム1900型 型枠支保工）",
                     "nikken_strong": "仮設工業会 承認第128号（ストロング型 型わく支保工）",
                     "albatross": "仮設工業会 システム承認（アルバトロス型枠支保工。承認番号はスギコに確かめる）"}
+# 支保工の承認の支柱間隔の下限（アルバトロス p060・p061: 610〜1829、強力斜材 45.0kN仕様は 914〜1829）。457 の升目には
+# 先行手摺ブレスが無い
+SHORING_MIN_SPAN = {"albatross": 610}
+SHORING_MIN_SPAN_STRONG45 = 914
 SHORING_TIES = ("片方向つなぎ材", "両方向つなぎ材", "ブレース")   # 支保工の承認値はつなぎ方で決まる（日建 ND1800: 18／25／22kN）
 
 
@@ -220,6 +224,13 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     if str(item.get("use", "")) in ("支保工", "型枠支保工"):
         # 型枠支保工は型枠の計算（せき板・根太・大引）と支柱1本の軸力で支柱の間隔を決める（利用者の指定 2026-10-29:
         # 型枠の計算をしないとスパン決めれないよ、1800飛ばせないと思う）
+        tie0 = str(item.get("tie", "") or "")
+        lo = SHORING_MIN_SPAN.get(str(getattr(master, "series_id", "")), 0)
+        if "先行手摺ブレス" in tie0 and "強力斜材" in tie0:
+            lo = max(lo, SHORING_MIN_SPAN_STRONG45)
+        if lo:
+            coins = [c for c in coins if c >= lo] or coins
+            widths_v = [c for c in widths_v if c >= lo] or widths_v
         form = _shoring_form_spans(item, master, capacities, coins, widths_v)
         if form["spans"] is not None:
             umax, vmax = form["spans"]

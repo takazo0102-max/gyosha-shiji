@@ -164,10 +164,11 @@ class TestAlbatrossStrongDiagonal(unittest.TestCase):
         self.assertTrue(any("ジャッキ型ベース金具の繰出しは 270mm 以下" in n for n in r.notes))
         self.assertEqual(len(load_master("albatross").by_category("強力斜材")), 14)
         r45 = solve_stage({**item, "tie": "先行手摺ブレス＋強力斜材×強力斜材＋強力斜材", "corners_mm":
-                           [[0, 0], [3000, 0], [3000, 1200], [0, 1200]]}, load_master("albatross"), caps)
-        # 45.0kN仕様は支柱間隔 914〜1829（610 の升目があれば NG）
-        bad = [c for c in r45.checks if c.item == "強力斜材の使用条件"]
-        self.assertEqual(bool(bad), min(r45.spans_u + r45.spans_v) < 914)
+                           [[0, 0], [3000, 0], [3000, 2400], [0, 2400]]}, load_master("albatross"), caps)
+        # 45.0kN仕様は支柱間隔 914〜1829: 割付で 610 を使わない（使うと NG）
+        self.assertGreaterEqual(min(r45.spans_u + r45.spans_v), 914, (r45.spans_u, r45.spans_v))
+        self.assertFalse([c for c in r45.checks if c.item == "強力斜材の使用条件"])
+        self.assertGreaterEqual(min(r.spans_u + r.spans_v), 610)       # 457 の升目には先行手摺ブレスが無い
 
 
 class TestAlbatrossStrongBraceHorizontal(unittest.TestCase):
