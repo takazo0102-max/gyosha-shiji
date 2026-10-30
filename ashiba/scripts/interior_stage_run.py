@@ -215,6 +215,12 @@ def main() -> int:
                                         "ジャッキで高さを合わせる"))
         else:
             st.checks.append(StageCheck("地中梁の上の支柱", "OK", f"近くの梁 {len(beams)}本の上に支柱は乗らない"))
+        from ashiba.beams import grid_ledgers, ledger_clash_message, ledgers_through_beams
+
+        lm = ledger_clash_message(ledgers_through_beams(
+            grid_ledgers(st.origin, st.u, st.v, st.spans_u, st.spans_v), st.levels + st.upper_levels, beams, floor))
+        if lm:
+            st.checks.append(StageCheck("布材と地中梁", lm[0], lm[1]))
     R.ensure_parts(c)
     name = R.versioned_part_name(STAGE_OBJECT)
     # 同じ範囲に前に置いたステージは置き換える

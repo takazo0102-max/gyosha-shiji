@@ -126,6 +126,57 @@ def walkway_beam_checks(start, end, deck_abs_mm: float, end_deck_abs_mm: float, 
     return [(st, msg) for _s, st, msg in sorted(out, key=lambda x: x[0])]
 
 
+LEDGER_HALF_MM = 24.3       # 布材・根がらみ（φ48.6）の半径
+
+
+def grid_ledgers(origin, u, v, spans_u: list, spans_v: list) -> list[tuple[tuple, tuple]]:
+    """升目の支柱の間の布材（両方向）の平面の線 → [(始め, 終わり)]."""
+    cu, cv = [0.0], [0.0]
+    for s in spans_u:
+        cu.append(cu[-1] + s)
+    for s in spans_v:
+        cv.append(cv[-1] + s)
+    pt = lambda a, b: (origin[0] + u[0] * a + v[0] * b, origin[1] + u[1] * a + v[1] * b)
+    out = [(pt(cu[i], b), pt(cu[i + 1], b)) for b in cv for i in range(len(cu) - 1)]
+    out += [(pt(a, cv[j]), pt(a, cv[j + 1])) for a in cu for j in range(len(cv) - 1)]
+    return out
+
+
+def _segment_hits(p, q, bm: Beam, step_mm: float = 25.0) -> bool:
+    L = math.dist(p, q)
+    n = max(1, int(math.ceil(L / step_mm)))
+    return any(_inside((p[0] + (q[0] - p[0]) * i / n, p[1] + (q[1] - p[1]) * i / n), bm) for i in range(n + 1))
+
+
+def ledgers_through_beams(ledgers: list, levels: list, beams: list[Beam], floor_mm: float) -> list[tuple[int, int, Beam]]:
+    """梁の上端より低い段の布材（根がらみ）で、梁を横切るもの → [(段の高さ（足場の立つ面から）, 本数, 梁)].
+    根切り底の地中梁は根がらみ・下の段の布材と当たる。その升目は梁の上の段で取るか、梁の手前で止めて単管でつなぐ."""
+    out = []
+    for bm in beams:
+        top = bm.top_mm - floor_mm
+        if top <= 50.0:
+            continue
+        low = [h for h in sorted(set(levels)) if h - LEDGER_HALF_MM < top and h + LEDGER_HALF_MM > bm.bottom_mm - floor_mm]
+        if not low:
+            continue
+        n = sum(1 for p, q in ledgers if _segment_hits(p, q, bm))
+        if n:
+            out += [(int(h), n, bm) for h in low]
+    return out
+
+
+def ledger_clash_message(hits: list) -> Optional[tuple[str, str]]:
+    """(状態, 文)。当たる布材が無ければ None."""
+    if not hits:
+        return None
+    hs = sorted({h for h, _n, _b in hits})
+    n = max(n for _h, n, _b in hits)
+    top = max(b.top_mm for _h, _n, b in hits)
+    return "WARN", (f"高さ {'・'.join(str(h) for h in hs)}mm の段の布材（根がらみ）が地中梁を横切る（各段 {n}本・梁の上端は"
+                    f"プロジェクトの {top:.0f}）。その升目の布材は梁の上端より上のコマで取るか、梁の手前で止めて単管とクランプで"
+                    "つなぐ（根がらみは梁の両側の支柱で2方向に取る）")
+
+
 GROUND_STEP_WARN_MM = 30.0  # 支柱の足元の地盤の高さの差がこれを超えたら、ジャッキ・敷板で合わせる量を知らせる
 GROUND_STEP_NG_MM = 250.0   # これを超える差はジャッキの繰出しの幅（30〜270 前後）で合わせきれない
 

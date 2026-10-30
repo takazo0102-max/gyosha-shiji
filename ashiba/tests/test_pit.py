@@ -9,7 +9,8 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.beams import Beam, beam_from_details, posts_on_beams, walkway_beam_checks
+from ashiba.beams import (Beam, beam_from_details, grid_ledgers, ledger_clash_message, ledgers_through_beams,
+                          posts_on_beams, walkway_beam_checks)
 from ashiba.terrain import GroundModel
 
 
@@ -88,6 +89,19 @@ class TestBeams(unittest.TestCase):
         ng = walkway_beam_checks((3000.0, -7600.0), (5600.0, -7600.0), -1000.0, -1000.0, [bm])
         self.assertEqual((ok[0][0], ng[0][0]), ("OK", "NG"))
         self.assertIn("あき 680mm", ok[0][1])
+
+    def test_ledgers_through_beam(self):
+        """梁の上端（床から 1000）より低い段の布材が梁を横切る。梁と平行で梁の外の布材は当たらない."""
+        bm = Beam((4000.0, -12700.0), (4000.0, -2700.0), 600.0, -1000.0, -2000.0)
+        led = grid_ledgers((3000.0, -9000.0), (1.0, 0.0), (0.0, 1.0), [1829.0, 1829.0], [1219.0])
+        self.assertEqual(len(led), 7)                           # 長手 2×2 本＋短手 3本
+        hits = ledgers_through_beams(led, [150, 600, 1500], [bm], -2000.0)
+        self.assertEqual([(h, n) for h, n, _b in hits], [(150, 2), (600, 2)])   # 1500 は梁の上
+        st, msg = ledger_clash_message(hits)
+        self.assertEqual(st, "WARN")
+        self.assertIn("150・600mm", msg)
+        self.assertEqual(ledgers_through_beams(led, [150], [bm], -900.0), [])   # 床が梁の上端より上
+        self.assertIsNone(ledger_clash_message([]))
 
     def test_walkway_footprint(self):
         """芯どうしが交わらなくても、通路の幅が梁の端にかかる所・梁に沿って通る所を拾う。勾配はいちばん低い所で見る."""
