@@ -196,6 +196,19 @@ class TestAlbatrossStrongBraceHorizontal(unittest.TestCase):
         self.assertIn("自在クランプ", next(c.message for c in plain.checks if c.item == "支保工の水平荷重"))
 
 
+class TestAlbatrossStrutShoring(unittest.TestCase):
+    def test_wall_ties_required(self):
+        """先行手摺ブレス×強化方杖（p060 パターン3）は壁つなぎ 2層・3スパン以下が要る."""
+        from ashiba.interior_stage import solve_stage
+
+        r = solve_stage({"name": "s", "corners_mm": [[0, 0], [6000, 0], [6000, 4500], [0, 4500]], "deck_mm": 1800,
+                         "use": "支保工", "slab_mm": 200, "ceiling_mm": 4000, "tie": "先行手摺ブレス×強化方杖"},
+                        load_master("albatross"), load_capacities("albatross"))
+        c = [c for c in r.checks if c.item == "強化方杖の支保工の壁つなぎ"]
+        self.assertTrue(c and "2層・3スパン" in c[0].message)
+        self.assertLessEqual(max(r.spans_v), 1219)
+
+
 class TestAlbatrossStruts(unittest.TestCase):
     """強化方杖（スギコ カタログ p035・p059）: 支柱の許容 12.5 → 23.5kN/本、腕木の下に足す（腕木は布材のまま）."""
 
