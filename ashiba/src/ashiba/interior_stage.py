@@ -163,8 +163,11 @@ class StageResult:
         return all(c.status != "NG" for c in self.checks)
 
 
-def _frame(corners) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], float, float]:
-    """4点 → (始めの角, 長い辺の向き u, v（u から左回り）, 長い辺の長さ, 短い辺の長さ)."""
+def _frame(corners, prefer_u=None) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], float, float]:
+    """4点 → (始めの角, 長い辺の向き u, v（u から左回り）, 長い辺の長さ, 短い辺の長さ).
+
+    prefer_u（向き）を渡すと、長さによらずその向きの辺を u にする（支保工足場で大引の向きをスラブの型枠の大引にそろえる。
+    利用者の指定 2026-10-31: しほこう足場を内部足場から作成して）."""
     pts = [tuple(map(float, p)) for p in corners][:4]
     if len(pts) < 4:
         raise ValueError("内部足場の範囲は長方形の4点で指定してください")
@@ -186,6 +189,13 @@ def _frame(corners) -> tuple[tuple[float, float], tuple[float, float], tuple[flo
     # 長さの同じ辺（長方形の向かい合う辺）は先の辺を取る（計算の誤差で後の辺にしない。始めの角を呼ぶ側が決められる）
     la = max(s[1] for s in sides)
     i0 = next(i for i, s in sides if s >= la - 0.5)
+    if prefer_u is not None:
+        def along(i):
+            a, b = pts[i], pts[(i + 1) % 4]
+            L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            return ((b[0] - a[0]) * prefer_u[0] + (b[1] - a[1]) * prefer_u[1]) / L
+        i0 = max(range(4), key=along)
+        la = sides[i0][1]
     p0, p1 = pts[i0], pts[(i0 + 1) % 4]
     u = ((p1[0] - p0[0]) / la, (p1[1] - p0[1]) / la)
     v = (-u[1], u[0])
@@ -212,7 +222,7 @@ def solve_stage(item: dict, master, capacities: Optional[dict] = None) -> StageR
     from .elevation_solver import solve_elevation
 
     name = str(item.get("name") or "内部ステージ足場")
-    p0, u, v, la, lb = _frame(item["corners_mm"])
+    p0, u, v, la, lb = _frame(item["corners_mm"], item.get("u_dir"))
     coins = master.span_lengths()
     # EVシャフトは壁とのすき間を 30cm 以下にする（外周の手すりを省ける）ので、壁際の余りを小さく取る
     shaft_use = str(item.get("use", "")) in ("EVシャフト", "シャフト")

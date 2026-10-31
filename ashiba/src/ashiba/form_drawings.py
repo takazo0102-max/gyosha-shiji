@@ -96,6 +96,7 @@ svg text { font-family: "Hiragino Sans", sans-serif; }
 .cut { stroke: #000; stroke-width: 0.25; stroke-dasharray: 4 1 0.6 1; fill: none; }
 .mark { fill: #fff; stroke: #000; stroke-width: 0.25; }
 .brace { stroke: #7b2d8b; stroke-width: 0.3; stroke-dasharray: 1.2 0.6; fill: none; }
+.ledger { stroke: #6d7b8d; stroke-width: 0.18; }
 .bracel { stroke: #555; stroke-width: 0.45; fill: none; }
 .grid { stroke: #555; stroke-width: 0.15; stroke-dasharray: 4 1 0.6 1; fill: none; }
 table { border-collapse: collapse; }
@@ -312,6 +313,23 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
         if s.get("braces"):
             b_ = s["braces"][-1]
             labels.append((P(W(((b_[0] + b_[3]) / 2, (b_[1] + b_[4]) / 2))), "大筋かい：単管 φ48.6（自在クランプ）"))
+        for sy in s.get("system") or []:          # 支保工足場: 布材の格子（細線）と名前
+            cu = [sy["origin"][0]]
+            for sp in sy["spans_u"]:
+                cu.append(cu[-1] + sp)
+            cv = [sy["origin"][1]]
+            for sp in sy["spans_v"]:
+                cv.append(cv[-1] + sp)
+            for vv in cv:
+                out.append(line(W((cu[0], vv)), W((cu[-1], vv)), "ledger"))
+            for uu in cu:
+                out.append(line(W((uu, cv[0])), W((uu, cv[-1])), "ledger"))
+            tx, ty = P(W(((cu[0] + cu[-1]) / 2, cv[0] + 250.0)))
+            out.append(f'<text x="{tx:.1f}" y="{ty:.1f}" class="ts" text-anchor="middle">{ESC(sy["name"])}（{ESC(sy["series_name"])}）</text>')
+        if s.get("system"):
+            sy = s["system"][-1]
+            labels.append((P(W((sy["posts"][-1][0], sy["posts"][-1][1]))), f"支保工足場の支柱（{sy['series_name']}・大引受けジャッキ）"))
+            labels.append((P(W((sy["posts"][-1][0] - sy["spans_u"][-1] / 2, sy["posts"][-1][1]))), "布材（水平つなぎ・2方向）"))
         for p in s["posts"]:
             x, y = P(W(p))
             out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{r:.2f}" class="ps"/>'
@@ -327,7 +345,8 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
             if ne:
                 n_ = max(ne, key=lambda n2: n2[2])
                 labels.append((P(W((n_[2], vtop - 450.0))), "根太：角パイプ □50×50×2.3 @300"))
-            labels.append((P(W((umax, vtop))), f"パイプサポート（{s['name']} 下・長さ {s['post_h']:.0f}）"))
+            if not s.get("system"):
+                labels.append((P(W((umax, vtop))), f"パイプサポート（{s['name']} 下・長さ {s['post_h']:.0f}）"))
             sl = max(s["sills"], key=lambda o_: (o_[2], o_[1])) if s["sills"] else None
             if sl:
                 labels.append((P(W((sl[1] - 40.0, sl[2]))), "敷き桟木 45×60（寝かせ）"))
@@ -448,6 +467,8 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
            ("─", "根太 角パイプ □50×50×2.3 @300（細線）"), ("━", "敷き桟木 45×60（寝かせる）"), ("- - -", "梁（スラブの下）"),
            ("■", "壁・柱"), ("─・─", "断面の切る位置（a－a・b－b は2枚目）"), ("○X1", "通り芯（柱・壁の芯から）"),
            ("- - -（紫）", "大筋かい 単管（列の鉛直面に X）")]
+    if any(sl.get("system") for sl in plan.get("slabs", [])):
+        leg.insert(0, ("○＋格子", "支保工足場（内部足場）の支柱・布材"))
     out.append(f'<text x="{lx}" y="{MARGIN + 18}" class="h2">凡例</text>')
     for k, (sym, t_) in enumerate(leg):
         out.append(f'<text x="{lx}" y="{MARGIN + 25 + k * 4.5}" class="t">{ESC(sym)}　{ESC(t_)}</text>')
@@ -459,8 +480,16 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
              "5. コンクリートの打設中は型枠支保工を点検し、異常があれば中止する（安衛則 244条）",
              "6. 組立て・解体は型枠支保工の組立て等作業主任者の直接の指揮で行う（安衛則 246・247条）",
              "7. パイプサポートの許容支持力はメーカーの表（仮設工業会認定品・使用高さと水平つなぎの有無）による。3.4m を超える支柱は水平つなぎを設ける",
-             "8. 支柱の脚部は根がらみ（単管 φ48.6）を2方向に設けて滑動を防ぎ、支柱・大引・根太の接続は釘・クランプで緊結する"]
-    y = MARGIN + 66.0
+             "8. 支柱の脚部は根がらみ（単管 φ48.6）を2方向に設けて滑動を防ぎ、支柱・大引・根太の接続は釘・クランプで緊結する",
+             # 建築業協会関西支部「建築技術者のための施工Q&A」p28〜29（型枠支保工）・JASS 5 12.9
+             "9. 支保工の存置はスラブ下・梁下とも設計基準強度の 100% まで（JASS 5 12.9）。早く外すときは計算で要る強度を求めて"
+             "確かめ、最低 12N/mm² 以上",
+             "10. 打設は下の階の支保工を残して2層で受ける（2層受け。打設後2日は外さない）。片持ちスラブの先端の支柱は残し、"
+             "支柱の盛替えはしない"]
+    if any(sl.get("system") for sl in plan.get("slabs", [])):
+        notes.append("11. 支保工足場は承認を受けた組み方（つなぎ方）で組み、大引は大引受けジャッキで固定、布材は 2m 以内ごとに2方向、"
+                     "外周の構面に筋かい（メーカーの組立基準）")
+    y = MARGIN + 25.0 + len(leg) * 4.5 + 8.0
     for k, t_ in enumerate(notes):
         cls = "h2" if k == 0 else "ts"
         for j, part in enumerate(_wrap(t_, NOTE_CHARS) if k else [t_]):
@@ -574,7 +603,8 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
         if cross:
             labels.append(((X(max(cross)), Y(zo + 45)), f"大引：杉 90×90 @{s['sv']:.0f}"))
     # 敷き桟木・支柱・根がらみ・水平つなぎ
-    zs = floor + SILL_MM
+    sysm = s.get("system") or []
+    zs = floor + (0.0 if sysm else SILL_MM)
     if h == 0:
         sills = [(a, b) for a, b, v in s["sills"] if abs(v - cut) < 1.0]
         posts = sorted(p[0] for p in s["posts"] if abs(p[1] - cut) < 1.0)
@@ -585,11 +615,13 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
         out.append(rect(a, b, floor, zs, "wood"))
     if sills:
         labels.append(((X(sills[-1][1] - 20.0), Y(floor + SILL_MM / 2)), "敷き桟木 45×60（寝かせ）"))
-    for p in posts:
+    if sysm:
+        out += _section_system(sysm, posts, X, Y, floor, k, labels)
+    for p in posts if not sysm else []:
         out.append(rect(p - PS_D_MM / 2, p + PS_D_MM / 2, zs, zo, "steel"))
         out.append(rect(p - 70, p + 70, zo - 6, zo, "steel"))           # 受け板（大引に釘止め）
         out.append(rect(p - 70, p + 70, zs, zs + 6, "steel"))           # 台板
-    if posts:
+    if posts and not sysm:
         labels.append(((X(posts[-1] + 30), Y((zs + zo) / 2)), f"パイプサポート {ps_model(s['post_h'])}（長さ {s['post_h']:.0f}）"))
         tubes = [(s.get("negarami", 200.0), "根がらみ：単管 φ48.6（2方向）")] + [(z, "水平つなぎ：単管 φ48.6（2方向）") for z in s.get("ties", [])]
         for z, t_ in tubes:
@@ -651,10 +683,19 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
     out.append(_dim(xl, Y(bottom), xl, Y(top), f"{thick:.0f}", off=-3.0))
     out.append(_dim(xl - 9, Y(floor), xl - 9, Y(top), f"{top - floor:.0f}", off=-3.0))
     xr = X(hmax + 600.0)
-    zl = [floor, zs, zo, bottom]
+    if sysm:                                       # 支柱の天端・Uジャッキの繰出し・大引〜スラブ下
+        sy0 = sysm[0]
+        zl = [floor, floor + sy0["top"], zo, bottom]
+    else:
+        zl = [floor, zs, zo, bottom]
     for z0, z1 in zip(zl, zl[1:]):
         out.append(_dim(xr, Y(z0), xr, Y(z1), f"{z1 - z0:.0f}", off=3.0))
-    if posts:
+    if sysm and posts:                             # 布材の段（根がらみから天端まで）
+        zt = [floor] + [floor + z for z in sysm[0]["levels"]] + [floor + sysm[0]["top"]]
+        for z0, z1 in zip(zt, zt[1:]):
+            if z1 - z0 > 1.0:
+                out.append(_dim(xr + 9, Y(z0), xr + 9, Y(z1), f"{z1 - z0:.0f}", off=3.0))
+    elif posts:
         zt = [floor] + [floor + z for z in [s.get("negarami", 200.0)] + list(s.get("ties", []))]
         for z0, z1 in zip(zt, zt[1:]):
             out.append(_dim(xr + 9, Y(z0), xr + 9, Y(z1), f"{z1 - z0:.0f}", off=3.0))
@@ -667,6 +708,43 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
     out.append(f'<rect x="{X(hmin) - 2:.1f}" y="{yb - 4.2:.1f}" width="46" height="6" class="thin"/>'
                f'<text x="{X(hmin):.1f}" y="{yb:.1f}" class="h2">{name}断面図 S=1/{sc:.0f}</text>')
     return "".join(out), yb + 4.0
+
+
+def _section_system(sysm: list, posts: list, X, Y, floor: float, k: float, labels: list) -> list:
+    """断面の支保工足場（内部足場の用途 支保工）: ジャッキベース・支柱・布材（各段）・筋かい（外周の構面）・作業床・大引受けジャッキ."""
+    out = []
+    sy = sysm[0]
+    top, jack, uh = sy["top"], sy["jack"], sy["uhead"]
+    D = 48.6
+    lv = sorted(sy["levels"])
+    for p in posts:
+        out.append(f'<rect x="{X(p - 70):.2f}" y="{Y(floor + 6):.2f}" width="{140 * k:.2f}" height="{6 * k:.2f}" class="steel"/>')
+        out.append(f'<rect x="{X(p - 17):.2f}" y="{Y(floor + jack):.2f}" width="{34 * k:.2f}" height="{jack * k:.2f}" class="steel"/>')
+        out.append(f'<rect x="{X(p - D / 2):.2f}" y="{Y(floor + top):.2f}" width="{D * k:.2f}" height="{(top - jack) * k:.2f}" class="steel"/>')
+        if uh > 0:
+            out.append(f'<rect x="{X(p - 17):.2f}" y="{Y(floor + top + uh):.2f}" width="{34 * k:.2f}" height="{uh * k:.2f}" class="steel"/>')
+            out.append(f'<rect x="{X(p - 60):.2f}" y="{Y(floor + top + uh + 60):.2f}" width="{120 * k:.2f}" height="{60 * k:.2f}" class="thin"/>')
+    if not posts:
+        return out
+    a, b = posts[0], posts[-1]
+    for z in lv:                                   # 布材（水平つなぎ）。直交する布材は断面の丸
+        out.append(f'<line x1="{X(a):.2f}" y1="{Y(floor + z):.2f}" x2="{X(b):.2f}" y2="{Y(floor + z):.2f}" class="bracel"/>')
+        for p in posts:
+            out.append(f'<circle cx="{X(p + 45):.2f}" cy="{Y(floor + z):.2f}" r="{max(0.3, 21.4 * k):.2f}" class="steel"/>')
+    zz = [floor + z for z in lv] + [floor + top]
+    for z0, z1 in zip(zz, zz[1:]):                 # 筋かい（外周の構面。5スパン以下ごと）を立面に写す
+        for i in range(0, len(posts) - 1, 5):
+            out.append(f'<line x1="{X(posts[i]):.2f}" y1="{Y(z0):.2f}" x2="{X(posts[i + 1]):.2f}" y2="{Y(z1):.2f}" class="thin"/>')
+    dz = floor + sy["deck"]
+    out.append(f'<rect x="{X(a):.2f}" y="{Y(dz + 40):.2f}" width="{(b - a) * k:.2f}" height="{40 * k:.2f}" class="ply"/>')
+    labels.append(((X(b), Y(floor + (jack + top) / 2)), f"支柱：{sy['series_name']}（{'+'.join(map(str, sy['post_stack']))}）"))
+    labels.append(((X(b + 17), Y(floor + jack / 2)), f"ジャッキベース（繰出し {jack}）"))
+    if uh > 0:
+        labels.append(((X(b + 17), Y(floor + top + uh / 2)), f"大引受けジャッキ（繰出し {uh}）"))
+    labels.append(((X((a + b) / 2), Y(floor + lv[0])), f"布材（根がらみ・水平つなぎ {len(lv)}段・2方向）"))
+    labels.append(((X((posts[0] + posts[1]) / 2 if len(posts) > 1 else a), Y((zz[0] + zz[1]) / 2)), "筋かい（外周の構面・5スパン以下ごと）"))
+    labels.append(((X(b - 300), Y(dz + 20)), f"作業床（全面・床から {sy['deck']}）"))
+    return out
 
 
 def section_page(plan: dict) -> tuple[str, str, str]:
@@ -918,12 +996,16 @@ def member_rows(plan: dict) -> list[tuple[str, str, str]]:
             if m not in models:
                 models.append(m)
         aux = [m for m in models if "補助" in m]
+        systems = [sy for x in slabs for sy in (x.get("system") or [])]
         out += [("角パイプ", "JIS G 3466 STKR400 □50×50×2.3（根太 @300）", "根太（スラブ・梁下）"),
                 ("木材（角材）", f"杉 90×90（大引 {sv}）", "大引（スラブ・梁下）"),
                 ("パイプサポート", f"仮設工業会認定品 上柱管 φ48.6×2.4・下柱管 φ60.5×2.3（型式 {'・'.join(models) or '―'}）。"
-                 f"許容支持力は{PS_SOURCE}", "支柱（スラブ・梁下）。上端は大引に釘止め"),
+                 f"許容支持力は{PS_SOURCE}", "支柱（" + ("梁下" if systems else "スラブ・梁下") + "）。上端は大引に釘止め"),
                 ("補助サポート", f"有（{'・'.join(aux)}。継ぐのは2本まで、4本以上のボルトか専用の金具）" if aux
                  else "無（パイプサポートは継がない）", "支柱" if aux else "―")]
+        for sy in {x["series"]: x for x in systems}.values():
+            out.append(("支保工足場（システム支保工）", f"{sy['series_name']} 型枠支保工（{sy['approval'] or '承認番号はメーカーに確かめる'}）"
+                        f"・つなぎ方 {sy['tie']}・支柱・布材・筋かい・ジャッキベース・大引受けジャッキ", "支柱（スラブ下）"))
     ties = [s for s in slabs if s.get("ties")]
     out.append(("木材（桟木）", "杉 45×60", "・".join(x for x, v in (("縦桟木（" + (sides or "側板") + "）", sides),
                                                                     ("敷き桟木（支柱の下・寝かせ）", slabs or beams)) if v) or "―"))
@@ -946,6 +1028,12 @@ def load_rows(plan: dict) -> list[tuple[str, str, float, float, float, float, fl
     out = []
     for s in plan.get("slabs", []):
         dead = (RC_KN_M3 * s["thick"] / 1000.0 + FORM_KN) * 1000.0
+        for sy in s.get("system") or []:
+            out.append((f"スラブ {s['name']}（支保工足場 {sy['name']}）", f"床 {s['floor']:.0f} から支柱の天端 {sy['top']}・大引の下 "
+                        f"{s['bottom'] - 152:.0f}", sy["design_kn_m2"] * 1000.0 - WORK_KN * 1000.0, WORK_KN * 1000.0,
+                        sy["design_kn_m2"] * 1000.0, sy["post_kn"] * 1000.0, (sy["allow_kn"] or 0.0) * 1000.0))
+        if s.get("system"):
+            continue
         out.append((f"スラブ {s['name']}（厚さ {s['thick']:.0f}）", f"床 {s['floor']:.0f} から型枠の下 {s['bottom']:.0f}（支柱 {s['post_h']:.0f}）",
                     dead, WORK_KN * 1000.0, dead + WORK_KN * 1000.0, s["post_kn"] * 1000.0,
                     s.get("ps_allow", ps_allow_kn(s["post_h"], bool(s.get("ties")))) * 1000.0))
@@ -1038,7 +1126,8 @@ def member_page(plan: dict) -> tuple[str, str, str]:
                      [list(r) for r in member_rows(plan)], size=2.6)
     out.append(body)
     out.append(f'<text x="{x0}" y="{y + 6:.1f}" class="h2">設置箇所・設置期間・設計荷重</text>')
-    rows = [[a, b, f"{d:,.0f}", f"{l:,.0f}", f"{t:,.0f}", f"{n:,.0f}", f"{al:,.0f}", "可" if n <= al else "不可"]
+    rows = [[a, b, f"{d:,.0f}", f"{l:,.0f}", f"{t:,.0f}", f"{n:,.0f}", f"{al:,.0f}" if al > 0 else "メーカーに確認",
+             ("可" if n <= al else "不可") if al > 0 else "要確認"]
             for a, b, d, l, t, n, al in load_rows(plan)] or [["―", "―", "", "", "", "", "", ""]]
     body, y = _table(x0, y + 8, [62.0, 92.0, 34.0, 34.0, 34.0, 38.0, 38.0, 16.0],
                      ["設置箇所", "設置高さ（mm）", "固定荷重 N/m²", "積載荷重 N/m²", "計 N/m²", "支柱1本当り N",
@@ -1156,7 +1245,8 @@ def build_xlsx(plan: dict, path: Path) -> None:
     sh.add_blank()
     sh.add_header(["設置箇所", "設置高さ", "固定荷重 N/m²", "積載荷重 N/m²", "計 N/m²", "支柱1本当り N", "許容支持力 N", "判定"])
     for a, b, d, l, t, n, al in load_rows(plan):
-        sh.add([a, b, round(d), round(l), round(t), round(n), round(al), "可" if n <= al else "不可"])
+        sh.add([a, b, round(d), round(l), round(t), round(n), round(al) if al > 0 else "メーカーに確認",
+                ("可" if n <= al else "不可") if al > 0 else "要確認"])
     sh.add(["設置期間", "組立開始　年　月　日 ～ 解体完了　年　月　日"])
     sh.add_blank()
     sh.add_header(["各部の構造・組立概要", "内容", "詳細図"])

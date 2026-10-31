@@ -3,7 +3,9 @@
 
   python3 scripts/form_run.py            # 選んだ壁に（何も選んでいなければ全部の壁に）
   python3 scripts/form_run.py --all      # 全部の壁に
-  python3 scripts/form_run.py --remove   # 置いた型枠（控えの GUID）と型枠支保工のレイアウトを消す
+  python3 scripts/form_run.py --remove   # 置いた型枠（控えの GUID）・支保工足場と型枠支保工のレイアウトを消す
+  python3 scripts/form_run.py --shoring  # 選んだスラブの支保工を支保工足場（内部足場）に（scripts/shoring_run.py）
+  python3 scripts/form_run.py --pipe     # 選んだスラブの支保工をパイプサポートに戻す
 
 壁ごとに側圧から桟木・外端太・フォームタイの間隔を決め（src/ashiba/wall_form.py）、部品 ashiba_wform を1枚の壁に1つ置く。
 柱（長方形）も同じ部材で（src/ashiba/column_form.py）、部品 ashiba_cform を1本の柱に1つ置く。
@@ -30,6 +32,11 @@ COLUMN_OBJECT = "ashiba_cform"
 BEAM_OBJECT = "ashiba_bform"
 SLAB_OBJECT = "ashiba_sform"
 RECORD = "型枠.json"
+SYSTEM_RECORD = "支保工足場.json"     # 支保工足場にしたスラブ（GUID → 置いた内部足場の GUID）
+STAGE_OBJECT = "ashiba_stage"
+# 支保工足場のスラブの型枠の部品: パイプサポート・大引・敷き桟木・根がらみ・水平つなぎ・筋かいは内部足場が持つ
+NO_POSTS = {k: "" for k in ("obV", "obU0", "obU1", "psU", "psV", "slU0", "slU1", "slV", "tieZ",
+                            "brU", "brV", "brZ", "brAz", "brPo", "brL")}
 FORM_PARTS = (FORM_OBJECT, COLUMN_OBJECT, BEAM_OBJECT, SLAB_OBJECT)
 
 
@@ -60,6 +67,77 @@ def _place(c, part: str, at, z: float, ang_deg: float):
     if abs(ang_deg) > 1e-6:
         c.rotate_element(res[0], math.radians(ang_deg), at[0], at[1])
     return res[0]
+
+
+def _delete_alive(c, guids) -> int:
+    """控えの GUID のうち、まだある部品だけ消す."""
+    if not guids:
+        return 0
+    alive = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])}
+    gone = [{"elementId": {"guid": g}} for g in guids if g in alive]
+    if gone:
+        c.delete_elements(gone)
+    return len(gone)
+
+
+def place_shoring(c, R, f, name: str, floor: float, bottom: float, thick: float, rec: dict) -> list:
+    """支保工足場: スラブの型枠 f の下を梁・壁で区切った長方形ごとに内部足場（用途 支保工）を解いて置く。控え rec の
+    stages を置き直す. 戻り値は図面・計算書の控え（shoring_stage.system_summary）の並び."""
+    from ashiba.cli import resolve_series_id
+    from ashiba.interior_stage import shoring_ties, solve_stage, stage_params
+    from ashiba.master import load_master
+    from ashiba.pens import gdl_pens, parse_pens
+    from ashiba.shoring_stage import shoring_cells, stage_item, system_summary
+    from ashiba.structural import load_capacities
+
+    _delete_alive(c, rec.get("stages", []))
+    rec["stages"] = []
+    spec = {**R.SPEC, **R.load_spec_override()}
+    sid = resolve_series_id(spec)
+    master, caps = load_master(sid), load_capacities(sid)
+    tie = rec.get("tie") or shoring_ties(caps)[0]
+    try:
+        st_ = c.tapir("GetStories", {})
+        act = int(st_.get("actStory", 0))
+        story = next((float(x["level"]) * 1000.0 for x in st_.get("stories", []) if int(x.get("index", -99)) == act), 0.0)
+    except Exception:
+        story = 0.0
+    a = math.radians(f.ang)
+    u, v = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+    o = f.origin
+    W = lambda p: (o[0] + u[0] * p[0] + v[0] * p[1], o[1] + u[1] * p[0] + v[1] * p[1])
+    L = lambda p: ((p[0] - o[0]) * u[0] + (p[1] - o[1]) * u[1], (p[0] - o[0]) * v[0] + (p[1] - o[1]) * v[1])
+    cells, notes = shoring_cells(f.outer, f.holes)
+    for n_ in notes:
+        print(f"    注意: {n_}")
+    part = R.versioned_part_name(STAGE_OBJECT)
+    try:
+        mats = c.find_member_surfaces()
+    except Exception:
+        mats = {}
+    out = []
+    for k, cell in enumerate(cells, 1):
+        item = stage_item(f"{name} 支保工{k}", cell, W, u, floor, story, bottom, thick, tie)
+        try:
+            st = solve_stage(item, master, caps)
+        except ValueError as ex:
+            print(f"    注意: {item['name']}: {ex}")
+            continue
+        (el,) = c.create_objects([(part, st.origin[0], st.origin[1])])
+        params = {**stage_params(st, master=master), **gdl_pens(parse_pens(spec.get("pens")), STAGE_OBJECT)}
+        for key in ("matScaf", "matDeck"):
+            if mats.get(key):
+                params[key] = mats[key]
+        c.set_gdl_parameters(el, params)
+        rec["stages"].append(el["elementId"]["guid"])
+        sy = system_summary(st, master, caps, L)
+        out.append(sy)
+        bad = [ck for ck in st.checks if ck.status != "OK"]
+        print(f"  {item['name']}: {st.length_u:.0f}×{st.length_v:.0f}（{'+'.join(map(str, st.spans_u))} × {'+'.join(map(str, st.spans_v))}）"
+              f"・支柱の天端 {st.top_mm}・Uジャッキ {st.uhead_ext_mm}・支柱1本 {sy['post_kn']:.1f}"
+              + (f"／{sy['allow_kn']:.1f}kN" if sy["allow_kn"] else "kN") + f"（{tie}）"
+              + (f"・要確認 {len(bad)}件" if bad else "・検定 OK"))
+    return out
 
 
 def brace_params(braces) -> dict:
@@ -97,10 +175,20 @@ def remove(c, out_dir: Path) -> int:
         c.delete_elements(gone)
     if rec:
         rec_path.write_text("{}", encoding="utf-8")
+    # 支保工足場（内部足場）も型枠支保工なので消す。スラブの控えも外す（次の「型枠」はパイプサポート）
+    sys_path = out_dir / SYSTEM_RECORD
+    try:
+        sysrec = json.loads(sys_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        sysrec = {}
+    stages = [g for v in (sysrec.get("slabs") or {}).values() for g in v.get("stages", [])]
+    n_st = _delete_alive(c, stages)
+    if sysrec:
+        sys_path.write_text("{}", encoding="utf-8")
     lays = [it["guid"] for it in walk_tree(_tree(c, "LayoutBook"))
             if it["type"] == "LayoutItem" and it["name"].startswith(LAYOUT_PREFIX + " ")]
     _delete_items(c, lays)
-    print(f"型枠の撤去: 型枠 {len(gone)}個・レイアウト {len(lays)}枚を消しました")
+    print(f"型枠の撤去: 型枠 {len(gone)}個・支保工足場 {n_st}個・レイアウト {len(lays)}枚を消しました")
     return 0
 
 
@@ -111,12 +199,15 @@ def main(argv=None) -> int:
     from ashiba.beam_form import beam_extents, beam_from_details, plan_beam, slab_over
     from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
     from ashiba.slab_form import NEGARAMI_Z_MM, obiki_angle, plan_slab, rect
+    from ashiba.shoring_stage import merge_system
     from ashiba.slab_heights import _inside, slabs_from_details
     from ashiba.wall_form import face_layout, free_ends, in_column, plan_wall, wall_from_details
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--all", action="store_true", help="全部の壁・柱に置く")
     ap.add_argument("--remove", action="store_true", help="置いた型枠と型枠支保工のレイアウトを消す")
+    ap.add_argument("--shoring", action="store_true", help="選んだスラブ（無ければ全部）の支保工を支保工足場（内部足場）にする")
+    ap.add_argument("--pipe", action="store_true", help="選んだスラブ（無ければ全部）の支保工をパイプサポートに戻す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     if a.remove:
@@ -125,6 +216,23 @@ def main(argv=None) -> int:
     if not walls and not cols and not beams and not slabs_sel:
         print("型枠: 壁も柱も梁もスラブもありません（壁・柱・梁・スラブを選ぶか、モデルに置いてから押してください）")
         return 1
+    # 支保工足場（利用者の指定 2026-10-31: しほこう足場を内部足場から作成して）: 控えにあるスラブはパイプサポートの代わりに内部足場
+    sys_path = R.OUT_DIR / SYSTEM_RECORD
+    try:
+        sysrec = json.loads(sys_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        sysrec = {}
+    sysrec.setdefault("slabs", {})
+    if a.shoring or a.pipe:
+        if not slabs_sel:
+            print("支保工足場: スラブがありません（スラブを選ぶか、モデルに置いてから押してください）")
+            return 1
+        for e, _d in slabs_sel:
+            g = e["elementId"]["guid"]
+            if a.shoring:
+                sysrec["slabs"].setdefault(g, {"stages": []})
+            elif g in sysrec["slabs"]:
+                _delete_alive(c, sysrec["slabs"].pop(g).get("stages", []))
     R.ensure_parts(c)
     part = R.versioned_part_name(FORM_OBJECT)
     cpart = R.versioned_part_name(COLUMN_OBJECT)
@@ -372,6 +480,10 @@ def main(argv=None) -> int:
                 holes.append(rect(col["c"], (math.cos(a_), math.sin(a_)), col["width"] / 2.0, col["depth"] / 2.0, 12.0))
         f = plan_slab(sl.polygon, sl.thickness_mm, bottom, floor, holes)
         name = d.get("id") or f"スラブ{k}"
+        sguid = e["elementId"]["guid"]
+        systems = None
+        if sguid in sysrec["slabs"]:
+            systems = place_shoring(c, R, f, name, floor, bottom, sl.thickness_mm, sysrec["slabs"][sguid])
         el = _place(c, spart, f.origin, bottom, f.ang)
         if el is None:
             print(f"  {name}: 型枠を置けませんでした")
@@ -395,21 +507,40 @@ def main(argv=None) -> int:
                                   "slU1": ",".join(f"{b_:.0f}" for _a, b_, _v in f.sills()),
                                   "slV": ",".join(f"{v_:.0f}" for _a, _b, v_ in f.sills()),
                                   "cName": f"スラブ型枠 {name}",
-                                  "cNote": f"PS @{f.spacing.su:.0f}×{f.spacing.sv:.0f} 長さ {f.post_h:.0f}"},
+                                  "cNote": (f"PS @{f.spacing.su:.0f}×{f.spacing.sv:.0f} 長さ {f.post_h:.0f}" if systems is None
+                                            else f"支保工足場 {len(systems)}か所"),
+                                  # 支保工足場のスラブは支柱まわりを内部足場が持つ（最後に上書きする）
+                                  **(NO_POSTS if systems is not None else {})},
                             object_name=SLAB_OBJECT)
         rec[e["elementId"]["guid"]] = el["elementId"]["guid"]
-        print(f"  {name}: 厚さ {sl.thickness_mm:.0f}・下端 {bottom:.0f}（床 {floor:.0f}）→ 根太 □50×50 @300・杉大引 90×90 "
-              f"@{f.spacing.sv:.0f}・パイプサポート @{f.spacing.su:.0f}×{f.spacing.sv:.0f}（{len(f.posts)}本・長さ {f.post_h:.0f}・"
-              f"1本 {f.spacing.post_kn:.1f}kN）" + (f"・水平つなぎ {len(f.ties)}段" if f.ties else "")
-              + (f"・梁・壁・柱の所 {len(holes)}か所を抜く" if holes else "") + ("" if f.spacing.ok else "  注意: 計算が通らない"))
+        if systems is not None:
+            print(f"  {name}: 厚さ {sl.thickness_mm:.0f}・下端 {bottom:.0f}（床 {floor:.0f}）→ せき板・根太 □50×50 @300、支保工足場 {len(systems)}か所（上に書いた内部足場）")
+        else:
+            print(f"  {name}: 厚さ {sl.thickness_mm:.0f}・下端 {bottom:.0f}（床 {floor:.0f}）→ 根太 □50×50 @300・杉大引 90×90 "
+                f"@{f.spacing.sv:.0f}・パイプサポート @{f.spacing.su:.0f}×{f.spacing.sv:.0f}（{len(f.posts)}本・長さ {f.post_h:.0f}・"
+                f"1本 {f.spacing.post_kn:.1f}kN）" + (f"・水平つなぎ {len(f.ties)}段" if f.ties else "")
+                + (f"・梁・壁・柱の所 {len(holes)}か所を抜く" if holes else "") + ("" if f.spacing.ok else "  注意: 計算が通らない"))
         if not below:
             print("    注意: 下の床（スラブ）が見つからないので、パイプサポートは高さ 0 から。地盤なら敷板・敷角を")
         if f.post_h > 4800.0:
             print("    注意: パイプサポートが長すぎる（継ぐのは2本まで）。枠組・くさびの支保工（内部足場）を考える")
-        for item, q, note in f.quantities():
-            rows.append((name, item, q, note))
-        calc.append(f"[{name}] スラブ 厚さ {sl.thickness_mm:.0f}")
-        calc += ["  " + s_ for s_ in f.lines()]
+        if systems is None:
+            for item, q, note in f.quantities():
+                rows.append((name, item, q, note))
+            calc.append(f"[{name}] スラブ 厚さ {sl.thickness_mm:.0f}")
+            calc += ["  " + s_ for s_ in f.lines()]
+        else:
+            # せき板・根太は型枠、支柱から大引までは支保工足場（内部足場）の数量
+            for item, q, note in f.quantities():
+                if "合板" in item or "根太" in item:
+                    rows.append((name, item, q, note))
+            for sy in systems:
+                for cls, size, n, use in sy["quantity"]:
+                    rows.append((name, f"{cls}" + (f" {size}" if size else ""), n, f"支保工足場 {sy['name']}・{use}"))
+            calc.append(f"[{name}] スラブ 厚さ {sl.thickness_mm:.0f}（支保工足場）")
+            calc += ["  " + s_ for s_ in f.spacing.lines(f.q)[:3]]
+            for sy in systems:
+                calc += [f"  {sy['name']}: {c_[0]} {c_[1]} — {c_[2]}" for c_ in sy["checks"]]
         plan["slabs"].append({"name": name, "origin": r2(f.origin), "ang": f.ang, "outer": [r2(p_) for p_ in f.outer],
                               "holes": [[r2(p_) for p_ in h_] for h_ in f.holes], "thick": sl.thickness_mm, "top": sl.top_mm,
                               "bottom": bottom, "floor": floor, "floor_found": bool(below), "su": f.spacing.su,
@@ -420,9 +551,12 @@ def main(argv=None) -> int:
                               "braces": [[round(x_, 1) for x_ in b_] for b_ in f.braces], "brace_info": f.brace_info,
                               "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
                               "ties": f.ties, "post_h": f.post_h, "post_kn": f.spacing.post_kn, "q": f.q, "lines": f.lines(),
-                              "ps_allow": f.spacing.allow_kn})
+                              "ps_allow": f.spacing.allow_kn, "guid": sguid})
+        if systems is not None:
+            plan["slabs"][-1] = merge_system(plan["slabs"][-1], systems)
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    sys_path.write_text(json.dumps(sysrec, ensure_ascii=False, indent=1), encoding="utf-8")
     plan["rows"] = [list(r_) for r_ in rows]
     plan["project"] = str(spec.get("project_name") or spec.get("name") or "")
     (R.OUT_DIR / "型枠_計画.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
