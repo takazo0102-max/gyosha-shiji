@@ -154,11 +154,13 @@ final class Palette: NSObject, NSWindowDelegate {
         }
         guard sender.tag < acts.count else { return }
         let a = acts[sender.tag]
-        if a.title == "撤去" {
-            // 消す操作だけは確かめる（押し間違いで足場と図面が消えないように）
+        if a.title == "撤去" || a.title == "型枠の撤去" {
+            // 消す操作だけは確かめる（押し間違いで足場・型枠と図面が消えないように）
+            let form = a.title == "型枠の撤去"
             let al = NSAlert()
-            al.messageText = "足場を撤去しますか"
-            al.informativeText = "選んだ躯体スラブの足場部品と、立面・平面・詳細図のレイアウトを消します。"
+            al.messageText = form ? "型枠を撤去しますか" : "足場を撤去しますか"
+            al.informativeText = form ? "置いた型枠（壁・柱・梁・スラブの型枠と支保工）と、型枠支保工のレイアウトを消します。躯体と足場は消しません。"
+                : "選んだ躯体スラブの足場部品と、立面・平面・詳細図のレイアウトを消します。"
             al.addButton(withTitle: "撤去する")
             al.addButton(withTitle: "やめる")
             NSApp.activate(ignoringOtherApps: true)

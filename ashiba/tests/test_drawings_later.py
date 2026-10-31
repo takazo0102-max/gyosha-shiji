@@ -30,7 +30,7 @@ class TestDrawingsLater(unittest.TestCase):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
         self.assertIn("図面を作る", [a.title for a in ACTIONS])
-        self.assertIn("図面を作る", dict(PANEL_GROUPS)["見る・出す"])
+        self.assertIn("図面を作る", dict(PANEL_GROUPS)["見る・出す（足場用）"])
         self.assertTrue((ROOT / "scripts" / "drawings_run.py").exists())
 
 

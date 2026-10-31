@@ -3,6 +3,7 @@
 
   python3 scripts/form_run.py            # 選んだ壁に（何も選んでいなければ全部の壁に）
   python3 scripts/form_run.py --all      # 全部の壁に
+  python3 scripts/form_run.py --remove   # 置いた型枠（控えの GUID）と型枠支保工のレイアウトを消す
 
 壁ごとに側圧から桟木・外端太・フォームタイの間隔を決め（src/ashiba/wall_form.py）、部品 ashiba_wform を1枚の壁に1つ置く。
 柱（長方形）も同じ部材で（src/ashiba/column_form.py）、部品 ashiba_cform を1本の柱に1つ置く。
@@ -29,6 +30,7 @@ COLUMN_OBJECT = "ashiba_cform"
 BEAM_OBJECT = "ashiba_bform"
 SLAB_OBJECT = "ashiba_sform"
 RECORD = "型枠.json"
+FORM_PARTS = (FORM_OBJECT, COLUMN_OBJECT, BEAM_OBJECT, SLAB_OBJECT)
 
 
 TYPES = ("Wall", "Column", "Beam", "Slab")
@@ -60,6 +62,34 @@ def _place(c, part: str, at, z: float, ang_deg: float):
     return res[0]
 
 
+def remove(c, out_dir: Path) -> int:
+    """型枠の撤去（パレットの「型枠の撤去」）: 型枠の部品（控え 型枠.json の GUID と、控えに無くても壁・柱・梁・スラブの型枠の
+    部品。控えが古くなって残った分も）を消し、レイアウト「型枠支保工 …」も消す。躯体・足場の部品は消さない."""
+    from ashiba.elevation_sections import _delete_items, _tree, walk_tree
+    from ashiba.form_layout import LAYOUT_PREFIX
+    from ashiba.tapir_adapter import is_ashiba_part
+
+    rec_path = out_dir / RECORD
+    try:
+        rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rec = {}
+    objs = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+    alive = {x["elementId"]["guid"] for x in objs}
+    forms = {e["elementId"]["guid"] for e, d in zip(objs, c.get_details(objs) if objs else [])
+             if is_ashiba_part(str(((d.get("details") or {}).get("libPart") or {}).get("name", "")), FORM_PARTS)}
+    gone = [{"elementId": {"guid": g}} for g in (set(rec.values()) & alive) | forms]
+    if gone:
+        c.delete_elements(gone)
+    if rec:
+        rec_path.write_text("{}", encoding="utf-8")
+    lays = [it["guid"] for it in walk_tree(_tree(c, "LayoutBook"))
+            if it["type"] == "LayoutItem" and it["name"].startswith(LAYOUT_PREFIX + " ")]
+    _delete_items(c, lays)
+    print(f"型枠の撤去: 型枠 {len(gone)}個・レイアウト {len(lays)}枚を消しました")
+    return 0
+
+
 def main(argv=None) -> int:
     import run_from_archicad as R
     from ashiba.pens import gdl_pens, parse_pens
@@ -72,8 +102,11 @@ def main(argv=None) -> int:
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--all", action="store_true", help="全部の壁・柱に置く")
+    ap.add_argument("--remove", action="store_true", help="置いた型枠と型枠支保工のレイアウトを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
+    if a.remove:
+        return remove(c, R.OUT_DIR)
     walls, cols, beams, slabs_sel = _targets(c, a.all)
     if not walls and not cols and not beams and not slabs_sel:
         print("型枠: 壁も柱も梁もスラブもありません（壁・柱・梁・スラブを選ぶか、モデルに置いてから押してください）")

@@ -23,6 +23,8 @@ SCALES = (20, 30, 50, 100, 150, 200, 300, 500)
 NOTICE_H_MM = 3500.0                   # 型枠支保工の計画届（支柱の高さ 3.5m 以上。安衛則 88条・別表第7）
 H_LOAD_RATIO = 0.05                    # 水平荷重（設計荷重の 5%。パイプサポート等。安衛則 240条）
 
+NOTE_CHARS = 44                        # 右の欄の注記の1行の字数（幅 100mm・2.1mm の文字）
+
 ESC = html.escape
 
 
@@ -89,6 +91,11 @@ table { border-collapse: collapse; }
 """
 
 
+def _wrap(text: str, n: int) -> list[str]:
+    """n 字ごとに折り返す（全角・半角を区別しない目安）."""
+    return [text[i:i + n] for i in range(0, len(text), n)] or [""]
+
+
 def _dim(x0, y0, x1, y1, text, off=4.0) -> str:
     """2点の寸法（紙の mm）. 線の左へ off ずらす."""
     L = math.hypot(x1 - x0, y1 - y0) or 1.0
@@ -149,7 +156,8 @@ def _fit(points, box_w, box_h):
     return SCALES[-1], (min(xs), min(ys), max(xs), max(ys))
 
 
-def plan_page(plan: dict, project: str, no: int, total: int) -> str:
+def plan_page(plan: dict) -> tuple[str, str, str]:
+    """(図名, 縮尺, 本文の SVG)."""
     wd = _world(plan)
     # 図の範囲はスラブ（と梁・梁下の支柱）のまわり 1.5m。外は切る（支保工の伏図）
     core = [p for g in ("slabs", "beams") for poly in wd[g] for p in poly] + wd["posts"] + wd["bposts"]
@@ -158,7 +166,7 @@ def plan_page(plan: dict, project: str, no: int, total: int) -> str:
         xs, ys = [p[0] for p in pts], [p[1] for p in pts]
         pts = [(min(xs) - 1500.0, min(ys) - 1500.0), (max(xs) + 1500.0, max(ys) + 1500.0)]
     if not pts:
-        return _page('<text x="20" y="40" class="t">スラブの型枠がありません</text>', "型枠支保工 伏図", project, "-", no, total)
+        return "型枠支保工 伏図", "-", '<text x="20" y="40" class="t">スラブの型枠がありません</text>'
     box_w, box_h = PAGE_W - 2 * MARGIN - 110.0, PAGE_H - 2 * MARGIN - 30.0
     scale, (x0, y0, x1, y1) = _fit(pts, box_w - 30.0, box_h - 30.0)
     ox = MARGIN + 20.0 + (box_w - 30.0 - (x1 - x0) / scale) / 2.0
@@ -238,18 +246,24 @@ def plan_page(plan: dict, project: str, no: int, total: int) -> str:
              "4. 地盤に立てるときは敷板・敷角を敷き、沈下を防ぐ（安衛則 242条）",
              "5. コンクリートの打設中は型枠支保工を点検し、異常があれば中止する（安衛則 244条）",
              "6. 組立て・解体は型枠支保工の組立て等作業主任者の直接の指揮で行う（安衛則 246・247条）",
-             "7. パイプサポートの許容荷重はメーカーの使用荷重表（使う長さ）で確かめる"]
+             "7. パイプサポートの許容荷重はメーカーの使用荷重表（使う長さ）で確かめる",
+             "8. 支柱の脚部は根がらみ（単管 φ48.6）を2方向に設けて滑動を防ぎ、支柱・大引・根太の接続は釘・クランプで緊結する"]
+    y = MARGIN + 60.0
     for k, t_ in enumerate(notes):
         cls = "h2" if k == 0 else "ts"
-        out.append(f'<text x="{lx}" y="{MARGIN + 60 + k * 4.2}" class="{cls}">{ESC(t_)}</text>')
+        for j, part in enumerate(_wrap(t_, NOTE_CHARS) if k else [t_]):
+            out.append(f'<text x="{lx + (3.0 if j else 0.0)}" y="{y:.1f}" class="{cls}">{ESC(part)}</text>')
+            y += 3.4
+        y += 0.8
+    y0 = y + 4.0
     # 部材表
     mats = [("せき板", "型枠用合板 12mm"), ("根太", "角パイプ □50×50×2.3 @300"), ("大引", "杉 90×90 @900"),
             ("支柱", "パイプサポート（上端 釘止め）"), ("敷き桟木", "45×60 寝かせ"), ("柱", "コラムクランプ（壁の取り付く柱は外端太・フォームタイ）"),
             ("壁・梁の側板", "桟木 45×60・外端太 単管φ48.6 2本組・フォームタイ W5/16")]
-    out.append(f'<text x="{lx}" y="{MARGIN + 100}" class="h2">部材</text>')
+    out.append(f'<text x="{lx}" y="{y0:.1f}" class="h2">部材</text>')
     for k, (a_, b_) in enumerate(mats):
-        out.append(f'<text x="{lx}" y="{MARGIN + 106 + k * 4.0}" class="ts">{ESC(a_)}：{ESC(b_)}</text>')
-    return _page("".join(out), "型枠支保工 伏図", project, f"1/{scale}", no, total)
+        out.append(f'<text x="{lx}" y="{y0 + 6 + k * 4.0:.1f}" class="ts">{ESC(a_)}：{ESC(b_)}</text>')
+    return "型枠支保工 伏図", f"1/{scale}", "".join(out)
 
 
 # ---------------------------------------------------------------- 2枚目 断面・詳細
@@ -399,7 +413,8 @@ def _section_wall(plan: dict, x0: float, y0: float, scale: float) -> str:
     return "".join(out)
 
 
-def detail_page(plan: dict, project: str, no: int, total: int) -> str:
+def detail_page(plan: dict) -> tuple[str, str, str]:
+    """(図名, 縮尺, 本文の SVG)."""
     s = (plan.get("slabs") or [{}])[0]
     hgt = (s.get("bottom", 2820.0) - s.get("floor", 0.0)) + s.get("thick", 180.0)
     sc = next((v for v in (20, 30, 40, 50) if hgt / v <= 125.0), 50)
@@ -410,7 +425,7 @@ def detail_page(plan: dict, project: str, no: int, total: int) -> str:
         H = walls[0]["height"]
         scw = next((v for v in (30, 40, 50, 60, 80, 100) if H / v <= 70.0), 100)
         out.append(_section_wall(plan, 150.0, 278.0, float(scw)))
-    return _page("".join(out), "型枠支保工 断面図・詳細図", project, "図示", no, total)
+    return "型枠支保工 断面図・詳細図", "図示", "".join(out)
 
 
 # ---------------------------------------------------------------- 3枚目 計算書
@@ -434,7 +449,7 @@ def calc_lines(plan: dict) -> list[tuple[str, str]]:
     return out
 
 
-def calc_page(plan: dict, project: str, no: int, total: int) -> list[str]:
+def calc_page(plan: dict) -> list[str]:
     """計算書（長ければ複数枚）."""
     items = calc_lines(plan)
     pages, cur, y = [], [], 18.0
@@ -454,7 +469,10 @@ def calc_page(plan: dict, project: str, no: int, total: int) -> list[str]:
             cur.append(f'<text x="{MARGIN + 8}" y="{y + 8.5 + k * 3.4}" class="t">{ESC(ln)}</text>')
         y += need + 2
     pages.append(cur)
-    return ["".join(p) for p in pages]
+    sign = (f'<text x="{PAGE_W - MARGIN - 120}" y="{MARGIN + 6}" class="t">計算者：　　　　　　　　照査者：</text>'
+            f'<line x1="{PAGE_W - MARGIN - 106}" y1="{MARGIN + 7}" x2="{PAGE_W - MARGIN - 68}" y2="{MARGIN + 7}" class="thin"/>'
+            f'<line x1="{PAGE_W - MARGIN - 52}" y1="{MARGIN + 7}" x2="{PAGE_W - MARGIN - 4}" y2="{MARGIN + 7}" class="thin"/>')
+    return [sign + "".join(p) for p in pages]
 
 
 # ---------------------------------------------------------------- 4枚目 計画届
@@ -470,8 +488,10 @@ def notice_info(plan: dict) -> dict:
     return {"heights": hs, "max": hmax[0], "where": hmax[1], "required": hmax[0] >= NOTICE_H_MM}
 
 
-def notice_page(plan: dict, project: str, no: int, total: int) -> str:
+def notice_page(plan: dict) -> tuple[str, str, str]:
+    """(図名, 縮尺, 本文の SVG)."""
     ni = notice_info(plan)
+    project = plan.get("project", "")
     out = [f'<text x="{MARGIN + 4}" y="22" class="h2">型枠支保工の計画届の要否（安衛則 88条・別表第7：支柱の高さが 3.5m 以上の型枠支保工）</text>']
     y = 30.0
     for h, where in ni["heights"]:
@@ -500,21 +520,26 @@ def notice_page(plan: dict, project: str, no: int, total: int) -> str:
     for k, t_ in enumerate(["型枠支保工を設置する場所の周囲の状況及び四隣との関係を示す図面", "型枠支保工の組立図（1枚目の伏図・2枚目の断面図・詳細図）",
                             "支柱等の配置図・使用する材料の種類と寸法", "構造計算書（3枚目）", "組立・解体の手順、作業主任者"]):
         out.append(f'<text x="{MARGIN + 8}" y="{y + 5 + k * 4}" class="t">・{ESC(t_)}</text>')
-    return _page("".join(out), "型枠支保工 計画届の要否", project, "―", no, total)
+    return "型枠支保工 計画届の要否", "―", "".join(out)
 
 
 # ---------------------------------------------------------------- まとめ
+def page_list(plan: dict) -> list[tuple[str, str, str]]:
+    """[(図名, 縮尺, 本文の SVG)] の並び（枠・表題欄は含まない。HTML とレイアウトの両方で使う）."""
+    calc_bodies = calc_page(plan)
+    out = [plan_page(plan), detail_page(plan)]
+    for k, body in enumerate(calc_bodies):
+        out.append(("型枠支保工 構造計算書" + (f"（{k + 1}）" if len(calc_bodies) > 1 else ""), "―", body))
+    out.append(notice_page(plan))
+    return out
+
+
 def build_html(plan: dict) -> str:
     project = plan.get("project", "")
-    calc_bodies = calc_page(plan, project, 3, 0)
-    total = 2 + len(calc_bodies) + 1
-    pages = [plan_page(plan, project, 1, total), detail_page(plan, project, 2, total)]
-    for k, body in enumerate(calc_bodies):
-        pages.append(_page(body, "型枠支保工 構造計算書" + (f"（{k + 1}）" if len(calc_bodies) > 1 else ""), project, "―",
-                           3 + k, total))
-    pages.append(notice_page(plan, project, total, total))
+    pages = page_list(plan)
+    html_pages = [_page(body, name, project, scale, k + 1, len(pages)) for k, (name, scale, body) in enumerate(pages)]
     return ("<!doctype html><html><head><meta charset='utf-8'><title>型枠支保工計画図</title><style>" + CSS
-            + "</style></head><body>" + "".join(pages) + "</body></html>")
+            + "</style></head><body>" + "".join(html_pages) + "</body></html>")
 
 
 def build_xlsx(plan: dict, path: Path) -> None:

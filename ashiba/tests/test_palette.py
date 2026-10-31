@@ -16,7 +16,7 @@ class TestEntries(unittest.TestCase):
         # Tapir の一覧には入口1つ（パレットの窓を開く）。操作はすべて窓のボタン
         # （利用者の指定 2026-10-22: Tapirの足場を一つにパレットとしてまとめて）
         self.assertEqual([(e.file, e.script, e.quiet) for e in ENTRIES], [("足場_パレット.py", "ashiba_palette.py", True)])
-        self.assertEqual([a.title for a in ACTIONS], ["配置", "地足場", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "開口", "昇降機", "手動配置", "箱を置く", "箱を足場に", "型枠", "型枠計画図", "取り入れ口", "内部足場", "仮設通路", "支柱だけ分解",
+        self.assertEqual([a.title for a in ACTIONS], ["配置", "地足場", "解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "開口", "昇降機", "手動配置", "箱を置く", "箱を足場に", "型枠", "型枠計画図", "型枠の撤去", "取り入れ口", "内部足場", "仮設通路", "支柱だけ分解",
                                                      "分解を戻す", "3D表示", "平面表示", "条件", "条件の登録", "条件の呼び出し",
                                                      "図面を作る", "ペン", "帳票", "撤去"])
         for a in ACTIONS:
@@ -32,7 +32,7 @@ class TestEntries(unittest.TestCase):
         self.assertEqual(sorted(titles), sorted(a.title for a in ACTIONS))
         self.assertEqual(len(titles), len(set(titles)))
         lay = panel_layout()
-        self.assertEqual([g["group"] for g in lay], ["建てる", "直す", "見る・出す"])
+        self.assertEqual([g["group"] for g in lay], ["建てる", "直す", "見る・出す（足場用）", "見る・出す（型枠用）"])
         self.assertEqual(lay[0]["actions"][0]["title"], "配置")
         self.assertIn("slab", lay[0]["actions"][0]["when"])
         self.assertTrue(all(a["hint"] for g in lay for a in g["actions"]))     # 指を置くと出る説明
@@ -48,7 +48,7 @@ class TestEntries(unittest.TestCase):
         self.assertIn("panel.isFloatingPanel = true", sw)
         self.assertIn('"--kinds"', sw)                           # 選んでいるものを見て★
         self.assertIn('buttons[i].title = (hit ? "★ " : "") + a.title', sw)
-        self.assertIn('if a.title == "撤去" {', sw)              # 消す操作は確かめる
+        self.assertIn('if a.title == "撤去" || a.title == "型枠の撤去" {', sw)   # 消す操作は確かめる（型枠の撤去も）
         launcher = (ROOT / "scripts" / "ashiba_palette.py").read_text(encoding="utf-8")
         self.assertIn('["swiftc", "-O", str(PANEL), "-o", str(exe)]', launcher)
         self.assertIn("start_new_session=True", launcher)
