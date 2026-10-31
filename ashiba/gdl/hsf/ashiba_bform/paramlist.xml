@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["梁の長さ（芯）"]]></Description>
+			<Fix/>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["梁せい"]]></Description>
+			<Fix/>
+			<Value>0.7</Value>
+		</Length>
+		<Length Name="wB">
+			<Description><![CDATA["梁の幅"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="sideH">
+			<Description><![CDATA["−Y の側板の高さ（底板の下面から。上にスラブがあればスラブの下端まで）"]]></Description>
+			<Value>0.562</Value>
+		</Length>
+		<Length Name="sideH2">
+			<Description><![CDATA["+Y の側板の高さ（外周の梁で片側だけスラブがあるときは違う）"]]></Description>
+			<Value>0.562</Value>
+		</Length>
+		<RealNum Name="nTie">
+			<Description><![CDATA["フォームタイを入れる外端太の段の数（下から。両側の側板がある段）"]]></Description>
+			<Value>2</Value>
+		</RealNum>
+		<Length Name="x0">
+			<Description><![CDATA["型枠の始め（梁の始めから）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="x1">
+			<Description><![CDATA["型枠の終わり"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="tb0">
+			<Description><![CDATA["外端太の始め"]]></Description>
+			<Value>-0.15</Value>
+		</Length>
+		<Length Name="tb1">
+			<Description><![CDATA["外端太の終わり"]]></Description>
+			<Value>6.15</Value>
+		</Length>
+		<String Name="sgX">
+			<Description><![CDATA["側板の桟木の位置（梁の始めから mm）"]]></Description>
+			<Value><![CDATA["150,450,750"]]></Value>
+		</String>
+		<String Name="tbZ">
+			<Description><![CDATA["外端太の高さ（底板の下面から mm）"]]></Description>
+			<Value><![CDATA["140,422"]]></Value>
+		</String>
+		<String Name="tiX">
+			<Description><![CDATA["フォームタイの位置（梁の始めから mm）"]]></Description>
+			<Value><![CDATA["150,1050"]]></Value>
+		</String>
+		<String Name="botY">
+			<Description><![CDATA["底板の下の桟木の位置（梁の芯から mm）"]]></Description>
+			<Value><![CDATA["-178,0,178"]]></Value>
+		</String>
+		<String Name="ukeX">
+			<Description><![CDATA["底の受けの単管の位置（梁の始めから mm）"]]></Description>
+			<Value><![CDATA["150,900"]]></Value>
+		</String>
+		<Length Name="ukeOut">
+			<Description><![CDATA["受けの単管の、外端太の外への出"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Boolean Name="endS">
+			<Description><![CDATA["始めの端に止め型枠"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="endE">
+			<Description><![CDATA["終わりの端に止め型枠"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="plyT">
+			<Description><![CDATA["せき板の厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<Length Name="sgB">
+			<Description><![CDATA["桟木の幅"]]></Description>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="sgH">
+			<Description><![CDATA["桟木のせい"]]></Description>
+			<Value>0.06</Value>
+		</Length>
+		<String Name="cName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["梁型枠"]]></Value>
+		</String>
+		<String Name="cNote">
+			<Description><![CDATA["間隔の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

@@ -1,0 +1,289 @@
+﻿! ==========================================================
+! 梁の型枠（側板・底板・桟木・外端太・フォームタイ・底の受けの単管。1本の梁に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_bform/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_bform.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-31）: 型枠を作る仕組みを作成して さんぎ そとばた フォームタイを作って既存のモデルに自動配置するようにして。
+! 原点＝梁の芯の始めの下端、+X＝梁の向き。底板と下の桟木・受けの単管（梁に直角。パイプサポートで受ける）、両側の側板（sideH）と桟木・外端太・フォームタイ、止め型枠。割付と計算は beam_form.py、置くのは scripts/form_run.py。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   wB        長さ      梁の幅                                                                 既定 0.4
+!   sideH     長さ      −Y の側板の高さ（底板の下面から。上にスラブがあればスラブの下端まで）  既定 0.562
+!   sideH2    長さ      +Y の側板の高さ（外周の梁で片側だけスラブがあるときは違う）            既定 0.562
+!   nTie      実数      フォームタイを入れる外端太の段の数（下から。両側の側板がある段）       既定 2
+!   x0        長さ      型枠の始め（梁の始めから）                                             既定 0
+!   x1        長さ      型枠の終わり                                                           既定 6.0
+!   tb0       長さ      外端太の始め                                                           既定 -0.15
+!   tb1       長さ      外端太の終わり                                                         既定 6.15
+!   sgX       文字列    側板の桟木の位置（梁の始めから mm）                                    既定 "150,450,750"
+!   tbZ       文字列    外端太の高さ（底板の下面から mm）                                      既定 "140,422"
+!   tiX       文字列    フォームタイの位置（梁の始めから mm）                                  既定 "150,1050"
+!   botY      文字列    底板の下の桟木の位置（梁の芯から mm）                                  既定 "-178,0,178"
+!   ukeX      文字列    底の受けの単管の位置（梁の始めから mm）                                既定 "150,900"
+!   ukeOut    長さ      受けの単管の、外端太の外への出                                         既定 0.15
+!   endS      ブール    始めの端に止め型枠                                                     既定 0
+!   endE      ブール    終わりの端に止め型枠                                                   既定 0
+!   plyT      長さ      せき板の厚さ                                                           既定 0.012
+!   sgB       長さ      桟木の幅                                                               既定 0.045
+!   sgH       長さ      桟木のせい                                                             既定 0.06
+!   cName     文字列    名前（平面の注記）                                                     既定 "梁型枠"
+!   cNote     文字列    間隔の注記                                                             既定 ""
+!   texSiz    実数      文字の大きさ（mm）                                                     既定 2.5
+!   penEquip  PenColor  線のペン                                                               既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 梁の型枠: 位置を読む（m）
+dim sx[]
+nS = 0
+rest = sgX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS = nS + 1
+		sx[nS] = v / 1000
+	endif
+endwhile
+dim tz[]
+nT = 0
+rest = tbZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nT = nT + 1
+		tz[nT] = v / 1000
+	endif
+endwhile
+dim tx[]
+nX = 0
+rest = tiX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nX = nX + 1
+		tx[nX] = v / 1000
+	endif
+endwhile
+dim by[]
+nB = 0
+rest = botY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB = nB + 1
+		by[nB] = v / 1000
+	endif
+endwhile
+dim ux[]
+nU = 0
+rest = ukeX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nU = nU + 1
+		ux[nU] = v / 1000
+	endif
+endwhile
+r = 0.0243
+hw = wB / 2
+yS = hw + plyT + sgH
+yT = yS + r
+zb = -plyT
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 梁の型枠 2D
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "bfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 側板
+rect2 x0, hw, x1, hw + plyT
+rect2 x0, -hw - plyT, x1, -hw
+! 桟木
+for i = 1 to nS
+	rect2 sx[i] - sgB / 2, hw + plyT, sx[i] + sgB / 2, yS
+	rect2 sx[i] - sgB / 2, -yS, sx[i] + sgB / 2, -hw - plyT
+next i
+! 外端太・受けの単管
+line_type "DASHED"
+line2 tb0, yT, tb1, yT
+line2 tb0, -yT, tb1, -yT
+for i = 1 to nU
+	line2 ux[i], -yT - r - ukeOut, ux[i], yT + r + ukeOut
+next i
+line_type 1
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.06, tx[i], yT + 0.06
+next i
+! 止め型枠
+if endS then rect2 x0 - plyT, -hw - plyT, x0, hw + plyT
+if endE then rect2 x1, -hw - plyT, x1 + plyT, hw + plyT
+style "bfT"
+text2 (x0 + x1) / 2, -yT - 0.12, cName + "  " + cNote
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 梁の型枠 3D（利用者の指定 2026-10-31: さんぎ そとばた フォームタイ）
+! 原点＝梁の芯の始めの下端（底板の上面）
+! ============================================================
+resol 12
+define material "bf_ply" 2, 0.86, 0.66, 0.38
+define material "bf_wood" 2, 0.74, 0.56, 0.36
+define material "bf_steel" 2, 0.62, 0.62, 0.66
+define material "bf_tie" 2, 0.35, 0.35, 0.38
+define material "bf_pcon" 2, 0.85, 0.85, 0.80
+gap = 0.006
+L = x1 - x0
+! ---- 底板と下の桟木 ----
+material "bf_ply"
+add x0, -hw, zb
+block L, wB, plyT
+del 1
+material "bf_wood"
+for i = 1 to nB
+	add x0, by[i] - sgB / 2, zb - sgH
+	block L, sgB, sgH
+	del 1
+next i
+! ---- 受けの単管（梁に直角） ----
+material "bf_steel"
+for i = 1 to nU
+	add ux[i], -yT - r - ukeOut, zb - sgH - r
+	rotx -90
+	cylind 2 * (yT + r + ukeOut), r
+	del 2
+next i
+! ---- 側板・桟木・外端太 ----
+for sd = -1 to 1 step 2
+	if sd > 0 then
+		hS = sideH2
+	else
+		hS = sideH
+	endif
+	material "bf_ply"
+	if sd > 0 then
+		add x0, hw, zb
+	else
+		add x0, -hw - plyT, zb
+	endif
+	block L, plyT, hS
+	del 1
+	material "bf_wood"
+	for i = 1 to nS
+		if sd > 0 then
+			add sx[i] - sgB / 2, hw + plyT, zb
+		else
+			add sx[i] - sgB / 2, -yS, zb
+		endif
+		block sgB, sgH, hS
+		del 1
+	next i
+	material "bf_steel"
+	for j = 1 to nT
+		if tz[j] < hS - 0.03 then
+		for k = -1 to 1 step 2
+			add tb0, sd * yT, zb + tz[j] + k * (r + gap)
+			roty 90
+			cylind tb1 - tb0, r
+			del 2
+		next k
+		endif
+	next j
+next sd
+! ---- フォームタイ（両側の側板がある段だけ） ----
+for j = 1 to min(nT, nTie)
+	for i = 1 to nX
+		add tx[i], 0, zb + tz[j]
+		material "bf_tie"
+		add 0, -yT - r - 0.05, 0
+		rotx -90
+		cylind 2 * (yT + r + 0.05), 0.00395
+		del 2
+		for sd = -1 to 1 step 2
+			add -0.035, sd * (yT + r) + (sd - 1) / 2 * 0.006, -(2 * r + gap)
+			block 0.07, 0.006, 2 * (2 * r + gap)
+			del 1
+		next sd
+		material "bf_pcon"
+		add 0, -hw, 0
+		rotx -90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		add 0, hw, 0
+		rotx 90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		del 1
+	next i
+next j
+! ---- 止め型枠 ----
+material "bf_ply"
+if endS then
+	add x0 - plyT, -hw - plyT, zb
+	block plyT, wB + 2 * plyT, max(sideH, sideH2)
+	del 1
+endif
+if endE then
+	add x1, -hw - plyT, zb
+	block plyT, wB + 2 * plyT, max(sideH, sideH2)
+	del 1
+endif
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+
+

@@ -1,0 +1,96 @@
+﻿! 梁の型枠: 位置を読む（m）
+dim sx[]
+nS = 0
+rest = sgX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS = nS + 1
+		sx[nS] = v / 1000
+	endif
+endwhile
+dim tz[]
+nT = 0
+rest = tbZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nT = nT + 1
+		tz[nT] = v / 1000
+	endif
+endwhile
+dim tx[]
+nX = 0
+rest = tiX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nX = nX + 1
+		tx[nX] = v / 1000
+	endif
+endwhile
+dim by[]
+nB = 0
+rest = botY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB = nB + 1
+		by[nB] = v / 1000
+	endif
+endwhile
+dim ux[]
+nU = 0
+rest = ukeX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nU = nU + 1
+		ux[nU] = v / 1000
+	endif
+endwhile
+r = 0.0243
+hw = wB / 2
+yS = hw + plyT + sgH
+yT = yS + r
+zb = -plyT

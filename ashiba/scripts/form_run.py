@@ -6,6 +6,7 @@
 
 壁ごとに側圧から桟木・外端太・フォームタイの間隔を決め（src/ashiba/wall_form.py）、部品 ashiba_wform を1枚の壁に1つ置く。
 柱（長方形）も同じ部材で（src/ashiba/column_form.py）、部品 ashiba_cform を1本の柱に1つ置く。
+梁（まっすぐ）は側板・底板（src/ashiba/beam_form.py）、部品 ashiba_bform を1本の梁に1つ置く。
 前に置いた型枠は壁ごとの控え（ashiba_out/型枠.json の GUID）で消してから置き直す。材料の目安と計算を ashiba_out に書く.
 """
 
@@ -24,23 +25,26 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 FORM_OBJECT = "ashiba_wform"
 COLUMN_OBJECT = "ashiba_cform"
+BEAM_OBJECT = "ashiba_bform"
 RECORD = "型枠.json"
 
 
-def _targets(c, all_els: bool) -> tuple[list, list]:
-    """→ (壁 [(要素, 詳細)], 柱 [(要素, 詳細)])（選んだ壁・柱。選んだものに壁も柱も無いか --all なら全部）."""
+TYPES = ("Wall", "Column", "Beam")
+
+
+def _targets(c, all_els: bool) -> list[list]:
+    """→ [壁, 柱, 梁]（それぞれ [(要素, 詳細)]。選んだもの。選んだものにどれも無いか --all なら全部）."""
     sel = [] if all_els else c.get_selected_elements()
     if sel:
         det = c.get_details(sel)
-        w = [(e, d) for e, d in zip(sel, det) if d.get("type") == "Wall"]
-        k = [(e, d) for e, d in zip(sel, det) if d.get("type") == "Column"]
-        if w or k:
-            return w, k
+        out = [[(e, d) for e, d in zip(sel, det) if d.get("type") == t] for t in TYPES]
+        if any(out):
+            return out
     out = []
-    for t in ("Wall", "Column"):
+    for t in TYPES:
         els = c.tapir("GetElementsByType", {"elementType": t}).get("elements", [])
         out.append(list(zip(els, c.get_details(els))) if els else [])
-    return out[0], out[1]
+    return out
 
 
 def _place(c, part: str, at, z: float, ang_deg: float):
@@ -58,20 +62,23 @@ def main(argv=None) -> int:
     import run_from_archicad as R
     from ashiba.pens import gdl_pens, parse_pens
     from ashiba.tapir_adapter import ArchicadClient
+    from ashiba.beam_form import beam_extents, beam_from_details, plan_beam, slab_over
     from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
+    from ashiba.slab_heights import slabs_from_details
     from ashiba.wall_form import face_layout, free_ends, plan_wall, wall_from_details
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--all", action="store_true", help="全部の壁・柱に置く")
     a = ap.parse_args(argv)
     c = ArchicadClient()
-    walls, cols = _targets(c, a.all)
-    if not walls and not cols:
-        print("型枠: 壁も柱もありません（壁・柱を選ぶか、モデルに置いてから押してください）")
+    walls, cols, beams = _targets(c, a.all)
+    if not walls and not cols and not beams:
+        print("型枠: 壁も柱も梁もありません（壁・柱・梁を選ぶか、モデルに置いてから押してください）")
         return 1
     R.ensure_parts(c)
     part = R.versioned_part_name(FORM_OBJECT)
     cpart = R.versioned_part_name(COLUMN_OBJECT)
+    bpart = R.versioned_part_name(BEAM_OBJECT)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), FORM_OBJECT)
     rec_path = R.OUT_DIR / RECORD
@@ -80,7 +87,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = {}
     # 前に置いた型枠（この壁の分だけ）を消す
-    old = [rec[e["elementId"]["guid"]] for e, _d in walls + cols if e["elementId"]["guid"] in rec]
+    old = [rec[e["elementId"]["guid"]] for e, _d in walls + cols + beams if e["elementId"]["guid"] in rec]
     if old:
         alive = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])}
         gone = [{"elementId": {"guid": g}} for g in old if g in alive]
@@ -179,6 +186,48 @@ def main(argv=None) -> int:
         calc += ["  Y の向き（±X の面）: " + s_ for s_ in f.calc_y.lines()]
     if skipped:
         print(f"  丸い柱・傾いた柱など {skipped}本は飛ばしました（長方形の柱だけ）")
+    # 梁: 側板の高さは上のスラブの下端まで（側ごと）、端は柱の面で止める
+    skipped = 0
+    if beams:
+        sels = c.tapir("GetElementsByType", {"elementType": "Slab"}).get("elements", [])
+        slabs = slabs_from_details(c.get_details(sels)) if sels else []
+    for k, (e, d) in enumerate(beams, 1):
+        bm = beam_from_details(d)
+        if bm is None:
+            skipped += 1
+            continue
+        ex = beam_extents(bm, rects)
+        st = slab_over(bm, slabs)
+        f = plan_beam(bm["length"], bm["width"], bm["depth"], st, ex["ext"], ex["tubes"], ex["sangi"], ex["ends"])
+        name = d.get("id") or f"梁{k}"
+        el = _place(c, bpart, bm["ca"], bm["bottom"], bm["ang"])
+        if el is None:
+            print(f"  {name}: 型枠を置けませんでした")
+            continue
+        c.set_gdl_parameters(el, {**pens, "A": bm["length"] / 1000.0, "ZZYZX": bm["depth"] / 1000.0, "wB": bm["width"] / 1000.0,
+                                  "sideH": f.side_hs[0] / 1000.0, "sideH2": f.side_hs[1] / 1000.0, "nTie": len(f.tie_z),
+                                  "x0": ex["ext"][0] / 1000.0, "x1": ex["ext"][1] / 1000.0,
+                                  "tb0": f.tubes[0] / 1000.0, "tb1": f.tubes[1] / 1000.0,
+                                  "sgX": ",".join(f"{x:.0f}" for x in f.sangi_x),
+                                  "tbZ": ",".join(f"{z:.0f}" for z in f.tate_z),
+                                  "tiX": ",".join(f"{x:.0f}" for x in f.tie_x),
+                                  "botY": ",".join(f"{y:.0f}" for y in f.bot_y),
+                                  "ukeX": ",".join(f"{x:.0f}" for x in f.uke_x),
+                                  "endS": bool(f.ends[0]), "endE": bool(f.ends[1]), "cName": f"梁型枠 {name}",
+                                  "cNote": f"桟木@{f.side.sangi_pitch:.0f} 外端太{len(f.tate_z)}段 FT@{f.side.tie_pitch:.0f} 受け@{f.uke_pitch:.0f}"},
+                            object_name=BEAM_OBJECT)
+        rec[e["elementId"]["guid"]] = el["elementId"]["guid"]
+        print(f"  {name}: {bm['width']:.0f}×{bm['depth']:.0f}・長さ {bm['length']:.0f}（スラブ {st[0]:.0f}・{st[1]:.0f}）→ 側板 "
+              f"{f.side_hs[0]:.0f}・{f.side_hs[1]:.0f}・桟木 @{f.side.sangi_pitch:.0f}・外端太 {len(f.tate_z)}段・フォームタイ "
+              f"@{f.side.tie_pitch:.0f}（{len(f.tie_z)}段）・底の受け @{f.uke_pitch:.0f}" + ("" if f.ok else "  注意: 計算が通らない"))
+        if len(f.tie_z) < len(f.tate_z):
+            print("    注意: 片側だけの高さにある外端太はフォームタイで締められない。スラブの止め型枠か控えで受ける")
+        for item, q, note in f.quantities():
+            rows.append((name, item, q, note))
+        calc.append(f"[{name}] 梁 {bm['width']:.0f}×{bm['depth']:.0f}・長さ {bm['length']:.0f}")
+        calc += ["  " + s_ for s_ in f.lines()]
+    if skipped:
+        print(f"  曲がった梁・傾いた梁など {skipped}本は飛ばしました（まっすぐな梁だけ）")
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     if rows:
