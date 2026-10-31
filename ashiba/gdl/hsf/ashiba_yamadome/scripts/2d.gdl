@@ -4,16 +4,27 @@ define style "ymT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "ymT"
 if ymKind = 1 then
 	! 切梁上の足場: 床の外形・手すり柱・ブラケット
-	rect2 0, -deckW / 2, ymL, deckW / 2
-	line2 0, -hp, ymL, -hp
-	line2 0, hp, ymL, hp
+	rect2 rx0, -deckW / 2, rx1, deckW / 2
+	line2 rx0, -hp, rx1, -hp
+	line2 rx0, hp, rx1, hp
 	for i = 1 to nB
 		line2 bx[i], -hp - 0.05, bx[i], hp + 0.05
 		circle2 bx[i], -hp, r
 		circle2 bx[i], hp, r
 	next i
 	text2 ymL / 2, hp + 0.25, ymName
-else
+endif
+if ymKind = 3 then
+	! 外周の腹起し上の足場: 山留めの面（y＝0）から根切りの側（−y）へ armL。手すりは根切りの側だけ
+	rect2 0, 0, ymL, -armL
+	line2 0, -armL + 0.03, ymL, -armL + 0.03
+	for i = 1 to nB
+		line2 bx[i], 0, bx[i], -armL
+		circle2 bx[i], -armL, r
+	next i
+	text2 ymL / 2, -armL - 0.3, ymName
+endif
+if ymKind = 2 then
 	! 山留め上の手すり: 手すりの線と柱
 	line2 0, 0.06, ymL, 0.06
 	for i = 1 to nB

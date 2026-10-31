@@ -30,9 +30,25 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="ymKind">
-			<Description><![CDATA["種類（1＝切梁上の足場・2＝山留め上の手すり）"]]></Description>
+			<Description><![CDATA["種類（1＝切梁上の足場・2＝山留め上の手すり・3＝外周の腹起し上の足場）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<Length Name="armL">
+			<Description><![CDATA["腹起し上: 腹起ブラケットの腕（山留めの面から根切りの側へ）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="railX0">
+			<Description><![CDATA["手すり・幅木の始め（切梁上は床も。始めから）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="railX1">
+			<Description><![CDATA["手すり・幅木の終わり（切梁上は床も）"]]></Description>
+			<Value>6</Value>
+		</Length>
+		<String Name="railGap">
+			<Description><![CDATA["手すり・幅木を切る所（mm。始め,終わり の組。切梁上の足場の取り合い）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="ymL">
 			<Description><![CDATA["長さ（切梁・山留めの向き）"]]></Description>
 			<Value>6</Value>
@@ -73,6 +89,10 @@
 			<Description><![CDATA["山留め上: 手すり柱を親杭に留める深さ（天端から下へ）"]]></Description>
 			<Value>0.35</Value>
 		</Length>
+		<Boolean Name="netOn">
+			<Description><![CDATA["山留め上: 手すりにネット（ラッセルネット 目合15）を張る"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<String Name="ymName">
 			<Description><![CDATA["名前（平面の注記）"]]></Description>
 			<Value><![CDATA["切梁上の足場"]]></Value>

@@ -5,6 +5,8 @@
 
   python3 scripts/excav_run.py --kiribari         # 選んだ切梁（梁）の上に切梁上の足場（西南機材 切梁ブラケット）
   python3 scripts/excav_run.py --rail             # 選んだ山留め（壁）か線の上に手すり（親杭の天端・キャッチクランプ）
+  python3 scripts/excav_run.py --haraokoshi      # 選んだ山留め（壁）の内側の腹起しの上に外周の足場（西南機材 腹起ブラケット）
+  python3 scripts/excav_run.py --haraokoshi --z -1500 --wale 300   # 腹起しの天端の高さ・H形鋼（省くと切梁の天端・幅）
   python3 scripts/excav_run.py --rail --z -300    # 線のときの天端の高さ（階の高さから mm）
   python3 scripts/excav_run.py --remove           # 置いたものを消す
 
@@ -68,12 +70,109 @@ def rail_lines(walls: list[dict]) -> list[tuple[tuple, tuple, float, str]]:
     return out
 
 
+def _seg_dist(p, a, b) -> float:
+    ax, ay = b[0] - a[0], b[1] - a[1]
+    L2 = ax * ax + ay * ay or 1.0
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * ax + (p[1] - a[1]) * ay) / L2))
+    return math.hypot(p[0] - a[0] - ax * t, p[1] - a[1] - ay * t)
+
+
+def _match(lines, walls) -> list:
+    """rail_lines は壁の並びのまま返すので、そのまま対応づける."""
+    return list(walls)
+
+
+def place_walkways(c, rec: dict, part: str, pens: dict, z_opt=None, wale_opt: float = 0.0) -> tuple[list, int]:
+    """控え（rec の「切梁:」「腹起し:」）の切梁上の足場と外周の腹起し上の足場を全部置き直す（利用者の指定 2026-10-31: 角の重なりと
+    切梁との取り合いも直して）. 外周は perimeter_layout（角の受け持ち・内側の角で手すりを折る・切梁上の足場の幅だけ手すりを切る）、
+    切梁上は strut_insets（外周の足場の縁で床を止める）. 戻り値は (計画, 置いた数)."""
+    from ashiba.beam_form import beam_from_details
+    from ashiba.excavation import (DECK_Z_MM, haraokoshi_plan, kiribari_plan, part_params, perimeter_layout,
+                                   strut_insets)
+    from ashiba.wall_form import wall_from_details
+
+    # 前の版の控え（切梁の GUID だけのキー）を「切梁:」に
+    raw = [k for k in rec if ":" not in k]
+    if raw:
+        for k, d in zip(raw, c.get_details([{"elementId": {"guid": k}} for k in raw])):
+            if d.get("type") == "Beam":
+                rec["切梁:" + k] = rec.pop(k)
+    kk = [k for k in rec if k.startswith(("切梁:", "腹起し:"))]
+    _delete_alive(c, [rec[k] for k in kk if rec[k]])
+    dets = c.get_details([{"elementId": {"guid": k.split(":", 1)[1]}} for k in kk]) if kk else []
+    beams, walls = [], []
+    for k, d in zip(kk, dets):
+        if k.startswith("切梁:"):
+            b = beam_from_details(d) if d.get("type") == "Beam" else None
+            if b is None:
+                rec.pop(k)                           # 消えた切梁
+                continue
+            beams.append((k, b))
+        else:
+            w = wall_from_details(d) if d.get("type") == "Wall" else None
+            if w is None:
+                rec.pop(k)
+                continue
+            w["guid"] = k
+            w["name"] = d.get("id") or ""
+            walls.append(w)
+    every = c.tapir("GetElementsByType", {"elementType": "Beam"}).get("elements", [])
+    struts = [b for b in (beam_from_details(d) for d in (c.get_details(every) if every else [])) if b is not None]
+    lines = rail_lines(walls)
+    segs = [(p0, p1) for p0, p1, _z, _n in lines]
+    thicks = [w["thick"] for w in walls]
+    plans, made = [], 0
+    # 外周の腹起し上の足場
+    around = [b for b in struts if any(min(_seg_dist(b["ca"], q0_, q1_), _seg_dist(b["cb"], q0_, q1_)) < 1500.0 for q0_, q1_ in segs)]
+    ends = [pt for _k, b in beams for pt in (b["ca"], b["cb"])]
+    wale_z = {}
+    for k, (lay, (p0, p1, ztop, nm), w) in enumerate(zip(perimeter_layout(segs, thicks, ends), lines, walls), 1):
+        near = [b for b in struts if min(_seg_dist(b["ca"], p0, p1), _seg_dist(b["cb"], p0, p1)) < 1500.0] or around
+        z = z_opt if z_opt is not None else (max(b["top"] for b in near) if near else None)
+        if z is None:
+            print(f"  {nm}: 腹起しの高さが分かりません（近くに切梁が無い）。--z で腹起しの天端を指定してください")
+            rec[w["guid"]] = ""
+            continue
+        wale = wale_opt or (max(b["width"] for b in near) if near else 300.0)
+        wale_z[w["guid"]] = z
+        p = haraokoshi_plan(f"{nm or '山留め'}{k}", lay["length"], wale, depth_mm=ztop - z)
+        p.rail, p.gaps = lay["rail"], lay["gaps"]
+        el = _place(c, part, lay["origin"], z, lay["ang"])
+        if el is None:
+            continue
+        c.set_gdl_parameters(el, {**part_params(p, wale), **pens})
+        rec[w["guid"]] = el["elementId"]["guid"]
+        plans.append(p)
+        made += 1
+        print(f"  {p.name}: 床 {lay['length']:.0f}・腹起し H{wale:.0f}・天端 {z:.0f} → 腹起ブラケット {len(p.xs)}基"
+              + (f"・切梁上の足場との取り合い {len(lay['gaps'])}か所" if lay["gaps"] else ""))
+    # 切梁上の足場（外周の足場があれば、その縁で床を止める）
+    z_wale = max(wale_z.values()) if wale_z else None
+    for k, (key, bm) in enumerate(beams, 1):
+        d0, d1 = strut_insets(bm["ca"], bm["cb"], segs, thicks) if walls else (0.0, 0.0)
+        step = abs((bm["top"] + DECK_Z_MM) - (z_wale + 73.0)) if (z_wale is not None and (d0 or d1)) else 0.0
+        p = kiribari_plan(f"切梁{k}", bm["length"], bm["width"], deck0=d0, deck1=d1, step_mm=step)
+        el = _place(c, part, bm["ca"], bm["top"], bm["ang"])
+        if el is None:
+            print(f"  切梁{k}: 置けませんでした")
+            continue
+        c.set_gdl_parameters(el, {**part_params(p, bm["width"]), **pens})
+        rec[key] = el["elementId"]["guid"]
+        plans.append(p)
+        made += 1
+        bad = [ck for ck in p.checks if ck.status == "NG"]
+        print(f"  切梁{k}: 長さ {bm['length']:.0f}・フランジ {bm['width']:.0f}・天端 {bm['top']:.0f} → ブラケット {len(p.xs)}基"
+              + (f"・床は外周の足場の縁まで（始め {d0:.0f}・終わり {d1:.0f} 止め・段差 {step:.0f}）" if (d0 or d1) else "")
+              + (f"・NG {len(bad)}件（{bad[0].item}）" if bad else ""))
+    return plans, made
+
+
 def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
     from ashiba.beam_form import beam_from_details
-    from ashiba.excavation import kiribari_plan, part_params, rail_plan, report
+    from ashiba.excavation import haraokoshi_plan, kiribari_plan, part_params, rail_plan, report
     from ashiba.pens import gdl_pens, parse_pens
     from ashiba.tapir_adapter import ArchicadClient
     from ashiba.wall_form import wall_from_details
@@ -81,7 +180,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--kiribari", action="store_true", help="選んだ切梁の上に足場")
     ap.add_argument("--rail", action="store_true", help="選んだ山留め（壁）か線の上に手すり")
-    ap.add_argument("--z", type=float, default=0.0, help="線に置くときの天端の高さ（階の高さから mm）")
+    ap.add_argument("--haraokoshi", action="store_true", help="選んだ山留め（壁）の腹起しの上に外周の足場")
+    ap.add_argument("--wale", type=float, default=0.0, help="腹起しの H形鋼の大きさ（省くと切梁の幅、無ければ 300）")
+    ap.add_argument("--z", type=float, default=None, help="線に置くときの天端の高さ・腹起しの天端（mm）")
     ap.add_argument("--remove", action="store_true", help="置いたものを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
@@ -95,8 +196,8 @@ def main(argv=None) -> int:
         rec_path.write_text("{}", encoding="utf-8")
         print(f"山留めまわり: 切梁上の足場・山留めの手すり {n}個を消しました")
         return 0
-    if not (a.kiribari or a.rail):
-        print("山留めまわり: --kiribari（切梁上の足場）か --rail（山留めの手すり）を付けてください")
+    if not (a.kiribari or a.rail or a.haraokoshi):
+        print("山留めまわり: --kiribari（切梁上の足場）・--haraokoshi（外周の腹起し上の足場）・--rail（山留めの手すり）を付けてください")
         return 1
     sel = c.get_selected_elements()
     det = c.get_details(sel) if sel else []
@@ -106,27 +207,12 @@ def main(argv=None) -> int:
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
     plans, made = [], 0
     if a.kiribari:
-        beams = [(e, beam_from_details(d)) for e, d in zip(sel, det) if d.get("type") == "Beam"]
-        beams = [(e, b) for e, b in beams if b is not None]
+        beams = [e for e, d in zip(sel, det) if d.get("type") == "Beam" and beam_from_details(d) is not None]
         if not beams:
             print("切梁上の足場: 切梁（梁）を選んでから押してください（まっすぐな梁。H形鋼のフランジ幅が梁の幅）")
             return 1
-        for k, (e, bm) in enumerate(beams, 1):
-            g = e["elementId"]["guid"]
-            if g in rec:
-                _delete_alive(c, [rec.pop(g)])
-            p = kiribari_plan(f"切梁{k}", bm["length"], bm["width"])
-            el = _place(c, part, bm["ca"], bm["top"], bm["ang"])
-            if el is None:
-                print(f"  切梁{k}: 置けませんでした")
-                continue
-            c.set_gdl_parameters(el, {**part_params(p, bm["width"]), **pens})
-            rec[g] = el["elementId"]["guid"]
-            plans.append(p)
-            made += 1
-            bad = [ck for ck in p.checks if ck.status == "NG"]
-            print(f"  切梁{k}: 長さ {bm['length']:.0f}・フランジ {bm['width']:.0f}・天端 {bm['top']:.0f} → ブラケット {len(p.xs)}基"
-                  + (f"・NG {len(bad)}件（{bad[0].item}）" if bad else ""))
+        for e in beams:
+            rec.setdefault("切梁:" + e["elementId"]["guid"], "")
     if a.rail:
         walls = []
         for e, d in zip(sel, det):
@@ -144,7 +230,7 @@ def main(argv=None) -> int:
             guides = selected_guides(c)
             for el_, segs in guides:
                 for s_ in segs:
-                    lines.append((s_[0], s_[1], a.z, "線"))
+                    lines.append((s_[0], s_[1], a.z or 0.0, "線"))
                     keys.append(el_["elementId"]["guid"] if isinstance(el_, dict) else str(el_))
         if not lines:
             print("山留めの手すり: 山留め（壁）か、根切りの縁に引いた線を選んでから押してください")
@@ -165,6 +251,18 @@ def main(argv=None) -> int:
             plans.append(p)
             made += 1
             print(f"  {p.name}: 長さ {L:.0f}・天端 {z:.0f} → 手すり柱 {len(p.xs)}本")
+    if a.haraokoshi:
+        ws = [e for e, d in zip(sel, det) if d.get("type") == "Wall" and wall_from_details(d) is not None]
+        if not ws:
+            print("外周の足場: 山留め（壁）を選んでから押してください（腹起しの天端は切梁の天端か --z）")
+            return 1
+        for e in ws:
+            rec.setdefault("腹起し:" + e["elementId"]["guid"], "")
+    if a.kiribari or a.haraokoshi:
+        # 切梁上の足場と外周の足場は取り合う（角の受け持ち・手すりの切れ目・切梁上の床の止め）ので、控えのものを全部置き直す
+        got, n_made = place_walkways(c, rec, part, pens, a.z, a.wale)
+        plans += got
+        made += n_made
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / "山留め足場.md"

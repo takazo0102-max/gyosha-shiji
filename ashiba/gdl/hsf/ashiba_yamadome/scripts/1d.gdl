@@ -17,5 +17,26 @@ while strlen(rest) > 0 do
 		bx[nB] = v / 1000
 	endif
 endwhile
+dim gp[]
+nG = 0
+rest = railGap
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nG = nG + 1
+		gp[nG] = v / 1000
+	endif
+endwhile
 hp = postSp / 2
+rx0 = railX0
+rx1 = railX1
+if rx1 <= rx0 then rx1 = ymL
 r = 0.0243

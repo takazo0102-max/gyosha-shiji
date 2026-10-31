@@ -115,6 +115,63 @@ class TestNoBuiltinNames(unittest.TestCase):
         self.assertEqual(builtin_shadows("\tfrAng = atn(1)\nif a = 1 then b = 2\n"), [])
 
 
+# ループの中の座標変換（add・rot・mul）と del の釣り合い。1回ずれると回るたびに積み重なって部材が散らばる
+# （2026-10-31、山留めの部品で add＋addz に del 1 で、切梁上の足場のブラケットが根切りの外へ点々と散った）
+TRANSFORM = re.compile(r"^(add|addx|addy|addz|rot|rotx|roty|rotz|mul|mulx|muly|mulz|xform)\b")
+# if の中で開いて別の if で閉じる・del の数を式で書くものは数えられない
+COND_DEL_PARTS = {"ashiba_hoist", "ashiba_line", "ashiba_member", "ashiba_stage"}
+
+
+def loop_transform_leaks(text: str) -> list[str]:
+    out, stack = [], []                  # [種類, 行, 変換の増減, then の増減]
+    for n, ln in _logical_lines(text):
+        low = ln.lower()
+        if not low:
+            continue
+        if re.match(r"^if\b.*\bthen$", low):
+            stack.append(["if", n, 0, None])
+            continue
+        if low == "else" and stack and stack[-1][0] == "if":
+            stack[-1][3], stack[-1][2] = stack[-1][2], 0
+            continue
+        if low == "endif" and stack and stack[-1][0] == "if":
+            _k, s, d, t = stack.pop()
+            if t is not None and t != d:
+                out.append(f"{s}行目の if と else で座標変換の数が違う（{t:+d} と {d:+d}）")
+            if stack:
+                stack[-1][2] += d
+            continue
+        if re.match(r"^(for|while)\b", low):
+            stack.append([low.split()[0], n, 0, None])
+            continue
+        if re.match(r"^(next|endwhile)\b", low):
+            if stack:
+                k, s, d, _t = stack.pop()
+                if d:
+                    out.append(f"{s}行目の {k} の中で座標変換が {d:+d}（del の数が合わない）")
+            continue
+        single = re.match(r"^if\b.*?\bthen\s+(\S.*)$", low)
+        body = single.group(1) if single else low
+        m = re.match(r"^del\s+(\d+)\s*$", body)
+        if stack:
+            stack[-1][2] += -int(m.group(1)) if m else (1 if TRANSFORM.match(body) else 0)
+    return out
+
+
+class TestLoopTransforms(unittest.TestCase):
+    def test_every_3d_script(self):
+        for p in sorted(HSF.glob("*/scripts/3d.gdl")):
+            if p.parent.parent.name in COND_DEL_PARTS:
+                continue
+            with self.subTest(script=p.parent.parent.name):
+                self.assertEqual(loop_transform_leaks(p.read_text(encoding="utf-8-sig")), [])
+
+    def test_detects_add_addz_del_1(self):
+        self.assertTrue(loop_transform_leaks("for i = 1 to 2\n\tadd 1, 0, 0\n\taddz 1\n\tblock 1, 1, 1\n\tdel 1\nnext i\n"))
+        self.assertEqual(loop_transform_leaks("for i = 1 to 2\n\tif a then\n\t\tadd 1, 0, 0\n\telse\n\t\taddx 2\n"
+                                              "\tendif\n\tblock 1, 1, 1\n\tdel 1\nnext i\n"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
 
