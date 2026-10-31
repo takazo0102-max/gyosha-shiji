@@ -230,6 +230,9 @@ def main(argv=None) -> int:
         print(f"  曲がった梁・傾いた梁など {skipped}本は飛ばしました（まっすぐな梁だけ）")
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"型枠: 壁 {sum(1 for e, _d in walls if e['elementId']['guid'] in rec)}枚・柱 "
+          f"{sum(1 for e, _d in cols if e['elementId']['guid'] in rec)}本・梁 {sum(1 for e, _d in beams if e['elementId']['guid'] in rec)}本"
+          "に置きました")
     if rows:
         out = R.OUT_DIR / "型枠_材料.csv"
         with open(out, "w", encoding="utf-8-sig", newline="") as fh:

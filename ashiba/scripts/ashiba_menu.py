@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.palette import ACTIONS, menu_items  # noqa: E402
 
-KIND_LABEL = {"slab": "躯体スラブ", "line": "足場", "member": "分解した支柱", "spec": "足場条件の部品"}
+KIND_LABEL = {"slab": "躯体スラブ", "line": "足場", "member": "分解した支柱", "spec": "足場条件の部品", "struct": "壁・柱・梁"}
 
 
 def selection_kinds() -> tuple[set, str]:
@@ -51,6 +51,8 @@ def selection_kinds() -> tuple[set, str]:
                 k = "spec"
             elif typ == "Slab":
                 k = "slab"
+            elif typ in ("Wall", "Column", "Beam"):
+                k = "struct"
             else:
                 continue
             kinds[k] = kinds.get(k, 0) + 1
