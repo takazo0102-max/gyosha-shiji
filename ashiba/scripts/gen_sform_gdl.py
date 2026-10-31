@@ -45,7 +45,7 @@ def paramlist() -> str:
         _param("String", "slU0", "敷き桟木の始めの u（mm。支柱の列ごと、梁・壁・柱で分ける）", ""),
         _param("String", "slU1", "敷き桟木の終わりの u", ""),
         _param("String", "slV", "敷き桟木の v", ""),
-        _param("String", "tieZ", "水平つなぎの高さ（床から mm）", ""),
+        _param("String", "tieZ", "根がらみ・水平つなぎの高さ（床から mm）", ""),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
         _param("String", "cName", "名前（平面の注記）", "スラブ型枠"),
         _param("String", "cNote", "間隔の注記", ""),

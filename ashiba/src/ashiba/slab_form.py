@@ -44,6 +44,7 @@ PS_MODELS = (("12S", 370.0, 505.0), ("50S", 1535.0, 2570.0), ("60S", 1780.0, 305
              ("90S", 2650.0, 3915.0))
 PS_AUX = (("4S", 1200.0), ("5S", 1500.0))
 TIE_PITCH_MM = 2000.0
+NEGARAMI_Z_MM = 200.0                 # 根がらみ（単管を支柱の列ごとに2方向。脚部の滑動を防ぐ）の高さ（床から。手引の例は 200）
 OBIKI_H_MM = 90.0                     # 大引（杉 90×90）のせい
 NEDA_D_MM = 50.0                      # 根太（角パイプ □50×50）のせい
 CLEAR_MM = 150.0                      # 梁・壁・柱のまわりに支柱を立てない幅
@@ -265,9 +266,12 @@ class SlabForm:
         out.append(("パイプサポート", len(self.posts), f"{ps_model(self.post_h)}・長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
         sill = sum(e - s for s, e, _v in self.sills())
         out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0 * 1.05), f"パイプサポートの下に寝かせて列ごとに通す・延べ {sill / 1000:.1f}m"))
+        n_u = len({round(v) for _u, v in self.posts})
+        n_v = len({round(u) for u, _v in self.posts})
+        if self.posts:
+            out.append(("単管（根がらみ・2方向）", n_u + n_v, f"床から {NEGARAMI_Z_MM:.0f}。延べは格子の長さ"))
+            out.append(("直交クランプ（根がらみ）", 2 * len(self.posts), "支柱と根がらみ"))
         if self.ties:
-            n_u = len({round(v) for _u, v in self.posts})
-            n_v = len({round(u) for u, _v in self.posts})
             out.append(("単管（水平つなぎ・2方向）", len(self.ties) * (n_u + n_v), f"{len(self.ties)}段。延べは格子の長さ"))
             out.append(("直交クランプ（水平つなぎ）", 2 * len(self.ties) * len(self.posts), "支柱と水平つなぎ"))
         return out

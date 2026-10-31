@@ -98,7 +98,7 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="tieZ">
-			<Description><![CDATA["水平つなぎの高さ（床から mm）"]]></Description>
+			<Description><![CDATA["根がらみ・水平つなぎの高さ（床から mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<Length Name="plyT">

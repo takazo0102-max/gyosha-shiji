@@ -10,7 +10,7 @@ from pathlib import Path
 from _path import SRC  # noqa: F401
 
 from ashiba.form_drawings import (NOTICE_H_MM, assembly_rows, build_html, build_xlsx, calc_lines, load_rows, member_rows,
-                                  notice_info)
+                                  notice_info, plan_page, section_cuts, section_page)
 
 
 def _plan(floor=0.0, bottom=2820.0):
@@ -18,7 +18,8 @@ def _plan(floor=0.0, bottom=2820.0):
         "name": "S0", "origin": [0.0, 0.0], "ang": 0.0, "outer": [[0, 0], [6000, 0], [6000, 5600], [0, 5600]],
         "holes": [[[2650, -50], [3350, -50], [3350, 5650], [2650, 5650]]], "thick": 180.0, "top": bottom + 180.0,
         "bottom": bottom, "floor": floor, "floor_found": True, "su": 1200.0, "sv": 900.0,
-        "posts": [[150.0, 150.0], [1350.0, 150.0], [150.0, 1050.0]], "obiki": [[50.0, 2600.0, 150.0]], "neda_n": 10,
+        "posts": [[150.0, 150.0], [1350.0, 150.0], [150.0, 1050.0]], "obiki": [[50.0, 2600.0, 150.0], [50.0, 2600.0, 1050.0]],
+        "neda_n": 10, "neda": [[50.0, 5550.0, 300.0], [50.0, 5550.0, 600.0]], "negarami": 200.0,
         "sills": [[0.0, 1500.0, 150.0]], "ties": [], "post_h": 2623.0, "post_kn": 6.7, "q": 6.22,
         "lines": ["荷重 6.22 kN/m²", "パイプサポート 1本 6.7／15.0 kN（目安） 可"]}],
         "beams": [], "columns": [], "walls": [], "rows": [["S0", "パイプサポート", 3, ""]]}
@@ -27,11 +28,33 @@ def _plan(floor=0.0, bottom=2820.0):
 class TestFormDrawings(unittest.TestCase):
     def test_pages_and_calc(self):
         html = build_html(_plan())
-        self.assertEqual(html.count('class="page"'), 5)                     # 伏図・断面詳細・計算書・部材等明細書・計画届
-        for word in ("型枠支保工 伏図", "断面図・詳細図", "構造計算書", "部材等明細書", "計画届の要否", "様式第20号", "安衛則 242条"):
+        self.assertEqual(html.count('class="page"'), 6)                     # 伏図・断面図・詳細図・計算書・部材等明細書・計画届
+        for word in ("型枠支保工 伏図", "型枠支保工 断面図", "型枠支保工 詳細図", "構造計算書", "部材等明細書", "計画届の要否",
+                     "様式第20号", "安衛則 242条"):
             self.assertIn(word, html)
         heads = [h for h, _b in calc_lines(_plan())]
         self.assertEqual(heads[:2], ["前提", "スラブ S0（厚さ 180）"])
+
+    def test_plan_detail(self):
+        """平面の詳細度（利用者の指定 2026-10-31: 平面の詳細度あげて）: 根太・大引の帯・割付ピッチ・引出し・切る位置."""
+        _n, scale, body = plan_page(_plan())
+        self.assertEqual(scale, "1/50")
+        self.assertEqual(body.count('class="neda"'), 2)                    # 根太（大引に直角）
+        self.assertEqual(body.count('class="obk"'), 2)                     # 大引（帯）
+        for word in ("スラブ（S0）下 サポート割付ピッチ", "大引割付ピッチ", "根太：角パイプ", "大引：杉 90×90", "敷き桟木",
+                     "S0（t180）"):
+            self.assertIn(word, body)
+        self.assertEqual(body.count('class="mark"'), 4)                    # a・b の記号（両端）
+        self.assertIn(">1200<", body)                                     # 支柱の間隔 150→1350
+
+    def test_sections(self):
+        """断面も（同日）: a－a は大引の向き、b－b は大引に直角。根がらみ・敷き桟木・寸法・高さ."""
+        self.assertEqual(section_cuts(_plan()["slabs"][0]), (1050.0, 1350.0))     # 支柱の行・列のまん中
+        name, scale, body = section_page(_plan())
+        self.assertEqual(name, "型枠支保工 断面図")
+        for word in ("a－a 断面図", "b－b 断面図", "根がらみ：単管", "敷き桟木 45×60", "パイプサポート 60S（長さ 2623）",
+                     "▽床 FL+0", ">2820<", ">180<", ">2623<"):
+            self.assertIn(word, body)
 
     def test_notice_needed_from_3500(self):
         """支柱の高さ 3.5m 以上は計画届（安衛則 88条・別表第7）."""

@@ -96,7 +96,7 @@ def main(argv=None) -> int:
     from ashiba.tapir_adapter import ArchicadClient
     from ashiba.beam_form import beam_extents, beam_from_details, plan_beam, slab_over
     from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
-    from ashiba.slab_form import obiki_angle, plan_slab, rect
+    from ashiba.slab_form import NEGARAMI_Z_MM, obiki_angle, plan_slab, rect
     from ashiba.slab_heights import _inside, slabs_from_details
     from ashiba.wall_form import face_layout, free_ends, in_column, plan_wall, wall_from_details
 
@@ -375,7 +375,7 @@ def main(argv=None) -> int:
                                   "obU1": ",".join(f"{b_:.0f}" for _a, b_, _y in f.obiki),
                                   "psU": ",".join(f"{x:.0f}" for x, _y in f.posts),
                                   "psV": ",".join(f"{y:.0f}" for _x, y in f.posts),
-                                  "postH": f.post_h / 1000.0, "tieZ": ",".join(f"{z:.0f}" for z in f.ties),
+                                  "postH": f.post_h / 1000.0, "tieZ": ",".join(f"{z:.0f}" for z in [NEGARAMI_Z_MM] + list(f.ties)),
                                   "slU0": ",".join(f"{a_:.0f}" for a_, _b, _v in f.sills()),
                                   "slU1": ",".join(f"{b_:.0f}" for _a, b_, _v in f.sills()),
                                   "slV": ",".join(f"{v_:.0f}" for _a, _b, v_ in f.sills()),
@@ -400,7 +400,8 @@ def main(argv=None) -> int:
                               "bottom": bottom, "floor": floor, "floor_found": bool(below), "su": f.spacing.su,
                               "sv": f.spacing.sv, "posts": [r2(p_) for p_ in f.posts],
                               "obiki": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.obiki],
-                              "neda_n": len(f.neda), "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
+                              "neda_n": len(f.neda), "neda": [[round(a_, 1), round(b_, 1), round(x_, 1)] for a_, b_, x_ in f.neda],
+                              "negarami": NEGARAMI_Z_MM, "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
                               "ties": f.ties, "post_h": f.post_h, "post_kn": f.spacing.post_kn, "q": f.q, "lines": f.lines(),
                               "ps_allow": f.spacing.allow_kn})
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)

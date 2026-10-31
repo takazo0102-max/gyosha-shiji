@@ -3,7 +3,9 @@
 scripts/form_run.py が書く ashiba_out/型枠_計画.json から、A3 横の図面（HTML。Chrome で PDF にする）と計算書（xlsx）を作る.
 - 1枚目 支保工伏図: スラブの外形・梁（破線）・壁と柱（塗り）、大引（一点鎖線）、パイプサポート（○。梁下は□）、敷き桟木、
   支柱の間隔の寸法、根太の向き、凡例と注記
-- 2枚目 断面図・詳細図: スラブ・梁下の断面（利用者の詳細図の組み方）、柱の詳細（コラムクランプ／外端太とフォームタイ）、
+- 2枚目 断面図: a－a（大引の向き）・b－b（大引に直角）。床・スラブ・梁、せき板・根太・大引・パイプサポート・敷き桟木・根がらみ・
+  水平つなぎ、割付ピッチと高さの寸法、部材の引出し（手引の a－a 断面図の例にならう。利用者の指定 2026-10-31: 断面も）
+- 3枚目 詳細図: スラブ・梁下の断面（利用者の詳細図の組み方）、柱の詳細（コラムクランプ／外端太とフォームタイ）、
   壁の断面（セパ・外端太）。値は計画の値
 - 3枚目 構造計算書: 荷重・側圧、部材の曲げとたわみ、支柱の軸力、水平荷重（安衛則 240条）
 - 部材等明細書: 計画届作成の手引（建災防東京支部 第6版）p.147 の例の欄（構造材料・材質と寸法・使用部位、設置箇所と高さ・
@@ -89,6 +91,10 @@ svg text { font-family: "Hiragino Sans", sans-serif; }
 .conc { fill: #e8e8e8; stroke: #555; stroke-width: 0.2; }
 .tie { stroke: #222; stroke-width: 0.25; }
 .lead { stroke: #000; stroke-width: 0.12; fill: none; }
+.neda { stroke: #7a7f87; stroke-width: 0.12; }
+.obk { fill: #d9a56b; stroke: #6b4320; stroke-width: 0.1; }
+.cut { stroke: #000; stroke-width: 0.25; stroke-dasharray: 4 1 0.6 1; fill: none; }
+.mark { fill: #fff; stroke: #000; stroke-width: 0.25; }
 table { border-collapse: collapse; }
 """
 
@@ -158,8 +164,64 @@ def _fit(points, box_w, box_h):
     return SCALES[-1], (min(xs), min(ys), max(xs), max(ys))
 
 
+def _local(s: dict):
+    """スラブの局所座標（u＝大引の向き・v＝大引どうしの向き）と世界座標の行き来 (W, L)."""
+    o, a = s["origin"], s["ang"]
+    W = lambda p: _rot(p, a, o)
+    L = lambda p: _rot((p[0] - o[0], p[1] - o[1]), -a)
+    return W, L
+
+
+def section_cuts(s: dict) -> tuple[float, float]:
+    """断面の切る位置 (a－a の v, b－b の u): 支柱の列・行のまん中（支柱・大引・敷き桟木が切り口に乗る）."""
+    vs = sorted({round(p[1], 1) for p in s["posts"]}) or [0.0]
+    us = sorted({round(p[0], 1) for p in s["posts"]}) or [0.0]
+    return vs[len(vs) // 2], us[len(us) // 2]
+
+
+def _cut_intervals(poly, h: int, cut: float) -> list[tuple[float, float]]:
+    """局所座標の多角形を、座標 1−h が cut の線で切った中の区間（座標 h）."""
+    q = 1 - h
+    ts = []
+    n = len(poly)
+    for k in range(n):
+        p0, p1 = poly[k], poly[(k + 1) % n]
+        if (p0[q] > cut) != (p1[q] > cut):
+            f = (cut - p0[q]) / (p1[q] - p0[q])
+            ts.append(p0[h] + (p1[h] - p0[h]) * f)
+    ts.sort()
+    return [(ts[i], ts[i + 1]) for i in range(0, len(ts) - 1, 2)]
+
+
+def _minus(ivs, cuts) -> list[tuple[float, float]]:
+    out = list(ivs)
+    for c0, c1 in cuts:
+        nxt = []
+        for a, b in out:
+            if c1 <= a or c0 >= b:
+                nxt.append((a, b))
+                continue
+            if c0 > a:
+                nxt.append((a, c0))
+            if c1 < b:
+                nxt.append((c1, b))
+        out = nxt
+    return [(a, b) for a, b in out if b - a > 1.0]
+
+
+def _chain(pts_paper: list, texts: list[str], off: float) -> str:
+    """直線に並んだ点（紙の座標）の連続寸法. 方向の左へ off ずらす（_dim と同じ）."""
+    return "".join(_dim(a[0], a[1], b[0], b[1], t_, off=off) for a, b, t_ in zip(pts_paper, pts_paper[1:], texts))
+
+
+def _pitch_texts(vals: list[float]) -> list[str]:
+    return [f"{b - a:.0f}" for a, b in zip(vals, vals[1:])]
+
+
 def plan_page(plan: dict) -> tuple[str, str, str]:
-    """(図名, 縮尺, 本文の SVG)."""
+    """(図名, 縮尺, 本文の SVG). 計画届作成の手引の型枠支保工計画図（平面図）の例にならい、根太・大引・支柱・敷き桟木、梁下の大引と
+    支柱、割付ピッチの連続寸法（スラブ下・梁下）、部材の引出し、断面の切る位置（a－a・b－b）を描く（利用者の指定 2026-10-31:
+    平面の詳細度あげて）."""
     wd = _world(plan)
     # 図の範囲はスラブ（と梁・梁下の支柱）のまわり 1.5m。外は切る（支保工の伏図）
     core = [p for g in ("slabs", "beams") for poly in wd[g] for p in poly] + wd["posts"] + wd["bposts"]
@@ -170,87 +232,172 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
     if not pts:
         return "型枠支保工 伏図", "-", '<text x="20" y="40" class="t">スラブの型枠がありません</text>'
     box_w, box_h = PAGE_W - 2 * MARGIN - 110.0, PAGE_H - 2 * MARGIN - 30.0
-    scale, (x0, y0, x1, y1) = _fit(pts, box_w - 30.0, box_h - 30.0)
-    ox = MARGIN + 20.0 + (box_w - 30.0 - (x1 - x0) / scale) / 2.0
+    lab_w = 52.0                                   # 右の引出しの欄
+    scale, (x0, y0, x1, y1) = _fit(pts, box_w - 30.0 - lab_w, box_h - 30.0)
+    ox = MARGIN + 20.0 + (box_w - 30.0 - lab_w - (x1 - x0) / scale) / 2.0
     oy = MARGIN + 20.0 + (box_h - 30.0 - (y1 - y0) / scale) / 2.0
     P = lambda p: (ox + (p[0] - x0) / scale, oy + (y1 - p[1]) / scale)        # 世界の y は上向き
     poly = lambda pp, cls: '<polygon points="' + " ".join(f"{P(p)[0]:.2f},{P(p)[1]:.2f}" for p in pp) + f'" class="{cls}"/>'
     line = lambda a, b, cls: f'<line x1="{P(a)[0]:.2f}" y1="{P(a)[1]:.2f}" x2="{P(b)[0]:.2f}" y2="{P(b)[1]:.2f}" class="{cls}"/>'
-    out = [f'<clipPath id="pv"><rect x="{MARGIN + 5}" y="{MARGIN + 10}" width="{box_w + 5}" height="{box_h + 15}"/></clipPath>'
+
+    def band(W, a, b, half, cls):
+        """局所座標の線分 a→b を幅 2×half の帯に（紙で細すぎれば線）."""
+        if 2 * half / scale < 0.5:
+            return line(W(a), W(b), cls if cls != "obk" else "obiki")
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        Ln = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / Ln * half, dx / Ln * half
+        return poly([W((a[0] + nx, a[1] + ny)), W((b[0] + nx, b[1] + ny)), W((b[0] - nx, b[1] - ny)), W((a[0] - nx, a[1] - ny))], cls)
+
+    out = [f'<clipPath id="pv"><rect x="{MARGIN + 5}" y="{MARGIN + 10}" width="{box_w + 5 - lab_w}" height="{box_h + 15}"/></clipPath>'
            '<g clip-path="url(#pv)">']
-    out += [line(a, b, "sill") for a, b in wd["sills"]]
     out += [poly(s, "slab") for s in wd["slabs"]]
     out += [poly(h, "hole") for h in wd["holes"]]
     out += [poly(b, "beam") for b in wd["beams"]]
     out += [poly(w, "struct") for w in wd["walls"]]
     out += [poly(c, "struct") for c in wd["cols"]]
-    out += [line(a, b, "obiki") for a, b in wd["obiki"]]
+    labels = []                                    # (紙の点, 文字) 右の欄へ引き出す
     r = max(0.6, 80.0 / scale)
-    for p in wd["posts"]:
-        x, y = P(p)
-        out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{r:.2f}" class="ps"/>'
-                   f'<line x1="{x - r:.2f}" y1="{y:.2f}" x2="{x + r:.2f}" y2="{y:.2f}" class="thin"/>'
-                   f'<line x1="{x:.2f}" y1="{y - r:.2f}" x2="{x:.2f}" y2="{y + r:.2f}" class="thin"/>')
-    for p in wd["bposts"]:
-        x, y = P(p)
-        out.append(f'<rect x="{x - r:.2f}" y="{y - r:.2f}" width="{2 * r:.2f}" height="{2 * r:.2f}" class="psb"/>')
-    # 支柱の間隔の寸法（スラブごとに、いちばん下の列と左の列）
     for s in plan.get("slabs", []):
-        o, a = s["origin"], s["ang"]
+        W, _L = _local(s)
+        # 敷き桟木（大引の下・支柱の列ごと）・根太（大引に直角 @300）・大引（帯）
+        for u0, u1, v in s["sills"]:
+            out.append(line(W((u0, v)), W((u1, v)), "sill"))
+        for v0, v1, u in s.get("neda", []):
+            out.append(line(W((u, v0)), W((u, v1)), "neda"))
+        for u0, u1, v in s["obiki"]:
+            out.append(band(W, (u0, v), (u1, v), 45.0, "obk"))
+        for p in s["posts"]:
+            x, y = P(W(p))
+            out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{r:.2f}" class="ps"/>'
+                       f'<line x1="{x - r:.2f}" y1="{y:.2f}" x2="{x + r:.2f}" y2="{y:.2f}" class="thin"/>'
+                       f'<line x1="{x:.2f}" y1="{y - r:.2f}" x2="{x:.2f}" y2="{y + r:.2f}" class="thin"/>')
+        if s["posts"]:
+            umax = max(p[0] for p in s["posts"])
+            vtop = max(p[1] for p in s["posts"])
+            ob = max(s["obiki"], key=lambda o_: (o_[2], o_[1])) if s["obiki"] else None
+            if ob:
+                labels.append((P(W((ob[1] - 250.0, ob[2]))), "大引：杉 90×90"))
+            ne = [n_ for n_ in s.get("neda", []) if n_[0] <= vtop - 450.0 <= n_[1]]
+            if ne:
+                n_ = max(ne, key=lambda n2: n2[2])
+                labels.append((P(W((n_[2], vtop - 450.0))), "根太：角パイプ □50×50×2.3 @300"))
+            labels.append((P(W((umax, vtop))), f"パイプサポート（{s['name']} 下・長さ {s['post_h']:.0f}）"))
+            sl = max(s["sills"], key=lambda o_: (o_[2], o_[1])) if s["sills"] else None
+            if sl:
+                labels.append((P(W((sl[1] - 40.0, sl[2]))), "敷き桟木 45×60（寝かせ）"))
+            labels.append((P(W((umax - 0.5 * s["su"], vtop - 0.5 * s["sv"]))), "せき板：合板 12mm"))
+    for b in plan.get("beams", []):
+        u = b["u"]
+        n = (-u[1], u[0])
+        a = b["ca"]
+        Wb = lambda p, a=a, u=u, n=n: (a[0] + u[0] * p[0] + n[0] * p[1], a[1] + u[1] * p[0] + n[1] * p[1])
+        half = b["psY"] + 120.0
+        for x in b["uke_x"]:
+            out.append(band(Wb, (x, -half), (x, half), 45.0, "obk"))
+            for sg in (-1, 1):
+                px, py = P(Wb((x, sg * b["psY"])))
+                out.append(f'<rect x="{px - r:.2f}" y="{py - r:.2f}" width="{2 * r:.2f}" height="{2 * r:.2f}" class="psb"/>')
+        if b["uke_x"]:
+            x = b["uke_x"][-1]
+            labels.append((P(Wb((x, b["psY"]))), f"梁下パイプサポート（{b['name']}・長さ {b['post_h']:.0f}）"))
+            labels.append((P(Wb((x, half - 40.0))), "梁下大引：杉 90×90"))
+    # 切る位置（a－a・b－b）
+    for s in plan.get("slabs", [])[:1]:
+        W, _L = _local(s)
+        vc, uc = section_cuts(s)
+        us = [p[0] for p in s["outer"]]
+        vs = [p[1] for p in s["outer"]]
+        ext_ = 22.0 * scale                        # 記号は連続寸法（2段）の外に
+        for (pa, pb), name in ((((min(us) - ext_, vc), (max(us) + ext_, vc)), "a"),
+                               (((uc, min(vs) - ext_), (uc, max(vs) + ext_)), "b")):
+            out.append(line(W(pa), W(pb), "cut"))
+            for q_ in (pa, pb):
+                cx, cy = P(W(q_))
+                out.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="2.4" class="mark"/>'
+                           f'<text x="{cx:.2f}" y="{cy + 1.0:.2f}" class="t" text-anchor="middle">{name}</text>')
+    # 割付ピッチの連続寸法: スラブ下（大引の向きの支柱と、大引どうし）、梁下（大引の位置）
+    for s in plan.get("slabs", []):
+        W, L = _local(s)
         if not s["posts"]:
             continue
-        vmin = min(p[1] for p in s["posts"])
-        row = sorted(p[0] for p in s["posts"] if abs(p[1] - vmin) < 1.0)
-        umin = min(p[0] for p in s["posts"])
-        colv = sorted(p[1] for p in s["posts"] if abs(p[0] - umin) < 1.0)
-        for (u0, u1) in zip(row, row[1:]):
-            A, B = P(_rot((u0, vmin), a, o)), P(_rot((u1, vmin), a, o))
-            out.append(_dim(A[0], A[1], B[0], B[1], f"{u1 - u0:.0f}", off=6.0))
-        for (v0, v1) in zip(colv, colv[1:]):
-            A, B = P(_rot((umin, v0), a, o)), P(_rot((umin, v1), a, o))
-            out.append(_dim(A[0], A[1], B[0], B[1], f"{v1 - v0:.0f}", off=-6.0))
-        # 注記
-        lx, ly = P(_rot((s["outer"][0][0], max(p[1] for p in s["outer"])), a, o))
-        txt = [f"{s['name']}  スラブ厚 {s['thick']:.0f}", f"パイプサポート @{s['su']:.0f}×{s['sv']:.0f}  {len(s['posts'])}本",
-               f"長さ {s['post_h']:.0f}（床 {s['floor']:.0f} から）", f"大引 杉90×90 @{s['sv']:.0f}・根太 □50×50×2.3 @300"]
-        for k, t_ in enumerate(txt):
-            out.append(f'<text x="{lx:.1f}" y="{ly - 3 - (len(txt) - k - 1) * 3.2:.1f}" class="t">{ESC(t_)}</text>')
-        # 根太の向き（大引に直角）の矢印
-        cx_, cy_ = P(_rot((sum(p[0] for p in s["outer"]) / len(s["outer"]), sum(p[1] for p in s["outer"]) / len(s["outer"])), a, o))
-        ang = -(a + 90.0)
-        out.append(f'<g transform="translate({cx_:.1f},{cy_:.1f}) rotate({ang:.1f})"><line x1="-6" y1="0" x2="6" y2="0" class="lead"/>'
-                   f'<polygon points="6,0 4,-0.8 4,0.8" fill="#000"/><polygon points="-6,0 -4,-0.8 -4,0.8" fill="#000"/></g>'
-                   f'<text x="{cx_ + 2:.1f}" y="{cy_ - 2:.1f}" class="ts">根太の向き</text>')
+        us = [p[0] for p in s["outer"]]
+        vs = [p[1] for p in s["outer"]]
+        umin, umax, vmin, vmax = min(us), max(us), min(vs), max(vs)
+        pu = [umin] + sorted({round(p[0], 1) for p in s["posts"]}) + [umax]
+        pv = [vmin] + sorted({round(o_[2], 1) for o_ in s["obiki"]}) + [vmax]
+        out.append(_chain([P(W((x, vmin))) for x in pu], _pitch_texts(pu), 6.0))
+        out.append(_chain([P(W((umin, vmin))), P(W((umax, vmin)))], [f"{umax - umin:.0f}"], 13.0))
+        out.append(_chain([P(W((umin, y))) for y in pv], _pitch_texts(pv), -6.0))
+        out.append(_chain([P(W((umin, vmin))), P(W((umin, vmax)))], [f"{vmax - vmin:.0f}"], -13.0))
+        tx, ty = P(W((umin, vmin)))
+        out.append(f'<text x="{tx:.1f}" y="{ty + 18:.1f}" class="ts">スラブ（{ESC(s["name"])}）下 サポート割付ピッチ・全長</text>')
+        tx, ty = P(W((umin, vmax)))
+        out.append(f'<text x="{tx - 16:.1f}" y="{ty - 3:.1f}" class="ts">大引割付ピッチ</text>')
+        # 梁下: 梁の向きに大引（受け）の位置。スラブの右（梁が v の向き）か上（u の向き）の外へ
+        k_b = 0
+        for b in plan.get("beams", []):
+            if not b["uke_x"]:
+                continue
+            u = b["u"]
+            ca = L(b["ca"])
+            d = L((b["ca"][0] + u[0], b["ca"][1] + u[1]))
+            d = (d[0] - ca[0], d[1] - ca[1])
+            along_v = abs(d[1]) > abs(d[0])
+            pos = [L((b["ca"][0] + u[0] * x, b["ca"][1] + u[1] * x)) for x in b["uke_x"]]
+            ends = [L((b["ca"][0] + u[0] * x, b["ca"][1] + u[1] * x)) for x in b.get("ext", [0.0, 0.0])]
+            if along_v:
+                vals = sorted([p_[1] for p_ in pos] + [e_[1] for e_ in ends])
+                out.append(_chain([P(W((umax, y))) for y in vals], _pitch_texts(vals), 6.0 + 9.0 * k_b))
+                # 見出しは寸法の外に縦書きで（右の引出しと重ねない）
+                (ax_, ay_), (bx_, by_) = P(W((umax, min(vals)))), P(W((umax, max(vals))))
+                tx, ty = (ax_ + bx_) / 2.0 + 11.0 + 9.0 * k_b, (ay_ + by_) / 2.0
+                out.append(f'<text x="{tx:.1f}" y="{ty:.1f}" class="ts" text-anchor="middle" transform="rotate(90 {tx:.1f} {ty:.1f})">'
+                           f'梁（{ESC(b["name"])}）下 サポート・大引割付ピッチ</text>')
+            else:
+                vals = sorted([p_[0] for p_ in pos] + [e_[0] for e_ in ends])
+                out.append(_chain([P(W((x, vmax))) for x in vals], _pitch_texts(vals), -6.0 - 9.0 * k_b))
+                tx, ty = P(W((min(vals), vmax)))
+                out.append(f'<text x="{tx:.1f}" y="{ty - 10 - 9 * k_b:.1f}" class="ts">梁（{ESC(b["name"])}）下 サポート・大引割付ピッチ</text>')
+            k_b += 1
+        # スラブの名前と厚さ（まん中）
+        cx_, cy_ = P(W((sum(us) / len(us), sum(vs) / len(vs))))
+        out.append(f'<text x="{cx_:.1f}" y="{cy_ + 6:.1f}" class="t" text-anchor="middle">{ESC(s["name"])}（t{s["thick"]:.0f}）</text>')
     for b in plan.get("beams", []):
         m = ((b["ca"][0] + b["cb"][0]) / 2.0, (b["ca"][1] + b["cb"][1]) / 2.0)
         x, y = P(m)
-        out.append(f'<text x="{x + 2:.1f}" y="{y:.1f}" class="ts">{ESC(b["name"])} 梁 {b["width"]:.0f}×{b["depth"]:.0f}'
-                   f'（梁下 PS @{b["uke_pitch"]:.0f}・長さ {b["post_h"]:.0f}）</text>')
+        out.append(f'<text x="{x + 2:.1f}" y="{y:.1f}" class="ts">{ESC(b["name"])}：{b["width"]:.0f}×{b["depth"]:.0f}</text>')
     for c in plan.get("columns", []):
         x, y = P(c["c"])
-        out.append(f'<text x="{x + 3:.1f}" y="{y - 3:.1f}" class="ts">{ESC(c["name"])} {c["width"]:.0f}×{c["depth"]:.0f}</text>')
+        out.append(f'<text x="{x - 3:.1f}" y="{y + 0.8:.1f}" class="ts">{ESC(c["name"])} {c["width"]:.0f}×{c["depth"]:.0f}</text>')
     for w in plan.get("walls", []):
         m = ((w["ca"][0] + w["cb"][0]) / 2.0, (w["ca"][1] + w["cb"][1]) / 2.0)
         x, y = P(m)
         out.append(f'<text x="{x:.1f}" y="{y - 2:.1f}" class="ts">{ESC(w["name"])} t{w["thick"]:.0f}</text>')
     out.append("</g>")
+    # 引出し（右の欄。指す所の高さの順に並べて線を交わらせない）
+    lab_x = ox + (x1 - x0) / scale + 4.0
+    top_y = oy + 1500.0 / scale
+    for k_, ((x, y), t_) in enumerate(sorted(labels, key=lambda l_: l_[0][1])):
+        out.append(_label(x, y, lab_x, top_y + k_ * 5.0, t_))
     # 凡例と注記（右の欄）
     lx = PAGE_W - MARGIN - 100.0
-    leg = [("○", "パイプサポート（スラブ下）"), ("□", "パイプサポート（梁下）"), ("─・─", "大引 杉 90×90"),
-           ("━", "敷き桟木 45×60（寝かせる）"), ("- - -", "梁（スラブの下）"), ("■", "壁・柱")]
+    leg = [("○", "パイプサポート（スラブ下）"), ("□", "パイプサポート（梁下）"), ("▬", "大引 杉 90×90"),
+           ("─", "根太 角パイプ □50×50×2.3 @300（細線）"), ("━", "敷き桟木 45×60（寝かせる）"), ("- - -", "梁（スラブの下）"),
+           ("■", "壁・柱"), ("─・─", "断面の切る位置（a－a・b－b は2枚目）")]
     out.append(f'<text x="{lx}" y="{MARGIN + 18}" class="h2">凡例</text>')
     for k, (sym, t_) in enumerate(leg):
         out.append(f'<text x="{lx}" y="{MARGIN + 25 + k * 4.5}" class="t">{ESC(sym)}　{ESC(t_)}</text>')
     notes = ["注記",
              "1. 支柱（パイプサポート）は敷き桟木の上に立て、上端は大引に釘止めする",
              "2. パイプサポートを継ぐのは2本まで。継ぐときは4本以上のボルトか専用の金具（安衛則 242条）",
-             f"3. 支柱の高さが 3.5m を超えるときは、高さ 2m 以内ごとに水平つなぎを2方向に設け、変位を防ぐ（同条）",
+             "3. 支柱の高さが 3.5m を超えるときは、高さ 2m 以内ごとに水平つなぎを2方向に設け、変位を防ぐ（同条）",
              "4. 地盤に立てるときは敷板・敷角を敷き、沈下を防ぐ（安衛則 242条）",
              "5. コンクリートの打設中は型枠支保工を点検し、異常があれば中止する（安衛則 244条）",
              "6. 組立て・解体は型枠支保工の組立て等作業主任者の直接の指揮で行う（安衛則 246・247条）",
              "7. パイプサポートの許容支持力はメーカーの表（仮設工業会認定品・使用高さと水平つなぎの有無）による。3.4m を超える支柱は水平つなぎを設ける",
              "8. 支柱の脚部は根がらみ（単管 φ48.6）を2方向に設けて滑動を防ぎ、支柱・大引・根太の接続は釘・クランプで緊結する"]
-    y = MARGIN + 60.0
+    y = MARGIN + 66.0
     for k, t_ in enumerate(notes):
         cls = "h2" if k == 0 else "ts"
         for j, part in enumerate(_wrap(t_, NOTE_CHARS) if k else [t_]):
@@ -260,7 +407,8 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
     y0 = y + 4.0
     # 部材表
     mats = [("せき板", "型枠用合板 12mm"), ("根太", "角パイプ □50×50×2.3 @300"), ("大引", "杉 90×90 @900"),
-            ("支柱", "パイプサポート（上端 釘止め）"), ("敷き桟木", "45×60 寝かせ"), ("柱", "コラムクランプ（壁の取り付く柱は外端太・フォームタイ）"),
+            ("支柱", "パイプサポート（上端 釘止め）"), ("敷き桟木", "45×60 寝かせ"), ("根がらみ", "単管 φ48.6×2.4（2方向）"),
+            ("柱", "コラムクランプ（壁の取り付く柱は外端太・フォームタイ）"),
             ("壁・梁の側板", "桟木 45×60・外端太 単管φ48.6 2本組・フォームタイ W5/16")]
     out.append(f'<text x="{lx}" y="{y0:.1f}" class="h2">部材</text>')
     for k, (a_, b_) in enumerate(mats):
@@ -268,7 +416,194 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
     return "型枠支保工 伏図", f"1/{scale}", "".join(out)
 
 
-# ---------------------------------------------------------------- 2枚目 断面・詳細
+# ---------------------------------------------------------------- 2枚目 断面図（a－a・b－b）
+PLY_MM, NEDA_MM, OBIKI_MM, SILL_MM, PS_D_MM, TUBE_D_MM = 12.0, 50.0, 90.0, 45.0, 60.5, 48.6
+
+
+def _struct_local(plan: dict, L) -> list[tuple[str, dict, list]]:
+    """梁・壁・柱の平面の形（スラブの局所座標）: [(種類, 元のデータ, 多角形)]."""
+    wd = _world(plan)
+    out = [("beam", b, [L(p) for p in poly]) for b, poly in zip(plan.get("beams", []), wd["beams"])]
+    out += [("wall", w, [L(p) for p in poly]) for w, poly in zip(plan.get("walls", []), wd["walls"])]
+    out += [("col", c, [L(p) for p in poly]) for c, poly in zip(plan.get("columns", []), wd["cols"])]
+    return out
+
+
+def section_extent(plan: dict, s: dict, h: int) -> tuple[float, float, float]:
+    """断面の横の範囲 (h の最小・最大) と高さ（床からスラブの天端まで）."""
+    vc, uc = section_cuts(s)
+    ivs = _cut_intervals(s["outer"], h, vc if h == 0 else uc)
+    if not ivs:
+        vals = [p[h] for p in s["outer"]]
+        ivs = [(min(vals), max(vals))]
+    return min(a for a, _b in ivs), max(b for _a, b in ivs), s["bottom"] + s["thick"] - s["floor"]
+
+
+def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float, name: str) -> tuple[str, float]:
+    """スラブを切った断面（h＝0: 大引の向き u に沿って a－a、1: 大引に直角 v に沿って b－b）. 戻り値は (SVG, 下の y)."""
+    from .slab_form import ps_model
+
+    k = 1.0 / sc
+    W, L = _local(s)
+    vc, uc = section_cuts(s)
+    cut = vc if h == 0 else uc
+    q = 1 - h
+    floor, bottom, thick = s["floor"], s["bottom"], s["thick"]
+    top = bottom + thick
+    hmin, hmax, _H = section_extent(plan, s, h)
+    X = lambda c: x0 + (c - hmin + 1200.0) * k
+    ys = ytop + 22.0                               # スラブの天端の紙の y（上に連続寸法2段）
+    Y = lambda z: ys + (top - z) * k
+    rect = lambda a, b, z0, z1, cls: (f'<rect x="{X(min(a, b)):.2f}" y="{Y(max(z0, z1)):.2f}" width="{abs(b - a) * k:.2f}" '
+                                      f'height="{abs(z1 - z0) * k:.2f}" class="{cls}"/>')
+    out, labels = [], []
+    # 床
+    out.append(f'<rect x="{X(hmin - 1200):.2f}" y="{Y(floor):.2f}" width="{(hmax - hmin + 2400) * k:.2f}" height="1.2" class="conc"/>')
+    out.append(f'<text x="{X(hmin - 1200):.2f}" y="{Y(floor) - 1:.2f}" class="ts">▽床 FL{floor:+.0f}</text>')
+    # スラブ・梁・壁・柱のコンクリート
+    ivs = _cut_intervals(s["outer"], h, cut) or [(hmin, hmax)]
+    for a, b in ivs:
+        out.append(rect(a, b, bottom, top, "conc"))
+    out.append(f'<text x="{X(hmin - 1200):.2f}" y="{Y(top) - 1:.2f}" class="ts">▽スラブ天端 {top - floor:+.0f}</text>')
+    hole_iv = [iv for hole in s["holes"] for iv in _cut_intervals(hole, h, cut)]
+    beams_cut = []
+    for kind, d, poly in _struct_local(plan, L):
+        for a, b in _cut_intervals(poly, h, cut):
+            if kind == "beam":
+                out.append(rect(a, b, d["bottom"], bottom, "conc"))
+                beams_cut.append((d, a, b))
+            else:
+                out.append(rect(a, b, floor, bottom, "conc"))
+                labels.append(((X((a + b) / 2), Y((floor + bottom) / 2)), f"{'壁' if kind == 'wall' else '柱'} {d['name']}"))
+    labels.append(((X(ivs[0][0] + 300.0), Y(top - thick / 2)), f"スラブ {s['name']}（t{thick:.0f}）"))
+    # せき板・根太・大引（スラブの下。穴＝梁・壁・柱の所は抜く）
+    zp, zn, zo = bottom - PLY_MM, bottom - PLY_MM - NEDA_MM, bottom - PLY_MM - NEDA_MM - OBIKI_MM
+    free = _minus(ivs, hole_iv)
+    for a, b in free:
+        out.append(rect(a, b, zp, bottom, "ply"))
+    if free:
+        labels.append(((X(free[-1][1] - 200.0), Y(bottom - 6.0)), "せき板：合板 12mm"))
+    neda = s.get("neda", [])
+    if h == 0:                                     # 根太は v の向き → 切り口に □50 の断面
+        cross = [n_[2] for n_ in neda if n_[0] <= cut <= n_[1]]
+        for u in cross:
+            out.append(rect(u - 25, u + 25, zn, zp, "steel"))
+        if cross:
+            labels.append(((X(max(cross)), Y(zn + 25)), "根太：角パイプ □50×50×2.3 @300"))
+    elif neda:                                     # 根太に沿って切る → いちばん近い根太を長く
+        un = min({n_[2] for n_ in neda}, key=lambda u: abs(u - cut))
+        segs = [(n_[0], n_[1]) for n_ in neda if abs(n_[2] - un) < 1.0]
+        for a, b in segs:
+            out.append(rect(a, b, zn, zp, "steel"))
+        if segs:
+            labels.append(((X(segs[-1][1] - 300.0), Y(zn + 25)), "根太：角パイプ □50×50×2.3 @300"))
+    if h == 0:                                     # 大引は u の向き → 切り口の列の大引を長く
+        segs = [(o_[0], o_[1]) for o_ in s["obiki"] if abs(o_[2] - cut) < 1.0]
+        for a, b in segs:
+            out.append(rect(a, b, zo, zn, "wood"))
+        if segs:
+            labels.append(((X(segs[-1][1] - 450.0), Y(zo + 45)), f"大引：杉 90×90 @{s['sv']:.0f}"))
+    else:
+        cross = [o_[2] for o_ in s["obiki"] if o_[0] <= cut <= o_[1]]
+        for v in cross:
+            out.append(rect(v - 45, v + 45, zo, zn, "wood"))
+        if cross:
+            labels.append(((X(max(cross)), Y(zo + 45)), f"大引：杉 90×90 @{s['sv']:.0f}"))
+    # 敷き桟木・支柱・根がらみ・水平つなぎ
+    zs = floor + SILL_MM
+    if h == 0:
+        sills = [(a, b) for a, b, v in s["sills"] if abs(v - cut) < 1.0]
+        posts = sorted(p[0] for p in s["posts"] if abs(p[1] - cut) < 1.0)
+    else:
+        sills = [(v - 30.0, v + 30.0) for a, b, v in s["sills"] if a <= cut <= b]
+        posts = sorted(p[1] for p in s["posts"] if abs(p[0] - cut) < 1.0)
+    for a, b in sills:
+        out.append(rect(a, b, floor, zs, "wood"))
+    if sills:
+        labels.append(((X(sills[-1][1] - 20.0), Y(floor + SILL_MM / 2)), "敷き桟木 45×60（寝かせ）"))
+    for p in posts:
+        out.append(rect(p - PS_D_MM / 2, p + PS_D_MM / 2, zs, zo, "steel"))
+        out.append(rect(p - 70, p + 70, zo - 6, zo, "steel"))           # 受け板（大引に釘止め）
+        out.append(rect(p - 70, p + 70, zs, zs + 6, "steel"))           # 台板
+    if posts:
+        labels.append(((X(posts[-1] + 30), Y((zs + zo) / 2)), f"パイプサポート {ps_model(s['post_h'])}（長さ {s['post_h']:.0f}）"))
+        tubes = [(s.get("negarami", 200.0), "根がらみ：単管 φ48.6（2方向）")] + [(z, "水平つなぎ：単管 φ48.6（2方向）") for z in s.get("ties", [])]
+        for z, t_ in tubes:
+            zz = floor + z
+            out.append(rect(posts[0] - 150, posts[-1] + 150, zz - TUBE_D_MM / 2, zz + TUBE_D_MM / 2, "steel"))
+            for p in posts:                        # 直交する単管（断面）
+                out.append(f'<circle cx="{X(p + 60):.2f}" cy="{Y(zz + 55):.2f}" r="{max(0.3, 24.3 * k):.2f}" class="steel"/>')
+            labels.append(((X(posts[-1] + 150), Y(zz)), t_))
+    # 梁（切り口を横切る梁）: 側板・底板・梁下の根太・大引・支柱
+    for b, a0, a1 in beams_cut:
+        bb = b["bottom"]
+        for xs in (a0, a1):
+            out.append(rect(xs - PLY_MM if xs == a0 else xs, xs if xs == a0 else xs + PLY_MM, bb - PLY_MM, bottom, "ply"))
+        out.append(rect(a0, a1, bb - PLY_MM, bb, "ply"))
+        c0 = (a0 + a1) / 2.0
+        for yv in b.get("bot_y", []):
+            out.append(rect(c0 + yv - 25, c0 + yv + 25, bb - PLY_MM - NEDA_MM, bb - PLY_MM, "steel"))
+        half = b["psY"] + 120.0
+        zbo = bb - PLY_MM - NEDA_MM - OBIKI_MM
+        out.append(rect(c0 - half, c0 + half, zbo, zbo + OBIKI_MM, "wood"))
+        for sg in (-1, 1):
+            px = c0 + sg * b["psY"]
+            out.append(rect(px - PS_D_MM / 2, px + PS_D_MM / 2, zs, zbo, "steel"))
+            out.append(rect(px - 70, px + 70, zbo - 6, zbo, "steel"))
+            out.append(rect(px - 100, px + 100, floor, zs, "wood"))
+        for z in b.get("tate_z", []):              # 外端太（2本組）
+            for xs, sg in ((a0, -1), (a1, 1)):
+                for dz in (-27.0, 27.0):
+                    out.append(f'<circle cx="{X(xs + sg * (PLY_MM + 60 + 24)):.2f}" cy="{Y(bb - PLY_MM + z + dz):.2f}" '
+                               f'r="{max(0.3, 24.3 * k):.2f}" class="steel"/>')
+        labels.append(((X(c0), Y((bb + bottom) / 2)), f"梁 {b['name']}（{b['width']:.0f}×{b['depth']:.0f}）"))
+        labels.append(((X(c0 + b["psY"]), Y((zs + zbo) / 2)), f"梁下パイプサポート（長さ {b['post_h']:.0f}）"))
+        labels.append(((X(c0 + half - 40), Y(zbo + 45)), "梁下大引：杉 90×90"))
+    # 連続寸法: 上に支柱の割付ピッチ（スラブの端から）と全長、左に高さ、右に支柱の長さ・根がらみ
+    if posts:
+        pts = [hmin] + posts + [hmax]
+        out.append(_chain([(X(p), Y(top)) for p in pts], _pitch_texts(pts), -6.0))
+    out.append(_chain([(X(hmin), Y(top)), (X(hmax), Y(top))], [f"{hmax - hmin:.0f}"], -13.0))
+    xl = X(hmin - 600.0)
+    out.append(_dim(xl, Y(floor), xl, Y(bottom), f"{bottom - floor:.0f}", off=-3.0))
+    out.append(_dim(xl, Y(bottom), xl, Y(top), f"{thick:.0f}", off=-3.0))
+    out.append(_dim(xl - 9, Y(floor), xl - 9, Y(top), f"{top - floor:.0f}", off=-3.0))
+    xr = X(hmax + 600.0)
+    zl = [floor, zs, zo, bottom]
+    for z0, z1 in zip(zl, zl[1:]):
+        out.append(_dim(xr, Y(z0), xr, Y(z1), f"{z1 - z0:.0f}", off=3.0))
+    if posts:
+        zt = [floor] + [floor + z for z in [s.get("negarami", 200.0)] + list(s.get("ties", []))]
+        for z0, z1 in zip(zt, zt[1:]):
+            out.append(_dim(xr + 9, Y(z0), xr + 9, Y(z1), f"{z1 - z0:.0f}", off=3.0))
+    # 引出し（右の欄）
+    lab_x = X(hmax + 1200.0) + 16.0
+    for k_, ((x, y), t_) in enumerate(sorted(labels, key=lambda l_: l_[0][1])):
+        out.append(_label(x, y, lab_x, ys - 6.0 + k_ * 4.6, t_))
+    # 題
+    yb = max(Y(floor) + 10.0, ys - 6.0 + len(labels) * 4.6 + 2.0)
+    out.append(f'<rect x="{X(hmin) - 2:.1f}" y="{yb - 4.2:.1f}" width="46" height="6" class="thin"/>'
+               f'<text x="{X(hmin):.1f}" y="{yb:.1f}" class="h2">{name}断面図 S=1/{sc:.0f}</text>')
+    return "".join(out), yb + 4.0
+
+
+def section_page(plan: dict) -> tuple[str, str, str]:
+    """断面図（a－a: 大引の向き・b－b: 大引に直角）. 計画届作成の手引の a－a 断面図の例にならい、床・スラブ・梁、せき板・根太・
+    大引・パイプサポート・敷き桟木・根がらみ・水平つなぎ、割付ピッチと高さの寸法、部材の引出し（利用者の指定 2026-10-31: 断面も）."""
+    slabs = plan.get("slabs") or []
+    if not slabs or not slabs[0]["posts"]:
+        return "型枠支保工 断面図", "―", '<text x="20" y="40" class="t">スラブの支保工がありません</text>'
+    s = slabs[0]
+    ext = [section_extent(plan, s, h) for h in (0, 1)]
+    wmax = max(b - a for a, b, _H in ext) + 2400.0
+    hmax_ = max(H for _a, _b, H in ext) + 600.0
+    sc = next((v for v in SCALES if wmax / v <= 250.0 and hmax_ / v <= 72.0), SCALES[-1])
+    body_a, y_a = _section_cut(plan, s, 0, MARGIN + 18.0, MARGIN + 12.0, float(sc), "a－a ")
+    body_b, _y_b = _section_cut(plan, s, 1, MARGIN + 18.0, y_a + 4.0, float(sc), "b－b ")
+    return "型枠支保工 断面図", f"1/{sc}", body_a + body_b
+
+
+# ---------------------------------------------------------------- 3枚目 詳細図
 def _label(x, y, tx, ty, text) -> str:
     return (f'<line x1="{x:.2f}" y1="{y:.2f}" x2="{tx:.2f}" y2="{ty:.2f}" class="lead"/>'
             f'<line x1="{tx:.2f}" y1="{ty:.2f}" x2="{tx + len(text) * 2.0:.2f}" y2="{ty:.2f}" class="lead"/>'
@@ -427,7 +762,7 @@ def detail_page(plan: dict) -> tuple[str, str, str]:
         H = walls[0]["height"]
         scw = next((v for v in (30, 40, 50, 60, 80, 100) if H / v <= 70.0), 100)
         out.append(_section_wall(plan, 150.0, 278.0, float(scw)))
-    return "型枠支保工 断面図・詳細図", "図示", "".join(out)
+    return "型枠支保工 詳細図", "図示", "".join(out)
 
 
 # ---------------------------------------------------------------- 3枚目 計算書
@@ -631,7 +966,7 @@ def member_page(plan: dict) -> tuple[str, str, str]:
                f'　　固定荷重＝コンクリート 24kN/m³×厚さ＋型枠 0.4kN/m²、積載荷重＝作業荷重 1.5kN/m²（安衛則 240条）</text>')
     out.append(f'<text x="{x0}" y="{y + 12:.1f}" class="h2">各部の構造・組立概要</text>')
     body, y = _table(x0, y + 14, [80.0, 286.0, 26.0], ["項目", "構造・組立の概要", "詳細図"],
-                     [[a, b, f"{c}（2枚目）" if c == "有" else c] for a, b, c in assembly_rows(plan)], size=2.6)
+                     [[a, b, f"{c}（断面図・詳細図）" if c == "有" else c] for a, b, c in assembly_rows(plan)], size=2.6)
     out.append(body)
     return "型枠支保工 部材等明細書", "―", "".join(out)
 
@@ -678,7 +1013,7 @@ def notice_page(plan: dict) -> tuple[str, str, str]:
         y += 5.0
     y += 6
     out.append(f'<text x="{MARGIN + 4}" y="{y}" class="h2">添付するもの（安衛則 別表第7）</text>')
-    for k, t_ in enumerate(["型枠支保工を設置する場所の周囲の状況及び四隣との関係を示す図面", "型枠支保工の組立図（1枚目の伏図・2枚目の断面図・詳細図）",
+    for k, t_ in enumerate(["型枠支保工を設置する場所の周囲の状況及び四隣との関係を示す図面", "型枠支保工の組立図（伏図・断面図 a－a・b－b・詳細図）",
                             "支柱等の配置図・使用する材料の種類と寸法（型枠支保工部材等明細書）", "構造計算書", "組立・解体の手順、作業主任者"]):
         out.append(f'<text x="{MARGIN + 8}" y="{y + 5 + k * 4}" class="t">・{ESC(t_)}</text>')
     return "型枠支保工 計画届の要否", "―", "".join(out)
@@ -688,7 +1023,7 @@ def notice_page(plan: dict) -> tuple[str, str, str]:
 def page_list(plan: dict) -> list[tuple[str, str, str]]:
     """[(図名, 縮尺, 本文の SVG)] の並び（枠・表題欄は含まない。HTML とレイアウトの両方で使う）."""
     calc_bodies = calc_page(plan)
-    out = [plan_page(plan), detail_page(plan)]
+    out = [plan_page(plan), section_page(plan), detail_page(plan)]
     for k, body in enumerate(calc_bodies):
         out.append(("型枠支保工 構造計算書" + (f"（{k + 1}）" if len(calc_bodies) > 1 else ""), "―", body))
     out.append(member_page(plan))
