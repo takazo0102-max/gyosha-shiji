@@ -270,7 +270,7 @@ def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
     corner_info に {"sides", "corners", "notes"} を返す（直角でない角。利用者の指定 2026-10-31: 斜めの角もつながるように）."""
     from ashiba.box import (BOX_OBJECT, SIDE_OBJECT, box_coins, box_loop, chain_frame,
                             chain_sides, oblique_corners, parse_box_params, parse_side_params, plan_side_chain, side_axis,
-                            to_local, trim_for_corner)
+                            to_local, trim_to_lines)
     from ashiba.master import load_master
     from ashiba.manual import span_text
 
@@ -302,11 +302,13 @@ def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
             coins = box_coins(load_master(si.get("series_id") or "albatross").span_lengths())
         except Exception:
             coins = sorted({int(v) for v in si["spans"]}, reverse=True)
-        if not cn["convex"]:
-            tr = trim_for_corner(si, sj, coins)
-            if tr is not None:
-                notes.append(f"斜めの入隅: 前の辺を {sum(si['spans'])} → {sum(tr)} に縮めて、後の辺の足場に当てない")
-                si["spans"] = tr
+        # 前の足場の終わりの支柱は、後の足場の支柱の列の延長線（2本とも）より前へ出さない（利用者の指定 2026-10-31: 支柱の位置を
+        # 両方の延長線上より前には行かないようにする／前の足場だけ下げる）
+        tr = trim_to_lines(si, sj, coins)
+        if tr is not None:
+            notes.append(f"斜めの{'出隅' if cn['convex'] else '入隅'}: 前の辺を {sum(si['spans'])} → {sum(tr)} に縮めて、終わりの"
+                         "支柱を後の辺の足場の支柱の列の延長線より前へ出さない")
+            si["spans"] = tr
     first = {ch[0]: k for k, (ch, closed) in enumerate(chains) if not closed}
     last = {ch[-1]: k for k, (ch, closed) in enumerate(chains) if not closed}
     if corner_info is not None:
@@ -445,8 +447,8 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
     ようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか）."""
     import csv
 
-    from ashiba.box import (DECK_TOP_MM, band, board_quantities, corner_fill, corner_posts, corner_rail_poly,
-                            extension_board_layout)
+    from ashiba.box import (DECK_TOP_MM, _cross_line, band, board_quantities, corner_fill, corner_outline, corner_posts, corner_region,
+                            corner_supports, extension_board_layout)
     from ashiba.pens import gdl_pens, parse_pens
 
     sides = info["sides"]
@@ -509,21 +511,27 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
             job = b["side_job"][0] if b.get("side_job") else None
             return list(job["sides"][0]) if job and job["kind"] == "line" else list(s["spans"])
         posts = corner_posts({**si, "spans": used_spans(bi, si)}, {**sj, "spans": used_spans(bj, sj)}, wi, wj)
-        lay = extension_board_layout(region, band_i, band_j, posts, si["dir"])
+        # 隅の床は両方の延長線で囲まれた所まで。支柱は立てず、両側の足場の支柱から延長線に沿って出した単管で受ける（利用者の
+        # 指定 2026-10-31: 支柱は立てず単管で受ける）
+        reg = corner_region(end_i, si["dir"], wi, sj["a"], sj["dir"], wj)
+        sups = corner_supports(end_i, si["dir"], wi, sj["a"], sj["dir"], wj, band_i, band_j, reg)
+        corner = {"walk": region["walk"], "region": reg, "supports": sups}
+        lay = extension_board_layout(corner, band_i, band_j, posts, si["dir"])
         line_of = "前の足場"
         if len(lay["boards"]) * 240 < 400:
-            lay_j = extension_board_layout(region, band_i, band_j, posts, si["dir"], dj=sj["dir"])
+            lay_j = extension_board_layout(corner, band_i, band_j, posts, si["dir"], dj=sj["dir"])
             if len(lay_j["boards"]) > len(lay["boards"]):
                 lay, line_of = lay_j, "後の足場"
         boards = lay["boards"]
-        # 支柱を結ぶ単管は支柱の脇（右へ 支柱半径＋単管半径）を通す（部品は支柱が左にある形でクランプを描く）
+        # 受けの単管は支柱の脇（右へ 支柱半径＋単管半径）を通す（部品は支柱が左にある形でクランプを描く）
         ties = []
         for p0, p1 in lay["ties"]:
             L = math.dist(p0, p1) or 1.0
             r_ = ((p1[1] - p0[1]) / L * 48.6, -(p1[0] - p0[0]) / L * 48.6)
             ties.append(((p0[0] + r_[0], p0[1] + r_[1]), (p1[0] + r_[0], p1[1] + r_[1])))
-        # 手すりは外側の支柱どうしと、離れていれば内側の支柱どうしにも（利用者の指定 2026-10-31: 手すりがない）
-        poly, rails = corner_rail_poly(region)
+        # 手すりは外側の列の延長線に沿って後の足場の外側の列の延長線との交点まで（その先は後の足場の外の支柱へ）と、離れていれば
+        # 内側の支柱どうしにも（利用者の指定 2026-10-31: 手すりがない）
+        poly, rails = corner_outline(region["walk"], si["dir"], sj["dir"])
         fill = {**fill, "poly": poly, "rail": rails}
         (el,) = c.create_objects([(R.versioned_part_name(CFILL_OBJECT), cx, cy)])
         c.set_gdl_parameters(el, {**pens,
@@ -543,11 +551,17 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
                                   "supX1": ",".join(f"{s[1][0] - cx:.0f}" for s in ties),
                                   "supY1": ",".join(f"{s[1][1] - cy:.0f}" for s in ties)})
         turn = math.degrees(math.acos(max(-1.0, min(1.0, si["dir"][0] * sj["dir"][0] + si["dir"][1] * sj["dir"][1]))))
-        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、支柱どうしを単管 {len(ties)}本で"
-              + f"結び、足場板 {len(boards)}列（幅 {len(boards) * 240}）を{line_of}の支柱の列の延長ラインに沿って、両側の本足場の"
-              "アンチの上に 200 以上重ねて番線で留め、"
+        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、受けの単管 {len(ties)}本を両側の"
+              + f"足場の支柱から延長線に沿って出し、足場板 {len(boards)}列（幅 {len(boards) * 240}）を{line_of}の支柱の列の延長ラインに沿って、本足場の"
+              "アンチに 200 以上重ね、先は後の足場の床か受けの単管に載せて番線で留め、"
               + (f"（{'・'.join(f'{g:.0f}' for g in lay['gaps'] if g > 0)} は支柱をよけたすき間）" if any(g > 0 for g in lay["gaps"]) else "")
               + "単管の上桟・中桟・幅木・自在クランプを置きました（両側の足場の角の側の妻側の手すりは外す）")
+        (_pi, qi_), (_pj, qj_) = region["walk"][3], region["walk"][4]
+        xo = _cross_line(qi_, si["dir"], qj_, sj["dir"])
+        if xo is not None and (xo[0] - qi_[0]) * si["dir"][0] + (xo[1] - qi_[1]) * si["dir"][1] > 1.0 \
+                and (xo[0] - qj_[0]) * sj["dir"][0] + (xo[1] - qj_[1]) * sj["dir"][1] > 1.0:
+            print("    注意: 後の足場の始めのスパンの外側の手すりが隅の床を横切ります。そのスパンの外側の手すりは外し、単管の手すりを"
+                  "前の足場の外側の延長線との交点から後の足場の次の支柱まで回してください")
         if len(boards) * 240 < 400:
             print("    注意: 足場板が 400 の幅に足りない（作業床は幅 40cm 以上。安衛則563条）。角の形を見直す")
         if len(lv_i) != len(lv_j):
