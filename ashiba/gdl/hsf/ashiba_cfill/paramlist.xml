@@ -73,6 +73,22 @@
 			<Description><![CDATA["アンチの向き（度。外の辺の向き）"]]></Description>
 			<Value>0</Value>
 		</RealNum>
+		<String Name="plkL">
+			<Description><![CDATA["アンチの長さ（列ごと mm。空なら antiL）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbX">
+			<Description><![CDATA["残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbY">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbL">
+			<Description><![CDATA["同 長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="supX0">
 			<Description><![CDATA["受けの単管の始めの x（原点から mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>

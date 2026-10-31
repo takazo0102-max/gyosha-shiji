@@ -27,7 +27,7 @@ next k
 for i = 1 to nPl
 	add2 qx[i], qy[i]
 	rot2 pAng
-	rect2 0, 0, antiL, antiW
+	rect2 0, 0, qL[i], antiW
 	del 2
 next i
 ! 受けの単管（破線）

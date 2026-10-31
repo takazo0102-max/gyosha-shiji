@@ -268,8 +268,9 @@ def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
     各単位は {"pts", "sides", "levels", "thick_mm", "base_mm", "standoff", "floor_mm", "series_id", "els", "desc",
     "loop"（一周で辺ごとの違いが無い＝セットバックの箱として扱える）, "side_job"（辺の組。箱なら None）}.
     corner_info に {"sides", "corners", "notes"} を返す（直角でない角。利用者の指定 2026-10-31: 斜めの角もつながるように）."""
-    from ashiba.box import (BOX_OBJECT, SIDE_OBJECT, box_coins, box_loop, chain_frame, chain_sides, oblique_corners,
-                            parse_box_params, parse_side_params, plan_side_chain, side_axis, to_local, trim_for_corner)
+    from ashiba.box import (BOX_OBJECT, ROW_W, SIDE_OBJECT, anti_lengths, between_trim, box_coins, box_loop, chain_frame,
+                            chain_sides, oblique_corners, parse_box_params, parse_side_params, plan_side_chain, side_axis,
+                            to_local, trim_for_corner)
     from ashiba.master import load_master
     from ashiba.manual import span_text
 
@@ -297,16 +298,24 @@ def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
     notes = []
     for cn in corners:
         si, sj = sides[cn["i"]], sides[cn["j"]]
-        if cn["convex"]:
-            continue
         try:
             coins = box_coins(load_master(si.get("series_id") or "albatross").span_lengths())
         except Exception:
             coins = sorted({int(v) for v in si["spans"]}, reverse=True)
-        tr = trim_for_corner(si, sj, coins)
-        if tr is not None:
-            notes.append(f"斜めの入隅: 前の辺を {sum(si['spans'])} → {sum(tr)} に縮めて、後の辺の足場に当てない")
-            si["spans"] = tr
+        if not cn["convex"]:
+            tr = trim_for_corner(si, sj, coins)
+            if tr is not None:
+                notes.append(f"斜めの入隅: 前の辺を {sum(si['spans'])} → {sum(tr)} に縮めて、後の辺の足場に当てない")
+                si["spans"] = tr
+        # 隅のアンチは両側の足場の端の支柱の間に掛ける（利用者の指定 2026-10-31: 支柱と支柱の間にしてね 近すぎる時は足場の
+        # スパンを下げて渡れるように）。支柱が近すぎて最短のアンチも入らない列があれば、前の足場の最後のスパンを下げる
+        anti = anti_lengths(coins)
+        tb = between_trim(si, sj, coins, cn["c"], cn["convex"], ROW_W.get(int(si["thick_mm"]), 914.0),
+                          ROW_W.get(int(sj["thick_mm"]), 914.0), anti)
+        if tb is not None:
+            notes.append(f"斜めの角: 支柱が近くて隅にアンチが入らないので、前の辺の最後のスパンを {span_text(si['spans'])} → "
+                         f"{span_text(tb)} に下げて、支柱の間を広げました")
+            si["spans"] = tb
     first = {ch[0]: k for k, (ch, closed) in enumerate(chains) if not closed}
     last = {ch[-1]: k for k, (ch, closed) in enumerate(chains) if not closed}
     if corner_info is not None:
@@ -445,7 +454,7 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
     ようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか）."""
     import csv
 
-    from ashiba.box import DECK_TOP_MM, corner_fill, corner_layout, corner_quantities
+    from ashiba.box import between_quantities, LEDGER_R_MM, MIN_HOLE_MM, anti_lengths, between_layout, corner_fill, corner_quantities
     from ashiba.pens import gdl_pens, parse_pens
 
     sides = info["sides"]
@@ -456,10 +465,13 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), CFILL_OBJECT)
     rows = []
-    for k, cn in enumerate(info["corners"], 1):
+    k = 0
+    for cn in info["corners"]:
         bi, bj = by_end.get(cn["i"]), by_start.get(cn["j"])
         if not bi or not bj or "solved" not in bi or "solved" not in bj:
+            print(f"  （隅の候補を飛ばしました: 辺 {cn['i']}→{cn['j']}。両側の足場が置けていない）")
             continue
+        k += 1
         si, sj = sides[cn["i"]], sides[cn["j"]]
         end_i = _chain_end(bi, sides)
         mi, mj = bi["solved"].model, bj["solved"].model
@@ -492,7 +504,14 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
             pass
         if old:
             c.delete_elements(old)
-        lay = corner_layout(fill, float(anti_l), 240.0)
+        lay = between_layout(fill, anti_lengths(mi.master.span_lengths()), si["dir"])
+        w = lay["w"]
+        sd = (-si["dir"][1], si["dir"][0])          # 列の幅の向き（アンチの左。外側の角から内側へ）
+        pl = [((o[0] - sd[0] * w, o[1] - sd[1] * w), L) for o, L in lay["planks"]]     # 外側の角を始めに（部品は左へ幅）
+        fills = []
+        for k, ((o, L), hole) in enumerate(zip(pl, lay["holes"])):
+            if hole > MIN_HOLE_MM:
+                fills.append(((o[0] + si["dir"][0] * (L - 100.0), o[1] + si["dir"][1] * (L - 100.0)), hole + 150.0))
         (el,) = c.create_objects([(R.versioned_part_name(CFILL_OBJECT), cx, cy)])
         poly = fill["poly"]
         c.set_gdl_parameters(el, {**pens,
@@ -500,23 +519,24 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
                                   "polyY": ",".join(f"{p[1] - cy:.0f}" for p in poly),
                                   "railE": ",".join(str(r) for r in fill["rail"]),
                                   "levList": ",".join(f"{base + h:.0f}" for h in lv),
-                                  "deckKind": 1, "antiL": lay["anti_l"] / 1000.0, "cName": f"隅のつなぎ{k}",
-                                  # アンチは本足場のアンチの上に重ねて載せ、受けの単管はすき間の中だけ（利用者の指定 2026-10-31）
-                                  "plkX": ",".join(f"{q[0] - cx:.0f}" for q in lay["planks"]),
-                                  "plkY": ",".join(f"{q[1] - cy:.0f}" for q in lay["planks"]),
-                                  "plkAng": lay["ang"], "deckTop": DECK_TOP_MM / 1000.0,
-                                  "supX0": ",".join(f"{s[0][0] - cx:.0f}" for s in lay["supports"]),
-                                  "supY0": ",".join(f"{s[0][1] - cy:.0f}" for s in lay["supports"]),
-                                  "supX1": ",".join(f"{s[1][0] - cx:.0f}" for s in lay["supports"]),
-                                  "supY1": ",".join(f"{s[1][1] - cy:.0f}" for s in lay["supports"])})
+                                  "deckKind": 1, "antiW": w / 1000.0, "cName": f"隅のつなぎ{k}",
+                                  # アンチは両側の足場の端の支柱の間（端の布材に掛ける。利用者の指定 2026-10-31）。上面は
+                                  # 本足場の床とそろう（下面＝布材の上 21.35）。残りの三角は足場板を切って重ねる
+                                  "plkX": ",".join(f"{o[0] - cx:.0f}" for o, _L in pl),
+                                  "plkY": ",".join(f"{o[1] - cy:.0f}" for o, _L in pl),
+                                  "plkL": ",".join(f"{L:.0f}" for _o, L in pl),
+                                  "plkAng": lay["ang"], "deckTop": LEDGER_R_MM / 1000.0,
+                                  "fbX": ",".join(f"{o[0] - cx:.0f}" for o, _L in fills),
+                                  "fbY": ",".join(f"{o[1] - cy:.0f}" for o, _L in fills),
+                                  "fbL": ",".join(f"{L:.0f}" for _o, L in fills),
+                                  "supX0": "", "supY0": "", "supX1": "", "supY1": ""})
         turn = math.degrees(math.acos(max(-1.0, min(1.0, si["dir"][0] * sj["dir"][0] + si["dir"][1] * sj["dir"][1]))))
-        ns = len(lay["supports"])
-        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、アンチ {lay['anti_l']:.0f} を"
-              f"渡る向きに {len(lay['planks'])}枚ずつ、両側の本足場のアンチの上に重ねて載せ" + (f"（すき間の中は単管の受け {ns}本）" if ns else "")
+        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、両側の足場の端の支柱の間に"
+              f"アンチ（{'・'.join(f'{L:.0f}' for _o, L in pl)}）を掛け" + (f"、残りの三角に足場板 {len(fills)}枚" if fills else "")
               + "、単管の上桟・中桟・幅木・自在クランプを置きました（両側の足場の角の側の妻側の手すりは外す）")
         if len(lv_i) != len(lv_j):
             print(f"    注意: 両側の足場の段数が違う（{len(lv_i)}段・{len(lv_j)}段）ので、少ない方の {len(lv)}段にしました")
-        for item, q, note in corner_quantities(fill, len(lv), "アンチ", anti_l, layout=lay):
+        for item, q, note in between_quantities(pl, fills, fill, len(lv)):
             rows.append((f"隅のつなぎ{k}", item, q, note))
             print(f"    {item} {q} — {note}")
     if rows:

@@ -40,6 +40,10 @@ def paramlist() -> str:
         _param("String", "plkX", "アンチの外の辺側の始めの角の x（原点から mm。空なら外の辺の中点から並べる）", ""),
         _param("String", "plkY", "同 y", ""),
         _param("RealNum", "plkAng", "アンチの向き（度。外の辺の向き）", 0),
+        _param("String", "plkL", "アンチの長さ（列ごと mm。空なら antiL）", ""),
+        _param("String", "fbX", "残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）", ""),
+        _param("String", "fbY", "同 y", ""),
+        _param("String", "fbL", "同 長さ（mm）", ""),
         _param("String", "supX0", "受けの単管の始めの x（原点から mm）", ""),
         _param("String", "supY0", "同 y", ""),
         _param("String", "supX1", "受けの単管の終わりの x", ""),
@@ -140,10 +144,19 @@ pAng = eAng
 """
              + _parse_all("plkX", "qx", "nQx") + _parse_all("plkY", "qy", "nQy")
              + _parse_all("supX0", "s0x", "nS") + _parse_all("supY0", "s0y", "nS2")
-             + _parse_all("supX1", "s1x", "nS3") + _parse_all("supY1", "s1y", "nS4") + """if nQy < nQx then nQx = nQy
+             + _parse_all("supX1", "s1x", "nS3") + _parse_all("supY1", "s1y", "nS4")
+             + _parse_all("plkL", "qL", "nQL") + _parse_all("fbX", "fx", "nF") + _parse_all("fbY", "fy", "nF2")
+             + _parse_all("fbL", "fL", "nF3") + """nF = min(nF, min(nF2, nF3))
+for i = 1 to nPl
+	if i > nQL then qL[i] = antiL
+next i
+if nQy < nQx then nQx = nQy
 if nQx > 0 then
 	nPl = nQx
 	pAng = plkAng
+	for i = 1 to nPl
+		if i > nQL then qL[i] = antiL
+	next i
 else
 	for i = 1 to nPl
 		qx[i] = mx - ux * antiL / 2 + (-uy) * antiW * (i - 1)
@@ -182,7 +195,7 @@ next k
 for i = 1 to nPl
 	add2 qx[i], qy[i]
 	rot2 pAng
-	rect2 0, 0, antiL, antiW
+	rect2 0, 0, qL[i], antiW
 	del 2
 next i
 ! 受けの単管（破線）
@@ -209,6 +222,7 @@ define material "cf_steel" 2, 0.62, 0.62, 0.66
 define material "cf_toe" 2, 0.55, 0.55, 0.58
 define material "cf_clamp" 2, 0.50, 0.55, 0.66
 define material "cf_bolt" 2, 0.30, 0.30, 0.32
+define material "cf_wood" 2, 0.76, 0.60, 0.40
 r = 0.0243
 rP = 0.0243
 offR = rP + r
@@ -220,14 +234,22 @@ for i = 1 to nL
 	for j = 1 to nPl
 		add qx[j], qy[j], z + zD
 		rotz pAng
-		block antiL, antiW - 0.005, deckT
-		! 両端のつめ
+		block qL[j], antiW - 0.005, deckT
+		! 両端のつめ（受けの布材・単管に掛かる）
 		add 0, 0.02, -0.02
 		block 0.01, antiW - 0.045, 0.02
 		del 1
-		add antiL - 0.01, 0.02, -0.02
+		add qL[j] - 0.01, 0.02, -0.02
 		block 0.01, antiW - 0.045, 0.02
 		del 1
+		del 2
+	next j
+	! ---- 残りのすき間をふさぐ足場板（斜めの受けとアンチの先の三角。アンチの先に 100 重ねて載せる） ----
+	material "cf_wood"
+	for j = 1 to nF
+		add fx[j], fy[j], z + zD + deckT
+		rotz pAng
+		block fL[j], antiW - 0.01, 0.028
 		del 2
 	next j
 	! ---- 受けの単管（すき間の中だけ）と、両端の自在クランプ（本足場の端の布材と交差） ----

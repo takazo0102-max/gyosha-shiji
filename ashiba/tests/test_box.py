@@ -9,7 +9,7 @@ from _path import SRC  # noqa: F401
 
 from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame, chain_sides, contains, orient_path,
                         parse_box_params, rotate_pt, to_local, band, corner_fill, corner_quantities, joined_ends,
-                        oblique_corners, trim_for_corner, corner_layout,
+                        oblique_corners, trim_for_corner, corner_layout, between_layout, between_trim,
                         default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
                         thickness_conditions)
@@ -469,6 +469,41 @@ class TestGapBoardsAndCorners(unittest.TestCase):
         self.assertEqual(sum(l.qty for l in one.quantity.lines if l.part.category == "すき間板"), 0)
         off = solve_all({**base, "scaffold_width_mm": 900, "gap_boards": False})
         self.assertEqual(sum(l.qty for l in off.quantity.lines if l.part.category == "すき間板"), 0)
+
+
+
+class TestBetweenPosts(unittest.TestCase):
+    """隅のアンチは両側の足場の端の支柱の間に（利用者の指定 2026-10-31: 支柱と支柱の間にしてね 近すぎる時は足場のスパンを下げて
+    渡れるように工夫してね）."""
+
+    ANTI = (610, 914, 1219, 1524, 1829)
+
+    def _case(self, deg, convex):
+        dj = side_axis(math.radians(deg))
+        a = (5500.0, 0.0)
+        s0 = {"a": (0.0, 0.0), "dir": (1.0, 0.0), "spans": [1829, 1829, 1829], "thick_mm": 900}
+        s1 = {"a": a, "dir": dj, "spans": [1829, 1524, 610], "thick_mm": 900}
+        if not convex:
+            s0["spans"] = trim_for_corner(s0, s1, INCH) or s0["spans"]
+        return s0, s1, a
+
+    def test_too_close_lowers_the_last_span(self):
+        for deg, convex, want in ((60, True, [1829, 1829, 1219]), (-60, False, [1829, 1524])):
+            with self.subTest(deg=deg):
+                s0, s1, a = self._case(deg, convex)
+                tb = between_trim(s0, s1, INCH, a, convex, 914.0, 914.0, self.ANTI)
+                self.assertEqual(tb, want)
+                f = corner_fill((float(sum(tb)), 0.0), (1.0, 0.0), 914.0, a, s1["dir"], 914.0, a, convex)
+                lay = between_layout(f, self.ANTI, (1.0, 0.0))
+                self.assertTrue(lay["ok"])
+                self.assertEqual(len(lay["planks"]), 4)                       # 足場の幅 914 を4列
+                self.assertTrue(all(L in self.ANTI for _o, L in lay["planks"]))
+                self.assertAlmostEqual(lay["ang"], 0.0)                       # 前の足場の向き（前の端の布材に直角に掛ける）
+
+    def test_wide_enough_needs_no_trim(self):
+        s0, s1, a = self._case(60, True)
+        s0["spans"] = [1829, 1829, 1219]
+        self.assertIsNone(between_trim(s0, s1, INCH, a, True, 914.0, 914.0, self.ANTI))
 
 
 if __name__ == "__main__":

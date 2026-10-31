@@ -841,3 +841,115 @@ def corner_layout(fill: dict, anti_l: float = 914.0, anti_w: float = 240.0) -> d
         if len(ts) >= 2 and ts[-1] - ts[0] >= 150.0:                     # 150 未満はアンチが本足場の床に載るので要らない
             sups.append(((p0[0] + nI[0] * ts[0], p0[1] + nI[1] * ts[0]), (p0[0] + nI[0] * ts[-1], p0[1] + nI[1] * ts[-1])))
     return {"planks": planks, "ang": math.degrees(math.atan2(u[1], u[0])), "anti_l": L, "supports": sups}
+
+# ---- 隅のアンチを支柱と支柱の間に（利用者の指定 2026-10-31: 支柱と支柱の間にしてね 近すぎる時は足場のスパンを下げて渡れるように
+# 工夫してね）----
+# 両側の足場の端の支柱の間に単管の受けを2本（前の足場の終わりの2本の支柱・後の足場の始めの2本の支柱を結ぶ線に沿って。両端を
+# 支柱に自在クランプ）渡し、外の支柱どうしを結ぶ線に平行にアンチを外から 240 ずつ並べて両端を受けに掛ける。斜めの角は受けが
+# 平行でないので列ごとに長さが違う: その列に入るいちばん長い定尺（両端のつめが受けに掛かるよう列の長さ＋HOOK_REACH_MM まで）。
+# 外の列に最短のアンチも入らないほど支柱が近いときは、前の足場の最後のスパンを下げてすき間を広げる（between_trim）。
+
+HOOK_REACH_MM = 40.0       # アンチのつめが受けの単管に掛かる分（列の長さよりこれだけ長くてよい）
+MIN_HOLE_MM = 30.0         # これを超える残りのすき間は、すき間板（足場板を切って番線止め）でふさぐ（安衛則563条 床材間 3cm）
+
+
+def between_layout(fill: dict, anti_lengths: tuple, di, anti_w: float = 240.0) -> dict:
+    """隅のつなぎの、支柱の間に掛けるアンチの並び（世界座標 mm）.
+
+    受けの単管は2本: 前の足場の終わりの2本の支柱を結ぶ線と、後の足場の始めの2本の支柱を結ぶ線（両端を支柱に自在クランプ）。
+    アンチは前の足場の向き di に、前の足場の幅を 240 前後の列に分けて並べ、手前のつめを前の受けに、先のつめを後の受けに掛ける。
+    長さは列の中心での受けから受けまでに入るいちばん長い定尺（＋HOOK_REACH_MM まで）。後の受けは斜めなので列の両側で長さが
+    違い、その差が残りのすき間になる（MIN_HOLE_MM を超えればすき間板）.
+    → {"planks": [((x, y) 手前の内側の角, 長さ)], "ang": アンチの向き（度）, "w": 列の幅, "supports": [((x, y), (x, y))],
+       "holes": [列ごとの残りのすき間 mm], "short": いちばん短い列の長さ, "ok": どの列にもアンチが入るか}"""
+    walk = fill.get("walk")
+    if not walk or len(walk) < 5:
+        return {"planks": [], "ang": 0.0, "w": anti_w, "supports": [], "holes": [], "short": 0.0, "ok": False}
+    (pi, qi), (pj, qj) = walk[3], walk[4]
+    wi = math.dist(pi, qi) or 1.0
+    s_dir = ((qi[0] - pi[0]) / wi, (qi[1] - pi[1]) / wi)          # 内側の支柱から外側の支柱へ
+    tj = (qj[0] - pj[0], qj[1] - pj[1])
+    std = sorted(int(v) for v in anti_lengths)
+
+    def reach(s):
+        o = (pi[0] + s_dir[0] * s, pi[1] + s_dir[1] * s)
+        x = _cross_line(o, di, pj, tj)
+        return None if x is None else (x[0] - o[0]) * di[0] + (x[1] - o[1]) * di[1]
+
+    planks, holes, short, ok = [], [], 1e9, True
+    n = max(1, int(round(wi / anti_w)))
+    w = wi / n
+    for k in range(n):
+        ra, rb, rc = reach(k * w), reach((k + 1) * w), reach((k + 0.5) * w)
+        if ra is None or rb is None or rc is None:
+            ok = False
+            continue
+        short = min(short, rc)
+        fit = [v for v in std if v <= rc + HOOK_REACH_MM]
+        if not fit:
+            ok = False
+            holes.append(max(ra, rb))
+            continue
+        L = float(fit[-1])
+        o = (pi[0] + s_dir[0] * k * w, pi[1] + s_dir[1] * k * w)
+        planks.append(((o[0], o[1]), L))
+        holes.append(max(ra, rb) - L)
+    sups = [((pi[0] - di[0] * TUBE_R_MM, pi[1] - di[1] * TUBE_R_MM), (qi[0] - di[0] * TUBE_R_MM, qi[1] - di[1] * TUBE_R_MM)),
+            ((pj[0], pj[1]), (qj[0], qj[1]))]
+    return {"planks": planks, "ang": math.degrees(math.atan2(di[1], di[0])), "w": w, "supports": sups, "holes": holes,
+            "short": 0.0 if short == 1e9 else short, "ok": ok}
+
+
+def between_trim(si: dict, sj: dict, coins: list[int], c, convex: bool, wi: float, wj: float,
+                 anti_lengths: tuple) -> Optional[list[int]]:
+    """支柱が近すぎて、隅のすき間の列に最短のアンチも入らないとき、前の足場の最後のスパンを下げた（短くした）スパン（入るように
+    なるまで。下げても入らなければ None）. そのままで入るなら None."""
+    def ok(spans):
+        L = float(sum(spans))
+        end = (si["a"][0] + si["dir"][0] * L, si["a"][1] + si["dir"][1] * L)
+        f = corner_fill(end, si["dir"], wi, sj["a"], sj["dir"], wj, c, convex)
+        return between_layout(f, anti_lengths, si["dir"])["ok"]
+
+    if ok(si["spans"]):
+        return None
+    sp = list(si["spans"])
+    cs = sorted({int(v) for v in coins}, reverse=True)
+    for _ in range(12):
+        smaller = [v for v in cs if v < sp[-1]]
+        if smaller:
+            sp[-1] = smaller[0]
+        elif len(sp) > 1:
+            sp = sp[:-1]
+        else:
+            return None
+        if ok(sp):
+            return sp
+    return None
+
+
+LEDGER_R_MM = 21.35       # 布材・腕木 φ42.7 の半径（アンチの下面＝段の高さ＋これ。本足場の布板と同じ）
+
+
+def anti_lengths(coins) -> tuple:
+    """系列の定尺（スパン）→ 隅に掛けるアンチの長さの候補（610 以上）."""
+    return tuple(sorted({int(v) for v in coins if int(v) >= 600}))
+
+
+def between_quantities(planks: list, fills: list, fill: dict, levels: int) -> list[tuple[str, int, str]]:
+    """支柱の間に掛ける隅のつなぎ1か所の材料の目安 → [(品名, 数, 注)]."""
+    from collections import Counter
+
+    poly = fill["poly"]
+    k = fill["rail"][0]
+    edge = math.dist(poly[k], poly[(k + 1) % len(poly)])
+    tube = next((L for L in (1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000) if L >= edge + 600.0), 6000)
+    out = [(f"アンチ {L}", n * levels, "両側の足場の端の布材に掛ける") for L, n in sorted(Counter(int(L) for _o, L in planks).items())]
+    if fills:
+        out.append(("足場板 4m（切って使う）", math.ceil(sum(L for _o, L in fills) / 3800.0) * levels,
+                    f"アンチの先の三角のすき間 {len(fills)}か所に、アンチに 100 重ねて番線止め"))
+    out += [(f"単管 {tube / 1000:.1f}m（手すり 上桟・中桟）", 2 * levels, f"外の辺 {edge:.0f}。両側の足場の支柱に 300 ずつ掛ける"),
+            ("自在クランプ", 4 * levels, "手すり2本の両端を支柱に"),
+            (f"幅木（足場板 {tube / 1000:.1f}m）", levels, "外の辺")]
+    if edge > 1850.0:
+        out.append(("単管の支柱（ジャッキ・敷板とも）", 1, f"外の辺 {edge:.0f} が 1800 を超えるので中間に1本"))
+    return out

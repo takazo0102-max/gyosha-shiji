@@ -231,10 +231,89 @@ while strlen(rest) > 0 do
 		s1y[nS4] = v / 1000
 	endif
 endwhile
+dim qL[]
+nQL = 0
+rest = plkL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQL = nQL + 1
+		qL[nQL] = v / 1000
+	endif
+endwhile
+dim fx[]
+nF = 0
+rest = fbX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nF = nF + 1
+		fx[nF] = v / 1000
+	endif
+endwhile
+dim fy[]
+nF2 = 0
+rest = fbY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nF2 = nF2 + 1
+		fy[nF2] = v / 1000
+	endif
+endwhile
+dim fL[]
+nF3 = 0
+rest = fbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nF3 = nF3 + 1
+		fL[nF3] = v / 1000
+	endif
+endwhile
+nF = min(nF, min(nF2, nF3))
+for i = 1 to nPl
+	if i > nQL then qL[i] = antiL
+next i
 if nQy < nQx then nQx = nQy
 if nQx > 0 then
 	nPl = nQx
 	pAng = plkAng
+	for i = 1 to nPl
+		if i > nQL then qL[i] = antiL
+	next i
 else
 	for i = 1 to nPl
 		qx[i] = mx - ux * antiL / 2 + (-uy) * antiW * (i - 1)
