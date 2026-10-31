@@ -46,6 +46,13 @@ def paramlist() -> str:
         _param("String", "slU1", "敷き桟木の終わりの u", ""),
         _param("String", "slV", "敷き桟木の v", ""),
         _param("String", "tieZ", "根がらみ・水平つなぎの高さ（床から mm）", ""),
+        # 大筋かい（利用者の指定 2026-10-31: 筋かいも足して）: 始めの点（u・v・床からの z）と向き（方位・鉛直からの角）・長さ
+        _param("String", "brU", "大筋かいの始めの u（mm）", ""),
+        _param("String", "brV", "大筋かいの始めの v（mm）", ""),
+        _param("String", "brZ", "大筋かいの始めの高さ（床から mm）", ""),
+        _param("String", "brAz", "大筋かいの方位（度×1000）", ""),
+        _param("String", "brPo", "大筋かいの鉛直からの角（度×1000）", ""),
+        _param("String", "brL", "大筋かいの長さ（mm）", ""),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
         _param("String", "cName", "名前（平面の注記）", "スラブ型枠"),
         _param("String", "cNote", "間隔の注記", ""),
@@ -67,12 +74,16 @@ SCRIPT_1D = ("﻿! スラブの型枠と支保工: 位置を読む（m）\n"
              + _parse_all("neU", "nu", "nN") + _parse_all("neV0", "nv0", "nN0") + _parse_all("neV1", "nv1", "nN1")
              + _parse_all("obV", "ov", "nO") + _parse_all("obU0", "ou0", "nO0") + _parse_all("obU1", "ou1", "nO1")
              + _parse_all("psU", "su", "nP") + _parse_all("psV", "sv", "nP2") + _parse_all("tieZ", "tz", "nZ")
+             + _parse_all("brU", "bu", "nB") + _parse_all("brV", "bv", "nB2") + _parse_all("brZ", "bz", "nB3")
+             + _parse_all("brAz", "baz", "nB4") + _parse_all("brPo", "bpo", "nB5") + _parse_all("brL", "bl", "nB6")
              + "! 配列の名前はパラメータと大文字・小文字だけ違うものにしない（GDL は大文字・小文字を区別しない。slV と slv で部品が読めなくなった）\n"
              + _parse_all("slU0", "sl0", "nL0") + _parse_all("slU1", "sl1", "nL1") + _parse_all("slV", "slw", "nL")
              + """! ringN は点の数（mm でなく数）。_parse_all が 1000 で割るので戻す
 for k = 1 to nR
 	rn[k] = round_int(rn[k] * 1000)
 next k
+! 大筋かいの角は度×1000 で渡す（_parse_all が 1000 で割るので度になる）
+nB = min(nB, min(nB2, min(nB3, min(nB4, min(nB5, nB6)))))
 r = 0.0243
 ! 根太 角パイプ □50×50、大引 杉 90×90（スラブ・梁下の詳細図。利用者の指定 2026-10-31）
 nH = 0.05
@@ -180,6 +191,15 @@ for i = 1 to min(nL, min(nL0, nL1))
 	add sl0[i], slw[i] - sillW / 2, zS
 	block sl1[i] - sl0[i], sillW, sillH
 	del 1
+next i
+! ---- 大筋かい（単管。支柱の列の鉛直面に X。自在クランプで支柱に留める） ----
+material "sf_steel"
+for i = 1 to nB
+	add bu[i], bv[i], zS + bz[i]
+	rotz baz[i]
+	roty bpo[i]
+	cylind bl[i], r
+	del 3
 next i
 ! ---- 水平つなぎ（2方向。支柱の列ごと） ----
 material "sf_steel"

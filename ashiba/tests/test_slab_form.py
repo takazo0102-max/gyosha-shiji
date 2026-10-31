@@ -97,6 +97,31 @@ class TestSlabLayout(unittest.TestCase):
         self.assertEqual(plan_beam(6000, 600, 900, 150, post_h_mm=3600.0).ps_allow, 19.6)   # 3.4m 超は水平つなぎで連係あり
 
 
+class TestBraces(unittest.TestCase):
+    """大筋かい（利用者の指定 2026-10-31: 筋かいも足して）: 水平荷重 5% を自在クランプ 3.43kN×cosθ の単管で受ける."""
+
+    def test_enough_braces_each_way(self):
+        outline = [(0.0, 0.0), (6000.0, 0.0), (6000.0, 5600.0), (0.0, 5600.0)]
+        f = plan_slab(outline, 180, 2820, 0)
+        for d in ("u", "v"):
+            bi = f.brace_info[d]
+            self.assertAlmostEqual(bi["H"], 0.05 * f.q * bi["area"])
+            self.assertGreaterEqual(bi["have"], bi["need"])
+            self.assertEqual(bi["have"] % 2, 0)                              # X（2本）で入れる
+        self.assertTrue(any("大筋かい（大引の向き）" in ln and "可" in ln for ln in f.lines()))
+        names = {n for n, _k, _x in f.quantities()}
+        self.assertIn("自在クランプ（大筋かい）", names)
+        self.assertTrue(any(n.startswith("単管") and "大筋かい" in n for n in names))
+        u0, v0, z0, u1, v1, z1 = f.braces[0]
+        self.assertEqual(z0, 200.0)                                          # 根がらみの高さから
+        self.assertAlmostEqual(max(z0, z1), 45.0 + f.post_h - 150.0)         # 支柱の天端の 150 下まで
+
+    def test_heavier_slab_needs_more(self):
+        outline = [(0.0, 0.0), (9000.0, 0.0), (9000.0, 7200.0), (0.0, 7200.0)]
+        thin, thick = plan_slab(outline, 150, 2820, 0), plan_slab(outline, 400, 2820, 0)
+        self.assertGreater(thick.brace_info["u"]["need"], thin.brace_info["u"]["need"])
+
+
 class TestMakerTable(unittest.TestCase):
     """パイプサポートの許容支持力（利用者の指定 2026-10-31: パイプサポートの許容荷重はメーカー表に合わせて）.
     岡部 フラワーサポート／パイプサポート（仮設工業会認定品）のカタログの表."""

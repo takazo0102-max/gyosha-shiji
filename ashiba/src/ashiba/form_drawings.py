@@ -95,6 +95,9 @@ svg text { font-family: "Hiragino Sans", sans-serif; }
 .obk { fill: #d9a56b; stroke: #6b4320; stroke-width: 0.1; }
 .cut { stroke: #000; stroke-width: 0.25; stroke-dasharray: 4 1 0.6 1; fill: none; }
 .mark { fill: #fff; stroke: #000; stroke-width: 0.25; }
+.brace { stroke: #7b2d8b; stroke-width: 0.3; stroke-dasharray: 1.2 0.6; fill: none; }
+.bracel { stroke: #555; stroke-width: 0.45; fill: none; }
+.grid { stroke: #555; stroke-width: 0.15; stroke-dasharray: 4 1 0.6 1; fill: none; }
 table { border-collapse: collapse; }
 """
 
@@ -162,6 +165,42 @@ def _fit(points, box_w, box_h):
         if w / s <= box_w and h / s <= box_h:
             return s, (min(xs), min(ys), max(xs), max(ys))
     return SCALES[-1], (min(xs), min(ys), max(xs), max(ys))
+
+
+GRID_MERGE_MM = 150.0                  # これより近い芯は同じ通り
+
+
+def grid_lines(plan: dict) -> list[dict]:
+    """通り芯（利用者の指定 2026-10-31: 通り芯も足して）: Archicad の通り芯は Tapir で読めないので、柱の芯と、まっすぐな壁
+    （縦・横）の芯から作る. [{"name": "X1", "axis": "x", "pos": mm}]（X は左から、Y は下から）."""
+    xs, ys = [], []
+    for c in plan.get("columns", []):
+        xs.append(float(c["c"][0]))
+        ys.append(float(c["c"][1]))
+    for w in plan.get("walls", []):
+        u, n = w["u"], w["n"]
+        off = (w["lo"] + w["hi"]) / 2.0
+        if abs(u[0]) > 0.999:                      # 横の壁 → Y の通り
+            ys.append(float(w["ca"][1] + n[1] * off))
+        elif abs(u[1]) > 0.999:                    # 縦の壁 → X の通り
+            xs.append(float(w["ca"][0] + n[0] * off))
+
+    def merge(vals):
+        out = []
+        for v in sorted(vals):
+            if out and v - out[-1][-1] <= GRID_MERGE_MM:
+                out[-1].append(v)
+            else:
+                out.append([v])
+        return [sum(g) / len(g) for g in out]
+
+    return ([{"name": f"X{k}", "axis": "x", "pos": v} for k, v in enumerate(merge(xs), 1)]
+            + [{"name": f"Y{k}", "axis": "y", "pos": v} for k, v in enumerate(merge(ys), 1)])
+
+
+def _bubble(x: float, y: float, name: str) -> str:
+    return (f'<circle cx="{x:.2f}" cy="{y:.2f}" r="2.8" class="mark"/>'
+            f'<text x="{x:.2f}" y="{y + 0.9:.2f}" class="ts" text-anchor="middle">{ESC(name)}</text>')
 
 
 def _local(s: dict):
@@ -267,6 +306,12 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
             out.append(line(W((u, v0)), W((u, v1)), "neda"))
         for u0, u1, v in s["obiki"]:
             out.append(band(W, (u0, v), (u1, v), 45.0, "obk"))
+        # 大筋かい（支柱の列の鉛直面。平面では列に沿った破線）
+        for b_ in s.get("braces", []):
+            out.append(line(W((b_[0], b_[1])), W((b_[3], b_[4])), "brace"))
+        if s.get("braces"):
+            b_ = s["braces"][-1]
+            labels.append((P(W(((b_[0] + b_[3]) / 2, (b_[1] + b_[4]) / 2))), "大筋かい：単管 φ48.6（自在クランプ）"))
         for p in s["posts"]:
             x, y = P(W(p))
             out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{r:.2f}" class="ps"/>'
@@ -374,6 +419,23 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
         m = ((w["ca"][0] + w["cb"][0]) / 2.0, (w["ca"][1] + w["cb"][1]) / 2.0)
         x, y = P(m)
         out.append(f'<text x="{x:.1f}" y="{y - 2:.1f}" class="ts">{ESC(w["name"])} t{w["thick"]:.0f}</text>')
+    # 通り芯（一点鎖線。X は上、Y は左に記号。芯どうしの寸法）
+    grids = grid_lines(plan)
+    gx = sorted(g["pos"] for g in grids if g["axis"] == "x" and x0 <= g["pos"] <= x1)
+    gy = sorted(g["pos"] for g in grids if g["axis"] == "y" and y0 <= g["pos"] <= y1)
+    for g in grids:
+        if g["axis"] == "x" and x0 <= g["pos"] <= x1:
+            out.append(line((g["pos"], y0 + 200.0), (g["pos"], y1 - 200.0), "grid"))
+            bx, by = P((g["pos"], y1 - 200.0))
+            out.append(_bubble(bx, by - 2.8, g["name"]))
+        elif g["axis"] == "y" and y0 <= g["pos"] <= y1:
+            out.append(line((x0 + 200.0, g["pos"]), (x1 - 200.0, g["pos"]), "grid"))
+            bx, by = P((x0 + 200.0, g["pos"]))
+            out.append(_bubble(bx - 2.8, by, g["name"]))
+    if len(gx) >= 2:
+        out.append(_chain([P((v, y1 - 200.0)) for v in gx], _pitch_texts(gx), 9.0))
+    if len(gy) >= 2:
+        out.append(_chain([P((x0 + 200.0, v)) for v in gy], _pitch_texts(gy), 9.0))
     out.append("</g>")
     # 引出し（右の欄。指す所の高さの順に並べて線を交わらせない）
     lab_x = ox + (x1 - x0) / scale + 4.0
@@ -384,7 +446,8 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
     lx = PAGE_W - MARGIN - 100.0
     leg = [("○", "パイプサポート（スラブ下）"), ("□", "パイプサポート（梁下）"), ("▬", "大引 杉 90×90"),
            ("─", "根太 角パイプ □50×50×2.3 @300（細線）"), ("━", "敷き桟木 45×60（寝かせる）"), ("- - -", "梁（スラブの下）"),
-           ("■", "壁・柱"), ("─・─", "断面の切る位置（a－a・b－b は2枚目）")]
+           ("■", "壁・柱"), ("─・─", "断面の切る位置（a－a・b－b は2枚目）"), ("○X1", "通り芯（柱・壁の芯から）"),
+           ("- - -（紫）", "大筋かい 単管（列の鉛直面に X）")]
     out.append(f'<text x="{lx}" y="{MARGIN + 18}" class="h2">凡例</text>')
     for k, (sym, t_) in enumerate(leg):
         out.append(f'<text x="{lx}" y="{MARGIN + 25 + k * 4.5}" class="t">{ESC(sym)}　{ESC(t_)}</text>')
@@ -408,6 +471,7 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
     # 部材表
     mats = [("せき板", "型枠用合板 12mm"), ("根太", "角パイプ □50×50×2.3 @300"), ("大引", "杉 90×90 @900"),
             ("支柱", "パイプサポート（上端 釘止め）"), ("敷き桟木", "45×60 寝かせ"), ("根がらみ", "単管 φ48.6×2.4（2方向）"),
+            ("大筋かい", "単管 φ48.6×2.4・自在クランプ（水平荷重 5%）"),
             ("柱", "コラムクランプ（壁の取り付く柱は外端太・フォームタイ）"),
             ("壁・梁の側板", "桟木 45×60・外端太 単管φ48.6 2本組・フォームタイ W5/16")]
     out.append(f'<text x="{lx}" y="{y0:.1f}" class="h2">部材</text>')
@@ -534,6 +598,13 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
             for p in posts:                        # 直交する単管（断面）
                 out.append(f'<circle cx="{X(p + 60):.2f}" cy="{Y(zz + 55):.2f}" r="{max(0.3, 24.3 * k):.2f}" class="steel"/>')
             labels.append(((X(posts[-1] + 150), Y(zz)), t_))
+    # 大筋かい（切り口と平行な列の筋かいを立面に写す）
+    brs = [b_ for b_ in s.get("braces", []) if (abs(b_[1] - b_[4]) < 1.0 if h == 0 else abs(b_[0] - b_[3]) < 1.0)]
+    for b_ in brs:
+        out.append(f'<line x1="{X(b_[h]):.2f}" y1="{Y(floor + b_[2]):.2f}" x2="{X(b_[3 + h]):.2f}" y2="{Y(floor + b_[5]):.2f}" class="bracel"/>')
+    if brs:
+        b_ = brs[-1]
+        labels.append(((X((b_[h] + b_[3 + h]) / 2), Y(floor + (b_[2] + b_[5]) / 2)), "大筋かい：単管 φ48.6（自在クランプ・端の列）"))
     # 梁（切り口を横切る梁）: 側板・底板・梁下の根太・大引・支柱
     for b, a0, a1 in beams_cut:
         bb = b["bottom"]
@@ -559,6 +630,17 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
         labels.append(((X(c0), Y((bb + bottom) / 2)), f"梁 {b['name']}（{b['width']:.0f}×{b['depth']:.0f}）"))
         labels.append(((X(c0 + b["psY"]), Y((zs + zbo) / 2)), f"梁下パイプサポート（長さ {b['post_h']:.0f}）"))
         labels.append(((X(c0 + half - 40), Y(zbo + 45)), "梁下大引：杉 90×90"))
+    # 通り芯（切り口を横切るもの。記号は床の下）
+    for g in grid_lines(plan):
+        A = L((g["pos"], -1e7) if g["axis"] == "x" else (-1e7, g["pos"]))
+        B = L((g["pos"], 1e7) if g["axis"] == "x" else (1e7, g["pos"]))
+        if abs(B[q] - A[q]) < 1e-6:
+            continue                               # 切り口と平行
+        t_ = (cut - A[q]) / (B[q] - A[q])
+        hh = A[h] + (B[h] - A[h]) * t_
+        if hmin - 1200.0 <= hh <= hmax + 1200.0:
+            out.append(f'<line x1="{X(hh):.2f}" y1="{Y(top) - 2:.2f}" x2="{X(hh):.2f}" y2="{Y(floor) + 6:.2f}" class="grid"/>')
+            out.append(_bubble(X(hh), Y(floor) + 8.8, g["name"]))
     # 連続寸法: 上に支柱の割付ピッチ（スラブの端から）と全長、左に高さ、右に支柱の長さ・根がらみ
     if posts:
         pts = [hmin] + posts + [hmax]
@@ -581,7 +663,7 @@ def _section_cut(plan: dict, s: dict, h: int, x0: float, ytop: float, sc: float,
     for k_, ((x, y), t_) in enumerate(sorted(labels, key=lambda l_: l_[0][1])):
         out.append(_label(x, y, lab_x, ys - 6.0 + k_ * 4.6, t_))
     # 題
-    yb = max(Y(floor) + 10.0, ys - 6.0 + len(labels) * 4.6 + 2.0)
+    yb = max(Y(floor) + 17.0, ys - 6.0 + len(labels) * 4.6 + 2.0)     # 通り芯の記号の下
     out.append(f'<rect x="{X(hmin) - 2:.1f}" y="{yb - 4.2:.1f}" width="46" height="6" class="thin"/>'
                f'<text x="{X(hmin):.1f}" y="{yb:.1f}" class="h2">{name}断面図 S=1/{sc:.0f}</text>')
     return "".join(out), yb + 4.0

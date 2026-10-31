@@ -44,6 +44,12 @@ PS_MODELS = (("12S", 370.0, 505.0), ("50S", 1535.0, 2570.0), ("60S", 1780.0, 305
              ("90S", 2650.0, 3915.0))
 PS_AUX = (("4S", 1200.0), ("5S", 1500.0))
 TIE_PITCH_MM = 2000.0
+# 大筋かい（利用者の指定 2026-10-31: 筋かいも足して）: 支保工の上端に設計荷重の 5% の水平荷重（安衛則 240条）を、支柱の列の
+# 鉛直面に入れる単管の筋かいで受ける。筋かい1本の耐力は支柱に留める自在クランプ 3.43kN×cosθ（計画届作成の手引 p155 の
+# 「筋かい単管補強（3,430N／自在クランプ）」）。列の両端の升目に X に入れ、端の列から足りるまで列を足す
+H_LOAD_RATIO = 0.05
+BRACE_CLAMP_KN = 3.43
+BRACE_TOP_DOWN_MM = 150.0             # 筋かいの上端（支柱の天端から下げる）
 NEGARAMI_Z_MM = 200.0                 # 根がらみ（単管を支柱の列ごとに2方向。脚部の滑動を防ぐ）の高さ（床から。手引の例は 200）
 OBIKI_H_MM = 90.0                     # 大引（杉 90×90）のせい
 NEDA_D_MM = 50.0                      # 根太（角パイプ □50×50）のせい
@@ -206,6 +212,8 @@ class SlabForm:
     obiki: list = field(default_factory=list)   # 大引 [(u0, u1, v)]（u の向きの線分。v 一定）
     posts: list = field(default_factory=list)   # パイプサポート [(u, v)]
     ties: list = field(default_factory=list)    # 水平つなぎの高さ（床から mm）
+    braces: list = field(default_factory=list)  # 大筋かい [(u0, v0, z0, u1, v1, z1)]（z は床から mm）
+    brace_info: dict = field(default_factory=dict)   # 向きごとの {H, cap, need, have, bays, deg}
 
     @property
     def q(self) -> float:
@@ -246,6 +254,10 @@ class SlabForm:
         out = self.spacing.lines(self.q)
         out.append(f"パイプサポートの長さ {self.post_h:.0f}（型式 {ps_model(self.post_h)}）・{ps_condition(self.post_h, bool(self.ties))}"
                    + (f"・水平つなぎ {len(self.ties)}段" if self.ties else ""))
+        for d, bi in self.brace_info.items():
+            out.append(f"大筋かい（{'大引の向き' if d == 'u' else '大引に直角'}）: 水平荷重 {H_LOAD_RATIO * 100:.0f}%×{self.q:.2f}kN/m²×"
+                       f"{bi['area']:.1f}m²＝{bi['H']:.2f}kN ÷ 1本 {BRACE_CLAMP_KN}×cos{bi['deg']:.0f}°＝{bi['cap']:.2f}kN（自在クランプ）"
+                       f" → 要 {bi['need']}本・入れる {bi['have']}本（{bi['bays']}スパンにかけて X） {'可' if bi['have'] >= bi['need'] else '不可'}")
         return out
 
     def quantities(self) -> list[tuple[str, int, str]]:
@@ -271,6 +283,16 @@ class SlabForm:
         if self.posts:
             out.append(("単管（根がらみ・2方向）", n_u + n_v, f"床から {NEGARAMI_Z_MM:.0f}。延べは格子の長さ"))
             out.append(("直交クランプ（根がらみ）", 2 * len(self.posts), "支柱と根がらみ"))
+        if self.braces:
+            pieces = Counter()
+            clamps = 0
+            for u0, v0, z0, u1, v1, z1 in self.braces:
+                Ln = math.dist((u0, v0, z0), (u1, v1, z1))
+                pieces[max(1000, math.ceil(Ln / 500.0) * 500)] += 1
+                clamps += 1 + max(1, round(math.hypot(u1 - u0, v1 - v0) / min(self.spacing.su, self.spacing.sv)))
+            for L, n in sorted(pieces.items(), reverse=True):
+                out.append((f"単管 {L / 1000:.1f}m（大筋かい）", n, "支柱の列の鉛直面に X に入れる"))
+            out.append(("自在クランプ（大筋かい）", clamps, "筋かいと支柱（交わる支柱ごと）"))
         if self.ties:
             out.append(("単管（水平つなぎ・2方向）", len(self.ties) * (n_u + n_v), f"{len(self.ties)}段。延べは格子の長さ"))
             out.append(("直交クランプ（水平つなぎ）", 2 * len(self.ties) * len(self.posts), "支柱と水平つなぎ"))
@@ -323,7 +345,71 @@ def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: flo
             for x in _grid(s, e, sp.su, EDGE_MM - 50.0):
                 if _in_poly((x, y), outer) and not any(_in_poly((x, y), c) for c in clear):
                     posts.append((x, y))
-    return SlabForm(ang_deg, o, outer, holes, thick_mm, sp, post_h, neda, obiki, posts, ties)
+    f = SlabForm(ang_deg, o, outer, holes, thick_mm, sp, post_h, neda, obiki, posts, ties)
+    f.braces, f.brace_info = plan_braces(f)
+    return f
+
+
+def plan_braces(f: "SlabForm") -> tuple[list, dict]:
+    """大筋かい: 向きごとに要る本数＝ceil(水平荷重 ÷ 1本の耐力)。支柱の列（大引の向きは v の行、直角は u の列）の両端の升目に
+    X（2本）で入れ、端の行・列から足りるまで足す. 筋かいは根がらみの高さから支柱の天端の少し下まで、45°前後になる升目の数にかける."""
+    if not f.posts:
+        return [], {}
+    area = f.area_m2()
+    H = H_LOAD_RATIO * f.q * area
+    z0 = NEGARAMI_Z_MM
+    z1 = SILL_H_MM + f.post_h - BRACE_TOP_DOWN_MM
+    hgt = max(300.0, z1 - z0)
+    out, info = [], {}
+    for d, pitch in (("u", f.spacing.su), ("v", f.spacing.sv)):
+        a, b = (0, 1) if d == "u" else (1, 0)          # a: 筋かいの向きの座標、b: 行（列）の座標
+        rows: dict = {}
+        for p in f.posts:
+            rows.setdefault(round(p[b], 1), []).append(p[a])
+        keys = sorted(rows)
+        order = []
+        lo, hi = 0, len(keys) - 1                       # 端の行から交互に
+        while lo <= hi:
+            order.append(keys[lo])
+            if hi != lo:
+                order.append(keys[hi])
+            lo, hi = lo + 1, hi - 1
+        bays = max(1, round(hgt / pitch))
+        span = bays * pitch
+        cos = span / math.hypot(span, hgt)
+        cap = BRACE_CLAMP_KN * cos
+        need = max(2, math.ceil(H / cap))
+        have = 0
+        for key in order:
+            if have >= need:
+                break
+            xs = sorted(rows[key])
+            runs, cur = [], [xs[0]]
+            for x in xs[1:]:
+                if x - cur[-1] > pitch * 1.2:
+                    runs.append(cur)
+                    cur = [x]
+                else:
+                    cur.append(x)
+            runs.append(cur)
+            for run in runs:
+                m = min(bays, len(run) - 1)
+                if m < 1:
+                    continue
+                spots = [0] if len(run) - 1 < 2 * m else [0, len(run) - 1 - m]
+                for i in spots:
+                    if have >= need:
+                        break
+                    x0, x1 = run[i], run[i + m]
+                    for za, zb in ((z0, z1), (z1, z0)):
+                        if d == "u":
+                            out.append((x0, key + 60.0, za, x1, key + 60.0, zb))
+                        else:
+                            out.append((key + 60.0, x0, za, key + 60.0, x1, zb))
+                    have += 2
+        info[d] = {"H": H, "area": area, "cap": cap, "need": need, "have": have, "bays": bays,
+                   "deg": math.degrees(math.atan2(hgt, span))}
+    return out, info
 
 
 def _grow(poly: list, d: float) -> list:

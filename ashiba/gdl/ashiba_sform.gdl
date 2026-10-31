@@ -31,6 +31,12 @@
 !   slU1      文字列    敷き桟木の終わりの u                                        既定 ""
 !   slV       文字列    敷き桟木の v                                                既定 ""
 !   tieZ      文字列    根がらみ・水平つなぎの高さ（床から mm）                     既定 ""
+!   brU       文字列    大筋かいの始めの u（mm）                                    既定 ""
+!   brV       文字列    大筋かいの始めの v（mm）                                    既定 ""
+!   brZ       文字列    大筋かいの始めの高さ（床から mm）                           既定 ""
+!   brAz      文字列    大筋かいの方位（度×1000）                                   既定 ""
+!   brPo      文字列    大筋かいの鉛直からの角（度×1000）                           既定 ""
+!   brL       文字列    大筋かいの長さ（mm）                                        既定 ""
 !   plyT      長さ      せき板の厚さ                                                既定 0.012
 !   cName     文字列    名前（平面の注記）                                          既定 "スラブ型枠"
 !   cNote     文字列    間隔の注記                                                  既定 ""
@@ -258,6 +264,114 @@ while strlen(rest) > 0 do
 		tz[nZ] = v / 1000
 	endif
 endwhile
+dim bu[]
+nB = 0
+rest = brU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB = nB + 1
+		bu[nB] = v / 1000
+	endif
+endwhile
+dim bv[]
+nB2 = 0
+rest = brV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB2 = nB2 + 1
+		bv[nB2] = v / 1000
+	endif
+endwhile
+dim bz[]
+nB3 = 0
+rest = brZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB3 = nB3 + 1
+		bz[nB3] = v / 1000
+	endif
+endwhile
+dim baz[]
+nB4 = 0
+rest = brAz
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB4 = nB4 + 1
+		baz[nB4] = v / 1000
+	endif
+endwhile
+dim bpo[]
+nB5 = 0
+rest = brPo
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB5 = nB5 + 1
+		bpo[nB5] = v / 1000
+	endif
+endwhile
+dim bl[]
+nB6 = 0
+rest = brL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nB6 = nB6 + 1
+		bl[nB6] = v / 1000
+	endif
+endwhile
 ! 配列の名前はパラメータと大文字・小文字だけ違うものにしない（GDL は大文字・小文字を区別しない。slV と slv で部品が読めなくなった）
 dim sl0[]
 nL0 = 0
@@ -317,6 +431,8 @@ endwhile
 for k = 1 to nR
 	rn[k] = round_int(rn[k] * 1000)
 next k
+! 大筋かいの角は度×1000 で渡す（_parse_all が 1000 で割るので度になる）
+nB = min(nB, min(nB2, min(nB3, min(nB4, min(nB5, nB6)))))
 r = 0.0243
 ! 根太 角パイプ □50×50、大引 杉 90×90（スラブ・梁下の詳細図。利用者の指定 2026-10-31）
 nH = 0.05
@@ -427,6 +543,15 @@ for i = 1 to min(nL, min(nL0, nL1))
 	add sl0[i], slw[i] - sillW / 2, zS
 	block sl1[i] - sl0[i], sillW, sillH
 	del 1
+next i
+! ---- 大筋かい（単管。支柱の列の鉛直面に X。自在クランプで支柱に留める） ----
+material "sf_steel"
+for i = 1 to nB
+	add bu[i], bv[i], zS + bz[i]
+	rotz baz[i]
+	roty bpo[i]
+	cylind bl[i], r
+	del 3
 next i
 ! ---- 水平つなぎ（2方向。支柱の列ごと） ----
 material "sf_steel"

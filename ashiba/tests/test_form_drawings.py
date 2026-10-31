@@ -10,7 +10,7 @@ from pathlib import Path
 from _path import SRC  # noqa: F401
 
 from ashiba.form_drawings import (NOTICE_H_MM, assembly_rows, build_html, build_xlsx, calc_lines, load_rows, member_rows,
-                                  notice_info, plan_page, section_cuts, section_page)
+                                  grid_lines, notice_info, plan_page, section_cuts, section_page)
 
 
 def _plan(floor=0.0, bottom=2820.0):
@@ -55,6 +55,31 @@ class TestFormDrawings(unittest.TestCase):
         for word in ("a－a 断面図", "b－b 断面図", "根がらみ：単管", "敷き桟木 45×60", "パイプサポート 60S（長さ 2623）",
                      "▽床 FL+0", ">2820<", ">180<", ">2623<"):
             self.assertIn(word, body)
+
+    def test_grid_lines_from_columns_and_walls(self):
+        """通り芯（利用者の指定 2026-10-31: 通り芯も足して）: 柱の芯と、縦・横の壁の芯から。近い芯は1本に."""
+        plan = _plan()
+        plan["columns"] = [{"name": "C1", "c": [0.0, 0.0], "ang": 0.0, "width": 600.0, "depth": 600.0},
+                           {"name": "C2", "c": [6000.0, 50.0], "ang": 0.0, "width": 600.0, "depth": 600.0}]
+        plan["walls"] = [{"name": "W1", "ca": [0.0, 5600.0], "cb": [6000.0, 5600.0], "u": [1.0, 0.0], "n": [0.0, 1.0],
+                          "lo": -100.0, "hi": 100.0, "thick": 200.0, "height": 3000.0}]
+        g = {x["name"]: x["pos"] for x in grid_lines(plan)}
+        self.assertEqual(sorted(g), ["X1", "X2", "Y1", "Y2"])
+        self.assertAlmostEqual(g["Y1"], 25.0)                               # 0 と 50 は1本
+        self.assertAlmostEqual(g["Y2"], 5600.0)
+        _n, _s, body = plan_page(plan)
+        self.assertIn('class="grid"', body)
+        self.assertIn(">X2<", body)
+        self.assertIn(">6000<", body)                                      # 芯どうしの寸法
+
+    def test_braces_drawn(self):
+        plan = _plan()
+        plan["slabs"][0]["braces"] = [[150.0, 210.0, 200.0, 1350.0, 210.0, 2518.0]]
+        _n, _s, body = plan_page(plan)
+        self.assertIn('class="brace"', body)
+        _n, _s, sec = section_page(plan)
+        self.assertIn('class="bracel"', sec)
+        self.assertIn("大筋かい：単管", sec)
 
     def test_notice_needed_from_3500(self):
         """支柱の高さ 3.5m 以上は計画届（安衛則 88条・別表第7）."""

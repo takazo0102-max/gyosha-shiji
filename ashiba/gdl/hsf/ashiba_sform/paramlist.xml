@@ -101,6 +101,30 @@
 			<Description><![CDATA["根がらみ・水平つなぎの高さ（床から mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<String Name="brU">
+			<Description><![CDATA["大筋かいの始めの u（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brV">
+			<Description><![CDATA["大筋かいの始めの v（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brZ">
+			<Description><![CDATA["大筋かいの始めの高さ（床から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brAz">
+			<Description><![CDATA["大筋かいの方位（度×1000）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brPo">
+			<Description><![CDATA["大筋かいの鉛直からの角（度×1000）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brL">
+			<Description><![CDATA["大筋かいの長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="plyT">
 			<Description><![CDATA["せき板の厚さ"]]></Description>
 			<Value>0.012</Value>

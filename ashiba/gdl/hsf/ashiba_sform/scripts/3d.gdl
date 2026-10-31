@@ -68,6 +68,15 @@ for i = 1 to min(nL, min(nL0, nL1))
 	block sl1[i] - sl0[i], sillW, sillH
 	del 1
 next i
+! ---- 大筋かい（単管。支柱の列の鉛直面に X。自在クランプで支柱に留める） ----
+material "sf_steel"
+for i = 1 to nB
+	add bu[i], bv[i], zS + bz[i]
+	rotz baz[i]
+	roty bpo[i]
+	cylind bl[i], r
+	del 3
+next i
 ! ---- 水平つなぎ（2方向。支柱の列ごと） ----
 material "sf_steel"
 for k = 1 to nZ

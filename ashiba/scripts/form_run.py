@@ -62,6 +62,20 @@ def _place(c, part: str, at, z: float, ang_deg: float):
     return res[0]
 
 
+def brace_params(braces) -> dict:
+    """大筋かい → 部品 ashiba_sform のパラメータ（始めの点・方位・鉛直からの角・長さ。角は度×1000）."""
+    cols = {k: [] for k in ("brU", "brV", "brZ", "brAz", "brPo", "brL")}
+    for u0, v0, z0, u1, v1, z1 in braces:
+        du, dv, dz = u1 - u0, v1 - v0, z1 - z0
+        L = math.sqrt(du * du + dv * dv + dz * dz)
+        if L < 1.0:
+            continue
+        for k, val in (("brU", u0), ("brV", v0), ("brZ", z0), ("brAz", math.degrees(math.atan2(dv, du)) * 1000.0),
+                       ("brPo", math.degrees(math.acos(max(-1.0, min(1.0, dz / L)))) * 1000.0), ("brL", L)):
+            cols[k].append(f"{val:.0f}")
+    return {k: ",".join(v) for k, v in cols.items()}
+
+
 def remove(c, out_dir: Path) -> int:
     """型枠の撤去（パレットの「型枠の撤去」）: 型枠の部品（控え 型枠.json の GUID と、控えに無くても壁・柱・梁・スラブの型枠の
     部品。控えが古くなって残った分も）を消し、レイアウト「型枠支保工 …」も消す。躯体・足場の部品は消さない."""
@@ -376,6 +390,7 @@ def main(argv=None) -> int:
                                   "psU": ",".join(f"{x:.0f}" for x, _y in f.posts),
                                   "psV": ",".join(f"{y:.0f}" for _x, y in f.posts),
                                   "postH": f.post_h / 1000.0, "tieZ": ",".join(f"{z:.0f}" for z in [NEGARAMI_Z_MM] + list(f.ties)),
+                                  **brace_params(f.braces),
                                   "slU0": ",".join(f"{a_:.0f}" for a_, _b, _v in f.sills()),
                                   "slU1": ",".join(f"{b_:.0f}" for _a, b_, _v in f.sills()),
                                   "slV": ",".join(f"{v_:.0f}" for _a, _b, v_ in f.sills()),
@@ -401,7 +416,9 @@ def main(argv=None) -> int:
                               "sv": f.spacing.sv, "posts": [r2(p_) for p_ in f.posts],
                               "obiki": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.obiki],
                               "neda_n": len(f.neda), "neda": [[round(a_, 1), round(b_, 1), round(x_, 1)] for a_, b_, x_ in f.neda],
-                              "negarami": NEGARAMI_Z_MM, "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
+                              "negarami": NEGARAMI_Z_MM,
+                              "braces": [[round(x_, 1) for x_ in b_] for b_ in f.braces], "brace_info": f.brace_info,
+                              "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
                               "ties": f.ties, "post_h": f.post_h, "post_kn": f.spacing.post_kn, "q": f.q, "lines": f.lines(),
                               "ps_allow": f.spacing.allow_kn})
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
