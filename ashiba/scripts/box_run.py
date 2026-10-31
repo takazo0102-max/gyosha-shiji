@@ -549,8 +549,8 @@ def _guids(c, types=ROTATE_TYPES) -> set:
 
 
 def _place_rotated(c, R, world, spec: dict, rot, name: str):
-    """組の向きにそろえた座標の外形で置き（R.main）、新しく置いた平面の要素（足場ライン・壁つなぎ・シート・ラベル・寸法）を
-    線の向きへ回す。立面図・詳細図の行（外形から 20m 以上下）は回さない. 回した要素は工事名ごとに控え、置き直すときに消す
+    """組の向きにそろえた座標の外形で置き（R.main）、新しく置いた平面の要素（足場ライン・壁つなぎ・シート・ラベル）を
+    線の向きへ回す（寸法は足場ラインに関連付けてあるのでついてくる）。立面図・詳細図の行（外形から 20m 以上下）は回さない. 回した要素は工事名ごとに控え、置き直すときに消す
     （外形の範囲で前の配置を拾う片付けは、回したあとの位置では拾えないため）."""
     import json
 
@@ -572,8 +572,13 @@ def _place_rotated(c, R, world, spec: dict, rot, name: str):
     xs, ys = [p[0] for p in world], [p[1] for p in world]
     x0, x1, y0, y1 = min(xs) - 12000, max(xs) + 12000, min(ys) - 12000, max(ys) + 12000
     els = [{"elementId": {"guid": g}} for g in new]
-    keep = []
+    keep, rec_only = [], []
     for e, d in zip(els, c.get_details(els) if els else []):
+        if d.get("type") == "Dimension":
+            # 寸法は足場ラインの点に関連付けてあるので、ラインを回すとついてくる。寸法も回すと二重に回って線の向きから
+            # ずれた（実機 2026-10-31: 60° の足場の寸法が 30° の向きに出た）。控えには入れて置き直しで消す
+            rec_only.append(e)
+            continue
         dd = d.get("details") or {}
         o = dd.get("origin") or dd.get("begCoordinate") or {}
         if o and not (x0 <= float(o.get("x", 0)) * 1000.0 <= x1 and y0 <= float(o.get("y", 0)) * 1000.0 <= y1):
@@ -585,7 +590,7 @@ def _place_rotated(c, R, world, spec: dict, rot, name: str):
             {"elementId": e["elementId"], "rotation": {"origin": {"x": ox, "y": oy}, "beginPoint": {"x": ox + 1.0, "y": oy},
                                                        "endPoint": {"x": ox + math.cos(ang), "y": oy + math.sin(ang)}}}
             for e in keep[i:i + 200]]})
-    rec[name] = [e["elementId"]["guid"] for e in keep]
+    rec[name] = [e["elementId"]["guid"] for e in keep + rec_only]
     rec_p.parent.mkdir(parents=True, exist_ok=True)
     rec_p.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"  斜めの向きに {len(keep)}個を回しました（立面図・詳細図の行は回さない）")
