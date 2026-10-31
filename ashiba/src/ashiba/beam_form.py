@@ -47,6 +47,7 @@ class BeamForm:
     side_hs: tuple[float, float] = (0.0, 0.0)  # −Y・+Y の側板の高さ（片側だけスラブのある外周の梁は違う）
     tie_z: list[float] = field(default_factory=list)   # フォームタイを入れる外端太の高さ（両側の側板がある高さ）
     post_h: float = 0.0        # 受けの単管を受けるパイプサポートの長さ（床から。0 は床が分からない）
+    sill_cross: bool = False   # 敷き桟木を梁に直角に（上のスラブの敷き桟木と向きを揃える）
 
     @property
     def post_kn(self) -> float:
@@ -88,6 +89,13 @@ class BeamForm:
         for v, n in sorted(tubes.items(), reverse=True):
             out.append((f"単管 {v / 1000:.1f}m（梁の外端太）", n, f"2本組・両側・{len(self.tate_z)}段"))
         out.append((f"単管 {uke / 1000:.1f}m（底の受け）", len(self.uke_x), f"梁に直角 @{self.uke_pitch:.0f}。パイプサポートで受ける"))
+        if self.uke_x and self.sill_cross:
+            w = self.width + 2 * (PLY_T_MM + 60.0 + 30.0) + 300.0
+            out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(len(self.uke_x) * w / 4000.0),
+                        f"受けの単管ごとに梁に直角（長さ {w:.0f}×{len(self.uke_x)}本。スラブの敷き桟木と向きを揃える）"))
+        elif self.uke_x:
+            sill = 2 * (self.uke_x[-1] - self.uke_x[0] + 300.0)
+            out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0), "パイプサポートの下に梁の向きに2列"))
         out.append(("パイプサポート", 2 * len(self.uke_x), "受けの単管の両端の下"
                     + (f"・長さ {self.post_h:.0f}・1本 {self.post_kn:.1f}kN" if self.post_h > 0 else "")))
         if self.tie_x and self.tie_z:

@@ -39,7 +39,12 @@ def paramlist() -> str:
         _param("String", "obU1", "大引の終わりの u", "3950,3950"),
         _param("String", "psU", "パイプサポートの u（mm）", "100,1500"),
         _param("String", "psV", "パイプサポートの v", "150,150"),
-        _param("Length", "postH", "パイプサポートの長さ（床から大引の下まで）", 2.6),
+        _param("Length", "postH", "パイプサポートの長さ（敷き桟木の上から大引の下まで）", 2.6),
+        _param("Length", "sillH", "敷き桟木の高さ（45×60 を寝かせる）", 0.045),
+        _param("Length", "sillW", "敷き桟木の幅", 0.06),
+        _param("String", "slU0", "敷き桟木の始めの u（mm。支柱の列ごと、梁・壁・柱で分ける）", ""),
+        _param("String", "slU1", "敷き桟木の終わりの u", ""),
+        _param("String", "slV", "敷き桟木の v", ""),
         _param("String", "tieZ", "水平つなぎの高さ（床から mm）", ""),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
         _param("String", "cName", "名前（平面の注記）", "スラブ型枠"),
@@ -62,6 +67,8 @@ SCRIPT_1D = ("﻿! スラブの型枠と支保工: 位置を読む（m）\n"
              + _parse_all("neU", "nu", "nN") + _parse_all("neV0", "nv0", "nN0") + _parse_all("neV1", "nv1", "nN1")
              + _parse_all("obV", "ov", "nO") + _parse_all("obU0", "ou0", "nO0") + _parse_all("obU1", "ou1", "nO1")
              + _parse_all("psU", "su", "nP") + _parse_all("psV", "sv", "nP2") + _parse_all("tieZ", "tz", "nZ")
+             + "! 配列の名前はパラメータと大文字・小文字だけ違うものにしない（GDL は大文字・小文字を区別しない。slV と slv で部品が読めなくなった）\n"
+             + _parse_all("slU0", "sl0", "nL0") + _parse_all("slU1", "sl1", "nL1") + _parse_all("slV", "slw", "nL")
              + """! ringN は点の数（mm でなく数）。_parse_all が 1000 で割るので戻す
 for k = 1 to nR
 	rn[k] = round_int(rn[k] * 1000)
@@ -72,6 +79,7 @@ zO = -plyT - 2 * r
 oH = 0.1
 oB = 0.05
 zF = zO - oH - postH
+zS = zF - sillH
 """
              )
 
@@ -109,7 +117,8 @@ resol 10
 define material "sf_ply" 2, 0.86, 0.66, 0.38
 define material "sf_steel" 2, 0.62, 0.62, 0.66
 define material "sf_obiki" 2, 0.45, 0.52, 0.62
-define material "sf_ps" 2, 0.85, 0.55, 0.20
+define material "sf_ps" 2, 0.42, 0.44, 0.48
+define material "sf_wood" 2, 0.74, 0.56, 0.36
 ! ---- せき板（外形から穴を抜く） ----
 material "sf_ply"
 i0 = 1
@@ -154,6 +163,13 @@ for i = 1 to min(nP, nP2)
 	add -0.06, -0.06, postH - 0.006
 	block 0.12, 0.12, 0.006
 	del 1
+	del 1
+next i
+! ---- 敷き桟木（支柱の列ごと。梁・壁・柱で分ける。利用者の指定 2026-10-31: サポートしたはさんぎいる／さんぎの向き揃えて） ----
+material "sf_wood"
+for i = 1 to min(nL, min(nL0, nL1))
+	add sl0[i], slw[i] - sillW / 2, zS
+	block sl1[i] - sl0[i], sillW, sillH
 	del 1
 next i
 ! ---- 水平つなぎ（2方向。支柱の列ごと） ----

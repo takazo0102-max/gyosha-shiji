@@ -215,6 +215,61 @@ while strlen(rest) > 0 do
 		tz[nZ] = v / 1000
 	endif
 endwhile
+! 配列の名前はパラメータと大文字・小文字だけ違うものにしない（GDL は大文字・小文字を区別しない。slV と slv で部品が読めなくなった）
+dim sl0[]
+nL0 = 0
+rest = slU0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nL0 = nL0 + 1
+		sl0[nL0] = v / 1000
+	endif
+endwhile
+dim sl1[]
+nL1 = 0
+rest = slU1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nL1 = nL1 + 1
+		sl1[nL1] = v / 1000
+	endif
+endwhile
+dim slw[]
+nL = 0
+rest = slV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nL = nL + 1
+		slw[nL] = v / 1000
+	endif
+endwhile
 ! ringN は点の数（mm でなく数）。_parse_all が 1000 で割るので戻す
 for k = 1 to nR
 	rn[k] = round_int(rn[k] * 1000)
@@ -225,3 +280,4 @@ zO = -plyT - 2 * r
 oH = 0.1
 oB = 0.05
 zF = zO - oH - postH
+zS = zF - sillH

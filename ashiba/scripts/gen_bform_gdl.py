@@ -45,6 +45,8 @@ def paramlist() -> str:
         _param("Length", "ukeOut", "受けの単管の、外端太の外への出", 0.15),
         _param("Length", "psH", "受けの単管を受けるパイプサポートの長さ（床から受けの単管の下まで。0 なら描かない）", 0),
         _param("Length", "psY", "パイプサポートの位置（梁の芯から両側へ）", 0.3),
+        _param("Length", "sillH", "パイプサポートの下の敷き桟木の高さ（45×60 を寝かせる）", 0.045),
+        _param("Boolean", "sillCross", "敷き桟木を梁に直角に（受けの単管ごとに両側の支柱の下へ）。切ると梁の向きに2列", 0),
         _param("Boolean", "endS", "始めの端に止め型枠", 0),
         _param("Boolean", "endE", "終わりの端に止め型枠", 0),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
@@ -118,7 +120,7 @@ define material "bf_wood" 2, 0.74, 0.56, 0.36
 define material "bf_steel" 2, 0.62, 0.62, 0.66
 define material "bf_tie" 2, 0.35, 0.35, 0.38
 define material "bf_pcon" 2, 0.85, 0.85, 0.80
-define material "bf_ps" 2, 0.85, 0.55, 0.20
+define material "bf_ps" 2, 0.42, 0.44, 0.48
 gap = 0.006
 L = x1 - x0
 ! ---- 底板と下の桟木 ----
@@ -161,6 +163,23 @@ if psH > 0.1 then
 			del 1
 		next sd
 	next i
+endif
+! ---- 敷き桟木（上のスラブの敷き桟木と向きを揃える。利用者の指定 2026-10-31: さんぎの向き揃えて） ----
+if psH > 0.1 and nU > 0 then
+	material "bf_wood"
+	if sillCross then
+		for i = 1 to nU
+			add ux[i] - 0.03, -psY - 0.15, zb - sgH - 2 * r - psH - sillH
+			block 0.06, 2 * psY + 0.3, sillH
+			del 1
+		next i
+	else
+		for sd = -1 to 1 step 2
+			add ux[1] - 0.15, sd * psY - 0.03, zb - sgH - 2 * r - psH - sillH
+			block ux[nU] - ux[1] + 0.3, 0.06, sillH
+			del 1
+		next sd
+	endif
 endif
 ! ---- 側板・桟木・外端太 ----
 for sd = -1 to 1 step 2

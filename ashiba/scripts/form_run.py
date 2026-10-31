@@ -66,7 +66,7 @@ def main(argv=None) -> int:
     from ashiba.tapir_adapter import ArchicadClient
     from ashiba.beam_form import beam_extents, beam_from_details, plan_beam, slab_over
     from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
-    from ashiba.slab_form import plan_slab, rect
+    from ashiba.slab_form import obiki_angle, plan_slab, rect
     from ashiba.slab_heights import _inside, slabs_from_details
     from ashiba.wall_form import face_layout, free_ends, plan_wall, wall_from_details
 
@@ -205,7 +205,13 @@ def main(argv=None) -> int:
         # 受けの単管を受けるパイプサポート: 下の床（下のスラブの天端。無ければ 0）から
         mid = ((bm["ca"][0] + bm["cb"][0]) / 2.0, (bm["ca"][1] + bm["cb"][1]) / 2.0)
         below = [o.top_mm for o in slabs if o.top_mm < bm["bottom"] - 300.0 and _inside(mid, o.polygon)]
-        f.post_h = bm["bottom"] - 12.0 - 60.0 - 48.6 - (max(below) if below else 0.0)
+        f.post_h = bm["bottom"] - 12.0 - 60.0 - 48.6 - 45.0 - (max(below) if below else 0.0)    # 45＝敷き桟木
+        # 敷き桟木の向きは上のスラブの敷き桟木（大引の向き）に揃える（利用者の指定 2026-10-31: さんぎの向き揃えて）
+        over = [o for o in slabs if abs(o.top_mm - bm["top"]) <= 20.0 and any(_inside((mid[0] + bm["u"][1] * s_, mid[1] - bm["u"][0] * s_), o.polygon)
+                                                                           for s_ in (bm["width"], -bm["width"]))]
+        if over:
+            da = math.radians(obiki_angle(over[0].polygon) - bm["ang"])
+            f.sill_cross = abs(math.cos(da)) < 0.7
         name = d.get("id") or f"梁{k}"
         el = _place(c, bpart, bm["ca"], bm["bottom"], bm["ang"])
         if el is None:
@@ -221,7 +227,7 @@ def main(argv=None) -> int:
                                   "botY": ",".join(f"{y:.0f}" for y in f.bot_y),
                                   "ukeX": ",".join(f"{x:.0f}" for x in f.uke_x),
                                   "endS": bool(f.ends[0]), "endE": bool(f.ends[1]), "cName": f"梁型枠 {name}",
-                                  "psH": max(0.0, f.post_h) / 1000.0, "psY": (bm["width"] / 2.0 + 12.0 + 60.0 + 30.0) / 1000.0,
+                                  "psH": max(0.0, f.post_h) / 1000.0, "sillCross": bool(f.sill_cross), "psY": (bm["width"] / 2.0 + 12.0 + 60.0 + 30.0) / 1000.0,
                                   "cNote": f"桟木@{f.side.sangi_pitch:.0f} 外端太{len(f.tate_z)}段 FT@{f.side.tie_pitch:.0f} 受け@{f.uke_pitch:.0f}"},
                             object_name=BEAM_OBJECT)
         rec[e["elementId"]["guid"]] = el["elementId"]["guid"]
@@ -285,6 +291,9 @@ def main(argv=None) -> int:
                                   "psU": ",".join(f"{x:.0f}" for x, _y in f.posts),
                                   "psV": ",".join(f"{y:.0f}" for _x, y in f.posts),
                                   "postH": f.post_h / 1000.0, "tieZ": ",".join(f"{z:.0f}" for z in f.ties),
+                                  "slU0": ",".join(f"{a_:.0f}" for a_, _b, _v in f.sills()),
+                                  "slU1": ",".join(f"{b_:.0f}" for _a, b_, _v in f.sills()),
+                                  "slV": ",".join(f"{v_:.0f}" for _a, _b, v_ in f.sills()),
                                   "cName": f"スラブ型枠 {name}",
                                   "cNote": f"PS @{f.spacing.su:.0f}×{f.spacing.sv:.0f} 長さ {f.post_h:.0f}"},
                             object_name=SLAB_OBJECT)

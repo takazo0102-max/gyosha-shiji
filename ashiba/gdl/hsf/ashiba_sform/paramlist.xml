@@ -74,9 +74,29 @@
 			<Value><![CDATA["150,150"]]></Value>
 		</String>
 		<Length Name="postH">
-			<Description><![CDATA["パイプサポートの長さ（床から大引の下まで）"]]></Description>
+			<Description><![CDATA["パイプサポートの長さ（敷き桟木の上から大引の下まで）"]]></Description>
 			<Value>2.6</Value>
 		</Length>
+		<Length Name="sillH">
+			<Description><![CDATA["敷き桟木の高さ（45×60 を寝かせる）"]]></Description>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="sillW">
+			<Description><![CDATA["敷き桟木の幅"]]></Description>
+			<Value>0.06</Value>
+		</Length>
+		<String Name="slU0">
+			<Description><![CDATA["敷き桟木の始めの u（mm。支柱の列ごと、梁・壁・柱で分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="slU1">
+			<Description><![CDATA["敷き桟木の終わりの u"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="slV">
+			<Description><![CDATA["敷き桟木の v"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="tieZ">
 			<Description><![CDATA["水平つなぎの高さ（床から mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>

@@ -4,7 +4,8 @@
 - せき板は型枠用合板 12mm（900×1800）をスラブの下面に。梁・壁・柱の所は抜く（梁の側板・壁の型枠が受ける）
 - 根太は単管 φ48.6 を NEDA_PITCH_MM ごと、大引に直角に
 - 大引は角形鋼管 □100×50（強軸を縦）を、パイプサポートの列ごとに
-- パイプサポートは大引の下に、大引の向きに su、大引どうしの間 sv の格子。梁・壁・柱の下（とまわり CLEAR_MM）には立てない
+- パイプサポートは大引の下に、大引の向きに su、大引どうしの間 sv の格子。梁・壁・柱の下（とまわり CLEAR_MM）には立てない。
+  下には大引の列ごとに敷き桟木（45×60 を寝かせて通す）を敷き、その上に立てる（利用者の指定 2026-10-31: サポートしたはさんぎいる）
 - 高さ 3.5m を超えるパイプサポートは、高さ 2m 以内ごとに水平つなぎを2方向（安衛則 242条）
 
 計算（formwork.py: せき板・根太・大引の単純梁、たわみ 3mm）:
@@ -29,6 +30,8 @@ TIE_PITCH_MM = 2000.0
 OBIKI_H_MM = 100.0                    # 大引（□100×50）のせい
 NEDA_D_MM = 48.6
 CLEAR_MM = 150.0                      # 梁・壁・柱のまわりに支柱を立てない幅
+SILL_H_MM = 45.0                      # パイプサポートの下の敷き桟木（45×60 を寝かせる）の高さ（利用者の指定 2026-10-31: サポートしたはさんぎいる）
+SILL_OUT_MM = 150.0                   # 敷き桟木の、列の端の支柱からの出
 SU_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引の向きの支柱の間隔
 SV_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引どうしの間隔
 EDGE_MM = 150.0                       # スラブの縁・穴からいちばん近い根太・大引まで
@@ -141,7 +144,7 @@ class SlabForm:
     holes: list                # 局所座標の穴（梁・壁・柱）
     thick: float
     spacing: SlabSpacing
-    post_h: float              # パイプサポートの長さ（床から大引の下まで）
+    post_h: float              # パイプサポートの長さ（敷き桟木の上から大引の下まで）
     neda: list = field(default_factory=list)    # 根太 [(v0, v1, u)]（v の向きの線分。u 一定）
     obiki: list = field(default_factory=list)   # 大引 [(u0, u1, v)]（u の向きの線分。v 一定）
     posts: list = field(default_factory=list)   # パイプサポート [(u, v)]
@@ -165,6 +168,23 @@ class SlabForm:
             x += step
         return n * step * step / 1e6
 
+    def sills(self) -> list[tuple[float, float, float]]:
+        """敷き桟木 [(u0, u1, v)]: 同じ大引の列（v）の支柱の下に、端の支柱から SILL_OUT_MM 出して通す. 梁・壁・柱で支柱が飛ぶ所
+        （間が su の 1.2倍を超える）は分ける（梁の下の敷き桟木と交わらない。利用者の指定 2026-10-31: さんぎの向き揃えて）."""
+        rows: dict = {}
+        for u, v in self.posts:
+            rows.setdefault(round(v), []).append(u)
+        out = []
+        for v, us in sorted(rows.items()):
+            us = sorted(us)
+            start = us[0]
+            for a, b in zip(us, us[1:]):
+                if b - a > self.spacing.su * 1.2:
+                    out.append((start - SILL_OUT_MM, a + SILL_OUT_MM, float(v)))
+                    start = b
+            out.append((start - SILL_OUT_MM, us[-1] + SILL_OUT_MM, float(v)))
+        return out
+
     def lines(self) -> list[str]:
         out = self.spacing.lines(self.q)
         out.append(f"パイプサポートの長さ {self.post_h:.0f}" + (f"（{PS_MAX_MM:.0f} を超えるので水平つなぎ {len(self.ties)}段・2方向）"
@@ -186,12 +206,24 @@ class SlabForm:
         ob = sum(u1 - u0 for u0, u1, _v in self.obiki)
         out.append(("角形鋼管 □100×50（大引・4m）", math.ceil(ob / 4000.0 * 1.05), f"延べ {ob / 1000:.1f}m・@{self.spacing.sv:.0f}"))
         out.append(("パイプサポート", len(self.posts), f"長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
+        sill = sum(e - s for s, e, _v in self.sills())
+        out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0 * 1.05), f"パイプサポートの下に寝かせて列ごとに通す・延べ {sill / 1000:.1f}m"))
         if self.ties:
             n_u = len({round(v) for _u, v in self.posts})
             n_v = len({round(u) for u, _v in self.posts})
             out.append(("単管（水平つなぎ・2方向）", len(self.ties) * (n_u + n_v), f"{len(self.ties)}段。延べは格子の長さ"))
             out.append(("直交クランプ（水平つなぎ）", 2 * len(self.ties) * len(self.posts), "支柱と水平つなぎ"))
         return out
+
+
+def obiki_angle(outline_mm: list) -> float:
+    """大引（と敷き桟木）の向き＝スラブの外形のいちばん長い辺の向き（度）."""
+    pts = list(outline_mm)
+    if pts and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    k = max(range(len(pts)), key=lambda i: math.dist(pts[i], pts[(i + 1) % len(pts)]))
+    p, q = pts[k], pts[(k + 1) % len(pts)]
+    return math.degrees(math.atan2(q[1] - p[1], q[0] - p[0]))
 
 
 def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: float, holes_mm=(),
@@ -201,9 +233,7 @@ def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: flo
     if pts and pts[0] == pts[-1]:
         pts = pts[:-1]
     if ang_deg is None:                    # 大引はいちばん長い辺の向き
-        k = max(range(len(pts)), key=lambda i: math.dist(pts[i], pts[(i + 1) % len(pts)]))
-        p, q = pts[k], pts[(k + 1) % len(pts)]
-        ang_deg = math.degrees(math.atan2(q[1] - p[1], q[0] - p[0]))
+        ang_deg = obiki_angle(pts)
     a = math.radians(ang_deg)
     u, v = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
     o = pts[0]
@@ -211,7 +241,7 @@ def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: flo
     outer = [loc(p) for p in pts]
     holes = [[loc(p) for p in h] for h in holes_mm]
     sp = choose_spacing(thick_mm)
-    post_h = bottom_mm - PLY_T_MM - NEDA_D_MM - OBIKI_H_MM - floor_mm
+    post_h = bottom_mm - PLY_T_MM - NEDA_D_MM - OBIKI_H_MM - SILL_H_MM - floor_mm
     us = [p[0] for p in outer]
     vs = [p[1] for p in outer]
     # 根太（v の向き。u ごと NEDA_PITCH_MM）、大引（u の向き。v ごと sv）、支柱（大引の上 su ごと）

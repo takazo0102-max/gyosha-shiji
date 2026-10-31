@@ -6,7 +6,8 @@ resol 10
 define material "sf_ply" 2, 0.86, 0.66, 0.38
 define material "sf_steel" 2, 0.62, 0.62, 0.66
 define material "sf_obiki" 2, 0.45, 0.52, 0.62
-define material "sf_ps" 2, 0.85, 0.55, 0.20
+define material "sf_ps" 2, 0.42, 0.44, 0.48
+define material "sf_wood" 2, 0.74, 0.56, 0.36
 ! ---- せき板（外形から穴を抜く） ----
 material "sf_ply"
 i0 = 1
@@ -51,6 +52,13 @@ for i = 1 to min(nP, nP2)
 	add -0.06, -0.06, postH - 0.006
 	block 0.12, 0.12, 0.006
 	del 1
+	del 1
+next i
+! ---- 敷き桟木（支柱の列ごと。梁・壁・柱で分ける。利用者の指定 2026-10-31: サポートしたはさんぎいる／さんぎの向き揃えて） ----
+material "sf_wood"
+for i = 1 to min(nL, min(nL0, nL1))
+	add sl0[i], slw[i] - sillW / 2, zS
+	block sl1[i] - sl0[i], sillW, sillH
 	del 1
 next i
 ! ---- 水平つなぎ（2方向。支柱の列ごと） ----
