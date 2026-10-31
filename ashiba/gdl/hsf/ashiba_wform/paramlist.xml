@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["壁の長さ"]]></Description>
+			<Fix/>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>0.2</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["壁の高さ"]]></Description>
+			<Fix/>
+			<Value>3.0</Value>
+		</Length>
+		<Length Name="wT">
+			<Description><![CDATA["壁の厚さ"]]></Description>
+			<Value>0.2</Value>
+		</Length>
+		<String Name="sgX">
+			<Description><![CDATA["右の面（−Y の側）の桟木の位置（壁の始めから mm、カンマ区切り）"]]></Description>
+			<Value><![CDATA["150,400,650"]]></Value>
+		</String>
+		<String Name="sgX2">
+			<Description><![CDATA["左の面（壁の向こう +Y の側）の桟木の位置（同）"]]></Description>
+			<Value><![CDATA["150,400,650"]]></Value>
+		</String>
+		<Length Name="f1S">
+			<Description><![CDATA["右の面の型枠の始め（壁の始めから。角で延ばす・縮める）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="f1E">
+			<Description><![CDATA["右の面の型枠の終わり"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="f2S">
+			<Description><![CDATA["左の面の型枠の始め"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="f2E">
+			<Description><![CDATA["左の面の型枠の終わり"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<String Name="tbZ">
+			<Description><![CDATA["外端太の高さ（壁の下から mm）"]]></Description>
+			<Value><![CDATA["150,600,1050"]]></Value>
+		</String>
+		<String Name="tiX">
+			<Description><![CDATA["フォームタイの位置（壁の始めから mm）"]]></Description>
+			<Value><![CDATA["150,900"]]></Value>
+		</String>
+		<Length Name="plyT">
+			<Description><![CDATA["せき板の厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<Length Name="sgB">
+			<Description><![CDATA["桟木の幅"]]></Description>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="sgH">
+			<Description><![CDATA["桟木のせい（合板に直角）"]]></Description>
+			<Value>0.06</Value>
+		</Length>
+		<Length Name="tbOut">
+			<Description><![CDATA["止め型枠の押さえの単管の出（壁の厚さの外へ）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="t1S">
+			<Description><![CDATA["右の面の外端太の始め（壁の始めから。角では相手の外端太の線まで）"]]></Description>
+			<Value>-0.15</Value>
+		</Length>
+		<Length Name="t1E">
+			<Description><![CDATA["右の面の外端太の終わり"]]></Description>
+			<Value>6.15</Value>
+		</Length>
+		<Length Name="t2S">
+			<Description><![CDATA["左の面の外端太の始め"]]></Description>
+			<Value>-0.15</Value>
+		</Length>
+		<Length Name="t2E">
+			<Description><![CDATA["左の面の外端太の終わり"]]></Description>
+			<Value>6.15</Value>
+		</Length>
+		<Boolean Name="endS">
+			<Description><![CDATA["始めの端に止め型枠（ほかの壁につながらない端）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="endE">
+			<Description><![CDATA["終わりの端に止め型枠"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<String Name="cName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["壁型枠"]]></Value>
+		</String>
+		<String Name="cNote">
+			<Description><![CDATA["間隔の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

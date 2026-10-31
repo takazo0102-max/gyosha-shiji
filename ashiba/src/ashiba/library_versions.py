@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-BASES = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill")
+BASES = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform")
 _VERSIONED = re.compile(r"^(?P<base>ashiba_[a-z]+)(?:_(?P<ver>[0-9a-f]{8}))?$")
 
 
