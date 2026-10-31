@@ -84,7 +84,10 @@ def parse_box_params(params: dict) -> dict:
             "series_id": str(params.get("seriesId") or "")}
 
 
-THICKNESSES = (300, 600, 900, 1200)   # 箱の厚み（部品が吸着する値）: 300＝一側足場、600／900／1200＝本足場の幅
+# 箱の厚み（部品が吸着する値）: 150＝抱き足場（ブラケット足場より狭い。利用者の指定 2026-10-31: 箱を足場にするのに抱き足場が
+# ない 箱をブラケット足場より幅狭くして抱き足場項目つけて）、300＝ブラケット足場（一側足場）、600／900／1200＝本足場の幅
+THICKNESSES = (150, 300, 600, 900, 1200)
+DAKI_MM = 150                         # 抱き足場の厚み（部品の上で。解くときは一側足場の組み方 3）
 
 
 def snap_thickness(t_mm: float) -> int:
@@ -96,7 +99,7 @@ def snap_thickness(t_mm: float) -> int:
 ONE_KINDS = {
     1: ("ブラケット足場（支柱）", {"scaffold_form": "一側足場"}, "一側足場（狭い所）"),
     2: ("ブラケット足場（単管）", {"scaffold_form": "ブラケット足場", "bracket_post": "単管"}, "ブラケット足場（単管・狭い所）"),
-    3: ("単管抱き足場", {"scaffold_form": "単管抱き足場"}, "単管抱き足場（狭い所）"),
+    3: ("抱き足場（単管）", {"scaffold_form": "単管抱き足場"}, "単管抱き足場（狭い所）"),
 }
 
 
@@ -112,7 +115,7 @@ def default_one(base: dict) -> tuple[Optional[int], int]:
     """条件の足場の種類 → (箱の厚みの初め（本足場なら None＝条件の幅）, 一側の組み方)."""
     form = str(base.get("scaffold_form") or "")
     if form in ("抱き足場", "単管抱き足場"):
-        return 300, 3
+        return DAKI_MM, 3
     if form == "ブラケット足場":
         return 300, (2 if str(base.get("bracket_post") or "") == "単管" else 1)
     if form == "一側足場":
@@ -123,11 +126,13 @@ def default_one(base: dict) -> tuple[Optional[int], int]:
 def thickness_conditions(t_mm: float, standoff: float, one_kind: int = 1) -> tuple[str, dict]:
     """箱の厚み → (種類の名前, 解く条件). 利用者の指定 2026-10-30: 厚みで種類も変える.
 
-    300 は一側足場（組み方は one_kind: ブラケット（支柱）・ブラケット（単管）・単管抱き）。本足場が入らない狭い所の足場として
+    150 は抱き足場（単管）、300 は一側足場（組み方は one_kind: ブラケット（支柱）・ブラケット（単管）・抱き足場）。本足場が入らない狭い所の足場として
     利用者が選んだので、本足場原則（安衛則561条の2）はただし書きとして要確認にする（one_row_by_choice。空きを「離れ＋厚み＋
     100」と仮に決めていたときは、床受けブラケット 900 の単管のブラケット足場が収まらず NG になった）。600・900・1200 は
     幅 610・914・1219 の本足場。"""
     t = snap_thickness(t_mm)
+    if t == DAKI_MM:                      # 抱き足場の厚み（一周の箱の厚みもこれで）
+        one_kind, t = 3, 300
     if t == 300:
         name, cond, _f = ONE_KINDS[one_kind_of(one_kind)]
         return name, {**cond, "one_row_by_choice": True}
@@ -255,12 +260,28 @@ def side_params(spans: list[int], coins: list[int], thick_mm: float, levels: int
     """部品 ashiba_side に入れるパラメータ（m）."""
     out = {"spanX": ",".join(str(int(v)) for v in spans),
            "szList": ",".join(str(int(c)) for c in sorted({int(c) for c in coins}, reverse=True)),
-           "lenX": sum(spans) / 1000.0, "thick": snap_thickness(thick_mm) / 1000.0, "nLev": int(levels),
+           "lenX": sum(spans) / 1000.0, "thick": part_thickness(thick_mm, one_kind) / 1000.0, "nLev": int(levels),
            "lev1": lev1_mm / 1000.0, "floorH": floor_mm / 1000.0,
            "topEdit": (lev1_mm + (levels - 1) * floor_mm) / 1000.0, "seriesId": series_id, "standoff": standoff / 1000.0,
-           "zBase": max(0.0, base_mm) / 1000.0, "cornerE": bool(corner_end), "oneKind": one_kind_of(one_kind)}
+           "zBase": max(0.0, base_mm) / 1000.0, "cornerE": bool(corner_end),
+           "oneKind": 3 if snap_thickness(thick_mm) == DAKI_MM else one_kind_of(one_kind)}
     out.update(pens or {})
     return out
+
+
+def part_thickness(thick_mm: float, one_kind: int = 1) -> int:
+    """部品に書く厚み: 抱き足場（一側の組み方 3）は 150、ほかは吸着した値."""
+    t = snap_thickness(thick_mm)
+    return DAKI_MM if t <= 300 and one_kind_of(one_kind) == 3 else t
+
+
+def side_kind(thick_mm: float, one_kind) -> tuple[int, int]:
+    """部品の厚み・一側の組み方 → 解くときの (厚み, 組み方). 厚みが種類を決める: 抱き足場（厚み 150）は一側足場（300）の
+    組み方 3 として解き、厚み 300 で組み方 3 のまま（つまみで 150 から広げた）はブラケット（支柱）."""
+    t, k = snap_thickness(thick_mm), one_kind_of(one_kind)
+    if t == DAKI_MM:
+        return 300, 3
+    return t, (1 if k == 3 else k)
 
 
 def parse_side_params(params: dict) -> dict:
@@ -270,12 +291,13 @@ def parse_side_params(params: dict) -> dict:
     sp = parse_spans(str(params.get("spanX") or ""))
     if not sp:
         raise ValueError("足場の辺のスパンが読めません（spanX）")
+    t, k = side_kind(float(params.get("thick") or 0.9) * 1000.0, params.get("oneKind"))
     return {"spans": sp, "levels": max(1, int(float(params.get("nLev") or DEFAULT_LEVELS))),
-            "thick_mm": snap_thickness(float(params.get("thick") or 0.9) * 1000.0),
+            "thick_mm": t,
             "base_mm": max(0.0, float(params.get("zBase") or 0.0) * 1000.0),
             "standoff": float(params.get("standoff") or 0.3) * 1000.0,
             "floor_mm": float(params.get("floorH") or 1.8) * 1000.0,
-            "series_id": str(params.get("seriesId") or ""), "one_kind": one_kind_of(params.get("oneKind"))}
+            "series_id": str(params.get("seriesId") or ""), "one_kind": k}
 
 
 def _side_end(s: dict) -> tuple[float, float]:

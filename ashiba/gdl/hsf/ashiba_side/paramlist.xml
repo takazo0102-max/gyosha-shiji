@@ -42,7 +42,7 @@
 			<Value><![CDATA["1829,1524,1219,914,610"]]></Value>
 		</String>
 		<Length Name="thick">
-			<Description><![CDATA["厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
+			<Description><![CDATA["厚み（足場の種類: 150＝抱き足場・300＝ブラケット足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
 			<Value>0.9</Value>
 		</Length>
 		<Integer Name="nLev">
@@ -70,7 +70,7 @@
 			<Value>1</Value>
 		</Boolean>
 		<Integer Name="oneKind">
-			<Description><![CDATA["一側の組み方（厚み 300 のとき: 1＝ブラケット（支柱）・2＝ブラケット（単管）・3＝単管抱き）"]]></Description>
+			<Description><![CDATA["一側の組み方（厚み 300 以下: 1＝ブラケット（支柱）・2＝ブラケット（単管）・3＝抱き足場（単管。厚み 150））"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<String Name="seriesId">

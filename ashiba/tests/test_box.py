@@ -14,7 +14,7 @@ from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame,
                         extension_board_layout, trim_to_lines, corner_region, corner_supports, corner_outline,
                         default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
-                        thickness_conditions)
+                        thickness_conditions, THICKNESSES, snap_thickness)
 from ashiba.manual import solve_manual_loop
 
 INCH = [1829, 1524, 1219, 914, 610]
@@ -258,13 +258,29 @@ class TestOneRowKinds(unittest.TestCase):
         self.assertEqual(thickness_conditions(300, 300.0, 1), ("ブラケット足場（支柱）",
                                                                 {"scaffold_form": "一側足場", "one_row_by_choice": True}))
         self.assertEqual(thickness_conditions(300, 300.0, 2)[1]["bracket_post"], "単管")
-        self.assertEqual(thickness_conditions(300, 300.0, 3)[0], "単管抱き足場")
+        self.assertEqual(thickness_conditions(300, 300.0, 3)[0], "抱き足場（単管）")
         self.assertEqual(thickness_conditions(900, 300.0, 3)[0], "本足場 幅900")          # 本足場の厚みでは使わない
-        self.assertEqual(default_one({"scaffold_form": "単管抱き足場"}), (300, 3))
+        self.assertEqual(default_one({"scaffold_form": "単管抱き足場"}), (150, 3))
         self.assertEqual(default_one({"scaffold_form": "ブラケット足場", "bracket_post": "単管"}), (300, 2))
         self.assertEqual(default_one({"scaffold_form": "本足場"}), (None, 1))
         p = side_params([1829], INCH, 300.0, 4, 1780.0, 1800.0, "albatross", 300.0, one_kind=3)
         self.assertEqual((p["oneKind"], parse_side_params(p)["one_kind"]), (3, 3))
+
+    def test_hug_scaffold_is_narrower_than_bracket(self):
+        """抱き足場は厚み 150（ブラケット足場 300 より狭い）。利用者の指定 2026-10-31: 箱をブラケット足場より幅狭くして抱き足場項目つけて."""
+        self.assertEqual(THICKNESSES[:2], (150, 300))
+        self.assertEqual(snap_thickness(160), 150)
+        self.assertEqual(thickness_conditions(150, 300.0)[1]["scaffold_form"], "単管抱き足場")   # 一周の箱も厚み 150 で抱き足場
+        p = side_params([1800, 1800], [1800, 1500, 1200, 900, 600], 300.0, 3, 1780.0, 1800.0, "tankan", 300.0, one_kind=3)
+        self.assertEqual((p["thick"], p["oneKind"]), (0.15, 3))                              # 部品は厚み 150
+        s = parse_side_params(p)
+        self.assertEqual((s["thick_mm"], s["one_kind"]), (300, 3))                           # 解くときは一側の組み方 3
+        p150 = dict(p, oneKind=1)                                                            # 厚みが種類を決める
+        self.assertEqual(parse_side_params(p150)["one_kind"], 3)
+        p300 = dict(p, thick=0.3)                                                            # 150 から広げた＝ブラケット（支柱）
+        self.assertEqual((parse_side_params(p300)["thick_mm"], parse_side_params(p300)["one_kind"]), (300, 1))
+        p2 = side_params([1829], INCH, 300.0, 4, 1780.0, 1800.0, "albatross", 300.0, one_kind=2)
+        self.assertEqual((p2["thick"], p2["oneKind"]), (0.3, 2))
 
     def test_tube_hug_loop_uses_tube_spans(self):
         """全部の辺が単管抱き足場なら単管の系列で、スパンを単管の定尺に直して解く（1829 は単管に無い）."""

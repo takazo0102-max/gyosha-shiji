@@ -39,7 +39,7 @@ def paramlist() -> str:
         _param("String", "spanX", "長手のスパン（mm、カンマ区切り。原点から）", "1829,1829,1829,1829"),
         _param("String", "spanY", "短手のスパン（同上）", "1829,1829,1829"),
         _param("String", "szList", "使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）", "1829,1524,1219,914,610"),
-        _param("Length", "thick", "厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）", 0.9),
+        _param("Length", "thick", "厚み（足場の種類: 150＝抱き足場・300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）", 0.9),
         _param("Integer", "nLev", "作業床の段数（3D の天端のつまみで増減）", 4),
         _param("Length", "lev1", "1段目の作業床の高さ", 1.78),
         _param("Length", "floorH", "作業床の段の間隔", 1.8),
@@ -108,10 +108,15 @@ nL = max(1, nLev)
 deckTop = lev1 + (nL - 1) * floorH
 postH = deckTop + 1.0
 tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
-if tk < 0.45 then
-	kind = "一側足場"
+if thick < 0.225 then tk = 0.15
+if tk < 0.225 then
+	kind = "抱き足場"
 else
-	kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+	if tk < 0.45 then
+		kind = "一側足場"
+	else
+		kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+	endif
 endif
 """)
 
@@ -142,8 +147,10 @@ else
 	endif
 endif
 if zBase < 0 then parameters zBase = 0
-! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
+! 厚み → 150・300・600・900・1200 のいちばん近い値（足場の種類。150＝抱き足場。利用者の指定 2026-10-31: 箱をブラケット足場
+! より幅狭くして抱き足場項目つけて）
 tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if thick < 0.225 then tSn = 0.15
 if abs(thick - tSn) > 0.0005 then parameters thick = tSn
 if GLOB_MODPAR_NAME = "nLev" or GLOB_MODPAR_NAME = "lev1" or GLOB_MODPAR_NAME = "floorH" then
 	parameters topEdit = deckTop

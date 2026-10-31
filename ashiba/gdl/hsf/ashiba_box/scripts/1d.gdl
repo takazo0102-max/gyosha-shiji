@@ -79,8 +79,13 @@ nL = max(1, nLev)
 deckTop = lev1 + (nL - 1) * floorH
 postH = deckTop + 1.0
 tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
-if tk < 0.45 then
-	kind = "一側足場"
+if thick < 0.225 then tk = 0.15
+if tk < 0.225 then
+	kind = "抱き足場"
 else
-	kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+	if tk < 0.45 then
+		kind = "一側足場"
+	else
+		kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+	endif
 endif

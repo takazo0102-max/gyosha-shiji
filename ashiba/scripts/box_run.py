@@ -23,8 +23,8 @@
 実機の確認（窓なし）: python3 scripts/box_run.py --place --at x,y [--len 9145] [--depth 5487] [--levels 4] [--thick 900]
                        [--zbase 6000] [--series albatross]
                      [--whole]（辺に分けず、前の一周の箱 ashiba_box で置く）
-                     python3 scripts/box_run.py --place [--thick 300 --kind 1|2|3]（選んだ線に辺。一側の組み方: 1＝ブラケット
-                       （支柱）・2＝ブラケット（単管）・3＝単管抱き。省くと条件の足場の種類から）
+                     python3 scripts/box_run.py --place [--thick 150|300 --kind 1|2|3]（選んだ線に辺。--thick 150 は抱き足場。
+                       一側の組み方: 1＝ブラケット（支柱）・2＝ブラケット（単管）・3＝抱き足場（厚み 150）。省くと条件の足場の種類から）
                      python3 scripts/box_run.py --build [--name 検証_箱]（選んだ箱・辺を足場に）
 """
 
@@ -55,7 +55,7 @@ def _conditions(R, series: str = ""):
 def place(c, argv) -> int:
     import run_from_archicad as R
 
-    from ashiba.box import (BOX_OBJECT, DEFAULT_LEVELS, SIDE_OBJECT, box_coins, box_loop, box_params, box_sides,
+    from ashiba.box import (BOX_OBJECT, DAKI_MM, DEFAULT_LEVELS, SIDE_OBJECT, box_coins, box_loop, box_params, box_sides,
                             side_params, snap_spans, snap_thickness, thickness_conditions)
     from ashiba.manual import axis_direction, eaves_for_levels, solve_manual_loop
     from ashiba.master import load_master, series_module
@@ -94,13 +94,14 @@ def place(c, argv) -> int:
         ang, length = math.atan2(u[1], u[0]), math.dist(a, b)
     base, sid = _conditions(R, opt("--series", ""))
     master = load_master(sid)
-    coins = box_coins(master.span_lengths())
-    sx = snap_spans(length, coins)
-    sy = snap_spans(float(opt("--depth", "0") or 0) or 3 * coins[0], coins)
     levels = int(opt("--levels", DEFAULT_LEVELS))
     # 厚み（足場の種類）の初めは条件の足場の幅。段の高さはその系列で同じ大きさの一周を解いて決める（1段目 1.8m 前後・層の高さ）
     thick = snap_thickness(float(opt("--thick", base.get("scaffold_width_mm") or 900)))
     _kind, cond = thickness_conditions(thick, 300.0)
+    # 抱き足場（厚み 150）は単管の定尺で割り付ける（くさびの 1829 は単管の系列に無い）
+    coins = box_coins((load_master("tankan") if thick == DAKI_MM else master).span_lengths())
+    sx = snap_spans(length, coins)
+    sy = snap_spans(float(opt("--depth", "0") or 0) or 3 * coins[0], coins)
     extra = {**base, **cond, "series_id": sid, "module": series_module(sid)}
     pts, sides = box_loop(a, 0.0, sx, sy)
     _w, _spec, solved = solve_manual_loop(pts, sides, 300.0, eaves_for_levels(levels, int(master.floor_height or 1800)), extra)
@@ -133,8 +134,8 @@ def place(c, argv) -> int:
               "「箱を足場に」")
     else:
         print(f"箱を置く: {sum(sx)}×{sum(sy)}（長手 {'+'.join(map(str, sx))}／短手 {'+'.join(map(str, sy))}）・作業床 {len(lv)}段を"
-              "4辺別々に置きました。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み（300＝一側足場・"
-              "600／900／1200＝本足場の幅）、3D の天端のつまみで段数。要らない辺は消す（コの字・L字・1本）。伸ばしたら隣の辺を"
+              "4辺別々に置きました。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み（150＝抱き足場・"
+              "300＝ブラケット足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。要らない辺は消す（コの字・L字・1本）。伸ばしたら隣の辺を"
               "動かして角に合わせ、決まったら辺をまとめて選んで「箱を足場に」")
     for el in made:
         print(f"BOX {el['elementId']['guid']}")
@@ -160,7 +161,7 @@ def place_on_lines(c, argv, guides) -> int:
     今一線だけで四角につくられてしまう）. 線1本は1辺、ポリラインは折れ目ごとに1辺. 長さは線を超えない定尺の組み合わせ."""
     import run_from_archicad as R
 
-    from ashiba.box import (DEFAULT_LEVELS, ONE_KINDS, SIDE_OBJECT, box_coins, default_one, one_kind_of, orient_path,
+    from ashiba.box import (DAKI_MM, DEFAULT_LEVELS, ONE_KINDS, SIDE_OBJECT, box_coins, default_one, one_kind_of, orient_path,
                             side_params, sides_from_path, snap_thickness)
     from ashiba.master import load_master
     from ashiba.pens import gdl_pens, parse_pens
@@ -170,12 +171,14 @@ def place_on_lines(c, argv, guides) -> int:
     master = load_master(sid)
     box_c = box_coins(master.span_lengths())
     levels = int(opt("--levels", DEFAULT_LEVELS))
-    # 厚み・一側の組み方の初めは条件の足場の種類（ブラケット足場・単管抱き足場なら厚み 300 とその組み方）
+    # 厚み・一側の組み方の初めは条件の足場の種類（ブラケット足場なら厚み 300 とその組み方、抱き足場なら 150）
     t0, k0 = default_one(base)
     thick = snap_thickness(float(opt("--thick", t0 or base.get("scaffold_width_mm") or 900)))
     kind = one_kind_of(opt("--kind", k0))
-    # 単管で組む一側（ブラケット（単管）・単管抱き）は単管の定尺で
-    coins = box_coins(load_master("tankan").span_lengths()) if thick == 300 and kind in (2, 3) else box_c
+    if thick == DAKI_MM or (thick == 300 and kind == 3):          # 抱き足場は厚み 150（ブラケット足場より狭く）
+        thick, kind = DAKI_MM, 3
+    # 単管で組む一側（ブラケット（単管）・抱き足場）は単管の定尺で
+    coins = box_coins(load_master("tankan").span_lengths()) if thick <= 300 and kind in (2, 3) else box_c
     zb = float(opt("--zbase", "0") or 0)
     pts = [p for _e, ss in guides for s in ss for p in s]
     slabs = [s["polygon_mm"] for s in R.read_slabs_near(c, pts, margin_mm=5000.0)]
@@ -206,12 +209,12 @@ def place_on_lines(c, argv, guides) -> int:
                 c.rotate_element(el, g, p[0], p[1])
         made += els
         got = "・".join(f"{sum(sp)}（線 {math.dist(a, b):.0f}）" for (a, b), (_p, _g, sp, _ce) in zip(osegs, sides))
-        what = ONE_KINDS[kind][0] if thick == 300 else f"本足場 幅{thick}"
+        what = ONE_KINDS[kind][0] if thick <= 300 else f"本足場 幅{thick}"
         print(f"箱を置く: 辺 {len(sides)}本 {got}・{what}・作業床 {len(lv)}段を {how}に置きました")
     delete_guides(c, guides)
     print("  長さは線を超えない定尺の組み合わせ。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み"
-          "（300＝一側足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。一側の組み方（ブラケット（支柱）・"
-          "ブラケット（単管）・単管抱き）は辺の設定の「一側の組み方」で選ぶ。決まったら辺をまとめて選んで「箱を足場に」")
+          "（150＝抱き足場・300＝ブラケット足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。一側の組み方（ブラケット（支柱）・"
+          "ブラケット（単管）・抱き足場）は辺の設定の「一側の組み方」でも選べる（抱き足場を選ぶと厚み 150）。決まったら辺をまとめて選んで「箱を足場に」")
     for el in made:
         print(f"BOX {el['elementId']['guid']}")
     return 0
@@ -268,7 +271,7 @@ def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
     各単位は {"pts", "sides", "levels", "thick_mm", "base_mm", "standoff", "floor_mm", "series_id", "els", "desc",
     "loop"（一周で辺ごとの違いが無い＝セットバックの箱として扱える）, "side_job"（辺の組。箱なら None）}.
     corner_info に {"sides", "corners", "notes"} を返す（直角でない角。利用者の指定 2026-10-31: 斜めの角もつながるように）."""
-    from ashiba.box import (BOX_OBJECT, SIDE_OBJECT, box_coins, box_loop, chain_frame,
+    from ashiba.box import (BOX_OBJECT, DAKI_MM, SIDE_OBJECT, box_coins, box_loop, chain_frame,
                             chain_sides, oblique_corners, parse_box_params, parse_side_params, plan_side_chain, side_axis,
                             to_local, trim_to_lines)
     from ashiba.master import load_master

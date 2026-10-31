@@ -50,7 +50,7 @@
 			<Value><![CDATA["1829,1524,1219,914,610"]]></Value>
 		</String>
 		<Length Name="thick">
-			<Description><![CDATA["厚み（足場の種類: 300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
+			<Description><![CDATA["厚み（足場の種類: 150＝抱き足場・300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
 			<Value>0.9</Value>
 		</Length>
 		<Integer Name="nLev">
