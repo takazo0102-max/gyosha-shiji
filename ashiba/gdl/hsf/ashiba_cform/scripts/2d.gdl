@@ -3,27 +3,59 @@ pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 define style "cfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
-! せき板
-rect2 -hA - plyT, hB, hA + plyT, hB + plyT
-rect2 -hA - plyT, -hB - plyT, hA + plyT, -hB
-rect2 hA, -hB, hA + plyT, hB
-rect2 -hA - plyT, -hB, -hA, hB
-! 桟木
-for i = 1 to nSx
-	rect2 sx[i] - sgB / 2, hB + plyT, sx[i] + sgB / 2, hB + plyT + sgH
-	rect2 sx[i] - sgB / 2, -hB - plyT - sgH, sx[i] + sgB / 2, -hB - plyT
+! 面ごとのせき板・桟木・外端太
+rot2 0
+for i = 1 to int(nPl1 / 2)
+	rect2 pl1[2 * i - 1], hB, pl1[2 * i], hB + plyT
 next i
-for i = 1 to nSy
-	rect2 hA + plyT, sy[i] - sgB / 2, hA + plyT + sgH, sy[i] + sgB / 2
-	rect2 -hA - plyT - sgH, sy[i] - sgB / 2, -hA - plyT, sy[i] + sgB / 2
+for i = 1 to nSg1
+	rect2 sg1a[i] - sgB / 2, hB + plyT, sg1a[i] + sgB / 2, hB + plyT + sgH
 next i
-! 外端太
 line_type "DASHED"
-line2 tx[1] - tbOver, yT, tx[nX] + tbOver, yT
-line2 tx[1] - tbOver, -yT, tx[nX] + tbOver, -yT
-line2 xT, ty[1] - tbOver, xT, ty[nY] + tbOver
-line2 -xT, ty[1] - tbOver, -xT, ty[nY] + tbOver
+for i = 1 to int(nTb1 / 2)
+	line2 tb1a[2 * i - 1], hB + plyT + sgH + r, tb1a[2 * i], hB + plyT + sgH + r
+next i
 line_type 1
+del 1
+rot2 90
+for i = 1 to int(nPl2 / 2)
+	rect2 pl2[2 * i - 1], hA, pl2[2 * i], hA + plyT
+next i
+for i = 1 to nSg2
+	rect2 sg2a[i] - sgB / 2, hA + plyT, sg2a[i] + sgB / 2, hA + plyT + sgH
+next i
+line_type "DASHED"
+for i = 1 to int(nTb2 / 2)
+	line2 tb2a[2 * i - 1], hA + plyT + sgH + r, tb2a[2 * i], hA + plyT + sgH + r
+next i
+line_type 1
+del 1
+rot2 180
+for i = 1 to int(nPl3 / 2)
+	rect2 pl3[2 * i - 1], hB, pl3[2 * i], hB + plyT
+next i
+for i = 1 to nSg3
+	rect2 sg3a[i] - sgB / 2, hB + plyT, sg3a[i] + sgB / 2, hB + plyT + sgH
+next i
+line_type "DASHED"
+for i = 1 to int(nTb3 / 2)
+	line2 tb3a[2 * i - 1], hB + plyT + sgH + r, tb3a[2 * i], hB + plyT + sgH + r
+next i
+line_type 1
+del 1
+rot2 270
+for i = 1 to int(nPl4 / 2)
+	rect2 pl4[2 * i - 1], hA, pl4[2 * i], hA + plyT
+next i
+for i = 1 to nSg4
+	rect2 sg4a[i] - sgB / 2, hA + plyT, sg4a[i] + sgB / 2, hA + plyT + sgH
+next i
+line_type "DASHED"
+for i = 1 to int(nTb4 / 2)
+	line2 tb4a[2 * i - 1], hA + plyT + sgH + r, tb4a[2 * i], hA + plyT + sgH + r
+next i
+line_type 1
+del 1
 ! フォームタイ
 for i = 1 to nX
 	line2 tx[i], -yT - 0.05, tx[i], yT + 0.05

@@ -272,14 +272,40 @@ def _meets(A: dict, P, B: dict) -> bool:
         B["lo"] - A["thick"] / 2.0 - 5.0 <= off <= B["hi"] + A["thick"] / 2.0 + 5.0
 
 
-def free_ends(walls: list[dict]) -> list[tuple[bool, bool]]:
-    """壁ごとに (始めの端, 終わりの端) が、ほかの壁につながらない（止め型枠が要る）か. 同じ線の上で端どうしが
+def in_column(P, col: dict, grow: float = 0.0) -> bool:
+    """点 P が柱（{"c", "ux", "uy", "hw", "hd"}）の外形（grow だけ広げた）の中か."""
+    d = (P[0] - col["c"][0], P[1] - col["c"][1])
+    x = d[0] * col["ux"][0] + d[1] * col["ux"][1]
+    y = d[0] * col["uy"][0] + d[1] * col["uy"][1]
+    return abs(x) <= col["hw"] + grow + 1e-6 and abs(y) <= col["hd"] + grow + 1e-6
+
+
+def _rect_entry(p, u, col: dict, grow: float, end: int):
+    """直線 p+u·t が柱の外形（grow だけ広げた）に入る所の t（終わりの端なら小さい方、始めの端なら大きい方）."""
+    ts = []
+    for ax, h in ((col["ux"], col["hw"] + grow), (col["uy"], col["hd"] + grow)):
+        den = u[0] * ax[0] + u[1] * ax[1]
+        if abs(den) < 1e-9:
+            continue
+        for sgn in (-1.0, 1.0):
+            # (p + u t − c)·ax = sgn·h
+            t = (sgn * h - ((p[0] - col["c"][0]) * ax[0] + (p[1] - col["c"][1]) * ax[1])) / den
+            q = (p[0] + u[0] * t, p[1] + u[1] * t)
+            if in_column(q, col, grow + 1.0):
+                ts.append(t)
+    if not ts:
+        return None
+    return min(ts) if end == 1 else max(ts)
+
+
+def free_ends(walls: list[dict], cols=()) -> list[tuple[bool, bool]]:
+    """壁ごとに (始めの端, 終わりの端) が、ほかの壁・柱につながらない（止め型枠が要る）か. 同じ線の上で端どうしが
     重なる壁（1枚の壁を分けたもの）もつながっているとみる."""
     out = []
     for i, A in enumerate(walls):
         fr = []
         for P in (A["ca"], A["cb"]):
-            joined = False
+            joined = any(in_column(P, col, 5.0) for col in cols)
             for j, B in enumerate(walls):
                 if j == i:
                     continue
@@ -298,7 +324,7 @@ BAND_MM = PLY_T_MM + SANGI_H_MM + TUBE_D_MM             # 面から型枠の外�
 TUBE_FREE_MM = 150.0                                     # つながらない端の外端太の出（止め型枠の押さえを留める）
 
 
-def face_layout(walls: list[dict]) -> list[dict]:
+def face_layout(walls: list[dict], cols=()) -> list[dict]:
     """壁どうしのつながり（L字・T字・十字）で、壁ごとの面の型枠の範囲（壁の始めから）を決める
     → [{"faces": [(始め, 終わり)]×2（右の面・左の面）, "tubes": 外端太の範囲×2, "sangi": 桟木を置ける範囲×2}].
 
@@ -352,6 +378,19 @@ def face_layout(walls: list[dict]) -> list[dict]:
                             sng[k][end] = ts
                     else:
                         sng[k][end] = t
+        # 柱に取り付く端: せき板は柱の面まで、外端太は柱の外端太の線まで、桟木は柱の型枠の外（T 字と同じ納まり）
+        for end in (0, 1):
+            P = A["ca"] if end == 0 else A["cb"]
+            for col in cols:
+                if not in_column(P, col, 5.0):
+                    continue
+                for k, (aoff, sg) in enumerate(((A["lo"], -1), (A["hi"], 1))):
+                    p = (A["ca"][0] + n[0] * aoff, A["ca"][1] + n[1] * aoff)
+                    for arr, grow, side in ((ext, 0.0, 0.0), (tub, TUBE_OFF_MM, TUBE_OFF_MM), (sng, BAND_MM, BAND_MM)):
+                        q = (p[0] + n[0] * sg * side, p[1] + n[1] * sg * side)
+                        t = _rect_entry(q, u, col, grow, end)
+                        if t is not None:
+                            arr[k][end] = t
         out.append({"faces": [tuple(e) for e in ext], "tubes": [tuple(e) for e in tub], "sangi": [tuple(e) for e in sng],
                     "cuts": [[], []]})
     # T 字: 端が別の壁 B の中ほどに突き当たる壁 A の所で、B の A の側の面の型枠を分ける（せき板は A の面の線まで、外端太は A の

@@ -3,9 +3,10 @@
 利用者の指定（2026-10-31）「型枠を作る仕組みを作成して さんぎ そとばた フォームタイを作って既存のモデルに自動配置するようにして」。
 割付と計算は src/ashiba/column_form.py、置くのは scripts/form_run.py。
 
-原点＝柱の芯の下。+X＝柱の幅 A の向き、+Y＝奥行き B の向き。4面にせき板（±Y の面は ±X の面の小口を覆って A＋2×12）、
-桟木（縦。±Y の面は sgX、±X の面は sgY の位置）、外端太（単管2本組。±Y の面は X の向きに tbZ の高さ、±X の面は Y の向きに
-dzB 上げた高さ）、フォームタイ（tiX の位置で Y の向きに、tiY の位置で X の向きに。両端は角の外、間は柱を貫いて Pコン）.
+原点＝柱の芯の下。+X＝柱の幅 A の向き、+Y＝奥行き B の向き。面は 1＝+Y・2＝−X・3＝−Y・4＝+X（芯から 0・90・180・270°
+回した +Y の面。面の座標 s は回したあとの X）。面ごとにせき板（ply）・桟木（縦。sg）・外端太（単管2本組。tb。±X の面は dzB
+上げる）、壁の取り付く所は区間を分ける。フォームタイ（tiX の位置で Y の向きに、tiY の位置で X の向きに。両端は角の外、間は柱を
+貫いて Pコン）.
   python3 scripts/gen_cform_gdl.py     # gdl/hsf/ashiba_cform を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
 
@@ -29,8 +30,11 @@ def paramlist() -> str:
         _param("Length", "A", "柱の幅（X）", 0.6, True),
         _param("Length", "B", "柱の奥行き（Y）", 0.6, True),
         _param("Length", "ZZYZX", "柱の高さ", 3.0, True),
-        _param("String", "sgX", "±Y の面の桟木の位置（芯から X mm、カンマ区切り）", "-250,0,250"),
-        _param("String", "sgY", "±X の面の桟木の位置（芯から Y mm）", "-250,0,250"),
+        *[x for k, nm in enumerate(("+Y", "−X", "−Y", "+X"), 1) for x in (
+            _param("String", f"ply{k}", f"{nm} の面のせき板の区間（面の座標 s mm、始め,終わり の組。壁の取り付く所で分ける）",
+                   "-312,312" if k % 2 else "-300,300"),
+            _param("String", f"sg{k}", f"{nm} の面の桟木の位置（面の座標 s mm）", "-250,0,250"),
+            _param("String", f"tb{k}", f"{nm} の面の外端太の区間（面の座標 s mm）", "-551,551"))],
         _param("String", "tbZ", "外端太の高さ（柱の下から mm。±X の面は dzB 上）", "150,450,750"),
         _param("String", "tiX", "Y の向きに締めるフォームタイの X の位置（芯から mm。両端は角の外）", "-451,451"),
         _param("String", "tiY", "X の向きに締めるフォームタイの Y の位置（芯から mm）", "-451,451"),
@@ -55,7 +59,9 @@ def paramlist() -> str:
 
 
 SCRIPT_1D = ("﻿! 柱の型枠: 桟木・外端太・フォームタイの位置を読む（m）\n"
-             + _parse_all("sgX", "sx", "nSx") + _parse_all("sgY", "sy", "nSy") + _parse_all("tbZ", "tz", "nT")
+             + "".join(_parse_all(f"ply{k}", f"pl{k}", f"nPl{k}") + _parse_all(f"sg{k}", f"sg{k}a", f"nSg{k}")
+                       + _parse_all(f"tb{k}", f"tb{k}a", f"nTb{k}") for k in range(1, 5))
+             + _parse_all("tbZ", "tz", "nT")
              + _parse_all("tiX", "tx", "nX") + _parse_all("tiY", "ty", "nY")
              + """r = 0.0243
 hA = A / 2
@@ -66,33 +72,65 @@ xT = hA + plyT + sgH + r
 """
              )
 
+
+def _face2d(k: int) -> str:
+    """面 k（1＝+Y・2＝−X・3＝−Y・4＝+X）の 2D: 芯から (k−1)×90° 回した +Y の面として描く."""
+    h = "hB" if k % 2 else "hA"
+    return f"""rot2 {(k - 1) * 90}
+for i = 1 to int(nPl{k} / 2)
+	rect2 pl{k}[2 * i - 1], {h}, pl{k}[2 * i], {h} + plyT
+next i
+for i = 1 to nSg{k}
+	rect2 sg{k}a[i] - sgB / 2, {h} + plyT, sg{k}a[i] + sgB / 2, {h} + plyT + sgH
+next i
+line_type "DASHED"
+for i = 1 to int(nTb{k} / 2)
+	line2 tb{k}a[2 * i - 1], {h} + plyT + sgH + r, tb{k}a[2 * i], {h} + plyT + sgH + r
+next i
+line_type 1
+del 1
+"""
+
+
+def _face3d(k: int) -> str:
+    """面 k の 3D（せき板・桟木・外端太の2本組。±X の面の外端太は dzB 上げる）."""
+    h = "hB" if k % 2 else "hA"
+    dz = "0" if k % 2 else "dzB"
+    return f"""rotz {(k - 1) * 90}
+material "cf_ply"
+for i = 1 to int(nPl{k} / 2)
+	add pl{k}[2 * i - 1], {h}, 0
+	block pl{k}[2 * i] - pl{k}[2 * i - 1], plyT, H
+	del 1
+next i
+material "cf_wood"
+for i = 1 to nSg{k}
+	add sg{k}a[i] - sgB / 2, {h} + plyT, 0
+	block sgB, sgH, H
+	del 1
+next i
+material "cf_steel"
+for i = 1 to int(nTb{k} / 2)
+	for j = 1 to nT
+		for kk = -1 to 1 step 2
+			add tb{k}a[2 * i - 1], {h} + plyT + sgH + r, tz[j] + {dz} + kk * (r + gap)
+			roty 90
+			cylind tb{k}a[2 * i] - tb{k}a[2 * i - 1], r
+			del 2
+		next kk
+	next j
+next i
+del 1
+"""
+
+
 SCRIPT_2D = """﻿! 柱の型枠 2D
 pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 define style "cfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
-! せき板
-rect2 -hA - plyT, hB, hA + plyT, hB + plyT
-rect2 -hA - plyT, -hB - plyT, hA + plyT, -hB
-rect2 hA, -hB, hA + plyT, hB
-rect2 -hA - plyT, -hB, -hA, hB
-! 桟木
-for i = 1 to nSx
-	rect2 sx[i] - sgB / 2, hB + plyT, sx[i] + sgB / 2, hB + plyT + sgH
-	rect2 sx[i] - sgB / 2, -hB - plyT - sgH, sx[i] + sgB / 2, -hB - plyT
-next i
-for i = 1 to nSy
-	rect2 hA + plyT, sy[i] - sgB / 2, hA + plyT + sgH, sy[i] + sgB / 2
-	rect2 -hA - plyT - sgH, sy[i] - sgB / 2, -hA - plyT, sy[i] + sgB / 2
-next i
-! 外端太
-line_type "DASHED"
-line2 tx[1] - tbOver, yT, tx[nX] + tbOver, yT
-line2 tx[1] - tbOver, -yT, tx[nX] + tbOver, -yT
-line2 xT, ty[1] - tbOver, xT, ty[nY] + tbOver
-line2 -xT, ty[1] - tbOver, -xT, ty[nY] + tbOver
-line_type 1
-! フォームタイ
+! 面ごとのせき板・桟木・外端太
+""" + "".join(_face2d(k) for k in range(1, 5)) + """! フォームタイ
 for i = 1 to nX
 	line2 tx[i], -yT - 0.05, tx[i], yT + 0.05
 next i
@@ -114,57 +152,8 @@ define material "cf_tie" 2, 0.35, 0.35, 0.38
 define material "cf_pcon" 2, 0.85, 0.85, 0.80
 H = ZZYZX
 gap = 0.006
-! ---- せき板 ----
-material "cf_ply"
-add -hA - plyT, hB, 0
-block A + 2 * plyT, plyT, H
-del 1
-add -hA - plyT, -hB - plyT, 0
-block A + 2 * plyT, plyT, H
-del 1
-add hA, -hB, 0
-block plyT, B, H
-del 1
-add -hA - plyT, -hB, 0
-block plyT, B, H
-del 1
-! ---- 桟木 ----
-material "cf_wood"
-for i = 1 to nSx
-	add sx[i] - sgB / 2, hB + plyT, 0
-	block sgB, sgH, H
-	del 1
-	add sx[i] - sgB / 2, -hB - plyT - sgH, 0
-	block sgB, sgH, H
-	del 1
-next i
-for i = 1 to nSy
-	add hA + plyT, sy[i] - sgB / 2, 0
-	block sgH, sgB, H
-	del 1
-	add -hA - plyT - sgH, sy[i] - sgB / 2, 0
-	block sgH, sgB, H
-	del 1
-next i
-! ---- 外端太（2本組） ----
-material "cf_steel"
-Lx = tx[nX] - tx[1] + 2 * tbOver
-Ly = ty[nY] - ty[1] + 2 * tbOver
-for j = 1 to nT
-	for k = -1 to 1 step 2
-		for sd = -1 to 1 step 2
-			add tx[1] - tbOver, sd * yT, tz[j] + k * (r + gap)
-			roty 90
-			cylind Lx, r
-			del 2
-			add sd * xT, ty[1] - tbOver, tz[j] + dzB + k * (r + gap)
-			rotx -90
-			cylind Ly, r
-			del 2
-		next sd
-	next k
-next j
-! ---- フォームタイ ----
+! ---- 面ごとのせき板・桟木・外端太（2本組） ----
+""" + "".join(_face3d(k) for k in range(1, 5)) + """! ---- フォームタイ ----
 for j = 1 to nT
 	! Y の向き（±Y の面の外端太を締める）
 	for i = 1 to nX

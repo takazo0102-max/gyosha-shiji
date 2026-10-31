@@ -16,7 +16,11 @@ import math
 from dataclasses import dataclass
 
 from ashiba.wall_form import (BAND_MM, EDGE_MM, PANEL_H_MM, PANEL_W_MM, PLY_T_MM, SANGI_B_MM, SANGI_H_MM, SANGI_PITCHES,
-                              TATE_PITCHES, TIE_ALLOW_KN, TUBE_LENGTHS, FormCheck, _stations, check, tube_pieces)
+                              TATE_PITCHES, TIE_ALLOW_KN, TUBE_LENGTHS, TUBE_OFF_MM, FormCheck, _stations, _subtract, check,
+                              in_column, tube_pieces)
+
+# 面の番号と向き（柱の芯からの回し角。面の上の座標 s は回したあとの X）: 1＝+Y、2＝−X、3＝−Y、4＝+X
+FACE_ROT = (0.0, 90.0, 180.0, 270.0)
 
 COL_OUT_MM = 30.0          # 角の外のフォームタイと、直交する面の型枠（外端太の外）のあき
 TUBE_OVER_MM = 100.0       # 外端太の、角の外のフォームタイからの出
@@ -36,12 +40,9 @@ class ColumnForm:
     tate_z: list[float]        # 外端太の高さ（柱の下から。±X の面は DZ_MM 上）
     tie_x: list[float]         # Y の向きに締めるフォームタイの X の位置（芯から。両端は角の外）
     tie_y: list[float]         # X の向きに締めるフォームタイの Y の位置
+    faces: list[dict] = None   # 面ごと {"ply": [(s, s)], "sangi": [s], "tube": [(s, s)]}（FACE_ROT の順。壁の取り付く所で分ける）
+    dropped: int = 0           # 壁を貫くので外したフォームタイ（1段あたり）
 
-    def tube_len_x(self) -> float:
-        return self.tie_x[-1] - self.tie_x[0] + 2 * TUBE_OVER_MM
-
-    def tube_len_y(self) -> float:
-        return self.tie_y[-1] - self.tie_y[0] + 2 * TUBE_OVER_MM
 
     @property
     def ok(self) -> bool:
@@ -51,28 +52,33 @@ class ColumnForm:
         from collections import Counter
 
         rows = math.ceil(self.height / PANEL_H_MM)
-        n_ply = 0
-        for w in (self.width + 2 * PLY_T_MM, self.width + 2 * PLY_T_MM, self.depth, self.depth):
-            n_ply += math.ceil(w / PANEL_W_MM) * rows
-        n_sangi = 2 * (len(self.sangi_x) + len(self.sangi_y))
+        n_ply = sum(math.ceil((b - a) / PANEL_W_MM) * rows for f in self.faces for a, b in f["ply"])
+        n_sangi = sum(len(f["sangi"]) for f in self.faces)
         per = max(1, math.floor(4000.0 / self.height)) if self.height <= 4000.0 else 0
         sangi_pcs = math.ceil(n_sangi / per) if per else n_sangi * math.ceil(self.height / 4000.0)
         tubes = Counter()
-        for L in (self.tube_len_x(), self.tube_len_y()):
-            for v in tube_pieces(L):
-                tubes[v] += 2 * 2 * len(self.tate_z)
+        for f in self.faces:
+            for a, b in f["tube"]:
+                for v in tube_pieces(b - a):
+                    tubes[v] += 2 * len(self.tate_z)
         out = [("型枠用合板 12mm（柱）", n_ply, f"4面 {self.width:.0f}×{self.depth:.0f}（幅 b の面は小口を覆って b＋24）"),
                (f"桟木 {SANGI_B_MM:.0f}×{SANGI_H_MM:.0f}（4m）", sangi_pcs,
                 f"縦・長さ {self.height:.0f}×{n_sangi}本（@{self.calc_x.sangi_pitch:.0f}・@{self.calc_y.sangi_pitch:.0f}）")]
         for v, n in sorted(tubes.items(), reverse=True):
             out.append((f"単管 {v / 1000:.1f}m（柱の外端太）", n, "2本組・4面"))
-        n_out = 2 * 2 * len(self.tate_z)
-        n_thr = (len(self.tie_x) - 2 + len(self.tie_y) - 2) * len(self.tate_z)
+        hx, hy = self.width / 2.0, self.depth / 2.0
+        n_out = sum(1 for x in self.tie_x if abs(x) > hx) * len(self.tate_z) + \
+            sum(1 for y in self.tie_y if abs(y) > hy) * len(self.tate_z)
+        n_thr = (sum(1 for x in self.tie_x if abs(x) <= hx) + sum(1 for y in self.tie_y if abs(y) <= hy)) * len(self.tate_z)
         out.append(("フォームタイ（柱の角の外）", n_out, "外端太どうしを角の外で締める（コンクリートに入らない）"))
         if n_thr:
             out.append(("フォームタイ（柱を貫く）", n_thr, "外端太のスパンを縮めるために柱を貫く"))
             out.append(("Pコン", 2 * n_thr, "柱を貫くフォームタイの両端"))
         return out
+
+    def notes(self) -> list[str]:
+        return ([f"壁を貫くのでフォームタイ {self.dropped}本/段を外しました。その面の外端太は壁の型枠の外端太に直交クランプで留める"]
+                if self.dropped else [])
 
 
 def _check_span(height: float, span: float) -> FormCheck:
@@ -100,8 +106,8 @@ def _ties(half: float, other_half: float, height: float) -> tuple[list[float], F
     return [-edge + 2 * edge * k / 8 for k in range(9)], c
 
 
-def plan_column(width_mm: float, depth_mm: float, height_mm: float) -> ColumnForm:
-    """1本の柱（長方形）の型枠の割付."""
+def plan_column(width_mm: float, depth_mm: float, height_mm: float, walls_local=()) -> ColumnForm:
+    """1本の柱（長方形）の型枠の割付. walls_local＝取り付く壁（柱の芯からの座標。wall_hits）."""
     tie_x, cx = _ties(width_mm / 2.0, depth_mm / 2.0, height_mm)      # ±Y の面の外端太（X の向き）のスパンで決まる
     tie_y, cy = _ties(depth_mm / 2.0, width_mm / 2.0, height_mm)
     tate_pitch = min(cx.tate_pitch, cy.tate_pitch)
@@ -112,7 +118,92 @@ def plan_column(width_mm: float, depth_mm: float, height_mm: float) -> ColumnFor
     tate = _stations(height_mm, tate_pitch, EDGE_MM)
     sx = [x - width_mm / 2.0 for x in _stations(width_mm, cx.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
     sy = [y - depth_mm / 2.0 for y in _stations(depth_mm, cy.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
-    return ColumnForm(width_mm, depth_mm, height_mm, cx, cy, sx, sy, tate, tie_x, tie_y)
+    hA, hB = width_mm / 2.0, depth_mm / 2.0
+    # 壁の取り付く面は、壁の所でせき板・桟木・外端太を分ける（T 字と同じ納まり）
+    faces = []
+    for k, rot in enumerate(FACE_ROT):
+        a = math.radians(rot)
+        e, nrm = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+        h = hB if k % 2 == 0 else hA
+        half = hA + PLY_T_MM if k % 2 == 0 else hB
+        sg = [x * e[0] + 0.0 for x in sx] if k % 2 == 0 else [y * e[1] for y in sy]
+        sg = sorted(v * (1 if k % 2 == 0 else 1) for v in sg)
+        ties = tie_x if k % 2 == 0 else tie_y
+        tube = (min(ties) - TUBE_OVER_MM, max(ties) + TUBE_OVER_MM)
+        gp, gt, gs = [], [], []
+        for wl in walls_local:
+            if abs((wl["dir"][0] * nrm[0] + wl["dir"][1] * nrm[1]) - 1.0) > 0.3:
+                continue                                          # この面に取り付く壁でない
+            for arr, grow, side in ((gp, 0.0, 0.0), (gt, TUBE_OFF_MM, TUBE_OFF_MM), (gs, 0.0, BAND_MM)):
+                ss = []
+                for p, sgn in ((wl["lo_pt"], -1.0), (wl["hi_pt"], 1.0)):
+                    q = (p[0] + wl["n"][0] * sgn * side, p[1] + wl["n"][1] * sgn * side)
+                    u = wl["dir"]
+                    den = u[0] * nrm[0] + u[1] * nrm[1]
+                    if abs(den) < 1e-9:
+                        continue
+                    t = (h + grow - (q[0] * nrm[0] + q[1] * nrm[1])) / den
+                    x = (q[0] + u[0] * t, q[1] + u[1] * t)
+                    ss.append(x[0] * e[0] + x[1] * e[1])
+                if len(ss) == 2:
+                    arr.append((min(ss), max(ss)))
+        ply = _subtract((-half, half), gp)
+        sangi = [v for v in sg if not any(a - SANGI_B_MM / 2.0 < v < b + SANGI_B_MM / 2.0 for a, b in gs)]
+        faces.append({"ply": ply, "sangi": sangi, "tube": _subtract(tube, gt)})
+    # 壁を貫くフォームタイは外す
+    dropped = 0
+
+    def through_wall(p0, p1):
+        for k in range(41):
+            q = (p0[0] + (p1[0] - p0[0]) * k / 40.0, p0[1] + (p1[1] - p0[1]) * k / 40.0)
+            if abs(q[0]) <= hA and abs(q[1]) <= hB:
+                continue
+            if any(_in_poly_local(q, wl["poly"]) for wl in walls_local):
+                return True
+        return False
+    yT, xT = hB + TUBE_OFF_MM, hA + TUBE_OFF_MM
+    keep_x = [x for x in tie_x if not through_wall((x, -yT), (x, yT))]
+    keep_y = [y for y in tie_y if not through_wall((-xT, y), (xT, y))]
+    dropped = len(tie_x) - len(keep_x) + len(tie_y) - len(keep_y)
+    return ColumnForm(width_mm, depth_mm, height_mm, cx, cy, sx, sy, tate, keep_x or tie_x, keep_y or tie_y, faces, dropped)
+
+
+def _in_poly_local(p, poly) -> bool:
+    inside = False
+    for k in range(len(poly)):
+        (x1, y1), (x2, y2) = poly[k], poly[(k + 1) % len(poly)]
+        if (y1 > p[1]) != (y2 > p[1]) and p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
+
+
+def column_rect(col: dict) -> dict:
+    """column_from_details の柱 → in_column 用の {"c", "ux", "uy", "hw", "hd"}."""
+    a = math.radians(col["ang"])
+    return {"c": col["c"], "ux": (math.cos(a), math.sin(a)), "uy": (-math.sin(a), math.cos(a)),
+            "hw": col["width"] / 2.0, "hd": col["depth"] / 2.0}
+
+
+def wall_hits(col: dict, walls: list[dict]) -> list[dict]:
+    """柱に端が入る壁 → 柱の芯からの座標で [{"dir"（柱から離れる向き）, "n", "lo_pt", "hi_pt"（両面の線の上の点）, "poly"（壁の外形）}]."""
+    r = column_rect(col)
+    L = lambda p: ((p[0] - r["c"][0]) * r["ux"][0] + (p[1] - r["c"][1]) * r["ux"][1],
+                   (p[0] - r["c"][0]) * r["uy"][0] + (p[1] - r["c"][1]) * r["uy"][1])
+    V = lambda v: (v[0] * r["ux"][0] + v[1] * r["ux"][1], v[0] * r["uy"][0] + v[1] * r["uy"][1])
+    out = []
+    for A in walls:
+        for P, sgn in ((A["ca"], 1.0), (A["cb"], -1.0)):
+            if not in_column(P, r, 5.0):
+                continue
+            d = V((A["u"][0] * sgn, A["u"][1] * sgn))
+            n = V(A["n"])
+            lo = L((A["ca"][0] + A["n"][0] * A["lo"], A["ca"][1] + A["n"][1] * A["lo"]))
+            hi = L((A["ca"][0] + A["n"][0] * A["hi"], A["ca"][1] + A["n"][1] * A["hi"]))
+            poly = [L((Q[0] + A["n"][0] * o, Q[1] + A["n"][1] * o)) for Q, o in
+                    ((A["ca"], A["lo"]), (A["cb"], A["lo"]), (A["cb"], A["hi"]), (A["ca"], A["hi"]))]
+            # 面の線の点は向きに関わらず lo（n の負の側）・hi（正の側）。外へ延ばす向きは n の符号で
+            out.append({"dir": d, "n": n, "lo_pt": lo, "hi_pt": hi, "poly": poly})
+    return out
 
 
 def column_from_details(det: dict) -> dict | None:

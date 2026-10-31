@@ -58,7 +58,7 @@ def main(argv=None) -> int:
     import run_from_archicad as R
     from ashiba.pens import gdl_pens, parse_pens
     from ashiba.tapir_adapter import ArchicadClient
-    from ashiba.column_form import DZ_MM, column_from_details, plan_column
+    from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
     from ashiba.wall_form import face_layout, free_ends, plan_wall, wall_from_details
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -95,8 +95,12 @@ def main(argv=None) -> int:
         if w is not None:
             allw[e["elementId"]["guid"]] = w
     keys = list(allw)
-    lay = dict(zip(keys, face_layout([allw[g] for g in keys])))
-    frees = dict(zip(keys, free_ends([allw[g] for g in keys])))
+    # 柱（壁の端が柱に入れば、壁の型枠は柱の型枠まで）
+    everyc = c.tapir("GetElementsByType", {"elementType": "Column"}).get("elements", [])
+    allc = [x for x in (column_from_details(d) for d in (c.get_details(everyc) if everyc else [])) if x is not None]
+    rects = [column_rect(x) for x in allc]
+    lay = dict(zip(keys, face_layout([allw[g] for g in keys], rects)))
+    frees = dict(zip(keys, free_ends([allw[g] for g in keys], rects)))
     rows, calc, skipped = [], [], 0
     for k, (e, d) in enumerate(walls, 1):
         w = allw.get(e["elementId"]["guid"])
@@ -141,17 +145,20 @@ def main(argv=None) -> int:
         if col is None or col["height"] <= 0:
             skipped += 1
             continue
-        f = plan_column(col["width"], col["depth"], col["height"])
+        f = plan_column(col["width"], col["depth"], col["height"], wall_hits(col, list(allw.values())))
         name = d.get("id") or f"柱{k}"
         el = _place(c, cpart, col["c"], col["z0"], col["ang"])
         if el is None:
             print(f"  {name}: 型枠を置けませんでした")
             continue
-        n_thr = len(f.tie_x) - 2 + len(f.tie_y) - 2
+        n_thr = sum(1 for x in f.tie_x if abs(x) <= col["width"] / 2) + sum(1 for y in f.tie_y if abs(y) <= col["depth"] / 2)
         c.set_gdl_parameters(el, {**pens, "A": col["width"] / 1000.0, "B": col["depth"] / 1000.0,
                                   "ZZYZX": col["height"] / 1000.0,
-                                  "sgX": ",".join(f"{x:.0f}" for x in f.sangi_x),
-                                  "sgY": ",".join(f"{y:.0f}" for y in f.sangi_y),
+                                  **{f"ply{k}": ",".join(f"{v:.0f}" for seg in fc["ply"] for v in seg)
+                                     for k, fc in enumerate(f.faces, 1)},
+                                  **{f"sg{k}": ",".join(f"{v:.0f}" for v in fc["sangi"]) for k, fc in enumerate(f.faces, 1)},
+                                  **{f"tb{k}": ",".join(f"{v:.0f}" for seg in fc["tube"] for v in seg)
+                                     for k, fc in enumerate(f.faces, 1)},
                                   "tbZ": ",".join(f"{z:.0f}" for z in f.tate_z),
                                   "tiX": ",".join(f"{x:.0f}" for x in f.tie_x),
                                   "tiY": ",".join(f"{y:.0f}" for y in f.tie_y),
@@ -163,6 +170,8 @@ def main(argv=None) -> int:
         print(f"  {name}: {col['width']:.0f}×{col['depth']:.0f}・高さ {col['height']:.0f} → 桟木 @{f.calc_x.sangi_pitch:.0f}・"
               f"外端太 @{f.calc_x.tate_pitch:.0f}（{len(f.tate_z)}段）・フォームタイは角の外"
               + (f"＋柱を貫く {n_thr}本/段" if n_thr else "") + ("" if f.ok else "  注意: 計算が通らない"))
+        for note in f.notes():
+            print(f"    注意: {note}")
         for item, q, note in f.quantities():
             rows.append((name, item, q, note))
         calc.append(f"[{name}] 柱 {col['width']:.0f}×{col['depth']:.0f}・高さ {col['height']:.0f}")

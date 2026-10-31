@@ -29,13 +29,53 @@
 			<Fix/>
 			<Value>3.0</Value>
 		</Length>
-		<String Name="sgX">
-			<Description><![CDATA["±Y の面の桟木の位置（芯から X mm、カンマ区切り）"]]></Description>
+		<String Name="ply1">
+			<Description><![CDATA["+Y の面のせき板の区間（面の座標 s mm、始め,終わり の組。壁の取り付く所で分ける）"]]></Description>
+			<Value><![CDATA["-312,312"]]></Value>
+		</String>
+		<String Name="sg1">
+			<Description><![CDATA["+Y の面の桟木の位置（面の座標 s mm）"]]></Description>
 			<Value><![CDATA["-250,0,250"]]></Value>
 		</String>
-		<String Name="sgY">
-			<Description><![CDATA["±X の面の桟木の位置（芯から Y mm）"]]></Description>
+		<String Name="tb1">
+			<Description><![CDATA["+Y の面の外端太の区間（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-551,551"]]></Value>
+		</String>
+		<String Name="ply2">
+			<Description><![CDATA["−X の面のせき板の区間（面の座標 s mm、始め,終わり の組。壁の取り付く所で分ける）"]]></Description>
+			<Value><![CDATA["-300,300"]]></Value>
+		</String>
+		<String Name="sg2">
+			<Description><![CDATA["−X の面の桟木の位置（面の座標 s mm）"]]></Description>
 			<Value><![CDATA["-250,0,250"]]></Value>
+		</String>
+		<String Name="tb2">
+			<Description><![CDATA["−X の面の外端太の区間（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-551,551"]]></Value>
+		</String>
+		<String Name="ply3">
+			<Description><![CDATA["−Y の面のせき板の区間（面の座標 s mm、始め,終わり の組。壁の取り付く所で分ける）"]]></Description>
+			<Value><![CDATA["-312,312"]]></Value>
+		</String>
+		<String Name="sg3">
+			<Description><![CDATA["−Y の面の桟木の位置（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-250,0,250"]]></Value>
+		</String>
+		<String Name="tb3">
+			<Description><![CDATA["−Y の面の外端太の区間（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-551,551"]]></Value>
+		</String>
+		<String Name="ply4">
+			<Description><![CDATA["+X の面のせき板の区間（面の座標 s mm、始め,終わり の組。壁の取り付く所で分ける）"]]></Description>
+			<Value><![CDATA["-300,300"]]></Value>
+		</String>
+		<String Name="sg4">
+			<Description><![CDATA["+X の面の桟木の位置（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-250,0,250"]]></Value>
+		</String>
+		<String Name="tb4">
+			<Description><![CDATA["+X の面の外端太の区間（面の座標 s mm）"]]></Description>
+			<Value><![CDATA["-551,551"]]></Value>
 		</String>
 		<String Name="tbZ">
 			<Description><![CDATA["外端太の高さ（柱の下から mm。±X の面は dzB 上）"]]></Description>
