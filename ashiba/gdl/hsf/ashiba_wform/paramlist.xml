@@ -41,22 +41,14 @@
 			<Description><![CDATA["左の面（壁の向こう +Y の側）の桟木の位置（同）"]]></Description>
 			<Value><![CDATA["150,400,650"]]></Value>
 		</String>
-		<Length Name="f1S">
-			<Description><![CDATA["右の面の型枠の始め（壁の始めから。角で延ばす・縮める）"]]></Description>
-			<Value>0</Value>
-		</Length>
-		<Length Name="f1E">
-			<Description><![CDATA["右の面の型枠の終わり"]]></Description>
-			<Value>6.0</Value>
-		</Length>
-		<Length Name="f2S">
-			<Description><![CDATA["左の面の型枠の始め"]]></Description>
-			<Value>0</Value>
-		</Length>
-		<Length Name="f2E">
-			<Description><![CDATA["左の面の型枠の終わり"]]></Description>
-			<Value>6.0</Value>
-		</Length>
+		<String Name="p1Seg">
+			<Description><![CDATA["右の面のせき板の区間（壁の始めから mm、始め,終わり の組をカンマ区切り。角で延ばす・縮める、T 字で分ける）"]]></Description>
+			<Value><![CDATA["0,6000"]]></Value>
+		</String>
+		<String Name="p2Seg">
+			<Description><![CDATA["左の面のせき板の区間（同）"]]></Description>
+			<Value><![CDATA["0,6000"]]></Value>
+		</String>
 		<String Name="tbZ">
 			<Description><![CDATA["外端太の高さ（壁の下から mm）"]]></Description>
 			<Value><![CDATA["150,600,1050"]]></Value>
@@ -81,22 +73,14 @@
 			<Description><![CDATA["止め型枠の押さえの単管の出（壁の厚さの外へ）"]]></Description>
 			<Value>0.1</Value>
 		</Length>
-		<Length Name="t1S">
-			<Description><![CDATA["右の面の外端太の始め（壁の始めから。角では相手の外端太の線まで）"]]></Description>
-			<Value>-0.15</Value>
-		</Length>
-		<Length Name="t1E">
-			<Description><![CDATA["右の面の外端太の終わり"]]></Description>
-			<Value>6.15</Value>
-		</Length>
-		<Length Name="t2S">
-			<Description><![CDATA["左の面の外端太の始め"]]></Description>
-			<Value>-0.15</Value>
-		</Length>
-		<Length Name="t2E">
-			<Description><![CDATA["左の面の外端太の終わり"]]></Description>
-			<Value>6.15</Value>
-		</Length>
+		<String Name="t1Seg">
+			<Description><![CDATA["右の面の外端太の区間（同。角・T 字では相手の外端太の線まで）"]]></Description>
+			<Value><![CDATA["-150,6150"]]></Value>
+		</String>
+		<String Name="t2Seg">
+			<Description><![CDATA["左の面の外端太の区間（同）"]]></Description>
+			<Value><![CDATA["-150,6150"]]></Value>
+		</String>
 		<Boolean Name="endS">
 			<Description><![CDATA["始めの端に止め型枠（ほかの壁につながらない端）"]]></Description>
 			<Value>0</Value>

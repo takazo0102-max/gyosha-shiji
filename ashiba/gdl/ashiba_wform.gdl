@@ -13,29 +13,25 @@
 ! 原点＝壁の右の面の始めの下、+X＝壁の向き、壁は +Y の側（厚さ wT）。両面にせき板（合板 12）、桟木（45×60 縦・sgX）、外端太（単管2本組 横・tbZ）、フォームタイ（tiX×tbZ。Pコン・座金・ナット）。割付と計算は wall_form.py、置くのは scripts/form_run.py。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   wT        長さ      壁の厚さ                                                          既定 0.2
-!   sgX       文字列    右の面（−Y の側）の桟木の位置（壁の始めから mm、カンマ区切り）    既定 "150,400,650"
-!   sgX2      文字列    左の面（壁の向こう +Y の側）の桟木の位置（同）                    既定 "150,400,650"
-!   f1S       長さ      右の面の型枠の始め（壁の始めから。角で延ばす・縮める）            既定 0
-!   f1E       長さ      右の面の型枠の終わり                                              既定 6.0
-!   f2S       長さ      左の面の型枠の始め                                                既定 0
-!   f2E       長さ      左の面の型枠の終わり                                              既定 6.0
-!   tbZ       文字列    外端太の高さ（壁の下から mm）                                     既定 "150,600,1050"
-!   tiX       文字列    フォームタイの位置（壁の始めから mm）                             既定 "150,900"
-!   plyT      長さ      せき板の厚さ                                                      既定 0.012
-!   sgB       長さ      桟木の幅                                                          既定 0.045
-!   sgH       長さ      桟木のせい（合板に直角）                                          既定 0.06
-!   tbOut     長さ      止め型枠の押さえの単管の出（壁の厚さの外へ）                      既定 0.1
-!   t1S       長さ      右の面の外端太の始め（壁の始めから。角では相手の外端太の線まで）  既定 -0.15
-!   t1E       長さ      右の面の外端太の終わり                                            既定 6.15
-!   t2S       長さ      左の面の外端太の始め                                              既定 -0.15
-!   t2E       長さ      左の面の外端太の終わり                                            既定 6.15
-!   endS      ブール    始めの端に止め型枠（ほかの壁につながらない端）                    既定 0
-!   endE      ブール    終わりの端に止め型枠                                              既定 0
-!   cName     文字列    名前（平面の注記）                                                既定 "壁型枠"
-!   cNote     文字列    間隔の注記                                                        既定 ""
-!   texSiz    実数      文字の大きさ（mm）                                                既定 2.5
-!   penEquip  PenColor  線のペン                                                          既定 1
+!   wT        長さ      壁の厚さ                                                                                                   既定 0.2
+!   sgX       文字列    右の面（−Y の側）の桟木の位置（壁の始めから mm、カンマ区切り）                                             既定 "150,400,650"
+!   sgX2      文字列    左の面（壁の向こう +Y の側）の桟木の位置（同）                                                             既定 "150,400,650"
+!   p1Seg     文字列    右の面のせき板の区間（壁の始めから mm、始め,終わり の組をカンマ区切り。角で延ばす・縮める、T 字で分ける）  既定 "0,6000"
+!   p2Seg     文字列    左の面のせき板の区間（同）                                                                                 既定 "0,6000"
+!   tbZ       文字列    外端太の高さ（壁の下から mm）                                                                              既定 "150,600,1050"
+!   tiX       文字列    フォームタイの位置（壁の始めから mm）                                                                      既定 "150,900"
+!   plyT      長さ      せき板の厚さ                                                                                               既定 0.012
+!   sgB       長さ      桟木の幅                                                                                                   既定 0.045
+!   sgH       長さ      桟木のせい（合板に直角）                                                                                   既定 0.06
+!   tbOut     長さ      止め型枠の押さえの単管の出（壁の厚さの外へ）                                                               既定 0.1
+!   t1Seg     文字列    右の面の外端太の区間（同。角・T 字では相手の外端太の線まで）                                               既定 "-150,6150"
+!   t2Seg     文字列    左の面の外端太の区間（同）                                                                                 既定 "-150,6150"
+!   endS      ブール    始めの端に止め型枠（ほかの壁につながらない端）                                                             既定 0
+!   endE      ブール    終わりの端に止め型枠                                                                                       既定 0
+!   cName     文字列    名前（平面の注記）                                                                                         既定 "壁型枠"
+!   cNote     文字列    間隔の注記                                                                                                 既定 ""
+!   texSiz    実数      文字の大きさ（mm）                                                                                         既定 2.5
+!   penEquip  PenColor  線のペン                                                                                                   既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -114,6 +110,78 @@ while strlen(rest) > 0 do
 		tx[nX] = v / 1000
 	endif
 endwhile
+dim pa[]
+nPa = 0
+rest = p1Seg
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPa = nPa + 1
+		pa[nPa] = v / 1000
+	endif
+endwhile
+dim pb[]
+nPb = 0
+rest = p2Seg
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPb = nPb + 1
+		pb[nPb] = v / 1000
+	endif
+endwhile
+dim ta[]
+nTa = 0
+rest = t1Seg
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTa = nTa + 1
+		ta[nTa] = v / 1000
+	endif
+endwhile
+dim tb[]
+nTb = 0
+rest = t2Seg
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTb = nTb + 1
+		tb[nTb] = v / 1000
+	endif
+endwhile
 ! 外端太の外の面の位置（せき板の面から）
 r = 0.0243
 yS = plyT + sgH
@@ -127,9 +195,13 @@ pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 define style "wfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
-! せき板（面ごとの範囲。角で延ばす・縮める）
-rect2 f1S, -plyT, f1E, 0
-rect2 f2S, wT, f2E, wT + plyT
+! せき板（面ごとの区間。角で延ばす・縮める、T 字で分ける）
+for i = 1 to int(nPa / 2)
+	rect2 pa[2 * i - 1], -plyT, pa[2 * i], 0
+next i
+for i = 1 to int(nPb / 2)
+	rect2 pb[2 * i - 1], wT, pb[2 * i], wT + plyT
+next i
 ! 桟木
 for i = 1 to nS
 	rect2 sx[i] - sgB / 2, -yS, sx[i] + sgB / 2, -plyT
@@ -139,8 +211,12 @@ for i = 1 to nS2
 next i
 ! 外端太（単管）
 line_type "DASHED"
-line2 t1S, -yT, t1E, -yT
-line2 t2S, wT + yT, t2E, wT + yT
+for i = 1 to int(nTa / 2)
+	line2 ta[2 * i - 1], -yT, ta[2 * i], -yT
+next i
+for i = 1 to int(nTb / 2)
+	line2 tb[2 * i - 1], wT + yT, tb[2 * i], wT + yT
+next i
 line_type 1
 ! 止め型枠
 if endS then
@@ -182,29 +258,32 @@ for side = 1 to 2
 	if side = 1 then
 		y0 = 0
 		sg = -1
-		fS = f1S
-		fE = f1E
-		tS = t1S
-		tE = t1E
 		nn = nS
 	else
 		y0 = wT
 		sg = 1
-		fS = f2S
-		fE = f2E
-		tS = t2S
-		tE = t2E
 		nn = nS2
 	endif
 	! ---- せき板 ----
 	material "wf_ply"
 	if sg < 0 then
-		add fS, -plyT, 0
+		nq = int(nPa / 2)
 	else
-		add fS, wT, 0
+		nq = int(nPb / 2)
 	endif
-	block fE - fS, plyT, H
-	del 1
+	for q = 1 to nq
+		if sg < 0 then
+			fS = pa[2 * q - 1]
+			fE = pa[2 * q]
+			add fS, -plyT, 0
+		else
+			fS = pb[2 * q - 1]
+			fE = pb[2 * q]
+			add fS, wT, 0
+		endif
+		block fE - fS, plyT, H
+		del 1
+	next q
 	! ---- 桟木 ----
 	material "wf_wood"
 	for i = 1 to nn
@@ -218,14 +297,28 @@ for side = 1 to 2
 	next i
 	! ---- 外端太（2本組） ----
 	material "wf_steel"
-	for j = 1 to nT
-		for k = -1 to 1 step 2
-			add tS, y0 + sg * yT, tz[j] + k * (r + gap)
-			roty 90
-			cylind tE - tS, r
-			del 2
-		next k
-	next j
+	if sg < 0 then
+		nq = int(nTa / 2)
+	else
+		nq = int(nTb / 2)
+	endif
+	for q = 1 to nq
+		if sg < 0 then
+			tS = ta[2 * q - 1]
+			tE = ta[2 * q]
+		else
+			tS = tb[2 * q - 1]
+			tE = tb[2 * q]
+		endif
+		for j = 1 to nT
+			for k = -1 to 1 step 2
+				add tS, y0 + sg * yT, tz[j] + k * (r + gap)
+				roty 90
+				cylind tE - tS, r
+				del 2
+			next k
+		next j
+	next q
 next side
 ! ---- 止め型枠（ほかの壁につながらない端）: 合板・縦の桟木2本・段ごとに押さえの単管（両面の外端太の出に直交クランプ） ----
 for ee = 1 to 2

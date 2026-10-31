@@ -17,29 +17,32 @@ for side = 1 to 2
 	if side = 1 then
 		y0 = 0
 		sg = -1
-		fS = f1S
-		fE = f1E
-		tS = t1S
-		tE = t1E
 		nn = nS
 	else
 		y0 = wT
 		sg = 1
-		fS = f2S
-		fE = f2E
-		tS = t2S
-		tE = t2E
 		nn = nS2
 	endif
 	! ---- せき板 ----
 	material "wf_ply"
 	if sg < 0 then
-		add fS, -plyT, 0
+		nq = int(nPa / 2)
 	else
-		add fS, wT, 0
+		nq = int(nPb / 2)
 	endif
-	block fE - fS, plyT, H
-	del 1
+	for q = 1 to nq
+		if sg < 0 then
+			fS = pa[2 * q - 1]
+			fE = pa[2 * q]
+			add fS, -plyT, 0
+		else
+			fS = pb[2 * q - 1]
+			fE = pb[2 * q]
+			add fS, wT, 0
+		endif
+		block fE - fS, plyT, H
+		del 1
+	next q
 	! ---- 桟木 ----
 	material "wf_wood"
 	for i = 1 to nn
@@ -53,14 +56,28 @@ for side = 1 to 2
 	next i
 	! ---- 外端太（2本組） ----
 	material "wf_steel"
-	for j = 1 to nT
-		for k = -1 to 1 step 2
-			add tS, y0 + sg * yT, tz[j] + k * (r + gap)
-			roty 90
-			cylind tE - tS, r
-			del 2
-		next k
-	next j
+	if sg < 0 then
+		nq = int(nTa / 2)
+	else
+		nq = int(nTb / 2)
+	endif
+	for q = 1 to nq
+		if sg < 0 then
+			tS = ta[2 * q - 1]
+			tE = ta[2 * q]
+		else
+			tS = tb[2 * q - 1]
+			tE = tb[2 * q]
+		endif
+		for j = 1 to nT
+			for k = -1 to 1 step 2
+				add tS, y0 + sg * yT, tz[j] + k * (r + gap)
+				roty 90
+				cylind tE - tS, r
+				del 2
+			next k
+		next j
+	next q
 next side
 ! ---- 止め型枠（ほかの壁につながらない端）: 合板・縦の桟木2本・段ごとに押さえの単管（両面の外端太の出に直交クランプ） ----
 for ee = 1 to 2

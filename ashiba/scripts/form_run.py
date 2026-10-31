@@ -85,7 +85,8 @@ def main(argv=None) -> int:
             skipped += 1
             continue
         fl = lay[e["elementId"]["guid"]]
-        f = plan_wall(w["length"], w["height"], w["thick"], fl["faces"], frees[e["elementId"]["guid"]], fl["tubes"], fl["sangi"])
+        f = plan_wall(w["length"], w["height"], w["thick"], fl["faces"], frees[e["elementId"]["guid"]], fl["tubes"], fl["sangi"],
+                      fl["cuts"])
         name = d.get("id") or f"壁{k}"
         res = c.tapir("CreateObjects", {"objectsData": [{"libraryPartName": part, "coordinates": {
             "x": w["a"][0] / 1000.0, "y": w["a"][1] / 1000.0, "z": w["z0"] / 1000.0}}]}).get("elements", [])
@@ -99,10 +100,10 @@ def main(argv=None) -> int:
         c.set_gdl_parameters(el, {**pens, "A": w["length"] / 1000.0, "ZZYZX": w["height"] / 1000.0, "wT": w["thick"] / 1000.0,
                                   "sgX": ",".join(f"{x:.0f}" for x in f.sangi_x[0]),
                                   "sgX2": ",".join(f"{x:.0f}" for x in f.sangi_x[1]),
-                                  "f1S": f.faces[0][0] / 1000.0, "f1E": f.faces[0][1] / 1000.0,
-                                  "f2S": f.faces[1][0] / 1000.0, "f2E": f.faces[1][1] / 1000.0,
-                                  "t1S": f.tubes[0][0] / 1000.0, "t1E": f.tubes[0][1] / 1000.0,
-                                  "t2S": f.tubes[1][0] / 1000.0, "t2E": f.tubes[1][1] / 1000.0,
+                                  "p1Seg": ",".join(f"{v:.0f}" for seg in f.ply_segs[0] for v in seg),
+                                  "p2Seg": ",".join(f"{v:.0f}" for seg in f.ply_segs[1] for v in seg),
+                                  "t1Seg": ",".join(f"{v:.0f}" for seg in f.tube_segs[0] for v in seg),
+                                  "t2Seg": ",".join(f"{v:.0f}" for seg in f.tube_segs[1] for v in seg),
                                   "tbZ": ",".join(f"{z:.0f}" for z in f.tate_z),
                                   "tiX": ",".join(f"{x:.0f}" for x in f.tie_x),
                                   "endS": bool(f.ends[0]), "endE": bool(f.ends[1]),

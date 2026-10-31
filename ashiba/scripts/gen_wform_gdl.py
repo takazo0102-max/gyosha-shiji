@@ -32,20 +32,17 @@ def paramlist() -> str:
         _param("Length", "wT", "壁の厚さ", 0.2),
         _param("String", "sgX", "右の面（−Y の側）の桟木の位置（壁の始めから mm、カンマ区切り）", "150,400,650"),
         _param("String", "sgX2", "左の面（壁の向こう +Y の側）の桟木の位置（同）", "150,400,650"),
-        _param("Length", "f1S", "右の面の型枠の始め（壁の始めから。角で延ばす・縮める）", 0),
-        _param("Length", "f1E", "右の面の型枠の終わり", 6.0),
-        _param("Length", "f2S", "左の面の型枠の始め", 0),
-        _param("Length", "f2E", "左の面の型枠の終わり", 6.0),
+        _param("String", "p1Seg", "右の面のせき板の区間（壁の始めから mm、始め,終わり の組をカンマ区切り。角で延ばす・縮める、T 字で分ける）",
+               "0,6000"),
+        _param("String", "p2Seg", "左の面のせき板の区間（同）", "0,6000"),
         _param("String", "tbZ", "外端太の高さ（壁の下から mm）", "150,600,1050"),
         _param("String", "tiX", "フォームタイの位置（壁の始めから mm）", "150,900"),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
         _param("Length", "sgB", "桟木の幅", 0.045),
         _param("Length", "sgH", "桟木のせい（合板に直角）", 0.06),
         _param("Length", "tbOut", "止め型枠の押さえの単管の出（壁の厚さの外へ）", 0.1),
-        _param("Length", "t1S", "右の面の外端太の始め（壁の始めから。角では相手の外端太の線まで）", -0.15),
-        _param("Length", "t1E", "右の面の外端太の終わり", 6.15),
-        _param("Length", "t2S", "左の面の外端太の始め", -0.15),
-        _param("Length", "t2E", "左の面の外端太の終わり", 6.15),
+        _param("String", "t1Seg", "右の面の外端太の区間（同。角・T 字では相手の外端太の線まで）", "-150,6150"),
+        _param("String", "t2Seg", "左の面の外端太の区間（同）", "-150,6150"),
         _param("Boolean", "endS", "始めの端に止め型枠（ほかの壁につながらない端）", 0),
         _param("Boolean", "endE", "終わりの端に止め型枠", 0),
         _param("String", "cName", "名前（平面の注記）", "壁型枠"),
@@ -65,7 +62,8 @@ def paramlist() -> str:
 
 SCRIPT_1D = ("﻿! 壁の型枠: 桟木・外端太・フォームタイの位置を読む（m）\n"
              + _parse_all("sgX", "sx", "nS") + _parse_all("sgX2", "sx2", "nS2") + _parse_all("tbZ", "tz", "nT")
-             + _parse_all("tiX", "tx", "nX")
+             + _parse_all("tiX", "tx", "nX") + _parse_all("p1Seg", "pa", "nPa") + _parse_all("p2Seg", "pb", "nPb")
+             + _parse_all("t1Seg", "ta", "nTa") + _parse_all("t2Seg", "tb", "nTb")
              + """! 外端太の外の面の位置（せき板の面から）
 r = 0.0243
 yS = plyT + sgH
@@ -78,9 +76,13 @@ pE = penEquip
 if pE < 1 then pE = 1
 pen pE
 define style "wfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
-! せき板（面ごとの範囲。角で延ばす・縮める）
-rect2 f1S, -plyT, f1E, 0
-rect2 f2S, wT, f2E, wT + plyT
+! せき板（面ごとの区間。角で延ばす・縮める、T 字で分ける）
+for i = 1 to int(nPa / 2)
+	rect2 pa[2 * i - 1], -plyT, pa[2 * i], 0
+next i
+for i = 1 to int(nPb / 2)
+	rect2 pb[2 * i - 1], wT, pb[2 * i], wT + plyT
+next i
 ! 桟木
 for i = 1 to nS
 	rect2 sx[i] - sgB / 2, -yS, sx[i] + sgB / 2, -plyT
@@ -90,8 +92,12 @@ for i = 1 to nS2
 next i
 ! 外端太（単管）
 line_type "DASHED"
-line2 t1S, -yT, t1E, -yT
-line2 t2S, wT + yT, t2E, wT + yT
+for i = 1 to int(nTa / 2)
+	line2 ta[2 * i - 1], -yT, ta[2 * i], -yT
+next i
+for i = 1 to int(nTb / 2)
+	line2 tb[2 * i - 1], wT + yT, tb[2 * i], wT + yT
+next i
 line_type 1
 ! 止め型枠
 if endS then
@@ -131,29 +137,32 @@ for side = 1 to 2
 	if side = 1 then
 		y0 = 0
 		sg = -1
-		fS = f1S
-		fE = f1E
-		tS = t1S
-		tE = t1E
 		nn = nS
 	else
 		y0 = wT
 		sg = 1
-		fS = f2S
-		fE = f2E
-		tS = t2S
-		tE = t2E
 		nn = nS2
 	endif
 	! ---- せき板 ----
 	material "wf_ply"
 	if sg < 0 then
-		add fS, -plyT, 0
+		nq = int(nPa / 2)
 	else
-		add fS, wT, 0
+		nq = int(nPb / 2)
 	endif
-	block fE - fS, plyT, H
-	del 1
+	for q = 1 to nq
+		if sg < 0 then
+			fS = pa[2 * q - 1]
+			fE = pa[2 * q]
+			add fS, -plyT, 0
+		else
+			fS = pb[2 * q - 1]
+			fE = pb[2 * q]
+			add fS, wT, 0
+		endif
+		block fE - fS, plyT, H
+		del 1
+	next q
 	! ---- 桟木 ----
 	material "wf_wood"
 	for i = 1 to nn
@@ -167,14 +176,28 @@ for side = 1 to 2
 	next i
 	! ---- 外端太（2本組） ----
 	material "wf_steel"
-	for j = 1 to nT
-		for k = -1 to 1 step 2
-			add tS, y0 + sg * yT, tz[j] + k * (r + gap)
-			roty 90
-			cylind tE - tS, r
-			del 2
-		next k
-	next j
+	if sg < 0 then
+		nq = int(nTa / 2)
+	else
+		nq = int(nTb / 2)
+	endif
+	for q = 1 to nq
+		if sg < 0 then
+			tS = ta[2 * q - 1]
+			tE = ta[2 * q]
+		else
+			tS = tb[2 * q - 1]
+			tE = tb[2 * q]
+		endif
+		for j = 1 to nT
+			for k = -1 to 1 step 2
+				add tS, y0 + sg * yT, tz[j] + k * (r + gap)
+				roty 90
+				cylind tE - tS, r
+				del 2
+			next k
+		next j
+	next q
 next side
 ! ---- 止め型枠（ほかの壁につながらない端）: 合板・縦の桟木2本・段ごとに押さえの単管（両面の外端太の出に直交クランプ） ----
 for ee = 1 to 2

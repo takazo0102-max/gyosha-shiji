@@ -145,6 +145,8 @@ class WallForm:
     panels: list[list[tuple[float, float, float, float]]] = field(default_factory=list)   # 面ごとの合板 (x, z, 幅, 高さ)
     ends: tuple[bool, bool] = (False, False)    # 始め・終わりの止め型枠（ほかの壁につながらない端）
     tubes: list[tuple[float, float]] = field(default_factory=list)   # 面ごとの外端太の範囲（壁の始めから）
+    ply_segs: list[list[tuple[float, float]]] = field(default_factory=list)    # 面ごとのせき板の区間（T字で分ける）
+    tube_segs: list[list[tuple[float, float]]] = field(default_factory=list)   # 面ごとの外端太の区間
 
     def quantities(self) -> list[tuple[str, int, str]]:
         """両面の材料の目安."""
@@ -158,7 +160,7 @@ class WallForm:
         n_sangi = sum(len(xs) for xs in self.sangi_x)
         sangi_pcs = math.ceil(n_sangi / per) if per else n_sangi * math.ceil(sangi_len / 4000.0)
         tubes = Counter()
-        for s, e in self.tubes:
+        for s, e in (t for ts in self.tube_segs for t in ts):
             for v in tube_pieces(e - s):
                 tubes[v] += 2 * len(self.tate_z)
         n_tie = len(self.tie_x) * len(self.tate_z)
@@ -169,7 +171,7 @@ class WallForm:
                     f"縦 @{self.calc.sangi_pitch:.0f}・長さ {sangi_len:.0f}×{n_sangi}本"))
         for v, n in sorted(tubes.items(), reverse=True):
             out.append((f"単管 {v / 1000:.1f}m（外端太）", n, f"2本組・@{self.calc.tate_pitch:.0f}・両面"))
-        k = sum(len(tube_pieces(e - s)) - 1 for s, e in self.tubes) * 2 * len(self.tate_z)
+        k = sum(len(tube_pieces(e - s)) - 1 for ts in self.tube_segs for s, e in ts) * 2 * len(self.tate_z)
         if k:
             out.append(("単管ジョイント（外端太の継ぎ）", k, "長い外端太を突き付けて継ぐ。継ぎ目は上下でずらす"))
         n_end = sum(1 for e in self.ends if e)
@@ -201,20 +203,52 @@ def _panels(s: float, e: float, height: float) -> list[tuple[float, float, float
     return out
 
 
+def _subtract(rng: tuple[float, float], gaps: list[tuple[float, float]], keep: float = 50.0) -> list[tuple[float, float]]:
+    """区間 rng から gaps を除いた区間（keep 未満は捨てる）."""
+    segs = [tuple(rng)]
+    for a, b in sorted(gaps):
+        nxt = []
+        for s, e in segs:
+            if b <= s or a >= e:
+                nxt.append((s, e))
+                continue
+            if a > s:
+                nxt.append((s, a))
+            if b < e:
+                nxt.append((b, e))
+        segs = nxt
+    return [(s, e) for s, e in segs if e - s >= keep]
+
+
 def plan_wall(length_mm: float, height_mm: float, thick_mm: float, faces=None, ends=(False, False), tubes=None,
-              sangi_rng=None) -> WallForm:
+              sangi_rng=None, cuts=None) -> WallForm:
     """1枚の壁の型枠の割付. faces＝右の面・左の面の型枠の範囲（壁の始めから。無ければ 0〜長さ）、ends＝止め型枠の端、
-    tubes＝外端太の範囲（無ければ面の端から TUBE_FREE_MM 出す）、sangi_rng＝桟木を置ける範囲（無ければ面の範囲）."""
+    tubes＝外端太の範囲（無ければ面の端から TUBE_FREE_MM 出す）、sangi_rng＝桟木を置ける範囲（無ければ面の範囲）、
+    cuts＝面ごとに T 字で突き当たる壁の所 [{"ply", "tube", "sangi": (始め, 終わり)}]（その面の型枠をそこで分ける）."""
     faces = [tuple(f) for f in (faces or [(0.0, length_mm), (0.0, length_mm)])]
     tubes = [tuple(t) for t in (tubes or [(s - TUBE_FREE_MM, e + TUBE_FREE_MM) for s, e in faces])]
     rng = [tuple(r) for r in (sangi_rng or faces)]
+    cuts = cuts or [[], []]
     c = choose(height_mm, length_mm)
-    sangi = [[s + x for x in _stations(e - s, c.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)] for s, e in rng]
+    ply = [_subtract(faces[k], [g["ply"] for g in cuts[k]]) for k in (0, 1)]
+    tub = [_subtract(tubes[k], [g["tube"] for g in cuts[k]]) for k in (0, 1)]
+    sangi = []
+    for k in (0, 1):
+        xs = []
+        for s, e in _subtract(rng[k], [g["sangi"] for g in cuts[k]]):
+            xs += [s + x for x in _stations(e - s, c.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
+        sangi.append(xs)
     tate = _stations(height_mm, c.tate_pitch, EDGE_MM)
+    # フォームタイは両面のせき板がある所（T 字で突き当たる壁の所は除く）
     s0, e0 = max(0.0, max(f[0] for f in faces)), min(length_mm, min(f[1] for f in faces))
-    ties = [s0 + x for x in _stations(max(e0 - s0, 1.0), c.tie_pitch, EDGE_MM)]
-    return WallForm(length_mm, height_mm, thick_mm, c, faces, sangi, tate, ties, [_panels(s, e, height_mm) for s, e in faces],
-                    tuple(ends), tubes)
+    ties = []
+    for s, e in _subtract((s0, e0), [g["ply"] for k in (0, 1) for g in cuts[k]], keep=2 * EDGE_MM):
+        ties += [s + x for x in _stations(e - s, c.tie_pitch, EDGE_MM)]
+    if not ties:
+        ties = [(s0 + e0) / 2.0]
+    return WallForm(length_mm, height_mm, thick_mm, c, faces, sangi, tate, ties,
+                    [p for k in (0, 1) for p in [[q for s, e in ply[k] for q in _panels(s, e, height_mm)]]],
+                    tuple(ends), tubes, ply, tub)
 
 
 def _line_t(p, u, q, v) -> float | None:
@@ -317,7 +351,30 @@ def face_layout(walls: list[dict]) -> list[dict]:
                             sng[k][end] = ts
                     else:
                         sng[k][end] = t
-        out.append({"faces": [tuple(e) for e in ext], "tubes": [tuple(e) for e in tub], "sangi": [tuple(e) for e in sng]})
+        out.append({"faces": [tuple(e) for e in ext], "tubes": [tuple(e) for e in tub], "sangi": [tuple(e) for e in sng],
+                    "cuts": [[], []]})
+    # T 字: 端が別の壁 B の中ほどに突き当たる壁 A の所で、B の A の側の面の型枠を分ける（せき板は A の面の線まで、外端太は A の
+    # 外端太の線まで、桟木は A の型枠の外。入隅と同じ納まり）
+    for i, A in enumerate(walls):
+        for P, Q in ((A["ca"], A["cb"]), (A["cb"], A["ca"])):
+            for j, B in enumerate(walls):
+                if j == i or not _meets(A, P, B):
+                    continue
+                h = (Q[0] - P[0]) * B["n"][0] + (Q[1] - P[1]) * B["n"][1]
+                k, boff, sb = (1, B["hi"], 1) if h > 0 else (0, B["lo"], -1)
+
+                def span(b_off, a_add):
+                    q = (B["ca"][0] + B["n"][0] * b_off, B["ca"][1] + B["n"][1] * b_off)
+                    ts = []
+                    for aoff, sa in ((A["lo"], -1), (A["hi"], 1)):
+                        p = (A["ca"][0] + A["n"][0] * (aoff + sa * a_add), A["ca"][1] + A["n"][1] * (aoff + sa * a_add))
+                        t = _line_t(q, B["u"], p, A["u"])
+                        if t is not None:
+                            ts.append(t)
+                    return (min(ts), max(ts)) if len(ts) == 2 else None
+                ply, tube, sangi = span(boff, 0.0), span(boff + sb * TUBE_OFF_MM, TUBE_OFF_MM), span(boff, BAND_MM)
+                if ply and tube and sangi:
+                    out[j]["cuts"][k].append({"ply": ply, "tube": tube, "sangi": sangi})
     return out
 
 

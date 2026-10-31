@@ -109,6 +109,24 @@ class TestNoProtrusion(unittest.TestCase):
         self.assertEqual(b["tubes"], [(-150.0, 6150.0), (-150.0, 6150.0)])
 
 
+class TestTJunctionSplit(unittest.TestCase):
+    def test_through_wall_face_is_split(self):
+        """T 字で通る壁の、突き当たる壁の側の面は、その所でせき板・外端太・桟木・フォームタイを分ける."""
+        ws = [_wall((0, 0), (6000, 0)), _wall((6000, -3000), (6000, 3000))]
+        lay = face_layout(ws)
+        b = lay[1]
+        f = plan_wall(6000, 3000, 200, b["faces"], (True, True), b["tubes"], b["sangi"], b["cuts"])
+        self.assertEqual(f.ply_segs[0], [(0.0, 6000.0)])                             # 向こうの面は1枚
+        self.assertEqual(f.ply_segs[1], [(0.0, 2900.0), (3100.0, 6000.0)])           # 突き当たる壁の厚さだけ分ける
+        off = 12.0 + 60.0 + 48.6 / 2.0
+        self.assertEqual([tuple(round(v, 1) for v in t) for t in f.tube_segs[1]],
+                         [(-150.0, round(3000.0 - 100.0 - off, 1)), (round(3000.0 + 100.0 + off, 1), 6150.0)])
+        band = 12.0 + 60.0 + 48.6
+        self.assertFalse(any(3000.0 - 100.0 - band < x + 22.5 and x - 22.5 < 3000.0 + 100.0 + band for x in f.sangi_x[1]))
+        self.assertFalse(any(2900.0 - EDGE_MM + 1.0 < x < 3100.0 + EDGE_MM - 1.0 for x in f.tie_x))   # 突き当たる壁を貫かない
+        self.assertEqual([len(p) for p in f.panels], [7 * 2, 4 * 2 + 4 * 2])        # 6000 は 900 幅で7枚×2段、分けた所は 2900 ずつ
+
+
 class TestStopEnds(unittest.TestCase):
     def test_free_ends_need_stop_forms(self):
         ws = [_wall((0, 0), (6000, 0)), _wall((6000, 0), (6000, 5000)),
