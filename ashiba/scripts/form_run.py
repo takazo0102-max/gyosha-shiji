@@ -7,6 +7,7 @@
 壁ごとに側圧から桟木・外端太・フォームタイの間隔を決め（src/ashiba/wall_form.py）、部品 ashiba_wform を1枚の壁に1つ置く。
 柱（長方形）も同じ部材で（src/ashiba/column_form.py）、部品 ashiba_cform を1本の柱に1つ置く。
 梁（まっすぐ）は側板・底板（src/ashiba/beam_form.py）、部品 ashiba_bform を1本の梁に1つ置く。
+スラブは型枠と支保工（せき板・根太・大引・パイプサポート・水平つなぎ。src/ashiba/slab_form.py）、部品 ashiba_sform を1枚に1つ。
 前に置いた型枠は壁ごとの控え（ashiba_out/型枠.json の GUID）で消してから置き直す。材料の目安と計算を ashiba_out に書く.
 """
 
@@ -26,10 +27,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 FORM_OBJECT = "ashiba_wform"
 COLUMN_OBJECT = "ashiba_cform"
 BEAM_OBJECT = "ashiba_bform"
+SLAB_OBJECT = "ashiba_sform"
 RECORD = "型枠.json"
 
 
-TYPES = ("Wall", "Column", "Beam")
+TYPES = ("Wall", "Column", "Beam", "Slab")
 
 
 def _targets(c, all_els: bool) -> list[list]:
@@ -64,21 +66,23 @@ def main(argv=None) -> int:
     from ashiba.tapir_adapter import ArchicadClient
     from ashiba.beam_form import beam_extents, beam_from_details, plan_beam, slab_over
     from ashiba.column_form import DZ_MM, column_from_details, column_rect, plan_column, wall_hits
-    from ashiba.slab_heights import slabs_from_details
+    from ashiba.slab_form import plan_slab, rect
+    from ashiba.slab_heights import _inside, slabs_from_details
     from ashiba.wall_form import face_layout, free_ends, plan_wall, wall_from_details
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--all", action="store_true", help="全部の壁・柱に置く")
     a = ap.parse_args(argv)
     c = ArchicadClient()
-    walls, cols, beams = _targets(c, a.all)
-    if not walls and not cols and not beams:
-        print("型枠: 壁も柱も梁もありません（壁・柱・梁を選ぶか、モデルに置いてから押してください）")
+    walls, cols, beams, slabs_sel = _targets(c, a.all)
+    if not walls and not cols and not beams and not slabs_sel:
+        print("型枠: 壁も柱も梁もスラブもありません（壁・柱・梁・スラブを選ぶか、モデルに置いてから押してください）")
         return 1
     R.ensure_parts(c)
     part = R.versioned_part_name(FORM_OBJECT)
     cpart = R.versioned_part_name(COLUMN_OBJECT)
     bpart = R.versioned_part_name(BEAM_OBJECT)
+    spart = R.versioned_part_name(SLAB_OBJECT)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), FORM_OBJECT)
     rec_path = R.OUT_DIR / RECORD
@@ -87,7 +91,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = {}
     # 前に置いた型枠（この壁の分だけ）を消す
-    old = [rec[e["elementId"]["guid"]] for e, _d in walls + cols + beams if e["elementId"]["guid"] in rec]
+    old = [rec[e["elementId"]["guid"]] for e, _d in walls + cols + beams + slabs_sel if e["elementId"]["guid"] in rec]
     if old:
         alive = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])}
         gone = [{"elementId": {"guid": g}} for g in old if g in alive]
@@ -188,9 +192,8 @@ def main(argv=None) -> int:
         print(f"  丸い柱・傾いた柱など {skipped}本は飛ばしました（長方形の柱だけ）")
     # 梁: 側板の高さは上のスラブの下端まで（側ごと）、端は柱の面で止める
     skipped = 0
-    if beams:
-        sels = c.tapir("GetElementsByType", {"elementType": "Slab"}).get("elements", [])
-        slabs = slabs_from_details(c.get_details(sels)) if sels else []
+    sels = c.tapir("GetElementsByType", {"elementType": "Slab"}).get("elements", []) if beams or slabs_sel else []
+    slabs = slabs_from_details(c.get_details(sels)) if sels else []
     for k, (e, d) in enumerate(beams, 1):
         bm = beam_from_details(d)
         if bm is None:
@@ -199,6 +202,10 @@ def main(argv=None) -> int:
         ex = beam_extents(bm, rects)
         st = slab_over(bm, slabs)
         f = plan_beam(bm["length"], bm["width"], bm["depth"], st, ex["ext"], ex["tubes"], ex["sangi"], ex["ends"])
+        # 受けの単管を受けるパイプサポート: 下の床（下のスラブの天端。無ければ 0）から
+        mid = ((bm["ca"][0] + bm["cb"][0]) / 2.0, (bm["ca"][1] + bm["cb"][1]) / 2.0)
+        below = [o.top_mm for o in slabs if o.top_mm < bm["bottom"] - 300.0 and _inside(mid, o.polygon)]
+        f.post_h = bm["bottom"] - 12.0 - 60.0 - 48.6 - (max(below) if below else 0.0)
         name = d.get("id") or f"梁{k}"
         el = _place(c, bpart, bm["ca"], bm["bottom"], bm["ang"])
         if el is None:
@@ -214,6 +221,7 @@ def main(argv=None) -> int:
                                   "botY": ",".join(f"{y:.0f}" for y in f.bot_y),
                                   "ukeX": ",".join(f"{x:.0f}" for x in f.uke_x),
                                   "endS": bool(f.ends[0]), "endE": bool(f.ends[1]), "cName": f"梁型枠 {name}",
+                                  "psH": max(0.0, f.post_h) / 1000.0, "psY": (bm["width"] / 2.0 + 12.0 + 60.0 + 30.0) / 1000.0,
                                   "cNote": f"桟木@{f.side.sangi_pitch:.0f} 外端太{len(f.tate_z)}段 FT@{f.side.tie_pitch:.0f} 受け@{f.uke_pitch:.0f}"},
                             object_name=BEAM_OBJECT)
         rec[e["elementId"]["guid"]] = el["elementId"]["guid"]
@@ -228,11 +236,76 @@ def main(argv=None) -> int:
         calc += ["  " + s_ for s_ in f.lines()]
     if skipped:
         print(f"  曲がった梁・傾いた梁など {skipped}本は飛ばしました（まっすぐな梁だけ）")
+    # スラブ: 型枠と支保工。梁・壁・柱の所は抜き、パイプサポートは下の床（下のスラブの天端。無ければ 0）から
+    if slabs_sel:
+        everyb = c.tapir("GetElementsByType", {"elementType": "Beam"}).get("elements", [])
+        allb = [x for x in (beam_from_details(d) for d in (c.get_details(everyb) if everyb else [])) if x is not None]
+    for k, (e, d) in enumerate(slabs_sel, 1):
+        info = slabs_from_details([d])
+        if not info or info[0].thickness_mm <= 0:
+            continue
+        sl = info[0]
+        bottom = sl.top_mm - sl.thickness_mm
+        cx = sum(p[0] for p in sl.polygon) / len(sl.polygon)
+        cy = sum(p[1] for p in sl.polygon) / len(sl.polygon)
+        below = [o.top_mm for o in slabs if o.top_mm < bottom - 300.0 and _inside((cx, cy), o.polygon)]
+        floor = max(below) if below else 0.0
+        holes = []
+        for bm in allb:
+            mid = ((bm["ca"][0] + bm["cb"][0]) / 2.0, (bm["ca"][1] + bm["cb"][1]) / 2.0)
+            if abs(bm["top"] - sl.top_mm) <= 20.0 and _inside(mid, sl.polygon):
+                holes.append(rect(mid, bm["u"], bm["length"] / 2.0, bm["width"] / 2.0, 12.0))
+        for w in allw.values():
+            if w["z0"] < bottom and w["z0"] + w["height"] >= bottom - 20.0:
+                off = (w["lo"] + w["hi"]) / 2.0
+                mid = ((w["ca"][0] + w["cb"][0]) / 2.0 + w["n"][0] * off, (w["ca"][1] + w["cb"][1]) / 2.0 + w["n"][1] * off)
+                if _inside(mid, sl.polygon):
+                    holes.append(rect(mid, w["u"], w["length"] / 2.0, w["thick"] / 2.0, 12.0))
+        for col in allc:
+            if col["z0"] < bottom and col["z0"] + col["height"] >= bottom - 20.0 and _inside(col["c"], sl.polygon):
+                a_ = math.radians(col["ang"])
+                holes.append(rect(col["c"], (math.cos(a_), math.sin(a_)), col["width"] / 2.0, col["depth"] / 2.0, 12.0))
+        f = plan_slab(sl.polygon, sl.thickness_mm, bottom, floor, holes)
+        name = d.get("id") or f"スラブ{k}"
+        el = _place(c, spart, f.origin, bottom, f.ang)
+        if el is None:
+            print(f"  {name}: 型枠を置けませんでした")
+            continue
+        ring = [f.outer] + f.holes
+        c.set_gdl_parameters(el, {**pens,
+                                  "polyU": ",".join(f"{p[0]:.0f}" for r_ in ring for p in r_),
+                                  "polyV": ",".join(f"{p[1]:.0f}" for r_ in ring for p in r_),
+                                  "ringN": ",".join(str(len(r_)) for r_ in ring),
+                                  "neU": ",".join(f"{x:.0f}" for _a, _b, x in f.neda),
+                                  "neV0": ",".join(f"{a_:.0f}" for a_, _b, _x in f.neda),
+                                  "neV1": ",".join(f"{b_:.0f}" for _a, b_, _x in f.neda),
+                                  "obV": ",".join(f"{y:.0f}" for _a, _b, y in f.obiki),
+                                  "obU0": ",".join(f"{a_:.0f}" for a_, _b, _y in f.obiki),
+                                  "obU1": ",".join(f"{b_:.0f}" for _a, b_, _y in f.obiki),
+                                  "psU": ",".join(f"{x:.0f}" for x, _y in f.posts),
+                                  "psV": ",".join(f"{y:.0f}" for _x, y in f.posts),
+                                  "postH": f.post_h / 1000.0, "tieZ": ",".join(f"{z:.0f}" for z in f.ties),
+                                  "cName": f"スラブ型枠 {name}",
+                                  "cNote": f"PS @{f.spacing.su:.0f}×{f.spacing.sv:.0f} 長さ {f.post_h:.0f}"},
+                            object_name=SLAB_OBJECT)
+        rec[e["elementId"]["guid"]] = el["elementId"]["guid"]
+        print(f"  {name}: 厚さ {sl.thickness_mm:.0f}・下端 {bottom:.0f}（床 {floor:.0f}）→ 根太 単管 @300・大引 □100×50 "
+              f"@{f.spacing.sv:.0f}・パイプサポート @{f.spacing.su:.0f}×{f.spacing.sv:.0f}（{len(f.posts)}本・長さ {f.post_h:.0f}・"
+              f"1本 {f.spacing.post_kn:.1f}kN）" + (f"・水平つなぎ {len(f.ties)}段" if f.ties else "")
+              + (f"・梁・壁・柱の所 {len(holes)}か所を抜く" if holes else "") + ("" if f.spacing.ok else "  注意: 計算が通らない"))
+        if not below:
+            print("    注意: 下の床（スラブ）が見つからないので、パイプサポートは高さ 0 から。地盤なら敷板・敷角を")
+        if f.post_h > 4800.0:
+            print("    注意: パイプサポートが長すぎる（継ぐのは2本まで）。枠組・くさびの支保工（内部足場）を考える")
+        for item, q, note in f.quantities():
+            rows.append((name, item, q, note))
+        calc.append(f"[{name}] スラブ 厚さ {sl.thickness_mm:.0f}")
+        calc += ["  " + s_ for s_ in f.lines()]
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"型枠: 壁 {sum(1 for e, _d in walls if e['elementId']['guid'] in rec)}枚・柱 "
-          f"{sum(1 for e, _d in cols if e['elementId']['guid'] in rec)}本・梁 {sum(1 for e, _d in beams if e['elementId']['guid'] in rec)}本"
-          "に置きました")
+          f"{sum(1 for e, _d in cols if e['elementId']['guid'] in rec)}本・梁 {sum(1 for e, _d in beams if e['elementId']['guid'] in rec)}本・"
+          f"スラブ {sum(1 for e, _d in slabs_sel if e['elementId']['guid'] in rec)}枚に置きました")
     if rows:
         out = R.OUT_DIR / "型枠_材料.csv"
         with open(out, "w", encoding="utf-8-sig", newline="") as fh:

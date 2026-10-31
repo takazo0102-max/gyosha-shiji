@@ -1,0 +1,227 @@
+﻿! スラブの型枠と支保工: 位置を読む（m）
+dim pu[]
+nPu = 0
+rest = polyU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPu = nPu + 1
+		pu[nPu] = v / 1000
+	endif
+endwhile
+dim pv[]
+nPv = 0
+rest = polyV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPv = nPv + 1
+		pv[nPv] = v / 1000
+	endif
+endwhile
+dim rn[]
+nR = 0
+rest = ringN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nR = nR + 1
+		rn[nR] = v / 1000
+	endif
+endwhile
+dim nu[]
+nN = 0
+rest = neU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN = nN + 1
+		nu[nN] = v / 1000
+	endif
+endwhile
+dim nv0[]
+nN0 = 0
+rest = neV0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN0 = nN0 + 1
+		nv0[nN0] = v / 1000
+	endif
+endwhile
+dim nv1[]
+nN1 = 0
+rest = neV1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN1 = nN1 + 1
+		nv1[nN1] = v / 1000
+	endif
+endwhile
+dim ov[]
+nO = 0
+rest = obV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO = nO + 1
+		ov[nO] = v / 1000
+	endif
+endwhile
+dim ou0[]
+nO0 = 0
+rest = obU0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO0 = nO0 + 1
+		ou0[nO0] = v / 1000
+	endif
+endwhile
+dim ou1[]
+nO1 = 0
+rest = obU1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO1 = nO1 + 1
+		ou1[nO1] = v / 1000
+	endif
+endwhile
+dim su[]
+nP = 0
+rest = psU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP = nP + 1
+		su[nP] = v / 1000
+	endif
+endwhile
+dim sv[]
+nP2 = 0
+rest = psV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP2 = nP2 + 1
+		sv[nP2] = v / 1000
+	endif
+endwhile
+dim tz[]
+nZ = 0
+rest = tieZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nZ = nZ + 1
+		tz[nZ] = v / 1000
+	endif
+endwhile
+! ringN は点の数（mm でなく数）。_parse_all が 1000 で割るので戻す
+for k = 1 to nR
+	rn[k] = round_int(rn[k] * 1000)
+next k
+r = 0.0243
+zN = -plyT - r
+zO = -plyT - 2 * r
+oH = 0.1
+oB = 0.05
+zF = zO - oH - postH

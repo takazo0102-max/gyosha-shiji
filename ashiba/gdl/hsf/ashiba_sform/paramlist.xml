@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="polyU">
+			<Description><![CDATA["せき板の形の u（mm。外形のあとに穴を続ける）"]]></Description>
+			<Value><![CDATA["0,4000,4000,0"]]></Value>
+		</String>
+		<String Name="polyV">
+			<Description><![CDATA["同 v"]]></Description>
+			<Value><![CDATA["0,0,3000,3000"]]></Value>
+		</String>
+		<String Name="ringN">
+			<Description><![CDATA["形ごとの点の数（1つ目が外形、2つ目からが穴）"]]></Description>
+			<Value><![CDATA["4"]]></Value>
+		</String>
+		<String Name="neU">
+			<Description><![CDATA["根太の u（mm）"]]></Description>
+			<Value><![CDATA["150,450"]]></Value>
+		</String>
+		<String Name="neV0">
+			<Description><![CDATA["根太の始めの v"]]></Description>
+			<Value><![CDATA["20,20"]]></Value>
+		</String>
+		<String Name="neV1">
+			<Description><![CDATA["根太の終わりの v"]]></Description>
+			<Value><![CDATA["2980,2980"]]></Value>
+		</String>
+		<String Name="obV">
+			<Description><![CDATA["大引の v（mm）"]]></Description>
+			<Value><![CDATA["150,1500"]]></Value>
+		</String>
+		<String Name="obU0">
+			<Description><![CDATA["大引の始めの u"]]></Description>
+			<Value><![CDATA["50,50"]]></Value>
+		</String>
+		<String Name="obU1">
+			<Description><![CDATA["大引の終わりの u"]]></Description>
+			<Value><![CDATA["3950,3950"]]></Value>
+		</String>
+		<String Name="psU">
+			<Description><![CDATA["パイプサポートの u（mm）"]]></Description>
+			<Value><![CDATA["100,1500"]]></Value>
+		</String>
+		<String Name="psV">
+			<Description><![CDATA["パイプサポートの v"]]></Description>
+			<Value><![CDATA["150,150"]]></Value>
+		</String>
+		<Length Name="postH">
+			<Description><![CDATA["パイプサポートの長さ（床から大引の下まで）"]]></Description>
+			<Value>2.6</Value>
+		</Length>
+		<String Name="tieZ">
+			<Description><![CDATA["水平つなぎの高さ（床から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="plyT">
+			<Description><![CDATA["せき板の厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<String Name="cName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["スラブ型枠"]]></Value>
+		</String>
+		<String Name="cNote">
+			<Description><![CDATA["間隔の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

@@ -8,6 +8,7 @@ define material "bf_wood" 2, 0.74, 0.56, 0.36
 define material "bf_steel" 2, 0.62, 0.62, 0.66
 define material "bf_tie" 2, 0.35, 0.35, 0.38
 define material "bf_pcon" 2, 0.85, 0.85, 0.80
+define material "bf_ps" 2, 0.85, 0.55, 0.20
 gap = 0.006
 L = x1 - x0
 ! ---- 底板と下の桟木 ----
@@ -29,6 +30,28 @@ for i = 1 to nU
 	cylind 2 * (yT + r + ukeOut), r
 	del 2
 next i
+! ---- パイプサポート（受けの単管の両端の下） ----
+if psH > 0.1 then
+	for i = 1 to nU
+		for sd = -1 to 1 step 2
+			add ux[i], sd * psY, zb - sgH - 2 * r - psH
+			material "bf_steel"
+			add -0.07, -0.07, 0
+			block 0.14, 0.14, 0.006
+			del 1
+			material "bf_ps"
+			cylind psH * 0.6, 0.03025
+			add 0, 0, psH * 0.6
+			material "bf_steel"
+			cylind psH * 0.4 - 0.006, 0.0243
+			del 1
+			add -0.06, -0.06, psH - 0.006
+			block 0.12, 0.12, 0.006
+			del 1
+			del 1
+		next sd
+	next i
+endif
 ! ---- 側板・桟木・外端太 ----
 for sd = -1 to 1 step 2
 	if sd > 0 then

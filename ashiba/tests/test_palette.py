@@ -212,7 +212,7 @@ class TestMenu(unittest.TestCase):
         self.assertEqual(line[:8], ["解き直し", "区切る", "区切りを戻す", "面の切替", "朝顔の面", "支柱だけ分解", "分解を戻す",
                                     "3D表示"])
         slab = [a.title for a in menu_items({"slab"})]
-        self.assertEqual(slab[:6], ["配置", "地足場", "条件", "図面を作る", "帳票", "撤去"])
+        self.assertEqual(slab[:7], ["配置", "地足場", "型枠", "条件", "図面を作る", "帳票", "撤去"])   # スラブの型枠も（2026-10-31）
         self.assertEqual([a.title for a in menu_items({"member"})][0], "分解を戻す")
         # 何も選んでいないときはペン（図面のペン。2026-10-24）も上に出る
         # 何も選んでいない（平面に目印の線を引いて選んだときも同じ）ときは、線で指す操作が上に出る（2026-10-24）

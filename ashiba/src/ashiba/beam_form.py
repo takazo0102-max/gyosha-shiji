@@ -46,16 +46,27 @@ class BeamForm:
     ends: tuple[bool, bool] = (False, False)  # 止め型枠
     side_hs: tuple[float, float] = (0.0, 0.0)  # −Y・+Y の側板の高さ（片側だけスラブのある外周の梁は違う）
     tie_z: list[float] = field(default_factory=list)   # フォームタイを入れる外端太の高さ（両側の側板がある高さ）
+    post_h: float = 0.0        # 受けの単管を受けるパイプサポートの長さ（床から。0 は床が分からない）
+
+    @property
+    def post_kn(self) -> float:
+        """パイプサポート1本の軸力（梁の幅の荷重×受けの間隔を両端の2本で）."""
+        q = W0_KN_M3 * self.depth / 1000.0 + DEAD_FORM_KN + LIVE_KN
+        return q * (self.width + 2 * (PLY_T_MM + BAND_MM)) / 1000.0 * self.uke_pitch / 1000.0 / 2.0
 
     @property
     def ok(self) -> bool:
         return self.side.ok and all(b.ok for b in self.bottom)
 
     def lines(self) -> list[str]:
+        from ashiba.slab_form import PS_ALLOW_KN
+
         out = ["側板: " + s for s in self.side.lines()]
         for b in self.bottom:
             out.append(f"底板 {b.part}（{b.member}）スパン {b.span_mm:.0f}: σ {b.sigma:.1f}／{b.fb:.1f} N/mm²・"
                        f"たわみ {b.deflection_mm:.2f} mm {'可' if b.ok else '不可'}")
+        out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{PS_ALLOW_KN:.1f} kN（目安） "
+                   f"{'可' if self.post_kn <= PS_ALLOW_KN + 1e-9 else '不可'}" + (f"・長さ {self.post_h:.0f}" if self.post_h else ""))
         return out
 
     def quantities(self) -> list[tuple[str, int, str]]:
@@ -77,7 +88,8 @@ class BeamForm:
         for v, n in sorted(tubes.items(), reverse=True):
             out.append((f"単管 {v / 1000:.1f}m（梁の外端太）", n, f"2本組・両側・{len(self.tate_z)}段"))
         out.append((f"単管 {uke / 1000:.1f}m（底の受け）", len(self.uke_x), f"梁に直角 @{self.uke_pitch:.0f}。パイプサポートで受ける"))
-        out.append(("パイプサポート（目安）", 2 * len(self.uke_x), "受けの単管の両端の下（支保工の計算は別）"))
+        out.append(("パイプサポート", 2 * len(self.uke_x), "受けの単管の両端の下"
+                    + (f"・長さ {self.post_h:.0f}・1本 {self.post_kn:.1f}kN" if self.post_h > 0 else "")))
         if self.tie_x and self.tie_z:
             n = len(self.tie_x) * len(self.tie_z)
             out.append((f"フォームタイ（梁幅 {self.width:.0f}）", n, f"@{self.side.tie_pitch:.0f}"))

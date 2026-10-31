@@ -85,6 +85,14 @@
 			<Description><![CDATA["受けの単管の、外端太の外への出"]]></Description>
 			<Value>0.15</Value>
 		</Length>
+		<Length Name="psH">
+			<Description><![CDATA["受けの単管を受けるパイプサポートの長さ（床から受けの単管の下まで。0 なら描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="psY">
+			<Description><![CDATA["パイプサポートの位置（梁の芯から両側へ）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
 		<Boolean Name="endS">
 			<Description><![CDATA["始めの端に止め型枠"]]></Description>
 			<Value>0</Value>

@@ -43,6 +43,8 @@ def paramlist() -> str:
         _param("String", "botY", "底板の下の桟木の位置（梁の芯から mm）", "-178,0,178"),
         _param("String", "ukeX", "底の受けの単管の位置（梁の始めから mm）", "150,900"),
         _param("Length", "ukeOut", "受けの単管の、外端太の外への出", 0.15),
+        _param("Length", "psH", "受けの単管を受けるパイプサポートの長さ（床から受けの単管の下まで。0 なら描かない）", 0),
+        _param("Length", "psY", "パイプサポートの位置（梁の芯から両側へ）", 0.3),
         _param("Boolean", "endS", "始めの端に止め型枠", 0),
         _param("Boolean", "endE", "終わりの端に止め型枠", 0),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
@@ -116,6 +118,7 @@ define material "bf_wood" 2, 0.74, 0.56, 0.36
 define material "bf_steel" 2, 0.62, 0.62, 0.66
 define material "bf_tie" 2, 0.35, 0.35, 0.38
 define material "bf_pcon" 2, 0.85, 0.85, 0.80
+define material "bf_ps" 2, 0.85, 0.55, 0.20
 gap = 0.006
 L = x1 - x0
 ! ---- 底板と下の桟木 ----
@@ -137,6 +140,28 @@ for i = 1 to nU
 	cylind 2 * (yT + r + ukeOut), r
 	del 2
 next i
+! ---- パイプサポート（受けの単管の両端の下） ----
+if psH > 0.1 then
+	for i = 1 to nU
+		for sd = -1 to 1 step 2
+			add ux[i], sd * psY, zb - sgH - 2 * r - psH
+			material "bf_steel"
+			add -0.07, -0.07, 0
+			block 0.14, 0.14, 0.006
+			del 1
+			material "bf_ps"
+			cylind psH * 0.6, 0.03025
+			add 0, 0, psH * 0.6
+			material "bf_steel"
+			cylind psH * 0.4 - 0.006, 0.0243
+			del 1
+			add -0.06, -0.06, psH - 0.006
+			block 0.12, 0.12, 0.006
+			del 1
+			del 1
+		next sd
+	next i
+endif
 ! ---- 側板・桟木・外端太 ----
 for sd = -1 to 1 step 2
 	if sd > 0 then

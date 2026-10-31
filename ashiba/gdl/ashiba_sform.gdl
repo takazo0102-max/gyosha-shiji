@@ -1,0 +1,391 @@
+﻿! ==========================================================
+! スラブの型枠と支保工（せき板・根太・大引・パイプサポート・水平つなぎ。1枚のスラブに1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_sform/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_sform.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-31）: スラブの型枠も進めて しほこうも。
+! 原点＝スラブの外形の1点目の下面、+X＝大引の向き。せき板（梁・壁・柱の所を抜く）、根太（単管）、大引（□100×50）、パイプサポート（postH）、水平つなぎ（tieZ）。割付と計算は slab_form.py、置くのは scripts/form_run.py。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   polyU     文字列    せき板の形の u（mm。外形のあとに穴を続ける）  既定 "0,4000,4000,0"
+!   polyV     文字列    同 v                                          既定 "0,0,3000,3000"
+!   ringN     文字列    形ごとの点の数（1つ目が外形、2つ目からが穴）  既定 "4"
+!   neU       文字列    根太の u（mm）                                既定 "150,450"
+!   neV0      文字列    根太の始めの v                                既定 "20,20"
+!   neV1      文字列    根太の終わりの v                              既定 "2980,2980"
+!   obV       文字列    大引の v（mm）                                既定 "150,1500"
+!   obU0      文字列    大引の始めの u                                既定 "50,50"
+!   obU1      文字列    大引の終わりの u                              既定 "3950,3950"
+!   psU       文字列    パイプサポートの u（mm）                      既定 "100,1500"
+!   psV       文字列    パイプサポートの v                            既定 "150,150"
+!   postH     長さ      パイプサポートの長さ（床から大引の下まで）    既定 2.6
+!   tieZ      文字列    水平つなぎの高さ（床から mm）                 既定 ""
+!   plyT      長さ      せき板の厚さ                                  既定 0.012
+!   cName     文字列    名前（平面の注記）                            既定 "スラブ型枠"
+!   cNote     文字列    間隔の注記                                    既定 ""
+!   texSiz    実数      文字の大きさ（mm）                            既定 2.5
+!   penEquip  PenColor  線のペン                                      既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! スラブの型枠と支保工: 位置を読む（m）
+dim pu[]
+nPu = 0
+rest = polyU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPu = nPu + 1
+		pu[nPu] = v / 1000
+	endif
+endwhile
+dim pv[]
+nPv = 0
+rest = polyV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPv = nPv + 1
+		pv[nPv] = v / 1000
+	endif
+endwhile
+dim rn[]
+nR = 0
+rest = ringN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nR = nR + 1
+		rn[nR] = v / 1000
+	endif
+endwhile
+dim nu[]
+nN = 0
+rest = neU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN = nN + 1
+		nu[nN] = v / 1000
+	endif
+endwhile
+dim nv0[]
+nN0 = 0
+rest = neV0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN0 = nN0 + 1
+		nv0[nN0] = v / 1000
+	endif
+endwhile
+dim nv1[]
+nN1 = 0
+rest = neV1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nN1 = nN1 + 1
+		nv1[nN1] = v / 1000
+	endif
+endwhile
+dim ov[]
+nO = 0
+rest = obV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO = nO + 1
+		ov[nO] = v / 1000
+	endif
+endwhile
+dim ou0[]
+nO0 = 0
+rest = obU0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO0 = nO0 + 1
+		ou0[nO0] = v / 1000
+	endif
+endwhile
+dim ou1[]
+nO1 = 0
+rest = obU1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nO1 = nO1 + 1
+		ou1[nO1] = v / 1000
+	endif
+endwhile
+dim su[]
+nP = 0
+rest = psU
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP = nP + 1
+		su[nP] = v / 1000
+	endif
+endwhile
+dim sv[]
+nP2 = 0
+rest = psV
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP2 = nP2 + 1
+		sv[nP2] = v / 1000
+	endif
+endwhile
+dim tz[]
+nZ = 0
+rest = tieZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nZ = nZ + 1
+		tz[nZ] = v / 1000
+	endif
+endwhile
+! ringN は点の数（mm でなく数）。_parse_all が 1000 で割るので戻す
+for k = 1 to nR
+	rn[k] = round_int(rn[k] * 1000)
+next k
+r = 0.0243
+zN = -plyT - r
+zO = -plyT - 2 * r
+oH = 0.1
+oB = 0.05
+zF = zO - oH - postH
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! スラブの型枠と支保工 2D: せき板の形（外形と穴）、大引（破線）、パイプサポート（○）、名前
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "sfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+i0 = 1
+for k = 1 to nR
+	for i = 0 to rn[k] - 1
+		j = i + 1
+		if j >= rn[k] then j = 0
+		line2 pu[i0 + i], pv[i0 + i], pu[i0 + j], pv[i0 + j]
+	next i
+	i0 = i0 + rn[k]
+next k
+line_type "DASHED"
+for i = 1 to nO
+	line2 ou0[i], ov[i], ou1[i], ov[i]
+next i
+line_type 1
+for i = 1 to nP
+	circle2 su[i], sv[i], 0.03
+next i
+style "sfT"
+text2 pu[1] + 0.3, pv[1] + 0.3, cName + "  " + cNote
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! スラブの型枠と支保工 3D（利用者の指定 2026-10-31: スラブの型枠も進めて しほこうも）
+! 原点＝スラブの下面。せき板・根太・大引・パイプサポート・水平つなぎ
+! ============================================================
+resol 10
+define material "sf_ply" 2, 0.86, 0.66, 0.38
+define material "sf_steel" 2, 0.62, 0.62, 0.66
+define material "sf_obiki" 2, 0.45, 0.52, 0.62
+define material "sf_ps" 2, 0.85, 0.55, 0.20
+! ---- せき板（外形から穴を抜く） ----
+material "sf_ply"
+i0 = 1
+for k = 1 to nR
+	for i = 0 to rn[k] - 1
+		put pu[i0 + i], pv[i0 + i], 15
+	next i
+	put pu[i0], pv[i0], -1
+	i0 = i0 + rn[k]
+next k
+add 0, 0, -plyT
+prism_ nsp / 3, plyT, get(nsp)
+del 1
+! ---- 根太（単管・v の向き） ----
+material "sf_steel"
+for i = 1 to min(nN, min(nN0, nN1))
+	add nu[i], nv0[i], zN
+	rotx -90
+	cylind nv1[i] - nv0[i], r
+	del 2
+next i
+! ---- 大引（□100×50・u の向き） ----
+material "sf_obiki"
+for i = 1 to min(nO, min(nO0, nO1))
+	add ou0[i], ov[i] - oB / 2, zO - oH
+	block ou1[i] - ou0[i], oB, oH
+	del 1
+next i
+! ---- パイプサポート ----
+for i = 1 to min(nP, nP2)
+	add su[i], sv[i], zF
+	material "sf_steel"
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	material "sf_ps"
+	cylind postH * 0.6, 0.03025
+	add 0, 0, postH * 0.6
+	material "sf_steel"
+	cylind postH * 0.4 - 0.006, 0.0243
+	del 1
+	add -0.06, -0.06, postH - 0.006
+	block 0.12, 0.12, 0.006
+	del 1
+	del 1
+next i
+! ---- 水平つなぎ（2方向。支柱の列ごと） ----
+material "sf_steel"
+for k = 1 to nZ
+	for i = 1 to nO
+		add ou0[i], ov[i] + 0.05, zF + tz[k]
+		roty 90
+		cylind ou1[i] - ou0[i], r
+		del 2
+	next i
+	! v の向き: 支柱の u ごと（同じ u の支柱の v の最小〜最大）
+	for i = 1 to min(nP, nP2)
+		first = 1
+		for j = 1 to i - 1
+			if abs(su[j] - su[i]) < 0.01 then first = 0
+		next j
+		if first then
+			vmin = sv[i]
+			vmax = sv[i]
+			for j = 1 to min(nP, nP2)
+				if abs(su[j] - su[i]) < 0.01 then
+					vmin = min(vmin, sv[j])
+					vmax = max(vmax, sv[j])
+				endif
+			next j
+			if vmax - vmin > 0.1 then
+				add su[i] + 0.05, vmin, zF + tz[k] + 2 * r
+				rotx -90
+				cylind vmax - vmin, r
+				del 2
+			endif
+		endif
+	next i
+next k
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+
+
