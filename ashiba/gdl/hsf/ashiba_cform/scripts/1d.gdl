@@ -1,0 +1,97 @@
+﻿! 柱の型枠: 桟木・外端太・フォームタイの位置を読む（m）
+dim sx[]
+nSx = 0
+rest = sgX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSx = nSx + 1
+		sx[nSx] = v / 1000
+	endif
+endwhile
+dim sy[]
+nSy = 0
+rest = sgY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSy = nSy + 1
+		sy[nSy] = v / 1000
+	endif
+endwhile
+dim tz[]
+nT = 0
+rest = tbZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nT = nT + 1
+		tz[nT] = v / 1000
+	endif
+endwhile
+dim tx[]
+nX = 0
+rest = tiX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nX = nX + 1
+		tx[nX] = v / 1000
+	endif
+endwhile
+dim ty[]
+nY = 0
+rest = tiY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nY = nY + 1
+		ty[nY] = v / 1000
+	endif
+endwhile
+r = 0.0243
+hA = A / 2
+hB = B / 2
+! 外端太の芯（面から）
+yT = hB + plyT + sgH + r
+xT = hA + plyT + sgH + r

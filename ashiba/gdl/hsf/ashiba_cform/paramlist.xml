@@ -1,0 +1,89 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["柱の幅（X）"]]></Description>
+			<Fix/>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["柱の奥行き（Y）"]]></Description>
+			<Fix/>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["柱の高さ"]]></Description>
+			<Fix/>
+			<Value>3.0</Value>
+		</Length>
+		<String Name="sgX">
+			<Description><![CDATA["±Y の面の桟木の位置（芯から X mm、カンマ区切り）"]]></Description>
+			<Value><![CDATA["-250,0,250"]]></Value>
+		</String>
+		<String Name="sgY">
+			<Description><![CDATA["±X の面の桟木の位置（芯から Y mm）"]]></Description>
+			<Value><![CDATA["-250,0,250"]]></Value>
+		</String>
+		<String Name="tbZ">
+			<Description><![CDATA["外端太の高さ（柱の下から mm。±X の面は dzB 上）"]]></Description>
+			<Value><![CDATA["150,450,750"]]></Value>
+		</String>
+		<String Name="tiX">
+			<Description><![CDATA["Y の向きに締めるフォームタイの X の位置（芯から mm。両端は角の外）"]]></Description>
+			<Value><![CDATA["-451,451"]]></Value>
+		</String>
+		<String Name="tiY">
+			<Description><![CDATA["X の向きに締めるフォームタイの Y の位置（芯から mm）"]]></Description>
+			<Value><![CDATA["-451,451"]]></Value>
+		</String>
+		<Length Name="dzB">
+			<Description><![CDATA["±X の面の外端太を上げる高さ"]]></Description>
+			<Value>0.12</Value>
+		</Length>
+		<Length Name="plyT">
+			<Description><![CDATA["せき板の厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<Length Name="sgB">
+			<Description><![CDATA["桟木の幅"]]></Description>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="sgH">
+			<Description><![CDATA["桟木のせい（合板に直角）"]]></Description>
+			<Value>0.06</Value>
+		</Length>
+		<Length Name="tbOver">
+			<Description><![CDATA["外端太の、角の外のフォームタイからの出"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<String Name="cName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["柱型枠"]]></Value>
+		</String>
+		<String Name="cNote">
+			<Description><![CDATA["間隔の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

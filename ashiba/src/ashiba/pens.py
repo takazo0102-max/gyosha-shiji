@@ -38,6 +38,7 @@ PART_PENS = {
     "ashiba_side": ("equip",),
     "ashiba_cfill": ("equip",),
     "ashiba_wform": ("equip",),
+    "ashiba_cform": ("equip",),
 }
 
 

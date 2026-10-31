@@ -1,0 +1,296 @@
+﻿! ==========================================================
+! 柱の型枠（せき板・桟木・外端太・フォームタイ。1本の柱に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_cform/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_cform.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-31）: 型枠を作る仕組みを作成して さんぎ そとばた フォームタイを作って既存のモデルに自動配置するようにして。
+! 原点＝柱の芯の下、+X＝幅 A、+Y＝奥行き B。4面にせき板（±Y の面は小口を覆う）、桟木（sgX・sgY）、外端太（単管2本組。±X の面は dzB 上げて交差を逃がす）、フォームタイ（tiX・tiY。両端は角の外、間は柱を貫いて Pコン）。割付と計算は column_form.py、置くのは scripts/form_run.py。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   sgX       文字列    ±Y の面の桟木の位置（芯から X mm、カンマ区切り）                    既定 "-250,0,250"
+!   sgY       文字列    ±X の面の桟木の位置（芯から Y mm）                                  既定 "-250,0,250"
+!   tbZ       文字列    外端太の高さ（柱の下から mm。±X の面は dzB 上）                     既定 "150,450,750"
+!   tiX       文字列    Y の向きに締めるフォームタイの X の位置（芯から mm。両端は角の外）  既定 "-451,451"
+!   tiY       文字列    X の向きに締めるフォームタイの Y の位置（芯から mm）                既定 "-451,451"
+!   dzB       長さ      ±X の面の外端太を上げる高さ                                         既定 0.12
+!   plyT      長さ      せき板の厚さ                                                        既定 0.012
+!   sgB       長さ      桟木の幅                                                            既定 0.045
+!   sgH       長さ      桟木のせい（合板に直角）                                            既定 0.06
+!   tbOver    長さ      外端太の、角の外のフォームタイからの出                              既定 0.1
+!   cName     文字列    名前（平面の注記）                                                  既定 "柱型枠"
+!   cNote     文字列    間隔の注記                                                          既定 ""
+!   texSiz    実数      文字の大きさ（mm）                                                  既定 2.5
+!   penEquip  PenColor  線のペン                                                            既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 柱の型枠: 桟木・外端太・フォームタイの位置を読む（m）
+dim sx[]
+nSx = 0
+rest = sgX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSx = nSx + 1
+		sx[nSx] = v / 1000
+	endif
+endwhile
+dim sy[]
+nSy = 0
+rest = sgY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSy = nSy + 1
+		sy[nSy] = v / 1000
+	endif
+endwhile
+dim tz[]
+nT = 0
+rest = tbZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nT = nT + 1
+		tz[nT] = v / 1000
+	endif
+endwhile
+dim tx[]
+nX = 0
+rest = tiX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nX = nX + 1
+		tx[nX] = v / 1000
+	endif
+endwhile
+dim ty[]
+nY = 0
+rest = tiY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nY = nY + 1
+		ty[nY] = v / 1000
+	endif
+endwhile
+r = 0.0243
+hA = A / 2
+hB = B / 2
+! 外端太の芯（面から）
+yT = hB + plyT + sgH + r
+xT = hA + plyT + sgH + r
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 柱の型枠 2D
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "cfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! せき板
+rect2 -hA - plyT, hB, hA + plyT, hB + plyT
+rect2 -hA - plyT, -hB - plyT, hA + plyT, -hB
+rect2 hA, -hB, hA + plyT, hB
+rect2 -hA - plyT, -hB, -hA, hB
+! 桟木
+for i = 1 to nSx
+	rect2 sx[i] - sgB / 2, hB + plyT, sx[i] + sgB / 2, hB + plyT + sgH
+	rect2 sx[i] - sgB / 2, -hB - plyT - sgH, sx[i] + sgB / 2, -hB - plyT
+next i
+for i = 1 to nSy
+	rect2 hA + plyT, sy[i] - sgB / 2, hA + plyT + sgH, sy[i] + sgB / 2
+	rect2 -hA - plyT - sgH, sy[i] - sgB / 2, -hA - plyT, sy[i] + sgB / 2
+next i
+! 外端太
+line_type "DASHED"
+line2 tx[1] - tbOver, yT, tx[nX] + tbOver, yT
+line2 tx[1] - tbOver, -yT, tx[nX] + tbOver, -yT
+line2 xT, ty[1] - tbOver, xT, ty[nY] + tbOver
+line2 -xT, ty[1] - tbOver, -xT, ty[nY] + tbOver
+line_type 1
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.05, tx[i], yT + 0.05
+next i
+for i = 1 to nY
+	line2 -xT - 0.05, ty[i], xT + 0.05, ty[i]
+next i
+style "cfT"
+text2 0, -yT - 0.15, cName + "  " + cNote
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 柱の型枠 3D（利用者の指定 2026-10-31: さんぎ そとばた フォームタイ）
+! ============================================================
+resol 12
+define material "cf_ply" 2, 0.86, 0.66, 0.38
+define material "cf_wood" 2, 0.74, 0.56, 0.36
+define material "cf_steel" 2, 0.62, 0.62, 0.66
+define material "cf_tie" 2, 0.35, 0.35, 0.38
+define material "cf_pcon" 2, 0.85, 0.85, 0.80
+H = ZZYZX
+gap = 0.006
+! ---- せき板 ----
+material "cf_ply"
+add -hA - plyT, hB, 0
+block A + 2 * plyT, plyT, H
+del 1
+add -hA - plyT, -hB - plyT, 0
+block A + 2 * plyT, plyT, H
+del 1
+add hA, -hB, 0
+block plyT, B, H
+del 1
+add -hA - plyT, -hB, 0
+block plyT, B, H
+del 1
+! ---- 桟木 ----
+material "cf_wood"
+for i = 1 to nSx
+	add sx[i] - sgB / 2, hB + plyT, 0
+	block sgB, sgH, H
+	del 1
+	add sx[i] - sgB / 2, -hB - plyT - sgH, 0
+	block sgB, sgH, H
+	del 1
+next i
+for i = 1 to nSy
+	add hA + plyT, sy[i] - sgB / 2, 0
+	block sgH, sgB, H
+	del 1
+	add -hA - plyT - sgH, sy[i] - sgB / 2, 0
+	block sgH, sgB, H
+	del 1
+next i
+! ---- 外端太（2本組） ----
+material "cf_steel"
+Lx = tx[nX] - tx[1] + 2 * tbOver
+Ly = ty[nY] - ty[1] + 2 * tbOver
+for j = 1 to nT
+	for k = -1 to 1 step 2
+		for sd = -1 to 1 step 2
+			add tx[1] - tbOver, sd * yT, tz[j] + k * (r + gap)
+			roty 90
+			cylind Lx, r
+			del 2
+			add sd * xT, ty[1] - tbOver, tz[j] + dzB + k * (r + gap)
+			rotx -90
+			cylind Ly, r
+			del 2
+		next sd
+	next k
+next j
+! ---- フォームタイ ----
+for j = 1 to nT
+	! Y の向き（±Y の面の外端太を締める）
+	for i = 1 to nX
+		add tx[i], 0, tz[j]
+		material "cf_tie"
+		add 0, -yT - r - 0.05, 0
+		rotx -90
+		cylind 2 * (yT + r + 0.05), 0.00395
+		del 2
+		for sd = -1 to 1 step 2
+			add -0.035, sd * (yT + r) + (sd - 1) / 2 * 0.006, -(2 * r + gap)
+			block 0.07, 0.006, 2 * (2 * r + gap)
+			del 1
+		next sd
+		if i > 1 and i < nX then
+			material "cf_pcon"
+			add 0, -hB, 0
+			rotx -90
+			cone 0.025, 0.012, 0.0175, 90, 90
+			del 2
+			add 0, hB, 0
+			rotx 90
+			cone 0.025, 0.012, 0.0175, 90, 90
+			del 2
+		endif
+		del 1
+	next i
+	! X の向き（±X の面の外端太を締める）
+	for i = 1 to nY
+		add 0, ty[i], tz[j] + dzB
+		material "cf_tie"
+		add -xT - r - 0.05, 0, 0
+		roty 90
+		cylind 2 * (xT + r + 0.05), 0.00395
+		del 2
+		for sd = -1 to 1 step 2
+			add sd * (xT + r) + (sd - 1) / 2 * 0.006, -0.035, -(2 * r + gap)
+			block 0.006, 0.07, 2 * (2 * r + gap)
+			del 1
+		next sd
+		if i > 1 and i < nY then
+			material "cf_pcon"
+			add -hA, 0, 0
+			roty 90
+			cone 0.025, 0.012, 0.0175, 90, 90
+			del 2
+			add hA, 0, 0
+			roty -90
+			cone 0.025, 0.012, 0.0175, 90, 90
+			del 2
+		endif
+		del 1
+	next i
+next j
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+
+

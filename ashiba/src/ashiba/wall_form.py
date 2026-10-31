@@ -84,8 +84,9 @@ class FormCheck:
         return out
 
 
-def check(height_mm: float, sangi_pitch: float, tate_pitch: float, tie_pitch: float, length_mm: float = 1e9) -> FormCheck:
-    p = pressure_kn_m2(height_mm, length_mm)
+def check(height_mm: float, sangi_pitch: float, tate_pitch: float, tie_pitch: float, length_mm: float = 1e9,
+          column: bool = False) -> FormCheck:
+    p = pressure_kn_m2(height_mm, length_mm, column)
     q = p * 1e-3                                          # N/mm²
     ply = Member(f"合板 {PLY_T_MM:.0f}mm", PLY_E, PLY_FB, 1000.0 * PLY_T_MM ** 2 / 6.0, 1000.0 * PLY_T_MM ** 3 / 12.0)
     beams = [_beam("せき板", ply, sangi_pitch, q * 1000.0, q * 1000.0),

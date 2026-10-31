@@ -1,0 +1,35 @@
+﻿! 柱の型枠 2D
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "cfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! せき板
+rect2 -hA - plyT, hB, hA + plyT, hB + plyT
+rect2 -hA - plyT, -hB - plyT, hA + plyT, -hB
+rect2 hA, -hB, hA + plyT, hB
+rect2 -hA - plyT, -hB, -hA, hB
+! 桟木
+for i = 1 to nSx
+	rect2 sx[i] - sgB / 2, hB + plyT, sx[i] + sgB / 2, hB + plyT + sgH
+	rect2 sx[i] - sgB / 2, -hB - plyT - sgH, sx[i] + sgB / 2, -hB - plyT
+next i
+for i = 1 to nSy
+	rect2 hA + plyT, sy[i] - sgB / 2, hA + plyT + sgH, sy[i] + sgB / 2
+	rect2 -hA - plyT - sgH, sy[i] - sgB / 2, -hA - plyT, sy[i] + sgB / 2
+next i
+! 外端太
+line_type "DASHED"
+line2 tx[1] - tbOver, yT, tx[nX] + tbOver, yT
+line2 tx[1] - tbOver, -yT, tx[nX] + tbOver, -yT
+line2 xT, ty[1] - tbOver, xT, ty[nY] + tbOver
+line2 -xT, ty[1] - tbOver, -xT, ty[nY] + tbOver
+line_type 1
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.05, tx[i], yT + 0.05
+next i
+for i = 1 to nY
+	line2 -xT - 0.05, ty[i], xT + 0.05, ty[i]
+next i
+style "cfT"
+text2 0, -yT - 0.15, cName + "  " + cNote
