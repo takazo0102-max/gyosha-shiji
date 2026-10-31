@@ -711,6 +711,17 @@ def place_hatch_ladders(model: ScaffoldModel, n: int) -> list[tuple[int, int]]:
                 cands.append((acc + x + s / 2.0, ep.edge_index, i))
             x += s
         acc += ep.scaffold_length
+    # 隅のつなぎ（斜めの角）に続く端のスパンは、隅のつなぎのアンチが重なって載り、昇降口をふさぐので避ける（実機 2026-10-31:
+    # 入隅のアンチが後の足場の始めのハッチの上に載っていた）。ほかに置ける所が無ければそのまま
+    joined = getattr(model, "joined_ends", set()) or set()
+    nspan = {ep.edge_index: len(ep.spans) for ep in model.plan.edges}
+    keep = [c for c in cands if not ((c[1], "s") in joined and c[2] == 0)
+            and not ((c[1], "e") in joined and c[2] == nspan.get(c[1], 0) - 1)]
+    if cands and not keep:
+        model.plan.warnings.append(
+            f"昇降口のハッチ付布板（{part.model_no}）を置ける長さ {int(part.nominal_dim)} のスパンが、斜めの角の隅のつなぎに"
+            "続く端にしか無い。隅のつなぎのアンチが重なって昇降口をふさぐので、その端のスパンを入れ替えるか、昇降口を別に設ける")
+    cands = keep or cands
     if not cands:
         return []
     loop = acc

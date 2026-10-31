@@ -93,3 +93,152 @@ for k = 1 to nP
 	cx = cx + px[k] / nP
 	cy = cy + py[k] / nP
 next k
+! アンチを並べる基準: 最初の手すりの辺（外の辺）。辺の向き u・内向き（左）nI・中点・床の奥行き（辺から最も遠い点まで）
+kR = 1
+for k = nP to 1 step -1
+	if rl[k] then kR = k
+next k
+kR2 = kR + 1
+if kR2 > nP then kR2 = 1
+eDx = px[kR2] - px[kR]
+eDy = py[kR2] - py[kR]
+eL = sqr(eDx * eDx + eDy * eDy)
+if eL < 0.001 then eL = 0.001
+ux = eDx / eL
+uy = eDy / eL
+mx = px[kR] + eDx / 2
+my = py[kR] + eDy / 2
+dep = 0
+for k = 1 to nP
+	dd = (px[k] - px[kR]) * (-uy) + (py[k] - py[kR]) * ux
+	if dd > dep then dep = dd
+next k
+nPl = 1
+if antiW > 0.01 then nPl = max(1, int(dep / antiW + 0.999))
+if nPl > 8 then nPl = 8
+if abs(eDx) < 0.000001 then
+	eAng = 90 * sgn(eDy)
+else
+	eAng = atn(eDy / eDx)
+	if eDx < 0 then eAng = eAng + 180
+endif
+pAng = eAng
+dim qx[]
+nQx = 0
+rest = plkX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQx = nQx + 1
+		qx[nQx] = v / 1000
+	endif
+endwhile
+dim qy[]
+nQy = 0
+rest = plkY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQy = nQy + 1
+		qy[nQy] = v / 1000
+	endif
+endwhile
+dim s0x[]
+nS = 0
+rest = supX0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS = nS + 1
+		s0x[nS] = v / 1000
+	endif
+endwhile
+dim s0y[]
+nS2 = 0
+rest = supY0
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS2 = nS2 + 1
+		s0y[nS2] = v / 1000
+	endif
+endwhile
+dim s1x[]
+nS3 = 0
+rest = supX1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS3 = nS3 + 1
+		s1x[nS3] = v / 1000
+	endif
+endwhile
+dim s1y[]
+nS4 = 0
+rest = supY1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nS4 = nS4 + 1
+		s1y[nS4] = v / 1000
+	endif
+endwhile
+if nQy < nQx then nQx = nQy
+if nQx > 0 then
+	nPl = nQx
+	pAng = plkAng
+else
+	for i = 1 to nPl
+		qx[i] = mx - ux * antiL / 2 + (-uy) * antiW * (i - 1)
+		qy[i] = my - uy * antiL / 2 + ux * antiW * (i - 1)
+	next i
+endif
+nS = min(nS, min(nS2, min(nS3, nS4)))

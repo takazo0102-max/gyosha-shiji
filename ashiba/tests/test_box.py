@@ -9,7 +9,7 @@ from _path import SRC  # noqa: F401
 
 from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame, chain_sides, contains, orient_path,
                         parse_box_params, rotate_pt, to_local, band, corner_fill, corner_quantities, joined_ends,
-                        oblique_corners, trim_for_corner,
+                        oblique_corners, trim_for_corner, corner_layout,
                         default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
                         thickness_conditions)
@@ -388,6 +388,17 @@ class TestObliqueCorners(unittest.TestCase):
         q = dict(corner_quantities(f, 4)[0:1] and [(r[0], r[1]) for r in corner_quantities(f, 4)])
         self.assertTrue(any("アンチ" in n for n in q) and any("自在クランプ" in n for n in q))
         self.assertTrue(any("足場板" in r[0] for r in corner_quantities(f, 4, "足場板")))
+        rows = corner_quantities(f, 4, "アンチ", 914)
+        self.assertEqual(rows[0][:2], ("アンチ 914×240", 4 * 4))                 # 奥行き 800 → 幅 240 を4枚ずつ
+        self.assertTrue(any(r[0] == "自在クランプ" and r[1] == 32 for r in rows))
+        # 本足場のアンチの上に重ねて載せる（利用者の指定 2026-10-31）: 出隅の三角は奥が細いので、受けの単管は外の辺の近くの
+        # すき間の中だけ（150 未満は要らない）。アンチは外の辺の中点から両側へ 914/2
+        lay = corner_layout(f, 914.0, 240.0)
+        self.assertEqual(len(lay["planks"]), 4)
+        self.assertEqual(lay["supports"], [])
+        rows = corner_quantities(f, 4, "アンチ", 914, layout=lay)
+        self.assertFalse(any("受け" in r[0] for r in rows))
+        self.assertTrue(any(r[0] == "自在クランプ" and r[1] == 16 for r in rows))     # 手すり2本の両端×4段
 
     def test_concave_corner_trims_and_fills(self):
         for deg in (-30.0, -60.0, -120.0):
@@ -419,6 +430,45 @@ class TestObliqueCorners(unittest.TestCase):
         m = groups[0][1].model
         self.assertEqual((m.open_start(0), m.open_end(0)), (True, False))     # 角の側だけ妻側の手すりを外す
         self.assertEqual(joined_ends(job, spec, (False, False)), [])
+
+
+
+class TestGapBoardsAndCorners(unittest.TestCase):
+    def test_concave_rail_ends_at_a_post(self):
+        """入隅の手すりは近い支柱に留める（利用者の指定 2026-10-31）: 外の線を延ばした点のかわりに、後の足場の外の列の支柱."""
+        dj = side_axis(math.radians(-60))
+        a = (5500.0, 0.0)
+        nj = (dj[1], -dj[0])
+        posts, acc = [], 0.0
+        for sp in [0, 1829, 1524, 610]:
+            acc += sp
+            posts.append((a[0] + nj[0] * 914 + dj[0] * acc, a[1] + nj[1] * 914 + dj[1] * acc))
+        f = corner_fill((4572.0, 0.0), (1.0, 0.0), 914.0, a, dj, 914.0, a, False, posts_j=posts)
+        k = f["rail"][0]
+        end = f["poly"][(k + 1) % len(f["poly"])]
+        self.assertTrue(any(math.dist(end, q) < 1.0 for q in posts), end)
+
+    def test_gap_boards_for_two_row_decks(self):
+        """床の2枚敷き（500＋240）にすき間板（利用者の指定 2026-10-31: 二列並べるには隙間板をつけて）. 日建は 910・606 の組み合わせ."""
+        from ashiba.cli import solve_all
+        from ashiba.gdl_params import _gap_board_params
+        from ashiba.master import load_master
+        from ashiba.quantity import gap_board_pieces
+
+        gb = load_master("nikken_nd1800").by_category("すき間板")
+        self.assertEqual({s: sorted((p.model_no, k) for p, k in gap_board_pieces(gb, s)) for s in (1829, 1524, 1219, 914)},
+                         {1829: [("NDSK09", 2)], 1524: [("NDSK06", 1), ("NDSK09", 1)], 1219: [("NDSK06", 2)],
+                          914: [("NDSK09", 1)]})
+        base = {"outline_mm": [[0, 0], [12000, 0], [12000, 8000], [0, 8000]], "eaves_height_mm": 7000,
+                "series_id": "nikken_nd1800"}
+        two = solve_all({**base, "scaffold_width_mm": 900})
+        self.assertGreater(sum(l.qty for l in two.quantity.lines if l.part.category == "すき間板"), 0)
+        self.assertEqual(_gap_board_params(two.model, list(two.model.deck_widths_in_use)),
+                         {"gapBd": True, "gapW": 0.44, "gapT": 0.018})
+        one = solve_all(base)                                                   # 幅 610 は 500 の1枚敷き
+        self.assertEqual(sum(l.qty for l in one.quantity.lines if l.part.category == "すき間板"), 0)
+        off = solve_all({**base, "scaffold_width_mm": 900, "gap_boards": False})
+        self.assertEqual(sum(l.qty for l in off.quantity.lines if l.part.category == "すき間板"), 0)
 
 
 if __name__ == "__main__":

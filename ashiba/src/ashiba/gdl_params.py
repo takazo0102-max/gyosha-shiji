@@ -382,6 +382,8 @@ def line_params(
         "rowW": model.post_row_spacing_mm / 1000.0,
         "deckW1": (widths[0] if widths else (0 if model.config.is_hug else 400)) / 1000.0,
         "deckW2": (widths[1] if len(widths) > 1 else 0) / 1000.0,
+        # 床の2枚敷きのすき間板（隙間隠し板。利用者の指定 2026-10-31: 二列並べるには隙間板をつけて）: 幅・厚みはマスタの注記
+        **_gap_board_params(model, widths),
         # 単管の足場板の枚数（3枚以上は deckW1 と同じ幅で並べる）。くさび・枠組は0
         "deckN": len(widths) if model.master.is_tube else 0,
         # 階段を外側の板の位置に寄せ、内側の板（ハーフアンチ）を階段の層も敷く（model.stair_half_deck）
@@ -1133,3 +1135,17 @@ def face_drawn_counts(model: ScaffoldModel, ep, stair_plan=None, openings=None, 
         "qtyPostPos": post_pos, "qtyPost": post_pos * len(e.posts), "qtyNuno": nuno, "qtyDeck": deck,
         "qtyToe": toe, "qtyAdv": advq, "qtyTie": ties, "qtyBrace": brace, "qtyStair": len(all_towers) * n_levels,
     }
+
+
+def _gap_board_params(model, widths) -> dict:
+    """部品 ashiba_line のすき間板の描き方（gapBd・幅 gapW・厚み gapT）. quantity と同じ条件で描く。gapBd は Boolean の
+    パラメータなので True/False で送る（1/0 を送ると SetGDLParameters が型違いで止まり、配置が途中で消えた）."""
+    import re as _re
+
+    m = model.master
+    gb = m.by_category("すき間板") if len(widths) >= 2 and not m.is_tube and not m.is_frame else []
+    if not gb or not getattr(model, "gap_boards", True):
+        return {"gapBd": False, "gapW": 0.0, "gapT": 0.0}
+    w = _re.search(r"幅(\d+)", gb[0].note)
+    th = _re.search(r"厚(\d+)", gb[0].note)
+    return {"gapBd": True, "gapW": (int(w.group(1)) if w else 175) / 1000.0, "gapT": (int(th.group(1)) if th else 20) / 1000.0}

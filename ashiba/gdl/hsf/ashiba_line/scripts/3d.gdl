@@ -1406,6 +1406,12 @@ if showDeck then
 					eoD1 = 1
 				endif
 				if eoD = 1 then skipDeck = 1
+				! ハッチ付布板（梯子内蔵）の升目は外側の板を敷かない（ハッチ付布板がその幅の板の代わり。下の昇降口で描く）
+				if showDeck then
+					for ih2 = 1 to nHt
+						if htI[ih2] = ip then eoD1 = 1
+					next ih2
+				endif
 				if skipAll = 0 then
 					if skipDeck = 0 then
 						if matDeck > 0 then material matDeck
@@ -1470,6 +1476,19 @@ if showDeck then
 							dkW = deckW2 - 0.01
 							gosub 870
 							del 1
+							! すき間板（隙間隠し板。日建 NDSK09 910×440・厚18 など）: 2枚敷きの床の上に、内側の支柱の列のきわから幅 gapW。
+							! 板と板・内側の板と支柱のすき間を覆う（利用者の指定 2026-10-31: 二列並べるには隙間板をつけて）
+							if gapBd then
+								add x + 0.005, -0.01 - gapW, z + r_nuno + 0.045
+								block spans[ip] - 0.01, gapW, gapT
+								! 内側の端のフック（内側の布材に掛かる）
+								for hk = 1 to 2
+									add (spans[ip] - 0.01) * (hk - 0.5) / 2 + 0.1 * (hk - 1.5), gapW - 0.004, -0.03
+									block 0.04, 0.012, 0.03 + gapT
+									del 1
+								next hk
+								del 1
+							endif
 						endif
 						endif
 					endif
@@ -1549,10 +1568,13 @@ if showDeck then
 	next il
 endif
 
-! ---- ハッチ付布板（梯子内蔵。日建 NDN6TA）の昇降口: 階段室が入らない小さい足場（利用者の指摘 2026-10-24 の続き）----
-! 外側の板（幅 deckW1）の位置で、各層の床にハッチの蓋（600×450）、その下に下の層まで梯子
+! ---- ハッチ付布板（梯子内蔵。日建 NDN6TA〜NDN3TA）の昇降口: 階段室が入らない小さい足場（利用者の指摘 2026-10-24 の続き）----
+! 形（利用者の指定 2026-10-31: はっちつきアンチはこんな形。日建の表）: 幅 500・高さ 83 のアルミの枠（両側の縦枠と両端の
+! つかみ金具の横枠）に、片側（長さの約 6 割）が開くハッチの蓋、残りが固定の床。蓋の下に梯子（外幅 360・内幅 258、長さ 1520〜
+! 最大 2100）を下の層の床まで下ろす。外側の板（幅 deckW1）の位置に、その升目の外側の板の代わりに置く
 if showDeck and nHt > 0 then
 	define material "ashiba_hatch_alu" 2, 0.78, 0.80, 0.82
+	define material "ashiba_hatch_lid" 2, 0.70, 0.73, 0.76
 	for ih = 1 to nHt
 		kq = htI[ih]
 		if kq >= 1 and kq <= nSpan then
@@ -1561,29 +1583,58 @@ if showDeck and nHt > 0 then
 				hx0 = hx0 + spans[iq]
 			next iq
 			if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
-				hxm = hx0 + spans[kq] / 2
-				hym = -rowW + 0.05 + deckW1 / 2
+				hL = spans[kq]
+				hy0 = -rowW + 0.05
+				hW = deckW1 - 0.01
+				hym = hy0 + hW / 2
+				lidL = min(1.13, (hL - 0.13) * 0.62)
 				for il = 2 to nLv
 					z = lv[il]
 					zt = z + r_nuno + 0.045
 					material "ashiba_hatch_alu"
-					add hxm - 0.30, hym - 0.225, zt
-					block 0.60, 0.45, 0.006
+					! 両側の縦枠（高さ 83）
+					for sd = 0 to 1
+						add hx0 + 0.025, hy0 + sd * (hW - 0.025), zt - 0.083
+						block hL - 0.05, 0.025, 0.083
+						del 1
+					next sd
+					! 両端の横枠とつかみ金具（腕木を掴む）
+					for ed = 0 to 1
+						add hx0 + 0.025 + ed * (hL - 0.09), hy0, zt - 0.06
+						block 0.04, hW, 0.06
+						del 1
+						for hk = 0 to 1
+							add hx0 + 0.004 + ed * (hL - 0.038), hy0 + 0.015 + hk * (hW - 0.065), z - r_nuno - 0.012
+							block 0.030, 0.035, 2 * r_nuno + 0.012
+							del 1
+						next hk
+					next ed
+					! 固定の床（蓋の先から終わりの横枠まで）と、開くハッチの蓋（取っ手つき。蓋のまわりに細いすき間）
+					add hx0 + 0.065 + lidL + 0.006, hy0 + 0.025, zt - 0.004
+					block hL - 0.13 - lidL - 0.006, hW - 0.05, 0.004
 					del 1
-					! 梯子（ハッチの下から下の層の床まで。踏ざん 300 ピッチ）
+					material "ashiba_hatch_lid"
+					add hx0 + 0.068, hy0 + 0.028, zt - 0.0045
+					block lidL - 0.006, hW - 0.056, 0.004
+					del 1
+					add hx0 + 0.065 + lidL - 0.08, hym - 0.06, zt - 0.0005
+					block 0.03, 0.12, 0.008
+					del 1
+					! 梯子（蓋の下から下の層の床まで。両側の縦材 51×20、踏ざん □25 を 300 ピッチ、外幅 360・内幅 258）
+					material "ashiba_hatch_alu"
 					zb = lv[il - 1] + r_nuno + 0.045
 					if il = 2 then zb = 0
-					for sr = -1 to 1 step 2
-						add hxm - 0.20, hym + sr * 0.17, zb
-						cylind zt - zb, 0.012
+					lx = hx0 + 0.065 + 0.12
+					for sr = 0 to 1
+						add lx - 0.01, hym - 0.18 + sr * (0.36 - 0.051), zb
+						block 0.02, 0.051, zt - 0.083 - zb
 						del 1
 					next sr
 					zr = zb + 0.30
-					while zr < zt - 0.05 do
-						add hxm - 0.20, hym - 0.17, zr
-						rotx -90
-						cylind 0.34, 0.010
-						del 2
+					while zr < zt - 0.10 do
+						add lx - 0.0125, hym - 0.129, zr
+						block 0.025, 0.258, 0.025
+						del 1
 						zr = zr + 0.30
 					endwhile
 				next il

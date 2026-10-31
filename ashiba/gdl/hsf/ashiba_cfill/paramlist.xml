@@ -51,7 +51,47 @@
 		</Integer>
 		<Length Name="deckT">
 			<Description><![CDATA["作業床の厚み"]]></Description>
-			<Value>0.04</Value>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="antiL">
+			<Description><![CDATA["アンチの長さ（受けの単管の間。インチの系列は 914、メートルは 900）"]]></Description>
+			<Value>0.914</Value>
+		</Length>
+		<Length Name="antiW">
+			<Description><![CDATA["アンチの幅"]]></Description>
+			<Value>0.24</Value>
+		</Length>
+		<String Name="plkX">
+			<Description><![CDATA["アンチの外の辺側の始めの角の x（原点から mm。空なら外の辺の中点から並べる）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="plkY">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="plkAng">
+			<Description><![CDATA["アンチの向き（度。外の辺の向き）"]]></Description>
+			<Value>0</Value>
+		</RealNum>
+		<String Name="supX0">
+			<Description><![CDATA["受けの単管の始めの x（原点から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supY0">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supX1">
+			<Description><![CDATA["受けの単管の終わりの x"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supY1">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="deckTop">
+			<Description><![CDATA["本足場の布板の上面（段の高さから。アンチはこの上に載る）"]]></Description>
+			<Value>0.0664</Value>
 		</Length>
 		<Length Name="railH1">
 			<Description><![CDATA["上桟の高さ（床から）"]]></Description>

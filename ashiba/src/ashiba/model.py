@@ -183,6 +183,8 @@ class ScaffoldModel:
     clearance_space_mm: float = 2000.0     # 躯体外面から確保できる水平スペース
     # 一側足場を利用者が選んだ（足場の箱の厚み 300）。本足場原則はただし書き（困難な理由を記録）として要確認にする
     one_row_by_choice: bool = False
+    # 床の2枚敷きのすき間に隙間隠し板（すき間板）を載せる（利用者の指定 2026-10-31: 二列並べるには隙間板をつけて）
+    gap_boards: bool = True
     wall_ties: list[WallTie] = field(default_factory=list)
     # 面ごとの立面（セットバックで低い面。辺番号 → 全体の立面を軒高で切ったもの）。無い面は全体の立面
     face_elevations: dict = field(default_factory=dict)

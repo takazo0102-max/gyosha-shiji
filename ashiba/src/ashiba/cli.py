@@ -156,7 +156,7 @@ TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
-    "clearance_space_mm", "one_row_by_choice", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
+    "clearance_space_mm", "one_row_by_choice", "gap_boards", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
@@ -1078,6 +1078,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
     model.faces_only = faces
+    model.gap_boards = bool(spec.get("gap_boards", True))      # 床の2枚敷きのすき間板（利用者の指定 2026-10-31）
     model.joined_ends = set(tuple(j) for j in ((joins or {}).get("joined") or []))
     # 張り出した上の階の上段は跳ね出しブラケットの上に立つ（setback_tiers。足場ラインの haneD）
     model.hane_bracket = bool(spec.get("_hane"))

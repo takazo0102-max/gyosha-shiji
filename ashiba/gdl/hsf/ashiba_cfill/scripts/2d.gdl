@@ -23,5 +23,18 @@ next k
 for k = 1 to nP
 	line2 cx, cy, cx + (px[k] - cx) * 0.3, cy + (py[k] - cy) * 0.3
 next k
+! アンチ（外の辺に平行に、辺の中点から両側へ antiL/2）
+for i = 1 to nPl
+	add2 qx[i], qy[i]
+	rot2 pAng
+	rect2 0, 0, antiL, antiW
+	del 2
+next i
+! 受けの単管（破線）
+for i = 1 to nS
+	line_type "DASHED"
+	line2 s0x[i], s0y[i], s1x[i], s1y[i]
+	line_type 1
+next i
 style "cfT"
-text2 cx, cy, cName + "（" + dName + "＋単管手すり）"
+text2 cx, cy, cName + "（" + dName + str(antiL * 1000, 1, 0) + "×" + str(nPl, 1, 0) + "枚＋単管手すり）"

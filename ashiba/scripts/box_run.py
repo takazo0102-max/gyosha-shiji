@@ -445,7 +445,7 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
     ようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか）."""
     import csv
 
-    from ashiba.box import corner_fill, corner_quantities
+    from ashiba.box import DECK_TOP_MM, corner_fill, corner_layout, corner_quantities
     from ashiba.pens import gdl_pens, parse_pens
 
     sides = info["sides"]
@@ -463,8 +463,17 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
         si, sj = sides[cn["i"]], sides[cn["j"]]
         end_i = _chain_end(bi, sides)
         mi, mj = bi["solved"].model, bj["solved"].model
-        fill = corner_fill(end_i, si["dir"], float(mi.post_row_spacing_mm), sj["a"], sj["dir"],
-                           float(mj.post_row_spacing_mm), cn["c"], cn["convex"])
+        # 後の足場の外の列の支柱（入隅の手すりの端を留める）
+        wj = float(mj.post_row_spacing_mm)
+        nj = (sj["dir"][1], -sj["dir"][0])
+        acc, posts_j = 0.0, []
+        for sp in [0] + list(sj["spans"]):
+            acc += sp
+            posts_j.append((sj["a"][0] + nj[0] * wj + sj["dir"][0] * acc, sj["a"][1] + nj[1] * wj + sj["dir"][1] * acc))
+        fill = corner_fill(end_i, si["dir"], float(mi.post_row_spacing_mm), sj["a"], sj["dir"], wj, cn["c"], cn["convex"],
+                           posts_j=posts_j)
+        # アンチの長さ（利用者の指定 2026-10-31: 900アンチを乗せる）: インチの系列は 914、メートルは 900
+        anti_l = 914 if 914 in [int(v) for v in mi.master.span_lengths()] else 900
         lv_i, lv_j = list(mi.elevation.level_heights), list(mj.elevation.level_heights)
         lv = lv_i if len(lv_i) <= len(lv_j) else lv_j
         base = float(si["base_mm"])
@@ -483,6 +492,7 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
             pass
         if old:
             c.delete_elements(old)
+        lay = corner_layout(fill, float(anti_l), 240.0)
         (el,) = c.create_objects([(R.versioned_part_name(CFILL_OBJECT), cx, cy)])
         poly = fill["poly"]
         c.set_gdl_parameters(el, {**pens,
@@ -490,13 +500,23 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
                                   "polyY": ",".join(f"{p[1] - cy:.0f}" for p in poly),
                                   "railE": ",".join(str(r) for r in fill["rail"]),
                                   "levList": ",".join(f"{base + h:.0f}" for h in lv),
-                                  "deckKind": 1, "cName": f"隅のつなぎ{k}"})
+                                  "deckKind": 1, "antiL": lay["anti_l"] / 1000.0, "cName": f"隅のつなぎ{k}",
+                                  # アンチは本足場のアンチの上に重ねて載せ、受けの単管はすき間の中だけ（利用者の指定 2026-10-31）
+                                  "plkX": ",".join(f"{q[0] - cx:.0f}" for q in lay["planks"]),
+                                  "plkY": ",".join(f"{q[1] - cy:.0f}" for q in lay["planks"]),
+                                  "plkAng": lay["ang"], "deckTop": DECK_TOP_MM / 1000.0,
+                                  "supX0": ",".join(f"{s[0][0] - cx:.0f}" for s in lay["supports"]),
+                                  "supY0": ",".join(f"{s[0][1] - cy:.0f}" for s in lay["supports"]),
+                                  "supX1": ",".join(f"{s[1][0] - cx:.0f}" for s in lay["supports"]),
+                                  "supY1": ",".join(f"{s[1][1] - cy:.0f}" for s in lay["supports"])})
         turn = math.degrees(math.acos(max(-1.0, min(1.0, si["dir"][0] * sj["dir"][0] + si["dir"][1] * sj["dir"][1]))))
-        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に作業床 {len(lv)}段・単管手すり・幅木を"
-              f"置きました（両側の足場の角の側の妻側の手すりは外す）。床はアンチ（部品の設定で足場板に替えられる）")
+        ns = len(lay["supports"])
+        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、アンチ {lay['anti_l']:.0f} を"
+              f"渡る向きに {len(lay['planks'])}枚ずつ、両側の本足場のアンチの上に重ねて載せ" + (f"（すき間の中は単管の受け {ns}本）" if ns else "")
+              + "、単管の上桟・中桟・幅木・自在クランプを置きました（両側の足場の角の側の妻側の手すりは外す）")
         if len(lv_i) != len(lv_j):
             print(f"    注意: 両側の足場の段数が違う（{len(lv_i)}段・{len(lv_j)}段）ので、少ない方の {len(lv)}段にしました")
-        for item, q, note in corner_quantities(fill, len(lv), "アンチ"):
+        for item, q, note in corner_quantities(fill, len(lv), "アンチ", anti_l, layout=lay):
             rows.append((f"隅のつなぎ{k}", item, q, note))
             print(f"    {item} {q} — {note}")
     if rows:

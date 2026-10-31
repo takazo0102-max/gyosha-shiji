@@ -786,6 +786,18 @@ def _take_off_one(
             add(hp, n_h, f"ハッチ付布板（梯子内蔵）昇降口 {n_h // max(1, n_levels)}箇所×{n_levels}層")
             notes.append(f"昇降口はハッチ付布板（梯子内蔵 {hp.model_no}）{n_h // max(1, n_levels)}箇所×各層。"
                          f"その升目の幅{hw}の踏板は差し引いています")
+        # 床の2枚敷きのすき間に隙間隠し板（すき間板）を載せる（利用者の指定 2026-10-31: 二列並べるには隙間板をつけて。
+        # 日建 NDSK09 910×440・NDSK06 606×440、スギコ 34806〜34818 幅175）。スパンに合う長さ（無ければ組み合わせ）を升目ごとに
+        if len(deck_widths) >= 2 and getattr(model, "gap_boards", True) and not m.is_frame:
+            gb = m.by_category("すき間板")
+            n_gb = 0
+            for s, cells in deck_cells.items():
+                for part, k in gap_board_pieces(gb, s):
+                    add(part, cells * k, f"すき間板 {s}")
+                    n_gb += cells * k
+            if n_gb:
+                notes.append(f"床の2枚敷き（幅{'+'.join(str(w) for w in deck_widths)}）のすき間と、内側の板と支柱のすき間に"
+                             f"すき間板（隙間隠し板）{n_gb}枚を載せています（床材間 3cm 以下・床材と建地 12cm 未満。安衛則563条）")
         if half:
             notes.append(
                 f"階段室は階段（外幅481）を外側の幅{deck_widths[0]}の板の位置に寄せ、階段が上がってくる層も内側の幅"
@@ -3496,3 +3508,31 @@ def _count_frame_parts(
     _count_roof_bridges(model, add, notes)
     _note_tier_gangways(model, notes)
     _count_intakes(model, notes)
+
+
+def gap_board_pieces(parts: list, span: int) -> list[tuple]:
+    """スパン 1つに載せるすき間板（隙間隠し板）→ [(部材, 枚数)]. 同じ長さが無ければ、合計がスパンを超えず（5 まで）いちばん
+    近い組み合わせ（3枚まで。同じ近さなら枚数の少ない方）. 日建は 910・606 しか無いので 1829＝910×2、1524＝910＋606、
+    1219＝606×2."""
+    from itertools import combinations_with_replacement
+
+    if not parts:
+        return []
+    exact = next((p for p in parts if p.nominal_dim == span), None)
+    if exact is not None:
+        return [(exact, 1)]
+    best = None
+    for n in (1, 2, 3):
+        for combo in combinations_with_replacement(sorted(parts, key=lambda p: -p.nominal_dim), n):
+            tot = sum(p.nominal_dim for p in combo)
+            if tot > span + 5:
+                continue
+            key = (abs(span - tot), n)
+            if best is None or key < best[0]:
+                best = (key, combo)
+    if best is None:
+        return []
+    out: dict = {}
+    for p in best[1]:
+        out[p] = out.get(p, 0) + 1
+    return list(out.items())
