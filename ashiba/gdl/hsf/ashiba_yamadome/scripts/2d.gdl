@@ -1,0 +1,25 @@
+﻿! 根切りの山留めまわり 2D
+pen penEquip
+define style "ymT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "ymT"
+if ymKind = 1 then
+	! 切梁上の足場: 床の外形・手すり柱・ブラケット
+	rect2 0, -deckW / 2, ymL, deckW / 2
+	line2 0, -hp, ymL, -hp
+	line2 0, hp, ymL, hp
+	for i = 1 to nB
+		line2 bx[i], -hp - 0.05, bx[i], hp + 0.05
+		circle2 bx[i], -hp, r
+		circle2 bx[i], hp, r
+	next i
+	text2 ymL / 2, hp + 0.25, ymName
+else
+	! 山留め上の手すり: 手すりの線と柱
+	line2 0, 0.06, ymL, 0.06
+	for i = 1 to nB
+		circle2 bx[i], 0, r
+	next i
+	text2 ymL / 2, 0.35, ymName
+endif
+hotspot2 0, 0
+hotspot2 ymL, 0

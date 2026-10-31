@@ -1,0 +1,80 @@
+﻿! 根切りの山留めまわり 3D
+define material "ym_steel" 2, 0.62, 0.64, 0.68
+define material "ym_deck" 2, 0.55, 0.57, 0.6
+define material "ym_toe" 2, 0.85, 0.75, 0.2
+material "ym_steel"
+resol 12
+if ymKind = 1 then
+	! ---- 切梁上の足場（切梁ブラケット＋嵩上金具＋伸縮手摺柱） ----
+	for i = 1 to nB
+		x = bx[i]
+		! 切梁ブラケット: フランジを両側から挟む受けと、両端の φ42.7 まで渡る腕
+		for sd = -1 to 1 step 2
+			add x - 0.04, sd * (flgW / 2 + 0.02) - 0.02, -0.03
+			block 0.08, 0.04, 0.06
+			del 1
+		next sd
+		add x - 0.03, -hp - 0.03, 0.03
+		block 0.06, postSp + 0.06, 0.05
+		del 1
+		! 嵩上金具の柱（φ48.6）と伸縮手摺柱（φ42.7）。床の下に床受けの横材
+		for sd = -1 to 1 step 2
+			add x, sd * hp, 0.03
+			cylind deckZ + railH - 0.03, r
+			del 1
+		next sd
+		add x, -hp, deckZ - 0.06
+		rotx -90
+		cylind postSp, 0.0214
+		del 2
+	next i
+	! 床（鋼製布板）
+	material "ym_deck"
+	add 0, -deckW / 2, deckZ - 0.04
+	block ymL, deckW, 0.04
+	del 1
+	material "ym_steel"
+	! 手すり・中桟（両側）
+	for sd = -1 to 1 step 2
+		for hh = 1 to 2
+			zr = railH
+			if hh = 2 then zr = midH
+			add 0, sd * (hp + 0.05), deckZ + zr
+			roty 90
+			cylind ymL, r
+			del 2
+		next hh
+		! 幅木（幅木クランプで柱に）
+		material "ym_toe"
+		add 0, sd * (hp - 0.03) - 0.005, deckZ
+		block ymL, 0.01, toeH
+		del 1
+		material "ym_steel"
+	next sd
+else
+	! ---- 山留め上の手すり（親杭の天端に単管の手すり柱をキャッチクランプで） ----
+	for i = 1 to nB
+		add bx[i], 0, -postDn
+		cylind postDn + railH + 0.05, r
+		del 1
+		! キャッチクランプ（2個1組）
+		for k = 1 to 2
+			add bx[i] - 0.04, -0.06, -postDn * k / 3 - 0.02
+			block 0.08, 0.12, 0.04
+			del 1
+		next k
+	next i
+	for hh = 1 to 2
+		zr = railH
+		if hh = 2 then zr = midH
+		add 0, 0.05, zr
+		roty 90
+		cylind ymL, r
+		del 2
+	next hh
+	material "ym_toe"
+	add 0, 0.03, 0
+	block ymL, 0.01, toeH
+	del 1
+endif
+end

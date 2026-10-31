@@ -172,6 +172,13 @@ PARTS = {
             "原点＝スラブの外形の1点目の下面、+X＝大引の向き。せき板（梁・壁・柱の所を抜く）、根太（単管）、大引（□100×50）、パイプサポート（postH）、水平つなぎ（tieZ）。割付と計算は slab_form.py、置くのは scripts/form_run.py。",
         ],
     },
+    "ashiba_yamadome": {
+        "title": "根切りの山留めまわり（切梁上の足場・山留め上の手すり。1本の切梁・1辺の山留めに1部品）",
+        "notes": [
+            "利用者の指定（2026-10-31）: https://www.seinankizai.jp/product/b_b/136/ 切張り上の足場を追加して 山留め上の手すり リサーチして追加して。",
+            "ymKind 1＝切梁上の足場（西南機材 切梁ブラケット＋嵩上金具 W900＋伸縮手摺柱。brX の位置、床 deckW・deckZ、手すり railH・中桟 midH・幅木 toeH）、2＝山留め上の手すり（親杭の天端に単管の手すり柱をキャッチクランプで）。割付・数量・検定は excavation.py、置くのは scripts/excav_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [

@@ -491,6 +491,8 @@ def wall_from_details(det: dict) -> dict | None:
     # 右の面（lo）の始めから、壁の向きに
     p0 = (a[0] + u[0] * t0 + n[0] * lo, a[1] + u[1] * t0 + n[1] * lo)
     p1 = (a[0] + u[0] * t1 + n[0] * lo, a[1] + u[1] * t1 + n[1] * lo)
-    z0 = (float(d.get("zCoordinate", 0.0)) + float(d.get("bottomOffset", 0.0))) * 1000.0
+    # zCoordinate は下端の絶対の高さ（階の高さ＋bottomOffset。実機で確かめた: 基礎下端 −2000 の階に −500 で作ると
+    # bottomOffset 1.5）。足すと二重になる（根切りの山留め −6000〜0 の天端を −6000 と読んでいた。2026-10-31）
+    z0 = float(d.get("zCoordinate", 0.0)) * 1000.0
     return {"a": p0, "b": p1, "n": n, "u": u, "ca": a, "cb": b, "lo": lo, "hi": hi, "thick": thick, "z0": z0,
             "height": float(d.get("height", 0.0)) * 1000.0, "length": t1 - t0, "ang": math.degrees(math.atan2(u[1], u[0]))}

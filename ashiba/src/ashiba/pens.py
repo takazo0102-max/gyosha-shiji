@@ -41,6 +41,7 @@ PART_PENS = {
     "ashiba_cform": ("equip",),
     "ashiba_bform": ("equip",),
     "ashiba_sform": ("equip",),
+    "ashiba_yamadome": ("equip",),
 }
 
 

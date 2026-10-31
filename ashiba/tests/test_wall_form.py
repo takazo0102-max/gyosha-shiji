@@ -153,7 +153,7 @@ class TestWallDetails(unittest.TestCase):
         self.assertEqual((round(w["a"][0]), round(w["a"][1])), (0, -100))             # 右の面の始め
         self.assertAlmostEqual(w["thick"], 200.0)
         self.assertAlmostEqual(w["length"], 6000.0)
-        self.assertAlmostEqual(w["z0"], 1100.0)
+        self.assertAlmostEqual(w["z0"], 1000.0)                             # zCoordinate は絶対の下端（bottomOffset は足さない）
         self.assertAlmostEqual(w["ang"], 0.0)
 
     def test_joined_wall_falls_back_to_reference_line(self):

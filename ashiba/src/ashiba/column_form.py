@@ -294,6 +294,8 @@ def column_from_details(det: dict) -> dict | None:
         c = (float(o["x"]) * 1000.0, float(o["y"]) * 1000.0)
     if abs(float(d.get("axisRotationAngle", 0.0))) > 1e-6 and pts:
         c = (sum(p[0] for p in pts[:-1]) / max(1, len(pts) - 1), sum(p[1] for p in pts[:-1]) / max(1, len(pts) - 1))
-    z0 = (float(d.get("zCoordinate", 0.0)) + float(d.get("bottomOffset", 0.0))) * 1000.0
+    # zCoordinate は下端の絶対の高さ（階の高さ＋bottomOffset。実機で確かめた: 基礎下端 −2000 の階に −500 で作ると
+    # bottomOffset 1.5）。足すと二重になる（根切りの山留め −6000〜0 の天端を −6000 と読んでいた。2026-10-31）
+    z0 = float(d.get("zCoordinate", 0.0)) * 1000.0
     return {"c": c, "width": w, "depth": dp, "ang": math.degrees(float(d.get("axisRotationAngle", 0.0))), "z0": z0,
             "height": float(d.get("height", 0.0)) * 1000.0}
