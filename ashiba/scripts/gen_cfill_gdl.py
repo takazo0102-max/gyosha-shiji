@@ -34,6 +34,7 @@ def paramlist() -> str:
         _param("String", "railE", "手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）", "1"),
         _param("String", "levList", "作業床の段の高さ（原点の高さから mm、カンマ区切り）", "1780,3580,5380,7180"),
         _param("Integer", "deckKind", "作業床（1＝アンチ・2＝足場板）", 1),
+        _param("Boolean", "antiOn", "アンチを描く（足場板だけで渡すときは切る）", 1),
         _param("Length", "deckT", "作業床の厚み", 0.045),
         _param("Length", "antiL", "アンチの長さ（受けの単管の間。インチの系列は 914、メートルは 900）", 0.914),
         _param("Length", "antiW", "アンチの幅", 0.24),
@@ -44,6 +45,9 @@ def paramlist() -> str:
         _param("String", "fbX", "残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）", ""),
         _param("String", "fbY", "同 y", ""),
         _param("String", "fbL", "同 長さ（mm）", ""),
+        _param("RealNum", "fbAng", "足場板の向き（度。後の受けの線。空のときはアンチの向き）", -999),
+        _param("String", "pstX", "手すりを受ける単管の支柱の x（原点から mm。手すりの曲がり角で長さが 1800 を超えるとき）", ""),
+        _param("String", "pstY", "同 y", ""),
         _param("String", "supX0", "受けの単管の始めの x（原点から mm）", ""),
         _param("String", "supY0", "同 y", ""),
         _param("String", "supX1", "受けの単管の終わりの x", ""),
@@ -146,7 +150,9 @@ pAng = eAng
              + _parse_all("supX0", "s0x", "nS") + _parse_all("supY0", "s0y", "nS2")
              + _parse_all("supX1", "s1x", "nS3") + _parse_all("supY1", "s1y", "nS4")
              + _parse_all("plkL", "qL", "nQL") + _parse_all("fbX", "fx", "nF") + _parse_all("fbY", "fy", "nF2")
-             + _parse_all("fbL", "fL", "nF3") + """nF = min(nF, min(nF2, nF3))
+             + _parse_all("fbL", "fL", "nF3") + _parse_all("pstX", "ptx", "nPt") + _parse_all("pstY", "pty", "nPt2")
+             + """nF = min(nF, min(nF2, nF3))
+nPt = min(nPt, nPt2)
 for i = 1 to nPl
 	if i > nQL then qL[i] = antiL
 next i
@@ -164,6 +170,9 @@ else
 	next i
 endif
 nS = min(nS, min(nS2, min(nS3, nS4)))
+if antiOn = 0 then nPl = 0
+fAng = fbAng
+if fAng < -900 then fAng = pAng
 """)
 
 SCRIPT_2D = """﻿! 隅のつなぎ 2D: 床の形、手すりの辺（二重線）、床の向きの斜線、名前
@@ -205,14 +214,16 @@ for i = 1 to nS
 	line_type 1
 next i
 style "cfT"
-text2 cx, cy, cName + "（" + dName + str(antiL * 1000, 1, 0) + "×" + str(nPl, 1, 0) + "枚＋単管手すり）"
+text2 cx, cy, cName + "（" + dName + " " + str(nPl, 1, 0) + "列＋足場板＋単管手すり）"
 """
 
 SCRIPT_3D = """﻿! ============================================================
 ! 隅のつなぎ 3D（利用者の指定 2026-10-31: 三角の板じゃなく 900アンチを乗せる クランプもつけてね／高さがずれている 本足場の
 ! アンチの上に乗せるようにして クランプの詳細どあげて）
 ! - アンチ（antiL×antiW×deckT）: 下面＝段の高さ＋deckTop（本足場の布板の上面）。両側の本足場のアンチの上に重ねて載る
-! - 受けの単管: 上面をアンチの下面にそろえ、隅のすき間の中だけに渡す。両端は本足場の端の布材に自在クランプ（交差）
+! - 支柱を結ぶ単管（利用者の指定 2026-10-31: 支柱間を単管で結ぶ）: 前の足場の終わりの支柱と後の足場の始めの支柱を床の高さで
+!   結ぶ（上面＝本足場のアンチの上面）。両端を支柱に自在クランプ
+! - 足場板（黄。白のアンチは描かない antiOn）: 本足場のアンチの上に載せ、両端を番線で留める
 ! - 外の辺: 単管の上桟・中桟（支柱の外に 支柱半径＋単管半径 offR だけ出して添わせる。off は GDL の予約語で 3D が止まった）と幅木。両端の支柱に自在クランプ
 ! - 自在クランプ: 2つの抱き金具（単管を巻く帯・耳・T ボルトとナット）を回転軸のリベットでつないだ形
 ! ============================================================
@@ -248,8 +259,18 @@ for i = 1 to nL
 	material "cf_wood"
 	for j = 1 to nF
 		add fx[j], fy[j], z + zD + deckT
-		rotz pAng
+		rotz fAng
 		block fL[j], antiW - 0.01, 0.028
+		! 番線（両端を2か所ずつ巻いて留める）
+		material "cf_bolt"
+		for e = 0 to 1
+			for h = 0 to 1
+				add 0.08 + e * (fL[j] - 0.16), 0.04 + h * (antiW - 0.09), 0.028
+				block 0.006, 0.02, 0.003
+				del 1
+			next h
+		next e
+		material "cf_wood"
 		del 2
 	next j
 	! ---- 受けの単管（すき間の中だけ）と、両端の自在クランプ（本足場の端の布材と交差） ----
@@ -271,7 +292,7 @@ for i = 1 to nL
 				cY = s0y[j] + dy * e
 				cZ = z + zD - r
 				cA = ang
-				cT = 2
+				cT = 1
 				gosub "clamp"
 			next e
 		endif
@@ -320,6 +341,13 @@ for i = 1 to nL
 		endif
 	next k
 next i
+! ---- 手すりの曲がり角の単管の支柱（地面から上の段の上桟まで。ジャッキ・敷板の上） ----
+material "cf_steel"
+for k = 1 to nPt
+	add ptx[k], pty[k], 0
+	cylind lv[nL] + zD + deckT + railH1 + 0.1, r
+	del 1
+next k
 end
 
 "ang":

@@ -303,7 +303,44 @@ while strlen(rest) > 0 do
 		fL[nF3] = v / 1000
 	endif
 endwhile
+dim ptx[]
+nPt = 0
+rest = pstX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPt = nPt + 1
+		ptx[nPt] = v / 1000
+	endif
+endwhile
+dim pty[]
+nPt2 = 0
+rest = pstY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPt2 = nPt2 + 1
+		pty[nPt2] = v / 1000
+	endif
+endwhile
 nF = min(nF, min(nF2, nF3))
+nPt = min(nPt, nPt2)
 for i = 1 to nPl
 	if i > nQL then qL[i] = antiL
 next i
@@ -321,3 +358,6 @@ else
 	next i
 endif
 nS = min(nS, min(nS2, min(nS3, nS4)))
+if antiOn = 0 then nPl = 0
+fAng = fbAng
+if fAng < -900 then fAng = pAng

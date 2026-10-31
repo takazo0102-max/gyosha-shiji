@@ -37,4 +37,4 @@ for i = 1 to nS
 	line_type 1
 next i
 style "cfT"
-text2 cx, cy, cName + "（" + dName + str(antiL * 1000, 1, 0) + "×" + str(nPl, 1, 0) + "枚＋単管手すり）"
+text2 cx, cy, cName + "（" + dName + " " + str(nPl, 1, 0) + "列＋足場板＋単管手すり）"

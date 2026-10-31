@@ -896,8 +896,54 @@ def between_layout(fill: dict, anti_lengths: tuple, di, anti_w: float = 240.0) -
         holes.append(max(ra, rb) - L)
     sups = [((pi[0] - di[0] * TUBE_R_MM, pi[1] - di[1] * TUBE_R_MM), (qi[0] - di[0] * TUBE_R_MM, qi[1] - di[1] * TUBE_R_MM)),
             ((pj[0], pj[1]), (qj[0], qj[1]))]
+    # 床の外の線（利用者の指定 2026-10-31: 外側にも単管で手すりして 足場板繋げつようにして）: 外の列は前の足場の外の線に沿って
+    # 後の受けの線まで延びる（X）。手すり・幅木は 前の外の支柱 → X → 後の外の支柱（X が後の受けの区間の外のとき）。
+    # 足場板は後の受けの線に沿って、内側の支柱から X（か後の外の支柱）まで一続きに、三角のすき間の幅だけの枚数を並べる
+    X = _cross_line(qi, di, pj, tj)
+    tl = math.hypot(*tj) or 1.0
+    tdir = (tj[0] / tl, tj[1] / tl)
+    sx = ((X[0] - pj[0]) * tdir[0] + (X[1] - pj[1]) * tdir[1]) if X else tl
+    if X is not None and sx > tl + 1.0:
+        outline = [pi, qi, X, qj, pj]
+        rails = [1, 2]
+    else:
+        outline = [pi, qi, qj, pj]
+        rails = [1]
+    hole = max(holes) if holes else 0.0
+    n_b = max(1, math.ceil((hole + 100.0) / anti_w)) if hole > MIN_HOLE_MM else 0
+    dj_in = (tdir[1], -tdir[0])                       # 後の受けの線から前の足場の側（tdir の右）
+    if (pi[0] - pj[0]) * dj_in[0] + (pi[1] - pj[1]) * dj_in[1] < 0:
+        dj_in = (-dj_in[0], -dj_in[1])
+    # 足場板は床の外形の中で切りそろえる（両端を延ばしていたときは、外の手すりの外と建物の側へ飛び出した。実機 2026-10-31:
+    # 黄色いのが飛び出ている）。列の両側の線が外形に入る区間の重なり
+    def inside(d):
+        q = (pj[0] + dj_in[0] * d, pj[1] + dj_in[1] * d)
+        ts = []
+        for m in range(len(outline)):
+            c0, c1 = outline[m], outline[(m + 1) % len(outline)]
+            ed = (c1[0] - c0[0], c1[1] - c0[1])
+            den = tdir[0] * ed[1] - tdir[1] * ed[0]
+            if abs(den) < 1e-9:
+                continue
+            tt = ((c0[0] - q[0]) * ed[1] - (c0[1] - q[1]) * ed[0]) / den
+            uu = ((c0[0] - q[0]) * tdir[1] - (c0[1] - q[1]) * tdir[0]) / den
+            if -1e-9 <= uu <= 1.0 + 1e-9:
+                ts.append(tt)
+        return (min(ts), max(ts)) if len(ts) >= 2 else None
+
+    boards = []
+    for k in range(n_b):
+        a, b = inside(anti_w * k + 5.0), inside(anti_w * (k + 1) - 5.0)
+        if not a or not b:
+            continue
+        t0, t1 = max(a[0], b[0]), min(a[1], b[1])
+        if t1 - t0 < 100.0:
+            continue
+        o = (pj[0] + dj_in[0] * anti_w * (k + 1) + tdir[0] * t0, pj[1] + dj_in[1] * anti_w * (k + 1) + tdir[1] * t0)
+        boards.append((o, t1 - t0))
     return {"planks": planks, "ang": math.degrees(math.atan2(di[1], di[0])), "w": w, "supports": sups, "holes": holes,
-            "short": 0.0 if short == 1e9 else short, "ok": ok}
+            "short": 0.0 if short == 1e9 else short, "ok": ok, "outline": outline, "rails": rails, "boards": boards,
+            "board_ang": math.degrees(math.atan2(tdir[1], tdir[0])), "board_left": dj_in}
 
 
 def between_trim(si: dict, sj: dict, coins: list[int], c, convex: bool, wi: float, wj: float,
@@ -935,21 +981,133 @@ def anti_lengths(coins) -> tuple:
     return tuple(sorted({int(v) for v in coins if int(v) >= 600}))
 
 
-def between_quantities(planks: list, fills: list, fill: dict, levels: int) -> list[tuple[str, int, str]]:
-    """支柱の間に掛ける隅のつなぎ1か所の材料の目安 → [(品名, 数, 注)]."""
+def between_quantities(planks: list, boards: list, fill: dict, levels: int, n_posts: int = 0) -> list[tuple[str, int, str]]:
+    """支柱の間に掛ける隅のつなぎ1か所の材料の目安 → [(品名, 数, 注)]. 手すり・幅木は床の外の線（fill の poly・rail）."""
     from collections import Counter
 
     poly = fill["poly"]
-    k = fill["rail"][0]
-    edge = math.dist(poly[k], poly[(k + 1) % len(poly)])
-    tube = next((L for L in (1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000) if L >= edge + 600.0), 6000)
+    edges = [math.dist(poly[k], poly[(k + 1) % len(poly)]) for k in fill["rail"]]
+    tubes = [next((L for L in (1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000) if L >= e + 600.0), 6000) for e in edges]
     out = [(f"アンチ {L}", n * levels, "両側の足場の端の布材に掛ける") for L, n in sorted(Counter(int(L) for _o, L in planks).items())]
-    if fills:
-        out.append(("足場板 4m（切って使う）", math.ceil(sum(L for _o, L in fills) / 3800.0) * levels,
-                    f"アンチの先の三角のすき間 {len(fills)}か所に、アンチに 100 重ねて番線止め"))
-    out += [(f"単管 {tube / 1000:.1f}m（手すり 上桟・中桟）", 2 * levels, f"外の辺 {edge:.0f}。両側の足場の支柱に 300 ずつ掛ける"),
-            ("自在クランプ", 4 * levels, "手すり2本の両端を支柱に"),
-            (f"幅木（足場板 {tube / 1000:.1f}m）", levels, "外の辺")]
-    if edge > 1850.0:
-        out.append(("単管の支柱（ジャッキ・敷板とも）", 1, f"外の辺 {edge:.0f} が 1800 を超えるので中間に1本"))
+    if boards:
+        per = sum(math.ceil(L / 4000.0) for _o, L in boards)
+        out.append(("足場板 4m", per * levels, f"後の受けの線に沿って一続きに {len(boards)}列（アンチの先の三角をふさぐ。番線止め）"))
+    for e, L in Counter(tubes).items():
+        out.append((f"単管 {e / 1000:.1f}m（手すり 上桟・中桟）", 2 * L * levels, "床の外の線。両端を支柱か手すりの角に"))
+    out += [("自在クランプ", 4 * len(edges) * levels, "手すりの両端（支柱・角の支柱）"),
+            ("幅木（足場板）", len(edges) * levels, "床の外の線")]
+    if n_posts:
+        out.append(("単管の支柱（ジャッキ・敷板とも）", n_posts, "手すりの曲がり角（外の角まで 1800 を超える）"))
+    return out
+
+
+# ---- 隅は足場板を本足場のアンチの上に載せて番線で留める（利用者の指定 2026-10-31: 支柱間を単管で結ぶ 白はいらない 黄色の足場板を
+# 本足場のアンチ上に乗せて番線で固定する）----
+BOARD_LAP_MM = 200.0              # 足場板を両側の本足場のアンチに重ねる長さ（安衛則563条 重ねは 20cm 以上）
+BOARD_W_MM = 240.0
+BOARD_LENGTHS = (2000, 3000, 4000)
+
+
+def _in_poly(pt, poly) -> bool:
+    x, y = pt
+    inside = False
+    n = len(poly)
+    for k in range(n):
+        (x1, y1), (x2, y2) = poly[k], poly[(k + 1) % n]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def board_layout(fill: dict, band_i: list, band_j: list) -> dict:
+    """隅のつなぎの足場板の並び（世界座標 mm）. 渡る向き（前後の足場の向きの二等分）に、足場の幅を 240 ずつの列に分け、
+    列ごとに前の足場の床から後の足場の床まで、両側に BOARD_LAP_MM 以上重なる長さ。前の足場・隅のすき間・後の足場の床の外へは
+    出さない（列の両側の線がその中にある区間だけ）. 床に BOARD_LAP_MM 重ならない列は置かない.
+    → {"boards": [((x, y) 始めの右の角, 長さ)], "ang": 向き（度）, "ties": [((x, y), (x, y))]（支柱を結ぶ単管）}"""
+    walk = fill["walk"]
+    (pi, qi), (pj, qj) = walk[3], walk[4]
+    bis = walk[5]
+    bl = math.hypot(*bis) or 1.0
+    u = (bis[0] / bl, bis[1] / bl)
+    lf = (-u[1], u[0])
+    m = ((walk[0][0] + walk[1][0]) / 2.0, (walk[0][1] + walk[1][1]) / 2.0)
+    regions = [band_i, fill["poly"], band_j]
+    inside = lambda p: any(_in_poly(p, r) for r in regions)
+    width = max(math.dist(pi, qi), math.dist(pj, qj))
+    w = BOARD_W_MM
+
+    def row(off):
+        """横の位置 off（中心線から左へ）の列の足場板 → ((始めの右の角), 長さ) か None."""
+        ivs = []
+        for side in (off + 5.0, off + w - 5.0):
+            q = (m[0] + lf[0] * side, m[1] + lf[1] * side)
+            if not inside(q):
+                return None
+            lo = hi = 0.0
+            while lo > -3000.0 and inside((q[0] + u[0] * (lo - 10.0), q[1] + u[1] * (lo - 10.0))):
+                lo -= 10.0
+            while hi < 3000.0 and inside((q[0] + u[0] * (hi + 10.0), q[1] + u[1] * (hi + 10.0))):
+                hi += 10.0
+            ivs.append((lo, hi))
+        lo, hi = max(v[0] for v in ivs), min(v[1] for v in ivs)
+
+        def cross_t(e):
+            x = _cross_line((m[0] + lf[0] * (off + w / 2), m[1] + lf[1] * (off + w / 2)), u, e[0],
+                            (e[1][0] - e[0][0], e[1][1] - e[0][1]))
+            return None if x is None else (x[0] - m[0]) * u[0] + (x[1] - m[1]) * u[1]
+        ti, tj = cross_t((pi, qi)), cross_t((pj, qj))
+        if ti is None or tj is None:
+            return None
+        a, b = min(ti, tj) - BOARD_LAP_MM, max(ti, tj) + BOARD_LAP_MM
+        if a < lo - 1.0 or b > hi + 1.0:
+            return None                                # 両側の床に 200 重ねられない（床の外へ出る）列は置かない
+        L = next((float(v) for v in BOARD_LENGTHS if v >= b - a), b - a)
+        if a + L > hi:
+            L = hi - a                                 # 定尺では床の外へ出るので切って使う
+        return (m[0] + u[0] * a + lf[0] * off, m[1] + u[1] * a + lf[1] * off), L
+
+    # 列の並びを横に 20 ずつずらし、置ける列がいちばん多い並び（同じなら中心に近い並び）
+    n_max = int(math.ceil(width / w)) + 2
+    best = None
+    s = -width
+    while s <= width - w * 0 + 1e-6:
+        got = []
+        for k in range(n_max):
+            r = row(s + k * w)
+            if r is not None:
+                got.append(r)
+            elif got:
+                break                                   # 列は続けて並べる（間をあけない）
+        key = (len(got), -abs(s + len(got) * w / 2.0))
+        if got and (best is None or key > best[0]):
+            best = (key, got)
+        s += 20.0
+    boards = best[1] if best else []
+    ties = []
+    for p, q in ((pi, pj), (qi, qj)):
+        if math.dist(p, q) >= 150.0:
+            ties.append((tuple(p), tuple(q)))
+    return {"boards": boards, "ang": math.degrees(math.atan2(u[1], u[0])), "ties": ties, "w": w}
+
+
+def board_quantities(layout: dict, fill: dict, levels: int) -> list[tuple[str, int, str]]:
+    """足場板で渡す隅のつなぎ1か所の材料の目安."""
+    from collections import Counter
+
+    out = []
+    for L, n in sorted(Counter(int(next((v for v in BOARD_LENGTHS if v >= L), L)) for _o, L in layout["boards"]).items()):
+        out.append((f"足場板 {L / 1000:.0f}m", n * levels, f"両側の本足場のアンチの上に {BOARD_LAP_MM:.0f} 以上重ねて載せる"))
+    out.append(("番線（#8）", 4 * len(layout["boards"]) * levels, "足場板の両端を2か所ずつ下の単管・アンチに留める"))
+    for p, q in layout["ties"]:
+        L = next((v for v in (1000, 1500, 2000, 2500, 3000) if v >= math.dist(p, q) + 300.0), 3000)
+        out.append((f"単管 {L / 1000:.1f}m（支柱を結ぶ）", levels, f"支柱から支柱へ {math.dist(p, q):.0f}。床の高さ"))
+    if layout["ties"]:
+        out.append(("自在クランプ（支柱を結ぶ単管）", 2 * len(layout["ties"]) * levels, "両端を支柱に"))
+    poly = fill["poly"]
+    edges = [math.dist(poly[k], poly[(k + 1) % len(poly)]) for k in fill["rail"]]
+    for e in edges:
+        L = next((v for v in (1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000) if v >= e + 600.0), 6000)
+        out.append((f"単管 {L / 1000:.1f}m（手すり 上桟・中桟）", 2 * levels, f"外の辺 {e:.0f}"))
+    out.append(("自在クランプ（手すり）", 4 * len(edges) * levels, "手すりの両端を支柱に"))
+    out.append(("幅木（足場板）", len(edges) * levels, "外の辺"))
     return out

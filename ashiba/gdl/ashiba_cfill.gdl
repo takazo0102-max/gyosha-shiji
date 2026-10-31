@@ -13,32 +13,36 @@
 ! 原点＝線の角。polyX・polyY で床の形、railE で手すりの辺、levList で段の高さ。各段に作業床（アンチ・足場板）・床の下に単管の受け・手すりの辺に単管の上桟（950）・中桟（450）・幅木（150）。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   polyX     文字列    床の形の x（原点からの mm、カンマ区切り。左回り）                            既定 "0,0,800,0"
-!   polyY     文字列    床の形の y（同上）                                                           既定 "0,-914,-457,0"
-!   railE     文字列    手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）        既定 "1"
-!   levList   文字列    作業床の段の高さ（原点の高さから mm、カンマ区切り）                          既定 "1780,3580,5380,7180"
-!   deckKind  整数      作業床（1＝アンチ・2＝足場板）                                               既定 1
-!   deckT     長さ      作業床の厚み                                                                 既定 0.045
-!   antiL     長さ      アンチの長さ（受けの単管の間。インチの系列は 914、メートルは 900）           既定 0.914
-!   antiW     長さ      アンチの幅                                                                   既定 0.24
-!   plkX      文字列    アンチの外の辺側の始めの角の x（原点から mm。空なら外の辺の中点から並べる）  既定 ""
-!   plkY      文字列    同 y                                                                         既定 ""
-!   plkAng    実数      アンチの向き（度。外の辺の向き）                                             既定 0
-!   plkL      文字列    アンチの長さ（列ごと mm。空なら antiL）                                      既定 ""
-!   fbX       文字列    残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）            既定 ""
-!   fbY       文字列    同 y                                                                         既定 ""
-!   fbL       文字列    同 長さ（mm）                                                                既定 ""
-!   supX0     文字列    受けの単管の始めの x（原点から mm）                                          既定 ""
-!   supY0     文字列    同 y                                                                         既定 ""
-!   supX1     文字列    受けの単管の終わりの x                                                       既定 ""
-!   supY1     文字列    同 y                                                                         既定 ""
-!   deckTop   長さ      本足場の布板の上面（段の高さから。アンチはこの上に載る）                     既定 0.0664
-!   railH1    長さ      上桟の高さ（床から）                                                         既定 0.95
-!   railH2    長さ      中桟の高さ（床から）                                                         既定 0.45
-!   toeH      長さ      幅木の高さ                                                                   既定 0.15
-!   cName     文字列    名前（平面の注記）                                                           既定 "隅のつなぎ"
-!   texSiz    実数      文字の大きさ（mm）                                                           既定 2.5
-!   penEquip  PenColor  線のペン                                                                     既定 1
+!   polyX     文字列    床の形の x（原点からの mm、カンマ区切り。左回り）                                        既定 "0,0,800,0"
+!   polyY     文字列    床の形の y（同上）                                                                       既定 "0,-914,-457,0"
+!   railE     文字列    手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）                    既定 "1"
+!   levList   文字列    作業床の段の高さ（原点の高さから mm、カンマ区切り）                                      既定 "1780,3580,5380,7180"
+!   deckKind  整数      作業床（1＝アンチ・2＝足場板）                                                           既定 1
+!   antiOn    ブール    アンチを描く（足場板だけで渡すときは切る）                                               既定 1
+!   deckT     長さ      作業床の厚み                                                                             既定 0.045
+!   antiL     長さ      アンチの長さ（受けの単管の間。インチの系列は 914、メートルは 900）                       既定 0.914
+!   antiW     長さ      アンチの幅                                                                               既定 0.24
+!   plkX      文字列    アンチの外の辺側の始めの角の x（原点から mm。空なら外の辺の中点から並べる）              既定 ""
+!   plkY      文字列    同 y                                                                                     既定 ""
+!   plkAng    実数      アンチの向き（度。外の辺の向き）                                                         既定 0
+!   plkL      文字列    アンチの長さ（列ごと mm。空なら antiL）                                                  既定 ""
+!   fbX       文字列    残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）                        既定 ""
+!   fbY       文字列    同 y                                                                                     既定 ""
+!   fbL       文字列    同 長さ（mm）                                                                            既定 ""
+!   fbAng     実数      足場板の向き（度。後の受けの線。空のときはアンチの向き）                                 既定 -999
+!   pstX      文字列    手すりを受ける単管の支柱の x（原点から mm。手すりの曲がり角で長さが 1800 を超えるとき）  既定 ""
+!   pstY      文字列    同 y                                                                                     既定 ""
+!   supX0     文字列    受けの単管の始めの x（原点から mm）                                                      既定 ""
+!   supY0     文字列    同 y                                                                                     既定 ""
+!   supX1     文字列    受けの単管の終わりの x                                                                   既定 ""
+!   supY1     文字列    同 y                                                                                     既定 ""
+!   deckTop   長さ      本足場の布板の上面（段の高さから。アンチはこの上に載る）                                 既定 0.0664
+!   railH1    長さ      上桟の高さ（床から）                                                                     既定 0.95
+!   railH2    長さ      中桟の高さ（床から）                                                                     既定 0.45
+!   toeH      長さ      幅木の高さ                                                                               既定 0.15
+!   cName     文字列    名前（平面の注記）                                                                       既定 "隅のつなぎ"
+!   texSiz    実数      文字の大きさ（mm）                                                                       既定 2.5
+!   penEquip  PenColor  線のペン                                                                                 既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -349,7 +353,44 @@ while strlen(rest) > 0 do
 		fL[nF3] = v / 1000
 	endif
 endwhile
+dim ptx[]
+nPt = 0
+rest = pstX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPt = nPt + 1
+		ptx[nPt] = v / 1000
+	endif
+endwhile
+dim pty[]
+nPt2 = 0
+rest = pstY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPt2 = nPt2 + 1
+		pty[nPt2] = v / 1000
+	endif
+endwhile
 nF = min(nF, min(nF2, nF3))
+nPt = min(nPt, nPt2)
 for i = 1 to nPl
 	if i > nQL then qL[i] = antiL
 next i
@@ -367,6 +408,9 @@ else
 	next i
 endif
 nS = min(nS, min(nS2, min(nS3, nS4)))
+if antiOn = 0 then nPl = 0
+fAng = fbAng
+if fAng < -900 then fAng = pAng
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
@@ -410,7 +454,7 @@ for i = 1 to nS
 	line_type 1
 next i
 style "cfT"
-text2 cx, cy, cName + "（" + dName + str(antiL * 1000, 1, 0) + "×" + str(nPl, 1, 0) + "枚＋単管手すり）"
+text2 cx, cy, cName + "（" + dName + " " + str(nPl, 1, 0) + "列＋足場板＋単管手すり）"
 
 ! ==========================================================
 ! ==== 3Dスクリプト ====
@@ -419,7 +463,9 @@ text2 cx, cy, cName + "（" + dName + str(antiL * 1000, 1, 0) + "×" + str(nPl, 
 ! 隅のつなぎ 3D（利用者の指定 2026-10-31: 三角の板じゃなく 900アンチを乗せる クランプもつけてね／高さがずれている 本足場の
 ! アンチの上に乗せるようにして クランプの詳細どあげて）
 ! - アンチ（antiL×antiW×deckT）: 下面＝段の高さ＋deckTop（本足場の布板の上面）。両側の本足場のアンチの上に重ねて載る
-! - 受けの単管: 上面をアンチの下面にそろえ、隅のすき間の中だけに渡す。両端は本足場の端の布材に自在クランプ（交差）
+! - 支柱を結ぶ単管（利用者の指定 2026-10-31: 支柱間を単管で結ぶ）: 前の足場の終わりの支柱と後の足場の始めの支柱を床の高さで
+!   結ぶ（上面＝本足場のアンチの上面）。両端を支柱に自在クランプ
+! - 足場板（黄。白のアンチは描かない antiOn）: 本足場のアンチの上に載せ、両端を番線で留める
 ! - 外の辺: 単管の上桟・中桟（支柱の外に 支柱半径＋単管半径 offR だけ出して添わせる。off は GDL の予約語で 3D が止まった）と幅木。両端の支柱に自在クランプ
 ! - 自在クランプ: 2つの抱き金具（単管を巻く帯・耳・T ボルトとナット）を回転軸のリベットでつないだ形
 ! ============================================================
@@ -455,8 +501,18 @@ for i = 1 to nL
 	material "cf_wood"
 	for j = 1 to nF
 		add fx[j], fy[j], z + zD + deckT
-		rotz pAng
+		rotz fAng
 		block fL[j], antiW - 0.01, 0.028
+		! 番線（両端を2か所ずつ巻いて留める）
+		material "cf_bolt"
+		for e = 0 to 1
+			for h = 0 to 1
+				add 0.08 + e * (fL[j] - 0.16), 0.04 + h * (antiW - 0.09), 0.028
+				block 0.006, 0.02, 0.003
+				del 1
+			next h
+		next e
+		material "cf_wood"
 		del 2
 	next j
 	! ---- 受けの単管（すき間の中だけ）と、両端の自在クランプ（本足場の端の布材と交差） ----
@@ -478,7 +534,7 @@ for i = 1 to nL
 				cY = s0y[j] + dy * e
 				cZ = z + zD - r
 				cA = ang
-				cT = 2
+				cT = 1
 				gosub "clamp"
 			next e
 		endif
@@ -527,6 +583,13 @@ for i = 1 to nL
 		endif
 	next k
 next i
+! ---- 手すりの曲がり角の単管の支柱（地面から上の段の上桟まで。ジャッキ・敷板の上） ----
+material "cf_steel"
+for k = 1 to nPt
+	add ptx[k], pty[k], 0
+	cylind lv[nL] + zD + deckT + railH1 + 0.1, r
+	del 1
+next k
 end
 
 "ang":

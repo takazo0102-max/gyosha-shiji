@@ -9,7 +9,8 @@ from _path import SRC  # noqa: F401
 
 from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame, chain_sides, contains, orient_path,
                         parse_box_params, rotate_pt, to_local, band, corner_fill, corner_quantities, joined_ends,
-                        oblique_corners, trim_for_corner, corner_layout, between_layout, between_trim,
+                        oblique_corners, trim_for_corner, corner_layout, between_layout, between_trim, board_layout,
+                        board_quantities,
                         default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
                         thickness_conditions)
@@ -500,10 +501,65 @@ class TestBetweenPosts(unittest.TestCase):
                 self.assertTrue(all(L in self.ANTI for _o, L in lay["planks"]))
                 self.assertAlmostEqual(lay["ang"], 0.0)                       # 前の足場の向き（前の端の布材に直角に掛ける）
 
+    def test_outer_rail_and_continuous_boards(self):
+        """外側にも単管で手すり・足場板を繋げて（利用者の指定 2026-10-31）: 出隅は外の列に沿って外の角まで手すりを回し（2辺）、
+        残りの三角は後の受けの線に沿った一続きの足場板."""
+        s0, s1, a = self._case(60, True)
+        s0["spans"] = [1829, 1829, 1219]
+        f = corner_fill((5182.0, 0.0), (1.0, 0.0), 914.0, a, s1["dir"], 914.0, a, True)
+        lay = between_layout(f, self.ANTI, (1.0, 0.0))
+        self.assertEqual(lay["rails"], [1, 2])
+        x = lay["outline"][2]
+        self.assertAlmostEqual(x[1], -914.0, places=3)                      # 外の角は前の足場の外の線の上
+        self.assertGreater(len(lay["boards"]), 0)
+        self.assertGreater(max(L for _o, L in lay["boards"]), 914)          # 列ごとの切れ端でなく一続き
+        self.assertAlmostEqual(lay["board_ang"], -30.0, places=3)           # 後の受けの線の向き
+        # 足場板は床の外形の中（黄色いのが飛び出ている。実機 2026-10-31）
+        ang = math.radians(lay["board_ang"])
+        u = (math.cos(ang), math.sin(ang))
+        lf = (-u[1], u[0])
+        for o, L in lay["boards"]:
+            for s in (5.0, L - 5.0):
+                for w in (5.0, 235.0):
+                    self.assertTrue(_in_poly((o[0] + u[0] * s + lf[0] * w, o[1] + u[1] * s + lf[1] * w), lay["outline"]))
+
     def test_wide_enough_needs_no_trim(self):
         s0, s1, a = self._case(60, True)
         s0["spans"] = [1829, 1829, 1219]
         self.assertIsNone(between_trim(s0, s1, INCH, a, True, 914.0, 914.0, self.ANTI))
+
+
+
+class TestBoardsOnDecks(unittest.TestCase):
+    """隅は足場板を本足場のアンチの上に載せて番線で留め、支柱どうしを単管で結ぶ（利用者の指定 2026-10-31: 支柱間を単管で結ぶ
+    白はいらない 黄色の足場板を本足場のアンチ上に乗せて番線で固定する）."""
+
+    def test_boards_lap_both_decks_and_stay_on_the_floor(self):
+        for deg, convex, L, rows in ((60, True, 5487.0, 3), (-60, False, 4572.0, 2)):
+            with self.subTest(deg=deg):
+                dj = side_axis(math.radians(deg))
+                a = (5500.0, 0.0)
+                f = corner_fill((L, 0.0), (1.0, 0.0), 914.0, a, dj, 914.0, a, convex)
+                bi = band((0.0, 0.0), (1.0, 0.0), L, 914.0)
+                bj = band(a, dj, 3963.0, 914.0)
+                lay = board_layout(f, bi, bj)
+                self.assertEqual(len(lay["boards"]), rows)
+                self.assertGreaterEqual(len(lay["boards"]) * 240, 400)          # 作業床は幅 40cm 以上
+                ang = math.radians(lay["ang"])
+                u = (math.cos(ang), math.sin(ang))
+                lf = (-u[1], u[0])
+                for o, Lb in lay["boards"]:
+                    for s in (5.0, Lb - 5.0):
+                        for w in (5.0, 235.0):
+                            q = (o[0] + u[0] * s + lf[0] * w, o[1] + u[1] * s + lf[1] * w)
+                            self.assertTrue(any(_in_poly(q, r) for r in (bi, f["poly"], bj)), (deg, q))
+                    # 両端は両側の本足場の床の上（200 以上重なる）
+                    self.assertTrue(_in_poly((o[0] + u[0] * 100 + lf[0] * 120, o[1] + u[1] * 100 + lf[1] * 120), bi))
+                    e = (o[0] + u[0] * (Lb - 100) + lf[0] * 120, o[1] + u[1] * (Lb - 100) + lf[1] * 120)
+                    self.assertTrue(_in_poly(e, bj), (deg, e))
+                q = dict((n, k) for n, k, _x in board_quantities(lay, f, 4))
+                self.assertEqual(q["番線（#8）"], 4 * rows * 4)
+                self.assertTrue(lay["ties"])                                     # 支柱どうしを結ぶ単管
 
 
 if __name__ == "__main__":

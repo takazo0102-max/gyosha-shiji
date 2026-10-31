@@ -49,6 +49,10 @@
 			<Description><![CDATA["作業床（1＝アンチ・2＝足場板）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<Boolean Name="antiOn">
+			<Description><![CDATA["アンチを描く（足場板だけで渡すときは切る）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<Length Name="deckT">
 			<Description><![CDATA["作業床の厚み"]]></Description>
 			<Value>0.045</Value>
@@ -87,6 +91,18 @@
 		</String>
 		<String Name="fbL">
 			<Description><![CDATA["同 長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="fbAng">
+			<Description><![CDATA["足場板の向き（度。後の受けの線。空のときはアンチの向き）"]]></Description>
+			<Value>-999</Value>
+		</RealNum>
+		<String Name="pstX">
+			<Description><![CDATA["手すりを受ける単管の支柱の x（原点から mm。手すりの曲がり角で長さが 1800 を超えるとき）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="pstY">
+			<Description><![CDATA["同 y"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="supX0">
