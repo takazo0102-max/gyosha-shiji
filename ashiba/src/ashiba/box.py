@@ -440,6 +440,29 @@ def joined_ends(job: dict, spec: dict, joined: tuple) -> list[list]:
     return out
 
 
+def hatch_off_corner(spans: list[int], join_start: bool, join_end: bool) -> list[int]:
+    """角（隅のつなぎ）に続く端のスパンが、ハッチ付布板を置ける長さ（いちばん長いスパン）でそれしか無いとき、そのスパンを
+    角から離れた側へ移した並び（利用者の指定 2026-10-31: ハッチを角から離して。隅のつなぎの足場板がハッチの上に載っていた）."""
+    sp = list(spans)
+    if len(sp) < 2:
+        return sp
+    top = max(sp)
+    if sp.count(top) != 1:
+        return sp                                       # 長いスパンがほかにもあれば、ハッチはそちらに置かれる
+    k = sp.index(top)
+    at_start, at_end = join_start and k == 0, join_end and k == len(sp) - 1
+    if not (at_start or at_end):
+        return sp
+    v = sp.pop(k)
+    if at_start and not join_end:
+        sp.append(v)
+    elif at_end and not join_start:
+        sp.insert(0, v)
+    else:
+        sp.insert(len(sp) // 2, v)                      # 両端とも角なら中ほどへ
+    return sp
+
+
 def solve_side_job(job: dict, sides: list[dict], extra: dict, joined: tuple = (False, False)):
     """plan_side_chain の形を解く → (世界座標の外形, 条件, 解いた組 [(名前, 結果)]). 主な辺と厚み・段数の違う面は、面ごとの
     足場の種類（face_forms: 厚み 300 は一側足場（狭い所）、600 は本足場（狭い幅））と面ごとの高さ（face_eaves_mm）にする."""
@@ -461,6 +484,13 @@ def solve_side_job(job: dict, sides: list[dict], extra: dict, joined: tuple = (F
                                 + "・".join(f"{span_text(a)} → {span_text(b)}" for a, b in zip(job["sides"][:k], new[:k]))
                                 + "）")
             job["sides"] = new
+    if job["kind"] == "line" and (joined[0] or joined[1]):
+        moved = hatch_off_corner(job["sides"][0], bool(joined[0]), bool(joined[1]))
+        if moved != list(job["sides"][0]):
+            from .manual import span_text as _st
+
+            job["notes"].append(f"ハッチ付布板を角から離すため、スパンの並びを {_st(job['sides'][0])} → {_st(moved)} に入れ替えました")
+            job["sides"] = [moved] + list(job["sides"][1:])
     if job["kind"] == "line":
         a, b = job["pts"][0], job["pts"][-1]
         world, spec, local = solve_manual(a, b, job["sides"][0], main["standoff"], SIDE_RIGHT, eaves, extra)
@@ -1111,3 +1141,127 @@ def board_quantities(layout: dict, fill: dict, levels: int) -> list[tuple[str, i
     out.append(("自在クランプ（手すり）", 4 * len(edges) * levels, "手すりの両端を支柱に"))
     out.append(("幅木（足場板）", len(edges) * levels, "外の辺"))
     return out
+
+
+
+def corner_rail_poly(fill: dict, min_inner: float = 150.0) -> tuple[list, list[int]]:
+    """手すり・幅木を描く隅の形 → (点（左回り）, 手すりの辺). 外側の支柱どうし（前の足場の終わりの外 → 後の足場の始めの外）と、
+    内側の支柱どうしが min_inner 以上離れていれば内側にも（利用者の指定 2026-10-31: 手すりがない。入隅の内側の支柱の間が
+    あいたままだった）."""
+    (pi, qi), (pj, qj) = fill["walk"][3], fill["walk"][4]
+    pts = [tuple(pi), tuple(qi), tuple(qj), tuple(pj)]
+    rails = [1] + ([3] if math.dist(pi, pj) >= min_inner else [])
+    if _signed_area(pts) < 0:
+        pts = list(reversed(pts))                       # 辺 k（点 k→k+1）は逆順で 2-k
+        rails = [(2 - k) % 4 for k in rails]
+    return pts, rails
+
+
+POST_CLEAR_MM = 24.3 + 10.0       # 足場板と支柱の芯のあき（支柱の半径＋10）
+
+
+def corner_posts(si: dict, sj: dict, wi: float, wj: float) -> list[tuple[float, float]]:
+    """隅に近い支柱（前の足場の終わりの2スパン・後の足場の始めの2スパンの内外の列）."""
+    out = []
+    for s, w, at_end in ((si, wi, True), (sj, wj, False)):
+        d = s["dir"]
+        n = (d[1], -d[0])
+        L = float(sum(s["spans"]))
+        cs = [0.0]
+        for v in s["spans"]:
+            cs.append(cs[-1] + v)
+        pick = [c for c in cs if (L - c <= 3700.0 if at_end else c <= 3700.0)]
+        for c in pick:
+            for off in (0.0, w):
+                out.append((s["a"][0] + d[0] * c + n[0] * off, s["a"][1] + d[1] * c + n[1] * off))
+    return out
+
+
+def board_hits_post(o, L: float, ang_deg: float, posts: list, w: float = BOARD_W_MM) -> bool:
+    """足場板（始めの右の角 o・長さ L・向き ang・幅 w。左へ幅）が支柱を貫くか."""
+    a = math.radians(ang_deg)
+    u = (math.cos(a), math.sin(a))
+    lf = (-u[1], u[0])
+    for p in posts:
+        x = (p[0] - o[0]) * u[0] + (p[1] - o[1]) * u[1]
+        y = (p[0] - o[0]) * lf[0] + (p[1] - o[1]) * lf[1]
+        if -POST_CLEAR_MM < x < L + POST_CLEAR_MM and -POST_CLEAR_MM < y < w + POST_CLEAR_MM:
+            return True
+    return False
+
+
+def extension_board_layout(fill: dict, band_i: list, band_j: list, posts: list, di, dj=None) -> dict:
+    """足場板を前の足場の支柱の列の延長ラインに沿って渡す（利用者の指定 2026-10-31: その向きはできないよ ここまで下げないと
+    できないね 支柱の延長ラインで行こうか）. 前の足場の内側・外側の支柱の列を前へ延ばした線の間に、前の足場の向きに足場板を
+    並べる。1枚ずつ、前の足場の床に BOARD_LAP_MM 重ねた所から、後の足場の床に BOARD_LAP_MM 以上入る所まで（途中の支柱の
+    手前で止める）。支柱には POST_CLEAR_MM 寄せない、床の外へは出さない. 列の横の位置は 10 ずつずらして探し、置ける枚数が
+    いちばん多く、すき間がいちばん少ない並び（支柱をよけて間があくことはある）. dj を渡すと、後の足場の支柱の列の延長ライン
+    （後の足場の床から前の足場の床へ戻る向き）で並べる.
+    → {"boards": [((x, y) 始めの右の角, 長さ)], "ang", "ties", "w", "gaps": 足場板の間のすき間（mm）, "extension": True}"""
+    walk = fill["walk"]
+    (pi, qi), (pj, qj) = walk[3], walk[4]
+    ties = [(tuple(p), tuple(q)) for p, q in ((pi, pj), (qi, qj)) if math.dist(p, q) >= 150.0]
+    if dj is not None:
+        (pi, qi), band_i, band_j, di = (pj, qj), band_j, band_i, (-dj[0], -dj[1])
+    regions = [band_i, fill["poly"], band_j]
+    inside = lambda p: any(_in_poly(p, r) for r in regions)
+    wi = math.dist(pi, qi) or 1.0
+    rt = ((qi[0] - pi[0]) / wi, (qi[1] - pi[1]) / wi)           # 内側の列から外側の列へ
+    w = BOARD_W_MM
+    loc = [((p[0] - pi[0]) * di[0] + (p[1] - pi[1]) * di[1], (p[0] - pi[0]) * rt[0] + (p[1] - pi[1]) * rt[1]) for p in posts]
+    at = lambda x, y: (pi[0] + di[0] * x + rt[0] * y, pi[1] + di[1] * x + rt[1] * y)
+    start = -BOARD_LAP_MM
+
+    def row(y0):
+        """横の位置 y0（内側の列から外へ）から幅 w の足場板 → 長さ か None."""
+        end = 4000.0
+        for x, y in loc:
+            if y0 - POST_CLEAR_MM < y < y0 + w + POST_CLEAR_MM and x > start - POST_CLEAR_MM:
+                if x <= 0.0:
+                    return None                         # 前の足場の床の上で支柱に当たる
+                end = min(end, x - POST_CLEAR_MM - 1.0)
+        enter = 0.0
+        for y in (y0 + 5.0, y0 + w - 5.0):
+            if not _in_poly(at(start + 5.0, y), band_i):
+                return None
+            t, e = start, None
+            while t < end and inside(at(t + 10.0, y)):
+                t += 10.0
+                if e is None and _in_poly(at(t, y), band_j):
+                    e = t
+            if e is None:
+                return None
+            end = min(end, t)
+            enter = max(enter, e)
+        if end < enter + BOARD_LAP_MM - 1.0:
+            return None                                 # 後の足場の床に 200 重ならない
+        return min(end, enter + BOARD_LAP_MM + 300.0) - start
+
+    cands = {}
+    y = 0.0
+    while y <= wi - w + 1e-6:
+        L = row(y)
+        if L is not None:
+            cands[round(y)] = L
+        y += 10.0
+    memo = {}
+
+    def best(y_from):
+        """y_from から外へ置ける並び → (枚数, −足場板の間のすき間, [y0…])."""
+        if y_from not in memo:
+            out = (0, 0.0, [])
+            for y0 in sorted(cands):
+                if y0 >= y_from - 0.5:
+                    n, g, ys = best(round(y0 + w))
+                    g -= (ys[0] - (y0 + w)) if ys else 0.0
+                    if (n + 1, g) > out[:2]:
+                        out = (n + 1, g, [y0] + ys)
+            memo[y_from] = out
+        return memo[y_from]
+
+    ys = best(0)[2]
+    right = di[1] * rt[0] - di[0] * rt[1] > 0           # 外側の列が向きの右
+    boards = [(at(start, y0 + w) if right else at(start, y0), cands[y0]) for y0 in ys]    # 始めの右の角（左へ幅）
+    gaps = [b - a - w for a, b in zip(ys, ys[1:])]
+    return {"boards": boards, "ang": math.degrees(math.atan2(di[1], di[0])), "ties": ties, "w": w, "gaps": gaps,
+            "extension": True}

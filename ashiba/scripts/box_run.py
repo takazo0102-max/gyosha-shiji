@@ -445,7 +445,8 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
     ようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか）."""
     import csv
 
-    from ashiba.box import DECK_TOP_MM, band, board_layout, board_quantities, corner_fill
+    from ashiba.box import (DECK_TOP_MM, band, board_quantities, corner_fill, corner_posts, corner_rail_poly,
+                            extension_board_layout)
     from ashiba.pens import gdl_pens, parse_pens
 
     sides = info["sides"]
@@ -502,7 +503,18 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
         band_j = band(sj["a"], sj["dir"], float(sum(sj["spans"])), wj)
         # 足場板を置ける範囲は元のすき間の形（手すりの端を近い支柱へ寄せた形で探すと、入隅で1列しか置けなかった）
         region = corner_fill(end_i, si["dir"], wi, sj["a"], sj["dir"], wj, cn["c"], cn["convex"])
-        lay = board_layout(region, band_i, band_j)
+        # 足場板は支柱の列の延長ラインに沿って渡す（利用者の指定 2026-10-31: その向きはできないよ ここまで下げないとできないね
+        # 支柱の延長ラインで行こうか）。前の足場の列の延長で 400 に足りなければ、後の足場の列の延長も試して多い方
+        def used_spans(b, s):
+            job = b["side_job"][0] if b.get("side_job") else None
+            return list(job["sides"][0]) if job and job["kind"] == "line" else list(s["spans"])
+        posts = corner_posts({**si, "spans": used_spans(bi, si)}, {**sj, "spans": used_spans(bj, sj)}, wi, wj)
+        lay = extension_board_layout(region, band_i, band_j, posts, si["dir"])
+        line_of = "前の足場"
+        if len(lay["boards"]) * 240 < 400:
+            lay_j = extension_board_layout(region, band_i, band_j, posts, si["dir"], dj=sj["dir"])
+            if len(lay_j["boards"]) > len(lay["boards"]):
+                lay, line_of = lay_j, "後の足場"
         boards = lay["boards"]
         # 支柱を結ぶ単管は支柱の脇（右へ 支柱半径＋単管半径）を通す（部品は支柱が左にある形でクランプを描く）
         ties = []
@@ -510,7 +522,9 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
             L = math.dist(p0, p1) or 1.0
             r_ = ((p1[1] - p0[1]) / L * 48.6, -(p1[0] - p0[0]) / L * 48.6)
             ties.append(((p0[0] + r_[0], p0[1] + r_[1]), (p1[0] + r_[0], p1[1] + r_[1])))
-        poly = fill["poly"]
+        # 手すりは外側の支柱どうしと、離れていれば内側の支柱どうしにも（利用者の指定 2026-10-31: 手すりがない）
+        poly, rails = corner_rail_poly(region)
+        fill = {**fill, "poly": poly, "rail": rails}
         (el,) = c.create_objects([(R.versioned_part_name(CFILL_OBJECT), cx, cy)])
         c.set_gdl_parameters(el, {**pens,
                                   "polyX": ",".join(f"{p[0] - cx:.0f}" for p in poly),
@@ -530,8 +544,10 @@ def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
                                   "supY1": ",".join(f"{s[1][1] - cy:.0f}" for s in ties)})
         turn = math.degrees(math.acos(max(-1.0, min(1.0, si["dir"][0] * sj["dir"][0] + si["dir"][1] * sj["dir"][1]))))
         print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に {len(lv)}段、支柱どうしを単管 {len(ties)}本で"
-              f"結び、足場板 {len(boards)}列（幅 {len(boards) * 240}）を本足場のアンチの上に 200 以上重ねて番線で留め、"
-              "単管の上桟・中桟・幅木・自在クランプを置きました（両側の足場の角の側の妻側の手すりは外す）")
+              + f"結び、足場板 {len(boards)}列（幅 {len(boards) * 240}）を{line_of}の支柱の列の延長ラインに沿って、両側の本足場の"
+              "アンチの上に 200 以上重ねて番線で留め、"
+              + (f"（{'・'.join(f'{g:.0f}' for g in lay['gaps'] if g > 0)} は支柱をよけたすき間）" if any(g > 0 for g in lay["gaps"]) else "")
+              + "単管の上桟・中桟・幅木・自在クランプを置きました（両側の足場の角の側の妻側の手すりは外す）")
         if len(boards) * 240 < 400:
             print("    注意: 足場板が 400 の幅に足りない（作業床は幅 40cm 以上。安衛則563条）。角の形を見直す")
         if len(lv_i) != len(lv_j):

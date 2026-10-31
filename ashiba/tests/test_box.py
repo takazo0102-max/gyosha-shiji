@@ -10,7 +10,8 @@ from _path import SRC  # noqa: F401
 from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame, chain_sides, contains, orient_path,
                         parse_box_params, rotate_pt, to_local, band, corner_fill, corner_quantities, joined_ends,
                         oblique_corners, trim_for_corner, corner_layout, between_layout, between_trim, board_layout,
-                        board_quantities,
+                        board_quantities, corner_rail_poly, hatch_off_corner, board_hits_post, corner_posts,
+                        extension_board_layout,
                         default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
                         thickness_conditions)
@@ -528,6 +529,72 @@ class TestBetweenPosts(unittest.TestCase):
         s0["spans"] = [1829, 1829, 1219]
         self.assertIsNone(between_trim(s0, s1, INCH, a, True, 914.0, 914.0, self.ANTI))
 
+
+
+class TestHatchAndInnerRail(unittest.TestCase):
+    def test_hatch_span_moves_away_from_the_corner(self):
+        """ハッチを角から離して（利用者の指定 2026-10-31）: 角に続く端にしかハッチの長さのスパンが無ければ、反対の端へ移す."""
+        self.assertEqual(hatch_off_corner([1829, 1524, 610], True, False), [1524, 610, 1829])
+        self.assertEqual(hatch_off_corner([610, 1524, 1829], False, True), [1829, 610, 1524])
+        self.assertEqual(hatch_off_corner([1829, 1524, 610], True, True), [1524, 1829, 610])
+        self.assertEqual(hatch_off_corner([1829, 1829, 610], True, False), [1829, 1829, 610])   # ほかにもある
+
+    def test_inner_rail_when_inner_posts_are_apart(self):
+        """手すりがない（利用者の指定 2026-10-31）: 入隅は内側の支柱どうしにも手すり。出隅（内側の支柱がほぼ重なる）は外だけ."""
+        a = (5500.0, 0.0)
+        for deg, convex, L, n in ((60, True, 5487.0, 1), (-60, False, 4572.0, 2)):
+            f = corner_fill((L, 0.0), (1.0, 0.0), 914.0, a, side_axis(math.radians(deg)), 914.0, a, convex)
+            pts, rails = corner_rail_poly(f)
+            self.assertEqual(len(rails), n, deg)
+
+
+class TestExtensionBoards(unittest.TestCase):
+    """その向きはできないよ ここまで下げないとできないね 支柱の延長ラインで行こうか（利用者の指定 2026-10-31）."""
+
+    def _case(self, deg, convex, L, sp):
+        dj = side_axis(math.radians(deg))
+        a = (5500.0, 0.0)
+        si = {"a": (0.0, 0.0), "dir": (1.0, 0.0), "spans": sp}
+        sj = {"a": a, "dir": dj, "spans": [1829, 1524, 610]}
+        f = corner_fill((L, 0.0), (1.0, 0.0), 914.0, a, dj, 914.0, a, convex)
+        bi, bj = band((0.0, 0.0), (1.0, 0.0), L, 914.0), band(a, dj, 3963.0, 914.0)
+        return f, bi, bj, corner_posts(si, sj, 914.0, 914.0), dj
+
+    def test_boards_follow_the_post_lines_and_miss_every_post(self):
+        for deg, convex, L, sp in ((-60, False, 4572.0, [1829, 1829, 914]), (-45, False, 4572.0, [1829, 1829, 914]),
+                                   (30, True, 5487.0, [1829, 1829, 1829])):
+            with self.subTest(deg=deg):
+                f, bi, bj, posts, _dj = self._case(deg, convex, L, sp)
+                lay = extension_board_layout(f, bi, bj, posts, (1.0, 0.0))
+                self.assertAlmostEqual(lay["ang"], 0.0)                          # 前の足場の支柱の列の向き
+                self.assertGreaterEqual(len(lay["boards"]) * 240, 400)           # 作業床は幅 40cm 以上
+                self.assertFalse(any(board_hits_post(o, Lb, lay["ang"], posts) for o, Lb in lay["boards"]))
+                for o, Lb in lay["boards"]:
+                    self.assertLessEqual(o[1] + 240.0, 0.0)                      # 内側の列と外側の列の間
+                    self.assertGreaterEqual(o[1], -914.0)
+                    self.assertTrue(_in_poly((o[0] + 100.0, o[1] + 120.0), bi))  # 前の足場の床に 200 重ねる
+                    self.assertTrue(_in_poly((o[0] + Lb - 100.0, o[1] + 120.0), bj), (deg, o, Lb))
+
+    def test_rows_skip_the_post_of_the_next_run(self):
+        """入隅 60°: 後の足場の始めの外の支柱が延長ラインの間に立つので、足場板はその両脇に分ける."""
+        f, bi, bj, posts, _dj = self._case(-60, False, 4572.0, [1829, 1829, 914])
+        lay = extension_board_layout(f, bi, bj, posts, (1.0, 0.0))
+        self.assertEqual(len(lay["boards"]), 2)
+        self.assertEqual(len(lay["gaps"]), 1)
+        self.assertGreaterEqual(lay["gaps"][0], 2 * 24.3)                        # 支柱が通る
+
+    def test_lines_of_the_next_run(self):
+        """後の足場の延長ラインで並べると、向きは後の足場の逆向き."""
+        f, bi, bj, posts, dj = self._case(30, True, 5487.0, [1829, 1829, 1829])
+        lay = extension_board_layout(f, bi, bj, posts, (1.0, 0.0), dj=dj)
+        self.assertAlmostEqual(lay["ang"], -150.0)
+        self.assertEqual(len(lay["boards"]), 2)
+        self.assertFalse(any(board_hits_post(o, Lb, lay["ang"], posts) for o, Lb in lay["boards"]))
+        for o, Lb in lay["boards"]:
+            a = math.radians(lay["ang"])
+            u, lf = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+            self.assertTrue(_in_poly((o[0] + u[0] * 100 + lf[0] * 120, o[1] + u[1] * 100 + lf[1] * 120), bj))
+            self.assertTrue(_in_poly((o[0] + u[0] * (Lb - 100) + lf[0] * 120, o[1] + u[1] * (Lb - 100) + lf[1] * 120), bi))
 
 
 class TestBoardsOnDecks(unittest.TestCase):

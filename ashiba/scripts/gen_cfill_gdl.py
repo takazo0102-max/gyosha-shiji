@@ -214,7 +214,11 @@ for i = 1 to nS
 	line_type 1
 next i
 style "cfT"
-text2 cx, cy, cName + "（" + dName + " " + str(nPl, 1, 0) + "列＋足場板＋単管手すり）"
+if nPl > 0 then
+	text2 cx, cy, cName + "（" + dName + " " + str(nPl, 1, 0) + "列＋足場板＋単管手すり）"
+else
+	text2 cx, cy, cName + "（足場板 " + str(nF, 1, 0) + "列＋単管手すり）"
+endif
 """
 
 SCRIPT_3D = """﻿! ============================================================
