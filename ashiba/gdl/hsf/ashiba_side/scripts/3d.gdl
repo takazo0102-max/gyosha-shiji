@@ -12,8 +12,13 @@ define material "sd_1" 2, 0.95, 0.62, 0.25
 define material "sd_6" 2, 0.45, 0.70, 0.95
 define material "sd_9" 2, 0.45, 0.80, 0.45
 define material "sd_12" 2, 0.70, 0.55, 0.90
+define material "sd_t" 2, 0.62, 0.62, 0.66
 if tk < 0.45 then
-	material "sd_1"
+	if oK > 1 then
+		material "sd_t"
+	else
+		material "sd_1"
+	endif
 else
 	if tk < 0.75 then
 		material "sd_6"

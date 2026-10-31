@@ -23,6 +23,8 @@
 実機の確認（窓なし）: python3 scripts/box_run.py --place --at x,y [--len 9145] [--depth 5487] [--levels 4] [--thick 900]
                        [--zbase 6000] [--series albatross]
                      [--whole]（辺に分けず、前の一周の箱 ashiba_box で置く）
+                     python3 scripts/box_run.py --place [--thick 300 --kind 1|2|3]（選んだ線に辺。一側の組み方: 1＝ブラケット
+                       （支柱）・2＝ブラケット（単管）・3＝単管抱き。省くと条件の足場の種類から）
                      python3 scripts/box_run.py --build [--name 検証_箱]（選んだ箱・辺を足場に）
 """
 
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import math
 import sys
+from typing import Optional
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,7 +147,7 @@ def _levels(R, master, sid: str, base: dict, coins: list[int], thick: int, level
     from ashiba.manual import eaves_for_levels, solve_manual_loop
     from ashiba.master import series_module
 
-    _kind, cond = thickness_conditions(thick, 300.0)
+    _kind, cond = thickness_conditions(thick, 300.0)          # 段の高さは系列で決まる（一側の組み方によらない）
     extra = {**base, **cond, "series_id": sid, "module": series_module(sid)}
     pts, sides = box_loop((0.0, 0.0), 0.0, [coins[0]] * 3, [coins[0]] * 3)
     _w, _spec, solved = solve_manual_loop(pts, sides, 300.0, eaves_for_levels(levels, int(master.floor_height or 1800)), extra)
@@ -157,17 +160,22 @@ def place_on_lines(c, argv, guides) -> int:
     今一線だけで四角につくられてしまう）. 線1本は1辺、ポリラインは折れ目ごとに1辺. 長さは線を超えない定尺の組み合わせ."""
     import run_from_archicad as R
 
-    from ashiba.box import (DEFAULT_LEVELS, SIDE_OBJECT, box_coins, orient_path, side_params, sides_from_path,
-                            snap_thickness)
+    from ashiba.box import (DEFAULT_LEVELS, ONE_KINDS, SIDE_OBJECT, box_coins, default_one, one_kind_of, orient_path,
+                            side_params, sides_from_path, snap_thickness)
     from ashiba.master import load_master
     from ashiba.pens import gdl_pens, parse_pens
 
     opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
     base, sid = _conditions(R, opt("--series", ""))
     master = load_master(sid)
-    coins = box_coins(master.span_lengths())
+    box_c = box_coins(master.span_lengths())
     levels = int(opt("--levels", DEFAULT_LEVELS))
-    thick = snap_thickness(float(opt("--thick", base.get("scaffold_width_mm") or 900)))
+    # 厚み・一側の組み方の初めは条件の足場の種類（ブラケット足場・単管抱き足場なら厚み 300 とその組み方）
+    t0, k0 = default_one(base)
+    thick = snap_thickness(float(opt("--thick", t0 or base.get("scaffold_width_mm") or 900)))
+    kind = one_kind_of(opt("--kind", k0))
+    # 単管で組む一側（ブラケット（単管）・単管抱き）は単管の定尺で
+    coins = box_coins(load_master("tankan").span_lengths()) if thick == 300 and kind in (2, 3) else box_c
     zb = float(opt("--zbase", "0") or 0)
     pts = [p for _e, ss in guides for s in ss for p in s]
     slabs = [s["polygon_mm"] for s in R.read_slabs_near(c, pts, margin_mm=5000.0)]
@@ -184,7 +192,7 @@ def place_on_lines(c, argv, guides) -> int:
     except ValueError as e:
         print(f"箱を置く: {e}")
         return 1
-    lv, floor = _levels(R, master, sid, base, coins, thick, levels)
+    lv, floor = _levels(R, master, sid, base, box_c, thick, levels)
     R.ensure_parts(c)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), SIDE_OBJECT)
@@ -193,15 +201,17 @@ def place_on_lines(c, argv, guides) -> int:
         els = c.create_objects([(R.versioned_part_name(SIDE_OBJECT), p[0], p[1]) for p, _g, _s, _ce in sides])
         for el, (p, g, sp, ce) in zip(els, sides):
             c.set_gdl_parameters(el, side_params(sp, coins, thick, len(lv), lv[0], floor, sid, 300.0, pens, base_mm=zb,
-                                                 corner_end=ce))
+                                                 corner_end=ce, one_kind=kind))
             if abs(g) > 1e-6:
                 c.rotate_element(el, g, p[0], p[1])
         made += els
         got = "・".join(f"{sum(sp)}（線 {math.dist(a, b):.0f}）" for (a, b), (_p, _g, sp, _ce) in zip(osegs, sides))
-        print(f"箱を置く: 辺 {len(sides)}本 {got}・作業床 {len(lv)}段を {how}に置きました")
+        what = ONE_KINDS[kind][0] if thick == 300 else f"本足場 幅{thick}"
+        print(f"箱を置く: 辺 {len(sides)}本 {got}・{what}・作業床 {len(lv)}段を {how}に置きました")
     delete_guides(c, guides)
     print("  長さは線を超えない定尺の組み合わせ。辺ごとに、終わりの端のつまみで長さ（定尺に吸着）、中ほどのつまみで厚み"
-          "（300＝一側足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。決まったら辺をまとめて選んで「箱を足場に」")
+          "（300＝一側足場・600／900／1200＝本足場の幅）、3D の天端のつまみで段数。一側の組み方（ブラケット（支柱）・"
+          "ブラケット（単管）・単管抱き）は辺の設定の「一側の組み方」で選ぶ。決まったら辺をまとめて選んで「箱を足場に」")
     for el in made:
         print(f"BOX {el['elementId']['guid']}")
     return 0
@@ -253,12 +263,14 @@ def _params(c, el) -> dict:
     return out
 
 
-def _read_items(c) -> list[dict]:
+def _read_items(c, corner_info: Optional[dict] = None) -> list[dict]:
     """選んだ箱（ashiba_box）と辺（ashiba_side）→ 解く単位. 辺は端どうしのつながりで組にする（一周・コの字・L字・1本）.
     各単位は {"pts", "sides", "levels", "thick_mm", "base_mm", "standoff", "floor_mm", "series_id", "els", "desc",
-    "loop"（一周で辺ごとの違いが無い＝セットバックの箱として扱える）, "side_job"（辺の組。箱なら None）}."""
-    from ashiba.box import (BOX_OBJECT, SIDE_OBJECT, box_loop, chain_sides, parse_box_params, parse_side_params,
-                            plan_side_chain, side_axis)
+    "loop"（一周で辺ごとの違いが無い＝セットバックの箱として扱える）, "side_job"（辺の組。箱なら None）}.
+    corner_info に {"sides", "corners", "notes"} を返す（直角でない角。利用者の指定 2026-10-31: 斜めの角もつながるように）."""
+    from ashiba.box import (BOX_OBJECT, SIDE_OBJECT, box_coins, box_loop, chain_frame, chain_sides, oblique_corners,
+                            parse_box_params, parse_side_params, plan_side_chain, side_axis, to_local, trim_for_corner)
+    from ashiba.master import load_master
     from ashiba.manual import span_text
 
     sel = c.get_selected_elements()
@@ -279,14 +291,42 @@ def _read_items(c) -> list[dict]:
             s.update(a=at, dir=side_axis(float(dd.get("angle") or 0.0)))
             sides.append(s)
             side_els.append(e)
-    for ch, closed in chain_sides(sides):
-        job = plan_side_chain(sides, ch, closed)
+    chains = chain_sides(sides)
+    # 直角でない角: 入隅は前の辺の帯が後の辺の帯に重ならない長さまで縮める（重なると2本の足場がぶつかる）
+    corners = oblique_corners(sides, chains)
+    notes = []
+    for cn in corners:
+        si, sj = sides[cn["i"]], sides[cn["j"]]
+        if cn["convex"]:
+            continue
+        try:
+            coins = box_coins(load_master(si.get("series_id") or "albatross").span_lengths())
+        except Exception:
+            coins = sorted({int(v) for v in si["spans"]}, reverse=True)
+        tr = trim_for_corner(si, sj, coins)
+        if tr is not None:
+            notes.append(f"斜めの入隅: 前の辺を {sum(si['spans'])} → {sum(tr)} に縮めて、後の辺の足場に当てない")
+            si["spans"] = tr
+    first = {ch[0]: k for k, (ch, closed) in enumerate(chains) if not closed}
+    last = {ch[-1]: k for k, (ch, closed) in enumerate(chains) if not closed}
+    if corner_info is not None:
+        corner_info.update(sides=sides, corners=corners, notes=notes)
+    for ch, closed in chains:
+        # 斜めの辺の組（利用者の指定 2026-10-31: 斜めの線にも対応）: 組の向きにそろえた座標で縦・横に解き、置いたあと回す
+        ang = chain_frame(sides, ch)
+        pivot = sides[ch[0]]["a"]
+        loc = to_local(sides, ch, ang, pivot) if ang else sides
+        job = plan_side_chain(loc, list(range(len(ch))) if ang else ch, closed)
         m = job["main"]
-        same = all(sides[i]["thick_mm"] == m["thick_mm"] and sides[i]["levels"] == m["levels"] for i in ch)
+        same = all(sides[i]["thick_mm"] == m["thick_mm"] and sides[i]["levels"] == m["levels"]
+                   and sides[i]["one_kind"] == m["one_kind"] for i in ch)
         shape = {"loop": "一周", "open": "コの字" if len(job["group_sides"]) == 3 else "L字", "line": "1本"}[job["kind"]]
-        items.append({**{k: m[k] for k in ("levels", "thick_mm", "base_mm", "standoff", "floor_mm", "series_id")},
+        items.append({**{k: m[k] for k in ("levels", "thick_mm", "base_mm", "standoff", "floor_mm", "series_id", "one_kind")},
                       "pts": job["pts"], "sides": job["sides"], "els": [side_els[i] for i in ch],
-                      "loop": job["kind"] == "loop" and same, "side_job": (job, sides),
+                      "loop": job["kind"] == "loop" and same and not ang, "side_job": (job, loc),
+                      "rot": (ang, pivot) if ang else None, "chain": ch,
+                      "join_start": any(cn["j"] == ch[0] for cn in corners) and ch[0] in first,
+                      "join_end": any(cn["i"] == ch[-1] for cn in corners) and ch[-1] in last,
                       "desc": f"辺 {len(ch)}本の{shape}（{'・'.join(span_text(sp) for sp in job['sides'][:len(job['group_sides'])])}）"})
     return items
 
@@ -300,8 +340,9 @@ def build(c, argv) -> int:
     from ashiba.master import SERIES_LABELS, series_module
 
     opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
+    corner_info: dict = {}
     try:
-        jobs = _read_items(c)
+        jobs = _read_items(c, corner_info)
     except ValueError as e:
         print(f"箱を足場に: {e}")
         return 1
@@ -320,7 +361,7 @@ def build(c, argv) -> int:
     ups = [b for b in loops[1:] if low_b and b["base_mm"] > low_b["base_mm"] + 500.0 and contains(low_b["pts"], b["pts"])]
     if ups and low_b["base_mm"] <= 1.0:
         base, sid = _conditions(R, low_b["series_id"])
-        kind, cond = thickness_conditions(low_b["thick_mm"], low_b["standoff"])
+        kind, cond = thickness_conditions(low_b["thick_mm"], low_b["standoff"], low_b.get("one_kind", 1))
         extra = {**base, **dev, **cond, "series_id": sid, "module": series_module(sid), "project_name": name0}
         try:
             spec = setback_spec(low_b, ups, extra)
@@ -343,10 +384,11 @@ def build(c, argv) -> int:
         jobs = [b for b in jobs if b is not low_b and b not in ups]
         if not jobs:
             return 0
+    placed: list[str] = []          # この「箱を足場に」で先に置いた要素（後の足場の片付けで消さない）
     for k, b in enumerate(jobs):
         try:
             base, sid = _conditions(R, b["series_id"])
-            kind, cond = thickness_conditions(b["thick_mm"], b["standoff"])
+            kind, cond = thickness_conditions(b["thick_mm"], b["standoff"], b.get("one_kind", 1))
             # 2つ以上なら工事名を分ける（帳票を上書きしない）。立つ高さの違う箱の足場は互いに片付けない
             name = name0 if len(jobs) == 1 or k == 0 else (
                 name0 + (f"_上段{k}" if b["base_mm"] > jobs[0]["base_mm"] + 1.0 else f"_{k + 1}"))
@@ -354,7 +396,7 @@ def build(c, argv) -> int:
                      "base_height_mm": b["base_mm"], "_same_base_only": True}
             if b["side_job"] is not None:
                 job, sides = b["side_job"]
-                world, spec, groups = solve_side_job(job, sides, extra)
+                world, spec, groups = solve_side_job(job, sides, extra, (b.get("join_start"), b.get("join_end")))
                 solved = groups[0][1]
             else:
                 world, spec, solved = solve_manual_loop(b["pts"], b["sides"], b["standoff"],
@@ -368,7 +410,7 @@ def build(c, argv) -> int:
             lv = lv[:b["levels"]]           # 段数を上げた面のある辺の組: 全体は高い面の段数で解くので、主な辺の段数で書く
         print(f"箱を足場に: {b['desc']}・作業床 {len(lv)}段（最上段 {b['base_mm'] + lv[-1]:.0f}mm）・{kind}"
               + (f"・立つ高さ {b['base_mm']:.0f}" if b["base_mm"] > 0 else "")
-              + f"・離れ {b['standoff']:.0f}・{SERIES_LABELS.get(sid, sid)} で置きます（{name}）")
+              + f"・離れ {b['standoff']:.0f}・{SERIES_LABELS.get(solved.model.master.series_id, sid)} で置きます（{name}）")
         for lb, g in groups[1:]:
             print(f"  {lb}: {'・'.join(g.model.face_name(i) for i in sorted(g.model.faces_only or []))}")
         if spec.get("face_eaves_mm"):
@@ -380,9 +422,174 @@ def build(c, argv) -> int:
             print(f"  注意: {note}")
         for ch in span_changes(spec, solved):
             print(f"  スパンの変更: {ch}")
-        R.main(outline_mm=world, spec_override={k2: v for k2, v in spec.items() if k2 != "outline_mm"}, use_spec_object=False)
+        b["solved"] = solved
+        spec = {**spec, "_protect_guids": list(placed)}
+        if b.get("rot"):
+            print(f"  斜めの辺: {math.degrees(b['rot'][0]):.1f}° 回した向きで縦・横に解き、置いたあと線の向きに回します")
+            res = _place_rotated(c, R, world, spec, b["rot"], name)
+        else:
+            res = R.main(outline_mm=world, spec_override={k2: v for k2, v in spec.items() if k2 != "outline_mm"},
+                         use_spec_object=False)
+        placed += _placed_guids(res)
         c.delete_elements(b["els"])
+    if corner_info.get("corners"):
+        place_corner_fills(c, R, jobs, corner_info, name0)
     return 0
+
+
+CFILL_OBJECT = "ashiba_cfill"
+
+
+def place_corner_fills(c, R, jobs: list[dict], info: dict, name0: str) -> None:
+    """直角でない角に隅のつなぎ（部品 ashiba_cfill）を置き、材料の目安を書く（利用者の指定 2026-10-31: 斜めの角もつながる
+    ようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか）."""
+    import csv
+
+    from ashiba.box import corner_fill, corner_quantities
+    from ashiba.pens import gdl_pens, parse_pens
+
+    sides = info["sides"]
+    for n in info.get("notes") or []:
+        print(f"  {n}")
+    by_end = {b["chain"][-1]: b for b in jobs if b.get("chain")}
+    by_start = {b["chain"][0]: b for b in jobs if b.get("chain")}
+    spec = {**R.SPEC, **R.load_spec_override()}
+    pens = gdl_pens(parse_pens(spec.get("pens")), CFILL_OBJECT)
+    rows = []
+    for k, cn in enumerate(info["corners"], 1):
+        bi, bj = by_end.get(cn["i"]), by_start.get(cn["j"])
+        if not bi or not bj or "solved" not in bi or "solved" not in bj:
+            continue
+        si, sj = sides[cn["i"]], sides[cn["j"]]
+        end_i = _chain_end(bi, sides)
+        mi, mj = bi["solved"].model, bj["solved"].model
+        fill = corner_fill(end_i, si["dir"], float(mi.post_row_spacing_mm), sj["a"], sj["dir"],
+                           float(mj.post_row_spacing_mm), cn["c"], cn["convex"])
+        lv_i, lv_j = list(mi.elevation.level_heights), list(mj.elevation.level_heights)
+        lv = lv_i if len(lv_i) <= len(lv_j) else lv_j
+        base = float(si["base_mm"])
+        cx, cy = cn["c"]
+        # 同じ角に前に置いた隅のつなぎは消す
+        old = []
+        try:
+            objs = c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])
+            for e, d in zip(objs, c.get_details(objs) if objs else []):
+                dd = d.get("details") or {}
+                o = dd.get("origin") or {}
+                if str((dd.get("libPart") or {}).get("name", "")).startswith(CFILL_OBJECT) and \
+                        math.hypot(float(o.get("x", 0)) * 1000.0 - cx, float(o.get("y", 0)) * 1000.0 - cy) < 1500.0:
+                    old.append(e)
+        except Exception:
+            pass
+        if old:
+            c.delete_elements(old)
+        (el,) = c.create_objects([(R.versioned_part_name(CFILL_OBJECT), cx, cy)])
+        poly = fill["poly"]
+        c.set_gdl_parameters(el, {**pens,
+                                  "polyX": ",".join(f"{p[0] - cx:.0f}" for p in poly),
+                                  "polyY": ",".join(f"{p[1] - cy:.0f}" for p in poly),
+                                  "railE": ",".join(str(r) for r in fill["rail"]),
+                                  "levList": ",".join(f"{base + h:.0f}" for h in lv),
+                                  "deckKind": 1, "cName": f"隅のつなぎ{k}"})
+        turn = math.degrees(math.acos(max(-1.0, min(1.0, si["dir"][0] * sj["dir"][0] + si["dir"][1] * sj["dir"][1]))))
+        print(f"  隅のつなぎ{k}: {'出隅' if cn['convex'] else '入隅'}（{turn:.0f}° 曲がる角）に作業床 {len(lv)}段・単管手すり・幅木を"
+              f"置きました（両側の足場の角の側の妻側の手すりは外す）。床はアンチ（部品の設定で足場板に替えられる）")
+        if len(lv_i) != len(lv_j):
+            print(f"    注意: 両側の足場の段数が違う（{len(lv_i)}段・{len(lv_j)}段）ので、少ない方の {len(lv)}段にしました")
+        for item, q, note in corner_quantities(fill, len(lv), "アンチ"):
+            rows.append((f"隅のつなぎ{k}", item, q, note))
+            print(f"    {item} {q} — {note}")
+    if rows:
+        out = R.OUT_DIR / f"{name0}_隅のつなぎ.csv"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "w", encoding="utf-8-sig", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["場所", "品名", "数", "注"])
+            w.writerows(rows)
+        print(f"  隅のつなぎの材料の目安: {out}")
+
+
+def _chain_end(b: dict, sides: list[dict]) -> tuple[float, float]:
+    """辺の組の終わりの内側の列の点（世界座標。解いたスパンの合計で）."""
+    job, _loc = b["side_job"]
+    ch = b["chain"]
+    p = sides[ch[0]]["a"]
+    k = len(job["group_sides"])
+    gfirst = [g[0] for g in job["group_sides"]]
+    # 面ごとの始めの辺（世界座標の向き）。斜めの組は loc の番号が組の中の順
+    for g, sp in zip(gfirst[:k], job["sides"][:k]):
+        s = sides[ch[g]] if b.get("rot") else sides[g]
+        L = float(sum(sp))
+        p = (p[0] + s["dir"][0] * L, p[1] + s["dir"][1] * L)
+    return p
+
+
+ROTATED_RECORD = "斜めの足場.json"   # 斜めに回して置いた足場の GUID（工事名ごと。置き直すときに前のものを消す）
+ROTATE_TYPES = ("Object", "Label", "Dimension")
+
+
+def _placed_guids(res) -> list[str]:
+    """R.main の戻り（足場ライン・壁つなぎなど・詳細図）→ 置いた要素の GUID."""
+    out = []
+    for k in ("lines", "attachments", "details", "elevations"):
+        for e in (res or {}).get(k) or []:
+            if isinstance(e, dict) and "elementId" in e:
+                out.append(e["elementId"]["guid"])
+    return out
+
+
+def _guids(c, types=ROTATE_TYPES) -> set:
+    out = set()
+    for ty in types:
+        try:
+            out |= {e["elementId"]["guid"] for e in c.tapir("GetElementsByType", {"elementType": ty}).get("elements", [])}
+        except Exception:
+            pass
+    return out
+
+
+def _place_rotated(c, R, world, spec: dict, rot, name: str):
+    """組の向きにそろえた座標の外形で置き（R.main）、新しく置いた平面の要素（足場ライン・壁つなぎ・シート・ラベル・寸法）を
+    線の向きへ回す。立面図・詳細図の行（外形から 20m 以上下）は回さない. 回した要素は工事名ごとに控え、置き直すときに消す
+    （外形の範囲で前の配置を拾う片付けは、回したあとの位置では拾えないため）."""
+    import json
+
+    ang, pivot = rot
+    rec_p = R.OUT_DIR / ROTATED_RECORD
+    try:
+        rec = json.loads(rec_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rec = {}
+    old = [g for g in rec.get(name, []) if g in _guids(c)]
+    if old:
+        c.delete_elements([{"elementId": {"guid": g}} for g in old])
+        print(f"  前に斜めに置いた {name} の要素 {len(old)}個を消しました")
+    before = _guids(c)
+    res = R.main(outline_mm=world, spec_override={k: v for k, v in spec.items() if k != "outline_mm"}, use_spec_object=False)
+    skip = {e["elementId"]["guid"] for k in ("details", "elevations") for e in (res or {}).get(k) or [] if isinstance(e, dict)
+            and "elementId" in e}
+    new = [g for g in _guids(c) - before if g not in skip]
+    xs, ys = [p[0] for p in world], [p[1] for p in world]
+    x0, x1, y0, y1 = min(xs) - 12000, max(xs) + 12000, min(ys) - 12000, max(ys) + 12000
+    els = [{"elementId": {"guid": g}} for g in new]
+    keep = []
+    for e, d in zip(els, c.get_details(els) if els else []):
+        dd = d.get("details") or {}
+        o = dd.get("origin") or dd.get("begCoordinate") or {}
+        if o and not (x0 <= float(o.get("x", 0)) * 1000.0 <= x1 and y0 <= float(o.get("y", 0)) * 1000.0 <= y1):
+            continue
+        keep.append(e)
+    ox, oy = pivot[0] / 1000.0, pivot[1] / 1000.0
+    for i in range(0, len(keep), 200):
+        c.tapir("RotateElements", {"elementsWithRotations": [
+            {"elementId": e["elementId"], "rotation": {"origin": {"x": ox, "y": oy}, "beginPoint": {"x": ox + 1.0, "y": oy},
+                                                       "endPoint": {"x": ox + math.cos(ang), "y": oy + math.sin(ang)}}}
+            for e in keep[i:i + 200]]})
+    rec[name] = [e["elementId"]["guid"] for e in keep]
+    rec_p.parent.mkdir(parents=True, exist_ok=True)
+    rec_p.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"  斜めの向きに {len(keep)}個を回しました（立面図・詳細図の行は回さない）")
+    return res
 
 
 def main() -> int:

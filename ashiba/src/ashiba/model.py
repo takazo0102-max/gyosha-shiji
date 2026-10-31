@@ -181,6 +181,8 @@ class ScaffoldModel:
     config: ScaffoldConfig = field(default_factory=ScaffoldConfig)
     building_height_mm: float = 0.0        # 建物高さ（架け面積・届出判定用）
     clearance_space_mm: float = 2000.0     # 躯体外面から確保できる水平スペース
+    # 一側足場を利用者が選んだ（足場の箱の厚み 300）。本足場原則はただし書き（困難な理由を記録）として要確認にする
+    one_row_by_choice: bool = False
     wall_ties: list[WallTie] = field(default_factory=list)
     # 面ごとの立面（セットバックで低い面。辺番号 → 全体の立面を軒高で切ったもの）。無い面は全体の立面
     face_elevations: dict = field(default_factory=dict)

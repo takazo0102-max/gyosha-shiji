@@ -1,0 +1,81 @@
+﻿! ============================================================
+! 隅のつなぎ 3D: 各段に作業床（多角形の板）、手すりの辺に単管の上桟・中桟（φ48.6）と幅木、床の下に単管の受け
+! ============================================================
+resol 8
+define material "cf_deck" 2, 0.80, 0.72, 0.45
+define material "cf_steel" 2, 0.62, 0.62, 0.66
+define material "cf_toe" 2, 0.55, 0.55, 0.58
+r = 0.0243
+for i = 1 to nL
+	z = lv[i]
+	! 作業床
+	material "cf_deck"
+	addz z - deckT
+	put px[1], py[1], 15
+	for k = 2 to nP
+		put px[k], py[k], 15
+	next k
+	prism_ nP, deckT, get(nsp)
+	del 1
+	material "cf_steel"
+	for k = 1 to nP
+		if rl[k] then
+			k2 = k + 1
+			if k2 > nP then k2 = 1
+			dx = px[k2] - px[k]
+			dy = py[k2] - py[k]
+			L = sqr(dx * dx + dy * dy)
+			if L > 0.001 then
+				if abs(dx) < 0.000001 then
+					ang = 90 * sgn(dy)
+				else
+					ang = atn(dy / dx)
+					if dx < 0 then ang = ang + 180
+				endif
+				! 上桟・中桟（両側の足場の支柱にかけるので 300 ずつ延ばす）
+				for h = 1 to 2
+					if h = 1 then
+						zh = z + railH1
+					else
+						zh = z + railH2
+					endif
+					add px[k], py[k], zh
+					rotz ang
+					roty 90
+					addz -0.3
+					cylind L + 0.6, r
+					del 4
+				next h
+				! 幅木
+				material "cf_toe"
+				add px[k], py[k], z
+				rotz ang
+				addy -0.025
+				block L, 0.025, toeH
+				del 3
+				material "cf_steel"
+				! 床の受け: 外の辺に直角に2本（辺の両端の近く。床の板は外の辺に平行に並べて、この2本に掛ける。アンチは平行な
+				! 受けにしか掛からないので、斜めの角でも受けは平行に渡す）。長さは床の奥行き＋300
+				dep = 0
+				for m = 1 to nP
+					dd = ((px[m] - px[k]) * (-dy) + (py[m] - py[k]) * dx) / L
+					if abs(dd) > dep then dep = abs(dd)
+				next m
+				for h = 1 to 2
+					if h = 1 then
+						s = 0.1
+					else
+						s = L - 0.1
+					endif
+					add px[k] + dx / L * s, py[k] + dy / L * s, z - deckT - r
+					rotz ang + 90
+					roty 90
+					addz -0.15
+					cylind dep + 0.3, r
+					del 4
+				next h
+			endif
+		endif
+	next k
+next i
+end

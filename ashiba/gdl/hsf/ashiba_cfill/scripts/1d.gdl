@@ -1,0 +1,95 @@
+﻿! 隅のつなぎ: 床の形・手すりの辺・段の高さを読む（m）
+dim px[]
+nP = 0
+rest = polyX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP = nP + 1
+		px[nP] = v / 1000
+	endif
+endwhile
+dim py[]
+nPy = 0
+rest = polyY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPy = nPy + 1
+		py[nPy] = v / 1000
+	endif
+endwhile
+dim re[]
+nR = 0
+rest = railE
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nR = nR + 1
+		re[nR] = v / 1000
+	endif
+endwhile
+dim lv[]
+nL = 0
+rest = levList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nL = nL + 1
+			lv[nL] = v / 1000
+		endif
+	endif
+endwhile
+if nPy < nP then nP = nPy
+dim rl[]
+for k = 1 to nP
+	rl[k] = 0
+next k
+for k = 1 to nR
+	ix = round_int(re[k] * 1000) + 1
+	if ix >= 1 and ix <= nP then rl[ix] = 1
+next k
+if deckKind = 2 then
+	dName = "足場板"
+else
+	dName = "アンチ"
+endif
+cx = 0
+cy = 0
+for k = 1 to nP
+	cx = cx + px[k] / nP
+	cy = cy + py[k] / nP
+next k

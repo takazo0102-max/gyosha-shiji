@@ -1,0 +1,27 @@
+﻿! 隅のつなぎ 2D: 床の形、手すりの辺（二重線）、床の向きの斜線、名前
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "cfT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+for k = 1 to nP
+	k2 = k + 1
+	if k2 > nP then k2 = 1
+	line2 px[k], py[k], px[k2], py[k2]
+	if rl[k] then
+		dx = px[k2] - px[k]
+		dy = py[k2] - py[k]
+		L = sqr(dx * dx + dy * dy)
+		if L > 0.001 then
+			ox = dy / L * 0.05
+			oy = -dx / L * 0.05
+			line2 px[k] + ox, py[k] + oy, px[k2] + ox, py[k2] + oy
+		endif
+	endif
+	hotspot2 px[k], py[k]
+next k
+! 床の範囲の目印（重心から各点へ短い線）
+for k = 1 to nP
+	line2 cx, cy, cx + (px[k] - cx) * 0.3, cy + (py[k] - cy) * 0.3
+next k
+style "cfT"
+text2 cx, cy, cName + "（" + dName + "＋単管手すり）"

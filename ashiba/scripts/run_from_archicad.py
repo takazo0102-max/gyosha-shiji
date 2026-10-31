@@ -74,7 +74,7 @@ DETAIL_OBJECT = "ashiba_detail"
 ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
                       "ashiba_cstep", "ashiba_bridge", "ashiba_kbrk", "ashiba_hstage")
 # 配置とは別に置く部品（内部ステージ足場・昇降機。配置の置き直しでは消さない。昇降機は配置で読み取って面に合わせ直す）
-SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side")
+SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
@@ -967,6 +967,11 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
             margin_mm=stale_margin_mm(r.model, [rg.model for _lb, rg in groups[1:]]),
         ) if e["elementId"]["guid"] not in placed_now
     ]
+    if stale and spec.get("_protect_guids"):
+        # 足場の箱から続けて置くとき（box_run）: 同じ「箱を足場に」で先に置いた足場（斜めの角の隣の足場など）は片付けない。
+        # 範囲で拾うと、角で接する隣の足場の壁つなぎ・シートまで消していた（実機 2026-10-31）
+        keep = set(spec["_protect_guids"])
+        stale = [e for e in stale if e["elementId"]["guid"] not in keep]
     if stale and spec.get("_same_base_only"):
         # 足場の箱から置くとき（box_run）: 同じ立つ高さの前の配置だけ片付ける。セットバックの上の階の箱は下の箱の範囲の中に
         # あるので、範囲だけで拾うと下の箱の足場まで消していた

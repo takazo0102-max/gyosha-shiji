@@ -7,8 +7,10 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_sides, contains, orient_path, parse_box_params,
-                        parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
+from ashiba.box import (box_coins, box_loop, box_params, box_sides, chain_frame, chain_sides, contains, orient_path,
+                        parse_box_params, rotate_pt, to_local, band, corner_fill, corner_quantities, joined_ends,
+                        oblique_corners, trim_for_corner,
+                        default_one, parse_side_params, plan_side_chain, side_axis, side_params, sides_from_path, snap_spans,
                         snap_within, solve_side_job,
                         thickness_conditions)
 from ashiba.manual import solve_manual_loop
@@ -114,7 +116,7 @@ class TestBoxLoop(unittest.TestCase):
         self.assertEqual(got["本足場 幅600"], ("本足場", 610))
         self.assertEqual(got["本足場 幅900"], ("本足場", 914))
         self.assertEqual(got["本足場 幅1200"], ("本足場", 1219))
-        self.assertEqual(got["一側足場"][0], "一側足場")
+        self.assertEqual(got["ブラケット足場（支柱）"][0], "一側足場")
 
 
 def _sides(over=None):
@@ -122,14 +124,14 @@ def _sides(over=None):
     out = []
     for k, (a, ang, sp) in enumerate(box_sides((0.0, 0.0), 0.0, [1829] * 4, [1829] * 3)):
         s = {"a": a, "dir": side_axis(ang), "spans": sp, "base_mm": 0.0, "series_id": "albatross", "thick_mm": 900,
-             "levels": 4, "standoff": 300.0, "floor_mm": 1800.0}
+             "levels": 4, "standoff": 300.0, "floor_mm": 1800.0, "one_kind": 1}
         s.update((over or {}).get(k, {}))
         out.append(s)
     return out
 
 
 def _extra(job):
-    return {"series_id": "albatross", **thickness_conditions(job["main_t"], 300.0)[1]}
+    return {"series_id": "albatross", **thickness_conditions(job["main_t"], 300.0, job["main"].get("one_kind", 1))[1]}
 
 
 class TestSides(unittest.TestCase):
@@ -244,6 +246,179 @@ class TestSidesFromLines(unittest.TestCase):
         self.assertEqual([ce for *_x, ce in sides_from_path(segs, INCH)], [False, False])
         segs, _ = orient_path([((0.0, 0.0), (5487.0, 0.0)), ((5487.0, 0.0), (5487.0, 3658.0))])
         self.assertEqual([ce for *_x, ce in sides_from_path(segs, INCH)], [True, False])
+
+
+
+class TestOneRowKinds(unittest.TestCase):
+    """一側の組み方（利用者の指定 2026-10-31: ブラケット足場と単管抱き足場はある？→ 選べるようにして）."""
+
+    def test_kind_to_conditions(self):
+        self.assertEqual(thickness_conditions(300, 300.0, 1), ("ブラケット足場（支柱）",
+                                                                {"scaffold_form": "一側足場", "one_row_by_choice": True}))
+        self.assertEqual(thickness_conditions(300, 300.0, 2)[1]["bracket_post"], "単管")
+        self.assertEqual(thickness_conditions(300, 300.0, 3)[0], "単管抱き足場")
+        self.assertEqual(thickness_conditions(900, 300.0, 3)[0], "本足場 幅900")          # 本足場の厚みでは使わない
+        self.assertEqual(default_one({"scaffold_form": "単管抱き足場"}), (300, 3))
+        self.assertEqual(default_one({"scaffold_form": "ブラケット足場", "bracket_post": "単管"}), (300, 2))
+        self.assertEqual(default_one({"scaffold_form": "本足場"}), (None, 1))
+        p = side_params([1829], INCH, 300.0, 4, 1780.0, 1800.0, "albatross", 300.0, one_kind=3)
+        self.assertEqual((p["oneKind"], parse_side_params(p)["one_kind"]), (3, 3))
+
+    def test_tube_hug_loop_uses_tube_spans(self):
+        """全部の辺が単管抱き足場なら単管の系列で、スパンを単管の定尺に直して解く（1829 は単管に無い）."""
+        sd = _sides({k: {"thick_mm": 300, "one_kind": 3} for k in range(4)})
+        job = plan_side_chain(sd, [0, 1, 2, 3], True)
+        _w, _spec, groups = solve_side_job(job, sd, _extra(job))
+        r = groups[0][1]
+        self.assertTrue(r.verdict["ok"], r.verdict)
+        self.assertEqual(r.model.config.form_label, "単管抱き足場")
+        self.assertEqual([list(e.spans) for e in r.model.plan.edges][:2], [[1800] * 4, [1800] * 3])
+        self.assertTrue(any("単管の定尺" in n for n in job["notes"]))
+        law = next(c for c in r.checks if c.check_id == 1)
+        self.assertEqual(law.status, "WARN")                                    # ただし書き（理由を記録）
+
+    def test_mixed_kinds_switch_faces(self):
+        """本足場の一周の東を単管のブラケット足場、北を単管抱き足場にすると、面ごとの切替で解いて全部成り立つ."""
+        sd = _sides({1: {"thick_mm": 300, "one_kind": 2}, 2: {"thick_mm": 300, "one_kind": 3}})
+        job = plan_side_chain(sd, [0, 1, 2, 3], True)
+        _w, spec, groups = solve_side_job(job, sd, _extra(job))
+        self.assertEqual(spec["face_forms"], {"東面": "ブラケット足場（単管・狭い所）", "北面": "単管抱き足場（狭い所）"})
+        self.assertEqual({lb: g.model.config.form_label for lb, g in groups},
+                         {"": "本足場", "ブラケット足場（単管・狭い所）": "ブラケット足場（単管）", "単管抱き足場（狭い所）": "単管抱き足場"})
+        self.assertTrue(all(g.verdict["ok"] for _lb, g in groups), [g.verdict for _lb, g in groups])
+
+
+
+class TestObliqueSides(unittest.TestCase):
+    """斜めの線（利用者の指定 2026-10-31: 斜めの線にも対応できるようにしてちょ）: 組の向きにそろえた座標で縦・横に解く."""
+
+    def _rotated_box(self, deg):
+        ang = math.radians(deg)
+        out = []
+        for a, g, sp, _ce in sides_from_path(orient_path(
+                [(rotate_pt(p, ang, (0.0, 0.0)), rotate_pt(q, ang, (0.0, 0.0))) for p, q in
+                 (((0.0, 0.0), (7316.0, 0.0)), ((7316.0, 0.0), (7316.0, 5487.0)), ((7316.0, 5487.0), (0.0, 5487.0)),
+                  ((0.0, 5487.0), (0.0, 0.0)))])[0], INCH):
+            out.append({"a": a, "dir": side_axis(g), "spans": sp, "base_mm": 0.0, "series_id": "albatross", "thick_mm": 900,
+                        "levels": 4, "standoff": 300.0, "floor_mm": 1800.0, "one_kind": 1})
+        return out
+
+    def test_oblique_line_keeps_its_direction(self):
+        (a, g, sp, ce), = sides_from_path(orient_path([((0.0, 0.0), (6000.0 * math.cos(0.5), 6000.0 * math.sin(0.5)))])[0],
+                                          INCH)
+        self.assertAlmostEqual(g, 0.5)
+        self.assertEqual(sum(sp), 5792)                                     # 6000 を超えない 1829×2＋1524＋610
+        self.assertAlmostEqual(side_axis(math.radians(1.0))[1], 0.0)          # 2° までは縦・横にそろえる
+
+    def test_rotated_box_chains_and_solves_in_its_frame(self):
+        sd = self._rotated_box(30.0)
+        (ch, closed), = chain_sides(sd)
+        self.assertTrue(closed)
+        ang = chain_frame(sd, ch)
+        self.assertAlmostEqual(math.degrees(ang), 30.0)
+        loc = to_local(sd, ch, ang, sd[ch[0]]["a"])
+        self.assertEqual([s["dir"] for s in loc], [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)])
+        job = plan_side_chain(loc, list(range(4)), True)
+        _w, _spec, groups = solve_side_job(job, loc, _extra(job))
+        self.assertTrue(groups[0][1].verdict["ok"], groups[0][1].verdict)
+        self.assertEqual([sum(e.spans) for e in groups[0][1].model.plan.edges], [7316, 5487, 7316, 5487])
+
+    def test_oblique_corner_is_not_joined(self):
+        """直角でない角（120°）の2辺はつながず、それぞれ1本で解く."""
+        p0, p1 = (0.0, 0.0), (5487.0, 0.0)
+        p2 = (p1[0] + 3658.0 * math.cos(math.radians(60)), p1[1] + 3658.0 * math.sin(math.radians(60)))
+        sd = [{"a": a, "dir": side_axis(g), "spans": sp, "base_mm": 0.0, "series_id": ""}
+              for a, g, sp, _ce in sides_from_path([(p0, p1), (p1, p2)], INCH)]
+        self.assertEqual(chain_sides(sd), [([0], False), ([1], False)])
+
+
+
+def _poly_area(poly):
+    n = len(poly)
+    return sum(poly[k][0] * poly[(k + 1) % n][1] - poly[(k + 1) % n][0] * poly[k][1] for k in range(n)) / 2.0
+
+
+def _inside(pt, poly):
+    """点が凸多角形（左回り）の内側（辺から 1mm 以上）か."""
+    n = len(poly)
+    for k in range(n):
+        (x1, y1), (x2, y2) = poly[k], poly[(k + 1) % n]
+        if (x2 - x1) * (pt[1] - y1) - (y2 - y1) * (pt[0] - x1) < 1.0 * math.hypot(x2 - x1, y2 - y1):
+            return False
+    return True
+
+
+def _in_poly(pt, poly):
+    """点が多角形（凹でもよい）の中か（偶奇）."""
+    x, y = pt
+    inside = False
+    n = len(poly)
+    for k in range(n):
+        (x1, y1), (x2, y2) = poly[k], poly[(k + 1) % n]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+class TestObliqueCorners(unittest.TestCase):
+    """斜めの角のつなぎ（利用者の指定 2026-10-31: 斜めの角もつながるようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり
+    作成か足場板と単管手すりにするか）."""
+
+    def _two(self, deg):
+        out = []
+        for a, g, sp, _ce in sides_from_path([((0.0, 0.0), (5500.0, 0.0)),
+                                              ((5500.0, 0.0), (5500.0 + 4000.0 * math.cos(math.radians(deg)),
+                                                               4000.0 * math.sin(math.radians(deg))))], INCH):
+            out.append({"a": a, "dir": side_axis(g), "spans": sp, "base_mm": 0.0, "series_id": "albatross", "thick_mm": 900,
+                        "levels": 4, "standoff": 300.0, "floor_mm": 1800.0, "one_kind": 1})
+        return out
+
+    def test_convex_corner_fill(self):
+        sd = self._two(60.0)
+        chains = chain_sides(sd)
+        self.assertEqual(chains, [([0], False), ([1], False)])                 # 直角でないのでつながない
+        (cn,) = oblique_corners(sd, chains)
+        self.assertEqual((cn["i"], cn["j"], cn["convex"]), (0, 1, True))
+        self.assertIsNone(trim_for_corner(sd[0], sd[1], INCH))                  # 出隅は重ならない
+        end0 = (float(sum(sd[0]["spans"])), 0.0)
+        f = corner_fill(end0, sd[0]["dir"], 914.0, sd[1]["a"], sd[1]["dir"], 914.0, cn["c"], True)
+        self.assertGreater(_poly_area(f["poly"]), 0)
+        k = f["rail"][0]
+        self.assertAlmostEqual(math.dist(f["poly"][k], (end0[0], -914.0)), 0.0, places=3)   # 手すりは前の足場の外の角から
+        q = dict(corner_quantities(f, 4)[0:1] and [(r[0], r[1]) for r in corner_quantities(f, 4)])
+        self.assertTrue(any("アンチ" in n for n in q) and any("自在クランプ" in n for n in q))
+        self.assertTrue(any("足場板" in r[0] for r in corner_quantities(f, 4, "足場板")))
+
+    def test_concave_corner_trims_and_fills(self):
+        for deg in (-30.0, -60.0, -120.0):
+            with self.subTest(deg=deg):
+                sd = self._two(deg)
+                (cn,) = oblique_corners(sd, chain_sides(sd))
+                self.assertFalse(cn["convex"])
+                tr = trim_for_corner(sd[0], sd[1], INCH)
+                self.assertIsNotNone(tr)
+                self.assertLess(sum(tr), sum(sd[0]["spans"]))
+                bi = band(sd[0]["a"], sd[0]["dir"], float(sum(tr)), 914.0)
+                bj = band(sd[1]["a"], sd[1]["dir"], float(sum(sd[1]["spans"])), 914.0)
+                f = corner_fill((float(sum(tr)), 0.0), sd[0]["dir"], 914.0, sd[1]["a"], sd[1]["dir"], 914.0, cn["c"], False)
+                poly = f["poly"]
+                self.assertGreater(_poly_area(poly), 0)
+                # 隅のつなぎは2本の足場の帯に食い込まない（形の中の格子点が帯の中に無い。形は凹のこともある）
+                xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+                pts = [(x, y) for x in range(int(min(xs)), int(max(xs)), 25) for y in range(int(min(ys)), int(max(ys)), 25)
+                       if _in_poly((x + 0.5, y + 0.5), poly)]
+                self.assertGreater(len(pts), 10)
+                bad = [pt for pt in pts if _inside(pt, bi) or _inside(pt, bj)]
+                self.assertEqual(bad, [], deg)
+
+    def test_joined_ends_remove_end_guard(self):
+        sd = self._two(60.0)
+        job = plan_side_chain(sd, [0], False)
+        _w, spec, groups = solve_side_job(job, sd, _extra(job), (False, True))
+        self.assertEqual(spec["_joined_ends"], [[0, "e"]])
+        m = groups[0][1].model
+        self.assertEqual((m.open_start(0), m.open_end(0)), (True, False))     # 角の側だけ妻側の手すりを外す
+        self.assertEqual(joined_ends(job, spec, (False, False)), [])
 
 
 if __name__ == "__main__":

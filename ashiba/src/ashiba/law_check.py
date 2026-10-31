@@ -89,6 +89,15 @@ def summary(results: list[CheckResult]) -> dict:
 
 def check_full_scaffold_principle(m: ScaffoldModel) -> CheckResult:
     basis = "安衛則561条の2（2024/4施行）"
+    if m.one_row_by_choice and m.config.scaffold_form == "一側足場" and not m.master.is_frame:
+        # 足場の箱で厚み 300（一側）を選んだ所（利用者の指定 2026-10-31: ブラケット足場と単管抱き足場を選べるように）。
+        # 空きの幅は入力に無いので、狭い所としてただし書きで扱い、理由の記録を求める（空きを仮に 900 とすると、床受け
+        # ブラケット 900 の単管のブラケット足場が収まらないと NG になった）
+        return CheckResult(
+            1, "本足場原則", WARN,
+            f"{m.config.form_label}は足場の箱で選んだ一側足場です。躯体外面から1m以上空く所は本足場が原則なので、"
+            "本足場の使用が困難な理由（敷地境界・隣地・障害物）を記録に残してください", basis + "（ただし書き）",
+        )
     if m.clearance_space_mm >= 1000 and m.config.scaffold_form == "一側足場":
         # ただし書き: 障害物その他の場所の状況により本足場を使用することが困難なときは一側足場でよい。
         # 本足場がいちばん細くても（離れ 250＋床を載せられる最小の建地間隔＋支柱の半径）収まらない空きなら困難

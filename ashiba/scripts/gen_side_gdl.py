@@ -5,7 +5,8 @@
 
 原点＝内側の建地の列の始点。+X＝辺の向き（長さ lenX）、建物は +Y の側（左回りの一周の内側）、足場は −Y の側へ厚み thick の
 壁の形で描く。終わりの端のつまみで長さを伸び縮み（定尺の組み合わせに吸着してスパン spanX を書き直す）、辺の中ほどのつまみで
-厚み（300＝一側足場・600／900／1200＝幅610／914／1219の本足場）、3D の天端のつまみで作業床の段数、始めの端の上のつまみで
+厚み（300＝一側足場・600／900／1200＝幅610／914／1219の本足場。一側の組み方 oneKind＝ブラケット（支柱）・ブラケット（単管）・
+単管抱き。単管の2つは灰色）、3D の天端のつまみで作業床の段数、始めの端の上のつまみで
 立つ高さ。cornerE＝終わりの出隅の升目もこの辺で描く（左回りの四角では各辺が終わりの角を受け持つ）。
   python3 scripts/gen_side_gdl.py     # gdl/hsf/ashiba_side を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
@@ -41,6 +42,7 @@ def paramlist() -> str:
         _param("Length", "topEdit", "最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）", 7.18),
         _param("Length", "zBase", "立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）", 0),
         _param("Boolean", "cornerE", "終わりの出隅の升目もこの辺で描く", 1),
+        _param("Integer", "oneKind", "一側の組み方（厚み 300 のとき: 1＝ブラケット（支柱）・2＝ブラケット（単管）・3＝単管抱き）", 1),
         _param("String", "seriesId", "足場の種類（系列の ID。本体にするときに使う）", ""),
         _param("Length", "standoff", "離れ（躯体から内側の建地まで。本体にするときに使う）", 0.3),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -69,8 +71,18 @@ nL = max(1, nLev)
 deckTop = lev1 + (nL - 1) * floorH
 postH = deckTop + 1.0
 tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+oK = oneKind
+if oK < 1 or oK > 3 then oK = 1
 if tk < 0.45 then
-	kind = "一側足場"
+	if oK = 2 then
+		kind = "ブラケット足場（単管）"
+	else
+		if oK = 3 then
+			kind = "単管抱き足場"
+		else
+			kind = "ブラケット足場（支柱）"
+		endif
+	endif
 else
 	kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
 endif
@@ -80,10 +92,12 @@ if cornerE then ex = tk
 
 
 def _vl() -> str:
-    """箱のパラメータスクリプトから短手（lenY・spanY）を除いたもの（長さの吸着・厚み・段数・立つ高さは同じ決め方）."""
+    """箱のパラメータスクリプトから短手（lenY・spanY）を除いたもの（長さの吸着・厚み・段数・立つ高さは同じ決め方）＋一側の組み方の選択肢."""
     a = BOX_VL.index('if GLOB_MODPAR_NAME = "spanY" then')
     b = BOX_VL.index("if zBase < 0 then")
-    return BOX_VL[:a].replace("足場の箱", "足場の辺").replace("lenX・lenY", "lenX") + BOX_VL[b:]
+    kinds = ('! 一側の組み方（利用者の指定 2026-10-31: ブラケット足場と単管抱き足場を選べるように）。厚み 300 のときに使う\n'
+             'values{2} "oneKind" 1, "ブラケット（支柱）", 2, "ブラケット（単管）", 3, "単管抱き"\n')
+    return BOX_VL[:a].replace("足場の箱", "足場の辺").replace("lenX・lenY", "lenX") + kinds + BOX_VL[b:]
 
 
 SCRIPT_2D = """﻿! 足場の辺 2D（壁の形）: 内側の建地の列（y＝0）から外（−y）へ厚み tk の帯、スパンの区切り・寸法、種類と見出し、つまみ
@@ -146,8 +160,13 @@ define material "sd_1" 2, 0.95, 0.62, 0.25
 define material "sd_6" 2, 0.45, 0.70, 0.95
 define material "sd_9" 2, 0.45, 0.80, 0.45
 define material "sd_12" 2, 0.70, 0.55, 0.90
+define material "sd_t" 2, 0.62, 0.62, 0.66
 if tk < 0.45 then
-	material "sd_1"
+	if oK > 1 then
+		material "sd_t"
+	else
+		material "sd_1"
+	endif
 else
 	if tk < 0.75 then
 		material "sd_6"

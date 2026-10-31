@@ -69,6 +69,10 @@
 			<Description><![CDATA["終わりの出隅の升目もこの辺で描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Integer Name="oneKind">
+			<Description><![CDATA["一側の組み方（厚み 300 のとき: 1＝ブラケット（支柱）・2＝ブラケット（単管）・3＝単管抱き）"]]></Description>
+			<Value>1</Value>
+		</Integer>
 		<String Name="seriesId">
 			<Description><![CDATA["足場の種類（系列の ID。本体にするときに使う）"]]></Description>
 			<Value><![CDATA[""]]></Value>

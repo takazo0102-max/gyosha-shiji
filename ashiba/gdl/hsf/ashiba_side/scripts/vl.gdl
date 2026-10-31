@@ -15,6 +15,8 @@ else
 		parameters spanX = sOut, lenX = tBest
 	endif
 endif
+! 一側の組み方（利用者の指定 2026-10-31: ブラケット足場と単管抱き足場を選べるように）。厚み 300 のときに使う
+values{2} "oneKind" 1, "ブラケット（支柱）", 2, "ブラケット（単管）", 3, "単管抱き"
 if zBase < 0 then parameters zBase = 0
 ! 厚み → 300・600・900・1200 のいちばん近い値（足場の種類）
 tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))

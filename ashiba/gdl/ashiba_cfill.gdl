@@ -1,0 +1,249 @@
+﻿! ==========================================================
+! 隅のつなぎ（直角でない角の2本の足場のあいだの床・単管手すり・幅木。1か所に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_cfill/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_cfill.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-31）: 斜めの角もつながるようにしてちょ 無理な場合はかど合わせてアンチをし単管手すり作成か足場板と単管手すりにするか。
+! 原点＝線の角。polyX・polyY で床の形、railE で手すりの辺、levList で段の高さ。各段に作業床（アンチ・足場板）・床の下に単管の受け・手すりの辺に単管の上桟（950）・中桟（450）・幅木（150）。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   polyX     文字列    床の形の x（原点からの mm、カンマ区切り。左回り）                      既定 "0,0,800,0"
+!   polyY     文字列    床の形の y（同上）                                                     既定 "0,-914,-457,0"
+!   railE     文字列    手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）  既定 "1"
+!   levList   文字列    作業床の段の高さ（原点の高さから mm、カンマ区切り）                    既定 "1780,3580,5380,7180"
+!   deckKind  整数      作業床（1＝アンチ・2＝足場板）                                         既定 1
+!   deckT     長さ      作業床の厚み                                                           既定 0.04
+!   railH1    長さ      上桟の高さ（床から）                                                   既定 0.95
+!   railH2    長さ      中桟の高さ（床から）                                                   既定 0.45
+!   toeH      長さ      幅木の高さ                                                             既定 0.15
+!   cName     文字列    名前（平面の注記）                                                     既定 "隅のつなぎ"
+!   texSiz    実数      文字の大きさ（mm）                                                     既定 2.5
+!   penEquip  PenColor  線のペン                                                               既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 隅のつなぎ: 床の形・手すりの辺・段の高さを読む（m）
+dim px[]
+nP = 0
+rest = polyX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP = nP + 1
+		px[nP] = v / 1000
+	endif
+endwhile
+dim py[]
+nPy = 0
+rest = polyY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPy = nPy + 1
+		py[nPy] = v / 1000
+	endif
+endwhile
+dim re[]
+nR = 0
+rest = railE
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nR = nR + 1
+		re[nR] = v / 1000
+	endif
+endwhile
+dim lv[]
+nL = 0
+rest = levList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nL = nL + 1
+			lv[nL] = v / 1000
+		endif
+	endif
+endwhile
+if nPy < nP then nP = nPy
+dim rl[]
+for k = 1 to nP
+	rl[k] = 0
+next k
+for k = 1 to nR
+	ix = round_int(re[k] * 1000) + 1
+	if ix >= 1 and ix <= nP then rl[ix] = 1
+next k
+if deckKind = 2 then
+	dName = "足場板"
+else
+	dName = "アンチ"
+endif
+cx = 0
+cy = 0
+for k = 1 to nP
+	cx = cx + px[k] / nP
+	cy = cy + py[k] / nP
+next k
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 隅のつなぎ 2D: 床の形、手すりの辺（二重線）、床の向きの斜線、名前
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "cfT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+for k = 1 to nP
+	k2 = k + 1
+	if k2 > nP then k2 = 1
+	line2 px[k], py[k], px[k2], py[k2]
+	if rl[k] then
+		dx = px[k2] - px[k]
+		dy = py[k2] - py[k]
+		L = sqr(dx * dx + dy * dy)
+		if L > 0.001 then
+			ox = dy / L * 0.05
+			oy = -dx / L * 0.05
+			line2 px[k] + ox, py[k] + oy, px[k2] + ox, py[k2] + oy
+		endif
+	endif
+	hotspot2 px[k], py[k]
+next k
+! 床の範囲の目印（重心から各点へ短い線）
+for k = 1 to nP
+	line2 cx, cy, cx + (px[k] - cx) * 0.3, cy + (py[k] - cy) * 0.3
+next k
+style "cfT"
+text2 cx, cy, cName + "（" + dName + "＋単管手すり）"
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 隅のつなぎ 3D: 各段に作業床（多角形の板）、手すりの辺に単管の上桟・中桟（φ48.6）と幅木、床の下に単管の受け
+! ============================================================
+resol 8
+define material "cf_deck" 2, 0.80, 0.72, 0.45
+define material "cf_steel" 2, 0.62, 0.62, 0.66
+define material "cf_toe" 2, 0.55, 0.55, 0.58
+r = 0.0243
+for i = 1 to nL
+	z = lv[i]
+	! 作業床
+	material "cf_deck"
+	addz z - deckT
+	put px[1], py[1], 15
+	for k = 2 to nP
+		put px[k], py[k], 15
+	next k
+	prism_ nP, deckT, get(nsp)
+	del 1
+	material "cf_steel"
+	for k = 1 to nP
+		if rl[k] then
+			k2 = k + 1
+			if k2 > nP then k2 = 1
+			dx = px[k2] - px[k]
+			dy = py[k2] - py[k]
+			L = sqr(dx * dx + dy * dy)
+			if L > 0.001 then
+				if abs(dx) < 0.000001 then
+					ang = 90 * sgn(dy)
+				else
+					ang = atn(dy / dx)
+					if dx < 0 then ang = ang + 180
+				endif
+				! 上桟・中桟（両側の足場の支柱にかけるので 300 ずつ延ばす）
+				for h = 1 to 2
+					if h = 1 then
+						zh = z + railH1
+					else
+						zh = z + railH2
+					endif
+					add px[k], py[k], zh
+					rotz ang
+					roty 90
+					addz -0.3
+					cylind L + 0.6, r
+					del 4
+				next h
+				! 幅木
+				material "cf_toe"
+				add px[k], py[k], z
+				rotz ang
+				addy -0.025
+				block L, 0.025, toeH
+				del 3
+				material "cf_steel"
+				! 床の受け: 外の辺に直角に2本（辺の両端の近く。床の板は外の辺に平行に並べて、この2本に掛ける。アンチは平行な
+				! 受けにしか掛からないので、斜めの角でも受けは平行に渡す）。長さは床の奥行き＋300
+				dep = 0
+				for m = 1 to nP
+					dd = ((px[m] - px[k]) * (-dy) + (py[m] - py[k]) * dx) / L
+					if abs(dd) > dep then dep = abs(dd)
+				next m
+				for h = 1 to 2
+					if h = 1 then
+						s = 0.1
+					else
+						s = L - 0.1
+					endif
+					add px[k] + dx / L * s, py[k] + dy / L * s, z - deckT - r
+					rotz ang + 90
+					roty 90
+					addz -0.15
+					cylind dep + 0.3, r
+					del 4
+				next h
+			endif
+		endif
+	next k
+next i
+end
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+values{2} "deckKind" 1, "アンチ", 2, "足場板"
+

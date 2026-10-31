@@ -156,7 +156,7 @@ TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
-    "clearance_space_mm", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
+    "clearance_space_mm", "one_row_by_choice", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
@@ -1074,6 +1074,7 @@ def build_model(spec: dict, master_csv: Path | None = None) -> ScaffoldModel:
         config=config,
         building_height_mm=float(spec.get("building_height_mm", 0)),
         clearance_space_mm=float(spec.get("clearance_space_mm", 2000)),
+        one_row_by_choice=bool(spec.get("one_row_by_choice")),
         base_height_mm=float(spec.get("base_height_mm", 0) or 0),
     )
     model.faces_only = faces

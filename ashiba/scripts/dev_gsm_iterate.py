@@ -117,6 +117,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"spanX": "1829,1829,914", "nLev": 3, "thick": 0.3},
     },
+    # 隅のつなぎ（利用者の指定 2026-10-31: 斜めの角もつながるように）
+    "ashiba_cfill": {
+        "images": ("3D", "2D"),
+        "params": {"polyX": "0,0,800,0", "polyY": "0,-914,-457,0", "railE": "1", "levList": "1780,3580"},
+    },
     "ashiba_detail": {
         "images": ("2D",),
         # detailType はASCIIキー（日本語を渡すとGDL側の比較が一致しない）
