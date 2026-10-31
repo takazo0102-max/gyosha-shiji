@@ -74,27 +74,31 @@ class FormCheck:
     beams: list                           # [BeamCheck]（せき板・桟木・外端太）
     tie_kn: float
     ok: bool
+    tie_name: str = "フォームタイ 引張"
+    tie_allow: float = TIE_ALLOW_KN
 
     def lines(self) -> list[str]:
         out = [f"側圧 {self.pressure:.1f} kN/m²（JASS 5・打込みの速さ {RATE_M_H:.0f}m/h 以下）"]
         for b in self.beams:
             out.append(f"{b.part}（{b.member}）スパン {b.span_mm:.0f}: σ {b.sigma:.1f}／{b.fb:.1f} N/mm²・"
                        f"たわみ {b.deflection_mm:.2f}／{DEFLECTION_MAX_MM:.0f} mm {'可' if b.ok else '不可'}")
-        out.append(f"フォームタイ 引張 {self.tie_kn:.1f}／{TIE_ALLOW_KN:.1f} kN {'可' if self.tie_kn <= TIE_ALLOW_KN else '不可'}")
+        out.append(f"{self.tie_name} {self.tie_kn:.1f}／{self.tie_allow:.1f} kN {'可' if self.tie_kn <= self.tie_allow + 1e-9 else '不可'}")
         return out
 
 
 def check(height_mm: float, sangi_pitch: float, tate_pitch: float, tie_pitch: float, length_mm: float = 1e9,
-          column: bool = False) -> FormCheck:
-    p = pressure_kn_m2(height_mm, length_mm, column)
+          column: bool = False, p_kn: float | None = None, waler: Member | None = None, waler_name: str = "外端太",
+          tie_allow: float | None = None, tie_name: str | None = None) -> FormCheck:
+    p = pressure_kn_m2(height_mm, length_mm, column) if p_kn is None else p_kn
     q = p * 1e-3                                          # N/mm²
     ply = Member(f"合板 {PLY_T_MM:.0f}mm", PLY_E, PLY_FB, 1000.0 * PLY_T_MM ** 2 / 6.0, 1000.0 * PLY_T_MM ** 3 / 12.0)
     beams = [_beam("せき板", ply, sangi_pitch, q * 1000.0, q * 1000.0),
              _beam("桟木", SANGI, tate_pitch, q * sangi_pitch, q * sangi_pitch),
-             _beam("外端太", SOTOBATA, tie_pitch, q * tate_pitch, q * tate_pitch)]
+             _beam(waler_name, waler or SOTOBATA, tie_pitch, q * tate_pitch, q * tate_pitch)]
     tie = p * tate_pitch * tie_pitch / 1e6
-    return FormCheck(sangi_pitch, tate_pitch, tie_pitch, p, beams, tie,
-                     all(b.ok for b in beams) and tie <= TIE_ALLOW_KN + 1e-9)
+    allow = TIE_ALLOW_KN if tie_allow is None else tie_allow
+    return FormCheck(sangi_pitch, tate_pitch, tie_pitch, p, beams, tie, all(b.ok for b in beams) and tie <= allow + 1e-9,
+                     tie_name or "フォームタイ 引張", allow)
 
 
 def choose(height_mm: float, length_mm: float = 1e9) -> FormCheck:
@@ -111,6 +115,31 @@ def choose(height_mm: float, length_mm: float = 1e9) -> FormCheck:
                     if best is None or key > best[0]:
                         best = (key, c)
     return best[1] if best else check(height_mm, SANGI_PITCHES[-1], TATE_PITCHES[-1], TIE_PITCHES[-1], length_mm)
+
+
+TOP_GAP_MM = 400.0                    # いちばん上の外端太から上端までがこれを超えるときだけ、上端の近くに1段足す
+
+
+def graded_levels(height_mm: float, sangi_pitch: float, tie_pitch: float, length_mm: float = 1e9, column: bool = False,
+                  cands=None, edge: float = EDGE_MM, **kw) -> list[float]:
+    """外端太の高さ（下から）. 側圧は上ほど小さいので、段ごとにその高さの側圧で通るいちばん広い間隔をとる（利用者の指定
+    2026-10-31: 柱のパイプピッチ多くね？）. 段と段の間の部材は下の段の高さの側圧（大きい方）で確かめる."""
+    cands = sorted(cands or TATE_PITCHES, reverse=True)
+    z = edge
+    out = [z]
+    while True:
+        p = pressure_kn_m2(height_mm - z, length_mm, column)
+        step = cands[-1]
+        for t in cands:
+            if check(height_mm, sangi_pitch, t, tie_pitch, length_mm, column, p_kn=p, **kw).ok:
+                step = t
+                break
+        if z + step >= height_mm - edge - 1e-6:
+            if height_mm - z > TOP_GAP_MM:                 # 上端から離れすぎなら上端の近くに1段（近ければ足さない）
+                out.append(height_mm - edge)
+            return out
+        z += step
+        out.append(z)
 
 
 def _stations(length: float, pitch: float, edge: float) -> list[float]:
@@ -239,7 +268,7 @@ def plan_wall(length_mm: float, height_mm: float, thick_mm: float, faces=None, e
         for s, e in _subtract(rng[k], [g["sangi"] for g in cuts[k]]):
             xs += [s + x for x in _stations(e - s, c.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
         sangi.append(xs)
-    tate = _stations(height_mm, c.tate_pitch, EDGE_MM)
+    tate = graded_levels(height_mm, c.sangi_pitch, c.tie_pitch, length_mm)
     # フォームタイは両面のせき板がある所（T 字で突き当たる壁の所は除く）
     s0, e0 = max(0.0, max(f[0] for f in faces)), min(length_mm, min(f[1] for f in faces))
     ties = []

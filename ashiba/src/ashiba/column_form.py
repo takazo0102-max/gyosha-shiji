@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from ashiba.wall_form import (BAND_MM, EDGE_MM, PANEL_H_MM, PANEL_W_MM, PLY_T_MM, SANGI_B_MM, SANGI_H_MM, SANGI_PITCHES,
                               TATE_PITCHES, TIE_ALLOW_KN, TUBE_LENGTHS, TUBE_OFF_MM, FormCheck, _stations, _subtract, check,
-                              in_column, tube_pieces)
+                              graded_levels, in_column, tube_pieces)
 
 # 面の番号と向き（柱の芯からの回し角。面の上の座標 s は回したあとの X）: 1＝+Y、2＝−X、3＝−Y、4＝+X
 FACE_ROT = (0.0, 90.0, 180.0, 270.0)
@@ -26,6 +26,14 @@ COL_OUT_MM = 30.0          # 角の外のフォームタイと、直交する面
 TUBE_OVER_MM = 100.0       # 外端太の、角の外のフォームタイからの出
 DZ_MM = 120.0              # ±X の面の外端太を上げる高さ（±Y の面の外端太と交差させない）
 COL_TATE_PITCHES = TATE_PITCHES + (250.0, 200.0)   # 柱は側圧が高いので外端太をつめて、柱を貫くフォームタイを減らす
+
+# コラムクランプ（利用者の指定 2026-10-31: コラムクランプで締める）: 壁の取り付かない柱は、外端太と角の外のフォームタイの
+# かわりに、段ごとに4方から抱くコラムクランプ（腕は柱の面を角から角へ飛ばし、角で腕どうしをくさびで留める）. 腕の強さは
+# 溝形鋼 [-75×40×5 相当の目安（使う製品の表で確かめる）、角の留め1か所の力は CLAMP_CORNER_KN まで
+CLAMP_ARM = None
+CLAMP_CORNER_KN = 20.0
+CLAMP_H_MM, CLAMP_T_MM = 75.0, 40.0      # 腕のせい（縦）・出（合板に直角）
+CLAMP_PITCHES = (600.0, 450.0, 300.0, 250.0, 200.0, 150.0)
 
 
 @dataclass
@@ -42,6 +50,7 @@ class ColumnForm:
     tie_y: list[float]         # X の向きに締めるフォームタイの Y の位置
     faces: list[dict] = None   # 面ごと {"ply": [(s, s)], "sangi": [s], "tube": [(s, s)]}（FACE_ROT の順。壁の取り付く所で分ける）
     dropped: int = 0           # 壁を貫くので外したフォームタイ（1段あたり）
+    clamp: bool = False        # コラムクランプで締める（外端太・フォームタイなし）
 
 
     @property
@@ -52,6 +61,15 @@ class ColumnForm:
         from collections import Counter
 
         rows = math.ceil(self.height / PANEL_H_MM)
+        if self.clamp:
+            n_ply = sum(math.ceil((b - a) / PANEL_W_MM) * rows for f in self.faces for a, b in f["ply"])
+            n_sangi = sum(len(f["sangi"]) for f in self.faces)
+            per = max(1, math.floor(4000.0 / self.height)) if self.height <= 4000.0 else 0
+            sangi_pcs = math.ceil(n_sangi / per) if per else n_sangi * math.ceil(self.height / 4000.0)
+            return [("型枠用合板 12mm（柱）", n_ply, f"4面 {self.width:.0f}×{self.depth:.0f}（幅 b の面は小口を覆って b＋24）"),
+                    (f"桟木 {SANGI_B_MM:.0f}×{SANGI_H_MM:.0f}（4m）", sangi_pcs, f"縦・長さ {self.height:.0f}×{n_sangi}本"),
+                    (f"コラムクランプ（{self.width:.0f}×{self.depth:.0f} 用）", len(self.tate_z),
+                     f"{len(self.tate_z)}段・4方の腕を角でくさび留め（メーカーの使える柱の大きさ・間隔の表で確かめる）")]
         n_ply = sum(math.ceil((b - a) / PANEL_W_MM) * rows for f in self.faces for a, b in f["ply"])
         n_sangi = sum(len(f["sangi"]) for f in self.faces)
         per = max(1, math.floor(4000.0 / self.height)) if self.height <= 4000.0 else 0
@@ -77,6 +95,8 @@ class ColumnForm:
         return out
 
     def notes(self) -> list[str]:
+        if self.clamp:
+            return [] if self.ok else ["コラムクランプの間隔をいちばんつめても計算が通らない。セパを足すか大きいクランプを"]
         return ([f"壁を貫くのでフォームタイ {self.dropped}本/段を外しました。その面の外端太は壁の型枠の外端太に直交クランプで留める"]
                 if self.dropped else [])
 
@@ -106,8 +126,50 @@ def _ties(half: float, other_half: float, height: float) -> tuple[list[float], F
     return [-edge + 2 * edge * k / 8 for k in range(9)], c
 
 
-def plan_column(width_mm: float, depth_mm: float, height_mm: float, walls_local=()) -> ColumnForm:
-    """1本の柱（長方形）の型枠の割付. walls_local＝取り付く壁（柱の芯からの座標。wall_hits）."""
+def _clamp_arm():
+    from ashiba.formwork import STEEL_E, STEEL_FB, Member
+    # 溝形鋼 [-75×40×5×7（強軸）: I＝75.3×10⁴ mm⁴、Z＝20.1×10³ mm³
+    return Member("[-75×40×5 相当", STEEL_E, STEEL_FB, 20.1e3, 75.3e4)
+
+
+def plan_column_clamp(width_mm: float, depth_mm: float, height_mm: float) -> ColumnForm:
+    """壁の取り付かない柱をコラムクランプで締める型枠（せき板・桟木・コラムクランプ。フォームタイなし）."""
+    arm = _clamp_arm()
+    span_x = width_mm + 2 * (PLY_T_MM + SANGI_H_MM)          # ±Y の面の腕のスパン（角から角）
+    span_y = depth_mm + 2 * (PLY_T_MM + SANGI_H_MM)
+    # 角の留め: 腕1本の両端に p×間隔×スパン の半分ずつ。tie の値（p×間隔×スパン）で 2×CLAMP_CORNER_KN まで
+    kw = dict(column=True, waler=arm, waler_name="コラムクランプの腕", tie_allow=2 * CLAMP_CORNER_KN,
+              tie_name="コラムクランプの腕1本の力（角の留め2か所で受ける）")
+
+    def best(span):
+        top = None
+        for sg in SANGI_PITCHES:
+            for t in CLAMP_PITCHES:
+                c = check(height_mm, sg, t, span, **kw)
+                if c.ok:
+                    key = (sg, t)
+                    if top is None or key > top[0]:
+                        top = (key, c)
+        return top[1] if top else check(height_mm, SANGI_PITCHES[-1], CLAMP_PITCHES[-1], span, **kw)
+    cx, cy = best(span_x), best(span_y)
+    lx = graded_levels(height_mm, cx.sangi_pitch, span_x, cands=CLAMP_PITCHES, **kw)
+    ly = graded_levels(height_mm, cy.sangi_pitch, span_y, cands=CLAMP_PITCHES, **kw)
+    tate = lx if len(lx) >= len(ly) else ly
+    sx = [x - width_mm / 2.0 for x in _stations(width_mm, cx.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
+    sy = [y - depth_mm / 2.0 for y in _stations(depth_mm, cy.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
+    hA, hB = width_mm / 2.0, depth_mm / 2.0
+    faces = []
+    for k in range(4):
+        half = hA + PLY_T_MM if k % 2 == 0 else hB
+        faces.append({"ply": [(-half, half)], "sangi": sorted(sx if k % 2 == 0 else sy), "tube": []})
+    return ColumnForm(width_mm, depth_mm, height_mm, cx, cy, sx, sy, tate, [], [], faces, 0, clamp=True)
+
+
+def plan_column(width_mm: float, depth_mm: float, height_mm: float, walls_local=(), clamp: bool = True) -> ColumnForm:
+    """1本の柱（長方形）の型枠の割付. walls_local＝取り付く壁（柱の芯からの座標。wall_hits）. 壁が取り付かなければ
+    コラムクランプで締める（clamp）。壁が取り付く柱は外端太とフォームタイ."""
+    if clamp and not walls_local:
+        return plan_column_clamp(width_mm, depth_mm, height_mm)
     tie_x, cx = _ties(width_mm / 2.0, depth_mm / 2.0, height_mm)      # ±Y の面の外端太（X の向き）のスパンで決まる
     tie_y, cy = _ties(depth_mm / 2.0, width_mm / 2.0, height_mm)
     tate_pitch = min(cx.tate_pitch, cy.tate_pitch)
@@ -115,7 +177,11 @@ def plan_column(width_mm: float, depth_mm: float, height_mm: float, walls_local=
         cx = check(height_mm, cx.sangi_pitch, tate_pitch, cx.tie_pitch, column=True)
     if cy.tate_pitch != tate_pitch:
         cy = check(height_mm, cy.sangi_pitch, tate_pitch, cy.tie_pitch, column=True)
-    tate = _stations(height_mm, tate_pitch, EDGE_MM)
+    # 外端太の段は上ほど広げる（側圧は上ほど小さい。利用者の指定 2026-10-31: 柱のパイプピッチ多くね？）. 2つの向きのうち
+    # 密な方にそろえる
+    lx = graded_levels(height_mm, cx.sangi_pitch, cx.tie_pitch, column=True, cands=COL_TATE_PITCHES)
+    ly = graded_levels(height_mm, cy.sangi_pitch, cy.tie_pitch, column=True, cands=COL_TATE_PITCHES)
+    tate = lx if len(lx) >= len(ly) else ly
     sx = [x - width_mm / 2.0 for x in _stations(width_mm, cx.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
     sy = [y - depth_mm / 2.0 for y in _stations(depth_mm, cy.sangi_pitch, SANGI_B_MM / 2.0 + 30.0)]
     hA, hB = width_mm / 2.0, depth_mm / 2.0

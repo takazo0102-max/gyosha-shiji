@@ -27,6 +27,12 @@ class TestBeamForm(unittest.TestCase):
                 self.assertTrue(all(b - a <= f.uke_pitch + 1e-6 for a, b in zip(f.uke_x, f.uke_x[1:])))
                 self.assertAlmostEqual(f.side_hs[0], h - 150 + 12)                  # 底板の下面からスラブの下端まで
 
+    def test_side_has_two_waler_levels(self):
+        """側板の外端太は2段にして（利用者の指定 2026-10-31）."""
+        f = plan_beam(6000, 700, 700, 180)
+        self.assertEqual(len(f.tate_z), 2)
+        self.assertEqual(len(f.tie_z), 2)                                       # 両側の側板がある段はフォームタイも
+
     def test_wide_beam_gets_more_bottom_battens(self):
         self.assertEqual(len(plan_beam(6000, 400, 700).bot_y), 3)
         self.assertEqual(len(plan_beam(6000, 700, 700).bot_y), 4)               # 合板が通るまで増やす

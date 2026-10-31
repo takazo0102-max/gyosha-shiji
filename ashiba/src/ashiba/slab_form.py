@@ -2,8 +2,8 @@
 
 組み方（在来のスラブ型枠）:
 - せき板は型枠用合板 12mm（900×1800）をスラブの下面に。梁・壁・柱の所は抜く（梁の側板・壁の型枠が受ける）
-- 根太は単管 φ48.6 を NEDA_PITCH_MM ごと、大引に直角に
-- 大引は角形鋼管 □100×50（強軸を縦）を、パイプサポートの列ごとに
+- 根太は角パイプ □50×50×2.3 を NEDA_PITCH_MM ごと、大引に直角に（スラブ・梁下の詳細図。利用者 2026-10-31）
+- 大引は杉 90×90 を SV_CANDS（@900）ごと、パイプサポートの列ごとに。パイプサポートの上端は大引に釘止め
 - パイプサポートは大引の下に、大引の向きに su、大引どうしの間 sv の格子。梁・壁・柱の下（とまわり CLEAR_MM）には立てない。
   下には大引の列ごとに敷き桟木（45×60 を寝かせて通す）を敷き、その上に立てる（利用者の指定 2026-10-31: サポートしたはさんぎいる）
 - 高さ 3.5m を超えるパイプサポートは、高さ 2m 以内ごとに水平つなぎを2方向（安衛則 242条）
@@ -11,7 +11,7 @@
 計算（formwork.py: せき板・根太・大引の単純梁、たわみ 3mm）:
 - 荷重はコンクリート（鉄筋とも）RC_KN_M3×厚さ＋型枠 FORM_KN＋作業 WORK_KN（安衛則 240条の作業荷重 1.5kN/m²）。たわみは固定荷重だけ
 - パイプサポート1本の軸力＝荷重×su×sv ≦ PS_ALLOW_KN（目安。使う長さのメーカーの許容荷重で確かめる）
-- 間隔は候補の中から、みな通るいちばん広い組（支柱の本数がいちばん少ない組）
+- 間隔は候補の中から、みな通る組のうち大引の間隔が広い（詳細図の @900）組、次に支柱の本数が少ない組
 """
 
 from __future__ import annotations
@@ -19,7 +19,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ashiba.formwork import DEFAULT_NEDA, DEFAULT_OBIKI, NEDA_PITCH_MM, PLY_T_MM, check
+from ashiba.formwork import NEDA_PITCH_MM, PLY_T_MM, check
+
+# スラブ・梁下の詳細図（利用者の指定 2026-10-31）: せき板 合板 12 → 根太 角パイプ □50×50×2.3 @300 → 杉大引 90×90 @900 →
+# パイプサポート（上端を大引に釘止め）
+SLAB_NEDA = "角パイプ50"
+SLAB_OBIKI = "杉90"
 
 RC_KN_M3 = 24.0
 FORM_KN = 0.4
@@ -27,13 +32,13 @@ WORK_KN = 1.5
 PS_ALLOW_KN = 15.0                    # パイプサポート1本の許容荷重の目安（kN）
 PS_MAX_MM = 3500.0                    # これを超えると水平つなぎ（2方向・2m 以内ごと）
 TIE_PITCH_MM = 2000.0
-OBIKI_H_MM = 100.0                    # 大引（□100×50）のせい
-NEDA_D_MM = 48.6
+OBIKI_H_MM = 90.0                     # 大引（杉 90×90）のせい
+NEDA_D_MM = 50.0                      # 根太（角パイプ □50×50）のせい
 CLEAR_MM = 150.0                      # 梁・壁・柱のまわりに支柱を立てない幅
 SILL_H_MM = 45.0                      # パイプサポートの下の敷き桟木（45×60 を寝かせる）の高さ（利用者の指定 2026-10-31: サポートしたはさんぎいる）
 SILL_OUT_MM = 150.0                   # 敷き桟木の、列の端の支柱からの出
 SU_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引の向きの支柱の間隔
-SV_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引どうしの間隔
+SV_CANDS = (900.0, 750.0, 600.0)     # 大引どうしの間隔（詳細図は @900）
 EDGE_MM = 150.0                       # スラブの縁・穴からいちばん近い根太・大引まで
 
 
@@ -66,17 +71,17 @@ def choose_spacing(thick_mm: float) -> SlabSpacing:
     best = None
     for su in SU_CANDS:
         for sv in SV_CANDS:
-            bc = check(q, qd, su, sv, DEFAULT_NEDA, DEFAULT_OBIKI, NEDA_PITCH_MM)
+            bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
             pk = q * su * sv / 1e6
             ok = all(b.ok for b in bc) and pk <= PS_ALLOW_KN + 1e-9
             if ok:
-                key = (su * sv, su)
+                key = (sv, su * sv)            # 大引は詳細図の @900 を先に、次に支柱の本数が少ない組
                 if best is None or key > best[0]:
                     best = (key, SlabSpacing(su, sv, bc, pk, True))
     if best:
         return best[1]
     su, sv = SU_CANDS[-1], SV_CANDS[-1]
-    bc = check(q, qd, su, sv, DEFAULT_NEDA, DEFAULT_OBIKI, NEDA_PITCH_MM)
+    bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
     return SlabSpacing(su, sv, bc, q * su * sv / 1e6, False)
 
 
@@ -202,9 +207,10 @@ class SlabForm:
             for p in tube_pieces(v1 - v0):
                 tubes[p] += 1
         for L, n in sorted(tubes.items(), reverse=True):
-            out.append((f"単管 {L / 1000:.1f}m（根太）", n, f"@{NEDA_PITCH_MM:.0f}"))
+            out.append((f"角パイプ □50×50×2.3 {L / 1000:.1f}m（根太）", n, f"@{NEDA_PITCH_MM:.0f}"))
         ob = sum(u1 - u0 for u0, u1, _v in self.obiki)
-        out.append(("角形鋼管 □100×50（大引・4m）", math.ceil(ob / 4000.0 * 1.05), f"延べ {ob / 1000:.1f}m・@{self.spacing.sv:.0f}"))
+        out.append(("杉大引 90×90（4m）", math.ceil(ob / 4000.0 * 1.05), f"延べ {ob / 1000:.1f}m・@{self.spacing.sv:.0f}"))
+        out.append(("釘（パイプサポートの上端を大引に）", 2 * len(self.posts), "受け板の穴から2本ずつ"))
         out.append(("パイプサポート", len(self.posts), f"長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
         sill = sum(e - s for s, e, _v in self.sills())
         out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0 * 1.05), f"パイプサポートの下に寝かせて列ごとに通す・延べ {sill / 1000:.1f}m"))

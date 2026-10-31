@@ -11,6 +11,9 @@ next i
 for i = 1 to nSg1
 	rect2 sg1a[i] - sgB / 2, hB + plyT, sg1a[i] + sgB / 2, hB + plyT + sgH
 next i
+if clampOn then
+	rect2 -hA - plyT - sgH - 0.12, hB + plyT + sgH, hA + plyT + sgH + 0.12, hB + plyT + sgH + clT
+endif
 line_type "DASHED"
 for i = 1 to int(nTb1 / 2)
 	line2 tb1a[2 * i - 1], hB + plyT + sgH + r, tb1a[2 * i], hB + plyT + sgH + r
@@ -24,6 +27,9 @@ next i
 for i = 1 to nSg2
 	rect2 sg2a[i] - sgB / 2, hA + plyT, sg2a[i] + sgB / 2, hA + plyT + sgH
 next i
+if clampOn then
+	rect2 -hB - plyT - sgH - 0.12, hA + plyT + sgH, hB + plyT + sgH + 0.12, hA + plyT + sgH + clT
+endif
 line_type "DASHED"
 for i = 1 to int(nTb2 / 2)
 	line2 tb2a[2 * i - 1], hA + plyT + sgH + r, tb2a[2 * i], hA + plyT + sgH + r
@@ -37,6 +43,9 @@ next i
 for i = 1 to nSg3
 	rect2 sg3a[i] - sgB / 2, hB + plyT, sg3a[i] + sgB / 2, hB + plyT + sgH
 next i
+if clampOn then
+	rect2 -hA - plyT - sgH - 0.12, hB + plyT + sgH, hA + plyT + sgH + 0.12, hB + plyT + sgH + clT
+endif
 line_type "DASHED"
 for i = 1 to int(nTb3 / 2)
 	line2 tb3a[2 * i - 1], hB + plyT + sgH + r, tb3a[2 * i], hB + plyT + sgH + r
@@ -50,6 +59,9 @@ next i
 for i = 1 to nSg4
 	rect2 sg4a[i] - sgB / 2, hA + plyT, sg4a[i] + sgB / 2, hA + plyT + sgH
 next i
+if clampOn then
+	rect2 -hB - plyT - sgH - 0.12, hA + plyT + sgH, hB + plyT + sgH + 0.12, hA + plyT + sgH + clT
+endif
 line_type "DASHED"
 for i = 1 to int(nTb4 / 2)
 	line2 tb4a[2 * i - 1], hA + plyT + sgH + r, tb4a[2 * i], hA + plyT + sgH + r

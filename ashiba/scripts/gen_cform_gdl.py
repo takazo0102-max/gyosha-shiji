@@ -39,6 +39,9 @@ def paramlist() -> str:
         _param("String", "tiX", "Y の向きに締めるフォームタイの X の位置（芯から mm。両端は角の外）", "-451,451"),
         _param("String", "tiY", "X の向きに締めるフォームタイの Y の位置（芯から mm）", "-451,451"),
         _param("Length", "dzB", "±X の面の外端太を上げる高さ", 0.12),
+        _param("Boolean", "clampOn", "コラムクランプで締める（外端太・フォームタイのかわり。tbZ の高さに4方の腕）", 0),
+        _param("Length", "clH", "コラムクランプの腕のせい", 0.075),
+        _param("Length", "clT", "コラムクランプの腕の出（合板に直角）", 0.04),
         _param("Length", "plyT", "せき板の厚さ", 0.012),
         _param("Length", "sgB", "桟木の幅", 0.045),
         _param("Length", "sgH", "桟木のせい（合板に直角）", 0.06),
@@ -83,6 +86,9 @@ next i
 for i = 1 to nSg{k}
 	rect2 sg{k}a[i] - sgB / 2, {h} + plyT, sg{k}a[i] + sgB / 2, {h} + plyT + sgH
 next i
+if clampOn then
+	rect2 -{"hA" if k % 2 else "hB"} - plyT - sgH - 0.12, {h} + plyT + sgH, {"hA" if k % 2 else "hB"} + plyT + sgH + 0.12, {h} + plyT + sgH + clT
+endif
 line_type "DASHED"
 for i = 1 to int(nTb{k} / 2)
 	line2 tb{k}a[2 * i - 1], {h} + plyT + sgH + r, tb{k}a[2 * i], {h} + plyT + sgH + r
@@ -110,7 +116,24 @@ for i = 1 to nSg{k}
 	del 1
 next i
 material "cf_steel"
-for i = 1 to int(nTb{k} / 2)
+if clampOn then
+	! コラムクランプの腕（角の先まで。角でくさび留め。±X の面の腕は腕のせいだけ上に重ねる）
+	for j = 1 to nT
+		add -{"hA" if k % 2 else "hB"} - plyT - sgH - 0.12, {h} + plyT + sgH, tz[j] - clH / 2 + {"0" if k % 2 else "clH"}
+		block 2 * ({"hA" if k % 2 else "hB"} + plyT + sgH + 0.12), clT, clH
+		! くさび（両端）
+		material "cf_bolt"
+		add 0.03, clT, clH * 0.2
+		block 0.02, 0.012, clH * 0.6
+		del 1
+		add 2 * ({"hA" if k % 2 else "hB"} + plyT + sgH + 0.12) - 0.05, clT, clH * 0.2
+		block 0.02, 0.012, clH * 0.6
+		del 1
+		material "cf_steel"
+		del 1
+	next j
+endif
+for i = 1 to int(nTb{k} / 2) * (1 - clampOn)
 	for j = 1 to nT
 		for kk = -1 to 1 step 2
 			add tb{k}a[2 * i - 1], {h} + plyT + sgH + r, tz[j] + {dz} + kk * (r + gap)
@@ -150,6 +173,7 @@ define material "cf_wood" 2, 0.74, 0.56, 0.36
 define material "cf_steel" 2, 0.62, 0.62, 0.66
 define material "cf_tie" 2, 0.35, 0.35, 0.38
 define material "cf_pcon" 2, 0.85, 0.85, 0.80
+define material "cf_bolt" 2, 0.30, 0.30, 0.32
 H = ZZYZX
 gap = 0.006
 ! ---- 面ごとのせき板・桟木・外端太（2本組） ----

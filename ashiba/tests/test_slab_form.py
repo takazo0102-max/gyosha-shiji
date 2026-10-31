@@ -7,11 +7,18 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.beam_form import plan_beam
-from ashiba.slab_form import (PS_ALLOW_KN, PS_MAX_MM, SILL_H_MM, SILL_OUT_MM, TIE_PITCH_MM, _in_poly, choose_spacing, loads,
+from ashiba.slab_form import (NEDA_D_MM, OBIKI_H_MM, PS_ALLOW_KN, PS_MAX_MM, SILL_H_MM, SILL_OUT_MM, TIE_PITCH_MM, _in_poly, choose_spacing, loads,
                               plan_slab, rect)
 
 
 class TestSlabSpacing(unittest.TestCase):
+    def test_detail_drawing_members(self):
+        """スラブ・梁下の詳細図（利用者の指定 2026-10-31）: 根太 □50×50×2.3 @300・杉大引 90×90 @900."""
+        s = choose_spacing(180)
+        self.assertEqual(s.sv, 900.0)
+        self.assertEqual([b.member for b in s.beams][1:], ["角パイプ □50×50×2.3", "杉大引 90×90"])
+        self.assertEqual((NEDA_D_MM, OBIKI_H_MM), (50.0, 90.0))
+
     def test_loads_and_spacing(self):
         q, qd = loads(200)
         self.assertAlmostEqual(q, 24 * 0.2 + 0.4 + 1.5)
@@ -32,7 +39,7 @@ class TestSlabLayout(unittest.TestCase):
 
     def test_posts_avoid_beams_and_stay_inside(self):
         f = plan_slab(self.outline, 180, 2820, 0, [self.beam])
-        self.assertAlmostEqual(f.post_h, 2820 - 12 - 48.6 - 100 - SILL_H_MM)       # 敷き桟木の上から
+        self.assertAlmostEqual(f.post_h, 2820 - 12 - NEDA_D_MM - OBIKI_H_MM - SILL_H_MM)   # 敷き桟木の上から
         self.assertTrue(f.posts)
         for u, v in f.posts:
             self.assertTrue(_in_poly((u, v), f.outer))

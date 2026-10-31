@@ -93,6 +93,18 @@
 			<Description><![CDATA["±X の面の外端太を上げる高さ"]]></Description>
 			<Value>0.12</Value>
 		</Length>
+		<Boolean Name="clampOn">
+			<Description><![CDATA["コラムクランプで締める（外端太・フォームタイのかわり。tbZ の高さに4方の腕）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="clH">
+			<Description><![CDATA["コラムクランプの腕のせい"]]></Description>
+			<Value>0.075</Value>
+		</Length>
+		<Length Name="clT">
+			<Description><![CDATA["コラムクランプの腕の出（合板に直角）"]]></Description>
+			<Value>0.04</Value>
+		</Length>
 		<Length Name="plyT">
 			<Description><![CDATA["せき板の厚さ"]]></Description>
 			<Value>0.012</Value>

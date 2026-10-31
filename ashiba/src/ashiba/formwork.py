@@ -50,11 +50,18 @@ def _box(name: str, h: float, b: float, t: float) -> Member:
 NEDA = {
     "単管": _pipe("単管 φ48.6×2.4", 48.6, 2.4),
     "角パイプ60": _box("角パイプ □60×60×2.3", 60.0, 60.0, 2.3),
+    "角パイプ50": _box("角パイプ □50×50×2.3", 50.0, 50.0, 2.3),     # スラブ・梁下の詳細図（利用者 2026-10-31）
 }
+WOOD_E, WOOD_FB = 7000.0, 10.3   # 杉の角材の目安（N/mm²）
+
+
+def _wood(name: str, h: float, b: float) -> Member:
+    return Member(name, WOOD_E, WOOD_FB, b * h * h / 6.0, b * h ** 3 / 12.0)
 OBIKI = {
     "角形鋼管100x50": _box("角形鋼管 □100×50×2.3", 100.0, 50.0, 2.3),
     "単管2本": Member("単管 φ48.6×2.4 2本", STEEL_E, STEEL_FB, 2 * NEDA["単管"].Z, 2 * NEDA["単管"].I),
     "角パイプ60": NEDA["角パイプ60"],
+    "杉90": _wood("杉大引 90×90", 90.0, 90.0),                  # スラブ・梁下の詳細図（利用者 2026-10-31）
 }
 DEFAULT_NEDA = "単管"
 DEFAULT_OBIKI = "角形鋼管100x50"

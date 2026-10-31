@@ -19,7 +19,7 @@ class TestColumnForm(unittest.TestCase):
         self.assertAlmostEqual(pressure_kn_m2(3000, column=True), 1.5 * w + 0.6 * w * 1.5)
 
     def test_small_column_has_no_through_tie(self):
-        f = plan_column(600, 600, 3000)
+        f = plan_column(600, 600, 3000, clamp=False)
         self.assertTrue(f.ok)
         edge = 300 + BAND_MM + COL_OUT_MM
         self.assertEqual([round(x, 1) for x in f.tie_x], [round(-edge, 1), round(edge, 1)])    # 角の外だけ
@@ -28,7 +28,7 @@ class TestColumnForm(unittest.TestCase):
         self.assertEqual(q["フォームタイ（柱の角の外）"], 4 * len(f.tate_z))
 
     def test_large_column_adds_through_ties(self):
-        f = plan_column(800, 800, 3000)
+        f = plan_column(800, 800, 3000, clamp=False)
         self.assertTrue(f.ok)
         self.assertEqual(len(f.tie_x), 3)                                   # 柱を貫くフォームタイが1本
         self.assertAlmostEqual(f.tie_x[1], 0.0)
@@ -50,6 +50,30 @@ class TestColumnForm(unittest.TestCase):
         self.assertEqual((c["width"], c["depth"], c["height"]), (600.0, 900.0, 3500.0))
         det["details"]["circleBased"] = True
         self.assertIsNone(column_from_details(det))                        # 丸い柱は飛ばす
+
+
+class TestColumnClamp(unittest.TestCase):
+    """コラムクランプで締める（利用者の指定 2026-10-31: せぱ飛び出てない？？／コラムクランプで締める）."""
+
+    def test_free_column_uses_clamps_without_ties(self):
+        f = plan_column(800, 800, 3000)
+        self.assertTrue(f.clamp and f.ok)
+        self.assertEqual((f.tie_x, f.tie_y), ([], []))                       # 角の外のフォームタイも貫くセパもなし
+        self.assertTrue(all(fc["tube"] == [] for fc in f.faces))
+        gaps = [b - a for a, b in zip(f.tate_z, f.tate_z[1:])]
+        self.assertGreater(max(gaps), gaps[0])                                # 上ほど広い
+        q = {n: k for n, k, _x in f.quantities()}
+        self.assertEqual(q["コラムクランプ（800×800 用）"], len(f.tate_z))
+        self.assertNotIn("フォームタイ（柱の角の外）", q)
+        self.assertIn("コラムクランプの腕", f.calc_x.lines()[3])
+
+    def test_column_with_wall_keeps_walers_and_ties(self):
+        wall = {"ca": (0.0, 0.0), "cb": (6000.0, 0.0), "u": (1.0, 0.0), "n": (0.0, 1.0), "lo": -100.0, "hi": 100.0,
+                "thick": 200.0, "length": 6000.0}
+        col = {"c": (6000.0, 0.0), "width": 800.0, "depth": 800.0, "ang": 0.0, "height": 3000.0}
+        f = plan_column(800, 800, 3000, wall_hits(col, [wall]))
+        self.assertFalse(f.clamp)                                             # 壁が取り付くとクランプは一周できない
+        self.assertTrue(f.tie_x)
 
 
 class TestWallIntoColumn(unittest.TestCase):
