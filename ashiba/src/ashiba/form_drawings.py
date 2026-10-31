@@ -6,6 +6,8 @@ scripts/form_run.py が書く ashiba_out/型枠_計画.json から、A3 横の�
 - 2枚目 断面図・詳細図: スラブ・梁下の断面（利用者の詳細図の組み方）、柱の詳細（コラムクランプ／外端太とフォームタイ）、
   壁の断面（セパ・外端太）。値は計画の値
 - 3枚目 構造計算書: 荷重・側圧、部材の曲げとたわみ、支柱の軸力、水平荷重（安衛則 240条）
+- 部材等明細書: 計画届作成の手引（建災防東京支部 第6版）p.147 の例の欄（構造材料・材質と寸法・使用部位、設置箇所と高さ・
+  設置期間・設計荷重と支柱1本当り・許容支持力、各部の構造・組立概要と詳細図の有無）に計画の値を入れる
 - 4枚目 計画届: 支柱の高さ 3.5m 以上は届出（安衛則 88条・別表第7）。要るときは様式第20号の下書きと添付の一覧
 """
 
@@ -246,7 +248,7 @@ def plan_page(plan: dict) -> tuple[str, str, str]:
              "4. 地盤に立てるときは敷板・敷角を敷き、沈下を防ぐ（安衛則 242条）",
              "5. コンクリートの打設中は型枠支保工を点検し、異常があれば中止する（安衛則 244条）",
              "6. 組立て・解体は型枠支保工の組立て等作業主任者の直接の指揮で行う（安衛則 246・247条）",
-             "7. パイプサポートの許容荷重はメーカーの使用荷重表（使う長さ）で確かめる",
+             "7. パイプサポートの許容支持力はメーカーの表（仮設工業会認定品・使用高さと水平つなぎの有無）による。3.4m を超える支柱は水平つなぎを設ける",
              "8. 支柱の脚部は根がらみ（単管 φ48.6）を2方向に設けて滑動を防ぎ、支柱・大引・根太の接続は釘・クランプで緊結する"]
     y = MARGIN + 60.0
     for k, t_ in enumerate(notes):
@@ -434,7 +436,9 @@ def calc_lines(plan: dict) -> list[tuple[str, str]]:
     out = [("前提", "側圧は JASS 5 の型枠設計用コンクリートの側圧（打込みの速さ 10m/h 以下、W0＝23.5kN/m³、液圧を上限）。"
                    "スラブ・梁の底はコンクリート 24kN/m³×厚さ＋型枠 0.4＋作業荷重 1.5kN/m²（安衛則 240条）。部材は単純梁で曲げ"
                    "（M＝wL²/8）とたわみ（δ＝5wL⁴/384EI、固定荷重、3mm 以下）。合板 12mm E5500・fb13.7、杉・桟木 E7000・fb10.3、"
-                   "鋼 E205000・fb157 N/mm²（目安）。フォームタイ W5/16 は 13.7kN、パイプサポート1本 15kN（目安。メーカーの表で確かめる）")]
+                   "鋼 E205000・fb157 N/mm²（目安）。フォームタイ W5/16 は 13.7kN。パイプサポート1本の許容支持力は岡部 フラワーサポート／パイプサポート（仮設工業会認定品）の"
+                   "表で、上下端 木材（上端 大引・下端 敷き桟木）・連係なしは使用高さ 2m 以下 19.6、2〜2.5m 17.6、2.5〜3m 13.7、"
+                   "3〜3.4m 9.8kN、連係あり（水平つなぎ 2m 以内ごと・2方向）は 19.6kN。3.4m を超える支柱には水平つなぎを設ける")]
     for s in plan.get("slabs", []):
         q = s["q"]
         h_kn = q * H_LOAD_RATIO
@@ -473,6 +477,163 @@ def calc_page(plan: dict) -> list[str]:
             f'<line x1="{PAGE_W - MARGIN - 106}" y1="{MARGIN + 7}" x2="{PAGE_W - MARGIN - 68}" y2="{MARGIN + 7}" class="thin"/>'
             f'<line x1="{PAGE_W - MARGIN - 52}" y1="{MARGIN + 7}" x2="{PAGE_W - MARGIN - 4}" y2="{MARGIN + 7}" class="thin"/>')
     return [sign + "".join(p) for p in pages]
+
+
+# ---------------------------------------------------------------- 部材等明細書
+def _where(plan: dict) -> str:
+    """使用部位（型枠を置いた躯体の種類）."""
+    kinds = [k for k, key in (("スラブ", "slabs"), ("梁", "beams"), ("壁", "walls"), ("柱", "columns")) if plan.get(key)]
+    return "・".join(kinds) or "―"
+
+
+def member_rows(plan: dict) -> list[tuple[str, str, str]]:
+    """部材等明細書の材料（構造材料の種類, 材料・材質及び主要寸法, 使用部位）. 手引 p.147 の例の欄、置いた型枠で使う物だけ."""
+    from .slab_form import PS_SOURCE, ps_model
+
+    slabs, beams, walls, cols = (plan.get(k) or [] for k in ("slabs", "beams", "walls", "columns"))
+    sides = "・".join(k for k, v in (("壁", walls), ("梁の側板", beams), ("柱", [c for c in cols if not c.get("clamp")])) if v)
+    out = [("せき板", "型枠用合板 12mm（JAS）", _where(plan))]
+    if slabs or beams:
+        sv = "・".join(sorted({f"@{s['sv']:.0f}" for s in slabs})) or "@900"
+        models = []
+        for x in slabs + [b for b in beams if b.get("post_h")]:
+            m = ps_model(x["post_h"])
+            if m not in models:
+                models.append(m)
+        aux = [m for m in models if "補助" in m]
+        out += [("角パイプ", "JIS G 3466 STKR400 □50×50×2.3（根太 @300）", "根太（スラブ・梁下）"),
+                ("木材（角材）", f"杉 90×90（大引 {sv}）", "大引（スラブ・梁下）"),
+                ("パイプサポート", f"仮設工業会認定品 上柱管 φ48.6×2.4・下柱管 φ60.5×2.3（型式 {'・'.join(models) or '―'}）。"
+                 f"許容支持力は{PS_SOURCE}", "支柱（スラブ・梁下）。上端は大引に釘止め"),
+                ("補助サポート", f"有（{'・'.join(aux)}。継ぐのは2本まで、4本以上のボルトか専用の金具）" if aux
+                 else "無（パイプサポートは継がない）", "支柱" if aux else "―")]
+    ties = [s for s in slabs if s.get("ties")]
+    out.append(("木材（桟木）", "杉 45×60", "・".join(x for x, v in (("縦桟木（" + (sides or "側板") + "）", sides),
+                                                                    ("敷き桟木（支柱の下・寝かせ）", slabs or beams)) if v) or "―"))
+    tube = [x for x, v in (("外端太（2本組）", sides), ("梁の受け", beams), ("根がらみ", slabs or beams),
+                           ("水平つなぎ（2方向・2m 以内ごと）", ties)) if v]
+    out.append(("単管", "JIS G 3444 STK500 φ48.6×2.4", "・".join(tube) or "―"))
+    out.append(("水平つなぎ", "有（単管 φ48.6×2.4・2方向）" if ties else "無（支柱の高さ 3.4m 以下。メーカーの表の連係なしで受ける）", "支柱（スラブ下）" if ties else "―"))
+    if sides:
+        out.append(("フォームタイ", "W5/16（許容引張 13.7kN）・座金・ナット・Pコン", sides))
+    if any(c.get("clamp") for c in cols):
+        out.append(("コラムクランプ", "[-75×40×5 相当（4方の腕を角でくさび留め）", "柱（壁の取り付かない柱）"))
+    out.append(("緊結金具", "直交クランプ・自在クランプ（JIS A 8951 相当）、釘", "単管の交差・支柱の上端・根がらみ"))
+    return out
+
+
+def load_rows(plan: dict) -> list[tuple[str, str, float, float, float, float, float]]:
+    """部材等明細書の設計荷重（設置箇所, 設置高さ, 固定荷重 N/m², 積載荷重 N/m², 計 N/m², 支柱1本当り N, 許容支持力 N）."""
+    from .slab_form import FORM_KN, PS_FREE_MAX_MM, RC_KN_M3, WORK_KN, ps_allow_kn
+
+    out = []
+    for s in plan.get("slabs", []):
+        dead = (RC_KN_M3 * s["thick"] / 1000.0 + FORM_KN) * 1000.0
+        out.append((f"スラブ {s['name']}（厚さ {s['thick']:.0f}）", f"床 {s['floor']:.0f} から型枠の下 {s['bottom']:.0f}（支柱 {s['post_h']:.0f}）",
+                    dead, WORK_KN * 1000.0, dead + WORK_KN * 1000.0, s["post_kn"] * 1000.0,
+                    s.get("ps_allow", ps_allow_kn(s["post_h"], bool(s.get("ties")))) * 1000.0))
+    for b in plan.get("beams", []):
+        if not b.get("post_h"):
+            continue
+        dead = (RC_KN_M3 * b["depth"] / 1000.0 + FORM_KN) * 1000.0
+        out.append((f"梁 {b['name']}（{b['width']:.0f}×{b['depth']:.0f}）", f"梁の下 {b['bottom']:.0f}（支柱 {b['post_h']:.0f}）",
+                    dead, WORK_KN * 1000.0, dead + WORK_KN * 1000.0, b["post_kn"] * 1000.0,
+                    b.get("ps_allow", ps_allow_kn(b["post_h"], b["post_h"] > PS_FREE_MAX_MM)) * 1000.0))
+    return out
+
+
+def assembly_rows(plan: dict) -> list[tuple[str, str, str]]:
+    """各部の構造・組立概要（項目, 内容, 詳細図 有・無）. 手引 p.147 の例の項目の順."""
+    slabs, beams = plan.get("slabs") or [], plan.get("beams") or []
+    shore = bool(slabs or beams)
+    ties = [s for s in slabs if s.get("ties")]
+    tie_txt = ("、".join(f"{s['name']} {len(s['ties'])}段" for s in ties) + "。高さ 2m 以内ごとに2方向に単管で設け、端は躯体に"
+               "控えを取る（安衛則 242条）") if ties else "支柱の高さが 3.4m 以下なので水平つなぎは設けない（メーカーの表の連係なしの許容支持力で受ける。根がらみは設ける）"
+    return [
+        ("地盤（基礎）及び支柱支持物の強度検討", "下階のコンクリートスラブの上に立てる（支柱1本の荷重は設計荷重の表）。地盤に立てるときは敷板・"
+         "敷角を敷き、地耐力を確かめる" if shore else "該当なし", "有" if shore else "無"),
+        ("脚部の滑動・沈下防止措置", "敷き桟木 45×60 を寝かせて支柱の列ごとに通し、支柱を釘止め。根がらみ（単管）を2方向に設けクランプで緊結"
+         if shore else "該当なし", "有" if shore else "無"),
+        ("支柱上端の滑動防止措置", "パイプサポートの上端の受け板を大引に釘止めする" if shore else "該当なし", "有" if shore else "無"),
+        ("水平つなぎ・筋かい・控え等の措置", tie_txt if shore else "該当なし", "有" if ties else "無"),
+        ("支柱の継手", "パイプサポートは継がない（継ぐときは2本まで、4本以上のボルトか専用の金具。安衛則 242条）" if shore else "該当なし", "無"),
+        ("枠組を支保工とした場合の措置", "該当なし（パイプサポートによる在来工法）", "無"),
+        ("鋼管枠の組立", "該当なし", "無"),
+        ("型枠段状組立の措置", "該当なし", "無"),
+        ("梁の滑動・脱落・横振れ防止措置", "該当なし（梁式支保工を使わない）", "無"),
+        ("梁受けとなる構造物の補助、取付け方法", "該当なし", "無"),
+    ]
+
+
+def concrete_outline(plan: dict) -> str:
+    """打設コンクリート構造物の概要（置いた型枠の躯体）."""
+    parts = [f"スラブ {s['name']} 厚さ {s['thick']:.0f}" for s in plan.get("slabs", [])]
+    parts += [f"梁 {b['name']} {b['width']:.0f}×{b['depth']:.0f}" for b in plan.get("beams", [])]
+    parts += [f"壁 {w['name']} 厚さ {w['thick']:.0f}・高さ {w['height']:.0f}" for w in plan.get("walls", [])]
+    parts += [f"柱 {c['name']} {c['width']:.0f}×{c['depth']:.0f}" for c in plan.get("columns", [])]
+    return "鉄筋コンクリート造（普通コンクリート 24kN/m³）。" + "、".join(parts)
+
+
+def _wrap_w(text: str, width_mm: float, size: float) -> list[str]:
+    """幅に入る字数で折り返す（全角は size、半角は size×0.55 の目安）."""
+    out, cur, w = [], "", 0.0
+    for ch in text:
+        cw = size * (0.55 if ord(ch) < 0x2000 else 1.0)
+        if w + cw > width_mm and cur:
+            out.append(cur)
+            cur, w = "", 0.0
+        cur += ch
+        w += cw
+    out.append(cur)
+    return out
+
+
+def _table(x: float, y: float, widths: list[float], head: list[str], rows: list[list[str]], size: float = 2.1,
+           aligns: str = "") -> tuple[str, float]:
+    """罫線の表（左上 x, y）。戻り値は (SVG, 下の y)."""
+    out, lh = [], size * 1.45
+    cls = "ts" if size <= 2.2 else "t"
+    for r, cells in enumerate([head] + rows):
+        lines = [_wrap_w(str(c), w - 2.0, size) for c, w in zip(cells, widths)]
+        h = max(len(ln) for ln in lines) * lh + 1.6
+        cx = x
+        for k, (ln, w) in enumerate(zip(lines, widths)):
+            out.append(f'<rect x="{cx:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" class="thin"/>')
+            right = r > 0 and k < len(aligns) and aligns[k] == "r"
+            for j, t_ in enumerate(ln):
+                tx = cx + w - 1.0 if right else cx + 1.0
+                anchor = ' text-anchor="end"' if right else ""
+                weight = ' font-weight="bold"' if r == 0 else ""
+                out.append(f'<text x="{tx:.1f}" y="{y + 0.8 + (j + 0.8) * lh:.1f}" class="{cls}"{anchor}{weight}>{ESC(t_)}</text>')
+            cx += w
+        y += h
+    return "".join(out), y
+
+
+def member_page(plan: dict) -> tuple[str, str, str]:
+    """型枠支保工部材等明細書（計画届作成の手引 第6版 p.147 の例の欄）."""
+    x0 = MARGIN + 4
+    out = [f'<text x="{x0}" y="{MARGIN + 14}" class="h2">打設コンクリート構造物の概要</text>']
+    body, y = _table(x0, MARGIN + 16, [392.0], ["概要"], [[concrete_outline(plan)]], size=2.6)
+    out.append(body)
+    out.append(f'<text x="{x0}" y="{y + 6:.1f}" class="h2">構造材料（材料、材質及び主要寸法・使用部位）</text>')
+    body, y = _table(x0, y + 8, [40.0, 200.0, 152.0], ["構造材料の種類", "材料、材質及び主要寸法", "使用部位"],
+                     [list(r) for r in member_rows(plan)], size=2.6)
+    out.append(body)
+    out.append(f'<text x="{x0}" y="{y + 6:.1f}" class="h2">設置箇所・設置期間・設計荷重</text>')
+    rows = [[a, b, f"{d:,.0f}", f"{l:,.0f}", f"{t:,.0f}", f"{n:,.0f}", f"{al:,.0f}", "可" if n <= al else "不可"]
+            for a, b, d, l, t, n, al in load_rows(plan)] or [["―", "―", "", "", "", "", "", ""]]
+    body, y = _table(x0, y + 8, [62.0, 92.0, 34.0, 34.0, 34.0, 38.0, 38.0, 16.0],
+                     ["設置箇所", "設置高さ（mm）", "固定荷重 N/m²", "積載荷重 N/m²", "計 N/m²", "支柱1本当り N",
+                      "支柱の許容支持力 N", "判定"], rows, size=2.6, aligns="__rrrrr")
+    out.append(body)
+    out.append(f'<text x="{x0}" y="{y + 4.5:.1f}" class="t">設置期間：組立開始　　　年　　月　　日　～　解体完了　　　年　　月　　日'
+               f'　　固定荷重＝コンクリート 24kN/m³×厚さ＋型枠 0.4kN/m²、積載荷重＝作業荷重 1.5kN/m²（安衛則 240条）</text>')
+    out.append(f'<text x="{x0}" y="{y + 12:.1f}" class="h2">各部の構造・組立概要</text>')
+    body, y = _table(x0, y + 14, [80.0, 286.0, 26.0], ["項目", "構造・組立の概要", "詳細図"],
+                     [[a, b, f"{c}（2枚目）" if c == "有" else c] for a, b, c in assembly_rows(plan)], size=2.6)
+    out.append(body)
+    return "型枠支保工 部材等明細書", "―", "".join(out)
 
 
 # ---------------------------------------------------------------- 4枚目 計画届
@@ -518,7 +679,7 @@ def notice_page(plan: dict) -> tuple[str, str, str]:
     y += 6
     out.append(f'<text x="{MARGIN + 4}" y="{y}" class="h2">添付するもの（安衛則 別表第7）</text>')
     for k, t_ in enumerate(["型枠支保工を設置する場所の周囲の状況及び四隣との関係を示す図面", "型枠支保工の組立図（1枚目の伏図・2枚目の断面図・詳細図）",
-                            "支柱等の配置図・使用する材料の種類と寸法", "構造計算書（3枚目）", "組立・解体の手順、作業主任者"]):
+                            "支柱等の配置図・使用する材料の種類と寸法（型枠支保工部材等明細書）", "構造計算書", "組立・解体の手順、作業主任者"]):
         out.append(f'<text x="{MARGIN + 8}" y="{y + 5 + k * 4}" class="t">・{ESC(t_)}</text>')
     return "型枠支保工 計画届の要否", "―", "".join(out)
 
@@ -530,6 +691,7 @@ def page_list(plan: dict) -> list[tuple[str, str, str]]:
     out = [plan_page(plan), detail_page(plan)]
     for k, body in enumerate(calc_bodies):
         out.append(("型枠支保工 構造計算書" + (f"（{k + 1}）" if len(calc_bodies) > 1 else ""), "―", body))
+    out.append(member_page(plan))
     out.append(notice_page(plan))
     return out
 
@@ -567,6 +729,24 @@ def build_xlsx(plan: dict, path: Path) -> None:
     for b in plan.get("beams", []):
         sh.add([b["name"], "パイプサポート（梁下）", f"@{b['uke_pitch']:.0f}", round(b["post_h"]), round(b["post_kn"], 1),
                 2 * len(b["uke_x"])])
+    sh = wb.sheet("部材等明細書")
+    sh.add_title("型枠支保工 部材等明細書", 8)
+    sh.add(["打設コンクリート構造物の概要", concrete_outline(plan)])
+    sh.add_blank()
+    sh.add_header(["構造材料の種類", "材料、材質及び主要寸法", "使用部位"])
+    for r in member_rows(plan):
+        sh.add(list(r))
+    sh.add_blank()
+    sh.add_header(["設置箇所", "設置高さ", "固定荷重 N/m²", "積載荷重 N/m²", "計 N/m²", "支柱1本当り N", "許容支持力 N", "判定"])
+    for a, b, d, l, t, n, al in load_rows(plan):
+        sh.add([a, b, round(d), round(l), round(t), round(n), round(al), "可" if n <= al else "不可"])
+    sh.add(["設置期間", "組立開始　年　月　日 ～ 解体完了　年　月　日"])
+    sh.add_blank()
+    sh.add_header(["各部の構造・組立概要", "内容", "詳細図"])
+    for r in assembly_rows(plan):
+        sh.add(list(r))
+    for k, wdt in enumerate((30, 60, 40, 14, 14, 14, 14, 8)):
+        sh.set_width(k, wdt)
     sh = wb.sheet("計画届の要否")
     ni = notice_info(plan)
     sh.add_header(["場所", "支柱の高さ mm", "3.5m 以上"])

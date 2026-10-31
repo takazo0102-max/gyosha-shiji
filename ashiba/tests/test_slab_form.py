@@ -7,8 +7,8 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.beam_form import plan_beam
-from ashiba.slab_form import (NEDA_D_MM, OBIKI_H_MM, PS_ALLOW_KN, PS_MAX_MM, SILL_H_MM, SILL_OUT_MM, TIE_PITCH_MM, _in_poly, choose_spacing, loads,
-                              plan_slab, rect)
+from ashiba.slab_form import (NEDA_D_MM, OBIKI_H_MM, PS_FREE_MAX_MM, PS_MAX_MM, PS_TIED_KN, SILL_H_MM, SILL_OUT_MM, TIE_PITCH_MM, _in_poly, choose_spacing, loads,
+                              plan_slab, ps_allow_kn, ps_condition, ps_model, rect)
 
 
 class TestSlabSpacing(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestSlabSpacing(unittest.TestCase):
         for t in (150, 200, 250, 300):
             s = choose_spacing(t)
             self.assertTrue(s.ok, t)
-            self.assertLessEqual(s.post_kn, PS_ALLOW_KN)
+            self.assertLessEqual(s.post_kn, PS_TIED_KN)
             self.assertTrue(all(b.ok for b in s.beams))
         self.assertGreaterEqual(choose_spacing(150).su * choose_spacing(150).sv,
                                 choose_spacing(300).su * choose_spacing(300).sv)   # 厚いほど密
@@ -84,7 +84,49 @@ class TestSlabLayout(unittest.TestCase):
         f.sill_cross = True                                                      # スラブの敷き桟木と向きを揃える
         notes = {n: x for n, _k, x in f.quantities()}
         self.assertIn("梁に直角", notes["桟木 45×60（敷き桟木・4m）"])
-        self.assertLessEqual(f.post_kn, PS_ALLOW_KN)
+        self.assertLessEqual(f.post_kn, PS_TIED_KN)
+
+    def test_beam_pitch_fits_the_maker_allowance(self):
+        """梁下の大引の間隔は、支柱1本がメーカーの許容支持力（使用高さ 3〜3.4m・連係なしは 9.8kN）に入るまで詰める."""
+        for w, d in ((400, 700), (600, 900), (800, 1000), (1000, 1200)):
+            f = plan_beam(6000, w, d, 150, post_h_mm=3300.0)
+            self.assertEqual(f.ps_allow, 9.8)
+            self.assertLessEqual(f.post_kn, 9.8, (w, d))
+            self.assertLessEqual(f.uke_pitch, plan_beam(6000, w, d, 150).uke_pitch)
+        self.assertIn("連係なし・使用高さ 3〜3.4m", "\n".join(f.lines()))
+        self.assertEqual(plan_beam(6000, 600, 900, 150, post_h_mm=3600.0).ps_allow, 19.6)   # 3.4m 超は水平つなぎで連係あり
+
+
+class TestMakerTable(unittest.TestCase):
+    """パイプサポートの許容支持力（利用者の指定 2026-10-31: パイプサポートの許容荷重はメーカー表に合わせて）.
+    岡部 フラワーサポート／パイプサポート（仮設工業会認定品）のカタログの表."""
+
+    def test_allowance_by_height(self):
+        self.assertEqual([ps_allow_kn(h) for h in (1900, 2000, 2400, 2900, 3300)], [19.6, 19.6, 17.6, 13.7, 9.8])
+        self.assertEqual(ps_allow_kn(2900, lower="concrete"), 16.6)          # 下端 仕上げコンクリート
+        self.assertEqual(ps_allow_kn(3450), 0.0)                             # 連係なしの表は 3.4m まで
+        self.assertEqual(ps_allow_kn(4500, tied=True), 19.6)                 # 連係ありは高さに関係なく
+        self.assertEqual(ps_condition(2623, False), "連係なし・使用高さ 2.5〜3m・上下端 木材")
+
+    def test_model_by_length(self):
+        self.assertEqual(ps_model(2103), "50S")
+        self.assertEqual(ps_model(2623), "60S")
+        self.assertEqual(ps_model(3300), "75S")
+        self.assertEqual(ps_model(3800), "90S")
+        self.assertEqual(ps_model(4800), "90S＋補助サポート 4S")    # 継ぐのは2本まで
+
+    def test_spacing_uses_the_allowance(self):
+        """長い支柱ほど許容支持力が下がり、支柱の間隔が詰まる. 3.4m を超えると水平つなぎを設けて 19.6kN."""
+        outline = [(0.0, 0.0), (8000.0, 0.0), (8000.0, 6000.0), (0.0, 6000.0)]
+        low = plan_slab(outline, 450, 2300, 0)                               # 支柱 2103（17.6kN）
+        mid = plan_slab(outline, 450, 3400, 0)                               # 支柱 3203（9.8kN）
+        self.assertEqual((low.spacing.allow_kn, mid.spacing.allow_kn), (17.6, 9.8))
+        self.assertLessEqual(mid.spacing.post_kn, 9.8)
+        self.assertLess(mid.spacing.su * mid.spacing.sv, low.spacing.su * low.spacing.sv)
+        tall = plan_slab(outline, 250, 3650, 0)                              # 支柱 3453（3.4m 超）
+        self.assertGreater(tall.post_h, PS_FREE_MAX_MM)
+        self.assertTrue(tall.ties)
+        self.assertEqual(tall.spacing.allow_kn, PS_TIED_KN)
 
 
 if __name__ == "__main__":

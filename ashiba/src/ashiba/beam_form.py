@@ -63,15 +63,31 @@ class BeamForm:
         return self.side.ok and all(b.ok for b in self.bottom)
 
     def lines(self) -> list[str]:
-        from ashiba.slab_form import PS_ALLOW_KN
-
         out = ["側板: " + s for s in self.side.lines()]
         for b in self.bottom:
             out.append(f"底板 {b.part}（{b.member}）スパン {b.span_mm:.0f}: σ {b.sigma:.1f}／{b.fb:.1f} N/mm²・"
                        f"たわみ {b.deflection_mm:.2f} mm {'可' if b.ok else '不可'}")
-        out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{PS_ALLOW_KN:.1f} kN（目安） "
-                   f"{'可' if self.post_kn <= PS_ALLOW_KN + 1e-9 else '不可'}" + (f"・長さ {self.post_h:.0f}" if self.post_h else ""))
+        if self.post_h:
+            from ashiba.slab_form import ps_condition, ps_model
+
+            out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{self.ps_allow:.1f} kN（許容支持力。メーカーの表） "
+                       f"{'可' if self.post_kn <= self.ps_allow + 1e-9 else '不可'}・長さ {self.post_h:.0f}（型式 {ps_model(self.post_h)}）・"
+                       f"{ps_condition(self.post_h, self.ps_tied)}")
         return out
+
+    @property
+    def ps_tied(self) -> bool:
+        """梁下の支柱も 3.4m を超えれば水平つなぎ（スラブの支保工の水平つなぎと一緒に）を設けて連係ありとする."""
+        from ashiba.slab_form import PS_FREE_MAX_MM
+
+        return self.post_h > PS_FREE_MAX_MM
+
+    @property
+    def ps_allow(self) -> float:
+        """梁下のパイプサポート1本の許容支持力（kN。メーカーの表）."""
+        from ashiba.slab_form import ps_allow_kn
+
+        return ps_allow_kn(self.post_h, self.ps_tied)
 
     def quantities(self) -> list[tuple[str, int, str]]:
         from collections import Counter
@@ -126,9 +142,10 @@ def _bottom_check(depth: float, width: float, n_sangi: int, uke_pitch: float) ->
 
 
 def plan_beam(length_mm: float, width_mm: float, depth_mm: float, slab_t_mm=0.0, ext=None,
-              tubes=None, sangi_rng=None, ends=(False, False)) -> BeamForm:
+              tubes=None, sangi_rng=None, ends=(False, False), post_h_mm: float = 0.0) -> BeamForm:
     """1本の梁の型枠の割付. slab_t_mm＝上のスラブの厚さ（数か、−Y・+Y の側ごとの組）、ext＝側板・底板の範囲（梁の始めから）、
-    tubes＝外端太の範囲、sangi_rng＝桟木を置ける範囲."""
+    tubes＝外端太の範囲、sangi_rng＝桟木を置ける範囲、post_h_mm＝梁下のパイプサポートの長さ（分かれば、1本の荷重が
+    メーカーの許容支持力に入る大引の間隔にする）."""
     x0, x1 = ext or (0.0, length_mm)
     tub = tubes or (x0 - TUBE_FREE_MM, x1 + TUBE_FREE_MM)
     s0, s1 = sangi_rng or (x0, x1)
@@ -145,10 +162,16 @@ def plan_beam(length_mm: float, width_mm: float, depth_mm: float, slab_t_mm=0.0,
     ties = [x0 + x for x in _stations(x1 - x0, side.tie_pitch, EDGE_MM)]
     # 底の桟木は、合板が通るまで本数を増やす（幅 300 以下は2本から）
     best = None
+    allow = None
+    if post_h_mm > 0:
+        from ashiba.slab_form import PS_FREE_MAX_MM, ps_allow_kn
+
+        allow = ps_allow_kn(post_h_mm, post_h_mm > PS_FREE_MAX_MM)
+    q_ps = (W0_KN_M3 * depth_mm / 1000.0 + DEAD_FORM_KN + LIVE_KN) * (width_mm + 2 * (PLY_T_MM + BAND_MM)) / 1000.0 / 2.0
     for n in range(2 if width_mm <= 300.0 else BOTTOM_SANGI, 9):
         for p in UKE_PITCHES:
             chk = _bottom_check(depth_mm, width_mm, n, p)
-            if all(c.ok for c in chk):
+            if all(c.ok for c in chk) and (allow is None or q_ps * p / 1000.0 <= allow + 1e-9):
                 best = (p, chk, n)
                 break
         if best:
@@ -159,8 +182,10 @@ def plan_beam(length_mm: float, width_mm: float, depth_mm: float, slab_t_mm=0.0,
     bot_y = [-width_mm / 2.0 + SANGI_B_MM / 2.0 + (width_mm - SANGI_B_MM) * k / (n - 1) for k in range(n)]
     uke = [x0 + x for x in _stations(x1 - x0, best[0], 150.0)]
     tie_z = [z for z in tate if z < min(side_hs) - 30.0]
-    return BeamForm(x1 - x0, x0, width_mm, depth_mm, side_h, side, best[1], best[0], sangi, tate, ties, bot_y, uke,
-                    tub, tuple(ends), side_hs, tie_z)
+    f = BeamForm(x1 - x0, x0, width_mm, depth_mm, side_h, side, best[1], best[0], sangi, tate, ties, bot_y, uke,
+                 tub, tuple(ends), side_hs, tie_z)
+    f.post_h = post_h_mm
+    return f
 
 
 def beam_extents(bm: dict, cols=()) -> dict:

@@ -10,7 +10,8 @@
 
 計算（formwork.py: せき板・根太・大引の単純梁、たわみ 3mm）:
 - 荷重はコンクリート（鉄筋とも）RC_KN_M3×厚さ＋型枠 FORM_KN＋作業 WORK_KN（安衛則 240条の作業荷重 1.5kN/m²）。たわみは固定荷重だけ
-- パイプサポート1本の軸力＝荷重×su×sv ≦ PS_ALLOW_KN（目安。使う長さのメーカーの許容荷重で確かめる）
+- パイプサポート1本の軸力＝荷重×su×sv ≦ 許容支持力（ps_allow_kn。メーカーの表: 使用高さと材端条件、水平つなぎの有無。
+  利用者の指定 2026-10-31: パイプサポートの許容荷重はメーカー表に合わせて）
 - 間隔は候補の中から、みな通る組のうち大引の間隔が広い（詳細図の @900）組、次に支柱の本数が少ない組
 """
 
@@ -29,8 +30,19 @@ SLAB_OBIKI = "杉90"
 RC_KN_M3 = 24.0
 FORM_KN = 0.4
 WORK_KN = 1.5
-PS_ALLOW_KN = 15.0                    # パイプサポート1本の許容荷重の目安（kN）
-PS_MAX_MM = 3500.0                    # これを超えると水平つなぎ（2方向・2m 以内ごと）
+PS_MAX_MM = 3500.0                    # これを超えると水平つなぎ（2方向・2m 以内ごと。安衛則 242条）
+# パイプサポートの許容支持力（kN）: 岡部 フラワーサポート／パイプサポート（（一社）仮設工業会認定品）のカタログの表。
+# 連係あり（高さ 2m 以内ごとに水平つなぎを2方向に緊結金具で）は使用高さに関係なく 19.6。連係なしは使用高さ（m）の区分
+# 2以下・2〜2.5・2.5〜3・3〜3.4 ごと。材端条件はここの組み方（上端 杉の大引・下端 敷き桟木）では「上下端 木材」
+PS_SOURCE = "岡部 フラワーサポート／パイプサポート（仮設工業会認定品）の許容支持力の表"
+PS_TIED_KN = 19.6
+PS_FREE_KN = {"wood": ((2000.0, 19.6), (2500.0, 17.6), (3000.0, 13.7), (3400.0, 9.8)),        # 上下端 木材
+              "concrete": ((2000.0, 19.6), (2500.0, 18.6), (3000.0, 16.6), (3400.0, 14.7))}   # 上端 木材・下端 仕上げコンクリート
+PS_FREE_MAX_MM = 3400.0               # 連係なしの表はここまで。超える支柱には水平つなぎを設けて連係ありにする
+# 型式と使用寸法（mm）。同じカタログの仕様の表（パイプサポート）。補助サポート 4S 1200・5S 1500
+PS_MODELS = (("12S", 370.0, 505.0), ("50S", 1535.0, 2570.0), ("60S", 1780.0, 3055.0), ("75S", 2150.0, 3425.0),
+             ("90S", 2650.0, 3915.0))
+PS_AUX = (("4S", 1200.0), ("5S", 1500.0))
 TIE_PITCH_MM = 2000.0
 OBIKI_H_MM = 90.0                     # 大引（杉 90×90）のせい
 NEDA_D_MM = 50.0                      # 根太（角パイプ □50×50）のせい
@@ -40,6 +52,43 @@ SILL_OUT_MM = 150.0                   # 敷き桟木の、列の端の支柱か�
 SU_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引の向きの支柱の間隔
 SV_CANDS = (900.0, 750.0, 600.0)     # 大引どうしの間隔（詳細図は @900）
 EDGE_MM = 150.0                       # スラブの縁・穴からいちばん近い根太・大引まで
+
+
+def ps_allow_kn(height_mm: float, tied: bool = False, lower: str = "wood") -> float:
+    """パイプサポート1本の許容支持力（kN）. 連係あり（水平つなぎ）は 19.6、なしは使用高さの区分の値（3.4m を超えると 0＝使えない）."""
+    if tied:
+        return PS_TIED_KN
+    for h, kn in PS_FREE_KN[lower]:
+        if height_mm <= h + 1e-6:
+            return kn
+    return 0.0
+
+
+def ps_condition(height_mm: float, tied: bool) -> str:
+    """許容支持力の条件の書き方（計算書・明細書）."""
+    if tied:
+        return "連係あり（水平つなぎ 2m 以内ごと・2方向）"
+    lo = 0.0
+    for h, _kn in PS_FREE_KN["wood"]:
+        if height_mm <= h + 1e-6:
+            rng = f"{lo / 1000:g}〜{h / 1000:g}m" if lo else f"{h / 1000:g}m 以下"
+            return f"連係なし・使用高さ {rng}・上下端 木材"
+        lo = h
+    return "連係なし・使用高さ 3.4m 超（表に無い。水平つなぎが要る）"
+
+
+def ps_model(length_mm: float) -> str:
+    """使う長さに合う型式（使用寸法に入るいちばん短い型式）。90S より長いときは補助サポートを継ぐ（2本まで）."""
+    for name, lo, hi in PS_MODELS:
+        if lo <= length_mm <= hi:
+            return name
+    if length_mm < PS_MODELS[0][1]:
+        return "―（短すぎる）"
+    for aux, la in PS_AUX:
+        for name, lo, hi in PS_MODELS:
+            if lo <= length_mm - la <= hi:
+                return f"{name}＋補助サポート {aux}"
+    return "―（長すぎる。枠組・くさびの支保工を）"
 
 
 def loads(thick_mm: float) -> tuple[float, float]:
@@ -55,34 +104,36 @@ class SlabSpacing:
     beams: list            # [BeamCheck] せき板・根太・大引
     post_kn: float
     ok: bool
+    allow_kn: float = PS_TIED_KN   # パイプサポート1本の許容支持力（メーカーの表）
 
     def lines(self, q: float) -> list[str]:
         out = [f"荷重 {q:.2f} kN/m²（コンクリート {RC_KN_M3:.0f}kN/m³・型枠 {FORM_KN}・作業 {WORK_KN}）"]
         for b in self.beams:
             out.append(f"{b.part}（{b.member}）スパン {b.span_mm:.0f}: σ {b.sigma:.1f}／{b.fb:.1f} N/mm²・"
                        f"たわみ {b.deflection_mm:.2f} mm {'可' if b.ok else '不可'}")
-        out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{PS_ALLOW_KN:.1f} kN（目安） "
-                   f"{'可' if self.post_kn <= PS_ALLOW_KN + 1e-9 else '不可'}")
+        out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{self.allow_kn:.1f} kN（許容支持力。メーカーの表） "
+                   f"{'可' if self.post_kn <= self.allow_kn + 1e-9 else '不可'}")
         return out
 
 
-def choose_spacing(thick_mm: float) -> SlabSpacing:
+def choose_spacing(thick_mm: float, allow_kn: float = PS_TIED_KN) -> SlabSpacing:
+    """みな通る間隔の組. allow_kn はパイプサポート1本の許容支持力（ps_allow_kn）."""
     q, qd = loads(thick_mm)
     best = None
     for su in SU_CANDS:
         for sv in SV_CANDS:
             bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
             pk = q * su * sv / 1e6
-            ok = all(b.ok for b in bc) and pk <= PS_ALLOW_KN + 1e-9
+            ok = all(b.ok for b in bc) and pk <= allow_kn + 1e-9
             if ok:
                 key = (sv, su * sv)            # 大引は詳細図の @900 を先に、次に支柱の本数が少ない組
                 if best is None or key > best[0]:
-                    best = (key, SlabSpacing(su, sv, bc, pk, True))
+                    best = (key, SlabSpacing(su, sv, bc, pk, True, allow_kn))
     if best:
         return best[1]
     su, sv = SU_CANDS[-1], SV_CANDS[-1]
     bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
-    return SlabSpacing(su, sv, bc, q * su * sv / 1e6, False)
+    return SlabSpacing(su, sv, bc, q * su * sv / 1e6, False, allow_kn)
 
 
 # ---- 平面の形 ----
@@ -192,8 +243,8 @@ class SlabForm:
 
     def lines(self) -> list[str]:
         out = self.spacing.lines(self.q)
-        out.append(f"パイプサポートの長さ {self.post_h:.0f}" + (f"（{PS_MAX_MM:.0f} を超えるので水平つなぎ {len(self.ties)}段・2方向）"
-                                                         if self.ties else ""))
+        out.append(f"パイプサポートの長さ {self.post_h:.0f}（型式 {ps_model(self.post_h)}）・{ps_condition(self.post_h, bool(self.ties))}"
+                   + (f"・水平つなぎ {len(self.ties)}段" if self.ties else ""))
         return out
 
     def quantities(self) -> list[tuple[str, int, str]]:
@@ -211,7 +262,7 @@ class SlabForm:
         ob = sum(u1 - u0 for u0, u1, _v in self.obiki)
         out.append(("杉大引 90×90（4m）", math.ceil(ob / 4000.0 * 1.05), f"延べ {ob / 1000:.1f}m・@{self.spacing.sv:.0f}"))
         out.append(("釘（パイプサポートの上端を大引に）", 2 * len(self.posts), "受け板の穴から2本ずつ"))
-        out.append(("パイプサポート", len(self.posts), f"長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
+        out.append(("パイプサポート", len(self.posts), f"{ps_model(self.post_h)}・長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
         sill = sum(e - s for s, e, _v in self.sills())
         out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0 * 1.05), f"パイプサポートの下に寝かせて列ごとに通す・延べ {sill / 1000:.1f}m"))
         if self.ties:
@@ -246,8 +297,15 @@ def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: flo
     loc = lambda p: ((p[0] - o[0]) * u[0] + (p[1] - o[1]) * u[1], (p[0] - o[0]) * v[0] + (p[1] - o[1]) * v[1])
     outer = [loc(p) for p in pts]
     holes = [[loc(p) for p in h] for h in holes_mm]
-    sp = choose_spacing(thick_mm)
     post_h = bottom_mm - PLY_T_MM - NEDA_D_MM - OBIKI_H_MM - SILL_H_MM - floor_mm
+    # 水平つなぎ: 3.5m を超えると安衛則 242条。メーカーの表の連係なしは 3.4m までなので、それを超えれば設けて連係ありに
+    ties = []
+    if post_h > PS_FREE_MAX_MM:
+        z = TIE_PITCH_MM
+        while z < post_h - 300.0:
+            ties.append(z)
+            z += TIE_PITCH_MM
+    sp = choose_spacing(thick_mm, ps_allow_kn(post_h, bool(ties)))
     us = [p[0] for p in outer]
     vs = [p[1] for p in outer]
     # 根太（v の向き。u ごと NEDA_PITCH_MM）、大引（u の向き。v ごと sv）、支柱（大引の上 su ごと）
@@ -261,12 +319,6 @@ def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: flo
             for x in _grid(s, e, sp.su, EDGE_MM - 50.0):
                 if _in_poly((x, y), outer) and not any(_in_poly((x, y), c) for c in clear):
                     posts.append((x, y))
-    ties = []
-    if post_h > PS_MAX_MM:
-        z = TIE_PITCH_MM
-        while z < post_h - 300.0:
-            ties.append(z)
-            z += TIE_PITCH_MM
     return SlabForm(ang_deg, o, outer, holes, thick_mm, sp, post_h, neda, obiki, posts, ties)
 
 

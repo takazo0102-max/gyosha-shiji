@@ -280,11 +280,12 @@ def main(argv=None) -> int:
             continue
         ex = beam_extents(bm, rects)
         st = slab_over(bm, slabs)
-        f = plan_beam(bm["length"], bm["width"], bm["depth"], st, ex["ext"], ex["tubes"], ex["sangi"], ex["ends"])
-        # 受けの単管を受けるパイプサポート: 下の床（下のスラブの天端。無ければ 0）から
+        # 受けの単管を受けるパイプサポート: 下の床（下のスラブの天端。無ければ 0）から。1本の荷重がメーカーの許容支持力に
+        # 入るように大引の間隔を決めるので、長さを先に求めて渡す
         mid = ((bm["ca"][0] + bm["cb"][0]) / 2.0, (bm["ca"][1] + bm["cb"][1]) / 2.0)
         below = [o.top_mm for o in slabs if o.top_mm < bm["bottom"] - 300.0 and _inside(mid, o.polygon)]
-        f.post_h = bm["bottom"] - 12.0 - 50.0 - 90.0 - 45.0 - (max(below) if below else 0.0)    # 根太 50・大引 90・敷き桟木 45
+        post_h = bm["bottom"] - 12.0 - 50.0 - 90.0 - 45.0 - (max(below) if below else 0.0)    # 根太 50・大引 90・敷き桟木 45
+        f = plan_beam(bm["length"], bm["width"], bm["depth"], st, ex["ext"], ex["tubes"], ex["sangi"], ex["ends"], post_h)
         # 敷き桟木の向きは上のスラブの敷き桟木（大引の向き）に揃える（利用者の指定 2026-10-31: さんぎの向き揃えて）
         over = [o for o in slabs if abs(o.top_mm - bm["top"]) <= 20.0 and any(_inside((mid[0] + bm["u"][1] * s_, mid[1] - bm["u"][0] * s_), o.polygon)
                                                                            for s_ in (bm["width"], -bm["width"]))]
@@ -324,6 +325,7 @@ def main(argv=None) -> int:
                               "side_hs": list(f.side_hs), "tate_z": f.tate_z, "tie_z": f.tie_z, "tie_x": f.tie_x,
                               "tie_pitch": f.side.tie_pitch, "sangi": f.side.sangi_pitch, "uke_x": f.uke_x,
                               "uke_pitch": f.uke_pitch, "bot_y": f.bot_y, "post_h": f.post_h, "post_kn": f.post_kn,
+                              "ps_allow": f.ps_allow, "ps_tied": f.ps_tied,
                               "psY": bm["width"] / 2.0 + 12.0 + 60.0 + 30.0, "sill_cross": bool(f.sill_cross),
                               "slab_t": list(st), "lines": f.lines()})
     if skipped:
@@ -399,7 +401,8 @@ def main(argv=None) -> int:
                               "sv": f.spacing.sv, "posts": [r2(p_) for p_ in f.posts],
                               "obiki": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.obiki],
                               "neda_n": len(f.neda), "sills": [[round(a_, 1), round(b_, 1), round(v_, 1)] for a_, b_, v_ in f.sills()],
-                              "ties": f.ties, "post_h": f.post_h, "post_kn": f.spacing.post_kn, "q": f.q, "lines": f.lines()})
+                              "ties": f.ties, "post_h": f.post_h, "post_kn": f.spacing.post_kn, "q": f.q, "lines": f.lines(),
+                              "ps_allow": f.spacing.allow_kn})
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     plan["rows"] = [list(r_) for r_ in rows]

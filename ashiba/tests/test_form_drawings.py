@@ -9,7 +9,8 @@ from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
-from ashiba.form_drawings import NOTICE_H_MM, build_html, build_xlsx, calc_lines, notice_info
+from ashiba.form_drawings import (NOTICE_H_MM, assembly_rows, build_html, build_xlsx, calc_lines, load_rows, member_rows,
+                                  notice_info)
 
 
 def _plan(floor=0.0, bottom=2820.0):
@@ -26,8 +27,8 @@ def _plan(floor=0.0, bottom=2820.0):
 class TestFormDrawings(unittest.TestCase):
     def test_pages_and_calc(self):
         html = build_html(_plan())
-        self.assertEqual(html.count('class="page"'), 4)                     # 伏図・断面詳細・計算書・計画届
-        for word in ("型枠支保工 伏図", "断面図・詳細図", "構造計算書", "計画届の要否", "様式第20号", "安衛則 242条"):
+        self.assertEqual(html.count('class="page"'), 5)                     # 伏図・断面詳細・計算書・部材等明細書・計画届
+        for word in ("型枠支保工 伏図", "断面図・詳細図", "構造計算書", "部材等明細書", "計画届の要否", "様式第20号", "安衛則 242条"):
             self.assertIn(word, html)
         heads = [h for h, _b in calc_lines(_plan())]
         self.assertEqual(heads[:2], ["前提", "スラブ S0（厚さ 180）"])
@@ -45,7 +46,26 @@ class TestFormDrawings(unittest.TestCase):
             p = Path(d) / "a.xlsx"
             build_xlsx(_plan(), p)
             names = zipfile.ZipFile(p).namelist()
-            self.assertIn("xl/worksheets/sheet4.xml", names)               # 計算書・材料・支柱・計画届の要否
+            self.assertIn("xl/worksheets/sheet5.xml", names)               # 計算書・材料・支柱・部材等明細書・計画届の要否
+
+    def test_member_sheet(self):
+        """部材等明細書（計画届作成の手引 第6版 p.147 の例の欄）."""
+        kinds = [r[0] for r in member_rows(_plan())]
+        self.assertEqual(kinds[:4], ["せき板", "角パイプ", "木材（角材）", "パイプサポート"])
+        self.assertIn(("水平つなぎ", "無（支柱の高さ 3.4m 以下。メーカーの表の連係なしで受ける）", "―"), member_rows(_plan()))
+        self.assertNotIn("フォームタイ", kinds)                             # 壁・柱・梁が無ければ載せない
+        (row,) = load_rows(_plan())
+        self.assertEqual(row[0], "スラブ S0（厚さ 180）")
+        self.assertAlmostEqual(row[2], 24.0 * 180 + 400.0)                  # 固定荷重 N/m²
+        self.assertAlmostEqual(row[4], row[2] + 1500.0)
+        self.assertAlmostEqual(row[5], 6700.0)                              # 支柱1本当り N
+        items = dict((a, c) for a, _b, c in assembly_rows(_plan()))
+        self.assertEqual(items["脚部の滑動・沈下防止措置"], "有")
+        self.assertEqual(items["水平つなぎ・筋かい・控え等の措置"], "無")
+        tall = _plan()
+        tall["slabs"][0]["ties"] = [2000.0]
+        self.assertEqual(dict((a, c) for a, _b, c in assembly_rows(tall))["水平つなぎ・筋かい・控え等の措置"], "有")
+        self.assertIn("水平つなぎ（2方向・2m 以内ごと）", dict((a, c) for a, _b, c in member_rows(tall))["単管"])
 
 
 if __name__ == "__main__":
