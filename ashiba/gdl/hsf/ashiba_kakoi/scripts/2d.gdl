@@ -1,0 +1,42 @@
+﻿! 仮囲い 2D: パネル（外）・横地・支柱・控え（中）・ゲート
+pen penEquip
+define style "kkT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "kkT"
+for k = 1 to nRu - 1 step 2
+	line2 ru[k], -po, ru[k + 1], -po
+	line2 ru[k], -po - max(pt, 0.004), ru[k + 1], -po - max(pt, 0.004)
+	line2 ru[k], -ro, ru[k + 1], -ro
+next k
+for i = 1 to nP
+	circle2 px[i], 0, r
+next i
+for i = 1 to nBq
+	line2 bq[i] - ro, 0, bq[i] - ro, brB
+	line2 bq[i] + ro, 0, bq[i] + ro, brB
+	circle2 bq[i], brB, r
+next i
+if kkFound = 3 then
+	line2 0, -0.15, kkL, -0.15
+	line2 0, 0.15, kkL, 0.15
+	line2 0, brB - 0.15, kkL, brB - 0.15
+	line2 0, brB + 0.15, kkL, brB + 0.15
+endif
+for k = 1 to nGx - 1 step 2
+	gw = gx[k + 1] - gx[k]
+	kd = 1
+	if (k + 1) / 2 <= nGk then kd = gk[(k + 1) / 2]
+	rect2 gx[k], -0.05, gx[k] + 0.1, 0.05
+	rect2 gx[k + 1] - 0.1, -0.05, gx[k + 1], 0.05
+	if kd = 3 then
+		! 内開きのドア
+		line2 gx[k] + 0.1, 0, gx[k] + 0.1, gw - 0.2
+		arc2 gx[k] + 0.1, 0, gw - 0.2, 0, 90
+	else
+		! 引戸（キャスター・ジャバラ）
+		line2 gx[k] + 0.1, 0.03, gx[k + 1] - 0.1, 0.03
+		line2 gx[k] + 0.1, -0.03, gx[k + 1] - 0.1, -0.03
+	endif
+next k
+text2 kkL / 2, -0.6, kkName
+hotspot2 0, 0
+hotspot2 kkL, 0

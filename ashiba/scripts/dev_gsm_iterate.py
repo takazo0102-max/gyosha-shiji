@@ -108,6 +108,12 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"ymKind": 1, "ymL": 6.0, "flgW": 0.3, "brX": "150,1950,3750,5550"},
     },
+    # 仮囲い（利用者の指定 2026-11-01: 仮囲いを追加して 斜めにも対応）。地盤の高低差とゲートも見る
+    "ashiba_kakoi": {
+        "images": ("3D", "2D"),
+        "params": {"kkL": 10.8, "postX": "0,1800,3600,7200,9000,10800", "postZ": "0,0,100,300,400,500",
+                   "runX": "-75,3600,7200,10875", "gateX": "3600,7200", "gateK": "1"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

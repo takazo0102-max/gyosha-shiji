@@ -89,6 +89,8 @@ GDL_BUILTINS = {
     "abs", "ceil", "fra", "int", "round_int", "sgn", "sqr", "sqrt", "exp", "log", "sin", "cos", "tan", "atn",
     "acs", "asn", "pi", "rnd", "max", "min", "not", "mod", "str", "strlen", "strsub", "strstr", "split",
     "bittest", "bitset", "vardim1", "vardim2", "request", "ind", "and", "or", "exor",
+    # 予約語（2026-11-01、仮囲いでパネルの上端を top と名付けて、部品のパラメータが1つも変えられなくなった。del top の top）
+    "top",
 }
 
 
@@ -113,6 +115,7 @@ class TestNoBuiltinNames(unittest.TestCase):
     def test_detects_fra(self):
         self.assertTrue(builtin_shadows("\tfra = atn(1)\n"))
         self.assertEqual(builtin_shadows("\tfrAng = atn(1)\nif a = 1 then b = 2\n"), [])
+        self.assertTrue(builtin_shadows("top = lift + pnH\n"))
 
 
 # ループの中の座標変換（add・rot・mul）と del の釣り合い。1回ずれると回るたびに積み重なって部材が散らばる
