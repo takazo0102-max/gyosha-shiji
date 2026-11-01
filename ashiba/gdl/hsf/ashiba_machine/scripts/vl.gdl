@@ -31,7 +31,7 @@ mdS[11] = "ポンプ車 26m"
 mdV[12] = 11
 mdS[12] = "ポンプ車 36m"
 mdV[13] = 12
-mdS[13] = "生コン車 4.5m³"
+mdS[13] = "生コン車 4.4m³"
 mdV[14] = 13
 mdS[14] = "生コン車 3.2m³"
 mdV[15] = 14
@@ -96,15 +96,15 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	if mcModel = 8 then
 		parameters mcName = "クローラクレーン 55t（日立住友）", mcNote = "日立住友 SCX550-3 53.4t"
 		parameters mcKind = 2, trkL = 5.55, trkW = 4.36, shoeW = 0.76, trkH = 0.98, upW = 3.2, cwW = 3.2, tailR = 3.85
-		parameters upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.3, pvX = 1, pvH = 1.595, lbL = 31
+		parameters upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.2, pvX = 1, pvH = 1.595, lbL = 31
 		parameters lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6, gnX = 3, gnH = 5.33, hkH = 1.67, hkW = 0.62
 		parameters hkT = 0.55, cbS = -1, maxR = 0
 	endif
 	if mcModel = 9 then
 		parameters mcName = "クローラクレーン 90t（日立住友）", mcNote = "日立住友 SCX900-3 94t"
 		parameters mcKind = 2, trkL = 6.295, trkW = 4.99, shoeW = 0.81, trkH = 1.11, upW = 2.99, cwW = 4.15, tailR = 4.3
-		parameters upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.4, pvX = 1.2, pvH = 2.11, lbL = 30
-		parameters lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.3, gnH = 6.545, hkH = 2.12, hkW = 0.82
+		parameters upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.7, pvX = 1.2, pvH = 2.11, lbL = 30
+		parameters lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.45, gnH = 6.545, hkH = 2.12, hkW = 0.82
 		parameters hkT = 0.6, cbS = -1, maxR = 0
 	endif
 	if mcModel = 10 then
@@ -122,9 +122,9 @@ if GLOB_MODPAR_NAME = "mcModel" then
 		parameters tuH = 3.5, o1x = 2.06, o1y = 7.6, o2x = -5.74, o2y = 7.8, o3x = -6.83, o3y = 1.3, maxR = 32.1
 	endif
 	if mcModel = 12 then
-		parameters mcName = "生コン車 4.5m³", mcNote = "三菱ふそう スーパーグレート FV ミキサ 19.945t"
-		parameters mcKind = 4, carL = 7.925, carW = 2.49, cabH = 3.1, frOv = 1.3, wb = 3.26, nRear = 2, rearSp = 1.31
-		parameters whR = 0.525, frZ = 1.05, carF = 3.9625, nFr = 1, frSp = 1.7, drL = 4.2, drD = 2.25, drA = 16
+		parameters mcName = "生コン車 4.4m³", mcNote = "UD クオン CW 6×4 ミキサ 19.97t"
+		parameters mcKind = 4, carL = 7.975, carW = 2.49, cabH = 3.045, frOv = 1.4, wb = 3.2, nRear = 2, rearSp = 1.37
+		parameters whR = 0.528, frZ = 1.05, carF = 3.9875, nFr = 1, frSp = 1.7, drL = 4.2, drD = 2.25, drA = 16
 	endif
 	if mcModel = 13 then
 		parameters mcName = "生コン車 3.2m³", mcNote = "三菱ふそう ファイター FK7-Z ミキサ 14t"
@@ -133,7 +133,7 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	endif
 	if mcModel = 14 then
 		parameters mcName = "ダンプ 10t", mcNote = "いすゞ ギガ 6×4 19.96t"
-		parameters mcKind = 5, carL = 7.64, carW = 2.49, cabH = 3.15, frOv = 1.37, wb = 3.225, nRear = 2, rearSp = 1.31
+		parameters mcKind = 5, carL = 7.64, carW = 2.49, cabH = 3.17, frOv = 1.37, wb = 3.225, nRear = 2, rearSp = 1.31
 		parameters whR = 0.528, frZ = 1.45, carF = 3.82, nFr = 1, frSp = 1.7, bedL = 5.1, bedW = 2.2, bedH = 0.52
 		parameters bedA = 0
 	endif
