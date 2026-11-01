@@ -41,7 +41,9 @@ mdS[16] = "ダンプ 4t"
 mdV[17] = 16
 mdS[17] = "高所作業車 12m"
 mdV[18] = 17
-mdS[18] = "垂直昇降 5.7m"
+mdS[18] = "高所作業車 17m（タダノ）"
+mdV[19] = 18
+mdS[19] = "垂直昇降 5.7m"
 values{2} "mcModel" mdV, mdS
 if GLOB_MODPAR_NAME = "mcModel" then
 	if mcModel = 1 then
@@ -151,6 +153,13 @@ if GLOB_MODPAR_NAME = "mcModel" then
 		parameters o3y = 0, maxR = 9.9
 	endif
 	if mcModel = 17 then
+		parameters mcName = "高所作業車 17m（タダノ）", mcNote = "タダノ AT-170TG・作業床 17.2m"
+		parameters mcKind = 6, carL = 6.9, carW = 2.15, cabH = 2.25, frOv = 1.385, wb = 3.4, nRear = 1, rearSp = 1.3
+		parameters whR = 0.356, frZ = 0.91, carF = 5.95, nFr = 1, frSp = 1.7, nSec = 3, abL = 15.4, abA = 60
+		parameters tuH = 2.44, pfL = 1.2, pfW = 0.7, o1x = 3.53, o1y = 2.05, o2x = -0.6, o2y = 2.05, o3x = 0
+		parameters o3y = 0, maxR = 15.8
+	endif
+	if mcModel = 18 then
 		parameters mcName = "垂直昇降 5.7m", mcNote = "アイチ SV06E1NS 1.2t・作業床 5.72m"
 		parameters mcKind = 7, carL = 1.87, carW = 0.76, carF = 0.935, whR = 0.185, pfL = 1.77, pfW = 0.68, pfH = 3
 		parameters maxR = 0

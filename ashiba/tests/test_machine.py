@@ -53,6 +53,9 @@ class TestMachines(unittest.TestCase):
         self.assertEqual(MACHINES["dump10"].params["frOv"], 1.37)                   # いすゞ 車両外観図
         self.assertEqual(MACHINES["aw12"].params["carF"], 2.15)                     # 旋回台はキャブのすぐ後ろ
         self.assertIn("準中型", license_for(MACHINES["aw12"]))
+        at = MACHINES["at17"].params                                                 # タダノ AT-170TG（前方格納。旋回台は後ろ）
+        self.assertEqual((at["carL"], at["wb"], at["frOv"], at["o1y"]), (6.9, 3.4, 1.385, 2.05))   # 公表 6,900・3,400・最大張出 4.1m
+        self.assertAlmostEqual(at["carL"] - at["frOv"] - at["wb"], 2.115)          # 後軸〜後端（公表）
 
     def test_licenses(self):
         """3t は機体重量（作業装置を除いた乾燥質量。安衛令20条12号・安衛則36条9号）で分ける。PC38UU-6 は機体質量 2,680kg."""
