@@ -1,7 +1,9 @@
 """移動式クレーン（ラフテレーンクレーン）の揚重計画（利用者の指定 2026-11-01: クレーン リサーチして追加して）.
 部品 ashiba_crane（1台に1つ）、置くのは scripts/crane_run.py。
 
-- 機種: 25t タダノ GR-250N（Ⅴ）・50t GR-500N（Ⅰ）・70t GR-700N-3（性能表と寸法は crane_data.py。各社の公開資料）
+- 機種（利用者の指定 2026-11-01: ラフタークレーンも追加して種類も増やして）: タダノ 13・16・25・35・50・60・70・100t と加藤製作所
+  13・25・50・75t の 12 機種。性能表は crane_data.py（25t）と crane_tables.py（ほか）、寸法は MODELS（主要寸法図・平面全体図の
+  公表値。図から測った値と資料に無い値は guesses）。調べたメモは docs/調査_ラフタークレーン_タダノ.md・調査_ラフタークレーン_加藤.md
 - 吊り荷ごとに作業半径（旋回中心からフック）を測り、ブーム長さを短い方から試して「定格総荷重 × 計画の率（既定 90%）≧ 吊り荷＋
   フック＋玉掛け用具」かつ「フックの高さ ≧ 要る高さ」になる最短のブームを選ぶ（定格総荷重はフック・つり具を含む。表に無い
   半径は外側の行で読む）。機種を省くと、全部の吊り荷を満たす一番小さい機種
@@ -21,7 +23,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ashiba.crane_data import GR250N, GR500N_74, GR700N_78
+from ashiba import crane_tables as CT
+from ashiba.crane_data import GR250N
 
 G = 9.80665
 PLATE = ("厚板鋼板 NT22×5×10", 1524.0, 3048.0, 22.0, 802.0)      # 日建リース 仮設資材カタログ Vol.10 p394
@@ -58,6 +61,15 @@ class CraneModel:
     hook_t: float                  # 主巻フックの質量 t（目安）
     tables: dict                   # 張出幅 m → 作業半径 m → ブーム長さ m → 定格総荷重 t
     note: str = ""
+    maker: str = "タダノ"
+    axles: tuple = ()              # 車軸の位置 mm（旋回中心から前が +）
+    tire: tuple = (683.0, 385.0)   # タイヤの半径・幅 mm（タイヤの呼びから算出）
+    out_shift: float = 0.0         # 右の列のアウトリガの前後のずれ mm（右の前＝out_front−これ、右の後＝out_rear＋これ）
+    float_ab: tuple = (0.0, 0.0)   # フロートの横・前後 mm（0＝丸 float_d）
+    cab: tuple = (-300.0, 2000.0, 400.0, 1300.0)   # 運転室 mm（後ろ・前（旋回中心から前が +）・ブームの右へ 内側・外側）
+    boom_n: int = 4                # ブームの段の数
+    boom_w: float = 700.0          # 基本ブームの幅 mm（目安。資料に無い）
+    guesses: str = ""              # 資料に無く決めた値・図から測った値
 
     @property
     def spreads(self) -> list[float]:
@@ -68,15 +80,73 @@ class CraneModel:
         return sorted({b for t in self.tables.values() for row in t.values() for b in row})
 
 
+_TIRE = {"275/80R22.5": (506.0, 275.0), "325/95R24": (614.0, 325.0), "385/95R25": (683.0, 385.0), "445/95R25": (740.0, 445.0),
+         "505/95R25": (797.0, 505.0)}       # 呼びからの半径（幅×扁平×2＋リム径の半分）・幅 mm。メーカーの値ではない
+_GUESS_T = "ブームの先からフックまで・基本ブームの幅・運転室（タダノの図に寸法が無い）"
+
+
+def _m(key, kind, name, cap, mass, jack, l, w, h, front, of, orr, tail, fd, pvh, pvb, tip, hook, tables, note="", **kw):
+    return CraneModel(key, kind, name, cap, mass, jack, l, w, h, front, of, orr, tail, fd, pvh, pvb, tip, hook, tables, note, **kw)
+
+
 MODELS = {
-    "25t": CraneModel("25t", 1, "タダノ GR-250N（Ⅴ）25t ラフテレーンクレーン", 25.0, 25.495, 26.9, 11530.0, 2620.0, 3475.0,
-                      5400.0, 3265.0, 3415.0, 3100.0, 300.0, 2300.0, 1000.0, 1300.0, 0.25, GR250N),
-    "50t": CraneModel("50t", 2, "タダノ GR-500N（Ⅰ）50t ラフテレーンクレーン", 51.0, 38.895, 38.3, 11870.0, 2960.0, 3760.0,
-                      5600.0, 3600.0, 3600.0, 3550.0, 450.0, 2600.0, 1300.0, 1500.0, 0.45, {7.4: GR500N_74},
-                      "アウトリガの前後の間隔は目安（寸法図に無い）。性能表は最大張出 7.4m だけ"),
-    "70t": CraneModel("70t", 3, "タダノ GR-700N-3 70t ラフテレーンクレーン", 70.0, 41.295, 43.2, 12765.0, 2780.0, 3750.0,
-                      6000.0, 4820.0, 4527.0, 3640.0, 400.0, 2800.0, 1500.0, 1800.0, 0.6, {7.8: GR700N_78},
-                      "性能表は最大張出 7.8m だけ（モードの違う2列は大きい方）。2.1m の 70t は重荷重装置付き"),
+    "13t": _m("13t", 1, "タダノ GR-130NL（Ⅱ）13t ラフテレーンクレーン", 13.0, 14.535, 13.0, 7570.0, 2000.0, 2815.0,
+              3070.0, 2422.5, 2472.5, 1500.0, 350.0, 2765.0, 1138.0, 1000.0, 0.13, CT.GR130NL2, "H型。4本掛と2本掛の表の大きい方",
+              axles=(1375.0, -1375.0), tire=_TIRE["275/80R22.5"], out_shift=195.0, cab=(-900.0, 1250.0, 200.0, 980.0),
+              boom_n=6, boom_w=500.0, guesses="車軸の位置（軸距 2,750 を旋回中心の前後に等分）・フートピン（X型の図）・" + _GUESS_T),
+    "k13t": _m("k13t", 2, "加藤製作所 MR-130RfⅡ 13t ラフテレーンクレーン", 13.0, 14.045, 0.0, 7465.0, 1995.0, 2870.0,
+               2780.0, 2208.0, 2676.0, 1600.0, 350.0, 2580.0, 1320.0, 1290.0, 0.09, CT.MR130RF2, "H型", maker="加藤製作所",
+               axles=(1325.0, -1425.0), tire=_TIRE["275/80R22.5"], out_shift=-192.0, cab=(-990.0, 1295.0, 180.0, 990.0),
+               boom_n=6, boom_w=480.0, guesses="フートピン（ウインチドラムの寸法かもしれない）・最大ジャッキ反力（公表なし）・"
+               "基本ブームの幅。運転室は全体図から測った値。ブームの先からフックまでは最大地上揚程から逆算"),
+    "16t": _m("16t", 3, "タダノ GR-160N（Ⅴ）16t ラフテレーンクレーン", 16.0, 19.795, 18.4, 8310.0, 2200.0, 3150.0,
+              3005.0, 2637.0, 2748.0, 2390.0, 400.0, 3210.0, 2020.0, 1100.0, 0.14, CT.GR160N5, "H型（X型最小 2.7m は入れない）",
+              axles=(1600.0, -1600.0), tire=_TIRE["325/95R24"], out_shift=244.0, cab=(-500.0, 1700.0, 300.0, 1150.0),
+              boom_n=6, boom_w=560.0, guesses="車軸の位置（軸距 3,200 を等分）・フートピン（X型の図）・" + _GUESS_T),
+    "25t": _m("25t", 4, "タダノ GR-250N（Ⅴ）25t ラフテレーンクレーン", 25.0, 25.495, 26.9, 11530.0, 2620.0, 3475.0,
+              3655.0, 3265.0, 3415.0, 3100.0, 400.0, 3435.0, 2600.0, 2020.0, 0.22, GR250N, "H型",
+              axles=(1940.0, -1940.0), tire=_TIRE["385/95R25"], out_shift=270.0, float_ab=(300.0, 400.0),
+              cab=(-300.0, 2000.0, 400.0, 1300.0), boom_n=4, boom_w=620.0,
+              guesses="車軸の位置（軸距 3,880 を等分）・基本ブームの幅・運転室（図に寸法が無い）。ブームの先からフックまでは最大地上揚程 31.3m から逆算"),
+    "k25t": _m("k25t", 5, "加藤製作所 SR-250RfⅡ 25t ラフテレーンクレーン", 25.0, 25.575, 0.0, 11470.0, 2620.0, 3440.0,
+               3750.0, 3339.0, 3391.0, 3100.0, 400.0, 3335.0, 2600.0, 1720.0, 0.23, CT.SR250RF2, "H型", maker="加藤製作所",
+               axles=(1940.0, -1960.0), tire=_TIRE["385/95R25"], out_shift=278.0, float_ab=(300.0, 400.0),
+               cab=(-300.0, 2020.0, 390.0, 1290.0), boom_n=4, boom_w=620.0,
+               guesses="最大ジャッキ反力（公表なし）・ブームの先からフックまで・基本ブームの幅。運転室は全体図から測った値"),
+    "35t": _m("35t", 6, "タダノ GR-350N-1 35t ラフテレーンクレーン", 35.0, 31.595, 34.9, 11400.0, 2750.0, 3605.0,
+              3700.0, 3500.0, 3500.0, 3150.0, 400.0, 3400.0, 2600.0, 1400.0, 0.21, CT.GR350N1, "X型・5段ブーム（現行の一覧に無い旧型）",
+              axles=(1900.0, -1900.0), tire=_TIRE["445/95R25"], float_ab=(330.0, 490.0), cab=(-300.0, 2100.0, 450.0, 1350.0),
+              boom_n=5, boom_w=680.0,
+              guesses="前後のアウトリガの位置・キャリヤの前端・フートピン（寸法図に無い）・車軸の位置・フロートの向き・" + _GUESS_T),
+    "k50t": _m("k50t", 7, "加藤製作所 SL-500RfⅢ 50t ラフテレーンクレーン", 50.0, 35.695, 0.0, 12475.0, 2750.0, 3730.0,
+               5200.0, 4770.5, 3769.5, 3550.0, 400.0, 3650.0, 2940.0, 1850.0, 0.5, CT.SL500RF3, "H型。前方の表は入れない",
+               maker="加藤製作所", axles=(3425.0, -825.0, -2325.0), tire=_TIRE["385/95R25"], out_shift=321.0,
+               float_ab=(290.0, 470.0), cab=(0.0, 2345.0, 500.0, 1365.0), boom_n=5, boom_w=780.0,
+               guesses="最大ジャッキ反力（公表なし）・ブームの先からフックまで・基本ブームの幅。運転室は全体図から測った値"),
+    "50t": _m("50t", 8, "タダノ GR-500N（Ⅰ）50t ラフテレーンクレーン", 51.0, 38.895, 38.3, 11870.0, 2960.0, 3760.0,
+              5600.0, 3600.0, 3600.0, 3550.0, 450.0, 3500.0, 2600.0, 1500.0, 0.46, CT.GR500N1, "X型・6段ブーム（現行の一覧に無い旧型）",
+              axles=(2525.0, -2525.0), tire=_TIRE["505/95R25"], float_ab=(345.0, 500.0), cab=(-200.0, 2300.0, 500.0, 1400.0),
+              boom_n=6, boom_w=780.0,
+              guesses="前後のアウトリガの位置・キャリヤの前端・フートピン（寸法図に無い）・車軸の位置・フロートの向き・" + _GUESS_T),
+    "60t": _m("60t", 9, "タダノ GR-600N（Ⅲ）60t ラフテレーンクレーン", 60.0, 36.195, 36.8, 12895.0, 2780.0, 3720.0,
+              4725.0, 4320.0, 4327.0, 3550.0, 400.0, 3748.0, 2950.0, 1600.0, 0.31, CT.GR600N3, "H型。※（重荷重装置付）の値は入れない",
+              axles=(3150.0, 1300.0, -3150.0), tire=_TIRE["385/95R25"], out_shift=310.0, cab=(-100.0, 2400.0, 500.0, 1400.0),
+              boom_n=5, boom_w=800.0, guesses="車軸の位置（軸距 1,850＋4,450 から）・" + _GUESS_T),
+    "70t": _m("70t", 10, "タダノ GR-700N-3 70t ラフテレーンクレーン", 70.0, 41.295, 43.2, 12765.0, 2780.0, 3750.0,
+              5225.0, 4820.0, 4527.0, 3640.0, 400.0, 3748.0, 3000.0, 1800.0, 0.34, CT.GR700N3,
+              "H型。※（重荷重装置付。9.8m ブームの 5.5m より内側など）の値は入れない",
+              axles=(3500.0, 2000.0, -2000.0, -3500.0), tire=_TIRE["385/95R25"], out_shift=310.0, cab=(-100.0, 2300.0, 500.0, 1400.0),
+              boom_n=6, boom_w=820.0, guesses="車軸の位置（軸距 1,500＋4,000＋1,500 から）・" + _GUESS_T),
+    "k75t": _m("k75t", 11, "加藤製作所 SL-750RfⅢ 75t ラフテレーンクレーン", 75.0, 41.155, 0.0, 12990.0, 2850.0, 3750.0,
+               5335.0, 4931.0, 4459.0, 3550.0, 400.0, 3665.0, 2940.0, 2050.0, 0.83, CT.SL750RF3, "H型。通常伸縮。前方の表は入れない",
+               maker="加藤製作所", axles=(3575.0, 2025.0, -1875.0, -3425.0), tire=_TIRE["385/95R25"], out_shift=318.0,
+               float_ab=(290.0, 470.0), cab=(0.0, 2315.0, 475.0, 1380.0), boom_n=6, boom_w=820.0,
+               guesses="最大ジャッキ反力（公表なし）・ブームの先からフックまで・基本ブームの幅。運転室は全体図から測った値"),
+    "100t": _m("100t", 12, "タダノ GR-1000N（Ⅰ）100t ラフテレーンクレーン", 100.0, 41.295, 45.3, 13240.0, 2780.0, 3750.0,
+               5225.0, 4820.0, 4527.0, 3900.0, 400.0, 3748.0, 2900.0, 1800.0, 0.43, CT.GR1000N_CW4,
+               "H型。カウンタウエイト 4.0t 付の表（別送）。※の値は入れない",
+               axles=(3500.0, 2000.0, -2000.0, -3500.0), tire=_TIRE["385/95R25"], out_shift=310.0, cab=(-100.0, 2300.0, 500.0, 1400.0),
+               boom_n=6, boom_w=860.0, guesses="車軸の位置（軸距 1,500＋4,000＋1,500 から）・" + _GUESS_T),
 }
 
 
@@ -270,7 +340,7 @@ def crane_plan(name: str, lifts: list[Lift], model: Optional[str] = None, spread
 def _foundation(p: CranePlan) -> None:
     m = p.model
     q_max = max((x.total_t(m) for x in p.lifts), default=0.0)
-    p.reaction_t = min(m.max_jack_t, REACTION_RATE * (m.mass_t + q_max))
+    p.reaction_t = min(m.max_jack_t or math.inf, REACTION_RATE * (m.mass_t + q_max))   # 加藤は最大ジャッキ反力の公表なし（0）
     for n in (1, 2):
         p.plates = n
         p.pressure = p.reaction_t * G / PLATE_AREA[n]
@@ -317,33 +387,30 @@ def _checks(p: CranePlan, ratio: float, spread: Optional[float]) -> None:
 
 
 def rated_strings(m: CraneModel, spread: float = 0.0) -> dict:
-    """部品が姿勢から定格総荷重を読む表: 張出幅 mm（rtS。大きい順、最大 6 段）・ブーム長さ mm（rtB）・作業半径 mm（rtR。全部の
-    張出幅の行を合わせた並び）と、張出幅の段 i・ブームの列 k ごとの定格 kg（rs{i}c{k}。半径の行の順、無い所は 0）.
-    その張出幅の表に無い半径の行は、その半径以上で一番近い行の値（表の読み方と同じで安全側）。Archicad の文字のパラメータは
-    255 字で切れる（2026-11-01、表を1つの文字にして 25t でも途中で切れ、定格が 0 と出た）ので段と列ごとに."""
-    spreads = m.spreads[:6]
-    booms = m.booms[:8]
-    radii = sorted({r for sp in spreads for r in m.tables[sp]})
-    out = {"rtS": ",".join(f"{sp * 1000:.0f}" for sp in spreads), "rtB": ",".join(f"{b * 1000:.0f}" for b in booms),
-           "rtR": ",".join(f"{r * 1000:.0f}" for r in radii)}
-    for i in range(1, 7):
-        for k in range(1, 9):
+    """部品が姿勢から定格総荷重を読む表: 張出幅 mm（rtS。大きい順、最大 8 段）・ブーム長さ mm（rtB。最大 12 列）、張出幅の段 i ごとの
+    作業半径 mm（rr{i}）と、段 i・ブームの列 k ごとの定格（rs{i}c{k}。10kg 単位、その段の半径の行の順、無い所は 0）.
+    Archicad の文字のパラメータは 255 字で切れる（2026-11-01、表を1つの文字にして 25t でも途中で切れ、定格が 0 と出た）ので段と列ごとに。
+    100t は 36 行・12 列あるので、半径は段ごと・定格は 10kg 単位にして 255 字に収める."""
+    spreads = m.spreads[:8]
+    booms = m.booms[:12]
+    out = {"rtS": ",".join(f"{sp * 1000:.0f}" for sp in spreads), "rtB": ",".join(f"{b * 1000:.0f}" for b in booms)}
+    for i in range(1, 9):
+        t = m.tables[spreads[i - 1]] if i <= len(spreads) else {}
+        radii = sorted(t)
+        out[f"rr{i}"] = ",".join(f"{r * 1000:.0f}" for r in radii)
+        for k in range(1, 13):
             key = f"rs{i}c{k}"
-            if i > len(spreads) or k > len(booms):
+            if not t or k > len(booms):
                 out[key] = ""
                 continue
-            t, b = m.tables[spreads[i - 1]], booms[k - 1]
-            vals = []
-            for r in radii:
-                rows = [rr for rr in sorted(t) if rr >= r - 1e-9 and b in t[rr]]
-                vals.append(str(int(round(t[rows[0]][b] * 1000))) if rows and rows[0] == min(rr for rr in sorted(t) if rr >= r - 1e-9) else "0")
-            out[key] = ",".join(vals)
-            assert len(out[key]) <= 255, (m.key, key)
+            out[key] = ",".join(str(int(round(t[r].get(booms[k - 1], 0.0) * 100))) for r in radii)
+    assert all(len(v) <= 255 for v in out.values()), (m.key, {k: len(v) for k, v in out.items() if len(v) > 255})
     return out
 
 
 def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO) -> dict:
-    """部品 ashiba_crane のパラメータ（m・度）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
+    """部品 ashiba_crane のパラメータ（m・度）。oSnap は False で入れ、置いたあとで True にする（まとめて入れると部品の吸い付きが
+    古い性能表の張出の段で脚を動かした。2026-11-01）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
     ブーム長さ）で置き、平面・3D のホットスポットで動かすと部品が性能表から定格総荷重を読み直す."""
     m = p.model
     g = p.governing
@@ -352,7 +419,11 @@ def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: fl
     return {"crType": m.kind, "crName": m.name.split(" ")[1],
             "carL": m.length / 1000.0, "carW": m.width / 1000.0, "carH": m.height / 1000.0, "carF": m.front / 1000.0,
             "outF": m.out_front / 1000.0, "outR": m.out_rear / 1000.0, "outW": p.spread, "fltD": m.float_d / 1000.0,
-            "oFL": p.spread / 2, "oFR": p.spread / 2, "oRL": p.spread / 2, "oRR": p.spread / 2,
+            "outSh": m.out_shift / 1000.0, "fltA": m.float_ab[0] / 1000.0, "fltB": m.float_ab[1] / 1000.0,
+            "axS": ",".join(f"{a:.0f}" for a in m.axles), "whR": m.tire[0] / 1000.0, "whW": m.tire[1] / 1000.0,
+            "cbX0": m.cab[0] / 1000.0, "cbX1": m.cab[1] / 1000.0, "cbY0": m.cab[2] / 1000.0, "cbY1": m.cab[3] / 1000.0,
+            "nBs": m.boom_n, "bmW": m.boom_w / 1000.0,
+            "oFL": p.spread / 2, "oFR": p.spread / 2, "oRL": p.spread / 2, "oRR": p.spread / 2, "oSnap": False,
             "tailR": m.tail_r / 1000.0, "pivH": m.piv_h / 1000.0, "pivB": m.piv_b / 1000.0, "tipHk": m.tip_hook / 1000.0,
             "hkR": radius / 1000.0, "slew": slew_deg, "prio": 0, "boomL": boom, "boomA": boom_angle(m, boom, radius),
             "bMin": min(m.booms), "bMax": max(m.booms), "hkZ": 0.0,

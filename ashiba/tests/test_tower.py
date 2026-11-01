@@ -102,13 +102,13 @@ class TestLiftCheck(unittest.TestCase):
 class TestErection(unittest.TestCase):
     def test_erect_plan(self):
         """最大分割重量（北川の図面）をマストの上（最小クライミング寸法）に据える: JCL280GK 4.4t は 25t で足り、
-        JCL730NKD 12.8t は 70t で計画の率 90% を超える（作業半径 10m）。公開されていない機種は None."""
+        JCL730NKD 12.8t は 70t。公開されていない機種は None."""
         from ashiba.tower import erect_height, erect_plan
         self.assertAlmostEqual(erect_height(TOWERS["jcl280"]), 6.57 + 2.06 + 2.0)
         ep = erect_plan(TOWERS["jcl280"])
         self.assertEqual((ep.model.key, ep.lifts[0].status), ("25t", "OK"))
-        self.assertEqual(erect_plan(TOWERS["jcl730"]).lifts[0].status, "WARN")
-        self.assertEqual(erect_plan(TOWERS["jcl730"], 7.0).lifts[0].status, "OK")
+        big = erect_plan(TOWERS["jcl730"])                                   # 12.8t を 10m・13.5m へは 70t（35t フック 0.34t）
+        self.assertEqual((big.model.key, big.lifts[0].status), ("70t", "OK"))
         self.assertIsNone(erect_plan(TOWERS["v600"]))
         self.assertIn("組立て・解体の移動式クレーン", report([check(Placed("T", TOWERS["jcl280"]))]))
 

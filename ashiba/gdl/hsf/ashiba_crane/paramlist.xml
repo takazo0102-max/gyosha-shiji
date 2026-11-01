@@ -30,8 +30,8 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="crType">
-			<Description><![CDATA["機種（1＝25t GR-250N・2＝50t GR-500N・3＝70t GR-700N）"]]></Description>
-			<Value>1</Value>
+			<Description><![CDATA["機種の番号（src/ashiba/crane.py の MODELS の並び。1 から）"]]></Description>
+			<Value>3</Value>
 		</Integer>
 		<String Name="crName">
 			<Description><![CDATA["機種の名前（平面の注記）"]]></Description>
@@ -62,7 +62,7 @@
 			<Value>3.415</Value>
 		</Length>
 		<Length Name="outW">
-			<Description><![CDATA["アウトリガの張出幅（ジャッキの芯々。4脚の既定）"]]></Description>
+			<Description><![CDATA["アウトリガの張出幅（計画の値。描くのと定格を読むのは4脚 oFL〜oRR）"]]></Description>
 			<Value>6.6</Value>
 		</Length>
 		<Length Name="oFL">
@@ -86,9 +86,49 @@
 			<Value>1</Value>
 		</Boolean>
 		<String Name="rtS">
-			<Description><![CDATA["性能表の張出幅（mm。大きい順。最大 6 段）"]]></Description>
+			<Description><![CDATA["性能表の張出幅（mm。大きい順。最大 8 段）"]]></Description>
 			<Value><![CDATA["6600,6100,5000,3600,2300"]]></Value>
 		</String>
+		<Length Name="outSh">
+			<Description><![CDATA["右の列のアウトリガの前後のずれ（右の前＝outF−outSh・右の後＝outR＋outSh）"]]></Description>
+			<Value>0.27</Value>
+		</Length>
+		<Length Name="fltA">
+			<Description><![CDATA["フロートの横の大きさ（0＝丸 fltD）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="fltB">
+			<Description><![CDATA["フロートの前後の大きさ"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<String Name="axS">
+			<Description><![CDATA["車軸の位置（旋回中心から前が +、mm。カンマ区切り）"]]></Description>
+			<Value><![CDATA["1940,-1940"]]></Value>
+		</String>
+		<Length Name="whR">
+			<Description><![CDATA["タイヤの半径"]]></Description>
+			<Value>0.683</Value>
+		</Length>
+		<Length Name="whW">
+			<Description><![CDATA["タイヤの幅"]]></Description>
+			<Value>0.385</Value>
+		</Length>
+		<Length Name="cbX0">
+			<Description><![CDATA["運転室の後ろ（旋回中心から前が +）"]]></Description>
+			<Value>-0.3</Value>
+		</Length>
+		<Length Name="cbX1">
+			<Description><![CDATA["運転室の前"]]></Description>
+			<Value>2.02</Value>
+		</Length>
+		<Length Name="cbY0">
+			<Description><![CDATA["運転室のブームに近い側（ブームの右へ）"]]></Description>
+			<Value>0.39</Value>
+		</Length>
+		<Length Name="cbY1">
+			<Description><![CDATA["運転室の外側（ブームの右へ）"]]></Description>
+			<Value>1.29</Value>
+		</Length>
 		<Length Name="fltD">
 			<Description><![CDATA["フロートの径"]]></Description>
 			<Value>0.4</Value>
@@ -173,200 +213,420 @@
 			<Description><![CDATA["定格総荷重表のブーム長さ（mm）"]]></Description>
 			<Value><![CDATA["9350,16400,23450,30500"]]></Value>
 		</String>
-		<String Name="rtR">
-			<Description><![CDATA["定格総荷重表の作業半径（mm）"]]></Description>
-			<Value><![CDATA["3000,6000,10000,14000,20000,26000"]]></Value>
+		<String Name="rr1">
+			<Description><![CDATA["1段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr2">
+			<Description><![CDATA["2段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr3">
+			<Description><![CDATA["3段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr4">
+			<Description><![CDATA["4段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr5">
+			<Description><![CDATA["5段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr6">
+			<Description><![CDATA["6段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr7">
+			<Description><![CDATA["7段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rr8">
+			<Description><![CDATA["8段目の張出幅の表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c1">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c2">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c3">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c4">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c5">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c6">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c7">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs1c8">
-			<Description><![CDATA["定格総荷重（kg。1段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs1c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs1c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs1c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs1c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。1段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c1">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c2">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c3">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c4">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c5">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c6">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c7">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs2c8">
-			<Description><![CDATA["定格総荷重（kg。2段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs2c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs2c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs2c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs2c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。2段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c1">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c2">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c3">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c4">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c5">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c6">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c7">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs3c8">
-			<Description><![CDATA["定格総荷重（kg。3段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs3c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs3c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs3c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs3c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。3段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c1">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c2">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c3">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c4">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c5">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c6">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c7">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs4c8">
-			<Description><![CDATA["定格総荷重（kg。4段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs4c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs4c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs4c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs4c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。4段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c1">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c2">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c3">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c4">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c5">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c6">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c7">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs5c8">
-			<Description><![CDATA["定格総荷重（kg。5段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs5c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs5c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs5c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs5c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。5段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c1">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c2">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c3">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c4">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c5">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c6">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c7">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="rs6c8">
-			<Description><![CDATA["定格総荷重（kg。6段目の張出幅の表の 8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs6c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs6c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs6c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs6c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。6段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c1">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c2">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c3">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c4">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c5">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c6">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c7">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c8">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs7c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。7段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c1">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 1番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c2">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 2番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c3">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 3番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c4">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 4番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c5">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 5番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c6">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 6番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c7">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 7番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c8">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 8番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c9">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 9番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c10">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 10番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c11">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 11番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rs8c12">
+			<Description><![CDATA["定格総荷重（10kg 単位。8段目の張出幅の表の 12番目のブーム長さの列を、その段の作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<Integer Name="plN">

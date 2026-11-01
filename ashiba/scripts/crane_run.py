@@ -109,6 +109,7 @@ def main(argv=None) -> int:
         if el is None:
             continue
         c.set_gdl_parameters(el, {**part_params(p, slew, ratio=a.ratio), **pens})
+        c.set_gdl_parameters(el, {"oSnap": True})        # 置いたあとで脚の吸い付きを入れる（手で引いたときだけ吸い付く）
         placed = [el["elementId"]["guid"]]
         # アウトリガの下の敷鉄板（別の部品。車体の座標 → 図面の座標）
         ca, sa = math.cos(math.radians(car)), math.sin(math.radians(car))

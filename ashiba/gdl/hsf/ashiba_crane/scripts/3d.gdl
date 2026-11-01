@@ -21,19 +21,20 @@ for e = -1 to 1 step 2
 		if e > 0 and s < 0 then lg = lFR
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
+		xs = xo - (s < 0) * outSh
 		yo = s * lg
 		yp = s * lg
 		material "cr_steel"
-		add xo - 0.15, min(0, yo), 1.0
+		add xs - 0.15, min(0, yo), 1.0
 		block 0.3, abs(yo), 0.25
 		del 1
 		if plDraw then
 			material "cr_plate"
-			add xo - plB / 2, yp - plA / 2, 0
+			add xs - plB / 2, yp - plA / 2, 0
 			block plB, plA, plT
 			del 1
 			if plN >= 2 then
-				add xo - plA / 2, yp - plB / 2, plT
+				add xs - plA / 2, yp - plB / 2, plT
 				block plA, plB, plT
 				del 1
 			endif
@@ -41,11 +42,18 @@ for e = -1 to 1 step 2
 		material "cr_steel"
 		zf = plH
 		if travel then zf = 0.6
-		add xo, yo, zf
-		cylind 0.06, fltD / 2
-		addz 0.06
+		if fltA > 0.01 then
+			add xs - fltB / 2, yo - fltA / 2, zf
+			block fltB, fltA, 0.06
+			del 1
+		else
+			add xs, yo, zf
+			cylind 0.06, fltD / 2
+			del 1
+		endif
+		add xs, yo, zf + 0.06
 		cylind 1.0 - zf - 0.06, 0.09
-		del 2
+		del 1
 	next s
 next e
 ! ---- 車体（シャシ・タイヤ）----
@@ -115,20 +123,20 @@ for i = 0 to 4
 	block 0.12, 0.88, 0.02
 	del 1
 next i
-! 運転室（右前）と窓
+! 運転室（右前。cbX0〜cbX1・ブームの右 cbY0〜cbY1）と窓
 material "cr_body"
-add 0.2, -1.25, 1.7
-block 1.9, 0.85, 1.65
+add cbX0, -cbY1, 1.7
+block cbX1 - cbX0, cbY1 - cbY0, 1.65
 del 1
 material "cr_glass"
-add 1.0, -1.255, 2.35
-block 1.05, 0.005, 0.85
+add cbX0 + 0.4 * (cbX1 - cbX0), -cbY1 - 0.005, 2.35
+block 0.5 * (cbX1 - cbX0), 0.005, 0.85
 del 1
-add 2.1, -1.2, 2.2
-block 0.005, 0.75, 1.0
+add cbX1, -cbY1 + 0.05, 2.2
+block 0.005, cbY1 - cbY0 - 0.1, 1.0
 del 1
-add 0.3, -0.395, 2.4
-block 0.6, 0.005, 0.75
+add cbX0 + 0.1, -cbY0, 2.4
+block 0.3 * (cbX1 - cbX0), 0.005, 0.75
 del 1
 ! 起伏シリンダ（旋回体からブームの 0.35 の所。太いシリンダと細いロッド）
 material "cr_steel"
@@ -153,12 +161,10 @@ material "cr_steel"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
 roty -bA
-nS = 4
-if crType >= 2 then nS = 6
+nS = max(1, min(8, nBs))
 sL = bL / nS
 for k = 1 to nS
-	bw = 0.78 - (k - 1) * 0.06
-	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
+	bw = bmW - (k - 1) * 0.06
 	ov = 0
 	if k > 1 then ov = 0.05
 	! 箱形の段（角を落とした八角形の断面）

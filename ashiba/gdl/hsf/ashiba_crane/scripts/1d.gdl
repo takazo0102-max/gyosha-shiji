@@ -35,24 +35,6 @@ while strlen(rest) > 0 do
 		rb[nRb] = v / 1000
 	endif
 endwhile
-dim rr[]
-nRr = 0
-rest = rtR
-while strlen(rest) > 0 do
-	pc = strstr(rest, ",")
-	if pc > 0 then
-		item = strsub(rest, 1, pc - 1)
-		rest = strsub(rest, pc + 1, strlen(rest) - pc)
-	else
-		item = rest
-		rest = ""
-	endif
-	k = split(item, "%n", v)
-	if k > 0 then
-		nRr = nRr + 1
-		rr[nRr] = v / 1000
-	endif
-endwhile
 dim ss[]
 nSs = 0
 rest = rtS
@@ -89,6 +71,7 @@ for i = nSs to 1 step -1
 next i
 spT = 0
 if sI > 0 then spT = ss[sI]
+srr = ""
 sc1 = ""
 sc2 = ""
 sc3 = ""
@@ -97,7 +80,12 @@ sc5 = ""
 sc6 = ""
 sc7 = ""
 sc8 = ""
+sc9 = ""
+sc10 = ""
+sc11 = ""
+sc12 = ""
 if sI = 1 then
+	srr = rr1
 	sc1 = rs1c1
 	sc2 = rs1c2
 	sc3 = rs1c3
@@ -106,8 +94,13 @@ if sI = 1 then
 	sc6 = rs1c6
 	sc7 = rs1c7
 	sc8 = rs1c8
+	sc9 = rs1c9
+	sc10 = rs1c10
+	sc11 = rs1c11
+	sc12 = rs1c12
 endif
 if sI = 2 then
+	srr = rr2
 	sc1 = rs2c1
 	sc2 = rs2c2
 	sc3 = rs2c3
@@ -116,8 +109,13 @@ if sI = 2 then
 	sc6 = rs2c6
 	sc7 = rs2c7
 	sc8 = rs2c8
+	sc9 = rs2c9
+	sc10 = rs2c10
+	sc11 = rs2c11
+	sc12 = rs2c12
 endif
 if sI = 3 then
+	srr = rr3
 	sc1 = rs3c1
 	sc2 = rs3c2
 	sc3 = rs3c3
@@ -126,8 +124,13 @@ if sI = 3 then
 	sc6 = rs3c6
 	sc7 = rs3c7
 	sc8 = rs3c8
+	sc9 = rs3c9
+	sc10 = rs3c10
+	sc11 = rs3c11
+	sc12 = rs3c12
 endif
 if sI = 4 then
+	srr = rr4
 	sc1 = rs4c1
 	sc2 = rs4c2
 	sc3 = rs4c3
@@ -136,8 +139,13 @@ if sI = 4 then
 	sc6 = rs4c6
 	sc7 = rs4c7
 	sc8 = rs4c8
+	sc9 = rs4c9
+	sc10 = rs4c10
+	sc11 = rs4c11
+	sc12 = rs4c12
 endif
 if sI = 5 then
+	srr = rr5
 	sc1 = rs5c1
 	sc2 = rs5c2
 	sc3 = rs5c3
@@ -146,8 +154,13 @@ if sI = 5 then
 	sc6 = rs5c6
 	sc7 = rs5c7
 	sc8 = rs5c8
+	sc9 = rs5c9
+	sc10 = rs5c10
+	sc11 = rs5c11
+	sc12 = rs5c12
 endif
 if sI = 6 then
+	srr = rr6
 	sc1 = rs6c1
 	sc2 = rs6c2
 	sc3 = rs6c3
@@ -156,7 +169,59 @@ if sI = 6 then
 	sc6 = rs6c6
 	sc7 = rs6c7
 	sc8 = rs6c8
+	sc9 = rs6c9
+	sc10 = rs6c10
+	sc11 = rs6c11
+	sc12 = rs6c12
 endif
+if sI = 7 then
+	srr = rr7
+	sc1 = rs7c1
+	sc2 = rs7c2
+	sc3 = rs7c3
+	sc4 = rs7c4
+	sc5 = rs7c5
+	sc6 = rs7c6
+	sc7 = rs7c7
+	sc8 = rs7c8
+	sc9 = rs7c9
+	sc10 = rs7c10
+	sc11 = rs7c11
+	sc12 = rs7c12
+endif
+if sI = 8 then
+	srr = rr8
+	sc1 = rs8c1
+	sc2 = rs8c2
+	sc3 = rs8c3
+	sc4 = rs8c4
+	sc5 = rs8c5
+	sc6 = rs8c6
+	sc7 = rs8c7
+	sc8 = rs8c8
+	sc9 = rs8c9
+	sc10 = rs8c10
+	sc11 = rs8c11
+	sc12 = rs8c12
+endif
+dim rr[]
+nRr = 0
+rest = srr
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRr = nRr + 1
+		rr[nRr] = v / 1000
+	endif
+endwhile
 dim tc1[]
 nTc1 = 0
 rest = sc1
@@ -301,26 +366,97 @@ while strlen(rest) > 0 do
 		tc8[nTc8] = v / 1000
 	endif
 endwhile
+dim tc9[]
+nTc9 = 0
+rest = sc9
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc9 = nTc9 + 1
+		tc9[nTc9] = v / 1000
+	endif
+endwhile
+dim tc10[]
+nTc10 = 0
+rest = sc10
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc10 = nTc10 + 1
+		tc10[nTc10] = v / 1000
+	endif
+endwhile
+dim tc11[]
+nTc11 = 0
+rest = sc11
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc11 = nTc11 + 1
+		tc11[nTc11] = v / 1000
+	endif
+endwhile
+dim tc12[]
+nTc12 = 0
+rest = sc12
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc12 = nTc12 + 1
+		tc12[nTc12] = v / 1000
+	endif
+endwhile
+dim ax[]
+nAx = 0
+rest = axS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nAx = nAx + 1
+		ax[nAx] = v / 1000
+	endif
+endwhile
 carRr = carL - carF
-nAx = 2
-dim ax[4]
-ax[1] = 1.94
-ax[2] = -1.94
-whR = 0.68
-whW = 0.39
-if crType = 2 then
-	ax[1] = 2.52
-	ax[2] = -2.53
-	whR = 0.78
-	whW = 0.5
-endif
-if crType = 3 then
-	nAx = 4
-	ax[1] = 3.0
-	ax[2] = 1.45
-	ax[3] = -1.55
-	ax[4] = -3.1
-endif
 plT = 0.022
 plA = 1.524
 plB = 3.048
@@ -359,14 +495,18 @@ for k = nRr to 1 step -1
 	if rr[k] >= tipX - 0.001 then iR = k
 next k
 if iR > 0 then
-	if jB = 1 and iR <= nTc1 then rated = tc1[iR]
-	if jB = 2 and iR <= nTc2 then rated = tc2[iR]
-	if jB = 3 and iR <= nTc3 then rated = tc3[iR]
-	if jB = 4 and iR <= nTc4 then rated = tc4[iR]
-	if jB = 5 and iR <= nTc5 then rated = tc5[iR]
-	if jB = 6 and iR <= nTc6 then rated = tc6[iR]
-	if jB = 7 and iR <= nTc7 then rated = tc7[iR]
-	if jB = 8 and iR <= nTc8 then rated = tc8[iR]
+	if jB = 1 and iR <= nTc1 then rated = tc1[iR] * 10
+	if jB = 2 and iR <= nTc2 then rated = tc2[iR] * 10
+	if jB = 3 and iR <= nTc3 then rated = tc3[iR] * 10
+	if jB = 4 and iR <= nTc4 then rated = tc4[iR] * 10
+	if jB = 5 and iR <= nTc5 then rated = tc5[iR] * 10
+	if jB = 6 and iR <= nTc6 then rated = tc6[iR] * 10
+	if jB = 7 and iR <= nTc7 then rated = tc7[iR] * 10
+	if jB = 8 and iR <= nTc8 then rated = tc8[iR] * 10
+	if jB = 9 and iR <= nTc9 then rated = tc9[iR] * 10
+	if jB = 10 and iR <= nTc10 then rated = tc10[iR] * 10
+	if jB = 11 and iR <= nTc11 then rated = tc11[iR] * 10
+	if jB = 12 and iR <= nTc12 then rated = tc12[iR] * 10
 endif
 capT = rated * sfRate
 needT = loadT + hookT + rigT

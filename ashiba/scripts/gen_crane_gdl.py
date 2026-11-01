@@ -36,7 +36,7 @@ def paramlist() -> str:
         _param("Length", "A", "Dimension 1", 1, True),
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
-        _param("Integer", "crType", "機種（1＝25t GR-250N・2＝50t GR-500N・3＝70t GR-700N）", 1),
+        _param("Integer", "crType", "機種の番号（src/ashiba/crane.py の MODELS の並び。1 から）", 3),
         _param("String", "crName", "機種の名前（平面の注記）", "GR-250N（Ⅴ）25t"),
         _param("Length", "carL", "全長", 11.53),
         _param("Length", "carW", "全幅", 2.62),
@@ -44,13 +44,23 @@ def paramlist() -> str:
         _param("Length", "carF", "旋回中心から前端", 5.4),
         _param("Length", "outF", "旋回中心から前のアウトリガ", 3.265),
         _param("Length", "outR", "旋回中心から後ろのアウトリガ", 3.415),
-        _param("Length", "outW", "アウトリガの張出幅（ジャッキの芯々。4脚の既定）", 6.6),
+        _param("Length", "outW", "アウトリガの張出幅（計画の値。描くのと定格を読むのは4脚 oFL〜oRR）", 6.6),
         _param("Length", "oFL", "前左のアウトリガ（車体の芯からジャッキまで。平面のホットスポット）", 3.3),
         _param("Length", "oFR", "前右のアウトリガ", 3.3),
         _param("Length", "oRL", "後左のアウトリガ", 3.3),
         _param("Length", "oRR", "後右のアウトリガ", 3.3),
         _param("Boolean", "oSnap", "アウトリガを性能表の張出の段に吸い付ける", 1),
-        _param("String", "rtS", "性能表の張出幅（mm。大きい順。最大 6 段）", "6600,6100,5000,3600,2300"),
+        _param("String", "rtS", "性能表の張出幅（mm。大きい順。最大 8 段）", "6600,6100,5000,3600,2300"),
+        _param("Length", "outSh", "右の列のアウトリガの前後のずれ（右の前＝outF−outSh・右の後＝outR＋outSh）", 0.27),
+        _param("Length", "fltA", "フロートの横の大きさ（0＝丸 fltD）", 0.3),
+        _param("Length", "fltB", "フロートの前後の大きさ", 0.4),
+        _param("String", "axS", "車軸の位置（旋回中心から前が +、mm。カンマ区切り）", "1940,-1940"),
+        _param("Length", "whR", "タイヤの半径", 0.683),
+        _param("Length", "whW", "タイヤの幅", 0.385),
+        _param("Length", "cbX0", "運転室の後ろ（旋回中心から前が +）", -0.3),
+        _param("Length", "cbX1", "運転室の前", 2.02),
+        _param("Length", "cbY0", "運転室のブームに近い側（ブームの右へ）", 0.39),
+        _param("Length", "cbY1", "運転室の外側（ブームの右へ）", 1.29),
         _param("Length", "fltD", "フロートの径", 0.4),
         _param("Length", "upW", "上部旋回体の幅", 2.4),
         _param("Length", "bmW", "基本ブームの幅", 0.75),
@@ -72,10 +82,10 @@ def paramlist() -> str:
         _param("RealNum", "rigT", "玉掛け用具 t", 0.05),
         _param("RealNum", "sfRate", "安全率（定格総荷重に掛ける。0.9＝90%）", 0.9),
         _param("String", "rtB", "定格総荷重表のブーム長さ（mm）", "9350,16400,23450,30500"),
-        _param("String", "rtR", "定格総荷重表の作業半径（mm）", "3000,6000,10000,14000,20000,26000"),
-        *[_param("String", f"rs{i}c{k}", f"定格総荷重（kg。{i}段目の張出幅の表の {k}番目のブーム長さの列を作業半径の行の順に、無い所は 0。"
-                 "文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）", "")
-          for i in range(1, 7) for k in range(1, 9)],
+        *[_param("String", f"rr{i}", f"{i}段目の張出幅の表の作業半径（mm）", "") for i in range(1, 9)],
+        *[_param("String", f"rs{i}c{k}", f"定格総荷重（10kg 単位。{i}段目の張出幅の表の {k}番目のブーム長さの列を、その段の作業半径の行の順に、"
+                 "無い所は 0。文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）", "")
+          for i in range(1, 9) for k in range(1, 13)],
         _param("Integer", "plN", "敷鉄板の枚数（アウトリガ1脚に。2＝十字。フロートの高さに使う）", 1),
         _param("Boolean", "plDraw", "敷鉄板をこの部品で描く（外す＝別の部品 ashiba_plate を下に置く）", 1),
         _param("String", "wrR", "吊荷の作業半径の円（mm。カンマ区切り）", "12000,18000"),
@@ -115,33 +125,16 @@ for i = nSs to 1 step -1
 next i
 spT = 0
 if sI > 0 then spT = ss[sI]
-""" + "".join(f"sc{k} = \"\"\n" for k in range(1, 9)) + "".join(
-    f"if sI = {i} then\n" + "".join(f"\tsc{k} = rs{i}c{k}\n" for k in range(1, 9)) + "endif\n" for i in range(1, 7))
+srr = ""
+""" + "".join(f"sc{k} = \"\"\n" for k in range(1, 13)) + "".join(
+    f"if sI = {i} then\n\tsrr = rr{i}\n" + "".join(f"\tsc{k} = rs{i}c{k}\n" for k in range(1, 13)) + "endif\n"
+    for i in range(1, 9))
 
 
 SCRIPT_1D = ("﻿! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）\n" + _parse_all("wrR", "wr", "nWr")
-             + _parse_all("rtB", "rb", "nRb") + _parse_all("rtR", "rr", "nRr")
-             + _parse_all("rtS", "ss", "nSs") + SPREAD_PICK
-             + "".join(_parse_all(f"sc{k}", f"tc{k}", f"nTc{k}") for k in range(1, 9)) + """carRr = carL - carF
-nAx = 2
-dim ax[4]
-ax[1] = 1.94
-ax[2] = -1.94
-whR = 0.68
-whW = 0.39
-if crType = 2 then
-	ax[1] = 2.52
-	ax[2] = -2.53
-	whR = 0.78
-	whW = 0.5
-endif
-if crType = 3 then
-	nAx = 4
-	ax[1] = 3.0
-	ax[2] = 1.45
-	ax[3] = -1.55
-	ax[4] = -3.1
-endif
+             + _parse_all("rtB", "rb", "nRb") + _parse_all("rtS", "ss", "nSs") + SPREAD_PICK + _parse_all("srr", "rr", "nRr")
+             + "".join(_parse_all(f"sc{k}", f"tc{k}", f"nTc{k}") for k in range(1, 13)) + _parse_all("axS", "ax", "nAx")
+             + """carRr = carL - carF
 plT = 0.022
 plA = 1.524
 plB = 3.048
@@ -180,14 +173,18 @@ for k = nRr to 1 step -1
 	if rr[k] >= tipX - 0.001 then iR = k
 next k
 if iR > 0 then
-	if jB = 1 and iR <= nTc1 then rated = tc1[iR]
-	if jB = 2 and iR <= nTc2 then rated = tc2[iR]
-	if jB = 3 and iR <= nTc3 then rated = tc3[iR]
-	if jB = 4 and iR <= nTc4 then rated = tc4[iR]
-	if jB = 5 and iR <= nTc5 then rated = tc5[iR]
-	if jB = 6 and iR <= nTc6 then rated = tc6[iR]
-	if jB = 7 and iR <= nTc7 then rated = tc7[iR]
-	if jB = 8 and iR <= nTc8 then rated = tc8[iR]
+	if jB = 1 and iR <= nTc1 then rated = tc1[iR] * 10
+	if jB = 2 and iR <= nTc2 then rated = tc2[iR] * 10
+	if jB = 3 and iR <= nTc3 then rated = tc3[iR] * 10
+	if jB = 4 and iR <= nTc4 then rated = tc4[iR] * 10
+	if jB = 5 and iR <= nTc5 then rated = tc5[iR] * 10
+	if jB = 6 and iR <= nTc6 then rated = tc6[iR] * 10
+	if jB = 7 and iR <= nTc7 then rated = tc7[iR] * 10
+	if jB = 8 and iR <= nTc8 then rated = tc8[iR] * 10
+	if jB = 9 and iR <= nTc9 then rated = tc9[iR] * 10
+	if jB = 10 and iR <= nTc10 then rated = tc10[iR] * 10
+	if jB = 11 and iR <= nTc11 then rated = tc11[iR] * 10
+	if jB = 12 and iR <= nTc12 then rated = tc12[iR] * 10
 endif
 capT = rated * sfRate
 needT = loadT + hookT + rigT
@@ -218,18 +215,23 @@ for e = -1 to 1 step 2
 		if e > 0 and s < 0 then lg = lFR
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
+		xs = xo - (s < 0) * outSh
 		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート
-		rect2 xo - 0.15, s * (carW / 2 - 0.2), xo + 0.15, s * lg
-		circle2 xo, s * lg, 0.12
-		rect2 xo - fltD / 2, s * lg - fltD / 2, xo + fltD / 2, s * lg + fltD / 2
+		rect2 xs - 0.15, s * (carW / 2 - 0.2), xs + 0.15, s * lg
+		circle2 xs, s * lg, 0.12
+		if fltA > 0.01 then
+			rect2 xs - fltB / 2, s * lg - fltA / 2, xs + fltB / 2, s * lg + fltA / 2
+		else
+			circle2 xs, s * lg, fltD / 2
+		endif
 		! 張出の寸法（車体の芯からジャッキまで mm）
-		add2 xo + fltD / 2 + 0.15, s * lg
+		add2 xs + max(fltB, fltD) / 2 + 0.15, s * lg
 		rot2 -SYMB_ROTANGLE
 		text2 0, 0, str(round_int(lg * 1000), 1, 0)
 		del 2
 		if plDraw then
-			rect2 xo - plB / 2, s * lg - plA / 2, xo + plB / 2, s * lg + plA / 2
-			if plN >= 2 then rect2 xo - plA / 2, s * lg - plB / 2, xo + plA / 2, s * lg + plB / 2
+			rect2 xs - plB / 2, s * lg - plA / 2, xs + plB / 2, s * lg + plA / 2
+			if plN >= 2 then rect2 xs - plA / 2, s * lg - plB / 2, xs + plA / 2, s * lg + plB / 2
 		endif
 	next s
 next e
@@ -272,8 +274,8 @@ line2 xc, uw, 1.6, uw
 line2 xc, -uw, 1.6, -uw
 line2 1.6, -uw, 1.6, uw
 line2 xc + 0.9, -uw, xc + 0.9, uw
-rect2 0.1, -uw - 0.95, 2.0, -uw
-line2 1.75, -uw - 0.95, 1.75, -uw
+rect2 cbX0, -cbY1, cbX1, -cbY0
+line2 cbX1 - 0.25, -cbY1, cbX1 - 0.25, -cbY0
 ! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック
 nb = max(1, min(6, nBs))
 for k = 1 to nb
@@ -328,25 +330,26 @@ if travel = 0 then
 		if e < 0 then xo = -outR
 		for s = -1 to 1 step 2
 			hid = hid + 3
+			xs = xo - (s < 0) * outSh
 			if e > 0 and s > 0 then
-				hotspot2 xo, 0, hid, oFL, 1 + 128
-				hotspot2 xo, lFL, hid + 1, oFL, 2
-				hotspot2 xo, -1, hid + 2, oFL, 3
+				hotspot2 xs, 0, hid, oFL, 1 + 128
+				hotspot2 xs, lFL, hid + 1, oFL, 2
+				hotspot2 xs, -1, hid + 2, oFL, 3
 			endif
 			if e > 0 and s < 0 then
-				hotspot2 xo, 0, hid, oFR, 1 + 128
-				hotspot2 xo, -lFR, hid + 1, oFR, 2
-				hotspot2 xo, 1, hid + 2, oFR, 3
+				hotspot2 xs, 0, hid, oFR, 1 + 128
+				hotspot2 xs, -lFR, hid + 1, oFR, 2
+				hotspot2 xs, 1, hid + 2, oFR, 3
 			endif
 			if e < 0 and s > 0 then
-				hotspot2 xo, 0, hid, oRL, 1 + 128
-				hotspot2 xo, lRL, hid + 1, oRL, 2
-				hotspot2 xo, -1, hid + 2, oRL, 3
+				hotspot2 xs, 0, hid, oRL, 1 + 128
+				hotspot2 xs, lRL, hid + 1, oRL, 2
+				hotspot2 xs, -1, hid + 2, oRL, 3
 			endif
 			if e < 0 and s < 0 then
-				hotspot2 xo, 0, hid, oRR, 1 + 128
-				hotspot2 xo, -lRR, hid + 1, oRR, 2
-				hotspot2 xo, 1, hid + 2, oRR, 3
+				hotspot2 xs, 0, hid, oRR, 1 + 128
+				hotspot2 xs, -lRR, hid + 1, oRR, 2
+				hotspot2 xs, 1, hid + 2, oRR, 3
 			endif
 		next s
 	next e
@@ -377,19 +380,20 @@ for e = -1 to 1 step 2
 		if e > 0 and s < 0 then lg = lFR
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
+		xs = xo - (s < 0) * outSh
 		yo = s * lg
 		yp = s * lg
 		material "cr_steel"
-		add xo - 0.15, min(0, yo), 1.0
+		add xs - 0.15, min(0, yo), 1.0
 		block 0.3, abs(yo), 0.25
 		del 1
 		if plDraw then
 			material "cr_plate"
-			add xo - plB / 2, yp - plA / 2, 0
+			add xs - plB / 2, yp - plA / 2, 0
 			block plB, plA, plT
 			del 1
 			if plN >= 2 then
-				add xo - plA / 2, yp - plB / 2, plT
+				add xs - plA / 2, yp - plB / 2, plT
 				block plA, plB, plT
 				del 1
 			endif
@@ -397,11 +401,18 @@ for e = -1 to 1 step 2
 		material "cr_steel"
 		zf = plH
 		if travel then zf = 0.6
-		add xo, yo, zf
-		cylind 0.06, fltD / 2
-		addz 0.06
+		if fltA > 0.01 then
+			add xs - fltB / 2, yo - fltA / 2, zf
+			block fltB, fltA, 0.06
+			del 1
+		else
+			add xs, yo, zf
+			cylind 0.06, fltD / 2
+			del 1
+		endif
+		add xs, yo, zf + 0.06
 		cylind 1.0 - zf - 0.06, 0.09
-		del 2
+		del 1
 	next s
 next e
 ! ---- 車体（シャシ・タイヤ）----
@@ -471,20 +482,20 @@ for i = 0 to 4
 	block 0.12, 0.88, 0.02
 	del 1
 next i
-! 運転室（右前）と窓
+! 運転室（右前。cbX0〜cbX1・ブームの右 cbY0〜cbY1）と窓
 material "cr_body"
-add 0.2, -1.25, 1.7
-block 1.9, 0.85, 1.65
+add cbX0, -cbY1, 1.7
+block cbX1 - cbX0, cbY1 - cbY0, 1.65
 del 1
 material "cr_glass"
-add 1.0, -1.255, 2.35
-block 1.05, 0.005, 0.85
+add cbX0 + 0.4 * (cbX1 - cbX0), -cbY1 - 0.005, 2.35
+block 0.5 * (cbX1 - cbX0), 0.005, 0.85
 del 1
-add 2.1, -1.2, 2.2
-block 0.005, 0.75, 1.0
+add cbX1, -cbY1 + 0.05, 2.2
+block 0.005, cbY1 - cbY0 - 0.1, 1.0
 del 1
-add 0.3, -0.395, 2.4
-block 0.6, 0.005, 0.75
+add cbX0 + 0.1, -cbY0, 2.4
+block 0.3 * (cbX1 - cbX0), 0.005, 0.75
 del 1
 ! 起伏シリンダ（旋回体からブームの 0.35 の所。太いシリンダと細いロッド）
 material "cr_steel"
@@ -509,12 +520,10 @@ material "cr_steel"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
 roty -bA
-nS = 4
-if crType >= 2 then nS = 6
+nS = max(1, min(8, nBs))
 sL = bL / nS
 for k = 1 to nS
-	bw = 0.78 - (k - 1) * 0.06
-	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
+	bw = bmW - (k - 1) * 0.06
 	ov = 0
 	if k > 1 then ov = 0.05
 	! 箱形の段（角を落とした八角形の断面）
@@ -663,7 +672,7 @@ if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") 
 	if mp = "oRL" then parameters oRL = bq
 	if mp = "oRR" then parameters oRR = bq
 endif
-if mp = "outW" then parameters oFL = outW / 2, oFR = outW / 2, oRL = outW / 2, oRR = outW / 2
+! outW から4脚へは書き戻さない（Tapir でまとめて入れると GLOB_MODPAR_NAME が outW のまま古い outW で脚を上書きした。2026-11-01）
 """
 
 

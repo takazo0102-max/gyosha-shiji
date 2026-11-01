@@ -21,18 +21,23 @@ for e = -1 to 1 step 2
 		if e > 0 and s < 0 then lg = lFR
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
+		xs = xo - (s < 0) * outSh
 		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート
-		rect2 xo - 0.15, s * (carW / 2 - 0.2), xo + 0.15, s * lg
-		circle2 xo, s * lg, 0.12
-		rect2 xo - fltD / 2, s * lg - fltD / 2, xo + fltD / 2, s * lg + fltD / 2
+		rect2 xs - 0.15, s * (carW / 2 - 0.2), xs + 0.15, s * lg
+		circle2 xs, s * lg, 0.12
+		if fltA > 0.01 then
+			rect2 xs - fltB / 2, s * lg - fltA / 2, xs + fltB / 2, s * lg + fltA / 2
+		else
+			circle2 xs, s * lg, fltD / 2
+		endif
 		! 張出の寸法（車体の芯からジャッキまで mm）
-		add2 xo + fltD / 2 + 0.15, s * lg
+		add2 xs + max(fltB, fltD) / 2 + 0.15, s * lg
 		rot2 -SYMB_ROTANGLE
 		text2 0, 0, str(round_int(lg * 1000), 1, 0)
 		del 2
 		if plDraw then
-			rect2 xo - plB / 2, s * lg - plA / 2, xo + plB / 2, s * lg + plA / 2
-			if plN >= 2 then rect2 xo - plA / 2, s * lg - plB / 2, xo + plA / 2, s * lg + plB / 2
+			rect2 xs - plB / 2, s * lg - plA / 2, xs + plB / 2, s * lg + plA / 2
+			if plN >= 2 then rect2 xs - plA / 2, s * lg - plB / 2, xs + plA / 2, s * lg + plB / 2
 		endif
 	next s
 next e
@@ -75,8 +80,8 @@ line2 xc, uw, 1.6, uw
 line2 xc, -uw, 1.6, -uw
 line2 1.6, -uw, 1.6, uw
 line2 xc + 0.9, -uw, xc + 0.9, uw
-rect2 0.1, -uw - 0.95, 2.0, -uw
-line2 1.75, -uw - 0.95, 1.75, -uw
+rect2 cbX0, -cbY1, cbX1, -cbY0
+line2 cbX1 - 0.25, -cbY1, cbX1 - 0.25, -cbY0
 ! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック
 nb = max(1, min(6, nBs))
 for k = 1 to nb
@@ -131,25 +136,26 @@ if travel = 0 then
 		if e < 0 then xo = -outR
 		for s = -1 to 1 step 2
 			hid = hid + 3
+			xs = xo - (s < 0) * outSh
 			if e > 0 and s > 0 then
-				hotspot2 xo, 0, hid, oFL, 1 + 128
-				hotspot2 xo, lFL, hid + 1, oFL, 2
-				hotspot2 xo, -1, hid + 2, oFL, 3
+				hotspot2 xs, 0, hid, oFL, 1 + 128
+				hotspot2 xs, lFL, hid + 1, oFL, 2
+				hotspot2 xs, -1, hid + 2, oFL, 3
 			endif
 			if e > 0 and s < 0 then
-				hotspot2 xo, 0, hid, oFR, 1 + 128
-				hotspot2 xo, -lFR, hid + 1, oFR, 2
-				hotspot2 xo, 1, hid + 2, oFR, 3
+				hotspot2 xs, 0, hid, oFR, 1 + 128
+				hotspot2 xs, -lFR, hid + 1, oFR, 2
+				hotspot2 xs, 1, hid + 2, oFR, 3
 			endif
 			if e < 0 and s > 0 then
-				hotspot2 xo, 0, hid, oRL, 1 + 128
-				hotspot2 xo, lRL, hid + 1, oRL, 2
-				hotspot2 xo, -1, hid + 2, oRL, 3
+				hotspot2 xs, 0, hid, oRL, 1 + 128
+				hotspot2 xs, lRL, hid + 1, oRL, 2
+				hotspot2 xs, -1, hid + 2, oRL, 3
 			endif
 			if e < 0 and s < 0 then
-				hotspot2 xo, 0, hid, oRR, 1 + 128
-				hotspot2 xo, -lRR, hid + 1, oRR, 2
-				hotspot2 xo, 1, hid + 2, oRR, 3
+				hotspot2 xs, 0, hid, oRR, 1 + 128
+				hotspot2 xs, -lRR, hid + 1, oRR, 2
+				hotspot2 xs, 1, hid + 2, oRR, 3
 			endif
 		next s
 	next e
