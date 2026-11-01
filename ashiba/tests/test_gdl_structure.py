@@ -175,6 +175,55 @@ class TestLoopTransforms(unittest.TestCase):
                                               "\tendif\n\tblock 1, 1, 1\n\tdel 1\nnext i\n"), [])
 
 
+def array_scalar_clashes(scripts: list[str]) -> list[str]:
+    """dim で配列にした名前を、大文字小文字だけ違う名前で数（スカラー）として代入していないか（GDL は大文字小文字を区別しない）."""
+    arrays, scalars = {}, {}
+    for text in scripts:
+        for raw in text.splitlines():
+            line = _strip(raw)
+            for m in re.finditer(r"\bdim\s+([A-Za-z_]\w*)\s*\[", line, re.I):
+                arrays.setdefault(m.group(1).lower(), set()).add(m.group(1))
+            m = re.match(r"\s*([A-Za-z_]\w*)\s*=", line)
+            if m:
+                scalars.setdefault(m.group(1).lower(), set()).add(m.group(1))
+    return [f"{sorted(arrays[k])} と {sorted(scalars[k])}" for k in arrays if k in scalars and scalars[k] - arrays[k]]
+
+
+class TestNoArrayScalarClash(unittest.TestCase):
+    """2026-11-01、移動式クレーン（ashiba_crane）で作業半径の配列 wr と車輪の半径 wR を同じ名前にして、部品のパラメータが
+    1つも読めず置いても設定に失敗した."""
+
+    def test_every_part(self):
+        """スクリプトごとに、その前に動くマスタースクリプト（1d.gdl）と合わせて見る（別のスクリプトの変数は別物）."""
+        for d in sorted(p for p in HSF.iterdir() if (p / "scripts").is_dir()):
+            master = d / "scripts" / "1d.gdl"
+            head = [master.read_text(encoding="utf-8-sig")] if master.exists() else []
+            for f in sorted((d / "scripts").glob("*.gdl")):
+                with self.subTest(part=d.name, script=f.name):
+                    body = [] if f == master else [f.read_text(encoding="utf-8-sig")]
+                    self.assertEqual(array_scalar_clashes(head + body), [])
+
+    def test_detects_case_only_difference(self):
+        self.assertTrue(array_scalar_clashes(["dim wr[]\nwR = 0.6\n"]))
+        self.assertEqual(array_scalar_clashes(["dim wr[]\nwr[1] = 0.6\n"]), [])
+
+
+class TestNoDecimalStr(unittest.TestCase):
+    """2026-11-01、移動式クレーン（ashiba_crane）の 2D で str(x, 1, 1)（長さが小数の桁に足りない）を使ったら、平面図に
+    この部品の 2D が1本も出なかった（GetElementPreviewImage の 2D は描けていて気付きにくい）。小数を出すなら長さに余裕を
+    （str(x, 4, 1) は詳細図で使っている）、整数は str(数, 1, 0)."""
+
+    def test_every_script(self):
+        bad = []
+        for f in sorted(HSF.glob("*/scripts/*.gdl")):
+            for i, raw in enumerate(f.read_text(encoding="utf-8-sig").splitlines(), 1):
+                line = _strip(raw)
+                for m in re.finditer(r"\bstr\s*\([^\"]*?,\s*(\d+)\s*,\s*(\d+)\s*\)", line, re.I):
+                    if int(m.group(2)) > 0 and int(m.group(1)) <= int(m.group(2)) + 1:
+                        bad.append(f"{f.parent.parent.name}/{f.name}:{i}")
+        self.assertEqual(bad, [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

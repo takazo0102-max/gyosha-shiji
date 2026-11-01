@@ -43,6 +43,7 @@ PART_PENS = {
     "ashiba_sform": ("equip",),
     "ashiba_yamadome": ("equip",),
     "ashiba_kakoi": ("equip",),
+    "ashiba_crane": ("equip",),
 }
 
 

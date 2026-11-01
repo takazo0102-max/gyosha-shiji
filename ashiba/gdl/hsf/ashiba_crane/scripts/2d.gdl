@@ -1,0 +1,34 @@
+﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径・ブームとフック
+! 文字の数は str(数, 1, 0)（小数の桁を付けた str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
+pen penEquip
+define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "crT"
+! 車体
+rect2 -carRr, -carW / 2, carF, carW / 2
+for e = -1 to 1 step 2
+	xo = outF
+	if e < 0 then xo = -outR
+	line2 xo, -outW / 2, xo, outW / 2
+	for s = -1 to 1 step 2
+		circle2 xo, s * outW / 2, fltD / 2
+		rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
+		if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+	next s
+next e
+! 立入禁止（上部旋回体の後端旋回半径）と作業半径の円
+circle2 0, 0, tailR
+for i = 1 to nWr
+	circle2 0, 0, wr[i]
+	text2 wr[i] * 0.7071, wr[i] * 0.7071, "R" + str(round_int(wr[i] * 1000), 1, 0)
+next i
+! 上部旋回体とブーム（旋回角で回す）
+rot2 slew
+rect2 -tailR, -1.1, 1.2, 1.1
+line2 -pivB, -0.35, tipX, -0.2
+line2 -pivB, 0.35, tipX, 0.2
+circle2 tipX, 0, 0.3
+if ldOn then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+del 1
+text2 0, -outW / 2 - 1.2, crName
+text2 0, -outW / 2 - 1.2 - texSiz * GLOB_SCALE / 1000 * 1.6, "ブーム " + str(round_int(boomL * 1000), 1, 0) + "・作業半径 " + str(round_int(tipX * 1000), 1, 0)
+hotspot2 0, 0

@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="crType">
+			<Description><![CDATA["機種（1＝25t GR-250N・2＝50t GR-500N・3＝70t GR-700N）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="crName">
+			<Description><![CDATA["機種の名前（平面の注記）"]]></Description>
+			<Value><![CDATA["GR-250N（Ⅴ）25t"]]></Value>
+		</String>
+		<Length Name="carL">
+			<Description><![CDATA["全長"]]></Description>
+			<Value>11.53</Value>
+		</Length>
+		<Length Name="carW">
+			<Description><![CDATA["全幅"]]></Description>
+			<Value>2.62</Value>
+		</Length>
+		<Length Name="carH">
+			<Description><![CDATA["全高"]]></Description>
+			<Value>3.475</Value>
+		</Length>
+		<Length Name="carF">
+			<Description><![CDATA["旋回中心から前端"]]></Description>
+			<Value>5.4</Value>
+		</Length>
+		<Length Name="outF">
+			<Description><![CDATA["旋回中心から前のアウトリガ"]]></Description>
+			<Value>3.265</Value>
+		</Length>
+		<Length Name="outR">
+			<Description><![CDATA["旋回中心から後ろのアウトリガ"]]></Description>
+			<Value>3.415</Value>
+		</Length>
+		<Length Name="outW">
+			<Description><![CDATA["アウトリガの張出幅（ジャッキの芯々）"]]></Description>
+			<Value>6.6</Value>
+		</Length>
+		<Length Name="fltD">
+			<Description><![CDATA["フロートの径"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="tailR">
+			<Description><![CDATA["後端旋回半径"]]></Description>
+			<Value>3.1</Value>
+		</Length>
+		<Length Name="pivH">
+			<Description><![CDATA["ブームの根元の高さ"]]></Description>
+			<Value>2.3</Value>
+		</Length>
+		<Length Name="pivB">
+			<Description><![CDATA["ブームの根元の旋回中心から後ろ"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="tipHk">
+			<Description><![CDATA["ブームの先からフックの上まで"]]></Description>
+			<Value>1.3</Value>
+		</Length>
+		<Length Name="boomL">
+			<Description><![CDATA["ブーム長さ"]]></Description>
+			<Value>23.45</Value>
+		</Length>
+		<Angle Name="boomA">
+			<Description><![CDATA["ブームの起伏角"]]></Description>
+			<Value>56.0</Value>
+		</Angle>
+		<Angle Name="slew">
+			<Description><![CDATA["旋回角（車体の前から左回り）"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Length Name="hookZ">
+			<Description><![CDATA["フックの高さ（地盤から。注記）"]]></Description>
+			<Value>20.0</Value>
+		</Length>
+		<Integer Name="plN">
+			<Description><![CDATA["敷鉄板の枚数（アウトリガ1脚に。2＝十字）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="wrR">
+			<Description><![CDATA["作業半径の円（mm。カンマ区切り）"]]></Description>
+			<Value><![CDATA["12000,18000"]]></Value>
+		</String>
+		<Boolean Name="ldOn">
+			<Description><![CDATA["吊り荷を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

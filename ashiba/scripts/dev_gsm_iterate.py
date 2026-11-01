@@ -114,6 +114,11 @@ PART_PROFILES = {
         "params": {"kkL": 10.8, "postX": "0,1800,3600,7200,9000,10800", "postZ": "0,0,100,300,400,500",
                    "runX": "-75,3600,7200,10875", "gateX": "3600,7200", "gateK": "1"},
     },
+    # 移動式クレーン（利用者の指定 2026-11-01: クレーン リサーチして追加して）
+    "ashiba_crane": {
+        "images": ("3D", "2D"),
+        "params": {"crType": 1, "boomL": 23.45, "boomA": 56.0, "slew": 30.0, "plN": 2, "wrR": "12000,18000"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

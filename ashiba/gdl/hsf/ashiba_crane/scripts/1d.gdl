@@ -1,0 +1,46 @@
+﻿! 移動式クレーン: 作業半径の円・車軸・ブームの先とフック（m）
+dim wr[]
+nWr = 0
+rest = wrR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nWr = nWr + 1
+		wr[nWr] = v / 1000
+	endif
+endwhile
+carRr = carL - carF
+nAx = 2
+dim ax[4]
+ax[1] = 1.94
+ax[2] = -1.94
+whR = 0.68
+whW = 0.39
+if crType = 2 then
+	ax[1] = 2.52
+	ax[2] = -2.53
+	whR = 0.78
+	whW = 0.5
+endif
+if crType = 3 then
+	nAx = 4
+	ax[1] = 3.0
+	ax[2] = 1.45
+	ax[3] = -1.55
+	ax[4] = -3.1
+endif
+! ブームの先（上部旋回体の座標）とフック
+tipX = -pivB + boomL * cos(boomA)
+tipZ = pivH + boomL * sin(boomA)
+hkZ = max(0.6, tipZ - tipHk)
+plT = 0.022
+plA = 1.524
+plB = 3.048

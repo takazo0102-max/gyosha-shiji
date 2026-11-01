@@ -186,6 +186,13 @@ PARTS = {
             "原点＝区間の始めの支柱の芯の地盤、+X＝区間の向き、−Y＝外（パネル）、+Y＝敷地の中（控え）。支柱 postX・足元の地盤 postZ（高低差）・横地 railZ・パネルの範囲 runX（角で延ばす・ゲートで切る）・ゲート gateX/gateK・控え brX/brH/brB・基礎 kkFound。割付と数量・検定は hoarding.py、置くのは scripts/kakoi_run.py。",
         ],
     },
+    "ashiba_crane": {
+        "title": "移動式クレーン（ラフテレーンクレーン 25t・50t・70t。1台に1部品）",
+        "notes": [
+            "利用者の指定（2026-11-01）: クレーン リサーチして追加して。",
+            "原点＝旋回中心の地盤、+X＝車体の前。車体・アウトリガ（outF・outR・張出幅 outW）・敷鉄板（plN 枚）・上部旋回体（旋回 slew・後端旋回半径 tailR）・ブーム（boomL・起伏角 boomA）・フック・吊り荷、平面に立入禁止の円と作業半径の円（wrR）。性能表と寸法はタダノの仕様書（crane_data.py）、検定は crane.py、置くのは scripts/crane_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [
