@@ -24,7 +24,7 @@ LAP_MM = 100.0                         # 蓋の掛かり（50〜100）
 RAIL_H, MID_H, TOE_H = 950.0, 450.0, 210.0   # 手すり（第1種 95cm）・中桟・幅木（杉足場板 210）
 POST_MM = 1800.0                       # 手すり柱の間隔（スタンションの標準取付間隔 2.0m 以下）
 RAIL_OFF_MM = 100.0                    # 開口・床の縁から手すり柱の芯まで（スタンションがくわえる）
-OVER_MM = 100.0                        # 手すりの端の柱からの突き出し（支柱の間隔の 1/4 以下）
+OVER_MM = 50.0                         # 手すりの端の柱からの突き出しの最小（クランプの掛かり。上限は支柱の間隔の 1/4）
 
 # 発注の規格（利用者の指定 2026-11-01: イメージじゃなく実際の規定の長さで発注できるくらい詳細に）。日建リース 仮設資材カタログ Vol.10
 # 単管パイプ p372（STK500 φ48.6×2.4。手すりは型枠用・ピン無しの長さも使う）: 長さ mm → kg
@@ -311,6 +311,81 @@ def part_params(g: Guard) -> dict:
             "opKind": g.kind, "netOn": g.net, "slabT": g.slab_t / 1000.0, "edSide": g.side, "opName": g.name}
 
 
+ORDER = ("NREG", "PKB", "単管 1.0M（手すり柱）", "あと施工", "単管", "PCJ", "ARC1", "杉足場板", "番線", "水平ネット", "ネットハンガー",
+         "合板", "桟木", "表示")
+
+
+def order_table(tot: dict, order: tuple = ORDER, title: str = "## 発注表（品番・規格の長さ別）") -> list[str]:
+    """{品名: [数, 単位（1つの重さ kg を含めば重さ計を出す）]} → 発注表の行（種類の順・長い順）."""
+    out = ["", title, "", "| 品名・品番・規格 | 数 | 単位・1つの重さ | 重さ計 |", "|---|---|---|---|"]
+    total_kg = 0.0
+
+    def key(item):
+        name = item[0]
+        cat = next((i for i, h in enumerate(order) if name.startswith(h)), len(order))
+        m = re.search(r"L=([0-9.]+)m|([0-9.]+)M|×(\d+)（", name)
+        ln = 0.0
+        if m:
+            ln = float(m.group(1)) * 1000 if m.group(1) else float(m.group(2)) * 1000 if m.group(2) else float(m.group(3))
+        return (cat, -ln, name)
+
+    for a, (n, u) in sorted(tot.items(), key=key):
+        m = re.search(r"([0-9.]+)kg", u)
+        kg = n * float(m.group(1)) if m else 0.0
+        total_kg += kg
+        out.append(f"| {a} | {round(n, 1):g} | {u} | {kg:.1f}kg |" if kg else f"| {a} | {round(n, 1):g} | {u} | |")
+    out.append(f"| 計 | | | {total_kg:.0f}kg |")
+    return out
+
+
+def rail_order(lengths: list[float], post: str = "NREG") -> list[tuple[str, float, str]]:
+    """手すりの辺（柱の線の長さ mm）の並び → 手すり柱・単管（定尺）・ジョイント・クランプ・幅木の板の発注の数（辺ごとに端の柱を数える）."""
+    q = []
+    n_post = joints = clamps = 0
+    tubes: dict[int, int] = {}
+    planks: dict[int, int] = {}
+    for L in lengths:
+        n = posts_on(L)
+        extra = 2.0 * max(0.0, (L / n) / 4.0 - OVER_MM)
+        tp = tube_pieces(L + 2 * OVER_MM, extra)
+        n_post += n + 1
+        for _r in (RAIL_H, MID_H):
+            for t in tp:
+                tubes[t] = tubes.get(t, 0) + 1
+            joints += len(tp) - 1
+            clamps += n + 1
+        for b in plank_pieces(L):
+            planks[b] = planks.get(b, 0) + 1
+    if post == "PKB":
+        q += [("PKB 固定ベース", n_post, "個（0.78kg）"), ("単管 1.0M（手すり柱）", n_post, "本（2.65kg）"),
+              ("あと施工アンカー M10（固定ベース）", 2 * n_post, "本（1つに2本）")]
+    else:
+        q.append(("NREG スタンション（第1種・締付厚 0〜600）", n_post, "台（8.10kg）"))
+    for t in sorted(tubes, reverse=True):
+        q.append((f"単管 {t / 1000:.1f}M（手すり・中桟）", tubes[t], f"本（{TUBES[t]:g}kg）"))
+    if joints:
+        q.append(("PCJ 直線ジョイント", joints, "個（0.60kg）"))
+    q.append(("ARC1 兼用直交クランプ", clamps, "個（0.73kg。手すり・中桟と柱）"))
+    for b in sorted(planks, reverse=True):
+        q.append((f"杉足場板 {PLANKS[b]} 35×210×{b}（幅木）", planks[b], "枚"))
+    q.append(("番線 #10（幅木の留め）", 2 * sum(planks.values()), "本（板の両端）"))
+    return q
+
+
+def rail_strings(lengths: list[float], sides: list[int]) -> dict:
+    """部品へ渡す手すりの単管・幅木の板の並び（辺の番号と長さ mm）."""
+    rs, rl, bs, bl = [], [], [], []
+    for k, L in zip(sides, lengths):
+        n = posts_on(L)
+        extra = 2.0 * max(0.0, (L / n) / 4.0 - OVER_MM)
+        tp, pp = tube_pieces(L + 2 * OVER_MM, extra), plank_pieces(L)
+        rs += [k] * len(tp)
+        rl += tp
+        bs += [k] * len(pp)
+        bl += pp
+    return {"rlS": ",".join(map(str, rs)), "rlL": ",".join(map(str, rl)), "tbS": ",".join(map(str, bs)), "tbL": ",".join(map(str, bl))}
+
+
 def report(guards: list[Guard]) -> str:
     out = ["# 開口養生・床の縁の手すり", "",
            "出典: 安衛則 519・552・563・536・537条、仮設工業会 墜落防護工（基安安発0515001）、安全ネット指針（昭和51年 技術上の指針"
@@ -323,24 +398,7 @@ def report(guards: list[Guard]) -> str:
         for a, n, unit in g.quantity:
             row = tot.setdefault(a, [0.0, unit])
             row[0] += n
-    out += ["", "## 発注表（品番・規格の長さ別）", "", "| 品名・品番・規格 | 数 | 単位・1つの重さ | 重さ計 |", "|---|---|---|---|"]
-    total_kg = 0.0
-    order = ("NREG", "PKB", "単管 1.0M（手すり柱）", "あと施工", "単管", "PCJ", "ARC1", "杉足場板", "番線", "水平ネット", "ネットハンガー",
-             "合板", "桟木", "表示")
-
-    def key(item):
-        name = item[0]
-        cat = next((i for i, h in enumerate(order) if name.startswith(h)), len(order))
-        m = re.search(r"([0-9.]+)M|×(\d+)（", name)
-        ln = float(m.group(1) or 0) * 1000 if m and m.group(1) else float(m.group(2)) if m and m.group(2) else 0.0
-        return (cat, -ln, name)
-
-    for a, (n, u) in sorted(tot.items(), key=key):
-        m = re.search(r"([0-9.]+)kg", u)
-        kg = n * float(m.group(1)) if m else 0.0
-        total_kg += kg
-        out.append(f"| {a} | {round(n, 1):g} | {u} | {kg:.1f}kg |" if kg else f"| {a} | {round(n, 1):g} | {u} | |")
-    out.append(f"| 計 | | | {total_kg:.0f}kg |")
+    out += order_table(tot)
     out += ["", "ネットは使い始めて1年以内、その後6か月ごとに試験用の糸で試験（安全ネット指針）。手すりを作業で外したら墜落制止用器具と"
             "立入禁止で代え、終わればすぐ戻す（519条2項）。3m 以上の高さからの投下はダストシュート等（536条）", ""]
     return "\n".join(out)

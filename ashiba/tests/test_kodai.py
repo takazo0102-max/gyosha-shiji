@@ -6,7 +6,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.kodai import SEC_CODE, _fc, deck_rows, grid, kodai_plan, layout, part_params, plan_from_params, snap, tie_levels
+from ashiba.kodai import SEC_CODE, _fc, beam_pieces, deck_rows, grid, kodai_plan, layout, part_params, plan_from_params, snap, tie_levels
 
 
 class TestLayout(unittest.TestCase):
@@ -14,8 +14,8 @@ class TestLayout(unittest.TestCase):
         """AIJ の設計例（幅員 8m・支柱 6×6m・張出し 1m）: 幅 8m は支柱2列、根太は覆工板 2m ごとに5通り."""
         p = layout("a", 30000.0, 8000.0, top=500.0, depth=6300.0, embed=4700.0)
         self.assertEqual(p.ys, [1000.0, 7000.0])
-        self.assertEqual(len(p.xs), 6)                                   # 28m を 6m 以内で5等分
-        self.assertAlmostEqual(p.xs[1] - p.xs[0], 5600.0)
+        self.assertEqual(len(p.xs), 6)                                   # 28m を 6m 以内で5つに
+        self.assertEqual([b - a for a, b in zip(p.xs, p.xs[1:])], [6000.0, 5500.0, 5500.0, 5500.0, 5500.0])   # 0.5m 刻み
         self.assertEqual(p.joists, [0.0, 2000.0, 4000.0, 6000.0, 8000.0])
         self.assertAlmostEqual(p.post_top, 208.0 + 400.0 + 400.0)        # 覆工板＋根太＋大引の下
         self.assertAlmostEqual(p.post_len, 500.0 + 6300.0 + 4700.0 - 1008.0)
@@ -76,9 +76,30 @@ class TestChecks(unittest.TestCase):
         self.assertEqual({c.item: c.status for c in p.checks}["スロープ"], "NG")     # 1/6 より急
         q = {a: n for a, n, _c in p.quantity}
         self.assertEqual(q["覆工板 1×2m（高さ 208）"], 18 * 4)
-        self.assertEqual(q["大引と支柱の接合 M22 高力ボルト"], 4 * len(p.xs) * len(p.ys))
+        self.assertEqual(q["高力ボルト F10T-M22×75（大引と支柱）"], 4 * len(p.xs) * len(p.ys))
         flat = kodai_plan("f", 18000.0, 8000.0, top=0.0)
         self.assertNotIn("スロープ", {c.item for c in flat.checks})
+
+
+class TestOrderPieces(unittest.TestCase):
+    """発注の規格の長さ（利用者の指定 2026-11-01: イメージじゃなく実際の規定の長さで発注できるくらい詳細に）."""
+
+    def test_rental_beams_join_on_posts(self):
+        """根太は大引の芯、大引は支柱の芯で継ぎ、リースの山留主材（1.0〜7.0m・0.5m 刻み。ヒロセ 40シリーズ 200kg/m）."""
+        p = kodai_plan("構台1", 30000.0, 8000.0, top=500.0, depth=6300.0, embed=4700.0)
+        self.assertEqual(beam_pieces(p.length, p.xs), [7000.0, 5500.0, 5500.0, 5500.0, 6500.0])
+        self.assertEqual(beam_pieces(p.width, p.ys), [7000.0, 1000.0])
+        q = {a: n for a, n, _u in p.quantity}
+        self.assertEqual(q["根太 H-400（リース 40シリーズ）L=5.5m"], 3 * 5)          # 5通り
+        self.assertEqual(q["カバープレート 40P（H-400 の継手）"], 2 * (4 * 5 + 1 * 6))   # 継手ごとに両フランジ
+        self.assertEqual(q["支柱 H-350×350 新材 L=10.5m"], 12)
+        self.assertEqual(q["NREG スタンション（第1種・締付厚 0〜600）"], 2 * (17 + 1) + (5 + 1))   # 手前・奥 29.9m・先 7.9m
+        self.assertTrue(any(a.startswith("水平つなぎ [-200×90×8×13.5 L=5.15m") for a in q))   # 5.5m の間－柱の背 350
+
+    def test_new_steel_when_not_rental(self):
+        p = kodai_plan("b", 18000.0, 8000.0, joist="H-588")
+        q = {a: n for a, n, _u in p.quantity}
+        self.assertTrue(any(a.startswith("根太 H-588×300 新材 L=") for a in q))
 
 
 class TestPartParams(unittest.TestCase):

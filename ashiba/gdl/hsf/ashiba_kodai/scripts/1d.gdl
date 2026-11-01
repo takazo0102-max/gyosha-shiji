@@ -76,12 +76,33 @@ nBY = min(7, max(1, ceil(inY / spM - 0.000001)))
 nAX = nBX + 1
 nAY = nBY + 1
 dim axp[16], ayp[8]
+! 間は 0.5m 刻み（リースの山留主材 1.0〜7.0m・0.5m ピッチ。端数は手前の間から足す。kodai.grid と同じ）
 for i = 1 to nAX
 	axp[i] = ovh + inX * (i - 1) / nBX
 next i
+tuX = round_int(inX / 0.5)
+if abs(tuX * 0.5 - inX) < 0.001 then
+	bsX = int(tuX / nBX)
+	exX = tuX - bsX * nBX
+	for i = 1 to nBX
+		dd = bsX
+		if i <= exX then dd = bsX + 1
+		axp[i + 1] = axp[i] + dd * 0.5
+	next i
+endif
 for j = 1 to nAY
 	ayp[j] = ovh + inY * (j - 1) / nBY
 next j
+tuY = round_int(inY / 0.5)
+if abs(tuY * 0.5 - inY) < 0.001 then
+	bsY = int(tuY / nBY)
+	exY = tuY - bsY * nBY
+	for j = 1 to nBY
+		dd = bsY
+		if j <= exY then dd = bsY + 1
+		ayp[j + 1] = ayp[j] + dd * 0.5
+	next j
+endif
 ! 使う列・行（自動か、ホットスポットで動かした gX・gY）。並べ替えて gx・gy に
 dim px0[16], py0[8]
 px0[1] = gX1
@@ -148,6 +169,40 @@ for j = 2 to nPY
 next j
 nBX = nPX - 1
 nBY = nPY - 1
+! 根太・大引の材（リース 7.0m 以下。根太は大引の芯、大引は支柱の芯で継ぐ。kodai.beam_pieces と同じ）
+dim jbx[], gby[]
+nJb = 1
+jbx[1] = 0
+s0 = 0
+while lx - s0 > 7.001 do
+	e0 = s0 + 7
+	bst = -1
+	for i = 1 to nPX
+		if gx[i] > s0 + 0.001 and gx[i] <= s0 + 7.001 then bst = gx[i]
+	next i
+	if bst > 0 then e0 = bst
+	nJb = nJb + 1
+	jbx[nJb] = e0
+	s0 = e0
+endwhile
+nJb = nJb + 1
+jbx[nJb] = lx
+nGb = 1
+gby[1] = 0
+s0 = 0
+while ly - s0 > 7.001 do
+	e0 = s0 + 7
+	bst = -1
+	for j = 1 to nPY
+		if gy[j] > s0 + 0.001 and gy[j] <= s0 + 7.001 then bst = gy[j]
+	next j
+	if bst > 0 then e0 = bst
+	nGb = nGb + 1
+	gby[nGb] = e0
+	s0 = e0
+endwhile
+nGb = nGb + 1
+gby[nGb] = ly
 ! 高さ: 床の上端 zTop → 覆工板 → 根太 → 大引 → 支柱の天端
 zJt = zTop - dkH
 zGt = zJt - secH[kJ]
@@ -196,3 +251,76 @@ next k
 ! スロープ（入口 X0 の側）
 slL = 0
 if slopeN > 0.5 and zTop > 0.05 then slL = zTop * slopeN
+! 手すりの単管・幅木の板（発注の規格の長さ。kodai.part_params が辺ごとに割り付けて渡す）
+dim qrs[]
+kRs = 0
+rest = rlS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kRs = kRs + 1
+		qrs[kRs] = v
+	endif
+endwhile
+dim qrl[]
+kRl = 0
+rest = rlL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kRl = kRl + 1
+		qrl[kRl] = v / 1000
+	endif
+endwhile
+dim qbs[]
+kBs = 0
+rest = tbS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kBs = kBs + 1
+		qbs[kBs] = v
+	endif
+endwhile
+dim qbl[]
+kBl = 0
+rest = tbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kBl = kBl + 1
+		qbl[kBl] = v / 1000
+	endif
+endwhile

@@ -105,6 +105,22 @@
 			<Description><![CDATA["覆工板を 3D に描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<String Name="rlS">
+			<Description><![CDATA["手すりの単管の辺（1 手前・2 奥・3 先・4 入口）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rlL">
+			<Description><![CDATA["手すりの単管の長さ（mm。辺の始めから並べる）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tbS">
+			<Description><![CDATA["幅木の杉足場板の辺"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tbL">
+			<Description><![CDATA["幅木の杉足場板の長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Boolean Name="gAuto">
 			<Description><![CDATA["支柱の列・行を自動で等分（ホットスポットで動かすと外れる）"]]></Description>
 			<Value>1</Value>

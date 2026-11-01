@@ -54,6 +54,11 @@ H_SECTIONS = {
     "H-588": (588.0, 300.0, 12.0, 20.0, 187.2, 114000.0, 3890.0, 6.90, 147.0),
     "H-594": (594.0, 302.0, 14.0, 23.0, 222.4, 137000.0, 4620.0, 6.85, 175.0),
 }
+BEAM_STEP = 500.0                      # リースの山留主材の長さの刻み
+# リース（ヒロセ・ニッケンスター 鋼製山留 規格表。付属品込みの規格質量）: H形鋼 → (シリーズ, kg/m, カバープレート, kg)
+RENTAL = {"H-200": ("20", 55.0, "20P", 9.0), "H-250": ("25", 80.0, "25P", 14.0), "H-300": ("30", 100.0, "30P", 17.0),
+          "H-350": ("35", 150.0, "35P", 20.0), "H-400": ("40", 200.0, "40P", 40.0)}
+JOINT_BOLTS = 24                       # 継手1か所の F10T-M22×75（END 部とカバープレート2枚。目安、組立図で確かめる）
 TIE = ("[-200×90×8×13.5", 30.3)                       # 水平つなぎ（溝形鋼）kg/m
 BRACE = ("L-75×75×6", 6.85, 8.727, 22.0)              # 垂直ブレース（山形鋼）kg/m・A cm²・ボルト穴 mm（M20）
 
@@ -128,10 +133,30 @@ class Plan:
 
 
 def grid(length: float, ov: float, sp_max: float) -> list[float]:
-    """縁から ov の内側を sp_max 以内で等分した支柱の位置 mm."""
+    """縁から ov の内側を sp_max 以内で分けた支柱の位置 mm。間は 0.5m 刻み（リースの山留主材 1.0〜7.0m・0.5m ピッチが
+    支柱の芯で継げるように。利用者の指定 2026-11-01: 実際の規定の長さで発注できるくらい詳細に）。端数は手前の間から 0.5m ずつ足す."""
     inner = max(length - 2.0 * ov, 0.0)
     n = max(1, math.ceil(inner / sp_max - 1e-6))
-    return [ov + inner * i / n for i in range(n + 1)]
+    units = round(inner / BEAM_STEP)
+    if abs(units * BEAM_STEP - inner) > 1.0:                 # 0.5m の倍数でなければ等分
+        return [ov + inner * i / n for i in range(n + 1)]
+    base, extra = divmod(units, n)
+    out = [ov]
+    for i in range(n):
+        out.append(out[-1] + (base + (1 if i < extra else 0)) * BEAM_STEP)
+    return out
+
+
+def beam_pieces(total: float, joints: list[float], max_len: float = 7000.0) -> list[float]:
+    """長さ total mm の桁を、継ぎ目の候補（支柱・大引の芯）だけで継いで max_len 以下の材に分ける（先から遠くへ伸ばす）."""
+    out, s = [], 0.0
+    while total - s > max_len + 1.0:
+        cand = [j for j in joints if s + 1.0 < j <= s + max_len + 1.0]
+        e = max(cand) if cand else s + max_len
+        out.append(e - s)
+        s = e
+    out.append(total - s)
+    return out
 
 
 def snap(length: float, unit: float) -> float:
@@ -299,31 +324,74 @@ def check(p: Plan, n_value: float | None = None) -> Plan:
     return p
 
 
+def _beam_rows(label: str, sec: str, pieces: list[float], q: list) -> None:
+    """桁の材（長さ mm の並び）→ 発注の行。リースのシリーズは 0.5m 刻みの長さ、ほかは新材の切断長さ."""
+    h = H_SECTIONS[sec]
+    cnt: dict[float, int] = {}
+    for x in pieces:
+        cnt[round(x)] = cnt.get(round(x), 0) + 1
+    rent = RENTAL.get(sec)
+    for ln, n in sorted(cnt.items(), reverse=True):
+        if rent and abs(ln / BEAM_STEP - round(ln / BEAM_STEP)) < 0.01 and 1000.0 <= ln <= 7000.0:
+            q.append((f"{label} {sec}（リース {rent[0]}シリーズ）L={ln / 1000:.1f}m", n, f"本（{ln / 1000 * rent[1]:.0f}kg）"))
+        else:
+            q.append((f"{label} {sec}×{h[1]:.0f} 新材 L={ln / 1000:.2f}m", n, f"本（切断。{ln / 1000 * h[8]:.0f}kg）"))
+
+
 def quantity(p: Plan) -> list[tuple[str, float, str]]:
+    """発注の数（利用者の指定 2026-11-01: 実際の規定の長さで発注できるくらい詳細に）。根太は大引の芯、大引は支柱の芯で継ぐ."""
+    from .opening_guard import rail_order
+
     q = p.quantity = []
     for ln in (2.0, 3.0):
         nr = sum(1 for r in p.rows if abs(r - ln * 1000.0) < 1.0)
         if nr:
             nd, kg = int(round(p.length / 1000.0)) * nr, DECKS[ln]
-            q.append((f"覆工板 1×{ln:g}m（高さ {DECK_H_MM:.0f}）", nd, f"{nr}列・1枚 {kg:g}kg・計 {nd * kg / 1000:.1f}t"))
-    for label, sec, ln in (("根太", p.joist, p.length * len(p.joists)), ("大引", p.girder, p.width * len(p.xs)),
-                           ("支柱", p.post, p.post_len * len(p.xs) * len(p.ys))):
-        h = H_SECTIONS[sec]
-        q.append((f"{label} {sec}×{h[1]:.0f}", round(ln / 1000.0, 1), f"m・{h[8]:g}kg/m・計 {ln / 1000.0 * h[8] / 1000:.1f}t"))
-    tie = len(p.levels) * ((p.xs[-1] - p.xs[0]) * len(p.ys) + (p.ys[-1] - p.ys[0]) * len(p.xs))
-    q.append((f"水平つなぎ {TIE[0]}", round(tie / 1000.0, 1), f"m・{TIE[1]:g}kg/m（{len(p.levels)}段）"))
-    nb = (len(p.levels) - 1) * 2 * 2 * ((len(p.xs) - 1) + (len(p.ys) - 1))   # 外周の4構面・水平つなぎの間ごとに X 形に2本
-    q.append((f"垂直ブレース {BRACE[0]}", nb, "本（外周の構面・水平つなぎの間ごとに X 形）"))
-    q.append(("大引と支柱の接合 M22 高力ボルト", BOLTS * len(p.xs) * len(p.ys), f"本（{BOLTS}本/か所）"))
+            q.append((f"覆工板 1×{ln:g}m（高さ {DECK_H_MM:.0f}）", nd, f"枚（{kg:g}kg）"))
+    jp = beam_pieces(p.length, p.xs)
+    gp = beam_pieces(p.width, p.ys)
+    _beam_rows("根太", p.joist, jp * len(p.joists), q)
+    _beam_rows("大引", p.girder, gp * len(p.xs), q)
+    joints = {p.joist: (len(jp) - 1) * len(p.joists)}
+    joints[p.girder] = joints.get(p.girder, 0) + (len(gp) - 1) * len(p.xs)
+    for sec, nj in joints.items():
+        if nj and sec in RENTAL:
+            q.append((f"カバープレート {RENTAL[sec][2]}（{sec} の継手）", 2 * nj, f"枚（{RENTAL[sec][3]:g}kg）"))
+    nj_all = sum(joints.values())
+    if nj_all:
+        q.append(("高力ボルト F10T-M22×75（継手）", JOINT_BOLTS * nj_all, f"本（0.60kg。1か所 {JOINT_BOLTS}本の目安）"))
+    q.append(("高力ボルト F10T-M22×75（大引と支柱）", BOLTS * len(p.xs) * len(p.ys), f"本（0.60kg。{BOLTS}本/か所）"))
+    ph = H_SECTIONS[p.post]
+    pl = math.ceil(p.post_len / 100.0) * 100.0
+    q.append((f"支柱 {p.post}×{ph[1]:.0f} 新材 L={pl / 1000:.1f}m", len(p.xs) * len(p.ys),
+              f"本（切断。{pl / 1000 * ph[8]:.0f}kg・根入れ {p.embed / 1000:g}m）"))
+    q.append((f"トッププレート PL-22×{ph[1] + 50:.0f}×{ph[0] + 50:.0f}（支柱の頭）", len(p.xs) * len(p.ys), "枚"))
+    # 水平つなぎ: 支柱の間ごとに切断（X は支柱の背 h、Y は幅 b を引く）、垂直ブレース: 外周の構面の間・段ごとに X 形
+    cut: dict[int, int] = {}
+    for a, b in zip(p.xs, p.xs[1:]):
+        c = int(round((b - a - ph[0]) / 10.0) * 10)
+        cut[c] = cut.get(c, 0) + len(p.ys) * len(p.levels)
+    for a, b in zip(p.ys, p.ys[1:]):
+        c = int(round((b - a - ph[1]) / 10.0) * 10)
+        cut[c] = cut.get(c, 0) + len(p.xs) * len(p.levels)
+    for c, n in sorted(cut.items(), reverse=True):
+        q.append((f"水平つなぎ {TIE[0]} L={c / 1000:.2f}m", n, f"本（切断。{c / 1000 * TIE[1]:.1f}kg）"))
+    br: dict[int, int] = {}
+    tiers = [b - a for a, b in zip(p.levels, p.levels[1:])]
+    for t in tiers:
+        for bays, faces in (([b - a for a, b in zip(p.xs, p.xs[1:])], 2), ([b - a for a, b in zip(p.ys, p.ys[1:])], 2)):
+            for bay in bays:
+                c = int(round(math.hypot(bay, t - 200.0) / 10.0) * 10)
+                br[c] = br.get(c, 0) + 2 * faces
+    for c, n in sorted(br.items(), reverse=True):
+        q.append((f"垂直ブレース {BRACE[0]} L={c / 1000:.2f}m", n, f"本（切断。{c / 1000 * BRACE[1]:.1f}kg）"))
     edges = {"S": p.length, "N": p.length, "E": p.width, "W": p.width}
-    rl = sum(edges[k] for k in p.rails)
+    rl = [edges[k] - 100.0 for k in p.rails]
     if rl:
-        q.append(("手すり・中さん 単管 φ48.6", round(2 * rl / 1000.0, 1), "m"))
-        q.append(("手すり柱 単管", sum(math.ceil(edges[k] / RAIL_POST_MM) + 1 for k in p.rails), f"本（{RAIL_POST_MM:.0f} 以内）"))
-        q.append(("幅木", round(rl / 1000.0, 1), f"m（高さ {TOE_H_MM:.0f}）"))
+        q += rail_order(rl)
     if p.slope_len:
         q.append(("スロープ（覆工板・敷桁）", round(p.slope_len * p.width / 1e6, 1), f"m²（勾配 1/{p.slope:g}）"))
-    q.append(("最大積載荷重の表示札", 1, f"{p.max_load_t:g}t"))
+    q.append(("最大積載荷重の表示札", 1, f"枚（{p.max_load_t:g}t）"))
     return q
 
 
@@ -347,8 +415,17 @@ def part_params(p: Plan) -> dict:
             "dig": p.depth / 1000.0, "emb": p.embed / 1000.0, "secJ": SEC_CODE[p.joist], "secG": SEC_CODE[p.girder],
             "secP": SEC_CODE[p.post], "tieP": TIE_PITCH_MM / 1000.0, "slopeN": p.slope if p.slope_len else 0.0,
             "railS": "S" in p.rails, "railN": "N" in p.rails, "railE": "E" in p.rails, "railW": "W" in p.rails,
-            "gAuto": True, "lAuto": True, "kdVeh": p.vehicle, "kdLoad": p.load_t, "kdN": p.n_value,
+            **_rail_params(p), "gAuto": True, "lAuto": True, "kdVeh": p.vehicle, "kdLoad": p.load_t, "kdN": p.n_value,
             "kdName": p.name, "maxLd": f"最大積載荷重 {p.max_load_t:g}t"}
+
+
+def _rail_params(p: Plan) -> dict:
+    """手すりの辺（1 手前 S・2 奥 N・3 先 E・4 入口 W。縁から 50 ずつ入れる）の単管・幅木の板の並び."""
+    from .opening_guard import rail_strings
+
+    edges = {"S": (1, p.length), "N": (2, p.length), "E": (3, p.width), "W": (4, p.width)}
+    ks = [k for k in "SNEW" if k in p.rails]
+    return rail_strings([edges[k][1] - 100.0 for k in ks], [edges[k][0] for k in ks])
 
 
 def plan_from_params(ps: dict, name: str = "") -> Plan:
@@ -377,7 +454,13 @@ def plan_from_params(ps: dict, name: str = "") -> Plan:
     return p
 
 
+KODAI_ORDER = ("覆工板", "根太", "大引", "カバープレート", "高力ボルト", "支柱", "トッププレート", "水平つなぎ", "垂直ブレース", "NREG",
+               "単管", "PCJ", "ARC1", "杉足場板", "番線", "スロープ", "最大積載")
+
+
 def report(plans: list[Plan]) -> str:
+    from .opening_guard import order_table
+
     out = ["# 乗入れ構台・荷取り構台", "",
            "出典: 日本建築学会 乗入れ構台設計・施工指針（2014）付1 の設計例（FORUM8 の計算書）・AIJ 講習会資料（鹿島）・ヒロセ "
            "鋼製山留総合カタログ・日本製鉄 メトロデッキ・労働安全衛生規則 575条の2〜8。検定は単純梁・軸力は重機の全重量で"
@@ -391,5 +474,5 @@ def report(plans: list[Plan]) -> str:
                 f"{len(p.levels)}段（床から {', '.join(f'{z / 1000:.2f}' for z in p.levels)}m 下）",
                 f"- 重機: {VEHICLES[p.vehicle][0]}・吊荷 {p.load_t:g}t", "", "| 検定 | 判定 | 内容 |", "|---|---|---|"]
         out += [f"| {x.item} | {x.status} | {x.message} |" for x in p.checks]
-        out += ["", "| 品名 | 数 | 注 |", "|---|---|---|"] + [f"| {a} | {b:g} | {c} |" for a, b, c in p.quantity] + [""]
+        out += order_table({a: [n, u] for a, n, u in p.quantity}, KODAI_ORDER) + [""]
     return "\n".join(out)

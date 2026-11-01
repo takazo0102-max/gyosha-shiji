@@ -56,6 +56,10 @@ def paramlist() -> str:
         _param("Boolean", "railE", "手すり 先（X 最大）", 1),
         _param("Boolean", "railW", "手すり 入口（X0）", 0),
         _param("Boolean", "showDeck", "覆工板を 3D に描く", 1),
+        _param("String", "rlS", "手すりの単管の辺（1 手前・2 奥・3 先・4 入口）", ""),
+        _param("String", "rlL", "手すりの単管の長さ（mm。辺の始めから並べる）", ""),
+        _param("String", "tbS", "幅木の杉足場板の辺", ""),
+        _param("String", "tbL", "幅木の杉足場板の長さ（mm）", ""),
         _param("Boolean", "gAuto", "支柱の列・行を自動で等分（ホットスポットで動かすと外れる）", 1),
         _param("Integer", "nGX", "支柱の列の数（X。2〜16）", 4),
         *[_param("Length", f"gX{i}", f"支柱の列 {i} の X（大引も）", 0.0) for i in range(1, MAX_GX + 1)],
@@ -128,12 +132,33 @@ nBY = min({MAX_GY - 1}, max(1, ceil(inY / spM - 0.000001)))
 nAX = nBX + 1
 nAY = nBY + 1
 dim axp[{MAX_GX}], ayp[{MAX_GY}]
+! 間は 0.5m 刻み（リースの山留主材 1.0〜7.0m・0.5m ピッチ。端数は手前の間から足す。kodai.grid と同じ）
 for i = 1 to nAX
 	axp[i] = ovh + inX * (i - 1) / nBX
 next i
+tuX = round_int(inX / 0.5)
+if abs(tuX * 0.5 - inX) < 0.001 then
+	bsX = int(tuX / nBX)
+	exX = tuX - bsX * nBX
+	for i = 1 to nBX
+		dd = bsX
+		if i <= exX then dd = bsX + 1
+		axp[i + 1] = axp[i] + dd * 0.5
+	next i
+endif
 for j = 1 to nAY
 	ayp[j] = ovh + inY * (j - 1) / nBY
 next j
+tuY = round_int(inY / 0.5)
+if abs(tuY * 0.5 - inY) < 0.001 then
+	bsY = int(tuY / nBY)
+	exY = tuY - bsY * nBY
+	for j = 1 to nBY
+		dd = bsY
+		if j <= exY then dd = bsY + 1
+		ayp[j + 1] = ayp[j] + dd * 0.5
+	next j
+endif
 ! 使う列・行（自動か、ホットスポットで動かした gX・gY）。並べ替えて gx・gy に
 dim px0[{MAX_GX}], py0[{MAX_GY}]
 """ + "\n".join(gx + gy) + f"""
@@ -177,6 +202,40 @@ for j = 2 to nPY
 next j
 nBX = nPX - 1
 nBY = nPY - 1
+! 根太・大引の材（リース 7.0m 以下。根太は大引の芯、大引は支柱の芯で継ぐ。kodai.beam_pieces と同じ）
+dim jbx[], gby[]
+nJb = 1
+jbx[1] = 0
+s0 = 0
+while lx - s0 > 7.001 do
+	e0 = s0 + 7
+	bst = -1
+	for i = 1 to nPX
+		if gx[i] > s0 + 0.001 and gx[i] <= s0 + 7.001 then bst = gx[i]
+	next i
+	if bst > 0 then e0 = bst
+	nJb = nJb + 1
+	jbx[nJb] = e0
+	s0 = e0
+endwhile
+nJb = nJb + 1
+jbx[nJb] = lx
+nGb = 1
+gby[1] = 0
+s0 = 0
+while ly - s0 > 7.001 do
+	e0 = s0 + 7
+	bst = -1
+	for j = 1 to nPY
+		if gy[j] > s0 + 0.001 and gy[j] <= s0 + 7.001 then bst = gy[j]
+	next j
+	if bst > 0 then e0 = bst
+	nGb = nGb + 1
+	gby[nGb] = e0
+	s0 = e0
+endwhile
+nGb = nGb + 1
+gby[nGb] = ly
 ! 高さ: 床の上端 zTop → 覆工板 → 根太 → 大引 → 支柱の天端
 zJt = zTop - dkH
 zGt = zJt - secH[kJ]
@@ -218,6 +277,79 @@ next k
 ! スロープ（入口 X0 の側）
 slL = 0
 if slopeN > 0.5 and zTop > 0.05 then slL = zTop * slopeN
+! 手すりの単管・幅木の板（発注の規格の長さ。kodai.part_params が辺ごとに割り付けて渡す）
+dim qrs[]
+kRs = 0
+rest = rlS
+while strlen(rest) > 0 do
+\tpc = strstr(rest, ",")
+\tif pc > 0 then
+\t\titem = strsub(rest, 1, pc - 1)
+\t\trest = strsub(rest, pc + 1, strlen(rest) - pc)
+\telse
+\t\titem = rest
+\t\trest = ""
+\tendif
+\tk = split(item, "%n", v)
+\tif k > 0 then
+\t\tkRs = kRs + 1
+\t\tqrs[kRs] = v
+\tendif
+endwhile
+dim qrl[]
+kRl = 0
+rest = rlL
+while strlen(rest) > 0 do
+\tpc = strstr(rest, ",")
+\tif pc > 0 then
+\t\titem = strsub(rest, 1, pc - 1)
+\t\trest = strsub(rest, pc + 1, strlen(rest) - pc)
+\telse
+\t\titem = rest
+\t\trest = ""
+\tendif
+\tk = split(item, "%n", v)
+\tif k > 0 then
+\t\tkRl = kRl + 1
+\t\tqrl[kRl] = v / 1000
+\tendif
+endwhile
+dim qbs[]
+kBs = 0
+rest = tbS
+while strlen(rest) > 0 do
+\tpc = strstr(rest, ",")
+\tif pc > 0 then
+\t\titem = strsub(rest, 1, pc - 1)
+\t\trest = strsub(rest, pc + 1, strlen(rest) - pc)
+\telse
+\t\titem = rest
+\t\trest = ""
+\tendif
+\tk = split(item, "%n", v)
+\tif k > 0 then
+\t\tkBs = kBs + 1
+\t\tqbs[kBs] = v
+\tendif
+endwhile
+dim qbl[]
+kBl = 0
+rest = tbL
+while strlen(rest) > 0 do
+\tpc = strstr(rest, ",")
+\tif pc > 0 then
+\t\titem = strsub(rest, 1, pc - 1)
+\t\trest = strsub(rest, pc + 1, strlen(rest) - pc)
+\telse
+\t\titem = rest
+\t\trest = ""
+\tendif
+\tk = split(item, "%n", v)
+\tif k > 0 then
+\t\tkBl = kBl + 1
+\t\tqbl[kBl] = v / 1000
+\tendif
+endwhile
 """)
 
 
@@ -331,7 +463,9 @@ define material "kd_deck" 2, 0.36, 0.37, 0.38
 define material "kd_steel" 2, 0.55, 0.42, 0.30
 define material "kd_brace" 2, 0.45, 0.47, 0.50
 define material "kd_rail" 2, 0.90, 0.75, 0.10
-define material "kd_toe" 2, 0.85, 0.85, 0.85
+define material "kd_toe" 2, 0.80, 0.66, 0.45
+define material "kd_post" 2, 0.62, 0.64, 0.66
+define material "kd_clamp" 2, 0.35, 0.36, 0.38
 define material "kd_slope" 2, 0.62, 0.60, 0.56
 resol 8
 ! ---- 覆工板 ----
@@ -353,10 +487,23 @@ htw = secW[kJ]
 htf = secF[kJ]
 for j = 1 to nDY + 1
 	yj = max(hb / 2, min(ly - hb / 2, ry[j]))
-	add 0, yj, zGt
-	hL = lx
-	gosub "hbeam"
-	del 1
+	for k = 1 to nJb - 1
+		add jbx[k] + 0.002, yj, zGt
+		hL = jbx[k + 1] - jbx[k] - 0.004
+		gosub "hbeam"
+		del 1
+		if k > 1 then
+			! 継手のカバープレート（両フランジ）
+			material "kd_brace"
+			add jbx[k] - 0.25, yj - hb / 2, zGt - 0.016
+			block 0.5, hb, 0.016
+			del 1
+			add jbx[k] - 0.25, yj - hb / 2, zGt + hh - 0.002
+			block 0.5, hb, 0.002
+			del 1
+			material "kd_steel"
+		endif
+	next k
 next j
 ! ---- 大引（支柱の列ごとに Y へ）----
 hh = secH[kG]
@@ -364,11 +511,23 @@ hb = secB[kG]
 htw = secW[kG]
 htf = secF[kG]
 for i = 1 to nPX
-	add gx[i], 0, zPt
-	rotz 90
-	hL = ly
-	gosub "hbeam"
-	del 2
+	for k = 1 to nGb - 1
+		add gx[i], gby[k] + 0.002, zPt
+		rotz 90
+		hL = gby[k + 1] - gby[k] - 0.004
+		gosub "hbeam"
+		del 2
+		if k > 1 then
+			material "kd_brace"
+			add gx[i] - hb / 2, gby[k] - 0.25, zPt - 0.016
+			block hb, 0.5, 0.016
+			del 1
+			add gx[i] - hb / 2, gby[k] - 0.25, zPt + hh
+			block hb, 0.5, 0.016
+			del 1
+			material "kd_steel"
+		endif
+	next k
 next i
 ! ---- 支柱 ----
 hh = secH[kP]
@@ -445,7 +604,7 @@ if nLv > 1 then
 		next j
 	next k
 endif
-! ---- 手すり・中さん・幅木（縁の内側 50）----
+! ---- 手すり・中桟・幅木（発注の規格: スタンション NREG を根太のフランジに、単管の定尺を1本ずつ、直交クランプ、杉足場板）----
 for e = 1 to 4
 	onE = 0
 	if e = 1 and railS then onE = 1
@@ -453,39 +612,28 @@ for e = 1 to 4
 	if e = 3 and railE then onE = 1
 	if e = 4 and railW then onE = 1
 	if onE then
-		eL = lx
-		ex = 0
+		sL = lx - 0.1
+		ex = 0.05
 		ey = 0.05
 		er = 0
-		if e = 2 then ey = ly - 0.05
+		eo = -1
+		if e = 2 then
+			ey = ly - 0.05
+			eo = 1
+		endif
 		if e > 2 then
-			eL = ly
-			ey = 0
+			sL = ly - 0.1
 			er = 90
 			ex = 0.05
-			if e = 3 then ex = lx - 0.05
+			eo = 1
+			if e = 3 then
+				ex = lx - 0.05
+				eo = -1
+			endif
 		endif
 		add ex, ey, zTop
 		rotz er
-		nRp = max(1, ceil(eL / 1.8 - 0.000001))
-		material "kd_rail"
-		for r = 0 to nRp
-			add eL * r / nRp, 0, 0
-			cylind 1.0, 0.0243
-			del 1
-		next r
-		for t = 1 to 2
-			hz = 0.95
-			if t = 2 then hz = 0.45
-			add 0, 0, hz
-			roty 90
-			cylind eL, 0.0243
-			del 2
-		next t
-		material "kd_toe"
-		add 0, -0.0125, 0
-		block eL, 0.025, 0.15
-		del 1
+		gosub "rside"
 		del 2
 	endif
 next e
@@ -498,6 +646,66 @@ if slL > 0 then
 	del 2
 endif
 end
+
+! 手すりの1辺: 今の座標で +X に長さ sL、外（床の縁）は eo の側。辺の番号 e の単管・板は rlS・rlL・tbS・tbL から
+"rside":
+	nP = max(1, ceil(sL / 1.8 - 0.000001))
+	for i = 0 to nP
+		add sL * i / nP, 0, 0
+		material "kd_post"
+		cylind 1.0, 0.0243
+		add -0.02, min(0, eo * 0.08), -0.24
+		block 0.04, 0.08, 0.27
+		del 1
+		del 1
+	next i
+	tot = 0
+	for k = 1 to min(kRs, kRl)
+		if qrs[k] = e then tot = tot + qrl[k]
+	next k
+	for r = 1 to 2
+		hz = 0.95
+		if r = 2 then hz = 0.45
+		xs = -(tot - sL) / 2
+		for k = 1 to min(kRs, kRl)
+			if qrs[k] = e then
+				material "kd_rail"
+				add xs, eo * 0.05, hz
+				roty 90
+				cylind qrl[k] - 0.003, 0.0243
+				del 2
+				if xs > -(tot - sL) / 2 + 0.01 then
+					material "kd_post"
+					add xs - 0.05, eo * 0.05, hz
+					roty 90
+					cylind 0.1, 0.027
+					del 2
+				endif
+				xs = xs + qrl[k]
+			endif
+		next k
+		material "kd_clamp"
+		for i = 0 to nP
+			add sL * i / nP - 0.035, min(eo * 0.025, eo * 0.06), hz - 0.04
+			block 0.07, 0.035, 0.08
+			del 1
+		next i
+	next r
+	totB = 0
+	for k = 1 to min(kBs, kBl)
+		if qbs[k] = e then totB = totB + qbl[k]
+	next k
+	material "kd_toe"
+	xs = -(totB - sL) / 2
+	for k = 1 to min(kBs, kBl)
+		if qbs[k] = e then
+			add xs + 0.003, min(-eo * 0.035, -eo * 0.07), 0.002
+			block qbl[k] - 0.006, 0.035, 0.21
+			del 1
+			xs = xs + qbl[k]
+		endif
+	next k
+return
 
 ! H 形鋼: 今の座標で +X に長さ hL、Y の真ん中、下端 z＝0（hh・hb・htw・htf）
 "hbeam":

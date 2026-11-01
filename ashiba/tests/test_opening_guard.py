@@ -48,7 +48,7 @@ class TestGuards(unittest.TestCase):
         q = {a: n for a, n, _u in edge.quantity}
         self.assertEqual((q["PKB 固定ベース"], q["単管 1.0M（手すり柱）"], q["あと施工アンカー M10（固定ベース）"]), (8, 8, 16))
         prm = part_params(edge)
-        self.assertEqual((prm["edSide"], prm["postK"], prm["rlS"], prm["rlL"]), (-1, 2, "1,1,1", "6000,5500,700"))   # 12.2m
+        self.assertEqual((prm["edSide"], prm["postK"], prm["rlS"], prm["rlL"]), (-1, 2, "1,1,1", "6000,5500,600"))   # 12.0m＋突き出し 50×2
 
 
 class TestOrderPieces(unittest.TestCase):
