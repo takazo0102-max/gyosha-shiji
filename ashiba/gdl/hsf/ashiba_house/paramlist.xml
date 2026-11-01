@@ -70,8 +70,8 @@
 			<Value><![CDATA["ハウス用階段 FE用"]]></Value>
 		</String>
 		<Length Name="corrW">
-			<Description><![CDATA["2階の外廊下の幅"]]></Description>
-			<Value>1.0</Value>
+			<Description><![CDATA["外廊下の出（階段踊場部ユニット SC の D 1.14）"]]></Description>
+			<Value>1.14</Value>
 		</Length>
 		<String Name="hsName">
 			<Description><![CDATA["名前（注記）"]]></Description>

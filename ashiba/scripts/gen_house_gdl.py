@@ -4,7 +4,8 @@
 scripts/house_run.py。原点＝建物の手前の左の隅（地盤）、+X＝長手、+Y＝奥。手前（Y0）の面に出入口と窓。
 - 型 hsType（1〜5 スーパーハウス 1・2・3.1・3.8・5坪、6 仮設トイレ、7 快適トイレハウス）、連棟 nUnit（ハウスは奥へ、トイレは横へ）、
   段 nTier（1〜3）、段ごとの用途 use1〜3（1 事務所・2 詰所・3 休憩所・4 更衣室・5 会議室・6 倉庫・7 トイレ・8 シャワー）
-- 2段以上は手前に外廊下（幅 corrW・手すり 1,100）と2階への外階段（カナモト ハウス用階段 FE用 900×4,100・KD用 1,150×4,990。
+- 2段以上は妻側（X0 の面）に外廊下（カナモト 階段踊場部ユニット SC 1,140×2,290 をユニットごと。利用者の指定 2026-11-01: 外廊下も
+  製品の規格にして）と出入口、2階への外階段（カナモト ハウス用階段 FE用 900×4,100・KD用 1,150×4,990。
   幅 stairW・長さ stairL、stairSd＝0 で X0 の外・1 で X の外。利用者の指定 2026-11-01: 仮設建物の階段も製品の規格にして）
   python3 scripts/gen_house_gdl.py     # gdl/hsf/ashiba_house を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
-from ashiba.site_house import HOUSES, USES  # noqa: E402
+from ashiba.site_house import HOUSES, SHORT, USES  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_house"
@@ -40,7 +41,7 @@ def paramlist() -> str:
         _param("Length", "stairW", "外階段の幅（製品の幅）", 0.9),
         _param("Length", "stairL", "外階段の長さ（製品の長さ。FE用 4.1・KD用 4.99）", 4.1),
         _param("String", "stName", "外階段の品名（注記）", "ハウス用階段 FE用"),
-        _param("Length", "corrW", "2階の外廊下の幅", 1.0),
+        _param("Length", "corrW", "外廊下の出（階段踊場部ユニット SC の D 1.14）", 1.14),
         _param("String", "hsName", "名前（注記）", "仮設建物"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -86,8 +87,10 @@ nRs = ceil(uh / 0.2 - 0.0001)
 rsH = uh / nRs
 stL = max(1, stairL)
 gStp = stL / max(1, nRs - 1)
+! 外廊下は妻側（X0 の面。ユニットの短い辺が並ぶ）に、ユニットごとの階段踊場部ユニット SC（出 corrW・幅 ud）。階段はその端の先へ
+cL = ly
 stX = -stL
-if stairSd = 1 then stX = lx
+if stairSd = 1 then stX = cL
 """
 
 
@@ -103,13 +106,17 @@ for u = 1 to nU
 		y0 = 0
 	endif
 	rect2 x0, y0, x0 + uw, y0 + ud
-	! 出入口（手前の面。トイレは各ユニット、ハウスは手前の1つ）
-	if isT or u = 1 then
+	! 出入口（トイレは各ユニットの手前、平屋のハウスは手前の1つ、2段以上は妻側 X0 にユニットごと）
+	if isT or (u = 1 and upOn = 0) then
 		dw = min(0.8, uw - 0.1)
 		dx = x0 + 0.05
 		if isT then dx = x0 + (uw - dw) / 2
 		line2 dx, y0, dx, y0 - dw
 		arc2 dx, y0, dw, 270, 360
+	endif
+	if upOn and isT = 0 then
+		line2 0, y0 + 0.15, -0.8, y0 + 0.15
+		arc2 0, y0 + 0.15, 0.8, 90, 180
 	endif
 	! 窓（手前の面、ハウスだけ）
 	if isT = 0 and u = 1 and uw > 2.5 then
@@ -121,17 +128,19 @@ for u = 1 to nU
 		next i
 	endif
 next u
-! 2階の外廊下と外階段（上る向きの矢）
+! 2階の外廊下（階段踊場部ユニット SC をユニットごと）と外階段（上る向きの矢）。廊下の座標（x＝妻側に沿って・y＝外へ負）を
+! 部品の X0 の面へ回す（x→Y、y→X）
 if upOn and isT = 0 then
-	rect2 0, -corrW, lx, 0
+	rot2 90
+	mul2 1, -1
+	rect2 0, -corrW, cL, 0
+	for u = 1 to nU - 1
+		line2 u * ud, -corrW, u * ud, 0
+	next u
 	rect2 stX, -stairW, stX + stL, 0
 	for i = 1 to nRs - 2
 		line2 stX + i * gStp, -stairW, stX + i * gStp, 0
 	next i
-	add2 stX + stL / 2, -stairW - 0.4
-	rot2 -SYMB_ROTANGLE
-	text2 0, 0, stName
-	del 2
 	ax = stX + 0.2
 	bx = stX + stL - 0.2
 	if stairSd = 1 then
@@ -141,6 +150,12 @@ if upOn and isT = 0 then
 	line2 ax, -stairW / 2, bx, -stairW / 2
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 + 0.15
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 - 0.15
+	del 2
+	add2 -corrW - 2.2, stX + stL / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, stName
+	text2 0, -0.4, "外廊下 SC×" + str(nU, 1, 0)
+	del 2
 endif
 ! 名前と段ごとの用途（図面の向きに関係なく水平）
 add2 lx / 2, ly / 2
@@ -183,13 +198,19 @@ for t = 1 to nT
 		add x0 + 0.005, y0 + 0.005, z0 + 0.12
 		block uw - 0.01, ud - 0.01, uh - 0.12
 		del 1
-		if isT or u = 1 then
+		if isT or (u = 1 and upOn = 0) then
 			material "hs_door"
 			dw = min(0.8, uw - 0.1)
 			dx = x0 + 0.05
 			if isT then dx = x0 + (uw - dw) / 2
 			add dx, -0.01, z0 + 0.15
 			block dw, 0.02, min(1.9, uh - 0.4)
+			del 1
+		endif
+		if upOn and isT = 0 then
+			material "hs_door"
+			add -0.01, y0 + 0.15, z0 + 0.15
+			block 0.02, 0.8, min(1.9, uh - 0.4)
 			del 1
 		endif
 		if isT = 0 and u = 1 and uw > 2.5 then
@@ -205,41 +226,53 @@ for t = 1 to nT
 	next u
 next t
 if upOn and isT = 0 then
+	! 廊下の座標（x＝妻側に沿って・y＝外へ負）を部品の X0 の面へ回す
+	rotz 90
+	muly -1
 	for t = 2 to nT
 		zf = (t - 1) * uh
-		! 外廊下の床と手すり（手すり 1.1・中桟 0.55、柱は 1.8 以内）
-		material "hs_base"
-		add 0, -corrW, zf - 0.12
-		block lx, corrW, 0.12
-		del 1
-		material "hs_rail"
-		nPo = max(1, ceil(lx / 1.8 - 0.0001))
-		for i = 0 to nPo
-			add lx * i / nPo, -corrW + 0.03, zf
-			cylind 1.1, 0.0243
+		for u = 1 to nU
+			yU = (u - 1) * ud
+			! 階段踊場部ユニット SC: 床・外側の鉄骨柱2本・手摺（手すり 1.1・中桟 0.55）
+			material "hs_base"
+			add yU + 0.005, -corrW, zf - 0.12
+			block ud - 0.01, corrW, 0.12
 			del 1
-		next i
-		for r = 1 to 2
-			hz = 1.1
-			if r = 2 then hz = 0.55
-			add 0, -corrW + 0.03, zf + hz
-			roty 90
-			cylind lx, 0.0243
-			del 2
-		next r
-		! 廊下の階段の無い側の端
-		ex = lx
+			for e = 0 to 1
+				add yU + 0.05 + e * (ud - 0.15), -corrW + 0.01, 0
+				block 0.1, 0.1, zf - 0.12
+				del 1
+			next e
+			material "hs_rail"
+			for e = 0 to 1
+				add yU + 0.1 + e * (ud - 0.2), -corrW + 0.06, zf
+				cylind 1.1, 0.0243
+				del 1
+			next e
+			for r = 1 to 2
+				hz = 1.1
+				if r = 2 then hz = 0.55
+				add yU + 0.05, -corrW + 0.06, zf + hz
+				roty 90
+				cylind ud - 0.1, 0.0243
+				del 2
+			next r
+			material "hs_base"
+		next u
+		! 廊下の階段の無い側の端の手摺
+		ex = cL
 		if stairSd = 1 then ex = 0
+		material "hs_rail"
 		for r = 1 to 2
 			hz = 1.1
 			if r = 2 then hz = 0.55
-			add ex, -corrW + 0.03, zf + hz
+			add ex, -corrW + 0.06, zf + hz
 			rotx -90
-			cylind corrW - 0.03, 0.0243
+			cylind corrW - 0.06, 0.0243
 			del 2
 		next r
 	next t
-	! 2階への外階段（段板と側桁）
+	! 2階への外階段（段板と手摺）
 	material "hs_base"
 	for i = 1 to nRs - 1
 		sx = stX + (i - 1) * gStp
@@ -264,6 +297,7 @@ if upOn and isT = 0 then
 		cylind sl, 0.0243
 		del 2
 	next s
+	del 2
 endif
 """
 
@@ -273,7 +307,7 @@ def main() -> int:
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(_master(), encoding="utf-8")
     vl = ("﻿! 仮設建物: 型・用途の一覧\n"
-          + "values{2} \"hsType\" " + ", ".join(f'{k}, "{v[0]}"' for k, v in HOUSES.items()) + "\n"
+          + "values{2} \"hsType\" " + ", ".join(f'{k}, "{SHORT[k]}"' for k in HOUSES) + "\n"
           + "".join(f"values{{2}} \"use{i}\" " + ", ".join(f'{k}, "{v}"' for k, v in USES.items()) + "\n" for i in (1, 2, 3))
           + "values \"nTier\" 1, 2, 3\nvalues \"stairSd\" 0, 1\nvalues \"nUnit\" range [1, 12]\n")
     (OUT / "scripts" / "vl.gdl").write_text(vl, encoding="utf-8")

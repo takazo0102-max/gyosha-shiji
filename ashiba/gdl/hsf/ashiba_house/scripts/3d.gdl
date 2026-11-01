@@ -24,13 +24,19 @@ for t = 1 to nT
 		add x0 + 0.005, y0 + 0.005, z0 + 0.12
 		block uw - 0.01, ud - 0.01, uh - 0.12
 		del 1
-		if isT or u = 1 then
+		if isT or (u = 1 and upOn = 0) then
 			material "hs_door"
 			dw = min(0.8, uw - 0.1)
 			dx = x0 + 0.05
 			if isT then dx = x0 + (uw - dw) / 2
 			add dx, -0.01, z0 + 0.15
 			block dw, 0.02, min(1.9, uh - 0.4)
+			del 1
+		endif
+		if upOn and isT = 0 then
+			material "hs_door"
+			add -0.01, y0 + 0.15, z0 + 0.15
+			block 0.02, 0.8, min(1.9, uh - 0.4)
 			del 1
 		endif
 		if isT = 0 and u = 1 and uw > 2.5 then
@@ -46,41 +52,53 @@ for t = 1 to nT
 	next u
 next t
 if upOn and isT = 0 then
+	! 廊下の座標（x＝妻側に沿って・y＝外へ負）を部品の X0 の面へ回す
+	rotz 90
+	muly -1
 	for t = 2 to nT
 		zf = (t - 1) * uh
-		! 外廊下の床と手すり（手すり 1.1・中桟 0.55、柱は 1.8 以内）
-		material "hs_base"
-		add 0, -corrW, zf - 0.12
-		block lx, corrW, 0.12
-		del 1
-		material "hs_rail"
-		nPo = max(1, ceil(lx / 1.8 - 0.0001))
-		for i = 0 to nPo
-			add lx * i / nPo, -corrW + 0.03, zf
-			cylind 1.1, 0.0243
+		for u = 1 to nU
+			yU = (u - 1) * ud
+			! 階段踊場部ユニット SC: 床・外側の鉄骨柱2本・手摺（手すり 1.1・中桟 0.55）
+			material "hs_base"
+			add yU + 0.005, -corrW, zf - 0.12
+			block ud - 0.01, corrW, 0.12
 			del 1
-		next i
-		for r = 1 to 2
-			hz = 1.1
-			if r = 2 then hz = 0.55
-			add 0, -corrW + 0.03, zf + hz
-			roty 90
-			cylind lx, 0.0243
-			del 2
-		next r
-		! 廊下の階段の無い側の端
-		ex = lx
+			for e = 0 to 1
+				add yU + 0.05 + e * (ud - 0.15), -corrW + 0.01, 0
+				block 0.1, 0.1, zf - 0.12
+				del 1
+			next e
+			material "hs_rail"
+			for e = 0 to 1
+				add yU + 0.1 + e * (ud - 0.2), -corrW + 0.06, zf
+				cylind 1.1, 0.0243
+				del 1
+			next e
+			for r = 1 to 2
+				hz = 1.1
+				if r = 2 then hz = 0.55
+				add yU + 0.05, -corrW + 0.06, zf + hz
+				roty 90
+				cylind ud - 0.1, 0.0243
+				del 2
+			next r
+			material "hs_base"
+		next u
+		! 廊下の階段の無い側の端の手摺
+		ex = cL
 		if stairSd = 1 then ex = 0
+		material "hs_rail"
 		for r = 1 to 2
 			hz = 1.1
 			if r = 2 then hz = 0.55
-			add ex, -corrW + 0.03, zf + hz
+			add ex, -corrW + 0.06, zf + hz
 			rotx -90
-			cylind corrW - 0.03, 0.0243
+			cylind corrW - 0.06, 0.0243
 			del 2
 		next r
 	next t
-	! 2階への外階段（段板と側桁）
+	! 2階への外階段（段板と手摺）
 	material "hs_base"
 	for i = 1 to nRs - 1
 		sx = stX + (i - 1) * gStp
@@ -105,4 +123,5 @@ if upOn and isT = 0 then
 		cylind sl, 0.0243
 		del 2
 	next s
+	del 2
 endif

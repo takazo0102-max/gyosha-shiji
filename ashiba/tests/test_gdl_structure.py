@@ -256,3 +256,16 @@ class TestMaterialDefinedOnce(unittest.TestCase):
             if dup:
                 bad.append(f"{f.parent.parent.name}/{f.name}: {', '.join(dup)}")
         self.assertEqual(bad, [])
+
+
+class TestLineLength(unittest.TestCase):
+    """GDL の1行が長すぎると部品が壊れる（2026-11-01、仮設建物の型の一覧を 12種類の長い名前にして 761 バイトになり、部品の
+    パラメータが1つも変えられなくなった。動いている部品の一番長い行は 522 バイト）."""
+
+    def test_every_script(self):
+        bad = []
+        for f in sorted(HSF.glob("*/scripts/*.gdl")):
+            for i, raw in enumerate(f.read_text(encoding="utf-8-sig").splitlines(), 1):
+                if len(raw.encode("utf-8")) > 522:
+                    bad.append(f"{f.parent.parent.name}/{f.name}:{i}（{len(raw.encode('utf-8'))} バイト）")
+        self.assertEqual(bad, [])

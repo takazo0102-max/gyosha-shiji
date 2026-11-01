@@ -81,5 +81,7 @@ nRs = ceil(uh / 0.2 - 0.0001)
 rsH = uh / nRs
 stL = max(1, stairL)
 gStp = stL / max(1, nRs - 1)
+! 外廊下は妻側（X0 の面。ユニットの短い辺が並ぶ）に、ユニットごとの階段踊場部ユニット SC（出 corrW・幅 ud）。階段はその端の先へ
+cL = ly
 stX = -stL
-if stairSd = 1 then stX = lx
+if stairSd = 1 then stX = cL

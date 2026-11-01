@@ -48,12 +48,21 @@ HOUSES = {
     11: ("連棟型パネルユニットハウス 4.0坪（アクティオ NAN 40100・大町 NOIA-410）", 5700.0, 2300.0, 2650.0, 1370.0, 0),
     12: ("プロハウス 4.0坪（アクティオ NNA 40000・エスアールエス P4N）", 5632.0, 2285.0, 2700.0, 1130.0, 0),
 }
+# 部品の設定の一覧に出す短い名前（GDL の1行が長すぎると部品が壊れる。2026-11-01、12種類の長い名前で 761 バイトにして
+# パラメータが1つも変えられなくなった）
+SHORT = {1: "SH 1坪", 2: "SH 2坪", 3: "SH 3.1坪", 4: "SH 3.8坪", 5: "SH 5坪", 6: "トイレ TU", 7: "快適トイレ", 8: "ユニバーサル 2坪",
+         9: "ユニバーサル 2.9坪", 10: "ユニバーサル 3.8坪", 11: "NOIA-410 4坪", 12: "プロハウス 4坪"}
 STACKABLE = (3, 4, 5, 10, 11, 12)      # 2段積みにする型（奥行 2,200 以上。メーカーに確かめる）
 # ハウス用の外階段（カナモト レンタル。カナテック）: 型 → (品名, 幅 D mm, 長さ W mm, 高さ H mm, kg)。1階の高さで選ぶ
 # （FE用は 2.7m までの低い型、KD用は高い型。階段の幅は屋外の直通階段 90cm 以上を満たす）
 STAIRS = {"FE": ("ハウス用階段 FE用（カナテック）", 900.0, 4100.0, 3350.0, 250.0),
           "KD": ("ハウス用階段 KD用（カナテック）", 1150.0, 4990.0, 3900.0, 430.0)}
 STAIR_FE_MAX_H = 2700.0
+# 2階の外廊下（利用者の指定 2026-11-01: 外廊下も製品の規格にして）: 「外廊下」という品は無く、各社ともハウス1棟の幅の踊り場を
+# 並べる。カナモト（カナテック）階段踊場部ユニット SC（7772）: D1,140×W2,290×H2,700・220kg、外側を鉄骨柱2本で受け内側を
+# ハウスに留める、手摺2枚（カナモト カタログ 仮設ユニットハウス p507）。連棟の妻側（ユニットの短い辺が並ぶ面）にユニットごとに1つ
+LANDING = ("階段踊場部ユニット SC（カナテック 7772）", 1140.0, 2290.0, 2700.0, 220.0)
+LANDING_ROOF = ("踊場用屋根 SCR（カナテック 7714）", 47.0)
 
 
 def stair_for(unit_h: float) -> str:
@@ -73,7 +82,7 @@ class House:
     uses: tuple = (1,)                 # 段ごとの用途（USES の番号）
     stair: int = 0                     # 外階段（0＝X0 の端・1＝X の端）
     stair_w: float = 0.0               # 外階段の幅（0＝製品の幅）
-    corr_w: float = 1000.0
+    corr_w: float = 1140.0             # 外廊下の出（階段踊場部ユニット SC の D）
 
     @property
     def stair_kind(self) -> str:
@@ -163,8 +172,8 @@ def check(site: Site) -> Site:
             c.append(Check(f"{h.name} 階段・廊下", "OK" if st_ok else "NG",
                            f"外階段 {sk[0]}（幅 {sk[1]:.0f}×長さ {sk[2]:.0f}×高さ {sk[3]:.0f}・{sk[4]:.0f}kg"
                            + (f"、{h.tiers - 1}階分を踊り場でつなぐ" if h.tiers > 2 else "") + "。屋外の直通階段 90cm 以上・"
-                           f"蹴上 22cm 以下・踏面 21cm 以上 令23条）、2階の外廊下 幅 "
-                           f"{h.corr_w:.0f}・手すり {RAIL_H:.0f}（目安）。2階の床 {ht:.0f} は 4m 以下で踊場は要らない（令24条）"))
+                           f"蹴上 22cm 以下・踏面 21cm 以上 令23条）、外廊下は妻側にユニットごとの{LANDING[0]}（出 {LANDING[1]:.0f}"
+                           f"×幅 {LANDING[2]:.0f}・鉄骨柱2本・手摺。手すり約 {RAIL_H:.0f}）。2階の床 {ht:.0f} は 4m 以下で踊場は要らない（令24条）"))
         v = h.wind_speed()
         mass, ww = (HOUSES[h.kind][4], HOUSES[h.kind][1]) if h.is_toilet else (h.mass, w)
         c.append(Check(f"{h.name} 転倒", "OK" if v >= WIND_MS else "WARN",
@@ -226,7 +235,9 @@ def _quantity(site: Site) -> None:
         n_land = sum(h.tiers - 2 for h in site.houses if h.tiers >= 3)
         if n_land:
             q.append(("踊り場 SC（カナテック。3階への折り返し）", n_land, "基"))
-        q.append(("2階の外廊下（手すり 1,100）", round(sum(h.size[0] for h in site.houses if h.tiers >= 2) / 1000.0, 1), "m"))
+        n_sc = sum(h.units * (h.tiers - 1) for h in site.houses if h.tiers >= 2)
+        q.append((f"{LANDING[0]} {LANDING[1]:.0f}×{LANDING[2]:.0f}×{LANDING[3]:.0f}", n_sc, f"基（{LANDING[4]:.0f}kg。外廊下・ユニットごと）"))
+        q.append((LANDING_ROOF[0], n_sc, f"基（{LANDING_ROOF[1]:.0f}kg。雨のかかる所に。要否は現場で）"))
     q.append(("消火器", max(1, len(site.houses)), "本（1棟に1本の目安）"))
 
 

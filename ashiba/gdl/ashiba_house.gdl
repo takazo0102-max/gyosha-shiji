@@ -23,7 +23,7 @@
 !   stairW    長さ      外階段の幅（製品の幅）                           既定 0.9
 !   stairL    長さ      外階段の長さ（製品の長さ。FE用 4.1・KD用 4.99）  既定 4.1
 !   stName    文字列    外階段の品名（注記）                             既定 "ハウス用階段 FE用"
-!   corrW     長さ      2階の外廊下の幅                                  既定 1.0
+!   corrW     長さ      外廊下の出（階段踊場部ユニット SC の D 1.14）    既定 1.14
 !   hsName    文字列    名前（注記）                                     既定 "仮設建物"
 !   texSiz    実数      文字の大きさ（mm）                               既定 2.5
 !   penEquip  PenColor  線のペン                                         既定 1
@@ -115,8 +115,10 @@ nRs = ceil(uh / 0.2 - 0.0001)
 rsH = uh / nRs
 stL = max(1, stairL)
 gStp = stL / max(1, nRs - 1)
+! 外廊下は妻側（X0 の面。ユニットの短い辺が並ぶ）に、ユニットごとの階段踊場部ユニット SC（出 corrW・幅 ud）。階段はその端の先へ
+cL = ly
 stX = -stL
-if stairSd = 1 then stX = lx
+if stairSd = 1 then stX = cL
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
@@ -133,13 +135,17 @@ for u = 1 to nU
 		y0 = 0
 	endif
 	rect2 x0, y0, x0 + uw, y0 + ud
-	! 出入口（手前の面。トイレは各ユニット、ハウスは手前の1つ）
-	if isT or u = 1 then
+	! 出入口（トイレは各ユニットの手前、平屋のハウスは手前の1つ、2段以上は妻側 X0 にユニットごと）
+	if isT or (u = 1 and upOn = 0) then
 		dw = min(0.8, uw - 0.1)
 		dx = x0 + 0.05
 		if isT then dx = x0 + (uw - dw) / 2
 		line2 dx, y0, dx, y0 - dw
 		arc2 dx, y0, dw, 270, 360
+	endif
+	if upOn and isT = 0 then
+		line2 0, y0 + 0.15, -0.8, y0 + 0.15
+		arc2 0, y0 + 0.15, 0.8, 90, 180
 	endif
 	! 窓（手前の面、ハウスだけ）
 	if isT = 0 and u = 1 and uw > 2.5 then
@@ -151,17 +157,19 @@ for u = 1 to nU
 		next i
 	endif
 next u
-! 2階の外廊下と外階段（上る向きの矢）
+! 2階の外廊下（階段踊場部ユニット SC をユニットごと）と外階段（上る向きの矢）。廊下の座標（x＝妻側に沿って・y＝外へ負）を
+! 部品の X0 の面へ回す（x→Y、y→X）
 if upOn and isT = 0 then
-	rect2 0, -corrW, lx, 0
+	rot2 90
+	mul2 1, -1
+	rect2 0, -corrW, cL, 0
+	for u = 1 to nU - 1
+		line2 u * ud, -corrW, u * ud, 0
+	next u
 	rect2 stX, -stairW, stX + stL, 0
 	for i = 1 to nRs - 2
 		line2 stX + i * gStp, -stairW, stX + i * gStp, 0
 	next i
-	add2 stX + stL / 2, -stairW - 0.4
-	rot2 -SYMB_ROTANGLE
-	text2 0, 0, stName
-	del 2
 	ax = stX + 0.2
 	bx = stX + stL - 0.2
 	if stairSd = 1 then
@@ -171,6 +179,12 @@ if upOn and isT = 0 then
 	line2 ax, -stairW / 2, bx, -stairW / 2
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 + 0.15
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 - 0.15
+	del 2
+	add2 -corrW - 2.2, stX + stL / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, stName
+	text2 0, -0.4, "外廊下 SC×" + str(nU, 1, 0)
+	del 2
 endif
 ! 名前と段ごとの用途（図面の向きに関係なく水平）
 add2 lx / 2, ly / 2
@@ -215,13 +229,19 @@ for t = 1 to nT
 		add x0 + 0.005, y0 + 0.005, z0 + 0.12
 		block uw - 0.01, ud - 0.01, uh - 0.12
 		del 1
-		if isT or u = 1 then
+		if isT or (u = 1 and upOn = 0) then
 			material "hs_door"
 			dw = min(0.8, uw - 0.1)
 			dx = x0 + 0.05
 			if isT then dx = x0 + (uw - dw) / 2
 			add dx, -0.01, z0 + 0.15
 			block dw, 0.02, min(1.9, uh - 0.4)
+			del 1
+		endif
+		if upOn and isT = 0 then
+			material "hs_door"
+			add -0.01, y0 + 0.15, z0 + 0.15
+			block 0.02, 0.8, min(1.9, uh - 0.4)
 			del 1
 		endif
 		if isT = 0 and u = 1 and uw > 2.5 then
@@ -237,41 +257,53 @@ for t = 1 to nT
 	next u
 next t
 if upOn and isT = 0 then
+	! 廊下の座標（x＝妻側に沿って・y＝外へ負）を部品の X0 の面へ回す
+	rotz 90
+	muly -1
 	for t = 2 to nT
 		zf = (t - 1) * uh
-		! 外廊下の床と手すり（手すり 1.1・中桟 0.55、柱は 1.8 以内）
-		material "hs_base"
-		add 0, -corrW, zf - 0.12
-		block lx, corrW, 0.12
-		del 1
-		material "hs_rail"
-		nPo = max(1, ceil(lx / 1.8 - 0.0001))
-		for i = 0 to nPo
-			add lx * i / nPo, -corrW + 0.03, zf
-			cylind 1.1, 0.0243
+		for u = 1 to nU
+			yU = (u - 1) * ud
+			! 階段踊場部ユニット SC: 床・外側の鉄骨柱2本・手摺（手すり 1.1・中桟 0.55）
+			material "hs_base"
+			add yU + 0.005, -corrW, zf - 0.12
+			block ud - 0.01, corrW, 0.12
 			del 1
-		next i
-		for r = 1 to 2
-			hz = 1.1
-			if r = 2 then hz = 0.55
-			add 0, -corrW + 0.03, zf + hz
-			roty 90
-			cylind lx, 0.0243
-			del 2
-		next r
-		! 廊下の階段の無い側の端
-		ex = lx
+			for e = 0 to 1
+				add yU + 0.05 + e * (ud - 0.15), -corrW + 0.01, 0
+				block 0.1, 0.1, zf - 0.12
+				del 1
+			next e
+			material "hs_rail"
+			for e = 0 to 1
+				add yU + 0.1 + e * (ud - 0.2), -corrW + 0.06, zf
+				cylind 1.1, 0.0243
+				del 1
+			next e
+			for r = 1 to 2
+				hz = 1.1
+				if r = 2 then hz = 0.55
+				add yU + 0.05, -corrW + 0.06, zf + hz
+				roty 90
+				cylind ud - 0.1, 0.0243
+				del 2
+			next r
+			material "hs_base"
+		next u
+		! 廊下の階段の無い側の端の手摺
+		ex = cL
 		if stairSd = 1 then ex = 0
+		material "hs_rail"
 		for r = 1 to 2
 			hz = 1.1
 			if r = 2 then hz = 0.55
-			add ex, -corrW + 0.03, zf + hz
+			add ex, -corrW + 0.06, zf + hz
 			rotx -90
-			cylind corrW - 0.03, 0.0243
+			cylind corrW - 0.06, 0.0243
 			del 2
 		next r
 	next t
-	! 2階への外階段（段板と側桁）
+	! 2階への外階段（段板と手摺）
 	material "hs_base"
 	for i = 1 to nRs - 1
 		sx = stX + (i - 1) * gStp
@@ -296,13 +328,14 @@ if upOn and isT = 0 then
 		cylind sl, 0.0243
 		del 2
 	next s
+	del 2
 endif
 
 ! ==========================================================
 ! ==== パラメータスクリプト ====
 ! ==========================================================
 ! 仮設建物: 型・用途の一覧
-values{2} "hsType" 1, "スーパーハウス 1坪（SH-H1）", 2, "スーパーハウス 2坪（SH-H2）", 3, "スーパーハウス 3.1坪（SH-H3）", 4, "スーパーハウス 3.8坪（SH-H4）", 5, "スーパーハウス 5坪（SH-H6）", 6, "仮設トイレ（ハマネツ TU・洋式1）", 7, "快適トイレハウス（カナテック KⅢ）", 8, "ユニバーサルハウス 2.0坪（アクティオ NA6 02000）", 9, "ユニバーサルハウス 2.9坪（アクティオ NA6 02900）", 10, "ユニバーサルハウス 3.8坪（アクティオ NA6 03800）", 11, "連棟型パネルユニットハウス 4.0坪（アクティオ NAN 40100・大町 NOIA-410）", 12, "プロハウス 4.0坪（アクティオ NNA 40000・エスアールエス P4N）"
+values{2} "hsType" 1, "SH 1坪", 2, "SH 2坪", 3, "SH 3.1坪", 4, "SH 3.8坪", 5, "SH 5坪", 6, "トイレ TU", 7, "快適トイレ", 8, "ユニバーサル 2坪", 9, "ユニバーサル 2.9坪", 10, "ユニバーサル 3.8坪", 11, "NOIA-410 4坪", 12, "プロハウス 4坪"
 values{2} "use1" 1, "事務所", 2, "詰所", 3, "休憩所", 4, "更衣室", 5, "会議室", 6, "倉庫", 7, "トイレ", 8, "シャワー"
 values{2} "use2" 1, "事務所", 2, "詰所", 3, "休憩所", 4, "更衣室", 5, "会議室", 6, "倉庫", 7, "トイレ", 8, "シャワー"
 values{2} "use3" 1, "事務所", 2, "詰所", 3, "休憩所", 4, "更衣室", 5, "会議室", 6, "倉庫", 7, "トイレ", 8, "シャワー"
