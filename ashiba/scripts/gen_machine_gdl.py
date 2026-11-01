@@ -74,6 +74,13 @@ def paramlist() -> str:
         _param("Angle", "lbA", "ブームの起伏角", 70.0),
         _param("Length", "lbW", "ブームの幅", 1.2),
         _param("Length", "hkD", "ブームの先からフックまで", 6.0),
+        _param("Length", "hkH", "フックの全高", 1.47),
+        _param("Length", "hkW", "フックの幅", 0.59),
+        _param("Length", "hkT", "フックの厚み", 0.435),
+        _param("Length", "gnX", "ガントリ頂部（旋回中心から後ろ）", 3.16),
+        _param("Length", "gnH", "ガントリ頂部の高さ", 6.145),
+        _param("Length", "cwW", "カウンタウエイトの幅（0＝上部旋回体と同じ）", 0.0),
+        _param("Length", "cwH", "カウンタウエイトの高さ（0＝上に載る薄い形）", 0.0),
         # トラック
         _param("Length", "carL", "全長", 8.0),
         _param("Length", "carW", "全幅", 2.49),
@@ -140,6 +147,10 @@ isTk = (mcKind >= 3)
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
 aS = asn(w2 / tailR)
+! カウンタウエイトの幅（クレーンは上部旋回体より広い）
+w2c = min(max(cwW, upW) / 2, tailR * 0.995)
+xsc = -sqr(tailR ^ 2 - w2c ^ 2)
+aSc = asn(w2c / tailR)
 ! トラック: 前端・後端・車軸（後ろの車軸は1軸めから rearSp ずつ後ろ）
 xF = carF
 xR = carF - carL
@@ -460,15 +471,23 @@ end
 	add 0, 0, upZ
 	prism nsp / 2, hB, get(nsp)
 	del 1
-	xC = xs + min(0.9, tailR * 0.35)
+	! カウンタウエイト（cwH があれば下面 upZ から高さ cwH・幅 cwW、無ければ上に載る薄い形）
+	xC = xsc + min(0.9, tailR * 0.35)
+	zC0 = upZ + hB
+	hC = 0.35
+	if cwH > 0.01 then
+		xC = xsc + 1.0
+		zC0 = upZ
+		hC = cwH
+	endif
 	material "mc_cw"
 	for i = 0 to 8
-		aa = 180 + aS - i * aS / 4
+		aa = 180 + aSc - i * aSc / 4
 		put tailR * cos(aa), tailR * sin(aa)
 	next i
-	put xC, w2, xC, -w2
-	add 0, 0, upZ + hB
-	prism nsp / 2, 0.35, get(nsp)
+	put xC, w2c, xC, -w2c
+	add 0, 0, zC0
+	prism nsp / 2, hC, get(nsp)
 	del 1
 	material "mc_body"
 	yE0 = -w2 + 0.05
@@ -704,8 +723,8 @@ end
 	next k
 	del 2
 	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
-	gX = xs + 1.2
-	gZ = upH + 1.2
+	gX = -gnX
+	gZ = gnH
 	material "mc_steel"
 	for s = -1 to 1 step 2
 		x0q = gX - 0.6
@@ -715,6 +734,10 @@ end
 		y1q = s * 0.5
 		z1q = gZ
 		rq = 0.08
+		gosub "seg3"
+		x0q = gX + 1.4
+		y0q = s * 0.8
+		z0q = upZ + 0.9
 		gosub "seg3"
 		x0q = gX
 		y0q = s * 0.5
@@ -732,13 +755,14 @@ end
 		cylind hkD - 0.8, 0.015
 		del 1
 	next s
+	! フック（仕様書の全高 hkH・幅 hkW・厚み hkT。上の 7 割がブロック、下がフック）
 	material "mc_drum"
-	add lbX + 0.4 - 0.35, -0.3, lbZ - hkD
-	block 0.7, 0.6, 0.8
+	add lbX + 0.4 - hkW / 2, -hkT / 2, lbZ - hkD
+	block hkW, hkT, hkH * 0.7
 	del 1
 	material "mc_steel"
-	add lbX + 0.4, 0, lbZ - hkD - 0.55
-	cone 0.55, 0.05, 0.12, 90, 90
+	add lbX + 0.4, 0, lbZ - hkD - hkH * 0.3
+	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
 	del 1
 	return
 

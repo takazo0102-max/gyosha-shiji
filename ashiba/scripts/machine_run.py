@@ -4,7 +4,7 @@
 
   python3 scripts/machine_run.py --type bh045            # 選んだ線の始め＝旋回中心（車は真ん中）、始めの辺の向き＝車体の前
   python3 scripts/machine_run.py --type pump36 --slew 90  # ブーム・上部を 90° 回す
-  python3 scripts/machine_run.py --type cc50 --soil-q 150 # 地盤の許容支持力（短期 kN/m²）
+  python3 scripts/machine_run.py --type cc50 --soil-q 150 --soil 3   # 地盤の許容支持力（短期 kN/m²）と土質（敷鉄板の表）
   python3 scripts/machine_run.py --list                   # 機種の一覧
   python3 scripts/machine_run.py --remove                 # 置いた重機を消す
 
@@ -30,12 +30,15 @@ RECORD = "重機.json"
 def main(argv=None) -> int:
     import argparse
 
-    from ashiba.machine import MACHINES, SOIL_Q, Placed, check, find, part_params, report
+    from ashiba.machine import KEEP_OUT, MACHINES, SOIL_Q, SOILS, Placed, check, find, part_params, report
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--type", default="bh045", help="機種（" + "・".join(MACHINES) + "）")
     ap.add_argument("--slew", type=float, default=0.0, help="上部・ブームの旋回角（度。車体の前から左回り）")
-    ap.add_argument("--soil-q", type=float, default=SOIL_Q, help="地盤の許容支持力（短期 kN/m²）")
+    ap.add_argument("--soil-q", type=float, default=SOIL_Q, help="地盤の許容支持力（短期 kN/m²。地盤調査の値）")
+    ap.add_argument("--soil", type=int, default=1, choices=list(SOILS),
+                    help="土質（敷鉄板の表）: " + "・".join(f"{k} {v[0]}" for k, v in SOILS.items()))
+    ap.add_argument("--keep-out", type=float, default=KEEP_OUT, help="立入禁止の余裕 m（公的な数値は無く社内の決め）")
     ap.add_argument("--z", type=float, default=None, help="地盤の高さ mm（省くと敷地メッシュ、無ければ 0）")
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
     ap.add_argument("--remove", action="store_true", help="置いた重機を消す")
@@ -87,20 +90,20 @@ def main(argv=None) -> int:
             _delete_alive(c, [rec.pop(key)["guid"]])
         (x0, y0), (x1, y1) = pts[0], pts[1]
         ang = math.degrees(math.atan2(y1 - y0, x1 - x0))
-        p = check(Placed(f"重機{n0 + n}", mach, a.slew), a.soil_q)
+        p = check(Placed(f"重機{n0 + n}", mach, a.slew), a.soil_q, a.soil, a.keep_out)
         z = a.z if a.z is not None else (ground(x0, y0) if ground else 0.0)
         el = _place(c, part, (x0, y0), z, ang)
         if el is None:
             continue
         c.set_gdl_parameters(el, {**part_params(p), **pens})
         rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew}
-        bad = [x.item for x in p.checks if x.status not in ("OK", "注意")]
+        bad = sorted({x.item for x in p.checks if x.status not in ("OK", "注意")})
         print(f"  {p.name}: {mach.name}（{mach.model}）" + (f" 要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
-    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0)), a.soil_q)
+    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0)), a.soil_q, a.soil, a.keep_out)
               for v in rec.values() if v.get("type") in MACHINES]
     md = R.OUT_DIR / "重機.md"
-    md.write_text(report(placed, a.soil_q), encoding="utf-8")
+    md.write_text(report(placed, a.soil_q, a.soil), encoding="utf-8")
     print(f"重機: {len(placed)}台（{md}）")
     return 0
 

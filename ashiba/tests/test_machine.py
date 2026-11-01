@@ -7,7 +7,8 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.machine import KINDS, MACHINES, Placed, check, find, license_for, part_params, plates_for, rated_at, report
+from ashiba.machine import (KINDS, MACHINES, Placed, check, crawler_plates, find, keep_out, license_for, outrigger_pad, part_params,
+                            rated_at, report, road_license)
 
 ROOT = SRC.parent
 
@@ -41,30 +42,57 @@ class TestMachines(unittest.TestCase):
         self.assertIs(find("PC78US"), MACHINES["bh025"])
 
     def test_licenses(self):
-        self.assertIn("技能講習", license_for(MACHINES["bh01"]))                       # 3.6t は 3t 以上
+        """3t は機体重量（作業装置を除いた乾燥質量。安衛令20条12号・安衛則36条9号）で分ける。PC38UU-6 は機体質量 2,680kg."""
+        self.assertIn("特別教育（安衛則36条9号", license_for(MACHINES["bh01"]))       # 運転質量 3.6t でも機体質量 2.68t
+        self.assertIn("技能講習", license_for(MACHINES["bh025"]))
         self.assertIn("移動式クレーン運転士免許", license_for(MACHINES["cc50"]))
         self.assertIn("技能講習", license_for(MACHINES["aw12"]))                       # 作業床 12.1m
         self.assertIn("特別教育", license_for(MACHINES["sv06"]))                       # 5.72m
-        self.assertEqual(license_for(MACHINES["dump4"]), "中型免許")
+        self.assertIn("中型免許（8t 限定中型も可）", license_for(MACHINES["dump4"]))
+
+    def test_road_license(self):
+        """道路交通法施行規則2条: 大型は 11,000kg 以上（ちょうども大型）か最大積載量 6,500kg 以上."""
+        self.assertEqual(road_license(11.0), "大型免許")
+        self.assertEqual(road_license(10.9, 6.5), "大型免許")
+        self.assertEqual(road_license(10.9, 3.0), "中型免許")
+        self.assertEqual(road_license(4.5), "準中型免許")
+        self.assertEqual(road_license(3.0, 1.0), "普通免許")
 
 
 class TestChecks(unittest.TestCase):
-    def test_ground_and_jacks(self):
-        cc = check(Placed("c", MACHINES["cc90"]), soil_q=80.0)
-        st = {c.item: c.status for c in cc.checks}
-        self.assertEqual(st["接地圧"], "要確認")                                       # 95 kPa ＞ 80
-        self.assertEqual(plates_for(200.0, 100.0), (2.0, 1))                           # 2.0m² → 敷鉄板1枚（4.6m²）
-        self.assertEqual(plates_for(30.0, 100.0)[1], 0)                                # 敷板 600 角で可
+    def test_plate_tables(self):
+        """日本クレーン協会 表3・表4（鉄板厚 22mm）. 欄は荷重・接地圧を切り上げて引く."""
+        self.assertEqual(outrigger_pad(78.0, 1), "A")         # 柔らかい粘性土 100kN → 1.2×1.2m
+        self.assertEqual(outrigger_pad(200.0, 1), "B")        # 200kN → 6.0×1.5m（2枚）
+        self.assertEqual(outrigger_pad(450.0, 1), "-")        # 500kN 以上は敷鉄板では対応できない
+        self.assertEqual(outrigger_pad(100.0, 2), "B")        # 緩い砂質土は 22mm だと 100kN でも 6.0×1.5m
+        self.assertEqual(outrigger_pad(100.0, 3), "S")        # 中位の粘性土 100kN → 厚さ7cmの敷板
+        self.assertEqual(outrigger_pad(1200.0, 6), "-")
+        self.assertEqual((crawler_plates(65.0, 1), crawler_plates(120.0, 1), crawler_plates(320.0, 1)), ("0", "1", "-"))
+        self.assertEqual(crawler_plates(106.0, 3), "0")
+
+    def test_checks(self):
+        cc = {c.item: c for c in check(Placed("c", MACHINES["cc90"]), soil_q=80.0).checks}
+        self.assertEqual(cc["接地圧"].status, "要確認")                                 # 95 kPa ＞ 80
+        self.assertIn("最大接地圧", cc["接地圧"].detail)                                # 平均接地圧なので下限
+        self.assertIn("地盤調査", cc)                                                   # 20t 超
         pump = check(Placed("p", MACHINES["pump36"]))
         self.assertEqual([c.status for c in pump.checks if c.item.startswith("ジャッキ")], ["要敷鉄板"] * 3)
+        bh = keep_out(MACHINES["bh045"], MACHINES["bh045"].params, 0.5)
+        self.assertEqual([(w, round(r, 2), law) for w, r, law in bh],
+                         [("後端（上部旋回体）", 1.99, "安衛則158条"), ("作業装置（最大掘削半径）", 8.8, "安衛則158条")])
 
     def test_crane_rated(self):
         """表の列はその長さ以上・行はその半径以上（安全側）."""
         m = MACHINES["cc50"]
-        self.assertEqual(rated_at(m, 30.5, 15.0), 5.8)
+        self.assertEqual(rated_at(m, 30.5, 15.0), 5.9)                               # 7050G-2 p.10 の 30.5m・16m の欄
         self.assertEqual(rated_at(m, 25.0, 10.0), 11.4)
-        self.assertIsNone(rated_at(m, 40.0, 10.0))
-        self.assertEqual(rated_at(MACHINES["cc70"], 30.5, 15.0), 11.0)               # 7070G-2 p.8 の 30.5m・16m の欄
+        self.assertIsNone(rated_at(m, 60.0, 10.0))                                   # 最長 51.8m を超える
+        self.assertEqual(rated_at(m, 21.3, 19.0), 4.6)                               # 「4.6/19.7」= 最大作業半径 19.7m
+        self.assertIsNone(rated_at(m, 21.3, 20.0))
+        self.assertIsNone(rated_at(m, 30.5, 6.0))                                    # 「19.8/6.8」= 最小作業半径 6.8m
+        self.assertEqual(rated_at(MACHINES["cc70"], 30.5, 15.0), 11.0)               # 7070G-2 p.8
+        self.assertEqual(rated_at(MACHINES["cc90h"], 30.0, 12.0), 21.45)             # SCX900-3 p.14
         c = check(Placed("c", m))
         self.assertIn("定格総荷重", [x.item for x in c.checks])
         self.assertIn("7050G-2", report([c]))

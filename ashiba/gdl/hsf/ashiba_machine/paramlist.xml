@@ -165,6 +165,34 @@
 			<Description><![CDATA["ブームの先からフックまで"]]></Description>
 			<Value>6.0</Value>
 		</Length>
+		<Length Name="hkH">
+			<Description><![CDATA["フックの全高"]]></Description>
+			<Value>1.47</Value>
+		</Length>
+		<Length Name="hkW">
+			<Description><![CDATA["フックの幅"]]></Description>
+			<Value>0.59</Value>
+		</Length>
+		<Length Name="hkT">
+			<Description><![CDATA["フックの厚み"]]></Description>
+			<Value>0.435</Value>
+		</Length>
+		<Length Name="gnX">
+			<Description><![CDATA["ガントリ頂部（旋回中心から後ろ）"]]></Description>
+			<Value>3.16</Value>
+		</Length>
+		<Length Name="gnH">
+			<Description><![CDATA["ガントリ頂部の高さ"]]></Description>
+			<Value>6.145</Value>
+		</Length>
+		<Length Name="cwW">
+			<Description><![CDATA["カウンタウエイトの幅（0＝上部旋回体と同じ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cwH">
+			<Description><![CDATA["カウンタウエイトの高さ（0＝上に載る薄い形）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Length Name="carL">
 			<Description><![CDATA["全長"]]></Description>
 			<Value>8.0</Value>

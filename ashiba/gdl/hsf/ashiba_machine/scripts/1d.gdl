@@ -5,6 +5,10 @@ isTk = (mcKind >= 3)
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
 aS = asn(w2 / tailR)
+! カウンタウエイトの幅（クレーンは上部旋回体より広い）
+w2c = min(max(cwW, upW) / 2, tailR * 0.995)
+xsc = -sqr(tailR ^ 2 - w2c ^ 2)
+aSc = asn(w2c / tailR)
 ! トラック: 前端・後端・車軸（後ろの車軸は1軸めから rearSp ずつ後ろ）
 xF = carF
 xR = carF - carL
