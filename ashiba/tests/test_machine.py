@@ -63,6 +63,7 @@ class TestChecks(unittest.TestCase):
         self.assertEqual(rated_at(m, 30.5, 15.0), 5.8)
         self.assertEqual(rated_at(m, 25.0, 10.0), 11.4)
         self.assertIsNone(rated_at(m, 40.0, 10.0))
+        self.assertEqual(rated_at(MACHINES["cc70"], 30.5, 15.0), 11.0)               # 7070G-2 p.8 の 30.5m・16m の欄
         c = check(Placed("c", m))
         self.assertIn("定格総荷重", [x.item for x in c.checks])
         self.assertIn("7050G-2", report([c]))
