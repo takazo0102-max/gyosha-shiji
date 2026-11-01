@@ -409,8 +409,8 @@ def rated_strings(m: CraneModel, spread: float = 0.0) -> dict:
 
 
 def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO) -> dict:
-    """部品 ashiba_crane のパラメータ（m・度）。oSnap は False で入れ、置いたあとで True にする（まとめて入れると部品の吸い付きが
-    古い性能表の張出の段で脚を動かした。2026-11-01）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
+    """部品 ashiba_crane のパラメータ（m・度）。oSnap は先に False だけを入れてから全部を入れ、置いたあとで True に
+    する（Tapir は1つずつ入れるので、脚の時点では既定の吸い付きと 25t の段が生きていた。2026-11-02 実機）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
     ブーム長さ）で置き、平面・3D のホットスポットで動かすと部品が性能表から定格総荷重を読み直す."""
     m = p.model
     g = p.governing

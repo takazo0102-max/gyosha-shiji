@@ -108,6 +108,8 @@ def main(argv=None) -> int:
         el = _place(c, part, center, z, car)
         if el is None:
             continue
+        # 脚の吸い付きは先に切る（Tapir は1つずつ入れ、脚の時点では既定の 25t の段に吸い付いて 3.8m が 3.3m になった）
+        c.set_gdl_parameters(el, {"oSnap": False})
         c.set_gdl_parameters(el, {**part_params(p, slew, ratio=a.ratio), **pens})
         c.set_gdl_parameters(el, {"oSnap": True})        # 置いたあとで脚の吸い付きを入れる（手で引いたときだけ吸い付く）
         placed = [el["elementId"]["guid"]]
