@@ -1,0 +1,57 @@
+﻿! 柵: 線（mm）を読む・種類ごとの1基の長さ・高さ・奥行
+dim qcx[]
+kC = 0
+rest = cX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kC = kC + 1
+		qcx[kC] = v / 1000
+	endif
+endwhile
+dim qcy[]
+kCy = 0
+rest = cY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kCy = kCy + 1
+		qcy[kCy] = v / 1000
+	endif
+endwhile
+kC = min(kC, kCy)
+kd = max(1, min(4, fcKind))
+uL = 1.5
+uH = 1.214
+uD = 0.3
+if kd = 2 then
+	uL = 1.8
+	uH = 0.935
+	uD = 0.46
+endif
+if kd = 3 then
+	uL = 4.115
+	uH = 0.814
+	uD = 0.56
+endif
+if kd = 4 then
+	uL = 5.0
+	uH = 0.775
+	uD = 0.3
+endif

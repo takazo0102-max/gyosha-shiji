@@ -1,0 +1,245 @@
+﻿! ==========================================================
+! 歩行者通路の柵・バリケード・車両防護柵（1本の線に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_fence/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_fence.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 開発ループ（2026-11-01）: 他に必要な仮設材の6番。
+! 原点＝線の始め、座標 cX・cY（mm）。種類 fcKind: 1 PPフェンス PP1512G・2 スタンドバリケード C型 BS020＋単管・3 バルカンバリア BBJW4・4 仮設ガードレール GR50（日建リース Vol.10 p395〜397）を規格の1基ずつ。割付と判定は fence.py、置くのは scripts/fence_run.py。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   fcKind    整数      種類（1 PPフェンス・2 スタンドバリケード・3 バルカンバリア・4 仮設ガードレール）  既定 1
+!   cX        文字列    線の X（mm。始めの点から）                                                        既定 "0,20000,20000"
+!   cY        文字列    線の Y                                                                            既定 "0,0,6000"
+!   fcName    文字列    名前（注記）                                                                      既定 "柵1"
+!   texSiz    実数      文字の大きさ（mm）                                                                既定 2.5
+!   penEquip  PenColor  線のペン                                                                          既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 柵: 線（mm）を読む・種類ごとの1基の長さ・高さ・奥行
+dim qcx[]
+kC = 0
+rest = cX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kC = kC + 1
+		qcx[kC] = v / 1000
+	endif
+endwhile
+dim qcy[]
+kCy = 0
+rest = cY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kCy = kCy + 1
+		qcy[kCy] = v / 1000
+	endif
+endwhile
+kC = min(kC, kCy)
+kd = max(1, min(4, fcKind))
+uL = 1.5
+uH = 1.214
+uD = 0.3
+if kd = 2 then
+	uL = 1.8
+	uH = 0.935
+	uD = 0.46
+endif
+if kd = 3 then
+	uL = 4.115
+	uH = 0.814
+	uD = 0.56
+endif
+if kd = 4 then
+	uL = 5.0
+	uH = 0.775
+	uD = 0.3
+endif
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 柵 2D: 区間ごとに1基ずつの外形と名前
+pen penEquip
+define style "fcT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "fcT"
+for s = 1 to kC - 1
+	dx = qcx[s + 1] - qcx[s]
+	dy = qcy[s + 1] - qcy[s]
+	sL = sqr(dx * dx + dy * dy)
+	sA = 90 * sgn(dy)
+	if abs(dx) > 0.000001 then sA = atn(dy / dx)
+	if dx < 0 then sA = sA + 180
+	if sL > 0.01 then
+		nU = max(1, ceil(sL / uL - 0.02))
+		stp = uL
+		if kd = 2 then stp = sL / nU
+		add2 qcx[s], qcy[s]
+		rot2 sA
+		for u = 1 to nU
+			rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
+			if kd = 2 then rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
+		next u
+		if kd = 2 then rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+		del 2
+	endif
+next s
+if kC > 1 then
+	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0.6, fcName
+	del 2
+endif
+for i = 1 to kC
+	hotspot2 qcx[i], qcy[i]
+next i
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 柵 3D: 区間ごとに規格の1基ずつ
+define material "fc_pp" 2, 0.20, 0.55, 0.30
+define material "fc_wt" 2, 0.25, 0.25, 0.27
+define material "fc_galv" 2, 0.72, 0.74, 0.76
+define material "fc_yel" 2, 0.95, 0.80, 0.10
+define material "fc_red" 2, 0.75, 0.15, 0.15
+define material "fc_white" 2, 0.92, 0.92, 0.90
+resol 8
+for s = 1 to kC - 1
+	dx = qcx[s + 1] - qcx[s]
+	dy = qcy[s + 1] - qcy[s]
+	sL = sqr(dx * dx + dy * dy)
+	sA = 90 * sgn(dy)
+	if abs(dx) > 0.000001 then sA = atn(dy / dx)
+	if dx < 0 then sA = sA + 180
+	if sL > 0.01 then
+		nU = max(1, ceil(sL / uL - 0.02))
+		stp = uL
+		if kd = 2 then stp = sL / nU
+		add qcx[s], qcy[s], 0
+		rotz sA
+		for u = 1 to nU
+			add (u - 1) * stp, 0, 0
+			gosub "unit"
+			del 1
+		next u
+		if kd = 2 then
+			add sL, 0, 0
+			gosub "stand"
+			del 1
+		endif
+		del 2
+	endif
+next s
+end
+
+! 1基（今の座標で +X に長さ uL）
+"unit":
+	if kd = 1 then
+		! PPフェンス: 支柱 φ32×2・板・ウエイト（支柱の下）
+		material "fc_wt"
+		add -0.15, -0.15, 0
+		block 0.3, 0.3, 0.114
+		del 1
+		material "fc_pp"
+		add 0.0, 0, 0.114
+		cylind 1.1, 0.016
+		del 1
+		add 0.052, -0.01, 0.214
+		block 1.395, 0.02, 1.0
+		del 1
+	endif
+	if kd = 2 then
+		gosub "stand"
+		material "fc_galv"
+		for r = 1 to 2
+			hz = 0.85
+			if r = 2 then hz = 0.45
+			add -0.1, 0.05, hz
+			roty 90
+			cylind stp + 0.2, 0.0243
+			del 2
+		next r
+	endif
+	if kd = 3 then
+		! バルカンバリア: 鋼製の台形の断面を3段に、上に黄色の帯
+		material "fc_galv"
+		add 0.005, -0.28, 0
+		block 4.105, 0.56, 0.25
+		del 1
+		add 0.005, -0.2, 0.25
+		block 4.105, 0.4, 0.3
+		del 1
+		add 0.005, -0.125, 0.55
+		block 4.105, 0.25, 0.264
+		del 1
+		material "fc_yel"
+		add 0.005, -0.126, 0.72
+		block 4.105, 0.002, 0.06
+		del 1
+	endif
+	if kd = 4 then
+		! 仮設ガードレール: H-300 の台（赤）・支柱 φ114.3 を 2m ごと・ガードレールのビーム
+		material "fc_red"
+		add 0.005, -0.15, 0
+		block 4.99, 0.3, 0.3
+		del 1
+		material "fc_galv"
+		for i = 0 to 2
+			add 0.5 + 2 * i, 0, 0.3
+			cylind 0.4, 0.057
+			del 1
+		next i
+		material "fc_white"
+		add 0.005, -0.15, 0.425
+		block 4.99, 0.08, 0.35
+		del 1
+	endif
+return
+
+! スタンドバリケード C型: A 形の脚（幅 460・高さ 935）
+"stand":
+	material "fc_yel"
+	for lg = -1 to 1 step 2
+		add 0, lg * 0.23, 0
+		rotx lg * 14
+		cylind 0.95, 0.016
+		del 2
+	next lg
+	add -0.016, -0.23, 0.2
+	block 0.032, 0.46, 0.03
+	del 1
+return
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+! 柵: 種類の一覧
+values{2} "fcKind" 1, "PPフェンス PP1512G", 2, "スタンドバリケード C型 BS020＋単管", 3, "バルカンバリア JW4型 BBJW4", 4, "仮設ガードレール GR50"
+

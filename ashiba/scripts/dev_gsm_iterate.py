@@ -146,6 +146,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"opW": 2.5, "opD": 2.0, "opKind": 4, "netOn": True, "opName": "開口1", "rlS": "1,2,3,4", "rlL": "3000,3000,2500,2500", "tbS": "1,2,3,4", "tbL": "3000,3000,2000,2000"},
     },
+    # 歩行者の安全（開発ループ 2026-11-01: 他に必要な仮設材の6番）
+    "ashiba_fence": {
+        "images": ("3D", "2D"),
+        "params": {"fcKind": 2, "cX": "0,9000,9000", "cY": "0,0,4000", "fcName": "柵1"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

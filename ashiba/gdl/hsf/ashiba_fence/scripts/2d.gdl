@@ -1,0 +1,34 @@
+﻿! 柵 2D: 区間ごとに1基ずつの外形と名前
+pen penEquip
+define style "fcT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "fcT"
+for s = 1 to kC - 1
+	dx = qcx[s + 1] - qcx[s]
+	dy = qcy[s + 1] - qcy[s]
+	sL = sqr(dx * dx + dy * dy)
+	sA = 90 * sgn(dy)
+	if abs(dx) > 0.000001 then sA = atn(dy / dx)
+	if dx < 0 then sA = sA + 180
+	if sL > 0.01 then
+		nU = max(1, ceil(sL / uL - 0.02))
+		stp = uL
+		if kd = 2 then stp = sL / nU
+		add2 qcx[s], qcy[s]
+		rot2 sA
+		for u = 1 to nU
+			rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
+			if kd = 2 then rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
+		next u
+		if kd = 2 then rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+		del 2
+	endif
+next s
+if kC > 1 then
+	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0.6, fcName
+	del 2
+endif
+for i = 1 to kC
+	hotspot2 qcx[i], qcy[i]
+next i
