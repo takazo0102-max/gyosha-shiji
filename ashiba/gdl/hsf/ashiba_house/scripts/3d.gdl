@@ -83,10 +83,10 @@ if upOn and isT = 0 then
 	! 2階への外階段（段板と側桁）
 	material "hs_base"
 	for i = 1 to nRs - 1
-		sx = stX + (i - 1) * 0.24
-		if stairSd = 1 then sx = stX + stL - i * 0.24
+		sx = stX + (i - 1) * gStp
+		if stairSd = 1 then sx = stX + stL - i * gStp
 		add sx, -stairW, i * rsH - 0.04
-		block 0.24, stairW, 0.04
+		block gStp, stairW, 0.04
 		del 1
 	next i
 	material "hs_rail"

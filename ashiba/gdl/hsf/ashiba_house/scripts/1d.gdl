@@ -1,5 +1,5 @@
 ﻿! 仮設建物: 型の寸法（site_house.HOUSES）と並べ方
-dim hwT[7], hdT[7], hhT[7], hkT[7]
+dim hwT[12], hdT[12], hhT[12], hkT[12]
 hwT[1] = 1.850
 hdT[1] = 1.850
 hhT[1] = 2.603
@@ -28,6 +28,26 @@ hwT[7] = 2.600
 hdT[7] = 2.200
 hhT[7] = 2.650
 hkT[7] = 2
+hwT[8] = 3.740
+hdT[8] = 1.800
+hhT[8] = 2.575
+hkT[8] = 0
+hwT[9] = 4.590
+hdT[9] = 1.900
+hhT[9] = 2.575
+hkT[9] = 0
+hwT[10] = 5.540
+hdT[10] = 2.200
+hhT[10] = 2.575
+hkT[10] = 0
+hwT[11] = 5.700
+hdT[11] = 2.300
+hhT[11] = 2.650
+hkT[11] = 0
+hwT[12] = 5.632
+hdT[12] = 2.285
+hhT[12] = 2.700
+hkT[12] = 0
 dim usN[8]
 usN[1] = "事務所"
 usN[2] = "詰所"
@@ -37,7 +57,7 @@ usN[5] = "会議室"
 usN[6] = "倉庫"
 usN[7] = "トイレ"
 usN[8] = "シャワー"
-kT = max(1, min(7, hsType))
+kT = max(1, min(12, hsType))
 uw = hwT[kT]
 ud = hdT[kT]
 uh = hhT[kT]
@@ -55,10 +75,11 @@ dim tu[3]
 tu[1] = max(1, min(8, use1))
 tu[2] = max(1, min(8, use2))
 tu[3] = max(1, min(8, use3))
-! 2階より上: 手前の外廊下と2階への外階段（蹴上 0.2 以下・踏面 0.24）
+! 2階より上: 手前の外廊下と2階への外階段（製品の長さ stairL を段に分ける。蹴上 0.2 以下）
 upOn = nT >= 2
 nRs = ceil(uh / 0.2 - 0.0001)
 rsH = uh / nRs
-stL = (nRs - 1) * 0.24
+stL = max(1, stairL)
+gStp = stL / max(1, nRs - 1)
 stX = -stL
 if stairSd = 1 then stX = lx

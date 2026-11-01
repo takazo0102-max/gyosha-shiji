@@ -139,7 +139,7 @@ PART_PROFILES = {
     # 仮設建物（開発ループ 2026-11-01: 他に必要な仮設材の4番）。3.8坪の3連棟2段・外階段
     "ashiba_house": {
         "images": ("3D", "2D"),
-        "params": {"hsType": 4, "nUnit": 3, "nTier": 2, "use1": 1, "use2": 1, "hsName": "事務所棟"},
+        "params": {"hsType": 4, "nUnit": 3, "nTier": 2, "use1": 1, "use2": 1, "hsName": "事務所棟", "stairW": 0.9, "stairL": 4.1},
     },
     # 開口養生（開発ループ 2026-11-01: 他に必要な仮設材の5番）。2.5×2.0m の大開口に手すり・幅木・ネット
     "ashiba_opening": {

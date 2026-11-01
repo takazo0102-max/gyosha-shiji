@@ -75,7 +75,7 @@ def main(argv=None) -> int:
     from kakoi_run import chains
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--type", type=int, default=4, choices=list(HOUSES), help="型（1〜5 スーパーハウス・6 仮設トイレ・7 快適トイレハウス）")
+    ap.add_argument("--type", type=int, default=4, choices=list(HOUSES), help="型（1〜5 スーパーハウス・6 仮設トイレ・7 快適トイレハウス・8〜10 ユニバーサルハウス・11 連棟型 NOIA-410・12 プロハウス）")
     ap.add_argument("--units", type=int, default=1, help="連棟の数")
     ap.add_argument("--tiers", type=int, default=1, choices=(1, 2, 3), help="段の数")
     ap.add_argument("--use", default="", help="段ごとの用途（事務所,詰所 など。省くと事務所、トイレの型はトイレ）")

@@ -4,7 +4,8 @@
 scripts/house_run.py。原点＝建物の手前の左の隅（地盤）、+X＝長手、+Y＝奥。手前（Y0）の面に出入口と窓。
 - 型 hsType（1〜5 スーパーハウス 1・2・3.1・3.8・5坪、6 仮設トイレ、7 快適トイレハウス）、連棟 nUnit（ハウスは奥へ、トイレは横へ）、
   段 nTier（1〜3）、段ごとの用途 use1〜3（1 事務所・2 詰所・3 休憩所・4 更衣室・5 会議室・6 倉庫・7 トイレ・8 シャワー）
-- 2段以上は手前に外廊下（幅 corrW・手すり 1,100）と2階への外階段（幅 stairW、stairSd＝0 で X0 の外・1 で X の外）
+- 2段以上は手前に外廊下（幅 corrW・手すり 1,100）と2階への外階段（カナモト ハウス用階段 FE用 900×4,100・KD用 1,150×4,990。
+  幅 stairW・長さ stairL、stairSd＝0 で X0 の外・1 で X の外。利用者の指定 2026-11-01: 仮設建物の階段も製品の規格にして）
   python3 scripts/gen_house_gdl.py     # gdl/hsf/ashiba_house を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
 
@@ -36,7 +37,9 @@ def paramlist() -> str:
         _param("Integer", "use2", "2階の用途", 1),
         _param("Integer", "use3", "3階の用途", 1),
         _param("Integer", "stairSd", "外階段の位置（0＝左の端の外・1＝右の端の外）", 0),
-        _param("Length", "stairW", "外階段の幅", 1.0),
+        _param("Length", "stairW", "外階段の幅（製品の幅）", 0.9),
+        _param("Length", "stairL", "外階段の長さ（製品の長さ。FE用 4.1・KD用 4.99）", 4.1),
+        _param("String", "stName", "外階段の品名（注記）", "ハウス用階段 FE用"),
         _param("Length", "corrW", "2階の外廊下の幅", 1.0),
         _param("String", "hsName", "名前（注記）", "仮設建物"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -77,11 +80,12 @@ dim tu[3]
 tu[1] = max(1, min({len(USES)}, use1))
 tu[2] = max(1, min({len(USES)}, use2))
 tu[3] = max(1, min({len(USES)}, use3))
-! 2階より上: 手前の外廊下と2階への外階段（蹴上 0.2 以下・踏面 0.24）
+! 2階より上: 手前の外廊下と2階への外階段（製品の長さ stairL を段に分ける。蹴上 0.2 以下）
 upOn = nT >= 2
 nRs = ceil(uh / 0.2 - 0.0001)
 rsH = uh / nRs
-stL = (nRs - 1) * 0.24
+stL = max(1, stairL)
+gStp = stL / max(1, nRs - 1)
 stX = -stL
 if stairSd = 1 then stX = lx
 """
@@ -122,8 +126,12 @@ if upOn and isT = 0 then
 	rect2 0, -corrW, lx, 0
 	rect2 stX, -stairW, stX + stL, 0
 	for i = 1 to nRs - 2
-		line2 stX + i * 0.24, -stairW, stX + i * 0.24, 0
+		line2 stX + i * gStp, -stairW, stX + i * gStp, 0
 	next i
+	add2 stX + stL / 2, -stairW - 0.4
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, stName
+	del 2
 	ax = stX + 0.2
 	bx = stX + stL - 0.2
 	if stairSd = 1 then
@@ -234,10 +242,10 @@ if upOn and isT = 0 then
 	! 2階への外階段（段板と側桁）
 	material "hs_base"
 	for i = 1 to nRs - 1
-		sx = stX + (i - 1) * 0.24
-		if stairSd = 1 then sx = stX + stL - i * 0.24
+		sx = stX + (i - 1) * gStp
+		if stairSd = 1 then sx = stX + stL - i * gStp
 		add sx, -stairW, i * rsH - 0.04
-		block 0.24, stairW, 0.04
+		block gStp, stairW, 0.04
 		del 1
 	next i
 	material "hs_rail"

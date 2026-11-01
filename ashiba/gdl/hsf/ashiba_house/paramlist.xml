@@ -58,9 +58,17 @@
 			<Value>0</Value>
 		</Integer>
 		<Length Name="stairW">
-			<Description><![CDATA["外階段の幅"]]></Description>
-			<Value>1.0</Value>
+			<Description><![CDATA["外階段の幅（製品の幅）"]]></Description>
+			<Value>0.9</Value>
 		</Length>
+		<Length Name="stairL">
+			<Description><![CDATA["外階段の長さ（製品の長さ。FE用 4.1・KD用 4.99）"]]></Description>
+			<Value>4.1</Value>
+		</Length>
+		<String Name="stName">
+			<Description><![CDATA["外階段の品名（注記）"]]></Description>
+			<Value><![CDATA["ハウス用階段 FE用"]]></Value>
+		</String>
 		<Length Name="corrW">
 			<Description><![CDATA["2階の外廊下の幅"]]></Description>
 			<Value>1.0</Value>

@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.site_house import House, Site, check, house_from_params, part_params, toilet_need
+from ashiba.site_house import House, Site, check, house_from_params, part_params, stair_for, toilet_need
 
 
 class TestToilets(unittest.TestCase):
@@ -48,6 +48,18 @@ class TestHouses(unittest.TestCase):
         self.assertEqual((ps["hsType"], ps["nUnit"], ps["nTier"], ps["use1"], ps["use2"], ps["stairSd"]), (4, 3, 2, 1, 3, 1))
         back = house_from_params(ps)
         self.assertEqual((back.kind, back.units, back.tiers, back.uses[:2], back.stair, back.stair_w), (4, 3, 2, (1, 3), 1, 1200.0))
+
+    def test_stair_products(self):
+        """外階段はカナモトのハウス用階段（利用者の指定 2026-11-01: 仮設建物の階段も製品の規格にして）: 低い型は FE用 900×4,100、
+        3段積みは2階分と踊り場."""
+        h = House("事務所棟", 4, 3, 2, (1, 1))
+        self.assertEqual((h.stair_kind, h.stair_width), ("FE", 900.0))
+        self.assertEqual(stair_for(2900.0), "KD")
+        prm = part_params(h)
+        self.assertEqual((prm["stairW"], prm["stairL"], prm["stName"]), (0.9, 4.1, "ハウス用階段 FE用"))
+        s = check(Site([h, House("3階", 5, 3, 3, (1, 1, 2))]))
+        q = {a: n for a, n, _u in s.quantity}
+        self.assertEqual((q["ハウス用階段 FE用（カナテック） 900×4100×3350"], q["踊り場 SC（カナテック。3階への折り返し）"]), (3, 1))
 
     def test_use_names(self):
         sys.path.insert(0, str(SRC.parent / "scripts"))

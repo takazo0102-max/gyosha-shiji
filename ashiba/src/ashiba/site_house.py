@@ -41,7 +41,26 @@ HOUSES = {
     5: ("スーパーハウス 5坪（SH-H6）", 7250.0, 2300.0, 2603.0, 1400.0, 0),
     6: ("仮設トイレ（ハマネツ TU・洋式1）", 850.0, 1550.0, 2470.0, 140.0, 1),
     7: ("快適トイレハウス（カナテック KⅢ）", 2600.0, 2200.0, 2650.0, 900.0, 2),
+    # アクティオ レンタル総合カタログ【ハウス・備品】vol.40 p86（利用者の指定 2026-11-01: https://www.aktio.co.jp/products/pdf/Vol.40_p04.pdf）
+    8: ("ユニバーサルハウス 2.0坪（アクティオ NA6 02000）", 3740.0, 1800.0, 2575.0, 600.0, 0),
+    9: ("ユニバーサルハウス 2.9坪（アクティオ NA6 02900）", 4590.0, 1900.0, 2575.0, 750.0, 0),
+    10: ("ユニバーサルハウス 3.8坪（アクティオ NA6 03800）", 5540.0, 2200.0, 2575.0, 1050.0, 0),
+    11: ("連棟型パネルユニットハウス 4.0坪（アクティオ NAN 40100・大町 NOIA-410）", 5700.0, 2300.0, 2650.0, 1370.0, 0),
+    12: ("プロハウス 4.0坪（アクティオ NNA 40000・エスアールエス P4N）", 5632.0, 2285.0, 2700.0, 1130.0, 0),
 }
+STACKABLE = (3, 4, 5, 10, 11, 12)      # 2段積みにする型（奥行 2,200 以上。メーカーに確かめる）
+# ハウス用の外階段（カナモト レンタル。カナテック）: 型 → (品名, 幅 D mm, 長さ W mm, 高さ H mm, kg)。1階の高さで選ぶ
+# （FE用は 2.7m までの低い型、KD用は高い型。階段の幅は屋外の直通階段 90cm 以上を満たす）
+STAIRS = {"FE": ("ハウス用階段 FE用（カナテック）", 900.0, 4100.0, 3350.0, 250.0),
+          "KD": ("ハウス用階段 KD用（カナテック）", 1150.0, 4990.0, 3900.0, 430.0)}
+STAIR_FE_MAX_H = 2700.0
+
+
+def stair_for(unit_h: float) -> str:
+    """1階の高さ mm → ハウス用階段の型."""
+    return "FE" if unit_h <= STAIR_FE_MAX_H else "KD"
+
+
 USES = {1: "事務所", 2: "詰所", 3: "休憩所", 4: "更衣室", 5: "会議室", 6: "倉庫", 7: "トイレ", 8: "シャワー"}
 
 
@@ -53,8 +72,16 @@ class House:
     tiers: int = 1                     # 段数（1〜2。3 は専用の架台）
     uses: tuple = (1,)                 # 段ごとの用途（USES の番号）
     stair: int = 0                     # 外階段（0＝X0 の端・1＝X の端）
-    stair_w: float = 1000.0
+    stair_w: float = 0.0               # 外階段の幅（0＝製品の幅）
     corr_w: float = 1000.0
+
+    @property
+    def stair_kind(self) -> str:
+        return stair_for(HOUSES[self.kind][3])
+
+    @property
+    def stair_width(self) -> float:
+        return self.stair_w or STAIRS[self.stair_kind][1]
 
     @property
     def size(self) -> tuple[float, float, float]:
@@ -127,13 +154,16 @@ def check(site: Site) -> Site:
         w, d, ht = h.size
         nm = f"{h.name}（{HOUSES[h.kind][0]}・{h.units}連棟×{h.tiers}段）"
         if h.tiers >= 2:
-            ok = h.units >= 2 and h.tiers <= 2 and h.kind in (3, 4, 5)
+            ok = h.units >= 2 and h.tiers <= 2 and h.kind in STACKABLE
             c.append(Check(f"{h.name} 段積み", "OK" if ok else "WARN",
                            f"{nm}: 2段積みは1階を連棟に（三協 CT-J「1階が単体なら2階建て不可」）、3段は専用の架台。奥行 2,300 の型で"
                            + ("" if ok else "。メーカーに確かめる")))
-            st_ok = h.stair_w >= STAIR_W_MIN and h.corr_w >= CORR_W_MIN
+            sk = STAIRS[h.stair_kind]
+            st_ok = h.stair_width >= STAIR_W_MIN and h.corr_w >= CORR_W_MIN
             c.append(Check(f"{h.name} 階段・廊下", "OK" if st_ok else "NG",
-                           f"外階段 幅 {h.stair_w:.0f}（屋外の直通階段 90cm 以上・蹴上 22cm 以下・踏面 21cm 以上 令23条）、2階の外廊下 幅 "
+                           f"外階段 {sk[0]}（幅 {sk[1]:.0f}×長さ {sk[2]:.0f}×高さ {sk[3]:.0f}・{sk[4]:.0f}kg"
+                           + (f"、{h.tiers - 1}階分を踊り場でつなぐ" if h.tiers > 2 else "") + "。屋外の直通階段 90cm 以上・"
+                           f"蹴上 22cm 以下・踏面 21cm 以上 令23条）、2階の外廊下 幅 "
                            f"{h.corr_w:.0f}・手すり {RAIL_H:.0f}（目安）。2階の床 {ht:.0f} は 4m 以下で踊場は要らない（令24条）"))
         v = h.wind_speed()
         mass, ww = (HOUSES[h.kind][4], HOUSES[h.kind][1]) if h.is_toilet else (h.mass, w)
@@ -189,7 +219,13 @@ def _quantity(site: Site) -> None:
         q.append((HOUSES[k][0], n, f"{HOUSES[k][1]:.0f}×{HOUSES[k][2]:.0f}・1基 {HOUSES[k][4]:.0f}kg"))
     st = sum(1 for h in site.houses if h.tiers >= 2)
     if st:
-        q.append(("ハウス用の外階段（鉄骨・手すり付き）", st, "基"))
+        for k in sorted({h.stair_kind for h in site.houses if h.tiers >= 2}):
+            n_st = sum(h.tiers - 1 for h in site.houses if h.tiers >= 2 and h.stair_kind == k)
+            nm, w, ln, hh, kg = STAIRS[k]
+            q.append((f"{nm} {w:.0f}×{ln:.0f}×{hh:.0f}", n_st, f"基（{kg:.0f}kg）"))
+        n_land = sum(h.tiers - 2 for h in site.houses if h.tiers >= 3)
+        if n_land:
+            q.append(("踊り場 SC（カナテック。3階への折り返し）", n_land, "基"))
         q.append(("2階の外廊下（手すり 1,100）", round(sum(h.size[0] for h in site.houses if h.tiers >= 2) / 1000.0, 1), "m"))
     q.append(("消火器", max(1, len(site.houses)), "本（1棟に1本の目安）"))
 
@@ -198,13 +234,14 @@ def part_params(h: House) -> dict:
     """部品 ashiba_house のパラメータ."""
     uses = list(h.uses) + [h.uses[-1]] * 3
     return {"hsType": h.kind, "nUnit": h.units, "nTier": h.tiers, "use1": uses[0], "use2": uses[1], "use3": uses[2],
-            "stairSd": h.stair, "stairW": h.stair_w / 1000.0, "corrW": h.corr_w / 1000.0, "hsName": h.name}
+            "stairSd": h.stair, "stairW": h.stair_width / 1000.0, "stairL": STAIRS[h.stair_kind][2] / 1000.0,
+            "stName": STAIRS[h.stair_kind][0].split("（")[0], "corrW": h.corr_w / 1000.0, "hsName": h.name}
 
 
 def house_from_params(ps: dict, name: str = "") -> House:
     uses = tuple(int(ps.get(f"use{i}") or 1) for i in (1, 2, 3))
     return House(name or str(ps.get("hsName") or "仮設建物"), int(ps.get("hsType") or 4), int(ps.get("nUnit") or 1),
-                 int(ps.get("nTier") or 1), uses, int(ps.get("stairSd") or 0), float(ps.get("stairW") or 1.0) * 1000.0,
+                 int(ps.get("nTier") or 1), uses, int(ps.get("stairSd") or 0), float(ps.get("stairW") or 0.0) * 1000.0,
                  float(ps.get("corrW") or 1.0) * 1000.0)
 
 
