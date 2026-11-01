@@ -3,7 +3,9 @@
 利用者の指定（2026-11-01）「タワークレーンも追加してちょ」。寸法と定格荷重はメーカーの図面（北川鉄工所 kiw.co.jp の PANF）と
 レンタル会社の仕様書（産業リーシング CLIMBING CRANE CATALOG 2025）の値（m・t）。出典は SOURCES、調べたメモは
 docs/調査_タワークレーン.md。【目安】は資料に数値が無く決めた値（部品のパラメータで直せる）: ジブの根元の位置と高さ・
-カウンタウエイトの寸法・運転室の寸法・基礎の厚さ（基礎は現場ごとに設計する）・質量（3社とも公開資料に無い）。
+カウンタウエイトの寸法・運転室の寸法・基礎の厚さ（基礎は現場ごとに設計する）・質量（3社とも公開資料に無い）。北川の3機種は
+公開の DXF から一部を測った（piv・cab・cw。JCL280GK はジブの根元・運転室・カウンタウエイト、JCL080SKA はジブの根元と機械室、
+JCL730NKD は運転室。730NKD のジブの根元は側面図で運転室の陰になり測れない）。
 
 ジブの長さ: 資料はジブの呼び（＝最大作業半径）だけで実長の表が無いので、北川の最小起伏角 15°（公表）で呼びの半径に届く長さを
 算出する（jib_length）。タダノ（旧IHI）と小川の最小起伏角も 15° とする（数値が無い）。
@@ -38,6 +40,7 @@ SOURCES = {
     "K2": "北川鉄工所 JCL280GK 図面 280GK-PANF.pdf p.1（kiw.co.jp）",
     "K3": "北川鉄工所 JCL080SKA 図面 080SKA-PANF.pdf p.1（kiw.co.jp）",
     "K6": "北川鉄工所 SPSS（EXCEL 版）取扱説明書 p.3（支えの間隔の目安）",
+    "KD": "北川鉄工所の図面の DXF（kiw.co.jp/library/*-PANF.dxf。1:1 か 1:300 の座標をマストの寸法線で確かめて測った）",
     "S1": "産業リーシング CLIMBING CRANE CATALOG 2025 JCL730NKD（印刷頁 13）",
     "S2": "産業リーシング CLIMBING CRANE CATALOG 2025 JCC-V600S（印刷頁 15）、南信重機 JCC-V600S 仕様",
     "S4": "産業リーシング CLIMBING CRANE CATALOG 2025 JCC-TS300S（印刷頁 26）",
@@ -69,6 +72,9 @@ class Tower:
     climb: str = ""           # クライミング（方式・最大フロアクライミング高さ）
     tie_rule: bool = False    # 北川の支えの目安（K6）が使える
     guesses: str = ""
+    piv: tuple = ()           # ジブの根元のピン（旋回中心から前, ベル受面から上）m。北川の DXF から（空は PIV_X・PIV_H）
+    cab: tuple = ()           # 運転室（前後, 幅, 上面の高さ, 高さ）m。北川の DXF から（空は目安）
+    cw: tuple = ()            # カウンタウエイト（幅, 奥行, 高さ）m。北川の DXF から（空は目安）
 
 
 def _r(text: str) -> dict:
@@ -83,7 +89,9 @@ TOWERS = {
                      53.0: _r("3:22 5:24 21:24 25:21 30:17.4 35:14.2 40:11.5 45:9.5 50:8.2 53:7.5")},
                     1.9, 6.0, 51.455, 13.151, 4.1, 6.6, 2.26, (2.7, 4.1), 2.3, 4.6, 305.0, "K1",
                     climb="油圧クライミング（ストローク 1.5m）・最大フロアクライミング高さ 41.307m（S1）", tie_rule=True,
-                    guesses="ジブの根元・カウンタウエイトと運転室の寸法・質量（資料に無い）。ベースは伸縮架台 7,620×4,580 か"
+                    cab=(1.2, 1.1, 2.72, 2.3),
+                    guesses="ジブの根元（DXF でも側面図で運転室の陰になり読めない）・カウンタウエイトの寸法・質量（資料に無い）。"
+                            "運転室は DXF の側面図（前後 1.2・上面 2.72）、幅は目安。ベースは伸縮架台 7,620×4,580 か"
                             "ベースフレーム 4,600×2,380（図は 4.6m 角で描く）"),
     "v600": Tower("v600", "タワークレーン 25t", "タダノ（旧IHI運搬機械）JCC-V600S", 25.0, (32.0, 37.0, 40.0, 46.0, 52.0),
                   {32.0: _r("0:10 3.5:25 27:25 28:23.84 30:21.8 32:20"),
@@ -101,14 +109,17 @@ TOWERS = {
                      45.0: _r("0:6 20:6 25:5.18 30:4.49 35:3.92 40:3.42 45:3.0")},
                     1.35, 7.2, 46.755, 10.16, 4.0, 5.0, 1.7475, (1.73, 2.85), 1.3, 4.118, 160.0, "K2",
                     climb="油圧クライミング（ストローク 1.8m）・最大フロアクライミング高さ 37.85m（S5）", tie_rule=True,
-                    guesses="ジブの根元・カウンタウエイトと運転室の寸法・質量（資料に無い）。45m ジブは2本掛け（最大 7t）の表"),
+                    piv=(0.30, 1.706), cab=(1.81, 1.50, 2.06, 1.56), cw=(4.57, 0.79, 1.49),
+                    guesses="質量（資料に無い）。ジブの根元・運転室・カウンタウエイトは DXF の側面図・平面図から測った値。"
+                            "45m ジブは2本掛け（最大 7t）の表"),
     "jcl080": Tower("jcl080", "タワークレーン 2.8t", "北川鉄工所 JCL080SKA", 2.8, (24.0, 30.0, 36.0, 42.0),
                     {24.0: _r("3:2.8 24:2.8"), 30.0: _r("3:2.8 30:2.8"), 36.0: _r("3:2.8 26.5:2.8 36:1.8"),
                      42.0: _r("3:2.8 20:2.8 31:1.8 42:1.2")},
                     1.17, 7.0, 41.663, 9.719, 2.5, 3.8, 1.359, (1.5, 2.0), 1.1, 2.2, 140.0, "K3",
                     climb="電動油圧クライミング（ストローク 1.75m）", tie_rule=True,
-                    guesses="Aフレーム頂部の前後の位置（2.5m とした）・ジブの断面（1.1m とした）・ジブの根元・カウンタウエイトと"
-                            "運転室の寸法・質量（資料に無い）"),
+                    piv=(0.80, 1.046), cab=(2.0, 1.0, 2.27, 2.27),
+                    guesses="Aフレーム頂部の前後の位置（2.5m とした）・ジブの断面（1.1m とした）・カウンタウエイトの寸法・質量"
+                            "（資料に無い）。ジブの根元と機械室（運転室）の前後・高さは DXF（1:300）から測った値、運転室の幅は目安"),
     "ots90": Tower("ots90", "タワークレーン 2.8t（小川）", "小川製作所 OTS-90NH", 2.8, (20.0, 25.0, 30.0),
                    {20.0: _r("3:2.8 20:2.8"), 30.0: _r("3:2.8 25:2.8 26:2.6 27:2.5 28:2.3 29:2.2 30:2.0")},
                    1.25, 6.0, 41.04, 7.5, 2.9, 3.967, 1.53, (1.97, 2.1), 1.176, 4.073, 75.0, "S6",
@@ -152,9 +163,14 @@ def model_code(key: str) -> int:
     return list(TOWERS).index(key) + 1
 
 
-def jib_length(nominal: float) -> float:
-    """ジブの呼び（最小起伏角での作業半径）に届くジブの長さ m（根元 PIV_X から。算出）."""
-    return round((nominal - PIV_X) / math.cos(math.radians(MIN_LUFF)), 3)
+def pivot(t) -> tuple[float, float]:
+    """ジブの根元（旋回中心から前, ベル受面から上）m。DXF で測れた機種はその値、ほかは PIV_X・PIV_H【目安】."""
+    return t.piv if t is not None and t.piv else (PIV_X, PIV_H)
+
+
+def jib_length(nominal: float, t=None) -> float:
+    """ジブの呼び（最小起伏角での作業半径）に届くジブの長さ m（根元から。算出）."""
+    return round((nominal - pivot(t)[0]) / math.cos(math.radians(MIN_LUFF)), 3)
 
 
 def pick_jib(t: Tower, radius: float, jib: float = 0.0) -> float:
@@ -178,9 +194,9 @@ def rated_at(t: Tower, jib: float, radius: float) -> Optional[float]:
     return min(vals) if vals else None
 
 
-def luff_angle(radius: float, jib_len: float) -> float:
-    """作業半径に届く起伏角 度（根元 PIV_X から）."""
-    c = max(-1.0, min(1.0, (radius - PIV_X) / jib_len))
+def luff_angle(radius: float, jib_len: float, t=None) -> float:
+    """作業半径に届く起伏角 度（根元から）."""
+    c = max(-1.0, min(1.0, (radius - pivot(t)[0]) / jib_len))
     return math.degrees(math.acos(c))
 
 
@@ -222,9 +238,9 @@ def check(p: Placed, boundary: list | None = None, roads: set | None = None) -> 
                               f"ジブ {jib:g}m・半径 {p.radius:g}m → {cap:g}t" + (f" ／ 吊り荷 {p.load_t:g}t" if p.load_t else "（吊り荷を入れて判定）")))
     p.checks += tie_checks(t, p.mast, [z / 1000 for z in p.ties_mm])
     top = p.mast + t.frame_h
-    jl = jib_length(jib)
-    ang = luff_angle(p.radius, jl)
-    tip = p.mast + PIV_H + jl * math.sin(math.radians(ang))
+    jl = jib_length(jib, t)
+    ang = luff_angle(p.radius, jl, t)
+    tip = p.mast + pivot(t)[1] + jl * math.sin(math.radians(ang))
     hi = max(top, tip)
     p.checks.append(Check("航空障害灯", "注意" if hi >= LIGHT_H else "OK",
                           f"最も高い所 {hi:.1f}m（Aフレーム {top:.1f}m・ジブの先 {tip:.1f}m。避雷針等を足す）" +
@@ -249,14 +265,18 @@ def part_params(p) -> dict:
         p = Placed("", p)
         check(p)
     t = p.tower
-    jl = jib_length(p.jib)
-    ang = luff_angle(p.radius, jl)
+    jl = jib_length(p.jib, t)
+    ang = luff_angle(p.radius, jl, t)
+    px, ph = pivot(t)
+    cwW, cwL, cwH = t.cw or (round(min(t.width) * 2 * 0.8, 3), 1.5, 2.0)
+    cbL, cbW, cbZ, cbH = t.cab or (1.8, 1.1, 3.2, 2.1)
     return {"tcModel": model_code(t.key), "tcType": 1, "tcName": f"{p.name} {t.name}" if p.name else t.name,
             "tcNote": f"{t.model}・ジブ {p.jib:g}m", "slew": 0.0,
             "msW": t.mast_w, "msH": p.mast, "msSeg": t.mast_seg, "baseW": t.base_w, "baseD": 1.5,
-            "tailR": t.tail_r, "cwW": round(min(t.width) * 2 * 0.8, 3), "cwH": 2.0, "cwL": 1.5,
-            "dkW": round(t.width[0] + t.width[1], 3), "upF": t.front, "frH": t.frame_h, "frX": t.frame_x,
-            "pvX": PIV_X, "pvH": PIV_H, "jbL": jl, "jbA": round(ang, 2), "jbW": t.jib_w, "hkD": 10.0,
+            "tailR": t.tail_r, "cwW": cwW, "cwH": cwH, "cwL": cwL,
+            "dkW": round(t.width[0] + t.width[1], 3), "dkY": round((t.width[0] - t.width[1]) / 2, 3), "upF": t.front,
+            "frH": t.frame_h, "frX": t.frame_x, "cbL": cbL, "cbW": cbW, "cbZ": cbZ, "cbH": cbH,
+            "pvX": px, "pvH": ph, "jbL": jl, "jbA": round(ang, 2), "jbW": t.jib_w, "hkD": 10.0,
             "maxR": p.jib, "tieZ": ",".join(f"{z:.0f}" for z in p.ties_mm), "tieA": p.tie_dir, "tieL": p.tie_len,
             "avN": light_count(p)}
 
@@ -264,8 +284,8 @@ def part_params(p) -> dict:
 def light_count(p: Placed) -> int:
     """3D に描く航空障害灯（0＝要らない・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）."""
     t = p.tower
-    jl = jib_length(p.jib)
-    tip = p.mast + PIV_H + jl * math.sin(math.radians(luff_angle(p.radius, jl)))
+    jl = jib_length(p.jib, t)
+    tip = p.mast + pivot(t)[1] + jl * math.sin(math.radians(luff_angle(p.radius, jl, t)))
     if max(p.mast + t.frame_h, tip) < LIGHT_H:
         return 0
     return 1 + max(0, math.ceil(jl / LIGHT_JIB - 1e-9) - 1)
@@ -290,8 +310,8 @@ def judge_lift(t: Tower, jib: float, mast: float, radius: float, need_z: float, 
     cap = rated_at(t, jib, radius)
     if cap is None or radius > jib + 1e-6:
         return JUDGE[2], None
-    jl = jib_length(jib)
-    tip = mast + PIV_H + jl * math.sin(math.radians(luff_angle(radius, jl)))
+    jl = jib_length(jib, t)
+    tip = mast + pivot(t)[1] + jl * math.sin(math.radians(luff_angle(radius, jl, t)))
     if tip - HOOK_TOP < need_z:
         return JUDGE[3], cap
     if load_t + RIGGING_T > cap + 1e-9:
@@ -385,5 +405,6 @@ def report(placed: list[Placed]) -> str:
     lines += ["", "## 出典と目安", ""]
     for p in placed:
         t = p.tower
-        lines.append(f"- {t.name}（{t.model}）: {SOURCES[t.source]}" + (f"。【目安】{t.guesses}" if t.guesses else ""))
+        dxf = f"・{SOURCES['KD']}" if (t.piv or t.cab or t.cw) else ""
+        lines.append(f"- {t.name}（{t.model}）: {SOURCES[t.source]}{dxf}" + (f"。【目安】{t.guesses}" if t.guesses else ""))
     return "\n".join(lines) + "\n"

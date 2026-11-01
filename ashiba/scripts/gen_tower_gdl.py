@@ -48,6 +48,11 @@ def paramlist() -> str:
         _param("Length", "cwH", "カウンタウエイトの高さ", 2.0),
         _param("Length", "cwL", "カウンタウエイトの奥行", 1.5),
         _param("Length", "dkW", "機械台の幅", 3.0),
+        _param("Length", "dkY", "機械台の中心のずれ（左が +）", 0.0),
+        _param("Length", "cbL", "運転室の前後", 1.8),
+        _param("Length", "cbW", "運転室の幅", 1.1),
+        _param("Length", "cbZ", "運転室の上面の高さ（旋回体を受ける面から）", 3.2),
+        _param("Length", "cbH", "運転室の高さ", 2.1),
         _param("Length", "frH", "Aフレーム・塔頭の高さ（旋回輪から）", 9.0),
         _param("Length", "frX", "Aフレーム頂部（旋回中心から後ろ）", 3.0),
         _param("Length", "upF", "旋回体の前端（旋回中心から前）", 2.0),
@@ -142,8 +147,9 @@ if maxR > hX + 0.1 then circle2 0, 0, maxR
 rot2 slew
 line2 pvX, -jbW / 2, jX, -jbW / 4
 line2 pvX, jbW / 2, jX, jbW / 4
-rect2 -tailR, -cwW / 2, -tailR + cwL, cwW / 2
-rect2 -tailR + cwL, -dkW / 2, upF, dkW / 2
+rect2 -tailR, dkY - cwW / 2, -tailR + cwL, dkY + cwW / 2
+rect2 -tailR + cwL, dkY - dkW / 2, upF, dkY + dkW / 2
+rect2 upF - cbL, dkY - dkW / 2, upF, dkY - dkW / 2 + cbW
 circle2 hX, 0, 0.4
 del 1
 ! 注記
@@ -293,24 +299,25 @@ end
 	material "tc_dark"
 	cylind 0.6, msW * 0.6
 	material "tc_body"
-	add -tailR + cwL, -dkW / 2, 0.6
+	add -tailR + cwL, dkY - dkW / 2, 0.6
 	block tailR - cwL + upF, dkW, 0.5
 	del 1
 	material "tc_cw"
-	add -tailR, -cwW / 2, 0.6
+	add -tailR, dkY - cwW / 2, 0.6
 	block cwL, cwW, cwH
 	del 1
 	material "tc_body"
-	! 運転室（旋回体の前の右）
-	add upF - 1.8, -dkW / 2, 1.1
-	block 1.8, 1.1, 2.1
+	! 運転室（旋回体の前の右。前後 cbL・幅 cbW・上面 cbZ・高さ cbH）
+	yR = dkY - dkW / 2
+	add upF - cbL, yR, cbZ - cbH
+	block cbL, cbW, cbH
 	del 1
 	material "tc_glass"
-	add upF + 0.002, -dkW / 2 + 0.08, 1.8
-	block 0.006, 0.94, 1.2
+	add upF + 0.002, yR + 0.08, cbZ - cbH * 0.6
+	block 0.006, max(0.1, cbW - 0.16), cbH * 0.5
 	del 1
-	add upF - 1.7, -dkW / 2 - 0.006, 1.9
-	block 1.5, 0.006, 1.1
+	add upF - cbL + 0.1, yR - 0.006, cbZ - cbH * 0.55
+	block max(0.1, cbL - 0.2), 0.006, cbH * 0.45
 	del 1
 	return
 

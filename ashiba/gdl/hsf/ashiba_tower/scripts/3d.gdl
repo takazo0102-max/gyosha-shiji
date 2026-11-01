@@ -130,24 +130,25 @@ end
 	material "tc_dark"
 	cylind 0.6, msW * 0.6
 	material "tc_body"
-	add -tailR + cwL, -dkW / 2, 0.6
+	add -tailR + cwL, dkY - dkW / 2, 0.6
 	block tailR - cwL + upF, dkW, 0.5
 	del 1
 	material "tc_cw"
-	add -tailR, -cwW / 2, 0.6
+	add -tailR, dkY - cwW / 2, 0.6
 	block cwL, cwW, cwH
 	del 1
 	material "tc_body"
-	! 運転室（旋回体の前の右）
-	add upF - 1.8, -dkW / 2, 1.1
-	block 1.8, 1.1, 2.1
+	! 運転室（旋回体の前の右。前後 cbL・幅 cbW・上面 cbZ・高さ cbH）
+	yR = dkY - dkW / 2
+	add upF - cbL, yR, cbZ - cbH
+	block cbL, cbW, cbH
 	del 1
 	material "tc_glass"
-	add upF + 0.002, -dkW / 2 + 0.08, 1.8
-	block 0.006, 0.94, 1.2
+	add upF + 0.002, yR + 0.08, cbZ - cbH * 0.6
+	block 0.006, max(0.1, cbW - 0.16), cbH * 0.5
 	del 1
-	add upF - 1.7, -dkW / 2 - 0.006, 1.9
-	block 1.5, 0.006, 1.1
+	add upF - cbL + 0.1, yR - 0.006, cbZ - cbH * 0.55
+	block max(0.1, cbL - 0.2), 0.006, cbH * 0.45
 	del 1
 	return
 

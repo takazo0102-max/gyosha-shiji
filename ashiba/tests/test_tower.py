@@ -42,6 +42,17 @@ class TestTowers(unittest.TestCase):
         for t in TOWERS.values():
             self.assertEqual(set(part_params(t)) - names, set(), t.key)
 
+    def test_dxf_measured(self):
+        """北川の DXF から測った値: JCL280GK のジブの根元は旋回中心から 0.30m 前・ベル受面から 1.706m 上（R95 のピンの円）、
+        JCL080SKA は 0.80m・1.046m（1:300 の図。マスト 7,000×5 の寸法線で縮尺を確かめた）."""
+        from ashiba.tower import pivot
+        self.assertEqual(pivot(TOWERS["jcl280"]), (0.30, 1.706))
+        self.assertEqual(pivot(TOWERS["jcl080"]), (0.80, 1.046))
+        self.assertEqual(pivot(TOWERS["v600"]), (1.0, 2.0))                     # 測れていない機種は目安
+        ps = part_params(TOWERS["jcl280"])
+        self.assertEqual((ps["cwW"], ps["cwL"], ps["cwH"], ps["dkY"]), (4.57, 0.79, 1.49, -0.56))
+        self.assertAlmostEqual(jib_length(24.0, TOWERS["jcl280"]), (24.0 - 0.30) / 0.9659258, places=2)
+
     def test_rated(self):
         """表の点の間は両側の小さい方。JCC-V600S の 0〜3.5m は 10t（ジブを立てた所）なので 2m は 10t."""
         self.assertEqual(rated_at(TOWERS["jcl730"], 32.0, 30.0), 23.5)

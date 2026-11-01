@@ -21,37 +21,43 @@ if GLOB_MODPAR_NAME = "tcModel" then
 	if tcModel = 1 then
 		parameters tcName = "タワークレーン 27.5t", tcNote = "北川鉄工所 JCL730NKD・ジブ 32m"
 		parameters tcType = 1, msW = 1.9, msH = 51.455, msSeg = 6, baseW = 4.6, baseD = 1.5, tailR = 6.6, cwW = 4.32
-		parameters cwH = 2, cwL = 1.5, dkW = 6.8, upF = 2.26, frH = 13.151, frX = 4.1, pvX = 1, pvH = 2
-		parameters jbL = 32.094, jbA = 55.45, jbW = 2.3, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+		parameters cwH = 2, cwL = 1.5, dkW = 6.8, dkY = -0.7, upF = 2.26, frH = 13.151, frX = 4.1, cbL = 1.2
+		parameters cbW = 1.1, cbZ = 2.72, cbH = 2.3, pvX = 1, pvH = 2, jbL = 32.094, jbA = 55.45, jbW = 2.3
+		parameters hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 2 then
 		parameters tcName = "タワークレーン 25t", tcNote = "タダノ（旧IHI運搬機械）JCC-V600S・ジブ 32m"
 		parameters tcType = 1, msW = 1.9, msH = 38.954, msSeg = 6, baseW = 4.313, baseD = 1.5, tailR = 8.1, cwW = 3.938
-		parameters cwH = 2, cwL = 1.5, dkW = 6.717, upF = 2.77, frH = 12.15, frX = 5.1, pvX = 1, pvH = 2
-		parameters jbL = 32.094, jbA = 55.45, jbW = 2.39, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+		parameters cwH = 2, cwL = 1.5, dkW = 6.717, dkY = -0.898, upF = 2.77, frH = 12.15, frX = 5.1, cbL = 1.8
+		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = 1, pvH = 2, jbL = 32.094, jbA = 55.45, jbW = 2.39
+		parameters hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 3 then
 		parameters tcName = "タワークレーン 14t", tcNote = "タダノ（旧IHI運搬機械）JCC-TS300S・ジブ 23m"
 		parameters tcType = 1, msW = 1.35, msH = 47.794, msSeg = 7.2, baseW = 4.25, baseD = 1.5, tailR = 6.6, cwW = 3.968
-		parameters cwH = 2, cwL = 1.5, dkW = 5.866, upF = 2.243, frH = 11.5, frX = 3.25, pvX = 1, pvH = 2
-		parameters jbL = 22.776, jbA = 55.81, jbW = 1.74, hkD = 10, maxR = 23, tieA = 180, tieL = 2, avN = 1
+		parameters cwH = 2, cwL = 1.5, dkW = 5.866, dkY = -0.453, upF = 2.243, frH = 11.5, frX = 3.25, cbL = 1.8
+		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = 1, pvH = 2, jbL = 22.776, jbA = 55.81, jbW = 1.74
+		parameters hkD = 10, maxR = 23, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 4 then
 		parameters tcName = "タワークレーン 14t（中型）", tcNote = "北川鉄工所 JCL280GK（4本掛け）・ジブ 24m"
-		parameters tcType = 1, msW = 1.35, msH = 46.755, msSeg = 7.2, baseW = 4.118, baseD = 1.5, tailR = 5, cwW = 2.768
-		parameters cwH = 2, cwL = 1.5, dkW = 4.58, upF = 1.7475, frH = 10.16, frX = 4, pvX = 1, pvH = 2
-		parameters jbL = 23.811, jbA = 55.75, jbW = 1.3, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+		parameters tcType = 1, msW = 1.35, msH = 46.755, msSeg = 7.2, baseW = 4.118, baseD = 1.5, tailR = 5, cwW = 4.57
+		parameters cwH = 1.49, cwL = 0.79, dkW = 4.58, dkY = -0.56, upF = 1.7475, frH = 10.16, frX = 4, cbL = 1.81
+		parameters cbW = 1.5, cbZ = 2.06, cbH = 1.56, pvX = 0.3, pvH = 1.706, jbL = 24.536, jbA = 54.92, jbW = 1.3
+		parameters hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 5 then
 		parameters tcName = "タワークレーン 2.8t", tcNote = "北川鉄工所 JCL080SKA・ジブ 24m"
 		parameters tcType = 1, msW = 1.17, msH = 41.663, msSeg = 7, baseW = 2.2, baseD = 1.5, tailR = 3.8, cwW = 2.4
-		parameters cwH = 2, cwL = 1.5, dkW = 3.5, upF = 1.359, frH = 9.719, frX = 2.5, pvX = 1, pvH = 2
-		parameters jbL = 23.811, jbA = 55.75, jbW = 1.1, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+		parameters cwH = 2, cwL = 1.5, dkW = 3.5, dkY = -0.25, upF = 1.359, frH = 9.719, frX = 2.5, cbL = 2
+		parameters cbW = 1, cbZ = 2.27, cbH = 2.27, pvX = 0.8, pvH = 1.046, jbL = 24.018, jbA = 55.51, jbW = 1.1
+		parameters hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 6 then
 		parameters tcName = "タワークレーン 2.8t（小川）", tcNote = "小川製作所 OTS-90NH・ジブ 20m"
 		parameters tcType = 1, msW = 1.25, msH = 41.04, msSeg = 6, baseW = 4.073, baseD = 1.5, tailR = 3.967, cwW = 3.152
-		parameters cwH = 2, cwL = 1.5, dkW = 4.07, upF = 1.53, frH = 7.5, frX = 2.9, pvX = 1, pvH = 2
-		parameters jbL = 19.67, jbA = 56, jbW = 1.176, hkD = 10, maxR = 20, tieA = 180, tieL = 2, avN = 0
+		parameters cwH = 2, cwL = 1.5, dkW = 4.07, dkY = -0.065, upF = 1.53, frH = 7.5, frX = 2.9, cbL = 1.8
+		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = 1, pvH = 2, jbL = 19.67, jbA = 56, jbW = 1.176
+		parameters hkD = 10, maxR = 20, tieA = 180, tieL = 2, avN = 0
 	endif
 endif

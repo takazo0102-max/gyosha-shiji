@@ -89,6 +89,26 @@
 			<Description><![CDATA["機械台の幅"]]></Description>
 			<Value>3.0</Value>
 		</Length>
+		<Length Name="dkY">
+			<Description><![CDATA["機械台の中心のずれ（左が +）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cbL">
+			<Description><![CDATA["運転室の前後"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="cbW">
+			<Description><![CDATA["運転室の幅"]]></Description>
+			<Value>1.1</Value>
+		</Length>
+		<Length Name="cbZ">
+			<Description><![CDATA["運転室の上面の高さ（旋回体を受ける面から）"]]></Description>
+			<Value>3.2</Value>
+		</Length>
+		<Length Name="cbH">
+			<Description><![CDATA["運転室の高さ"]]></Description>
+			<Value>2.1</Value>
+		</Length>
 		<Length Name="frH">
 			<Description><![CDATA["Aフレーム・塔頭の高さ（旋回輪から）"]]></Description>
 			<Value>9.0</Value>

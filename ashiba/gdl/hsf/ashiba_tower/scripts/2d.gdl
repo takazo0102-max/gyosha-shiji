@@ -22,8 +22,9 @@ if maxR > hX + 0.1 then circle2 0, 0, maxR
 rot2 slew
 line2 pvX, -jbW / 2, jX, -jbW / 4
 line2 pvX, jbW / 2, jX, jbW / 4
-rect2 -tailR, -cwW / 2, -tailR + cwL, cwW / 2
-rect2 -tailR + cwL, -dkW / 2, upF, dkW / 2
+rect2 -tailR, dkY - cwW / 2, -tailR + cwL, dkY + cwW / 2
+rect2 -tailR + cwL, dkY - dkW / 2, upF, dkY + dkW / 2
+rect2 upF - cbL, dkY - dkW / 2, upF, dkY - dkW / 2 + cbW
 circle2 hX, 0, 0.4
 del 1
 ! 注記
