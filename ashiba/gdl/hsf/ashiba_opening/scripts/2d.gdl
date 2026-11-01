@@ -1,0 +1,60 @@
+﻿! 開口養生 2D
+pen penEquip
+define style "opT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "opT"
+if kd <= 3 then
+	! 蓋（掛かり 0.1）と開口の内法
+	rect2 -lap, -lap, opW + lap, opD + lap
+	rect2 0, 0, opW, opD
+	line2 0, 0, opW, opD
+	line2 0, opD, opW, 0
+	tx = "蓋 12mm"
+	if kd = 3 then tx = "蓋 24mm"
+endif
+if kd = 4 then
+	rect2 0, 0, opW, opD
+	rect2 rx0, ry0, rx1, ry1
+	rect2 rx0 + 0.05, ry0 + 0.05, rx1 - 0.05, ry1 - 0.05
+	for sd = 1 to 4
+		sL = rx1 - rx0
+		if sd > 2 then sL = ry1 - ry0
+		nP = max(1, ceil(sL / pSp - 0.0001))
+		for i = 0 to nP
+			px = rx0 + sL * i / nP
+			py = ry0
+			if sd = 2 then py = ry1
+			if sd > 2 then
+				px = rx0
+				if sd = 4 then px = rx1
+				py = ry0 + sL * i / nP
+			endif
+			circle2 px, py, 0.03
+		next i
+	next sd
+	if netOn then
+		line2 0, 0, opW, opD
+		line2 0, opD, opW, 0
+	endif
+	tx = "手すり・幅木"
+	if netOn then tx = "手すり・幅木・ネット"
+endif
+if kd = 5 then
+	line2 0, eY, opW, eY
+	line2 0, eY + eSd * 0.05, opW, eY + eSd * 0.05
+	nP = max(1, ceil(opW / pSp - 0.0001))
+	for i = 0 to nP
+		circle2 opW * i / nP, eY, 0.03
+	next i
+	tx = "床の縁 手すり"
+endif
+add2 opW / 2, opD / 2
+if kd = 5 then add2 0, eY + eSd * 0.5
+rot2 -SYMB_ROTANGLE
+text2 0, 0.2, opName + " " + tx
+if kd <= 4 then text2 0, -0.2, "開口注意"
+del 2
+if kd = 5 then del 1
+hotspot2 0, 0
+hotspot2 opW, 0
+hotspot2 opW, opD
+hotspot2 0, opD

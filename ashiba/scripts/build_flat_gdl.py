@@ -221,6 +221,13 @@ PARTS = {
             "原点＝手前の左の隅、+X＝長手。型 hsType（スーパーハウス 1〜5坪・仮設トイレ・快適トイレハウス）、連棟 nUnit、段 nTier、段ごとの用途 use1〜3、2段以上は手前に外廊下 corrW と外階段 stW（stairSd で端）。判定は site_house.py、置くのは scripts/house_run.py。",
         ],
     },
+    "ashiba_opening": {
+        "title": "床の開口の養生・床の縁の手すり（1つの開口か1本の縁に1部品）",
+        "notes": [
+            "開発ループ（2026-11-01）: 他に必要な仮設材の5番。",
+            "原点＝開口の隅（床の上端）、+X＝長い辺。区分 opKind: 1・2 合板 12mm の蓋、3 合板 24mm、4 手すり 950・中桟 450・幅木 150（netOn で 0.3m 下に水平ネット）、5 床の縁の手すり（edSide で床の側）。区分と判定は opening_guard.py、置くのは scripts/opening_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [

@@ -139,6 +139,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"hsType": 4, "nUnit": 3, "nTier": 2, "use1": 1, "use2": 1, "hsName": "事務所棟"},
     },
+    # 開口養生（開発ループ 2026-11-01: 他に必要な仮設材の5番）。2.5×2.0m の大開口に手すり・幅木・ネット
+    "ashiba_opening": {
+        "images": ("3D", "2D"),
+        "params": {"opW": 2.5, "opD": 2.0, "opKind": 4, "netOn": True, "opName": "開口1", "rlS": "1,2,3,4", "rlL": "3000,3000,2500,2500", "tbS": "1,2,3,4", "tbL": "3000,3000,3000,3000"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

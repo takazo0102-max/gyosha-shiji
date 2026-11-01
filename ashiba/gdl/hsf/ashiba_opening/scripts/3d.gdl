@@ -1,0 +1,128 @@
+﻿! 開口養生 3D: 蓋・桟木・手すり・中桟・幅木・水平ネット
+define material "op_ply" 2, 0.86, 0.72, 0.48
+define material "op_cleat" 2, 0.70, 0.55, 0.35
+define material "op_rail" 2, 0.90, 0.75, 0.10
+define material "op_toe" 2, 0.80, 0.66, 0.45
+define material "op_net" 2, 0.15, 0.40, 0.20
+define material "op_post" 2, 0.62, 0.64, 0.66
+define material "op_clamp" 2, 0.35, 0.36, 0.38
+resol 8
+if kd <= 3 then
+	material "op_ply"
+	add -lap, -lap, 0
+	block opW + 2 * lap, opD + 2 * lap, lidT
+	del 1
+	! 裏のずれ止めの桟木（開口の内法に沿って一周）
+	material "op_cleat"
+	add 0.005, 0.005, -0.03
+	block opW - 0.01, 0.03, 0.03
+	del 1
+	add 0.005, opD - 0.035, -0.03
+	block opW - 0.01, 0.03, 0.03
+	del 1
+	add 0.005, 0.035, -0.03
+	block 0.03, max(0.01, opD - 0.07), 0.03
+	del 1
+	add opW - 0.035, 0.035, -0.03
+	block 0.03, max(0.01, opD - 0.07), 0.03
+	del 1
+endif
+for sd = 1 to nSd
+	sL = sdL[sd]
+	sdIn = sdI[sd]
+	zUp = 0
+	if sd > 2 then zUp = 0.06
+	add sdX[sd], sdY[sd], 0
+	rotz sdA[sd]
+	gosub "side"
+	del 2
+next sd
+if kd = 4 and netOn then
+	material "op_net"
+	add -0.3, -0.3, -slabT - 0.3
+	block opW + 0.6, opD + 0.6, 0.005
+	del 1
+endif
+end
+
+! 1辺: 今の座標で +X に長さ sL、開口（床の縁）は sdIn の側（+Y＝1）
+"side":
+	nP = max(1, ceil(sL / pSp - 0.000001))
+	i0 = 0
+	i1 = nP
+	if sd > 2 then
+		i0 = 1
+		i1 = nP - 1
+	endif
+	! 手すり柱（スタンション NREG: 縁をくわえる顎、固定ベース PKB: 120 角の板＋単管 1.0M）
+	for i = i0 to i1
+		add sL * i / nP, 0, 0
+		material "op_post"
+		cylind 1.0, 0.0243
+		if postK = 2 then
+			add -0.06, -0.06, 0
+			block 0.12, 0.12, 0.006
+			del 1
+		else
+			jw = rOff + 0.03
+			add -0.02, min(0, sdIn * jw), 0
+			block 0.04, jw, 0.03
+			del 1
+			add -0.02, min(sdIn * jw, sdIn * (jw + 0.03)), -slabT - 0.05
+			block 0.04, 0.03, slabT + 0.08
+			del 1
+			add -0.02, min(sdIn * (jw + 0.03), sdIn * (jw - 0.12)), -slabT - 0.05
+			block 0.04, 0.15, 0.03
+			del 1
+		endif
+		del 1
+	next i
+	! 手すり・中桟（単管の定尺を突き合わせ、継ぎ目に直線ジョイント）と直交クランプ
+	tot = 0
+	for k = 1 to min(kRs, kRl)
+		if qrs[k] = sd then tot = tot + qrl[k]
+	next k
+	for r = 1 to 2
+		hz = 0.95 + zUp
+		if r = 2 then hz = 0.45 + zUp
+		xs = -(tot - sL) / 2
+		for k = 1 to min(kRs, kRl)
+			if qrs[k] = sd then
+				material "op_rail"
+				add xs, -sdIn * 0.05, hz
+				roty 90
+				cylind qrl[k] - 0.003, 0.0243
+				del 2
+				if xs > -(tot - sL) / 2 + 0.01 then
+					material "op_post"
+					add xs - 0.05, -sdIn * 0.05, hz
+					roty 90
+					cylind 0.1, 0.027
+					del 2
+				endif
+				xs = xs + qrl[k]
+			endif
+		next k
+		material "op_clamp"
+		for i = 0 to nP
+			add sL * i / nP - 0.035, min(-sdIn * 0.06, -sdIn * 0.025), hz - 0.04
+			block 0.07, 0.035, 0.08
+			del 1
+		next i
+	next r
+	! 幅木（杉足場板 35×210 を開口の側に）
+	totB = 0
+	for k = 1 to min(kBs, kBl)
+		if qbs[k] = sd then totB = totB + qbl[k]
+	next k
+	material "op_toe"
+	xs = -(totB - sL) / 2
+	for k = 1 to min(kBs, kBl)
+		if qbs[k] = sd then
+			add xs + 0.003, min(sdIn * 0.035, sdIn * 0.07), 0.002
+			block qbl[k] - 0.006, 0.035, 0.21
+			del 1
+			xs = xs + qbl[k]
+		endif
+	next k
+return

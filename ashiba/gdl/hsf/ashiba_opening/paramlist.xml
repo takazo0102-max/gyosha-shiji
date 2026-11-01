@@ -1,0 +1,89 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="opW">
+			<Description><![CDATA["開口の内法 長い辺（縁は長さ）"]]></Description>
+			<Value>2.5</Value>
+		</Length>
+		<Length Name="opD">
+			<Description><![CDATA["開口の内法 短い辺"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Integer Name="opKind">
+			<Description><![CDATA["区分（1 小開口・2 中開口 12mm・3 中開口 24mm・4 大開口 手すり・5 床の縁）"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Boolean Name="netOn">
+			<Description><![CDATA["水平ネット（大開口）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="slabT">
+			<Description><![CDATA["床の厚さ"]]></Description>
+			<Value>0.2</Value>
+		</Length>
+		<Integer Name="edSide">
+			<Description><![CDATA["床の縁の床の側（1＝+Y・−1＝−Y）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="postK">
+			<Description><![CDATA["手すり柱（1＝スタンション NREG・2＝固定ベース PKB＋単管 1.0M）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="rlS">
+			<Description><![CDATA["手すりの単管の辺（1 手前・2 奥・3 左・4 右）"]]></Description>
+			<Value><![CDATA["1,2,3,4"]]></Value>
+		</String>
+		<String Name="rlL">
+			<Description><![CDATA["手すりの単管の長さ（mm。辺の始めから並べる）"]]></Description>
+			<Value><![CDATA["3000,3000,2500,2500"]]></Value>
+		</String>
+		<String Name="tbS">
+			<Description><![CDATA["幅木の杉足場板の辺"]]></Description>
+			<Value><![CDATA["1,2,3,4"]]></Value>
+		</String>
+		<String Name="tbL">
+			<Description><![CDATA["幅木の杉足場板の長さ（mm）"]]></Description>
+			<Value><![CDATA["3000,3000,3000,3000"]]></Value>
+		</String>
+		<String Name="opName">
+			<Description><![CDATA["名前（注記）"]]></Description>
+			<Value><![CDATA["開口1"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>
