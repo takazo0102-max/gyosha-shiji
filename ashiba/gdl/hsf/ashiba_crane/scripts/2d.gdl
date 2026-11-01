@@ -2,6 +2,8 @@
 ! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+define style "crR" "ＭＳ Ｐゴシック", texSiz, 3, 0
+define style "crC" "ＭＳ Ｐゴシック", texSiz, 2, 0
 style "crT"
 ! 車体（キャリヤ）: 外形・前後のバンパー・タイヤ・旋回輪
 rect2 -carRr, -carW / 2, carF, carW / 2
@@ -55,6 +57,11 @@ for i = 1 to nC
 	endif
 	aT = wrDir
 	if wrSpan >= 359.9 then aT = wrDir + 45
+	! 半径の文字がブームとフックの注記に重ならないよう、ブームの向きから 30° 以内なら 60° 戻す
+	dA = aT - slD + 720
+	dA = dA - int(dA / 360) * 360
+	if dA > 180 then dA = dA - 360
+	if abs(dA) < 30 then aT = slD - 60
 	if i <= nWr then
 		add2 rC * cos(aT), rC * sin(aT)
 		rot2 -SYMB_ROTANGLE
@@ -82,11 +89,12 @@ line2 1.6, -uw, 1.6, uw
 line2 xc + 0.9, -uw, xc + 0.9, uw
 rect2 cbX0, -cbY1, cbX1, -cbY0
 line2 cbX1 - 0.25, -cbY1, cbX1 - 0.25, -cbY0
-! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック
+! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック。段の根元は平面に写した長さで
+! （ブームに沿った長さのままだと、起こしたブームの上の段がフックの先へはみ出した。2026-11-02 実機の平面図）
 nb = max(1, min(6, nBs))
 for k = 1 to nb
 	wk = bmW * (1 - 0.13 * (k - 1)) / 2
-	xk = -pivB + (k - 1) * (bL - 1.2) / nb
+	xk = -pivB + (k - 1) * (bL - 1.2) * cos(bA) / nb
 	rect2 xk, -wk, tipX, wk
 next k
 rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
@@ -111,13 +119,25 @@ if travel = 0 then
 	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
 	del 2
 endif
+! 車体の後ろの外に、車体から離れる側へ寄せて書く（車体の向きで文字の寄せと上下を変える。車体の線に重ならない）
 add2 -carRr - 1.0, 0
 rot2 -SYMB_ROTANGLE
+cR = cos(SYMB_ROTANGLE)
+yA = 0
+if cR > 0.5 then
+	style "crR"
+else
+	if cR > -0.5 then
+		style "crC"
+		if sin(SYMB_ROTANGLE) < 0 then yA = 3 * dT
+	endif
+endif
 tS = "張出不足（性能表の最小の張出より狭い）"
 if sI > 0 then tS = "性能表 張出 " + str(round_int(spT * 1000), 1, 0) + "（4脚の最小 " + str(round_int(spE * 500), 1, 0) + "×2）"
-text2 0, -2 * dT, tS
-text2 0, 0, crName
-text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
+text2 0, yA - 2 * dT, tS
+text2 0, yA, crName
+text2 0, yA - dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
+style "crT"
 del 2
 ! 旋回角のホットスポット（ブームの真ん中）と扇の向き
 rH = max(2.0, tipX * 0.5)
