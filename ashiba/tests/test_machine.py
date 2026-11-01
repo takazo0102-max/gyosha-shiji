@@ -35,6 +35,7 @@ class TestMachines(unittest.TestCase):
         bh = MACHINES["bh045"].params
         self.assertEqual((bh["tailR"], bh["trkW"], bh["trkL"]), (1.49, 2.49, 3.61))
         self.assertEqual(MACHINES["cc50"].params["tailR"], 4.0)
+        self.assertEqual((MACHINES["bh01"].params["bldW"], MACHINES["bh08"].params["bldW"]), (1.77, 0.0))   # PC200 は排土板なし
         p = MACHINES["pump26"].params
         self.assertAlmostEqual(p["sL1"] + p["sL2"] + p["sL3"] + p["sL4"], 21.7)       # 4段の和＝最大水平到達
         self.assertIs(find("PC78US"), MACHINES["bh025"])

@@ -16,6 +16,11 @@ if isCr then
 	line2 xs, w2, upF, w2
 	line2 upF, w2, upF, -w2
 	line2 upF, -w2, xs, -w2
+	if mcKind = 1 and bldW > 0.1 then
+		del 1
+		rect2 trkL / 2 + 0.25, -bldW / 2, trkL / 2 + 0.25 + 0.12, bldW / 2
+		rot2 slew
+	endif
 	if mcKind = 1 then
 		line2 pvX, -0.25, amX1, -0.15
 		line2 pvX, 0.25, amX1, 0.15

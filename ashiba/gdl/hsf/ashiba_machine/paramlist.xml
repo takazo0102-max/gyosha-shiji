@@ -141,6 +141,14 @@
 			<Description><![CDATA["最大掘削深さ"]]></Description>
 			<Value>6.6</Value>
 		</Length>
+		<Length Name="bldW">
+			<Description><![CDATA["排土板の幅（0＝無し）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="bldH">
+			<Description><![CDATA["排土板の高さ"]]></Description>
+			<Value>0.45</Value>
+		</Length>
 		<Length Name="lbL">
 			<Description><![CDATA["ラチスブームの長さ"]]></Description>
 			<Value>30.0</Value>

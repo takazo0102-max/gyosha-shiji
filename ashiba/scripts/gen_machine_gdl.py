@@ -67,6 +67,8 @@ def paramlist() -> str:
         _param("Angle", "bkA", "バケットの角度（水平から）", -150.0),
         _param("Length", "maxR", "最大作業半径（平面の円）", 9.9),
         _param("Length", "maxD", "最大掘削深さ", 6.6),
+        _param("Length", "bldW", "排土板の幅（0＝無し）", 0.0),
+        _param("Length", "bldH", "排土板の高さ", 0.45),
         # クローラクレーン
         _param("Length", "lbL", "ラチスブームの長さ", 30.0),
         _param("Angle", "lbA", "ブームの起伏角", 70.0),
@@ -227,6 +229,11 @@ if isCr then
 	line2 xs, w2, upF, w2
 	line2 upF, w2, upF, -w2
 	line2 upF, -w2, xs, -w2
+	if mcKind = 1 and bldW > 0.1 then
+		del 1
+		rect2 trkL / 2 + 0.25, -bldW / 2, trkL / 2 + 0.25 + 0.12, bldW / 2
+		rot2 slew
+	endif
 	if mcKind = 1 then
 		line2 pvX, -0.25, amX1, -0.15
 		line2 pvX, 0.25, amX1, 0.15
@@ -329,6 +336,7 @@ define material "mc_drum" 2, 0.92, 0.40, 0.12
 define material "mc_bed" 2, 0.30, 0.52, 0.35
 resol 12
 if isCr then gosub "crawler"
+if mcKind = 1 and bldW > 0.1 then gosub "blade"
 if isTk and mcKind < 7 then gosub "truck"
 if mcKind = 1 then
 	rotz slew
@@ -411,6 +419,33 @@ end
 	add 0, 0, trkH * 0.8
 	cylind upZ - trkH * 0.8, min(0.85, upW * 0.3)
 	del 1
+	return
+
+"blade":
+	! 排土板（履帯の前。腕2本とシリンダ）
+	material "mc_body"
+	add trkL / 2 + 0.25, -bldW / 2, 0.02
+	block 0.12, bldW, bldH
+	del 1
+	for s = -1 to 1 step 2
+		x0q = trkL / 2 - 0.4
+		z0q = trkH * 0.45
+		x1q = trkL / 2 + 0.3
+		z1q = bldH * 0.5
+		bwq = 0.1
+		bhq = 0.12
+		add 0, s * bldW * 0.3, 0
+		gosub "bar"
+		del 1
+	next s
+	crq = 0.04
+	cx0 = trkL / 2 - 0.25
+	cy0 = 0
+	cz0 = trkH * 0.7
+	cx1 = trkL / 2 + 0.25
+	cy1 = 0
+	cz1 = bldH * 0.85
+	gosub "cyl2"
 	return
 
 "upper":

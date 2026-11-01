@@ -58,9 +58,11 @@ class Machine:
     guesses: str = ""                           # 【目安】の値
 
 
-def _bh(trkL, gauge, shoe, trkH, upW, tailR, upZ, upH, cab, pvH, boomL, armL, bkL, bkW, maxR, maxD, pvX=0.15, upF=None):
-    """バックホウのパラメータ（クローラ全幅＝ゲージ＋シュー幅）."""
-    return {"trkL": trkL, "trkW": gauge + shoe, "shoeW": shoe, "trkH": trkH, "upW": upW, "tailR": tailR, "upZ": upZ, "upH": upH,
+def _bh(trkL, gauge, shoe, trkH, upW, tailR, upZ, upH, cab, pvH, boomL, armL, bkL, bkW, maxR, maxD, pvX=0.15, upF=None,
+        blade=(0.0, 0.45)):
+    """バックホウのパラメータ（クローラ全幅＝ゲージ＋シュー幅。排土板は 幅・高さ、幅 0 は無し）."""
+    return {"trkL": trkL, "trkW": round(gauge + shoe, 3), "shoeW": shoe, "trkH": trkH, "upW": upW, "tailR": tailR, "upZ": upZ,
+            "upH": upH, "bldW": blade[0], "bldH": blade[1],
             "cabW": cab[0], "cabL": cab[1], "upF": upF if upF is not None else max(cab[1] - 0.2, upW * 0.55),
             "pvX": pvX, "pvH": pvH, "boomL": boomL, "armL": armL, "bkL": bkL, "bkW": bkW, "maxR": maxR, "maxD": maxD,
             "bmA": 35.0, "amA": -70.0, "bkA": -150.0, "cbS": 1}
@@ -75,16 +77,16 @@ MACHINES = {
     # バックホウ（コマツ。ブーム長・履帯の高さ・ブームの根元・バケットの寸法は【目安】）
     "bh01": Machine("bh01", 1, "バックホウ 0.1m³", "コマツ PC38UU-6（0.11m³・後方超小旋回）", 3.6,
                     _bh(2.105, 1.44, 0.30, 0.45, 1.70, 0.87, 0.55, 2.49, (0.85, 1.25), 0.85, 2.5, 1.3, 0.65, 0.55, 4.855, 3.23,
-                        pvX=0.35),
+                        pvX=0.35, blade=(1.77, 0.37)),
                     "K1", ground_kpa=33.0, guesses="ブーム長 2.5・アーム長 1.3・履帯の高さ・ブームの根元・バケット"),
     "bh025": Machine("bh025", 1, "バックホウ 0.25m³", "コマツ PC78US-11（0.28m³・後方超小旋回）", 7.71,
                      _bh(2.84, 1.87, 0.45, 0.62, 2.32, 1.39, 0.75, 2.71, (0.95, 1.5), 1.25, 3.6, 1.65, 0.85, 0.7, 6.38, 4.10,
-                         pvX=0.3),
-                     "K2", ground_kpa=34.1, guesses="ブーム長 3.6・履帯の高さ・ブームの根元・バケット"),
+                         pvX=0.3, blade=(2.32, 0.45)),
+                     "K2", ground_kpa=34.1, guesses="ブーム長 3.6・履帯の高さ・ブームの根元・バケット・排土板の高さ"),
     "bh045": Machine("bh045", 1, "バックホウ 0.45m³", "コマツ PC138US-12（0.53m³・後方超小旋回）", 13.8,
                      _bh(3.61, 1.99, 0.50, 0.75, 2.49, 1.49, 0.85, 2.85, (0.95, 1.6), 1.55, 4.6, 2.5, 1.05, 0.9, 8.30, 5.48,
-                         pvX=0.3),
-                     "K3", ground_kpa=42.7, guesses="ブーム長 4.6（同クラスの SK135SR-7 は 4.68）・履帯の高さ・ブームの根元・バケット"),
+                         pvX=0.3, blade=(2.5, 0.5)),
+                     "K3", ground_kpa=42.7, guesses="ブーム長 4.6（同クラスの SK135SR-7 は 4.68）・履帯の高さ・ブームの根元・バケット・排土板の高さ"),
     "bh08": Machine("bh08", 1, "バックホウ 0.8m³", "コマツ PC200-11（0.8m³・標準）", 20.2,
                     _bh(4.07, 2.20, 0.60, 0.90, 2.71, 2.83, 1.07, 3.135, (1.0, 1.75), 1.9, 5.7, 2.9, 1.45, 1.05, 9.875, 6.62,
                         pvX=0.15, upF=1.6),
