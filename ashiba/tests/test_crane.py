@@ -34,8 +34,9 @@ class TestRatedTables(unittest.TestCase):
 
 class TestGeometry(unittest.TestCase):
     def test_hook_height_matches_max_lift_height(self):
-        """30.5m のブームを立てたときのフックの高さ ≒ 仕様書の最大地上揚程 31.3m."""
-        self.assertAlmostEqual(hook_height(M25, 30.5, 3500.0), 31300.0, delta=400.0)
+        """30.5m のブームを最大の 84° に立てたときのフックの掛け位置 ≒ 仕様書の最大地上揚程 31.3m（ブームの先からの距離はその逆算）."""
+        import math
+        self.assertAlmostEqual(hook_height(M25, 30.5, 30500.0 * math.cos(math.radians(84.0)) - M25.piv_b), 31300.0, delta=50.0)
         self.assertEqual(hook_height(M25, 9.35, 9000.0), -1.0)
         self.assertAlmostEqual(boom_angle(M25, 23.45, 12000.0), 51.5, places=1)   # フートピンは旋回中心の 2.6m 後ろ（寸法図）
         self.assertEqual(max(M25.spreads) * 1000.0 + M25.float_ab[0], 6900.0)  # フロート外端（寸法図。フロートの横 300）
