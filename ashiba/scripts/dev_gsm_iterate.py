@@ -161,6 +161,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"mcKind": 1, "mcName": "バックホウ"},
     },
+    # タワークレーン（利用者の指定 2026-11-01: タワークレーンも追加してちょ）
+    "ashiba_tower": {
+        "images": ("3D", "2D"),
+        "params": {"tcType": 1, "tcName": "タワークレーン", "tieZ": "20000,32000"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

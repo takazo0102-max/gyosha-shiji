@@ -1,0 +1,57 @@
+﻿! タワークレーン: 形式の一覧
+values{2} "tcType" 1, "起伏ジブ", 2, "水平ジブ"
+! 機種を選ぶと、src/ashiba/tower.py の寸法を書き込む（gen_tower_gdl.py が書き出す）
+dim mdV[], mdS[]
+mdV[1] = 0
+mdS[1] = "手入力"
+mdV[2] = 1
+mdS[2] = "タワークレーン 27.5t"
+mdV[3] = 2
+mdS[3] = "タワークレーン 25t"
+mdV[4] = 3
+mdS[4] = "タワークレーン 14t"
+mdV[5] = 4
+mdS[5] = "タワークレーン 14t（中型）"
+mdV[6] = 5
+mdS[6] = "タワークレーン 2.8t"
+mdV[7] = 6
+mdS[7] = "タワークレーン 2.8t（小川）"
+values{2} "tcModel" mdV, mdS
+if GLOB_MODPAR_NAME = "tcModel" then
+	if tcModel = 1 then
+		parameters tcName = "タワークレーン 27.5t", tcNote = "北川鉄工所 JCL730NKD・ジブ 32m"
+		parameters tcType = 1, msW = 1.9, msH = 51.455, msSeg = 6, baseW = 4.6, baseD = 1.5, tailR = 6.6, cwW = 4.32
+		parameters cwH = 2, cwL = 1.5, dkW = 6.8, upF = 2.26, frH = 13.151, frX = 4.1, pvX = 1, pvH = 2
+		parameters jbL = 32.094, jbA = 55.45, jbW = 2.3, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+	endif
+	if tcModel = 2 then
+		parameters tcName = "タワークレーン 25t", tcNote = "タダノ（旧IHI運搬機械）JCC-V600S・ジブ 32m"
+		parameters tcType = 1, msW = 1.9, msH = 38.954, msSeg = 6, baseW = 4.313, baseD = 1.5, tailR = 8.1, cwW = 3.938
+		parameters cwH = 2, cwL = 1.5, dkW = 6.717, upF = 2.77, frH = 12.15, frX = 5.1, pvX = 1, pvH = 2
+		parameters jbL = 32.094, jbA = 55.45, jbW = 2.39, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+	endif
+	if tcModel = 3 then
+		parameters tcName = "タワークレーン 14t", tcNote = "タダノ（旧IHI運搬機械）JCC-TS300S・ジブ 23m"
+		parameters tcType = 1, msW = 1.35, msH = 47.794, msSeg = 7.2, baseW = 4.25, baseD = 1.5, tailR = 6.6, cwW = 3.968
+		parameters cwH = 2, cwL = 1.5, dkW = 5.866, upF = 2.243, frH = 11.5, frX = 3.25, pvX = 1, pvH = 2
+		parameters jbL = 22.776, jbA = 55.81, jbW = 1.74, hkD = 10, maxR = 23, tieA = 180, tieL = 2, avN = 1
+	endif
+	if tcModel = 4 then
+		parameters tcName = "タワークレーン 14t（中型）", tcNote = "北川鉄工所 JCL280GK（4本掛け）・ジブ 24m"
+		parameters tcType = 1, msW = 1.35, msH = 46.755, msSeg = 7.2, baseW = 4.118, baseD = 1.5, tailR = 5, cwW = 2.768
+		parameters cwH = 2, cwL = 1.5, dkW = 4.58, upF = 1.7475, frH = 10.16, frX = 4, pvX = 1, pvH = 2
+		parameters jbL = 23.811, jbA = 55.75, jbW = 1.3, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+	endif
+	if tcModel = 5 then
+		parameters tcName = "タワークレーン 2.8t", tcNote = "北川鉄工所 JCL080SKA・ジブ 24m"
+		parameters tcType = 1, msW = 1.17, msH = 41.663, msSeg = 7, baseW = 2.2, baseD = 1.5, tailR = 3.8, cwW = 2.4
+		parameters cwH = 2, cwL = 1.5, dkW = 3.5, upF = 1.359, frH = 9.719, frX = 2.5, pvX = 1, pvH = 2
+		parameters jbL = 23.811, jbA = 55.75, jbW = 1.1, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+	endif
+	if tcModel = 6 then
+		parameters tcName = "タワークレーン 2.8t（小川）", tcNote = "小川製作所 OTS-90NH・ジブ 20m"
+		parameters tcType = 1, msW = 1.25, msH = 41.04, msSeg = 6, baseW = 4.073, baseD = 1.5, tailR = 3.967, cwW = 3.152
+		parameters cwH = 2, cwL = 1.5, dkW = 4.07, upF = 1.53, frH = 7.5, frX = 2.9, pvX = 1, pvH = 2
+		parameters jbL = 19.67, jbA = 56, jbW = 1.176, hkD = 10, maxR = 20, tieA = 180, tieL = 2, avN = 0
+	endif
+endif

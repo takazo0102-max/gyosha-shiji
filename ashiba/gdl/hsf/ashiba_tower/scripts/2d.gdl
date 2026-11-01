@@ -1,0 +1,41 @@
+﻿! タワークレーン 2D: 基礎・マスト・壁つなぎ・ジブとカウンタウエイト（旋回）・後端旋回半径・作業半径・注記・ホットスポット
+pen penEquip
+define style "tcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "tcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+rect2 -baseW / 2, -baseW / 2, baseW / 2, baseW / 2
+rect2 -msW / 2, -msW / 2, msW / 2, msW / 2
+line2 -msW / 2, -msW / 2, msW / 2, msW / 2
+line2 -msW / 2, msW / 2, msW / 2, -msW / 2
+! 壁つなぎ（建物の側へ2本）
+if nTz > 0 then
+	rot2 tieA
+	line2 msW / 2, -msW / 2, msW / 2 + tieL, -msW / 2 - 0.3
+	line2 msW / 2, msW / 2, msW / 2 + tieL, msW / 2 + 0.3
+	del 1
+endif
+! 後端旋回半径（立入禁止の目安）・今の作業半径・最大作業半径
+circle2 0, 0, tailR
+circle2 0, 0, hX
+if maxR > hX + 0.1 then circle2 0, 0, maxR
+! ジブとカウンタウエイト（旋回で回す）
+rot2 slew
+line2 pvX, -jbW / 2, jX, -jbW / 4
+line2 pvX, jbW / 2, jX, jbW / 4
+rect2 -tailR, -cwW / 2, -tailR + cwL, cwW / 2
+rect2 -tailR + cwL, -dkW / 2, upF, dkW / 2
+circle2 hX, 0, 0.4
+del 1
+! 注記
+add2 -baseW / 2 - 0.5, -baseW / 2 - 0.5
+rot2 -SYMB_ROTANGLE
+text2 0, 0, tcName
+if strlen(tcNote) > 0 then text2 0, -dT, tcNote
+text2 0, -2 * dT, "R" + str(round_int(hX * 1000), 1, 0) + "・マスト " + str(round_int(msH * 1000), 1, 0)
+del 2
+! 旋回角のホットスポット
+rH = max(3.0, tailR)
+hotspot2 0, 0, 1, slew, 6
+hotspot2 rH, 0, 2, slew, 4
+hotspot2 rH * cos(slew), rH * sin(slew), 3, slew, 5
+hotspot2 0, 0
