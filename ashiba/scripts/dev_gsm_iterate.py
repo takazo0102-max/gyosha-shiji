@@ -360,24 +360,26 @@ def main() -> None:
     # 注意: Get3DBoundingBoxes はオブジェクトに対して
     # 「2D記号の外形×高さパラメータ」のフォールバック値を返すことがあり
     # 3D生成の検証には使えない（実機で確認済みの落とし穴）。
-    if params:
-        c.set_gdl_parameters(elem, params)
-    import base64
-    for img_type in profile["images"]:
-        resp = c.tapir(
-            "GetElementPreviewImage",
-            {"elementId": elem["elementId"], "imageType": img_type,
-             "width": 900, "height": 900},
-        )
-        img = base64.b64decode(resp["previewImage"])
-        tag = f"_{suffix}" if suffix else ""
-        p = work_dir / f"{name}{tag}_{img_type}.png"
-        p.write_bytes(img)
-        print(f"プレビュー保存 ({len(img)}B): {p}")
-
-    if not keep:
-        c.delete_elements([elem])
-        print("テスト要素を削除（--keep で残せます）")
+    # パラメータの型の誤りなどで途中で止まっても、試しに置いた部品は消す（消さずに抜けて 50m,50m に部品が残っていた。2026-11-02）
+    try:
+        if params:
+            c.set_gdl_parameters(elem, params)
+        import base64
+        for img_type in profile["images"]:
+            resp = c.tapir(
+                "GetElementPreviewImage",
+                {"elementId": elem["elementId"], "imageType": img_type,
+                 "width": 900, "height": 900},
+            )
+            img = base64.b64decode(resp["previewImage"])
+            tag = f"_{suffix}" if suffix else ""
+            p = work_dir / f"{name}{tag}_{img_type}.png"
+            p.write_bytes(img)
+            print(f"プレビュー保存 ({len(img)}B): {p}")
+    finally:
+        if not keep:
+            c.delete_elements([elem])
+            print("テスト要素を削除（--keep で残せます）")
 
 
 if __name__ == "__main__":
