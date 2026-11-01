@@ -1,4 +1,4 @@
-"""仮設足場のパレットの窓を開く（Tapir の入口「足場_パレット」から呼ぶ）.
+"""仮設パレットの窓を開く（Tapir の入口「仮設_パレット」から呼ぶ）.
 
 窓は tapir/palette_panel.swift（AppKit の浮いた小窓）。初めて開くときと直したあとは swiftc で作る（十数秒。
 作ったものは tapir/build/AshibaPalette-<中身の印>）。前に開いた窓があれば閉じて
@@ -84,7 +84,7 @@ def main(argv=None) -> int:
         proc = subprocess.Popen([str(exe), str(ROOT), sys.executable, str(layout), str(OUT), port],
                                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
     PID.write_text(str(proc.pid))
-    print("仮設足場のパレットの窓を開きました")
+    print("仮設パレットの窓を開きました")
     return 0
 
 

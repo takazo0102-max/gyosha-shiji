@@ -30,7 +30,7 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="kkType">
-			<Description><![CDATA["パネル（1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス）"]]></Description>
+			<Description><![CDATA["パネル（1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス・5＝安全鋼板パンチング）"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<Length Name="kkL">
@@ -46,8 +46,8 @@
 			<Value>0.54</Value>
 		</Length>
 		<Length Name="lift">
-			<Description><![CDATA["パネルの下端（地盤から）"]]></Description>
-			<Value>0.2</Value>
+			<Description><![CDATA["パネルの下端（地盤から。負は根入れ）"]]></Description>
+			<Value>0.0</Value>
 		</Length>
 		<String Name="postX">
 			<Description><![CDATA["支柱の位置（mm。始めから、カンマ区切り）"]]></Description>
@@ -59,7 +59,7 @@
 		</String>
 		<String Name="railZ">
 			<Description><![CDATA["横地の高さ（mm。地盤から）"]]></Description>
-			<Value><![CDATA["350,1700,3050"]]></Value>
+			<Value><![CDATA["150,1500,2850"]]></Value>
 		</String>
 		<String Name="runX">
 			<Description><![CDATA["パネルを張る範囲（mm。始め,終わり の組。角で延ばす・ゲートで切る）"]]></Description>
@@ -70,7 +70,11 @@
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="gateK">
-			<Description><![CDATA["ゲートの種類（1＝パネルキャスターゲート・2＝クロスゲート・3＝パネルドア）"]]></Description>
+			<Description><![CDATA["ゲートの種類（1＝パネルキャスター・2＝キャスター・3＝ドア・4＝ローキャスター・5＝ワイドドア）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="gateN">
+			<Description><![CDATA["ゲートのユニットの数（始めの側,終わりの側 の組）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<String Name="brX">
@@ -79,16 +83,40 @@
 		</String>
 		<Length Name="brH">
 			<Description><![CDATA["控えを掛ける支柱の高さ（地盤から）"]]></Description>
-			<Value>1.9</Value>
+			<Value>2.1</Value>
 		</Length>
 		<Length Name="brB">
-			<Description><![CDATA["控えの杭の後ろ（支柱の芯から敷地の側へ）"]]></Description>
-			<Value>1.3</Value>
+			<Description><![CDATA["控えの足の後ろ（支柱の芯から敷地の側へ）"]]></Description>
+			<Value>1.55</Value>
 		</Length>
+		<Length Name="brRt">
+			<Description><![CDATA["控えの足・根がらみの高さ（地盤から）"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<String Name="kkCor">
+			<Description><![CDATA["自在コーナーパネル（始め,終わり。1＝あり）"]]></Description>
+			<Value><![CDATA["0,0"]]></Value>
+		</String>
+		<String Name="hbX">
+			<Description><![CDATA["H形鋼の後ろの列の始め,終わり（mm。角の二等分線で止める）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="kkFound">
-			<Description><![CDATA["基礎（1＝単管の打込み・2＝根巻きコンクリート・3＝H形鋼）"]]></Description>
+			<Description><![CDATA["基礎（1＝単管の打込み・2＝根巻きコンクリート・3＝H形鋼・4＝アンカー・5＝親杭支柱・6＝山留め控え）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<String Name="wtN">
+			<Description><![CDATA["H形鋼の基礎のウェイト □600（1スパンに 前の列,後ろの列）"]]></Description>
+			<Value><![CDATA["0,0"]]></Value>
+		</String>
+		<Length Name="pileW">
+			<Description><![CDATA["山留めの親杭（H形鋼）の幅・せい"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="pileZ">
+			<Description><![CDATA["親杭の天端（地盤から。継ぎ足しはここから）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Length Name="embed">
 			<Description><![CDATA["打込みの根入れ"]]></Description>
 			<Value>1.0</Value>

@@ -8,7 +8,7 @@
 """仮設足場 パレット
 
 Tapir パレットから呼ぶ入口（python3 scripts/install_palette.py で作り直す。手で直さない）。
-仮設足場のパレットの窓を開く。窓のボタンで配置・解き直し・区切る・3D表示などを実行する（★は今の選択に合う操作）
+仮設パレットの窓を開く。窓のボタンで配置・解き直し・区切る・3D表示などを実行する（★は今の選択に合う操作）
 本体は <ashiba>/scripts/ashiba_palette.py。Tapir が付ける --port は ASHIBA_PORT に移して本体へ渡す。
 """
 import os
@@ -28,8 +28,8 @@ def summary(output: str, limit: int = 14) -> str:
     """実行の出力から、ダイアログに出す要点の行（keys で始まる行）。無ければ最後の数行."""
     keys = ("足場ライン", "総合判定", "  是正", "  要確認", "  表題欄", "  詳細図:", "  平面図:", "  立面:", "  PDF:",
             "書き込み", "配置時と同じ", "撤去", "足場部品", "立面図（断面", "注意:", "エラー", "[ashiba]",
-            "足場条件", "帳票", "建物が分かりません", "この建物の", "配置:", "条件:", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "図面を作る", "  図面:", "取り入れ口", "昇降機", "内部足場", "  検証", "地足場",
-            "TapirError", "TapirTimeout", "Traceback")
+            "足場条件", "帳票", "建物が分かりません", "この建物の", "配置:", "条件:", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "図面を作る", "  図面:", "取り入れ口", "昇降機", "内部足場", "仮設通路", "  検証", "地足場", "手動配置", "箱を置く", "箱を足場に", "型枠",
+            "  計算書", "  計画届", "TapirError", "TapirTimeout", "Traceback")
     lines = [ln.rstrip() for ln in output.splitlines() if ln.strip()]
     picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys)]
     if not picked:

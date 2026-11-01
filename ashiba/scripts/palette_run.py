@@ -1,4 +1,4 @@
-"""仮設足場のパレットの窓（tapir/palette_panel.js）から呼ぶ実行役.
+"""仮設パレットの窓（tapir/palette_panel.swift）から呼ぶ実行役.
 
   python3 scripts/palette_run.py --kinds      選んでいるものの種類を JSON で出す（窓が★を付けるのに使う）
   python3 scripts/palette_run.py 配置         操作を実行し、1行目に「完了」か「止まりました…」、続けて要点を出す

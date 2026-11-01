@@ -1,4 +1,4 @@
-// 仮設足場のパレットの窓（scripts/ashiba_palette.py が swiftc で作って開く）.
+// 仮設パレットの窓（scripts/ashiba_palette.py が swiftc で作って開く）.
 //
 // 利用者の指定（2026-10-22）「Tapirの足場を一つにパレットとしてまとめて、使いやすいように工夫して」。
 // Archicad の前に浮いた小窓に、足場のすべての操作を組ごと（建てる・直す・見る／出す）のボタンで並べる。
@@ -63,7 +63,7 @@ final class Palette: NSObject, NSWindowDelegate {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                         styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
                         backing: .buffered, defer: false)
-        panel.title = "仮設足場"
+        panel.title = "仮設パレット"     // 利用者の指定 2026-11-01: 足場パレットじゃなく仮設パレットに
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
