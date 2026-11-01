@@ -44,8 +44,17 @@ def paramlist() -> str:
         _param("Length", "carF", "旋回中心から前端", 5.4),
         _param("Length", "outF", "旋回中心から前のアウトリガ", 3.265),
         _param("Length", "outR", "旋回中心から後ろのアウトリガ", 3.415),
-        _param("Length", "outW", "アウトリガの張出幅（ジャッキの芯々）", 6.6),
+        _param("Length", "outW", "アウトリガの張出幅（ジャッキの芯々。4脚の既定）", 6.6),
+        _param("Length", "oFL", "前左のアウトリガ（車体の芯からジャッキまで。平面のホットスポット）", 3.3),
+        _param("Length", "oFR", "前右のアウトリガ", 3.3),
+        _param("Length", "oRL", "後左のアウトリガ", 3.3),
+        _param("Length", "oRR", "後右のアウトリガ", 3.3),
+        _param("Boolean", "oSnap", "アウトリガを性能表の張出の段に吸い付ける", 1),
+        _param("String", "rtS", "性能表の張出幅（mm。大きい順。最大 6 段）", "6600,6100,5000,3600,2300"),
         _param("Length", "fltD", "フロートの径", 0.4),
+        _param("Length", "upW", "上部旋回体の幅", 2.4),
+        _param("Length", "bmW", "基本ブームの幅", 0.75),
+        _param("Integer", "nBs", "ブームの段の数（基本ブームを含む）", 4),
         _param("Length", "tailR", "後端旋回半径", 3.1),
         _param("Length", "pivH", "ブームの根元の高さ", 2.3),
         _param("Length", "pivB", "ブームの根元の旋回中心から後ろ", 1.0),
@@ -64,10 +73,9 @@ def paramlist() -> str:
         _param("RealNum", "sfRate", "安全率（定格総荷重に掛ける。0.9＝90%）", 0.9),
         _param("String", "rtB", "定格総荷重表のブーム長さ（mm）", "9350,16400,23450,30500"),
         _param("String", "rtR", "定格総荷重表の作業半径（mm）", "3000,6000,10000,14000,20000,26000"),
-        *[_param("String", f"rtT{k}", f"定格総荷重（kg。{k}番目のブーム長さの列を作業半径の行の順に、無い所は 0。"
-                 "文字のパラメータは 255 字で切れるので列ごとに分ける）", v)
-          for k, v in enumerate(("25000,16300,0,0,0,0", "18000,16000,7800,4350,0,0", "12500,12500,7600,4400,2100,0",
-                                 "0,8000,7150,4400,2150,1100", "", "", "", ""), 1)],
+        *[_param("String", f"rs{i}c{k}", f"定格総荷重（kg。{i}段目の張出幅の表の {k}番目のブーム長さの列を作業半径の行の順に、無い所は 0。"
+                 "文字のパラメータは 255 字で切れるので張出幅と列ごとに分ける）", "")
+          for i in range(1, 7) for k in range(1, 9)],
         _param("Integer", "plN", "敷鉄板の枚数（アウトリガ1脚に。2＝十字。フロートの高さに使う）", 1),
         _param("Boolean", "plDraw", "敷鉄板をこの部品で描く（外す＝別の部品 ashiba_plate を下に置く）", 1),
         _param("String", "wrR", "吊荷の作業半径の円（mm。カンマ区切り）", "12000,18000"),
@@ -88,9 +96,33 @@ def paramlist() -> str:
             + "\t</Parameters>\n</ParamSection>\n")
 
 
+# アウトリガ4脚の張出 → 定格を読む張出幅（4脚の一番小さい張出の 2 倍を、表の張出幅で切り下げる）→ その段の列の文字 sc1〜sc8
+SPREAD_PICK = """! ---- アウトリガ4脚（前左・前右・後左・後右。車体の芯からジャッキまで）と、定格を読む張出幅 ----
+lFL = oFL
+lFR = oFR
+lRL = oRL
+lRR = oRR
+if travel then
+	lFL = carW / 2 - 0.05
+	lFR = lFL
+	lRL = lFL
+	lRR = lFL
+endif
+spE = 2 * min(min(lFL, lFR), min(lRL, lRR))
+sI = 0
+for i = nSs to 1 step -1
+	if ss[i] <= spE + 0.001 then sI = i
+next i
+spT = 0
+if sI > 0 then spT = ss[sI]
+""" + "".join(f"sc{k} = \"\"\n" for k in range(1, 9)) + "".join(
+    f"if sI = {i} then\n" + "".join(f"\tsc{k} = rs{i}c{k}\n" for k in range(1, 9)) + "endif\n" for i in range(1, 7))
+
+
 SCRIPT_1D = ("﻿! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）\n" + _parse_all("wrR", "wr", "nWr")
              + _parse_all("rtB", "rb", "nRb") + _parse_all("rtR", "rr", "nRr")
-             + "".join(_parse_all(f"rtT{k}", f"tc{k}", f"nTc{k}") for k in range(1, 9)) + """carRr = carL - carF
+             + _parse_all("rtS", "ss", "nSs") + SPREAD_PICK
+             + "".join(_parse_all(f"sc{k}", f"tc{k}", f"nTc{k}") for k in range(1, 9)) + """carRr = carL - carF
 nAx = 2
 dim ax[4]
 ax[1] = 1.94
@@ -117,7 +149,7 @@ plB = 3.048
 bL = max(bMin, min(bMax, boomL))
 hR = max(1.0, hkR)
 slD = slew
-owD = outW
+owD = spE
 if prio = 1 then
 	bA = max(1, min(84, boomA))
 	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
@@ -168,17 +200,36 @@ SCRIPT_2D = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄�
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "crT"
-! 車体
+! 車体（キャリヤ）: 外形・前後のバンパー・タイヤ・旋回輪
 rect2 -carRr, -carW / 2, carF, carW / 2
+rect2 carF - 0.25, -carW / 2 + 0.15, carF, carW / 2 - 0.15
+rect2 -carRr, -carW / 2 + 0.15, -carRr + 0.25, carW / 2 - 0.15
+for i = 1 to nAx
+	for s = -1 to 1 step 2
+		rect2 ax[i] - whR, s * (carW / 2 - 0.02), ax[i] + whR, s * (carW / 2 - 0.02 - whW)
+	next s
+next i
+circle2 0, 0, 0.9
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	line2 xo, -owD / 2, xo, owD / 2
 	for s = -1 to 1 step 2
-		circle2 xo, s * owD / 2, fltD / 2
+		lg = lFL
+		if e > 0 and s < 0 then lg = lFR
+		if e < 0 and s > 0 then lg = lRL
+		if e < 0 and s < 0 then lg = lRR
+		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート
+		rect2 xo - 0.15, s * (carW / 2 - 0.2), xo + 0.15, s * lg
+		circle2 xo, s * lg, 0.12
+		rect2 xo - fltD / 2, s * lg - fltD / 2, xo + fltD / 2, s * lg + fltD / 2
+		! 張出の寸法（車体の芯からジャッキまで mm）
+		add2 xo + fltD / 2 + 0.15, s * lg
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, str(round_int(lg * 1000), 1, 0)
+		del 2
 		if plDraw then
-			rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
-			if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+			rect2 xo - plB / 2, s * lg - plA / 2, xo + plB / 2, s * lg + plA / 2
+			if plN >= 2 then rect2 xo - plA / 2, s * lg - plB / 2, xo + plA / 2, s * lg + plB / 2
 		endif
 	next s
 next e
@@ -213,10 +264,26 @@ if wrSpan < 359.9 then
 endif
 ! 上部旋回体とブーム（旋回角で回す）
 rot2 slD
-rect2 -tailR, -1.1, 1.2, 1.1
-line2 -pivB, -0.35, tipX, -0.2
-line2 -pivB, 0.35, tipX, 0.2
+! 上部旋回体（後ろはカウンタウエイトの円弧＝後端旋回半径）・運転室（右前）
+uw = min(upW / 2, tailR * 0.98)
+xc = -sqr(tailR ^ 2 - uw ^ 2)
+arc2 0, 0, tailR, 180 - asn(uw / tailR), 180 + asn(uw / tailR)
+line2 xc, uw, 1.6, uw
+line2 xc, -uw, 1.6, -uw
+line2 1.6, -uw, 1.6, uw
+line2 xc + 0.9, -uw, xc + 0.9, uw
+rect2 0.1, -uw - 0.95, 2.0, -uw
+line2 1.75, -uw - 0.95, 1.75, -uw
+! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック
+nb = max(1, min(6, nBs))
+for k = 1 to nb
+	wk = bmW * (1 - 0.13 * (k - 1)) / 2
+	xk = -pivB + (k - 1) * (bL - 1.2) / nb
+	rect2 xk, -wk, tipX, wk
+next k
+rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
 circle2 tipX, 0, 0.3
+circle2 tipX, 0, 0.12
 if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
 ! 作業半径のホットスポット（ブームの向きに引く）
 hotspot2 0, 0, 1, hkR, 1 + 128
@@ -238,6 +305,9 @@ if travel = 0 then
 endif
 add2 -carRr - 1.0, 0
 rot2 -SYMB_ROTANGLE
+tS = "張出不足（性能表の最小の張出より狭い）"
+if sI > 0 then tS = "性能表 張出 " + str(round_int(spT * 1000), 1, 0) + "（4脚の最小 " + str(round_int(spE * 500), 1, 0) + "×2）"
+text2 0, -2 * dT, tS
 text2 0, 0, crName
 text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
 del 2
@@ -250,6 +320,37 @@ rW = tipX * 1.1
 hotspot2 0, 0, 7, wrDir, 6
 hotspot2 rW, 0, 8, wrDir, 4
 hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
+! アウトリガ4脚のホットスポット（ジャッキの所を車体の横へ引く）
+if travel = 0 then
+	hid = 20
+	for e = -1 to 1 step 2
+		xo = outF
+		if e < 0 then xo = -outR
+		for s = -1 to 1 step 2
+			hid = hid + 3
+			if e > 0 and s > 0 then
+				hotspot2 xo, 0, hid, oFL, 1 + 128
+				hotspot2 xo, lFL, hid + 1, oFL, 2
+				hotspot2 xo, -1, hid + 2, oFL, 3
+			endif
+			if e > 0 and s < 0 then
+				hotspot2 xo, 0, hid, oFR, 1 + 128
+				hotspot2 xo, -lFR, hid + 1, oFR, 2
+				hotspot2 xo, 1, hid + 2, oFR, 3
+			endif
+			if e < 0 and s > 0 then
+				hotspot2 xo, 0, hid, oRL, 1 + 128
+				hotspot2 xo, lRL, hid + 1, oRL, 2
+				hotspot2 xo, -1, hid + 2, oRL, 3
+			endif
+			if e < 0 and s < 0 then
+				hotspot2 xo, 0, hid, oRR, 1 + 128
+				hotspot2 xo, -lRR, hid + 1, oRR, 2
+				hotspot2 xo, 1, hid + 2, oRR, 3
+			endif
+		next s
+	next e
+endif
 hotspot2 0, 0
 """
 
@@ -271,13 +372,17 @@ plH = plT * plN
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	material "cr_steel"
-	add xo - 0.15, -owD / 2, 1.0
-	block 0.3, owD, 0.25
-	del 1
 	for s = -1 to 1 step 2
-		yo = s * owD / 2
-		yp = s * outW / 2
+		lg = lFL
+		if e > 0 and s < 0 then lg = lFR
+		if e < 0 and s > 0 then lg = lRL
+		if e < 0 and s < 0 then lg = lRR
+		yo = s * lg
+		yp = s * lg
+		material "cr_steel"
+		add xo - 0.15, min(0, yo), 1.0
+		block 0.3, abs(yo), 0.25
+		del 1
 		if plDraw then
 			material "cr_plate"
 			add xo - plB / 2, yp - plA / 2, 0
@@ -542,6 +647,23 @@ endif
 values "boomL" range [bMin, bMax]
 values "prio" 0, 1
 values "boomA" range [1, 84]
+! アウトリガ: 引いた脚を性能表の張出の段（張出幅の半分）に吸い付ける。張出は車体の幅の半分から最大の段まで
+mp = GLOB_MODPAR_NAME
+if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") then
+	vq = oFL
+	if mp = "oFR" then vq = oFR
+	if mp = "oRL" then vq = oRL
+	if mp = "oRR" then vq = oRR
+	bq = ss[1] / 2
+	for i = 1 to nSs
+		if abs(ss[i] / 2 - vq) < abs(bq - vq) then bq = ss[i] / 2
+	next i
+	if mp = "oFL" then parameters oFL = bq
+	if mp = "oFR" then parameters oFR = bq
+	if mp = "oRL" then parameters oRL = bq
+	if mp = "oRR" then parameters oRR = bq
+endif
+if mp = "outW" then parameters oFL = outW / 2, oFR = outW / 2, oRL = outW / 2, oRR = outW / 2
 """
 
 

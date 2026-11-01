@@ -316,15 +316,29 @@ def _checks(p: CranePlan, ratio: float, spread: Optional[float]) -> None:
                                     "合図者を決める（71条）"))
 
 
-def rated_strings(m: CraneModel, spread: float) -> dict:
-    """部品が姿勢から定格総荷重を読む表: ブーム長さ mm・作業半径 mm と、ブームの列ごとの定格 kg（rtT1〜8。半径の行の順、無い所は 0）.
-    Archicad の文字のパラメータは 255 字で切れる（2026-11-01、表を1つの文字にして 25t でも途中で切れ、定格が 0 と出た）ので列ごとに."""
-    _s, t = table_for(m, spread)
-    booms = m.booms
-    radii = sorted(t)
-    out = {"rtB": ",".join(f"{b * 1000:.0f}" for b in booms), "rtR": ",".join(f"{r * 1000:.0f}" for r in radii)}
-    for k in range(1, 9):
-        out[f"rtT{k}"] = ",".join(str(int(round(t[r].get(booms[k - 1], 0.0) * 1000))) for r in radii) if k <= len(booms) else ""
+def rated_strings(m: CraneModel, spread: float = 0.0) -> dict:
+    """部品が姿勢から定格総荷重を読む表: 張出幅 mm（rtS。大きい順、最大 6 段）・ブーム長さ mm（rtB）・作業半径 mm（rtR。全部の
+    張出幅の行を合わせた並び）と、張出幅の段 i・ブームの列 k ごとの定格 kg（rs{i}c{k}。半径の行の順、無い所は 0）.
+    その張出幅の表に無い半径の行は、その半径以上で一番近い行の値（表の読み方と同じで安全側）。Archicad の文字のパラメータは
+    255 字で切れる（2026-11-01、表を1つの文字にして 25t でも途中で切れ、定格が 0 と出た）ので段と列ごとに."""
+    spreads = m.spreads[:6]
+    booms = m.booms[:8]
+    radii = sorted({r for sp in spreads for r in m.tables[sp]})
+    out = {"rtS": ",".join(f"{sp * 1000:.0f}" for sp in spreads), "rtB": ",".join(f"{b * 1000:.0f}" for b in booms),
+           "rtR": ",".join(f"{r * 1000:.0f}" for r in radii)}
+    for i in range(1, 7):
+        for k in range(1, 9):
+            key = f"rs{i}c{k}"
+            if i > len(spreads) or k > len(booms):
+                out[key] = ""
+                continue
+            t, b = m.tables[spreads[i - 1]], booms[k - 1]
+            vals = []
+            for r in radii:
+                rows = [rr for rr in sorted(t) if rr >= r - 1e-9 and b in t[rr]]
+                vals.append(str(int(round(t[rows[0]][b] * 1000))) if rows and rows[0] == min(rr for rr in sorted(t) if rr >= r - 1e-9) else "0")
+            out[key] = ",".join(vals)
+            assert len(out[key]) <= 255, (m.key, key)
     return out
 
 
@@ -338,13 +352,20 @@ def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: fl
     return {"crType": m.kind, "crName": m.name.split(" ")[1],
             "carL": m.length / 1000.0, "carW": m.width / 1000.0, "carH": m.height / 1000.0, "carF": m.front / 1000.0,
             "outF": m.out_front / 1000.0, "outR": m.out_rear / 1000.0, "outW": p.spread, "fltD": m.float_d / 1000.0,
+            "oFL": p.spread / 2, "oFR": p.spread / 2, "oRL": p.spread / 2, "oRR": p.spread / 2,
             "tailR": m.tail_r / 1000.0, "pivH": m.piv_h / 1000.0, "pivB": m.piv_b / 1000.0, "tipHk": m.tip_hook / 1000.0,
             "hkR": radius / 1000.0, "slew": slew_deg, "prio": 0, "boomL": boom, "boomA": boom_angle(m, boom, radius),
             "bMin": min(m.booms), "bMax": max(m.booms), "hkZ": 0.0,
             "loadT": g.load_t if g else 0.0, "hookT": m.hook_t, "rigT": RIGGING_T, "sfRate": ratio,
-            **rated_strings(m, p.spread),
+            **rated_strings(m),
             "plN": p.plates, "plDraw": False, "wrR": ",".join(f"{x.radius:.0f}" for x in p.lifts),
             "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": bool(g and g.load_t > 0)}
+
+
+def effective_spread(ps: dict) -> float:
+    """置いた部品のパラメータ（m）→ 定格を読む張出幅 m（4脚の一番小さい張出の 2 倍。脚のパラメータが無い古い部品は outW）."""
+    legs = [float(ps[k]) for k in ("oFL", "oFR", "oRL", "oRR") if isinstance(ps.get(k), (int, float))]
+    return 2 * min(legs) if len(legs) == 4 else float(ps.get("outW", 0.0) or 0.0)
 
 
 def outrigger_plates(p: CranePlan) -> list[tuple[tuple[float, float], bool, float]]:

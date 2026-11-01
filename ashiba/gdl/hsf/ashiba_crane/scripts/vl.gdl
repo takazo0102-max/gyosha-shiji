@@ -10,3 +10,20 @@ endif
 values "boomL" range [bMin, bMax]
 values "prio" 0, 1
 values "boomA" range [1, 84]
+! アウトリガ: 引いた脚を性能表の張出の段（張出幅の半分）に吸い付ける。張出は車体の幅の半分から最大の段まで
+mp = GLOB_MODPAR_NAME
+if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") then
+	vq = oFL
+	if mp = "oFR" then vq = oFR
+	if mp = "oRL" then vq = oRL
+	if mp = "oRR" then vq = oRR
+	bq = ss[1] / 2
+	for i = 1 to nSs
+		if abs(ss[i] / 2 - vq) < abs(bq - vq) then bq = ss[i] / 2
+	next i
+	if mp = "oFL" then parameters oFL = bq
+	if mp = "oFR" then parameters oFR = bq
+	if mp = "oRL" then parameters oRL = bq
+	if mp = "oRR" then parameters oRR = bq
+endif
+if mp = "outW" then parameters oFL = outW / 2, oFR = outW / 2, oRL = outW / 2, oRR = outW / 2

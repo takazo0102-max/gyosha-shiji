@@ -83,15 +83,23 @@ class TestPlan(unittest.TestCase):
 
 class TestPartTable(unittest.TestCase):
     def test_rated_strings_fit_255(self):
-        """部品へ渡す定格総荷重表: 文字のパラメータは 255 字で切れるのでブームの列ごとに分け、どれも 255 字以内."""
+        """部品へ渡す定格総荷重表: 文字のパラメータは 255 字で切れるので張出幅の段とブームの列ごとに分け、どれも 255 字以内.
+        全部の張出幅の表を渡す（アウトリガを引くと部品が段を選び直す。利用者の指定 2026-11-01: 性能表とリンクさせてね）."""
         for m in MODELS.values():
-            for sp in m.spreads:
-                s = rated_strings(m, sp)
-                self.assertTrue(all(len(v) <= 255 for v in s.values()), (m.key, sp, {k: len(v) for k, v in s.items()}))
-        s = rated_strings(M25, 6.6)
+            s = rated_strings(m)
+            self.assertTrue(all(len(v) <= 255 for v in s.values()), (m.key, {k: len(v) for k, v in s.items()}))
+        s = rated_strings(M25)
+        self.assertEqual(s["rtS"], "6600,6100,5000,3600,2300")
         radii = [float(v) / 1000 for v in s["rtR"].split(",")]
-        col = [int(v) for v in s["rtT3"].split(",")]                       # 3番目のブーム 23.45m
+        col = [int(v) for v in s["rs1c3"].split(",")]                      # 張出 6.6m・3番目のブーム 23.45m
         self.assertEqual(col[radii.index(10.0)], 7600)
+        self.assertEqual(len(s["rs4c2"].split(",")), len(radii))           # 張出 3.6m の表も全部の行の並びで
+
+    def test_effective_spread(self):
+        """定格を読む張出幅は4脚の一番小さい張出の 2 倍（古い部品は outW）."""
+        from ashiba.crane import effective_spread
+        self.assertEqual(effective_spread({"oFL": 3.3, "oFR": 2.5, "oRL": 3.3, "oRR": 3.3}), 5.0)
+        self.assertEqual(effective_spread({"outW": 6.1}), 6.1)
 
 
 class TestSmartconChecks(unittest.TestCase):

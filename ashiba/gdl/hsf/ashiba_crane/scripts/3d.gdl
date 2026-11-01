@@ -16,13 +16,17 @@ plH = plT * plN
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	material "cr_steel"
-	add xo - 0.15, -owD / 2, 1.0
-	block 0.3, owD, 0.25
-	del 1
 	for s = -1 to 1 step 2
-		yo = s * owD / 2
-		yp = s * outW / 2
+		lg = lFL
+		if e > 0 and s < 0 then lg = lFR
+		if e < 0 and s > 0 then lg = lRL
+		if e < 0 and s < 0 then lg = lRR
+		yo = s * lg
+		yp = s * lg
+		material "cr_steel"
+		add xo - 0.15, min(0, yo), 1.0
+		block 0.3, abs(yo), 0.25
+		del 1
 		if plDraw then
 			material "cr_plate"
 			add xo - plB / 2, yp - plA / 2, 0

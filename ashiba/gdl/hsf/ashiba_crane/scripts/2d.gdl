@@ -3,17 +3,36 @@
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "crT"
-! 車体
+! 車体（キャリヤ）: 外形・前後のバンパー・タイヤ・旋回輪
 rect2 -carRr, -carW / 2, carF, carW / 2
+rect2 carF - 0.25, -carW / 2 + 0.15, carF, carW / 2 - 0.15
+rect2 -carRr, -carW / 2 + 0.15, -carRr + 0.25, carW / 2 - 0.15
+for i = 1 to nAx
+	for s = -1 to 1 step 2
+		rect2 ax[i] - whR, s * (carW / 2 - 0.02), ax[i] + whR, s * (carW / 2 - 0.02 - whW)
+	next s
+next i
+circle2 0, 0, 0.9
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	line2 xo, -owD / 2, xo, owD / 2
 	for s = -1 to 1 step 2
-		circle2 xo, s * owD / 2, fltD / 2
+		lg = lFL
+		if e > 0 and s < 0 then lg = lFR
+		if e < 0 and s > 0 then lg = lRL
+		if e < 0 and s < 0 then lg = lRR
+		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート
+		rect2 xo - 0.15, s * (carW / 2 - 0.2), xo + 0.15, s * lg
+		circle2 xo, s * lg, 0.12
+		rect2 xo - fltD / 2, s * lg - fltD / 2, xo + fltD / 2, s * lg + fltD / 2
+		! 張出の寸法（車体の芯からジャッキまで mm）
+		add2 xo + fltD / 2 + 0.15, s * lg
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, str(round_int(lg * 1000), 1, 0)
+		del 2
 		if plDraw then
-			rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
-			if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+			rect2 xo - plB / 2, s * lg - plA / 2, xo + plB / 2, s * lg + plA / 2
+			if plN >= 2 then rect2 xo - plA / 2, s * lg - plB / 2, xo + plA / 2, s * lg + plB / 2
 		endif
 	next s
 next e
@@ -48,10 +67,26 @@ if wrSpan < 359.9 then
 endif
 ! 上部旋回体とブーム（旋回角で回す）
 rot2 slD
-rect2 -tailR, -1.1, 1.2, 1.1
-line2 -pivB, -0.35, tipX, -0.2
-line2 -pivB, 0.35, tipX, 0.2
+! 上部旋回体（後ろはカウンタウエイトの円弧＝後端旋回半径）・運転室（右前）
+uw = min(upW / 2, tailR * 0.98)
+xc = -sqr(tailR ^ 2 - uw ^ 2)
+arc2 0, 0, tailR, 180 - asn(uw / tailR), 180 + asn(uw / tailR)
+line2 xc, uw, 1.6, uw
+line2 xc, -uw, 1.6, -uw
+line2 1.6, -uw, 1.6, uw
+line2 xc + 0.9, -uw, xc + 0.9, uw
+rect2 0.1, -uw - 0.95, 2.0, -uw
+line2 1.75, -uw - 0.95, 1.75, -uw
+! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック
+nb = max(1, min(6, nBs))
+for k = 1 to nb
+	wk = bmW * (1 - 0.13 * (k - 1)) / 2
+	xk = -pivB + (k - 1) * (bL - 1.2) / nb
+	rect2 xk, -wk, tipX, wk
+next k
+rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
 circle2 tipX, 0, 0.3
+circle2 tipX, 0, 0.12
 if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
 ! 作業半径のホットスポット（ブームの向きに引く）
 hotspot2 0, 0, 1, hkR, 1 + 128
@@ -73,6 +108,9 @@ if travel = 0 then
 endif
 add2 -carRr - 1.0, 0
 rot2 -SYMB_ROTANGLE
+tS = "張出不足（性能表の最小の張出より狭い）"
+if sI > 0 then tS = "性能表 張出 " + str(round_int(spT * 1000), 1, 0) + "（4脚の最小 " + str(round_int(spE * 500), 1, 0) + "×2）"
+text2 0, -2 * dT, tS
 text2 0, 0, crName
 text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
 del 2
@@ -85,4 +123,35 @@ rW = tipX * 1.1
 hotspot2 0, 0, 7, wrDir, 6
 hotspot2 rW, 0, 8, wrDir, 4
 hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
+! アウトリガ4脚のホットスポット（ジャッキの所を車体の横へ引く）
+if travel = 0 then
+	hid = 20
+	for e = -1 to 1 step 2
+		xo = outF
+		if e < 0 then xo = -outR
+		for s = -1 to 1 step 2
+			hid = hid + 3
+			if e > 0 and s > 0 then
+				hotspot2 xo, 0, hid, oFL, 1 + 128
+				hotspot2 xo, lFL, hid + 1, oFL, 2
+				hotspot2 xo, -1, hid + 2, oFL, 3
+			endif
+			if e > 0 and s < 0 then
+				hotspot2 xo, 0, hid, oFR, 1 + 128
+				hotspot2 xo, -lFR, hid + 1, oFR, 2
+				hotspot2 xo, 1, hid + 2, oFR, 3
+			endif
+			if e < 0 and s > 0 then
+				hotspot2 xo, 0, hid, oRL, 1 + 128
+				hotspot2 xo, lRL, hid + 1, oRL, 2
+				hotspot2 xo, -1, hid + 2, oRL, 3
+			endif
+			if e < 0 and s < 0 then
+				hotspot2 xo, 0, hid, oRR, 1 + 128
+				hotspot2 xo, -lRR, hid + 1, oRR, 2
+				hotspot2 xo, 1, hid + 2, oRR, 3
+			endif
+		next s
+	next e
+endif
 hotspot2 0, 0

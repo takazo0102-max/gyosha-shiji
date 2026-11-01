@@ -53,9 +53,113 @@ while strlen(rest) > 0 do
 		rr[nRr] = v / 1000
 	endif
 endwhile
+dim ss[]
+nSs = 0
+rest = rtS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSs = nSs + 1
+		ss[nSs] = v / 1000
+	endif
+endwhile
+! ---- アウトリガ4脚（前左・前右・後左・後右。車体の芯からジャッキまで）と、定格を読む張出幅 ----
+lFL = oFL
+lFR = oFR
+lRL = oRL
+lRR = oRR
+if travel then
+	lFL = carW / 2 - 0.05
+	lFR = lFL
+	lRL = lFL
+	lRR = lFL
+endif
+spE = 2 * min(min(lFL, lFR), min(lRL, lRR))
+sI = 0
+for i = nSs to 1 step -1
+	if ss[i] <= spE + 0.001 then sI = i
+next i
+spT = 0
+if sI > 0 then spT = ss[sI]
+sc1 = ""
+sc2 = ""
+sc3 = ""
+sc4 = ""
+sc5 = ""
+sc6 = ""
+sc7 = ""
+sc8 = ""
+if sI = 1 then
+	sc1 = rs1c1
+	sc2 = rs1c2
+	sc3 = rs1c3
+	sc4 = rs1c4
+	sc5 = rs1c5
+	sc6 = rs1c6
+	sc7 = rs1c7
+	sc8 = rs1c8
+endif
+if sI = 2 then
+	sc1 = rs2c1
+	sc2 = rs2c2
+	sc3 = rs2c3
+	sc4 = rs2c4
+	sc5 = rs2c5
+	sc6 = rs2c6
+	sc7 = rs2c7
+	sc8 = rs2c8
+endif
+if sI = 3 then
+	sc1 = rs3c1
+	sc2 = rs3c2
+	sc3 = rs3c3
+	sc4 = rs3c4
+	sc5 = rs3c5
+	sc6 = rs3c6
+	sc7 = rs3c7
+	sc8 = rs3c8
+endif
+if sI = 4 then
+	sc1 = rs4c1
+	sc2 = rs4c2
+	sc3 = rs4c3
+	sc4 = rs4c4
+	sc5 = rs4c5
+	sc6 = rs4c6
+	sc7 = rs4c7
+	sc8 = rs4c8
+endif
+if sI = 5 then
+	sc1 = rs5c1
+	sc2 = rs5c2
+	sc3 = rs5c3
+	sc4 = rs5c4
+	sc5 = rs5c5
+	sc6 = rs5c6
+	sc7 = rs5c7
+	sc8 = rs5c8
+endif
+if sI = 6 then
+	sc1 = rs6c1
+	sc2 = rs6c2
+	sc3 = rs6c3
+	sc4 = rs6c4
+	sc5 = rs6c5
+	sc6 = rs6c6
+	sc7 = rs6c7
+	sc8 = rs6c8
+endif
 dim tc1[]
 nTc1 = 0
-rest = rtT1
+rest = sc1
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -73,7 +177,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc2[]
 nTc2 = 0
-rest = rtT2
+rest = sc2
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -91,7 +195,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc3[]
 nTc3 = 0
-rest = rtT3
+rest = sc3
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -109,7 +213,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc4[]
 nTc4 = 0
-rest = rtT4
+rest = sc4
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -127,7 +231,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc5[]
 nTc5 = 0
-rest = rtT5
+rest = sc5
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -145,7 +249,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc6[]
 nTc6 = 0
-rest = rtT6
+rest = sc6
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -163,7 +267,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc7[]
 nTc7 = 0
-rest = rtT7
+rest = sc7
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -181,7 +285,7 @@ while strlen(rest) > 0 do
 endwhile
 dim tc8[]
 nTc8 = 0
-rest = rtT8
+rest = sc8
 while strlen(rest) > 0 do
 	pc = strstr(rest, ",")
 	if pc > 0 then
@@ -224,7 +328,7 @@ plB = 3.048
 bL = max(bMin, min(bMax, boomL))
 hR = max(1.0, hkR)
 slD = slew
-owD = outW
+owD = spE
 if prio = 1 then
 	bA = max(1, min(84, boomA))
 	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))

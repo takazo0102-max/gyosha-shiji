@@ -100,7 +100,7 @@ def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
-    from ashiba.crane import CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, boom_axis, judge, seg_box_distance
+    from ashiba.crane import CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, boom_axis, effective_spread, judge, seg_box_distance
     from ashiba.tapir_adapter import ArchicadClient
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -160,14 +160,14 @@ def main(argv=None) -> int:
                                       need_z / 1000.0, w)
                 x = type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})()
             else:
-                res, x = judge(m, float(ps.get("outW", max(m.spreads))), radius, need_z, w, ratio, d.get("id") or d.get("type"))
+                res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, w, ratio, d.get("id") or d.get("type"))
             rows.append((d.get("id") or e["elementId"]["guid"][:8], d.get("type"), vol, w, radius, need_z, res, x))
             hl.append(e)
             cols.append(COLORS[res])
         c.tapir("HighlightElements", {"elements": hl, "highlightedColors": cols, "wireframe3D": False})
         head = (f"タワークレーン: {tw.name}（{tw.model}・ジブ {ps.get('maxR')}m・マスト {ps.get('msH')}m。定格荷重と吊り荷＋玉掛け用具 0.05t を"
                 "比べる（ク則23条）。フックの限りはジブの先の 2m 下【目安】）" if tw is not None else
-                f"クレーン: {m.name}（張出 {ps.get('outW')}m・安全率 {ratio:g}）")
+                f"クレーン: {m.name}（定格を読む張出 {effective_spread(ps):g}m・安全率 {ratio:g}）")
         md = ["# 揚重判定", "", f"{head}。吊りしろ {a.sling:.0f}・"
               + (f"重さ {a.weight}t（直接）" if a.weight is not None else
                  f"重さ＝体積×密度（{a.density}t/m³）" if a.density is not None else "重さ＝体積×密度（柱・梁 7.85・ほか 2.4t/m³）"),
