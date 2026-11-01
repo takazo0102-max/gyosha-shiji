@@ -1,0 +1,337 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="mcKind">
+			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="mcName">
+			<Description><![CDATA["機種の名前（平面の注記）"]]></Description>
+			<Value><![CDATA["バックホウ 0.45m³"]]></Value>
+		</String>
+		<String Name="mcNote">
+			<Description><![CDATA["諸元の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Angle Name="slew">
+			<Description><![CDATA["旋回角（車体の前から左回り）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Integer Name="cbS">
+			<Description><![CDATA["運転室の側（1＝左・-1＝右）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="trkL">
+			<Description><![CDATA["履帯の全長"]]></Description>
+			<Value>4.45</Value>
+		</Length>
+		<Length Name="trkW">
+			<Description><![CDATA["履帯の全幅"]]></Description>
+			<Value>2.8</Value>
+		</Length>
+		<Length Name="shoeW">
+			<Description><![CDATA["シュー幅"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="trkH">
+			<Description><![CDATA["履帯の高さ"]]></Description>
+			<Value>0.85</Value>
+		</Length>
+		<Length Name="upF">
+			<Description><![CDATA["上部旋回体の前端（旋回中心から）"]]></Description>
+			<Value>1.6</Value>
+		</Length>
+		<Length Name="upW">
+			<Description><![CDATA["上部旋回体の幅"]]></Description>
+			<Value>2.7</Value>
+		</Length>
+		<Length Name="tailR">
+			<Description><![CDATA["後端旋回半径"]]></Description>
+			<Value>2.75</Value>
+		</Length>
+		<Length Name="upZ">
+			<Description><![CDATA["上部旋回体の下端の高さ"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="upH">
+			<Description><![CDATA["運転室の上の高さ（全高）"]]></Description>
+			<Value>2.95</Value>
+		</Length>
+		<Length Name="cabW">
+			<Description><![CDATA["運転室の幅"]]></Description>
+			<Value>0.95</Value>
+		</Length>
+		<Length Name="cabL">
+			<Description><![CDATA["運転室の長さ"]]></Description>
+			<Value>1.6</Value>
+		</Length>
+		<Length Name="pvX">
+			<Description><![CDATA["ブームの根元（旋回中心から前）"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Length Name="pvH">
+			<Description><![CDATA["ブームの根元の高さ"]]></Description>
+			<Value>1.75</Value>
+		</Length>
+		<Length Name="boomL">
+			<Description><![CDATA["ブームの長さ（根元から先の弦）"]]></Description>
+			<Value>5.7</Value>
+		</Length>
+		<Length Name="armL">
+			<Description><![CDATA["アームの長さ"]]></Description>
+			<Value>2.9</Value>
+		</Length>
+		<Length Name="bkL">
+			<Description><![CDATA["バケットの長さ（ピンから爪）"]]></Description>
+			<Value>1.45</Value>
+		</Length>
+		<Length Name="bkW">
+			<Description><![CDATA["バケットの幅"]]></Description>
+			<Value>1.05</Value>
+		</Length>
+		<Angle Name="bmA">
+			<Description><![CDATA["ブームの角度（弦）"]]></Description>
+			<Value>35.0</Value>
+		</Angle>
+		<Angle Name="amA">
+			<Description><![CDATA["アームの角度（水平から）"]]></Description>
+			<Value>-70.0</Value>
+		</Angle>
+		<Angle Name="bkA">
+			<Description><![CDATA["バケットの角度（水平から）"]]></Description>
+			<Value>-150.0</Value>
+		</Angle>
+		<Length Name="maxR">
+			<Description><![CDATA["最大作業半径（平面の円）"]]></Description>
+			<Value>9.9</Value>
+		</Length>
+		<Length Name="maxD">
+			<Description><![CDATA["最大掘削深さ"]]></Description>
+			<Value>6.6</Value>
+		</Length>
+		<Length Name="lbL">
+			<Description><![CDATA["ラチスブームの長さ"]]></Description>
+			<Value>30.0</Value>
+		</Length>
+		<Angle Name="lbA">
+			<Description><![CDATA["ブームの起伏角"]]></Description>
+			<Value>70.0</Value>
+		</Angle>
+		<Length Name="lbW">
+			<Description><![CDATA["ブームの幅"]]></Description>
+			<Value>1.2</Value>
+		</Length>
+		<Length Name="hkD">
+			<Description><![CDATA["ブームの先からフックまで"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="carL">
+			<Description><![CDATA["全長"]]></Description>
+			<Value>8.0</Value>
+		</Length>
+		<Length Name="carW">
+			<Description><![CDATA["全幅"]]></Description>
+			<Value>2.49</Value>
+		</Length>
+		<Length Name="carF">
+			<Description><![CDATA["原点から前端"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<Length Name="cabH">
+			<Description><![CDATA["運転室の上の高さ"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<Length Name="frOv">
+			<Description><![CDATA["前端から前の車軸"]]></Description>
+			<Value>1.3</Value>
+		</Length>
+		<Length Name="wb">
+			<Description><![CDATA["前の車軸から後ろの車軸（1軸め）"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<Integer Name="nFr">
+			<Description><![CDATA["前の車軸の数"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="frSp">
+			<Description><![CDATA["前の車軸の間"]]></Description>
+			<Value>1.7</Value>
+		</Length>
+		<Integer Name="nRear">
+			<Description><![CDATA["後ろの車軸の数"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Length Name="rearSp">
+			<Description><![CDATA["後ろの車軸の間"]]></Description>
+			<Value>1.3</Value>
+		</Length>
+		<Length Name="whR">
+			<Description><![CDATA["タイヤの半径"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="frZ">
+			<Description><![CDATA["フレームの上の高さ"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Integer Name="nSec">
+			<Description><![CDATA["ブームの段の数"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Length Name="sL1">
+			<Description><![CDATA["ブーム1段の長さ"]]></Description>
+			<Value>7.5</Value>
+		</Length>
+		<Length Name="sL2">
+			<Description><![CDATA["ブーム2段の長さ"]]></Description>
+			<Value>6.5</Value>
+		</Length>
+		<Length Name="sL3">
+			<Description><![CDATA["ブーム3段の長さ"]]></Description>
+			<Value>6.5</Value>
+		</Length>
+		<Length Name="sL4">
+			<Description><![CDATA["ブーム4段の長さ"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="sL5">
+			<Description><![CDATA["ブーム5段の長さ"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Angle Name="pA1">
+			<Description><![CDATA["ブーム1段の角度"]]></Description>
+			<Value>70.0</Value>
+		</Angle>
+		<Angle Name="pA2">
+			<Description><![CDATA["ブーム2段の角度"]]></Description>
+			<Value>25.0</Value>
+		</Angle>
+		<Angle Name="pA3">
+			<Description><![CDATA["ブーム3段の角度"]]></Description>
+			<Value>-10.0</Value>
+		</Angle>
+		<Angle Name="pA4">
+			<Description><![CDATA["ブーム4段の角度"]]></Description>
+			<Value>-60.0</Value>
+		</Angle>
+		<Angle Name="pA5">
+			<Description><![CDATA["ブーム5段の角度"]]></Description>
+			<Value>-80.0</Value>
+		</Angle>
+		<Length Name="tuH">
+			<Description><![CDATA["ブームの根元の高さ"]]></Description>
+			<Value>3.2</Value>
+		</Length>
+		<Length Name="o1x">
+			<Description><![CDATA["アウトリガ1組め（原点から前が +）"]]></Description>
+			<Value>1.4</Value>
+		</Length>
+		<Length Name="o1y">
+			<Description><![CDATA["アウトリガ1組めの張出スパン"]]></Description>
+			<Value>5.43</Value>
+		</Length>
+		<Length Name="o2x">
+			<Description><![CDATA["アウトリガ2組め"]]></Description>
+			<Value>-2.0</Value>
+		</Length>
+		<Length Name="o2y">
+			<Description><![CDATA["アウトリガ2組めの張出スパン"]]></Description>
+			<Value>5.43</Value>
+		</Length>
+		<Length Name="o3x">
+			<Description><![CDATA["アウトリガ3組め"]]></Description>
+			<Value>-4.6</Value>
+		</Length>
+		<Length Name="o3y">
+			<Description><![CDATA["アウトリガ3組めの張出スパン（0＝無し）"]]></Description>
+			<Value>2.3</Value>
+		</Length>
+		<Boolean Name="otOn">
+			<Description><![CDATA["アウトリガを張る"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="drL">
+			<Description><![CDATA["ドラムの長さ"]]></Description>
+			<Value>4.3</Value>
+		</Length>
+		<Length Name="drD">
+			<Description><![CDATA["ドラムの径"]]></Description>
+			<Value>2.1</Value>
+		</Length>
+		<Angle Name="drA">
+			<Description><![CDATA["ドラムの傾き"]]></Description>
+			<Value>14.0</Value>
+		</Angle>
+		<Length Name="bedL">
+			<Description><![CDATA["荷台の長さ"]]></Description>
+			<Value>5.1</Value>
+		</Length>
+		<Length Name="bedW">
+			<Description><![CDATA["荷台の幅"]]></Description>
+			<Value>2.25</Value>
+		</Length>
+		<Length Name="bedH">
+			<Description><![CDATA["あおりの高さ"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Angle Name="bedA">
+			<Description><![CDATA["荷台の上げ角"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Length Name="abL">
+			<Description><![CDATA["伸縮ブームの長さ（今）"]]></Description>
+			<Value>9.0</Value>
+		</Length>
+		<Angle Name="abA">
+			<Description><![CDATA["伸縮ブームの起伏角"]]></Description>
+			<Value>55.0</Value>
+		</Angle>
+		<Length Name="pfL">
+			<Description><![CDATA["バスケットの長さ"]]></Description>
+			<Value>1.2</Value>
+		</Length>
+		<Length Name="pfW">
+			<Description><![CDATA["バスケットの幅"]]></Description>
+			<Value>0.7</Value>
+		</Length>
+		<Length Name="pfH">
+			<Description><![CDATA["作業床の高さ（垂直昇降）"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

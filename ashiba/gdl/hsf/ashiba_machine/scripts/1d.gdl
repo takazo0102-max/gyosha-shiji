@@ -1,0 +1,68 @@
+﻿! 重機: 種類ごとの形（m・度）
+isCr = (mcKind = 1 or mcKind = 2)
+isTk = (mcKind >= 3)
+! 上部旋回体の後ろの円弧（後端旋回半径）と幅の合う所
+w2 = min(upW / 2, tailR * 0.995)
+xs = -sqr(tailR ^ 2 - w2 ^ 2)
+aS = asn(w2 / tailR)
+! トラック: 前端・後端・車軸（後ろの車軸は1軸めから rearSp ずつ後ろ）
+xF = carF
+xR = carF - carL
+axF = xF - frOv
+axR1 = axF - wb
+axR2 = axR1 - rearSp * (nRear >= 2)
+! 車軸の位置（前 nFr 本・後ろ nRear 本）
+dim axs[4]
+nAx = 0
+for i = 1 to max(1, min(2, nFr))
+	nAx = nAx + 1
+	axs[nAx] = axF - (i - 1) * frSp
+next i
+for i = 1 to max(1, min(2, nRear))
+	nAx = nAx + 1
+	axs[nAx] = axR1 - (i - 1) * rearSp
+next i
+! アウトリガの組（x と片側の張出）
+dim ox[3], oy[3]
+ox[1] = o1x
+ox[2] = o2x
+ox[3] = o3x
+oy[1] = o1y / 2
+oy[2] = o2y / 2
+oy[3] = o3y / 2
+nJk = 2 + (o3y > 0.01)
+whW = 0.32 + 0.12 * (carW > 2.2)
+! バックホウ: ブームの先（弦）・くの字の折れ・アームの先・バケットのピン
+bmX1 = pvX + boomL * cos(bmA)
+bmZ1 = pvH + boomL * sin(bmA)
+knX = pvX + 0.55 * boomL * cos(bmA) - 0.13 * boomL * sin(bmA)
+knZ = pvH + 0.55 * boomL * sin(bmA) + 0.13 * boomL * cos(bmA)
+amX1 = bmX1 + armL * cos(amA)
+amZ1 = bmZ1 + armL * sin(amA)
+amX0 = bmX1 - 0.2 * armL * cos(amA)
+amZ0 = bmZ1 - 0.2 * armL * sin(amA)
+! ポンプ車のブームの段（長さと角度）
+dim sl[5], sa[5]
+sl[1] = sL1
+sl[2] = sL2
+sl[3] = sL3
+sl[4] = sL4
+sl[5] = sL5
+sa[1] = pA1
+sa[2] = pA2
+sa[3] = pA3
+sa[4] = pA4
+sa[5] = pA5
+nSc = max(1, min(5, nSec))
+pmX = 0
+pmZ = tuH
+for i = 1 to nSc
+	pmX = pmX + sl[i] * cos(sa[i])
+	pmZ = pmZ + sl[i] * sin(sa[i])
+next i
+! 高所作業車のブームの先
+abX = -0.4 + abL * cos(abA)
+abZ = tuH + abL * sin(abA)
+! クローラクレーンのブームの先
+lbX = pvX + lbL * cos(lbA)
+lbZ = pvH + lbL * sin(lbA)

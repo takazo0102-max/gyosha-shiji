@@ -1,0 +1,96 @@
+﻿! 重機 2D: 外形・上部の外形（旋回）・後端旋回半径（立入禁止）・作業半径・アウトリガ・注記
+pen penEquip
+define style "mcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "mcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if isCr then
+	! 履帯（2本）と上部旋回体（旋回で回す）
+	for s = -1 to 1 step 2
+		yc = s * (trkW / 2 - shoeW / 2)
+		rect2 -trkL / 2, yc - shoeW / 2, trkL / 2, yc + shoeW / 2
+	next s
+	circle2 0, 0, tailR
+	rot2 slew
+	! 外形は円弧と線で（put と poly2 の多角形は平面を止めた）
+	arc2 0, 0, tailR, 180 - aS, 180 + aS
+	line2 xs, w2, upF, w2
+	line2 upF, w2, upF, -w2
+	line2 upF, -w2, xs, -w2
+	if mcKind = 1 then
+		line2 pvX, -0.25, amX1, -0.15
+		line2 pvX, 0.25, amX1, 0.15
+		rect2 amX1 - 0.1, -bkW / 2, amX1 + 0.35, bkW / 2
+	else
+		line2 pvX, -lbW / 2, lbX, -lbW / 2
+		line2 pvX, lbW / 2, lbX, lbW / 2
+		circle2 lbX, 0, 0.4
+	endif
+	del 1
+endif
+if isTk then
+	! 車体・運転室・タイヤ
+	rect2 xR, -carW / 2, xF, carW / 2
+	if mcKind < 7 then line2 xF - min(2.3, carL * 0.28), -carW / 2, xF - min(2.3, carL * 0.28), carW / 2
+	for i = 1 to nAx
+		for s = -1 to 1 step 2
+			rect2 axs[i] - whR, s * carW / 2 - s * 0.05, axs[i] + whR, s * carW / 2 - s * (0.05 + whW)
+		next s
+	next i
+	if (mcKind = 3 or mcKind = 6) and otOn then
+		for j = 1 to 3
+			if oy[j] > 0.01 then
+				for s = -1 to 1 step 2
+					line2 ox[j], s * 0.3, ox[j], s * oy[j]
+					rect2 ox[j] - 0.3, s * oy[j] - 0.3, ox[j] + 0.3, s * oy[j] + 0.3
+				next s
+			endif
+		next j
+	endif
+	if mcKind = 7 then rect2 -pfL / 2, -pfW / 2, pfL / 2, pfW / 2
+	if mcKind = 3 then
+		circle2 0, 0, 0.6
+		rot2 slew
+		line2 0, -0.2, pmX, -0.15
+		line2 0, 0.2, pmX, 0.15
+		circle2 pmX, 0, 0.15
+		del 1
+	endif
+	if mcKind = 6 then
+		circle2 0, 0, 0.5
+		rot2 slew
+		line2 -0.4, -0.2, abX, -0.2
+		line2 -0.4, 0.2, abX, 0.2
+		rect2 abX, -pfL / 2, abX + pfW, pfL / 2
+		del 1
+	endif
+	if mcKind = 4 then
+		rect2 xF - 2.2 - drL * cos(drA), -drD / 2, xF - 2.2, drD / 2
+	endif
+	if mcKind = 5 then
+		rect2 xR + 0.1, -bedW / 2, xR + 0.1 + bedL * cos(bedA), bedW / 2
+	endif
+endif
+! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）
+rW = maxR
+if mcKind = 2 then rW = lbX + 0.4
+if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then circle2 0, 0, rW
+! 注記（機種・諸元）
+xN = -tailR - 0.6
+if isTk then xN = xR - 0.6
+add2 xN, 0
+rot2 -SYMB_ROTANGLE
+text2 0, 0, mcName
+if strlen(mcNote) > 0 then text2 0, -dT, mcNote
+del 2
+if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then
+	add2 rW * cos(45), rW * sin(45)
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
+	del 2
+endif
+! 旋回角のホットスポット
+rH = max(2.0, tailR)
+hotspot2 0, 0, 1, slew, 6
+hotspot2 rH, 0, 2, slew, 4
+hotspot2 rH * cos(slew), rH * sin(slew), 3, slew, 5
+hotspot2 0, 0

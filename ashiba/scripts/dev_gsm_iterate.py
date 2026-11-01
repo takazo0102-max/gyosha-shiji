@@ -156,6 +156,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"llL": 24.0, "nSpan": 3, "llName": "親綱1"},
     },
+    # 重機（利用者の指定 2026-11-01: 重機の詳細度もっとあげて　種類も増やして）
+    "ashiba_machine": {
+        "images": ("3D", "2D"),
+        "params": {"mcKind": 1, "mcName": "バックホウ"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

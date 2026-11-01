@@ -1,0 +1,749 @@
+﻿! 重機 3D
+! 車体の色（バックホウは黄、ほかは白。同じ名前の define material を2回書くと 3D が止まる）
+cR = 0.95
+cG = 0.72
+cB = 0.08
+if mcKind >= 2 then
+	cR = 0.93
+	cG = 0.94
+	cB = 0.95
+endif
+define material "mc_body" 2, cR, cG, cB
+define material "mc_dark" 2, 0.18, 0.18, 0.20
+define material "mc_steel" 2, 0.55, 0.56, 0.58
+define material "mc_cw" 2, 0.35, 0.36, 0.38
+define material "mc_tire" 2, 0.10, 0.10, 0.10
+define material "mc_rim" 2, 0.80, 0.80, 0.78
+define material "mc_glass" 2, 0.30, 0.45, 0.60
+define material "mc_rod" 2, 0.85, 0.86, 0.88
+define material "mc_drum" 2, 0.92, 0.40, 0.12
+define material "mc_bed" 2, 0.30, 0.52, 0.35
+resol 12
+if isCr then gosub "crawler"
+if isTk and mcKind < 7 then gosub "truck"
+if mcKind = 1 then
+	rotz slew
+	gosub "upper"
+	gosub "backhoe"
+	del 1
+endif
+if mcKind = 2 then
+	rotz slew
+	gosub "upper"
+	gosub "lattice"
+	del 1
+endif
+if mcKind = 3 then
+	gosub "outrig"
+	gosub "pumpbody"
+	rotz slew
+	gosub "pumpboom"
+	del 1
+endif
+if mcKind = 4 then gosub "mixer"
+if mcKind = 5 then gosub "dump"
+if mcKind = 6 then
+	gosub "outrig"
+	rotz slew
+	gosub "aerial"
+	del 1
+endif
+if mcKind = 7 then gosub "scissor"
+end
+
+"crawler":
+	! 履帯（帯・両端の輪・グローサ・横のフレームと下転輪・遊動輪と起動輪）と下部の枠・旋回輪
+	rT = trkH / 2
+	for s = -1 to 1 step 2
+		yc = s * (trkW / 2 - shoeW / 2)
+		material "mc_dark"
+		add -trkL / 2 + rT, yc - shoeW / 2, 0
+		block trkL - 2 * rT, shoeW, trkH
+		del 1
+		for e = -1 to 1 step 2
+			add e * (trkL / 2 - rT), yc + shoeW / 2, rT
+			rotx 90
+			cylind shoeW, rT
+			del 2
+		next e
+		nG = int((trkL - 2 * rT) / 0.2)
+		for k = 0 to nG
+			add -trkL / 2 + rT + k * 0.2, yc - shoeW / 2, trkH
+			block 0.05, shoeW, 0.03
+			del 1
+		next k
+		! 外の面: 履帯のフレーム（板 0.02）と、その外に下転輪・遊動輪・起動輪（円柱は rotx 90 で -y へ伸びる）
+		yP = yc + s * shoeW / 2 - (s < 0) * 0.02
+		material "mc_body"
+		add -trkL / 2 + rT, yP, trkH * 0.3
+		block trkL - 2 * rT, 0.02, trkH * 0.4
+		del 1
+		yR = yP + (s > 0) * 0.05
+		material "mc_steel"
+		nRl = max(2, int((trkL - 2 * rT) / 0.45))
+		for k = 0 to nRl
+			add -trkL / 2 + rT + k * (trkL - 2 * rT) / nRl, yR, 0.13
+			rotx 90
+			cylind 0.03, 0.09
+			del 2
+		next k
+		for e = -1 to 1 step 2
+			add e * (trkL / 2 - rT), yR, rT
+			rotx 90
+			cylind 0.03, rT * 0.72
+			del 2
+		next e
+	next s
+	material "mc_body"
+	add -0.9, -(trkW / 2 - shoeW), trkH * 0.35
+	block 1.8, trkW - 2 * shoeW, trkH * 0.45
+	del 1
+	material "mc_steel"
+	add 0, 0, trkH * 0.8
+	cylind upZ - trkH * 0.8, min(0.85, upW * 0.3)
+	del 1
+	return
+
+"upper":
+	! 上部旋回体（後ろは後端旋回半径の円弧）・カウンタウエイト・エンジンカバー・運転室と窓・手すり
+	hB = 0.12 * (upH - upZ) + 0.45
+	material "mc_body"
+	for i = 0 to 8
+		aa = 180 + aS - i * aS / 4
+		put tailR * cos(aa), tailR * sin(aa)
+	next i
+	put upF, w2, upF, -w2
+	add 0, 0, upZ
+	prism nsp / 2, hB, get(nsp)
+	del 1
+	xC = xs + min(0.9, tailR * 0.35)
+	material "mc_cw"
+	for i = 0 to 8
+		aa = 180 + aS - i * aS / 4
+		put tailR * cos(aa), tailR * sin(aa)
+	next i
+	put xC, w2, xC, -w2
+	add 0, 0, upZ + hB
+	prism nsp / 2, 0.35, get(nsp)
+	del 1
+	material "mc_body"
+	yE0 = -w2 + 0.05
+	yE1 = w2 - cabW - 0.1
+	if cbS < 0 then
+		yE0 = -w2 + cabW + 0.1
+		yE1 = w2 - 0.05
+	endif
+	add xC, yE0, upZ + hB
+	block max(0.2, upF - cabL - xC - 0.05), yE1 - yE0, 0.4
+	del 1
+	material "mc_dark"
+	for i = 0 to 4
+		add xC + 0.1 + i * 0.18, yE0 + 0.1, upZ + hB + 0.4
+		block 0.09, max(0.1, yE1 - yE0 - 0.2), 0.01
+		del 1
+	next i
+	! 運転室（cbS の側の前）
+	yC0 = w2 - cabW
+	if cbS < 0 then yC0 = -w2
+	material "mc_body"
+	add upF - cabL, yC0, upZ + hB
+	block cabL, cabW, upH - upZ - hB
+	del 1
+	material "mc_glass"
+	hW = (upH - upZ - hB) * 0.62
+	add upF + 0.005, yC0 + 0.08, upH - hW - 0.08
+	block 0.006, cabW - 0.16, hW
+	del 1
+	yG = yC0 + cabW + 0.002
+	if cbS < 0 then yG = yC0 - 0.008
+	add upF - cabL + 0.12, yG, upH - hW - 0.08
+	block cabL - 0.24, 0.006, hW
+	del 1
+	material "mc_steel"
+	add upF - cabL - 0.05, yE0, upZ + hB + 0.4
+	block 0.04, yE1 - yE0, 0.03
+	del 1
+	return
+
+"bar":
+	! (x0q, z0q) から (x1q, z1q) の箱（幅 bwq・せい bhq。y は 0 を中心）
+	dxq = x1q - x0q
+	dzq = z1q - z0q
+	lq = sqr(dxq ^ 2 + dzq ^ 2)
+	anq = 90
+	if dzq < 0 then anq = -90
+	if abs(dxq) > 0.000001 then anq = atn(dzq / dxq)
+	if dxq < 0 then anq = anq + 180
+	add x0q, 0, z0q
+	roty -anq
+	add 0, -bwq / 2, -bhq / 2
+	block lq, bwq, bhq
+	del 3
+	return
+
+"seg3":
+	! (x0q, y0q, z0q) から (x1q, y1q, z1q) の円柱（半径 rq）
+	dxq = x1q - x0q
+	dyq = y1q - y0q
+	dzq = z1q - z0q
+	hq = sqr(dxq ^ 2 + dyq ^ 2)
+	lq = sqr(hq ^ 2 + dzq ^ 2)
+	if lq > 0.001 then
+		az = 0
+		if hq > 0.0001 then
+			if abs(dxq) < 0.0001 then
+				az = 90
+				if dyq < 0 then az = -90
+			else
+				az = atn(dyq / dxq)
+				if dxq < 0 then az = az + 180
+			endif
+		endif
+		el = 90
+		if dzq < 0 then el = -90
+		if hq > 0.0001 then el = atn(dzq / hq)
+		add x0q, y0q, z0q
+		rotz az
+		roty 90 - el
+		cylind lq, rq
+		del 3
+	endif
+	return
+
+"cyl2":
+	! 油圧シリンダ（太い筒 6 割と細いロッド）: (cx0, cy0, cz0) から (cx1, cy1, cz1)
+	material "mc_dark"
+	x0q = cx0
+	y0q = cy0
+	z0q = cz0
+	x1q = cx0 + 0.6 * (cx1 - cx0)
+	y1q = cy0 + 0.6 * (cy1 - cy0)
+	z1q = cz0 + 0.6 * (cz1 - cz0)
+	rq = crq
+	gosub "seg3"
+	material "mc_rod"
+	x0q = x1q
+	y0q = y1q
+	z0q = z1q
+	x1q = cx1
+	y1q = cy1
+	z1q = cz1
+	rq = crq * 0.55
+	gosub "seg3"
+	return
+
+"backhoe":
+	! ブーム（くの字の2本の箱）・アーム・バケット（側板の形と爪）・シリンダ3本
+	bwq = 0.075 * boomL
+	material "mc_body"
+	add pvX - 0.2, -bwq / 2 - 0.08, upZ
+	block 0.5, bwq + 0.16, pvH - upZ + 0.15
+	del 1
+	x0q = pvX
+	z0q = pvH
+	x1q = knX
+	z1q = knZ
+	bhq = 0.1 * boomL
+	gosub "bar"
+	x0q = knX
+	z0q = knZ
+	x1q = bmX1
+	z1q = bmZ1
+	bhq = 0.075 * boomL
+	gosub "bar"
+	bwq = 0.06 * boomL
+	bhq = 0.06 * boomL
+	x0q = amX0
+	z0q = amZ0
+	x1q = amX1
+	z1q = amZ1
+	gosub "bar"
+	material "mc_steel"
+	add bmX1, bwq / 2 + 0.03, bmZ1
+	rotx 90
+	cylind bwq + 0.06, 0.07
+	del 2
+	! バケット（ピンから爪へ bkA の向き。側板の形を幅 bkW で押し出す）
+	material "mc_dark"
+	add amX1, bkW / 2, amZ1
+	rotx 90
+	rotz bkA
+	prism 6, bkW, 0, 0.1 * bkL, 0.3 * bkL, 0.42 * bkL, 0.8 * bkL, 0.38 * bkL, bkL, 0, 0.85 * bkL, -0.06 * bkL, 0.12 * bkL, -0.1 * bkL
+	nTh = max(3, int(bkW / 0.22))
+	for k = 0 to nTh - 1
+		add bkL - 0.02, -0.03, 0.06 + k * (bkW - 0.12) / max(1, nTh - 1) - 0.04
+		block 0.14, 0.06, 0.08
+		del 1
+	next k
+	del 3
+	! シリンダ（ブーム2本・アーム・バケット）
+	crq = 0.045 * boomL / 3.5
+	for s = -1 to 1 step 2
+		cx0 = pvX + 0.35
+		cy0 = s * (0.075 * boomL / 2 + 0.06)
+		cz0 = upZ + 0.25
+		cx1 = pvX + 0.42 * boomL * cos(bmA) + 0.04 * boomL * sin(bmA)
+		cy1 = cy0
+		cz1 = pvH + 0.42 * boomL * sin(bmA) - 0.04 * boomL * cos(bmA)
+		gosub "cyl2"
+	next s
+	cx0 = knX - 0.06 * boomL * sin(bmA)
+	cy0 = 0
+	cz0 = knZ + 0.07 * boomL
+	cx1 = amX0
+	cy1 = 0
+	cz1 = amZ0
+	gosub "cyl2"
+	crq = crq * 0.8
+	cx0 = bmX1 + 0.2 * armL * cos(amA) - 0.08 * sin(amA)
+	cy0 = 0
+	cz0 = bmZ1 + 0.2 * armL * sin(amA) + 0.08 * cos(amA)
+	cx1 = amX1 - 0.12 * armL * cos(amA) - 0.12 * sin(amA)
+	cy1 = 0
+	cz1 = amZ1 - 0.12 * armL * sin(amA) + 0.12 * cos(amA)
+	gosub "cyl2"
+	return
+
+"lattice":
+	! ラチスブーム（主材4本・斜材は4面）・根元と先・ガントリとペンダント・ワイヤとフック
+	material "mc_steel"
+	add pvX - 0.4, -lbW / 2 - 0.1, upZ
+	block 0.8, lbW + 0.2, pvH - upZ
+	del 1
+	material "mc_body"
+	add pvX, 0, pvH
+	roty -lbA
+	resol 6
+	rcq = 0.035 + 0.02 * lbW
+	for sy = -1 to 1 step 2
+		for sz = -1 to 1 step 2
+			add 0, sy * lbW / 2, sz * lbW / 2
+			roty 90
+			cylind lbL, rcq
+			del 2
+		next sz
+	next sy
+	nP = max(2, int(lbL / lbW))
+	pP = lbL / nP
+	for i = 0 to nP - 1
+		sg = 1 - 2 * (i mod 2)
+		rq = rcq * 0.5
+		x0q = i * pP
+		x1q = x0q + pP
+		y0q = -sg * lbW / 2
+		y1q = sg * lbW / 2
+		z0q = lbW / 2
+		z1q = lbW / 2
+		gosub "seg3"
+		z0q = -lbW / 2
+		z1q = -lbW / 2
+		gosub "seg3"
+		y0q = lbW / 2
+		y1q = lbW / 2
+		z0q = -sg * lbW / 2
+		z1q = sg * lbW / 2
+		gosub "seg3"
+		y0q = -lbW / 2
+		y1q = -lbW / 2
+		gosub "seg3"
+	next i
+	resol 12
+	material "mc_steel"
+	add lbL - 0.2, -lbW / 2, -lbW / 2
+	block 0.6, lbW, lbW
+	del 1
+	for k = -1 to 1
+		add lbL + 0.4, k * 0.2 - 0.04, 0
+		rotx -90
+		cylind 0.08, 0.45
+		del 2
+	next k
+	del 2
+	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
+	gX = xs + 1.2
+	gZ = upH + 1.2
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		x0q = gX - 0.6
+		y0q = s * 0.8
+		z0q = upZ + 0.9
+		x1q = gX
+		y1q = s * 0.5
+		z1q = gZ
+		rq = 0.08
+		gosub "seg3"
+		x0q = gX
+		y0q = s * 0.5
+		z0q = gZ
+		x1q = lbX
+		y1q = s * lbW / 2 * 0.6
+		z1q = lbZ
+		rq = 0.02
+		gosub "seg3"
+	next s
+	! ワイヤとフック
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		add lbX + 0.4 + s * 0.12, 0, lbZ - hkD + 0.8
+		cylind hkD - 0.8, 0.015
+		del 1
+	next s
+	material "mc_drum"
+	add lbX + 0.4 - 0.35, -0.3, lbZ - hkD
+	block 0.7, 0.6, 0.8
+	del 1
+	material "mc_steel"
+	add lbX + 0.4, 0, lbZ - hkD - 0.55
+	cone 0.55, 0.05, 0.12, 90, 90
+	del 1
+	return
+
+"truck":
+	! トラックの車体: フレーム・運転室（前窓は傾ける）・タイヤとホイール・フェンダー・バンパー・サイドガード・燃料タンク・ミラー
+	material "mc_dark"
+	for s = -1 to 1 step 2
+		add xR + 0.15, s * 0.45 - 0.05, frZ - 0.28
+		block carL - 0.45, 0.1, 0.28
+		del 1
+	next s
+	cZ0 = whR * 2 - 0.1
+	cL = min(2.3, carL * 0.28)
+	material "mc_body"
+	add xF - cL, carW / 2, cZ0
+	rotx 90
+	prism 5, carW, 0, 0, cL, 0, cL, (cabH - cZ0) * 0.45, cL - 0.3, cabH - cZ0, 0, cabH - cZ0
+	del 2
+	material "mc_glass"
+	x0q = xF + 0.012
+	z0q = cZ0 + (cabH - cZ0) * 0.47
+	x1q = xF - 0.3 + 0.012
+	z1q = cabH - 0.06
+	bwq = carW - 0.25
+	bhq = 0.01
+	gosub "bar"
+	for s = -1 to 1 step 2
+		add xF - cL + 0.25, s * (carW / 2 + 0.003) - 0.003, cZ0 + (cabH - cZ0) * 0.48
+		block cL - 0.75, 0.006, (cabH - cZ0) * 0.4
+		del 1
+	next s
+	! バンパー（運転室の下端に付ける）
+	material "mc_dark"
+	add xF - 0.12, -carW / 2 + 0.05, cZ0 - 0.3
+	block 0.16, carW - 0.1, 0.35
+	del 1
+	for s = -1 to 1 step 2
+		add xF - 0.2, s * (carW / 2 + 0.12) - 0.04, cabH - 0.7
+		block 0.04, 0.08, 0.35
+		del 1
+	next s
+	! タイヤ（前は1本・後ろはダブル）
+	for i = 1 to nAx
+		axX = axs[i]
+		for s = -1 to 1 step 2
+			! 円柱は rotx 90 で -y へ伸びる。ホイールは外の面に 0.015 出す
+			yT = s * (carW / 2 - 0.03) + (s < 0) * whW
+			material "mc_tire"
+			add axX, yT, whR
+			rotx 90
+			cylind whW, whR
+			del 2
+			material "mc_rim"
+			add axX, yT + (s > 0) * 0.015, whR
+			rotx 90
+			cylind whW + 0.015, whR * 0.55
+			del 2
+			material "mc_body"
+			add axX - whR - 0.08, s * (carW / 2 - 0.02) - (s + 1) / 2 * (whW + 0.04), 2 * whR + 0.04
+			block 2 * whR + 0.16, whW + 0.04, 0.05
+			del 1
+		next s
+	next i
+	! サイドガード（前の車軸と後ろの車軸の間）と燃料タンク
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		for k = 0 to 1
+			add axR1 + whR + 0.15, s * (carW / 2 - 0.12) - 0.02, 0.45 + k * 0.25
+			block max(0.2, axs[max(1, min(2, nFr))] - axR1 - 2 * whR - 0.3), 0.04, 0.06
+			del 1
+		next k
+	next s
+	add axF - whR - 0.25, carW / 2 - 0.35, 0.7
+	rotx 90
+	cylind 0.6, 0.25
+	del 2
+	return
+
+"outrig":
+	! アウトリガ（組ごとに両側。横の箱・ジャッキ・敷板。3組めは張出スパン 0 なら無し）
+	if otOn then
+		for s = -1 to 1 step 2
+			for e = 1 to nJk
+				jX = ox[e]
+				jY = max(0.35, oy[e])
+				material "mc_body"
+				add jX - 0.15, min(s * 0.3, s * jY), frZ - 0.45
+				block 0.3, abs(jY - 0.3), 0.25
+				del 1
+				material "mc_dark"
+				add jX, s * jY, 0.08
+				cylind frZ - 0.4, 0.09
+				del 1
+				material "mc_steel"
+				add jX - 0.3, s * jY - 0.3, 0
+				block 0.6, 0.6, 0.08
+				del 1
+			next e
+		next s
+	endif
+	return
+
+"pumpbody":
+	! ポンプ車: 荷台の機器箱・ホッパ（後ろ）・旋回台
+	material "mc_body"
+	add xR + 1.2, -carW / 2 + 0.15, frZ
+	block max(0.5, -0.8 - xR - 1.2), carW - 0.3, 0.9
+	del 1
+	material "mc_dark"
+	add xR, -0.6, frZ - 0.2
+	block 1.0, 1.2, 0.75
+	del 1
+	material "mc_steel"
+	add 0, 0, frZ
+	cylind tuH - frZ - 0.3, 0.55
+	del 1
+	return
+
+"pumpboom":
+	! 折り曲げのブーム（段ごとに細く）・関節・輸送管・先端ホース
+	material "mc_body"
+	add -0.5, -0.45, tuH - 0.6
+	block 1.0, 0.9, 0.6
+	del 1
+	px = 0
+	pz = tuH
+	for i = 1 to nSc
+		qx = px + sl[i] * cos(sa[i])
+		qz = pz + sl[i] * sin(sa[i])
+		material "mc_body"
+		x0q = px
+		z0q = pz
+		x1q = qx
+		z1q = qz
+		bwq = 0.38 - 0.05 * i
+		bhq = 0.5 - 0.06 * i
+		gosub "bar"
+		material "mc_steel"
+		add qx, bwq / 2 + 0.04, qz
+		rotx 90
+		cylind bwq + 0.08, bhq * 0.45
+		del 2
+		material "mc_rod"
+		rq = 0.06
+		x0q = px - (bhq / 2 + 0.1) * sin(sa[i])
+		y0q = -bwq / 2 - 0.1
+		z0q = pz + (bhq / 2 + 0.1) * cos(sa[i])
+		x1q = qx - (bhq / 2 + 0.1) * sin(sa[i])
+		y1q = y0q
+		z1q = qz + (bhq / 2 + 0.1) * cos(sa[i])
+		gosub "seg3"
+		px = qx
+		pz = qz
+	next i
+	material "mc_dark"
+	add pmX, 0, max(0.3, pmZ - 3.0)
+	cylind min(3.0, pmZ - 0.3), 0.065
+	del 1
+	return
+
+"mixer":
+	! 生コン車: ドラム（前の短い円錐・後ろの長い円錐）・帯・ホッパ・シュート・水タンク・後ろの足場
+	zD = frZ + drD / 2 + 0.1
+	dX0 = xF - min(2.3, carL * 0.28) - 0.35
+	material "mc_drum"
+	add dX0, 0, zD
+	roty drA - 90
+	cone drL * 0.3, drD * 0.3, drD / 2, 90, 90
+	addz drL * 0.3
+	cone drL * 0.7, drD / 2, drD * 0.22, 90, 90
+	material "mc_body"
+	for k = 1 to 3
+		zk = k * drL * 0.2
+		addz zk - 0.04
+		cylind 0.08, drD / 2 + (drD * 0.22 - drD / 2) * zk / (drL * 0.7) + 0.02
+		del 1
+	next k
+	del 3
+	dX1 = dX0 - drL * cos(drA)
+	dZ1 = zD + drL * sin(drA)
+	material "mc_steel"
+	add dX1 - 0.3, 0, dZ1 + 0.1
+	cone 0.6, 0.15, 0.45, 90, 90
+	del 1
+	x0q = dX1 - 0.2
+	z0q = dZ1 - 0.4
+	x1q = xR - 0.5
+	z1q = frZ + 0.2
+	bwq = 0.4
+	bhq = 0.05
+	gosub "bar"
+	add dX0 + 0.1, -0.35, frZ
+	cylind 0.7, 0.3
+	del 1
+	add xR, -0.4, frZ
+	block 0.3, 0.8, 0.05
+	del 1
+	return
+
+"dump":
+	! ダンプ: 荷台（床・あおり・鳥居）を後ろのヒンジで bedA だけ上げる・ホイストシリンダ
+	hX = xR + 0.1
+	hZ = frZ + 0.05
+	add hX, 0, hZ
+	roty -bedA
+	material "mc_bed"
+	add 0, -bedW / 2, 0
+	block bedL, bedW, 0.12
+	block bedL, 0.05, bedH + 0.12
+	addy bedW - 0.05
+	block bedL, 0.05, bedH + 0.12
+	del 2
+	add bedL - 0.08, -bedW / 2, 0
+	block 0.08, bedW, bedH + 0.35
+	addz bedH + 0.3
+	block 0.45, bedW, 0.05
+	del 2
+	add 0, -bedW / 2, 0
+	block 0.06, bedW, bedH + 0.12
+	del 1
+	material "mc_dark"
+	for k = 1 to 4
+		add k * bedL / 5, -bedW / 2 - 0.04, 0.12
+		block 0.06, 0.04, bedH
+		addy bedW + 0.04
+		block 0.06, 0.04, bedH
+		del 2
+	next k
+	del 2
+	if bedA > 0.5 then
+		crq = 0.09
+		cx0 = hX + bedL * 0.6
+		cy0 = 0
+		cz0 = frZ - 0.2
+		cx1 = hX + bedL * 0.62 * cos(bedA)
+		cy1 = 0
+		cz1 = hZ + bedL * 0.62 * sin(bedA)
+		gosub "cyl2"
+	endif
+	return
+
+"aerial":
+	! 高所作業車: 旋回台・伸縮ブーム（段ごとに細く）・起伏シリンダ・バスケット（床・手すり）
+	material "mc_steel"
+	add 0, 0, frZ
+	cylind tuH - frZ - 0.4, 0.45
+	del 1
+	material "mc_body"
+	add -0.8, -0.5, tuH - 0.45
+	block 1.3, 1.0, 0.5
+	del 1
+	nAb = max(2, min(5, nSec))
+	for i = 1 to nAb
+		x0q = -0.4 + (i - 1) * abL / nAb * 0.9 * cos(abA)
+		z0q = tuH + (i - 1) * abL / nAb * 0.9 * sin(abA)
+		x1q = -0.4 + min(abL, i * abL / nAb + 0.3) * cos(abA)
+		z1q = tuH + min(abL, i * abL / nAb + 0.3) * sin(abA)
+		bwq = 0.36 - 0.05 * i
+		bhq = 0.42 - 0.05 * i
+		gosub "bar"
+	next i
+	crq = 0.08
+	cx0 = 0.4
+	cy0 = 0
+	cz0 = tuH - 0.3
+	cx1 = -0.4 + abL * 0.35 * cos(abA) + 0.15 * sin(abA)
+	cy1 = 0
+	cz1 = tuH + abL * 0.35 * sin(abA) - 0.15 * cos(abA)
+	gosub "cyl2"
+	material "mc_body"
+	add abX, -pfL / 2, abZ - 1.2
+	block pfW, pfL, 0.1
+	del 1
+	rx0 = abX
+	ry0 = -pfL / 2
+	rlx = pfW
+	rly = pfL
+	rz0 = abZ - 1.1
+	gosub "rail"
+	return
+
+"rail":
+	! 作業床の手すり（rx0, ry0 から rlx × rly、床 rz0 から上桟 1.0・中桟 0.5・隅の柱）
+	material "mc_steel"
+	for k = 1 to 2
+		add rx0, ry0, rz0 + k * 0.5 - 0.04
+		block rlx, 0.04, 0.04
+		addy rly - 0.04
+		block rlx, 0.04, 0.04
+		del 1
+		block 0.04, rly, 0.04
+		addx rlx - 0.04
+		block 0.04, rly, 0.04
+		del 2
+	next k
+	for e = 0 to 1
+		for s = 0 to 1
+			add rx0 + e * (rlx - 0.04), ry0 + s * (rly - 0.04), rz0
+			block 0.04, 0.04, 1.0
+			del 1
+		next s
+	next e
+	return
+
+"scissor":
+	! 自走式の垂直昇降（シザース）: 車台・車輪・X 字の腕（3段）・作業床と手すり
+	material "mc_body"
+	add xR, -carW / 2, 0.08
+	block carL, carW, 0.42
+	del 1
+	material "mc_tire"
+	for e = -1 to 1 step 2
+		for s = -1 to 1 step 2
+			add e * (carL / 2 - 0.3), s * (carW / 2 - 0.02) + (s < 0) * 0.12, 0.15
+			rotx 90
+			cylind 0.12, 0.15
+			del 2
+		next s
+	next e
+	zA = 0.5
+	zB = max(zA + 0.3, pfH - 0.15)
+	hS = (zB - zA) / 3
+	xa = -carL / 2 + 0.2
+	xb = carL / 2 - 0.2
+	material "mc_cw"
+	bwq = 0.06
+	bhq = 0.08
+	for s = -1 to 1 step 2
+		for k = 0 to 2
+			add 0, s * (carW / 2 - 0.08), 0
+			x0q = xa
+			z0q = zA + k * hS
+			x1q = xb
+			z1q = zA + (k + 1) * hS
+			gosub "bar"
+			x0q = xb
+			x1q = xa
+			gosub "bar"
+			del 1
+		next k
+	next s
+	material "mc_body"
+	add -pfL / 2, -pfW / 2, zB
+	block pfL, pfW, 0.15
+	del 1
+	rx0 = -pfL / 2
+	ry0 = -pfW / 2
+	rlx = pfL
+	rly = pfW
+	rz0 = zB + 0.15
+	gosub "rail"
+	return
