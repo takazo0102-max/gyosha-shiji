@@ -5,7 +5,14 @@
 張出幅 outW、ジャッキとフロート fltD）、敷鉄板（厚板鋼板 1,524×3,048×22 を plN 枚。2枚は十字）、上部旋回体（旋回 slew 度・
 カウンタウエイトの後端は後端旋回半径 tailR）、ブーム（根元 pivB 後ろ・pivH 高さから boomL を起伏角 boomA で、段ごとに細く）、
 起伏シリンダ、フック（ブームの先から tipHk 下）・ワイヤ・吊り荷。平面は車体・アウトリガ・敷鉄板・後端旋回半径の円（立入禁止）・
-作業半径の円（wrR）・ブームとフック。割付と検定は src/ashiba/crane.py、置くのは scripts/crane_run.py。
+作業半径の円（wrR）・ブームとフック。敷鉄板は plDraw を外すと描かず（配置では別の部品 ashiba_plate を
+アウトリガの下に置く。利用者の指定 2026-11-01: 敷鉄板はホットスポットで広げれるようにして 別オブジェクトにして）。割付と検定は src/ashiba/crane.py、置くのは scripts/crane_run.py。
+smartCON Planner のクレーンを手本に（利用者の指定 2026-11-01: ホットスポットで姿勢・揚重判定・ブームの干渉チェック・半径の扇形・
+走行姿勢）: 平面のホットスポットで作業半径 hkR（ブームの向きに引く）・旋回 slew（角度）・扇の向き wrDir、3D でブーム長さ boomL と
+フックの高さ hkZ を引く。長さ優先（prio 0）は起伏角が、角度優先（prio 1）はブーム長さが作業半径から決まり、パラメータスクリプトが
+書き戻す。定格総荷重は Python が入れる表（rtB・rtR・rtT1〜8＝ブーム長さ・作業半径・ブームの列ごとの定格 kg）から今の姿勢で読み（ブームはその長さ以上
+の列・半径はその半径以上の行）、安全率 sfRate を掛けてフックの所に注記（吊荷＋フック＋玉掛けが超えれば「超過」）。作業半径は
+向き wrDir・幅 wrSpan の扇形（360 で円）。travel で走行姿勢（ブームを最短で前に倒し、アウトリガを畳む）。
   python3 scripts/gen_crane_gdl.py     # gdl/hsf/ashiba_crane を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
 
@@ -43,12 +50,30 @@ def paramlist() -> str:
         _param("Length", "pivH", "ブームの根元の高さ", 2.3),
         _param("Length", "pivB", "ブームの根元の旋回中心から後ろ", 1.0),
         _param("Length", "tipHk", "ブームの先からフックの上まで", 1.3),
-        _param("Length", "boomL", "ブーム長さ", 23.45),
-        _param("Angle", "boomA", "ブームの起伏角", 56.0),
-        _param("Angle", "slew", "旋回角（車体の前から左回り）", 30.0),
-        _param("Length", "hookZ", "フックの高さ（地盤から。注記）", 20.0),
-        _param("Integer", "plN", "敷鉄板の枚数（アウトリガ1脚に。2＝十字）", 1),
-        _param("String", "wrR", "作業半径の円（mm。カンマ区切り）", "12000,18000"),
+        _param("Length", "hkR", "作業半径（旋回中心からフック。平面のホットスポットで引く）", 12.0),
+        _param("Angle", "slew", "旋回角（車体の前から左回り。平面のホットスポット）", 30.0),
+        _param("Integer", "prio", "姿勢の優先（0＝ブーム長さ優先＝起伏角が決まる・1＝起伏角優先＝ブーム長さが決まる）", 0),
+        _param("Length", "boomL", "ブーム長さ（3D のホットスポット。長さ優先で使う）", 23.45),
+        _param("Angle", "boomA", "ブームの起伏角（角度優先で使う。長さ優先では書き戻す）", 56.0),
+        _param("Length", "bMin", "ブームの最短", 9.35),
+        _param("Length", "bMax", "ブームの最長", 30.5),
+        _param("Length", "hkZ", "フックの高さ（地盤から。3D のホットスポット。0＝巻上げ限界）", 0.0),
+        _param("RealNum", "loadT", "吊荷 t", 2.5),
+        _param("RealNum", "hookT", "フック t", 0.25),
+        _param("RealNum", "rigT", "玉掛け用具 t", 0.05),
+        _param("RealNum", "sfRate", "安全率（定格総荷重に掛ける。0.9＝90%）", 0.9),
+        _param("String", "rtB", "定格総荷重表のブーム長さ（mm）", "9350,16400,23450,30500"),
+        _param("String", "rtR", "定格総荷重表の作業半径（mm）", "3000,6000,10000,14000,20000,26000"),
+        *[_param("String", f"rtT{k}", f"定格総荷重（kg。{k}番目のブーム長さの列を作業半径の行の順に、無い所は 0。"
+                 "文字のパラメータは 255 字で切れるので列ごとに分ける）", v)
+          for k, v in enumerate(("25000,16300,0,0,0,0", "18000,16000,7800,4350,0,0", "12500,12500,7600,4400,2100,0",
+                                 "0,8000,7150,4400,2150,1100", "", "", "", ""), 1)],
+        _param("Integer", "plN", "敷鉄板の枚数（アウトリガ1脚に。2＝十字。フロートの高さに使う）", 1),
+        _param("Boolean", "plDraw", "敷鉄板をこの部品で描く（外す＝別の部品 ashiba_plate を下に置く）", 1),
+        _param("String", "wrR", "吊荷の作業半径の円（mm。カンマ区切り）", "12000,18000"),
+        _param("Angle", "wrDir", "作業半径の扇の向き（平面のホットスポット）", 0.0),
+        _param("Angle", "wrSpan", "作業半径の扇の角度の幅（360＝円）", 360.0),
+        _param("Boolean", "travel", "走行姿勢（ブームを最短で前に倒し、アウトリガを畳む）", 0),
         _param("Boolean", "ldOn", "吊り荷を描く", 1),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -63,7 +88,9 @@ def paramlist() -> str:
             + "\t</Parameters>\n</ParamSection>\n")
 
 
-SCRIPT_1D = ("﻿! 移動式クレーン: 作業半径の円・車軸・ブームの先とフック（m）\n" + _parse_all("wrR", "wr", "nWr") + """carRr = carL - carF
+SCRIPT_1D = ("﻿! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）\n" + _parse_all("wrR", "wr", "nWr")
+             + _parse_all("rtB", "rb", "nRb") + _parse_all("rtR", "rr", "nRr")
+             + "".join(_parse_all(f"rtT{k}", f"tc{k}", f"nTc{k}") for k in range(1, 9)) + """carRr = carL - carF
 nAx = 2
 dim ax[4]
 ax[1] = 1.94
@@ -83,17 +110,61 @@ if crType = 3 then
 	ax[3] = -1.55
 	ax[4] = -3.1
 endif
-! ブームの先（上部旋回体の座標）とフック
-tipX = -pivB + boomL * cos(boomA)
-tipZ = pivH + boomL * sin(boomA)
-hkZ = max(0.6, tipZ - tipHk)
 plT = 0.022
 plA = 1.524
 plB = 3.048
+! ---- 姿勢: 長さ優先は起伏角を、角度優先はブーム長さを作業半径から ----
+bL = max(bMin, min(bMax, boomL))
+hR = max(1.0, hkR)
+slD = slew
+owD = outW
+if prio = 1 then
+	bA = max(1, min(84, boomA))
+	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
+else
+	cA = min(1, max(0.1045, (hR + pivB) / bL))
+	bA = acs(cA)
+endif
+if travel then
+	! 走行姿勢: ブームを最短で前に倒し、アウトリガを畳む
+	bL = bMin
+	bA = 0
+	slD = 0
+	owD = carW - 0.1
+endif
+tipX = -pivB + bL * cos(bA)
+tipZ = pivH + bL * sin(bA)
+hkMx = tipZ - tipHk
+hkD = hkMx
+if hkZ > 0.3 and hkZ < hkMx and travel = 0 then hkD = hkZ
+! ---- 定格総荷重（表のブームはその長さ以上の列、半径はその半径以上の行）----
+jB = nRb
+for k = nRb to 1 step -1
+	if rb[k] >= bL - 0.001 then jB = k
+next k
+rated = 0
+iR = 0
+for k = nRr to 1 step -1
+	if rr[k] >= tipX - 0.001 then iR = k
+next k
+if iR > 0 then
+	if jB = 1 and iR <= nTc1 then rated = tc1[iR]
+	if jB = 2 and iR <= nTc2 then rated = tc2[iR]
+	if jB = 3 and iR <= nTc3 then rated = tc3[iR]
+	if jB = 4 and iR <= nTc4 then rated = tc4[iR]
+	if jB = 5 and iR <= nTc5 then rated = tc5[iR]
+	if jB = 6 and iR <= nTc6 then rated = tc6[iR]
+	if jB = 7 and iR <= nTc7 then rated = tc7[iR]
+	if jB = 8 and iR <= nTc8 then rated = tc8[iR]
+endif
+capT = rated * sfRate
+needT = loadT + hookT + rigT
+okL = 0
+if rated > 0 and needT <= capT then okL = 1
 """)
 
-SCRIPT_2D = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径・ブームとフック
-! 文字の数は str(数, 1, 0)（小数の桁を付けた str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
+SCRIPT_2D = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
+! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "crT"
@@ -102,29 +173,83 @@ rect2 -carRr, -carW / 2, carF, carW / 2
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	line2 xo, -outW / 2, xo, outW / 2
+	line2 xo, -owD / 2, xo, owD / 2
 	for s = -1 to 1 step 2
-		circle2 xo, s * outW / 2, fltD / 2
-		rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
-		if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		circle2 xo, s * owD / 2, fltD / 2
+		if plDraw then
+			rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
+			if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		endif
 	next s
 next e
-! 立入禁止（上部旋回体の後端旋回半径）と作業半径の円
+! 立入禁止（上部旋回体の後端旋回半径）
 circle2 0, 0, tailR
-for i = 1 to nWr
-	circle2 0, 0, wr[i]
-	text2 wr[i] * 0.7071, wr[i] * 0.7071, "R" + str(round_int(wr[i] * 1000), 1, 0)
+! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
+nC = nWr + 1
+for i = 1 to nC
+	rC = tipX
+	if i <= nWr then rC = wr[i]
+	if wrSpan >= 359.9 then
+		circle2 0, 0, rC
+	else
+		arc2 0, 0, rC, wrDir - wrSpan / 2, wrDir + wrSpan / 2
+	endif
+	aT = wrDir
+	if wrSpan >= 359.9 then aT = wrDir + 45
+	if i <= nWr then
+		add2 rC * cos(aT), rC * sin(aT)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
+		del 2
+	endif
 next i
+if wrSpan < 359.9 then
+	rM = tipX
+	for i = 1 to nWr
+		rM = max(rM, wr[i])
+	next i
+	line2 0, 0, rM * cos(wrDir - wrSpan / 2), rM * sin(wrDir - wrSpan / 2)
+	line2 0, 0, rM * cos(wrDir + wrSpan / 2), rM * sin(wrDir + wrSpan / 2)
+endif
 ! 上部旋回体とブーム（旋回角で回す）
-rot2 slew
+rot2 slD
 rect2 -tailR, -1.1, 1.2, 1.1
 line2 -pivB, -0.35, tipX, -0.2
 line2 -pivB, 0.35, tipX, 0.2
 circle2 tipX, 0, 0.3
-if ldOn then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+! 作業半径のホットスポット（ブームの向きに引く）
+hotspot2 0, 0, 1, hkR, 1 + 128
+hotspot2 tipX, 0, 2, hkR, 2
+hotspot2 -1, 0, 3, hkR, 3
 del 1
-text2 0, -outW / 2 - 1.2, crName
-text2 0, -outW / 2 - 1.2 - texSiz * GLOB_SCALE / 1000 * 1.6, "ブーム " + str(round_int(boomL * 1000), 1, 0) + "・作業半径 " + str(round_int(tipX * 1000), 1, 0)
+! 定格の注記（フックの所）と機種・姿勢の注記（車体の後ろ）
+xT = tipX * cos(slD)
+yT = tipX * sin(slD)
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if travel = 0 then
+	sOk = ""
+	if okL = 0 then sOk = " 超過"
+	add2 xT, yT
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
+	del 2
+endif
+add2 -carRr - 1.0, 0
+rot2 -SYMB_ROTANGLE
+text2 0, 0, crName
+text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
+del 2
+! 旋回角のホットスポット（ブームの真ん中）と扇の向き
+rH = max(2.0, tipX * 0.5)
+hotspot2 0, 0, 4, slew, 6
+hotspot2 rH, 0, 5, slew, 4
+hotspot2 rH * cos(slD), rH * sin(slD), 6, slew, 5
+rW = tipX * 1.1
+hotspot2 0, 0, 7, wrDir, 6
+hotspot2 rW, 0, 8, wrDir, 4
+hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
 hotspot2 0, 0
 """
 
@@ -145,25 +270,30 @@ for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
 	material "cr_steel"
-	add xo - 0.15, -outW / 2, 1.0
-	block 0.3, outW, 0.25
+	add xo - 0.15, -owD / 2, 1.0
+	block 0.3, owD, 0.25
 	del 1
 	for s = -1 to 1 step 2
-		yo = s * outW / 2
-		material "cr_plate"
-		add xo - plB / 2, yo - plA / 2, 0
-		block plB, plA, plT
-		del 1
-		if plN >= 2 then
-			add xo - plA / 2, yo - plB / 2, plT
-			block plA, plB, plT
+		yo = s * owD / 2
+		yp = s * outW / 2
+		if plDraw then
+			material "cr_plate"
+			add xo - plB / 2, yp - plA / 2, 0
+			block plB, plA, plT
 			del 1
+			if plN >= 2 then
+				add xo - plA / 2, yp - plB / 2, plT
+				block plA, plB, plT
+				del 1
+			endif
 		endif
 		material "cr_steel"
-		add xo, yo, plH
+		zf = plH
+		if travel then zf = 0.6
+		add xo, yo, zf
 		cylind 0.06, fltD / 2
 		addz 0.06
-		cylind 1.0 - plH - 0.06, 0.09
+		cylind 1.0 - zf - 0.06, 0.09
 		del 2
 	next s
 next e
@@ -190,7 +320,7 @@ for i = 1 to nAx
 	next s
 next i
 ! ---- 上部旋回体（旋回角 slew で回す）----
-rotz slew
+rotz slD
 material "cr_steel"
 add 0, 0, 1.5
 cylind 0.2, 1.0
@@ -217,17 +347,17 @@ material "cr_steel"
 x0q = 0.9
 y0q = 0
 z0q = 1.9
-x1q = -pivB + 0.35 * boomL * cos(boomA)
+x1q = -pivB + 0.35 * bL * cos(bA)
 y1q = 0
-z1q = pivH + 0.35 * boomL * sin(boomA)
+z1q = pivH + 0.35 * bL * sin(bA)
 rq = 0.11
 gosub "seg3"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
-roty -boomA
+roty -bA
 nS = 4
 if crType >= 2 then nS = 6
-sL = boomL / nS
+sL = bL / nS
 for k = 1 to nS
 	bw = 0.78 - (k - 1) * 0.06
 	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
@@ -240,27 +370,35 @@ for k = 1 to nS
 next k
 ! ブームの先（シーブ）
 material "cr_steel"
-add boomL, 0, 0
+add bL, 0, 0
 rotx 90
 addz -0.2
 cylind 0.4, 0.35
 del 3
+! ブーム長さのホットスポット（ブームに沿って引く）
+hotspot 0, 0, 0, 11, boomL, 1 + 128
+hotspot bL, 0, 0, 12, boomL, 2
+hotspot -1, 0, 0, 13, boomL, 3
 del 2
 ! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
 material "cr_steel"
-add tipX, 0, hkZ + 0.6
-cylind tipZ - hkZ - 0.6, 0.012
+add tipX, 0, hkD + 0.6
+cylind tipZ - hkD - 0.6, 0.012
 del 1
 material "cr_hook"
-add tipX - 0.25, -0.18, hkZ
+add tipX - 0.25, -0.18, hkD
 block 0.5, 0.36, 0.6
 del 1
 material "cr_steel"
-add tipX, 0, hkZ - 0.35
+add tipX, 0, hkD - 0.35
 cylind 0.35, 0.05
 del 1
-if ldOn then
-	zl = max(0.0, hkZ - 2.6)
+! フックの高さのホットスポット
+hotspot tipX, 0, 0, 14, hkZ, 1 + 128
+hotspot tipX, 0, hkD, 15, hkZ, 2
+hotspot tipX, 0, -1, 16, hkZ, 3
+if ldOn and travel = 0 then
+	zl = max(0.0, hkD - 2.6)
 	material "cr_load"
 	add tipX - 0.75, -0.75, zl
 	block 1.5, 1.5, 1.0
@@ -273,7 +411,7 @@ if ldOn then
 		z0q = zl + 1.0
 		x1q = tipX
 		y1q = 0
-		z1q = hkZ - 0.35
+		z1q = hkD - 0.35
 		rq = 0.008
 		gosub "seg3"
 	next c
@@ -312,10 +450,26 @@ end
 """
 
 
+SCRIPT_VL = """﻿! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
+if travel = 0 then
+	if prio = 0 then
+		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+	else
+		if abs(boomL - bL) > 0.001 then parameters boomL = bL
+	endif
+	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+endif
+values "boomL" range [bMin, bMax]
+values "prio" 0, 1
+values "boomA" range [1, 84]
+"""
+
+
 def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL, encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
@@ -327,6 +481,7 @@ def main() -> int:
         "\t<Script_3D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_2D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_1D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
+        "\t<Script_VL SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<ParamSection SectVersion=\"27\" SectionFlags=\"0\" SubIdent=\"0\"/>\n</LibpartData>\n", encoding="utf-8")
     (OUT / "ancestry.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Ancestry>\n"

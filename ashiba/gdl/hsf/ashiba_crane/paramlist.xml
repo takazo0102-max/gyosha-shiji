@@ -85,30 +85,118 @@
 			<Description><![CDATA["ブームの先からフックの上まで"]]></Description>
 			<Value>1.3</Value>
 		</Length>
+		<Length Name="hkR">
+			<Description><![CDATA["作業半径（旋回中心からフック。平面のホットスポットで引く）"]]></Description>
+			<Value>12.0</Value>
+		</Length>
+		<Angle Name="slew">
+			<Description><![CDATA["旋回角（車体の前から左回り。平面のホットスポット）"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Integer Name="prio">
+			<Description><![CDATA["姿勢の優先（0＝ブーム長さ優先＝起伏角が決まる・1＝起伏角優先＝ブーム長さが決まる）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="boomL">
-			<Description><![CDATA["ブーム長さ"]]></Description>
+			<Description><![CDATA["ブーム長さ（3D のホットスポット。長さ優先で使う）"]]></Description>
 			<Value>23.45</Value>
 		</Length>
 		<Angle Name="boomA">
-			<Description><![CDATA["ブームの起伏角"]]></Description>
+			<Description><![CDATA["ブームの起伏角（角度優先で使う。長さ優先では書き戻す）"]]></Description>
 			<Value>56.0</Value>
 		</Angle>
-		<Angle Name="slew">
-			<Description><![CDATA["旋回角（車体の前から左回り）"]]></Description>
-			<Value>30.0</Value>
-		</Angle>
-		<Length Name="hookZ">
-			<Description><![CDATA["フックの高さ（地盤から。注記）"]]></Description>
-			<Value>20.0</Value>
+		<Length Name="bMin">
+			<Description><![CDATA["ブームの最短"]]></Description>
+			<Value>9.35</Value>
 		</Length>
+		<Length Name="bMax">
+			<Description><![CDATA["ブームの最長"]]></Description>
+			<Value>30.5</Value>
+		</Length>
+		<Length Name="hkZ">
+			<Description><![CDATA["フックの高さ（地盤から。3D のホットスポット。0＝巻上げ限界）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<RealNum Name="loadT">
+			<Description><![CDATA["吊荷 t"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<RealNum Name="hookT">
+			<Description><![CDATA["フック t"]]></Description>
+			<Value>0.25</Value>
+		</RealNum>
+		<RealNum Name="rigT">
+			<Description><![CDATA["玉掛け用具 t"]]></Description>
+			<Value>0.05</Value>
+		</RealNum>
+		<RealNum Name="sfRate">
+			<Description><![CDATA["安全率（定格総荷重に掛ける。0.9＝90%）"]]></Description>
+			<Value>0.9</Value>
+		</RealNum>
+		<String Name="rtB">
+			<Description><![CDATA["定格総荷重表のブーム長さ（mm）"]]></Description>
+			<Value><![CDATA["9350,16400,23450,30500"]]></Value>
+		</String>
+		<String Name="rtR">
+			<Description><![CDATA["定格総荷重表の作業半径（mm）"]]></Description>
+			<Value><![CDATA["3000,6000,10000,14000,20000,26000"]]></Value>
+		</String>
+		<String Name="rtT1">
+			<Description><![CDATA["定格総荷重（kg。1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA["25000,16300,0,0,0,0"]]></Value>
+		</String>
+		<String Name="rtT2">
+			<Description><![CDATA["定格総荷重（kg。2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA["18000,16000,7800,4350,0,0"]]></Value>
+		</String>
+		<String Name="rtT3">
+			<Description><![CDATA["定格総荷重（kg。3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA["12500,12500,7600,4400,2100,0"]]></Value>
+		</String>
+		<String Name="rtT4">
+			<Description><![CDATA["定格総荷重（kg。4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA["0,8000,7150,4400,2150,1100"]]></Value>
+		</String>
+		<String Name="rtT5">
+			<Description><![CDATA["定格総荷重（kg。5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtT6">
+			<Description><![CDATA["定格総荷重（kg。6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtT7">
+			<Description><![CDATA["定格総荷重（kg。7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtT8">
+			<Description><![CDATA["定格総荷重（kg。8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Integer Name="plN">
-			<Description><![CDATA["敷鉄板の枚数（アウトリガ1脚に。2＝十字）"]]></Description>
+			<Description><![CDATA["敷鉄板の枚数（アウトリガ1脚に。2＝十字。フロートの高さに使う）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<Boolean Name="plDraw">
+			<Description><![CDATA["敷鉄板をこの部品で描く（外す＝別の部品 ashiba_plate を下に置く）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<String Name="wrR">
-			<Description><![CDATA["作業半径の円（mm。カンマ区切り）"]]></Description>
+			<Description><![CDATA["吊荷の作業半径の円（mm。カンマ区切り）"]]></Description>
 			<Value><![CDATA["12000,18000"]]></Value>
 		</String>
+		<Angle Name="wrDir">
+			<Description><![CDATA["作業半径の扇の向き（平面のホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Angle Name="wrSpan">
+			<Description><![CDATA["作業半径の扇の角度の幅（360＝円）"]]></Description>
+			<Value>360.0</Value>
+		</Angle>
+		<Boolean Name="travel">
+			<Description><![CDATA["走行姿勢（ブームを最短で前に倒し、アウトリガを畳む）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Boolean Name="ldOn">
 			<Description><![CDATA["吊り荷を描く"]]></Description>
 			<Value>1</Value>

@@ -1,5 +1,5 @@
-﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径・ブームとフック
-! 文字の数は str(数, 1, 0)（小数の桁を付けた str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
+﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
+! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "crT"
@@ -8,27 +8,81 @@ rect2 -carRr, -carW / 2, carF, carW / 2
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	line2 xo, -outW / 2, xo, outW / 2
+	line2 xo, -owD / 2, xo, owD / 2
 	for s = -1 to 1 step 2
-		circle2 xo, s * outW / 2, fltD / 2
-		rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
-		if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		circle2 xo, s * owD / 2, fltD / 2
+		if plDraw then
+			rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
+			if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		endif
 	next s
 next e
-! 立入禁止（上部旋回体の後端旋回半径）と作業半径の円
+! 立入禁止（上部旋回体の後端旋回半径）
 circle2 0, 0, tailR
-for i = 1 to nWr
-	circle2 0, 0, wr[i]
-	text2 wr[i] * 0.7071, wr[i] * 0.7071, "R" + str(round_int(wr[i] * 1000), 1, 0)
+! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
+nC = nWr + 1
+for i = 1 to nC
+	rC = tipX
+	if i <= nWr then rC = wr[i]
+	if wrSpan >= 359.9 then
+		circle2 0, 0, rC
+	else
+		arc2 0, 0, rC, wrDir - wrSpan / 2, wrDir + wrSpan / 2
+	endif
+	aT = wrDir
+	if wrSpan >= 359.9 then aT = wrDir + 45
+	if i <= nWr then
+		add2 rC * cos(aT), rC * sin(aT)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
+		del 2
+	endif
 next i
+if wrSpan < 359.9 then
+	rM = tipX
+	for i = 1 to nWr
+		rM = max(rM, wr[i])
+	next i
+	line2 0, 0, rM * cos(wrDir - wrSpan / 2), rM * sin(wrDir - wrSpan / 2)
+	line2 0, 0, rM * cos(wrDir + wrSpan / 2), rM * sin(wrDir + wrSpan / 2)
+endif
 ! 上部旋回体とブーム（旋回角で回す）
-rot2 slew
+rot2 slD
 rect2 -tailR, -1.1, 1.2, 1.1
 line2 -pivB, -0.35, tipX, -0.2
 line2 -pivB, 0.35, tipX, 0.2
 circle2 tipX, 0, 0.3
-if ldOn then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+! 作業半径のホットスポット（ブームの向きに引く）
+hotspot2 0, 0, 1, hkR, 1 + 128
+hotspot2 tipX, 0, 2, hkR, 2
+hotspot2 -1, 0, 3, hkR, 3
 del 1
-text2 0, -outW / 2 - 1.2, crName
-text2 0, -outW / 2 - 1.2 - texSiz * GLOB_SCALE / 1000 * 1.6, "ブーム " + str(round_int(boomL * 1000), 1, 0) + "・作業半径 " + str(round_int(tipX * 1000), 1, 0)
+! 定格の注記（フックの所）と機種・姿勢の注記（車体の後ろ）
+xT = tipX * cos(slD)
+yT = tipX * sin(slD)
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if travel = 0 then
+	sOk = ""
+	if okL = 0 then sOk = " 超過"
+	add2 xT, yT
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
+	del 2
+endif
+add2 -carRr - 1.0, 0
+rot2 -SYMB_ROTANGLE
+text2 0, 0, crName
+text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
+del 2
+! 旋回角のホットスポット（ブームの真ん中）と扇の向き
+rH = max(2.0, tipX * 0.5)
+hotspot2 0, 0, 4, slew, 6
+hotspot2 rH, 0, 5, slew, 4
+hotspot2 rH * cos(slD), rH * sin(slD), 6, slew, 5
+rW = tipX * 1.1
+hotspot2 0, 0, 7, wrDir, 6
+hotspot2 rW, 0, 8, wrDir, 4
+hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
 hotspot2 0, 0

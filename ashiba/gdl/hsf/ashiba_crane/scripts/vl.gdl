@@ -1,0 +1,12 @@
+﻿! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
+if travel = 0 then
+	if prio = 0 then
+		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+	else
+		if abs(boomL - bL) > 0.001 then parameters boomL = bL
+	endif
+	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+endif
+values "boomL" range [bMin, bMax]
+values "prio" 0, 1
+values "boomA" range [1, 84]

@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="lenX">
+			<Description><![CDATA["広さ X（ホットスポットで引く。1枚の倍数に切り上げる）"]]></Description>
+			<Value>3.048</Value>
+		</Length>
+		<Length Name="lenY">
+			<Description><![CDATA["広さ Y（同上）"]]></Description>
+			<Value>1.524</Value>
+		</Length>
+		<Integer Name="plType">
+			<Description><![CDATA["敷鉄板（1＝NT22×5×20・2＝NT22×5×10・3＝NT22×4×8・4＝NT22×3×6）"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Integer Name="plDir">
+			<Description><![CDATA["長い辺の向き（0＝X・1＝Y）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="plLay">
+			<Description><![CDATA["段数（2＝上の段を十字に）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Boolean Name="plText">
+			<Description><![CDATA["枚数と重さを注記する"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="plName">
+			<Description><![CDATA["名前（注記）"]]></Description>
+			<Value><![CDATA["敷鉄板"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

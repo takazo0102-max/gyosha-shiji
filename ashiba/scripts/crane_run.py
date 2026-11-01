@@ -8,7 +8,8 @@
   python3 scripts/crane_run.py --carrier-angle 0             # 車体の向き（度。省くと線の始めの辺の向き）
   python3 scripts/crane_run.py --remove                      # 置いたクレーンを消す
 
-線1本に部品 ashiba_crane を1台（src/ashiba/crane.py が機種・ブーム・アウトリガ・敷鉄板・検定）。機種を省くと全部の吊り荷を満たす
+線1本に部品 ashiba_crane を1台（src/ashiba/crane.py が機種・ブーム・アウトリガ・敷鉄板・検定）と、アウトリガの下に敷鉄板の部品
+ashiba_plate（脚ごとに1枚か十字に2枚。ホットスポットで広げられる。利用者の指定 2026-11-01: 敷鉄板は別オブジェクトにして）。機種を省くと全部の吊り荷を満たす
 一番小さい機種（25t・50t・70t）。ブームはいちばん厳しい吊り荷へ向けて描く。前に同じ線に置いたものは控え（ashiba_out/クレーン.json）
 で消して置き直す。数量と検定は ashiba_out/クレーン.md.
 """
@@ -25,6 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 PART = "ashiba_crane"
+PLATE_PART = "ashiba_plate"
 RECORD = "クレーン.json"
 
 
@@ -48,7 +50,9 @@ def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
-    from ashiba.crane import LOAD_RATIO, MODELS, SOIL_Q, crane_plan, part_params, report
+    from ashiba.crane import LOAD_RATIO, MODELS, PLATE, SOIL_Q, crane_plan, outrigger_plates, part_params, report
+    from ashiba.steel_plate import layout
+    from ashiba.steel_plate import part_params as plate_params
     from ashiba.pens import gdl_pens, parse_pens
     from ashiba.tapir_adapter import ArchicadClient, read_ground_model
     from excav_run import _delete_alive, _place
@@ -72,7 +76,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = {}
     if a.remove:
-        n = _delete_alive(c, list(rec.values()))
+        n = _delete_alive(c, [g for v in rec.values() for g in (v if isinstance(v, list) else [v])])
         rec_path.write_text("{}", encoding="utf-8")
         print(f"クレーン: {n}台を消しました")
         return 0
@@ -82,6 +86,7 @@ def main(argv=None) -> int:
         return 1
     R.ensure_parts(c)
     part = R.versioned_part_name(PART)
+    plate_part = R.versioned_part_name(PLATE_PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
     gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
@@ -89,7 +94,8 @@ def main(argv=None) -> int:
     plans = []
     for n, (key, pts) in enumerate(lines, 1):
         if key in rec:
-            _delete_alive(c, [rec.pop(key)])
+            old = rec.pop(key)
+            _delete_alive(c, old if isinstance(old, list) else [old])
         center, lifts = lifts_from_points(pts, a.load, a.lift_z)
         p = crane_plan(f"クレーン{n}", lifts, a.model, a.spread, a.soil_q, a.ratio)
         car = a.carrier_angle if a.carrier_angle is not None else math.degrees(
@@ -102,8 +108,21 @@ def main(argv=None) -> int:
         el = _place(c, part, center, z, car)
         if el is None:
             continue
-        c.set_gdl_parameters(el, {**part_params(p, slew), **pens})
-        rec[key] = el["elementId"]["guid"]
+        c.set_gdl_parameters(el, {**part_params(p, slew, ratio=a.ratio), **pens})
+        placed = [el["elementId"]["guid"]]
+        # アウトリガの下の敷鉄板（別の部品。車体の座標 → 図面の座標）
+        ca, sa = math.cos(math.radians(car)), math.sin(math.radians(car))
+        plens = gdl_pens(parse_pens(spec.get("pens")), PLATE_PART)
+        _n, s_mm, lg_mm, _t, _kg = PLATE
+        for (lx, ly), along_y, dz in outrigger_plates(p):
+            at = (center[0] + lx * ca - ly * sa, center[1] + lx * sa + ly * ca)
+            pe = _place(c, plate_part, at, z + dz, car)
+            if pe is None:
+                continue
+            lay = layout(s_mm if along_y else lg_mm, lg_mm if along_y else s_mm, "NT22×5×10", along_y)
+            c.set_gdl_parameters(pe, {**plate_params(lay, f"{p.name} 敷鉄板", text=False), **plens})
+            placed.append(pe["elementId"]["guid"])
+        rec[key] = placed
         plans.append(p)
         print(f"  {p.name}: {p.model.name}・張出 {p.spread:g}m・ブーム {p.boom:g}m・敷鉄板 {p.plates}枚／脚・接地圧 {p.pressure:.0f}kN/m²")
         for x in p.lifts:

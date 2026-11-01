@@ -1,0 +1,45 @@
+﻿! 敷鉄板 2D: 1枚ずつの外形・吊り穴・枚数と重さ・広げるホットスポット
+pen penEquip
+define style "plT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "plT"
+for i = 1 to nX
+	for j = 1 to nY
+		x0 = (i - 1) * pX
+		y0 = (j - 1) * pY
+		rect2 x0, y0, x0 + pX, y0 + pY
+		! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所）
+		for h = 1 to nHole
+			fh = h / (nHole + 1)
+			if plDir = 0 then
+				rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
+			else
+				rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+			endif
+		next h
+	next j
+next i
+if plLay >= 2 then
+	! 上の段（十字）の外形
+	for i = 1 to mX
+		for j = 1 to mY
+			rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
+		next j
+	next i
+endif
+if plText then
+	add2 lx / 2, -0.4
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, plName + " " + str(nTot, 1, 0) + "枚・" + str(round_int(nTot * plKg), 1, 0) + "kg"
+	del 2
+endif
+! 広げるホットスポット（X は右の辺の真ん中、Y は上の辺の真ん中）
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 lx, ly
+hotspot2 0, ly
+hotspot2 0, ly / 2, 101, lenX, 1 + 128
+hotspot2 lenX, ly / 2, 102, lenX, 2
+hotspot2 -1, ly / 2, 103, lenX, 3
+hotspot2 lx / 2, 0, 104, lenY, 1 + 128
+hotspot2 lx / 2, lenY, 105, lenY, 2
+hotspot2 lx / 2, -1, 106, lenY, 3

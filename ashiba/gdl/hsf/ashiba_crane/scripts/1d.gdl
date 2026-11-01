@@ -1,4 +1,4 @@
-﻿! 移動式クレーン: 作業半径の円・車軸・ブームの先とフック（m）
+﻿! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）
 dim wr[]
 nWr = 0
 rest = wrR
@@ -15,6 +15,186 @@ while strlen(rest) > 0 do
 	if k > 0 then
 		nWr = nWr + 1
 		wr[nWr] = v / 1000
+	endif
+endwhile
+dim rb[]
+nRb = 0
+rest = rtB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRb = nRb + 1
+		rb[nRb] = v / 1000
+	endif
+endwhile
+dim rr[]
+nRr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRr = nRr + 1
+		rr[nRr] = v / 1000
+	endif
+endwhile
+dim tc1[]
+nTc1 = 0
+rest = rtT1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc1 = nTc1 + 1
+		tc1[nTc1] = v / 1000
+	endif
+endwhile
+dim tc2[]
+nTc2 = 0
+rest = rtT2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc2 = nTc2 + 1
+		tc2[nTc2] = v / 1000
+	endif
+endwhile
+dim tc3[]
+nTc3 = 0
+rest = rtT3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc3 = nTc3 + 1
+		tc3[nTc3] = v / 1000
+	endif
+endwhile
+dim tc4[]
+nTc4 = 0
+rest = rtT4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc4 = nTc4 + 1
+		tc4[nTc4] = v / 1000
+	endif
+endwhile
+dim tc5[]
+nTc5 = 0
+rest = rtT5
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc5 = nTc5 + 1
+		tc5[nTc5] = v / 1000
+	endif
+endwhile
+dim tc6[]
+nTc6 = 0
+rest = rtT6
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc6 = nTc6 + 1
+		tc6[nTc6] = v / 1000
+	endif
+endwhile
+dim tc7[]
+nTc7 = 0
+rest = rtT7
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc7 = nTc7 + 1
+		tc7[nTc7] = v / 1000
+	endif
+endwhile
+dim tc8[]
+nTc8 = 0
+rest = rtT8
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc8 = nTc8 + 1
+		tc8[nTc8] = v / 1000
 	endif
 endwhile
 carRr = carL - carF
@@ -37,10 +217,54 @@ if crType = 3 then
 	ax[3] = -1.55
 	ax[4] = -3.1
 endif
-! ブームの先（上部旋回体の座標）とフック
-tipX = -pivB + boomL * cos(boomA)
-tipZ = pivH + boomL * sin(boomA)
-hkZ = max(0.6, tipZ - tipHk)
 plT = 0.022
 plA = 1.524
 plB = 3.048
+! ---- 姿勢: 長さ優先は起伏角を、角度優先はブーム長さを作業半径から ----
+bL = max(bMin, min(bMax, boomL))
+hR = max(1.0, hkR)
+slD = slew
+owD = outW
+if prio = 1 then
+	bA = max(1, min(84, boomA))
+	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
+else
+	cA = min(1, max(0.1045, (hR + pivB) / bL))
+	bA = acs(cA)
+endif
+if travel then
+	! 走行姿勢: ブームを最短で前に倒し、アウトリガを畳む
+	bL = bMin
+	bA = 0
+	slD = 0
+	owD = carW - 0.1
+endif
+tipX = -pivB + bL * cos(bA)
+tipZ = pivH + bL * sin(bA)
+hkMx = tipZ - tipHk
+hkD = hkMx
+if hkZ > 0.3 and hkZ < hkMx and travel = 0 then hkD = hkZ
+! ---- 定格総荷重（表のブームはその長さ以上の列、半径はその半径以上の行）----
+jB = nRb
+for k = nRb to 1 step -1
+	if rb[k] >= bL - 0.001 then jB = k
+next k
+rated = 0
+iR = 0
+for k = nRr to 1 step -1
+	if rr[k] >= tipX - 0.001 then iR = k
+next k
+if iR > 0 then
+	if jB = 1 and iR <= nTc1 then rated = tc1[iR]
+	if jB = 2 and iR <= nTc2 then rated = tc2[iR]
+	if jB = 3 and iR <= nTc3 then rated = tc3[iR]
+	if jB = 4 and iR <= nTc4 then rated = tc4[iR]
+	if jB = 5 and iR <= nTc5 then rated = tc5[iR]
+	if jB = 6 and iR <= nTc6 then rated = tc6[iR]
+	if jB = 7 and iR <= nTc7 then rated = tc7[iR]
+	if jB = 8 and iR <= nTc8 then rated = tc8[iR]
+endif
+capT = rated * sfRate
+needT = loadT + hookT + rigT
+okL = 0
+if rated > 0 and needT <= capT then okL = 1

@@ -1,0 +1,153 @@
+﻿! ==========================================================
+! 敷鉄板（日建リース 厚板鋼板 NT22。ホットスポットで広げる範囲に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_plate/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_plate.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-11-01）: 敷鉄板はホットスポットで広げれるようにして 別オブジェクトにして。
+! 原点＝範囲の隅、+X・+Y に広げる。広さ lenX・lenY は平面のホットスポットで引き、パラメータスクリプトが1枚の倍数に切り上げる。板の種類 plType（5×20・5×10・4×8・3×6）・長い辺の向き plDir・段数 plLay（2＝十字）。枚数と重さは steel_plate.py、置くのは scripts/plate_run.py とクレーンのアウトリガの下（crane_run.py）。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   lenX      長さ      広さ X（ホットスポットで引く。1枚の倍数に切り上げる）           既定 3.048
+!   lenY      長さ      広さ Y（同上）                                                  既定 1.524
+!   plType    整数      敷鉄板（1＝NT22×5×20・2＝NT22×5×10・3＝NT22×4×8・4＝NT22×3×6）  既定 2
+!   plDir     整数      長い辺の向き（0＝X・1＝Y）                                      既定 0
+!   plLay     整数      段数（2＝上の段を十字に）                                       既定 1
+!   plText    ブール    枚数と重さを注記する                                            既定 1
+!   plName    文字列    名前（注記）                                                    既定 "敷鉄板"
+!   texSiz    実数      文字の大きさ（mm）                                              既定 2.5
+!   penEquip  PenColor  線のペン                                                        既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 敷鉄板: 1枚の寸法（日建 厚板鋼板）と並べる枚数（m）
+plS = 1.524
+plLg = 3.048
+plKg = 802
+nHole = 1
+if plType = 1 then
+	plLg = 6.096
+	plKg = 1604
+	nHole = 2
+endif
+if plType = 3 then
+	plS = 1.219
+	plLg = 2.438
+	plKg = 513
+endif
+if plType = 4 then
+	plS = 0.914
+	plLg = 1.829
+	plKg = 289
+endif
+plTk = 0.022
+! 下の段の1枚の X・Y
+pX = plLg
+pY = plS
+if plDir = 1 then
+	pX = plS
+	pY = plLg
+endif
+nX = max(1, ceil(lenX / pX - 0.02))
+nY = max(1, ceil(lenY / pY - 0.02))
+lx = nX * pX
+ly = nY * pY
+nTot = nX * nY
+! 2段目（十字）: 同じ範囲を向きを変えた板で
+qX = pY
+qY = pX
+mX = max(1, ceil(lx / qX - 0.02))
+mY = max(1, ceil(ly / qY - 0.02))
+if plLay >= 2 then nTot = nTot + mX * mY
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 敷鉄板 2D: 1枚ずつの外形・吊り穴・枚数と重さ・広げるホットスポット
+pen penEquip
+define style "plT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "plT"
+for i = 1 to nX
+	for j = 1 to nY
+		x0 = (i - 1) * pX
+		y0 = (j - 1) * pY
+		rect2 x0, y0, x0 + pX, y0 + pY
+		! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所）
+		for h = 1 to nHole
+			fh = h / (nHole + 1)
+			if plDir = 0 then
+				rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
+			else
+				rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+			endif
+		next h
+	next j
+next i
+if plLay >= 2 then
+	! 上の段（十字）の外形
+	for i = 1 to mX
+		for j = 1 to mY
+			rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
+		next j
+	next i
+endif
+if plText then
+	add2 lx / 2, -0.4
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, plName + " " + str(nTot, 1, 0) + "枚・" + str(round_int(nTot * plKg), 1, 0) + "kg"
+	del 2
+endif
+! 広げるホットスポット（X は右の辺の真ん中、Y は上の辺の真ん中）
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 lx, ly
+hotspot2 0, ly
+hotspot2 0, ly / 2, 101, lenX, 1 + 128
+hotspot2 lenX, ly / 2, 102, lenX, 2
+hotspot2 -1, ly / 2, 103, lenX, 3
+hotspot2 lx / 2, 0, 104, lenY, 1 + 128
+hotspot2 lx / 2, lenY, 105, lenY, 2
+hotspot2 lx / 2, -1, 106, lenY, 3
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 敷鉄板 3D: 1枚ずつの板（厚さ 22）。2段目は十字に重ねる
+define material "pl_steel1" 2, 0.33, 0.34, 0.36
+define material "pl_steel2" 2, 0.42, 0.43, 0.45
+material "pl_steel1"
+for i = 1 to nX
+	for j = 1 to nY
+		add (i - 1) * pX + 0.002, (j - 1) * pY + 0.002, 0
+		block pX - 0.004, pY - 0.004, plTk
+		del 1
+	next j
+next i
+if plLay >= 2 then
+	material "pl_steel2"
+	for i = 1 to mX
+		for j = 1 to mY
+			add (i - 1) * qX + 0.002, (j - 1) * qY + 0.002, plTk
+			block qX - 0.004, qY - 0.004, plTk
+			del 1
+		next j
+	next i
+endif
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+! 敷鉄板: ホットスポットで引いた広さを1枚の倍数に切り上げる
+if abs(lenX - lx) > 0.0005 then parameters lenX = lx
+if abs(lenY - ly) > 0.0005 then parameters lenY = ly
+values "plType" 1, 2, 3, 4
+values "plDir" 0, 1
+values "plLay" 1, 2
+

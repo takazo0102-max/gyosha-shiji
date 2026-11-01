@@ -7,8 +7,8 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.crane import (MODELS, PLATE_AREA, Lift, boom_angle, crane_plan, hook_height, part_params, plan_lift, rated,
-                          report)
+from ashiba.crane import (MODELS, PLATE_AREA, Lift, boom_angle, boom_axis, crane_plan, hook_height, judge, part_params,
+                          plan_lift, rated, rated_strings, report, seg_box_distance)
 
 M25, M50, M70 = MODELS["25t"], MODELS["50t"], MODELS["70t"]
 
@@ -37,6 +37,8 @@ class TestGeometry(unittest.TestCase):
         self.assertAlmostEqual(hook_height(M25, 30.5, 3500.0), 31300.0, delta=400.0)
         self.assertEqual(hook_height(M25, 9.35, 9000.0), -1.0)
         self.assertAlmostEqual(boom_angle(M25, 23.45, 12000.0), 56.3, places=1)
+        self.assertEqual(max(M25.spreads) * 1000.0 + M25.float_d, 6900.0)      # フロート外端（寸法図）
+        self.assertEqual(max(M70.spreads) * 1000.0 + M70.float_d, 8200.0)
 
 
 class TestPlan(unittest.TestCase):
@@ -77,6 +79,42 @@ class TestPlan(unittest.TestCase):
         md = report([p])
         for w in ("# 移動式クレーン", "クレーン則", "タダノ", "定格総荷重"):
             self.assertIn(w, md)
+
+
+class TestPartTable(unittest.TestCase):
+    def test_rated_strings_fit_255(self):
+        """部品へ渡す定格総荷重表: 文字のパラメータは 255 字で切れるのでブームの列ごとに分け、どれも 255 字以内."""
+        for m in MODELS.values():
+            for sp in m.spreads:
+                s = rated_strings(m, sp)
+                self.assertTrue(all(len(v) <= 255 for v in s.values()), (m.key, sp, {k: len(v) for k, v in s.items()}))
+        s = rated_strings(M25, 6.6)
+        radii = [float(v) / 1000 for v in s["rtR"].split(",")]
+        col = [int(v) for v in s["rtT3"].split(",")]                       # 3番目のブーム 23.45m
+        self.assertEqual(col[radii.index(10.0)], 7600)
+
+
+class TestSmartconChecks(unittest.TestCase):
+    """smartCON Planner を手本にした揚重判定・ブームの干渉（利用者の指定 2026-11-01）."""
+
+    def test_judge_four_results(self):
+        """2026-11-01 実機の試験の壁4枚と同じ値: 揚重可能・遠すぎ・高すぎ・重すぎ."""
+        self.assertEqual(judge(M25, 6.6, 12000.0, 8000.0, 1.15)[0], "揚重可能")
+        self.assertEqual(judge(M25, 6.6, 32000.0, 8000.0, 1.15)[0], "遠すぎ")          # どのブームも 32m に届かない
+        self.assertEqual(judge(M25, 6.6, 8300.0, 42000.0, 7.68)[0], "高すぎ")          # 最大地上揚程 31.3m を超える
+        self.assertEqual(judge(M25, 6.6, 10600.0, 8000.0, 21.6)[0], "重すぎ")
+
+    def test_segment_to_box_distance(self):
+        self.assertEqual(seg_box_distance((0, 0, 0), (10, 0, 0), (4, -1, -1), (6, 1, 1)), 0.0)    # 箱の中を通る
+        self.assertAlmostEqual(seg_box_distance((0, 0, 0), (10, 0, 0), (4, 3, -1), (6, 5, 1)), 3.0)
+        self.assertAlmostEqual(seg_box_distance((0, 0, 0), (10, 0, 0), (12, 0, 0), (13, 1, 1)), 2.0)  # 先の向こう
+
+    def test_boom_axis_and_travel(self):
+        """車体 90°・旋回 −90° で +X へ。走行姿勢は最短ブームを車体の前へ水平に."""
+        p0, p1 = boom_axis({"slew": -90.0, "boomL": 16.4, "boomA": 31.388}, (0.0, 0.0, 0.0), 90.0)
+        self.assertEqual([round(v) for v in p0 + p1], [-1000, 0, 2300, 13000, 0, 10842])
+        q0, q1 = boom_axis({"slew": -90.0, "boomL": 16.4, "boomA": 31.388, "bMin": 9.35, "travel": True}, (0.0, 0.0, 0.0), 90.0)
+        self.assertEqual([round(v) for v in q0 + q1], [0, -1000, 2300, 0, 8350, 2300])
 
 
 class TestRunScript(unittest.TestCase):

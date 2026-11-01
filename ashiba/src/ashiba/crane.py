@@ -51,7 +51,7 @@ class CraneModel:
     out_front: float               # 旋回中心から前のアウトリガ mm
     out_rear: float                # 旋回中心から後ろのアウトリガ mm
     tail_r: float                  # 後端旋回半径 mm
-    float_d: float                 # フロートの径 mm
+    float_d: float                 # フロートの径 mm（フロート外端 − 張出幅。25t は 6,900−6,600、70t は 8,200−7,800）
     piv_h: float                   # ブームの根元の高さ mm（目安）
     piv_b: float                   # ブームの根元の旋回中心から後ろ mm（目安）
     tip_hook: float                # ブームの先からフックの上まで mm（目安）
@@ -70,7 +70,7 @@ class CraneModel:
 
 MODELS = {
     "25t": CraneModel("25t", 1, "タダノ GR-250N（Ⅴ）25t ラフテレーンクレーン", 25.0, 25.495, 26.9, 11530.0, 2620.0, 3475.0,
-                      5400.0, 3265.0, 3415.0, 3100.0, 400.0, 2300.0, 1000.0, 1300.0, 0.25, GR250N),
+                      5400.0, 3265.0, 3415.0, 3100.0, 300.0, 2300.0, 1000.0, 1300.0, 0.25, GR250N),
     "50t": CraneModel("50t", 2, "タダノ GR-500N（Ⅰ）50t ラフテレーンクレーン", 51.0, 38.895, 38.3, 11870.0, 2960.0, 3760.0,
                       5600.0, 3600.0, 3600.0, 3550.0, 450.0, 2600.0, 1300.0, 1500.0, 0.45, {7.4: GR500N_74},
                       "アウトリガの前後の間隔は目安（寸法図に無い）。性能表は最大張出 7.4m だけ"),
@@ -198,6 +198,56 @@ def plan_lift(m: CraneModel, spread: float, lift: Lift, ratio: float = LOAD_RATI
     return lift
 
 
+JUDGE = ("揚重可能", "重すぎ", "遠すぎ", "高すぎ")
+CLASH_WARN_MM, CLASH_CONTACT_MM = 4000.0, 1000.0   # ブームの中心軸からの警告・接触の距離（smartCON Planner の既定と同じ）
+
+
+def judge(m: CraneModel, spread: float, radius_mm: float, need_z: float, load_t: float, ratio: float = LOAD_RATIO,
+          name: str = "") -> tuple[str, Lift]:
+    """揚重判定（利用者の指定 2026-11-01: smartCON Planner の揚重判定）: 揚重可能・重すぎ・遠すぎ・高すぎ.
+    遠すぎ＝どのブームでもその半径に届かない、高すぎ＝届くブームでもフックが要る高さに届かない、重すぎ＝届くが
+    吊荷＋フック＋玉掛けが定格総荷重 × 安全率を超える."""
+    x = plan_lift(m, spread, Lift(name, radius_mm, load_t, need_z), ratio)
+    if x.status == "OK":
+        return JUDGE[0], x
+    reach = [b for b in m.booms if rated(m, spread, b, radius_mm / 1000.0) is not None and hook_height(m, b, radius_mm) >= 0]
+    if not reach:
+        return JUDGE[2], x
+    if all(hook_height(m, b, radius_mm) < need_z for b in reach):
+        return JUDGE[3], x
+    return JUDGE[1], x
+
+
+def seg_box_distance(a: tuple, b: tuple, lo: tuple, hi: tuple) -> float:
+    """線分 a–b と軸に沿った箱（lo〜hi）の最短距離 mm（箱の中を通れば 0）。距離は t について凸なので三分探索."""
+    def d(t):
+        q = [a[i] + (b[i] - a[i]) * t for i in range(3)]
+        return math.sqrt(sum(max(lo[i] - q[i], 0.0, q[i] - hi[i]) ** 2 for i in range(3)))
+    t0, t1 = 0.0, 1.0
+    for _ in range(60):
+        m1, m2 = t0 + (t1 - t0) / 3.0, t1 - (t1 - t0) / 3.0
+        if d(m1) <= d(m2):
+            t1 = m2
+        else:
+            t0 = m1
+    return min(d(0.0), d(1.0), d((t0 + t1) / 2.0))
+
+
+def boom_axis(params: dict, origin: tuple, carrier_deg: float) -> tuple[tuple, tuple]:
+    """置いた部品のパラメータ（m・度）→ ブームの中心軸（根元・先）の図面の座標 mm."""
+    slew = params.get("slew", 0.0)
+    bl, ba = params.get("boomL", 10.0), params.get("boomA", 45.0)
+    if params.get("travel"):
+        bl, ba, slew = params.get("bMin", bl), 0.0, 0.0
+    a = math.radians(carrier_deg + slew)
+    pb, ph = params.get("pivB", 1.0), params.get("pivH", 2.3)
+    r0, r1 = -pb, -pb + bl * math.cos(math.radians(ba))
+    z1 = ph + bl * math.sin(math.radians(ba))
+    p0 = (origin[0] + r0 * 1000.0 * math.cos(a), origin[1] + r0 * 1000.0 * math.sin(a), origin[2] + ph * 1000.0)
+    p1 = (origin[0] + r1 * 1000.0 * math.cos(a), origin[1] + r1 * 1000.0 * math.sin(a), origin[2] + z1 * 1000.0)
+    return p0, p1
+
+
 def crane_plan(name: str, lifts: list[Lift], model: Optional[str] = None, spread: Optional[float] = None,
                soil_q: float = SOIL_Q, ratio: float = LOAD_RATIO) -> CranePlan:
     """吊り荷の並び → 機種・ブーム・アウトリガ・敷鉄板・検定。model を省くと全部を満たす一番小さい機種."""
@@ -266,20 +316,49 @@ def _checks(p: CranePlan, ratio: float, spread: Optional[float]) -> None:
                                     "合図者を決める（71条）"))
 
 
-def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0) -> dict:
-    """部品 ashiba_crane のパラメータ（m・度）。slew_deg は車体の向きからのブームの向き."""
+def rated_strings(m: CraneModel, spread: float) -> dict:
+    """部品が姿勢から定格総荷重を読む表: ブーム長さ mm・作業半径 mm と、ブームの列ごとの定格 kg（rtT1〜8。半径の行の順、無い所は 0）.
+    Archicad の文字のパラメータは 255 字で切れる（2026-11-01、表を1つの文字にして 25t でも途中で切れ、定格が 0 と出た）ので列ごとに."""
+    _s, t = table_for(m, spread)
+    booms = m.booms
+    radii = sorted(t)
+    out = {"rtB": ",".join(f"{b * 1000:.0f}" for b in booms), "rtR": ",".join(f"{r * 1000:.0f}" for r in radii)}
+    for k in range(1, 9):
+        out[f"rtT{k}"] = ",".join(str(int(round(t[r].get(booms[k - 1], 0.0) * 1000))) for r in radii) if k <= len(booms) else ""
+    return out
+
+
+def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO) -> dict:
+    """部品 ashiba_crane のパラメータ（m・度）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
+    ブーム長さ）で置き、平面・3D のホットスポットで動かすと部品が性能表から定格総荷重を読み直す."""
     m = p.model
     g = p.governing
     radius = g.radius if g else 6000.0
     boom = g.boom if g and g.boom else p.boom
-    hz = max(0.5 * 1000, hook_height(m, boom, radius)) if g else 3000.0
     return {"crType": m.kind, "crName": m.name.split(" ")[1],
             "carL": m.length / 1000.0, "carW": m.width / 1000.0, "carH": m.height / 1000.0, "carF": m.front / 1000.0,
             "outF": m.out_front / 1000.0, "outR": m.out_rear / 1000.0, "outW": p.spread, "fltD": m.float_d / 1000.0,
             "tailR": m.tail_r / 1000.0, "pivH": m.piv_h / 1000.0, "pivB": m.piv_b / 1000.0, "tipHk": m.tip_hook / 1000.0,
-            "boomL": boom, "boomA": boom_angle(m, boom, radius), "slew": slew_deg, "hookZ": hz / 1000.0,
-            "plN": p.plates, "wrR": ",".join(f"{x.radius:.0f}" for x in p.lifts),
-            "ldOn": bool(g and g.load_t > 0)}
+            "hkR": radius / 1000.0, "slew": slew_deg, "prio": 0, "boomL": boom, "boomA": boom_angle(m, boom, radius),
+            "bMin": min(m.booms), "bMax": max(m.booms), "hkZ": 0.0,
+            "loadT": g.load_t if g else 0.0, "hookT": m.hook_t, "rigT": RIGGING_T, "sfRate": ratio,
+            **rated_strings(m, p.spread),
+            "plN": p.plates, "plDraw": False, "wrR": ",".join(f"{x.radius:.0f}" for x in p.lifts),
+            "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": bool(g and g.load_t > 0)}
+
+
+def outrigger_plates(p: CranePlan) -> list[tuple[tuple[float, float], bool, float]]:
+    """アウトリガの下の敷鉄板（部品 ashiba_plate）: [(車体の座標での板の隅 mm, 長い辺が Y か, 高さ mm)]。1枚は長い辺を車体に
+    沿わせ、2枚は上にもう1枚を十字に（利用者の指定 2026-11-01: 敷鉄板は別オブジェクトにして）."""
+    m = p.model
+    _name, s, lg, t, _kg = PLATE
+    out = []
+    for x in (m.out_front, -m.out_rear):
+        for y in (p.spread * 500.0, -p.spread * 500.0):
+            out.append(((x - lg / 2.0, y - s / 2.0), False, 0.0))
+            if p.plates >= 2:
+                out.append(((x - s / 2.0, y - lg / 2.0), True, t))
+    return out
 
 
 def report(plans: list[CranePlan]) -> str:

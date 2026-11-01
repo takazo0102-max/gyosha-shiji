@@ -1,0 +1,21 @@
+﻿! 敷鉄板 3D: 1枚ずつの板（厚さ 22）。2段目は十字に重ねる
+define material "pl_steel1" 2, 0.33, 0.34, 0.36
+define material "pl_steel2" 2, 0.42, 0.43, 0.45
+material "pl_steel1"
+for i = 1 to nX
+	for j = 1 to nY
+		add (i - 1) * pX + 0.002, (j - 1) * pY + 0.002, 0
+		block pX - 0.004, pY - 0.004, plTk
+		del 1
+	next j
+next i
+if plLay >= 2 then
+	material "pl_steel2"
+	for i = 1 to mX
+		for j = 1 to mY
+			add (i - 1) * qX + 0.002, (j - 1) * qY + 0.002, plTk
+			block qX - 0.004, qY - 0.004, plTk
+			del 1
+		next j
+	next i
+endif

@@ -1,0 +1,39 @@
+﻿! 敷鉄板: 1枚の寸法（日建 厚板鋼板）と並べる枚数（m）
+plS = 1.524
+plLg = 3.048
+plKg = 802
+nHole = 1
+if plType = 1 then
+	plLg = 6.096
+	plKg = 1604
+	nHole = 2
+endif
+if plType = 3 then
+	plS = 1.219
+	plLg = 2.438
+	plKg = 513
+endif
+if plType = 4 then
+	plS = 0.914
+	plLg = 1.829
+	plKg = 289
+endif
+plTk = 0.022
+! 下の段の1枚の X・Y
+pX = plLg
+pY = plS
+if plDir = 1 then
+	pX = plS
+	pY = plLg
+endif
+nX = max(1, ceil(lenX / pX - 0.02))
+nY = max(1, ceil(lenY / pY - 0.02))
+lx = nX * pX
+ly = nY * pY
+nTot = nX * nY
+! 2段目（十字）: 同じ範囲を向きを変えた板で
+qX = pY
+qY = pX
+mX = max(1, ceil(lx / qX - 0.02))
+mY = max(1, ceil(ly / qY - 0.02))
+if plLay >= 2 then nTot = nTot + mX * mY

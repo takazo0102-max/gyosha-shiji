@@ -13,35 +13,57 @@
 ! 原点＝旋回中心の地盤、+X＝車体の前。車体・アウトリガ（outF・outR・張出幅 outW）・敷鉄板（plN 枚）・上部旋回体（旋回 slew・後端旋回半径 tailR）・ブーム（boomL・起伏角 boomA）・フック・吊り荷、平面に立入禁止の円と作業半径の円（wrR）。性能表と寸法はタダノの仕様書（crane_data.py）、検定は crane.py、置くのは scripts/crane_run.py。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   crType    整数      機種（1＝25t GR-250N・2＝50t GR-500N・3＝70t GR-700N）  既定 1
-!   crName    文字列    機種の名前（平面の注記）                                既定 "GR-250N（Ⅴ）25t"
-!   carL      長さ      全長                                                    既定 11.53
-!   carW      長さ      全幅                                                    既定 2.62
-!   carH      長さ      全高                                                    既定 3.475
-!   carF      長さ      旋回中心から前端                                        既定 5.4
-!   outF      長さ      旋回中心から前のアウトリガ                              既定 3.265
-!   outR      長さ      旋回中心から後ろのアウトリガ                            既定 3.415
-!   outW      長さ      アウトリガの張出幅（ジャッキの芯々）                    既定 6.6
-!   fltD      長さ      フロートの径                                            既定 0.4
-!   tailR     長さ      後端旋回半径                                            既定 3.1
-!   pivH      長さ      ブームの根元の高さ                                      既定 2.3
-!   pivB      長さ      ブームの根元の旋回中心から後ろ                          既定 1.0
-!   tipHk     長さ      ブームの先からフックの上まで                            既定 1.3
-!   boomL     長さ      ブーム長さ                                              既定 23.45
-!   boomA     角度      ブームの起伏角                                          既定 56.0
-!   slew      角度      旋回角（車体の前から左回り）                            既定 30.0
-!   hookZ     長さ      フックの高さ（地盤から。注記）                          既定 20.0
-!   plN       整数      敷鉄板の枚数（アウトリガ1脚に。2＝十字）                既定 1
-!   wrR       文字列    作業半径の円（mm。カンマ区切り）                        既定 "12000,18000"
-!   ldOn      ブール    吊り荷を描く                                            既定 1
-!   texSiz    実数      文字の大きさ（mm）                                      既定 2.5
-!   penEquip  PenColor  線のペン                                                既定 1
+!   crType    整数      機種（1＝25t GR-250N・2＝50t GR-500N・3＝70t GR-700N）                                                                        既定 1
+!   crName    文字列    機種の名前（平面の注記）                                                                                                      既定 "GR-250N（Ⅴ）25t"
+!   carL      長さ      全長                                                                                                                          既定 11.53
+!   carW      長さ      全幅                                                                                                                          既定 2.62
+!   carH      長さ      全高                                                                                                                          既定 3.475
+!   carF      長さ      旋回中心から前端                                                                                                              既定 5.4
+!   outF      長さ      旋回中心から前のアウトリガ                                                                                                    既定 3.265
+!   outR      長さ      旋回中心から後ろのアウトリガ                                                                                                  既定 3.415
+!   outW      長さ      アウトリガの張出幅（ジャッキの芯々）                                                                                          既定 6.6
+!   fltD      長さ      フロートの径                                                                                                                  既定 0.4
+!   tailR     長さ      後端旋回半径                                                                                                                  既定 3.1
+!   pivH      長さ      ブームの根元の高さ                                                                                                            既定 2.3
+!   pivB      長さ      ブームの根元の旋回中心から後ろ                                                                                                既定 1.0
+!   tipHk     長さ      ブームの先からフックの上まで                                                                                                  既定 1.3
+!   hkR       長さ      作業半径（旋回中心からフック。平面のホットスポットで引く）                                                                    既定 12.0
+!   slew      角度      旋回角（車体の前から左回り。平面のホットスポット）                                                                            既定 30.0
+!   prio      整数      姿勢の優先（0＝ブーム長さ優先＝起伏角が決まる・1＝起伏角優先＝ブーム長さが決まる）                                            既定 0
+!   boomL     長さ      ブーム長さ（3D のホットスポット。長さ優先で使う）                                                                             既定 23.45
+!   boomA     角度      ブームの起伏角（角度優先で使う。長さ優先では書き戻す）                                                                        既定 56.0
+!   bMin      長さ      ブームの最短                                                                                                                  既定 9.35
+!   bMax      長さ      ブームの最長                                                                                                                  既定 30.5
+!   hkZ       長さ      フックの高さ（地盤から。3D のホットスポット。0＝巻上げ限界）                                                                  既定 0.0
+!   loadT     実数      吊荷 t                                                                                                                        既定 2.5
+!   hookT     実数      フック t                                                                                                                      既定 0.25
+!   rigT      実数      玉掛け用具 t                                                                                                                  既定 0.05
+!   sfRate    実数      安全率（定格総荷重に掛ける。0.9＝90%）                                                                                        既定 0.9
+!   rtB       文字列    定格総荷重表のブーム長さ（mm）                                                                                                既定 "9350,16400,23450,30500"
+!   rtR       文字列    定格総荷重表の作業半径（mm）                                                                                                  既定 "3000,6000,10000,14000,20000,26000"
+!   rtT1      文字列    定格総荷重（kg。1番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 "25000,16300,0,0,0,0"
+!   rtT2      文字列    定格総荷重（kg。2番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 "18000,16000,7800,4350,0,0"
+!   rtT3      文字列    定格総荷重（kg。3番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 "12500,12500,7600,4400,2100,0"
+!   rtT4      文字列    定格総荷重（kg。4番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 "0,8000,7150,4400,2150,1100"
+!   rtT5      文字列    定格総荷重（kg。5番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 ""
+!   rtT6      文字列    定格総荷重（kg。6番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 ""
+!   rtT7      文字列    定格総荷重（kg。7番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 ""
+!   rtT8      文字列    定格総荷重（kg。8番目のブーム長さの列を作業半径の行の順に、無い所は 0。文字のパラメータは 255 字で切れるので列ごとに分ける）  既定 ""
+!   plN       整数      敷鉄板の枚数（アウトリガ1脚に。2＝十字。フロートの高さに使う）                                                                既定 1
+!   plDraw    ブール    敷鉄板をこの部品で描く（外す＝別の部品 ashiba_plate を下に置く）                                                              既定 1
+!   wrR       文字列    吊荷の作業半径の円（mm。カンマ区切り）                                                                                        既定 "12000,18000"
+!   wrDir     角度      作業半径の扇の向き（平面のホットスポット）                                                                                    既定 0.0
+!   wrSpan    角度      作業半径の扇の角度の幅（360＝円）                                                                                             既定 360.0
+!   travel    ブール    走行姿勢（ブームを最短で前に倒し、アウトリガを畳む）                                                                          既定 0
+!   ldOn      ブール    吊り荷を描く                                                                                                                  既定 1
+!   texSiz    実数      文字の大きさ（mm）                                                                                                            既定 2.5
+!   penEquip  PenColor  線のペン                                                                                                                      既定 1
 ! ==========================================================
 
 ! ==========================================================
 ! ==== マスタースクリプト ====
 ! ==========================================================
-! 移動式クレーン: 作業半径の円・車軸・ブームの先とフック（m）
+! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）
 dim wr[]
 nWr = 0
 rest = wrR
@@ -58,6 +80,186 @@ while strlen(rest) > 0 do
 	if k > 0 then
 		nWr = nWr + 1
 		wr[nWr] = v / 1000
+	endif
+endwhile
+dim rb[]
+nRb = 0
+rest = rtB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRb = nRb + 1
+		rb[nRb] = v / 1000
+	endif
+endwhile
+dim rr[]
+nRr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRr = nRr + 1
+		rr[nRr] = v / 1000
+	endif
+endwhile
+dim tc1[]
+nTc1 = 0
+rest = rtT1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc1 = nTc1 + 1
+		tc1[nTc1] = v / 1000
+	endif
+endwhile
+dim tc2[]
+nTc2 = 0
+rest = rtT2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc2 = nTc2 + 1
+		tc2[nTc2] = v / 1000
+	endif
+endwhile
+dim tc3[]
+nTc3 = 0
+rest = rtT3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc3 = nTc3 + 1
+		tc3[nTc3] = v / 1000
+	endif
+endwhile
+dim tc4[]
+nTc4 = 0
+rest = rtT4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc4 = nTc4 + 1
+		tc4[nTc4] = v / 1000
+	endif
+endwhile
+dim tc5[]
+nTc5 = 0
+rest = rtT5
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc5 = nTc5 + 1
+		tc5[nTc5] = v / 1000
+	endif
+endwhile
+dim tc6[]
+nTc6 = 0
+rest = rtT6
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc6 = nTc6 + 1
+		tc6[nTc6] = v / 1000
+	endif
+endwhile
+dim tc7[]
+nTc7 = 0
+rest = rtT7
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc7 = nTc7 + 1
+		tc7[nTc7] = v / 1000
+	endif
+endwhile
+dim tc8[]
+nTc8 = 0
+rest = rtT8
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTc8 = nTc8 + 1
+		tc8[nTc8] = v / 1000
 	endif
 endwhile
 carRr = carL - carF
@@ -80,19 +282,63 @@ if crType = 3 then
 	ax[3] = -1.55
 	ax[4] = -3.1
 endif
-! ブームの先（上部旋回体の座標）とフック
-tipX = -pivB + boomL * cos(boomA)
-tipZ = pivH + boomL * sin(boomA)
-hkZ = max(0.6, tipZ - tipHk)
 plT = 0.022
 plA = 1.524
 plB = 3.048
+! ---- 姿勢: 長さ優先は起伏角を、角度優先はブーム長さを作業半径から ----
+bL = max(bMin, min(bMax, boomL))
+hR = max(1.0, hkR)
+slD = slew
+owD = outW
+if prio = 1 then
+	bA = max(1, min(84, boomA))
+	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
+else
+	cA = min(1, max(0.1045, (hR + pivB) / bL))
+	bA = acs(cA)
+endif
+if travel then
+	! 走行姿勢: ブームを最短で前に倒し、アウトリガを畳む
+	bL = bMin
+	bA = 0
+	slD = 0
+	owD = carW - 0.1
+endif
+tipX = -pivB + bL * cos(bA)
+tipZ = pivH + bL * sin(bA)
+hkMx = tipZ - tipHk
+hkD = hkMx
+if hkZ > 0.3 and hkZ < hkMx and travel = 0 then hkD = hkZ
+! ---- 定格総荷重（表のブームはその長さ以上の列、半径はその半径以上の行）----
+jB = nRb
+for k = nRb to 1 step -1
+	if rb[k] >= bL - 0.001 then jB = k
+next k
+rated = 0
+iR = 0
+for k = nRr to 1 step -1
+	if rr[k] >= tipX - 0.001 then iR = k
+next k
+if iR > 0 then
+	if jB = 1 and iR <= nTc1 then rated = tc1[iR]
+	if jB = 2 and iR <= nTc2 then rated = tc2[iR]
+	if jB = 3 and iR <= nTc3 then rated = tc3[iR]
+	if jB = 4 and iR <= nTc4 then rated = tc4[iR]
+	if jB = 5 and iR <= nTc5 then rated = tc5[iR]
+	if jB = 6 and iR <= nTc6 then rated = tc6[iR]
+	if jB = 7 and iR <= nTc7 then rated = tc7[iR]
+	if jB = 8 and iR <= nTc8 then rated = tc8[iR]
+endif
+capT = rated * sfRate
+needT = loadT + hookT + rigT
+okL = 0
+if rated > 0 and needT <= capT then okL = 1
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
-! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径・ブームとフック
-! 文字の数は str(数, 1, 0)（小数の桁を付けた str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
+! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
+! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "crT"
@@ -101,29 +347,83 @@ rect2 -carRr, -carW / 2, carF, carW / 2
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
-	line2 xo, -outW / 2, xo, outW / 2
+	line2 xo, -owD / 2, xo, owD / 2
 	for s = -1 to 1 step 2
-		circle2 xo, s * outW / 2, fltD / 2
-		rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
-		if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		circle2 xo, s * owD / 2, fltD / 2
+		if plDraw then
+			rect2 xo - plB / 2, s * outW / 2 - plA / 2, xo + plB / 2, s * outW / 2 + plA / 2
+			if plN >= 2 then rect2 xo - plA / 2, s * outW / 2 - plB / 2, xo + plA / 2, s * outW / 2 + plB / 2
+		endif
 	next s
 next e
-! 立入禁止（上部旋回体の後端旋回半径）と作業半径の円
+! 立入禁止（上部旋回体の後端旋回半径）
 circle2 0, 0, tailR
-for i = 1 to nWr
-	circle2 0, 0, wr[i]
-	text2 wr[i] * 0.7071, wr[i] * 0.7071, "R" + str(round_int(wr[i] * 1000), 1, 0)
+! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
+nC = nWr + 1
+for i = 1 to nC
+	rC = tipX
+	if i <= nWr then rC = wr[i]
+	if wrSpan >= 359.9 then
+		circle2 0, 0, rC
+	else
+		arc2 0, 0, rC, wrDir - wrSpan / 2, wrDir + wrSpan / 2
+	endif
+	aT = wrDir
+	if wrSpan >= 359.9 then aT = wrDir + 45
+	if i <= nWr then
+		add2 rC * cos(aT), rC * sin(aT)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
+		del 2
+	endif
 next i
+if wrSpan < 359.9 then
+	rM = tipX
+	for i = 1 to nWr
+		rM = max(rM, wr[i])
+	next i
+	line2 0, 0, rM * cos(wrDir - wrSpan / 2), rM * sin(wrDir - wrSpan / 2)
+	line2 0, 0, rM * cos(wrDir + wrSpan / 2), rM * sin(wrDir + wrSpan / 2)
+endif
 ! 上部旋回体とブーム（旋回角で回す）
-rot2 slew
+rot2 slD
 rect2 -tailR, -1.1, 1.2, 1.1
 line2 -pivB, -0.35, tipX, -0.2
 line2 -pivB, 0.35, tipX, 0.2
 circle2 tipX, 0, 0.3
-if ldOn then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+! 作業半径のホットスポット（ブームの向きに引く）
+hotspot2 0, 0, 1, hkR, 1 + 128
+hotspot2 tipX, 0, 2, hkR, 2
+hotspot2 -1, 0, 3, hkR, 3
 del 1
-text2 0, -outW / 2 - 1.2, crName
-text2 0, -outW / 2 - 1.2 - texSiz * GLOB_SCALE / 1000 * 1.6, "ブーム " + str(round_int(boomL * 1000), 1, 0) + "・作業半径 " + str(round_int(tipX * 1000), 1, 0)
+! 定格の注記（フックの所）と機種・姿勢の注記（車体の後ろ）
+xT = tipX * cos(slD)
+yT = tipX * sin(slD)
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if travel = 0 then
+	sOk = ""
+	if okL = 0 then sOk = " 超過"
+	add2 xT, yT
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
+	del 2
+endif
+add2 -carRr - 1.0, 0
+rot2 -SYMB_ROTANGLE
+text2 0, 0, crName
+text2 0, -dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
+del 2
+! 旋回角のホットスポット（ブームの真ん中）と扇の向き
+rH = max(2.0, tipX * 0.5)
+hotspot2 0, 0, 4, slew, 6
+hotspot2 rH, 0, 5, slew, 4
+hotspot2 rH * cos(slD), rH * sin(slD), 6, slew, 5
+rW = tipX * 1.1
+hotspot2 0, 0, 7, wrDir, 6
+hotspot2 rW, 0, 8, wrDir, 4
+hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
 hotspot2 0, 0
 
 ! ==========================================================
@@ -146,25 +446,30 @@ for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
 	material "cr_steel"
-	add xo - 0.15, -outW / 2, 1.0
-	block 0.3, outW, 0.25
+	add xo - 0.15, -owD / 2, 1.0
+	block 0.3, owD, 0.25
 	del 1
 	for s = -1 to 1 step 2
-		yo = s * outW / 2
-		material "cr_plate"
-		add xo - plB / 2, yo - plA / 2, 0
-		block plB, plA, plT
-		del 1
-		if plN >= 2 then
-			add xo - plA / 2, yo - plB / 2, plT
-			block plA, plB, plT
+		yo = s * owD / 2
+		yp = s * outW / 2
+		if plDraw then
+			material "cr_plate"
+			add xo - plB / 2, yp - plA / 2, 0
+			block plB, plA, plT
 			del 1
+			if plN >= 2 then
+				add xo - plA / 2, yp - plB / 2, plT
+				block plA, plB, plT
+				del 1
+			endif
 		endif
 		material "cr_steel"
-		add xo, yo, plH
+		zf = plH
+		if travel then zf = 0.6
+		add xo, yo, zf
 		cylind 0.06, fltD / 2
 		addz 0.06
-		cylind 1.0 - plH - 0.06, 0.09
+		cylind 1.0 - zf - 0.06, 0.09
 		del 2
 	next s
 next e
@@ -191,7 +496,7 @@ for i = 1 to nAx
 	next s
 next i
 ! ---- 上部旋回体（旋回角 slew で回す）----
-rotz slew
+rotz slD
 material "cr_steel"
 add 0, 0, 1.5
 cylind 0.2, 1.0
@@ -218,17 +523,17 @@ material "cr_steel"
 x0q = 0.9
 y0q = 0
 z0q = 1.9
-x1q = -pivB + 0.35 * boomL * cos(boomA)
+x1q = -pivB + 0.35 * bL * cos(bA)
 y1q = 0
-z1q = pivH + 0.35 * boomL * sin(boomA)
+z1q = pivH + 0.35 * bL * sin(bA)
 rq = 0.11
 gosub "seg3"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
-roty -boomA
+roty -bA
 nS = 4
 if crType >= 2 then nS = 6
-sL = boomL / nS
+sL = bL / nS
 for k = 1 to nS
 	bw = 0.78 - (k - 1) * 0.06
 	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
@@ -241,27 +546,35 @@ for k = 1 to nS
 next k
 ! ブームの先（シーブ）
 material "cr_steel"
-add boomL, 0, 0
+add bL, 0, 0
 rotx 90
 addz -0.2
 cylind 0.4, 0.35
 del 3
+! ブーム長さのホットスポット（ブームに沿って引く）
+hotspot 0, 0, 0, 11, boomL, 1 + 128
+hotspot bL, 0, 0, 12, boomL, 2
+hotspot -1, 0, 0, 13, boomL, 3
 del 2
 ! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
 material "cr_steel"
-add tipX, 0, hkZ + 0.6
-cylind tipZ - hkZ - 0.6, 0.012
+add tipX, 0, hkD + 0.6
+cylind tipZ - hkD - 0.6, 0.012
 del 1
 material "cr_hook"
-add tipX - 0.25, -0.18, hkZ
+add tipX - 0.25, -0.18, hkD
 block 0.5, 0.36, 0.6
 del 1
 material "cr_steel"
-add tipX, 0, hkZ - 0.35
+add tipX, 0, hkD - 0.35
 cylind 0.35, 0.05
 del 1
-if ldOn then
-	zl = max(0.0, hkZ - 2.6)
+! フックの高さのホットスポット
+hotspot tipX, 0, 0, 14, hkZ, 1 + 128
+hotspot tipX, 0, hkD, 15, hkZ, 2
+hotspot tipX, 0, -1, 16, hkZ, 3
+if ldOn and travel = 0 then
+	zl = max(0.0, hkD - 2.6)
 	material "cr_load"
 	add tipX - 0.75, -0.75, zl
 	block 1.5, 1.5, 1.0
@@ -274,7 +587,7 @@ if ldOn then
 		z0q = zl + 1.0
 		x1q = tipX
 		y1q = 0
-		z1q = hkZ - 0.35
+		z1q = hkD - 0.35
 		rq = 0.008
 		gosub "seg3"
 	next c
@@ -310,4 +623,20 @@ end
 		del 3
 	endif
 	return
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
+if travel = 0 then
+	if prio = 0 then
+		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+	else
+		if abs(boomL - bL) > 0.001 then parameters boomL = bL
+	endif
+	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+endif
+values "boomL" range [bMin, bMax]
+values "prio" 0, 1
+values "boomA" range [1, 84]
 

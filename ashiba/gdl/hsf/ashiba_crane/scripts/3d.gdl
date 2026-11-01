@@ -15,25 +15,30 @@ for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
 	material "cr_steel"
-	add xo - 0.15, -outW / 2, 1.0
-	block 0.3, outW, 0.25
+	add xo - 0.15, -owD / 2, 1.0
+	block 0.3, owD, 0.25
 	del 1
 	for s = -1 to 1 step 2
-		yo = s * outW / 2
-		material "cr_plate"
-		add xo - plB / 2, yo - plA / 2, 0
-		block plB, plA, plT
-		del 1
-		if plN >= 2 then
-			add xo - plA / 2, yo - plB / 2, plT
-			block plA, plB, plT
+		yo = s * owD / 2
+		yp = s * outW / 2
+		if plDraw then
+			material "cr_plate"
+			add xo - plB / 2, yp - plA / 2, 0
+			block plB, plA, plT
 			del 1
+			if plN >= 2 then
+				add xo - plA / 2, yp - plB / 2, plT
+				block plA, plB, plT
+				del 1
+			endif
 		endif
 		material "cr_steel"
-		add xo, yo, plH
+		zf = plH
+		if travel then zf = 0.6
+		add xo, yo, zf
 		cylind 0.06, fltD / 2
 		addz 0.06
-		cylind 1.0 - plH - 0.06, 0.09
+		cylind 1.0 - zf - 0.06, 0.09
 		del 2
 	next s
 next e
@@ -60,7 +65,7 @@ for i = 1 to nAx
 	next s
 next i
 ! ---- 上部旋回体（旋回角 slew で回す）----
-rotz slew
+rotz slD
 material "cr_steel"
 add 0, 0, 1.5
 cylind 0.2, 1.0
@@ -87,17 +92,17 @@ material "cr_steel"
 x0q = 0.9
 y0q = 0
 z0q = 1.9
-x1q = -pivB + 0.35 * boomL * cos(boomA)
+x1q = -pivB + 0.35 * bL * cos(bA)
 y1q = 0
-z1q = pivH + 0.35 * boomL * sin(boomA)
+z1q = pivH + 0.35 * bL * sin(bA)
 rq = 0.11
 gosub "seg3"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
-roty -boomA
+roty -bA
 nS = 4
 if crType >= 2 then nS = 6
-sL = boomL / nS
+sL = bL / nS
 for k = 1 to nS
 	bw = 0.78 - (k - 1) * 0.06
 	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
@@ -110,27 +115,35 @@ for k = 1 to nS
 next k
 ! ブームの先（シーブ）
 material "cr_steel"
-add boomL, 0, 0
+add bL, 0, 0
 rotx 90
 addz -0.2
 cylind 0.4, 0.35
 del 3
+! ブーム長さのホットスポット（ブームに沿って引く）
+hotspot 0, 0, 0, 11, boomL, 1 + 128
+hotspot bL, 0, 0, 12, boomL, 2
+hotspot -1, 0, 0, 13, boomL, 3
 del 2
 ! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
 material "cr_steel"
-add tipX, 0, hkZ + 0.6
-cylind tipZ - hkZ - 0.6, 0.012
+add tipX, 0, hkD + 0.6
+cylind tipZ - hkD - 0.6, 0.012
 del 1
 material "cr_hook"
-add tipX - 0.25, -0.18, hkZ
+add tipX - 0.25, -0.18, hkD
 block 0.5, 0.36, 0.6
 del 1
 material "cr_steel"
-add tipX, 0, hkZ - 0.35
+add tipX, 0, hkD - 0.35
 cylind 0.35, 0.05
 del 1
-if ldOn then
-	zl = max(0.0, hkZ - 2.6)
+! フックの高さのホットスポット
+hotspot tipX, 0, 0, 14, hkZ, 1 + 128
+hotspot tipX, 0, hkD, 15, hkZ, 2
+hotspot tipX, 0, -1, 16, hkZ, 3
+if ldOn and travel = 0 then
+	zl = max(0.0, hkD - 2.6)
 	material "cr_load"
 	add tipX - 0.75, -0.75, zl
 	block 1.5, 1.5, 1.0
@@ -143,7 +156,7 @@ if ldOn then
 		z0q = zl + 1.0
 		x1q = tipX
 		y1q = 0
-		z1q = hkZ - 0.35
+		z1q = hkD - 0.35
 		rq = 0.008
 		gosub "seg3"
 	next c
