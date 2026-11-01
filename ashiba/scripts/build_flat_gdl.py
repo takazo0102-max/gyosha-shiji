@@ -214,6 +214,13 @@ PARTS = {
             "原点＝通路の始め（ゲートの側）。座標は文字のパラメータ（mm）: 帯 eX・eY、中心線 cX・cY、曲がり角の回転中心 aX・aY と外側前端角・内側後輪の半径 aR・角度 aA・拡幅 aW。割付と検定は site_route.py、置くのは scripts/route_run.py（敷鉄板は ashiba_plate を区間ごと）。",
         ],
     },
+    "ashiba_house": {
+        "title": "仮設建物（ユニットハウス・仮設トイレ。連棟・段積み・外階段と外廊下。1棟に1部品）",
+        "notes": [
+            "開発ループ（2026-11-01）: 他に必要な仮設材の4番。",
+            "原点＝手前の左の隅、+X＝長手。型 hsType（スーパーハウス 1〜5坪・仮設トイレ・快適トイレハウス）、連棟 nUnit、段 nTier、段ごとの用途 use1〜3、2段以上は手前に外廊下 corrW と外階段 stW（stairSd で端）。判定は site_house.py、置くのは scripts/house_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [

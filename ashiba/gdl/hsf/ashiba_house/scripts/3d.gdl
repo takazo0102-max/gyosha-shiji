@@ -1,0 +1,108 @@
+﻿! 仮設建物 3D: ユニット・出入口・窓・2階の外廊下と手すり・外階段
+define material "hs_body" 2, 0.88, 0.89, 0.87
+define material "hs_toil" 2, 0.80, 0.88, 0.95
+define material "hs_base" 2, 0.30, 0.30, 0.32
+define material "hs_glass" 2, 0.35, 0.50, 0.65
+define material "hs_door" 2, 0.55, 0.57, 0.60
+define material "hs_rail" 2, 0.90, 0.75, 0.10
+resol 8
+for t = 1 to nT
+	for u = 1 to nU
+		x0 = 0
+		y0 = (u - 1) * ud
+		if isT then
+			x0 = (u - 1) * uw
+			y0 = 0
+		endif
+		z0 = (t - 1) * uh
+		material "hs_base"
+		add x0 + 0.005, y0 + 0.005, z0
+		block uw - 0.01, ud - 0.01, 0.12
+		del 1
+		material "hs_body"
+		if isT then material "hs_toil"
+		add x0 + 0.005, y0 + 0.005, z0 + 0.12
+		block uw - 0.01, ud - 0.01, uh - 0.12
+		del 1
+		if isT or u = 1 then
+			material "hs_door"
+			dw = min(0.8, uw - 0.1)
+			dx = x0 + 0.05
+			if isT then dx = x0 + (uw - dw) / 2
+			add dx, -0.01, z0 + 0.15
+			block dw, 0.02, min(1.9, uh - 0.4)
+			del 1
+		endif
+		if isT = 0 and u = 1 and uw > 2.5 then
+			material "hs_glass"
+			nW = max(1, int((uw - 1.0) / 1.8))
+			for i = 1 to nW
+				wx = 1.0 + (uw - 1.0) * (i - 0.5) / nW - 0.6
+				add wx, -0.01, z0 + 0.9
+				block 1.2, 0.02, 1.0
+				del 1
+			next i
+		endif
+	next u
+next t
+if upOn and isT = 0 then
+	for t = 2 to nT
+		zf = (t - 1) * uh
+		! 外廊下の床と手すり（手すり 1.1・中桟 0.55、柱は 1.8 以内）
+		material "hs_base"
+		add 0, -corrW, zf - 0.12
+		block lx, corrW, 0.12
+		del 1
+		material "hs_rail"
+		nPo = max(1, ceil(lx / 1.8 - 0.0001))
+		for i = 0 to nPo
+			add lx * i / nPo, -corrW + 0.03, zf
+			cylind 1.1, 0.0243
+			del 1
+		next i
+		for r = 1 to 2
+			hz = 1.1
+			if r = 2 then hz = 0.55
+			add 0, -corrW + 0.03, zf + hz
+			roty 90
+			cylind lx, 0.0243
+			del 2
+		next r
+		! 廊下の階段の無い側の端
+		ex = lx
+		if stairSd = 1 then ex = 0
+		for r = 1 to 2
+			hz = 1.1
+			if r = 2 then hz = 0.55
+			add ex, -corrW + 0.03, zf + hz
+			rotx -90
+			cylind corrW - 0.03, 0.0243
+			del 2
+		next r
+	next t
+	! 2階への外階段（段板と側桁）
+	material "hs_base"
+	for i = 1 to nRs - 1
+		sx = stX + (i - 1) * 0.24
+		if stairSd = 1 then sx = stX + stL - i * 0.24
+		add sx, -stairW, i * rsH - 0.04
+		block 0.24, stairW, 0.04
+		del 1
+	next i
+	material "hs_rail"
+	ang = atn(uh / max(0.3, stL))
+	sl = sqr(stL * stL + uh * uh)
+	for s = 0 to 1
+		ys = -stairW + 0.03
+		if s = 1 then ys = -0.03
+		if stairSd = 0 then
+			add stX, ys, 1.1
+			roty 90 - ang
+		else
+			add stX + stL, ys, 1.1
+			roty -90 + ang
+		endif
+		cylind sl, 0.0243
+		del 2
+	next s
+endif

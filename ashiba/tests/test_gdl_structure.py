@@ -94,6 +94,8 @@ GDL_BUILTINS = {
     # 2026-11-01、乗入れ構台で水平つなぎの段数を nTr と名付けて、部品のパラメータが1つも読めなくなった（座標変換の数を
     # 返す関数 NTR）。値の個数を返す NSP も
     "ntr", "nsp",
+    # 2026-11-01、仮設建物の階段の幅のパラメータを stW と名付けて GSM に変換できなかった（文字の幅 STW）
+    "stw",
 }
 
 
@@ -114,6 +116,16 @@ class TestNoBuiltinNames(unittest.TestCase):
         for p in sorted(HSF.glob("*/scripts/*.gdl")):
             with self.subTest(script=f"{p.parent.parent.name}/{p.name}"):
                 self.assertEqual(builtin_shadows(p.read_text(encoding="utf-8-sig")), [])
+
+    def test_parameter_names(self):
+        """パラメータの名前も組み込み名は不可（2026-11-01、仮設建物の階段の幅を stW と名付けて、GSM の変換が「GDL keyword」で
+        失敗した。文字の幅の関数 STW）."""
+        bad = []
+        for p in sorted(HSF.glob("*/paramlist.xml")):
+            for n in re.findall(r'Name="([^"]+)"', p.read_text(encoding="utf-8-sig")):
+                if n.lower() in GDL_BUILTINS:
+                    bad.append(f"{p.parent.name}: {n}")
+        self.assertEqual(bad, [])
 
     def test_detects_fra(self):
         self.assertTrue(builtin_shadows("\tfra = atn(1)\n"))

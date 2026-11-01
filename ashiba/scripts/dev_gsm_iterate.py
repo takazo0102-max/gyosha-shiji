@@ -134,6 +134,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"rtName": "通路1"},
     },
+    # 仮設建物（開発ループ 2026-11-01: 他に必要な仮設材の4番）。3.8坪の3連棟2段・外階段
+    "ashiba_house": {
+        "images": ("3D", "2D"),
+        "params": {"hsType": 4, "nUnit": 3, "nTier": 2, "use1": 1, "use2": 1, "hsName": "事務所棟"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},
