@@ -41,6 +41,19 @@ class TestMachines(unittest.TestCase):
         self.assertAlmostEqual(p["sL1"] + p["sL2"] + p["sL3"] + p["sL4"], 21.7)       # 4段の和＝最大水平到達
         self.assertIs(find("PC78US"), MACHINES["bh025"])
 
+    def test_researched_values(self):
+        """しっかり調べ直した値（利用者の指定 2026-11-01: しっかりリサーチしてね）."""
+        bh = MACHINES["bh025"].params
+        self.assertEqual((bh["boomL"], bh["upZ"], bh["bldH"], bh["bmY"]), (3.71, 0.735, 0.49, -0.12))   # 米国版で作業範囲が一致
+        self.assertEqual(MACHINES["bh045"].params["bldW"], 0.0)                     # 国内 -12 の排土板はオプション
+        p = MACHINES["pump36"].params
+        self.assertAlmostEqual(p["o3x"], 2.8 - 9.63)                                 # アシストはリヤジャッキ 8,540 の 1,090 後ろ
+        self.assertEqual((p["nFr"], p["frSp"], p["rearSp"]), (2, 1.74, 1.19))
+        self.assertEqual(MACHINES["pump26"].params["tuH"], 4.0)                     # 作業範囲図 10.2m − 1段目 6.2m
+        self.assertEqual(MACHINES["dump10"].params["frOv"], 1.37)                   # いすゞ 車両外観図
+        self.assertEqual(MACHINES["aw12"].params["carF"], 2.15)                     # 旋回台はキャブのすぐ後ろ
+        self.assertIn("準中型", license_for(MACHINES["aw12"]))
+
     def test_licenses(self):
         """3t は機体重量（作業装置を除いた乾燥質量。安衛令20条12号・安衛則36条9号）で分ける。PC38UU-6 は機体質量 2,680kg."""
         self.assertIn("特別教育（安衛則36条9号", license_for(MACHINES["bh01"]))       # 運転質量 3.6t でも機体質量 2.68t

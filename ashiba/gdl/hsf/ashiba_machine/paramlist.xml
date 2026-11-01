@@ -121,6 +121,10 @@
 			<Description><![CDATA["バケットの幅"]]></Description>
 			<Value>1.05</Value>
 		</Length>
+		<Length Name="bmY">
+			<Description><![CDATA["作業機の中心のずれ（旋回中心から左が +）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Angle Name="bmA">
 			<Description><![CDATA["ブームの角度（弦）"]]></Description>
 			<Value>35.0</Value>

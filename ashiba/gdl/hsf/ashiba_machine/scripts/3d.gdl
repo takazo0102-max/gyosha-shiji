@@ -25,8 +25,9 @@ if isTk and mcKind < 7 then gosub "truck"
 if mcKind = 1 then
 	rotz slew
 	gosub "upper"
+	add 0, bmY, 0
 	gosub "backhoe"
-	del 1
+	del 2
 endif
 if mcKind = 2 then
 	rotz slew

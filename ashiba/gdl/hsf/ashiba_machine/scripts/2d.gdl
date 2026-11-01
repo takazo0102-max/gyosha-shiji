@@ -22,9 +22,9 @@ if isCr then
 		rot2 slew
 	endif
 	if mcKind = 1 then
-		line2 pvX, -0.25, amX1, -0.15
-		line2 pvX, 0.25, amX1, 0.15
-		rect2 amX1 - 0.1, -bkW / 2, amX1 + 0.35, bkW / 2
+		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
+		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
+		rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 	else
 		line2 pvX, -lbW / 2, lbX, -lbW / 2
 		line2 pvX, lbW / 2, lbX, lbW / 2

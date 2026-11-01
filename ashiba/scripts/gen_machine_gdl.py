@@ -62,6 +62,7 @@ def paramlist() -> str:
         _param("Length", "armL", "アームの長さ", 2.9),
         _param("Length", "bkL", "バケットの長さ（ピンから爪）", 1.45),
         _param("Length", "bkW", "バケットの幅", 1.05),
+        _param("Length", "bmY", "作業機の中心のずれ（旋回中心から左が +）", 0.0),
         _param("Angle", "bmA", "ブームの角度（弦）", 35.0),
         _param("Angle", "amA", "アームの角度（水平から）", -70.0),
         _param("Angle", "bkA", "バケットの角度（水平から）", -150.0),
@@ -246,9 +247,9 @@ if isCr then
 		rot2 slew
 	endif
 	if mcKind = 1 then
-		line2 pvX, -0.25, amX1, -0.15
-		line2 pvX, 0.25, amX1, 0.15
-		rect2 amX1 - 0.1, -bkW / 2, amX1 + 0.35, bkW / 2
+		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
+		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
+		rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 	else
 		line2 pvX, -lbW / 2, lbX, -lbW / 2
 		line2 pvX, lbW / 2, lbX, lbW / 2
@@ -352,8 +353,9 @@ if isTk and mcKind < 7 then gosub "truck"
 if mcKind = 1 then
 	rotz slew
 	gosub "upper"
+	add 0, bmY, 0
 	gosub "backhoe"
-	del 1
+	del 2
 endif
 if mcKind = 2 then
 	rotz slew
