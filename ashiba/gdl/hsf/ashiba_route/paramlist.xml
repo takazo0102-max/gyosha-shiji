@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="cX">
+			<Description><![CDATA["中心線の X（mm。始めの点から）"]]></Description>
+			<Value><![CDATA["0,30000,30000"]]></Value>
+		</String>
+		<String Name="cY">
+			<Description><![CDATA["中心線の Y"]]></Description>
+			<Value><![CDATA["0,0,25000"]]></Value>
+		</String>
+		<String Name="eX">
+			<Description><![CDATA["通路の帯の X"]]></Description>
+			<Value><![CDATA["0,28000,28000,32000,32000,0"]]></Value>
+		</String>
+		<String Name="eY">
+			<Description><![CDATA["通路の帯の Y"]]></Description>
+			<Value><![CDATA["2000,2000,25000,25000,-2000,-2000"]]></Value>
+		</String>
+		<String Name="aX">
+			<Description><![CDATA["曲がり角の回転中心の X"]]></Description>
+			<Value><![CDATA["25059"]]></Value>
+		</String>
+		<String Name="aY">
+			<Description><![CDATA["曲がり角の回転中心の Y"]]></Description>
+			<Value><![CDATA["4941"]]></Value>
+		</String>
+		<String Name="aR">
+			<Description><![CDATA["曲がり角ごとの外側前端角・内側後輪の半径"]]></Description>
+			<Value><![CDATA["7643,3064"]]></Value>
+		</String>
+		<String Name="aA">
+			<Description><![CDATA["曲がり角ごとの円弧の始めと終わりの角度（度）"]]></Description>
+			<Value><![CDATA["-90,0"]]></Value>
+		</String>
+		<String Name="aW">
+			<Description><![CDATA["曲がり角ごとの拡幅（0.1m 単位。0＝不要）"]]></Description>
+			<Value><![CDATA["19"]]></Value>
+		</String>
+		<Length Name="rtW">
+			<Description><![CDATA["通路の幅"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<String Name="rtName">
+			<Description><![CDATA["名前（注記）"]]></Description>
+			<Value><![CDATA["通路1"]]></Value>
+		</String>
+		<String Name="rtVeh">
+			<Description><![CDATA["車両と通行（注記）"]]></Description>
+			<Value><![CDATA["一方通行 幅4.0m 10t ダンプ"]]></Value>
+		</String>
+		<Boolean Name="showSw">
+			<Description><![CDATA["曲がり角の掃引（車両の通る範囲）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

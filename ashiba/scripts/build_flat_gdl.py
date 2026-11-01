@@ -207,6 +207,13 @@ PARTS = {
             "原点＝床の隅の地盤、+X＝進行方向。覆工板 1m×dkLen を並べ、根太（secJ）は dkLen ごとに X へ、大引（secG）・支柱（secP）は縁から ovh の内側を spMax 以内で等分した格子。支柱は根切り底（dig）から根入れ emb、水平つなぎは tieP 以内、垂直ブレースは外周の構面に X 形、手すりは railS・railN・railE・railW、入口にスロープ 1/slopeN。広さ lenX・lenY は平面のホットスポットで引き、1m・覆工板の長さの倍数に切り上げる。検定は kodai.py、置くのは scripts/kodai_run.py。",
         ],
     },
+    "ashiba_route": {
+        "title": "場内の車両動線（通路の帯・中心線・曲がり角の掃引と拡幅の注記。1本の通路に1部品）",
+        "notes": [
+            "開発ループ（2026-11-01）: 他に必要な仮設材の3番。",
+            "原点＝通路の始め（ゲートの側）。座標は文字のパラメータ（mm）: 帯 eX・eY、中心線 cX・cY、曲がり角の回転中心 aX・aY と外側前端角・内側後輪の半径 aR・角度 aA・拡幅 aW。割付と検定は site_route.py、置くのは scripts/route_run.py（敷鉄板は ashiba_plate を区間ごと）。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [

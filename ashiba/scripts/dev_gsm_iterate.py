@@ -129,6 +129,11 @@ PART_PROFILES = {
         "images": ("3D", "2D"),
         "params": {"lenX": 18.0, "lenY": 7.0, "zTop": 0.5, "dig": 6.3, "emb": 4.7, "kdName": "構台1"},
     },
+    # 場内の車両動線（開発ループ 2026-11-01: 他に必要な仮設材の3番）。既定のパラメータで 30m→90°左→25m の通路
+    "ashiba_route": {
+        "images": ("3D", "2D"),
+        "params": {"rtName": "通路1"},
+    },
     "ashiba_walkway": {
         "images": ("3D", "2D"),
         "params": {"wkL": 5.0, "zDeck": 1.8, "zEnd": 2.1, "wkModel": "LB-4556", "stName": "地中梁通路"},

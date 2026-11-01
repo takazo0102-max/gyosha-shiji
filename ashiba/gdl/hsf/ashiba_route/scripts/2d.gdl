@@ -1,0 +1,55 @@
+﻿! 場内通路 2D: 通路の帯・中心線と矢・曲がり角の掃引・拡幅の注記・名前
+pen penEquip
+define style "rtT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "rtT"
+! 通路の帯
+if kE > 2 then
+	for i = 1 to kE
+		j = i + 1
+		if j > kE then j = 1
+		line2 qex[i], qey[i], qex[j], qey[j]
+	next i
+endif
+! 中心線と進む向きの矢（区間の真ん中）
+for i = 1 to kC - 1
+	line2 qcx[i], qcy[i], qcx[i + 1], qcy[i + 1]
+	sl = sqr((qcx[i + 1] - qcx[i]) ^ 2 + (qcy[i + 1] - qcy[i]) ^ 2)
+	if sl > 0.01 then
+		ux = (qcx[i + 1] - qcx[i]) / sl
+		uy = (qcy[i + 1] - qcy[i]) / sl
+		mx = (qcx[i] + qcx[i + 1]) / 2
+		my = (qcy[i] + qcy[i + 1]) / 2
+		line2 mx, my, mx - 0.8 * ux + 0.4 * uy, my - 0.8 * uy - 0.4 * ux
+		line2 mx, my, mx - 0.8 * ux - 0.4 * uy, my - 0.8 * uy + 0.4 * ux
+	endif
+next i
+! 曲がり角の掃引（外側前端角 Ro と内側後輪 ri の円弧）と拡幅の注記
+if showSw then
+	for k = 1 to kO
+		if 2 * k <= kR and 2 * k <= kA then
+			arc2 qox[k], qoy[k], qr[2 * k - 1], qa[2 * k - 1], qa[2 * k]
+			arc2 qox[k], qoy[k], qr[2 * k], qa[2 * k - 1], qa[2 * k]
+			line2 qox[k] - 0.2, qoy[k], qox[k] + 0.2, qoy[k]
+			line2 qox[k], qoy[k] - 0.2, qox[k], qoy[k] + 0.2
+		endif
+		if k <= kW then
+			if qw[k] > 0 then
+				add2 qox[k], qoy[k]
+				rot2 -SYMB_ROTANGLE
+				text2 0, -0.6, "角" + str(k, 1, 0) + " 拡幅 +" + str(qw[k], 3, 1) + "m"
+				del 2
+			endif
+		endif
+	next k
+endif
+! 名前と車両（始めの区間の真ん中の左に。図面の向きに関係なく水平）
+if kC > 1 then
+	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, rtW / 2 + 1.2, rtName
+	text2 0, rtW / 2 + 0.6, rtVeh
+	del 2
+endif
+for i = 1 to kC
+	hotspot2 qcx[i], qcy[i]
+next i

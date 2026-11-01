@@ -74,7 +74,7 @@ DETAIL_OBJECT = "ashiba_detail"
 ATTACHMENT_OBJECTS = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec",
                       "ashiba_cstep", "ashiba_bridge", "ashiba_kbrk", "ashiba_hstage")
 # 配置とは別に置く部品（内部ステージ足場・昇降機。配置の置き直しでは消さない。昇降機は配置で読み取って面に合わせ直す）
-SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai")
+SEPARATE_OBJECTS = ("ashiba_stage", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai", "ashiba_route")
 MVO_OBJECT = "ashiba_mvo"           # モデル表示オプション（ライブラリグローバル）
 SPEC_OBJECT = "ashiba_spec"         # 足場条件（ツールバーが読む入力条件の部品）
 GDL_DIR = Path(__file__).resolve().parents[1] / "gdl"
