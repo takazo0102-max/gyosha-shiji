@@ -75,6 +75,8 @@ class Tower:
     piv: tuple = ()           # ジブの根元のピン（旋回中心から前, ベル受面から上）m。北川の DXF から（空は PIV_X・PIV_H）
     cab: tuple = ()           # 運転室（前後, 幅, 上面の高さ, 高さ）m。北川の DXF から（空は目安）
     cw: tuple = ()            # カウンタウエイト（幅, 奥行, 高さ）m。北川の DXF から（空は目安）
+    piece_t: float = 0.0      # 最大分割重量 t（小バラシ時・マスト除く。北川の図面。0＝公開されていない）
+    min_climb: float = 0.0    # 最小クライミング寸法 m（北川の図面。組み始めの高さの目安に使う。0＝無い）
 
 
 def _r(text: str) -> dict:
@@ -89,7 +91,7 @@ TOWERS = {
                      53.0: _r("3:22 5:24 21:24 25:21 30:17.4 35:14.2 40:11.5 45:9.5 50:8.2 53:7.5")},
                     1.9, 6.0, 51.455, 13.151, 4.1, 6.6, 2.26, (2.7, 4.1), 2.3, 4.6, 305.0, "K1",
                     climb="油圧クライミング（ストローク 1.5m）・最大フロアクライミング高さ 41.307m（S1）", tie_rule=True,
-                    cab=(1.2, 1.1, 2.72, 2.3),
+                    cab=(1.2, 1.1, 2.72, 2.3), piece_t=12.8, min_climb=8.748,
                     guesses="ジブの根元（DXF でも側面図で運転室の陰になり読めない）・カウンタウエイトの寸法・質量（資料に無い）。"
                             "運転室は DXF の側面図（前後 1.2・上面 2.72）、幅は目安。ベースは伸縮架台 7,620×4,580 か"
                             "ベースフレーム 4,600×2,380（図は 4.6m 角で描く）"),
@@ -109,7 +111,7 @@ TOWERS = {
                      45.0: _r("0:6 20:6 25:5.18 30:4.49 35:3.92 40:3.42 45:3.0")},
                     1.35, 7.2, 46.755, 10.16, 4.0, 5.0, 1.7475, (1.73, 2.85), 1.3, 4.118, 160.0, "K2",
                     climb="油圧クライミング（ストローク 1.8m）・最大フロアクライミング高さ 37.85m（S5）", tie_rule=True,
-                    piv=(0.30, 1.706), cab=(1.81, 1.50, 2.06, 1.56), cw=(4.57, 0.79, 1.49),
+                    piv=(0.30, 1.706), cab=(1.81, 1.50, 2.06, 1.56), cw=(4.57, 0.79, 1.49), piece_t=4.4, min_climb=6.57,
                     guesses="質量（資料に無い）。ジブの根元・運転室・カウンタウエイトは DXF の側面図・平面図から測った値。"
                             "45m ジブは2本掛け（最大 7t）の表"),
     "jcl080": Tower("jcl080", "タワークレーン 2.8t", "北川鉄工所 JCL080SKA", 2.8, (24.0, 30.0, 36.0, 42.0),
@@ -117,7 +119,7 @@ TOWERS = {
                      42.0: _r("3:2.8 20:2.8 31:1.8 42:1.2")},
                     1.17, 7.0, 41.663, 9.719, 2.5, 3.8, 1.359, (1.5, 2.0), 1.1, 2.2, 140.0, "K3",
                     climb="電動油圧クライミング（ストローク 1.75m）", tie_rule=True,
-                    piv=(0.80, 1.046), cab=(2.0, 1.0, 2.27, 2.27),
+                    piv=(0.80, 1.046), cab=(2.0, 1.0, 2.27, 2.27), piece_t=2.6,
                     guesses="Aフレーム頂部の前後の位置（2.5m とした）・ジブの断面（1.1m とした）・カウンタウエイトの寸法・質量"
                             "（資料に無い）。ジブの根元と機械室（運転室）の前後・高さは DXF（1:300）から測った値、運転室の幅は目安"),
     "ots90": Tower("ots90", "タワークレーン 2.8t（小川）", "小川製作所 OTS-90NH", 2.8, (20.0, 25.0, 30.0),
@@ -333,6 +335,31 @@ def jib_axis(ps: dict, origin: tuple, heading_deg: float) -> tuple[tuple, tuple]
     return p0, p1
 
 
+ERECT_SLING = 2.0         # 組立ての吊りしろ m（Aフレーム頂部の上からフックまで）【目安】
+ERECT_MAST = 10.0         # 組み始めの高さ m（最小クライミング寸法が無い機種）【目安】
+ERECT_R = 10.0            # 移動式クレーンの旋回中心からマストの芯まで m（既定）
+
+
+ERECT_PIECE_H = 3.0       # 最大分割の部材の高さ m（運転室の上面が分からない機種）【目安】
+
+
+def erect_height(t: Tower, mast: float = 0.0) -> float:
+    """最大分割の部材（旋回体）を据えるときのフックの高さ m: 組み始めの高さ＋部材の高さ（運転室の上面で代える）＋吊りしろ."""
+    return (mast or t.min_climb or ERECT_MAST) + (t.cab[2] if t.cab else ERECT_PIECE_H) + ERECT_SLING
+
+
+def erect_plan(t: Tower, radius: float = ERECT_R, mast: float = 0.0):
+    """組立て・解体に使う移動式クレーン（crane.py の 25/50/70t ラフテレーン）: 最大分割重量（マスト除く）を、マストの上
+    （組み始めの高さ）に据える高さ erect_height へ、作業半径 radius で。ジブ・Aフレームは上へ吊るが軽い（重さは公開されて
+    いない）。最大分割重量が公開されていない機種は None."""
+    if not t.piece_t:
+        return None
+    from ashiba.crane import Lift, crane_plan
+
+    h = erect_height(t, mast)
+    return crane_plan(f"{t.name} の組立て", [Lift("最大分割（マスト除く）", radius * 1000.0, t.piece_t, h * 1000.0)])
+
+
 def procedures(t: Tower) -> list[tuple[str, str]]:
     """つり上げ荷重の区分ごとの手続き・資格・点検（ク則・安衛法。条文は e-Gov の現行版）."""
     out = []
@@ -384,7 +411,7 @@ def overlaps(placed: list[Placed]) -> list[Check]:
     return out
 
 
-def report(placed: list[Placed]) -> str:
+def report(placed: list[Placed], erect_r: float = ERECT_R, erect_mast: float = 0.0) -> str:
     lines = ["# タワークレーンの計画と判定", "",
              "| 名前 | 機種 | 最大定格荷重 | マスト | ジブ | 作業半径 | クライミング |", "|---|---|---|---|---|---|---|"]
     for p in placed:
@@ -402,6 +429,31 @@ def report(placed: list[Placed]) -> str:
         lines.append(f"### {t.name}（{t.model}・つり上げ荷重 {t.max_t:g}t）")
         lines += [f"- {a}: {b}" for a, b in procedures(t)]
         lines.append("")
+    lines += ["## 組立て・解体の移動式クレーン（目安）", ""]
+    for t in {p.tower.key: p.tower for p in placed}.values():
+        ep = erect_plan(t, erect_r, erect_mast)
+        if ep is None:
+            lines.append(f"- {t.name}（{t.model}）: 最大分割重量が公開されていない。メーカーの組立要領で機種を決める")
+            continue
+        x = ep.lifts[0]
+        m0 = erect_mast or t.min_climb or ERECT_MAST
+        h = erect_height(t, erect_mast)
+        pz = t.cab[2] if t.cab else ERECT_PIECE_H
+        if x.status == "OK":
+            st = f"{ep.model.name}・ブーム {x.boom:g}m・定格総荷重 {x.rated_t:.2f}t"
+        elif x.status == "WARN":
+            st = (f"{ep.model.name}・ブーム {x.boom:g}m・定格総荷重 {x.rated_t:.2f}t（吊り荷＋フック＋玉掛け {x.total_t(ep.model):.2f}t が"
+                  "計画の率 90% を超える。作業半径を縮める --erect-radius か大きい機種を）")
+        elif x.boom:
+            st = (f"最大の 70t でもブーム {x.boom:g}m の定格総荷重 {x.rated_t:.2f}t ＜ {x.total_t(ep.model):.2f}t（吊り荷＋フック＋玉掛け）。"
+                  "作業半径を縮める（--erect-radius）か大型の移動式クレーンを")
+        else:
+            st = "25〜70t のラフテレーンでは届かない（作業半径・高さ）。大型の移動式クレーンを"
+        lines.append(f"- {t.name}（{t.model}）: 最大分割重量 {t.piece_t:g}t（小バラシ・マスト除く。北川の図面）を作業半径 {erect_r:g}m・"
+                     f"フックの高さ {h:.1f}m（組み始め {m0:g}m【{'指定' if erect_mast else '最小クライミング寸法' if t.min_climb else '目安'}】"
+                     f"＋部材の高さ {pz:g}m【{'運転室の上面' if t.cab else '目安'}】＋吊りしろ {ERECT_SLING:g}m【目安】）へ → {st}。"
+                     "ジブ・Aフレームは上へ吊る（重さは公開されていない。メーカーの組立要領で）。組立て区域は立入禁止・作業指揮者"
+                     "（ク則33条）、移動式クレーンの上部旋回体の立入禁止（ク則74条）")
     lines += ["", "## 出典と目安", ""]
     for p in placed:
         t = p.tower

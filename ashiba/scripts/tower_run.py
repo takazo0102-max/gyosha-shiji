@@ -42,6 +42,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ties", default="", help="壁つなぎの高さ mm（カンマ区切り）")
     ap.add_argument("--tie-dir", type=float, default=None, help="壁つなぎの向き 度（省くとジブの反対）")
     ap.add_argument("--tie-len", type=float, default=2.0, help="壁つなぎの長さ m（マストの面から建物まで）")
+    ap.add_argument("--erect-radius", type=float, default=10.0, help="組立ての移動式クレーンの作業半径 m（帳票の機種選び）")
+    ap.add_argument("--erect-mast", type=float, default=0.0, help="組み始めの高さ m（省くと最小クライミング寸法）")
     ap.add_argument("--z", type=float, default=None, help="基礎の上面の高さ mm（省くと敷地メッシュ、無ければ 0）")
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
     ap.add_argument("--remove", action="store_true", help="置いたタワークレーンを消す")
@@ -127,7 +129,7 @@ def main(argv=None) -> int:
                        origin=tuple(v.get("origin", (0.0, 0.0))), heading=v.get("heading", 0.0))
             placed.append(check(p, bnd, roads))
     md = R.OUT_DIR / "タワークレーン.md"
-    md.write_text(report(placed), encoding="utf-8")
+    md.write_text(report(placed, a.erect_radius, a.erect_mast), encoding="utf-8")
     print(f"タワークレーン: {len(placed)}基（{md}）")
     return 0
 
