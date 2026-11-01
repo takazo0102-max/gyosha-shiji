@@ -91,7 +91,7 @@ class TestGroundScaffold(unittest.TestCase):
     def test_palette(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
-        self.assertIn("地足場", dict(PANEL_GROUPS)["建てる"])
+        self.assertIn("地足場", dict(PANEL_GROUPS)["足場を建てる"])
         self.assertIn("地足場", [a.title for a in ACTIONS])
         self.assertTrue((ROOT / "scripts" / "ground_scaffold_run.py").exists())
 

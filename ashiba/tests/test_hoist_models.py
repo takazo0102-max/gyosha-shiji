@@ -443,7 +443,7 @@ class TestHoistInput(unittest.TestCase):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
         self.assertIn("昇降機", [a.title for a in ACTIONS])
-        self.assertIn("昇降機", dict(PANEL_GROUPS)["直す"])
+        self.assertIn("昇降機", dict(PANEL_GROUPS)["足場を直す"])
         self.assertTrue((ROOT / "scripts" / "hoist_run.py").exists())
         import sys
 

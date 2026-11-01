@@ -152,7 +152,7 @@ class TestWalkwayPart(unittest.TestCase):
         from ashiba.tapir_adapter import is_ashiba_part
 
         self.assertTrue(is_ashiba_part("ashiba_walkway_12345678"))
-        self.assertIn("仮設通路", dict(PANEL_GROUPS)["直す"])
+        self.assertIn("仮設通路", dict(PANEL_GROUPS)["足場を建てる"])
         self.assertTrue(any(a.script == "walkway_run.py" for a in ACTIONS))
         self.assertIn('"ashiba_walkway"', (ROOT / "scripts" / "build_dist_gsm.py").read_text(encoding="utf-8"))
         self.assertTrue((ROOT / "gdl" / "ashiba_walkway.gsm").exists())

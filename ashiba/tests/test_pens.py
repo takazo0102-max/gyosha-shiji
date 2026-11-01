@@ -74,7 +74,7 @@ class TestPenCommand(unittest.TestCase):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
         self.assertIn("ペン", [a.title for a in ACTIONS])
-        self.assertIn("ペン", dict(PANEL_GROUPS)["見る・出す（足場用）"])
+        self.assertIn("ペン", dict(PANEL_GROUPS)["足場を見る・出す"])
         self.assertTrue((ROOT / "scripts" / "pen_colors.py").exists())
 
     def test_form_window_draws_pen_swatches(self):

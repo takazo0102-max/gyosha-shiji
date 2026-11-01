@@ -87,7 +87,7 @@ class TestStoreAndPlace(unittest.TestCase):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
         self.assertIn("開口", [a.title for a in ACTIONS])
-        self.assertIn("開口", dict(PANEL_GROUPS)["直す"])
+        self.assertIn("開口", dict(PANEL_GROUPS)["足場を直す"])
         self.assertTrue((ROOT / "scripts" / "opening_run.py").exists())
 
 

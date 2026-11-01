@@ -49,7 +49,7 @@ class TestPlanPick(unittest.TestCase):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
 
         self.assertIn("階段の位置", [a.title for a in ACTIONS])
-        self.assertIn("階段の位置", dict(PANEL_GROUPS)["直す"])
+        self.assertIn("階段の位置", dict(PANEL_GROUPS)["足場を直す"])
 
     def test_stair_positions_after_moving(self):
         import sys

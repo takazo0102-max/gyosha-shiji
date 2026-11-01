@@ -32,7 +32,9 @@ class TestEntries(unittest.TestCase):
         self.assertEqual(sorted(titles), sorted(a.title for a in ACTIONS))
         self.assertEqual(len(titles), len(set(titles)))
         lay = panel_layout()
-        self.assertEqual([g["group"] for g in lay], ["建てる", "直す", "見る・出す（足場用）", "見る・出す（型枠用）"])
+        self.assertEqual([g["group"] for g in lay], ["足場を建てる", "足場を直す", "足場を見る・出す", "型枠・支保工", "山留め・構台",
+                                                     "揚重・敷鉄板", "場内・仮設建物", "墜落・落下防止"])
+        self.assertLessEqual(max(len(g["actions"]) for g in lay), 14)       # 組ごとに出すので窓が縦に長くならない
         self.assertEqual(lay[0]["actions"][0]["title"], "配置")
         self.assertIn("slab", lay[0]["actions"][0]["when"])
         self.assertTrue(all(a["hint"] for g in lay for a in g["actions"]))     # 指を置くと出る説明
@@ -48,6 +50,8 @@ class TestEntries(unittest.TestCase):
         self.assertIn("panel.isFloatingPanel = true", sw)
         self.assertIn('"--kinds"', sw)                           # 選んでいるものを見て★
         self.assertIn('buttons[i].title = (hit ? "★ " : "") + a.title', sw)
+        self.assertIn("NSPopUpButton", sw)                       # 組を選んでその組のボタンだけ（利用者の指定 2026-11-01: パレットを整理して）
+        self.assertIn('"AshibaPaletteGroup"', sw)                # 最後に開いた組を次も
         self.assertIn('if a.title == "撤去" || a.title == "型枠の撤去" {', sw)   # 消す操作は確かめる（型枠の撤去も）
         launcher = (ROOT / "scripts" / "ashiba_palette.py").read_text(encoding="utf-8")
         self.assertIn('["swiftc", "-O", str(PANEL), "-o", str(exe)]', launcher)
