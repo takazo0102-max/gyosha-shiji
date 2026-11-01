@@ -174,5 +174,17 @@ class TestRunScript(unittest.TestCase):
         self.assertEqual([(x.radius, x.load_t, x.need_z) for x in ls], [(12000.0, 2.5, 15000.0), (18000.0, 2.5, 12000.0)])
 
 
+class TestParamRoundtrip(unittest.TestCase):
+    def test_mismatches(self):
+        """実機の値の比べ方: 角度は Tapir がラジアンで返す、文字は 255 字で切れる。吸い付きで脚が変われば食い違い（2026-11-02）."""
+        import math
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from dev_param_roundtrip import mismatches
+        sent = {"slew": 30.0, "oSnap": True, "rtS": "x" * 300, "oFL": 3.8}
+        self.assertEqual(mismatches(sent, {"slew": math.radians(30.0), "oSnap": 1, "rtS": "x" * 255, "oFL": 3.8}), [])
+        self.assertEqual(mismatches(sent, {"slew": math.radians(30.0), "oSnap": True, "rtS": "x" * 255, "oFL": 3.3}),
+                         [("oFL", 3.8, 3.3)])
+
+
 if __name__ == "__main__":
     unittest.main()
