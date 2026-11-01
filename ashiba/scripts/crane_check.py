@@ -10,7 +10,9 @@
   python3 scripts/crane_check.py --clash                # 選んだクレーンのブームと躯体の干渉（警告 4000・接触 1000）
   python3 scripts/crane_check.py --clear                # 判定の色を消す
 
-クレーンを選んでいなければ、置いたクレーン（ashiba_out/クレーン.json）の1台目。クレーンの姿勢・機種・張出幅・安全率は置いた部品の
+タワークレーン（ashiba_tower。利用者の指定 2026-11-01「タワークレーンも追加してちょ」の続き）も同じボタンで判定する: 据え付けた
+ジブの呼びのまま、src/ashiba/tower.py の judge_lift（定格荷重は吊り荷＋玉掛け用具と比べる。ク則23条）と jib_axis（ジブの中心軸）。
+クレーンを選んでいなければ、置いたクレーン（ashiba_out/クレーン.json、無ければ タワークレーン.json）の1台目。クレーンの姿勢・機種・張出幅・安全率は置いた部品の
 パラメータ（平面・3D のホットスポットで動かしたあと）から読む。揚重判定は src/ashiba/crane.py の judge（揚重可能・重すぎ・遠すぎ・
 高すぎ）で、部材を色分け（緑・橙・灰・黄）し、帳票は ashiba_out/揚重判定.md。干渉はブームの中心軸から部材の外形の箱までの距離で、
 接触は赤・警告は黄、帳票は ashiba_out/ブームの干渉.md。色は Tapir の HighlightElements（--clear で消える）.
@@ -36,7 +38,7 @@ STEEL_TYPES = ("Column", "Beam")
 def _params(c, el) -> dict:
     it = c.tapir("GetGDLParametersOfElements", {"elements": [el]})["gdlParametersOfElements"][0]
     ps = {p["name"]: p.get("value") for p in it.get("gdlParameters", it.get("parameters", []))}
-    for k in ("slew", "boomA", "wrDir", "wrSpan"):                 # Angle は Tapir ではラジアン
+    for k in ("slew", "boomA", "wrDir", "wrSpan", "jbA", "tieA"):                 # Angle は Tapir ではラジアン
         if isinstance(ps.get(k), (int, float)):
             ps[k] = math.degrees(ps[k])
     return ps
@@ -45,21 +47,23 @@ def _params(c, el) -> dict:
 def find_crane(c, sel, dets):
     """選んだ中のクレーン（ashiba_crane）。無ければ控えの1台目."""
     for e, d in zip(sel, dets):
-        if d.get("type") == "Object" and (d.get("details", {}).get("libPart", {}).get("name", "")).startswith("ashiba_crane"):
+        if d.get("type") == "Object" and (d.get("details", {}).get("libPart", {}).get("name", "")).startswith(
+                ("ashiba_crane", "ashiba_tower")):
             return e, d
     import run_from_archicad as R
 
-    try:
-        rec = json.loads((R.OUT_DIR / "クレーン.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None, None
-    for v in rec.values():
-        g = (v if isinstance(v, list) else [v])[0]
-        el = {"elementId": {"guid": g}}
+    for rec_name in ("クレーン.json", "タワークレーン.json"):
         try:
-            return el, c.get_details([el])[0]
-        except Exception:                                          # noqa: BLE001 消えていれば次へ
+            rec = json.loads((R.OUT_DIR / rec_name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
             continue
+        for v in rec.values():
+            g = v["guid"] if isinstance(v, dict) else (v if isinstance(v, list) else [v])[0]
+            el = {"elementId": {"guid": g}}
+            try:
+                return el, c.get_details([el])[0]
+            except Exception:                                      # noqa: BLE001 消えていれば次へ
+                continue
     return None, None
 
 
@@ -121,7 +125,13 @@ def main(argv=None) -> int:
         print("クレーンを選んでから押してください（置いたクレーンが無ければ先に「クレーン」で置く）")
         return 1
     ps = _params(c, crane)
+    is_tower = cd.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_tower")
     m = next((x for x in MODELS.values() if x.kind == int(ps.get("crType", 1))), MODELS["25t"])
+    tw = None
+    if is_tower:
+        from ashiba.tower import jib_axis, judge_lift, tower_from_params
+
+        tw = tower_from_params(ps)
     o = cd["details"]["origin"]
     origin = (o["x"] * 1000.0, o["y"] * 1000.0, o.get("z", 0.0) * 1000.0)
     car = math.degrees(cd["details"].get("angle", 0.0))
@@ -145,12 +155,20 @@ def main(argv=None) -> int:
             need_z = bb[1][2] - origin[2] + a.sling
             dens = a.density if a.density is not None else (7.85 if d.get("type") in STEEL_TYPES else 2.4)
             w = a.weight if a.weight is not None else (vol or 0.0) * dens
-            res, x = judge(m, float(ps.get("outW", max(m.spreads))), radius, need_z, w, ratio, d.get("id") or d.get("type"))
+            if tw is not None:
+                res, cap = judge_lift(tw, float(ps.get("maxR", tw.jibs[0])), float(ps.get("msH", tw.free_h)), radius / 1000.0,
+                                      need_z / 1000.0, w)
+                x = type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})()
+            else:
+                res, x = judge(m, float(ps.get("outW", max(m.spreads))), radius, need_z, w, ratio, d.get("id") or d.get("type"))
             rows.append((d.get("id") or e["elementId"]["guid"][:8], d.get("type"), vol, w, radius, need_z, res, x))
             hl.append(e)
             cols.append(COLORS[res])
         c.tapir("HighlightElements", {"elements": hl, "highlightedColors": cols, "wireframe3D": False})
-        md = ["# 揚重判定", "", f"クレーン: {m.name}（張出 {ps.get('outW')}m・安全率 {ratio:g}）。吊りしろ {a.sling:.0f}・"
+        head = (f"タワークレーン: {tw.name}（{tw.model}・ジブ {ps.get('maxR')}m・マスト {ps.get('msH')}m。定格荷重と吊り荷＋玉掛け用具 0.05t を"
+                "比べる（ク則23条）。フックの限りはジブの先の 2m 下【目安】）" if tw is not None else
+                f"クレーン: {m.name}（張出 {ps.get('outW')}m・安全率 {ratio:g}）")
+        md = ["# 揚重判定", "", f"{head}。吊りしろ {a.sling:.0f}・"
               + (f"重さ {a.weight}t（直接）" if a.weight is not None else
                  f"重さ＝体積×密度（{a.density}t/m³）" if a.density is not None else "重さ＝体積×密度（柱・梁 7.85・ほか 2.4t/m³）"),
               "", "| 部材 | 種類 | 体積 | 重さ | 作業半径 | 要るフックの高さ | 判定 | ブーム・定格 |", "|---|---|---|---|---|---|---|---|"]
@@ -163,7 +181,7 @@ def main(argv=None) -> int:
         cnt = {k: sum(1 for r in rows if r[6] == k) for k in ("揚重可能", "重すぎ", "遠すぎ", "高すぎ")}
         print("揚重判定: " + "・".join(f"{k} {v}" for k, v in cnt.items()) + f"（{R.OUT_DIR / '揚重判定.md'}）")
     if a.clash:
-        p0, p1 = boom_axis(ps, origin, car)
+        p0, p1 = jib_axis(ps, origin, car) if tw is not None else boom_axis(ps, origin, car)
         els = []
         for ty in ("Wall", "Column", "Beam", "Slab", "Roof", "Object"):
             for e in c.tapir("GetElementsByType", {"elementType": ty}).get("elements", []):
@@ -186,7 +204,7 @@ def main(argv=None) -> int:
                 hits.append((e, ty, dist, "接触" if dist <= a.contact else "警告"))
         c.tapir("HighlightElements", {"elements": [h[0] for h in hits], "highlightedColors": [COLORS[h[3]] for h in hits],
                                       "wireframe3D": False})
-        md = ["# ブームの干渉", "", f"クレーン: {m.name}。ブームの中心軸（根元 {tuple(round(v) for v in p0)}・先 "
+        md = ["# ブームの干渉", "", f"クレーン: {tw.model if tw is not None else m.name}。ブーム（ジブ）の中心軸（根元 {tuple(round(v) for v in p0)}・先 "
               f"{tuple(round(v) for v in p1)}）から部材の外形の箱まで。接触 {a.contact:.0f} 以内＝赤・警告 {a.warn:.0f} 以内＝黄", "",
               "| 部材 | 種類 | 距離 | 判定 |", "|---|---|---|---|"]
         md += [f"| {e['elementId']['guid'][:8]} | {ty} | {dist:.0f} | {res} |" for e, ty, dist, res in sorted(hits, key=lambda h: h[2])]

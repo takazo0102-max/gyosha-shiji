@@ -271,6 +271,48 @@ def light_count(p: Placed) -> int:
     return 1 + max(0, math.ceil(jl / LIGHT_JIB - 1e-9) - 1)
 
 
+RIGGING_T = 0.05          # 玉掛け用具 t（crane.py と同じ）
+HOOK_TOP = 2.0            # ジブの先からフックの巻上げの限りまで m【目安】（資料に無い）
+JUDGE = ("揚重可能", "重すぎ", "遠すぎ", "高すぎ")
+
+
+def tower_from_params(ps: dict) -> Tower:
+    """置いた部品のパラメータ（tcModel）→ 機種（0 や範囲外は一番大きい機種）."""
+    keys = list(TOWERS)
+    i = int(ps.get("tcModel", 0) or 0)
+    return TOWERS[keys[i - 1]] if 1 <= i <= len(keys) else TOWERS[keys[0]]
+
+
+def judge_lift(t: Tower, jib: float, mast: float, radius: float, need_z: float, load_t: float) -> tuple[str, Optional[float]]:
+    """揚重判定（据え付けたジブの呼び jib のまま）: 遠すぎ＝ジブの呼びより遠い、高すぎ＝その半径でジブを起こしたときの
+    フックの限り（ジブの先 − HOOK_TOP）が要る高さに届かない、重すぎ＝吊り荷＋玉掛け用具 ＞ 定格荷重（ク則23条）.
+    m・t。戻りは（判定, 定格荷重）."""
+    cap = rated_at(t, jib, radius)
+    if cap is None or radius > jib + 1e-6:
+        return JUDGE[2], None
+    jl = jib_length(jib)
+    tip = mast + PIV_H + jl * math.sin(math.radians(luff_angle(radius, jl)))
+    if tip - HOOK_TOP < need_z:
+        return JUDGE[3], cap
+    if load_t + RIGGING_T > cap + 1e-9:
+        return JUDGE[1], cap
+    return JUDGE[0], cap
+
+
+def jib_axis(ps: dict, origin: tuple, heading_deg: float) -> tuple[tuple, tuple]:
+    """置いた部品のパラメータ（m・度）→ ジブの中心軸（根元・先）の図面の座標 mm（干渉チェック用）."""
+    a = math.radians(heading_deg + float(ps.get("slew", 0.0)))
+    mh, pvx, pvh = float(ps.get("msH", 40.0)), float(ps.get("pvX", PIV_X)), float(ps.get("pvH", PIV_H))
+    jl, ja = float(ps.get("jbL", 30.0)), float(ps.get("jbA", 45.0))
+    if int(ps.get("tcType", 1) or 1) == 2:
+        ja = 0.0
+    r1 = pvx + jl * math.cos(math.radians(ja))
+    z0, z1 = mh + pvh, mh + pvh + jl * math.sin(math.radians(ja))
+    p0 = (origin[0] + pvx * 1000.0 * math.cos(a), origin[1] + pvx * 1000.0 * math.sin(a), origin[2] + z0 * 1000.0)
+    p1 = (origin[0] + r1 * 1000.0 * math.cos(a), origin[1] + r1 * 1000.0 * math.sin(a), origin[2] + z1 * 1000.0)
+    return p0, p1
+
+
 def procedures(t: Tower) -> list[tuple[str, str]]:
     """つり上げ荷重の区分ごとの手続き・資格・点検（ク則・安衛法。条文は e-Gov の現行版）."""
     out = []

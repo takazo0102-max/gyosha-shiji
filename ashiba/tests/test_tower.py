@@ -8,8 +8,8 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.oversail import inside, oversail, seg_dist
-from ashiba.tower import (TOWERS, Placed, aviation, check, jib_length, light_count, overlaps, part_params, procedures, rated_at,
-                          report, tie_checks)
+from ashiba.tower import (TOWERS, Placed, aviation, check, jib_axis, jib_length, judge_lift, light_count, overlaps, part_params,
+                          procedures, rated_at, report, tie_checks, tower_from_params)
 
 ROOT = SRC.parent
 
@@ -70,6 +70,22 @@ class TestTowers(unittest.TestCase):
         self.assertEqual(st["敷地の外へ"], "要確認")
         self.assertAlmostEqual(jib_length(32.0), (32.0 - 1.0) / 0.9659258, places=2)
         self.assertIn("JCL730NKD", report([p]))
+
+
+class TestLiftCheck(unittest.TestCase):
+    def test_judge_lift(self):
+        """据え付けたジブのまま: 吊り荷＋玉掛け用具 0.05t ≦ 定格荷重（ク則23条）、ジブの呼びより遠ければ遠すぎ."""
+        t = TOWERS["jcl280"]
+        self.assertEqual(judge_lift(t, 24.0, 46.755, 20.0, 30.0, 8.0), ("揚重可能", 14.0))
+        self.assertEqual(judge_lift(t, 24.0, 46.755, 20.0, 30.0, 14.0)[0], "重すぎ")       # 14＋0.05 ＞ 14
+        self.assertEqual(judge_lift(t, 24.0, 46.755, 30.0, 30.0, 3.0), ("遠すぎ", None))
+        self.assertEqual(judge_lift(t, 24.0, 46.755, 20.0, 80.0, 3.0)[0], "高すぎ")
+
+    def test_jib_axis_and_model(self):
+        p0, p1 = jib_axis({"msH": 40.0, "pvX": 1.0, "pvH": 2.0, "jbL": 30.0, "jbA": 0.0, "slew": 90.0}, (1000.0, 2000.0, 0.0), 0.0)
+        self.assertEqual([round(v) for v in p0], [1000, 3000, 42000])
+        self.assertEqual([round(v) for v in p1], [1000, 33000, 42000])                   # 旋回 90° でジブは +Y
+        self.assertIs(tower_from_params({"tcModel": 4}), TOWERS["jcl280"])
 
 
 class TestLaws(unittest.TestCase):
