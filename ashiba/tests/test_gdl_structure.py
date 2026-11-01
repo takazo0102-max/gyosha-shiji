@@ -269,3 +269,13 @@ class TestLineLength(unittest.TestCase):
                 if len(raw.encode("utf-8")) > 522:
                     bad.append(f"{f.parent.parent.name}/{f.name}:{i}（{len(raw.encode('utf-8'))} バイト）")
         self.assertEqual(bad, [])
+
+    def test_values_lists(self):
+        """values{2}（値と名前の組）の一覧はもっと短く（2026-11-01、重機の機種の一覧 14 機種を1行 408 バイトにして部品が止まった。
+        values{2} の 276 バイトは動いている。名前だけの values は 521 バイトでも動く。長い一覧は配列 values{2} "p" mdV, mdS で渡す）."""
+        bad = []
+        for f in sorted(HSF.glob("*/scripts/vl.gdl")):
+            for i, raw in enumerate(f.read_text(encoding="utf-8-sig").splitlines(), 1):
+                if raw.lstrip().lower().startswith("values{2}") and len(raw.encode("utf-8")) > 300:
+                    bad.append(f"{f.parent.parent.name}:{i}（{len(raw.encode('utf-8'))} バイト）")
+        self.assertEqual(bad, [])

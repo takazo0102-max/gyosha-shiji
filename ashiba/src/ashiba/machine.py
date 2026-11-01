@@ -178,6 +178,11 @@ def find(key: str) -> Machine:
     raise KeyError(f"機種は {'・'.join(MACHINES)} のどれか（{key}）")
 
 
+def model_code(key: str) -> int:
+    """部品の mcModel の番号（MACHINES の並び順の 1 から）."""
+    return list(MACHINES).index(key) + 1
+
+
 def license_for(m: Machine) -> str:
     """運転・操作に要る資格（安衛令・安衛則・クレーン則）."""
     if m.kind == 1:
@@ -255,7 +260,8 @@ def part_params(p: Placed) -> dict:
     note = f"{m.model.split('（')[0]} {m.mass_t:g}t"
     if m.platform_m:
         note += f"・作業床 {m.platform_m:g}m"
-    return {"mcKind": m.kind, "mcName": f"{p.name} {m.name}", "mcNote": note, "slew": p.slew, **ps}
+    name = f"{p.name} {m.name}" if p.name else m.name
+    return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
 
 
 def report(placed: list[Placed], soil_q: float = SOIL_Q) -> str:

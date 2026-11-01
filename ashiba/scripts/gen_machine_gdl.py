@@ -23,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
 
 from gen_hoist_gdl import _param  # noqa: E402
 
@@ -36,6 +37,7 @@ def paramlist() -> str:
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
         _param("Integer", "mcKind", "種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降）", 1),
+        _param("Integer", "mcModel", "機種（選ぶと寸法を書き込む。0＝手入力）", 3),
         _param("String", "mcName", "機種の名前（平面の注記）", "バックホウ 0.45m³"),
         _param("String", "mcNote", "諸元の注記", ""),
         _param("Angle", "slew", "旋回角（車体の前から左回り）", 0.0),
@@ -1057,11 +1059,34 @@ end
 """
 
 
+def model_vl() -> str:
+    """機種の一覧（mcModel）と、選んだときに寸法・種類・注記を書き込む（GLOB_MODPAR_NAME。1行は 522 バイトまで）."""
+    from ashiba.machine import MACHINES, Placed, model_code, part_params
+
+    out = ["! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）"]
+    # 一覧は配列で渡す（1行に全部並べると 408 バイトで部品が止まった。218 バイトは通った）
+    out += ["dim mdV[], mdS[]", "mdV[1] = 0", 'mdS[1] = "手入力"']
+    for i, (k, m) in enumerate(MACHINES.items(), 2):
+        out += [f"mdV[{i}] = {model_code(k)}", f'mdS[{i}] = "{m.name}"']
+    out.append('values{2} "mcModel" mdV, mdS')
+    out.append('if GLOB_MODPAR_NAME = "mcModel" then')
+    for k, m in MACHINES.items():
+        ps = {a: b for a, b in part_params(Placed("", m)).items() if a not in ("mcName", "mcNote", "slew", "mcModel")}
+        out.append(f"\tif mcModel = {model_code(k)} then")
+        out.append(f'\t\tparameters mcName = "{m.name}", mcNote = "{part_params(Placed("", m))["mcNote"]}"')
+        pairs = [f"{a} = {b:g}" for a, b in ps.items()]
+        for i in range(0, len(pairs), 8):
+            out.append("\t\tparameters " + ", ".join(pairs[i:i + 8]))
+        out.append("\tendif")
+    out.append("endif")
+    return "\n".join(out) + "\n"
+
+
 def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL, encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + model_vl(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(

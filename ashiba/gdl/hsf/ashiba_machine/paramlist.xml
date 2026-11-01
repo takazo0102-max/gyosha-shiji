@@ -33,6 +33,10 @@
 			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降）"]]></Description>
 			<Value>1</Value>
 		</Integer>
+		<Integer Name="mcModel">
+			<Description><![CDATA["機種（選ぶと寸法を書き込む。0＝手入力）"]]></Description>
+			<Value>3</Value>
+		</Integer>
 		<String Name="mcName">
 			<Description><![CDATA["機種の名前（平面の注記）"]]></Description>
 			<Value><![CDATA["バックホウ 0.45m³"]]></Value>

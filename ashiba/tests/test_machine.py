@@ -21,6 +21,15 @@ class TestMachines(unittest.TestCase):
         for m in MACHINES.values():
             self.assertEqual(set(part_params(Placed("x", m))) - names, set(), m.key)
 
+    def test_model_list_writes_dimensions(self):
+        """部品の設定で機種を選ぶと（mcModel）寸法を書き込む。機種ごとに分かれ、番号は part_params と同じ."""
+        vl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "vl.gdl").read_text(encoding="utf-8-sig")
+        self.assertIn('values{2} "mcModel" mdV, mdS', vl)
+        for k, m in MACHINES.items():
+            code = part_params(Placed("", m))["mcModel"]
+            self.assertIn(f"if mcModel = {code} then", vl)
+            self.assertIn(f'mdS[{code + 1}] = "{m.name}"', vl)
+
     def test_catalog_values(self):
         """仕様書の値: PC138US-12 の後端旋回半径 1,490・クローラ全幅＝ゲージ 1,990＋シュー 500、7050G-2 の R4,000."""
         bh = MACHINES["bh045"].params

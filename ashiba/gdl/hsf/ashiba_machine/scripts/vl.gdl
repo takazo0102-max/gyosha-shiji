@@ -4,3 +4,122 @@ values "nFr" 1, 2
 values{2} "cbS" 1, "左", -1, "右"
 values "nRear" 1, 2
 values "nSec" 3, 4, 5
+! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
+dim mdV[], mdS[]
+mdV[1] = 0
+mdS[1] = "手入力"
+mdV[2] = 1
+mdS[2] = "バックホウ 0.1m³"
+mdV[3] = 2
+mdS[3] = "バックホウ 0.25m³"
+mdV[4] = 3
+mdS[4] = "バックホウ 0.45m³"
+mdV[5] = 4
+mdS[5] = "バックホウ 0.8m³"
+mdV[6] = 5
+mdS[6] = "クローラクレーン 50t"
+mdV[7] = 6
+mdS[7] = "クローラクレーン 90t"
+mdV[8] = 7
+mdS[8] = "ポンプ車 26m"
+mdV[9] = 8
+mdS[9] = "ポンプ車 36m"
+mdV[10] = 9
+mdS[10] = "生コン車 4.5m³"
+mdV[11] = 10
+mdS[11] = "生コン車 3.2m³"
+mdV[12] = 11
+mdS[12] = "ダンプ 10t"
+mdV[13] = 12
+mdS[13] = "ダンプ 4t"
+mdV[14] = 13
+mdS[14] = "高所作業車 12m"
+mdV[15] = 14
+mdS[15] = "垂直昇降 5.7m"
+values{2} "mcModel" mdV, mdS
+if GLOB_MODPAR_NAME = "mcModel" then
+	if mcModel = 1 then
+		parameters mcName = "バックホウ 0.1m³", mcNote = "コマツ PC38UU-6 3.6t"
+		parameters mcKind = 1, trkL = 2.105, trkW = 1.74, shoeW = 0.3, trkH = 0.45, upW = 1.7, tailR = 0.87, upZ = 0.55
+		parameters upH = 2.49, cabW = 0.85, cabL = 1.25, upF = 1.05, pvX = 0.35, pvH = 0.85, boomL = 2.5, armL = 1.3
+		parameters bkL = 0.65, bkW = 0.55, maxR = 4.855, maxD = 3.23, bmA = 35, amA = -70, bkA = -150, cbS = 1
+	endif
+	if mcModel = 2 then
+		parameters mcName = "バックホウ 0.25m³", mcNote = "コマツ PC78US-11 7.71t"
+		parameters mcKind = 1, trkL = 2.84, trkW = 2.32, shoeW = 0.45, trkH = 0.62, upW = 2.32, tailR = 1.39, upZ = 0.75
+		parameters upH = 2.71, cabW = 0.95, cabL = 1.5, upF = 1.3, pvX = 0.3, pvH = 1.25, boomL = 3.6, armL = 1.65
+		parameters bkL = 0.85, bkW = 0.7, maxR = 6.38, maxD = 4.1, bmA = 35, amA = -70, bkA = -150, cbS = 1
+	endif
+	if mcModel = 3 then
+		parameters mcName = "バックホウ 0.45m³", mcNote = "コマツ PC138US-12 13.8t"
+		parameters mcKind = 1, trkL = 3.61, trkW = 2.49, shoeW = 0.5, trkH = 0.75, upW = 2.49, tailR = 1.49, upZ = 0.85
+		parameters upH = 2.85, cabW = 0.95, cabL = 1.6, upF = 1.4, pvX = 0.3, pvH = 1.55, boomL = 4.6, armL = 2.5
+		parameters bkL = 1.05, bkW = 0.9, maxR = 8.3, maxD = 5.48, bmA = 35, amA = -70, bkA = -150, cbS = 1
+	endif
+	if mcModel = 4 then
+		parameters mcName = "バックホウ 0.8m³", mcNote = "コマツ PC200-11 20.2t"
+		parameters mcKind = 1, trkL = 4.07, trkW = 2.8, shoeW = 0.6, trkH = 0.9, upW = 2.71, tailR = 2.83, upZ = 1.07
+		parameters upH = 3.135, cabW = 1, cabL = 1.75, upF = 1.6, pvX = 0.15, pvH = 1.9, boomL = 5.7, armL = 2.9
+		parameters bkL = 1.45, bkW = 1.05, maxR = 9.875, maxD = 6.62, bmA = 35, amA = -70, bkA = -150, cbS = 1
+	endif
+	if mcModel = 5 then
+		parameters mcName = "クローラクレーン 50t", mcNote = "コベルコ 7050G-2 48t"
+		parameters mcKind = 2, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 3.5, tailR = 4, upZ = 1.1
+		parameters upH = 3.3, cabW = 1, cabL = 1.9, upF = 2, pvX = 1.1, pvH = 1.75, lbL = 30.5, lbA = 70
+		parameters lbW = 1.22, hkD = 6, cbS = -1, maxR = 0
+	endif
+	if mcModel = 6 then
+		parameters mcName = "クローラクレーン 90t", mcNote = "コベルコ 7090G-2 93t"
+		parameters mcKind = 2, trkL = 6.315, trkW = 4.9, shoeW = 0.9, trkH = 1.05, upW = 4.2, tailR = 4.4, upZ = 1.275
+		parameters upH = 3.485, cabW = 1, cabL = 1.9, upF = 2.2, pvX = 1.1, pvH = 2.2, lbL = 29.1, lbA = 70
+		parameters lbW = 1.52, hkD = 6, cbS = -1, maxR = 0
+	endif
+	if mcModel = 7 then
+		parameters mcName = "ポンプ車 26m", mcNote = "極東開発 PY120B-26D 16.95t"
+		parameters mcKind = 3, carL = 9.46, carW = 2.49, cabH = 3, frOv = 1.4, wb = 5, nRear = 1, rearSp = 1.3
+		parameters whR = 0.52, frZ = 1.05, carF = 2.6, nFr = 1, frSp = 1.7, nSec = 4, sL1 = 6.2, sL2 = 5.4
+		parameters sL3 = 5.4, sL4 = 4.7, sL5 = 0, pA1 = 70, pA2 = 30, pA3 = -5, pA4 = -60, pA5 = -80
+		parameters tuH = 3.4, o1x = 1.09, o1y = 5.43, o2x = -2.26, o2y = 5.43, o3x = -4.86, o3y = 2.3, maxR = 21.7
+	endif
+	if mcModel = 8 then
+		parameters mcName = "ポンプ車 36m", mcNote = "極東開発 PY140-36A 24.99t"
+		parameters mcKind = 3, carL = 11.94, carW = 2.49, cabH = 3, frOv = 1.3, wb = 5.6, nRear = 2, rearSp = 1.3
+		parameters whR = 0.52, frZ = 1.05, carF = 3, nFr = 2, frSp = 1.75, nSec = 4, sL1 = 8.8, sL2 = 7.35
+		parameters sL3 = 7.35, sL4 = 8.6, sL5 = 0, pA1 = 70, pA2 = 30, pA3 = -5, pA4 = -60, pA5 = -80
+		parameters tuH = 3.5, o1x = 2.26, o1y = 7.6, o2x = -5.54, o2y = 7.8, o3x = -8.61, o3y = 1.3, maxR = 32.1
+	endif
+	if mcModel = 9 then
+		parameters mcName = "生コン車 4.5m³", mcNote = "三菱ふそう スーパーグレート FV ミキサ 19.945t"
+		parameters mcKind = 4, carL = 7.925, carW = 2.49, cabH = 3.1, frOv = 1.3, wb = 3.26, nRear = 2, rearSp = 1.31
+		parameters whR = 0.53, frZ = 1.05, carF = 3.9625, nFr = 1, frSp = 1.7, drL = 4.2, drD = 2.25, drA = 16
+	endif
+	if mcModel = 10 then
+		parameters mcName = "生コン車 3.2m³", mcNote = "三菱ふそう ファイター FK7-Z ミキサ 14t"
+		parameters mcKind = 4, carL = 6.33, carW = 2.3, cabH = 2.75, frOv = 1.2, wb = 3.19, nRear = 1, rearSp = 1.3
+		parameters whR = 0.47, frZ = 1, carF = 3.165, nFr = 1, frSp = 1.7, drL = 3.6, drD = 2, drA = 16
+	endif
+	if mcModel = 11 then
+		parameters mcName = "ダンプ 10t", mcNote = "いすゞ ギガ 6×4 19.96t"
+		parameters mcKind = 5, carL = 7.64, carW = 2.49, cabH = 3.05, frOv = 1.3, wb = 3.225, nRear = 2, rearSp = 1.31
+		parameters whR = 0.53, frZ = 1.45, carF = 3.82, nFr = 1, frSp = 1.7, bedL = 5.1, bedW = 2.2, bedH = 0.52
+		parameters bedA = 0
+	endif
+	if mcModel = 12 then
+		parameters mcName = "ダンプ 4t", mcNote = "三菱ふそう ファイター FK7 7.965t"
+		parameters mcKind = 5, carL = 5.395, carW = 2.19, cabH = 2.5, frOv = 1.15, wb = 2.91, nRear = 1, rearSp = 1.3
+		parameters whR = 0.42, frZ = 0.95, carF = 2.6975, nFr = 1, frSp = 1.7, bedL = 3.4, bedW = 2.06, bedH = 0.34
+		parameters bedA = 0
+	endif
+	if mcModel = 13 then
+		parameters mcName = "高所作業車 12m", mcNote = "アイチ SH12C1RN 4.5t・作業床 12.1m"
+		parameters mcKind = 6, carL = 5.14, carW = 1.91, cabH = 2.2, frOv = 1.035, wb = 2.475, nRear = 1, rearSp = 1.3
+		parameters whR = 0.36, frZ = 0.85, carF = 4.24, nFr = 1, frSp = 1.7, nSec = 3, abL = 9.4, abA = 60
+		parameters tuH = 2.3, pfL = 1, pfW = 0.7, o1x = 2.34, o1y = 1.9, o2x = -0.5, o2y = 1.7, o3x = 0
+		parameters o3y = 0, maxR = 9.9
+	endif
+	if mcModel = 14 then
+		parameters mcName = "垂直昇降 5.7m", mcNote = "アイチ SV06E1NS 1.2t・作業床 5.72m"
+		parameters mcKind = 7, carL = 1.87, carW = 0.76, carF = 0.935, whR = 0.15, pfL = 1.77, pfW = 0.68, pfH = 3
+		parameters maxR = 0
+	endif
+endif
