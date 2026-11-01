@@ -8,6 +8,8 @@ define material "cr_plate" 2, 0.35, 0.36, 0.38
 define material "cr_tire" 2, 0.10, 0.10, 0.10
 define material "cr_hook" 2, 0.95, 0.75, 0.10
 define material "cr_load" 2, 0.70, 0.50, 0.30
+define material "cr_glass" 2, 0.30, 0.45, 0.60
+define material "cr_rim" 2, 0.80, 0.80, 0.78
 resol 16
 plH = plT * plN
 ! ---- 敷鉄板（アウトリガ1脚に plN 枚。2枚は十字）とフロート・ジャッキ・アウトリガのビーム ----
@@ -54,16 +56,33 @@ del 1
 add -carRr, carW / 2 - 0.12, 0.75
 block carL, 0.02, 0.3
 del 1
-material "cr_tire"
 for i = 1 to nAx
 	for s = -1 to 1 step 2
+		! タイヤとホイール（リム）
+		material "cr_tire"
 		add ax[i], s * (carW / 2 - whW / 2 - 0.02), whR + 0.05
 		rotx 90
 		addz -whW / 2
 		cylind whW, whR
-		del 3
+		material "cr_rim"
+		addz -0.01
+		cylind whW + 0.02, whR * 0.55
+		del 4
+		! フェンダー（タイヤの上）
+		material "cr_body"
+		add ax[i] - whR - 0.1, s * (carW / 2 - 0.02) - (s + 1) * (whW + 0.06) / 2, 2 * whR + 0.08
+		block 2 * whR + 0.2, whW + 0.06, 0.06
+		del 1
 	next s
 next i
+! バンパー（前後）
+material "cr_cw"
+add carL - carRr - 0.05, -carW / 2 + 0.15, 0.6
+block 0.15, carW - 0.3, 0.35
+del 1
+add -carRr - 0.1, -carW / 2 + 0.15, 0.6
+block 0.15, carW - 0.3, 0.35
+del 1
 ! ---- 上部旋回体（旋回角 slew で回す）----
 rotz slD
 material "cr_steel"
@@ -74,29 +93,59 @@ material "cr_body"
 add -tailR + 0.7, -1.1, 1.7
 block tailR - 0.7 + 1.0, 2.2, 0.9
 del 1
+! カウンタウエイト（段付き）とエンジンカバー
 material "cr_cw"
 add -tailR, -1.1, 1.7
-block 0.7, 2.2, 1.0
+block 0.7, 2.2, 0.75
 del 1
-! 運転室（右前）
+add -tailR + 0.1, -1.0, 2.45
+block 0.6, 2.0, 0.3
+del 1
+material "cr_body"
+add -tailR + 0.75, 0.15, 2.6
+block 1.3, 0.9, 0.35
+del 1
+material "cr_cw"
+for i = 0 to 4
+	add -tailR + 0.85 + i * 0.22, 0.16, 2.95
+	block 0.12, 0.88, 0.02
+	del 1
+next i
+! 運転室（右前）と窓
 material "cr_body"
 add 0.2, -1.25, 1.7
 block 1.9, 0.85, 1.65
 del 1
-material "cr_cw"
-add 1.0, -1.255, 2.4
-block 1.05, 0.005, 0.8
+material "cr_glass"
+add 1.0, -1.255, 2.35
+block 1.05, 0.005, 0.85
 del 1
-! 起伏シリンダ（旋回体からブームの 0.35 の所）
+add 2.1, -1.2, 2.2
+block 0.005, 0.75, 1.0
+del 1
+add 0.3, -0.395, 2.4
+block 0.6, 0.005, 0.75
+del 1
+! 起伏シリンダ（旋回体からブームの 0.35 の所。太いシリンダと細いロッド）
 material "cr_steel"
+xe = -pivB + 0.35 * bL * cos(bA)
+ze = pivH + 0.35 * bL * sin(bA)
 x0q = 0.9
 y0q = 0
 z0q = 1.9
-x1q = -pivB + 0.35 * bL * cos(bA)
+x1q = 0.9 + 0.6 * (xe - 0.9)
 y1q = 0
-z1q = pivH + 0.35 * bL * sin(bA)
-rq = 0.11
+z1q = 1.9 + 0.6 * (ze - 1.9)
+rq = 0.13
 gosub "seg3"
+material "cr_rim"
+x0q = x1q
+z0q = z1q
+x1q = xe
+z1q = ze
+rq = 0.07
+gosub "seg3"
+material "cr_steel"
 ! ブーム（根元から段ごとに細く）
 add -pivB, 0, pivH
 roty -bA
@@ -108,18 +157,33 @@ for k = 1 to nS
 	if crType = 1 then bw = 0.62 - (k - 1) * 0.06
 	ov = 0
 	if k > 1 then ov = 0.05
+	! 箱形の段（角を落とした八角形の断面）
 	material "cr_boom"
-	add (k - 1) * sL - ov, -bw / 2, -bw * 0.55
-	block sL + ov, bw, bw * 1.1
-	del 1
+	bh = bw * 1.1
+	cc = bw * 0.12
+	add (k - 1) * sL - ov, 0, 0
+	roty 90
+	prism 8, sL + ov, 		-bh / 2, -bw / 2 + cc, -bh / 2 + cc, -bw / 2, bh / 2 - cc, -bw / 2, bh / 2, -bw / 2 + cc, 		bh / 2, bw / 2 - cc, bh / 2 - cc, bw / 2, -bh / 2 + cc, bw / 2, -bh / 2, bw / 2 - cc
+	del 2
+	! 段の先の継ぎ目の帯
+	if k < nS then
+		material "cr_steel"
+		add k * sL - 0.08, -bw / 2 - 0.01, -bh / 2 - 0.01
+		block 0.08, bw + 0.02, bh + 0.02
+		del 1
+	endif
 next k
-! ブームの先（シーブ）
+! ブームの先（ブームヘッドと3枚のシーブ）
 material "cr_steel"
-add bL, 0, 0
-rotx 90
-addz -0.2
-cylind 0.4, 0.35
-del 3
+add bL - 0.3, -0.3, -0.35
+block 0.45, 0.6, 0.7
+del 1
+for i = -1 to 1
+	add bL + 0.1, i * 0.14 - 0.04, 0
+	rotx -90
+	cylind 0.08, 0.32
+	del 2
+next i
 ! ブーム長さのホットスポット（ブームに沿って引く）
 hotspot 0, 0, 0, 11, boomL, 1 + 128
 hotspot bL, 0, 0, 12, boomL, 2
@@ -127,16 +191,30 @@ hotspot -1, 0, 0, 13, boomL, 3
 del 2
 ! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
 material "cr_steel"
-add tipX, 0, hkD + 0.6
-cylind tipZ - hkD - 0.6, 0.012
-del 1
+for i = -1 to 1 step 2
+	add tipX + i * 0.1, 0, hkD + 0.6
+	cylind tipZ - hkD - 0.6, 0.012
+	del 1
+next i
+! フックブロック（側板とシーブ）とフック
 material "cr_hook"
 add tipX - 0.25, -0.18, hkD
-block 0.5, 0.36, 0.6
+block 0.5, 0.04, 0.6
+del 1
+add tipX - 0.25, 0.14, hkD
+block 0.5, 0.04, 0.6
 del 1
 material "cr_steel"
-add tipX, 0, hkD - 0.35
-cylind 0.35, 0.05
+add tipX, -0.14, hkD + 0.42
+rotx -90
+cylind 0.28, 0.2
+del 2
+add tipX, 0, hkD - 0.2
+cylind 0.2, 0.06
+del 1
+material "cr_hook"
+add tipX, 0, hkD - 0.55
+cone 0.35, 0.03, 0.08, 90, 90
 del 1
 ! フックの高さのホットスポット
 hotspot tipX, 0, 0, 14, hkZ, 1 + 128
