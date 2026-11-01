@@ -200,6 +200,13 @@ PARTS = {
             "原点＝範囲の隅、+X・+Y に広げる。広さ lenX・lenY は平面のホットスポットで引き、パラメータスクリプトが1枚の倍数に切り上げる。板の種類 plType（5×20・5×10・4×8・3×6）・長い辺の向き plDir・段数 plLay（2＝十字）。枚数と重さは steel_plate.py、置くのは scripts/plate_run.py とクレーンのアウトリガの下（crane_run.py）。",
         ],
     },
+    "ashiba_kodai": {
+        "title": "乗入れ構台・荷取り構台（覆工板・根太・大引・支柱・水平つなぎ・垂直ブレース・手すり・スロープ。1つの構台に1部品）",
+        "notes": [
+            "開発ループ（2026-11-01）: 他に必要な仮設材の2番。",
+            "原点＝床の隅の地盤、+X＝進行方向。覆工板 1m×dkLen を並べ、根太（secJ）は dkLen ごとに X へ、大引（secG）・支柱（secP）は縁から ovh の内側を spMax 以内で等分した格子。支柱は根切り底（dig）から根入れ emb、水平つなぎは tieP 以内、垂直ブレースは外周の構面に X 形、手すりは railS・railN・railE・railW、入口にスロープ 1/slopeN。広さ lenX・lenY は平面のホットスポットで引き、1m・覆工板の長さの倍数に切り上げる。検定は kodai.py、置くのは scripts/kodai_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [

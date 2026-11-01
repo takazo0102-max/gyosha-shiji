@@ -91,6 +91,9 @@ GDL_BUILTINS = {
     "bittest", "bitset", "vardim1", "vardim2", "request", "ind", "and", "or", "exor",
     # 予約語（2026-11-01、仮囲いでパネルの上端を top と名付けて、部品のパラメータが1つも変えられなくなった。del top の top）
     "top",
+    # 2026-11-01、乗入れ構台で水平つなぎの段数を nTr と名付けて、部品のパラメータが1つも読めなくなった（座標変換の数を
+    # 返す関数 NTR）。値の個数を返す NSP も
+    "ntr", "nsp",
 }
 
 

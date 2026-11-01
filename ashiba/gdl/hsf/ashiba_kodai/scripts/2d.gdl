@@ -1,0 +1,229 @@
+﻿! 乗入れ構台 2D: 床の外形・覆工板の目地・支柱・手すり・スロープ・注記・広げるホットスポット
+pen penEquip
+define style "kdT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "kdT"
+! 覆工板の目地（X に 1m・Y に覆工板の長さ）
+for i = 1 to nDX - 1
+	line2 i, 0, i, ly
+next i
+for j = 1 to nDY - 1
+	line2 0, ry[j + 1], lx, ry[j + 1]
+next j
+rect2 0, 0, lx, ly
+! 支柱（H 形。フランジは X の両側に、幅は Y に。3D と同じ）
+hp = secH[kP] / 2
+bp = secB[kP] / 2
+fp = secF[kP]
+wp = secW[kP] / 2
+for i = 1 to nPX
+	for j = 1 to nPY
+		rect2 gx[i] + hp - fp, gy[j] - bp, gx[i] + hp, gy[j] + bp
+		rect2 gx[i] - hp, gy[j] - bp, gx[i] - hp + fp, gy[j] + bp
+		rect2 gx[i] - hp + fp, gy[j] - wp, gx[i] + hp - fp, gy[j] + wp
+	next j
+next i
+! 手すり（縁の内側 50）
+if railS then line2 0, 0.05, lx, 0.05
+if railN then line2 0, ly - 0.05, lx, ly - 0.05
+if railE then line2 lx - 0.05, 0, lx - 0.05, ly
+if railW then line2 0.05, 0, 0.05, ly
+! スロープ（入口の側）と上る向きの矢
+if slL > 0 then
+	rect2 -slL, 0, 0, ly
+	line2 -slL * 0.8, ly / 2, -slL * 0.2, ly / 2
+	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 + 0.25
+	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 - 0.25
+	add2 -slL / 2, ly / 2 + 0.6
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, "スロープ 1/" + str(slopeN, 1, 0)
+	del 2
+endif
+! 注記（名前・広さ・最大積載荷重。図面の向きに関係なく水平に）
+add2 lx / 2, ly / 2
+rot2 -SYMB_ROTANGLE
+text2 0, 0.6, kdName + " " + str(lx, 1, 0) + "×" + str(ly, 1, 0) + "m"
+t3 = ""
+if n3 > 0 then t3 = "・1×3m " + str(nDX * n3, 1, 0) + "枚"
+text2 0, 0, "覆工板 1×2m " + str(nDX * n2, 1, 0) + "枚" + t3
+text2 0, -0.6, maxLd
+del 2
+! 広げるホットスポット（X は右の辺の真ん中、Y は上の辺の真ん中）
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 lx, ly
+hotspot2 0, ly
+hotspot2 0, ly / 2, 101, lenX, 1 + 128
+hotspot2 lenX, ly / 2, 102, lenX, 2
+hotspot2 -1, ly / 2, 103, lenX, 3
+hotspot2 lx / 2, 0, 104, lenY, 1 + 128
+hotspot2 lx / 2, lenY, 105, lenY, 2
+hotspot2 lx / 2, -1, 106, lenY, 3
+! 支柱の列・行を動かすホットスポット（列は手前の外、行は先の外の丸い印）
+if nPX >= 1 then
+	circle2 max(0, min(lx, gX1)), -0.6, 0.12
+	line2 max(0, min(lx, gX1)), -0.48, max(0, min(lx, gX1)), 0
+	hotspot2 0, -0.6, 203, gX1, 1 + 128
+	hotspot2 gX1, -0.6, 204, gX1, 2
+	hotspot2 -1, -0.6, 205, gX1, 3
+endif
+if nPX >= 2 then
+	circle2 max(0, min(lx, gX2)), -0.6, 0.12
+	line2 max(0, min(lx, gX2)), -0.48, max(0, min(lx, gX2)), 0
+	hotspot2 0, -0.6, 206, gX2, 1 + 128
+	hotspot2 gX2, -0.6, 207, gX2, 2
+	hotspot2 -1, -0.6, 208, gX2, 3
+endif
+if nPX >= 3 then
+	circle2 max(0, min(lx, gX3)), -0.6, 0.12
+	line2 max(0, min(lx, gX3)), -0.48, max(0, min(lx, gX3)), 0
+	hotspot2 0, -0.6, 209, gX3, 1 + 128
+	hotspot2 gX3, -0.6, 210, gX3, 2
+	hotspot2 -1, -0.6, 211, gX3, 3
+endif
+if nPX >= 4 then
+	circle2 max(0, min(lx, gX4)), -0.6, 0.12
+	line2 max(0, min(lx, gX4)), -0.48, max(0, min(lx, gX4)), 0
+	hotspot2 0, -0.6, 212, gX4, 1 + 128
+	hotspot2 gX4, -0.6, 213, gX4, 2
+	hotspot2 -1, -0.6, 214, gX4, 3
+endif
+if nPX >= 5 then
+	circle2 max(0, min(lx, gX5)), -0.6, 0.12
+	line2 max(0, min(lx, gX5)), -0.48, max(0, min(lx, gX5)), 0
+	hotspot2 0, -0.6, 215, gX5, 1 + 128
+	hotspot2 gX5, -0.6, 216, gX5, 2
+	hotspot2 -1, -0.6, 217, gX5, 3
+endif
+if nPX >= 6 then
+	circle2 max(0, min(lx, gX6)), -0.6, 0.12
+	line2 max(0, min(lx, gX6)), -0.48, max(0, min(lx, gX6)), 0
+	hotspot2 0, -0.6, 218, gX6, 1 + 128
+	hotspot2 gX6, -0.6, 219, gX6, 2
+	hotspot2 -1, -0.6, 220, gX6, 3
+endif
+if nPX >= 7 then
+	circle2 max(0, min(lx, gX7)), -0.6, 0.12
+	line2 max(0, min(lx, gX7)), -0.48, max(0, min(lx, gX7)), 0
+	hotspot2 0, -0.6, 221, gX7, 1 + 128
+	hotspot2 gX7, -0.6, 222, gX7, 2
+	hotspot2 -1, -0.6, 223, gX7, 3
+endif
+if nPX >= 8 then
+	circle2 max(0, min(lx, gX8)), -0.6, 0.12
+	line2 max(0, min(lx, gX8)), -0.48, max(0, min(lx, gX8)), 0
+	hotspot2 0, -0.6, 224, gX8, 1 + 128
+	hotspot2 gX8, -0.6, 225, gX8, 2
+	hotspot2 -1, -0.6, 226, gX8, 3
+endif
+if nPX >= 9 then
+	circle2 max(0, min(lx, gX9)), -0.6, 0.12
+	line2 max(0, min(lx, gX9)), -0.48, max(0, min(lx, gX9)), 0
+	hotspot2 0, -0.6, 227, gX9, 1 + 128
+	hotspot2 gX9, -0.6, 228, gX9, 2
+	hotspot2 -1, -0.6, 229, gX9, 3
+endif
+if nPX >= 10 then
+	circle2 max(0, min(lx, gX10)), -0.6, 0.12
+	line2 max(0, min(lx, gX10)), -0.48, max(0, min(lx, gX10)), 0
+	hotspot2 0, -0.6, 230, gX10, 1 + 128
+	hotspot2 gX10, -0.6, 231, gX10, 2
+	hotspot2 -1, -0.6, 232, gX10, 3
+endif
+if nPX >= 11 then
+	circle2 max(0, min(lx, gX11)), -0.6, 0.12
+	line2 max(0, min(lx, gX11)), -0.48, max(0, min(lx, gX11)), 0
+	hotspot2 0, -0.6, 233, gX11, 1 + 128
+	hotspot2 gX11, -0.6, 234, gX11, 2
+	hotspot2 -1, -0.6, 235, gX11, 3
+endif
+if nPX >= 12 then
+	circle2 max(0, min(lx, gX12)), -0.6, 0.12
+	line2 max(0, min(lx, gX12)), -0.48, max(0, min(lx, gX12)), 0
+	hotspot2 0, -0.6, 236, gX12, 1 + 128
+	hotspot2 gX12, -0.6, 237, gX12, 2
+	hotspot2 -1, -0.6, 238, gX12, 3
+endif
+if nPX >= 13 then
+	circle2 max(0, min(lx, gX13)), -0.6, 0.12
+	line2 max(0, min(lx, gX13)), -0.48, max(0, min(lx, gX13)), 0
+	hotspot2 0, -0.6, 239, gX13, 1 + 128
+	hotspot2 gX13, -0.6, 240, gX13, 2
+	hotspot2 -1, -0.6, 241, gX13, 3
+endif
+if nPX >= 14 then
+	circle2 max(0, min(lx, gX14)), -0.6, 0.12
+	line2 max(0, min(lx, gX14)), -0.48, max(0, min(lx, gX14)), 0
+	hotspot2 0, -0.6, 242, gX14, 1 + 128
+	hotspot2 gX14, -0.6, 243, gX14, 2
+	hotspot2 -1, -0.6, 244, gX14, 3
+endif
+if nPX >= 15 then
+	circle2 max(0, min(lx, gX15)), -0.6, 0.12
+	line2 max(0, min(lx, gX15)), -0.48, max(0, min(lx, gX15)), 0
+	hotspot2 0, -0.6, 245, gX15, 1 + 128
+	hotspot2 gX15, -0.6, 246, gX15, 2
+	hotspot2 -1, -0.6, 247, gX15, 3
+endif
+if nPX >= 16 then
+	circle2 max(0, min(lx, gX16)), -0.6, 0.12
+	line2 max(0, min(lx, gX16)), -0.48, max(0, min(lx, gX16)), 0
+	hotspot2 0, -0.6, 248, gX16, 1 + 128
+	hotspot2 gX16, -0.6, 249, gX16, 2
+	hotspot2 -1, -0.6, 250, gX16, 3
+endif
+if nPY >= 1 then
+	circle2 lx + 0.6, max(0, min(ly, gY1)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY1)), lx, max(0, min(ly, gY1))
+	hotspot2 lx + 0.6, 0, 303, gY1, 1 + 128
+	hotspot2 lx + 0.6, gY1, 304, gY1, 2
+	hotspot2 lx + 0.6, -1, 305, gY1, 3
+endif
+if nPY >= 2 then
+	circle2 lx + 0.6, max(0, min(ly, gY2)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY2)), lx, max(0, min(ly, gY2))
+	hotspot2 lx + 0.6, 0, 306, gY2, 1 + 128
+	hotspot2 lx + 0.6, gY2, 307, gY2, 2
+	hotspot2 lx + 0.6, -1, 308, gY2, 3
+endif
+if nPY >= 3 then
+	circle2 lx + 0.6, max(0, min(ly, gY3)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY3)), lx, max(0, min(ly, gY3))
+	hotspot2 lx + 0.6, 0, 309, gY3, 1 + 128
+	hotspot2 lx + 0.6, gY3, 310, gY3, 2
+	hotspot2 lx + 0.6, -1, 311, gY3, 3
+endif
+if nPY >= 4 then
+	circle2 lx + 0.6, max(0, min(ly, gY4)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY4)), lx, max(0, min(ly, gY4))
+	hotspot2 lx + 0.6, 0, 312, gY4, 1 + 128
+	hotspot2 lx + 0.6, gY4, 313, gY4, 2
+	hotspot2 lx + 0.6, -1, 314, gY4, 3
+endif
+if nPY >= 5 then
+	circle2 lx + 0.6, max(0, min(ly, gY5)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY5)), lx, max(0, min(ly, gY5))
+	hotspot2 lx + 0.6, 0, 315, gY5, 1 + 128
+	hotspot2 lx + 0.6, gY5, 316, gY5, 2
+	hotspot2 lx + 0.6, -1, 317, gY5, 3
+endif
+if nPY >= 6 then
+	circle2 lx + 0.6, max(0, min(ly, gY6)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY6)), lx, max(0, min(ly, gY6))
+	hotspot2 lx + 0.6, 0, 318, gY6, 1 + 128
+	hotspot2 lx + 0.6, gY6, 319, gY6, 2
+	hotspot2 lx + 0.6, -1, 320, gY6, 3
+endif
+if nPY >= 7 then
+	circle2 lx + 0.6, max(0, min(ly, gY7)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY7)), lx, max(0, min(ly, gY7))
+	hotspot2 lx + 0.6, 0, 321, gY7, 1 + 128
+	hotspot2 lx + 0.6, gY7, 322, gY7, 2
+	hotspot2 lx + 0.6, -1, 323, gY7, 3
+endif
+if nPY >= 8 then
+	circle2 lx + 0.6, max(0, min(ly, gY8)), 0.12
+	line2 lx + 0.48, max(0, min(ly, gY8)), lx, max(0, min(ly, gY8))
+	hotspot2 lx + 0.6, 0, 324, gY8, 1 + 128
+	hotspot2 lx + 0.6, gY8, 325, gY8, 2
+	hotspot2 lx + 0.6, -1, 326, gY8, 3
+endif

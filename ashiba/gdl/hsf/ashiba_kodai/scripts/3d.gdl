@@ -1,0 +1,227 @@
+﻿! 乗入れ構台 3D
+define material "kd_deck" 2, 0.36, 0.37, 0.38
+define material "kd_steel" 2, 0.55, 0.42, 0.30
+define material "kd_brace" 2, 0.45, 0.47, 0.50
+define material "kd_rail" 2, 0.90, 0.75, 0.10
+define material "kd_toe" 2, 0.85, 0.85, 0.85
+define material "kd_slope" 2, 0.62, 0.60, 0.56
+resol 8
+! ---- 覆工板 ----
+if showDeck then
+	material "kd_deck"
+	for i = 1 to nDX
+		for j = 1 to nDY
+			add (i - 1) + 0.003, ry[j] + 0.003, zJt
+			block 1 - 0.006, rw[j] - 0.006, dkH
+			del 1
+		next j
+	next i
+endif
+material "kd_steel"
+! ---- 根太（X に通す。覆工板の長さごと）----
+hh = secH[kJ]
+hb = secB[kJ]
+htw = secW[kJ]
+htf = secF[kJ]
+for j = 1 to nDY + 1
+	yj = max(hb / 2, min(ly - hb / 2, ry[j]))
+	add 0, yj, zGt
+	hL = lx
+	gosub "hbeam"
+	del 1
+next j
+! ---- 大引（支柱の列ごとに Y へ）----
+hh = secH[kG]
+hb = secB[kG]
+htw = secW[kG]
+htf = secF[kG]
+for i = 1 to nPX
+	add gx[i], 0, zPt
+	rotz 90
+	hL = ly
+	gosub "hbeam"
+	del 2
+next i
+! ---- 支柱 ----
+hh = secH[kP]
+hb = secB[kP]
+htw = secW[kP]
+htf = secF[kP]
+for i = 1 to nPX
+	for j = 1 to nPY
+		add gx[i], gy[j], zPb
+		roty -90
+		add 0, 0, -hh / 2
+		hL = zPt - zPb
+		gosub "hbeam"
+		del 3
+	next j
+next i
+! ---- 水平つなぎ（[-200×90。支柱の外の面に）----
+material "kd_brace"
+pY = secB[kP] / 2
+pX = secH[kP] / 2
+for k = 1 to nLv
+	for j = 1 to nPY
+		add gx[1], gy[j] + pY, lv[k] - 0.2
+		block gx[nPX] - gx[1], 0.09, 0.2
+		del 1
+	next j
+	for i = 1 to nPX
+		add gx[i] + pX, gy[1], lv[k] - 0.2
+		block 0.09, gy[nPY] - gy[1], 0.2
+		del 1
+	next i
+next k
+! ---- 垂直ブレース（L-75。外周の構面に X 形）----
+if nLv > 1 then
+	for k = 1 to nLv - 1
+		zH = lv[k] - 0.2
+		zL = lv[k + 1]
+		dz = max(0.05, zH - zL)
+		for i = 1 to nBX
+			dx = max(0.05, gx[i + 1] - gx[i])
+			bl = sqr(dx * dx + dz * dz)
+			ang = atn(dz / dx)
+			for s = 0 to 1
+				yb = gy[1] - pY - 0.08
+				if s = 1 then yb = gy[nPY] + pY + 0.09
+				add gx[i], yb, zL
+				roty -ang
+				block bl, 0.075, 0.075
+				del 2
+				add gx[i], yb, zH
+				roty ang
+				block bl, 0.075, 0.075
+				del 2
+			next s
+		next i
+		for j = 1 to nBY
+			dy = max(0.05, gy[j + 1] - gy[j])
+			bl = sqr(dy * dy + dz * dz)
+			ang = atn(dz / dy)
+			for s = 0 to 1
+				xb = gx[1] - pX - 0.08
+				if s = 1 then xb = gx[nPX] + pX + 0.09
+				add xb, gy[j], zL
+				rotz 90
+				roty -ang
+				block bl, 0.075, 0.075
+				del 3
+				add xb, gy[j], zH
+				rotz 90
+				roty ang
+				block bl, 0.075, 0.075
+				del 3
+			next s
+		next j
+	next k
+endif
+! ---- 手すり・中さん・幅木（縁の内側 50）----
+for e = 1 to 4
+	onE = 0
+	if e = 1 and railS then onE = 1
+	if e = 2 and railN then onE = 1
+	if e = 3 and railE then onE = 1
+	if e = 4 and railW then onE = 1
+	if onE then
+		eL = lx
+		ex = 0
+		ey = 0.05
+		er = 0
+		if e = 2 then ey = ly - 0.05
+		if e > 2 then
+			eL = ly
+			ey = 0
+			er = 90
+			ex = 0.05
+			if e = 3 then ex = lx - 0.05
+		endif
+		add ex, ey, zTop
+		rotz er
+		nRp = max(1, ceil(eL / 1.8 - 0.000001))
+		material "kd_rail"
+		for r = 0 to nRp
+			add eL * r / nRp, 0, 0
+			cylind 1.0, 0.0243
+			del 1
+		next r
+		for t = 1 to 2
+			hz = 0.95
+			if t = 2 then hz = 0.45
+			add 0, 0, hz
+			roty 90
+			cylind eL, 0.0243
+			del 2
+		next t
+		material "kd_toe"
+		add 0, -0.0125, 0
+		block eL, 0.025, 0.15
+		del 1
+		del 2
+	endif
+next e
+! ---- スロープ（入口 X0 の側。下は盛土かコンクリート）----
+if slL > 0 then
+	material "kd_slope"
+	add -slL, ly, 0
+	rotx 90
+	prism 3, ly, 0, 0, slL, zTop, slL, 0
+	del 2
+endif
+! 水平つなぎの段を上下に動かすホットスポット（手前の隅の支柱の外）
+hx = gx[1]
+hy = gy[1] - secB[kP] / 2 - 0.3
+if nLv >= 1 then
+	hotspot hx, hy, zTop, 403, lvD1, 1 + 128
+	hotspot hx, hy, zTop - lvD1, 404, lvD1, 2
+	hotspot hx, hy, zTop + 1, 405, lvD1, 3
+endif
+if nLv >= 2 then
+	hotspot hx, hy, zTop, 406, lvD2, 1 + 128
+	hotspot hx, hy, zTop - lvD2, 407, lvD2, 2
+	hotspot hx, hy, zTop + 1, 408, lvD2, 3
+endif
+if nLv >= 3 then
+	hotspot hx, hy, zTop, 409, lvD3, 1 + 128
+	hotspot hx, hy, zTop - lvD3, 410, lvD3, 2
+	hotspot hx, hy, zTop + 1, 411, lvD3, 3
+endif
+if nLv >= 4 then
+	hotspot hx, hy, zTop, 412, lvD4, 1 + 128
+	hotspot hx, hy, zTop - lvD4, 413, lvD4, 2
+	hotspot hx, hy, zTop + 1, 414, lvD4, 3
+endif
+if nLv >= 5 then
+	hotspot hx, hy, zTop, 415, lvD5, 1 + 128
+	hotspot hx, hy, zTop - lvD5, 416, lvD5, 2
+	hotspot hx, hy, zTop + 1, 417, lvD5, 3
+endif
+if nLv >= 6 then
+	hotspot hx, hy, zTop, 418, lvD6, 1 + 128
+	hotspot hx, hy, zTop - lvD6, 419, lvD6, 2
+	hotspot hx, hy, zTop + 1, 420, lvD6, 3
+endif
+if nLv >= 7 then
+	hotspot hx, hy, zTop, 421, lvD7, 1 + 128
+	hotspot hx, hy, zTop - lvD7, 422, lvD7, 2
+	hotspot hx, hy, zTop + 1, 423, lvD7, 3
+endif
+if nLv >= 8 then
+	hotspot hx, hy, zTop, 424, lvD8, 1 + 128
+	hotspot hx, hy, zTop - lvD8, 425, lvD8, 2
+	hotspot hx, hy, zTop + 1, 426, lvD8, 3
+endif
+end
+
+! H 形鋼: 今の座標で +X に長さ hL、Y の真ん中、下端 z＝0（hh・hb・htw・htf）
+"hbeam":
+	add 0, -hb / 2, 0
+	block hL, hb, htf
+	add 0, (hb - htw) / 2, htf
+	block hL, htw, hh - 2 * htf
+	del 1
+	add 0, 0, hh - htf
+	block hL, hb, htf
+	del 2
+return

@@ -45,6 +45,7 @@ PART_PENS = {
     "ashiba_kakoi": ("equip",),
     "ashiba_crane": ("equip",),
     "ashiba_plate": ("equip",),
+    "ashiba_kodai": ("equip",),
 }
 
 

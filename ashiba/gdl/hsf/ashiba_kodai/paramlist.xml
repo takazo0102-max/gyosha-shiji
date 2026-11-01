@@ -1,0 +1,285 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="dk3">
+			<Description><![CDATA["3m の覆工板の列の数（−1＝自動: 幅が奇数 m なら1列。残りは 2m）"]]></Description>
+			<Value>-1</Value>
+		</Integer>
+		<Integer Name="dk3At">
+			<Description><![CDATA["3m の列の位置（手前から何列目）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="spMax">
+			<Description><![CDATA["支柱の間隔の上限"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="ovh">
+			<Description><![CDATA["張出し（縁から支柱まで）"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="lenX">
+			<Description><![CDATA["長さ X（進行方向。ホットスポットで引く。1m の倍数に切り上げる）"]]></Description>
+			<Value>30.0</Value>
+		</Length>
+		<Length Name="lenY">
+			<Description><![CDATA["幅 Y（同上。覆工板の長さの倍数に）"]]></Description>
+			<Value>8.0</Value>
+		</Length>
+		<Length Name="zTop">
+			<Description><![CDATA["床の上端（地盤から）"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="dig">
+			<Description><![CDATA["根切り底（地盤から下へ）"]]></Description>
+			<Value>6.3</Value>
+		</Length>
+		<Length Name="emb">
+			<Description><![CDATA["支柱の根入れ（根切り底から下へ）"]]></Description>
+			<Value>4.7</Value>
+		</Length>
+		<Integer Name="secJ">
+			<Description><![CDATA["根太の H形鋼（一覧で選ぶ）"]]></Description>
+			<Value>5</Value>
+		</Integer>
+		<Integer Name="secG">
+			<Description><![CDATA["大引の H形鋼（一覧で選ぶ）"]]></Description>
+			<Value>5</Value>
+		</Integer>
+		<Integer Name="secP">
+			<Description><![CDATA["支柱（構台杭）の H形鋼（一覧で選ぶ）"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Length Name="tieP">
+			<Description><![CDATA["水平つなぎの段の間隔の上限"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<RealNum Name="slopeN">
+			<Description><![CDATA["スロープの勾配 1/n（0＝なし。入口 X0 の側）"]]></Description>
+			<Value>8.0</Value>
+		</RealNum>
+		<Boolean Name="railS">
+			<Description><![CDATA["手すり 手前（Y0）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="railN">
+			<Description><![CDATA["手すり 奥（Y 最大）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="railE">
+			<Description><![CDATA["手すり 先（X 最大）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="railW">
+			<Description><![CDATA["手すり 入口（X0）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="showDeck">
+			<Description><![CDATA["覆工板を 3D に描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="gAuto">
+			<Description><![CDATA["支柱の列・行を自動で等分（ホットスポットで動かすと外れる）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Integer Name="nGX">
+			<Description><![CDATA["支柱の列の数（X。2〜16）"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Length Name="gX1">
+			<Description><![CDATA["支柱の列 1 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX2">
+			<Description><![CDATA["支柱の列 2 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX3">
+			<Description><![CDATA["支柱の列 3 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX4">
+			<Description><![CDATA["支柱の列 4 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX5">
+			<Description><![CDATA["支柱の列 5 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX6">
+			<Description><![CDATA["支柱の列 6 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX7">
+			<Description><![CDATA["支柱の列 7 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX8">
+			<Description><![CDATA["支柱の列 8 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX9">
+			<Description><![CDATA["支柱の列 9 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX10">
+			<Description><![CDATA["支柱の列 10 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX11">
+			<Description><![CDATA["支柱の列 11 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX12">
+			<Description><![CDATA["支柱の列 12 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX13">
+			<Description><![CDATA["支柱の列 13 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX14">
+			<Description><![CDATA["支柱の列 14 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX15">
+			<Description><![CDATA["支柱の列 15 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gX16">
+			<Description><![CDATA["支柱の列 16 の X（大引も）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Integer Name="nGY">
+			<Description><![CDATA["支柱の行の数（Y。2〜8）"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Length Name="gY1">
+			<Description><![CDATA["支柱の行 1 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY2">
+			<Description><![CDATA["支柱の行 2 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY3">
+			<Description><![CDATA["支柱の行 3 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY4">
+			<Description><![CDATA["支柱の行 4 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY5">
+			<Description><![CDATA["支柱の行 5 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY6">
+			<Description><![CDATA["支柱の行 6 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY7">
+			<Description><![CDATA["支柱の行 7 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="gY8">
+			<Description><![CDATA["支柱の行 8 の Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Boolean Name="lAuto">
+			<Description><![CDATA["水平つなぎの段を自動で（3D のホットスポットで動かすと外れる）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Integer Name="nLvP">
+			<Description><![CDATA["水平つなぎの段の数（1〜8）"]]></Description>
+			<Value>3</Value>
+		</Integer>
+		<Length Name="lvD1">
+			<Description><![CDATA["水平つなぎ 1 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD2">
+			<Description><![CDATA["水平つなぎ 2 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD3">
+			<Description><![CDATA["水平つなぎ 3 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD4">
+			<Description><![CDATA["水平つなぎ 4 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD5">
+			<Description><![CDATA["水平つなぎ 5 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD6">
+			<Description><![CDATA["水平つなぎ 6 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD7">
+			<Description><![CDATA["水平つなぎ 7 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="lvD8">
+			<Description><![CDATA["水平つなぎ 8 段目（床の上端から下へ）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<String Name="kdVeh">
+			<Description><![CDATA["重機（検定用。T25・R20・R25・R40・R65・C50）"]]></Description>
+			<Value><![CDATA["R25"]]></Value>
+		</String>
+		<RealNum Name="kdLoad">
+			<Description><![CDATA["吊荷 t（検定用）"]]></Description>
+			<Value>3.0</Value>
+		</RealNum>
+		<RealNum Name="kdN">
+			<Description><![CDATA["支柱の先の N 値（検定用）"]]></Description>
+			<Value>20.0</Value>
+		</RealNum>
+		<String Name="kdName">
+			<Description><![CDATA["名前（注記）"]]></Description>
+			<Value><![CDATA["構台"]]></Value>
+		</String>
+		<String Name="maxLd">
+			<Description><![CDATA["最大積載荷重の注記"]]></Description>
+			<Value><![CDATA["最大積載荷重 28.6t"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

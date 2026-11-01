@@ -1,0 +1,198 @@
+﻿! 乗入れ構台: 割付（src/ashiba/kodai.py の layout と同じ）。H形鋼は kodai.H_SECTIONS の並び
+dim secH[10], secB[10], secW[10], secF[10]
+secH[1] = 0.200
+secB[1] = 0.200
+secW[1] = 0.008
+secF[1] = 0.0120
+secH[2] = 0.250
+secB[2] = 0.250
+secW[2] = 0.009
+secF[2] = 0.0140
+secH[3] = 0.300
+secB[3] = 0.300
+secW[3] = 0.010
+secF[3] = 0.0150
+secH[4] = 0.350
+secB[4] = 0.350
+secW[4] = 0.012
+secF[4] = 0.0190
+secH[5] = 0.400
+secB[5] = 0.400
+secW[5] = 0.013
+secF[5] = 0.0210
+secH[6] = 0.414
+secB[6] = 0.405
+secW[6] = 0.018
+secF[6] = 0.0280
+secH[7] = 0.428
+secB[7] = 0.407
+secW[7] = 0.020
+secF[7] = 0.0350
+secH[8] = 0.488
+secB[8] = 0.300
+secW[8] = 0.011
+secF[8] = 0.0180
+secH[9] = 0.588
+secB[9] = 0.300
+secW[9] = 0.012
+secF[9] = 0.0200
+secH[10] = 0.594
+secB[10] = 0.302
+secW[10] = 0.014
+secF[10] = 0.0230
+kJ = max(1, min(10, secJ))
+kG = max(1, min(10, secG))
+kP = max(1, min(10, secP))
+dkH = 0.208
+! 広さ（X は 1m、Y は覆工板の長さの倍数）
+nDX = max(1, ceil(lenX - 0.02))
+lx = nDX
+! 覆工板の列（Y の手前から。2m が基本、幅の端数に 3m。kodai.deck_rows と同じ）
+if dk3 < 0 then
+	wm = max(2, ceil(lenY - 0.02))
+	n3 = wm - 2 * int(wm / 2)
+	n2 = (wm - 3 * n3) / 2
+else
+	n3 = dk3
+	n2 = max(0, ceil((lenY - 3 * n3) / 2 - 0.01))
+	if n2 + n3 = 0 then n2 = 1
+endif
+nDY = n2 + n3
+k3 = max(1, min(dk3At, n2 + 1))
+dim rw[], ry[]
+ry[1] = 0
+for j = 1 to nDY
+	rw[j] = 2
+	if j >= k3 and j < k3 + n3 then rw[j] = 3
+	ry[j + 1] = ry[j] + rw[j]
+next j
+ly = ry[nDY + 1]
+! 支柱の格子の自動（縁から ovh の内側を spMax 以内で等分）
+spM = max(1, spMax)
+inX = max(lx - 2 * ovh, 0)
+inY = max(ly - 2 * ovh, 0)
+nBX = min(15, max(1, ceil(inX / spM - 0.000001)))
+nBY = min(7, max(1, ceil(inY / spM - 0.000001)))
+nAX = nBX + 1
+nAY = nBY + 1
+dim axp[16], ayp[8]
+for i = 1 to nAX
+	axp[i] = ovh + inX * (i - 1) / nBX
+next i
+for j = 1 to nAY
+	ayp[j] = ovh + inY * (j - 1) / nBY
+next j
+! 使う列・行（自動か、ホットスポットで動かした gX・gY）。並べ替えて gx・gy に
+dim px0[16], py0[8]
+px0[1] = gX1
+px0[2] = gX2
+px0[3] = gX3
+px0[4] = gX4
+px0[5] = gX5
+px0[6] = gX6
+px0[7] = gX7
+px0[8] = gX8
+px0[9] = gX9
+px0[10] = gX10
+px0[11] = gX11
+px0[12] = gX12
+px0[13] = gX13
+px0[14] = gX14
+px0[15] = gX15
+px0[16] = gX16
+py0[1] = gY1
+py0[2] = gY2
+py0[3] = gY3
+py0[4] = gY4
+py0[5] = gY5
+py0[6] = gY6
+py0[7] = gY7
+py0[8] = gY8
+dim gx[], gy[]
+if gAuto then
+	nPX = nAX
+	nPY = nAY
+	for i = 1 to nPX
+		gx[i] = axp[i]
+	next i
+	for j = 1 to nPY
+		gy[j] = ayp[j]
+	next j
+else
+	nPX = max(2, min(16, nGX))
+	nPY = max(2, min(8, nGY))
+	for i = 1 to nPX
+		gx[i] = max(0, min(lx, px0[i]))
+	next i
+	for j = 1 to nPY
+		gy[j] = max(0, min(ly, py0[j]))
+	next j
+endif
+for i = 2 to nPX
+	for m = i to 2 step -1
+		if gx[m] < gx[m - 1] then
+			tq = gx[m]
+			gx[m] = gx[m - 1]
+			gx[m - 1] = tq
+		endif
+	next m
+next i
+for j = 2 to nPY
+	for m = j to 2 step -1
+		if gy[m] < gy[m - 1] then
+			tq = gy[m]
+			gy[m] = gy[m - 1]
+			gy[m - 1] = tq
+		endif
+	next m
+next j
+nBX = nPX - 1
+nBY = nPY - 1
+! 高さ: 床の上端 zTop → 覆工板 → 根太 → 大引 → 支柱の天端
+zJt = zTop - dkH
+zGt = zJt - secH[kJ]
+zPt = zGt - secH[kG]
+zPb = -dig - emb
+! 水平つなぎの段の自動（大引のすぐ下から tieP 以内で等分、一番下は根切り底の 300 上。床の上端から下へ m）
+dim alp[8]
+zLast = -dig + 0.3
+nAL = 1
+alp[1] = zTop - zPt
+if zPt - zLast > 0.3 then
+	nTier = min(7, max(1, ceil((zPt - zLast) / max(0.5, tieP) - 0.000001)))
+	for k = 1 to nTier + 1
+		alp[k] = zTop - (zPt - (zPt - zLast) * (k - 1) / nTier)
+	next k
+	nAL = nTier + 1
+endif
+dim lz0[8]
+lz0[1] = lvD1
+lz0[2] = lvD2
+lz0[3] = lvD3
+lz0[4] = lvD4
+lz0[5] = lvD5
+lz0[6] = lvD6
+lz0[7] = lvD7
+lz0[8] = lvD8
+dim lv[]
+nLv = nAL
+if lAuto = 0 then nLv = max(1, min(8, nLvP))
+for k = 1 to nLv
+	if lAuto then
+		lv[k] = zTop - alp[k]
+	else
+		lv[k] = zTop - max(0, lz0[k])
+	endif
+next k
+for k = 2 to nLv
+	for m = k to 2 step -1
+		if lv[m] > lv[m - 1] then
+			tq = lv[m]
+			lv[m] = lv[m - 1]
+			lv[m - 1] = tq
+		endif
+	next m
+next k
+! スロープ（入口 X0 の側）
+slL = 0
+if slopeN > 0.5 and zTop > 0.05 then slL = zTop * slopeN
