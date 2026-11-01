@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="llL">
+			<Description><![CDATA["梁（線）の長さ"]]></Description>
+			<Value>24.0</Value>
+		</Length>
+		<Integer Name="nSpan">
+			<Description><![CDATA["スパンの数（0＝張れない）"]]></Description>
+			<Value>3</Value>
+		</Integer>
+		<Length Name="llEnd">
+			<Description><![CDATA["梁の端から支柱まで"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Integer Name="postK">
+			<Description><![CDATA["親綱支柱（1 NTP H鋼取付用・2 ALPA12 アルミ）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="llName">
+			<Description><![CDATA["名前（注記）"]]></Description>
+			<Value><![CDATA["親綱1"]]></Value>
+		</String>
+		<String Name="llDrop">
+			<Description><![CDATA["落差の注記"]]></Description>
+			<Value><![CDATA["落差 8.0m"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

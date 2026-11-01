@@ -50,6 +50,7 @@ PART_PENS = {
     "ashiba_house": ("equip",),
     "ashiba_opening": ("equip",),
     "ashiba_fence": ("equip",),
+    "ashiba_lifeline": ("equip",),
 }
 
 

@@ -235,6 +235,13 @@ PARTS = {
             "原点＝線の始め、座標 cX・cY（mm）。種類 fcKind: 1 PPフェンス PP1512G・2 スタンドバリケード C型 BS020＋単管・3 バルカンバリア BBJW4・4 仮設ガードレール GR50（日建リース Vol.10 p395〜397）を規格の1基ずつ。割付と判定は fence.py、置くのは scripts/fence_run.py。",
         ],
     },
+    "ashiba_lifeline": {
+        "title": "親綱と親綱支柱（鉄骨梁の上。1本の梁に1部品）",
+        "notes": [
+            "利用者の指定（2026-11-01）: 親綱と親綱支柱も追加して。",
+            "原点＝梁の芯の始め（上フランジの上）、+X＝梁の向き。支柱は両端から llEnd 入れて nSpan スパンに等分、postK 1 NTP・2 ALPA12（日建リース Vol.10 p196）、親綱はスパンごとに1本と緊張器。割付と判定は lifeline.py、置くのは scripts/lifeline_run.py。",
+        ],
+    },
     "ashiba_walkway": {
         "title": "仮設通路（アルミ製の伸縮通路 日工セック ライトブリッジ・1本に1部品）",
         "notes": [
