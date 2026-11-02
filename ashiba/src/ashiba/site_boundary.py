@@ -12,6 +12,12 @@
       road_edges: [0, 2]（道路境界線の辺の番号。境界の i 番目の頂点から i+1 番目まで）。
 Archicad からは、レイヤー名に「敷地」か「境界」を含む閉じたポリラインを拾う（名前に「道路」を含む
 レイヤーのポリラインは、その辺を道路境界とみなす）。
+
+道路占用（利用者の指定 2026-11-02「各図面を参考に」の続き。施工図の手引きの道路・歩道の借用）: 条件に road_width_mm（歩道の
+有効幅員。road_sidewalk false なら歩道の無い道路の幅員）があれば、道路境界を越える足場の出幅を許可基準の上限と比べる
+（sogo_sheet.road_limit。東京都北多摩北部建設事務所「道路占用許可申請手続き」p.3: 歩道上は路端から 1m 以下かつ有効幅員の 1/3
+以下、車道上は 1m 以下かつ道路幅員の 1/8 以下）。上限の内なら「占用の許可で組める」の要確認、超えれば NG。道路側の朝顔は
+路面から歩道上 4m・車道上 5m 以上（同 p.3）。
 """
 
 from __future__ import annotations
@@ -111,8 +117,19 @@ def face_clearances(model: ScaffoldModel, boundary: list[tuple[float, float]],
     return out
 
 
-def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair_plan=None) -> list:
-    """離れから NG・要確認（conflicts.ConflictIssue の形）."""
+def road_of(spec: dict):
+    """条件の道路占用の値 → sogo_sheet.RoadLimit（幅員が無ければ None）."""
+    w = spec.get("road_width_mm")
+    if not w:
+        return None
+    from .sogo_sheet import road_limit
+
+    g = spec.get("road_guard_inner_mm")
+    return road_limit(float(w), bool(spec.get("road_sidewalk", True)), float(g) if g else None)
+
+
+def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair_plan=None, road=None) -> list:
+    """離れから NG・要確認（conflicts.ConflictIssue の形）. road は道路占用の上限（road_of）."""
     from .conflicts import ConflictIssue
 
     out = []
@@ -123,6 +140,22 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
     outside = bool(getattr(stair_plan, "outside", False))
     for c in clearances:
         side = "道路境界" if c.road else "隣地境界"
+        if c.min_mm < 0 and c.road and road is not None:
+            over = -c.min_mm
+            if over <= road.max_out_mm + 1e-6:
+                out.append(ConflictIssue(
+                    "足場×道路占用", "WARN",
+                    f"{c.face}: 足場が道路境界線を最大 {over:.0f}mm 越えます（面の始点から {c.over_from_mm:.0f}〜{c.over_to_mm:.0f}mm）。"
+                    f"出幅の上限 {road.max_out_mm:.0f}mm（{road.rule}）の内なので、道路占用許可（道路管理者）と道路使用許可（警察署）を"
+                    "取れば組める。" + "。".join(road.notes),
+                    "道路法32条・東京都北多摩北部建設事務所 道路占用許可申請手続き p.3"))
+            else:
+                out.append(ConflictIssue(
+                    "足場×道路占用", "NG",
+                    f"{c.face}: 足場が道路境界線を最大 {over:.0f}mm 越え、出幅の上限 {road.max_out_mm:.0f}mm（{road.rule}）を超えます。"
+                    "離れを詰める・幅を狭める・一側足場にする",
+                    "道路法32条・東京都北多摩北部建設事務所 道路占用許可申請手続き p.3"))
+            continue
         if c.min_mm < 0:
             out.append(ConflictIssue(
                 "足場×敷地境界", "NG",
@@ -136,7 +169,18 @@ def boundary_issues(model: ScaffoldModel, clearances: list[FaceClearance], stair
                 f"{c.face}: 足場の外から{side}線まで {c.min_mm:.0f}mm しかありません（養生シート・作業の余裕に注意）",
                 basis))
         asa_proj = asa_full if model.asagao_on(c.edge_index) else 0.0
-        if asa_proj > 0 and c.min_mm < asa_proj:
+        if asa_proj > 0 and c.min_mm < asa_proj and c.road and road is not None:
+            from .sogo_sheet import ASAGAO_ROAD_MM, ASAGAO_WALK_MM
+
+            need = ASAGAO_WALK_MM if "歩道" in road.rule else ASAGAO_ROAD_MM
+            low = min((float(h) for h in model.asagao_heights_of(c.edge_index)), default=0.0)
+            ok = low >= need - 1e-6
+            out.append(ConflictIssue(
+                "朝顔×道路占用", "WARN" if ok else "NG",
+                f"{c.face}: 朝顔の張り出し {asa_proj:.0f}mm が道路境界線を越えます（境界まで {c.min_mm:.0f}mm）。いちばん下の朝顔の高さ "
+                f"{low:.0f}mm は、路面から {need:.0f}mm 以上{'（可。道路占用許可が要る）' if ok else 'が要るので足りない → 朝顔を上の層へ'}",
+                "東京都北多摩北部建設事務所 道路占用許可申請手続き p.3（落下物防護用施設）"))
+        elif asa_proj > 0 and c.min_mm < asa_proj:
             out.append(ConflictIssue(
                 "朝顔×敷地境界", "WARN",
                 f"{c.face}: 朝顔の張り出し {asa_proj:.0f}mm が{side}線を越えます（境界まで {c.min_mm:.0f}mm）。"

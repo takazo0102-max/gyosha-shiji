@@ -35,6 +35,27 @@ class TestClearance(unittest.TestCase):
         self.assertTrue(ng[0].message.startswith("西面:"))
         self.assertIn("225mm 越えます", ng[0].message)
 
+    def test_road_occupancy_limit(self):
+        """道路境界を越える足場は、道路占用の出幅の上限（東京都北多摩北部建設事務所 p.3）の内なら許可で組める要確認、超えれば NG."""
+        base = {"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(road=700), "road_edges": [0],
+                "series_id": "shinwa_A"}
+        for extra, want in (({"road_width_mm": 3000}, "WARN"),                       # 歩道 3m → 上限 1,000
+                            ({"road_width_mm": 1200, "road_sidewalk": False}, "NG")):  # 車道 1.2m → 1/8 で 150 ＜ 越える 175
+            r = solve_all({**base, **extra})
+            hit = [c for c in r.conflicts if c.kind == "足場×道路占用"]
+            self.assertEqual([c.severity for c in hit], [want], extra)
+            self.assertTrue(hit[0].message.startswith("南面:"))
+            self.assertFalse([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG" and "南面" in c.message])
+        r = solve_all(base)                                                           # 幅員が無ければ今までどおり
+        self.assertTrue([c for c in r.conflicts if c.kind == "足場×敷地境界" and c.severity == "NG"])
+        from ashiba.spec_form import apply_form, form_fields
+
+        out, _notes = apply_form(base, {"road": "3,000", "sidewalk": "0"})          # 条件の窓の「前面道路の幅員」「歩道」
+        self.assertEqual((out["road_width_mm"], out["road_sidewalk"]), (3000, False))
+        v = {f["key"]: f.get("value") for f in form_fields(out) if f["key"]}
+        self.assertEqual((v["road"], v["sidewalk"]), ("3000", "0"))
+        self.assertNotIn("road_width_mm", apply_form(out, {"road": "", "sidewalk": "1"})[0])
+
     def test_plan_again_with_smaller_forms(self):
         spec = {"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd(west=700), "road_edges": [0]}
         sp, notes = plan_within_boundary(spec)

@@ -156,7 +156,7 @@ TOP_KEYS = {
     "project_name", "series_id", "module", "outline_mm", "eaves_height_mm", "guard_extra_mm", "scaffold_height_mm",
     "span_overrides",
     "building_height_mm", "period_days", "standoff", "deck_widths", "scaffold_width_mm",
-    "clearance_space_mm", "one_row_by_choice", "gap_boards", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "fit_boundary", "boundary_from_mesh",
+    "clearance_space_mm", "one_row_by_choice", "gap_boards", "scaffold_form", "next_gen", "site_boundary_mm", "road_edges", "road_width_mm", "road_sidewalk", "road_guard_inner_mm", "fit_boundary", "boundary_from_mesh",
     "stairs_elsewhere",
     "guard_rail_type", "inner_guard_rail", "end_guard", "line_mode_3d", "horizontal_net_levels", "slabs", "height_from_slabs",
     "toe_board", "net_brackets", "hoarding_height_mm", "pens",
@@ -2927,7 +2927,9 @@ def solve_all(spec: dict, master_csv: Path | None = None) -> PlanRun:
     if clearances:
         from .site_boundary import boundary_issues
 
-        conflicts += boundary_issues(model, clearances, stair_plan)
+        from .site_boundary import road_of
+
+        conflicts += boundary_issues(model, clearances, stair_plan, road_of(spec))
     if bnd:
         from .site_boundary import bracket_boundary_issues, hoist_boundary_issues, stage_boundary_issues
 

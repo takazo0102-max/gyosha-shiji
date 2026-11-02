@@ -134,6 +134,11 @@ def form_fields(spec: dict) -> list[dict]:
         {"key": "hoarding", "label": "仮囲いの高さ", "kind": "number",
          "value": f"{float(spec.get('hoarding_height_mm', 3000) or 0):.0f}",
          "help": "mm（外部シートはこの上から。0＝地面から）"},
+        {"key": "road", "label": "前面道路の幅員", "kind": "number",
+         "value": "" if not spec.get("road_width_mm") else f"{float(spec['road_width_mm']):.0f}",
+         "help": "mm（歩道があれば歩道の有効幅員。空＝道路占用の出幅を見ない。道路境界の辺は road_edges）"},
+        {"key": "sidewalk", "label": "歩道", "kind": "check", "value": "1" if spec.get("road_sidewalk", True) else "0",
+         "help": "前面道路に歩道がある（無ければ車道の基準 1/8）"},
         {"key": "", "label": "高さ・図面", "kind": "section"},
         {"key": "eaves", "label": "軒高", "kind": "number", "value": "" if eaves is None else f"{float(eaves):.0f}",
          "help": "mm（スラブから決めるときは使わない）"},
@@ -200,6 +205,17 @@ def apply_form(spec: dict, values: dict) -> tuple[dict, list[str]]:
             out["hoarding_height_mm"] = max(0, int(round(float(str(values["hoarding"]).replace(",", "")))))
         except ValueError:
             notes.append(f"仮囲いの高さ「{values.get('hoarding')}」は数字ではないので前のままにします")
+    rw = str(values.get("road") or "").strip()
+    if "road" in values:
+        if not rw:
+            out.pop("road_width_mm", None)
+        else:
+            try:
+                out["road_width_mm"] = max(0, int(round(float(rw.replace(",", "")))))
+            except ValueError:
+                notes.append(f"前面道路の幅員「{rw}」は数字ではないので前のままにします")
+    if "sidewalk" in values:
+        out["road_sidewalk"] = str(values.get("sidewalk")) in ("1", "true", "True")
     if values.get("toe") in ONOFF:
         out["toe_board"] = ONOFF[values["toe"]]
     if values.get("net") in NET:
