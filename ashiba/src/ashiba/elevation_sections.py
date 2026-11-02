@@ -1522,16 +1522,61 @@ def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> 
         if abs(dx) > 1e-6 or abs(dy) > 1e-6:
             redo.append((i, dx, dy))
     if not redo:
-        return els
+        return _recheck_offset(client, els, data, layout_item_guid)
+    placed = {i: data[i] for i in range(len(data))}
     try:
         client.tapir("DeleteElements", {"elements": [els[i] for i, _, _ in redo]})
-        again = _create_drawings_safely(client, [
-            {**data[i], "position": {"x": data[i]["position"]["x"] + dx, "y": data[i]["position"]["y"] + dy}}
-            for i, dx, dy in redo], layout_item_guid)
-        for (i, _, _), e in zip(redo, again):
+        moved = [{**data[i], "position": {"x": data[i]["position"]["x"] + dx, "y": data[i]["position"]["y"] + dy}}
+                 for i, dx, dy in redo]
+        again = _create_drawings_safely(client, moved, layout_item_guid)
+        for (i, _, _), e, d2 in zip(redo, again, moved):
             els[i] = e
+            placed[i] = d2
     except Exception:
         pass
+    return _recheck_offset(client, els, [placed[i] for i in range(len(data))], layout_item_guid)
+
+
+def _recheck_offset(client, els: list[dict], data: list[dict], layout_item_guid: str, tries: int = 2) -> list[dict]:
+    """原点が移ったプロジェクトで、置いた図面の位置を読み戻して確かめ、外れていれば同じ値で置き直す.
+
+    読み戻す位置（pos）は「position − 枠の最小角×比率 ＋ 原点のずれ×1/縮尺」のときに中身が枠に映る。ときどき
+    「＋ 原点のずれ」（縮尺を掛けない）になって白紙になる。同じ値で置き直すと戻る（2026-11-03 の実機。総合仮設計画図で
+    確かめた）."""
+    for _ in range(tries):
+        bad = []
+        try:
+            _activate(client, layout_item_guid)
+            client.tapir("UpdateDrawings", {"elements": [e for e in els if "elementId" in e]})
+            dets = client.get_details([e for e in els if "elementId" in e])
+        except Exception:
+            return els
+        k = 0
+        for i, e in enumerate(els):
+            if "elementId" not in e:
+                continue
+            dd = dets[k].get("details") or {}
+            k += 1
+            off = dd.get("modelOffset") or {}
+            ox, oy = float(off.get("x", 0.0) or 0.0), float(off.get("y", 0.0) or 0.0)
+            pos, d = dd.get("pos"), data[i]
+            if not pos or not d.get("clipPolygon") or (abs(ox) < 1e-6 and abs(oy) < 1e-6):
+                continue
+            kk = 1.0 / float(d.get("drawingScale") or 100.0)
+            ratio = float(d.get("scale", 1.0))
+            want = (d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio + ox * kk,
+                    d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio + oy * kk)
+            if abs(float(pos["x"]) - want[0]) > 0.005 or abs(float(pos["y"]) - want[1]) > 0.005:
+                bad.append(i)
+        if not bad:
+            return els
+        try:
+            client.tapir("DeleteElements", {"elements": [els[i] for i in bad]})
+            again = _create_drawings_safely(client, [data[i] for i in bad], layout_item_guid)
+            for i, e in zip(bad, again):
+                els[i] = e
+        except Exception:
+            return els
     return els
 
 

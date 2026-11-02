@@ -215,8 +215,8 @@ def part_params(j: Join) -> dict:
         zs = sorted(zs + [z + DOUBLE_GAP_MM for z in zs])            # 2本目は 1本目のすぐ上（クランプの幅だけあけて）
     return {"tbL": j.span / 1000.0, "tbLen": (j.tube or j.span) / 1000.0, "zList": ",".join(f"{z:.0f}" for z in zs),
             "gdOn": bool(j.guard), "brOn": bool(j.brace and any(j.brace_tubes)), "tbName": j.name,
-            "tbNote": (f"{j.kind} " if j.kind != "つなぎ" else "") + (f"単管 {j.tube / 1000:.1f}M×{len(j.rows) * (2 if j.kind == '壁つなぎ' and j.double else 1)}本"
-                                                                     if j.tube else "単管が届かない")}
+            "tbNote": (f"単管 {j.tube / 1000:.1f}M×{len(j.rows) * (2 if j.kind == '壁つなぎ' and j.double else 1)}本"
+                                                                     if j.tube else "単管が届かない")}   # 名前（火打ち1・壁つなぎ1）が種類を言う
 
 
 def tie_spots(j: Join) -> list[dict]:

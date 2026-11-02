@@ -236,7 +236,7 @@ def drawing(n, li: int, fill=None, back: bool = False) -> tuple[list, list, list
             lines.append({"coordinates": [P(p) for p in r + r[:1]], "layerIndex": li})
         xs = [p[0] for r in n.top_rings for p in r]
         ys = [p[1] for r in n.top_rings for p in r]
-        texts.append(txt(((min(xs) + max(xs)) / 2, min(ys) - 900.0),
+        texts.append(txt(((min(xs) + max(xs)) / 2, min(ys) - 1500.0),               # 法面の文字（辺の 600 下）の下
                          f"埋戻し {n.backfill:,.0f}m³・発生土 {surplus(n):,.0f}m³（地山）・10t ダンプ 延べ {dumps(n)}台"))
     return hatches, lines, texts
 
@@ -292,6 +292,14 @@ def main(argv=None) -> int:
                     help="前に作った根切り図を、同じ躯体（GUID）と条件で作り直す（基礎・地中梁を変えた後に。選ばなくてよい）")
     a = ap.parse_args(argv)
     c = ArchicadClient()
+    # 平面図のウィンドウで描き・消す（前面がレイアウトだと、線・文字・メッシュがそのレイアウトに描かれ、前の根切り図も
+    # 見つからず消せなかった。2026-11-03 の実機）
+    from ashiba.elevation_sections import activate_floor_plan
+
+    try:
+        activate_floor_plan(c)
+    except Exception:
+        pass
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path = R.OUT_DIR / RECORD
     try:

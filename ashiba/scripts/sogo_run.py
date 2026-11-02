@@ -11,8 +11,10 @@
   python3 scripts/sogo_run.py --road-width 4000 --guard-inner 2400     # ガードレールの内側まで 2.4m
   python3 scripts/sogo_run.py --remove                     # 作ったレイアウトを消す
 
-範囲は、配置の控え（*_plan.json の躯体の外形）と、ashiba_out の控え（クレーン・仮囲い・仮設建物…の GUID）の要素の外接箱を
-合わせて 3m 広げたもの。レイヤーの表示はいまの平面図のまま（隠したレイヤーは図にも出ない）.
+範囲: 何か選んで押せば、選んだ物（敷地を囲む線・仮囲い・建物など）の外接箱を 3m 広げたもの。選んでいなければ、配置の控え
+（いちばん新しい *_plan.json の躯体の外形）と、ashiba_out の控え（クレーン・仮囲い・仮設建物…の GUID）の要素のうち躯体から
+60m 以内のものの外接箱を合わせて 3m 広げたもの（控えには前の試しの離れた場所の物も残るので、遠い物は入れない。2026-11-03 の
+実機で 1/500 でも用紙からはみ出した）。レイヤーの表示はいまの平面図のまま（隠したレイヤーは図にも出ない）.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ RECORDS = ("クレーン.json", "タワークレーン.json", "仮囲い.json", 
            "重機.json", "根切り.json", "柵.json", "開口養生.json", "親綱.json", "単管でつなぐ.json", "山留め足場.json")
 GUID = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)
 MARGIN_MM = 3000.0
+NEAR_MM = 60000.0           # 躯体からこれより遠い控えの仮設は範囲に入れない
 
 
 def record_guids(out_dir: Path) -> list[str]:
@@ -53,6 +56,28 @@ def record_guids(out_dir: Path) -> list[str]:
         except (OSError, ValueError):
             pass
     return list(dict.fromkeys(found))
+
+
+def near_boxes(points_mm: list, boxes: list, near: float = NEAR_MM) -> list:
+    """躯体の外形（点）の外接箱から near 以内に掛かる外接箱だけ（点が無ければ全部）."""
+    if not points_mm:
+        return list(boxes)
+    x0, x1 = min(p[0] for p in points_mm) - near, max(p[0] for p in points_mm) + near
+    y0, y1 = min(p[1] for p in points_mm) - near, max(p[1] for p in points_mm) + near
+    return [b for b in boxes if b[2] >= x0 and b[0] <= x1 and b[3] >= y0 and b[1] <= y1]
+
+
+def boxes_of(c, guids: list) -> list:
+    """要素の平面の外接箱（mm の xMin, yMin, xMax, yMax）."""
+    out = []
+    if not guids:
+        return out
+    r = c.tapir("Get3DBoundingBoxes", {"elements": [{"elementId": {"guid": g}} for g in guids]})
+    for bx in r.get("boundingBoxes3D", []):
+        b = bx.get("boundingBox3D") or {}
+        if "xMin" in b:
+            out.append(tuple(b[k] * 1000.0 for k in ("xMin", "yMin", "xMax", "yMax")))
+    return out
 
 
 def region_of(points_mm: list, boxes: list, margin: float = MARGIN_MM):
@@ -81,6 +106,7 @@ def main(argv=None) -> int:
     ap.add_argument("--road-width", type=float, default=None, help="前面道路の幅 mm（歩道なら有効幅員、--no-sidewalk なら道路幅員）")
     ap.add_argument("--no-sidewalk", action="store_true", help="歩道の無い道路（車道上の基準 1/8）")
     ap.add_argument("--guard-inner", type=float, default=None, help="ガードレール・植樹帯の内側（路端側）までの幅 mm")
+    ap.add_argument("--scale", type=int, default=None, help="縮尺 1/n の n（省くと用紙に収まるいちばん大きい縮尺）")
     ap.add_argument("--remove", action="store_true", help="作ったレイアウトを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
@@ -103,21 +129,24 @@ def main(argv=None) -> int:
     html_path.write_text(build_html(project, road, desc or ""), encoding="utf-8")
     pdf = R.OUT_DIR / "総合仮設計画図_凡例・確認.pdf"
     ok = to_pdf(html_path, pdf)
-    # 範囲: 躯体の外形と置いた仮設
-    pts = []
-    for p in sorted(R.OUT_DIR.glob("*_plan.json"), key=lambda q: -q.stat().st_mtime)[:1]:
-        pts = [tuple(v) for v in json.loads(p.read_text(encoding="utf-8")).get("outline_mm", [])]
-    boxes = []
-    guids = record_guids(R.OUT_DIR)
-    if guids:
+    # 範囲: 選んだ物か、躯体の外形とその近くに置いた仮設（選択は平面図のウィンドウのもの。レイアウトが前面だと読めない）
+    activate_floor_plan(c)
+    pts, boxes, how = [], [], ""
+    sel = c.get_selected_elements()
+    if sel:
+        boxes = boxes_of(c, [e["elementId"]["guid"] for e in sel])
+        how = f"選んだ {len(sel)} 個"
+    else:
+        for p in sorted(R.OUT_DIR.glob("*_plan.json"), key=lambda q: -q.stat().st_mtime)[:1]:
+            pts = [tuple(v) for v in json.loads(p.read_text(encoding="utf-8")).get("outline_mm", [])]
+            how = f"配置の控え {p.name}"
         try:
-            r = c.tapir("Get3DBoundingBoxes", {"elements": [{"elementId": {"guid": g}} for g in guids]})
-            for bx in r.get("boundingBoxes3D", []):
-                b = bx.get("boundingBox3D") or {}
-                if "xMin" in b:
-                    boxes.append(tuple(b[k] * 1000.0 for k in ("xMin", "yMin", "xMax", "yMax")))
+            near = near_boxes(pts, boxes_of(c, record_guids(R.OUT_DIR)))
         except Exception as ex:
+            near = []
             print(f"  注意: 置いた仮設の範囲を読めませんでした（{ex}）")
+        boxes = near
+        how += f"・近くの仮設 {len(near)} 個"
     region = region_of(pts, boxes)
     if region is None:
         print("総合仮設計画図: 配置の控え（*_plan.json）も置いた仮設も無いので、平面図の範囲を決められません。先に「配置」か仮設を置いてください")
@@ -142,10 +171,16 @@ def main(argv=None) -> int:
     paper, m0 = _layout_paper_mm(c, lay)
     margins = (m0[0], m0[1], m0[2] + PANEL_W_MM + PANEL_GAP_MM, m0[3])
     box = (region[2] - region[0], region[3] - region[1])
-    scale = fit_scale(box, paper, margins) or 500
+    scale = a.scale or fit_scale(box, paper, margins)
+    if scale is None:
+        scale = 500
+        notes.append(f"範囲 {box[0] / 1000:.0f}×{box[1] / 1000:.0f}m が 1/500 でも用紙に収まらない。敷地を囲む線などを選んで押す")
     pos = (margins[0] + 10.0, paper[1] - margins[1] - box[1] / scale)
     clip, position = clipped_drawing_geometry(region, scale, pos, source_scale=src_scale)
     dbid = c.tapir("GetDatabaseIdFromNavigatorItemId", {"navigatorItemIds": [{"navigatorItemId": {"guid": lay}}]})["databases"][0]["databaseId"]
+    # 作ったばかりのレイアウトを開いてから置く（開かずに置くと、原点が移ったプロジェクトで図面の原点のずれ（modelOffset）が
+    # 0 と読めて置き直しが外れ、白紙になった。2026-11-03 の実機）
+    c.tapir("ChangeWindow", {"navigatorItemId": {"guid": lay}})
     els = create_clipped_drawings(c, [{"navigatorItemId": {"guid": story["guid"]}, "layoutDatabaseId": dbid, "position": position,
                                        "clipPolygon": clip, "scale": src_scale / scale, "drawingScale": float(scale),
                                        "name": f"総合仮設計画図 {scale_caption(scale)}"}], lay)
@@ -157,7 +192,8 @@ def main(argv=None) -> int:
     body += (f'<text x="{margins[0] + 10.0:.1f}" y="{m0[1] + 6.0:.1f}" class="h1">総合仮設計画図　{scale_caption(scale)}</text>')
     n = draw_shapes(c, lay, svg_shapes(body), paper, (1.0, 0.0, 0.0), layout_attrs(c), notes, LAYOUT)
     activate_floor_plan(c)
-    print(f"総合仮設計画図: レイアウト「{LAYOUT}」（{scale_caption(scale)}・右の欄 {n or 0} 個）・{pdf if ok else html_path}")
+    print(f"総合仮設計画図: レイアウト「{LAYOUT}」（{scale_caption(scale)}・範囲 {box[0] / 1000:.0f}×{box[1] / 1000:.0f}m＝{how}・"
+          f"右の欄 {n or 0} 個）・{pdf if ok else html_path}")
     for x in notes:
         print(f"  注意: {x}")
     return 0

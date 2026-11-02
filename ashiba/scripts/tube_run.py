@@ -96,6 +96,12 @@ def main(argv=None) -> int:
     ap.add_argument("--double", action="store_true", help="壁つなぎを受ける単管を上下2本抱かせる")
     a = ap.parse_args(argv)
     c = ArchicadClient()
+    try:                                                   # 平面図で置く（前面がレイアウトだと置けない・そこへ描く）
+        from ashiba.elevation_sections import activate_floor_plan
+
+        activate_floor_plan(c)
+    except Exception:
+        pass
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     rec_path = R.OUT_DIR / RECORD
     try:
