@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.negiri import Footprint, Negiri, level_color, max_angle, mesh_data, report, solve
+from ashiba.negiri import Footprint, Negiri, dumps, level_color, max_angle, mesh_data, report, solve, surplus
 
 SLAB = Footprint("耐圧盤", [(0, 0), (12000, 0), (12000, 8000), (0, 8000)], -1200.0)
 FOOT = Footprint("基礎F1", [(5000, 3000), (7000, 3000), (7000, 5000), (5000, 5000)], -2000.0)
@@ -116,6 +116,30 @@ class TestNegiri(unittest.TestCase):
         self.assertNotEqual(c0, c1)
         g0, g1 = (level_color(n, L, gray=True) for L in n.levels)
         self.assertGreater(g0[0], g1[0])
+
+    def test_backfill(self):
+        """埋戻し＝根切り−GL 以下の躯体−砕石−捨てコン、発生土＝根切り−埋戻し（積算基準 p.7〜8）。
+        独立基礎 2×2m（下端 −1500・上端 −700）を垂直に掘る: 根切り 3×3×1.61、躯体 2×2×0.8、地業 2.2²×0.11."""
+        f = Footprint("F1", [(0, 0), (2000, 0), (2000, 2000), (0, 2000)], -1500.0, top=-700.0)
+        n = solve(Negiri("試験", [f], slope=0.0))
+        hand = 3.0 * 3.0 * 1.61 - 2.0 * 2.0 * 0.8 - 2.2 * 2.2 * 0.11
+        self.assertAlmostEqual(n.backfill, hand, delta=0.6)                   # 升目 50 の誤差の内
+        self.assertAlmostEqual(surplus(n), n.volume - n.backfill)
+        self.assertEqual(dumps(n), -(-int(surplus(n) * 1000) // 5500))         # 1台 地山 5.5m³
+        self.assertTrue(n.fill_rings)
+        self.assertIn("| 埋戻し |", report(n))
+        top = solve(Negiri("試験", [Footprint("F1", f.pts, -1500.0)], slope=0.0))   # 上端を知らなければ GL まで躯体
+        self.assertLess(top.backfill, n.backfill)
+
+    def test_pit_is_not_backfilled(self):
+        """ピット・地下室の床は床から GL までを空洞として埋め戻さない（山留めの内の残りだけ埋める）."""
+        pit = Footprint("ピット", [(0, 0), (6000, 0), (6000, 4000), (0, 4000)], -3000.0, "地下", top=-2800.0)
+        y = [(-1500, -1500), (7500, -1500), (7500, 5500), (-1500, 5500)]
+        n = solve(Negiri("試験", [pit], slope=0.0, yamadome=y))
+        self.assertAlmostEqual(n.backfill, (9.0 * 7.0 - 6.0 * 4.0) * 3.11, delta=4.0)
+        many = solve(Negiri("試験", [Footprint("F", [(0, 0), (40000, 0), (40000, 30000), (0, 30000)], -3000.0, top=-2000.0)],
+                            slope=0.0, yamadome=[(-1000, -1000), (41000, -1000), (41000, 31000), (-1000, 31000)]))
+        self.assertIn("建設発生土", {c.item for c in many.checks})             # 500m³ 以上は再生資源利用促進計画
 
 
 if __name__ == "__main__":

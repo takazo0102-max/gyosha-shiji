@@ -1,4 +1,4 @@
-"""根切り図（パレットの「根切り図」「根切り図を消す」）.
+"""根切り図（パレットの「根切り図」「根切り図を更新」「根切り図を消す」）.
 
 利用者の指定（2026-11-02）「根切り図も作れるようにして 掘削のオブジェクト躯体選択して 掘削底深さと法面を選べるようにして
 ねぎりずを作成できるようにしてちょ 山留めまでの中途半ば部分は掘削するようにして」。
@@ -19,7 +19,14 @@ ashiba_out/根切り_<名前>.md。
   python3 scripts/negiri_run.py --slope 0 --general -1500        # 垂直（山留め）・山留めの内の一般の根切り底 GL−1500
   python3 scripts/negiri_run.py --margin 600 --gravel 100 --lean 50 --soil 砂 --gl 0 --name 根切り1
   python3 scripts/negiri_run.py --doma-margin 100 --doma-gravel 100 --doma-lean 0 --doma-thin 200 --color 白黒
+  python3 scripts/negiri_run.py --backfill 描かない              # 埋戻しの範囲と量を平面に描かない（帳票には出す）
+  python3 scripts/negiri_run.py --update [--name 根切り1]        # 基礎・地中梁を変えた後に、同じ躯体と条件で作り直す（選ばなくてよい）
   python3 scripts/negiri_run.py --remove [--name 根切り1]        # 置いた根切り図とメッシュを消す（控えの GUID だけ）
+
+埋戻し（GLOOBE 2026 の埋め戻し形状・埋め戻し更新に当たる）: 掘った所から GL 以下の躯体・砕石・捨てコンを除いた所を埋め戻す
+（積算基準 p.7）。ピット・地下室（名前・レイヤーに「ピット」「地下」の床）は床から GL までを空洞として埋めない。帳票に埋戻し・
+建設発生土・10t ダンプの延べ台数、平面に埋戻しの範囲の線と量。「根切り図を更新」は控え（ashiba_out/根切り_元.json）の躯体の
+GUID と条件で作り直すので、基礎を直した後に押せば掘削も埋戻しも直る.
 """
 
 from __future__ import annotations
@@ -35,6 +42,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 LAYER = "仮設_根切り"
 RECORD = "根切り.json"
+SOURCE = "根切り_元.json"    # 名前 → 選んだ躯体の GUID と条件（「根切り図を更新」で躯体の変更を埋戻し・掘削に映す）
+BACKS = ("描く", "描かない")
 COLORS = ("カラー", "白黒", "なし")
 SLOPE_LABELS = {"自動（積算基準: 1.5m 未満は垂直・5m 未満 1:0.3・以上 1:0.6）": None, "垂直（山留め）": 0.0, "1:0.3": 0.3, "1:0.5": 0.5, "1:0.8": 0.8, "1:1.0": 1.0, "1:1.5": 1.5}
 
@@ -52,7 +61,7 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
 
     from ashiba.beams import beam_from_details
     from ashiba.column_form import column_from_details
-    from ashiba.negiri import DOMA_WORDS, Footprint
+    from ashiba.negiri import DOMA_WORDS, VOID_WORDS, Footprint
     from ashiba.wall_form import wall_from_details
 
     layers = {}
@@ -71,7 +80,9 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
             s = slab_info(d)
             if s:
                 doma = any(w in name or w in lay for w in DOMA_WORDS) or (doma_thin is not None and s["t"] <= doma_thin + 1e-6)
-                zones.append(Footprint(name, s["outline"], s["top"] - s["t"], "土間" if doma else "基礎"))
+                void = any(w in name or w in lay.upper() or w in lay for w in VOID_WORDS)
+                zones.append(Footprint(name, s["outline"], s["top"] - s["t"], "地下" if void else "土間" if doma else "基礎",
+                                       s["top"]))
                 continue
         elif typ == "Beam":
             bm = beam_from_details(det)
@@ -79,13 +90,14 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                 L = math.dist(bm.a, bm.b)
                 u = ((bm.b[0] - bm.a[0]) / L, (bm.b[1] - bm.a[1]) / L)
                 zones.append(Footprint(name, _rect(((bm.a[0] + bm.b[0]) / 2, (bm.a[1] + bm.b[1]) / 2), u, L, bm.width),
-                                       bm.bottom_mm))
+                                       bm.bottom_mm, top=bm.top_mm))
                 continue
         elif typ == "Column":
             col = column_from_details(d)
             if col:
                 a = math.radians(col["ang"])
-                zones.append(Footprint(name, _rect(col["c"], (math.cos(a), math.sin(a)), col["width"], col["depth"]), col["z0"]))
+                zones.append(Footprint(name, _rect(col["c"], (math.cos(a), math.sin(a)), col["width"], col["depth"]), col["z0"],
+                                       top=col["z0"] + col["height"]))
                 continue
         elif typ == "Wall":
             w = wall_from_details(d)
@@ -95,7 +107,7 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                 else:
                     c0 = ((w["ca"][0] + w["cb"][0]) / 2 + w["n"][0] * (w["lo"] + w["hi"]) / 2,
                           (w["ca"][1] + w["cb"][1]) / 2 + w["n"][1] * (w["lo"] + w["hi"]) / 2)
-                    zones.append(Footprint(name, _rect(c0, w["u"], w["length"], w["thick"]), w["z0"]))
+                    zones.append(Footprint(name, _rect(c0, w["u"], w["length"], w["thick"]), w["z0"], top=w["z0"] + w["height"]))
                 continue
         elif typ in ("PolyLine", "Line"):
             pts = [(float(p["x"]) * 1000.0, float(p["y"]) * 1000.0) for p in det.get("coordinates") or []]
@@ -113,7 +125,8 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                 b = bx.get("boundingBox3D") or {}
                 if "xMin" in b:
                     x0, x1, y0, y1 = (b[k] * 1000.0 for k in ("xMin", "xMax", "yMin", "yMax"))
-                    zones.append(Footprint(name + "（外形の箱）", [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], b["zMin"] * 1000.0))
+                    zones.append(Footprint(name + "（外形の箱）", [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], b["zMin"] * 1000.0,
+                                           top=b.get("zMax", b["zMin"]) * 1000.0))
                 else:
                     skipped += 1
         except Exception:
@@ -156,9 +169,9 @@ def layer_index(c) -> int:
     return int(hit["index"])
 
 
-def drawing(n, li: int, fill=None) -> tuple[list, list, list]:
+def drawing(n, li: int, fill=None, back: bool = False) -> tuple[list, list, list]:
     """根切り図の平面の塗り・線・文字（Tapir の hatchesData・polylinesData・textsData。m）。fill は (塗りの GUID, 色→ペン, 白黒)
-    で、床付けの高さごとに塗り分けて凡例を付ける（浅い順に塗り、深い所を上に重ねる）."""
+    で、床付けの高さごとに塗り分けて凡例を付ける（浅い順に塗り、深い所を上に重ねる）。back で埋戻しの範囲の線と量も."""
     from ashiba.negiri import _centroid, contour_lines, level_color, slope_angle
 
     P = lambda p: {"x": round(p[0] / 1000.0, 6), "y": round(p[1] / 1000.0, 6)}
@@ -212,6 +225,18 @@ def drawing(n, li: int, fill=None) -> tuple[list, list, list]:
                                                                (lx, y))], "fillId": {"guid": fid}, "fillPenIndex": fp,
                                 "contourPenIndex": fp})
                 texts.append({**txt((lx + 1300.0, y - 300.0), f"床付け GL{L - n.gl:+,.0f}"), "justification": "Left"})
+    if back and n.fill_rings:
+        from ashiba.negiri import _same, dumps, surplus
+
+        # 埋戻しの範囲（躯体と掘削の間）。外の輪が法肩と同じ所は引き直さない
+        for r in n.fill_rings:
+            if any(_same(r, q, n.step * 1.5) for q in n.top_rings):
+                continue
+            lines.append({"coordinates": [P(p) for p in r + r[:1]], "layerIndex": li})
+        xs = [p[0] for r in n.top_rings for p in r]
+        ys = [p[1] for r in n.top_rings for p in r]
+        texts.append(txt(((min(xs) + max(xs)) / 2, min(ys) - 900.0),
+                         f"埋戻し {n.backfill:,.0f}m³・発生土 {surplus(n):,.0f}m³（地山）・10t ダンプ 延べ {dumps(n)}台"))
     return hatches, lines, texts
 
 
@@ -238,10 +263,8 @@ def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
-    from form_dialog import show_form
 
-    from ashiba.negiri import (DOMA_GRAVEL_MM, DOMA_LEAN_MM, DOMA_MARGIN_MM, GRAVEL_MM, LEAN_MM, MARGIN_MM, SOILS, Negiri,
-                               mesh_data, report, solve)
+    from ashiba.negiri import DOMA_GRAVEL_MM, DOMA_LEAN_MM, DOMA_MARGIN_MM, GRAVEL_MM, LEAN_MM, MARGIN_MM, SOILS
     from ashiba.tapir_adapter import ArchicadClient
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -257,10 +280,13 @@ def main(argv=None) -> int:
     ap.add_argument("--doma-lean", type=float, default=None, help=f"土間の捨てコン mm（既定 {DOMA_LEAN_MM:.0f}）")
     ap.add_argument("--doma-thin", type=float, default=None, help="厚さがこれ以下の床も土間とする mm（既定 名前・レイヤーだけ）")
     ap.add_argument("--color", default=None, choices=COLORS, help="床付けの高さの色分け（既定 カラー）")
+    ap.add_argument("--backfill", default=None, choices=BACKS, help="埋戻しの範囲と量を平面に（既定 描く。帳票には常に）")
     ap.add_argument("--soil", default=None, choices=list(SOILS), help="地山の種類（安衛則356条・357条の判定）")
     ap.add_argument("--gl", type=float, default=0.0, help="GL のプロジェクトの高さ mm（既定 0）")
     ap.add_argument("--yamadome-walls", action="store_true", help="選んだ壁を全部 山留めとする")
     ap.add_argument("--remove", action="store_true", help="置いた根切り図を消す")
+    ap.add_argument("--update", action="store_true",
+                    help="前に作った根切り図を、同じ躯体（GUID）と条件で作り直す（基礎・地中梁を変えた後に。選ばなくてよい）")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -275,9 +301,60 @@ def main(argv=None) -> int:
         for k in keys:
             rec.pop(k, None)
         rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+        try:
+            sp = R.OUT_DIR / SOURCE
+            src = json.loads(sp.read_text(encoding="utf-8"))
+            for k in keys:
+                src.pop(k, None)
+            sp.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
+        except (OSError, ValueError):
+            pass
         print(f"根切り図: {n}個を消しました")
         return 0
+    src_path = R.OUT_DIR / SOURCE
+    try:
+        src = json.loads(src_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        src = {}
+    if a.update:
+        keys = [a.name] if a.name else list(src)
+        if not keys or any(k not in src for k in keys):
+            print("根切り図を更新: 前に作った根切り図の控え（ashiba_out/根切り_元.json）が無い。先に「根切り図」で作る")
+            return 1
+        worst = 0
+        for k in keys:
+            argv2 = ["--name", k] + [x for x in src[k].get("argv", []) if x]
+            alive = _alive(c, src[k].get("guids", []))
+            if not alive:
+                print(f"根切り図を更新: {k} の躯体が見つからない（消したか別のプロジェクト）")
+                worst = max(worst, 1)
+                continue
+            worst = max(worst, build(c, R, ap.parse_args(argv2), [{"elementId": {"guid": g}} for g in alive], rec, rec_path, src, src_path))
+        return worst
     sel = c.get_selected_elements()
+    return build(c, R, a, sel, rec, rec_path, src, src_path)
+
+
+def _alive(c, guids) -> list:
+    """GUID のうちプロジェクトにまだある要素."""
+    out = []
+    for g in guids:
+        try:
+            d = c.get_details([{"elementId": {"guid": g}}])
+            if d and d[0].get("type"):
+                out.append(g)
+        except Exception:
+            pass
+    return out
+
+
+def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
+    """選んだ躯体（sel）から根切り図を作る（置き直す）."""
+    from form_dialog import show_form
+
+    from ashiba.negiri import (DOMA_GRAVEL_MM, DOMA_LEAN_MM, DOMA_MARGIN_MM, GRAVEL_MM, LEAN_MM, MARGIN_MM, SOILS, Negiri,
+                               mesh_data, report, solve)
+
     dets = c.get_details(sel) if sel else []
     zones, walls, polys, skipped = footprints(c, sel, dets, a.yamadome_walls, a.doma_thin)
     if not zones:
@@ -285,7 +362,7 @@ def main(argv=None) -> int:
               "付くレイヤーの壁か、閉じた線を一緒に選ぶ")
         return 1
     opts = (a.slope, a.depth, a.general, a.margin, a.gravel, a.lean, a.doma_margin, a.doma_gravel, a.doma_lean, a.doma_thin,
-            a.soil, a.color, a.name)
+            a.soil, a.color, a.backfill, a.name)
     if all(v is None for v in opts):
         ndoma = sum(1 for f in zones if f.kind == "土間")
         res = show_form({"title": "根切り図", "intro": f"躯体 {len(zones)}個" + (f"・山留め（壁 {len(walls)}枚・線 {len(polys)}本）" if walls or polys else "")
@@ -306,7 +383,9 @@ def main(argv=None) -> int:
                                      "kind": "number", "value": ""},
                                     {"key": "soil", "label": "地山の種類", "kind": "choice", "options": list(SOILS), "value": "その他"},
                                     {"key": "color", "label": "床付けの高さの色分け", "kind": "choice", "options": list(COLORS),
-                                     "value": COLORS[0]}],
+                                     "value": COLORS[0]},
+                                    {"key": "backfill", "label": "埋戻しの範囲と量（平面）", "kind": "choice", "options": list(BACKS),
+                                     "value": BACKS[0]}],
                          "buttons": [{"id": "place", "label": "作る"}, {"id": "cancel", "label": "やめる"}]})
         if not res or res.get("button") != "place":
             print("根切り図: やめました（何も作っていません）")
@@ -318,6 +397,7 @@ def main(argv=None) -> int:
         a.margin, a.gravel, a.lean = num("margin"), num("gravel"), num("lean")
         a.doma_margin, a.doma_gravel, a.doma_lean = num("doma_margin"), num("doma_gravel"), num("doma_lean")
         a.soil, a.color = str(v.get("soil") or "その他"), str(v.get("color") or COLORS[0])
+        a.backfill = str(v.get("backfill") or BACKS[0])
     elif a.slope is not None:
         a.slope = None if str(a.slope).lower() == "auto" else float(a.slope)
     name = a.name or "根切り1"
@@ -349,7 +429,7 @@ def main(argv=None) -> int:
     fill = fill_style(c, a.color or COLORS[0])
     if (a.color or COLORS[0]) != "なし" and fill is None:
         print("  注意: 塗りつぶしの塗りが見つからないので、色分けは描きません")
-    hatches, lines, texts = drawing(n, li, fill)
+    hatches, lines, texts = drawing(n, li, fill, (a.backfill or BACKS[0]) == "描く")
     for cmd, key, items in (("CreateHatches", "hatchesData", hatches), ("CreatePolylines", "polylinesData", lines),
                             ("CreateTexts", "textsData", texts)):
         if items:
@@ -364,9 +444,20 @@ def main(argv=None) -> int:
                 print(f"  注意: {cmd} が失敗（{ex}）")
     rec[name] = made
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 更新のための控え: 躯体の GUID（山留めの壁・線も）と、窓で選んだ条件を引数の形で
+    opt = lambda flag, v: [flag, f"{v:g}" if isinstance(v, float) else str(v)] if v is not None else []
+    src[name] = {"guids": [e["elementId"]["guid"] for e in sel],
+                 "argv": (["--slope", "auto" if a.slope is None else f"{a.slope:g}"]
+                          + opt("--depth", a.depth) + opt("--general", a.general) + opt("--margin", a.margin)
+                          + opt("--gravel", a.gravel) + opt("--lean", a.lean) + opt("--doma-margin", a.doma_margin)
+                          + opt("--doma-gravel", a.doma_gravel) + opt("--doma-lean", a.doma_lean)
+                          + opt("--doma-thin", a.doma_thin) + opt("--soil", a.soil or "その他")
+                          + opt("--color", a.color or COLORS[0]) + opt("--backfill", a.backfill or BACKS[0])
+                          + ["--gl", f"{a.gl:g}"] + (["--yamadome-walls"] if a.yamadome_walls else []))}
+    src_path.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / f"根切り_{name}.md"
     md.write_text(report(n), encoding="utf-8")
-    print(f"根切り図: {name} 躯体 {len(zones)}個・掘削 {n.area:,.0f}m²・{n.volume:,.0f}m³・床付け "
+    print(f"根切り図: {name} 躯体 {len(zones)}個・掘削 {n.area:,.0f}m²・{n.volume:,.0f}m³・埋戻し {n.backfill:,.0f}m³・床付け "
           + "、".join(f"GL{L - n.gl:+,.0f}" for L in n.levels) + (f"（読めなかった要素 {skipped}個）" if skipped else ""))
     for ck in n.checks:
         if ck.status != "OK":

@@ -24,6 +24,12 @@
   余幅 1.0m（本文 p.7）、砂利地業等の数量は面積×厚さで躯体側面より 0.1m の出幅（本文 p.9）。公共建築工事標準仕様書（令和7年版）
   4.6.3: 砂利地業 60mm・4.6.4: 捨コン 50mm（特記がなければ。本文 p.23）。土間は砂利地業の上に防湿層を直接施工（4.6.3(5)・4.6.5(3)）
   なので捨コンは既定で無し（目安）。土量変化率 L は農水省の施工パッケージ型積算基準の値（建築では目安）。調べたメモは docs/調査_根切り.md
+- 埋戻し（GLOOBE 2026 の埋め戻し形状に当たる。利用者の指定 2026-11-02「全部入れて」）: 公共建築数量積算基準（令和5年）本文 p.7
+  「根切りの数量から根切り基準線以下の基礎又は地下構築物の体積、砂利地業及び捨コンクリートの体積を控除した数量」、建設発生土は
+  「根切り及びすきとりの数量から埋戻し及び盛土の数量を減じた数量」（p.7〜8）。土砂は地山数量で、締固めによる減少は考えない（p.6）。
+  ピット・地下室（名前・レイヤーに「ピット」「地下」）は床から GL までを空洞として埋め戻さない。10t ダンプ 1台の積載は地山の土砂で
+  5.5m³（長崎県 土木積算基準 残土の注意事項 H19.4.1。目安）。搬出が 500m³ 以上は再生資源利用促進計画の作成・掲示・5年保存（資源
+  有効利用促進法の省令改正 R5.1.1 施行。国交省 建設業課「建設工事から発生する土の搬出先の明確化等」p.2〜3）
 """
 
 from __future__ import annotations
@@ -43,6 +49,9 @@ DOMA_LEAN_MM = 0.0               # 土間の捨てコン（防湿層を砂利の
 DOMA_WORDS = ("土間", "犬走", "DOMA")   # 名前・レイヤーにこれがあれば土間とみなす
 SPREAD_MM = 100.0                # 地業の出幅（積算基準 砂利地業等: 躯体側面より 0.1m）
 YAMADOME_GAP_MM = 1000.0         # 山留め壁と躯体の間の余幅（積算基準の標準 1.0m）
+VOID_WORDS = ("ピット", "地下", "PIT")   # 名前・レイヤーにこれがあれば、床から GL までを空洞（埋め戻さない）
+DUMP_M3 = 5.5                    # 10t ダンプ 1台の積載（地山の土砂。長崎県 H19 の換算値。目安）
+RECYCLE_M3 = 500.0               # 搬出がこれ以上は再生資源利用促進計画（資源有効利用促進法の省令 R5.1.1〜）
 LEVEL_COLORS = ((1.00, 0.90, 0.55), (0.98, 0.72, 0.35), (0.90, 0.50, 0.25), (0.75, 0.30, 0.20), (0.55, 0.20, 0.35),
                 (0.35, 0.20, 0.50))   # 床付けの高さの色分け（浅い→深い）
 LEVEL_GRAYS = ((0.88, 0.88, 0.88), (0.75, 0.75, 0.75), (0.62, 0.62, 0.62), (0.50, 0.50, 0.50), (0.38, 0.38, 0.38),
@@ -63,7 +72,8 @@ class Footprint:
     name: str
     pts: list[tuple[float, float]]
     bottom: float
-    kind: str = "基礎"                    # "基礎"（基礎・地中梁・耐圧盤など）か "土間"（土間・犬走り等）
+    kind: str = "基礎"                    # "基礎"（基礎・地中梁・耐圧盤など）・"土間"（土間・犬走り等）・"地下"（ピット・地下室の床）
+    top: Optional[float] = None           # 上端（省くと GL まで躯体とみなす）
 
 
 @dataclass
@@ -105,6 +115,10 @@ class Negiri:
     area: float = 0.0                     # 掘削の面積（法肩の内）m²
     ground: dict = field(default_factory=dict)   # 地業の数量 {"砕石": (面積 m², 体積 m³), "捨てコン": (…)}（出幅 0.1m）
     gaps: list = field(default_factory=list)     # 山留め壁と躯体の間 [(躯体の名前, 距離 mm, はみ出す)]
+    body: float = 0.0                     # 根切り基準線（GL）以下の躯体の体積 m³（ピット・地下室の空洞を含む）
+    backfill: float = 0.0                 # 埋戻し m³（地山。積算基準: 根切り−躯体−砕石−捨てコン）
+    fill: list = field(default_factory=list)       # 升目の埋戻しの厚さ mm
+    fill_rings: list = field(default_factory=list)  # 埋戻しの範囲の輪
     checks: list[Check] = field(default_factory=list)
 
     @property
@@ -272,11 +286,67 @@ def solve(n: Negiri) -> Negiri:
         if a > 0:
             n.ground[key] = (a, sum(v for row in mask for v in row) / 1000.0 * cell)
     n.gaps = yamadome_gaps(n, zones) if n.yamadome else []
+    backfill(n, zones, lv)
     n.top_rings = rings(n, lambda v: v < n.gl - 1.0)
     n.bottom_rings = {L: rings(n, lambda v, L=L: v <= L + 1.0) for L in n.levels}
     n.edge_rings = {L: rings(n, lambda v, L=L: v < L - 1.0) for L in n.levels[:-1]}
     n.checks = checks(n, general)
     return n
+
+
+def backfill(n: Negiri, zones: list, lv: dict) -> None:
+    """升目ごとに、掘った高さから GL までのうち躯体・地業（出幅 0.1m の内）・ピットの空洞の占める区間を除いた厚さを埋め戻す."""
+    x0, y0 = n.origin
+    step = n.step
+    occ = [[[] for _ in range(n.nx)] for _ in range(n.ny)]
+    for f in zones:
+        b = f.bottom
+        top = n.gl if f.kind == "地下" or f.top is None else min(n.gl, f.top)
+        under = lv[id(f)]
+        dist = _edge_dist_fn(f.pts)
+        fx = [p[0] for p in f.pts]
+        fy = [p[1] for p in f.pts]
+        r = SPREAD_MM + step
+        i0, i1 = max(0, int((min(fx) - r - x0) / step)), min(n.nx - 1, int((max(fx) + r - x0) / step) + 1)
+        j0, j1 = max(0, int((min(fy) - r - y0) / step)), min(n.ny - 1, int((max(fy) + r - y0) / step) + 1)
+        for j in range(j0, j1 + 1):
+            for i in range(i0, i1 + 1):
+                d = dist((x0 + i * step, y0 + j * step))
+                if d <= 1e-6:
+                    occ[j][i].append((min(under, b), max(b, top)))
+                elif d <= SPREAD_MM + 1e-6 and under < b:
+                    occ[j][i].append((under, b))               # 出幅の地業
+    cell = (step / 1000.0) ** 2
+    fill = [[0.0] * n.nx for _ in range(n.ny)]
+    body = 0.0
+    for j in range(n.ny):
+        for i in range(n.nx):
+            z = n.z[j][i]
+            if z >= n.gl - 1.0:
+                continue
+            used, cur = 0.0, z
+            for lo, hi in sorted(occ[j][i]):
+                lo, hi = max(lo, cur), min(hi, n.gl)
+                if hi > lo:
+                    used += hi - lo
+                    cur = hi
+            fill[j][i] = max(0.0, n.gl - z - used)
+            body += used
+    gv = sum(v for _a, v in n.ground.values())
+    n.fill = fill
+    n.body = max(0.0, body / 1000.0 * cell - gv)
+    n.backfill = sum(v for row in fill for v in row) / 1000.0 * cell
+    n.fill_rings = [r for r in rings(n, lambda v: v > 1.0, fill) if abs(_area(r)) >= (3 * step) ** 2]
+
+
+def surplus(n: Negiri) -> float:
+    """建設発生土 m³（地山。根切り−埋戻し）."""
+    return max(0.0, n.volume - n.backfill)
+
+
+def dumps(n: Negiri) -> int:
+    """10t ダンプの延べ台数（発生土の地山 ÷ 1台の積載）."""
+    return int(math.ceil(surplus(n) / DUMP_M3 - 1e-9)) if surplus(n) > 0 else 0
 
 
 def yamadome_gaps(n: Negiri, zones: list) -> list:
@@ -378,11 +448,11 @@ def fill_strips(n: Negiri, own: list, in_y) -> int:
     return filled
 
 
-def rings(n: Negiri, pred) -> list[list[tuple[float, float]]]:
-    """升目の条件 pred を満たす所の外形（升目の境目を辿って輪にし、まっすぐな所をまとめる）."""
+def rings(n: Negiri, pred, grid=None) -> list[list[tuple[float, float]]]:
+    """升目の条件 pred を満たす所の外形（升目の境目を辿って輪にし、まっすぐな所をまとめる）。grid を省くと掘削面の高さ."""
     s = n.step
     x0, y0 = n.origin
-    on = [[pred(v) for v in row] for row in n.z]
+    on = [[pred(v) for v in row] for row in (n.z if grid is None else grid)]
     edges: dict = {}
     for j in range(n.ny):
         for i in range(n.nx):
@@ -499,6 +569,11 @@ def checks(n: Negiri, general) -> list[Check]:
     if deep >= FOREMAN_MM:
         c.append(Check("作業主任者", "OK", f"掘削面の高さ {deep:,.0f} が 2m 以上 → 地山の掘削作業主任者（安衛法施行令6条9号）"
                                         + ("・土止め支保工作業主任者（6条10号）" if n.yamadome else "")))
+    sp = surplus(n)
+    if sp >= RECYCLE_M3:
+        c.append(Check("建設発生土", "WARN", f"搬出 {sp:,.0f}m³（地山）が {RECYCLE_M3:,.0f}m³ 以上 → 再生資源利用促進計画の作成・"
+                                           "発注者への説明・現場掲示・5年保存、搬出先の盛土規制法の許可と受領書の確認"
+                                           "（資源有効利用促進法の省令。R5.1.1〜）"))
     c.append(Check("点検", "OK", "作業開始前・大雨の後・中震以上の地震の後に地山の浮石・き裂・湧水を点検（安衛則358条）。掘削の前に"
                                 "地質・埋設物を調べ、掘削の時期と順序を決める（355条）"))
     return c
@@ -524,6 +599,18 @@ def report(n: Negiri) -> str:
         out += ["", "地業の数量（積算基準: 面積×厚さ、躯体側面より出幅 0.1m。重なりは厚い方で1回）", "",
                 "| 地業 | 面積 | 体積 |", "|---|---|---|"]
         out += [f"| {k} | {a:,.1f} m² | {v:,.2f} m³ |" for k, (a, v) in n.ground.items()]
+    lf = LOOSE.get(n.soil, 1.2)
+    out += ["", "埋戻しと建設発生土（積算基準 p.7〜8: 埋戻し＝根切り−GL 以下の躯体−砕石−捨てコン、発生土＝根切り−埋戻し。"
+            "地山の数量。ピット・地下室は床から GL までを空洞として埋め戻さない）", "",
+            "| 項目 | 数量 |", "|---|---|",
+            f"| 根切り | {n.volume:,.1f} m³ |",
+            f"| GL 以下の躯体（空洞を含む） | {n.body:,.1f} m³ |",
+            f"| 砕石・捨てコン | {sum(v for _a, v in n.ground.values()):,.1f} m³ |",
+            f"| 埋戻し | {n.backfill:,.1f} m³ |",
+            f"| 建設発生土（搬出・地山） | {surplus(n):,.1f} m³ |",
+            f"| 搬出のほぐした量（L {lf:g}。目安） | {surplus(n) * lf:,.1f} m³ |",
+            f"| 10t ダンプ（1台 地山 {DUMP_M3:g}m³。目安） | 延べ {dumps(n)} 台 |",
+            "", "根切りの土を埋戻しに使えないときは根切りの全量を搬出する（積算基準 p.8）。仮置きの場所が無いときも同じ。"]
     out += ["", "| 判定 | 結果 | 内容 |", "|---|---|---|"]
     out += [f"| {c.item} | {c.status} | {c.message} |" for c in n.checks]
     return "\n".join(out) + "\n"
