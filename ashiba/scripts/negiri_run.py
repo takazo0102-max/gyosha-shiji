@@ -315,6 +315,7 @@ def main(argv=None) -> int:
     ap.add_argument("--gl", type=float, default=0.0, help="GL のプロジェクトの高さ mm（既定 0）")
     ap.add_argument("--yamadome-walls", action="store_true", help="選んだ壁を全部 山留めとする")
     ap.add_argument("--kamaba", default=None, choices=PITS, help="釜場（既定 自動で1か所。□1000×800・床付けから 600 下げ。目安）")
+    ap.add_argument("--machine", default=None, help="掘削機のバックホウ（bh01・bh025・bh045・bh08。既定は深さに届くいちばん小さい機種）")
     ap.add_argument("--road-width", type=float, default=None,
                     help="前面道路の総幅員 mm（一緒に選んだ開いた線＝道路境界線。沿道区域 20m 以上 5m・6m 以上 3m・6m 未満は 1/2）")
     ap.add_argument("--remove", action="store_true", help="置いた根切り図を消す")
@@ -505,7 +506,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                      doma_lean=dv(a.doma_lean, DOMA_LEAN_MM), slope=a.slope,
                      depth=None if a.depth is None else a.gl + a.depth, soil=a.soil or "その他", yamadome=yam,
                      general=None if a.general is None else a.gl + a.general, road=roads, kamaba=pits,
-                     kamaba_auto=1 if (a.kamaba or PITS[0]) == PITS[0] else 0,
+                     kamaba_auto=1 if (a.kamaba or PITS[0]) == PITS[0] else 0, machine=a.machine or "",
                      road_width=float(a.road_width or 0.0)))
     if roads and not a.road_width:
         print("  注意: 道路境界線を選んだが前面道路の幅員が無いので、沿道区域は最大の 5m で見ます（--road-width で幅員 mm）")
@@ -550,7 +551,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                           + opt("--doma-gravel", a.doma_gravel) + opt("--doma-lean", a.doma_lean)
                           + opt("--doma-thin", a.doma_thin) + opt("--soil", a.soil or "その他")
                           + opt("--color", a.color or COLORS[0]) + opt("--backfill", a.backfill or BACKS[0])
-                          + opt("--road-width", a.road_width) + opt("--kamaba", a.kamaba)
+                          + opt("--road-width", a.road_width) + opt("--kamaba", a.kamaba) + opt("--machine", a.machine)
                           + ["--gl", f"{a.gl:g}"] + (["--yamadome-walls"] if a.yamadome_walls else []))}
     src_path.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
     # 計画図のための控え（躯体の外形と条件。「根切り・山留計画図」がこれから解き直す）
@@ -565,6 +566,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                                "yamadome": [list(p) for p in n.yamadome], "cuts": old_cuts,
                                "road": [[list(a2), list(b2)] for a2, b2 in n.road], "road_width": n.road_width,
                                "kamaba": [[list(p) for p in k] for k in n.kamaba], "kamaba_auto": n.kamaba_auto,
+                               "machine": n.machine, "dump": n.dump,
                                "zones": [{"name": f.name, "pts": [list(p) for p in f.pts], "bottom": f.bottom, "kind": f.kind,
                                           "top": f.top} for f in n.zones]}, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / f"根切り_{name}.md"

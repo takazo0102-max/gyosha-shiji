@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.negiri import Footprint, Negiri, dumps, endo_width, level_color, max_angle, mesh_data, report, solve, surplus
+from ashiba.negiri import Footprint, Negiri, dumps, endo_width, pick_backhoe, level_color, max_angle, mesh_data, report, solve, surplus
 
 SLAB = Footprint("耐圧盤", [(0, 0), (12000, 0), (12000, 8000), (0, 8000)], -1200.0)
 FOOT = Footprint("基礎F1", [(5000, 3000), (7000, 3000), (7000, 5000), (5000, 5000)], -2000.0)
@@ -181,6 +181,17 @@ class TestNegiri(unittest.TestCase):
         given = solve(Negiri("試験", [SLAB], slope=0.0, yamadome=y, kamaba=[[(12500, 8500), (13400, 8500), (13400, 9400), (12500, 9400)]]))
         self.assertEqual(len(given.pits), 1)
         self.assertFalse(given.pits[0]["auto"])
+
+    def test_backhoe(self):
+        """掘削機: 最大掘削深さ（コマツの仕様書）が 根切りの深さ＋0.3m に届くいちばん小さいバックホウ。届かなければ要確認."""
+        self.assertEqual(pick_backhoe(2110.0), ("bh01", True))                 # PC38UU 3.23m
+        self.assertEqual(pick_backhoe(3500.0), ("bh025", True))                # PC78US 4.10m
+        self.assertEqual(pick_backhoe(8000.0), ("bh08", False))                # PC200 6.62m でも届かない
+        n = solve(Negiri("試験", [SLAB, FOOT]))
+        self.assertEqual({c.item: c.status for c in n.checks}["掘削機"], "OK")
+        deep = solve(Negiri("試験", [Footprint("地下", SLAB.pts, -7000.0, top=-6000.0)], slope=0.0,
+                                yamadome=[(-1500, -1500), (13500, -1500), (13500, 9500), (-1500, 9500)]))
+        self.assertEqual({c.item: c.status for c in deep.checks}["掘削機"], "WARN")
 
 
 if __name__ == "__main__":

@@ -63,6 +63,8 @@ class TestNegiriSheets(unittest.TestCase):
         self.assertIn("道路境界線", plan)
         self.assertIn("45° 影響斜線", sec)                                     # B－B（縦）が道路を横切る
         self.assertIn("沿道掘削", plan)
+        self.assertIn("バックホウ 0.1m³（最大掘削深さ 3.23m）", sec)          # 最初の断面に最終段階の掘削機とダンプ
+        self.assertIn("ダンプ 4t", sec)
 
     def test_sheet_from_record(self):
         """根切り図の控え（根切り_<名前>_図.json）から計画図を作る（Archicad が無くても PDF の元の HTML は書く）."""

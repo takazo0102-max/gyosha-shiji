@@ -125,6 +125,8 @@ class Negiri:
     kamaba: list = field(default_factory=list)     # 釜場の形 [多角形]（選んだ線）
     kamaba_auto: int = 0                  # 自動で置く釜場の数（0＝置かない）
     kamaba_depth: float = KAMABA_DEPTH_MM
+    machine: str = ""                     # 掘削機（machine.MACHINES のバックホウの鍵。空＝深さに届くいちばん小さい機種）
+    dump: str = "dump4"                   # 残土を運ぶダンプ
     general: Optional[float] = None       # 山留めの内側の一般の根切り底（省くと床付けのいちばん浅い高さ）
     step: float = 50.0                    # 升目 mm（広い現場は STEP_MAX_CELLS に収まるよう粗く）
     # 結果
@@ -438,6 +440,23 @@ def dig_pits(n: Negiri, zones: list, lv: dict, in_y) -> list:
     return out
 
 
+DIG_SPARE_MM = 300.0             # 最大掘削深さに残す余裕（床付けを乱さずにさらう分。目安）
+
+
+def pick_backhoe(depth_mm: float, key: str = "") -> tuple[str, bool]:
+    """掘削機: 指定が無ければ、最大掘削深さが 根切りの深さ＋余裕 に届くいちばん小さいバックホウ → (鍵, 届くか)."""
+    from .machine import MACHINES
+
+    bhs = sorted((m for m in MACHINES.values() if m.kind == 1), key=lambda m: m.params["maxD"])
+    if key and key in MACHINES:
+        m = MACHINES[key]
+        return key, m.params.get("maxD", 0.0) * 1000.0 >= depth_mm + DIG_SPARE_MM
+    for m in bhs:
+        if m.params["maxD"] * 1000.0 >= depth_mm + DIG_SPARE_MM:
+            return m.key, True
+    return bhs[-1].key, False
+
+
 def endo_check(n: Negiri) -> dict:
     """沿道区域の中の掘削: 道路境界からの距離 d の所は深さ d まで（45° の影響斜線）。それより深い所の升目の数と、いちばん
     超える所（超える深さ mm・境界からの距離 mm）。山留めと道路境界のいちばん近い距離も."""
@@ -695,6 +714,19 @@ def checks(n: Negiri, general) -> list[Check]:
     if deep >= FOREMAN_MM:
         c.append(Check("作業主任者", "OK", f"掘削面の高さ {deep:,.0f} が 2m 以上 → 地山の掘削作業主任者（安衛法施行令6条9号）"
                                         + ("・土止め支保工作業主任者（6条10号）" if n.yamadome else "")))
+    if deep > 0:
+        from .machine import MACHINES
+
+        mk, ok = pick_backhoe(deep, n.machine)
+        m = MACHINES[mk]
+        dm = MACHINES.get(n.dump)
+        c.append(Check("掘削機", "OK" if ok else "WARN",
+                       f"{m.name}（{m.model}）の最大掘削深さ {m.params['maxD']:.2f}m"
+                       + (f" ≧ 根切りの深さ {deep / 1000:.2f}m＋余裕 {DIG_SPARE_MM / 1000:.1f}m" if ok else
+                          f" ＜ 根切りの深さ {deep / 1000:.2f}m＋余裕 → クラムシェル（テレスコ）か、段を分けて掘削機を根切りの中へ下ろす")
+                       + ("（深さに届くいちばん小さい機種を選んだ）" if not n.machine else "")
+                       + (f"。残土は {dm.name}（1台 地山 {DUMP_M3:g}m³ は 10t の目安）で、出入口から遠い所から掘り、最終段階の掘削機と"
+                          "ダンプの位置・動線を断面図に（施工図の手引き p.37〜39）" if dm else "")))
     if n.kamaba_auto and not n.kamaba and not n.pits:
         c.append(Check("釜場", "WARN", f"□{KAMABA_W:,.0f}×{KAMABA_D:,.0f} の釜場を置ける、躯体の無い平らな床付けが無い（余掘りの帯だけ）。"
                                      "余掘りを広げるか、レイヤー名に「釜場」の閉じた線で位置を指定する"))

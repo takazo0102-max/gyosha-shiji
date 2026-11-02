@@ -44,7 +44,7 @@ def negiri_of(d: dict) -> Negiri:
     zones = [Footprint(z["name"], [tuple(p) for p in z["pts"]], float(z["bottom"]), z.get("kind", "基礎"), z.get("top"))
              for z in d.get("zones", [])]
     keys = ("gl", "margin", "gravel", "lean", "doma_margin", "doma_gravel", "doma_lean", "slope", "depth", "soil", "general",
-            "road_width", "kamaba_auto")
+            "road_width", "kamaba_auto", "machine", "dump")
     kw = {k: d[k] for k in keys if k in d}
     road = [(tuple(a), tuple(b)) for a, b in d.get("road", [])]
     pits = [[tuple(p) for p in k] for k in d.get("kamaba", [])]
@@ -298,14 +298,68 @@ def profile(n: Negiri, a, b) -> list[tuple[float, float]]:
     return out
 
 
-def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float) -> str:
+def machines_svg(n: Negiri, prof, X, Y, sc: float, L: float) -> str:
+    """最終段階の掘削機（バックホウ）とダンプ（施工図の手引き p.39 の根切・山留断面図の例）: 掘削のいちばん左の縁の外の GL に
+    バックホウ（クローラ・上部旋回体・ブーム・アーム・バケット）、その外にダンプ。寸法は machine.MACHINES（メーカーの仕様書）."""
+    from .machine import MACHINES
+    from .negiri import pick_backhoe
+
+    exc = [(t, z) for t, z in prof if z < n.gl - 1.0]
+    if not exc:
+        return ""
+    deep = n.gl - min(z for _t, z in exc)
+    m = MACHINES[pick_backhoe(deep, n.machine)[0]]
+    P = m.params
+    edge = min(t for t, _z in exc)                                     # 掘削の左の縁
+    tl, th, uh = P["trkL"] * 1000, P["trkH"] * 1000, P["upH"] * 1000
+    cx = edge - tl / 2 - 500.0                                         # 縁から 0.5m 離して据える（目安）
+    out = []
+    g = n.gl
+    out.append(f'<rect x="{X(cx - tl / 2):.2f}" y="{Y(g + th):.2f}" width="{tl / sc:.2f}" height="{th / sc:.2f}" '
+               'fill="#666" stroke="#000" stroke-width="0.15"/>')                      # クローラ
+    out.append(f'<rect x="{X(cx - tl * 0.45):.2f}" y="{Y(g + uh):.2f}" width="{tl * 0.8 / sc:.2f}" height="{(uh - th) / sc:.2f}" '
+               'fill="#f2c94c" stroke="#000" stroke-width="0.15"/>')                   # 上部旋回体
+    # ブームの根元（旋回体の前・上）から、掘削の中（縁から 1m・床付け）のバケットまで、ブームとアームの2本で
+    piv = (cx + tl * 0.3, g + uh * 0.7)
+    tip = (min(edge + 1000.0, L), min(z for t, z in exc if t >= edge))
+    bl, al = P["boomL"] * 1000, P["armL"] * 1000
+    dx, dz = tip[0] - piv[0], tip[1] - piv[1]
+    d = math.hypot(dx, dz)
+    if d < bl + al:                                                    # 2本の腕の肘（上へ曲げる）
+        a0 = math.atan2(dz, dx)
+        cosb = max(-1.0, min(1.0, (bl * bl + d * d - al * al) / (2 * bl * d)))
+        a1 = a0 + math.acos(cosb)
+        elbow = (piv[0] + bl * math.cos(a1), piv[1] + bl * math.sin(a1))
+    else:
+        elbow = ((piv[0] + tip[0]) / 2, (piv[1] + tip[1]) / 2)
+    for p, q in ((piv, elbow), (elbow, tip)):
+        out.append(f'<line x1="{X(p[0]):.2f}" y1="{Y(p[1]):.2f}" x2="{X(q[0]):.2f}" y2="{Y(q[1]):.2f}" stroke="#000" stroke-width="0.5"/>')
+    out.append(f'<circle cx="{X(tip[0]):.2f}" cy="{Y(tip[1]):.2f}" r="{max(0.6, 300.0 / sc):.2f}" fill="#666" stroke="#000" stroke-width="0.1"/>')
+    out.append(_text(X(cx), Y(g + uh) - 1.2, f"{m.name}（最大掘削深さ {P['maxD']:.2f}m）", "ts", "middle"))
+    dm = MACHINES.get(n.dump)
+    if dm:
+        Q = dm.params
+        cl, ch = Q["carL"] * 1000, Q["cabH"] * 1000
+        x1 = cx - tl / 2 - 800.0                                       # ダンプの後ろの端（バックホウの外）
+        out.append(f'<rect x="{X(x1 - cl * 0.72):.2f}" y="{Y(g + ch * 0.85):.2f}" width="{cl * 0.72 / sc:.2f}" height="{ch * 0.55 / sc:.2f}" '
+                   'fill="#9aa0a8" stroke="#000" stroke-width="0.15"/>')               # 荷台
+        out.append(f'<rect x="{X(x1 - cl):.2f}" y="{Y(g + ch):.2f}" width="{cl * 0.26 / sc:.2f}" height="{ch * 0.8 / sc:.2f}" '
+                   'fill="#e8e8e8" stroke="#000" stroke-width="0.15"/>')               # 運転室
+        for wx in (x1 - cl * 0.85, x1 - cl * 0.25):
+            out.append(f'<circle cx="{X(wx):.2f}" cy="{Y(g + 450.0):.2f}" r="{450.0 / sc:.2f}" fill="#333"/>')
+        out.append(_text(X(x1 - cl / 2), Y(g + ch) - 1.2, dm.name, "ts", "middle"))
+    return "".join(out)
+
+
+def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float, machines: bool = False) -> str:
     """1つの断面（紙の範囲 x0, y0, w, h の中）."""
     L = math.dist(a, b)
     prof = profile(n, a, b)
     zmin = min([z for _t, z in prof] + [f.bottom - sum(layers_of(n, f)) for f in n.zones]) - EMBED_MM - 500.0
-    zmax = n.gl + 1500.0
-    sc = _scale_for(L, zmax - zmin, w - 30.0, h - 16.0)
-    left = x0 + 18.0
+    zmax = n.gl + (3500.0 if machines else 1500.0)                    # 掘削機の背の分
+    pre = 14000.0 if machines else 0.0                                 # 左にバックホウとダンプを置く分（GL の外）
+    sc = _scale_for(L + pre, zmax - zmin, w - 30.0, h - 16.0)
+    left = x0 + 18.0 + pre / sc
     top = y0 + 8.0
     X = lambda t: left + t / sc
     Y = lambda z: top + (zmax - z) / sc
@@ -357,8 +411,11 @@ def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float
             out.append(_text(X(t) + 1.0, Y(n.gl + 800.0), "道路境界", "ts"))
             out.append(_text(X(t + side * 1500.0 / cosv) + side * 1.0, Y(n.gl - 1500.0), "45° 影響斜線", "ts",
                              "start" if side > 0 else "end"))
+    if machines:
+        out.append(machines_svg(n, prof, X, Y, sc, L))
+        out.append(f'<line x1="{X(-pre):.2f}" y1="{Y(n.gl):.2f}" x2="{X(0):.2f}" y2="{Y(n.gl):.2f}" class="slab"/>')
     # 高さの文字と掘削深さの寸法
-    gx = left - 2.0
+    gx = X(-pre) - 2.0                                                 # 重機を描くときはその外（左端）に
     out.append(_text(X(L) + 1.0, Y(n.gl) - 0.8, "▽設計GL±0", "ts"))
     seen = set()
     for t, z in prof:
@@ -375,7 +432,7 @@ def section_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
     out = []
     h = (AREA[3] - AREA[1]) / max(1, len(cuts))
     for k, (lab, a, b) in enumerate(cuts):
-        out.append(_section(n, lab, a, b, AREA[0], AREA[1] + k * h, AREA[2] - AREA[0], h))
+        out.append(_section(n, lab, a, b, AREA[0], AREA[1] + k * h, AREA[2] - AREA[0], h, machines=(k == 0)))
     notes = [("断面図の見方", "躯体の輪郭は破線、灰色は砕石・捨てコン（出幅 0.1m）。寸法の基準は設計 GL。掘削面は升目 "
                          f"{n.step:.0f}mm の高さで、法面は勾配どおりの斜めの線"),
              ("山留め", "山留め壁は施工誤差を見て躯体と離す（山留めを型枠に兼ねるときのクリアランスは 50〜100 前後が目安）。"
