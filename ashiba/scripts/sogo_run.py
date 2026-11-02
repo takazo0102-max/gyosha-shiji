@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 LAYOUT = "総合仮設 1 総合仮設計画図"
 RECORDS = ("クレーン.json", "タワークレーン.json", "仮囲い.json", "仮設建物.json", "場内通路.json", "敷鉄板.json", "構台.json",
-           "重機.json", "根切り.json", "柵.json", "開口養生.json", "親綱.json", "単管でつなぐ.json", "山留め足場.json")
+           "重機.json", "根切り.json", "柵.json", "開口養生.json", "親綱.json", "単管でつなぐ.json", "山留め足場.json", "仮設電気給排水.json")
 GUID = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)
 MARGIN_MM = 3000.0
 NEAR_MM = 60000.0           # 躯体からこれより遠い控えの仮設は範囲に入れない
