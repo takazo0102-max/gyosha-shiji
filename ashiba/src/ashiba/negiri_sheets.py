@@ -44,10 +44,12 @@ def negiri_of(d: dict) -> Negiri:
     zones = [Footprint(z["name"], [tuple(p) for p in z["pts"]], float(z["bottom"]), z.get("kind", "基礎"), z.get("top"))
              for z in d.get("zones", [])]
     keys = ("gl", "margin", "gravel", "lean", "doma_margin", "doma_gravel", "doma_lean", "slope", "depth", "soil", "general",
-            "road_width")
+            "road_width", "kamaba_auto")
     kw = {k: d[k] for k in keys if k in d}
     road = [(tuple(a), tuple(b)) for a, b in d.get("road", [])]
-    return solve(Negiri(d.get("name", "根切り1"), zones, yamadome=[tuple(p) for p in d.get("yamadome", [])], road=road, **kw))
+    pits = [[tuple(p) for p in k] for k in d.get("kamaba", [])]
+    return solve(Negiri(d.get("name", "根切り1"), zones, yamadome=[tuple(p) for p in d.get("yamadome", [])], road=road,
+                        kamaba=pits, **kw))
 
 
 def _site_normal(n: Negiri, a, b) -> tuple[float, float]:
@@ -181,6 +183,12 @@ def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
         out.append(_dim(a[0], a[1] + 6, b[0], b[1] + 6, f"{ax1 - ax0:,.0f}", off=-3.0))
         a, b = P((ax1, ay0)), P((ax1, ay1))
         out.append(_dim(a[0] + 6, a[1], b[0] + 6, b[1], f"{ay1 - ay0:,.0f}", off=-3.0))
+    # 釜場（太線の矩形と底の高さ）
+    for k, p in enumerate(n.pits, 1):
+        out.append(f'<polygon points="{" ".join(f"{a:.2f},{b:.2f}" for a, b in map(P, p["pts"]))}" fill="#9cc3e6" stroke="#000" '
+                   'stroke-width="0.35"/>')
+        q = P((sum(v[0] for v in p["pts"]) / len(p["pts"]), max(v[1] for v in p["pts"])))
+        out.append(_text(q[0], q[1] - 1.0, f"釜場{k} 底 GL{p['bottom'] - n.gl:+,.0f}", "ts", "middle"))
     # 道路境界線（二点鎖線）と沿道区域（破線）
     for a, b in n.road:
         pa, pb = P(a), P(b)

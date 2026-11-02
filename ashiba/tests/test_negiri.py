@@ -160,6 +160,28 @@ class TestNegiri(unittest.TestCase):
         self.assertIn("5cm", " ".join(c.message for c in tight.checks if c.item == "沿道掘削"))
         self.assertFalse(solve(Negiri("試験", [SLAB])).endo)                  # 道路境界線が無ければ見ない
 
+    def test_kamaba(self):
+        """釜場（目安 □1000×800・床付けから 600 下げ）: 自動は躯体の無い平らな床付けの、いちばん深く掘削の縁に近い所。
+        場所が無ければ置かずに知らせる。指定の形ならそこを掘る."""
+        y = [(-1500, -1500), (13500, -1500), (13500, 9500), (-1500, 9500)]
+        base = solve(Negiri("試験", [SLAB, FOOT], slope=0.0, yamadome=y))
+        n = solve(Negiri("試験", [SLAB, FOOT], slope=0.0, yamadome=y, kamaba_auto=1))
+        (p,) = n.pits
+        self.assertEqual((p["floor"], p["bottom"]), (-1310.0, -1910.0))
+        xs = [q[0] for q in p["pts"]]
+        self.assertLess(max(xs), 0.0)                                         # 耐圧盤（x 0〜12000）の外の山留め際
+        self.assertAlmostEqual(n.volume - base.volume, 1.0 * 0.8 * 0.6, delta=0.15)
+        self.assertIn("釜場1", " ".join(c.message for c in n.checks))
+        none = solve(Negiri("試験", [SLAB, FOOT], slope=0.0, kamaba_auto=1))    # 余掘りの帯 500 だけ
+        self.assertEqual(none.pits, [])
+        self.assertEqual([c.status for c in none.checks if c.item == "釜場"], ["WARN"])
+        roadside = solve(Negiri("試験", [SLAB, FOOT], slope=0.0, yamadome=y, kamaba_auto=1, road=[((-5000, -2000), (20000, -2000))],
+                                road_width=8000.0))
+        self.assertGreater(min(q[1] for q in roadside.pits[0]["pts"]) - (-2000.0), 3000.0)   # 道路（y −2000）の沿道区域 3m の外
+        given = solve(Negiri("試験", [SLAB], slope=0.0, yamadome=y, kamaba=[[(12500, 8500), (13400, 8500), (13400, 9400), (12500, 9400)]]))
+        self.assertEqual(len(given.pits), 1)
+        self.assertFalse(given.pits[0]["auto"])
+
 
 if __name__ == "__main__":
     unittest.main()

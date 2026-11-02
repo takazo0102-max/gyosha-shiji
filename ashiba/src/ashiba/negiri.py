@@ -35,6 +35,10 @@
   境界から、前面道路の総幅員 20m 以上で 5m・6m 以上 20m 未満で 3m・6m 未満で総幅員の 1/2。道路境界線から 45 度の影響斜線より
   深く掘るときは道路管理者と事前協議（道路法44条の沿道区域。区市町村の要綱で深さの基準が違うので管理者に確かめる）。
   山留めの H 鋼（外づら）と道路境界の離隔は最低 5cm（同 p.2）
+- 釜場（施工図の手引き p.24・p.36: 排水は水中ポンプ、下水へは沈砂槽を通して届出）: 公的な寸法の基準は無いので、□1000×800・
+  床付けから 600 掘り下げ・周りに砕石 200 を【目安】とする（設備施工の教科書 地下ピット湧水処理と釜場設計、ミキヤ 釜場排水
+  透水ネット付パイプ。docs/調査_根切り.md・reports/根切り図の徹底調査.md の B1）。自動は、躯体（出幅 0.1m）の無い平らな床付けの
+  うち、いちばん深く、掘削の縁（山留め際）に近い所に1か所。レイヤー名に「釜場」の閉じた線を選べばその形で
 """
 
 from __future__ import annotations
@@ -57,6 +61,9 @@ YAMADOME_GAP_MM = 1000.0         # 山留め壁と躯体の間の余幅（積算
 VOID_WORDS = ("ピット", "地下", "PIT")   # 名前・レイヤーにこれがあれば、床から GL までを空洞（埋め戻さない）
 DUMP_M3 = 5.5                    # 10t ダンプ 1台の積載（地山の土砂。長崎県 H19 の換算値。目安）
 RECYCLE_M3 = 500.0               # 搬出がこれ以上は再生資源利用促進計画（資源有効利用促進法の省令 R5.1.1〜）
+KAMABA_W, KAMABA_D = 1000.0, 800.0    # 釜場の大きさ（目安）
+KAMABA_DEPTH_MM = 600.0          # 床付けからの掘り下げ（目安）
+KAMABA_GRAVEL_MM = 200.0         # 釜場の周りの砕石（目安。有孔パイプの周りに巻く）
 ROAD_GAP_MM = 50.0               # 山留めの H 鋼（外づら）と道路境界の離隔の最低（北多摩北部建設事務所 沿道掘削協議申請案内 p.2）
 
 
@@ -115,6 +122,9 @@ class Negiri:
     yamadome: list = field(default_factory=list)   # 山留めの内側の面の多角形（mm）。空＝山留め無し
     road: list = field(default_factory=list)       # 道路境界線 [((x, y), (x, y)), …]（mm）。空＝沿道掘削を見ない
     road_width: float = 0.0               # 前面道路の総幅員 mm（沿道区域の幅を決める）
+    kamaba: list = field(default_factory=list)     # 釜場の形 [多角形]（選んだ線）
+    kamaba_auto: int = 0                  # 自動で置く釜場の数（0＝置かない）
+    kamaba_depth: float = KAMABA_DEPTH_MM
     general: Optional[float] = None       # 山留めの内側の一般の根切り底（省くと床付けのいちばん浅い高さ）
     step: float = 50.0                    # 升目 mm（広い現場は STEP_MAX_CELLS に収まるよう粗く）
     # 結果
@@ -137,6 +147,7 @@ class Negiri:
     fill: list = field(default_factory=list)       # 升目の埋戻しの厚さ mm
     fill_rings: list = field(default_factory=list)  # 埋戻しの範囲の輪
     endo: dict = field(default_factory=dict)        # 沿道掘削 {"zone", "inside", "over", "worst", "near"}（road が無ければ空）
+    pits: list = field(default_factory=list)        # 置いた釜場 [{"pts", "floor", "bottom", "auto"}]
     checks: list[Check] = field(default_factory=list)
 
     @property
@@ -293,6 +304,7 @@ def solve(n: Negiri) -> Negiri:
                     own[j][i] = b
     n.z = z
     n.strips = fill_strips(n, own, in_y)
+    n.pits = dig_pits(n, zones, lv, in_y)
     n.slopes = slopes
     cell = (step / 1000.0) ** 2
     n.volume = sum(max(0.0, n.gl - v) for row in z for v in row) / 1000.0 * cell
@@ -356,6 +368,74 @@ def backfill(n: Negiri, zones: list, lv: dict) -> None:
     n.body = max(0.0, body / 1000.0 * cell - gv)
     n.backfill = sum(v for row in fill for v in row) / 1000.0 * cell
     n.fill_rings = [r for r in rings(n, lambda v: v > 1.0, fill) if abs(_area(r)) >= (3 * step) ** 2]
+
+
+def dig_pits(n: Negiri, zones: list, lv: dict, in_y) -> list:
+    """釜場を掘る（升目の高さを 床付け−掘り下げ に）. 指定の形が無く kamaba_auto なら、躯体（出幅 0.1m）の無い平らな床付けで
+    □KAMABA_W×KAMABA_D が入る所のうち、床付けがいちばん深く、（道路があれば沿道区域の外で）掘削の外形（法肩）にいちばん近い所."""
+    x0, y0 = n.origin
+    st = n.step
+    shapes = [[tuple(p) for p in k] for k in n.kamaba if len(k) >= 3]
+    auto = not shapes and n.kamaba_auto > 0
+    if auto:
+        busy = [[False] * n.nx for _ in range(n.ny)]
+        for f in zones:
+            dist = _edge_dist_fn(f.pts)
+            fx = [p[0] for p in f.pts]
+            fy = [p[1] for p in f.pts]
+            r = SPREAD_MM + st
+            for j in range(max(0, int((min(fy) - r - y0) / st)), min(n.ny, int((max(fy) + r - y0) / st) + 2)):
+                for i in range(max(0, int((min(fx) - r - x0) / st)), min(n.nx, int((max(fx) + r - x0) / st) + 2)):
+                    if dist((x0 + i * st, y0 + j * st)) <= SPREAD_MM + 1e-6:
+                        busy[j][i] = True
+        wi, dj = int(math.ceil(KAMABA_W / st)), int(math.ceil(KAMABA_D / st))
+        best = None
+        for L in sorted(set(round(v, 1) for v in lv.values()) | ({round(min(min(r) for r in n.z), 1)} if n.yamadome else set())):
+            ok = [[1 if (not busy[j][i] and abs(n.z[j][i] - L) < 1.0) else 0 for i in range(n.nx)] for j in range(n.ny)]
+            S = [[0] * (n.nx + 1) for _ in range(n.ny + 1)]           # 積分画像
+            for j in range(n.ny):
+                row = 0
+                for i in range(n.nx):
+                    row += ok[j][i]
+                    S[j + 1][i + 1] = S[j][i + 1] + row
+            for j in range(0, n.ny - dj, 2):
+                for i in range(0, n.nx - wi, 2):
+                    if S[j + dj][i + wi] - S[j][i + wi] - S[j + dj][i] + S[j][i] == wi * dj:
+                        cx, cy = x0 + (i + wi / 2) * st, y0 + (j + dj / 2) * st
+                        edge = min((min(_seg_dist((cx, cy), r[k], r[(k + 1) % len(r)]) for k in range(len(r)))
+                                    for r in n.top_rings), default=0.0) if n.top_rings else 0.0
+                        # 道路があれば沿道区域（の外）を先に（釜場は深く掘るので道路から離す）
+                        near_road = 0
+                        if n.road:
+                            zone = endo_width(n.road_width) if n.road_width > 0 else 5000.0
+                            dr = min(_seg_dist((cx, cy), a, b) for a, b in n.road)
+                            near_road = 1 if dr <= zone + math.hypot(KAMABA_W, KAMABA_D) / 2 else 0
+                        key = (L, near_road, edge)
+                        if best is None or key < best[0]:
+                            best = (key, cx, cy)
+            if best is not None:
+                break                                                # いちばん深い床付けで見つかれば止める
+        if best is not None:
+            _k, cx, cy = best
+            shapes = [[(cx - KAMABA_W / 2, cy - KAMABA_D / 2), (cx + KAMABA_W / 2, cy - KAMABA_D / 2),
+                       (cx + KAMABA_W / 2, cy + KAMABA_D / 2), (cx - KAMABA_W / 2, cy + KAMABA_D / 2)]]
+    out = []
+    for poly in shapes:
+        cx = sum(p[0] for p in poly) / len(poly)
+        cy = sum(p[1] for p in poly) / len(poly)
+        ci, cj = int(round((cx - x0) / st)), int(round((cy - y0) / st))
+        if not (0 <= ci < n.nx and 0 <= cj < n.ny):
+            continue
+        floor = n.z[cj][ci]
+        if floor >= n.gl - 1.0:
+            continue                                                 # 掘らない所には置かない
+        bottom = floor - n.kamaba_depth
+        for j in range(n.ny):
+            for i in range(n.nx):
+                if inside((x0 + i * st, y0 + j * st), poly):
+                    n.z[j][i] = min(n.z[j][i], bottom)
+        out.append({"pts": poly, "floor": floor, "bottom": bottom, "auto": auto})
+    return out
 
 
 def endo_check(n: Negiri) -> dict:
@@ -615,6 +695,17 @@ def checks(n: Negiri, general) -> list[Check]:
     if deep >= FOREMAN_MM:
         c.append(Check("作業主任者", "OK", f"掘削面の高さ {deep:,.0f} が 2m 以上 → 地山の掘削作業主任者（安衛法施行令6条9号）"
                                         + ("・土止め支保工作業主任者（6条10号）" if n.yamadome else "")))
+    if n.kamaba_auto and not n.kamaba and not n.pits:
+        c.append(Check("釜場", "WARN", f"□{KAMABA_W:,.0f}×{KAMABA_D:,.0f} の釜場を置ける、躯体の無い平らな床付けが無い（余掘りの帯だけ）。"
+                                     "余掘りを広げるか、レイヤー名に「釜場」の閉じた線で位置を指定する"))
+    for k, p in enumerate(n.pits, 1):
+        xs = [q[0] for q in p["pts"]]
+        ys = [q[1] for q in p["pts"]]
+        c.append(Check("釜場", "OK", f"釜場{k}: □{max(xs) - min(xs):,.0f}×{max(ys) - min(ys):,.0f}・床付け GL{p['floor'] - n.gl:+,.0f} から "
+                                   f"{n.kamaba_depth:,.0f} 下げて底 GL{p['bottom'] - n.gl:+,.0f}、周りに砕石 {KAMABA_GRAVEL_MM:.0f}（寸法は目安）"
+                                   + ("。自動で躯体の無い平らな床付けの、いちばん深く掘削の縁に近い所に置いた" if p["auto"] else "")
+                                   + "。水中ポンプは2台1組・土砂をこまめに除く・掘削の進みに合わせて移す。下水へは沈砂槽を通して放流し、下水道局へ届出"
+                                   "（施工図の手引き p.24・p.36）"))
     if n.endo:
         e = n.endo
         wtxt = f"前面道路の総幅員 {n.road_width / 1000:g}m → " if n.road_width > 0 else "幅員の指定なし → 最大の "
