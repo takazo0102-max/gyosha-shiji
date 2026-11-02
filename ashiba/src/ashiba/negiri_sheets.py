@@ -43,9 +43,23 @@ def negiri_of(d: dict) -> Negiri:
     """控え（根切り_<名前>_図.json の中身）→ 解いた根切り."""
     zones = [Footprint(z["name"], [tuple(p) for p in z["pts"]], float(z["bottom"]), z.get("kind", "基礎"), z.get("top"))
              for z in d.get("zones", [])]
-    keys = ("gl", "margin", "gravel", "lean", "doma_margin", "doma_gravel", "doma_lean", "slope", "depth", "soil", "general")
+    keys = ("gl", "margin", "gravel", "lean", "doma_margin", "doma_gravel", "doma_lean", "slope", "depth", "soil", "general",
+            "road_width")
     kw = {k: d[k] for k in keys if k in d}
-    return solve(Negiri(d.get("name", "根切り1"), zones, yamadome=[tuple(p) for p in d.get("yamadome", [])], **kw))
+    road = [(tuple(a), tuple(b)) for a, b in d.get("road", [])]
+    return solve(Negiri(d.get("name", "根切り1"), zones, yamadome=[tuple(p) for p in d.get("yamadome", [])], road=road, **kw))
+
+
+def _site_normal(n: Negiri, a, b) -> tuple[float, float]:
+    """道路境界線 a→b の、敷地（躯体の重心）の側の単位法線."""
+    L = math.dist(a, b) or 1.0
+    nx, ny = -(b[1] - a[1]) / L, (b[0] - a[0]) / L
+    pts = [p for f in n.zones for p in f.pts]
+    if pts:
+        cx, cy = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+        if (cx - a[0]) * nx + (cy - a[1]) * ny < 0:
+            nx, ny = -nx, -ny
+    return nx, ny
 
 
 def default_cuts(n: Negiri) -> list[tuple[str, tuple, tuple]]:
@@ -106,17 +120,22 @@ def _side(lines: list[tuple[str, str]], y: float) -> tuple[str, float]:
 def cond_lines(n: Negiri) -> list[tuple[str, str]]:
     lf = LOOSE.get(n.soil, 1.2)
     slope = ("自動（積算基準の法の係数）" if n.slope is None else ("垂直" if n.slope <= 0 else f"1:{n.slope:g}（{slope_angle(n.slope):.0f}°）"))
-    return [("条件", f"GL＝設計 GL（プロジェクトの高さ {n.gl:,.0f}）。余掘り {n.margin:.0f}（土間 {n.doma_margin:.0f}）、"
+    return ([("条件", f"GL＝設計 GL（プロジェクトの高さ {n.gl:,.0f}）。余掘り {n.margin:.0f}（土間 {n.doma_margin:.0f}）、"
                      f"砕石 {n.gravel:.0f}・捨てコン {n.lean:.0f}（土間 {n.doma_gravel:.0f}・{n.doma_lean:.0f}）、法面 {slope}、"
                      f"地山「{n.soil}」" + ("、山留めの内は山留めまで掘る" if n.yamadome else "")),
             ("数量（地山）", f"掘削 {n.area:,.1f}m²・{n.volume:,.1f}m³、埋戻し {n.backfill:,.1f}m³、建設発生土 {surplus(n):,.1f}m³"
                           f"（ほぐし L {lf:g} で {surplus(n) * lf:,.1f}m³・10t ダンプ 延べ {dumps(n)} 台。1台 {DUMP_M3:g}m³ は目安）")]
+            + ([("沿道掘削", f"沿道区域 {n.endo['zone'] / 1000:g}m（前面道路 {n.road_width / 1000:g}m）。道路境界から 45° の影響斜線より"
+                            + ("深く掘る所があるので道路管理者と事前協議" if n.endo.get("over") else "浅い")
+                            + "（東京都の建設事務所の沿道掘削協議申請案内）")] if n.endo else []))
 
 
 # ---------------------------------------------------------------- 1枚目 平面図
 def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
     pts = [p for r in n.top_rings for p in r] + [p for f in n.zones for p in f.pts] + list(n.yamadome)
     for _l, a, b in cuts:
+        pts += [a, b]
+    for a, b in n.road:
         pts += [a, b]
     x0, x1 = min(p[0] for p in pts), max(p[0] for p in pts)
     y0, y1 = min(p[1] for p in pts), max(p[1] for p in pts)
@@ -162,6 +181,18 @@ def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
         out.append(_dim(a[0], a[1] + 6, b[0], b[1] + 6, f"{ax1 - ax0:,.0f}", off=-3.0))
         a, b = P((ax1, ay0)), P((ax1, ay1))
         out.append(_dim(a[0] + 6, a[1], b[0] + 6, b[1], f"{ay1 - ay0:,.0f}", off=-3.0))
+    # 道路境界線（二点鎖線）と沿道区域（破線）
+    for a, b in n.road:
+        pa, pb = P(a), P(b)
+        out.append(f'<line x1="{pa[0]:.2f}" y1="{pa[1]:.2f}" x2="{pb[0]:.2f}" y2="{pb[1]:.2f}" stroke="#000" stroke-width="0.25" '
+                   'stroke-dasharray="4 1 0.6 1 0.6 1"/>')
+        if n.endo:
+            nx, ny = _site_normal(n, a, b)
+            z = n.endo["zone"]
+            qa, qb = P((a[0] + nx * z, a[1] + ny * z)), P((b[0] + nx * z, b[1] + ny * z))
+            out.append(f'<line x1="{qa[0]:.2f}" y1="{qa[1]:.2f}" x2="{qb[0]:.2f}" y2="{qb[1]:.2f}" class="beam"/>')
+            out.append(_text((qa[0] + qb[0]) / 2, (qa[1] + qb[1]) / 2 - 1.0, f"沿道区域 {z / 1000:g}m", "ts", "middle"))
+            out.append(_text((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2 + 3.0, "道路境界線", "ts", "middle"))
     # 断面の位置
     for lab, a, b in cuts:
         pa, pb = P(a), P(b)
@@ -216,6 +247,19 @@ def crossings(a, b, poly) -> list[float]:
         if 0.0 <= t <= L and 0.0 <= s <= 1.0:
             out.append(t)
     return sorted(out)
+
+
+def _seg_cross(a, b, p, q) -> list[float]:
+    """線分 a→b が線分 p→q と交わる所（a からの mm）."""
+    L = math.dist(a, b) or 1.0
+    ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+    ex, ey = q[0] - p[0], q[1] - p[1]
+    den = ux * ey - uy * ex
+    if abs(den) < 1e-9:
+        return []
+    t = ((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / den
+    s = ((p[0] - a[0]) * uy - (p[1] - a[1]) * ux) / den
+    return [t] if 0.0 <= t <= L and 0.0 <= s <= 1.0 else []
 
 
 def spans_inside(a, b, poly) -> list[tuple[float, float]]:
@@ -290,6 +334,21 @@ def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float
         tt = crossings(a, b, n.yamadome)
         if tt:
             out.append(_text(X(tt[0]) - 1.0, Y(deep - EMBED_MM) + 3.0, "山留め（根入れは山留め計算書による）", "ts"))
+    # 道路境界と 45° の影響斜線（沿道掘削。境界から敷地の側へ、深さ＝境界からの距離）
+    for ra, rb in n.road:
+        for t in _seg_cross(a, b, ra, rb):
+            nx, ny = _site_normal(n, ra, rb)
+            ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+            side = 1.0 if ux * nx + uy * ny > 0 else -1.0             # 切断線の向きで敷地は前か後ろか
+            cosv = abs(ux * nx + uy * ny) or 1.0                       # 斜めに切るときは断面の上で斜線がゆるくなる
+            depth = (n.gl - zmin) * 0.9
+            t1 = t + side * depth / cosv
+            out.append(f'<line x1="{X(t):.2f}" y1="{Y(n.gl + 800.0):.2f}" x2="{X(t):.2f}" y2="{Y(zmin):.2f}" stroke="#000" '
+                       'stroke-width="0.2" stroke-dasharray="4 1 0.6 1 0.6 1"/>')
+            out.append(f'<line x1="{X(t):.2f}" y1="{Y(n.gl):.2f}" x2="{X(t1):.2f}" y2="{Y(n.gl - depth):.2f}" class="cut"/>')
+            out.append(_text(X(t) + 1.0, Y(n.gl + 800.0), "道路境界", "ts"))
+            out.append(_text(X(t + side * 1500.0 / cosv) + side * 1.0, Y(n.gl - 1500.0), "45° 影響斜線", "ts",
+                             "start" if side > 0 else "end"))
     # 高さの文字と掘削深さの寸法
     gx = left - 2.0
     out.append(_text(X(L) + 1.0, Y(n.gl) - 0.8, "▽設計GL±0", "ts"))

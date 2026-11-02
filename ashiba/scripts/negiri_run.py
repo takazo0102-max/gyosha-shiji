@@ -57,7 +57,8 @@ def _rect(c, u, w, d):
 
 
 def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float | None = None):
-    """選んだ要素 → (躯体の外形 [Footprint], 山留めの面の線 [(a, b, 内向きの法線の候補)], 山留めの閉じた線 [多角形], 読めなかった数)."""
+    """選んだ要素 → (躯体の外形 [Footprint], 山留めの面の線 [(a, b, 内向きの法線の候補)], 山留めの閉じた線 [多角形], 読めなかった数,
+    道路境界線 [(a, b)]（開いた線・ポリライン）)."""
     from opening_run import slab_info
 
     from ashiba.beams import beam_from_details
@@ -71,7 +72,7 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                   for a in c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])}
     except Exception:
         pass
-    zones, walls, polys, others, skipped = [], [], [], [], 0
+    zones, walls, polys, others, skipped, roads = [], [], [], [], 0, []
     for e, d in zip(sel, dets):
         typ = d.get("type")
         det = d.get("details") or {}
@@ -111,9 +112,16 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                     zones.append(Footprint(name, _rect(c0, w["u"], w["length"], w["thick"]), w["z0"], top=w["z0"] + w["height"]))
                 continue
         elif typ in ("PolyLine", "Line"):
+            from guide_lines import _points
+
             pts = [(float(p["x"]) * 1000.0, float(p["y"]) * 1000.0) for p in det.get("coordinates") or []]
+            if not pts and typ == "Line":
+                pts = [(x * 1000.0, y * 1000.0) for x, y in _points(det)][:2]
             if len(pts) >= 4 and math.dist(pts[0], pts[-1]) < 1.0:
                 polys.append(pts[:-1])
+                continue
+            if len(pts) >= 2:                                   # 開いた線は道路境界線（沿道掘削を見る）
+                roads += [(a, b) for a, b in zip(pts, pts[1:]) if math.dist(a, b) > 1.0]
                 continue
         else:
             others.append((e, name))
@@ -132,7 +140,7 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                     skipped += 1
         except Exception:
             skipped += len(others)
-    return zones, walls, polys, skipped
+    return zones, walls, polys, skipped, roads
 
 
 def yamadome_polygon(walls: list, center) -> list:
@@ -226,6 +234,21 @@ def drawing(n, li: int, fill=None, back: bool = False) -> tuple[list, list, list
                                                                (lx, y))], "fillId": {"guid": fid}, "fillPenIndex": fp,
                                 "contourPenIndex": fp})
                 texts.append({**txt((lx + 1300.0, y - 300.0), f"床付け GL{L - n.gl:+,.0f}"), "justification": "Left"})
+    if n.road:
+        # 沿道区域の線（道路境界から区域の幅だけ敷地の側。破線）と文字
+        from ashiba.negiri import _centroid as _cen
+
+        zone = n.endo.get("zone", 0.0)
+        site = _cen([p for f in n.zones for p in f.pts]) if n.zones else None
+        for a2, b2 in n.road:
+            L = math.dist(a2, b2) or 1.0
+            nx, ny = -(b2[1] - a2[1]) / L, (b2[0] - a2[0]) / L
+            if site and (site[0] - a2[0]) * nx + (site[1] - a2[1]) * ny < 0:
+                nx, ny = -nx, -ny
+            q0, q1 = (a2[0] + nx * zone, a2[1] + ny * zone), (b2[0] + nx * zone, b2[1] + ny * zone)
+            lines.append({"coordinates": [P(q0), P(q1)], "layerIndex": li})
+            m = ((q0[0] + q1[0]) / 2 + nx * 400.0, (q0[1] + q1[1]) / 2 + ny * 400.0)
+            texts.append(txt(m, f"沿道区域 {zone / 1000:g}m（道路境界から）" + ("・45° より深い所あり" if n.endo.get("over") else "")))
     if back and n.fill_rings:
         from ashiba.negiri import _same, dumps, surplus
 
@@ -285,6 +308,8 @@ def main(argv=None) -> int:
     ap.add_argument("--soil", default=None, choices=list(SOILS), help="地山の種類（安衛則356条・357条の判定）")
     ap.add_argument("--gl", type=float, default=0.0, help="GL のプロジェクトの高さ mm（既定 0）")
     ap.add_argument("--yamadome-walls", action="store_true", help="選んだ壁を全部 山留めとする")
+    ap.add_argument("--road-width", type=float, default=None,
+                    help="前面道路の総幅員 mm（一緒に選んだ開いた線＝道路境界線。沿道区域 20m 以上 5m・6m 以上 3m・6m 未満は 1/2）")
     ap.add_argument("--remove", action="store_true", help="置いた根切り図を消す")
     ap.add_argument("--sheet", action="store_true",
                     help="根切り・山留計画図（平面図・断面図・数量と判定と確認の A3 の PDF とレイアウト）。線を選べばその線で断面を切る")
@@ -409,13 +434,13 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                                mesh_data, report, solve)
 
     dets = c.get_details(sel) if sel else []
-    zones, walls, polys, skipped = footprints(c, sel, dets, a.yamadome_walls, a.doma_thin)
+    zones, walls, polys, skipped, roads = footprints(c, sel, dets, a.yamadome_walls, a.doma_thin)
     if not zones:
         print("根切り図: 掘る躯体（基礎・地中梁・耐圧盤などの床・梁・柱・壁）を選んでから押してください。山留めは名前に「山留」が"
               "付くレイヤーの壁か、閉じた線を一緒に選ぶ")
         return 1
     opts = (a.slope, a.depth, a.general, a.margin, a.gravel, a.lean, a.doma_margin, a.doma_gravel, a.doma_lean, a.doma_thin,
-            a.soil, a.color, a.backfill, a.name)
+            a.soil, a.color, a.backfill, a.road_width, a.name)
     if all(v is None for v in opts):
         ndoma = sum(1 for f in zones if f.kind == "土間")
         res = show_form({"title": "根切り図", "intro": f"躯体 {len(zones)}個" + (f"・山留め（壁 {len(walls)}枚・線 {len(polys)}本）" if walls or polys else "")
@@ -438,7 +463,9 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                                     {"key": "color", "label": "床付けの高さの色分け", "kind": "choice", "options": list(COLORS),
                                      "value": COLORS[0]},
                                     {"key": "backfill", "label": "埋戻しの範囲と量（平面）", "kind": "choice", "options": list(BACKS),
-                                     "value": BACKS[0]}],
+                                     "value": BACKS[0]}]
+                         + ([{"key": "road_width", "label": f"前面道路の総幅員 m（道路境界線 {len(roads)}本。沿道掘削を見る）",
+                              "kind": "number", "value": "6"}] if roads else []),
                          "buttons": [{"id": "place", "label": "作る"}, {"id": "cancel", "label": "やめる"}]})
         if not res or res.get("button") != "place":
             print("根切り図: やめました（何も作っていません）")
@@ -451,6 +478,8 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         a.doma_margin, a.doma_gravel, a.doma_lean = num("doma_margin"), num("doma_gravel"), num("doma_lean")
         a.soil, a.color = str(v.get("soil") or "その他"), str(v.get("color") or COLORS[0])
         a.backfill = str(v.get("backfill") or BACKS[0])
+        rw = num("road_width")
+        a.road_width = None if rw is None else rw * 1000.0
     elif a.slope is not None:
         a.slope = None if str(a.slope).lower() == "auto" else float(a.slope)
     name = a.name or "根切り1"
@@ -464,7 +493,10 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                      doma_margin=dv(a.doma_margin, DOMA_MARGIN_MM), doma_gravel=dv(a.doma_gravel, DOMA_GRAVEL_MM),
                      doma_lean=dv(a.doma_lean, DOMA_LEAN_MM), slope=a.slope,
                      depth=None if a.depth is None else a.gl + a.depth, soil=a.soil or "その他", yamadome=yam,
-                     general=None if a.general is None else a.gl + a.general))
+                     general=None if a.general is None else a.gl + a.general, road=roads,
+                     road_width=float(a.road_width or 0.0)))
+    if roads and not a.road_width:
+        print("  注意: 道路境界線を選んだが前面道路の幅員が無いので、沿道区域は最大の 5m で見ます（--road-width で幅員 mm）")
     if name in rec:
         _delete_alive_any(c, rec.pop(name))
     li = layer_index(c)
@@ -506,6 +538,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                           + opt("--doma-gravel", a.doma_gravel) + opt("--doma-lean", a.doma_lean)
                           + opt("--doma-thin", a.doma_thin) + opt("--soil", a.soil or "その他")
                           + opt("--color", a.color or COLORS[0]) + opt("--backfill", a.backfill or BACKS[0])
+                          + opt("--road-width", a.road_width)
                           + ["--gl", f"{a.gl:g}"] + (["--yamadome-walls"] if a.yamadome_walls else []))}
     src_path.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
     # 計画図のための控え（躯体の外形と条件。「根切り・山留計画図」がこれから解き直す）
@@ -518,6 +551,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                                "doma_margin": n.doma_margin, "doma_gravel": n.doma_gravel, "doma_lean": n.doma_lean,
                                "slope": n.slope, "depth": n.depth, "soil": n.soil, "general": n.general,
                                "yamadome": [list(p) for p in n.yamadome], "cuts": old_cuts,
+                               "road": [[list(a2), list(b2)] for a2, b2 in n.road], "road_width": n.road_width,
                                "zones": [{"name": f.name, "pts": [list(p) for p in f.pts], "bottom": f.bottom, "kind": f.kind,
                                           "top": f.top} for f in n.zones]}, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / f"根切り_{name}.md"

@@ -53,6 +53,17 @@ class TestNegiriSheets(unittest.TestCase):
         (t0, t1), = spans_inside(a, b, FIG["zones"][1]["pts"])
         self.assertAlmostEqual(t1 - t0, 2000.0)
 
+    def test_road_on_sheets(self):
+        """道路境界線があれば、平面に道路境界線と沿道区域、横切る断面に道路境界と 45° の影響斜線、条件の欄に沿道掘削."""
+        n = negiri_of({**FIG, "yamadome": [], "road": [[[-5000, -1000], [20000, -1000]]], "road_width": 8000})
+        pages = page_list(n)
+        plan = " ".join(s.text for s in svg_shapes(pages[0][2]) if s.kind == "text")
+        sec = " ".join(s.text for s in svg_shapes(pages[1][2]) if s.kind == "text")
+        self.assertIn("沿道区域 3m", plan)
+        self.assertIn("道路境界線", plan)
+        self.assertIn("45° 影響斜線", sec)                                     # B－B（縦）が道路を横切る
+        self.assertIn("沿道掘削", plan)
+
     def test_sheet_from_record(self):
         """根切り図の控え（根切り_<名前>_図.json）から計画図を作る（Archicad が無くても PDF の元の HTML は書く）."""
         import negiri_run as N

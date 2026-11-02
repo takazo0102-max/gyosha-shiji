@@ -30,6 +30,11 @@
   ピット・地下室（名前・レイヤーに「ピット」「地下」）は床から GL までを空洞として埋め戻さない。10t ダンプ 1台の積載は地山の土砂で
   5.5m³（長崎県 土木積算基準 残土の注意事項 H19.4.1。目安）。搬出が 500m³ 以上は再生資源利用促進計画の作成・掲示・5年保存（資源
   有効利用促進法の省令改正 R5.1.1 施行。国交省 建設業課「建設工事から発生する土の搬出先の明確化等」p.2〜3）
+- 沿道掘削（利用者の指定 2026-11-02 の「各図面を参考に」の続き。施工図の手引きの根切・山留計画図）: 東京都北多摩北部建設事務所
+  「沿道掘削協議申請案内」p.1〜2（https://www.kensetsu.metro.tokyo.lg.jp/documents/d/kensetsu/p_endoukussaku）。沿道区域は道路
+  境界から、前面道路の総幅員 20m 以上で 5m・6m 以上 20m 未満で 3m・6m 未満で総幅員の 1/2。道路境界線から 45 度の影響斜線より
+  深く掘るときは道路管理者と事前協議（道路法44条の沿道区域。区市町村の要綱で深さの基準が違うので管理者に確かめる）。
+  山留めの H 鋼（外づら）と道路境界の離隔は最低 5cm（同 p.2）
 """
 
 from __future__ import annotations
@@ -52,6 +57,16 @@ YAMADOME_GAP_MM = 1000.0         # 山留め壁と躯体の間の余幅（積算
 VOID_WORDS = ("ピット", "地下", "PIT")   # 名前・レイヤーにこれがあれば、床から GL までを空洞（埋め戻さない）
 DUMP_M3 = 5.5                    # 10t ダンプ 1台の積載（地山の土砂。長崎県 H19 の換算値。目安）
 RECYCLE_M3 = 500.0               # 搬出がこれ以上は再生資源利用促進計画（資源有効利用促進法の省令 R5.1.1〜）
+ROAD_GAP_MM = 50.0               # 山留めの H 鋼（外づら）と道路境界の離隔の最低（北多摩北部建設事務所 沿道掘削協議申請案内 p.2）
+
+
+def endo_width(road_w_mm: float) -> float:
+    """沿道区域の幅 mm（道路境界から。前面道路の総幅員 20m 以上 5m・6m 以上 3m・6m 未満は総幅員の 1/2）."""
+    if road_w_mm >= 20000.0:
+        return 5000.0
+    if road_w_mm >= 6000.0:
+        return 3000.0
+    return road_w_mm / 2.0
 LEVEL_COLORS = ((1.00, 0.90, 0.55), (0.98, 0.72, 0.35), (0.90, 0.50, 0.25), (0.75, 0.30, 0.20), (0.55, 0.20, 0.35),
                 (0.35, 0.20, 0.50))   # 床付けの高さの色分け（浅い→深い）
 LEVEL_GRAYS = ((0.88, 0.88, 0.88), (0.75, 0.75, 0.75), (0.62, 0.62, 0.62), (0.50, 0.50, 0.50), (0.38, 0.38, 0.38),
@@ -98,6 +113,8 @@ class Negiri:
     depth: Optional[float] = None         # 掘削底を全部この高さに（プロジェクトの高さ mm）
     soil: str = "その他"
     yamadome: list = field(default_factory=list)   # 山留めの内側の面の多角形（mm）。空＝山留め無し
+    road: list = field(default_factory=list)       # 道路境界線 [((x, y), (x, y)), …]（mm）。空＝沿道掘削を見ない
+    road_width: float = 0.0               # 前面道路の総幅員 mm（沿道区域の幅を決める）
     general: Optional[float] = None       # 山留めの内側の一般の根切り底（省くと床付けのいちばん浅い高さ）
     step: float = 50.0                    # 升目 mm（広い現場は STEP_MAX_CELLS に収まるよう粗く）
     # 結果
@@ -119,6 +136,7 @@ class Negiri:
     backfill: float = 0.0                 # 埋戻し m³（地山。積算基準: 根切り−躯体−砕石−捨てコン）
     fill: list = field(default_factory=list)       # 升目の埋戻しの厚さ mm
     fill_rings: list = field(default_factory=list)  # 埋戻しの範囲の輪
+    endo: dict = field(default_factory=dict)        # 沿道掘削 {"zone", "inside", "over", "worst", "near"}（road が無ければ空）
     checks: list[Check] = field(default_factory=list)
 
     @property
@@ -287,6 +305,7 @@ def solve(n: Negiri) -> Negiri:
             n.ground[key] = (a, sum(v for row in mask for v in row) / 1000.0 * cell)
     n.gaps = yamadome_gaps(n, zones) if n.yamadome else []
     backfill(n, zones, lv)
+    n.endo = endo_check(n) if n.road else {}
     n.top_rings = rings(n, lambda v: v < n.gl - 1.0)
     n.bottom_rings = {L: rings(n, lambda v, L=L: v <= L + 1.0) for L in n.levels}
     n.edge_rings = {L: rings(n, lambda v, L=L: v < L - 1.0) for L in n.levels[:-1]}
@@ -337,6 +356,33 @@ def backfill(n: Negiri, zones: list, lv: dict) -> None:
     n.body = max(0.0, body / 1000.0 * cell - gv)
     n.backfill = sum(v for row in fill for v in row) / 1000.0 * cell
     n.fill_rings = [r for r in rings(n, lambda v: v > 1.0, fill) if abs(_area(r)) >= (3 * step) ** 2]
+
+
+def endo_check(n: Negiri) -> dict:
+    """沿道区域の中の掘削: 道路境界からの距離 d の所は深さ d まで（45° の影響斜線）。それより深い所の升目の数と、いちばん
+    超える所（超える深さ mm・境界からの距離 mm）。山留めと道路境界のいちばん近い距離も."""
+    zone = endo_width(n.road_width) if n.road_width > 0 else 5000.0
+    x0, y0 = n.origin
+    inside_n, over_n, worst = 0, 0, None
+    for j in range(n.ny):
+        for i in range(n.nx):
+            dep = n.gl - n.z[j][i]
+            if dep <= 1.0:
+                continue
+            p = (x0 + i * n.step, y0 + j * n.step)
+            d = min(_seg_dist(p, a, b) for a, b in n.road)
+            if d > zone:
+                continue
+            inside_n += 1
+            if dep > d + 1.0:
+                over_n += 1
+                if worst is None or dep - d > worst[0]:
+                    worst = (dep - d, d, dep)
+    near = None
+    if n.yamadome:
+        ym = n.yamadome
+        near = min(min(_seg_dist(q, a, b) for a, b in n.road) for q in ym)
+    return {"zone": zone, "inside": inside_n, "over": over_n, "worst": worst, "near": near}
 
 
 def surplus(n: Negiri) -> float:
@@ -569,6 +615,23 @@ def checks(n: Negiri, general) -> list[Check]:
     if deep >= FOREMAN_MM:
         c.append(Check("作業主任者", "OK", f"掘削面の高さ {deep:,.0f} が 2m 以上 → 地山の掘削作業主任者（安衛法施行令6条9号）"
                                         + ("・土止め支保工作業主任者（6条10号）" if n.yamadome else "")))
+    if n.endo:
+        e = n.endo
+        wtxt = f"前面道路の総幅員 {n.road_width / 1000:g}m → " if n.road_width > 0 else "幅員の指定なし → 最大の "
+        if e["over"]:
+            ex, d, dep = e["worst"]
+            c.append(Check("沿道掘削", "WARN", f"{wtxt}沿道区域 {e['zone'] / 1000:g}m の中で、道路境界から 45° の影響斜線より深く掘る"
+                                            f"（境界から {d:,.0f} の所で深さ {dep:,.0f}、斜線より {ex:,.0f} 深い）→ 道路管理者と事前協議"
+                                            "（掘削工事仕様書・断面図・山留計画図・計算書・引照点詳細図・現況写真。道路法44条。東京都の建設事務所の"
+                                            "案内による。区市町村の要綱は深さの基準が違うので確かめる）"))
+        elif e["inside"]:
+            c.append(Check("沿道掘削", "OK", f"{wtxt}沿道区域 {e['zone'] / 1000:g}m の中で掘るが、道路境界から 45° の影響斜線より浅い"
+                                          "（区市町村によっては深さ 0.5m 以上で許可が要るので管理者に確かめる）"))
+        else:
+            c.append(Check("沿道掘削", "OK", f"{wtxt}沿道区域 {e['zone'] / 1000:g}m の中では掘らない"))
+        if e["near"] is not None and e["near"] < ROAD_GAP_MM - 1e-6:
+            c.append(Check("沿道掘削", "WARN", f"山留めの面と道路境界の間 {e['near']:,.0f}mm が {ROAD_GAP_MM:.0f} より狭い（H 鋼の外づらと道路境界の"
+                                            "離隔は最低 5cm。山留め壁の厚さぶん内へ）"))
     sp = surplus(n)
     if sp >= RECYCLE_M3:
         c.append(Check("建設発生土", "WARN", f"搬出 {sp:,.0f}m³（地山）が {RECYCLE_M3:,.0f}m³ 以上 → 再生資源利用促進計画の作成・"

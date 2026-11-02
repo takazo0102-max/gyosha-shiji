@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.negiri import Footprint, Negiri, dumps, level_color, max_angle, mesh_data, report, solve, surplus
+from ashiba.negiri import Footprint, Negiri, dumps, endo_width, level_color, max_angle, mesh_data, report, solve, surplus
 
 SLAB = Footprint("耐圧盤", [(0, 0), (12000, 0), (12000, 8000), (0, 8000)], -1200.0)
 FOOT = Footprint("基礎F1", [(5000, 3000), (7000, 3000), (7000, 5000), (5000, 5000)], -2000.0)
@@ -140,6 +140,25 @@ class TestNegiri(unittest.TestCase):
         many = solve(Negiri("試験", [Footprint("F", [(0, 0), (40000, 0), (40000, 30000), (0, 30000)], -3000.0, top=-2000.0)],
                             slope=0.0, yamadome=[(-1000, -1000), (41000, -1000), (41000, 31000), (-1000, 31000)]))
         self.assertIn("建設発生土", {c.item for c in many.checks})             # 500m³ 以上は再生資源利用促進計画
+
+    def test_endo_kussaku(self):
+        """沿道掘削（東京都北多摩北部建設事務所 沿道掘削協議申請案内 p.1〜2）: 沿道区域は前面道路の総幅員 20m 以上 5m・6m 以上
+        3m・6m 未満は 1/2。道路境界から 45° の影響斜線より深く掘れば事前協議。山留めと道路境界は 5cm 以上離す."""
+        self.assertEqual((endo_width(20000), endo_width(8000), endo_width(4000)), (5000.0, 3000.0, 2000.0))
+        road = [((-5000, -1000), (20000, -1000))]
+        n = solve(Negiri("試験", [SLAB, FOOT], road=road, road_width=8000.0))
+        e = n.endo
+        self.assertGreater(e["over"], 0)                                     # 境界から 0.5m の所を 1.31m 掘る
+        self.assertAlmostEqual(e["worst"][2], 1310.0)
+        st = [c.status for c in n.checks if c.item == "沿道掘削"]
+        self.assertEqual(st, ["WARN"])
+        far = solve(Negiri("試験", [SLAB, FOOT], road=[((-5000, -6000), (20000, -6000))], road_width=8000.0))
+        self.assertEqual(far.endo["inside"], 0)                              # 境界から 5.5m（区域 3m の外）
+        self.assertEqual([c.status for c in far.checks if c.item == "沿道掘削"], ["OK"])
+        y = [(-1500, -1500), (13500, -1500), (13500, 9500), (-1500, 9500)]
+        tight = solve(Negiri("試験", [SLAB], slope=0.0, yamadome=y, road=[((-5000, -1520), (20000, -1520))], road_width=8000.0))
+        self.assertIn("5cm", " ".join(c.message for c in tight.checks if c.item == "沿道掘削"))
+        self.assertFalse(solve(Negiri("試験", [SLAB])).endo)                  # 道路境界線が無ければ見ない
 
 
 if __name__ == "__main__":
