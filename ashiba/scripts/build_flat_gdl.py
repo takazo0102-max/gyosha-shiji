@@ -235,6 +235,13 @@ PARTS = {
             "原点＝線の始め、座標 cX・cY（mm）。種類 fcKind: 1 PPフェンス PP1512G・2 スタンドバリケード C型 BS020＋単管・3 バルカンバリア BBJW4・4 仮設ガードレール GR50（日建リース Vol.10 p395〜397）を規格の1基ずつ。割付と判定は fence.py、置くのは scripts/fence_run.py。",
         ],
     },
+    "ashiba_tube": {
+        "title": "別の足場を単管でつなぐ（支柱から支柱への線1本に1部品）",
+        "notes": [
+            "GLOOBE の「別の足場と接続する単管」に当たる（2026-11-02 の開発ループ）。",
+            "原点＝始めの足場の支柱の芯、+X＝終わりの支柱へ。zList の高さごとに長さ tbLen の単管と両端の直交クランプ、gdOn で中桟・手すり、brOn で層の間の斜め（自在クランプ）。割付と判定は tube_join.py、置くのは scripts/tube_run.py。",
+        ],
+    },
     "ashiba_lifeline": {
         "title": "親綱と親綱支柱（鉄骨梁の上。1本の梁に1部品）",
         "notes": [

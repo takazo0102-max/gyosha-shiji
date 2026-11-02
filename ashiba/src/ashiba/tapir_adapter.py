@@ -44,7 +44,7 @@ class TapirError(Exception):
     pass
 
 
-def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_kbrk", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai", "ashiba_route", "ashiba_house", "ashiba_opening", "ashiba_fence", "ashiba_lifeline", "ashiba_machine", "ashiba_tower")) -> bool:
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_kbrk", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai", "ashiba_route", "ashiba_house", "ashiba_opening", "ashiba_fence", "ashiba_lifeline", "ashiba_tube", "ashiba_machine", "ashiba_tower")) -> bool:
     """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
 
     埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で

@@ -152,6 +152,11 @@ PART_PROFILES = {
         "params": {"fcKind": 2, "cX": "0,9000,9000", "cY": "0,0,4000", "fcName": "柵1"},
     },
     # 親綱と親綱支柱（利用者の指定 2026-11-01: 親綱と親綱支柱も追加して）
+    # 別の足場を単管でつなぐ（2026-11-02 の開発ループ）
+    "ashiba_tube": {
+        "images": ("3D", "2D"),
+        "params": {"tbL": 3.0, "tbLen": 3.5},
+    },
     "ashiba_lifeline": {
         "images": ("3D", "2D"),
         "params": {"llL": 24.0, "nSpan": 3, "llName": "親綱1"},
