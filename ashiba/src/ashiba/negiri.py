@@ -20,8 +20,10 @@
   か 2m 未満）・361条（崩壊のおそれは土止め支保工）。機械掘削には356条は掛からないが、同じ値を目安に見る
 - 建築基準法施行令136条の3第4項（深さ 1.5m 以上の根切りは山留め。崩壊のおそれ等が無い場合を除く。公衆災害防止対策要綱の 1.5m は
   令和元年の改正で消えた）、安衛法施行令6条9号・10号（掘削面の高さ 2m 以上は地山の掘削作業主任者、土止め支保工は作業主任者）
-- 公共建築数量積算基準（令和5年）第3編: 作業上のゆとり幅 0.5m（余掘り）・法の係数。公共建築工事標準仕様書 4.6.3・4.6.4: 砂利地業
-  60mm・捨コン 50mm（特記なし）。土量変化率 L は農水省の施工パッケージ型積算基準の値（建築では目安）。調べたメモは docs/調査_根切り.md
+- 公共建築数量積算基準（令和5年）第3編: 作業上のゆとり幅 0.5m（余掘り。土間・犬走り等は 0.1m）・法の係数・山留め壁と躯体間の
+  余幅 1.0m（本文 p.7）、砂利地業等の数量は面積×厚さで躯体側面より 0.1m の出幅（本文 p.9）。公共建築工事標準仕様書（令和7年版）
+  4.6.3: 砂利地業 60mm・4.6.4: 捨コン 50mm（特記がなければ。本文 p.23）。土間は砂利地業の上に防湿層を直接施工（4.6.3(5)・4.6.5(3)）
+  なので捨コンは既定で無し（目安）。土量変化率 L は農水省の施工パッケージ型積算基準の値（建築では目安）。調べたメモは docs/調査_根切り.md
 """
 
 from __future__ import annotations
@@ -32,7 +34,19 @@ from typing import Optional
 
 # 既定（調べた値は docs/調査_根切り.md。目安は帳票にそう書く）
 MARGIN_MM = 500.0                # 余掘り（積算基準の作業上のゆとり幅 0.5m）
-BASE_MM = 110.0                  # 地業の厚さ（標仕の砂利 60＋捨コン 50）
+GRAVEL_MM = 60.0                 # 砕石（砂利）地業の厚さ（標仕 4.6.3 特記なし）
+LEAN_MM = 50.0                   # 捨てコンの厚さ（標仕 4.6.4 特記なし）
+BASE_MM = GRAVEL_MM + LEAN_MM    # 地業の厚さの合計 110
+DOMA_MARGIN_MM = 100.0           # 土間・犬走り等の余掘り（積算基準 0.1m）
+DOMA_GRAVEL_MM = 60.0            # 土間の砕石
+DOMA_LEAN_MM = 0.0               # 土間の捨てコン（防湿層を砂利の上に直接。目安）
+DOMA_WORDS = ("土間", "犬走", "DOMA")   # 名前・レイヤーにこれがあれば土間とみなす
+SPREAD_MM = 100.0                # 地業の出幅（積算基準 砂利地業等: 躯体側面より 0.1m）
+YAMADOME_GAP_MM = 1000.0         # 山留め壁と躯体の間の余幅（積算基準の標準 1.0m）
+LEVEL_COLORS = ((1.00, 0.90, 0.55), (0.98, 0.72, 0.35), (0.90, 0.50, 0.25), (0.75, 0.30, 0.20), (0.55, 0.20, 0.35),
+                (0.35, 0.20, 0.50))   # 床付けの高さの色分け（浅い→深い）
+LEVEL_GRAYS = ((0.88, 0.88, 0.88), (0.75, 0.75, 0.75), (0.62, 0.62, 0.62), (0.50, 0.50, 0.50), (0.38, 0.38, 0.38),
+               (0.25, 0.25, 0.25))
 SLOPES = (0.0, 0.3, 0.5, 0.8, 1.0, 1.5)   # 法面の勾配 1:n の選び（0＝垂直＝山留め。None＝自動）
 STRIP_MM = 1100.0                # これ以下の幅で根切りの間に残る地山は掘る（GLOOBE の手引きの例）
 LOOSE = {"岩盤・堅い粘土": 1.25, "その他": 1.20, "砂": 1.20, "崩れやすい（発破等）": 1.20}   # 土量変化率 L（目安）
@@ -49,6 +63,7 @@ class Footprint:
     name: str
     pts: list[tuple[float, float]]
     bottom: float
+    kind: str = "基礎"                    # "基礎"（基礎・地中梁・耐圧盤など）か "土間"（土間・犬走り等）
 
 
 @dataclass
@@ -63,8 +78,12 @@ class Negiri:
     name: str
     zones: list[Footprint]
     gl: float = 0.0                       # GL（設計 GL の高さ mm）
-    margin: float = MARGIN_MM
-    base: float = BASE_MM
+    margin: float = MARGIN_MM             # 基礎の余掘り
+    gravel: float = GRAVEL_MM             # 基礎の砕石
+    lean: float = LEAN_MM                 # 基礎の捨てコン
+    doma_margin: float = DOMA_MARGIN_MM   # 土間の余掘り・砕石・捨てコン
+    doma_gravel: float = DOMA_GRAVEL_MM
+    doma_lean: float = DOMA_LEAN_MM
     slope: Optional[float] = None         # 1:n の n（0＝垂直・None＝自動＝積算基準の法の係数）
     depth: Optional[float] = None         # 掘削底を全部この高さに（プロジェクトの高さ mm）
     soil: str = "その他"
@@ -84,7 +103,14 @@ class Negiri:
     strips: int = 0                       # 埋めた細い地山の升目の数
     slopes: list = field(default_factory=list)    # 躯体ごとの（深さ, 勾配 n）
     area: float = 0.0                     # 掘削の面積（法肩の内）m²
+    ground: dict = field(default_factory=dict)   # 地業の数量 {"砕石": (面積 m², 体積 m³), "捨てコン": (…)}（出幅 0.1m）
+    gaps: list = field(default_factory=list)     # 山留め壁と躯体の間 [(躯体の名前, 距離 mm, はみ出す)]
     checks: list[Check] = field(default_factory=list)
+
+    @property
+    def base(self) -> float:
+        """基礎の地業の厚さ（砕石＋捨てコン）."""
+        return self.gravel + self.lean
 
 
 def _seg_dist(p, a, b) -> float:
@@ -149,9 +175,26 @@ def zone_slope(n: Negiri, depth_mm: float) -> float:
     return 0.3 if depth_mm < 5000.0 else 0.6
 
 
+def is_doma(f: Footprint) -> bool:
+    return f.kind == "土間"
+
+
+def margin_of(n: Negiri, f: Footprint) -> float:
+    return n.doma_margin if is_doma(f) else n.margin
+
+
+def layers_of(n: Negiri, f: Footprint) -> tuple[float, float]:
+    """(砕石, 捨てコン) の厚さ mm."""
+    return (n.doma_gravel, n.doma_lean) if is_doma(f) else (n.gravel, n.lean)
+
+
+def base_of(n: Negiri, f: Footprint) -> float:
+    return sum(layers_of(n, f))
+
+
 def floor_level(n: Negiri, f: Footprint) -> float:
-    """床付け（掘削底）の高さ: --depth か、躯体の下端−地業の厚さ."""
-    return n.depth if n.depth is not None else f.bottom - n.base
+    """床付け（掘削底）の高さ: --depth か、躯体の下端−地業の厚さ（砕石＋捨てコン）."""
+    return n.depth if n.depth is not None else f.bottom - base_of(n, f)
 
 
 def solve(n: Negiri) -> Negiri:
@@ -162,7 +205,7 @@ def solve(n: Negiri) -> Negiri:
         return n
     lv = {id(f): floor_level(n, f) for f in zones}
     deep = max([n.gl - v for v in lv.values()] + [0.0])
-    reach = n.margin + deep * max(zone_slope(n, deep), 1.5 if n.slope is None else 0.0) + STRIP_MM + n.step
+    reach = max([n.margin] + [margin_of(n, f) for f in zones]) + deep * max(zone_slope(n, deep), 1.5 if n.slope is None else 0.0) + STRIP_MM + n.step
     xs = [p[0] for f in zones for p in f.pts] + [p[0] for p in n.yamadome]
     ys = [p[1] for f in zones for p in f.pts] + [p[1] for p in n.yamadome]
     x0, x1, y0, y1 = min(xs) - reach, max(xs) + reach, min(ys) - reach, max(ys) + reach
@@ -187,11 +230,15 @@ def solve(n: Negiri) -> Negiri:
                     z[j][i] = min(z[j][i], general)
                     own[j][i] = general
     slopes = []
+    gmask = [[0.0] * n.nx for _ in range(n.ny)]          # 升目の砕石・捨てコンの厚さ（出幅 0.1m の内。重なりは厚い方）
+    lmask = [[0.0] * n.nx for _ in range(n.ny)]
     for f in zones:
         b = lv[id(f)]
         s = zone_slope(n, n.gl - b)
         slopes.append((n.gl - b, s))
-        r = n.margin + max(0.0, n.gl - b) * s + step
+        mg = margin_of(n, f)
+        tg, tl = layers_of(n, f)
+        r = max(mg, SPREAD_MM) + max(0.0, n.gl - b) * s + step
         fx = [p[0] for p in f.pts]
         fy = [p[1] for p in f.pts]
         dist = _edge_dist_fn(f.pts)
@@ -199,9 +246,13 @@ def solve(n: Negiri) -> Negiri:
         j0, j1 = max(0, int((min(fy) - r - y0) / step)), min(n.ny - 1, int((max(fy) + r - y0) / step) + 1)
         for j in range(j0, j1 + 1):
             for i in range(i0, i1 + 1):
+                d0 = dist((x0 + i * step, y0 + j * step))
+                if d0 <= SPREAD_MM + 1e-6:
+                    gmask[j][i] = max(gmask[j][i], tg)
+                    lmask[j][i] = max(lmask[j][i], tl)
                 if in_y is not None and not in_y[j][i]:
                     continue                                   # 山留めの外は掘らない
-                d = max(0.0, dist((x0 + i * step, y0 + j * step)) - n.margin)
+                d = max(0.0, d0 - mg)
                 if d > 1e-6 and s <= 0.0:
                     continue                                   # 垂直: 余掘りの線の外は掘らない
                 zz = b + (d / s if s > 0 else 0.0)
@@ -215,11 +266,40 @@ def solve(n: Negiri) -> Negiri:
     n.volume = sum(max(0.0, n.gl - v) for row in z for v in row) / 1000.0 * cell
     n.area = sum(1 for row in z for v in row if v < n.gl - 1.0) * cell
     n.levels = sorted({round(v, 1) for v in list(lv.values()) + ([general] if general is not None else [])}, reverse=True)
+    n.ground = {}
+    for key, mask in (("砕石", gmask), ("捨てコン", lmask)):
+        a = sum(1 for row in mask for v in row if v > 0) * cell
+        if a > 0:
+            n.ground[key] = (a, sum(v for row in mask for v in row) / 1000.0 * cell)
+    n.gaps = yamadome_gaps(n, zones) if n.yamadome else []
     n.top_rings = rings(n, lambda v: v < n.gl - 1.0)
     n.bottom_rings = {L: rings(n, lambda v, L=L: v <= L + 1.0) for L in n.levels}
     n.edge_rings = {L: rings(n, lambda v, L=L: v < L - 1.0) for L in n.levels[:-1]}
     n.checks = checks(n, general)
     return n
+
+
+def yamadome_gaps(n: Negiri, zones: list) -> list:
+    """基礎の躯体ごとの山留め壁（内側の面）までのいちばん近い距離 mm と、山留めの外へはみ出すか（土間は除く）."""
+    out = []
+    ym = n.yamadome
+    for f in zones:
+        if is_doma(f):
+            continue
+        out_side = any(not inside(p, ym) for p in f.pts)
+        d = min([_seg_dist(p, ym[k], ym[(k + 1) % len(ym)]) for p in f.pts for k in range(len(ym))]
+                + [_seg_dist(q, f.pts[k], f.pts[(k + 1) % len(f.pts)]) for q in ym for k in range(len(f.pts))])
+        out.append((f.name, d, out_side))
+    return out
+
+
+def level_color(n: Negiri, L: float, gray: bool = False) -> tuple[float, float, float]:
+    """床付けの高さ L の色（浅い順に LEVEL_COLORS。白黒は灰の濃さ）."""
+    pal = LEVEL_GRAYS if gray else LEVEL_COLORS
+    k = n.levels.index(L) if L in n.levels else 0
+    if len(n.levels) > len(pal):
+        k = round(k * (len(pal) - 1) / (len(n.levels) - 1))
+    return pal[min(k, len(pal) - 1)]
 
 
 def _grow(mask: list, r: int) -> list:
@@ -384,6 +464,12 @@ def checks(n: Negiri, general) -> list[Check]:
         c.append(Check("山留め", "OK", f"山留めの内側は山留めの面まで垂直に掘り、残りの所も一般の根切り底 GL{general - n.gl:+,.0f} まで掘る"
                                      "（躯体の掘削と山留めの間に中途半端な土を残さない）。山留めの外は掘らない。山留め壁と躯体の間は"
                                      "積算基準で 1.0m"))
+        for nm, d, out_side in n.gaps:
+            if out_side:
+                c.append(Check("山留めとの間", "NG", f"{nm} が山留めの外へはみ出す（山留めの位置か躯体の選びを確かめる）"))
+            elif d < YAMADOME_GAP_MM - 1.0:
+                c.append(Check("山留めとの間", "WARN", f"{nm} と山留め壁の間 {d:,.0f}mm が積算基準の標準 {YAMADOME_GAP_MM:,.0f} より狭い"
+                                                    "（型枠の組立て・解体と防水の作業の幅。山留めを外へ出すか、型枠・防水の工法を確かめる）"))
     else:
         steep = [(h, s) for h, s in n.slopes if s <= 0.0 and h >= YAMADOME_DEPTH_MM - 1e-6]
         if steep:
@@ -404,8 +490,12 @@ def checks(n: Negiri, general) -> list[Check]:
                        "（安衛則356条・357条。機械掘削も同じ値を目安に）" + ("。勾配は自動（積算基準の法の係数）" if n.slope is None else "")))
     if n.strips:
         c.append(Check("細い地山", "OK", f"根切りの間に残る幅 {STRIP_MM:,.0f} 以下の地山も掘る（隣の浅い方の床付けまで）"))
-    c.append(Check("床付け", "OK", "、".join(f"GL{v - n.gl:+,.0f}" for v in n.levels) + f"（躯体の下端−地業 {n.base:.0f}"
-                   + ("" if n.depth is None else "。掘削底を指定") + f"）。余掘り {n.margin:.0f}"))
+    doma = any(is_doma(f) for f in n.zones)
+    c.append(Check("床付け", "OK", "、".join(f"GL{v - n.gl:+,.0f}" for v in n.levels)
+                   + f"（躯体の下端−砕石 {n.gravel:.0f}−捨てコン {n.lean:.0f}"
+                   + (f"。土間は砕石 {n.doma_gravel:.0f}・捨てコン {n.doma_lean:.0f}" if doma else "")
+                   + ("" if n.depth is None else "。掘削底を指定") + f"）。余掘り {n.margin:.0f}"
+                   + (f"・土間 {n.doma_margin:.0f}（積算基準の土間・犬走り等）" if doma else "")))
     if deep >= FOREMAN_MM:
         c.append(Check("作業主任者", "OK", f"掘削面の高さ {deep:,.0f} が 2m 以上 → 地山の掘削作業主任者（安衛法施行令6条9号）"
                                         + ("・土止め支保工作業主任者（6条10号）" if n.yamadome else "")))
@@ -418,15 +508,22 @@ def report(n: Negiri) -> str:
     out = [f"# 根切り図 {n.name}", "",
            "出典: 労働安全衛生規則 355条〜358条・361条、建築基準法施行令136条の3、安衛法施行令6条、公共建築数量積算基準（令和5年）・"
            "公共建築工事標準仕様書（地業）。土量変化率は目安。調べたメモは docs/調査_根切り.md", "",
-           f"- GL: {n.gl:,.0f}（プロジェクトの高さ）・余掘り {n.margin:.0f}・地業 {n.base:.0f}・法面 "
+           f"- GL: {n.gl:,.0f}（プロジェクトの高さ）・余掘り {n.margin:.0f}（土間 {n.doma_margin:.0f}）・砕石 {n.gravel:.0f}・"
+           f"捨てコン {n.lean:.0f}（土間 {n.doma_gravel:.0f}・{n.doma_lean:.0f}）・法面 "
            + ("自動（積算基準の法の係数）" if n.slope is None else
               ("垂直" if n.slope <= 0 else f"1:{n.slope:g}（{slope_angle(n.slope):.0f}°）")) + f"・地山「{n.soil}」"
            + ("・山留めあり" if n.yamadome else ""),
            f"- 掘削の面積（法肩の内）: {n.area:,.1f} m²・掘削土量（地山）: {n.volume:,.1f} m³（升目 {n.step:.0f}mm で計算）・"
            f"ほぐした土量の目安 {n.volume * LOOSE.get(n.soil, 1.2):,.1f} m³（土量変化率 L {LOOSE.get(n.soil, 1.2):g}。運搬の台数の見当）",
-           "", "| 躯体 | 下端 | 床付け |", "|---|---|---|"]
+           "", "| 躯体 | 種類 | 下端 | 砕石・捨てコン | 余掘り | 床付け |", "|---|---|---|---|---|---|"]
     for f in n.zones:
-        out.append(f"| {f.name} | GL{f.bottom - n.gl:+,.0f} | GL{floor_level(n, f) - n.gl:+,.0f} |")
+        g, l = layers_of(n, f)
+        out.append(f"| {f.name} | {f.kind} | GL{f.bottom - n.gl:+,.0f} | {g:.0f}・{l:.0f} | {margin_of(n, f):.0f} | "
+                   f"GL{floor_level(n, f) - n.gl:+,.0f} |")
+    if n.ground:
+        out += ["", "地業の数量（積算基準: 面積×厚さ、躯体側面より出幅 0.1m。重なりは厚い方で1回）", "",
+                "| 地業 | 面積 | 体積 |", "|---|---|---|"]
+        out += [f"| {k} | {a:,.1f} m² | {v:,.2f} m³ |" for k, (a, v) in n.ground.items()]
     out += ["", "| 判定 | 結果 | 内容 |", "|---|---|---|"]
     out += [f"| {c.item} | {c.status} | {c.message} |" for c in n.checks]
     return "\n".join(out) + "\n"

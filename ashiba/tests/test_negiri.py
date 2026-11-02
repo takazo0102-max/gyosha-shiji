@@ -7,7 +7,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.negiri import Footprint, Negiri, max_angle, mesh_data, report, solve
+from ashiba.negiri import Footprint, Negiri, level_color, max_angle, mesh_data, report, solve
 
 SLAB = Footprint("耐圧盤", [(0, 0), (12000, 0), (12000, 8000), (0, 8000)], -1200.0)
 FOOT = Footprint("基礎F1", [(5000, 3000), (7000, 3000), (7000, 5000), (5000, 5000)], -2000.0)
@@ -74,6 +74,48 @@ class TestNegiri(unittest.TestCase):
         self.assertEqual({c.item: c.status for c in n.checks}["法面のこう配"], "OK")
         n = solve(Negiri("試験", [SLAB, FOOT], slope=0.5, soil="砂"))           # 63° ＞ 35°（高さ 5m 未満は可）
         self.assertEqual({c.item: c.status for c in n.checks}["法面のこう配"], "OK")
+
+    def test_gravel_and_lean_are_separate(self):
+        """床付け＝下端−砕石−捨てコン（標仕 4.6.3・4.6.4 の 60・50 が既定）。地業の数量は出幅 0.1m の面積×厚さ（積算基準）."""
+        n = solve(Negiri("試験", [SLAB], gravel=100.0, lean=50.0))
+        self.assertEqual(n.levels, [-1350.0])
+        a, v = n.ground["砕石"]
+        self.assertAlmostEqual(a, 12.2 * 8.2, delta=1.5)                       # 出幅 0.1m（升目 50 の誤差の内）
+        self.assertAlmostEqual(v, 12.2 * 8.2 * 0.10, delta=0.2)
+        self.assertAlmostEqual(n.ground["捨てコン"][1], 12.2 * 8.2 * 0.05, delta=0.1)
+        self.assertIn("| 砕石 |", report(n))
+        self.assertEqual(solve(Negiri("試験", [SLAB])).levels, [-1310.0])     # 既定 60＋50
+
+    def test_doma_margin_and_layers(self):
+        """土間・犬走り等は余掘り 0.1m（積算基準）・捨てコン無し（既定）."""
+        doma = Footprint("土間", [(0, 0), (6000, 0), (6000, 4000), (0, 4000)], -200.0, "土間")
+        n = solve(Negiri("試験", [doma]))
+        self.assertEqual(n.levels, [-260.0])                                   # 砕石 60 だけ
+        xs = [p[0] for p in n.top_rings[0]]
+        self.assertAlmostEqual(min(xs), -100.0, delta=n.step)
+        self.assertNotIn("捨てコン", n.ground)
+        self.assertIn("土間 100", {c.item: c.message for c in n.checks}["床付け"])
+
+    def test_yamadome_gap(self):
+        """山留め壁と躯体の間が 1.0m（積算基準の標準）より狭ければ知らせる。はみ出せば NG."""
+        near = [(-500, -500), (12500, -500), (12500, 8500), (-500, 8500)]
+        n = solve(Negiri("試験", [SLAB], slope=0.0, yamadome=near))
+        gap = [c for c in n.checks if c.item == "山留めとの間"]
+        self.assertEqual([c.status for c in gap], ["WARN"])
+        self.assertIn("500mm", gap[0].message)
+        far = [(-1000, -1000), (13000, -1000), (13000, 9000), (-1000, 9000)]
+        self.assertFalse([c for c in solve(Negiri("試験", [SLAB], slope=0.0, yamadome=far)).checks if c.item == "山留めとの間"])
+        cut = [(1000, -1000), (13000, -1000), (13000, 9000), (1000, 9000)]
+        self.assertEqual([c.status for c in solve(Negiri("試験", [SLAB], slope=0.0, yamadome=cut)).checks
+                          if c.item == "山留めとの間"], ["NG"])
+
+    def test_level_colors(self):
+        """床付けの高さごとに色を分ける（浅い順。白黒は灰の濃さで、深いほど濃い）."""
+        n = solve(Negiri("試験", [SLAB, FOOT], slope=0.5))
+        c0, c1 = (level_color(n, L) for L in n.levels)
+        self.assertNotEqual(c0, c1)
+        g0, g1 = (level_color(n, L, gray=True) for L in n.levels)
+        self.assertGreater(g0[0], g1[0])
 
 
 if __name__ == "__main__":
