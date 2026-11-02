@@ -82,6 +82,18 @@ class TestPenCommand(unittest.TestCase):
         self.assertIn('case "pen":', src)
         self.assertIn("item.image = swatch(", src)
 
+    def test_presets_pick_the_nearest_colors(self):
+        """カラーの組は区分ごとの色にいちばん近いペン、白黒の組は全部を黒に近いペン（ペンセットごとに番号が違う。2026-11-02）."""
+        from ashiba.pens import preset_pens
+
+        table = [(1, "#000000", ""), (3, "#E01818", "赤"), (5, "#1848D8", "青"), (6, "#20A030", "緑"), (12, "#808080", "灰"),
+                 (20, "#F08C00", "橙"), (30, "#B020B0", "紫"), (40, "#00A8C0", "水色"), (50, "#8C5828", "茶")]
+        p = preset_pens(table, "カラー")
+        self.assertEqual((p["post"], p["line"], p["deck"], p["equip"], p["tie"], p["net"], p["sheet"], p["dim"]),
+                         (3, 5, 6, 20, 40, 50, 12, 1))
+        self.assertEqual(set(preset_pens(table, "白黒").values()), {1})
+        self.assertEqual(preset_pens([], "カラー"), {})
+
     def test_titles_round_trip(self):
         sys.path.insert(0, str(ROOT / "scripts"))
         import pen_colors as P

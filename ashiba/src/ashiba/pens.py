@@ -92,3 +92,40 @@ def part_base(name: str) -> str:
         if name == base or name.startswith(base + "_"):
             return base
     return ""
+
+
+# 一度で色分けする組み合わせ（GLOOBE の「カラー印刷」に当たる。2026-11-02 の開発ループ）。区分ごとの色の見当（R, G, B 0〜1）で、
+# プロジェクトのペンセットからいちばん近い色のペンを選ぶ（ペンセットごとに番号が違うので番号では決めない）。白黒は全部を黒に近いペン
+COLOR_SCHEME = {
+    "post": (0.85, 0.10, 0.10),     # 赤
+    "line": (0.10, 0.30, 0.85),     # 青
+    "deck": (0.10, 0.60, 0.20),     # 緑
+    "stair": (0.70, 0.10, 0.70),    # 紫
+    "equip": (0.95, 0.55, 0.00),    # 橙
+    "tie": (0.00, 0.65, 0.75),      # 水色
+    "net": (0.55, 0.35, 0.15),      # 茶
+    "sheet": (0.50, 0.50, 0.50),    # 灰
+    "dim": (0.00, 0.00, 0.00),      # 黒
+}
+PRESETS = ("カラー", "白黒")
+
+
+def _rgb(hexc: str) -> tuple[float, float, float]:
+    h = hexc.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+
+def nearest_pen(table: list, rgb: tuple) -> int:
+    """[(番号, "#RRGGBB", 説明)] から色 rgb にいちばん近いペンの番号（同じ近さなら小さい番号）."""
+    best = min(table, key=lambda r: (sum((a - b) ** 2 for a, b in zip(_rgb(r[1]), rgb)), r[0]))
+    return int(best[0])
+
+
+def preset_pens(table: list, preset: str) -> dict[str, int]:
+    """組み合わせ（カラー・白黒）→ {区分: ペンの番号}."""
+    if not table:
+        return {}
+    if preset == "白黒":
+        black = nearest_pen(table, (0.0, 0.0, 0.0))
+        return {k: black for k, _p, _l, _d in PEN_KEYS}
+    return {k: nearest_pen(table, COLOR_SCHEME[k]) for k, _p, _l, _d in PEN_KEYS}

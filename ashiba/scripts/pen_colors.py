@@ -5,6 +5,9 @@
 部品（足場ライン・壁つなぎ・層間ネット・ネットブラケット・養生・コーナーステップ）をその場で書き換え（置き直さない）、
 足場条件の部品（penList）と条件の上書き（~/Desktop/ashiba_spec.json の pens）に控えて次の配置でも使う。
 色はプロジェクトの最初のペンセットの色（ビューのペンセットが違えば色はそちらになる。番号は同じ）。
+
+窓の「カラーの組」「白黒の組」は、区分ごとに決めた色（支柱 赤・足場の線 青・床 緑…。ashiba.pens.COLOR_SCHEME）にいちばん近い
+ペンをペンセットから選んで一度で適用する（GLOOBE の「カラー印刷」に当たる。2026-11-02）。窓なしは --preset カラー / 白黒。
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from ashiba.pens import PART_PENS, PEN_KEYS, format_pens, gdl_pens, parse_pens, part_base  # noqa: E402
+from ashiba.pens import PART_PENS, PEN_KEYS, format_pens, gdl_pens, parse_pens, part_base, preset_pens  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
 
 
@@ -111,6 +114,8 @@ def main() -> int:
     c = ArchicadClient()
     R.ensure_parts(c)
     name, table = pen_table(c)
+    argv = sys.argv[1:]
+    preset = argv[argv.index("--preset") + 1] if "--preset" in argv and argv.index("--preset") + 1 < len(argv) else ""
     titles = [title_of(i, desc) for i, _h, desc in table]
     colors = [h for _i, h, _d in table]
     by_index = {i: title_of(i, desc) for i, _h, desc in table}
@@ -121,13 +126,22 @@ def main() -> int:
                for k, _p, label, detail in PEN_KEYS]
     intro = ("足場の図面のペンを区分ごとに選んでください。「適用」で置いてある足場の部品を書き換え、次の配置でも使います。"
              + (f"色はペンセット「{name}」の色です。" if name else ""))
-    res = show_form({"title": "仮設足場のペン", "intro": intro, "fields": fields,
-                     "buttons": [{"id": "apply", "label": "適用"}, {"id": "cancel", "label": "やめる"}]})
-    if not res or res.get("button") != "apply":
+    if preset:
+        res = {"button": "color" if preset == "カラー" else "mono" if preset == "白黒" else "", "values": {}}
+    else:
+        res = show_form({"title": "仮設足場のペン", "intro": intro + "「カラーの組」「白黒の組」は区分ごとの色を一度で選んで適用します。",
+                         "fields": fields,
+                         "buttons": [{"id": "apply", "label": "適用"}, {"id": "color", "label": "カラーの組"},
+                                     {"id": "mono", "label": "白黒の組"}, {"id": "cancel", "label": "やめる"}]})
+    button = (res or {}).get("button")
+    if button not in ("apply", "color", "mono"):
         print("ペン: やめました（何も変えていません）")
         return 0
-    vals = res.get("values") or {}
-    pens = {k: index_of(vals[k]) for k, _p, _l, _d in PEN_KEYS if k in vals}
+    if button == "apply":
+        vals = res.get("values") or {}
+        pens = {k: index_of(vals[k]) for k, _p, _l, _d in PEN_KEYS if k in vals}
+    else:
+        pens = preset_pens(table, "カラー" if button == "color" else "白黒")
     ok, ng = apply_to_parts(c, pens)
     n_spec = save_pens(c, pens)
     picked = "・".join(f"{label} {pens.get(k, 1)}" for k, _p, label, _d in PEN_KEYS)
