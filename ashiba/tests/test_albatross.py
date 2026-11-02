@@ -35,6 +35,15 @@ class TestAlbatrossMaster(unittest.TestCase):
         tie = [p for p in m.by_category("壁つなぎ") if p.covers(600)]
         self.assertTrue(any(p.model_no == "28226" for p in tie))          # 自在4型 550〜740
 
+    def test_special_parts_in_own_categories(self):
+        """曲線用・荷重受梁・ステアーブリッジ・吊下昇降階段などはマスタに入れるが、自動の割付（布材・踏板）には混ぜない（2026-11-02）."""
+        m = load_master("albatross")
+        self.assertEqual([p.model_no for p in m.by_category("曲線用部材")], ["50800", "50801", "34610", "34630"])
+        self.assertNotIn("50801", [p.model_no for p in m.by_category("布材")])
+        self.assertNotIn("34610", [p.model_no for p in m.by_category(m.deck_category)])
+        for cat in ("荷重受梁", "ステアーブリッジ", "吊下昇降階段", "伸縮手摺枠", "朝顔受け金具"):
+            self.assertTrue(all("スギコ カタログvol.7p" in p.note for p in m.by_category(cat)), cat)
+
     def test_hoist_gate(self):
         """昇降機の乗り込み口の開閉式手すりは φ42.7 クランプの KSSD（手配の注記に落ちていた）."""
         self.assertEqual(load_master("albatross").by_category("開閉式手すり")[0].model_no, "KSSD")
