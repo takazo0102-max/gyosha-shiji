@@ -110,6 +110,15 @@ class TestSogoSheet(unittest.TestCase):
             self.assertIn(word, texts)
         self.assertLess(y, 250.0)                                           # A3 の高さに収まる
 
+    def test_panel_scale(self):
+        """右の欄は A3 で組み、A1 なら 2 倍に（文字 2.1mm×0.8 が小さかった）。欄が用紙の高さに収まるまで小さくする."""
+        import sogo_run as S
+
+        self.assertEqual(S.panel_scale((420, 297), (10, 10, 10, 10)), 1.0)
+        k = S.panel_scale((841, 594), (10, 10, 10, 10))
+        self.assertAlmostEqual(k, 2.0, delta=0.01)
+        self.assertLessEqual(panel_svg(0.0, 0.0, 175.0 / k)[1] * k, 594 - 20 - 40)
+
     def test_record_guids_and_region(self):
         import sogo_run as S
 

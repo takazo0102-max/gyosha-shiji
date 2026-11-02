@@ -89,6 +89,22 @@ def region_of(points_mm: list, boxes: list, margin: float = MARGIN_MM):
     return (min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin)
 
 
+def panel_scale(paper, margins) -> float:
+    """右の欄（A3 で組んだもの）を大きくする倍率: 用紙の幅 ÷ 420、ただし欄の高さが用紙に収まるまで."""
+    from ashiba.sogo_sheet import panel_svg
+
+    from ashiba.sheet_panel import PANEL_W_MM
+
+    room = paper[1] - margins[1] - margins[3] - 40.0             # 下の表題の帯の分を除く
+    k = max(1.0, paper[0] / 420.0)
+    while k > 1.0:
+        _b, h = panel_svg(0.0, 0.0, PANEL_W_MM / k)              # 欄の幅は同じなので、大きくするほど折り返して長くなる
+        if h * k <= room:
+            return k
+        k = max(1.0, k - 0.1)
+    return 1.0
+
+
 def main(argv=None) -> int:
     import argparse
 
@@ -187,10 +203,14 @@ def main(argv=None) -> int:
     if not els or "elementId" not in els[0]:
         notes.append(f"平面図を置けませんでした: {(els or [{}])[0]}")
     # 右の欄（用紙 mm、左上が原点・下向き）
+    # 右の欄は A3 の大きさで組み、用紙が大きければ（A1 は 2 倍）縮尺 k で大きく描く（A1 で文字が 1.7mm と小さかった。2026-11-03）
+    k = panel_scale(paper, m0)
     x0 = paper[0] - m0[2] - PANEL_W_MM
-    body, _y = panel_svg(x0, m0[1] + 4.0, PANEL_W_MM, road, desc or "")
-    body += (f'<text x="{margins[0] + 10.0:.1f}" y="{m0[1] + 6.0:.1f}" class="h1">総合仮設計画図　{scale_caption(scale)}</text>')
-    n = draw_shapes(c, lay, svg_shapes(body), paper, (1.0, 0.0, 0.0), layout_attrs(c), notes, LAYOUT)
+    body, _y = panel_svg(0.0, 0.0, PANEL_W_MM / k, road, desc or "")
+    attrs = layout_attrs(c)
+    n = draw_shapes(c, lay, svg_shapes(body), paper, (k, x0, m0[1] + 4.0), attrs, notes, LAYOUT)
+    head = f'<text x="{margins[0] + 10.0:.1f}" y="{m0[1] + 6.0 * k:.1f}" class="h1">総合仮設計画図　{scale_caption(scale)}</text>'
+    n = (n or 0) + (draw_shapes(c, lay, svg_shapes(head), paper, (1.0, 0.0, 0.0), attrs, notes, LAYOUT) or 0)
     activate_floor_plan(c)
     print(f"総合仮設計画図: レイアウト「{LAYOUT}」（{scale_caption(scale)}・範囲 {box[0] / 1000:.0f}×{box[1] / 1000:.0f}m＝{how}・"
           f"右の欄 {n or 0} 個）・{pdf if ok else html_path}")
