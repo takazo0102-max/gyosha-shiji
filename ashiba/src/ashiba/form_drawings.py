@@ -38,11 +38,11 @@ def _rot(p, ang_deg, o=(0.0, 0.0)):
     return (o[0] + p[0] * math.cos(a) - p[1] * math.sin(a), o[1] + p[0] * math.sin(a) + p[1] * math.cos(a))
 
 
-def _title_block(name: str, project: str, scale: str, no: int, total: int) -> str:
+def _title_block(name: str, project: str, scale: str, no: int, total: int, series: str = "型枠支保工") -> str:
     x0, y0 = PAGE_W - MARGIN - TB_W, PAGE_H - MARGIN - TB_H
     today = _dt.date.today().strftime("%Y.%m.%d")
     rows = [("工事名", project or "（工事名）"), ("図名", name), ("縮尺", scale), ("日付", today),
-            ("図番", f"型枠支保工 {no}/{total}")]
+            ("図番", f"{series} {no}/{total}")]
     out = [f'<rect x="{x0}" y="{y0}" width="{TB_W}" height="{TB_H}" class="frame"/>']
     h = TB_H / len(rows)
     for k, (a, b) in enumerate(rows):
@@ -55,11 +55,11 @@ def _title_block(name: str, project: str, scale: str, no: int, total: int) -> st
     return "".join(out)
 
 
-def _page(body: str, name: str, project: str, scale: str, no: int, total: int) -> str:
+def _page(body: str, name: str, project: str, scale: str, no: int, total: int, series: str = "型枠支保工") -> str:
     return (f'<section class="page"><svg viewBox="0 0 {PAGE_W} {PAGE_H}" width="{PAGE_W}mm" height="{PAGE_H}mm">'
             f'<rect x="{MARGIN / 2}" y="{MARGIN / 2}" width="{PAGE_W - MARGIN}" height="{PAGE_H - MARGIN}" class="frame"/>'
             f'<text x="{MARGIN}" y="{MARGIN + 6}" class="h1">{ESC(name)}</text>'
-            + body + _title_block(name, project, scale, no, total) + "</svg></section>")
+            + body + _title_block(name, project, scale, no, total, series) + "</svg></section>")
 
 
 CSS = """

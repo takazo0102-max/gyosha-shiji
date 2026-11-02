@@ -22,6 +22,7 @@ ashiba_out/根切り_<名前>.md。
   python3 scripts/negiri_run.py --backfill 描かない              # 埋戻しの範囲と量を平面に描かない（帳票には出す）
   python3 scripts/negiri_run.py --update [--name 根切り1]        # 基礎・地中梁を変えた後に、同じ躯体と条件で作り直す（選ばなくてよい）
   python3 scripts/negiri_run.py --remove [--name 根切り1]        # 置いた根切り図とメッシュを消す（控えの GUID だけ）
+  python3 scripts/negiri_run.py --sheet [--name 根切り1]         # 根切り・山留計画図（A3 の PDF・レイアウト。線を選べばその線で断面）
 
 埋戻し（GLOOBE 2026 の埋め戻し形状・埋め戻し更新に当たる）: 掘った所から GL 以下の躯体・砕石・捨てコンを除いた所を埋め戻す
 （積算基準 p.7）。ピット・地下室（名前・レイヤーに「ピット」「地下」の床）は床から GL までを空洞として埋めない。帳票に埋戻し・
@@ -285,6 +286,8 @@ def main(argv=None) -> int:
     ap.add_argument("--gl", type=float, default=0.0, help="GL のプロジェクトの高さ mm（既定 0）")
     ap.add_argument("--yamadome-walls", action="store_true", help="選んだ壁を全部 山留めとする")
     ap.add_argument("--remove", action="store_true", help="置いた根切り図を消す")
+    ap.add_argument("--sheet", action="store_true",
+                    help="根切り・山留計画図（平面図・断面図・数量と判定と確認の A3 の PDF とレイアウト）。線を選べばその線で断面を切る")
     ap.add_argument("--update", action="store_true",
                     help="前に作った根切り図を、同じ躯体（GUID）と条件で作り直す（基礎・地中梁を変えた後に。選ばなくてよい）")
     a = ap.parse_args(argv)
@@ -311,6 +314,8 @@ def main(argv=None) -> int:
             pass
         print(f"根切り図: {n}個を消しました")
         return 0
+    if a.sheet:
+        return sheet(c, R, a.name)
     src_path = R.OUT_DIR / SOURCE
     try:
         src = json.loads(src_path.read_text(encoding="utf-8"))
@@ -333,6 +338,46 @@ def main(argv=None) -> int:
         return worst
     sel = c.get_selected_elements()
     return build(c, R, a, sel, rec, rec_path, src, src_path)
+
+
+def sheet(c, R, name=None) -> int:
+    """根切り・山留計画図: 控え（根切り_<名前>_図.json）から解き直して A3 の HTML・PDF とレイアウト「根切り n …」に."""
+    from guide_lines import selected_guides
+
+    from ashiba.form_drawings import to_pdf
+    from ashiba.negiri_sheets import SERIES, SUBSET, build_html, default_cuts, negiri_of, page_list
+
+    figs = sorted(R.OUT_DIR.glob("根切り_*_図.json"), key=lambda p: -p.stat().st_mtime)
+    if name:
+        figs = [p for p in figs if p.name == f"根切り_{name}_図.json"]
+    if not figs:
+        print("根切り・山留計画図: 先に「根切り図」で作ってください（ashiba_out/根切り_<名前>_図.json がありません）")
+        return 1
+    d = json.loads(figs[0].read_text(encoding="utf-8"))
+    n = negiri_of(d)
+    guides = selected_guides(c)
+    cuts = [(chr(ord("A") + k), tuple(a2), tuple(b2)) for k, (a2, b2) in enumerate(seg for _el, segs in guides for seg in segs)]
+    cuts = cuts or [tuple(x) for x in d.get("cuts", [])] or default_cuts(n)
+    if guides:
+        d["cuts"] = [list(x) for x in cuts]                    # 次も同じ線で切る
+        figs[0].write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    project = str({**R.SPEC, **R.load_spec_override()}.get("project_name") or "")
+    stem = f"根切り・山留計画図_{n.name}"
+    html_path = R.OUT_DIR / f"{stem}.html"
+    html_path.write_text(build_html(n, project, cuts), encoding="utf-8")
+    pdf = R.OUT_DIR / f"{stem}.pdf"
+    ok = to_pdf(html_path, pdf)
+    print(f"根切り・山留計画図: {pdf if ok else html_path}（断面 {'・'.join(c2[0] + '－' + c2[0] for c2 in cuts)}）")
+    try:
+        from ashiba.form_layout import place_layouts
+
+        res = place_layouts(c, page_list(n, cuts), SERIES, SUBSET)
+        print(f"  レイアウト: {len(res.layouts)}枚（サブセット「{SUBSET}」）")
+        for x in res.notes:
+            print(f"  注意: {x}")
+    except Exception as ex:  # Archicad が無くても PDF は残す
+        print(f"  レイアウト: 置けませんでした（{ex}）")
+    return 0
 
 
 def _alive(c, guids) -> list:
@@ -455,6 +500,18 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                           + opt("--color", a.color or COLORS[0]) + opt("--backfill", a.backfill or BACKS[0])
                           + ["--gl", f"{a.gl:g}"] + (["--yamadome-walls"] if a.yamadome_walls else []))}
     src_path.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 計画図のための控え（躯体の外形と条件。「根切り・山留計画図」がこれから解き直す）
+    fig = R.OUT_DIR / f"根切り_{name}_図.json"
+    try:
+        old_cuts = json.loads(fig.read_text(encoding="utf-8")).get("cuts", [])
+    except (OSError, ValueError):
+        old_cuts = []
+    fig.write_text(json.dumps({"name": name, "gl": n.gl, "margin": n.margin, "gravel": n.gravel, "lean": n.lean,
+                               "doma_margin": n.doma_margin, "doma_gravel": n.doma_gravel, "doma_lean": n.doma_lean,
+                               "slope": n.slope, "depth": n.depth, "soil": n.soil, "general": n.general,
+                               "yamadome": [list(p) for p in n.yamadome], "cuts": old_cuts,
+                               "zones": [{"name": f.name, "pts": [list(p) for p in f.pts], "bottom": f.bottom, "kind": f.kind,
+                                          "top": f.top} for f in n.zones]}, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / f"根切り_{name}.md"
     md.write_text(report(n), encoding="utf-8")
     print(f"根切り図: {name} 躯体 {len(zones)}個・掘削 {n.area:,.0f}m²・{n.volume:,.0f}m³・埋戻し {n.backfill:,.0f}m³・床付け "

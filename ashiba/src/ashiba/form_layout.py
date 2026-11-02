@@ -23,7 +23,7 @@ TEXT_FACTOR = 0.8              # Archicad の文字の高さ＝SVG の font-size
 CIRCLE_SEG = 16                # 円をハッチ・線にするときの辺の数
 WHITE = (1.0, 1.0, 1.0)
 # SVG の破線（stroke-dasharray）→ Archicad の線種の名前の候補
-DASH_NAMES = {"4 1 0.6 1": ("一点鎖線",), "2 1": ("破線",), "1.5 0.8": ("破線", "点線")}
+DASH_NAMES = {"4 1 0.6 1": ("一点鎖線",), "2 1": ("破線",), "1.5 0.8": ("破線", "点線"), "4 1 0.6 1 0.6 1": ("二点鎖線",)}
 
 
 # ---------------------------------------------------------------- SVG → 図形
@@ -337,29 +337,13 @@ def solid_fill_id(attrs: list[dict]) -> Optional[str]:
     return None
 
 
-def layout_names(pages: list[tuple[str, str, str]]) -> list[str]:
-    return [f"{LAYOUT_PREFIX} {k} {name.replace('型枠支保工 ', '')}" for k, (name, _sc, _b) in enumerate(pages, 1)]
+def layout_names(pages: list[tuple[str, str, str]], prefix: str = LAYOUT_PREFIX) -> list[str]:
+    return [f"{prefix} {k} {name.replace(prefix + ' ', '')}" for k, (name, _sc, _b) in enumerate(pages, 1)]
 
 
 # ---------------------------------------------------------------- Archicad
-@dataclass
-class LayoutResult:
-    layouts: list[str] = field(default_factory=list)
-    counts: list[int] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
-
-
-def place_layouts(client, pages: list[tuple[str, str, str]]) -> LayoutResult:
-    """図をレイアウトに描く。前に作った「型枠支保工 …」のレイアウトは消して作り直す."""
-    from .elevation_sections import (_create_layout, _delete_items, _layout_paper_mm, _tree, activate_floor_plan,
-                                     ensure_subset, pick_master_layout, walk_tree)
-
-    out = LayoutResult()
-    _delete_items(client, [it["guid"] for it in walk_tree(_tree(client, "LayoutBook"))
-                           if it["type"] == "LayoutItem" and it["name"].startswith(LAYOUT_PREFIX + " ")])
-    subset = ensure_subset(client, SUBSET)
-    lb = _tree(client, "LayoutBook")
-    master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]], prefer="A3")
+def layout_attrs(client) -> tuple[list, dict, Optional[str]]:
+    """レイアウトに描くときのペン・線種・塗りつぶしの塗り（読めなければ空）."""
     try:
         r = client.tapir("GetAttributesByType", {"attributeType": "PenTable"}).get("attributes", [])
         pens = client.tapir("GetPenTables", {"attributeIds": [{"attributeId": r[0]["attributeId"]}],
@@ -374,10 +358,53 @@ def place_layouts(client, pages: list[tuple[str, str, str]]) -> LayoutResult:
         solid = solid_fill_id(client.tapir("GetAttributesByType", {"attributeType": "Fill"}).get("attributes", []))
     except Exception:
         solid = None
+    return pens, lts, solid
+
+
+def draw_shapes(client, lay: str, shapes: list, paper, fit, attrs, notes: list, name: str = "") -> Optional[int]:
+    """図形をレイアウト lay のウィンドウに塗り・線・文字で描く → 描いた数（レイアウトを開けなければ None）."""
+    data = layout_data(shapes, paper, fit, *attrs)
+    client.tapir("ChangeWindow", {"navigatorItemId": {"guid": lay}})
+    if client.current_window_type() != "Layout":
+        notes.append(f"レイアウト「{name}」を開けませんでした")
+        return None
+    n = 0
+    for cmd, key, items in (("CreateHatches", "hatchesData", data["hatches"]),
+                            ("CreatePolylines", "polylinesData", data["polylines"]),
+                            ("CreateTexts", "textsData", data["texts"])):
+        if not items:
+            continue
+        try:
+            r = client.tapir(cmd, {key: items})
+            n += sum(1 for e in r.get("elements", []) if "elementId" in e)
+        except Exception as e:  # 1種類が失敗しても他は描く
+            notes.append(f"{name}: {cmd} が失敗（{e}）")
+    return n
+
+
+@dataclass
+class LayoutResult:
+    layouts: list[str] = field(default_factory=list)
+    counts: list[int] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def place_layouts(client, pages: list[tuple[str, str, str]], prefix: str = LAYOUT_PREFIX, subset_name: str = SUBSET) -> LayoutResult:
+    """図をレイアウトに描く。前に作った「<prefix> …」（既定は型枠支保工）のレイアウトは消して作り直す."""
+    from .elevation_sections import (_create_layout, _delete_items, _layout_paper_mm, _tree, activate_floor_plan,
+                                     ensure_subset, pick_master_layout, walk_tree)
+
+    out = LayoutResult()
+    _delete_items(client, [it["guid"] for it in walk_tree(_tree(client, "LayoutBook"))
+                           if it["type"] == "LayoutItem" and it["name"].startswith(prefix + " ")])
+    subset = ensure_subset(client, subset_name)
+    lb = _tree(client, "LayoutBook")
+    master = pick_master_layout([it for it in walk_tree(lb) if it["type"] and "Master" in it["type"]], prefer="A3")
+    pens, lts, solid = layout_attrs(client)
     if solid is None:
         out.notes.append("塗りつぶしの塗りが見つからないので、塗りは描きません")
     # ナビゲータには後から作ったものが上に並ぶので、最後の図から作る
-    for name, (title, scale, body) in reversed(list(zip(layout_names(pages), pages))):
+    for name, (title, scale, body) in reversed(list(zip(layout_names(pages, prefix), pages))):
         lay = _create_layout(client, name, subset, master)
         if not lay:
             out.notes.append(f"レイアウト「{name}」を作れませんでした")
@@ -391,22 +418,9 @@ def place_layouts(client, pages: list[tuple[str, str, str]]) -> LayoutResult:
             x = (margins[0] + 4.0 - fit[1]) / fit[0]
             y = (paper[1] - margins[3] - (TITLE_STRIP_MM if master else 0.0) - 2.0 - fit[2]) / fit[0]
             shapes.append(Shape("text", [(x, y)], text=note, size=2.6 / fit[0], fill=(0.0, 0.0, 0.0)))
-        data = layout_data(shapes, paper, fit, pens, lts, solid)
-        client.tapir("ChangeWindow", {"navigatorItemId": {"guid": lay}})
-        if client.current_window_type() != "Layout":
-            out.notes.append(f"レイアウト「{name}」を開けませんでした")
+        n = draw_shapes(client, lay, shapes, paper, fit, (pens, lts, solid), out.notes, name)
+        if n is None:
             continue
-        n = 0
-        for cmd, key, items in (("CreateHatches", "hatchesData", data["hatches"]),
-                                ("CreatePolylines", "polylinesData", data["polylines"]),
-                                ("CreateTexts", "textsData", data["texts"])):
-            if not items:
-                continue
-            try:
-                r = client.tapir(cmd, {key: items})
-                n += sum(1 for e in r.get("elements", []) if "elementId" in e)
-            except Exception as e:  # 1種類が失敗しても他は描く
-                out.notes.append(f"{name}: {cmd} が失敗（{e}）")
         out.layouts.insert(0, name)
         out.counts.insert(0, n)
     activate_floor_plan(client)
