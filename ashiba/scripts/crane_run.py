@@ -90,6 +90,9 @@ def main(argv=None) -> int:
     plate_part = R.versioned_part_name(PLATE_PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
     gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
     ground = gm.elevation_at if getattr(gm, "points", None) else None
     plans = []

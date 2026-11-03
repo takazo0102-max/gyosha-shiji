@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from gen_cfill_gdl import _parse_all  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
+import gdl_draft  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_crane"
 MAIN_GUID = "3B7D9E15-2C48-4F6A-9D1E-5A2C8B7F4E63"
@@ -95,7 +96,7 @@ def paramlist() -> str:
         _param("Boolean", "ldOn", "吊り荷を描く", 1),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
-        "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
+        "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",        *gdl_draft.params(),
     ]
     return ("﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ParamSection>\n\t<ParamSectHeader>\n"
             "\t\t<AutoHotspots>false</AutoHotspots>\n\t\t<StatBits>\n\t\t\t<STBit_UIDefault/>\n\t\t</StatBits>\n"
@@ -192,23 +193,40 @@ okL = 0
 if rated > 0 and needT <= capT then okL = 1
 """)
 
-SCRIPT_2D = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
+SCRIPT_2D_T = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
 ! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
+! CAD の平面図の描き方（scripts/gdl_draft.py）: 外形は太線・細部は細線、車体の下のタイヤと旋回輪は破線、作業半径は一点鎖線、
+! 後端旋回半径（立入禁止）は二点鎖線。上部旋回体とブームは背景の色で塗って下の車体の線を隠す。縮尺で描き分ける
+@HEAD@
 pen penEquip
 define style "crT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 define style "crR" "ＭＳ Ｐゴシック", texSiz, 3, 0
 define style "crC" "ＭＳ Ｐゴシック", texSiz, 2, 0
 style "crT"
-! 車体（キャリヤ）: 外形・前後のバンパー・タイヤ・旋回輪
+! 車体（キャリヤ）: 外形・前後のバンパー・タイヤ（車体の下なので破線）・旋回輪（上部の下なので破線）
+drawindex 10
+if mk then
+@CARMASK@
+endif
+drawindex 12
+pen pO
 rect2 -carRr, -carW / 2, carF, carW / 2
-rect2 carF - 0.25, -carW / 2 + 0.15, carF, carW / 2 - 0.15
-rect2 -carRr, -carW / 2 + 0.15, -carRr + 0.25, carW / 2 - 0.15
-for i = 1 to nAx
-	for s = -1 to 1 step 2
-		rect2 ax[i] - whR, s * (carW / 2 - 0.02), ax[i] + whR, s * (carW / 2 - 0.02 - whW)
-	next s
-next i
-circle2 0, 0, 0.9
+pen pT
+if drLv < 3 then
+	rect2 carF - 0.25, -carW / 2 + 0.15, carF, carW / 2 - 0.15
+	rect2 -carRr, -carW / 2 + 0.15, -carRr + 0.25, carW / 2 - 0.15
+	drawindex 40
+	line_type ltH
+	for i = 1 to nAx
+		for s = -1 to 1 step 2
+			rect2 ax[i] - whR, s * (carW / 2 - 0.02), ax[i] + whR, s * (carW / 2 - 0.02 - whW)
+		next s
+		if drLv = 1 then line2 ax[i], -carW / 2 + 0.1 + whW, ax[i], carW / 2 - 0.1 - whW
+	next i
+	circle2 0, 0, 0.9
+	line_type ltS
+	drawindex 12
+endif
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
@@ -218,27 +236,40 @@ for e = -1 to 1 step 2
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
 		xs = xo - (s < 0) * outSh
-		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート
+		! アウトリガのビーム（箱 0.3 幅）・ジャッキ・フロート（太線）、敷鉄板（細線）
+		drawindex 14
+		pen pO
 		rect2 xs - 0.15, s * (carW / 2 - 0.2), xs + 0.15, s * lg
-		circle2 xs, s * lg, 0.12
 		if fltA > 0.01 then
 			rect2 xs - fltB / 2, s * lg - fltA / 2, xs + fltB / 2, s * lg + fltA / 2
 		else
 			circle2 xs, s * lg, fltD / 2
 		endif
+		pen pT
+		if drLv < 3 then circle2 xs, s * lg, 0.12
 		! 張出の寸法（車体の芯からジャッキまで mm）
-		add2 xs + max(fltB, fltD) / 2 + 0.15, s * lg
-		rot2 -SYMB_ROTANGLE
-		text2 0, 0, str(round_int(lg * 1000), 1, 0)
-		del 2
+		if drLv < 3 then
+			drawindex 50
+			pen penEquip
+			add2 xs + max(fltB, fltD) / 2 + 0.15, s * lg
+			rot2 -SYMB_ROTANGLE
+			text2 0, 0, str(round_int(lg * 1000), 1, 0)
+			del 2
+			pen pT
+		endif
+		drawindex 8
 		if plDraw then
 			rect2 xs - plB / 2, s * lg - plA / 2, xs + plB / 2, s * lg + plA / 2
 			if plN >= 2 then rect2 xs - plA / 2, s * lg - plB / 2, xs + plA / 2, s * lg + plB / 2
 		endif
 	next s
 next e
-! 立入禁止（上部旋回体の後端旋回半径）
+! 立入禁止（上部旋回体の後端旋回半径）: 二点鎖線
+drawindex 45
+pen pZ
+line_type ltZ
 circle2 0, 0, tailR
+line_type ltC
 ! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
 nC = nWr + 1
 for i = 1 to nC
@@ -257,50 +288,96 @@ for i = 1 to nC
 	if dA > 180 then dA = dA - 360
 	if abs(dA) < 30 then aT = slD - 60
 	if i <= nWr then
+		pen penEquip
 		add2 rC * cos(aT), rC * sin(aT)
 		rot2 -SYMB_ROTANGLE
 		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
 		del 2
+		pen pZ
 	endif
 next i
+line_type ltS
 if wrSpan < 359.9 then
+	line_type ltC
 	rM = tipX
 	for i = 1 to nWr
 		rM = max(rM, wr[i])
 	next i
 	line2 0, 0, rM * cos(wrDir - wrSpan / 2), rM * sin(wrDir - wrSpan / 2)
 	line2 0, 0, rM * cos(wrDir + wrSpan / 2), rM * sin(wrDir + wrSpan / 2)
+	line_type ltS
 endif
 ! 上部旋回体とブーム（旋回角で回す）
 rot2 slD
 ! 上部旋回体（後ろはカウンタウエイトの円弧＝後端旋回半径）・運転室（右前）
 uw = min(upW / 2, tailR * 0.98)
 xc = -sqr(tailR ^ 2 - uw ^ 2)
-arc2 0, 0, tailR, 180 - asn(uw / tailR), 180 + asn(uw / tailR)
+au = asn(uw / tailR)
+if mk then
+	drawindex 20
+@UPMASK@
+endif
+drawindex 30
+pen pO
+arc2 0, 0, tailR, 180 - au, 180 + au
 line2 xc, uw, 1.6, uw
 line2 xc, -uw, 1.6, -uw
 line2 1.6, -uw, 1.6, uw
-line2 xc + 0.9, -uw, xc + 0.9, uw
 rect2 cbX0, -cbY1, cbX1, -cbY0
-line2 cbX1 - 0.25, -cbY1, cbX1 - 0.25, -cbY0
+pen pT
+if drLv < 3 then line2 xc + 0.9, -uw, xc + 0.9, uw
+if drLv = 1 then line2 cbX1 - 0.25, -cbY1, cbX1 - 0.25, -cbY0
 ! ブーム（段ごとに細く、全段を重ねて描く）・ブームの先のシーブ・フック。段の根元は平面に写した長さで
 ! （ブームに沿った長さのままだと、起こしたブームの上の段がフックの先へはみ出した。2026-11-02 実機の平面図）
 nb = max(1, min(6, nBs))
-for k = 1 to nb
-	wk = bmW * (1 - 0.13 * (k - 1)) / 2
-	xk = -pivB + (k - 1) * (bL - 1.2) * cos(bA) / nb
-	rect2 xk, -wk, tipX, wk
-next k
+if mk then
+	drawindex 32
+@BOOMMASK@
+endif
+drawindex 34
+pen pO
+rect2 -pivB, -bmW / 2, tipX, bmW / 2
+pen pT
+if drLv < 3 then
+	for k = 2 to nb
+		wk = bmW * (1 - 0.13 * (k - 1)) / 2
+		xk = -pivB + (k - 1) * (bL - 1.2) * cos(bA) / nb
+		rect2 xk, -wk, tipX, wk
+	next k
+	line_type ltC
+	line2 -pivB - 0.5, 0, tipX + 0.8, 0
+	line_type ltS
+endif
+pen pO
 rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
+pen pT
 circle2 tipX, 0, 0.3
-circle2 tipX, 0, 0.12
-if ldOn and travel = 0 then rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+if drLv = 1 then circle2 tipX, 0, 0.12
+pen pO
+if ldOn and travel = 0 then
+	drawindex 36
+	rect2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+	if drLv < 3 then
+		pen pT
+		line2 tipX - 0.75, -0.75, tipX + 0.75, 0.75
+		line2 tipX - 0.75, 0.75, tipX + 0.75, -0.75
+	endif
+endif
 ! 作業半径のホットスポット（ブームの向きに引く）
 hotspot2 0, 0, 1, hkR, 1 + 128
 hotspot2 tipX, 0, 2, hkR, 2
 hotspot2 -1, 0, 3, hkR, 3
 del 1
+! 旋回の中心（一点鎖線の十字）
+drawindex 45
+pen pT
+line_type ltC
+line2 -1.2, 0, 1.2, 0
+line2 0, -1.2, 0, 1.2
+line_type ltS
 ! 定格の注記（フックの所）と機種・姿勢の注記（車体の後ろ）
+drawindex 50
+pen penEquip
 xT = tipX * cos(slD)
 yT = tipX * sin(slD)
 dT = texSiz * GLOB_SCALE / 1000 * 1.6
@@ -328,7 +405,7 @@ else
 endif
 tS = "張出不足（性能表の最小の張出より狭い）"
 if sI > 0 then tS = "性能表 張出 " + str(round_int(spT * 1000), 1, 0) + "（4脚の最小 " + str(round_int(spE * 500), 1, 0) + "×2）"
-text2 0, yA - 2 * dT, tS
+if drLv < 3 then text2 0, yA - 2 * dT, tS
 text2 0, yA, crName
 text2 0, yA - dT, "ブーム " + str(round_int(bL * 1000), 1, 0) + "・" + str(round_int(bA), 1, 0) + "°・R" + str(round_int(tipX * 1000), 1, 0)
 style "crT"
@@ -376,6 +453,27 @@ if travel = 0 then
 endif
 hotspot2 0, 0
 """
+
+
+def _script_2d() -> str:
+    """2D スクリプト: 型（SCRIPT_2D_T）に描き方の決めと隠す塗りの多角形を入れる."""
+    D = gdl_draft
+    t = "\t"
+    rep = {
+        "@HEAD@": D.head().rstrip("\n"),
+        "@CARMASK@": D.rect_mask("-carRr", "-carW / 2", "carF", "carW / 2", t).rstrip("\n"),
+        "@UPMASK@": D.mask([("1.6", "-uw"), ("1.6", "uw")] + D.arc_pts("tailR", "180 - au", "180 + au"), t).rstrip("\n"),
+        "@BOOMMASK@": D.rect_mask("-pivB", "-bmW / 2", "tipX + 0.25", "bmW / 2", t).rstrip("\n"),
+    }
+    out = SCRIPT_2D_T
+    for k, v in rep.items():
+        assert k in out, k
+        out = out.replace(k, v)
+    return out
+
+
+SCRIPT_2D = _script_2d()
+
 
 SCRIPT_3D = """﻿! 移動式クレーン 3D（タダノ GR-250N・GR-500N・GR-700N の寸法の目安）
 define material "cr_body" 2, 0.92, 0.93, 0.94
@@ -693,7 +791,7 @@ if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") 
 	if mp = "oRR" then parameters oRR = bq
 endif
 ! outW から4脚へは書き戻さない（Tapir でまとめて入れると GLOB_MODPAR_NAME が outW のまま古い outW で脚を上書きした。2026-11-01）
-"""
+""" + gdl_draft.values()
 
 
 def main() -> int:

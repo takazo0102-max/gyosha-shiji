@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 from gen_hoist_gdl import _param  # noqa: E402
+import gdl_draft  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_tower"
 MAIN_GUID = "7A3F1C58-9E24-4D6B-8F12-6C4E9B2A7D31"
@@ -73,6 +74,7 @@ def paramlist() -> str:
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
+        *gdl_draft.params(),
     ]
     return ("﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ParamSection>\n\t<ParamSectHeader>\n"
             "\t\t<AutoHotspots>false</AutoHotspots>\n\t\t<StatBits>\n\t\t\t<STBit_UIDefault/>\n\t\t</StatBits>\n"
@@ -123,40 +125,103 @@ SCRIPT_VL = """﻿! タワークレーン: 形式の一覧
 values{2} "tcType" 1, "起伏ジブ", 2, "水平ジブ"
 """
 
-SCRIPT_2D = """﻿! タワークレーン 2D: 基礎・マスト・壁つなぎ・ジブとカウンタウエイト（旋回）・後端旋回半径・作業半径・注記・ホットスポット
+SCRIPT_2D_T = """﻿! タワークレーン 2D: 基礎・マスト・壁つなぎ・ジブとカウンタウエイト（旋回）・後端旋回半径・作業半径・注記・ホットスポット
+! CAD の平面図の描き方（scripts/gdl_draft.py）: 外形は太線・細部は細線、地中の基礎は破線、作業半径は一点鎖線、後端旋回半径は
+! 二点鎖線。旋回体（カウンタウエイト・デッキ）は背景の色で塗って下のマストを隠す。縮尺で描き分ける
+@HEAD@
 pen penEquip
 define style "tcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "tcT"
 dT = texSiz * GLOB_SCALE / 1000 * 1.6
-rect2 -baseW / 2, -baseW / 2, baseW / 2, baseW / 2
+! 基礎（地中なので破線）・マスト（詳細はラチスの斜材）
+drawindex 10
+pen pT
+if drLv < 3 then
+	line_type ltH
+	rect2 -baseW / 2, -baseW / 2, baseW / 2, baseW / 2
+	line_type ltS
+endif
+drawindex 12
+pen pO
 rect2 -msW / 2, -msW / 2, msW / 2, msW / 2
-line2 -msW / 2, -msW / 2, msW / 2, msW / 2
-line2 -msW / 2, msW / 2, msW / 2, -msW / 2
-! 壁つなぎ（建物の側へ2本）
+pen pT
+if drLv < 3 then
+	line2 -msW / 2, -msW / 2, msW / 2, msW / 2
+	line2 -msW / 2, msW / 2, msW / 2, -msW / 2
+endif
+! 壁つなぎ（建物の側へ2本。詳細はつなぎの間の斜材）
 if nTz > 0 then
 	rot2 tieA
+	pen pO
 	line2 msW / 2, -msW / 2, msW / 2 + tieL, -msW / 2 - 0.3
 	line2 msW / 2, msW / 2, msW / 2 + tieL, msW / 2 + 0.3
+	if drLv = 1 then
+		pen pT
+		line2 msW / 2, -msW / 2, msW / 2 + tieL, msW / 2 + 0.3
+	endif
 	del 1
 endif
-! 後端旋回半径（立入禁止の目安）・今の作業半径・最大作業半径
+! 後端旋回半径（立入禁止の目安。二点鎖線）・今の作業半径・最大作業半径（一点鎖線）
+drawindex 45
+pen pZ
+line_type ltZ
 circle2 0, 0, tailR
+line_type ltC
 circle2 0, 0, hX
 if maxR > hX + 0.1 then circle2 0, 0, maxR
+line_type ltS
 ! ジブとカウンタウエイト（旋回で回す）
 rot2 slew
+if mk then
+	drawindex 20
+@CWMASK@
+@DKMASK@
+endif
+drawindex 30
+pen pO
 line2 pvX, -jbW / 2, jX, -jbW / 4
 line2 pvX, jbW / 2, jX, jbW / 4
+line2 jX, -jbW / 4, jX, jbW / 4
 rect2 -tailR, dkY - cwW / 2, -tailR + cwL, dkY + cwW / 2
 rect2 -tailR + cwL, dkY - dkW / 2, upF, dkY + dkW / 2
-rect2 upF - cbL, dkY - dkW / 2, upF, dkY - dkW / 2 + cbW
+pen pT
+if drLv < 3 then rect2 upF - cbL, dkY - dkW / 2, upF, dkY - dkW / 2 + cbW
+if drLv = 1 then
+	! ジブのラチス（上下の弦材の間に斜材）とカウンタウエイトの目地
+	nLc = max(2, int((jX - pvX) / max(jbW, 1.0)))
+	for k = 0 to nLc - 1
+		xa = pvX + k * (jX - pvX) / nLc
+		xb = pvX + (k + 1) * (jX - pvX) / nLc
+		wa = jbW / 2 - (jbW / 4) * k / nLc
+		wb = jbW / 2 - (jbW / 4) * (k + 1) / nLc
+		sg = 1 - 2 * (k mod 2)
+		line2 xa, sg * wa, xb, -sg * wb
+	next k
+	for k = 1 to 3
+		line2 -tailR + k * cwL / 4, dkY - cwW / 2, -tailR + k * cwL / 4, dkY + cwW / 2
+	next k
+endif
+if drLv < 3 then
+	line_type ltC
+	line2 -tailR - 0.5, 0, jX + 0.8, 0
+	line_type ltS
+endif
 circle2 hX, 0, 0.4
 del 1
+! 旋回の中心（一点鎖線の十字）
+drawindex 45
+pen pT
+line_type ltC
+line2 -msW, 0, msW, 0
+line2 0, -msW, 0, msW
+line_type ltS
 ! 注記
+drawindex 50
+pen penEquip
 add2 -baseW / 2 - 0.5, -baseW / 2 - 0.5
 rot2 -SYMB_ROTANGLE
 text2 0, 0, tcName
-if strlen(tcNote) > 0 then text2 0, -dT, tcNote
+if strlen(tcNote) > 0 and drLv < 3 then text2 0, -dT, tcNote
 text2 0, -2 * dT, "R" + str(round_int(hX * 1000), 1, 0) + "・マスト " + str(round_int(msH * 1000), 1, 0)
 del 2
 ! 旋回角のホットスポット
@@ -166,6 +231,25 @@ hotspot2 rH, 0, 2, slew, 4
 hotspot2 rH * cos(slew), rH * sin(slew), 3, slew, 5
 hotspot2 0, 0
 """
+
+
+def _script_2d() -> str:
+    """2D スクリプト: 型（SCRIPT_2D_T）に描き方の決めと隠す塗りの多角形を入れる."""
+    D = gdl_draft
+    t = "\t"
+    rep = {
+        "@HEAD@": D.head().rstrip("\n"),
+        "@CWMASK@": D.rect_mask("-tailR", "dkY - cwW / 2", "-tailR + cwL", "dkY + cwW / 2", t).rstrip("\n"),
+        "@DKMASK@": D.rect_mask("-tailR + cwL", "dkY - dkW / 2", "upF", "dkY + dkW / 2", t).rstrip("\n"),
+    }
+    out = SCRIPT_2D_T
+    for k, v in rep.items():
+        assert k in out, k
+        out = out.replace(k, v)
+    return out
+
+
+SCRIPT_2D = _script_2d()
 
 SCRIPT_3D = """﻿! タワークレーン 3D
 define material "tc_body" 2, 0.95, 0.75, 0.10
@@ -515,7 +599,7 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + model_vl(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + model_vl() + gdl_draft.values(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(

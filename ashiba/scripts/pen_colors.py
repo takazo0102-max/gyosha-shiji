@@ -40,6 +40,29 @@ def pen_table(c: ArchicadClient) -> tuple[str, list[tuple[int, str, str]]]:
         return "", [(i, "#808080", "") for i in range(1, 256)]
 
 
+def pen_weights(c: ArchicadClient) -> list[tuple[int, str, float]]:
+    """[(番号, "#RRGGBB", 太さ mm)]（一番めのペンセット。pen_table と同じ）。読めなければ空."""
+    try:
+        ids = c.post("API.GetAttributesByType", {"attributeType": "PenTable"})["attributeIds"]
+        attr = c.post("API.GetPenTableAttributes", {"attributeIds": ids[:1]})["attributes"][0]["penTableAttribute"]
+        out = []
+        for row in attr.get("pens", []):
+            p = row.get("pen") or {}
+            col = p.get("color") or {}
+            hexc = "#%02X%02X%02X" % tuple(int(round(float(col.get(k, 0.5)) * 255)) for k in ("red", "green", "blue"))
+            out.append((int(p.get("index", 0)), hexc, float(p.get("weight") or 0.0)))
+        return sorted(out)
+    except (TapirError, KeyError, IndexError, ValueError, TypeError):
+        return []
+
+
+def draft_pens_for(c: ArchicadClient, base: int) -> dict[str, int]:
+    """部品の描き方の太線・細線・範囲の線のペン（線のペン base と同じ色の太い・細いもの）."""
+    from ashiba.pens import draft_pens
+
+    return draft_pens(pen_weights(c), base)
+
+
 def title_of(index: int, desc: str) -> str:
     return f"{index}" + (f"  {desc}" if desc else "")
 

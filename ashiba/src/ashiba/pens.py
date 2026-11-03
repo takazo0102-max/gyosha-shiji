@@ -129,3 +129,28 @@ def preset_pens(table: list, preset: str) -> dict[str, int]:
         black = nearest_pen(table, (0.0, 0.0, 0.0))
         return {k: black for k, _p, _l, _d in PEN_KEYS}
     return {k: nearest_pen(table, COLOR_SCHEME[k]) for k, _p, _l, _d in PEN_KEYS}
+
+
+# 描き方の決め（scripts/gdl_draft.py）の太線・細線・範囲の線（利用者の指定 2026-11-04「平面図を CAD の平面図レベルに」）
+DRAFT_PARTS = frozenset({"ashiba_machine", "ashiba_crane", "ashiba_tower"})
+ZONE_RGB = (0.85, 0.10, 0.10)          # 範囲の線（作業半径・立入禁止）は赤に近いペン
+
+
+def draft_pens(rows: list, base: int) -> dict[str, int]:
+    """[(番号, "#RRGGBB", 太さ mm)] と線のペン base → {penBold, penThin, penZone, penMask}.
+    太線は base と同じ色でいちばん太いペン、細線はいちばん細いペン（同じ太さなら小さい番号）、範囲の線は赤に近い細いペン、
+    下の線を隠す塗りは白のペン（無ければ 0＝隠さない）。ペンセットが読めなければ base のまま（太さは描き分けない）."""
+    if not rows:
+        return {"penBold": base, "penThin": base, "penZone": base}
+    by = {int(i): (h.upper(), float(w)) for i, h, w in rows}
+    col = by.get(int(base), ("#000000", 0.0))[0]
+    same = [(w, i) for i, (h, w) in by.items() if h == col]
+    if not same:
+        return {"penBold": base, "penThin": base, "penZone": base}
+    bold = max(same, key=lambda t: (t[0], -t[1]))[1]
+    thin = min(same, key=lambda t: (t[0], t[1]))[1]
+    dist = min(sum((a - b) ** 2 for a, b in zip(_rgb(h), ZONE_RGB)) for h, _w in by.values())
+    reds = [(w, i) for i, (h, w) in by.items() if sum((a - b) ** 2 for a, b in zip(_rgb(h), ZONE_RGB)) <= dist + 1e-9]
+    zone = min(reds)[1]
+    whites = sorted(i for i, (h, _w) in by.items() if h == "#FFFFFF")
+    return {"penBold": bold, "penThin": thin, "penZone": zone, "penMask": whites[0] if whites else 0}

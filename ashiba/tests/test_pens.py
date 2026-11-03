@@ -69,6 +69,37 @@ class TestTieSymbolIsFilled(unittest.TestCase):
             self.assertIn("poly2_b 4, 7,", src, p)
 
 
+class TestDraftPens(unittest.TestCase):
+    """CAD の平面図の描き方（scripts/gdl_draft.py）の太線・細線・範囲の線・隠す塗り（利用者の指定 2026-11-04）."""
+
+    ROWS = [(1, "#000000", 0.05), (4, "#029E21", 0.05), (19, "#FFFFFF", 0.05), (20, "#FF0000", 0.05),
+            (21, "#000000", 0.15), (24, "#029E21", 0.15), (41, "#000000", 0.1), (60, "#FF0080", 0.05)]
+
+    def test_same_colour_thick_and_thin(self):
+        from ashiba.pens import draft_pens
+
+        self.assertEqual(draft_pens(self.ROWS, 1), {"penBold": 21, "penThin": 1, "penZone": 20, "penMask": 19})
+        self.assertEqual(draft_pens(self.ROWS, 24)["penBold"], 24)
+        self.assertEqual(draft_pens(self.ROWS, 24)["penThin"], 4)
+        self.assertEqual(draft_pens([], 7), {"penBold": 7, "penThin": 7, "penZone": 7})
+        self.assertEqual(draft_pens([(1, "#000000", 0.1), (2, "#FF0000", 0.1)], 1)["penMask"], 0)
+
+    def test_draft_params_in_the_parts(self):
+        """描き方のパラメータは部品の paramlist にあり、2D は縮尺の段・線種・隠す塗りを使う."""
+        from pathlib import Path
+
+        from ashiba.pens import DRAFT_PARTS
+
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+        for part in sorted(DRAFT_PARTS):
+            pl = (hsf / part / "paramlist.xml").read_text(encoding="utf-8")
+            for name in ("penBold", "penThin", "penZone", "penMask", "drMode"):
+                self.assertIn(f'Name="{name}"', pl, (part, name))
+            sc = (hsf / part / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+            for word in ("drLv", "ltZ", "ltC", "poly2_b", "drawindex"):
+                self.assertIn(word, sc, (part, word))
+
+
 class TestPenCommand(unittest.TestCase):
     def test_palette_has_the_button(self):
         from ashiba.palette import ACTIONS, PANEL_GROUPS
