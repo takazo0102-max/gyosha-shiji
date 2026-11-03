@@ -89,15 +89,23 @@ mdS[26] = "解体機 40t（超ロング 25m）"
 mdV[27] = 26
 mdS[27] = "解体機 40t（セパレートブーム）"
 mdV[28] = 27
-mdS[28] = "解体機 35t（ロングフロント）"
+mdS[28] = "解体機 35t（超ロング 21m）"
 mdV[29] = 28
-mdS[29] = "内装解体機 1.9t"
+mdS[29] = "解体機 55t（超ロング 27m）"
 mdV[30] = 29
-mdS[30] = "圧入機 U形 400（ST400SX）"
+mdS[30] = "解体機 35t（ロングフロント）"
 mdV[31] = 30
-mdS[31] = "圧入機 U形 600（F201）"
+mdS[31] = "内装解体機 1.9t"
 mdV[32] = 31
-mdS[32] = "バイブロ（50t クレーン）"
+mdS[32] = "圧入機 U形 400（ST400SX）"
+mdV[33] = 32
+mdS[33] = "圧入機 U形 600（F201）"
+mdV[34] = 33
+mdS[34] = "圧入機 低空頭（CL70B）"
+mdV[35] = 34
+mdS[35] = "圧入機 硬質地盤（F112）"
+mdV[36] = 35
+mdS[36] = "バイブロ（50t クレーン）"
 values{2} "mcModel" mdV, mdS
 if GLOB_MODPAR_NAME = "mcModel" then
 	if mcModel = 1 then
@@ -277,30 +285,54 @@ if GLOB_MODPAR_NAME = "mcModel" then
 		parameters bkA = -90, atK = 1, atL = 2.9, atW = 1.35, atO = 50.1
 	endif
 	if mcModel = 27 then
+		parameters mcName = "解体機 35t（超ロング 21m）", mcNote = "コベルコ SK350DLC-10A 43t・コベルコ KR1100TPR-2（超ロング用）"
+		parameters mcKind = 11, trkL = 4.96, trkW = 3.19, shoeW = 0.6, trkH = 1, upW = 2.98, tailR = 3.6, upZ = 1.15
+		parameters upH = 3.2, cabW = 1, cabL = 1.9, upF = 1.9, cwW = 0, cwH = 1.26, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 12.5, dbL1 = 7.1, dbL2 = 6.15, dbL3 = 6.1, dA1 = 65, dA2 = 85, dA3 = -30
+		parameters bkA = -90, atK = 1, atL = 2.6, atW = 1.1, atO = 45.2
+	endif
+	if mcModel = 28 then
+		parameters mcName = "解体機 55t（超ロング 27m）", mcNote = "コベルコ SK550DLC-10 61.6t・コベルコ KR1100TPR-2（超ロング用）"
+		parameters mcKind = 11, trkL = 5.46, trkW = 3.48, shoeW = 0.6, trkH = 1.05, upW = 2.98, tailR = 3.97, upZ = 1.2
+		parameters upH = 3.5, cabW = 1, cabL = 1.9, upF = 2, cwW = 0, cwH = 1.3, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 15.5, dbL1 = 10.95, dbL2 = 6.15, dbL3 = 8.7, dA1 = 70, dA2 = 85, dA3 = -30
+		parameters bkA = -90, atK = 1, atL = 2.6, atW = 1.1, atO = 45.2
+	endif
+	if mcModel = 29 then
 		parameters mcName = "解体機 35t（ロングフロント）", mcNote = "コマツ PC350LC-11 マルチ解体仕様 46.5t・コマツ JATS1100B-1（ロングフロント用）"
 		parameters mcKind = 11, trkL = 4.955, trkW = 3.19, shoeW = 0.6, trkH = 1, upW = 3.145, tailR = 3.45, upZ = 1.19
 		parameters upH = 3.33, cabW = 1, cabL = 1.9, upF = 1.9, cwW = 0, cwH = 1.2, pvX = 0.3, pvH = 2
 		parameters cbS = 1, maxR = 14, dbL1 = 6.5, dbL2 = 7.5, dbL3 = 7.5, dA1 = 65, dA2 = 85, dA3 = -30
 		parameters bkA = -90, atK = 1, atL = 2.675, atW = 1.1, atO = 43.9
 	endif
-	if mcModel = 28 then
+	if mcModel = 30 then
 		parameters mcName = "内装解体機 1.9t", mcNote = "コマツ PC18MR-5 解体2ピースブーム仕様 1.97t・フォーク 丸順 IFZ15"
 		parameters mcKind = 11, trkL = 1.57, trkW = 1.28, shoeW = 0.23, trkH = 0.36, upW = 0.98, tailR = 0.715, upZ = 0.42
 		parameters upH = 2.41, cabW = 0.75, cabL = 0.9, upF = 0.55, cwW = 0, cwH = 0, pvX = 0.2, pvH = 0.7
 		parameters cbS = 1, maxR = 3.85, dbL1 = 1.1, dbL2 = 0.95, dbL3 = 0.9, dA1 = 60, dA2 = 70, dA3 = -20
 		parameters bkA = -60, atK = 3, atL = 0.67, atW = 0.7, atO = 143.5
 	endif
-	if mcModel = 29 then
+	if mcModel = 31 then
 		parameters mcName = "圧入機 U形 400（ST400SX）", mcNote = "技研製作所 ST400SX 5.6t"
 		parameters mcKind = 12, piL = 2.07, piW = 1, piH = 2.32, piC = 0.955, piS = 0, piP = 0.4, piN = 4
 		parameters piT = 3, puX = -6, puY = 2.5, puL = 3.54, puW = 1.96, puH = 2.35, maxR = 0
 	endif
-	if mcModel = 30 then
+	if mcModel = 32 then
 		parameters mcName = "圧入機 U形 600（F201）", mcNote = "技研製作所 F201 10.3t"
 		parameters mcKind = 12, piL = 2.97, piW = 1.27, piH = 2.65, piC = 1.095, piS = 0, piP = 0.6, piN = 4
 		parameters piT = 3, puX = -7, puY = 2.8, puL = 4.7, puW = 2.065, puH = 2.55, maxR = 0
 	endif
-	if mcModel = 31 then
+	if mcModel = 33 then
+		parameters mcName = "圧入機 低空頭（CL70B）", mcNote = "技研製作所 クリアパイラー CL70B 5.66t"
+		parameters mcKind = 12, piL = 2.41, piW = 1.21, piH = 1.9, piC = 0.525, piS = 0, piP = 0.4, piN = 4
+		parameters piT = 1.5, puX = -6, puY = 2.5, puL = 3.54, puW = 1.96, puH = 2.35, maxR = 0
+	endif
+	if mcModel = 34 then
+		parameters mcName = "圧入機 硬質地盤（F112）", mcNote = "技研製作所 F112 硬質仕様 10.8t"
+		parameters mcKind = 12, piL = 3.37, piW = 1.1, piH = 3.99, piC = 1.24, piS = 0, piP = 0.4, piN = 4
+		parameters piT = 3, puX = -7, puY = 2.8, puL = 4.7, puW = 2.065, puH = 2.55, maxR = 0
+	endif
+	if mcModel = 35 then
 		parameters mcName = "バイブロ（50t クレーン）", mcNote = "コベルコ 7050G-2 48t"
 		parameters mcKind = 2, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
 		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75

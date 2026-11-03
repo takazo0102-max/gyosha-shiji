@@ -137,6 +137,12 @@ class TestPileDemolition(unittest.TestCase):
         self.assertAlmostEqual(d["pvH"] + d["dbL1"] + d["dbL2"] + d["dbL3"], 13.68, delta=0.2)
         g = MACHINES["gk400"].params
         self.assertEqual((g["piL"], g["piW"], g["piH"], g["piC"]), (2.07, 1.0, 2.32, 0.955))
+        d5 = MACHINES["dm550"].params                                                   # SK550DLC 8.7m＋3.5m: 27,530・R3,970
+        self.assertAlmostEqual(d5["pvH"] + d5["dbL1"] + d5["dbL2"] + d5["dbL3"], 27.53, delta=0.3)
+        self.assertEqual((d5["tailR"], d5["trkL"], MACHINES["dm550"].ground_kpa), (3.97, 5.46, 106.0))
+        self.assertEqual((MACHINES["dm350"].params["trkW"], MACHINES["dm350"].ground_kpa), (3.19, 81.0))   # 幅の伸縮なし
+        self.assertEqual((MACHINES["gk70"].params["piH"], MACHINES["gk70"].params["piC"]), (1.9, 0.525))   # 低空頭
+        self.assertEqual((MACHINES["gk112h"].params["piL"], MACHINES["gk112h"].mass_t), (3.37, 10.8))
         s3 = MACHINES["pd658s"].params
         self.assertEqual((s3["auN"], s3["auP"], s3["auD"]), (3, 0.45, 0.55))           # SMW φ550・軸間 450
 
