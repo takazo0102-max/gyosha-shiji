@@ -725,6 +725,8 @@ def part_params(p: Placed) -> dict:
         ps = {"vbK": 0, **ps}
     if m.kind in (1, 11):
         ps = {**ps, **att_params(p.attachment)}
+        if m.kind == 1 and p.attachment and "bkA" not in p.params:
+            ps["bkA"] = -90.0               # アタッチメントは下へ向ける（バケットの既定 −150° だと機械の側へ向く）
         if p.attachment:
             note += "・" + ATTACHMENTS[p.attachment][0].split(" ", 1)[-1]
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}

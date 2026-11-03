@@ -37,6 +37,25 @@ from typing import Any, Optional
 from .gdl_params import line_params
 from .model import ScaffoldModel
 
+# 部品の Angle 型のパラメータ（gdl/hsf/*/paramlist.xml。テストで照合する）。Tapir の SetGDLParametersOfElements は Angle を
+# ラジアンで受け取り、度の値をそのまま送ると 90 は 90 ラジアン（≒116.6°）になった（2026-11-03 実機。重機のブームが後ろへ、
+# くさび1点の部材が斜めに）。こちらは度で持ち、送る口でラジアンに直す。読み戻しは angle_values で度に戻す
+ANGLE_PARAMS = frozenset({"abA", "amA", "atO", "bedA", "bkA", "bmA", "boomA", "dA1", "dA2", "dA3", "drA", "faceAng", "jbA", "lbA",
+                          "pA1", "pA2", "pA3", "pA4", "pA5", "slew", "tbA", "tieA", "wrDir", "wrSpan"})
+
+
+def to_tapir_values(params: dict[str, Any]) -> dict[str, Any]:
+    """送る値: Angle 型（ANGLE_PARAMS）の度をラジアンに."""
+    return {k: (math.radians(v) if k in ANGLE_PARAMS and isinstance(v, (int, float)) and not isinstance(v, bool) else v)
+            for k, v in params.items()}
+
+
+def angle_values(rows: list[dict]) -> dict[str, Any]:
+    """GetGDLParametersOfElements の行 → {名前: 値}（Angle 型はラジアンで返るので度に）."""
+    return {r.get("name"): (math.degrees(r["value"]) if r.get("type") == "Angle" and isinstance(r.get("value"), (int, float))
+                            else r.get("value")) for r in rows}
+
+
 DEFAULT_PORT = int(os.environ.get("ASHIBA_PORT", "19723") or 19723)   # Tapir パレットは --port で渡してくる（入口が ASHIBA_PORT に移す）
 
 
@@ -318,7 +337,7 @@ class ArchicadClient:
         for i in range(0, len(pairs), chunk):
             part = pairs[i:i + chunk]
             resp = self.tapir("SetGDLParametersOfElements", {"elementsWithGDLParameters": [
-                {"elementId": el["elementId"], "gdlParameters": [{"name": k, "value": v} for k, v in params.items()]}
+                {"elementId": el["elementId"], "gdlParameters": [{"name": k, "value": v} for k, v in to_tapir_values(params).items()]}
                 for el, params in part]})
             results = resp.get("executionResults", [])
             ok += sum(1 for r in results if r.get("success", True)) if results else len(part)
@@ -367,7 +386,7 @@ class ArchicadClient:
                     {
                         "elementId": element["elementId"],
                         "gdlParameters": [
-                            {"name": k, "value": v} for k, v in params.items()
+                            {"name": k, "value": v} for k, v in to_tapir_values(params).items()
                         ],
                     }
                 ]

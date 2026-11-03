@@ -95,13 +95,19 @@ def main(argv=None) -> int:
     if a.z is None:
         gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
         ground = gm.elevation_at if getattr(gm, "points", None) else None
-    n0 = len(rec)
-    for n, (key, pts) in enumerate(lines, 1):
-        if key in rec:
-            _delete_alive(c, [rec.pop(key)["guid"]])
+    used = {v.get("name") for v in rec.values()}
+    for key, pts in lines:
+        name = None
+        if key in rec:                               # 同じ線は前の名前のまま置き直す
+            old = rec.pop(key)
+            name = old.get("name")
+            _delete_alive(c, [old["guid"]])
+        if not name:
+            name = next(f"重機{i}" for i in range(1, 10000) if f"重機{i}" not in used)
+        used.add(name)
         (x0, y0), (x1, y1) = pts[0], pts[1]
         ang = math.degrees(math.atan2(y1 - y0, x1 - x0))
-        p = check(Placed(f"重機{n0 + n}", mach, a.slew, att=att if mach.kind in (1, 11) else None), a.soil_q, a.soil, a.keep_out)
+        p = check(Placed(name, mach, a.slew, att=att if mach.kind in (1, 11) else None), a.soil_q, a.soil, a.keep_out)
         z = a.z if a.z is not None else (ground(x0, y0) if ground else 0.0)
         el = _place(c, part, (x0, y0), z, ang)
         if el is None:

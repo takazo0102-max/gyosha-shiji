@@ -710,8 +710,9 @@ return
 		next e
 	next s
 	material "mc_body"
-	add -0.9, -(trkW / 2 - shoeW), trkH * 0.35
-	block 1.8, trkW - 2 * shoeW, trkH * 0.45
+	lF = min(1.8, trkL * 0.55)
+	add -lF / 2, -(trkW / 2 - shoeW), trkH * 0.35
+	block lF, trkW - 2 * shoeW, trkH * 0.45
 	del 1
 	material "mc_steel"
 	add 0, 0, trkH * 0.8
@@ -1060,26 +1061,27 @@ return
 	rotx 90
 	cylind bw1 + 0.1, bw1 * 0.25
 	del 2
-	! シリンダ（段の下側。1本ずつ）
-	crq = max(0.03, bw1 * 0.22)
-	cx0 = pvX + 0.5
+	! シリンダ（段の下側。1本ずつ。離れは段の幅 bw1 に合わせる）
+	crq = max(0.02, bw1 * 0.22)
+	eq = bw1 * 0.6
+	cx0 = pvX + bw1
 	cy0 = 0
-	cz0 = upZ + 0.3
-	cx1 = pvX + 0.5 * dbL1 * cos(dA1) + 0.25 * sin(dA1)
+	cz0 = upZ + bw1 * 0.8
+	cx1 = pvX + 0.5 * dbL1 * cos(dA1) + eq * sin(dA1)
 	cy1 = 0
-	cz1 = pvH + 0.5 * dbL1 * sin(dA1) - 0.25 * cos(dA1)
+	cz1 = pvH + 0.5 * dbL1 * sin(dA1) - eq * cos(dA1)
 	gosub "cyl2"
 	crq = crq * 0.85
-	cx0 = pvX + 0.7 * dbL1 * cos(dA1) + 0.3 * sin(dA1)
-	cz0 = pvH + 0.7 * dbL1 * sin(dA1) - 0.3 * cos(dA1)
-	cx1 = dmX1 + 0.3 * dbL2 * cos(dA2) + 0.25 * sin(dA2)
-	cz1 = dmZ1 + 0.3 * dbL2 * sin(dA2) - 0.25 * cos(dA2)
+	cx0 = pvX + 0.7 * dbL1 * cos(dA1) + eq * sin(dA1)
+	cz0 = pvH + 0.7 * dbL1 * sin(dA1) - eq * cos(dA1)
+	cx1 = dmX1 + 0.3 * dbL2 * cos(dA2) + eq * sin(dA2)
+	cz1 = dmZ1 + 0.3 * dbL2 * sin(dA2) - eq * cos(dA2)
 	gosub "cyl2"
 	crq = crq * 0.85
-	cx0 = dmX1 + 0.75 * dbL2 * cos(dA2) + 0.25 * sin(dA2)
-	cz0 = dmZ1 + 0.75 * dbL2 * sin(dA2) - 0.25 * cos(dA2)
-	cx1 = dmX2 + 0.2 * dbL3 * cos(dA3) + 0.2 * sin(dA3)
-	cz1 = dmZ2 + 0.2 * dbL3 * sin(dA3) - 0.2 * cos(dA3)
+	cx0 = dmX1 + 0.75 * dbL2 * cos(dA2) + eq * sin(dA2)
+	cz0 = dmZ1 + 0.75 * dbL2 * sin(dA2) - eq * cos(dA2)
+	cx1 = dmX2 + 0.2 * dbL3 * cos(dA3) + eq * sin(dA3)
+	cz1 = dmZ2 + 0.2 * dbL3 * sin(dA3) - eq * cos(dA3)
 	gosub "cyl2"
 	atX0 = dmX3
 	atZ0 = dmZ3

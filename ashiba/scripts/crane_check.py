@@ -37,11 +37,9 @@ STEEL_TYPES = ("Column", "Beam")
 
 def _params(c, el) -> dict:
     it = c.tapir("GetGDLParametersOfElements", {"elements": [el]})["gdlParametersOfElements"][0]
-    ps = {p["name"]: p.get("value") for p in it.get("gdlParameters", it.get("parameters", []))}
-    for k in ("slew", "boomA", "wrDir", "wrSpan", "jbA", "tieA"):                 # Angle は Tapir ではラジアン
-        if isinstance(ps.get(k), (int, float)):
-            ps[k] = math.degrees(ps[k])
-    return ps
+    from ashiba.tapir_adapter import angle_values
+
+    return angle_values(it.get("gdlParameters", it.get("parameters", [])))      # Angle は Tapir ではラジアン
 
 
 def find_crane(c, sel, dets):
