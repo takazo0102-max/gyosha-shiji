@@ -24,13 +24,77 @@ if isCr then
 	if mcKind = 1 then
 		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
 		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
-		rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
-	else
+		if atK > 0 then
+			wA = max(0.3, min(atW, 1.2))
+			rect2 amX1, bmY - wA / 2, amX1 + atL * max(0.2, cos(bkA)), bmY + wA / 2
+		else
+			rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
+		endif
+	endif
+	if mcKind = 2 then
 		line2 pvX, -lbW / 2, lbX, -lbW / 2
 		line2 pvX, lbW / 2, lbX, lbW / 2
 		circle2 lbX, 0, 0.4
+		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+	endif
+	if mcKind = 8 then
+		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
+		circle2 ldX, 0, ldDia / 2
+		rect2 upF - 0.1, -0.6, ldX, 0.6
+		for i = 1 to nAu
+			circle2 ldX + auOff, yAu0 + (i - 1) * auP, auD / 2
+		next i
+		rect2 ldX + auOff - auW / 2, yAu0 - auD / 2 - 0.1, ldX + auOff + auW / 2, -yAu0 + auD / 2 + 0.1
+		for s = -1 to 1 step 2
+			line2 -tailR * 0.35, s * upW * 0.35, ldX, s * ldDia * 0.3
+			rect2 fjX - 0.3, s * fjW / 2 - 0.3, fjX + 0.3, s * fjW / 2 + 0.3
+			rect2 -rjX - 0.3, s * rjW / 2 - 0.3, -rjX + 0.3, s * rjW / 2 + 0.3
+			line2 -rjX, 0, -rjX, s * rjW / 2
+		next s
+	endif
+	if mcKind = 9 then
+		! テレスコブーム・ケリードライブ・バケット（掘削中心）
+		line2 pvX, -0.45, tbX, -0.45
+		line2 pvX, 0.45, tbX, 0.45
+		rect2 kdR - 0.9, -0.9, kdR + 0.9, 0.9
+		circle2 kdR, 0, auD / 2
+		line2 kdR - auD / 2 - 0.3, 0, kdR + auD / 2 + 0.3, 0
+		line2 kdR, -auD / 2 - 0.3, kdR, auD / 2 + 0.3
+	endif
+	if mcKind = 11 then
+		! フロント（3段）と先のアタッチメント
+		line2 pvX, -0.35, max(dmX1, dmX3), -0.3
+		line2 pvX, 0.35, max(dmX1, dmX3), 0.3
+		wA = max(0.3, min(atW, 1.2))
+		if atK = 0 then wA = bkW
+		rect2 dmX3, -wA / 2, dmX3 + tpL * max(0.2, abs(cos(bkA))), wA / 2
 	endif
 	del 1
+endif
+if mcKind = 10 then
+	! 全周回転機: 反力ブラケット・本体・通り穴・ケーシング・水平ジャッキ・油圧ユニット
+	rect2 -brL / 2, -0.3, brL / 2, 0.3
+	rect2 -0.3, -brW / 2, 0.3, brW / 2
+	rect2 -rtL / 2, -rtW / 2, rtL / 2, rtW / 2
+	circle2 0, 0, rtD / 2
+	circle2 0, 0, csD / 2
+	for s = -1 to 1 step 2
+		for t = -1 to 1 step 2
+			circle2 s * (rtL / 2 - 0.35), t * (rtW / 2 - 0.35), 0.25
+		next t
+	next s
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
+endif
+if mcKind = 12 then
+	! 圧入機: 本体・チャックの杭・後ろの完成杭（つかむ反力杭）・パワーユニット
+	rect2 -piL + 0.35, -piW / 2, 0.35, piW / 2
+	for i = 0 to piN
+		xP = -i * piP
+		line2 xP - piP / 2, 0, xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 2, 0
+	next i
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
 endif
 if isTk then
 	! 車体・運転室・タイヤ
@@ -78,16 +142,19 @@ endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）
 rW = maxR
 if mcKind = 2 then rW = lbX + 0.4
-if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then circle2 0, 0, rW
+isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
+if rW > 0.1 and isR then circle2 0, 0, rW
 ! 注記（機種・諸元）
 xN = -tailR - 0.6
 if isTk then xN = xR - 0.6
+if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
+if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
 add2 xN, 0
 rot2 -SYMB_ROTANGLE
 text2 0, 0, mcName
 if strlen(mcNote) > 0 then text2 0, -dT, mcNote
 del 2
-if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then
+if rW > 0.1 and isR then
 	add2 rW * cos(45), rW * sin(45)
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)

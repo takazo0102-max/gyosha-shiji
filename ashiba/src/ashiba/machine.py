@@ -1,6 +1,9 @@
-"""重機（バックホウ・クローラクレーン・コンクリートポンプ車・生コン車・ダンプ・高所作業車・垂直昇降）（部品 ashiba_machine）.
+"""重機（バックホウ・クローラクレーン・コンクリートポンプ車・生コン車・ダンプ・高所作業車・垂直昇降・三点式杭打機・アースドリル・
+全周回転機・解体機・圧入機）（部品 ashiba_machine）.
 
-利用者の指定（2026-11-01）「重機の詳細度もっとあげて　種類も増やして」。寸法はメーカーの仕様書・カタログの値（m・t・kN）、
+利用者の指定（2026-11-01）「重機の詳細度もっとあげて　種類も増やして」、（2026-11-03）「杭、山留め　解体で使用する重機を徹底的に
+調べて　GDL作成してちょ　他の重機もホットスポットで動かせるようにしてちょ」。杭・山留め・解体の機種の調べは
+research_notes/重機 杭山留解体/（杭.md・山留め.md・解体.md。値ごとに URL と頁）。寸法はメーカーの仕様書・カタログの値（m・t・kN）、
 【目安】は仕様書に無く、外形図や同じクラスの機種から決めた値（部品のパラメータで直せる）。出典は SOURCES、調べたメモは
 docs/調査_重機*.md（バックホウ・クローラクレーン・トラック系・法令と敷鉄板）。
 
@@ -18,7 +21,7 @@ docs/調査_重機*.md（バックホウ・クローラクレーン・トラッ�
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 SOIL_Q = 100.0              # 地盤の許容支持力（短期）kN/m²（既定は軟らかい粘性土の下限。地盤調査の値を --soil-q で）
@@ -58,10 +61,53 @@ SOURCES = {
     "A1": "アイチ SH12C1RN カタログ p.14・車両寸法図・作業範囲図・主要諸元（画像）・製品頁の必要運転免許（aichi-corp.co.jp）",
     "A3": "アイチ SV-E シリーズ カタログ p.12・14（aichi-corp.co.jp）",
     "T3": "タダノ AT-170TG リーフレット（2026-03、英語・メートル）p.2 主要諸元・作業範囲図・寸法図（mediahub.tadano.com、タダノ アジアの製品一覧から）",
+    # 杭・山留め・解体（2026-11-03 調べ。research_notes/重機 杭山留解体/）
+    "N1": "日本車輌 DH558-110M-5 カタログ CAT.No.114B（2024-04）p.4 本体仕様・本体外観図・M85D 全体外観図・平面・概略分解寸法"
+          "（n-sharyo.co.jp/business/kiden/PDF/DH558-110M-5.pdf）",
+    "N2": "日本車輌 DH658-135M-5 SPECIFICATION F5-5501E（2007-10、英文）印刷 p.4（諸元）・p.11（作業能力）・p.12〜13（全体図・リーダ構成）・"
+          "p.15〜16（輸送）（files.machine.market）",
+    "N3": "日本車輌 DHJ08-7M/MA カタログ CAT.No.184B（2025-03）p.1 諸元・p.2 外形図・輸送状態図（n-sharyo.co.jp）",
+    "N4": "日本車輌 ED6200H-2（T）カタログ CAT.No.140B（2024-04）p.4 本体仕様・本体外観図・定格総荷重表・概略分解（n-sharyo.co.jp）",
+    "N5": "日本車輌 RT-200AⅢ カタログ頁（印刷 p.13、2024-10）外形図・仕様、同「RT-200AⅡ（AⅢ）の最大接地圧検討」（'05.06.30）（n-sharyo.co.jp）",
+    "S1": "日本車輌 DH658-135M-5（N2）＋三和機工 PAS-150VAR 仕様（3軸・軸間 450・10.5t・高さ 3,554・平面 1,602×1,240）、"
+          "SMW協会 壁の寸法（φ550・平均壁厚 480）・施工機械（smw-kyokai.jp）",
+    "G1": "技研製作所 サイレントパイラー ST400SX 主要諸元 Ver1.2JA01 p.2〜4、パワーユニット EU200R4 主要諸元 p.2・3（giken.com）",
+    "G2": "技研製作所 サイレントパイラー F201 主要諸元 Ver4.6JA01 p.2・3・6、パワーユニット EU300L5 主要諸元 Ver1.1JA01 p.2・3（giken.com）",
+    "V1": "コベルコ 7050G-2 仕様書（C1）＋調和工業 ZERO SR カタログ p.3〜4（SR-45: 起振力 473kN・CW×1 で 6,500kg・全高 3,479・"
+          "幅 1,337×722）、定格総荷重の式は加藤製作所の資料（建設荷役車両安全技術協会「基礎工事用機械 付属機械編」）",
+    "B1": "コベルコ SK350DLC/SK400DLC/SK550DLC-10 カタログ（…_JPN_MBD_9E_2608）PDF p.12〜19（主要諸元・外形寸法図・作業範囲・輸送）"
+          "（kobelco-kenki.co.jp）",
+    "B2": "コマツ PC350LC-11 マルチ解体仕様 カタログ PDF p.6〜8（印刷 p.10〜15。輸送・格納姿勢図・作業範囲・仕様・アタッチメント表）（kcsj.komatsu）",
+    "B3": "コマツ PC18MR-5 解体2ピースブーム仕様 内装解体機 カタログ CJA01194-02 PDF p.1（仕様・外形図・作業範囲図）（kcsj.komatsu）",
 }
 
 KINDS = {1: "バックホウ", 2: "クローラクレーン", 3: "コンクリートポンプ車", 4: "生コン車", 5: "ダンプ", 6: "高所作業車",
-         7: "垂直昇降（自走式）"}
+         7: "垂直昇降（自走式）", 8: "三点式杭打機", 9: "アースドリル", 10: "全周回転機（オールケーシング）", 11: "解体機",
+         12: "圧入機（サイレントパイラー）"}
+
+# 解体アタッチメント（ショベル・解体機の先。atK 1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）
+# (名前, atK, 本体長さ m（ピンから先端）, 最大開口幅 m（ブレーカはチゼル径）, 質量 kg, 本体クラス t（下限, 上限）か None, 出典)
+# タグチ工業は本体長さ A を載せている（taguchi.co.jp/product/crusher-d・crasher-mc・dx-cutter・grasper-gv-s）。NPK は全長が
+# ブレーカだけ（npk-construction.com/line-up/hydraulic-hammers）。コベルコの純正は長さが図だけで【目安】
+ATTACHMENTS = {
+    "d75": ("圧砕機（大割）タグチ D-75", 1, 1.75, 0.80, 880, (6, 8), "タグチ D 大割"),
+    "d135": ("圧砕機（大割）タグチ D-135", 1, 2.04, 1.00, 1420, (12, 14), "タグチ D 大割"),
+    "d212": ("圧砕機（大割）タグチ D-212", 1, 2.37, 1.30, 2330, (20, 22), "タグチ D 大割"),
+    "d352": ("圧砕機（大割）タグチ D-352", 1, 2.70, 1.55, 3600, (30, 37), "タグチ D 大割"),
+    "mc212": ("圧砕機（小割）タグチ MC-212", 1, 1.80, 0.885, 1670, (20, 22), "タグチ MC 小割"),
+    "dx135": ("鉄骨切断機 タグチ DX-135", 2, 1.91, 0.70, 1530, (12, 14), "タグチ DX カッター"),
+    "dx202": ("鉄骨切断機 タグチ DX-202", 2, 2.23, 0.835, 2460, (20, 22), "タグチ DX カッター"),
+    "gv122": ("つかみ機 タグチ GV-122S", 3, 1.90, 1.86, 860, (12, 14), "タグチ GV グラスパー"),
+    "gv202": ("つかみ機 タグチ GV-202S", 3, 2.33, 2.26, 1520, (20, 22), "タグチ GV グラスパー"),
+    "ghd6": ("油圧ブレーカ NPK GHD6", 4, 1.95, 0.106, 870, (10, 16), "NPK 油圧ブレーカ"),
+    "ghd10": ("油圧ブレーカ NPK GHD10", 4, 2.47, 0.136, 1615, (19, 21), "NPK 油圧ブレーカ"),
+    "jats1100": ("圧砕機 コマツ JATS1100B-1（ロングフロント用）", 1, 2.675, 1.10, 2550, None, "コマツ PC350LC-11 カタログ PDF p.6"),
+    "kr1100": ("圧砕機 コベルコ KR1100TPR-2（超ロング用）", 1, 2.6, 1.1, 2600, None,
+               "コベルコ SK400DLC-10A スペック頁（質量。長さ・開口は図だけで【目安】）"),
+    "kr1350": ("圧砕機 コベルコ KR1350TPR-40（セパレート用）", 1, 2.9, 1.35, 3800, None,
+               "コベルコ SK400DLC-10A スペック頁（質量。長さ・開口は図だけで【目安】）"),
+    "ifz15": ("Z フォーク 丸順 IFZ15", 3, 0.67, 0.70, 65, (1.5, 2.0), "コマツ PC18MR-5 カタログ PDF p.1"),
+}
 
 
 @dataclass(frozen=True)
@@ -83,6 +129,10 @@ class Machine:
     turn_r: float = 0.0                         # 最小回転半径 m（トラック）
     rated: dict = field(default_factory=dict)   # クレーンの定格総荷重 {ブーム長: {半径: t}}
     guesses: str = ""                           # 【目安】の値
+    att: str = ""                               # 解体アタッチメント（ATTACHMENTS のキー。空＝バケット）
+    att_kg: float = 0.0                         # アタッチメントの装着可能質量 kg（解体機の仕様書）
+    leader_free_m: float = 0.0                  # リーダの自立の限り m（超えるとクレーンで起伏補助。杭打機）
+    vibro: tuple = ()                           # クレーンに吊るバイブロ（名前, 質量 t, 起振力 kN）
 
 
 def _bh(trkL, gauge, shoe, trkH, upW, tailR, upZ, upH, cab, pvH, boomL, armL, bkL, bkW, maxR, maxD, pvX=0.15, upF=None,
@@ -102,6 +152,23 @@ def _cc(trkL, trkW, shoe, trkH, upW, cwW, tailR, upZ, upH, cabW, pvX, pvH, lbW, 
             "upH": upH, "cabW": cabW, "cabL": cabL, "upF": upF, "pvX": pvX, "pvH": pvH, "lbL": lbL, "lbA": 70.0,
             "lbW": lbW, "cwH": cwH, "hkD": 6.0, "gnX": gantry[0], "gnH": gantry[1], "hkH": hook[0], "hkW": hook[1], "hkT": hook[2],
             "cbS": -1, "maxR": 0.0}
+
+
+def _cr(trkL, trkW, shoe, trkH, upW, tailR, upZ, upH, cab, upF, cwH=0.0, pvX=0.3, pvH=2.0):
+    """杭打機・アースドリル・解体機の下部（クローラ）と上部旋回体（cab は運転室の 幅, 長さ）."""
+    return {"trkL": trkL, "trkW": trkW, "shoeW": shoe, "trkH": trkH, "upW": upW, "tailR": tailR, "upZ": upZ, "upH": upH,
+            "cabW": cab[0], "cabL": cab[1], "upF": upF, "cwW": 0.0, "cwH": cwH, "pvX": pvX, "pvH": pvH, "cbS": 1, "maxR": 0.0}
+
+
+def _pile(ldX, ldL, ldDia, auOff, auD, auL, fj, rj, auN=1, auP=0.45, auH=2.6, auW=1.2, ldZ=0.35):
+    """三点式杭打機のリーダ（旋回中心から前 ldX・長さ ldL（図のリーダの実長。33m リーダは 33,300）・主管の径。頂部のシーブは
+    主管の径の 2.7 倍の高さで、全高 35,423（DH558）・38,519（DH658）に合う）・オーガ（リーダから前 auOff・径・スクリュー長さ・本数・軸間・
+    モータの高さと前後の長さ）・フロントジャッキ（前, 間）・後ろのアウトリガ（後ろ, 幅）。モータの下端は頂部の 0.5m 下、ステーは
+    リーダの 8 割の高さへ【目安】."""
+    top = ldZ + ldL
+    return {"ldX": ldX, "ldL": ldL, "ldDia": ldDia, "ldZ": ldZ, "auOff": auOff, "auD": auD, "auL": auL, "auN": auN, "auP": auP,
+            "auH": auH, "auW": auW, "auZ": round(top - auH - 0.5, 3), "stZ": round(ldZ + 0.8 * ldL, 3),
+            "fjX": fj[0], "fjW": fj[1], "rjX": rj[0], "rjW": rj[1]}
 
 
 def _rt(booms: tuple, text: str) -> dict:
@@ -301,7 +368,95 @@ MACHINES = {
                     {"carL": 1.87, "carW": 0.76, "carF": 0.935, "whR": 0.185, "pfL": 1.77, "pfW": 0.68, "pfH": 3.0,
                      "maxR": 0.0},
                     "A3", platform_m=5.72, guesses="車輪の半径 0.185 は寸法図を測った値"),
+    # 三点式杭打機（日本車輌。リーダ中心は旋回中心から前へ固定。上部旋回体の高さ・運転室・ステーの根元は寸法線が無く【目安】）
+    "pd558": Machine("pd558", 8, "三点式杭打機 110t", "日本車輌 DH558-110M-5（リーダ 33m・オーガ NAS200）", 114.0,
+                     {**_cr(5.52, 4.40, 0.8, 0.908, 3.155, 4.94, 1.25, 3.141, (1.0, 2.0), 2.2, cwH=1.3),
+                      **_pile(3.0, 33.3, 0.6604, 1.24, 0.6, 28.8, (3.61, 2.52), (3.64, 4.1))},
+                     "N1", ground_kpa=150.0, body_t=40.1, leader_free_m=27.0,
+                     guesses="オーガの中心（ガイド管の 440 前＋掘削中心 800）・スクリュー径 0.6・モータ 2.6×1.2（オーガ機種で変わる）・"
+                             "上部旋回体の下端 1.25・前端 2.2・運転室 1.0×2.0・ステーの根元とリーダの 8 割の高さ"),
+    "pd658": Machine("pd658", 8, "三点式杭打機 135t", "日本車輌 DH658-135M-5（リーダ 36m・オーガ NAD150）", 136.0,
+                     {**_cr(5.76, 4.60, 0.8, 1.02, 3.22, 5.04, 1.3, 3.31, (1.0, 2.0), 2.3, cwH=1.4, pvX=1.2, pvH=2.03),
+                      **_pile(3.29, 36.2, 0.7112, 1.24, 0.6, 25.8, (3.89, 2.6), (3.74, 4.1))},
+                     "N2", ground_kpa=170.0, body_t=46.5, leader_free_m=27.0,
+                     guesses="オーガの中心・スクリュー径 0.6・モータ 2.6×1.2・上部旋回体の下端 1.3・前端 2.3・運転室の長さ・ステーの根元"),
+    "pdj08": Machine("pdj08", 8, "小型杭打機 10t（地盤改良）", "日本車輌 DHJ08-7M（オーガ MA-22SⅡ・最大掘削長 10m）", 10.4,
+                     {**_cr(2.5, 2.0, 0.4, 0.55, 1.9, 2.018, 0.65, 2.5, (0.85, 1.4), 1.0, cwH=0.7),
+                      **_pile(1.5, 8.62, 0.3, 0.65, 0.8, 6.0, (1.65, 1.75), (1.65, 1.75), auH=1.2, auW=0.7)},
+                     "N3", ground_kpa=66.4, body_t=10.0,
+                     guesses="クローラ全長 2.5（輸送状態図の比率）・高さ 0.55・リーダの中心 1.5（ガイド前面 1,661 から）・主管の径 0.3・"
+                             "スクリューの長さ 6.0・モータ 1.2×0.7・上部旋回体の幅と高さ"),
+    "pd658s": Machine("pd658s", 8, "SMW 3軸オーガ機", "日本車輌 DH658-135M＋三和機工 PAS-150VAR（3軸 φ550・軸間 450）", 136.0,
+                      {**_cr(5.76, 4.60, 0.8, 1.02, 3.22, 5.04, 1.3, 3.31, (1.0, 2.0), 2.3, cwH=1.4, pvX=1.2, pvH=2.03),
+                       **_pile(3.29, 36.2, 0.7112, 1.24, 0.55, 24.0, (3.89, 2.6), (3.74, 4.1), auN=3, auP=0.45, auH=3.554,
+                               auW=1.24)},
+                      "S1", ground_kpa=170.0, body_t=46.5, leader_free_m=27.0,
+                      guesses="オーガの中心・スクリューの長さ 24.0（リーダ長に合わせて継ぐ。1本の長さは資料に無い）・"
+                              "上部旋回体の下端・前端・ステーの根元。全装備の質量は DH658 の最大 136t で、SMW の組の値ではない"),
+    # アースドリル（日本車輌 ED6200H-2（T）。ブームの根元・ケリードライブの高さ・バケットの高さは【目安】）
+    "ed6200": Machine("ed6200", 9, "アースドリル 20.6m", "日本車輌 ED6200H-2（T）（テレスコブーム 20.6m・バケット φ2,000）", 88.0,
+                      {**_cr(5.61, 4.40, 0.76, 0.98, 3.2, 3.89, 1.25, 3.173, (1.0, 2.0), 3.0, cwH=1.38, pvX=1.8, pvH=2.3),
+                       "tbL": 20.6, "tbA": 82.5, "kdR": 4.492, "kdZ": 1.5, "kyD": 0.53, "auD": 2.0, "bkH": 2.089, "bkD": 0.0},
+                      "N4", ground_kpa=120.0, body_t=88.0, lift_t=17.0,
+                      guesses="ブームの根元（旋回中心から前 1.8・高さ 2.3。ブームの先が掘削中心 R4,492 の上に来るように）・"
+                              "上部旋回体の前端 3.0（R3,890 と本体 6.92m から）・ケリードライブの高さ 1.5・運転室の幅と長さ・"
+                              "バケットの高さ 2.089 は図の寸法線を読んだ値"),
+    # 全周回転機（据置。油圧ユニットの位置は資料に無く【目安】）
+    "rt200": Machine("rt200", 10, "全周回転機 φ2,000", "日本車輌 RT-200AⅢ（φ1,000〜2,000・油圧ユニット RTP-3）", 30.0,
+                     {"rtL": 4.148, "rtW": 3.167, "rtH": 3.086, "rtD": 1.98, "rtS": 0.0, "brL": 8.39, "brW": 6.98,
+                      "csD": 1.5, "csH": 2.0, "puX": -7.5, "puY": 0.0, "puL": 4.8, "puW": 2.105, "puH": 2.112, "maxR": 0.0},
+                     "N5", jacks_kn=(round((276.0) * 9.80665 / 4, 1),) * 4,
+                     guesses="ケーシングの径 1.5・本体の上の高さ 2.0（工事で決まる）・油圧ユニットの位置（本体の芯から 7.5m 後ろ）"),
+    # 解体機（作業範囲はアームトップピン。フロントの段の長さと根元の高さはブロック構成と最大作業高さから。上部旋回体の高さ・
+    # 運転室・前端は【目安】）
+    "dm400": Machine("dm400", 11, "解体機 40t（超ロング 25m）", "コベルコ SK400DLC-10A（超ロング 8.7m アーム＋2.4m インサート）", 48.0,
+                     {**_cr(4.96, 3.48, 0.6, 1.0, 2.98, 3.6, 1.15, 3.31, (1.0, 1.9), 1.9, cwH=1.27),
+                      "dbL1": 6.0, "dbL2": 8.35, "dbL3": 8.7, "dA1": 65.0, "dA2": 85.0, "dA3": -30.0, "bkA": -90.0, "maxR": 13.0},
+                     "B1", body_t=37.3, att="kr1100", att_kg=2600.0,
+                     guesses="段の長さ（メイン 3.6＋インサート 2.4・フロント 7.0＋インター 1.35・アーム 8.7 の弦）・ブームの根元 2.0・"
+                             "上部旋回体の下端 1.15・履帯の高さ 1.0・運転室・前端 1.9、ニブラーの長さと開口（図だけ）"),
+    "dm400s": Machine("dm400s", 11, "解体機 40t（セパレートブーム）", "コベルコ SK400DLC-10A（セパレートブーム 3.3m アーム）", 47.4,
+                      {**_cr(4.96, 3.48, 0.6, 1.0, 2.98, 3.6, 1.15, 3.31, (1.0, 1.9), 1.9, cwH=1.27),
+                       "dbL1": 4.5, "dbL2": 4.04, "dbL3": 3.3, "dA1": 50.0, "dA2": 30.0, "dA3": -60.0, "bkA": -90.0, "maxR": 10.2},
+                      "B1", body_t=37.3, att="kr1350", att_kg=4000.0,
+                      guesses="段の長さ（メイン 3.6＋メインフロント 0.9・フロント 4.04・アーム 3.3）・ブームの根元 2.0・上部旋回体の高さ・"
+                              "運転室・前端、ニブラーの長さと開口（図だけ）"),
+    "dm350k": Machine("dm350k", 11, "解体機 35t（ロングフロント）", "コマツ PC350LC-11 マルチ解体仕様（解体ロングフロント）", 46.5,
+                      {**_cr(4.955, 3.19, 0.6, 1.0, 3.145, 3.45, 1.19, 3.33, (1.0, 1.9), 1.9, cwH=1.2),
+                       "dbL1": 6.5, "dbL2": 7.5, "dbL3": 7.5, "dA1": 65.0, "dA2": 85.0, "dA3": -30.0, "bkA": -90.0, "maxR": 14.0},
+                      "B2", body_t=36.7, att="jats1100", att_kg=2600.0,
+                      guesses="後端旋回半径 3.45（解体仕様の資料に無い）・段の長さ（最大作業高さ 23.5m に合わせた）・最大作業半径 14.0"
+                              "（図の「横方向許容作業範囲」の大きい方）・運転室・前端・履帯の高さ"),
+    "dm18": Machine("dm18", 11, "内装解体機 1.9t", "コマツ PC18MR-5 解体2ピースブーム仕様（Z フォーク）", 1.97,
+                    {**_cr(1.57, 1.28, 0.23, 0.36, 0.98, 0.715, 0.42, 2.41, (0.75, 0.9), 0.55, pvX=0.2, pvH=0.7),
+                     "dbL1": 1.1, "dbL2": 0.95, "dbL3": 0.9, "dA1": 60.0, "dA2": 70.0, "dA3": -20.0, "bkA": -60.0, "maxR": 3.85},
+                    "B3", body_t=1.97, att="ifz15", att_kg=140.0,
+                    guesses="段の長さ（アームトップの最大作業高さ 3,625 に合わせた）・ブームの根元・履帯の高さ・キャノピの幅と長さ・"
+                            "最大作業半径 3.85（図の二組の値の小さい方をアームトップと読んだ）"),
+    # 圧入機（技研。完成杭をつかむ。チャックの平面の位置は図だけ【目安】）
+    "gk400": Machine("gk400", 12, "圧入機 U形 400（ST400SX）", "技研製作所 ST400SX（4C・U形 400mm 幅）＋パワーユニット EU200R4", 5.6,
+                     {"piL": 2.07, "piW": 1.0, "piH": 2.32, "piC": 0.955, "piS": 0.0, "piP": 0.4, "piN": 4, "piT": 3.0,
+                      "puX": -6.0, "puY": 2.5, "puL": 3.54, "puW": 1.96, "puH": 2.35, "maxR": 0.0},
+                     "G1", ground_kpa=49.3,
+                     guesses="チャックの芯（本体の前端から 0.35）・パワーユニットの位置・杭の天端の高さ（チャックの上 3.0m）"),
+    "gk201": Machine("gk201", 12, "圧入機 U形 600（F201）", "技研製作所 F201（単独・U形 600mm 幅）＋パワーユニット EU300L5", 10.3,
+                     {"piL": 2.97, "piW": 1.27, "piH": 2.65, "piC": 1.095, "piS": 0.0, "piP": 0.6, "piN": 4, "piT": 3.0,
+                      "puX": -7.0, "puY": 2.8, "puL": 4.7, "puW": 2.065, "puH": 2.55, "maxR": 0.0},
+                     "G2", ground_kpa=67.2,
+                     guesses="チャックの芯・パワーユニットの位置・杭の天端の高さ"),
+    # クローラクレーンにバイブロ（調和工業 SR-45）
+    "cc50v": Machine("cc50v", 2, "バイブロ（50t クレーン）", "コベルコ 7050G-2（ブーム 21.3m）＋調和工業 SR-45（473kN）", 48.0,
+                     {**_cc(5.57, 4.36, 0.76, 0.985, 2.99, 3.5, 4.0, 1.1, 3.3, 0.94, 1.1, 1.75, 1.355, 30.5,
+                            gantry=(3.16, 6.145), hook=(1.47, 0.59, 0.435), upF=2.45, cwH=2.15),
+                      "lbL": 21.3, "lbA": 78.0, "hkD": 3.0, "vbK": 1, "vbW": 1.337, "vbT": 0.722, "vbH": 3.479, "vbP": 12.0},
+                     "V1", ground_kpa=65.0, lift_t=50.0, vibro=("SR-45", 6.5, 473.0),
+                     guesses="ブーム 21.3m・起伏 78°（半径 6m 級でバイブロの吊りを満たす組。歩掛は 50〜55t 吊）・杭の長さ 12m（Ⅳ型で約 1.1t）・"
+                             "フックの質量 0.5t（資料に無い）"),
 }
+# バイブロを吊るクレーンは 7050G-2 と同じ定格総荷重表
+MACHINES["cc50v"] = replace(MACHINES["cc50v"], rated=MACHINES["cc50"].rated)
+HOOK_T = 0.5                # フックの質量 t【目安】（仕様書に無い）
+PILE_T = 1.1                # バイブロで打つ杭の質量 t【目安】（U形Ⅳ型 15m）
 
 
 @dataclass
@@ -318,6 +473,11 @@ class Placed:
     slew: float = 0.0
     params: dict = field(default_factory=dict)
     checks: list = field(default_factory=list)
+    att: Optional[str] = None       # 解体アタッチメント（None＝機種の既定、""＝バケット）
+
+    @property
+    def attachment(self) -> str:
+        return self.machine.att if self.att is None else self.att
 
 
 def find(key: str) -> Machine:
@@ -347,10 +507,32 @@ def road_license(gvw_t: float, payload_t: float = 0.0) -> str:
     return "普通免許"
 
 
-def license_for(m: Machine) -> str:
-    """運転・操作に要る資格（安衛令・安衛則・クレーン則）と公道の免許."""
+def license_for(m: Machine, att: str = "") -> str:
+    """運転・操作に要る資格（安衛令・安衛則・クレーン則）と公道の免許。att は解体アタッチメント（付けると解体用）."""
+    body = m.body_t or m.mass_t
+    if m.kind == 11 or (m.kind == 1 and att):
+        if body >= 3.0:
+            return (f"車両系建設機械（解体用）運転技能講習（安衛令20条12号・安衛則41条。機体質量 {body:g}t。ブレーカ・鉄骨切断機・"
+                    "コンクリート圧砕機・解体用つかみ機は安衛令 別表第七 第六号）")
+        return f"車両系建設機械（解体用）の特別教育（安衛則36条9号。機体質量 {body:g}t が 3t 未満）"
+    if m.kind in (8, 9):
+        out = ((f"車両系建設機械（基礎工事用）運転技能講習（安衛令20条12号・安衛則41条。機体質量 {body:g}t）" if body >= 3.0 else
+                f"車両系建設機械（基礎工事用）の特別教育（安衛則36条9号。機体質量 {body:g}t が 3t 未満）")
+               + "・地上で作業装置を操作する人は特別教育（安衛則36条9号の3）")
+        if m.kind == 9 and m.lift_t:
+            out += (f"・クレーン仕様（{m.lift_t:g}t・クレーン検査）で補助吊りをするなら移動式クレーン運転士免許（クレーン則68条）・"
+                    "玉掛け技能講習（221条）")
+        return out
+    if m.kind == 10:
+        return "基礎工事用機械（せん孔機・チュービングマシン）で自走しないものの運転は特別教育（安衛則36条9号の2）"
+    if m.kind == 12:
+        return ("くい打機・くい抜機（安衛令 別表第七 第三号）。完成杭の上を自走しリモコンで操作する。車両系建設機械（不特定の場所に"
+                "自走できるもの）に当たれば機体質量 3t 以上で技能講習（安衛令20条12号）、当たらなければ特別教育（安衛則36条9号の2）。"
+                "どちらに当たるかの公式な判断は見つけていない（労働基準監督署に確かめる）")
+    if m.kind == 2 and m.vibro:
+        return ("移動式クレーン運転士免許（クレーン則68条）・玉掛け技能講習（221条）・バイブロを付けて作業するときは車両系建設機械"
+                "（基礎工事用）運転技能講習（加藤製作所の注意書き。通達の番号は見つけていない）")
     if m.kind == 1:
-        body = m.body_t or m.mass_t
         if body >= 3.0:
             return (f"車両系建設機械（整地・運搬・積込み用及び掘削用）運転技能講習（安衛令20条12号・安衛則41条。機体質量 {body:g}t）")
         return f"車両系建設機械（整地等）の特別教育（安衛則36条9号。機体質量 {body:g}t が 3t 未満。キャブ・増量ウエイト付きは機体質量で引き直す）"
@@ -377,7 +559,20 @@ def plan_rule(m: Machine) -> str:
                "作業指揮者（151条の4）。当たるかを示した通達は見つからない",
             5: "車両系荷役運搬機械等の作業計画（安衛則151条の3。道路上の走行を除く）・作業指揮者（151条の4）",
             6: "高所作業車の作業計画（安衛則194条の9）・作業指揮者（194条の10）",
-            7: "高所作業車の作業計画（安衛則194条の9）・作業指揮者（194条の10）"}[m.kind]
+            7: "高所作業車の作業計画（安衛則194条の9）・作業指揮者（194条の10）",
+            8: _PILE_RULE, 9: _PILE_RULE + "・補助吊りは主たる用途以外の使用の制限（164条）",
+            10: "倒壊防止（安衛則173条。水平ジャッキの下に敷鉄板）・組立て解体の作業指揮（190条）・点検（192条）・"
+                "ガス導管等の損壊の防止（194条）。ケーシングを吊るクレーンは作業の方法等の決定（クレーン則66条の2）",
+            11: "調査と記録（安衛則154条）・作業計画（155条）・特定解体用機械（ブーム＋アーム 12m 以上）は路肩・傾斜地で使わない"
+                "（171条の4）・運転室の無い機械は物が飛んでくる所で使わない（171条の5）・立入禁止と悪天候の中止（171条の6）。"
+                "高さ 5m 以上のコンクリート造の工作物の解体は調査・作業計画（517条の14）・作業主任者（517条の17・18）、"
+                "高さ 31m を超える建物の解体は 14日前までに計画の届出（安衛則90条1号・安衛法88条3項）",
+            12: "倒壊防止（安衛則173条。反力架台・パワーユニットの下）・組立て解体の作業指揮（190条）・点検（192条）・合図（189条）・"
+                "ガス導管等の損壊の防止（194条）。杭を建て込むクレーンは作業の方法等の決定（クレーン則66条の2）"}[m.kind]
+
+
+_PILE_RULE = ("地形・地質の調査と記録（安衛則154条）・作業計画（155条）・倒壊防止（173条。軟弱地盤は敷板・敷角）・合図（189条）・"
+              "組立て解体の作業指揮（190条）・組立て後の点検（192条）・ガス導管等の損壊の防止（194条）")
 
 
 def keep_out(m: Machine, ps: dict, margin: float = KEEP_OUT) -> list[tuple[str, float, str]]:
@@ -394,6 +589,20 @@ def keep_out(m: Machine, ps: dict, margin: float = KEEP_OUT) -> list[tuple[str, 
         out.append(("ブームの下・筒先の吹出し", float(ps.get("maxR", 0)) + margin, "安衛則158条・171条の2第3号"))
     elif m.kind in (4, 5):
         out.append(("車体と荷（バック・荷下ろし）", 0.0, "安衛則151条の7"))
+    elif m.kind in (8, 9, 11):
+        out.append(("後端（上部旋回体）", tail + margin, "安衛則158条"))
+        if m.kind == 8:
+            out.append(("巻上げワイヤの屈曲部の内側", 0.0, "安衛則187条"))
+        elif m.kind == 9:
+            out.append(("掘削孔・バケットの周り", float(ps.get("kdR", 0)) + float(ps.get("auD", 0)) / 2 + margin, "安衛則158条"))
+        else:
+            reach = float(ps.get("maxR", 0)) + float(ps.get("atL", 0) or 0)
+            out.append(("作業装置（最大作業半径＋アタッチメント）", reach + margin,
+                        "安衛則158条・171条の6（範囲の数値の定めは無い）"))
+    elif m.kind in (10, 12):
+        r = max(float(ps.get("brL", ps.get("piL", 0))), float(ps.get("brW", ps.get("piW", 0)))) / 2
+        out.append(("本体とケーシング・杭の周り" if m.kind == 10 else "本体と吊り込む杭の周り", r + margin,
+                    "条文の数値の定めは見つけていない（社内の決め）"))
     else:
         r = float(ps.get("maxR", 0) or 0)
         out.append(("作業床の下（物の落下）", r + margin if r > 0 else 0.0, "安衛則537条（高所作業車に専用の条は無い）"))
@@ -434,6 +643,8 @@ def crawler_plates(press_kpa: float, soil: int) -> str:
 def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP_OUT) -> Placed:
     m = p.machine
     ps = {**m.params, **p.params}
+    if m.kind in (1, 11):
+        ps = {**ps, **att_params(p.attachment)}
     p.checks = []
     sname = f"{SOILS[soil][0]}（{SOILS[soil][1]}・短期 {SOILS[soil][2]}kN/m²）"
     if m.ground_kpa:
@@ -457,6 +668,46 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
         if m.lift_t > 20:
             p.checks.append(Check("地盤調査", "注意", "つり上げ荷重 20t を超える移動式クレーンは設置地盤の調査を（NIIS-SD-No.22 p.87〜88。"
                                                       "接地圧は極限支持力の 1/3 を推奨）"))
+    att = p.attachment if m.kind in (1, 11) else ""
+    if att:
+        nm, _k, L, _w, kg, cls, src = ATTACHMENTS[att]
+        if m.att_kg:
+            st = "OK" if kg <= m.att_kg else "要確認"
+            p.checks.append(Check("アタッチメント", st, f"{nm} {kg:,.0f}kg・装着可能質量 {m.att_kg:,.0f}kg（{src}）"))
+        elif cls:
+            ok = cls[0] - 1e-6 <= m.mass_t <= cls[1] + 1e-6
+            p.checks.append(Check("アタッチメント", "OK" if ok else "要確認",
+                                  f"{nm} {kg:,.0f}kg・本体クラス {cls[0]:g}〜{cls[1]:g}t（{src}）・機械 {m.mass_t:g}t"))
+    if m.kind == 11 or (m.kind == 1 and att):
+        bl = sum(float(ps.get(k, 0)) for k in ("dbL1", "dbL2", "dbL3")) if m.kind == 11 else \
+            float(ps.get("boomL", 0)) + float(ps.get("armL", 0))
+        if bl >= 12.0:
+            p.checks.append(Check("特定解体用機械", "注意", f"ブーム＋アーム {bl:.1f}m（12m 以上）: 路肩・傾斜地等で転倒のおそれのある所で"
+                                                           "使わない（安衛則171条の4）"))
+        p.checks.append(Check("立入禁止・悪天候", "注意", "物の飛来・落下の範囲は立入禁止、強風・大雨・大雪は作業を止める（安衛則171条の6）"))
+    if m.kind in (8, 9, 12):
+        p.checks.append(Check("倒壊防止", "注意", "軟弱地盤は脚部・架台に敷板・敷角等（安衛則173条1号）。安定度は前後・左右 5°"
+                                                 "（車両系建設機械構造規格）"))
+    if m.kind == 8 and m.leader_free_m:
+        L = float(ps.get("ldL", 0))
+        p.checks.append(Check("リーダの自立", "注意" if L > m.leader_free_m else "OK",
+                              f"リーダ {L:g}m・フロントジャッキでの自立は {m.leader_free_m:g}m まで" +
+                              ("。超えるのでクレーンで起伏補助（カタログの注2）" if L > m.leader_free_m else "")))
+    if m.kind == 9 and m.lift_t:
+        p.checks.append(Check("補助吊り", "注意", f"クレーン仕様（定格 {m.lift_t:g}t・クレーン検査）。仕様が無ければ荷のつり上げは"
+                                                 "安衛則164条の条件のときだけ"))
+    if m.kind == 10:
+        p.checks.append(Check("ウエイト", "注意", "反力ブラケットに積むウエイト W t を足すと1本の反力は (276＋W)/4 t、最大接地圧 "
+                                                 "35.1＋0.13W kgf/cm²（φ500 の水平ジャッキ4本。日本車輌の検討）"))
+    if m.vibro:
+        nm, vt, fkn = m.vibro
+        need = HOOK_T + vt + PILE_T + fkn / 9.80665 / 4
+        boom, ang = float(ps["lbL"]), float(ps["lbA"])
+        rad = float(ps["pvX"]) + boom * math.cos(math.radians(ang)) + 0.4
+        t = rated_at(m, boom, rad)
+        p.checks.append(Check("バイブロの吊り", "OK" if t is not None and t >= need else "要確認",
+                              f"フック {HOOK_T:g}＋{nm} {vt:g}＋杭 {PILE_T:g}＋起振力 {fkn:g}kN×1/4 ＝ {need:.1f}t（加藤製作所の式）・"
+                              f"半径 {rad:.1f}m の定格総荷重 " + (f"{t:g}t" if t is not None else "表の外")))
     for what, r, law in keep_out(m, ps, margin):
         p.checks.append(Check("立入禁止", "注意", f"{what}" + (f" R{r:.2f}m（余裕 {margin:g}m は社内の決め）" if r > 0 else "") + f"・{law}"))
     return p
@@ -470,7 +721,24 @@ def part_params(p: Placed) -> dict:
     if m.platform_m:
         note += f"・作業床 {m.platform_m:g}m"
     name = f"{p.name} {m.name}" if p.name else m.name
+    if m.kind == 2:
+        ps = {"vbK": 0, **ps}
+    if m.kind in (1, 11):
+        ps = {**ps, **att_params(p.attachment)}
+        if p.attachment:
+            note += "・" + ATTACHMENTS[p.attachment][0].split(" ", 1)[-1]
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
+
+
+def att_params(key: str) -> dict:
+    """解体アタッチメントのパラメータ（atK 0＝バケット。atO は開いた角度で、爪の先の開きが開口幅になる角度。爪はピンから
+    0.45 の所で開き、長さは本体の 0.55）."""
+    if not key:
+        return {"atK": 0, "atL": 0.0, "atW": 0.0, "atO": 0.0}
+    _nm, k, L, w, _kg, _cls, _src = ATTACHMENTS[key]
+    jl = 0.55 * L
+    o = 0.0 if k == 4 else round(2 * math.degrees(math.asin(min(0.95, w / 2 / jl))), 1)
+    return {"atK": k, "atL": L, "atW": w, "atO": o}
 
 
 def report(placed: list[Placed], soil_q: float = SOIL_Q, soil: int = 1) -> str:
@@ -479,7 +747,9 @@ def report(placed: list[Placed], soil_q: float = SOIL_Q, soil: int = 1) -> str:
              "| 名前 | 機種 | 型式 | 質量 t | 運転の資格 | 作業計画 |", "|---|---|---|---|---|---|"]
     for p in placed:
         m = p.machine
-        lines.append(f"| {p.name} | {m.name} | {m.model} | {m.mass_t:g} | {license_for(m)} | {plan_rule(m)} |")
+        att = p.attachment if m.kind in (1, 11) else ""
+        model = m.model + (f"＋{ATTACHMENTS[att][0]}" if att and att != m.att else "")
+        lines.append(f"| {p.name} | {m.name} | {model} | {m.mass_t:g} | {license_for(m, att)} | {plan_rule(m)} |")
     lines += ["", "## 判定", "", "| 名前 | 項目 | 結果 | 内容 |", "|---|---|---|---|"]
     for p in placed:
         for c in p.checks:

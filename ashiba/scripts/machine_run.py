@@ -5,7 +5,8 @@
   python3 scripts/machine_run.py --type bh045            # 選んだ線の始め＝旋回中心（車は真ん中）、始めの辺の向き＝車体の前
   python3 scripts/machine_run.py --type pump36 --slew 90  # ブーム・上部を 90° 回す
   python3 scripts/machine_run.py --type cc50 --soil-q 150 --soil 3   # 地盤の許容支持力（短期 kN/m²）と土質（敷鉄板の表）
-  python3 scripts/machine_run.py --list                   # 機種の一覧
+  python3 scripts/machine_run.py --type bh045 --att d135  # バックホウの先を解体アタッチメント（圧砕機）に（--att none でバケット）
+  python3 scripts/machine_run.py --list                   # 機種の一覧（--list-att でアタッチメント）
   python3 scripts/machine_run.py --remove                 # 置いた重機を消す
 
 部品 ashiba_machine を線1本に1台（src/ashiba/machine.py が機種・寸法・判定）。前に同じ線に置いたものは控え
@@ -30,7 +31,7 @@ RECORD = "重機.json"
 def main(argv=None) -> int:
     import argparse
 
-    from ashiba.machine import KEEP_OUT, MACHINES, SOIL_Q, SOILS, Placed, check, find, part_params, report
+    from ashiba.machine import ATTACHMENTS, KEEP_OUT, MACHINES, SOIL_Q, SOILS, Placed, check, find, part_params, report
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--type", default="bh045", help="機種（" + "・".join(MACHINES) + "）")
@@ -40,13 +41,23 @@ def main(argv=None) -> int:
                     help="土質（敷鉄板の表）: " + "・".join(f"{k} {v[0]}" for k, v in SOILS.items()))
     ap.add_argument("--keep-out", type=float, default=KEEP_OUT, help="立入禁止の余裕 m（公的な数値は無く社内の決め）")
     ap.add_argument("--z", type=float, default=None, help="地盤の高さ mm（省くと敷地メッシュ、無ければ 0）")
+    ap.add_argument("--att", default=None, help="バックホウ・解体機の先（" + "・".join(ATTACHMENTS) + "・none＝バケット）")
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
+    ap.add_argument("--list-att", action="store_true", help="解体アタッチメントの一覧を出す")
     ap.add_argument("--remove", action="store_true", help="置いた重機を消す")
     a = ap.parse_args(argv)
     if a.list:
         for k, m in MACHINES.items():
             print(f"{k:8s} {m.name}（{m.model}）")
         return 0
+    if a.list_att:
+        for k, v in ATTACHMENTS.items():
+            print(f"{k:9s} {v[0]}（長さ {v[2]:g}m・{v[4]:,}kg）")
+        return 0
+    att = None if a.att is None else ("" if a.att == "none" else a.att)
+    if att and att not in ATTACHMENTS:
+        print(f"重機: アタッチメントは {'・'.join(ATTACHMENTS)} のどれか（{a.att}）")
+        return 1
     try:
         mach = find(a.type)
     except KeyError as e:
@@ -90,17 +101,17 @@ def main(argv=None) -> int:
             _delete_alive(c, [rec.pop(key)["guid"]])
         (x0, y0), (x1, y1) = pts[0], pts[1]
         ang = math.degrees(math.atan2(y1 - y0, x1 - x0))
-        p = check(Placed(f"重機{n0 + n}", mach, a.slew), a.soil_q, a.soil, a.keep_out)
+        p = check(Placed(f"重機{n0 + n}", mach, a.slew, att=att if mach.kind in (1, 11) else None), a.soil_q, a.soil, a.keep_out)
         z = a.z if a.z is not None else (ground(x0, y0) if ground else 0.0)
         el = _place(c, part, (x0, y0), z, ang)
         if el is None:
             continue
         c.set_gdl_parameters(el, {**part_params(p), **pens})
-        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew}
+        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att}
         bad = sorted({x.item for x in p.checks if x.status not in ("OK", "注意")})
         print(f"  {p.name}: {mach.name}（{mach.model}）" + (f" 要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
-    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0)), a.soil_q, a.soil, a.keep_out)
+    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0), att=v.get("att")), a.soil_q, a.soil, a.keep_out)
               for v in rec.values() if v.get("type") in MACHINES]
     md = R.OUT_DIR / "重機.md"
     md.write_text(report(placed, a.soil_q, a.soil), encoding="utf-8")

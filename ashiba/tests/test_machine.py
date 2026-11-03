@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
+import math
 import re
 import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.machine import (KINDS, MACHINES, Placed, check, crawler_plates, find, keep_out, license_for, outrigger_pad, part_params,
-                            rated_at, report, road_license)
+from ashiba.machine import (ATTACHMENTS, KINDS, MACHINES, Placed, att_params, check, crawler_plates, find, keep_out, license_for,
+                            outrigger_pad, part_params, plan_rule, rated_at, report, road_license)
 
 ROOT = SRC.parent
 
 
 class TestMachines(unittest.TestCase):
     def test_every_kind_and_part_parameter(self):
-        """7種類すべてに機種があり、渡すパラメータは部品に全部ある."""
+        """12種類すべてに機種があり、渡すパラメータは部品に全部ある."""
         self.assertEqual({m.kind for m in MACHINES.values()}, set(KINDS))
         names = set(re.findall(r'Name="([^"]+)"', (ROOT / "gdl" / "hsf" / "ashiba_machine" / "paramlist.xml")
                                .read_text(encoding="utf-8")))
@@ -112,6 +113,85 @@ class TestChecks(unittest.TestCase):
         c = check(Placed("c", m))
         self.assertIn("定格総荷重", [x.item for x in c.checks])
         self.assertIn("7050G-2", report([c]))
+
+
+
+class TestPileDemolition(unittest.TestCase):
+    """杭・山留め・解体の重機（利用者の指定 2026-11-03: 杭、山留め　解体で使用する重機を徹底的に調べて　GDL作成してちょ）."""
+
+    def test_catalog_values(self):
+        """カタログの値: DH558 のリーダ中心 3,000・後端 R4,940、ED6200 の掘削中心 R4,492・ブーム 20.6m、RT-200AⅢ の 8,390×6,980、
+        SK400DLC の R3,600、ST400SX の 2,070×1,000×2,320."""
+        p = MACHINES["pd558"].params
+        self.assertEqual((p["ldX"], p["tailR"], p["trkL"], p["fjX"], p["rjX"]), (3.0, 4.94, 5.52, 3.61, 3.64))
+        self.assertAlmostEqual(p["ldZ"] + p["ldL"] + 2.7 * p["ldDia"], 35.423, delta=0.05)     # 全高（33m リーダ）
+        q = MACHINES["pd658"].params
+        self.assertAlmostEqual(q["ldZ"] + q["ldL"] + 2.7 * q["ldDia"], 38.519, delta=0.1)      # 36m リーダ
+        e = MACHINES["ed6200"].params
+        self.assertEqual((e["kdR"], e["tbL"], e["tbA"]), (4.492, 20.6, 82.5))
+        self.assertAlmostEqual(e["pvX"] + e["tbL"] * math.cos(math.radians(e["tbA"])), e["kdR"], delta=0.05)   # ブームの先が掘削中心
+        r = MACHINES["rt200"].params
+        self.assertEqual((r["brL"], r["brW"], r["rtD"]), (8.39, 6.98, 1.98))
+        self.assertEqual(MACHINES["dm400"].params["tailR"], 3.6)
+        d = MACHINES["dm400s"].params                                                   # セパレート: 最大作業高さ 13,680
+        self.assertAlmostEqual(d["pvH"] + d["dbL1"] + d["dbL2"] + d["dbL3"], 13.68, delta=0.2)
+        g = MACHINES["gk400"].params
+        self.assertEqual((g["piL"], g["piW"], g["piH"], g["piC"]), (2.07, 1.0, 2.32, 0.955))
+        s3 = MACHINES["pd658s"].params
+        self.assertEqual((s3["auN"], s3["auP"], s3["auD"]), (3, 0.45, 0.55))           # SMW φ550・軸間 450
+
+    def test_licenses(self):
+        """基礎工事用は 3t 以上で技能講習、据置の全周回転機は 36条9号の2、解体用は別の講習、PC18MR-5（1.97t）は特別教育."""
+        self.assertIn("基礎工事用）運転技能講習", license_for(MACHINES["pd558"]))
+        self.assertIn("36条9号の3", license_for(MACHINES["ed6200"]))
+        self.assertIn("移動式クレーン運転士免許", license_for(MACHINES["ed6200"]))         # クレーン仕様 17t
+        self.assertIn("36条9号の2", license_for(MACHINES["rt200"]))
+        self.assertIn("解体用）運転技能講習", license_for(MACHINES["dm400"]))
+        self.assertIn("解体用）の特別教育", license_for(MACHINES["dm18"]))
+        self.assertIn("解体用", license_for(MACHINES["bh045"], "d135"))                  # バックホウに圧砕機
+        self.assertNotIn("解体用", license_for(MACHINES["bh045"]))
+        self.assertIn("171条の4", plan_rule(MACHINES["dm400"]))
+        self.assertIn("173条", plan_rule(MACHINES["pd558"]))
+
+    def test_checks(self):
+        c = {x.item: x for x in check(Placed("p", MACHINES["pd558"])).checks}
+        self.assertEqual(c["リーダの自立"].status, "注意")                              # 33m ＞ 27m
+        self.assertEqual(c["接地圧"].status, "要確認")                                  # 150kPa ＞ 100
+        c = {x.item: x for x in check(Placed("d", MACHINES["dm400"])).checks}
+        self.assertEqual(c["アタッチメント"].status, "OK")                              # 2,600kg ≦ 2,600kg
+        self.assertIn("特定解体用機械", c)                                               # ブーム＋アーム 23m
+        c = {x.item: x for x in check(Placed("d", MACHINES["dm400"], att="d352")).checks}
+        self.assertEqual(c["アタッチメント"].status, "要確認")                          # 3,600kg ＞ 2,600kg
+        c = {x.item: x for x in check(Placed("b", MACHINES["bh045"], att="d212")).checks}
+        self.assertEqual(c["アタッチメント"].status, "要確認")                          # 20〜22t 級を 13.8t に
+        c = {x.item: x for x in check(Placed("v", MACHINES["cc50v"])).checks}
+        self.assertEqual(c["バイブロの吊り"].status, "OK")                               # 20.2t ≦ 半径 6m の 24.1t
+        self.assertIn("20.2t", c["バイブロの吊り"].detail)
+        rt = check(Placed("r", MACHINES["rt200"]))
+        self.assertEqual(len([x for x in rt.checks if x.item.startswith("ジャッキ")]), 4)
+        ko = keep_out(MACHINES["dm400"], {**MACHINES["dm400"].params, **att_params("kr1100")}, 0.5)
+        self.assertEqual(round(ko[1][1], 2), 16.1)                                       # 13.0＋2.6＋0.5
+
+    def test_attachment_params(self):
+        """爪の開きは先の開きが開口幅になる角度。ブレーカは開かない。バケットは atK 0."""
+        a = att_params("d135")
+        self.assertEqual(a["atK"], 1)
+        jl = 0.55 * a["atL"]
+        self.assertAlmostEqual(2 * jl * math.sin(math.radians(a["atO"] / 2)), 1.0, delta=0.01)
+        self.assertEqual(att_params("ghd10")["atO"], 0.0)
+        self.assertEqual(part_params(Placed("", MACHINES["bh045"]))["atK"], 0)
+        self.assertEqual(part_params(Placed("", MACHINES["cc50"]))["vbK"], 0)           # 機種を選び直すとバイブロが消える
+        self.assertTrue(all(k in ("d75", "d135", "d212", "d352", "mc212", "dx135", "dx202", "gv122", "gv202", "ghd6", "ghd10",
+                                  "jats1100", "kr1100", "kr1350", "ifz15") for k in ATTACHMENTS))
+
+    def test_hotspots_move_parameters(self):
+        """3D のホットスポットで動かせる: 杭打機のオーガとリーダ・アースドリルのブームとバケット・解体機の3段と先・全周回転機・圧入機."""
+        gdl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "3d.gdl").read_text(encoding="utf-8-sig")
+        for par in ("auZ", "ldL", "tbA", "tbL", "bkD", "dA1", "dA2", "dA3", "bkA", "rtS", "csH", "piS", "piT", "bmA", "lbA", "pA1",
+                    "bedA", "abA", "pfH", "hkD"):
+            self.assertRegex(gdl, rf"hotspot [^\n]*, {par}, [1-7]", par)
+        ids = [int(x) for x in re.findall(r"hotspot [^\n]*?, (\d{3}), \w+, ", gdl)]
+        self.assertEqual(len(ids), len(set(ids)))                                       # 番号が重ならない
 
 
 if __name__ == "__main__":

@@ -1,5 +1,33 @@
 ﻿! 重機: 種類の一覧
-values{2} "mcKind" 1, "バックホウ", 2, "クローラクレーン", 3, "コンクリートポンプ車", 4, "生コン車", 5, "ダンプ", 6, "高所作業車", 7, "垂直昇降"
+dim kdV[], kdS[]
+kdV[1] = 1
+kdS[1] = "バックホウ"
+kdV[2] = 2
+kdS[2] = "クローラクレーン"
+kdV[3] = 3
+kdS[3] = "コンクリートポンプ車"
+kdV[4] = 4
+kdS[4] = "生コン車"
+kdV[5] = 5
+kdS[5] = "ダンプ"
+kdV[6] = 6
+kdS[6] = "高所作業車"
+kdV[7] = 7
+kdS[7] = "垂直昇降"
+kdV[8] = 8
+kdS[8] = "三点式杭打機"
+kdV[9] = 9
+kdS[9] = "アースドリル"
+kdV[10] = 10
+kdS[10] = "全周回転機"
+kdV[11] = 11
+kdS[11] = "解体機"
+kdV[12] = 12
+kdS[12] = "圧入機"
+values{2} "mcKind" kdV, kdS
+values{2} "atK" 0, "バケット", 1, "圧砕機", 2, "鉄骨切断機", 3, "つかみ機", 4, "ブレーカ"
+values "auN" 1, 3
+values{2} "vbK" 0, "フック", 1, "バイブロ"
 values "nFr" 1, 2
 values{2} "cbS" 1, "左", -1, "右"
 values "nRear" 1, 2
@@ -44,6 +72,32 @@ mdV[18] = 17
 mdS[18] = "高所作業車 17m（タダノ）"
 mdV[19] = 18
 mdS[19] = "垂直昇降 5.7m"
+mdV[20] = 19
+mdS[20] = "三点式杭打機 110t"
+mdV[21] = 20
+mdS[21] = "三点式杭打機 135t"
+mdV[22] = 21
+mdS[22] = "小型杭打機 10t（地盤改良）"
+mdV[23] = 22
+mdS[23] = "SMW 3軸オーガ機"
+mdV[24] = 23
+mdS[24] = "アースドリル 20.6m"
+mdV[25] = 24
+mdS[25] = "全周回転機 φ2,000"
+mdV[26] = 25
+mdS[26] = "解体機 40t（超ロング 25m）"
+mdV[27] = 26
+mdS[27] = "解体機 40t（セパレートブーム）"
+mdV[28] = 27
+mdS[28] = "解体機 35t（ロングフロント）"
+mdV[29] = 28
+mdS[29] = "内装解体機 1.9t"
+mdV[30] = 29
+mdS[30] = "圧入機 U形 400（ST400SX）"
+mdV[31] = 30
+mdS[31] = "圧入機 U形 600（F201）"
+mdV[32] = 31
+mdS[32] = "バイブロ（50t クレーン）"
 values{2} "mcModel" mdV, mdS
 if GLOB_MODPAR_NAME = "mcModel" then
 	if mcModel = 1 then
@@ -51,63 +105,63 @@ if GLOB_MODPAR_NAME = "mcModel" then
 		parameters mcKind = 1, trkL = 2.105, trkW = 1.74, shoeW = 0.3, trkH = 0.475, upW = 1.54, tailR = 0.87, upZ = 0.545
 		parameters upH = 2.49, bldW = 1.77, bldH = 0.37, cabW = 0.935, cabL = 1.1, upF = 0.58, pvX = 0.35, pvH = 0.85
 		parameters boomL = 2.5, armL = 1.3, bkL = 0.65, bkW = 0.6, maxR = 4.855, maxD = 3.23, bmA = 35, amA = -70
-		parameters bkA = -150, cbS = 1, bmY = 0
+		parameters bkA = -150, cbS = 1, bmY = 0, atK = 0, atL = 0, atW = 0, atO = 0
 	endif
 	if mcModel = 2 then
 		parameters mcName = "バックホウ 0.25m³", mcNote = "コマツ PC78US-11 7.71t"
 		parameters mcKind = 1, trkL = 2.84, trkW = 2.32, shoeW = 0.45, trkH = 0.63, upW = 2.33, tailR = 1.39, upZ = 0.735
 		parameters upH = 2.71, bldW = 2.32, bldH = 0.49, cabW = 1.03, cabL = 1.47, upF = 0.74, pvX = 0.3, pvH = 1.25
 		parameters boomL = 3.71, armL = 1.65, bkL = 0.85, bkW = 0.75, maxR = 6.38, maxD = 4.1, bmA = 35, amA = -70
-		parameters bkA = -150, cbS = 1, bmY = -0.12
+		parameters bkA = -150, cbS = 1, bmY = -0.12, atK = 0, atL = 0, atW = 0, atO = 0
 	endif
 	if mcModel = 3 then
 		parameters mcName = "バックホウ 0.45m³", mcNote = "コマツ PC138US-12 13.8t"
 		parameters mcKind = 1, trkL = 3.61, trkW = 2.49, shoeW = 0.5, trkH = 0.755, upW = 2.5, tailR = 1.49, upZ = 0.9
 		parameters upH = 2.81, bldW = 0, bldH = 0.59, cabW = 1.07, cabL = 1.67, upF = 1.105, pvX = 0.3, pvH = 1.55
 		parameters boomL = 4.6, armL = 2.5, bkL = 1.05, bkW = 0.979, maxR = 8.3, maxD = 5.48, bmA = 35, amA = -70
-		parameters bkA = -150, cbS = 1, bmY = -0.222
+		parameters bkA = -150, cbS = 1, bmY = -0.222, atK = 0, atL = 0, atW = 0, atO = 0
 	endif
 	if mcModel = 4 then
 		parameters mcName = "バックホウ 0.8m³", mcNote = "コマツ PC200-11 20.2t"
 		parameters mcKind = 1, trkL = 4.07, trkW = 2.8, shoeW = 0.6, trkH = 0.88, upW = 2.705, tailR = 2.83, upZ = 1.085
 		parameters upH = 3.045, bldW = 0, bldH = 0.45, cabW = 1, cabL = 1.84, upF = 1.2, pvX = 0.15, pvH = 1.9
 		parameters boomL = 5.7, armL = 2.9, bkL = 1.45, bkW = 1.17, maxR = 9.875, maxD = 6.62, bmA = 35, amA = -70
-		parameters bkA = -150, cbS = 1, bmY = 0
+		parameters bkA = -150, cbS = 1, bmY = 0, atK = 0, atL = 0, atW = 0, atO = 0
 	endif
 	if mcModel = 5 then
 		parameters mcName = "クローラクレーン 50t", mcNote = "コベルコ 7050G-2 48t"
-		parameters mcKind = 2, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5, tailR = 4
-		parameters upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75, lbL = 30.5
-		parameters lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6, gnX = 3.16, gnH = 6.145, hkH = 1.47, hkW = 0.59
-		parameters hkT = 0.435, cbS = -1, maxR = 0
+		parameters mcKind = 2, vbK = 0, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
+		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
+		parameters lbL = 30.5, lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6, gnX = 3.16, gnH = 6.145, hkH = 1.47
+		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0
 	endif
 	if mcModel = 6 then
 		parameters mcName = "クローラクレーン 70t", mcNote = "コベルコ 7070G-2 76t"
-		parameters mcKind = 2, trkL = 5.975, trkW = 4.83, shoeW = 0.8, trkH = 0.99, upW = 2.99, cwW = 3.5, tailR = 4.3
-		parameters upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1, upF = 2.4, pvX = 1.1, pvH = 1.75, lbL = 30.5
-		parameters lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6, gnX = 3.16, gnH = 6.17, hkH = 1.705, hkW = 0.6
-		parameters hkT = 0.535, cbS = -1, maxR = 0
+		parameters mcKind = 2, vbK = 0, trkL = 5.975, trkW = 4.83, shoeW = 0.8, trkH = 0.99, upW = 2.99, cwW = 3.5
+		parameters tailR = 4.3, upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1, upF = 2.4, pvX = 1.1, pvH = 1.75
+		parameters lbL = 30.5, lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6, gnX = 3.16, gnH = 6.17, hkH = 1.705
+		parameters hkW = 0.6, hkT = 0.535, cbS = -1, maxR = 0
 	endif
 	if mcModel = 7 then
 		parameters mcName = "クローラクレーン 90t", mcNote = "コベルコ 7090G-2 93t"
-		parameters mcKind = 2, trkL = 6.315, trkW = 4.9, shoeW = 0.9, trkH = 1.145, upW = 2.99, cwW = 4.2, tailR = 4.4
-		parameters upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2, upF = 2.4, pvX = 1.1, pvH = 2.2, lbL = 29.1
-		parameters lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6, gnX = 3.36, gnH = 6.95, hkH = 1.87, hkW = 0.7
-		parameters hkT = 0.49, cbS = -1, maxR = 0
+		parameters mcKind = 2, vbK = 0, trkL = 6.315, trkW = 4.9, shoeW = 0.9, trkH = 1.145, upW = 2.99, cwW = 4.2
+		parameters tailR = 4.4, upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2, upF = 2.4, pvX = 1.1, pvH = 2.2
+		parameters lbL = 29.1, lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6, gnX = 3.36, gnH = 6.95, hkH = 1.87
+		parameters hkW = 0.7, hkT = 0.49, cbS = -1, maxR = 0
 	endif
 	if mcModel = 8 then
 		parameters mcName = "クローラクレーン 55t（日立住友）", mcNote = "日立住友 SCX550-3 53.4t"
-		parameters mcKind = 2, trkL = 5.55, trkW = 4.36, shoeW = 0.76, trkH = 0.98, upW = 3.2, cwW = 3.2, tailR = 3.85
-		parameters upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.2, pvX = 1, pvH = 1.595, lbL = 31
-		parameters lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6, gnX = 3, gnH = 5.33, hkH = 1.67, hkW = 0.62
-		parameters hkT = 0.55, cbS = -1, maxR = 0
+		parameters mcKind = 2, vbK = 0, trkL = 5.55, trkW = 4.36, shoeW = 0.76, trkH = 0.98, upW = 3.2, cwW = 3.2
+		parameters tailR = 3.85, upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.2, pvX = 1, pvH = 1.595
+		parameters lbL = 31, lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6, gnX = 3, gnH = 5.33, hkH = 1.67
+		parameters hkW = 0.62, hkT = 0.55, cbS = -1, maxR = 0
 	endif
 	if mcModel = 9 then
 		parameters mcName = "クローラクレーン 90t（日立住友）", mcNote = "日立住友 SCX900-3 94t"
-		parameters mcKind = 2, trkL = 6.295, trkW = 4.99, shoeW = 0.81, trkH = 1.11, upW = 2.99, cwW = 4.15, tailR = 4.3
-		parameters upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.7, pvX = 1.2, pvH = 2.11, lbL = 30
-		parameters lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.45, gnH = 6.545, hkH = 2.12, hkW = 0.82
-		parameters hkT = 0.6, cbS = -1, maxR = 0
+		parameters mcKind = 2, vbK = 0, trkL = 6.295, trkW = 4.99, shoeW = 0.81, trkH = 1.11, upW = 2.99, cwW = 4.15
+		parameters tailR = 4.3, upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.7, pvX = 1.2, pvH = 2.11
+		parameters lbL = 30, lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.45, gnH = 6.545, hkH = 2.12
+		parameters hkW = 0.82, hkT = 0.6, cbS = -1, maxR = 0
 	endif
 	if mcModel = 10 then
 		parameters mcName = "ポンプ車 26m", mcNote = "極東開発 PY120B-26D 16.95t"
@@ -163,5 +217,94 @@ if GLOB_MODPAR_NAME = "mcModel" then
 		parameters mcName = "垂直昇降 5.7m", mcNote = "アイチ SV06E1NS 1.2t・作業床 5.72m"
 		parameters mcKind = 7, carL = 1.87, carW = 0.76, carF = 0.935, whR = 0.185, pfL = 1.77, pfW = 0.68, pfH = 3
 		parameters maxR = 0
+	endif
+	if mcModel = 19 then
+		parameters mcName = "三点式杭打機 110t", mcNote = "日本車輌 DH558-110M-5 114t"
+		parameters mcKind = 8, trkL = 5.52, trkW = 4.4, shoeW = 0.8, trkH = 0.908, upW = 3.155, tailR = 4.94, upZ = 1.25
+		parameters upH = 3.141, cabW = 1, cabL = 2, upF = 2.2, cwW = 0, cwH = 1.3, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 0, ldX = 3, ldL = 33.3, ldDia = 0.6604, ldZ = 0.35, auOff = 1.24, auD = 0.6
+		parameters auL = 28.8, auN = 1, auP = 0.45, auH = 2.6, auW = 1.2, auZ = 30.55, stZ = 26.99, fjX = 3.61
+		parameters fjW = 2.52, rjX = 3.64, rjW = 4.1
+	endif
+	if mcModel = 20 then
+		parameters mcName = "三点式杭打機 135t", mcNote = "日本車輌 DH658-135M-5 136t"
+		parameters mcKind = 8, trkL = 5.76, trkW = 4.6, shoeW = 0.8, trkH = 1.02, upW = 3.22, tailR = 5.04, upZ = 1.3
+		parameters upH = 3.31, cabW = 1, cabL = 2, upF = 2.3, cwW = 0, cwH = 1.4, pvX = 1.2, pvH = 2.03
+		parameters cbS = 1, maxR = 0, ldX = 3.29, ldL = 36.2, ldDia = 0.7112, ldZ = 0.35, auOff = 1.24, auD = 0.6
+		parameters auL = 25.8, auN = 1, auP = 0.45, auH = 2.6, auW = 1.2, auZ = 33.45, stZ = 29.31, fjX = 3.89
+		parameters fjW = 2.6, rjX = 3.74, rjW = 4.1
+	endif
+	if mcModel = 21 then
+		parameters mcName = "小型杭打機 10t（地盤改良）", mcNote = "日本車輌 DHJ08-7M 10.4t"
+		parameters mcKind = 8, trkL = 2.5, trkW = 2, shoeW = 0.4, trkH = 0.55, upW = 1.9, tailR = 2.018, upZ = 0.65
+		parameters upH = 2.5, cabW = 0.85, cabL = 1.4, upF = 1, cwW = 0, cwH = 0.7, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 0, ldX = 1.5, ldL = 8.62, ldDia = 0.3, ldZ = 0.35, auOff = 0.65, auD = 0.8
+		parameters auL = 6, auN = 1, auP = 0.45, auH = 1.2, auW = 0.7, auZ = 7.27, stZ = 7.246, fjX = 1.65
+		parameters fjW = 1.75, rjX = 1.65, rjW = 1.75
+	endif
+	if mcModel = 22 then
+		parameters mcName = "SMW 3軸オーガ機", mcNote = "日本車輌 DH658-135M＋三和機工 PAS-150VAR 136t"
+		parameters mcKind = 8, trkL = 5.76, trkW = 4.6, shoeW = 0.8, trkH = 1.02, upW = 3.22, tailR = 5.04, upZ = 1.3
+		parameters upH = 3.31, cabW = 1, cabL = 2, upF = 2.3, cwW = 0, cwH = 1.4, pvX = 1.2, pvH = 2.03
+		parameters cbS = 1, maxR = 0, ldX = 3.29, ldL = 36.2, ldDia = 0.7112, ldZ = 0.35, auOff = 1.24, auD = 0.55
+		parameters auL = 24, auN = 3, auP = 0.45, auH = 3.554, auW = 1.24, auZ = 32.496, stZ = 29.31, fjX = 3.89
+		parameters fjW = 2.6, rjX = 3.74, rjW = 4.1
+	endif
+	if mcModel = 23 then
+		parameters mcName = "アースドリル 20.6m", mcNote = "日本車輌 ED6200H-2 88t"
+		parameters mcKind = 9, trkL = 5.61, trkW = 4.4, shoeW = 0.76, trkH = 0.98, upW = 3.2, tailR = 3.89, upZ = 1.25
+		parameters upH = 3.173, cabW = 1, cabL = 2, upF = 3, cwW = 0, cwH = 1.38, pvX = 1.8, pvH = 2.3
+		parameters cbS = 1, maxR = 0, tbL = 20.6, tbA = 82.5, kdR = 4.492, kdZ = 1.5, kyD = 0.53, auD = 2
+		parameters bkH = 2.089, bkD = 0
+	endif
+	if mcModel = 24 then
+		parameters mcName = "全周回転機 φ2,000", mcNote = "日本車輌 RT-200AⅢ 30t"
+		parameters mcKind = 10, rtL = 4.148, rtW = 3.167, rtH = 3.086, rtD = 1.98, rtS = 0, brL = 8.39, brW = 6.98
+		parameters csD = 1.5, csH = 2, puX = -7.5, puY = 0, puL = 4.8, puW = 2.105, puH = 2.112, maxR = 0
+	endif
+	if mcModel = 25 then
+		parameters mcName = "解体機 40t（超ロング 25m）", mcNote = "コベルコ SK400DLC-10A 48t・コベルコ KR1100TPR-2（超ロング用）"
+		parameters mcKind = 11, trkL = 4.96, trkW = 3.48, shoeW = 0.6, trkH = 1, upW = 2.98, tailR = 3.6, upZ = 1.15
+		parameters upH = 3.31, cabW = 1, cabL = 1.9, upF = 1.9, cwW = 0, cwH = 1.27, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 13, dbL1 = 6, dbL2 = 8.35, dbL3 = 8.7, dA1 = 65, dA2 = 85, dA3 = -30
+		parameters bkA = -90, atK = 1, atL = 2.6, atW = 1.1, atO = 45.2
+	endif
+	if mcModel = 26 then
+		parameters mcName = "解体機 40t（セパレートブーム）", mcNote = "コベルコ SK400DLC-10A 47.4t・コベルコ KR1350TPR-40（セパレート用）"
+		parameters mcKind = 11, trkL = 4.96, trkW = 3.48, shoeW = 0.6, trkH = 1, upW = 2.98, tailR = 3.6, upZ = 1.15
+		parameters upH = 3.31, cabW = 1, cabL = 1.9, upF = 1.9, cwW = 0, cwH = 1.27, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 10.2, dbL1 = 4.5, dbL2 = 4.04, dbL3 = 3.3, dA1 = 50, dA2 = 30, dA3 = -60
+		parameters bkA = -90, atK = 1, atL = 2.9, atW = 1.35, atO = 50.1
+	endif
+	if mcModel = 27 then
+		parameters mcName = "解体機 35t（ロングフロント）", mcNote = "コマツ PC350LC-11 マルチ解体仕様 46.5t・コマツ JATS1100B-1（ロングフロント用）"
+		parameters mcKind = 11, trkL = 4.955, trkW = 3.19, shoeW = 0.6, trkH = 1, upW = 3.145, tailR = 3.45, upZ = 1.19
+		parameters upH = 3.33, cabW = 1, cabL = 1.9, upF = 1.9, cwW = 0, cwH = 1.2, pvX = 0.3, pvH = 2
+		parameters cbS = 1, maxR = 14, dbL1 = 6.5, dbL2 = 7.5, dbL3 = 7.5, dA1 = 65, dA2 = 85, dA3 = -30
+		parameters bkA = -90, atK = 1, atL = 2.675, atW = 1.1, atO = 43.9
+	endif
+	if mcModel = 28 then
+		parameters mcName = "内装解体機 1.9t", mcNote = "コマツ PC18MR-5 解体2ピースブーム仕様 1.97t・フォーク 丸順 IFZ15"
+		parameters mcKind = 11, trkL = 1.57, trkW = 1.28, shoeW = 0.23, trkH = 0.36, upW = 0.98, tailR = 0.715, upZ = 0.42
+		parameters upH = 2.41, cabW = 0.75, cabL = 0.9, upF = 0.55, cwW = 0, cwH = 0, pvX = 0.2, pvH = 0.7
+		parameters cbS = 1, maxR = 3.85, dbL1 = 1.1, dbL2 = 0.95, dbL3 = 0.9, dA1 = 60, dA2 = 70, dA3 = -20
+		parameters bkA = -60, atK = 3, atL = 0.67, atW = 0.7, atO = 143.5
+	endif
+	if mcModel = 29 then
+		parameters mcName = "圧入機 U形 400（ST400SX）", mcNote = "技研製作所 ST400SX 5.6t"
+		parameters mcKind = 12, piL = 2.07, piW = 1, piH = 2.32, piC = 0.955, piS = 0, piP = 0.4, piN = 4
+		parameters piT = 3, puX = -6, puY = 2.5, puL = 3.54, puW = 1.96, puH = 2.35, maxR = 0
+	endif
+	if mcModel = 30 then
+		parameters mcName = "圧入機 U形 600（F201）", mcNote = "技研製作所 F201 10.3t"
+		parameters mcKind = 12, piL = 2.97, piW = 1.27, piH = 2.65, piC = 1.095, piS = 0, piP = 0.6, piN = 4
+		parameters piT = 3, puX = -7, puY = 2.8, puL = 4.7, puW = 2.065, puH = 2.55, maxR = 0
+	endif
+	if mcModel = 31 then
+		parameters mcName = "バイブロ（50t クレーン）", mcNote = "コベルコ 7050G-2 48t"
+		parameters mcKind = 2, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
+		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
+		parameters lbL = 21.3, lbA = 78, lbW = 1.355, cwH = 2.15, hkD = 3, gnX = 3.16, gnH = 6.145, hkH = 1.47
+		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, vbW = 1.337, vbT = 0.722, vbH = 3.479, vbP = 12
 	endif
 endif

@@ -30,7 +30,7 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="mcKind">
-			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降）"]]></Description>
+			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降・8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機）"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<Integer Name="mcModel">
@@ -368,6 +368,250 @@
 		<Length Name="pfH">
 			<Description><![CDATA["作業床の高さ（垂直昇降）"]]></Description>
 			<Value>3.0</Value>
+		</Length>
+		<Integer Name="atK">
+			<Description><![CDATA["アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="atL">
+			<Description><![CDATA["アタッチメントの本体長さ（ピンから先端）"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Length Name="atW">
+			<Description><![CDATA["アタッチメントの最大開口幅（ブレーカはチゼル径）"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Angle Name="atO">
+			<Description><![CDATA["爪の開き"]]></Description>
+			<Value>50.0</Value>
+		</Angle>
+		<Length Name="ldX">
+			<Description><![CDATA["リーダの中心（旋回中心から前）"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<Length Name="ldL">
+			<Description><![CDATA["リーダの長さ"]]></Description>
+			<Value>33.0</Value>
+		</Length>
+		<Length Name="ldDia">
+			<Description><![CDATA["リーダの主管の径"]]></Description>
+			<Value>0.66</Value>
+		</Length>
+		<Length Name="ldZ">
+			<Description><![CDATA["リーダの下端の高さ"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<Length Name="stZ">
+			<Description><![CDATA["ステーの上端の高さ"]]></Description>
+			<Value>26.75</Value>
+		</Length>
+		<Length Name="auOff">
+			<Description><![CDATA["オーガの中心（リーダから前）"]]></Description>
+			<Value>1.24</Value>
+		</Length>
+		<Length Name="auD">
+			<Description><![CDATA["オーガの径（アースドリルはバケットの径）"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="auL">
+			<Description><![CDATA["スクリューの長さ"]]></Description>
+			<Value>28.8</Value>
+		</Length>
+		<Length Name="auZ">
+			<Description><![CDATA["オーガのモータの下端の高さ"]]></Description>
+			<Value>30.25</Value>
+		</Length>
+		<Integer Name="auN">
+			<Description><![CDATA["オーガの本数（SMW は 3）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="auP">
+			<Description><![CDATA["オーガの軸間"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="auH">
+			<Description><![CDATA["モータの高さ"]]></Description>
+			<Value>2.6</Value>
+		</Length>
+		<Length Name="auW">
+			<Description><![CDATA["モータの前後の長さ"]]></Description>
+			<Value>1.2</Value>
+		</Length>
+		<Length Name="fjX">
+			<Description><![CDATA["フロントジャッキ（旋回中心から前）"]]></Description>
+			<Value>3.61</Value>
+		</Length>
+		<Length Name="fjW">
+			<Description><![CDATA["フロントジャッキの間"]]></Description>
+			<Value>2.52</Value>
+		</Length>
+		<Length Name="rjX">
+			<Description><![CDATA["後ろのアウトリガ（旋回中心から後ろ）"]]></Description>
+			<Value>3.64</Value>
+		</Length>
+		<Length Name="rjW">
+			<Description><![CDATA["後ろのアウトリガの幅"]]></Description>
+			<Value>4.1</Value>
+		</Length>
+		<Length Name="tbL">
+			<Description><![CDATA["テレスコブームの長さ"]]></Description>
+			<Value>20.6</Value>
+		</Length>
+		<Angle Name="tbA">
+			<Description><![CDATA["テレスコブームの起伏角"]]></Description>
+			<Value>82.5</Value>
+		</Angle>
+		<Length Name="kdR">
+			<Description><![CDATA["掘削中心（旋回中心から前）"]]></Description>
+			<Value>4.492</Value>
+		</Length>
+		<Length Name="kdZ">
+			<Description><![CDATA["ケリードライブの高さ"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="kyD">
+			<Description><![CDATA["ケリーバの径"]]></Description>
+			<Value>0.53</Value>
+		</Length>
+		<Length Name="bkH">
+			<Description><![CDATA["ドリリングバケットの高さ"]]></Description>
+			<Value>2.089</Value>
+		</Length>
+		<Length Name="bkD">
+			<Description><![CDATA["バケットの下端の深さ（地面から下）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="rtL">
+			<Description><![CDATA["本体の長さ"]]></Description>
+			<Value>4.148</Value>
+		</Length>
+		<Length Name="rtW">
+			<Description><![CDATA["本体の幅"]]></Description>
+			<Value>3.167</Value>
+		</Length>
+		<Length Name="rtH">
+			<Description><![CDATA["本体の高さ（手すりの上）"]]></Description>
+			<Value>3.086</Value>
+		</Length>
+		<Length Name="rtD">
+			<Description><![CDATA["本体の通り穴の径"]]></Description>
+			<Value>1.98</Value>
+		</Length>
+		<Length Name="rtS">
+			<Description><![CDATA["チャックの上がり（押抜ストローク）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="brL">
+			<Description><![CDATA["反力ブラケットを含む長さ"]]></Description>
+			<Value>8.39</Value>
+		</Length>
+		<Length Name="brW">
+			<Description><![CDATA["反力ブラケットを含む幅"]]></Description>
+			<Value>6.98</Value>
+		</Length>
+		<Length Name="csD">
+			<Description><![CDATA["ケーシングの径"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="csH">
+			<Description><![CDATA["ケーシングの本体の上の高さ"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Length Name="puX">
+			<Description><![CDATA["油圧ユニット・パワーユニットの芯（前が +）"]]></Description>
+			<Value>-7.5</Value>
+		</Length>
+		<Length Name="puY">
+			<Description><![CDATA["油圧ユニット・パワーユニットの芯（左が +）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="puL">
+			<Description><![CDATA["ユニットの長さ"]]></Description>
+			<Value>4.8</Value>
+		</Length>
+		<Length Name="puW">
+			<Description><![CDATA["ユニットの幅"]]></Description>
+			<Value>2.105</Value>
+		</Length>
+		<Length Name="puH">
+			<Description><![CDATA["ユニットの高さ"]]></Description>
+			<Value>2.112</Value>
+		</Length>
+		<Length Name="dbL1">
+			<Description><![CDATA["メインブーム（＋インサート）"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="dbL2">
+			<Description><![CDATA["フロントブーム（＋インター）"]]></Description>
+			<Value>8.35</Value>
+		</Length>
+		<Length Name="dbL3">
+			<Description><![CDATA["アーム"]]></Description>
+			<Value>8.7</Value>
+		</Length>
+		<Angle Name="dA1">
+			<Description><![CDATA["メインブームの角度"]]></Description>
+			<Value>65.0</Value>
+		</Angle>
+		<Angle Name="dA2">
+			<Description><![CDATA["フロントブームの角度"]]></Description>
+			<Value>85.0</Value>
+		</Angle>
+		<Angle Name="dA3">
+			<Description><![CDATA["アームの角度"]]></Description>
+			<Value>-30.0</Value>
+		</Angle>
+		<Length Name="piL">
+			<Description><![CDATA["圧入機の全長"]]></Description>
+			<Value>2.07</Value>
+		</Length>
+		<Length Name="piW">
+			<Description><![CDATA["圧入機の全幅"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="piH">
+			<Description><![CDATA["圧入機の全高"]]></Description>
+			<Value>2.32</Value>
+		</Length>
+		<Length Name="piC">
+			<Description><![CDATA["チャック投入高"]]></Description>
+			<Value>0.955</Value>
+		</Length>
+		<Length Name="piS">
+			<Description><![CDATA["チャックの上がり"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="piP">
+			<Description><![CDATA["鋼矢板の幅"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Integer Name="piN">
+			<Description><![CDATA["後ろの完成杭の枚数"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Length Name="piT">
+			<Description><![CDATA["チャックの杭の天端（チャックの上）"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<Integer Name="vbK">
+			<Description><![CDATA["フックの先（0 フック・1 バイブロ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="vbW">
+			<Description><![CDATA["バイブロの幅"]]></Description>
+			<Value>1.337</Value>
+		</Length>
+		<Length Name="vbT">
+			<Description><![CDATA["バイブロの厚み"]]></Description>
+			<Value>0.722</Value>
+		</Length>
+		<Length Name="vbH">
+			<Description><![CDATA["バイブロの全高（チャック込み）"]]></Description>
+			<Value>3.479</Value>
+		</Length>
+		<Length Name="vbP">
+			<Description><![CDATA["バイブロの杭の長さ"]]></Description>
+			<Value>12.0</Value>
 		</Length>
 		<RealNum Name="texSiz">
 			<Description><![CDATA["文字の大きさ（mm）"]]></Description>

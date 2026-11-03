@@ -2,7 +2,9 @@
 
 利用者の指定（2026-11-01）「重機の詳細度もっとあげて　種類も増やして」。機種と寸法は src/ashiba/machine.py（出典はそちら）、置くのは
 scripts/machine_run.py。mcKind 1 バックホウ・2 クローラクレーン・3 コンクリートポンプ車・4 生コン車（トラックミキサ）・5 ダンプ・
-6 高所作業車（トラック式）・7 垂直昇降（自走式シザース）。原点＝旋回中心の地盤（ミキサ・ダンプ・垂直昇降は車体の真ん中）、+X＝車体の前。旋回 slew で上部（バックホウ・
+6 高所作業車（トラック式）・7 垂直昇降（自走式シザース）・8 三点式杭打機（SMW の3軸も）・9 アースドリル・10 全周回転機・11 解体機・
+12 圧入機。バックホウ・解体機の先は解体アタッチメント（atK 1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）、クローラクレーンの
+フックにバイブロ（vbK）。原点＝旋回中心の地盤（ミキサ・ダンプ・垂直昇降は車体の真ん中）、+X＝車体の前。旋回 slew で上部（バックホウ・
 クローラクレーンの上部旋回体、ポンプ車・高所作業車のブーム）を回す。
 
 クローラ（履帯の全長 trkL・全幅 trkW・シュー幅 shoeW・高さ trkH）は履帯の板（グローサ）・遊動輪・起動輪・下転輪まで、上部旋回体は後端
@@ -36,7 +38,8 @@ def paramlist() -> str:
         _param("Length", "A", "Dimension 1", 1, True),
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
-        _param("Integer", "mcKind", "種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降）", 1),
+        _param("Integer", "mcKind", "種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降・"
+               "8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機）", 1),
         _param("Integer", "mcModel", "機種（選ぶと寸法を書き込む。0＝手入力）", 3),
         _param("String", "mcName", "機種の名前（平面の注記）", "バックホウ 0.45m³"),
         _param("String", "mcNote", "諸元の注記", ""),
@@ -128,6 +131,74 @@ def paramlist() -> str:
         _param("Length", "pfL", "バスケットの長さ", 1.2),
         _param("Length", "pfW", "バスケットの幅", 0.7),
         _param("Length", "pfH", "作業床の高さ（垂直昇降）", 3.0),
+        # 解体アタッチメント（バックホウ・解体機の先）
+        _param("Integer", "atK", "アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）", 0),
+        _param("Length", "atL", "アタッチメントの本体長さ（ピンから先端）", 2.0),
+        _param("Length", "atW", "アタッチメントの最大開口幅（ブレーカはチゼル径）", 1.0),
+        _param("Angle", "atO", "爪の開き", 50.0),
+        # 三点式杭打機（リーダ・ステー・オーガ・ジャッキ）
+        _param("Length", "ldX", "リーダの中心（旋回中心から前）", 3.0),
+        _param("Length", "ldL", "リーダの長さ", 33.0),
+        _param("Length", "ldDia", "リーダの主管の径", 0.66),
+        _param("Length", "ldZ", "リーダの下端の高さ", 0.35),
+        _param("Length", "stZ", "ステーの上端の高さ", 26.75),
+        _param("Length", "auOff", "オーガの中心（リーダから前）", 1.24),
+        _param("Length", "auD", "オーガの径（アースドリルはバケットの径）", 0.6),
+        _param("Length", "auL", "スクリューの長さ", 28.8),
+        _param("Length", "auZ", "オーガのモータの下端の高さ", 30.25),
+        _param("Integer", "auN", "オーガの本数（SMW は 3）", 1),
+        _param("Length", "auP", "オーガの軸間", 0.45),
+        _param("Length", "auH", "モータの高さ", 2.6),
+        _param("Length", "auW", "モータの前後の長さ", 1.2),
+        _param("Length", "fjX", "フロントジャッキ（旋回中心から前）", 3.61),
+        _param("Length", "fjW", "フロントジャッキの間", 2.52),
+        _param("Length", "rjX", "後ろのアウトリガ（旋回中心から後ろ）", 3.64),
+        _param("Length", "rjW", "後ろのアウトリガの幅", 4.1),
+        # アースドリル
+        _param("Length", "tbL", "テレスコブームの長さ", 20.6),
+        _param("Angle", "tbA", "テレスコブームの起伏角", 82.5),
+        _param("Length", "kdR", "掘削中心（旋回中心から前）", 4.492),
+        _param("Length", "kdZ", "ケリードライブの高さ", 1.5),
+        _param("Length", "kyD", "ケリーバの径", 0.53),
+        _param("Length", "bkH", "ドリリングバケットの高さ", 2.089),
+        _param("Length", "bkD", "バケットの下端の深さ（地面から下）", 0.0),
+        # 全周回転機
+        _param("Length", "rtL", "本体の長さ", 4.148),
+        _param("Length", "rtW", "本体の幅", 3.167),
+        _param("Length", "rtH", "本体の高さ（手すりの上）", 3.086),
+        _param("Length", "rtD", "本体の通り穴の径", 1.98),
+        _param("Length", "rtS", "チャックの上がり（押抜ストローク）", 0.0),
+        _param("Length", "brL", "反力ブラケットを含む長さ", 8.39),
+        _param("Length", "brW", "反力ブラケットを含む幅", 6.98),
+        _param("Length", "csD", "ケーシングの径", 1.5),
+        _param("Length", "csH", "ケーシングの本体の上の高さ", 2.0),
+        _param("Length", "puX", "油圧ユニット・パワーユニットの芯（前が +）", -7.5),
+        _param("Length", "puY", "油圧ユニット・パワーユニットの芯（左が +）", 0.0),
+        _param("Length", "puL", "ユニットの長さ", 4.8),
+        _param("Length", "puW", "ユニットの幅", 2.105),
+        _param("Length", "puH", "ユニットの高さ", 2.112),
+        # 解体機のフロント（3段の弦の長さと水平からの角度。先の角度は bkA）
+        _param("Length", "dbL1", "メインブーム（＋インサート）", 6.0),
+        _param("Length", "dbL2", "フロントブーム（＋インター）", 8.35),
+        _param("Length", "dbL3", "アーム", 8.7),
+        _param("Angle", "dA1", "メインブームの角度", 65.0),
+        _param("Angle", "dA2", "フロントブームの角度", 85.0),
+        _param("Angle", "dA3", "アームの角度", -30.0),
+        # 圧入機（完成杭の上。チャックに次の杭）
+        _param("Length", "piL", "圧入機の全長", 2.07),
+        _param("Length", "piW", "圧入機の全幅", 1.0),
+        _param("Length", "piH", "圧入機の全高", 2.32),
+        _param("Length", "piC", "チャック投入高", 0.955),
+        _param("Length", "piS", "チャックの上がり", 0.0),
+        _param("Length", "piP", "鋼矢板の幅", 0.4),
+        _param("Integer", "piN", "後ろの完成杭の枚数", 4),
+        _param("Length", "piT", "チャックの杭の天端（チャックの上）", 3.0),
+        # クレーンに吊るバイブロ
+        _param("Integer", "vbK", "フックの先（0 フック・1 バイブロ）", 0),
+        _param("Length", "vbW", "バイブロの幅", 1.337),
+        _param("Length", "vbT", "バイブロの厚み", 0.722),
+        _param("Length", "vbH", "バイブロの全高（チャック込み）", 3.479),
+        _param("Length", "vbP", "バイブロの杭の長さ", 12.0),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
@@ -142,8 +213,8 @@ def paramlist() -> str:
 
 
 SCRIPT_1D = """﻿! 重機: 種類ごとの形（m・度）
-isCr = (mcKind = 1 or mcKind = 2)
-isTk = (mcKind >= 3)
+isCr = (mcKind <= 2 or mcKind = 8 or mcKind = 9 or mcKind = 11)
+isTk = (mcKind >= 3 and mcKind <= 7)
 ! 上部旋回体の後ろの円弧（後端旋回半径）と幅の合う所
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
@@ -213,10 +284,56 @@ abZ = tuH + abL * sin(abA)
 ! クローラクレーンのブームの先
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
+! アースドリルのテレスコブームの先
+tbX = pvX + tbL * cos(tbA)
+tbZ = pvH + tbL * sin(tbA)
+! 解体機のフロント（3段の関節とアームの先）
+dmX1 = pvX + dbL1 * cos(dA1)
+dmZ1 = pvH + dbL1 * sin(dA1)
+dmX2 = dmX1 + dbL2 * cos(dA2)
+dmZ2 = dmZ1 + dbL2 * sin(dA2)
+dmX3 = dmX2 + dbL3 * cos(dA3)
+dmZ3 = dmZ2 + dbL3 * sin(dA3)
+! 先の長さ（バケットかアタッチメント）
+tpL = bkL
+if atK > 0 then tpL = atL
+! 杭打機のオーガ（本数と1本めの y）
+nAu = max(1, min(3, auN))
+yAu0 = -(nAu - 1) * auP / 2
+! 全周回転機のデッキの高さ（本体の高さから手すり 0.969 下）
+zDk = max(0.5, rtH - 0.969)
 """
 
 SCRIPT_VL = """﻿! 重機: 種類の一覧
-values{2} "mcKind" 1, "バックホウ", 2, "クローラクレーン", 3, "コンクリートポンプ車", 4, "生コン車", 5, "ダンプ", 6, "高所作業車", 7, "垂直昇降"
+dim kdV[], kdS[]
+kdV[1] = 1
+kdS[1] = "バックホウ"
+kdV[2] = 2
+kdS[2] = "クローラクレーン"
+kdV[3] = 3
+kdS[3] = "コンクリートポンプ車"
+kdV[4] = 4
+kdS[4] = "生コン車"
+kdV[5] = 5
+kdS[5] = "ダンプ"
+kdV[6] = 6
+kdS[6] = "高所作業車"
+kdV[7] = 7
+kdS[7] = "垂直昇降"
+kdV[8] = 8
+kdS[8] = "三点式杭打機"
+kdV[9] = 9
+kdS[9] = "アースドリル"
+kdV[10] = 10
+kdS[10] = "全周回転機"
+kdV[11] = 11
+kdS[11] = "解体機"
+kdV[12] = 12
+kdS[12] = "圧入機"
+values{2} "mcKind" kdV, kdS
+values{2} "atK" 0, "バケット", 1, "圧砕機", 2, "鉄骨切断機", 3, "つかみ機", 4, "ブレーカ"
+values "auN" 1, 3
+values{2} "vbK" 0, "フック", 1, "バイブロ"
 values "nFr" 1, 2
 values{2} "cbS" 1, "左", -1, "右"
 values "nRear" 1, 2
@@ -249,13 +366,77 @@ if isCr then
 	if mcKind = 1 then
 		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
 		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
-		rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
-	else
+		if atK > 0 then
+			wA = max(0.3, min(atW, 1.2))
+			rect2 amX1, bmY - wA / 2, amX1 + atL * max(0.2, cos(bkA)), bmY + wA / 2
+		else
+			rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
+		endif
+	endif
+	if mcKind = 2 then
 		line2 pvX, -lbW / 2, lbX, -lbW / 2
 		line2 pvX, lbW / 2, lbX, lbW / 2
 		circle2 lbX, 0, 0.4
+		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+	endif
+	if mcKind = 8 then
+		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
+		circle2 ldX, 0, ldDia / 2
+		rect2 upF - 0.1, -0.6, ldX, 0.6
+		for i = 1 to nAu
+			circle2 ldX + auOff, yAu0 + (i - 1) * auP, auD / 2
+		next i
+		rect2 ldX + auOff - auW / 2, yAu0 - auD / 2 - 0.1, ldX + auOff + auW / 2, -yAu0 + auD / 2 + 0.1
+		for s = -1 to 1 step 2
+			line2 -tailR * 0.35, s * upW * 0.35, ldX, s * ldDia * 0.3
+			rect2 fjX - 0.3, s * fjW / 2 - 0.3, fjX + 0.3, s * fjW / 2 + 0.3
+			rect2 -rjX - 0.3, s * rjW / 2 - 0.3, -rjX + 0.3, s * rjW / 2 + 0.3
+			line2 -rjX, 0, -rjX, s * rjW / 2
+		next s
+	endif
+	if mcKind = 9 then
+		! テレスコブーム・ケリードライブ・バケット（掘削中心）
+		line2 pvX, -0.45, tbX, -0.45
+		line2 pvX, 0.45, tbX, 0.45
+		rect2 kdR - 0.9, -0.9, kdR + 0.9, 0.9
+		circle2 kdR, 0, auD / 2
+		line2 kdR - auD / 2 - 0.3, 0, kdR + auD / 2 + 0.3, 0
+		line2 kdR, -auD / 2 - 0.3, kdR, auD / 2 + 0.3
+	endif
+	if mcKind = 11 then
+		! フロント（3段）と先のアタッチメント
+		line2 pvX, -0.35, max(dmX1, dmX3), -0.3
+		line2 pvX, 0.35, max(dmX1, dmX3), 0.3
+		wA = max(0.3, min(atW, 1.2))
+		if atK = 0 then wA = bkW
+		rect2 dmX3, -wA / 2, dmX3 + tpL * max(0.2, abs(cos(bkA))), wA / 2
 	endif
 	del 1
+endif
+if mcKind = 10 then
+	! 全周回転機: 反力ブラケット・本体・通り穴・ケーシング・水平ジャッキ・油圧ユニット
+	rect2 -brL / 2, -0.3, brL / 2, 0.3
+	rect2 -0.3, -brW / 2, 0.3, brW / 2
+	rect2 -rtL / 2, -rtW / 2, rtL / 2, rtW / 2
+	circle2 0, 0, rtD / 2
+	circle2 0, 0, csD / 2
+	for s = -1 to 1 step 2
+		for t = -1 to 1 step 2
+			circle2 s * (rtL / 2 - 0.35), t * (rtW / 2 - 0.35), 0.25
+		next t
+	next s
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
+endif
+if mcKind = 12 then
+	! 圧入機: 本体・チャックの杭・後ろの完成杭（つかむ反力杭）・パワーユニット
+	rect2 -piL + 0.35, -piW / 2, 0.35, piW / 2
+	for i = 0 to piN
+		xP = -i * piP
+		line2 xP - piP / 2, 0, xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 2, 0
+	next i
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
 endif
 if isTk then
 	! 車体・運転室・タイヤ
@@ -303,16 +484,19 @@ endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）
 rW = maxR
 if mcKind = 2 then rW = lbX + 0.4
-if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then circle2 0, 0, rW
+isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
+if rW > 0.1 and isR then circle2 0, 0, rW
 ! 注記（機種・諸元）
 xN = -tailR - 0.6
 if isTk then xN = xR - 0.6
+if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
+if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
 add2 xN, 0
 rot2 -SYMB_ROTANGLE
 text2 0, 0, mcName
 if strlen(mcNote) > 0 then text2 0, -dT, mcNote
 del 2
-if rW > 0.1 and (mcKind <= 3 or mcKind = 6) then
+if rW > 0.1 and isR then
 	add2 rW * cos(45), rW * sin(45)
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
@@ -327,11 +511,11 @@ hotspot2 0, 0
 """
 
 SCRIPT_3D = """﻿! 重機 3D
-! 車体の色（バックホウは黄、ほかは白。同じ名前の define material を2回書くと 3D が止まる）
+! 車体の色（バックホウ・解体機は黄、ほかは白。同じ名前の define material を2回書くと 3D が止まる）
 cR = 0.95
 cG = 0.72
 cB = 0.08
-if mcKind >= 2 then
+if mcKind >= 2 and mcKind <> 11 then
 	cR = 0.93
 	cG = 0.94
 	cB = 0.95
@@ -379,7 +563,186 @@ if mcKind = 6 then
 	del 1
 endif
 if mcKind = 7 then gosub "scissor"
+if mcKind = 8 then
+	rotz slew
+	gosub "upper"
+	gosub "pileleader"
+	del 1
+endif
+if mcKind = 9 then
+	rotz slew
+	gosub "upper"
+	gosub "earthdrill"
+	del 1
+endif
+if mcKind = 10 then gosub "rotator"
+if mcKind = 11 then
+	rotz slew
+	gosub "upper"
+	gosub "demolish"
+	del 1
+endif
+if mcKind = 12 then gosub "piler"
+gosub "hotspots"
 end
+
+"hotspots":
+	! 動かせるホットスポット（利用者の指定 2026-11-03: 他の重機もホットスポットで動かせるように）。角度は 6＝中心・4＝基準（水平）・
+	! 5＝動く点・7＝回る面の法線の点（側面の xz 面。−y）。長さは 1＝基点（+128 で見せない）・2＝動く点・3＝向きの基準
+	if mcKind = 1 then
+		rotz slew
+		add 0, bmY, 0
+		hotspot pvX, 0, pvH, 201, bmA, 6
+		hotspot pvX + 1, 0, pvH, 202, bmA, 4
+		hotspot bmX1, 0, bmZ1, 203, bmA, 5
+		hotspot pvX, -1, pvH, 204, bmA, 7
+		hotspot bmX1, 0, bmZ1, 205, amA, 6
+		hotspot bmX1 + 1, 0, bmZ1, 206, amA, 4
+		hotspot amX1, 0, amZ1, 207, amA, 5
+		hotspot bmX1, -1, bmZ1, 208, amA, 7
+		hotspot amX1, 0, amZ1, 209, bkA, 6
+		hotspot amX1 + 1, 0, amZ1, 210, bkA, 4
+		hotspot amX1 + tpL * cos(bkA), 0, amZ1 + tpL * sin(bkA), 211, bkA, 5
+		hotspot amX1, -1, amZ1, 212, bkA, 7
+		del 2
+	endif
+	if mcKind = 2 then
+		rotz slew
+		hotspot pvX, 0, pvH, 221, lbA, 6
+		hotspot pvX + 1, 0, pvH, 222, lbA, 4
+		hotspot lbX, 0, lbZ, 223, lbA, 5
+		hotspot pvX, -1, pvH, 224, lbA, 7
+		hotspot lbX + 0.4, 0, lbZ, 225, hkD, 1 + 128
+		hotspot lbX + 0.4, 0, lbZ - hkD, 226, hkD, 2
+		hotspot lbX + 0.4, 0, lbZ + 1, 227, hkD, 3
+		del 1
+	endif
+	if mcKind = 3 then
+		! ポンプ車のブームの段ごとの角度（水平から）。段の根元が中心
+		rotz slew
+		hx = 0
+		hz = tuH
+		for i = 1 to nSc
+			qx = hx + sl[i] * cos(sa[i])
+			qz = hz + sl[i] * sin(sa[i])
+			hid = 230 + 4 * i
+			if i = 1 then hotspot hx, 0, hz, hid, pA1, 6
+			if i = 2 then hotspot hx, 0, hz, hid, pA2, 6
+			if i = 3 then hotspot hx, 0, hz, hid, pA3, 6
+			if i = 4 then hotspot hx, 0, hz, hid, pA4, 6
+			if i = 5 then hotspot hx, 0, hz, hid, pA5, 6
+			if i = 1 then hotspot hx + 1, 0, hz, hid + 1, pA1, 4
+			if i = 2 then hotspot hx + 1, 0, hz, hid + 1, pA2, 4
+			if i = 3 then hotspot hx + 1, 0, hz, hid + 1, pA3, 4
+			if i = 4 then hotspot hx + 1, 0, hz, hid + 1, pA4, 4
+			if i = 5 then hotspot hx + 1, 0, hz, hid + 1, pA5, 4
+			if i = 1 then hotspot qx, 0, qz, hid + 2, pA1, 5
+			if i = 2 then hotspot qx, 0, qz, hid + 2, pA2, 5
+			if i = 3 then hotspot qx, 0, qz, hid + 2, pA3, 5
+			if i = 4 then hotspot qx, 0, qz, hid + 2, pA4, 5
+			if i = 5 then hotspot qx, 0, qz, hid + 2, pA5, 5
+			if i = 1 then hotspot hx, -1, hz, hid + 3, pA1, 7
+			if i = 2 then hotspot hx, -1, hz, hid + 3, pA2, 7
+			if i = 3 then hotspot hx, -1, hz, hid + 3, pA3, 7
+			if i = 4 then hotspot hx, -1, hz, hid + 3, pA4, 7
+			if i = 5 then hotspot hx, -1, hz, hid + 3, pA5, 7
+			hx = qx
+			hz = qz
+		next i
+		del 1
+	endif
+	if mcKind = 5 then
+		! ダンプの荷台の上げ角（後ろのヒンジが中心）
+		hX = xR + 0.1
+		hZ = frZ + 0.05
+		hotspot hX, 0, hZ, 261, bedA, 6
+		hotspot hX + 1, 0, hZ, 262, bedA, 4
+		hotspot hX + bedL * cos(bedA), 0, hZ + bedL * sin(bedA), 263, bedA, 5
+		hotspot hX, -1, hZ, 264, bedA, 7
+	endif
+	if mcKind = 6 then
+		rotz slew
+		hotspot -0.4, 0, tuH, 271, abA, 6
+		hotspot 0.6, 0, tuH, 272, abA, 4
+		hotspot abX, 0, abZ, 273, abA, 5
+		hotspot -0.4, -1, tuH, 274, abA, 7
+		hotspot -0.4, 0, tuH, 275, abL, 1 + 128
+		hotspot abX, 0, abZ, 276, abL, 2
+		hotspot -0.4 - cos(abA), 0, tuH - sin(abA), 277, abL, 3
+		del 1
+	endif
+	if mcKind = 7 then
+		hotspot 0, 0, 0, 281, pfH, 1 + 128
+		hotspot 0, 0, pfH, 282, pfH, 2
+		hotspot 0, 0, -1, 283, pfH, 3
+	endif
+	if mcKind = 8 then
+		! オーガのモータの高さ（下げるとスクリューが地面に入る）とリーダの長さ
+		rotz slew
+		xA = ldX + auOff
+		hotspot xA, 0, 0, 291, auZ, 1 + 128
+		hotspot xA, 0, auZ, 292, auZ, 2
+		hotspot xA, 0, -1, 293, auZ, 3
+		hotspot ldX, 0, ldZ, 294, ldL, 1 + 128
+		hotspot ldX, 0, ldZ + ldL, 295, ldL, 2
+		hotspot ldX, 0, ldZ - 1, 296, ldL, 3
+		del 1
+	endif
+	if mcKind = 9 then
+		! テレスコブームの起伏と長さ、バケットの深さ（下へ）
+		rotz slew
+		hotspot pvX, 0, pvH, 301, tbA, 6
+		hotspot pvX + 1, 0, pvH, 302, tbA, 4
+		hotspot tbX, 0, tbZ, 303, tbA, 5
+		hotspot pvX, -1, pvH, 304, tbA, 7
+		hotspot pvX, 0, pvH, 305, tbL, 1 + 128
+		hotspot tbX, 0, tbZ, 306, tbL, 2
+		hotspot pvX - cos(tbA), 0, pvH - sin(tbA), 307, tbL, 3
+		hotspot kdR, 0, 0, 308, bkD, 1 + 128
+		hotspot kdR, 0, -bkD, 309, bkD, 2
+		hotspot kdR, 0, 1, 310, bkD, 3
+		del 1
+	endif
+	if mcKind = 10 then
+		! チャックの上がりとケーシングの高さ
+		hotspot rtL / 2, 0, zDk, 311, rtS, 1 + 128
+		hotspot rtL / 2, 0, zDk + rtS, 312, rtS, 2
+		hotspot rtL / 2, 0, zDk - 1, 313, rtS, 3
+		hotspot 0, 0, rtH + rtS, 314, csH, 1 + 128
+		hotspot 0, 0, rtH + rtS + csH, 315, csH, 2
+		hotspot 0, 0, rtH + rtS - 1, 316, csH, 3
+	endif
+	if mcKind = 11 then
+		! フロント3段と先の角度（関節が中心）
+		rotz slew
+		hotspot pvX, 0, pvH, 321, dA1, 6
+		hotspot pvX + 1, 0, pvH, 322, dA1, 4
+		hotspot dmX1, 0, dmZ1, 323, dA1, 5
+		hotspot pvX, -1, pvH, 324, dA1, 7
+		hotspot dmX1, 0, dmZ1, 325, dA2, 6
+		hotspot dmX1 + 1, 0, dmZ1, 326, dA2, 4
+		hotspot dmX2, 0, dmZ2, 327, dA2, 5
+		hotspot dmX1, -1, dmZ1, 328, dA2, 7
+		hotspot dmX2, 0, dmZ2, 329, dA3, 6
+		hotspot dmX2 + 1, 0, dmZ2, 330, dA3, 4
+		hotspot dmX3, 0, dmZ3, 331, dA3, 5
+		hotspot dmX2, -1, dmZ2, 332, dA3, 7
+		hotspot dmX3, 0, dmZ3, 333, bkA, 6
+		hotspot dmX3 + 1, 0, dmZ3, 334, bkA, 4
+		hotspot dmX3 + tpL * cos(bkA), 0, dmZ3 + tpL * sin(bkA), 335, bkA, 5
+		hotspot dmX3, -1, dmZ3, 336, bkA, 7
+		del 1
+	endif
+	if mcKind = 12 then
+		! チャックの上がりと杭の天端
+		hotspot 0.35, 0, piC, 341, piS, 1 + 128
+		hotspot 0.35, 0, piC + piS, 342, piS, 2
+		hotspot 0.35, 0, piC - 1, 343, piS, 3
+		hotspot 0, 0, piC + piS, 344, piT, 1 + 128
+		hotspot 0, 0, piC + piS + piT, 345, piT, 2
+		hotspot 0, 0, piC + piS - 1, 346, piT, 3
+	endif
+return
 
 "crawler":
 	! 履帯（帯・両端の輪・グローサ・横のフレームと下転輪・遊動輪と起動輪）と下部の枠・旋回輪
@@ -628,19 +991,13 @@ end
 	rotx 90
 	cylind bwq + 0.06, 0.07
 	del 2
-	! バケット（ピンから爪へ bkA の向き。側板の形を幅 bkW で押し出す）
-	material "mc_dark"
-	add amX1, bkW / 2, amZ1
-	rotx 90
-	rotz bkA
-	prism 6, bkW, 0, 0.1 * bkL, 0.3 * bkL, 0.42 * bkL, 0.8 * bkL, 0.38 * bkL, bkL, 0, 0.85 * bkL, -0.06 * bkL, 0.12 * bkL, -0.1 * bkL
-	nTh = max(3, int(bkW / 0.22))
-	for k = 0 to nTh - 1
-		add bkL - 0.02, -0.03, 0.06 + k * (bkW - 0.12) / max(1, nTh - 1) - 0.04
-		block 0.14, 0.06, 0.08
-		del 1
-	next k
-	del 3
+	atX0 = amX1
+	atZ0 = amZ1
+	if atK > 0 then
+		gosub "attach"
+	else
+		gosub "bucket"
+	endif
 	! シリンダ（ブーム2本・アーム・バケット）
 	crq = 0.045 * boomL / 3.5
 	for s = -1 to 1 step 2
@@ -667,6 +1024,410 @@ end
 	cy1 = 0
 	cz1 = amZ1 - 0.12 * armL * sin(amA) + 0.12 * cos(amA)
 	gosub "cyl2"
+	return
+
+"bucket":
+	! バケット（ピン atX0, atZ0 から爪へ bkA の向き。側板の形を幅 bkW で押し出す）
+	material "mc_dark"
+	add atX0, bkW / 2, atZ0
+	rotx 90
+	rotz bkA
+	prism 6, bkW, 0, 0.1 * bkL, 0.3 * bkL, 0.42 * bkL, 0.8 * bkL, 0.38 * bkL, bkL, 0, 0.85 * bkL, -0.06 * bkL, 0.12 * bkL, -0.1 * bkL
+	nTh = max(3, int(bkW / 0.22))
+	for k = 0 to nTh - 1
+		add bkL - 0.02, -0.03, 0.06 + k * (bkW - 0.12) / max(1, nTh - 1) - 0.04
+		block 0.14, 0.06, 0.08
+		del 1
+	next k
+	del 3
+	return
+
+"attach":
+	! 解体アタッチメント（ピン atX0, atZ0 から bkA の向き）: 本体（全旋回のリング）と爪2枚（atO だけ開く）、つかみ機は爪が2本ずつ、
+	! ブレーカは筒とチゼル。爪はピンから 0.45×atL で開き、長さ 0.55×atL
+	bWq = min(0.7, max(0.2, 0.22 * atL))
+	add atX0, 0, atZ0
+	roty -bkA
+	if atK = 4 then
+		material "mc_dark"
+		roty 90
+		cylind 0.75 * atL, max(0.08, 0.11 * atL)
+		material "mc_steel"
+		cylind atL, max(0.03, atW / 2)
+		del 1
+	else
+		material "mc_dark"
+		add 0, -bWq / 2, -bWq / 2
+		block 0.45 * atL, bWq, bWq
+		del 1
+		material "mc_steel"
+		add 0.12 * atL, 0, 0
+		roty 90
+		cylind 0.08, bWq * 0.75
+		del 2
+		jl = 0.55 * atL
+		th = 0.16 * atL
+		wq = bWq
+		if atK = 2 then
+			th = 0.1 * atL
+			wq = bWq * 0.6
+		endif
+		material "mc_drum"
+		for sj = -1 to 1 step 2
+			add 0.45 * atL, 0, 0
+			roty -sj * atO / 2
+			if atK = 3 then
+				for tj = -1 to 1 step 2
+					add 0, tj * bWq * 0.32, 0
+					wq = bWq * 0.25
+					gosub "jawp"
+					del 1
+				next tj
+			else
+				gosub "jawp"
+			endif
+			del 2
+		next sj
+	endif
+	del 2
+	return
+
+"jawp":
+	! 爪1枚（xz 面の四角形を厚み wq で押し出す。sj＝1 は上、-1 は下）
+	add 0, wq / 2, 0
+	rotx 90
+	prism 4, wq, 0, 0, jl, sj * th * 0.15, jl * 0.85, sj * th * 0.75, 0, sj * th
+	del 2
+	return
+
+"demolish":
+	! 解体機のフロント（メインブーム・フロントブーム・アームの3段。弦の長さ dbL1〜3・水平からの角度 dA1〜3）・関節のピン・
+	! シリンダ・先のアタッチメント（atK 0 はバケット）
+	bw1 = max(0.18, min(0.6, 0.06 * dbL1 + 0.12))
+	material "mc_body"
+	add pvX - 0.35, -bw1 / 2 - 0.1, upZ
+	block 0.7, bw1 + 0.2, pvH - upZ + 0.15
+	del 1
+	bwq = bw1
+	bhq = bw1 * 1.3
+	x0q = pvX
+	z0q = pvH
+	x1q = dmX1
+	z1q = dmZ1
+	gosub "bar"
+	bwq = bw1 * 0.85
+	bhq = bwq * 1.2
+	x0q = dmX1
+	z0q = dmZ1
+	x1q = dmX2
+	z1q = dmZ2
+	gosub "bar"
+	bwq = bw1 * 0.7
+	bhq = bwq * 1.2
+	x0q = dmX2
+	z0q = dmZ2
+	x1q = dmX3
+	z1q = dmZ3
+	gosub "bar"
+	material "mc_steel"
+	add dmX1, bw1 / 2 + 0.05, dmZ1
+	rotx 90
+	cylind bw1 + 0.1, bw1 * 0.3
+	del 2
+	add dmX2, bw1 / 2 + 0.05, dmZ2
+	rotx 90
+	cylind bw1 + 0.1, bw1 * 0.25
+	del 2
+	! シリンダ（段の下側。1本ずつ）
+	crq = max(0.03, bw1 * 0.22)
+	cx0 = pvX + 0.5
+	cy0 = 0
+	cz0 = upZ + 0.3
+	cx1 = pvX + 0.5 * dbL1 * cos(dA1) + 0.25 * sin(dA1)
+	cy1 = 0
+	cz1 = pvH + 0.5 * dbL1 * sin(dA1) - 0.25 * cos(dA1)
+	gosub "cyl2"
+	crq = crq * 0.85
+	cx0 = pvX + 0.7 * dbL1 * cos(dA1) + 0.3 * sin(dA1)
+	cz0 = pvH + 0.7 * dbL1 * sin(dA1) - 0.3 * cos(dA1)
+	cx1 = dmX1 + 0.3 * dbL2 * cos(dA2) + 0.25 * sin(dA2)
+	cz1 = dmZ1 + 0.3 * dbL2 * sin(dA2) - 0.25 * cos(dA2)
+	gosub "cyl2"
+	crq = crq * 0.85
+	cx0 = dmX1 + 0.75 * dbL2 * cos(dA2) + 0.25 * sin(dA2)
+	cz0 = dmZ1 + 0.75 * dbL2 * sin(dA2) - 0.25 * cos(dA2)
+	cx1 = dmX2 + 0.2 * dbL3 * cos(dA3) + 0.2 * sin(dA3)
+	cz1 = dmZ2 + 0.2 * dbL3 * sin(dA3) - 0.2 * cos(dA3)
+	gosub "cyl2"
+	atX0 = dmX3
+	atZ0 = dmZ3
+	if atK > 0 then
+		gosub "attach"
+	else
+		gosub "bucket"
+	endif
+	return
+
+"pileleader":
+	! 三点式杭打機: リーダブラケット・リーダ（主管 ldDia と前のガイド管2本・頂部のシーブ）・ステー2本（上部の後ろから stZ）・
+	! フロントジャッキと後ろのアウトリガ・オーガ（モータ auH×auW、スクリュー auN 本・軸間 auP・下端に先のヘッド）
+	lzT = ldZ + ldL
+	hBq = 0.12 * (upH - upZ) + 0.45
+	material "mc_body"
+	add upF - 0.1, -0.6, upZ
+	block max(0.2, ldX - upF + 0.1), 1.2, 0.9
+	del 1
+	add ldX, 0, ldZ
+	cylind ldL, ldDia / 2
+	del 1
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		add ldX + ldDia * 0.67, s * ldDia * 0.38, ldZ
+		cylind ldL, max(0.03, ldDia * 0.077)
+		del 1
+	next s
+	material "mc_dark"
+	add ldX - ldDia * 0.6, -ldDia * 0.6, lzT
+	block ldDia * 1.6, ldDia * 1.2, ldDia * 2.7
+	del 1
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		x0q = -tailR * 0.35
+		y0q = s * upW * 0.35
+		z0q = upZ + hBq
+		x1q = ldX - ldDia / 2
+		y1q = s * ldDia * 0.3
+		z1q = min(stZ, lzT - 0.5)
+		rq = max(0.04, 0.0045 * ldL)
+		gosub "seg3"
+	next s
+	! ジャッキ（筒とパッド）と後ろのアウトリガの梁
+	for s = -1 to 1 step 2
+		material "mc_dark"
+		add fjX, s * fjW / 2, 0.05
+		cylind upZ + 0.4, 0.12
+		del 1
+		add -rjX, s * rjW / 2, 0.05
+		cylind upZ + 0.4, 0.12
+		del 1
+		material "mc_steel"
+		add fjX - 0.3, s * fjW / 2 - 0.3, 0
+		block 0.6, 0.6, 0.05
+		del 1
+		add -rjX - 0.3, s * rjW / 2 - 0.3, 0
+		block 0.6, 0.6, 0.05
+		del 1
+		material "mc_body"
+		add -rjX - 0.15, min(0, s * rjW / 2), upZ + 0.2
+		block 0.3, rjW / 2, 0.3
+		del 1
+	next s
+	! オーガ
+	xA = ldX + auOff
+	material "mc_dark"
+	add ldX + ldDia / 2, -0.3, auZ + auH * 0.4
+	block max(0.1, auOff - auW / 2 - ldDia / 2 + 0.05), 0.6, 0.6
+	del 1
+	material "mc_drum"
+	add xA - auW / 2, yAu0 - auD / 2 - 0.15, auZ
+	block auW, -2 * yAu0 + auD + 0.3, auH
+	del 1
+	for i = 1 to nAu
+		yA = yAu0 + (i - 1) * auP
+		material "mc_steel"
+		add xA, yA, auZ - auL
+		cylind auL, max(0.04, auD * 0.18)
+		del 1
+		nF = max(2, int(auL / max(0.3, auD)))
+		for k = 0 to nF - 1
+			add xA, yA, auZ - auL + (k + 0.5) * auL / nF
+			cylind 0.03, auD / 2
+			del 1
+		next k
+		material "mc_dark"
+		add xA, yA, auZ - auL - 0.4 * auD
+		cone 0.4 * auD, 0.03, auD / 2, 90, 90
+		del 1
+	next i
+	return
+
+"earthdrill":
+	! アースドリル: テレスコブーム（3段の箱。根元 pvX, pvH・長さ tbL・起伏 tbA）・頂部のシーブ・ケリードライブとフレーム（kdZ）・
+	! ケリーバ（径 kyD。バケットの上から頂部の下まで）・ドリリングバケット（径 auD・高さ bkH・下端は地面から bkD 下）
+	material "mc_steel"
+	add pvX - 0.4, -0.5, upZ
+	block 0.8, 1.0, pvH - upZ
+	del 1
+	material "mc_body"
+	for i = 0 to 2
+		f0 = 0.3 * i
+		f1 = min(1, f0 + 0.42)
+		bwq = 0.9 - 0.15 * i
+		bhq = bwq
+		x0q = pvX + f0 * tbL * cos(tbA)
+		z0q = pvH + f0 * tbL * sin(tbA)
+		x1q = pvX + f1 * tbL * cos(tbA)
+		z1q = pvH + f1 * tbL * sin(tbA)
+		gosub "bar"
+	next i
+	material "mc_dark"
+	add tbX - 0.5, -0.6, tbZ - 0.4
+	block 1.0, 1.2, 0.8
+	del 1
+	! ケリードライブ（上部の前からのフレーム）
+	material "mc_body"
+	add upF - 0.2, -0.4, min(kdZ, upZ + 0.3)
+	block max(0.2, kdR - 0.9 - upF + 0.2), 0.8, 0.5
+	del 1
+	material "mc_steel"
+	add kdR - 0.9, -0.9, kdZ
+	block 1.8, 1.8, 1.0
+	del 1
+	! ケリーバとワイヤ
+	zB = -bkD
+	material "mc_rod"
+	kz0 = zB + bkH
+	kz1 = tbZ - 0.8
+	add kdR, 0, kz0
+	cylind max(0.1, kz1 - kz0), kyD / 2
+	del 1
+	! バケット（底は浅い円錐）
+	material "mc_dark"
+	add kdR, 0, zB + 0.25
+	cylind max(0.1, bkH - 0.25), auD / 2
+	del 1
+	add kdR, 0, zB
+	cone 0.25, auD * 0.3, auD / 2, 90, 90
+	del 1
+	return
+
+"rotator":
+	! 全周回転機（据置）: 反力ブラケット（十字）・本体の下の枠（通り穴 rtD を残す4つの箱）・チャック（押抜ストローク rtS で上下）・
+	! 手すり・水平ジャッキ4本（底 φ500）・ケーシング（径 csD、本体の上 csH）・油圧ユニット（台 0.3）とホース
+	hR = rtD / 2
+	material "mc_steel"
+	add -brL / 2, -0.3, 0
+	block brL, 0.6, 0.5
+	del 1
+	add -0.3, -brW / 2, 0
+	block 0.6, brW, 0.5
+	del 1
+	material "mc_body"
+	zF = 0.2
+	hF = zDk * 0.5
+	add -rtL / 2, -rtW / 2, zF
+	block rtL / 2 - hR, rtW, hF
+	del 1
+	add hR, -rtW / 2, zF
+	block rtL / 2 - hR, rtW, hF
+	del 1
+	add -hR, -rtW / 2, zF
+	block 2 * hR, rtW / 2 - hR, hF
+	del 1
+	add -hR, hR, zF
+	block 2 * hR, rtW / 2 - hR, hF
+	del 1
+	! チャック（回転部）とデッキ
+	material "mc_drum"
+	add 0, 0, zF + hF + rtS
+	cylind max(0.2, zDk - zF - hF), hR + 0.3
+	del 1
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		for t = -1 to 1 step 2
+			add s * (rtL / 2 - 0.05) - 0.025, t * (rtW / 2 - 0.05) - 0.025, zDk + rtS
+			block 0.05, 0.05, rtH - zDk
+			del 1
+			add s * (rtL / 2 - 0.35), t * (rtW / 2 - 0.35), 0
+			cylind zF + 0.3, 0.25
+			del 1
+		next t
+		add -rtL / 2, s * (rtW / 2 - 0.05) - 0.025, rtH + rtS - 0.05
+		block rtL, 0.05, 0.05
+		del 1
+		add s * (rtL / 2 - 0.05) - 0.025, -rtW / 2, rtH + rtS - 0.05
+		block 0.05, rtW, 0.05
+		del 1
+	next s
+	! ケーシング
+	material "mc_rod"
+	add 0, 0, 0
+	cylind rtH + rtS + csH, csD / 2
+	del 1
+	! 油圧ユニット
+	material "mc_dark"
+	add puX - min(4.2, puL) / 2, puY - puW / 2 + 0.1, 0
+	block min(4.2, puL), puW - 0.2, 0.3
+	del 1
+	material "mc_body"
+	add puX - puL / 2, puY - puW / 2, 0.3
+	block puL, puW, max(0.2, puH - 0.3)
+	del 1
+	material "mc_dark"
+	x0q = puX + puL / 2
+	y0q = puY
+	z0q = 1.0
+	x1q = -rtL / 2
+	y1q = 0
+	z1q = zDk * 0.5
+	rq = 0.05
+	gosub "seg3"
+	return
+
+"piler":
+	! 圧入機: 後ろの完成杭（U形を交互に。地面の上 0.5m まで）をクランプでつかむ本体（サドル・スライドベース・リーダーマスト）と、
+	! チャックの杭（チャック投入高 piC＋上がり piS、天端はその上 piT）・パワーユニット（クローラの上の箱）とホース
+	material "mc_steel"
+	for i = 1 to piN
+		xP = -i * piP
+		sg = 1 - 2 * (i mod 2)
+		add xP - piP / 2, sg * 0.15 - 0.006, -2.0
+		block piP, 0.012, 2.5
+		del 1
+	next i
+	! チャックの杭
+	zC = piC + piS
+	add -piP / 2, -0.15 - 0.006, zC + piT - 12.0
+	block piP, 0.012, 12.0
+	del 1
+	! 本体: クランプ（完成杭の上）・サドル・リーダーマスト・チャック
+	material "mc_body"
+	xB = -piL + 0.35
+	add xB, -piW / 2, 0.5
+	block piL - 0.6, piW, piC * 0.45
+	del 1
+	material "mc_dark"
+	for i = 1 to min(3, piN)
+		add -i * piP - 0.15, -piW * 0.3, 0.2
+		block 0.3, piW * 0.6, 0.35
+		del 1
+	next i
+	material "mc_body"
+	add -0.75, -piW * 0.4, 0.5 + piC * 0.45
+	block 0.6, piW * 0.8, max(0.3, piH - 0.5 - piC * 0.45)
+	del 1
+	material "mc_drum"
+	add -0.25, -piW * 0.45, zC
+	block 0.6, piW * 0.9, 0.45
+	del 1
+	! パワーユニット
+	material "mc_dark"
+	add puX - puL * 0.3, puY - puW / 2, 0
+	block puL * 0.6, puW, 0.545
+	del 1
+	material "mc_body"
+	add puX - puL / 2, puY - puW / 2, 0.545
+	block puL, puW, max(0.2, puH - 0.545)
+	del 1
+	material "mc_dark"
+	x0q = puX + puL / 2
+	y0q = puY
+	z0q = 1.0
+	x1q = xB
+	y1q = 0
+	z1q = 0.8
+	rq = 0.04
+	gosub "seg3"
 	return
 
 "lattice":
@@ -766,6 +1527,22 @@ end
 	add lbX + 0.4, 0, lbZ - hkD - hkH * 0.3
 	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
 	del 1
+	if vbK = 1 then
+		! バイブロ（ハンガー・起振機・チャック）と杭（vbP）
+		zV = lbZ - hkD - hkH * 0.3 - vbH
+		material "mc_drum"
+		add lbX + 0.4 - vbW / 2, -vbT / 2, zV + vbH * 0.25
+		block vbW, vbT, vbH * 0.75
+		del 1
+		material "mc_dark"
+		add lbX + 0.4 - vbW * 0.3, -vbT * 0.4, zV
+		block vbW * 0.6, vbT * 0.8, vbH * 0.25
+		del 1
+		material "mc_steel"
+		add lbX + 0.4 - 0.2, -0.006, zV - vbP + 0.1
+		block 0.4, 0.012, vbP
+		del 1
+	endif
 	return
 
 "truck":

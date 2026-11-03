@@ -1,6 +1,6 @@
 ﻿! 重機: 種類ごとの形（m・度）
-isCr = (mcKind = 1 or mcKind = 2)
-isTk = (mcKind >= 3)
+isCr = (mcKind <= 2 or mcKind = 8 or mcKind = 9 or mcKind = 11)
+isTk = (mcKind >= 3 and mcKind <= 7)
 ! 上部旋回体の後ろの円弧（後端旋回半径）と幅の合う所
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
@@ -70,3 +70,21 @@ abZ = tuH + abL * sin(abA)
 ! クローラクレーンのブームの先
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
+! アースドリルのテレスコブームの先
+tbX = pvX + tbL * cos(tbA)
+tbZ = pvH + tbL * sin(tbA)
+! 解体機のフロント（3段の関節とアームの先）
+dmX1 = pvX + dbL1 * cos(dA1)
+dmZ1 = pvH + dbL1 * sin(dA1)
+dmX2 = dmX1 + dbL2 * cos(dA2)
+dmZ2 = dmZ1 + dbL2 * sin(dA2)
+dmX3 = dmX2 + dbL3 * cos(dA3)
+dmZ3 = dmZ2 + dbL3 * sin(dA3)
+! 先の長さ（バケットかアタッチメント）
+tpL = bkL
+if atK > 0 then tpL = atL
+! 杭打機のオーガ（本数と1本めの y）
+nAu = max(1, min(3, auN))
+yAu0 = -(nAu - 1) * auP / 2
+! 全周回転機のデッキの高さ（本体の高さから手すり 0.969 下）
+zDk = max(0.5, rtH - 0.969)
