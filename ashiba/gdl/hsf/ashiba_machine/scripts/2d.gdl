@@ -24,12 +24,16 @@ if isCr then
 	if mcKind = 1 then
 		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
 		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
-		if atK > 0 then
+		if atK = 5 then
+			hX2 = amX1 + atL * cos(bkA) + atW * sin(bkA)
+			line2 amX1, bmY, hX2, bmY
+			rect2 hX2 - vbW / 2, bmY - vbT / 2, hX2 + vbW / 2, bmY + vbT / 2
+		endif
+		if atK > 0 and atK < 5 then
 			wA = max(0.3, min(atW, 1.2))
 			rect2 amX1, bmY - wA / 2, amX1 + atL * max(0.2, cos(bkA)), bmY + wA / 2
-		else
-			rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 		endif
+		if atK = 0 then rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 	endif
 	if mcKind = 2 then
 		line2 pvX, -lbW / 2, lbX, -lbW / 2

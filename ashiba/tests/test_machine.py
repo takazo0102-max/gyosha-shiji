@@ -188,7 +188,21 @@ class TestPileDemolition(unittest.TestCase):
         self.assertEqual(part_params(Placed("", MACHINES["bh045"]))["atK"], 0)
         self.assertEqual(part_params(Placed("", MACHINES["cc50"]))["vbK"], 0)           # 機種を選び直すとバイブロが消える
         self.assertTrue(all(k in ("d75", "d135", "d212", "d352", "mc212", "dx135", "dx202", "gv122", "gv202", "ghd6", "ghd10",
-                                  "jats1100", "kr1100", "kr1350", "ifz15") for k in ATTACHMENTS))
+                                  "jats1100", "kr1100", "kr1350", "ifz15", "lhv025", "lhv04", "lhv07", "lhv09") for k in ATTACHMENTS))
+
+    def test_vibro_on_excavator(self):
+        """調和工業 LHV（カタログ p.5 の寸法表）: エクステンションの L・N と本体の B・F・A、取付クラス、資格は基礎工事用."""
+        a = att_params("lhv07")
+        self.assertEqual((a["atK"], a["atL"], a["atW"], a["vbW"], a["vbT"], a["vbH"], a["vbP"]), (5, 1.4, 1.138, 1.18, 0.757, 1.705, 7.0))
+        ps = part_params(Placed("", MACHINES["bh08"], att="lhv07"))
+        self.assertEqual((ps["atK"], ps["bkA"]), (5, 0.0))                                 # エクステンションは水平に
+        c = {x.item: x for x in check(Placed("b", MACHINES["bh08"], att="lhv07")).checks}
+        self.assertEqual(c["アタッチメント"].status, "OK")                                # PC200 20.2t は 20t 級
+        self.assertIn("杭長の目安 7m", c["バイブロ"].detail)
+        self.assertNotIn("特定解体用機械", c)
+        self.assertIn("基礎工事用", license_for(MACHINES["bh08"], "lhv07"))
+        gdl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "3d.gdl").read_text(encoding="utf-8-sig")
+        self.assertIn('"lhv":', gdl)
 
     def test_hotspots_move_parameters(self):
         """3D のホットスポットで動かせる: 杭打機のオーガとリーダ・アースドリルのブームとバケット・解体機の3段と先・全周回転機・圧入機."""

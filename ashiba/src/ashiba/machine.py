@@ -88,7 +88,8 @@ KINDS = {1: "バックホウ", 2: "クローラクレーン", 3: "コンクリ�
          7: "垂直昇降（自走式）", 8: "三点式杭打機", 9: "アースドリル", 10: "全周回転機（オールケーシング）", 11: "解体機",
          12: "圧入機（サイレントパイラー）"}
 
-# 解体アタッチメント（ショベル・解体機の先。atK 1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）
+# 解体アタッチメント（ショベル・解体機の先。atK 1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ・5 バイブロ（ショベル装着）。
+# バイブロは 本体長さ＝エクステンションのピンから下のピンまでの水平 L、開口幅の欄＝上下 N）
 # (名前, atK, 本体長さ m（ピンから先端）, 最大開口幅 m（ブレーカはチゼル径）, 質量 kg, 本体クラス t（下限, 上限）か None, 出典)
 # タグチ工業は本体長さ A を載せている（taguchi.co.jp/product/crusher-d・crasher-mc・dx-cutter・grasper-gv-s）。NPK は全長が
 # ブレーカだけ（npk-construction.com/line-up/hydraulic-hammers）。コベルコの純正は長さが図だけで【目安】
@@ -110,7 +111,16 @@ ATTACHMENTS = {
     "kr1350": ("圧砕機 コベルコ KR1350TPR-40（セパレート用）", 1, 2.9, 1.35, 3800, None,
                "コベルコ SK400DLC-10A スペック頁（質量。長さ・開口は図だけで【目安】）"),
     "ifz15": ("Z フォーク 丸順 IFZ15", 3, 0.67, 0.70, 65, (1.5, 2.0), "コマツ PC18MR-5 カタログ PDF p.1"),
+    # 調和工業 LHV シリーズ カタログ No.03-05 p.5（仕様・寸法 A〜N の表と図）。質量は本体＋エクステンション。本体クラスは
+    # 「取付油圧ショベルクラス 6・10・20・30ton」で、範囲（±2t 程度）は【目安】
+    "lhv025": ("バイブロ 調和工業 LHV025", 5, 0.80, 0.944, 825, (5, 8), "調和工業 LHV カタログ p.5"),
+    "lhv04": ("バイブロ 調和工業 LHV04", 5, 1.00, 1.065, 1370, (9, 12), "調和工業 LHV カタログ p.5"),
+    "lhv07": ("バイブロ 調和工業 LHV07", 5, 1.40, 1.138, 1580, (18, 22), "調和工業 LHV カタログ p.5"),
+    "lhv09": ("バイブロ 調和工業 LHV09", 5, 1.40, 1.138, 1870, (28, 32), "調和工業 LHV カタログ p.5"),
 }
+# LHV の本体（幅 B・奥行き F・全高 A m、杭長の目安 m、起振力の上限 kN）。調和工業 LHV カタログ p.5
+VIBRO_DIMS = {"lhv025": (0.986, 0.568, 1.406, 3.5, 59.8), "lhv04": (1.144, 0.723, 1.619, 5.0, 92.2),
+              "lhv07": (1.180, 0.757, 1.705, 7.0, 133.4), "lhv09": (1.210, 0.805, 1.850, 7.5, 159.8)}
 
 
 @dataclass(frozen=True)
@@ -538,6 +548,10 @@ def road_license(gvw_t: float, payload_t: float = 0.0) -> str:
 def license_for(m: Machine, att: str = "") -> str:
     """運転・操作に要る資格（安衛令・安衛則・クレーン則）と公道の免許。att は解体アタッチメント（付けると解体用）."""
     body = m.body_t or m.mass_t
+    if m.kind == 1 and att and ATTACHMENTS[att][1] == 5:
+        return ((f"車両系建設機械（基礎工事用）運転技能講習（安衛令20条12号・安衛則41条。機体質量 {body:g}t）" if body >= 3.0 else
+                 f"車両系建設機械（基礎工事用）の特別教育（安衛則36条9号。機体質量 {body:g}t が 3t 未満）")
+                + "。バイブロハンマを付けたショベルはくい打機（安衛令 別表第七 第三号）として扱う（通達は確かめていない）")
     if m.kind == 11 or (m.kind == 1 and att):
         if body >= 3.0:
             return (f"車両系建設機械（解体用）運転技能講習（安衛令20条12号・安衛則41条。機体質量 {body:g}t。ブレーカ・鉄骨切断機・"
@@ -706,7 +720,12 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
             ok = cls[0] - 1e-6 <= m.mass_t <= cls[1] + 1e-6
             p.checks.append(Check("アタッチメント", "OK" if ok else "要確認",
                                   f"{nm} {kg:,.0f}kg・本体クラス {cls[0]:g}〜{cls[1]:g}t（{src}）・機械 {m.mass_t:g}t"))
-    if m.kind == 11 or (m.kind == 1 and att):
+    demo = m.kind == 11 or (m.kind == 1 and att and ATTACHMENTS[att][1] <= 4)
+    if att and ATTACHMENTS[att][1] == 5:
+        b, t, h, pile, fkn = VIBRO_DIMS[att]
+        p.checks.append(Check("バイブロ", "注意", f"杭長の目安 {pile:g}m まで・起振力 {fkn:g}kN（調和工業 LHV カタログ p.5）。"
+                                                 "倒壊防止（安衛則173条）・合図（189条）・ガス導管等の損壊の防止（194条）"))
+    if demo:
         bl = sum(float(ps.get(k, 0)) for k in ("dbL1", "dbL2", "dbL3")) if m.kind == 11 else \
             float(ps.get("boomL", 0)) + float(ps.get("armL", 0))
         if bl >= 12.0:
@@ -754,7 +773,8 @@ def part_params(p: Placed) -> dict:
     if m.kind in (1, 11):
         ps = {**ps, **att_params(p.attachment)}
         if m.kind == 1 and p.attachment and "bkA" not in p.params:
-            ps["bkA"] = -90.0               # アタッチメントは下へ向ける（バケットの既定 −150° だと機械の側へ向く）
+            # アタッチメントは下へ向ける（バケットの既定 −150° だと機械の側へ向く）。バイブロはエクステンションを水平に
+            ps["bkA"] = 0.0 if ATTACHMENTS[p.attachment][1] == 5 else -90.0
         if p.attachment:
             note += "・" + ATTACHMENTS[p.attachment][0].split(" ", 1)[-1]
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
@@ -762,10 +782,13 @@ def part_params(p: Placed) -> dict:
 
 def att_params(key: str) -> dict:
     """解体アタッチメントのパラメータ（atK 0＝バケット。atO は開いた角度で、爪の先の開きが開口幅になる角度。爪はピンから
-    0.45 の所で開き、長さは本体の 0.55）."""
+    0.45 の所で開き、長さは本体の 0.55。バイブロは atL・atW にエクステンションの L・N、本体の寸法を vbW・vbT・vbH・vbP に）."""
     if not key:
         return {"atK": 0, "atL": 0.0, "atW": 0.0, "atO": 0.0}
     _nm, k, L, w, _kg, _cls, _src = ATTACHMENTS[key]
+    if k == 5:
+        b, t, h, pile, _f = VIBRO_DIMS[key]
+        return {"atK": 5, "atL": L, "atW": w, "atO": 0.0, "vbW": b, "vbT": t, "vbH": h, "vbP": pile}
     jl = 0.55 * L
     o = 0.0 if k == 4 else round(2 * math.degrees(math.asin(min(0.95, w / 2 / jl))), 1)
     return {"atK": k, "atL": L, "atW": w, "atO": o}

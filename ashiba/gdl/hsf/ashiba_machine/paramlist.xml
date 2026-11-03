@@ -370,7 +370,7 @@
 			<Value>3.0</Value>
 		</Length>
 		<Integer Name="atK">
-			<Description><![CDATA["アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）"]]></Description>
+			<Description><![CDATA["アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ・5 バイブロ）"]]></Description>
 			<Value>0</Value>
 		</Integer>
 		<Length Name="atL">

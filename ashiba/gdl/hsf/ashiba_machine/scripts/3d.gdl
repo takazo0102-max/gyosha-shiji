@@ -503,10 +503,14 @@ return
 	del 2
 	atX0 = amX1
 	atZ0 = amZ1
-	if atK > 0 then
-		gosub "attach"
+	if atK = 5 then
+		gosub "lhv"
 	else
-		gosub "bucket"
+		if atK > 0 then
+			gosub "attach"
+		else
+			gosub "bucket"
+		endif
 	endif
 	! シリンダ（ブーム2本・アーム・バケット）
 	crq = 0.045 * boomL / 3.5
@@ -602,6 +606,49 @@ return
 	del 2
 	return
 
+"lhv":
+	! ショベル装着式バイブロ（調和工業 LHV）: エクステンション（ピンから bkA の向きへ水平 atL、そこから下へ atW のくの字の腕）と、
+	! 下のピンに吊った本体（幅 vbW・奥行き vbT・全高 vbH。いつも鉛直）・ハンガー・チャック・杭（長さ vbP）
+	exq = atX0 + atL * cos(bkA)
+	ezq = atZ0 + atL * sin(bkA)
+	hxq = exq + atW * sin(bkA)
+	hzq = ezq - atW * cos(bkA)
+	material "mc_body"
+	bwq = max(0.12, 0.18 * vbT)
+	bhq = max(0.12, 0.2 * atL)
+	x0q = atX0
+	z0q = atZ0
+	x1q = exq
+	z1q = ezq
+	gosub "bar"
+	x0q = exq
+	z0q = ezq
+	x1q = hxq
+	z1q = hzq
+	gosub "bar"
+	material "mc_steel"
+	add hxq, vbT / 2, hzq
+	rotx 90
+	cylind vbT, 0.05
+	del 2
+	! ハンガー（上のピンから本体の上まで）・本体（起振機）・チャック（幅 0.16）
+	material "mc_drum"
+	add hxq - vbW * 0.45, -0.06, hzq - vbH * 0.32
+	block vbW * 0.9, 0.12, vbH * 0.3
+	del 1
+	add hxq - vbW / 2, -vbT / 2, hzq - vbH * 0.62
+	block vbW, vbT, vbH * 0.32
+	del 1
+	material "mc_dark"
+	add hxq - 0.08, -vbT * 0.3, hzq - vbH
+	block 0.16, vbT * 0.6, vbH * 0.38
+	del 1
+	material "mc_steel"
+	add hxq - 0.2, -0.006, hzq - vbH - vbP + 0.2
+	block 0.4, 0.012, vbP
+	del 1
+	return
+
 "jawp":
 	! 爪1枚（xz 面の四角形を厚み wq で押し出す。sj＝1 は上、-1 は下）
 	add 0, wq / 2, 0
@@ -672,10 +719,14 @@ return
 	gosub "cyl2"
 	atX0 = dmX3
 	atZ0 = dmZ3
-	if atK > 0 then
-		gosub "attach"
+	if atK = 5 then
+		gosub "lhv"
 	else
-		gosub "bucket"
+		if atK > 0 then
+			gosub "attach"
+		else
+			gosub "bucket"
+		endif
 	endif
 	return
 

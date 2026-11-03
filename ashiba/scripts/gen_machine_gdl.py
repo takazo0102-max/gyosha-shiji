@@ -132,7 +132,7 @@ def paramlist() -> str:
         _param("Length", "pfW", "バスケットの幅", 0.7),
         _param("Length", "pfH", "作業床の高さ（垂直昇降）", 3.0),
         # 解体アタッチメント（バックホウ・解体機の先）
-        _param("Integer", "atK", "アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ）", 0),
+        _param("Integer", "atK", "アタッチメント（0 バケット・1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ・5 バイブロ）", 0),
         _param("Length", "atL", "アタッチメントの本体長さ（ピンから先端）", 2.0),
         _param("Length", "atW", "アタッチメントの最大開口幅（ブレーカはチゼル径）", 1.0),
         _param("Angle", "atO", "爪の開き", 50.0),
@@ -331,7 +331,7 @@ kdS[11] = "解体機"
 kdV[12] = 12
 kdS[12] = "圧入機"
 values{2} "mcKind" kdV, kdS
-values{2} "atK" 0, "バケット", 1, "圧砕機", 2, "鉄骨切断機", 3, "つかみ機", 4, "ブレーカ"
+values{2} "atK" 0, "バケット", 1, "圧砕機", 2, "鉄骨切断機", 3, "つかみ機", 4, "ブレーカ", 5, "バイブロ"
 values "auN" 1, 3
 values{2} "vbK" 0, "フック", 1, "バイブロ"
 values "nFr" 1, 2
@@ -366,12 +366,16 @@ if isCr then
 	if mcKind = 1 then
 		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
 		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
-		if atK > 0 then
+		if atK = 5 then
+			hX2 = amX1 + atL * cos(bkA) + atW * sin(bkA)
+			line2 amX1, bmY, hX2, bmY
+			rect2 hX2 - vbW / 2, bmY - vbT / 2, hX2 + vbW / 2, bmY + vbT / 2
+		endif
+		if atK > 0 and atK < 5 then
 			wA = max(0.3, min(atW, 1.2))
 			rect2 amX1, bmY - wA / 2, amX1 + atL * max(0.2, cos(bkA)), bmY + wA / 2
-		else
-			rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 		endif
+		if atK = 0 then rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
 	endif
 	if mcKind = 2 then
 		line2 pvX, -lbW / 2, lbX, -lbW / 2
@@ -1015,10 +1019,14 @@ return
 	del 2
 	atX0 = amX1
 	atZ0 = amZ1
-	if atK > 0 then
-		gosub "attach"
+	if atK = 5 then
+		gosub "lhv"
 	else
-		gosub "bucket"
+		if atK > 0 then
+			gosub "attach"
+		else
+			gosub "bucket"
+		endif
 	endif
 	! シリンダ（ブーム2本・アーム・バケット）
 	crq = 0.045 * boomL / 3.5
@@ -1114,6 +1122,49 @@ return
 	del 2
 	return
 
+"lhv":
+	! ショベル装着式バイブロ（調和工業 LHV）: エクステンション（ピンから bkA の向きへ水平 atL、そこから下へ atW のくの字の腕）と、
+	! 下のピンに吊った本体（幅 vbW・奥行き vbT・全高 vbH。いつも鉛直）・ハンガー・チャック・杭（長さ vbP）
+	exq = atX0 + atL * cos(bkA)
+	ezq = atZ0 + atL * sin(bkA)
+	hxq = exq + atW * sin(bkA)
+	hzq = ezq - atW * cos(bkA)
+	material "mc_body"
+	bwq = max(0.12, 0.18 * vbT)
+	bhq = max(0.12, 0.2 * atL)
+	x0q = atX0
+	z0q = atZ0
+	x1q = exq
+	z1q = ezq
+	gosub "bar"
+	x0q = exq
+	z0q = ezq
+	x1q = hxq
+	z1q = hzq
+	gosub "bar"
+	material "mc_steel"
+	add hxq, vbT / 2, hzq
+	rotx 90
+	cylind vbT, 0.05
+	del 2
+	! ハンガー（上のピンから本体の上まで）・本体（起振機）・チャック（幅 0.16）
+	material "mc_drum"
+	add hxq - vbW * 0.45, -0.06, hzq - vbH * 0.32
+	block vbW * 0.9, 0.12, vbH * 0.3
+	del 1
+	add hxq - vbW / 2, -vbT / 2, hzq - vbH * 0.62
+	block vbW, vbT, vbH * 0.32
+	del 1
+	material "mc_dark"
+	add hxq - 0.08, -vbT * 0.3, hzq - vbH
+	block 0.16, vbT * 0.6, vbH * 0.38
+	del 1
+	material "mc_steel"
+	add hxq - 0.2, -0.006, hzq - vbH - vbP + 0.2
+	block 0.4, 0.012, vbP
+	del 1
+	return
+
 "jawp":
 	! 爪1枚（xz 面の四角形を厚み wq で押し出す。sj＝1 は上、-1 は下）
 	add 0, wq / 2, 0
@@ -1184,10 +1235,14 @@ return
 	gosub "cyl2"
 	atX0 = dmX3
 	atZ0 = dmZ3
-	if atK > 0 then
-		gosub "attach"
+	if atK = 5 then
+		gosub "lhv"
 	else
-		gosub "bucket"
+		if atK > 0 then
+			gosub "attach"
+		else
+			gosub "bucket"
+		endif
 	endif
 	return
 
