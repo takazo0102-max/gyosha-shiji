@@ -1608,7 +1608,7 @@ smartCON Planner のクレーン（https://scp.global-bim.com/Content/download/m
 - 実機（2026-11-03・Archicad 30）: Tapir の SetGDLParameters は Angle 型のパラメータをラジアンで受け取る。度のまま送ると 90 が
   90 ラジアン（≒116.6°）になり、重機のブームが後ろへ回り、くさび1点の部材が斜めになっていた。`tapir_adapter` の `ANGLE_PARAMS`
   （全部品の Angle 型。テストで paramlist と照合）を送る口で度→ラジアンに直し、読み戻しは `angle_values` で度に戻す。10機種を置いて
-  3D・2D のプレビューで形を確かめた。3D のホットスポットのドラッグは背景の操作では効かず、まだ確かめていない
+  3D・2D のプレビューで形を確かめた。3D のホットスポットは全画面の操作で確かめた（解体機の先の角度 bkA は前の水平が 0°・上が正、杭打機のオーガの高さ auZ は下へ動かすと減る。部品の値も変わり、位置は動かない）
 
 
 型枠の撤去（`python3 scripts/form_run.py --remove`。パレットの「型枠の撤去」、押すと確かめる）: 型枠の部品（控え `型枠.json` の
