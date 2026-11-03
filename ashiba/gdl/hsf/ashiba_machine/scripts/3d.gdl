@@ -92,6 +92,10 @@ end
 		hotspot amX1 + 1, 0, amZ1, 210, bkA, 4
 		hotspot amX1 + tpL * cos(bkA), 0, amZ1 + tpL * sin(bkA), 211, bkA, 5
 		hotspot amX1, -1, amZ1, 212, bkA, 7
+		atX0 = amX1
+		atZ0 = amZ1
+		hid = 351
+		gosub "jawhot"
 		del 2
 	endif
 	if mcKind = 2 then
@@ -219,6 +223,10 @@ end
 		hotspot dmX3 + 1, 0, dmZ3, 334, bkA, 4
 		hotspot dmX3 + tpL * cos(bkA), 0, dmZ3 + tpL * sin(bkA), 335, bkA, 5
 		hotspot dmX3, -1, dmZ3, 336, bkA, 7
+		atX0 = dmX3
+		atZ0 = dmZ3
+		hid = 355
+		gosub "jawhot"
 		del 1
 	endif
 	if mcKind = 12 then
@@ -231,6 +239,19 @@ end
 		hotspot 0, 0, piC + piS - 1, 346, piT, 3
 	endif
 return
+
+"jawhot":
+	! 爪の開き atO（圧砕機・鉄骨切断機・つかみ機）: 中心は爪の付け根、基準は下の爪、動く点は上の爪の先
+	if atK >= 1 and atK <= 3 then
+		jx = atX0 + 0.45 * atL * cos(bkA)
+		jz = atZ0 + 0.45 * atL * sin(bkA)
+		jl = 0.55 * atL
+		hotspot jx, 0, jz, hid, atO, 6
+		hotspot jx + jl * cos(bkA - atO / 2), 0, jz + jl * sin(bkA - atO / 2), hid + 1, atO, 4
+		hotspot jx + jl * cos(bkA + atO / 2), 0, jz + jl * sin(bkA + atO / 2), hid + 2, atO, 5
+		hotspot jx, -1, jz, hid + 3, atO, 7
+	endif
+	return
 
 "crawler":
 	! 履帯（帯・両端の輪・グローサ・横のフレームと下転輪・遊動輪と起動輪）と下部の枠・旋回輪

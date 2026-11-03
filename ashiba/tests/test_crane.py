@@ -185,6 +185,8 @@ class TestParamRoundtrip(unittest.TestCase):
         self.assertEqual(mismatches(sent, {"slew": math.radians(30.0), "oSnap": 1, "rtS": "x" * 255, "oFL": 3.8}), [])
         self.assertEqual(mismatches(sent, {"slew": math.radians(30.0), "oSnap": True, "rtS": "x" * 255, "oFL": 3.3}),
                          [("oFL", 3.8, 3.3)])
+        # 度のまま残った角度は食い違い（ラジアンに直さずに送った。2026-11-03 実機）
+        self.assertEqual(mismatches({"slew": 30.0}, {"slew": 30.0}), [("slew", 30.0, 30.0)])
 
 
 if __name__ == "__main__":

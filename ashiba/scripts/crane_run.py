@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+POSE_KEYS = ("pivB", "hkR", "prio", "boomL", "boomA")    # クレーンの姿勢（2回めに入れ直す）
 PART = "ashiba_crane"
 PLATE_PART = "ashiba_plate"
 RECORD = "クレーン.json"
@@ -110,7 +111,11 @@ def main(argv=None) -> int:
             continue
         # 脚の吸い付きは先に切る（Tapir は1つずつ入れ、脚の時点では既定の 25t の段に吸い付いて 3.8m が 3.3m になった）
         c.set_gdl_parameters(el, {"oSnap": False})
-        c.set_gdl_parameters(el, {**part_params(p, slew, ratio=a.ratio), **pens})
+        cps = part_params(p, slew, ratio=a.ratio)
+        c.set_gdl_parameters(el, {**cps, **pens})
+        # 姿勢はもう一度入れる。1回だと pivB・hkR が入る前の古い値で起伏角と作業半径が書き戻された（2026-11-03 実機:
+        # 25t の hkR 8.0 が 6.75・起伏角 49.7° が 55.2° に。2回めで一致）
+        c.set_gdl_parameters(el, {k: cps[k] for k in POSE_KEYS if k in cps})
         c.set_gdl_parameters(el, {"oSnap": True})        # 置いたあとで脚の吸い付きを入れる（手で引いたときだけ吸い付く）
         placed = [el["elementId"]["guid"]]
         # アウトリガの下の敷鉄板（別の部品。車体の座標 → 図面の座標）

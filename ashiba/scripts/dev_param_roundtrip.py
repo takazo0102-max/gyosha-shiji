@@ -22,14 +22,17 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def mismatches(sent: dict, got: dict) -> list[tuple]:
-    """入れた値と残った値の食い違い。角度は Tapir がラジアンで返すので度でも見る。文字は 255 字で切れる."""
+    """入れた値と残った値の食い違い。Angle 型（ANGLE_PARAMS）は度で入れてラジアンで残るのが正しい（度のまま残れば、
+    ラジアンに直さずに送っている。2026-11-03 実機で 90 が 90 ラジアンになった）。文字は 255 字で切れる."""
+    from ashiba.tapir_adapter import ANGLE_PARAMS
+
     bad = []
     for k, v in sent.items():
         g = got.get(k)
         if isinstance(v, bool) or isinstance(g, bool):
             ok = bool(v) == bool(g)
         elif isinstance(v, (int, float)) and isinstance(g, (int, float)):
-            ok = abs(v - g) < 1e-4 or abs(math.radians(v) - g) < 1e-4
+            ok = abs((math.radians(v) if k in ANGLE_PARAMS else v) - g) < 1e-4
         else:
             ok = str(v)[:255] == str(g)
         if not ok:
@@ -56,7 +59,9 @@ def cases(only: set[str]):
     if "crane" in only:
         for k in CR.MODELS:
             p = CR.crane_plan("試験", [CR.Lift("吊り荷1", 8000.0, 1.0, 10000.0)], k, None, CR.SOIL_Q, CR.LOAD_RATIO)
-            yield "ashiba_crane", k, {"oSnap": False}, CR.part_params(p, 30.0), {"oSnap": True}
+            ps = CR.part_params(p, 30.0)
+            from crane_run import POSE_KEYS
+            yield "ashiba_crane", k, {"oSnap": False}, ps, {**{q: ps[q] for q in POSE_KEYS if q in ps}, "oSnap": True}
     if "plate" in only:
         # plate_run・route_run（広さから）と crane_run（1枚・十字。text=False）の入れ方。種類と向きを変えて続けて置く
         for code in SP.PLATES:

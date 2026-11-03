@@ -187,11 +187,13 @@ class TestPileDemolition(unittest.TestCase):
     def test_hotspots_move_parameters(self):
         """3D のホットスポットで動かせる: 杭打機のオーガとリーダ・アースドリルのブームとバケット・解体機の3段と先・全周回転機・圧入機."""
         gdl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "3d.gdl").read_text(encoding="utf-8-sig")
-        for par in ("auZ", "ldL", "tbA", "tbL", "bkD", "dA1", "dA2", "dA3", "bkA", "rtS", "csH", "piS", "piT", "bmA", "lbA", "pA1",
+        for par in ("auZ", "ldL", "tbA", "tbL", "bkD", "dA1", "dA2", "dA3", "bkA", "atO", "rtS", "csH", "piS", "piT", "bmA", "lbA", "pA1",
                     "bedA", "abA", "pfH", "hkD"):
             self.assertRegex(gdl, rf"hotspot [^\n]*, {par}, [1-7]", par)
         ids = [int(x) for x in re.findall(r"hotspot [^\n]*?, (\d{3}), \w+, ", gdl)]
         self.assertEqual(len(ids), len(set(ids)))                                       # 番号が重ならない
+        self.assertIn("hid = 351", gdl)                                                  # 爪の開きはバックホウと解体機で別の番号
+        self.assertIn("hid = 355", gdl)
 
 
 if __name__ == "__main__":
