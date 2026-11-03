@@ -216,6 +216,7 @@
 !   penEquip        PenColor  ペン: 付帯設備（ステージ・昇降機・朝顔・ブラケット・梁枠）                                                                 既定 1
 !   penTie          PenColor  ペン: 壁つなぎ                                                                                                             既定 1
 !   penDim          PenColor  ペン: 寸法・文字                                                                                                           既定 1
+!   stepH           長さ      工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）            既定 0
 ! ==========================================================
 
 ! ==========================================================
@@ -3496,6 +3497,13 @@ endif
 if gzB < 999 then
 	rotx 90
 	cutpoly 4, -1000, gzB, 1000, gzB, 1000, 1000, -1000, 1000
+	del 1
+	nClip = nClip + 1
+endif
+! 工程の模型（scripts/step_run.py。利用者の指定 2026-11-04「工程表に合わせてモデルを自動作成」）: stepH より上は組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
 	del 1
 	nClip = nClip + 1
 endif

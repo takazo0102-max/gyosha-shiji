@@ -150,6 +150,13 @@ if gzB < 999 then
 	del 1
 	nClip = nClip + 1
 endif
+! 工程の模型（scripts/step_run.py。利用者の指定 2026-11-04「工程表に合わせてモデルを自動作成」）: stepH より上は組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+	nClip = nClip + 1
+endif
 
 ! ---- 向こう側の面を隠す幕（断面・立面だけ） ----
 ! 立面図は建物の外に置いた断面で描く。Tapir の断面は奥行きが無限（水平範囲を「制限」にできない）で、

@@ -110,7 +110,8 @@ class TestEveryGdlParamIsWired(unittest.TestCase):
     VIEW_ONLY = {"viewMode", "faceName", "flList"}
     # matScaf は配置時に Archicad の表面材から探して入れる（line_params は Archicad を知らない）
     # detail3d は利用者が部品の設定で選ぶ（既定 0＝自動）
-    DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen", "matScaf", "matDeck", "matToe", "detail3d"}
+    # stepH は工程の模型（scripts/step_run.py）が入れる見え方（配置では渡さない。置き直しで工程の姿を消さない）
+    DISPLAY_ONLY = {"showBrace", "showDeck", "showDim", "texSiz", "warnPen", "matScaf", "matDeck", "matToe", "detail3d", "stepH"}
     # 部品の1Dスクリプトが図示本数を計算して書き戻す出力専用（Python からは渡さない）
     OUTPUT_ONLY = {"qtyPostPos", "qtyPost", "qtyNuno", "qtyDeck", "qtyToe", "qtyAdv", "qtyTie", "qtyBrace", "qtyStair",
                    "xEdit", "lastMod"}

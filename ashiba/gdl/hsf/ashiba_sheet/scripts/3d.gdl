@@ -11,6 +11,12 @@ hideHere = 0
 if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 or GLOB_VIEW_TYPE = 6 then hideHere = 1
 if GLOB_CONTEXT = 4 or GLOB_CONTEXT = 24 then hideHere = 1
 if hideHere then end
+! 工程の模型（scripts/step_run.py）: stepH より上は張っていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 rotz faceAng
 addz zH
 if lineMode then
@@ -432,3 +438,4 @@ hotspot x1, -offY, zB
 hotspot x0, -offY, zT
 hotspot x1, -offY, zT
 del 2
+if stepH > 0.001 then cutend

@@ -22,6 +22,12 @@ STYLE_TITLE = 2
 STYLE_NUM2 = 3      # 小数2桁
 STYLE_HEADER = 4    # 太字＋背景＋罫線
 STYLE_BORDER = 5
+STYLE_SMALL = 6     # 8pt・中央・罫線（工程表の日付）
+STYLE_OFF = 7       # 8pt・中央・罫線・灰（休みの日）
+STYLE_TEXT = 8      # 9pt・左・罫線・折り返し（工程表の作業名）
+# 工程表の線（塗り）。BAR_COLORS の順に STYLE_BAR + i
+BAR_COLORS = ("FF8EA9DB", "FFC9A36B", "FFF4B183", "FFFF7C80", "FFD9D9D9", "FF5B9BD5", "FF70AD47", "FFE7E6E6", "FFB4A7D6")
+STYLE_BAR = 9
 
 
 @dataclass
@@ -37,6 +43,9 @@ class Sheet:
     rows: list[list[Cell]] = field(default_factory=list)
     col_widths: dict[int, float] = field(default_factory=dict)  # 0-based列→幅
     merges: list[str] = field(default_factory=list)             # 例 "A1:D1"
+    freeze: tuple = ()                                          # (行, 列) より上・左を固定（工程表の見出しと作業名）
+    landscape_a3: bool = False                                  # 印刷は A3 横・幅を1ページに
+    row_heights: dict[int, float] = field(default_factory=dict)  # 0-based行→高さ pt
 
     def add(self, values: list[Value], style: int = STYLE_DEFAULT) -> None:
         self.rows.append([Cell(v, style) for v in values])
@@ -189,17 +198,31 @@ def _sheet_xml(sheet: Sheet) -> str:
             else:
                 cells.append(f'<c r="{ref}"{st} t="inlineStr"><is><t xml:space="preserve">'
                              f"{_esc(cell.value)}</t></is></c>")
-        rows_xml.append(f'<row r="{r}">{"".join(cells)}</row>')
+        ht = sheet.row_heights.get(r - 1)
+        hx = f' ht="{ht}" customHeight="1"' if ht else ""
+        rows_xml.append(f'<row r="{r}"{hx}>{"".join(cells)}</row>')
 
     merges = ""
     if sheet.merges:
         items = "".join(f'<mergeCell ref="{m}"/>' for m in sheet.merges)
         merges = f'<mergeCells count="{len(sheet.merges)}">{items}</mergeCells>'
 
+    pr = views = page = ""
+    if sheet.freeze:
+        fr, fc = sheet.freeze
+        top = f"{_col_name(fc)}{fr + 1}"
+        attrs = (f' xSplit="{fc}"' if fc else "") + (f' ySplit="{fr}"' if fr else "")
+        pane = "bottomRight" if fr and fc else ("bottomLeft" if fr else "topRight")
+        views = (f'<sheetViews><sheetView workbookViewId="0"><pane{attrs} topLeftCell="{top}" activePane="{pane}" '
+                 f'state="frozen"/></sheetView></sheetViews>')
+    if sheet.landscape_a3:
+        pr = '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'
+        page = ('<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>'
+                '<pageSetup paperSize="8" orientation="landscape" fitToWidth="1" fitToHeight="0"/>')
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        f'{cols}<sheetData>{"".join(rows_xml)}</sheetData>{merges}</worksheet>'
+        f'{pr}{views}{cols}<sheetData>{"".join(rows_xml)}</sheetData>{merges}{page}</worksheet>'
     )
 
 
@@ -217,17 +240,22 @@ _RELS_ROOT = (
 _STYLES_XML = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    '<fonts count="3">'
+    '<fonts count="5">'
     '<font><sz val="11"/><name val="ＭＳ Ｐゴシック"/></font>'
     '<font><b/><sz val="11"/><name val="ＭＳ Ｐゴシック"/></font>'
     '<font><b/><sz val="14"/><name val="ＭＳ Ｐゴシック"/></font>'
+    '<font><sz val="8"/><name val="ＭＳ Ｐゴシック"/></font>'
+    '<font><sz val="9"/><name val="ＭＳ Ｐゴシック"/></font>'
     "</fonts>"
-    '<fills count="3">'
+    f'<fills count="{4 + len(BAR_COLORS)}">'
     '<fill><patternFill patternType="none"/></fill>'
     '<fill><patternFill patternType="gray125"/></fill>'
     '<fill><patternFill patternType="solid"><fgColor rgb="FFD9E1F2"/>'
     '<bgColor indexed="64"/></patternFill></fill>'
-    "</fills>"
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFEDEDED"/><bgColor indexed="64"/></patternFill></fill>'
+    + "".join(f'<fill><patternFill patternType="solid"><fgColor rgb="{c}"/><bgColor indexed="64"/></patternFill></fill>'
+              for c in BAR_COLORS)
+    + "</fills>"
     '<borders count="2">'
     "<border><left/><right/><top/><bottom/><diagonal/></border>"
     '<border><left style="thin"/><right style="thin"/><top style="thin"/>'
@@ -235,7 +263,7 @@ _STYLES_XML = (
     "</borders>"
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
     "</cellStyleXfs>"
-    '<cellXfs count="6">'
+    f'<cellXfs count="{9 + len(BAR_COLORS)}">'
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
@@ -244,7 +272,16 @@ _STYLES_XML = (
     '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" '
     'applyFont="1" applyFill="1" applyBorder="1"/>'
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
-    "</cellXfs>"
+    '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">'
+    '<alignment horizontal="center" vertical="center"/></xf>'
+    '<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" '
+    'applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">'
+    '<alignment vertical="center" wrapText="1"/></xf>'
+    + "".join(f'<xf numFmtId="0" fontId="3" fillId="{4 + i}" borderId="1" xfId="0" applyFont="1" applyFill="1" '
+              'applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+              for i in range(len(BAR_COLORS)))
+    + "</cellXfs>"
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
     "</styleSheet>"
 )
