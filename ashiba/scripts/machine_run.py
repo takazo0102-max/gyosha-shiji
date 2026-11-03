@@ -6,8 +6,10 @@
   python3 scripts/machine_run.py --type pump36 --slew 90  # ブーム・上部を 90° 回す
   python3 scripts/machine_run.py --type cc50 --soil-q 150 --soil 3   # 地盤の許容支持力（短期 kN/m²）と土質（敷鉄板の表）
   python3 scripts/machine_run.py --type bh045 --att d135  # バックホウの先を解体アタッチメント（圧砕機）に（--att none でバケット）
+  python3 scripts/machine_run.py --type lb4 --load 6.5,2.9,3.0,20   # 搬入車両に積荷（長さ,幅,高さ m,質量 t。高さ・総重量の判定に）
+  python3 scripts/machine_run.py --type tr10 --turn 右     # 平面の旋回軌跡を右へ（--no-track で描かない）
   python3 scripts/machine_run.py --list                   # 機種の一覧（--list-att でアタッチメント）
-  python3 scripts/machine_run.py --remove                 # 置いた重機を消す
+  python3 scripts/machine_run.py --remove                 # 置いた重機を消す（--kinds 13,14 で搬入車両だけ）
 
 部品 ashiba_machine を線1本に1台（src/ashiba/machine.py が機種・寸法・判定）。前に同じ線に置いたものは控え
 （ashiba_out/重機.json）で消して置き直す。手配表と判定は ashiba_out/重機.md.
@@ -45,6 +47,10 @@ def main(argv=None) -> int:
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
     ap.add_argument("--list-att", action="store_true", help="解体アタッチメントの一覧を出す")
     ap.add_argument("--remove", action="store_true", help="置いた重機を消す")
+    ap.add_argument("--kinds", default="", help="--remove で消す種類（mcKind をカンマ区切り。空は全部）")
+    ap.add_argument("--load", default="", help="搬入車両の積荷 長さ,幅,高さ m,質量 t")
+    ap.add_argument("--turn", default="左", choices=("左", "右"), help="搬入車両の平面の旋回軌跡を描く側")
+    ap.add_argument("--no-track", action="store_true", help="搬入車両の旋回軌跡を描かない")
     a = ap.parse_args(argv)
     if a.list:
         for k, m in MACHINES.items():
@@ -79,8 +85,10 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = {}
     if a.remove:
-        n = _delete_alive(c, [v["guid"] for v in rec.values()])
-        rec_path.write_text("{}", encoding="utf-8")
+        kinds = {int(k) for k in a.kinds.split(",") if k.strip()}
+        gone = {k: v for k, v in rec.items() if not kinds or (v.get("type") in MACHINES and MACHINES[v["type"]].kind in kinds)}
+        n = _delete_alive(c, [v["guid"] for v in gone.values()])
+        rec_path.write_text(json.dumps({k: v for k, v in rec.items() if k not in gone}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"重機: {n}台を消しました")
         return 0
     lines = [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
@@ -107,22 +115,45 @@ def main(argv=None) -> int:
         used.add(name)
         (x0, y0), (x1, y1) = pts[0], pts[1]
         ang = math.degrees(math.atan2(y1 - y0, x1 - x0))
-        p = check(Placed(name, mach, a.slew, att=att if mach.kind in (1, 11) else None), a.soil_q, a.soil, a.keep_out)
+        extra = vehicle_extra(mach, a)
+        p = check(Placed(name, mach, a.slew, params=extra, att=att if mach.kind in (1, 11) else None), a.soil_q, a.soil, a.keep_out)
         z = a.z if a.z is not None else (ground(x0, y0) if ground else 0.0)
         el = _place(c, part, (x0, y0), z, ang)
         if el is None:
             continue
-        c.set_gdl_parameters(el, {**part_params(p), **pens})
-        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att}
+        try:
+            c.set_gdl_parameters(el, {**part_params(p), **pens})
+        except Exception as ex:                       # 値が入らない部品は残さない（既定の形のまま残った。2026-11-03）
+            _delete_alive(c, [el["elementId"]["guid"]])
+            print(f"  {p.name}: パラメータを入れられず置きませんでした（{str(ex)[:120]}）")
+            continue
+        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att, "params": extra}
         bad = sorted({x.item for x in p.checks if x.status not in ("OK", "注意")})
         print(f"  {p.name}: {mach.name}（{mach.model}）" + (f" 要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
-    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0), att=v.get("att")), a.soil_q, a.soil, a.keep_out)
+    placed = [check(Placed(v["name"], MACHINES[v["type"]], v.get("slew", 0.0), params=v.get("params") or {}, att=v.get("att")),
+                    a.soil_q, a.soil, a.keep_out)
               for v in rec.values() if v.get("type") in MACHINES]
     md = R.OUT_DIR / "重機.md"
     md.write_text(report(placed, a.soil_q, a.soil), encoding="utf-8")
     print(f"重機: {len(placed)}台（{md}）")
     return 0
+
+
+def vehicle_extra(mach, a) -> dict:
+    """搬入車両（mcKind 13・14）の積荷と旋回軌跡のパラメータ（ほかの種類は空）."""
+    if mach.kind not in (13, 14):
+        return {}
+    out = {"tkOn": 0 if a.no_track else 1, "tkS": 1 if a.turn == "左" else -1}
+    if a.load:
+        L, W, H, T = (float(v) for v in a.load.split(","))
+        # トレーラーの積荷はキングピンから荷台の中心へ（低床は荷台、平床は前から、ポールは既定のまま）
+        x = 0.0
+        if mach.kind == 14:
+            ps = mach.params
+            x = {1: ps["tlF"] - ps["gnL"] - ps["dkL"] / 2, 2: ps["tlF"] - 0.3 - L / 2}.get(int(ps["tlK"]), ps.get("cgX", 0.0))
+        out.update({"cgOn": 1, "cgL": L, "cgW": W, "cgH": H, "cgT": T, "cgX": x})
+    return out
 
 
 if __name__ == "__main__":

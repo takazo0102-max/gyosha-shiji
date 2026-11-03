@@ -96,6 +96,10 @@ GDL_BUILTINS = {
     "ntr", "nsp",
     # 2026-11-01、仮設建物の階段の幅のパラメータを stW と名付けて GSM に変換できなかった（文字の幅 STW）
     "stw",
+    # 2026-10-31、3D で off（予約語）を変数にして白紙に。2026-11-03、搬入車両の旋回軌跡の半径を roT と名付けて、重機の平面が
+    # 全部白紙になった（回転の命令 ROT と同じ名前）。図形の命令の名前も変数にしない
+    "off", "rot", "add", "mul", "line", "rect", "arc", "circle", "poly", "block", "brick", "cone", "cylind", "prism", "text",
+    "pen", "body", "base", "vert", "edge", "pgon", "coor", "teve", "resol", "toler",
 }
 
 

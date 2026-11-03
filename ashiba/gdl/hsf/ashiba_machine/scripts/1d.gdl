@@ -1,6 +1,7 @@
 ﻿! 重機: 種類ごとの形（m・度）
 isCr = (mcKind <= 2 or mcKind = 8 or mcKind = 9 or mcKind = 11)
-isTk = (mcKind >= 3 and mcKind <= 7)
+isTk = ((mcKind >= 3 and mcKind <= 7) or mcKind = 13 or mcKind = 14)
+isVh = (mcKind = 13 or mcKind = 14)
 ! 上部旋回体の後ろの円弧（後端旋回半径）と幅の合う所
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
@@ -86,5 +87,11 @@ if atK > 0 then tpL = atL
 ! 杭打機のオーガ（本数と1本めの y）
 nAu = max(1, min(3, auN))
 yAu0 = -(nAu - 1) * auP / 2
+! 搬入トラック・トレーラー: 後ろの軸群の中心・キングピン・クレーンの先・荷台の先
+xAxR = axR1 - rearSp * (nRear >= 2) / 2
+kpX = xAxR + kpC
+ucTx = ucL * cos(abA)
+ucTz = ucH + ucL * sin(abA)
+nFa = max(1, min(2, nFr))
 ! 全周回転機のデッキの高さ（本体の高さから手すり 0.969 下）
 zDk = max(0.5, rtH - 0.969)

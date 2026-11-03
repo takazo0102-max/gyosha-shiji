@@ -21,7 +21,7 @@ define material "mc_bed" 2, 0.30, 0.52, 0.35
 resol 12
 if isCr then gosub "crawler"
 if mcKind = 1 and bldW > 0.1 then gosub "blade"
-if isTk and mcKind < 7 then gosub "truck"
+if isTk and mcKind <> 7 then gosub "truck"
 if mcKind = 1 then
 	rotz slew
 	gosub "upper"
@@ -71,6 +71,35 @@ if mcKind = 11 then
 	del 1
 endif
 if mcKind = 12 then gosub "piler"
+if mcKind = 13 then
+	gosub "flatdeck"
+	if ucOn then
+		gosub "outrig"
+		! 旋回角 0 は後ろ向き（格納の向き）
+		add ucX, 0, 0
+		rotz slew + 180
+		gosub "cargocrane"
+		del 2
+	endif
+	if cgOn then
+		material "mc_drum"
+		add xR + bedL / 2 + cgX - cgL / 2, -cgW / 2, flZ + (bedL / 2 + cgX) * sin(bedA)
+		roty -bedA
+		block cgL, cgW, cgH
+		del 2
+	endif
+endif
+if mcKind = 14 then
+	! 第5輪（カプラ）とトレーラー（キングピンまわりに trA）
+	material "mc_dark"
+	add kpX, 0, kpZ - 0.2
+	cylind 0.2, 0.6
+	del 1
+	add kpX, 0, 0
+	rotz trA
+	gosub "semitrailer"
+	del 2
+endif
 gosub "hotspots"
 end
 
@@ -228,6 +257,34 @@ end
 		hid = 355
 		gosub "jawhot"
 		del 1
+	endif
+	if mcKind = 13 then
+		! 荷台の傾き（セルフローダ。後ろのヒンジが中心）・クレーンの起伏と長さ
+		hX = xR
+		hZ = flZ - 0.12
+		hotspot hX, 0, hZ, 372, bedA, 6
+		hotspot hX + 1, 0, hZ, 373, bedA, 4
+		hotspot hX + (bedL + 0.1) * cos(bedA), 0, hZ + (bedL + 0.1) * sin(bedA), 374, bedA, 5
+		hotspot hX, -1, hZ, 375, bedA, 7
+		if ucOn then
+			add ucX, 0, 0
+			rotz slew + 180
+			hotspot 0, 0, ucH, 365, abA, 6
+			hotspot 1, 0, ucH, 366, abA, 4
+			hotspot ucTx, 0, ucTz, 367, abA, 5
+			hotspot 0, -1, ucH, 368, abA, 7
+			hotspot 0, 0, ucH, 369, ucL, 1 + 128
+			hotspot ucTx, 0, ucTz, 370, ucL, 2
+			hotspot -cos(abA), 0, ucH - sin(abA), 371, ucL, 3
+			del 2
+		endif
+	endif
+	if mcKind = 14 then
+		! 連結の折れ角（平面の xy 面。上から見て左回りが +）
+		hotspot kpX, 0, kpZ, 361, trA, 6
+		hotspot kpX - 1, 0, kpZ, 362, trA, 4
+		hotspot kpX - tlB * cos(trA), -tlB * sin(trA), kpZ, 363, trA, 5
+		hotspot kpX, 0, kpZ + 1, 364, trA, 7
 	endif
 	if mcKind = 12 then
 		! チャックの上がりと杭の天端
@@ -647,6 +704,203 @@ return
 	add hxq - 0.2, -0.006, hzq - vbH - vbP + 0.2
 	block 0.4, 0.012, vbP
 	del 1
+	return
+
+"flatdeck":
+	! 平ボディの荷台: 床（根太の見える厚み）・あおり（側・後ろ）・鳥居（前）。後ろのヒンジで bedA だけ傾ける（セルフローダ）。道板は
+	! 後端から地面へ2枚
+	dLq = bedL + 0.1
+	dWq = bedW + 0.1
+	add xR, 0, flZ - 0.12
+	roty -bedA
+	material "mc_bed"
+	add 0, -dWq / 2, 0
+	block dLq, dWq, 0.12
+	del 1
+	material "mc_dark"
+	for k = 0 to 4
+		add 0.05 + k * (dLq - 0.15) / 4, -dWq / 2, -0.1
+		block 0.08, dWq, 0.1
+		del 1
+	next k
+	material "mc_bed"
+	if bedH > 0.01 then
+		for s = -1 to 1 step 2
+			add 0, s * dWq / 2 - (s > 0) * 0.04, 0.12
+			block dLq - 0.1, 0.04, bedH
+			del 1
+		next s
+		add 0, -dWq / 2, 0.12
+		block 0.04, dWq, bedH
+		del 1
+	endif
+	! 鳥居（前の板と上の枠）
+	material "mc_steel"
+	add dLq - 0.1, -dWq / 2, 0.12
+	block 0.08, dWq, bedH + 0.5
+	del 1
+	for s = -1 to 1 step 2
+		add dLq - 0.1, s * (dWq / 2 - 0.06) - 0.04, 0.12
+		block 0.08, 0.08, bedH + 0.9
+		del 1
+	next s
+	add dLq - 0.1, -dWq / 2, bedH + 0.95
+	block 0.08, dWq, 0.07
+	del 1
+	del 2
+	if rpL > 0.01 then
+		rpA = asn(min(1, flZ / rpL))
+		material "mc_steel"
+		for s = -1 to 1 step 2
+			add 0, s * (bedW / 2 - 0.25), 0
+			x0q = xR
+			z0q = flZ
+			x1q = xR - rpL * cos(rpA)
+			z1q = 0.02
+			bwq = 0.4
+			bhq = 0.06
+			gosub "bar"
+			del 1
+		next s
+	endif
+	return
+
+"cargocrane":
+	! 積載形クレーン（原点＝旋回中心）: 台座・コラム（旋回）・伸縮ブーム（nSec 段）・起伏シリンダ・ワイヤとフック
+	material "mc_body"
+	add -0.45, -0.55, frZ
+	block 0.9, 1.1, 0.35
+	del 1
+	material "mc_steel"
+	add 0, 0, frZ + 0.35
+	cylind max(0.2, ucH - frZ - 0.35), 0.22
+	del 1
+	material "mc_drum"
+	nUc = max(2, min(5, nSec))
+	for i = 1 to nUc
+		f0 = (i - 1) / nUc * 0.92
+		f1 = min(1, i / nUc + 0.06)
+		x0q = f0 * ucL * cos(abA)
+		z0q = ucH + f0 * ucL * sin(abA)
+		x1q = f1 * ucL * cos(abA)
+		z1q = ucH + f1 * ucL * sin(abA)
+		bwq = 0.3 - 0.04 * i
+		bhq = 0.34 - 0.04 * i
+		gosub "bar"
+	next i
+	crq = 0.07
+	cx0 = 0.25
+	cy0 = 0
+	cz0 = ucH - 0.5
+	cx1 = 0.35 * ucL * cos(abA) + 0.12 * sin(abA)
+	cy1 = 0
+	cz1 = ucH + 0.35 * ucL * sin(abA) - 0.12 * cos(abA)
+	gosub "cyl2"
+	material "mc_steel"
+	add ucTx, 0, ucTz - hkD
+	cylind hkD, 0.01
+	del 1
+	material "mc_dark"
+	add ucTx - 0.1, -0.08, ucTz - hkD - 0.3
+	block 0.2, 0.16, 0.3
+	del 1
+	return
+
+"semitrailer":
+	! セミトレーラー（原点＝キングピン、後ろが −x）: tlK 1 グースネック・荷台（床 dkZ）・車軸の上の荷台（rrZ）、2 平床とスタンション・
+	! ヘッドボード、3 連結パイプと後台車。車軸の列 tlN・片側のダブルタイヤの組 tlQ・積荷
+	material "mc_body"
+	hwq = tlW / 2
+	if tlK = 1 then
+		x0g = tlF - gnL
+		add x0g, -hwq * 0.85, kpZ
+		block gnL, tlW * 0.85, gnT
+		del 1
+		add x0g - 0.25, -hwq, dkZ - 0.2
+		block 0.25, tlW, kpZ + gnT - dkZ + 0.2
+		del 1
+		material "mc_bed"
+		add x0g - dkL, -hwq, dkZ - 0.15
+		block dkL, tlW, 0.15
+		del 1
+		material "mc_dark"
+		for s = -1 to 1 step 2
+			add x0g - dkL, s * (hwq - 0.15) - 0.1, max(0.15, dkZ - 0.45)
+			block dkL, 0.2, min(0.3, dkZ - 0.15)
+			del 1
+		next s
+		material "mc_body"
+		add -tlB, -hwq, rrZ - 0.35
+		block tlB + x0g - dkL, tlW, 0.35
+		del 1
+	endif
+	if tlK = 2 then
+		add -tlB, -hwq, dkZ - 0.25
+		block tlB + tlF, tlW, 0.25
+		del 1
+		material "mc_dark"
+		for s = -1 to 1 step 2
+			add -tlB, s * (hwq - 0.2) - 0.1, dkZ - 0.6
+			block tlB + tlF, 0.2, 0.35
+			del 1
+		next s
+		material "mc_steel"
+		add tlF - 0.1, -hwq, dkZ
+		block 0.1, tlW, 1.0
+		del 1
+		for k = 0 to 3
+			for s = -1 to 1 step 2
+				add tlF - 1.5 - k * (tlB - 2.5) / 3, s * (hwq - 0.05) - 0.05, dkZ
+				block 0.1, 0.1, 0.8
+				del 1
+			next s
+		next k
+	endif
+	if tlK = 3 then
+		material "mc_steel"
+		add 0.3, 0, dkZ
+		roty -90
+		cylind tlAx - 1.0 + 0.3, 0.12
+		del 2
+		material "mc_body"
+		xb = -(tlAx + (tlN - 1) * tlSp / 2)
+		add xb - dkL / 2 - 0.9, -hwq, 0.9
+		block dkL + 1.8, tlW, max(0.2, rrZ - 0.9)
+		del 1
+	endif
+	! 車軸とタイヤ（ダブル）
+	for i = 0 to tlN - 1
+		xa = -(tlAx + i * tlSp)
+		material "mc_dark"
+		add xa - 0.08, -tlT / 2, tlR - 0.08
+		block 0.16, tlT, 0.16
+		del 1
+		for s = -1 to 1 step 2
+			for q = 1 to max(1, tlQ)
+				yq = s * (tlT / 2 - (q - 1) * 0.885)
+				for d = 0 to 1
+					material "mc_tire"
+					add xa, yq + (d - 0.5) * 0.29 + 0.12, tlR
+					rotx 90
+					cylind 0.24, tlR
+					del 2
+					material "mc_rim"
+					add xa, yq + (d - 0.5) * 0.29 + 0.125, tlR
+					rotx 90
+					cylind 0.25, tlR * 0.55
+					del 2
+				next d
+			next q
+		next s
+	next i
+	if cgOn then
+		material "mc_drum"
+		zL = dkZ
+		if tlK = 3 then zL = max(kpZ + 0.3, rrZ)
+		add cgX - cgL / 2, -cgW / 2, zL
+		block cgL, cgW, cgH
+		del 1
+	endif
 	return
 
 "jawp":

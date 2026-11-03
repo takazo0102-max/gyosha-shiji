@@ -1,9 +1,10 @@
 """重機（バックホウ・クローラクレーン・コンクリートポンプ車・生コン車・ダンプ・高所作業車・垂直昇降・三点式杭打機・アースドリル・
-全周回転機・解体機・圧入機）（部品 ashiba_machine）.
+全周回転機・解体機・圧入機・搬入トラック・トレーラー連結車）（部品 ashiba_machine）.
 
 利用者の指定（2026-11-01）「重機の詳細度もっとあげて　種類も増やして」、（2026-11-03）「杭、山留め　解体で使用する重機を徹底的に
 調べて　GDL作成してちょ　他の重機もホットスポットで動かせるようにしてちょ」。杭・山留め・解体の機種の調べは
-research_notes/重機 杭山留解体/（杭.md・山留め.md・解体.md。値ごとに URL と頁）。寸法はメーカーの仕様書・カタログの値（m・t・kN）、
+research_notes/重機 杭山留解体/（杭.md・山留め.md・解体.md。値ごとに URL と頁）。（2026-11-03）「搬入車両も作成して　トレーラー
+とか含め　詳細平面図になるように」の調べは research_notes/搬入車両/（トラック.md・トレーラー.md）。寸法はメーカーの仕様書・カタログの値（m・t・kN）、
 【目安】は仕様書に無く、外形図や同じクラスの機種から決めた値（部品のパラメータで直せる）。出典は SOURCES、調べたメモは
 docs/調査_重機*.md（バックホウ・クローラクレーン・トラック系・法令と敷鉄板）。
 
@@ -82,11 +83,30 @@ SOURCES = {
           "作業範囲・輸送）（kobelco-kenki.co.jp）",
     "B2": "コマツ PC350LC-11 マルチ解体仕様 カタログ PDF p.6〜8（印刷 p.10〜15。輸送・格納姿勢図・作業範囲・仕様・アタッチメント表）（kcsj.komatsu）",
     "B3": "コマツ PC18MR-5 解体2ピースブーム仕様 内装解体機 カタログ CJA01194-02 PDF p.1（仕様・外形図・作業範囲図）（kcsj.komatsu）",
+    # 搬入車両（2026-11-03 調べ。research_notes/搬入車両/）
+    "R1": "いすゞ エルフ 主要諸元・車両外観図 01shogen.pdf・04shogen.pdf PDF p.1（isuzu.co.jp/support/data/pdf/elf/）、前後オーバーハングは "
+          "エルフ CNG 車型図面 elf-zumen.pdf p.1",
+    "R2": "いすゞ フォワード 主要諸元 中型カーゴ 標準幅 フルキャブ 01shogen.pdf PDF p.1・2（外観図）（isuzu.co.jp/support/data/pdf/forward_post/）",
+    "R3": "三菱ふそう ファイター CARGO カタログ 2022年3月 PDF p.24（FK7 主要諸元）・p.49（増トン・簡易クレーン主要諸元）（mitsubishi-fuso.com）",
+    "R4": "いすゞ ギガ 主要諸元 大型カーゴ 6×2 01shogen.pdf・8×4 02shogen.pdf PDF p.1（諸元・外観図）（isuzu.co.jp/support/data/pdf/giga/）",
+    "R5": "三菱ふそう ファイター カタログ PDF p.49（簡易クレーン主要諸元 FK72NJK）、タダノ カーゴクレーン Zest EX 仕様書 PDF p.6（ZX364 の"
+          "ブーム・アウトリガ・定格総荷重表）（mediahub.tadano.com）",
+    "R6": "タダノ ZE600 仕様書 PDF p.4（ZE604 のブーム・アウトリガ・定格総荷重表）、車両は いすゞ ギガ 8×4 02shogen.pdf PDF p.1",
+    "R7": "タダノ セルフローダ仕様書 SL-50R／SL-150R PDF p.2・p.4（荷台長・傾斜角・道板・ジャッキ・ウインチ）（mediahub.tadano.com）、"
+          "車両は ファイター（R3）・ギガ（R4）",
+    "R8": "日本トレクス 重機運搬用セミトレーラシリーズ（20220901）PDF p.2（PMR239AU・PMR440BB・PLR430BK の寸法図と重量表）（trex.co.jp）、"
+          "トラクタ UD クオン トラクタ主要諸元表（2025.3）PDF p.2〜5・p.9〜10（udtrucks.co.jp）",
+    "R9": "日本トレクス 平床セミトレーラ スタンション仕様 PFB34118（20240401）PDF p.2、トラクタ UD クオン GK（R8）",
+    "R10": "日本トレクス ポールトレーラシリーズ（20190601）PDF p.3（PTB212）、トラクタ UD クオン GW（R8）",
 }
+# 道路の一般的制限値（車両制限令 第3条第1項。e-Gov。research_notes/搬入車両/トレーラー.md 5.1）
+ROAD_LIMIT = {"幅": 2.5, "長さ": 12.0, "高さ": 3.8, "高さ（指定道路）": 4.1, "総重量": 20.0, "総重量（指定道路）": 25.0, "最小回転半径": 12.0}
 
 KINDS = {1: "バックホウ", 2: "クローラクレーン", 3: "コンクリートポンプ車", 4: "生コン車", 5: "ダンプ", 6: "高所作業車",
          7: "垂直昇降（自走式）", 8: "三点式杭打機", 9: "アースドリル", 10: "全周回転機（オールケーシング）", 11: "解体機",
          12: "圧入機（サイレントパイラー）"}
+KINDS[13] = "搬入トラック（平ボディ・クレーン付き・セルフローダ）"
+KINDS[14] = "トレーラー連結車（トラクタ＋セミトレーラー）"
 
 # 解体アタッチメント（ショベル・解体機の先。atK 1 圧砕機・2 鉄骨切断機・3 つかみ機・4 ブレーカ・5 バイブロ（ショベル装着）。
 # バイブロは 本体長さ＝エクステンションのピンから下のピンまでの水平 L、開口幅の欄＝上下 N）
@@ -146,6 +166,7 @@ class Machine:
     att_kg: float = 0.0                         # アタッチメントの装着可能質量 kg（解体機の仕様書）
     leader_free_m: float = 0.0                  # リーダの自立の限り m（超えるとクレーンで起伏補助。杭打機）
     vibro: tuple = ()                           # クレーンに吊るバイブロ（名前, 質量 t, 起振力 kN）
+    height_m: float = 0.0                       # 全高（クレーンを格納した高さなど。0 は運転室の高さ cabH）
 
 
 def _bh(trkL, gauge, shoe, trkH, upW, tailR, upZ, upH, cab, pvH, boomL, armL, bkL, bkW, maxR, maxD, pvX=0.15, upF=None,
@@ -182,6 +203,37 @@ def _pile(ldX, ldL, ldDia, auOff, auD, auL, fj, rj, auN=1, auP=0.45, auH=2.6, au
     return {"ldX": ldX, "ldL": ldL, "ldDia": ldDia, "ldZ": ldZ, "auOff": auOff, "auD": auD, "auL": auL, "auN": auN, "auP": auP,
             "auH": auH, "auW": auW, "auZ": round(top - auH - 0.5, 3), "stZ": round(ldZ + 0.8 * ldL, 3),
             "fjX": fj[0], "fjW": fj[1], "rjX": rj[0], "rjW": rj[1]}
+
+
+def _flat(carL, carW, cabH, frOv, wb, whR, flZ, deck, trT, tnR, nRear=1, rearSp=1.3, nFr=1, frSp=1.7):
+    """搬入トラック（平ボディ）: 車体（_truck）・荷台の内寸（長さ, 幅, あおり）・床面地上高 flZ・後ろの輪距 trT・最小回転半径 tnR.
+    フレームの上は床の 0.15 下【目安】。原点は車体の真ん中."""
+    return {**_truck(carL, carW, cabH, frOv, wb, nRear, rearSp, whR, round(flZ - 0.15, 3), nFr=nFr, frSp=frSp),
+            "bedL": deck[0], "bedW": deck[1], "bedH": deck[2], "bedA": 0.0, "flZ": flZ, "trT": trT, "tnR": tnR, "ucOn": 0,
+            "rpL": 0.0, "otOn": 0, "maxR": 0.0}
+
+
+def _crane(ucX, boom, ucH, out, ang=60.0, nsec=4, rear=(0.0, 0.0)):
+    """積載形クレーン: 旋回中心 ucX（原点から前が +）・ブーム（今の長さ, 最短, 最長）・ブームの根元の高さ・アウトリガ（張出幅）・
+    後ろのアウトリガ（原点からの x, 張出幅。0 は無し）."""
+    return {"ucOn": 1, "ucX": ucX, "ucL": boom[0], "ucLmin": boom[1], "ucLmax": boom[2], "ucH": ucH, "abA": ang, "nSec": nsec,
+            "otOn": 1, "o1x": ucX, "o1y": out, "o2x": rear[0], "o2y": rear[1], "o3x": 0.0, "o3y": 0.0, "hkD": 2.0}
+
+
+def _tractor(carL, cabH, frOv, wb, nRear, rearSp, whR, kpC, kpZ, tnR, trT=1.835):
+    """トラクタ（UD クオン）: 全長・全高・前オーバーハング・ホイールベース（前軸〜後軸の1本め）・後ろの軸・タイヤの半径・カプラオフセット
+    kpC（後軸の中心から前）・カプラ上面地上高 kpZ・連結車の最小回転半径 tnR（最外側のわだち。トラクタ単体の値はカタログに無く、
+    設計車両のセミトレーラ連結車と車両制限令3条1項5号の 12m を既定に）."""
+    return {**_truck(carL, 2.49, cabH, frOv, wb, nRear, rearSp, whR, round(kpZ - 0.25, 3)), "kpC": kpC, "kpZ": kpZ, "tnR": tnR,
+            "trT": trT, "otOn": 0, "maxR": 0.0}
+
+
+def _trailer(kind, tlF, tlB, tlW, gnL, dkZ, dkL, rrZ, tlAx, tlN, tlSp, tlR, tlT, gnT=0.39):
+    """セミトレーラー（日本トレクス）: tlK 1 低床・中低床（グースネック）・2 平床・3 ポール（後台車）。キングピンから前端 tlF・後端 tlB、
+    全幅、グースネックの長さ（前端〜荷台前端）、荷台の床の高さと長さ、後ろ（車軸の上）の荷台の高さ、キングピン〜第1軸、軸の数・間、
+    タイヤの半径、輪距."""
+    return {"tlK": kind, "tlF": tlF, "tlB": tlB, "tlW": tlW, "gnL": gnL, "gnT": gnT, "dkZ": dkZ, "dkL": dkL, "rrZ": rrZ,
+            "tlAx": tlAx, "tlN": tlN, "tlSp": tlSp, "tlR": tlR, "tlT": tlT, "trA": 0.0}
 
 
 def _rt(booms: tuple, text: str) -> dict:
@@ -482,6 +534,78 @@ MACHINES = {
                       "G4", ground_kpa=67.2,
                       guesses="チャックの芯・パワーユニットの位置・杭の天端。ケーシングオーガ（24m 仕様 全長 32,500）とホースリールは 3D に"
                               "描いていない。接地圧はパワーユニット（硬質 30m 仕様の 67.2kPa）"),
+    # 搬入トラック（平ボディ）。車体は _truck、荷台は内寸。原点は車体の真ん中
+    "tr2": Machine("tr2", 13, "2t 平ボディ", "いすゞ エルフ 2t 標準キャブ・標準ボディ（TRG-NJR85A）", 4.375,
+                   _flat(4.685, 1.695, 1.96, 1.015, 2.49, 0.337, 0.855, (3.12, 1.62, 0.38), 1.24, 4.5),
+                   "R1", payload_t=2.0, turn_r=4.5,
+                   guesses="運転室の長さ（全長の 28%）・フレームの高さ（床の 0.15 下）、前後オーバーハングは同じ車体の CNG 車の図の値"),
+    "tr2w": Machine("tr2w", 13, "2t 平ボディ ワイドロング", "いすゞ エルフ 2t ワイドキャブ・ロング（2RG-NNR88AR）", 4.83,
+                    _flat(6.14, 2.17, 2.26, 1.11, 3.395, 0.369, 0.90, (4.36, 2.08, 0.38), 1.485, 5.6),
+                    "R1", payload_t=2.0, turn_r=5.6, guesses="運転室の長さ・フレームの高さ、前オーバーハングは CNG 車の図"),
+    "tr4": Machine("tr4", 13, "4t 平ボディ", "いすゞ フォワード 標準幅 フルキャブ（2RG-FRR90S2）", 7.9,
+                   _flat(8.485, 2.26, 2.55, 1.17, 4.86, 0.402, 1.09, (6.21, 2.155, 0.39), 1.66, 7.2),
+                   "R2", payload_t=4.15, turn_r=7.2, guesses="運転室の長さ・フレームの高さ・タイヤの半径（225/80R17.5 の呼びからの計算）"),
+    "tr4w": Machine("tr4w", 13, "4t 増トン ワイド", "三菱ふそう ファイター FK62FZ 増トン フルキャブ広幅（GVW14.5t 級）", 13.58,
+                    _flat(8.96, 2.48, 2.605, 1.17, 5.21, 0.433, 1.155, (6.70, 2.35, 0.70), 1.71, 9.0),
+                    "R3", payload_t=8.5, turn_r=9.0, guesses="前オーバーハング 1.17（カタログに無くフォワード並み）・運転室・タイヤの半径（計算）"),
+    "tr10": Machine("tr10", 13, "10t 平ボディ", "いすゞ ギガ カーゴ 6×2（2WG-CYL77D・GVW25t 級）", 25.0,
+                    _flat(11.81, 2.49, 3.73, 1.37, 5.815, 0.522, 1.33, (9.50, 2.35, 0.45), 1.835, 10.4, nRear=2, rearSp=1.31),
+                    "R4", turn_r=10.4,
+                    guesses="車両総重量は GVW クラスの 25t（諸元表に最大積載量・車両総重量が無い）・運転室・タイヤの半径（計算）"),
+    "tr10l": Machine("tr10l", 13, "10t 平ボディ 低床4軸", "いすゞ ギガ カーゴ 8×4 低床（2WG-CYJ77D・GVW25t 級）", 25.0,
+                     _flat(11.95, 2.49, 3.62, 1.37, 6.125, 0.433, 1.115, (9.60, 2.35, 0.45), 1.875, 10.3, nRear=2, rearSp=1.21,
+                           nFr=2, frSp=1.85),
+                     "R4", turn_r=10.3, guesses="車両総重量は GVW クラスの 25t・運転室・タイヤの半径（計算）"),
+    # クレーン付き（積載形トラッククレーン）
+    "uc4": Machine("uc4", 13, "4t クレーン付き 2.9t 吊り", "三菱ふそう ファイター FK72NJK＋タダノ ZX364（2.93t×2.6m・4段 10.0m）", 7.975,
+                   {**_flat(8.165, 2.23, 2.445, 1.17, 4.65, 0.425, 1.09, (5.40, 2.12, 0.40), 1.665, 7.4),
+                    **_crane(8.165 / 2 - 2.35, (7.78, 3.34, 10.0), 2.4, 4.6)},
+                   "R5", payload_t=2.8, turn_r=7.4, lift_t=2.93, height_m=3.01,
+                   guesses="クレーンの旋回中心（車の前端から 2.35。平ボディとクレーン付きの荷台長の差から）・ブームの根元の高さ 2.4・"
+                           "アウトリガの前後位置（旋回中心と同じ）・前オーバーハング・運転室"),
+    "uc10": Machine("uc10", 13, "10t クレーン付き 4.9t 吊り", "いすゞ ギガ 8×4 低床＋タダノ ZE604（4.9t×3.1m・4段 12.91m）", 25.0,
+                    {**_flat(11.95, 2.49, 3.62, 1.37, 6.125, 0.433, 1.115, (8.60, 2.35, 0.45), 1.875, 10.3, nRear=2, rearSp=1.21,
+                             nFr=2, frSp=1.85),
+                     **_crane(11.95 / 2 - 2.6, (10.05, 4.31, 12.91), 2.6, 3.9, rear=(-11.95 / 2 + 0.4, 3.5))},
+                    "R6", turn_r=10.3, lift_t=4.9,
+                    guesses="架装した車両の寸法（架装例が見つからずギガ 8×4 のシャシの値）・荷台長 8.6（9.6 からクレーンの基部 1.0）・"
+                            "旋回中心（前端から 2.6）・ブームの根元の高さ・後ろのアウトリガの位置（荷台の後端）・車両総重量（GVW クラス 25t）"),
+    # セルフローダ（荷台を傾ける）
+    "sl4": Machine("sl4", 13, "4t セルフローダ", "タダノ SL-50R（荷台 6.0m・傾斜 13°・ウインチ 39.2kN）＋ファイター 増トン級", 13.58,
+                   {**_flat(8.3, 2.48, 2.605, 1.17, 5.21, 0.433, 1.05, (6.0, 2.30, 0.0), 1.71, 9.0), "bedA": 13.0, "rpL": 2.0},
+                   "R7", turn_r=9.0,
+                   guesses="架装した車両の全長（荷台長＋約 2.3）・車両（ファイター増トン FK6 の値を当てた）・車両総重量（同）"),
+    "sl10": Machine("sl10", 13, "10t セルフローダ", "タダノ SL-150R（荷台 9.0m・傾斜 13°・ウインチ 78.5kN）＋大型 6×2", 25.0,
+                    {**_flat(11.3, 2.49, 3.6, 1.37, 5.815, 0.522, 1.15, (9.0, 2.49, 0.0), 1.835, 10.4, nRear=2, rearSp=1.31),
+                     "bedA": 13.0, "rpL": 3.0},
+                    "R7", turn_r=10.4, guesses="架装した車両の全長（荷台長＋約 2.3）・車両（ギガ 6×2 の値を当てた）・車両総重量（GVW クラス）"),
+    # トレーラー連結車（トラクタ＋セミトレーラー）。原点はトラクタの真ん中、trA は連結の折れ角（キングピンまわり）
+    "lb2": Machine("lb2", 14, "低床トレーラー 25t（2軸）", "UD クオン GW 6×4（第5輪 16t）＋トレクス PMR239AU（中低床・2軸8輪）", 9.07 + 34.75,
+                   {**_tractor(6.915, 2.975, 1.4, 3.15, 2, 1.37, 0.528, 0.175, 1.345, 12.0),
+                    **_trailer(1, 0.39, 10.725, 2.99, 2.89, 0.70, 5.2, 0.89, 8.325, 2, 1.2, 0.457, 1.95, gnT=0.31)},
+                   "R8", payload_t=25.0,
+                   guesses="連結車の最小回転半径 12m（設計車両・車両制限令の限り。トラクタの値はカタログに無い）・運転室の長さ"),
+    "lb4": Machine("lb4", 14, "中低床トレーラー 30t（4軸16輪）", "UD クオン GW 6×4（第5輪 18t）＋トレクス PMR440BB（中低床・4軸16輪）", 9.08 + 43.59,
+                   {**_tractor(6.915, 2.975, 1.4, 3.15, 2, 1.37, 0.528, 0.225, 1.345, 12.0),
+                    **_trailer(1, 0.39, 11.81, 2.99, 2.99, 0.55, 6.3, 0.78, 9.41, 2, 1.3, 0.387, 2.465)},
+                   "R8", payload_t=30.8,
+                   guesses="連結車の最小回転半径 12m（設計車両・車両制限令の限り）。4軸16輪は2列の車軸に左右2組ずつのダブルタイヤとして描く"),
+    "lbl": Machine("lbl", 14, "低床トレーラー 25t（荷台が軸の上）", "UD クオン GK 4×2（第5輪 11.5t）＋トレクス PLR430BK（低床・4軸16輪）", 6.63 + 33.88,
+                   {**_tractor(5.62, 2.945, 1.4, 3.2, 1, 1.3, 0.528, 0.62, 1.225, 12.0),
+                    **_trailer(1, 0.39, 8.70, 2.99, 2.99, 0.925, 5.0, 0.925, 5.84, 2, 1.3, 0.387, 2.465, gnT=0.31)},
+                   "R8", payload_t=25.0, guesses="連結車の最小回転半径 12m（設計車両・車両制限令の限り）・運転室の長さ"),
+    "fb3": Machine("fb3", 14, "平床トレーラー 28t（3軸）", "UD クオン GK 4×2（第5輪 11.5t）＋トレクス PFB34118（平床スタンション・3軸）", 6.63 + 6.0 + 28.1,
+                   {**_tractor(5.62, 2.945, 1.4, 3.2, 1, 1.3, 0.528, 0.62, 1.185, 12.0),
+                    **_trailer(2, 0.40, 11.60, 2.49, 0.0, 1.45, 12.0, 1.45, 6.85, 3, 1.36, 0.525, 1.83)},
+                   "R9", payload_t=28.1,
+                   guesses="トレーラーの車両重量 6.0t（リーフレットに無い）・連結車の最小回転半径 12m（設計車両・車両制限令の限り）・タイヤの半径（11R22.5）・輪距"),
+    "pt2": Machine("pt2", 14, "ポールトレーラー（鉄骨・PC 杭 20m）", "UD クオン GW 6×4（第5輪 16t）＋トレクス PTB212（2軸・連結パイプ伸縮）", 9.07 + 23.5,
+                   {**_tractor(6.915, 2.975, 1.4, 3.15, 2, 1.37, 0.528, 0.175, 1.345, 12.0),
+                    **_trailer(3, 1.95, 16.58, 2.49, 0.0, 0.96, 1.0, 1.57, 15.0 + 0.3, 2, 1.36, 0.506, 1.83),
+                    "cgOn": 1, "cgL": 20.0, "cgW": 0.6, "cgH": 0.6, "cgX": -8.0, "tnR": 16.39, "tkW": 10.5},
+                   "R10", payload_t=17.7,
+                   guesses="後台車の車軸の中心（台車のターンテーブルの 0.3 後ろ）・積載物は前に 2.0・トラクタと台車の間 15.0・後ろに 3.0（カタログの例）・"
+                           "回転軌跡はカタログの表（UD GW との連結最小回転半径 16.39m・所要道路幅 10.5m）"),
     # クローラクレーンにバイブロ（調和工業 SR-45）
     "cc50v": Machine("cc50v", 2, "バイブロ（50t クレーン）", "コベルコ 7050G-2（ブーム 21.3m）＋調和工業 SR-45（473kN）", 48.0,
                      {**_cc(5.57, 4.36, 0.76, 0.985, 2.99, 3.5, 4.0, 1.1, 3.3, 0.94, 1.1, 1.75, 1.355, 30.5,
@@ -571,6 +695,18 @@ def license_for(m: Machine, att: str = "") -> str:
         return ("くい打機・くい抜機（安衛令 別表第七 第三号）。完成杭の上を自走しリモコンで操作する。車両系建設機械（不特定の場所に"
                 "自走できるもの）に当たれば機体質量 3t 以上で技能講習（安衛令20条12号）、当たらなければ特別教育（安衛則36条9号の2）。"
                 "どちらに当たるかの公式な判断は見つけていない（労働基準監督署に確かめる）")
+    if m.kind in (13, 14):
+        gvw = m.mass_t
+        out = "公道は" + road_license(gvw, m.payload_t)
+        if m.kind == 14:
+            out += "・けん引免許（道路交通法85条3項。車両総重量 750kg を超える被けん引車）"
+        if m.lift_t:
+            out += ("・クレーンの運転は" + ("移動式クレーン運転士免許（クレーン則68条）" if m.lift_t >= 5 else
+                                       "小型移動式クレーン運転技能講習（クレーン則68条ただし書き。1t 以上 5t 未満）")
+                    + "・玉掛け技能講習（221条）" + ("・つり上げ荷重 3t 以上は移動式クレーン検査証" if m.lift_t >= 3 else ""))
+        if float(m.params.get("bedA", 0) or 0) > 0:
+            out += "・ウインチの運転は特別教育（安衛則36条11号）"
+        return out
     if m.kind == 2 and m.vibro:
         return ("移動式クレーン運転士免許（クレーン則68条）・玉掛け技能講習（221条）・バイブロを付けて作業するときは車両系建設機械"
                 "（基礎工事用）運転技能講習（加藤製作所の注意書き。通達の番号は見つけていない）")
@@ -609,10 +745,13 @@ def plan_rule(m: Machine) -> str:
                 "（171条の4）・運転室の無い機械は物が飛んでくる所で使わない（171条の5）・立入禁止と悪天候の中止（171条の6）。"
                 "高さ 5m 以上のコンクリート造の工作物の解体は調査・作業計画（517条の14）・作業主任者（517条の17・18）、"
                 "高さ 31m を超える建物の解体は 14日前までに計画の届出（安衛則90条1号・安衛法88条3項）",
+            13: _TRUCK_RULE, 14: _TRUCK_RULE + "。連結全長・幅・高さ・総重量が一般的制限値を超えれば特殊車両通行許可（道路法47条の2）",
             12: "倒壊防止（安衛則173条。反力架台・パワーユニットの下）・組立て解体の作業指揮（190条）・点検（192条）・合図（189条）・"
                 "ガス導管等の損壊の防止（194条）。杭を建て込むクレーンは作業の方法等の決定（クレーン則66条の2）"}[m.kind]
 
 
+_TRUCK_RULE = ("車両系荷役運搬機械等の作業計画（安衛則151条の3。道路上の走行を除く）・作業指揮者（151条の4）・誘導者（151条の6）・"
+               "100kg 以上の荷の積卸しの作業指揮者（151条の70）")
 _PILE_RULE = ("地形・地質の調査と記録（安衛則154条）・作業計画（155条）・倒壊防止（173条。軟弱地盤は敷板・敷角）・合図（189条）・"
               "組立て解体の作業指揮（190条）・組立て後の点検（192条）・ガス導管等の損壊の防止（194条）")
 
@@ -629,8 +768,10 @@ def keep_out(m: Machine, ps: dict, margin: float = KEEP_OUT) -> list[tuple[str, 
         out.append(("つり荷の下", 0.0, "クレーン則74条の2"))
     elif m.kind == 3:
         out.append(("ブームの下・筒先の吹出し", float(ps.get("maxR", 0)) + margin, "安衛則158条・171条の2第3号"))
-    elif m.kind in (4, 5):
+    elif m.kind in (4, 5, 13, 14):
         out.append(("車体と荷（バック・荷下ろし）", 0.0, "安衛則151条の7"))
+        if m.kind == 13 and int(ps.get("ucOn", 0) or 0):
+            out.append(("クレーンの上部旋回体・つり荷の下", float(ps.get("ucLmax", 0)) + margin, "クレーン則74条・74条の2"))
     elif m.kind in (8, 9, 11):
         out.append(("後端（上部旋回体）", tail + margin, "安衛則158条"))
         if m.kind == 8:
@@ -710,6 +851,8 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
         if m.lift_t > 20:
             p.checks.append(Check("地盤調査", "注意", "つり上げ荷重 20t を超える移動式クレーンは設置地盤の調査を（NIIS-SD-No.22 p.87〜88。"
                                                       "接地圧は極限支持力の 1/3 を推奨）"))
+    if m.kind in (13, 14):
+        _vehicle_checks(p, m, ps)
     att = p.attachment if m.kind in (1, 11) else ""
     if att:
         nm, _k, L, _w, kg, cls, src = ATTACHMENTS[att]
@@ -760,6 +903,103 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
     return p
 
 
+def vehicle_size(m: Machine, ps: dict) -> dict:
+    """搬入車両の大きさ（m・t）: 全長（連結全長）・全幅・全高（積荷の上まで）・総重量（積荷を足す）."""
+    carL, carW, carF = float(ps["carL"]), float(ps["carW"]), float(ps.get("carF", ps["carL"] / 2))
+    load_t = float(ps.get("cgT", 0) or 0)
+    ld_top = 0.0
+    if int(ps.get("cgOn", 0) or 0):
+        floor = float(ps.get("flZ", 0)) if m.kind == 13 else float(ps.get("dkZ", 0))
+        ld_top = floor + float(ps.get("cgH", 0))
+    h = max(m.height_m or float(ps.get("cabH", 0)), ld_top)
+    if m.kind == 14:
+        kx = _kingpin_x(ps)
+        length = carF - kx + float(ps["tlB"])
+        width = max(carW, float(ps["tlW"]))
+        if int(ps.get("cgOn", 0) or 0):             # 積荷の後ろの端（キングピンから。cgX は積荷の中心）
+            length = max(length, carF - kx - float(ps.get("cgX", 0)) + float(ps.get("cgL", 0)) / 2)
+    else:
+        length, width = carL, carW
+    return {"長さ": length, "幅": width, "高さ": h, "総重量": m.mass_t + load_t}
+
+
+def _kingpin_x(ps: dict) -> float:
+    """キングピン（カプラ中心）の x（原点＝トラクタの真ん中から前が +）: 後ろの軸の中心＋カプラオフセット."""
+    carF, frOv, wb = float(ps.get("carF", ps["carL"] / 2)), float(ps["frOv"]), float(ps["wb"])
+    nR, sp = int(ps.get("nRear", 1)), float(ps.get("rearSp", 0))
+    return carF - frOv - wb - (sp / 2 if nR >= 2 else 0.0) + float(ps.get("kpC", 0))
+
+
+def swept_path(m: Machine, ps: dict) -> dict:
+    """最小回転半径で曲がり続けるとき（定常円旋回）の半径 m: 外側の前端の角 Ro・内側の後輪 ri（トレーラーは後軸群の内輪）・所要の占有幅.
+    単車は場内通路と同じ式（a＝√(R²−L²)、Ro＝√((a＋(W−T)/2)²＋(L＋F)²)、ri＝a−(W＋T)/2）。連結車は トラクタの後軸中心
+    Rr＝√(R²−L1²)−Tf/2、キングピン Rk＝√(Rr²＋c²)、トレーラー後軸群 Rt＝√(Rk²−L2²)、内輪 Rt−Tt/2、外側 トラクタの前端の角
+    √((L1＋F)²＋(Rr＋W/2)²) とトレーラー後端の角 √((Rt＋Wt/2)²＋(後軸群〜後端)²) の大きい方（research_notes/搬入車両/トレーラー.md 4.2。
+    出典で確かめた式ではなく【目安】）."""
+    R = float(ps.get("tnR", 0) or m.turn_r or 0)
+    if R <= 0:
+        return {}
+    frOv, wb, W = float(ps["frOv"]), float(ps["wb"]), float(ps["carW"])
+    nR, sp = int(ps.get("nRear", 1)), float(ps.get("rearSp", 0))
+    L = wb + (sp / 2 if nR >= 2 else 0.0)
+    T = float(ps.get("trT", W - 0.4))
+    if L >= R:
+        return {}
+    if m.kind == 14 and int(ps.get("tlK", 1)) == 3:
+        w = float(ps.get("tkW", 0) or 0)
+        return {"外側": R, "内側": R - w, "幅": w, "カタログ": True} if w else {}
+    if m.kind != 14:
+        a = math.sqrt(R * R - L * L)
+        ro = math.sqrt((a + (W - T) / 2) ** 2 + (L + frOv) ** 2)
+        ri = a - (W + T) / 2
+        return {"外側": ro, "内側": ri, "幅": ro - ri}
+    Tf = T + 0.2
+    rr = math.sqrt(R * R - L * L) - Tf / 2
+    c = float(ps.get("kpC", 0))
+    rk = math.sqrt(rr * rr + c * c)
+    L2 = float(ps["tlAx"]) + (int(ps.get("tlN", 1)) - 1) * float(ps.get("tlSp", 0)) / 2
+    if L2 >= rk:
+        return {"外側": math.sqrt((L + frOv) ** 2 + (rr + W / 2) ** 2), "内側": 0.0, "幅": 0.0, "曲がれない": True}
+    rt = math.sqrt(rk * rk - L2 * L2)
+    rti = rt - float(ps["tlT"]) / 2
+    ro = math.sqrt((L + frOv) ** 2 + (rr + W / 2) ** 2)
+    rto = math.sqrt((rt + float(ps["tlW"]) / 2) ** 2 + (float(ps["tlB"]) - L2) ** 2)
+    ang = math.degrees(math.atan2(c, rr) + math.asin(L2 / rk))
+    return {"外側": max(ro, rto), "内側": rti, "幅": max(ro, rto) - rti, "折れ角": ang}
+
+
+def _vehicle_checks(p: "Placed", m: Machine, ps: dict) -> None:
+    sz = vehicle_size(m, ps)
+    lim = ROAD_LIMIT
+    over = []
+    if sz["長さ"] > lim["長さ"] + 1e-6:
+        over.append(f"長さ {sz['長さ']:.2f}m ＞ {lim['長さ']:g}m")
+    if sz["幅"] > lim["幅"] + 1e-6:
+        over.append(f"幅 {sz['幅']:.2f}m ＞ {lim['幅']:g}m（保安基準を超えるので基準緩和の認定も）")
+    if sz["高さ"] > lim["高さ"] + 1e-6:
+        over.append(f"高さ {sz['高さ']:.2f}m ＞ {lim['高さ']:g}m（高さ指定道路は {lim['高さ（指定道路）']:g}m）")
+    if sz["総重量"] > lim["総重量"] + 1e-6:
+        over.append(f"総重量 {sz['総重量']:.1f}t ＞ {lim['総重量']:g}t（重さ指定道路・高速は {lim['総重量（指定道路）']:g}t まで）")
+    detail = (f"長さ {sz['長さ']:.2f}m・幅 {sz['幅']:.2f}m・高さ {sz['高さ']:.2f}m・総重量 {sz['総重量']:.1f}t。" +
+              ("一般的制限値を超える: " + "、".join(over) + "。特殊車両通行許可（道路法47条の2）" if over else
+               "一般的制限値（車両制限令3条1項）の内"))
+    if m.kind == 14 and over:
+        detail += "。高速自動車国道の長さの特例（セミトレーラ連結車 16.5m）は特例8車種だけで、重機運搬の低床・平床は対象外"
+    p.checks.append(Check("道路の制限", "要確認" if over else "OK", detail))
+    sw = swept_path(m, ps)
+    if sw:
+        txt = (f"最小回転半径 {float(ps.get('tnR', 0) or m.turn_r):g}m で曲がり続けるとき 外側 R{sw['外側']:.2f}m・内側 R{sw['内側']:.2f}m・"
+               f"所要の占有幅 {sw['幅']:.2f}m" + (f"・折れ角 {sw['折れ角']:.0f}°" if "折れ角" in sw else "") +
+               ("（メーカーの回転軌跡の表）" if sw.get("カタログ") else
+                "（定常円旋回の式【目安】。90° の右左折は短い区間で曲がり終えるので小さめになる）"))
+        if sw.get("曲がれない"):
+            txt = "トレーラーが長くこの半径では曲がり続けられない（キングピン〜後軸がキングピンの半径より長い）"
+        p.checks.append(Check("旋回軌跡", "注意", txt))
+    if int(ps.get("ucOn", 0) or 0):
+        p.checks.append(Check("クレーン", "注意", f"つり上げ荷重 {m.lift_t:g}t・ブーム {float(ps['ucLmin']):g}〜{float(ps['ucLmax']):g}m・"
+                                                 f"アウトリガ張出 {float(ps['o1y']):g}m。定格総荷重は仕様書の表（前方は空車時の 25% 以下）"))
+
+
 def part_params(p: Placed) -> dict:
     """部品 ashiba_machine のパラメータ."""
     m = p.machine
@@ -770,6 +1010,8 @@ def part_params(p: Placed) -> dict:
     name = f"{p.name} {m.name}" if p.name else m.name
     if m.kind == 2:
         ps = {"vbK": 0, **ps}
+    if m.kind in (13, 14):
+        ps = {**VEHICLE_DEFAULTS, **ps}
     if m.kind in (1, 11):
         ps = {**ps, **att_params(p.attachment)}
         if m.kind == 1 and p.attachment and "bkA" not in p.params:
@@ -777,7 +1019,14 @@ def part_params(p: Placed) -> dict:
             ps["bkA"] = 0.0 if ATTACHMENTS[p.attachment][1] == 5 else -90.0
         if p.attachment:
             note += "・" + ATTACHMENTS[p.attachment][0].split(" ", 1)[-1]
+    ps = {k: (bool(v) if k in BOOL_PARAMS else v) for k, v in ps.items()}      # Tapir は Boolean 型に 0・1 を受け付けない
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
+
+
+BOOL_PARAMS = frozenset({"otOn", "ucOn", "cgOn", "tkOn"})   # 部品の Boolean 型（テストで paramlist と照合）
+
+
+VEHICLE_DEFAULTS = {"cgOn": 0, "cgL": 0.0, "cgW": 0.0, "cgH": 0.0, "cgX": 0.0, "cgT": 0.0, "tkOn": 1, "tkS": 1, "tkW": 0.0}
 
 
 def att_params(key: str) -> dict:

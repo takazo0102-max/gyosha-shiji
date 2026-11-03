@@ -9,7 +9,7 @@ import unittest
 from _path import SRC  # noqa: F401
 
 from ashiba.machine import (ATTACHMENTS, KINDS, MACHINES, Placed, att_params, check, crawler_plates, find, keep_out, license_for,
-                            outrigger_pad, part_params, plan_rule, rated_at, report, road_license)
+                            outrigger_pad, part_params, plan_rule, rated_at, report, road_license, swept_path, vehicle_size)
 
 ROOT = SRC.parent
 
@@ -214,6 +214,68 @@ class TestPileDemolition(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))                                       # 番号が重ならない
         self.assertIn("hid = 351", gdl)                                                  # 爪の開きはバックホウと解体機で別の番号
         self.assertIn("hid = 355", gdl)
+
+
+
+class TestDeliveryVehicles(unittest.TestCase):
+    """搬入車両（利用者の指定 2026-11-03: 搬入車両も作成して　トレーラーとか含め　詳細平面図になるように）."""
+
+    def test_catalog_values(self):
+        """メーカーの諸元: エルフ 4,685・WB 2,490・R4.5、ギガ 8×4 の軸 1,850＋4,275＋1,210、トレクス PMR440BB 11,810（キングピン〜後端）、
+        クオン GW の前端〜連結部 5,010 と足して連結全長 16,820."""
+        e = MACHINES["tr2"].params
+        self.assertEqual((e["carL"], e["wb"], e["tnR"], e["flZ"]), (4.685, 2.49, 4.5, 0.855))
+        g = MACHINES["tr10l"].params
+        self.assertAlmostEqual(g["wb"], 1.85 + 4.275)
+        self.assertEqual((g["nFr"], g["frSp"], g["rearSp"]), (2, 1.85, 1.21))
+        lb = MACHINES["lb4"]
+        self.assertAlmostEqual(vehicle_size(lb, lb.params)["長さ"], 16.82, places=2)
+        self.assertAlmostEqual(vehicle_size(MACHINES["lbl"], MACHINES["lbl"].params)["長さ"], 3.98 + 8.70, places=2)   # GK No.6
+        pt = MACHINES["pt2"]
+        self.assertAlmostEqual(vehicle_size(pt, pt.params)["長さ"], 5.06 + 18.0, places=2)   # 積載物 20m（前に 2.0）
+
+    def test_road_limits(self):
+        """車両制限令3条1項: 幅 2.5・長さ 12・高さ 3.8・総重量 20t。超えれば特殊車両通行許可（道路法47条の2）."""
+        c = {x.item: x for x in check(Placed("t", MACHINES["tr4"])).checks}
+        self.assertEqual(c["道路の制限"].status, "OK")
+        c = {x.item: x for x in check(Placed("t", MACHINES["lb4"])).checks}
+        self.assertEqual(c["道路の制限"].status, "要確認")
+        self.assertIn("幅 2.99m", c["道路の制限"].detail)
+        self.assertIn("特例8車種", c["道路の制限"].detail)
+        # 4t 平ボディに高さ 2.8m の積荷を載せると 1.09＋2.8＝3.89m で高さを超える
+        c = {x.item: x for x in check(Placed("t", MACHINES["tr4"], params={"cgOn": 1, "cgL": 3, "cgW": 2, "cgH": 2.8, "cgT": 2})).checks}
+        self.assertIn("高さ 3.89m", c["道路の制限"].detail)
+
+    def test_swept_path(self):
+        """単車は場内通路と同じ式、連結車はキングピンとトレーラー後軸群まで、ポールはカタログの所要道路幅."""
+        from ashiba.site_route import VEHICLES, swept
+        m = MACHINES["tr4"]
+        sw = swept_path(m, m.params)
+        self.assertGreater(sw["外側"], m.params["tnR"])
+        self.assertLess(sw["内側"], sw["外側"])
+        lb = swept_path(MACHINES["lb4"], MACHINES["lb4"].params)
+        self.assertGreater(lb["幅"], swept_path(MACHINES["lbl"], MACHINES["lbl"].params)["幅"])   # キングピン〜後軸が長いほど内輪差が大きい
+        self.assertEqual(swept_path(MACHINES["pt2"], MACHINES["pt2"].params)["幅"], 10.5)
+
+    def test_licenses(self):
+        self.assertIn("けん引免許", license_for(MACHINES["lb4"]))
+        self.assertIn("小型移動式クレーン運転技能講習", license_for(MACHINES["uc4"]))
+        self.assertIn("移動式クレーン検査証", license_for(MACHINES["uc10"]))              # 4.9t 吊り
+        self.assertIn("36条11号", license_for(MACHINES["sl4"]))                          # ウインチ
+        self.assertIn("準中型", license_for(MACHINES["tr2"]))
+        self.assertIn("151条の70", plan_rule(MACHINES["tr4"]))
+
+    def test_part_has_vehicle_params(self):
+        gdl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "2d.gdl").read_text(encoding="utf-8-sig")
+        self.assertIn("arc2 xAxR, yC, rOut", gdl)                                         # 平面の旋回軌跡
+        self.assertIn("hotspot2 kpX, 0, 11, trA, 6", gdl)                                  # 連結の折れ角
+        names = re.findall(r'Name="([^"]+)"', (ROOT / "gdl" / "hsf" / "ashiba_machine" / "paramlist.xml").read_text(encoding="utf-8"))
+        self.assertEqual(len(names), len(set(names)))                                    # 同じ名前のパラメータが無い（GSM が作れない）
+        from ashiba.machine import BOOL_PARAMS
+        xml = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "paramlist.xml").read_text(encoding="utf-8")
+        self.assertEqual(set(BOOL_PARAMS), set(re.findall(r'<Boolean Name="([^"]+)"', xml)))
+        ps = part_params(Placed("", MACHINES["uc4"]))
+        self.assertIs(ps["ucOn"], True)                                                    # 0・1 は Tapir が受け付けない
 
 
 if __name__ == "__main__":

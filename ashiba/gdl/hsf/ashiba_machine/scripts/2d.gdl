@@ -101,15 +101,32 @@ if mcKind = 12 then
 	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
 endif
 if isTk then
-	! 車体・運転室・タイヤ
-	rect2 xR, -carW / 2, xF, carW / 2
-	if mcKind < 7 then line2 xF - min(2.3, carL * 0.28), -carW / 2, xF - min(2.3, carL * 0.28), carW / 2
+	! 車体・運転室・タイヤ（搬入車両は詳細: 運転室の前窓・ミラー・車軸の線・後ろはダブルタイヤ）
+	cL2 = min(2.3, carL * 0.28)
+	if mcKind = 14 then
+		rect2 xF - cL2 - 0.1, -carW / 2, xF, carW / 2
+		line2 xR, -carW / 2 + 0.35, xF - cL2 - 0.1, -carW / 2 + 0.35
+		line2 xR, carW / 2 - 0.35, xF - cL2 - 0.1, carW / 2 - 0.35
+		line2 xR, -carW / 2 + 0.35, xR, carW / 2 - 0.35
+	else
+		rect2 xR, -carW / 2, xF, carW / 2
+	endif
+	if mcKind <> 7 then line2 xF - cL2, -carW / 2, xF - cL2, carW / 2
+	if isVh then
+		line2 xF - 0.12, -carW / 2 + 0.08, xF - 0.12, carW / 2 - 0.08
+		for s = -1 to 1 step 2
+			rect2 xF - 0.35, s * (carW / 2 + 0.05), xF - 0.25, s * (carW / 2 + 0.22)
+			line2 xF - 0.3, s * carW / 2, xF - 0.3, s * (carW / 2 + 0.05)
+		next s
+	endif
 	for i = 1 to nAx
+		if isVh then line2 axs[i], -carW / 2 + 0.1, axs[i], carW / 2 - 0.1
 		for s = -1 to 1 step 2
 			rect2 axs[i] - whR, s * carW / 2 - s * 0.05, axs[i] + whR, s * carW / 2 - s * (0.05 + whW)
+			if isVh and i > nFa then rect2 axs[i] - whR, s * carW / 2 - s * (0.08 + whW), axs[i] + whR, s * carW / 2 - s * (0.08 + 2 * whW)
 		next s
 	next i
-	if (mcKind = 3 or mcKind = 6) and otOn then
+	if (mcKind = 3 or mcKind = 6 or (mcKind = 13 and ucOn)) and otOn then
 		for j = 1 to 3
 			if oy[j] > 0.01 then
 				for s = -1 to 1 step 2
@@ -142,6 +159,112 @@ if isTk then
 	if mcKind = 5 then
 		rect2 xR + 0.1, -bedW / 2, xR + 0.1 + bedL * cos(bedA), bedW / 2
 	endif
+	if mcKind = 13 then
+		! 荷台（外形・あおりの内側・鳥居）・道板・クレーン・積荷
+		dkx = xR + (bedL + 0.1) * cos(bedA)
+		rect2 xR, -bedW / 2 - 0.05, dkx, bedW / 2 + 0.05
+		if bedH > 0.01 then rect2 xR + 0.04, -bedW / 2, dkx - 0.08, bedW / 2
+		line2 dkx - 0.08, -bedW / 2 - 0.05, dkx - 0.08, bedW / 2 + 0.05
+		if rpL > 0.01 then
+			rpx = rpL * cos(asn(min(1, flZ / rpL)))
+			for s = -1 to 1 step 2
+				rect2 xR - rpx, s * (bedW / 2 - 0.25) - 0.2, xR, s * (bedW / 2 - 0.25) + 0.2
+			next s
+		endif
+		if ucOn then
+			circle2 ucX, 0, 0.35
+			add2 ucX, 0
+			rot2 slew + 180
+			line2 0, -0.18, ucTx, -0.12
+			line2 0, 0.18, ucTx, 0.12
+			circle2 ucTx, 0, 0.15
+			del 2
+			circle2 ucX, 0, ucLmax
+		endif
+		if cgOn then rect2 xR + bedL / 2 + cgX - cgL / 2, -cgW / 2, xR + bedL / 2 + cgX + cgL / 2, cgW / 2
+	endif
+	if mcKind = 14 then
+		! 第5輪（カプラ）とキングピン、トレーラー（キングピンまわりに trA）
+		circle2 kpX, 0, 0.45
+		circle2 kpX, 0, 0.1
+		add2 kpX, 0
+		rot2 trA
+		rect2 -tlB, -tlW / 2, tlF, tlW / 2
+		if tlK = 1 then
+			line2 tlF - gnL, -tlW / 2, tlF - gnL, tlW / 2
+			line2 tlF - gnL - dkL, -tlW / 2, tlF - gnL - dkL, tlW / 2
+		endif
+		if tlK = 2 then
+			for k = 0 to 3
+				for s = -1 to 1 step 2
+					rect2 tlF - 1.5 - k * (tlB - 2.5) / 3, s * tlW / 2 - 0.05, tlF - 1.4 - k * (tlB - 2.5) / 3, s * tlW / 2 + 0.05
+				next s
+			next k
+		endif
+		if tlK = 3 then
+			line2 0, -0.15, -tlAx + 1.0, -0.15
+			line2 0, 0.15, -tlAx + 1.0, 0.15
+		endif
+		circle2 0, 0, 0.08
+		for i = 0 to tlN - 1
+			xa = -(tlAx + i * tlSp)
+			line2 xa, -tlW / 2 + 0.1, xa, tlW / 2 - 0.1
+			for s = -1 to 1 step 2
+				for q = 1 to max(1, tlQ)
+					yq = s * (tlT / 2 - (q - 1) * 0.885)
+					rect2 xa - tlR, yq - 0.27, xa + tlR, yq - 0.02
+					rect2 xa - tlR, yq + 0.02, xa + tlR, yq + 0.27
+				next q
+			next s
+		next i
+		if cgOn then rect2 cgX - cgL / 2, -cgW / 2, cgX + cgL / 2, cgW / 2
+		del 2
+	endif
+endif
+! 旋回軌跡（最小回転半径で曲がり続けるとき。外側の前端の角と内側の後輪。単車は場内通路と同じ式、連結車はトレーラーの後軸群まで。
+! 円弧は今の向きから 90° 分）
+if isVh and tkOn and tnR > 0.5 then
+	L1 = axF - xAxR
+	if L1 < tnR then
+		aRr = sqr(tnR ^ 2 - L1 ^ 2)
+		if mcKind = 13 then
+			rCen = aRr - trT / 2
+			rOut = sqr((aRr + (carW - trT) / 2) ^ 2 + (L1 + frOv) ^ 2)
+			rIn = aRr - (carW + trT) / 2
+		else
+			rCen = aRr - (trT + 0.2) / 2
+			rOut = sqr((L1 + frOv) ^ 2 + (rCen + carW / 2) ^ 2)
+			rKp = sqr(rCen ^ 2 + kpC ^ 2)
+			L2 = tlAx + (tlN - 1) * tlSp / 2
+			rIn = 0
+			if tkW > 0.01 then
+				rIn = tnR - tkW
+				rOut = tnR
+			else
+				if L2 < rKp then
+					rTrl = sqr(rKp ^ 2 - L2 ^ 2)
+					rIn = rTrl - tlT / 2
+					rOut = max(rOut, sqr((rTrl + tlW / 2) ^ 2 + (tlB - L2) ^ 2))
+				endif
+			endif
+		endif
+		yC = tkS * rCen
+		dxq = xF - xAxR
+		dyq = -tkS * carW / 2 - yC
+		aQ = 90
+		if dyq < 0 then aQ = -90
+		if abs(dxq) > 0.000001 then aQ = atn(dyq / dxq)
+		if dxq < 0 then aQ = aQ + 180
+		if tkS > 0 then
+			arc2 xAxR, yC, rOut, aQ, aQ + 90
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, -90, 0
+		else
+			arc2 xAxR, yC, rOut, aQ - 90, aQ
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, 0, 90
+		endif
+		line2 xAxR, yC - 0.3, xAxR, yC + 0.3
+		line2 xAxR - 0.3, yC, xAxR + 0.3, yC
+	endif
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）
 rW = maxR
@@ -151,9 +274,16 @@ if rW > 0.1 and isR then circle2 0, 0, rW
 ! 注記（機種・諸元）
 xN = -tailR - 0.6
 if isTk then xN = xR - 0.6
+yN = 0
+if isVh then
+	! 搬入車両は車体の下（右側の外）に書く
+	xN = xR
+	yN = -max(carW, tlW * (mcKind = 14)) / 2 - 0.8
+	if mcKind = 14 then xN = min(xR, kpX - tlB)
+endif
 if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
 if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
-add2 xN, 0
+add2 xN, yN
 rot2 -SYMB_ROTANGLE
 text2 0, 0, mcName
 if strlen(mcNote) > 0 then text2 0, -dT, mcNote
@@ -163,6 +293,11 @@ if rW > 0.1 and isR then
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
 	del 2
+endif
+if mcKind = 14 then
+	hotspot2 kpX, 0, 11, trA, 6
+	hotspot2 kpX - 1, 0, 12, trA, 4
+	hotspot2 kpX - tlB * cos(trA), -tlB * sin(trA), 13, trA, 5
 endif
 ! 旋回角のホットスポット
 rH = max(2.0, tailR)

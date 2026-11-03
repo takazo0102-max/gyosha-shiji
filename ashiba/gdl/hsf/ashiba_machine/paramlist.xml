@@ -30,7 +30,7 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="mcKind">
-			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降・8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機）"]]></Description>
+			<Description><![CDATA["種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降・8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機・13 搬入トラック・14 トレーラー連結車）"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<Integer Name="mcModel">
@@ -593,6 +593,154 @@
 			<Description><![CDATA["チャックの杭の天端（チャックの上）"]]></Description>
 			<Value>3.0</Value>
 		</Length>
+		<Length Name="flZ">
+			<Description><![CDATA["荷台の床面地上高"]]></Description>
+			<Value>1.09</Value>
+		</Length>
+		<Length Name="trT">
+			<Description><![CDATA["後ろの輪距（トレッド）"]]></Description>
+			<Value>1.66</Value>
+		</Length>
+		<Length Name="tnR">
+			<Description><![CDATA["最小回転半径（最外側のわだち）"]]></Description>
+			<Value>7.2</Value>
+		</Length>
+		<Length Name="rpL">
+			<Description><![CDATA["道板の長さ（0＝無し）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Boolean Name="ucOn">
+			<Description><![CDATA["クレーン付き"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="ucX">
+			<Description><![CDATA["クレーンの旋回中心（原点から前が +）"]]></Description>
+			<Value>1.7</Value>
+		</Length>
+		<Length Name="ucL">
+			<Description><![CDATA["クレーンのブームの長さ（今）"]]></Description>
+			<Value>7.78</Value>
+		</Length>
+		<Length Name="ucLmin">
+			<Description><![CDATA["ブームの最短"]]></Description>
+			<Value>3.34</Value>
+		</Length>
+		<Length Name="ucLmax">
+			<Description><![CDATA["ブームの最長"]]></Description>
+			<Value>10.0</Value>
+		</Length>
+		<Length Name="ucH">
+			<Description><![CDATA["ブームの根元の高さ"]]></Description>
+			<Value>2.4</Value>
+		</Length>
+		<Boolean Name="cgOn">
+			<Description><![CDATA["積荷を描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="cgL">
+			<Description><![CDATA["積荷の長さ"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cgW">
+			<Description><![CDATA["積荷の幅"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cgH">
+			<Description><![CDATA["積荷の高さ"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cgX">
+			<Description><![CDATA["積荷の中心のずれ（トラックは荷台の中心から、トレーラーはキングピンから）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<RealNum Name="cgT">
+			<Description><![CDATA["積荷の質量 t"]]></Description>
+			<Value>0.0</Value>
+		</RealNum>
+		<Boolean Name="tkOn">
+			<Description><![CDATA["平面に旋回軌跡を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Integer Name="tkS">
+			<Description><![CDATA["曲がる側（1＝左・-1＝右）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="tkW">
+			<Description><![CDATA["カタログの所要道路幅（0＝式で）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="kpC">
+			<Description><![CDATA["カプラオフセット（後軸の中心から前）"]]></Description>
+			<Value>0.175</Value>
+		</Length>
+		<Length Name="kpZ">
+			<Description><![CDATA["カプラ上面地上高"]]></Description>
+			<Value>1.345</Value>
+		</Length>
+		<Integer Name="tlK">
+			<Description><![CDATA["トレーラー（1 低床・中低床・2 平床・3 ポール）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="tlF">
+			<Description><![CDATA["キングピンから前端"]]></Description>
+			<Value>0.39</Value>
+		</Length>
+		<Length Name="tlB">
+			<Description><![CDATA["キングピンから後端"]]></Description>
+			<Value>11.81</Value>
+		</Length>
+		<Length Name="tlW">
+			<Description><![CDATA["トレーラーの全幅"]]></Description>
+			<Value>2.99</Value>
+		</Length>
+		<Length Name="gnL">
+			<Description><![CDATA["グースネックの長さ（前端〜荷台前端）"]]></Description>
+			<Value>2.99</Value>
+		</Length>
+		<Length Name="gnT">
+			<Description><![CDATA["グースネックの厚み"]]></Description>
+			<Value>0.39</Value>
+		</Length>
+		<Length Name="dkZ">
+			<Description><![CDATA["トレーラーの床面地上高（ポールは連結パイプの高さ）"]]></Description>
+			<Value>0.55</Value>
+		</Length>
+		<Length Name="dkL">
+			<Description><![CDATA["トレーラーの荷台の長さ（ポールは後台車の長さ）"]]></Description>
+			<Value>6.3</Value>
+		</Length>
+		<Length Name="rrZ">
+			<Description><![CDATA["後ろ（車軸の上）の荷台の高さ"]]></Description>
+			<Value>0.78</Value>
+		</Length>
+		<Length Name="tlAx">
+			<Description><![CDATA["キングピンから第1軸"]]></Description>
+			<Value>9.41</Value>
+		</Length>
+		<Integer Name="tlN">
+			<Description><![CDATA["トレーラーの車軸の列の数"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Length Name="tlSp">
+			<Description><![CDATA["トレーラーの軸間"]]></Description>
+			<Value>1.3</Value>
+		</Length>
+		<Length Name="tlR">
+			<Description><![CDATA["トレーラーのタイヤの半径"]]></Description>
+			<Value>0.387</Value>
+		</Length>
+		<Length Name="tlT">
+			<Description><![CDATA["トレーラーの輪距"]]></Description>
+			<Value>2.465</Value>
+		</Length>
+		<Integer Name="tlQ">
+			<Description><![CDATA["片側のダブルタイヤの組の数（4軸16輪は 2）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Angle Name="trA">
+			<Description><![CDATA["トレーラーの向き（トラクタに対して左回りが +）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
 		<Integer Name="vbK">
 			<Description><![CDATA["フックの先（0 フック・1 バイブロ）"]]></Description>
 			<Value>0</Value>

@@ -39,7 +39,7 @@ def paramlist() -> str:
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
         _param("Integer", "mcKind", "種類（1 バックホウ・2 クローラクレーン・3 ポンプ車・4 生コン車・5 ダンプ・6 高所作業車・7 垂直昇降・"
-               "8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機）", 1),
+               "8 三点式杭打機・9 アースドリル・10 全周回転機・11 解体機・12 圧入機・13 搬入トラック・14 トレーラー連結車）", 1),
         _param("Integer", "mcModel", "機種（選ぶと寸法を書き込む。0＝手入力）", 3),
         _param("String", "mcName", "機種の名前（平面の注記）", "バックホウ 0.45m³"),
         _param("String", "mcNote", "諸元の注記", ""),
@@ -193,6 +193,45 @@ def paramlist() -> str:
         _param("Length", "piP", "鋼矢板の幅", 0.4),
         _param("Integer", "piN", "後ろの完成杭の枚数", 4),
         _param("Length", "piT", "チャックの杭の天端（チャックの上）", 3.0),
+        # 搬入トラック（荷台は bedL・bedW・bedH・bedA を使う）
+        _param("Length", "flZ", "荷台の床面地上高", 1.09),
+        _param("Length", "trT", "後ろの輪距（トレッド）", 1.66),
+        _param("Length", "tnR", "最小回転半径（最外側のわだち）", 7.2),
+        _param("Length", "rpL", "道板の長さ（0＝無し）", 0.0),
+        _param("Boolean", "ucOn", "クレーン付き", 0),
+        _param("Length", "ucX", "クレーンの旋回中心（原点から前が +）", 1.7),
+        _param("Length", "ucL", "クレーンのブームの長さ（今）", 7.78),
+        _param("Length", "ucLmin", "ブームの最短", 3.34),
+        _param("Length", "ucLmax", "ブームの最長", 10.0),
+        _param("Length", "ucH", "ブームの根元の高さ", 2.4),
+        _param("Boolean", "cgOn", "積荷を描く", 0),
+        _param("Length", "cgL", "積荷の長さ", 0.0),
+        _param("Length", "cgW", "積荷の幅", 0.0),
+        _param("Length", "cgH", "積荷の高さ", 0.0),
+        _param("Length", "cgX", "積荷の中心のずれ（トラックは荷台の中心から、トレーラーはキングピンから）", 0.0),
+        _param("RealNum", "cgT", "積荷の質量 t", 0.0),
+        _param("Boolean", "tkOn", "平面に旋回軌跡を描く", 1),
+        _param("Integer", "tkS", "曲がる側（1＝左・-1＝右）", 1),
+        _param("Length", "tkW", "カタログの所要道路幅（0＝式で）", 0.0),
+        # トレーラー連結車（原点はトラクタの真ん中、トレーラーはキングピンまわりに trA だけ折れる）
+        _param("Length", "kpC", "カプラオフセット（後軸の中心から前）", 0.175),
+        _param("Length", "kpZ", "カプラ上面地上高", 1.345),
+        _param("Integer", "tlK", "トレーラー（1 低床・中低床・2 平床・3 ポール）", 1),
+        _param("Length", "tlF", "キングピンから前端", 0.39),
+        _param("Length", "tlB", "キングピンから後端", 11.81),
+        _param("Length", "tlW", "トレーラーの全幅", 2.99),
+        _param("Length", "gnL", "グースネックの長さ（前端〜荷台前端）", 2.99),
+        _param("Length", "gnT", "グースネックの厚み", 0.39),
+        _param("Length", "dkZ", "トレーラーの床面地上高（ポールは連結パイプの高さ）", 0.55),
+        _param("Length", "dkL", "トレーラーの荷台の長さ（ポールは後台車の長さ）", 6.3),
+        _param("Length", "rrZ", "後ろ（車軸の上）の荷台の高さ", 0.78),
+        _param("Length", "tlAx", "キングピンから第1軸", 9.41),
+        _param("Integer", "tlN", "トレーラーの車軸の列の数", 2),
+        _param("Length", "tlSp", "トレーラーの軸間", 1.3),
+        _param("Length", "tlR", "トレーラーのタイヤの半径", 0.387),
+        _param("Length", "tlT", "トレーラーの輪距", 2.465),
+        _param("Integer", "tlQ", "片側のダブルタイヤの組の数（4軸16輪は 2）", 1),
+        _param("Angle", "trA", "トレーラーの向き（トラクタに対して左回りが +）", 0.0),
         # クレーンに吊るバイブロ
         _param("Integer", "vbK", "フックの先（0 フック・1 バイブロ）", 0),
         _param("Length", "vbW", "バイブロの幅", 1.337),
@@ -214,7 +253,8 @@ def paramlist() -> str:
 
 SCRIPT_1D = """﻿! 重機: 種類ごとの形（m・度）
 isCr = (mcKind <= 2 or mcKind = 8 or mcKind = 9 or mcKind = 11)
-isTk = (mcKind >= 3 and mcKind <= 7)
+isTk = ((mcKind >= 3 and mcKind <= 7) or mcKind = 13 or mcKind = 14)
+isVh = (mcKind = 13 or mcKind = 14)
 ! 上部旋回体の後ろの円弧（後端旋回半径）と幅の合う所
 w2 = min(upW / 2, tailR * 0.995)
 xs = -sqr(tailR ^ 2 - w2 ^ 2)
@@ -300,6 +340,12 @@ if atK > 0 then tpL = atL
 ! 杭打機のオーガ（本数と1本めの y）
 nAu = max(1, min(3, auN))
 yAu0 = -(nAu - 1) * auP / 2
+! 搬入トラック・トレーラー: 後ろの軸群の中心・キングピン・クレーンの先・荷台の先
+xAxR = axR1 - rearSp * (nRear >= 2) / 2
+kpX = xAxR + kpC
+ucTx = ucL * cos(abA)
+ucTz = ucH + ucL * sin(abA)
+nFa = max(1, min(2, nFr))
 ! 全周回転機のデッキの高さ（本体の高さから手すり 0.969 下）
 zDk = max(0.5, rtH - 0.969)
 """
@@ -330,10 +376,18 @@ kdV[11] = 11
 kdS[11] = "解体機"
 kdV[12] = 12
 kdS[12] = "圧入機"
+kdV[13] = 13
+kdS[13] = "搬入トラック"
+kdV[14] = 14
+kdS[14] = "トレーラー連結車"
 values{2} "mcKind" kdV, kdS
 values{2} "atK" 0, "バケット", 1, "圧砕機", 2, "鉄骨切断機", 3, "つかみ機", 4, "ブレーカ", 5, "バイブロ"
 values "auN" 1, 3
 values{2} "vbK" 0, "フック", 1, "バイブロ"
+values{2} "tlK" 1, "低床・中低床", 2, "平床", 3, "ポール"
+values{2} "tkS" 1, "左", -1, "右"
+values "tlN" 1, 2, 3
+values "tlQ" 1, 2
 values "nFr" 1, 2
 values{2} "cbS" 1, "左", -1, "右"
 values "nRear" 1, 2
@@ -443,15 +497,32 @@ if mcKind = 12 then
 	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
 endif
 if isTk then
-	! 車体・運転室・タイヤ
-	rect2 xR, -carW / 2, xF, carW / 2
-	if mcKind < 7 then line2 xF - min(2.3, carL * 0.28), -carW / 2, xF - min(2.3, carL * 0.28), carW / 2
+	! 車体・運転室・タイヤ（搬入車両は詳細: 運転室の前窓・ミラー・車軸の線・後ろはダブルタイヤ）
+	cL2 = min(2.3, carL * 0.28)
+	if mcKind = 14 then
+		rect2 xF - cL2 - 0.1, -carW / 2, xF, carW / 2
+		line2 xR, -carW / 2 + 0.35, xF - cL2 - 0.1, -carW / 2 + 0.35
+		line2 xR, carW / 2 - 0.35, xF - cL2 - 0.1, carW / 2 - 0.35
+		line2 xR, -carW / 2 + 0.35, xR, carW / 2 - 0.35
+	else
+		rect2 xR, -carW / 2, xF, carW / 2
+	endif
+	if mcKind <> 7 then line2 xF - cL2, -carW / 2, xF - cL2, carW / 2
+	if isVh then
+		line2 xF - 0.12, -carW / 2 + 0.08, xF - 0.12, carW / 2 - 0.08
+		for s = -1 to 1 step 2
+			rect2 xF - 0.35, s * (carW / 2 + 0.05), xF - 0.25, s * (carW / 2 + 0.22)
+			line2 xF - 0.3, s * carW / 2, xF - 0.3, s * (carW / 2 + 0.05)
+		next s
+	endif
 	for i = 1 to nAx
+		if isVh then line2 axs[i], -carW / 2 + 0.1, axs[i], carW / 2 - 0.1
 		for s = -1 to 1 step 2
 			rect2 axs[i] - whR, s * carW / 2 - s * 0.05, axs[i] + whR, s * carW / 2 - s * (0.05 + whW)
+			if isVh and i > nFa then rect2 axs[i] - whR, s * carW / 2 - s * (0.08 + whW), axs[i] + whR, s * carW / 2 - s * (0.08 + 2 * whW)
 		next s
 	next i
-	if (mcKind = 3 or mcKind = 6) and otOn then
+	if (mcKind = 3 or mcKind = 6 or (mcKind = 13 and ucOn)) and otOn then
 		for j = 1 to 3
 			if oy[j] > 0.01 then
 				for s = -1 to 1 step 2
@@ -484,6 +555,112 @@ if isTk then
 	if mcKind = 5 then
 		rect2 xR + 0.1, -bedW / 2, xR + 0.1 + bedL * cos(bedA), bedW / 2
 	endif
+	if mcKind = 13 then
+		! 荷台（外形・あおりの内側・鳥居）・道板・クレーン・積荷
+		dkx = xR + (bedL + 0.1) * cos(bedA)
+		rect2 xR, -bedW / 2 - 0.05, dkx, bedW / 2 + 0.05
+		if bedH > 0.01 then rect2 xR + 0.04, -bedW / 2, dkx - 0.08, bedW / 2
+		line2 dkx - 0.08, -bedW / 2 - 0.05, dkx - 0.08, bedW / 2 + 0.05
+		if rpL > 0.01 then
+			rpx = rpL * cos(asn(min(1, flZ / rpL)))
+			for s = -1 to 1 step 2
+				rect2 xR - rpx, s * (bedW / 2 - 0.25) - 0.2, xR, s * (bedW / 2 - 0.25) + 0.2
+			next s
+		endif
+		if ucOn then
+			circle2 ucX, 0, 0.35
+			add2 ucX, 0
+			rot2 slew + 180
+			line2 0, -0.18, ucTx, -0.12
+			line2 0, 0.18, ucTx, 0.12
+			circle2 ucTx, 0, 0.15
+			del 2
+			circle2 ucX, 0, ucLmax
+		endif
+		if cgOn then rect2 xR + bedL / 2 + cgX - cgL / 2, -cgW / 2, xR + bedL / 2 + cgX + cgL / 2, cgW / 2
+	endif
+	if mcKind = 14 then
+		! 第5輪（カプラ）とキングピン、トレーラー（キングピンまわりに trA）
+		circle2 kpX, 0, 0.45
+		circle2 kpX, 0, 0.1
+		add2 kpX, 0
+		rot2 trA
+		rect2 -tlB, -tlW / 2, tlF, tlW / 2
+		if tlK = 1 then
+			line2 tlF - gnL, -tlW / 2, tlF - gnL, tlW / 2
+			line2 tlF - gnL - dkL, -tlW / 2, tlF - gnL - dkL, tlW / 2
+		endif
+		if tlK = 2 then
+			for k = 0 to 3
+				for s = -1 to 1 step 2
+					rect2 tlF - 1.5 - k * (tlB - 2.5) / 3, s * tlW / 2 - 0.05, tlF - 1.4 - k * (tlB - 2.5) / 3, s * tlW / 2 + 0.05
+				next s
+			next k
+		endif
+		if tlK = 3 then
+			line2 0, -0.15, -tlAx + 1.0, -0.15
+			line2 0, 0.15, -tlAx + 1.0, 0.15
+		endif
+		circle2 0, 0, 0.08
+		for i = 0 to tlN - 1
+			xa = -(tlAx + i * tlSp)
+			line2 xa, -tlW / 2 + 0.1, xa, tlW / 2 - 0.1
+			for s = -1 to 1 step 2
+				for q = 1 to max(1, tlQ)
+					yq = s * (tlT / 2 - (q - 1) * 0.885)
+					rect2 xa - tlR, yq - 0.27, xa + tlR, yq - 0.02
+					rect2 xa - tlR, yq + 0.02, xa + tlR, yq + 0.27
+				next q
+			next s
+		next i
+		if cgOn then rect2 cgX - cgL / 2, -cgW / 2, cgX + cgL / 2, cgW / 2
+		del 2
+	endif
+endif
+! 旋回軌跡（最小回転半径で曲がり続けるとき。外側の前端の角と内側の後輪。単車は場内通路と同じ式、連結車はトレーラーの後軸群まで。
+! 円弧は今の向きから 90° 分）
+if isVh and tkOn and tnR > 0.5 then
+	L1 = axF - xAxR
+	if L1 < tnR then
+		aRr = sqr(tnR ^ 2 - L1 ^ 2)
+		if mcKind = 13 then
+			rCen = aRr - trT / 2
+			rOut = sqr((aRr + (carW - trT) / 2) ^ 2 + (L1 + frOv) ^ 2)
+			rIn = aRr - (carW + trT) / 2
+		else
+			rCen = aRr - (trT + 0.2) / 2
+			rOut = sqr((L1 + frOv) ^ 2 + (rCen + carW / 2) ^ 2)
+			rKp = sqr(rCen ^ 2 + kpC ^ 2)
+			L2 = tlAx + (tlN - 1) * tlSp / 2
+			rIn = 0
+			if tkW > 0.01 then
+				rIn = tnR - tkW
+				rOut = tnR
+			else
+				if L2 < rKp then
+					rTrl = sqr(rKp ^ 2 - L2 ^ 2)
+					rIn = rTrl - tlT / 2
+					rOut = max(rOut, sqr((rTrl + tlW / 2) ^ 2 + (tlB - L2) ^ 2))
+				endif
+			endif
+		endif
+		yC = tkS * rCen
+		dxq = xF - xAxR
+		dyq = -tkS * carW / 2 - yC
+		aQ = 90
+		if dyq < 0 then aQ = -90
+		if abs(dxq) > 0.000001 then aQ = atn(dyq / dxq)
+		if dxq < 0 then aQ = aQ + 180
+		if tkS > 0 then
+			arc2 xAxR, yC, rOut, aQ, aQ + 90
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, -90, 0
+		else
+			arc2 xAxR, yC, rOut, aQ - 90, aQ
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, 0, 90
+		endif
+		line2 xAxR, yC - 0.3, xAxR, yC + 0.3
+		line2 xAxR - 0.3, yC, xAxR + 0.3, yC
+	endif
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）
 rW = maxR
@@ -493,9 +670,16 @@ if rW > 0.1 and isR then circle2 0, 0, rW
 ! 注記（機種・諸元）
 xN = -tailR - 0.6
 if isTk then xN = xR - 0.6
+yN = 0
+if isVh then
+	! 搬入車両は車体の下（右側の外）に書く
+	xN = xR
+	yN = -max(carW, tlW * (mcKind = 14)) / 2 - 0.8
+	if mcKind = 14 then xN = min(xR, kpX - tlB)
+endif
 if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
 if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
-add2 xN, 0
+add2 xN, yN
 rot2 -SYMB_ROTANGLE
 text2 0, 0, mcName
 if strlen(mcNote) > 0 then text2 0, -dT, mcNote
@@ -505,6 +689,11 @@ if rW > 0.1 and isR then
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
 	del 2
+endif
+if mcKind = 14 then
+	hotspot2 kpX, 0, 11, trA, 6
+	hotspot2 kpX - 1, 0, 12, trA, 4
+	hotspot2 kpX - tlB * cos(trA), -tlB * sin(trA), 13, trA, 5
 endif
 ! 旋回角のホットスポット
 rH = max(2.0, tailR)
@@ -537,7 +726,7 @@ define material "mc_bed" 2, 0.30, 0.52, 0.35
 resol 12
 if isCr then gosub "crawler"
 if mcKind = 1 and bldW > 0.1 then gosub "blade"
-if isTk and mcKind < 7 then gosub "truck"
+if isTk and mcKind <> 7 then gosub "truck"
 if mcKind = 1 then
 	rotz slew
 	gosub "upper"
@@ -587,6 +776,35 @@ if mcKind = 11 then
 	del 1
 endif
 if mcKind = 12 then gosub "piler"
+if mcKind = 13 then
+	gosub "flatdeck"
+	if ucOn then
+		gosub "outrig"
+		! 旋回角 0 は後ろ向き（格納の向き）
+		add ucX, 0, 0
+		rotz slew + 180
+		gosub "cargocrane"
+		del 2
+	endif
+	if cgOn then
+		material "mc_drum"
+		add xR + bedL / 2 + cgX - cgL / 2, -cgW / 2, flZ + (bedL / 2 + cgX) * sin(bedA)
+		roty -bedA
+		block cgL, cgW, cgH
+		del 2
+	endif
+endif
+if mcKind = 14 then
+	! 第5輪（カプラ）とトレーラー（キングピンまわりに trA）
+	material "mc_dark"
+	add kpX, 0, kpZ - 0.2
+	cylind 0.2, 0.6
+	del 1
+	add kpX, 0, 0
+	rotz trA
+	gosub "semitrailer"
+	del 2
+endif
 gosub "hotspots"
 end
 
@@ -744,6 +962,34 @@ end
 		hid = 355
 		gosub "jawhot"
 		del 1
+	endif
+	if mcKind = 13 then
+		! 荷台の傾き（セルフローダ。後ろのヒンジが中心）・クレーンの起伏と長さ
+		hX = xR
+		hZ = flZ - 0.12
+		hotspot hX, 0, hZ, 372, bedA, 6
+		hotspot hX + 1, 0, hZ, 373, bedA, 4
+		hotspot hX + (bedL + 0.1) * cos(bedA), 0, hZ + (bedL + 0.1) * sin(bedA), 374, bedA, 5
+		hotspot hX, -1, hZ, 375, bedA, 7
+		if ucOn then
+			add ucX, 0, 0
+			rotz slew + 180
+			hotspot 0, 0, ucH, 365, abA, 6
+			hotspot 1, 0, ucH, 366, abA, 4
+			hotspot ucTx, 0, ucTz, 367, abA, 5
+			hotspot 0, -1, ucH, 368, abA, 7
+			hotspot 0, 0, ucH, 369, ucL, 1 + 128
+			hotspot ucTx, 0, ucTz, 370, ucL, 2
+			hotspot -cos(abA), 0, ucH - sin(abA), 371, ucL, 3
+			del 2
+		endif
+	endif
+	if mcKind = 14 then
+		! 連結の折れ角（平面の xy 面。上から見て左回りが +）
+		hotspot kpX, 0, kpZ, 361, trA, 6
+		hotspot kpX - 1, 0, kpZ, 362, trA, 4
+		hotspot kpX - tlB * cos(trA), -tlB * sin(trA), kpZ, 363, trA, 5
+		hotspot kpX, 0, kpZ + 1, 364, trA, 7
 	endif
 	if mcKind = 12 then
 		! チャックの上がりと杭の天端
@@ -1163,6 +1409,203 @@ return
 	add hxq - 0.2, -0.006, hzq - vbH - vbP + 0.2
 	block 0.4, 0.012, vbP
 	del 1
+	return
+
+"flatdeck":
+	! 平ボディの荷台: 床（根太の見える厚み）・あおり（側・後ろ）・鳥居（前）。後ろのヒンジで bedA だけ傾ける（セルフローダ）。道板は
+	! 後端から地面へ2枚
+	dLq = bedL + 0.1
+	dWq = bedW + 0.1
+	add xR, 0, flZ - 0.12
+	roty -bedA
+	material "mc_bed"
+	add 0, -dWq / 2, 0
+	block dLq, dWq, 0.12
+	del 1
+	material "mc_dark"
+	for k = 0 to 4
+		add 0.05 + k * (dLq - 0.15) / 4, -dWq / 2, -0.1
+		block 0.08, dWq, 0.1
+		del 1
+	next k
+	material "mc_bed"
+	if bedH > 0.01 then
+		for s = -1 to 1 step 2
+			add 0, s * dWq / 2 - (s > 0) * 0.04, 0.12
+			block dLq - 0.1, 0.04, bedH
+			del 1
+		next s
+		add 0, -dWq / 2, 0.12
+		block 0.04, dWq, bedH
+		del 1
+	endif
+	! 鳥居（前の板と上の枠）
+	material "mc_steel"
+	add dLq - 0.1, -dWq / 2, 0.12
+	block 0.08, dWq, bedH + 0.5
+	del 1
+	for s = -1 to 1 step 2
+		add dLq - 0.1, s * (dWq / 2 - 0.06) - 0.04, 0.12
+		block 0.08, 0.08, bedH + 0.9
+		del 1
+	next s
+	add dLq - 0.1, -dWq / 2, bedH + 0.95
+	block 0.08, dWq, 0.07
+	del 1
+	del 2
+	if rpL > 0.01 then
+		rpA = asn(min(1, flZ / rpL))
+		material "mc_steel"
+		for s = -1 to 1 step 2
+			add 0, s * (bedW / 2 - 0.25), 0
+			x0q = xR
+			z0q = flZ
+			x1q = xR - rpL * cos(rpA)
+			z1q = 0.02
+			bwq = 0.4
+			bhq = 0.06
+			gosub "bar"
+			del 1
+		next s
+	endif
+	return
+
+"cargocrane":
+	! 積載形クレーン（原点＝旋回中心）: 台座・コラム（旋回）・伸縮ブーム（nSec 段）・起伏シリンダ・ワイヤとフック
+	material "mc_body"
+	add -0.45, -0.55, frZ
+	block 0.9, 1.1, 0.35
+	del 1
+	material "mc_steel"
+	add 0, 0, frZ + 0.35
+	cylind max(0.2, ucH - frZ - 0.35), 0.22
+	del 1
+	material "mc_drum"
+	nUc = max(2, min(5, nSec))
+	for i = 1 to nUc
+		f0 = (i - 1) / nUc * 0.92
+		f1 = min(1, i / nUc + 0.06)
+		x0q = f0 * ucL * cos(abA)
+		z0q = ucH + f0 * ucL * sin(abA)
+		x1q = f1 * ucL * cos(abA)
+		z1q = ucH + f1 * ucL * sin(abA)
+		bwq = 0.3 - 0.04 * i
+		bhq = 0.34 - 0.04 * i
+		gosub "bar"
+	next i
+	crq = 0.07
+	cx0 = 0.25
+	cy0 = 0
+	cz0 = ucH - 0.5
+	cx1 = 0.35 * ucL * cos(abA) + 0.12 * sin(abA)
+	cy1 = 0
+	cz1 = ucH + 0.35 * ucL * sin(abA) - 0.12 * cos(abA)
+	gosub "cyl2"
+	material "mc_steel"
+	add ucTx, 0, ucTz - hkD
+	cylind hkD, 0.01
+	del 1
+	material "mc_dark"
+	add ucTx - 0.1, -0.08, ucTz - hkD - 0.3
+	block 0.2, 0.16, 0.3
+	del 1
+	return
+
+"semitrailer":
+	! セミトレーラー（原点＝キングピン、後ろが −x）: tlK 1 グースネック・荷台（床 dkZ）・車軸の上の荷台（rrZ）、2 平床とスタンション・
+	! ヘッドボード、3 連結パイプと後台車。車軸の列 tlN・片側のダブルタイヤの組 tlQ・積荷
+	material "mc_body"
+	hwq = tlW / 2
+	if tlK = 1 then
+		x0g = tlF - gnL
+		add x0g, -hwq * 0.85, kpZ
+		block gnL, tlW * 0.85, gnT
+		del 1
+		add x0g - 0.25, -hwq, dkZ - 0.2
+		block 0.25, tlW, kpZ + gnT - dkZ + 0.2
+		del 1
+		material "mc_bed"
+		add x0g - dkL, -hwq, dkZ - 0.15
+		block dkL, tlW, 0.15
+		del 1
+		material "mc_dark"
+		for s = -1 to 1 step 2
+			add x0g - dkL, s * (hwq - 0.15) - 0.1, max(0.15, dkZ - 0.45)
+			block dkL, 0.2, min(0.3, dkZ - 0.15)
+			del 1
+		next s
+		material "mc_body"
+		add -tlB, -hwq, rrZ - 0.35
+		block tlB + x0g - dkL, tlW, 0.35
+		del 1
+	endif
+	if tlK = 2 then
+		add -tlB, -hwq, dkZ - 0.25
+		block tlB + tlF, tlW, 0.25
+		del 1
+		material "mc_dark"
+		for s = -1 to 1 step 2
+			add -tlB, s * (hwq - 0.2) - 0.1, dkZ - 0.6
+			block tlB + tlF, 0.2, 0.35
+			del 1
+		next s
+		material "mc_steel"
+		add tlF - 0.1, -hwq, dkZ
+		block 0.1, tlW, 1.0
+		del 1
+		for k = 0 to 3
+			for s = -1 to 1 step 2
+				add tlF - 1.5 - k * (tlB - 2.5) / 3, s * (hwq - 0.05) - 0.05, dkZ
+				block 0.1, 0.1, 0.8
+				del 1
+			next s
+		next k
+	endif
+	if tlK = 3 then
+		material "mc_steel"
+		add 0.3, 0, dkZ
+		roty -90
+		cylind tlAx - 1.0 + 0.3, 0.12
+		del 2
+		material "mc_body"
+		xb = -(tlAx + (tlN - 1) * tlSp / 2)
+		add xb - dkL / 2 - 0.9, -hwq, 0.9
+		block dkL + 1.8, tlW, max(0.2, rrZ - 0.9)
+		del 1
+	endif
+	! 車軸とタイヤ（ダブル）
+	for i = 0 to tlN - 1
+		xa = -(tlAx + i * tlSp)
+		material "mc_dark"
+		add xa - 0.08, -tlT / 2, tlR - 0.08
+		block 0.16, tlT, 0.16
+		del 1
+		for s = -1 to 1 step 2
+			for q = 1 to max(1, tlQ)
+				yq = s * (tlT / 2 - (q - 1) * 0.885)
+				for d = 0 to 1
+					material "mc_tire"
+					add xa, yq + (d - 0.5) * 0.29 + 0.12, tlR
+					rotx 90
+					cylind 0.24, tlR
+					del 2
+					material "mc_rim"
+					add xa, yq + (d - 0.5) * 0.29 + 0.125, tlR
+					rotx 90
+					cylind 0.25, tlR * 0.55
+					del 2
+				next d
+			next q
+		next s
+	next i
+	if cgOn then
+		material "mc_drum"
+		zL = dkZ
+		if tlK = 3 then zL = max(kpZ + 0.3, rrZ)
+		add cgX - cgL / 2, -cgW / 2, zL
+		block cgL, cgW, cgH
+		del 1
+	endif
 	return
 
 "jawp":
