@@ -4,6 +4,7 @@
 
   python3 scripts/route_run.py                         # 選んだ中心線（ポリライン。始め＝ゲートの側）に通路と敷鉄板
   python3 scripts/route_run.py --vehicle mixer         # 車両（4t・10t・mixer・mixer_m・R25・std）
+  python3 scripts/route_run.py --vehicle lb4           # 搬入トラック・トレーラー（重機の搬入車両の機種。--list-vehicles）
   python3 scripts/route_run.py --two-way --width 6500  # 対面通行・幅
   python3 scripts/route_run.py --across --plate 5x10   # 敷鉄板を横敷き・5×10 で
   python3 scripts/route_run.py --no-plates             # 通路だけ
@@ -32,7 +33,7 @@ def main(argv=None) -> int:
 
     import run_from_archicad as R
     from ashiba.pens import gdl_pens, parse_pens
-    from ashiba.site_route import VEHICLES, part_params, report, route_plan
+    from ashiba.site_route import part_params, report, route_plan, vehicle_keys, vehicle_name
     from ashiba.steel_plate import part_params as plate_params
     from ashiba.tapir_adapter import ArchicadClient, read_ground_model
     from excav_run import _delete_alive, _place
@@ -41,7 +42,9 @@ def main(argv=None) -> int:
     from plate_run import plate_code
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--vehicle", default="10t", choices=list(VEHICLES), help="一番大きい車両")
+    ap.add_argument("--vehicle", default="10t", choices=vehicle_keys(),
+                    help="一番大きい車両（搬入トラック tr2〜sl10・トレーラー lb2・lb4・lbl・fb3・pt2 は追従の軌跡で曲がり角を見る）")
+    ap.add_argument("--list-vehicles", action="store_true", help="車両の一覧を出して終わる")
     ap.add_argument("--width", type=float, default=0.0, help="通路の幅 mm（省くと一方通行 4,000・対面 6,000）")
     ap.add_argument("--two-way", action="store_true", help="対面通行")
     ap.add_argument("--plate", default="5x20", help="敷鉄板（5x20・5x10・4x8・3x6）")
@@ -50,6 +53,10 @@ def main(argv=None) -> int:
     ap.add_argument("--z", type=float, default=None, help="地盤の高さ mm（省くと敷地メッシュ、無ければ 0）")
     ap.add_argument("--remove", action="store_true", help="置いた通路と敷鉄板を消す")
     a = ap.parse_args(argv)
+    if a.list_vehicles:
+        for k in vehicle_keys():
+            print(f"  {k:8s} {vehicle_name(k)}")
+        return 0
     c = ArchicadClient()
     rec_path = R.OUT_DIR / RECORD
     try:

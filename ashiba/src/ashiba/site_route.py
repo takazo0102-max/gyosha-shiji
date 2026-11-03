@@ -13,6 +13,9 @@
 - 敷鉄板: 日建リース 仮設資材カタログ Vol.10 p394（5×20＝1,524×6,096・1,604kg）。継ぎ目は千鳥、重ね敷きは半面交互（堀 2018
   建設機械施工 Vol.70 No.2: 完全重複は端部で一枚敷きと同じ・転倒は履帯が板の端に乗ったとき）
 - 安衛則 151条の3・6・7（車両系の運行経路・必要な幅・誘導者）
+- 搬入トラック・トレーラー連結車（2026-11-04 利用者の指定「場内通路にトレーラーも入れて進めて」）: 寸法は machine の種類 13・14
+  （research_notes/搬入車両/）。曲がり角は src/ashiba/swept_sim.py の追従の軌跡（トラクタの前軸を円弧に沿わせ、後軸・トレーラーは
+  少しずつ追従。【目安】）、ポールトレーラーはメーカーの表の所要道路幅
 """
 
 from __future__ import annotations
@@ -38,6 +41,39 @@ VEHICLES = {
 }
 
 
+def vehicle_name(v: str) -> str:
+    if v in VEHICLES:
+        return VEHICLES[v][0]
+    from .machine import MACHINES
+
+    m = MACHINES[v]
+    return f"{m.name}（{m.model.split('（')[0]}）"
+
+
+def vehicle_width(v: str) -> float:
+    """車体の幅 mm（連結車はトラクタとトレーラー・積荷の大きい方）."""
+    if v in VEHICLES:
+        return VEHICLES[v][3]
+    from .swept_sim import rig
+
+    return rig(v).width * 1000.0
+
+
+def vehicle_turn_r(v: str) -> float:
+    if v in VEHICLES:
+        return VEHICLES[v][5]
+    from .machine import MACHINES
+
+    m = MACHINES[v]
+    return float(m.params.get("tnR", 0) or m.turn_r) * 1000.0
+
+
+def vehicle_keys() -> list[str]:
+    from .swept_sim import truck_keys
+
+    return list(VEHICLES) + truck_keys()
+
+
 def swept(v: str, a: float | None = None) -> tuple[float, float]:
     """車両 v が外側前輪の横距離 a（省くと最小回転半径）で回るときの (Ro 外側前端角の半径, ri 内側後輪の車体内側の半径) mm."""
     _n, L, F, W, T, R = VEHICLES[v]
@@ -55,6 +91,11 @@ def corner_need(v: str, defl_deg: float, tangent_mm: float, width_mm: float = 0.
     th = math.radians(abs(defl_deg))
     if th < math.radians(2.0):
         return 0.0, 0.0, 0.0, 0.0
+    if v not in VEHICLES:                                    # 搬入トラック・トレーラー: 追従の軌跡
+        from .swept_sim import corner as sim_corner
+
+        cs = sim_corner(v, defl_deg, tangent_mm / 1000.0, width_mm / 1000.0, MARGIN_MM / 1000.0)
+        return cs.need * 1000.0, cs.ro * 1000.0, cs.ri * 1000.0, cs.rc * 1000.0 if cs.ok_turn else -1.0
     c = math.cos(th / 2.0)
     _n, L, _F, _W, _T, R = VEHICLES[v]
     a0 = math.sqrt(max(R * R - L * L, 0.0))
@@ -123,7 +164,10 @@ def route_plan(name: str, pts: list, width: float = 0.0, vehicle: str = "10t", t
     if width <= 0:
         width = TWO_WAY_MM if two_way else ONE_WAY_MM
     p = RoutePlan(name, pts, width, vehicle, two_way)
-    vname, _L, _F, vw, _T, vr = VEHICLES[vehicle]
+    vname, vw, vr = vehicle_name(vehicle), vehicle_width(vehicle), vehicle_turn_r(vehicle)
+    sim = vehicle not in VEHICLES
+    if sim:
+        from .swept_sim import rig
     segs = [math.dist(a, b) for a, b in zip(pts, pts[1:])]
     for i in range(1, len(pts) - 1):
         u1, u2 = _unit(pts[i - 1], pts[i]), _unit(pts[i], pts[i + 1])
@@ -141,13 +185,32 @@ def route_plan(name: str, pts: list, width: float = 0.0, vehicle: str = "10t", t
     for k, cn in enumerate(p.corners, 1):
         if cn.rc < 0:
             msg = f"角{k}（{abs(cn.defl):.0f}°{'左' if cn.defl > 0 else '右'}）: 手前・先の直線が短く、{vname} が回れない（角を減らすか直線を長く）"
+        elif sim and rig(vehicle).catalog_w:
+            msg = (f"角{k}（{abs(cn.defl):.0f}°{'左' if cn.defl > 0 else '右'}）: メーカーの表の所要道路幅 {cn.need / 1000:.1f}m"
+                   "（後ろの台車がかじを切るポールトレーラー。曲がる角度によらず）"
+                   + ("" if cn.status == "OK" else f" → 角を {(cn.need - width) / 1000:.1f}m 拡幅（内側の隅を切る）"))
         else:
-            msg = (f"角{k}（{abs(cn.defl):.0f}°{'左' if cn.defl > 0 else '右'}）: 外側前端角 R{cn.ro / 1000:.1f}m・内側後輪 R{cn.ri / 1000:.1f}m"
+            msg = (f"角{k}（{abs(cn.defl):.0f}°{'左' if cn.defl > 0 else '右'}）: "
+                   + ("追従の軌跡で外側 R" if sim else "外側前端角 R") + f"{cn.ro / 1000:.1f}m・"
+                   + ("内側（トレーラーの内側の辺）R" if sim and _is_trailer(vehicle) else "内側後輪 R") + f"{cn.ri / 1000:.1f}m"
                    f"（中心線 R{cn.rc / 1000:.1f}m）で要る幅 {cn.need / 1000:.1f}m"
+                   + ("【目安】" if sim else "")
                    + ("" if cn.status == "OK" else f" → 角を {(cn.need - width) / 1000:.1f}m 拡幅（内側の隅を切る）"))
         c.append(Check(f"曲がり角 {k}", cn.status, msg))
     c.append(Check("最小回転半径", "OK", f"{vname} R{vr / 1000:.1f}m（諸元表。迷う車両は道路構造令の普通自動車 R12m で見る）。"
-                                     "曲がり角の内側の隅（仮囲い・柱・山留め）は ri の円より外、外側の障害物は Ro の円より外に"))
+                                     "曲がり角の内側の隅（仮囲い・柱・山留め）は ri の円より外、外側の障害物は Ro の円より外に"
+                                     + ("" if not (sim and _is_trailer(vehicle)) else
+                                        "。ポールトレーラーはトレクス PTB212 の表の連結最小回転半径" if rig(vehicle).catalog_w else
+                                        "。トレーラー連結車はトラクタの値がカタログに無く、設計車両・車両制限令の 12m で見る【目安】")))
+    if sim:
+        r = rig(vehicle)
+        last = math.dist(pts[-2], pts[-1])
+        need_l = r.length * 1000.0 + 2000.0
+        c.append(Check("荷下ろしの直線", "OK" if last >= need_l else "要確認",
+                       f"終わりの直線 {last / 1000:.1f}m {'≧' if last >= need_l else '＜'} 車長 {r.length:.1f}m＋2m"
+                       "（荷下ろしの位置で車体をまっすぐに止める。場内で切り返すなら転回の場所と誘導員。安衛則 151条の6・7）"
+                       + ("。トレーラーは公道からゲートへ入る曲がりも同じ軌跡で見る（ゲートの有効幅・歩道の切下げは道路管理者と協議）"
+                          if _is_trailer(vehicle) else "")))
     c.append(Check("ゲート・誘導", "OK", "ゲートは通路の幅以上の有効な幅と高さ、扉は引戸か内開き、出入りに交通誘導員（要綱 第20・23）。"
                                       "歩道の切下げは道路管理者と協議（道路に鉄板を置いて段差を消すのは不法占用）。タイヤ洗浄を出口の手前に"))
     if plates:
@@ -157,6 +220,12 @@ def route_plan(name: str, pts: list, width: float = 0.0, vehicle: str = "10t", t
                                      "轍の下に置かない"))
     _quantity(p)
     return p
+
+
+def _is_trailer(v: str) -> bool:
+    from .machine import MACHINES
+
+    return v in MACHINES and MACHINES[v].kind == 14
 
 
 def _place_plates(p: RoutePlan, code: str, across: bool) -> None:
@@ -249,16 +318,18 @@ def part_params(p: RoutePlan) -> dict:
     return {"cX": _ints(x for x, _y in loc), "cY": _ints(y for _x, y in loc), "eX": _ints(x for x, _y in band),
             "eY": _ints(y for _x, y in band), "aX": _ints(ax), "aY": _ints(ay), "aR": _ints(ar), "aA": _ints(aa),
             "aW": _ints(at), "rtW": p.width / 1000.0, "rtName": p.name,
-            "rtVeh": f"{'対面' if p.two_way else '一方'}通行 幅{p.width / 1000:.1f}m {VEHICLES[p.vehicle][0].split('（')[0]}"}
+            "rtVeh": f"{'対面' if p.two_way else '一方'}通行 幅{p.width / 1000:.1f}m {vehicle_name(p.vehicle).split('（')[0]}"}
 
 
 def report(plans: list[RoutePlan]) -> str:
     out = ["# 場内の車両動線と敷鉄板", "",
            "出典: 建設工事公衆災害防止対策要綱・道路構造令 第4条・車両制限令 第3条・各社の主要諸元表（ふそう・いすゞ・タダノ）・"
-           "日建リース 仮設資材カタログ Vol.10 p394・堀 2018（敷鉄板の重ね敷き）。場内通路の幅を数値で決めた法令は無く、幅・余裕は目安", ""]
+           "日建リース 仮設資材カタログ Vol.10 p394・堀 2018（敷鉄板の重ね敷き）。場内通路の幅を数値で決めた法令は無く、幅・余裕は目安。"
+           "搬入トラック・トレーラーの曲がり角は追従の軌跡（トラクタの前軸を円弧に沿わせ、後軸とトレーラーを少しずつ追従させた車体の外形が"
+           "中心線から出る量。research_notes/搬入車両/トレーラー.md 4.2）で【目安】、ポールトレーラーはトレクス PTB212 の所要道路幅", ""]
     for p in plans:
         out += [f"## {p.name}", "", f"- 長さ {p.length / 1000:.1f}m・幅 {p.width / 1000:.1f}m（{'対面' if p.two_way else '一方'}通行）・"
-                f"車両 {VEHICLES[p.vehicle][0]}", "", "| 検定 | 判定 | 内容 |", "|---|---|---|"]
+                f"車両 {vehicle_name(p.vehicle)}", "", "| 検定 | 判定 | 内容 |", "|---|---|---|"]
         out += [f"| {x.item} | {x.status} | {x.message} |" for x in p.checks]
         out += ["", "| 品名 | 数 | 注 |", "|---|---|---|"] + [f"| {a} | {b:g} | {c} |" for a, b, c in p.quantity] + [""]
     return "\n".join(out)
