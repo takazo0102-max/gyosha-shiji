@@ -182,6 +182,9 @@ def main(argv=None) -> int:
     part = R.versioned_part_name(PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # パネルは太線・支柱と控えは細線（scripts/gdl_draft.py）
     ground = None
     if a.z is None:
         gm = read_ground_model(c, [p for _k, pts, _c in lines for p in pts])

@@ -20,6 +20,7 @@ src/ashiba/hoarding.py、置くのは scripts/kakoi_run.py。
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from gen_cfill_gdl import _parse_all  # noqa: E402
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_kakoi"
@@ -63,6 +65,7 @@ def paramlist() -> str:
         _param("Length", "embed", "打込みの根入れ", 1.0),
         _param("String", "kkName", "名前（平面の注記）", "仮囲い"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -115,43 +118,75 @@ endif
 kkTop = lift + pnH
 """)
 
-SCRIPT_2D = """﻿! 仮囲い 2D: パネル（外）・横地・支柱・控え（中）・基礎・ゲート
-pen penEquip
-define style "kkT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+SCRIPT_2D_T = """﻿! 仮囲い 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: パネル（外）は太線、横地・支柱・控え（中）・ゲートは細線、地中の基礎
+! （親杭・根巻き・H形鋼の根入れ）は隠れ線。縮尺で 詳細（1/100: パネルの厚み・横地・支柱・控え・基礎）・標準（1/200: パネルの1本と
+! 支柱・控えの1本）・簡略（パネルの線とゲートの開口だけ）
+@HEAD@
+define style "kkT" "ＭＳ Ｐゴシック", texSiz, 2, 0
+define style "kkB" "ＭＳ Ｐゴシック", texSiz, 8, 0
+define style "kkL" "ＭＳ Ｐゴシック", texSiz, 4, 0
+define style "kkR" "ＭＳ Ｐゴシック", texSiz, 6, 0
 style "kkT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! パネル（外の面。太線）と横地（細線）
 for k = 1 to nRu - 1 step 2
+	pen pO
 	line2 ru[k], -po, ru[k + 1], -po
-	line2 ru[k], -po - max(pt, 0.004), ru[k + 1], -po - max(pt, 0.004)
-	line2 ru[k], -ro, ru[k + 1], -ro
+	if drLv = 1 then
+		pen pT
+		line2 ru[k], -po - max(pt, 0.004), ru[k + 1], -po - max(pt, 0.004)
+		line2 ru[k], -ro, ru[k + 1], -ro
+	endif
 next k
-for i = 1 to nP
-	circle2 px[i], 0, r
-	if kkFound = 2 then rect2 px[i] - 0.15, -0.15, px[i] + 0.15, 0.15
-	if kkFound = 4 then rect2 px[i] - 0.06, -0.06, px[i] + 0.06, 0.06
-	if kkFound = 5 then
-		rect2 px[i] - pileW / 2, -pileW / 2, px[i] + pileW / 2, -pileW / 2 + 0.015
-		rect2 px[i] - pileW / 2, pileW / 2 - 0.015, px[i] + pileW / 2, pileW / 2
-		rect2 px[i] - 0.005, -pileW / 2 + 0.015, px[i] + 0.005, pileW / 2 - 0.015
-	endif
-next i
-for i = 1 to nBq
-	line2 bq[i] - ro - r, 0, bq[i] - ro - r, brB
-	line2 bq[i] - ro + r, 0, bq[i] - ro + r, brB
-	if kkFound <= 2 or kkFound = 6 then
-		line2 bq[i] + ro - r, 0, bq[i] + ro - r, brB
-		line2 bq[i] + ro + r, 0, bq[i] + ro + r, brB
-	endif
-	circle2 bq[i], brB, r
-	if kkFound = 2 then rect2 bq[i] - 0.15, brB - 0.15, bq[i] + 0.15, brB + 0.15
-	if kkFound = 4 then rect2 bq[i] - 0.07, brB - 0.07, bq[i] + 0.07, brB + 0.07
-	if kkFound = 6 then rect2 bq[i] - pileW / 2, brB - pileW - r, bq[i] + pileW / 2, brB - r
-next i
-if kkFound = 3 then
-	line2 0, -0.15, kkL, -0.15
-	line2 0, 0.15, kkL, 0.15
-	line2 0, brB - 0.15, kkL, brB - 0.15
-	line2 0, brB + 0.15, kkL, brB + 0.15
+if drLv < 3 then
+	pen pT
+	! 支柱
+	for i = 1 to nP
+		circle2 px[i], 0, r
+	next i
+	! 控え（中）。標準は芯の1本
+	for i = 1 to nBq
+		if drLv = 1 then
+			line2 bq[i] - ro - r, 0, bq[i] - ro - r, brB
+			line2 bq[i] - ro + r, 0, bq[i] - ro + r, brB
+			if kkFound <= 2 or kkFound = 6 then
+				line2 bq[i] + ro - r, 0, bq[i] + ro - r, brB
+				line2 bq[i] + ro + r, 0, bq[i] + ro + r, brB
+			endif
+		else
+			line2 bq[i], 0, bq[i], brB
+		endif
+		circle2 bq[i], brB, r
+	next i
 endif
+! 基礎（地中は隠れ線。詳細だけ）
+if drLv = 1 then
+	pen pT
+	line_type ltH
+	for i = 1 to nP
+		if kkFound = 2 then rect2 px[i] - 0.15, -0.15, px[i] + 0.15, 0.15
+		if kkFound = 4 then rect2 px[i] - 0.06, -0.06, px[i] + 0.06, 0.06
+		if kkFound = 5 then
+			rect2 px[i] - pileW / 2, -pileW / 2, px[i] + pileW / 2, -pileW / 2 + 0.015
+			rect2 px[i] - pileW / 2, pileW / 2 - 0.015, px[i] + pileW / 2, pileW / 2
+			rect2 px[i] - 0.005, -pileW / 2 + 0.015, px[i] + 0.005, pileW / 2 - 0.015
+		endif
+	next i
+	for i = 1 to nBq
+		if kkFound = 2 then rect2 bq[i] - 0.15, brB - 0.15, bq[i] + 0.15, brB + 0.15
+		if kkFound = 4 then rect2 bq[i] - 0.07, brB - 0.07, bq[i] + 0.07, brB + 0.07
+		if kkFound = 6 then rect2 bq[i] - pileW / 2, brB - pileW - r, bq[i] + pileW / 2, brB - r
+	next i
+	if kkFound = 3 then
+		line2 0, -0.15, kkL, -0.15
+		line2 0, 0.15, kkL, 0.15
+		line2 0, brB - 0.15, kkL, brB - 0.15
+		line2 0, brB + 0.15, kkL, brB + 0.15
+	endif
+	line_type ltS
+endif
+! ゲート（細線）
+pen pT
 for k = 1 to nGx - 1 step 2
 	j = (k + 1) / 2
 	g0 = gx[k]
@@ -165,26 +200,61 @@ for k = 1 to nGx - 1 step 2
 		nL = gn[2 * j - 1]
 		nRt = gn[2 * j]
 	endif
-	if kd = 3 or kd = 5 then
-		! 内開きのドア（扉 413・910）
-		lw = 0.413
-		if kd = 5 then lw = 0.91
-		dx0 = g0 + (gw - lw) / 2
-		line2 g0, -0.1009, g1, -0.1009
-		line2 dx0, -0.1009, dx0, -0.1009 + lw
-		arc2 dx0, -0.1009, lw, 0, 90
-	else
-		! キャスターゲート（閉めた線）と畳んだときの置き場（ユニット 260＋支柱 90×2）
-		line2 g0, 0.03, g1, 0.03
-		line2 g0, -0.03, g1, -0.03
-		if nL > 0 then rect2 g0, -0.04, g0 + nL * 0.26 + 0.18, 0.04
-		if nRt > 0 then rect2 g1 - nRt * 0.26 - 0.18, -0.04, g1, 0.04
+	! 開口の両端の印（簡略でも）
+	line2 g0, -po - 0.15, g0, 0.15
+	line2 g1, -po - 0.15, g1, 0.15
+	if drLv < 3 then
+		if kd = 3 or kd = 5 then
+			! 内開きのドア（扉 413・910）
+			lw = 0.413
+			if kd = 5 then lw = 0.91
+			dx0 = g0 + (gw - lw) / 2
+			line2 g0, -0.1009, g1, -0.1009
+			line2 dx0, -0.1009, dx0, -0.1009 + lw
+			arc2 dx0, -0.1009, lw, 0, 90
+		else
+			! キャスターゲート（閉めた線）と畳んだときの置き場（ユニット 260＋支柱 90×2）
+			line2 g0, 0.03, g1, 0.03
+			line2 g0, -0.03, g1, -0.03
+			if drLv = 1 then
+				if nL > 0 then rect2 g0, -0.04, g0 + nL * 0.26 + 0.18, 0.04
+				if nRt > 0 then rect2 g1 - nRt * 0.26 - 0.18, -0.04, g1, 0.04
+			endif
+		endif
 	endif
 next k
-text2 kkL / 2, -0.6, kkName
+! 名前（外の側に。図面の向きに関係なく水平。外の向きが画面で横なら左・右寄せ、縦なら上・下寄せで線から離す）
+pen penEquip
+sx = sin(SYMB_ROTANGLE)
+sy = -cos(SYMB_ROTANGLE)
+if SYMB_MIRRORED then sx = -sx
+add2 kkL / 2, -po - 0.25
+rot2 -SYMB_ROTANGLE
+if abs(sx) > abs(sy) then
+	if sx > 0 then
+		style "kkL"
+	else
+		style "kkR"
+	endif
+else
+	if sy < 0 then
+		style "kkT"
+	else
+		style "kkB"
+	endif
+endif
+text2 0, 0, kkName
+del 2
 hotspot2 0, 0
 hotspot2 kkL, 0
 """
+
+# 範囲の線（pZ）は使わない。マスタースクリプトの配列 pz と GDL では同じ名前になるので外す
+# 描き方の決めの pO・pT（太線・細線のペン）は GDL では大文字小文字を区別しないので、マスタースクリプトのパネルの位置 po・
+# 厚み pt と同じ変数になる（パネルが 21m 先に描かれた 2026-11-04）→ 仮囲いでは pnO・pnT に。範囲の線 pZ（配列 pz とぶつかる）は使わない
+_HEAD = re.sub(r"\bpO\b", "pnO", re.sub(r"\bpT\b", "pnT", gdl_draft.head().replace("pZ = penZone\nif pZ < 1 then pZ = pT\n", "")))
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", _HEAD.rstrip("\n")).replace("pen pO\n", "pen pnO\n").replace("pen pT\n", "pen pnT\n")
+
 
 SCRIPT_3D = """﻿! 仮囲い 3D（日建リース工業 仮設資材カタログ Vol.10 の寸法: 単管 φ48.6×2.4、兼用直交クランプ ARC1・自在クランプ ARC2 の口
 ! 幅40・帯4.5、安全鋼板 有効幅540 t1.2 端から40 の山、フックボルト SSKFB φ9、VIC フラットパネル 有効幅500 縁の折り返し 28・C型金具、

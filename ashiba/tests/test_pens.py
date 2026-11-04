@@ -134,5 +134,32 @@ class TestPenCommand(unittest.TestCase):
         self.assertEqual(P.index_of(""), 1)
 
 
+class TestDraftHeadNames(unittest.TestCase):
+    def test_no_case_clash_with_the_part(self):
+        """描き方の決め（gdl_draft.head）の変数は、部品のマスター・2D の別の変数と大文字小文字だけ違う名前にしない.
+
+        GDL は大文字小文字を区別しない。仮囲いの po（パネルの位置）・pt（厚み）が pO（太線のペン 21）・pT（細線のペン）に
+        なり、パネルが 21m 先に描かれた（2026-11-04 実機）."""
+        import re
+        from pathlib import Path
+
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+        assign = re.compile(r"(?:^|[\s:,(])([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]*\])?\s*=(?!=)", re.M)
+        for d in sorted(hsf.iterdir()):
+            s2 = d / "scripts" / "2d.gdl"
+            if not s2.exists():
+                continue
+            t2 = s2.read_text(encoding="utf-8-sig")
+            if "描き方の決め（scripts/gdl_draft.py）" not in t2:
+                continue
+            head, _, body = t2.partition("mk = (")
+            hv = {n for n in assign.findall(head)}
+            hl = {n.lower(): n for n in hv}
+            t1 = (d / "scripts" / "1d.gdl").read_text(encoding="utf-8-sig") if (d / "scripts" / "1d.gdl").exists() else ""
+            for n in set(assign.findall(t1 + "\n" + body)) | set(re.findall(r"dim\s+([A-Za-z_][A-Za-z0-9_]*)", t1, re.I)):
+                if n.lower() in hl:
+                    self.assertEqual(n, hl[n.lower()], (d.name, n, hl[n.lower()]))
+
+
 if __name__ == "__main__":
     unittest.main()
