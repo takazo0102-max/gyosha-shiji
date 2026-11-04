@@ -43,7 +43,8 @@ def _choose(faces: list[str]) -> str | None:
     script = ("choose from list {" + ", ".join(q(t) for t in items) + "} with title " + q("面の切替")
               + " with prompt " + q("・".join(faces) + " を切り替える足場の種類") + " OK button name " + q("切替")
               + " cancel button name " + q("やめる"))
-    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    # activate: パレットの窓は前に出ないので、窓を前に出さないと Archicad の後ろに隠れる（「配置できなくなった」2026-11-05）
+    r = subprocess.run(["osascript", "-e", "activate", "-e", script], capture_output=True, text=True)
     out = (r.stdout or "").strip()
     return None if r.returncode != 0 or not out or out == "false" else out
 

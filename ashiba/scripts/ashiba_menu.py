@@ -70,7 +70,8 @@ def choose(items, prompt: str) -> str | None:
     script = ("choose from list {" + ", ".join(q(t) for t in labels) + "} with title " + q("仮設足場 メニュー")
               + " with prompt " + q(prompt + "\n★ は今の選択に合う操作") + " default items {" + q(labels[0]) + "}"
               + " OK button name " + q("実行") + " cancel button name " + q("やめる"))
-    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    # activate: パレットの窓は前に出ないので、窓を前に出さないと Archicad の後ろに隠れる（「配置できなくなった」2026-11-05）
+    r = subprocess.run(["osascript", "-e", "activate", "-e", script], capture_output=True, text=True)
     out = (r.stdout or "").strip()
     if r.returncode != 0 or not out or out == "false":
         return None

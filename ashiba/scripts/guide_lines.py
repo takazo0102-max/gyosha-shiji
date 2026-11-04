@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import json
 from pathlib import Path
 
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 def _points(obj) -> list[tuple[float, float]]:

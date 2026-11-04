@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import re
 import sys
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 STEPS = "工程ステップ.json"
 MODEL = "工程模型.json"
 GUID = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)

@@ -17,6 +17,7 @@ Archicad は要らない（帳票を読むだけ）。
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import json
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 COND = "工程表_条件.json"
 
 

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from ashiba.spec_object import pick_spec_object  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, TapirError, get_selected_outline_mm  # noqa: E402
 
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 def _outline(c: ArchicadClient):

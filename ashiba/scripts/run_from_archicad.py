@@ -99,7 +99,7 @@ FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら�
 # 図面の並べ先。躯体外形の左下から下方向へ、立面→詳細図の順に置く
 ELEVATION_OFFSET_MM = -45000.0
 DETAIL_OFFSET_MM = -20000.0
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 # 条件をスクリプトを編集せずに変えるための上書きファイル（存在すれば SPEC に重ねる）。
 # 中身は入力JSONと同じキー（series_id・eaves_height_mm・site・openings 等。outline_mm は
 # 選択したスラブから取るので無視）。環境変数 ASHIBA_SPEC でパスを差し替えられる
@@ -241,7 +241,8 @@ def _choose_width_dialog(choices) -> str | None:
     script = ("choose from list {" + ", ".join(q(t) for t in labels) + "} with title " + q("足場の幅")
               + " with prompt " + q("足場の幅（建地列の間隔）を選んでください。センチはメートル系、インチはインチ系の足場になります")
               + " default items {" + q(labels[0]) + "} OK button name " + q("決定") + " cancel button name " + q("既定のまま"))
-    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    # activate: パレットの窓は前に出ないので、窓を前に出さないと Archicad の後ろに隠れる（「配置できなくなった」2026-11-05）
+    r = subprocess.run(["osascript", "-e", "activate", "-e", script], capture_output=True, text=True)
     out = (r.stdout or "").strip()
     return None if r.returncode != 0 or not out or out == "false" else out
 

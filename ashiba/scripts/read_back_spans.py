@@ -40,7 +40,7 @@ from ashiba.span_readback import (  # noqa: E402
 )
 from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
 
-OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 SPEC_DEFAULT = Path.home() / "Desktop" / "ashiba_spec.json"
 
 

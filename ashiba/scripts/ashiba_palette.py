@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.palette import panel_layout  # noqa: E402
 
-OUT = Path.home() / "Desktop" / "ashiba_out"
+OUT = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 PANEL = ROOT / "tapir" / "palette_panel.swift"
 BUILD = ROOT / "tapir" / "build"
 PID = OUT / ".palette.pid"

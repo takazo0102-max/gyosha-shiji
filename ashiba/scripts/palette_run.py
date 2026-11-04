@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from ashiba.palette import ACTIONS, summary  # noqa: E402
 
-OUT = Path.home() / "Desktop" / "ashiba_out"
+OUT = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 def kinds_json() -> str:
