@@ -1,7 +1,51 @@
-﻿! 仮設建物 2D: ユニットの外形・出入口・窓・2階の外廊下と外階段・名前と段ごとの用途
-pen penEquip
+﻿! 仮設建物 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 1階で切った平面。外形は太線、ユニットの境・扉・窓は細線、2階の
+! 外廊下（上にある）は破線、外階段は細線と上る向きの矢。建物の範囲と注記の後ろは背景の色で塗って下の線（敷鉄板・通路）を隠す。
+! 縮尺で 詳細（1/100: 壁の厚みの2本線・扉は壁を切って開きの円弧・窓は壁の中のガラスの線）・標準（1/200: 外形の1本・扉の円弧・
+! 窓の2本線）・簡略（外形と名前だけ）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
 define style "hsT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+define style "hsR" "ＭＳ Ｐゴシック", texSiz, 3, 0
 style "hsT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+wT = 0.06                                  ! 壁（外壁パネル）の厚み【目安】
+if mk then
+	drawindex 20
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		0, 0, 1,
+		lx, 0, 1,
+		lx, ly, 1,
+		0, ly, 1,
+		0, 0, -1
+endif
 for u = 1 to nU
 	x0 = 0
 	y0 = (u - 1) * ud
@@ -9,42 +53,92 @@ for u = 1 to nU
 		x0 = (u - 1) * uw
 		y0 = 0
 	endif
+	drawindex 30
+	pen pO
+	line_type ltS
 	rect2 x0, y0, x0 + uw, y0 + ud
-	! 出入口（トイレは各ユニットの手前、平屋のハウスは手前の1つ、2段以上は妻側 X0 にユニットごと）
-	if isT or (u = 1 and upOn = 0) then
-		dw = min(0.8, uw - 0.1)
-		dx = x0 + 0.05
-		if isT then dx = x0 + (uw - dw) / 2
-		line2 dx, y0, dx, y0 - dw
-		arc2 dx, y0, dw, 270, 360
+	pen pT
+	if drLv = 1 then
+		rect2 x0 + wT, y0 + wT, x0 + uw - wT, y0 + ud - wT
 	endif
-	if upOn and isT = 0 then
-		line2 0, y0 + 0.15, -0.8, y0 + 0.15
-		arc2 0, y0 + 0.15, 0.8, 90, 180
-	endif
-	! 窓（手前の面、ハウスだけ）
-	if isT = 0 and u = 1 and uw > 2.5 then
-		nW = max(1, int((uw - 1.0) / 1.8))
-		for i = 1 to nW
-			wx = 1.0 + (uw - 1.0) * (i - 0.5) / nW - 0.6
-			line2 wx, -0.03, wx + 1.2, -0.03
-			line2 wx, 0.03, wx + 1.2, 0.03
-		next i
+	if drLv < 3 then
+		! 出入口（トイレは各ユニットの手前、平屋のハウスは手前の1つ、2段以上は妻側 X0 にユニットごと）
+		if isT or (u = 1 and upOn = 0) then
+			dw = min(0.8, uw - 0.1)
+			dx = x0 + 0.05
+			if isT then dx = x0 + (uw - dw) / 2
+			if drLv = 1 and mk then
+				! 壁を切る（開口の所を背景の色で塗り、枠の線を引く）
+				drawindex 35
+				fill fiS
+				poly2_b 5, 6, pM, pM, dx, y0 - 0.002, 1, dx + dw, y0 - 0.002, 1, dx + dw, y0 + wT + 0.002, 1, dx, y0 + wT + 0.002, 1, dx, y0 - 0.002, -1
+				drawindex 40
+				line2 dx, y0, dx, y0 + wT
+				line2 dx + dw, y0, dx + dw, y0 + wT
+			endif
+			drawindex 40
+			line2 dx, y0, dx, y0 - dw
+			arc2 dx, y0, dw, 270, 360
+		endif
+		if upOn and isT = 0 then
+			yd = y0 + 0.15
+			if drLv = 1 and mk then
+				drawindex 35
+				fill fiS
+				poly2_b 5, 6, pM, pM, -0.002, yd, 1, wT + 0.002, yd, 1, wT + 0.002, yd + 0.8, 1, -0.002, yd + 0.8, 1, -0.002, yd, -1
+				drawindex 40
+				line2 0, yd, wT, yd
+				line2 0, yd + 0.8, wT, yd + 0.8
+			endif
+			drawindex 40
+			line2 0, yd, -0.8, yd
+			arc2 0, yd, 0.8, 90, 180
+		endif
+		! 窓（手前の面、ハウスだけ）
+		if isT = 0 and u = 1 and uw > 2.5 then
+			nW = max(1, int((uw - 1.0) / 1.8))
+			for i = 1 to nW
+				wx = 1.0 + (uw - 1.0) * (i - 0.5) / nW - 0.6
+				if drLv = 1 then
+					if mk then
+						drawindex 35
+						fill fiS
+						poly2_b 5, 6, pM, pM, wx, -0.002, 1, wx + 1.2, -0.002, 1, wx + 1.2, wT + 0.002, 1, wx, wT + 0.002, 1, wx, -0.002, -1
+					endif
+					drawindex 40
+					line2 wx, 0, wx, wT
+					line2 wx + 1.2, 0, wx + 1.2, wT
+					line2 wx, 0, wx + 1.2, 0
+					line2 wx, wT, wx + 1.2, wT
+					line2 wx, wT / 2, wx + 1.2, wT / 2
+				else
+					drawindex 40
+					line2 wx, -0.03, wx + 1.2, -0.03
+					line2 wx, 0.03, wx + 1.2, 0.03
+				endif
+			next i
+		endif
 	endif
 next u
-! 2階の外廊下（階段踊場部ユニット SC をユニットごと）と外階段（上る向きの矢）。廊下の座標（x＝妻側に沿って・y＝外へ負）を
-! 部品の X0 の面へ回す（x→Y、y→X）
-if upOn and isT = 0 then
+! 2階の外廊下（階段踊場部ユニット SC をユニットごと。1階の平面では上にあるので破線）と外階段（細線・上る向きの矢）。
+! 廊下の座標（x＝妻側に沿って・y＝外へ負）を部品の X0 の面へ回す（x→Y、y→X）
+if upOn and isT = 0 and drLv < 3 then
+	drawindex 40
+	pen pT
 	rot2 90
 	mul2 1, -1
+	line_type ltH
 	rect2 0, -corrW, cL, 0
 	for u = 1 to nU - 1
 		line2 u * ud, -corrW, u * ud, 0
 	next u
+	line_type ltS
 	rect2 stX, -stairW, stX + stL, 0
-	for i = 1 to nRs - 2
-		line2 stX + i * gStp, -stairW, stX + i * gStp, 0
-	next i
+	if drLv = 1 then
+		for i = 1 to nRs - 2
+			line2 stX + i * gStp, -stairW, stX + i * gStp, 0
+		next i
+	endif
 	ax = stX + 0.2
 	bx = stX + stL - 0.2
 	if stairSd = 1 then
@@ -55,20 +149,46 @@ if upOn and isT = 0 then
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 + 0.15
 	line2 bx, -stairW / 2, bx - 0.25 * sgn(bx - ax), -stairW / 2 - 0.15
 	del 2
-	add2 -corrW - 2.2, stX + stL / 2
+	drawindex 50
+	pen penEquip
+	add2 -corrW - 0.3, stX + stL / 2
 	rot2 -SYMB_ROTANGLE
+	style "hsR"
 	text2 0, 0, stName
-	text2 0, -0.4, "外廊下 SC×" + str(nU, 1, 0)
+	text2 0, -dT, "外廊下（上部）SC×" + str(nU, 1, 0)
+	style "hsT"
 	del 2
 endif
-! 名前と段ごとの用途（図面の向きに関係なく水平）
-add2 lx / 2, ly / 2
-rot2 -SYMB_ROTANGLE
+! 名前と段ごとの用途（図面の向きに関係なく水平。後ろを背景の色で塗る。簡略は名前だけ）
+drawindex 50
+pen penEquip
 tx = usN[tu[1]]
 if nT >= 2 then tx = "1F " + usN[tu[1]] + " / 2F " + usN[tu[2]]
 if nT >= 3 then tx = tx + " / 3F " + usN[tu[3]]
-text2 0, 0.25, hsName
-text2 0, -0.25, tx
+nTL = 1 + (drLv < 3)
+tW = max(STW(hsName), STW(tx) * (drLv < 3)) / 1000 * GLOB_SCALE / 2 + 0.08
+tH = dT * (nTL / 2 + 0.1)
+! 建物の中に収まらなければ（小さな縮尺・小さな建物）手前の外に書く（白塗りで建物の線を消さない）
+cs = abs(cos(SYMB_ROTANGLE))
+sn = abs(sin(SYMB_ROTANGLE))
+if 2 * tW * cs + 2 * tH * sn < lx * 0.9 and 2 * tW * sn + 2 * tH * cs < ly * 0.9 then
+	add2 lx / 2, ly / 2
+else
+	add2 max(lx / 2, tW * cs + tH * sn + 0.3), -(tW * sn + tH * cs) - 0.3          ! 妻側の外階段より右に
+endif
+rot2 -SYMB_ROTANGLE
+if mk then
+	drawindex 45
+	fill fiS
+	poly2_b 5, 6, pM, pM, -tW, -tH, 1, tW, -tH, 1, tW, tH, 1, -tW, tH, 1, -tW, -tH, -1
+endif
+drawindex 50
+if drLv < 3 then
+	text2 0, dT / 2, hsName
+	text2 0, -dT / 2, tx
+else
+	text2 0, 0, hsName
+endif
 del 2
 hotspot2 0, 0
 hotspot2 lx, 0

@@ -6,3 +6,4 @@ values{2} "use3" 1, "事務所", 2, "詰所", 3, "休憩所", 4, "更衣室", 5,
 values "nTier" 1, 2, 3
 values "stairSd" 0, 1
 values "nUnit" range [1, 12]
+values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"
