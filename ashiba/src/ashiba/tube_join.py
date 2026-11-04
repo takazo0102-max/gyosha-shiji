@@ -171,12 +171,16 @@ def _check_ties(j: Join) -> None:
             c.append(Check("壁つなぎ", "NG", f"{x:.0f}mm は支柱の間の外 → 支柱の間に柱が来る区間に線を引く"))
             continue
         cap = tube_capacity_kn(L, x, j.double)
+        cap2 = tube_capacity_kn(L, x, True)
         nm = j.tie_parts[k] if k < len(j.tie_parts) else ""
         st = "OK" if cap >= TIE_KN - 1e-6 else "WARN"
+        # 2本で足りるときだけ2本を勧める（2本でも足りないのに「2本抱かせる」と出ていた 2026-11-05）
+        fix = ("単管を2本抱かせる（2本で " + f"{cap2:.2f}kN）、" if not j.double and cap2 >= TIE_KN - 1e-6 else
+               ("" if j.double else f"2本でも {cap2:.2f}kN で足りないので、"))
         c.append(Check("壁つなぎ", st, f"始めから {x:.0f}mm・柱の面まで {need:.0f}mm（{nm or '品は長さで選ぶ'}）。単管"
                                       + ("2本" if j.double else "") + f"が受けられる力 {cap:.2f}kN"
                                       + (f" ≧ 壁つなぎの許容 {TIE_KN:g}kN" if st == "OK" else
-                                         f" ＜ 壁つなぎの許容 {TIE_KN:g}kN → 単管を2本抱かせる（--double）、柱を支柱の近くで取る、"
+                                         f" ＜ 壁つなぎの許容 {TIE_KN:g}kN → {fix}柱を支柱の近くで取る、"
                                          f"又はその壁つなぎの受け持ちの風荷重を {cap:.2f}kN 以下に（構造計算書で確かめる）")))
         if need > TIE_REACH_MM:
             c.append(Check("壁つなぎ", "NG", f"柱の面まで {need:.0f}mm は {TIE_REACH_MM:.0f} を超える → 単管を柱の近くに渡す"))

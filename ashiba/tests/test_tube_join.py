@@ -74,6 +74,12 @@ class TestHiuchiAndTubeTie(unittest.TestCase):
         self.assertEqual([c.status for c in two.checks if c.item == "壁つなぎ"], ["OK"])
         self.assertEqual(part_params(two)["zList"], "1800,1900")                    # 2本目は上に
         self.assertIn("# 単管に壁つなぎ", report([j]))
+        # 2本を勧めるのは2本で足りるときだけ（真ん中 900 の柱は 2本でも 4.0kN ＜ 4.41kN）
+        mid = [c.message for c in j.checks if c.item == "壁つなぎ"][0]
+        self.assertIn("2本でも", mid)
+        self.assertNotIn("2本抱かせる", mid)
+        near = plan_join(Join("近い", (0, 0), (1800, 0), [1800], kind="壁つなぎ", ties=[(400.0, 1, 300.0)]))
+        self.assertIn("単管を2本抱かせる（2本で", [c.message for c in near.checks if c.item == "壁つなぎ"][0])
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ GLOOBE の「別の足場と接続する単管」に当たる（2026-11-02 の�
   python3 scripts/tube_run.py --hiuchi                     # 火打ち: 3点の線（片方の面の支柱 → 隅の支柱 → もう片方の面の支柱）
   python3 scripts/tube_run.py --tie                        # 単管に壁つなぎ: 支柱から支柱への線と鉄骨柱を一緒に選ぶ
   python3 scripts/tube_run.py --tie --tie-at 900 --tie-len 300   # 柱を選ばずに、線の始めから 900 に・長さ 300 の壁つなぎ
-  python3 scripts/tube_run.py --tie --double               # 単管を上下2本抱かせる（壁つなぎの力が1本で足りないとき）
+  python3 scripts/tube_run.py --tie --double               # 単管を上下2本抱かせる（既定でも、1本で足りず2本で足りれば2本）
 
 火打ち・単管に壁つなぎは GLOOBE 2026 の「単管の単独入力（火打ち）」「壁つなぎの単管配置」に当たる（2026-11-02）。壁つなぎは
 部品 ashiba_tie を柱の位置・層ごとに1つ（+Y が柱の側）、単管は ashiba_tube。品（KS200〜KS1000 等）は条件の系列の部材マスタ
@@ -94,6 +94,8 @@ def main(argv=None) -> int:
     ap.add_argument("--tie-len", type=float, default=300.0, help="--tie-at の壁つなぎの長さ mm（柱の面まで。既定 300）")
     ap.add_argument("--tie-side", default="左", choices=("左", "右"), help="--tie-at の柱の側（線の向きの左か右。既定 左）")
     ap.add_argument("--double", action="store_true", help="壁つなぎを受ける単管を上下2本抱かせる")
+    ap.add_argument("--single", action="store_true",
+                    help="1本で壁つなぎの力が足りなくても2本にしない（既定は、足りなければ2本で足りるときは2本に）")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     try:                                                   # 平面図で置く（前面がレイアウトだと置けない・そこへ描く）
@@ -168,6 +170,16 @@ def main(argv=None) -> int:
             j.tie_parts = [pick_tie(master, need) for _x, _s, need in j.ties]
             j.tie_kg = [tie_weight(master, nm) for nm in j.tie_parts]
         j = plan_join(j)
+        weak = lambda jj: any(x.item == "壁つなぎ" and x.status == "WARN" for x in jj.checks)  # noqa: E731
+        if a.tie and not a.double and not a.single and weak(j):
+            # パレットからは --double を選べないので、1本で足りず2本で足りるなら2本に（2026-11-05 の全部のコマンドの試験から）
+            j.double = True
+            j = plan_join(j)
+            if weak(j):
+                j.double = False
+                j = plan_join(j)
+            else:
+                print(f"{'単管に壁つなぎ'}: {j.name} 単管1本では壁つなぎの力（4.41kN）を受けられないので、上下2本を抱かせます（--single で1本）")
         z = a.z if a.z is not None else (min(ground(*p0), ground(*p1)) if ground else 0.0)
         el = _place(c, part, p0, z, math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0])))
         if el is None:
@@ -191,7 +203,14 @@ def main(argv=None) -> int:
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / {"火打ち": "火打ちの単管.md", "壁つなぎ": "単管に壁つなぎ.md"}.get(kind, "単管でつなぐ.md")
     md.write_text(report(joins), encoding="utf-8")
-    print(f"{ {'火打ち': '火打ちの単管', '壁つなぎ': '単管に壁つなぎ'}.get(kind, '単管でつなぐ')}: {len(joins)}か所に置きました（発注表: {md}）")
+    title = {"火打ち": "火打ちの単管", "壁つなぎ": "単管に壁つなぎ"}.get(kind, "単管でつなぐ")
+    print(f"{title}: {len(joins)}か所に置きました（発注表: {md}）")
+    # 要確認・NG は窓にも（「1か所に置きました」だけで、単管が壁つなぎの力を受けられない WARN が帳票にしか無かった 2026-11-05）
+    for j in joins:
+        for x in j.checks:
+            if x.status != "OK":
+                print(f"{title}: {j.name} {'要確認' if x.status == 'WARN' else x.status} {x.item} — {x.message.split('→')[0].strip()}"
+                      + (f" → {x.message.split('→', 1)[1].strip().split('、')[0]}" if "→" in x.message else ""))
     return 0 if all(x.status != "NG" for j in joins for x in j.checks) else 2
 
 
