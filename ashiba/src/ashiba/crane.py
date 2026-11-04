@@ -297,6 +297,24 @@ def judge(m: CraneModel, spread: float, radius_mm: float, need_z: float, load_t:
     return JUDGE[1], x
 
 
+def reach_for(m: CraneModel, spread: float, need_z: float, load_t: float, ratio: float = LOAD_RATIO,
+              step_mm: float = 500.0) -> Optional[float]:
+    """その吊り荷を「揚重可能」にできるいちばん大きい作業半径 mm（step_mm 刻み・安全側に切り下げ）. どの半径でも無理なら None.
+
+    重すぎ・遠すぎのとき、クレーンをどこまで寄せれば吊れるかを帳票に出す（2026-11-05 の全部のコマンドの試験から）.
+    """
+    _s, t = table_for(m, spread)
+    rows = sorted(t)
+    if not rows:
+        return None
+    r = math.floor(rows[-1] * 1000.0 / step_mm) * step_mm
+    while r >= rows[0] * 1000.0 - 1e-6:
+        if plan_lift(m, spread, Lift("", r, load_t, need_z), ratio).status == "OK":
+            return r
+        r -= step_mm
+    return None
+
+
 def seg_box_distance(a: tuple, b: tuple, lo: tuple, hi: tuple) -> float:
     """線分 a–b と軸に沿った箱（lo〜hi）の最短距離 mm（箱の中を通れば 0）。距離は t について凸なので三分探索."""
     def d(t):

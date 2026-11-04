@@ -98,7 +98,8 @@ def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
-    from ashiba.crane import CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, boom_axis, effective_spread, judge, seg_box_distance
+    from ashiba.crane import (CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, boom_axis, effective_spread, judge, reach_for,
+                              seg_box_distance)
     from ashiba.tapir_adapter import ArchicadClient
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -159,7 +160,10 @@ def main(argv=None) -> int:
                 x = type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})()
             else:
                 res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, w, ratio, d.get("id") or d.get("type"))
-            rows.append((d.get("id") or e["elementId"]["guid"][:8], d.get("type"), vol, w, radius, need_z, res, x))
+            far = None                                   # 吊れる作業半径（重すぎ・遠すぎのとき、どこまで寄せればよいか）
+            if tw is None and res in ("重すぎ", "遠すぎ"):
+                far = reach_for(m, effective_spread(ps) or max(m.spreads), need_z, w, ratio)
+            rows.append((d.get("id") or e["elementId"]["guid"][:8], d.get("type"), vol, w, radius, need_z, res, x, far))
             hl.append(e)
             cols.append(COLORS[res])
         c.tapir("HighlightElements", {"elements": hl, "highlightedColors": cols, "wireframe3D": False})
@@ -169,15 +173,22 @@ def main(argv=None) -> int:
         md = ["# 揚重判定", "", f"{head}。吊りしろ {a.sling:.0f}・"
               + (f"重さ {a.weight}t（直接）" if a.weight is not None else
                  f"重さ＝体積×密度（{a.density}t/m³）" if a.density is not None else "重さ＝体積×密度（柱・梁 7.85・ほか 2.4t/m³）"),
-              "", "| 部材 | 種類 | 体積 | 重さ | 作業半径 | 要るフックの高さ | 判定 | ブーム・定格 |", "|---|---|---|---|---|---|---|---|"]
-        for nm, ty, vol, w, rad, nz, res, x in rows:
+              "", "| 部材 | 種類 | 体積 | 重さ | 作業半径 | 要るフックの高さ | 判定 | ブーム・定格 | 吊れる作業半径 |",
+              "|---|---|---|---|---|---|---|---|---|"]
+        for nm, ty, vol, w, rad, nz, res, x, far in rows:
             md.append(f"| {nm} | {ty} | {vol or 0:.2f}m³ | {w:.2f}t | {rad / 1000:.1f}m | {nz / 1000:.1f}m | {res} | "
-                      + (f"{x.boom}m・{x.rated_t:.2f}t" if x.boom else "-") + " |")
+                      + (f"{x.boom}m・{x.rated_t:.2f}t" if x.boom else "-") + " | "
+                      + (f"{far / 1000:.1f}m 以内" if far else "この機種では無理" if res in ("重すぎ", "遠すぎ") and tw is None else "-")
+                      + " |")
         md += ["", "色: 揚重可能＝緑・重すぎ＝橙・遠すぎ＝灰・高すぎ＝黄（「判定の色を消す」で消える）。重さはフック・玉掛け用具を足して"
                "定格総荷重×安全率と比べる（クレーン等安全規則 69条）"]
         (R.OUT_DIR / "揚重判定.md").write_text("\n".join(md), encoding="utf-8")
         cnt = {k: sum(1 for r in rows if r[6] == k) for k in ("揚重可能", "重すぎ", "遠すぎ", "高すぎ")}
         print("揚重判定: " + "・".join(f"{k} {v}" for k, v in cnt.items()) + f"（{R.OUT_DIR / '揚重判定.md'}）")
+        for nm, _ty, _v, w, rad, _nz, res, _x, far in rows:
+            if res in ("重すぎ", "遠すぎ") and tw is None:
+                print(f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
+                      + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）"))
     if a.clash:
         p0, p1 = jib_axis(ps, origin, car) if tw is not None else boom_axis(ps, origin, car)
         els = []

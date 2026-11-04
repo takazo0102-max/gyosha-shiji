@@ -152,6 +152,16 @@ class TestSmartconChecks(unittest.TestCase):
         self.assertEqual(judge(M25, 6.6, 8300.0, 42000.0, 7.68)[0], "高すぎ")          # 最大地上揚程 31.3m を超える
         self.assertEqual(judge(M25, 6.6, 10600.0, 8000.0, 21.6)[0], "重すぎ")
 
+    def test_reach_for(self):
+        """重すぎ・遠すぎのとき、吊れるいちばん大きい作業半径（0.5m 刻み）. そこでは揚重可能、0.5m 先では吊れない."""
+        from ashiba.crane import reach_for
+        r = reach_for(M25, 6.6, 8000.0, 4.0)
+        self.assertIsNotNone(r)
+        self.assertEqual(r % 500.0, 0.0)
+        self.assertEqual(judge(M25, 6.6, r, 8000.0, 4.0)[0], "揚重可能")
+        self.assertNotEqual(judge(M25, 6.6, r + 500.0, 8000.0, 4.0)[0], "揚重可能")
+        self.assertIsNone(reach_for(M25, 6.6, 8000.0, 40.0))             # 25t 吊りで 40t はどこでも無理
+
     def test_segment_to_box_distance(self):
         self.assertEqual(seg_box_distance((0, 0, 0), (10, 0, 0), (4, -1, -1), (6, 1, 1)), 0.0)    # 箱の中を通る
         self.assertAlmostEqual(seg_box_distance((0, 0, 0), (10, 0, 0), (4, 3, -1), (6, 5, 1)), 3.0)
