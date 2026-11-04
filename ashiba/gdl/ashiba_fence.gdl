@@ -18,6 +18,11 @@
 !   cY        文字列    線の Y                                                                            既定 "0,0,6000"
 !   fcName    文字列    名前（注記）                                                                      既定 "柵1"
 !   texSiz    実数      文字の大きさ（mm）                                                                既定 2.5
+!   penBold   PenColor  外形の線（太線。置くときに線のペンと同じ色の太いペン）                            既定 21
+!   penThin   PenColor  細部の線（細線。同じ色の細いペン）                                                既定 1
+!   penZone   PenColor  範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）                            既定 20
+!   penMask   PenColor  上に載るものの背景の塗り（下の線を隠す。0＝隠さない）                             既定 19
+!   drMode    整数      平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）                既定 0
 !   penEquip  PenColor  線のペン                                                                          既定 1
 ! ==========================================================
 
@@ -85,10 +90,39 @@ endif
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
-! 柵 2D: 区間ごとに1基ずつの外形と名前
-pen penEquip
+! 柵 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 1基ずつの外形は太線、支柱は細線。簡略は区間の1本線。名前の行送りは縮尺に
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
 define style "fcT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "fcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
 for s = 1 to kC - 1
 	dx = qcx[s + 1] - qcx[s]
 	dy = qcy[s + 1] - qcy[s]
@@ -102,18 +136,31 @@ for s = 1 to kC - 1
 		if kd = 2 then stp = sL / nU
 		add2 qcx[s], qcy[s]
 		rot2 sA
-		for u = 1 to nU
-			rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
-			if kd = 2 then rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
-		next u
-		if kd = 2 then rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+		if drLv = 3 then
+			pen pO
+			line2 0, 0, sL, 0
+		else
+			for u = 1 to nU
+				pen pO
+				rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
+				if kd = 2 then
+					pen pT
+					rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
+				endif
+			next u
+			if kd = 2 then
+				pen pT
+				rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+			endif
+		endif
 		del 2
 	endif
 next s
+pen penEquip
 if kC > 1 then
 	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
 	rot2 -SYMB_ROTANGLE
-	text2 0, 0.6, fcName
+	text2 0, uD / 2 + 0.3 + dT / 2, fcName
 	del 2
 endif
 for i = 1 to kC

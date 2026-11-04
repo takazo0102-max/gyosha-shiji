@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_fence"
@@ -31,6 +32,7 @@ def paramlist() -> str:
         _param("String", "cY", "線の Y", "0,0,6000"),
         _param("String", "fcName", "名前（注記）", "柵1"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -57,10 +59,11 @@ def _master() -> str:
     return "\n".join(out) + "\n"
 
 
-SCRIPT_2D = """﻿! 柵 2D: 区間ごとに1基ずつの外形と名前
-pen penEquip
+SCRIPT_2D_T = """﻿! 柵 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 1基ずつの外形は太線、支柱は細線。簡略は区間の1本線。名前の行送りは縮尺に
+@HEAD@
 define style "fcT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "fcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
 for s = 1 to kC - 1
 	dx = qcx[s + 1] - qcx[s]
 	dy = qcy[s + 1] - qcy[s]
@@ -74,24 +77,40 @@ for s = 1 to kC - 1
 		if kd = 2 then stp = sL / nU
 		add2 qcx[s], qcy[s]
 		rot2 sA
-		for u = 1 to nU
-			rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
-			if kd = 2 then rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
-		next u
-		if kd = 2 then rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+		if drLv = 3 then
+			pen pO
+			line2 0, 0, sL, 0
+		else
+			for u = 1 to nU
+				pen pO
+				rect2 (u - 1) * stp, -uD / 2, (u - 1) * stp + uL, uD / 2
+				if kd = 2 then
+					pen pT
+					rect2 (u - 1) * stp - 0.02, -uD / 2, (u - 1) * stp + 0.02, uD / 2
+				endif
+			next u
+			if kd = 2 then
+				pen pT
+				rect2 sL - 0.02, -uD / 2, sL + 0.02, uD / 2
+			endif
+		endif
 		del 2
 	endif
 next s
+pen penEquip
 if kC > 1 then
 	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
 	rot2 -SYMB_ROTANGLE
-	text2 0, 0.6, fcName
+	text2 0, uD / 2 + 0.3 + dT / 2, fcName
 	del 2
 endif
 for i = 1 to kC
 	hotspot2 qcx[i], qcy[i]
 next i
 """
+
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 柵 3D: 区間ごとに規格の1基ずつ
 define material "fc_pp" 2, 0.20, 0.55, 0.30

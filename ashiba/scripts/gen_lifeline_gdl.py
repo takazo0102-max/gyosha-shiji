@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_lifeline"
@@ -32,6 +33,7 @@ def paramlist() -> str:
         _param("String", "llName", "名前（注記）", "親綱1"),
         _param("String", "llDrop", "落差の注記", "落差 8.0m"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -53,31 +55,48 @@ if postK = 2 then pH = 1.081
 rpZ = pH - 0.06
 """
 
-SCRIPT_2D = """﻿! 親綱 2D: 梁の芯の線・支柱・親綱・注記
-pen penEquip
+SCRIPT_2D_T = """﻿! 親綱 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 梁の芯は一点鎖線（細線）、親綱支柱は太線、親綱は破線の太線。
+! 縮尺で 詳細（支柱の H 形のベース）・標準（支柱は小さな箱）・簡略（親綱の線と名前だけ）。注記の行送りは縮尺に合わせる
+@HEAD@
 define style "llT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "llT"
-line2 0, 0, llL, 0
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if drLv < 3 then
+	pen pT
+	line_type ltC
+	line2 0, 0, llL, 0
+	line_type ltS
+endif
 if nS > 0 then
-	for i = 0 to nS
-		px = llEnd + i * spL
-		rect2 px - 0.065, -0.0975, px + 0.065, 0.0975
-		line2 px - 0.065, -0.0975, px + 0.065, 0.0975
-	next i
+	if drLv < 3 then
+		pen pO
+		for i = 0 to nS
+			px = llEnd + i * spL
+			rect2 px - 0.065, -0.0975, px + 0.065, 0.0975
+			if drLv = 1 then line2 px - 0.065, -0.0975, px + 0.065, 0.0975
+		next i
+	endif
+	pen pO
+	line_type ltH
 	for i = 1 to nS
 		line2 llEnd + (i - 1) * spL + 0.07, 0.03, llEnd + i * spL - 0.07, 0.03
 	next i
+	line_type ltS
 endif
+pen penEquip
 add2 llL / 2, 0
 rot2 -SYMB_ROTANGLE
 tx = llName + " 親綱 " + str(nS, 1, 0) + "スパン（1スパン1人）"
 if nS = 0 then tx = llName + " 親綱は張れない（水平ネット等）"
-text2 0, 0.9, tx
-text2 0, 0.5, llDrop
+text2 0, 0.3 + 1.5 * dT, tx
+if drLv < 3 then text2 0, 0.3 + 0.5 * dT, llDrop
 del 2
 hotspot2 0, 0
 hotspot2 llL, 0
 """
+
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 親綱 3D: 親綱支柱（フランジをくわえる金具・角パイプの柱・頭の受け）、スパンごとの親綱と緊張器
 define material "ll_post" 2, 0.85, 0.65, 0.10

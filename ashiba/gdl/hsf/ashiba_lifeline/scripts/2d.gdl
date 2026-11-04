@@ -1,24 +1,66 @@
-﻿! 親綱 2D: 梁の芯の線・支柱・親綱・注記
-pen penEquip
+﻿! 親綱 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 梁の芯は一点鎖線（細線）、親綱支柱は太線、親綱は破線の太線。
+! 縮尺で 詳細（支柱の H 形のベース）・標準（支柱は小さな箱）・簡略（親綱の線と名前だけ）。注記の行送りは縮尺に合わせる
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
 define style "llT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "llT"
-line2 0, 0, llL, 0
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if drLv < 3 then
+	pen pT
+	line_type ltC
+	line2 0, 0, llL, 0
+	line_type ltS
+endif
 if nS > 0 then
-	for i = 0 to nS
-		px = llEnd + i * spL
-		rect2 px - 0.065, -0.0975, px + 0.065, 0.0975
-		line2 px - 0.065, -0.0975, px + 0.065, 0.0975
-	next i
+	if drLv < 3 then
+		pen pO
+		for i = 0 to nS
+			px = llEnd + i * spL
+			rect2 px - 0.065, -0.0975, px + 0.065, 0.0975
+			if drLv = 1 then line2 px - 0.065, -0.0975, px + 0.065, 0.0975
+		next i
+	endif
+	pen pO
+	line_type ltH
 	for i = 1 to nS
 		line2 llEnd + (i - 1) * spL + 0.07, 0.03, llEnd + i * spL - 0.07, 0.03
 	next i
+	line_type ltS
 endif
+pen penEquip
 add2 llL / 2, 0
 rot2 -SYMB_ROTANGLE
 tx = llName + " 親綱 " + str(nS, 1, 0) + "スパン（1スパン1人）"
 if nS = 0 then tx = llName + " 親綱は張れない（水平ネット等）"
-text2 0, 0.9, tx
-text2 0, 0.5, llDrop
+text2 0, 0.3 + 1.5 * dT, tx
+if drLv < 3 then text2 0, 0.3 + 0.5 * dT, llDrop
 del 2
 hotspot2 0, 0
 hotspot2 llL, 0
