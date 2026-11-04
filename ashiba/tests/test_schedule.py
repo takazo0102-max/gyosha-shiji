@@ -281,6 +281,61 @@ class TestStepModel(unittest.TestCase):
         got = sorted(sorted(g) for g in clusters(xy))
         self.assertEqual(got, [["a", "b", "c"], ["d", "e"]])
 
+    def test_undo_shows_layers_first(self):
+        """「戻す」は仮設工程のレイヤーを見せてからレイヤーを戻す（隠したレイヤーの要素は動かせず、2026-11-05 の試験で
+        9 個が黙って残った）. 戻せなかったものは控えに残す."""
+        import json
+        import tempfile
+        from unittest import mock
+
+        import step_run
+        from ashiba.schedule_steps import LAYERS
+
+        names = {i: n for i, n in enumerate(LAYERS, 100)}
+
+        class Fake:
+            def __init__(self):
+                self.hidden = {n: True for n in LAYERS}            # ステップの途中で全部を隠した状態
+                self.layer = {"G1": 100, "G2": 101, "G3": 102}     # 仮設工程のレイヤーにいる要素
+                self.locked = {"G3"}                               # これだけは戻せない（固定など）
+
+            def tapir(self, cmd, params):
+                if cmd == "CreateLayers":
+                    for d in params["layerDataArray"]:
+                        self.hidden[d["name"]] = d["isHidden"]
+                    return {}
+                if cmd == "SetDetailsOfElements":
+                    res = []
+                    for d in params["elementsWithDetails"]:
+                        g = d["elementId"]["guid"]
+                        ok = g not in self.locked and not self.hidden.get(names.get(self.layer[g]), False)
+                        if ok:
+                            self.layer[g] = d["details"]["layerIndex"]
+                        res.append({"success": ok})
+                    return {"executionResults": res}
+                if cmd == "GetElementsByType":
+                    return {"elements": []}
+                if cmd == "GetStories":
+                    return {"stories": []}
+                raise AssertionError(cmd)
+
+            def get_details(self, els):
+                return [{"layerIndex": self.layer.get(e["elementId"]["guid"], 0)} for e in els]
+
+        fake = Fake()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / step_run.STEPS).write_text(json.dumps({"steps": []}), encoding="utf-8")
+            (out / step_run.MODEL).write_text(json.dumps({"step": 3, "elements": {
+                g: {"layer": 1, "group": names[fake.layer[g]]} for g in fake.layer}}), encoding="utf-8")
+            with mock.patch("ashiba.tapir_adapter.ArchicadClient", return_value=fake), mock.patch("builtins.print"):
+                code = step_run.main(["--undo", "--out", d])
+            left = json.loads((out / step_run.MODEL).read_text(encoding="utf-8"))
+        self.assertEqual((fake.layer["G1"], fake.layer["G2"]), (1, 1))
+        self.assertEqual(code, 2)
+        self.assertEqual(list(left["elements"]), ["G3"])
+        self.assertFalse(any(fake.hidden.values()))
+
 
 if __name__ == "__main__":
     unittest.main()

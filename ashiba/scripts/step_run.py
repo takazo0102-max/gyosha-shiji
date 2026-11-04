@@ -155,6 +155,35 @@ def main(argv=None) -> int:
         c.tapir("CreateLayers", {"layerDataArray": [{"name": n, "isHidden": bool(h)} for n, h in hidden.items()],
                                  "overwriteExisting": True})
 
+    def move(changes: list[dict]) -> list[str]:
+        """要素のレイヤーを変える. 戻り値は変えられなかった要素の GUID（もう無い要素は除く。
+        隠したレイヤーの要素は変えられないので、先に全部を見せておく）.
+
+        まとめて送ると1つでも消えた要素があれば全部が失敗するので、そのときは1つずつ。要素ごとの失敗も数える
+        （2026-11-05 の試験で、隠したレイヤーの 9 個が黙って戻らなかった）.
+        """
+        if not changes:
+            return []
+        try:
+            res = (c.tapir("SetDetailsOfElements", {"elementsWithDetails": changes}) or {}).get("executionResults") or []
+            bad = [ch for ch, r in zip(changes, res) if isinstance(r, dict) and r.get("success") is False]
+        except Exception:
+            bad = []
+            for ch in changes:
+                try:
+                    res = (c.tapir("SetDetailsOfElements", {"elementsWithDetails": [ch]}) or {}).get("executionResults") or []
+                    bad += [ch] if any(isinstance(r, dict) and r.get("success") is False for r in res) else []
+                except Exception:
+                    bad.append(ch)
+        alive = []
+        for ch in bad:
+            try:
+                if "error" not in c.get_details([{"elementId": ch["elementId"]}])[0]:
+                    alive.append(ch["elementId"]["guid"])
+            except Exception:
+                pass
+        return alive
+
     def cut(h: float | None) -> tuple[int, int]:
         """外部足場の部品に、組み上がった高さ h m（その建物の足場の下端から）を入れる. None は全部.
 
@@ -204,29 +233,26 @@ def main(argv=None) -> int:
             if g not in els:
                 els[g] = {"layer": int(d["layerIndex"]), "group": lay}
             moves.append({"elementId": {"guid": g}, "details": {"layerIndex": li[lay]}})
-        if moves:
-            c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
+        bad = move(moves)
         mpath.write_text(json.dumps(model, ensure_ascii=False, indent=1), encoding="utf-8")
         by = {}
         for v in els.values():
             by[v["group"]] = by.get(v["group"], 0) + 1
-        print("工程の模型: " + "・".join(f"{k.replace('仮設工程_', '')} {n}" for k, n in by.items()) + " をレイヤーに分けました")
+        print("工程の模型: " + "・".join(f"{k.replace('仮設工程_', '')} {n}" for k, n in by.items()) + " をレイヤーに分けました"
+              + (f"（注意: {len(bad)}個はレイヤーを変えられませんでした。固定・隠したレイヤーにないか確かめてください）" if bad else ""))
         return 0
     if a.undo:
         els = model.get("elements", {})
         back = [{"elementId": {"guid": g}, "details": {"layerIndex": v["layer"]}} for g, v in els.items()]
-        if back:
-            try:
-                c.tapir("SetDetailsOfElements", {"elementsWithDetails": back})
-            except Exception as ex:                         # 消えた要素があると全部が失敗するので1つずつ
-                print(f"  注意: まとめて戻せませんでした（{ex}）。1つずつ戻します")
-                for b in back:
-                    try:
-                        c.tapir("SetDetailsOfElements", {"elementsWithDetails": [b]})
-                    except Exception:
-                        pass
+        show({n: False for n in LAYERS})                    # 隠したレイヤーの要素は動かせないので、先に見せる
         cut(None)
-        show({n: False for n in LAYERS})
+        bad = move(back)
+        if bad:                                             # 戻せなかったものだけ控えに残し、もう一度「戻す」で戻せるように
+            model["elements"] = {g: v for g, v in els.items() if g in bad}
+            mpath.write_text(json.dumps(model, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"工程の模型: {len(back) - len(bad)} 個をもとのレイヤーに戻しました（{len(bad)}個は戻せませんでした。"
+                  "もう一度「工程の模型を戻す」を押すか、固定したレイヤーがないか確かめてください）")
+            return 2
         mpath.write_text(json.dumps({}, ensure_ascii=False), encoding="utf-8")
         print(f"工程の模型: {len(back)} 個をもとのレイヤーに戻しました")
         return 0
