@@ -141,8 +141,10 @@ def main(argv=None) -> int:
     ctitle = f"仮設工事の金額（概算）　{c.name}".rstrip()
     wb = Workbook()
     cost.to_sheet(wb, rows, ctitle)
+    mon = cost.monthly(rows, tasks)
+    cost.monthly_sheet(wb, mon, ctitle)
     wb.save(out / "仮設の金額.xlsx")
-    (out / "仮設の金額.md").write_text(cost.to_markdown(rows, ctitle), encoding="utf-8")
+    (out / "仮設の金額.md").write_text(cost.to_markdown(rows, ctitle) + cost.monthly_markdown(mon), encoding="utf-8")
     tt = cost.totals(rows)
     miss = sorted({m for r in rows for m in r.missing})
     if not cpath.exists():

@@ -379,3 +379,90 @@ def to_sheet(wb, rows: list[CostRow], title: str) -> None:
                   Cell(tt["仮設の合計"], STYLE_YEN)])
     for i, w in enumerate((16, 30, 9, 6, 11, 11, 11, 12, 90)):
         sh.set_width(i, w)
+
+
+# 月ごとの金額（工程表と連動）: 項目の頭 → (手間・機械を割り振る作業, 賃料を割り振る存置の期間（始めの作業, 終わりの作業）)
+PERIODS = (("外部足場", ("sc_up", "sc_dn"), ("sc_up", "sc_dn")), ("養生シート", ("sheet",), ("sc_up", "sc_dn")),
+           ("仮囲い", ("kakoi", "kakoi_x"), ("kakoi", "kakoi_x")), ("出入口ゲート", (), ("kakoi", "kakoi_x")),
+           ("敷鉄板", ("plate", "plate_x"), ("plate", "plate_x")), ("山留め", ("yama", "yama_x"), ("yama", "yama_x")),
+           ("1次根切り", ("ex1",), None), ("2次根切り", ("ex2",), None), ("埋戻し", ("fill",), None),
+           ("乗入れ構台", ("kodai", "kodai_x"), ("kodai", "kodai_x")), ("タワークレーン", ("tc_up", "tc_dn"), ("tc_up", "tc_dn")),
+           ("仮設建物", ("house", "house_x"), ("house", "house_x")), ("仮設電気", ("util",), None))
+
+
+def _spread(out: dict, d0: _dt.date, d1: _dt.date, yen: float) -> None:
+    """d0〜d1（暦の日）に yen を日割りで月へ."""
+    if yen == 0 or d0 is None or d1 is None:
+        return
+    n = (d1 - d0).days + 1
+    if n <= 0:
+        return
+    d = d0
+    while d <= d1:
+        k = f"{d:%Y-%m}"
+        out[k] = out.get(k, 0.0) + yen / n
+        d += _dt.timedelta(days=1)
+
+
+def monthly(rows: list[CostRow], tasks: list[Task], include_reference: bool = False) -> dict[str, int]:
+    """項目の金額を工程表の作業の期間へ割り振った月ごとの金額 {"YYYY-MM": 円}. 手間・機械はその作業の期間に（いくつかあれば等分）、
+    賃料・材料は存置の期間に日割り。共通仮設費率は工程の全体に。土工（参考）と「率に含む」は合計と同じ扱い（率を入れたら除く）."""
+    by = {t.key: t for t in tasks if t.start and t.end}
+    out: dict[str, float] = {}
+    has_rate = any(r.group == "共通仮設費率" for r in rows)
+    s0 = min((t.start for t in by.values()), default=None)
+    s1 = max((t.end for t in by.values()), default=None)
+    for r in rows:
+        if r.group == "土工（参考）" and not include_reference:
+            continue
+        if r.group == "共通仮設（率に含む）" and has_rate:
+            continue
+        if r.group == "共通仮設費率":
+            _spread(out, s0, s1, r.total)
+            continue
+        hit = next((p for p in PERIODS if r.item.startswith(p[0])), None)
+        if hit is None:
+            _spread(out, s0, s1, r.total)
+            continue
+        _k, works, span = hit
+        ws = [by[w] for w in works if w in by]
+        lm = r.labor + r.machine
+        if ws:
+            for t in ws:
+                _spread(out, t.start, t.end, lm / len(ws))
+        else:
+            _spread(out, s0, s1, lm)
+        if span and span[0] in by and span[1] in by:
+            _spread(out, by[span[0]].start, by[span[1]].end, r.rent)
+        else:
+            _spread(out, s0, s1, r.rent)
+    return {k: round(v) for k, v in sorted(out.items())}
+
+
+def monthly_markdown(m: dict[str, int]) -> str:
+    if not m:
+        return ""
+    lines = ["", "## 月ごとの金額（工程表の作業の期間へ割り振り）", "",
+             "- 手間・機械はその作業の期間に、賃料・材料は存置の期間に日割り。土工（参考）は入れない", "",
+             "| 月 | 金額 | 累計 |", "|---|---|---|"]
+    acc = 0
+    for k, v in m.items():
+        acc += v
+        lines.append(f"| {k} | {v:,} | {acc:,} |")
+    return "\n".join(lines) + "\n"
+
+
+def monthly_sheet(wb, m: dict[str, int], title: str) -> None:
+    from .xlsx_writer import Cell, STYLE_BORDER, STYLE_YEN
+
+    sh = wb.sheet("月ごとの金額")
+    sh.add_title(title + "　月ごとの金額", 3)
+    sh.add(["手間・機械はその作業の期間に、賃料・材料は存置の期間に日割り（工程表と連動）。土工（参考）は入れない"])
+    sh.add_blank()
+    sh.add_header(["月", "金額", "累計"])
+    acc = 0
+    for k, v in m.items():
+        acc += v
+        sh.add_cells([Cell(k, STYLE_BORDER), Cell(v, STYLE_YEN), Cell(acc, STYLE_YEN)])
+    for i, w in enumerate((10, 14, 14)):
+        sh.set_width(i, w)

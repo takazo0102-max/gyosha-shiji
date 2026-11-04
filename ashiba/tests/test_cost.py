@@ -95,5 +95,25 @@ class TestEstimate(unittest.TestCase):
         self.assertIn("単価なし", md)
 
 
+class TestMonthly(unittest.TestCase):
+    def test_monthly_adds_up_and_follows_the_schedule(self):
+        """月ごとの金額（工程表の作業の期間へ割り振り）は合計と一致し、工程の期間の月だけに出る."""
+        t, _q, rows = _rows()
+        m = cost.monthly(rows, t)
+        self.assertAlmostEqual(sum(m.values()), cost.totals(rows)["仮設の合計"], delta=len(m))
+        s0 = min(k.start for k in t if k.start)
+        s1 = max(k.end for k in t if k.end)
+        self.assertEqual(min(m), f"{s0:%Y-%m}")
+        self.assertEqual(max(m), f"{s1:%Y-%m}")
+        tk = {k.key: k for k in t}
+        sc = next(r for r in rows if r.item.startswith("外部足場"))
+        months = {f"{tk['sc_up'].start:%Y-%m}", f"{tk['sc_dn'].end:%Y-%m}"}
+        for k in months:                                       # 足場の存置の月には足場の賃料が入る
+            self.assertGreater(m[k], 0)
+        self.assertGreater(sc.rent, 0)
+        md = cost.monthly_markdown(m)
+        self.assertIn("| 月 | 金額 | 累計 |", md)
+
+
 if __name__ == "__main__":
     unittest.main()
