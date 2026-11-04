@@ -61,7 +61,8 @@ def model_choices(length_mm: float) -> list[str]:
 
 def main() -> int:
     import run_from_archicad as R
-    from opening_run import OUT_DIR, building_of, guide_line
+    # 足場の「開口」の関数（scaffold_opening_run.py。床の開口養生 opening_run.py とは別。2026-11-01 の上書きで読めなくなっていた）
+    from scaffold_opening_run import OUT_DIR, building_of, guide_line
     from ashiba.cli import solve_groups
 
     c = ArchicadClient()

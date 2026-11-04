@@ -88,7 +88,7 @@ class TestStoreAndPlace(unittest.TestCase):
 
         self.assertIn("開口", [a.title for a in ACTIONS])
         self.assertIn("開口", dict(PANEL_GROUPS)["足場を直す"])
-        self.assertTrue((ROOT / "scripts" / "opening_run.py").exists())
+        self.assertTrue((ROOT / "scripts" / "scaffold_opening_run.py").exists())
 
 
 if __name__ == "__main__":

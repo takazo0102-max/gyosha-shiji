@@ -251,6 +251,13 @@ class ArchicadClient:
         bad = [e["elementId"]["guid"] for e, r in zip(elements, results)
                if isinstance(r, dict) and r.get("success") is False]
         if bad:
+            # もう無いもの（前に消した・手で消した）は消せなくてよい。残っているものだけ知らせる
+            try:
+                dets = self.tapir("GetDetailsOfElements", {"elements": [{"elementId": {"guid": g}} for g in bad]})
+                bad = [g for g, d in zip(bad, dets.get("detailsOfElements", [])) if "error" not in d]
+            except TapirError:
+                pass
+        if bad:
             print(f"  注意: {len(bad)}個を消せませんでした（" + ", ".join(g[:8] for g in bad[:10]) + "）")
         return len(elements) - len(bad)
 
