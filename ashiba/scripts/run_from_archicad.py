@@ -961,6 +961,13 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     spec, fit_notes = plan_within_boundary(spec)
     for n in fit_notes:
         print(f"  敷地境界: {n}")
+    from ashiba.cli import building_suffix, safe_file_stem
+
+    stem0 = safe_file_stem(str(spec.get("project_name") or "ashiba"))
+    spec["_file_suffix"] = building_suffix(OUT_DIR, stem0, spec["outline_mm"])
+    if spec["_file_suffix"]:
+        print(f"  注意: 工事名「{spec.get('project_name')}」の別の建物の控えがあるので、この建物の帳票と控えは "
+              f"{stem0}{spec['_file_suffix']}_… にしました（建物ごとに足場条件の工事名を変えると分かりやすい）")
     groups = solve_groups(spec)
     _label0, r = groups[0]
     # 解いた条件の控え（朝顔の面のように、全部を置き直さずに一部の部品だけ直すボタンが同じ条件で解き直す）

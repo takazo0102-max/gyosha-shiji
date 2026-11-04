@@ -525,6 +525,24 @@ class TestProjectNameBecomesAFileName(unittest.TestCase):
         self.assertEqual(r["file_stem"], "A_B工区")
         self.assertTrue(all(f.startswith("A_B工区_") for f in files), files)
 
+    def test_other_building_gets_suffix(self):
+        """同じ工事名の別の建物は「_2」（1棟目の控えを上書きしない）. 重なる外形は同じ建物の置き直しで同じ名前."""
+        import json
+        import tempfile
+
+        from ashiba.cli import building_suffix
+
+        a = [[0, 0], [12000, 0], [12000, 8000], [0, 8000]]
+        b = [[50000, 0], [60000, 0], [60000, 8000], [50000, 8000]]
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(building_suffix(d, "現場", a), "")
+            (Path(d) / "現場_plan.json").write_text(json.dumps({"outline_mm": a}), encoding="utf-8")
+            self.assertEqual(building_suffix(d, "現場", [[100, 100], [11000, 100], [11000, 7000]]), "")   # 同じ建物
+            self.assertEqual(building_suffix(d, "現場", b), "_2")
+            (Path(d) / "現場_2_plan.json").write_text(json.dumps({"outline_mm": b}), encoding="utf-8")
+            self.assertEqual(building_suffix(d, "現場", b), "_2")
+            self.assertEqual(building_suffix(d, "現場", [[0, 90000], [5000, 90000], [5000, 95000]]), "_3")
+
     def test_reserved_characters_are_replaced(self):
         from ashiba.cli import safe_file_stem
 

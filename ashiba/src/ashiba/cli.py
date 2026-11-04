@@ -2031,8 +2031,8 @@ class PlanRun:
 
     @property
     def file_stem(self) -> str:
-        """帳票のファイル名に使う工事名（使えない文字を落とした形）."""
-        return safe_file_stem(self.name)
+        """帳票のファイル名に使う工事名（使えない文字を落とした形）. 同じ工事名の別の建物は「_2」…を付ける（building_suffix）."""
+        return safe_file_stem(self.name) + str(self.spec.get("_file_suffix") or "")
 
 
 def net_levels_from_spec(spec: dict, n_levels: int) -> list[int]:
@@ -3031,6 +3031,40 @@ _BAD_NAME_CHARS = '/\\:*?"<>|'
 MAX_NAME_LEN = 80
 
 
+def building_suffix(out_dir, stem: str, outline_mm, n_max: int = 20) -> str:
+    """同じ工事名で別の建物に置くときの帳票の名前の後ろ（""・"_2"・"_3"…）.
+
+    out_dir に「工事名_plan.json」「工事名_2_plan.json」…があり、その外形がこの建物の外形と重なればその名前（同じ建物の置き直し）、
+    どれとも重ならなければ空いている名前。同じ工事名の2棟目が1棟目の控え（plan.json）と帳票を上書きし、1棟目の開口・昇降機が
+    「控えがありません」になっていた（2026-11-05 の全部のコマンドの試験から）.
+    """
+    import json as _json
+
+    def box(ol):
+        xs, ys = [float(p[0]) for p in ol], [float(p[1]) for p in ol]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    try:
+        me = box(outline_mm)
+    except (TypeError, ValueError, IndexError):
+        return ""
+    free = None
+    for k in range(1, n_max + 1):
+        suf = "" if k == 1 else f"_{k}"
+        path = Path(out_dir) / f"{stem}{suf}_plan.json"
+        if not path.exists():
+            free = suf if free is None else free
+            continue
+        try:
+            ol = _json.loads(path.read_text(encoding="utf-8")).get("outline_mm") or []
+            b = box(ol)
+        except (OSError, ValueError, TypeError, IndexError):
+            continue
+        if b[0] < me[2] and me[0] < b[2] and b[1] < me[3] and me[1] < b[3]:
+            return suf
+    return free if free is not None else ""
+
+
 def safe_file_stem(name: str) -> str:
     """工事名をファイル名に使える形にする.
 
@@ -3058,7 +3092,7 @@ def write_outputs(r: PlanRun, out_dir: Path) -> None:
         r.openings, r.brackets, r.stair_plan, r.verdict, r.warnings, r.spec)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    name = safe_file_stem(r.name)
+    name = r.file_stem
     write_quantity_csv(quantity, out_dir / f"{name}_数量表.csv")
     # 層ごとの数量（1フロアごとに拾う。支柱は1本ずつ下端の層に）
     from .level_quantity import take_off_by_level
