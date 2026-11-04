@@ -765,6 +765,59 @@ def stale_margin_mm(main_model, other_models) -> float:
     return 1000.0 + extra
 
 
+KEPT_NAME = "置き方の控え.json"
+# 置き直しのボタンが条件ファイルに書く値（箱・手動配置で置いた足場を置き直すときも、これだけは今の条件ファイルから）
+EDIT_KEYS = ("face_forms", "width_change", "stairs", "intakes", "openings", "asagao", "pens", "member_edits",
+             "cross_cuts_mm", "elevation_lines_mm")
+
+
+def _same_outline(a, b, tol: float = 1.0) -> bool:
+    """外形の点が同じか（並びの始めと向きは問わない・tol mm 以内）."""
+    if not a or not b or len(a) != len(b):
+        return False
+    used = [False] * len(b)
+    for p in a:
+        k = next((i for i, q in enumerate(b) if not used[i] and abs(float(p[0]) - float(q[0])) <= tol
+                  and abs(float(p[1]) - float(q[1])) <= tol), None)
+        if k is None:
+            return False
+        used[k] = True
+    return True
+
+
+def remember_override(out_dir: Path, outline_mm, override: dict) -> None:
+    """箱・手動配置（spec_override・足場条件の部品なし）で置いた足場の条件を外形ごとに控える."""
+    path = Path(out_dir) / KEPT_NAME
+    try:
+        rec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rec = []
+    keep = {k: v for k, v in override.items() if k not in ("outline_mm", "_protect_guids")}
+    rec = [r for r in rec if not _same_outline(r.get("outline_mm"), outline_mm)]
+    rec.append({"outline_mm": [list(map(float, p)) for p in outline_mm], "override": keep})
+    try:
+        path.write_text(json.dumps(rec[-50:], ensure_ascii=False, default=str), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def recall_override(out_dir: Path, outline_mm):
+    """remember_override で控えた条件（無ければ None）."""
+    try:
+        rec = json.loads((Path(out_dir) / KEPT_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return next((r.get("override") for r in reversed(rec) if _same_outline(r.get("outline_mm"), outline_mm)), None)
+
+
+def kept_override(kept: dict, now: dict) -> dict:
+    """置き直しの条件: 置いたときの条件（箱の段数・高さ・スパン・系列）に、置き直しのボタンが書いた今の値（EDIT_KEYS）を重ねる.
+    今の条件ファイルに無い EDIT_KEYS は外す（「元に戻す」「全部外す」が効くように）."""
+    out = {k: v for k, v in kept.items() if k not in EDIT_KEYS}
+    out.update({k: now[k] for k in EDIT_KEYS if k in now})
+    return out
+
+
 def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True, fill_title=True) -> dict:
     """ツールバーの本体。置いたものと結果を dict で返す（実機スモーク scripts/smoke_archicad.py が照合に使う）.
 
@@ -786,6 +839,16 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     activate_floor_plan(client)
     spec = dict(SPEC)
     override = load_spec_override() if spec_override is None else dict(spec_override)
+    if spec_override is not None and not use_spec_object and outline_mm:
+        remember_override(OUT_DIR, outline_mm, override)
+    elif spec_override is None and outline_mm:
+        # 箱・手動配置で置いた足場の置き直し（面の切替・幅の変更・解き直し…は外形だけで呼ぶ）: 置いたときの段数・高さで
+        # （条件の軒高で建ち直り、4段 7.2m の箱の足場が 17.1m になっていた 2026-11-05）
+        kept = recall_override(OUT_DIR, outline_mm)
+        if kept is not None:
+            override = kept_override(kept, override)
+            use_spec_object = False
+            print("  置き方: 箱・手動配置で置いた足場なので、置いたときの段数・高さ・スパンで置き直します")
     spec.update(override)
     # 条件ファイルが module（インチ／メートル）だけを書いて series_id を書かないときは、
     # ここの既定の series_id（信和A）に引きずられずにそのモジュールの既定系列を使う

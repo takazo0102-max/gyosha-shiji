@@ -111,6 +111,8 @@ def main() -> int:
         hit = pick_spec_object(tb.read_spec_objects(c), outline)
     except Exception:          # 部品が読めなくても JSON に書けば切り替えは通る
         hit = None
+    if tb.recall_override(OUT_DIR, outline) is not None:
+        hit = None             # 箱・手動配置で置いた足場は足場条件の部品を読まずに置き直すので、条件ファイルに書く
     if hit is not None and hit[1]:
         cur = str((hit[1] or {}).get("faceForms") or "")
         ff = updated_face_forms(cur, faces, form)

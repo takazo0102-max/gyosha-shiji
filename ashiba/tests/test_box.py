@@ -671,5 +671,39 @@ class TestBoardsOnDecks(unittest.TestCase):
                 self.assertTrue(lay["ties"])                                     # 支柱どうしを結ぶ単管
 
 
+
+class TestKeptOverride(unittest.TestCase):
+    """箱・手動配置で置いた足場の置き直し（面の切替・幅の変更・解き直し）は、置いたときの段数・高さで（2026-11-05:
+    4段 7.2m の箱の足場が、外形だけの置き直しで条件の軒高 17.1m になった）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    def test_remember_and_recall(self):
+        import tempfile
+        from pathlib import Path
+
+        import run_from_archicad as R
+
+        ol = [[0, 0], [10000, 0], [10000, 6000], [0, 6000]]
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(R.recall_override(Path(d), ol))
+            R.remember_override(Path(d), ol, {"eaves_height_mm": 7175, "_protect_guids": ["x"], "outline_mm": ol,
+                                              "face_forms": {"南面": "一側足場"}})
+            # 並びの始め・向きが違っても同じ外形（plan.json の外形で呼ばれる）
+            got = R.recall_override(Path(d), [[0, 6000], [10000, 6000], [10000, 0], [0.4, 0]])
+            self.assertEqual(got["eaves_height_mm"], 7175)
+            self.assertNotIn("_protect_guids", got)
+            self.assertIsNone(R.recall_override(Path(d), [[0, 0], [12000, 0], [12000, 6000], [0, 6000]]))
+            # 置き直しのボタンが書いた今の値だけ条件ファイルから（無ければ外す＝元に戻すが効く）
+            k = R.kept_override(got, {"eaves_height_mm": 17130, "width_change": {"level": 3}})
+            self.assertEqual(k["eaves_height_mm"], 7175)
+            self.assertEqual(k["width_change"], {"level": 3})
+            self.assertNotIn("face_forms", k)
+
+
 if __name__ == "__main__":
     unittest.main()
