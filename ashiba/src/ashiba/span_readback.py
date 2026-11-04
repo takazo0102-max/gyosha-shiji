@@ -336,7 +336,14 @@ def ties_from_readback(
     out: list[dict] = []
     notes: list[str] = []
     stray = 0
+    # この足場の近く（支柱の範囲＋3m）だけ数える。別の建物の壁つなぎまで「乗っていない 439本」と出ていた（2026-11-05）
+    pts = [p for e in edges for p in (e["start_post"], e["end_post"])]
+    near = 3000.0
+    lo = (min(p[0] for p in pts) - near, min(p[1] for p in pts) - near) if pts else None
+    hi = (max(p[0] for p in pts) + near, max(p[1] for p in pts) + near) if pts else None
     for x, y, z in tie_points_mm:
+        if lo is not None and not (lo[0] <= x <= hi[0] and lo[1] <= y <= hi[1]):
+            continue
         best = None
         for e in edges:
             (sx, sy), (ex, ey) = e["start_post"], e["end_post"]

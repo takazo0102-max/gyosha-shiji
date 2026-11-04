@@ -46,10 +46,15 @@ class TestTieReadback(unittest.TestCase):
         self.assertTrue(all(t["height_mm"] in levels for t in ties))
 
     def test_stray_part_is_ignored(self):
-        pts = _points(self.r) + [(999999.0, 999999.0, 3000.0)]
+        # 足場の近く（支柱の範囲＋3m）の乗っていない部品は知らせ、別の建物の壁つなぎ（遠い）は数えない
+        pts = _points(self.r) + [(15000.0, 10000.0, 3000.0)]
         ties, notes = ties_from_readback(self.plan["edges"], pts, self.plan["wall_ties"])
         self.assertIsNone(ties)
-        self.assertTrue(any("乗っていない" in n for n in notes))
+        self.assertTrue(any("乗っていない" in n and "1本" in n for n in notes))
+        ties, notes = ties_from_readback(self.plan["edges"], _points(self.r) + [(999999.0, 999999.0, 3000.0)],
+                                         self.plan["wall_ties"])
+        self.assertIsNone(ties)
+        self.assertFalse(any("乗っていない" in n for n in notes))
 
     def test_manual_ties_drive_the_solve(self):
         pts = _points(self.r)[:-3]
