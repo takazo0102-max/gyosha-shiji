@@ -138,6 +138,9 @@ def main(argv=None) -> int:
     part = R.versioned_part_name(PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
     done, k_open, k_edge = [], 0, 0
     for key, gs in plans:
         if key in rec:

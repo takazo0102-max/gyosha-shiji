@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_opening"
@@ -39,6 +40,7 @@ def paramlist() -> str:
         _param("String", "tbL", "幅木の杉足場板の長さ（mm）", "3000,3000,3000,3000"),
         _param("String", "opName", "名前（注記）", "開口1"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -171,60 +173,106 @@ while strlen(rest) > 0 do
 endwhile
 """
 
-SCRIPT_2D = """﻿! 開口養生 2D
-pen penEquip
+SCRIPT_2D_T = """﻿! 開口養生 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 開口は×の印。蓋は外形を太線で白く塗り、蓋の下の開口と×は隠れ線。
+! 手すり・幅木で囲う開口と床の縁は、手すりを太線・幅木と支柱を細線。注記の後ろは背景の色で塗る。縮尺で 詳細（1/100: 支柱まで）・
+! 標準（1/200）・簡略（外形と×と名前だけ）
+@HEAD@
 define style "opT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "opT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+tx = ""
 if kd <= 3 then
-	! 蓋（掛かり 0.1）と開口の内法
+	! 蓋（掛かり lap。上にあるので下の線を隠す）
+	if mk then
+		drawindex 20
+@COVERMASK@
+	endif
+	drawindex 30
+	pen pO
 	rect2 -lap, -lap, opW + lap, opD + lap
+	! 蓋の下の開口の内法と×（隠れ線）
+	drawindex 40
+	pen pT
+	line_type ltH
 	rect2 0, 0, opW, opD
 	line2 0, 0, opW, opD
 	line2 0, opD, opW, 0
+	line_type ltS
 	tx = "蓋 12mm"
 	if kd = 3 then tx = "蓋 24mm"
 endif
 if kd = 4 then
+	drawindex 30
+	pen pT
 	rect2 0, 0, opW, opD
+	line2 0, 0, opW, opD
+	line2 0, opD, opW, 0
+	! 手すり（太線）と幅木（細線）
+	pen pO
 	rect2 rx0, ry0, rx1, ry1
-	rect2 rx0 + 0.05, ry0 + 0.05, rx1 - 0.05, ry1 - 0.05
-	for sd = 1 to 4
-		sL = rx1 - rx0
-		if sd > 2 then sL = ry1 - ry0
-		nP = max(1, ceil(sL / pSp - 0.0001))
-		for i = 0 to nP
-			px = rx0 + sL * i / nP
-			py = ry0
-			if sd = 2 then py = ry1
-			if sd > 2 then
-				px = rx0
-				if sd = 4 then px = rx1
-				py = ry0 + sL * i / nP
-			endif
-			circle2 px, py, 0.03
-		next i
-	next sd
-	if netOn then
-		line2 0, 0, opW, opD
-		line2 0, opD, opW, 0
+	if drLv < 3 then
+		pen pT
+		rect2 rx0 + 0.05, ry0 + 0.05, rx1 - 0.05, ry1 - 0.05
+	endif
+	if drLv = 1 then
+		for sd = 1 to 4
+			sL = rx1 - rx0
+			if sd > 2 then sL = ry1 - ry0
+			nP = max(1, ceil(sL / pSp - 0.0001))
+			for i = 0 to nP
+				px = rx0 + sL * i / nP
+				py = ry0
+				if sd = 2 then py = ry1
+				if sd > 2 then
+					px = rx0
+					if sd = 4 then px = rx1
+					py = ry0 + sL * i / nP
+				endif
+				circle2 px, py, 0.03
+			next i
+		next sd
 	endif
 	tx = "手すり・幅木"
 	if netOn then tx = "手すり・幅木・ネット"
 endif
 if kd = 5 then
+	drawindex 30
+	pen pO
 	line2 0, eY, opW, eY
-	line2 0, eY + eSd * 0.05, opW, eY + eSd * 0.05
-	nP = max(1, ceil(opW / pSp - 0.0001))
-	for i = 0 to nP
-		circle2 opW * i / nP, eY, 0.03
-	next i
+	if drLv < 3 then
+		pen pT
+		line2 0, eY + eSd * 0.05, opW, eY + eSd * 0.05
+	endif
+	if drLv = 1 then
+		nP = max(1, ceil(opW / pSp - 0.0001))
+		for i = 0 to nP
+			circle2 opW * i / nP, eY, 0.03
+		next i
+	endif
 	tx = "床の縁 手すり"
 endif
+! 注記（後ろを背景の色で塗る。簡略は名前だけ）
+pen penEquip
 add2 opW / 2, opD / 2
-if kd = 5 then add2 0, eY + eSd * 0.5
+if kd = 5 then add2 0, eY + eSd * (0.3 + dT)
 rot2 -SYMB_ROTANGLE
-text2 0, 0.2, opName + " " + tx
-if kd <= 4 then text2 0, -0.2, "開口注意"
+t1 = opName
+if drLv < 3 then t1 = opName + " " + tx
+nTL = 1 + (kd <= 4 and drLv < 3)
+tW = max(STW(t1), STW("開口注意") * (nTL > 1)) / 1000 * GLOB_SCALE / 2 + 0.05
+tH = dT * (nTL / 2 + 0.1)
+if mk then
+	drawindex 45
+	fill fiS
+	poly2_b 5, 6, pM, pM, -tW, -tH, 1, tW, -tH, 1, tW, tH, 1, -tW, tH, 1, -tW, -tH, -1
+endif
+drawindex 50
+if nTL > 1 then
+	text2 0, dT / 2, t1
+	text2 0, -dT / 2, "開口注意"
+else
+	text2 0, 0, t1
+endif
 del 2
 if kd = 5 then del 1
 hotspot2 0, 0
@@ -232,6 +280,10 @@ hotspot2 opW, 0
 hotspot2 opW, opD
 hotspot2 0, opD
 """
+
+SCRIPT_2D = (SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+             .replace("@COVERMASK@", gdl_draft.rect_mask("-lap", "-lap", "opW + lap", "opD + lap", "\t\t").rstrip("\n")))
+
 
 SCRIPT_3D = """﻿! 開口養生 3D: 蓋・桟木・手すり・中桟・幅木・水平ネット
 define material "op_ply" 2, 0.86, 0.72, 0.48
@@ -370,7 +422,8 @@ def main() -> int:
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
     (OUT / "scripts" / "vl.gdl").write_text(
         "﻿! 開口養生: 区分の一覧\nvalues{2} \"opKind\" 1, \"小開口（蓋 12mm）\", 2, \"中開口（蓋 12mm）\", 3, \"中開口（蓋 24mm・鋼製）\", "
-        "4, \"大開口（手すり・幅木・ネット）\", 5, \"床の縁（手すり・幅木）\"\nvalues \"edSide\" -1, 1\n", encoding="utf-8")
+        "4, \"大開口（手すり・幅木・ネット）\", 5, \"床の縁（手すり・幅木）\"\nvalues \"edSide\" -1, 1\n" + gdl_draft.values(),
+        encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
