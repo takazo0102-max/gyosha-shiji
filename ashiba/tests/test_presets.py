@@ -96,6 +96,19 @@ class TestPalette(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.assertTrue((root / "scripts" / "spec_preset.py").exists())
 
+    def test_labels(self):
+        """呼び出しで変わった項目は設定ダイアログの名前で出す（toeBoard でなく「幅木を付ける」）. 部品の全部の項目に名前がある."""
+        import sys
+
+        from ashiba.spec_object import FIELDS
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from spec_preset import labels
+
+        lb = labels()
+        self.assertEqual(lb["toeBoard"], "幅木を付ける")
+        self.assertEqual([f.gdl for f in FIELDS if f.gdl not in lb], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,6 +41,18 @@ def _spec_part(c):
     return pick_spec_object(read_spec_objects(c), outline)
 
 
+def labels() -> dict[str, str]:
+    """足場条件の部品のパラメータ名 → 設定ダイアログの名前（呼び出しで変わった項目を toeBoard でなく「幅木を付ける」と出す）."""
+    import re
+
+    try:
+        xml = (ROOT / "gdl" / "hsf" / "ashiba_spec" / "paramlist.xml").read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return {m.group(1): m.group(2).strip()
+            for m in re.finditer(r'Name="([^"]+)">\s*<Description><!\[CDATA\["(.*?)"\]\]>', xml)}
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     mode = argv[0] if argv else "list"
@@ -59,17 +71,19 @@ def main(argv=None) -> int:
     try:
         if mode == "save":
             path = save_preset(name, params, OUT_DIR)
-            print(f"条件「{name}」を登録しました（{path}）。別の建物の足場条件の登録名に「{name}」と書いて「呼び出し」")
+            print(f"条件の登録: 「{name}」を登録しました（{path}）。別の建物の足場条件の登録名に「{name}」と書いて「条件の呼び出し」")
             print("登録済みの条件: " + "・".join(list_presets(OUT_DIR)))
             return 0
         if mode == "load":
             preset = load_preset(name, OUT_DIR)
             new, changed = apply_preset(params, preset)
             if not changed:
-                print(f"条件「{name}」は今の足場条件と同じです")
+                print(f"条件の呼び出し: 「{name}」は今の足場条件と同じです")
                 return 0
             c.set_gdl_parameters(el, {k: new[k] for k in changed})
-            print(f"条件「{name}」を呼び出しました（{len(changed)}項目: {', '.join(changed)}）。「配置」で置き直してください")
+            lb = labels()
+            print(f"条件の呼び出し: 「{name}」を呼び出しました（{len(changed)}項目: {'・'.join(lb.get(k, k).split('（')[0].strip() for k in changed)}）。"
+                  "「配置」で置き直してください")
             return 0
     except (ValueError, FileNotFoundError) as e:
         print(str(e))
