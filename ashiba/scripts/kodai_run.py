@@ -29,6 +29,8 @@ RECORD = "構台.json"
 
 
 def main(argv=None) -> int:
+    from ashiba.naming import ordinal
+
     import argparse
 
     import run_from_archicad as R
@@ -108,9 +110,12 @@ def main(argv=None) -> int:
     kind = "荷取り構台" if a.nitori else "乗入れ構台"
     rails = a.rails if a.rails is not None else ("SNEW" if a.nitori else "SNE")
     plans = []
-    for n, (key, pts) in enumerate(lines, 1):
+    fresh = 0
+    for _n, (key, pts) in enumerate(lines, 1):
+        n = ordinal(rec, key, fresh)                    # 名前の番号は控えの続き（同じ線は前の番号のまま）
+        fresh += key not in rec
         if key in rec:
-            _delete_alive(c, [rec.pop(key)])
+            _delete_alive(c, [rec[key]])
         corner, lx, ly, ang = extent(pts, a.width)
         p = kodai_plan(f"構台{n}", lx, ly, a.vehicle, a.load, a.n_value, n3=a.deck3, n3_at=a.deck3_at, sp_max=a.span, ov=a.ovh,
                        top=a.top, depth=a.depth, embed=a.embed, slope=0.0 if a.nitori else a.slope, rails=rails.upper(),

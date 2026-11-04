@@ -386,7 +386,13 @@ def summary(output: str, limit: int = 14) -> str:
             "書き込み", "配置時と同じ", "撤去", "足場部品", "立面図（断面", "注意:", "エラー", "[ashiba]",
             "足場条件", "帳票", "建物が分かりません", "この建物の", "配置:", "条件:", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "図面を作る", "  図面:", "取り入れ口", "昇降機", "内部足場", "仮設通路", "  検証", "地足場", "手動配置", "箱を置く", "箱を足場に", "型枠",
             "  計算書", "  計画届", "TapirError", "TapirTimeout", "Traceback")
-    lines = [ln.rstrip() for ln in output.splitlines() if ln.strip()]
+    import re
+
+    # 窓に出しても役に立たない行（条件ファイルの場所・部品の読み込み）は除き、長い道のりはファイル名だけに
+    # （1行目が「条件の上書き: /private/…」になり肝心の「重機: 1台」が埋もれた 2026-11-05）
+    noise = ("条件の上書き", "配布GSMを埋め込みライブラリへ追加", "条件の上書きファイルは無し")
+    lines = [re.sub(r"(/[^\s/（）()]+)+/([^\s/（）()]+)", r"\2", ln.rstrip()) for ln in output.splitlines()
+             if ln.strip() and not ln.lstrip().startswith(noise)]
     picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys)]
     if not picked:
         picked = lines[-6:]

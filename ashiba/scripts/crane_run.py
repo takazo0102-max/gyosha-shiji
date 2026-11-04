@@ -48,6 +48,8 @@ def lifts_from_points(pts: list, loads: str | None, lift_z: str | None):
 
 
 def main(argv=None) -> int:
+    from ashiba.naming import ordinal
+
     import argparse
 
     import run_from_archicad as R
@@ -96,9 +98,12 @@ def main(argv=None) -> int:
     gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
     ground = gm.elevation_at if getattr(gm, "points", None) else None
     plans = []
-    for n, (key, pts) in enumerate(lines, 1):
+    fresh = 0
+    for _n, (key, pts) in enumerate(lines, 1):
+        n = ordinal(rec, key, fresh)                    # 名前の番号は控えの続き（同じ線は前の番号のまま）
+        fresh += key not in rec
         if key in rec:
-            old = rec.pop(key)
+            old = rec[key]
             _delete_alive(c, old if isinstance(old, list) else [old])
         center, lifts = lifts_from_points(pts, a.load, a.lift_z)
         p = crane_plan(f"クレーン{n}", lifts, a.model, a.spread, a.soil_q, a.ratio)

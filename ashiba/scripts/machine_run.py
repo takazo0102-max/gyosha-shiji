@@ -107,6 +107,7 @@ def main(argv=None) -> int:
         gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
         ground = gm.elevation_at if getattr(gm, "points", None) else None
     used = {v.get("name") for v in rec.values()}
+    now = 0
     for key, pts in lines:
         name = None
         if key in rec:                               # 同じ線は前の名前のまま置き直す
@@ -131,6 +132,7 @@ def main(argv=None) -> int:
             print(f"  {p.name}: パラメータを入れられず置きませんでした（{str(ex)[:120]}）")
             continue
         rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att, "params": extra}
+        now += 1
         bad = sorted({x.item for x in p.checks if x.status not in ("OK", "注意")})
         print(f"  {p.name}: {mach.name}（{mach.model}）" + (f" 要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -139,7 +141,8 @@ def main(argv=None) -> int:
               for v in rec.values() if v.get("type") in MACHINES]
     md = R.OUT_DIR / "重機.md"
     md.write_text(report(placed, a.soil_q, a.soil), encoding="utf-8")
-    print(f"重機: {len(placed)}台（{md}）")
+    # 今置いた台数を先に（押した人に分かるように）。帳票は置いてある全部の重機
+    print(f"重機: {now}台を置きました（置いてある重機は全部で {len(placed)}台・{md}）")
     return 0
 
 

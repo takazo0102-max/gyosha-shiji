@@ -27,6 +27,8 @@ RECORD = "柵.json"
 
 
 def main(argv=None) -> int:
+    from ashiba.naming import ordinal
+
     import argparse
 
     import run_from_archicad as R
@@ -73,9 +75,12 @@ def main(argv=None) -> int:
         gm = read_ground_model(c, [p for _k, pts in lines for p in pts])
         ground = gm.elevation_at if getattr(gm, "points", None) else None
     runs = []
-    for n, (key, pts) in enumerate(lines, 1):
+    fresh = 0
+    for _n, (key, pts) in enumerate(lines, 1):
+        n = ordinal(rec, key, fresh)                    # 名前の番号は控えの続き（同じ線は前の番号のまま）
+        fresh += key not in rec
         if key in rec:
-            _delete_alive(c, [rec.pop(key)])
+            _delete_alive(c, [rec[key]])
         r = plan_run(FenceRun(f"柵{n}", [tuple(p) for p in pts], KIND_KEYS[a.kind], a.walk, a.busy, a.road))
         z = a.z if a.z is not None else (ground(*pts[0]) if ground else 0.0)
         el = _place(c, part, pts[0], z, 0.0)

@@ -29,6 +29,8 @@ RECORD = "場内通路.json"
 
 
 def main(argv=None) -> int:
+    from ashiba.naming import ordinal
+
     import argparse
 
     import run_from_archicad as R
@@ -86,9 +88,12 @@ def main(argv=None) -> int:
         ground = gm.elevation_at if getattr(gm, "points", None) else None
     code = plate_code(a.plate)
     plans = []
-    for n, (key, pts) in enumerate(lines, 1):
+    fresh = 0
+    for _n, (key, pts) in enumerate(lines, 1):
+        n = ordinal(rec, key, fresh)                    # 名前の番号は控えの続き（同じ線は前の番号のまま）
+        fresh += key not in rec
         if key in rec:
-            _delete_alive(c, rec.pop(key))
+            _delete_alive(c, rec[key])
         p = route_plan(f"通路{n}", pts, a.width, a.vehicle, a.two_way, not a.no_plates, code, a.across)
         z = a.z if a.z is not None else (ground(*pts[0]) if ground else 0.0)
         el = _place(c, part, pts[0], z, 0.0)
