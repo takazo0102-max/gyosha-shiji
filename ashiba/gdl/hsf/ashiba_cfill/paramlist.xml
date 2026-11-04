@@ -29,6 +29,10 @@
 			<Fix/>
 			<Value>1</Value>
 		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<String Name="polyX">
 			<Description><![CDATA["床の形の x（原点からの mm、カンマ区切り。左回り）"]]></Description>
 			<Value><![CDATA["0,0,800,0"]]></Value>

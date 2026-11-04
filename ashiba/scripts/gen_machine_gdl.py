@@ -401,6 +401,7 @@ SCRIPT_2D_T = """﻿! 重機 2D（CAD の平面図の描き方: scripts/gdl_draf
 ! 背景の色で塗って下の線を隠す。縮尺で 詳細（1/100）・標準（1/200）・簡略 を描き分ける
 @HEAD@
 define style "mcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+define style "mcR" "ＭＳ Ｐゴシック", texSiz, 3, 0
 style "mcT"
 dT = texSiz * GLOB_SCALE / 1000 * 1.6
 pen pO
@@ -916,7 +917,7 @@ endif
 ! 注記（機種・諸元）。簡略は名前だけ
 drawindex 50
 pen penEquip
-xN = -tailR - 0.6
+xN = -max(tailR, trkL / 2 * isCr) - 0.6
 if isTk then xN = xR - 0.6
 yN = 0
 if isVh then
@@ -929,20 +930,21 @@ if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
 if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
 add2 xN, yN
 rot2 -SYMB_ROTANGLE
+! 車体の左に書くときは右寄せ（文字が車体へ伸びて重ならないように。向きは画面の上で見る）
+if not(isVh) and xN * cos(SYMB_ROTANGLE) - yN * sin(SYMB_ROTANGLE) < 0 then style "mcR"
 text2 0, 0, mcName
-if strlen(mcNote) > 0 and drLv < 3 then text2 0, -dT, mcNote
+nL = 1
+if strlen(mcNote) > 0 and drLv < 3 then
+	text2 0, -dT, mcNote
+	nL = 2
+endif
+if isCr and drLv < 3 then text2 0, -nL * dT, "後端R" + str(round_int(tailR * 1000), 1, 0)
+style "mcT"
 del 2
 if rW > 0.1 and isR then
 	add2 rW * cos(45), rW * sin(45)
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
-	del 2
-endif
-if isCr and drLv < 3 then
-	! 後端旋回半径の値（立入禁止）
-	add2 tailR * cos(225), tailR * sin(225)
-	rot2 -SYMB_ROTANGLE
-	text2 0, 0, "後端R" + str(round_int(tailR * 1000), 1, 0)
 	del 2
 endif
 if mcKind = 14 then

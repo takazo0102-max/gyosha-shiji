@@ -1,4 +1,10 @@
 ﻿! 部材の3D（足場ラインの 830 布材・870 布板・850 先行手すり・ブレース・820 ジャッキ と同じ寸法）
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen 1
 if matScaf > 0 then material matScaf
 rotz faceAng
@@ -277,3 +283,4 @@ if kind = 9 then
 	endif
 endif
 del 2
+if stepH > 0.001 then cutend

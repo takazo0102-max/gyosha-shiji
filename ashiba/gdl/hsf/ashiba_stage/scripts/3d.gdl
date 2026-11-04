@@ -2,6 +2,12 @@
 ! 内部ステージ足場 3D: 支柱の格子・根がらみと各段の布材（両方向）・最上段の全面の作業床・外周の手すり・中桟・幅木・
 ! 外周の構面の筋かい（5スパンごと）・はしご。原点＝外周の支柱の始めの角、+X＝長手、+Y＝短手
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen penPost
 resol 8
 rotz faceAng
@@ -799,3 +805,4 @@ return
 	cylind 0.18, 0.006
 	del 4
 return
+if stepH > 0.001 then cutend

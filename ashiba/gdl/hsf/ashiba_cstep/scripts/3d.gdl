@@ -4,6 +4,12 @@
 ! 宙に浮いていた。手すりは両側の足場のもので足りる）
 ! 原点＝隙間を持つ面の最後の支柱（内側建地列）、+X＝面に沿う方向、外側建地列は -rowW
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen 1
 resol 8
 rotz faceAng
@@ -64,3 +70,4 @@ for i = 1 to nLv
 	endif
 next i
 del top
+if stepH > 0.001 then cutend

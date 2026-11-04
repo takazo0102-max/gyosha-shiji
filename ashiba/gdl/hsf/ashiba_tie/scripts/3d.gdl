@@ -6,6 +6,12 @@
 !   原点＝内側建地の芯、+Y＝躯体側、zH＝取付高さ。wallD＝建地芯から躯体面（0 なら tieL）
 !   利用者の指摘（2026-10-20）: 何か分からない → 実物の部品の並びと形で描く
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen 1
 rP = 0.0486 / 2
 wD = wallD
@@ -107,3 +113,4 @@ endif
 hotspot 0, 0, 0
 hotspot 0, wD, 0
 del 2
+if stepH > 0.001 then cutend

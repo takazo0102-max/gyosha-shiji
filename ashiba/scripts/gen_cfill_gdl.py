@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_step  # noqa: E402
 from gen_box_gdl import _parse  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
@@ -29,6 +30,7 @@ def paramlist() -> str:
         _param("Length", "A", "Dimension 1", 1, True),
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
+        _param(*gdl_step.PARAM),
         _param("String", "polyX", "床の形の x（原点からの mm、カンマ区切り。左回り）", "0,0,800,0"),
         _param("String", "polyY", "床の形の y（同上）", "0,-914,-457,0"),
         _param("String", "railE", "手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）", "1"),
@@ -438,7 +440,7 @@ def main() -> int:
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
     (OUT / "scripts" / "vl.gdl").write_text("﻿values{2} \"deckKind\" 1, \"アンチ\", 2, \"足場板\"\n", encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
-    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "3d.gdl").write_text(gdl_step.wrap(SCRIPT_3D), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"
         f"\t<Identification>\n\t\t<MainGUID>{MAIN_GUID}</MainGUID>\n\t\t<IsPlaceable>true</IsPlaceable>\n"

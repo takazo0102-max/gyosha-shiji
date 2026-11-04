@@ -8,6 +8,12 @@
 ! - 外の辺: 単管の上桟・中桟（支柱の外に 支柱半径＋単管半径 offR だけ出して添わせる。off は GDL の予約語で 3D が止まった）と幅木。両端の支柱に自在クランプ
 ! - 自在クランプ: 2つの抱き金具（単管を巻く帯・耳・T ボルトとナット）を回転軸のリベットでつないだ形
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 resol 12
 define material "cf_deck" 2, 0.72, 0.74, 0.78
 define material "cf_steel" 2, 0.62, 0.62, 0.66
@@ -206,3 +212,4 @@ return
 	endif
 	del 2
 return
+if stepH > 0.001 then cutend

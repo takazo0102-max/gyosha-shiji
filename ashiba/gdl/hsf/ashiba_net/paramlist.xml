@@ -61,5 +61,9 @@
 			<Description><![CDATA["ペン: 層間ネット"]]></Description>
 			<Value>1</Value>
 		</PenColor>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
 	</Parameters>
 </ParamSection>

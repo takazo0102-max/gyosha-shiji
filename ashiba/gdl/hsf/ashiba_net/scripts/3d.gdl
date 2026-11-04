@@ -3,6 +3,12 @@
 ! 踏板（アンチ）と見分けが付かない（利用者の指摘 2026-10-20）ので、面は張らず網目で見せる。
 ! 実物の目合いは 15〜25mm。図では 100mm 目に粗くして軽くする（長い面は本数の上限で目を広げる）
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen 1
 resol 6
 rotz faceAng
@@ -51,3 +57,4 @@ endif
 hotspot 0, 0, 0
 hotspot netL, netW, 0
 del 2
+if stepH > 0.001 then cutend

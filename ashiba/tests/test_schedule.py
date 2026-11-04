@@ -170,9 +170,56 @@ class TestSteps(unittest.TestCase):
         top = next(s for s in st if s.name == "外装")
         self.assertEqual((top.scaffold_h, top.layers["仮設工程_外部足場"]), (15.0, "あり"))
         self.assertEqual(st[-1].layers["仮設工程_外部足場"], "なし")
-        self.assertEqual(layer_state(by, "根切り.json", by["ex1"].start), "作業中")
+        # 節目はその日の終わりの姿: 掘削の途中は作業中・終わりの日はあり・埋戻しの終わりの日はなし
+        ex = by["ex1"]
+        self.assertEqual(layer_state(by, "根切り.json", ex.end), "あり")
+        self.assertEqual(layer_state(by, "根切り.json", by["fill"].end), "なし")
+        if ex.days > 1:
+            self.assertEqual(layer_state(by, "根切り.json", ex.start), "作業中")
+        # 足場の組立の終わりは「あり」、解体の終わりは「なし」で高さ 0（高さ 0 を「全部見せる」と読ませない）
+        up = next(s for s in st if s.name == "外部足場の組立の終わり")
+        self.assertEqual((up.layers["仮設工程_外部足場"], up.scaffold_h), ("あり", 15.0))
+        dn = next(s for s in st if s.name == "外部足場の解体")
+        self.assertEqual((dn.layers["仮設工程_外部足場"], dn.scaffold_h), ("なし", 0.0))
+        for s in st:
+            if s.layers["仮設工程_外部足場"] != "なし":
+                self.assertGreater(s.scaffold_h, 0, s.name)
         self.assertEqual(scaffold_height(by, by["sc_dn"].end, cal, 15.0, 1.8), 0.0)
         self.assertEqual(scaffold_height(by, by["sc_up"].start, cal, 15.0, 1.8), 1.8)    # 最初の層より低くしない
+
+
+class TestStepModel(unittest.TestCase):
+    """工程の模型の Archicad の側（scripts/step_run.py・scripts/gdl_step.py）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    def test_scaffold_parts_cut_at_step_height(self):
+        """外部足場の部品は stepH を持ち、3D で使う（前の版の部品は持たないので step_run は数を知らせる）."""
+        from ashiba.schedule_steps import SCAFFOLD_PARTS
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf"
+        for part in SCAFFOLD_PARTS:
+            if part == "ashiba_kbrk":                    # 切梁の上の足場（山留め）。工程では山留めの控えで扱う
+                continue
+            self.assertIn('Name="stepH"', (hsf / part / "paramlist.xml").read_text(encoding="utf-8"), part)
+            self.assertIn("stepH", (hsf / part / "scripts" / "3d.gdl").read_text(encoding="utf-8"), part)
+
+    def test_wrap(self):
+        import gdl_step
+        src = "\ufeff! 見出し\n! 2行め\nblock 1, 1, 1\n"
+        w = gdl_step.wrap(src)
+        self.assertTrue(w.startswith("\ufeff! 見出し\n! 2行め\n" + gdl_step.MARK))
+        self.assertTrue(w.endswith("block 1, 1, 1\n" + gdl_step.TAIL))
+        self.assertEqual(gdl_step.wrap(w), w)            # 2回目は何もしない
+
+    def test_clusters(self):
+        """建物ごとの足場の下端: 原点が 30m 以内でつながる部品をまとめる（離れた建物は別）."""
+        from step_run import clusters
+        xy = {"a": (0, 0), "b": (12, 0), "c": (12, 25), "d": (-3287, -2080), "e": (-3275, -2072)}
+        got = sorted(sorted(g) for g in clusters(xy))
+        self.assertEqual(got, [["a", "b", "c"], ["d", "e"]])
 
 
 if __name__ == "__main__":

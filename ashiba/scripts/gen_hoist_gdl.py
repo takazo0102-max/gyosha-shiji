@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import gdl_step  # noqa: E402
 from ashiba.hoist_models import FLOOR_GATES, load_hoist_models  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_hoist"
@@ -35,6 +36,7 @@ def paramlist(first: str) -> str:
         _param("Length", "A", "Dimension 1", 1, True),
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
+        _param(*gdl_step.PARAM),
         _param("Angle", "faceAng", "面の向き（度。+X＝面に沿う向き、+Y＝躯体側）", 0),
         _param("String", "hoModel", "機種（data/hoist_models.csv）", first),
         _param("Length", "zH", "足場の立つ面の高さ（階の高さから。配置が入れる。高さはすべてここから）", 0),
@@ -1513,7 +1515,7 @@ def main() -> int:
     (OUT / "paramlist.xml").write_text(paramlist(ids[0]), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(master(models), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
-    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "3d.gdl").write_text(gdl_step.wrap(SCRIPT_3D), encoding="utf-8")
     # 値の一覧は1行を短く（6機種ごとに改行）。1行が長い（26機種・約430字）と Tapir の Get/SetGDLParametersOfElements が
     # この部品だけ失敗し、機種を書き込めなかった（2026-10-27）
     parts = [f'"{i}"' for i in ids]

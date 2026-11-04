@@ -231,7 +231,7 @@ line_type ltS
 ! 注記
 drawindex 50
 pen penEquip
-add2 -baseW / 2 - 0.5, -baseW / 2 - 0.5
+add2 -baseW / 2 - 0.5, -max(baseW, dkW) / 2 - 0.8          ! 基礎と機械台の外（下）に書く（1/200 で台の線に重ならないように）
 rot2 -SYMB_ROTANGLE
 text2 0, 0, tcName
 if strlen(tcNote) > 0 and drLv < 3 then text2 0, -dT, tcNote

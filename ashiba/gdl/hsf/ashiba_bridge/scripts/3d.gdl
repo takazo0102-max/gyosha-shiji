@@ -9,6 +9,12 @@
 ! 手すり（床から 900）・中桟（450）・幅木は両脇。足場の床より高ければ足場側に踏み台、屋上より高ければ屋上へ踏段。
 ! パラペットは渡りの床（天端の 50 上より上）が越え、屋上の支柱はパラペットの内側（Python の roof_bridges）
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 pen penEquip
 resol 8
 rotz faceAng
@@ -188,3 +194,4 @@ if nDn > 1 then
 	next sd
 endif
 del top
+if stepH > 0.001 then cutend

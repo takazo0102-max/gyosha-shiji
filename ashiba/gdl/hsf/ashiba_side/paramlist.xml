@@ -29,6 +29,10 @@
 			<Fix/>
 			<Value>1</Value>
 		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Length Name="lenX">
 			<Description><![CDATA["長さ（内側の建地の列。つまみで引くと定尺の組み合わせに吸着）"]]></Description>
 			<Value>7.316</Value>

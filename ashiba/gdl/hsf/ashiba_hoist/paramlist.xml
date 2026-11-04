@@ -29,6 +29,10 @@
 			<Fix/>
 			<Value>1</Value>
 		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
 		<Angle Name="faceAng">
 			<Description><![CDATA["面の向き（度。+X＝面に沿う向き、+Y＝躯体側）"]]></Description>
 			<Value>0</Value>

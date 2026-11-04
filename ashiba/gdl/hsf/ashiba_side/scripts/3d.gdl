@@ -2,6 +2,12 @@
 ! 足場の辺 3D（壁の形）: 内側の建地の列から外へ厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、
 ! 作業床の段の高さに線
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 resol 8
 ! ---- 立つ高さのつまみ（始めの端の外。セットバックの上の階は下の屋根の天端へ上げる） ----
 hotspot 0, -tk, 0, 1010, zBase, 1 + 128
@@ -45,3 +51,4 @@ hotspot lx, -tk, topEdit, 1001, topEdit, 2
 hotspot lx, -tk, -1, 1002, topEdit, 3
 del 1
 end
+if stepH > 0.001 then cutend

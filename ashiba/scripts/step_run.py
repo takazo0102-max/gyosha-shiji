@@ -6,7 +6,8 @@
   に移す（もとのレイヤーは ashiba_out/工程模型.json に控える）。要素は控え（仮囲い.json・構台.json…の GUID）と、足場の部品は
   ライブラリ部品の名前（ashiba_line・ashiba_sheet…）で拾う
 - 「ステップ」（--step N）: その節目に無い作業のレイヤーを隠し、外部足場はその日に組み上がった高さより上を描かない（部品の stepH。
-  ashiba_line・ashiba_sheet）。--step 0 は全部を見せる
+  ashiba_line・ashiba_sheet と scripts/gdl_step.py で足した壁つなぎ・ネット・渡りなど。前の版で置いた部品は持たないので切れない。
+  高さの基準は建物ごと（部品を近さでまとめた中の一番低い所）。--step 0 は全部を見せる
 - 「戻す」（--undo）: 要素をもとのレイヤーに戻し、足場の高さを全部に、仮設工程のレイヤーを見せる
 
   python3 scripts/step_run.py --list          # 節目の一覧
@@ -31,7 +32,7 @@ OUT_DIR = Path.home() / "Desktop" / "ashiba_out"
 STEPS = "工程ステップ.json"
 MODEL = "工程模型.json"
 GUID = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)
-CUT_PARTS = ("ashiba_line", "ashiba_sheet")          # stepH を持つ部品
+NEAR_M = 30.0                                        # 足場の部品をひとつの建物にまとめる距離（原点どうし m）
 
 
 def guids_in(v) -> list[str]:
@@ -69,6 +70,34 @@ def groups_of(out: Path, objects: list[tuple[str, str]]) -> dict[str, str]:
     return found
 
 
+def clusters(xy: dict[str, tuple[float, float]], near: float = NEAR_M) -> list[list[str]]:
+    """原点が near m 以内でつながる部品の組（建物ごとの足場）."""
+    keys = list(xy)
+    parent = {k: k for k in keys}
+
+    def root(k):
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    cell = {}
+    for k in keys:                                   # 升目で近くだけ比べる
+        x, y = xy[k]
+        cell.setdefault((int(x // near), int(y // near)), []).append(k)
+    for (i, j), ks in cell.items():
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for k2 in cell.get((i + di, j + dj), []):
+                    for k in ks:
+                        if k < k2 and (xy[k][0] - xy[k2][0]) ** 2 + (xy[k][1] - xy[k2][1]) ** 2 <= near * near:
+                            parent[root(k)] = root(k2)
+    out = {}
+    for k in keys:
+        out.setdefault(root(k), []).append(k)
+    return list(out.values())
+
+
 def state_of(step: dict, layer: str) -> str:
     return step["layers"].get(layer, "なし")
 
@@ -77,7 +106,7 @@ def main(argv=None) -> int:
     import argparse
 
     from ashiba.pens import part_base
-    from ashiba.schedule_steps import LAYERS
+    from ashiba.schedule_steps import LAYERS, SCAFFOLD_PARTS
     from ashiba.tapir_adapter import ArchicadClient
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -125,16 +154,31 @@ def main(argv=None) -> int:
         c.tapir("CreateLayers", {"layerDataArray": [{"name": n, "isHidden": bool(h)} for n, h in hidden.items()],
                                  "overwriteExisting": True})
 
-    def cut(h: float | None) -> int:
-        """足場の部品（stepH を持つもの）に、組み上がった高さ h m（全体の足場の下端から）を入れる. None は全部."""
-        parts = [(g, d) for g, (b, d) in info.items() if b in CUT_PARTS and model.get("elements", {}).get(g)]
+    def cut(h: float | None) -> tuple[int, int]:
+        """外部足場の部品に、組み上がった高さ h m（その建物の足場の下端から）を入れる. None は全部.
+
+        stepH を持つ部品だけ（前の版で置いた部品は持たない）。建物ごとの足場の下端は、部品を近さでまとめた中の一番低い所.
+        戻り値は (入れた数, stepH を持たず切れない数).
+        """
+        parts = [(g, d) for g, (b, d) in info.items() if b in SCAFFOLD_PARTS and model.get("elements", {}).get(g)]
         if not parts:
-            return 0
-        z = {g: stories.get(int(d.get("floorIndex", 0)), 0.0) + float((d.get("details", {}).get("origin") or {}).get("z", 0))
-             for g, d in parts}
-        base = min(z.values())
-        pairs = [({"elementId": {"guid": g}}, {"stepH": 0.0 if h is None else max(0.001, base + h - z[g])}) for g, _d in parts]
-        return c.set_gdl_parameters_many(pairs)
+            return 0, 0
+        has = []
+        for i in range(0, len(parts), 200):
+            got = c.tapir("GetGDLParametersOfElements", {"elements": [{"elementId": {"guid": g}} for g, _d in parts[i:i + 200]]})
+            has += [any(p.get("name") == "stepH" for p in (r.get("parameters") or r.get("gdlParameters") or []))
+                    for r in got.get("gdlParametersOfElements", [])]
+        ok = [(g, d) for (g, d), y in zip(parts, has) if y]
+        if not ok:
+            return 0, len(parts)
+        z, xy = {}, {}
+        for g, d in ok:
+            o = d.get("details", {}).get("origin") or {}
+            z[g] = stories.get(int(d.get("floorIndex", 0)), 0.0) + float(o.get("z", 0))
+            xy[g] = (float(o.get("x", 0)), float(o.get("y", 0)))
+        base = {g: min(z[k] for k in grp) for grp in clusters(xy) for g in grp}
+        pairs = [({"elementId": {"guid": g}}, {"stepH": 0.0 if h is None else max(0.001, base[g] + h - z[g])}) for g, _d in ok]
+        return c.set_gdl_parameters_many(pairs), len(parts) - len(ok)
 
     if a.make:
         found = groups_of(out, [(g, b) for g, (b, _d) in info.items()])
@@ -202,13 +246,15 @@ def main(argv=None) -> int:
         return 1
     s = steps[n - 1]
     show({x: state_of(s, x) == "なし" for x in LAYERS})
-    k = cut(s["scaffold_h"] if s["scaffold_h"] else None)
+    k, old = cut(s["scaffold_h"] if s["scaffold_h"] else None)
     model["step"] = n
     mpath.write_text(json.dumps(model, ensure_ascii=False, indent=1), encoding="utf-8")
     on = "・".join(x.replace("仮設工程_", "") + ("（作業中）" if state_of(s, x) == "作業中" else "")
                   for x in LAYERS if state_of(s, x) != "なし")
     print(f"工程の模型: ステップ {n}/{len(steps)} {s['date']} {s['name']}: {on or '仮設なし'}"
           + (f"・足場 {s['scaffold_h']:.1f}m まで（{k} 部品）" if s["scaffold_h"] else ""))
+    if old and s["scaffold_h"]:
+        print(f"  注意: 前の版で置いた足場の部品 {old} 個は高さで切れません（全部の高さで見えます）。足場を置き直すと切れます")
     return 0
 
 

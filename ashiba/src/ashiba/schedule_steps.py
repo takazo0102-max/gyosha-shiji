@@ -39,7 +39,7 @@ GROUP_TASKS = {
     "型枠.json": ("仮設工程_型枠", ("form", "frame"), ("form", "frame")),
 }
 LAYERS = tuple(dict.fromkeys(v[0] for v in GROUP_TASKS.values()))
-# 外部足場の部品（ライブラリ部品の名前の頭。足場の高さで切る stepH は ashiba_line・ashiba_sheet・ashiba_net・ashiba_tie が持つ）
+# 外部足場の部品（ライブラリ部品の名前の頭。足場の高さで切る stepH は ashiba_line・ashiba_sheet と scripts/gdl_step.py で足した部品が持つ）
 SCAFFOLD_PARTS = ("ashiba_line", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_cstep", "ashiba_bridge",
                   "ashiba_stage", "ashiba_kbrk", "ashiba_hoist", "ashiba_hstage", "ashiba_member", "ashiba_box", "ashiba_side",
                   "ashiba_cfill")
@@ -63,16 +63,20 @@ def _task(tasks: dict, keys) -> Task | None:
 
 
 def layer_state(tasks: dict, group: str, d: _dt.date) -> str:
-    """ステップの日 d に控え group の要素があるか: なし・作業中（現れる作業か消える作業の途中）・あり."""
+    """ステップの日 d の終わりに控え group の要素があるか: なし・作業中（現れる作業か消える作業の途中）・あり.
+
+    節目は作業の終わりの日なので、その日の終わりの姿で見る: 組み立ては終わりの日に「あり」、撤去は終わりの日に「なし」
+    （足場の高さ scaffold_height も解体の終わりの日に 0）。使う間だけのもの（移動式クレーン・型枠）は使う作業の終わりの日まで.
+    """
     _layer, ups, downs = GROUP_TASKS[group]
     up, dn = _task(tasks, ups), _task(tasks, downs)
     if up is None or d < up.start:
         return "なし"
-    if dn is not None and dn is not up and d > dn.end:
+    if dn is up:                                     # 使う間だけ（移動式クレーン・型枠は躯体の間）
+        return "作業中" if d <= up.end else "なし"
+    if dn is not None and d >= dn.end:
         return "なし"
-    if dn is up and d > up.end:                      # 使う間だけ（移動式クレーン・型枠は躯体の間）
-        return "なし"
-    if d <= up.end or (dn is not None and dn is not up and d >= dn.start):
+    if d < up.end or (dn is not None and d >= dn.start):
         return "作業中"
     return "あり"
 

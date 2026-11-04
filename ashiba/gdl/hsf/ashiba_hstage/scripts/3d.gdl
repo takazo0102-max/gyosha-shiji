@@ -2,6 +2,12 @@
 ! 昇降機の荷取りステージ 3D（乗り込む所1か所）。利用者の指定 2026-10-28: ブラケットも詳細にして／ステージは高さの
 ! 調整があるので別オブジェクトにして。床先は荷台の縁の手前 30（規定 40mm 以内）
 ! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
 resol 10
 define material "hstage_zinc" 2, 0.72, 0.74, 0.76
 define material "hstage_wood" 2, 0.74, 0.56, 0.36
@@ -213,3 +219,4 @@ end
 		next kb
 	next jb
 return
+if stepH > 0.001 then cutend
