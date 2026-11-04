@@ -13,3 +13,33 @@ def ordinal(rec: dict, key: str, new_so_far: int) -> int:
     if key in keys:
         return keys.index(key) + 1
     return len(keys) + new_so_far + 1
+
+
+def _guids(v) -> list[str]:
+    if isinstance(v, str) and len(v) == 36 and v.count("-") == 4:
+        return [v]
+    if isinstance(v, dict):
+        return [g for x in v.values() for g in _guids(x)]
+    if isinstance(v, (list, tuple)):
+        return [g for x in v for g in _guids(x)]
+    return []
+
+
+def prune_gone(client, rec: dict) -> dict:
+    """控えから、置いた要素がもう1つも無いもの（Archicad で消した）を除く. 読めなければそのまま.
+
+    消したクレーンが控えに残り、次に置いたクレーンが「クレーン2」になって帳票にも消したものが出ていた（2026-11-05）.
+    """
+    keys = [k for k, v in rec.items() if _guids(v)]
+    flat = [(k, g) for k in keys for g in _guids(rec[k])]
+    if not flat:
+        return rec
+    try:
+        dets = client.tapir("GetDetailsOfElements", {"elements": [{"elementId": {"guid": g}} for _k, g in flat]})
+        rows = dets.get("detailsOfElements") or []
+    except Exception:
+        return rec
+    if len(rows) != len(flat):
+        return rec
+    alive = {k for (k, _g), d in zip(flat, rows) if isinstance(d, dict) and "error" not in d}
+    return {k: v for k, v in rec.items() if k in alive or not _guids(v)}

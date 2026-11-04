@@ -27,7 +27,7 @@ RECORD = "柵.json"
 
 
 def main(argv=None) -> int:
-    from ashiba.naming import ordinal
+    from ashiba.naming import ordinal, prune_gone
 
     import argparse
 
@@ -54,6 +54,7 @@ def main(argv=None) -> int:
         rec = json.loads(rec_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         rec = {}
+    rec = prune_gone(c, rec)                     # Archicad で消したものは控えから除く（番号・帳票）
     if a.remove:
         n = _delete_alive(c, list(rec.values()))
         rec_path.write_text("{}", encoding="utf-8")
