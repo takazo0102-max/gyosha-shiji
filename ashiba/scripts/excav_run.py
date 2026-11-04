@@ -205,6 +205,9 @@ def main(argv=None) -> int:
     part = R.versioned_part_name(PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
     plans, made = [], 0
     if a.kiribari:
         beams = [e for e, d in zip(sel, det) if d.get("type") == "Beam" and beam_from_details(d) is not None]

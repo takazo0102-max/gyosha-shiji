@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from gen_cfill_gdl import _parse_all  # noqa: E402
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_tube"
@@ -35,6 +36,7 @@ def paramlist() -> str:
         _param("String", "tbName", "名前（注記）", "つなぎ1"),
         _param("String", "tbNote", "注記", "単管 3.5M×3本"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -50,24 +52,38 @@ def paramlist() -> str:
 SCRIPT_1D = ("﻿! 単管のつなぎ: 高さの並び（m）と両端の突き出し\n" + _parse_all("zList", "zz", "nZ")
              + "ov = max(0, (tbLen - tbL) / 2)\nrT = 0.0243\n")
 
-SCRIPT_2D = """﻿! 単管のつなぎ 2D: 単管（突き出しまで）・両端の直交クランプ・注記
-pen penEquip
+SCRIPT_2D_T = """﻿! 単管のつなぎ 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 単管（突き出しまで）は太線、両端の直交クランプは細線（詳細だけ）。
+! 簡略は単管の芯の1本線。注記の行送りは縮尺に合わせる
+@HEAD@
 define style "tbT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "tbT"
-line2 -ov, rT, tbL + ov, rT
-line2 -ov, -rT, tbL + ov, -rT
-for e = 0 to 1
-	xe = e * tbL
-	rect2 xe - 0.05, -0.07, xe + 0.05, 0.07
-	circle2 xe, 0, 0.0243
-next e
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+pen pO
+if drLv < 3 then
+	line2 -ov, rT, tbL + ov, rT
+	line2 -ov, -rT, tbL + ov, -rT
+else
+	line2 -ov, 0, tbL + ov, 0
+endif
+if drLv = 1 then
+	pen pT
+	for e = 0 to 1
+		xe = e * tbL
+		rect2 xe - 0.05, -0.07, xe + 0.05, 0.07
+		circle2 xe, 0, 0.0243
+	next e
+endif
+pen penEquip
 add2 tbL / 2, 0
 rot2 -SYMB_ROTANGLE
-text2 0, 0.35, tbName + " " + tbNote
+text2 0, 0.15 + dT / 2, tbName + " " + tbNote
 del 2
 hotspot2 0, 0
 hotspot2 tbL, 0
 """
+
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 単管のつなぎ 3D: 高さごとの単管（中桟・手すり）・直交クランプ、層の間の斜めの単管と自在クランプ
 define material "tb_pipe" 2, 0.72, 0.74, 0.76

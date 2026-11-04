@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from gen_cfill_gdl import _parse_all  # noqa: E402
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_yamadome"
@@ -50,6 +51,7 @@ def paramlist() -> str:
         _param("Boolean", "netOn", "山留め上: 手すりにネット（ラッセルネット 目合15）を張る", 1),
         _param("String", "ymName", "名前（平面の注記）", "切梁上の足場"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -70,43 +72,71 @@ if rx1 <= rx0 then rx1 = ymL
 r = 0.0243
 """)
 
-SCRIPT_2D = """﻿! 根切りの山留めまわり 2D
-pen penEquip
-define style "ymT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+SCRIPT_2D_T = """﻿! 根切りの山留めまわり 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 作業床（足場板）の外形は太線、手すりは細線、床の下のブラケットは
+! 隠れ線（詳細だけ）、手すり柱は細線の丸。簡略は床の外形と手すりの線だけ。名前は中央寄せ・行送りは縮尺に合わせる
+@HEAD@
+define style "ymT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "ymT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
 if ymKind = 1 then
-	! 切梁上の足場: 床の外形・手すり柱・ブラケット
+	! 切梁上の足場: 床の外形・手すり・手すり柱・床の下のブラケット
+	pen pO
 	rect2 rx0, -deckW / 2, rx1, deckW / 2
+	pen pT
 	line2 rx0, -hp, rx1, -hp
 	line2 rx0, hp, rx1, hp
-	for i = 1 to nB
-		line2 bx[i], -hp - 0.05, bx[i], hp + 0.05
-		circle2 bx[i], -hp, r
-		circle2 bx[i], hp, r
-	next i
-	text2 ymL / 2, hp + 0.25, ymName
+	if drLv < 3 then
+		for i = 1 to nB
+			if drLv = 1 then
+				line_type ltH
+				line2 bx[i], -hp - 0.05, bx[i], hp + 0.05
+				line_type ltS
+			endif
+			circle2 bx[i], -hp, r
+			circle2 bx[i], hp, r
+		next i
+	endif
+	pen penEquip
+	text2 ymL / 2, hp + 0.15 + dT / 2, ymName
 endif
 if ymKind = 3 then
 	! 外周の腹起し上の足場: 山留めの面（y＝0）から根切りの側（−y）へ armL。手すりは根切りの側だけ
+	pen pO
 	rect2 0, 0, ymL, -armL
+	pen pT
 	line2 0, -armL + 0.03, ymL, -armL + 0.03
-	for i = 1 to nB
-		line2 bx[i], 0, bx[i], -armL
-		circle2 bx[i], -armL, r
-	next i
-	text2 ymL / 2, -armL - 0.3, ymName
+	if drLv < 3 then
+		for i = 1 to nB
+			if drLv = 1 then
+				line_type ltH
+				line2 bx[i], 0, bx[i], -armL
+				line_type ltS
+			endif
+			circle2 bx[i], -armL, r
+		next i
+	endif
+	pen penEquip
+	text2 ymL / 2, -armL - 0.15 - dT / 2, ymName
 endif
 if ymKind = 2 then
-	! 山留め上の手すり: 手すりの線と柱
+	! 山留め上の手すり: 手すりの線（太線）と柱
+	pen pO
 	line2 0, 0.06, ymL, 0.06
-	for i = 1 to nB
-		circle2 bx[i], 0, r
-	next i
-	text2 ymL / 2, 0.35, ymName
+	if drLv < 3 then
+		pen pT
+		for i = 1 to nB
+			circle2 bx[i], 0, r
+		next i
+	endif
+	pen penEquip
+	text2 ymL / 2, 0.15 + dT / 2, ymName
 endif
 hotspot2 0, 0
 hotspot2 ymL, 0
 """
+
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 根切りの山留めまわり 3D（規格の寸法: 単管 φ48.6×2.4・φ42.7、直交クランプ 日建 ARC1 の口 幅40・帯4.5、足場板 240×28、
 ! 鋼製布板 幅500・高さ45、鋼製幅木 H150×1.6、キャッチクランプ（H形鋼のフランジに単管を留める）。利用者の指定 2026-10-31: 詳細度上げて

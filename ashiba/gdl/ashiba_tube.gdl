@@ -13,15 +13,20 @@
 ! 原点＝始めの足場の支柱の芯、+X＝終わりの支柱へ。zList の高さごとに長さ tbLen の単管と両端の直交クランプ、gdOn で中桟・手すり、brOn で層の間の斜め（自在クランプ）。割付と判定は tube_join.py、置くのは scripts/tube_run.py。
 ! ----------------------------------------------------------
 ! パラメータリスト:
-!   tbL       長さ      支柱の芯から芯まで                               既定 3.0
-!   tbLen     長さ      単管の長さ（規格）                               既定 3.5
-!   zList     文字列    つなぐ高さ mm（カンマ区切り。足場の立つ面から）  既定 "1800,3600,5400"
-!   gdOn      ブール    各層の上に中桟・手すり（450・950）               既定 0
-!   brOn      ブール    層の間に斜めの補強                               既定 0
-!   tbName    文字列    名前（注記）                                     既定 "つなぎ1"
-!   tbNote    文字列    注記                                             既定 "単管 3.5M×3本"
-!   texSiz    実数      文字の大きさ（mm）                               既定 2.5
-!   penEquip  PenColor  線のペン                                         既定 1
+!   tbL       長さ      支柱の芯から芯まで                                                  既定 3.0
+!   tbLen     長さ      単管の長さ（規格）                                                  既定 3.5
+!   zList     文字列    つなぐ高さ mm（カンマ区切り。足場の立つ面から）                     既定 "1800,3600,5400"
+!   gdOn      ブール    各層の上に中桟・手すり（450・950）                                  既定 0
+!   brOn      ブール    層の間に斜めの補強                                                  既定 0
+!   tbName    文字列    名前（注記）                                                        既定 "つなぎ1"
+!   tbNote    文字列    注記                                                                既定 "単管 3.5M×3本"
+!   texSiz    実数      文字の大きさ（mm）                                                  既定 2.5
+!   penBold   PenColor  外形の線（太線。置くときに線のペンと同じ色の太いペン）              既定 21
+!   penThin   PenColor  細部の線（細線。同じ色の細いペン）                                  既定 1
+!   penZone   PenColor  範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）              既定 20
+!   penMask   PenColor  上に載るものの背景の塗り（下の線を隠す。0＝隠さない）               既定 19
+!   drMode    整数      平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）  既定 0
+!   penEquip  PenColor  線のペン                                                            既定 1
 ! ==========================================================
 
 ! ==========================================================
@@ -52,20 +57,59 @@ rT = 0.0243
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
-! 単管のつなぎ 2D: 単管（突き出しまで）・両端の直交クランプ・注記
-pen penEquip
+! 単管のつなぎ 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 単管（突き出しまで）は太線、両端の直交クランプは細線（詳細だけ）。
+! 簡略は単管の芯の1本線。注記の行送りは縮尺に合わせる
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
 define style "tbT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "tbT"
-line2 -ov, rT, tbL + ov, rT
-line2 -ov, -rT, tbL + ov, -rT
-for e = 0 to 1
-	xe = e * tbL
-	rect2 xe - 0.05, -0.07, xe + 0.05, 0.07
-	circle2 xe, 0, 0.0243
-next e
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+pen pO
+if drLv < 3 then
+	line2 -ov, rT, tbL + ov, rT
+	line2 -ov, -rT, tbL + ov, -rT
+else
+	line2 -ov, 0, tbL + ov, 0
+endif
+if drLv = 1 then
+	pen pT
+	for e = 0 to 1
+		xe = e * tbL
+		rect2 xe - 0.05, -0.07, xe + 0.05, 0.07
+		circle2 xe, 0, 0.0243
+	next e
+endif
+pen penEquip
 add2 tbL / 2, 0
 rot2 -SYMB_ROTANGLE
-text2 0, 0.35, tbName + " " + tbNote
+text2 0, 0.15 + dT / 2, tbName + " " + tbNote
 del 2
 hotspot2 0, 0
 hotspot2 tbL, 0
