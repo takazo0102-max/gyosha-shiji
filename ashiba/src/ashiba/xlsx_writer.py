@@ -28,6 +28,7 @@ STYLE_TEXT = 8      # 9pt・左・罫線・折り返し（工程表の作業名�
 # 工程表の線（塗り）。BAR_COLORS の順に STYLE_BAR + i
 BAR_COLORS = ("FF8EA9DB", "FFC9A36B", "FFF4B183", "FFFF7C80", "FFD9D9D9", "FF5B9BD5", "FF70AD47", "FFE7E6E6", "FFB4A7D6")
 STYLE_BAR = 9
+STYLE_YEN = STYLE_BAR + len(BAR_COLORS)      # 3桁区切りの整数・罫線（仮設の金額）
 
 
 @dataclass
@@ -263,7 +264,7 @@ _STYLES_XML = (
     "</borders>"
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
     "</cellStyleXfs>"
-    f'<cellXfs count="{9 + len(BAR_COLORS)}">'
+    f'<cellXfs count="{10 + len(BAR_COLORS)}">'
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
@@ -281,6 +282,7 @@ _STYLES_XML = (
     + "".join(f'<xf numFmtId="0" fontId="3" fillId="{4 + i}" borderId="1" xfId="0" applyFont="1" applyFill="1" '
               'applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
               for i in range(len(BAR_COLORS)))
+    + '<xf numFmtId="3" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
     + "</cellXfs>"
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
     "</styleSheet>"

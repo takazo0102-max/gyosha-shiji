@@ -29,6 +29,8 @@ class ScheduleConditions:
     crews: dict = field(default_factory=dict)        # {"足場": 2, ...}
     override: dict = field(default_factory=dict)     # 数量の上書き {"retaining_m": 60, ...}
     name: str = ""
+    direct_cost_k: float = 0.0         # 建物の直接工事費（千円。入れると共通仮設費率を添える）
+    work_months: float = 0.0           # 工期（か月。0 は工程表の着工〜仮設の終わり）
 
     def crew(self, k: str, default: int = 1) -> int:
         return int(self.crews.get(k, default) or default)

@@ -36,7 +36,8 @@ def conditions(a, saved: dict):
     from ashiba.schedule_plan import ScheduleConditions
 
     c = ScheduleConditions()
-    for k in ("sat_off", "year_end", "summer", "floors", "floor_cycle", "base_days", "facade_days", "name"):
+    for k in ("sat_off", "year_end", "summer", "floors", "floor_cycle", "base_days", "facade_days", "name", "direct_cost_k",
+              "work_months"):
         if k in saved:
             setattr(c, k, saved[k])
     if saved.get("start"):
@@ -113,11 +114,13 @@ def main(argv=None) -> int:
              ("拾った帳票", "・".join(f"{k}={v}" for k, v in q.sources.items()))]
     from ashiba.schedule_steps import present_groups, steps as make_steps, to_json
 
+    from ashiba.schedule_sources import plan_file
+
     lv = []
     try:
-        pj = sorted(out.glob("*_plan.json"), key=lambda p: p.stat().st_mtime)[-1]
-        lv = (json.loads(pj.read_text(encoding="utf-8")).get("elevation") or {}).get("level_heights") or []
-    except (IndexError, OSError, ValueError):
+        pj = plan_file(out, c.name or _project_name())          # 数量と同じ計画（試験の計画を拾わない）
+        lv = (json.loads(pj.read_text(encoding="utf-8")).get("elevation") or {}).get("level_heights") or [] if pj else []
+    except (OSError, ValueError):
         pass
     has_frame = any(t.key == "frame" for t in tasks)
     nfl = c.floors or (max(1, round(q.scaffold_h / 3.5)) if q.scaffold_h else 3)
@@ -129,12 +132,29 @@ def main(argv=None) -> int:
     (out / "工程ステップ.json").write_text(json.dumps({"title": title, "steps": to_json(st)}, ensure_ascii=False, indent=1),
                                        encoding="utf-8")
     (out / "仮設工程表.md").write_text(to_markdown(tasks, title, notes), encoding="utf-8")
+    # 仮設の金額（src/ashiba/cost.py。単価は ashiba_out/仮設単価.csv）
+    from ashiba import cost
+    from ashiba.xlsx_writer import Workbook
+
+    months = c.work_months or round(((s1 - c.start).days + 1) / 30.0, 1)
+    rows = cost.estimate(tasks, q, cost.load_prices(out), c.crews, c.direct_cost_k, months)
+    ctitle = f"仮設工事の金額（概算）　{c.name}".rstrip()
+    wb = Workbook()
+    cost.to_sheet(wb, rows, ctitle)
+    wb.save(out / "仮設の金額.xlsx")
+    (out / "仮設の金額.md").write_text(cost.to_markdown(rows, ctitle), encoding="utf-8")
+    tt = cost.totals(rows)
+    miss = sorted({m for r in rows for m in r.missing})
     if not cpath.exists():
         cpath.write_text(json.dumps({"start": f"{c.start:%Y-%m-%d}", "sat_off": c.sat_off, "floors": c.floors,
                                      "floor_cycle": c.floor_cycle, "base_days": c.base_days, "facade_days": c.facade_days,
-                                     "crews": c.crews, "override": c.override, "name": c.name}, ensure_ascii=False, indent=1),
+                                     "crews": c.crews, "override": c.override, "name": c.name,
+                                     "direct_cost_k": c.direct_cost_k, "work_months": c.work_months}, ensure_ascii=False, indent=1),
                          encoding="utf-8")
     print(f"仮設工程表: {len(tasks)} 作業・{s0:%Y-%m-%d}〜{s1:%Y-%m-%d}・施工ステップ {len(st)}（{xl}）")
+    print(f"仮設の金額: 合計 {tt['仮設の合計']:,}円（税抜の概算。{out / '仮設の金額.xlsx'}）")
+    if miss:
+        print("  単価なしで足していないもの: " + "・".join(miss) + f"（{out / cost.PRICE_FILE} に入れると足す）")
     return 0
 
 
