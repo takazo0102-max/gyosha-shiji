@@ -96,7 +96,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         saved = {}
     c = conditions(a, saved)
-    q = collect(out)
+    q = collect(out, c.name or _project_name())
     tasks = build(q, c)
     cal = WorkCalendar(sat_off=c.sat_off, year_end=c.year_end, summer=c.summer)
     schedule(tasks, cal, c.start)
@@ -136,6 +136,17 @@ def main(argv=None) -> int:
                          encoding="utf-8")
     print(f"仮設工程表: {len(tasks)} 作業・{s0:%Y-%m-%d}〜{s1:%Y-%m-%d}・施工ステップ {len(st)}（{xl}）")
     return 0
+
+
+def _project_name() -> str:
+    """足場の条件ファイル（ASHIBA_SPEC か ~/Desktop/ashiba_spec.json）の工事名。無ければ既定の「足場計画」."""
+    import os
+
+    p = Path(os.environ.get("ASHIBA_SPEC") or Path.home() / "Desktop" / "ashiba_spec.json")
+    try:
+        return str(json.loads(p.read_text(encoding="utf-8")).get("project_name") or "足場計画")
+    except (OSError, ValueError, AttributeError):
+        return "足場計画"
 
 
 def _src_key(key: str) -> str:

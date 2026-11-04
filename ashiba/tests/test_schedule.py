@@ -188,6 +188,46 @@ class TestSteps(unittest.TestCase):
         self.assertEqual(scaffold_height(by, by["sc_up"].start, cal, 15.0, 1.8), 1.8)    # 最初の層より低くしない
 
 
+class TestSourcesFollowTheModel(unittest.TestCase):
+    """帳票の拾い方の直し（2026-11-04 のループ: 実際の ashiba_out の写しで工程表を流して見つけたもの）."""
+
+    def test_removed_parts_and_test_plans(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)
+            # タワークレーンは消してある（控えは空・帳票は残る）→ 拾わない
+            (p / "タワークレーン.md").write_text("| 名前 | 機種 |\n|---|---|\n| タワー1 | タワークレーン 27.5t |\n", encoding="utf-8")
+            (p / "タワークレーン.json").write_text("{}", encoding="utf-8")
+            # 試験の建物の計画（検証_）はいちばん新しくても拾わず、工事名の計画を拾う
+            (p / "足場計画_plan.json").write_text(json.dumps({"scaffold_height_mm": 10000, "edges": [{"scaffold_length": 30000}]}),
+                                              encoding="utf-8")
+            (p / "検証_box_plan.json").write_text(json.dumps({"scaffold_height_mm": 9930, "edges": [{"scaffold_length": 12193}]}),
+                                               encoding="utf-8")
+            (p / "山留め足場.md").write_text("# 根切りの山留めまわり\n\n## 腹起し上の足場 W71（長さ 8800mm）\n\n"
+                                         "## 腹起し上の足場 W82（長さ 5800mm）\n\n## 切梁上の足場 切梁1（長さ 6700mm）\n", encoding="utf-8")
+            q = collect(p, "足場計画")
+            q2 = collect(p)
+        self.assertEqual(q.tower, "")
+        self.assertEqual(q.scaffold_m2, 300.0)
+        self.assertEqual(q2.scaffold_m2, 300.0)                    # 工事名が無くても試験の計画は除く
+        self.assertAlmostEqual(q.retaining_m, 14.6)                # 腹起し上の足場だけ（切梁は数えない）
+        self.assertTrue(q.retaining)
+
+    def test_second_excavation_after_the_deck(self):
+        t, *_ = _plan()
+        by = {k.key: k for k in t}
+        self.assertGreater(by["ex2"].end, by["kodai"].end)          # 構台から掘るので架設の終わりより後に終える
+        self.assertGreater(by["ex2"].start, by["kodai"].start)
+
+    def test_same_day_milestones_are_one_step(self):
+        t, cal, _c, _q = _plan()
+        by = {k.key: k for k in t}
+        prep = [by[k] for k in ("kakoi", "house", "util", "plate")]
+        by["yama"].end = max(k.end for k in prep)                   # 準備と山留めが同じ日に終わる
+        st = steps(t, cal, 4, 20, 15.0, 1.8, set(GROUP_TASKS))
+        self.assertEqual(len({s.date for s in st}), len(st))
+        self.assertTrue(st[0].name.endswith("・山留め"))
+
+
 class TestStepModel(unittest.TestCase):
     """工程の模型の Archicad の側（scripts/step_run.py・scripts/gdl_step.py）."""
 

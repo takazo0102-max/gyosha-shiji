@@ -64,7 +64,7 @@ def build(q: Quantities, c: ScheduleConditions) -> list[Task]:
     pl = _q(c, q, "plates")
     work("plate", "敷鉄板・場内通路", "準備", pl, "枚", "敷鉄板", [Dep("kakoi", "FS")], machine="クレーン付きトラック")
     # 山留め・土工
-    ret_m = float(c.override.get("retaining_m", 0) or 0)
+    ret_m = float(c.override.get("retaining_m", 0) or 0) or q.retaining_m
     prev = "plate" if any(t.key == "plate" for t in T) else "kakoi"
     if ret_m or q.retaining:
         if ret_m:
@@ -81,7 +81,8 @@ def build(q: Quantities, c: ScheduleConditions) -> list[Task]:
             work("ex1", "1次根切り", "山留め・土工", ex * 0.3, "m³", "掘削", [Dep(prev, "FS")], machine="バックホウ 0.45m³")
             work("kodai", "乗入れ構台の架設", "構台", deck, "m²", "構台架設", [Dep("ex1", "FS")], machine="25t ラフター",
                  extra=days_of(_q(c, q, "deck_t"), DECK_T["構台架設"]))
-            work("ex2", "2次根切り・床付け", "山留め・土工", ex * 0.7, "m³", "掘削", [Dep("kodai", "SS", 3)],
+            # 2次根切りは構台から掘るので、構台の架設が進んでから始め、架設の終わりより後に終える
+            work("ex2", "2次根切り・床付け", "山留め・土工", ex * 0.7, "m³", "掘削", [Dep("kodai", "SS", 3), Dep("kodai", "FF", 1)],
                  machine="バックホウ 0.45m³")
             exk = "ex2"
         else:

@@ -6,7 +6,9 @@
 - 敷鉄板.md・場内通路.md: 厚板鋼板の枚数
 - 根切り*.md: 根切り・埋戻し・建設発生土 m³（いちばん新しい帳票）
 - 構台.md: 覆工板の枚数（1×2m）→ 面積 m²、鋼材の重さ t
-- *_plan.json（いちばん新しい配置）: 足場の面ごとの長さ × 足場の高さ → 掛け面積 m²、層の数
+- *_plan.json: 足場の面ごとの長さ × 足場の高さ → 掛け面積 m²、層の数。工事名の <工事名>_plan.json、無ければ試験の計画
+  （検証_・実機 で始まるもの）を除いたいちばん新しい配置（試験の建物の小さな計画を拾っていた 2026-11-04）
+- 山留め足場.md: 腹起し上の足場の長さの合計 → 山留めの延長 m（腹起しは山留めの壁に沿う）
 - 型枠_計画.json: 壁・柱・梁・スラブの数（型枠の面積は型枠_材料.csv の合板の枚数 × 1.62m²【目安】）
 - タワークレーン.md・クレーン.md: 機種
 """
@@ -31,6 +33,7 @@ class Quantities:
     backfill_m3: float = 0.0
     soil_out_m3: float = 0.0
     retaining: bool = False                 # 山留めあり
+    retaining_m: float = 0.0                # 山留めの延長（腹起し上の足場の長さ）
     deck_m2: float = 0.0                    # 構台の面積
     deck_t: float = 0.0
     scaffold_m2: float = 0.0                # 外部足場の掛け面積
@@ -66,18 +69,37 @@ def _num(s: str) -> float:
 
 
 def _read(p: Path) -> str:
+    """帳票を読む. 同じ名前の控え（.json）があって空なら、置いたものは消してあるので読まない（--remove は帳票を残す。
+    消したタワークレーン・クレーンが工程表に出ていた 2026-11-04）."""
+    rec = p.with_suffix(".json")
+    if p.suffix == ".md" and rec.exists():
+        try:
+            if not json.loads(rec.read_text(encoding="utf-8")):
+                return ""
+        except (OSError, ValueError):
+            pass
     try:
         return p.read_text(encoding="utf-8")
     except OSError:
         return ""
 
 
-def _latest(out: Path, pattern: str) -> Path | None:
-    xs = sorted(out.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+TEST_PREFIXES = ("検証_", "実機 ", "実機_")         # 試験の建物の帳票（dev_cases.py・実機の試験）
+
+
+def _latest(out: Path, pattern: str, skip: tuple = ()) -> Path | None:
+    xs = sorted((p for p in out.glob(pattern) if not p.name.startswith(skip)), key=lambda p: p.stat().st_mtime, reverse=True)
     return xs[0] if xs else None
 
 
-def collect(out: Path) -> Quantities:
+def plan_file(out: Path, name: str = "") -> Path | None:
+    """足場の配置の計画: 工事名の <工事名>_plan.json、無ければ試験の計画を除いたいちばん新しいもの."""
+    if name and (Path(out) / f"{name}_plan.json").exists():
+        return Path(out) / f"{name}_plan.json"
+    return _latest(Path(out), "*_plan.json", TEST_PREFIXES)
+
+
+def collect(out: Path, name: str = "") -> Quantities:
     q = Quantities()
     out = Path(out)
     # 仮囲い
@@ -123,6 +145,12 @@ def collect(out: Path) -> Quantities:
         q.retaining = "山留めあり" in t
         if q.excavation_m3:
             q.sources["根切り"] = p.name
+    # 山留めの延長（腹起し上の足場は山留めの壁に沿って1辺に1つ）
+    for m in re.finditer(r"^## 腹起し上の足場 .*?（長さ (\d+)mm）", _read(out / "山留め足場.md"), re.M):
+        q.retaining_m += int(m.group(1)) / 1000.0
+    if q.retaining_m:
+        q.retaining = True
+        q.sources["山留め"] = "山留め足場.md"
     # 構台
     t = _read(out / "構台.md")
     for r in md_rows(t):
@@ -134,8 +162,8 @@ def collect(out: Path) -> Quantities:
             q.deck_t += _num(r[3]) / 1000.0
     if q.deck_m2:
         q.sources["構台"] = "構台.md"
-    # 外部足場（いちばん新しい配置）
-    p = _latest(out, "*_plan.json")
+    # 外部足場（工事名の配置、無ければ試験の計画を除いたいちばん新しい配置）
+    p = plan_file(out, name)
     if p:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))

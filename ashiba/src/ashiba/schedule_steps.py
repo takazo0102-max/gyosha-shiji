@@ -120,6 +120,13 @@ def steps(tasks: list[Task], cal: WorkCalendar, floors: int, cycle: int, height:
             continue
         marks.append((t.end, name))
     marks.sort(key=lambda m: m[0])
+    merged = []                                       # 同じ日の節目は1つに（同じ姿を2回出さない）
+    for d, name in marks:
+        if merged and merged[-1][0] == d:
+            merged[-1] = (d, merged[-1][1] + "・" + name)
+        else:
+            merged.append((d, name))
+    marks = merged
     groups = [g for g in GROUP_TASKS if present is None or g in present]
     out = []
     for i, (d, name) in enumerate(marks, 1):
