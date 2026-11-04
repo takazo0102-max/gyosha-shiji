@@ -39,6 +39,8 @@ class Quantities:
     scaffold_m2: float = 0.0                # 外部足場の掛け面積
     scaffold_h: float = 0.0                 # 足場の高さ m
     scaffold_tiers: int = 0
+    scaffold_edges: int = 0                 # 足場の計画の面の数
+    scaffold_len: float = 0.0               # 足場の計画の延べの長さ m
     form_m2: float = 0.0                    # 型枠の面積
     tower: str = ""                         # タワークレーンの機種
     cranes: list = field(default_factory=list)
@@ -171,6 +173,8 @@ def collect(out: Path, name: str = "") -> Quantities:
             ln = sum(float(e.get("scaffold_length") or 0) for e in d.get("edges", [])) / 1000.0
             q.scaffold_h = h
             q.scaffold_m2 = round(ln * h, 1)
+            q.scaffold_edges = len(d.get("edges", []))
+            q.scaffold_len = round(ln, 1)
             q.scaffold_tiers = len((d.get("elevation") or {}).get("level_heights") or [])
             if q.scaffold_m2:
                 q.sources["外部足場"] = p.name

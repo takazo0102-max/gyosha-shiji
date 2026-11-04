@@ -106,6 +106,10 @@ def main(argv=None) -> int:
     notes = [f"着工 {c.start:%Y-%m-%d}", f"仮設の終わり {s1:%Y-%m-%d}",
              "休み: 日曜・国民の祝日" + ("・土曜" if c.sat_off else "") + ("・年末年始" if c.year_end else "") + ("・夏季" if c.summer else ""),
              "躯体・外装は参考（灰）。日数は数量 ÷ 歩掛かり（根拠は2枚め）。【目安】は出典で確かめていない値"]
+    from ashiba.schedule_checks import checks
+
+    warn = checks(q, tasks, c.floors)
+    notes += [f"注意: {w}" for w in warn]
     basis = [[t.name, round(t.qty, 1) if t.qty else "", t.unit, t.days, t.rate, q.sources.get(_src_key(t.key), "")] for t in tasks]
     conds = [("着工日", f"{c.start:%Y-%m-%d}"), ("地上の階数", str(c.floors or "足場の高さから")),
              ("地上躯体のサイクル", f"{c.floor_cycle} 稼働日/階【目安】"), ("基礎躯体", f"{c.base_days} 稼働日【目安】"),
@@ -144,7 +148,9 @@ def main(argv=None) -> int:
     mon = cost.monthly(rows, tasks)
     cost.monthly_sheet(wb, mon, ctitle)
     wb.save(out / "仮設の金額.xlsx")
-    (out / "仮設の金額.md").write_text(cost.to_markdown(rows, ctitle) + cost.monthly_markdown(mon), encoding="utf-8")
+    (out / "仮設の金額.md").write_text(cost.to_markdown(rows, ctitle) + cost.monthly_markdown(mon)
+                                     + ("\n## 注意（拾った数量の点検）\n\n" + "".join(f"- {w}\n" for w in warn) if warn else ""),
+                                     encoding="utf-8")
     tt = cost.totals(rows)
     miss = sorted({m for r in rows for m in r.missing})
     if not cpath.exists():
@@ -154,6 +160,8 @@ def main(argv=None) -> int:
                                      "direct_cost_k": c.direct_cost_k, "work_months": c.work_months}, ensure_ascii=False, indent=1),
                          encoding="utf-8")
     print(f"仮設工程表: {len(tasks)} 作業・{s0:%Y-%m-%d}〜{s1:%Y-%m-%d}・施工ステップ {len(st)}（{xl}）")
+    for w in warn:
+        print(f"  注意: {w}")
     print(f"仮設の金額: 合計 {tt['仮設の合計']:,}円（税抜の概算。{out / '仮設の金額.xlsx'}）")
     if miss:
         print("  単価なしで足していないもの: " + "・".join(miss) + f"（{out / cost.PRICE_FILE} に入れると足す）")

@@ -228,6 +228,26 @@ class TestSourcesFollowTheModel(unittest.TestCase):
         self.assertTrue(st[0].name.endswith("・山留め"))
 
 
+class TestChecks(unittest.TestCase):
+    def test_flags_what_looks_wrong(self):
+        """拾った数量の点検: 足場の計画が1面だけ・仮囲いが無い（令 136条の2の20）・仮設建物が無い・山留めの延長が無い."""
+        from ashiba.schedule_checks import checks
+
+        q = Quantities(scaffold_m2=29.7, scaffold_h=8.1, scaffold_edges=1, scaffold_len=3.7, retaining=True, excavation_m3=100,
+                       backfill_m3=50)
+        q.sources["外部足場"] = "足場計画_plan.json"
+        c = ScheduleConditions(start=dt.date(2027, 4, 1), floors=3)
+        t = build(q, c)
+        w = "\n".join(checks(q, t, 3))
+        self.assertIn("1面・延べ 3.7m", w)
+        self.assertIn("136条の2の20", w)
+        self.assertIn("628条", w)
+        self.assertIn("retaining_m", w)
+        _t, _cal, _c, q2 = _plan()
+        q2.scaffold_edges, q2.scaffold_len, q2.retaining_m = 4, 80.0, 36.0
+        self.assertEqual(checks(q2, _t, 4), [])                      # そろった計画では何も言わない
+
+
 class TestStepModel(unittest.TestCase):
     """工程の模型の Archicad の側（scripts/step_run.py・scripts/gdl_step.py）."""
 
