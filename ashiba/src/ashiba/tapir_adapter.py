@@ -239,8 +239,20 @@ class ArchicadClient:
             "detailsOfElements", []
         )
 
-    def delete_elements(self, elements: list[dict]) -> None:
-        self.tapir("DeleteElements", {"elements": elements})
+    def delete_elements(self, elements: list[dict]) -> int:
+        """要素を消し、消せた数を返す. 応答の executionResults に失敗があれば、消せなかった数と GUID の頭を知らせる
+        （止めない。配置の途中の片付けを止めないため）.
+
+        以前は応答を見ずに「消しました」と出し、試験の線が残っていた（2026-11-05 実機）."""
+        if not elements:
+            return 0
+        resp = self.tapir("DeleteElements", {"elements": elements}) or {}
+        results = resp.get("executionResults") or []
+        bad = [e["elementId"]["guid"] for e, r in zip(elements, results)
+               if isinstance(r, dict) and r.get("success") is False]
+        if bad:
+            print(f"  注意: {len(bad)}個を消せませんでした（" + ", ".join(g[:8] for g in bad[:10]) + "）")
+        return len(elements) - len(bad)
 
     def current_window_type(self) -> str:
         """アクティブなウィンドウの種類（FloorPlan / Layout / 3D など）。取れなければ空."""
