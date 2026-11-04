@@ -40,7 +40,9 @@ def summary(output: str, limit: int = 14) -> str:
     # 決めた見出しの行に加えて、行頭の「名前: …」の結果の行も（根切り図などで「帳票:」の行だけが出て、肝心の
     # 「根切り図: 根切り1 掘削 150m²…」が出ていなかった 2026-11-05）
     top = re.compile(r"^[^\s:：（(]{1,24}[:：] ")
-    picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys) or top.match(ln)]
+    # 字下げした行でも 要確認・NG は出す（親綱・柵・重機などの「  親綱1: …・要確認 落差」が帳票にしか無かった 2026-11-05）
+    warn = re.compile(r"要確認|\bNG\b|\[NG\]")
+    picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys) or top.match(ln) or warn.search(ln)]
     if not picked:
         picked = lines[-6:]
     elif lines and lines[-1] not in picked:

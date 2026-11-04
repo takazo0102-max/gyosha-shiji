@@ -118,6 +118,13 @@ class TestSummary(unittest.TestCase):
         self.assertTrue(summary(out).endswith("戻すときは「区切りを戻す」"))
         self.assertEqual(summary("足場ライン 4本\n帳票出力先: x\n").count("帳票出力先"), 1)
 
+    def test_indented_warnings(self):
+        """字下げした行でも 要確認・NG は出す（ほかの字下げの行は出さない）."""
+        out = "  親綱1: 12.0m・3スパン・落差 4.0m\n  親綱2: 8.0m・2スパン・落差 9.0m・要確認 落差\n親綱: 2本の梁に置きました（発注表: 親綱.md）\n"
+        s = summary(out)
+        self.assertIn("要確認 落差", s)
+        self.assertNotIn("親綱1", s)
+
     def test_falls_back_and_limits(self):
         self.assertEqual(summary("a\nb\nc"), "a\nb\nc")
         s = summary("\n".join(f"注意: {i}" for i in range(30)), limit=5)
