@@ -384,7 +384,7 @@ def summary(output: str, limit: int = 14) -> str:
     """実行の出力から、ダイアログに出す要点の行（keys で始まる行）。無ければ最後の数行."""
     keys = ("足場ライン", "足場の部品", "総合判定", "  是正", "  要確認", "  表題欄", "  詳細図:", "  平面図:", "  立面:", "  PDF:",
             "書き込み", "配置時と同じ", "撤去", "足場部品", "立面図（断面", "注意:", "エラー", "[ashiba]",
-            "足場条件", "帳票", "建物が分かりません", "この建物の", "配置:", "条件:", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "図面を作る", "  図面:", "取り入れ口", "昇降機", "内部足場", "仮設通路", "  検証", "地足場", "手動配置", "箱を置く", "箱を足場に", "型枠",
+            "足場条件", "帳票", "建物が分かりません", "この建物の", "配置:", "条件:", "朝顔の面", "朝顔の範囲", "幅の変更", "階段の位置", "図面を作る", "  図面:", "取り入れ口", "昇降機", "内部足場", "仮設通路", "  検証", "地足場", "手動配置", "箱を置く", "箱を足場に", "型枠", "  面の切替", "  上段（途中の屋根から）",
             "  計算書", "  計画届", "TapirError", "TapirTimeout", "Traceback")
     import re
 
@@ -399,6 +399,10 @@ def summary(output: str, limit: int = 14) -> str:
     picked = [ln for ln in lines if ln.startswith(keys) or ln.lstrip().startswith(keys) or top.match(ln)]
     if not picked:
         picked = lines[-6:]
+    elif lines and lines[-1] not in picked:
+        # 最後の行はたいてい結びなので足す（区切るで「区切る: …」の行だけになり、「計 1個の部品を足しました。…戻すときは
+        # 「区切りを戻す」」が出なくなった 2026-11-05）
+        picked.append(lines[-1])
     if len(picked) > limit:
         picked = picked[:limit - 1] + [f"…ほか {len(picked) - limit + 1} 行（ashiba_out/パレット実行.log）"]
     return "\n".join(picked)

@@ -212,6 +212,12 @@ def params_from_spec(spec: dict) -> dict:
             from .master import SERIES_LABELS, series_from_label
 
             out[f.gdl] = SERIES_LABELS.get(series_from_label(v), str(v))
+        elif f.gdl == "faceForms":
+            # 面の切替は JSON では {面: 種類}。部品には「南面=…; 東面=…」で（str(dict) のまま入り、次の「面の切替」が
+            # 「面=種類の形で書いてください」で落ちた 2026-11-05）
+            from .face_forms import format_face_forms, parse_face_forms
+
+            out[f.gdl] = format_face_forms(parse_face_forms(v))
         elif isinstance(v, (list, tuple)):
             out[f.gdl] = "・".join(str(t) for t in v)          # 面名の並び（朝顔を付ける面）
         else:

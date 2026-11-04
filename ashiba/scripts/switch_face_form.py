@@ -116,6 +116,19 @@ def main() -> int:
         ff = updated_face_forms(cur, faces, form)
         c.set_gdl_parameters(hit[0], {"faceForms": format_face_forms(ff)})
         where = "足場条件の部品「面の切替」"
+        # 部品の空欄は「未指定」なので、JSON に前の切り替えが残っていると「元に戻す」で全部を戻しても JSON の値が生き返る。
+        # JSON にもあれば同じに揃える（2026-11-05 の全部のコマンドの試験で見つけた）
+        try:
+            spec = json.loads(SPEC_DEFAULT.read_text(encoding="utf-8")) if SPEC_DEFAULT.exists() else {}
+        except (OSError, ValueError):
+            spec = {}
+        if spec.get("face_forms"):
+            if ff:
+                spec["face_forms"] = ff
+            else:
+                spec.pop("face_forms", None)
+            SPEC_DEFAULT.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            where += f"・{SPEC_DEFAULT.name}"
     else:
         spec = json.loads(SPEC_DEFAULT.read_text(encoding="utf-8")) if SPEC_DEFAULT.exists() else {}
         ff = updated_face_forms(spec.get("face_forms"), faces, form)

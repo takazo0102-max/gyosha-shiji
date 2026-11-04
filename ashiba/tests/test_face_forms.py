@@ -28,6 +28,16 @@ class TestParse(unittest.TestCase):
             parse_face_forms("南面")
         self.assertEqual(format_face_forms({"南面": "単管本足場", "東面": "一側足場"}), "南面=単管本足場;東面=一側足場")
 
+    def test_spec_part_gets_text(self):
+        """JSON の {面: 種類} は足場条件の部品に「面=種類」の文字で入り、前の版の str(dict) の値も読める
+        （2回目の「面の切替」が「面=種類の形で書いてください」で落ちた 2026-11-05）."""
+        from ashiba.spec_object import params_from_spec
+
+        p = params_from_spec({**BASE, "face_forms": {"南面": "ブラケット足場（支柱）"}})
+        self.assertEqual(p["faceForms"], "南面=ブラケット足場（支柱）")
+        self.assertEqual(parse_face_forms("{'南面': 'ブラケット足場（支柱）'}"), {"南面": "ブラケット足場（支柱）"})
+        self.assertEqual(updated_face_forms("{'南面': 'ブラケット足場（支柱）'}", ["南面"], RESET), {})
+
     def test_update_and_reset(self):
         ff = updated_face_forms("南面=単管抱き足場", ["東面", "西面"], "ブラケット足場（単管）")
         self.assertEqual(ff, {"南面": "単管抱き足場", "東面": "ブラケット足場（単管）", "西面": "ブラケット足場（単管）"})

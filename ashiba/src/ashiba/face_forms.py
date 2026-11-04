@@ -65,6 +65,14 @@ def parse_face_forms(value) -> dict[str, str]:
     """face_forms の値 → {面名（区間つきなら「南面[a-b]」）: 種類}. 空なら {}。種類の綴りの違い（括弧の全角・半角）は揃える."""
     if not value:
         return {}
+    if isinstance(value, str) and value.strip().startswith("{"):
+        # 前の版が部品に str(dict) のまま入れた値（「{'南面': 'ブラケット足場（支柱）'}」）も読む
+        import ast
+
+        try:
+            value = ast.literal_eval(value.strip())
+        except (ValueError, SyntaxError):
+            pass
     if isinstance(value, dict):
         items = list(value.items())
     else:

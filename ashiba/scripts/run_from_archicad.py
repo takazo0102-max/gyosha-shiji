@@ -1007,7 +1007,9 @@ def main(outline_mm=None, spec_override=None, out_dir=None, use_spec_object=True
     scales = "・".join(dict.fromkeys(f"1/{pl.scale}" for pl in sections if pl.drawing_guid)) or "-"
     sec_txt = (f"立面図 {n_sec}面（断面図ビューポイント→レイアウト「{'」「'.join(sheets)}」、{scales}）・"
                if sections else f"立面図 {len(elevs)}面・")
-    print(f"足場ライン {len(lines)}本・" + sec_txt
+    # 面の切替・上段の組の足場ラインも数える（南面をブラケットに切り替えると「足場ライン 3本」と出て、1面が消えたように見えた 2026-11-05）
+    n_lines = len(lines) + sum(len(lg) for _rg, lg in group_sets)
+    print(f"足場ライン {n_lines}本・" + sec_txt
           + f"詳細図 {len(details)}枚を配置しました"
           + (f"（前回の配置{replaced}個を置き換え）" if replaced else ""))
     print("総合判定: " + ("成立" if v["ok"] else "是正が必要"))

@@ -112,6 +112,12 @@ class TestSummary(unittest.TestCase):
         self.assertIn("  是正: 壁つなぎ", s)
         self.assertNotIn("配布GSM", s)
 
+    def test_keeps_last_line(self):
+        """最後の行（結び）は見出しに合わなくても出す（区切るの「戻すときは「区切りを戻す」」が抜けていた）."""
+        out = "区切る: 南面の始点から 5487 の支柱で区切ります\n4BE9FD19: 2つに区切りました\n計 1個の部品を足しました。戻すときは「区切りを戻す」\n"
+        self.assertTrue(summary(out).endswith("戻すときは「区切りを戻す」"))
+        self.assertEqual(summary("足場ライン 4本\n帳票出力先: x\n").count("帳票出力先"), 1)
+
     def test_falls_back_and_limits(self):
         self.assertEqual(summary("a\nb\nc"), "a\nb\nc")
         s = summary("\n".join(f"注意: {i}" for i in range(30)), limit=5)
@@ -120,6 +126,15 @@ class TestSummary(unittest.TestCase):
 
 
 class TestInstall(unittest.TestCase):
+    def test_committed_entry_is_current(self):
+        """リポジトリの入口（tapir/palette/仮設_パレット.py）は entry_source と同じ（要点の関数を埋め込むので、
+        summary を直したら作り直す。古いままで「足場の部品」「最後の行」が窓に出なかった 2026-11-05）."""
+        import sys
+        sys.path.insert(0, str(ROOT / "src"))
+        from ashiba.palette import ENTRIES, entry_source
+        for e in ENTRIES:
+            self.assertEqual((ROOT / "tapir" / "palette" / e.file).read_text(encoding="utf-8"), entry_source(e), e.file)
+
     def test_install_only_touches_its_own_links(self):
         src = (ROOT / "scripts" / "install_palette.py").read_text(encoding="utf-8")
         self.assertIn("def _ours(link: Path) -> bool:", src)
