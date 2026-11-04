@@ -69,7 +69,13 @@ def main(argv=None) -> int:
             if bm:
                 targets.append((e["elementId"]["guid"], bm.a, bm.b, bm.top_mm))
     if not targets:
-        for key, pts, _closed in chains(selected_guides(c)):
+        guides = list(chains(selected_guides(c)))
+        if guides and a.top is None:
+            # 線には梁の上端の高さが無い（0 のまま「0スパン・落差 0.0m」で置いていた 2026-11-05）
+            print("親綱: 線を選んだときは梁の上端の高さが分かりません。鉄骨梁を選んで押してください"
+                  "（線で置くなら python3 scripts/lifeline_run.py --top 梁の上端mm --drop 落差mm）")
+            return 1
+        for key, pts, _closed in guides:
             for i, (p0, p1) in enumerate(zip(pts, pts[1:])):
                 targets.append((f"{key}:{i}", tuple(p0), tuple(p1), a.top or 0.0))
     if not targets:

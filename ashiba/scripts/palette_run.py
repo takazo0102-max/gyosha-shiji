@@ -49,6 +49,9 @@ def run_action(title: str) -> tuple[int, str]:
     except OSError:
         pass
     head = "完了" if proc.returncode == 0 else f"止まりました（終了コード {proc.returncode}）"
+    if proc.returncode == 2 and "置きました" in out and "error:" not in out:
+        # 置けたが判定に NG がある（単管に壁つなぎ: 壁つなぎ 0か所 など）。「止まりました」だと置けていないように見えた
+        head = "完了（判定に NG があります。帳票を確かめてください）"
     return proc.returncode, f"{head}\n{summary(out)}"
 
 
