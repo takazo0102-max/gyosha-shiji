@@ -273,14 +273,26 @@ if kd = 5 then
 endif
 ! 注記（後ろを背景の色で塗る。簡略は名前だけ）
 pen penEquip
-add2 opW / 2, opD / 2
-if kd = 5 then add2 0, eY + eSd * (0.3 + dT)
-rot2 -SYMB_ROTANGLE
 t1 = opName
 if drLv < 3 then t1 = opName + " " + tx
 nTL = 1 + (kd <= 4 and drLv < 3)
 tW = max(STW(t1), STW("開口注意") * (nTL > 1)) / 1000 * GLOB_SCALE / 2 + 0.05
 tH = dT * (nTL / 2 + 0.1)
+cs = abs(cos(SYMB_ROTANGLE))
+sn = abs(sin(SYMB_ROTANGLE))
+if kd = 5 then
+	add2 opW / 2, eY + eSd * (0.3 + dT)
+else
+	! 開口の中に収まらなければ（小さな開口・小さな縮尺）右の外に書く（白塗りで蓋・手すりの線を消さない）
+	xR = opW + lap
+	if kd = 4 then xR = max(opW, rx1)
+	if 2 * tW * cs + 2 * tH * sn < opW * 0.8 and 2 * tW * sn + 2 * tH * cs < opD * 0.8 then
+		add2 opW / 2, opD / 2
+	else
+		add2 xR + 0.2 + tW * cs + tH * sn, opD / 2
+	endif
+endif
+rot2 -SYMB_ROTANGLE
 if mk then
 	drawindex 45
 	fill fiS
@@ -294,7 +306,6 @@ else
 	text2 0, 0, t1
 endif
 del 2
-if kd = 5 then del 1
 hotspot2 0, 0
 hotspot2 opW, 0
 hotspot2 opW, opD
