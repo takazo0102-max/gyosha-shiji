@@ -1,33 +1,73 @@
-﻿! 敷鉄板 2D: 1枚ずつの外形・吊り穴・枚数と重さ・広げるホットスポット
-pen penEquip
-define style "plT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+﻿! 敷鉄板 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 並べた範囲の外形は太線、1枚ずつの継ぎ目は細線、2段敷きは上の段（十字）を
+! 実線・下の段を隠れ線。縮尺で 詳細（1/100: 吊り穴まで）・標準（1/200: 継ぎ目まで）・簡略（範囲の外形だけ）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "plT" "ＭＳ Ｐゴシック", texSiz, 2, 0
 style "plT"
-for i = 1 to nX
-	for j = 1 to nY
-		x0 = (i - 1) * pX
-		y0 = (j - 1) * pY
-		rect2 x0, y0, x0 + pX, y0 + pY
-		! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所）
-		for h = 1 to nHole
-			fh = h / (nHole + 1)
-			if plDir = 0 then
-				rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
-			else
-				rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if drLv < 3 then
+	pen pT
+	if plLay >= 2 then line_type ltH
+	for i = 1 to nX
+		for j = 1 to nY
+			x0 = (i - 1) * pX
+			y0 = (j - 1) * pY
+			rect2 x0, y0, x0 + pX, y0 + pY
+			! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所。上に段があれば見えない）
+			if drLv = 1 and plLay < 2 then
+				for h = 1 to nHole
+					fh = h / (nHole + 1)
+					if plDir = 0 then
+						rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
+					else
+						rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+					endif
+				next h
 			endif
-		next h
-	next j
-next i
-if plLay >= 2 then
-	! 上の段（十字）の外形
-	for i = 1 to mX
-		for j = 1 to mY
-			rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
 		next j
 	next i
+	line_type ltS
+	if plLay >= 2 then
+		! 上の段（十字）の外形
+		for i = 1 to mX
+			for j = 1 to mY
+				rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
+			next j
+		next i
+	endif
 endif
+pen pO
+rect2 0, 0, lx, ly
 if plText then
-	add2 lx / 2, -0.4
+	pen penEquip
+	add2 lx / 2, -0.2
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, plName + " " + str(nTot, 1, 0) + "枚・" + str(round_int(nTot * plKg), 1, 0) + "kg"
 	del 2

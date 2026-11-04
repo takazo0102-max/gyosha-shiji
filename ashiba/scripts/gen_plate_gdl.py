@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_plate"
@@ -37,6 +38,7 @@ def paramlist() -> str:
         _param("Boolean", "plText", "枚数と重さを注記する", 1),
         _param("String", "plName", "名前（注記）", "敷鉄板"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -98,36 +100,48 @@ values "plDir" 0, 1
 values "plLay" 1, 2
 """
 
-SCRIPT_2D = """﻿! 敷鉄板 2D: 1枚ずつの外形・吊り穴・枚数と重さ・広げるホットスポット
-pen penEquip
-define style "plT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+SCRIPT_2D_T = """﻿! 敷鉄板 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 並べた範囲の外形は太線、1枚ずつの継ぎ目は細線、2段敷きは上の段（十字）を
+! 実線・下の段を隠れ線。縮尺で 詳細（1/100: 吊り穴まで）・標準（1/200: 継ぎ目まで）・簡略（範囲の外形だけ）
+@HEAD@
+define style "plT" "ＭＳ Ｐゴシック", texSiz, 2, 0
 style "plT"
-for i = 1 to nX
-	for j = 1 to nY
-		x0 = (i - 1) * pX
-		y0 = (j - 1) * pY
-		rect2 x0, y0, x0 + pX, y0 + pY
-		! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所）
-		for h = 1 to nHole
-			fh = h / (nHole + 1)
-			if plDir = 0 then
-				rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
-			else
-				rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+if drLv < 3 then
+	pen pT
+	if plLay >= 2 then line_type ltH
+	for i = 1 to nX
+		for j = 1 to nY
+			x0 = (i - 1) * pX
+			y0 = (j - 1) * pY
+			rect2 x0, y0, x0 + pX, y0 + pY
+			! 吊り込み用の穴（長い辺の中ほど。5×20 は2か所。上に段があれば見えない）
+			if drLv = 1 and plLay < 2 then
+				for h = 1 to nHole
+					fh = h / (nHole + 1)
+					if plDir = 0 then
+						rect2 x0 + pX * fh - 0.05, y0 + pY / 2 - 0.025, x0 + pX * fh + 0.05, y0 + pY / 2 + 0.025
+					else
+						rect2 x0 + pX / 2 - 0.025, y0 + pY * fh - 0.05, x0 + pX / 2 + 0.025, y0 + pY * fh + 0.05
+					endif
+				next h
 			endif
-		next h
-	next j
-next i
-if plLay >= 2 then
-	! 上の段（十字）の外形
-	for i = 1 to mX
-		for j = 1 to mY
-			rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
 		next j
 	next i
+	line_type ltS
+	if plLay >= 2 then
+		! 上の段（十字）の外形
+		for i = 1 to mX
+			for j = 1 to mY
+				rect2 (i - 1) * qX, (j - 1) * qY, i * qX, j * qY
+			next j
+		next i
+	endif
 endif
+pen pO
+rect2 0, 0, lx, ly
 if plText then
-	add2 lx / 2, -0.4
+	pen penEquip
+	add2 lx / 2, -0.2
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, plName + " " + str(nTot, 1, 0) + "枚・" + str(round_int(nTot * plKg), 1, 0) + "kg"
 	del 2
@@ -144,6 +158,8 @@ hotspot2 lx / 2, 0, 104, lenY, 1 + 128
 hotspot2 lx / 2, lenY, 105, lenY, 2
 hotspot2 lx / 2, -1, 106, lenY, 3
 """
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 敷鉄板 3D: 1枚ずつの板（厚さ 22）。2段目は十字に重ねる
 define material "pl_steel1" 2, 0.33, 0.34, 0.36

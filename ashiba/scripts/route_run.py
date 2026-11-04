@@ -76,6 +76,10 @@ def main(argv=None) -> int:
     part, ppart = R.versioned_part_name(PART), R.versioned_part_name("ashiba_plate")
     spec = {**R.SPEC, **R.load_spec_override()}
     pens, ppens = gdl_pens(parse_pens(spec.get("pens")), PART), gdl_pens(parse_pens(spec.get("pens")), "ashiba_plate")
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
+    ppens.update(draft_pens_for(c, ppens.get("penEquip", 1)))
     ground = None
     if a.z is None:
         gm = read_ground_model(c, [p for _k, pts in lines for p in pts])

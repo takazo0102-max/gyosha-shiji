@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_route"
@@ -44,6 +45,7 @@ def paramlist() -> str:
         _param("String", "rtVeh", "車両と通行（注記）", "一方通行 幅4.0m 10t ダンプ"),
         _param("Boolean", "showSw", "曲がり角の掃引（車両の通る範囲）を描く", 1),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -67,11 +69,14 @@ def _master() -> str:
     return "\n".join(out) + "\n"
 
 
-SCRIPT_2D = """﻿! 場内通路 2D: 通路の帯・中心線と矢・曲がり角の掃引・拡幅の注記・名前
-pen penEquip
+SCRIPT_2D_T = """﻿! 場内通路 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 通路の帯は細線、中心線は一点鎖線と進む向きの矢、曲がり角の掃引（外側前端角 Ro と
+! 内側後輪 ri の円弧）は範囲の線（二点鎖線）。縮尺で 詳細・標準（掃引と拡幅の注記まで）・簡略（帯と中心線と名前）
+@HEAD@
 define style "rtT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "rtT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
 ! 通路の帯
+pen pT
 if kE > 2 then
 	for i = 1 to kE
 		j = i + 1
@@ -79,9 +84,11 @@ if kE > 2 then
 		line2 qex[i], qey[i], qex[j], qey[j]
 	next i
 endif
-! 中心線と進む向きの矢（区間の真ん中）
+! 中心線（一点鎖線）と進む向きの矢（区間の真ん中。実線）
 for i = 1 to kC - 1
+	line_type ltC
 	line2 qcx[i], qcy[i], qcx[i + 1], qcy[i + 1]
+	line_type ltS
 	sl = sqr((qcx[i + 1] - qcx[i]) ^ 2 + (qcy[i + 1] - qcy[i]) ^ 2)
 	if sl > 0.01 then
 		ux = (qcx[i + 1] - qcx[i]) / sl
@@ -92,37 +99,45 @@ for i = 1 to kC - 1
 		line2 mx, my, mx - 0.8 * ux - 0.4 * uy, my - 0.8 * uy + 0.4 * ux
 	endif
 next i
-! 曲がり角の掃引（外側前端角 Ro と内側後輪 ri の円弧）と拡幅の注記
-if showSw then
+! 曲がり角の掃引（範囲の線）と拡幅の注記
+if showSw and drLv < 3 then
 	for k = 1 to kO
 		if 2 * k <= kR and 2 * k <= kA then
+			pen pZ
+			line_type ltZ
 			arc2 qox[k], qoy[k], qr[2 * k - 1], qa[2 * k - 1], qa[2 * k]
 			arc2 qox[k], qoy[k], qr[2 * k], qa[2 * k - 1], qa[2 * k]
+			line_type ltS
+			pen pT
 			line2 qox[k] - 0.2, qoy[k], qox[k] + 0.2, qoy[k]
 			line2 qox[k], qoy[k] - 0.2, qox[k], qoy[k] + 0.2
 		endif
 		if k <= kW then
 			if qw[k] > 0 then
+				pen penEquip
 				add2 qox[k], qoy[k]
 				rot2 -SYMB_ROTANGLE
-				text2 0, -0.6, "角" + str(k, 1, 0) + " 拡幅 +" + str(qw[k], 3, 1) + "m"
+				text2 0, -dT, "角" + str(k, 1, 0) + " 拡幅 +" + str(qw[k], 3, 1) + "m"
 				del 2
 			endif
 		endif
 	next k
 endif
-! 名前と車両（始めの区間の真ん中の左に。図面の向きに関係なく水平）
+! 名前と車両（始めの区間の真ん中の左に。図面の向きに関係なく水平。行送りは縮尺に合わせる）
+pen penEquip
 if kC > 1 then
 	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
 	rot2 -SYMB_ROTANGLE
-	text2 0, rtW / 2 + 1.2, rtName
-	text2 0, rtW / 2 + 0.6, rtVeh
+	text2 0, rtW / 2 + 0.4 + 1.5 * dT, rtName
+	if drLv < 3 then text2 0, rtW / 2 + 0.4 + 0.5 * dT, rtVeh
 	del 2
 endif
 for i = 1 to kC
 	hotspot2 qcx[i], qcy[i]
 next i
 """
+SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+
 
 SCRIPT_3D = """﻿! 場内通路 3D: 通路の面（敷鉄板の下に薄く）
 define material "rt_road" 2, 0.55, 0.53, 0.50
