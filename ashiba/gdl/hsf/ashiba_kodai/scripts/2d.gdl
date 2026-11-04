@@ -1,51 +1,170 @@
-﻿! 乗入れ構台 2D: 床の外形・覆工板の目地・支柱・手すり・スロープ・注記・広げるホットスポット
-pen penEquip
+﻿! 乗入れ構台 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 床（覆工板）の外形は太線、覆工板の目地は細線、床の下の根太・大引・
+! 支柱は隠れ線（破線）、支柱の通り芯は一点鎖線。床とスロープは背景の色で塗って下の線（通路の帯・敷鉄板）を隠す。
+! 縮尺で 詳細（1/100: 根太・大引はフランジの幅の2本・支柱は H 形）・標準（1/200: 芯の1本・支柱は箱）・簡略（外形と支柱の芯だけ）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
 define style "kdT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "kdT"
-! 覆工板の目地（X に 1m・Y に覆工板の長さ）
-for i = 1 to nDX - 1
-	line2 i, 0, i, ly
-next i
-for j = 1 to nDY - 1
-	line2 0, ry[j + 1], lx, ry[j + 1]
-next j
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 床とスロープ: 下の線を隠す
+if mk then
+	drawindex 20
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		0, 0, 1,
+		lx, 0, 1,
+		lx, ly, 1,
+		0, ly, 1,
+		0, 0, -1
+	if slL > 0 then
+		fill fiS
+		poly2_b 5, 6, pM, pM,
+			-slL, 0, 1,
+			0, 0, 1,
+			0, ly, 1,
+			-slL, ly, 1,
+			-slL, 0, -1
+	endif
+endif
+! 床の外形（太線）
+drawindex 30
+pen pO
+line_type ltS
 rect2 0, 0, lx, ly
-! 支柱（H 形。フランジは X の両側に、幅は Y に。3D と同じ）
+! 覆工板の目地（X に 1m・Y に覆工板の長さ。細線。簡略は描かない）
+pen pT
+if drLv < 3 then
+	for i = 1 to nDX - 1
+		line2 i, 0, i, ly
+	next i
+	for j = 1 to nDY - 1
+		line2 0, ry[j + 1], lx, ry[j + 1]
+	next j
+endif
+! 床の下（隠れ線）: 根太は覆工板の継ぎ目ごとに X へ、大引は支柱の列ごとに Y へ
+drawindex 40
+line_type ltH
+if drLv < 3 then
+	hbJ = secB[kJ] / 2
+	for j = 1 to nDY + 1
+		yj = max(hbJ, min(ly - hbJ, ry[j]))
+		if drLv = 1 then
+			line2 0, yj - hbJ, lx, yj - hbJ
+			line2 0, yj + hbJ, lx, yj + hbJ
+		else
+			line2 0, yj, lx, yj
+		endif
+	next j
+	hbG = secB[kG] / 2
+	for i = 1 to nPX
+		if drLv = 1 then
+			line2 gx[i] - hbG, 0, gx[i] - hbG, ly
+			line2 gx[i] + hbG, 0, gx[i] + hbG, ly
+		else
+			line2 gx[i], 0, gx[i], ly
+		endif
+	next i
+endif
+! 支柱（H 形。フランジは X の両側に、幅は Y に。3D と同じ。床の下なので隠れ線）
 hp = secH[kP] / 2
 bp = secB[kP] / 2
 fp = secF[kP]
 wp = secW[kP] / 2
 for i = 1 to nPX
 	for j = 1 to nPY
-		rect2 gx[i] + hp - fp, gy[j] - bp, gx[i] + hp, gy[j] + bp
-		rect2 gx[i] - hp, gy[j] - bp, gx[i] - hp + fp, gy[j] + bp
-		rect2 gx[i] - hp + fp, gy[j] - wp, gx[i] + hp - fp, gy[j] + wp
+		if drLv = 1 then
+			rect2 gx[i] + hp - fp, gy[j] - bp, gx[i] + hp, gy[j] + bp
+			rect2 gx[i] - hp, gy[j] - bp, gx[i] - hp + fp, gy[j] + bp
+			rect2 gx[i] - hp + fp, gy[j] - wp, gx[i] + hp - fp, gy[j] + wp
+		else
+			rect2 gx[i] - hp, gy[j] - bp, gx[i] + hp, gy[j] + bp
+		endif
 	next j
 next i
-! 手すり（縁の内側 50）
+line_type ltS
+! 手すり（縁の内側 50。細線）
+pen pT
 if railS then line2 0, 0.05, lx, 0.05
 if railN then line2 0, ly - 0.05, lx, ly - 0.05
 if railE then line2 lx - 0.05, 0, lx - 0.05, ly
 if railW then line2 0.05, 0, 0.05, ly
-! スロープ（入口の側）と上る向きの矢
+! スロープ（入口の側。外形は太線）と上る向きの矢
 if slL > 0 then
+	pen pO
 	rect2 -slL, 0, 0, ly
+	pen pT
+	if drLv = 1 then
+		! 覆工板の目地（1m ごと）
+		for k = 1 to int(slL - 0.001)
+			line2 -k, 0, -k, ly
+		next k
+	endif
 	line2 -slL * 0.8, ly / 2, -slL * 0.2, ly / 2
 	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 + 0.25
 	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 - 0.25
-	add2 -slL / 2, ly / 2 + 0.6
+	drawindex 50
+	pen penEquip
+	add2 -slL / 2, ly / 2 + max(0.6, dT)
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "スロープ 1/" + str(slopeN, 1, 0)
 	del 2
 endif
-! 注記（名前・広さ・最大積載荷重。図面の向きに関係なく水平に）
+! 注記（名前・広さ・最大積載荷重。図面の向きに関係なく水平に。行送りは縮尺に合わせる。簡略は名前だけ）
+pen penEquip
 add2 lx / 2, ly / 2
 rot2 -SYMB_ROTANGLE
-text2 0, 0.6, kdName + " " + str(lx, 1, 0) + "×" + str(ly, 1, 0) + "m"
+tN1 = kdName + " " + str(lx, 1, 0) + "×" + str(ly, 1, 0) + "m"
 t3 = ""
 if n3 > 0 then t3 = "・1×3m " + str(nDX * n3, 1, 0) + "枚"
-text2 0, 0, "覆工板 1×2m " + str(nDX * n2, 1, 0) + "枚" + t3
-text2 0, -0.6, maxLd
+tN2 = "覆工板 1×2m " + str(nDX * n2, 1, 0) + "枚" + t3
+nTL = 1 + 2 * (drLv < 3)
+! 文字の後ろを背景の色で塗る（目地・隠れ線の上でも読めるように。幅は STW＝紙の上の mm）
+tW = max(STW(tN1), max(STW(tN2), STW(maxLd)) * (drLv < 3)) / 1000 * GLOB_SCALE / 2 + 0.1
+tH = dT * (nTL / 2 + 0.1)
+yT = dT * (drLv = 3)
+if mk then
+	drawindex 45
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		-tW, yT - tH, 1,
+		tW, yT - tH, 1,
+		tW, yT + tH, 1,
+		-tW, yT + tH, 1,
+		-tW, yT - tH, -1
+endif
+drawindex 50
+text2 0, dT, tN1
+if drLv < 3 then
+	text2 0, 0, tN2
+	text2 0, -dT, maxLd
+endif
 del 2
 ! 広げるホットスポット（X は右の辺の真ん中、Y は上の辺の真ん中）
 hotspot2 0, 0
@@ -58,171 +177,220 @@ hotspot2 -1, ly / 2, 103, lenX, 3
 hotspot2 lx / 2, 0, 104, lenY, 1 + 128
 hotspot2 lx / 2, lenY, 105, lenY, 2
 hotspot2 lx / 2, -1, 106, lenY, 3
-! 支柱の列・行を動かすホットスポット（列は手前の外、行は先の外の丸い印）
+! 支柱の列・行を動かすホットスポット（列は手前の外、行は先の外の丸い印。印から床の縁への線は通り芯の一点鎖線）
+pen pT
 if nPX >= 1 then
 	circle2 max(0, min(lx, gX1)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX1)), -0.48, max(0, min(lx, gX1)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 203, gX1, 1 + 128
 	hotspot2 gX1, -0.6, 204, gX1, 2
 	hotspot2 -1, -0.6, 205, gX1, 3
 endif
 if nPX >= 2 then
 	circle2 max(0, min(lx, gX2)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX2)), -0.48, max(0, min(lx, gX2)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 206, gX2, 1 + 128
 	hotspot2 gX2, -0.6, 207, gX2, 2
 	hotspot2 -1, -0.6, 208, gX2, 3
 endif
 if nPX >= 3 then
 	circle2 max(0, min(lx, gX3)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX3)), -0.48, max(0, min(lx, gX3)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 209, gX3, 1 + 128
 	hotspot2 gX3, -0.6, 210, gX3, 2
 	hotspot2 -1, -0.6, 211, gX3, 3
 endif
 if nPX >= 4 then
 	circle2 max(0, min(lx, gX4)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX4)), -0.48, max(0, min(lx, gX4)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 212, gX4, 1 + 128
 	hotspot2 gX4, -0.6, 213, gX4, 2
 	hotspot2 -1, -0.6, 214, gX4, 3
 endif
 if nPX >= 5 then
 	circle2 max(0, min(lx, gX5)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX5)), -0.48, max(0, min(lx, gX5)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 215, gX5, 1 + 128
 	hotspot2 gX5, -0.6, 216, gX5, 2
 	hotspot2 -1, -0.6, 217, gX5, 3
 endif
 if nPX >= 6 then
 	circle2 max(0, min(lx, gX6)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX6)), -0.48, max(0, min(lx, gX6)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 218, gX6, 1 + 128
 	hotspot2 gX6, -0.6, 219, gX6, 2
 	hotspot2 -1, -0.6, 220, gX6, 3
 endif
 if nPX >= 7 then
 	circle2 max(0, min(lx, gX7)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX7)), -0.48, max(0, min(lx, gX7)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 221, gX7, 1 + 128
 	hotspot2 gX7, -0.6, 222, gX7, 2
 	hotspot2 -1, -0.6, 223, gX7, 3
 endif
 if nPX >= 8 then
 	circle2 max(0, min(lx, gX8)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX8)), -0.48, max(0, min(lx, gX8)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 224, gX8, 1 + 128
 	hotspot2 gX8, -0.6, 225, gX8, 2
 	hotspot2 -1, -0.6, 226, gX8, 3
 endif
 if nPX >= 9 then
 	circle2 max(0, min(lx, gX9)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX9)), -0.48, max(0, min(lx, gX9)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 227, gX9, 1 + 128
 	hotspot2 gX9, -0.6, 228, gX9, 2
 	hotspot2 -1, -0.6, 229, gX9, 3
 endif
 if nPX >= 10 then
 	circle2 max(0, min(lx, gX10)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX10)), -0.48, max(0, min(lx, gX10)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 230, gX10, 1 + 128
 	hotspot2 gX10, -0.6, 231, gX10, 2
 	hotspot2 -1, -0.6, 232, gX10, 3
 endif
 if nPX >= 11 then
 	circle2 max(0, min(lx, gX11)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX11)), -0.48, max(0, min(lx, gX11)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 233, gX11, 1 + 128
 	hotspot2 gX11, -0.6, 234, gX11, 2
 	hotspot2 -1, -0.6, 235, gX11, 3
 endif
 if nPX >= 12 then
 	circle2 max(0, min(lx, gX12)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX12)), -0.48, max(0, min(lx, gX12)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 236, gX12, 1 + 128
 	hotspot2 gX12, -0.6, 237, gX12, 2
 	hotspot2 -1, -0.6, 238, gX12, 3
 endif
 if nPX >= 13 then
 	circle2 max(0, min(lx, gX13)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX13)), -0.48, max(0, min(lx, gX13)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 239, gX13, 1 + 128
 	hotspot2 gX13, -0.6, 240, gX13, 2
 	hotspot2 -1, -0.6, 241, gX13, 3
 endif
 if nPX >= 14 then
 	circle2 max(0, min(lx, gX14)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX14)), -0.48, max(0, min(lx, gX14)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 242, gX14, 1 + 128
 	hotspot2 gX14, -0.6, 243, gX14, 2
 	hotspot2 -1, -0.6, 244, gX14, 3
 endif
 if nPX >= 15 then
 	circle2 max(0, min(lx, gX15)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX15)), -0.48, max(0, min(lx, gX15)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 245, gX15, 1 + 128
 	hotspot2 gX15, -0.6, 246, gX15, 2
 	hotspot2 -1, -0.6, 247, gX15, 3
 endif
 if nPX >= 16 then
 	circle2 max(0, min(lx, gX16)), -0.6, 0.12
+	line_type ltC
 	line2 max(0, min(lx, gX16)), -0.48, max(0, min(lx, gX16)), 0
+	line_type ltS
 	hotspot2 0, -0.6, 248, gX16, 1 + 128
 	hotspot2 gX16, -0.6, 249, gX16, 2
 	hotspot2 -1, -0.6, 250, gX16, 3
 endif
 if nPY >= 1 then
 	circle2 lx + 0.6, max(0, min(ly, gY1)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY1)), lx, max(0, min(ly, gY1))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 303, gY1, 1 + 128
 	hotspot2 lx + 0.6, gY1, 304, gY1, 2
 	hotspot2 lx + 0.6, -1, 305, gY1, 3
 endif
 if nPY >= 2 then
 	circle2 lx + 0.6, max(0, min(ly, gY2)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY2)), lx, max(0, min(ly, gY2))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 306, gY2, 1 + 128
 	hotspot2 lx + 0.6, gY2, 307, gY2, 2
 	hotspot2 lx + 0.6, -1, 308, gY2, 3
 endif
 if nPY >= 3 then
 	circle2 lx + 0.6, max(0, min(ly, gY3)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY3)), lx, max(0, min(ly, gY3))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 309, gY3, 1 + 128
 	hotspot2 lx + 0.6, gY3, 310, gY3, 2
 	hotspot2 lx + 0.6, -1, 311, gY3, 3
 endif
 if nPY >= 4 then
 	circle2 lx + 0.6, max(0, min(ly, gY4)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY4)), lx, max(0, min(ly, gY4))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 312, gY4, 1 + 128
 	hotspot2 lx + 0.6, gY4, 313, gY4, 2
 	hotspot2 lx + 0.6, -1, 314, gY4, 3
 endif
 if nPY >= 5 then
 	circle2 lx + 0.6, max(0, min(ly, gY5)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY5)), lx, max(0, min(ly, gY5))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 315, gY5, 1 + 128
 	hotspot2 lx + 0.6, gY5, 316, gY5, 2
 	hotspot2 lx + 0.6, -1, 317, gY5, 3
 endif
 if nPY >= 6 then
 	circle2 lx + 0.6, max(0, min(ly, gY6)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY6)), lx, max(0, min(ly, gY6))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 318, gY6, 1 + 128
 	hotspot2 lx + 0.6, gY6, 319, gY6, 2
 	hotspot2 lx + 0.6, -1, 320, gY6, 3
 endif
 if nPY >= 7 then
 	circle2 lx + 0.6, max(0, min(ly, gY7)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY7)), lx, max(0, min(ly, gY7))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 321, gY7, 1 + 128
 	hotspot2 lx + 0.6, gY7, 322, gY7, 2
 	hotspot2 lx + 0.6, -1, 323, gY7, 3
 endif
 if nPY >= 8 then
 	circle2 lx + 0.6, max(0, min(ly, gY8)), 0.12
+	line_type ltC
 	line2 lx + 0.48, max(0, min(ly, gY8)), lx, max(0, min(ly, gY8))
+	line_type ltS
 	hotspot2 lx + 0.6, 0, 324, gY8, 1 + 128
 	hotspot2 lx + 0.6, gY8, 325, gY8, 2
 	hotspot2 lx + 0.6, -1, 326, gY8, 3

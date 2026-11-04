@@ -23,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import gdl_draft  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "src"))
@@ -74,6 +75,7 @@ def paramlist() -> str:
         _param("String", "kdName", "名前（注記）", "構台"),
         _param("String", "maxLd", "最大積載荷重の注記", "最大積載荷重 28.6t"),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
+        *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",
     ]
@@ -393,57 +395,136 @@ values "nLvP" range [1, {MAX_LV}]
 values "kdVeh" "T25", "R20", "R25", "R40", "R65", "C50"
 values "spMax" range [1.0, 12.0]
 values "slopeN" 0, range [6, 20]
-"""
+""" + gdl_draft.values()
 
 
-SCRIPT_2D = """﻿! 乗入れ構台 2D: 床の外形・覆工板の目地・支柱・手すり・スロープ・注記・広げるホットスポット
-pen penEquip
+SCRIPT_2D_T = """﻿! 乗入れ構台 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 床（覆工板）の外形は太線、覆工板の目地は細線、床の下の根太・大引・
+! 支柱は隠れ線（破線）、支柱の通り芯は一点鎖線。床とスロープは背景の色で塗って下の線（通路の帯・敷鉄板）を隠す。
+! 縮尺で 詳細（1/100: 根太・大引はフランジの幅の2本・支柱は H 形）・標準（1/200: 芯の1本・支柱は箱）・簡略（外形と支柱の芯だけ）
+@HEAD@
 define style "kdT" "ＭＳ Ｐゴシック", texSiz, 5, 0
 style "kdT"
-! 覆工板の目地（X に 1m・Y に覆工板の長さ）
-for i = 1 to nDX - 1
-	line2 i, 0, i, ly
-next i
-for j = 1 to nDY - 1
-	line2 0, ry[j + 1], lx, ry[j + 1]
-next j
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 床とスロープ: 下の線を隠す
+if mk then
+	drawindex 20
+@DECKMASK@
+	if slL > 0 then
+@SLOPEMASK@
+	endif
+endif
+! 床の外形（太線）
+drawindex 30
+pen pO
+line_type ltS
 rect2 0, 0, lx, ly
-! 支柱（H 形。フランジは X の両側に、幅は Y に。3D と同じ）
+! 覆工板の目地（X に 1m・Y に覆工板の長さ。細線。簡略は描かない）
+pen pT
+if drLv < 3 then
+	for i = 1 to nDX - 1
+		line2 i, 0, i, ly
+	next i
+	for j = 1 to nDY - 1
+		line2 0, ry[j + 1], lx, ry[j + 1]
+	next j
+endif
+! 床の下（隠れ線）: 根太は覆工板の継ぎ目ごとに X へ、大引は支柱の列ごとに Y へ
+drawindex 40
+line_type ltH
+if drLv < 3 then
+	hbJ = secB[kJ] / 2
+	for j = 1 to nDY + 1
+		yj = max(hbJ, min(ly - hbJ, ry[j]))
+		if drLv = 1 then
+			line2 0, yj - hbJ, lx, yj - hbJ
+			line2 0, yj + hbJ, lx, yj + hbJ
+		else
+			line2 0, yj, lx, yj
+		endif
+	next j
+	hbG = secB[kG] / 2
+	for i = 1 to nPX
+		if drLv = 1 then
+			line2 gx[i] - hbG, 0, gx[i] - hbG, ly
+			line2 gx[i] + hbG, 0, gx[i] + hbG, ly
+		else
+			line2 gx[i], 0, gx[i], ly
+		endif
+	next i
+endif
+! 支柱（H 形。フランジは X の両側に、幅は Y に。3D と同じ。床の下なので隠れ線）
 hp = secH[kP] / 2
 bp = secB[kP] / 2
 fp = secF[kP]
 wp = secW[kP] / 2
 for i = 1 to nPX
 	for j = 1 to nPY
-		rect2 gx[i] + hp - fp, gy[j] - bp, gx[i] + hp, gy[j] + bp
-		rect2 gx[i] - hp, gy[j] - bp, gx[i] - hp + fp, gy[j] + bp
-		rect2 gx[i] - hp + fp, gy[j] - wp, gx[i] + hp - fp, gy[j] + wp
+		if drLv = 1 then
+			rect2 gx[i] + hp - fp, gy[j] - bp, gx[i] + hp, gy[j] + bp
+			rect2 gx[i] - hp, gy[j] - bp, gx[i] - hp + fp, gy[j] + bp
+			rect2 gx[i] - hp + fp, gy[j] - wp, gx[i] + hp - fp, gy[j] + wp
+		else
+			rect2 gx[i] - hp, gy[j] - bp, gx[i] + hp, gy[j] + bp
+		endif
 	next j
 next i
-! 手すり（縁の内側 50）
+line_type ltS
+! 手すり（縁の内側 50。細線）
+pen pT
 if railS then line2 0, 0.05, lx, 0.05
 if railN then line2 0, ly - 0.05, lx, ly - 0.05
 if railE then line2 lx - 0.05, 0, lx - 0.05, ly
 if railW then line2 0.05, 0, 0.05, ly
-! スロープ（入口の側）と上る向きの矢
+! スロープ（入口の側。外形は太線）と上る向きの矢
 if slL > 0 then
+	pen pO
 	rect2 -slL, 0, 0, ly
+	pen pT
+	if drLv = 1 then
+		! 覆工板の目地（1m ごと）
+		for k = 1 to int(slL - 0.001)
+			line2 -k, 0, -k, ly
+		next k
+	endif
 	line2 -slL * 0.8, ly / 2, -slL * 0.2, ly / 2
 	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 + 0.25
 	line2 -slL * 0.2, ly / 2, -slL * 0.2 - 0.4, ly / 2 - 0.25
-	add2 -slL / 2, ly / 2 + 0.6
+	drawindex 50
+	pen penEquip
+	add2 -slL / 2, ly / 2 + max(0.6, dT)
 	rot2 -SYMB_ROTANGLE
 	text2 0, 0, "スロープ 1/" + str(slopeN, 1, 0)
 	del 2
 endif
-! 注記（名前・広さ・最大積載荷重。図面の向きに関係なく水平に）
+! 注記（名前・広さ・最大積載荷重。図面の向きに関係なく水平に。行送りは縮尺に合わせる。簡略は名前だけ）
+pen penEquip
 add2 lx / 2, ly / 2
 rot2 -SYMB_ROTANGLE
-text2 0, 0.6, kdName + " " + str(lx, 1, 0) + "×" + str(ly, 1, 0) + "m"
+tN1 = kdName + " " + str(lx, 1, 0) + "×" + str(ly, 1, 0) + "m"
 t3 = ""
 if n3 > 0 then t3 = "・1×3m " + str(nDX * n3, 1, 0) + "枚"
-text2 0, 0, "覆工板 1×2m " + str(nDX * n2, 1, 0) + "枚" + t3
-text2 0, -0.6, maxLd
+tN2 = "覆工板 1×2m " + str(nDX * n2, 1, 0) + "枚" + t3
+nTL = 1 + 2 * (drLv < 3)
+! 文字の後ろを背景の色で塗る（目地・隠れ線の上でも読めるように。幅は STW＝紙の上の mm）
+tW = max(STW(tN1), max(STW(tN2), STW(maxLd)) * (drLv < 3)) / 1000 * GLOB_SCALE / 2 + 0.1
+tH = dT * (nTL / 2 + 0.1)
+yT = dT * (drLv = 3)
+if mk then
+	drawindex 45
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		-tW, yT - tH, 1,
+		tW, yT - tH, 1,
+		tW, yT + tH, 1,
+		-tW, yT + tH, 1,
+		-tW, yT - tH, -1
+endif
+drawindex 50
+text2 0, dT, tN1
+if drLv < 3 then
+	text2 0, 0, tN2
+	text2 0, -dT, maxLd
+endif
 del 2
 ! 広げるホットスポット（X は右の辺の真ん中、Y は上の辺の真ん中）
 hotspot2 0, 0
@@ -457,6 +538,11 @@ hotspot2 lx / 2, 0, 104, lenY, 1 + 128
 hotspot2 lx / 2, lenY, 105, lenY, 2
 hotspot2 lx / 2, -1, 106, lenY, 3
 """
+
+SCRIPT_2D = (SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
+             .replace("@DECKMASK@", gdl_draft.rect_mask("0", "0", "lx", "ly", "\t").rstrip("\n"))
+             .replace("@SLOPEMASK@", gdl_draft.rect_mask("-slL", "0", "0", "ly", "\t\t").rstrip("\n")))
+
 
 SCRIPT_3D = """﻿! 乗入れ構台 3D
 define material "kd_deck" 2, 0.36, 0.37, 0.38
@@ -723,17 +809,18 @@ return
 
 def _hot2d() -> str:
     """支柱の列（X）は床の手前の外 0.6 に、行（Y）は先の外 0.6 に丸い印とホットスポット。引くとその列・行の支柱と大引が動く."""
-    out = ["! 支柱の列・行を動かすホットスポット（列は手前の外、行は先の外の丸い印）"]
+    out = ["! 支柱の列・行を動かすホットスポット（列は手前の外、行は先の外の丸い印。印から床の縁への線は通り芯の一点鎖線）",
+           "pen pT"]
     for i in range(1, MAX_GX + 1):
         b = 200 + 3 * i
         out += [f"if nPX >= {i} then", f"\tcircle2 max(0, min(lx, gX{i})), -0.6, 0.12",
-                f"\tline2 max(0, min(lx, gX{i})), -0.48, max(0, min(lx, gX{i})), 0",
+                "\tline_type ltC", f"\tline2 max(0, min(lx, gX{i})), -0.48, max(0, min(lx, gX{i})), 0", "\tline_type ltS",
                 f"\thotspot2 0, -0.6, {b}, gX{i}, 1 + 128", f"\thotspot2 gX{i}, -0.6, {b + 1}, gX{i}, 2",
                 f"\thotspot2 -1, -0.6, {b + 2}, gX{i}, 3", "endif"]
     for j in range(1, MAX_GY + 1):
         b = 300 + 3 * j
         out += [f"if nPY >= {j} then", f"\tcircle2 lx + 0.6, max(0, min(ly, gY{j})), 0.12",
-                f"\tline2 lx + 0.48, max(0, min(ly, gY{j})), lx, max(0, min(ly, gY{j}))",
+                "\tline_type ltC", f"\tline2 lx + 0.48, max(0, min(ly, gY{j})), lx, max(0, min(ly, gY{j}))", "\tline_type ltS",
                 f"\thotspot2 lx + 0.6, 0, {b}, gY{j}, 1 + 128", f"\thotspot2 lx + 0.6, gY{j}, {b + 1}, gY{j}, 2",
                 f"\thotspot2 lx + 0.6, -1, {b + 2}, gY{j}, 3", "endif"]
     return "\n".join(out) + "\n"

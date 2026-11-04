@@ -33,3 +33,4 @@ values "nLvP" range [1, 8]
 values "kdVeh" "T25", "R20", "R25", "R40", "R65", "C50"
 values "spMax" range [1.0, 12.0]
 values "slopeN" 0, range [6, 20]
+values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"
