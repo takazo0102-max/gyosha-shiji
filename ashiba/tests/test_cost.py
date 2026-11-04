@@ -115,5 +115,22 @@ class TestMonthly(unittest.TestCase):
         self.assertIn("| 月 | 金額 | 累計 |", md)
 
 
+class TestGuards(unittest.TestCase):
+    def test_guard_days(self):
+        """交通誘導員（場内通路.md のゲート）は仮囲いの設置〜撤去の稼働日に毎日【目安】、guard_days で搬入の日だけに."""
+        q = Quantities(hoarding_m=40, guards=1, scaffold_m2=100, scaffold_h=10)
+        c = ScheduleConditions(start=dt.date(2027, 4, 1), floors=3)
+        t = build(q, c)
+        cal = WorkCalendar()
+        schedule(t, cal, c.start)
+        p = {k: v[0] for k, v in cost.DEFAULTS.items()}
+        g = next(r for r in cost.estimate(t, q, p, cal=cal) if r.item.startswith("交通誘導員"))
+        tk = {k.key: k for k in t}
+        wd = cal.count(tk["kakoi"].start, tk["kakoi_x"].end)
+        self.assertEqual((g.qty, g.labor, g.guess), (wd, round(wd * 18700 * 1.47), True))
+        g = next(r for r in cost.estimate(t, q, p, cal=cal, guard_days=40) if r.item.startswith("交通誘導員"))
+        self.assertEqual((g.qty, g.guess), (40, False))
+
+
 if __name__ == "__main__":
     unittest.main()

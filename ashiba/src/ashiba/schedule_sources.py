@@ -29,6 +29,7 @@ class Quantities:
     house_units: int = 0                    # 仮設建物のユニット
     toilet_units: int = 0
     plates: int = 0                         # 敷鉄板（枚）
+    guards: int = 0                         # 交通誘導員（ゲート。場内通路.md）
     excavation_m3: float = 0.0
     backfill_m3: float = 0.0
     soil_out_m3: float = 0.0
@@ -129,6 +130,8 @@ def collect(out: Path, name: str = "") -> Quantities:
     # 敷鉄板（敷鉄板・場内通路）
     for name in ("敷鉄板.md", "場内通路.md"):
         for r in md_rows(_read(out / name)):
+            if len(r) >= 2 and r[0].startswith("交通誘導員") and name == "場内通路.md":
+                q.guards = max(q.guards, int(_num(r[1])))
             if len(r) >= 2 and r[0].startswith("厚板鋼板"):
                 q.plates += int(_num(r[1]))
                 q.sources["敷鉄板"] = q.sources.get("敷鉄板", "") + ("・" if q.sources.get("敷鉄板") else "") + name

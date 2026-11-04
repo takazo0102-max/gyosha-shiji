@@ -141,7 +141,8 @@ def main(argv=None) -> int:
     from ashiba.xlsx_writer import Workbook
 
     months = c.work_months or round(((s1 - c.start).days + 1) / 30.0, 1)
-    rows = cost.estimate(tasks, q, cost.load_prices(out), c.crews, c.direct_cost_k, months)
+    rows = cost.estimate(tasks, q, cost.load_prices(out), c.crews, c.direct_cost_k, months, cal=cal,
+                         guard_days=int(c.override.get("guard_days", 0) or 0))
     ctitle = f"仮設工事の金額（概算）　{c.name}".rstrip()
     wb = Workbook()
     cost.to_sheet(wb, rows, ctitle)

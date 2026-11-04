@@ -39,7 +39,7 @@ SRC_P = "国交省 施工パッケージ R8 東京17区 No.382 覆工板設置�
 
 # 労務単価（円／人日、東京、R8.3 から）
 LABOR = {"とび工": 33100, "普通作業員": 27000, "特殊作業員": 30700, "軽作業員": 18700, "運転手（特殊）": 31100,
-         "鉄骨工": 29800, "型わく工": 33000, "土木一般世話役": 34400, "電工": 34300}
+         "鉄骨工": 29800, "型わく工": 33000, "土木一般世話役": 34400, "電工": 34300, "交通誘導警備員B": 18700}
 OVERHEAD = 0.47                 # 専門工事業者の諸経費（労務費の 42〜52％、K 表3 S4 頁）の中ほど【目安】
 # 1班の編成（schedule_rates の班の人数と同じ）
 CREW = {"足場組立": {"とび工": 5}, "足場解体": {"とび工": 5}, "養生シート": {"とび工": 2},
@@ -176,7 +176,7 @@ def common_rate(direct_k: float, months: float) -> float:
 
 
 def estimate(tasks: list[Task], q: Quantities, prices: dict, crews: dict | None = None, direct_k: float = 0.0,
-             work_months: float = 0.0, scaffold_width: int = 900) -> list[CostRow]:
+             work_months: float = 0.0, scaffold_width: int = 900, cal=None, guard_days: int = 0) -> list[CostRow]:
     """工程表の作業と数量 → 項目ごとの金額."""
     by = {t.key: t for t in tasks}
     crews = crews or {}
@@ -244,6 +244,20 @@ def estimate(tasks: list[Task], q: Quantities, prices: dict, crews: dict | None 
         cu = price("クレーン付きトラック4.9t（日・オペ付き）", r)
         r.machine = round(cu * nd)
         r.guess = True
+        rows.append(r)
+    # ---- 交通誘導員（ゲート。共通費積算基準では率に含めず積み上げ）----
+    sp = span("kakoi", "kakoi_x") or span("plate", "plate_x")
+    if q.guards and sp:
+        wd = cal.count(sp[0], sp[1]) if cal else round(((sp[1] - sp[0]).days + 1) * 6 / 7)
+        every = not guard_days
+        if guard_days:
+            wd = int(guard_days)                                    # 条件（搬入のある日だけ）
+        day = LABOR["交通誘導警備員B"]
+        r = CostRow("共通仮設（積み上げ）", "交通誘導員（ゲート）", q.guards * wd, "人日",
+                    labor=round(q.guards * wd * day * (1 + OVERHEAD)),
+                    basis=[f"{q.guards}人 × {wd}日（" + ("仮囲いの設置〜撤去の稼働日に毎日つく【目安】" if every else "条件の guard_days")
+                           + f"）× 交通誘導警備員B {day:,}円×1.{round(OVERHEAD * 100)}（{SRC_L} p12）。"
+                           + ("搬入のある日だけなら工程表_条件.json の override に guard_days を入れる" if every else "")], guess=every)
         rows.append(r)
     # ---- 山留め・土工 ----
     if "yama" in by and by["yama"].qty:
@@ -387,7 +401,8 @@ PERIODS = (("外部足場", ("sc_up", "sc_dn"), ("sc_up", "sc_dn")), ("養生シ
            ("敷鉄板", ("plate", "plate_x"), ("plate", "plate_x")), ("山留め", ("yama", "yama_x"), ("yama", "yama_x")),
            ("1次根切り", ("ex1",), None), ("2次根切り", ("ex2",), None), ("埋戻し", ("fill",), None),
            ("乗入れ構台", ("kodai", "kodai_x"), ("kodai", "kodai_x")), ("タワークレーン", ("tc_up", "tc_dn"), ("tc_up", "tc_dn")),
-           ("仮設建物", ("house", "house_x"), ("house", "house_x")), ("仮設電気", ("util",), None))
+           ("仮設建物", ("house", "house_x"), ("house", "house_x")), ("仮設電気", ("util",), None),
+           ("交通誘導員", (), ("kakoi", "kakoi_x")))
 
 
 def _spread(out: dict, d0: _dt.date, d1: _dt.date, yen: float) -> None:
@@ -430,6 +445,8 @@ def monthly(rows: list[CostRow], tasks: list[Task], include_reference: bool = Fa
         if ws:
             for t in ws:
                 _spread(out, t.start, t.end, lm / len(ws))
+        elif span and span[0] in by and span[1] in by:                 # 期間についている手間（交通誘導員）
+            _spread(out, by[span[0]].start, by[span[1]].end, lm)
         else:
             _spread(out, s0, s1, lm)
         if span and span[0] in by and span[1] in by:
