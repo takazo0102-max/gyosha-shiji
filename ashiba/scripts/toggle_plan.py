@@ -33,6 +33,31 @@ def current_step(params: dict) -> str:
     return "精細" if params.get("planReal") else "詳細"
 
 
+def _scope(c, lines, attach):
+    """足場（足場ライン・付属の部品）を選んでいればそれだけ、選んでいなければ全部（利用者の指定 2026-11-05「使いやすいように」:
+    1本を選んで押しても見本を含むプロジェクトの全部が変わっていた）. → (lines, attach, 説明)."""
+    try:
+        sel = {e["elementId"]["guid"].upper() for e in c.get_selected_elements()}
+    except Exception:
+        sel = set()
+    sl = [e for e in lines if e["elementId"]["guid"].upper() in sel]
+    sa = [e for e in attach if e["elementId"]["guid"].upper() in sel]
+    if sl or sa:
+        return sl, sa, "選んだ足場"
+    return lines, attach, "プロジェクトの全部の足場"
+
+
+def _values(c, els, names) -> list[dict]:
+    """部品ごとの値 {name: value}（持っていない部品は空）. 200個ずつ読む."""
+    out = []
+    for i in range(0, len(els), 200):
+        resp = c.tapir("GetGDLParametersOfElements", {"elements": els[i:i + 200]})
+        for item in resp.get("gdlParametersOfElements", []):
+            out.append({row.get("name"): row.get("value") for row in item.get("gdlParameters", item.get("parameters", []))
+                        if row.get("name") in names})
+    return out
+
+
 def next_step(current: str) -> tuple[str, bool, bool]:
     names = [s[0] for s in STEPS]
     i = names.index(current) if current in names else 0
@@ -52,22 +77,20 @@ def main() -> int:
     if not lines:
         print("足場ラインがありません（先にツールバーで配置してください）")
         return 1
+    lines, _a, where = _scope(c, lines, [])
     if want:
         step = next((s for s in STEPS if s[0] == want.replace("（実寸）", "")), None)
         if step is None:
             print(f"段階が分かりません: {want}（{'／'.join(s[0] for s in STEPS)}）")
             return 2
     else:
-        resp = c.tapir("GetGDLParametersOfElements", {"elements": lines[:1]})
-        cur = {}
-        for item in resp.get("gdlParametersOfElements", []):
-            for row in item.get("gdlParameters", item.get("parameters", [])):
-                if row.get("name") in ("planSimple", "planReal"):
-                    cur[row["name"]] = bool(float(row.get("value") or 0))
-        step = next_step(current_step(cur))
+        # 今の状態は値を持つ部品の多い方（最初の1本が古い版で値を持たないと、いつも「精細」に進んで切り替わらなかった）
+        names = [current_step({k: bool(float(v[k] or 0)) for k in v}) for v in _values(c, lines, ("planSimple", "planReal"))
+                 if "planReal" in v or "planSimple" in v]
+        step = next_step(max(set(names), key=names.count) if names else "詳細")
     label, simple, real = step
     n = c.set_gdl_parameters_many([(e, {"planSimple": simple, "planReal": real}) for e in lines])
-    print(f"足場の平面表示: {label}{'（実寸）' if real else ''}（足場ライン {n}本）")
+    print(f"足場の平面表示: {label}{'（実寸）' if real else ''}（{where}: 足場ライン {n}本）")
     print("モデル表示オプションの「平面の表現」で単線・精細を指定していればそちらが優先です")
     return 0
 

@@ -26,6 +26,31 @@ STEPS = ((0, "自動"), (2, "軽量"), (3, "線"), (4, "ブロック"), (1, "精
 ATTACH = ("ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet")
 
 
+def _scope(c, lines, attach):
+    """足場（足場ライン・付属の部品）を選んでいればそれだけ、選んでいなければ全部（利用者の指定 2026-11-05「使いやすいように」:
+    1本を選んで押しても見本を含むプロジェクトの全部が変わっていた）. → (lines, attach, 説明)."""
+    try:
+        sel = {e["elementId"]["guid"].upper() for e in c.get_selected_elements()}
+    except Exception:
+        sel = set()
+    sl = [e for e in lines if e["elementId"]["guid"].upper() in sel]
+    sa = [e for e in attach if e["elementId"]["guid"].upper() in sel]
+    if sl or sa:
+        return sl, sa, "選んだ足場"
+    return lines, attach, "プロジェクトの全部の足場"
+
+
+def _values(c, els, names) -> list[dict]:
+    """部品ごとの値 {name: value}（持っていない部品は空）. 200個ずつ読む."""
+    out = []
+    for i in range(0, len(els), 200):
+        resp = c.tapir("GetGDLParametersOfElements", {"elements": els[i:i + 200]})
+        for item in resp.get("gdlParametersOfElements", []):
+            out.append({row.get("name"): row.get("value") for row in item.get("gdlParameters", item.get("parameters", []))
+                        if row.get("name") in names})
+    return out
+
+
 def next_step(current: int) -> tuple[int, str]:
     codes = [c for c, _ in STEPS]
     i = codes.index(current) if current in codes else 0
@@ -47,23 +72,21 @@ def main() -> int:
     if not lines:
         print("足場ラインがありません（先にツールバーで配置してください）")
         return 1
+    lines, attach, where = _scope(c, lines, attach)
     if want:
         step = next(((c_, n) for c_, n in STEPS if n == want), None)
         if step is None:
             print(f"段階が分かりません: {want}（{'／'.join(n for _, n in STEPS)}）")
             return 2
     else:
-        resp = c.tapir("GetGDLParametersOfElements", {"elements": lines[:1]})
-        cur = 0
-        for item in resp.get("gdlParametersOfElements", []):
-            for row in item.get("gdlParameters", item.get("parameters", [])):
-                if row.get("name") == "detail3d":
-                    cur = int(round(float(row.get("value") or 0)))
+        # 今の状態は値を持つ部品の多い方（最初の1本が古い版で値を持たないと、いつも同じ段に進んだ）
+        vals = [int(round(float(v["detail3d"] or 0))) for v in _values(c, lines, ("detail3d",)) if "detail3d" in v]
+        cur = max(set(vals), key=vals.count) if vals else 0
         step = next_step(cur)
     code, label = step
     n = c.set_gdl_parameters_many([(e, {"detail3d": code}) for e in lines])
     m = c.set_gdl_parameters_many([(e, {"lineMode": code in (3, 4)}) for e in attach]) if attach else 0
-    print(f"足場部品 3D表示: {label}（足場ライン {n}本・壁つなぎ／ネット類 {m}個）")
+    print(f"足場部品 3D表示: {label}（{where}: 足場ライン {n}本・壁つなぎ／ネット類 {m}個）")
     print("自動は面の大きさで精細と軽量を選びます。モデル表示オプションの「足場の3D」を指定していればそちらが優先です")
     return 0
 
