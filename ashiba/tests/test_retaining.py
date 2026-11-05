@@ -137,6 +137,23 @@ class TestSupports(unittest.TestCase):
         self.assertAlmostEqual(q["切梁（積算）"].qty, 11.7 * 7.7 * 2, places=1)
         self.assertEqual(q["腹起しのブラケット"].qty, (7 + 5) * 2 * 2)
 
+    def test_braces_jacks_cap(self):
+        """隅火打ち（90°の角・45°・受ピース2個）、キリンジャッキ（切梁1本に1台・千鳥・主材から 0.5m 控除）、自立なら頭つなぎ."""
+        w = wall(depth=5000.0)
+        self.assertTrue(all(e.hiuchi for e in w.edges))
+        q = {x.item.strip(): x for x in RT.quantities(w)}
+        self.assertEqual(q["隅火打ち"].qty, 4 * 2)
+        self.assertEqual(q["火打受ピース"].qty, 4 * 2 * 2)
+        self.assertEqual(q["キリンジャッキ"].qty, 3 * 2)
+        self.assertIn("38.4m", q["切梁"].note)                    # (6.9m×3 − 0.5×3)×2段
+        narrow = [e for e in w.edges if e.strut_x]
+        self.assertEqual(sorted(e.jack_par for e in narrow), [0, 1])  # 向かい合う辺で交互
+        self.assertFalse(wall(depth=5000.0, pts=[(0.0, 0.0), (4500.0, 0.0), (4500.0, 3000.0), (0.0, 3000.0)]).edges[0].hiuchi)
+        free = wall(depth=3000.0)
+        self.assertEqual(next(x for x in RT.quantities(free) if x.item == "頭つなぎ").qty, 40.0)
+        self.assertTrue(RT.part_params(free, free.edges[0])["capOn"])
+        self.assertFalse(RT.cap_tie(wall("smw", depth=3000.0)))
+
     def test_support_options(self):
         self.assertEqual(wall(depth=3000.0).wales, [])                          # 自動は 3m まで自立
         self.assertEqual(wall(depth=3000.0, support="wale").wales, [1000.0])

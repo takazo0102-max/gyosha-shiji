@@ -181,8 +181,14 @@ if ywKind = 8 then
 	next i
 	yTx = tbD / 2
 endif
+if capOn and drLv < 3 then
+	! 頭つなぎ（杭頭の溝形鋼）
+	drawindex 30
+	pen pO
+	rect2 0, -faceY - capB, ywL, -faceY
+endif
 if nWl > 0 and drLv < 3 then
-	! 腹起し・切梁（GL の下なので隠れ線）
+	! 腹起し・切梁・隅火打ち（GL の下なので隠れ線）
 	drawindex 40
 	pen pT
 	line_type ltH
@@ -192,6 +198,11 @@ if nWl > 0 and drLv < 3 then
 		line2 sbP[j] - wlB / 2, yW - wlH, sbP[j] - wlB / 2, yW - wlH - sbLs[j]
 		line2 sbP[j] + wlB / 2, yW - wlH, sbP[j] + wlB / 2, yW - wlH - sbLs[j]
 	next j
+	if hiA > 0.01 then
+		fw = -(yW - wlH)
+		line2 fw, -fw - hiA, fw + hiA, -fw
+		line2 fw + wlH * 0.707, -fw - hiA - wlH * 0.707, fw + hiA + wlH * 0.707, -fw - wlH * 0.707
+	endif
 	line_type ltS
 endif
 drawindex 50

@@ -85,6 +85,13 @@ BRACKET_END_MM = 150.0               # 腹起しの端からブラケットま�
 STRUT_PITCH_MM = 5000.0
 STRUT_OVERDIG_MM = 1000.0            # 切梁の下の余掘り（1次根切りの底＝腹起しの下端＋1.0m）
 AUTO_SUPPORT_DEPTH_MM = 3000.0       # 「自動」はこれより深いと腹起し・切梁を描く【目安。自立にできるかは山留めの計算で】
+# 隅火打ち・キリンジャッキ・頭つなぎ（調べ: research_notes/山留めの種類/支保工の付属部材.md）
+HIUCHI_MAIN_MM = 2000.0              # 隅火打ちの主材の長さ【目安。主材は 1.0〜7.0m・0.5m 刻み: ヒロセ p.15】
+HIUCHI_LEG_MM = (HIUCHI_MAIN_MM + 1000.0) / math.sqrt(2.0)   # 隅からの脚 ≒（主材＋受ピース 0.5m×2）／√2【目安】
+HIUCHI_PIECE = (450.0, 260.0, 371.0, 50.0)    # 火打受ピース 45°: 底・幅・高さ mm・kg（ヒロセ p.16）
+JACK = (500.0, 298.0, 100.0)         # キリンジャッキ KJ-150: 長さ（450〜600 の中ほど）・端板の角 mm・kg（ヒロセ p.09・p.29）
+PIECE_DEDUCT_MM = 500.0              # 火打受ピース・キリンジャッキは主材の長さから 0.5m ずつ控除（国総研 数量要領 R8 1-11-4）
+CAP_CHANNEL = ("[-150×75×6.5", 150.0, 75.0, 6.5, 18.6)     # 頭つなぎ（自立の杭頭に溝形鋼等: 中部地整 河川構造物設計要領 3-1-56）【寸法は目安】
 CORNER_GAP_MM = 5.0                  # 角の杭のフランジと矢板の端のすき間【目安】
 WALE_FIRST_MM = 1000.0               # 腹起しの第1段は杭頭から 1m 以内（九州 共2-24）
 WALE_STEP_MM = 3000.0                # その下は 3m 程度ごと
@@ -203,6 +210,8 @@ class Edge:
     brackets: list = field(default_factory=list)       # 腹起しのブラケットの位置
     strut_x: list = field(default_factory=list)        # 切梁の位置（狭い向きの辺だけ）
     strut_len: list = field(default_factory=list)      # 切梁の長さ（腹起しの前の面から根切りの中心まで。向かいの辺の部品と合わせて1本）
+    jack_par: int = 0                                  # キリンジャッキを千鳥に: 切梁 j・段 k で (j+k) が偶数なら この辺の側（0）か向かい（1）
+    hiuchi: bool = False                               # 始めの角（90°）に隅火打ち
     width: float = 0.0                                 # たて込み: 掘削幅（向かいの土留めまで。0＝分からない）
 
 
@@ -487,6 +496,19 @@ def plan_supports(w: Wall) -> None:
         span = e.wale_x[1] - e.wale_x[0]
         k = max(1, math.ceil((span - 2 * BRACKET_END_MM) / BRACKET_PITCH_MM - 1e-6))
         e.brackets = [x0 + BRACKET_END_MM + (span - 2 * BRACKET_END_MM) * j / k for j in range(k + 1)]
+    # 隅火打ち: 始めの角が 90°（根切りの側に凸）の辺に。脚は腹起しの前の面から HIUCHI_LEG_MM
+    pts = w.pts
+    for i, e in enumerate(w.edges):
+        if not w.closed and i == 0:
+            continue
+        a = pts[i - 1] if (w.closed or i > 0) else None
+        u0 = ((e.a[0] - a[0]), (e.a[1] - a[1]))
+        u1 = ((e.b[0] - e.a[0]), (e.b[1] - e.a[1]))
+        L0, L1 = math.hypot(*u0) or 1.0, math.hypot(*u1) or 1.0
+        cross = (u0[0] * u1[1] - u0[1] * u1[0]) / (L0 * L1)
+        dot = (u0[0] * u1[0] + u0[1] * u1[1]) / (L0 * L1)
+        # 時計回り（中が右）で右に折れる角（cross < 0）が根切りの側に凸。90°±5°だけ
+        e.hiuchi = cross < -0.99 and abs(dot) < 0.09 and min(L0, e.length) > 2 * (f + H + HIUCHI_LEG_MM)
     if not w.closed:
         return
     segs = list(zip(w.pts, w.pts[1:] + w.pts[:1]))
@@ -499,9 +521,12 @@ def plan_supports(w: Wall) -> None:
     if not known:
         return
     narrow = min(known)
+    par = 0
     for i, e in enumerate(w.edges):
         if not (0 < widths[i] <= narrow * 1.2 + 1.0):
             continue
+        e.jack_par = par
+        par = 1 - par
         # 腹起しの両端の止め方は非対称（始めは突き当て・終わりは通し）なので、切梁は辺の真ん中に対して対称に割る（向かいの辺の切梁と
         # 同じ位置になり、2つの部品の半分ずつが1本につながる）
         x0, x1 = f + H, e.length - f - H
@@ -788,7 +813,16 @@ def quantities(w: Wall) -> list[Qty]:
         out.append(Qty("  継手 P-P", f"φ{JOINT_D_MM:g}×{JOINT_T_MM:g}（{jk:.1f}kg/m）", n * 2, "本", "1本の両側に（標準製作仕様 p.3）"))
     if w.wales:
         out += support_quantities(w)
+    elif cap_tie(w):
+        n, h, b, t, kgm = CAP_CHANNEL
+        out.append(Qty("頭つなぎ", f"{n}（{kgm:g}kg/m）【寸法は目安】", perim / 1000.0, "m",
+                       f"{perim / 1000.0 * kgm / 1000:.2f}t。自立の杭頭に溝形鋼等（中部地整 河川構造物設計要領 3-1-56）"))
     return out
+
+
+def cap_tie(w: Wall) -> bool:
+    """頭つなぎを付けるか（自立の親杭横矢板・鋼矢板）."""
+    return not w.wales and w.kind in ("oyagui", "sp_u", "sp_hat")
 
 
 def support_quantities(w: Wall) -> list[Qty]:
@@ -806,9 +840,18 @@ def support_quantities(w: Wall) -> list[Qty]:
                "コンクリート・既製の裏込め材（ヒロセ p.6）")]
     pairs = sum(len(e.strut_x) for e in w.edges) / 2.0
     if pairs:
-        slen = sum(sum(e.strut_len) for e in w.edges)
+        slen = sum(sum(e.strut_len) for e in w.edges) - pairs * PIECE_DEDUCT_MM      # ジャッキの分を主材から控除
         out.append(Qty("切梁", f"{shape} 水平 {STRUT_PITCH_MM / 1000:g}m 以下・{nl}段", pairs * nl, "本",
-                       f"延べ {slen * nl / 1000.0:.1f}m・{slen * nl / 1000.0 * kg / 1000.0:.2f}t（ジャッキ・火打ちは別）"))
+                       f"主材 延べ {slen * nl / 1000.0:.1f}m・{slen * nl / 1000.0 * kg / 1000.0:.2f}t（ジャッキ 0.5m を控除: 数量要領 R8 1-11-4）"))
+        out.append(Qty("  キリンジャッキ", f"KJ-150 {JACK[0]:.0f}（450〜600）・端板 {JACK[1]:.0f}□", pairs * nl, "台",
+                       f"{pairs * nl * JACK[2] / 1000:.2f}t。切梁1本に1台・千鳥に（ヒロセ p.29・藤田金屬 p.15）"))
+        nh = sum(1 for e in w.edges if e.hiuchi)
+        if nh:
+            hl = (HIUCHI_MAIN_MM) / 1000.0
+            out.append(Qty("隅火打ち", f"{shape} 主材 {hl:g}m・45°【主材の長さは目安】", nh * nl, "本",
+                           f"{nh * nl * hl * kg / 1000:.2f}t（角 {nh}か所×{nl}段。45°対称: 九州 共2-29）"))
+            out.append(Qty("  火打受ピース", f"45° 底 {HIUCHI_PIECE[0]:.0f}×幅 {HIUCHI_PIECE[1]:.0f}", nh * nl * 2, "個",
+                           f"{nh * nl * 2 * HIUCHI_PIECE[3] / 1000:.2f}t（ヒロセ p.16）"))
         area = abs(_area(inner_polygon(w))) / 1e6 if w.closed else 0.0
         if area:
             out.append(Qty("  切梁（積算）", f"根切り面積 {area:.1f}m² × {nl}段", area * nl, "m²", "各段ごとの根切り面積（公共建築数量積算基準 R5 p.8）"))
@@ -897,7 +940,12 @@ def part_params(w: Wall, e: Edge) -> dict:
         H, B, t1, t2, _kg = H_SHAPES[wale_shape(w)[0]]
         p.update({"wlZ": _mm(w.wales), "wlH": H / 1000.0, "wlB": B / 1000.0, "wlT1": t1 / 1000.0, "wlT2": t2 / 1000.0,
                   "wlGap": WALE_GAP_MM / 1000.0, "wlX0": e.wale_x[0] / 1000.0, "wlX1": e.wale_x[1] / 1000.0,
-                  "brX": _mm(e.brackets), "sbX": _mm(e.strut_x), "sbL": _mm(e.strut_len)})
+                  "brX": _mm(e.brackets), "sbX": _mm(e.strut_x), "sbL": _mm(e.strut_len),
+                  "jkPar": e.jack_par, "jkL": JACK[0] / 1000.0, "jkW": JACK[1] / 1000.0,
+                  "hiA": (HIUCHI_LEG_MM / 1000.0) if e.hiuchi else 0.0})
+    p["capOn"] = cap_tie(w)
+    if cap_tie(w):
+        p.update({"capH": CAP_CHANNEL[1] / 1000.0, "capB": CAP_CHANNEL[2] / 1000.0})
     if w.kind == "tatekomi":
         p["zBot"] = -w.depth / 1000.0
         p["zTop"] = (tatekomi_rail(w)[0] - w.depth) / 1000.0

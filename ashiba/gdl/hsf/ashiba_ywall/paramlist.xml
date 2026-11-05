@@ -249,6 +249,34 @@
 			<Description><![CDATA["切梁の長さ（腹起しの前の面から根切りの中心まで mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
+		<Integer Name="jkPar">
+			<Description><![CDATA["キリンジャッキを千鳥に（切梁 j・段 k の j+k が偶数で 0＝この辺の側・1＝向かい）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="jkL">
+			<Description><![CDATA["キリンジャッキの長さ"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="jkW">
+			<Description><![CDATA["キリンジャッキの端板の角"]]></Description>
+			<Value>0.298</Value>
+		</Length>
+		<Length Name="hiA">
+			<Description><![CDATA["始めの角の隅火打ちの脚（腹起しの前の面から。0＝無し）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="capOn">
+			<Description><![CDATA["頭つなぎ（溝形鋼）を描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="capH">
+			<Description><![CDATA["頭つなぎの溝形鋼の高さ"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Length Name="capB">
+			<Description><![CDATA["頭つなぎの溝形鋼の幅"]]></Description>
+			<Value>0.075</Value>
+		</Length>
 		<Length Name="faceY">
 			<Description><![CDATA["根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）"]]></Description>
 			<Value>0.15</Value>

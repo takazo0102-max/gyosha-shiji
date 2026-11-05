@@ -115,6 +115,13 @@ def paramlist() -> str:
         _param("String", "brX", "腹起しのブラケットの位置（mm）", "700,2500"),
         _param("String", "sbX", "切梁の位置（mm）", ""),
         _param("String", "sbL", "切梁の長さ（腹起しの前の面から根切りの中心まで mm）", ""),
+        _param("Integer", "jkPar", "キリンジャッキを千鳥に（切梁 j・段 k の j+k が偶数で 0＝この辺の側・1＝向かい）", 0),
+        _param("Length", "jkL", "キリンジャッキの長さ", 0.5),
+        _param("Length", "jkW", "キリンジャッキの端板の角", 0.298),
+        _param("Length", "hiA", "始めの角の隅火打ちの脚（腹起しの前の面から。0＝無し）", 0),
+        _param("Boolean", "capOn", "頭つなぎ（溝形鋼）を描く", 0),
+        _param("Length", "capH", "頭つなぎの溝形鋼の高さ", 0.15),
+        _param("Length", "capB", "頭つなぎの溝形鋼の幅", 0.075),
         _param("Length", "faceY", "根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）", 0.15),
         *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -293,8 +300,14 @@ if ywKind = 8 then
 	next i
 	yTx = tbD / 2
 endif
+if capOn and drLv < 3 then
+	! 頭つなぎ（杭頭の溝形鋼）
+	drawindex 30
+	pen pO
+	rect2 0, -faceY - capB, ywL, -faceY
+endif
 if nWl > 0 and drLv < 3 then
-	! 腹起し・切梁（GL の下なので隠れ線）
+	! 腹起し・切梁・隅火打ち（GL の下なので隠れ線）
 	drawindex 40
 	pen pT
 	line_type ltH
@@ -304,6 +317,11 @@ if nWl > 0 and drLv < 3 then
 		line2 sbP[j] - wlB / 2, yW - wlH, sbP[j] - wlB / 2, yW - wlH - sbLs[j]
 		line2 sbP[j] + wlB / 2, yW - wlH, sbP[j] + wlB / 2, yW - wlH - sbLs[j]
 	next j
+	if hiA > 0.01 then
+		fw = -(yW - wlH)
+		line2 fw, -fw - hiA, fw + hiA, -fw
+		line2 fw + wlH * 0.707, -fw - hiA - wlH * 0.707, fw + hiA + wlH * 0.707, -fw - wlH * 0.707
+	endif
 	line_type ltS
 endif
 drawindex 50
@@ -495,14 +513,57 @@ for k = 1 to nWl
 			add sbP[j], yW - wlH, zc
 			rotx 90
 @W3DY@			del 2
+			! キリンジャッキ（切梁1本に1台、千鳥に: 向かいの辺の部品と交互）
+			if (j + k - 2 * int((j + k) / 2)) = jkPar then
+				material "yw_strut"
+				add sbP[j] - jkW / 2, yW - wlH - jkL - 0.05, zc - jkW / 2
+				block jkW, 0.028, jkW
+				addy jkL - 0.028
+				block jkW, 0.028, jkW
+				del 2
+				add sbP[j], yW - wlH - 0.05, zc
+				rotx 90
+				cylind jkL, 0.09
+				del 2
+				material "yw_wale"
+			endif
 		endif
 	next j
+	! 隅火打ち（始めの角・45°）と火打受ピース
+	if hiA > 0.01 then
+		fw = -(yW - wlH)
+		add fw + wlH * 0.354, -fw - hiA - wlH * 0.354, zc
+		rotz 45
+		roty 90
+@W3DH@		del 3
+		material "yw_steel"
+		add fw, -fw - hiA - 0.45, zc - 0.13
+		block 0.18, 0.45, 0.26
+		del 1
+		add fw + hiA, -fw - 0.18, zc - 0.13
+		block 0.45, 0.18, 0.26
+		del 1
+		material "yw_wale"
+	endif
 next k
+! ---- 頭つなぎ（自立の杭頭の溝形鋼。掘削側の面に） ----
+if capOn then
+	material "yw_wale"
+	add 0, -faceY - 0.0065, zTop - capH
+	block ywL, 0.0065, capH
+	del 1
+	add 0, -faceY - capB, zTop - 0.01
+	block ywL, capB, 0.01
+	del 1
+	add 0, -faceY - capB, zTop - capH
+	block ywL, capB, 0.01
+	del 1
+endif
 end
 """
 
 SCRIPT_3D = (SCRIPT_3D_T.replace("@H3D@", _h3d("\t\t", "hgt"))
-             .replace("@W3DX@", _h3d("\t", "wlX1 - wlX0", W_PTS)).replace("@W3DY@", _h3d("\t\t\t", "sbLs[j]", W_PTS)))
+             .replace("@W3DX@", _h3d("\t", "wlX1 - wlX0", W_PTS)).replace("@W3DY@", _h3d("\t\t\t", "sbLs[j]", W_PTS)).replace("@W3DH@", _h3d("\t\t", "hiA * 1.4142", W_PTS)))
 
 
 def main() -> int:

@@ -228,7 +228,63 @@ for k = 1 to nWl
 				-wlT1 / 2, -wlH / 2 + wlT2, 15,
 				-wlB / 2, -wlH / 2 + wlT2, 15
 			del 2
+			! キリンジャッキ（切梁1本に1台、千鳥に: 向かいの辺の部品と交互）
+			if (j + k - 2 * int((j + k) / 2)) = jkPar then
+				material "yw_strut"
+				add sbP[j] - jkW / 2, yW - wlH - jkL - 0.05, zc - jkW / 2
+				block jkW, 0.028, jkW
+				addy jkL - 0.028
+				block jkW, 0.028, jkW
+				del 2
+				add sbP[j], yW - wlH - 0.05, zc
+				rotx 90
+				cylind jkL, 0.09
+				del 2
+				material "yw_wale"
+			endif
 		endif
 	next j
+	! 隅火打ち（始めの角・45°）と火打受ピース
+	if hiA > 0.01 then
+		fw = -(yW - wlH)
+		add fw + wlH * 0.354, -fw - hiA - wlH * 0.354, zc
+		rotz 45
+		roty 90
+		prism_ 12, hiA * 1.4142,
+			-wlB / 2, -wlH / 2, 15,
+			wlB / 2, -wlH / 2, 15,
+			wlB / 2, -wlH / 2 + wlT2, 15,
+			wlT1 / 2, -wlH / 2 + wlT2, 15,
+			wlT1 / 2, wlH / 2 - wlT2, 15,
+			wlB / 2, wlH / 2 - wlT2, 15,
+			wlB / 2, wlH / 2, 15,
+			-wlB / 2, wlH / 2, 15,
+			-wlB / 2, wlH / 2 - wlT2, 15,
+			-wlT1 / 2, wlH / 2 - wlT2, 15,
+			-wlT1 / 2, -wlH / 2 + wlT2, 15,
+			-wlB / 2, -wlH / 2 + wlT2, 15
+		del 3
+		material "yw_steel"
+		add fw, -fw - hiA - 0.45, zc - 0.13
+		block 0.18, 0.45, 0.26
+		del 1
+		add fw + hiA, -fw - 0.18, zc - 0.13
+		block 0.45, 0.18, 0.26
+		del 1
+		material "yw_wale"
+	endif
 next k
+! ---- 頭つなぎ（自立の杭頭の溝形鋼。掘削側の面に） ----
+if capOn then
+	material "yw_wale"
+	add 0, -faceY - 0.0065, zTop - capH
+	block ywL, 0.0065, capH
+	del 1
+	add 0, -faceY - capB, zTop - 0.01
+	block ywL, capB, 0.01
+	del 1
+	add 0, -faceY - capB, zTop - capH
+	block ywL, capB, 0.01
+	del 1
+endif
 end
