@@ -34,7 +34,7 @@ style "rtT"
 dT = texSiz * GLOB_SCALE / 1000 * 1.6
 ! 通路の帯
 pen pT
-if kE > 2 then
+if rtSurf and kE > 2 then
 	for i = 1 to kE
 		j = i + 1
 		if j > kE then j = 1

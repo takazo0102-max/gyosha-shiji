@@ -10,6 +10,8 @@
   python3 scripts/machine_run.py --type bh045 --att d135  # バックホウの先を解体アタッチメント（圧砕機）に（--att none でバケット）
   python3 scripts/machine_run.py --type lb4 --load 6.5,2.9,3.0,20   # 搬入車両に積荷（長さ,幅,高さ m,質量 t。高さ・総重量の判定に）
   python3 scripts/machine_run.py --type tr10 --turn 右     # 平面の旋回軌跡を右へ（--no-track で描かない）
+  python3 scripts/machine_run.py --type pump36 --turn-r 9.5   # 最小回転半径 m を入れると軌跡を描く（ポンプ車・高所作業車は公表値が無い）
+  python3 scripts/machine_run.py --track toggle            # 置いた車両の旋回軌跡と場内通路の掃引を入り切り（on・off も。選んでいれば選んだ重機だけ）
   python3 scripts/machine_run.py --list                   # 機種の一覧（--list-att でアタッチメント）
   python3 scripts/machine_run.py --remove                 # 置いた重機を消す（--kinds 13,14 で搬入車両だけ）
 
@@ -27,6 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
+
+from ashiba.machine import TRACK_KINDS  # noqa: E402
 
 PART = "ashiba_machine"
 RECORD = "重機.json"
@@ -53,8 +57,10 @@ def main(argv=None) -> int:
     ap.add_argument("--remove", action="store_true", help="置いた重機を消す")
     ap.add_argument("--kinds", default="", help="--remove で消す種類（mcKind をカンマ区切り。空は全部）")
     ap.add_argument("--load", default="", help="搬入車両の積荷 長さ,幅,高さ m,質量 t")
-    ap.add_argument("--turn", default="左", choices=("左", "右"), help="搬入車両の平面の旋回軌跡を描く側")
-    ap.add_argument("--no-track", action="store_true", help="搬入車両の旋回軌跡を描かない")
+    ap.add_argument("--turn", default="左", choices=("左", "右"), help="車両の平面の旋回軌跡を描く側")
+    ap.add_argument("--no-track", action="store_true", help="車両の旋回軌跡を描かない")
+    ap.add_argument("--turn-r", dest="turn_r", type=float, default=0.0, help="最小回転半径 m（カタログの値の代わりに）")
+    ap.add_argument("--track", default="", choices=("", "on", "off", "toggle"), help="置いた車両の旋回軌跡を入り切りする")
     a = ap.parse_args(argv)
     if a.list:
         for k, m in MACHINES.items():
@@ -95,6 +101,8 @@ def main(argv=None) -> int:
         rec_path.write_text(json.dumps({k: v for k, v in rec.items() if k not in gone}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"重機: {n}台を消しました")
         return 0
+    if a.track:
+        return switch_tracks(c, rec, rec_path, a.track, R)
     if a.ask:
         mach = choose_model(mach, a)
         if mach is None:
@@ -174,19 +182,67 @@ def choose_model(mach, a) -> object:
     from ashiba.machine import MACHINES
 
     same = [m for m in MACHINES.values() if m.kind == mach.kind]
-    if len(same) < 2:
+    track = mach.kind in TRACK_KINDS
+    if len(same) < 2 and not track:
         return mach
     label = lambda m: f"{m.name}（{m.model}）"            # noqa: E731
+    fields = [{"key": "model", "label": "機種", "kind": "choice", "options": [label(m) for m in same], "value": label(mach)}]
+    if track:
+        fields += [{"key": "track", "label": "平面の旋回軌跡", "kind": "choice", "options": ["描く", "描かない"], "value": "描く"},
+                   {"key": "turn", "label": "曲がる側", "kind": "choice", "options": ["左", "右"], "value": "左"}]
+        if not any(m.turn_r or m.params.get("tnR") for m in same):
+            fields.append({"key": "turn_r", "label": "最小回転半径 m（公表値が無いので、入れると軌跡を描く）", "kind": "number", "value": ""})
     res = show_form({
         "title": "重機の機種",
         "intro": "機種を選ぶと、平面図で 1回目に置く所（旋回中心。車は車体の真ん中）、2回目に車体の前の向きをクリックします。"
                  "線を選んであれば、その線に置きます。",
-        "fields": [{"key": "model", "label": "機種", "kind": "choice", "options": [label(m) for m in same], "value": label(mach)}],
+        "fields": fields,
         "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "place":
         return None
-    want = str((res.get("values") or {}).get("model"))
+    v = res.get("values") or {}
+    if track and a is not None:
+        a.no_track = str(v.get("track")) == "描かない"
+        a.turn = "右" if str(v.get("turn")) == "右" else "左"
+        try:
+            a.turn_r = float(str(v.get("turn_r") or 0).replace(",", ""))
+        except ValueError:
+            a.turn_r = 0.0
+    want = str(v.get("model"))
     return next((m for m in same if label(m) == want), mach)
+
+
+def switch_tracks(c, rec: dict, rec_path: Path, how: str, R) -> int:
+    """置いた車両の旋回軌跡（tkOn）と場内通路の掃引（showSw）を入り切りする. 重機を選んでいれば選んだものだけ."""
+    from ashiba.machine import MACHINES
+
+    alive = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])}
+    cars = {k: v for k, v in rec.items() if v.get("guid") in alive and v.get("type") in MACHINES
+            and MACHINES[v["type"]].kind in TRACK_KINDS}
+    sel = {e["elementId"]["guid"] for e in c.get_selected_elements()}
+    picked = {k: v for k, v in cars.items() if v["guid"] in sel}
+    targets = picked or cars
+    try:
+        road = json.loads((R.OUT_DIR / "場内通路.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        road = {}
+    roads = [] if picked else [v[0] for v in road.values() if v and v[0] in alive]
+    if not targets and not roads:
+        print("車両の軌跡: 置いた車両がありません")
+        return 1
+    if how == "toggle":
+        now = any(int((v.get("params") or {}).get("tkOn", 1)) for v in targets.values()) if targets else True
+        on = not now
+    else:
+        on = how == "on"
+    for v in targets.values():
+        c.set_gdl_parameters({"elementId": {"guid": v["guid"]}}, {"tkOn": on})
+        v["params"] = {**(v.get("params") or {}), "tkOn": int(on)}
+    for g in roads:
+        c.set_gdl_parameters({"elementId": {"guid": g}}, {"showSw": on})
+    rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"車両の軌跡: {'描きます' if on else '消しました'}（車両 {len(targets)}台・場内通路 {len(roads)}本）")
+    return 0
 
 
 def front_archicad(c) -> None:
@@ -221,11 +277,13 @@ def pick_line(c) -> list | None:
 
 
 def vehicle_extra(mach, a) -> dict:
-    """搬入車両（mcKind 13・14）の積荷と旋回軌跡のパラメータ（ほかの種類は空）."""
-    if mach.kind not in (13, 14):
+    """車両の旋回軌跡（TRACK_KINDS）と搬入車両（mcKind 13・14）の積荷のパラメータ（ほかの種類は空）."""
+    if mach.kind not in TRACK_KINDS:
         return {}
     out = {"tkOn": 0 if a.no_track else 1, "tkS": 1 if a.turn == "左" else -1}
-    if a.load:
+    if a.turn_r > 0:
+        out["tnR"] = a.turn_r
+    if a.load and mach.kind in (13, 14):
         L, W, H, T = (float(v) for v in a.load.split(","))
         # トレーラーの積荷はキングピンから荷台の中心へ（低床は荷台、平床は前から、ポールは既定のまま）
         x = 0.0

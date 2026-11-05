@@ -147,5 +147,14 @@ class TestTrailerRoute(unittest.TestCase):
         self.assertIn("sl10", ks)
 
 
+
+class TestPlatesDoNotDoubleTheRoad(unittest.TestCase):
+    def test_surface_only_without_plates(self):
+        """敷鉄板を敷くと通路の帯と面は描かない（利用者の指摘 2026-11-06「通路は2つが重なって出る」）."""
+        pts = [(0, 0), (18000, 0)]
+        self.assertFalse(part_params(route_plan("通路1", pts))["rtSurf"])
+        self.assertTrue(part_params(route_plan("通路1", pts, plates=False))["rtSurf"])
+
+
 if __name__ == "__main__":
     unittest.main()

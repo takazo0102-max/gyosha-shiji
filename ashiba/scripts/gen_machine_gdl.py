@@ -214,6 +214,10 @@ def paramlist() -> str:
         _param("Boolean", "tkOn", "平面に旋回軌跡を描く", 1),
         _param("Integer", "tkS", "曲がる側（1＝左・-1＝右）", 1),
         _param("Length", "tkW", "カタログの所要道路幅（0＝式で）", 0.0),
+        _param("Angle", "tkA", "旋回軌跡の曲がる角度（平面の円弧の先のホットスポットで動かす）", 90),
+        _param("Length", "tkD", "最小回転半径より広げる量（回転の中心のホットスポットで動かす）", 0.0),
+        _param("Length", "tkF", "曲がる前の直進（前端の角の線の先のホットスポットで動かす）", 0.0),
+        _param("Length", "tkE", "曲がった後の直進（内側の線の先のホットスポットで動かす）", 0.0),
         # トレーラー連結車（原点はトラクタの真ん中、トレーラーはキングピンまわりに trA だけ折れる）
         _param("Length", "kpC", "カプラオフセット（後軸の中心から前）", 0.175),
         _param("Length", "kpZ", "カプラ上面地上高", 1.345),
@@ -388,6 +392,10 @@ values "auN" 1, 3
 values{2} "vbK" 0, "フック", 1, "バイブロ"
 values{2} "tlK" 1, "低床・中低床", 2, "平床", 3, "ポール"
 values{2} "tkS" 1, "左", -1, "右"
+values "tkA" range [5, 180]
+values "tkD" range [0, ]
+values "tkF" range [0, ]
+values "tkE" range [0, ]
 values "tlN" 1, 2, 3
 values "tlQ" 1, 2
 values "nFr" 1, 2
@@ -846,11 +854,11 @@ if isTk then
 endif
 ! 旋回軌跡（最小回転半径で曲がり続けるとき。外側の前端の角と内側の後輪。単車は場内通路と同じ式、連結車はトレーラーの後軸群まで。
 ! 円弧は今の向きから 90° 分。二点鎖線、回転の中心は一点鎖線の十字）
-if isVh and tkOn and tnR > 0.5 then
+if isTk and mcKind <> 7 and tkOn and tnR > 0.5 then
 	L1 = axF - xAxR
 	if L1 < tnR then
-		aRr = sqr(tnR ^ 2 - L1 ^ 2)
-		if mcKind = 13 then
+		aRr = sqr(tnR ^ 2 - L1 ^ 2) + tkD
+		if mcKind <> 14 then
 			rCen = aRr - trT / 2
 			rOut = sqr((aRr + (carW - trT) / 2) ^ 2 + (L1 + frOv) ^ 2)
 			rIn = aRr - (carW + trT) / 2
@@ -861,8 +869,8 @@ if isVh and tkOn and tnR > 0.5 then
 			L2 = tlAx + (tlN - 1) * tlSp / 2
 			rIn = 0
 			if tkW > 0.01 then
-				rIn = tnR - tkW
-				rOut = tnR
+				rIn = tnR + tkD - tkW
+				rOut = tnR + tkD
 			else
 				if L2 < rKp then
 					rTrl = sqr(rKp ^ 2 - L2 ^ 2)
@@ -881,17 +889,54 @@ if isVh and tkOn and tnR > 0.5 then
 		drawindex 45
 		pen pZ
 		line_type ltZ
+		! 直進 tkF のあと、回転の中心 xC のまわりに tkA 曲がり、また直進 tkE（ハンドルを切る途中の緩和は描かない）
+		xC = xAxR + tkF
+		yO = -tkS * carW / 2
+		yI = yC - tkS * rIn
+		aE = aQ + tkS * tkA
+		aI = tkS * (tkA - 90)
+		hdX = cos(tkS * tkA)
+		hdY = sin(tkS * tkA)
+		xP = xC + rOut * cos(aE)
+		yP = yC + rOut * sin(aE)
+		xI = xC + rIn * cos(aI)
+		yJ = yC + rIn * sin(aI)
 		if tkS > 0 then
-			arc2 xAxR, yC, rOut, aQ, aQ + 90
-			if rIn > 0.1 then arc2 xAxR, yC, rIn, -90, 0
+			arc2 xC, yC, rOut, aQ, aQ + tkA
+			if rIn > 0.1 then arc2 xC, yC, rIn, -90, -90 + tkA
 		else
-			arc2 xAxR, yC, rOut, aQ - 90, aQ
-			if rIn > 0.1 then arc2 xAxR, yC, rIn, 0, 90
+			arc2 xC, yC, rOut, aQ - tkA, aQ
+			if rIn > 0.1 then arc2 xC, yC, rIn, 90 - tkA, 90
+		endif
+		if tkF > 0.001 then
+			line2 xF, yO, xF + tkF, yO
+			if rIn > 0.1 then line2 xAxR, yI, xC, yI
+		endif
+		if tkE > 0.001 then
+			line2 xP, yP, xP + tkE * hdX, yP + tkE * hdY
+			if rIn > 0.1 then line2 xI, yJ, xI + tkE * hdX, yJ + tkE * hdY
 		endif
 		line_type ltC
-		line2 xAxR, yC - 0.6, xAxR, yC + 0.6
-		line2 xAxR - 0.6, yC, xAxR + 0.6, yC
+		line2 xC, yC - 0.6, xC, yC + 0.6
+		line2 xC - 0.6, yC, xC + 0.6, yC
 		line_type ltS
+		! ホットスポット: 円弧の先で曲がる角度（tkA）、回転の中心で最小回転半径より広げる量（tkD。狭くはできない）、
+		! 前端の角の線の先で曲がる前の直進（tkF）、内側の線の先で曲がった後の直進（tkE）
+		fA = 512 * (tkS < 0)
+		hotspot2 xC, yC, 31, tkA, 6 + fA
+		hotspot2 xC + rOut * cos(aQ), yC + rOut * sin(aQ), 32, tkA, 4 + fA
+		hotspot2 xP, yP, 33, tkA, 5 + fA
+		hotspot2 xC, yC - tkS * tkD, 34, tkD, 1 + 128
+		hotspot2 xC, yC, 35, tkD, 2
+		hotspot2 xC, yC - tkS * (tkD + 1), 36, tkD, 3
+		hotspot2 xF, yO, 37, tkF, 1 + 128
+		hotspot2 xF + tkF, yO, 38, tkF, 2
+		hotspot2 xF - 1, yO, 39, tkF, 3
+		if rIn > 0.1 then
+			hotspot2 xI, yJ, 40, tkE, 1 + 128
+			hotspot2 xI + tkE * hdX, yJ + tkE * hdY, 41, tkE, 2
+			hotspot2 xI - hdX, yJ - hdY, 42, tkE, 3
+		endif
 	endif
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）。一点鎖線

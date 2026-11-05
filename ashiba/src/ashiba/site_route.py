@@ -317,7 +317,7 @@ def part_params(p: RoutePlan) -> dict:
         at.append(0 if cn.status == "OK" else int(round((cn.need - p.width) / 100.0)))    # 拡幅 ×0.1m
     return {"cX": _ints(x for x, _y in loc), "cY": _ints(y for _x, y in loc), "eX": _ints(x for x, _y in band),
             "eY": _ints(y for _x, y in band), "aX": _ints(ax), "aY": _ints(ay), "aR": _ints(ar), "aA": _ints(aa),
-            "aW": _ints(at), "rtW": p.width / 1000.0, "rtName": p.name,
+            "aW": _ints(at), "rtW": p.width / 1000.0, "rtName": p.name, "rtSurf": not p.plates,
             "rtVeh": f"{'対面' if p.two_way else '一方'}通行 幅{p.width / 1000:.1f}m {vehicle_name(p.vehicle).split('（')[0]}"}
 
 

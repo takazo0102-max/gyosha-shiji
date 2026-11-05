@@ -253,6 +253,12 @@ def _rt(booms: tuple, text: str) -> dict:
     return out
 
 
+# 後ろの輪距（ダンプ・生コン車の資料に無いので、同じ級のカーゴの値【目安】: research_notes/搬入車両/トラック.md）
+TREAD_10T, TREAD_4T = 1.835, 1.66
+# 平面に旋回軌跡を描く車両. ポンプ車・高所作業車は最小回転半径の公表値が見つからず、入れたときだけ描く（2026-11-06）
+TRACK_KINDS = (3, 4, 5, 6, 13, 14)
+
+
 def _truck(carL, carW, cabH, frOv, wb, nRear, rearSp, whR, frZ, carF=None, nFr=1, frSp=1.7):
     return {"carL": carL, "carW": carW, "cabH": cabH, "frOv": frOv, "wb": wb, "nRear": nRear, "rearSp": rearSp, "whR": whR,
             "frZ": frZ, "carF": carL / 2 if carF is None else carF, "nFr": nFr, "frSp": frSp}
@@ -388,26 +394,26 @@ MACHINES = {
     # 最小回転半径 6.3m・車両総重量 19,900〜19,970kg（ふそう FV は前後の軸の位置とキャブの高さが公表されていなかった。2026-11-02）
     "mix45": Machine("mix45", 4, "生コン車 4.4m³", "UD クオン CW 6×4 ミキサ（新明和 4.4m³）", 19.97,
                      {**_truck(7.975, 2.49, 3.045, 1.4, 3.2, 2, 1.37, 0.528, 1.05),
-                      "drL": 4.2, "drD": 2.25, "drA": 16.0},
+                      "drL": 4.2, "drD": 2.25, "drA": 16.0, "trT": TREAD_10T},
                      "U1", turn_r=6.3,
                      guesses="運転室の屋根の高さ 3.045 は寸法図を全高 3,690 の寸法線で測った値、ドラムの外形（公表は内法 φ2,100×3,490。"
                              "外形の線が重なって測れない）・荷台の床の高さ"),
     "mix32": Machine("mix32", 4, "生コン車 3.2m³", "三菱ふそう ファイター FK7-Z ミキサ（3.2m³・KYB MR32）", 14.0,
                      {**_truck(6.33, 2.30, 2.5, 1.145, 3.19, 1, 1.3, 0.433, 1.0),
-                      "drL": 3.6, "drD": 2.0, "drA": 17.0},
+                      "drL": 3.6, "drD": 2.0, "drA": 17.0, "trT": TREAD_4T},
                      "M2", turn_r=5.8, payload_t=7.88,
                      guesses="前端から前の車軸 1.145・運転室の高さ 2.5・ドラムの外径 2.0・傾き 17° は KYB MR32 の外形図を測った値"
                              "（公表は内法 φ1,900×3,100）、ドラムの外形の長さ"),
     # ダンプ（荷台の床の高さから frZ を決める）
     "dump10": Machine("dump10", 5, "ダンプ 10t", "いすゞ ギガ 6×4（強化角底一方開・最大積載 9,100kg・ダンプ角度 53°）", 19.96,
                       {**_truck(7.64, 2.49, 3.17, 1.37, 3.225, 2, 1.31, 0.528, 1.45),
-                       "bedL": 5.1, "bedW": 2.2, "bedH": 0.52, "bedA": 0.0},
+                       "bedL": 5.1, "bedW": 2.2, "bedH": 0.52, "bedA": 0.0, "trT": TREAD_10T},
                       "D1", turn_r=6.6, payload_t=9.1,
                       guesses="運転室の高さ 3.17 は同じギガのカーゴ（前二軸・標準ルーフ）の全高（いすゞ 03shogen.pdf p.1。ダンプの資料に無い）、"
                               "荷台の外寸（公表は内法）"),
     "dump4": Machine("dump4", 5, "ダンプ 4t", "三菱ふそう ファイター FK7（強化一方開・最大積載 3,750kg）", 7.965,
                      {**_truck(5.395, 2.19, 2.45, 1.17, 2.91, 1, 1.3, 0.40, 0.95),
-                      "bedL": 3.4, "bedW": 2.06, "bedH": 0.34, "bedA": 0.0},
+                      "bedL": 3.4, "bedW": 2.06, "bedH": 0.34, "bedA": 0.0, "trT": TREAD_4T},
                      "M2", turn_r=4.8, payload_t=3.75,
                      guesses="前端から前の車軸 1.17 は UD コンドル 4t、運転室の高さ 2.45 は同じ FK7 の平ボデーの値（ダンプの資料に無い）、"
                              "鳥居の高さ・ダンプ角度（資料に無い）"),
@@ -853,6 +859,8 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
                                                       "接地圧は極限支持力の 1/3 を推奨）"))
     if m.kind in (13, 14):
         _vehicle_checks(p, m, ps)
+    elif m.kind in TRACK_KINDS:
+        _swept_check(p, m, ps)
     att = p.attachment if m.kind in (1, 11) else ""
     if att:
         nm, _k, L, _w, kg, cls, src = ATTACHMENTS[att]
@@ -968,6 +976,18 @@ def swept_path(m: Machine, ps: dict) -> dict:
     return {"外側": max(ro, rto), "内側": rti, "幅": max(ro, rto) - rti, "折れ角": ang}
 
 
+def _swept_check(p: "Placed", m: Machine, ps: dict) -> None:
+    sw = swept_path(m, ps)
+    if sw:
+        txt = (f"最小回転半径 {float(ps.get('tnR', 0) or m.turn_r):g}m で曲がり続けるとき 外側 R{sw['外側']:.2f}m・内側 R{sw['内側']:.2f}m・"
+               f"所要の占有幅 {sw['幅']:.2f}m" + (f"・折れ角 {sw['折れ角']:.0f}°" if "折れ角" in sw else "") +
+               ("（メーカーの回転軌跡の表）" if sw.get("カタログ") else
+                "（定常円旋回の式【目安】。90° の右左折は短い区間で曲がり終えるので小さめになる）"))
+        if sw.get("曲がれない"):
+            txt = "トレーラーが長くこの半径では曲がり続けられない（キングピン〜後軸がキングピンの半径より長い）"
+        p.checks.append(Check("旋回軌跡", "注意", txt))
+
+
 def _vehicle_checks(p: "Placed", m: Machine, ps: dict) -> None:
     sz = vehicle_size(m, ps)
     lim = ROAD_LIMIT
@@ -986,15 +1006,7 @@ def _vehicle_checks(p: "Placed", m: Machine, ps: dict) -> None:
     if m.kind == 14 and over:
         detail += "。高速自動車国道の長さの特例（セミトレーラ連結車 16.5m）は特例8車種だけで、重機運搬の低床・平床は対象外"
     p.checks.append(Check("道路の制限", "要確認" if over else "OK", detail))
-    sw = swept_path(m, ps)
-    if sw:
-        txt = (f"最小回転半径 {float(ps.get('tnR', 0) or m.turn_r):g}m で曲がり続けるとき 外側 R{sw['外側']:.2f}m・内側 R{sw['内側']:.2f}m・"
-               f"所要の占有幅 {sw['幅']:.2f}m" + (f"・折れ角 {sw['折れ角']:.0f}°" if "折れ角" in sw else "") +
-               ("（メーカーの回転軌跡の表）" if sw.get("カタログ") else
-                "（定常円旋回の式【目安】。90° の右左折は短い区間で曲がり終えるので小さめになる）"))
-        if sw.get("曲がれない"):
-            txt = "トレーラーが長くこの半径では曲がり続けられない（キングピン〜後軸がキングピンの半径より長い）"
-        p.checks.append(Check("旋回軌跡", "注意", txt))
+    _swept_check(p, m, ps)
     if int(ps.get("ucOn", 0) or 0):
         p.checks.append(Check("クレーン", "注意", f"つり上げ荷重 {m.lift_t:g}t・ブーム {float(ps['ucLmin']):g}〜{float(ps['ucLmax']):g}m・"
                                                  f"アウトリガ張出 {float(ps['o1y']):g}m。定格総荷重は仕様書の表（前方は空車時の 25% 以下）"))
@@ -1012,6 +1024,8 @@ def part_params(p: Placed) -> dict:
         ps = {"vbK": 0, **ps}
     if m.kind in (13, 14):
         ps = {**VEHICLE_DEFAULTS, **ps}
+    elif m.kind in TRACK_KINDS:
+        ps = {"tkOn": 1, "tkS": 1, "tkW": 0.0, "tnR": m.turn_r, "trT": float(ps.get("carW", 2.1)) - 0.4, **ps}
     if m.kind in (1, 11):
         ps = {**ps, **att_params(p.attachment)}
         if m.kind == 1 and p.attachment and "bkA" not in p.params:
@@ -1019,6 +1033,9 @@ def part_params(p: Placed) -> dict:
             ps["bkA"] = 0.0 if ATTACHMENTS[p.attachment][1] == 5 else -90.0
         if p.attachment:
             note += "・" + ATTACHMENTS[p.attachment][0].split(" ", 1)[-1]
+    if m.kind in TRACK_KINDS:
+        lead = vehicle_size(m, ps)["長さ"]                # 曲がる前後の直進の既定は車の長さ【目安】
+        ps = {"tkF": lead, "tkE": lead, **ps}
     ps = {k: (bool(v) if k in BOOL_PARAMS else v) for k, v in ps.items()}      # Tapir は Boolean 型に 0・1 を受け付けない
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
 

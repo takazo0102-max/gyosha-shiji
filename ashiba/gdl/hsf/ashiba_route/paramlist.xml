@@ -81,6 +81,10 @@
 			<Description><![CDATA["曲がり角の掃引（車両の通る範囲）を描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="rtSurf">
+			<Description><![CDATA["通路の帯と面を描く（敷鉄板を敷くときは外す。敷鉄板と重ならないように）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
 		<RealNum Name="texSiz">
 			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
 			<Value>2.5</Value>
