@@ -109,7 +109,6 @@ def main(argv=None) -> int:
             print("重機: やめました（何も置いていません）")
             return 0
     lines = [] if a.pick else [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
-    R.ensure_parts(c)
     if not lines:
         if c.tapir("GetCurrentWindowType", {}).get("currentWindowType") != "FloorPlan":
             print("重機: 平面図の窓を前にしてから押してください（線を選んであれば、その線に置きます）")
@@ -121,6 +120,7 @@ def main(argv=None) -> int:
             print("重機: やめました（何も置いていません）")
             return 0
         lines = [(f"クリック:{pts[0][0]:.0f}:{pts[0][1]:.0f}", pts)]
+    R.ensure_parts(c)                                    # クリックを待たせないよう、部品の確認はあとで
     part = R.versioned_part_name(PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)

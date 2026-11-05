@@ -461,8 +461,11 @@ class ArchicadClient:
         ツールに同梱している部品なので、無ければ自分で入れる。各要素はパス、または
         (パス, 埋め込み名) の組。埋め込み名を省くとファイル名がそのまま部品名になる。
         戻り値は今回入れた埋め込み名（既にあるものは Tapir が弾くので含まれない）。
+        1回の命令で全部を渡し、読み直し（ReloadLibraries）も入ったときに1回だけ。部品ごとだと新しい部品1つにつき
+        ライブラリ全体を読み直して 20 秒ほど待たされ、39 個の確認にも 1 秒かかった（利用者の指摘 2026-11-06「配置まで時間が長い」）。
         """
-        added: list[str] = []
+        names: list[str] = []
+        rows: list[dict] = []
         for item in files:
             f, name = (item if isinstance(item, tuple) else (item, None))
             f = Path(f)
@@ -471,11 +474,21 @@ class ArchicadClient:
             name = name or f.name
             if not name.lower().endswith(".gsm"):
                 name += ".gsm"
+            names.append(name)
+            rows.append({"inputPath": str(f.resolve()), "outputPath": name if "/" in name else f"ashiba/{name}"})
+        if not rows:
+            return []
+        results = self.tapir("AddFilesToEmbeddedLibrary", {"files": rows}).get("executionResults", [])
+        if len(results) != len(rows):                    # 1件ずつの結果が返らなければ、どれが入ったか分からないので読み直す
+            self.tapir("ReloadLibraries", {})
+            return []
+        # 同名の部品が既にあるものは Tapir が「not a valid relative path」で弾く
+        added = [n for n, r in zip(names, results) if r.get("success")]
+        if added:
             try:
-                self.add_file_to_embedded_library(str(f), name)
-                added.append(name)
+                self.tapir("ReloadLibraries", {})
             except TapirError:
-                pass    # 同名の部品が既にある（Tapir は「not a valid relative path」で弾く）
+                pass    # 古い Tapir に無ければ、配置側の再試行に任せる
         return added
 
     def delete_stale_duplicates(self, placed: list[dict]) -> int:
