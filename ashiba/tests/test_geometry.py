@@ -9,7 +9,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.geometry import ValidationError, build_outline, scaffold_loop_vertices
+from ashiba.geometry import ValidationError, build_outline, same_outline, scaffold_loop_vertices
 
 RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
 LSHAPE = [(0, 0), (30000, 0), (30000, 12000), (18000, 12000), (18000, 20000), (0, 20000)]
@@ -124,6 +124,18 @@ class TestScaffoldLoop(unittest.TestCase):
         v = verts[reflex.index]
         self.assertAlmostEqual(v[0], reflex.point[0] + 300.0)
         self.assertAlmostEqual(v[1], reflex.point[1] + 300.0)
+
+
+class TestSameOutline(unittest.TestCase):
+    def test_closed_and_open(self):
+        """閉じた外形（_spec_used.json）と開いた外形（plan.json）は同じ建物（「図面を作る」が止まっていた 2026-11-05）."""
+        ol = [[0, 0], [12000, 0], [12000, 8000], [0, 8000]]
+        self.assertTrue(same_outline(ol + [[0, 0]], ol))
+        self.assertTrue(same_outline(list(reversed(ol)), ol))           # 向き・始めは問わない
+        self.assertTrue(same_outline([[0.4, 0], [12000, 0], [12000, 8000], [0, 8000]], ol))
+        self.assertFalse(same_outline([[0, 0], [12000, 0], [12000, 9000], [0, 9000]], ol))
+        self.assertFalse(same_outline([], ol))
+        self.assertFalse(same_outline(None, ol))
 
 
 if __name__ == "__main__":

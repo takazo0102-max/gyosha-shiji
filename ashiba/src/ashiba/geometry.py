@@ -391,3 +391,30 @@ def scaffold_loop_vertices(outline: Outline, standoffs: list[float]) -> list[Poi
             verts.append((p1[0], p2[1]))
     return verts
 
+
+
+def same_outline(a, b, tol: float = 1.0) -> bool:
+    """控えの外形どうしが同じ建物か（並びの始めと向き・閉じた最後の点の重複は問わない・tol mm 以内）.
+
+    配置の条件の控え（_spec_used.json）は閉じた外形（最後に始めの点）、plan.json は開いた外形のことがあり、
+    リストの == では別の建物になって「図面を作る」が「条件の控えがありません」で止まっていた（2026-11-05）.
+    """
+    def opened(ol):
+        pts = [(float(p[0]), float(p[1])) for p in (ol or [])]
+        if len(pts) > 1 and abs(pts[0][0] - pts[-1][0]) <= tol and abs(pts[0][1] - pts[-1][1]) <= tol:
+            pts.pop()
+        return pts
+
+    try:
+        a, b = opened(a), opened(b)
+    except (TypeError, ValueError, IndexError):
+        return False
+    if not a or len(a) != len(b):
+        return False
+    used = [False] * len(b)
+    for p in a:
+        k = next((i for i, q in enumerate(b) if not used[i] and abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol), None)
+        if k is None:
+            return False
+        used[k] = True
+    return True

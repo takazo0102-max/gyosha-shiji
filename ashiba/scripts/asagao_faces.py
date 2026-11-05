@@ -138,6 +138,7 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
     """
     import run_from_archicad as tb
     from ashiba.attachments import TIE_OBJECT, _frame, tie_placements
+    from ashiba.geometry import same_outline
     from ashiba.cli import solve_groups, write_outputs
     from ashiba.spec_form import asagao_on_map
     from ashiba.gdl_params import line_params
@@ -145,7 +146,7 @@ def update_in_place(c, plan: dict, every: list[str], old: str, new: str) -> bool
 
     outline = plan.get("outline_mm") or []
     used = [p for p in sorted(OUT_DIR.glob("*_spec_used.json"), key=lambda p: -p.stat().st_mtime)
-            if (json.loads(p.read_text(encoding="utf-8")).get("outline_mm") or []) == outline]
+            if same_outline(json.loads(p.read_text(encoding="utf-8")).get("outline_mm"), outline)]
     if not used:
         return False
     spec = json.loads(used[0].read_text(encoding="utf-8"))

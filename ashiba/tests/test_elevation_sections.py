@@ -222,6 +222,43 @@ class TestClippedDrawingReadback(unittest.TestCase):
         self.assertAlmostEqual(got["x"], want[0], places=6)
         self.assertAlmostEqual(got["y"], want[1], places=6)
 
+    def test_offset_times_ratio_is_corrected(self):
+        """原点が移ったプロジェクトで、詳細図（比率 5）が「＋ 原点のずれ×比率」で映り、同じ値で置き直しても直らなかった
+        （2026-11-05 の実機で「図面を作る」の詳細図が白紙）。外れた分を position に足して置き直す."""
+        from ashiba.elevation_sections import clipped_drawing_geometry, create_clipped_drawings
+
+        clip, position = clipped_drawing_geometry((-3137878.0, -2242021.0, -3135489.0, -2238146.0), 20, (24.0, 370.0), 100)
+        data = [{"navigatorItemId": {"guid": "S"}, "layoutDatabaseId": {}, "position": position, "clipPolygon": clip,
+                 "scale": 5.0, "drawingScale": 20.0, "name": "脚部詳細"}]
+        OFF = (3327.0157, 2004.6556)
+
+        class Client:
+            def __init__(self):
+                self.made, self.calls = {}, []
+
+            def tapir(self, cmd, params):
+                self.calls.append(cmd)
+                if cmd == "CreateDrawings":
+                    out = []
+                    for d in params["drawingsData"]:
+                        g = f"G{len(self.made)}"
+                        self.made[g] = {"x": d["position"]["x"] - d["clipPolygon"][0]["x"] * 5 + OFF[0] * 5,
+                                        "y": d["position"]["y"] - d["clipPolygon"][0]["y"] * 5 + OFF[1] * 5}
+                        out.append({"elementId": {"guid": g}})
+                    return {"elements": out}
+                return {}
+
+            def get_details(self, els):
+                return [{"details": {"pos": self.made[e["elementId"]["guid"]], "modelOffset": {"x": OFF[0], "y": OFF[1]}}}
+                        for e in els]
+
+        c = Client()
+        els = create_clipped_drawings(c, data, "LAY")
+        got = c.made[els[0]["elementId"]["guid"]]
+        # 中身が枠に映る pos = 枠の最小角 − モデルの最小角×1/縮尺（いまの座標）
+        self.assertAlmostEqual(got["x"], clip[0]["x"] + 3137.878 / 20, places=4)
+        self.assertAlmostEqual(got["y"], clip[0]["y"] + 2242.021 / 20, places=4)
+
 
 if __name__ == "__main__":
     unittest.main()

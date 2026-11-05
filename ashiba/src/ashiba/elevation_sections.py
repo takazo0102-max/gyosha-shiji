@@ -1537,13 +1537,17 @@ def create_clipped_drawings(client, data: list[dict], layout_item_guid: str) -> 
     return _recheck_offset(client, els, [placed[i] for i in range(len(data))], layout_item_guid)
 
 
-def _recheck_offset(client, els: list[dict], data: list[dict], layout_item_guid: str, tries: int = 2) -> list[dict]:
-    """原点が移ったプロジェクトで、置いた図面の位置を読み戻して確かめ、外れていれば同じ値で置き直す.
+def _recheck_offset(client, els: list[dict], data: list[dict], layout_item_guid: str, tries: int = 3) -> list[dict]:
+    """原点が移ったプロジェクトで、置いた図面の位置を読み戻して確かめ、外れていれば外れた分だけ直して置き直す.
 
     読み戻す位置（pos）は「position − 枠の最小角×比率 ＋ 原点のずれ×1/縮尺」のときに中身が枠に映る。ときどき
-    「＋ 原点のずれ」（縮尺を掛けない）になって白紙になる。同じ値で置き直すと戻る（2026-11-03 の実機。総合仮設計画図で
-    確かめた）."""
-    for _ in range(tries):
+    「＋ 原点のずれ」（縮尺を掛けない）になって白紙になり、同じ値で置き直すと戻った（2026-11-03 の実機。総合仮設計画図）。
+    「図面を作る」の詳細図（1/20・比率 5）は「＋ 原点のずれ×比率」になり、同じ値で何度置き直しても 16km 先を映して
+    白紙だった（2026-11-05 の実機）。狙いの pos は最初の値で決め、読み戻した pos との差を position に足して置き直す
+    （ずれ方が変わっても次の読み戻しでまた直す）."""
+    data = list(data)
+    target: dict[int, tuple[float, float]] = {}
+    for _ in range(tries + 1):
         bad = []
         try:
             _activate(client, layout_item_guid)
@@ -1562,13 +1566,16 @@ def _recheck_offset(client, els: list[dict], data: list[dict], layout_item_guid:
             pos, d = dd.get("pos"), data[i]
             if not pos or not d.get("clipPolygon") or (abs(ox) < 1e-6 and abs(oy) < 1e-6):
                 continue
-            kk = 1.0 / float(d.get("drawingScale") or 100.0)
-            ratio = float(d.get("scale", 1.0))
-            want = (d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio + ox * kk,
-                    d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio + oy * kk)
-            if abs(float(pos["x"]) - want[0]) > 0.005 or abs(float(pos["y"]) - want[1]) > 0.005:
+            if i not in target:
+                kk = 1.0 / float(d.get("drawingScale") or 100.0)
+                ratio = float(d.get("scale", 1.0))
+                target[i] = (d["position"]["x"] - d["clipPolygon"][0]["x"] * ratio + ox * kk,
+                             d["position"]["y"] - d["clipPolygon"][0]["y"] * ratio + oy * kk)
+            dx, dy = target[i][0] - float(pos["x"]), target[i][1] - float(pos["y"])
+            if abs(dx) > 0.005 or abs(dy) > 0.005:
                 bad.append(i)
-        if not bad:
+                data[i] = {**d, "position": {"x": d["position"]["x"] + dx, "y": d["position"]["y"] + dy}}
+        if not bad or _ == tries:
             return els
         try:
             client.tapir("DeleteElements", {"elements": [els[i] for i in bad]})

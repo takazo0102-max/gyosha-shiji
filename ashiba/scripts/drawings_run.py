@@ -32,10 +32,12 @@ def cuts_of(guides) -> list[list[list[float]]]:
 
 
 def spec_used_for(plan: dict) -> dict | None:
+    from ashiba.geometry import same_outline
+
     outline = plan.get("outline_mm") or []
     for p in sorted(OUT_DIR.glob("*_spec_used.json"), key=lambda q: -q.stat().st_mtime):
         spec = json.loads(p.read_text(encoding="utf-8"))
-        if (spec.get("outline_mm") or []) == outline:
+        if same_outline(spec.get("outline_mm"), outline):
             return spec
     return None
 

@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from ashiba.geometry import same_outline  # noqa: E402
 from ashiba.plan_pick import along, posts_of, spans_covered  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient  # noqa: E402
 from guide_lines import OUT_DIR, building_plan, delete_guides, not_in_plan_hint, selected_guides  # noqa: E402
@@ -38,7 +39,7 @@ def same_building_edges(plan: dict) -> list[dict]:
             other = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (other.get("outline_mm") or []) == outline:
+        if same_outline(other.get("outline_mm"), outline):
             out += list(other.get("edges") or [])
     return out
 

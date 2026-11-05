@@ -21,7 +21,7 @@ ashiba_out/根切り_<名前>.md。
   python3 scripts/negiri_run.py --doma-margin 100 --doma-gravel 100 --doma-lean 0 --doma-thin 200 --color 白黒
   python3 scripts/negiri_run.py --backfill 描かない              # 埋戻しの範囲と量を平面に描かない（帳票には出す）
   python3 scripts/negiri_run.py --update [--name 根切り1]        # 基礎・地中梁を変えた後に、同じ躯体と条件で作り直す（選ばなくてよい）
-  python3 scripts/negiri_run.py --remove [--name 根切り1]        # 置いた根切り図とメッシュを消す（控えの GUID だけ）
+  python3 scripts/negiri_run.py --remove [--name 根切り1]        # 置いた根切り図とメッシュを消す（控えの GUID だけ。全部消せば計画図のレイアウトも）
   python3 scripts/negiri_run.py --sheet [--name 根切り1]         # 根切り・山留計画図（A3 の PDF・レイアウト。線を選べばその線で断面）
 
 埋戻し（GLOOBE 2026 の埋め戻し形状・埋め戻し更新に当たる）: 掘った所から GL 以下の躯体・砕石・捨てコンを除いた所を埋め戻す
@@ -353,7 +353,19 @@ def main(argv=None) -> int:
             sp.write_text(json.dumps(src, ensure_ascii=False, indent=1), encoding="utf-8")
         except (OSError, ValueError):
             pass
-        print(f"根切り図: {n}個を消しました")
+        n_lay = 0
+        if not rec:
+            # 根切り・山留計画図のレイアウト「根切り n …」も（根切り図が残っていなければ。2026-11-05 の試験で残っていた）
+            from ashiba.elevation_sections import _delete_items, _tree, walk_tree
+            from ashiba.negiri_sheets import SERIES
+
+            try:
+                old = [it["guid"] for it in walk_tree(_tree(c, "LayoutBook"))
+                       if it["type"] == "LayoutItem" and it["name"].startswith(SERIES + " ")]
+                n_lay = _delete_items(c, old) if old else 0
+            except Exception:
+                pass
+        print(f"根切り図: {n}個を消しました" + (f"・レイアウト {n_lay}枚" if n_lay else ""))
         return 0
     if a.sheet:
         return sheet(c, R, a.name)

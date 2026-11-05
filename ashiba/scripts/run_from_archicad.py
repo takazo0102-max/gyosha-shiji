@@ -772,17 +772,10 @@ EDIT_KEYS = ("face_forms", "width_change", "stairs", "intakes", "openings", "asa
 
 
 def _same_outline(a, b, tol: float = 1.0) -> bool:
-    """外形の点が同じか（並びの始めと向きは問わない・tol mm 以内）."""
-    if not a or not b or len(a) != len(b):
-        return False
-    used = [False] * len(b)
-    for p in a:
-        k = next((i for i, q in enumerate(b) if not used[i] and abs(float(p[0]) - float(q[0])) <= tol
-                  and abs(float(p[1]) - float(q[1])) <= tol), None)
-        if k is None:
-            return False
-        used[k] = True
-    return True
+    """外形の点が同じか（並びの始めと向き・閉じた最後の点は問わない・tol mm 以内）."""
+    from ashiba.geometry import same_outline
+
+    return same_outline(a, b, tol)
 
 
 def remember_override(out_dir: Path, outline_mm, override: dict) -> None:
