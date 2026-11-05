@@ -42,6 +42,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 LAYER = "仮設_根切り"
+YWALL_USED: list = []      # 根切り図が山留めに使った「山留め壁」（名前, 根切りの深さ mm）
 RECORD = "根切り.json"
 SOURCE = "根切り_元.json"    # 名前 → 選んだ躯体の GUID と条件（「根切り図を更新」で躯体の変更を埋戻し・掘削に映す）
 BACKS = ("描く", "描かない")
@@ -74,6 +75,7 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
     except Exception:
         pass
     zones, walls, polys, others, skipped, roads, pits = [], [], [], [], 0, [], []
+    ywalls = []
     for e, d in zip(sel, dets):
         typ = d.get("type")
         det = d.get("details") or {}
@@ -124,6 +126,9 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
             if len(pts) >= 2:                                   # 開いた線は道路境界線（沿道掘削を見る）
                 roads += [(a, b) for a, b in zip(pts, pts[1:]) if math.dist(a, b) > 1.0]
                 continue
+        elif typ == "Object" and str((det.get("libPart") or {}).get("name", "")).startswith("ashiba_ywall"):
+            ywalls.append(e["elementId"]["guid"])           # 「山留め壁」で置いた山留め（控えの線から内側の面を出す）
+            continue
         else:
             others.append((e, name))
             continue
@@ -141,6 +146,13 @@ def footprints(c, sel: list, dets: list, yamadome_walls: bool, doma_thin: float 
                     skipped += 1
         except Exception:
             skipped += len(others)
+    if ywalls:
+        import run_from_archicad as R
+        from ywall_run import recorded_polygons
+
+        hits = recorded_polygons(R.OUT_DIR, ywalls)
+        polys += [poly for _n, poly, _d in hits]
+        YWALL_USED[:] = [(nm, d) for nm, _p, d in hits]
     return zones, walls, polys, skipped, roads, pits
 
 
@@ -459,6 +471,17 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         print("根切り図: 掘る躯体（基礎・地中梁・耐圧盤などの床・梁・柱・壁）を選んでから押してください。山留めは名前に「山留」が"
               "付くレイヤーの壁か、閉じた線を一緒に選ぶ")
         return 1
+    if not polys and not walls:
+        # 選んでいなくても、躯体を囲む「山留め壁」（scripts/ywall_run.py）があれば山留めとして使う
+        from ywall_run import recorded_polygons
+
+        c0 = (sum(p[0] for f in zones for p in f.pts) / sum(len(f.pts) for f in zones),
+              sum(p[1] for f in zones for p in f.pts) / sum(len(f.pts) for f in zones))
+        hit = recorded_polygons(R.OUT_DIR, point=c0)
+        if hit:
+            polys = [hit[0][1]]
+            YWALL_USED[:] = [(hit[0][0], hit[0][2])]
+            print(f"  山留め: 「山留め壁」の {hit[0][0]} の内側の面まで掘ります")
     opts = (a.slope, a.depth, a.general, a.margin, a.gravel, a.lean, a.doma_margin, a.doma_gravel, a.doma_lean, a.doma_thin,
             a.soil, a.color, a.backfill, a.road_width, a.kamaba, a.name)
     if all(v is None for v in opts):
@@ -520,6 +543,16 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                      general=None if a.general is None else a.gl + a.general, road=roads, kamaba=pits,
                      kamaba_auto=1 if (a.kamaba or PITS[0]) == PITS[0] else 0, machine=a.machine or "",
                      road_width=float(a.road_width or 0.0)))
+    if YWALL_USED:
+        from ywall_run import sheet_info
+
+        n.ywall = sheet_info(R.OUT_DIR, YWALL_USED[0][0])
+        # 床付け（釜場の下げは除く）の最深と、山留め壁を割り付けたときの根切りの深さを比べる
+        deep = max((n.gl - L for L in n.levels), default=0.0)
+        for nm, d in YWALL_USED:
+            if d > 0 and deep > d + 1.0:
+                print(f"  注意: 床付けの最深 GL-{deep:,.0f} が山留め壁 {nm} の根切りの深さ GL-{d:,.0f} より深い。山留め壁の深さ・"
+                      "根入れを見直す（「山留め壁」を押し直す）")
     if roads and not a.road_width:
         print("  注意: 道路境界線を選んだが前面道路の幅員が無いので、沿道区域は最大の 5m で見ます（--road-width で幅員 mm）")
     if name in rec:
@@ -575,7 +608,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
     fig.write_text(json.dumps({"name": name, "gl": n.gl, "margin": n.margin, "gravel": n.gravel, "lean": n.lean,
                                "doma_margin": n.doma_margin, "doma_gravel": n.doma_gravel, "doma_lean": n.doma_lean,
                                "slope": n.slope, "depth": n.depth, "soil": n.soil, "general": n.general,
-                               "yamadome": [list(p) for p in n.yamadome], "cuts": old_cuts,
+                               "yamadome": [list(p) for p in n.yamadome], "ywall": n.ywall, "cuts": old_cuts,
                                "road": [[list(a2), list(b2)] for a2, b2 in n.road], "road_width": n.road_width,
                                "kamaba": [[list(p) for p in k] for k in n.kamaba], "kamaba_auto": n.kamaba_auto,
                                "machine": n.machine, "dump": n.dump,

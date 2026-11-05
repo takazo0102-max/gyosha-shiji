@@ -120,6 +120,7 @@ class Negiri:
     depth: Optional[float] = None         # 掘削底を全部この高さに（プロジェクトの高さ mm）
     soil: str = "その他"
     yamadome: list = field(default_factory=list)   # 山留めの内側の面の多角形（mm）。空＝山留め無し
+    ywall: dict = field(default_factory=dict)      # 山留めに使った「山留め壁」の要点（計画図の注記・断面の長さ・腹起し・根切りの段）
     road: list = field(default_factory=list)       # 道路境界線 [((x, y), (x, y)), …]（mm）。空＝沿道掘削を見ない
     road_width: float = 0.0               # 前面道路の総幅員 mm（沿道区域の幅を決める）
     kamaba: list = field(default_factory=list)     # 釜場の形 [多角形]（選んだ線）

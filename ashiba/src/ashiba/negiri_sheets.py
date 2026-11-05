@@ -49,7 +49,7 @@ def negiri_of(d: dict) -> Negiri:
     road = [(tuple(a), tuple(b)) for a, b in d.get("road", [])]
     pits = [[tuple(p) for p in k] for k in d.get("kamaba", [])]
     return solve(Negiri(d.get("name", "根切り1"), zones, yamadome=[tuple(p) for p in d.get("yamadome", [])], road=road,
-                        kamaba=pits, **kw))
+                        kamaba=pits, ywall=dict(d.get("ywall") or {}), **kw))
 
 
 def _site_normal(n: Negiri, a, b) -> tuple[float, float]:
@@ -220,6 +220,14 @@ def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
         side.append(f'<line x1="{SIDE_X}" y1="{y - 1:.2f}" x2="{SIDE_X + 12}" y2="{y - 1:.2f}" stroke="#000" stroke-width="0.7"/>')
         side.append(_text(SIDE_X + 15, y, "山留め壁の内面", "ts"))
         y += 4.0
+        if n.ywall:
+            # 「山留め壁」で割り付けた山留め（施工図の手引き p.38〜39: 種類・打設ピッチ・長さを書く）
+            side.append(_text(SIDE_X, y, f"{n.ywall.get('name', '')}: {n.ywall.get('label', '')}", "ts"))
+            y += 4.0
+            if n.ywall.get("wales"):
+                side.append(_text(SIDE_X, y, f"腹起し・切梁 {n.ywall.get('wale', '')} "
+                                  + "・".join(f"GL-{z:,.0f}" for z in n.ywall["wales"]), "ts"))
+                y += 4.0
     for L in n.levels:
         side.append(f'<rect x="{SIDE_X}" y="{y - 3:.2f}" width="12" height="3" fill="{_hex(level_color(n, L))}" stroke="#000" '
                     'stroke-width="0.1"/>')
@@ -356,6 +364,8 @@ def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float
     L = math.dist(a, b)
     prof = profile(n, a, b)
     zmin = min([z for _t, z in prof] + [f.bottom - sum(layers_of(n, f)) for f in n.zones]) - EMBED_MM - 500.0
+    if n.yamadome and (n.ywall or {}).get("length"):                    # 山留め壁の先（根入れ）まで入るように
+        zmin = min(zmin, n.gl + float(n.ywall.get("top_up", 0.0)) - float(n.ywall["length"]) - 500.0)
     zmax = n.gl + (3500.0 if machines else 1500.0)                    # 掘削機の背の分
     pre = 14000.0 if machines else 0.0                                 # 左にバックホウとダンプを置く分（GL の外）
     sc = _scale_for(L + pre, zmax - zmin, w - 30.0, h - 16.0)
@@ -390,12 +400,39 @@ def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float
     # 山留め
     if n.yamadome:
         deep = min(z for _t, z in prof)
-        for t in crossings(a, b, n.yamadome):
-            out.append(f'<line x1="{X(t):.2f}" y1="{Y(n.gl + 300.0):.2f}" x2="{X(t):.2f}" y2="{Y(deep - EMBED_MM):.2f}" '
+        yw = n.ywall or {}
+        z_top = n.gl + float(yw.get("top_up", 300.0)) if yw else n.gl + 300.0
+        z_bot = z_top - float(yw["length"]) if yw.get("length") else deep - EMBED_MM
+        tt = sorted(crossings(a, b, n.yamadome))
+        for t in tt:
+            out.append(f'<line x1="{X(t):.2f}" y1="{Y(z_top):.2f}" x2="{X(t):.2f}" y2="{Y(z_bot):.2f}" '
                        'stroke="#000" stroke-width="0.7"/>')
-        tt = crossings(a, b, n.yamadome)
         if tt:
-            out.append(_text(X(tt[0]) - 1.0, Y(deep - EMBED_MM) + 3.0, "山留め（根入れは山留め計算書による）", "ts"))
+            note = (f"{yw.get('label', '')}（根入れ {float(yw.get('embed', 0)) / 1000:.1f}m）" if yw else
+                    "山留め（根入れは山留め計算書による）")
+            out.append(_text(X(tt[0]) - 1.0, Y(z_bot) + 3.0, note, "ts"))
+        if yw and len(tt) >= 2:
+            t0, t1 = tt[0], tt[-1]
+            hw = float(yw.get("wale_h") or 300.0)
+            for z in yw.get("wales") or []:
+                zc = n.gl - float(z)
+                for tx, sg in ((t0, 1.0), (t1, -1.0)):
+                    x0 = X(tx + (100.0 if sg > 0 else -100.0 - hw))
+                    out.append(f'<rect x="{x0:.2f}" y="{Y(zc + hw / 2):.2f}" width="{hw / sc:.2f}" height="{hw / sc:.2f}" '
+                               'fill="#b03020" stroke="#000" stroke-width="0.1"/>')
+                # 切梁は狭い向きだけ。この断面の腹起しの間が切梁の長さと合うときに線で描く（長い向きの断面には出ない）
+                span = (t1 - t0) - 2 * (100.0 + hw)
+                along = yw.get("struts") and abs(span - float(yw.get("strut_len") or span)) < 1000.0
+                if along:
+                    out.append(f'<line x1="{X(t0 + 100.0 + hw):.2f}" y1="{Y(zc):.2f}" x2="{X(t1 - 100.0 - hw):.2f}" y2="{Y(zc):.2f}" '
+                               'stroke="#b03020" stroke-width="0.35" stroke-dasharray="3 1"/>')
+                out.append(_text(X(t1) + 1.0, Y(zc) + 1.0, f"腹起し{'・切梁' if along else ''} {yw.get('wale', '')} "
+                                 f"GL-{float(z):,.0f}", "ts", "start"))
+            for nm, zb in (yw.get("stages") or [])[:-1]:
+                zz = n.gl - float(zb)
+                out.append(f'<line x1="{X(t0):.2f}" y1="{Y(zz):.2f}" x2="{X(t1):.2f}" y2="{Y(zz):.2f}" stroke="#2050a0" '
+                           'stroke-width="0.25" stroke-dasharray="1.5 1"/>')
+                out.append(_text(X(t0) + 1.0, Y(zz) - 0.8, f"{nm}の底 GL-{float(zb):,.0f}", "ts"))
     # 道路境界と 45° の影響斜線（沿道掘削。境界から敷地の側へ、深さ＝境界からの距離）
     for ra, rb in n.road:
         for t in _seg_cross(a, b, ra, rb):
@@ -435,7 +472,10 @@ def section_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
         out.append(_section(n, lab, a, b, AREA[0], AREA[1] + k * h, AREA[2] - AREA[0], h, machines=(k == 0)))
     notes = [("断面図の見方", "躯体の輪郭は破線、灰色は砕石・捨てコン（出幅 0.1m）。寸法の基準は設計 GL。掘削面は升目 "
                          f"{n.step:.0f}mm の高さで、法面は勾配どおりの斜めの線"),
-             ("山留め", "山留め壁は施工誤差を見て躯体と離す（山留めを型枠に兼ねるときのクリアランスは 50〜100 前後が目安）。"
+             ("山留め", (f"「山留め壁」の {n.ywall.get('name', '')}（{n.ywall.get('kind', '')}）。長さ・根入れ・腹起しの段・"
+                       "1次・2次根切りの底は割付の値（数量は ashiba_out/山留め壁.md）。根入れ・部材は山留め計算書で確かめる。"
+                       "山留め壁は施工誤差を見て躯体と離す（50〜100 前後が目安）") if n.ywall else
+                      "山留め壁は施工誤差を見て躯体と離す（山留めを型枠に兼ねるときのクリアランスは 50〜100 前後が目安）。"
                       "根入れ・親杭の間隔・横矢板は山留め計算書で決め、図に書き込む" if n.yamadome else
                       "山留めなし。深さ 1.5m 以上を垂直に掘るなら山留めか法面（建築基準法施行令136条の3第4項）"),
              ("掘削機とダンプ", "最終段階の掘削機とダンプの位置・動線は、重機の部品（バックホウ・ダンプ）を平面に置いて確かめる。"

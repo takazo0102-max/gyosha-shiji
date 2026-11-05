@@ -97,10 +97,24 @@ def place_walkways(c, rec: dict, part: str, pens: dict, z_opt=None, wale_opt: fl
         for k, d in zip(raw, c.get_details([{"elementId": {"guid": k}} for k in raw])):
             if d.get("type") == "Beam":
                 rec["切梁:" + k] = rec.pop(k)
+    from ywall_run import YW_STRUT, struts_for
+
+    import run_from_archicad as R
+
     kk = [k for k in rec if k.startswith(("切梁:", "腹起し:"))]
     _delete_alive(c, [rec[k] for k in kk if rec[k]])
-    dets = c.get_details([{"elementId": {"guid": k.split(":", 1)[1]}} for k in kk]) if kk else []
     beams, walls = [], []
+    # 「山留め壁」の切梁（Archicad の梁は無い。控え 山留め壁.json から）
+    virt = [k for k in kk if k.startswith(YW_STRUT)]
+    if virt:
+        have = struts_for(R.OUT_DIR)
+        for k in virt:
+            if k in have:
+                beams.append((k, have[k]))
+            else:
+                rec.pop(k)                           # 消した・置き直した山留め壁の切梁
+    kk = [k for k in kk if not k.startswith(YW_STRUT)]
+    dets = c.get_details([{"elementId": {"guid": k.split(":", 1)[1]}} for k in kk]) if kk else []
     for k, d in zip(kk, dets):
         if k.startswith("切梁:"):
             b = beam_from_details(d) if d.get("type") == "Beam" else None
@@ -211,11 +225,16 @@ def main(argv=None) -> int:
     plans, made = [], 0
     if a.kiribari:
         beams = [e for e, d in zip(sel, det) if d.get("type") == "Beam" and beam_from_details(d) is not None]
-        if not beams:
-            print("切梁上の足場: 切梁（梁）を選んでから押してください（まっすぐな梁。H形鋼のフランジ幅が梁の幅）")
+        from ywall_run import struts_for
+
+        yw = struts_for(R.OUT_DIR, [e["elementId"]["guid"] for e in sel]) if sel else {}
+        if not beams and not yw:
+            print("切梁上の足場: 切梁（梁）か、切梁のある「山留め壁」の部品を選んでから押してください（まっすぐな梁。H形鋼のフランジ幅が梁の幅）")
             return 1
         for e in beams:
             rec.setdefault("切梁:" + e["elementId"]["guid"], "")
+        for k in yw:
+            rec.setdefault(k, "")
     if a.rail:
         walls = []
         for e, d in zip(sel, det):
@@ -227,6 +246,15 @@ def main(argv=None) -> int:
                     walls.append(w)
         lines = rail_lines(walls)
         keys = [w["guid"] for w in walls]
+        named = set()                                  # 名前がそのまま使える線（山留め壁の辺「山留め1-1」）
+        if not lines:
+            # 「山留め壁」で置いた部品を選んだら、その辺の線（左が地山）と天端（GL＋天端）で
+            from ywall_run import edges_for
+
+            for a0, b0, z0, nm, g in edges_for(R.OUT_DIR, [e["elementId"]["guid"] for e in sel]):
+                lines.append((a0, b0, z0, nm))
+                keys.append(g)
+                named.add(g)
         if not lines:
             from guide_lines import selected_guides
 
@@ -236,7 +264,7 @@ def main(argv=None) -> int:
                     lines.append((s_[0], s_[1], a.z or 0.0, "線"))
                     keys.append(el_["elementId"]["guid"] if isinstance(el_, dict) else str(el_))
         if not lines:
-            print("山留めの手すり: 山留め（壁）か、根切りの縁に引いた線を選んでから押してください")
+            print("山留めの手すり: 山留め（壁）か「山留め壁」の部品か、根切りの縁に引いた線を選んでから押してください")
             return 1
         for k, ((p0, p1, z, nm), key) in enumerate(zip(lines, keys), 1):
             if key in rec:
@@ -244,7 +272,7 @@ def main(argv=None) -> int:
             L = math.dist(p0, p1)
             if L < 300.0:
                 continue
-            p = rail_plan(f"{nm or '山留め'}{k}", L)
+            p = rail_plan(nm if key in named else f"{nm or '山留め'}{k}", L)
             ang = math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0]))
             el = _place(c, part, p0, z, ang)
             if el is None:

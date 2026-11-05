@@ -1,0 +1,282 @@
+﻿! 山留め壁: 並びを読む（m）
+dim pileX[]
+nPile = 0
+rest = pX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPile = nPile + 1
+		pileX[nPile] = v / 1000
+	endif
+endwhile
+dim stgD[]
+nStg = 0
+rest = stD
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStg = nStg + 1
+		stgD[nStg] = v / 1000
+	endif
+endwhile
+dim bdA[]
+nBay = 0
+rest = lgA
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBay = nBay + 1
+		bdA[nBay] = v / 1000
+	endif
+endwhile
+dim bdB[]
+nBayB = 0
+rest = lgB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBayB = nBayB + 1
+		bdB[nBayB] = v / 1000
+	endif
+endwhile
+dim bdN[]
+nBn = 0
+rest = lgN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBn = nBn + 1
+		bdN[nBn] = v / 1
+	endif
+endwhile
+dim pfX[]
+nPf = 0
+rest = prX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPf = nPf + 1
+		pfX[nPf] = v / 1000
+	endif
+endwhile
+dim pfY[]
+nPfY = 0
+rest = prY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPfY = nPfY + 1
+		pfY[nPfY] = v / 1000
+	endif
+endwhile
+dim coreP[]
+nCore = 0
+rest = coreX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nCore = nCore + 1
+		coreP[nCore] = v / 1000
+	endif
+endwhile
+dim pnHs[]
+nPn = 0
+rest = pnH
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPn = nPn + 1
+		pnHs[nPn] = v / 1000
+	endif
+endwhile
+dim strL[]
+nStr = 0
+rest = stY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStr = nStr + 1
+		strL[nStr] = v / 1000
+	endif
+endwhile
+dim strZ[]
+nStz = 0
+rest = stZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStz = nStz + 1
+		strZ[nStz] = v / 1000
+	endif
+endwhile
+dim wlv[]
+nWl = 0
+rest = wlZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nWl = nWl + 1
+		wlv[nWl] = v / 1000
+	endif
+endwhile
+dim brP[]
+nBr = 0
+rest = brX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBr = nBr + 1
+		brP[nBr] = v / 1000
+	endif
+endwhile
+dim sbP[]
+nSb = 0
+rest = sbX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSb = nSb + 1
+		sbP[nSb] = v / 1000
+	endif
+endwhile
+dim sbLs[]
+nSbL = 0
+rest = sbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSbL = nSbL + 1
+		sbLs[nSbL] = v / 1000
+	endif
+endwhile
+if nSbL < nSb then nSb = nSbL
+if not(wlOn) then nWl = 0
+yW = -faceY - wlGap
+if nBayB < nBay then nBay = nBayB
+if nPfY < nPf then nPf = nPfY
+nBoard = 0
+for i = 1 to nBn
+	nBoard = nBoard + bdN[i]
+next i
+yF = -hH / 2 + hT2 + lagGap
+hgt = zTop - zBot
