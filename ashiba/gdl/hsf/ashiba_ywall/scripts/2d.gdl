@@ -181,6 +181,19 @@ if ywKind = 8 then
 	next i
 	yTx = tbD / 2
 endif
+if nWl > 0 and drLv < 3 then
+	! 腹起し・切梁（GL の下なので隠れ線）
+	drawindex 40
+	pen pT
+	line_type ltH
+	line2 wlX0, yW, wlX1, yW
+	line2 wlX0, yW - wlH, wlX1, yW - wlH
+	for j = 1 to nSb
+		line2 sbP[j] - wlB / 2, yW - wlH, sbP[j] - wlB / 2, yW - wlH - sbLs[j]
+		line2 sbP[j] + wlB / 2, yW - wlH, sbP[j] + wlB / 2, yW - wlH - sbLs[j]
+	next j
+	line_type ltS
+endif
 drawindex 50
 pen penEquip
 text2 ywL / 2, yTx + 0.15 + dT / 2, ywInfo

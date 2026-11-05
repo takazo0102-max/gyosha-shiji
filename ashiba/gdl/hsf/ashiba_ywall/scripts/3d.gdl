@@ -12,6 +12,7 @@ define material "yw_smw" 2, 0.66, 0.66, 0.62
 define material "yw_panel" 2, 0.30, 0.45, 0.62
 define material "yw_rail" 2, 0.90, 0.62, 0.12
 define material "yw_strut" 2, 0.20, 0.38, 0.72
+define material "yw_wale" 2, 0.72, 0.16, 0.12
 resol 16
 if ywKind = 1 then
 	! ---- 親杭（H形鋼。フランジが山留めの線に平行） ----
@@ -179,4 +180,55 @@ if ywKind = 8 then
 		endif
 	next i
 endif
+! ---- 腹起し（H形鋼を寝かせて壁から wlGap 離す）・ブラケット・切梁（向かいの辺の部品と合わせて1本） ----
+for k = 1 to nWl
+	zc = -wlv[k]
+	material "yw_wale"
+	add wlX0, yW - wlH / 2, zc
+	roty 90
+	prism_ 12, wlX1 - wlX0,
+		-wlB / 2, -wlH / 2, 15,
+		wlB / 2, -wlH / 2, 15,
+		wlB / 2, -wlH / 2 + wlT2, 15,
+		wlT1 / 2, -wlH / 2 + wlT2, 15,
+		wlT1 / 2, wlH / 2 - wlT2, 15,
+		wlB / 2, wlH / 2 - wlT2, 15,
+		wlB / 2, wlH / 2, 15,
+		-wlB / 2, wlH / 2, 15,
+		-wlB / 2, wlH / 2 - wlT2, 15,
+		-wlT1 / 2, wlH / 2 - wlT2, 15,
+		-wlT1 / 2, -wlH / 2 + wlT2, 15,
+		-wlB / 2, -wlH / 2 + wlT2, 15
+	del 2
+	material "yw_steel"
+	for i = 1 to nBr
+		add brP[i] - 0.075, yW - wlH, zc - wlB / 2 - 0.016
+		block 0.15, wlH + wlGap, 0.016
+		del 1
+		add brP[i] - 0.006, yW - wlH * 0.6, zc - wlB / 2 - 0.2
+		block 0.012, wlH * 0.6 + wlGap, 0.184
+		del 1
+	next i
+	material "yw_wale"
+	for j = 1 to nSb
+		if sbLs[j] > 0.01 then
+			add sbP[j], yW - wlH, zc
+			rotx 90
+			prism_ 12, sbLs[j],
+				-wlB / 2, -wlH / 2, 15,
+				wlB / 2, -wlH / 2, 15,
+				wlB / 2, -wlH / 2 + wlT2, 15,
+				wlT1 / 2, -wlH / 2 + wlT2, 15,
+				wlT1 / 2, wlH / 2 - wlT2, 15,
+				wlB / 2, wlH / 2 - wlT2, 15,
+				wlB / 2, wlH / 2, 15,
+				-wlB / 2, wlH / 2, 15,
+				-wlB / 2, wlH / 2 - wlT2, 15,
+				-wlT1 / 2, wlH / 2 - wlT2, 15,
+				-wlT1 / 2, -wlH / 2 + wlT2, 15,
+				-wlB / 2, -wlH / 2 + wlT2, 15
+			del 2
+		endif
+	next j
+next k
 end

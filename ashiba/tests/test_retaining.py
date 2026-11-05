@@ -119,6 +119,35 @@ class TestSheetPiles(unittest.TestCase):
         self.assertEqual(alu.wall_len, 3500.0)            # 3.2m を 0.5m に切り上げ
 
 
+class TestSupports(unittest.TestCase):
+    def test_wales_and_struts(self):
+        """深さ 3m を超えたら腹起し（頭から 1m・その下 3m）・ブラケット（2m 以内・両端）・切梁（狭い向き・水平 5m 以下）."""
+        w = wall(depth=5000.0)
+        self.assertEqual(w.wales, [1000.0, 4000.0])
+        self.assertEqual([s.bottom for s in w.stages], [2150.0, 5000.0])        # 腹起しの下端＋余掘り 1.0m までを1次根切り
+        e0, e1 = w.edges[0], w.edges[1]
+        self.assertEqual(e0.wale_x, (150.0 + 100.0 + 300.0, 12000.0 - 250.0))
+        gaps = [b - a for a, b in zip(e0.brackets, e0.brackets[1:])]
+        self.assertTrue(max(gaps) <= 2000.0 and e0.brackets[0] == 700.0)
+        self.assertEqual(len(e0.strut_x), 3)                                     # 11.2m を 5m 以下に
+        self.assertEqual(e0.strut_len, [8000.0 / 2 - 550.0] * 3)
+        self.assertEqual(e1.strut_x, [])                                          # 長い向きには渡さない
+        q = {x.item.strip(): x for x in RT.quantities(w)}
+        self.assertEqual(q["切梁"].qty, 3 * 2)
+        self.assertAlmostEqual(q["切梁（積算）"].qty, 11.7 * 7.7 * 2, places=1)
+        self.assertEqual(q["腹起しのブラケット"].qty, (7 + 5) * 2 * 2)
+
+    def test_support_options(self):
+        self.assertEqual(wall(depth=3000.0).wales, [])                          # 自動は 3m まで自立
+        self.assertEqual(wall(depth=3000.0, support="wale").wales, [1000.0])
+        self.assertEqual(wall(depth=6000.0, support="none").wales, [])
+        self.assertEqual(wall("tatekomi", depth=5000.0, support="wale").wales, [])
+        self.assertEqual(len(wall("lsp", depth=3800.0).wales), 3)               # 軽量鋼矢板は 4.0m 未満 3段
+        p = RT.part_params(wall(depth=5000.0), wall(depth=5000.0).edges[0])
+        self.assertTrue(p["wlOn"])
+        self.assertEqual(p["wlZ"], "1000.0,4000.0")
+
+
 class TestOthers(unittest.TestCase):
     def test_tatekomi(self):
         """パネルは深さ以上で一番はみ出しの少ない積み、切梁は狭い向き（掘削幅）だけ."""

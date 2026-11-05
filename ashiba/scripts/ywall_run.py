@@ -9,6 +9,7 @@
   python3 scripts/ywall_run.py --kind sp_u --model IV --embed 4000            # U形鋼矢板 Ⅳ型・根入れ 4m
   python3 scripts/ywall_run.py --kind tatekomi --model TS1 --depth 2500       # たて込み簡易土留め
   python3 scripts/ywall_run.py --kind smw --model 650 --core-every 2          # SMW φ650・芯材 1本おき
+  python3 scripts/ywall_run.py --support wale --depth 5000                  # 腹起し・切梁を描く（auto は深さ 3m を超えたら・none は自立）
   python3 scripts/ywall_run.py --list                            # 種類と型式の一覧
   python3 scripts/ywall_run.py --remove                          # 置いた山留め壁を消す
 
@@ -32,6 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 PART = "ashiba_ywall"
 RECORD = "山留め壁.json"
 LAYER = "仮設_山留め"
+SUPPORTS = {"自動（深さ 3m を超えたら腹起し・切梁）": "auto", "腹起し・切梁を描く": "wale", "自立（腹起し・切梁なし）": "none"}
 
 
 def models_of(kind: str) -> list[str]:
@@ -62,7 +64,7 @@ def wall_from(rec: dict):
                 depth=rec["depth"], stages_mm=rec.get("stages", []), top_up=rec.get("top_up", 0.0), embed=rec.get("embed"),
                 model=rec.get("model", ""), pitch=rec.get("pitch", RT.PILE_PITCH_MM), lag_t=rec.get("lag_t", RT.LAG_T_MM),
                 kakari=rec.get("kakari"), core=rec.get("core", ""), core_every=rec.get("core_every", 1),
-                tube_d=rec.get("tube_d", RT.TUBE_D_MM), tube_t=rec.get("tube_t", RT.TUBE_T_MM))
+                tube_d=rec.get("tube_d", RT.TUBE_D_MM), tube_t=rec.get("tube_t", RT.TUBE_T_MM), support=rec.get("support", "auto"))
     return RT.plan(w)
 
 
@@ -89,8 +91,10 @@ def ask(a, n_lines: int, closed: bool) -> bool:
             {"key": "kind", "label": "種類", "kind": "choice", "options": kinds, "value": RT.KIND_LABELS[a.kind]},
             {"key": "model", "label": "型式（種類と合わないものは既定に）", "kind": "choice", "options": all_models, "value": all_models[0]},
             {"key": "depth", "label": "根切りの深さ GL から mm（正）", "kind": "number", "value": f"{a.depth:.0f}"},
-            {"key": "stages", "label": "1次・2次…根切りの底 GL から mm（カンマ区切り。空＝1回で掘る。例 2000）", "kind": "text",
-             "value": a.stages or ""},
+            {"key": "stages", "label": "1次・2次…根切りの底 GL から mm（カンマ区切り。空＝腹起しがあれば その下端＋1.0m ごと、無ければ1回）",
+             "kind": "text", "value": a.stages or ""},
+            {"key": "support", "label": "腹起し・切梁（H-300・壁から 100・ブラケット 2m ピッチ・切梁 5m 以下）", "kind": "choice",
+             "options": list(SUPPORTS), "value": next(k for k, v in SUPPORTS.items() if v == (a.support or "auto"))},
             {"key": "embed", "label": "根入れ mm（空＝種類の既定: 親杭 1500・鋼矢板 3000・軽量 深さの1/2・アルミ 200）", "kind": "number",
              "value": "" if a.embed is None else f"{a.embed:.0f}"},
             {"key": "top_up", "label": "天端 GL から上 mm", "kind": "number", "value": f"{a.top_up:.0f}"},
@@ -122,6 +126,7 @@ def ask(a, n_lines: int, closed: bool) -> bool:
     a.lag_t = lt if lt else a.lag_t
     a.stages = str(v.get("stages") or "")
     a.core_every = 2 if str(v.get("core_every")) == "1本おき" else 1
+    a.support = SUPPORTS.get(str(v.get("support")), a.support or "auto")
     return True
 
 
@@ -178,6 +183,8 @@ def main(argv=None) -> int:
     ap.add_argument("--lag-t", dest="lag_t", type=float, default=None, help="横矢板の厚さ mm")
     ap.add_argument("--kakari", type=float, default=None, help="掛かり代 mm（省くと矢板の厚さ）")
     ap.add_argument("--core-every", dest="core_every", type=int, default=None, choices=(1, 2), help="SMW の芯材 1＝全孔・2＝1本おき")
+    ap.add_argument("--support", default=None, choices=("auto", "wale", "none"),
+                    help="腹起し・切梁（auto＝深さ 3m を超えたら・wale＝描く・none＝自立）")
     ap.add_argument("--tube", default="", help="鋼管矢板の 外径×板厚 mm（例 800x12）")
     ap.add_argument("--gl", type=float, default=None, help="GL の高さ mm（プロジェクトの 0 から）")
     ap.add_argument("--list", action="store_true", help="種類と型式の一覧")
@@ -212,7 +219,7 @@ def main(argv=None) -> int:
         print("山留め壁: 山留めの線（ポリライン・線。閉じた線は中が根切り、開いた線は線の右が根切り）を選んでから押してください")
         return 1
     asked = all(getattr(a, k) is None for k in ("kind", "depth", "stages", "embed", "top_up", "pitch", "lag_t", "kakari",
-                                                 "core_every", "gl")) and not a.model
+                                                 "core_every", "gl", "support")) and not a.model
     a.kind = a.kind or "oyagui"
     a.depth = 3000.0 if a.depth is None else a.depth
     a.top_up = 0.0 if a.top_up is None else a.top_up
@@ -220,6 +227,7 @@ def main(argv=None) -> int:
     a.lag_t = RT.LAG_T_MM if a.lag_t is None else a.lag_t
     a.core_every = 1 if a.core_every is None else a.core_every
     a.gl = 0.0 if a.gl is None else a.gl
+    a.support = a.support or "auto"
     if asked and not ask(a, len(lines), any(cl for _k, _p, cl in lines)):
         print("山留め壁: やめました（何も置いていません）")
         return 0
@@ -259,7 +267,8 @@ def main(argv=None) -> int:
         pp = [tuple(p) for p in (pts[:-1] if closed else pts)]
         entry = {"name": name, "kind": a.kind, "model": a.model or RT.default_model(a.kind), "pts": [list(p) for p in pp],
                  "closed": closed, "gl": a.gl, "depth": a.depth, "stages": stages, "top_up": a.top_up, "embed": a.embed,
-                 "pitch": a.pitch, "lag_t": a.lag_t, "kakari": a.kakari, "core_every": a.core_every, "tube_d": tube_d, "tube_t": tube_t}
+                 "pitch": a.pitch, "lag_t": a.lag_t, "kakari": a.kakari, "core_every": a.core_every, "tube_d": tube_d, "tube_t": tube_t,
+                 "support": a.support}
         w = wall_from(entry)
         entry["pts"] = [list(p) for p in w.pts]            # 向きをそろえた点
         guids = []

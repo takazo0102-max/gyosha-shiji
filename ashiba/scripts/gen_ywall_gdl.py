@@ -102,6 +102,19 @@ def paramlist() -> str:
         _param("String", "stZ", "切梁の段の高さ（底から mm）", "700,2300"),
         _param("Length", "stDia", "切梁の太さ", 0.1143),
         _param("Boolean", "stgCol", "3D で根切りの段ごとに矢板の色を変える", 1),
+        # 腹起し・ブラケット・切梁（山留め支保工）
+        _param("Boolean", "wlOn", "腹起し・切梁を描く", 0),
+        _param("String", "wlZ", "腹起しの段（GL からの深さ mm。腹起しの芯）", "1000"),
+        _param("Length", "wlH", "腹起し・切梁の H形鋼の高さ", 0.3),
+        _param("Length", "wlB", "腹起し・切梁の H形鋼のフランジ幅", 0.3),
+        _param("Length", "wlT1", "腹起し・切梁の H形鋼のウェブの厚さ", 0.01),
+        _param("Length", "wlT2", "腹起し・切梁の H形鋼のフランジの厚さ", 0.015),
+        _param("Length", "wlGap", "山留め壁と腹起しのすき間（裏込め）", 0.1),
+        _param("Length", "wlX0", "腹起しの始め（辺の始めから）", 0.55),
+        _param("Length", "wlX1", "腹起しの終わり", 4),
+        _param("String", "brX", "腹起しのブラケットの位置（mm）", "700,2500"),
+        _param("String", "sbX", "切梁の位置（mm）", ""),
+        _param("String", "sbL", "切梁の長さ（腹起しの前の面から根切りの中心まで mm）", ""),
         _param("Length", "faceY", "根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）", 0.15),
         *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -120,7 +133,11 @@ SCRIPT_1D = ("﻿! 山留め壁: 並びを読む（m）\n"
              + _list("pX", "pileX", "nPile") + _list("stD", "stgD", "nStg")
              + _list("lgA", "bdA", "nBay") + _list("lgB", "bdB", "nBayB") + _list("lgN", "bdN", "nBn", "1")
              + _list("prX", "pfX", "nPf") + _list("prY", "pfY", "nPfY") + _list("coreX", "coreP", "nCore")
-             + _list("pnH", "pnHs", "nPn") + _list("stY", "strL", "nStr") + _list("stZ", "strZ", "nStz") + """if nBayB < nBay then nBay = nBayB
+             + _list("pnH", "pnHs", "nPn") + _list("stY", "strL", "nStr") + _list("stZ", "strZ", "nStz")
+             + _list("wlZ", "wlv", "nWl") + _list("brX", "brP", "nBr") + _list("sbX", "sbP", "nSb") + _list("sbL", "sbLs", "nSbL") + """if nSbL < nSb then nSb = nSbL
+if not(wlOn) then nWl = 0
+yW = -faceY - wlGap
+if nBayB < nBay then nBay = nBayB
 if nPfY < nPf then nPf = nPfY
 nBoard = 0
 for i = 1 to nBn
@@ -136,15 +153,19 @@ H_PTS = ["-hB / 2, -hH / 2", "hB / 2, -hH / 2", "hB / 2, -hH / 2 + hT2", "hT1 / 
          "-hT1 / 2, -hH / 2 + hT2", "-hB / 2, -hH / 2 + hT2"]
 
 
+W_PTS = [q.replace("hB", "wlB").replace("hH", "wlH").replace("hT1", "wlT1").replace("hT2", "wlT2") for q in H_PTS]
+
+
 def _h2d(indent: str) -> str:
     rows = H_PTS + [H_PTS[0]]
     body = ",\n".join(f"{indent}\t{p}, {-1 if i == len(rows) - 1 else 1}" for i, p in enumerate(rows))
     return (f"{indent}fill fiS\n{indent}poly2_b {len(rows)}, 7, pO, pO,\n" + body + "\n")
 
 
-def _h3d(indent: str, height: str) -> str:
-    body = ",\n".join(f"{indent}\t{p}, 15" for p in H_PTS)
-    return f"{indent}prism_ {len(H_PTS)}, {height},\n{body}\n"
+def _h3d(indent: str, height: str, pts=None) -> str:
+    pts = pts or H_PTS
+    body = ",\n".join(f"{indent}\t{p}, 15" for p in pts)
+    return f"{indent}prism_ {len(pts)}, {height},\n{body}\n"
 
 
 SCRIPT_2D_T = """﻿! 山留め壁 2D（GL で切った平面。CAD の平面図の描き方: scripts/gdl_draft.py）: 鋼材の断面は塗り、矢板・パネルは外形、根切りの中の
@@ -272,6 +293,19 @@ if ywKind = 8 then
 	next i
 	yTx = tbD / 2
 endif
+if nWl > 0 and drLv < 3 then
+	! 腹起し・切梁（GL の下なので隠れ線）
+	drawindex 40
+	pen pT
+	line_type ltH
+	line2 wlX0, yW, wlX1, yW
+	line2 wlX0, yW - wlH, wlX1, yW - wlH
+	for j = 1 to nSb
+		line2 sbP[j] - wlB / 2, yW - wlH, sbP[j] - wlB / 2, yW - wlH - sbLs[j]
+		line2 sbP[j] + wlB / 2, yW - wlH, sbP[j] + wlB / 2, yW - wlH - sbLs[j]
+	next j
+	line_type ltS
+endif
 drawindex 50
 pen penEquip
 text2 ywL / 2, yTx + 0.15 + dT / 2, ywInfo
@@ -297,6 +331,7 @@ define material "yw_smw" 2, 0.66, 0.66, 0.62
 define material "yw_panel" 2, 0.30, 0.45, 0.62
 define material "yw_rail" 2, 0.90, 0.62, 0.12
 define material "yw_strut" 2, 0.20, 0.38, 0.72
+define material "yw_wale" 2, 0.72, 0.16, 0.12
 resol 16
 if ywKind = 1 then
 	! ---- 親杭（H形鋼。フランジが山留めの線に平行） ----
@@ -438,10 +473,36 @@ if ywKind = 8 then
 		endif
 	next i
 endif
+! ---- 腹起し（H形鋼を寝かせて壁から wlGap 離す）・ブラケット・切梁（向かいの辺の部品と合わせて1本） ----
+for k = 1 to nWl
+	zc = -wlv[k]
+	material "yw_wale"
+	add wlX0, yW - wlH / 2, zc
+	roty 90
+@W3DX@	del 2
+	material "yw_steel"
+	for i = 1 to nBr
+		add brP[i] - 0.075, yW - wlH, zc - wlB / 2 - 0.016
+		block 0.15, wlH + wlGap, 0.016
+		del 1
+		add brP[i] - 0.006, yW - wlH * 0.6, zc - wlB / 2 - 0.2
+		block 0.012, wlH * 0.6 + wlGap, 0.184
+		del 1
+	next i
+	material "yw_wale"
+	for j = 1 to nSb
+		if sbLs[j] > 0.01 then
+			add sbP[j], yW - wlH, zc
+			rotx 90
+@W3DY@			del 2
+		endif
+	next j
+next k
 end
 """
 
-SCRIPT_3D = SCRIPT_3D_T.replace("@H3D@", _h3d("\t\t", "hgt"))
+SCRIPT_3D = (SCRIPT_3D_T.replace("@H3D@", _h3d("\t\t", "hgt"))
+             .replace("@W3DX@", _h3d("\t", "wlX1 - wlX0", W_PTS)).replace("@W3DY@", _h3d("\t\t\t", "sbLs[j]", W_PTS)))
 
 
 def main() -> int:

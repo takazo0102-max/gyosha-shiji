@@ -56,6 +56,18 @@
 !   stZ       文字列    切梁の段の高さ（底から mm）                                                                                         既定 "700,2300"
 !   stDia     長さ      切梁の太さ                                                                                                          既定 0.1143
 !   stgCol    ブール    3D で根切りの段ごとに矢板の色を変える                                                                               既定 1
+!   wlOn      ブール    腹起し・切梁を描く                                                                                                  既定 0
+!   wlZ       文字列    腹起しの段（GL からの深さ mm。腹起しの芯）                                                                          既定 "1000"
+!   wlH       長さ      腹起し・切梁の H形鋼の高さ                                                                                          既定 0.3
+!   wlB       長さ      腹起し・切梁の H形鋼のフランジ幅                                                                                    既定 0.3
+!   wlT1      長さ      腹起し・切梁の H形鋼のウェブの厚さ                                                                                  既定 0.01
+!   wlT2      長さ      腹起し・切梁の H形鋼のフランジの厚さ                                                                                既定 0.015
+!   wlGap     長さ      山留め壁と腹起しのすき間（裏込め）                                                                                  既定 0.1
+!   wlX0      長さ      腹起しの始め（辺の始めから）                                                                                        既定 0.55
+!   wlX1      長さ      腹起しの終わり                                                                                                      既定 4
+!   brX       文字列    腹起しのブラケットの位置（mm）                                                                                      既定 "700,2500"
+!   sbX       文字列    切梁の位置（mm）                                                                                                    既定 ""
+!   sbL       文字列    切梁の長さ（腹起しの前の面から根切りの中心まで mm）                                                                 既定 ""
 !   faceY     長さ      根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）                                                      既定 0.15
 !   penBold   PenColor  外形の線（太線。置くときに線のペンと同じ色の太いペン）                                                              既定 21
 !   penThin   PenColor  細部の線（細線。同じ色の細いペン）                                                                                  既定 1
@@ -267,6 +279,81 @@ while strlen(rest) > 0 do
 		strZ[nStz] = v / 1000
 	endif
 endwhile
+dim wlv[]
+nWl = 0
+rest = wlZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nWl = nWl + 1
+		wlv[nWl] = v / 1000
+	endif
+endwhile
+dim brP[]
+nBr = 0
+rest = brX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBr = nBr + 1
+		brP[nBr] = v / 1000
+	endif
+endwhile
+dim sbP[]
+nSb = 0
+rest = sbX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSb = nSb + 1
+		sbP[nSb] = v / 1000
+	endif
+endwhile
+dim sbLs[]
+nSbL = 0
+rest = sbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSbL = nSbL + 1
+		sbLs[nSbL] = v / 1000
+	endif
+endwhile
+if nSbL < nSb then nSb = nSbL
+if not(wlOn) then nWl = 0
+yW = -faceY - wlGap
 if nBayB < nBay then nBay = nBayB
 if nPfY < nPf then nPf = nPfY
 nBoard = 0
@@ -462,6 +549,19 @@ if ywKind = 8 then
 	next i
 	yTx = tbD / 2
 endif
+if nWl > 0 and drLv < 3 then
+	! 腹起し・切梁（GL の下なので隠れ線）
+	drawindex 40
+	pen pT
+	line_type ltH
+	line2 wlX0, yW, wlX1, yW
+	line2 wlX0, yW - wlH, wlX1, yW - wlH
+	for j = 1 to nSb
+		line2 sbP[j] - wlB / 2, yW - wlH, sbP[j] - wlB / 2, yW - wlH - sbLs[j]
+		line2 sbP[j] + wlB / 2, yW - wlH, sbP[j] + wlB / 2, yW - wlH - sbLs[j]
+	next j
+	line_type ltS
+endif
 drawindex 50
 pen penEquip
 text2 ywL / 2, yTx + 0.15 + dT / 2, ywInfo
@@ -486,6 +586,7 @@ define material "yw_smw" 2, 0.66, 0.66, 0.62
 define material "yw_panel" 2, 0.30, 0.45, 0.62
 define material "yw_rail" 2, 0.90, 0.62, 0.12
 define material "yw_strut" 2, 0.20, 0.38, 0.72
+define material "yw_wale" 2, 0.72, 0.16, 0.12
 resol 16
 if ywKind = 1 then
 	! ---- 親杭（H形鋼。フランジが山留めの線に平行） ----
@@ -653,5 +754,56 @@ if ywKind = 8 then
 		endif
 	next i
 endif
+! ---- 腹起し（H形鋼を寝かせて壁から wlGap 離す）・ブラケット・切梁（向かいの辺の部品と合わせて1本） ----
+for k = 1 to nWl
+	zc = -wlv[k]
+	material "yw_wale"
+	add wlX0, yW - wlH / 2, zc
+	roty 90
+	prism_ 12, wlX1 - wlX0,
+		-wlB / 2, -wlH / 2, 15,
+		wlB / 2, -wlH / 2, 15,
+		wlB / 2, -wlH / 2 + wlT2, 15,
+		wlT1 / 2, -wlH / 2 + wlT2, 15,
+		wlT1 / 2, wlH / 2 - wlT2, 15,
+		wlB / 2, wlH / 2 - wlT2, 15,
+		wlB / 2, wlH / 2, 15,
+		-wlB / 2, wlH / 2, 15,
+		-wlB / 2, wlH / 2 - wlT2, 15,
+		-wlT1 / 2, wlH / 2 - wlT2, 15,
+		-wlT1 / 2, -wlH / 2 + wlT2, 15,
+		-wlB / 2, -wlH / 2 + wlT2, 15
+	del 2
+	material "yw_steel"
+	for i = 1 to nBr
+		add brP[i] - 0.075, yW - wlH, zc - wlB / 2 - 0.016
+		block 0.15, wlH + wlGap, 0.016
+		del 1
+		add brP[i] - 0.006, yW - wlH * 0.6, zc - wlB / 2 - 0.2
+		block 0.012, wlH * 0.6 + wlGap, 0.184
+		del 1
+	next i
+	material "yw_wale"
+	for j = 1 to nSb
+		if sbLs[j] > 0.01 then
+			add sbP[j], yW - wlH, zc
+			rotx 90
+			prism_ 12, sbLs[j],
+				-wlB / 2, -wlH / 2, 15,
+				wlB / 2, -wlH / 2, 15,
+				wlB / 2, -wlH / 2 + wlT2, 15,
+				wlT1 / 2, -wlH / 2 + wlT2, 15,
+				wlT1 / 2, wlH / 2 - wlT2, 15,
+				wlB / 2, wlH / 2 - wlT2, 15,
+				wlB / 2, wlH / 2, 15,
+				-wlB / 2, wlH / 2, 15,
+				-wlB / 2, wlH / 2 - wlT2, 15,
+				-wlT1 / 2, wlH / 2 - wlT2, 15,
+				-wlT1 / 2, -wlH / 2 + wlT2, 15,
+				-wlB / 2, -wlH / 2 + wlT2, 15
+			del 2
+		endif
+	next j
+next k
 end
 

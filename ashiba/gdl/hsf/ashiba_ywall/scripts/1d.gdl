@@ -197,6 +197,81 @@ while strlen(rest) > 0 do
 		strZ[nStz] = v / 1000
 	endif
 endwhile
+dim wlv[]
+nWl = 0
+rest = wlZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nWl = nWl + 1
+		wlv[nWl] = v / 1000
+	endif
+endwhile
+dim brP[]
+nBr = 0
+rest = brX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBr = nBr + 1
+		brP[nBr] = v / 1000
+	endif
+endwhile
+dim sbP[]
+nSb = 0
+rest = sbX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSb = nSb + 1
+		sbP[nSb] = v / 1000
+	endif
+endwhile
+dim sbLs[]
+nSbL = 0
+rest = sbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSbL = nSbL + 1
+		sbLs[nSbL] = v / 1000
+	endif
+endwhile
+if nSbL < nSb then nSb = nSbL
+if not(wlOn) then nWl = 0
+yW = -faceY - wlGap
 if nBayB < nBay then nBay = nBayB
 if nPfY < nPf then nPf = nPfY
 nBoard = 0

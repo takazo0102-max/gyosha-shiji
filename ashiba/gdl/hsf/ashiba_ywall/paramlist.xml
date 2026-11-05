@@ -201,6 +201,54 @@
 			<Description><![CDATA["3D で根切りの段ごとに矢板の色を変える"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="wlOn">
+			<Description><![CDATA["腹起し・切梁を描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<String Name="wlZ">
+			<Description><![CDATA["腹起しの段（GL からの深さ mm。腹起しの芯）"]]></Description>
+			<Value><![CDATA["1000"]]></Value>
+		</String>
+		<Length Name="wlH">
+			<Description><![CDATA["腹起し・切梁の H形鋼の高さ"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="wlB">
+			<Description><![CDATA["腹起し・切梁の H形鋼のフランジ幅"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="wlT1">
+			<Description><![CDATA["腹起し・切梁の H形鋼のウェブの厚さ"]]></Description>
+			<Value>0.01</Value>
+		</Length>
+		<Length Name="wlT2">
+			<Description><![CDATA["腹起し・切梁の H形鋼のフランジの厚さ"]]></Description>
+			<Value>0.015</Value>
+		</Length>
+		<Length Name="wlGap">
+			<Description><![CDATA["山留め壁と腹起しのすき間（裏込め）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="wlX0">
+			<Description><![CDATA["腹起しの始め（辺の始めから）"]]></Description>
+			<Value>0.55</Value>
+		</Length>
+		<Length Name="wlX1">
+			<Description><![CDATA["腹起しの終わり"]]></Description>
+			<Value>4</Value>
+		</Length>
+		<String Name="brX">
+			<Description><![CDATA["腹起しのブラケットの位置（mm）"]]></Description>
+			<Value><![CDATA["700,2500"]]></Value>
+		</String>
+		<String Name="sbX">
+			<Description><![CDATA["切梁の位置（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="sbL">
+			<Description><![CDATA["切梁の長さ（腹起しの前の面から根切りの中心まで mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<Length Name="faceY">
 			<Description><![CDATA["根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）"]]></Description>
 			<Value>0.15</Value>

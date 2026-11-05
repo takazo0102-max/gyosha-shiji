@@ -75,6 +75,16 @@ SIGMA_SUGI = 10.3                    # すぎ系の許容曲げ応力度 N/mm²�
 WEDGE = (150.0, 40.0, 25.0)          # くさびの長さ・幅・厚い方【目安】
 SANKI = (40.0, 16.0)                 # 矢板止めの桟木 幅×厚【目安】
 SANKI_STOCK_M = (2.0, 4.0)
+# 腹起し・切梁（山留め支保工）: リース材 30HA（H-300）100kg/m・40HA 200kg/m（ヒロセ 鋼製山留総合カタログ p.15〜23・国総研 数量要領
+# R8 1-11-5）。山留め壁と腹起しの間隙 10cm（裏込め。ヒロセ p.6）、ブラケットは腹起し1本に2個以上・2m ピッチ目安・両端に必ず（施工計画書例）、
+# 切梁は水平 5m 以下・垂直 3m 程度（九州 共2-24）、切梁を入れるときの余掘り 1.0m（道路土工 仮設指針 p.65）
+WALE_SHAPE = {"heavy": ("H-300", 100.0), "light": ("H-200", 55.0)}     # (形, kg/m。加工材の単位質量)
+WALE_GAP_MM = 100.0
+BRACKET_PITCH_MM = 2000.0
+BRACKET_END_MM = 150.0               # 腹起しの端からブラケットまで【目安】
+STRUT_PITCH_MM = 5000.0
+STRUT_OVERDIG_MM = 1000.0            # 切梁の下の余掘り（1次根切りの底＝腹起しの下端＋1.0m）
+AUTO_SUPPORT_DEPTH_MM = 3000.0       # 「自動」はこれより深いと腹起し・切梁を描く【目安。自立にできるかは山留めの計算で】
 CORNER_GAP_MM = 5.0                  # 角の杭のフランジと矢板の端のすき間【目安】
 WALE_FIRST_MM = 1000.0               # 腹起しの第1段は杭頭から 1m 以内（九州 共2-24）
 WALE_STEP_MM = 3000.0                # その下は 3m 程度ごと
@@ -189,6 +199,10 @@ class Edge:
     units: int = 0                                     # 鋼矢板の枚数
     cores: list = field(default_factory=list)          # SMW の芯材の位置
     struts: list = field(default_factory=list)         # たて込み: レールごとの切梁の長さ（根切りの中心まで。0＝無し）
+    wale_x: tuple = (0.0, 0.0)                         # 腹起しの始めと終わり（角は次の腹起しまで通し、始めは前の腹起しに突き当てる）
+    brackets: list = field(default_factory=list)       # 腹起しのブラケットの位置
+    strut_x: list = field(default_factory=list)        # 切梁の位置（狭い向きの辺だけ）
+    strut_len: list = field(default_factory=list)      # 切梁の長さ（腹起しの前の面から根切りの中心まで。向かいの辺の部品と合わせて1本）
     width: float = 0.0                                 # たて込み: 掘削幅（向かいの土留めまで。0＝分からない）
 
 
@@ -213,6 +227,8 @@ class Wall:
     core_every: int = 1                                # SMW の芯材 1＝全孔・2＝1本おき
     tube_d: float = TUBE_D_MM
     tube_t: float = TUBE_T_MM
+    support: str = "auto"                              # 腹起し・切梁: auto（深さ 3m を超えたら）・wale（描く）・none（自立）
+    wales: list = field(default_factory=list)          # 腹起しの段（GL からの深さ mm。腹起しの芯）
     edges: list = field(default_factory=list)
     stages: list = field(default_factory=list)
     checks: list = field(default_factory=list)
@@ -365,6 +381,11 @@ def plan(w: Wall) -> Wall:
     if not w.model:
         w.model = default_model(w.kind)
     w.pts = orient(w.pts, w.closed)
+    w.wales = support_levels(w)
+    if w.wales and not w.stages_mm:
+        # 根切りの段を入れていなければ、腹起しの段ごとに「腹起しの下端＋余掘り 1.0m」までを1次・2次…根切りに
+        wb = H_SHAPES[wale_shape(w)[0]][1]
+        w.stages_mm = [z + wb / 2.0 + STRUT_OVERDIG_MM for z in w.wales if z + wb / 2.0 + STRUT_OVERDIG_MM < w.depth - 1.0]
     w.stages = make_stages(w.depth, w.stages_mm)
     if w.kind == "oyagui":
         H, B, t1, t2, kg = H_SHAPES[w.model]
@@ -431,8 +452,65 @@ def plan(w: Wall) -> Wall:
                 e.width = 0.0 if e.width > trench * 1.2 + 1.0 else e.width
     else:
         raise KeyError(f"山留めの種類が分かりません: {w.kind}")
+    if w.wales:
+        plan_supports(w)
     w.checks = check(w)
     return w
+
+
+def wale_shape(w: Wall) -> tuple:
+    """腹起し・切梁の形と kg/m（軽量鋼矢板・アルミ矢板は H-200【目安】）."""
+    return WALE_SHAPE["light" if w.kind in ("lsp", "alu") else "heavy"]
+
+
+def support_levels(w: Wall) -> list[float]:
+    """腹起し・切梁の段（GL からの深さ mm）. 自立・たて込みは無し."""
+    if w.kind == "tatekomi" or w.support == "none":
+        return []
+    if w.support == "auto" and w.depth <= AUTO_SUPPORT_DEPTH_MM + 1e-6:
+        return []
+    if w.kind in ("lsp", "alu"):
+        n = 1 if w.depth <= 2000.0 else 2 if w.depth <= 3500.0 else 3      # 軽量鋼矢板Q&A p.36・静岡市
+        return [round(w.depth * i / (n + 1), 0) for i in range(1, n + 1)]   # 段の高さは【目安】（等分）
+    return wale_levels(w)
+
+
+def plan_supports(w: Wall) -> None:
+    """腹起しの範囲・ブラケット・切梁（狭い向きの辺に水平 5m 以下で等分、長さは根切りの中心まで）."""
+    H = H_SHAPES[wale_shape(w)[0]][0]
+    f = face_offset(w) + WALE_GAP_MM
+    n = len(w.edges)
+    for i, e in enumerate(w.edges):
+        x0 = 0.0 if (not w.closed and i == 0) else f + H
+        x1 = e.length if (not w.closed and i == n - 1) else e.length - f
+        e.wale_x = (x0, max(x0, x1))
+        span = e.wale_x[1] - e.wale_x[0]
+        k = max(1, math.ceil((span - 2 * BRACKET_END_MM) / BRACKET_PITCH_MM - 1e-6))
+        e.brackets = [x0 + BRACKET_END_MM + (span - 2 * BRACKET_END_MM) * j / k for j in range(k + 1)]
+    if not w.closed:
+        return
+    segs = list(zip(w.pts, w.pts[1:] + w.pts[:1]))
+    widths = []
+    for i, e in enumerate(w.edges):
+        ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
+        mid = (e.a[0] + ux * e.length / 2.0, e.a[1] + uy * e.length / 2.0)
+        widths.append(_ray_hit(mid, (uy, -ux), [s for j, s in enumerate(segs) if j != i]))
+    known = [v for v in widths if v > 0]
+    if not known:
+        return
+    narrow = min(known)
+    for i, e in enumerate(w.edges):
+        if not (0 < widths[i] <= narrow * 1.2 + 1.0):
+            continue
+        x0, x1 = e.wale_x
+        k = max(1, math.ceil((x1 - x0) / STRUT_PITCH_MM - 1e-6))
+        e.strut_x = [x0 + (x1 - x0) * (j + 0.5) / k for j in range(k)]
+        ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
+        others = [s for j, s in enumerate(segs) if j != i]
+        e.strut_len = []
+        for x in e.strut_x:
+            v = _ray_hit((e.a[0] + ux * x, e.a[1] + uy * x), (uy, -ux), others)
+            e.strut_len.append(max(0.0, v / 2.0 - f - H) if v > 0 else 0.0)
 
 
 def tatekomi_stack(w: Wall) -> tuple[list[float], float]:
@@ -476,7 +554,7 @@ def wale_levels(w: Wall) -> list[float]:
     """腹起しの段の目安（GL からの深さ mm）. 杭頭から 1m 以内・その下 3m 程度ごと、根切り底の 1m 上まで."""
     out = []
     z = max(0.0, WALE_FIRST_MM - w.top_up)
-    while z < w.depth - 1000.0:
+    while z <= w.depth - 1000.0 + 1e-6:
         out.append(z)
         z += WALE_STEP_MM
     return out
@@ -513,7 +591,7 @@ def check(w: Wall) -> list[Check]:
                              f"{L:.1f}m（{name} の長さ {rng[0]:g}〜{rng[1]:g}m: 軽量鋼矢板Q&A p.42・ホーシン）"))
         if w.kind in ("lsp", "alu"):
             out.append(Check("地下水", "注意", "止水性が無いので、掘削底より地下水位が高いと使わない（函館市 下水道の設計資料 p.36）"))
-        out.append(Check("支保工の段", "注意", _support_note(w)))
+        out += [] if w.wales else [Check("支保工の段", "注意", _support_note(w))]
     elif w.kind == "tatekomi":
         n, hmax, *_rest = TATEKOMI[w.model]
         rng = TATEKOMI[w.model][8]
@@ -532,6 +610,19 @@ def check(w: Wall) -> list[Check]:
         out.append(Check("隣地", "注意", "壁芯から隣地まで 475〜610mm 以上（モテックの資料・原本未確認）"))
     elif w.kind == "koukan":
         out.append(Check("根入れ", "注意", f"{w.embed_mm:.0f}mm【目安】。根入れ・外径・板厚は山留めの計算で"))
+    if w.wales:
+        shape, _kg = wale_shape(w)
+        gaps = [b - a for a, b in zip([0.0] + w.wales, w.wales)]
+        out.append(Check("腹起しの段", "OK" if w.wales[0] <= WALE_FIRST_MM + w.top_up + 1e-6 and max(gaps[1:] or [0.0]) <= WALE_STEP_MM + 1e-6
+                         else "注意", "・".join(f"GL-{z:.0f}" for z in w.wales) + f"（{shape}。第1段は頭から 1m 以内・その下 3m 程度: 九州 共2-24）"))
+        sl = [v for e in w.edges for v in e.strut_len]
+        if sl:
+            out.append(Check("切梁", "注意", f"水平 {STRUT_PITCH_MM / 1000:g}m 以下に等分・長さ 最大 {2 * max(sl) / 1000:.1f}m（向かいまで）。継材は 4m 以内"
+                             "（九州 共2-28）・中間杭・火打ち（45°）・プレロードは山留めの計算で"))
+        elif w.closed:
+            out.append(Check("切梁", "注意", "向かいの山留めまでの幅が分からないので切梁を描いていません"))
+        else:
+            out.append(Check("切梁", "注意", "開いた線なので切梁を描いていません（腹起しだけ）。切梁の受けは山留めの計算で"))
     if w.depth >= 1500.0 - 1e-6:
         out.append(Check("山留め", "OK", "深さ 1.5m 以上の根切りは山留めを設ける（建築基準法施行令 136条の3 第4項）"))
     if w.depth >= 2000.0 - 1e-6 and w.kind != "tatekomi":
@@ -588,7 +679,7 @@ def _check_oyagui(w: Wall) -> list[Check]:
     if len(w.stages) > 1:
         out.append(Check("根切りの段", "OK", "・".join(f"{s.name} GL-{s.bottom:.0f}" for s in w.stages)
                          + "。各段は矢板1枚分（200mm）ずつ掘って入れる（先行掘りしない: 作業手順書）"))
-    out.append(Check("支保工の段", "注意", _support_note(w)))
+    out += [] if w.wales else [Check("支保工の段", "注意", _support_note(w))]
     out.append(Check("排水", "注意", "親杭横矢板は止水しない工法。背面に水がたまらないよう排水孔を（土木学会 年次講演 Ⅵ-212 p.424）"))
     return out
 
@@ -693,7 +784,37 @@ def quantities(w: Wall) -> list[Qty]:
         n = sum(len(e.piles) for e in w.edges)
         out.append(Qty("鋼管矢板", f"φ{D:.0f}×{t:g} L={L / 1000:.1f}m", n, "本", f"{n * L / 1000 * kgm / 1000:.2f}t（{kgm:.1f}kg/m）"))
         out.append(Qty("  継手 P-P", f"φ{JOINT_D_MM:g}×{JOINT_T_MM:g}（{jk:.1f}kg/m）", n * 2, "本", "1本の両側に（標準製作仕様 p.3）"))
+    if w.wales:
+        out += support_quantities(w)
     return out
+
+
+def support_quantities(w: Wall) -> list[Qty]:
+    """腹起し・ブラケット・裏込め・切梁の数量（主部材は積上げ t: 国総研 数量要領 R8 1-11-4、切梁の積算は各段の根切り面積: 公共建築数量
+    積算基準 R5 p.8）."""
+    shape, kg = wale_shape(w)
+    H, B, *_ = H_SHAPES[shape]
+    nl = len(w.wales)
+    L = sum(e.wale_x[1] - e.wale_x[0] for e in w.edges)
+    out = [Qty("腹起し", f"{shape}（{kg:g}kg/m）・" + "・".join(f"GL-{z:.0f}" for z in w.wales), L * nl / 1000.0, "m",
+               f"{L * nl / 1000.0 * kg / 1000.0:.2f}t（{nl}段。壁とのすき間 {WALE_GAP_MM:.0f}: ヒロセ p.6）"),
+           Qty("  腹起しのブラケット", f"{BRACKET_PITCH_MM / 1000:g}m ピッチ・両端に", sum(len(e.brackets) for e in w.edges) * nl, "個",
+               "腹起し1本に2個以上（施工計画書例・ヒロセ p.5）"),
+           Qty("  裏込め", f"すき間 {WALE_GAP_MM:.0f} × 腹起しの高さ {B:.0f}", WALE_GAP_MM / 1000.0 * B / 1000.0 * L / 1000.0 * nl, "m³",
+               "コンクリート・既製の裏込め材（ヒロセ p.6）")]
+    pairs = sum(len(e.strut_x) for e in w.edges) / 2.0
+    if pairs:
+        slen = sum(sum(e.strut_len) for e in w.edges)
+        out.append(Qty("切梁", f"{shape} 水平 {STRUT_PITCH_MM / 1000:g}m 以下・{nl}段", pairs * nl, "本",
+                       f"延べ {slen * nl / 1000.0:.1f}m・{slen * nl / 1000.0 * kg / 1000.0:.2f}t（ジャッキ・火打ちは別）"))
+        area = abs(_area(inner_polygon(w))) / 1e6 if w.closed else 0.0
+        if area:
+            out.append(Qty("  切梁（積算）", f"根切り面積 {area:.1f}m² × {nl}段", area * nl, "m²", "各段ごとの根切り面積（公共建築数量積算基準 R5 p.8）"))
+    return out
+
+
+def _area(pts) -> float:
+    return sum(pts[i - 1][0] * pts[i][1] - pts[i][0] * pts[i - 1][1] for i in range(len(pts))) / 2.0 if pts else 0.0
 
 
 def report(walls: list[Wall]) -> str:
@@ -769,6 +890,12 @@ def part_params(w: Wall, e: Edge) -> dict:
          "zBot": -(w.depth + w.embed_mm) / 1000.0, "digD": w.depth / 1000.0,
          "stD": _mm(s.bottom for s in w.stages), "pX": _mm(e.piles), "ywName": e.name,
          "ywInfo": label(w), "faceY": face_offset(w) / 1000.0}
+    p["wlOn"] = bool(w.wales)
+    if w.wales:
+        H, B, t1, t2, _kg = H_SHAPES[wale_shape(w)[0]]
+        p.update({"wlZ": _mm(w.wales), "wlH": H / 1000.0, "wlB": B / 1000.0, "wlT1": t1 / 1000.0, "wlT2": t2 / 1000.0,
+                  "wlGap": WALE_GAP_MM / 1000.0, "wlX0": e.wale_x[0] / 1000.0, "wlX1": e.wale_x[1] / 1000.0,
+                  "brX": _mm(e.brackets), "sbX": _mm(e.strut_x), "sbL": _mm(e.strut_len)})
     if w.kind == "tatekomi":
         p["zBot"] = -w.depth / 1000.0
         p["zTop"] = (tatekomi_rail(w)[0] - w.depth) / 1000.0
