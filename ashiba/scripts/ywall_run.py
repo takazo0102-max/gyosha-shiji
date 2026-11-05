@@ -1,0 +1,298 @@
+"""山留め壁（パレットの「山留め壁」）.
+
+利用者の指定（2026-11-05）「山留めの種類も増やして シートパイルや簡易山留めなど 他にもあったら増やして LOD高めて Hこう横やいたは
+矢板の平米拾えるようにしてかかりしろは厚みの分だけにして１次ねぎりと2次ねぎりで分けれるようにあと矢板を止めるさんぎも」。
+
+  python3 scripts/ywall_run.py                                   # 選んだ線（山留めの線）に。窓で種類・深さ・根切りの段を選ぶ
+  python3 scripts/ywall_run.py --kind oyagui --depth 4000 --stages 2000      # 親杭横矢板・根切り 4m・1次根切り GL-2000
+  python3 scripts/ywall_run.py --kind oyagui --model H-350 --pitch 1200 --lag-t 35 --kakari 35
+  python3 scripts/ywall_run.py --kind sp_u --model IV --embed 4000            # U形鋼矢板 Ⅳ型・根入れ 4m
+  python3 scripts/ywall_run.py --kind tatekomi --model TS1 --depth 2500       # たて込み簡易土留め
+  python3 scripts/ywall_run.py --kind smw --model 650 --core-every 2          # SMW φ650・芯材 1本おき
+  python3 scripts/ywall_run.py --list                            # 種類と型式の一覧
+  python3 scripts/ywall_run.py --remove                          # 置いた山留め壁を消す
+
+線（ポリライン・つながる線）1本を山留め1つとし、辺ごとに部品 ashiba_ywall を1つ置く（割付・数量・検定は src/ashiba/retaining.py）。
+閉じた線は中が根切り、開いた線は線の右が根切り（線を引いた向き）。線は 親杭・SMW・鋼管は芯、鋼矢板は壁の中心線、たて込みは
+土留め板の外面。部品はレイヤー「仮設_山留め」に。控えは ashiba_out/山留め壁.json（根切り図が山留めとして読む）、
+数量と検定は ashiba_out/山留め壁.md.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+PART = "ashiba_ywall"
+RECORD = "山留め壁.json"
+LAYER = "仮設_山留め"
+
+
+def models_of(kind: str) -> list[str]:
+    from ashiba import retaining as RT
+
+    return {"oyagui": list(RT.PILE_SHAPES), "sp_u": list(RT.SP_U), "sp_hat": list(RT.SP_HAT), "lsp": list(RT.LSP),
+            "alu": list(RT.ALU), "tatekomi": list(RT.TATEKOMI), "smw": [f"{d:.0f}" for d in RT.SMW],
+            "koukan": [f"{RT.TUBE_D_MM:.0f}"]}[kind]
+
+
+def model_label(kind: str, m: str) -> str:
+    from ashiba import retaining as RT
+
+    if kind in RT.SHEET_KINDS:
+        return RT.sheet_spec(kind, m)[0]
+    if kind == "tatekomi":
+        return RT.TATEKOMI[m][0]
+    if kind == "smw":
+        return f"φ{m}"
+    return m
+
+
+def wall_from(rec: dict):
+    """控えの1件 → 割付した Wall."""
+    from ashiba import retaining as RT
+
+    w = RT.Wall(rec["name"], rec["kind"], pts=[tuple(p) for p in rec["pts"]], closed=bool(rec["closed"]), gl=rec.get("gl", 0.0),
+                depth=rec["depth"], stages_mm=rec.get("stages", []), top_up=rec.get("top_up", 0.0), embed=rec.get("embed"),
+                model=rec.get("model", ""), pitch=rec.get("pitch", RT.PILE_PITCH_MM), lag_t=rec.get("lag_t", RT.LAG_T_MM),
+                kakari=rec.get("kakari"), core=rec.get("core", ""), core_every=rec.get("core_every", 1),
+                tube_d=rec.get("tube_d", RT.TUBE_D_MM), tube_t=rec.get("tube_t", RT.TUBE_T_MM))
+    return RT.plan(w)
+
+
+def _num(v):
+    s = str(v if v is not None else "").replace(",", "").strip()
+    return float(s) if s else None
+
+
+def ask(a, n_lines: int, closed: bool) -> bool:
+    """窓で種類・型式・深さ・根切りの段を選ぶ. やめたら False."""
+    from form_dialog import show_form
+
+    from ashiba import retaining as RT
+
+    kinds = list(RT.KIND_LABELS.values())
+    all_models = ["既定（種類ごと）"] + [f"{RT.KIND_LABELS[k].split('（')[0]}: {model_label(k, m)}" for k in RT.KIND_LABELS
+                                        for m in models_of(k)]
+    res = show_form({
+        "title": "山留め壁",
+        "intro": f"山留めの線 {n_lines}本" + ("（閉じた線: 中が根切り）" if closed else "（開いた線: 線の右が根切り）")
+                 + "。辺ごとに部品を置き、数量（横矢板の m² は根切りの段ごと・桟木・くさび、鋼矢板の枚数と t など）を帳票に書きます。",
+        "fields": [
+            {"key": "name", "label": "名前", "kind": "text", "value": a.name or "山留め1"},
+            {"key": "kind", "label": "種類", "kind": "choice", "options": kinds, "value": RT.KIND_LABELS[a.kind]},
+            {"key": "model", "label": "型式（種類と合わないものは既定に）", "kind": "choice", "options": all_models, "value": all_models[0]},
+            {"key": "depth", "label": "根切りの深さ GL から mm（正）", "kind": "number", "value": f"{a.depth:.0f}"},
+            {"key": "stages", "label": "1次・2次…根切りの底 GL から mm（カンマ区切り。空＝1回で掘る。例 2000）", "kind": "text",
+             "value": a.stages or ""},
+            {"key": "embed", "label": "根入れ mm（空＝種類の既定: 親杭 1500・鋼矢板 3000・軽量 深さの1/2・アルミ 200）", "kind": "number",
+             "value": "" if a.embed is None else f"{a.embed:.0f}"},
+            {"key": "top_up", "label": "天端 GL から上 mm", "kind": "number", "value": f"{a.top_up:.0f}"},
+            {"key": "pitch", "label": "親杭の芯々 mm（標準 1500・1000〜2000）", "kind": "number", "value": f"{a.pitch:.0f}"},
+            {"key": "lag_t", "label": "横矢板の厚さ mm（最小 30）", "kind": "choice", "options": [f"{v:.0f}" for v in RT.LAG_T_OPTIONS],
+             "value": f"{a.lag_t:.0f}"},
+            {"key": "kakari", "label": "掛かり代 mm（空＝矢板の厚さ）", "kind": "number", "value": "" if a.kakari is None else f"{a.kakari:.0f}"},
+            {"key": "core_every", "label": "SMW の芯材", "kind": "choice", "options": ["全孔", "1本おき"],
+             "value": "全孔" if a.core_every == 1 else "1本おき"},
+            {"key": "gl", "label": "GL の高さ mm（プロジェクトの 0 から）", "kind": "number", "value": f"{a.gl:.0f}"},
+        ],
+        "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "place":
+        return False
+    v = res.get("values") or {}
+    inv = {lab: k for k, lab in RT.KIND_LABELS.items()}
+    a.kind = inv.get(str(v.get("kind")), a.kind)
+    a.name = str(v.get("name") or a.name or "山留め1")
+    m = str(v.get("model") or "")
+    hit = next((mm for mm in models_of(a.kind) if m == f"{RT.KIND_LABELS[a.kind].split('（')[0]}: {model_label(a.kind, mm)}"), "")
+    a.model = hit or a.model
+    for key in ("depth", "top_up", "pitch", "gl"):
+        val = _num(v.get(key))
+        if val is not None:
+            setattr(a, key, val)
+    a.embed = _num(v.get("embed"))
+    a.kakari = _num(v.get("kakari"))
+    lt = _num(v.get("lag_t"))
+    a.lag_t = lt if lt else a.lag_t
+    a.stages = str(v.get("stages") or "")
+    a.core_every = 2 if str(v.get("core_every")) == "1本おき" else 1
+    return True
+
+
+def recorded_polygons(out_dir: Path, guids=None, point=None) -> list[tuple[str, list, float]]:
+    """控え（山留め壁.json）の閉じた山留めの根切りの側の面の多角形 [(名前, 多角形 mm, 山留めの根切りの深さ mm)]. guids を渡せばその部品を含むものだけ、
+    point を渡せばその点を囲むものだけ（根切り図が、選んだ山留め壁か、躯体を囲む山留め壁を山留めとして読む）."""
+    from ashiba import retaining as RT
+    from ashiba.negiri import inside
+
+    try:
+        rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    want = {g.upper() for g in guids} if guids is not None else None
+    out = []
+    for v in rec.values():
+        if not v.get("closed"):
+            continue
+        if want is not None and not want & {g.upper() for g in v.get("guids", [])}:
+            continue
+        try:
+            poly = RT.inner_polygon(wall_from(v))
+        except (KeyError, ValueError):
+            continue
+        if poly and (point is None or inside(point, poly)):
+            out.append((v.get("name") or "山留め", poly, float(v.get("depth") or 0.0)))
+    return out
+
+
+def layer_index(c) -> int:
+    attrs = c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
+    hit = next((x for x in attrs if x.get("name") == LAYER), None)
+    if hit is None:
+        c.tapir("CreateLayers", {"layerDataArray": [{"name": LAYER}]})
+        attrs = c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
+        hit = next(x for x in attrs if x.get("name") == LAYER)
+    return int(hit["index"])
+
+
+def main(argv=None) -> int:
+    import argparse
+
+    from ashiba import retaining as RT
+
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--kind", default=None, choices=list(RT.KIND_LABELS), help="種類")
+    ap.add_argument("--model", default="", help="型式（--list で一覧。空＝種類の既定）")
+    ap.add_argument("--name", default="", help="名前（控えの鍵。既定 山留め1…）")
+    ap.add_argument("--depth", type=float, default=None, help="根切りの深さ GL から mm（正）")
+    ap.add_argument("--stages", default=None, help="1次・2次…根切りの底 GL から mm（カンマ区切り）")
+    ap.add_argument("--embed", type=float, default=None, help="根入れ mm（省くと種類の既定）")
+    ap.add_argument("--top", dest="top_up", type=float, default=None, help="天端 GL から上 mm")
+    ap.add_argument("--pitch", type=float, default=None, help="親杭の芯々 mm")
+    ap.add_argument("--lag-t", dest="lag_t", type=float, default=None, help="横矢板の厚さ mm")
+    ap.add_argument("--kakari", type=float, default=None, help="掛かり代 mm（省くと矢板の厚さ）")
+    ap.add_argument("--core-every", dest="core_every", type=int, default=None, choices=(1, 2), help="SMW の芯材 1＝全孔・2＝1本おき")
+    ap.add_argument("--tube", default="", help="鋼管矢板の 外径×板厚 mm（例 800x12）")
+    ap.add_argument("--gl", type=float, default=None, help="GL の高さ mm（プロジェクトの 0 から）")
+    ap.add_argument("--list", action="store_true", help="種類と型式の一覧")
+    ap.add_argument("--remove", action="store_true", help="置いた山留め壁を消す")
+    a = ap.parse_args(argv)
+    if a.list:
+        for k, lab in RT.KIND_LABELS.items():
+            print(f"{k:9s} {lab}: " + "・".join(f"{m}（{model_label(k, m)}）" if model_label(k, m) != m else m for m in models_of(k)))
+        return 0
+
+    import run_from_archicad as R
+    from ashiba.pens import gdl_pens, parse_pens
+    from ashiba.tapir_adapter import ArchicadClient
+    from excav_run import _delete_alive, _place
+    from guide_lines import selected_guides
+    from kakoi_run import chains
+
+    c = ArchicadClient()
+    R.OUT_DIR.mkdir(parents=True, exist_ok=True)
+    rec_path = R.OUT_DIR / RECORD
+    try:
+        rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rec = {}
+    if a.remove:
+        n = _delete_alive(c, [g for v in rec.values() for g in v.get("guids", [])])
+        rec_path.write_text("{}", encoding="utf-8")
+        print(f"山留め壁: 部品 {n}個を消しました")
+        return 0
+    lines = [(k, pts, closed) for k, pts, closed in chains(selected_guides(c)) if len(pts) >= 2]
+    if not lines:
+        print("山留め壁: 山留めの線（ポリライン・線。閉じた線は中が根切り、開いた線は線の右が根切り）を選んでから押してください")
+        return 1
+    asked = all(getattr(a, k) is None for k in ("kind", "depth", "stages", "embed", "top_up", "pitch", "lag_t", "kakari",
+                                                 "core_every", "gl")) and not a.model
+    a.kind = a.kind or "oyagui"
+    a.depth = 3000.0 if a.depth is None else a.depth
+    a.top_up = 0.0 if a.top_up is None else a.top_up
+    a.pitch = RT.PILE_PITCH_MM if a.pitch is None else a.pitch
+    a.lag_t = RT.LAG_T_MM if a.lag_t is None else a.lag_t
+    a.core_every = 1 if a.core_every is None else a.core_every
+    a.gl = 0.0 if a.gl is None else a.gl
+    if asked and not ask(a, len(lines), any(cl for _k, _p, cl in lines)):
+        print("山留め壁: やめました（何も置いていません）")
+        return 0
+    if a.model and a.model not in models_of(a.kind):
+        print(f"山留め壁: 型式 {a.model} は {RT.KIND_LABELS[a.kind]} にありません（{'・'.join(models_of(a.kind))}）")
+        return 1
+    tube_d, tube_t = RT.TUBE_D_MM, RT.TUBE_T_MM
+    if a.tube:
+        try:
+            tube_d, tube_t = (float(x) for x in a.tube.lower().replace("×", "x").split("x"))
+        except ValueError:
+            print("山留め壁: --tube は 外径x板厚（例 800x12）")
+            return 1
+    stages = [float(x) for x in str(a.stages or "").replace("、", ",").split(",") if x.strip()]
+
+    R.ensure_parts(c)
+    part = R.versioned_part_name(PART)
+    spec = {**R.SPEC, **R.load_spec_override()}
+    pens = gdl_pens(parse_pens(spec.get("pens")), PART)
+    from pen_colors import draft_pens_for
+
+    pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
+    li = layer_index(c)
+    used = {v.get("name") for v in rec.values()}
+    nxt = 1
+    placed = 0
+    for n, (key, pts, closed) in enumerate(lines, 1):
+        old = rec.pop(key, None)
+        if old:
+            _delete_alive(c, old.get("guids", []))
+        name = a.name if (a.name and len(lines) == 1) else (old or {}).get("name")
+        if not name:
+            while f"山留め{nxt}" in used:
+                nxt += 1
+            name = f"山留め{nxt}"
+            used.add(name)
+        pp = [tuple(p) for p in (pts[:-1] if closed else pts)]
+        entry = {"name": name, "kind": a.kind, "model": a.model or RT.default_model(a.kind), "pts": [list(p) for p in pp],
+                 "closed": closed, "gl": a.gl, "depth": a.depth, "stages": stages, "top_up": a.top_up, "embed": a.embed,
+                 "pitch": a.pitch, "lag_t": a.lag_t, "kakari": a.kakari, "core_every": a.core_every, "tube_d": tube_d, "tube_t": tube_t}
+        w = wall_from(entry)
+        entry["pts"] = [list(p) for p in w.pts]            # 向きをそろえた点
+        guids = []
+        for e in w.edges:
+            ang = math.degrees(math.atan2(e.b[1] - e.a[1], e.b[0] - e.a[0]))
+            el = _place(c, part, e.a, a.gl, ang)
+            if el is None:
+                continue
+            c.set_gdl_parameters(el, {**RT.part_params(w, e), **pens})
+            guids.append(el["elementId"]["guid"])
+        if guids:
+            try:
+                c.tapir("SetDetailsOfElements", {"elementsWithDetails": [
+                    {"elementId": {"guid": g}, "details": {"layerIndex": li}} for g in guids]})
+            except Exception:  # noqa: BLE001 — レイヤーに移せなくても置いたものは残す
+                pass
+        entry["guids"] = guids
+        rec[key] = entry
+        placed += len(guids)
+        bad = [f"{x.item} {x.status}" for x in w.checks if x.status in ("NG", "WARN")]
+        print(f"  山留め壁 {name}: {RT.label(w)}・辺 {len(w.edges)}・周長 {w.perimeter / 1000:.1f}m" + (f"・要確認 {'・'.join(bad)}" if bad else ""))
+    rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    walls = []
+    for v in rec.values():
+        try:
+            walls.append(wall_from(v))
+        except (KeyError, ValueError):
+            continue
+    md = R.OUT_DIR / "山留め壁.md"
+    md.write_text(RT.report(walls), encoding="utf-8")
+    print(f"山留め壁: {len(lines)}か所・部品 {placed}個（数量と検定: {md}）")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

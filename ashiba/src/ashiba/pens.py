@@ -54,6 +54,7 @@ PART_PENS = {
     "ashiba_tube": ("equip",),
     "ashiba_machine": ("equip",),
     "ashiba_tower": ("equip",),
+    "ashiba_ywall": ("equip",),
 }
 
 
@@ -132,7 +133,7 @@ def preset_pens(table: list, preset: str) -> dict[str, int]:
 
 
 # 描き方の決め（scripts/gdl_draft.py）の太線・細線・範囲の線（利用者の指定 2026-11-04「平面図を CAD の平面図レベルに」）
-DRAFT_PARTS = frozenset({"ashiba_machine", "ashiba_crane", "ashiba_tower", "ashiba_kodai", "ashiba_house", "ashiba_opening"})
+DRAFT_PARTS = frozenset({"ashiba_machine", "ashiba_crane", "ashiba_tower", "ashiba_kodai", "ashiba_house", "ashiba_opening", "ashiba_ywall"})
 ZONE_RGB = (0.85, 0.10, 0.10)          # 範囲の線（作業半径・立入禁止）は赤に近いペン
 
 

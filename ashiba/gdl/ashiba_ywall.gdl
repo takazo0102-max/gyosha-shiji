@@ -1,0 +1,657 @@
+﻿! ==========================================================
+! 山留め壁（親杭横矢板・鋼矢板 U形/ハット形・軽量鋼矢板・アルミ矢板・たて込み簡易土留め・SMW・鋼管矢板。山留めの線の1辺に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_ywall/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_ywall.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-11-05）: 山留めの種類も増やして シートパイルや簡易山留めなど LOD高めて Hこう横やいたは矢板の平米拾えるようにしてかかりしろは厚みの分だけにして１次ねぎりと2次ねぎりで分けれるようにあと矢板を止めるさんぎも。
+! 原点＝辺の始めの山留めの線の GL、+X＝辺の向き、−Y＝根切りの側。ywKind 1 親杭横矢板（H形鋼・横矢板1枚ずつ・くさび・矢板止めの桟木、根切りの段ごとに矢板の色）、2〜5 鋼矢板（1枚ずつの断面・継手）、6 たて込み簡易土留め（スライドレール・パネル・切梁）、7 SMW、8 鋼管矢板。割付・数量・検定は retaining.py、置くのは scripts/ywall_run.py。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   ywKind    整数      種類（1 親杭横矢板・2 U形鋼矢板・3 ハット形・4 軽量鋼矢板・5 アルミ矢板・6 たて込み簡易土留め・7 SMW・8 鋼管矢板）  既定 1
+!   ywL       長さ      辺の長さ                                                                                                            既定 6
+!   zTop      長さ      天端（GL から上。たて込みはレールの頭）                                                                             既定 0
+!   zBot      長さ      先端（GL から。負。根入れを含む）                                                                                   既定 -5.5
+!   digD      長さ      根切りの深さ（GL から下。正）                                                                                       既定 4
+!   stD       文字列    根切りの段の底の深さ（mm。1次,2次…。最後は根切りの深さ）                                                            既定 "2000,4000"
+!   pX        文字列    親杭・鋼矢板・SMW の孔・鋼管・レールの位置（mm。辺の始めから）                                                      既定 "0,1500,3000,4500"
+!   ywName    文字列    名前                                                                                                                既定 "山留め1-1"
+!   ywInfo    文字列    平面の注記（種類・型式・ピッチ・長さ）                                                                              既定 "親杭 H-300 @1500 L=5.5m・横矢板 t40"
+!   texSiz    実数      文字の大きさ（mm）                                                                                                  既定 2.5
+!   hH        長さ      H形鋼の高さ H（山留めの線に直角）                                                                                   既定 0.3
+!   hB        長さ      H形鋼のフランジ幅 B（山留めの線に沿う）                                                                             既定 0.3
+!   hT1       長さ      H形鋼のウェブの厚さ t1                                                                                              既定 0.01
+!   hT2       長さ      H形鋼のフランジの厚さ t2                                                                                            既定 0.015
+!   lagT      長さ      横矢板の厚さ                                                                                                        既定 0.04
+!   lagW      長さ      横矢板の幅（高さの向き）                                                                                            既定 0.2
+!   kak       長さ      掛かり代（矢板の厚さ）                                                                                              既定 0.04
+!   lagGap    長さ      フランジと矢板のすき間（くさび）                                                                                    既定 0.015
+!   lgA       文字列    バイごとの矢板の始め（mm）                                                                                          既定 "110,1610,3110"
+!   lgB       文字列    バイごとの矢板の終わり（mm）                                                                                        既定 "1390,2890,4390"
+!   lgN       文字列    根切りの段ごとの矢板の枚数（1次,2次…）                                                                              既定 "10,10"
+!   skW       長さ      矢板止めの桟木の幅                                                                                                  既定 0.04
+!   skT       長さ      矢板止めの桟木の厚さ                                                                                                既定 0.016
+!   spW       長さ      鋼矢板の有効幅                                                                                                      既定 0.4
+!   spT       長さ      鋼矢板の板厚                                                                                                        既定 0.013
+!   spH       長さ      鋼矢板の有効高さ                                                                                                    既定 0.125
+!   nU        整数      鋼矢板の枚数                                                                                                        既定 15
+!   spAlt     ブール    1枚おきに裏返す（U形）                                                                                              既定 1
+!   prX       文字列    鋼矢板1枚の断面の外形 x（mm）                                                                                       既定 "0,112,288,400,400,288,112,0"
+!   prY       文字列    鋼矢板1枚の断面の外形 y（mm）                                                                                       既定 "6,62,62,6,-6,50,50,-6"
+!   smD       長さ      SMW の削孔径                                                                                                        既定 0.55
+!   coreX     文字列    SMW の芯材の位置（mm）                                                                                              既定 "0,450,900"
+!   tbD       長さ      鋼管矢板の外径                                                                                                      既定 0.8
+!   tbT       長さ      鋼管矢板の板厚                                                                                                      既定 0.012
+!   jD        長さ      鋼管矢板の継手の管の外径（P-P）                                                                                     既定 0.1652
+!   pnT       長さ      パネルの厚さ                                                                                                        既定 0.104
+!   pnH       文字列    パネルの積み（下から高さ mm）                                                                                       既定 "2000,1000"
+!   rlW       長さ      スライドレールの幅（線に沿う）                                                                                      既定 0.191
+!   rlD       長さ      スライドレールの奥行き（根切りの側へ）                                                                              既定 0.204
+!   stY       文字列    レールごとの切梁の長さ（根切りの中心まで。mm。0＝無し）                                                             既定 "1192,1192"
+!   stZ       文字列    切梁の段の高さ（底から mm）                                                                                         既定 "700,2300"
+!   stDia     長さ      切梁の太さ                                                                                                          既定 0.1143
+!   stgCol    ブール    3D で根切りの段ごとに矢板の色を変える                                                                               既定 1
+!   faceY     長さ      根切りの側の面（山留めの線から。平面に根切りの縁を二点鎖線で）                                                      既定 0.15
+!   penBold   PenColor  外形の線（太線。置くときに線のペンと同じ色の太いペン）                                                              既定 21
+!   penThin   PenColor  細部の線（細線。同じ色の細いペン）                                                                                  既定 1
+!   penZone   PenColor  範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）                                                              既定 20
+!   penMask   PenColor  上に載るものの背景の塗り（下の線を隠す。0＝隠さない）                                                               既定 19
+!   drMode    整数      平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）                                                  既定 0
+!   penEquip  PenColor  線のペン                                                                                                            既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 山留め壁: 並びを読む（m）
+dim pileX[]
+nPile = 0
+rest = pX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPile = nPile + 1
+		pileX[nPile] = v / 1000
+	endif
+endwhile
+dim stgD[]
+nStg = 0
+rest = stD
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStg = nStg + 1
+		stgD[nStg] = v / 1000
+	endif
+endwhile
+dim bdA[]
+nBay = 0
+rest = lgA
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBay = nBay + 1
+		bdA[nBay] = v / 1000
+	endif
+endwhile
+dim bdB[]
+nBayB = 0
+rest = lgB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBayB = nBayB + 1
+		bdB[nBayB] = v / 1000
+	endif
+endwhile
+dim bdN[]
+nBn = 0
+rest = lgN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBn = nBn + 1
+		bdN[nBn] = v / 1
+	endif
+endwhile
+dim pfX[]
+nPf = 0
+rest = prX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPf = nPf + 1
+		pfX[nPf] = v / 1000
+	endif
+endwhile
+dim pfY[]
+nPfY = 0
+rest = prY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPfY = nPfY + 1
+		pfY[nPfY] = v / 1000
+	endif
+endwhile
+dim coreP[]
+nCore = 0
+rest = coreX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nCore = nCore + 1
+		coreP[nCore] = v / 1000
+	endif
+endwhile
+dim pnHs[]
+nPn = 0
+rest = pnH
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPn = nPn + 1
+		pnHs[nPn] = v / 1000
+	endif
+endwhile
+dim strL[]
+nStr = 0
+rest = stY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStr = nStr + 1
+		strL[nStr] = v / 1000
+	endif
+endwhile
+dim strZ[]
+nStz = 0
+rest = stZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nStz = nStz + 1
+		strZ[nStz] = v / 1000
+	endif
+endwhile
+if nBayB < nBay then nBay = nBayB
+if nPfY < nPf then nPf = nPfY
+nBoard = 0
+for i = 1 to nBn
+	nBoard = nBoard + bdN[i]
+next i
+yF = -hH / 2 + hT2 + lagGap
+hgt = zTop - zBot
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 山留め壁 2D（GL で切った平面。CAD の平面図の描き方: scripts/gdl_draft.py）: 鋼材の断面は塗り、矢板・パネルは外形、根切りの中の
+! 切梁は隠れ線。詳細（1/100 まで）は桟木・継手の爪・管の厚さ、簡略（1/250 より小さい縮尺）は線と注記だけ
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "ywT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "ywT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 重なり: 10 矢板・パネル、30 鋼材の断面（塗り）、40 桟木・爪・線、50 文字
+if drLv = 1 then
+	drawindex 40
+	pen pT
+	if ywKind = 1 or ywKind >= 7 then
+		line_type ltC
+		line2 0, 0, ywL, 0
+	endif
+	line_type ltZ
+	line2 0, -faceY, ywL, -faceY
+	line_type ltS
+endif
+pen pO
+if ywKind = 1 then
+	! 親杭（H形鋼）と横矢板（掘削側のフランジの裏）・矢板止めの桟木
+	drawindex 30
+	if drLv < 3 then
+		for i = 1 to nPile
+			add2 pileX[i], 0
+			fill fiS
+			poly2_b 13, 7, pO, pO,
+				-hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2, -1
+			del 1
+		next i
+	else
+		for i = 1 to nPile
+			line2 pileX[i] - hB / 2, 0, pileX[i] + hB / 2, 0
+		next i
+	endif
+	pen pT
+	for i = 1 to nBay
+		drawindex 10
+		rect2 bdA[i], yF, bdB[i], yF + lagT
+		drawindex 40
+		if drLv = 1 then
+			rect2 bdA[i] + kak + 0.005, yF - skT, bdA[i] + kak + 0.005 + skW, yF
+			rect2 bdB[i] - kak - 0.005 - skW, yF - skT, bdB[i] - kak - 0.005, yF
+		endif
+	next i
+	yTx = hH / 2
+endif
+if ywKind >= 2 and ywKind <= 5 then
+	! 鋼矢板: 1枚ずつの断面（U形は1枚おきに裏返す）。継手の爪は詳細だけ
+	drawindex 30
+	yB = 0
+	if ywKind = 3 then yB = -(spH / 2 - spT / 2)
+	for i = 1 to nU
+		sgy = 1
+		if spAlt and (i - 2 * int(i / 2)) = 0 then sgy = -1
+		add2 (i - 1) * spW, 0
+		mul2 1, sgy
+		if drLv < 3 then
+			for k = 1 to nPf
+				k2 = k + 1
+				if k2 > nPf then k2 = 1
+				line2 pfX[k], pfY[k], pfX[k2], pfY[k2]
+			next k
+		else
+			line2 0, 0, spW, 0
+		endif
+		del 2
+		if drLv = 1 then circle2 (i - 1) * spW, yB, spT * 1.1
+	next i
+	yTx = spH / 2
+endif
+if ywKind = 6 then
+	! たて込み簡易土留め: パネル（線の根切りの側）・スライドレール・切梁（隠れ線）
+	drawindex 10
+	for i = 1 to nPile - 1
+		rect2 pileX[i], -pnT, pileX[i + 1], 0
+	next i
+	drawindex 30
+	for i = 1 to nPile
+		if drLv < 3 then
+			fill fiS
+			poly2_b 5, 7, pO, pO,
+				pileX[i] - rlW / 2, -rlD, 1,
+				pileX[i] + rlW / 2, -rlD, 1,
+				pileX[i] + rlW / 2, 0, 1,
+				pileX[i] - rlW / 2, 0, 1,
+				pileX[i] - rlW / 2, -rlD, -1
+		endif
+	next i
+	drawindex 40
+	pen pT
+	line_type ltH
+	for i = 1 to min(nPile, nStr)
+		if strL[i] > 0.01 then
+			line2 pileX[i] - stDia / 2, -rlD, pileX[i] - stDia / 2, -rlD - strL[i]
+			line2 pileX[i] + stDia / 2, -rlD, pileX[i] + stDia / 2, -rlD - strL[i]
+		endif
+	next i
+	line_type ltS
+	yTx = 0.05
+endif
+if ywKind = 7 then
+	! SMW: 削孔の円（重なり）と芯材
+	drawindex 10
+	pen pT
+	for i = 1 to nPile
+		circle2 pileX[i], 0, smD / 2
+	next i
+	drawindex 30
+	pen pO
+	for i = 1 to nCore
+		add2 coreP[i], 0
+		if drLv < 3 then
+			fill fiS
+			poly2_b 13, 7, pO, pO,
+				-hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2, -1
+		endif
+		del 1
+	next i
+	yTx = smD / 2
+endif
+if ywKind = 8 then
+	! 鋼管矢板と P-P 継手
+	drawindex 30
+	for i = 1 to nPile
+		circle2 pileX[i], 0, tbD / 2
+		if drLv = 1 then circle2 pileX[i], 0, tbD / 2 - tbT
+		if i < nPile then circle2 (pileX[i] + pileX[i + 1]) / 2, 0, jD / 2
+	next i
+	yTx = tbD / 2
+endif
+drawindex 50
+pen penEquip
+text2 ywL / 2, yTx + 0.15 + dT / 2, ywInfo
+if drLv = 1 then text2 ywL / 2, yTx + 0.15 + dT * 1.5, ywName
+hotspot2 0, 0
+hotspot2 ywL, 0
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 山留め壁 3D（規格の寸法。親杭 JIS G 3192・鋼矢板 日本製鉄 1-1・1-2・軽量鋼矢板 1-12・アルミ矢板 ホーシン・たて込み TSパネル・
+! 鋼管矢板 JIS A 5530。横矢板は 1枚ずつ・くさび・矢板止めの桟木。根切りの段ごとに矢板の色を変える（stgCol））
+define material "yw_steel" 2, 0.48, 0.30, 0.22
+define material "yw_sheet" 2, 0.42, 0.40, 0.38
+define material "yw_alu" 2, 0.80, 0.82, 0.85
+define material "yw_lag1" 2, 0.82, 0.66, 0.42
+define material "yw_lag2" 2, 0.66, 0.50, 0.30
+define material "yw_lag3" 2, 0.74, 0.58, 0.36
+define material "yw_sanki" 2, 0.90, 0.80, 0.58
+define material "yw_wedge" 2, 0.55, 0.40, 0.22
+define material "yw_smw" 2, 0.66, 0.66, 0.62
+define material "yw_panel" 2, 0.30, 0.45, 0.62
+define material "yw_rail" 2, 0.90, 0.62, 0.12
+define material "yw_strut" 2, 0.20, 0.38, 0.72
+resol 16
+if ywKind = 1 then
+	! ---- 親杭（H形鋼。フランジが山留めの線に平行） ----
+	material "yw_steel"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		prism_ 12, hgt,
+			-hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, -hH / 2 + hT2, 15,
+			-hB / 2, -hH / 2 + hT2, 15
+		del 1
+	next i
+	! ---- 横矢板（掘削側のフランジの裏。上から1枚ずつ、根切りの段ごとに色）・くさび ----
+	kb = 0
+	for s = 1 to nBn
+		mt = 1
+		if stgCol then mt = s - 3 * int((s - 1) / 3)
+		for j = 1 to bdN[s]
+			kb = kb + 1
+			zb = -kb * lagW
+			for i = 1 to nBay
+				if mt = 1 then material "yw_lag1"
+				if mt = 2 then material "yw_lag2"
+				if mt = 3 then material "yw_lag3"
+				add bdA[i], yF, zb
+				block bdB[i] - bdA[i], lagT, lagW - 0.003
+				del 1
+				material "yw_wedge"
+				for sd = 1 to 2
+					xw = bdA[i] + kak / 2 - 0.02
+					if sd = 2 then xw = bdB[i] - kak / 2 - 0.02
+					add xw, yF - lagGap, zb + lagW * 0.1
+					block 0.04, lagGap, lagW * 0.35
+					addz lagW * 0.45
+					block 0.04, lagGap, lagW * 0.35
+					del 2
+				next sd
+			next i
+		next j
+	next s
+	! ---- 矢板止めの桟木（バイの両端・フランジの脇に縦に。根切りの段ごと） ----
+	material "yw_sanki"
+	kb = 0
+	for s = 1 to nBn
+		z1 = -kb * lagW
+		kb = kb + bdN[s]
+		z2 = -kb * lagW
+		if z1 - z2 > 0.01 then
+			for i = 1 to nBay
+				add bdA[i] + kak + 0.005, yF - skT, z2 + 0.005
+				block skW, skT, z1 - z2 - 0.01
+				del 1
+				add bdB[i] - kak - 0.005 - skW, yF - skT, z2 + 0.005
+				block skW, skT, z1 - z2 - 0.01
+				del 1
+			next i
+		endif
+	next s
+endif
+if ywKind >= 2 and ywKind <= 5 then
+	! ---- 鋼矢板: 1枚ずつ断面を押し出す（U形は1枚おきに裏返す）・継手の爪 ----
+	material "yw_sheet"
+	if ywKind = 5 then material "yw_alu"
+	yB = 0
+	if ywKind = 3 then yB = -(spH / 2 - spT / 2)
+	for i = 1 to nU
+		sgy = 1
+		if spAlt and (i - 2 * int(i / 2)) = 0 then sgy = -1
+		add (i - 1) * spW, 0, zBot
+		mul 1, sgy, 1
+		for k = 1 to nPf
+			put pfX[k], pfY[k]
+		next k
+		prism nPf, hgt, get(nsp)
+		del 2
+		add (i - 1) * spW, yB, zBot
+		cylind hgt, spT * 1.1
+		del 1
+	next i
+endif
+if ywKind = 6 then
+	! ---- たて込み簡易土留め: スライドレール（頭は GL の上）・パネルの積み（リブ付き）・切梁（サポートジャッキ） ----
+	material "yw_rail"
+	for i = 1 to nPile
+		add pileX[i] - rlW / 2, -rlD, zBot
+		block rlW, rlD, hgt
+		del 1
+	next i
+	material "yw_panel"
+	for i = 1 to nPile - 1
+		zp = zBot
+		for k = 1 to nPn
+			add pileX[i] + rlW / 2, -pnT, zp
+			block pileX[i + 1] - pileX[i] - rlW, pnT, pnHs[k] - 0.005
+			addz pnHs[k] * 0.33
+			addy -0.03
+			block pileX[i + 1] - pileX[i] - rlW, 0.03, 0.012
+			addz pnHs[k] * 0.33
+			block pileX[i + 1] - pileX[i] - rlW, 0.03, 0.012
+			del 4
+			zp = zp + pnHs[k]
+		next k
+	next i
+	material "yw_strut"
+	for i = 1 to min(nPile, nStr)
+		if strL[i] > 0.01 then
+			for k = 1 to nStz
+				add pileX[i], -rlD, zBot + strZ[k]
+				rotx 90
+				cylind strL[i], stDia / 2
+				cylind 0.35, stDia * 0.75
+				del 2
+			next k
+		endif
+	next i
+endif
+if ywKind = 7 then
+	! ---- SMW: 削孔の円柱（重なり）と芯材（H形鋼） ----
+	material "yw_smw"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		cylind hgt, smD / 2
+		del 1
+	next i
+	material "yw_steel"
+	for i = 1 to nCore
+		add coreP[i], 0, zBot
+		prism_ 12, hgt,
+			-hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, -hH / 2 + hT2, 15,
+			-hB / 2, -hH / 2 + hT2, 15
+		del 1
+	next i
+endif
+if ywKind = 8 then
+	! ---- 鋼管矢板（管の厚さ）と P-P 継手 ----
+	material "yw_steel"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		roty -90
+		revolve 4, 360, 0, 0, tbD / 2 - tbT, 0, hgt, tbD / 2 - tbT, 0, hgt, tbD / 2, 0, 0, tbD / 2, 0
+		del 2
+		if i < nPile then
+			add (pileX[i] + pileX[i + 1]) / 2, 0, zBot
+			cylind hgt, jD / 2
+			del 1
+		endif
+	next i
+endif
+end
+

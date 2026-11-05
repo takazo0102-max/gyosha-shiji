@@ -1,0 +1,189 @@
+﻿! 山留め壁 2D（GL で切った平面。CAD の平面図の描き方: scripts/gdl_draft.py）: 鋼材の断面は塗り、矢板・パネルは外形、根切りの中の
+! 切梁は隠れ線。詳細（1/100 まで）は桟木・継手の爪・管の厚さ、簡略（1/250 より小さい縮尺）は線と注記だけ
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "ywT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "ywT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 重なり: 10 矢板・パネル、30 鋼材の断面（塗り）、40 桟木・爪・線、50 文字
+if drLv = 1 then
+	drawindex 40
+	pen pT
+	if ywKind = 1 or ywKind >= 7 then
+		line_type ltC
+		line2 0, 0, ywL, 0
+	endif
+	line_type ltZ
+	line2 0, -faceY, ywL, -faceY
+	line_type ltS
+endif
+pen pO
+if ywKind = 1 then
+	! 親杭（H形鋼）と横矢板（掘削側のフランジの裏）・矢板止めの桟木
+	drawindex 30
+	if drLv < 3 then
+		for i = 1 to nPile
+			add2 pileX[i], 0
+			fill fiS
+			poly2_b 13, 7, pO, pO,
+				-hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2, -1
+			del 1
+		next i
+	else
+		for i = 1 to nPile
+			line2 pileX[i] - hB / 2, 0, pileX[i] + hB / 2, 0
+		next i
+	endif
+	pen pT
+	for i = 1 to nBay
+		drawindex 10
+		rect2 bdA[i], yF, bdB[i], yF + lagT
+		drawindex 40
+		if drLv = 1 then
+			rect2 bdA[i] + kak + 0.005, yF - skT, bdA[i] + kak + 0.005 + skW, yF
+			rect2 bdB[i] - kak - 0.005 - skW, yF - skT, bdB[i] - kak - 0.005, yF
+		endif
+	next i
+	yTx = hH / 2
+endif
+if ywKind >= 2 and ywKind <= 5 then
+	! 鋼矢板: 1枚ずつの断面（U形は1枚おきに裏返す）。継手の爪は詳細だけ
+	drawindex 30
+	yB = 0
+	if ywKind = 3 then yB = -(spH / 2 - spT / 2)
+	for i = 1 to nU
+		sgy = 1
+		if spAlt and (i - 2 * int(i / 2)) = 0 then sgy = -1
+		add2 (i - 1) * spW, 0
+		mul2 1, sgy
+		if drLv < 3 then
+			for k = 1 to nPf
+				k2 = k + 1
+				if k2 > nPf then k2 = 1
+				line2 pfX[k], pfY[k], pfX[k2], pfY[k2]
+			next k
+		else
+			line2 0, 0, spW, 0
+		endif
+		del 2
+		if drLv = 1 then circle2 (i - 1) * spW, yB, spT * 1.1
+	next i
+	yTx = spH / 2
+endif
+if ywKind = 6 then
+	! たて込み簡易土留め: パネル（線の根切りの側）・スライドレール・切梁（隠れ線）
+	drawindex 10
+	for i = 1 to nPile - 1
+		rect2 pileX[i], -pnT, pileX[i + 1], 0
+	next i
+	drawindex 30
+	for i = 1 to nPile
+		if drLv < 3 then
+			fill fiS
+			poly2_b 5, 7, pO, pO,
+				pileX[i] - rlW / 2, -rlD, 1,
+				pileX[i] + rlW / 2, -rlD, 1,
+				pileX[i] + rlW / 2, 0, 1,
+				pileX[i] - rlW / 2, 0, 1,
+				pileX[i] - rlW / 2, -rlD, -1
+		endif
+	next i
+	drawindex 40
+	pen pT
+	line_type ltH
+	for i = 1 to min(nPile, nStr)
+		if strL[i] > 0.01 then
+			line2 pileX[i] - stDia / 2, -rlD, pileX[i] - stDia / 2, -rlD - strL[i]
+			line2 pileX[i] + stDia / 2, -rlD, pileX[i] + stDia / 2, -rlD - strL[i]
+		endif
+	next i
+	line_type ltS
+	yTx = 0.05
+endif
+if ywKind = 7 then
+	! SMW: 削孔の円（重なり）と芯材
+	drawindex 10
+	pen pT
+	for i = 1 to nPile
+		circle2 pileX[i], 0, smD / 2
+	next i
+	drawindex 30
+	pen pO
+	for i = 1 to nCore
+		add2 coreP[i], 0
+		if drLv < 3 then
+			fill fiS
+			poly2_b 13, 7, pO, pO,
+				-hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2, 1,
+				hB / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, -hH / 2 + hT2, 1,
+				hT1 / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2 - hT2, 1,
+				hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2, 1,
+				-hB / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, hH / 2 - hT2, 1,
+				-hT1 / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2 + hT2, 1,
+				-hB / 2, -hH / 2, -1
+		endif
+		del 1
+	next i
+	yTx = smD / 2
+endif
+if ywKind = 8 then
+	! 鋼管矢板と P-P 継手
+	drawindex 30
+	for i = 1 to nPile
+		circle2 pileX[i], 0, tbD / 2
+		if drLv = 1 then circle2 pileX[i], 0, tbD / 2 - tbT
+		if i < nPile then circle2 (pileX[i] + pileX[i + 1]) / 2, 0, jD / 2
+	next i
+	yTx = tbD / 2
+endif
+drawindex 50
+pen penEquip
+text2 ywL / 2, yTx + 0.15 + dT / 2, ywInfo
+if drLv = 1 then text2 ywL / 2, yTx + 0.15 + dT * 1.5, ywName
+hotspot2 0, 0
+hotspot2 ywL, 0

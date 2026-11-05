@@ -1,0 +1,182 @@
+﻿! 山留め壁 3D（規格の寸法。親杭 JIS G 3192・鋼矢板 日本製鉄 1-1・1-2・軽量鋼矢板 1-12・アルミ矢板 ホーシン・たて込み TSパネル・
+! 鋼管矢板 JIS A 5530。横矢板は 1枚ずつ・くさび・矢板止めの桟木。根切りの段ごとに矢板の色を変える（stgCol））
+define material "yw_steel" 2, 0.48, 0.30, 0.22
+define material "yw_sheet" 2, 0.42, 0.40, 0.38
+define material "yw_alu" 2, 0.80, 0.82, 0.85
+define material "yw_lag1" 2, 0.82, 0.66, 0.42
+define material "yw_lag2" 2, 0.66, 0.50, 0.30
+define material "yw_lag3" 2, 0.74, 0.58, 0.36
+define material "yw_sanki" 2, 0.90, 0.80, 0.58
+define material "yw_wedge" 2, 0.55, 0.40, 0.22
+define material "yw_smw" 2, 0.66, 0.66, 0.62
+define material "yw_panel" 2, 0.30, 0.45, 0.62
+define material "yw_rail" 2, 0.90, 0.62, 0.12
+define material "yw_strut" 2, 0.20, 0.38, 0.72
+resol 16
+if ywKind = 1 then
+	! ---- 親杭（H形鋼。フランジが山留めの線に平行） ----
+	material "yw_steel"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		prism_ 12, hgt,
+			-hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, -hH / 2 + hT2, 15,
+			-hB / 2, -hH / 2 + hT2, 15
+		del 1
+	next i
+	! ---- 横矢板（掘削側のフランジの裏。上から1枚ずつ、根切りの段ごとに色）・くさび ----
+	kb = 0
+	for s = 1 to nBn
+		mt = 1
+		if stgCol then mt = s - 3 * int((s - 1) / 3)
+		for j = 1 to bdN[s]
+			kb = kb + 1
+			zb = -kb * lagW
+			for i = 1 to nBay
+				if mt = 1 then material "yw_lag1"
+				if mt = 2 then material "yw_lag2"
+				if mt = 3 then material "yw_lag3"
+				add bdA[i], yF, zb
+				block bdB[i] - bdA[i], lagT, lagW - 0.003
+				del 1
+				material "yw_wedge"
+				for sd = 1 to 2
+					xw = bdA[i] + kak / 2 - 0.02
+					if sd = 2 then xw = bdB[i] - kak / 2 - 0.02
+					add xw, yF - lagGap, zb + lagW * 0.1
+					block 0.04, lagGap, lagW * 0.35
+					addz lagW * 0.45
+					block 0.04, lagGap, lagW * 0.35
+					del 2
+				next sd
+			next i
+		next j
+	next s
+	! ---- 矢板止めの桟木（バイの両端・フランジの脇に縦に。根切りの段ごと） ----
+	material "yw_sanki"
+	kb = 0
+	for s = 1 to nBn
+		z1 = -kb * lagW
+		kb = kb + bdN[s]
+		z2 = -kb * lagW
+		if z1 - z2 > 0.01 then
+			for i = 1 to nBay
+				add bdA[i] + kak + 0.005, yF - skT, z2 + 0.005
+				block skW, skT, z1 - z2 - 0.01
+				del 1
+				add bdB[i] - kak - 0.005 - skW, yF - skT, z2 + 0.005
+				block skW, skT, z1 - z2 - 0.01
+				del 1
+			next i
+		endif
+	next s
+endif
+if ywKind >= 2 and ywKind <= 5 then
+	! ---- 鋼矢板: 1枚ずつ断面を押し出す（U形は1枚おきに裏返す）・継手の爪 ----
+	material "yw_sheet"
+	if ywKind = 5 then material "yw_alu"
+	yB = 0
+	if ywKind = 3 then yB = -(spH / 2 - spT / 2)
+	for i = 1 to nU
+		sgy = 1
+		if spAlt and (i - 2 * int(i / 2)) = 0 then sgy = -1
+		add (i - 1) * spW, 0, zBot
+		mul 1, sgy, 1
+		for k = 1 to nPf
+			put pfX[k], pfY[k]
+		next k
+		prism nPf, hgt, get(nsp)
+		del 2
+		add (i - 1) * spW, yB, zBot
+		cylind hgt, spT * 1.1
+		del 1
+	next i
+endif
+if ywKind = 6 then
+	! ---- たて込み簡易土留め: スライドレール（頭は GL の上）・パネルの積み（リブ付き）・切梁（サポートジャッキ） ----
+	material "yw_rail"
+	for i = 1 to nPile
+		add pileX[i] - rlW / 2, -rlD, zBot
+		block rlW, rlD, hgt
+		del 1
+	next i
+	material "yw_panel"
+	for i = 1 to nPile - 1
+		zp = zBot
+		for k = 1 to nPn
+			add pileX[i] + rlW / 2, -pnT, zp
+			block pileX[i + 1] - pileX[i] - rlW, pnT, pnHs[k] - 0.005
+			addz pnHs[k] * 0.33
+			addy -0.03
+			block pileX[i + 1] - pileX[i] - rlW, 0.03, 0.012
+			addz pnHs[k] * 0.33
+			block pileX[i + 1] - pileX[i] - rlW, 0.03, 0.012
+			del 4
+			zp = zp + pnHs[k]
+		next k
+	next i
+	material "yw_strut"
+	for i = 1 to min(nPile, nStr)
+		if strL[i] > 0.01 then
+			for k = 1 to nStz
+				add pileX[i], -rlD, zBot + strZ[k]
+				rotx 90
+				cylind strL[i], stDia / 2
+				cylind 0.35, stDia * 0.75
+				del 2
+			next k
+		endif
+	next i
+endif
+if ywKind = 7 then
+	! ---- SMW: 削孔の円柱（重なり）と芯材（H形鋼） ----
+	material "yw_smw"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		cylind hgt, smD / 2
+		del 1
+	next i
+	material "yw_steel"
+	for i = 1 to nCore
+		add coreP[i], 0, zBot
+		prism_ 12, hgt,
+			-hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2, 15,
+			hB / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, -hH / 2 + hT2, 15,
+			hT1 / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2 - hT2, 15,
+			hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2, 15,
+			-hB / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, hH / 2 - hT2, 15,
+			-hT1 / 2, -hH / 2 + hT2, 15,
+			-hB / 2, -hH / 2 + hT2, 15
+		del 1
+	next i
+endif
+if ywKind = 8 then
+	! ---- 鋼管矢板（管の厚さ）と P-P 継手 ----
+	material "yw_steel"
+	for i = 1 to nPile
+		add pileX[i], 0, zBot
+		roty -90
+		revolve 4, 360, 0, 0, tbD / 2 - tbT, 0, hgt, tbD / 2 - tbT, 0, hgt, tbD / 2, 0, 0, tbD / 2, 0
+		del 2
+		if i < nPile then
+			add (pileX[i] + pileX[i + 1]) / 2, 0, zBot
+			cylind hgt, jD / 2
+			del 1
+		endif
+	next i
+endif
+end
