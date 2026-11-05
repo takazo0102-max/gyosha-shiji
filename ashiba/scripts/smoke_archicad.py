@@ -11,7 +11,7 @@
 - 総合判定の是正項目が CLI（solve_all）と同じ
 
 終わったら置いたもの（部品・断面・レイアウト・スラブ）を消す（--keep で残す）。帳票と立面の
-控えは out/smoke/<件名>/ に書く（利用者の Desktop/ashiba_out は触らない）。足場条件の部品は使わない。
+控えは out/smoke/<件名>/ に書く（利用者の ~/ashiba_out は触らない）。足場条件の部品は使わない。
 
 使い方:
   python3 scripts/smoke_archicad.py                      # 全件（小型5件＋30×20m 2件）

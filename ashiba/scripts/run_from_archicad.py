@@ -99,17 +99,17 @@ FLOOR_LEVELS_MM: list[float] = []  # 立面に描く各階レベル（空なら�
 # 図面の並べ先。躯体外形の左下から下方向へ、立面→詳細図の順に置く
 ELEVATION_OFFSET_MM = -45000.0
 DETAIL_OFFSET_MM = -20000.0
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 # 条件をスクリプトを編集せずに変えるための上書きファイル（存在すれば SPEC に重ねる）。
 # 中身は入力JSONと同じキー（series_id・eaves_height_mm・site・openings 等。outline_mm は
 # 選択したスラブから取るので無視）。環境変数 ASHIBA_SPEC でパスを差し替えられる
-SPEC_OVERRIDE = Path(os.environ.get("ASHIBA_SPEC", str(Path.home() / "Desktop" / "ashiba_spec.json")))
+SPEC_OVERRIDE = Path(os.environ.get("ASHIBA_SPEC", str(Path.home() / "ashiba_spec.json")))
 
 
 # 出力先に毎回書く上書き条件の雛形。"_" で始まるキーはコメント（検証で無視される）。
 # 利用者が README を探さなくても、高さ・スパン・面名指定の書き方が手元に残る
 SAMPLE_SPEC = {
-    "_説明": "このファイルを ~/Desktop/ashiba_spec.json にコピーして値を変えると、ツールバー実行の条件になります。"
+    "_説明": "このファイルを ~/ashiba_spec.json にコピーして値を変えると、ツールバー実行の条件になります。"
              "\"_\" で始まるキーはコメントなので残して構いません。外形（outline_mm）は選択したスラブから取ります",
     "project_name": "足場計画",
     "series_id": "nikken_nd1800",
@@ -179,6 +179,13 @@ def load_spec_override() -> dict:
         return {}
     try:
         data = json.loads(SPEC_OVERRIDE.read_text(encoding="utf-8-sig"))
+    except PermissionError as e:
+        # 中身の問題ではなく macOS が読ませない（2026-11-06 デスクトップに置いていてパレットの「重機」で Errno 1。置き場をホームに移した）
+        raise InputError(
+            f"macOS が条件の上書きファイル {SPEC_OVERRIDE} を読ませません（{e.strerror}）。ファイルの中身の問題ではありません。"
+            "システム設定 → プライバシーとセキュリティ → ファイルとフォルダ → Archicad を確かめて、"
+            "Archicad を開き直してください（項目が無ければ Archicad を再起動すると許可を求める窓が出ます）"
+        ) from None
     except (OSError, ValueError) as e:
         raise InputError(
             f"条件の上書きファイル {SPEC_OVERRIDE} を読めません（{e}）。"

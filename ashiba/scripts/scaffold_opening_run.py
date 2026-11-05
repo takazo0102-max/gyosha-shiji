@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from ashiba.opening_pick import REASONS, format_openings, parse_openings, pick_opening, same_place  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, TapirError  # noqa: E402
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 def _points(obj) -> list[tuple[float, float]]:

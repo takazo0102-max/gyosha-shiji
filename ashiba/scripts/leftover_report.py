@@ -4,7 +4,7 @@
   python3 scripts/leftover_report.py                       # 一覧（読むだけ）
   python3 scripts/leftover_report.py --remove "スモーク small_brk"   # その工事名の断面・レイアウトを消す
 
-「使用中」は、足場条件の部品に入っている工事名。断面は控え（Desktop/ashiba_out と out/smoke/*/ の
+「使用中」は、足場条件の部品に入っている工事名。断面は控え（~/ashiba_out と out/smoke/*/ の
 elevation_sections.json）に GUID があるものだけ消せる（断面と名前の対応は API で取れない）。
 """
 

@@ -43,6 +43,20 @@ class TestSpecOverride(unittest.TestCase):
             self.mod.load_spec_override()
         self.assertIn("読めません", str(cm.exception))
 
+    def test_macos_refusal_is_not_called_a_json_mistake(self):
+        """macOS がデスクトップを読ませないときは JSON の綴りでなく許可を案内する（2026-11-06 パレットで Errno 1）."""
+        from unittest import mock
+
+        from ashiba.cli import InputError
+
+        self.path.write_text("{}", encoding="utf-8")
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError(1, "Operation not permitted")):
+            with self.assertRaises(InputError) as cm:
+                self.mod.load_spec_override()
+        self.assertIn("macOS", str(cm.exception))
+        self.assertIn("ファイルとフォルダ", str(cm.exception))
+        self.assertNotIn("綴り", str(cm.exception))
+
     def test_non_object_file_stops(self):
         from ashiba.cli import InputError
 

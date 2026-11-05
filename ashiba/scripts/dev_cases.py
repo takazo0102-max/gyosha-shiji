@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from ashiba.tapir_adapter import ArchicadClient  # noqa: E402
 
-REC = Path.home() / "Desktop" / "ashiba_out" / "dev_cases.json"
+REC = Path.home() / "ashiba_out" / "dev_cases.json"
 DEFAULT_AT = {"setback": (-60000.0, -82000.0), "overhang": (-20000.0, -82000.0)}
 
 

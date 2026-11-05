@@ -278,5 +278,69 @@ class TestDeliveryVehicles(unittest.TestCase):
         self.assertIs(ps["ucOn"], True)                                                    # 0・1 は Tapir が受け付けない
 
 
+
+class TestPlaceByClick(unittest.TestCase):
+    """線を選ばずに押すと平面図で2回クリック、機種は窓で選ぶ（利用者の指定 2026-11-06「クリックして配置するようにしたい あと機種を選択するように」）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    class Client:
+        timeout = 60.0
+
+        def __init__(self, answer):
+            self.answer = answer
+            self.seen = []
+
+        def tapir(self, cmd, params, retries=2):
+            self.seen.append((cmd, retries, self.timeout))
+            return self.answer
+
+    def test_two_clicks_give_place_and_front(self):
+        import machine_run as M
+
+        c = self.Client({"cancelled": False, "startPoint": {"x": 1.0, "y": 2.0, "z": 0}, "endPoint": {"x": 1.0, "y": 5.0, "z": 0}})
+        self.assertEqual(M.pick_line(c), [(1000.0, 2000.0), (1000.0, 5000.0)])
+        self.assertEqual(c.seen, [("GetLineFromUser", 0, M.PICK_WAIT_S)])     # 待つ命令は送り直さない
+        self.assertEqual(c.timeout, 60.0)
+
+    def test_escape_places_nothing(self):
+        import machine_run as M
+
+        self.assertIsNone(M.pick_line(self.Client({"cancelled": True})))
+
+    def test_same_point_faces_plus_x(self):
+        import machine_run as M
+
+        c = self.Client({"cancelled": False, "startPoint": {"x": 1.0, "y": 2.0}, "endPoint": {"x": 1.0, "y": 2.0}})
+        self.assertEqual(M.pick_line(c)[1], (2000.0, 2000.0))
+
+    def test_model_form_lists_the_same_kind(self):
+        import json
+        import os
+        from unittest import mock
+
+        import machine_run as M
+
+        m = MACHINES["bh045"]
+        other = next(x for x in MACHINES.values() if x.kind == m.kind and x is not m)
+        ans = json.dumps({"button": "place", "values": {"model": f"{other.name}（{other.model}）"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertIs(M.choose_model(m, None), other)
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": '{"button": "cancel"}'}):
+            self.assertIsNone(M.choose_model(m, None))
+
+    def test_palette_buttons_ask_for_the_model(self):
+        from ashiba.palette import ACTIONS
+
+        for a in ACTIONS:
+            if a.script == "machine_run.py" and "--remove" not in a.args:
+                self.assertIn("--ask", a.args, a.title)
+
+
 if __name__ == "__main__":
     unittest.main()

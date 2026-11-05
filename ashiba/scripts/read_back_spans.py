@@ -11,7 +11,7 @@
 
 使い方:
   python3 scripts/read_back_spans.py [plan.json] [--write [spec.json]] [--apply]
-  plan.json 省略時は ~/Desktop/ashiba_out の最新。--write 省略時は表示だけ。
+  plan.json 省略時は ~/ashiba_out の最新。--write 省略時は表示だけ。
   --apply は --write のあと続けてツールバー（run_from_archicad.py）を実行して解き直す
   （スラブは選択中のもの、または ASHIBA_SLAB=<GUID先頭>）。
   足場ラインは plan.json の配置位置で見つけるので、スラブの選択や GUID は読み戻しには要らない。
@@ -40,8 +40,8 @@ from ashiba.span_readback import (  # noqa: E402
 )
 from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
-SPEC_DEFAULT = Path.home() / "Desktop" / "ashiba_spec.json"
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+SPEC_DEFAULT = Path.home() / "ashiba_spec.json"
 
 
 def _latest_plan() -> Path:

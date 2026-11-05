@@ -3,6 +3,8 @@
 利用者の指定（2026-11-01）「重機の詳細度もっとあげて　種類も増やして」。
 
   python3 scripts/machine_run.py --type bh045            # 選んだ線の始め＝旋回中心（車は真ん中）、始めの辺の向き＝車体の前
+  python3 scripts/machine_run.py --type bh045            # 線を選ばなければ平面図で 2回クリック（置く所・車体の前の向き。Esc でやめる）
+  python3 scripts/machine_run.py --type bh045 --ask       # 同じ種類の機種を窓で選ぶ（パレットのボタン。利用者の指定 2026-11-06）
   python3 scripts/machine_run.py --type pump36 --slew 90  # ブーム・上部を 90° 回す
   python3 scripts/machine_run.py --type cc50 --soil-q 150 --soil 3   # 地盤の許容支持力（短期 kN/m²）と土質（敷鉄板の表）
   python3 scripts/machine_run.py --type bh045 --att d135  # バックホウの先を解体アタッチメント（圧砕機）に（--att none でバケット）
@@ -12,7 +14,7 @@
   python3 scripts/machine_run.py --remove                 # 置いた重機を消す（--kinds 13,14 で搬入車両だけ）
 
 部品 ashiba_machine を線1本に1台（src/ashiba/machine.py が機種・寸法・判定）。前に同じ線に置いたものは控え
-（ashiba_out/重機.json）で消して置き直す。手配表と判定は ashiba_out/重機.md.
+（ashiba_out/重機.json）で消して置き直す。クリックは Tapir の GetLineFromUser（線を引かなくてよい）。手配表と判定は ashiba_out/重機.md.
 """
 
 from __future__ import annotations
@@ -44,6 +46,8 @@ def main(argv=None) -> int:
     ap.add_argument("--keep-out", type=float, default=KEEP_OUT, help="立入禁止の余裕 m（公的な数値は無く社内の決め）")
     ap.add_argument("--z", type=float, default=None, help="地盤の高さ mm（省くと敷地メッシュ、無ければ 0）")
     ap.add_argument("--att", default=None, help="バックホウ・解体機の先（" + "・".join(ATTACHMENTS) + "・none＝バケット）")
+    ap.add_argument("--ask", action="store_true", help="同じ種類の機種を窓で選ぶ")
+    ap.add_argument("--pick", action="store_true", help="線を選んでいてもクリックで置く")
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
     ap.add_argument("--list-att", action="store_true", help="解体アタッチメントの一覧を出す")
     ap.add_argument("--remove", action="store_true", help="置いた重機を消す")
@@ -91,11 +95,24 @@ def main(argv=None) -> int:
         rec_path.write_text(json.dumps({k: v for k, v in rec.items() if k not in gone}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"重機: {n}台を消しました")
         return 0
-    lines = [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
-    if not lines:
-        print("重機: 線（始め＝旋回中心・始めの辺の向き＝車体の前）を選んでから押してください")
-        return 1
+    if a.ask:
+        mach = choose_model(mach, a)
+        if mach is None:
+            print("重機: やめました（何も置いていません）")
+            return 0
+    lines = [] if a.pick else [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
     R.ensure_parts(c)
+    if not lines:
+        if c.tapir("GetCurrentWindowType", {}).get("currentWindowType") != "FloorPlan":
+            print("重機: 平面図の窓を前にしてから押してください（線を選んであれば、その線に置きます）")
+            return 1
+        front_archicad(c)
+        print("  平面図で 置く所 → 車体の前の向き の順にクリック（Esc でやめる）", flush=True)
+        pts = pick_line(c)
+        if pts is None:
+            print("重機: やめました（何も置いていません）")
+            return 0
+        lines = [(f"クリック:{pts[0][0]:.0f}:{pts[0][1]:.0f}", pts)]
     part = R.versioned_part_name(PART)
     spec = {**R.SPEC, **R.load_spec_override()}
     pens = gdl_pens(parse_pens(spec.get("pens")), PART)
@@ -131,7 +148,8 @@ def main(argv=None) -> int:
             _delete_alive(c, [el["elementId"]["guid"]])
             print(f"  {p.name}: パラメータを入れられず置きませんでした（{str(ex)[:120]}）")
             continue
-        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att, "params": extra}
+        rec[key] = {"guid": el["elementId"]["guid"], "type": mach.key, "name": p.name, "slew": a.slew, "att": p.att, "params": extra,
+                    "at": [x0, y0]}
         now += 1
         bad = sorted({x.item for x in p.checks if x.status not in ("OK", "注意")})
         print(f"  {p.name}: {mach.name}（{mach.model}）" + (f" 要確認 {'・'.join(bad)}" if bad else ""))
@@ -144,6 +162,62 @@ def main(argv=None) -> int:
     # 今置いた台数を先に（押した人に分かるように）。帳票は置いてある全部の重機
     print(f"重機: {now}台を置きました（置いてある重機は全部で {len(placed)}台・{md}）")
     return 0
+
+
+PICK_WAIT_S = 900.0                                   # クリックを待つ長さ（Tapir の GetLineFromUser は Archicad の中で待つ）
+
+
+def choose_model(mach, a) -> object:
+    """同じ種類の機種を窓で選ぶ. やめたら None、1機種だけなら窓を出さない."""
+    from form_dialog import show_form
+
+    from ashiba.machine import MACHINES
+
+    same = [m for m in MACHINES.values() if m.kind == mach.kind]
+    if len(same) < 2:
+        return mach
+    label = lambda m: f"{m.name}（{m.model}）"            # noqa: E731
+    res = show_form({
+        "title": "重機の機種",
+        "intro": "機種を選ぶと、平面図で 1回目に置く所（旋回中心。車は車体の真ん中）、2回目に車体の前の向きをクリックします。"
+                 "線を選んであれば、その線に置きます。",
+        "fields": [{"key": "model", "label": "機種", "kind": "choice", "options": [label(m) for m in same], "value": label(mach)}],
+        "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "place":
+        return None
+    want = str((res.get("values") or {}).get("model"))
+    return next((m for m in same if label(m) == want), mach)
+
+
+def front_archicad(c) -> None:
+    """窓を閉じたあと Archicad を前に（クリックが Archicad に届くように）."""
+    import subprocess
+
+    try:
+        v = c.post("API.GetProductInfo").get("version")
+        subprocess.run(["open", "-b", f"com.graphisoft.archicad{v}"], capture_output=True, timeout=10)
+    except Exception:  # noqa: BLE001 — 前に出せなくても、利用者が Archicad を押せば進む
+        pass
+
+
+def pick_line(c) -> list | None:
+    """平面図で 2回クリックしてもらう → [置く所, 向きの点]（mm）. Esc なら None. 案内の文字は 1バイトのみ（Tapir の説明）."""
+    from ashiba.tapir_adapter import TapirError
+
+    saved, c.timeout = c.timeout, PICK_WAIT_S
+    try:
+        r = c.tapir("GetLineFromUser", {"startPrompt": "Click the place of the machine", "endPrompt": "Click the front direction",
+                                        "showRubberLineFeedback": True}, retries=0)
+    except TapirError as e:
+        print(f"  クリックを受け取れませんでした（{str(e)[:120]}）")
+        return None
+    finally:
+        c.timeout = saved
+    if r.get("cancelled") or "startPoint" not in r:
+        return None
+    a = (float(r["startPoint"]["x"]) * 1000.0, float(r["startPoint"]["y"]) * 1000.0)
+    b = (float(r["endPoint"]["x"]) * 1000.0, float(r["endPoint"]["y"]) * 1000.0)
+    return [a, b if math.dist(a, b) > 1.0 else (a[0] + 1000.0, a[1])]
 
 
 def vehicle_extra(mach, a) -> dict:

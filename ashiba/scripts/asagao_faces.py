@@ -26,8 +26,8 @@ from ashiba.face_forms import faces_of_lines  # noqa: E402
 from ashiba.spec_form import ASAGAO_MODES, updated_asagao_faces  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient, is_ashiba_part  # noqa: E402
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))
-SPEC_DEFAULT = Path(os.environ.get("ASHIBA_SPEC") or (Path.home() / "Desktop" / "ashiba_spec.json"))
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))
+SPEC_DEFAULT = Path(os.environ.get("ASHIBA_SPEC") or (Path.home() / "ashiba_spec.json"))
 
 
 def _choose(faces: list[str]) -> str | None:

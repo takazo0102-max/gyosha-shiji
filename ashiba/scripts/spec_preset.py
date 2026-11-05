@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from ashiba.presets import apply_preset, list_presets, load_preset, preset_dir, save_preset  # noqa: E402
 from ashiba.tapir_adapter import ArchicadClient  # noqa: E402
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 def _spec_part(c):
