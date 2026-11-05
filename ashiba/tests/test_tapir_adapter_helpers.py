@@ -18,6 +18,8 @@ class _Stub(ArchicadClient):
 
     def tapir(self, command, params):
         self.calls.append((command, params))
+        if command == "AddFilesToEmbeddedLibrary" and len(params["files"]) > 1:
+            return {"executionResults": [{"success": not any(n in f["outputPath"] for n in self.fail_names)} for f in params["files"]]}
         if command == "AddFilesToEmbeddedLibrary":
             out = params["files"][0]["outputPath"]
             ok = not any(n in out for n in self.fail_names)
@@ -34,9 +36,19 @@ class TestEnsureEmbeddedParts(unittest.TestCase):
             added = c.ensure_embedded_parts([a, b, Path(d) / "missing.gsm"])
         self.assertEqual(added, ["ashiba_line.gsm"])
         adds = [p for cmd, p in c.calls if cmd == "AddFilesToEmbeddedLibrary"]
-        self.assertEqual(len(adds), 2)                        # 無いファイルは送らない
-        self.assertTrue(all(p["files"][0]["outputPath"].startswith("ashiba/") for p in adds))
-        self.assertTrue(any(cmd == "ReloadLibraries" for cmd, _ in c.calls))
+        self.assertEqual(len(adds), 1)                        # 1回の命令で全部を渡す（2026-11-06「配置まで時間が長い」）
+        self.assertEqual(len(adds[0]["files"]), 2)            # 無いファイルは送らない
+        self.assertTrue(all(f["outputPath"].startswith("ashiba/") for f in adds[0]["files"]))
+        self.assertEqual(sum(cmd == "ReloadLibraries" for cmd, _ in c.calls), 1)
+
+    def test_no_reload_when_everything_is_there(self):
+        """全部入っていれば読み直さない（読み直しは 20 秒ほどかかる）."""
+        with tempfile.TemporaryDirectory() as d:
+            a = Path(d) / "ashiba_line.gsm"; a.write_bytes(b"x")
+            b = Path(d) / "ashiba_detail.gsm"; b.write_bytes(b"x")
+            c = _Stub(fail_names=["ashiba_line", "ashiba_detail"])
+            self.assertEqual(c.ensure_embedded_parts([a, b]), [])
+        self.assertFalse(any(cmd == "ReloadLibraries" for cmd, _ in c.calls))
 
 
 class _DupStub(ArchicadClient):
