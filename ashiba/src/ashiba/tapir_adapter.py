@@ -41,7 +41,7 @@ from .model import ScaffoldModel
 # ラジアンで受け取り、度の値をそのまま送ると 90 は 90 ラジアン（≒116.6°）になった（2026-11-03 実機。重機のブームが後ろへ、
 # くさび1点の部材が斜めに）。こちらは度で持ち、送る口でラジアンに直す。読み戻しは angle_values で度に戻す
 ANGLE_PARAMS = frozenset({"abA", "amA", "atO", "bedA", "bkA", "bmA", "boomA", "dA1", "dA2", "dA3", "drA", "faceAng", "jbA", "lbA",
-                          "pA1", "pA2", "pA3", "pA4", "pA5", "slew", "tbA", "tieA", "trA", "wrDir", "wrSpan"})
+                          "pA1", "pA2", "pA3", "pA4", "pA5", "slew", "tbA", "tieA", "tkA", "trA", "wrDir", "wrSpan"})
 
 
 def to_tapir_values(params: dict[str, Any]) -> dict[str, Any]:

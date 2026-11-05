@@ -267,7 +267,7 @@ class TestDeliveryVehicles(unittest.TestCase):
 
     def test_part_has_vehicle_params(self):
         gdl = (ROOT / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "2d.gdl").read_text(encoding="utf-8-sig")
-        self.assertIn("arc2 xAxR, yC, rOut", gdl)                                         # 平面の旋回軌跡
+        self.assertIn("arc2 xC, yC, rOut", gdl)                                         # 平面の旋回軌跡
         self.assertIn("hotspot2 kpX, 0, 11, trA, 6", gdl)                                  # 連結の折れ角
         names = re.findall(r'Name="([^"]+)"', (ROOT / "gdl" / "hsf" / "ashiba_machine" / "paramlist.xml").read_text(encoding="utf-8"))
         self.assertEqual(len(names), len(set(names)))                                    # 同じ名前のパラメータが無い（GSM が作れない）
@@ -338,8 +338,122 @@ class TestPlaceByClick(unittest.TestCase):
         from ashiba.palette import ACTIONS
 
         for a in ACTIONS:
-            if a.script == "machine_run.py" and "--remove" not in a.args:
+            if a.script == "machine_run.py" and "--type" in a.args:
                 self.assertIn("--ask", a.args, a.title)
+
+
+
+class TestTracks(unittest.TestCase):
+    """車両の軌跡図と入り切り（利用者の指定 2026-11-06「車両は軌跡図を追加して オンオフ設定できるようにしてちょ」）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    def test_dump_and_mixer_draw_the_catalog_radius(self):
+        for k, r in (("dump10", 6.6), ("mix45", 6.3), ("dump4", 4.8), ("mix32", 5.8)):
+            p = check(Placed("車", MACHINES[k]))
+            prm = part_params(p)
+            self.assertEqual(prm["tnR"], r)
+            self.assertIs(prm["tkOn"], True)
+            self.assertIn("旋回軌跡", [c.item for c in p.checks])
+
+    def test_pump_needs_a_given_radius(self):
+        """ポンプ車・高所作業車は最小回転半径の公表値が無いので、入れなければ描かない."""
+        p = check(Placed("車", MACHINES["pump36"]))
+        self.assertEqual(part_params(p)["tnR"], 0.0)
+        self.assertNotIn("旋回軌跡", [c.item for c in p.checks])
+        q = check(Placed("車", MACHINES["pump36"], params={"tnR": 9.5}))
+        self.assertEqual(part_params(q)["tnR"], 9.5)
+        self.assertIn("旋回軌跡", [c.item for c in q.checks])
+
+    def test_track_has_hotspots(self):
+        """軌跡図も動かせる（利用者の指定 2026-11-06）: 円弧の先で曲がる角度、回転の中心で広げる量. 狭くはできない."""
+        from pathlib import Path
+
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_machine"
+        sc = (hsf / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("31, tkA, 6 + fA", sc)
+        self.assertIn("33, tkA, 5 + fA", sc)
+        self.assertIn("35, tkD, 2", sc)
+        vl = (hsf / "scripts" / "vl.gdl").read_text(encoding="utf-8")
+        self.assertIn('values "tkD" range [0, ]', vl)
+        pl = (hsf / "paramlist.xml").read_text(encoding="utf-8")
+        self.assertIn('<Angle Name="tkA">', pl)
+
+    def test_track_has_straights(self):
+        """いきなり曲がらない（利用者の指摘 2026-11-06「直線もしていきなり曲がらないでしょ」）: 曲がる前後に直進、既定は車の長さ."""
+        from pathlib import Path
+
+        prm = part_params(check(Placed("車", MACHINES["dump10"])))
+        self.assertAlmostEqual(prm["tkF"], 7.64)
+        self.assertAlmostEqual(prm["tkE"], 7.64)
+        self.assertGreater(part_params(check(Placed("車", MACHINES["lb4"])))["tkF"], 15.0)      # 連結全長
+        self.assertNotIn("tkF", part_params(check(Placed("機", MACHINES["bh045"]))))
+        sc = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_machine" / "scripts" / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("38, tkF, 2", sc)
+        self.assertIn("41, tkE, 2", sc)
+
+    def test_form_sets_the_track(self):
+        import argparse
+        import json
+        import os
+        from unittest import mock
+
+        import machine_run as M
+
+        m = MACHINES["dump10"]
+        a = argparse.Namespace(no_track=False, turn="左", turn_r=0.0, load="")
+        ans = json.dumps({"button": "place", "values": {"model": f"{m.name}（{m.model}）", "track": "描かない", "turn": "右"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertIs(M.choose_model(m, a), m)
+        self.assertEqual(M.vehicle_extra(m, a), {"tkOn": 0, "tkS": -1})
+        a.no_track, a.turn_r = False, 9.5
+        self.assertEqual(M.vehicle_extra(MACHINES["pump36"], a)["tnR"], 9.5)
+        self.assertEqual(M.vehicle_extra(MACHINES["bh045"], a), {})
+
+    class Client:
+        def __init__(self, alive, sel=()):
+            self.alive, self.sel, self.set = alive, sel, []
+
+        def tapir(self, cmd, params):
+            return {"elements": [{"elementId": {"guid": g}} for g in self.alive]}
+
+        def get_selected_elements(self):
+            return [{"elementId": {"guid": g}} for g in self.sel]
+
+        def set_gdl_parameters(self, el, prm):
+            self.set.append((el["elementId"]["guid"], prm))
+
+    def _run(self, c, how):
+        import json
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        import machine_run as M
+
+        rec = {"a": {"guid": "D", "type": "dump10", "params": {"tkOn": 1}}, "b": {"guid": "T", "type": "tr4", "params": {"tkOn": 1}},
+               "c": {"guid": "B", "type": "bh045", "params": {}}, "d": {"guid": "gone", "type": "dump4", "params": {}}}
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "場内通路.json").write_text(json.dumps({"線": ["R", "P"]}), encoding="utf-8")
+            code = M.switch_tracks(c, rec, Path(d) / "重機.json", how, SimpleNamespace(OUT_DIR=Path(d)))
+            return code, json.loads((Path(d) / "重機.json").read_text(encoding="utf-8"))
+
+    def test_toggle_all_vehicles_and_the_road(self):
+        c = self.Client(["D", "T", "B", "R", "P"])
+        code, rec = self._run(c, "toggle")
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(c.set, key=str), sorted([("D", {"tkOn": False}), ("T", {"tkOn": False}), ("R", {"showSw": False})], key=str))
+        self.assertEqual(rec["a"]["params"]["tkOn"], 0)
+
+    def test_selected_vehicle_only(self):
+        c = self.Client(["D", "T", "B", "R", "P"], sel=["T"])
+        self._run(c, "on")
+        self.assertEqual(c.set, [("T", {"tkOn": True})])
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 scripts/route_run.py（敷鉄板は別の部品 ashiba_plate を区間ごとに）。原点＝通路の始め（ゲートの側）、座標は文字のパラメータ（mm）。
 - 平面: 通路の帯（eX・eY）・中心線と進む向きの矢（cX・cY）・曲がり角の掃引（回転中心 aX・aY、外側前端角と内側後輪の円 aR、
   角度 aA）・拡幅の注記（aW＝拡幅 ×0.1m）・名前と車両
-- 3D: 通路の面（敷鉄板の下に薄く）
+- 3D: 通路の面（敷鉄板を敷かないときだけ。敷くときは帯も面も描かない: rtSurf。利用者の指摘 2026-11-06「通路は2つが重なって出る」）
   python3 scripts/gen_route_gdl.py     # gdl/hsf/ashiba_route を書き直す（そのあと build_flat_gdl・build_dist_gsm）
 """
 
@@ -44,6 +44,7 @@ def paramlist() -> str:
         _param("String", "rtName", "名前（注記）", "通路1"),
         _param("String", "rtVeh", "車両と通行（注記）", "一方通行 幅4.0m 10t ダンプ"),
         _param("Boolean", "showSw", "曲がり角の掃引（車両の通る範囲）を描く", 1),
+        _param("Boolean", "rtSurf", "通路の帯と面を描く（敷鉄板を敷くときは外す。敷鉄板と重ならないように）", 1),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         *gdl_draft.params(),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -77,7 +78,7 @@ style "rtT"
 dT = texSiz * GLOB_SCALE / 1000 * 1.6
 ! 通路の帯
 pen pT
-if kE > 2 then
+if rtSurf and kE > 2 then
 	for i = 1 to kE
 		j = i + 1
 		if j > kE then j = 1
@@ -139,10 +140,10 @@ next i
 SCRIPT_2D = SCRIPT_2D_T.replace("@HEAD@", gdl_draft.head().rstrip("\n"))
 
 
-SCRIPT_3D = """﻿! 場内通路 3D: 通路の面（敷鉄板の下に薄く）
+SCRIPT_3D = """﻿! 場内通路 3D: 通路の面（敷鉄板を敷くときは描かない）
 define material "rt_road" 2, 0.55, 0.53, 0.50
 material "rt_road"
-if kE > 2 then
+if rtSurf and kE > 2 then
 	for i = 1 to kE
 		put qex[i], qey[i]
 	next i

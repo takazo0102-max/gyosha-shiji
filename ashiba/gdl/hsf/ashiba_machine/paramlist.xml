@@ -669,6 +669,22 @@
 			<Description><![CDATA["カタログの所要道路幅（0＝式で）"]]></Description>
 			<Value>0.0</Value>
 		</Length>
+		<Angle Name="tkA">
+			<Description><![CDATA["旋回軌跡の曲がる角度（平面の円弧の先のホットスポットで動かす）"]]></Description>
+			<Value>90</Value>
+		</Angle>
+		<Length Name="tkD">
+			<Description><![CDATA["最小回転半径より広げる量（回転の中心のホットスポットで動かす）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="tkF">
+			<Description><![CDATA["曲がる前の直進（前端の角の線の先のホットスポットで動かす）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="tkE">
+			<Description><![CDATA["曲がった後の直進（内側の線の先のホットスポットで動かす）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Length Name="kpC">
 			<Description><![CDATA["カプラオフセット（後軸の中心から前）"]]></Description>
 			<Value>0.175</Value>
