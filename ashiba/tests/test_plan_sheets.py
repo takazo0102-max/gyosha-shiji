@@ -39,6 +39,24 @@ class TestNegiriSheets(unittest.TestCase):
         self.assertIn("根切り 3/3", html)                                   # 表題欄の図番
         self.assertIn("事前に確かめる項目", html)
 
+    def test_ywall_on_sheets(self):
+        """「山留め壁」を使った根切り図: 平面の欄に種類・型式、断面に本当の長さ・腹起し・1次根切りの底（利用者の指定 2026-11-05
+        「１次ねぎりと2次ねぎりで分けれるように」）."""
+        yw = {"name": "山留め1", "kind": "親杭横矢板（H鋼横矢板）", "label": "親杭 H-300 @1500 L=6.5m・横矢板 t40", "top_up": 0.0,
+              "depth": 5000.0, "embed": 1500.0, "length": 6500.0, "wales": [1000.0, 4000.0], "wale": "H-300", "wale_h": 300.0,
+              "struts": True, "strut_len": 14400.0, "stages": [["1次根切り", 2150.0], ["2次根切り", 5000.0]]}
+        n = negiri_of({**FIG, "ywall": yw})
+        pages = page_list(n)
+        plan = " ".join(x.text for x in svg_shapes(pages[0][2]) if x.kind == "text")
+        self.assertIn("山留め1: 親杭 H-300 @1500 L=6.5m", plan)
+        self.assertIn("腹起し・切梁 H-300 GL-1,000・GL-4,000", plan)
+        sec = " ".join(x.text for x in svg_shapes(pages[1][2]) if x.kind == "text")
+        self.assertIn("根入れ 1.5m", sec)
+        self.assertIn("腹起し・切梁 H-300 GL-1,000", sec)                   # 幅 15m の A-A は切梁の向き
+        self.assertIn("腹起し H-300 GL-1,000", sec)                         # 幅 11m の B-B は切梁が無い向き
+        self.assertIn("1次根切りの底 GL-2,150", sec)
+        self.assertNotIn("2次根切りの底", sec)                              # 最後の段は床付け
+
     def test_cuts_and_profile(self):
         """既定の断面は深い基礎の真ん中を通る横・縦。断面の掘削面は山留めの所で GL から一般の床付け、基礎で深い床付けへ."""
         n = negiri_of(FIG)

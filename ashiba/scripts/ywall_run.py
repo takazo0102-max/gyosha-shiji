@@ -224,6 +224,29 @@ def struts_for(out_dir: Path, guids=None) -> dict:
     return out
 
 
+def sheet_info(out_dir: Path, name: str) -> dict:
+    """山留め壁 name の、根切り・山留計画図に書く要点（種類・型式の注記・天端・長さ・根入れ・腹起しの段・根切りの段）."""
+    from ashiba import retaining as RT
+
+    try:
+        rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    v = next((x for x in rec.values() if x.get("name") == name), None)
+    if not v:
+        return {}
+    try:
+        w = wall_from(v)
+    except (KeyError, ValueError):
+        return {}
+    shape = RT.wale_shape(w)[0] if w.wales else ""
+    return {"name": w.name, "kind": RT.KIND_LABELS[w.kind], "label": RT.label(w), "top_up": w.top_up, "depth": w.depth,
+            "embed": w.embed_mm, "length": w.wall_len, "wales": list(w.wales), "wale": shape,
+            "wale_h": RT.H_SHAPES[shape][0] if shape else 0.0, "struts": any(e.strut_x for e in w.edges),
+            "strut_len": max((2 * v for e in w.edges for v in e.strut_len), default=0.0),
+            "stages": [[s.name, s.bottom] for s in w.stages]}
+
+
 def layer_index(c) -> int:
     attrs = c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
     hit = next((x for x in attrs if x.get("name") == LAYER), None)

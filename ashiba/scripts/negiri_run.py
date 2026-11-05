@@ -544,6 +544,9 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                      kamaba_auto=1 if (a.kamaba or PITS[0]) == PITS[0] else 0, machine=a.machine or "",
                      road_width=float(a.road_width or 0.0)))
     if YWALL_USED:
+        from ywall_run import sheet_info
+
+        n.ywall = sheet_info(R.OUT_DIR, YWALL_USED[0][0])
         # 床付け（釜場の下げは除く）の最深と、山留め壁を割り付けたときの根切りの深さを比べる
         deep = max((n.gl - L for L in n.levels), default=0.0)
         for nm, d in YWALL_USED:
@@ -605,7 +608,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
     fig.write_text(json.dumps({"name": name, "gl": n.gl, "margin": n.margin, "gravel": n.gravel, "lean": n.lean,
                                "doma_margin": n.doma_margin, "doma_gravel": n.doma_gravel, "doma_lean": n.doma_lean,
                                "slope": n.slope, "depth": n.depth, "soil": n.soil, "general": n.general,
-                               "yamadome": [list(p) for p in n.yamadome], "cuts": old_cuts,
+                               "yamadome": [list(p) for p in n.yamadome], "ywall": n.ywall, "cuts": old_cuts,
                                "road": [[list(a2), list(b2)] for a2, b2 in n.road], "road_width": n.road_width,
                                "kamaba": [[list(p) for p in k] for k in n.kamaba], "kamaba_auto": n.kamaba_auto,
                                "machine": n.machine, "dump": n.dump,
