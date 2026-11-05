@@ -156,6 +156,74 @@ def recorded_polygons(out_dir: Path, guids=None, point=None) -> list[tuple[str, 
     return out
 
 
+def edges_for(out_dir: Path, guids) -> list[tuple]:
+    """選んだ山留め壁の部品 → その辺の (始め, 終わり, 天端の高さ mm, 名前, 部品の GUID)。+Y（線の左）が地山（山留めの手すりが使う）."""
+    try:
+        rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    want = {g.upper() for g in guids}
+    out = []
+    for v in rec.values():
+        gs = [g.upper() for g in v.get("guids", [])]
+        if not want & set(gs):
+            continue
+        try:
+            w = wall_from(v)
+        except (KeyError, ValueError):
+            continue
+        top = float(v.get("gl", 0.0)) + float(v.get("top_up", 0.0))
+        for e, g in zip(w.edges, gs):
+            if g in want:
+                out.append((tuple(e.a), tuple(e.b), top, e.name, g))
+    return out
+
+
+YW_STRUT = "切梁:山留め壁:"          # 切梁上の足場の控え（山留め足場.json）の鍵の頭（Archicad の梁でなく山留め壁の切梁）
+
+
+def struts_for(out_dir: Path, guids=None) -> dict:
+    """山留め壁の切梁 → {控えの鍵: 梁の形（excav_run の切梁と同じ ca・cb・u・length・width・depth・top・bottom・ang）}.
+    向かい合う辺の半分ずつを1本にまとめる。guids を渡せばその部品を含む山留めだけ."""
+    from ashiba import retaining as RT
+
+    try:
+        rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    want = {g.upper() for g in guids} if guids is not None else None
+    out = {}
+    for v in rec.values():
+        if want is not None and not want & {g.upper() for g in v.get("guids", [])}:
+            continue
+        try:
+            w = wall_from(v)
+        except (KeyError, ValueError):
+            continue
+        if not w.wales:
+            continue
+        H, B, *_ = RT.H_SHAPES[RT.wale_shape(w)[0]]
+        f = RT.face_offset(w) + RT.WALE_GAP_MM + H
+        for e in w.edges:
+            ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
+            n = (uy, -ux)
+            for x, half in zip(e.strut_x, e.strut_len):
+                if half <= 0:
+                    continue
+                ca = (e.a[0] + ux * x + n[0] * f, e.a[1] + uy * x + n[1] * f)
+                cb = (ca[0] + n[0] * 2 * half, ca[1] + n[1] * 2 * half)
+                for z in w.wales:
+                    mid = (round((ca[0] + cb[0]) / 1000.0), round((ca[1] + cb[1]) / 1000.0), round(z))
+                    key = f"{YW_STRUT}{w.name}:{mid[0]}:{mid[1]}:{mid[2]}"
+                    if key in out:
+                        continue
+                    top = float(v.get("gl", 0.0)) - z + H / 2.0
+                    L = 2 * half
+                    out[key] = {"ca": ca, "cb": cb, "u": n, "length": L, "width": B, "depth": H, "top": top, "bottom": top - H,
+                                "ang": math.degrees(math.atan2(n[1], n[0]))}
+    return out
+
+
 def layer_index(c) -> int:
     attrs = c.tapir("GetAttributesByType", {"attributeType": "Layer"}).get("attributes", [])
     hit = next((x for x in attrs if x.get("name") == LAYER), None)

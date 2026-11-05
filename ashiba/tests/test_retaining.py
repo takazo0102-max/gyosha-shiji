@@ -196,6 +196,36 @@ class TestRecord(unittest.TestCase):
             self.assertEqual([h[2] for h in Y.recorded_polygons(d, point=(6000.0, 4000.0))], [3000.0])
             self.assertEqual(Y.recorded_polygons(d, point=(20000.0, 4000.0)), [])
 
+    def test_struts_for_walkway(self):
+        """切梁上の足場（excav_run --kiribari）が使う山留め壁の切梁: 向かい合う辺の半分ずつを1本に（3本×2段）、長さは向かいの腹起しまで."""
+        import ywall_run as Y
+
+        with tempfile.TemporaryDirectory() as d:
+            rec = {"k": {"name": "山留め1", "kind": "oyagui", "pts": [list(p) for p in RECT], "closed": True, "depth": 5000.0,
+                         "guids": ["G1", "G2", "G3", "G4"]}}
+            (Path(d) / Y.RECORD).write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
+            got = Y.struts_for(d, ["G1"])
+            self.assertEqual(len(got), 6)
+            b = next(iter(got.values()))
+            self.assertAlmostEqual(b["length"], 8000.0 - 2 * 550.0)
+            self.assertEqual((b["width"], b["top"]), (300.0, -1000.0 + 150.0))
+            self.assertTrue(all(k.startswith(Y.YW_STRUT) for k in got))
+            self.assertEqual(Y.struts_for(d, ["X"]), {})
+
+    def test_edges_for_handrail(self):
+        """山留めの手すり（excav_run --rail）が、選んだ山留め壁の部品の辺と天端（GL＋天端）を使う."""
+        import ywall_run as Y
+
+        with tempfile.TemporaryDirectory() as d:
+            rec = {"k": {"name": "山留め1", "kind": "oyagui", "pts": [list(p) for p in RECT], "closed": True, "depth": 3000.0,
+                         "gl": 100.0, "top_up": 200.0, "guids": ["G1", "G2", "G3", "G4"]}}
+            (Path(d) / Y.RECORD).write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
+            got = Y.edges_for(d, ["g2"])
+            self.assertEqual(len(got), 1)
+            a, b, z, name, g = got[0]
+            self.assertEqual((z, name, g), (300.0, "山留め1-2", "G2"))
+            self.assertAlmostEqual(__import__("math").dist(a, b), 8000.0)
+
 
 if __name__ == "__main__":
     unittest.main()

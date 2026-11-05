@@ -502,7 +502,9 @@ def plan_supports(w: Wall) -> None:
     for i, e in enumerate(w.edges):
         if not (0 < widths[i] <= narrow * 1.2 + 1.0):
             continue
-        x0, x1 = e.wale_x
+        # 腹起しの両端の止め方は非対称（始めは突き当て・終わりは通し）なので、切梁は辺の真ん中に対して対称に割る（向かいの辺の切梁と
+        # 同じ位置になり、2つの部品の半分ずつが1本につながる）
+        x0, x1 = f + H, e.length - f - H
         k = max(1, math.ceil((x1 - x0) / STRUT_PITCH_MM - 1e-6))
         e.strut_x = [x0 + (x1 - x0) * (j + 0.5) / k for j in range(k)]
         ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
