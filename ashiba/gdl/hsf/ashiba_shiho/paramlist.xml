@@ -1,0 +1,181 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="shKind">
+			<Description><![CDATA["種類（1 切梁・2 腹起し・3 火打ち・4 中間杭）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="shL">
+			<Description><![CDATA["部材の長さ（芯。中間杭は杭頭から先端まで）"]]></Description>
+			<Value>10</Value>
+		</Length>
+		<Length Name="shZ">
+			<Description><![CDATA["部材の芯の深さ（GL から下。正）。中間杭は杭頭"]]></Description>
+			<Value>1</Value>
+		</Length>
+		<Length Name="sH">
+			<Description><![CDATA["H形鋼の高さ H"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="sB">
+			<Description><![CDATA["H形鋼のフランジ幅 B"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="sT1">
+			<Description><![CDATA["H形鋼のウェブの厚さ t1"]]></Description>
+			<Value>0.01</Value>
+		</Length>
+		<Length Name="sT2">
+			<Description><![CDATA["H形鋼のフランジの厚さ t2"]]></Description>
+			<Value>0.015</Value>
+		</Length>
+		<String Name="shName">
+			<Description><![CDATA["名前"]]></Description>
+			<Value><![CDATA["切梁1"]]></Value>
+		</String>
+		<String Name="shInfo">
+			<Description><![CDATA["平面の注記（種類・形・深さ）"]]></Description>
+			<Value><![CDATA["切梁 H-300（30HA）GL-1,000"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<String Name="sgL">
+			<Description><![CDATA["始めからの並びの長さ（mm）"]]></Description>
+			<Value><![CDATA["525,300,7000,2000"]]></Value>
+		</String>
+		<String Name="sgT">
+			<Description><![CDATA["並びの種類（1 主材・2 補助ピース・3 キリンジャッキ・4 火打受ピース）"]]></Description>
+			<Value><![CDATA["3,2,1,1"]]></Value>
+		</String>
+		<Length Name="cvL">
+			<Description><![CDATA["カバープレートの長さ"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="cvT">
+			<Description><![CDATA["カバープレートの厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<Length Name="endT">
+			<Description><![CDATA["主材の端板の厚さ"]]></Description>
+			<Value>0.016</Value>
+		</Length>
+		<Length Name="jkW">
+			<Description><![CDATA["キリンジャッキの端板の角"]]></Description>
+			<Value>0.298</Value>
+		</Length>
+		<Length Name="jcL">
+			<Description><![CDATA["ジャッキカバーの長さ"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<String Name="xcX">
+			<Description><![CDATA["上段の切梁: 下段と交わる所（始めから mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="xcH">
+			<Description><![CDATA["交わる下段の切梁の高さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="xaL">
+			<Description><![CDATA["交差部のアングルピースの長さ"]]></Description>
+			<Value>0.55</Value>
+		</Length>
+		<Length Name="xbO">
+			<Description><![CDATA["交叉部直ボルトの芯から（孔の間の半分）"]]></Description>
+			<Value>0.17</Value>
+		</Length>
+		<String Name="brX">
+			<Description><![CDATA["腹起しのブラケットの位置（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="hpA">
+			<Description><![CDATA["火打受ピースの底の長さ"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="hpS">
+			<Description><![CDATA["火打受ピースの底の向き（始めから見て 1 左へ開く・-1 右へ開く）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="shBot">
+			<Description><![CDATA["中間杭の先端の深さ（GL から下）"]]></Description>
+			<Value>9</Value>
+		</Length>
+		<String Name="pkZ">
+			<Description><![CDATA["中間杭: 切梁受けブラケットの天端の深さ（mm。段ごと）"]]></Description>
+			<Value><![CDATA["1150,4150"]]></Value>
+		</String>
+		<Length Name="pkR">
+			<Description><![CDATA["中間杭の芯から下段の切梁の芯まで"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<Length Name="bkL">
+			<Description><![CDATA["切梁受けブラケットの腕の長さ"]]></Description>
+			<Value>0.65</Value>
+		</Length>
+		<Length Name="bkH">
+			<Description><![CDATA["切梁受けブラケットの高さ"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="ubW">
+			<Description><![CDATA["締付用 U ボルトの幅"]]></Description>
+			<Value>0.34</Value>
+		</Length>
+		<Length Name="ubH">
+			<Description><![CDATA["締付用 U ボルトの高さ"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<PenColor Name="penBold">
+			<Description><![CDATA["外形の線（太線。置くときに線のペンと同じ色の太いペン）"]]></Description>
+			<Value>21</Value>
+		</PenColor>
+		<PenColor Name="penThin">
+			<Description><![CDATA["細部の線（細線。同じ色の細いペン）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penZone">
+			<Description><![CDATA["範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）"]]></Description>
+			<Value>20</Value>
+		</PenColor>
+		<PenColor Name="penMask">
+			<Description><![CDATA["上に載るものの背景の塗り（下の線を隠す。0＝隠さない）"]]></Description>
+			<Value>19</Value>
+		</PenColor>
+		<Integer Name="drMode">
+			<Description><![CDATA["平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

@@ -85,6 +85,7 @@ BRACKET_END_MM = 150.0               # 腹起しの端からブラケットま�
 STRUT_PITCH_MM = 5000.0
 STRUT_OVERDIG_MM = 1000.0            # 切梁の下の余掘り（1次根切りの底＝腹起しの下端＋1.0m）
 AUTO_SUPPORT_DEPTH_MM = 3000.0       # 「自動」はこれより深いと腹起し・切梁を描く【目安。自立にできるかは山留めの計算で】
+# 「自動」は、短い向きの腹起しが隅火打ちの間で切梁の間隔（5m）を超えて支えの無いとき縦横の切梁（＋中間杭）にする【目安】
 # 隅火打ち・キリンジャッキ・頭つなぎ（調べ: research_notes/山留めの種類/支保工の付属部材.md）
 HIUCHI_MAIN_MM = 2000.0              # 隅火打ちの主材の長さ【目安。主材は 1.0〜7.0m・0.5m 刻み: ヒロセ p.15】
 HIUCHI_LEG_MM = (HIUCHI_MAIN_MM + 1000.0) / math.sqrt(2.0)   # 隅からの脚 ≒（主材＋受ピース 0.5m×2）／√2【目安】
@@ -212,6 +213,9 @@ class Edge:
     strut_len: list = field(default_factory=list)      # 切梁の長さ（腹起しの前の面から根切りの中心まで。向かいの辺の部品と合わせて1本）
     jack_par: int = 0                                  # キリンジャッキを千鳥に: 切梁 j・段 k で (j+k) が偶数なら この辺の側（0）か向かい（1）
     hiuchi: bool = False                               # 始めの角（90°）に隅火打ち
+    tier: int = 0                                      # 縦横の切梁: 腹起しの段 0 下段・1 上段（上段は H 1本分上。ヒロセ p.06）
+    corner_piece: bool = False                         # 縦横の切梁: 始めの角に隅部ピース（上下段の腹起しをつなぐ: ヒロセ p.15）
+    hi_stub: bool = False                              # 縦横の切梁: 隅火打ちの前の辺の側が別の段なので、この段に受けの短い腹起し【目安】
     width: float = 0.0                                 # たて込み: 掘削幅（向かいの土留めまで。0＝分からない）
 
 
@@ -236,7 +240,9 @@ class Wall:
     core_every: int = 1                                # SMW の芯材 1＝全孔・2＝1本おき
     tube_d: float = TUBE_D_MM
     tube_t: float = TUBE_T_MM
-    support: str = "auto"                              # 腹起し・切梁: auto（深さ 3m を超えたら）・wale（描く）・none（自立）
+    support: str = "auto"                              # 腹起し・切梁: auto（深さ 3m を超えたら）・wale（1方向）・grid（縦横＋中間杭）・none（自立）
+    strut_hiuchi: bool = True                          # 切梁火打ち（切梁の両端の左右。shiho.py）
+    hi_skipped: int = 0                                # 切梁火打ちの入らなかった切梁の端の数（shiho.grid・oneway_hiuchi が入れる）
     wales: list = field(default_factory=list)          # 腹起しの段（GL からの深さ mm。腹起しの芯）
     edges: list = field(default_factory=list)
     stages: list = field(default_factory=list)
@@ -484,13 +490,40 @@ def support_levels(w: Wall) -> list[float]:
     return wale_levels(w)
 
 
+def use_grid(w: Wall) -> bool:
+    """縦横の切梁（＋中間杭）にするか. 閉じた線で腹起しのあるときだけ。auto は、短い向きの腹起しが両端の隅火打ちの間で切梁の間隔
+    （5m）を超えて支えが無くなるとき【目安】."""
+    if not (w.closed and w.wales and w.edges) or w.kind == "tatekomi" or w.support not in ("grid", "auto"):
+        return False
+    if w.support == "grid":
+        return True
+    from ashiba import shiho as SH
+
+    th = math.radians(SH.frame_angle(w))
+    poly = [SH._rot(p, math.cos(th), math.sin(th)) for p in SH.wale_front(w)]
+    xs, ys = [q[0] for q in poly], [q[1] for q in poly]
+    short = min(max(xs) - min(xs), max(ys) - min(ys))
+    return short - 2.0 * (HIUCHI_LEG_MM + HIUCHI_PIECE[0] / 2.0) > STRUT_PITCH_MM
+
+
 def plan_supports(w: Wall) -> None:
-    """腹起しの範囲・ブラケット・切梁（狭い向きの辺に水平 5m 以下で等分、長さは根切りの中心まで）."""
+    """腹起しの範囲・ブラケット・切梁（狭い向きの辺に水平 5m 以下で等分、長さは根切りの中心まで）. 縦横の切梁（use_grid）のときは
+    腹起しを上下段に分け（下段は長い辺に平行な辺）、切梁と中間杭は別の部品（shiho.grid）."""
     H = H_SHAPES[wale_shape(w)[0]][0]
     f = face_offset(w) + WALE_GAP_MM
     n = len(w.edges)
+    grid = use_grid(w)
+    if grid:
+        from ashiba import shiho as SH
+
+        th = math.radians(SH.frame_angle(w))
+        for e in w.edges:
+            ang = math.atan2(e.b[1] - e.a[1], e.b[0] - e.a[0])
+            e.tier = 0 if abs(math.cos(ang - th)) >= math.cos(math.radians(45.0)) - 1e-9 else 1
     for i, e in enumerate(w.edges):
         x0 = 0.0 if (not w.closed and i == 0) else f + H
+        if grid and w.edges[i - 1].tier != e.tier:
+            x0 = f                                       # 上下段は角で重ねて通す（隅部ピースでつなぐ）
         x1 = e.length if (not w.closed and i == n - 1) else e.length - f
         e.wale_x = (x0, max(x0, x1))
         span = e.wale_x[1] - e.wale_x[0]
@@ -509,6 +542,11 @@ def plan_supports(w: Wall) -> None:
         dot = (u0[0] * u1[0] + u0[1] * u1[1]) / (L0 * L1)
         # 時計回り（中が右）で右に折れる角（cross < 0）が根切りの側に凸。90°±5°だけ
         e.hiuchi = cross < -0.99 and abs(dot) < 0.09 and min(L0, e.length) > 2 * (f + H + HIUCHI_LEG_MM)
+    if grid:
+        for i, e in enumerate(w.edges):
+            e.corner_piece = w.edges[i - 1].tier != e.tier
+            e.hi_stub = e.hiuchi and e.corner_piece
+        return
     if not w.closed:
         return
     segs = list(zip(w.pts, w.pts[1:] + w.pts[:1]))
@@ -643,7 +681,17 @@ def check(w: Wall) -> list[Check]:
         out.append(Check("腹起しの段", "OK" if w.wales[0] <= WALE_FIRST_MM + w.top_up + 1e-6 and max(gaps[1:] or [0.0]) <= WALE_STEP_MM + 1e-6
                          else "注意", "・".join(f"GL-{z:.0f}" for z in w.wales) + f"（{shape}。第1段は頭から 1m 以内・その下 3m 程度: 九州 共2-24）"))
         sl = [v for e in w.edges for v in e.strut_len]
-        if sl:
+        if use_grid(w):
+            from ashiba import shiho as SH
+
+            out += SH.checks(SH.grid(w))
+            out += _hiuchi_gap(w)
+            out.append(Check("腹起しの上下段", "注意", "縦横の切梁なので腹起しを上下段に分け（下段は長い辺）、角は隅部ピースでつなぐ（ヒロセ p.06・p.15）。"
+                                                    "隅火打ちの別の段の側は短い受け材【目安】"))
+        elif sl:
+            from ashiba import shiho as SH
+
+            out += SH.checks(SH.oneway_hiuchi(w)) + _hiuchi_gap(w)
             out.append(Check("切梁", "注意", f"水平 {STRUT_PITCH_MM / 1000:g}m 以下に等分・長さ 最大 {2 * max(sl) / 1000:.1f}m（向かいまで）。継材は 4m 以内"
                              "（九州 共2-28）・中間杭・火打ち（45°）・プレロードは山留めの計算で"))
         elif w.closed:
@@ -656,6 +704,13 @@ def check(w: Wall) -> list[Check]:
         out.append(Check("作業主任者", "注意", "土止め支保工の切梁・腹起しの取付け・取外しは土止め支保工作業主任者（安衛法施行令 6条10号）。"
                                                "組立図（安衛則 370条）・7日以内ごとの点検（373条）"))
     return out
+
+
+def _hiuchi_gap(w: Wall) -> list[Check]:
+    if not (w.strut_hiuchi and w.hi_skipped):
+        return []
+    return [Check("切梁火打ち", "注意", f"切梁の端 {w.hi_skipped}か所は、隣の火打ち・隅火打ち・中間杭と当たるので入れていません"
+                                       "（片側だけだと偏心するので左右とも）。腹起しのスパンは山留めの計算で")]
 
 
 def _support_note(w: Wall) -> str:
@@ -838,6 +893,29 @@ def support_quantities(w: Wall) -> list[Qty]:
                "腹起し1本に2個以上（施工計画書例・ヒロセ p.5）"),
            Qty("  裏込め", f"すき間 {WALE_GAP_MM:.0f} × 腹起しの高さ {B:.0f}", WALE_GAP_MM / 1000.0 * B / 1000.0 * L / 1000.0 * nl, "m³",
                "コンクリート・既製の裏込め材（ヒロセ p.6）")]
+    if use_grid(w):
+        from ashiba import shiho as SH
+
+        ncp = sum(1 for e in w.edges if e.corner_piece)
+        if ncp:
+            out.append(Qty("  隅部ピース", f"{SH.CORNER_PIECE[0]} {SH.CORNER_PIECE[1]:.0f}×{SH.CORNER_PIECE[2]:.0f}×{SH.CORNER_PIECE[3]:.0f}",
+                           ncp * nl, "個", f"{ncp * nl * SH.CORNER_PIECE[4]:.0f}kg。上下段の腹起しの角（ヒロセ p.15）"))
+        out += SH.quantities(SH.grid(w))
+        nh = sum(1 for e in w.edges if e.hiuchi)
+        if nh:
+            hl = HIUCHI_MAIN_MM / 1000.0
+            out.append(Qty("隅火打ち", f"{shape} 主材 {hl:g}m・45°【主材の長さは目安】", nh * nl, "本",
+                           f"{nh * nl * hl * kg / 1000:.2f}t（角 {nh}か所×{nl}段。45°対称: 九州 共2-29）"))
+            out.append(Qty("  火打受ピース", f"45° 底 {HIUCHI_PIECE[0]:.0f}×幅 {HIUCHI_PIECE[1]:.0f}", nh * nl * 2, "個",
+                           f"{nh * nl * 2 * HIUCHI_PIECE[3] / 1000:.2f}t（ヒロセ p.16）"))
+            ns = sum(1 for e in w.edges if e.hi_stub)
+            if ns:
+                out.append(Qty("  隅火打ちの受け材", f"{shape} 主材 {math.ceil((HIUCHI_LEG_MM + 600.0) / 500.0) * 0.5:g}m【目安】", ns * nl, "本",
+                               "上下段の角で、火打ちの段に無い側の腹起しの代わり"))
+        area = abs(_area(inner_polygon(w))) / 1e6
+        if area:
+            out.append(Qty("  切梁（積算）", f"根切り面積 {area:.1f}m² × {nl}段", area * nl, "m²", "各段ごとの根切り面積（公共建築数量積算基準 R5 p.8）"))
+        return out
     pairs = sum(len(e.strut_x) for e in w.edges) / 2.0
     if pairs:
         slen = sum(sum(e.strut_len) for e in w.edges) - pairs * PIECE_DEDUCT_MM      # ジャッキの分を主材から控除
@@ -855,6 +933,9 @@ def support_quantities(w: Wall) -> list[Qty]:
         area = abs(_area(inner_polygon(w))) / 1e6 if w.closed else 0.0
         if area:
             out.append(Qty("  切梁（積算）", f"根切り面積 {area:.1f}m² × {nl}段", area * nl, "m²", "各段ごとの根切り面積（公共建築数量積算基準 R5 p.8）"))
+        from ashiba import shiho as SH
+
+        out += SH.quantities(SH.oneway_hiuchi(w))
     return out
 
 
@@ -942,7 +1023,8 @@ def part_params(w: Wall, e: Edge) -> dict:
                   "wlGap": WALE_GAP_MM / 1000.0, "wlX0": e.wale_x[0] / 1000.0, "wlX1": e.wale_x[1] / 1000.0,
                   "brX": _mm(e.brackets), "sbX": _mm(e.strut_x), "sbL": _mm(e.strut_len),
                   "jkPar": e.jack_par, "jkL": JACK[0] / 1000.0, "jkW": JACK[1] / 1000.0,
-                  "hiA": (HIUCHI_LEG_MM / 1000.0) if e.hiuchi else 0.0})
+                  "hiA": (HIUCHI_LEG_MM / 1000.0) if e.hiuchi else 0.0, "wlTier": e.tier, "cnOn": e.corner_piece,
+                  "hiStub": e.hi_stub})
     p["capOn"] = cap_tie(w)
     if cap_tie(w):
         p.update({"capH": CAP_CHANNEL[1] / 1000.0, "capB": CAP_CHANNEL[2] / 1000.0})

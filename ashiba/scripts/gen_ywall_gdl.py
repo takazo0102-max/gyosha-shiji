@@ -119,6 +119,9 @@ def paramlist() -> str:
         _param("Length", "jkL", "キリンジャッキの長さ", 0.5),
         _param("Length", "jkW", "キリンジャッキの端板の角", 0.298),
         _param("Length", "hiA", "始めの角の隅火打ちの脚（腹起しの前の面から。0＝無し）", 0),
+        _param("Integer", "wlTier", "縦横の切梁: この辺の腹起しの段（0 下段・1 上段＝H 1本分上）", 0),
+        _param("Boolean", "cnOn", "縦横の切梁: 始めの角に隅部ピース（上下段の腹起しをつなぐ）", 0),
+        _param("Boolean", "hiStub", "縦横の切梁: 隅火打ちの前の辺の側に受けの短い腹起し（前の辺の腹起しが別の段）", 0),
         _param("Boolean", "capOn", "頭つなぎ（溝形鋼）を描く", 0),
         _param("Length", "capH", "頭つなぎの溝形鋼の高さ", 0.15),
         _param("Length", "capB", "頭つなぎの溝形鋼の幅", 0.075),
@@ -493,7 +496,7 @@ if ywKind = 8 then
 endif
 ! ---- 腹起し（H形鋼を寝かせて壁から wlGap 離す）・ブラケット・切梁（向かいの辺の部品と合わせて1本） ----
 for k = 1 to nWl
-	zc = -wlv[k]
+	zc = -wlv[k] + wlTier * wlH
 	material "yw_wale"
 	add wlX0, yW - wlH / 2, zc
 	roty 90
@@ -542,6 +545,27 @@ for k = 1 to nWl
 		del 1
 		add fw + hiA, -fw - 0.18, zc - 0.13
 		block 0.45, 0.18, 0.26
+		del 1
+		material "yw_wale"
+		if hiStub then
+			! 前の辺の腹起しは別の段なので、火打ちの当たる所にこの段の短い受け材（H形鋼のフランジ2枚とウェブ）
+			ys = -fw - hiA - 0.6
+			add fw - wlH, ys, zc - wlB / 2
+			block wlT2, hiA + 0.6, wlB
+			addx wlH - wlT2
+			block wlT2, hiA + 0.6, wlB
+			del 2
+			add fw - wlH, ys, zc - wlT1 / 2
+			block wlH, hiA + 0.6, wlT1
+			del 1
+		endif
+	endif
+	if cnOn then
+		! 隅部ピース（上下段の腹起しの角をつなぐ箱。30CN 445×400×260: ヒロセ p.15）
+		material "yw_steel"
+		fw = -(yW - wlH)
+		add fw, -fw - 0.26, -wlv[k] + wlH / 2 - 0.2
+		block 0.445, 0.26, 0.4
 		del 1
 		material "yw_wale"
 	endif

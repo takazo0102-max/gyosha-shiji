@@ -229,7 +229,7 @@ def main(argv=None) -> int:
 
         yw = struts_for(R.OUT_DIR, [e["elementId"]["guid"] for e in sel]) if sel else {}
         if not beams and not yw:
-            print("切梁上の足場: 切梁（梁）か、切梁のある「山留め壁」の部品を選んでから押してください（まっすぐな梁。H形鋼のフランジ幅が梁の幅）")
+            print("切梁上の足場: 切梁（梁）か、切梁のある「山留め壁」・「切梁・腹起し」の部品を選んでから押してください（まっすぐな梁。H形鋼のフランジ幅が梁の幅）")
             return 1
         for e in beams:
             rec.setdefault("切梁:" + e["elementId"]["guid"], "")

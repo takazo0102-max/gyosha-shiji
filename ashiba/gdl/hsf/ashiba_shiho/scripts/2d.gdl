@@ -1,0 +1,122 @@
+﻿! 山留め支保工 2D（GL の下なので部材は隠れ線。中間杭は GL で切った断面を塗り）。詳細（1/100 まで）は芯・継手・ジャッキと伸縮の範囲
+! （二点鎖線）・交叉部直ボルト・ブラケット、簡略（1/250 より小さい縮尺）は外形だけ（scripts/gdl_draft.py）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "shT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "shT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 重なり: 30 杭の断面（塗り）、40 隠れ線と細部、50 文字
+if shKind = 4 then
+	drawindex 30
+	pen pO
+	if drLv < 3 then
+		fill fiS
+		poly2_b 13, 7, pO, pO,
+			-sH / 2, -sB / 2, 1,
+			-sH / 2 + sT2, -sB / 2, 1,
+			-sH / 2 + sT2, -sT1 / 2, 1,
+			sH / 2 - sT2, -sT1 / 2, 1,
+			sH / 2 - sT2, -sB / 2, 1,
+			sH / 2, -sB / 2, 1,
+			sH / 2, sB / 2, 1,
+			sH / 2 - sT2, sB / 2, 1,
+			sH / 2 - sT2, sT1 / 2, 1,
+			-sH / 2 + sT2, sT1 / 2, 1,
+			-sH / 2 + sT2, sB / 2, 1,
+			-sH / 2, sB / 2, 1,
+			-sH / 2, -sB / 2, -1
+	else
+		rect2 -sH / 2, -sB / 2, sH / 2, sB / 2
+	endif
+	if drLv = 1 then
+		drawindex 40
+		pen pT
+		line_type ltH
+		rect2 sH / 2, -0.0375, sH / 2 + bkL, 0.0375
+		line_type ltC
+		line2 pkR, -0.6, pkR, 0.6
+		line_type ltS
+	endif
+	drawindex 50
+	pen penEquip
+	if drLv < 3 then text2 0, sB / 2 + 0.1 + dT / 2, shInfo
+	hotspot2 0, 0
+	end
+endif
+hw = sH / 2
+if shKind = 1 then hw = sB / 2
+drawindex 40
+pen pO
+line_type ltH
+line2 0, -hw, shL, -hw
+line2 0, hw, shL, hw
+line2 0, -hw, 0, hw
+line2 shL, -hw, shL, hw
+pen pT
+if drLv = 1 then
+	line_type ltC
+	line2 -0.2, 0, shL + 0.2, 0
+	line_type ltH
+	x = 0
+	for i = 1 to nSg
+		if i > 1 then line2 x, -hw, x, hw
+		if sgk[i] = 3 then
+			rect2 x, -jkW / 2, x + sgv[i], jkW / 2
+			line2 x, -jkW / 2, x + sgv[i], jkW / 2
+			line2 x, jkW / 2, x + sgv[i], -jkW / 2
+			line_type ltZ
+			rect2 x + sgv[i] / 2 - 0.3, -jkW / 2 - 0.02, x + sgv[i] / 2 + 0.3, jkW / 2 + 0.02
+			line_type ltH
+		endif
+		x = x + sgv[i]
+	next i
+	for k = 1 to nXc
+		for sx = -1 to 1 step 2
+			for sy = -1 to 1 step 2
+				circle2 xcv[k] + sx * xbO, sy * xbO, 0.011
+			next sy
+		next sx
+	next k
+	for k = 1 to nBr
+		rect2 brv[k] - 0.075, -hw, brv[k] + 0.075, hw
+	next k
+	if shKind = 3 then
+		hb = hpA / 2 * 0.7071
+		line2 hb, -hpS * hb, -hb, hpS * hb
+		line2 shL - hb, -hpS * hb, shL + hb, hpS * hb
+	endif
+endif
+line_type ltS
+drawindex 50
+pen penEquip
+if drLv < 3 then text2 shL / 2, hw + 0.1 + dT / 2, shInfo
+if drLv = 1 then text2 shL / 2, -hw - 0.1 - dT / 2, shName
+hotspot2 0, 0
+hotspot2 shL, 0
