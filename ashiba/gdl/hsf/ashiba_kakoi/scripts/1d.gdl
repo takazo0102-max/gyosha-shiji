@@ -219,6 +219,7 @@ po = 0.0749
 if kkType = 2 or kkType = 3 then po = 0.1009
 pt = 0.0012
 if kkType = 3 then pt = 0.025
+if kkType = 6 then pt = 0.0006
 ! 山留めから取るときは横地が親杭の外のフランジに付く
 if kkFound = 5 then
 	po = po + pileW / 2 + r - ro

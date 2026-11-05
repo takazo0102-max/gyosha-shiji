@@ -7,6 +7,8 @@
   python3 scripts/kakoi_run.py --boundary           # 線を選んでいなければ（付けなくても）敷地境界（足場条件か、レイヤー名に
                                                      #   敷地・境界・道路 のポリライン）から --inset だけ中に
   python3 scripts/kakoi_run.py --height 2000 --panel フラットパネル --found H形鋼
+  python3 scripts/kakoi_run.py --panel 単管シート           # 単管シート仮囲い H1.8m（防炎シート 1.8×5.4m）
+  python3 scripts/kakoi_run.py --ask                # 種類と高さ・基礎を窓で選ぶ（パレットのボタン）
   python3 scripts/kakoi_run.py --height 4000 --panel 安全鋼板（パンチング） --found アンカー --wind 30
   python3 scripts/kakoi_run.py --gate 4000:5400:キャスター --gate 12000:7200:パネルキャスター:両開き --gate 20000:1000:ドア
                                                      # ポリラインの始めからの位置:幅:種類[:両開き|片開き]
@@ -81,6 +83,35 @@ def chains(guides) -> list[tuple[str, list, bool]]:
     return out
 
 
+def panel_options() -> dict:
+    """窓の選択肢 → (パネルの種類, 高さ mm)."""
+    from ashiba.hoarding import PANELS
+
+    return {f"{pn.name} H{h}": (key, float(h)) for key, pn in PANELS.items() for h in sorted(pn.kg)}
+
+
+def ask(a) -> bool:
+    """種類と高さ・基礎を窓で選ぶ. やめたら False."""
+    from form_dialog import show_form
+
+    from ashiba.hoarding import FOUNDATIONS
+
+    opts = panel_options()
+    now = next((k for k, v in opts.items() if v == (a.panel, a.height)), next(iter(opts)))
+    res = show_form({
+        "title": "仮囲い",
+        "intro": "線に沿って置きます。控えは置いたあと、平面と 3D のホットスポットで足の後ろと高さを動かせます。",
+        "fields": [{"key": "panel", "label": "種類と高さ", "kind": "choice", "options": list(opts), "value": now},
+                   {"key": "found", "label": "基礎", "kind": "choice", "options": list(FOUNDATIONS), "value": a.found}],
+        "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "place":
+        return False
+    v = res.get("values") or {}
+    a.panel, a.height = opts.get(str(v.get("panel")), (a.panel, a.height))
+    a.found = str(v.get("found") or a.found)
+    return True
+
+
 def wall_chains(c, sel=None) -> tuple[list[tuple[str, list, bool]], float | None, list]:
     """選んだ山留め（壁）→ (山留めの線, 山留めの天端 mm, 壁の芯の線 [(始め, 終わり)])。地山（根切りの反対）の側を進む向きの右
     （パネルの側）にそろえ、角の合う壁はつなぐ。天端（親杭の頭）は地盤が読めないときの置く高さ."""
@@ -137,6 +168,7 @@ def main(argv=None) -> int:
     ap.add_argument("--boundary", action="store_true", help="敷地境界から（線を選んでいなければ同じ）")
     ap.add_argument("--inset", type=float, default=150.0, help="敷地境界から支柱の芯まで mm")
     ap.add_argument("--flip", action="store_true", help="外（パネル）と中（控え）を入れ替える")
+    ap.add_argument("--ask", action="store_true", help="種類と高さ・基礎を窓で選ぶ")
     ap.add_argument("--remove", action="store_true", help="置いた仮囲いを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
@@ -152,6 +184,9 @@ def main(argv=None) -> int:
         return 0
     gates = [_gate(t) for t in a.gate]
     a.found = FOUNDATION_ALIAS.get(a.found, a.found)
+    if a.ask and not ask(a):
+        print("仮囲い: やめました（何も置いていません）")
+        return 0
     walled = False                                        # 線が山留め（地山の側を右にそろえてある）
     wall_lines: list = []
     wall_top = None

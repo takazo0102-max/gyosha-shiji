@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 import sys
 import unittest
+from pathlib import Path
 
 from _path import SRC  # noqa: F401
 
@@ -145,7 +146,7 @@ class TestEarthRetaining(unittest.TestCase):
         p = hoarding_plan("a", Segment((0.0, 0.0), (10000.0, 0.0)), foundation="親杭支柱")
         self.assertEqual(p.posts, [0.0, 1200.0, 2400.0, 3600.0, 4800.0, 6000.0, 7200.0, 8400.0, 9600.0, 10000.0])
         self.assertEqual(p.braces, [])
-        self.assertEqual(q(p)["H形鋼 H-300（親杭の継ぎ足し L=3150）"], 10)
+        self.assertEqual(q(p)["H形鋼 H-300（親杭の継ぎ足し L=3000）"], 10)
         self.assertEqual(q(p)["キャッチクランプ（H形鋼用・横地）"], 10 * 3)
         self.assertNotIn("単管 2.5m（控え）", q(p))
         self.assertNotIn("直交クランプ ARC1", q(p))
@@ -159,7 +160,7 @@ class TestEarthRetaining(unittest.TestCase):
         p = hoarding_plan("a", Segment((0.0, 0.0), (9000.0, 0.0)), foundation="親杭支柱", pile="H-250", pile_pitch=900.0,
                           pile_top=-500.0)
         self.assertEqual((p.post_step, p.posts[:3]), (1800.0, [0.0, 1800.0, 3600.0]))
-        self.assertIn("H形鋼 H-250（親杭の継ぎ足し L=3650）", q(p))
+        self.assertIn("H形鋼 H-250（親杭の継ぎ足し L=3500）", q(p))
         self.assertEqual(part_params(p)["pileZ"], -0.5)
 
     def test_panel_offset(self):
@@ -177,7 +178,7 @@ class TestBracesOnEarthRetaining(unittest.TestCase):
         self.assertEqual(p.brace_back, round(1200.0 + 150.0 + 24.3))             # 親杭の根切りの側のフランジの単管の立て
         self.assertEqual(q(p)["単管 1.0m（控えの足。親杭の根切りの側のフランジに立てる）"], 7)
         self.assertEqual(q(p)["キャッチクランプ（H形鋼用・控えの足を親杭に）"], 14)
-        self.assertIn("単管 4.5m（支柱）", q(p))
+        self.assertIn("単管 4.0m（支柱）", q(p))
         self.assertNotIn("打込みパイプ くい丸1.5M（控えの足）", q(p))
         self.assertEqual((st(p)["控えの足（山留め）"], st(p)["親杭への控えの力"]), ("OK", "WARN"))
         self.assertIn("風: 控えの足のキャッチクランプ", st(p))
@@ -344,6 +345,73 @@ class TestRunScript(unittest.TestCase):
         # 根切りの中（6000, 3500）が進む向きの左＝パネルは外（地山）の側
         a, b = segs[0].p0, segs[0].p1
         self.assertGreater((b[0] - a[0]) * (3500.0 - a[1]) - (b[1] - a[1]) * (6000.0 - a[0]), 0.0)
+
+
+
+class TestTubeSheet(unittest.TestCase):
+    """単管シート仮囲い H1.8m・種類の窓・控えのホットスポット（利用者の指定 2026-11-06）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    def _plan(self, length=10800.0, **kw):
+        seg = polyline_layout([(0.0, 0.0), (length, 0.0)], off=panel_off("単管シート"))[0]
+        return hoarding_plan("線1", seg, panel="単管シート", **kw)
+
+    def test_height_is_1800_with_three_rails(self):
+        p = self._plan(height=3000.0)
+        self.assertEqual(p.height, 1800.0)
+        self.assertEqual(p.rails, [150.0, 900.0, 1650.0])
+        prm = part_params(p)
+        self.assertEqual(prm["kkType"], 6)
+        self.assertAlmostEqual(prm["pnH"], 1.8)
+
+    def test_quantity_counts_sheets_and_ties(self):
+        q = {a: b for a, b, _c in self._plan().quantity}
+        self.assertEqual(q["防炎シート 1.8×5.4m H1800"], 2)
+        self.assertEqual(q["結束バンド"], 64)
+
+    def test_check_says_the_layout_is_a_guess(self):
+        self.assertIn("シート", [c.item for c in self._plan().checks])
+
+    def test_form_picks_panel_height_and_foundation(self):
+        import argparse
+        import json
+        import os
+        from unittest import mock
+
+        import kakoi_run as K
+
+        opts = K.panel_options()
+        self.assertEqual(opts["防炎シート 1.8×5.4m H1800"], ("単管シート", 1800.0))
+        self.assertEqual(opts["安全鋼板 H3000"], ("安全鋼板", 3000.0))
+        a = argparse.Namespace(panel="安全鋼板", height=3000.0, found="打込み")
+        ans = json.dumps({"button": "place", "values": {"panel": "防炎シート 1.8×5.4m H1800", "found": "根巻き"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertTrue(K.ask(a))
+        self.assertEqual((a.panel, a.height, a.found), ("単管シート", 1800.0, "根巻き"))
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": '{"button": "cancel"}'}):
+            self.assertFalse(K.ask(a))
+
+    def test_posts_stay_inside_the_panel_and_brace_clears_the_clamp(self):
+        """支柱はパネルからはみ出さず頭のキャップも無い、控えの足は根がらみのクランプの上（利用者の指摘 2026-11-06）."""
+        d3 = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_kakoi" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("zt = z0 + kkTop\n", d3)
+        self.assertNotIn("zq = zt\n", d3)
+        self.assertIn("brFt = brRt + 0.13", d3)
+        self.assertIn("add bq[i], brB, zg + brFt", d3)
+
+    def test_brace_has_hotspots(self):
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_kakoi" / "scripts"
+        d2 = (hsf / "2d.gdl").read_text(encoding="utf-8")
+        d3 = (hsf / "3d.gdl").read_text(encoding="utf-8")
+        self.assertIn("12, brB, 2", d2)
+        self.assertIn("302, brH, 2", d3)
+        self.assertIn("305, brB, 2", d3)
+        self.assertIn("max(brB, 0.01)", d3)                 # 足を 0 まで寄せても止まらない
 
 
 if __name__ == "__main__":

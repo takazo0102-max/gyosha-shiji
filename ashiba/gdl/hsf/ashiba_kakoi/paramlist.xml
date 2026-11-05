@@ -30,7 +30,7 @@
 			<Value>1</Value>
 		</Length>
 		<Integer Name="kkType">
-			<Description><![CDATA["パネル（1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス・5＝安全鋼板パンチング）"]]></Description>
+			<Description><![CDATA["パネル（6＝単管シート・1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス・5＝安全鋼板パンチング）"]]></Description>
 			<Value>1</Value>
 		</Integer>
 		<Length Name="kkL">
