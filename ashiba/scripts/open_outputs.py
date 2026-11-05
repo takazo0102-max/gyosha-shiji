@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 
 
 RECENT = 8      # 結果の窓に出す新しい帳票の数（全部を1行に並べると 60 個近くになり読めなかった 2026-11-05）

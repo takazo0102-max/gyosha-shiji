@@ -96,6 +96,7 @@ class TestEntries(unittest.TestCase):
             self.assertIn('env["ASHIBA_PORT"] = port', src)          # 窓は ASHIBA_PORT を受け継いで操作に渡す
             self.assertIn(f'SCRIPT = os.path.join(ROOT, "scripts", "{e.script}")', src)
             self.assertIn("_desktop_ok()", src)          # 許可待ちで黙って止まらない
+            self.assertIn(".returncode == 0", src)       # 断られたときも（ls はすぐ失敗する: 2026-11-06 パレットが黙って開かなかった）
 
     def test_port_comes_from_env(self):
         tap = (ROOT / "src" / "ashiba" / "tapir_adapter.py").read_text(encoding="utf-8")

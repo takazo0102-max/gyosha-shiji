@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT_DIR = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 COND = "工程表_条件.json"
 
 
@@ -171,10 +171,10 @@ def main(argv=None) -> int:
 
 
 def _project_name() -> str:
-    """足場の条件ファイル（ASHIBA_SPEC か ~/Desktop/ashiba_spec.json）の工事名。無ければ既定の「足場計画」."""
+    """足場の条件ファイル（ASHIBA_SPEC か ~/ashiba_spec.json）の工事名。無ければ既定の「足場計画」."""
     import os
 
-    p = Path(os.environ.get("ASHIBA_SPEC") or Path.home() / "Desktop" / "ashiba_spec.json")
+    p = Path(os.environ.get("ASHIBA_SPEC") or Path.home() / "ashiba_spec.json")
     try:
         return str(json.loads(p.read_text(encoding="utf-8")).get("project_name") or "足場計画")
     except (OSError, ValueError, AttributeError):

@@ -21,7 +21,7 @@ SCRIPT = os.path.join(ROOT, "scripts", "ashiba_palette.py")
 ARGS = ()
 TITLE = "仮設足場 パレット"
 QUIET = True
-OUT = os.path.join(os.path.expanduser("~"), "Desktop", "ashiba_out")
+OUT = os.path.join(os.path.expanduser("~"), "ashiba_out")
 
 
 def summary(output: str, limit: int = 14) -> str:
@@ -79,17 +79,15 @@ def _dialog(text, with_report):
     return "割付レポートを開く" in (r.stdout or "")
 
 
-DESKTOP_HELP = ("Archicad からデスクトップの ashiba_out を読めません（macOS の許可待ち）。\n\n"
-                "システム設定 → プライバシーとセキュリティ → ファイルとフォルダ → Archicad で\n"
-                "「デスクトップフォルダ」をオンにしてから、もう一度押してください。\n"
-                "（項目が無ければ Archicad を再起動すると許可を求める窓が出ます）")
+DESKTOP_HELP = ("Archicad からホームの ashiba_out を読めません（macOS の許可待ち）。\n\n"
+                "システム設定 → プライバシーとセキュリティ → ファイルとフォルダ → Archicad を確かめてから、\n"
+                "もう一度押してください。（項目が無ければ Archicad を再起動すると許可を求める窓が出ます）")
 
 
 def _desktop_ok():
-    """デスクトップを読めるか（許可待ちだと黙って止まるので、別プロセスで5秒だけ試す）."""
+    """控えの置き場を読めるか（許可待ちだと黙って止まるので、別プロセスで5秒だけ試す。断られているときは待たずに ls が失敗する）."""
     try:
-        subprocess.run(["/bin/ls", os.path.dirname(OUT)], capture_output=True, timeout=5)
-        return True
+        return subprocess.run(["/bin/ls", os.path.dirname(OUT)], capture_output=True, timeout=5).returncode == 0
     except subprocess.TimeoutExpired:
         return False
 
@@ -107,8 +105,14 @@ def main():
     if port:
         env["ASHIBA_PORT"] = port
     if QUIET:                                            # 窓を開くだけ（結果は窓に出る）
-        return subprocess.run([py, SCRIPT] + list(ARGS), env=env, cwd=ROOT,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+        import tempfile
+
+        with tempfile.TemporaryFile() as err:            # 管でなくファイルに（窓のプロセスが握っても入口は待たない）
+            code = subprocess.run([py, SCRIPT] + list(ARGS), env=env, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=err).returncode
+            if code != 0:                                # 窓が開かないときは黙らない
+                err.seek(0)
+                _dialog("パレットを開けませんでした\n\n" + err.read().decode("utf-8", "replace").strip()[-400:], False)
+        return code
     proc = subprocess.run([py, SCRIPT] + list(ARGS), capture_output=True, text=True, env=env, cwd=ROOT)
     out = (proc.stdout or "") + (proc.stderr or "")
     try:

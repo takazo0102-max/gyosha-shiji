@@ -3,7 +3,7 @@
 窓は tapir/palette_panel.swift（AppKit の浮いた小窓）。初めて開くときと直したあとは swiftc で作る（十数秒。
 作ったものは tapir/build/AshibaPalette-<中身の印>）。前に開いた窓があれば閉じて
 開き直す（Archicad の番号＝ポートが変わっても窓が古い番号を使わないように）。窓は別のプロセスで動き続け、
-この入口はすぐ終わる（Tapir を待たせない）。窓の出力は ~/Desktop/ashiba_out/パレット窓.log。
+この入口はすぐ終わる（Tapir を待たせない）。窓の出力は ~/ashiba_out/パレット窓.log。
 
 使い方: python3 scripts/ashiba_palette.py [--close]
 """
@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.palette import panel_layout  # noqa: E402
 
-OUT = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "Desktop" / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
+OUT = Path(os.environ.get("ASHIBA_OUT") or (Path.home() / "ashiba_out"))  # 試験は ASHIBA_OUT で別の場所に
 PANEL = ROOT / "tapir" / "palette_panel.swift"
 BUILD = ROOT / "tapir" / "build"
 PID = OUT / ".palette.pid"
