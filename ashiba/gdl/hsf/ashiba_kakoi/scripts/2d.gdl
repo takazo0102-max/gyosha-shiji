@@ -153,3 +153,9 @@ text2 0, 0, kkName
 del 2
 hotspot2 0, 0
 hotspot2 kkL, 0
+! 控えのホットスポット（1本めの控えの足。区間の控えがそろって動く）
+if nBq > 0 and kkFound <> 6 then
+	hotspot2 bq[1], 0, 11, brB, 1 + 128
+	hotspot2 bq[1], brB, 12, brB, 2
+	hotspot2 bq[1], -1, 13, brB, 3
+endif

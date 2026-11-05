@@ -33,6 +33,8 @@
     H形鋼の曲げで持つ、カワモリ産業の杭の打てない所は山留材の例）。横地は親杭の外のフランジにキャッチクランプ
   どちらも親杭に風の力が加わるので山留めの設計者に確かめる（WARN）
 - 斜めの角は自在コーナー、直交しない単管は自在クランプ
+- 単管シート仮囲い（利用者の指定 2026-11-06「単管シート仮囲いH1.8mも追加して」）: 単管の支柱と横地に防炎シート 1.8×5.4m（ハトメ 45cm・32個:
+  販売品の規格 ユタカメイク・ミスミ）を結束バンドで。組み方の基準は見つからず、支柱 1.8m・横地 3段（150・900・1,650）・シートの重さは【目安】
 法令: 建築基準法施行令 136条の2の20（木造で高さ 13m・軒の高さ 9m を超える、または木造以外で2階以上の工事は高さ 1.8m 以上の
 仮囲い）、建設工事公衆災害防止対策要綱 建築工事等編 第21（1.8m 以上、特に必要なら 3m。強風で倒れない構造。出入口は普段閉めて
 引戸か内開き）。
@@ -47,7 +49,7 @@ from typing import Callable, Optional
 POST_PITCH_MM = 1800.0             # 支柱の間隔
 LIFT_MM = 0.0                      # パネルの下端（地盤から。日建の標準施工図は地盤）
 RAIL_EDGE_MM = 150.0               # 横地はパネルの上端・下端からこれだけ内（取付穴の表に無い高さ）
-POST_TOP_MM = 150.0                # 支柱の天端はパネルの上端からこれだけ上
+POST_TOP_MM = 0.0                  # 支柱の天端はパネルの上端にそろえる（日建の図は上 150。利用者の指摘 2026-11-06「仮囲いから単管はみ出ている」）
 EMBED_MM = 1000.0                  # 打込みの根入れ
 RAIL_OFF_MM = 48.6                 # 横地の芯は支柱の芯から外へ（φ48.6 どうし）
 PANEL_OFF_MM = 48.6 + 24.3 + 2.0   # 安全鋼板の裏は支柱の芯から外へ（横地の外面＋フック）
@@ -82,6 +84,10 @@ SSK_ROWS = {2000: (150.0, 1850.0), 2300: (150.0, 1150.0, 2150.0), 3000: (150.0, 
             4000: (150.0, 1350.0, 2650.0, 3850.0)}   # 安全鋼板の取付穴の高さ（下から。日建 p398）
 
 
+SHEET_KIND = 6                     # 単管シート仮囲いの kkType
+SHEET_EYELETS = 32                 # 防炎シート 1.8×5.4m のハトメの数（45cm ごと: ユタカメイク・ミスミ）
+
+
 @dataclass(frozen=True)
 class Panel:
     kind: int                      # 部品の kkType
@@ -110,6 +116,7 @@ PANELS = {
                      {1000: "VIC100", 2000: "VIC200", 3000: "VIC300"}, FLAT_OFF_MM, 2.98),
     "防音パネル": Panel(3, "防音パネル（アドフラット防音）", 500.0, {3000: 18.8}, None, "Jフック", {}, FLAT_OFF_MM, 2.98),
     "メッシュフェンス": Panel(4, "メッシュフェンス（ガードフェンス）", 1800.0, {1800: 12.0}, None, "番線", lift=50.0),
+    "単管シート": Panel(SHEET_KIND, "防炎シート 1.8×5.4m", 5400.0, {1800: 2.0}, {1800: (150.0, 900.0, 1650.0)}, "結束バンド"),
 }
 FOUNDATIONS = {"打込み": 1, "根巻き": 2, "H形鋼": 3, "アンカー": 4, "親杭支柱": 5, "山留め控え": 6}
 FOUNDATION_ALIAS = {"山留め": "山留め控え", "H鋼": "親杭支柱", "H鋼支柱": "親杭支柱"}
@@ -456,7 +463,7 @@ def hoarding_plan(name: str, seg: Segment, height: float = 3000.0, panel: str = 
     親杭に取る（仮囲いから親杭の芯まで wall_dist）。どちらも支柱を親杭の位置（区間の始めから pile_x0＋間隔の倍数）にそろえる."""
     foundation = FOUNDATION_ALIAS.get(foundation, foundation)
     pn = PANELS[panel]
-    if pn.kind == 4:
+    if pn.kind in (4, SHEET_KIND):
         height, pitch = 1800.0, 1800.0
     lift = pn.lift if bottom is None or pn.kind == 4 else float(bottom)
     if foundation == "H形鋼" and bottom is None:
@@ -654,7 +661,10 @@ def _quantity(p: HoardPlan) -> None:
         q.append(("VIC留め金具", adj * 2, "調整Nパネル1枚に 2"))
     if absorb:
         q.append(("（半端 40 未満は重ねで吸収）", absorb, ""))
-    q.append((pn.fixer, (n_panel + adj) * 2 * nr, f"1枚に {2 * nr}（横地 {nr}段に 2 ずつ）"))
+    if pn.kind == SHEET_KIND:
+        q.append((pn.fixer, n_panel * SHEET_EYELETS, f"ハトメごと（1枚 {SHEET_EYELETS}・45cm ピッチ）"))
+    else:
+        q.append((pn.fixer, (n_panel + adj) * 2 * nr, f"1枚に {2 * nr}（横地 {nr}段に 2 ずつ）"))
     if pn.kind == 2:
         q.append(("VIC開き止め金具", math.ceil(n_panel * 0.075), "40スパンに 3"))
     c0, c1 = p.corners
@@ -669,14 +679,14 @@ def _quantity(p: HoardPlan) -> None:
         ext = p.top + POST_TOP_MM - p.pile_top
         q.append((f"H形鋼 {p.pile}（親杭の継ぎ足し L={ext:.0f}）", nb,
                   f"親杭 @{p.pile_pitch:.0f} の {int(round(p.post_step / p.pile_pitch))}本ごと・{kgm * ext / 1000:.0f}kg・"
-                  f"天端はパネルの上 {POST_TOP_MM:.0f}"))
+                  "天端はパネルの上端"))
         q.append(("継手の添え板・高力ボルト（フランジ2・ウェブ2）", nb, "親杭の天端で継ぐ（溶接でも）"))
         q.append(("キャッチクランプ（H形鋼用・横地）", nb * nr, "横地を親杭の外のフランジに"))
     else:
         under = {"打込み": EMBED_MM, "根巻き": CONC_D_M * 1000.0 - 50.0, "H形鋼": -300.0, "アンカー": -9.0,
                  "山留め控え": EMBED_MM}[p.foundation]
         tube_post = _ceil_tube(p.top + POST_TOP_MM + under)
-        q.append((f"単管 {tube_post / 1000:.1f}m（支柱）", nb, f"@{POST_PITCH_MM:.0f} 以内・天端はパネルの上 {POST_TOP_MM:.0f}" +
+        q.append((f"単管 {tube_post / 1000:.1f}m（支柱）", nb, f"@{POST_PITCH_MM:.0f} 以内・天端はパネルの上端" +
                   ("・根入れ 1,000 以上" if p.foundation in ("打込み", "山留め控え") else "")))
     n5 = sum(math.ceil((b - a) / 5000.0) for a, b in p.runs)
     q.append(("単管 5.0m（横地）", n5 * nr, f"{nr}段（下から {'・'.join(f'{z:.0f}' for z in p.rails)}）"))
@@ -748,6 +758,9 @@ def _checks(p: HoardPlan, pitch: float) -> None:
     c.append(Check("支柱の間隔", "OK" if pm <= pitch + 1.0 else "NG", f"最大 {pm:.0f}（{pitch:.0f} 以内）"))
     if p.panel.kind == 4:
         c.append(Check("風", "OK", "メッシュは風を通す（風力係数 0.9。板は 1.3）"))
+    if p.panel.kind == SHEET_KIND:
+        c.append(Check("シート", "注意", "単管シートの組み方の基準は見つからず、支柱・横地の段は【目安】。風は板と同じ風力係数 1.3 で見ている。"
+                                         "シートの破れ・結束の緩みを点検し、強風の前は対策を"))
     for w in p.wind:
         ok = w.value <= w.allow
         hint = ""

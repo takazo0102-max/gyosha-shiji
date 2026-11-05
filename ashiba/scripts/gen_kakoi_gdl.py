@@ -40,7 +40,7 @@ def paramlist() -> str:
         _param("Length", "A", "Dimension 1", 1, True),
         _param("Length", "B", "Dimension 2", 1, True),
         _param("Length", "ZZYZX", "Height", 1, True),
-        _param("Integer", "kkType", "パネル（1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス・5＝安全鋼板パンチング）", 1),
+        _param("Integer", "kkType", "パネル（6＝単管シート・1＝安全鋼板・2＝フラットパネル・3＝防音パネル・4＝メッシュフェンス・5＝安全鋼板パンチング）", 1),
         _param("Length", "kkL", "区間の長さ", 10.8),
         _param("Length", "pnH", "パネルの高さ", 3.0),
         _param("Length", "pnW", "パネルの有効幅", 0.54),
@@ -104,6 +104,7 @@ po = 0.0749
 if kkType = 2 or kkType = 3 then po = 0.1009
 pt = 0.0012
 if kkType = 3 then pt = 0.025
+if kkType = 6 then pt = 0.0006
 ! 山留めから取るときは横地が親杭の外のフランジに付く
 if kkFound = 5 then
 	po = po + pileW / 2 + r - ro
@@ -247,6 +248,12 @@ text2 0, 0, kkName
 del 2
 hotspot2 0, 0
 hotspot2 kkL, 0
+! 控えのホットスポット（1本めの控えの足。区間の控えがそろって動く）
+if nBq > 0 and kkFound <> 6 then
+	hotspot2 bq[1], 0, 11, brB, 1 + 128
+	hotspot2 bq[1], brB, 12, brB, 2
+	hotspot2 bq[1], -1, 13, brB, 3
+endif
 """
 
 # 範囲の線（pZ）は使わない。マスタースクリプトの配列 pz と GDL では同じ名前になるので外す
@@ -267,6 +274,7 @@ define material "kk_flat" 2, 0.95, 0.95, 0.94
 define material "kk_sound" 2, 0.78, 0.80, 0.78
 define material "kk_clamp" 2, 0.85, 0.70, 0.30
 define material "kk_conc" 2, 0.70, 0.70, 0.68
+define material "kk_sheet" 0, 0.46, 0.62, 0.50, 0.6, 0.6, 0.1, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "kk_mesh" 0, 0.55, 0.58, 0.60, 0.6, 0.6, 0.1, 0.8, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "kk_punch" 0, 0.40, 0.42, 0.45, 0.6, 0.6, 0.1, 0.5, 5, 0, 1, 1, 1, 0, 0, 0, 0
 define material "kk_alum" 2, 0.80, 0.82, 0.84
@@ -292,7 +300,7 @@ for i = 1 to nP
 		gosub "hsec"
 		material "kk_steel"
 		zq = z0 + pileZ
-		hq = kkTop + 0.15 - pileZ
+		hq = kkTop - pileZ
 		gosub "hsec"
 		material "kk_clamp"
 		for e = -1 to 1 step 2
@@ -320,14 +328,10 @@ for i = 1 to nP
 	if kkFound = 2 then zb = z0 - 0.35
 	if kkFound = 3 then zb = z0 + 0.3
 	if kkFound = 4 then zb = z0 + 0.006
-	zt = z0 + kkTop + 0.15
+	zt = z0 + kkTop
 	add px[i], 0, zb
 	cylind zt - zb, r
 	del 1
-	xq = px[i]
-	yq = 0
-	zq = zt
-	gosub "cap"
 	if kkFound = 2 then
 		material "kk_conc"
 		add px[i] - 0.15, -0.15, z0 - 0.4
@@ -466,9 +470,23 @@ for k = 1 to nRu - 1 step 2
 	endif
 next k
 ! ---- 控え（自在クランプ ARC2）・根がらみ（直交クランプ ARC1）・控えの足 ----
-dzB = brH - brRt
+! 控えの足は根がらみの直交クランプの上に掛ける（同じ高さだとクランプが当たる: 利用者の指摘 2026-11-06）
+brFt = brRt
+if kkFound <= 2 or kkFound = 6 then brFt = brRt + 0.13
+dzB = brH - brFt
 bL = sqr(dzB ^ 2 + brB ^ 2)
-brA = atn(dzB / brB)
+brA = atn(dzB / max(brB, 0.01))
+! 控えのホットスポット（1本めの控えに。区間の控えがそろって動く）: 足の後ろ brB・支柱に掛ける高さ brH。山留め控えは親杭で決まる
+if nBq > 0 and kkFound <> 6 then
+	xq = bq[1]
+	gosub "gz"
+	hotspot bq[1], 0, zq, 301, brH, 1 + 128
+	hotspot bq[1], 0, zq + brH, 302, brH, 2
+	hotspot bq[1], 0, zq - 1, 303, brH, 3
+	hotspot bq[1], 0, zq + brFt, 304, brB, 1 + 128
+	hotspot bq[1], brB, zq + brFt, 305, brB, 2
+	hotspot bq[1], -1, zq + brFt, 306, brB, 3
+endif
 for i = 1 to nBq
 	xq = bq[i]
 	gosub "gz"
@@ -552,7 +570,7 @@ for i = 1 to nBq
 	yq = brB
 	zq = zs1
 	if kkFound <> 4 then gosub "cap"
-	add bq[i], brB, zg + brRt
+	add bq[i], brB, zg + brFt
 	clDy = ro
 	clA = brA
 	gosub "swiv"
@@ -754,6 +772,25 @@ end
 		add x0 + 0.03, -po - 0.018, zp + 0.03
 		block x1 - x0 - 0.06, 0.004, pnH - 0.06
 		del 1
+		return
+	endif
+	if kkType = 6 then
+		! 防炎シート（ハトメ 45cm ごとを上下の縁に）
+		material "kk_sheet"
+		add x0 + 0.001, -po - pt, zp
+		block x1 - x0 - 0.002, pt, pnH
+		del 1
+		material "kk_steel"
+		for e2 = 0 to 1
+			xr = x0 + 0.075
+			while xr < x1 - 0.02 do
+				add xr, -po - pt, zp + 0.03 + e2 * (pnH - 0.06)
+				rotx 90
+				cylind 0.001, 0.012
+				del 2
+				xr = xr + 0.45
+			endwhile
+		next e2
 		return
 	endif
 	material "kk_panel"
