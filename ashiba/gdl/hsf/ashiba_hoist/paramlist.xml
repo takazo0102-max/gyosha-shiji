@@ -1,0 +1,141 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。+X＝面に沿う向き、+Y＝躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<String Name="hoModel">
+			<Description><![CDATA["機種（data/hoist_models.csv）"]]></Description>
+			<Value><![CDATA["KSE600C"]]></Value>
+		</String>
+		<Length Name="zH">
+			<Description><![CDATA["足場の立つ面の高さ（階の高さから。配置が入れる。高さはすべてここから）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hoReach">
+			<Description><![CDATA["到達高さ（マストの頂部の目安。配置で足場の天端を入れる）"]]></Description>
+			<Value>10</Value>
+		</Length>
+		<Length Name="gapOut">
+			<Description><![CDATA["足場の外側建地の列から荷台までのあき"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="rowSp">
+			<Description><![CDATA["足場の内外の建地の間隔（配置が入れる。荷取りステージの内側の梁枠の位置）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Boolean Name="hoInside">
+			<Description><![CDATA["足場の幅の中に据える（914。昇降路の足場を抜いた中。外す＝外付け）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<String Name="landLevels">
+			<Description><![CDATA["乗り込む所の番号（カンマ区切り「2,5」。ロングスパンの昇降路は建物のフロアの番号＝下から1,2,…、ほかは足場の作業層。空は全部）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="landList">
+			<Description><![CDATA["乗り込む作業床の高さ m（配置が入れる。フロアーゲートを描く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList">
+			<Description><![CDATA["マスト控えを取る足場の建地（中心から面に沿って m、カンマ区切り。配置が入れる。空はマストの正面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="gateA">
+			<Description><![CDATA["乗り込み口の始点（中心から面に沿って。配置が足場の手すりを外したスパンの端を入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="gateB">
+			<Description><![CDATA["乗り込み口の終点（同上。gateA と同じなら荷台の長さで描く）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="showGate">
+			<Description><![CDATA["乗り込み口のフロアーゲート（機種に無ければ開閉式手すり）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="stObj">
+			<Description><![CDATA["荷取りステージとフロアーゲートは別の部品（ashiba_hstage）が描く（配置が入れる）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="showTie">
+			<Description><![CDATA["マストの壁つなぎを描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="showFence">
+			<Description><![CDATA["地上の昇降路の囲い（高さ 1.8m・荷台から 0.3 離す）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="showGuard">
+			<Description><![CDATA["ロングスパンの昇降路の前養生（地上の囲いの上から到達高さまで、単管の枠とメッシュシート）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="sideSpan">
+			<Description><![CDATA["外付けの前養生の両横の足場1スパンの奥行（足場の幅。0＝置かない。配置が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="sbL0">
+			<Description><![CDATA["左の横の足場の始め（昇降機の中心から。昇降路の隣のスパン）"]]></Description>
+			<Value>-4.6</Value>
+		</Length>
+		<Length Name="sbL1">
+			<Description><![CDATA["左の横の足場の終わり"]]></Description>
+			<Value>-2.7</Value>
+		</Length>
+		<Length Name="sbR0">
+			<Description><![CDATA["右の横の足場の始め"]]></Description>
+			<Value>2.7</Value>
+		</Length>
+		<Length Name="sbR1">
+			<Description><![CDATA["右の横の足場の終わり"]]></Description>
+			<Value>4.6</Value>
+		</Length>
+		<Length Name="sideLvP">
+			<Description><![CDATA["両横の足場の層の高さ"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Material Name="matCage">
+			<Description><![CDATA["荷台・マストの材質"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

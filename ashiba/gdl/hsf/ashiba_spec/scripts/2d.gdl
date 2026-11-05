@@ -1,0 +1,36 @@
+﻿! ============================================================
+! 足場条件（ツールバーが読む条件。設定ダイアログで変えて、もう一度ツールバーを実行する）
+! 平面には条件の要約を札のように出す
+! ============================================================
+txH = 2.5 * GLOB_SCALE / 1000
+define style "specT" "ＭＳ Ｐゴシック", 2.5, 1, 0
+set style "specT"
+dim ln[7]
+modTxt = "メートル"
+if moduleKind = "inch" then modTxt = "インチ"
+serTxt = seriesId
+if serTxt = "" then serTxt = "既定"
+hTxt = "軒高 " + str(eavesH * 1000, 1, 0) + "＋" + str(guardExtra * 1000, 1, 0)
+if scaffH > 0.001 then hTxt = "足場高さ " + str(scaffH * 1000, 1, 0)
+ln[1] = "足場条件　" + projName
+ln[2] = "系列 " + serTxt + "（" + modTxt + "）・" + scaffForm + "・" + railType
+ln[3] = hTxt + "・期間 " + str(periodDays, 1, 0) + "日"
+ln[4] = "離れ " + str(soTarget * 1000, 1, 0) + "（" + str(soMin * 1000, 1, 0) + "〜" + str(soMax * 1000, 1, 0) + "、下限 " + str(soHardMin * 1000, 1, 0) + "）"
+ln[5] = region + "・粗度 " + roughness + "・" + sheetType
+ln[6] = "立面 " + elevMode
+ln[7] = "条件は設定ダイアログで変え、ツールバーを再実行"
+nL = 7
+w = 0
+for i = 1 to nL
+	w = max(w, stw(ln[i]) * GLOB_SCALE / 1000)
+next i
+pad = txH * 0.6
+h = nL * txH * 1.6 + pad
+pen 1
+rect2 0, 0, w + 2 * pad, -h
+line2 0, -txH * 1.6 - pad / 2, w + 2 * pad, -txH * 1.6 - pad / 2
+for i = 1 to nL
+	text2 pad, -pad - (i - 0.75) * txH * 1.6, ln[i]
+next i
+hotspot2 0, 0
+hotspot2 w + 2 * pad, -h

@@ -1,0 +1,141 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+				<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="zH">
+			<Description><![CDATA["足場の立つ高さ（下の屋根から建てた上の部分）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="offY">
+			<Description><![CDATA["シートの面（内側建地芯から外へ。外側建地列＋60）"]]></Description>
+			<Value>0.67</Value>
+		</Length>
+		<Length Name="x0">
+			<Description><![CDATA["始点（面に沿って）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="x1">
+			<Description><![CDATA["終点（面に沿って）"]]></Description>
+			<Value>5.4</Value>
+		</Length>
+		<Length Name="zB">
+			<Description><![CDATA["下端"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="zT">
+			<Description><![CDATA["上端"]]></Description>
+			<Value>5.1</Value>
+		</Length>
+		<Length Name="sheetW">
+			<Description><![CDATA["シート1枚の幅（継ぎ目の線）"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<String Name="sheetKind">
+			<Description><![CDATA["養生材"]]></Description>
+			<Value><![CDATA["メッシュシート"]]></Value>
+		</String>
+		<String Name="panelList">
+			<Description><![CDATA["シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="clampList">
+			<Description><![CDATA["シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="sheetH">
+			<Description><![CDATA["シート1枚の高さ（下から段に積む。0＝1段）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="fineOn">
+			<Description><![CDATA["縁の縫い代とハトメを描く（詳細）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Integer Name="clampCS">
+			<Description><![CDATA["始点の角を養生クランプ コーナー用で留める 0/1（出隅）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="clampSkipE">
+			<Description><![CDATA["終点の角のクランプを付けない 0/1（出隅は次の面のコーナー用）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="clampEnd">
+			<Description><![CDATA["区間の端のクランプを clampXS・clampXE（いちばん近い支柱）に付ける 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="clampXS">
+			<Description><![CDATA["始点の端のクランプの位置（支柱）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="clampXE">
+			<Description><![CDATA["終点の端のクランプの位置（支柱）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="rowList">
+			<Description><![CDATA["シートの段「下,上」mm の繰り返し（下から。上下の段は重ねる。空なら sheetH ずつ上から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="gromPitch">
+			<Description><![CDATA["左右の辺のハトメの間隔（上の縁の 20 下から。コマのピッチ）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="clampCE">
+			<Description><![CDATA["終点の角を養生クランプ コーナー用で留める 0/1（開放端の妻側のシート）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="clampSZ">
+			<Description><![CDATA["始点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける。妻側のコーナー用に任せる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="clampEZ">
+			<Description><![CDATA["終点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Material Name="matSheet">
+			<Description><![CDATA["表面材（0＝養生材の既定色）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<PenColor Name="penSheet">
+			<Description><![CDATA["ペン: 養生シート・防音パネル"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+	</Parameters>
+</ParamSection>

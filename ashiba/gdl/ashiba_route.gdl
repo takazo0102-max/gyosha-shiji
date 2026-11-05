@@ -1,0 +1,323 @@
+﻿! ==========================================================
+! 場内の車両動線（通路の帯・中心線・曲がり角の掃引と拡幅の注記。1本の通路に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_route/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_route.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 開発ループ（2026-11-01）: 他に必要な仮設材の3番。
+! 原点＝通路の始め（ゲートの側）。座標は文字のパラメータ（mm）: 帯 eX・eY、中心線 cX・cY、曲がり角の回転中心 aX・aY と外側前端角・内側後輪の半径 aR・角度 aA・拡幅 aW。割付と検定は site_route.py、置くのは scripts/route_run.py（敷鉄板は ashiba_plate を区間ごと）。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   cX        文字列    中心線の X（mm。始めの点から）                                      既定 "0,30000,30000"
+!   cY        文字列    中心線の Y                                                          既定 "0,0,25000"
+!   eX        文字列    通路の帯の X                                                        既定 "0,28000,28000,32000,32000,0"
+!   eY        文字列    通路の帯の Y                                                        既定 "2000,2000,25000,25000,-2000,-2000"
+!   aX        文字列    曲がり角の回転中心の X                                              既定 "25059"
+!   aY        文字列    曲がり角の回転中心の Y                                              既定 "4941"
+!   aR        文字列    曲がり角ごとの外側前端角・内側後輪の半径                            既定 "7643,3064"
+!   aA        文字列    曲がり角ごとの円弧の始めと終わりの角度（度）                        既定 "-90,0"
+!   aW        文字列    曲がり角ごとの拡幅（0.1m 単位。0＝不要）                            既定 "19"
+!   rtW       長さ      通路の幅                                                            既定 4.0
+!   rtName    文字列    名前（注記）                                                        既定 "通路1"
+!   rtVeh     文字列    車両と通行（注記）                                                  既定 "一方通行 幅4.0m 10t ダンプ"
+!   showSw    ブール    曲がり角の掃引（車両の通る範囲）を描く                              既定 1
+!   texSiz    実数      文字の大きさ（mm）                                                  既定 2.5
+!   penBold   PenColor  外形の線（太線。置くときに線のペンと同じ色の太いペン）              既定 21
+!   penThin   PenColor  細部の線（細線。同じ色の細いペン）                                  既定 1
+!   penZone   PenColor  範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）              既定 20
+!   penMask   PenColor  上に載るものの背景の塗り（下の線を隠す。0＝隠さない）               既定 19
+!   drMode    整数      平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）  既定 0
+!   penEquip  PenColor  線のペン                                                            既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 場内通路: 文字のパラメータ（mm・度）を配列に読む
+dim qcx[]
+kC = 0
+rest = cX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kC = kC + 1
+		qcx[kC] = v / 1000
+	endif
+endwhile
+dim qcy[]
+kCy = 0
+rest = cY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kCy = kCy + 1
+		qcy[kCy] = v / 1000
+	endif
+endwhile
+dim qex[]
+kE = 0
+rest = eX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kE = kE + 1
+		qex[kE] = v / 1000
+	endif
+endwhile
+dim qey[]
+kEy = 0
+rest = eY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kEy = kEy + 1
+		qey[kEy] = v / 1000
+	endif
+endwhile
+dim qox[]
+kO = 0
+rest = aX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kO = kO + 1
+		qox[kO] = v / 1000
+	endif
+endwhile
+dim qoy[]
+kOy = 0
+rest = aY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kOy = kOy + 1
+		qoy[kOy] = v / 1000
+	endif
+endwhile
+dim qr[]
+kR = 0
+rest = aR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kR = kR + 1
+		qr[kR] = v / 1000
+	endif
+endwhile
+dim qa[]
+kA = 0
+rest = aA
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kA = kA + 1
+		qa[kA] = v 
+	endif
+endwhile
+dim qw[]
+kW = 0
+rest = aW
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kW = kW + 1
+		qw[kW] = v / 10
+	endif
+endwhile
+kC = min(kC, kCy)
+kE = min(kE, kEy)
+kO = min(kO, kOy)
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 場内通路 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 通路の帯は細線、中心線は一点鎖線と進む向きの矢、曲がり角の掃引（外側前端角 Ro と
+! 内側後輪 ri の円弧）は範囲の線（二点鎖線）。縮尺で 詳細・標準（掃引と拡幅の注記まで）・簡略（帯と中心線と名前）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "rtT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "rtT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 通路の帯
+pen pT
+if kE > 2 then
+	for i = 1 to kE
+		j = i + 1
+		if j > kE then j = 1
+		line2 qex[i], qey[i], qex[j], qey[j]
+	next i
+endif
+! 中心線（一点鎖線）と進む向きの矢（区間の真ん中。実線）
+for i = 1 to kC - 1
+	line_type ltC
+	line2 qcx[i], qcy[i], qcx[i + 1], qcy[i + 1]
+	line_type ltS
+	sl = sqr((qcx[i + 1] - qcx[i]) ^ 2 + (qcy[i + 1] - qcy[i]) ^ 2)
+	if sl > 0.01 then
+		ux = (qcx[i + 1] - qcx[i]) / sl
+		uy = (qcy[i + 1] - qcy[i]) / sl
+		mx = (qcx[i] + qcx[i + 1]) / 2
+		my = (qcy[i] + qcy[i + 1]) / 2
+		line2 mx, my, mx - 0.8 * ux + 0.4 * uy, my - 0.8 * uy - 0.4 * ux
+		line2 mx, my, mx - 0.8 * ux - 0.4 * uy, my - 0.8 * uy + 0.4 * ux
+	endif
+next i
+! 曲がり角の掃引（範囲の線）と拡幅の注記
+if showSw and drLv < 3 then
+	for k = 1 to kO
+		if 2 * k <= kR and 2 * k <= kA then
+			pen pZ
+			line_type ltZ
+			arc2 qox[k], qoy[k], qr[2 * k - 1], qa[2 * k - 1], qa[2 * k]
+			arc2 qox[k], qoy[k], qr[2 * k], qa[2 * k - 1], qa[2 * k]
+			line_type ltS
+			pen pT
+			line2 qox[k] - 0.2, qoy[k], qox[k] + 0.2, qoy[k]
+			line2 qox[k], qoy[k] - 0.2, qox[k], qoy[k] + 0.2
+		endif
+		if k <= kW then
+			if qw[k] > 0 then
+				pen penEquip
+				add2 qox[k], qoy[k]
+				rot2 -SYMB_ROTANGLE
+				text2 0, -dT, "角" + str(k, 1, 0) + " 拡幅 +" + str(qw[k], 3, 1) + "m"
+				del 2
+			endif
+		endif
+	next k
+endif
+! 名前と車両（始めの区間の真ん中の左に。図面の向きに関係なく水平。行送りは縮尺に合わせる）
+pen penEquip
+if kC > 1 then
+	add2 (qcx[1] + qcx[2]) / 2, (qcy[1] + qcy[2]) / 2
+	rot2 -SYMB_ROTANGLE
+	text2 0, rtW / 2 + 0.4 + 1.5 * dT, rtName
+	if drLv < 3 then text2 0, rtW / 2 + 0.4 + 0.5 * dT, rtVeh
+	del 2
+endif
+for i = 1 to kC
+	hotspot2 qcx[i], qcy[i]
+next i
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 場内通路 3D: 通路の面（敷鉄板の下に薄く）
+define material "rt_road" 2, 0.55, 0.53, 0.50
+material "rt_road"
+if kE > 2 then
+	for i = 1 to kE
+		put qex[i], qey[i]
+	next i
+	add 0, 0, -0.006
+	prism kE, 0.004, get(kE * 2)
+	del 1
+endif
+for i = 1 to kC
+	hotspot qcx[i], qcy[i], 0
+next i
+

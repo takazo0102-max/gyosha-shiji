@@ -1,0 +1,1312 @@
+﻿! ============================================================
+! 足場ライン マスタースクリプト（くさび緊結式・1辺=1オブジェクト）
+! 配置規約: 原点=始点コーナー支柱（内側建地列）、+X=辺方向、+Y=躯体側
+! 2D表現は viewMode で切替: plan=平面 / elev=立面
+!
+! 文字列リストのパースは gosub にせずインラインで展開している。
+! マスタースクリプトでの gosub は動作しない環境があり、失敗すると
+! 2D/3Dとも一切描画されない（実機で確認済み）。
+! ============================================================
+dim spans[60]
+dim eaR[4]
+dim posts[40]
+dim postsA[40]
+dim rl[2][20]
+dim bdLen[2][30]
+dim bdLp[2][30]
+dim nBd[2]
+dim nRl[2]
+dim runE[2]
+dim ties[200]
+dim brOn[60]
+dim slL[8]
+dim slV[36]
+dim cPo[40]
+dim cLvIn[40]
+dim cBkLv[20]
+dim tieH[200]
+dim gl[61]
+dim jk[61]
+dim sh[61]
+dim glO[61]
+dim jkO[61]
+dim shO[61]
+dim fls[20]
+dim lv[42]
+dim levIn[40]
+dim htI[16]
+dim asa[8]
+dim cutS[8]
+dim cutE[8]
+dim asgA[9]
+dim asgB[9]
+dim stS[8]
+dim stL[8]
+dim bmS[8]
+dim bmL[8]
+dim bmH[8]
+dim bmBt[8]
+dim brS[8]
+dim brL[8]
+dim brD[8]
+dim brK[8]
+dim sgS[8]
+dim sgL[8]
+dim sgP[8]
+dim sgH[8]
+dim sgZ[8]
+dim sgF[8]
+dim sgK[8]
+dim hoP[4]
+dim hoR[4]
+dim hoW[4]
+dim hoD[4]
+dim hoTp[4]
+dim laP[40]
+dim ikA[8]
+dim ikB[8]
+dim ikL1[8]
+dim ikL2[8]
+dim laH[40]
+dim bkS[24]
+dim bkE[24]
+dim bkW[24]
+dim bkD[24]
+dim bkH[24]
+dim edA[16]
+dim edB[16]
+dim edC[16]
+dim edD[16]
+dim edE[16]
+dim bkDW[24]
+
+! ---- spanList をパース (mm→m) ----
+nSpan = 0
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! spanList2〜spanList2 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 2
+	rest = spanList
+	if tc = 2 then rest = spanList2
+	while strlen(rest) > 0 and nSpan < 60 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSpan = nSpan + 1
+			spans[nSpan] = v / 1000
+		endif
+	endwhile
+next tc
+if nSpan = 0 then
+	nSpan = 1
+	spans[1] = 1.8
+endif
+
+! ---- スパンのホットスポット編集（足場計画.gsm のスパン制御と同じ考え方） ----
+! 平面の支柱位置を引くと xEdit[i] が変わる。動かした境界の手前のスパンを規格寸法
+! （sizeList＝系列の布材）に吸着し、後ろのスパンに残りを渡して面の長さを保つ。
+! 直した spanList は Python が読み戻して span_overrides にする（read_back_spans.py）。
+! Python から置き直したとき（GLOB_MODPAR_NAME が xEdit でない）は spanList が正で、
+! xEdit は spanList から作り直す
+dim szL[20]
+nSz = 0
+rest = sizeList
+while strlen(rest) > 0 and nSz < 20 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSz = nSz + 1
+		szL[nSz] = v / 1000
+	endif
+endwhile
+szMin = 0.3
+if nSz > 0 then
+	szMin = szL[1]
+	for k = 2 to nSz
+		if szL[k] < szMin then szMin = szL[k]
+	next k
+endif
+! 診断: 直前に変わったパラメータ名（空のときは上書きしない。再描画のたびに消えて切り分けにならなかった）
+if GLOB_MODPAR_NAME <> "" then
+	parameters lastMod = "1D:" + GLOB_MODPAR_NAME + "|" + str(vardim1(xEdit), 1, 0) + "|" + str(nSpan, 1, 0)
+endif
+! xEdit（支柱位置）の作り直しはパラメータスクリプト（vl.gdl）で行う。マスタースクリプトで
+! 要素数が変わる配列（xEdit）を parameters 文で書き戻すと、2D・3Dが何も描かなくなる
+! （実機で切り分け: このブロックを外すと描ける）
+
+! ---- postList をパース (mm→m) ----
+nPost = 0
+rest = postList
+while strlen(rest) > 0 and nPost < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPost = nPost + 1
+		posts[nPost] = v / 1000
+	endif
+endwhile
+if nPost = 0 then
+	nPost = 1
+	posts[1] = 3.6
+endif
+
+! ---- postListAlt（単管の千鳥。偶数番目の建地の支柱構成）をパース ----
+nPostA = 0
+rest = postListAlt
+while strlen(rest) > 0 and nPostA < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPostA = nPostA + 1
+		postsA[nPostA] = v / 1000
+	endif
+endwhile
+
+! ---- tubeRunA・tubeRunB（単管の通しの割付。規定の長さの単管を直線ジョイントで継ぐ）をパース ----
+runS = tubeRunS
+for p832 = 1 to 2
+	nRl[p832] = 0
+	runE[p832] = runS
+	rest = tubeRunA
+	if p832 = 2 then rest = tubeRunB
+	while strlen(rest) > 0 and nRl[p832] < 20 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nRl[p832] = nRl[p832] + 1
+			rl[p832][nRl[p832]] = v / 1000
+			runE[p832] = runE[p832] + v / 1000
+		endif
+	endwhile
+next p832
+! ---- deckRunA・deckRunB（単管のブラケット足場の足場板の割付。継ぎは bdLap 重ねる）をパース ----
+! 負の数はその前の板の後ろの継ぎの重ね（300 で割り付けられない面だけ長く重ねる。bdLp）
+bdS = deckRunS
+bdLap = 0.3
+for p870 = 1 to 2
+	nBd[p870] = 0
+	rest = deckRunA
+	if p870 = 2 then rest = deckRunB
+	while strlen(rest) > 0 and nBd[p870] < 30 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			if v < 0 then
+				if nBd[p870] > 0 then bdLp[p870][nBd[p870]] = -v / 1000
+			else
+				nBd[p870] = nBd[p870] + 1
+				bdLen[p870][nBd[p870]] = v / 1000
+				bdLp[p870][nBd[p870]] = bdLap
+			endif
+		endif
+	endwhile
+next p870
+! 3D の布・手すりの呼び出し側が、この区間の通しの割付（runP: 0=通さない 1=A 2=B）と区間の始め（runX）を渡す
+runP = 0
+runX = 0
+
+! ---- tieList をパース (mm→m) ----
+nTie = 0
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! tieList2〜tieList5 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 5
+	rest = tieList
+	if tc = 2 then rest = tieList2
+	if tc = 3 then rest = tieList3
+	if tc = 4 then rest = tieList4
+	if tc = 5 then rest = tieList5
+	while strlen(rest) > 0 and nTie < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nTie = nTie + 1
+			ties[nTie] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- tieHeightList をパース (mm→m) ----
+nTieH = 0
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! tieHeightList2〜tieHeightList5 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 5
+	rest = tieHeightList
+	if tc = 2 then rest = tieHeightList2
+	if tc = 3 then rest = tieHeightList3
+	if tc = 4 then rest = tieHeightList4
+	if tc = 5 then rest = tieHeightList5
+	while strlen(rest) > 0 and nTieH < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nTieH = nTieH + 1
+			tieH[nTieH] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- glList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは glList2
+nGl = 0
+for tc = 1 to 2
+	rest = glList
+	if tc = 2 then rest = glList2
+	while strlen(rest) > 0 and nGl < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nGl = nGl + 1
+			gl[nGl] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- jackList をパース (mm→m) ----
+! 敷地高低差: 支柱位置ごとの値。空なら平坦（従来どおり）。続きは jackList2
+nJk = 0
+for tc = 1 to 2
+	rest = jackList
+	if tc = 2 then rest = jackList2
+	while strlen(rest) > 0 and nJk < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nJk = nJk + 1
+			jk[nJk] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- shimList をパース (mm→m): 敷板で持ち上げた分（ジャッキ繰出しの内数） ----
+nSh = 0
+for tc = 1 to 2
+	rest = shimList
+	if tc = 2 then rest = shimList2
+	while strlen(rest) > 0 and nSh < 61 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSh = nSh + 1
+			sh[nSh] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- 外側の建地列の glListO・jackListO・shimListO（本足場で地盤を内外別に解いたとき。空なら内側の列と同じ） ----
+! 外側の列は躯体から建地列の間隔だけ外に立つので、斜面では内側の列と地盤高が違う（利用者の指定 2026-10-21）
+nGlO = 0
+nJkO = 0
+nShO = 0
+for lo = 1 to 3
+	for tc = 1 to 2
+		if lo = 1 then
+			rest = glListO
+			if tc = 2 then rest = glListO2
+		endif
+		if lo = 2 then
+			rest = jackListO
+			if tc = 2 then rest = jackListO2
+		endif
+		if lo = 3 then
+			rest = shimListO
+			if tc = 2 then rest = shimListO2
+		endif
+		while strlen(rest) > 0 do
+			pc = strstr(rest, ",")
+			if pc > 0 then
+				item = strsub(rest, 1, pc - 1)
+				rest = strsub(rest, pc + 1, strlen(rest) - pc)
+			else
+				item = rest
+				rest = ""
+			endif
+			k = split(item, "%n", v)
+			if k > 0 then
+				if lo = 1 and nGlO < 61 then
+					nGlO = nGlO + 1
+					glO[nGlO] = v / 1000
+				endif
+				if lo = 2 and nJkO < 61 then
+					nJkO = nJkO + 1
+					jkO[nJkO] = v / 1000
+				endif
+				if lo = 3 and nShO < 61 then
+					nShO = nShO + 1
+					shO[nShO] = v / 1000
+				endif
+			endif
+		endwhile
+	next tc
+next lo
+! 立面図は外側の列を見る。外側の列の値があればそれで描く
+if viewMode = "elev" and nGlO >= 2 then
+	for i = 1 to nGlO
+		gl[i] = glO[i]
+	next i
+	nGl = nGlO
+	for i = 1 to nJkO
+		jk[i] = jkO[i]
+	next i
+	nJk = nJkO
+	for i = 1 to nShO
+		sh[i] = shO[i]
+	next i
+	nSh = nShO
+endif
+
+! ---- flList をパース (mm→m) ----
+nFL = 0
+rest = flList
+while strlen(rest) > 0 and nFL < 20 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nFL = nFL + 1
+		fls[nFL] = v / 1000
+	endif
+endwhile
+
+! ---- levelList をパース (mm→m) ----
+! 作業床の高さはPython側の立面ソルバが決めた値をそのまま受け取る。
+! GDLで komaPitch から再計算すると、コマの概念が無い枠組（komaPitch=0）で
+! 破綻するうえ、ソルバの結果と図面がずれる。
+nLevIn = 0
+rest = levelList
+while strlen(rest) > 0 and nLevIn < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLevIn = nLevIn + 1
+		levIn[nLevIn] = v / 1000
+	endif
+endwhile
+
+! ---- eaveRails をパース（軒先の手すり。下屋の単管の面で最上段の床を軒の下にしたとき、屋根からの墜落防止に
+! 軒先から 450・900 の高さに足す手すり。mm→m。elevation_solver.truncate_elevation） ----
+nEaR = 0
+rest = eaveRails
+while strlen(rest) > 0 and nEaR < 4 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nEaR = nEaR + 1
+		eaR[nEaR] = v / 1000
+	endif
+endwhile
+
+! ---- hatchList をパース（ハッチ付布板の昇降口のスパン番号） ----
+nHt = 0
+rest = hatchList
+while strlen(rest) > 0 and nHt < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nHt = nHt + 1
+		htI[nHt] = v
+	endif
+endwhile
+
+! ---- brktList をパース「開始,終了,幅,向き,高さ」の繰り返し (mm→m) ----
+! ブラケット区間は作業床の幅を局所的に変える。図面に出ないと、
+! 実際より狭い（または広い）床を描いたままになる
+nBk = 0
+bkIdx = 0
+bkA = 0
+bkB = 0
+bkC = 0
+bkE0 = 0
+bkF = 0
+! 文字列パラメータは255文字で切れる（実機で確認）。長い面は Python 側が
+! brktList2〜brktList4 に分けて渡すので、続けて同じ配列に読む
+for tc = 1 to 4
+	rest = brktList
+	if tc = 2 then rest = brktList2
+	if tc = 3 then rest = brktList3
+	if tc = 4 then rest = brktList4
+	while strlen(rest) > 0 and nBk < 24 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			bkIdx = bkIdx + 1
+			md = bkIdx - 6 * int(bkIdx / 6)   ! 1,2,3,4,5,0 の繰り返し
+			if md = 1 then bkA = v / 1000
+			if md = 2 then bkB = v / 1000
+			if md = 3 then bkC = v / 1000
+			if md = 4 then bkE0 = v
+			if md = 5 then bkF = v / 1000
+			if md = 0 then
+				nBk = nBk + 1
+				bkS[nBk] = bkA
+				bkE[nBk] = bkB
+				bkW[nBk] = bkC
+				bkD[nBk] = bkE0
+				bkH[nBk] = bkF
+				bkDW[nBk] = v / 1000        ! 区間の床幅（0で変更なし）
+			endif
+		endif
+	endwhile
+next tc
+
+! ---- editList をパース「スパン始,スパン終,層始,層終,ビット」の繰り返し（範囲を指定して外した部材） ----
+! ビット: 1踏板 2外側手すり 4幅木 8筋かい 16内側手すり。スパンは面の始点から1始まり、層は作業床の層（1＝最下段）。
+! 数量表（Python の member_edits）と同じ升目を3D・図示本数から外す
+nEd = 0
+edIdx = 0
+edT1 = 0
+edT2 = 0
+edT3 = 0
+edT4 = 0
+rest = editList
+while strlen(rest) > 0 and nEd < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		edIdx = edIdx + 1
+		md = edIdx - 5 * int(edIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		if md = 1 then edT1 = v
+		if md = 2 then edT2 = v
+		if md = 3 then edT3 = v
+		if md = 4 then edT4 = v
+		if md = 0 then
+			nEd = nEd + 1
+			edA[nEd] = edT1
+			edB[nEd] = edT2
+			edC[nEd] = edT3
+			edD[nEd] = edT4
+			edE[nEd] = v
+		endif
+	endif
+endwhile
+
+! ---- bridgeList をパース「開始,長さ,増える離れ,種別(0=凹み/1=張り出し/2=斜辺 終点側深い/3=斜辺 始点側深い)」の繰り返し (mm→m) ----
+! 最小スパン未満の凹み・張り出しは直線で渡す。実際の躯体線は離れが増えるので
+! 平面に破線で示す（数量の要確認と同じ区間）
+nBr = 0
+brIdx = 0
+brT1 = 0
+brT2 = 0
+brT3 = 0
+rest = bridgeList
+while strlen(rest) > 0 and nBr < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		brIdx = brIdx + 1
+		md = brIdx - 4 * int(brIdx / 4)   ! 1,2,3,0 の繰り返し
+		if md = 1 then brT1 = v / 1000
+		if md = 2 then brT2 = v / 1000
+		if md = 3 then brT3 = v / 1000
+		if md = 0 then
+			nBr = nBr + 1
+			brS[nBr] = brT1
+			brL[nBr] = brT2
+			brD[nBr] = brT3
+			brK[nBr] = v
+		endif
+	endif
+endwhile
+
+! ---- stageList をパース「開始,長さ,出,設置高さ,方杖」の繰り返し (mm→m) ----
+! 方杖は0/1（数量拾いと同じ指定を使う。図だけ勝手に方杖を付けない）
+! 荷受けステージは出1.5mの張り出し床。構造計算では直下の建地を個別に
+! 検定しているのに、図面にも3Dにも出ていなかった
+nSg = 0
+sgIdx = 0
+sgA = 0
+sgB = 0
+sgC = 0
+sgD = 0
+rest = stageList
+while strlen(rest) > 0 and nSg < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		sgIdx = sgIdx + 1
+		md = sgIdx - 5 * int(sgIdx / 5)   ! 1,2,3,4,0 の繰り返し
+		if md = 1 then sgA = v / 1000
+		if md = 2 then sgB = v / 1000
+		if md = 3 then sgC = v / 1000
+		if md = 4 then sgD = v / 1000
+		if md = 0 then
+			nSg = nSg + 1
+			sgS[nSg] = sgA
+			sgL[nSg] = sgB
+			sgP[nSg] = sgC
+			sgH[nSg] = sgD
+			! 5つ目は 方杖 0/1 ＋ 侵入落下防止柵 2 ＋ 荷受けフォーム 4（mm換算しない。各桁を取り出す）
+			sgZ[nSg] = v - 2 * int(v / 2)
+			sgF[nSg] = int(v / 2) - 2 * int(v / 4)
+			sgK[nSg] = int(v / 4)
+		endif
+	endif
+endwhile
+
+! ---- hoistList をパース「位置,到達高さ,搬器幅,搬器奥行,控えピッチ」の繰り返し (mm→m) ----
+! 昇降機は数量（乗り込み口の開閉式手すり）と構造（マストの局所荷重）には
+! 出ていたのに、図面には現れていなかった。マストは足場の外に立つ大物なので
+! 平面・立面・3Dに出して干渉を確認できるようにする
+nHo = 0
+hoIdx = 0
+hoT = 0
+rest = hoistList
+while strlen(rest) > 0 and nHo < 4 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		hoIdx = hoIdx + 1
+		hoM = hoIdx - 5 * int((hoIdx - 1) / 5)     ! 1..5
+		if hoM = 1 then
+			hoT = v / 1000
+		endif
+		if hoM = 2 then
+			nHo = nHo + 1
+			hoP[nHo] = hoT
+			hoR[nHo] = v / 1000
+			hoW[nHo] = 4.6
+			hoD[nHo] = 1.3
+			hoTp[nHo] = 3.6
+		endif
+		if hoM = 3 and nHo > 0 then hoW[nHo] = v / 1000
+		if hoM = 4 and nHo > 0 then hoD[nHo] = v / 1000
+		if hoM = 5 and nHo > 0 and v > 0 then hoTp[nHo] = v / 1000
+	endif
+endwhile
+
+! ---- intkList をパース「始め,終わり,層始め,層終わり」の繰り返し（取り入れ口。mm→m・層番号） ----
+nIk = 0
+ikIdx = 0
+rest = intkList
+while strlen(rest) > 0 and nIk < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		ikIdx = ikIdx + 1
+		ikM = ikIdx - 4 * int((ikIdx - 1) / 4)
+		if ikM = 1 then ikT1 = v / 1000
+		if ikM = 2 then ikT2 = v / 1000
+		if ikM = 3 then ikT3 = v
+		if ikM = 4 then
+			nIk = nIk + 1
+			ikA[nIk] = ikT1
+			ikB[nIk] = ikT2
+			ikL1[nIk] = ikT3
+			ikL2[nIk] = v
+		endif
+	endif
+endwhile
+
+! ---- landingList をパース「位置,作業床高さ」の繰り返し (mm→m) ----
+nLa = 0
+laIdx = 0
+laT = 0
+rest = landingList
+while strlen(rest) > 0 and nLa < 40 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		laIdx = laIdx + 1
+		if laIdx - 2 * int(laIdx / 2) = 1 then
+			laT = v / 1000
+		else
+			nLa = nLa + 1
+			laP[nLa] = laT
+			laH[nLa] = v / 1000
+		endif
+	endif
+endwhile
+
+! 昇降機の見付け幅（ケージ＋マストの目安）。実機は機種で違うので図示用
+HOIST_W = 2.0
+HOIST_D = 2.0
+
+! ---- beamList をパース「開始,スパン,梁下高さ」の繰り返し (mm→m) ----
+! 梁枠は支柱を抜いて通路にする箇所。図面が抜いた支柱を描いたままだと、
+! 実際には無い建地を図面が示すことになる
+nBm = 0
+bmIdx = 0
+bmT1 = 0
+bmT2 = 0
+rest = beamList
+while strlen(rest) > 0 and nBm < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		bmIdx = bmIdx + 1
+		md = bmIdx - 3 * int(bmIdx / 3)   ! 1,2,0 の繰り返し
+		if md = 1 then
+			bmT1 = v / 1000
+		endif
+		if md = 2 then
+			bmT2 = v / 1000
+		endif
+		if md = 0 then
+			nBm = nBm + 1
+			bmS[nBm] = bmT1
+			bmL[nBm] = bmT2
+			bmH[nBm] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- beamBotList をパース（梁枠の開口の下端。0＝地面から。途中の層の開口＝荷受けステージの間口はその層の床）----
+for ib = 1 to 8
+	bmBt[ib] = 0
+next ib
+nBt = 0
+rest = beamBotList
+while strlen(rest) > 0 and nBt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBt = nBt + 1
+		bmBt[nBt] = v / 1000
+	endif
+endwhile
+
+! ---- advInList をパース「開始,終点,高さ」の繰り返し (mm→m) ----
+! 梁枠の網掛け部（開口の両隣1スパンの全高と梁枠の上）は前踏み側にも先行手すり筋交い（ミレニューム Q16。利用者の資料 2026-10-24）
+dim aiS[24], aiE[24], aiZ[24]
+nAi = 0
+aiIdx = 0
+aiT1 = 0
+aiT2 = 0
+rest = advInList
+while strlen(rest) > 0 and nAi < 24 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		aiIdx = aiIdx + 1
+		md = aiIdx - 3 * int(aiIdx / 3)
+		if md = 1 then aiT1 = v / 1000
+		if md = 2 then aiT2 = v / 1000
+		if md = 0 then
+			nAi = nAi + 1
+			aiS[nAi] = aiT1
+			aiE[nAi] = aiT2
+			aiZ[nAi] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- stairList をパース「開始,長さ」の繰り返し (mm→m) ----
+! 階段室は数量（踏板の差引）にも帳票にも出るのに、図面に位置が
+! 出ていなかった。昇降設備の位置は計画図の主要情報
+nSt = 0
+stTmp = 0
+stIdx = 0
+rest = stairList
+while strlen(rest) > 0 and nSt < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		stIdx = stIdx + 1
+		if stIdx - 2 * int(stIdx / 2) = 1 then
+			stTmp = v / 1000
+		else
+			nSt = nSt + 1
+			stS[nSt] = stTmp
+			stL[nSt] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- asagaoList をパース (mm→m) ----
+! 朝顔は数量にも法規チェックにも出るのに、図面にも3Dにも現れていなかった。
+! 突出2mの部材なので、干渉確認のためにモデルへ出す
+nAsa = 0
+rest = asagaoList
+while strlen(rest) > 0 and nAsa < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nAsa = nAsa + 1
+		asa[nAsa] = v / 1000
+	endif
+endwhile
+
+! ---- asaCutList をパース「開始,終了」の繰り返し (mm→m) ----
+! 配列名に acS を使うと GDL 組込み関数 ACS()（逆余弦）と衝突して部品ごと壊れる
+! （パラメータ設定が全部失敗する。半日の切り分けで判明）。cut〜 で統一
+! 昇降機のマスト・搬器が通るスパンは朝顔を切り欠く。衝突検査が切り欠きを
+! 指示するのに、図面と3Dは全長の板のままだった
+nCut = 0
+cutIdx = 0
+cutT = 0
+rest = asaCutList
+while strlen(rest) > 0 and nCut < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		cutIdx = cutIdx + 1
+		if cutIdx - 2 * int(cutIdx / 2) = 1 then
+			cutT = v / 1000
+		else
+			nCut = nCut + 1
+			cutS[nCut] = cutT
+			cutE[nCut] = v / 1000
+		endif
+	endif
+endwhile
+
+! ---- 派生値 ----
+lineLen = 0
+for i = 1 to nSpan
+	lineLen = lineLen + spans[i]
+next i
+
+! 朝顔の連続区間（切り欠きを除いた asgA〜asgB）。区間は Python 側で昇順・非重複
+! 最初の切り欠きが 0 から始まる（長さ 0 の「0,0」も）ときは始点の隅のコーナー部を付けない（面の一部だけの朝顔・
+! 前の面の朝顔が隅まで来ない）
+asaCrnOff = 0
+if nCut > 0 then
+	if cutS[1] < 0.001 then asaCrnOff = 1
+endif
+nAsg = 0
+cutX = 0
+for ic = 1 to nCut
+	if cutS[ic] > cutX + 0.001 then
+		nAsg = nAsg + 1
+		asgA[nAsg] = cutX
+		asgB[nAsg] = cutS[ic]
+	endif
+	cutX = cutE[ic]
+next ic
+if lineLen > cutX + 0.001 then
+	nAsg = nAsg + 1
+	asgA[nAsg] = cutX
+	asgB[nAsg] = lineLen
+endif
+postTop = jackOut
+for i = 1 to nPost
+	postTop = postTop + posts[i]
+next i
+! 根がらみ高さ。negaH が渡されていればそれを使う（枠組は建枠脚部が相当）
+firstLedger = negaH
+if firstLedger <= 0 then firstLedger = jackOut + komaPitch
+
+! レベル列: lv[1]=根がらみ、lv[2..nLv]=作業床（下から昇順）
+lv[1] = firstLedger
+if nLevIn > 0 then
+	! Python側の立面ソルバが決めた作業床高さをそのまま使う
+	nLevels = nLevIn
+	for il = 1 to nLevels
+		lv[il + 1] = levIn[il]
+	next il
+	topFloor = levIn[nLevels]
+else
+	! 単体で置いた場合のフォールバック（くさび式の積み方から推定）
+	topFloor = postTop - 2 * komaPitch
+	nLevels = 0
+	h = topFloor
+	while h > firstLedger + komaPitch do
+		nLevels = nLevels + 1
+		h = h - floorH
+	endwhile
+	for il = 1 to nLevels
+		lv[il + 1] = topFloor - (nLevels - il) * floorH
+	next il
+endif
+nLv = nLevels + 1
+
+! 手すり・中桟の高さ（作業床から）。komaPitch の倍数で決め打ちすると
+! コマの概念が無い枠組で 0 になり、手すりが作業床に重なって消える
+railTop = railH
+if railTop <= 0 then railTop = 2 * komaPitch
+railMid = midH
+if railMid <= 0 then railMid = komaPitch
+
+! ---- 区切った足場ライン（利用者の指定 2026-10-21「垂直と水平で区切れるように」） ----
+! 1つの面を、スパン segSpanA〜segSpanB・作業層 segLevA〜segLevB の部品に分ける（0＝端まで）。
+! 縦の区切りは支柱の芯、横の区切りは作業床の 100 下。3D はその箱の外を切り取り、平面・数量は範囲の中だけ。
+! 範囲の持ち主: 位置 x は [gxA, gxB)（始点側の支柱は自分、終点側は隣の部品）、高さ z は [gzA, gzB)
+sA = segSpanA
+if sA < 1 or sA > nSpan then sA = 1
+sB = segSpanB
+if sB < sA or sB > nSpan then sB = nSpan
+lA = segLevA
+if lA < 1 or lA > nLevels then lA = 1
+lB = segLevB
+if lB < lA or lB > nLevels then lB = nLevels
+pxA = 0
+pxB = 0
+for i = 1 to sB
+	if i < sA then pxA = pxA + spans[i]
+	pxB = pxB + spans[i]
+next i
+gxA = -1000
+gxB = 1000
+gzA = -1000
+gzB = 1000
+if sA > 1 then gxA = pxA
+if sB < nSpan then gxB = pxB
+if lA > 1 then gzA = lv[lA + 1] - 0.1
+if lB < nLevels then gzB = lv[lB + 2] - 0.1
+segOn = 0
+if sA > 1 or sB < nSpan or lA > 1 or lB < nLevels then segOn = 1
+! 下の端の部品（根がらみ・ジャッキ・平面の本体を持つ）
+segBase = 0
+if lA = 1 then segBase = 1
+
+! 壁つなぎは位置と高さの対。短い方に合わせる
+nTiePair = nTie
+if nTieH < nTiePair then nTiePair = nTieH
+
+! 斜材の設置間隔。数量は「6層6スパン以下毎に交さ2方向」で拾っているので、
+! 図面を全構面に描くと部材表と食い違う（発注40本に対し図面896本）
+bEvS = braceEveryS
+if bEvS < 1 then bEvS = 1
+bEvL = braceEveryL
+if bEvL < 1 then bEvL = 1
+! 斜材を入れる層 brOn[il]（層 il は lv[il]〜lv[il+1]）: bEvL 層ごと。根がらみ〜1段目の床のように低い層（1.0m 未満）には
+! ブレスが掛からない（平べったい山形になっていた。利用者の指摘 2026-10-24: 前も言ったけど1段目に変なブレス）ので、その層の
+! 分は1つ上の層に入れる（本数は同じ。数量の quantity と合わせる）
+for il = 1 to nLv - 1
+	brOn[il] = 0
+next il
+for il = 1 to nLv - 1
+	if il - 1 - bEvL * int((il - 1) / bEvL) = 0 then
+		if lv[il + 1] - lv[il] > 0.999 then
+			brOn[il] = 1
+		else
+			if il + 1 <= nLv - 1 then brOn[il + 1] = 1
+		endif
+	endif
+next il
+
+! 建地列。一側足場は1列で、建地は外側1列だけ立ち、床は躯体側へ張り出す。
+! 列数を見ないと、一側足場の計画でも図面は本足場（2列）で描かれる
+rowStart = 0
+if nRows < 2 then rowStart = 1
+
+! ---- 敷板の列 sillList（続きは sillList2）「y,始め,終わり」の繰り返し (mm→m)。3D で規格の長さに割って並べる ----
+nSv = 0
+for tc = 1 to 2
+	rest = sillList
+	if tc = 2 then rest = sillList2
+	while strlen(rest) > 0 and nSv < 36 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSv = nSv + 1
+			slV[nSv] = v / 1000
+		endif
+	endwhile
+next tc
+
+! ---- 出隅の升目の高さ（隣の面が高いとき。利用者の指定 2026-10-25: 張り出しの横の面も足場入れて）----
+! cnrPosts・cnrLevels: 隅の升目と、低い面の隅の外側建地を立てる積み方・作業床（mm）。空なら自分の面のまま。
+! cnrBkLv: 隅の升目の外の拡幅ブラケットを付ける作業床の高さ（mm）
+nCPo = 0
+nCLvIn = 0
+nCBk = 0
+for tc = 1 to 3
+	rest = cnrPosts
+	if tc = 2 then rest = cnrLevels
+	if tc = 3 then rest = cnrBkLv
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			if tc = 1 and nCPo < 40 then
+				nCPo = nCPo + 1
+				cPo[nCPo] = v / 1000
+			endif
+			if tc = 2 and nCLvIn < 40 then
+				nCLvIn = nCLvIn + 1
+				cLvIn[nCLvIn] = v / 1000
+			endif
+			if tc = 3 and nCBk < 20 then
+				nCBk = nCBk + 1
+				cBkLv[nCBk] = v / 1000
+			endif
+		endif
+	endwhile
+next tc
+
+r_sic  = 0.0486 / 2	! 支柱 φ48.6
+! 足場の種類ごとの支柱の径（日建ND は φ42.7、ストロング・信和は φ48.6）
+if postDia > 0.01 then r_sic = postDia / 2
+r_nuno = 0.0427 / 2	! 布材 φ42.7
+! 単管の布・手すりを建地の脇に直交クランプで留めたときの芯々（管の半径2つ＋口の帯4.5と背板4を2つずつ）
+tubeOff = r_sic + 0.0486 / 2 + 0.017
+r_tie  = 0.0273 / 2	! 壁つなぎ φ27.2
+hbH = 0.15	! 跳ね出しブラケットの上に横に流す H形鋼（H-150×75）の高さ
+
+! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
+! GLOB_SCALE = 縮尺の分母（1/20なら20）。texSiz は用紙上のmm
+txtH = texSiz * GLOB_SCALE / 1000
+txtLine = txtH * 1.8
+
+! ---- 図示本数（この面のオブジェクトが描いている本数）を書き戻す ----
+! Archicad の一覧表（スケジュール）で面ごと・建物ごとに集計できる（bim-arekore の
+! 次世代足場.gsm が部材本数をパラメータに持つのと同じ）。発注数量の正は Python の
+! 数量表（ステージ・ブラケット区間・高低差の継ぎ足し・コーナー部材まで入る）で、
+! ここは図面との照合用。支柱は 3D と同じく両端を含めて数え、隅で共有する内側建地（skipInS・skipInE）と
+! セットバックの上段の端（skipPS・skipPE）は除く（利用者の指摘 2026-10-25: 支柱の本数の数え漏れも直して。各面の
+! 外側の列の終点の支柱が抜けていた）。単管抱き足場は終点を次の面に任せる
+! 区切った部品は自分の範囲（スパン sA〜sB・作業層 lA〜lB）だけを数える。支柱は下端が範囲の高さにある1本ずつ、
+! 支柱の位置数・根がらみは下の端の部品（segBase）が持つ
+qPos0 = (sB - sA + 1) * nRows
+qIn = 0
+if nRows >= 2 then qIn = 1
+if sA = 1 then qPos0 = qPos0 + cornerS + cornerSP
+if sA = 1 and hugMode = 0 then qPos0 = qPos0 - skipPS * nRows - skipInS * qIn
+if sB >= nSpan and hugMode = 0 then qPos0 = qPos0 + nRows - skipPE * nRows - skipInE * qIn
+qSeg = 0
+zq = jackOut
+for j = 1 to nPost
+	if zq >= gzA - 0.001 and zq < gzB - 0.001 then qSeg = qSeg + 1
+	zq = zq + posts[j]
+next j
+qPostPos = qPos0 * segBase
+qPost = qPos0 * qSeg
+nIn = lB - lA + 1
+nOddIn = int((lB + 1) / 2) - int(lA / 2)
+qOuter = 2
+if railAdv = 1 then qOuter = 0
+qInner = 0
+if railIn = 1 and nRows >= 2 then qInner = 2
+qNuno = 0
+qDeck = 0
+qToe = 0
+qAdv = 0
+x = 0
+for ip = 1 to nSpan
+	if ip >= sA and ip <= sB then
+	! 開口部（梁枠より下）: その層の布材・床・幅木・先行手すりは無い
+	qOpenLv = 0
+	qOpenNega = 0
+	for ib = 1 to nBm
+		if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 then
+			if lv[1] < bmH[ib] - 0.001 and bmBt[ib] < 0.001 then qOpenNega = 1
+			for il = lA + 1 to lB + 1
+				if lv[il] < bmH[ib] - 0.001 and lv[il] > bmBt[ib] + 0.001 then qOpenLv = qOpenLv + 1
+			next il
+		endif
+	next ib
+	! 階段室: 各層で階段が上がってくる1スパンだけ開口（奇数層は始点側、偶数層は終点側）。外側の幅木も付けない、手すりは残る
+	qStairOpen = 0
+	for it = 1 to nSt
+		! 外付け（stOut）の階段は外の升目なので、本体の床は切らない
+		if stOut = 0 and x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then
+			qPos = 0
+			xx = 0
+			for jp = 1 to ip - 1
+				if xx >= stS[it] - 0.001 then qPos = qPos + 1
+				xx = xx + spans[jp]
+			next jp
+			if stL[it] <= spans[ip] + 0.001 then
+				qStairOpen = nIn
+			else
+				if qPos = 0 then qStairOpen = nOddIn
+				if qPos = 1 then qStairOpen = nIn - nOddIn
+			endif
+		endif
+	next it
+	! 作業床の高さにスパン方向の布材は付けない（アンチは腕木に掛ける）。根がらみ＋手すり・中桟だけ
+	qNuno = qNuno + nRows * (1 - qOpenNega) * segBase + (nIn - qOpenLv) * (qOuter + qInner)
+	qDeck = qDeck + max(0, nIn - qOpenLv - qStairOpen)
+	! 階段が上がってくるスパンは外側の幅木も付けない（載せる布板が無い。3d.gdl・gdl_params.face_drawn_counts と同じ）
+	if railAdv = 0 and toeOn = 1 then qToe = qToe + max(0, nIn - qOpenLv - qStairOpen * (serType <> "T"))
+	if railAdv = 1 then qAdv = qAdv + nIn - qOpenLv
+	! 範囲を指定して外した部材（editList）。開口部の升目はもともと無い。足場の中の階段室の区間の床は対象外
+	if nEd > 0 then
+		qInStair = 0
+		for it = 1 to nSt
+			if stOut = 0 and x >= stS[it] - 0.001 and x + spans[ip] <= stS[it] + stL[it] + 0.001 then qInStair = 1
+		next it
+		for il = lA + 1 to lB + 1
+			qBlk = 0
+			for ib = 1 to nBm
+				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
+						lv[il] < bmH[ib] - 0.001 and lv[il] >= bmBt[ib] - 0.001 then qBlk = 1
+			next ib
+			eoD = 0
+			eoR = 0
+			eoT = 0
+			eoI = 0
+			eoD1 = 0
+			eoD2 = 0
+			if deckW2 <= 0 then eoD2 = 1   ! 1枚敷きは外側の踏板だけで床が無くなる
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 0) then eoD = 1
+					if bittest(edE[ie], 5) then eoD1 = 1
+					if bittest(edE[ie], 6) then eoD2 = 1
+					if bittest(edE[ie], 1) then eoR = 1
+					if bittest(edE[ie], 2) then eoT = 1
+					if bittest(edE[ie], 4) then eoI = 1
+				endif
+			next ie
+			if eoD1 = 1 and eoD2 = 1 then eoD = 1
+			if qBlk = 0 then
+				if eoD = 1 and qInStair = 0 then qDeck = qDeck - 1
+				if eoT = 1 and railAdv = 0 and toeOn = 1 then qToe = qToe - 1
+				if eoR = 1 and railAdv = 1 then qAdv = qAdv - 1
+				if eoR = 1 and railAdv = 0 and serType <> "W" then qNuno = qNuno - 2
+				if eoI = 1 then qNuno = qNuno - qInner
+			endif
+		next il
+	endif
+	endif   ! sA〜sB
+	x = x + spans[ip]
+next ip
+! 斜材: 3D と同じ間隔（bEvL 層・bEvS スパンごと、1箇所2本）。下端の高さの部品が持つ
+qBrace = 0
+for il = 1 to nLv - 1
+	if brOn[il] = 1 and lv[il] >= gzA - 0.001 and lv[il] < gzB - 0.001 then
+		for ip = sA to sB
+			if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 then
+				! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ）。1本ずつ数える
+				xq9 = 0
+				for jq9 = 1 to ip - 1
+					xq9 = xq9 + spans[jq9]
+				next jq9
+				for bf9 = 0 to 1
+					qa9 = xq9
+					qb9 = xq9 + spans[ip]
+					if bf9 = 1 and serType <> "W" then
+						if ip < nSpan then
+							qa9 = xq9 + spans[ip]
+							qb9 = qa9 + spans[ip + 1]
+						else
+							qb9 = xq9
+							qa9 = xq9 - spans[max(1, ip - 1)]
+						endif
+					endif
+					qs9 = 0
+					for ib9 = 1 to nBm
+						if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 and min(qb9, bmS[ib9] + bmL[ib9]) - max(qa9, bmS[ib9]) > 0.001 then qs9 = 1
+					next ib9
+					if qs9 = 0 then qBrace = qBrace + 1
+				next bf9
+			endif
+		next ip
+	endif
+next il
+! 壁つなぎ・階段も範囲の中だけ
+qTie = 0
+for it = 1 to nTiePair
+	if ties[it] >= gxA - 0.001 and ties[it] < gxB - 0.001 and tieH[it] >= gzA - 0.001 and tieH[it] < gzB - 0.001 then qTie = qTie + 1
+next it
+qStair = 0
+for it = 1 to nSt
+	if stS[it] >= gxA - 0.001 and stS[it] < gxB - 0.001 then qStair = qStair + nIn
+next it
+! 支柱だけ分解した足場ライン（explodeMask）は、支柱（枠組は建枠）を分解した部材（ashiba_member）が1本ずつ持つ。
+! 一覧表で二重に数えないよう 0 にする（布材・踏板・手すりなどは足場ラインのまま）
+if explodeMask > 0 then
+	qPostPos = 0
+	qPost = 0
+endif
+parameters qtyPostPos = qPostPos, qtyPost = qPost, qtyNuno = qNuno, qtyDeck = qDeck, \
+	qtyToe = qToe, qtyAdv = qAdv, qtyTie = qTie, qtyBrace = qBrace, qtyStair = qStair

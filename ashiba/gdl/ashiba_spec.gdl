@@ -1,0 +1,223 @@
+﻿! ==========================================================
+! 足場条件（ツールバーが読む入力条件） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_spec/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_spec.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! スラブの近くに置き、設定ダイアログ（基本／高さ・離れ／安全・表示）で条件を入れる。
+! ツールバーはこの部品のパラメータを読み、デスクトップの JSON より優先する。
+! パラメータと入力 JSON の対応は src/ashiba/spec_object.py の FIELDS が正。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   projName      文字列  工事名（図面・帳票の名前）                                                                                                                               既定 "足場計画"
+!   moduleKind    文字列  モジュール metric／inch                                                                                                                                  既定 "metric"
+!   seriesId      文字列  系列（空ならモジュールの既定）                                                                                                                           既定 ""
+!   eavesH        長さ    軒高                                                                                                                                                     既定 15.4
+!   guardExtra    長さ    手すり分（最上層作業床＝軒高＋この値）                                                                                                                   既定 0.9
+!   scaffH        長さ    足場高さを直接指定（0＝軒高から）                                                                                                                        既定 0.0
+!   bldgH         長さ    建物高さ                                                                                                                                                 既定 16.0
+!   scaffW        整数    足場の幅 mm（センチ 600・900・1200、インチ 610・914・1219。0＝配置の始めに選ぶ）                                                                         既定 0
+!   periodDays    整数    設置期間（日）                                                                                                                                           既定 90
+!   soTarget      長さ    離れ 目標                                                                                                                                                既定 0.3
+!   soMin         長さ    離れ 目標下限                                                                                                                                            既定 0.25
+!   soMax         長さ    離れ 目標上限                                                                                                                                            既定 0.35
+!   soHardMin     長さ    離れ 下限（これ未満は採らない）                                                                                                                          既定 0.25
+!   scaffForm     文字列  足場の形式（本足場／ブラケット足場／単管抱き足場）                                                                                                       既定 "本足場"
+!   bracketPost   文字列  ブラケット足場の建地（支柱＝くさび等の支柱／単管＝単管とクランプ式ブラケット）                                                                           既定 "支柱"
+!   railType      文字列  手すり 布材／先行手すり                                                                                                                                  既定 "布材"
+!   innerRail     ブール  躯体側の手すり（布材）                                                                                                                                   既定 1
+!   endGuard      文字列  妻側（足場の端）の墜落防止 布材／ブレス材                                                                                                                既定 "布材"
+!   haneType      文字列  拡張（張り出した上の階）の作り方 方杖（跳ね出し・下の階の壁へ突っ張る）／吊り（跳ね出し・上の階の壁から吊る）／なし（跳ね出さず本体の足場を上まで通す）  既定 "方杖"
+!   tieSource     文字列  壁つなぎの取り方 仕上げ（外壁にアンカー）／鉄骨（梁にビームクランプ）                                                                                    既定 "仕上げ"
+!   toeBoard      ブール  幅木を付ける                                                                                                                                             既定 1
+!   netBrackets   ブール  水平ネットをネットブラケットで受ける                                                                                                                     既定 1
+!   nextGen       ブール  次世代足場                                                                                                                                               既定 0
+!   asagaoStages  整数    朝顔の段数（0＝自動判定）                                                                                                                                既定 0
+!   asagaoFaces   文字列  朝顔を付ける面（空＝付けない・全部＝全部の面。例 南面・東面[3600-9000]）                                                                                 既定 ""
+!   region        文字列  地域（基準風速）                                                                                                                                         既定 "関東(内陸)"
+!   roughness     文字列  地表面粗度区分                                                                                                                                           既定 "III"
+!   sheetType     文字列  養生材                                                                                                                                                   既定 "メッシュシート"
+!   hoardH        長さ    仮囲いの高さ（外部シートの下端。0＝地面から）                                                                                                            既定 3
+!   penList       文字列  図面のペン（パレットの「ペン」で選ぶ。例 post=3,deck=5）                                                                                                 既定 ""
+!   openList      文字列  開口（梁枠）: 面 始点mm 梁枠mm 層 理由 を ; で区切る（パレットの「開口」で線から書く）                                                                   既定 ""
+!   siteName      文字列  現場名（設置届）                                                                                                                                         既定 ""
+!   elevMode      文字列  立面図 section＝断面図→レイアウト／object＝平面の下に2D／none                                                                                            既定 "section"
+!   lineMode3d    ブール  3Dを線で表示                                                                                                                                             既定 0
+!   autoInBrk     ブール  離れ350超に内ブラケットを自動で付ける                                                                                                                    既定 1
+!   hFromSlab     ブール  高さをスラブの天端から自動で（面ごと・セットバック対応）                                                                                                 既定 1
+!   stairLayout   文字列  階段の付け方（足場の中／外付け（上り口・降り口つき）／自動＝幅900以上は足場の中、900未満は外付け）                                                       既定 "自動"
+!   facesOnly     文字列  足場を掛ける面（例 南面,東面。空＝全周）                                                                                                                 既定 ""
+!   faceForms     文字列  面ごとの足場の切り替え（例 南面=ブラケット足場（単管）;東面=単管抱き足場。空＝全部同じ）                                                                 既定 ""
+!   netLevels     文字列  水平ネットを張る層（例 2,5・全部。空＝張らない）                                                                                                         既定 ""
+!   memberEdit1   文字列  部材編集1（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                                                                                 既定 ""
+!   memberEdit2   文字列  部材編集2（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                                                                                 既定 ""
+!   memberEdit3   文字列  部材編集3（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                                                                                 既定 ""
+!   memberEdit4   文字列  部材編集4（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）                                                                                 既定 ""
+!   presetName    文字列  条件の登録名（パレットの「登録」で控え、「呼び出し」で別の建物へ）                                                                                       既定 ""
+! ==========================================================
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 足場条件（ツールバーが読む条件。設定ダイアログで変えて、もう一度ツールバーを実行する）
+! 平面には条件の要約を札のように出す
+! ============================================================
+txH = 2.5 * GLOB_SCALE / 1000
+define style "specT" "ＭＳ Ｐゴシック", 2.5, 1, 0
+set style "specT"
+dim ln[7]
+modTxt = "メートル"
+if moduleKind = "inch" then modTxt = "インチ"
+serTxt = seriesId
+if serTxt = "" then serTxt = "既定"
+hTxt = "軒高 " + str(eavesH * 1000, 1, 0) + "＋" + str(guardExtra * 1000, 1, 0)
+if scaffH > 0.001 then hTxt = "足場高さ " + str(scaffH * 1000, 1, 0)
+ln[1] = "足場条件　" + projName
+ln[2] = "系列 " + serTxt + "（" + modTxt + "）・" + scaffForm + "・" + railType
+ln[3] = hTxt + "・期間 " + str(periodDays, 1, 0) + "日"
+ln[4] = "離れ " + str(soTarget * 1000, 1, 0) + "（" + str(soMin * 1000, 1, 0) + "〜" + str(soMax * 1000, 1, 0) + "、下限 " + str(soHardMin * 1000, 1, 0) + "）"
+ln[5] = region + "・粗度 " + roughness + "・" + sheetType
+ln[6] = "立面 " + elevMode
+ln[7] = "条件は設定ダイアログで変え、ツールバーを再実行"
+nL = 7
+w = 0
+for i = 1 to nL
+	w = max(w, stw(ln[i]) * GLOB_SCALE / 1000)
+next i
+pad = txH * 0.6
+h = nL * txH * 1.6 + pad
+pen 1
+rect2 0, 0, w + 2 * pad, -h
+line2 0, -txH * 1.6 - pad / 2, w + 2 * pad, -txH * 1.6 - pad / 2
+for i = 1 to nL
+	text2 pad, -pad - (i - 0.75) * txH * 1.6, ln[i]
+next i
+hotspot2 0, 0
+hotspot2 w + 2 * pad, -h
+
+! ==========================================================
+! ==== UIスクリプト ====
+! ==========================================================
+! 足場条件の設定ダイアログ（3ページ）
+ui_dialog "仮設足場の条件"
+ui_page 1, -1, "基本"
+ui_outfield "基本", 10, 5, 300, 18
+ui_outfield "工事名", 10, 30, 120, 18
+ui_infield "projName", 140, 28, 300, 20
+ui_outfield "モジュール", 10, 58, 120, 18
+ui_infield "moduleKind", 140, 56, 160, 20
+ui_outfield "足場の種類（空＝既定）", 10, 86, 130, 18
+ui_infield "seriesId", 140, 84, 300, 20
+ui_outfield "足場の形式", 10, 114, 120, 18
+ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "掛ける面（空＝全周）", 10, 205, 130, 18
+ui_infield "facesOnly", 140, 203, 140, 20
+ui_outfield "ブラケットの建地", 290, 205, 90, 18
+ui_infield "bracketPost", 390, 203, 70, 20
+ui_outfield "幅 mm（0＝配置で選ぶ）", 300, 114, 90, 18
+ui_infield "scaffW", 390, 112, 70, 20
+ui_outfield "設置期間（日）", 10, 142, 120, 18
+ui_infield "periodDays", 140, 140, 100, 20
+ui_outfield "現場名（設置届）", 10, 170, 120, 18
+ui_infield "siteName", 140, 168, 300, 20
+ui_outfield "条件の登録名", 310, 142, 80, 18
+ui_infield "presetName", 390, 140, 80, 20
+ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示／部材編集／面の切替）", 10, 232, 420, 18
+ui_page 2, -1, "高さ・離れ"
+ui_outfield "高さ・離れ", 10, 5, 300, 18
+ui_outfield "軒高", 10, 30, 160, 18
+ui_infield "eavesH", 180, 28, 120, 20
+ui_outfield "手すり分", 10, 58, 160, 18
+ui_infield "guardExtra", 180, 56, 120, 20
+ui_outfield "足場高さ（0＝軒高から）", 10, 86, 160, 18
+ui_infield "scaffH", 180, 84, 120, 20
+ui_outfield "建物高さ", 10, 114, 160, 18
+ui_infield "bldgH", 180, 112, 120, 20
+ui_outfield "離れ 目標", 10, 142, 160, 18
+ui_infield "soTarget", 180, 140, 120, 20
+ui_outfield "離れ 目標下限〜上限", 10, 170, 160, 18
+ui_infield "soMin", 180, 168, 80, 20
+ui_infield "soMax", 270, 168, 80, 20
+ui_outfield "離れ 下限（未満は採らない）", 10, 198, 160, 18
+ui_infield "soHardMin", 180, 196, 120, 20
+ui_page 3, -1, "安全・表示"
+ui_outfield "安全・表示", 10, 5, 300, 18
+ui_outfield "手すり", 10, 30, 140, 18
+ui_infield "railType", 160, 28, 160, 20
+ui_outfield "妻側", 330, 30, 40, 18
+ui_infield "endGuard", 372, 28, 110, 20
+ui_outfield "壁つなぎ", 330, 82, 50, 18
+ui_infield "tieSource", 382, 80, 100, 20
+ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "toeBoard", 320, 56, 150, 20
+ui_infield "nextGen", 10, 80, 300, 20
+ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
+ui_infield "asagaoStages", 160, 106, 80, 20
+ui_outfield "付ける面（空＝全部）", 250, 108, 120, 18
+ui_infield "asagaoFaces", 372, 106, 110, 20
+ui_outfield "地域・粗度・養生材", 10, 136, 140, 18
+ui_infield "region", 160, 134, 130, 20
+ui_infield "roughness", 300, 134, 50, 20
+ui_infield "sheetType", 360, 134, 110, 20
+ui_outfield "立面図", 10, 164, 140, 18
+ui_infield "elevMode", 160, 162, 160, 20
+ui_outfield "仮囲いの高さ", 330, 164, 70, 18
+ui_infield "hoardH", 402, 162, 80, 20
+ui_infield "lineMode3d", 10, 190, 300, 20
+ui_infield "autoInBrk", 10, 214, 400, 20
+ui_outfield "水平ネットの層（例 2,5・全部）", 10, 242, 140, 18
+ui_infield "netLevels", 160, 240, 160, 20
+ui_infield "netBrackets", 330, 240, 150, 20
+ui_infield "hFromSlab", 10, 266, 400, 20
+ui_outfield "階段の付け方", 10, 292, 140, 18
+ui_infield "stairLayout", 160, 290, 160, 20
+ui_outfield "図面のペン（パレットの「ペン」）", 10, 318, 140, 18
+ui_infield "penList", 160, 316, 300, 20
+ui_outfield "拡張（張り出した上の階）", 10, 344, 140, 18
+ui_infield "haneType", 160, 342, 160, 20
+ui_outfield "開口（梁枠）", 10, 344, 140, 18
+ui_infield "openList", 160, 342, 300, 20
+ui_page 4, -1, "部材編集"
+ui_outfield "部材編集（範囲を指定して外す・置き換える）", 10, 5, 400, 18
+ui_outfield "1件ずつ「面 スパン 層 部材」を ; で区切る。層を省くと全部の層", 10, 28, 460, 18
+ui_outfield "部材: 踏板（外側踏板・内側踏板）・外側手すり・幅木・筋かい・内側手すり（→品番で置換、#の後は理由）", 10, 48, 460, 18
+ui_outfield "例: 南面 2-3 2-3 踏板・幅木 #搬入口;  東面 1 全部 手すり→NDT09S", 10, 68, 460, 18
+ui_infield "memberEdit1", 10, 96, 460, 20
+ui_infield "memberEdit2", 10, 124, 460, 20
+ui_infield "memberEdit3", 10, 152, 460, 20
+ui_infield "memberEdit4", 10, 180, 460, 20
+ui_outfield "スパンは面の始点から 1,2,…、層は作業床の 1層目（最下段）から。ツールバーを実行し直すと効きます", 10, 210, 460, 18
+ui_page 5, -1, "面の切替"
+ui_outfield "面ごとの足場の切り替え（面やブロックを違う足場にする）", 10, 5, 460, 18
+ui_outfield "「面=種類」を ; で区切る。種類: 本足場・一側足場・ブラケット足場（支柱）・ブラケット足場（単管）・", 10, 28, 460, 18
+ui_outfield "単管抱き足場・単管本足場・枠組足場", 10, 48, 460, 18
+ui_outfield "例: 南面=ブラケット足場（単管）;東面=単管抱き足場", 10, 68, 460, 18
+ui_infield "faceForms", 10, 96, 460, 20
+ui_outfield "足場を選んでパレットの「面の切替」でも書けます。ツールバーの「配置」を実行し直すと効きます", 10, 126, 460, 18
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+values "moduleKind" "metric", "inch"
+values "seriesId" "", "日建 NDシステム1800（くさび）", "日建 NDシステム1900（くさび）", "日建 NDシステム ストロング（くさび・高耐力）", "日建 ミレニューム（くさび・次世代）", "日建 枠組（建枠）", "スギコ アルバトロス（くさび・先行手摺ブレス）", "信和 Aタイプ（くさび・メートル）", "信和 Bタイプ（くさび・メートル）", "単管・クランプ（単管ブラケット足場・単管抱き足場）", custom
+values "scaffForm" "本足場", "ブラケット足場", "単管抱き足場", "一側足場"
+values "bracketPost" "支柱", "単管"
+values "scaffW" 0, 600, 610, 900, 914, 1200, 1219
+values "railType" "布材", "先行手すり"
+values "endGuard" "布材", "ブレス材"
+values "tieSource" "仕上げ", "鉄骨"
+values "haneType" "方杖", "吊り", "なし"
+values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
+values "roughness" "I", "II", "III", "IV"
+values "sheetType" "なし", "メッシュシート", "防音シート", "密閉シート", "防音パネル"
+values "elevMode" "section", "each", "object", "none"
+values "periodDays" range [1, ]
+values "asagaoStages" range [0, 3]
+values "stairLayout" "自動", "外付け", "足場の中"
+

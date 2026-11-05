@@ -1,0 +1,372 @@
+﻿! ============================================================
+! 足場ライン パラメータスクリプト
+! 平面のホットスポットで xEdit（支柱位置）を引いたときだけ動く。マスタースクリプトが
+! 解いた spans[]・規格寸法 szL[] を使って吸着し、spanList と xEdit を書き戻す。
+! GLOB_MODPAR_NAME はパラメータスクリプトで確実に取れる（マスターでは効かなかった）
+! ============================================================
+if GLOB_MODPAR_NAME <> "" then
+	parameters lastMod = "VL:" + GLOB_MODPAR_NAME + "|" + str(vardim1(xEdit), 1, 0) + "|" + str(nSpan, 1, 0)
+endif
+if editSpan and GLOB_MODPAR_NAME = "xEdit" and vardim1(xEdit) = nSpan + 1 and nSz > 0 then
+	! 動かした境界 i を1つだけ探す（同時に動くのは1点）
+	iMv = 0
+	xo = 0
+	for i = 2 to nSpan
+		xo = xo + spans[i - 1]
+		if abs(xEdit[i] - xo) > 0.0005 and iMv = 0 then
+			iMv = i
+			xMv = xo
+		endif
+	next i
+	if iMv > 0 then
+		i = iMv
+		pair = spans[i - 1] + spans[i]
+		want = xEdit[i] - (xMv - spans[i - 1])
+		! 1) 隣の境界まで引いた（残り < 最小規格の半分）: 2本を1本に結合。合計が規格寸法のときだけ
+		!    （900+900→1800、1200+600→1800。1800+900 は 2700 で規格に無いので結合しない）
+		okPair = 0
+		for k = 1 to nSz
+			if abs(pair - szL[k]) < 0.0005 then okPair = 1
+		next k
+		if (want < szMin / 2 or want > pair - szMin / 2) and okPair and nSpan >= 2 then
+			spans[i - 1] = pair
+			for j = i to nSpan - 1
+				spans[j] = spans[j + 1]
+			next j
+			nSpan = nSpan - 1
+		else
+			! 2) 前のスパンを規格寸法に吸着。残りが規格寸法ならそのまま、違えば規格2本に
+			!    分けて1本挿入する（1800+1800 の境界を 1500 へ引くと 1500+1500+600）。
+			!    どちらもできなければ動かさない（規格外を残すと Python の入力検証で止まる）
+			best = 0
+			bd = 1e9
+			for k = 1 to nSz
+				rem = pair - szL[k]
+				okRest = 0
+				if abs(rem) < 0.0005 then okRest = 0
+				for k2 = 1 to nSz
+					if abs(rem - szL[k2]) < 0.0005 then okRest = 1
+					for k3 = 1 to nSz
+						if abs(rem - szL[k2] - szL[k3]) < 0.0005 then okRest = 1
+					next k3
+				next k2
+				if okRest and abs(szL[k] - want) < bd then
+					bd = abs(szL[k] - want)
+					best = szL[k]
+				endif
+			next k
+			if best > 0 and abs(best - spans[i - 1]) > 0.0005 then
+				rem = pair - best
+				remOk = 0
+				for k2 = 1 to nSz
+					if abs(rem - szL[k2]) < 0.0005 then remOk = 1
+				next k2
+				spans[i - 1] = best
+				if remOk then
+					spans[i] = rem
+				else
+					if nSpan < 60 then
+						! 残りを「大きい方＋小さい方」の規格2本に（szL は降順で渡される）
+						ra = 0
+						rb = 0
+						for k2 = 1 to nSz
+							for k3 = k2 to nSz
+								if ra = 0 and abs(rem - szL[k2] - szL[k3]) < 0.0005 then
+									ra = szL[k2]
+									rb = szL[k3]
+								endif
+							next k3
+						next k2
+						for j = nSpan + 1 to i + 2 step -1
+							spans[j] = spans[j - 1]
+						next j
+						spans[i] = ra
+						spans[i + 1] = rb
+						nSpan = nSpan + 1
+					else
+						spans[i - 1] = pair - spans[i]
+					endif
+				endif
+			endif
+		endif
+	endif
+	! spanList を書き戻す（255文字の制限があるので 40 本ごとに spanList2 へ）
+	sl1 = ""
+	sl2 = ""
+	for i = 1 to nSpan
+		item = str(spans[i] * 1000, 1, 0)
+		if i <= 40 then
+			if sl1 = "" then sl1 = item else sl1 = sl1 + "," + item
+		else
+			if sl2 = "" then sl2 = item else sl2 = sl2 + "," + item
+		endif
+	next i
+	parameters spanList = sl1, spanList2 = sl2
+endif
+! xEdit をスパンから作り直す（引いたときは吸着後の spans、それ以外は spanList が正）。
+! マスタースクリプトでやると要素数の変わる配列の書き戻しで 2D・3D が描けなくなるので、ここで行う
+if editSpan then
+	dim xe[]
+	xe[1] = 0
+	for i = 1 to nSpan
+		xe[i + 1] = xe[i] + spans[i]
+	next i
+	if vardim1(xEdit) <> nSpan + 1 or GLOB_MODPAR_NAME = "xEdit" or GLOB_MODPAR_NAME = "spanList" or GLOB_MODPAR_NAME = "spanList2" then
+		parameters xEdit = xe
+	endif
+endif
+
+! ---- 階段室の位置（平面の建地列の中央のホットスポットで引く） ----
+! 引いた先にいちばん近いスパン境界へ吸着し、同じスパン数で長さを取り直して stairList を
+! 書き戻す（階段室は支柱間に納める）。Python は stairList を読み戻して stairs.positions にする。
+! Python は配置時に stairList と stEdit をそろえて送るので、両者が食い違えば「引かれた」とみなす
+! （API で値を変えたときは GLOB_MODPAR_NAME が stEdit にならないため、名前では判断しない）
+if editSpan and nSt > 0 then
+	stDiff = 0
+	if vardim1(stEdit) = nSt then
+		for it = 1 to nSt
+			if abs(stEdit[it] - stS[it]) > 0.001 then stDiff = 1
+		next it
+	endif
+	if stDiff and GLOB_MODPAR_NAME <> "stairList" then
+		sl = ""
+		for it = 1 to nSt
+			! 今の階段室が覆うスパン数
+			cnt = 0
+			xb = 0
+			for ib = 1 to nSpan
+				if xb >= stS[it] - 0.001 and xb + spans[ib] <= stS[it] + stL[it] + 0.001 then cnt = cnt + 1
+				xb = xb + spans[ib]
+			next ib
+			if cnt < 1 then cnt = 1
+			! 引いた先にいちばん近い境界（cnt スパンが面に収まるもの）
+			best = stS[it]
+			bl = stL[it]
+			bd = 1e9
+			xb = 0
+			for ib = 1 to nSpan - cnt + 1
+				lnSt = 0
+				for j = ib to ib + cnt - 1
+					lnSt = lnSt + spans[j]
+				next j
+				if abs(xb - stEdit[it]) < bd then
+					bd = abs(xb - stEdit[it])
+					best = xb
+					bl = lnSt
+				endif
+				xb = xb + spans[ib]
+			next ib
+			stS[it] = best
+			stL[it] = bl
+			item = str(best * 1000, 1, 0) + "," + str(bl * 1000, 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next it
+		parameters stairList = sl
+	endif
+	dim se[]
+	for it = 1 to nSt
+		se[it] = stS[it]
+	next it
+	! 吸着した位置・stairList の手入力・要素数の違いのときは stairList から作り直す
+	if vardim1(stEdit) <> nSt or stDiff then
+		parameters stEdit = se
+	endif
+endif
+
+! ---- 荷受けステージの位置（張り出し床の中央のホットスポットで引く） ----
+! 階段室と同じく、引いた先にいちばん近いスパン境界へ吸着して同じスパン数で長さを取り直す。
+! 複数の層に置いたステージは stageList に層ごとの組が並ぶので、同じ開始位置の組をまとめて動かす
+if editSpan and nSg > 0 then
+	sgDiff = 0
+	if vardim1(sgEdit) = nSg then
+		for ig = 1 to nSg
+			if abs(sgEdit[ig] - sgS[ig]) > 0.001 then sgDiff = 1
+		next ig
+	endif
+	if sgDiff and GLOB_MODPAR_NAME <> "stageList" then
+		dim sgO[]
+		for ig = 1 to nSg
+			sgO[ig] = sgS[ig]
+		next ig
+		for ig = 1 to nSg
+			if abs(sgEdit[ig] - sgO[ig]) > 0.001 then
+				cnt = 0
+				xb = 0
+				for ib = 1 to nSpan
+					if xb >= sgO[ig] - 0.001 and xb + spans[ib] <= sgO[ig] + sgL[ig] + 0.001 then cnt = cnt + 1
+					xb = xb + spans[ib]
+				next ib
+				if cnt < 1 then cnt = 1
+				best = sgO[ig]
+				bl = sgL[ig]
+				bd = 1e9
+				xb = 0
+				for ib = 1 to nSpan - cnt + 1
+					lnSg = 0
+					for j = ib to ib + cnt - 1
+						lnSg = lnSg + spans[j]
+					next j
+					if abs(xb - sgEdit[ig]) < bd then
+						bd = abs(xb - sgEdit[ig])
+						best = xb
+						bl = lnSg
+					endif
+					xb = xb + spans[ib]
+				next ib
+				for jg = 1 to nSg
+					if abs(sgO[jg] - sgO[ig]) < 0.001 then
+						sgS[jg] = best
+						sgL[jg] = bl
+					endif
+				next jg
+			endif
+		next ig
+		sl = ""
+		for ig = 1 to nSg
+			item = str(sgS[ig] * 1000, 1, 0) + "," + str(sgL[ig] * 1000, 1, 0) + "," + str(sgP[ig] * 1000, 1, 0) + "," + str(sgH[ig] * 1000, 1, 0) + "," + str(sgZ[ig] + 2 * sgF[ig] + 4 * sgK[ig], 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next ig
+		parameters stageList = sl
+	endif
+	dim sge[]
+	for ig = 1 to nSg
+		sge[ig] = sgS[ig]
+	next ig
+	if vardim1(sgEdit) <> nSg or sgDiff then
+		parameters sgEdit = sge
+	endif
+endif
+
+! ---- 昇降機の位置（搬器の中央のホットスポットで引く） ----
+! 昇降機のマストは足場の外に立つので支柱位置には吸着しない（50mm 単位に丸め、面の範囲に収める）。
+! 乗り込み口（landingList）は昇降機の位置にあるので一緒に動かす
+if editSpan and nHo > 0 then
+	hoDiff = 0
+	if vardim1(hoEdit) = nHo then
+		for ih = 1 to nHo
+			if abs(hoEdit[ih] - hoP[ih]) > 0.001 then hoDiff = 1
+		next ih
+	endif
+	if hoDiff and GLOB_MODPAR_NAME <> "hoistList" then
+		for ih = 1 to nHo
+			if abs(hoEdit[ih] - hoP[ih]) > 0.001 then
+				hNew = int(hoEdit[ih] / 0.05 + 0.5) * 0.05
+				if hNew < 0 then hNew = 0
+				if hNew > lineLen then hNew = lineLen
+				for il = 1 to nLa
+					if abs(laP[il] - hoP[ih]) < 0.001 then laP[il] = hNew
+				next il
+				hoP[ih] = hNew
+			endif
+		next ih
+		sl = ""
+		for ih = 1 to nHo
+			item = str(hoP[ih] * 1000, 1, 0) + "," + str(hoR[ih] * 1000, 1, 0) + "," + str(hoW[ih] * 1000, 1, 0) + "," + str(hoD[ih] * 1000, 1, 0) + "," + str(hoTp[ih] * 1000, 1, 0)
+			if sl = "" then sl = item else sl = sl + "," + item
+		next ih
+		sl2 = ""
+		for il = 1 to nLa
+			item = str(laP[il] * 1000, 1, 0) + "," + str(laH[il] * 1000, 1, 0)
+			if sl2 = "" then sl2 = item else sl2 = sl2 + "," + item
+		next il
+		parameters hoistList = sl, landingList = sl2
+	endif
+	dim hoe[]
+	for ih = 1 to nHo
+		hoe[ih] = hoP[ih]
+	next ih
+	if vardim1(hoEdit) <> nHo or hoDiff then
+		parameters hoEdit = hoe
+	endif
+endif
+
+
+! ---- 足場の高さ（3D の天端のホットスポットで引く） ----
+! 引いた量を作業層（階高 floorH）の単位に丸め、上に層を足す／上から層を外す。支柱は上に
+! 2層ぶん（2×階高）と1層ぶん（階高）を積み足すか、上から外して端数を1本で埋める。
+! この面だけの暫定の形で、正式な構成（ジャッキ・壁つなぎ・数量）はパレットの「解き直し」が
+! levelList を読み戻して解き直す。Python は配置時に topEdit＝ジャッキ＋支柱の合計を送る
+if editSpan and serType <> "W" and nLevIn > 0 then
+	if topEdit < 0.01 then
+		parameters topEdit = postTop
+	else
+		if abs(topEdit - postTop) > 0.001 and GLOB_MODPAR_NAME <> "postList" and GLOB_MODPAR_NAME <> "levelList" then
+			nStep = round_int((topEdit - postTop) / floorH)
+			if nLevels + nStep < 1 then nStep = 1 - nLevels
+			if nLevels + nStep > 39 then nStep = 39 - nLevels
+			if nStep = 0 then
+				parameters topEdit = postTop
+			else
+				dim pp[]
+				np = nPost
+				for j = 1 to nPost
+					pp[j] = posts[j]
+				next j
+				if nStep > 0 then
+					k = nStep
+					while k >= 2 do
+						np = np + 1
+						pp[np] = 2 * floorH
+						k = k - 2
+					endwhile
+					if k = 1 then
+						np = np + 1
+						pp[np] = floorH
+					endif
+				else
+					rr = -nStep * floorH
+					popped = 0
+					while popped < rr - 0.0005 and np > 1 do
+						popped = popped + pp[np]
+						np = np - 1
+					endwhile
+					if popped - rr > 0.0005 then
+						np = np + 1
+						pp[np] = popped - rr
+					endif
+				endif
+				pl = ""
+				newTop = jackOut
+				for j = 1 to np
+					newTop = newTop + pp[j]
+					item = str(pp[j] * 1000, 1, 0)
+					if pl = "" then pl = item else pl = pl + "," + item
+				next j
+				nNew = nLevels + nStep
+				ll = ""
+				for il = 1 to nNew
+					if il <= nLevels then
+						hv = levIn[il]
+					else
+						hv = levIn[nLevels] + (il - nLevels) * floorH
+					endif
+					item = str(hv * 1000, 1, 0)
+					if ll = "" then ll = item else ll = ll + "," + item
+				next il
+				parameters postList = pl, levelList = ll, topEdit = newTop
+			endif
+		endif
+	endif
+endif
+! ---- 区切る位置（3D のつまみで引く。利用者の指定 2026-10-21「クリックした次のところから区切る、3Dで」） ----
+! 引いた位置の次の区切り目に吸着する。縦は支柱の芯（部品の始点 pxA から測る）、横は作業床の 100 下
+! （部品の下端から測る）。区切り目が無ければ 0（区切らない）。区切るのはパレットの「区切る」
+if GLOB_MODPAR_NAME = "cutAtX" and cutAtX > 0.0005 then
+	cxSnap = 0
+	xq = 0
+	for i = 1 to sB - 1
+		xq = xq + spans[i]
+		if i >= sA and cxSnap = 0 and xq >= pxA + cutAtX - 0.001 then cxSnap = xq - pxA
+	next i
+	parameters cutAtX = cxSnap
+endif
+if GLOB_MODPAR_NAME = "cutAtZ" and cutAtZ > 0.0005 then
+	zBase = 0
+	if lA > 1 then zBase = gzA
+	czSnap = 0
+	for k = lA + 1 to lB
+		zc = lv[k + 1] - 0.1
+		if czSnap = 0 and zc >= zBase + cutAtZ - 0.001 then czSnap = zc - zBase
+	next k
+	parameters cutAtZ = czSnap
+endif

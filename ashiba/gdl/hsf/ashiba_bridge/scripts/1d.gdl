@@ -1,0 +1,35 @@
+﻿! 屋上への渡り（足場の部材で組む。roof_bridges）。1箇所に1部品
+! 床材の幅（mm→m）
+dim dW[20]
+nD = 0
+rest = deckList
+while strlen(rest) > 0 and nD < 20 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nD = nD + 1
+		dW[nD] = v / 1000
+	endif
+endwhile
+isTube = 0
+if brKind >= 2 then isTube = 1
+onPost = 0
+if brKind = 0 or brKind = 2 then onPost = 1
+! 足場側の踏み台・屋上側の踏段（けあげ 230 以下・踏面 250）
+upH = zDeck - zFrom
+nUp = 0
+if upH > 0.03 then nUp = int(upH / 0.23 - 0.001) + 1
+dnH = 0
+if onPost = 1 then dnH = zDeck - zTo
+nDn = 0
+if dnH > 0.03 then nDn = int(dnH / 0.23 - 0.001) + 1
+tread = 0.25
+yUp = -max(0, nUp - 1) * tread
+yDn = brL + max(0, nDn - 1) * tread

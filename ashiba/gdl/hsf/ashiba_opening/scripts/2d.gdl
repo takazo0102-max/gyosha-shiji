@@ -1,0 +1,151 @@
+﻿! 開口養生 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 開口は×の印。蓋は外形を太線で白く塗り、蓋の下の開口と×は隠れ線。
+! 手すり・幅木で囲う開口と床の縁は、手すりを太線・幅木と支柱を細線。注記の後ろは背景の色で塗る。縮尺で 詳細（1/100: 支柱まで）・
+! 標準（1/200）・簡略（外形と×と名前だけ）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "opT" "ＭＳ Ｐゴシック", texSiz, 5, 0
+style "opT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+tx = ""
+if kd <= 3 then
+	! 蓋（掛かり lap。上にあるので下の線を隠す）
+	if mk then
+		drawindex 20
+		fill fiS
+		poly2_b 5, 6, pM, pM,
+			-lap, -lap, 1,
+			opW + lap, -lap, 1,
+			opW + lap, opD + lap, 1,
+			-lap, opD + lap, 1,
+			-lap, -lap, -1
+	endif
+	drawindex 30
+	pen pO
+	rect2 -lap, -lap, opW + lap, opD + lap
+	! 蓋の下の開口の内法と×（隠れ線）
+	drawindex 40
+	pen pT
+	line_type ltH
+	rect2 0, 0, opW, opD
+	line2 0, 0, opW, opD
+	line2 0, opD, opW, 0
+	line_type ltS
+	tx = "蓋 12mm"
+	if kd = 3 then tx = "蓋 24mm"
+endif
+if kd = 4 then
+	drawindex 30
+	pen pT
+	rect2 0, 0, opW, opD
+	line2 0, 0, opW, opD
+	line2 0, opD, opW, 0
+	! 手すり（太線）と幅木（細線）
+	pen pO
+	rect2 rx0, ry0, rx1, ry1
+	if drLv < 3 then
+		pen pT
+		rect2 rx0 + 0.05, ry0 + 0.05, rx1 - 0.05, ry1 - 0.05
+	endif
+	if drLv = 1 then
+		for sd = 1 to 4
+			sL = rx1 - rx0
+			if sd > 2 then sL = ry1 - ry0
+			nP = max(1, ceil(sL / pSp - 0.0001))
+			for i = 0 to nP
+				px = rx0 + sL * i / nP
+				py = ry0
+				if sd = 2 then py = ry1
+				if sd > 2 then
+					px = rx0
+					if sd = 4 then px = rx1
+					py = ry0 + sL * i / nP
+				endif
+				circle2 px, py, 0.03
+			next i
+		next sd
+	endif
+	tx = "手すり・幅木"
+	if netOn then tx = "手すり・幅木・ネット"
+endif
+if kd = 5 then
+	drawindex 30
+	pen pO
+	line2 0, eY, opW, eY
+	if drLv < 3 then
+		pen pT
+		line2 0, eY + eSd * 0.05, opW, eY + eSd * 0.05
+	endif
+	if drLv = 1 then
+		nP = max(1, ceil(opW / pSp - 0.0001))
+		for i = 0 to nP
+			circle2 opW * i / nP, eY, 0.03
+		next i
+	endif
+	tx = "床の縁 手すり"
+endif
+! 注記（後ろを背景の色で塗る。簡略は名前だけ）
+pen penEquip
+t1 = opName
+if drLv < 3 then t1 = opName + " " + tx
+nTL = 1 + (kd <= 4 and drLv < 3)
+tW = max(STW(t1), STW("開口注意") * (nTL > 1)) / 1000 * GLOB_SCALE / 2 + 0.05
+tH = dT * (nTL / 2 + 0.1)
+cs = abs(cos(SYMB_ROTANGLE))
+sn = abs(sin(SYMB_ROTANGLE))
+if kd = 5 then
+	add2 opW / 2, eY + eSd * (0.3 + dT)
+else
+	! 開口の中に収まらなければ（小さな開口・小さな縮尺）右の外に書く（白塗りで蓋・手すりの線を消さない）
+	xR = opW + lap
+	if kd = 4 then xR = max(opW, rx1)
+	if 2 * tW * cs + 2 * tH * sn < opW * 0.8 and 2 * tW * sn + 2 * tH * cs < opD * 0.8 then
+		add2 opW / 2, opD / 2
+	else
+		add2 xR + 0.2 + tW * cs + tH * sn, opD / 2
+	endif
+endif
+rot2 -SYMB_ROTANGLE
+if mk then
+	drawindex 45
+	fill fiS
+	poly2_b 5, 6, pM, pM, -tW, -tH, 1, tW, -tH, 1, tW, tH, 1, -tW, tH, 1, -tW, -tH, -1
+endif
+drawindex 50
+if nTL > 1 then
+	text2 0, dT / 2, t1
+	text2 0, -dT / 2, "開口注意"
+else
+	text2 0, 0, t1
+endif
+del 2
+hotspot2 0, 0
+hotspot2 opW, 0
+hotspot2 opW, opD
+hotspot2 0, opD

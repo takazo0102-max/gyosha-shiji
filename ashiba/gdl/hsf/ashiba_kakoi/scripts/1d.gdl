@@ -1,0 +1,233 @@
+﻿! 仮囲い: 支柱・地盤・横地・パネルの範囲・ゲート・控え・角を読む（m）
+dim px[]
+nP = 0
+rest = postX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nP = nP + 1
+		px[nP] = v / 1000
+	endif
+endwhile
+dim pz[]
+nZ = 0
+rest = postZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nZ = nZ + 1
+		pz[nZ] = v / 1000
+	endif
+endwhile
+dim rz[]
+nR = 0
+rest = railZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nR = nR + 1
+		rz[nR] = v / 1000
+	endif
+endwhile
+dim ru[]
+nRu = 0
+rest = runX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nRu = nRu + 1
+		ru[nRu] = v / 1000
+	endif
+endwhile
+dim gx[]
+nGx = 0
+rest = gateX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nGx = nGx + 1
+		gx[nGx] = v / 1000
+	endif
+endwhile
+dim gk[]
+nGk = 0
+rest = gateK
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nGk = nGk + 1
+		gk[nGk] = v / 1000
+	endif
+endwhile
+dim gn[]
+nGn = 0
+rest = gateN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nGn = nGn + 1
+		gn[nGn] = v / 1000
+	endif
+endwhile
+dim bq[]
+nBq = 0
+rest = brX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBq = nBq + 1
+		bq[nBq] = v / 1000
+	endif
+endwhile
+dim kc[]
+nKc = 0
+rest = kkCor
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nKc = nKc + 1
+		kc[nKc] = v / 1000
+	endif
+endwhile
+dim hb[]
+nHb = 0
+rest = hbX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nHb = nHb + 1
+		hb[nHb] = v / 1000
+	endif
+endwhile
+dim wt[]
+nWt = 0
+rest = wtN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nWt = nWt + 1
+		wt[nWt] = v / 1000
+	endif
+endwhile
+for i = nZ + 1 to nP
+	pz[i] = 0
+next i
+for i = 1 to nGk
+	gk[i] = round_int(gk[i] * 1000)
+next i
+for i = 1 to nGn
+	gn[i] = round_int(gn[i] * 1000)
+next i
+cS = 0
+cE = 0
+if nKc >= 2 then
+	cS = round_int(kc[1] * 1000)
+	cE = round_int(kc[2] * 1000)
+endif
+r = 0.0243
+ro = 0.0486
+! パネルの裏（支柱の芯から外へ）: 安全鋼板は横地の外面＋フック、フラット・防音は縁の折り返し 28
+po = 0.0749
+if kkType = 2 or kkType = 3 then po = 0.1009
+pt = 0.0012
+if kkType = 3 then pt = 0.025
+! 山留めから取るときは横地が親杭の外のフランジに付く
+if kkFound = 5 then
+	po = po + pileW / 2 + r - ro
+	ro = pileW / 2 + r
+endif
+wtF = 0
+wtR = 0
+if nWt >= 2 then
+	wtF = round_int(wt[1] * 1000)
+	wtR = round_int(wt[2] * 1000)
+endif
+kkTop = lift + pnH

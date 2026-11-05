@@ -1,0 +1,96 @@
+﻿! 足場条件の設定ダイアログ（3ページ）
+ui_dialog "仮設足場の条件"
+ui_page 1, -1, "基本"
+ui_outfield "基本", 10, 5, 300, 18
+ui_outfield "工事名", 10, 30, 120, 18
+ui_infield "projName", 140, 28, 300, 20
+ui_outfield "モジュール", 10, 58, 120, 18
+ui_infield "moduleKind", 140, 56, 160, 20
+ui_outfield "足場の種類（空＝既定）", 10, 86, 130, 18
+ui_infield "seriesId", 140, 84, 300, 20
+ui_outfield "足場の形式", 10, 114, 120, 18
+ui_infield "scaffForm", 140, 112, 160, 20
+ui_outfield "掛ける面（空＝全周）", 10, 205, 130, 18
+ui_infield "facesOnly", 140, 203, 140, 20
+ui_outfield "ブラケットの建地", 290, 205, 90, 18
+ui_infield "bracketPost", 390, 203, 70, 20
+ui_outfield "幅 mm（0＝配置で選ぶ）", 300, 114, 90, 18
+ui_infield "scaffW", 390, 112, 70, 20
+ui_outfield "設置期間（日）", 10, 142, 120, 18
+ui_infield "periodDays", 140, 140, 100, 20
+ui_outfield "現場名（設置届）", 10, 170, 120, 18
+ui_infield "siteName", 140, 168, 300, 20
+ui_outfield "条件の登録名", 310, 142, 80, 18
+ui_infield "presetName", 390, 140, 80, 20
+ui_outfield "ページは上の ◀ ▶ で切り替え（基本／高さ・離れ／安全・表示／部材編集／面の切替）", 10, 232, 420, 18
+ui_page 2, -1, "高さ・離れ"
+ui_outfield "高さ・離れ", 10, 5, 300, 18
+ui_outfield "軒高", 10, 30, 160, 18
+ui_infield "eavesH", 180, 28, 120, 20
+ui_outfield "手すり分", 10, 58, 160, 18
+ui_infield "guardExtra", 180, 56, 120, 20
+ui_outfield "足場高さ（0＝軒高から）", 10, 86, 160, 18
+ui_infield "scaffH", 180, 84, 120, 20
+ui_outfield "建物高さ", 10, 114, 160, 18
+ui_infield "bldgH", 180, 112, 120, 20
+ui_outfield "離れ 目標", 10, 142, 160, 18
+ui_infield "soTarget", 180, 140, 120, 20
+ui_outfield "離れ 目標下限〜上限", 10, 170, 160, 18
+ui_infield "soMin", 180, 168, 80, 20
+ui_infield "soMax", 270, 168, 80, 20
+ui_outfield "離れ 下限（未満は採らない）", 10, 198, 160, 18
+ui_infield "soHardMin", 180, 196, 120, 20
+ui_page 3, -1, "安全・表示"
+ui_outfield "安全・表示", 10, 5, 300, 18
+ui_outfield "手すり", 10, 30, 140, 18
+ui_infield "railType", 160, 28, 160, 20
+ui_outfield "妻側", 330, 30, 40, 18
+ui_infield "endGuard", 372, 28, 110, 20
+ui_outfield "壁つなぎ", 330, 82, 50, 18
+ui_infield "tieSource", 382, 80, 100, 20
+ui_infield "innerRail", 10, 56, 300, 20
+ui_infield "toeBoard", 320, 56, 150, 20
+ui_infield "nextGen", 10, 80, 300, 20
+ui_outfield "朝顔の段数（0＝自動）", 10, 108, 140, 18
+ui_infield "asagaoStages", 160, 106, 80, 20
+ui_outfield "付ける面（空＝全部）", 250, 108, 120, 18
+ui_infield "asagaoFaces", 372, 106, 110, 20
+ui_outfield "地域・粗度・養生材", 10, 136, 140, 18
+ui_infield "region", 160, 134, 130, 20
+ui_infield "roughness", 300, 134, 50, 20
+ui_infield "sheetType", 360, 134, 110, 20
+ui_outfield "立面図", 10, 164, 140, 18
+ui_infield "elevMode", 160, 162, 160, 20
+ui_outfield "仮囲いの高さ", 330, 164, 70, 18
+ui_infield "hoardH", 402, 162, 80, 20
+ui_infield "lineMode3d", 10, 190, 300, 20
+ui_infield "autoInBrk", 10, 214, 400, 20
+ui_outfield "水平ネットの層（例 2,5・全部）", 10, 242, 140, 18
+ui_infield "netLevels", 160, 240, 160, 20
+ui_infield "netBrackets", 330, 240, 150, 20
+ui_infield "hFromSlab", 10, 266, 400, 20
+ui_outfield "階段の付け方", 10, 292, 140, 18
+ui_infield "stairLayout", 160, 290, 160, 20
+ui_outfield "図面のペン（パレットの「ペン」）", 10, 318, 140, 18
+ui_infield "penList", 160, 316, 300, 20
+ui_outfield "拡張（張り出した上の階）", 10, 344, 140, 18
+ui_infield "haneType", 160, 342, 160, 20
+ui_outfield "開口（梁枠）", 10, 344, 140, 18
+ui_infield "openList", 160, 342, 300, 20
+ui_page 4, -1, "部材編集"
+ui_outfield "部材編集（範囲を指定して外す・置き換える）", 10, 5, 400, 18
+ui_outfield "1件ずつ「面 スパン 層 部材」を ; で区切る。層を省くと全部の層", 10, 28, 460, 18
+ui_outfield "部材: 踏板（外側踏板・内側踏板）・外側手すり・幅木・筋かい・内側手すり（→品番で置換、#の後は理由）", 10, 48, 460, 18
+ui_outfield "例: 南面 2-3 2-3 踏板・幅木 #搬入口;  東面 1 全部 手すり→NDT09S", 10, 68, 460, 18
+ui_infield "memberEdit1", 10, 96, 460, 20
+ui_infield "memberEdit2", 10, 124, 460, 20
+ui_infield "memberEdit3", 10, 152, 460, 20
+ui_infield "memberEdit4", 10, 180, 460, 20
+ui_outfield "スパンは面の始点から 1,2,…、層は作業床の 1層目（最下段）から。ツールバーを実行し直すと効きます", 10, 210, 460, 18
+ui_page 5, -1, "面の切替"
+ui_outfield "面ごとの足場の切り替え（面やブロックを違う足場にする）", 10, 5, 460, 18
+ui_outfield "「面=種類」を ; で区切る。種類: 本足場・一側足場・ブラケット足場（支柱）・ブラケット足場（単管）・", 10, 28, 460, 18
+ui_outfield "単管抱き足場・単管本足場・枠組足場", 10, 48, 460, 18
+ui_outfield "例: 南面=ブラケット足場（単管）;東面=単管抱き足場", 10, 68, 460, 18
+ui_infield "faceForms", 10, 96, 460, 20
+ui_outfield "足場を選んでパレットの「面の切替」でも書けます。ツールバーの「配置」を実行し直すと効きます", 10, 126, 460, 18

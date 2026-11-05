@@ -1,0 +1,14 @@
+﻿! 場内通路 3D: 通路の面（敷鉄板の下に薄く）
+define material "rt_road" 2, 0.55, 0.53, 0.50
+material "rt_road"
+if kE > 2 then
+	for i = 1 to kE
+		put qex[i], qey[i]
+	next i
+	add 0, 0, -0.006
+	prism kE, 0.004, get(kE * 2)
+	del 1
+endif
+for i = 1 to kC
+	hotspot qcx[i], qcy[i], 0
+next i

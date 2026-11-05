@@ -1,0 +1,770 @@
+"""設置届一式（様式第20号 下書き＋構造計算書＋数量表）のExcel出力.
+
+届出要件（安衛法88条）: 高さ10m以上かつ設置期間60日以上 →
+工事開始30日前までに所轄労働基準監督署へ。
+添付図書: 案内図・工程表・平面図・立面図・詳細図・部材等明細書・構造計算書。
+
+様式第20号は「計画の概要（種類・長さ・高さ・期間）」を自動記入し、
+事業場情報・参画者など人が書く欄は空欄＋【記入】マーカーで残す。
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+from .law_check import WARN, CheckResult
+from .model import ScaffoldModel
+from .model import ASAGAO_KIND_SAFE_WING
+from .quantity import QuantityResult
+from .structural import StructuralResult
+from .xlsx_writer import (
+    STYLE_BOLD,
+    STYLE_BORDER,
+    STYLE_HEADER,
+    Cell,
+    Workbook,
+)
+
+FILL_IN = "【記入】"
+
+DISCLAIMER = (
+    "本書は計画作成参画者（有資格者）が確認・修正する前提の下書きです。"
+    "部材形状はカタログ寸法からの再現であり、耐力値は data/capacity.csv の設定値です。"
+    "提出前に必ず有資格者の確認を受けてください。"
+)
+
+# 計算書の各シートの冒頭に置く一文と、末尾の確認欄（Phase 12-2）。ツールは確認欄を埋めない。
+# 総合判定が「成立」でも、確認欄に署名が入るまでは下書き（運用は README「構造計算書の扱い」）
+DRAFT_LINE = ("下書き（有資格者の確認前提）: 計画作成参画者が内容を確かめ、末尾の確認欄に記入して"
+              "初めて提出図書になります。総合判定の「成立」は確認の代わりになりません")
+
+
+def _draft_banner(s) -> None:
+    s.add_cells([Cell(DRAFT_LINE)])
+
+
+def _unverified_labels(structural) -> list[str]:
+    """計算に使った未確認の耐力値（capacity.csv の verified=no）の呼び名."""
+    out: list[str] = []
+    for v in vars(structural).values():
+        for item in (v if isinstance(v, list) else [v]):
+            for lab in getattr(item, "unverified_items", None) or []:
+                if lab not in out:
+                    out.append(lab)
+    return out
+
+
+def _confirm_block(s, unverified: list[str]) -> None:
+    s.add_blank()
+    s.add(["■ 確認（有資格者が記入。ツールは記入しない）"], STYLE_BOLD)
+    if unverified:
+        s.add_cells([Cell("未確認の耐力値を使っています: " + "・".join(unverified)
+                          + "。認定値・メーカー資料で確かめてから署名してください（data/capacity.csv の verified=no）")])
+    _kv(s, "確認者 氏名", FILL_IN)
+    _kv(s, "資格", FILL_IN, "足場の組立て等作業主任者技能講習修了者等（計画作成参画者）")
+    _kv(s, "確認日", FILL_IN)
+    _kv(s, "所見・修正した箇所", FILL_IN, "修正したときは計算書の該当行も直す")
+
+
+# 建災防東京支部「計画届作成の手引（第6版）」表2-2（足場・架設通路）の図書と、その書き方（p4・p103）
+ATTACHMENTS = [
+    ("案内図", "別途作成", "現場位置がわかる地図（建設工事計画届に添付する場合は不要）"),
+    ("工程表", "別途作成", "足場の組立・解体時期を含む工程（建設工事計画届に添付する場合は不要）"),
+    ("平面図", "本ツール出力", "躯体と足場・昇降設備の配置、躯体との隙間と割付の寸法、養生ネット・シートの範囲"),
+    ("立面図", "本ツール出力", "東・西・南・北の全面。支柱構成・各階高さと建物最高高さ・足場高さ、壁つなぎ・昇降設備・朝顔の位置"),
+    ("詳細図", "本ツール出力", "足場脚部、壁つなぎの取付方法、特殊な足場等（梁枠の出入口・ブラケット・張出し）の部分詳細"),
+    ("部材等明細書", "本ツール出力", "部材等明細書シート（種類・用途・高さ・設置期間・最大積載荷重・部材の材質と主要寸法）"),
+    ("構造計算書", "本ツール出力", "風荷重・壁つなぎ・建地圧縮、梁枠・単管ブラケット足場・張出し足場等の計算"),
+]
+# 事業の種類は日本標準産業分類の中分類で書く（手引 p6「総合工事業」）。建設業の中分類
+JSIC_CONSTRUCTION = ("総合工事業", "職別工事業", "設備工事業")
+
+
+@dataclass
+class NotificationInfo:
+    """様式第20号の人が書く欄（分かる範囲で事前入力できる）."""
+
+    business_type: str = ""          # 事業の種類
+    site_name: str = ""              # 事業場の名称
+    site_address: str = ""           # 設置地
+    worker_count: str = ""           # 常時使用する労働者数
+    planner_name: str = ""           # 計画作成参画者 氏名
+    planner_career: str = ""         # 参画者の経歴
+    start_date: Optional[_dt.date] = None   # 工事着手予定年月日
+    contractor: str = ""             # 注文者／元方事業者
+    labor_office: str = ""           # 所轄労働基準監督署
+    workers_prime: str = ""          # 常時使用する労働者数の上欄（元請）
+    workers_sub: str = ""            # 同 下欄（下請）
+    contract_amount: str = ""        # 請負金（計画の概要欄に必ず書く。手引 p6）
+    end_date: Optional[_dt.date] = None     # 工事落成予定年月日＝足場解体予定日（無ければ着手＋設置期間）
+
+    def submission_deadline(self) -> Optional[_dt.date]:
+        """提出期限＝工事開始30日前."""
+        if self.start_date is None:
+            return None
+        return self.start_date - _dt.timedelta(days=30)
+
+
+def notification_required(model: ScaffoldModel, terrain=None) -> bool:
+    """設置届の要否（高さ10m以上かつ60日以上、安衛法88条）.
+
+    高さは敷地の低い側の実高さで見る（名目9mでも2mの段差があれば11m）。
+    """
+    from .terrain import actual_max_height_mm
+
+    return actual_max_height_mm(model, terrain)[0] >= 10000 and model.config.period_days >= 60
+
+
+def scaffold_total_length_m(model: ScaffoldModel) -> float:
+    """足場の設置延長（足場中心線ループの全長）."""
+    return sum(ep.scaffold_length for ep in model.plan.edges) / 1000.0
+
+
+def write_notification_xlsx(
+    model: ScaffoldModel,
+    quantity: QuantityResult,
+    checks: list[CheckResult],
+    structural: StructuralResult,
+    path: Path,
+    project_name: str = "",
+    info: Optional[NotificationInfo] = None,
+    details: Optional[list] = None,
+    terrain=None,
+    verdict=None,
+    warnings=None,
+    stair_plan=None,
+    platforms=None,
+    openings=None,
+    bracket_sections=None,
+) -> None:
+    info = info or NotificationInfo()
+    if details is None:
+        from .details import required_details
+        details = required_details(model)
+    wb = Workbook()
+    _sheet_form20(wb, model, quantity, project_name, info,
+                  stair_plan=stair_plan, platforms=platforms,
+                  openings=openings, bracket_sections=bracket_sections, terrain=terrain)
+    # 確認する人が最初に見る位置に、是正項目と要確認事項をまとめて置く
+    if verdict is not None:
+        _sheet_todo(wb, verdict, checks, warnings)
+    _sheet_conditions(wb, model, structural, project_name)
+    _sheet_wind(wb, structural)
+    _sheet_wall_tie(wb, structural, model)
+    _sheet_post(wb, structural, openings)
+    if structural.openings:
+        _sheet_openings(wb, structural, model)
+    _sheet_quantity(wb, quantity, model, info, terrain)
+    _sheet_law_check(wb, checks)
+    if terrain is not None and terrain.feet:
+        _sheet_jack_table(wb, terrain, checks)
+    _sheet_attachments(wb, info, details, model)
+    unverified = _unverified_labels(structural)
+    for sh in wb.sheets:
+        if sh.name.startswith("計算書"):
+            _confirm_block(sh, unverified)
+    wb.save(path)
+
+
+def _sheet_jack_table(wb, terrain, checks=None) -> None:
+    """支柱ごとのジャッキ量一覧（敷地高低差対応）."""
+    from .terrain import jack_table_rows
+
+    s = wb.sheet("ジャッキ量一覧")
+    for c, wdt in enumerate([6, 5, 12, 12, 14, 12, 18, 14, 30, 46]):
+        s.set_width(c, wdt)
+    vm = getattr(terrain, "vertical_member_name", "支柱")
+    s.add_title(f"{vm}ごとのジャッキ量一覧（敷地高低差対応）", span=10)
+    s.add_cells([Cell(f"作業床レベルは全周で通し、GL高低差は各{vm}のジャッキと{vm}長で吸収する")])
+    s.add_blank()
+    rows = jack_table_rows(terrain)
+    s.add_header(rows[0])
+    for row in rows[1:]:
+        s.add_cells([Cell(v, STYLE_BORDER) for v in row])
+    s.add_blank()
+    s.add(["基準GL(mm)", round(terrain.reference_gl_mm, 1)], STYLE_BOLD)
+    s.add(["高低差(mm)", round(terrain.gl_difference_mm, 1)], STYLE_BOLD)
+    s.add(["ジャッキ繰出し範囲(mm)",
+           round(terrain.jack_min_mm, 1), round(terrain.jack_max_mm, 1)], STYLE_BOLD)
+    # 法規チェックシートに同じ文が出ているものは、ここでは見出しだけにする
+    # （このシートは支柱ごとの数値が主役で、同じ長文を2枚に並べる必要はない）
+    said = {c.message for c in (checks or []) if c.status == WARN}
+    for note in terrain.warnings:
+        if note in said:
+            s.add_cells([
+                Cell("注記"),
+                Cell(note.split("。")[0] + "（法規チェックシートを参照）"),
+            ])
+        else:
+            s.add_cells([Cell("注記"), Cell(note)])
+
+
+# ---- 各シート -------------------------------------------------------------
+
+
+def _rows(result) -> str:
+    """未確認値の差し替え先（capacity.csv の行）を注記に添える."""
+    rows = [r for c in getattr(result, "unverified_caps", []) for r in c.rows]
+    if not rows:
+        return ""
+    return "（要差替: data/capacity.csv " + "・".join(dict.fromkeys(rows)) + "）"
+
+
+def _kv(sheet, label: str, value, note: str = "") -> None:
+    sheet.add_cells(
+        [Cell(label, STYLE_BORDER), Cell(value, STYLE_BORDER), Cell(note)]
+    )
+
+
+def _sheet_form20(wb, model, quantity, project_name, info: NotificationInfo,
+                  stair_plan=None, platforms=None, openings=None,
+                  bracket_sections=None, terrain=None) -> None:
+    s = wb.sheet("様式第20号(下書き)")
+    s.set_width(0, 26)
+    s.set_width(1, 34)
+    s.set_width(2, 46)
+    s.add_title("機械等設置届（様式第20号） 下書き", span=3)
+    s.add_cells([Cell(DISCLAIMER)])
+    s.add_blank()
+
+    required = notification_required(model, terrain)
+    s.add(["届出要否", "要" if required else "不要",
+           "高さ10m以上かつ設置期間60日以上で届出（安衛法88条）"], STYLE_BOLD)
+    s.add_blank()
+
+    s.add(["■ 事業場等（人が記入）"], STYLE_BOLD)
+    bt = info.business_type
+    _kv(s, "事業の種類", bt or FILL_IN,
+        "日本標準産業分類の中分類で書く（建設業は「総合工事業」。手引 p6）"
+        + (f"。「{bt}」は中分類ではない" if bt and bt not in JSIC_CONSTRUCTION else ""))
+    _kv(s, "事業場の名称", info.site_name or project_name or FILL_IN)
+    _kv(s, "設置地", info.site_address or FILL_IN)
+    workers = (f"元請{info.workers_prime}人／下請{info.workers_sub}人"
+               if info.workers_prime or info.workers_sub else info.worker_count or FILL_IN)
+    _kv(s, "常時使用する労働者数", workers, "上欄に元請（当社）、下欄に下請の人数と合計（手引 p6）")
+    _kv(s, "請負金", info.contract_amount or FILL_IN, "計画の概要欄に必ず書く（審査の参考。手引 p6）")
+    _kv(s, "注文者／元方事業者", info.contractor or FILL_IN)
+    _kv(s, "所轄労働基準監督署", info.labor_office or FILL_IN)
+    s.add_blank()
+
+    s.add(["■ 計画の概要（本ツールが自動記入）"], STYLE_BOLD)
+    _kv(s, "設置する機械等の種類",
+        f"{model.master.system_name}（{model.config.form_label}）",
+        f"系列 {model.master.series_id}")
+    _kv(s, "足場の長さ", round(scaffold_total_length_m(model), 2),
+        "m（足場中心線の全長）")
+    from .terrain import actual_max_height_mm
+
+    h_mm, extra = actual_max_height_mm(model, terrain)
+    _kv(s, "足場の高さ", round(h_mm / 1000.0, 3),
+        f"m（ジャッキ下端〜{model.master.vertical_member_name}天端"
+        + (f"。敷地の低い側の実高さ。名目{model.scaffold_height_mm / 1000:.3f}m＋脚の伸び{extra / 1000:.3f}m"
+           "（継ぎ足しとジャッキ繰出しの差）"
+           if extra > 1 else "") + "）")
+    _kv(s, "架け面積", quantity.kake_menseki_m2, "m²（(建物外周+4m)×(建物高さ+0.5m)）")
+    _kv(s, "作業床の層数", model.elevation.n_levels, "層")
+    _kv(s, f"{model.master.vertical_member_name}位置数", model.plan.total_posts,
+        "箇所/層（内外2列なら×2本）")
+    _kv(s, "設置期間", model.config.period_days, "日")
+    # 様式の「構造の概要」欄。作業床・手すり・壁つなぎ・昇降設備・朝顔は
+    # 計画で変わるのに、この下書きは種類と寸法しか書いていなかった
+    widths = "＋".join(str(w) for w in model.deck_widths_in_use)
+    # 法規上の作業床幅は床材の合計（隙間は床ではない）。deck_width_total は
+    # 隙間込みの被覆幅なので、ここで使うと法規チェックの650と食い違う
+    _kv(s, "作業床", f"幅{sum(model.deck_widths_in_use)}mm（{widths}）",
+        f"{model.elevation.n_levels}層・床材隙間{model.config.deck_gap_mm}mm・幅木H157"
+        + ("" if model.config.has_toe_board else "（幅木なし）"))
+    _kv(s, "手すり", model.guard_rail_method,
+        f"手すり{model.guard_rail_height_mm}mm＋中桟")
+    if getattr(model.config, "post_reinforcement", ""):
+        # 補強前提の耐力（capacity.csv の補強仕様の行）で建地を検定している。
+        # 概要に書かないと、審査側は通常仕様の許容値で読む
+        _kv(s, f"{model.master.vertical_member_name}補強", model.config.post_reinforcement,
+            ("作業床の段の腕木の下に強化方杖を取付け（計算書3の許容支持力はこの仕様の値）"
+             if model.config.post_reinforcement == "強化方杖"
+             else "腕木を方杖付きの強力つなぎ材に交換（計算書3の許容支持力はこの仕様の値）"))
+    v_max, h_max = model.wall_tie_max_spacing()
+    v_lim, h_lim, tie_basis = model.wall_tie_limits()
+    _kv(s, "壁つなぎ", f"{len(model.wall_ties)}箇所",
+        f"最大 垂直{v_max:.0f}×水平{h_max:.0f}mm（法定 {v_lim:.0f}×{h_lim:.0f}以下） "
+        f"{tie_basis}")
+    a = model.config.asagao
+    if a and a.stages and a.kind == ASAGAO_KIND_SAFE_WING:
+        # 防護棚ではない。届に「朝顔あり」と読ませない
+        _kv(s, "朝顔（防護棚）", "なし",
+            f"簡易落下物防止機材セーフウイング{a.stages}段（張出{a.projection_mm:.0f}mm・"
+            f"{a.angle_deg:.0f}度）を設置。突出2m以上の防護棚ではない")
+    else:
+        _kv(s, "朝顔（防護棚）",
+            f"{a.stages}段" if a and a.stages else "なし",
+            (f"突出{a.projection_mm:.0f}mm・傾斜{a.angle_deg:.0f}度"
+             if a and a.stages else "高さ10m未満または設置しない指定"))
+    # 付帯設備。計画に入っているのに届の下書きに出ないと、審査側は
+    # 「無い」ものとして読む（図面と食い違う届になる）
+    if stair_plan is not None and getattr(stair_plan, "towers", None):
+        _kv(s, "昇降設備（階段）", f"{len(stair_plan.towers)}箇所",
+            f"最大水平移動{stair_plan.max_travel_mm / 1000:.1f}m（安衛則526条）")
+    if platforms is not None and getattr(platforms, "stages", None):
+        st = platforms.stages
+        _kv(s, "荷受けステージ", f"{len(st)}基",
+            "・".join(f"出{x.projection_mm:.0f}mm 第{'・'.join(str(l) for l in (x.levels or [1]))}層"
+                      for x in st))
+    if platforms is not None and getattr(platforms, "hoists", None):
+        _kv(s, "昇降機", f"{len(platforms.hoists)}基",
+            "乗り込み口は開閉式手すりで防護（安衛則563条）")
+    beams = [o for o in (getattr(openings, "openings", None) or []) if not o.void]
+    if beams:
+        from .openings import removed_posts_split
+
+        _kv(s, "開口部（梁枠）", f"{len(beams)}箇所",
+            "・".join(f"梁枠{o.beam_span_mm}mm" for o in beams)
+            + f"／{model.master.vertical_member_name}{removed_posts_split(model, openings)[0]}本を抜き梁枠で受ける")
+    if bracket_sections:
+        n_auto = sum(1 for b in bracket_sections if getattr(b, "auto", False))
+        note = ("作業床の幅を局所的に変更（数量・図面に反映済み）" if not n_auto else
+                f"うち{n_auto}区間は離れ350超の面に躯体側へ踏板を足して隙間を詰めるもの（自動）。"
+                "数量・図面に反映済み")
+        _kv(s, "ブラケット区間", f"{len(bracket_sections)}区間", note)
+    # 面ごとに何が載るか（割付レポートの平面割付表と同じ内訳）。審査側が図面と突き合わせる手がかり
+    from .report import _face_items
+
+    faces = model.plan.face_names()
+    per_face = "；".join(
+        f"{face}: {_face_items(model, ep.edge_index, stair_plan, platforms, openings, bracket_sections)}"
+        for ep, face in zip(model.plan.edges, faces)
+    )
+    # 説明に設備名を並べると「無い設備の行が出る」検査に掛かる（実際に掛かった）。内訳は値の側だけに出す
+    _kv(s, "面ごとの構成", per_face, "各面に載るもの（割付レポートの平面割付表と同じ内訳）")
+    _kv(s, "計画の概要欄の文", plan_outline_text(model, info), "様式の「計画の概要」欄にそのまま書ける文（手引 p4 の記入例の書き方）")
+    s.add_blank()
+
+    s.add(["■ 日程"], STYLE_BOLD)
+    start = info.start_date
+    deadline = info.submission_deadline()
+    # 着手・落成は建物の契約工期ではなく、足場の設置期間（手引 p6）
+    end = info.end_date or (start + _dt.timedelta(days=int(model.config.period_days)) if start else None)
+    _kv(s, "工事着手予定年月日", start.isoformat() if start else FILL_IN,
+        "足場組立開始日（建物の契約工期ではない）")
+    _kv(s, "工事落成予定年月日", end.isoformat() if end else FILL_IN,
+        "足場解体予定日" + ("" if info.end_date or not start else f"（着手＋設置期間{model.config.period_days}日）"))
+    _kv(s, "届出期限（着手30日前）",
+        deadline.isoformat() if deadline else "着手日の記入で自動算出",
+        "安衛法88条")
+    s.add_blank()
+
+    s.add(["■ 計画作成参画者（人が記入・必須）"], STYLE_BOLD)
+    _kv(s, "氏名", info.planner_name or FILL_IN)
+    _kv(s, "経歴の概要", info.planner_career or FILL_IN,
+        "足場の組立て等作業主任者技能講習修了者等")
+    _kv(s, "確認欄", FILL_IN, "本下書きの内容を確認した旨の署名")
+
+
+def plan_outline_text(model: ScaffoldModel, info: Optional[NotificationInfo] = None) -> str:
+    """様式第20号の「計画の概要」欄の文. 手引 p4・p6: 足場の種類・構造・高さを各側面ごとに明記し、壁つなぎ間隔、落下防止の
+    枠組（朝顔）・シート等を設置する旨、請負金を書く（記入例「（足場）東側 枠組足場 高さ m、長さ m（枠幅 cm）」）."""
+    kind = model.master.system_name.split("（")[0]
+    faces = []
+    for ep, face in zip(model.plan.edges, model.plan.face_names()):
+        h = model.elevation_of(ep.edge_index).total_height / 1000.0
+        faces.append(f"{face} {kind} 高さ{h:.1f}m、長さ{ep.scaffold_length / 1000:.1f}m"
+                     f"（{'枠幅' if model.master.is_frame else '建地間隔'}{model.post_row_spacing_mm / 10:.0f}cm）")
+    v_max, h_max = model.wall_tie_max_spacing()
+    parts = ["（足場）" + "、".join(faces),
+             f"壁つなぎ 垂直{v_max / 1000:.1f}m×水平{h_max / 1000:.1f}m以内"]
+    a = model.config.asagao
+    if a and a.stages and a.kind != ASAGAO_KIND_SAFE_WING:
+        parts.append(f"落下防止の朝顔（防護棚）{a.stages}段")
+    if model.config.sheet_type:
+        parts.append(f"{model.config.sheet_type}を全面に張る")
+    amount = (info.contract_amount if info is not None else "") or FILL_IN
+    parts.append(f"請負金 {amount}")
+    return "／".join(parts)
+
+
+def _sheet_conditions(wb, model, structural: StructuralResult, project_name) -> None:
+    s = wb.sheet("計算条件")
+    s.set_width(0, 26)
+    s.set_width(1, 24)
+    s.set_width(2, 52)
+    site = structural.site
+    s.add_title("構造計算 条件一覧", span=3)
+    s.add_cells([Cell(DISCLAIMER)])
+    s.add_blank()
+    s.add_header(["項目", "値", "備考・出典"])
+    _kv(s, "工事名", project_name or "—")
+    koma = model.master.koma_pitch
+    _kv(s, "足場種別",
+        f"{model.master.system_name}・{model.config.form_label}",
+        f"系列 {model.master.series_id}"
+        + (f"（コマピッチ{koma}mm）" if koma else "（建枠を積む方式）"))
+    _kv(s, "建設地", site.location or site.region, structural.wind.v0_source)
+    _kv(s, "基準風速 V0", structural.wind.v0_ms, "m/s（風荷重に対する足場の安全技術指針 表1-5）")
+    _kv(s, "地域区分", site.roughness, "表1-7（I 海岸・海上〜V 大都市市街地）")
+    _kv(s, "養生材仕様", site.sheet_type, f"充実率 φ={structural.wind.fill_ratio}")
+    _kv(s, "近接高層建築物による割増 EB", site.adjacent_factor, "1.0〜1.3")
+    _kv(s, "小地形による影響係数 Eg", site.region_factor, "崖や斜面以外は 1.0")
+    _kv(s, "設置期間", site.period_days, "日")
+    _kv(s, "同時載荷層数", site.simultaneous_loaded_levels, "層（実務: 2層以内）")
+    s.add_blank()
+    if structural.warnings:
+        s.add(["■ 対応が必要"], STYLE_BOLD)
+        for w in structural.warnings:
+            s.add_cells([Cell(w)])
+    if structural.notes:
+        s.add_blank()
+        s.add(["■ 参考（どの条件で検定したか）"], STYLE_BOLD)
+        for n in structural.notes:
+            s.add_cells([Cell(n)])
+
+
+def _sheet_wind(wb, structural: StructuralResult) -> None:
+    s = wb.sheet("計算書1_風荷重")
+    s.set_width(0, 30)
+    s.set_width(1, 18)
+    s.set_width(2, 52)
+    w = structural.wind
+    s.add_title("設計風速・速度圧・風力係数", span=3)
+    _draft_banner(s)
+    s.add_cells([Cell("仮設工業会「風荷重に対する足場の安全技術指針」準拠")])
+    s.add_blank()
+    s.add_header(["項目", "値", "式・根拠"])
+    _kv(s, "基準風速 V0", w.v0_ms, f"m/s  {w.v0_source}（表1-5・再現期間12ヶ月）")
+    _kv(s, "台風時割増係数 Ke", w.ke, w.ke_source)
+    _kv(s, "地域区分", w.roughness, "表1-7（I 海岸・海上〜V 大都市市街地）")
+    _kv(s, "地上高さ Z", w.height_m, "m（足場の天端）")
+    _kv(s, "ガストファクター G", w.g_factor, "G = 1 + 3.2√(6κ)(10/Z)^α（式1・4-2）")
+    _kv(s, "鉛直分布係数 E", w.e_factor, "E = 1.7(Z/Zg)^α（式1・4-3。Z<Zb は Zb）")
+    _kv(s, "瞬間風速分布係数 S", w.k_height, "S = G × E（式1・4-4）")
+    _kv(s, "近接高層建築物による割増 EB", w.e_adjacent, "1.0〜1.3（式1・5）")
+    _kv(s, "小地形による影響係数 Eg", w.s_region, "崖や斜面以外は 1.0")
+    _kv(s, "設計風速 Vz", w.v_design_ms, "m/s  Vz = V0 × Ke × S × EB × Eg（式1・3）")
+    _kv(s, "設計用速度圧 qz", w.q_n_m2, "N/m²  qz = 5/8 × Vz²（式1・2）")
+    s.add_blank()
+    _kv(s, "充実率 φ", w.fill_ratio, f"{structural.site.sheet_type}（表1-9）")
+    _kv(s, "第2構面風力低減係数 γ", w.gamma, "γ = 1 − φ")
+    _kv(s, "抵抗係数 K", w.k_resist, "K = 1.2φ/(1−φ)²（式1・7-1）")
+    _kv(s, "基本風力係数 C0", w.c0, "式1・7-2・1・7-3（図1-14・表1-9）")
+    _kv(s, "縦横比 2H/B", w.aspect, f"B = 面の長さの短い方 {w.b_m}m（地上から建つシート）")
+    _kv(s, "形状補正係数 R", w.r_shape, "R = 0.5813 + 0.013(2H/B) − 0.0001(2H/B)²（式1・8-2）")
+    _kv(s, "設置位置による補正係数 F", w.f_main, f"その他の部分 1+0.31φ（表1-10 B）。上層2層部分は {w.f_top}（A）")
+    _kv(s, "風力係数 C（その他の部分）", w.c_force, "C = (0.11 + 0.09γ + 0.945×C0×R) × F（式1・6-1）")
+    _kv(s, "風力係数 C（上層2層部分）", w.c_top, "F = 1.0")
+
+
+def _sheet_wall_tie(wb, structural: StructuralResult, model) -> None:
+    s = wb.sheet("計算書2_壁つなぎ")
+    s.set_width(0, 30)
+    s.set_width(1, 18)
+    s.set_width(2, 52)
+    t = structural.wall_tie
+    w = structural.wind
+    s.add_title("壁つなぎの検定", span=3)
+    _draft_banner(s)
+    s.add_blank()
+    s.add_header(["項目", "値", "式・根拠"])
+    v_max, h_max = model.wall_tie_max_spacing()
+    # 法定上限は足場の種類で違う（570条1項五号）。決め打ちすると届出書に
+    # 誤った基準値が載る
+    v_lim, h_lim, tie_basis = model.wall_tie_limits()
+    _kv(s, "壁つなぎ本数", len(model.wall_ties), "箇所")
+    _kv(s, "実配置の最大間隔", f"垂直{v_max:.0f} × 水平{h_max:.0f}",
+        f"mm（法定 垂直{v_lim:.0f}以下 × 水平{h_lim:.0f}以下） {tie_basis}")
+    untied = model.edges_without_wall_ties()
+    if untied:
+        _kv(s, "壁つなぎが入らない面",
+            "、".join(model.face_name(i) for i in untied),
+            "両隣の面にコーナー経由で支持される前提。単管等での別途拘束を検討")
+    _kv(s, "支配的な壁つなぎ", t.governing or "—",
+        "支配面積が最大となる1本で検定する")
+    _kv(s, "支配幅 lh", t.lh_m, "m（受け持ち領域の横の広がり。隣の壁つなぎとの中間まで、端は支点として半分）")
+    _kv(s, "支配高さ lw", t.lw_m,
+        "m（同じく縦の広がり。下端は脚部が支点なので半分、上端は自由端なので全長）")
+    # 受け持ち領域は「最も近い壁つなぎ」で面を分けた多角形。格子なら lh×lw の長方形だが、
+    # 取付部の壁つなぎが混じる面では lh×lw より小さい。式に lh×lw と書くと数字が合わない
+    _kv(s, "支配面積 A", t.tributary_area_m2,
+        "m²（最も近い壁つなぎで面を分けた受け持ち領域の面積。格子なら lh×lw）")
+    _kv(s, "風力係数 C", w.c_force, "計算書1より")
+    _kv(s, "速度圧 q", w.q_n_m2, "N/m²  計算書1より")
+    _kv(s, "壁つなぎ作用力 P", t.force_kn, "kN  P = C × q × A")
+    s.add_blank()
+    _kv(s, "許容耐力", t.allowable_kn,
+        f"kN  {t.source}" + ("" if t.verified else "  ※未確認値 " + _rows(t)))
+    _kv(s, "風荷重時割増後", t.allowable_increased_kn, "kN  許容耐力 × 1.3")
+    _kv(s, "検定比 P/(許容×1.3)", t.ratio, "1.0以下で可")
+    if t.top_kn:
+        _kv(s, "上端の壁つなぎの反力 R", t.top_kn,
+            f"kN  R = (½W1·b²)/a + W1·b + ½W2·a、W1 = qz·C1·b2（上層2層）、W2 = qz·C2·b2  {t.top_where}")
+        _kv(s, "検定比 R/(許容×1.3)", round(t.top_ratio, 3), "1.0以下で可")
+    if t.buckle_kn:
+        # 手引 p130「建地が鉛直荷重により座屈する際の水平荷重＝鉛直荷重の5%×作用スパン数」
+        _kv(s, "建地の座屈止めの水平荷重", t.buckle_kn,
+            f"kN  1スパンの鉛直荷重（内外の建地）×5%×{t.buckle_spans:g}スパン（計画届作成の手引 p130）")
+        _kv(s, "検定比 座屈止め/(許容×1.3)", round(t.buckle_ratio, 3), "1.0以下で可")
+    s.add_cells([
+        Cell("判定", STYLE_HEADER),
+        Cell("OK" if t.ok else "NG", STYLE_HEADER),
+        Cell("" if t.ok else "壁つなぎ間隔の短縮または高耐力品を検討", STYLE_HEADER),
+    ])
+
+
+def _sheet_openings(wb, structural: StructuralResult, model) -> None:
+    """計算書4: 開口部（梁枠）の検定。梁枠上の積載制限・支点・両端支柱."""
+    s = wb.sheet("計算書4_開口部梁枠")
+    vm = model.master.vertical_member_name
+    s.add_cells([Cell("開口部（梁枠）の検定", STYLE_BOLD)])
+    _draft_banner(s)
+    s.add_cells([Cell("項目", STYLE_HEADER), Cell("値", STYLE_HEADER), Cell("式・根拠", STYLE_HEADER)])
+    for oc in structural.openings:
+        _kv(s, "開口部", f"{model.face_name(oc.edge_index)} 梁枠{oc.beam_model}（{oc.beam_span_mm}mm）",
+            f"梁枠に乗る{vm} {oc.n_inner_posts}本")
+        _kv(s, "梁枠上の積載", oc.live_above_kn,
+            "kN  作業床許容積載×梁枠スパン数×同時載荷層"
+            + (f"（上限{oc.live_limit_kn}kN → 1スパン{oc.live_per_span_limit_kn}kNまでに制限）"
+               if oc.live_limit_kn is not None and not oc.live_ok else ""))
+        _kv(s, f"梁枠に乗る{vm}の軸力", oc.support_kn,
+            "kN  梁枠より上の自重＋1スパン分の積載（制限後）")
+        _kv(s, "梁枠の支点許容支持力",
+            oc.support_allow_kn if oc.support_allow_kn is not None else "マスタに無し",
+            f"kN  {oc.support_source}" if oc.support_allow_kn is not None else "メーカー値で確認")
+        _kv(s, "梁枠の反力（両端各）", oc.reaction_kn, f"kN  (乗る{vm}の軸力×本数＋梁枠自重)÷2")
+        _kv(s, f"両端{vm}の軸力", oc.end_post_kn, f"kN  通常の軸力＋反力 ≦ 許容{oc.end_post_allow_kn}kN")
+        _kv(s, "判定", ("OK（積載制限付き）" if oc.condition else "OK") if oc.ok else "NG",
+            oc.condition if oc.ok else "計算条件シートの対応事項を参照")
+    for col, w in enumerate((22, 26, 90)):
+        s.set_width(col, w)
+
+
+def _sheet_post(wb, structural: StructuralResult, openings=None) -> None:
+    s = wb.sheet("計算書3_建地圧縮")
+    s.set_width(0, 30)
+    s.set_width(1, 18)
+    s.set_width(2, 52)
+    p = structural.post
+    vm = getattr(p, "vertical_member_name", "支柱")
+    s.add_title(f"建地（{vm}）圧縮の検定", span=3)
+    _draft_banner(s)
+    s.add_blank()
+    s.add_header(["項目", "値", "式・根拠"])
+    # 式だけ書いて元の数を出さないと、確認する人が値を追えない
+    _kv(s, "足場総重量", p.total_weight_kg, "kg  部材等明細書の合計")
+    removed = openings.removed_posts if openings is not None and getattr(openings, "removed_posts", 0) else 0
+    _kv(s, "建地本数", p.n_posts,
+        f"本（{vm}位置数×列数" + (f"−開口部で抜いた{removed}本" if removed else "") + "）")
+    _kv(s, "自重 建地1本あたり", p.dead_load_kn, "kN  総重量×9.80665/建地本数")
+    _kv(s, "作業床許容積載", p.deck_capacity_kn, "kN/スパン  " + (p.deck_source or "capacity.csv"))
+    _kv(s, "同時載荷層数", p.loaded_levels, "層（実務: 2層以内）")
+    _kv(s, "積載 建地1本あたり", p.live_load_kn,
+        "kN  作業床許容積載×同時載荷層数÷2")
+    if p.extra_load_kn > 0:
+        _kv(s, "局所荷重 建地1本あたり", p.extra_load_kn,
+            "kN  荷受けステージ等（張出しの偏心: 外側建地の反力 P×(1+a/b)、"
+            "a=出/2・b=内外の建地間隔、下限1.5倍。間口の建地数で割る）")
+        _kv(s, "軸力 N", p.total_kn,
+            "kN  N = 自重 + 積載 + 局所荷重" if p.includes_extra
+            else f"kN  N = 自重 + 積載（一般部の{p.vertical_member_name}。荷取り部は下の参考行で別に検定）")
+        for line in p.other_checks:
+            _kv(s, "参考: 他の検定", line, "支配しなかった側（作用/許容=検定比）")
+        if p.inner_uplift_kn > 0:
+            _kv(s, "内側建地の引抜き U", p.inner_uplift_kn,
+                f"kN  偏心の裏側 P×a/b÷建地数（{p.uplift_source}）")
+            _kv(s, "引抜きの判定", "OK" if p.uplift_ok else "要確認",
+                f"U ≦ 自重 {p.dead_load_kn}kN なら浮かない"
+                + ("" if p.uplift_ok else
+                   "。方杖の効果を見込まないてこモデルの値。方杖の効きと浮き止めの要否を有資格者が確認"))
+    else:
+        _kv(s, "軸力 N", p.total_kn, "kN  N = 自重 + 積載")
+    s.add_blank()
+    _kv(s, "ジャッキ繰出し量", p.jack_extension_mm,
+        f"mm（敷地高低差がある場合は最も繰り出している{vm}の値。"
+        "許容支持力は繰出し長で低下する）")
+    _kv(s, "支配する検定", p.governing, "")
+    _kv(s, "許容支持力", p.allowable_kn,
+        f"kN  {p.source}" + ("" if p.verified else "  ※未確認値 " + _rows(p)))
+    _kv(s, "検定比 N/許容", p.ratio, "1.0以下で可")
+    s.add_cells([
+        Cell("判定", STYLE_HEADER),
+        Cell("OK" if p.ok else "NG", STYLE_HEADER),
+        Cell("" if p.ok else (
+            "許容支持力が未確認の一般値。まずメーカー認定値へ差し替えて再判定"
+            if not p.verified else f"繰出し量低減・{p.vertical_member_name}2本組・スパン短縮を検討"), STYLE_HEADER),
+    ])
+    g = structural.ground
+    if g is not None:
+        # 手引 p125・p132「地盤の検討」: 脚1箇所の鉛直荷重をベースジャッキの底板と敷板の面積で割り、地盤の許容支持力度と比べる
+        s.add_blank()
+        s.add(["■ 脚部の地盤支持力（計画届作成の手引 p125・p132）"], STYLE_BOLD)
+        _kv(s, "脚1箇所の鉛直荷重", g.foot_kn, "kN（上の軸力 N）")
+        _kv(s, "地盤の許容支持力度 qa", g.qa_kn_m2, f"kN/m²  {g.qa_source}")
+        _kv(s, "ベースジャッキ直下", g.plate_kn_m2,
+            f"kN/m²＝N÷({g.plate_mm / 1000:.2f}×{g.plate_mm / 1000:.2f})  検定比{g.plate_ratio:.2f}"
+            + ("（底板だけでは受けられないので敷板で受ける）" if g.plate_ratio > 1 else ""))
+        _kv(s, "敷板の下", g.board_kn_m2,
+            f"kN/m²＝N÷(幅{g.board_w_m:.2f}×{g.board_len_m:.2f}m)  検定比{g.board_ratio:.2f}")
+        s.add_cells([Cell("判定", STYLE_HEADER), Cell("OK" if g.ok else "NG", STYLE_HEADER),
+                     Cell("" if g.ok else "敷角で受ける幅を広げる・地盤改良・土間コンクリート", STYLE_HEADER)])
+
+
+def _material(pt) -> str:
+    """部材等明細書の「材質」欄（マスタの分類と備考から。メーカーの仕様書で確かめる前提の下書き）."""
+    # 分類で決まるものを先に（備考の「シート朝顔」「幅木」の字で取り違えない）
+    if pt.category in ("養生シート", "水平ネット", "防網"):
+        return "合成繊維（防炎）"
+    if pt.category in ("敷板", "足場板") or any(k in pt.note for k in ("杉", "合板")):
+        return "木製"
+    if "樹脂" in pt.note:
+        return "樹脂製"
+    if "アルミ" in pt.note.split("（")[0]:
+        return "アルミ製"
+    return "鋼製"
+
+
+def _main_size(pt) -> str:
+    """部材等明細書の「主要寸法」欄（管材は φ×長さ、ほかは長さ）."""
+    if pt.diameter:
+        return f"φ{pt.diameter:g}×L{pt.actual_dim}"
+    return f"L{pt.actual_dim}" if pt.actual_dim else ""
+
+
+def _sheet_quantity(wb, quantity: QuantityResult, model=None, info=None, terrain=None) -> None:
+    s = wb.sheet("部材等明細書")
+    for c, wdt in enumerate([14, 12, 12, 16, 12, 12, 12, 10, 14, 40]):
+        s.set_width(c, wdt)
+    s.add_title("部材等明細書", span=10)
+    s.add_blank()
+    if model is not None:
+        # 手引 p105「足場・架設通路の部材等明細書（例）」の見出し: 種類・用途・高さ・設置期間・最大積載荷重（1スパンあたり）
+        from .sheet_panel import max_load_rows
+        from .terrain import actual_max_height_mm
+
+        h_mm, _extra = actual_max_height_mm(model, terrain)
+        start = info.start_date if info is not None else None
+        end = (info.end_date if info is not None else None) or (
+            start + _dt.timedelta(days=int(model.config.period_days)) if start else None)
+        loads = max_load_rows(model)
+        _kv(s, "種類", f"{model.master.system_name}（{model.config.form_label}）")
+        _kv(s, "用途", "建築工事の外部足場（作業床・昇降設備・落下物防護）")
+        _kv(s, "高さ", f"{h_mm / 1000:.1f}m", "ジャッキ下端〜天端（敷地の低い側の実高さ）")
+        _kv(s, "設置期間", f"{start.isoformat()}〜{end.isoformat()}" if start and end
+            else f"{model.config.period_days}日", "足場の組立〜解体")
+        _kv(s, "最大積載荷重", (loads[0][1] + "/スパン（1層）") if loads else FILL_IN,
+            ("同一層連続スパン。それ以外 " + loads[0][2]) if loads else "capacity.csv に作業床の許容積載荷重が無い")
+        a = model.config.asagao
+        guard = [f"朝顔（防護棚）{a.stages}段・突出{a.projection_mm:.0f}mm" if a and a.stages else "",
+                 "幅木（各層）" if model.config.has_toe_board else "",
+                 f"{model.config.sheet_type}（外側の構面）" if model.config.sheet_type else ""]
+        _kv(s, "落下物防護設備", "・".join(g for g in guard if g) or "なし", "設置場所は平面図・立面図")
+        _kv(s, "墜落防止設備", f"手すり{model.guard_rail_height_mm}mm＋中桟（{model.guard_rail_method}）・幅木",
+            "各層の外側の構面。躯体との隙間が300を超える面は躯体側にも")
+        s.add_blank()
+    s.add_header(["型番", "分類", "材質", "主要寸法 mm", "呼び寸法", "実寸法", "単位重量kg",
+                  "数量", "小計重量kg", "備考（製造者・規格認定はメーカーの仕様で確認）"])
+    for line in quantity.lines:
+        pt = line.part
+        s.add_cells([
+            Cell(pt.model_no, STYLE_BORDER), Cell(pt.category, STYLE_BORDER),
+            Cell(_material(pt), STYLE_BORDER), Cell(_main_size(pt), STYLE_BORDER),
+            Cell(pt.nominal_dim, STYLE_BORDER), Cell(pt.actual_dim, STYLE_BORDER),
+            Cell(pt.weight_kg, STYLE_BORDER), Cell(line.qty, STYLE_BORDER),
+            Cell(round(line.subtotal_weight, 1), STYLE_BORDER),
+            Cell(pt.note + ("　" + line.note if line.note else ""), STYLE_BORDER),
+        ])
+    s.add_blank()
+    # 分類別集計（発注前の規模感）。CSVの数量表と同じ内容
+    s.add(["■分類別集計", "数量計", "重量計kg"], STYLE_HEADER)
+    for c, q, wt in quantity.category_totals():
+        s.add_cells([Cell(c, STYLE_BORDER), Cell(q, STYLE_BORDER),
+                     Cell(wt, STYLE_BORDER)])
+    s.add_blank()
+    s.add(["総重量kg", quantity.total_weight_kg], STYLE_BOLD)
+    s.add(["トラック台数概算(4t)", quantity.truck_count], STYLE_BOLD)
+    s.add(["架け面積m²", quantity.kake_menseki_m2], STYLE_BOLD)
+    for n in quantity.warnings:
+        s.add_cells([Cell("要手配・要検討", STYLE_BOLD), Cell(n, STYLE_BOLD)])
+    for n in quantity.notes:
+        if n not in quantity.warnings:
+            s.add_cells([Cell("注記"), Cell(n)])
+
+
+def _sheet_todo(wb, verdict, checks: list[CheckResult], warnings=None) -> None:
+    """是正項目と要確認事項（着手前チェックリスト）.
+
+    法規・構造・付帯設備の判定が別々のシートに散っていると、確認する人が
+    突き合わせないと可否が分からない。1枚目の次に総括を置く。
+    """
+    s = wb.sheet("要確認事項")
+    for c, wdt in enumerate([6, 22, 96, 12]):
+        s.set_width(c, wdt)
+    s.add_title("総合判定と着手前チェックリスト", span=4)
+    s.add_blank()
+    s.add(["総合判定", "計画は成立しています" if verdict["ok"] else "是正が必要です"],
+          STYLE_BOLD)
+    for b in verdict.get("blockers", []):
+        s.add_cells([Cell("是正"), Cell(b)])
+    # NG の理由の本文（件数だけでは直せない）
+    for kind, sev, text in (warnings or []):
+        if sev == "NG":
+            s.add_cells([Cell("是正"), Cell(f"{kind}: {text}")])
+    s.add(["要確認", f"{verdict.get('warn', 0)}件",
+           "／".join(verdict.get("warn_breakdown", []))], STYLE_BOLD)
+    s.add_blank()
+    items = [("法規チェック", f"{c.name}: {c.message}（{c.basis}）")
+             for c in checks if c.status == WARN]
+    items += [(kind, text) for kind, sev, text in (warnings or []) if sev != "NG"]
+    if not items:
+        return
+    s.add_header(["#", "分類", "内容", "確認"])
+    for i, (kind, text) in enumerate(items, 1):
+        s.add_cells([
+            Cell(i, STYLE_BORDER), Cell(kind, STYLE_BORDER),
+            Cell(text, STYLE_BORDER), Cell("", STYLE_BORDER),
+        ])
+
+
+def _sheet_law_check(wb, checks: list[CheckResult]) -> None:
+    s = wb.sheet("法規チェック")
+    for c, wdt in enumerate([6, 18, 10, 60, 46]):
+        s.set_width(c, wdt)
+    s.add_title("法規チェック結果", span=5)
+    s.add_blank()
+    s.add_header(["#", "項目", "判定", "内容", "根拠"])
+    for c in checks:
+        s.add_cells([
+            Cell(c.check_id, STYLE_BORDER), Cell(c.name, STYLE_BORDER),
+            Cell(c.status, STYLE_BORDER), Cell(c.message, STYLE_BORDER),
+            Cell(c.basis, STYLE_BORDER),
+        ])
+
+
+def _sheet_attachments(wb, info: NotificationInfo, details=None, model=None) -> None:
+    s = wb.sheet("添付図書チェック")
+    for c, wdt in enumerate([26, 18, 52, 12]):
+        s.set_width(c, wdt)
+    s.add_title("添付図書チェックリスト（安衛法88条）", span=4)
+    s.add_blank()
+    s.add_header(["図書", "作成区分", "内容", "確認"])
+    vm = model.master.vertical_member_name if model is not None else "支柱"
+    for name, kind, desc in ATTACHMENTS:
+        # 立面図の説明は方式で呼び分ける（枠組は建枠構成）
+        if name == "立面図":
+            desc = desc.replace("支柱構成", f"{vm}構成")
+        s.add_cells([
+            Cell(name, STYLE_BORDER), Cell(kind, STYLE_BORDER),
+            Cell(desc, STYLE_BORDER), Cell("", STYLE_BORDER),
+        ])
+    if details:
+        s.add_blank()
+        s.add(["■ 詳細図の内訳（この計画に必要な図）"], STYLE_BOLD)
+        s.add_header(["図面名", "detailType", "必要な理由", "確認"])
+        for d in details:
+            s.add_cells([
+                Cell(d.title, STYLE_BORDER), Cell(d.key, STYLE_BORDER),
+                Cell(d.reason, STYLE_BORDER), Cell("", STYLE_BORDER),
+            ])
+    s.add_blank()
+    s.add(["提出先", info.labor_office or FILL_IN], STYLE_BOLD)
+    s.add(["提出期限", (info.submission_deadline().isoformat()
+                    if info.submission_deadline() else "工事着手30日前")], STYLE_BOLD)
+    s.add(["届出部数", "2部"], STYLE_BOLD)

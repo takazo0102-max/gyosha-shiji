@@ -1,0 +1,113 @@
+﻿! 柵 3D: 区間ごとに規格の1基ずつ
+define material "fc_pp" 2, 0.20, 0.55, 0.30
+define material "fc_wt" 2, 0.25, 0.25, 0.27
+define material "fc_galv" 2, 0.72, 0.74, 0.76
+define material "fc_yel" 2, 0.95, 0.80, 0.10
+define material "fc_red" 2, 0.75, 0.15, 0.15
+define material "fc_white" 2, 0.92, 0.92, 0.90
+resol 8
+for s = 1 to kC - 1
+	dx = qcx[s + 1] - qcx[s]
+	dy = qcy[s + 1] - qcy[s]
+	sL = sqr(dx * dx + dy * dy)
+	sA = 90 * sgn(dy)
+	if abs(dx) > 0.000001 then sA = atn(dy / dx)
+	if dx < 0 then sA = sA + 180
+	if sL > 0.01 then
+		nU = max(1, ceil(sL / uL - 0.02))
+		stp = uL
+		if kd = 2 then stp = sL / nU
+		add qcx[s], qcy[s], 0
+		rotz sA
+		for u = 1 to nU
+			add (u - 1) * stp, 0, 0
+			gosub "unit"
+			del 1
+		next u
+		if kd = 2 then
+			add sL, 0, 0
+			gosub "stand"
+			del 1
+		endif
+		del 2
+	endif
+next s
+end
+
+! 1基（今の座標で +X に長さ uL）
+"unit":
+	if kd = 1 then
+		! PPフェンス: 支柱 φ32×2・板・ウエイト（支柱の下）
+		material "fc_wt"
+		add -0.15, -0.15, 0
+		block 0.3, 0.3, 0.114
+		del 1
+		material "fc_pp"
+		add 0.0, 0, 0.114
+		cylind 1.1, 0.016
+		del 1
+		add 0.052, -0.01, 0.214
+		block 1.395, 0.02, 1.0
+		del 1
+	endif
+	if kd = 2 then
+		gosub "stand"
+		material "fc_galv"
+		for r = 1 to 2
+			hz = 0.85
+			if r = 2 then hz = 0.45
+			add -0.1, 0.05, hz
+			roty 90
+			cylind stp + 0.2, 0.0243
+			del 2
+		next r
+	endif
+	if kd = 3 then
+		! バルカンバリア: 鋼製の台形の断面を3段に、上に黄色の帯
+		material "fc_galv"
+		add 0.005, -0.28, 0
+		block 4.105, 0.56, 0.25
+		del 1
+		add 0.005, -0.2, 0.25
+		block 4.105, 0.4, 0.3
+		del 1
+		add 0.005, -0.125, 0.55
+		block 4.105, 0.25, 0.264
+		del 1
+		material "fc_yel"
+		add 0.005, -0.126, 0.72
+		block 4.105, 0.002, 0.06
+		del 1
+	endif
+	if kd = 4 then
+		! 仮設ガードレール: H-300 の台（赤）・支柱 φ114.3 を 2m ごと・ガードレールのビーム
+		material "fc_red"
+		add 0.005, -0.15, 0
+		block 4.99, 0.3, 0.3
+		del 1
+		material "fc_galv"
+		for i = 0 to 2
+			add 0.5 + 2 * i, 0, 0.3
+			cylind 0.4, 0.057
+			del 1
+		next i
+		material "fc_white"
+		add 0.005, -0.15, 0.425
+		block 4.99, 0.08, 0.35
+		del 1
+	endif
+return
+
+! スタンドバリケード C型: A 形の脚（幅 460・高さ 935）
+"stand":
+	material "fc_yel"
+	for lg = -1 to 1 step 2
+		add 0, lg * 0.23, 0
+		rotx lg * 14
+		cylind 0.95, 0.016
+		del 2
+	next lg
+	add -0.016, -0.23, 0.2
+	block 0.032, 0.46, 0.03
+	del 1
+return

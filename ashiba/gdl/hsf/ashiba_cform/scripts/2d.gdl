@@ -1,0 +1,79 @@
+﻿! 柱の型枠 2D
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "cfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 面ごとのせき板・桟木・外端太
+rot2 0
+for i = 1 to int(nPl1 / 2)
+	rect2 pl1[2 * i - 1], hB, pl1[2 * i], hB + plyT
+next i
+for i = 1 to nSg1
+	rect2 sg1a[i] - sgB / 2, hB + plyT, sg1a[i] + sgB / 2, hB + plyT + sgH
+next i
+if clampOn then
+	rect2 -hA - plyT - sgH - 0.12, hB + plyT + sgH, hA + plyT + sgH + 0.12, hB + plyT + sgH + clT
+endif
+line_type "DASHED"
+for i = 1 to int(nTb1 / 2)
+	line2 tb1a[2 * i - 1], hB + plyT + sgH + r, tb1a[2 * i], hB + plyT + sgH + r
+next i
+line_type 1
+del 1
+rot2 90
+for i = 1 to int(nPl2 / 2)
+	rect2 pl2[2 * i - 1], hA, pl2[2 * i], hA + plyT
+next i
+for i = 1 to nSg2
+	rect2 sg2a[i] - sgB / 2, hA + plyT, sg2a[i] + sgB / 2, hA + plyT + sgH
+next i
+if clampOn then
+	rect2 -hB - plyT - sgH - 0.12, hA + plyT + sgH, hB + plyT + sgH + 0.12, hA + plyT + sgH + clT
+endif
+line_type "DASHED"
+for i = 1 to int(nTb2 / 2)
+	line2 tb2a[2 * i - 1], hA + plyT + sgH + r, tb2a[2 * i], hA + plyT + sgH + r
+next i
+line_type 1
+del 1
+rot2 180
+for i = 1 to int(nPl3 / 2)
+	rect2 pl3[2 * i - 1], hB, pl3[2 * i], hB + plyT
+next i
+for i = 1 to nSg3
+	rect2 sg3a[i] - sgB / 2, hB + plyT, sg3a[i] + sgB / 2, hB + plyT + sgH
+next i
+if clampOn then
+	rect2 -hA - plyT - sgH - 0.12, hB + plyT + sgH, hA + plyT + sgH + 0.12, hB + plyT + sgH + clT
+endif
+line_type "DASHED"
+for i = 1 to int(nTb3 / 2)
+	line2 tb3a[2 * i - 1], hB + plyT + sgH + r, tb3a[2 * i], hB + plyT + sgH + r
+next i
+line_type 1
+del 1
+rot2 270
+for i = 1 to int(nPl4 / 2)
+	rect2 pl4[2 * i - 1], hA, pl4[2 * i], hA + plyT
+next i
+for i = 1 to nSg4
+	rect2 sg4a[i] - sgB / 2, hA + plyT, sg4a[i] + sgB / 2, hA + plyT + sgH
+next i
+if clampOn then
+	rect2 -hB - plyT - sgH - 0.12, hA + plyT + sgH, hB + plyT + sgH + 0.12, hA + plyT + sgH + clT
+endif
+line_type "DASHED"
+for i = 1 to int(nTb4 / 2)
+	line2 tb4a[2 * i - 1], hA + plyT + sgH + r, tb4a[2 * i], hA + plyT + sgH + r
+next i
+line_type 1
+del 1
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.05, tx[i], yT + 0.05
+next i
+for i = 1 to nY
+	line2 -xT - 0.05, ty[i], xT + 0.05, ty[i]
+next i
+style "cfT"
+text2 0, -yT - 0.15, cName + "  " + cNote

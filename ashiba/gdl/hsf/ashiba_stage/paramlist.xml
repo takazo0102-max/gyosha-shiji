@@ -1,0 +1,165 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["長手の向き（度。配置時に Python が入れる。+X＝長手、+Y＝短手）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<String Name="spanU">
+			<Description><![CDATA["長手のスパン mm カンマ区切り"]]></Description>
+			<Value><![CDATA["1829,1829,1829"]]></Value>
+		</String>
+		<String Name="spanV">
+			<Description><![CDATA["短手のスパン mm カンマ区切り"]]></Description>
+			<Value><![CDATA["1829,1829"]]></Value>
+		</String>
+		<String Name="lvList">
+			<Description><![CDATA["根がらみと各段の高さ mm（配置した高さから。最後が作業床）"]]></Description>
+			<Value><![CDATA["375,2175,3975"]]></Value>
+		</String>
+		<Length Name="deckH">
+			<Description><![CDATA["作業床の高さ（配置した高さから）"]]></Description>
+			<Value>3.975</Value>
+		</Length>
+		<String Name="deckList">
+			<Description><![CDATA["ほかの段の作業床の高さ mm（配置した高さから。カンマ区切り。EVシャフトの各階など）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Boolean Name="guardOn">
+			<Description><![CDATA["最上段の外周の手すり・中桟・幅木（EVシャフトは壁が近いので無し）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="gOpenE">
+			<Description><![CDATA["長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="postTop">
+			<Description><![CDATA["支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="uheadExt">
+			<Description><![CDATA["支保工: 大引受けジャッキの繰出し（postTop の上。0＝描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="footAxis">
+			<Description><![CDATA["階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="footZ">
+			<Description><![CDATA["階段の上: 支柱の列ごとの足元の高さ mm（zBase から。カンマ区切り。空＝平ら）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="footNeg">
+			<Description><![CDATA["階段の上: 列ごとの根がらみの高さ mm（配置した高さから。0＝共通の根がらみ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="postDia">
+			<Description><![CDATA["支柱の径（0＝φ48.6。本体の足場の部材と同じ作り。利用者の指定 2026-10-29）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="komaP">
+			<Description><![CDATA["コマの間隔（くさび）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Integer Name="sysKind">
+			<Description><![CDATA["足場の種類（0＝くさび、1＝単管、2＝枠組）。単管・枠組はコマとくさびの頭を描かない"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="jackExt">
+			<Description><![CDATA["ジャッキの繰出し（平らな所の支柱）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<String Name="footJk">
+			<Description><![CDATA["階段の上: 列ごとのジャッキの繰出し mm（footZ と同じ並び）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="dkWs">
+			<Description><![CDATA["布板の幅 mm（広い順。スパンをこの幅で埋める）"]]></Description>
+			<Value><![CDATA["500,240"]]></Value>
+		</String>
+		<String Name="stFl">
+			<Description><![CDATA["昇降の階段（下の段,上の段 を続けて mm。配置した高さから。空＝はしご）。隅の1スパンに折り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Integer Name="inBrN">
+			<Description><![CDATA["支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数。数量と同じ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Boolean Name="ladOn">
+			<Description><![CDATA["はしごを描く（昇降が「はしご」のときだけ。階段・建物の階段のときは描かない）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="hatchZ">
+			<Description><![CDATA["ハッチ付布板（梯子内蔵）の段 mm（配置した高さから。EVシャフト）。上下で位置をずらす"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="zBase">
+			<Description><![CDATA["足場の立つ高さ（配置した高さから。ジャッキの下端）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="stName">
+			<Description><![CDATA["名前"]]></Description>
+			<Value><![CDATA["内部ステージ足場"]]></Value>
+		</String>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matScaf">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matDeck">
+			<Description><![CDATA["床の表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penPost">
+			<Description><![CDATA["ペン: 支柱"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penLine">
+			<Description><![CDATA["ペン: 足場の線"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+	</Parameters>
+</ParamSection>

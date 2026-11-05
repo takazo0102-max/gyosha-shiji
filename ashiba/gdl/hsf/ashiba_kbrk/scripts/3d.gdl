@@ -1,0 +1,244 @@
+﻿! ============================================================
+! 拡幅・張出ブラケット 3D（ブラケット1基）。日建リース ND カタログ Vol.10 p014 の形（利用者の指定 2026-10-25:
+! これだよ拡張ブラケット 作り直して／拡張ブラケットGDL作って 配置してみて。reports/くさび式足場の拡幅ブラケット.md）
+!   NDBK03H 拡幅ブラケット: 出 305（20.5＋241＋42.7）、方杖の緊結部は腕の 450 下（1コマ）、先端ホゾ φ36.4（ND支柱専用）。
+!     拡幅時は先端から下層の支柱へ補強単管（φ48.6）をスーパークランプ S2C で取付（つなぎ材の付近）
+!   NDBK06H 張出ブラケット: 出 610（20.5＋546＋42.7）、方杖の緊結部は 900 下（2コマ）
+! 原点＝ブラケットを付ける支柱の芯（z は GL）、+X＝腕の先。腕は床の布材と同じコマ（zArm）に掛ける
+! ============================================================
+pen 1
+resol 12
+dim tzs[]
+rotz faceAng
+addz zArm
+if matBk > 0 then
+	material matBk
+else
+	define material "ashiba_kbrk_zinc" 2, 0.74, 0.76, 0.78
+	material "ashiba_kbrk_zinc"
+endif
+! 補強単管・角の単管のクランプの色（同じ名前の define material を2か所に書くと 3D 全体が描けない。2026-10-25 実機）
+define material "ashiba_kbrk_gold" 2, 0.86, 0.68, 0.22
+rP = postR
+rA = 0.0427 / 2
+xT = brW - rA
+! ---- 出隅の角の支柱（拡幅・縮幅。width_change）: ブラケットは無い ----
+if cnrMode = 1 then
+	! 拡幅の角: 元の升目の外に地上から立てる支柱（ジャッキ＋支柱。上の部品の角の支柱に続く）と、元の角の支柱（+X 方向
+	! cnrL 先）へ繋ぐ単管 φ48.6（両端は自在クランプ）
+	zb = zBot - zArm
+	if lineMode then
+		lin_ 0, 0, zb, 0, 0, -0.1
+	else
+		add -0.075, -0.075, zb
+		block 0.15, 0.15, 0.006
+		del 1
+		add 0, 0, zb
+		cylind 0.25, 0.015
+		del 1
+		add 0, 0, zb + 0.2
+		cylind -0.1 - (zb + 0.2), rP
+		del 1
+	endif
+	rest = tieList
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", zt)
+		if k > 0 then
+			zt = zt - zArm
+			if lineMode then
+				lin_ 0, 0, zt, cnrL, 0, zt
+			else
+				add 0, 0, zt
+				roty 90
+				cylind cnrL, 0.0243
+				del 2
+				material "ashiba_kbrk_gold"
+				for kk = 0 to 1
+					add kk * cnrL - 0.03, -0.03, zt - 0.03
+					block 0.06, 0.06, 0.06
+					del 1
+				next kk
+				if matBk > 0 then
+					material matBk
+				else
+					material "ashiba_kbrk_zinc"
+				endif
+			endif
+		endif
+	endwhile
+	end
+endif
+if cnrMode = 2 then
+	! 縮幅の角: 元の升目の外側の角の支柱から内側の角の支柱へ（+X 方向 cnrL）対角に渡す単管 φ48.6。幅を変える床の
+	! 100 下（上の部品の角の支柱の足元）に、両端は自在クランプ。cnrAt に角の支柱を自在クランプで立てる
+	zt = -0.1 - 0.0243
+	if lineMode then
+		lin_ 0, 0, zt, cnrL, 0, zt
+		end
+	endif
+	add 0, 0, zt
+	roty 90
+	cylind cnrL, 0.0243
+	del 2
+	material "ashiba_kbrk_gold"
+	add -0.03, -0.03, zt - 0.03
+	block 0.06, 0.06, 0.06
+	del 1
+	add cnrL - 0.03, -0.03, zt - 0.03
+	block 0.06, 0.06, 0.06
+	del 1
+	add cnrAt - 0.035, -0.035, zt + 0.0243
+	block 0.07, 0.07, 0.05
+	del 1
+	end
+endif
+if lineMode then
+	lin_ rP, 0, 0, xT, 0, 0
+	lin_ rP, 0, -brDp, xT - 0.06, 0, -0.03
+	lin_ xT, 0, -tipDn, xT, 0, tipUp + hozoL
+	if extUp > 0.01 then lin_ 0, 0, 0, 0, 0, extUp
+	if tipH > 0.01 then lin_ xT, 0, 0, xT, 0, tipH
+	if tieZ > 0.01 and strlen(railList) = 0 then lin_ 0, 0, tieZ, xT, 0, tieZ
+	end
+endif
+! 緊結部（腕の高さと方杖の下の2か所）: 支柱の外面からコマ（円盤）を上下に挟む受けと、縦に貫くクサビ
+for k = 0 to 1
+	zk = 0
+	if k = 1 then zk = -brDp
+	add rP, -0.020, zk + 0.003
+	block 0.050, 0.040, 0.042
+	del 1
+	add rP, -0.020, zk - 0.040
+	block 0.050, 0.040, 0.037
+	del 1
+	add rP + 0.016, -0.006, zk - 0.075
+	block 0.010, 0.012, 0.150
+	del 1
+next k
+! 背の縦材（支柱に沿って、腕の緊結部から方杖の緊結部まで。角形 24）
+add rP + 0.050, -0.012, -brDp - 0.02
+block 0.024, 0.024, brDp + 0.02
+del 1
+! 腕（φ42.7。背の縦材から先端の管まで）
+add rP + 0.05, 0, 0
+roty 90
+cylind xT - rP - 0.05, rA
+del 2
+! 方杖（φ27.2。下の緊結部から腕の先の手前へ）
+bx = xT - 0.07 - (rP + 0.074)
+bz = brDp - 0.03
+add rP + 0.074, 0, -brDp + 0.01
+roty 90 - atn(bz / bx)
+cylind sqr(bx ^ 2 + bz ^ 2), 0.0136
+del 2
+! 腕と方杖の付け根のプレート
+add xT - 0.09, -0.003, -0.07
+block 0.06, 0.006, 0.07
+del 1
+! 先端の管（φ42.7）とホゾ（φ36.4。ND支柱を挿す）
+add xT, 0, -tipDn
+cylind tipDn + tipUp, rA
+del 1
+add xT, 0, tipUp
+cylind hozoL, 0.0364 / 2
+del 1
+! 補強単管（拡幅時。先端の管から下層の支柱へ φ48.6、両端はスーパークランプ S2C）
+if reinf > 0.1 then
+	ry = -0.06
+	bx = xT - (rP + 0.03)
+	bz = reinf - 0.10 - 0.05
+	add rP + 0.03, ry, -reinf + 0.10
+	roty 90 - atn(bz / bx)
+	cylind sqr(bx ^ 2 + bz ^ 2), 0.0243
+	del 2
+	material "ashiba_kbrk_gold"
+	add xT - 0.035, ry - 0.035, -0.05 - 0.035
+	block 0.07, 0.07, 0.07
+	del 1
+	add rP + 0.03 - 0.035, ry - 0.035, -reinf + 0.10 - 0.035
+	block 0.07, 0.07, 0.07
+	del 1
+endif
+! 元の支柱の継ぎ足し（拡幅・縮幅。NDP09N。腕のコマの上から）と、つなぎ材 NDT03（継ぎ足した支柱と先端の支柱を繋ぐ。
+! 両端は緊結部のくさび）
+if matBk > 0 then
+	material matBk
+else
+	material "ashiba_kbrk_zinc"
+endif
+if extUp > 0.01 then
+	add 0, 0, 0.03
+	cylind extUp - 0.03, rP
+	del 1
+	add 0, 0, extUp
+	cylind 0.12, 0.0364 / 2
+	del 1
+endif
+! 先端のホゾに立てる支柱（範囲の終わりの端。後の区間の足場ラインはこの位置の支柱を持たない）
+if tipH > 0.01 then
+	add xT, 0, tipUp
+	cylind tipH - tipUp, rP
+	del 1
+endif
+! つなぎ材（railList の高さごと。空なら tieZ の1本）。範囲の端は各層の手すり・中桟の高さで塞ぐ
+nTz = 0
+rest = railList
+while strlen(rest) > 0 and nTz < 60 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", zv)
+	if k > 0 then
+		nTz = nTz + 1
+		tzs[nTz] = zv
+	endif
+endwhile
+if nTz = 0 and tieZ > 0.01 then
+	nTz = 1
+	tzs[1] = tieZ
+endif
+for it = 1 to nTz
+	add rP, 0, tzs[it]
+	roty 90
+	cylind xT - rA - rP, rA
+	del 2
+	for kk = 0 to 1
+		add rP + kk * (xT - rA - 2 * rP - 0.05), -0.02, tzs[it] - 0.035
+		block 0.05, 0.04, 0.07
+		del 1
+	next kk
+next it
+! 先端まで延ばす腕木（拡幅の範囲の終わりの端。躯体側の支柱 −udW から先端の支柱まで、新しい幅の床を受ける）
+if udW > 0.01 then
+	rest = udList
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", zv)
+		if k > 0 then
+			add -udW + rP, 0.03, zv
+			roty 90
+			cylind udW + xT - 2 * rP, rA
+			del 2
+		endif
+	endwhile
+endif

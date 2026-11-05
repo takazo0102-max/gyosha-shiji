@@ -1,0 +1,118 @@
+﻿! 開口養生: 区分ごとの寸法（opening_guard.py と同じ）と手すりの辺・単管・幅木の板（発注の規格の長さ）
+kd = max(1, min(5, opKind))
+lap = 0.1
+lidT = 0.012
+if kd = 3 then lidT = 0.024
+rOff = 0.1
+pSp = 1.8
+! 手すりの囲い（大開口は開口の外 0.1 の長方形、縁は床の側に 0.1 入った1本）
+rx0 = -rOff
+ry0 = -rOff
+rx1 = opW + rOff
+ry1 = opD + rOff
+eSd = 1
+if edSide < 0 then eSd = -1
+eY = eSd * rOff
+! 辺ごとの始め・向き・長さ・開口（床の縁）の側（辺の +Y を 1）
+dim sdX[4], sdY[4], sdA[4], sdL[4], sdI[4]
+nSd = 4
+sdX[1] = rx0
+sdY[1] = ry0
+sdA[1] = 0
+sdL[1] = rx1 - rx0
+sdI[1] = 1
+sdX[2] = rx0
+sdY[2] = ry1
+sdA[2] = 0
+sdL[2] = rx1 - rx0
+sdI[2] = -1
+sdX[3] = rx0
+sdY[3] = ry0
+sdA[3] = 90
+sdL[3] = ry1 - ry0
+sdI[3] = -1
+sdX[4] = rx1
+sdY[4] = ry0
+sdA[4] = 90
+sdL[4] = ry1 - ry0
+sdI[4] = 1
+if kd = 5 then
+	nSd = 1
+	sdX[1] = 0
+	sdY[1] = eY
+	sdL[1] = opW
+	sdI[1] = -eSd
+endif
+if kd < 4 then nSd = 0
+dim qrs[]
+kRs = 0
+rest = rlS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kRs = kRs + 1
+		qrs[kRs] = v
+	endif
+endwhile
+dim qrl[]
+kRl = 0
+rest = rlL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kRl = kRl + 1
+		qrl[kRl] = v / 1000
+	endif
+endwhile
+dim qbs[]
+kBs = 0
+rest = tbS
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kBs = kBs + 1
+		qbs[kBs] = v
+	endif
+endwhile
+dim qbl[]
+kBl = 0
+rest = tbL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kBl = kBl + 1
+		qbl[kBl] = v / 1000
+	endif
+endwhile

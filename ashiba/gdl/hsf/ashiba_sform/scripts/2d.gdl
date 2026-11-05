@@ -1,0 +1,24 @@
+﻿! スラブの型枠と支保工 2D: せき板の形（外形と穴）、大引（破線）、パイプサポート（○）、名前
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "sfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+i0 = 1
+for k = 1 to nR
+	for i = 0 to rn[k] - 1
+		j = i + 1
+		if j >= rn[k] then j = 0
+		line2 pu[i0 + i], pv[i0 + i], pu[i0 + j], pv[i0 + j]
+	next i
+	i0 = i0 + rn[k]
+next k
+line_type "DASHED"
+for i = 1 to nO
+	line2 ou0[i], ov[i], ou1[i], ov[i]
+next i
+line_type 1
+for i = 1 to nP
+	circle2 su[i], sv[i], 0.03
+next i
+style "sfT"
+text2 pu[1] + 0.3, pv[1] + 0.3, cName + "  " + cNote

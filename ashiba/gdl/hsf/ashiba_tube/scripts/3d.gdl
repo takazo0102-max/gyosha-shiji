@@ -1,0 +1,52 @@
+﻿! 単管のつなぎ 3D: 高さごとの単管（中桟・手すり）・直交クランプ、層の間の斜めの単管と自在クランプ
+define material "tb_pipe" 2, 0.72, 0.74, 0.76
+define material "tb_clamp" 2, 0.35, 0.36, 0.38
+resol 8
+for i = 1 to nZ
+	nR = 1
+	if gdOn then nR = 3
+	for k = 1 to nR
+		zr = zz[i]
+		if k = 2 then zr = zz[i] + 0.45
+		if k = 3 then zr = zz[i] + 0.95
+		material "tb_pipe"
+		add -ov, -0.07, zr
+		roty 90
+		cylind tbLen, rT
+		del 2
+		material "tb_clamp"
+		for e = 0 to 1
+			add e * tbL - 0.045, -0.115, zr - 0.04
+			block 0.09, 0.09, 0.08
+			del 1
+		next e
+	next k
+next i
+if brOn and nZ > 1 then
+	for i = 1 to nZ - 1
+		! 斜めの両端は自在クランプの所（層の 0.1 上から次の層の 0.1 下）
+		dz = zz[i + 1] - zz[i] - 0.2
+		bl = sqr(tbL ^ 2 + dz ^ 2)
+		ab = atn(dz / tbL)
+		material "tb_pipe"
+		if i mod 2 = 1 then
+			add 0, 0.07, zz[i] + 0.1
+			roty 90 - ab
+		else
+			add tbL, 0.07, zz[i] + 0.1
+			roty -90 + ab
+		endif
+		add 0, 0, -ov
+		cylind bl + 2 * ov, rT
+		del 3
+		material "tb_clamp"
+		xb = 0
+		if i mod 2 = 0 then xb = tbL
+		add xb - 0.045, 0.025, zz[i] + 0.06
+		block 0.09, 0.09, 0.08
+		del 1
+		add tbL - xb - 0.045, 0.025, zz[i + 1] - 0.14
+		block 0.09, 0.09, 0.08
+		del 1
+	next i
+endif

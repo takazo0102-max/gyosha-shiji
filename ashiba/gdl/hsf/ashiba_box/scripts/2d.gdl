@@ -1,0 +1,68 @@
+﻿! 足場の箱 2D（壁の形）: 内側の建地の列から外へ厚み tk の帯、スパンの区切り・寸法、種類と見出し、つまみ
+! （右の辺＝長手、上の辺＝短手、下の辺の左寄り＝厚み）
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "bxT" "ＭＳ Ｐゴシック", texSiz, 2, 0
+define style "bxB" "ＭＳ Ｐゴシック", texSiz, 8, 0
+define style "bxR" "ＭＳ Ｐゴシック", texSiz, 6, 0
+define style "bxL" "ＭＳ Ｐゴシック", texSiz, 4, 0
+define style "bxC" "ＭＳ Ｐゴシック", texSiz, 5, 0
+gap = texSiz * GLOB_SCALE / 1000 * 0.6
+rect2 0, 0, lx, ly
+rect2 -tk, -tk, lx + tk, ly + tk
+xx = 0
+for i = 1 to nX + 1
+	line2 xx, 0, xx, -tk
+	line2 xx, ly, xx, ly + tk
+	if i <= nX then
+		style "bxT"
+		text2 xx + sx[i] / 2, -tk - gap, str(sx[i] * 1000, 1, 0)
+		style "bxB"
+		text2 xx + sx[i] / 2, ly + tk + gap, str(sx[i] * 1000, 1, 0)
+		xx = xx + sx[i]
+	endif
+next i
+yy = 0
+for j = 1 to nY + 1
+	line2 0, yy, -tk, yy
+	line2 lx, yy, lx + tk, yy
+	if j <= nY then
+		style "bxR"
+		text2 -tk - gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
+		style "bxL"
+		text2 lx + tk + gap, yy + sy[j] / 2, str(sy[j] * 1000, 1, 0)
+		yy = yy + sy[j]
+	endif
+next j
+! 出隅の升目に×
+for cx = 0 to 1
+	for cy = 0 to 1
+		x0 = -tk + cx * (lx + tk)
+		y0 = -tk + cy * (ly + tk)
+		line2 x0, y0, x0 + tk, y0 + tk
+		line2 x0, y0 + tk, x0 + tk, y0
+	next cy
+next cx
+style "bxC"
+text2 lx / 2, ly / 2, kind + "（厚み " + str(tk * 1000, 1, 0) + "）"
+style "bxT"
+zTx = ""
+if zBase > 0.001 then zTx = "・立つ高さ " + str(zBase * 1000, 1, 0)
+text2 lx / 2, -tk - 4 * gap, "足場の箱 " + str(lx * 1000, 1, 0) + "×" + str(ly * 1000, 1, 0) + "・作業床 " + str(nL, 1, 0) + "段（最上段 " + str((zBase + deckTop) * 1000, 1, 0) + "）" + zTx
+hotspot2 0, 0
+hotspot2 lx, 0
+hotspot2 lx, ly
+hotspot2 0, ly
+hotspot2 -tk, -tk
+hotspot2 lx + tk, ly + tk
+! 伸び縮みのつまみ（右の辺の中ほどで長手、上の辺の中ほどで短手、下の辺の左寄りで厚み）
+hotspot2 0, ly / 2, 101, lenX, 1 + 128
+hotspot2 lenX, ly / 2, 102, lenX, 2
+hotspot2 -1, ly / 2, 103, lenX, 3
+hotspot2 lx / 2, 0, 104, lenY, 1 + 128
+hotspot2 lx / 2, lenY, 105, lenY, 2
+hotspot2 lx / 2, -1, 106, lenY, 3
+hotspot2 lx / 4, 0, 107, thick, 1 + 128
+hotspot2 lx / 4, -thick, 108, thick, 2
+hotspot2 lx / 4, 1, 109, thick, 3

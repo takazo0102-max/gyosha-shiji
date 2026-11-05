@@ -1,0 +1,151 @@
+﻿! ============================================================
+! 梁の型枠 3D（利用者の指定 2026-10-31: さんぎ そとばた フォームタイ）
+! 原点＝梁の芯の始めの下端（底板の上面）
+! ============================================================
+resol 12
+define material "bf_ply" 2, 0.86, 0.66, 0.38
+define material "bf_wood" 2, 0.74, 0.56, 0.36
+define material "bf_steel" 2, 0.62, 0.62, 0.66
+define material "bf_tie" 2, 0.35, 0.35, 0.38
+define material "bf_pcon" 2, 0.85, 0.85, 0.80
+define material "bf_ps" 2, 0.42, 0.44, 0.48
+gap = 0.006
+L = x1 - x0
+! ---- 底板と下の根太（角パイプ □50×50・梁の向き）（スラブ・梁下の詳細図。利用者の指定 2026-10-31） ----
+material "bf_ply"
+add x0, -hw, zb
+block L, wB, plyT
+del 1
+material "bf_steel"
+for i = 1 to nB
+	add x0, by[i] - nH / 2, zb - nH
+	block L, nH, nH
+	del 1
+next i
+! ---- 大引（杉 90×90・梁に直角） ----
+material "bf_wood"
+for i = 1 to nU
+	add ux[i] - oH / 2, -yT - r - ukeOut, zb - nH - oH
+	block oH, 2 * (yT + r + ukeOut), oH
+	del 1
+next i
+! ---- パイプサポート（受けの単管の両端の下） ----
+if psH > 0.1 then
+	for i = 1 to nU
+		for sd = -1 to 1 step 2
+			add ux[i], sd * psY, zb - nH - oH - psH
+			material "bf_steel"
+			add -0.07, -0.07, 0
+			block 0.14, 0.14, 0.006
+			del 1
+			material "bf_ps"
+			cylind psH * 0.6, 0.03025
+			add 0, 0, psH * 0.6
+			material "bf_steel"
+			cylind psH * 0.4 - 0.006, 0.0243
+			del 1
+			add -0.06, -0.06, psH - 0.006
+			block 0.12, 0.12, 0.006
+			del 1
+			material "bf_tie"
+			for kk = -1 to 1 step 2
+				add kk * 0.04, 0, psH
+				cylind 0.04, 0.002
+				del 1
+			next kk
+			del 1
+		next sd
+	next i
+endif
+! ---- 敷き桟木（上のスラブの敷き桟木と向きを揃える。利用者の指定 2026-10-31: さんぎの向き揃えて） ----
+if psH > 0.1 and nU > 0 then
+	material "bf_wood"
+	if sillCross then
+		for i = 1 to nU
+			add ux[i] - 0.03, -psY - 0.15, zb - nH - oH - psH - sillH
+			block 0.06, 2 * psY + 0.3, sillH
+			del 1
+		next i
+	else
+		for sd = -1 to 1 step 2
+			add ux[1] - 0.15, sd * psY - 0.03, zb - nH - oH - psH - sillH
+			block ux[nU] - ux[1] + 0.3, 0.06, sillH
+			del 1
+		next sd
+	endif
+endif
+! ---- 側板・桟木・外端太 ----
+for sd = -1 to 1 step 2
+	if sd > 0 then
+		hS = sideH2
+	else
+		hS = sideH
+	endif
+	material "bf_ply"
+	if sd > 0 then
+		add x0, hw, zb
+	else
+		add x0, -hw - plyT, zb
+	endif
+	block L, plyT, hS
+	del 1
+	material "bf_wood"
+	for i = 1 to nS
+		if sd > 0 then
+			add sx[i] - sgB / 2, hw + plyT, zb
+		else
+			add sx[i] - sgB / 2, -yS, zb
+		endif
+		block sgB, sgH, hS
+		del 1
+	next i
+	material "bf_steel"
+	for j = 1 to nT
+		if tz[j] < hS - 0.03 then
+		for k = -1 to 1 step 2
+			add tb0, sd * yT, zb + tz[j] + k * (r + gap)
+			roty 90
+			cylind tb1 - tb0, r
+			del 2
+		next k
+		endif
+	next j
+next sd
+! ---- フォームタイ（両側の側板がある段だけ） ----
+for j = 1 to min(nT, nTie)
+	for i = 1 to nX
+		add tx[i], 0, zb + tz[j]
+		material "bf_tie"
+		add 0, -yT - r - 0.05, 0
+		rotx -90
+		cylind 2 * (yT + r + 0.05), 0.00395
+		del 2
+		for sd = -1 to 1 step 2
+			add -0.035, sd * (yT + r) + (sd - 1) / 2 * 0.006, -(2 * r + gap)
+			block 0.07, 0.006, 2 * (2 * r + gap)
+			del 1
+		next sd
+		material "bf_pcon"
+		add 0, -hw, 0
+		rotx -90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		add 0, hw, 0
+		rotx 90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		del 1
+	next i
+next j
+! ---- 止め型枠 ----
+material "bf_ply"
+if endS then
+	add x0 - plyT, -hw - plyT, zb
+	block plyT, wB + 2 * plyT, max(sideH, sideH2)
+	del 1
+endif
+if endE then
+	add x1, -hw - plyT, zb
+	block plyT, wB + 2 * plyT, max(sideH, sideH2)
+	del 1
+endif

@@ -1,0 +1,7 @@
+﻿! 親綱: 支柱の位置（両端から llEnd、nSpan に等分）と支柱の高さ
+nS = max(0, nSpan)
+spL = 0
+if nS > 0 then spL = max(0, llL - 2 * llEnd) / nS
+pH = 1.045
+if postK = 2 then pH = 1.081
+rpZ = pH - 0.06

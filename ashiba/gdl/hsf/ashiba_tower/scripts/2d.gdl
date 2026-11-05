@@ -1,0 +1,145 @@
+﻿! タワークレーン 2D: 基礎・マスト・壁つなぎ・ジブとカウンタウエイト（旋回）・後端旋回半径・作業半径・注記・ホットスポット
+! CAD の平面図の描き方（scripts/gdl_draft.py）: 外形は太線・細部は細線、地中の基礎は破線、作業半径は一点鎖線、後端旋回半径は
+! 二点鎖線。旋回体（カウンタウエイト・デッキ）は背景の色で塗って下のマストを隠す。縮尺で描き分ける
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+pen penEquip
+define style "tcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "tcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! 基礎（地中なので破線）・マスト（詳細はラチスの斜材）
+drawindex 10
+pen pT
+if drLv < 3 then
+	line_type ltH
+	rect2 -baseW / 2, -baseW / 2, baseW / 2, baseW / 2
+	line_type ltS
+endif
+drawindex 12
+pen pO
+rect2 -msW / 2, -msW / 2, msW / 2, msW / 2
+pen pT
+if drLv < 3 then
+	line2 -msW / 2, -msW / 2, msW / 2, msW / 2
+	line2 -msW / 2, msW / 2, msW / 2, -msW / 2
+endif
+! 壁つなぎ（建物の側へ2本。詳細はつなぎの間の斜材）
+if nTz > 0 then
+	rot2 tieA
+	pen pO
+	line2 msW / 2, -msW / 2, msW / 2 + tieL, -msW / 2 - 0.3
+	line2 msW / 2, msW / 2, msW / 2 + tieL, msW / 2 + 0.3
+	if drLv = 1 then
+		pen pT
+		line2 msW / 2, -msW / 2, msW / 2 + tieL, msW / 2 + 0.3
+	endif
+	del 1
+endif
+! 後端旋回半径（立入禁止の目安。二点鎖線）・今の作業半径・最大作業半径（一点鎖線）
+drawindex 45
+pen pZ
+line_type ltZ
+circle2 0, 0, tailR
+line_type ltC
+circle2 0, 0, hX
+if maxR > hX + 0.1 then circle2 0, 0, maxR
+line_type ltS
+! ジブとカウンタウエイト（旋回で回す）
+rot2 slew
+if mk then
+	drawindex 20
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		-tailR, dkY - cwW / 2, 1,
+		-tailR + cwL, dkY - cwW / 2, 1,
+		-tailR + cwL, dkY + cwW / 2, 1,
+		-tailR, dkY + cwW / 2, 1,
+		-tailR, dkY - cwW / 2, -1
+	fill fiS
+	poly2_b 5, 6, pM, pM,
+		-tailR + cwL, dkY - dkW / 2, 1,
+		upF, dkY - dkW / 2, 1,
+		upF, dkY + dkW / 2, 1,
+		-tailR + cwL, dkY + dkW / 2, 1,
+		-tailR + cwL, dkY - dkW / 2, -1
+endif
+drawindex 30
+pen pO
+line2 pvX, -jbW / 2, jX, -jbW / 4
+line2 pvX, jbW / 2, jX, jbW / 4
+line2 jX, -jbW / 4, jX, jbW / 4
+rect2 -tailR, dkY - cwW / 2, -tailR + cwL, dkY + cwW / 2
+rect2 -tailR + cwL, dkY - dkW / 2, upF, dkY + dkW / 2
+pen pT
+if drLv < 3 then rect2 upF - cbL, dkY - dkW / 2, upF, dkY - dkW / 2 + cbW
+if drLv = 1 then
+	! ジブのラチス（上下の弦材の間に斜材）とカウンタウエイトの目地
+	nLc = max(2, int((jX - pvX) / max(jbW, 1.0)))
+	for k = 0 to nLc - 1
+		xa = pvX + k * (jX - pvX) / nLc
+		xb = pvX + (k + 1) * (jX - pvX) / nLc
+		wa = jbW / 2 - (jbW / 4) * k / nLc
+		wb = jbW / 2 - (jbW / 4) * (k + 1) / nLc
+		sg = 1 - 2 * (k mod 2)
+		line2 xa, sg * wa, xb, -sg * wb
+	next k
+	for k = 1 to 3
+		line2 -tailR + k * cwL / 4, dkY - cwW / 2, -tailR + k * cwL / 4, dkY + cwW / 2
+	next k
+endif
+if drLv < 3 then
+	line_type ltC
+	line2 -tailR - 0.5, 0, jX + 0.8, 0
+	line_type ltS
+endif
+circle2 hX, 0, 0.4
+del 1
+! 旋回の中心（一点鎖線の十字）
+drawindex 45
+pen pT
+line_type ltC
+line2 -msW, 0, msW, 0
+line2 0, -msW, 0, msW
+line_type ltS
+! 注記
+drawindex 50
+pen penEquip
+add2 -baseW / 2 - 0.5, -max(baseW, dkW) / 2 - 0.8          ! 基礎と機械台の外（下）に書く（1/200 で台の線に重ならないように）
+rot2 -SYMB_ROTANGLE
+text2 0, 0, tcName
+if strlen(tcNote) > 0 and drLv < 3 then text2 0, -dT, tcNote
+text2 0, -2 * dT, "R" + str(round_int(hX * 1000), 1, 0) + "・マスト " + str(round_int(msH * 1000), 1, 0)
+del 2
+! 旋回角のホットスポット
+rH = max(3.0, tailR)
+hotspot2 0, 0, 1, slew, 6
+hotspot2 rH, 0, 2, slew, 4
+hotspot2 rH * cos(slew), rH * sin(slew), 3, slew, 5
+hotspot2 0, 0

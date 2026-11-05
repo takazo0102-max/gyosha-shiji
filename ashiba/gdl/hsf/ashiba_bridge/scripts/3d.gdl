@@ -1,0 +1,197 @@
+﻿! ============================================================
+! 屋上への渡り 3D: 足場の部材で組む（利用者の指定 2026-10-26: 布材かブラケット出して支柱で足元つくかブラケットで
+! 浮かせる、アンチ引いて手すりも布材、枠の場合は単管と足場板、パラペットは避ける）。
+! 原点＝渡りを掛けるスパンの始めの内側建地（y=0）、+X＝面に沿う方向（幅 brW＝スパン）、+Y＝躯体側
+!  brKind 0: 布材を内側建地から出し、屋上に支柱（ジャッキ付き）。アンチは y 方向（長さ brL）に敷く
+!         1: 張出・拡幅ブラケットで躯体の外面まで出し、アンチを面に沿って（長さ brW）敷いてすき間を塞ぐ
+!         2: 単管を建地にクランプで留め、屋上に単管の支柱（ベース付き）。足場板は y 方向に敷く
+!         3: 単管を躯体の外面まで跳ね出し、足場板を面に沿って敷いてすき間を塞ぐ
+! 手すり（床から 900）・中桟（450）・幅木は両脇。足場の床より高ければ足場側に踏み台、屋上より高ければ屋上へ踏段。
+! パラペットは渡りの床（天端の 50 上より上）が越え、屋上の支柱はパラペットの内側（Python の roof_bridges）
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen penEquip
+resol 8
+rotz faceAng
+if matDeck > 0 then material matDeck
+r_p = 0.0243           ! 支柱・単管 φ48.6
+r_n = 0.02135          ! 布材 φ42.7
+zR = zDeck + 0.90
+zM = zDeck + 0.45
+! ---- 屋上の支柱（0: くさびの支柱＋ジャッキ、2: 単管＋ベース） ----
+if onPost = 1 then
+	for sd = 0 to 1
+		xs = sd * brW
+		add xs, brL, zTo
+		if isTube = 0 then
+			add -0.075, -0.075, 0
+			block 0.15, 0.15, 0.009
+			del 1
+			cylind jackOut, 0.017
+			addz jackOut
+			cylind postL, r_p
+			! コマ（床・中桟・手すり）
+			for kz = 0 to 2
+				addz zDeck - zTo - jackOut + kz * 0.45 - 0.003
+				cylind 0.006, 0.045
+				del 1
+			next kz
+			del 1
+		else
+			add -0.07, -0.07, 0
+			block 0.14, 0.14, 0.006
+			del 1
+			cylind postL, r_p
+		endif
+		del 1
+	next sd
+endif
+! ---- 床を受ける材 ----
+if brKind = 0 then
+	! 布材: 両脇の腕木（内側建地から屋上の支柱へ。アンチを掛ける）と、屋上の支柱どうしをつなぐ布材
+	for sd = 0 to 1
+		add sd * brW, 0, zDeck - 0.02
+		rotx -90
+		cylind brL, r_n
+		del 2
+	next sd
+	add 0, brL, zDeck - 0.02
+	roty 90
+	cylind brW, r_n
+	del 2
+endif
+if brKind = 1 then
+	! 張出・拡幅ブラケット（両脇）: 腕・方杖（1コマ下の支柱へ）・先端のホゾに立てる支柱（1350。手すり・中桟のコマ）
+	for sd = 0 to 1
+		xs = sd * brW
+		add xs - 0.02, 0, zDeck - 0.09
+		block 0.04, brL, 0.05
+		del 1
+		dyB = brL - 0.03
+		dzB = 0.45 - 0.09
+		add xs, 0.03, zDeck - 0.45
+		rotx -(90 - atn(dzB / dyB))
+		cylind sqr(dyB * dyB + dzB * dzB), 0.015
+		del 2
+		add xs, brL, zDeck - 0.09
+		cylind 1.35, r_p
+		del 1
+	next sd
+endif
+if isTube = 1 then
+	! 単管: 両脇を建地（y=0）から y 方向へ（足場板を掛ける。2 は屋上の支柱まで、3 は躯体の外面まで跳ね出し）
+	zT = zDeck - 0.028 - r_p
+	for sd = 0 to 1
+		add sd * brW + (1 - 2 * sd) * r_p * 2, -0.10, zT
+		rotx -90
+		cylind brL + 0.10 + 0.10 * (brKind = 2), r_p
+		del 2
+	next sd
+	if brKind = 2 then
+		! 屋上の支柱どうしをつなぐ単管
+		add -0.10, brL, zT - 2 * r_p
+		roty 90
+		cylind brW + 0.20, r_p
+		del 2
+	endif
+	if brKind = 3 then
+		! 先端の手すり柱（跳ね出しの単管にクランプで立てる）
+		for sd = 0 to 1
+			add sd * brW + (1 - 2 * sd) * r_p * 2, brL, zT - 0.05
+			cylind 1.05, r_p
+			del 1
+		next sd
+	endif
+endif
+! ---- 床（アンチ・足場板）: 横引き（面に沿って、両脇の腕木・ブラケット・単管に掛ける）。内側建地列から躯体側へ並べる ----
+y0 = 0.02
+tD = 0.04
+xA = 0.02
+xB = brW - 0.02
+if isTube = 1 then
+	tD = 0.028
+	xA = brW / 2 - deckLen / 2
+	xB = brW / 2 + deckLen / 2
+endif
+for i = 1 to nD
+	add xA, y0, zDeck - tD
+	block xB - xA, dW[i], tD
+	del 1
+	y0 = y0 + dW[i] + 0.01
+next i
+! ---- 手すり・中桟（両脇、y=0 の建地から渡りの先の支柱まで）と幅木 ----
+rr = r_n
+if isTube = 1 then rr = r_p
+for sd = 0 to 1
+	xs = sd * brW + isTube * (1 - 2 * sd) * r_p * 2
+	for hk = 0 to 1
+		add xs, 0, zM + hk * 0.45
+		rotx -90
+		cylind brL, rr
+		del 2
+	next hk
+	hT = 0.15
+	if isTube = 1 then hT = 0.24
+	add sd * (brW - 0.012) + (1 - 2 * sd) * 0.03, 0.02, zDeck
+	block 0.012, brL - 0.04, hT
+	del 1
+next sd
+! ---- 内側の支柱の継ぎ足し（渡りの手すりが支柱の天端より上のとき。くさびは天端に差す支柱、単管は建地に重ねてクランプ） ----
+if extL > 0.001 then
+	for sd = 0 to 1
+		if isTube = 0 then
+			add sd * brW, 0, postTop
+			cylind extL, r_p
+		else
+			add sd * brW + (1 - 2 * sd) * r_p * 2, -r_p * 2, postTop - 0.30
+			cylind extL, r_p
+		endif
+		del 1
+	next sd
+endif
+! ---- 足場側の踏み台（渡りの床が足場の床より高いとき） ----
+if nUp > 0 then
+	for iS = 1 to nUp - 1
+		zs = zFrom + upH * iS / nUp
+		ya = yUp + (iS - 1) * tread
+		add 0.10, ya, zFrom
+		block brW - 0.20, tread, zs - zFrom
+		del 1
+	next iS
+endif
+! ---- 屋上へ下りる踏段（屋上に支柱を立てた渡りで、渡りの床が屋上より高いとき） ----
+if nDn > 1 then
+	for iS = 1 to nDn - 1
+		zs = zDeck - dnH * iS / nDn
+		ya = brL + (iS - 1) * tread
+		add 0.10, ya, zs - 0.04
+		block brW - 0.20, tread, 0.04
+		del 1
+		! 側桁（踏面の下から屋上まで）
+		for sd = 0 to 1
+			add 0.10 + sd * (brW - 0.212), ya, zTo
+			block 0.012, tread, zs - 0.04 - zTo
+			del 1
+		next sd
+	next iS
+	! 踏段の手すり（両脇。渡りの手すりから屋上の床の 900 上まで）と下の支柱
+	dyS = yDn - brL
+	dzS = dnH * (nDn - 1) / nDn
+	for sd = 0 to 1
+		xs = 0.10 + sd * (brW - 0.20)
+		add xs, brL, zR
+		rotx -(90 - atn(-dzS / dyS))
+		cylind sqr(dyS * dyS + dzS * dzS), r_n
+		del 2
+		add xs, yDn, zTo
+		cylind zR - dzS - zTo, r_n
+		del 1
+	next sd
+endif
+del top
+if stepH > 0.001 then cutend

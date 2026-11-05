@@ -1,0 +1,277 @@
+﻿! 柱の型枠: 桟木・外端太・フォームタイの位置を読む（m）
+dim pl1[]
+nPl1 = 0
+rest = ply1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPl1 = nPl1 + 1
+		pl1[nPl1] = v / 1000
+	endif
+endwhile
+dim sg1a[]
+nSg1 = 0
+rest = sg1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSg1 = nSg1 + 1
+		sg1a[nSg1] = v / 1000
+	endif
+endwhile
+dim tb1a[]
+nTb1 = 0
+rest = tb1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTb1 = nTb1 + 1
+		tb1a[nTb1] = v / 1000
+	endif
+endwhile
+dim pl2[]
+nPl2 = 0
+rest = ply2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPl2 = nPl2 + 1
+		pl2[nPl2] = v / 1000
+	endif
+endwhile
+dim sg2a[]
+nSg2 = 0
+rest = sg2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSg2 = nSg2 + 1
+		sg2a[nSg2] = v / 1000
+	endif
+endwhile
+dim tb2a[]
+nTb2 = 0
+rest = tb2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTb2 = nTb2 + 1
+		tb2a[nTb2] = v / 1000
+	endif
+endwhile
+dim pl3[]
+nPl3 = 0
+rest = ply3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPl3 = nPl3 + 1
+		pl3[nPl3] = v / 1000
+	endif
+endwhile
+dim sg3a[]
+nSg3 = 0
+rest = sg3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSg3 = nSg3 + 1
+		sg3a[nSg3] = v / 1000
+	endif
+endwhile
+dim tb3a[]
+nTb3 = 0
+rest = tb3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTb3 = nTb3 + 1
+		tb3a[nTb3] = v / 1000
+	endif
+endwhile
+dim pl4[]
+nPl4 = 0
+rest = ply4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPl4 = nPl4 + 1
+		pl4[nPl4] = v / 1000
+	endif
+endwhile
+dim sg4a[]
+nSg4 = 0
+rest = sg4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSg4 = nSg4 + 1
+		sg4a[nSg4] = v / 1000
+	endif
+endwhile
+dim tb4a[]
+nTb4 = 0
+rest = tb4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTb4 = nTb4 + 1
+		tb4a[nTb4] = v / 1000
+	endif
+endwhile
+dim tz[]
+nT = 0
+rest = tbZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nT = nT + 1
+		tz[nT] = v / 1000
+	endif
+endwhile
+dim tx[]
+nX = 0
+rest = tiX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nX = nX + 1
+		tx[nX] = v / 1000
+	endif
+endwhile
+dim ty[]
+nY = 0
+rest = tiY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nY = nY + 1
+		ty[nY] = v / 1000
+	endif
+endwhile
+r = 0.0243
+hA = A / 2
+hB = B / 2
+! 外端太の芯（面から）
+yT = hB + plyT + sgH + r
+xT = hA + plyT + sgH + r

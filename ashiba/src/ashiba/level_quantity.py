@@ -1,0 +1,331 @@
+"""層ごと（作業床1層ごと）の数量（利用者の指定 2026-10-20: 1フロアごとに数量を拾えるように、支柱は分解して）.
+
+- 支柱以外: 足場を k 層で切った計画の数量と k−1 層の数量の差を、k 層目の数量とする（布材・踏板・手すり・
+  壁つなぎ・階段など、層ごとに増える部材がそのまま分かれる。ジャッキ・根がらみ等の足元は1層目に入る）。
+- 支柱: 切った計画では天端の短い支柱が入れ替わり差が意味を持たないので、支柱を1本ずつに分解し、
+  下端の高さが入る層に数える（2700 は1層目、その上の 3600 は2層目… のように積んだ順）。
+  敷地の高低差の継ぎ足し・開口部の梁枠上の短い支柱など、位置ごとに違う分は1層目に寄せて注記する。
+- 各層の合計は全体の数量表と一致する（テストで確かめる）。
+"""
+
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass, field
+
+from .elevation_solver import truncate_elevation
+from .model import ScaffoldModel
+
+
+@dataclass
+class LevelBand:
+    index: int            # 1 始まり
+    z_lo: float           # mm（足場の立つ面から）
+    z_hi: float
+
+    @property
+    def label(self) -> str:
+        return f"{self.index}層（{self.z_lo / 1000:.2f}〜{self.z_hi / 1000:.2f}m）"
+
+
+@dataclass
+class LevelRow:
+    part: object
+    per_level: list[int]
+
+    @property
+    def total(self) -> int:
+        return sum(self.per_level)
+
+
+@dataclass
+class LevelTakeoff:
+    bands: list[LevelBand]
+    rows: list[LevelRow]
+    notes: list[str] = field(default_factory=list)
+    floors: list[str] = field(default_factory=list)    # 層ごとの建物のフロア名（フロアの情報があるとき）
+
+    def by_floor(self) -> tuple[list[str], list[tuple[object, list[int]]]]:
+        """フロアごとに層をまとめた数量 (フロア名の並び, [(部材, フロアごとの数)])。フロアが無ければ空."""
+        if not self.floors:
+            return [], []
+        names: list[str] = []
+        for f in self.floors:
+            if f not in names:
+                names.append(f)
+        out = []
+        for r in self.rows:
+            vals = [0] * len(names)
+            for i, v in enumerate(r.per_level):
+                vals[names.index(self.floors[i])] += v
+            out.append((r.part, vals))
+        return names, out
+
+    def level_weights(self) -> list[float]:
+        return [round(sum(r.part.weight_kg * r.per_level[i] for r in self.rows), 1) for i in range(len(self.bands))]
+
+
+def _truncated(model: ScaffoldModel, top_mm: float) -> ScaffoldModel:
+    m = copy.copy(model)
+    master = model.master
+    m.elevation = truncate_elevation(model.elevation, top_mm, master)
+    m.face_elevations = {i: truncate_elevation(ev, top_mm, master) for i, ev in model.face_elevations.items()}
+    m.wall_ties = [t for t in model.wall_ties if t.height_mm <= top_mm + 1]
+    # 屋上への渡りは、渡りへ出る足場の床の層に入れる
+    m.roof_bridges = [b for b in getattr(model, "roof_bridges", None) or [] if b.z_from_mm <= top_mm + 1]
+    return m
+
+
+def _counts(q) -> dict:
+    out: dict = {}
+    parts: dict = {}
+    for line in q.lines:
+        key = (line.part.model_no, line.part.category)
+        out[key] = out.get(key, 0) + line.qty
+        parts[key] = line.part
+    return out, parts
+
+
+def floor_names(bands: list[LevelBand], stories, base_mm: float = 0.0) -> list[str]:
+    """層（作業床の高さ）→ 建物のフロア名。床の高さ以下でいちばん高いフロア（無ければ最も低いフロア）.
+
+    stories は [{"name": "2FL", "level_mm": 3000}, ...]（Archicad のフロア。足場の立つ高さ base を足して比べる）。
+    """
+    st = sorted(((float(s["level_mm"]), str(s["name"])) for s in stories or []), key=lambda v: v[0])
+    if not st:
+        return []
+    out = []
+    for b in bands:
+        z = b.z_hi + base_mm
+        hit = [name for lv, name in st if lv <= z + 1]
+        out.append(hit[-1] if hit else st[0][1])
+    return out
+
+
+def take_off_by_level(model: ScaffoldModel, quantity, stories=None, **kw) -> LevelTakeoff:
+    """層ごとの数量。quantity は全体の数量（take_off の結果）、kw は take_off に渡したもの.
+
+    stories（建物のフロア）を渡すと、層ごとにフロア名を付け、フロアごとの合計も出せる（by_floor）。
+    """
+    from .quantity import _sub_model, face_height_groups, standing_post_positions, take_off
+
+    levels = list(model.elevation.level_heights)
+    n = len(levels)
+    if n == 0:
+        return LevelTakeoff([], [], ["作業床が無いため層ごとの数量は出しません"])
+    bands = [LevelBand(k + 1, float(levels[k - 1]) if k else 0.0, float(levels[k])) for k in range(n)]
+
+    full, parts = _counts(quantity)
+    cum: list[dict] = []
+    for k in range(1, n):
+        c, p = _counts(take_off(_truncated(model, levels[k - 1]), **kw))
+        parts.update(p)
+        cum.append(c)
+    cum.append(full)
+
+    keys = list(full.keys())
+    for c in cum:
+        keys += [k for k in c if k not in keys]
+    per: dict = {}
+    for key in keys:
+        prev = 0
+        vals = []
+        for c in cum:
+            v = c.get(key, 0)
+            vals.append(v - prev)
+            prev = v
+        per[key] = vals
+
+    notes: list[str] = []
+    master = model.master
+    post_cat = "支柱"
+    if not master.is_frame:
+        rows_n = 1 if model.config.scaffold_form == "一側足場" else 2
+        geo: dict = {}
+        # 外付けの階段室の建地は、その面の積み上げで3列目に（区間のスパン数＋1）本ずつ
+        sp = kw.get("stair_plan")
+        tower_pos: dict = {}
+        if sp is not None and getattr(sp, "outside", False):
+            from .stairs import tower_spans
+
+            for t in sp.towers:
+                ts = tower_spans(model, t)
+                if ts:
+                    tower_pos[t.edge_index] = tower_pos.get(t.edge_index, 0) + len(ts) + 1
+        from .quantity import _feet_by_row
+
+        terrain = kw.get("terrain")
+        feet, per_foot = _feet_by_row(terrain, rows_n)
+        if feet:
+            # 敷地に高低差があれば脚ごとの積み方（数量と同じ脚・倍数）。支柱の下端の標高から層を決める（全部の脚を
+            # 同じ積み方として数え、差を 1層目に寄せていた。2026-10-26 のループ）
+            deck_abs = list(getattr(terrain, "deck_levels_abs_mm", None) or [])
+            for f in feet:
+                z = float(f.gl_mm) + float(f.jack_mm) + float(getattr(f, "base_plate_adjust_mm", 0.0) or 0.0)
+                for nominal in f.posts:
+                    band = next((i for i, h in enumerate(deck_abs[:n]) if z < h - 1), n - 1)
+                    geo.setdefault(nominal, [0] * n)[band] += per_foot
+                    z += nominal
+            corner_extra = model.outer_corner_posts() + model.gap_corner_posts()
+            stacks = [(model.elevation, corner_extra + sum(tower_pos.values()))]
+        else:
+            stacks = []
+            for ev, edges in face_height_groups(model):
+                sub = _sub_model(model, ev, edges)
+                stacks.append((ev, standing_post_positions(sub, rows_n) + sum(tower_pos.get(i, 0) for i in edges)))
+        for ev, positions in stacks:
+            z = float(ev.jack_extension)
+            for nominal in ev.posts:
+                band = next((i for i, h in enumerate(levels) if z < h - 1), n - 1)
+                geo.setdefault(nominal, [0] * n)[band] += positions
+                z += nominal
+        # 開口部で抜いた支柱は梁枠上（作業床〜天端）だけの短い構成（数量の _replace_opening_stacks と同じ）。全高の
+        # 積み方を引いて、梁枠の上から積み直す
+        ops = kw.get("openings")
+        if ops is not None and not master.is_frame:
+            from .elevation_solver import _compose_table
+            from .openings import opening_post_heights
+
+            from .openings import opening_mid_posts
+            from .quantity import mid_post_stacks
+
+            hs = opening_post_heights(model, ops)
+            mids = opening_mid_posts(model, ops)
+            if hs or mids:
+                table = _compose_table(int(round(max(list(hs) + [max(a, b) for a, b in mids]))) + 1,
+                                       sorted(set(master.post_lengths(include_negarami=True)), reverse=True))
+                top = float(model.elevation.total_height)
+                # 途中の層の開口（荷受けステージの間口）: 全高の積み方を引き、下（地面から）と上（梁枠の上から）を積み直す
+                for below, above in mids:
+                    cb, ca = mid_post_stacks(list(model.elevation.posts), table, below, above)
+                    if not cb or not ca:
+                        continue
+                    z = float(model.elevation.jack_extension)
+                    for nominal in model.elevation.posts:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] -= 1
+                        z += nominal
+                    z = float(model.elevation.jack_extension)
+                    for nominal in cb:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
+                    z = top - above
+                    for nominal in ca:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
+                for h in hs:
+                    comp = table.get(int(round(h)))
+                    if comp is None:
+                        continue
+                    z = float(model.elevation.jack_extension)
+                    for nominal in model.elevation.posts:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] -= 1
+                        z += nominal
+                    z = top - h
+                    for nominal in comp:
+                        band = next((i for i, lv in enumerate(levels) if z < lv - 1), n - 1)
+                        geo.setdefault(nominal, [0] * n)[band] += 1
+                        z += nominal
+        # 荷受けステージの先端の手すり支柱は、ステージを付けた層の床の上（platforms.platform_part_demands と同じ本数）
+        plat = kw.get("platforms")
+        from .platforms import uses_load_form
+
+        if plat is not None and not uses_load_form(model):     # 荷受けフォームの先端は手摺柱（支柱でない）
+            from .platforms import _rail_post_nominal
+
+            for st in getattr(plat, "stages", None) or []:
+                if not getattr(st, "has_guard_rail", False):
+                    continue
+                for lv in (st.levels or [1]):
+                    z = float(levels[min(max(lv, 1), n) - 1])
+                    band = next((i for i, h in enumerate(levels) if z < h - 1), n - 1)
+                    geo.setdefault(int(_rail_post_nominal(model)), [0] * n)[band] += st.span_count + 1
+        # 屋上への渡りの屋上の支柱（くさび）は、渡りへ出る足場の床の層に
+        for b in getattr(model, "roof_bridges", None) or []:
+            band = next((i for i, h in enumerate(levels) if b.z_from_mm <= h + 1), n - 1)
+            if b.kind in ("支柱", "ブラケット") and b.post_mm:
+                geo.setdefault(int(b.post_mm), [0] * n)[band] += 2      # 屋上の支柱・ブラケットの先端の支柱
+            if b.ext_mm and not b.tube:
+                geo.setdefault(int(b.ext_mm), [0] * n)[band] += 2       # 内側の支柱の継ぎ足し
+        for key in [k for k in keys if k[1] == post_cat]:
+            part = parts[key]
+            want = full.get(key, 0)
+            vals = list(geo.get(part.nominal_dim, [0] * n))
+            diff = want - sum(vals)
+            if diff:
+                vals[0] += diff
+                notes.append(f"{part.model_no}（{post_cat}{part.nominal_dim}）の {diff:+d}本は、敷地の継ぎ足し・"
+                             "開口部の梁枠上など位置ごとに違う分として1層目に入れています")
+            per[key] = vals
+
+    # 朝顔は高さで決まる部材（1段目 4〜5m・2段目以降 10m ごと）。切った計画でも同じ段数で数えるので、
+    # 差を取ると全部1層目に入る。段の高さの層へ段数で等分する
+    heights = model.asagao_heights()
+    if heights:
+        stage_bands = [next((i for i, h in enumerate(levels) if z <= h + 1), n - 1) for z in heights]
+        for key in [k for k in keys if k[1] == "朝顔"]:
+            total = full.get(key, 0)
+            vals = [0] * n
+            each, rest = divmod(total, len(stage_bands))
+            for j, b in enumerate(stage_bands):
+                vals[b] += each + (1 if j < rest else 0)
+            per[key] = vals
+
+    neg = [k for k, v in per.items() if any(x < 0 for x in v)]
+    if neg:
+        notes.append("層を切ると数え方が変わる部材（" + "・".join(parts[k].model_no for k in neg)
+                     + "）は、層によって負の数になります。合計は数量表と同じです")
+    rows = [LevelRow(parts[k], per[k]) for k in keys if any(per[k])]
+    return LevelTakeoff(bands, rows, notes, floor_names(bands, stories, float(model.base_height_mm)))
+
+
+@dataclass
+class FaceTakeoff:
+    faces: list[str]
+    rows: list[tuple[object, list[int]]]       # (部材, 面ごとの数)
+    totals: dict                                # (型番, 分類) → 全体の数量
+    notes: list[str] = field(default_factory=list)
+
+
+def take_off_by_face(model: ScaffoldModel, quantity, **kw) -> FaceTakeoff:
+    """面ごとの数量（参考: smartCON Planner の「領域ごとの部品表」。工区・面ごとに手配するとき用）.
+
+    面を1つずつ取り出した計画で数量を拾う。隅の支柱・コーナーの部材は、その隅を始点に持つ面に入る
+    （足場の割付と同じ持ち方）。面ごとの合計は、面をまたぐ部材（階段の外付け・朝顔の取付部など）の
+    数え方の違いで全体の数量表と少しずれることがあるので、全体の列も並べる。
+    """
+    from .quantity import (_only_edges, _sub_model, _sub_openings, _sub_platforms, _sub_stairs, _sub_terrain,
+                           take_off)
+
+    names = model.plan.face_names()
+    faces = []
+    per: dict = {}
+    parts: dict = {}
+    edges = list(model.plan.edges)
+    for i, ep in enumerate(edges):
+        es = {ep.edge_index}
+        sub = _sub_model(model, model.elevation_of(ep.edge_index), es)
+        sub.face_elevations = {}
+        q = take_off(sub, bracket_sections=_only_edges(kw.get("bracket_sections"), es),
+                     stair_plan=_sub_stairs(kw.get("stair_plan"), es),
+                     platforms=_sub_platforms(kw.get("platforms"), es),
+                     openings=_sub_openings(kw.get("openings"), es),
+                     terrain=_sub_terrain(kw.get("terrain"), model, es))
+        faces.append(names[i] if i < len(names) else f"辺{ep.edge_index}")
+        for line in q.lines:
+            key = (line.part.model_no, line.part.category)
+            parts[key] = line.part
+            per.setdefault(key, [0] * len(edges))[i] += line.qty
+    totals: dict = {}
+    for line in quantity.lines:
+        key = (line.part.model_no, line.part.category)
+        parts[key] = line.part
+        totals[key] = totals.get(key, 0) + line.qty
+        per.setdefault(key, [0] * len(edges))
+    rows = [(parts[k], v) for k, v in per.items()]
+    notes = ["隅の支柱・コーナーの部材は、その隅を始点に持つ面に入れています",
+             "面をまたぐ部材（外付け階段・取付部の壁つなぎ等）は面ごとの数え方で全体と少しずれることがあります。発注は全体の列で"]
+    return FaceTakeoff(faces, rows, totals, notes)

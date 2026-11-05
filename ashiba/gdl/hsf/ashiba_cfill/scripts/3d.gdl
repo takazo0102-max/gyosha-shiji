@@ -1,0 +1,215 @@
+﻿! ============================================================
+! 隅のつなぎ 3D（利用者の指定 2026-10-31: 三角の板じゃなく 900アンチを乗せる クランプもつけてね／高さがずれている 本足場の
+! アンチの上に乗せるようにして クランプの詳細どあげて）
+! - アンチ（antiL×antiW×deckT）: 下面＝段の高さ＋deckTop（本足場の布板の上面）。両側の本足場のアンチの上に重ねて載る
+! - 支柱を結ぶ単管（利用者の指定 2026-10-31: 支柱間を単管で結ぶ）: 前の足場の終わりの支柱と後の足場の始めの支柱を床の高さで
+!   結ぶ（上面＝本足場のアンチの上面）。両端を支柱に自在クランプ
+! - 足場板（黄。白のアンチは描かない antiOn）: 本足場のアンチの上に載せ、両端を番線で留める
+! - 外の辺: 単管の上桟・中桟（支柱の外に 支柱半径＋単管半径 offR だけ出して添わせる。off は GDL の予約語で 3D が止まった）と幅木。両端の支柱に自在クランプ
+! - 自在クランプ: 2つの抱き金具（単管を巻く帯・耳・T ボルトとナット）を回転軸のリベットでつないだ形
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+resol 12
+define material "cf_deck" 2, 0.72, 0.74, 0.78
+define material "cf_steel" 2, 0.62, 0.62, 0.66
+define material "cf_toe" 2, 0.55, 0.55, 0.58
+define material "cf_clamp" 2, 0.50, 0.55, 0.66
+define material "cf_bolt" 2, 0.30, 0.30, 0.32
+define material "cf_wood" 2, 0.76, 0.60, 0.40
+r = 0.0243
+rP = 0.0243
+offR = rP + r
+zD = deckTop
+for i = 1 to nL
+	z = lv[i]
+	! ---- アンチ（本足場のアンチの上に載る） ----
+	material "cf_deck"
+	for j = 1 to nPl
+		add qx[j], qy[j], z + zD
+		rotz pAng
+		block qL[j], antiW - 0.005, deckT
+		! 両端のつめ（受けの布材・単管に掛かる）
+		add 0, 0.02, -0.02
+		block 0.01, antiW - 0.045, 0.02
+		del 1
+		add qL[j] - 0.01, 0.02, -0.02
+		block 0.01, antiW - 0.045, 0.02
+		del 1
+		del 2
+	next j
+	! ---- 残りのすき間をふさぐ足場板（斜めの受けとアンチの先の三角。アンチの先に 100 重ねて載せる） ----
+	material "cf_wood"
+	for j = 1 to nF
+		add fx[j], fy[j], z + zD + deckT
+		rotz fAng
+		block fL[j], antiW - 0.01, 0.028
+		! 番線（両端を2か所ずつ巻いて留める）
+		material "cf_bolt"
+		for e = 0 to 1
+			for h = 0 to 1
+				add 0.08 + e * (fL[j] - 0.16), 0.04 + h * (antiW - 0.09), 0.028
+				block 0.006, 0.02, 0.003
+				del 1
+			next h
+		next e
+		material "cf_wood"
+		del 2
+	next j
+	! ---- 受けの単管（すき間の中だけ）と、両端の自在クランプ（本足場の端の布材と交差） ----
+	for j = 1 to nS
+		dx = s1x[j] - s0x[j]
+		dy = s1y[j] - s0y[j]
+		L = sqr(dx * dx + dy * dy)
+		if L > 0.05 then
+			gosub "ang"
+			material "cf_steel"
+			add s0x[j], s0y[j], z + zD - r
+			rotz ang
+			roty 90
+			addz -0.05
+			cylind L + 0.1, r
+			del 4
+			for e = 0 to 1
+				cX = s0x[j] + dx * e
+				cY = s0y[j] + dy * e
+				cZ = z + zD - r
+				cA = ang
+				cT = 1
+				gosub "clamp"
+			next e
+		endif
+	next j
+	! ---- 外の辺: 単管の上桟・中桟（支柱に添わせて外へ offR）・幅木・両端の支柱に自在クランプ ----
+	for k = 1 to nP
+		if rl[k] then
+			k2 = k + 1
+			if k2 > nP then k2 = 1
+			dx = px[k2] - px[k]
+			dy = py[k2] - py[k]
+			L = sqr(dx * dx + dy * dy)
+			if L > 0.001 then
+				gosub "ang"
+				oX = dy / L * offR
+				oY = -dx / L * offR
+				for h = 1 to 2
+					if h = 1 then
+						zh = z + zD + deckT + railH1
+					else
+						zh = z + zD + deckT + railH2
+					endif
+					material "cf_steel"
+					add px[k] + oX, py[k] + oY, zh
+					rotz ang
+					roty 90
+					addz -0.3
+					cylind L + 0.6, r
+					del 4
+					for e = 0 to 1
+						cX = px[k] + dx * e + oX
+						cY = py[k] + dy * e + oY
+						cZ = zh
+						cA = ang
+						cT = 1
+						gosub "clamp"
+					next e
+				next h
+				material "cf_toe"
+				add px[k], py[k], z + zD + deckT
+				rotz ang
+				addy -0.025
+				block L, 0.025, toeH
+				del 3
+			endif
+		endif
+	next k
+next i
+! ---- 手すりの曲がり角の単管の支柱（地面から上の段の上桟まで。ジャッキ・敷板の上） ----
+material "cf_steel"
+for k = 1 to nPt
+	add ptx[k], pty[k], 0
+	cylind lv[nL] + zD + deckT + railH1 + 0.1, r
+	del 1
+next k
+end
+
+"ang":
+	if abs(dx) < 0.000001 then
+		ang = 90 * sgn(dy)
+	else
+		ang = atn(dy / dx)
+		if dx < 0 then ang = ang + 180
+	endif
+return
+
+"clamp":
+	! 自在クランプ: (cX, cY, cZ) を芯とする単管（向き cA）の抱き金具と、相手の抱き金具（cT=1: 支柱＝鉛直、内側 offR の所。
+	! cT=2: 本足場の布材＝水平で下に offR、向きは単管に直角）を回転軸のリベットでつなぐ
+	material "cf_clamp"
+	add cX, cY, cZ
+	rotz cA
+	! 単管の抱き金具（帯 幅 50・耳・T ボルト＋ナット）
+	roty 90
+	addz -0.025
+	cylind 0.05, r + 0.004
+	del 2
+	add -0.02, -0.004, r
+	block 0.04, 0.008, 0.022
+	del 1
+	material "cf_bolt"
+	add 0, 0.012, r + 0.014
+	rotx 90
+	cylind 0.03, 0.006
+	resol 6
+	addz 0.024
+	cylind 0.01, 0.0105
+	del 1
+	resol 12
+	del 2
+	material "cf_clamp"
+	if cT = 1 then
+		! 支柱の抱き金具（鉛直の帯）と、2つをつなぐリベット
+		add 0, offR, -0.025
+		cylind 0.05, rP + 0.004
+		del 1
+		! リベット（2つの帯が接する所の回転軸。長さ 0 の円柱は描けないので、接点に短い軸を置く）
+		add 0, r - 0.006, 0
+		rotx -90
+		cylind 0.012, 0.010
+		del 2
+		add 0.006, offR + rP, -0.02
+		block 0.022, 0.008, 0.04
+		del 1
+		material "cf_bolt"
+		add 0.017, offR + rP + 0.004, 0
+		roty 90
+		cylind 0.03, 0.006
+		resol 6
+		addz 0.024
+		cylind 0.01, 0.0105
+		del 1
+		resol 12
+		del 2
+	else
+		! 下の布材（単管に直角）の抱き金具と、2つをつなぐリベット
+		add 0, -0.025, -offR
+		rotx -90
+		cylind 0.05, r + 0.004
+		del 2
+		add 0, 0, -r + 0.006
+		rotx 180
+		cylind 0.012, 0.010
+		del 2
+		material "cf_bolt"
+		add 0.012, 0, -offR - r - 0.014
+		roty 90
+		cylind 0.03, 0.006
+		del 2
+	endif
+	del 2
+return
+if stepH > 0.001 then cutend

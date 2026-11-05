@@ -1,0 +1,16 @@
+﻿values "moduleKind" "metric", "inch"
+values "seriesId" "", "日建 NDシステム1800（くさび）", "日建 NDシステム1900（くさび）", "日建 NDシステム ストロング（くさび・高耐力）", "日建 ミレニューム（くさび・次世代）", "日建 枠組（建枠）", "スギコ アルバトロス（くさび・先行手摺ブレス）", "信和 Aタイプ（くさび・メートル）", "信和 Bタイプ（くさび・メートル）", "単管・クランプ（単管ブラケット足場・単管抱き足場）", custom
+values "scaffForm" "本足場", "ブラケット足場", "単管抱き足場", "一側足場"
+values "bracketPost" "支柱", "単管"
+values "scaffW" 0, 600, 610, 900, 914, 1200, 1219
+values "railType" "布材", "先行手すり"
+values "endGuard" "布材", "ブレス材"
+values "tieSource" "仕上げ", "鉄骨"
+values "haneType" "方杖", "吊り", "なし"
+values "region" "北海道(内陸)", "北海道(沿岸)", "東北(内陸)", "東北(沿岸)", "関東(内陸)", "関東(沿岸)", "中部(内陸)", "中部(沿岸)", "近畿(内陸)", "近畿(沿岸)", "中国", "四国", "九州(北部)", "九州(南部)", "沖縄"
+values "roughness" "I", "II", "III", "IV"
+values "sheetType" "なし", "メッシュシート", "防音シート", "密閉シート", "防音パネル"
+values "elevMode" "section", "each", "object", "none"
+values "periodDays" range [1, ]
+values "asagaoStages" range [0, 3]
+values "stairLayout" "自動", "外付け", "足場の中"

@@ -1,0 +1,96 @@
+﻿! ============================================================
+! 足場の箱 パラメータスクリプト: つまみで引いた長さ（lenX・lenY）を定尺の組み合わせに吸着してスパンの並びを書き直す。
+! 定尺の最大を n 本並べ、端数を定尺 0〜2 本で埋める組のうち、引いた長さにいちばん近いもの（1本多いごとに 5mm 遠いとみる:
+! 9100 は 1829×4＋914×2＝9144 でなく 1829×5＝9145）。
+! 3D の天端のつまみ（topEdit）は段の間隔に丸めて作業床の段数（nLev）にする
+! ============================================================
+! どのパラメータを変えたかは GLOB_MODPAR_NAME に頼らず、値の食い違いで決める（つまみで引いても名前が来ないことがあり、
+! 名前で決めていたときは引いた長さをスパンの合計に戻してしまい、つまみが動かなかった。利用者 2026-10-30: つまみが動かない）
+if GLOB_MODPAR_NAME = "spanX" then
+	parameters lenX = lx
+else
+	if abs(lenX - lx) > 0.0005 and nSz > 0 then
+		want = lenX
+		gosub "snap"
+		parameters spanX = sOut, lenX = tBest
+	endif
+endif
+if GLOB_MODPAR_NAME = "spanY" then
+	parameters lenY = ly
+else
+	if abs(lenY - ly) > 0.0005 and nSz > 0 then
+		want = lenY
+		gosub "snap"
+		parameters spanY = sOut, lenY = tBest
+	endif
+endif
+if zBase < 0 then parameters zBase = 0
+! 厚み → 150・300・600・900・1200 のいちばん近い値（足場の種類。150＝抱き足場。利用者の指定 2026-10-31: 箱をブラケット足場
+! より幅狭くして抱き足場項目つけて）
+tSn = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if thick < 0.225 then tSn = 0.15
+if abs(thick - tSn) > 0.0005 then parameters thick = tSn
+if GLOB_MODPAR_NAME = "nLev" or GLOB_MODPAR_NAME = "lev1" or GLOB_MODPAR_NAME = "floorH" then
+	parameters topEdit = deckTop
+else
+	if abs(topEdit - deckTop) > 0.0005 then
+		nNew = round_int((topEdit - lev1) / floorH) + 1
+		if nNew < 1 then nNew = 1
+		if nNew > 30 then nNew = 30
+		parameters nLev = nNew, topEdit = lev1 + (nNew - 1) * floorH
+	endif
+endif
+end
+
+"snap":
+	mx = sz[1]
+	tBest = 0
+	bd = 1e9
+	bn = 0
+	bi = 0
+	bj = 0
+	nTop = int(want / mx) + 1
+	for n = 0 to nTop
+		for i = 0 to nSz
+			for j = i to nSz
+				s = 0
+				if i > 0 then s = sz[i]
+				t = 0
+				if j > 0 then t = sz[j]
+				tt = n * mx + s + t
+				if tt > 0.1 then
+					d = abs(tt - want) + 0.005 * (n + (i > 0) + (j > 0))
+					if d < bd then
+						bd = d
+						tBest = tt
+						bn = n
+						bi = i
+						bj = j
+					endif
+				endif
+			next j
+		next i
+	next n
+	sOut = ""
+	for k = 1 to bn
+		if sOut = "" then
+			sOut = str(mx * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(mx * 1000, 1, 0)
+		endif
+	next k
+	if bi > 0 then
+		if sOut = "" then
+			sOut = str(sz[bi] * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(sz[bi] * 1000, 1, 0)
+		endif
+	endif
+	if bj > 0 then
+		if sOut = "" then
+			sOut = str(sz[bj] * 1000, 1, 0)
+		else
+			sOut = sOut + "," + str(sz[bj] * 1000, 1, 0)
+		endif
+	endif
+return

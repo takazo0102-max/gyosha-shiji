@@ -1,0 +1,1052 @@
+﻿! ==========================================================
+! 内部ステージ足場（室内に格子に支柱を立て、最上段に全面の作業床・1つの範囲に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_stage/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_stage.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定（2026-10-24）: 内部足場の内部ステージ足場の機能追加して検証して。
+! 原点＝外周の支柱の始めの角、faceAng で長手の向き。支柱の格子・各段の布材（両方向）・全面の作業床・外周の手すり・幅木・筋かい・はしご。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   faceAng   角度      長手の向き（度。配置時に Python が入れる。+X＝長手、+Y＝短手）                                                   既定 0
+!   spanU     文字列    長手のスパン mm カンマ区切り                                                                                     既定 "1829,1829,1829"
+!   spanV     文字列    短手のスパン mm カンマ区切り                                                                                     既定 "1829,1829"
+!   lvList    文字列    根がらみと各段の高さ mm（配置した高さから。最後が作業床）                                                        既定 "375,2175,3975"
+!   deckH     長さ      作業床の高さ（配置した高さから）                                                                                 既定 3.975
+!   deckList  文字列    ほかの段の作業床の高さ mm（配置した高さから。カンマ区切り。EVシャフトの各階など）                                既定 ""
+!   guardOn   ブール    最上段の外周の手すり・中桟・幅木（EVシャフトは壁が近いので無し）                                                 既定 1
+!   gOpenE    ブール    長手の終わりの短辺を出入口にする（外周の手すり・中桟・幅木なし。仮設通路の島）                                   既定 0
+!   postTop   長さ      支柱の天端（配置した高さから。0＝作業床の手すりの高さ。支保工は大引の下）                                        既定 0
+!   uheadExt  長さ      支保工: 大引受けジャッキの繰出し（postTop の上。0＝描かない）                                                    既定 0
+!   footAxis  整数      階段の上: 段が変わる向き（0＝長手の支柱の列ごと、1＝短手）                                                       既定 0
+!   footZ     文字列    階段の上: 支柱の列ごとの足元の高さ mm（zBase から。カンマ区切り。空＝平ら）                                      既定 ""
+!   footNeg   文字列    階段の上: 列ごとの根がらみの高さ mm（配置した高さから。0＝共通の根がらみ）                                       既定 ""
+!   postDia   長さ      支柱の径（0＝φ48.6。本体の足場の部材と同じ作り。利用者の指定 2026-10-29）                                        既定 0
+!   komaP     長さ      コマの間隔（くさび）                                                                                             既定 0.45
+!   sysKind   整数      足場の種類（0＝くさび、1＝単管、2＝枠組）。単管・枠組はコマとくさびの頭を描かない                                既定 0
+!   jackExt   長さ      ジャッキの繰出し（平らな所の支柱）                                                                               既定 0.1
+!   footJk    文字列    階段の上: 列ごとのジャッキの繰出し mm（footZ と同じ並び）                                                        既定 ""
+!   dkWs      文字列    布板の幅 mm（広い順。スパンをこの幅で埋める）                                                                    既定 "500,240"
+!   stFl      文字列    昇降の階段（下の段,上の段 を続けて mm。配置した高さから。空＝はしご）。隅の1スパンに折り返し                     既定 ""
+!   inBrN     整数      支保工: 内側の通りに足す交さ筋かい（各層・各方向の組数。数量と同じ）                                             既定 0
+!   ladOn     ブール    はしごを描く（昇降が「はしご」のときだけ。階段・建物の階段のときは描かない）                                     既定 1
+!   hatchZ    文字列    ハッチ付布板（梯子内蔵）の段 mm（配置した高さから。EVシャフト）。上下で位置をずらす                              既定 ""
+!   zBase     長さ      足場の立つ高さ（配置した高さから。ジャッキの下端）                                                               既定 0
+!   stName    文字列    名前                                                                                                             既定 "内部ステージ足場"
+!   lineMode  ブール    3Dを線で（軽い）                                                                                                 既定 0
+!   matScaf   表面材    表面材（0＝既定）                                                                                                既定 0
+!   matDeck   表面材    床の表面材（0＝既定）                                                                                            既定 0
+!   texSiz    実数      文字高mm                                                                                                         既定 2.5
+!   penPost   PenColor  ペン: 支柱                                                                                                       既定 1
+!   penLine   PenColor  ペン: 足場の線                                                                                                   既定 1
+!   penDeck   PenColor  ペン: 床                                                                                                         既定 1
+!   stepH     長さ      工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）  既定 0
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 内部ステージ足場（室内に格子に支柱を立て、最上段に全面の作業床。利用者の指定 2026-10-24）。1つの範囲に1部品
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 内部ステージ足場 2D（平面）: 外形（太線）・支柱の格子（細線と小円）・全面の作業床の範囲・はしご・名前
+! 利用者の指定（2026-10-24）: 内部足場の内部ステージ足場の機能追加して検証して
+! 原点＝外周の支柱の始めの角、+X＝長手、+Y＝短手
+! ============================================================
+define style "stTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+rot2 faceAng
+! リストを読む（mm→m）
+dim su[], sv[], lv[]
+nU = 0
+s = spanU
+while strlen(s) > 0 and nU < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nU = nU + 1
+		su[nU] = v / 1000
+	endif
+endwhile
+nV = 0
+s = spanV
+while strlen(s) > 0 and nV < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nV = nV + 1
+		sv[nV] = v / 1000
+	endif
+endwhile
+nL = 0
+s = lvList
+while strlen(s) > 0 and nL < 40 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nL = nL + 1
+		lv[nL] = v / 1000
+	endif
+endwhile
+dim xu[], yv[]
+xu[1] = 0
+for i = 1 to nU
+	xu[i + 1] = xu[i] + su[i]
+next i
+yv[1] = 0
+for j = 1 to nV
+	yv[j + 1] = yv[j] + sv[j]
+next j
+stLU = xu[nU + 1]
+stLV = yv[nV + 1]
+pen penLine
+for i = 1 to nU + 1
+	line2 xu[i], 0, xu[i], stLV
+next i
+for j = 1 to nV + 1
+	line2 0, yv[j], stLU, yv[j]
+next j
+pen penDeck
+! 全面の作業床（外周の手すりの内側）と斜めの網掛け
+rect2 0.02, 0.02, stLU - 0.02, stLV - 0.02
+xh = 0.6
+while xh < stLU + stLV do
+	x1 = max(0, xh - stLV)
+	y1 = xh - x1
+	x2 = min(stLU, xh)
+	y2 = xh - x2
+	if y1 > stLV then
+		x1 = xh - stLV
+		y1 = stLV
+	endif
+	line_type 3
+	line2 x1, y1, x2, y2
+	line_type 1
+	xh = xh + 0.6
+endwhile
+pen penPost
+for i = 1 to nU + 1
+	for j = 1 to nV + 1
+		circle2 xu[i], yv[j], 0.025
+	next j
+next i
+! 外周の手すり（二重線。EVシャフトは壁が近いので無し）
+if guardOn then
+	if gOpenE then
+		! 長手の終わりの短辺は出入口（仮設通路の島）: 手すりの線をその辺に引かない
+		line2 stLU + 0.03, -0.03, -0.03, -0.03
+		line2 -0.03, -0.03, -0.03, stLV + 0.03
+		line2 -0.03, stLV + 0.03, stLU + 0.03, stLV + 0.03
+	else
+		rect2 -0.03, -0.03, stLU + 0.03, stLV + 0.03
+	endif
+endif
+! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 隅の1スパンに階段枠 450 を2列（狭ければ1列）、
+! 上り方向の矢印。階段が無いときだけはしご
+if strlen(stFl) > 0 then
+	sx0 = xu[1] + 0.08
+	sx1 = xu[2] - 0.08
+	nLane = 1
+	if sv[1] >= 2 * 0.45 + 0.1 then nLane = 2
+	for kl = 1 to nLane
+		ys = yv[1] + 0.05 + (kl - 1) * 0.50
+		rect2 sx0, ys, sx1, ys + 0.45
+		! 踏面の線
+		for kt = 1 to 7
+			xt = sx0 + (sx1 - sx0) * kt / 8
+			line2 xt, ys, xt, ys + 0.45
+		next kt
+		! 上り方向の矢印（1列目は +X、2列目は -X）
+		ym = ys + 0.225
+		if kl = 1 then
+			line2 sx0 + 0.1, ym, sx1 - 0.1, ym
+			line2 sx1 - 0.1, ym, sx1 - 0.25, ym + 0.08
+			line2 sx1 - 0.1, ym, sx1 - 0.25, ym - 0.08
+		else
+			line2 sx1 - 0.1, ym, sx0 + 0.1, ym
+			line2 sx0 + 0.1, ym, sx0 + 0.25, ym + 0.08
+			line2 sx0 + 0.1, ym, sx0 + 0.25, ym - 0.08
+		endif
+	next kl
+	goto 2201
+endif
+! ハッチ付布板（梯子内蔵。EVシャフト。利用者の指定 2026-10-29）: 隅の升目の1枚目と2枚目（上下で交互）に枠と×
+if strlen(hatchZ) > 0 then
+	for ks = 0 to 1
+		yh = yv[1] + 0.015 + ks * 0.5
+		if yh + 0.5 <= yv[2] + 0.01 then
+			rect2 xu[1] + 0.025, yh, xu[2] - 0.025, yh + 0.5
+			line2 xu[1] + 0.025, yh, xu[2] - 0.025, yh + 0.5
+			line2 xu[1] + 0.025, yh + 0.5, xu[2] - 0.025, yh
+		endif
+	next ks
+	goto 2201
+endif
+! はしご（始めの角の外。外周の手すりが無いとき＝EVシャフトは内側のはしご口）。はしごを選んだときだけ
+if not(ladOn) then goto 2201
+if guardOn then
+	rect2 0.15, -0.45, 0.60, -0.10
+	line2 0.15, -0.28, 0.60, -0.28
+else
+	rect2 0.15, 0.10, 0.60, 0.45
+	line2 0.15, 0.10, 0.60, 0.45
+	line2 0.15, 0.45, 0.60, 0.10
+endif
+2201:
+hotspot2 0, 0
+hotspot2 stLU, 0
+hotspot2 stLU, stLV
+hotspot2 0, stLV
+set style "stTx"
+add2 stLU / 2, stLV / 2
+! 文字の向き（置いた角度＋面の向き）を 0〜360 に直して、左へ傾く（90〜270）なら返す
+aTx = SYMB_ROTANGLE + faceAng
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
+text2 0, 0.15, stName
+tDk = ""
+if strlen(deckList) > 0 then tDk = "・ほかに床 " + deckList
+text2 0, -0.25, "床高" + str((deckH - zBase) * 1000, 5, 0) + tDk + "（" + str(stLU * 1000, 5, 0) + "×" + str(stLV * 1000, 5, 0) + "）"
+del top
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 内部ステージ足場 3D: 支柱の格子・根がらみと各段の布材（両方向）・最上段の全面の作業床・外周の手すり・中桟・幅木・
+! 外周の構面の筋かい（5スパンごと）・はしご。原点＝外周の支柱の始めの角、+X＝長手、+Y＝短手
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen penPost
+resol 8
+rotz faceAng
+if matScaf > 0 then material matScaf
+! リストを読む（mm→m）
+dim su[], sv[], lv[]
+nU = 0
+s = spanU
+while strlen(s) > 0 and nU < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nU = nU + 1
+		su[nU] = v / 1000
+	endif
+endwhile
+nV = 0
+s = spanV
+while strlen(s) > 0 and nV < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nV = nV + 1
+		sv[nV] = v / 1000
+	endif
+endwhile
+nL = 0
+s = lvList
+while strlen(s) > 0 and nL < 40 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nL = nL + 1
+		lv[nL] = v / 1000
+	endif
+endwhile
+! ほかの段の作業床（EVシャフトの各階など。利用者の指定 2026-10-28: 内部足場はステージとEV部分）
+dim dk[]
+nD = 0
+s = deckList
+while strlen(s) > 0 and nD < 40 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nD = nD + 1
+		dk[nD] = v / 1000
+	endif
+endwhile
+nD = nD + 1
+dk[nD] = deckH
+dim xu[], yv[]
+xu[1] = 0
+for i = 1 to nU
+	xu[i + 1] = xu[i] + su[i]
+next i
+yv[1] = 0
+for j = 1 to nV
+	yv[j + 1] = yv[j] + sv[j]
+next j
+stLU = xu[nU + 1]
+stLV = yv[nV + 1]
+! 階段の上（利用者の指定 2026-10-28: 内部足場は階段でよく使う）: 支柱の列ごとの足元の高さ。fu[i]＋fv[j] が支柱 (i, j) の足元
+dim fu[], fv[]
+for i = 1 to nU + 1
+	fu[i] = 0
+next i
+for j = 1 to nV + 1
+	fv[j] = 0
+next j
+nF = 0
+s = footZ
+while strlen(s) > 0 and nF < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nF = nF + 1
+		if footAxis = 0 and nF <= nU + 1 then fu[nF] = v / 1000
+		if footAxis = 1 and nF <= nV + 1 then fv[nF] = v / 1000
+	endif
+endwhile
+! 列ごとの根がらみ（段の上の支柱の最初のコマ。0＝共通）
+dim fn[]
+for i = 1 to 60
+	fn[i] = 0
+next i
+nN = 0
+s = footNeg
+while strlen(s) > 0 and nN < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nN = nN + 1
+		fn[nN] = v / 1000
+	endif
+endwhile
+! 列ごとのジャッキの繰出し（階段の上）と布板の幅
+dim fj[], dw[]
+for i = 1 to 60
+	fj[i] = jackExt
+next i
+nJ = 0
+s = footJk
+while strlen(s) > 0 and nJ < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nJ = nJ + 1
+		fj[nJ] = v / 1000
+	endif
+endwhile
+nW = 0
+s = dkWs
+while strlen(s) > 0 and nW < 6 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 and v > 50 then
+		nW = nW + 1
+		dw[nW] = v / 1000
+	endif
+endwhile
+if nW = 0 then
+	nW = 1
+	dw[1] = 0.5
+endif
+! 昇降の階段（利用者の指定 2026-10-29: ハシゴじゃなくて階段を使う）: 下の段・上の段の組
+dim sf[]
+nS = 0
+s = stFl
+while strlen(s) > 0 and nS < 80 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nS = nS + 1
+		sf[nS] = v / 1000
+	endif
+endwhile
+stairOn = (nS >= 2)
+! ハッチ付布板（梯子内蔵）の段（利用者の指定 2026-10-29: エレベーターシャフトは階段ではなくハッチつきアンチ）
+dim hz[]
+nHz = 0
+s = hatchZ
+while strlen(s) > 0 and nHz < 60 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nHz = nHz + 1
+		hz[nHz] = v / 1000
+	endif
+endwhile
+dim htPx[], htPy[], htPz[], htLn[], htWd[]
+nHtp = 0
+! 階段の通る幅（階段枠 450 を2列で折り返し、升目が狭ければ1列）
+! 本体の足場の部材と同じ作り（利用者の指定 2026-10-29: 支保工も今作っている足場部材でやる）。寸法は足場ラインの
+! 830 布材・870 布板・820 ジャッキ（部品 ashiba_member と同じ）
+r_sic = 0.0486 / 2
+if postDia > 0.01 then r_sic = postDia / 2
+r_nuno = 0.0427 / 2
+isWedge = (sysKind = 0)
+stLaneW = 0.55
+if sv[1] >= 2 * 0.45 + 0.1 then stLaneW = 2 * 0.45 + 0.1
+rP = r_sic
+topZ = deckH + 0.95
+if postTop > 0 then topZ = postTop
+if lineMode then
+	for i = 1 to nU + 1
+		for j = 1 to nV + 1
+			lin_ xu[i], yv[j], zBase + fu[i] + fv[j], xu[i], yv[j], topZ
+		next j
+	next i
+else
+	! 支柱（コマ・上端の連結ホゾ）とジャッキベース
+	for i = 1 to nU + 1
+		for j = 1 to nV + 1
+			zf = zBase + fu[i] + fv[j]
+			jE = jackExt
+			if nJ > 0 then
+				if footAxis = 0 then jE = fj[min(i, 60)]
+				if footAxis = 1 then jE = fj[min(j, 60)]
+			endif
+			add xu[i], yv[j], zf
+			gosub "jack"
+			del 1
+			pb = zf + jE
+			add xu[i], yv[j], pb
+			pLen = topZ - pb
+			gosub "post"
+			del 1
+		next j
+	next i
+	! 根がらみと各段の布材（両方向）
+	! スパンごとに描き、両端の支柱の足元より下の布材は描かない（階段の上は段ごとに根がらみが上がる）
+	for il = 1 to nL
+		z = lv[il]
+		for j = 1 to nV + 1
+			for i = 1 to nU
+				if z > zBase + max(fu[i], fu[i + 1]) + fv[j] + 0.05 then
+					add xu[i], yv[j], z
+					nLd = su[i]
+					gosub "ledger"
+					del 1
+				endif
+			next i
+		next j
+		for i = 1 to nU + 1
+			for j = 1 to nV
+				if z > zBase + fu[i] + max(fv[j], fv[j + 1]) + 0.05 then
+					add xu[i], yv[j], z
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				endif
+			next j
+		next i
+	next il
+	! 支保工の頂部（利用者の指定 2026-10-28: 型枠支保工で使う）: 支柱の天端に大引受けジャッキ（ねじ棒＋U字の受け）、
+	! 長手の支柱の列ごとに大引（端太角 100 角）
+	if postTop > 0 and uheadExt > 0 then
+		for i = 1 to nU + 1
+			for j = 1 to nV + 1
+				add xu[i], yv[j], postTop
+				cylind uheadExt, 0.017
+				del 1
+				add xu[i] - 0.06, yv[j] - 0.06, postTop + uheadExt
+				block 0.12, 0.12, 0.008
+				del 1
+				for sd = 0 to 1
+					add xu[i] - 0.06, yv[j] - 0.058 + sd * 0.11, postTop + uheadExt
+					block 0.12, 0.006, 0.06
+					del 1
+				next sd
+			next j
+		next i
+		if matDeck > 0 then material matDeck
+		for j = 1 to nV + 1
+			add -0.15, yv[j] - 0.05, postTop + uheadExt + 0.008
+			block stLU + 0.30, 0.10, 0.10
+			del 1
+		next j
+		if matScaf > 0 then material matScaf
+	endif
+	! 階段の上の列ごとの根がらみ: 列の中（直角方向）と、足元の低い隣の列へ1スパン
+	for k = 1 to nN
+		if fn[k] > 0 then
+			z = fn[k]
+			if footAxis = 0 and k <= nU + 1 then
+				for j = 1 to nV
+					add xu[k], yv[j], z
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				next j
+				for j = 1 to nV + 1
+					if k > 1 then
+						if fu[k - 1] < fu[k] then
+							add xu[k - 1], yv[j], z
+							nLd = su[k - 1]
+							gosub "ledger"
+							del 1
+						endif
+					endif
+					if k <= nU then
+						if fu[k + 1] < fu[k] then
+							add xu[k], yv[j], z
+							nLd = su[k]
+							gosub "ledger"
+							del 1
+						endif
+					endif
+				next j
+			endif
+			if footAxis = 1 and k <= nV + 1 then
+				for i = 1 to nU
+					add xu[i], yv[k], z
+					nLd = su[i]
+					gosub "ledger"
+					del 1
+				next i
+				for i = 1 to nU + 1
+					if k > 1 then
+						if fv[k - 1] < fv[k] then
+							add xu[i], yv[k - 1], z
+							rotz 90
+							nLd = sv[k - 1]
+							gosub "ledger"
+							del 2
+						endif
+					endif
+					if k <= nV then
+						if fv[k + 1] < fv[k] then
+							add xu[i], yv[k], z
+							rotz 90
+							nLd = sv[k]
+							gosub "ledger"
+							del 2
+						endif
+					endif
+				next i
+			endif
+		endif
+	next k
+	! 全面の作業床（スパンごとの踏板。隙間 5mm）。最上段と deckList の段
+	if matDeck > 0 then material matDeck
+	for id = 1 to nD
+		for i = 1 to nU
+			for j = 1 to nV
+				! スパンを布板の幅（広い順）で埋める（すき間 3cm 以下）。階段の升目は階段の通る幅を抜く
+				yp = yv[j] + 0.015
+				rest = sv[j] - 0.03
+				if stairOn and i = 1 and j = 1 then
+					yp = yv[j] + stLaneW + 0.015
+					rest = sv[j] - stLaneW - 0.03
+				endif
+				! この段にハッチがあれば、隅の升目の 1枚目（奇数番目のハッチ）か 2枚目（偶数番目）の幅500をハッチにする
+				! （足場の幅は 1219 まで: 幅500 は2枚。利用者の指定 2026-10-29）
+				hSlot = 0
+				if i = 1 and j = 1 then
+					for kh = 1 to nHz
+						if abs(hz[kh] - dk[id]) < 0.005 and hz[kh] - zBase > 0.65 then
+							hSlot = 1
+							if kh mod 2 = 0 then hSlot = 2
+						endif
+					next kh
+				endif
+				nSl = 0
+				for iw = 1 to nW
+					while rest >= dw[iw] - 0.001 do
+						nSl = nSl + 1
+						add xu[i], yp, dk[id]
+						pkL = su[i]
+						pkW = dw[iw]
+						if nSl = hSlot and dw[iw] >= 0.45 then
+							! ハッチは色を変えるので、ほかの部材を描き終えてから最後にまとめて描く
+							nHtp = nHtp + 1
+							htPx[nHtp] = xu[i]
+							htPy[nHtp] = yp
+							htPz[nHtp] = dk[id]
+							htLn[nHtp] = su[i]
+							htWd[nHtp] = dw[iw]
+						else
+							gosub "plank"
+						endif
+						del 1
+						yp = yp + dw[iw]
+						rest = rest - dw[iw]
+					endwhile
+				next iw
+				! 布板で埋めきれないすき間はすき間板（薄い鋼板）でふさぐ（ステージは全面。すき間 3cm 以下）
+				if rest > 0.03 and not(stairOn and i = 1 and j = 1) then
+					add xu[i] + 0.03, yp, dk[id] + r_nuno + 0.040
+					block su[i] - 0.06, rest, 0.006
+					del 1
+				endif
+			next j
+		next i
+	next id
+	! 階段（隅の1スパンに折り返し。階段枠 幅450・ささら＋踏板＋両側の手すり）と、その升目の作業床の開口の手すり
+	if stairOn then
+		gosub "stairs"
+	endif
+	if matScaf > 0 then material matScaf
+	! 外周の手すり・中桟と幅木
+	if guardOn then
+	for hk = 1 to 2
+		hh = 0.95
+		if hk = 2 then hh = 0.45
+		for sd = 0 to 1
+			for i = 1 to nU
+				add xu[i], sd * stLV, deckH + hh
+				nLd = su[i]
+				gosub "ledger"
+				del 1
+			next i
+			! 長手の終わりの短辺を出入口にするとき（gOpenE。仮設通路の島）はその辺に掛けない
+			if not(sd = 1 and gOpenE) then
+				for j = 1 to nV
+					add sd * stLU, yv[j], deckH + hh
+					rotz 90
+					nLd = sv[j]
+					gosub "ledger"
+					del 2
+				next j
+			endif
+		next sd
+	next hk
+	for sd = 0 to 1
+		add 0, sd * stLV - 0.006, deckH + 0.066
+		block stLU, 0.012, 0.15
+		del 1
+		if not(sd = 1 and gOpenE) then
+			add sd * stLU - 0.006, 0, deckH + 0.066
+			block 0.012, stLV, 0.15
+			del 1
+		endif
+	next sd
+	endif
+	! 支保工の水平荷重を受ける交さ筋かい（各層・各方向 inBrN 組。数量と同じ）: 内側の通りから順に、足りなければ外周の
+	! 通りの外周の筋かいの無い升目へ、1升目に1組ずつ配る
+	if inBrN > 0 then
+		for il = 1 to nL - 1
+			z1 = lv[il] + 0.1
+			z2 = lv[il + 1] - 0.1
+			for dirB = 0 to 1
+				nLine = nV + 1
+				nBay = nU
+				if dirB = 1 then
+					nLine = nU + 1
+					nBay = nV
+				endif
+				cnt = 0
+				for pass = 0 to 1
+					for ln = 1 to nLine
+						isEdge = (ln = 1 or ln = nLine)
+						if (pass = 0 and not(isEdge)) or (pass = 1 and isEdge) then
+							for bb = 1 to nBay
+								hasOuter = isEdge and (bb - 1 - 5 * int((bb - 1) / 5) = 0)
+								! 階段の入口の升目（短手の始めの面の1つ目）とずらした外周の筋かいの升目は空ける
+								if stairOn and dirB = 1 and ln = 1 and bb <= 2 then hasOuter = 1
+								if cnt < inBrN and not(hasOuter) then
+									cnt = cnt + 1
+									for xd = 0 to 1
+										if dirB = 0 then
+											bx1 = xu[bb] + xd * su[bb]
+											bx2 = xu[bb] + (1 - xd) * su[bb]
+											by1 = yv[ln]
+											by2 = yv[ln]
+										else
+											bx1 = xu[ln]
+											bx2 = xu[ln]
+											by1 = yv[bb] + xd * sv[bb]
+											by2 = yv[bb] + (1 - xd) * sv[bb]
+										endif
+										bz1 = z1
+										bz2 = z2
+										gosub "rod"
+									next xd
+								endif
+							next bb
+						endif
+					next ln
+				next pass
+			next dirB
+		next il
+	endif
+	! 外周の構面の筋かい（5スパンごと、各段のあいだ）
+	for il = 1 to nL - 1
+		z1 = lv[il] + 0.1
+		z2 = lv[il + 1] - 0.1
+		for i = 1 to nU
+			if i - 1 - 5 * int((i - 1) / 5) = 0 and z1 > zBase + max(fu[i], fu[i + 1]) + max(fv[1], fv[nV + 1]) then
+				for sd = 0 to 1
+					ag = atn((z2 - z1) / su[i])
+					add xu[i], sd * stLV, z1
+					roty 90 - ag
+					cylind sqr(su[i] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
+					del 2
+				next sd
+			endif
+		next i
+		for j = 1 to nV
+			if j - 1 - 5 * int((j - 1) / 5) = 0 and z1 > zBase + max(fu[1], fu[nU + 1]) + max(fv[j], fv[j + 1]) then
+				for sd = 0 to 1
+					! 階段の入口（始めの短手の面の1つ目の升目）は塞がない: 隣の升目へずらす
+					jb = j
+					if stairOn and sd = 0 and j = 1 and nV >= 2 then jb = 2
+					ag = atn((z2 - z1) / sv[jb])
+					add sd * stLU, yv[jb], z1
+					rotx -(90 - ag)
+					cylind sqr(sv[jb] ^ 2 + (z2 - z1) ^ 2), 0.0427 / 2
+					del 2
+				next sd
+			endif
+		next j
+	next il
+	! はしご（始めの角の外、作業床の上 0.9 まで）。外周の手すりが無いとき（EVシャフト）は壁が近いので内側に入れ、
+	! 作業床ははしご口（ハッチ付きの踏板）で抜ける
+	yLad = -0.25
+	if not(guardOn) then yLad = 0.25
+	if stairOn or not(ladOn) then goto 2102
+	for sd = 0 to 1
+		add 0.20 + sd * 0.35, yLad, zBase + fu[1] + fv[1]
+		cylind topZ - zBase - fu[1] - fv[1], 0.0175
+		del 1
+	next sd
+	zr = zBase + fu[1] + fv[1] + 0.30
+	while zr < topZ - 0.1 do
+		add 0.20, yLad, zr
+		roty 90
+		cylind 0.35, 0.011
+		del 2
+		zr = zr + 0.30
+	endwhile
+2102:
+	! ハッチ付布板（最後に。色を変えるため）
+	for kd = 1 to nHtp
+		add htPx[kd], htPy[kd], htPz[kd]
+		pkL = htLn[kd]
+		pkW = htWd[kd]
+		gosub "hatch"
+		del 1
+	next kd
+endif
+del top
+end
+
+"hatch":
+	! ハッチ付布板（アルミ・梯子内蔵。日建 NDN6TA）: 布板の枠とふたの線、内蔵の梯子を1層下まで下ろす（原点＝布板と同じ）
+	define material "ashiba_hatch" 2, 0.78, 0.80, 0.83
+	material "ashiba_hatch"
+	add 0.025, 0, r_nuno
+	block pkL - 0.05, pkW, 0.045
+	del 1
+	! ふた（開口 約 0.6×0.4）の見切り
+	add pkL * 0.25, 0.05, r_nuno + 0.046
+	block 0.62, pkW - 0.10, 0.003
+	del 1
+	! 内蔵の梯子（ふたの下から 1層下の段まで。わずかに傾けて下ろす）
+	lzTop = r_nuno
+	lzBot = -1.8
+	for sr = 0 to 1
+		add pkL * 0.25 + 0.05, 0.08 + sr * (pkW - 0.16), lzTop
+		roty 180 - 8
+		cylind lzTop - lzBot, 0.012
+		del 2
+	next sr
+	rg = 0.3
+	while rg < lzTop - lzBot - 0.1 do
+		add pkL * 0.25 + 0.05 + rg * sin(8), 0.08, lzTop - rg * cos(8)
+		rotx -90
+		cylind pkW - 0.16, 0.008
+		del 2
+		rg = rg + 0.3
+	endwhile
+	if matScaf > 0 then material matScaf
+return
+
+"rod":
+	! 2点 (bx1,by1,bz1)〜(bx2,by2,bz2) を結ぶ筋かい φ42.7
+	rdx = bx2 - bx1
+	rdy = by2 - by1
+	rdz = bz2 - bz1
+	rdL = sqr(rdx ^ 2 + rdy ^ 2 + rdz ^ 2)
+	if rdL > 0.01 then
+		if abs(rdx) < 0.000001 then
+			rAz = 90
+			if rdy < 0 then rAz = -90
+		else
+			rAz = atn(rdy / rdx)
+			if rdx < 0 then rAz = rAz + 180
+		endif
+		add bx1, by1, bz1
+		rotz rAz
+		roty acs(rdz / rdL)
+		cylind rdL, 0.0427 / 2
+		del 3
+	endif
+return
+
+"stairs":
+	sW = 0.45
+	sx0 = xu[1] + 0.08
+	sx1 = xu[2] - 0.08
+	sRun = sx1 - sx0
+	twoLane = (sv[1] >= 2 * sW + 0.1)
+	for kf = 1 to int(nS / 2)
+		zb = sf[2 * kf - 1]
+		zt = sf[2 * kf]
+		sRise = zt - zb
+		if sRise > 0.2 then
+			up = 1
+			ys = yv[1] + 0.05
+			if twoLane and kf mod 2 = 0 then
+				up = -1
+				ys = yv[1] + 0.10 + sW
+			endif
+			sA = atn(sRise / sRun)
+			sLen = sqr(sRun ^ 2 + sRise ^ 2)
+			xs = sx0
+			if up < 0 then xs = sx1
+			! ささら（両側）と手すり（踏面から 0.85）
+			for sd = 0 to 1
+				yy = ys + sd * sW
+				add xs, yy, zb
+				if up > 0 then
+					roty 90 - sA
+				else
+					roty -(90 - sA)
+				endif
+				cylind sLen, 0.02
+				del 2
+				add xs, yy, zb + 0.85
+				if up > 0 then
+					roty 90 - sA
+				else
+					roty -(90 - sA)
+				endif
+				cylind sLen, 0.0136
+				del 2
+			next sd
+			! 踏板（蹴上げ 0.2 前後）
+			nT = max(1, int(sRise / 0.2 + 0.5))
+			for kt = 1 to nT - 1
+				px = xs + up * sRun * kt / nT
+				add px - 0.12, ys, zb + sRise * kt / nT - 0.03
+				block 0.24, sW, 0.03
+				del 1
+			next kt
+		endif
+	next kf
+	! 階段の通る開口の脇（y＝yv[1]＋stLaneW）に手すり・中桟（開口部手摺。出入口の xu[2] の側は開ける）
+	for id = 1 to nD
+		for hk = 1 to 2
+			hh = 0.95
+			if hk = 2 then hh = 0.45
+			add xu[1], yv[1] + stLaneW, dk[id] + hh
+			roty 90
+			cylind su[1], 0.0136
+			del 2
+		next hk
+	next id
+return
+
+"post":
+	! 支柱（本体の足場ライン・ashiba_member の支柱と同じ: 管・コマ・上端の連結ホゾ）。原点＝下端、長さ pLen
+	cylind pLen, r_sic
+	if isWedge then
+		add 0, 0, pLen
+		cylind 0.125, 0.0182
+		del 1
+		resol 6
+		kz = lv[1] - komaP * int((lv[1] - pb) / komaP)
+		while kz < pb + pLen - 0.05 do
+			if kz > pb + 0.05 then
+				add 0, 0, kz - pb - 0.003
+				cylind 0.006, 0.053
+				del 1
+			endif
+			kz = kz + komaP
+		endwhile
+		resol 8
+	endif
+return
+
+"ledger":
+	! 布材（緊結部がコマを上下に挟み、クサビが縦に通る。管は緊結部の間）。原点＝支柱芯、+X へ nLd
+	if isWedge then
+		hdL = 0.050
+		add r_sic + hdL, 0, 0
+		roty 90
+		cylind nLd - 2 * (r_sic + hdL), r_nuno
+		del 2
+		for hd = 0 to 1
+			if hd = 0 then
+				add r_sic, 0, 0
+			else
+				add nLd - r_sic, 0, 0
+				mulx -1
+			endif
+			add 0, -0.020, 0.003
+			block hdL, 0.040, 0.042
+			del 1
+			add 0, -0.020, -0.040
+			block hdL, 0.040, 0.037
+			del 1
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+			if hd = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd
+	else
+		roty 90
+		cylind nLd, r_nuno
+		del 1
+	endif
+return
+
+"plank":
+	! 布板（アップロック式鋼製布板）: 原点＝支柱芯の高さ・板の始めの端、+X へ pkL、+Y へ幅 pkW
+	if matDeck > 0 then material matDeck
+	add 0.025, 0, r_nuno
+	block pkL - 0.05, pkW, 0.045
+	del 1
+	for hd = 0 to 1
+		if hd = 0 then
+			add 0, 0, 0
+		else
+			add pkL, 0, 0
+			mulx -1
+		endif
+		add 0.002, 0.04, r_nuno + 0.040
+		block 0.024, pkW - 0.08, 0.005
+		del 1
+		for hk = 0 to 1
+			add 0.004, 0.015 + hk * (pkW - 0.065), -r_nuno - 0.012
+			block 0.030, 0.035, 2 * r_nuno + 0.012
+			del 1
+		next hk
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+	if matScaf > 0 then material matScaf
+return
+
+"jack":
+	! ジャッキベース（ベース板 140角・ねじ棒・ハンドル付きナット）。原点＝足元、繰出し jE
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	cylind max(jE, 0.02), 0.035 / 2
+	add 0, 0, max(jE, 0.04) - 0.03
+	resol 6
+	cylind 0.03, 0.045
+	resol 8
+	addz 0.015
+	roty 90
+	add 0, 0, -0.09
+	cylind 0.18, 0.006
+	del 4
+return
+if stepH > 0.001 then cutend
+

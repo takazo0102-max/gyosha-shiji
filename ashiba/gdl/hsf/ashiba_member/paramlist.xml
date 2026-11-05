@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+				<Integer Name="kind">
+			<Description><![CDATA["部材の種類 1支柱 2布材 3踏板 4幅木 5先行手すり 6ブレース 7ジャッキ 8建枠 9交差筋違"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Angle Name="faceAng">
+			<Description><![CDATA["向き（度。+X＝部材の長さの向き）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="zH">
+			<Description><![CDATA["下端の高さ"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="memL">
+			<Description><![CDATA["長さ（支柱は高さ、布材・踏板・幅木・先行手すり・ブレースは水平の長さ）"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="memW">
+			<Description><![CDATA["幅（踏板の幅、ブレースのクランプの奥行き）"]]></Description>
+			<Value>0.49</Value>
+		</Length>
+		<Length Name="memH">
+			<Description><![CDATA["高さ（先行手すりの手すりの高さ、ブレースの上がり、ジャッキの繰出し）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<String Name="komaList">
+			<Description><![CDATA["支柱のコマの高さ mm（下端から、カンマ区切り）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="postDia">
+			<Description><![CDATA["支柱の径"]]></Description>
+			<Value>0.0427</Value>
+		</Length>
+		<Integer Name="postShape">
+			<Description><![CDATA["支柱の断面 0円 1ストロングの異形"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="frFlags">
+			<Description><![CDATA["建枠の指定 1＝下の建枠との継ぎ目（連結ピン・アームロック） 2＝躯体側の脚を描かない（隅で隣の面と共有）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="partName">
+			<Description><![CDATA["部材名（一覧表用）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="partNo">
+			<Description><![CDATA["品番（一覧表用）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="parentId">
+			<Description><![CDATA["分解した足場ラインの要素ID（まとめ直すときに使う）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Boolean Name="liteMode">
+			<Description><![CDATA["軽量の3D（コマ・クサビ・金具を省く）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matScaf">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matDeck">
+			<Description><![CDATA["踏板の表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matToe">
+			<Description><![CDATA["幅木の表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+	</Parameters>
+</ParamSection>

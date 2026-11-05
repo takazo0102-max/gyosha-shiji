@@ -1,0 +1,169 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="detailType">
+			<Description><![CDATA["詳細図の種類 base=脚部/tie=壁つなぎ/asagao=朝顔/corner=コーナー/beam=梁枠"]]></Description>
+			<Value><![CDATA["base"]]></Value>
+		</String>
+		<String Name="serType">
+			<Description><![CDATA["系列 A/B"]]></Description>
+			<Value><![CDATA["A"]]></Value>
+		</String>
+		<Length Name="jackOut">
+			<Description><![CDATA["ジャッキ繰り出し量"]]></Description>
+			<Value>0.2</Value>
+		</Length>
+		<Length Name="negaLv">
+			<Description><![CDATA["根がらみコマ高さ 支柱下端から"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Length Name="standoff">
+			<Description><![CDATA["壁離れ"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="rowW">
+			<Description><![CDATA["内外建地間隔"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="spanW">
+			<Description><![CDATA["スパン"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="tieV">
+			<Description><![CDATA["壁つなぎ 垂直間隔"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<Length Name="tieH">
+			<Description><![CDATA["壁つなぎ 水平間隔"]]></Description>
+			<Value>5.4</Value>
+		</Length>
+		<Length Name="asagaoProj">
+			<Description><![CDATA["朝顔 突出長さ"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<RealNum Name="asagaoAngle">
+			<Description><![CDATA["朝顔 傾斜角 度"]]></Description>
+			<Value>25</Value>
+		</RealNum>
+		<Length Name="beamSpan">
+			<Description><![CDATA["梁枠スパン 3.6/5.4"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<Length Name="deckW1">
+			<Description><![CDATA["踏板1幅"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="deckW2">
+			<Description><![CDATA["踏板2幅 0で無し"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Boolean Name="showDim">
+			<Description><![CDATA["寸法・注記の表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<Integer Name="detScale">
+			<Description><![CDATA["詳細図の縮尺の分母 0で表示の縮尺"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="tieVLim">
+			<Description><![CDATA["壁つなぎ垂直間隔の上限 0で既定5m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="tieHLim">
+			<Description><![CDATA["壁つなぎ水平間隔の上限 0で既定5.5m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soMin">
+			<Description><![CDATA["壁離れの目標下限 0で既定0.25m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soMax">
+			<Description><![CDATA["壁離れの目標上限 0で既定0.35m"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cornerGap">
+			<Description><![CDATA["枠組のコーナー隙間 0でくさび式(隙間なし)"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="beamList">
+			<Description><![CDATA["梁枠の規格寸法 カンマ区切りmm 空で3600,5400"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="beamPosts">
+			<Description><![CDATA["梁枠上に乗る支柱位置 開口始点からのmm 空でスパン割から推定"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="hoistW">
+			<Description><![CDATA["昇降機 搬器の幅（面に沿う方向）"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<Length Name="hoistD">
+			<Description><![CDATA["昇降機 搬器の奥行（面に直交）"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<Length Name="hoistH">
+			<Description><![CDATA["昇降機 到達高さ（マスト高さ）0で階高6層ぶん"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hoistGap">
+			<Description><![CDATA["搬器と足場の隙間"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="mastTie">
+			<Description><![CDATA["マスト控えの間隔（メーカー指定）"]]></Description>
+			<Value>3.6</Value>
+		</Length>
+		<RealNum Name="hoistLoad">
+			<Description><![CDATA["昇降機 積載荷重 kN（0=未指定）"]]></Description>
+			<Value>0</Value>
+		</RealNum>
+		<Integer Name="hoistGate">
+			<Description><![CDATA["乗り込み口の開閉式手すり（遮断設備）あり=1"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="landList">
+			<Description><![CDATA["乗り込み口の作業床高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="openH">
+			<Description><![CDATA["開口高さ(梁枠下端) 0で階高2層ぶん"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="warnPen">
+			<Description><![CDATA["警告表示のペン番号 赤 ペンテーブル依存"]]></Description>
+			<Value>20</Value>
+		</Integer>
+	</Parameters>
+</ParamSection>

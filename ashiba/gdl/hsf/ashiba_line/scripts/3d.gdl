@@ -1,0 +1,4185 @@
+﻿! ============================================================
+! 足場ライン 3Dスクリプト
+! 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体側 +Y
+! ============================================================
+pen 1
+! 表面材: 配置時に Python がプロジェクトのアルミ（金属 - アルミニウム）を入れる。0 は既定のまま
+if matScaf > 0 then material matScaf
+! 出隅の外側の升目の辺（前の面・次の面の幅の向き）。幅の違う本足場の組と出会う隅は長方形（2026-10-24）
+cSW = cornerSW
+if cSW < 0.001 then cSW = rowW
+cEW = cornerEW
+if cEW < 0.001 then cEW = rowW
+! 梁枠の上弦材は作業床の1段下のコマ（日建 NDH、カタログ p011「取付位置は布板の1段下（450）のディスク」）。梁枠の上の
+! 建地は内外の梁枠に渡した梁渡し（NDHW）の上に立つ。コマの無い枠組は床のすぐ下（利用者の指定 2026-10-24: 梁枠の詳細上げて）
+bmDrop = 0.06
+if komaPitch > 0.001 then bmDrop = komaPitch
+bmDep = 0.37
+! 単管のクランプは金色（利用者の指定 2026-10-22: クランプは金色にして）。本体・ふた・T ボルト・ナットとも。
+! 直線ジョイント（PCJ）の帯は亜鉛めっきの銀。
+! 足場の表面材（matScaf）が入っている部品だけ色を替える（0 の部品では描いたあと戻す材質が無い）
+define material "ashiba_clamp_zinc" 2, 0.80, 0.81, 0.83
+! 侵入落下防止柵（荷受けステージ）: 枠は塗装の灰、金網は向こうが透ける膜
+define material "ashiba_fence_frame" 2, 0.50, 0.55, 0.58
+define material "ashiba_fence_mesh" 0, 0.62, 0.66, 0.68, 0.6, 0.6, 0.1, 0.8, 5, 0, 1, 1, 1, 0, 0, 0, 0
+define material "ashiba_clamp_gold" 2, 0.86, 0.68, 0.22
+! ジャッキベースの識別色（日建 ND752P はベース板の底面が青）
+define material "ashiba_jack_blue" 2, 0.10, 0.36, 0.78
+! ジャッキベース（支柱の灰と見分ける青みの鋼色。利用者の指定 2026-10-25: ジャッキベースは少し色変えて）
+define material "ashiba_jack_steel" 2, 0.36, 0.42, 0.52
+! 敷板（杉の足場板）
+define material "ashiba_sill_wood" 2, 0.60, 0.47, 0.34
+! 支柱の継ぎ目の帯は支柱の長さごとの色（利用者の指定 2026-10-25: 支柱の繋ぎの色は長さごとに変えて）。継ぎ目の下の帯は
+! 下の支柱、上の帯は上の支柱の長さの色: 3600級 赤・2700級 青・1800級 黄・1350級 緑・1125 水色・900級 橙・675 紫・450級 白
+define material "ashiba_post_joint" 2, 0.86, 0.36, 0.16
+! 跳ね出しブラケット（溝形鋼・取付プレート。錆止め塗装のこげ茶）
+define material "ashiba_hane_steel" 2, 0.42, 0.30, 0.24
+define material "ashiba_pj_36" 2, 0.85, 0.15, 0.12
+define material "ashiba_pj_27" 2, 0.12, 0.32, 0.80
+define material "ashiba_pj_18" 2, 0.95, 0.82, 0.10
+define material "ashiba_pj_135" 2, 0.15, 0.62, 0.25
+define material "ashiba_pj_1125" 2, 0.40, 0.78, 0.92
+define material "ashiba_pj_09" 2, 0.95, 0.50, 0.10
+define material "ashiba_pj_0675" 2, 0.55, 0.30, 0.70
+define material "ashiba_pj_045" 2, 0.95, 0.95, 0.95
+! 単管の識別色（日建リース カタログVol.10 p372 の長さ別一覧表。単管の両端に塗る。利用者の指定 2026-10-22: 単管の種類）
+define material "ashiba_tc_60" 3, 0.45, 0.78, 0.92	! 6.0M 水色
+define material "ashiba_tc_55" 3, 0.85, 0.12, 0.12	! 5.5M 赤
+define material "ashiba_tc_50" 3, 0.50, 0.50, 0.52	! 5.0M グレー
+define material "ashiba_tc_45" 3, 0.50, 0.30, 0.15	! 4.5M 茶
+define material "ashiba_tc_40" 3, 0.10, 0.30, 0.80	! 4.0M 青
+define material "ashiba_tc_35" 3, 0.95, 0.55, 0.70	! 3.5M ピンク
+define material "ashiba_tc_30" 3, 0.95, 0.85, 0.10	! 3.0M 黄
+define material "ashiba_tc_25" 3, 0.08, 0.08, 0.08	! 2.5M 黒
+define material "ashiba_tc_20" 3, 0.95, 0.50, 0.10	! 2.0M オレンジ
+define material "ashiba_tc_15" 3, 0.15, 0.60, 0.25	! 1.5M 緑
+define material "ashiba_tc_10" 3, 0.50, 0.25, 0.65	! 1.0M 紫
+! 幅木の表面材: 黄色にしない（利用者の指定 2026-10-22）。踏板と少し違う色（利用者の指定 2026-10-24: はばきは少し違う
+! 色にしてみようか）。踏板の鉄の色より少し濃い青みの鋼板色。前に黄の matToe で置いた部品もこの色で描く
+define material "ashiba_toe_steel" 2, 0.40, 0.47, 0.56
+mToe = IND(MATERIAL, "ashiba_toe_steel")
+clW = 0.040		! クランプの口の幅
+clT = 0.0045	! 口の帯の厚み
+! 3Dの細かさ（detail3d）: 0=自動 1=精細 2=軽量 3=線 4=ブロック。足場は支柱・布材・コマで数千の部材になり、
+! 建物一周を精細で出すと Archicad の3D・断面の生成が重く、操作しづらかった（利用者の指摘 2026-10-19）。
+! 軽量は布材の爪・支柱の継手のカラー・ジャッキのハンドルと、フックを掛けない高さのコマを省き、円柱を6角にする
+! （部材の位置・本数・寸法は精細と同じなので、干渉確認と図面には足りる）。自動は面の大きさで決める
+d3 = detail3d
+! モデル表示オプション（ashiba_mvo）の 3Dの表現: 1=精細 3=軽量 2=線 が部品の設定より優先
+mvD = 0
+if LIBRARYGLOBAL(mvoName, "mode3d", mvD) then
+	if mvD = 1 then d3 = 1
+	if mvD = 3 then d3 = 2
+	if mvD = 2 then d3 = 3
+	if mvD = 4 then d3 = 4
+endif
+if d3 < 1 or d3 > 4 then
+	d3 = 1
+	if nSpan * (nLv - 1) > 40 then d3 = 2
+endif
+if d3 = 3 then lineMode = 1
+isLite = 0
+if d3 = 2 then isLite = 1
+! 断面図・立面図（GLOB_CONTEXT 4・24、GLOB_VIEW_TYPE 4〜6）では図面向きの形で描く（利用者の指定 2026-10-23:
+! 断面図は2Dで書くときの形に。案2）。爪・カラー・ハンドル・クランプの細部は軽量と同じく省き、コマ（緊結部の座）は
+! 描かない（2Dの断面図・立面図には描かない）。切り口の手すり・支柱が丸く見えるよう円柱は12角のまま。
+! 3Dウィンドウ・平面はこれまでどおり
+isDwg = 0
+if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 or GLOB_VIEW_TYPE = 6 then isDwg = 1
+if GLOB_CONTEXT = 4 or GLOB_CONTEXT = 24 then isDwg = 1
+if isDwg = 1 and d3 <> 3 and d3 <> 4 then isLite = 1
+! 円柱の分割数。既定36だと30m面1つの3D生成に約40秒（支柱・布材・コマで数千本）。
+! 精細は12（見た目は保ったまま面数が1/3）、軽量は6。コマ・ナットは6
+rN = 12
+jkSill = 0
+if isLite and isDwg = 0 then rN = 6
+resol rN
+
+! 足場の高さの編集: 外側建地列の始点の天端を上下に引くと、作業層単位で層と支柱を足し引きする
+! （パラメータスクリプト）。全面・帳票はパレットの「解き直し」で追従する。
+! 3D にホットスポットを1つでも置くと外接箱の自動ホットスポットが消えるので、四隅も置く
+if editSpan and serType <> "W" and nLevIn > 0 and segOn = 0 then
+	hotspot 0, -rowW, 0, 1000, topEdit, 1 + 128
+	hotspot 0, -rowW, topEdit, 1001, topEdit, 2
+	hotspot 0, -rowW, -1, 1002, topEdit, 3
+endif
+! 区切った部品は自分の範囲の箱の四隅
+hzA = 0
+if gzA > 0 then hzA = gzA
+hzB = postTop
+if gzB < postTop then hzB = gzB
+hotspot pxA, 0, hzA
+hotspot pxB, 0, hzA
+hotspot pxB, -rowW, hzA
+hotspot pxA, 0, hzB
+hotspot pxB, 0, hzB
+hotspot pxB, -rowW, hzB
+
+! ---- 区切る位置のつまみ（利用者の指定 2026-10-21「クリックした次のところから区切る、3Dで」） ----
+! 選ぶと、上端（外側建地列の外）に縦の区切りのつまみ、始点の支柱の外に横の区切りのつまみが出る。
+! 引いた位置の次の支柱の芯・次の作業床に吸着し（パラメータスクリプト）、そこに赤い面で区切り目を出す（990。
+! 材質を替えるので描き終わりに）。
+! パレットの「区切る」で、そこから先を別の部品にする
+cyH = -rowW - 0.25
+hotspot pxA, cyH, hzB, 1010, cutAtX, 1 + 128
+hotspot pxA + cutAtX, cyH, hzB, 1011, cutAtX, 2
+hotspot pxA - 1, cyH, hzB, 1012, cutAtX, 3
+hotspot pxA - 0.25, cyH, hzA, 1013, cutAtZ, 1 + 128
+hotspot pxA - 0.25, cyH, hzA + cutAtZ, 1014, cutAtZ, 2
+hotspot pxA - 0.25, cyH, hzA - 1, 1015, cutAtZ, 3
+! ---- 区切った部品: 範囲の箱の外を切り取る（縦は支柱の芯、横は作業床の 100 下） ----
+! 切る形は無限に長い角筒（CUTPOLY）。範囲の外の側を大きな四角で囲んで消す。高さは x 軸まわりに回して角筒を水平に
+nClip = 0
+if gxA > -999 then
+	cutpoly 4, -1000, -1000, gxA, -1000, gxA, 1000, -1000, 1000
+	nClip = nClip + 1
+endif
+if gxB < 999 then
+	cutpoly 4, gxB, -1000, 1000, -1000, 1000, 1000, gxB, 1000
+	nClip = nClip + 1
+endif
+if gzA > -999 then
+	rotx 90
+	cutpoly 4, -1000, -1000, 1000, -1000, 1000, gzA, -1000, gzA
+	del 1
+	nClip = nClip + 1
+endif
+if gzB < 999 then
+	rotx 90
+	cutpoly 4, -1000, gzB, 1000, gzB, 1000, 1000, -1000, 1000
+	del 1
+	nClip = nClip + 1
+endif
+! 工程の模型（scripts/step_run.py。利用者の指定 2026-11-04「工程表に合わせてモデルを自動作成」）: stepH より上は組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+	nClip = nClip + 1
+endif
+
+! ---- 向こう側の面を隠す幕（断面・立面だけ） ----
+! 立面図は建物の外に置いた断面で描く。Tapir の断面は奥行きが無限（水平範囲を「制限」にできない）で、
+! 壁の無い躯体だと向こう側の面の足場が透けて二重に描かれた（2026-10-18 実機）。GDL からは断面の向きが
+! 分からないので、各面が自分の躯体面の 1m 奥に、辺の無い不透明な幕を立てる。手前の面を見る立面では
+! その面の幕が向こう側を隠し、向こう側の面の幕は手前の足場の後ろにあって何も隠さない。
+! 平面・3D には出さない
+if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 then
+	add -rowW - 0.05, standoff + 1.0, -3.0
+	! 側面だけ（状態 8: 面あり・辺なし）。上下の面の辺も出さない
+	prism_ 4, postTop + 5.0, \
+		0, 0, 8, \
+		lineLen + 2 * rowW + 0.1, 0, 8, \
+		lineLen + 2 * rowW + 0.1, 0.002, 8, \
+		0, 0.002, 8
+	del 1
+endif
+
+! ブロック表示（d3=4。参考: smartCON Planner の3D「ブロック」）: 部材を描かず、スパン×層ごとの半透明の箱で
+! 足場の占める空間を出す。躯体・庇・隣地との取り合いを、部材の数に埋もれずに一目で見るため（いちばん軽い）。
+! 開口部（梁枠より下）の升目は通路なので空ける。外付けの階段室は3列目の箱で出す
+if d3 = 4 then
+	define material "ashiba_block" 0, 0.95, 0.62, 0.20, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	material "ashiba_block"
+	x = 0
+	for ip = 1 to nSpan
+		for il = 0 to nLv
+			zb = 0
+			if il > 0 then zb = lv[il]
+			zt = postTop
+			if il < nLv then zt = lv[il + 1]
+			skB = 0
+			for ib = 1 to nBm
+				if x >= bmS[ib] - 0.001 and x + spans[ip] <= bmS[ib] + bmL[ib] + 0.001 and \
+						zb < bmH[ib] - 0.001 and zb >= bmBt[ib] - 0.001 then skB = 1
+			next ib
+			if zt > zb + 0.001 and skB = 0 then
+				add x, -rowW, zb
+				block spans[ip], rowW, zt - zb
+				del 1
+			endif
+		next il
+		x = x + spans[ip]
+	next ip
+	if stOut = 1 then
+		for it = 1 to nSt
+			add stS[it], -2 * rowW, 0
+			block stL[it], rowW, postTop
+			del 1
+		next it
+	endif
+	gosub 990
+	for ic9 = 1 to nClip
+		cutend
+	next ic9
+	end
+endif
+
+! 線表示: 計画初期や40m級の建物一周で、部材の立体を描かずに支柱・水平材・階段・
+! 付帯設備の占有範囲を線だけで出す（bim-arekore の足場計画.gsm の「線表示」と同じ考え方）。
+! 立体表現（既定）は干渉確認用、線表示は割付検討用
+mv3d = 0
+if LIBRARYGLOBAL(mvoName, "mode3d", mv3d) then
+	if mv3d = 1 then lineMode = 0
+	if mv3d = 3 then lineMode = 0
+	if mv3d = 2 then lineMode = 1
+endif
+if lineMode then
+	gosub 900
+	gosub 990
+	for ic9 = 1 to nClip
+		cutend
+	next ic9
+	end
+endif
+
+! ---- コマ（緊結部）の高さ kz[1..nKz] ----
+! カタログの支柱図（master.post_koma_offsets と同じ規則）: 支柱1本ごとに、上端から komaGap 下を起点に
+! komaPitch で下へ。negaLens の長さの支柱（ND1800 の 2700 など）は下端から komaNega に根がらみ用のコマ
+! （そのすぐ上に無ければ komaPitch−komaGap にも）。利用者の指摘（2026-10-21）: 支柱のフックの高さは
+! 450ピッチ、2700は根がらみ用のフックがある。以前は根がらみの高さから450ごとに並べ、継ぎ目にコマが来ていた。
+! 軽量では、布材・腕木・踏板・手すりのフックを掛ける高さ（根がらみ・各作業床・中桟・手すり）のコマだけ描く
+dim kz[]
+dim kzAll[]
+dim pj[40]
+dim kzSeg[]
+dim kzSegA[]
+dim cLv[42]
+dim cKz[]
+dim cKzS[]
+dim sPo[40]
+dim sLv[42]
+dim cqx[3]
+dim cqy[3]
+gosub 756
+
+! ---- 支柱（各スパン境界に内外1対） ----
+! 梁枠の内側は支柱を抜く（平面・立面と同じ）。3Dだけ建てたままだと、
+! 実際には無い建地を干渉確認に使うことになる。
+! 支柱だけ分解した部品（explodeMask）は、自分の持つ支柱（位置 x が [gxA, gxB)、下端が [gzA, gzB)）を分解した部材
+! （ashiba_member）が描くので描かない。持たない支柱（隣の部品の区切り目の支柱など）は切り取った範囲の分だけ描く。
+! ジャッキは足場ラインのまま。区切った部品の範囲の外の支柱は描かない（切り取られるので、描く手間だけ省く）
+! ---- 敷板（支柱の列に沿って、ジャッキベースの下に規格の長さの敷板を通す。利用者の指定 2026-10-25: ジャッキベースの下に
+! 敷板規格の長さ…を配置して）----
+! 平らな地盤は sillList の列（「y,始め,終わり」。端は脚のベース板の少し先まで、隅で直交する列と重なるところは除いて
+! ある。sill_boards）に、長いものから詰め、最後は残りの長さに切って並べる（残りが最短の規格に満たないときは1つ手前を
+! 短い規格に。利用者の指摘 2026-10-25: 敷板が飛び出ている 繋がるようにして 規格の大きさを基本でカット）。
+! 高低差のある地盤は脚ごとにいちばん短い規格を1枚（地盤の高さに合わせる）。幅 sillW・厚 sillT
+! 敷板は軽量でも描く（利用者の指摘 2026-10-25: 敷板がない）
+if sillT > 0.001 then
+	material "ashiba_sill_wood"
+	nSl = 0
+	rest = sillLens
+	while strlen(rest) > 0 and nSl < 8 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			nSl = nSl + 1
+			slL[nSl] = v / 1000
+		endif
+	endwhile
+	if nGl >= 2 then
+		for row = rowStart to 1
+			slY = -row * rowW - sillW / 2
+			slX = 0
+			for ip = 1 to nSpan + 1
+				slG = 0
+				if row = 1 and nGlO >= 2 then
+					if ip <= nGlO then slG = glO[ip]
+				else
+					if ip <= nGl then slG = gl[ip]
+				endif
+				add slX - slL[nSl] / 2, slY, slG
+				block slL[nSl], sillW, sillT
+				del 1
+				if ip <= nSpan then slX = slX + spans[ip]
+			next ip
+		next row
+	else
+		! sillList（続きは sillList2）はマスタースクリプトで slV・nSv に読んである
+		for iSr = 1 to int(nSv / 3)
+			slY = slV[3 * iSr - 2] - sillW / 2
+			slX = slV[3 * iSr - 1]
+			slRest = slV[3 * iSr] - slX
+			while slRest > slL[1] + 0.001 do
+				slLen = slL[1]
+				if slRest - slL[1] < slL[nSl] then
+					slLen = slL[nSl]
+					for slI = nSl to 1 step -1
+						if slRest - slL[slI] >= slL[nSl] then slLen = slL[slI]
+					next slI
+				endif
+				add slX, slY, 0
+				block slLen - 0.005, sillW, sillT
+				del 1
+				slX = slX + slLen
+				slRest = slRest - slLen
+			endwhile
+			if slRest > 0.001 then
+				add slX, slY, 0
+				block slRest, sillW, sillT
+				del 1
+			endif
+		next iSr
+	endif
+	if matScaf > 0 then material matScaf
+endif
+
+x = 0
+for ip = 1 to nSpan + 1
+	bBase = 0
+	bBot = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
+	next ib
+	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと）
+	gv = 0
+	jo = jackOut
+	sv = shimAll
+	if ip <= nGl then gv = gl[ip]
+	if ip <= nJk then jo = jk[ip]
+	if ip <= nSh then sv = sh[ip]
+	ownX = 0
+	if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
+	for row = rowStart to 1
+		! 外側の列は外側の地盤（glListO）。斜面では内側の列と地盤高が違う
+		if row = 1 and nGlO >= 2 then
+			gv = 0
+			jo = jackOut
+			sv = shimAll
+			if ip <= nGlO then gv = glO[ip]
+			if ip <= nJkO then jo = jkO[ip]
+			if ip <= nShO then sv = shO[ip]
+		endif
+		! 隅の内側建地は隣の面と同じ1本。高い方の面（同じなら次の面）だけが描く（両方の面が描いて重なっていた）
+		skipP = 0
+		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		! セットバックの上段の端は本体の支柱に乗る（支柱もジャッキベースも描かない。利用者の指定 2026-10-25）
+		if (ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1) then skipP = 1
+		! 高さの違う出隅で低い面の隅の外側建地は、隅の升目を描く面が高い方の積み方で立てる（gosub 757）
+		if row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1)) then skipP = 1
+		if x < gxA - 0.1 or x > gxB + 0.1 then skipP = 1
+		if skipP = 1 then
+			! 隣の面・隣の部品が描く
+		else
+		if bBase = 0 then
+			add x, -row * rowW, gv
+			! ジャッキ（敷板があればその上から）
+			gosub 820
+			addz jo
+			if nGl >= 2 then
+				! 継ぎ足した脚は長さが脚ごとに違う。天端まで1本で描く
+				if not(explodeMask > 0 and ownX = 1 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
+					cylind postTop - gv - jo, r_sic
+				endif
+				del 2
+			else
+				! 支柱積み上げ（部材ごと）。継ぎ目には継手のカラーを描いて部材の切れ目を見せる
+				! （同じ太さの円柱を積むだけだと1本の柱に見え、3600・1800 の割付が読めない）。
+				! 単管は偶数番目の建地を千鳥の構成（postListAlt）で積む（継ぎ目の高さを隣とずらす）
+				nPj = nPost
+				for j = 1 to nPost
+					pj[j] = posts[j]
+				next j
+				if nPostA > 0 and ip - 2 * int(ip / 2) = 0 then
+					nPj = nPostA
+					for j = 1 to nPostA
+						pj[j] = postsA[j]
+					next j
+				endif
+				zs = gv + jo
+				for j = 1 to nPj
+					if not(explodeMask > 0 and ownX = 1 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
+						cylind pj[j], r_sic
+						! 単管の建地は両端に識別色
+						if serType = "T" and isLite = 0 and matScaf > 0 then
+							! （継ぎの側は直線ジョイントの帯 25 の半分をよける）
+							cL = pj[j]
+							gosub 846
+							addz 0.0125 * (j > 1)
+							cylind 0.03, r_sic + 0.0004
+							del 1
+							addz pj[j] - 0.03 - 0.0125 * (j < nPj)
+							cylind 0.03, r_sic + 0.0004
+							del 1
+							material matScaf
+						endif
+						! 日建 NDストロングの支柱は異形断面（φ42.7・φ48.6 の十字形）。4方向のリブで見せる
+						if postShape = 1 and isLite = 0 then
+							add -0.0275, -0.003, 0
+							block 0.055, 0.006, pj[j]
+							del 1
+							add -0.003, -0.0275, 0
+							block 0.006, 0.055, pj[j]
+							del 1
+						endif
+						addz pj[j]
+						if j < nPj then
+							jLo = pj[j]
+							jUp = pj[j + 1]
+							gosub 840
+						endif
+					else
+						addz pj[j]
+					endif
+					zs = zs + pj[j]
+				next j
+				del nPj + 2
+			endif
+		else
+			! 途中の層の開口（荷受けステージの間口）: 地面からその層の床までは支柱が残る（ジャッキも）
+			if bBot > 0.001 then
+				add x, -row * rowW, gv
+				gosub 820
+				addz jo
+				cylind bBot - gv - jo, r_sic
+				del 2
+			endif
+			! 梁枠上に乗る支柱（梁渡しの上から天端まで1本で描く）。昇降路（999m）は支柱が無い
+			if bBase < 900 and not(explodeMask > 0 and ownX = 1 and bBase >= gzA - 0.001 and bBase < gzB - 0.001) then
+				zPb = bBase - bmDrop + r_nuno + 0.05
+				add x, -row * rowW, zPb
+				cylind postTop - zPb, r_sic
+				del 1
+			endif
+		endif
+		endif
+	next row
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+! スパン寸法の立体の文字は出さない（利用者の指定 2026-10-18。3Dが読みにくくなる）。
+! スパン寸法は平面・立面の2Dで読む
+
+! ---- 出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]） ----
+! 内側建地列は隣の面と同じコーナー支柱で繋がるが、外側建地列は面ごとに躯体コーナー
+! で終わるので、四隅の外側の升目（外側コーナー支柱・布材・踏板・幅木）が抜けていた。
+! 各面は始点の出隅を描く（終点は次の面が描く）。一側足場も同じ（建地列は1列でも
+! 躯体コーナーで終わる）。枠組には無い
+if cornerS = 1 then
+	gv = 0
+	jo = jackOut
+	sv = shimAll
+	if nGl >= 1 then gv = gl[1]
+	if nJk >= 1 then jo = jk[1]
+	if nSh >= 1 then sv = sh[1]
+	! 外側コーナー支柱は外側の列の始点の地盤
+	if nGlO >= 1 then gv = glO[1]
+	if nJkO >= 1 then jo = jkO[1]
+	if nShO >= 1 then sv = shO[1]
+	! 外側コーナー支柱も、支柱だけ分解した部品では下端が範囲の高さにあるものを分解した部材が描く。
+	! 前の面が隅の隙間（コーナーステップ）の手前で止まる出隅は、前の面の外側列の延長の根元（-cSW, 0）にも建地が要る
+	! （前の面の終点の建地は隙間の向こう。布材・手すりの緊結部が宙に浮いていた。利用者の指摘 2026-10-24: コーナー部分の
+	! 支柱がない部分がある）。この升目は4本の建地で独り立ちする
+	! 隅の升目は高い方の面の高さまで立てる（gosub 757: cPo・nCPo・cJo・cTop・cLv・nCLv・cKz・nCKz）。隣の面（前の面）が
+	! 高ければその面の積み方・作業床で、この面の始点の外側建地（0, -rowW）もここで立てる（この面は skipOutS で描かない）。
+	! この面が高ければ前の面の終点の外側建地（-cSW, 0）をここで立てる（前の面は skipOutE）。張り出しの下で止めた面の隅が
+	! 止めた高さで切れ、張り出しの横の面の足場の端が上の階で升目も手すりも無くなっていた（利用者の指定 2026-10-25:
+	! 張り出しの横の面も足場入れて ブラケットで繋がるようにしてみて）
+	gosub 757
+	if cOvr = 1 then jo = cJo
+	nCq = 1
+	cqx[1] = -cSW
+	cqy[1] = -rowW
+	if cornerSP = 1 or cnrLowP > 0.001 then
+		nCq = nCq + 1
+		cqx[nCq] = -cSW
+		cqy[nCq] = 0
+	endif
+	if cnrLowS > 0.001 then
+		nCq = nCq + 1
+		cqx[nCq] = 0
+		cqy[nCq] = -rowW
+	endif
+	for iq = 1 to nCq
+	yq = cqy[iq]
+	add cqx[iq], yq, gv
+	jkSill = 1
+	gosub 820
+	jkSill = 0
+	addz jo
+	if nGl >= 2 then
+		if not(explodeMask > 0 and gv + jo >= gzA - 0.001 and gv + jo < gzB - 0.001) then
+			cylind cTop - gv - jo, r_sic
+		endif
+		del 2
+	else
+		zs = gv + jo
+		for j = 1 to nCPo
+			if not(explodeMask > 0 and zs >= gzA - 0.001 and zs < gzB - 0.001) then
+				cylind cPo[j], r_sic
+				addz cPo[j]
+				if j < nCPo then
+					jLo = cPo[j]
+					jUp = cPo[j + 1]
+					gosub 840
+				endif
+			else
+				addz cPo[j]
+			endif
+			zs = zs + cPo[j]
+		next j
+		del nCPo + 2
+	endif
+	if nCKz > 0 then
+		resol 6
+		for ik = 1 to nCKz
+			if not(explodeMask > 0 and cKzS[ik] >= gzA - 0.001 and cKzS[ik] < gzB - 0.001) then
+				add cqx[iq], yq, cKz[ik] - 0.003
+				cylind 0.006, 0.053
+				del 1
+			endif
+		next ik
+		resol rN
+	endif
+	next iq
+	for il = 1 to nCLv
+		z = cLv[il]
+		! 隙間のある出隅: 升目の前の面の側（y=0）の布材。床と、隙間に掛けるコーナーステップの先を受ける
+		! 前の面が低い隅は、その面の天端より上の層も y=0 の辺（前の面の終点の升目の境）に床の布材と躯体側の手すり・中桟
+		cqLP = 0
+		if cnrLowP > 0.001 and il > 1 and z > cnrLowP + 0.01 then cqLP = 1
+		if cornerSP = 1 or cqLP = 1 then
+			add -cSW, 0, z
+			nL = cSW
+			gosub 830
+			del 1
+		endif
+		! この面が低い隅は、この面の天端より上の層の x=0 の辺（この面の始点の升目の境）に床の布材
+		cqLS = 0
+		if cnrLowS > 0.001 and il > 1 and z > cnrLowS + 0.01 then cqLS = 1
+		if cqLS = 1 then
+			add 0, 0, z
+			rotz -90
+			nL = rowW
+			gosub 830
+			del 2
+		endif
+		if railIn = 1 and (cqLP = 1 or cqLS = 1) then
+			for hr7 = 1 to 2
+				zr7 = z + railTop
+				if hr7 = 2 then zr7 = z + railMid
+				if cqLP = 1 then
+					add -cSW, 0, zr7
+					nL = cSW
+					gosub 830
+					del 1
+				endif
+				if cqLS = 1 then
+					add 0, 0, zr7
+					rotz -90
+					nL = rowW
+					gosub 830
+					del 2
+				endif
+			next hr7
+		endif
+		! 前の面の外側列の延長（y方向）と、この面の外側列の手前（x方向）
+		add -cSW, 0, z
+		rotz -90
+		nL = rowW
+		gosub 830
+		del 2
+		add -cSW, -rowW, z
+		nL = cSW
+		gosub 830
+		del 1
+		if il > 1 then
+			! 跳ね出しの上段の張出の床へ渡る辺は手すり・中桟を付けない（cnrOpen。1＝この面の外側の列、2＝前の面の外側の列の延長）
+			cOp1 = 0
+			cOp2 = 0
+			if cnrOpen = 1 and z > cnrOpenZ then cOp1 = 1
+			if cnrOpen = 2 and z > cnrOpenZ then cOp2 = 1
+			if cOp2 = 0 then
+				add -cSW, 0, z + railTop
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			endif
+			if cOp1 = 0 then
+				add -cSW, -rowW, z + railTop
+				nL = cSW
+				gosub 830
+				del 1
+			endif
+			if cOp2 = 0 then
+				add -cSW, 0, z + railMid
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			endif
+			if cOp1 = 0 then
+				add -cSW, -rowW, z + railMid
+				nL = cSW
+				gosub 830
+				del 1
+			endif
+			if showDeck and hugMode = 0 and serType = "T" then
+				! 単管の足場の出隅（ブラケット足場・本足場。利用者の指摘 2026-10-22: コーナー部分の巾木がおかしい、
+				! 単管の本足場の出隅も単管の板に揃えて）。くさび用のコーナー踏板・L形の幅木は描かない。足場板を床の列ごとに
+				! 1枚、コーナーの単管（建地列の外）からこの面の最初の板の上に重ねて渡す。前の面の最後の板はさらにその上に
+				! 載る（足場板の deck で1枚分上げる）。幅木は足場板を2枚、外側2辺それぞれ面の幅木の内側に重ねて立てる。
+				! 板の長さは コーナーの単管から最初の建地の先まで届く 1.0M・1.5M・2.0M（数量の tube_runs.corner_board_mm と同じ）
+				cbL = 1.0
+				if cSW + tubeOff + 0.2 > 1.0 then cbL = 1.5
+				if cSW + tubeOff + 0.2 > 1.5 then cbL = 2.0
+				if matDeck > 0 then material matDeck
+				add -cSW - tubeOff - 0.05, -rowW + 0.05, z + 0.0243 + 0.028
+				block cbL, deckW1 - 0.01, 0.028
+				del 1
+				if deckW2 > 0 then
+					add -cSW - tubeOff - 0.05, -rowW + 0.05 + deckW1 + 0.02, z + 0.0243 + 0.028
+					block cbL, deckW2 - 0.01, 0.028
+					del 1
+				endif
+				for cbw = 3 to deckN
+					add -cSW - tubeOff - 0.05, -rowW + 0.05 + (cbw - 1) * (deckW1 + 0.02), z + 0.0243 + 0.028
+					block cbL, deckW1 - 0.01, 0.028
+					del 1
+				next cbw
+				if railAdv = 0 and toeOn = 1 then
+					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.032, z + 0.0243 + 0.056
+					block cbL, 0.028, 0.24
+					del 1
+					add -cSW + r_sic + 0.032, -rowW + r_sic + 0.060, z + 0.0243 + 0.084
+					block 0.028, cbL, 0.24
+					del 1
+				endif
+				if matScaf > 0 then material matScaf
+			endif
+			if showDeck and hugMode = 0 and serType <> "T" then
+				! コーナー踏板と、外側2辺の幅木（単管抱き足場は床材・幅木が無い）。表面材は本体の踏板（亜鉛）・幅木（黄）と同じにする
+				! （支柱のアルミのまま描いて、隅だけ色が違っていた。利用者の指摘 2026-10-20）
+				if matDeck > 0 then material matDeck
+				add -cSW + 0.05, -rowW + 0.05, z + r_nuno
+				block cSW - 0.05, rowW - 0.05, 0.045
+				del 1
+				if railAdv = 0 and toeOn = 1 then
+					if mToe > 0 then material mToe
+					add -cSW + r_sic + 0.004, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+					block cSW - r_sic, 0.008, 0.150
+					block 0.008, rowW - r_sic, 0.150
+					del 1
+				endif
+				if matScaf > 0 then material matScaf
+			endif
+		endif
+	next il
+	! 隅の升目を拡幅ブラケットで張り出しの側へ広げる（跳ね出しの上段の端へ床を繋ぐ。cnrBkP=0: この面の外側の列
+	! （y=-rowW）の2本から外（-Y）へ、1: 前の面の外側の列の延長（x=-cSW）の2本から始点の先（-X）へ）。ブラケットは
+	! いちばん下の床に1回だけ、先端に支柱を升目の天端まで立て、各層に布材・床・手すり（gosub 759）
+	if cnrBkW > 0.001 and nCBk > 0 then
+		if cnrBkP = 0 then
+			add 0, -rowW, 0
+			rotz -90
+			xbL = cSW
+		else
+			add -cSW, -rowW, 0
+			rotz 180
+			xbL = rowW
+		endif
+		xbW = cnrBkW
+		xbTop = cTop
+		xbG = cnrBkG
+		gosub 759
+		del 2
+	endif
+endif
+
+! ---- 本体に繋げない上段の端のすき間板（端から本体の内側の建地の列まで。各層。利用者の指摘 2026-10-25:
+! セットバックのコーナー部分ができてない）。端は開けて（妻側を塞がない）本体の床へ渡る ----
+for ie6 = 0 to 1
+	tg6 = tGapS
+	if ie6 = 1 then tg6 = tGapE
+	if tg6 > 0.001 and showDeck then
+		if matDeck > 0 then material matDeck
+		! あきが広い端（上段の端を途中の屋根の縁の内側で止めた端。利用者の指定 2026-10-26）は渡り板（足場板 厚28）
+		! （両側の床に 150 ずつ掛ける）
+		tt6 = 0.004
+		te6 = 0.05
+		if tg6 > 0.2 then
+			tt6 = 0.028
+			te6 = 0.15
+		endif
+		tx6 = -tg6 - te6
+		if ie6 = 1 then tx6 = lineLen - te6
+		for il = 2 to nLv
+			add tx6, -rowW + 0.03, lv[il] + r_nuno + 0.045
+			block tg6 + 2 * te6, rowW - 0.06, tt6
+			del 1
+		next il
+		if matScaf > 0 then material matScaf
+		! 渡り板の両脇（躯体側と外側の建地の列の線）の手すり（床から 0.9）・中桟（0.45）。単管（利用者の指定
+		! 2026-10-26 の渡り板。外側は下の屋根へ落ちる縁）
+		if tg6 > 0.2 then
+			for il = 2 to nLv
+				for yr6 = 0 to 1
+					for hr6 = 1 to 2
+						add tx6, -yr6 * rowW, lv[il] + 0.45 * hr6
+						roty 90
+						cylind tg6 + 2 * te6, 0.0243
+						del 2
+					next hr6
+				next yr6
+			next il
+		endif
+	endif
+next ie6
+
+! ---- 開放端（一部の面だけの足場で隣の面を掛けない端）: 妻側の手すり・中桟・幅木 ----
+! 参考: smartCON Planner「墜落の危険箇所に手すり（つま先板つき）」「エンドストッパー」
+for ie9 = 0 to 1
+	isOpen9 = endOpenS
+	xe9 = 0
+	if ie9 = 1 then
+		isOpen9 = endOpenE
+		xe9 = lineLen
+	endif
+	if isOpen9 = 1 then
+		zOp9 = endOpenZS
+		if ie9 = 1 then zOp9 = endOpenZE
+		for il = 2 to nLv
+			z = lv[il]
+			! 下段に続く区間の切れ目は、途中の屋根より上の層だけ妻側を塞ぐ（下の層は下段の床に続く）
+			if z >= zOp9 - 0.001 then
+			if endBrace = 1 then
+				! 妻側をブレス材（先行手すり。手すり＋X の斜材）で塞ぐ（利用者の指定 2026-10-24: 妻側を布材かブレス材か選択）
+				add xe9, 0, z
+				rotz -90
+				nL = rowW
+				gosub 850
+				del 2
+			else
+				add xe9, 0, z + railTop
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+				add xe9, 0, z + railMid
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			endif
+			if showDeck and hugMode = 0 and toeOn = 1 then
+				if mToe > 0 then material mToe
+				add xe9 - 0.01, -rowW, z + r_nuno + 0.045
+				block 0.008, rowW, 0.150
+				del 1
+				if matScaf > 0 then material matScaf
+			endif
+			endif
+		next il
+	endif
+next ie9
+
+! ---- 取り入れ口の可動手すり（利用者の指定 2026-10-24: 取り入れ口を作る仕組み）----
+! 固定の手すり・中桟・幅木は editList で外してある。外側建地列の外（-rowW-0.06）に単管2本（手すり・中桟）を
+! 範囲の両端の支柱へ自在クランプで留める（取り込むときだけ外す）
+for ik = 1 to nIk
+	for il = 2 to nLv
+		if il - 1 >= ikL1[ik] and il - 1 <= ikL2[ik] then
+			z = lv[il]
+			for hk = 1 to 2
+				hh = railTop
+				if hk = 2 then hh = railMid
+				add ikA[ik] - 0.10, -rowW - 0.06, z + hh
+				roty 90
+				cylind ikB[ik] - ikA[ik] + 0.20, 0.0243
+				del 2
+				for ce = 0 to 1
+					add ikA[ik] + ce * (ikB[ik] - ikA[ik]) - 0.03, -rowW - 0.09, z + hh - 0.03
+					block 0.06, 0.07, 0.06
+					del 1
+				next ce
+			next hk
+		endif
+	next il
+next ik
+
+! ---- 跳ね出しブラケット（張り出した上の階の上段。利用者の指定 2026-10-24: 上階で拡張する仕組み）----
+! 足場の立つ高さ（z=0）が床スラブの天端。支柱の位置ごとに、躯体の面（y=standoff）の受け金物から外側の建地列の外まで
+! 溝形鋼の腕、腕の先から上の階の壁（haneD 上）へ吊り材。支柱はその上に立つ（ジャッキは腕の上の受けプレートに載る）
+if haneD > 0.001 then
+	! 跳ね出しブラケット（利用者の指定 2026-10-25: 拡張は張り出す面だけ跳ね出しにして もっと詳細にして）。支柱の位置ごとに、
+	! 床スラブの縁の取付プレート（アンカー M16×4）から溝形鋼［-100×50×5 の腕を外側の建地列の外まで持ち出し、腕の先から
+	! 上の階の壁（床の天端から haneD 上）の取付プレート（アンカー M16×2）へ吊り材（φ48.6、支柱の両脇に2本）。腕の上の
+	! 受けプレートにジャッキが載る。隣のブラケットとは腕の先と躯体側を単管の水平つなぎで繋ぐ。始点の出隅の外側の角の
+	! 支柱は、隣の面のブラケットとの間に渡した溝形鋼で受ける。床の下には何も出さない（張り出しの下は本体の足場）
+	xh = 0
+	for ih7 = 1 to nSpan + 1
+		if xh >= gxA - 0.001 and xh < gxB - 0.001 then
+			add xh, 0, 0
+			! 床スラブの外（面の端が躯体の角の先）の支柱はブラケットを壁に留められない。手前に足したブラケットから渡し梁で受ける
+			hbIn = 1
+			if haneX1 > haneX0 + 0.01 then
+				if xh < haneX0 - 0.001 or xh > haneX1 + 0.001 then hbIn = 0
+			endif
+			if hbIn = 1 then
+				gosub 760
+			else
+				material "ashiba_hane_steel"
+				for hbR = 0 to 1
+					add -0.075, -hbR * rowW - 0.075, 0
+					block 0.15, 0.15, 0.009
+					del 1
+				next hbR
+				if matScaf > 0 then material matScaf
+			endif
+			del 1
+		endif
+		if ih7 <= nSpan then xh = xh + spans[ih7]
+	next ih7
+	! 床スラブの端の手前（角から 150）に足すブラケットと、そこから床スラブの外の端の支柱までの渡し梁（溝形鋼、内外の建地列の下）
+	if haneX1 > haneX0 + 0.01 then
+		for ie9 = 0 to 1
+			xa9 = haneX0
+			xe9 = 0
+			if ie9 = 1 then
+				xa9 = haneX1
+				xe9 = lineLen
+			endif
+			if abs(xe9 - xa9) > 0.01 and ((ie9 = 0 and xa9 > 0.001) or (ie9 = 1 and xa9 < lineLen - 0.001)) and \
+					xa9 >= gxA - 0.001 and xa9 < gxB - 0.001 then
+				add xa9, 0, 0
+				gosub 760
+				del 1
+			endif
+		next ie9
+	endif
+	! 横に流す H形鋼（H-150×75×5×7。利用者の指定 2026-10-25: 横に流すHこうもいるんじゃない？）: 内外の建地列の下に面の
+	! 端から端まで通し、ブラケットの腕の上に載せる。支柱はその上の受けプレートに立つ（床スラブの外の端の支柱もこれで受ける）
+	material "ashiba_hane_steel"
+	hxA = max(0, gxA)
+	hxB = min(lineLen, gxB)
+	if hxB > hxA + 0.01 then
+		for hbR = 0 to 1
+			add hxA - 0.075, -hbR * rowW, 0
+			add 0, -0.0375, -0.007
+			block hxB - hxA + 0.15, 0.075, 0.007
+			del 1
+			add 0, -0.0375, -hbH
+			block hxB - hxA + 0.15, 0.075, 0.007
+			del 1
+			add 0, -0.0025, -hbH + 0.007
+			block hxB - hxA + 0.15, 0.005, hbH - 0.014
+			del 1
+			del 1
+		next hbR
+	endif
+	if matScaf > 0 then material matScaf
+	! 端の張出ブラケット（張り出しの横の本体の足場の隅へ床を繋ぐ。利用者の指定 2026-10-25）: hbExtS は始点の先（-X）、
+	! hbExtE は終点の先（+X）へ、端の内外の支柱から各層。腕の先と外側の脇に手すり・中桟、躯体側の脇は本体の隅の拡幅床へ渡る
+	for ie8 = 0 to 1
+		xbW = hbExtS
+		if ie8 = 1 then xbW = hbExtE
+		if xbW > 0.001 then
+			xbL = rowW
+			xbRF = 1
+			xbSkA = 0
+			xbSkB = 0
+			if ie8 = 0 then
+				add 0, -rowW, 0
+				rotz 180
+				xbRA = 1
+				xbRB = 0
+				! 内側の支柱（B）を本体の隅の升目と共有するときはブラケットを外側だけに
+				if hbShS = 1 then xbSkB = 1
+			else
+				add lineLen, 0, 0
+				rotz 0
+				xbRA = 0
+				xbRB = 1
+				if hbShE = 1 then xbSkA = 1
+			endif
+			for il = 2 to nLv
+				xbZ = lv[il]
+				gosub 758
+			next il
+			del 2
+		endif
+	next ie8
+	! 出隅の外側の角の支柱（-cSW, -rowW）と、隙間の手前の建地（-cSW, 0）: 隣の面のブラケットの腕との間に渡し梁
+	if cornerS = 1 and gxA < 0.001 then
+		material "ashiba_hane_steel"
+		add -cSW - 0.10, -rowW - 0.025, -0.10
+		block cSW + 0.15, 0.05, 0.10
+		del 1
+		add -cSW - 0.025, -rowW - 0.10, -0.10
+		block 0.05, rowW + 0.15, 0.10
+		del 1
+		! 受けプレート
+		add -cSW - 0.075, -rowW - 0.075, 0
+		block 0.15, 0.15, 0.009
+		del 1
+		if cornerSP = 1 then
+			add -cSW - 0.075, -0.075, 0
+			block 0.15, 0.15, 0.009
+			del 1
+		endif
+		if matScaf > 0 then material matScaf
+	endif
+endif
+
+! ---- 枠組の終点の出隅: 建枠どうしは繋がらないので 70mm 以上離し、単管（φ48.6）を直交クランプで留めて繋ぐ ----
+! 内外の建地列（y=0・-rowW）ごと、根がらみと各層の床の高さに、終点の建枠の脚から隣の面の建枠（隙間の向こう）まで
+! （利用者の指定 2026-10-24: 枠足場は繋がらないから70mm離して単管で繋げけるようにして）
+if frGapE > 0.001 and serType = "W" then
+	for il = 1 to nLv
+		fgZ = lv[il] - 0.08
+		if il = 1 then fgZ = lv[1] + 0.10
+		for fgR = 0 to 1
+			fgY = -fgR * rowW - 0.0243 - 0.0214
+			add lineLen - 0.10, fgY, fgZ
+			roty 90
+			cylind frGapE + 0.20, 0.0243
+			del 2
+			for fgC = 0 to 1
+				add lineLen - 0.05 + fgC * (frGapE + 0.10) - 0.03, fgY - 0.03, fgZ - 0.03
+				block 0.06, 0.06, 0.06
+				del 1
+			next fgC
+		next fgR
+	next il
+endif
+
+! ---- 枠組の出隅コーナー（始点側。x∈[-rowW,0], y∈[-rowW,0]）: ギャプレス（コーナー布受け） ----
+! 日建カタログ p104〜105: 躯体からはみ出す側の建枠の横架材にギャプレスを掛け渡し、ギャプレスクランプで留め、
+! その上に布板を敷く。外周2辺は手すり（アルミスカイガード）。以前は枠組のコーナーを何も描かず隙間が空いていた
+if cornerG = 1 then
+	for il = 2 to nLv
+		z = lv[il]
+		! ギャプレス（φ42.7、升目の外側の辺に沿って隣の面の建枠から渡す）
+		add -rowW, 0, z - 0.03
+		rotx 90
+		cylind rowW, 0.0214
+		del 2
+		! ギャプレスクランプ（横架材との取付け）
+		add -rowW - 0.03, -0.03, z - 0.06
+		block 0.06, 0.06, 0.06
+		del 1
+		if showDeck then
+			if matDeck > 0 then material matDeck
+			add -rowW + 0.03, -rowW + 0.03, z
+			block rowW - 0.06, rowW - 0.06, 0.045
+			del 1
+			if matScaf > 0 then material matScaf
+		endif
+		! 外周2辺の手すり・中桟
+		add -rowW, 0, z + railTop
+		rotz -90
+		nL = rowW
+		gosub 830
+		del 2
+		add -rowW, -rowW, z + railTop
+		nL = rowW
+		gosub 830
+		del 1
+		add -rowW, 0, z + railMid
+		rotz -90
+		nL = rowW
+		gosub 830
+		del 2
+		add -rowW, -rowW, z + railMid
+		nL = rowW
+		gosub 830
+		del 1
+		add -rowW, -rowW, z
+		cylind railTop, r_nuno
+		del 1
+	next il
+endif
+
+! ---- コマ（緊結部）: 布材・腕木のくさびを掛ける座。支柱に komaPitch ごとに付く ----
+! 実寸はフランジ φ106 t6（bim-arekore 次世代足場.gsm の寸法。以前は φ110 t10 で厚く見えた）
+! 根がらみのレベルに合わせて並べるので、布材・腕木は必ずコマの位置に付く。
+! 枠組（komaPitch=0）には無い。梁枠で抜いた支柱の下には付けない
+if nKz > 0 then
+	resol 6
+	x = 0
+	for ip = 1 to nSpan + 1
+		bBase = 0
+		bBot = 0
+		for ib = 1 to nBm
+			if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+				bBase = bmH[ib]
+				bBot = bmBt[ib]
+			endif
+		next ib
+		! 支柱だけ分解した部品の持つ支柱のコマは、分解した部材が描く（コマの付く支柱の下端で判定）
+		ownX = 0
+		if x >= gxA - 0.001 and x < gxB - 0.001 then ownX = 1
+		for row = rowStart to 1
+			! 隅の内側建地は隣の面が支柱もコマも描く
+			if not((row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1))) and \
+					not((ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1)) and \
+					not(row = 1 and ((ip = 1 and skipOutS = 1) or (ip = nSpan + 1 and skipOutE = 1))) and \
+					x >= gxA - 0.1 and x <= gxB + 0.1 then
+				for ik = 1 to nKz
+					if (kz[ik] > bBase + 0.001 or kz[ik] < bBot - 0.001) and not(explodeMask > 0 and ownX = 1 and \
+							kzSeg[ik] >= gzA - 0.001 and kzSeg[ik] < gzB - 0.001) then
+						add x, -row * rowW, kz[ik] - 0.003
+						cylind 0.006, 0.053
+						del 1
+					endif
+				next ik
+			endif
+		next row
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+	resol rN
+endif
+
+! ---- 軒先の手すり（下屋の単管の面で最上段の床を軒の下にしたとき、屋根からの墜落防止に軒先から 450・900。
+! 仮設工業会 技術基準「上端の桟は軒先から概ね 90cm 以上」。利用者の指摘 2026-10-26） ----
+for ie = 1 to nEaR
+	z = eaR[ie]
+	if hugMode = 1 then z = z + hugDz
+	x = 0
+	for ip = 1 to nSpan
+		if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+			runX = x
+			runP = 0
+			add x, -rowW, z
+			nL = spans[ip]
+			gosub 830
+			del 1
+		endif
+		x = x + spans[ip]
+	next ip
+next ie
+
+! ---- 水平材（根がらみ＋各作業層） ----
+for il = 1 to nLv
+	z = lv[il]
+	! 単管抱き足場: 南北に走る面は布・手すりをクランプ1つ分上で留める（隅の建地で直交する面の管と交わらない）
+	if hugMode = 1 then z = z + hugDz
+	! 枠組の支柱だけ分解した部品: この高さの横架材の建枠（下端が範囲の高さ）は、建枠ごと分解した部材が描く
+	frZ = 0
+	if serType = "W" and explodeMask > 0 then
+		zq = jackOut
+		for j = 1 to nPost
+			if abs(zq + posts[j] - z) < 0.05 and zq >= gzA - 0.001 and zq < gzB - 0.001 then frZ = 1
+			zq = zq + posts[j]
+		next j
+	endif
+	x = 0
+	for ip = 1 to nSpan
+		! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+		if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+			! 開口部（梁枠より下）は支柱を抜いた通路。布材も手すりも入らない。
+			! 立面は空けているのに3Dだけ通していた（根がらみが足元を横切っていた）
+			skipH = 0
+			for ib6 = 1 to nBm
+				if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
+						z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
+			next ib6
+			! 単管抱き足場: 各層の床の高さに、建地を両側から抱く布を2本（その上に足場板）
+			if skipH = 0 and il > 1 and hugMode = 1 then
+				r_t = 0.0486 / 2
+				for sd = 0 to 1
+					! 規定の長さの単管の通し（継ぎは隣の布・上下の層とずらす）
+					add x, -rowW + (2 * sd - 1) * tubeOff, z
+					runX = x
+					runP = 1 + (sd + il) - 2 * int((sd + il) / 2)
+					nL = spans[ip]
+					gosub 832
+					runP = 0
+					del 1
+				next sd
+				! 3連クランプ（日建 P3CR、カタログ p384）: 建地と両側の布2本を1個で抱く。建地ごと（終点の建地も）
+				if isLite = 0 then
+					clDy = tubeOff
+					clR2 = r_t
+					for ce = 0 to 1
+						if ce = 0 or ip = nSpan then
+							add x + ce * spans[ip], -rowW, z
+							gosub 836
+							del 1
+						endif
+					next ce
+				endif
+			endif
+			! 内外の布材は根がらみだけ。作業床の高さにはスパン方向の布材を付けない（アンチは腕木に掛ける）
+			if skipH = 0 and il = 1 then
+				for row = rowStart to 1
+					add x, -row * rowW, z
+					nL = spans[ip]
+					runX = x
+					runP = 2 - row
+					gosub 830
+					runP = 0
+					del 1
+				next row
+			endif
+			! 荷受けステージの間口は設置層で外側の手すり・中桟を外す（荷を通す。
+			! ステージ側の先端・妻側の手すりで防護）。数量も同じ区間を引いている
+			inSg = 0
+			for ig2 = 1 to nSg
+				if x >= sgS[ig2] - 0.001 and x + spans[ip] <= sgS[ig2] + sgL[ig2] + 0.001 and \
+						abs(z - sgH[ig2]) < 0.001 then inSg = 1
+			next ig2
+			! 昇降機の乗り込み口（荷台の長さに掛かるスパン・乗り込む層）は固定手すりの代わりに開閉式手すり
+			for il4 = 1 to nLa
+				lw4 = 2.0
+				for ih4 = 1 to nHo
+					if abs(hoP[ih4] - laP[il4]) < 0.001 then lw4 = hoW[ih4]
+				next ih4
+				if laP[il4] - lw4 / 2 < x + spans[ip] - 0.001 and laP[il4] + lw4 / 2 > x + 0.001 and \
+						abs(z - laH[il4]) < 0.001 then inSg = 2
+			next il4
+			! 張出しブラケットで床を広げた層・スパンは、建地位置の手すりは外し、新しい縁の手すりに任せる
+			for ik3 = 1 to nBk
+				if bkD[ik3] < 0 and x >= bkS[ik3] - 0.001 and x + spans[ip] <= bkE[ik3] + 0.001 and \
+						abs(z - bkH[ik3]) < 0.001 then inSg = 1
+			next ik3
+			! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
+			if stOut = 1 then
+				for it6 = 1 to nSt
+					if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
+				next it6
+			endif
+			! 乗り込み口の開閉式手すり・フロアーゲートは部品 ashiba_hoist が乗り込み口の幅いっぱいに描く（2026-10-27）。ここは固定の手すりを外すだけ
+			! 枠組の中間層は交差筋交＋幅木（＋上の建枠）で防護し、布材の手すり・中桟は
+			! 最上層だけ（数量と同じ）。全層に描くと部材表に無い手すりが図に出る
+			frMid = 0
+			if serType = "W" and il < nLv then frMid = 1
+			! 範囲を指定して外した部材（editList。数量表と同じ升目）: 外側手すり（ビット1）・内側手すり（ビット4）
+			eoR = 0
+			eoI = 0
+			for ie = 1 to nEd
+				if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+					if bittest(edE[ie], 1) then eoR = 1
+					if bittest(edE[ie], 4) then eoI = 1
+				endif
+			next ie
+			! 足場の中の階段室: その層へ上がってくる階段・その層から上がる階段のスパンは、外側の手すり（上の段の布材）を
+			! 付けず、中桟（下の段）だけ残す（階段手すり 2段が外側に沿う。利用者の指定 2026-10-24: 階段のところは布材不要、
+			! 階段の1段目の布材だけある）。数量と同じセル
+			stRl = 0
+			if stOut = 0 and il > 1 then
+				kk = il - 1
+				for it7 = 1 to nSt
+					if x >= stS[it7] - 0.001 and x + spans[ip] <= stS[it7] + stL[it7] + 0.001 then
+						jj = 0
+						if abs(x - stS[it7]) > 0.001 then jj = 1
+						if jj <= 1 then
+							ja = 0
+							jb = 0
+							if stL[it7] > spans[ip] + 0.001 then
+								ja = 1 - (kk - 2 * int(kk / 2))
+								jb = 1 - ((kk + 1) - 2 * int((kk + 1) / 2))
+							endif
+							if jj = ja then stRl = 1
+							if kk < nLv - 1 and jj = jb then stRl = 1
+						endif
+					endif
+				next it7
+			endif
+			! 外側手すり・中桟（作業層のみ）
+			if il > 1 and skipH = 0 and inSg = 0 and frMid = 0 and eoR = 0 then
+				! 先行手すりはどの系列も 600 以上の品だけ。それより短い升目（アルバトロスの 457 の調整部）は布材の手すり・中桟
+				if railAdv = 1 and spans[ip] > 0.599 then
+					! 先行手すり（日建 NDX18 等、カタログ p006）: 手すり φ27.2＋X形の斜材 φ21.7 が一体で、
+					! 手すり・中桟・筋交を兼ねる。上の金具は手すりの高さのコマ、下の金具は床際のコマに掛ける
+					add x, -rowW, z
+					nL = spans[ip]
+					gosub 850
+					del 1
+				else
+					runX = x
+					runP = 1 + il - 2 * int(il / 2)
+					if stRl = 0 then
+						add x, -rowW, z + railTop
+						nL = spans[ip]
+						gosub 830
+						del 1
+					endif
+					add x, -rowW, z + railMid
+					nL = spans[ip]
+					runP = 3 - runP
+					gosub 830
+					runP = 0
+					del 1
+				endif
+			endif
+			! 躯体側（内側建地列）の手すり・中桟は布材で組む（先行手すりは外側だけ。
+			! ステージの間口でも残る）。内ブラケットで床を拡幅した層・スパンは隙間が
+			! 小さいので付けない（数量も同じセルを引いている）
+			inBk = 0
+			for ik2 = 1 to nBk
+				if bkD[ik2] > 0 and x >= bkS[ik2] - 0.001 and x + spans[ip] <= bkE[ik2] + 0.001 and \
+						abs(z - bkH[ik2]) < 0.001 then inBk = 1
+			next ik2
+			! 梁枠の網掛け部は前踏み側にも先行手すり筋交い（手すり・中桟の代わり。ミレニューム Q16）
+			advIn = 0
+			for iai = 1 to nAi
+				if x >= aiS[iai] - 0.001 and x + spans[ip] <= aiE[iai] + 0.001 and z >= aiZ[iai] - 0.001 then advIn = 1
+			next iai
+			if il > 1 and skipH = 0 and nRows >= 2 and advIn = 1 then
+				add x, 0, z
+				nL = spans[ip]
+				gosub 850
+				del 1
+			endif
+			if il > 1 and skipH = 0 and railIn = 1 and nRows >= 2 and inBk = 0 and eoI = 0 and advIn = 0 then
+				runX = x
+				add x, 0, z + railTop
+				nL = spans[ip]
+				runP = 2 - il + 2 * int(il / 2)
+				gosub 830
+				del 1
+				add x, 0, z + railMid
+				nL = spans[ip]
+				runP = 3 - runP
+				gosub 830
+				runP = 0
+				del 1
+			endif
+			! 腕木（内外連結、-Y向き）。一側足場は内側建地が無いので入らない。
+			! 開口部の内側は支柱を抜いてあるので、そこにも入らない
+			noPost = 0
+			for ib7 = 1 to nBm
+				if x > bmS[ib7] + 0.001 and x < bmS[ib7] + bmL[ib7] - 0.001 and \
+						z < bmH[ib7] - 0.001 and z > bmBt[ib7] + 0.001 then noPost = 1
+			next ib7
+			if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
+			if noPost = 0 then
+				if nRows >= 2 then
+					add x, 0, z
+					rotz -90
+					if serType = "W" then
+						! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+						roty 90
+						cylind rowW, r_nuno
+						del 1
+					else
+						nL = rowW
+						gosub 830
+					endif
+					del 2
+					gosub 860
+				else
+					gosub 800
+				endif
+			endif
+		endif
+		x = x + spans[ip]
+	next ip
+	! 終端の腕木（一側足場は床受けブラケット）。区切った部品の範囲の外、枠組の分解した建枠は描かない
+	noPost = 0
+	if frZ = 1 and x >= gxA - 0.001 and x < gxB - 0.001 then noPost = 1
+	if x > gxB + 0.1 then noPost = 1
+	if noPost = 0 then
+		if nRows >= 2 then
+			add x, 0, z
+			rotz -90
+			if serType = "W" then
+				! 枠組は建枠の横架材（脚に溶接。緊結部は無い）
+				roty 90
+				cylind rowW, r_nuno
+				del 1
+			else
+				nL = rowW
+				gosub 830
+			endif
+			del 2
+			gosub 860
+		else
+			gosub 800
+		endif
+	endif
+next il
+
+! ---- 継ぎ足した脚の区間の根がらみ（敷地高低差。立面・数量と同じ規則） ----
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib8 = 1 to nBm
+			if x >= bmS[ib8] - 0.001 and x + spans[ip] <= bmS[ib8] + bmL[ib8] + 0.001 then inOpen = 1
+		next ib8
+		! 列ごとに、その列の脚の下げ段数で（外側の列は外側の地盤 glListO）
+		for row = rowStart to 1
+			ma = 0
+			mb = 0
+			if row = 1 and nGlO >= 2 then
+				if ip <= nGlO and ip <= nJkO then ma = round_int((jackOut - (glO[ip] + jkO[ip])) / footStep)
+				if ip + 1 <= nGlO and ip + 1 <= nJkO then mb = round_int((jackOut - (glO[ip + 1] + jkO[ip + 1])) / footStep)
+			else
+				if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+				if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+			endif
+			mlo = ma
+			if mb < mlo then mlo = mb
+			! 調整支柱が半コマ（ミレニューム P2.25G 225）の系列で、隣の脚と下げ段数の偶奇が違うときは、同じ高さに
+			! コマが無いので脚から脚へ斜めに渡す（カタログ Q12 の斜面の組み立て例）
+			dOdd = 0
+			if komaPitch > footStep + 0.001 and abs(ma - mb) - 2 * int(abs(ma - mb) / 2) = 1 then dOdd = 1
+			if dOdd = 1 and (ma >= 1 or mb >= 1) and inOpen = 0 then
+				za = lv[1] - ma * footStep
+				zb = lv[1] - mb * footStep
+				add x, -row * rowW, za
+				roty atn((za - zb) / spans[ip])
+				nL = sqr(spans[ip] ^ 2 + (za - zb) ^ 2)
+				gosub 830
+				del 2
+			else
+				if mlo >= 1 and inOpen = 0 then
+					add x, -row * rowW, lv[1] - mlo * footStep
+					nL = spans[ip]
+					gosub 830
+					del 1
+				endif
+			endif
+		next row
+		x = x + spans[ip]
+	next ip
+endif
+
+! ---- 踏板・幅木 ----
+if showDeck then
+	for il = 2 to nLv
+		z = lv[il]
+		x = 0
+		for ip = 1 to nSpan
+			! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+			if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+				! 階段室は各層で階段が上がってくる1スパンだけ床を敷かない（奇数層は始点側、偶数層は終点側。
+				! もう一方のスパンには床を敷く）。外側の幅木も付けない（載せる布板が無く宙に浮く。利用者の指摘 2026-10-22）。
+				! 開口部（梁枠より下）は通路なので床も幅木も無い。数量もこの区別で拾っている
+				skipDeck = 0
+				for it4 = 1 to nSt
+					! 外付け（stOut）の階段は外の升目に通すので、本体の床は切らない
+					if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+						if stL[it4] <= spans[ip] + 0.001 then
+							skipDeck = 1
+						else
+							kOdd = il - 1 - 2 * int((il - 1) / 2)
+							if abs(x - stS[it4]) < 0.001 then
+								if kOdd = 1 then skipDeck = 1
+							else
+								if ip > 1 then
+									if kOdd = 0 and abs(x - spans[ip - 1] - stS[it4]) < 0.001 then skipDeck = 1
+								endif
+							endif
+						endif
+					endif
+				next it4
+				stCut = skipDeck
+				skipAll = 0
+				for ib4 = 1 to nBm
+					if x >= bmS[ib4] - 0.001 and x + spans[ip] <= bmS[ib4] + bmL[ib4] + 0.001 and \
+							z < bmH[ib4] - 0.001 and z > bmBt[ib4] + 0.001 then skipAll = 1
+				next ib4
+				! 範囲を指定して外した部材（editList）: 踏板（ビット0）・幅木（ビット2）
+				! 外側の踏板（ビット5）・内側の踏板（ビット6）だけ外して床を狭めることもできる（上の層だけ幅を変える）
+				eoD = 0
+				eoT = 0
+				eoD1 = 0
+				eoD2 = 0
+				for ie = 1 to nEd
+					if ip >= edA[ie] and ip <= edB[ie] and il - 1 >= edC[ie] and il - 1 <= edD[ie] then
+						if bittest(edE[ie], 0) then eoD = 1
+						if bittest(edE[ie], 2) then eoT = 1
+						if bittest(edE[ie], 5) then eoD1 = 1
+						if bittest(edE[ie], 6) then eoD2 = 1
+					endif
+				next ie
+				! 足場の中の階段室の区間は、踏板の編集を効かせない（数量の member_edits と同じ。階段の床の扱いは層ごとに違う）
+				for it4 = 1 to nSt
+					if stOut = 0 and x >= stS[it4] - 0.001 and x + spans[ip] <= stS[it4] + stL[it4] + 0.001 then
+						eoD = 0
+						eoD1 = 0
+						eoD2 = 0
+					endif
+				next it4
+				! 階段を外側に寄せる床（幅914 の 500＋240 など。stHalf）は、階段が上がってくる層も内側の板（ハーフアンチ）を
+				! 敷いて通れるようにする（外側の板だけ外す。利用者の指摘 2026-10-22: 階段外側に寄せて、上にハーフアンチいるよ）
+				if skipDeck = 1 and stHalf = 1 and stOut = 0 then
+					skipDeck = 0
+					eoD1 = 1
+				endif
+				if eoD = 1 then skipDeck = 1
+				! ハッチ付布板（梯子内蔵）の升目は外側の板を敷かない（ハッチ付布板がその幅の板の代わり。下の昇降口で描く）
+				if showDeck then
+					for ih2 = 1 to nHt
+						if htI[ih2] = ip then eoD1 = 1
+					next ih2
+				endif
+				if skipAll = 0 then
+					if skipDeck = 0 then
+						if matDeck > 0 then material matDeck
+						! 布板（日建 アップロック式鋼製布板 NDN6 等、カタログ p007）: 長さ＝スパン。両端のつかみ金具で
+						! 支柱位置の腕木（φ42.7）を掴み、腕木の上に載る。端のペロ板が腕木の上を覆う。
+						! 以前は腕木の高さに埋まり、支柱芯から 70 離した板だけだった（利用者の指摘: 他の部材も見直して）
+						if serType = "T" then
+							! 単管の足場板（杉 厚28。日建カタログに品番なし）: 腕木・ブラケットの管の上に載せる。
+							! 抱き足場は建地の真上（布2本の上）で、建地の間に1枚ずつ
+							r_t = 0.0486 / 2
+							if hugMode = 1 then
+								! 単管抱き足場は布板を敷かない（抱き合わせた単管2本が床。利用者の指定 2026-10-22）
+							else
+								! 足場板は規定の長さで面に沿って敷き、継ぎは300重ねてブラケットの上に掛ける（利用者の指定
+								! 2026-10-22）。板はこの区間で始まるもの（最初の区間は手前から出るものも）を1枚まるごと描く。
+								! 重ねた側の板は1枚分（28）上に載る。色は鉄の色（踏板と同じ表面材。利用者の指定 2026-10-22: 黄色はやめて）
+								if matDeck > 0 then material matDeck
+								! 板の列（幅900で3列・1200で4列。奇数列は割付A、偶数列はB）
+								for bw = 1 to max(2, deckN)
+									bOk = (bw = 1 and eoD1 = 0) or (bw = 2 and deckW2 > 0 and eoD2 = 0) or (bw >= 3 and bw <= deckN)
+									pb = 2 - bw + 2 * int(bw / 2)
+									if bOk and nBd[pb] > 0 then
+										bY = -rowW + 0.05
+										bWd = deckW1 - 0.01
+										if bw = 2 then
+											bY = -rowW + 0.05 + deckW1 + 0.02
+											bWd = deckW2 - 0.01
+										endif
+										if bw >= 3 then bY = -rowW + 0.05 + (bw - 1) * (deckW1 + 0.02)
+										bs = bdS
+										for kb = 1 to nBd[pb]
+											if (bs >= x - 0.001 or ip = 1) and (bs < x + spans[ip] - 0.001 or ip = nSpan) and \
+													not(ip > 1 and bs < x - 0.001) and not(ip < nSpan and bs >= x + spans[ip] - 0.001) then
+												bRz = 0.028 * (kb - 2 * int(kb / 2) = 0)
+												! 終点が出隅（単管の足場）: 最後の板は次の面のコーナーの板（1枚分上）のさらに上
+												if kb = nBd[pb] and cornerE = 1 then bRz = 0.056
+												add bs, bY, z + r_t + bRz
+												block bdLen[pb][kb], bWd, 0.028
+												del 1
+											endif
+											bs = bs + bdLen[pb][kb] - bdLp[pb][kb]
+										next kb
+									endif
+									if bOk and nBd[pb] = 0 then
+										add x, bY, z + r_t
+										block spans[ip], bWd, 0.028
+										del 1
+									endif
+								next bw
+							endif
+						else
+						if eoD1 = 0 then
+							add x, -rowW + 0.05, z
+							dkL = spans[ip]
+							dkW = deckW1 - 0.01
+							gosub 870
+							del 1
+						endif
+						if deckW2 > 0 and eoD2 = 0 then
+							add x, -rowW + 0.05 + deckW1 + 0.02, z
+							dkL = spans[ip]
+							dkW = deckW2 - 0.01
+							gosub 870
+							del 1
+							! すき間板（隙間隠し板。日建 NDSK09 910×440・厚18 など）: 2枚敷きの床の上に、内側の支柱の列のきわから幅 gapW。
+							! 板と板・内側の板と支柱のすき間を覆う（利用者の指定 2026-10-31: 二列並べるには隙間板をつけて）
+							if gapBd then
+								add x + 0.005, -0.01 - gapW, z + r_nuno + 0.045
+								block spans[ip] - 0.01, gapW, gapT
+								! 内側の端のフック（内側の布材に掛かる）
+								for hk = 1 to 2
+									add (spans[ip] - 0.01) * (hk - 0.5) / 2 + 0.1 * (hk - 1.5), gapW - 0.004, -0.03
+									block 0.04, 0.012, 0.03 + gapT
+									del 1
+								next hk
+								del 1
+							endif
+						endif
+						endif
+					endif
+					! 幅木（外側）。先行手すり方式では付けない（落下物防止はメッシュシート等）。
+					! 荷受けステージの間口は設置層で外す
+					inSg = 0
+					for ig3 = 1 to nSg
+						if x >= sgS[ig3] - 0.001 and x + spans[ip] <= sgS[ig3] + sgL[ig3] + 0.001 and \
+								abs(z - sgH[ig3]) < 0.001 then inSg = 1
+					next ig3
+					! 乗り込み口は荷台の長さに掛かるスパン全部（手すりと同じ。数量の幅木も同じ区間を引いている）
+					for il5 = 1 to nLa
+						lw5 = 2.0
+						for ih5 = 1 to nHo
+							if abs(hoP[ih5] - laP[il5]) < 0.001 then lw5 = hoW[ih5]
+						next ih5
+						if laP[il5] - lw5 / 2 < x + spans[ip] - 0.001 and laP[il5] + lw5 / 2 > x + 0.001 and \
+								abs(z - laH[il5]) < 0.001 then inSg = 2
+					next il5
+					for ik4 = 1 to nBk
+						if bkD[ik4] < 0 and x >= bkS[ik4] - 0.001 and x + spans[ip] <= bkE[ik4] + 0.001 and \
+								abs(z - bkH[ik4]) < 0.001 then inSg = 1
+					next ik4
+					! 外付けの階段: 区間の両端のスパン（上り口・降り口）は、本体の外側の手すり・幅木を外して乗り移る
+					if stOut = 1 then
+						for it6 = 1 to nSt
+							if abs(x - stS[it6]) < 0.001 or abs(x + spans[ip] - stS[it6] - stL[it6]) < 0.001 then inSg = 1
+						next it6
+					endif
+					if stCut = 1 and serType <> "T" then inSg = 1
+					if railAdv = 0 and toeOn = 1 and inSg = 0 and eoT = 0 then
+						if mToe > 0 then material mToe
+						! 幅木: 外側の支柱の内側で布板の上に立てる平らな板（高さ150、長さ＝スパン＋70）。L形（底140）にしない
+						! （利用者の指定 2026-10-24: はばきL型にしないで）。以前は外側の支柱の外に板を立てていた
+						if serType = "T" then
+							! 単管は足場板を立てて幅木にする（高さ240）。抱き足場は足場板の外の縁。色は床の足場板と同じ鉄の色
+							if hugMode = 0 then
+								if matDeck > 0 then material matDeck
+								! 単管抱き足場は幅木を付けない（利用者の指定 2026-10-22）
+								if nBd[1] > 0 then
+									! 幅木も規定の長さの足場板を通し、継ぎは300重ねる（利用者の指定 2026-10-22）。床の足場板と
+									! 同じ割付で、重ねは建地の位置。重ねた側の板は1枚分（28）内側に立つ
+									bs = bdS
+									for kb = 1 to nBd[1]
+										if (bs >= x - 0.001 or ip = 1) and (bs < x + spans[ip] - 0.001 or ip = nSpan) then
+											add bs, -rowW + r_sic + 0.004 + 0.028 * (kb - 2 * int(kb / 2) = 0), z + 0.0243 + 0.028
+											block bdLen[1][kb], 0.028, 0.24
+											del 1
+										endif
+										bs = bs + bdLen[1][kb] - bdLp[1][kb]
+									next kb
+								else
+									add x, -rowW + r_sic + 0.004, z + 0.0243 + 0.028
+									block spans[ip], 0.028, 0.24
+									del 1
+								endif
+							endif
+						else
+						add x - 0.035, -rowW + r_sic + 0.004, z + r_nuno + 0.045
+						block spans[ip] + 0.07, 0.008, 0.150
+						del 1
+						endif
+					endif
+					if matScaf > 0 then material matScaf
+					! 下さん: 幅木を付けないときの作業床の外側の桟（高さ15〜40cm。床から300に φ48.6。利用者の資料 2026-10-24:
+					! 幅木を使用しない場合は下さんが必要）
+					if railAdv = 0 and toeOn = 0 and shitaSan = 1 and inSg = 0 and eoT = 0 and hugMode = 0 then
+						add x + r_sic, -rowW, z + 0.30
+						roty 90
+						cylind spans[ip] - 2 * r_sic, 0.0243
+						del 2
+					endif
+				endif
+			endif
+			x = x + spans[ip]
+		next ip
+	next il
+endif
+
+! ---- ハッチ付布板（梯子内蔵。日建 NDN6TA〜NDN3TA）の昇降口: 階段室が入らない小さい足場（利用者の指摘 2026-10-24 の続き）----
+! 形（利用者の指定 2026-10-31: はっちつきアンチはこんな形。日建の表）: 幅 500・高さ 83 のアルミの枠（両側の縦枠と両端の
+! つかみ金具の横枠）に、片側（長さの約 6 割）が開くハッチの蓋、残りが固定の床。蓋の下に梯子（外幅 360・内幅 258、長さ 1520〜
+! 最大 2100）を下の層の床まで下ろす。外側の板（幅 deckW1）の位置に、その升目の外側の板の代わりに置く
+if showDeck and nHt > 0 then
+	define material "ashiba_hatch_alu" 2, 0.78, 0.80, 0.82
+	define material "ashiba_hatch_lid" 2, 0.70, 0.73, 0.76
+	for ih = 1 to nHt
+		kq = htI[ih]
+		if kq >= 1 and kq <= nSpan then
+			hx0 = 0
+			for iq = 1 to kq - 1
+				hx0 = hx0 + spans[iq]
+			next iq
+			if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+				hL = spans[kq]
+				hy0 = -rowW + 0.05
+				hW = deckW1 - 0.01
+				hym = hy0 + hW / 2
+				lidL = min(1.13, (hL - 0.13) * 0.62)
+				for il = 2 to nLv
+					z = lv[il]
+					zt = z + r_nuno + 0.045
+					material "ashiba_hatch_alu"
+					! 両側の縦枠（高さ 83）
+					for sd = 0 to 1
+						add hx0 + 0.025, hy0 + sd * (hW - 0.025), zt - 0.083
+						block hL - 0.05, 0.025, 0.083
+						del 1
+					next sd
+					! 両端の横枠とつかみ金具（腕木を掴む）
+					for ed = 0 to 1
+						add hx0 + 0.025 + ed * (hL - 0.09), hy0, zt - 0.06
+						block 0.04, hW, 0.06
+						del 1
+						for hk = 0 to 1
+							add hx0 + 0.004 + ed * (hL - 0.038), hy0 + 0.015 + hk * (hW - 0.065), z - r_nuno - 0.012
+							block 0.030, 0.035, 2 * r_nuno + 0.012
+							del 1
+						next hk
+					next ed
+					! 固定の床（蓋の先から終わりの横枠まで）と、開くハッチの蓋（取っ手つき。蓋のまわりに細いすき間）
+					add hx0 + 0.065 + lidL + 0.006, hy0 + 0.025, zt - 0.004
+					block hL - 0.13 - lidL - 0.006, hW - 0.05, 0.004
+					del 1
+					material "ashiba_hatch_lid"
+					add hx0 + 0.068, hy0 + 0.028, zt - 0.0045
+					block lidL - 0.006, hW - 0.056, 0.004
+					del 1
+					add hx0 + 0.065 + lidL - 0.08, hym - 0.06, zt - 0.0005
+					block 0.03, 0.12, 0.008
+					del 1
+					! 梯子（蓋の下から下の層の床まで。両側の縦材 51×20、踏ざん □25 を 300 ピッチ、外幅 360・内幅 258）
+					material "ashiba_hatch_alu"
+					zb = lv[il - 1] + r_nuno + 0.045
+					if il = 2 then zb = 0
+					lx = hx0 + 0.065 + 0.12
+					for sr = 0 to 1
+						add lx - 0.01, hym - 0.18 + sr * (0.36 - 0.051), zb
+						block 0.02, 0.051, zt - 0.083 - zb
+						del 1
+					next sr
+					zr = zb + 0.30
+					while zr < zt - 0.10 do
+						add lx - 0.0125, hym - 0.129, zr
+						block 0.025, 0.258, 0.025
+						del 1
+						zr = zr + 0.30
+					endwhile
+				next il
+				if matScaf > 0 then material matScaf
+			endif
+		endif
+	next ih
+endif
+
+! ---- ブレス（外側構面、交さ2方向＝X） ----
+! 設置間隔は bEvS スパン・bEvL 層ごと（1なら全構面）。数量拾いと
+! 同じ間隔・同じ本数（1箇所2本）で描かないと、部材表と図面が食い違う
+if showBrace then
+	! 面の両端の構面には必ず入れる（利用者の指定 2026-10-25: 両サイドの1段目ブレス確認）。間隔で入れた最後の組が
+	! 終点の2スパンに届かなければ、終点の手前のスパンから1組足す（数量 quantity.brace_starts と同じ）
+	sLastB = 1 + bEvS * int((nSpan - 1) / bEvS)
+	ipEndB = 0
+	if nSpan >= 2 and sLastB < nSpan - 1 then ipEndB = nSpan - 1
+	for il = 1 to nLv - 1
+		if brOn[il] = 1 then
+			z1 = lv[il]
+			z2 = lv[il + 1]
+			x = 0
+			! 枠組は交差筋違を両面（外構面・内構面）に入れる（カタログ「筋違（両面）」。数量も両面）
+			nbf = 0
+			if serType = "W" then nbf = 1
+			for ip = 1 to nSpan
+				! 区切った部品の範囲の外のスパンは描かない（切り取られるので、描く手間だけ省く）
+				if x + spans[ip] > gxA - 0.1 and x < gxB + 0.1 then
+					! 範囲を指定して外した筋かい（editList ビット3。層 il の床の下の構面）
+					eoB = 0
+					for ie = 1 to nEd
+						if ip >= edA[ie] and ip <= edB[ie] and il >= edC[ie] and il <= edD[ie] then
+							if bittest(edE[ie], 3) then eoB = 1
+						endif
+					next ie
+					if (ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 or ip = ipEndB) and eoB = 0 and serType <> "W" then
+						! くさび式のブレース（日建 NDBR、カタログ p023）: φ42.7 の管の両端のクサビクランプで支柱を掴む。
+						! 交さ2方向の2本は、このスパンに「／」、隣のスパンに「＼」（山形）。同じスパンに重ねて X にすると
+						! 先行手すり（X の斜材）と見分けがつかなかった（利用者の指摘 2026-10-22: 1段目の端部が先行手すりに
+						! なっている）。終点のスパンでは手前のスパンに「＼」。単管は同じ形の単管の筋かい
+						brZ = 0.10
+						for bf = 0 to 1
+							yb2 = -rowW - r_sic - 0.0214 - 0.004 - bf * 0.046
+							! 単管の筋かい（φ48.6）は布・手すりの単管（建地の脇 tubeOff）の外の面に通し、両端を自在クランプ
+							! （日建 ARC2、金）で建地に留める（くさびのクサビクランプの塊は描かない）
+							if serType = "T" then yb2 = -rowW - tubeOff - 0.0496 - bf * 0.0496
+							xa = x
+							sg = 1
+							spb = spans[ip]
+							if bf = 1 then
+								if ip < nSpan then
+									spb = spans[ip + 1]
+									xa = x + spans[ip] + spb
+								else
+									xa = x
+									if ip > 1 then spb = spans[ip - 1]
+								endif
+								sg = -1
+							endif
+							! 開口の通路（梁枠より下）に掛かる筋かいは描かない。建地を抜いてあり、通路へ飛び出していた
+							! （利用者の指摘 2026-10-24: 1層目の両サイドに謎のブレス）。数量は隣の構面へ移す扱いで同じ
+							bSkip = 0
+							for ib9 = 1 to nBm
+								if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(max(xa, xa + sg * spb), bmS[ib9] + bmL[ib9]) - \
+										max(min(xa, xa + sg * spb), bmS[ib9]) > 0.001 then bSkip = 1
+							next ib9
+							if bSkip = 0 then
+							bl = sqr(spb ^ 2 + (z2 - z1 - 2 * brZ) ^ 2)
+							ang = atn((z2 - z1 - 2 * brZ) / spb)
+							rBr = 0.0427 / 2
+							if serType = "T" then rBr = 0.0486 / 2
+							add xa, yb2, z1 + brZ
+							if sg < 0 then mulx -1
+							roty 90 - ang
+							cylind bl, rBr
+							del 2
+							if sg < 0 then del 1
+							! クサビクランプ（下端は手前の支柱、上端は対角の支柱）。単管は自在クランプ（839）
+							for ce = 0 to 1
+								cx = xa
+								cz = z1 + brZ
+								if ce = 1 then
+									cx = xa + sg * spb
+									cz = z2 - brZ
+								endif
+								if serType = "T" then
+									if isLite = 0 then gosub 839
+								else
+									add cx - 0.035, yb2 - 0.025, cz - 0.035
+									block 0.070, -rowW - yb2 + 0.025 + r_sic, 0.070
+									del 1
+								endif
+							next ce
+							endif
+						next bf
+					endif
+					bSkipW = 0
+					for ib9 = 1 to nBm
+						if z1 < bmH[ib9] - 0.001 and z1 >= bmBt[ib9] - 0.001 and min(x + spans[ip], bmS[ib9] + bmL[ib9]) - max(x, bmS[ib9]) > 0.001 then bSkipW = 1
+					next ib9
+					if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and eoB = 0 and serType = "W" and bSkipW = 0 then
+						! 交差筋違（日建 A14 等、カタログ p081）: 平鋼2本を中央のピンで留めた X。両端の穴を建枠の脚の
+						! 筋違ピン（ロックピン）に掛ける。ピンは建枠の上下から 0.24（1700枠で A寸法 1219）。以前は丸棒で
+						! 建枠の天端から天端へ掛けていた
+						bpz = 0.24
+						if z2 - z1 < 0.9 then bpz = 0.10
+						bA = z2 - z1 - 2 * bpz
+						bl = sqr(spans[ip] ^ 2 + bA ^ 2)
+						ang = atn(bA / spans[ip])
+						for bf = 0 to nbf
+							yb2 = -rowW - 0.035
+							if bf = 1 then yb2 = 0.035
+							for bd = 0 to 1
+								add x + bd * spans[ip], yb2 + (1 - 2 * bf) * bd * 0.006, z1 + bpz
+								if bd = 1 then mulx -1
+								roty -ang
+								add 0, -0.003, -0.0125
+								block bl, 0.006, 0.025
+								del 2
+								if bd = 1 then del 1
+								del 1
+							next bd
+							if isLite = 0 then
+								! 中央のピンと、脚の筋違ピン（上下・両端）
+								add x + spans[ip] / 2, yb2 - 0.012, z1 + bpz + bA / 2
+								rotx -90
+								cylind 0.03, 0.006
+								del 2
+								for pe = 0 to 3
+									px = x
+									if pe = 1 or pe = 3 then px = x + spans[ip]
+									pz = z1 + bpz
+									if pe >= 2 then pz = z2 - bpz
+									yl0 = -rowW
+									if bf = 1 then yl0 = 0
+									add px, min(yl0, yb2) - 0.01, pz
+									rotx -90
+									cylind abs(yb2 - yl0) + 0.02, 0.007
+									del 2
+								next pe
+							endif
+						next bf
+					endif
+				endif
+				x = x + spans[ip]
+			next ip
+		endif
+	next il
+endif
+
+! ---- 壁つなぎ（内側建地から躯体側へ +Y 方向） ----
+! 構造計算でも法規チェックでも見ているのに3Dに無く、躯体との
+! 取り合いが確認できなかった
+! 壁つなぎ用金具: 支柱側のクランプ（自在クランプ相当の塊）、伸縮する本体パイプ、
+! 躯体側のアンカープレート（ボルトで躯体に固定する座）。棒1本だと取り合いが見えない
+! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、ここでは描かない（二重になる）
+! 建地1列（一側・ブラケット足場）は建地が外側の列（-rowW）にあるので、そこから取る（線の上から描いて浮いていた。
+! 利用者の指摘 2026-10-22: 壁繋ぎは単管支柱から取るように）
+nTieDraw = nTiePair
+if tieObj then nTieDraw = 0
+yTie = 0
+if nRows < 2 then yTie = -rowW
+for it = 1 to nTieDraw
+	add ties[it], yTie, tieH[it]
+	rotx -90
+	cylind standoff - yTie, r_tie
+	del 2
+	add ties[it] - 0.035, yTie - 0.035, tieH[it] - 0.035
+	block 0.07, 0.07, 0.07
+	del 1
+	add ties[it] - 0.05, standoff - 0.012, tieH[it] - 0.05
+	block 0.10, 0.012, 0.10
+	del 1
+	! 壁つなぎの記号 ◎ は3Dに持たせない（立面図は断面の注記として2Dで描く: elevation_sections.tie_marks）
+next it
+
+! ---- 荷受けステージ（外側へ張り出す床・手すり） ----
+! 日建 荷取りブラケット NDBS15（カタログ p018）: 外側の支柱から張り出す腕 φ42.7 と、下の支柱から腕を支える方杖
+! φ42.7、先端の手すり支柱。床は布板3枚敷き、腕どうしを先端と中ほどのつなぎ材でつなぐ。支柱補剛材 NDPSF
+for ig = 1 to nSg
+	! 布板（3枚。腕の上に載る）
+	sgW3 = sgP[ig] / 3
+	for ipk = 0 to 2
+		add sgS[ig] + 0.025, -rowW - 0.03 - ipk * sgW3, sgH[ig] + r_nuno
+		muly -1
+		block sgL[ig] - 0.05, sgW3 - 0.01, 0.045
+		del 2
+	next ipk
+	! つなぎ材（腕の先端と中ほど、腕どうしを結ぶ）
+	for itn = 1 to 2
+		add sgS[ig], -rowW - sgP[ig] * itn / 2, sgH[ig] - 0.05
+		roty 90
+		cylind sgL[ig], r_nuno
+		del 2
+	next itn
+	! 手すり・中桟（張り出し先端）
+	for ir = 1 to 2
+		if ir = 1 then hgt = railH else hgt = midH
+		add sgS[ig], -rowW - sgP[ig], sgH[ig] + hgt
+		roty 90
+		cylind sgL[ig], r_nuno
+		del 2
+	next ir
+	! 妻側（左右）も開放端。前面だけ手すりを立てても横から落ちる
+	for ie = 0 to 1
+		xg = sgS[ig] + sgL[ig] * ie
+		for ir = 1 to 2
+			if ir = 1 then hgt = railH else hgt = midH
+			add xg, -rowW, sgH[ig] + hgt
+			rotx 90
+			cylind sgP[ig], r_nuno
+			del 2
+		next ir
+		! 妻側の幅木
+		add xg, -rowW - sgP[ig], sgH[ig] + 0.05
+		block 0.02, sgP[ig], 0.157
+		del 1
+	next ie
+	! 先端の幅木
+	add sgS[ig], -rowW - sgP[ig], sgH[ig] + 0.05
+	block sgL[ig], 0.02, 0.157
+	del 1
+	! 侵入落下防止柵（利用者の指定 2026-10-24。GLOOBE の「荷受けステージと侵入落下防止柵」）: 先端・妻側の手すりの内側に
+	! 金網の落下防止柵（荷が手すりの間から落ちない。1枚の幅 1.8 以下に割る）、足場側の間口にスパンごとの開閉式の侵入防止柵
+	! （荷の取り込み中は閉めて人をステージへ出さない。閉めた形で描く）。高さ 1.8。数量 platforms.stage_fence_panels と同じ枚数
+	if sgF[ig] = 1 then
+		fH = 1.8
+		zf = sgH[ig] + r_nuno + 0.045
+		nfF = int(sgL[ig] / 1.8 - 0.001) + 1
+		fW = sgL[ig] / nfF - 0.01
+		for ifc = 1 to nfF
+			add sgS[ig] + (ifc - 1) * (fW + 0.01) + 0.005, -rowW - sgP[ig] + 0.04, zf
+			gosub 865
+			del 1
+		next ifc
+		nfS = int(sgP[ig] / 1.8 - 0.001) + 1
+		fW = (sgP[ig] - 0.04) / nfS - 0.01
+		for ie = 0 to 1
+			for ifc = 1 to nfS
+				add sgS[ig] + 0.04 + ie * (sgL[ig] - 0.08), -rowW - 0.005 - (ifc - 1) * (fW + 0.01), zf
+				rotz -90
+				gosub 865
+				del 2
+			next ifc
+		next ie
+		xb = 0
+		for ipb = 1 to nSpan
+			if xb >= sgS[ig] - 0.001 and xb + spans[ipb] <= sgS[ig] + sgL[ig] + 0.001 then
+				! 扉は足場の床の中へ開くので、1枚の幅は建地列の間隔−0.12 以下に割る（610 幅の足場で 1829 のスパンは4枚）
+				nLf = int((spans[ipb] - 0.10) / (rowW - 0.12) - 0.001) + 1
+				fW = (spans[ipb] - 0.10) / nLf - 0.01
+				for ilf = 0 to nLf - 1
+					add xb + 0.05 + ilf * (fW + 0.01), -rowW + 0.06, zf
+					gosub 865
+					del 1
+				next ilf
+			endif
+			xb = xb + spans[ipb]
+		next ipb
+		if matScaf > 0 then material matScaf
+	endif
+	! 張出ブラケットと方杖。床だけ描くとステージが宙に浮いて見えるうえ、
+	! 数量では建地位置ぶん拾っている（張出ブラケット・方杖）
+	xb = 0
+	for ipb = 1 to nSpan + 1
+		if sgK[ig] = 1 and xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			! スギコ アルバトロス荷受けフォーム（カタログ vol.7 p031・p057）: 梁枠（斜材付き）を取付金具で支柱に掛ける。
+			! 上弦は床の下で足場の幅を渡って外へ 1.41、高さ 0.419 のトラス、下の支柱の斜材受金具から先端寄りへ斜材
+			yIn = min(0.611, rowW)
+			for ich = 0 to 1
+				add xb, -rowW + yIn * (1 - ich), sgH[ig] - ich * 0.419
+				rotx 90
+				if ich = 0 then
+					cylind yIn + sgP[ig], r_nuno
+				else
+					cylind sgP[ig], r_nuno
+				endif
+				del 2
+			next ich
+			nPn = 4
+			for ipn = 0 to nPn
+				yv = -rowW - sgP[ig] * ipn / nPn
+				add xb, yv, sgH[ig] - 0.419
+				cylind 0.419, r_nuno * 0.8
+				del 1
+				if ipn < nPn then
+					dyp = sgP[ig] / nPn
+					add xb, yv, sgH[ig] - 0.419
+					rotx atn(dyp / 0.419)
+					cylind sqr(dyp * dyp + 0.419 * 0.419), r_nuno * 0.8
+					del 2
+				endif
+			next ipn
+			sgD = 1.45
+			sgX = sgP[ig] * 0.75
+			add xb, -rowW, sgH[ig] - 0.419 - sgD
+			rotx atn(sgX / sgD)
+			cylind sqr(sgX * sgX + sgD * sgD), r_nuno
+			del 2
+			if isLite = 0 then
+				for ich = 0 to 1
+					add xb - 0.03, -rowW - 0.04, sgH[ig] - 0.08 - ich * (0.419 + sgD)
+					block 0.06, 0.08, 0.159
+					del 1
+				next ich
+			endif
+			! 先端の手すり（手摺枠の縦・手摺柱）
+			add xb, -rowW - sgP[ig], sgH[ig]
+			cylind railH + 0.05, r_sic
+			del 1
+		endif
+		if sgK[ig] = 0 and xb >= sgS[ig] - 0.001 and xb <= sgS[ig] + sgL[ig] + 0.001 then
+			! 腕（支柱の緊結部から外へ）
+			add xb, -rowW, sgH[ig]
+			rotz -90
+			nL = sgP[ig] + r_sic
+			if isLite = 0 then
+				add r_sic, -0.020, -0.040
+				block 0.045, 0.040, 0.085
+				del 1
+			endif
+			roty 90
+			cylind sgP[ig], r_nuno
+			del 3
+			! 先端の手すり支柱（ブラケット先端の建地受けに立て、手すり・中桟を受ける。
+			! 無いと手すりが宙に浮く。数量は「先端手すり支柱」）
+			add xb, -rowW - sgP[ig], sgH[ig] - 0.12
+			cylind railH + 0.22, r_sic
+			del 1
+			if sgZ[ig] > 0 then
+				! 方杖（下の支柱 1.45 下から腕の先端寄り 0.85 へ）
+				sgD = 1.45
+				sgX = sgP[ig] * 0.85
+				add xb, -rowW, sgH[ig] - sgD
+				rotx atn(sgX / sgD)
+				cylind sqr(sgX * sgX + sgD * sgD), r_nuno
+				del 2
+				if isLite = 0 then
+					add xb - 0.025, -rowW - 0.05, sgH[ig] - sgD - 0.04
+					block 0.05, 0.05, 0.08
+					del 1
+					! 支柱補剛材（支柱の両脇 118、床の1段上から 1350 下まで）
+					for ihs = -1 to 1 step 2
+						add xb + ihs * 0.118, -rowW, sgH[ig] - 1.35
+						cylind 1.35, 0.017
+						del 1
+					next ihs
+				endif
+			endif
+		endif
+		if ipb <= nSpan then xb = xb + spans[ipb]
+	next ipb
+next ig
+
+! ---- 昇降機（マスト・荷台・渡し板・マスト控え・乗り込み口の防護）は別部品 ashiba_hoist が描く（利用者の指定 2026-10-27:
+! 昇降機は別オブジェクトで配置できるように）。ここでは乗り込み口の固定の手すりを外すだけ
+
+! ---- 梁枠（開口部）: 上下弦材・束材・斜材・両端の緊結部・ホゾ、梁渡し、補強のつなぎ材 ----
+! 日建 梁枠 NDH36（2スパン）・NDH54（3スパン）・NDH72（4スパン）、カタログ p010–011 の図: せい 370、上下弦材 φ42.7、
+! 下弦材は上弦材より1区画ずつ短く両端がすぼまる（端の斜材が上弦材の端の緊結部へ上がる）、ワーレンの斜材 φ27.2（1スパン
+! 4区画）、1829 ごとの束材と、その上の上弦材に上の建地を受けるホゾ。上弦材の両端の緊結部を作業床の1段下のコマ（bmDrop）に
+! 掛ける。梁枠の上の建地は内外の梁枠に渡した梁渡し（NDHW）のほぞに立ち、コマが両隣と同じ床の高さに来る。
+! 補強のつなぎ材（カタログ「梁枠の両サイドには、つなぎ材（補強）」、組立の標準例の図）: 梁枠の高さで開口の両隣のスパンに、
+! 床の高さで開口の上（梁枠の上の建地の間）に、内外とも入れる。両端の建地を上下2段で押さえる（利用者の指定 2026-10-24:
+! 梁枠の詳細上げて／つなぎ材も数量に入れて、モデルもこのようにして）
+for ib2 = 1 to nBm
+	bs = bmS[ib2]
+	bl = bmL[ib2]
+	bh = bmH[ib2]
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠と補強のつなぎ材は描かず、両端の妻面のブレス材・幅木だけ（全段）
+	if bmH[ib2] < 900 then
+		bzt = bh - bmDrop
+		bzb = bzt - bmDep
+		bx0 = bs + r_sic + 0.05
+		bLn = bl - 2 * (r_sic + 0.05)
+		nPn2 = max(1, int(bl / 1.829 + 0.5))
+		nDg = max(2, 4 * nPn2)
+		dgW = bLn / nDg
+		for row2 = rowStart to 1
+			yb3 = -row2 * rowW
+			! 上弦材（通し）と下弦材（両端の1区画ずつ短い）
+			add bx0, yb3, bzt
+			roty 90
+			cylind bLn, r_nuno
+			del 2
+			add bx0 + dgW, yb3, bzb
+			roty 90
+			cylind bLn - 2 * dgW, r_nuno
+			del 2
+			if isLite = 0 then
+				for be = 0 to 1
+					xe = bs + be * bl
+					sgE = 1 - 2 * be
+					! 上弦材の端の緊結部（コマを上下から挟む受け）とクサビ
+					add xe + sgE * r_sic - (1 - sgE) / 2 * 0.05, yb3 - 0.021, bzt - 0.04
+					block 0.05, 0.042, 0.08
+					del 1
+					add xe + sgE * (r_sic + 0.025), yb3, bzt + 0.04
+					cylind 0.05, 0.006
+					del 1
+				next be
+			endif
+			! 束材と、その上の上弦材のホゾ（上の建地を受ける。1829 ごと）
+			for iv = 1 to nPn2 - 1
+				xv = bx0 + iv * bLn / nPn2
+				add xv, yb3, bzb
+				cylind bmDep, 0.0136
+				del 1
+				if isLite = 0 then
+					add xv, yb3, bzt + r_nuno
+					cylind 0.12, r_sic - 0.006
+					del 1
+				endif
+			next iv
+			! 斜材（ワーレン。1スパンを4区画）。両端の区画は上弦材の端から下弦材の端へ下りる
+			for id2 = 0 to nDg - 1
+				x1 = bx0 + id2 * dgW
+				! 偶数の区画は上弦材から下弦材へ下り、奇数の区画は上がる（両端の区画が上弦材の端の緊結部に付く）
+				z1d = bzt
+				z2d = bzb
+				if id2 - 2 * int(id2 / 2) = 1 then
+					z1d = bzb
+					z2d = bzt
+				endif
+				dgL = sqr(dgW * dgW + bmDep * bmDep)
+				add x1, yb3, z1d
+				roty 90 - atn((z2d - z1d) / dgW)
+				cylind dgL, 0.0136
+				del 2
+				if isLite = 0 and id2 > 0 then
+					add x1 - 0.03, yb3 - 0.0025, z1d - 0.02
+					block 0.06, 0.005, 0.04
+					del 1
+				endif
+			next id2
+		next row2
+		! 梁渡し（NDHW）: 梁枠の上の建地ごとに、内外の上弦材の上に渡す溝形の材と、建地を受けるほぞ
+		if nRows >= 2 and hugMode = 0 then
+			xq = 0
+			for iq = 1 to nSpan + 1
+				if xq > bs + 0.001 and xq < bs + bl - 0.001 then
+					add xq - 0.03, -rowW - 0.04, bzt + r_nuno
+					block 0.06, rowW + 0.08, 0.05
+					del 1
+					for row3 = 0 to 1
+						add xq, -row3 * rowW, bzt + r_nuno + 0.05
+						cylind 0.10, r_sic - 0.006
+						del 1
+					next row3
+				endif
+				if iq <= nSpan then xq = xq + spans[iq]
+			next iq
+		endif
+	endif
+		! 妻面のブレス材と妻面幅木（日建 カタログ p010「ブレス材（先行手すり）は梁枠下の妻面全段に取付る事」「ブレス材（先行
+		! 手すり）の下には妻面幅木を取付る事」。利用者の指定 2026-10-24）: 開口の両端の建地の内外をつなぐ面に、梁枠より下の各段
+		! （根がらみの段と作業床の段）の先行手すりを入れ、作業床の段はその下（両隣の床の縁）に幅木を立てる
+		if nRows >= 2 and hugMode = 0 and serType <> "W" and serType <> "T" then
+			for be = 0 to 1
+				xe = bs + be * bl
+				for il8 = 1 to nLv
+					z8 = lv[il8]
+					if z8 < bh - 0.001 and z8 >= bmBt[ib2] - 0.001 then
+						add xe, 0, z8
+						rotz -90
+						nL = rowW
+						gosub 850
+						del 2
+						if il8 > 1 and z8 > bmBt[ib2] + 0.001 then
+							if mToe > 0 then material mToe
+							add xe - 0.03 + be * 0.048, -rowW + r_sic, z8 + r_nuno + 0.045
+							block 0.012, rowW - 2 * r_sic, 0.157
+							del 1
+							if matScaf > 0 then material matScaf
+						endif
+					endif
+				next il8
+			next be
+		endif
+	if bmH[ib2] < 900 then
+		! 補強のつなぎ材: 梁枠の高さで両隣のスパン、床の高さで開口の上のスパン（内外）
+		xq = 0
+		for iq = 1 to nSpan
+			zTn = -1
+			if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - bs - bl) < 0.001 then zTn = bzt
+			if xq >= bs - 0.001 and xq + spans[iq] <= bs + bl + 0.001 then zTn = bh
+			if zTn >= 0 then
+				for row3 = rowStart to 1
+					add xq, -row3 * rowW, zTn
+					nL = spans[iq]
+					gosub 830
+					del 1
+				next row3
+			endif
+			xq = xq + spans[iq]
+		next iq
+	endif
+next ib2
+
+! ---- 階段室（段板・側桁・階段手すり） ----
+! 同じ向き（始点→終点）で2層ずつ登る: 2スパンの階段室なら奇数層は始点側、偶数層は終点側のスパンに
+! 1スパン分の階段（階段枠 1829×H1800 と同じ形）。2層登ったら外の作業床を回って始点側へ戻る。
+! 以前は折り返し（踏面1スパン＋踊り場1スパン、層ごとに向きが逆）で描いていた
+stairW = rowW - 0.10
+! 階段を通す升目の外側の線（外付けは外側建地列の外の升目）
+yb = -rowW - stOut * rowW
+for it5 = 1 to nSt
+	sx = stS[it5]
+	sl = stL[it5]
+	! 外付けの区間は 上り口＋階段2スパン＋降り口。階段は両端のスパンを除いた中に掛ける
+	if stOut = 1 then
+		xa = 0
+		fFirst = 0
+		fLast = 0
+		for ipx = 1 to nSpan
+			if abs(xa - sx) < 0.001 then fFirst = spans[ipx]
+			if abs(xa + spans[ipx] - sx - sl) < 0.001 then fLast = spans[ipx]
+			xa = xa + spans[ipx]
+		next ipx
+		if sl - fFirst - fLast > 0.5 then
+			sx = sx + fFirst
+			sl = sl - fFirst - fLast
+		endif
+	endif
+	for il5 = 1 to nLv - 1
+		rise = lv[il5 + 1] - lv[il5]
+		! 階段室のスパン（1つ目＝始点側、2つ目＝終点側。1スパンの階段室は2つ目なし）
+		stA = sl
+		stB = 0
+		xa = 0
+		for ipx = 1 to nSpan
+			if abs(xa - sx) < 0.001 then
+				stA = spans[ipx]
+				if ipx < nSpan then
+					if xa + spans[ipx] + spans[ipx + 1] <= sx + sl + 0.001 then stB = spans[ipx + 1]
+				endif
+			endif
+			xa = xa + spans[ipx]
+		next ipx
+		! 同じ向き（始点→終点）で2層ずつ: 奇数層は始点側のスパン、偶数層は終点側のスパンに1スパン分の階段。
+		! 2層登ったら階段室を出て外の作業床を回って戻る（階段室の中に踊り場の床は無い）
+		x0 = sx
+		fl = stA
+		if il5 - 2 * int(il5 / 2) = 0 and stB > 0 then
+			x0 = sx + stA
+			fl = stB
+		endif
+		nStep = int(rise / 0.225 + 0.5)
+		if nStep < 1 then nStep = 1
+		td = fl / nStep
+		th = rise / nStep
+		ang5 = atn(rise / fl)
+		fLen = sqr(fl * fl + rise * rise)
+		! アルミ階段枠（日建 NDAL4518K・信和 AL3055SW: 長さ1829×高さ1800、外幅481・内幅470）。
+		! 両側の側桁（アルミの溝形、せい100）の間に踏面（縞板、奥行150）を並べ、上下端のフック（横棒）で
+		! 下の層と上の層の腕木に掛ける。最上段は上の層の床。以前は板を階段状に並べただけだった（利用者の指摘 2026-10-20）
+		fw = 0.481
+		if fw > rowW - 0.06 then fw = rowW - 0.06
+		fy0 = yb + (rowW - fw) / 2
+		! 外側の板の位置に寄せる（内側の板＝ハーフアンチは各層に敷く）
+		if stHalf = 1 and stOut = 0 then fy0 = -rowW + 0.05 + (deckW1 - 0.01 - fw) / 2
+		for sd = 0 to 1
+			add x0, fy0 + sd * (fw - 0.006), lv[il5] - 0.06
+			roty -ang5
+			block fLen, 0.006, 0.10
+			del 2
+		next sd
+		for is5 = 1 to nStep - 1
+			add x0 + is5 * td - 0.075, fy0 + 0.006, lv[il5] + is5 * th - 0.03
+			block 0.15, fw - 0.012, 0.03
+			del 1
+		next is5
+		! 階段受け（日建 NDKH、カタログ p010）: 上下端の支柱の間（内外の建地列）に渡す受け材。両端のフックで
+		! 支柱のコマに掛け、階段枠の上下端のフックをこれに掛ける。以前は階段枠の幅だけの細い棒だった
+		for hk = 0 to 1
+			add x0 + hk * fl, yb + r_sic, lv[il5 + hk] - 0.05
+			rotx -90
+			cylind rowW - 2 * r_sic, 0.017
+			del 2
+			for he = 0 to 1
+				add x0 + hk * fl - 0.02, yb + r_sic + he * (rowW - 2 * r_sic - 0.04), lv[il5 + hk] - 0.07
+				block 0.04, 0.04, 0.10
+				del 1
+			next he
+		next hk
+		! 階段手すり（日建 ND1800専用階段手摺 NDKT φ21.7、カタログ p010）: 階段側の建地列（本体の中の階段は外側の列
+		! だけ。もう一方は開口部手摺。外付けは両側）で、下の支柱の床から 1350 の高さ（固定クサビ）から上の支柱の
+		! 上の床から 1350（固定爪）へ、階段と平行に渡す。手すり用の支柱は立てない
+		! （利用者の指摘 2026-10-22: 階段手すりは今より450上、階段側だけでいい。以前は両側の 900 だった）。
+		! 最上層へ上がる階段は、上端の支柱が床から 900（コマ2つ）までしか無いので 1350 では支柱の上に浮く。
+		! 支柱のある高さ（コマ1つ下）に下げる（利用者の指摘 2026-10-22: 手すり浮いてる）
+		! 手すりは 2 段（手すりと中桟）を階段と平行に（利用者の指定 2026-10-24: 足場の手すりはこのかたち 2段）。
+		! 高さは床の手すり・中桟と同じ（段鼻の線から 900・450。利用者の指定 2026-10-24: 高さを下げる。以前は 1350・900）
+		for sd = 0 to stOut
+			ys = yb + r_sic + 0.03 + sd * (rowW - 2 * r_sic - 0.06)
+			for tk = 0 to 1
+				hT = railTop
+				if tk = 1 then hT = railMid
+				add x0 + r_sic, ys, lv[il5] + hT
+				roty 90 - atn(rise / (fl - 2 * r_sic))
+				cylind sqr((fl - 2 * r_sic) ^ 2 + rise ^ 2), 0.0217 / 2
+				del 2
+				add x0 + r_sic, ys - 0.02, lv[il5] + hT - 0.03
+				block 0.04, 0.04, 0.06
+				del 1
+				add x0 + fl - r_sic - 0.04, ys - 0.02, lv[il5 + 1] + hT - 0.03
+				block 0.04, 0.04, 0.06
+				del 1
+			next tk
+		next sd
+		! 上の層の開口（x0〜x0+fl）。床と開口の境の線: 階段を外側に寄せる床（stHalf）は外側の板とハーフアンチの間、
+		! 全幅の開口は内側の建地列の内
+		zg = lv[il5 + 1]
+		gyS = -r_sic - 0.03
+		if stHalf = 1 then gyS = -rowW + 0.05 + deckW1 - 0.005
+		! 外付けは開口と本体の床の間を本体の外側の手すりで仕切るので、開口部手摺・幅木は付けない
+		if stOut = 0 then
+		! 階段開口部手摺（日建 SG918SW・信和 SG918SW、長さ1829・高さ922、カタログ p010）と階段開口部幅木（NFG918）:
+		! 出入口1か所に1組（数量と同じ）。開口の長手に沿って、上がり口側（x0）の端は支柱にフックで掛け、上り切る側
+		! （x0+fl）の端は曲げて階段枠の上端へ下ろす。以前は上がり口に床幅いっぱいの枠を横に立てていた（利用者の指摘 2026-10-22）
+		gR = 0.0272 / 2
+		gx0 = x0 + r_sic + 0.03
+		gx1 = x0 + fl - 0.06
+		gRb = 0.10
+		gzT = zg + 0.922
+		add gx0, gyS, gzT
+		roty 90
+		cylind gx1 - gRb - gx0, gR
+		del 2
+		add gx0, gyS, zg + 0.46
+		roty 90
+		cylind gx1 - gx0, gR
+		del 2
+		! 上がり口側の角の縦管（床から上桟まで）。上桟・中桟はここで直角に折れて開口の端を横切り、外側の建地に
+		! フックで掛かる（開口のまわりを回す。利用者の指摘 2026-10-22: 端にも手すりいるよ、繋がっている／
+		! 2026-10-24: 階段開口部手すりが回ってない）。幅木は付けない（2026-10-24: 階段上の幅木不要）
+		add gx0, gyS, zg + 0.03
+		cylind gzT - zg - 0.03, gR
+		del 1
+		gyO = -rowW + r_sic + 0.005
+		for gk = 0 to 1
+			gzk = gzT - gk * (gzT - zg - 0.46)
+			add gx0, gyS, gzk
+			sphere gR
+			rotx 90
+			cylind gyS - gyO - 0.02, gR
+			del 2
+			add gx0 - 0.02, gyO - 0.005, gzk - 0.02
+			block 0.04, 0.03, 0.04
+			del 1
+		next gk
+		! 上り切る側: 上桟を半径100で曲げて下ろし、床を抜けて階段枠の上端まで
+		gcx = gx1 - gRb
+		gcz = gzT - gRb
+		for gb = 0 to 2
+			ga0 = 90 - gb * 30
+			ga1 = ga0 - 30
+			gxa = gcx + gRb * cos(ga0)
+			gza = gcz + gRb * sin(ga0)
+			gdx = gcx + gRb * cos(ga1) - gxa
+			gdz = gcz + gRb * sin(ga1) - gza
+			add gxa, gyS, gza
+			roty 180 + atn(gdx / gdz)
+			cylind sqr(gdx * gdx + gdz * gdz), gR
+			del 2
+		next gb
+		add gx1, gyS, zg - 0.10
+		cylind gcz - zg + 0.10, gR
+		del 1
+		! 開口部幅木は付けない（利用者の指定 2026-10-24: 階段上の幅木と布材不要）
+		endif
+	next il5
+next it5
+
+! ---- 外付けの階段室: 外側建地列の外に建地1列（3列目）、区間は 上り口＋階段2スパン＋降り口 ----
+! 利用者の指摘（2026-10-20）: 階段は回れるように4スパン要る。上り口と降り口に横のスパンが必要。
+! 両端のスパンは各層に床（乗り降りの踊り場）、中の2スパンは各層で下から階段が上がってくるスパン以外に床。
+! 階段の開口と本体の床の間は本体の外側の手すり（開口のスパンでは外さない）で仕切るので、開口部手摺・幅木は付けない
+dim tsp[]
+if stOut = 1 then
+	yo = -2 * rowW
+	for it7 = 1 to nSt
+		sx = stS[it7]
+		sl = stL[it7]
+		xa = 0
+		ns7 = 0
+		for ipx = 1 to nSpan
+			if xa >= sx - 0.001 and xa < sx + sl - 0.001 then
+				ns7 = ns7 + 1
+				tsp[ns7] = spans[ipx]
+			endif
+			xa = xa + spans[ipx]
+		next ipx
+		! 建地（3列目）と各層の腕木（外側建地列〜3列目）。本体の支柱と同じ積み上げ・継手・コマで描く
+		! （1本の棒で描いてコマが無かった。利用者の指摘 2026-10-21）
+		xp = sx
+		for ip7 = 1 to ns7 + 1
+			gv = 0
+			jo = jackOut
+			sv = shimAll
+			add xp, yo, gv
+			jkSill = 1
+			gosub 820
+			jkSill = 0
+			addz jo
+			for j = 1 to nPost
+				cylind posts[j], r_sic
+				if postShape = 1 and isLite = 0 then
+					add -0.0275, -0.003, 0
+					block 0.055, 0.006, posts[j]
+					del 1
+					add -0.003, -0.0275, 0
+					block 0.006, 0.055, posts[j]
+					del 1
+				endif
+				addz posts[j]
+				if j < nPost then
+					jLo = posts[j]
+					jUp = posts[j + 1]
+					gosub 840
+				endif
+			next j
+			del nPost + 2
+			if nKz > 0 then
+				resol 6
+				for ik = 1 to nKz
+					add xp, yo, kz[ik] - 0.003
+					cylind 0.006, 0.053
+					del 1
+				next ik
+				resol rN
+			endif
+			for il7 = 1 to nLv
+				add xp, -rowW, lv[il7]
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			next il7
+			if ip7 <= ns7 then xp = xp + tsp[ip7]
+		next ip7
+		! 3列目のスパン方向: 根がらみ、各層の手すり・中桟（先行手すりなら手すり＋X斜材）・幅木、床
+		xp = sx
+		for ip7 = 1 to ns7
+			sp7 = tsp[ip7]
+			add xp, yo, lv[1]
+			nL = sp7
+			gosub 830
+			del 1
+			for il7 = 2 to nLv
+				z = lv[il7]
+				add xp, yo, z + railTop
+				nL = sp7
+				gosub 830
+				del 1
+				if railAdv = 1 then
+					advDz = railTop - 0.02
+					advL = sqr(sp7 * sp7 + advDz * advDz)
+					add xp, yo, z + railTop
+					roty 90 + atn(advDz / sp7)
+					cylind advL, 0.0217 / 2
+					del 2
+					add xp + sp7, yo, z + railTop
+					roty -(90 + atn(advDz / sp7))
+					cylind advL, 0.0217 / 2
+					del 2
+				else
+					add xp, yo, z + railMid
+					nL = sp7
+					gosub 830
+					del 1
+					if toeOn = 1 then
+						if mToe > 0 then material mToe
+						add xp, yo - 0.02, z + 0.045
+						block sp7, 0.02, 0.157
+						del 1
+						if matScaf > 0 then material matScaf
+					endif
+				endif
+				! 床: 両端（上り口・降り口）は各層。中の階段のスパンは、下から階段が上がってくるスパン
+				! （奇数層は中の1つ目、偶数層は中の2つ目）以外
+				kOdd7 = il7 - 1 - 2 * int((il7 - 1) / 2)
+				fIdx = 2
+				if kOdd7 = 0 and ns7 > 3 then fIdx = 3
+				if ns7 < 3 then fIdx = 1
+				if showDeck and ip7 <> fIdx then
+					if matDeck > 0 then material matDeck
+					add xp + 0.07, yo + 0.05, z
+					block sp7 - 0.14, rowW - 0.10, 0.045
+					del 1
+					if matScaf > 0 then material matScaf
+				endif
+			next il7
+			xp = xp + sp7
+		next ip7
+		! 妻側（区間の両端）の手すり・中桟
+		for ie7 = 0 to 1
+			xe = sx + ie7 * sl
+			for il7 = 2 to nLv
+				add xe, -rowW, lv[il7] + railTop
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+				add xe, -rowW, lv[il7] + railMid
+				rotz -90
+				nL = rowW
+				gosub 830
+				del 2
+			next il7
+		next ie7
+	next it7
+endif
+
+! ---- ブラケット区間（拡幅ぶんの作業床＋支柱位置ごとのブラケット腕・方杖） ----
+! 床だけ描くと宙に浮いて見えるうえ、数量では支柱位置ごとにブラケットを拾っている
+for ik = 1 to nBk
+	xb = 0
+	for ipk = 1 to nSpan + 1
+		if xb >= bkS[ik] - 0.001 and xb <= bkE[ik] + 0.001 then
+			! ブラケット（日建 NDBK03C・06C・03H・06H、カタログ p014）: 支柱のコマに緊結部で掛ける腕 φ42.7、
+			! 先端の受け、下の支柱から腕の先へ方杖（腕の長さで 209・253・450・900 下から）
+			bkDr = 1
+			bkY0 = 0
+			if bkD[ik] < 0 then
+				bkDr = -1
+				bkY0 = -rowW
+			endif
+			add xb, bkY0, bkH[ik]
+			if bkDr < 0 then rotz 180
+			rotz 90
+			nL = bkW[ik] + r_sic
+			bkArm = bkW[ik]
+			gosub 875
+			if bkDr < 0 then del 1
+			del 2
+		endif
+		if ipk <= nSpan then xb = xb + spans[ipk]
+	next ipk
+	if bkD[ik] > 0 then
+		add bkS[ik], 0, bkH[ik] + r_nuno
+		block bkE[ik] - bkS[ik], bkW[ik], 0.045
+		del 1
+	else
+		add bkS[ik], -rowW, bkH[ik] + r_nuno
+		muly -1
+		block bkE[ik] - bkS[ik], bkW[ik], 0.045
+		del 2
+		! 張出すと作業床の外縁が建地より外に出る。その縁は開放端なので
+		! 手すり・中桟・幅木が要る（数量にも計上している）
+		bkLen = bkE[ik] - bkS[ik]
+		! 外縁の幅木（平らな板。L形にしない）と手すり・中桟（φ42.7）
+		if toeOn = 1 then
+			if mToe > 0 then material mToe
+			add bkS[ik], -rowW - bkW[ik] + 0.004, bkH[ik] + r_nuno + 0.045
+			block bkLen, 0.008, 0.150
+			del 1
+			if matScaf > 0 then material matScaf
+		endif
+		for ir3 = 1 to 2
+			hgt = railH
+			if ir3 = 2 then hgt = midH
+			add bkS[ik], -rowW - bkW[ik] - 0.02, bkH[ik] + hgt
+			roty 90
+			cylind bkLen, r_nuno
+			del 2
+		next ir3
+		! 妻側（両端）も開放端。手すり・中桟・幅木（数量の「張出し妻側」と同じ）
+		for ie2 = 0 to 1
+			xk = bkS[ik] + bkLen * ie2
+			for ir2 = 1 to 2
+				if ir2 = 1 then hgt = railH else hgt = midH
+				add xk, -rowW, bkH[ik] + hgt
+				rotx 90
+				cylind bkW[ik], r_nuno
+				del 2
+			next ir2
+			if railAdv = 0 and toeOn = 1 then
+				add xk - 0.01, -rowW - bkW[ik], bkH[ik] + 0.045
+				block 0.02, bkW[ik], 0.157
+				del 1
+			endif
+		next ie2
+	endif
+next ik
+
+! ---- 朝顔（防護棚）: 外側へ突出する傾斜板と受けブラケット ----
+! 万能板の色（FRP の空色）を material で替えるので、本体の最後に描く（後に描く部材に色が移らないように。
+! 表面材 matScaf が 0 の部品では戻す材質が無い）
+! 突出2m・傾斜25度。数量にも法規チェックにも出るのに図面・3Dに
+! 現れていなかった。突出2mの部材なので干渉確認のため実寸で出す
+! 外側は -Y なので muly -1 でローカル+Yを外向きにしてから傾ける。
+! そのまま block を置くと躯体側（+Y）へ張り出してしまう
+! 昇降機のマスト・搬器が通る区間（asaCutList）は切り欠く（asgA〜asgB の連続区間だけ描く）
+! アルミ軽量アサガオ（日建 ALA、カタログ p120〜125。利用者の指摘 2026-10-21: カタログ見て直して）:
+! 支柱ごとに 主材（せい80のアルミ。上の主材受金具から外へ asagaoAngle 上向き）と、1層下（floorH）の
+! 主材受金具から主材を下から支える 斜材。主材の根元と先端に 万能板受（上・下）、その上に FRP万能板
+! （幅310×長さ2350 の波板。1スパンに6枚）、スパンごとにフレ止め2本（X）。
+! 外付けの階段室の区間は、階段室の外側（3列目）の支柱から張り出す（本体の外側の支柱から出すと階段室に
+! 食い込む）。本体の朝顔との段差は妻側の板で塞ぐ。出隅はコーナー部（センター材＋扇形の FRP 万能板）で塞ぐ
+define material "ashiba_frp" 0, 0.45, 0.70, 0.90, 0.6, 0.6, 0.1, 0.0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+asL = asagaoProj / cos(asagaoAngle)
+asC = asL * cos(asagaoAngle)
+asH = asL * sin(asagaoAngle)
+asD = 0.32 * asL          ! 斜材が主材に取り付く位置（根元から。ALA の主材2510・斜材2253・高さ1.8 の三角形）
+for ia = 1 to nAsa
+	za = asa[ia]
+	! 主材・斜材・主材受金具（支柱位置ごと。切り欠きの内側の支柱には付けない。外付けの階段室の区間は3列目）
+	x = 0
+	for ip = 1 to nSpan + 1
+		inCut = 0
+		for ic = 1 to nCut
+			if x > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut = 1
+		next ic
+		inTw = 0
+		onTw = 0
+		if stOut = 1 then
+			for it8 = 1 to nSt
+				if x > stS[it8] + 0.001 and x < stS[it8] + stL[it8] - 0.001 then inTw = 1
+				if x > stS[it8] - 0.001 and x < stS[it8] + stL[it8] + 0.001 then onTw = 1
+			next it8
+		endif
+		! 開口部（梁枠）の内側で支柱を抜いた位置は、斜材を受ける下の主材受金具の支柱が無い（主材も付けない）
+		for ib9 = 1 to nBm
+			if x > bmS[ib9] + 0.001 and x < bmS[ib9] + bmL[ib9] - 0.001 and za - floorH < bmH[ib9] - 0.001 and za - floorH >= bmBt[ib9] - 0.001 then inCut = 1
+		next ib9
+		if inCut = 0 then
+			if inTw = 0 then
+				ybA = -rowW
+				gosub 880
+			endif
+			if onTw = 1 then
+				ybA = -2 * rowW
+				gosub 880
+			endif
+		endif
+		! フレ止め（スパンごとに2本、主材の下で X）
+		if isLite = 0 and ip <= nSpan then
+			inCut2 = 0
+			for ic = 1 to nCut
+				if x + spans[ip] > cutS[ic] + 0.001 and x < cutE[ic] - 0.001 then inCut2 = 1
+			next ic
+			if inCut2 = 0 then
+				ybA = -rowW
+				if stOut = 1 then
+					for it8 = 1 to nSt
+						if x > stS[it8] - 0.001 and x + spans[ip] < stS[it8] + stL[it8] + 0.001 then ybA = -2 * rowW
+					next it8
+				endif
+				spL = spans[ip]
+				gosub 887
+			endif
+		endif
+		if ip <= nSpan then x = x + spans[ip]
+	next ip
+	! 万能板（スパンの区間ごと、外付けの階段室の区間は3列目から）と万能板受・押え、段差の妻側の板
+	for isg = 1 to nAsg
+		pA = asgA[isg]
+		while pA < asgB[isg] - 0.001 do
+			ybA = -rowW
+			pB = asgB[isg]
+			if stOut = 1 then
+				for it8 = 1 to nSt
+					if pA > stS[it8] - 0.001 and pA < stS[it8] + stL[it8] - 0.001 then
+						ybA = -2 * rowW
+						pB = min(pB, stS[it8] + stL[it8])
+					endif
+				next it8
+				if ybA > -1.5 * rowW then
+					for it8 = 1 to nSt
+						if stS[it8] > pA + 0.001 then pB = min(pB, stS[it8])
+					next it8
+				endif
+			endif
+			if pB <= pA + 0.001 then pB = asgB[isg]
+			p0 = pA
+			p1 = pB
+			gosub 885
+			! 段差（本体の外側の支柱と3列目）の妻側の板
+			if pB < asgB[isg] - 0.001 or pA > asgA[isg] + 0.001 then
+				material "ashiba_frp"
+				for ie8 = 1 to 1
+					bx = pB
+					isStep = 0
+					for it8 = 1 to nSt
+						if stOut = 1 and (abs(bx - stS[it8]) < 0.001 or abs(bx - stS[it8] - stL[it8]) < 0.001) then isStep = 1
+					next it8
+					if isStep = 1 and bx > asgA[isg] + 0.001 and bx < asgB[isg] - 0.001 then
+						plane 4, bx, -rowW - r_sic, za, bx, -rowW - r_sic - asC, za + asH, \
+							bx, -2 * rowW - r_sic - asC, za + asH, bx, -2 * rowW - r_sic, za
+					endif
+				next ie8
+				if matScaf > 0 then material matScaf
+			endif
+			pA = pB
+		endwhile
+	next isg
+	! 出隅のコーナー部（始点側。外側コーナー支柱から斜め45°のセンター材と扇形の万能板）
+	if (cornerS = 1 or cornerG = 1) and asaCrnOff = 0 then gosub 890
+next ia
+
+gosub 990
+for ic9 = 1 to nClip
+	cutend
+next ic9
+end
+
+gosub 990
+for ic9 = 1 to nClip
+	cutend
+next ic9
+end
+
+! ============================================================
+990:	! ---- 区切る位置の印（赤い面）。区切り目は部品の範囲の中なので、範囲の箱の切り取りの中で描いてよい ----
+if cutAtX > 0.0005 or cutAtZ > 0.0005 then
+	define material "ashiba_cut" 0, 0.9, 0.1, 0.1, 0.5, 0.5, 0.1, 0.5, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	material "ashiba_cut"
+	if cutAtX > 0.0005 then
+		add pxA + cutAtX - 0.005, cyH, hzA
+		block 0.01, rowW + 0.5, hzB - hzA
+		del 1
+	endif
+	if cutAtZ > 0.0005 then
+		add pxA - 0.25, cyH, hzA + cutAtZ - 0.005
+		block pxB - pxA + 0.5, rowW + 0.5, 0.01
+		del 1
+	endif
+endif
+return
+
+! ============================================================
+756:	! ---- コマの高さ kz[1..nKz]（支柱の積み方 posts・nPost・jackOut と作業床 lv・nLv から。上の説明のとおり）----
+	nKz = 0
+	nKzA = 0
+	if komaPitch > 0 then
+		zb = jackOut
+		for j = 1 to nPost
+			pl = posts[j]
+			zz = pl - komaGap
+			while zz >= 0.1 - 0.0001 do
+				nKzA = nKzA + 1
+				kzAll[nKzA] = zb + zz
+				kzSegA[nKzA] = zb
+				zz = zz - komaPitch
+			endwhile
+			! 根がらみ用のコマ
+			isNg = 0
+			rest = negaLens
+			while strlen(rest) > 0 do
+				pc = strstr(rest, ",")
+				if pc > 0 then
+					item = strsub(rest, 1, pc - 1)
+					rest = strsub(rest, pc + 1, strlen(rest) - pc)
+				else
+					item = rest
+					rest = ""
+				endif
+				k = split(item, "%n", v)
+				if k > 0 then
+					if abs(v / 1000 - pl) < 0.0005 then isNg = 1
+				endif
+			endwhile
+			if isNg = 1 and komaNega > 0.001 then
+				nKzA = nKzA + 1
+				kzAll[nKzA] = zb + komaNega
+				kzSegA[nKzA] = zb
+				! すぐ上（3/4 ピッチ以内）にコマが無ければ komaPitch−komaGap にも
+				zm = pl - komaGap
+				while zm - komaPitch > komaNega + 0.001 do
+					zm = zm - komaPitch
+				endwhile
+				if zm > komaNega + 0.75 * komaPitch + 0.001 and komaPitch - komaGap < pl then
+					nKzA = nKzA + 1
+					kzAll[nKzA] = zb + komaPitch - komaGap
+					kzSegA[nKzA] = zb
+				endif
+			endif
+			zb = zb + pl
+		next j
+		for ik = 1 to nKzA
+			keep = 1
+			if isLite = 1 then
+				keep = 0
+				for il = 1 to nLv
+					if abs(kzAll[ik] - lv[il]) < 0.005 then keep = 1
+					if il > 1 then
+						if abs(kzAll[ik] - lv[il] - railMid) < 0.005 then keep = 1
+						if abs(kzAll[ik] - lv[il] - railTop) < 0.005 then keep = 1
+					endif
+				next il
+			endif
+			if keep = 1 then
+				nKz = nKz + 1
+				kz[nKz] = kzAll[ik]
+				kzSeg[nKz] = kzSegA[ik]
+			endif
+		next ik
+		! 断面図・立面図ではコマを描かない（isDwg）
+		if isDwg = 1 then nKz = 0
+	endif
+	return
+
+757:	! ---- 隅の升目の積み方（cnrPosts があればその積み方・作業床 cnrLevels、無ければこの面のもの）----
+	! 出す: cOvr（1＝隣の面の積み方）・cPo[1..nCPo]・cJo・cTop・cLv[1..nCLv]・cKz[1..nCKz]・cKzS
+	cOvr = 0
+	if nCPo > 0 then cOvr = 1
+	if cOvr = 0 then
+		nCPo = nPost
+		for j = 1 to nPost
+			cPo[j] = posts[j]
+		next j
+		cJo = jackOut
+		nCLv = nLv
+		for j = 1 to nLv
+			cLv[j] = lv[j]
+		next j
+		nCKz = nKz
+		for j = 1 to nKz
+			cKz[j] = kz[j]
+			cKzS[j] = kzSeg[j]
+		next j
+	else
+		cJo = cnrJack
+		cLv[1] = cnrNega
+		if cLv[1] <= 0 then cLv[1] = cJo + komaPitch
+		for j = 1 to nCLvIn
+			cLv[j + 1] = cLvIn[j]
+		next j
+		nCLv = nCLvIn + 1
+		! コマはこの面と同じ規則（gosub 756）を隅の積み方で回して受け取り、この面の値に戻す
+		sNP = nPost
+		for j = 1 to nPost
+			sPo[j] = posts[j]
+		next j
+		sJo = jackOut
+		sNL = nLv
+		for j = 1 to nLv
+			sLv[j] = lv[j]
+		next j
+		nPost = nCPo
+		for j = 1 to nCPo
+			posts[j] = cPo[j]
+		next j
+		jackOut = cJo
+		nLv = nCLv
+		for j = 1 to nCLv
+			lv[j] = cLv[j]
+		next j
+		gosub 756
+		nCKz = nKz
+		for j = 1 to nKz
+			cKz[j] = kz[j]
+			cKzS[j] = kzSeg[j]
+		next j
+		nPost = sNP
+		for j = 1 to sNP
+			posts[j] = sPo[j]
+		next j
+		jackOut = sJo
+		nLv = sNL
+		for j = 1 to sNL
+			lv[j] = sLv[j]
+		next j
+		gosub 756
+	endif
+	cTop = cJo
+	for j = 1 to nCPo
+		cTop = cTop + cPo[j]
+	next j
+	return
+
+758:	! ---- 張出ブラケットの床1層（日建 張出ブラケット NDBK06H 610・カタログ Vol.10 p014。reports/くさび式足場の拡幅ブラケット.md）----
+	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。腕は +X へ xbW（支柱芯から先端まで）、高さ xbZ（作業床。腕は床の布材と
+	! 同じコマ）。方杖は腕の先の手前から支柱の下のコマへ（610 は2コマ下、それより短いものは1コマ下）。先端のホゾに手すり柱
+	! （支柱 1350）を立てて手すり・中桟を掛ける。床は2基の腕に渡す（610 は 500 幅の布板1枚、短いものは 240 幅）。
+	! 手すり・中桟は xbRA（y=0 の脇）・xbRB（y=-xbL の脇）・xbRF（腕の先）
+	! 先端の管（φ42.7）の芯。出 xbW は支柱の芯から先端の管の外面まで（カタログの 305＝20.5＋241＋42.7）
+	xbT = xbW - 0.02135
+	xbDp = komaPitch
+	if xbW > 0.40 then xbDp = 2 * komaPitch
+	if xbDp < 0.3 then xbDp = 0.45
+	! ブラケット（腕・方杖）は部品 ashiba_kbrk で置いたら描かない。支柱を本体の隅の升目と共有する側（xbSkA・xbSkB）は
+	! ブラケットも先端の手すり柱も無い（床はその側の布材に掛ける）
+	if brkObj = 0 then
+		for xbS = 0 to 1
+			if not((xbS = 0 and xbSkA = 1) or (xbS = 1 and xbSkB = 1)) then
+				xbY = -xbS * xbL
+				gosub 754
+			endif
+		next xbS
+	endif
+	if showDeck then
+		if matDeck > 0 then material matDeck
+		if xbW > 0.54 then
+			add (xbW - 0.49) / 2, 0, xbZ
+			rotz -90
+			dkL = xbL
+			dkW = 0.49
+			gosub 870
+			del 2
+		else
+			xbN = max(1, int((xbW - 0.03) / 0.24))
+			for xbD = 1 to xbN
+				add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZ
+				rotz -90
+				dkL = xbL
+				dkW = 0.235
+				gosub 870
+				del 2
+			next xbD
+		endif
+		if matScaf > 0 then material matScaf
+	endif
+	! 先端の手すり柱（支柱 1350）とコマ
+	for xbS = 0 to 1
+		if not((xbS = 0 and xbSkA = 1) or (xbS = 1 and xbSkB = 1)) then
+			add xbT, -xbS * xbL, xbZ
+			cylind 1.35, r_sic
+			resol 6
+			for xbK = 0 to 2
+				zk = 0
+				if xbK = 1 then zk = railMid
+				if xbK = 2 then zk = railTop
+				add 0, 0, zk - 0.003
+				cylind 0.006, 0.053
+				del 1
+			next xbK
+			resol rN
+			del 1
+		endif
+	next xbS
+	xbZr = xbZ
+	gosub 753
+	return
+
+753:	! ---- ブラケットの床の脇・先の手すりと中桟（高さ xbZr。xbRA・xbRB・xbRF。長さは腕 xbW・幅 xbL）----
+	for xbH = 1 to 2
+		zr8 = xbZr + railTop
+		if xbH = 2 then zr8 = xbZr + railMid
+		if xbRA = 1 then
+			add 0, 0, zr8
+			nL = xbT
+			gosub 830
+			del 1
+		endif
+		if xbRB = 1 then
+			add 0, -xbL, zr8
+			nL = xbT
+			gosub 830
+			del 1
+		endif
+		if xbRF = 1 then
+			add xbT, 0, zr8
+			rotz -90
+			nL = xbL
+			gosub 830
+			del 2
+		endif
+	next xbH
+	return
+
+754:	! ---- ブラケット1基の腕と組み込みの方杖（原点＝支柱の芯、y=xbY、腕の高さ xbZ、+X へ xbW、方杖の下がり xbDp）----
+	! 緊結部（支柱の外面からコマを挟む）・腕 φ42.7・先端の受け（ホゾ φ36.4）・方杖 φ27.2 と下の緊結部
+	add r_sic, xbY - 0.020, xbZ + 0.003
+	block 0.042, 0.040, 0.042
+	del 1
+	add r_sic, xbY - 0.020, xbZ - 0.040
+	block 0.042, 0.040, 0.037
+	del 1
+	add r_sic + 0.042, xbY, xbZ
+	roty 90
+	cylind xbT - r_sic - 0.042, r_nuno
+	del 2
+	add xbT - 0.03, xbY - 0.03, xbZ - 0.06
+	block 0.06, 0.06, 0.09
+	del 1
+	add r_sic, xbY - 0.020, xbZ - xbDp - 0.03
+	block 0.042, 0.040, 0.06
+	del 1
+	bx1 = r_sic + 0.03
+	by1 = xbY
+	bz1 = xbZ - xbDp
+	bx2 = xbT - 0.06
+	by2 = xbY
+	bz2 = xbZ - 0.03
+	brR = 0.0136
+	gosub 895
+	return
+
+759:	! ---- 拡幅ブラケットで升目を広げる（日建 拡幅ブラケット NDBK03H 305・カタログ Vol.10 p014。reports/くさび式足場の拡幅ブラケット.md）----
+	! 原点＝支柱A の芯、もう1本の支柱B は (0, -xbL)。+X へ xbW 広げる。拡幅は全高で1回だけ: いちばん下の床 cBkLv[1] の
+	! コマに2基のブラケット（方杖は1コマ下、先端から1層下の支柱へ補強単管をクランプで）、先端のホゾに支柱を xbTop まで
+	! 立てる。各層 cBkLv[] に、元の支柱と先端の支柱を xbW の布材（床・手すり・中桟）でつなぎ、先端の2本を床の布材で
+	! つなぐ。床は 240 幅の布板を2本の布材に渡す。先端の向こう（隣の足場の床）とのあき xbG が 3cm を超えれば、すき間板
+	xbZ = cBkLv[1]
+	xbT = xbW - 0.02135
+	xbDp = komaPitch
+	if xbDp < 0.3 then xbDp = 0.45
+	for xbS = 0 to 1
+		xbY = -xbS * xbL
+		! ブラケット（腕・方杖）と補強単管は部品 ashiba_kbrk で置いたら描かない
+		if brkObj = 0 then
+		gosub 754
+		! 補強単管（φ48.6、先端から1層下の元の支柱へ。両端はクランプ）
+		bx1 = xbT
+		by1 = xbY - 0.05
+		bz1 = xbZ - 0.08
+		bx2 = r_sic + 0.04
+		by2 = xbY - 0.05
+		bz2 = xbZ - floorH + 0.10
+		brR = 0.0243
+		gosub 895
+		material "ashiba_clamp_gold"
+		add bx1 - 0.035, by1 - 0.035, bz1 - 0.035
+		block 0.07, 0.07, 0.07
+		del 1
+		add bx2 - 0.035, by2 - 0.035, bz2 - 0.035
+		block 0.07, 0.07, 0.07
+		del 1
+		if matScaf > 0 then material matScaf
+		endif
+		! 先端の支柱（ホゾに挿して天端まで）
+		if xbTop > xbZ + 0.1 then
+			add xbT, xbY, xbZ
+			cylind xbTop - xbZ, r_sic
+			del 1
+		endif
+	next xbS
+	for ib7 = 1 to nCBk
+		xbZr = cBkLv[ib7]
+		! 先端の支柱のコマ（床・中桟・手すり）
+		resol 6
+		for xbS = 0 to 1
+			for xbK = 0 to 2
+				zk = xbZr
+				if xbK = 1 then zk = xbZr + railMid
+				if xbK = 2 then zk = xbZr + railTop
+				if zk < xbTop - 0.05 then
+					add xbT, -xbS * xbL, zk - 0.003
+					cylind 0.006, 0.053
+					del 1
+				endif
+			next xbK
+		next xbS
+		resol rN
+		! 床の布材（元の支柱から先端の支柱へ2本、先端の2本の間に1本。1層目はブラケットの腕が受ける）
+		if ib7 > 1 then
+			for xbS = 0 to 1
+				add 0, -xbS * xbL, xbZr
+				nL = xbT
+				gosub 830
+				del 1
+			next xbS
+		endif
+		add xbT, 0, xbZr
+		rotz -90
+		nL = xbL
+		gosub 830
+		del 2
+		if showDeck then
+			if matDeck > 0 then material matDeck
+			xbN = max(1, int((xbW - 0.03) / 0.24))
+			for xbD = 1 to xbN
+				add r_sic + 0.005 + (xbD - 1) * 0.24, 0, xbZr
+				rotz -90
+				dkL = xbL
+				dkW = 0.235
+				gosub 870
+				del 2
+			next xbD
+			! すき間板（隣の足場の床とのあきが 3cm を超えるとき。安衛則563条1項2号ロ）
+			if xbG > 0.03 then
+				add xbT - 0.06, -xbL + 0.03, xbZr + r_nuno + 0.045
+				block xbG + 0.16, xbL - 0.06, 0.004
+				del 1
+			endif
+			if matScaf > 0 then material matScaf
+		endif
+		! 両脇の手すり・中桟（先端の向こうは隣の足場の床へ渡るので付けない）
+		xbRA = 1
+		xbRB = 1
+		xbRF = 0
+		gosub 753
+	next ib7
+	return
+
+760:	! ---- 跳ね出しブラケット1基（原点＝支柱の位置の内側建地列、z＝床スラブの天端。躯体の面は y＝standoff）----
+	material "ashiba_hane_steel"
+	! 腕は横に流す H形鋼（高さ hbH）の下。腕・取付プレート・方杖／吊り材は H形鋼の高さだけ下げて描く
+	addz -hbH
+	hbE = -rowW - 0.15                    ! 腕の先
+	hbL = standoff - hbE                  ! 腕の長さ（躯体の面から）
+	! 溝形鋼［-100×50×5（上下のフランジとウェブ）
+	add -0.025, hbE, -0.0075
+	block 0.05, hbL, 0.0075
+	del 1
+	add -0.025, hbE, -0.10
+	block 0.05, hbL, 0.0075
+	del 1
+	add 0.02, hbE, -0.10
+	block 0.005, hbL, 0.10
+	del 1
+	! 腕の先の端板
+	add -0.03, hbE - 0.006, -0.10
+	block 0.06, 0.006, 0.10
+	del 1
+	! 上の取付プレート（200×250×12、床スラブの縁）とアンカーボルト M16×4（ナット・座金）
+	add -0.10, standoff - 0.012, -0.24
+	block 0.20, 0.012, 0.24
+	del 1
+	for hbA = 0 to 3
+		hbAx = -0.06 + 0.12 * (hbA - 2 * int(hbA / 2))
+		hbAz = -0.05 - 0.14 * int(hbA / 2)
+		resol 6
+		add hbAx, standoff - 0.012, hbAz
+		rotx 90
+		cylind 0.016, 0.014
+		del 2
+		resol 8
+		add hbAx, standoff - 0.028, hbAz
+		rotx 90
+		cylind 0.012, 0.008
+		del 2
+	next hbA
+	if haneTyp = 1 then
+		! 方杖（φ48.6 を支柱の両脇に2本）: 腕の先から下の階の壁の取付プレート（足場の面から haneWall 奥、床の天端から
+		! haneDn 下、150×150×12、アンカー M16×2）へ突っ張る（利用者の指定 2026-10-25: ブラケットの向き反対じゃない？
+		! 写真の形）。張り出しの下の本体の足場は方杖の下端より下で止める（setback_tiers.overhang_caps）
+		hwY = standoff + haneWall
+		for hbS = -1 to 1 step 2
+			add hbS * 0.06 - 0.075, hwY - 0.012, -haneDn + hbH - 0.075
+			block 0.15, 0.012, 0.15
+			del 1
+			for hbA = 0 to 1
+				resol 6
+				add hbS * 0.06 - 0.04 + 0.08 * hbA, hwY - 0.012, -haneDn + hbH
+				rotx 90
+				cylind 0.016, 0.014
+				del 2
+			next hbA
+			resol 10
+			bx1 = hbS * 0.06
+			by1 = hbE + 0.06
+			bz1 = -0.10
+			bx2 = hbS * 0.06
+			by2 = hwY - 0.03
+			bz2 = -haneDn + hbH
+			brR = 0.0243
+			gosub 895
+		next hbS
+	else
+		! 吊り材（φ48.6 を支柱の両脇に2本）: 腕の先から上の階の壁の取付プレート（床の天端から haneD 上、150×150×12、
+		! アンカー M16×2）へ（吊り。方杖を下へ出すと張り出しの下の本体の足場を下げて止めることになるとき）
+		! （実機 2026-10-25: 1000mm はねだしている うまくいってない）
+		for hbS = -1 to 1 step 2
+			add hbS * 0.06 - 0.075, standoff - 0.012, haneD + hbH - 0.075
+			block 0.15, 0.012, 0.15
+			del 1
+			for hbA = 0 to 1
+				resol 6
+				add hbS * 0.06 - 0.04 + 0.08 * hbA, standoff - 0.012, haneD + hbH
+				rotx 90
+				cylind 0.016, 0.014
+				del 2
+			next hbA
+			hdY = standoff - 0.012 - (hbE + 0.05)
+			hdZ = haneD + hbH
+			resol 10
+			add hbS * 0.06, hbE + 0.05, 0
+			rotx -atn(hdY / hdZ)
+			cylind sqr(hdY ^ 2 + hdZ ^ 2), 0.0243
+			del 2
+		next hbS
+	endif
+	! 腕の先のガセット（吊り材の受け）
+	add -0.09, hbE + 0.02, 0
+	block 0.18, 0.006, 0.08
+	del 1
+	del 1
+	! 受けプレート（150×150×9。内外の建地の位置。H形鋼の上、ジャッキはこの上）
+	for hbR = 0 to 1
+		add -0.075, -hbR * rowW - 0.075, 0
+		block 0.15, 0.15, 0.009
+		del 1
+	next hbR
+	material "ashiba_clamp_zinc"
+	if matScaf > 0 then material matScaf
+	return
+
+820: ! ---- ジャッキベース（敷板＋ベース板＋ねじ棒＋ハンドル付きナット） ----
+! 原点は脚の下端（地盤）。呼び出し側の変換は増減しない。
+! 日建 カタログ（パイプジャッキベース ND752P・ジャッキベース A752。利用者の指定 2026-10-25: ジャッキベースの詳細どあげて）:
+!   ベース板 140角 t6・取付穴 4-φ14（ピッチ 85）・中央の受け（高さ 38）、ねじ棒 φ35、ハンドル付きナット（羽根2枚）、
+!   ナットの上は支柱の中へ 120。ND752P はベース板の底面が青（識別色）
+! jo はジャッキ繰出し（敷板 sv と通しの敷板 sillT を含む）。通しの敷板は 3d の別の箇所で支柱の列に沿って敷く。
+! 継ぎ足しの敷板（sv）は杉敷板300×210を重ね、ベース板とねじ棒はその上から（ねじ棒の長さは jo - sv - sillT）
+jb0 = sillT
+if sv > 0.001 then
+	add -0.15, -0.105, jb0
+	block 0.30, 0.21, sv
+	del 1
+endif
+jb0 = jb0 + sv
+jsL = jo - jb0
+if jsL < 0.02 then jsL = 0.02
+! 高低差のある地盤で、列の脚ごとの敷板が無い脚（出隅の外側・外付け階段の3列目）は、この脚だけ 1m の敷板を敷く
+! （平らな地盤はこれらの脚も sillList の列に入っている）
+if jkSill = 1 and sillT > 0.001 and nGl >= 2 then
+	material "ashiba_sill_wood"
+	add -0.50, -sillW / 2, 0
+	block 1.0, sillW, sillT
+	del 1
+endif
+material "ashiba_jack_steel"
+if jkBlue = 1 then material "ashiba_jack_blue"
+if isLite = 1 then
+	add -0.07, -0.07, jb0
+	block 0.14, 0.14, 0.006
+	del 1
+else
+	! ベース板（穴4つ）
+	addz jb0
+	prism_ 41, 0.006,
+		-0.07, -0.07, 15, 0.07, -0.07, 15, 0.07, 0.07, 15, -0.07, 0.07, 15, -0.07, -0.07, -1,
+		-0.0355, -0.0425, 15, -0.0375, -0.0375, 15, -0.0425, -0.0355, 15, -0.0475, -0.0375, 15, -0.0495, -0.0425, 15, -0.0475, -0.0475, 15, -0.0425, -0.0495, 15, -0.0375, -0.0475, 15, -0.0355, -0.0425, -1,
+		0.0495, -0.0425, 15, 0.0475, -0.0375, 15, 0.0425, -0.0355, 15, 0.0375, -0.0375, 15, 0.0355, -0.0425, 15, 0.0375, -0.0475, 15, 0.0425, -0.0495, 15, 0.0475, -0.0475, 15, 0.0495, -0.0425, -1,
+		0.0495, 0.0425, 15, 0.0475, 0.0475, 15, 0.0425, 0.0495, 15, 0.0375, 0.0475, 15, 0.0355, 0.0425, 15, 0.0375, 0.0375, 15, 0.0425, 0.0355, 15, 0.0475, 0.0375, 15, 0.0495, 0.0425, -1,
+		-0.0355, 0.0425, 15, -0.0375, 0.0475, 15, -0.0425, 0.0495, 15, -0.0475, 0.0475, 15, -0.0495, 0.0425, 15, -0.0475, 0.0375, 15, -0.0425, 0.0355, 15, -0.0375, 0.0375, 15, -0.0355, 0.0425, -1
+	del 1
+endif
+material "ashiba_jack_steel"
+! 中央の受け（ねじ棒の根元）
+add 0, 0, jb0 + 0.006
+cylind 0.032, 0.024
+del 1
+! ねじ棒 φ35（ナットの上は支柱の中へ 120）。ねじ山は細い輪を並べて見せる
+add 0, 0, jb0 + 0.006
+cylind jsL + 0.12 - 0.006, 0.035 / 2
+del 1
+if isLite = 0 then
+	jzt = jb0 + 0.05
+	while jzt < jb0 + jsL - 0.05 do
+		add 0, 0, jzt
+		cylind 0.004, 0.0185
+		del 1
+		jzt = jzt + 0.025
+	endwhile
+endif
+! ハンドル付きナット（六角＋座金）と羽根2枚
+add 0, 0, jb0 + jsL - 0.035
+resol 6
+cylind 0.035, 0.034
+resol rN
+addz 0.035
+cylind 0.004, 0.040
+del 1
+if isLite = 0 then
+	for hw = 0 to 1
+		if hw = 1 then rotz 180
+		add 0.030, -0.006, 0.010
+		block 0.090, 0.012, 0.010
+		del 1
+		add 0.115, 0, 0.010
+		cylind 0.028, 0.008
+		del 1
+		if hw = 1 then del 1
+	next hw
+endif
+del 1
+if matScaf > 0 then material matScaf
+return
+
+812:	! ---- 単管のブラケット: C付伸縮ブラケット フリー（日建リース TWL500F・TWL750F・TWL1000F、カタログ p108。
+	! 利用者の指定 2026-10-22: ブラケットも詳細度あげて、規定としてカタログ見て）----
+	! 建地の脇の縦材（束材 φ42.7、建地芯から 58.7）を、上のスーパークランプ（兼用。腕の上端から 128.5 下、金）と
+	! 下端の受け（B-B: 建地を半分抱く）で建地に留める。縦材の上から躯体側へ腕（外管 φ42.7 に内管 φ34 が伸縮して入る。
+	! 外管の先にスリーブと単クランプ用のナット）、縦材の下から腕を支える方杖 φ27.2、腕の先に鍔と、腕と直角に立つ涙形の穴あきの板。
+	! 腕の長さ（建地芯から）は rowW で、品番も腕の長さで決まる（数量と同じ）:
+	! TWL500F 430〜585（縦材378.5・外管361）、TWL750F 600〜830（393.5・531）、TWL1000F 890〜1120（518.5・821）。
+	! 腕の上端に足場板が載る。先端には建地が無いのでクランプは付かない（利用者の指摘 2026-10-22）
+	bkOut = 0.361		! 外管の長さ（建地芯から）
+	bkV = 0.3785		! 縦材の長さ
+	if rowW > 0.586 then bkOut = 0.531
+	if rowW > 0.586 then bkV = 0.3935
+	if rowW > 0.831 then bkOut = 0.821
+	if rowW > 0.831 then bkV = 0.5185
+	if bkOut > rowW - 0.05 then bkOut = rowW - 0.05
+	xb = r_sic + 0.0045 + 0.008 + 0.02135		! 腕・方杖の面（建地の脇。クランプの口の外）
+	zA = z + 0.0243 - 0.02135					! 腕の芯（上端が足場板の下端）
+	zT = zA + 0.02135							! 腕の上端
+	add x + xb, -rowW, 0
+	! 縦材（束材）: 建地芯から 58.7 躯体側、腕の上端から下へ bkV
+	add 0, 0.0587, zT - bkV
+	cylind bkV - 0.02135, 0.02135
+	del 1
+	! 外管（建地芯から bkOut まで）・内管（先端 rowW まで伸ばす）・スリーブ
+	add 0, 0, zA
+	rotx -90
+	cylind bkOut, 0.02135
+	del 2
+	add 0, bkOut - 0.14, zA
+	rotx -90
+	cylind rowW - bkOut + 0.14, 0.017
+	del 2
+	if isLite = 0 then
+		add 0, bkOut - 0.14, zA
+		rotx -90
+		cylind 0.14, 0.0255
+		del 2
+		! 単クランプ用のナット（スリーブの下）
+		add 0, bkOut - 0.07, zA - 0.0255 - 0.018
+		resol 6
+		cylind 0.018, 0.012
+		resol rN
+		del 1
+		! 腕の先（カタログ p108 の先端図・利用者の図 2026-10-22）: 内管の端の鍔と、腕の先に直角に立つ涙形の板
+		! （下が丸く上が尖る。丸の中心に穴＝手すり柱・単クランプを留める。板の面は腕と直角＝利用者の指摘 2026-10-22:
+		! 90度向きがおかしい）。丸の中心は腕の芯の高さ
+		add 0, rowW - 0.016, zA
+		rotx -90
+		cylind 0.008, 0.024
+		del 2
+		! 丸い部分（穴のあいた輪。REVOLVE の軸を rotz 90 で腕の向き＝Y に）と、上に尖る三角（輪の接点から頂点へ）
+		add 0, rowW + 0.003, zA + 0.006
+		rotz 90
+		revolve 4, 360, 63, -0.003, 0.011, 0, 0.003, 0.011, 0, 0.003, 0.030, 0, -0.003, 0.030, 0
+		del 1
+		add 0, 0.003, 0
+		rotx 90
+		prism_ 3, 0.006, 0, 0.0750, 15, 0.0246, 0.0172, 15, -0.0246, 0.0172, 15
+		del 3
+	endif
+	! 方杖（縦材の下端から外管の先の手前へ）
+	zd0 = zT - bkV + 0.04
+	yd0 = 0.0587
+	yd = bkOut - 0.03 - yd0
+	dzd = zA - zd0
+	add 0, yd0, zd0
+	rotx -atn(yd / dzd)
+	cylind sqr(yd * yd + dzd * dzd), 0.0136
+	del 2
+	del 1
+	! 建地に留める: 上のスーパークランプ（金。腕の上端から 128.5 下、口の相手は +X）と、下端の受け（建地を半分抱く）
+	if isLite = 0 then
+		add x, -rowW, zT - 0.1285
+		rotz 90
+		roty -90
+		jR = r_sic
+		gosub 838
+		del 3
+		gosub 837
+		add x, -rowW, zT - bkV + 0.02
+		rotz 90
+		roty -90
+		rotx 90
+		revolve 4, 180, 63, -0.026, r_sic, 0, 0.026, r_sic, 0, 0.026, r_sic + 0.004, 0, -0.026, r_sic + 0.004, 0
+		del 4
+	endif
+	! 受け・クランプと縦材をつなぐ板（建地の脇から縦材まで）
+	add x + r_sic, -rowW - 0.015, zT - bkV
+	block xb - r_sic, 0.0587 + 0.03, 0.05
+	del 1
+	add x + r_sic, -rowW - 0.015, zT - 0.1285 - 0.025
+	block xb - r_sic, 0.0587 + 0.03, 0.05
+	del 1
+	return
+
+800: ! ---- 一側足場の床受けブラケット（建地1列＋腕＋方杖） ----
+! 作業床は建地から躯体側へ持ち出す。数量では「一側足場の床受けブラケット」
+! として拾っているので、3Dにも出さないと図と部材表が食い違う。単管抱き足場は布2本で受けるので無い。
+! 単管のブラケットは C付伸縮ブラケット（812）
+if il >= 2 and hugMode = 0 and serType = "T" then
+	gosub 812
+endif
+if il >= 2 and hugMode = 0 and serType <> "T" then
+	add x, -rowW, z
+	rotz 90
+	nL = rowW
+	gosub 830
+	del 2
+	add x, -rowW, z - rowW
+	rotx -45
+	cylind rowW * 1.4142, r_nuno
+	del 2
+endif
+return
+
+! ============================================================
+860:	! ---- 建枠（枠組）: 鳥居型建枠の形。脚の内側 175（610幅系は 110）に縦材を立て、横桟3段で梯子にし、
+! 下端を円弧（ここでは斜材）で脚へ戻す（日建カタログ p068・070 A4055B・A3055A）。くさび式には無い。
+! 呼び出し時の z は建枠の天端（作業床の高さ）、zb はその下の建枠の天端
+if serType = "W" and il > 1 and isLite = 0 then
+	zt = z
+	zb = lv[il - 1]
+	! 建枠の継ぎ目（下の建枠の天端 zb、2段目から）: 連結ピン（カタログ p081 A20）の帯と、上下の建枠の脚を
+	! つなぐアームロック（p080 A126 等、長さ 739）を両脚の内側に
+	if il > 2 then
+		for sk2 = 0 to 1
+			yl2 = -sk2 * rowW
+			add x, yl2, zb - 0.10
+			cylind 0.20, r_sic + 0.004
+			del 1
+			yi2 = yl2 - 0.045
+			if sk2 = 1 then yi2 = yl2 + 0.045
+			add x, yi2, zb - 0.37
+			cylind 0.739, 0.009
+			del 1
+			add x - 0.006, min(yl2, yi2), zb - 0.37
+			block 0.012, abs(yi2 - yl2), 0.03
+			del 1
+			add x - 0.006, min(yl2, yi2), zb + 0.34
+			block 0.012, abs(yi2 - yl2), 0.03
+			del 1
+		next sk2
+	endif
+	fd = 0.175
+	if rowW < 0.8 then fd = 0.11
+	zv = zt - min(1.219, 0.72 * (zt - zb))
+	for sk = 0 to 1
+		yl = -sk * rowW
+		yv = yl - fd
+		if sk = 1 then yv = yl + fd
+		! 内側の縦材
+		add x, yv, zv
+		cylind zt - 0.02 - zv, 0.0136
+		del 1
+		! 横桟（脚〜縦材）
+		for ir = 1 to 3
+			zr = zt - 0.15 - (ir - 1) * 0.40
+			if zr > zv + 0.05 then
+				add x, min(yl, yv), zr
+				rotx -90
+				cylind fd, 0.0109
+				del 2
+			endif
+		next ir
+		! 下端の円弧（縦材の下から脚へ）
+		ad = sqr(fd * fd + 0.25 * 0.25)
+		add x, yv, zv
+		rotx 180 + atn((yl - yv) / 0.25)
+		cylind ad, 0.0136
+		del 2
+	next sk
+endif
+return
+
+840:	! ---- 支柱の継ぎ目（利用者の指摘 2026-10-21: 支柱の継ぎ目が分かるように）: 継手の帯（上下の支柱の
+	! 突き合わせ。コマ φ106 の円盤とは形を変え、縦長の帯にする）と、継ぎ目の線（帯の中央の細い溝）。
+	! 軽量でも描く（積んだ支柱の長さ 2700・3600 が3Dと立面で読めるように）
+	! 単管の建地は直線ジョイント（PCJ、カタログ p377）: 管の中に差し込み、外に見えるのは中央の帯 25（φ48.6）
+	if serType = "T" then
+		if matScaf > 0 then material "ashiba_clamp_zinc"
+		addz -0.0125
+		cylind 0.025, r_sic + 0.0008
+		del 1
+		if matScaf > 0 then material matScaf
+		return
+	endif
+	jLen = jLo
+	gosub 847
+	addz -0.04
+	cylind 0.035, r_sic + 0.008
+	jLen = jUp
+	gosub 847
+	addz 0.045
+	cylind 0.035, r_sic + 0.008
+	del 2
+	if matScaf > 0 then material matScaf
+	return
+
+847:	! 支柱の長さ jLen（m）の識別色（継ぎ目の帯）
+	material "ashiba_post_joint"
+	if jLen > 0.001 then material "ashiba_pj_045"
+	if jLen >= 0.60 then material "ashiba_pj_0675"
+	if jLen >= 0.85 then material "ashiba_pj_09"
+	if jLen >= 1.00 then material "ashiba_pj_1125"
+	if jLen >= 1.30 then material "ashiba_pj_135"
+	if jLen >= 1.70 then material "ashiba_pj_18"
+	if jLen >= 2.60 then material "ashiba_pj_27"
+	if jLen >= 3.50 then material "ashiba_pj_36"
+	return
+
+865:	! ---- 侵入落下防止柵の1枚（金網のフェンスパネル）: 原点＝パネルの下端の始点、+X へ幅 fW、高さ fH、枠 φ27.2 ----
+	material "ashiba_fence_frame"
+	resol 8
+	for fe = 0 to 1
+		add fe * fW, 0, 0
+		cylind fH, 0.0136
+		del 1
+	next fe
+	for fz = 0 to 2
+		add 0, 0, fz * fH / 2
+		roty 90
+		cylind fW, 0.0136
+		del 2
+	next fz
+	material "ashiba_fence_mesh"
+	add 0.0136, -0.001, 0.0136
+	block fW - 0.0272, 0.002, fH - 0.0272
+	del 1
+	return
+
+870:	! ---- 布板（アップロック式鋼製布板）: 原点＝支柱芯の床の高さ・板の外側の端、+X へ dkL、+Y へ幅 dkW。
+	! 板は腕木（φ42.7、芯が床の高さ）の上に載る。両端のつかみ金具で腕木を掴み、ペロ板が腕木の上を覆う
+	add 0.025, 0, r_nuno
+	block dkL - 0.05, dkW, 0.045
+	del 1
+	if isLite = 0 then
+		for hd870 = 0 to 1
+			if hd870 = 0 then
+				add 0, 0, 0
+			else
+				add dkL, 0, 0
+				mulx -1
+			endif
+			! ペロ板（腕木の上を覆う薄板）
+			add 0.002, 0.04, r_nuno + 0.040
+			block 0.024, dkW - 0.08, 0.005
+			del 1
+			! つかみ金具（板の両側、腕木を下から抱える）
+			for hk870 = 0 to 1
+				add 0.004, 0.015 + hk870 * (dkW - 0.065), -r_nuno - 0.012
+				block 0.030, 0.035, 2 * r_nuno + 0.012
+				del 1
+			next hk870
+			if hd870 = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd870
+	endif
+	return
+
+875:	! ---- ブラケット（腕＋方杖）: 原点＝支柱芯の腕の高さ、+X が腕の向き、腕の長さ bkArm（支柱の外面から） ----
+	! 緊結部（支柱の外面からコマを挟む）・腕 φ42.7・先端の受け（立ち上がり）・方杖（下の支柱から腕の先の手前へ）
+	bkDp = 0.209
+	if bkArm > 0.40 then bkDp = 0.253
+	if bkArm > 0.30 and bkArm < 0.33 then bkDp = 0.45
+	if bkArm > 0.60 then bkDp = 0.90
+	add r_sic, -0.020, 0.003
+	block 0.042, 0.040, 0.042
+	del 1
+	add r_sic, -0.020, -0.040
+	block 0.042, 0.040, 0.037
+	del 1
+	add r_sic + 0.042, 0, 0
+	roty 90
+	cylind bkArm - 0.042, r_nuno
+	del 2
+	! 先端の受け（ブラケットの縁。張出しは先端にホゾ φ36.4）
+	add r_sic + bkArm - 0.02, -0.02, -0.03
+	block 0.02, 0.04, 0.10
+	del 1
+	if isLite = 0 then
+		add r_sic, -0.020, -bkDp - 0.03
+		block 0.042, 0.040, 0.06
+		del 1
+	endif
+	bsX = bkArm - 0.04
+	bsL = sqr(bsX * bsX + bkDp * bkDp)
+	add r_sic + 0.02, 0, -bkDp
+	roty 90 - atn(bkDp / bsX)
+	cylind bsL, 0.0136
+	del 2
+	return
+
+850:	! ---- 先行手すり（日建 NDX、カタログ p006）: 原点＝支柱芯の床の高さ、+X へ次の支柱芯まで nL。
+	! 手すり φ27.2 は H900（railTop）、斜材 φ21.7 は上の金具から対角の支柱の床際の金具へ（X形）。
+	! 以前は手すりを布材（φ42.7・緊結部）で描き、金具も無かった（利用者の指摘 2026-10-21: 他の部材も見直して）
+	fitL = 0.045
+	add r_sic + fitL, 0, railTop
+	roty 90
+	cylind nL - 2 * (r_sic + fitL), 0.0272 / 2
+	del 2
+	for hd850 = 0 to 1
+		if hd850 = 0 then
+			add r_sic, 0, 0
+		else
+			add nL - r_sic, 0, 0
+			mulx -1
+		endif
+		! 上の金具（手すりの高さのコマに掛ける）と下の金具（床際のコマに掛ける）
+		add 0, -0.020, railTop - 0.030
+		block fitL, 0.040, 0.060
+		del 1
+		add 0, -0.020, 0.005
+		block fitL, 0.040, 0.045
+		del 1
+		if hd850 = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd850
+	advX = nL - 2 * (r_sic + fitL / 2)
+	advDz = railTop - 0.04
+	advL = sqr(advX * advX + advDz * advDz)
+	add r_sic + fitL / 2, 0.012, railTop - 0.01
+	roty 90 + atn(advDz / advX)
+	cylind advL, 0.0217 / 2
+	del 2
+	add nL - r_sic - fitL / 2, -0.012, railTop - 0.01
+	roty -(90 + atn(advDz / advX))
+	cylind advL, 0.0217 / 2
+	del 2
+	return
+
+880:	! ---- 朝顔の主材・斜材・主材受金具（支柱 x、建地列 ybA、高さ za） ----
+	add x, ybA - r_sic, za
+	muly -1
+	add -0.025, 0, -0.10
+	block 0.05, 0.10, 0.25
+	del 1
+	add -0.025, 0, -floorH - 0.10
+	block 0.05, 0.10, 0.25
+	del 1
+	rotx asagaoAngle
+	add -0.02, 0, 0
+	block 0.04, asL, 0.08
+	del 2
+	asY = asD * cos(asagaoAngle)
+	asZ = asD * sin(asagaoAngle) + floorH
+	add 0, 0, -floorH
+	rotx -atn(asY / asZ)
+	cylind sqr(asY * asY + asZ * asZ), 0.0272 / 2
+	del 2
+	del 2
+	return
+
+885:	! ---- 朝顔の万能板受・押えと FRP 万能板（区間 p0〜p1、建地列 ybA、高さ za） ----
+	sgL5 = p1 - p0
+	add p0, ybA - r_sic, za
+	muly -1
+	rotx asagaoAngle
+	add 0, 0.04, 0.0
+	block sgL5, 0.04, 0.08
+	del 1
+	add 0, asL - 0.08, -0.02
+	block sgL5, 0.04, 0.10
+	del 1
+	if isLite = 0 then
+		add 0, asL * 0.5, 0.108
+		block sgL5, 0.036, 0.020
+		del 1
+	endif
+	material "ashiba_frp"
+	if isLite = 0 then
+		nPn = int(sgL5 / 0.31 + 0.999)
+		pnW = sgL5 / nPn
+		for ipn = 1 to nPn
+			add (ipn - 1) * pnW + 0.003, 0.05, 0.08
+			block pnW - 0.006, asL - 0.10, 0.028
+			del 1
+		next ipn
+	else
+		add 0, 0.05, 0.08
+		block sgL5, asL - 0.10, 0.028
+		del 1
+	endif
+	if matScaf > 0 then material matScaf
+	del 3
+	return
+
+887:	! ---- 朝顔のフレ止め（スパン x〜x+spL、建地列 ybA） ----
+	add x, ybA - r_sic, za
+	muly -1
+	rotx asagaoAngle
+	frAng = atn((asL * 0.55) / spL)
+	frL = sqr(spL ^ 2 + (asL * 0.55) ^ 2)
+	add 0, asL * 0.2, -0.01
+	rotz frAng
+	roty 90
+	cylind frL, 0.012
+	del 3
+	add spL, asL * 0.2, -0.01
+	rotz 180 - frAng
+	roty 90
+	cylind frL, 0.012
+	del 3
+	del 3
+	return
+
+890:	! ---- 朝顔の出隅コーナー部（カタログ p125: センター材＋斜材、主材受金具、扇形の FRP 万能板 小・中・大） ----
+	! 前の面の朝顔は -X へ（この面の始点 y≧0 の側）、この面の朝顔は -Y へ出る。その間の外側の隅を塞ぐ
+	cx0 = -rowW - r_sic
+	cy0 = -rowW - r_sic
+	! この面の始点が外付けの階段室なら、この面の朝顔は3列目から出ている
+	aY = cy0
+	if stOut = 1 then
+		for it8 = 1 to nSt
+			if stS[it8] < 0.001 then aY = -2 * rowW - r_sic
+		next it8
+	endif
+	cLen = sqr(2 * asC * asC + asH * asH)
+	! センター材（外側コーナー支柱から 45° 外へ、先端は直線部の先端と同じ高さ）
+	add cx0, cy0, za
+	rotz 225
+	roty -atn(asH / (asC * sqr(2)))
+	add 0, -0.02, 0
+	block cLen, 0.04, 0.08
+	del 4
+	! 主材受金具（上・下）と斜材
+	add cx0 - 0.05, cy0 - 0.05, za - 0.10
+	block 0.10, 0.10, 0.25
+	del 1
+	add cx0 - 0.05, cy0 - 0.05, za - floorH - 0.10
+	block 0.10, 0.10, 0.25
+	del 1
+	cdh = 0.32 * asC * sqr(2)
+	cdz = 0.32 * asH + floorH
+	add cx0, cy0, za - floorH
+	rotz 225
+	roty atn(cdh / cdz)
+	cylind sqr(cdh * cdh + cdz * cdz), 0.0272 / 2
+	del 3
+	! 扇形の FRP 万能板: センター材の両側に 小・中・大 の3枚ずつ（ALAF21S・22S・23S、計6枚）。板の継ぎ目は
+	! 根元の辺（外側コーナー支柱〜面の端の主材の根元）と先端の辺を3等分した線。両側の上に万能板上押え（ALAC4N）、
+	! 下に振れ止め 横（ALAC5）・縦（ALAC6）を、面の端の主材とセンター材の間に渡す
+	ctX = cx0 - asC
+	ctY = aY - asC
+	for hb = 0 to 1
+		if hb = 0 then
+			! この面の側: 根元の端は面の始点の主材の根元、先端の端はその主材の先端
+			rX = 0
+			rY = aY
+			tX = 0
+			tY = aY - asC
+		else
+			! 前の面の側
+			rX = cx0
+			rY = 0
+			tX = cx0 - asC
+			tY = 0
+		endif
+		! 片側の万能板は1枚の面で描く（板ごとの三角形に分けると、面の境目の線と隙間で割れて見えた。
+		! 利用者の指摘 2026-10-21）。外付けの階段室が隅から始まる面だけは平面にならないので三角形2つ
+		material "ashiba_frp"
+		if abs(rY - cy0) < 0.001 or abs(rX - cx0) < 0.001 then
+			plane 4, cx0, cy0, za + 0.08, rX, rY, za + 0.08, tX, tY, za + asH + 0.08, ctX, ctY, za + asH + 0.08
+		else
+			plane 3, cx0, cy0, za + 0.08, rX, rY, za + 0.08, tX, tY, za + asH + 0.08
+			plane 3, cx0, cy0, za + 0.08, tX, tY, za + asH + 0.08, ctX, ctY, za + asH + 0.08
+		endif
+		if matScaf > 0 then material matScaf
+		! 小・中・大 3枚の継ぎ目（根元の辺と先端の辺を3等分した線。板の上の細い線材で示す）
+		if isLite = 0 then
+			for kp = 1 to 2
+				tk = kp / 3
+				bx1 = cx0 + tk * (rX - cx0)
+				by1 = cy0 + tk * (rY - cy0)
+				bz1 = za + 0.085
+				bx2 = ctX + tk * (tX - ctX)
+				by2 = ctY + tk * (tY - ctY)
+				bz2 = za + asH + 0.085
+				brR = 0.006
+				gosub 895
+			next kp
+		endif
+		if matScaf > 0 then material matScaf
+		! 万能板上押え（板の中ほどを根元から先端へ）
+		bx1 = cx0 + 0.5 * (rX - cx0)
+		by1 = cy0 + 0.5 * (rY - cy0)
+		bz1 = za + 0.11
+		bx2 = ctX + 0.5 * (tX - ctX)
+		by2 = ctY + 0.5 * (tY - ctY)
+		bz2 = za + asH + 0.11
+		brR = 0.015
+		gosub 895
+		if isLite = 0 then
+			! 振れ止め 横（面の端の主材の 0.55 の点〜センター材の 0.55 の点）
+			bx1 = rX + 0.55 * (tX - rX)
+			by1 = rY + 0.55 * (tY - rY)
+			bz1 = za + 0.55 * asH - 0.04
+			bx2 = cx0 + 0.55 * (ctX - cx0)
+			by2 = cy0 + 0.55 * (ctY - cy0)
+			bz2 = za + 0.55 * asH - 0.04
+			brR = 0.012
+			gosub 895
+			! 振れ止め 縦（面の端の主材の根元寄り 0.25〜センター材の先端寄り 0.8）
+			bx1 = rX + 0.25 * (tX - rX)
+			by1 = rY + 0.25 * (tY - rY)
+			bz1 = za + 0.25 * asH - 0.04
+			bx2 = cx0 + 0.8 * (ctX - cx0)
+			by2 = cy0 + 0.8 * (ctY - cy0)
+			bz2 = za + 0.8 * asH - 0.04
+			gosub 895
+		endif
+	next hb
+	return
+
+895:	! ---- 2点 (bx1,by1,bz1)〜(bx2,by2,bz2) を結ぶ丸棒（半径 brR） ----
+	bdx = bx2 - bx1
+	bdy = by2 - by1
+	bdz = bz2 - bz1
+	bLn = sqr(bdx * bdx + bdy * bdy + bdz * bdz)
+	if bLn > 0.001 then
+		if abs(bdx) < 0.000001 then
+			bAz = 90
+			if bdy < 0 then bAz = -90
+		else
+			bAz = atn(bdy / bdx)
+			if bdx < 0 then bAz = bAz + 180
+		endif
+		bTl = acs(bdz / bLn)
+		add bx1, by1, bz1
+		rotz bAz
+		roty bTl
+		cylind bLn, brR
+		del 3
+	endif
+	return
+
+832:	! ---- 単管の通しのこの区間の分（利用者の指定 2026-10-22: 規定の長さの単管を直線ジョイントで継ぐ）----
+	! 原点＝この区間の始点の建地の位置の管の芯、+X へ nL。runX＝面の始点からこの区間の始め、runP＝割付（1=A 2=B、
+	! 0 は通さない短い管）。面の最初と最後の区間は通しの始め（runS）・終わり（runE）まで出す
+	r_t = 0.0486 / 2
+	if runP = 0 or nRl[max(runP, 1)] = 0 then
+		add -0.05, 0, 0
+		roty 90
+		cylind nL + 0.10, r_t
+		del 2
+		return
+	endif
+	xs = 0
+	xe = nL
+	if runX < 0.001 then xs = runS - runX
+	if runX + nL > lineLen - 0.001 then xe = runE[runP] - runX
+	add xs, 0, 0
+	roty 90
+	cylind xe - xs, r_t
+	del 2
+	if isLite = 0 and matScaf > 0 then
+		! 単管の両端の識別色と、継ぎの直線ジョイント（PCJ: 管の中に差し込み、外に見えるのは中央の帯 25）
+		pa = runS
+		for k = 1 to nRl[runP]
+			pb = pa + rl[runP][k]
+			cL = rl[runP][k]
+			ga = 0
+			if k > 1 then ga = 0.0125
+			gb = 0
+			if k < nRl[runP] then gb = 0.0125
+			for e832 = 0 to 1
+				bx = pa + ga - runX
+				if e832 = 1 then bx = pb - gb - 0.03 - runX
+				if bx >= xs - 0.001 and bx < xe - 0.001 then
+					gosub 846
+					add bx, 0, 0
+					roty 90
+					cylind 0.03, r_t + 0.0004
+					del 2
+				endif
+			next e832
+			if k < nRl[runP] then
+				jx = pb - runX
+				if jx >= xs and jx < xe then
+					material "ashiba_clamp_zinc"
+					add jx - 0.0125, 0, 0
+					roty 90
+					cylind 0.025, r_t + 0.0008
+					del 2
+				endif
+			endif
+			pa = pb
+		next k
+		material matScaf
+	endif
+	return
+
+846:	! 単管の識別色（カタログ p372）。cL＝単管の長さ m
+	cK = int(cL * 10 + 0.5)
+	if cK = 60 then material "ashiba_tc_60"
+	if cK = 55 then material "ashiba_tc_55"
+	if cK = 50 then material "ashiba_tc_50"
+	if cK = 45 then material "ashiba_tc_45"
+	if cK = 40 then material "ashiba_tc_40"
+	if cK = 35 then material "ashiba_tc_35"
+	if cK = 30 then material "ashiba_tc_30"
+	if cK = 25 then material "ashiba_tc_25"
+	if cK = 20 then material "ashiba_tc_20"
+	if cK = 15 then material "ashiba_tc_15"
+	if cK = 10 then material "ashiba_tc_10"
+	return
+
+839:	! ---- 自在クランプ（日建 兼用自在クランプ ARC2、カタログ p378。金）: 単管の筋かいの端を建地に留める ----
+	! 建地（cx, -rowW、芯の高さ cz）を掴む口と、筋かい（芯 y = yb2、x-z 面で傾き ang、向き sg）を掴む口を、
+	! 背中合わせの軸で回して留める形。2つの口の背板のあいだは軸（金の短い円柱）でつなぐ
+	add cx, -rowW, cz
+	roty -90
+	jR = r_sic
+	gosub 838
+	del 2
+	add cx, yb2, cz
+	if sg < 0 then mulx -1
+	roty -ang
+	rotx 180
+	jR = 0.0486 / 2
+	gosub 838
+	del 3
+	if sg < 0 then del 1
+	! 軸（2つの口の背板のあいだ）
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	ySA = -rowW - (r_sic + clT + 0.004)
+	ySB = yb2 + (0.0486 / 2 + clT + 0.004)
+	add cx, ySA, cz
+	rotx 90
+	cylind ySA - ySB, 0.010
+	del 2
+	gosub 837
+	return
+
+834:	! ---- 直交クランプ（日建 兼用直交クランプ ARC1、カタログ p378）----
+	! 原点＝建地の芯（Z 向き）の留める高さ。布は +X 向きで芯は y = -clDy、半径 clR2。建地を掴む口と布を掴む口を
+	! 背中合わせにリベットで留めた形。口は本体の半割と、蝶番で開くふたを、T ボルトとナットで締める
+	! （利用者の写真 2026-10-22: クランプの形を変えて。色は金色）
+	! 建地の口（管は Z 向き。蝶番は -X、ボルトは +X）
+	roty -90
+	jR = r_sic
+	gosub 838
+	del 1
+	! 布の口（管は X 向き。蝶番は上、ボルトは下＝足場板に当たらない）
+	add 0, -clDy, 0
+	rotz 180
+	jR = clR2
+	gosub 838
+	del 2
+	gosub 837
+	return
+
+836:	! ---- 3連クランプ（日建 P3CR 直交、カタログ p384）: 建地と、建地を両側から抱いた布2本を1個で留める ----
+	! 原点＝建地の芯の留める高さ。布は +X 向きで芯は y = ±clDy、半径 clR2。建地の口の両側に布の口を背中合わせ
+	roty -90
+	jR = r_sic
+	gosub 838
+	! 建地の口のふた側（+Y）にも、もう1つの布の口と背中合わせにする板
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	add -clW / 2, jR + clT, -clW / 2
+	block clW, 0.004, clW
+	del 1
+	del 1
+	add 0, clDy, 0
+	jR = clR2
+	gosub 838
+	del 1
+	add 0, -clDy, 0
+	rotz 180
+	jR = clR2
+	gosub 838
+	del 2
+	gosub 837
+	return
+
+837:	! クランプを描いたあと、足場の表面材に戻す
+	resol rN
+	if matScaf > 0 then material matScaf
+	return
+
+838:	! ---- クランプの口1つ: 管は X 向きで芯が原点、半径 jR。相手の口は -Y 側（そちらに本体と背板）----
+	! 本体: -Y 側の半割。REVOLVE は +Y から +Z へ回るので、rotx 90 で +Z から -Y を通って -Z まで
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	resol rN
+	rotx 90
+	revolve 4, 180, 63, -clW / 2, jR, 0, clW / 2, jR, 0, clW / 2, jR + clT, 0, -clW / 2, jR + clT, 0
+	del 1
+	! 背板（相手の口とリベットで留める）
+	add -clW / 2, -(jR + clT + 0.004), -clW / 2
+	block clW, 0.004, clW
+	del 1
+	! 蝶番（+Z）とボルトの軸受け（-Z）
+	add -clW / 2, 0, jR + clT + 0.0035
+	roty 90
+	cylind clW, 0.0045
+	del 2
+	add -clW / 2, -0.014, -(jR + clT + 0.014)
+	block clW, 0.012, clT + 0.014
+	del 1
+	! ふた: +Y 側の半割。-Z から +Y を通って +Z まで。中央に補強の帯、-Z の端はボルトを受ける舌
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	rotx -90
+	revolve 4, 180, 63, -clW / 2, jR, 0, clW / 2, jR, 0, clW / 2, jR + clT, 0, -clW / 2, jR + clT, 0
+	revolve 4, 180, 63, -0.006, jR + clT, 0, 0.006, jR + clT, 0, 0.006, jR + clT + 0.003, 0, -0.006, jR + clT + 0.003, 0
+	del 1
+	add -clW * 0.35, 0, -(jR + clT + 0.016)
+	block clW * 0.7, 0.007, 0.018
+	del 1
+	! T ボルト: 軸受けから +Y へ、ふたの舌を通す。ナット（六角）で舌を締める
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	add 0, -0.012, -(jR + clT + 0.008)
+	rotx -90
+	cylind 0.044, 0.005
+	if matScaf > 0 then material "ashiba_clamp_gold"
+	addz 0.019
+	resol 6
+	cylind 0.010, 0.0095
+	resol rN
+	del 3
+	return
+
+
+830:	! ---- 布材（つなぎ材）: 原点（支柱芯）から +X へ長さ nL（次の支柱芯まで）。日建カタログ p005 の形:
+	! 両端の緊結部（クサビ受け）が支柱の外面からコマ（円盤）を上下に挟み、クサビが緊結部を縦に貫いて
+	! 上（クビレ）と下に出る。管 φ42.7 は緊結部の間だけ（L1＝L−42.7）。利用者の指摘（2026-10-21）:
+	! 布材も変。以前は管を支柱芯から 78 で止め、小さな爪の箱だけで、コマに掛かって見えなかった
+	! 単管（serType "T"）: 布・腕木・手すりは φ48.6 の管を建地の脇（-Y 側）に直交クランプ（日建 ARC1、カタログ
+	! p378）で留める。管は建地の外まで少し出す（次の管と重ねて留めるので）
+	if serType = "T" then
+		r_t = 0.0486 / 2
+		add 0, -tubeOff, 0
+		gosub 832
+		del 1
+		if isLite = 0 then
+			clDy = tubeOff
+			clR2 = r_t
+			for hd830 = 0 to 1
+				! 通しは建地ごとに1個（終点の建地はこの面の最後の区間が留める）。短い管は両端
+				if hd830 = 0 or runP = 0 or runX + nL > lineLen - 0.001 then
+					add hd830 * nL, 0, 0
+					gosub 834
+					del 1
+				endif
+			next hd830
+		endif
+		return
+	endif
+	hdL = 0.050          ! 緊結部の長さ（支柱の外面から）
+	hx0 = r_sic          ! 緊結部は支柱の外面から
+	add hx0 + hdL, 0, 0
+	roty 90
+	cylind nL - 2 * (hx0 + hdL), r_nuno
+	del 2
+	for hd830 = 0 to 1
+		if hd830 = 0 then
+			add hx0, 0, 0
+		else
+			add nL - hx0, 0, 0
+			mulx -1
+		endif
+		! 緊結部: コマの上（厚み6の円盤の上）と下に分かれ、外側でつながる
+		add 0, -0.020, 0.003
+		block hdL, 0.040, 0.042
+		del 1
+		add 0, -0.020, -0.040
+		block hdL, 0.040, 0.037
+		del 1
+		add hdL - 0.012, -0.020, -0.003
+		block 0.012, 0.040, 0.006
+		del 1
+		if isLite = 0 then
+			! クサビ（縦の板。上にクビレ、下に固定装置）
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+		endif
+		if hd830 = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd830
+	return
+
+! ============================================================
+900:	! ---- 線表示 ----
+! 支柱（脚ごとの地盤高。開口部の梁枠より下は抜く）とジャッキベース板（140角）
+x = 0
+for ip = 1 to nSpan + 1
+	gv = 0
+	if ip <= nGl then gv = gl[ip]
+	bBase = 0
+	bBot = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
+	next ib
+	for row = rowStart to 1
+		yr = -row * rowW
+		skipP = 0
+		if (row = 0 or hugMode = 1) and ((ip = 1 and skipInS = 1) or (ip = nSpan + 1 and skipInE = 1)) then skipP = 1
+		! セットバックの上段の端は本体の支柱に乗る（支柱もジャッキベースも描かない。利用者の指定 2026-10-25）
+		if (ip = 1 and skipPS = 1) or (ip = nSpan + 1 and skipPE = 1) then skipP = 1
+		if bBase = 0 and skipP = 0 then
+			lin_ x, yr, gv, x, yr, postTop
+			lin_ x - 0.07, yr - 0.07, gv, x + 0.07, yr - 0.07, gv
+			lin_ x + 0.07, yr - 0.07, gv, x + 0.07, yr + 0.07, gv
+			lin_ x + 0.07, yr + 0.07, gv, x - 0.07, yr + 0.07, gv
+			lin_ x - 0.07, yr + 0.07, gv, x - 0.07, yr - 0.07, gv
+			! 支柱の継ぎ目（部材の切れ目）に短い横線。天端から数える（継ぎ足しは下側）
+			jh = postTop
+			for jp = nPost to 2 step -1
+				jh = jh - posts[jp]
+				lin_ x - 0.06, yr, jh, x + 0.06, yr, jh
+			next jp
+		else
+			if bBase < 900 then lin_ x, yr, bBase, x, yr, postTop
+			if bBot > 0.001 and skipP = 0 then lin_ x, yr, gv, x, yr, bBot
+		endif
+	next row
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+! 出隅コーナー: 外側コーナー支柱と各層の升目の輪郭
+if cornerS = 1 then
+	gv = 0
+	if nGl >= 1 then gv = gl[1]
+	lin_ -cSW, -rowW, gv, -cSW, -rowW, postTop
+	if cornerSP = 1 then lin_ -cSW, 0, gv, -cSW, 0, postTop
+	for il = 1 to nLv
+		z = lv[il]
+		lin_ 0, 0, z, -cSW, 0, z
+		lin_ -cSW, 0, z, -cSW, -rowW, z
+		lin_ -cSW, -rowW, z, 0, -rowW, z
+		if il > 1 then
+			lin_ -cSW, 0, z + railTop, -cSW, -rowW, z + railTop
+			lin_ -cSW, -rowW, z + railTop, 0, -rowW, z + railTop
+		endif
+	next il
+endif
+! 水平材: 根がらみ・各層の床レベル（内外）と外側の手すり、支柱位置の腕木。
+! 開口部の梁枠より下は空ける（立体表現と同じ規則）
+for il = 1 to nLv
+	z = lv[il]
+	x = 0
+	for ip = 1 to nSpan
+		skipH = 0
+		for ib6 = 1 to nBm
+			if x >= bmS[ib6] - 0.001 and x + spans[ip] <= bmS[ib6] + bmL[ib6] + 0.001 and \
+					z < bmH[ib6] - 0.001 and z > bmBt[ib6] + 0.001 then skipH = 1
+		next ib6
+		if skipH = 0 then
+			for row = rowStart to 1
+				lin_ x, -row * rowW, z, x + spans[ip], -row * rowW, z
+			next row
+			if il > 1 then
+				lin_ x, -rowW, z + railTop, x + spans[ip], -rowW, z + railTop
+				if railIn = 1 and nRows >= 2 then
+					lin_ x, 0, z + railTop, x + spans[ip], 0, z + railTop
+				endif
+			endif
+			lin_ x, 0, z, x, -rowW, z
+			if ip = nSpan then lin_ x + spans[ip], 0, z, x + spans[ip], -rowW, z
+		endif
+		x = x + spans[ip]
+	next ip
+next il
+! 階段室: 同じ向きで2層ずつ（奇数層は始点側、偶数層は終点側のスパン）の斜線（踏面の両端）
+for it5 = 1 to nSt
+	sx = stS[it5]
+	sl = stL[it5]
+	if stOut = 1 then
+		xa = 0
+		fFirst = 0
+		fLast = 0
+		for ipx = 1 to nSpan
+			if abs(xa - sx) < 0.001 then fFirst = spans[ipx]
+			if abs(xa + spans[ipx] - sx - sl) < 0.001 then fLast = spans[ipx]
+			xa = xa + spans[ipx]
+		next ipx
+		if sl - fFirst - fLast > 0.5 then
+			sx = sx + fFirst
+			sl = sl - fFirst - fLast
+		endif
+	endif
+	for il5 = 1 to nLv - 1
+		! 階段室のスパン（1つ目＝始点側、2つ目＝終点側。1スパンの階段室は2つ目なし）
+		stA = sl
+		stB = 0
+		xa = 0
+		for ipx = 1 to nSpan
+			if abs(xa - sx) < 0.001 then
+				stA = spans[ipx]
+				if ipx < nSpan then
+					if xa + spans[ipx] + spans[ipx + 1] <= sx + sl + 0.001 then stB = spans[ipx + 1]
+				endif
+			endif
+			xa = xa + spans[ipx]
+		next ipx
+		! 同じ向き（始点→終点）で2層ずつ: 奇数層は始点側のスパン、偶数層は終点側のスパンに1スパン分の階段。
+		! 2層登ったら階段室を出て外の作業床を回って戻る（階段室の中に踊り場の床は無い）
+		x0 = sx
+		fl = stA
+		if il5 - 2 * int(il5 / 2) = 0 and stB > 0 then
+			x0 = sx + stA
+			fl = stB
+		endif
+		ybl = -stOut * rowW
+		lin_ x0, ybl - 0.05, lv[il5], x0 + fl, ybl - 0.05, lv[il5 + 1]
+		lin_ x0, ybl - rowW + 0.05, lv[il5], x0 + fl, ybl - rowW + 0.05, lv[il5 + 1]
+	next il5
+next it5
+! 梁枠（開口部）: 上下弦材と両端の縦材
+for ib2 = 1 to nBm
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠は描かない
+	if bmH[ib2] < 900 then
+		bs = bmS[ib2]
+		bl = bmL[ib2]
+		bh = bmH[ib2]
+		for row2 = rowStart to 1
+			yr = -row2 * rowW
+			lin_ bs, yr, bh - bmDrop, bs + bl, yr, bh - bmDrop
+			lin_ bs, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop - bmDep
+			lin_ bs, yr, bh - bmDrop - bmDep, bs, yr, bh - bmDrop
+			lin_ bs + bl, yr, bh - bmDrop - bmDep, bs + bl, yr, bh - bmDrop
+		next row2
+	endif
+next ib2
+! 荷受けステージ: 張出し床の輪郭と先端の手すり
+for ig = 1 to nSg
+	lin_ sgS[ig], -rowW, sgH[ig], sgS[ig], -rowW - sgP[ig], sgH[ig]
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig]
+	lin_ sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW, sgH[ig]
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig] + railTop, sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig] + railTop
+	lin_ sgS[ig], -rowW - sgP[ig], sgH[ig], sgS[ig], -rowW - sgP[ig], sgH[ig] + railTop
+	lin_ sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig], sgS[ig] + sgL[ig], -rowW - sgP[ig], sgH[ig] + railTop
+next ig
+! ブラケット区間: 拡幅した床の輪郭（内＝躯体側 +Y、張出＝外側 -Y）
+for ik = 1 to nBk
+	if bkD[ik] > 0 then
+		y0 = 0
+		y1 = bkW[ik]
+	else
+		y0 = -rowW
+		y1 = -rowW - bkW[ik]
+	endif
+	lin_ bkS[ik], y0, bkH[ik], bkS[ik], y1, bkH[ik]
+	lin_ bkS[ik], y1, bkH[ik], bkE[ik], y1, bkH[ik]
+	lin_ bkE[ik], y1, bkH[ik], bkE[ik], y0, bkH[ik]
+	if bkD[ik] < 0 then
+		lin_ bkS[ik], y1, bkH[ik] + railTop, bkE[ik], y1, bkH[ik] + railTop
+	endif
+next ik
+! 昇降機は別の部品（ashiba_hoist）で機種の形を描く（利用者の指定 2026-10-27）
+! 壁つなぎ: 内側建地から躯体へ（別の部品で置いたときは描かない）
+nTieDraw = nTiePair
+if tieObj then nTieDraw = 0
+for it = 1 to nTieDraw
+	lin_ ties[it], 0, tieH[it], ties[it], standoff, tieH[it]
+next it
+return

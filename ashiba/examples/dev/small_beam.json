@@ -1,0 +1,3 @@
+{"project_name": "小型 梁枠確認", "series_id": "shinwa_A",
+ "outline_mm": [[0,0],[10800,0],[10800,5400],[0,5400]], "eaves_height_mm": 9000, "building_height_mm": 9000,
+ "openings": [{"face": "南面", "start_mm": 3600, "beam_span_mm": 3600, "level": 2}]}

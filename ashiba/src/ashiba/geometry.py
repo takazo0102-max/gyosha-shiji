@@ -1,0 +1,420 @@
+"""躯体外形ポリゴン処理と足場中心線ループ生成.
+
+MVP制約: 直交ポリゴン（90度コーナーのみ）。非直交はValidationErrorで明示的に拒否する。
+
+座標系はmm。外形は反時計回り(CCW)に正規化して扱う。
+CCWのとき進行方向の右手側が外側（足場側）になる。
+"""
+
+from __future__ import annotations
+
+import math
+
+from dataclasses import dataclass, field
+from typing import Optional
+
+Point = tuple[float, float]
+
+
+class ValidationError(Exception):
+    pass
+
+
+@dataclass
+class Corner:
+    index: int
+    point: Point
+    kind: str  # "出隅" (convex) | "入隅" (reflex)
+
+
+@dataclass
+class Edge:
+    """躯体外形の1辺（足場の1面に対応する）."""
+
+    index: int
+    start: Point
+    end: Point
+    direction: Point       # 単位ベクトル（軸平行）
+    outward: Point         # 外向き法線（単位ベクトル）
+    start_corner: str      # 始点コーナーの種別 "出隅"/"入隅"
+    end_corner: str
+    # 足場中心線長 = length + start_sign*d_prev + end_sign*d_next
+    # 出隅=+1（回しで延長）、入隅=-1（短縮）
+    start_sign: int = 0
+    end_sign: int = 0
+
+    @property
+    def length(self) -> float:
+        return abs(self.end[0] - self.start[0]) + abs(self.end[1] - self.start[1])
+
+    @property
+    def axis(self) -> str:
+        """辺が走る軸。'x'なら外向き法線はy方向."""
+        return "x" if abs(self.direction[0]) > 0.5 else "y"
+
+
+@dataclass
+class BridgedZone:
+    """直線で渡した凹み・張り出しの区間（均した後の線上の両端点）."""
+
+    kind: str          # "凹み" / "張り出し" / "斜辺"
+    p0: Point
+    p1: Point
+    width_mm: float
+    depth_mm: float    # この区間で増える離れ（斜辺は最大値）
+    # 離れの増え方: "uniform"（区間で一定）／"end"（p1側で最大、p0側で0）／"start"（p0側で最大）
+    deep_end: str = "uniform"
+
+
+@dataclass
+class Outline:
+    vertices: list[Point]
+    edges: list[Edge] = field(default_factory=list)
+    corners: list[Corner] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)   # 外形の整理内容（黙って直さない）
+    bridged: list[BridgedZone] = field(default_factory=list)   # 渡した区間
+
+    @property
+    def perimeter(self) -> float:
+        return sum(e.length for e in self.edges)
+
+
+def _signed_area(vertices: list[Point]) -> float:
+    s = 0.0
+    n = len(vertices)
+    for i in range(n):
+        x1, y1 = vertices[i]
+        x2, y2 = vertices[(i + 1) % n]
+        s += x1 * y2 - x2 * y1
+    return s / 2.0
+
+
+def _clean_vertices(verts: list[Point], tol: float = 1e-6) -> tuple[list[Point], list[str]]:
+    """重複頂点と共線頂点を取り除く.
+
+    Archicadのスラブ外形は編集の履歴で、同じ点が2度入っていたり、
+    直線の途中に頂点が残っていたりする。そのまま扱うと:
+    - 重複頂点は長さ0の辺になり、方向ベクトルが作れない
+    - 共線頂点は cross=0 なので入隅と判定され、そこに存在しないコーナーが
+      でき、両側の面が離れの分だけ短くなる（足場ループが閉じない）
+    30m壁の中央に頂点が1つ余分にあるだけで、足場長が600mm不足した。
+    """
+    notes: list[str] = []
+    out = list(verts)
+
+    # 閉じた多角形（終点＝始点）は Archicad のスラブ外形の普通の形。閉じているだけの
+    # 点は黙って落とす（毎回「重複頂点を1点除去」と要確認に出ていた）
+    n_closing = 0
+    if len(out) > 1 and abs(out[0][0] - out[-1][0]) <= tol and abs(out[0][1] - out[-1][1]) <= tol:
+        out = out[:-1]
+        n_closing = 1
+
+    # 連続する同一点
+    deduped = [out[0]]
+    for v in out[1:]:
+        if abs(v[0] - deduped[-1][0]) > tol or abs(v[1] - deduped[-1][1]) > tol:
+            deduped.append(v)
+    if len(deduped) > 1 and (
+        abs(deduped[0][0] - deduped[-1][0]) <= tol
+        and abs(deduped[0][1] - deduped[-1][1]) <= tol
+    ):
+        deduped.pop()
+    if len(deduped) != len(out):
+        notes.append(f"外形の重複頂点を{len(out) - len(deduped)}点除去しました")
+    out = deduped
+
+    # 共線頂点（直線の途中に残った頂点）
+    changed = True
+    while changed and len(out) > 3:
+        changed = False
+        for i in range(len(out)):
+            a, b, c = out[i - 1], out[i], out[(i + 1) % len(out)]
+            cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+            if abs(cross) <= tol:
+                out.pop(i)
+                notes.append(
+                    f"外形の共線頂点({b[0]:.0f}, {b[1]:.0f})を除去しました"
+                    "（直線の途中に頂点があると、そこに無いコーナーができます）"
+                )
+                changed = True
+                break
+    return out, notes
+
+
+def bridge_small_notches(
+    verts: list[Point], threshold_mm: float, notes: list[str],
+    zones: Optional[list["BridgedZone"]] = None,
+) -> list[Point]:
+    """最小スパン未満の凹み・張り出しは足場を回り込ませず直線で渡す.
+
+    3辺（入る・沿う・戻る）で作る出入りのうち、
+    - 凹み: 幅か奥行が threshold 未満なら、凹みを無視して外側の線で通す
+      （その区間だけ躯体との離れが奥行ぶん増える）
+    - 張り出し: 出が threshold 未満なら、両隣の面を張り出しの線まで前に出して通す
+      （両隣の面の離れが出ぶん増える）
+    どちらも「その辺に組めるスパンがありません」で止めるより、実務どおり渡して
+    増える離れを警告に出す方が計画になる。深い張り出しは従来どおり回り込む。
+    verts はCCW・直交・整理済みであること。
+    """
+    if threshold_mm <= 0:
+        return verts
+    verts = list(verts)
+    changed = True
+    while changed and len(verts) > 4:
+        changed = False
+        n = len(verts)
+        for i in range(n):
+            v0, v1, v2, v3 = (verts[(i + k) % n] for k in range(4))
+            ax, ay = v1[0] - v0[0], v1[1] - v0[1]
+            bx, by = v2[0] - v1[0], v2[1] - v1[1]
+            cx, cy = v3[0] - v2[0], v3[1] - v2[1]
+            # a と c が逆向き平行（出入り）で、a と c の長さが同じ（段差ではない）
+            if ax * cx + ay * cy >= 0 or abs(ax * cy - ay * cx) > 1e-6:
+                continue
+            depth = math.hypot(ax, ay)
+            if abs(depth - math.hypot(cx, cy)) > 1e-6:
+                continue
+            width = math.hypot(bx, by)
+            turn = ax * by - ay * bx          # CCWで左折(>0)=出隅 → 張り出し
+            if turn < 0:
+                if min(width, depth) >= threshold_mm:
+                    continue
+                removed = {(i + 1) % n, (i + 2) % n}
+                if zones is not None:
+                    zones.append(BridgedZone("凹み", v0, v3, width, depth))
+                notes.append(
+                    f"凹み（幅{width:.0f}mm×奥行{depth:.0f}mm）は最小スパン{threshold_mm:.0f}mm"
+                    "未満なので足場を回り込ませず直線で渡します。その区間は躯体との離れが"
+                    f"{depth:.0f}mm増えます（内ブラケットでの床の拡幅か墜落防止措置を検討）"
+                )
+            else:
+                if depth >= threshold_mm:
+                    continue
+                # 両隣の面を張り出しの線まで前に出す: 面の両端のコーナー（v0の前・
+                # v3の後）を出の方向へ動かし、v0・v3（v1・v2と重なる）を落とす。
+                # v0・v3だけ落とすと隣の辺が斜めになる
+                shifted = {(i - 1) % n: (verts[(i - 1) % n][0] + ax, verts[(i - 1) % n][1] + ay),
+                           (i + 4) % n: (verts[(i + 4) % n][0] + ax, verts[(i + 4) % n][1] + ay)}
+                verts = [shifted.get(k, v) for k, v in enumerate(verts)]
+                removed = {i % n, (i + 3) % n}
+                if zones is not None:
+                    zones.append(BridgedZone("張り出し", v1, v2, width, depth))
+                notes.append(
+                    f"張り出し（幅{width:.0f}mm×出{depth:.0f}mm）は出が最小スパン"
+                    f"{threshold_mm:.0f}mm未満なので、両隣の面を張り出しの線まで前に出して"
+                    f"直線で渡します。両隣の面は躯体との離れが{depth:.0f}mm増えます"
+                    "（内ブラケットでの床の拡幅か墜落防止措置を検討）"
+                )
+            verts = [v for k, v in enumerate(verts) if k not in removed]
+            verts, _more = _clean_vertices(verts)
+            changed = True
+            break
+    return verts
+
+
+SKEW_SNAP_MM = 20.0   # これ以下の斜めは座標誤差として直交に丸める
+
+
+def orthogonalize_diagonals(
+    verts: list[Point], notes: list[str], zones: Optional[list["BridgedZone"]] = None,
+) -> list[Point]:
+    """斜めの辺 p→q を、外側のコーナー c を経由する直交2辺 p→c→q に置き換える.
+
+    c は (q.x, p.y) と (p.x, q.y) のうち、進行方向の右側（CCWなので外側）にある方。
+    面 p→c は c 側で最大 |q−c|、面 c→q は c 側で最大 |p−c| だけ躯体との離れが増える
+    （斜辺に沿って0から線形に増える）。verts はCCW・整理済みであること。
+    """
+    verts = list(verts)
+    # 座標誤差級の微小な斜め（片方の成分が SKEW_SNAP_MM 以下）は斜辺ではなく入力の丸め誤差。
+    # コーナーを挿入すると「長さ5mmの面で離れが最大30000mm増える」という意味の無い区間が
+    # できる（実際に出た）。頂点をずらして直交に丸め、そう書く
+    skew = 0.0
+    for _pass in range(6):
+        changed = False
+        n = len(verts)
+        for i in range(n):
+            p = verts[i]
+            q = verts[(i + 1) % n]
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            if abs(dx) > 1e-6 and abs(dy) > 1e-6 and min(abs(dx), abs(dy)) <= SKEW_SNAP_MM:
+                if abs(dy) <= abs(dx):
+                    verts[(i + 1) % n] = (q[0], p[1])
+                    skew = max(skew, abs(dy))
+                else:
+                    verts[(i + 1) % n] = (p[0], q[1])
+                    skew = max(skew, abs(dx))
+                changed = True
+        if not changed:
+            break
+    if skew > 0:
+        verts, _more = _clean_vertices(verts)
+        notes.append(
+            f"外形の頂点に微小な座標誤差（最大{skew:.0f}mm）があったので、直交になるよう頂点を"
+            "丸めました（斜辺としては扱いません）"
+        )
+    i = 0
+    guard = 0
+    while i < len(verts) and guard < 200:
+        guard += 1
+        n = len(verts)
+        p = verts[i]
+        q = verts[(i + 1) % n]
+        dx, dy = q[0] - p[0], q[1] - p[1]
+        if not (abs(dx) > 1e-6 and abs(dy) > 1e-6):
+            i += 1
+            continue
+        c1 = (q[0], p[1])
+        c2 = (p[0], q[1])
+        # 右側（外側）にある候補: 外積 (q-p)×(c-p) < 0
+        cross1 = dx * (c1[1] - p[1]) - dy * (c1[0] - p[0])
+        c = c1 if cross1 < 0 else c2
+        diag = math.hypot(dx, dy)
+        d_pc = math.hypot(c[0] - p[0], c[1] - p[1])
+        d_cq = math.hypot(q[0] - c[0], q[1] - c[1])
+        if zones is not None:
+            zones.append(BridgedZone("斜辺", p, c, d_pc, d_cq, deep_end="end"))
+            zones.append(BridgedZone("斜辺", c, q, d_cq, d_pc, deep_end="start"))
+        notes.append(
+            f"斜めの辺（頂点{i}→{(i + 1) % n}、長さ{diag:.0f}mm）は足場を斜めに組めないので、"
+            f"外側のコーナー({c[0]:.0f}, {c[1]:.0f})を経由する直交2辺に置き換えました。"
+            f"置き換えた2面は躯体との離れがコーナー側でそれぞれ最大{d_cq:.0f}mm・{d_pc:.0f}mm"
+            "増えます（内ブラケットでの床の拡幅・層間ネット等の措置を検討。平面図に実躯体線を破線で示す）"
+        )
+        verts.insert(i + 1, c)
+        i += 2
+    return verts
+
+
+def build_outline(vertices: list[Point], bridge_below_mm: float = 0.0) -> Outline:
+    """外形ポリゴンを検証しCCW正規化、辺・コーナー情報を構築する.
+
+    bridge_below_mm を渡すと、それ未満の凹み・張り出しは直線で渡す
+    （bridge_small_notches）。
+    """
+    if len(vertices) < 4:
+        raise ValidationError("外形ポリゴンには4点以上が必要です")
+    verts = [tuple(map(float, v)) for v in vertices]
+    verts, notes = _clean_vertices(verts)
+    if len(verts) < 4:
+        raise ValidationError(
+            f"重複・共線の頂点を除くと{len(verts)}点しか残りません"
+            "（外形ポリゴンには4点以上が必要です）"
+        )
+    if _signed_area(verts) < 0:
+        verts = list(reversed(verts))
+        # 黙って反転すると、利用者の「辺0」（入力の頂点0→1）が別の面になる
+        notes.append(
+            "外形が時計回りだったので反時計回りに直しました。辺番号は直した後の頂点順"
+            "（頂点0→1が辺0）です。付帯設備の edge_index は割付レポートの平面割付表"
+            "（辺・面名・躯体頂点）で確認してください"
+        )
+
+    zones: list[BridgedZone] = []
+    # 斜めの辺は、その辺を外側から囲う直交2辺に置き換える（足場は真物の直交割付しか
+    # 組めない）。置き換えた面は躯体との離れが斜辺の分だけ増えるので、区間として持ち
+    # 図面（破線の実躯体線）と要確認に出す。以前は入力エラーで止めていた
+    verts = orthogonalize_diagonals(verts, notes, zones)
+    if zones:
+        # 挿入したコーナーで元の頂点が共線になる（例: 斜辺の両端）。区間の端点は
+        # 辺上にあればよいので、共線の頂点は落として辺を通す
+        verts, _more = _clean_vertices(verts)
+
+    n = len(verts)
+    # 直交チェック（置き換え後は必ず直交。残っていればロジックの異常）
+    for i in range(n):
+        x1, y1 = verts[i]
+        x2, y2 = verts[(i + 1) % n]
+        dx, dy = x2 - x1, y2 - y1
+        if (abs(dx) > 1e-6) == (abs(dy) > 1e-6):
+            raise ValidationError(
+                f"非直交の辺が残っています（頂点{i}→{(i + 1) % n}）。外形の頂点を確認してください"
+            )
+
+    verts = bridge_small_notches(verts, bridge_below_mm, notes, zones)
+    n = len(verts)
+
+    outline = Outline(vertices=verts, notes=notes, bridged=zones)
+    corner_kinds: list[str] = []
+    for i in range(n):
+        p_prev = verts[(i - 1) % n]
+        p = verts[i]
+        p_next = verts[(i + 1) % n]
+        d1 = (p[0] - p_prev[0], p[1] - p_prev[1])
+        d2 = (p_next[0] - p[0], p_next[1] - p[1])
+        cross = d1[0] * d2[1] - d1[1] * d2[0]
+        kind = "出隅" if cross > 0 else "入隅"
+        corner_kinds.append(kind)
+        outline.corners.append(Corner(index=i, point=p, kind=kind))
+
+    for i in range(n):
+        p1, p2 = verts[i], verts[(i + 1) % n]
+        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+        length = abs(dx) + abs(dy)
+        direction = (dx / length, dy / length)
+        # CCWで外側は進行方向の右手側
+        outward = (direction[1], -direction[0])
+        sk = corner_kinds[i]
+        ek = corner_kinds[(i + 1) % n]
+        outline.edges.append(
+            Edge(
+                index=i,
+                start=p1,
+                end=p2,
+                direction=direction,
+                outward=outward,
+                start_corner=sk,
+                end_corner=ek,
+                start_sign=+1 if sk == "出隅" else -1,
+                end_sign=+1 if ek == "出隅" else -1,
+            )
+        )
+    return outline
+
+
+def scaffold_loop_vertices(outline: Outline, standoffs: list[float]) -> list[Point]:
+    """各辺を外向きに standoff[i] だけオフセットし、隣接オフセット線の交点で
+    足場中心線ループの頂点列を返す（頂点i = 辺i-1と辺iの交点 = コーナー支柱位置）."""
+    n = len(outline.edges)
+    lines = []  # (point_on_line, direction)
+    for e, d in zip(outline.edges, standoffs):
+        px = e.start[0] + e.outward[0] * d
+        py = e.start[1] + e.outward[1] * d
+        lines.append(((px, py), e.direction))
+    verts: list[Point] = []
+    for i in range(n):
+        (p1, d1) = lines[(i - 1) % n]
+        (p2, _d2) = lines[i]
+        # 軸平行前提の交点
+        if abs(d1[0]) > 0.5:  # 前辺がx方向 → y固定、後辺がy方向 → x固定
+            verts.append((p2[0], p1[1]))
+        else:
+            verts.append((p1[0], p2[1]))
+    return verts
+
+
+
+def same_outline(a, b, tol: float = 1.0) -> bool:
+    """控えの外形どうしが同じ建物か（並びの始めと向き・閉じた最後の点の重複は問わない・tol mm 以内）.
+
+    配置の条件の控え（_spec_used.json）は閉じた外形（最後に始めの点）、plan.json は開いた外形のことがあり、
+    リストの == では別の建物になって「図面を作る」が「条件の控えがありません」で止まっていた（2026-11-05）.
+    """
+    def opened(ol):
+        pts = [(float(p[0]), float(p[1])) for p in (ol or [])]
+        if len(pts) > 1 and abs(pts[0][0] - pts[-1][0]) <= tol and abs(pts[0][1] - pts[-1][1]) <= tol:
+            pts.pop()
+        return pts
+
+    try:
+        a, b = opened(a), opened(b)
+    except (TypeError, ValueError, IndexError):
+        return False
+    if not a or len(a) != len(b):
+        return False
+    used = [False] * len(b)
+    for p in a:
+        k = next((i for i, q in enumerate(b) if not used[i] and abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol), None)
+        if k is None:
+            return False
+        used[k] = True
+    return True

@@ -1,0 +1,548 @@
+﻿! ==========================================================
+! 養生シート（メッシュシート・防音シート。足場の外側の構面・1面に1部品） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_sheet/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_sheet.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 足場条件の「養生材」がなし以外なら、面ごとに置く。地面から支柱の天端まで、出隅は角の外まで回す。
+! 3Dは透ける膜と1枚の幅（1.8m）ごとの継ぎ目、平面は外側の破線と目盛り。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   faceAng     角度      面の向き（度）                                                                                                   既定 0
+!   zH          長さ      足場の立つ高さ（下の屋根から建てた上の部分）                                                                     既定 0
+!   lineMode    ブール    3Dを線で（軽い）                                                                                                 既定 0
+!   offY        長さ      シートの面（内側建地芯から外へ。外側建地列＋60）                                                                 既定 0.67
+!   x0          長さ      始点（面に沿って）                                                                                               既定 0
+!   x1          長さ      終点（面に沿って）                                                                                               既定 5.4
+!   zB          長さ      下端                                                                                                             既定 0
+!   zT          長さ      上端                                                                                                             既定 5.1
+!   sheetW      長さ      シート1枚の幅（継ぎ目の線）                                                                                      既定 1.8
+!   sheetKind   文字列    養生材                                                                                                           既定 "メッシュシート"
+!   panelList   文字列    シートの割付「始点,終点,特殊(0/1)」の繰り返し mm（継ぎ目は足場の支柱。空なら 1枚の幅ごと）                       既定 ""
+!   clampList   文字列    シートクランプの高さ mm（カンマ区切り。継ぎ目と端の支柱に付ける。空なら付けない）                                既定 ""
+!   sheetH      長さ      シート1枚の高さ（下から段に積む。0＝1段）                                                                        既定 0
+!   fineOn      ブール    縁の縫い代とハトメを描く（詳細）                                                                                 既定 1
+!   clampCS     整数      始点の角を養生クランプ コーナー用で留める 0/1（出隅）                                                            既定 0
+!   clampSkipE  整数      終点の角のクランプを付けない 0/1（出隅は次の面のコーナー用）                                                     既定 0
+!   clampEnd    整数      区間の端のクランプを clampXS・clampXE（いちばん近い支柱）に付ける 0/1                                            既定 0
+!   clampXS     長さ      始点の端のクランプの位置（支柱）                                                                                 既定 0
+!   clampXE     長さ      終点の端のクランプの位置（支柱）                                                                                 既定 0
+!   rowList     文字列    シートの段「下,上」mm の繰り返し（下から。上下の段は重ねる。空なら sheetH ずつ上から）                           既定 ""
+!   gromPitch   長さ      左右の辺のハトメの間隔（上の縁の 20 下から。コマのピッチ）                                                       既定 0.45
+!   clampCE     整数      終点の角を養生クランプ コーナー用で留める 0/1（開放端の妻側のシート）                                            既定 0
+!   clampSZ     長さ      始点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける。妻側のコーナー用に任せる）                    既定 0
+!   clampEZ     長さ      終点の端の建地のクランプをこの高さから上は付けない（0＝全部付ける）                                              既定 0
+!   matSheet    表面材    表面材（0＝養生材の既定色）                                                                                      既定 0
+!   penSheet    PenColor  ペン: 養生シート・防音パネル                                                                                     既定 1
+!   stepH       長さ      工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）  既定 0
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 養生シート（メッシュシート・防音シート）。足場の外側の構面に、面ごとに1部品
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 養生シート 2D（平面）: 外側建地列の外の破線
+! 利用者の指摘（2026-10-23）: 足場平面の下に変の線がある。線種 3 は縮尺で点にしか見えず、1枚ごとの目盛りが
+! 足場の外に短い縦線で残っていた。破線は図面上で 3mm・間 1.5mm を自分で描き、目盛りはやめる
+! ============================================================
+pS = penSheet
+if pS < 1 then pS = 1
+pen pS
+rot2 faceAng
+if sheetKind = "防音パネル" then
+	! 防音パネル（厚み 40 の板）: 外形を実線で、継ぎ目（建地の位置）に短い区切り
+	rect2 x0, -offY - 0.04, x1, -offY
+	nP2 = 0
+	rest2 = panelList
+	k32 = 0
+	while strlen(rest2) > 0 and nP2 < 200 do
+		pc2 = strstr(rest2, ",")
+		if pc2 > 0 then
+			it2 = strsub(rest2, 1, pc2 - 1)
+			rest2 = strsub(rest2, pc2 + 1, strlen(rest2) - pc2)
+		else
+			it2 = rest2
+			rest2 = ""
+		endif
+		kk2 = split(it2, "%n", vv2)
+		if kk2 > 0 then
+			k32 = k32 + 1
+			if k32 = 1 and vv2 / 1000 > x0 + 0.001 then line2 vv2 / 1000, -offY - 0.04, vv2 / 1000, -offY
+			if k32 = 3 then k32 = 0
+		endif
+	endwhile
+	hotspot2 x0, -offY
+	hotspot2 x1, -offY
+	del 1
+	end
+endif
+dl = 0.003 * GLOB_SCALE
+dg = 0.0015 * GLOB_SCALE
+if dl < 0.05 then dl = 0.05
+if dg < 0.025 then dg = 0.025
+xs = x0
+while xs < x1 - 0.001 do
+	xe = xs + dl
+	if xe > x1 then xe = x1
+	line2 xs, -offY, xe, -offY
+	xs = xs + dl + dg
+endwhile
+hotspot2 x0, -offY
+hotspot2 x1, -offY
+del 1
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! ============================================================
+! 養生シート 3D: 外側建地列の外（offY）に、面に沿って x0〜x1、高さ zB〜zT の膜。
+! メッシュシートは向こうが透ける。シート1枚の幅（sheetW）ごとに継ぎ目の線を引く
+!   原点＝内側建地列の始点の支柱、+Y＝躯体側（シートは -offY）
+! ============================================================
+pen 1
+! 断面図・立面図・展開図（GLOB_VIEW_TYPE 4・5・6）では描かない。足場立面図は断面図ビューポイントで作るので、
+! 手前の外構面のシートが足場を隠して図にならない（利用者の指摘 2026-10-20: 外部のメッシュは立面図で見えないように）。
+! 3Dウィンドウ・平面では描く
+hideHere = 0
+if GLOB_VIEW_TYPE = 4 or GLOB_VIEW_TYPE = 5 or GLOB_VIEW_TYPE = 6 then hideHere = 1
+if GLOB_CONTEXT = 4 or GLOB_CONTEXT = 24 then hideHere = 1
+if hideHere then end
+! 工程の模型（scripts/step_run.py）: stepH より上は張っていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ x0, -offY, zB, x1, -offY, zB
+	lin_ x1, -offY, zB, x1, -offY, zT
+	lin_ x1, -offY, zT, x0, -offY, zT
+	lin_ x0, -offY, zT, x0, -offY, zB
+else
+	! 既定色: メッシュシートは灰（透過）、防音シート（協和 ♯1000 の灰）・密閉シートは不透明
+	! 汎用（type 0）で透過率を指定する。ガラス（type 4）は透けが弱く、中の足場が見えなかった（実機 2026-10-20）
+	! 色 r,g,b・環境光・拡散・反射・透過・光沢・透過の減衰・反射色・発光色・発光の減衰
+	define material "ashiba_mesh_sheet" 0, 0.55, 0.60, 0.66, 0.6, 0.6, 0.1, 0.75, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_solid_sheet" 0, 0.62, 0.64, 0.65, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_sheet_special" 0, 0.78, 0.70, 0.45, 0.6, 0.6, 0.1, 0.55, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_sheet_hem" 0, 0.50, 0.52, 0.54, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_grommet_brass" 2, 0.80, 0.66, 0.30
+	! クランプ: 電気亜鉛めっき＋クロメート（Ep-Fe/Zn5/CM2）の金色
+	define material "ashiba_sclamp_gold" 2, 0.86, 0.72, 0.30
+	mSh = IND(MATERIAL, "ashiba_mesh_sheet")
+	if sheetKind <> "メッシュシート" then mSh = IND(MATERIAL, "ashiba_solid_sheet")
+	if matSheet > 0 then mSh = matSheet
+	! シートの厚み（防音シート ♯1000 は 1.0mm。メッシュは網目の薄い膜）
+	tS = 0.001
+	if sheetKind = "メッシュシート" then tS = 0.0005
+	! 防音パネル（日本セイフティー 防音パネル・BG。利用者の指定 2026-10-24）: 厚み 40 の板。長さはスパン−10、
+	! 高さ sheetH（インチ 862・メーター 850）。周りの鋼製の枠と、継ぎ目の建地の専用クランプのピンで留める
+	isPnl = sheetKind = "防音パネル"
+	if isPnl then tS = 0.04
+	gP = 0.06          ! 外側建地の芯からパネルの面まで（クランプの出。シートのあきと同じ）
+	define material "ashiba_spanel" 0, 0.80, 0.82, 0.80, 0.7, 0.7, 0.05, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	define material "ashiba_spanel_frame" 0, 0.55, 0.58, 0.60, 0.7, 0.7, 0.10, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0
+	if isPnl then mSh = IND(MATERIAL, "ashiba_spanel")
+	if isPnl and matSheet > 0 then mSh = matSheet
+	! 割付（panelList）: 継ぎ目は足場の支柱の位置。特殊シート（角・隙間などスパンに無い幅）は色を替える
+	! （利用者の指定 2026-10-24: 外部シートの割り付けは足場と同じにして、間が開いてる部分は特殊シートとして伸ばす）
+	dim pA[], pB[], pS[]
+	nP = 0
+	rest = panelList
+	k3 = 0
+	while strlen(rest) > 0 and nP < 200 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		kk = split(item, "%n", vv)
+		if kk > 0 then
+			k3 = k3 + 1
+			if k3 = 1 then pA[nP + 1] = vv / 1000
+			if k3 = 2 then pB[nP + 1] = vv / 1000
+			if k3 = 3 then
+				nP = nP + 1
+				pS[nP] = vv
+				k3 = 0
+			endif
+		endif
+	endwhile
+	hasPanels = nP > 0
+	if nP = 0 then
+		nP = 1
+		pA[1] = x0
+		pB[1] = x1
+		pS[1] = 0
+	endif
+	! シートの段: 天端から1枚の高さ sheetH ずつ下へ割り付ける（いちばん下の段が仮囲いの天端 zB までの残り。
+	! 利用者の指定 2026-10-24: 上から割り付けて、仮囲いまでにする）
+	shH = sheetH
+	if shH < 0.5 then shH = zT - zB
+	nRow = int((zT - zB) / shH - 0.001) + 1
+	! rowList があればその段（下,上。上下の段は重ねて、重ねの中のハトメを1つのクランプで掛ける。利用者の指定 2026-10-25:
+	! フックとメッシュの穴の位置合わせて）
+	dim rLo[], rHi[]
+	nRL = 0
+	k3 = 0
+	rest = rowList
+	while strlen(rest) > 0 and nRL < 20 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		kk = split(item, "%n", vv)
+		if kk > 0 then
+			k3 = k3 + 1
+			if k3 = 1 then rLo[nRL + 1] = vv / 1000
+			if k3 = 2 then
+				nRL = nRL + 1
+				rHi[nRL] = vv / 1000
+				k3 = 0
+			endif
+		endif
+	endwhile
+	if nRL > 0 then nRow = nRL
+	gmP = gromPitch
+	if gmP < 0.1 then gmP = 0.45
+	for ip = 1 to nP
+		wP = pB[ip] - pA[ip]
+		for ir = 1 to nRow
+			zHi = zT - (ir - 1) * shH
+			zLo = max(zB, zHi - shH)
+			if nRL > 0 then
+				zHi = rHi[nRL + 1 - ir]
+				zLo = rLo[nRL + 1 - ir]
+			endif
+			! 重ねた段は1つおきに少し外へ（同じ面に重なってちらつかない）
+			dYr = 0.0015 * (ir - 2 * int(ir / 2))
+			if pS[ip] = 1 and matSheet = 0 then
+				material "ashiba_sheet_special"
+			else
+				material mSh
+			endif
+			if isPnl then
+				! 板（両端 5 ずつあけてスパン−10）と枠（幅 25 の鋼製の枠を表裏に見せる）
+				add pA[ip] + 0.005, -offY - tS, zLo + 0.001
+				block wP - 0.01, tS, zHi - zLo - 0.002
+				del 1
+				if fineOn then
+					material "ashiba_spanel_frame"
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zLo + 0.001
+					block wP - 0.01, 0.0008, 0.025
+					del 1
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zHi - 0.026
+					block wP - 0.01, 0.0008, 0.025
+					del 1
+					add pA[ip] + 0.005, -offY - tS - 0.0008, zLo + 0.001
+					block 0.025, 0.0008, zHi - zLo - 0.002
+					del 1
+					add pB[ip] - 0.03, -offY - tS - 0.0008, zLo + 0.001
+					block 0.025, 0.0008, zHi - zLo - 0.002
+					del 1
+				endif
+			else
+			add pA[ip], -offY - tS - dYr, zLo
+			block wP, tS, zHi - zLo
+			del 1
+			lin_ pA[ip], -offY - tS - dYr - 0.0005, zLo, pB[ip], -offY - tS - dYr - 0.0005, zLo
+			endif
+			if fineOn and not(isPnl) then
+				! 縁の縫い代（帯 40・30）と真鍮のハトメ（上下の辺は約300ごと。左右の辺は辺から 16・上の縁の 20 下から
+				! gmP ごと＝クランプのフック φ9 ×2（間隔 32）とクランプの高さにそろう。協和 防音シートの写真）
+				yS = -offY - tS - dYr
+				material "ashiba_sheet_hem"
+				add pA[ip], yS - 0.0006, zLo
+				block wP, 0.0006, 0.04
+				del 1
+				add pA[ip], yS - 0.0006, zHi - 0.04
+				block wP, 0.0006, 0.04
+				del 1
+				add pA[ip], yS - 0.0006, zLo
+				block 0.03, 0.0006, zHi - zLo
+				del 1
+				add pB[ip] - 0.03, yS - 0.0006, zLo
+				block 0.03, 0.0006, zHi - zLo
+				del 1
+				material "ashiba_grommet_brass"
+				resol 6
+				nH = max(2, int(wP / 0.30 + 0.5) + 1)
+				for ih = 1 to nH
+					xh = pA[ip] + 0.016 + (wP - 0.032) * (ih - 1) / (nH - 1)
+					for ie = 0 to 1
+						zg = zLo + 0.02 + ie * (zHi - zLo - 0.04)
+						add xh, yS - 0.0012, zg
+						rotx 90
+						cylind 0.0012, 0.009
+						del 2
+					next ie
+				next ih
+				zg = zHi - 0.02 - gmP
+				while zg > zLo + 0.02 + 0.001 do
+					for ie = 0 to 1
+						xh = pA[ip] + 0.016 + ie * (wP - 0.032)
+						add xh, yS - 0.0012, zg
+						rotx 90
+						cylind 0.0012, 0.009
+						del 2
+					next ie
+					zg = zg - gmP
+				endwhile
+			endif
+		next ir
+		if ip > 1 and not(isPnl) then lin_ pA[ip], -offY - tS - 0.0005, zB, pA[ip], -offY - tS - 0.0005, zT
+	next ip
+	! 出隅のコーナーパネル（始点の角。L 形の板で2面のパネルの角を塞ぐ。段ごとに1枚）
+	if isPnl and clampCS = 1 and hasPanels then
+		material "ashiba_spanel_frame"
+		for ir = 1 to nRow
+			zHi = zT - (ir - 1) * shH
+			zLo = max(zB, zHi - shH)
+			add pA[1] - gP - tS, -offY - tS, zLo + 0.001
+			block gP + tS + 0.005, tS, zHi - zLo - 0.002
+			del 1
+			add pA[1] - gP - tS, -offY - tS, zLo + 0.001
+			block tS, gP + tS + 0.005, zHi - zLo - 0.002
+			del 1
+		next ir
+	endif
+	! シートクランプ（日本セイフティー 次世代シートクランプ 図面 1603-019-A02-A。利用者の指定 2026-10-24）:
+	! 支柱（φ48.6・φ42.7 兼用）を本体とふたで抱き、トップボルト＋フランジナットで締める。φ9 のフック2本（間隔32）が
+	! 支柱の芯から 68 先へ出て、J 形に上へ曲がりシートのハトメを掛ける。シートの継ぎ目と端の支柱に、各段のシートの上下で
+	dim cZ[]
+	nC = 0
+	rest = clampList
+	while strlen(rest) > 0 and nC < 60 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		kk = split(item, "%n", vv)
+		if kk > 0 then
+			nC = nC + 1
+			cZ[nC] = vv / 1000
+		endif
+	endwhile
+	if nC > 0 and hasPanels then
+		material "ashiba_sclamp_gold"
+		yp = -offY + 0.06
+		xPrev = -1000
+		for ic = 1 to nP + 1
+			wrapC = 0.06
+			if isPnl then wrapC = 0
+			if ic = 1 then
+				xc = pA[1] + wrapC
+				! 区間の端はシートの端にいちばん近い支柱（範囲の端・セットバックの継ぎ目・入隅でシートの端の先に付けると
+				! 宙に浮く。実機 2026-10-25）
+				if clampEnd = 1 then xc = clampXS
+			else
+				if ic = nP + 1 then
+					xc = pB[nP] - wrapC
+					if clampEnd = 1 then xc = clampXE
+				else
+					xc = pA[ic]
+				endif
+			endif
+			! 出隅の角: 始点はコーナー用（下で描く）、終点は次の面のコーナー用に任せる
+			drawC = 1
+			if ic = 1 and clampCS = 1 then drawC = 0
+			if ic = nP + 1 and clampSkipE = 1 then drawC = 0
+			if ic = nP + 1 and clampCE = 1 then drawC = 0
+			if abs(xc - xPrev) < 0.001 then drawC = 0
+			if drawC = 1 then xPrev = xc
+			! 端の建地の、妻側のシートを張る高さから上（コーナー用に任せる）
+			zSkip = 0
+			if ic = 1 and clampSZ > 0.001 then zSkip = clampSZ
+			if ic = nP + 1 and clampEZ > 0.001 then zSkip = clampEZ
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if drawC = 1 and isPnl and zc >= zB - 0.001 and zc <= zT + 0.001 and not(zSkip > 0 and zc >= zSkip - 0.001) then
+					! 防音パネルの専用クランプ: 建地を抱く本体から、パネルの継ぎ目へ板を出し、ピンで両側のパネルの枠を留める
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					add xc - 0.02, -offY + 0.0005, zc - 0.024
+					block 0.04, gP - 0.03, 0.048
+					del 1
+					resol 6
+					add xc, -offY - tS / 2, zc - 0.03
+					cylind 0.06, 0.006
+					del 1
+				endif
+				if drawC = 1 and not(isPnl) and zc > zB and zc < zT and not(zSkip > 0 and zc >= zSkip - 0.001) then
+					resol 10
+					! 支柱を抱く本体・ふた（帯の厚み 4.5、高さ 48）
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					! 本体の胴（支柱からフックの根元まで）
+					add xc - 0.024, yp - 0.0405, zc - 0.024
+					block 0.048, 0.022, 0.048
+					del 1
+					! トップボルトとフランジナット（支柱の横）
+					resol 6
+					add xc + 0.034, yp + 0.012, zc - 0.006
+					rotx 90
+					cylind 0.04, 0.006
+					del 2
+					add xc + 0.034, yp - 0.028, zc - 0.009
+					rotx 90
+					cylind 0.009, 0.011
+					del 2
+					! フック φ9 ×2（間隔32）: 外へ 27.5、先を上へ 14.5
+					resol 8
+					for hk = -1 to 1 step 2
+						add xc + hk * 0.016, yp - 0.0405, zc
+						rotx 90
+						cylind 0.0275, 0.0045
+						del 2
+						add xc + hk * 0.016, yp - 0.068, zc
+						cylind 0.0145, 0.0045
+						del 1
+					next hk
+				endif
+			next jz
+		next ic
+		! 養生クランプ コーナー用（利用者の写真 2026-10-24: コーナーはコーナー用にして）: 出隅の角の建地を抱く本体に L 形の
+		! 板を付け、この面のシートへのフックと、隣の面（始点の手前で直交する面）のシートへのフックを直角に出す
+		if clampCS = 1 and isPnl then
+			! 三つ爪クランプ（出隅の角の建地。2面のパネルとコーナーパネルを3本の爪で留める）
+			xc = pA[1]
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc >= zB - 0.001 and zc <= zT + 0.001 then
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					resol 6
+					add xc, yp - 0.0295, zc
+					rotx 90
+					cylind gP - 0.0295, 0.006
+					del 2
+					add xc - 0.0295, yp, zc
+					roty -90
+					cylind gP - 0.0295, 0.006
+					del 2
+					add xc - 0.021, yp - 0.021, zc
+					rotz 225
+					roty 90
+					cylind gP * 0.9, 0.006
+					del 3
+				endif
+			next jz
+		endif
+		if clampCS = 1 and not(isPnl) then
+			xc = pA[1] + 0.06
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc > zB and zc < zT then
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					resol 6
+					add xc + 0.034, yp + 0.012, zc - 0.006
+					rotx 90
+					cylind 0.04, 0.006
+					del 2
+					! L 形の板（この面の側と隣の面の側。厚み 3.2）
+					add xc - 0.036, yp - 0.0352, zc - 0.03
+					block 0.066, 0.0032, 0.06
+					del 1
+					add xc - 0.0392, yp - 0.0352, zc - 0.03
+					block 0.0032, 0.066, 0.06
+					del 1
+					resol 8
+					! この面のシートへのフック（外へ出て上へ）
+					add xc, yp - 0.0352, zc
+					rotx 90
+					cylind 0.0328, 0.0045
+					del 2
+					add xc, yp - 0.068, zc
+					cylind 0.03, 0.0045
+					del 1
+					! 隣の面のシートへのピン（始点の手前へ出て上へ立つ）
+					add xc - 0.0392, yp, zc
+					roty -90
+					cylind 0.0288, 0.0045
+					del 2
+					add xc - 0.068, yp, zc
+					cylind 0.05, 0.0045
+					del 1
+				endif
+			next jz
+		endif
+		! 終点の角のコーナー用（開放端の妻側のシートと面のシートの角。始点の角を左右に裏返した形。利用者の指定
+		! 2026-10-25: コーナー部分はコーナー用にして）
+		if clampCE = 1 and not(isPnl) then
+			xc = pB[nP] - 0.06
+			for jz = 1 to nC
+				zc = cZ[jz]
+				if zc > zB and zc < zT then
+					resol 10
+					add xc, yp, zc - 0.024
+					cylind 0.048, 0.0295
+					del 1
+					resol 6
+					add xc - 0.034, yp + 0.012, zc - 0.006
+					rotx 90
+					cylind 0.04, 0.006
+					del 2
+					add xc - 0.030, yp - 0.0352, zc - 0.03
+					block 0.066, 0.0032, 0.06
+					del 1
+					add xc + 0.036, yp - 0.0352, zc - 0.03
+					block 0.0032, 0.066, 0.06
+					del 1
+					resol 8
+					add xc, yp - 0.0352, zc
+					rotx 90
+					cylind 0.0328, 0.0045
+					del 2
+					add xc, yp - 0.068, zc
+					cylind 0.03, 0.0045
+					del 1
+					add xc + 0.0392, yp, zc
+					roty 90
+					cylind 0.0288, 0.0045
+					del 2
+					add xc + 0.068, yp, zc
+					cylind 0.05, 0.0045
+					del 1
+				endif
+			next jz
+		endif
+	endif
+endif
+hotspot x0, -offY, zB
+hotspot x1, -offY, zB
+hotspot x0, -offY, zT
+hotspot x1, -offY, zT
+del 2
+if stepH > 0.001 then cutend
+

@@ -1,0 +1,78 @@
+﻿! ============================================================
+! 屋上への渡り 2D（平面）: 渡りの外形・床材（アンチ・足場板）の割り・両脇の手すり（太線）・屋上の支柱／ブラケット
+! 先端の支柱・踏み台と踏段の段鼻・パラペット（破線）・進む向きの矢印と名前
+! 利用者の指定（2026-10-24）: 屋上への渡りもGDL作成して 平面に表記するようにして
+! 原点＝渡りを掛けるスパンの始めの内側建地（y=0）、+X＝面に沿う方向、+Y＝躯体側（屋上）
+! ============================================================
+define style "brTx" "ＭＳ Ｐゴシック", texSiz, 5, 0
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+rot2 faceAng
+! 外形
+rect2 0, 0, brW, brL
+! 床材の割り（アンチ・足場板は横引き。面に沿って並べる）
+y0 = 0.02
+for i = 1 to nD
+	rect2 0.02, y0, brW - 0.02, y0 + dW[i]
+	y0 = y0 + dW[i] + 0.01
+next i
+! 両脇の手すり（二重線で太く見せる）
+for sd = 0 to 1
+	xr = sd * brW
+	line2 xr, 0, xr, brL
+	line2 xr + 0.03 * (1 - 2 * sd), 0, xr + 0.03 * (1 - 2 * sd), brL
+	! 渡りの先の支柱（屋上の支柱・ブラケットの先端の支柱）
+	circle2 xr, brL, 0.03
+	if onPost = 1 then rect2 xr - 0.07, brL - 0.07, xr + 0.07, brL + 0.07
+next sd
+! 足場側の踏み台
+if nUp > 1 then
+	rect2 0.10, yUp, brW - 0.10, 0
+	for iS = 1 to nUp - 2
+		line2 0.10, yUp + iS * tread, brW - 0.10, yUp + iS * tread
+	next iS
+endif
+! 屋上へ下りる踏段
+if nDn > 1 then
+	rect2 0.10, brL, brW - 0.10, yDn
+	for iS = 1 to nDn - 2
+		line2 0.10, brL + iS * tread, brW - 0.10, brL + iS * tread
+	next iS
+endif
+! パラペット（越える所。外面と内面）
+if paraH > 0.001 then
+	line_type 3
+	line2 -0.3, paraX, brW + 0.3, paraX
+	line2 -0.3, paraX + paraT, brW + 0.3, paraX + paraT
+	line_type 1
+endif
+! 進む向き（足場→屋上）の矢印
+yE = max(brL, yDn)
+line2 brW / 2, min(0, yUp) + 0.05, brW / 2, yE - 0.05
+line2 brW / 2, yE - 0.05, brW / 2 - 0.08, yE - 0.20
+line2 brW / 2, yE - 0.05, brW / 2 + 0.08, yE - 0.20
+hotspot2 0, 0
+hotspot2 brW, 0
+hotspot2 0, brL
+hotspot2 brW, brL
+! 名前（組み方・高低差）。北・西を向く面では上下逆になるので回して読める向きに
+set style "brTx"
+tx = brName
+if brKind = 0 then tx = tx + "（布材＋屋上に支柱）"
+if brKind = 1 then tx = tx + "（ブラケット）"
+if brKind = 2 then tx = tx + "（単管＋屋上に建地）"
+if brKind = 3 then tx = tx + "（単管の跳ね出し）"
+if nUp > 0 then tx = tx + " 踏み台" + str(upH * 1000, 4, 0)
+if nDn > 0 then tx = tx + " 踏段" + str(dnH * 1000, 4, 0)
+if paraH > 0.001 then tx = tx + "・パラペット越え"
+add2 brW + 0.15, (min(0, yUp) + yE) / 2
+rot2 90
+! 文字の向きは 置いた角度＋面の向き＋90（渡りの長さに沿わせる）。0〜360 に直して、左へ傾く（90〜270）なら返す
+! （東面の渡りで 180 になり逆さに出ていた。2026-10-26 のループ）
+aTx = SYMB_ROTANGLE + faceAng + 90
+aTx = aTx - 360 * int(aTx / 360)
+if aTx < 0 then aTx = aTx + 360
+if aTx > 90.001 and aTx < 270.001 then rot2 180
+text2 0, 0, tx
+del top

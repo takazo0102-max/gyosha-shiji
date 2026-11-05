@@ -1,0 +1,256 @@
+"""付帯設備どうし・開口部との衝突検査."""
+
+import unittest
+
+from _path import SRC  # noqa: F401
+
+from ashiba.brackets import BracketSection
+from ashiba.conflicts import check_conflicts
+from ashiba.elevation_solver import solve_elevation
+from ashiba.master import load_master
+from ashiba.model import ScaffoldConfig, ScaffoldModel
+from ashiba.openings import Opening, validate_openings
+from ashiba.plan_solver import solve_plan
+from ashiba.platforms import Hoist, LoadingStage, validate_platforms
+from ashiba.stairs import place_stairs_at
+
+RECT = [(0, 0), (30000, 0), (30000, 20000), (0, 20000)]
+
+
+def build():
+    master = load_master("shinwa_A")
+    return ScaffoldModel(
+        master=master, plan=solve_plan(RECT, master),
+        elevation=solve_elevation(16300, master=master),
+        config=ScaffoldConfig(),
+    )
+
+
+class TestConflictsWithOpenings(unittest.TestCase):
+    """開口部（梁枠より下は支柱を抜いた通路）と同じ区間の付帯設備."""
+
+    def setUp(self):
+        self.m = build()
+        # 辺0の 9000〜12600 に梁枠、第2層。第1層は通路
+        self.op = validate_openings(self.m, [Opening(0, 9000, 3600, level=2)])
+
+    @staticmethod
+    def kinds(issues):
+        return [(i.kind, i.severity) for i in issues]
+
+    def test_stair_tower_in_opening_is_ng(self):
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 9000}])
+        got = check_conflicts(self.m, self.op, stair_plan=sp)
+        self.assertIn(("階段室×開口部", "NG"), self.kinds(got))
+        self.assertIn("通路", got[0].message)
+        self.assertIn("支柱", got[0].message)
+
+    def test_stair_tower_elsewhere_is_fine(self):
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 1800}])
+        self.assertEqual(check_conflicts(self.m, self.op, stair_plan=sp), [])
+
+    def test_loading_stage_on_beam_is_ng(self):
+        pf = validate_platforms(self.m, [LoadingStage(edge_index=0, start_mm=9000)], [])
+        got = check_conflicts(self.m, self.op, platforms=pf)
+        self.assertIn(("ステージ×開口部", "NG"), self.kinds(got))
+        self.assertIn("梁枠上", got[0].message)
+
+    def test_bracket_below_beam_is_ng_and_on_beam_is_warn(self):
+        below = BracketSection(edge_index=0, start_mm=9000, end_mm=12600,
+                               direction="張出", width=600, levels=[1])
+        above = BracketSection(edge_index=0, start_mm=9000, end_mm=12600,
+                               direction="張出", width=600, levels=[3])
+        got = check_conflicts(self.m, self.op, brackets=[below, above])
+        self.assertEqual(self.kinds(got),
+                         [("ブラケット区間×開口部", "NG"), ("ブラケット区間×開口部", "WARN")])
+        self.assertIn("第1層", got[0].message)
+        self.assertIn("偏心", got[1].message)
+
+    def test_bracket_on_another_face_is_fine(self):
+        b = BracketSection(edge_index=1, start_mm=9000, end_mm=12600,
+                           direction="張出", width=600)
+        self.assertEqual(check_conflicts(self.m, self.op, brackets=[b]), [])
+
+    def test_hoist_in_opening_is_warn_and_names_landings_on_beam(self):
+        pf = validate_platforms(
+            self.m, [], [Hoist(edge_index=0, position_mm=10800, landing_levels=[1, 2, 4])])
+        got = check_conflicts(self.m, self.op, platforms=pf)
+        self.assertIn(("昇降機×開口部", "WARN"), self.kinds(got))
+        self.assertIn("第2・4層", got[0].message)
+
+
+class TestStageVersusBracketSection(unittest.TestCase):
+    """ステージの張出ブラケットとブラケット区間が同じ区間で二重張出しになる."""
+
+    def setUp(self):
+        self.m = build()
+
+    def test_same_span_same_level_is_ng(self):
+        pf = validate_platforms(
+            self.m, [LoadingStage(edge_index=0, start_mm=5400, levels=[1])], [])
+        b = BracketSection(edge_index=0, start_mm=5400, end_mm=9000,
+                           direction="張出", width=600)
+        got = check_conflicts(self.m, None, platforms=pf, brackets=[b])
+        self.assertEqual([(i.kind, i.severity) for i in got],
+                         [("ステージ×ブラケット区間", "NG")])
+        self.assertIn("二重", got[0].message)
+
+    def test_different_level_is_fine(self):
+        pf = validate_platforms(
+            self.m, [LoadingStage(edge_index=0, start_mm=5400, levels=[1])], [])
+        b = BracketSection(edge_index=0, start_mm=5400, end_mm=9000,
+                           direction="張出", width=600, levels=[3])
+        self.assertEqual(check_conflicts(self.m, None, platforms=pf, brackets=[b]), [])
+
+
+class TestAutoStairsAvoidOpenings(unittest.TestCase):
+    """自動配置の階段室は開口部の区間を避ける（サンプル2件で重なっていた）."""
+
+    def test_auto_placement_skips_opening_range(self):
+        from ashiba.openings import opening_ranges
+        from ashiba.stairs import auto_place_stairs
+
+        m = build()
+        plain = auto_place_stairs(m)
+        t = plain.towers[0]
+        # 自動配置が選んだ区間にそのまま開口部を置くと衝突する
+        op = validate_openings(m, [Opening(t.edge_index, t.start_mm, 3600, level=2)])
+        self.assertTrue(check_conflicts(m, op, stair_plan=plain))
+        # 避ける区間を渡せば衝突せず、移動距離の目安も守る
+        sp = auto_place_stairs(m, avoid=opening_ranges(op))
+        self.assertEqual(check_conflicts(m, op, stair_plan=sp), [])
+        self.assertLessEqual(sp.max_travel_mm, 30000)
+
+    def test_shipped_examples_with_openings_have_no_conflict(self):
+        import json
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        root = Path(__file__).resolve().parents[1] / "examples"
+        for name in ("opening_beam.json", "waku_composite.json"):
+            with self.subTest(name):
+                r = solve_all(load_spec(root / name))
+                # 朝顔を貫く昇降機の切り欠きは WARN で出る（waku_composite）。止まるのはNGだけ
+                self.assertEqual([i.message for i in r.conflicts if i.severity == "NG"], [])
+
+
+class TestConflictsReachTheVerdict(unittest.TestCase):
+    """衝突NGは総合判定の是正理由に出る（個別検証が緑でも止まる）."""
+
+    def test_stair_in_opening_blocks_the_plan(self):
+        import json
+        from pathlib import Path
+
+        from ashiba.cli import load_spec, solve_all
+
+        spec = json.loads(
+            Path(__file__).resolve().parents[1].joinpath("examples", "rect_30x20.json")
+            .read_text(encoding="utf-8"))
+        spec["stairs"] = {"positions": [{"edge_index": 0, "start_mm": 9000},
+                                        {"edge_index": 2, "start_mm": 9000}]}
+        spec["openings"] = [{"edge_index": 0, "start_mm": 9000,
+                             "beam_span_mm": 3600, "level": 2}]
+        r = solve_all(spec)
+        self.assertTrue(
+            [b for b in r.verdict["blockers"] if b.startswith("付帯設備の衝突NG")],
+            r.verdict)
+        self.assertTrue([w for w in r.warnings if w[0] == "付帯設備の衝突"])
+
+
+class TestAsagaoVersusAttachments(unittest.TestCase):
+    """朝顔は面の全長に外へ出る板。昇降機のマストが貫く／ステージと同じ高さ帯は素通りさせない."""
+
+    def _model(self, stages=1):
+        from ashiba.model import AsagaoSpec
+
+        master = load_master("shinwa_A")
+        return ScaffoldModel(
+            master=master, plan=solve_plan(RECT, master),
+            elevation=solve_elevation(16300, master=master),
+            config=ScaffoldConfig(asagao=AsagaoSpec(stages=stages)),
+        )
+
+    def test_hoist_mast_through_the_asagao_is_flagged_with_the_span(self):
+        m = self._model()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000, cage_width_mm=2000)])
+        hits = [c for c in check_conflicts(m, platforms=pf) if c.kind == "昇降機×朝顔"]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "WARN")
+        self.assertIn("切り欠き", hits[0].message)
+        self.assertIn("7200〜10800mm", hits[0].message)   # 支柱の真上→両隣のスパンを結合
+
+    def test_stage_at_the_asagao_height_is_flagged(self):
+        m = self._model()
+        h = m.asagao_heights()[0]
+        level = m.elevation.level_heights.index(h) + 1
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=3600, levels=[level])], [])
+        hits = [c for c in check_conflicts(m, platforms=pf) if c.kind == "ステージ×朝顔"]
+        self.assertEqual(len(hits), 1, [c.message for c in check_conflicts(m, platforms=pf)])
+        self.assertIn(f"第{level}層", hits[0].message)
+
+    def test_stage_well_above_the_asagao_is_fine(self):
+        m = self._model()
+        pf = validate_platforms(m, [LoadingStage(edge_index=0, start_mm=3600, levels=[6])], [])
+        self.assertFalse([c for c in check_conflicts(m, platforms=pf) if "朝顔" in c.kind])
+
+    def test_no_asagao_no_check(self):
+        m = build()
+        pf = validate_platforms(m, [], [Hoist(edge_index=0, position_mm=9000)])
+        self.assertFalse([c for c in check_conflicts(m, platforms=pf) if "朝顔" in c.kind])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+
+class TestStairsVersusPlatforms(unittest.TestCase):
+    """階段室のスパンは段板と開口・床で埋まる。同じスパンに昇降機の乗り込み口やステージは取れない."""
+
+    def setUp(self):
+        self.m = build()
+
+    def test_stair_tower_on_the_hoist_span_is_ng(self):
+        # 辺0: 階段室 1800〜5400、昇降機 5400 幅2400 → 4200〜6600 のスパン(3600〜7200)と重なる
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 1800}])
+        pf = validate_platforms(self.m, [], [Hoist(edge_index=0, position_mm=5400, cage_width_mm=2400)])
+        kinds = [(c.kind, c.severity) for c in check_conflicts(self.m, stair_plan=sp, platforms=pf)]
+        self.assertIn(("階段室×昇降機", "NG"), kinds)
+        # 離せば通る
+        pf2 = validate_platforms(self.m, [], [Hoist(edge_index=0, position_mm=12600, cage_width_mm=2400)])
+        self.assertEqual(check_conflicts(self.m, stair_plan=sp, platforms=pf2), [])
+
+    def test_stair_tower_on_the_stage_span_is_ng(self):
+        sp = place_stairs_at(self.m, [{"edge_index": 0, "start_mm": 1800}])
+        pf = validate_platforms(self.m, [LoadingStage(edge_index=0, start_mm=3600, span_count=2)], [])
+        kinds = [(c.kind, c.severity) for c in check_conflicts(self.m, stair_plan=sp, platforms=pf)]
+        self.assertIn(("階段室×ステージ", "NG"), kinds)
+
+    def test_auto_placement_avoids_the_hoist_span(self):
+        from ashiba.platforms import platform_ranges
+        from ashiba.stairs import auto_place_stairs
+
+        plain = auto_place_stairs(self.m)
+        t = plain.towers[0]
+        # 自動配置が選んだ区間の真ん中に昇降機を立てると衝突する
+        pf = validate_platforms(self.m, [], [Hoist(
+            edge_index=t.edge_index, position_mm=(t.start_mm + t.end_mm) / 2, cage_width_mm=2400)])
+        self.assertTrue(check_conflicts(self.m, stair_plan=plain, platforms=pf))
+        sp = auto_place_stairs(self.m, avoid=platform_ranges(self.m, pf))
+        self.assertEqual(check_conflicts(self.m, stair_plan=sp, platforms=pf), [])
+        self.assertLessEqual(sp.max_travel_mm, 30000)
+
+    def test_solve_all_keeps_stairs_off_the_hoist(self):
+        from ashiba.cli import solve_all
+
+        spec = {
+            "project_name": "小型 昇降機", "series_id": "shinwa_A",
+            "outline_mm": [[0, 0], [10800, 0], [10800, 5400], [0, 5400]],
+            "eaves_height_mm": 9000, "building_height_mm": 9000,
+            "hoists": [{"face": "南面", "position_mm": 5400, "landing_levels": [2, 4],
+                        "cage_width_mm": 2400, "cage_depth_mm": 1800}],
+        }
+        r = solve_all(spec)
+        self.assertEqual([c.kind for c in r.conflicts if "階段室" in c.kind], [])
+        self.assertTrue(r.stair_plan.towers)

@@ -1,0 +1,341 @@
+﻿! タワークレーン 3D
+define material "tc_body" 2, 0.95, 0.75, 0.10
+define material "tc_steel" 2, 0.55, 0.56, 0.58
+define material "tc_dark" 2, 0.20, 0.20, 0.22
+define material "tc_cw" 2, 0.62, 0.63, 0.64
+define material "tc_conc" 2, 0.75, 0.74, 0.70
+define material "tc_glass" 2, 0.30, 0.45, 0.60
+define material "tc_hook" 2, 0.92, 0.40, 0.12
+define material "tc_light" 2, 0.95, 0.10, 0.08
+resol 8
+! 基礎
+material "tc_conc"
+add -baseW * 0.55, -baseW * 0.55, -baseD
+block baseW * 1.1, baseW * 1.1, baseD
+del 1
+! ベース（クロスベースの2本の梁）
+material "tc_steel"
+for s = -1 to 1 step 2
+	add 0, 0, 0
+	rotz 45 * s
+	add -baseW * 0.7, -0.25, 0
+	block baseW * 1.4, 0.5, 0.5
+	del 3
+next s
+add -msW / 2 - 0.3, -msW / 2 - 0.3, 0.5
+block msW + 0.6, msW + 0.6, 0.15
+del 1
+gosub "mast"
+gosub "ties"
+add 0, 0, zR
+rotz slew
+gosub "slewing"
+if tcType = 2 then
+	gosub "flatjib"
+else
+	gosub "luffjib"
+endif
+if avN > 0 then gosub "lights"
+del 2
+gosub "hook"
+end
+
+"seg3":
+	! (x0q, y0q, z0q) から (x1q, y1q, z1q) の円柱（半径 rq）
+	dxq = x1q - x0q
+	dyq = y1q - y0q
+	dzq = z1q - z0q
+	hq = sqr(dxq ^ 2 + dyq ^ 2)
+	lq = sqr(hq ^ 2 + dzq ^ 2)
+	if lq > 0.001 then
+		az = 0
+		if hq > 0.0001 then
+			if abs(dxq) < 0.0001 then
+				az = 90
+				if dyq < 0 then az = -90
+			else
+				az = atn(dyq / dxq)
+				if dxq < 0 then az = az + 180
+			endif
+		endif
+		el = 90
+		if dzq < 0 then el = -90
+		if hq > 0.0001 then el = atn(dzq / hq)
+		add x0q, y0q, z0q
+		rotz az
+		roty 90 - el
+		cylind lq, rq
+		del 3
+	endif
+	return
+
+"mast":
+	! マスト: 主材4本・各面の水平材と斜材（1本ごと）
+	material "tc_body"
+	rcm = 0.04 + 0.025 * msW
+	for sx = -1 to 1 step 2
+		for sy = -1 to 1 step 2
+			add sx * msW / 2, sy * msW / 2, 0
+			cylind msH, rcm
+			del 1
+		next sy
+	next sx
+	rq = rcm * 0.55
+	for k = 0 to nSg - 1
+		za = k * sgL
+		zb = za + sgL
+		for f = 1 to 4
+			ca = cos(f * 90)
+			sa = sin(f * 90)
+			cb = cos(f * 90 + 90)
+			sb = sin(f * 90 + 90)
+			x0q = msW / 2 * (ca - sa)
+			y0q = msW / 2 * (sa + ca)
+			x1q = msW / 2 * (cb - sb)
+			y1q = msW / 2 * (sb + cb)
+			z0q = za
+			z1q = za
+			gosub "seg3"
+			z1q = zb
+			gosub "seg3"
+		next f
+	next k
+	return
+
+"ties":
+	! 壁つなぎ: 高さごとにマストを囲むカラーと、建物の側（tieA）へ2本の控え
+	if nTz > 0 then
+		for i = 1 to nTz
+			material "tc_dark"
+			add -msW / 2 - 0.15, -msW / 2 - 0.15, tz[i] - 0.15
+			block msW + 0.3, msW + 0.3, 0.3
+			del 1
+			material "tc_steel"
+			rq = 0.08
+			for s = -1 to 1 step 2
+				x0q = (msW / 2 + 0.15) * cos(tieA) - s * msW / 2 * sin(tieA)
+				y0q = (msW / 2 + 0.15) * sin(tieA) + s * msW / 2 * cos(tieA)
+				x1q = (msW / 2 + tieL) * cos(tieA) - s * (msW / 2 + 0.3) * sin(tieA)
+				y1q = (msW / 2 + tieL) * sin(tieA) + s * (msW / 2 + 0.3) * cos(tieA)
+				z0q = tz[i]
+				z1q = tz[i]
+				gosub "seg3"
+			next s
+		next i
+	endif
+	return
+
+"slewing":
+	! 旋回体: 旋回輪・機械台・カウンタウエイト・運転室
+	material "tc_dark"
+	cylind 0.6, msW * 0.6
+	material "tc_body"
+	add -tailR + cwL, dkY - dkW / 2, 0.6
+	block tailR - cwL + upF, dkW, 0.5
+	del 1
+	material "tc_cw"
+	add -tailR, dkY - cwW / 2, 0.6
+	block cwL, cwW, cwH
+	del 1
+	material "tc_body"
+	! 運転室（旋回体の前の右。前後 cbL・幅 cbW・上面 cbZ・高さ cbH）
+	yR = dkY - dkW / 2
+	add upF - cbL, yR, cbZ - cbH
+	block cbL, cbW, cbH
+	del 1
+	material "tc_glass"
+	add upF + 0.002, yR + 0.08, cbZ - cbH * 0.6
+	block 0.006, max(0.1, cbW - 0.16), cbH * 0.5
+	del 1
+	add upF - cbL + 0.1, yR - 0.006, cbZ - cbH * 0.55
+	block max(0.1, cbL - 0.2), 0.006, cbH * 0.45
+	del 1
+	return
+
+"luffjib":
+	! 起伏ジブ: Aフレーム・ラチスジブ（主材4本と4面の斜材）・起伏ロープとペンダント
+	material "tc_body"
+	for s = -1 to 1 step 2
+		rq = 0.12
+		x0q = pvX - 0.3
+		y0q = s * dkW / 2
+		z0q = 1.1
+		x1q = -frX
+		y1q = s * 0.4
+		z1q = frH
+		gosub "seg3"
+		x0q = -tailR + cwL + 0.3
+		gosub "seg3"
+	next s
+	add pvX, 0, pvH
+	roty -jbA
+	resol 6
+	rcj = 0.035 + 0.02 * jbW
+	for sy = -1 to 1 step 2
+		for sz = -1 to 1 step 2
+			add 0, sy * jbW / 2, sz * jbW / 2
+			roty 90
+			cylind jbL, rcj
+			del 2
+		next sz
+	next sy
+	nP = max(2, int(jbL / jbW))
+	pP = jbL / nP
+	for i = 0 to nP - 1
+		sg = 1 - 2 * (i mod 2)
+		rq = rcj * 0.5
+		x0q = i * pP
+		x1q = x0q + pP
+		y0q = -sg * jbW / 2
+		y1q = sg * jbW / 2
+		z0q = jbW / 2
+		z1q = jbW / 2
+		gosub "seg3"
+		z0q = -jbW / 2
+		z1q = -jbW / 2
+		gosub "seg3"
+		y0q = jbW / 2
+		y1q = jbW / 2
+		z0q = -sg * jbW / 2
+		z1q = sg * jbW / 2
+		gosub "seg3"
+		y0q = -jbW / 2
+		y1q = -jbW / 2
+		gosub "seg3"
+	next i
+	resol 8
+	material "tc_steel"
+	add jbL - 0.2, -jbW / 2, -jbW / 2
+	block 0.6, jbW, jbW
+	del 1
+	del 2
+	material "tc_steel"
+	for s = -1 to 1 step 2
+		rq = 0.025
+		x0q = -frX
+		y0q = s * 0.4
+		z0q = frH
+		x1q = jX
+		y1q = s * jbW / 4
+		z1q = jZ - zR
+		gosub "seg3"
+	next s
+	return
+
+"flatjib":
+	! 水平ジブ: 塔頭・三角断面のジブ（下弦2本・上弦1本と斜材）・カウンタジブ・タイバー・トロリ
+	jbHt = jbW * 0.9
+	material "tc_body"
+	for s = -1 to 1 step 2
+		rq = 0.1
+		x0q = s * msW / 2
+		y0q = -msW / 2
+		z0q = 0.6
+		x1q = 0
+		y1q = 0
+		z1q = frH
+		gosub "seg3"
+		y0q = msW / 2
+		gosub "seg3"
+	next s
+	resol 6
+	rcj = 0.035 + 0.02 * jbW
+	rq = rcj
+	for s = -1 to 1 step 2
+		x0q = pvX
+		y0q = s * jbW / 2
+		z0q = pvH
+		x1q = jX
+		y1q = y0q
+		z1q = pvH
+		gosub "seg3"
+		x0q = -tailR + cwL
+		x1q = 0
+		gosub "seg3"
+	next s
+	x0q = pvX
+	y0q = 0
+	z0q = pvH + jbHt
+	x1q = jX
+	y1q = 0
+	z1q = pvH + jbHt
+	gosub "seg3"
+	nP = max(2, int(jbL / jbW))
+	pP = jbL / nP
+	rq = rcj * 0.5
+	for i = 0 to nP - 1
+		for s = -1 to 1 step 2
+			x0q = pvX + i * pP
+			y0q = s * jbW / 2
+			z0q = pvH
+			x1q = x0q + pP / 2
+			y1q = 0
+			z1q = pvH + jbHt
+			gosub "seg3"
+			x0q = x1q + pP / 2
+			gosub "seg3"
+		next s
+	next i
+	resol 8
+	material "tc_steel"
+	for s = -1 to 1 step 2
+		rq = 0.03
+		x0q = 0
+		y0q = 0
+		z0q = frH
+		x1q = pvX + jbL * 0.6
+		y1q = 0
+		z1q = pvH + jbHt
+		gosub "seg3"
+		x1q = -tailR + cwL + 0.5
+		y1q = s * jbW / 2
+		z1q = pvH
+		gosub "seg3"
+	next s
+	material "tc_dark"
+	add hX - 0.6, -jbW / 2 - 0.1, pvH - 0.5
+	block 1.2, jbW + 0.2, 0.4
+	del 1
+	return
+
+"lights":
+	! 航空障害灯（60m 以上。塔頂＝Aフレーム頂部とジブ先端、ジブが長ければ途中にも）
+	material "tc_light"
+	add -frX, 0, frH + 0.3
+	sphere 0.25
+	del 1
+	add jX, 0, jZ - zR + 0.4
+	sphere 0.25
+	del 1
+	nMid = avN - 1
+	for i = 1 to nMid
+		fq = i / (nMid + 1)
+		add pvX + (jX - pvX) * fq, 0, pvH + (jZ - zR - pvH) * fq + jbW / 2 + 0.25
+		sphere 0.2
+		del 1
+	next i
+	return
+
+"hook":
+	! ワイヤ（2本）とフック（旋回の向きに作業半径 hX）
+	cS = cos(slew)
+	sS = sin(slew)
+	zT = jZ
+	if tcType = 2 then zT = zR + pvH - 0.5
+	material "tc_steel"
+	for s = -1 to 1 step 2
+		add hX * cS - s * 0.12 * sS, hX * sS + s * 0.12 * cS, hZ + 0.8
+		cylind max(0.1, zT - hZ - 0.8), 0.015
+		del 1
+	next s
+	material "tc_hook"
+	add hX * cS, hX * sS, hZ
+	rotz slew
+	add -0.35, -0.3, 0
+	block 0.7, 0.6, 0.8
+	del 3
+	material "tc_steel"
+	add hX * cS, hX * sS, hZ - 0.5
+	cone 0.5, 0.05, 0.12, 90, 90
+	del 1
+	return

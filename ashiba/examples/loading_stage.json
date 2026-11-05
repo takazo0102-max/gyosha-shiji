@@ -1,0 +1,59 @@
+{
+  "project_name": "サンプル荷受けステージ",
+  "series_id": "shinwa_A",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
+  "eaves_height_mm": 15400,
+  "guard_extra_mm": 900,
+  "building_height_mm": 16000,
+  "period_days": 90,
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "関東(内陸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート"
+  },
+  "loading_stages": [
+    {
+      "edge_index": 0,
+      "start_mm": 12600,
+      "span_count": 2,
+      "projection_mm": 1500,
+      "load_kn": 9.8,
+      "levels": [
+        5,
+        7
+      ],
+      "note": "資材荷揚げ用（方杖が朝顔に掛からない第5層に組み、第7層へ盛り替え）"
+    }
+  ],
+  "hoists": [
+    {
+      "edge_index": 2,
+      "position_mm": 14400,
+      "tie_every_mm": 3600,
+      "note": "工事用エレベータ",
+      "landing_levels": [
+        2,
+        5
+      ]
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+﻿! 場内通路: 文字のパラメータ（mm・度）を配列に読む
+dim qcx[]
+kC = 0
+rest = cX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kC = kC + 1
+		qcx[kC] = v / 1000
+	endif
+endwhile
+dim qcy[]
+kCy = 0
+rest = cY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kCy = kCy + 1
+		qcy[kCy] = v / 1000
+	endif
+endwhile
+dim qex[]
+kE = 0
+rest = eX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kE = kE + 1
+		qex[kE] = v / 1000
+	endif
+endwhile
+dim qey[]
+kEy = 0
+rest = eY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kEy = kEy + 1
+		qey[kEy] = v / 1000
+	endif
+endwhile
+dim qox[]
+kO = 0
+rest = aX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kO = kO + 1
+		qox[kO] = v / 1000
+	endif
+endwhile
+dim qoy[]
+kOy = 0
+rest = aY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kOy = kOy + 1
+		qoy[kOy] = v / 1000
+	endif
+endwhile
+dim qr[]
+kR = 0
+rest = aR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kR = kR + 1
+		qr[kR] = v / 1000
+	endif
+endwhile
+dim qa[]
+kA = 0
+rest = aA
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kA = kA + 1
+		qa[kA] = v 
+	endif
+endwhile
+dim qw[]
+kW = 0
+rest = aW
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		kW = kW + 1
+		qw[kW] = v / 10
+	endif
+endwhile
+kC = min(kC, kCy)
+kE = min(kE, kEy)
+kO = min(kO, kOy)

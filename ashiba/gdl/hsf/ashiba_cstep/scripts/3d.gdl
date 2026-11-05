@@ -1,0 +1,73 @@
+﻿! ============================================================
+! コーナーステップ 3D: 各層の床の高さに踏板（隙間×建地列の間隔）だけ。幅木も手すり・中桟も付けない（利用者の指摘
+! 2026-10-24: スキマステップの青色の幅木いらないのでは／コーナーステップの変な布材が不要。隙間の長さの短い管が
+! 宙に浮いていた。手すりは両側の足場のもので足りる）
+! 原点＝隙間を持つ面の最後の支柱（内側建地列）、+X＝面に沿う方向、外側建地列は -rowW
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen 1
+resol 8
+rotz faceAng
+if flipX then
+	addx gapL
+	mulx -1
+endif
+dim lv[]
+nLv = 0
+s = lvList
+while strlen(s) > 0 and nLv < 40 do
+	k = strstr(s, ",")
+	if k > 0 then
+		tk = strsub(s, 1, k - 1)
+		s = strsub(s, k + 1, strlen(s) - k)
+	else
+		tk = s
+		s = ""
+	endif
+	v = 0
+	nn = split(tk, "%n", v)
+	if nn > 0 then
+		nLv = nLv + 1
+		lv[nLv] = v / 1000
+	endif
+endwhile
+if matDeck > 0 then
+	material matDeck
+else
+	define material "ashiba_cstep_steel" 2, 0.62, 0.64, 0.66
+	material "ashiba_cstep_steel"
+endif
+for i = 1 to nLv
+	z = lv[i]
+	if lineMode then
+		lin_ 0, -rowW, z, gapL, -rowW, z
+		lin_ gapL, -rowW, z, gapL, 0, z
+		lin_ gapL, 0, z, 0, 0, z
+		lin_ 0, 0, z, 0, -rowW, z
+	else
+		! 縞鋼板（t=3.2）を床の上面に載せる（利用者の指摘 2026-10-24: コーナー部分が渡れない。床の高さ＝布材の
+		! 高さに置いていて、床の上面より 66 下に沈み、隙間が穴になっていた）。爪は布材に掛ける（踏板の両端）
+		y0 = -(rowW - plW1 - plW2) / 2
+		for ip = 1 to 2
+			w = plW1
+			if ip = 2 then w = plW2
+			if w > 0.001 then
+				add 0, y0 - w, z + deckTop
+				block plL, w, 0.0032
+				add -hookL, 0, -0.03
+				block hookL, 0.035, 0.035
+				add 0, w - 0.035, 0
+				block hookL, 0.035, 0.035
+				del 3
+				y0 = y0 - w
+			endif
+		next ip
+	endif
+next i
+del top
+if stepH > 0.001 then cutend

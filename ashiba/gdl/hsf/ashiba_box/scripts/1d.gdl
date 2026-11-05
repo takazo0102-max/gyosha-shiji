@@ -1,0 +1,91 @@
+﻿! 足場の箱: スパンの並びと定尺を読む（m）
+dim sx[]
+nX = 0
+rest = spanX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nX = nX + 1
+			sx[nX] = v / 1000
+		endif
+	endif
+endwhile
+dim sy[]
+nY = 0
+rest = spanY
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nY = nY + 1
+			sy[nY] = v / 1000
+		endif
+	endif
+endwhile
+dim sz[]
+nSz = 0
+rest = szList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		if v > 100 then
+			nSz = nSz + 1
+			sz[nSz] = v / 1000
+		endif
+	endif
+endwhile
+if nX = 0 then
+	nX = 1
+	sx[1] = max(0.6, lenX)
+endif
+if nY = 0 then
+	nY = 1
+	sy[1] = max(0.6, lenY)
+endif
+lx = 0
+for i = 1 to nX
+	lx = lx + sx[i]
+next i
+ly = 0
+for j = 1 to nY
+	ly = ly + sy[j]
+next j
+nL = max(1, nLev)
+deckTop = lev1 + (nL - 1) * floorH
+postH = deckTop + 1.0
+tk = max(0.3, min(1.2, round_int(thick / 0.3) * 0.3))
+if thick < 0.225 then tk = 0.15
+if tk < 0.225 then
+	kind = "抱き足場"
+else
+	if tk < 0.45 then
+		kind = "一側足場"
+	else
+		kind = "本足場 幅" + str(round_int(tk / 0.3) * 300, 1, 0)
+	endif
+endif

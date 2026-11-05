@@ -1,0 +1,139 @@
+﻿! ============================================================
+! 足場 詳細図 2Dシンボル マスタースクリプト
+! 5枚（脚部／壁つなぎ／朝顔／コーナー／梁枠）を detailType で切替える。
+! 系列IDパラメータで寸法値のみ差替える方式（開発指示書§6.7 方式③）。
+! 想定縮尺 1/10〜1/20
+! ============================================================
+
+! ---- 系列による定数 ----
+! serType: "A"/"B" くさび緊結式 / "W" 枠組
+! 本図の納まりはくさび緊結式のもの。枠組で使う場合は図面に注意書きを出す
+! （黙ってくさびの納まりを提出図書に載せないため）
+koma = 0.450                ! コマピッチ
+floorH = 1.800              ! 階高
+isFrame = 0
+if serType = "B" then
+	koma = 0.475
+	floorH = 1.900
+endif
+if serType = "W" then
+	koma = 0
+	floorH = 1.700
+	isFrame = 1
+endif
+
+! ---- 部材半径 ----
+r_sic  = 0.0486 / 2         ! 支柱 φ48.6
+r_nuno = 0.0427 / 2         ! 布材 φ42.7
+r_jack = 0.0381 / 2         ! ジャッキ φ38.1
+r_tie  = 0.0273 / 2         ! 壁つなぎ φ27.2
+
+! ---- 法規のしきい値（法規チェックを図面に埋め込むため） ----
+LIM_JACK  = 0.270           ! ジャッキ繰出し上限
+! 壁つなぎ間隔の上限は足場の種類で違う（570条1項五号: わく組9m×8m /
+! 単管相当5m×5.5m）。決め打ちすると枠組で誤った警告を出す
+LIM_TIE_V = 5.000           ! 壁つなぎ 垂直上限
+LIM_TIE_H = 5.500           ! 壁つなぎ 水平上限
+if tieVLim > 0 then LIM_TIE_V = tieVLim
+if tieHLim > 0 then LIM_TIE_H = tieHLim
+LIM_ASA_P = 2.000           ! 朝顔 突出下限
+LIM_ASA_A = 20.0            ! 朝顔 傾斜下限 度
+
+! 梁枠の規格寸法は系列で違う（A:3600/5400、B:3800/5700 など）。
+! 図に決め打ちすると、規格品なのに「規格外」と警告してしまう
+dim beamStd[8]
+nBeam = 0
+rest = beamList
+while strlen(rest) > 0 and nBeam < 8 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBeam = nBeam + 1
+		beamStd[nBeam] = v / 1000
+	endif
+endwhile
+if nBeam = 0 then
+	beamStd[1] = 3.600
+	beamStd[2] = 5.400
+	nBeam = 2
+endif
+beamStdTxt = ""
+for i = 1 to nBeam
+	if i > 1 then beamStdTxt = beamStdTxt + "/"
+	beamStdTxt = beamStdTxt + str(beamStd[i] * 1000, 5, 0)
+next i
+
+! 昇降機の乗り込み口の作業床高さ（GLから）。空なら階高で2層ぶん置く
+dim landH[16]
+nLand = 0
+rest = landList
+while strlen(rest) > 0 and nLand < 16 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nLand = nLand + 1
+		landH[nLand] = v / 1000
+	endif
+endwhile
+if nLand = 0 then
+	landH[1] = floorH
+	landH[2] = 2 * floorH
+	nLand = 2
+endif
+
+! 梁枠上に乗る支柱の位置（開口始点から）。空ならスパン割から推定する
+dim bpOff[12]
+nBp = 0
+rest = beamPosts
+while strlen(rest) > 0 and nBp < 12 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBp = nBp + 1
+		bpOff[nBp] = v / 1000
+	endif
+endwhile
+
+! 壁離れの目標帯は計画ごとに指定できる。図に既定値を書くと計画と食い違う
+SO_MIN = 0.250
+SO_MAX = 0.350
+if soMin > 0 then SO_MIN = soMin
+if soMax > 0 then SO_MAX = soMax
+
+! ---- 詳細図の縮尺 ----
+! detScale > 0 なら、その縮尺（1/detScale）で読める文字の大きさにする。平面（1/100）に置いた
+! 詳細図をレイアウトで 1/detScale に拡大して置くと、文字も一緒に拡大されるため。
+! 0 なら表示の縮尺のまま（平面で 1/20 などに切り替えて見るとき）
+dScale = GLOB_SCALE
+if detScale > 0 then dScale = detScale
+
+! ---- 共通スタイル ----
+define style "anno" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 1, 0
+! 中央揃え。寸法や部位名は基準点が中心でないと位置がずれて見える
+define style "annoC" "ＭＳ Ｐゴシック", texSiz * dScale / GLOB_SCALE, 5, 0
+
+! ---- 注記のレイアウト用（文字高は縮尺依存なので実寸を求めて行送りに使う）----
+! GLOB_SCALE = 表示の縮尺の分母（1/100なら100）。texSiz は用紙上のmm（詳細図の縮尺で）
+txtH = texSiz * dScale / 1000
+txtLine = txtH * 1.8

@@ -1,0 +1,101 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="lenX">
+			<Description><![CDATA["長手（内側の建地の列。つまみで引くと定尺の組み合わせに吸着）"]]></Description>
+			<Value>7.316</Value>
+		</Length>
+		<Length Name="lenY">
+			<Description><![CDATA["短手（同上）"]]></Description>
+			<Value>5.487</Value>
+		</Length>
+		<String Name="spanX">
+			<Description><![CDATA["長手のスパン（mm、カンマ区切り。原点から）"]]></Description>
+			<Value><![CDATA["1829,1829,1829,1829"]]></Value>
+		</String>
+		<String Name="spanY">
+			<Description><![CDATA["短手のスパン（同上）"]]></Description>
+			<Value><![CDATA["1829,1829,1829"]]></Value>
+		</String>
+		<String Name="szList">
+			<Description><![CDATA["使える定尺（mm、カンマ区切り。大きい順。置くときに系列から入れる）"]]></Description>
+			<Value><![CDATA["1829,1524,1219,914,610"]]></Value>
+		</String>
+		<Length Name="thick">
+			<Description><![CDATA["厚み（足場の種類: 150＝抱き足場・300＝一側足場・600／900／1200＝幅610／914／1219の本足場。つまみで吸着）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Integer Name="nLev">
+			<Description><![CDATA["作業床の段数（3D の天端のつまみで増減）"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Length Name="lev1">
+			<Description><![CDATA["1段目の作業床の高さ"]]></Description>
+			<Value>1.78</Value>
+		</Length>
+		<Length Name="floorH">
+			<Description><![CDATA["作業床の段の間隔"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="jackH">
+			<Description><![CDATA["ジャッキの繰出し（図の目安）"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="topEdit">
+			<Description><![CDATA["最上段の作業床（立つ高さから。3D のつまみ。引くと段数が変わる）"]]></Description>
+			<Value>7.18</Value>
+		</Length>
+		<Length Name="zBase">
+			<Description><![CDATA["立つ高さ（足場の立つ面から。セットバックの上の階は下の屋根の天端。3D のつまみ）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="seriesId">
+			<Description><![CDATA["足場の種類（系列の ID。本体にするときに使う）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="standoff">
+			<Description><![CDATA["離れ（躯体から内側の建地まで。本体にするときに使う）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

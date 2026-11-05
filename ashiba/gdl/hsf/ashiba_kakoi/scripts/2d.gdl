@@ -1,0 +1,155 @@
+﻿! 仮囲い 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: パネル（外）は太線、横地・支柱・控え（中）・ゲートは細線、地中の基礎
+! （親杭・根巻き・H形鋼の根入れ）は隠れ線。縮尺で 詳細（1/100: パネルの厚み・横地・支柱・控え・基礎）・標準（1/200: パネルの1本と
+! 支柱・控えの1本）・簡略（パネルの線とゲートの開口だけ）
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pnO = penBold
+if pnO < 1 then pnO = penEquip
+pnT = penThin
+if pnT < 1 then pnT = penEquip
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "kkT" "ＭＳ Ｐゴシック", texSiz, 2, 0
+define style "kkB" "ＭＳ Ｐゴシック", texSiz, 8, 0
+define style "kkL" "ＭＳ Ｐゴシック", texSiz, 4, 0
+define style "kkR" "ＭＳ Ｐゴシック", texSiz, 6, 0
+style "kkT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+! パネル（外の面。太線）と横地（細線）
+for k = 1 to nRu - 1 step 2
+	pen pnO
+	line2 ru[k], -po, ru[k + 1], -po
+	if drLv = 1 then
+		pen pnT
+		line2 ru[k], -po - max(pt, 0.004), ru[k + 1], -po - max(pt, 0.004)
+		line2 ru[k], -ro, ru[k + 1], -ro
+	endif
+next k
+if drLv < 3 then
+	pen pnT
+	! 支柱
+	for i = 1 to nP
+		circle2 px[i], 0, r
+	next i
+	! 控え（中）。標準は芯の1本
+	for i = 1 to nBq
+		if drLv = 1 then
+			line2 bq[i] - ro - r, 0, bq[i] - ro - r, brB
+			line2 bq[i] - ro + r, 0, bq[i] - ro + r, brB
+			if kkFound <= 2 or kkFound = 6 then
+				line2 bq[i] + ro - r, 0, bq[i] + ro - r, brB
+				line2 bq[i] + ro + r, 0, bq[i] + ro + r, brB
+			endif
+		else
+			line2 bq[i], 0, bq[i], brB
+		endif
+		circle2 bq[i], brB, r
+	next i
+endif
+! 基礎（地中は隠れ線。詳細だけ）
+if drLv = 1 then
+	pen pnT
+	line_type ltH
+	for i = 1 to nP
+		if kkFound = 2 then rect2 px[i] - 0.15, -0.15, px[i] + 0.15, 0.15
+		if kkFound = 4 then rect2 px[i] - 0.06, -0.06, px[i] + 0.06, 0.06
+		if kkFound = 5 then
+			rect2 px[i] - pileW / 2, -pileW / 2, px[i] + pileW / 2, -pileW / 2 + 0.015
+			rect2 px[i] - pileW / 2, pileW / 2 - 0.015, px[i] + pileW / 2, pileW / 2
+			rect2 px[i] - 0.005, -pileW / 2 + 0.015, px[i] + 0.005, pileW / 2 - 0.015
+		endif
+	next i
+	for i = 1 to nBq
+		if kkFound = 2 then rect2 bq[i] - 0.15, brB - 0.15, bq[i] + 0.15, brB + 0.15
+		if kkFound = 4 then rect2 bq[i] - 0.07, brB - 0.07, bq[i] + 0.07, brB + 0.07
+		if kkFound = 6 then rect2 bq[i] - pileW / 2, brB - pileW - r, bq[i] + pileW / 2, brB - r
+	next i
+	if kkFound = 3 then
+		line2 0, -0.15, kkL, -0.15
+		line2 0, 0.15, kkL, 0.15
+		line2 0, brB - 0.15, kkL, brB - 0.15
+		line2 0, brB + 0.15, kkL, brB + 0.15
+	endif
+	line_type ltS
+endif
+! ゲート（細線）
+pen pnT
+for k = 1 to nGx - 1 step 2
+	j = (k + 1) / 2
+	g0 = gx[k]
+	g1 = gx[k + 1]
+	gw = g1 - g0
+	kd = 2
+	if j <= nGk then kd = gk[j]
+	nL = 0
+	nRt = 1
+	if 2 * j <= nGn then
+		nL = gn[2 * j - 1]
+		nRt = gn[2 * j]
+	endif
+	! 開口の両端の印（簡略でも）
+	line2 g0, -po - 0.15, g0, 0.15
+	line2 g1, -po - 0.15, g1, 0.15
+	if drLv < 3 then
+		if kd = 3 or kd = 5 then
+			! 内開きのドア（扉 413・910）
+			lw = 0.413
+			if kd = 5 then lw = 0.91
+			dx0 = g0 + (gw - lw) / 2
+			line2 g0, -0.1009, g1, -0.1009
+			line2 dx0, -0.1009, dx0, -0.1009 + lw
+			arc2 dx0, -0.1009, lw, 0, 90
+		else
+			! キャスターゲート（閉めた線）と畳んだときの置き場（ユニット 260＋支柱 90×2）
+			line2 g0, 0.03, g1, 0.03
+			line2 g0, -0.03, g1, -0.03
+			if drLv = 1 then
+				if nL > 0 then rect2 g0, -0.04, g0 + nL * 0.26 + 0.18, 0.04
+				if nRt > 0 then rect2 g1 - nRt * 0.26 - 0.18, -0.04, g1, 0.04
+			endif
+		endif
+	endif
+next k
+! 名前（外の側に。図面の向きに関係なく水平。外の向きが画面で横なら左・右寄せ、縦なら上・下寄せで線から離す）
+pen penEquip
+sx = sin(SYMB_ROTANGLE)
+sy = -cos(SYMB_ROTANGLE)
+if SYMB_MIRRORED then sx = -sx
+add2 kkL / 2, -po - 0.25
+rot2 -SYMB_ROTANGLE
+if abs(sx) > abs(sy) then
+	if sx > 0 then
+		style "kkL"
+	else
+		style "kkR"
+	endif
+else
+	if sy < 0 then
+		style "kkT"
+	else
+		style "kkB"
+	endif
+endif
+text2 0, 0, kkName
+del 2
+hotspot2 0, 0
+hotspot2 kkL, 0

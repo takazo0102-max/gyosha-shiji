@@ -1,0 +1,223 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+			<STBit_UIUseHierarchicalPages/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["寸法 1"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["寸法 2"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["高さ"]]></Description>
+			<Fix/>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value>0</Value>
+		</Length>
+		<String Name="projName">
+			<Description><![CDATA["工事名（図面・帳票の名前）"]]></Description>
+			<Value><![CDATA["足場計画"]]></Value>
+		</String>
+		<String Name="moduleKind">
+			<Description><![CDATA["モジュール metric／inch"]]></Description>
+			<Value><![CDATA["metric"]]></Value>
+		</String>
+		<String Name="seriesId">
+			<Description><![CDATA["系列（空ならモジュールの既定）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="eavesH">
+			<Description><![CDATA["軒高"]]></Description>
+			<Value>15.4</Value>
+		</Length>
+		<Length Name="guardExtra">
+			<Description><![CDATA["手すり分（最上層作業床＝軒高＋この値）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="scaffH">
+			<Description><![CDATA["足場高さを直接指定（0＝軒高から）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="bldgH">
+			<Description><![CDATA["建物高さ"]]></Description>
+			<Value>16.0</Value>
+		</Length>
+		<Integer Name="scaffW">
+			<Description><![CDATA["足場の幅 mm（センチ 600・900・1200、インチ 610・914・1219。0＝配置の始めに選ぶ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="periodDays">
+			<Description><![CDATA["設置期間（日）"]]></Description>
+			<Value>90</Value>
+		</Integer>
+		<Length Name="soTarget">
+			<Description><![CDATA["離れ 目標"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="soMin">
+			<Description><![CDATA["離れ 目標下限"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Length Name="soMax">
+			<Description><![CDATA["離れ 目標上限"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<Length Name="soHardMin">
+			<Description><![CDATA["離れ 下限（これ未満は採らない）"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<String Name="scaffForm">
+			<Description><![CDATA["足場の形式（本足場／ブラケット足場／単管抱き足場）"]]></Description>
+			<Value><![CDATA["本足場"]]></Value>
+		</String>
+		<String Name="bracketPost">
+			<Description><![CDATA["ブラケット足場の建地（支柱＝くさび等の支柱／単管＝単管とクランプ式ブラケット）"]]></Description>
+			<Value><![CDATA["支柱"]]></Value>
+		</String>
+		<String Name="railType">
+			<Description><![CDATA["手すり 布材／先行手すり"]]></Description>
+			<Value><![CDATA["布材"]]></Value>
+		</String>
+		<Boolean Name="innerRail">
+			<Description><![CDATA["躯体側の手すり（布材）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="endGuard">
+			<Description><![CDATA["妻側（足場の端）の墜落防止 布材／ブレス材"]]></Description>
+			<Value><![CDATA["布材"]]></Value>
+		</String>
+		<String Name="haneType">
+			<Description><![CDATA["拡張（張り出した上の階）の作り方 方杖（跳ね出し・下の階の壁へ突っ張る）／吊り（跳ね出し・上の階の壁から吊る）／なし（跳ね出さず本体の足場を上まで通す）"]]></Description>
+			<Value><![CDATA["方杖"]]></Value>
+		</String>
+		<String Name="tieSource">
+			<Description><![CDATA["壁つなぎの取り方 仕上げ（外壁にアンカー）／鉄骨（梁にビームクランプ）"]]></Description>
+			<Value><![CDATA["仕上げ"]]></Value>
+		</String>
+		<Boolean Name="toeBoard">
+			<Description><![CDATA["幅木を付ける"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="netBrackets">
+			<Description><![CDATA["水平ネットをネットブラケットで受ける"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="nextGen">
+			<Description><![CDATA["次世代足場"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Integer Name="asagaoStages">
+			<Description><![CDATA["朝顔の段数（0＝自動判定）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="asagaoFaces">
+			<Description><![CDATA["朝顔を付ける面（空＝付けない・全部＝全部の面。例 南面・東面[3600-9000]）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="region">
+			<Description><![CDATA["地域（基準風速）"]]></Description>
+			<Value><![CDATA["関東(内陸)"]]></Value>
+		</String>
+		<String Name="roughness">
+			<Description><![CDATA["地表面粗度区分"]]></Description>
+			<Value><![CDATA["III"]]></Value>
+		</String>
+		<String Name="sheetType">
+			<Description><![CDATA["養生材"]]></Description>
+			<Value><![CDATA["メッシュシート"]]></Value>
+		</String>
+		<Length Name="hoardH">
+			<Description><![CDATA["仮囲いの高さ（外部シートの下端。0＝地面から）"]]></Description>
+			<Value>3</Value>
+		</Length>
+		<String Name="penList">
+			<Description><![CDATA["図面のペン（パレットの「ペン」で選ぶ。例 post=3,deck=5）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="openList">
+			<Description><![CDATA["開口（梁枠）: 面 始点mm 梁枠mm 層 理由 を ; で区切る（パレットの「開口」で線から書く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="siteName">
+			<Description><![CDATA["現場名（設置届）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="elevMode">
+			<Description><![CDATA["立面図 section＝断面図→レイアウト／object＝平面の下に2D／none"]]></Description>
+			<Value><![CDATA["section"]]></Value>
+		</String>
+		<Boolean Name="lineMode3d">
+			<Description><![CDATA["3Dを線で表示"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="autoInBrk">
+			<Description><![CDATA["離れ350超に内ブラケットを自動で付ける"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="hFromSlab">
+			<Description><![CDATA["高さをスラブの天端から自動で（面ごと・セットバック対応）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="stairLayout">
+			<Description><![CDATA["階段の付け方（足場の中／外付け（上り口・降り口つき）／自動＝幅900以上は足場の中、900未満は外付け）"]]></Description>
+			<Value><![CDATA["自動"]]></Value>
+		</String>
+		<String Name="facesOnly">
+			<Description><![CDATA["足場を掛ける面（例 南面,東面。空＝全周）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="faceForms">
+			<Description><![CDATA["面ごとの足場の切り替え（例 南面=ブラケット足場（単管）;東面=単管抱き足場。空＝全部同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="netLevels">
+			<Description><![CDATA["水平ネットを張る層（例 2,5・全部。空＝張らない）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit1">
+			<Description><![CDATA["部材編集1（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit2">
+			<Description><![CDATA["部材編集2（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit3">
+			<Description><![CDATA["部材編集3（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="memberEdit4">
+			<Description><![CDATA["部材編集4（例 南面 2-3 2-3 踏板・幅木; 東面 1 全部 手すり→NDT09S #理由）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="presetName">
+			<Description><![CDATA["条件の登録名（パレットの「登録」で控え、「呼び出し」で別の建物へ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+	</Parameters>
+</ParamSection>

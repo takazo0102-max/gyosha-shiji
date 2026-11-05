@@ -1,0 +1,93 @@
+﻿! ============================================================
+! 仮設通路 3D（日工セック ライトブリッジ）。利用者の指定 2026-10-29: 次足場はこういうのにも対応できるようにしたい
+! 外の枠（始め側）の中を内の枠（終わり側）が滑る2段の伸縮。両端のフックを島の布材に掛ける
+! ============================================================
+resol 10
+define material "wk_al" 2, 0.80, 0.82, 0.85
+define material "wk_toe" 2, 0.95, 0.80, 0.15
+mAl = IND(MATERIAL, "wk_al")
+if matAl > 0 then mAl = matAl
+mTo = IND(MATERIAL, "wk_toe")
+dz = zEnd - zDeck
+Ls = sqr(L * L + dz * dz)
+sl = atn(dz / L)
+x0 = Ls * 0.45
+x1 = Ls * 0.55
+gW = 0.05            ! 桁の幅
+gH = 0.12            ! 桁の高さ（床の上端から下へ）
+hw = frW / 2
+rotz faceAng
+add 0, 0, zDeck
+roty -sl
+material mAl
+! ---- 桁（外の枠は 0〜x1、内の枠は x0〜Ls で外の枠の内側） ----
+for sd = -1 to 1 step 2
+	add 0, sd * (hw - gW / 2) - gW / 2, -gH
+	block x1, gW, gH
+	del 1
+	add x0, sd * (hw - gW * 1.5) - gW / 2, -gH + 0.01
+	block Ls - x0, gW, gH - 0.02
+	del 1
+next sd
+! ---- 床（縞板）と横の桟 ----
+add 0, -deckW / 2, -0.004
+block x1, deckW, 0.004
+del 1
+add x1, -deckW / 2 + gW, -0.010
+block Ls - x1, deckW - 2 * gW, 0.006
+del 1
+nC = max(2, int(Ls / 0.6) + 1)
+for k = 0 to nC
+	xc = min(Ls - 0.03, k * Ls / nC)
+	add xc, -hw + gW, -gH + 0.02
+	block 0.03, frW - 2 * gW, 0.04
+	del 1
+next k
+! ---- フック（両端。布材の上に掛けて下へ曲がる） ----
+for sd = -1 to 1 step 2
+	for en = 0 to 1
+		if en = 0 then
+			xh = -0.08
+		else
+			xh = Ls
+		endif
+		add xh, sd * (hw - 0.04) - 0.006, -0.012
+		block 0.08, 0.012, 0.012
+		del 1
+		if en = 0 then
+			add xh, sd * (hw - 0.04) - 0.006, -0.10
+		else
+			add xh + 0.068, sd * (hw - 0.04) - 0.006, -0.10
+		endif
+		block 0.012, 0.012, 0.09
+		del 1
+	next en
+next sd
+! ---- 手すり（両側。支柱は 1.2m 以内ごと、手すり・中桟・幅木） ----
+nP = max(1, int(Ls / 1.2 + 0.99))
+for sd = -1 to 1 step 2
+	yR = sd * railSp / 2
+	for k = 0 to nP
+		add min(Ls - 0.02, max(0.02, k * Ls / nP)), yR, 0
+		cylind railH, 0.017
+		del 1
+	next k
+	for hh = 1 to 2
+		if hh = 1 then
+			zr = railH
+		else
+			zr = midH
+		endif
+		add 0.02, yR, zr
+		roty 90
+		cylind Ls - 0.04, 0.0175
+		del 2
+	next hh
+	material mTo
+	add 0.02, yR - sd * 0.03 - 0.014, 0
+	block Ls - 0.04, 0.028, toeH
+	del 1
+	material mAl
+next sd
+del 3
+end

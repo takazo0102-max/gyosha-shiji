@@ -1,0 +1,116 @@
+﻿! ============================================================
+! 壁つなぎ 3D（壁つなぎ用金具。参考: オカベ「足場キーパー A型」の構成。日建 KS・信和 NK も同じ並び）
+!   建地側から: 単クランプ（建地を抱く輪と締付けボルト・ナット）→ 座金 → ハンドル（調整ボルトを回す
+!   縦の棒）→ 調整ボルト（太い全ねじ）→ 調整パイプ（チューブラリベット・先端のゴムキャップ）→
+!   先端ボルト（W1/2。躯体のインサートにねじ込む細い黒いボルト）
+!   原点＝内側建地の芯、+Y＝躯体側、zH＝取付高さ。wallD＝建地芯から躯体面（0 なら tieL）
+!   利用者の指摘（2026-10-20）: 何か分からない → 実物の部品の並びと形で描く
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen 1
+rP = 0.0486 / 2
+wD = wallD
+if wD <= 0 then wD = tieL
+! 鉄骨から取る: 仕上げの奥の梁（steelD 奥）まで延ばし、先は梁の上フランジを挟むビームクランプ（利用者の指定 2026-10-24）
+if steelD > 0.001 then wD = wD + steelD
+yW = rP + 0.035
+yB = yW + 0.03 + 0.30 * (wD - yW - 0.10)
+yP = wD - 0.06
+if yB > yP - 0.03 then yB = yP - 0.03
+define material "ashiba_tie_black" 2, 0.12, 0.12, 0.13
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ 0, rP, 0, 0, wD, 0
+	lin_ 0, yW + 0.02, -0.06, 0, yW + 0.02, 0.06
+else
+	if matTie > 0 then material matTie
+	resol 12
+	! 単クランプ: 建地を抱く輪（上下2枚）と、締付けボルト・ナット（横向き）
+	for ic = 0 to 1
+		add 0, 0, -0.03 + ic * 0.042
+		cylind 0.018, rP + 0.007
+		del 1
+	next ic
+	add -0.016, rP - 0.004, -0.03
+	block 0.032, yW - rP + 0.004, 0.06
+	del 1
+	resol 6
+	add -0.045, rP + 0.012, 0
+	roty 90
+	cylind 0.09, 0.006
+	del 2
+	add 0.032, rP + 0.012, 0
+	roty 90
+	cylind 0.012, 0.011
+	del 2
+	resol 12
+	! 座金（調整ボルトの付け根の円板）
+	add 0, yW, 0
+	rotx -90
+	cylind 0.006, 0.026
+	del 2
+	! ハンドル（調整ボルトを回す縦の棒 120）
+	add 0, yW + 0.02, -0.06
+	cylind 0.12, 0.006
+	del 1
+	! 調整ボルト（太い全ねじ。ねじ山の代わりに細い輪を並べる）
+	add 0, yW, 0
+	rotx -90
+	cylind yB - yW, 0.008
+	del 2
+	resol 8
+	yt = yW + 0.035
+	while yt < yB - 0.005 do
+		add 0, yt, 0
+		rotx -90
+		cylind 0.003, 0.0095
+		del 2
+		yt = yt + 0.012
+	endwhile
+	resol 12
+	! 調整パイプ（φ27.2）とチューブラリベット
+	add 0, yB - 0.03, 0
+	rotx -90
+	cylind yP - (yB - 0.03), 0.0136
+	del 2
+	add 0, yP - 0.025, 0.0136
+	cylind 0.004, 0.004
+	del 1
+	if steelD > 0.001 then
+		! ビームクランプ（梁の上フランジ t12 を上下の爪で挟む。爪の幅 100）と締付けボルト
+		add -0.05, yP - 0.01, 0.006
+		block 0.10, wD - yP + 0.09, 0.012
+		del 1
+		add -0.05, yP - 0.01, -0.030
+		block 0.10, 0.03, 0.036
+		del 1
+		add -0.05, wD + 0.05, -0.030
+		block 0.10, 0.03, 0.048
+		del 1
+		add 0, wD + 0.065, -0.05
+		cylind 0.09, 0.008
+		del 1
+	else
+	! ゴムキャップと先端ボルト（黒）。先端ボルトは躯体面の奥 40 までインサートにねじ込む
+	material "ashiba_tie_black"
+	add 0, yP, 0
+	rotx -90
+	cylind 0.015, 0.0155
+	del 2
+	add 0, yP + 0.015, 0
+	rotx -90
+	cylind wD + 0.04 - (yP + 0.015), 0.00635
+	del 2
+	endif
+	if matTie > 0 then material matTie
+endif
+hotspot 0, 0, 0
+hotspot 0, wD, 0
+del 2
+if stepH > 0.001 then cutend

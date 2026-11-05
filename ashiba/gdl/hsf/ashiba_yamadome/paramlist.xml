@@ -1,0 +1,129 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="ymKind">
+			<Description><![CDATA["種類（1＝切梁上の足場・2＝山留め上の手すり・3＝外周の腹起し上の足場）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="armL">
+			<Description><![CDATA["腹起し上: 腹起ブラケットの腕（山留めの面から根切りの側へ）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="railX0">
+			<Description><![CDATA["手すり・幅木の始め（切梁上は床も。始めから）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="railX1">
+			<Description><![CDATA["手すり・幅木の終わり（切梁上は床も）"]]></Description>
+			<Value>6</Value>
+		</Length>
+		<String Name="railGap">
+			<Description><![CDATA["手すり・幅木を切る所（mm。始め,終わり の組。切梁上の足場の取り合い）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="ymL">
+			<Description><![CDATA["長さ（切梁・山留めの向き）"]]></Description>
+			<Value>6</Value>
+		</Length>
+		<Length Name="flgW">
+			<Description><![CDATA["切梁の H形鋼のフランジの幅"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<String Name="brX">
+			<Description><![CDATA["ブラケット・手すり柱の位置（mm。始めから、カンマ区切り）"]]></Description>
+			<Value><![CDATA["150,1950,3750,5550"]]></Value>
+		</String>
+		<Length Name="postSp">
+			<Description><![CDATA["切梁上: 嵩上金具・手すり柱の間（芯々。W900）"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="deckZ">
+			<Description><![CDATA["切梁上: 床の上端の高さ（フランジの上から。嵩上金具）"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="deckW">
+			<Description><![CDATA["切梁上: 床幅（鋼製布板）"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="railH">
+			<Description><![CDATA["手すりの高さ（床・天端から）"]]></Description>
+			<Value>0.95</Value>
+		</Length>
+		<Length Name="midH">
+			<Description><![CDATA["中桟の高さ（床・天端から）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="toeH">
+			<Description><![CDATA["幅木の高さ"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<Length Name="postDn">
+			<Description><![CDATA["山留め上: 手すり柱を親杭に留める深さ（天端から下へ）"]]></Description>
+			<Value>0.35</Value>
+		</Length>
+		<Boolean Name="netOn">
+			<Description><![CDATA["山留め上: 手すりにネット（ラッセルネット 目合15）を張る"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="ymName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["切梁上の足場"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penBold">
+			<Description><![CDATA["外形の線（太線。置くときに線のペンと同じ色の太いペン）"]]></Description>
+			<Value>21</Value>
+		</PenColor>
+		<PenColor Name="penThin">
+			<Description><![CDATA["細部の線（細線。同じ色の細いペン）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penZone">
+			<Description><![CDATA["範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）"]]></Description>
+			<Value>20</Value>
+		</PenColor>
+		<PenColor Name="penMask">
+			<Description><![CDATA["上に載るものの背景の塗り（下の線を隠す。0＝隠さない）"]]></Description>
+			<Value>19</Value>
+		</PenColor>
+		<Integer Name="drMode">
+			<Description><![CDATA["平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

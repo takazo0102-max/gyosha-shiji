@@ -1,0 +1,44 @@
+{
+  "project_name": "サンプルL型",
+  "series_id": "shinwa_A",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      30000,
+      0
+    ],
+    [
+      30000,
+      12000
+    ],
+    [
+      18000,
+      12000
+    ],
+    [
+      18000,
+      20000
+    ],
+    [
+      0,
+      20000
+    ]
+  ],
+  "eaves_height_mm": 12100,
+  "guard_extra_mm": 900,
+  "building_height_mm": 12700,
+  "period_days": 90,
+  "clearance_space_mm": 2000,
+  "scaffold_form": "本足場",
+  "site": {
+    "region": "中部(内陸)",
+    "roughness": "III",
+    "sheet_type": "メッシュシート"
+  },
+  "stairs": {
+    "min_per_face": 1
+  }
+}

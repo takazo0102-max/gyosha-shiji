@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Angle Name="faceAng">
+			<Description><![CDATA["面の向き（度。配置時に Python が入れる。+X=面に沿う方向、+Y=躯体側）"]]></Description>
+			<Value>0</Value>
+		</Angle>
+		<Length Name="gapL">
+			<Description><![CDATA["隙間の長さ（面に沿う方向。面の最後の支柱から隅まで）"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Length Name="rowW">
+			<Description><![CDATA["建地列の間隔（外側建地列は -rowW）"]]></Description>
+			<Value>0.61</Value>
+		</Length>
+		<String Name="lvList">
+			<Description><![CDATA["作業床の高さ mm（GLから）カンマ区切り"]]></Description>
+			<Value><![CDATA["1830,3630,5430"]]></Value>
+		</String>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3Dを線で（軽い）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Material Name="matDeck">
+			<Description><![CDATA["表面材（0＝既定）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Length Name="plW1">
+			<Description><![CDATA["踏板1枚目の幅（CS05＝0.50、CS02＝0.24）"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="plW2">
+			<Description><![CDATA["踏板2枚目の幅（無ければ 0）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="plL">
+			<Description><![CDATA["踏板の長さ（爪の付け根から先端。CS は 460）"]]></Description>
+			<Value>0.46</Value>
+		</Length>
+		<Length Name="hookL">
+			<Description><![CDATA["爪の出（布材に掛ける側。CS は 65）"]]></Description>
+			<Value>0.065</Value>
+		</Length>
+		<Length Name="deckTop">
+			<Description><![CDATA["床の上面の高さ（層の高さ＝布材の芯から。くさびは 布材の半径＋踏板の厚み 45）"]]></Description>
+			<Value>0.066</Value>
+		</Length>
+		<Boolean Name="flipX">
+			<Description><![CDATA["爪を隙間の +X の端に掛ける（面の始点の側の隙間）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<String Name="stepName">
+			<Description><![CDATA["品番（例: NDCS05＋NDCS02）"]]></Description>
+			<Value><![CDATA["コーナーステップ"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.0</Value>
+		</RealNum>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床（コーナーステップ）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+	</Parameters>
+</ParamSection>

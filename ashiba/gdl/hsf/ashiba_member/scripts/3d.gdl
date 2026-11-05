@@ -1,0 +1,286 @@
+﻿! 部材の3D（足場ラインの 830 布材・870 布板・850 先行手すり・ブレース・820 ジャッキ と同じ寸法）
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen 1
+if matScaf > 0 then material matScaf
+rotz faceAng
+addz zH
+resol 12
+if liteMode then resol 6
+isLite = liteMode
+
+if kind = 1 then
+	! 支柱（コマはカタログの支柱図の高さ。上端に連結ホゾ）
+	cylind memL, r_sic
+	if postShape = 1 and isLite = 0 then
+		add -0.0275, -0.003, 0
+		block 0.055, 0.006, memL
+		del 1
+		add -0.003, -0.0275, 0
+		block 0.006, 0.055, memL
+		del 1
+	endif
+	addz memL
+	cylind 0.125, 0.0182
+	del 1
+	rest = komaList
+	resol 6
+	while strlen(rest) > 0 do
+		pc = strstr(rest, ",")
+		if pc > 0 then
+			item = strsub(rest, 1, pc - 1)
+			rest = strsub(rest, pc + 1, strlen(rest) - pc)
+		else
+			item = rest
+			rest = ""
+		endif
+		k = split(item, "%n", v)
+		if k > 0 then
+			add 0, 0, v / 1000 - 0.003
+			cylind 0.006, 0.053
+			del 1
+		endif
+	endwhile
+endif
+
+if kind = 2 then
+	! 布材（つなぎ材）: 緊結部がコマを上下に挟み、クサビが縦に通る。管は緊結部の間
+	hdL = 0.050
+	add r_sic + hdL, 0, 0
+	roty 90
+	cylind memL - 2 * (r_sic + hdL), r_nuno
+	del 2
+	for hd = 0 to 1
+		if hd = 0 then
+			add r_sic, 0, 0
+		else
+			add memL - r_sic, 0, 0
+			mulx -1
+		endif
+		add 0, -0.020, 0.003
+		block hdL, 0.040, 0.042
+		del 1
+		add 0, -0.020, -0.040
+		block hdL, 0.040, 0.037
+		del 1
+		add hdL - 0.012, -0.020, -0.003
+		block 0.012, 0.040, 0.006
+		del 1
+		if isLite = 0 then
+			add 0.010, -0.006, -0.075
+			block 0.010, 0.012, 0.150
+			del 1
+		endif
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+endif
+
+if kind = 3 then
+	! 布板（アップロック式鋼製布板）: 腕木の上に載り、両端のつかみ金具とペロ板
+	if matDeck > 0 then material matDeck
+	add 0.025, 0, r_nuno
+	block memL - 0.05, memW, 0.045
+	del 1
+	if isLite = 0 then
+		for hd = 0 to 1
+			if hd = 0 then
+				add 0, 0, 0
+			else
+				add memL, 0, 0
+				mulx -1
+			endif
+			add 0.002, 0.04, r_nuno + 0.040
+			block 0.024, memW - 0.08, 0.005
+			del 1
+			for hk = 0 to 1
+				add 0.004, 0.015 + hk * (memW - 0.065), -r_nuno - 0.012
+				block 0.030, 0.035, 2 * r_nuno + 0.012
+				del 1
+			next hk
+			if hd = 0 then
+				del 1
+			else
+				del 2
+			endif
+		next hd
+	endif
+endif
+
+if kind = 4 then
+	! 幅木（平らな板 高さ150。L形にしない。利用者の指定 2026-10-24）。黄色にせず、踏板と少し違う鋼板色（足場ラインと同じ）
+	define material "ashiba_toe_steel" 2, 0.40, 0.47, 0.56
+	material "ashiba_toe_steel"
+	block memL, 0.008, 0.150
+endif
+
+if kind = 5 then
+	! 先行手すり（手すり φ27.2＋X 斜材 φ21.7、上下の金具）。memH＝手すりの高さ
+	fitL = 0.045
+	add r_sic + fitL, 0, memH
+	roty 90
+	cylind memL - 2 * (r_sic + fitL), 0.0272 / 2
+	del 2
+	for hd = 0 to 1
+		if hd = 0 then
+			add r_sic, 0, 0
+		else
+			add memL - r_sic, 0, 0
+			mulx -1
+		endif
+		add 0, -0.020, memH - 0.030
+		block fitL, 0.040, 0.060
+		del 1
+		add 0, -0.020, 0.005
+		block fitL, 0.040, 0.045
+		del 1
+		if hd = 0 then
+			del 1
+		else
+			del 2
+		endif
+	next hd
+	advX = memL - 2 * (r_sic + fitL / 2)
+	advDz = memH - 0.04
+	advL = sqr(advX * advX + advDz * advDz)
+	add r_sic + fitL / 2, 0.012, memH - 0.01
+	roty 90 + atn(advDz / advX)
+	cylind advL, 0.0217 / 2
+	del 2
+	add memL - r_sic - fitL / 2, -0.012, memH - 0.01
+	roty -(90 + atn(advDz / advX))
+	cylind advL, 0.0217 / 2
+	del 2
+endif
+
+if kind = 6 then
+	! ブレース（φ42.7、両端のクサビクランプで支柱を掴む）。memH＝上がり、memW＝クランプから支柱の芯まで（±）
+	bl = sqr(memL * memL + memH * memH)
+	add 0, 0, 0
+	roty 90 - atn(memH / memL)
+	cylind bl, 0.0427 / 2
+	del 2
+	for ce = 0 to 1
+		add ce * memL - 0.035, 0, ce * memH - 0.035
+		if memW >= 0 then
+			add 0, -0.025, 0
+			block 0.070, memW + 0.025 + r_sic, 0.070
+		else
+			add 0, memW - r_sic, 0
+			block 0.070, -memW + 0.025 + r_sic, 0.070
+		endif
+		del 2
+	next ce
+endif
+
+if kind = 7 then
+	! ジャッキベース（アンダーベース 140角・ねじ棒・ハンドル付きナット）。memH＝繰出し
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	cylind memH, 0.035 / 2
+	add 0, 0, memH - 0.03
+	resol 6
+	cylind 0.03, 0.045
+	if isLite = 0 then
+		addz 0.015
+		roty 90
+		add 0, 0, -0.09
+		cylind 0.18, 0.006
+		del 3
+	endif
+	del 1
+endif
+if kind = 8 then
+	! 建枠（鳥居型、日建カタログ p068〜070）: 原点＝躯体側の脚の下端、-Y へ幅 memW（外側の脚）、高さ memL。
+	! 脚 2本・横架材・内側の縦材と横桟3段・下端の円弧。frFlags 1＝下の建枠との継ぎ目に連結ピンとアームロック
+	fW = memW
+	fH = memL
+	fd = 0.175
+	if fW < 0.8 then fd = 0.11
+	for sk = 0 to 1
+		yl = -sk * fW
+		if not(sk = 0 and bittest(frFlags, 1)) then
+			add 0, yl, 0
+			cylind fH, r_sic
+			del 1
+		endif
+		yv = yl - fd
+		if sk = 1 then yv = yl + fd
+		zv = fH - min(1.219, 0.72 * fH)
+		add 0, yv, zv
+		cylind fH - 0.02 - zv, 0.0136
+		del 1
+		for ir = 1 to 3
+			zr = fH - 0.15 - (ir - 1) * 0.40
+			if zr > zv + 0.05 then
+				add 0, min(yl, yv), zr
+				rotx -90
+				cylind fd, 0.0109
+				del 2
+			endif
+		next ir
+		ad = sqr(fd * fd + 0.25 * 0.25)
+		add 0, yv, zv
+		rotx 180 + atn((yl - yv) / 0.25)
+		cylind ad, 0.0136
+		del 2
+		if bittest(frFlags, 0) and isLite = 0 then
+			add 0, yl, -0.10
+			cylind 0.20, r_sic + 0.004
+			del 1
+			yi = yl - 0.045
+			if sk = 1 then yi = yl + 0.045
+			add 0, yi, -0.37
+			cylind 0.739, 0.009
+			del 1
+		endif
+	next sk
+	! 横架材（天端）
+	add 0, 0, fH
+	rotx 90
+	cylind fW, r_nuno
+	del 2
+endif
+
+if kind = 9 then
+	! 交差筋違（平鋼2本の X、中央ピン）: 原点＝下の筋違ピンの高さで始点の脚の位置（筋違の面）、+X へ memL、
+	! ピン間の高さ memH、memW＝筋違の面から脚の芯まで（±、ピンの長さ）
+	bl = sqr(memL * memL + memH * memH)
+	bAng = atn(memH / memL)
+	for bd = 0 to 1
+		add bd * memL, bd * 0.006, 0
+		if bd = 1 then mulx -1
+		roty -bAng
+		add 0, -0.003, -0.0125
+		block bl, 0.006, 0.025
+		del 2
+		if bd = 1 then del 1
+		del 1
+	next bd
+	if isLite = 0 then
+		add memL / 2, -0.012, memH / 2
+		rotx -90
+		cylind 0.03, 0.006
+		del 2
+		for pe = 0 to 3
+			px = 0
+			if pe = 1 or pe = 3 then px = memL
+			pz = 0
+			if pe >= 2 then pz = memH
+			add px, min(0, memW) - 0.01, pz
+			rotx -90
+			cylind abs(memW) + 0.02, 0.007
+			del 2
+		next pe
+	endif
+endif
+del 2
+if stepH > 0.001 then cutend

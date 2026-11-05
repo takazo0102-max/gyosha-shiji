@@ -1,0 +1,157 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="polyX">
+			<Description><![CDATA["床の形の x（原点からの mm、カンマ区切り。左回り）"]]></Description>
+			<Value><![CDATA["0,0,800,0"]]></Value>
+		</String>
+		<String Name="polyY">
+			<Description><![CDATA["床の形の y（同上）"]]></Description>
+			<Value><![CDATA["0,-914,-457,0"]]></Value>
+		</String>
+		<String Name="railE">
+			<Description><![CDATA["手すり・幅木を付ける辺の番号（辺 k は点 k→k+1。0 から。カンマ区切り）"]]></Description>
+			<Value><![CDATA["1"]]></Value>
+		</String>
+		<String Name="levList">
+			<Description><![CDATA["作業床の段の高さ（原点の高さから mm、カンマ区切り）"]]></Description>
+			<Value><![CDATA["1780,3580,5380,7180"]]></Value>
+		</String>
+		<Integer Name="deckKind">
+			<Description><![CDATA["作業床（1＝アンチ・2＝足場板）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Boolean Name="antiOn">
+			<Description><![CDATA["アンチを描く（足場板だけで渡すときは切る）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="deckT">
+			<Description><![CDATA["作業床の厚み"]]></Description>
+			<Value>0.045</Value>
+		</Length>
+		<Length Name="antiL">
+			<Description><![CDATA["アンチの長さ（受けの単管の間。インチの系列は 914、メートルは 900）"]]></Description>
+			<Value>0.914</Value>
+		</Length>
+		<Length Name="antiW">
+			<Description><![CDATA["アンチの幅"]]></Description>
+			<Value>0.24</Value>
+		</Length>
+		<String Name="plkX">
+			<Description><![CDATA["アンチの外の辺側の始めの角の x（原点から mm。空なら外の辺の中点から並べる）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="plkY">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="plkAng">
+			<Description><![CDATA["アンチの向き（度。外の辺の向き）"]]></Description>
+			<Value>0</Value>
+		</RealNum>
+		<String Name="plkL">
+			<Description><![CDATA["アンチの長さ（列ごと mm。空なら antiL）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbX">
+			<Description><![CDATA["残りのすき間をふさぐ足場板（列ごと）の始めの角の x（原点から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbY">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="fbL">
+			<Description><![CDATA["同 長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="fbAng">
+			<Description><![CDATA["足場板の向き（度。後の受けの線。空のときはアンチの向き）"]]></Description>
+			<Value>-999</Value>
+		</RealNum>
+		<String Name="pstX">
+			<Description><![CDATA["手すりを受ける単管の支柱の x（原点から mm。手すりの曲がり角で長さが 1800 を超えるとき）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="pstY">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supX0">
+			<Description><![CDATA["受けの単管の始めの x（原点から mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supY0">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supX1">
+			<Description><![CDATA["受けの単管の終わりの x"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="supY1">
+			<Description><![CDATA["同 y"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="deckTop">
+			<Description><![CDATA["本足場の布板の上面（段の高さから。アンチはこの上に載る）"]]></Description>
+			<Value>0.0664</Value>
+		</Length>
+		<Length Name="railH1">
+			<Description><![CDATA["上桟の高さ（床から）"]]></Description>
+			<Value>0.95</Value>
+		</Length>
+		<Length Name="railH2">
+			<Description><![CDATA["中桟の高さ（床から）"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="toeH">
+			<Description><![CDATA["幅木の高さ"]]></Description>
+			<Value>0.15</Value>
+		</Length>
+		<String Name="cName">
+			<Description><![CDATA["名前（平面の注記）"]]></Description>
+			<Value><![CDATA["隅のつなぎ"]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

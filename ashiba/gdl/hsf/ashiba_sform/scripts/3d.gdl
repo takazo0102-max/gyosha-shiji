@@ -1,0 +1,112 @@
+﻿! ============================================================
+! スラブの型枠と支保工 3D（利用者の指定 2026-10-31: スラブの型枠も進めて しほこうも）
+! 原点＝スラブの下面。せき板・根太・大引・パイプサポート・水平つなぎ
+! ============================================================
+resol 10
+define material "sf_ply" 2, 0.86, 0.66, 0.38
+define material "sf_steel" 2, 0.62, 0.62, 0.66
+define material "sf_obiki" 2, 0.45, 0.52, 0.62
+define material "sf_ps" 2, 0.42, 0.44, 0.48
+define material "sf_wood" 2, 0.74, 0.56, 0.36
+define material "sf_tie" 2, 0.30, 0.30, 0.32
+! ---- せき板（外形から穴を抜く） ----
+material "sf_ply"
+i0 = 1
+for k = 1 to nR
+	for i = 0 to rn[k] - 1
+		put pu[i0 + i], pv[i0 + i], 15
+	next i
+	put pu[i0], pv[i0], -1
+	i0 = i0 + rn[k]
+next k
+add 0, 0, -plyT
+prism_ nsp / 3, plyT, get(nsp)
+del 1
+! ---- 根太（角パイプ □50×50・v の向き） ----
+material "sf_steel"
+for i = 1 to min(nN, min(nN0, nN1))
+	add nu[i] - nH / 2, nv0[i], zN
+	block nH, nv1[i] - nv0[i], nH
+	del 1
+next i
+! ---- 大引（杉 90×90・u の向き） ----
+material "sf_wood"
+for i = 1 to min(nO, min(nO0, nO1))
+	add ou0[i], ov[i] - oB / 2, zO - oH
+	block ou1[i] - ou0[i], oB, oH
+	del 1
+next i
+! ---- パイプサポート ----
+for i = 1 to min(nP, nP2)
+	add su[i], sv[i], zF
+	material "sf_steel"
+	add -0.07, -0.07, 0
+	block 0.14, 0.14, 0.006
+	del 1
+	material "sf_ps"
+	cylind postH * 0.6, 0.03025
+	add 0, 0, postH * 0.6
+	material "sf_steel"
+	cylind postH * 0.4 - 0.006, 0.0243
+	del 1
+	! 受け板（大引に釘止め）
+	add -0.06, -0.06, postH - 0.006
+	block 0.12, 0.12, 0.006
+	del 1
+	material "sf_tie"
+	for kk = -1 to 1 step 2
+		add kk * 0.04, 0, postH
+		cylind 0.04, 0.002
+		del 1
+	next kk
+	del 1
+next i
+! ---- 敷き桟木（支柱の列ごと。梁・壁・柱で分ける。利用者の指定 2026-10-31: サポートしたはさんぎいる／さんぎの向き揃えて） ----
+material "sf_wood"
+for i = 1 to min(nL, min(nL0, nL1))
+	add sl0[i], slw[i] - sillW / 2, zS
+	block sl1[i] - sl0[i], sillW, sillH
+	del 1
+next i
+! ---- 大筋かい（単管。支柱の列の鉛直面に X。自在クランプで支柱に留める） ----
+material "sf_steel"
+for i = 1 to nB
+	add bu[i], bv[i], zS + bz[i]
+	rotz baz[i]
+	roty bpo[i]
+	cylind bl[i], r
+	del 3
+next i
+! ---- 水平つなぎ（2方向。支柱の列ごと） ----
+material "sf_steel"
+for k = 1 to nZ
+	for i = 1 to nO
+		add ou0[i], ov[i] + 0.05, zF + tz[k]
+		roty 90
+		cylind ou1[i] - ou0[i], r
+		del 2
+	next i
+	! v の向き: 支柱の u ごと（同じ u の支柱の v の最小〜最大）
+	for i = 1 to min(nP, nP2)
+		first = 1
+		for j = 1 to i - 1
+			if abs(su[j] - su[i]) < 0.01 then first = 0
+		next j
+		if first then
+			vmin = sv[i]
+			vmax = sv[i]
+			for j = 1 to min(nP, nP2)
+				if abs(su[j] - su[i]) < 0.01 then
+					vmin = min(vmin, sv[j])
+					vmax = max(vmax, sv[j])
+				endif
+			next j
+			if vmax - vmin > 0.1 then
+				add su[i] + 0.05, vmin, zF + tz[k] + 2 * r
+				rotx -90
+				cylind vmax - vmin, r
+				del 2
+			endif
+		endif
+	next i
+next k

@@ -1,0 +1,21 @@
+﻿! 単管のつなぎ: 高さの並び（m）と両端の突き出し
+dim zz[]
+nZ = 0
+rest = zList
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nZ = nZ + 1
+		zz[nZ] = v / 1000
+	endif
+endwhile
+ov = max(0, (tbLen - tbL) / 2)
+rT = 0.0243

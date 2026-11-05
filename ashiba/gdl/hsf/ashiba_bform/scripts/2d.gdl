@@ -1,0 +1,30 @@
+﻿! 梁の型枠 2D
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "bfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 側板
+rect2 x0, hw, x1, hw + plyT
+rect2 x0, -hw - plyT, x1, -hw
+! 桟木
+for i = 1 to nS
+	rect2 sx[i] - sgB / 2, hw + plyT, sx[i] + sgB / 2, yS
+	rect2 sx[i] - sgB / 2, -yS, sx[i] + sgB / 2, -hw - plyT
+next i
+! 外端太・受けの単管
+line_type "DASHED"
+line2 tb0, yT, tb1, yT
+line2 tb0, -yT, tb1, -yT
+for i = 1 to nU
+	line2 ux[i], -yT - r - ukeOut, ux[i], yT + r + ukeOut
+next i
+line_type 1
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.06, tx[i], yT + 0.06
+next i
+! 止め型枠
+if endS then rect2 x0 - plyT, -hw - plyT, x0, hw + plyT
+if endE then rect2 x1, -hw - plyT, x1 + plyT, hw + plyT
+style "bfT"
+text2 (x0 + x1) / 2, -yT - 0.12, cName + "  " + cNote

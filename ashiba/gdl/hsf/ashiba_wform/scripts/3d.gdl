@@ -1,0 +1,157 @@
+﻿! ============================================================
+! 壁の型枠 3D（利用者の指定 2026-10-31: さんぎ そとばた フォームタイ）
+! - せき板（合板 12mm）: 壁の両面
+! - 桟木（45×60）: せき板の外に縦
+! - 外端太（単管 φ48.6 の2本組）: 桟木の外に横。2本でフォームタイを上下にはさむ
+! - フォームタイ: 壁を貫く。内側の両端に Pコン（せき板の内面）、外は座金とナット
+! ============================================================
+resol 12
+define material "wf_ply" 2, 0.86, 0.66, 0.38
+define material "wf_wood" 2, 0.74, 0.56, 0.36
+define material "wf_steel" 2, 0.62, 0.62, 0.66
+define material "wf_tie" 2, 0.35, 0.35, 0.38
+define material "wf_pcon" 2, 0.85, 0.85, 0.80
+H = ZZYZX
+gap = 0.006
+for side = 1 to 2
+	if side = 1 then
+		y0 = 0
+		sg = -1
+		nn = nS
+	else
+		y0 = wT
+		sg = 1
+		nn = nS2
+	endif
+	! ---- せき板 ----
+	material "wf_ply"
+	if sg < 0 then
+		nq = int(nPa / 2)
+	else
+		nq = int(nPb / 2)
+	endif
+	for q = 1 to nq
+		if sg < 0 then
+			fS = pa[2 * q - 1]
+			fE = pa[2 * q]
+			add fS, -plyT, 0
+		else
+			fS = pb[2 * q - 1]
+			fE = pb[2 * q]
+			add fS, wT, 0
+		endif
+		block fE - fS, plyT, H
+		del 1
+	next q
+	! ---- 桟木 ----
+	material "wf_wood"
+	for i = 1 to nn
+		if sg < 0 then
+			add sx[i] - sgB / 2, -yS, 0
+		else
+			add sx2[i] - sgB / 2, wT + plyT, 0
+		endif
+		block sgB, sgH, H
+		del 1
+	next i
+	! ---- 外端太（2本組） ----
+	material "wf_steel"
+	if sg < 0 then
+		nq = int(nTa / 2)
+	else
+		nq = int(nTb / 2)
+	endif
+	for q = 1 to nq
+		if sg < 0 then
+			tS = ta[2 * q - 1]
+			tE = ta[2 * q]
+		else
+			tS = tb[2 * q - 1]
+			tE = tb[2 * q]
+		endif
+		for j = 1 to nT
+			for k = -1 to 1 step 2
+				add tS, y0 + sg * yT, tz[j] + k * (r + gap)
+				roty 90
+				cylind tE - tS, r
+				del 2
+			next k
+		next j
+	next q
+next side
+! ---- 止め型枠（ほかの壁につながらない端）: 合板・縦の桟木2本・段ごとに押さえの単管（両面の外端太の出に直交クランプ） ----
+for ee = 1 to 2
+	if (ee = 1 and endS) or (ee = 2 and endE) then
+		if ee = 1 then
+			xe = 0
+			dx = -1
+		else
+			xe = A
+			dx = 1
+		endif
+		material "wf_ply"
+		add xe + (dx - 1) / 2 * plyT, -plyT, 0
+		block plyT, wT + 2 * plyT, H
+		del 1
+		material "wf_wood"
+		for q = 1 to 2
+			add xe + dx * plyT + (dx - 1) / 2 * sgH, wT * q / 3 - sgB / 2, 0
+			block sgH, sgB, H
+			del 1
+		next q
+		material "wf_steel"
+		for j = 1 to nT
+			add xe + dx * (plyT + sgH + r), -yT - tbOut, tz[j]
+			rotx -90
+			cylind wT + 2 * yT + 2 * tbOut, r
+			del 2
+		next j
+	endif
+next ee
+! ---- フォームタイ ----
+for j = 1 to nT
+	for i = 1 to nX
+		add tx[i], 0, tz[j]
+		! 棒（外の座金の先まで）
+		material "wf_tie"
+		add 0, -yT - r - 0.05, 0
+		rotx -90
+		cylind wT + 2 * (yT + r + 0.05), 0.00395
+		del 2
+		! Pコン（せき板の内面に。壁の中へ 25）
+		material "wf_pcon"
+		add 0, 0, 0
+		rotx -90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		add 0, wT, 0
+		rotx 90
+		cone 0.025, 0.012, 0.0175, 90, 90
+		del 2
+		! 座金（2本の外端太にまたがる）とナット
+		material "wf_tie"
+		for sd = 1 to 2
+			if sd = 1 then
+				yy = -yT - r
+				dd = -1
+				yb = yy - 0.006
+			else
+				yy = wT + yT + r
+				dd = 1
+				yb = yy
+			endif
+			add -0.035, yb, -(2 * r + gap)
+			block 0.07, 0.006, 2 * (2 * r + gap)
+			del 1
+			add 0, yy + dd * 0.006, 0
+			if dd < 0 then
+				rotx 90
+			else
+				rotx -90
+			endif
+			cylind 0.03, 0.012
+			del 2
+		next sd
+		del 1
+	next i
+next j

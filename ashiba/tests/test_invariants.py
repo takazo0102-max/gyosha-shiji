@@ -1,0 +1,221 @@
+"""全サンプルに対する横断的な不変条件（図面・数量・判定が互いに矛盾しない）.
+
+個別のテストは機能ごとに書いてある。ここでは「同梱サンプルを全部解いたとき、
+どのサンプルでも必ず成り立つべき関係」を1箇所にまとめ、機能を足したときの
+回帰を止める。
+"""
+
+import glob
+import re
+import unittest
+from pathlib import Path
+
+from _path import SRC  # noqa: F401
+
+from ashiba.cli import load_spec, solve_all
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _runs():
+    for ex in sorted(glob.glob(str(ROOT / "examples" / "*.json"))):
+        yield Path(ex).stem, solve_all(load_spec(Path(ex)))
+
+
+class TestCrossCuttingInvariants(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.runs = list(_runs())
+
+    def test_wall_tie_quantity_equals_the_drawing_list(self):
+        for name, r in self.runs:
+            with self.subTest(name):
+                self.assertEqual(r.quantity.qty_of("壁つなぎ"), len(r.model.wall_ties))
+
+    def test_no_wall_tie_on_a_removed_post(self):
+        """開口部で抜いた支柱（梁枠より下）に壁つなぎが無い."""
+        for name, r in self.runs:
+            with self.subTest(name):
+                op = r.openings
+                for i, o in enumerate(op.openings):
+                    beam_h = op.beam_heights.get(i)
+                    if beam_h is None:
+                        continue
+                    # 途中の層の開口（荷受けステージの間口）はその層の床より上だけ支柱が無い
+                    bottom_h = float(getattr(op, "bottom_heights", {}).get(i, -1.0))
+                    bad = [t for t in r.model.wall_ties
+                           if t.edge_index == o.edge_index
+                           and o.start_mm + 1e-6 < t.position_mm < o.end_mm - 1e-6
+                           and bottom_h + 1e-6 < t.height_mm < beam_h - 1e-6]
+                    self.assertEqual(bad, [], (name, i))
+
+    def test_warnings_are_not_duplicated(self):
+        for name, r in self.runs:
+            with self.subTest(name):
+                texts = [w[2] for w in r.warnings]
+                self.assertEqual(len(texts), len(set(texts)), texts)
+
+    def test_every_ng_issue_is_a_blocker(self):
+        for name, r in self.runs:
+            with self.subTest(name):
+                ng = [i for i in r.openings.issues + r.platforms.issues + r.bracket_issues
+                      + list(r.conflicts) if i.severity == "NG"]
+                ng_checks = [c for c in r.checks if c.status == "NG"]
+                if ng or ng_checks or not r.structural.all_ok:
+                    self.assertFalse(r.verdict["ok"], (name, r.verdict))
+                    self.assertTrue(r.verdict["blockers"])
+                else:
+                    self.assertTrue(r.verdict["ok"], (name, r.verdict))
+
+    def test_deck_note_matches_the_lines(self):
+        for name, r in self.runs:
+            with self.subTest(name):
+                cat = r.model.master.deck_category
+                if not r.model.deck_widths_in_use:
+                    # 単管抱き足場は床材が無い（抱き合わせた単管2本）。注記も床材の行も無い
+                    self.assertFalse([l for l in r.quantity.lines if l.part and l.part.category == cat])
+                    continue
+                if r.model.master.is_tube:
+                    # 単管の足場板はスパンごとではなく、規定の長さで面に沿って敷く（tube_runs.face_boards）
+                    from ashiba.tube_runs import board_limits, face_boards
+
+                    n_boards = sum(len(face_boards(list(e.spans), **board_limits(r.model, e))[i % 2].pieces)
+                                   for e in r.model.plan.edges for i in range(len(r.model.deck_widths_in_use)))
+                    got = sum(l.qty for l in r.quantity.lines if l.part and l.part.category == cat)
+                    # 単管の足場は出隅ごと・層ごと・床の列ごとにコーナーの足場板1枚
+                    corner = (r.model.outer_corner_posts() * r.model.elevation.n_levels
+                              * len(r.model.deck_widths_in_use))
+                    self.assertEqual(got, (n_boards * r.model.elevation.n_levels) + corner, name)
+                    continue
+                note = next(n for n in r.quantity.notes if n.startswith(f"{cat}はスパン"))
+                final = int(re.search(r"(\d+)セルで計上", note).group(1))
+                per_width = {}
+                for l in r.quantity.lines:
+                    if l.part.category == cat:
+                        w = next((t for t in l.part.note.split() if t.startswith("幅")), "?")
+                        per_width[w] = per_width.get(w, 0) + l.qty
+                # 出隅コーナーの床（長さ＝建地列間隔の踏板、出隅×層）はセル数の外
+                if any(str(n).startswith("出隅コーナーの床は") for n in r.quantity.notes):
+                    corner = r.model.outer_corner_posts() * r.model.elevation.n_levels
+                    per_width = {w: n - corner for w, n in per_width.items()}
+                # 枠組の出隅（ギャプレスの升目の床、出隅×層）もセル数の外
+                if any(str(n).startswith("枠組の出隅") for n in r.quantity.notes):
+                    corner = sum(1 for e in r.model.plan.outline.edges
+                                 if e.start_corner == "出隅") * r.model.elevation.n_levels
+                    per_width = {w: n - corner for w, n in per_width.items()}
+                # 外付けの階段室の床（上り口・降り口・階段の脇。幅 900 未満の足場の階段は外付け）もセル数の外
+                from ashiba.quantity import outside_stair_counts
+
+                _pos, out_cells = outside_stair_counts(r.model, r.stair_plan)
+                per_width = {w: n - out_cells for w, n in per_width.items()}
+                # 屋上への渡りのアンチ（横引き。roof_bridges）もセル数の外
+                for b in r.model.roof_bridges:
+                    if not b.tube:
+                        for dw in b.deck:
+                            per_width[f"幅{dw}"] = per_width.get(f"幅{dw}", 0) - 1
+                # 標準幅（ステージ等の追加が無い幅）はセル数と一致する。作業床が1枚敷き（日建の幅610は 500 の
+                # 1枚）だとステージ・ブラケットの追加もその幅に入るので、セル数以上であればよい
+                if len(per_width) == 1:
+                    self.assertGreaterEqual(next(iter(per_width.values())), final, (name, per_width, final))
+                else:
+                    self.assertIn(final, per_width.values(), (name, per_width, final))
+
+    def test_jacks_equal_the_feet_on_the_ground(self):
+        for name, r in self.runs:
+            with self.subTest(name):
+                m = r.model
+                rows = 1 if m.config.scaffold_form == "一側足場" else 2
+                from ashiba.quantity import outside_stair_counts
+
+                # 外付けの階段室の 3 列目の支柱もジャッキを1つずつ
+                from ashiba.quantity import standing_post_positions
+
+                # 枠組は建枠の位置（始点＋中間）× 2脚
+                pos = m.plan.total_posts * rows if m.master.is_frame else standing_post_positions(m, rows)
+                # 屋上への渡りの屋上の支柱（くさび。ジャッキ付き）も数える（roof_bridges。2026-10-26）
+                feet = (pos - r.openings.removed_posts
+                        + outside_stair_counts(m, r.stair_plan)[0]
+                        + 2 * sum(1 for b in m.roof_bridges if b.kind == "支柱"))
+                jacks = sum(l.qty for l in r.quantity.lines
+                            if l.part.category == "ジャッキ" and "アンダーベース" not in l.part.note)
+                self.assertEqual(jacks, feet, name)
+
+    def test_plan_json_gdl_params_fit_the_gdl(self):
+        from ashiba.gdl_params import GDL_STR_MAX, line_params
+
+        for name, r in self.runs:
+            with self.subTest(name):
+                for ep in r.model.plan.edges:
+                    p = line_params(r.model, ep, stair_plan=r.stair_plan, openings=r.openings,
+                                    platforms=r.platforms, bracket_sections=r.brackets,
+                                    terrain=r.terrain)
+                    for k, v in p.items():
+                        if isinstance(v, str):
+                            self.assertLessEqual(len(v), GDL_STR_MAX, (name, k))
+
+
+class TestShimsAndSaddlesFollowTheModel(unittest.TestCase):
+    """敷板は敷板調整の脚以上、梁渡しは梁枠上の支柱の数（マスタにある系列で）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import glob
+
+        from ashiba.cli import load_spec, solve_all
+
+        cls.runs = []
+        for ex in sorted(glob.glob(str(ROOT / "examples" / "*.json"))):
+            cls.runs.append((Path(ex).stem, solve_all(load_spec(Path(ex)))))
+
+    def test_shims_cover_raised_feet(self):
+        for name, r in self.runs:
+            m = r.model.master
+            if not m.by_category("敷板") or r.terrain is None:
+                continue
+            with self.subTest(name):
+                raised = [f for f in r.terrain.feet if f.base_plate_adjust_mm > 0]
+                # 屋上への渡りの支柱のジャッキで届かない分も敷板（厚35の枚数）で上げる
+                bridge = sum(2 * round(b.shim_mm / 35) for b in getattr(r.model, "roof_bridges", None) or []
+                             if b.kind == "支柱")
+                shims = r.quantity.qty_of("敷板")
+                if raised:
+                    self.assertGreaterEqual(shims, len(raised) + bridge)
+                else:
+                    self.assertEqual(shims, bridge)
+
+    def test_saddles_equal_inner_posts_on_beams(self):
+        for name, r in self.runs:
+            m = r.model.master
+            if not m.by_category("梁渡し"):
+                continue
+            with self.subTest(name):
+                rows = 1 if r.model.config.scaffold_form == "一側足場" else 2
+                expect = sum(len(v) for v in r.openings.inner_posts.values()) if rows == 2 else 0
+                self.assertEqual(r.quantity.qty_of("梁渡し"), expect)
+
+
+class TestCapacityKeysMatchTheJacks(unittest.TestCase):
+    """ジャッキ許容支持力の繰出し量キーは、その系列のジャッキで実際に繰り出せる範囲にある.
+
+    ND752SP は432mmまでなのに450mmの行、信和SE-6は450mmまでなのに500mmの行があった。
+    存在しない繰出し量の行は、検定が「その繰出しで成立した」ように見える。
+    """
+
+    def test_no_capacity_row_beyond_the_longest_jack(self):
+        from ashiba.master import SERIES_CONST, load_master
+        from ashiba.structural import load_capacities
+
+        for sid in SERIES_CONST:
+            with self.subTest(sid):
+                m = load_master(sid)
+                limits = [p.max_extension_mm() for p in m.by_category("ジャッキ")
+                          if "アンダーベース" not in p.note and p.max_extension_mm() is not None]
+                keys = [int(k) for (item, k), _ in load_capacities(sid).items()
+                        if item.startswith("ジャッキ許容支持力")]
+                self.assertTrue(keys, sid)
+                if limits:
+                    self.assertLessEqual(max(keys), max(limits), (sid, sorted(keys), limits))
+
+
+if __name__ == "__main__":
+    unittest.main()

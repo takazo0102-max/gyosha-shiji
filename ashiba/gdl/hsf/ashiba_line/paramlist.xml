@@ -1,0 +1,853 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<String Name="spanList">
+			<Description><![CDATA["スパン構成 mm カンマ区切り"]]></Description>
+			<Value><![CDATA["1800,1800,1800"]]></Value>
+		</String>
+		<Boolean Name="editSpan">
+			<Description><![CDATA["平面のホットスポットでスパン境界を動かせる"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="sizeList">
+			<Description><![CDATA["吸着するスパンの規格寸法 mm カンマ区切り（系列の布材）"]]></Description>
+			<Value><![CDATA["1800,1500,1200,900,600"]]></Value>
+		</String>
+		<Length Name="xEdit">
+			<Description><![CDATA["支柱位置（編集ホットスポット用。1Dが spanList から作り直す）"]]></Description>
+			<ArrayValues FirstDimension="2" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+				<AVal Row="2">1.8</AVal>
+			</ArrayValues>
+		</Length>
+		<Length Name="stEdit">
+			<Description><![CDATA["階段室の開始位置（編集ホットスポット用。パラメータスクリプトが stairList から作り直す）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
+		<Length Name="sgEdit">
+			<Description><![CDATA["荷受けステージの開始位置（編集ホットスポット用。stageList の並びと同じ）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
+		<Length Name="hoEdit">
+			<Description><![CDATA["昇降機の位置（編集ホットスポット用。hoistList の並びと同じ）"]]></Description>
+			<ArrayValues FirstDimension="1" SecondDimension="0">
+				<AVal Row="1">0</AVal>
+			</ArrayValues>
+		</Length>
+		<String Name="lastMod">
+			<Description><![CDATA["診断: 直前に変わったパラメータ名|xEditの要素数|nSpan（1Dが書く）"]]></Description>
+			<Flags>
+				<ParFlg_Hidden/>
+			</Flags>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spanList2">
+			<Description><![CDATA["スパン構成（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="postList">
+			<Description><![CDATA["支柱構成 mm 下から"]]></Description>
+			<Value><![CDATA["3600,3600,1800"]]></Value>
+		</String>
+		<Length Name="jackOut">
+			<Description><![CDATA["ジャッキ繰り出し量"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="footStep">
+			<Description><![CDATA["継ぎ足しの刻み m（コマピッチ／調整枠。0で継ぎ足し根がらみを描かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="komaPitch">
+			<Description><![CDATA["コマピッチ"]]></Description>
+			<Value>0.45</Value>
+		</Length>
+		<Length Name="floorH">
+			<Description><![CDATA["階高"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="rowW">
+			<Description><![CDATA["内外建地間隔"]]></Description>
+			<Value>0.6</Value>
+		</Length>
+		<Length Name="standoff">
+			<Description><![CDATA["壁離れ"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="deckW1">
+			<Description><![CDATA["踏板1幅"]]></Description>
+			<Value>0.4</Value>
+		</Length>
+		<Length Name="deckW2">
+			<Description><![CDATA["踏板2幅 0で無し"]]></Description>
+			<Value>0.25</Value>
+		</Length>
+		<Boolean Name="gapBd">
+			<Description><![CDATA["床の2枚敷きのすき間板（隙間隠し板）を載せる"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="gapW">
+			<Description><![CDATA["すき間板の幅"]]></Description>
+			<Value>0.44</Value>
+		</Length>
+		<Length Name="gapT">
+			<Description><![CDATA["すき間板の厚み"]]></Description>
+			<Value>0.018</Value>
+		</Length>
+		<Boolean Name="showDeck">
+			<Description><![CDATA["踏板表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="showBrace">
+			<Description><![CDATA["ブレス表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="showDim">
+			<Description><![CDATA["2D寸法・注記表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="lineMode">
+			<Description><![CDATA["3D線表示（計画初期・大規模向けの軽い表現）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Integer Name="detail3d">
+			<Description><![CDATA["3Dの細かさ 0=自動 1=精細 2=軽量 3=線 4=ブロック"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Material Name="matDeck">
+			<Description><![CDATA["踏板の表面材（0＝足場と同じ）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matToe">
+			<Description><![CDATA["幅木の表面材（0＝足場と同じ）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Material Name="matScaf">
+			<Description><![CDATA["足場の表面材（0＝既定。配置時にアルミを入れる）"]]></Description>
+			<Value>0</Value>
+		</Material>
+		<Boolean Name="tieObj">
+			<Description><![CDATA["壁つなぎは別の部品（ashiba_tie）で置く（この部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="lblOn">
+			<Description><![CDATA["平面に部材の名前（GDL のラベル。足場の種類と幅・踏板・壁つなぎ・養生）"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<String Name="typeTxt">
+			<Description><![CDATA["ラベル: 足場の種類と幅（例: くさび緊結式足場 600）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="deckTxt">
+			<Description><![CDATA["ラベル: 作業床（例: 踏板 400+250）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieTxt">
+			<Description><![CDATA["ラベル: 壁つなぎ（例: 壁つなぎ NK-3352II）。空なら「壁つなぎ」"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="lblAt">
+			<Description><![CDATA["ラベル: 種類の位置 mm（面の始点から。-1 は面の 25%）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
+		<RealNum Name="lblTieAt">
+			<Description><![CDATA["ラベル: 壁つなぎの位置 mm（-1 は種類のラベルより先の最初の壁つなぎ）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
+		<RealNum Name="lblShAt">
+			<Description><![CDATA["ラベル: 養生の位置 mm（-1 は面の 70%）"]]></Description>
+			<Value>-1</Value>
+		</RealNum>
+		<String Name="sheetTxt">
+			<Description><![CDATA["ラベル: 外部養生（例: メッシュシート（防炎））。空なら描かない"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Boolean Name="dimTool">
+			<Description><![CDATA["平面のスパン寸法は寸法ツール（部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="dimSoTool">
+			<Description><![CDATA["平面の離れ寸法（躯体〜内側建地列）は寸法ツール（部品では描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="gapS">
+			<Description><![CDATA["始点の隅の隙間（コーナーステップ。寸法を隅まで張る）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="gapE">
+			<Description><![CDATA["終点の隅の隙間（コーナーステップ。寸法を隅まで張る）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soDimX1">
+			<Description><![CDATA["離れ寸法の位置1（始点から。0 なら最初のスパン中央）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="soDimX2">
+			<Description><![CDATA["離れ寸法の位置2（始点から。0 なら最後のスパン中央）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Boolean Name="planSimple">
+			<Description><![CDATA["平面を単線で（建地列・支柱位置・床の対角線だけ）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="planReal">
+			<Description><![CDATA["平面を実寸で（支柱・コマ・布材・腕木を太さどおり、踏板を幅どおり、幅木）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<String Name="mvoName">
+			<Description><![CDATA["表示設定を読むライブラリグローバル部品名"]]></Description>
+			<Value><![CDATA["ashiba_mvo"]]></Value>
+		</String>
+		<Integer Name="qtyPostPos">
+			<Description><![CDATA["図示本数: 支柱位置（この面が所有する始点・中間＋出隅コーナー）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyPost">
+			<Description><![CDATA["図示本数: 支柱（位置×積み上げ本数）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyNuno">
+			<Description><![CDATA["図示本数: 布材（面に沿う根がらみ・床レベル・手すり・中桟。腕木は含まない）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyDeck">
+			<Description><![CDATA["図示本数: 踏板セル（スパン×層。階段室・開口部の通路を除く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyToe">
+			<Description><![CDATA["図示本数: 幅木（スパン×層。開口部の通路を除く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyAdv">
+			<Description><![CDATA["図示本数: 先行手すり（スパン×層）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyTie">
+			<Description><![CDATA["図示本数: 壁つなぎ"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyBrace">
+			<Description><![CDATA["図示本数: 斜材（設置間隔どおり、1箇所2本）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="qtyStair">
+			<Description><![CDATA["図示本数: 階段（階段室×層）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="serType">
+			<Description><![CDATA["系列 A/B/W（Wは枠組）"]]></Description>
+			<Value><![CDATA["A"]]></Value>
+		</String>
+		<String Name="viewMode">
+			<Description><![CDATA["2D表現 plan=平面 / elev=立面"]]></Description>
+			<Value><![CDATA["plan"]]></Value>
+		</String>
+		<String Name="tieList">
+			<Description><![CDATA["壁つなぎ位置 mm カンマ区切り（辺始点から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList2">
+			<Description><![CDATA["壁つなぎ位置（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList3">
+			<Description><![CDATA["壁つなぎ位置（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList4">
+			<Description><![CDATA["壁つなぎ位置（続き4）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieList5">
+			<Description><![CDATA["壁つなぎ位置（続き5）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList">
+			<Description><![CDATA["壁つなぎ高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList2">
+			<Description><![CDATA["壁つなぎ高さ（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList3">
+			<Description><![CDATA["壁つなぎ高さ（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList4">
+			<Description><![CDATA["壁つなぎ高さ（続き4）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tieHeightList5">
+			<Description><![CDATA["壁つなぎ高さ（続き5）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glList">
+			<Description><![CDATA["支柱位置ごとの地盤高 mm（基準GLからの差、下がりは負）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glList2">
+			<Description><![CDATA["支柱位置ごとの地盤高（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackList">
+			<Description><![CDATA["支柱位置ごとのジャッキ繰出し mm（敷板調整含む）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackList2">
+			<Description><![CDATA["支柱位置ごとのジャッキ繰出し（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimList">
+			<Description><![CDATA["支柱位置ごとの敷板調整 mm（ジャッキ繰出しの内数。敷板を重ねて描く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimList2">
+			<Description><![CDATA["支柱位置ごとの敷板調整（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glListO">
+			<Description><![CDATA["外側の建地列の地盤高（mm。空なら内側の列と同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="glListO2">
+			<Description><![CDATA["外側の建地列の地盤高（mm。空なら内側の列と同じ）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackListO">
+			<Description><![CDATA["外側の建地列のジャッキ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jackListO2">
+			<Description><![CDATA["外側の建地列のジャッキ（mm）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimListO">
+			<Description><![CDATA["外側の建地列の敷板調整（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="shimListO2">
+			<Description><![CDATA["外側の建地列の敷板調整（mm）（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="flList">
+			<Description><![CDATA["各階FL高さ mm カンマ区切り（立面の参照線）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="faceName">
+			<Description><![CDATA["面の名称（立面図の図面名）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="levelList">
+			<Description><![CDATA["作業床高さ mm カンマ区切り（GLから・立面ソルバの結果）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="eaveRails">
+			<Description><![CDATA["軒先の手すり高さ mm カンマ区切り（GLから。下屋の単管の面）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="topEdit">
+			<Description><![CDATA["足場高さ（3Dの天端のホットスポットで引く。作業層単位に吸着）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="negaH">
+			<Description><![CDATA["根がらみ高さ GLから 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="railH">
+			<Description><![CDATA["手すり高さ 作業床から 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="midH">
+			<Description><![CDATA["中桟高さ 作業床から 0で自動"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="railAdv">
+			<Description><![CDATA["手すり方式 0=布材（手すり＋中桟） 1=先行手すり（斜材が中桟を兼ねる）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="cornerS">
+			<Description><![CDATA["始点の出隅コーナー（外側建地・布材・踏板・幅木）をこの面が描く 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="faceOff">
+			<Description><![CDATA["面の区間だけの部品: 元の面の始点から区間の始めまで（面の途中で種類を切り替えたとき）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="faceLen">
+			<Description><![CDATA["元の面の長さ（区間だけの部品が元の面のどこかを読むため）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="cornerSP">
+			<Description><![CDATA["始点の出隅で前の面が隙間（コーナーステップ）の手前で止まる: 前の面の外側列の延長の根元に建地を立てる 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="endOpenS">
+			<Description><![CDATA["始点が開放端（隣の面を掛けない）0/1: 妻側の手すり・中桟・幅木"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="endOpenE">
+			<Description><![CDATA["終点が開放端 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="cornerG">
+			<Description><![CDATA["枠組の始点の出隅コーナーをギャプレス（コーナー布受け）で納める 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="postShape">
+			<Description><![CDATA["支柱の形 0=丸 1=異形断面（NDストロング）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="postDia">
+			<Description><![CDATA["支柱の径（足場の種類ごと。0 なら φ48.6）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="stOut">
+			<Description><![CDATA["階段を外付け 0/1: 外側建地列の外に1列立て、上り口＋階段2スパン＋降り口の区間にする"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipInS">
+			<Description><![CDATA["始点の内側建地は隣の面が描く 0/1（隅の支柱は高い方の面が1本だけ描く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipInE">
+			<Description><![CDATA["終点の内側建地は隣の面が描く 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="cornerE">
+			<Description><![CDATA["終点が出隅 0/1（コーナーは次の面が描く。寸法の端を外側の角の支柱まで延ばす）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="cornerSW">
+			<Description><![CDATA["始点の出隅の外側の升目の、前の面の幅の向きの辺（前の面の建地列間隔。0＝rowW）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cornerEW">
+			<Description><![CDATA["終点の出隅の外側の升目の、次の面の幅の向きの辺（次の面の建地列間隔。0＝rowW）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="toeOn">
+			<Description><![CDATA["幅木を付ける 0/1（利用者の指定 2026-10-24: 幅木のオンオフ）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="shitaSan">
+			<Description><![CDATA["幅木を付けないとき下さん（床から300の桟）を描く 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="sillT">
+			<Description><![CDATA["ジャッキベースの下の敷板の厚さ（0＝敷かない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="sillW">
+			<Description><![CDATA["敷板の幅"]]></Description>
+			<Value>0.24</Value>
+		</Length>
+		<String Name="sillLens">
+			<Description><![CDATA["敷板の規格の長さ mm（長い順、カンマ区切り）"]]></Description>
+			<Value><![CDATA["4000,3000,2000,1500,1000"]]></Value>
+		</String>
+		<Length Name="shimAll">
+			<Description><![CDATA["全部の脚のジャッキの下に重ねる敷板（繰出しの内数）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="sillList">
+			<Description><![CDATA["敷板の列「y,始め,終わり」mm の繰り返し（隅の重なりを除いた範囲）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="sillList2">
+			<Description><![CDATA["敷板の列（続き）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Integer Name="jkBlue">
+			<Description><![CDATA["ジャッキベースの底面を青に（日建 ND752P の識別色） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="intkList">
+			<Description><![CDATA["取り入れ口 mm・層「始め,終わり,層始め,層終わり」の繰り返し（可動手すりを描く）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="haneD">
+			<Description><![CDATA["跳ね出しブラケットの方杖の下がり（0＝なし。張り出した上の階の上段は床スラブの縁から持ち出す受けの上に立つ）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="haneTyp">
+			<Description><![CDATA["跳ね出しブラケットの形 1＝方杖（腕の先から下の階の壁へ突っ張る）／0＝吊り（上の階の壁から吊る）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="haneDn">
+			<Description><![CDATA["方杖の下端（下の階の壁の取付プレート）の床の天端からの下がり"]]></Description>
+			<Value>0.9</Value>
+		</Length>
+		<Length Name="haneWall">
+			<Description><![CDATA["張り出した上の階の壁（足場の面）から下の階の壁までの奥行き（方杖の下端の取付け先）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="frGapE">
+			<Description><![CDATA["枠組の終点の出隅の建枠どうしの隙間（単管で繋ぐ。0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="skipPS">
+			<Description><![CDATA["始点の支柱を描かない（セットバックの上段の端は本体の支柱に乗る） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipPE">
+			<Description><![CDATA["終点の支柱を描かない 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipOutS">
+			<Description><![CDATA["始点の外側建地を描かない（高さの違う出隅で、隅の升目を描く面が高い方の積み方で立てる） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="skipOutE">
+			<Description><![CDATA["終点の外側建地を描かない 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="cnrPosts">
+			<Description><![CDATA["始点の出隅の升目の支柱の積み方 mm（前の面が高いとき。空＝この面のもの）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="cnrLevels">
+			<Description><![CDATA["始点の出隅の升目の作業床の高さ mm（cnrPosts と組）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="cnrJack">
+			<Description><![CDATA["始点の出隅の升目のジャッキの繰出し（cnrPosts と組）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrNega">
+			<Description><![CDATA["始点の出隅の升目の根がらみの高さ（cnrPosts と組）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrLowS">
+			<Description><![CDATA["この面が隅より低いとき、この面の最上の作業床の高さ（その上の層は隅の升目の x=0 の辺に布材）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrLowP">
+			<Description><![CDATA["前の面が隅より低いとき、前の面の最上の作業床の高さ（その上の層は y=0 の辺に布材）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cnrBkW">
+			<Description><![CDATA["始点の出隅の升目の外の拡幅ブラケットの出（0＝なし。cnrBkLv のいちばん下の床に1回だけ付け、先端に支柱を天端まで立てる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="cnrBkP">
+			<Description><![CDATA["拡幅ブラケットを付ける辺 0＝この面の外側の列から外へ／1＝前の面の外側の列の延長から始点の先へ"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Boolean Name="brkObj">
+			<Description><![CDATA["拡幅・張出ブラケットを部品（ashiba_kbrk）で置いた（腕・方杖・補強単管を描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="cnrBkG">
+			<Description><![CDATA["拡幅した升目の先端の支柱と隣の足場（跳ね出しの上段）の内側建地のあき（3cm を超えればすき間板）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="cnrBkLv">
+			<Description><![CDATA["拡幅した升目の作業床の高さ mm（いちばん下にブラケット）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="tGapS">
+			<Description><![CDATA["始点の先のすき間板（本体に繋げない上段の端から本体の内側の建地の列までのあき。0＝なし）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="tGapE">
+			<Description><![CDATA["終点の先のすき間板（同上）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="hbShS">
+			<Description><![CDATA["跳ね出しの上段の始点の内側の支柱を本体の隅の升目と共有（張出ブラケットは外側だけ） 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="hbShE">
+			<Description><![CDATA["跳ね出しの上段の終点の内側の支柱を本体の隅の升目と共有 0/1"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="cnrOpen">
+			<Description><![CDATA["隅の升目の、跳ね出しの上段の床へ渡る辺（0＝なし、1＝この面の外側の列、2＝前の面の外側の列の延長）。手すり・中桟を付けない"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="cnrOpenZ">
+			<Description><![CDATA["cnrOpen の辺の手すり・中桟を外す高さ（この高さより上の層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hbExtS">
+			<Description><![CDATA["跳ね出しの上段の始点の先の張出ブラケットの出（0＝なし。各層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="hbExtE">
+			<Description><![CDATA["跳ね出しの上段の終点の先の張出ブラケットの出（0＝なし。各層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="haneX0">
+			<Description><![CDATA["跳ね出しブラケットを壁に留められる区間の始め（面の始点から。haneX1 と組、同じなら全部）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="haneX1">
+			<Description><![CDATA["跳ね出しブラケットを壁に留められる区間の終わり"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="endOpenZS">
+			<Description><![CDATA["始点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="endOpenZE">
+			<Description><![CDATA["終点の妻側を塞ぐのはこの高さより上の層だけ（0＝全部の層）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="endBrace">
+			<Description><![CDATA["妻側（開放端）を先行手すり（ブレス材）で塞ぐ 0/1（0 は布材の手すり＋中桟）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="railIn">
+			<Description><![CDATA["躯体側（内側建地列）の手すり＋中桟を布材で組む 0/1"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="brktList">
+			<Description><![CDATA["ブラケット区間 「開始,終了,幅,向き(1=内 -1=張出),高さ」の繰り返し mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList2">
+			<Description><![CDATA["ブラケット区間（続き2）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList3">
+			<Description><![CDATA["ブラケット区間（続き3）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brktList4">
+			<Description><![CDATA["ブラケット区間（続き4）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="stageList">
+			<Description><![CDATA["荷受けステージ mm 「開始,長さ,出,設置高さ,方杖(0/1)」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="hoistList">
+			<Description><![CDATA["昇降機 mm 「位置,到達高さ」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="landingList">
+			<Description><![CDATA["昇降機の乗り込み口 mm 「位置,作業床高さ」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="advInList">
+			<Description><![CDATA["前踏み側の先行手すり筋交い mm 「開始,終点,この高さ以上の作業層」の繰り返し（梁枠の網掛け部。ミレニューム Q16）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="beamList">
+			<Description><![CDATA["梁枠 mm 「開始,スパン,梁下高さ」の繰り返し"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="beamBotList">
+			<Description><![CDATA["梁枠の開口の下端 mm（beamList と同じ順。0＝地面から、途中の層の開口＝その層の床）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="bridgeList">
+			<Description><![CDATA["渡した凹み・張り出し・斜辺「開始,長さ,増える離れ,種別0凹み/1張り出し/2斜辺終点側深い/3斜辺始点側深い」mm"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="komaGap">
+			<Description><![CDATA["支柱の上端から最上のコマまで（ND1800 55・ミレニューム 30）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="komaNega">
+			<Description><![CDATA["根がらみ用のコマの高さ（支柱の下端から。ND1800 170）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="negaLens">
+			<Description><![CDATA["根がらみ用のコマのある支柱の長さ mm（例 2700,1125,900）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Integer Name="explodeMask">
+			<Description><![CDATA["支柱だけ分解した（1＝支柱・枠組の建枠は ashiba_member が描く）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="postListAlt">
+			<Description><![CDATA["千鳥の建地の支柱構成（単管。偶数番目の建地。空なら postList と同じ）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tubeRunA">
+			<Description><![CDATA["単管の通しの割付A（規定の長さの単管 mm を始点から。間は直線ジョイント）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="tubeRunB">
+			<Description><![CDATA["単管の通しの割付B（Aと同じ単管を並べ替え、継ぎをずらす）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="tubeRunS">
+			<Description><![CDATA["単管の通しの始め（面の始点の建地から。負＝手前に出す）"]]></Description>
+			<Value>-0.1</Value>
+		</Length>
+		<String Name="deckRunA">
+			<Description><![CDATA["足場板の割付A（単管のブラケット足場。規定の長さ mm を始点から。継ぎは300重ねる）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="deckRunB">
+			<Description><![CDATA["足場板の割付B（2枚敷きのもう1枚）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="deckRunS">
+			<Description><![CDATA["足場板の敷き始め（面の始点の建地から。負＝手前に出す）"]]></Description>
+			<Value>-0.1</Value>
+		</Length>
+		<Integer Name="stHalf">
+			<Description><![CDATA["階段を外側に寄せ、内側の板（ハーフアンチ）を階段の層も敷く（1）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="deckN">
+			<Description><![CDATA["単管の足場板の枚数（3枚以上は1枚目と同じ幅で並べる。0＝deckW1・deckW2）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="hugMode">
+			<Description><![CDATA["単管抱き足場（1＝建地1列を布2本で抱き、布が床）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="hugDz">
+			<Description><![CDATA["単管抱き足場の布・手すりを上げる量（南北の面。隅で直交する管と交わらない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Integer Name="segSpanA">
+			<Description><![CDATA["区切った部品のスパン（始め。0＝面の始点から）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segSpanB">
+			<Description><![CDATA["区切った部品のスパン（終わり。0＝面の終点まで）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segLevA">
+			<Description><![CDATA["区切った部品の作業層（下。0＝根がらみから）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="segLevB">
+			<Description><![CDATA["区切った部品の作業層（上。0＝天端まで）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<String Name="segGroup">
+			<Description><![CDATA["区切る前の面（同じ面の部品は同じ値）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="segNote">
+			<Description><![CDATA["区切った上の部品の平面の注記（拡幅・縮幅。空なら層の範囲）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="cutAtX">
+			<Description><![CDATA["縦に区切る位置（3Dの上端のつまみで引く。次の支柱に吸着。0＝区切らない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<Length Name="cutAtZ">
+			<Description><![CDATA["横に区切る位置（3Dの始点のつまみで引く。次の作業床に吸着。0＝区切らない）"]]></Description>
+			<Value>0</Value>
+		</Length>
+		<String Name="editList">
+			<Description><![CDATA["外した部材「スパン始,スパン終,層始,層終,ビット1踏板2外手すり4幅木8筋かい16内手すり32外踏板64内踏板」"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="hatchList">
+			<Description><![CDATA["ハッチ付布板（梯子内蔵）の昇降口のスパン番号（1〜、カンマ区切り）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="stairList">
+			<Description><![CDATA["階段室の区間 mm 「開始,長さ」の繰り返し（辺の始点から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="asagaoList">
+			<Description><![CDATA["朝顔の設置高さ mm カンマ区切り（GLから）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="asaCutList">
+			<Description><![CDATA["朝顔を切り欠く区間 mm 「開始,終了」の繰り返し（昇降機の通る位置）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="asagaoProj">
+			<Description><![CDATA["朝顔の水平突出"]]></Description>
+			<Value>2</Value>
+		</Length>
+		<RealNum Name="asagaoAngle">
+			<Description><![CDATA["朝顔の傾斜 度"]]></Description>
+			<Value>25</Value>
+		</RealNum>
+		<Integer Name="braceEveryS">
+			<Description><![CDATA["斜材の設置間隔 スパン 1=全構面"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="braceEveryL">
+			<Description><![CDATA["斜材の設置間隔 層 1=全層"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="nRows">
+			<Description><![CDATA["建地列数 2=本足場 1=一側足場"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Integer Name="warnPen">
+			<Description><![CDATA["注記強調のペン番号 ペンテーブル依存"]]></Description>
+			<Value>20</Value>
+		</Integer>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字高mm"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penPost">
+			<Description><![CDATA["ペン: 支柱"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penLine">
+			<Description><![CDATA["ペン: 足場の線（建地列・布材・手すり）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDeck">
+			<Description><![CDATA["ペン: 床（対角線・踏板）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penStair">
+			<Description><![CDATA["ペン: 階段"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["ペン: 付帯設備（ステージ・昇降機・朝顔・ブラケット・梁枠）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penTie">
+			<Description><![CDATA["ペン: 壁つなぎ"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penDim">
+			<Description><![CDATA["ペン: 寸法・文字"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<Length Name="stepH">
+			<Description><![CDATA["工程の模型の足場の高さ（部品の原点から。この高さより上を 3D に描かない。0＝全部。scripts/step_run.py が入れる）"]]></Description>
+			<Value>0</Value>
+		</Length>
+	</Parameters>
+</ParamSection>

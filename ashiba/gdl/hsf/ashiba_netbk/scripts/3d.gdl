@@ -1,0 +1,81 @@
+﻿! ============================================================
+! ネットブラケット（ネット専用ブラケット NL500 の形。利用者の資料 2026-10-20）
+!   φ42.7/48.6 兼用クランプで内側建地を抱き、受け板（幅75・腕芯の上70／下175）から
+!   φ34 の外管と φ27.2 の内管の伸縮腕を躯体側へ出す（方杖なし）。腕の届きは受け板の
+!   建地側の面（建地芯から42）から 300〜470mm。ネットは受け板・外管の端・先端のフックに掛ける
+!   原点＝内側建地の芯、+Y＝躯体側、zH＝ネットの高さ（腕の上端）。armL＝建地芯から先端まで
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+rP = 0.0486 / 2
+yP = 0.042
+yO = 0.29
+rO = 0.034 / 2
+rI = 0.0272 / 2
+tip = armL
+if tip < yP + 0.30 then tip = yP + 0.30
+if tip > yP + 0.47 then tip = yP + 0.47
+zA = -rO
+pen 1
+if matBk > 0 then material matBk
+resol 8
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ 0, yP, zA, 0, tip, zA
+	lin_ 0, yP, zA + 0.07, 0, yP, zA - 0.175
+else
+	! クランプ（建地を抱く）とボルト
+	add 0, 0, zA - 0.03
+	cylind 0.06, rP + 0.010
+	del 1
+	add rP + 0.004, -0.010, zA - 0.010
+	block 0.030, 0.020, 0.020
+	del 1
+	! 受け板 2枚（腕を挟む）と、下端で建地に当たる当て
+	for sx = -1 to 1 step 2
+		add sx * (rO + 0.004) - 0.002, yP, zA - 0.175
+		block 0.004, 0.075, 0.245
+		del 1
+	next sx
+	add -(rO + 0.006), rP, zA - 0.175
+	block 2 * (rO + 0.006), yP + 0.020 - rP, 0.040
+	del 1
+	! 外管 φ34 と内管 φ27.2（伸縮）
+	add 0, yP, zA
+	rotx -90
+	cylind yO - yP, rO
+	del 2
+	add 0, yO - 0.05, zA
+	rotx -90
+	cylind tip - (yO - 0.05), rI
+	del 2
+	! 固定ボルト・抜け止めボルト（外管の下）
+	for ib = 1 to 2
+		add 0, yO - 0.015 - 0.03 * (ib - 1), zA - rO - 0.025
+		cylind 0.025, 0.006
+		del 1
+	next ib
+	! ネット取付フック（受け板の先・外管の端・先端）: 腕を上下に抱く U 形
+	for ih = 1 to 3
+		yh = yP + 0.08
+		if ih = 2 then yh = yO - 0.03
+		if ih = 3 then yh = tip - 0.02
+		for sx = -1 to 1 step 2
+			add sx * 0.020, yh, zA - 0.035
+			cylind 0.090, 0.004
+			del 1
+		next sx
+		add -0.024, yh - 0.004, zA + 0.055
+		block 0.048, 0.008, 0.008
+		del 1
+	next ih
+endif
+hotspot 0, 0, 0
+hotspot 0, tip, 0
+del 2
+if stepH > 0.001 then cutend

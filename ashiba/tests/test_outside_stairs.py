@@ -1,0 +1,146 @@
+"""階段の外付け（利用者の指摘 2026-10-20: 敷地が広いところは階段を横に付ける。上り口と降り口に横のスパンが要る）."""
+
+import unittest
+
+from _path import SRC  # noqa: F401
+
+from ashiba.cli import solve_all
+from ashiba.gdl_params import face_drawn_counts, line_params
+
+# 足場の中にも外付けにも階段を組める幅 914（900 枠）で比べる。幅 610 の足場の中には組めない（下の
+# TestStairsNeed900OrDoubleRow。利用者の指定 2026-10-23: 階段は 900 枠か 600 枠 2 列）
+RECT = {"outline_mm": [[0, 0], [30000, 0], [30000, 20000], [0, 20000]], "eaves_height_mm": 9000,
+        "series_id": "nikken_nd1800", "scaffold_width_mm": 914}
+
+
+def _qty(r):
+    out = {}
+    for line in r.quantity.lines:
+        out[line.part.model_no] = out.get(line.part.model_no, 0) + line.qty
+    return out
+
+
+class TestLayoutChoice(unittest.TestCase):
+    def test_inside_is_the_cli_default(self):
+        self.assertFalse(solve_all(dict(RECT)).stair_plan.outside)
+
+    def test_auto_puts_the_stair_inside_a_900_scaffold(self):
+        # 幅 900 以上は足場の中に入れる（利用者の指定 2026-10-24: 900以上の時は中に入れれる）。外が空いていても中
+        self.assertFalse(solve_all({**RECT, "stairs": {"layout": "自動"}}).stair_plan.outside)
+        narrow = solve_all({**RECT, "stairs": {"layout": "auto"}, "clearance_space_mm": 800})
+        self.assertFalse(narrow.stair_plan.outside)
+        # 幅 900 未満は外付け（600 枠 2 列）
+        thin = solve_all({**RECT, "scaffold_width_mm": 610, "stairs": {"layout": "自動"}})
+        self.assertTrue(thin.stair_plan.outside)
+
+    def test_forced_outside_warns_when_narrow(self):
+        r = solve_all({**RECT, "stairs": {"layout": "外付け"}, "clearance_space_mm": 800})
+        self.assertTrue(r.stair_plan.outside)
+        self.assertTrue(any("外付け" in w for w in r.stair_plan.warnings))
+
+    def test_frame_series_stays_inside(self):
+        r = solve_all({**RECT, "series_id": "waku", "stairs": {"layout": "outside"}})
+        self.assertFalse(r.stair_plan.outside)
+
+
+class TestStairsNeed900OrDoubleRow(unittest.TestCase):
+    def test_610_wide_scaffold_puts_the_stair_outside(self):
+        r = solve_all({**RECT, "scaffold_width_mm": 610, "stairs": {"layout": "inside"}})
+        self.assertTrue(r.stair_plan.outside)                      # 600 枠 2 列（外側にもう 1 列）
+        self.assertTrue(any("600 枠 2 列" in w for w in r.stair_plan.warnings))
+        self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))
+        # 中を指定しないなら外付けは当たり前なので要確認には書かない
+        plain = solve_all({**RECT, "scaffold_width_mm": 610})
+        self.assertTrue(plain.stair_plan.outside)
+        self.assertFalse(any("600 枠 2 列" in w for w in plain.stair_plan.warnings))
+        wide = solve_all(dict(RECT))                                # 914 は足場の中（900 枠）
+        self.assertFalse(wide.stair_plan.outside)
+
+
+class TestOutsideQuantities(unittest.TestCase):
+    def test_main_deck_is_not_cut_and_tower_parts_are_added(self):
+        a = solve_all({**RECT, "stairs": {"layout": "inside"}})
+        b = solve_all({**RECT, "stairs": {"layout": "outside"}})
+        qa, qb = _qty(a), _qty(b)
+        n_t = len(b.stair_plan.towers)
+        n_lv = b.model.elevation.n_levels
+        pos = sum(t.span_count + 1 for t in b.stair_plan.towers)   # 3列目（区間は 上り口＋階段2＋降り口）
+        self.assertEqual(qb["A752"] - qa["A752"], pos)                 # 3列目の脚
+        self.assertEqual(qb["NDP27N"] - qa["NDP27N"], pos * b.model.elevation.posts.count(2700))
+        # 床: 本体は切らない（中の階段の開口ぶん）＋上り口・降り口（2スパン×各層）＋階段のスパンの踊り場（各層1スパン）
+        def decks500(r):
+            return sum(l.qty for l in r.quantity.lines if l.part.category == "踏板" and "幅500" in l.part.note)
+        n_in = len(a.stair_plan.towers)
+        self.assertEqual(decks500(b) - decks500(a), n_in * n_lv + 3 * n_t * n_lv)
+        self.assertTrue(all(t.span_count == 4 for t in b.stair_plan.towers))
+        self.assertNotIn("SG918SW", qb)                                  # 開口部手摺・幅木は使わない
+        self.assertNotIn("NFG918", qb)
+        # 階段そのものは1箇所×層。区間が長くなる（上り口・降り口）ので、移動距離の都合で箇所数は変わりうる
+        self.assertEqual(qb["NDAL4518K"], n_t * n_lv)
+        self.assertTrue(any("上り口＋階段2スパン＋降り口" in n for n in b.quantity.notes))
+
+    def test_gdl_params_and_drawn_counts(self):
+        b = solve_all({**RECT, "stairs": {"layout": "outside"}})
+        t = b.stair_plan.towers[0]
+        ep = next(e for e in b.model.plan.edges if e.edge_index == t.edge_index)
+        self.assertEqual(line_params(b.model, ep, stair_plan=b.stair_plan)["stOut"], 1)
+        c = face_drawn_counts(b.model, ep, stair_plan=b.stair_plan)
+        self.assertEqual(c["qtyDeck"], len(ep.spans) * b.model.elevation_of(ep.edge_index).n_levels)
+        self.assertEqual(c["qtyStair"], sum(1 for x in b.stair_plan.towers if x.edge_index == ep.edge_index)
+                         * b.model.elevation.n_levels)
+
+    def test_3d_draws_the_third_row(self):
+        from pathlib import Path
+
+        body = (Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_line" / "scripts" / "3d.gdl"
+                ).read_text(encoding="utf-8")
+        self.assertIn("yb = -rowW - stOut * rowW", body)
+        self.assertIn("yo = -2 * rowW", body)
+        self.assertIn("sx = sx + fFirst", body)                       # 階段は上り口・降り口を除いた中
+        self.assertIn("if stOut = 0 and x >= stS[it4] - 0.001", body)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestOutsideStairAnnotations(unittest.TestCase):
+    def test_dimensions_and_label_clear_the_stair_bay(self):
+        from ashiba.plan_labels import face_outward_m, plan_label_items
+
+        b = solve_all({**RECT, "stairs": {"layout": "outside"}})
+        a = solve_all({**RECT, "stairs": {"layout": "inside"}})
+        t = b.stair_plan.towers[0]
+        ep = next(e for e in b.model.plan.edges if e.edge_index == t.edge_index)
+        row = b.model.post_row_spacing_mm / 1000.0
+        self.assertGreaterEqual(face_outward_m(b.model, ep, b.platforms, b.stair_plan), row)
+        self.assertEqual(face_outward_m(a.model, ep, a.platforms, a.stair_plan), 0.0)
+        out_lbl = [i for i in plan_label_items(b.model, b.stair_plan) if "階段" in i[2]]
+        in_lbl = [i for i in plan_label_items(a.model, a.stair_plan) if "階段" in i[2]]
+        # 南面（辺0）は外が -y。外付けは1升ぶん外へ
+        self.assertAlmostEqual(in_lbl[0][1] - out_lbl[0][1], b.model.post_row_spacing_mm / 1000.0, places=6)   # 座標は m
+
+
+class TestSmallBuilding(unittest.TestCase):
+    def test_outside_tower_may_reach_the_corner(self):
+        """7.4×5.8m の建物（実機の利用者の建物）でも 上り口＋階段2＋降り口 の4スパンが置ける."""
+        r = solve_all({"outline_mm": [[0, 0], [7400, 0], [7400, 5800], [0, 5800]], "eaves_height_mm": 5400,
+                       "series_id": "nikken_nd1800", "module": "inch", "stairs": {"layout": "outside"}})
+        self.assertTrue(r.stair_plan.towers)
+        self.assertTrue(all(t.span_count == 4 for t in r.stair_plan.towers))
+
+
+class TestFewStairsWhenOnlySomeFacesAreFree(unittest.TestCase):
+    """外付け階段が敷地境界に詰まった面を避けるとき、空きの中央へ足し続けて数だけ増やさない
+    （2026-10-23 実機: 30×20m の建物に東・北で 7 箇所置いていた）."""
+
+    def test_two_towers_cover_the_loop(self):
+        from ashiba.cli import solve_all
+
+        B = [[0, 0], [30000, 0], [30000, 20000], [0, 20000]]
+        bnd = [[-1500, -1200], [33000, -1200], [33000, 24000], [-1500, 24000]]
+        r = solve_all({"outline_mm": B, "eaves_height_mm": 9000, "site_boundary_mm": bnd, "road_edges": [0]})
+        self.assertTrue(r.stair_plan.outside)
+        self.assertEqual(len(r.stair_plan.towers), 2)
+        self.assertLessEqual(r.stair_plan.max_travel_mm, 30000)
+        self.assertEqual(next(c for c in r.checks if c.check_id == 12).status, "OK")

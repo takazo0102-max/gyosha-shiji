@@ -1,0 +1,653 @@
+﻿! 重機 2D（CAD の平面図の描き方: scripts/gdl_draft.py）: 外形は太線、細部は細線、車体の下に隠れるもの（タイヤ・第5輪）は破線、
+! 中心と作業半径は一点鎖線、後端旋回半径（立入禁止）と旋回軌跡は二点鎖線。上に載るもの（上部旋回体・荷台・トレーラー・積荷）は
+! 背景の色で塗って下の線を隠す。縮尺で 詳細（1/100）・標準（1/200）・簡略 を描き分ける
+! 描き方の決め（scripts/gdl_draft.py）
+drLv = drMode
+if drLv < 1 or drLv > 3 then
+	drLv = 1
+	if GLOB_SCALE > 150 then drLv = 2
+	if GLOB_SCALE > 250 then drLv = 3
+endif
+pO = penBold
+if pO < 1 then pO = penEquip
+pT = penThin
+if pT < 1 then pT = penEquip
+pZ = penZone
+if pZ < 1 then pZ = pT
+pM = penMask
+ltS = 1
+ltH = IND(LINE_TYPE, "破線")
+if ltH < 1 then ltH = IND(LINE_TYPE, "Dashed")
+if ltH < 1 then ltH = 1
+ltC = IND(LINE_TYPE, "一点鎖線")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dotted")
+if ltC < 1 then ltC = IND(LINE_TYPE, "Dash-dot")
+if ltC < 1 then ltC = 1
+ltZ = IND(LINE_TYPE, "二点鎖線")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-double-dotted")
+if ltZ < 1 then ltZ = IND(LINE_TYPE, "Dash-dot-dot")
+if ltZ < 1 then ltZ = 1
+fiS = IND(FILL, "100 %")
+if fiS < 1 then fiS = IND(FILL, "Solid Fill")
+mk = (pM > 0 and fiS > 0)
+define style "mcT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+define style "mcR" "ＭＳ Ｐゴシック", texSiz, 3, 0
+style "mcT"
+dT = texSiz * GLOB_SCALE / 1000 * 1.6
+pen pO
+line_type ltS
+if isCr then
+	! 履帯（2本）。詳細は履板の線と起動輪・遊動輪
+	drawindex 10
+	for s = -1 to 1 step 2
+		yc = s * (trkW / 2 - shoeW / 2)
+		pen pO
+		rect2 -trkL / 2, yc - shoeW / 2, trkL / 2, yc + shoeW / 2
+		if drLv = 1 then
+			pen pT
+			nSh = max(2, int(trkL / 0.5))
+			for k = 1 to nSh - 1
+				xk = -trkL / 2 + k * trkL / nSh
+				line2 xk, yc - shoeW / 2, xk, yc + shoeW / 2
+			next k
+		endif
+	next s
+	! 後端旋回半径（立入禁止の範囲）
+	pen pZ
+	line_type ltZ
+	circle2 0, 0, tailR
+	line_type ltS
+	rot2 slew
+	! 上部旋回体とカウンタウエイト: 下の履帯を隠してから外形
+	if mk then
+		drawindex 20
+		fill fiS
+		poly2_b 12, 6, pM, pM,
+			upF, -w2, 1,
+			upF, w2, 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 0 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 0 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 1 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 1 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 2 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 2 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 3 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 3 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 4 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 4 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 5 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 5 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 6 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 6 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 7 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 7 / 8), 1,
+			tailR * cos(180 - aS + (180 + aS - (180 - aS)) * 8 / 8), tailR * sin(180 - aS + (180 + aS - (180 - aS)) * 8 / 8), 1,
+			upF, -w2, -1
+		if w2c > w2 + 0.01 then
+			fill fiS
+			poly2_b 12, 6, pM, pM,
+				xsc + 1.0, -w2c, 1,
+				xsc + 1.0, w2c, 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 0 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 0 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 1 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 1 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 2 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 2 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 3 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 3 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 4 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 4 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 5 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 5 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 6 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 6 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 7 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 7 / 8), 1,
+				tailR * cos(180 - aSc + (180 + aSc - (180 - aSc)) * 8 / 8), tailR * sin(180 - aSc + (180 + aSc - (180 - aSc)) * 8 / 8), 1,
+				xsc + 1.0, -w2c, -1
+		endif
+	endif
+	drawindex 30
+	pen pO
+	! 外形は円弧と線で（put と poly2 の多角形は平面を止めた）
+	arc2 0, 0, tailR, 180 - aS, 180 + aS
+	line2 xs, w2, upF, w2
+	line2 upF, w2, upF, -w2
+	line2 upF, -w2, xs, -w2
+	if w2c > w2 + 0.01 then
+		arc2 0, 0, tailR, 180 - aSc, 180 + aSc
+		xCw = xsc + 1.0
+		line2 xsc, w2c, xCw, w2c
+		line2 xsc, -w2c, xCw, -w2c
+		line2 xCw, w2c, xCw, -w2c
+	endif
+	if drLv = 1 and mcKind <> 8 and mcKind <> 9 then
+		! 運転室（cbS の側の前）と前窓・カウンタウエイトの前の縁・エンジンカバー（3D と同じ寸法）
+		drawindex 40
+		pen pT
+		yC0 = w2 - cabW
+		if cbS < 0 then yC0 = -w2
+		rect2 upF - cabL, yC0, upF, yC0 + cabW
+		line2 upF - 0.12, yC0 + 0.08, upF - 0.12, yC0 + cabW - 0.08
+		xC = xsc + min(0.9, tailR * 0.35)
+		if cwH > 0.01 then xC = xsc + 1.0
+		line2 xC, -min(w2, w2c), xC, min(w2, w2c)
+		yE0 = -w2 + 0.05
+		yE1 = w2 - cabW - 0.1
+		if cbS < 0 then
+			yE0 = -w2 + cabW + 0.1
+			yE1 = w2 - 0.05
+		endif
+		if upF - cabL - xC > 0.3 then rect2 xC, yE0, upF - cabL - 0.05, yE1
+	endif
+	drawindex 30
+	pen pO
+	if mcKind = 1 and bldW > 0.1 then
+		del 1
+		rect2 trkL / 2 + 0.25, -bldW / 2, trkL / 2 + 0.25 + 0.12, bldW / 2
+		rot2 slew
+	endif
+	if mcKind = 1 then
+		! ブーム・アーム（上から見える）と先のアタッチメント
+		line2 pvX, bmY - 0.25, amX1, bmY - 0.15
+		line2 pvX, bmY + 0.25, amX1, bmY + 0.15
+		if drLv < 3 then
+			pen pT
+			line_type ltC
+			line2 pvX, bmY, amX1, bmY
+			line_type ltS
+			pen pO
+		endif
+		if atK = 5 then
+			hX2 = amX1 + atL * cos(bkA) + atW * sin(bkA)
+			line2 amX1, bmY, hX2, bmY
+			rect2 hX2 - vbW / 2, bmY - vbT / 2, hX2 + vbW / 2, bmY + vbT / 2
+		endif
+		if atK > 0 and atK < 5 then
+			wA = max(0.3, min(atW, 1.2))
+			rect2 amX1, bmY - wA / 2, amX1 + atL * max(0.2, cos(bkA)), bmY + wA / 2
+		endif
+		if atK = 0 then
+			rect2 amX1 - 0.1, bmY - bkW / 2, amX1 + 0.35, bmY + bkW / 2
+			if drLv = 1 then
+				pen pT
+				for k = 1 to 4
+					line2 amX1 + 0.35, bmY - bkW / 2 + k * bkW / 5, amX1 + 0.45, bmY - bkW / 2 + k * bkW / 5
+				next k
+				pen pO
+			endif
+		endif
+	endif
+	if mcKind = 2 then
+		! ラチスブーム（2本の弦材。詳細は斜材）と先端・吊り荷
+		line2 pvX, -lbW / 2, lbX, -lbW / 2
+		line2 pvX, lbW / 2, lbX, lbW / 2
+		line2 lbX, -lbW / 2, lbX, lbW / 2
+		if drLv = 1 then
+			pen pT
+			nLc = max(2, int((lbX - pvX) / max(lbW, 0.6)))
+			for k = 0 to nLc - 1
+				xa = pvX + k * (lbX - pvX) / nLc
+				xb = pvX + (k + 1) * (lbX - pvX) / nLc
+				line2 xa, (1 - 2 * (k mod 2)) * lbW / 2, xb, -(1 - 2 * (k mod 2)) * lbW / 2
+			next k
+			pen pO
+		endif
+		if drLv < 3 then
+			pen pT
+			line_type ltC
+			line2 pvX, 0, lbX + 0.6, 0
+			line_type ltS
+			pen pO
+		endif
+		circle2 lbX, 0, 0.4
+		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+	endif
+	if mcKind = 8 then
+		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
+		circle2 ldX, 0, ldDia / 2
+		rect2 upF - 0.1, -0.6, ldX, 0.6
+		pen pT
+		for i = 1 to nAu
+			circle2 ldX + auOff, yAu0 + (i - 1) * auP, auD / 2
+			if drLv < 3 then
+				line_type ltC
+				line2 ldX + auOff - auD / 2 - 0.2, yAu0 + (i - 1) * auP, ldX + auOff + auD / 2 + 0.2, yAu0 + (i - 1) * auP
+				line2 ldX + auOff, yAu0 + (i - 1) * auP - auD / 2 - 0.2, ldX + auOff, yAu0 + (i - 1) * auP + auD / 2 + 0.2
+				line_type ltS
+			endif
+		next i
+		rect2 ldX + auOff - auW / 2, yAu0 - auD / 2 - 0.1, ldX + auOff + auW / 2, -yAu0 + auD / 2 + 0.1
+		for s = -1 to 1 step 2
+			line2 -tailR * 0.35, s * upW * 0.35, ldX, s * ldDia * 0.3
+			if drLv < 3 then
+				rect2 fjX - 0.3, s * fjW / 2 - 0.3, fjX + 0.3, s * fjW / 2 + 0.3
+				rect2 -rjX - 0.3, s * rjW / 2 - 0.3, -rjX + 0.3, s * rjW / 2 + 0.3
+			endif
+			line2 -rjX, 0, -rjX, s * rjW / 2
+		next s
+		pen pO
+	endif
+	if mcKind = 9 then
+		! テレスコブーム・ケリードライブ・バケット（掘削中心は一点鎖線）
+		line2 pvX, -0.45, tbX, -0.45
+		line2 pvX, 0.45, tbX, 0.45
+		rect2 kdR - 0.9, -0.9, kdR + 0.9, 0.9
+		pen pT
+		circle2 kdR, 0, auD / 2
+		if drLv < 3 then line_type ltC
+		line2 kdR - auD / 2 - 0.3, 0, kdR + auD / 2 + 0.3, 0
+		line2 kdR, -auD / 2 - 0.3, kdR, auD / 2 + 0.3
+		line_type ltS
+		pen pO
+	endif
+	if mcKind = 11 then
+		! フロント（3段）と先のアタッチメント
+		line2 pvX, -0.35, max(dmX1, dmX3), -0.3
+		line2 pvX, 0.35, max(dmX1, dmX3), 0.3
+		wA = max(0.3, min(atW, 1.2))
+		if atK = 0 then wA = bkW
+		rect2 dmX3, -wA / 2, dmX3 + tpL * max(0.2, abs(cos(bkA))), wA / 2
+	endif
+	del 1
+endif
+if mcKind = 10 then
+	! 全周回転機: 反力ブラケット・本体・通り穴・ケーシング（一点鎖線の中心）・水平ジャッキ・油圧ユニット
+	drawindex 30
+	pen pO
+	rect2 -brL / 2, -0.3, brL / 2, 0.3
+	rect2 -0.3, -brW / 2, 0.3, brW / 2
+	rect2 -rtL / 2, -rtW / 2, rtL / 2, rtW / 2
+	circle2 0, 0, csD / 2
+	pen pT
+	circle2 0, 0, rtD / 2
+	if drLv < 3 then
+		for s = -1 to 1 step 2
+			for t = -1 to 1 step 2
+				circle2 s * (rtL / 2 - 0.35), t * (rtW / 2 - 0.35), 0.25
+			next t
+		next s
+		line_type ltC
+		line2 -csD / 2 - 0.4, 0, csD / 2 + 0.4, 0
+		line2 0, -csD / 2 - 0.4, 0, csD / 2 + 0.4
+		line_type ltS
+	endif
+	pen pO
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
+endif
+if mcKind = 12 then
+	! 圧入機: 本体・チャックの杭・後ろの完成杭（つかむ反力杭）・パワーユニット
+	drawindex 30
+	pen pO
+	rect2 -piL + 0.35, -piW / 2, 0.35, piW / 2
+	pen pT
+	for i = 0 to piN
+		xP = -i * piP
+		line2 xP - piP / 2, 0, xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP - piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15
+		line2 xP + piP / 4, (1 - 2 * (i mod 2)) * 0.15, xP + piP / 2, 0
+	next i
+	pen pO
+	rect2 puX - puL / 2, puY - puW / 2, puX + puL / 2, puY + puW / 2
+endif
+if isTk then
+	! 車体・運転室: 下の線を隠してから外形（太線）。タイヤは車体の下なので破線（簡略は描かない）
+	cL2 = min(2.3, carL * 0.28)
+	if mk then
+		drawindex 20
+		if mcKind = 14 then
+			fill fiS
+			poly2_b 5, 6, pM, pM,
+				xF - cL2 - 0.1, -carW / 2, 1,
+				xF, -carW / 2, 1,
+				xF, carW / 2, 1,
+				xF - cL2 - 0.1, carW / 2, 1,
+				xF - cL2 - 0.1, -carW / 2, -1
+			fill fiS
+			poly2_b 5, 6, pM, pM,
+				xR, -carW / 2 + 0.35, 1,
+				xF - cL2 - 0.1, -carW / 2 + 0.35, 1,
+				xF - cL2 - 0.1, carW / 2 - 0.35, 1,
+				xR, carW / 2 - 0.35, 1,
+				xR, -carW / 2 + 0.35, -1
+		else
+			fill fiS
+			poly2_b 5, 6, pM, pM,
+				xR, -carW / 2, 1,
+				xF, -carW / 2, 1,
+				xF, carW / 2, 1,
+				xR, carW / 2, 1,
+				xR, -carW / 2, -1
+		endif
+	endif
+	drawindex 30
+	pen pO
+	if mcKind = 14 then
+		rect2 xF - cL2 - 0.1, -carW / 2, xF, carW / 2
+		pen pT
+		line2 xR, -carW / 2 + 0.35, xF - cL2 - 0.1, -carW / 2 + 0.35
+		line2 xR, carW / 2 - 0.35, xF - cL2 - 0.1, carW / 2 - 0.35
+		line2 xR, -carW / 2 + 0.35, xR, carW / 2 - 0.35
+		pen pO
+	else
+		rect2 xR, -carW / 2, xF, carW / 2
+	endif
+	pen pT
+	if mcKind <> 7 then line2 xF - cL2, -carW / 2, xF - cL2, carW / 2
+	if isVh and drLv = 1 then
+		! 前窓とミラー
+		line2 xF - 0.12, -carW / 2 + 0.08, xF - 0.12, carW / 2 - 0.08
+		for s = -1 to 1 step 2
+			rect2 xF - 0.35, s * (carW / 2 + 0.05), xF - 0.25, s * (carW / 2 + 0.22)
+			line2 xF - 0.3, s * carW / 2, xF - 0.3, s * (carW / 2 + 0.05)
+		next s
+	endif
+	if drLv < 3 then
+		drawindex 40
+		line_type ltH
+		for i = 1 to nAx
+			if isVh and drLv = 1 then line2 axs[i], -carW / 2 + 0.1, axs[i], carW / 2 - 0.1
+			for s = -1 to 1 step 2
+				if drLv = 1 then
+					rect2 axs[i] - whR, s * carW / 2 - s * 0.05, axs[i] + whR, s * carW / 2 - s * (0.05 + whW)
+					if isVh and i > nFa then rect2 axs[i] - whR, s * carW / 2 - s * (0.08 + whW), axs[i] + whR, s * carW / 2 - s * (0.08 + 2 * whW)
+				else
+					wq = whW * (1 + (isVh and i > nFa))
+					rect2 axs[i] - whR, s * carW / 2 - s * 0.05, axs[i] + whR, s * carW / 2 - s * (0.05 + wq)
+				endif
+			next s
+		next i
+		line_type ltS
+		drawindex 30
+	endif
+	pen pO
+	if (mcKind = 3 or mcKind = 6 or (mcKind = 13 and ucOn)) and otOn then
+		! アウトリガ（張り出した形）
+		for j = 1 to 3
+			if oy[j] > 0.01 then
+				for s = -1 to 1 step 2
+					line2 ox[j], s * 0.3, ox[j], s * oy[j]
+					if drLv < 3 then rect2 ox[j] - 0.3, s * oy[j] - 0.3, ox[j] + 0.3, s * oy[j] + 0.3
+				next s
+			endif
+		next j
+	endif
+	if mcKind = 7 then rect2 -pfL / 2, -pfW / 2, pfL / 2, pfW / 2
+	if mcKind = 3 then
+		circle2 0, 0, 0.6
+		rot2 slew
+		line2 0, -0.2, pmX, -0.15
+		line2 0, 0.2, pmX, 0.15
+		circle2 pmX, 0, 0.15
+		del 1
+	endif
+	if mcKind = 6 then
+		circle2 0, 0, 0.5
+		rot2 slew
+		line2 -0.4, -0.2, abX, -0.2
+		line2 -0.4, 0.2, abX, 0.2
+		rect2 abX, -pfL / 2, abX + pfW, pfL / 2
+		del 1
+	endif
+	if mcKind = 4 then
+		rect2 xF - 2.2 - drL * cos(drA), -drD / 2, xF - 2.2, drD / 2
+	endif
+	if mcKind = 5 then
+		rect2 xR + 0.1, -bedW / 2, xR + 0.1 + bedL * cos(bedA), bedW / 2
+		if drLv = 1 then
+			pen pT
+			rect2 xR + 0.14, -bedW / 2 + 0.04, xR + 0.06 + bedL * cos(bedA), bedW / 2 - 0.04
+			pen pO
+		endif
+	endif
+	if mcKind = 13 then
+		! 荷台（外形・あおりの内側・鳥居）・道板・クレーン・積荷
+		dkx = xR + (bedL + 0.1) * cos(bedA)
+		rect2 xR, -bedW / 2 - 0.05, dkx, bedW / 2 + 0.05
+		pen pT
+		if bedH > 0.01 and drLv < 3 then rect2 xR + 0.04, -bedW / 2, dkx - 0.08, bedW / 2
+		line2 dkx - 0.08, -bedW / 2 - 0.05, dkx - 0.08, bedW / 2 + 0.05
+		if drLv = 1 and bedH > 0.01 then
+			! 床の根太（あおりの内に 0.6m ごと）
+			nJs = int((dkx - xR - 0.2) / 0.6)
+			for k = 1 to nJs
+				line2 dkx - 0.08 - k * 0.6, -bedW / 2 + 0.04, dkx - 0.08 - k * 0.6, bedW / 2 - 0.04
+			next k
+		endif
+		if rpL > 0.01 then
+			rpx = rpL * cos(asn(min(1, flZ / rpL)))
+			for s = -1 to 1 step 2
+				rect2 xR - rpx, s * (bedW / 2 - 0.25) - 0.2, xR, s * (bedW / 2 - 0.25) + 0.2
+			next s
+		endif
+		pen pO
+		if ucOn then
+			circle2 ucX, 0, 0.35
+			add2 ucX, 0
+			rot2 slew + 180
+			line2 0, -0.18, ucTx, -0.12
+			line2 0, 0.18, ucTx, 0.12
+			circle2 ucTx, 0, 0.15
+			del 2
+			pen pZ
+			line_type ltC
+			circle2 ucX, 0, ucLmax
+			line_type ltS
+			pen pO
+		endif
+		if cgOn then
+			xg1 = xR + bedL / 2 + cgX - cgL / 2
+			xg2 = xR + bedL / 2 + cgX + cgL / 2
+			if mk then
+				drawindex 35
+				fill fiS
+				poly2_b 5, 6, pM, pM,
+					xg1, -cgW / 2, 1,
+					xg2, -cgW / 2, 1,
+					xg2, cgW / 2, 1,
+					xg1, cgW / 2, 1,
+					xg1, -cgW / 2, -1
+			endif
+			drawindex 38
+			rect2 xg1, -cgW / 2, xg2, cgW / 2
+			if drLv < 3 then
+				pen pT
+				line2 xg1, -cgW / 2, xg2, cgW / 2
+				line2 xg1, cgW / 2, xg2, -cgW / 2
+				pen pO
+			endif
+			drawindex 30
+		endif
+	endif
+	if mcKind = 14 then
+		! 第5輪（カプラ。トレーラーの下なので破線）とキングピン、トレーラー（キングピンまわりに trA）
+		pen pT
+		if drLv < 3 then
+			drawindex 40
+			line_type ltH
+			circle2 kpX, 0, 0.45
+			line_type ltS
+			circle2 kpX, 0, 0.1
+		endif
+		add2 kpX, 0
+		rot2 trA
+		if mk then
+			drawindex 33
+			fill fiS
+			poly2_b 5, 6, pM, pM,
+				-tlB, -tlW / 2, 1,
+				tlF, -tlW / 2, 1,
+				tlF, tlW / 2, 1,
+				-tlB, tlW / 2, 1,
+				-tlB, -tlW / 2, -1
+		endif
+		drawindex 36
+		pen pO
+		rect2 -tlB, -tlW / 2, tlF, tlW / 2
+		pen pT
+		if tlK = 1 then
+			line2 tlF - gnL, -tlW / 2, tlF - gnL, tlW / 2
+			line2 tlF - gnL - dkL, -tlW / 2, tlF - gnL - dkL, tlW / 2
+			if drLv = 1 then
+				! 荷台の縞鋼板の目地（1.0m ごと）
+				for k = 1 to int(dkL) - 1
+					line2 tlF - gnL - k, -tlW / 2 + 0.05, tlF - gnL - k, tlW / 2 - 0.05
+				next k
+			endif
+		endif
+		if tlK = 2 and drLv < 3 then
+			for k = 0 to 3
+				for s = -1 to 1 step 2
+					rect2 tlF - 1.5 - k * (tlB - 2.5) / 3, s * tlW / 2 - 0.05, tlF - 1.4 - k * (tlB - 2.5) / 3, s * tlW / 2 + 0.05
+				next s
+			next k
+		endif
+		if tlK = 3 then
+			line2 0, -0.15, -tlAx + 1.0, -0.15
+			line2 0, 0.15, -tlAx + 1.0, 0.15
+		endif
+		circle2 0, 0, 0.08
+		if drLv < 3 then
+			drawindex 42
+			line_type ltH
+			for i = 0 to tlN - 1
+				xa = -(tlAx + i * tlSp)
+				if drLv = 1 then line2 xa, -tlW / 2 + 0.1, xa, tlW / 2 - 0.1
+				for s = -1 to 1 step 2
+					for q = 1 to max(1, tlQ)
+						yq = s * (tlT / 2 - (q - 1) * 0.885)
+						if drLv = 1 then
+							rect2 xa - tlR, yq - 0.27, xa + tlR, yq - 0.02
+							rect2 xa - tlR, yq + 0.02, xa + tlR, yq + 0.27
+						else
+							rect2 xa - tlR, yq - 0.27, xa + tlR, yq + 0.27
+						endif
+					next q
+				next s
+			next i
+			line_type ltS
+		endif
+		pen pO
+		if cgOn then
+			if mk then
+				drawindex 35
+				fill fiS
+				poly2_b 5, 6, pM, pM,
+					cgX - cgL / 2, -cgW / 2, 1,
+					cgX + cgL / 2, -cgW / 2, 1,
+					cgX + cgL / 2, cgW / 2, 1,
+					cgX - cgL / 2, cgW / 2, 1,
+					cgX - cgL / 2, -cgW / 2, -1
+			endif
+			drawindex 38
+			rect2 cgX - cgL / 2, -cgW / 2, cgX + cgL / 2, cgW / 2
+			if drLv < 3 then
+				pen pT
+				line2 cgX - cgL / 2, -cgW / 2, cgX + cgL / 2, cgW / 2
+				line2 cgX - cgL / 2, cgW / 2, cgX + cgL / 2, -cgW / 2
+				pen pO
+			endif
+		endif
+		drawindex 30
+		del 2
+	endif
+endif
+! 旋回軌跡（最小回転半径で曲がり続けるとき。外側の前端の角と内側の後輪。単車は場内通路と同じ式、連結車はトレーラーの後軸群まで。
+! 円弧は今の向きから 90° 分。二点鎖線、回転の中心は一点鎖線の十字）
+if isVh and tkOn and tnR > 0.5 then
+	L1 = axF - xAxR
+	if L1 < tnR then
+		aRr = sqr(tnR ^ 2 - L1 ^ 2)
+		if mcKind = 13 then
+			rCen = aRr - trT / 2
+			rOut = sqr((aRr + (carW - trT) / 2) ^ 2 + (L1 + frOv) ^ 2)
+			rIn = aRr - (carW + trT) / 2
+		else
+			rCen = aRr - (trT + 0.2) / 2
+			rOut = sqr((L1 + frOv) ^ 2 + (rCen + carW / 2) ^ 2)
+			rKp = sqr(rCen ^ 2 + kpC ^ 2)
+			L2 = tlAx + (tlN - 1) * tlSp / 2
+			rIn = 0
+			if tkW > 0.01 then
+				rIn = tnR - tkW
+				rOut = tnR
+			else
+				if L2 < rKp then
+					rTrl = sqr(rKp ^ 2 - L2 ^ 2)
+					rIn = rTrl - tlT / 2
+					rOut = max(rOut, sqr((rTrl + tlW / 2) ^ 2 + (tlB - L2) ^ 2))
+				endif
+			endif
+		endif
+		yC = tkS * rCen
+		dxq = xF - xAxR
+		dyq = -tkS * carW / 2 - yC
+		aQ = 90
+		if dyq < 0 then aQ = -90
+		if abs(dxq) > 0.000001 then aQ = atn(dyq / dxq)
+		if dxq < 0 then aQ = aQ + 180
+		drawindex 45
+		pen pZ
+		line_type ltZ
+		if tkS > 0 then
+			arc2 xAxR, yC, rOut, aQ, aQ + 90
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, -90, 0
+		else
+			arc2 xAxR, yC, rOut, aQ - 90, aQ
+			if rIn > 0.1 then arc2 xAxR, yC, rIn, 0, 90
+		endif
+		line_type ltC
+		line2 xAxR, yC - 0.6, xAxR, yC + 0.6
+		line2 xAxR - 0.6, yC, xAxR + 0.6, yC
+		line_type ltS
+	endif
+endif
+! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）。一点鎖線
+rW = maxR
+if mcKind = 2 then rW = lbX + 0.4
+isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
+drawindex 45
+if rW > 0.1 and isR then
+	pen pZ
+	line_type ltC
+	circle2 0, 0, rW
+	line_type ltS
+endif
+! 旋回の中心（一点鎖線の十字。簡略は小さく）
+if isCr or mcKind = 3 or mcKind = 6 then
+	pen pT
+	cq = 0.6 + 0.6 * (drLv = 3)
+	line_type ltC
+	line2 -cq, 0, cq, 0
+	line2 0, -cq, 0, cq
+	line_type ltS
+endif
+! 注記（機種・諸元）。簡略は名前だけ
+drawindex 50
+pen penEquip
+xN = -max(tailR, trkL / 2 * isCr) - 0.6
+if isTk then xN = xR - 0.6
+yN = 0
+if isVh then
+	! 搬入車両は車体の下（右側の外）に書く
+	xN = xR
+	yN = -max(carW, tlW * (mcKind = 14)) / 2 - 0.8
+	if mcKind = 14 then xN = min(xR, kpX - tlB)
+endif
+if mcKind = 10 then xN = min(-brL / 2, puX - puL / 2) - 0.6
+if mcKind = 12 then xN = min(-piL, puX - puL / 2) - 0.6
+add2 xN, yN
+rot2 -SYMB_ROTANGLE
+! 車体の左に書くときは右寄せ（文字が車体へ伸びて重ならないように。向きは画面の上で見る）
+if not(isVh) and xN * cos(SYMB_ROTANGLE) - yN * sin(SYMB_ROTANGLE) < 0 then style "mcR"
+text2 0, 0, mcName
+nL = 1
+if strlen(mcNote) > 0 and drLv < 3 then
+	text2 0, -dT, mcNote
+	nL = 2
+endif
+if isCr and drLv < 3 then text2 0, -nL * dT, "後端R" + str(round_int(tailR * 1000), 1, 0)
+style "mcT"
+del 2
+if rW > 0.1 and isR then
+	add2 rW * cos(45), rW * sin(45)
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, "R" + str(round_int(rW * 1000), 1, 0)
+	del 2
+endif
+if mcKind = 14 then
+	hotspot2 kpX, 0, 11, trA, 6
+	hotspot2 kpX - 1, 0, 12, trA, 4
+	hotspot2 kpX - tlB * cos(trA), -tlB * sin(trA), 13, trA, 5
+endif
+! 旋回角のホットスポット
+rH = max(2.0, tailR)
+hotspot2 0, 0, 1, slew, 6
+hotspot2 rH, 0, 2, slew, 4
+hotspot2 rH * cos(slew), rH * sin(slew), 3, slew, 5
+hotspot2 0, 0

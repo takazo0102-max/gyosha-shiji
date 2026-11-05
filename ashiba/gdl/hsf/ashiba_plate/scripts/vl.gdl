@@ -1,0 +1,6 @@
+﻿! 敷鉄板: ホットスポットで引いた広さを1枚の倍数に切り上げる
+if abs(lenX - lx) > 0.0005 then parameters lenX = lx
+if abs(lenY - ly) > 0.0005 then parameters lenY = ly
+values "plType" 1, 2, 3, 4
+values "plDir" 0, 1
+values "plLay" 1, 2

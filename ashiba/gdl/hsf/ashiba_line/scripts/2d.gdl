@@ -1,0 +1,1806 @@
+﻿! ============================================================
+! 足場ライン 2Dスクリプト（viewMode で平面／立面を切替）
+!   plan: 内側建地列 y=0 / 外側建地列 y=-rowW / 躯体面 y=+standoff
+!   elev: X=面に沿った距離 / Y=GLからの高さ
+! ============================================================
+define style "anno" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! 中央揃え。スパン寸法や部位名は基準点が中心でないと位置がずれて見える
+define style "annoC" "ＭＳ Ｐゴシック", texSiz, 5, 0
+set style "anno"
+! ペン（利用者の指定 2026-10-24: ペンカラーを選べるコマンド作って）: 区分ごとにパレットの「ペン」で選ぶ。0 は 1 と同じ
+if penPost < 1 then penPost = 1
+if penLine < 1 then penLine = 1
+if penDeck < 1 then penDeck = 1
+if penStair < 1 then penStair = 1
+if penEquip < 1 then penEquip = 1
+if penTie < 1 then penTie = 1
+if penDim < 1 then penDim = 1
+pen penLine
+! 出隅の外側の升目の辺（前の面・次の面の幅の向き）。幅の違う本足場の組と出会う隅は長方形（2026-10-24）
+cSW = cornerSW
+if cSW < 0.001 then cSW = rowW
+cEW = cornerEW
+if cEW < 0.001 then cEW = rowW
+
+! モデル表示オプション（ashiba_mvo）があればそちらが優先。無ければ部品の設定
+! （planSimple / showDim）。図面の用途ごとに部品を1つずつ触らなくてよい
+mvPlan = 0
+mvNotes = 1
+mvOk = LIBRARYGLOBAL(mvoName, "planMode", mvPlan)
+! 1＝詳細（部品の設定に従う。パレットの「平面表示」で部品ごとに 詳細／精細／単線）、2＝単線、3＝精細（実寸）
+! 精細（実寸）: 利用者の指定 2026-10-23「平面も詳細モード機能追加して」
+if mvOk and mvPlan = 2 then
+	planSimple = 1
+	planReal = 0
+endif
+if mvOk and mvPlan = 3 then
+	planSimple = 0
+	planReal = 1
+endif
+if LIBRARYGLOBAL(mvoName, "planNotes", mvNotes) then showDim = mvNotes
+
+! 寸法ツールの寸法が付く点（外側建地列の支柱位置）。平面では最初に出すので、ホットスポットの番号＝
+! 始点からの支柱の番号（1〜nSpan+1）。Python が CreateAssociativeDimensions でこの番号を指す
+if viewMode <> "elev" and sA = 1 and segBase = 1 then
+	xh = 0
+	for ip = 1 to nSpan + 1
+		hotspot2 xh, -rowW
+		if ip <= nSpan then xh = xh + spans[ip]
+	next ip
+	! nSpan+2・nSpan+3: 両端の出隅コーナーの外側の支柱（寸法を両端まで張る。出隅でなければ端の支柱と同じ点）
+	! 隅に隙間（コーナーステップ）がある面は、隙間の先の隅から外側の角の支柱まで（gapS・gapE）
+	hotspot2 -gapS - cSW * cornerS, -rowW
+	hotspot2 xh + gapE + cEW * cornerE, -rowW
+	! nSpan+4〜nSpan+7: 離れ寸法の点（両端のスパン中央の 内側建地列・躯体面）。利用者の指定 2026-10-23:
+	! 躯体と足場の隙間も寸法ツールに
+	! 位置は躯体に面した端のスパン中央（Python が soDimX1・soDimX2 で渡す。延長の端のスパンは躯体の外）
+	sdx1 = spans[1] / 2
+	sdx2 = xh - spans[nSpan] / 2
+	if soDimX1 > 0.001 then sdx1 = soDimX1
+	if soDimX2 > 0.001 then sdx2 = soDimX2
+	hotspot2 sdx1, 0
+	hotspot2 sdx1, standoff
+	hotspot2 sdx2, 0
+	hotspot2 sdx2, standoff
+	! nSpan+8・nSpan+9: 隅の隙間の端（終点の隙間の先・始点の隙間の手前。隙間が無ければ端の支柱と同じ点）。
+	! 利用者の指定 2026-10-24: 隙間部分も寸法入れて
+	hotspot2 xh + gapE, -rowW
+	hotspot2 -gapS, -rowW
+endif
+
+if viewMode = "elev" then
+	gosub 200
+else
+	if segBase = 0 then
+		gosub 970
+	else
+		if planSimple then
+			gosub 950
+		else
+			gosub 100
+		endif
+	endif
+endif
+end
+
+! ============================================================
+940: ! ---- 平面 実寸: 布材（φ42.7）を建地列ごとに二重線、腕木を支柱ごとに二重線、コマ（緊結部）を支柱のまわりに ----
+rNuno = 0.0427 / 2	! 名前は rl（1d の配列 rl[][]）と別に。GDL の変数名は大文字小文字を区別しない
+! 一側足場は躯体側の建地列が無い
+for rr = 0 to 1
+	if rr = 1 or nRows >= 2 then
+		yy = -rr * rowW
+		line2 pxA, yy + rNuno, pxB, yy + rNuno
+		line2 pxA, yy - rNuno, pxB, yy - rNuno
+	endif
+next rr
+xq = 0
+for iq = 1 to nSpan + 1
+	if xq >= pxA - 0.001 and xq <= pxB + 0.001 then
+		line2 xq - rNuno, -rNuno, xq - rNuno, -rowW + rNuno
+		line2 xq + rNuno, -rNuno, xq + rNuno, -rowW + rNuno
+		! コマ（緊結部の受け。8 方向の爪を受ける円盤）
+		pen penPost
+		if nRows >= 2 then circle2 xq, 0, r_sic + 0.025
+		circle2 xq, -rowW, r_sic + 0.025
+		pen penLine
+	endif
+	if iq <= nSpan then xq = xq + spans[iq]
+next iq
+! 幅木（外側、t=12）
+if railAdv = 0 and hugMode = 0 and toeOn = 1 then
+	line2 pxA, -rowW - rNuno - 0.005, pxB, -rowW - rNuno - 0.005
+	line2 pxA, -rowW - rNuno - 0.017, pxB, -rowW - rNuno - 0.017
+endif
+return
+
+945: ! ---- 平面 実寸: 1スパンの踏板（幅どおり。外側建地列から並べ、継ぎ目に爪の線） ----
+pen penDeck
+yq = -rowW + rNuno + 0.005
+for kw = 1 to 2
+	wq = deckW1
+	if kw = 2 then wq = deckW2
+	if wq > 0.001 then
+		rect2 x + rNuno, yq, x + spans[ip] - rNuno, yq + wq
+		! 滑り止めの縞（長手方向の細線）
+		for kr = 1 to 3
+			line2 x + rNuno + 0.05, yq + wq * kr / 4, x + spans[ip] - rNuno - 0.05, yq + wq * kr / 4
+		next kr
+		yq = yq + wq + 0.01
+	endif
+next kw
+pen penLine
+return
+
+! ============================================================
+950: ! ---- 平面 単線（割付検討用: 建地列・支柱位置・床の対角線・付帯設備の占有範囲） ----
+! 区切った部品は自分のスパン（pxA〜pxB）だけ。付帯設備は始まりが範囲にある部品が描く
+line2 pxA, 0, pxB, 0
+line2 pxA, -rowW, pxB, -rowW
+x = 0
+for ip = 1 to nSpan
+	inSeg = 0
+	if ip >= sA and ip <= sB then inSeg = 1
+	if inSeg then line2 x, 0, x, -rowW
+	inStair = 0
+	for it2 = 1 to nSt
+		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then inStair = 1
+	next it2
+	for ib3 = 1 to nBm
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
+	next ib3
+	if inStair = 0 and inSeg then line2 x, 0, x + spans[ip], -rowW
+	x = x + spans[ip]
+next ip
+line2 pxB, 0, pxB, -rowW
+! 階段室: 区間の中心線と矢印（始点側から上る）
+yc = -rowW / 2 - stOut * rowW
+for it2 = 1 to nSt
+	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then
+	if stOut = 1 then
+		! 外付け: 外側建地列の外の升目（上り口＋階段＋降り口）
+		line2 stS[it2], -rowW, stS[it2], -2 * rowW
+		line2 stS[it2], -2 * rowW, stS[it2] + stL[it2], -2 * rowW
+		line2 stS[it2] + stL[it2], -2 * rowW, stS[it2] + stL[it2], -rowW
+	endif
+	line2 stS[it2], yc, stS[it2] + stL[it2], yc
+	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc - 0.10
+	line2 stS[it2] + stL[it2], yc, stS[it2] + stL[it2] - 0.15, yc + 0.10
+	endif
+next it2
+! 付帯設備の占有範囲は破線（ステージ・張出しブラケット・昇降機）
+line_type 3
+for ig = 1 to nSg
+	if sgS[ig] >= gxA - 0.001 and sgS[ig] < gxB - 0.001 then rect2 sgS[ig], -rowW, sgS[ig] + sgL[ig], -rowW - sgP[ig]
+next ig
+for ik = 1 to nBk
+	if bkS[ik] < gxA - 0.001 or bkS[ik] >= gxB - 0.001 then
+		! 隣の部品が描く
+	else
+	if bkD[ik] > 0 then
+		rect2 bkS[ik], 0, bkE[ik], bkW[ik]
+	else
+		rect2 bkS[ik], -rowW, bkE[ik], -rowW - bkW[ik]
+	endif
+	endif
+next ik
+line_type 1
+hotspot2 pxA, 0
+hotspot2 pxB, 0
+return
+
+! ============================================================
+970: ! ---- 区切った上の部品（平面）: 下の部品と重なるので、範囲を破線で囲み、層を書く ----
+line_type 3
+rect2 pxA + 0.05, -rowW + 0.05, pxB - 0.05, -0.05
+line_type 1
+if showDim then
+	set style "annoC"
+	tdx = (pxA + pxB) / 2
+	tdy = -rowW / 2
+	tdt = "上部 " + str(lA, 1, 0) + "〜" + str(lB, 1, 0) + "層"
+	! 拡幅・縮幅の上の部品（width_change）は幅と段を書く
+	if strlen(segNote) > 0 then tdt = segNote + "（" + str(lA, 1, 0) + "段目の床から）"
+	gosub 985
+	set style "anno"
+endif
+hotspot2 pxA, 0
+hotspot2 pxB, 0
+hotspot2 pxA, -rowW
+hotspot2 pxB, -rowW
+return
+
+! ============================================================
+960:	! ---- 壁つなぎの記号（平面）: 逆三角 ▽、頂点が躯体側（+y）。塗りつぶす（利用者の指定 2026-10-24: 壁繋ぎの逆三角を
+	! 塗りつぶして）。塗りは壁つなぎのペン、塗りつぶし「100 %」が無いプロジェクトは輪郭だけ ----
+tx3 = ties[it]
+ty3 = standoff / 2
+fiTie = IND(FILL, "100 %")
+if fiTie > 0 then
+	fill fiTie
+	poly2_b 4, 7, penTie, 0,
+		tx3 - 0.11, ty3 - 0.09, 1,
+		tx3 + 0.11, ty3 - 0.09, 1,
+		tx3, ty3 + 0.11, 1,
+		tx3 - 0.11, ty3 - 0.09, -1
+else
+	line2 tx3 - 0.11, ty3 - 0.09, tx3 + 0.11, ty3 - 0.09
+	line2 tx3 + 0.11, ty3 - 0.09, tx3, ty3 + 0.11
+	line2 tx3, ty3 + 0.11, tx3 - 0.11, ty3 - 0.09
+endif
+return
+
+! ============================================================
+100: ! ---- 平面図 ----
+! 区切った部品は自分のスパン（pxA〜pxB）だけ描く。付帯設備・壁つなぎは始まりが範囲 [gxA, gxB) にある部品が描く
+if planReal then
+	gosub 940
+else
+line2 pxA, 0, pxB, 0
+line2 pxA, -rowW, pxB, -rowW
+endif
+
+! スパン区切り線と布板の対角線。平面図で「作業床が敷いてある区画」を表す
+! 慣用表記で、実務の足場平面図はこの見え方になる。対角線の向きは全スパン
+! 揃える（向きを交互にするとブレスの表記と紛らわしい）。
+x = 0
+for ip = 1 to nSpan
+	inSeg = 0
+	if ip >= sA and ip <= sB then inSeg = 1
+	if inSeg and planReal = 0 then line2 x, 0, x, -rowW
+	! 階段室は最上層で階段が上がってくる1スパンだけ床が無い（奇数層は始点側、偶数層は終点側。
+	! 3D・数量と同じ）。平面は最上層を上から見た状態なので、もう一方のスパンには対角線を引く
+	inStair = 0
+	kOdd = nLevels - 2 * int(nLevels / 2)
+	for it2 = 1 to nSt
+		if stOut = 0 and x >= stS[it2] - 0.001 and x + spans[ip] <= stS[it2] + stL[it2] + 0.001 then
+			if stL[it2] <= spans[ip] + 0.001 then
+				inStair = 1
+			else
+				if abs(x - stS[it2]) < 0.001 then
+					if kOdd = 1 then inStair = 1
+				else
+					if ip > 1 then
+						if kOdd = 0 and abs(x - spans[ip - 1] - stS[it2]) < 0.001 then inStair = 1
+					endif
+				endif
+			endif
+		endif
+	next it2
+	! 開口部（梁枠の区間）も同じ。この平面は支柱を抜いた状態を描いているので、
+	! 床だけ上層の状態を描くと1枚の図の中で辻褄が合わなくなる
+	for ib3 = 1 to nBm
+		if x >= bmS[ib3] - 0.001 and x + spans[ip] <= bmS[ib3] + bmL[ib3] + 0.001 and bmBt[ib3] < 0.001 then inStair = 1
+	next ib3
+	if showDeck and hugMode = 0 and inStair = 0 and inSeg then
+		if planReal then
+			gosub 945
+		else
+			pen penDeck
+			line2 x, -rowW, x + spans[ip], 0
+			pen penLine
+		endif
+	endif
+	x = x + spans[ip]
+next ip
+line2 pxB, 0, pxB, -rowW
+
+pen penPost
+x = 0
+for ip = 1 to nSpan + 1
+	! 梁枠の内側の支柱は抜いてある。描くと実際には無い建地を示すことになる
+	removed = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 and bmBt[ib] < 0.001 then removed = 1
+	next ib
+	if x < pxA - 0.001 or x > pxB + 0.001 then removed = 1
+	if removed = 0 then
+		! 一側足場は建地1列。躯体側の建地は無い（受けブラケットの腕は
+		! スパン区切り線と重なるので平面には現れない。3Dには出している）
+		if nRows >= 2 then circle2 x, 0, r_sic
+		circle2 x, -rowW, r_sic
+		! 異形断面の支柱（NDストロング）は十字を添える
+		if postShape = 1 then
+			for rr2 = rowStart to 1
+				line2 x - 0.0275, -rr2 * rowW, x + 0.0275, -rr2 * rowW
+				line2 x, -rr2 * rowW - 0.0275, x, -rr2 * rowW + 0.0275
+			next rr2
+		endif
+	endif
+	if x >= pxA - 0.001 and x <= pxB + 0.001 then hotspot2 x, 0
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+pen penEquip
+! 梁枠の区間（平面では内外の建地列から足場の帯の中へすぼまる台形と文字）。利用者の指定 2026-10-24（線で描いた形を整えて）:
+! 両端の建地から斜めに入り、建地列と平行に通して、もう一方の端の建地へ斜めに戻る。深さは建地列の間隔の 0.38 倍（内外とも）、
+! 斜めの横幅は立面の梁枠の端の区画（1スパンの 1/4）と同じで左右対称。区切った部品は範囲の中だけ（途中で切れる側は斜めを描かない）
+for ib = 1 to nBm
+	! 999m 以上は昇降路（全高で抜く・梁枠なし）。梁枠は描かない
+	if bmH[ib] < 900 then
+		bs = max(bmS[ib], pxA)
+		be = min(bmS[ib] + bmL[ib], pxB)
+		if be > bs + 0.001 then
+		bDp = rowW * 0.38
+		bCh = 1.829 / 4
+		if bCh > (be - bs) / 3 then bCh = (be - bs) / 3
+		for rr = rowStart to 1
+			yR = -rr * rowW
+			sgY = 1 - 2 * rr                 ! 内側の列（0）は外へ（-Y）、外側の列（-rowW）は内へ（+Y）
+			yIn = yR - sgY * bDp
+			cL = bCh
+			cR = bCh
+			if bs > bmS[ib] + 0.001 then cL = 0
+			if be < bmS[ib] + bmL[ib] - 0.001 then cR = 0
+			if cL > 0 then line2 bs, yR, bs + cL, yIn
+			line2 bs + cL, yIn, be - cR, yIn
+			if cR > 0 then line2 be - cR, yIn, be, yR
+		next rr
+		set style "annoC"
+		if showDim then
+			tdx = (bs + be) / 2
+			tdy = -rowW - 0.20
+			tdt = "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+			gosub 985
+		endif
+		set style "anno"
+		endif
+	endif
+next ib
+pen penLine
+hotspot2 pxA, -rowW
+hotspot2 pxB, -rowW
+! スパン境界の編集ホットスポット（外側建地列の支柱位置。引くとパラメータスクリプトが
+! 規格寸法に吸着して書き戻す）。固定のホットスポットを同じ位置に重ねると、そちらを
+! 掴んでオブジェクト全体が動くので、外側列の支柱位置は編集用だけにする
+if editSpan and segOn = 0 and vardim1(xEdit) = nSpan + 1 then
+	for i = 2 to nSpan
+		hotspot2 0, -rowW, 500 + 3 * i, xEdit[i], 1 + 128
+		hotspot2 xEdit[i], -rowW, 501 + 3 * i, xEdit[i], 2
+		hotspot2 -1, -rowW, 502 + 3 * i, xEdit[i], 3
+	next i
+endif
+! 荷受けステージの開始位置（張り出し床の中央の高さ。同じステージの別の層は同じ位置なので最初の組だけ）
+if editSpan and segOn = 0 and nSg > 0 and vardim1(sgEdit) = nSg then
+	for ig = 1 to nSg
+		dupSg = 0
+		for jg = 1 to ig - 1
+			if abs(sgS[jg] - sgS[ig]) < 0.001 then dupSg = 1
+		next jg
+		if dupSg = 0 then
+			hotspot2 0, -rowW - sgP[ig] / 2, 800 + 3 * ig, sgEdit[ig], 1 + 128
+			hotspot2 sgEdit[ig], -rowW - sgP[ig] / 2, 801 + 3 * ig, sgEdit[ig], 2
+			hotspot2 -1, -rowW - sgP[ig] / 2, 802 + 3 * ig, sgEdit[ig], 3
+		endif
+	next ig
+endif
+! 昇降機の位置（搬器の中央）
+if editSpan and segOn = 0 and nHo > 0 and vardim1(hoEdit) = nHo then
+	for ih = 1 to nHo
+		hotspot2 0, -rowW - 0.10 - hoD[ih] / 2, 900 + 3 * ih, hoEdit[ih], 1 + 128
+		hotspot2 hoEdit[ih], -rowW - 0.10 - hoD[ih] / 2, 901 + 3 * ih, hoEdit[ih], 2
+		hotspot2 -1, -rowW - 0.10 - hoD[ih] / 2, 902 + 3 * ih, hoEdit[ih], 3
+	next ih
+endif
+! 階段室の開始位置（建地列の中央。引くとパラメータスクリプトがスパン境界へ吸着して stairList を書き戻す）
+if editSpan and segOn = 0 and nSt > 0 and vardim1(stEdit) = nSt then
+	for it = 1 to nSt
+		hotspot2 0, -rowW / 2, 700 + 3 * it, stEdit[it], 1 + 128
+		hotspot2 stEdit[it], -rowW / 2, 701 + 3 * it, stEdit[it], 2
+		hotspot2 -1, -rowW / 2, 702 + 3 * it, stEdit[it], 3
+	next it
+endif
+
+! 始点の出隅コーナー（外側の升目。3Dと同じ規則でこの面が描く）
+if cornerS = 1 and sA = 1 then
+	line2 -cSW, 0, -cSW, -rowW
+	line2 -cSW, -rowW, 0, -rowW
+	! 前の面が隅の隙間の手前で止まる出隅: 升目の前の面の側の建地と布材（3D と同じ）
+	if cornerSP = 1 then line2 -cSW, 0, 0, 0
+	pen penPost
+	circle2 -cSW, -rowW, r_sic
+	if cornerSP = 1 then circle2 -cSW, 0, r_sic
+	pen penDeck
+	if showDeck and hugMode = 0 then
+		if planReal then
+			! 精細: 出隅の升目の踏板も幅どおり（長さ＝前の面の建地列の間隔）
+			yq = -rowW + rNuno + 0.005
+			for kw = 1 to 2
+				wq = deckW1
+				if kw = 2 then wq = deckW2
+				if wq > 0.001 then
+					rect2 -cSW + rNuno, yq, -rNuno, yq + wq
+					yq = yq + wq + 0.01
+				endif
+			next kw
+		else
+			line2 -cSW, -rowW, 0, 0
+		endif
+	endif
+endif
+
+pen penDeck
+! ハッチ付布板（梯子内蔵）の昇降口: 外側の板の位置に蓋（600×450）と梯子の踏ざん
+for ih = 1 to nHt
+	kq = htI[ih]
+	if kq >= 1 and kq <= nSpan then
+		hx0 = 0
+		for iq = 1 to kq - 1
+			hx0 = hx0 + spans[iq]
+		next iq
+		if hx0 >= gxA - 0.001 and hx0 < gxB - 0.001 then
+			hxm = hx0 + spans[kq] / 2
+			hym = -rowW + 0.05 + deckW1 / 2
+			rect2 hxm - 0.30, hym - 0.225, hxm + 0.30, hym + 0.225
+			line2 hxm - 0.25, hym - 0.17, hxm - 0.25, hym + 0.17
+			line2 hxm - 0.15, hym - 0.17, hxm - 0.15, hym + 0.17
+			for rg = 0 to 3
+				line2 hxm - 0.25, hym - 0.15 + rg * 0.10, hxm - 0.15, hym - 0.15 + rg * 0.10
+			next rg
+			! 名前（昇降口 ハッチ付布板 NDN6TA）は平面図のラベル（Python が置く）が引出線で書く。記号に文字を重ねない
+		endif
+	endif
+next ih
+
+pen penStair
+! 階段室（平面では区間を囲ってタスキと文字で示す）
+for it2 = 1 to nSt
+	if stS[it2] >= gxA - 0.001 and stS[it2] < gxB - 0.001 then
+	sx = stS[it2]
+	ex = sx + stL[it2]
+	! 外付けは外側建地列の外の升目に描き、3列目の建地を足す。階段のタスキは中の階段のスパンだけ
+	! （両端は上り口・降り口の床）
+	y0 = -stOut * rowW
+	y1 = y0 - rowW
+	fx0 = sx
+	fx1 = ex
+	if stOut = 1 then
+		xq = 0
+		for iq = 1 to nSpan
+			if abs(xq - sx) < 0.001 then fx0 = sx + spans[iq]
+			if abs(xq + spans[iq] - ex) < 0.001 then fx1 = ex - spans[iq]
+			xq = xq + spans[iq]
+		next iq
+		if fx1 - fx0 < 0.5 then
+			fx0 = sx
+			fx1 = ex
+		endif
+		line2 sx, y0, sx, y1
+		line2 ex, y0, ex, y1
+		line2 sx, y1, ex, y1
+		xq = 0
+		for iq = 1 to nSpan + 1
+			if xq >= sx - 0.001 and xq <= ex + 0.001 then circle2 xq, y1, r_sic
+			if iq <= nSpan then xq = xq + spans[iq]
+		next iq
+	endif
+	! 階段を外側の板の位置に寄せる床（stHalf）は、外側の板の幅だけタスキ（内側はハーフアンチの床）
+	if stHalf = 1 and stOut = 0 then
+		y0 = -rowW + 0.05 + deckW1 - 0.01
+		y1 = -rowW + 0.05
+		line2 fx0, y0, fx1, y0
+	endif
+	line2 fx0, y0, fx0, y1
+	line2 fx1, y0, fx1, y1
+	! 階段の平面表示（利用者の指定 2026-10-23: 画面のような感じに）: タスキをやめ、階段枠（幅 450）の外形と
+	! 踏面の線（約 250 ピッチ）、上る向きの矢印。スパンの継ぎ目（支柱）ごとに階段枠を分ける
+	stWd = 0.45
+	if stWd > abs(y1 - y0) - 0.06 then stWd = abs(y1 - y0) - 0.06
+	yc2 = (y0 + y1) / 2
+	ya = yc2 + stWd / 2
+	yb = yc2 - stWd / 2
+	xq = 0
+	for iq = 1 to nSpan
+		qa = xq
+		qb = xq + spans[iq]
+		if qa >= fx0 - 0.001 and qb <= fx1 + 0.001 then
+			rect2 qa + 0.05, yb, qb - 0.05, ya
+			nT = int((qb - qa - 0.10) / 0.25)
+			if nT < 1 then nT = 1
+			pT = (qb - qa - 0.10) / nT
+			for itr = 1 to nT - 1
+				line2 qa + 0.05 + itr * pT, yb, qa + 0.05 + itr * pT, ya
+			next itr
+		endif
+		xq = qb
+	next iq
+	! 上る向き（始点→終点）の矢印
+	line2 fx0 + 0.15, yc2, fx1 - 0.15, yc2
+	line2 fx1 - 0.15, yc2, fx1 - 0.35, yc2 + 0.10
+	line2 fx1 - 0.15, yc2, fx1 - 0.35, yc2 - 0.10
+	circle2 fx0 + 0.15, yc2, 0.04
+	! 名前（昇降階段・品番）は平面図のラベル（Python が置く GDL ラベル）が引出線で書く。踏面の線に文字を重ねない
+	endif
+next it2
+
+pen penLine
+! 範囲を指定して外した部材（editList）: 区間を破線で囲み、層と部材を書く（平面は1枚なので層は文字で示す）
+for ie = 1 to nEd
+	exs = 0
+	exe = 0
+	xq = 0
+	for iq = 1 to nSpan
+		if iq = edA[ie] then exs = xq
+		xq = xq + spans[iq]
+		if iq = edB[ie] then exe = xq
+	next iq
+	if exe > exs and exs >= gxA - 0.001 and exs < gxB - 0.001 then
+		line_type 3
+		rect2 exs + 0.03, -rowW + 0.03, exe - 0.03, -0.03
+		line_type 1
+		if showDim then
+			edTxt = ""
+			if bittest(edE[ie], 0) then edTxt = edTxt + "床"
+			if bittest(edE[ie], 1) then edTxt = edTxt + "手"
+			if bittest(edE[ie], 2) then edTxt = edTxt + "幅"
+			if bittest(edE[ie], 3) then edTxt = edTxt + "筋"
+			if bittest(edE[ie], 4) then edTxt = edTxt + "内"
+			if bittest(edE[ie], 5) then edTxt = edTxt + "外床"
+			if bittest(edE[ie], 6) then edTxt = edTxt + "内床"
+			set style "annoC"
+			tdx = (exs + exe) / 2
+			tdy = -rowW / 2
+			tdt = "外す " + edTxt + " " + str(edC[ie], 1, 0) + "-" + str(edD[ie], 1, 0) + "層"
+			gosub 985
+			set style "anno"
+		endif
+	endif
+next ie
+
+pen penEquip
+! ブラケット区間（平面では拡幅ぶんの帯。層が複数でも平面では1本）
+for ik = 1 to nBk
+	drawn = 0
+	for ij = 1 to ik - 1
+		if bkS[ij] = bkS[ik] and bkE[ij] = bkE[ik] and bkD[ij] = bkD[ik] then drawn = 1
+	next ij
+	if bkS[ik] < gxA - 0.001 or bkS[ik] >= gxB - 0.001 then drawn = 1
+	if drawn = 0 then
+		if bkD[ik] > 0 then
+			by1 = 0
+			by2 = bkW[ik]
+		else
+			by1 = -rowW
+			by2 = -rowW - bkW[ik]
+		endif
+		line2 bkS[ik], by2, bkE[ik], by2
+		line2 bkS[ik], by1, bkS[ik], by2
+		line2 bkE[ik], by1, bkE[ik], by2
+		if showDim then
+			bkTxt = "BR" + str(bkW[ik] * 1000, 4, 0)
+			if bkDW[ik] > 0 then bkTxt = bkTxt + " 床" + str(bkDW[ik] * 1000, 4, 0)
+			set style "annoC"
+			tdx = (bkS[ik] + bkE[ik]) / 2
+			tdy = by2 + (by2 - by1) * 0.25
+			tdt = bkTxt
+			gosub 985
+			set style "anno"
+		endif
+	endif
+next ik
+
+! 荷受けステージ（平面では外側への張り出し外形）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gy = -rowW - sgP[ig]
+	if gs >= gxA - 0.001 and gs < gxB - 0.001 then
+	line2 gs, -rowW, gs, gy
+	line2 ge, -rowW, ge, gy
+	line2 gs, gy, ge, gy
+	line2 gs, -rowW, ge, gy
+	line2 gs, gy, ge, -rowW
+	if sgF[ig] = 1 then
+		! 侵入落下防止柵: 先端・妻側の落下防止柵は線と内向きの短い目盛り（柵の記号）、足場側の開閉式の侵入防止柵は
+		! スパンごとの扉（開く向きの円弧。足場の床の側へ開く）。3D と同じ位置
+		line2 gs + 0.04, gy + 0.04, ge - 0.04, gy + 0.04
+		line2 gs + 0.04, gy + 0.04, gs + 0.04, -rowW
+		line2 ge - 0.04, gy + 0.04, ge - 0.04, -rowW
+		nTk = int((ge - gs - 0.08) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04 + itk * 0.3, gy + 0.04, gs + 0.04 + itk * 0.3, gy + 0.10
+		next itk
+		nTk = int((sgP[ig] - 0.04) / 0.3)
+		for itk = 0 to nTk
+			line2 gs + 0.04, gy + 0.04 + itk * 0.3, gs + 0.10, gy + 0.04 + itk * 0.3
+			line2 ge - 0.04, gy + 0.04 + itk * 0.3, ge - 0.10, gy + 0.04 + itk * 0.3
+		next itk
+		xq = 0
+		for ipq = 1 to nSpan
+			if xq >= gs - 0.001 and xq + spans[ipq] <= ge + 0.001 then
+				! 扉（1枚の幅は建地列の間隔−0.12 以下。足場の床の中へ開く）: 閉じた線と、吊り元から開いた扉・軌跡の円弧
+				nLf = int((spans[ipq] - 0.10) / (rowW - 0.12) - 0.001) + 1
+				fWq = (spans[ipq] - 0.10) / nLf
+				line2 xq + 0.05, -rowW + 0.06, xq + spans[ipq] - 0.05, -rowW + 0.06
+				for ilf = 0 to nLf - 1
+					xa = xq + 0.05 + ilf * fWq
+					line2 xa, -rowW + 0.06, xa, -rowW + 0.06 + fWq
+					arc2 xa, -rowW + 0.06, fWq, 0, 90
+				next ilf
+			endif
+			xq = xq + spans[ipq]
+		next ipq
+	endif
+	set style "annoC"
+	if showDim then
+		tdx = (gs + ge) / 2
+		tdy = gy - 0.15
+		tdt = "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgK[ig] = 1 then tdt = "荷受けフォーム 出" + str(sgP[ig] * 1000, 4, 0)
+		if sgF[ig] = 1 then tdt = tdt + "・侵入落下防止柵 H1800"
+		gosub 985
+	endif
+	set style "anno"
+	endif
+next ig
+
+! 昇降機は別の部品（ashiba_hoist）で機種の形を描く（利用者の指定 2026-10-27: 昇降機は別オブジェクトで配置できるように）
+
+! 取り入れ口: 外側建地列の外に範囲の破線と「取り入れ口（3〜5層）」（3D の可動手すりと同じ範囲）
+for ik = 1 to nIk
+	qA = max(ikA[ik], pxA)
+	qB = min(ikB[ik], pxB)
+	if qB > qA + 0.001 then
+		pen penEquip
+		! 範囲は実線（線種3 は縮尺で点にしか見えない。実機 2026-10-24）
+		rect2 qA, -rowW - 0.05, qB, -rowW - 0.35
+		line2 qA, -rowW - 0.35, qB, -rowW - 0.05
+		line2 qA, -rowW - 0.05, qB, -rowW - 0.35
+		set style "annoC"
+		if showDim then
+			tdx = (qA + qB) / 2
+			tdy = -rowW - 0.55
+			tdt = "取り入れ口（" + str(ikL1[ik], 1, 0) + "〜" + str(ikL2[ik], 1, 0) + "層・可動手すり）"
+			gosub 985
+		endif
+		set style "anno"
+		pen penLine
+	endif
+next ik
+
+! 跳ね出しブラケット（張り出した上の階の上段。3D と同じ支柱の位置ごと、躯体の面から外側の建地列の外まで。二重線
+! で水平材の幅を見せる。線種3 は縮尺で点にしか見えない。実機 2026-10-24）
+if haneD > 0.001 then
+	pen penEquip
+	xh7 = 0
+	for ih7 = 1 to nSpan + 1
+		hbIn = 1
+		if haneX1 > haneX0 + 0.01 then
+			if xh7 < haneX0 - 0.001 or xh7 > haneX1 + 0.001 then hbIn = 0
+		endif
+		if xh7 >= gxA - 0.001 and xh7 < gxB - 0.001 and hbIn = 1 then
+			! 腕（溝形鋼 幅50）と躯体の面の取付プレート（幅200）
+			line2 xh7 - 0.025, standoff, xh7 - 0.025, -rowW - 0.15
+			line2 xh7 + 0.025, standoff, xh7 + 0.025, -rowW - 0.15
+			line2 xh7 - 0.025, -rowW - 0.15, xh7 + 0.025, -rowW - 0.15
+			line2 xh7 - 0.10, standoff, xh7 + 0.10, standoff
+			line2 xh7 - 0.10, standoff - 0.012, xh7 + 0.10, standoff - 0.012
+		endif
+		if ih7 <= nSpan then xh7 = xh7 + spans[ih7]
+	next ih7
+	! 床スラブの端の手前に足したブラケットと、床スラブの外の端の支柱までの渡し梁（3D と同じ）
+	if haneX1 > haneX0 + 0.01 then
+		for ie9 = 0 to 1
+			xa9 = haneX0
+			xe9 = 0
+			if ie9 = 1 then
+				xa9 = haneX1
+				xe9 = lineLen
+			endif
+			if abs(xe9 - xa9) > 0.01 and xa9 >= gxA - 0.001 and xa9 < gxB - 0.001 then
+				line2 xa9 - 0.025, standoff, xa9 - 0.025, -rowW - 0.15
+				line2 xa9 + 0.025, standoff, xa9 + 0.025, -rowW - 0.15
+				line2 xa9 - 0.025, -rowW - 0.15, xa9 + 0.025, -rowW - 0.15
+				line2 xa9 - 0.10, standoff, xa9 + 0.10, standoff
+				for hbR = 0 to 1
+					line2 min(xa9, xe9) - 0.075, -hbR * rowW - 0.025, max(xa9, xe9) + 0.075, -hbR * rowW - 0.025
+					line2 min(xa9, xe9) - 0.075, -hbR * rowW + 0.025, max(xa9, xe9) + 0.075, -hbR * rowW + 0.025
+				next hbR
+			endif
+		next ie9
+	endif
+	! 端の張出ブラケットの床（3D と同じ。端の先へ。先端に手すり柱）
+	for ie8 = 0 to 1
+		xbW = hbExtS
+		xb0 = -hbExtS
+		xbT = -hbExtS + 0.02135
+		if ie8 = 1 then
+			xbW = hbExtE
+			xb0 = lineLen
+			xbT = lineLen + hbExtE - 0.02135
+		endif
+		if xbW > 0.001 then
+			pen penLine
+			rect2 xb0, -rowW, xb0 + xbW, 0
+			circle2 xbT, 0, r_sic
+			circle2 xbT, -rowW, r_sic
+			pen penEquip
+			set style "annoC"
+			if showDim then
+				tdx = xb0 + xbW / 2
+				tdy = -rowW - 0.30
+				tdt = "張出ブラケット" + str(xbW * 1000, 3, 0)
+				gosub 985
+			endif
+			set style "anno"
+		endif
+	next ie8
+	! 出隅の外側の角の支柱を受ける渡し梁（3D と同じ）
+	if cornerS = 1 and gxA < 0.001 then
+		line2 -cSW - 0.10, -rowW - 0.025, 0.05, -rowW - 0.025
+		line2 -cSW - 0.10, -rowW + 0.025, 0.05, -rowW + 0.025
+		line2 -cSW - 0.025, -rowW - 0.10, -cSW - 0.025, 0.05
+		line2 -cSW + 0.025, -rowW - 0.10, -cSW + 0.025, 0.05
+	endif
+	set style "annoC"
+	if showDim and sA = 1 then
+		tdx = (pxA + pxB) / 2
+		tdy = standoff / 2 + 0.25
+		tdt = "跳ね出しブラケットの上に建てる（床スラブの縁から）"
+		gosub 985
+	endif
+	set style "anno"
+	pen penLine
+endif
+
+! 出隅の升目を拡幅ブラケットで広げた床（跳ね出しの上段へ繋ぐ。3D と同じ。利用者の指定 2026-10-25）
+if cornerS = 1 and cnrBkW > 0.001 and nCBk > 0 and gxA < 0.001 then
+	! 拡幅した升目（先端に立てる支柱2本）
+	pen penLine
+	if cnrBkP = 0 then
+		rect2 -cSW, -rowW - cnrBkW, 0, -rowW
+		circle2 0, -rowW - cnrBkW + 0.02135, r_sic
+		circle2 -cSW, -rowW - cnrBkW + 0.02135, r_sic
+		tdx = -cSW / 2
+		tdy = -rowW - cnrBkW - 0.25
+	else
+		rect2 -cSW - cnrBkW, -rowW, -cSW, 0
+		circle2 -cSW - cnrBkW + 0.02135, 0, r_sic
+		circle2 -cSW - cnrBkW + 0.02135, -rowW, r_sic
+		tdx = -cSW - cnrBkW / 2
+		tdy = 0.25
+	endif
+	set style "annoC"
+	if showDim then
+		tdt = "拡幅ブラケット" + str(cnrBkW * 1000, 3, 0)
+		gosub 985
+	endif
+	set style "anno"
+endif
+
+! 枠組の終点の出隅: 建枠どうしの隙間を繋ぐ単管（内外の建地列。3D と同じ。利用者の指定 2026-10-24）
+if frGapE > 0.001 and serType = "W" and pxB > lineLen - 0.001 then
+	pen penLine
+	for fgR = 0 to 1
+		line2 lineLen - 0.10, -fgR * rowW - 0.045, lineLen + frGapE + 0.10, -fgR * rowW - 0.045
+	next fgR
+	set style "annoC"
+	if showDim then
+		tdx = lineLen + frGapE / 2
+		tdy = -rowW - 0.35
+		tdt = "単管連結 隙間" + str(frGapE * 1000, 3, 0)
+		gosub 985
+	endif
+	set style "anno"
+endif
+
+! 朝顔の突出範囲（平面では外側への張り出し外形を破線で示す）
+! 昇降機が通る区間（asaCutList）は切り欠いて描く
+if nAsa > 0 then
+	! 輪郭は実線の二重線（利用者の指摘 2026-10-24: 朝顔の平面図の輪郭が見にくい。線種3 は縮尺で点にしか見えなかった）
+	line_type 1
+	! 外付けの階段室の区間は階段室の外側（3列目）から張り出す（3D と同じ）。出隅はコーナー部で隅まで
+	for isg = 1 to nAsg
+		pA = asgA[isg]
+		while pA < asgB[isg] - 0.001 do
+			ybA = -rowW
+			pB = asgB[isg]
+			if stOut = 1 then
+				for it8 = 1 to nSt
+					if pA > stS[it8] - 0.001 and pA < stS[it8] + stL[it8] - 0.001 then
+						ybA = -2 * rowW
+						pB = min(pB, stS[it8] + stL[it8])
+					endif
+				next it8
+				if ybA > -1.5 * rowW then
+					for it8 = 1 to nSt
+						if stS[it8] > pA + 0.001 then pB = min(pB, stS[it8])
+					next it8
+				endif
+			endif
+			if pB <= pA + 0.001 then pB = asgB[isg]
+			qA = max(pA, pxA)
+			qB = min(pB, pxB)
+			if qB > qA + 0.001 then
+				line2 qA, ybA - asagaoProj, qB, ybA - asagaoProj
+				line2 qA, ybA - asagaoProj + 0.04, qB, ybA - asagaoProj + 0.04
+				line2 qA, ybA, qA, ybA - asagaoProj
+				line2 qB, ybA, qB, ybA - asagaoProj
+				line2 qA + 0.04, ybA, qA + 0.04, ybA - asagaoProj + 0.04
+				line2 qB - 0.04, ybA, qB - 0.04, ybA - asagaoProj + 0.04
+				! 張り出しの中は 45° の斜線（実線・0.8m ごと。輪郭より目立たないよう間を広く）。朝顔の付く範囲が平面でひと目で分かるように
+				! （利用者の指定 2026-10-24: 朝顔の平面図に表記して）。塗りつぶしの名前に頼らず線で引く
+				line_type 1
+				ahT = qA + 0.8
+				while ahT < qB + asagaoProj - 0.001 do
+					ahX0 = ahT
+					ahY0 = ybA
+					if ahX0 > qB then
+						ahY0 = ybA - (ahX0 - qB)
+						ahX0 = qB
+					endif
+					ahX1 = ahT - asagaoProj
+					ahY1 = ybA - asagaoProj
+					if ahX1 < qA then
+						ahY1 = ybA - (ahT - qA)
+						ahX1 = qA
+					endif
+					if ahX0 > ahX1 + 0.001 and ahY0 > ahY1 + 0.001 then line2 ahX0, ahY0, ahX1, ahY1
+					ahT = ahT + 0.8
+				endwhile
+			endif
+			pA = pB
+		endwhile
+		! 範囲ごとの文字（張り出しの外側。この部品に見える長さが 1.2m 以上の範囲だけ）: 朝顔 突出・角度・段数と高さ
+		qA = max(asgA[isg], pxA)
+		qB = min(asgB[isg], pxB)
+		if showDim and qB > qA + 1.2 then
+			set style "annoC"
+			tdx = (qA + qB) / 2
+			tdy = -rowW - asagaoProj - 0.15
+			tdt = "朝顔 突出" + str(asagaoProj * 1000, 4, 0) + " " + str(asagaoAngle, 1, 0) + "° " + str(nAsa, 1, 0) + "段 GL+"
+			for ia = 1 to nAsa
+				if ia > 1 then tdt = tdt + "・"
+				tdt = tdt + str(asa[ia] * 1000, 4, 0)
+			next ia
+			if qA > 0.001 or qB < lineLen - 0.001 then tdt = tdt + "（範囲 " + str(qA * 1000, 4, 0) + "〜" + str(qB * 1000, 4, 0) + "）"
+			gosub 985
+			set style "anno"
+		endif
+	next isg
+	if (cornerS = 1 or cornerG = 1) and sA = 1 and asaCrnOff = 0 then
+		aY = -rowW
+		if stOut = 1 then
+			for it8 = 1 to nSt
+				if stS[it8] < 0.001 then aY = -2 * rowW
+			next it8
+		endif
+		line2 -cSW - asagaoProj, aY - asagaoProj, 0, aY - asagaoProj
+		line2 -cSW - asagaoProj, aY - asagaoProj, -cSW - asagaoProj, 0
+		line2 -cSW, -rowW, -cSW - asagaoProj, aY - asagaoProj
+	endif
+	line_type 1
+	! 「朝顔切欠」は昇降機が通る切り欠きだけ（面の一部だけの朝顔の範囲の外は切欠ではない）
+	for ic = 1 to nCut
+		set style "annoC"
+		hoIn = 0
+		for ihc = 1 to nHo
+			if hoP[ihc] > cutS[ic] - 0.001 and hoP[ihc] < cutE[ic] + 0.001 then hoIn = 1
+		next ihc
+		if showDim and hoIn = 1 and cutS[ic] >= gxA - 0.001 and cutS[ic] < gxB - 0.001 then
+			tdx = (cutS[ic] + cutE[ic]) / 2
+			tdy = -rowW - asagaoProj / 2
+			tdt = "朝顔切欠"
+			gosub 985
+		endif
+	next ic
+	set style "anno"
+endif
+
+pen penLine
+! 躯体面の参照線（離れ表示）。線種 3 は縮尺で点にしか見えないので、一点鎖線を図面上の長さで描く
+! （利用者の指摘 2026-10-23: 足場平面の下に変の線がある）
+line_type 1
+dl = 0.006 * GLOB_SCALE
+dg = 0.0015 * GLOB_SCALE
+xs = pxA
+while xs < pxB - 0.001 do
+	xe = xs + dl
+	if xe > pxB then xe = pxB
+	line2 xs, standoff, xe, standoff
+	xc = xe + dg
+	if xc < pxB then line2 xc, standoff, xc + 0.0004 * GLOB_SCALE, standoff
+	xs = xe + 2 * dg
+endwhile
+line_type 3
+! 渡した区間: 実際の躯体線は離れが増える。破線で示す
+! （凹み＝区間内が奥へ、張り出し＝区間外（両隣）が奥へ）
+for ibr = 1 to nBr
+	if brS[ibr] < gxA - 0.001 or brS[ibr] >= gxB - 0.001 then
+		! 隣の部品が描く
+	else
+	line_type 3
+	if brK[ibr] > 1.5 then
+		! 斜辺: 実際の躯体線は区間の一端で離れ0、他端で最大（種別2＝終点側、3＝始点側）
+		if brK[ibr] > 2.5 then
+			line2 brS[ibr], standoff + brD[ibr], brS[ibr] + brL[ibr], standoff
+		else
+			line2 brS[ibr], standoff, brS[ibr] + brL[ibr], standoff + brD[ibr]
+		endif
+		line_type 1
+		set style "annoC"
+		tdx = brS[ibr] + brL[ibr] / 2
+		tdy = standoff + brD[ibr] / 2 + 0.18
+		tdt = "斜辺 渡し 離れ+最大" + str(brD[ibr] * 1000, 5, 0)
+		gosub 985
+		set style "anno"
+	else
+	if brK[ibr] < 0.5 then
+		line2 brS[ibr], standoff, brS[ibr], standoff + brD[ibr]
+		line2 brS[ibr], standoff + brD[ibr], brS[ibr] + brL[ibr], standoff + brD[ibr]
+		line2 brS[ibr] + brL[ibr], standoff + brD[ibr], brS[ibr] + brL[ibr], standoff
+		line_type 1
+		set style "annoC"
+		tdx = brS[ibr] + brL[ibr] / 2
+		tdy = standoff + brD[ibr] + 0.18
+		tdt = "凹み 渡し 離れ+" + str(brD[ibr] * 1000, 4, 0)
+		gosub 985
+		set style "anno"
+	else
+		line2 0, standoff + brD[ibr], brS[ibr], standoff + brD[ibr]
+		line2 brS[ibr], standoff + brD[ibr], brS[ibr], standoff
+		line2 brS[ibr] + brL[ibr], standoff, brS[ibr] + brL[ibr], standoff + brD[ibr]
+		line2 brS[ibr] + brL[ibr], standoff + brD[ibr], lineLen, standoff + brD[ibr]
+		line_type 1
+		set style "annoC"
+		tdx = brS[ibr] + brL[ibr] / 2
+		tdy = standoff + brD[ibr] + 0.18
+		tdt = "張り出し 渡し 両隣の離れ+" + str(brD[ibr] * 1000, 4, 0)
+		gosub 985
+		set style "anno"
+	endif
+	endif
+	endif
+next ibr
+line_type 1
+
+pen penTie
+! 壁つなぎ位置（実務の記号は逆三角 ▽。頂点を躯体側に向けて、足場と躯体の間に置く）
+! 壁つなぎを別の部品（ashiba_tie）で置いたとき（tieObj）は、その部品が ▽ を描く
+nTieDraw = nTie
+if tieObj then nTieDraw = 0
+for it = 1 to nTieDraw
+	if ties[it] >= gxA - 0.001 and ties[it] < gxB - 0.001 then
+		gosub 960
+		line2 ties[it], 0, ties[it], standoff
+	endif
+next it
+
+if not(showDim) then return
+
+pen penDim
+! ---- 部材の名前（GDL のラベル。利用者の指定 2026-10-23: 必要なものは GDL ラベルで）----
+! 部品の値（typeTxt・deckTxt・sheetTxt と壁つなぎの位置）から描くので、幅や種類を変えると名前も変わる。
+! 例の仮設計画図に倣い、引出線の先に下線つきの文字。躯体の側（+Y）に並べる（外側は寸法で埋まる）
+if lblOn and strlen(typeTxt) > 0 and pxB - pxA > 3.0 then
+	set style "anno"
+	! 北・西を向く面では文字が上下逆になる → 棚を逆向きに出して文字を 180° 回す（gosub 986）
+	lbF = (SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001)
+	lbS = 1 - 2 * lbF
+	lbY = standoff + 0.9
+	! 足場の種類と幅（1行目）・作業床（2行目）
+	! 位置は Python が断面図の切断線の端・階段を避けて選ぶ（lblAt。-1 か、この部品の範囲の外なら面の 25%）
+	lbAx = pxA + (pxB - pxA) * 0.25
+	if lblAt >= 0 and lblAt / 1000 >= pxA and lblAt / 1000 <= pxB then lbAx = lblAt / 1000
+	lbAy = -rowW / 2
+	lbT1 = typeTxt
+	lbT2 = deckTxt
+	! lblAt = -2: 短い面で空きが無い（隅・ほかの面のラベルに重なる）。同じ種類はほかの面に書くので、この面は書かない
+	if lblAt > -1.5 then
+		gosub 986
+		lbEnd = max(lbAx, lbAx + lbS * (0.4 + lbW))
+	else
+		lbEnd = pxA
+	endif
+	! 壁つなぎ（この部品の範囲で、種類の名前より右の最初の壁つなぎ）
+	lbT1 = tieTxt
+	if strlen(lbT1) = 0 then lbT1 = "壁つなぎ"
+	tkW = stw(lbT1) * GLOB_SCALE / 1000 + 0.15
+	tkX = -1
+	if lblTieAt >= 0 and lblTieAt / 1000 >= pxA and lblTieAt / 1000 < gxB - 0.001 then
+		tkX = lblTieAt / 1000
+	else
+		for it = 1 to nTie
+			if tkX < 0 and min(ties[it], ties[it] + lbS * (0.4 + tkW)) > lbEnd + 0.3 and ties[it] < gxB - 0.001 then tkX = ties[it]
+		next it
+	endif
+	if tkX > 0 then
+		lbAx = tkX
+		lbAy = standoff / 2
+		lbT2 = ""
+		gosub 986
+		lbEnd = max(lbAx, lbAx + lbS * (0.4 + lbW))
+	endif
+	! 外部養生（外側建地の外）
+	if strlen(sheetTxt) > 0 then
+		lbT1 = sheetTxt
+		shW = stw(sheetTxt) * GLOB_SCALE / 1000 + 0.15
+		lbAx = max(lbEnd + 0.5 + lbF * (0.4 + shW), pxA + (pxB - pxA) * 0.70)
+		if lblShAt >= 0 and lblShAt / 1000 >= pxA and lblShAt / 1000 <= pxB then lbAx = lblShAt / 1000
+		if max(lbAx, lbAx + lbS * (0.4 + shW)) < pxB - 0.3 then
+			lbAy = -rowW - 0.05
+			lbT2 = ""
+			gosub 986
+		endif
+	endif
+endif
+
+! 離れ寸法: 躯体面と内側建地列の間（面の両端のスパン中央に1本ずつ。端数スパンや渡しで
+! 面の途中の離れが違っても、両端を見れば分かる）。寸法線は面に直交、値は線の脇に
+for kd = 1 to 2 * (1 - dimSoTool)
+	if kd = 1 then xd = pxA + spans[sA] / 2 else xd = pxB - spans[sB] / 2
+	if kd = 1 and segBase = 1 and sA = 1 and soDimX1 > 0.001 then xd = soDimX1
+	if kd = 2 and soDimX2 > 0.001 and soDimX2 > pxA and soDimX2 < pxB then xd = soDimX2
+	line2 xd, 0, xd, standoff
+	line2 xd - 0.05, 0.05, xd + 0.05, -0.05
+	line2 xd - 0.05, standoff + 0.05, xd + 0.05, standoff - 0.05
+	line2 xd - 0.12, 0, xd + 0.12, 0
+	line2 xd - 0.12, standoff, xd + 0.12, standoff
+	set style "anno"
+	tdt = str(standoff * 1000, 4, 0)
+	tdx = xd + 0.08 + stw(tdt) * GLOB_SCALE / 2000
+	tdy = standoff / 2
+	gosub 985
+next kd
+
+! 寸法線は外側に張り出すもの（昇降機の搬器・マスト、荷受けステージ）の外へ置く。
+! 面の中央に昇降機があると「L= 離れ」の文字が搬器の破線に重なって読めなかった
+dOff = 0
+for ih = 1 to nHo
+	if 0.10 + hoD[ih] + 0.55 > dOff then dOff = 0.10 + hoD[ih] + 0.55
+next ih
+for ig = 1 to nSg
+	if sgP[ig] + 0.10 > dOff then dOff = sgP[ig] + 0.10
+next ig
+if nAsa > 0 and asagaoProj + 0.35 > dOff then dOff = asagaoProj + 0.35
+! 外付けの階段室は外側建地列の外にもう1升
+if stOut = 1 and nSt > 0 and rowW + 0.10 > dOff then dOff = rowW + 0.10
+! スパン寸法: 足場から離した寸法線（参考: 足場平面図は寸法を外へ離して読みやすく）。各支柱に補助線と
+! 目盛り（斜線）、数字は線の上。その外に全長の寸法線
+yd = -rowW - dOff - 0.90
+yt = yd - 0.70
+! 寸法ツールで寸法を付けたとき（dimTool）は部品ではスパン・全長の寸法を描かない（二重になる）
+if dimTool then return
+! 両端の出隅コーナー（外側の角の支柱）まで寸法を張る
+cS = cornerS
+if sA > 1 then cS = 0
+cE = cornerE
+if sB < nSpan then cE = 0
+xs = pxA - cSW * cS
+xe = pxB + cEW * cE
+line2 xs, yd, xe, yd
+line2 xs, yt, xe, yt
+if cS then
+	line2 xs, -rowW - 0.10, xs, yd - 0.10
+	line2 xs - 0.07, yd - 0.07, xs + 0.07, yd + 0.07
+	tdx = xs / 2
+	tdy = yd + 0.16
+	tdt = str(cSW * 1000, 5, 0)
+	gosub 985
+endif
+if cE then
+	line2 xe, -rowW - 0.10, xe, yd - 0.10
+	line2 xe - 0.07, yd - 0.07, xe + 0.07, yd + 0.07
+	tdx = pxB + cEW / 2
+	tdy = yd + 0.16
+	tdt = str(cEW * 1000, 5, 0)
+	gosub 985
+endif
+x = 0
+for ip = 1 to nSpan + 1
+	if x >= pxA - 0.001 and x <= pxB + 0.001 then
+		line2 x, -rowW - 0.10, x, yd - 0.10
+		line2 x - 0.07, yd - 0.07, x + 0.07, yd + 0.07
+	endif
+	if ip <= nSpan then
+		if ip >= sA and ip <= sB then
+			tdx = x + spans[ip] / 2
+			tdy = yd + 0.16
+			tdt = str(spans[ip] * 1000, 5, 0)
+			gosub 985
+		endif
+		x = x + spans[ip]
+	endif
+next ip
+line2 xs, yd - 0.10, xs, yt - 0.10
+line2 xe, yd - 0.10, xe, yt - 0.10
+line2 xs - 0.07, yt - 0.07, xs + 0.07, yt + 0.07
+line2 xe - 0.07, yt - 0.07, xe + 0.07, yt + 0.07
+tdx = (xs + xe) / 2
+tdy = yt + 0.16
+tdt = "L=" + str((xe - xs) * 1000, 6, 0) + "  離れ" + str(standoff * 1000, 4, 0)
+gosub 985
+set style "anno"
+return
+
+! ============================================================
+200: ! ---- 立面図 ----
+! 作図順（実務）: GL・ジャッキ → 1段目 → 上へ積上げ → 壁つなぎ → 寸法・特記
+
+pen penLine
+! GL と地盤ハッチ。敷地高低差があれば支柱位置ごとの地盤高（glList）を結ぶ
+! （平坦のまま描くと、継ぎ足した支柱もジャッキの差も図に出ない）
+if nGl >= 2 then
+	gx = -0.5
+	gy = gl[1]
+	xp = 0
+	for ip = 1 to nSpan + 1
+		gv = 0
+		if ip <= nGl then gv = gl[ip]
+		line2 gx, gy, xp, gv
+		gx = xp
+		gy = gv
+		if ip <= nSpan then xp = xp + spans[ip]
+	next ip
+	line2 gx, gy, lineLen + 0.5, gy
+	! ハッチは各区間の地盤線に沿って打つ
+	xp = 0
+	for ip = 1 to nSpan
+		g0 = 0
+		g1 = 0
+		if ip <= nGl then g0 = gl[ip]
+		if ip + 1 <= nGl then g1 = gl[ip + 1]
+		nh = int(spans[ip] / 0.12)
+		for ih = 0 to nh
+			hx = xp + ih * 0.12
+			hy = g0 + (g1 - g0) * (ih * 0.12 / spans[ip])
+			line2 hx, hy, hx - 0.08, hy - 0.08
+		next ih
+		xp = xp + spans[ip]
+	next ip
+	text2 -0.5, gl[1] - 0.22, "GL"
+else
+	line2 -0.5, 0, lineLen + 0.5, 0
+	gx = -0.45
+	while gx < lineLen + 0.45 do
+		line2 gx, 0, gx - 0.08, -0.08
+		gx = gx + 0.12
+	endwhile
+	text2 -0.5, -0.22, "GL"
+endif
+
+! 各階FLの参照線（躯体との対応を見るため）
+line_type 3
+for ifl = 1 to nFL
+	line2 -0.3, fls[ifl], lineLen + 0.3, fls[ifl]
+	text2 lineLen + 0.35, fls[ifl], str(ifl, 1, 0) + "FL"
+next ifl
+line_type 1
+
+pen penPost
+! 支柱（ジャッキ＋積上げ）と ジョイント位置
+x = 0
+for ip = 1 to nSpan + 1
+	! 梁枠の内側は支柱を抜き、梁下から上だけ描く
+	bBase = 0
+	bBot = 0
+	for ib = 1 to nBm
+		if x > bmS[ib] + 0.001 and x < bmS[ib] + bmL[ib] - 0.001 then
+			bBase = bmH[ib]
+			bBot = bmBt[ib]
+		endif
+	next ib
+	! この支柱位置の地盤高とジャッキ（敷地高低差があれば脚ごと、無ければ共通）
+	gv = 0
+	jo = jackOut
+	sv = shimAll
+	if ip <= nGl then gv = gl[ip]
+	if ip <= nJk then jo = jk[ip]
+	if ip <= nSh then sv = sh[ip]
+	! ジャッキベース: 敷板（あれば）＋アンダーベース（140角）＋ねじ棒φ38.1＋ハンドル付きナット（3Dと同じ形）
+	! （途中の層の開口＝荷受けステージの間口は、下の支柱とジャッキが残る）
+	if bBase = 0 or bBot > 0.001 then
+		if sv > 0.001 then rect2 x - 0.15, gv, x + 0.15, gv + sv
+		rect2 x - 0.07, gv + sv, x + 0.07, gv + sv + 0.006
+		rect2 x - 0.019, gv + sv + 0.006, x + 0.019, gv + jo
+		rect2 x - 0.045, gv + jo - 0.03, x + 0.045, gv + jo
+		line2 x - 0.09, gv + jo - 0.015, x + 0.09, gv + jo - 0.015
+	endif
+	! 支柱（継ぎ足した脚は下へ伸びる）
+	if bBase = 0 then
+		rect2 x - r_sic, gv + jo, x + r_sic, postTop
+	else
+		! 梁枠の上の建地は梁渡しの上（上弦材＝作業床の1段下のコマ）から（3D と同じ）
+		bDrP = 0.06
+		if komaPitch > 0.001 then bDrP = komaPitch
+		rect2 x - r_sic, bBase - bDrP + 0.07, x + r_sic, postTop
+		if bBot > 0.001 then rect2 x - r_sic, gv + jo, x + r_sic, bBot
+	endif
+	! 縦継ぎ（ジョイント）位置に短い横線。継ぎ足しは下側なので天端から数える
+	jh = postTop
+	for jp = nPost to 2 step -1
+		jh = jh - posts[jp]
+		line2 x - 0.05, jh, x + 0.05, jh
+	next jp
+	hotspot2 x, gv
+	hotspot2 x, postTop
+	if ip <= nSpan then x = x + spans[ip]
+next ip
+
+pen penLine
+! 根がらみ（最下コマ）＝ lv[1]
+! 開口部はGLから梁枠までの通路なので、その区間には根がらみも入らない
+! （足元に横材が通っていたら通れない）。数量でも同じ区間を引いている
+x = 0
+for ip = 1 to nSpan
+	inOpen = 0
+	for ib5 = 1 to nBm
+		if x >= bmS[ib5] - 0.001 and x + spans[ip] <= bmS[ib5] + bmL[ib5] + 0.001 then inOpen = 1
+	next ib5
+	if inOpen = 0 then
+		line2 x, lv[1], x + spans[ip], lv[1]
+		line2 x, lv[1] + 0.02, x + spans[ip], lv[1] + 0.02
+	endif
+	x = x + spans[ip]
+next ip
+
+! 継ぎ足した脚の区間の根がらみ（敷地高低差）。基準の根がらみは低い脚の地盤から
+! 離れるので、区間両端の脚のうち下げ段数の少ない方に合わせて1段入れる
+! （数量と同じ規則。下げ段数は支柱下端の基準からの差÷刻みで求める）
+if nGl >= 2 and footStep > 0.001 then
+	x = 0
+	for ip = 1 to nSpan
+		inOpen = 0
+		for ib5 = 1 to nBm
+			if x >= bmS[ib5] - 0.001 and x + spans[ip] <= bmS[ib5] + bmL[ib5] + 0.001 then inOpen = 1
+		next ib5
+		ma = 0
+		mb = 0
+		if ip <= nGl and ip <= nJk then ma = round_int((jackOut - (gl[ip] + jk[ip])) / footStep)
+		if ip + 1 <= nGl and ip + 1 <= nJk then mb = round_int((jackOut - (gl[ip + 1] + jk[ip + 1])) / footStep)
+		mlo = ma
+		if mb < mlo then mlo = mb
+		! 半コマの調整支柱（ミレニューム P2.25G）で下げ段数の偶奇が違う区間は斜めに（3d.gdl と同じ）
+		dOdd = 0
+		if komaPitch > footStep + 0.001 and abs(ma - mb) - 2 * int(abs(ma - mb) / 2) = 1 then dOdd = 1
+		if dOdd = 1 and (ma >= 1 or mb >= 1) and inOpen = 0 then
+			za = lv[1] - ma * footStep
+			zb = lv[1] - mb * footStep
+			line2 x, za, x + spans[ip], zb
+			line2 x, za + 0.02, x + spans[ip], zb + 0.02
+		else
+			if mlo >= 1 and inOpen = 0 then
+				zz = lv[1] - mlo * footStep
+				line2 x, zz, x + spans[ip], zz
+				line2 x, zz + 0.02, x + spans[ip], zz + 0.02
+			endif
+		endif
+		x = x + spans[ip]
+	next ip
+endif
+
+! 各作業層: 布板・手すり・中桟・幅木
+! 全長に通して描くと、階段室や開口部（梁枠より下＝通路）にも床があることに
+! なってしまう。数量の差し引きと同じ区間を空ける
+for il = 2 to nLv
+	z = lv[il]
+	x = 0
+	for ip = 1 to nSpan
+		xs = x
+		xe = x + spans[ip]
+		noDeck = 0
+		noAll = 0
+		! 階段室は各層で階段が上がってくる1スパンだけ床が無い（奇数層は始点側、偶数層は終点側。3D と同じ）
+		for it3 = 1 to nSt
+			if xs >= stS[it3] - 0.001 and xe <= stS[it3] + stL[it3] + 0.001 then
+				if stL[it3] <= spans[ip] + 0.001 then
+					noDeck = 1
+				else
+					kOdd = il - 1 - 2 * int((il - 1) / 2)
+					if abs(xs - stS[it3]) < 0.001 then
+						if kOdd = 1 then noDeck = 1
+					else
+						if ip > 1 then
+							if kOdd = 0 and abs(xs - spans[ip - 1] - stS[it3]) < 0.001 then noDeck = 1
+						endif
+					endif
+				endif
+			endif
+		next it3
+		for ib2 = 1 to nBm
+			if xs >= bmS[ib2] - 0.001 and xe <= bmS[ib2] + bmL[ib2] + 0.001 and \
+					z < bmH[ib2] - 0.001 and z > bmBt[ib2] + 0.001 then noAll = 1
+		next ib2
+		! 荷受けステージの間口は設置層で外側の手すり・中桟・幅木を外す（3D・数量と同じ）
+		inSg = 0
+		for ig2 = 1 to nSg
+			if xs >= sgS[ig2] - 0.001 and xe <= sgS[ig2] + sgL[ig2] + 0.001 and \
+					abs(z - sgH[ig2]) < 0.001 then inSg = 1
+		next ig2
+		! 昇降機の乗り込み口（開閉式手すりは別に描く）
+		for il4 = 1 to nLa
+			if laP[il4] >= xs - 0.001 and laP[il4] < xe - 0.001 and abs(z - laH[il4]) < 0.001 then inSg = 2
+		next il4
+		! 内ブラケットで拡幅した層・スパンは躯体側の手すり・中桟を付けない（3D・数量と同じ）。
+		! 張出しブラケットの層・スパンは建地位置の外側手すり・幅木を外す（新しい縁の手すりに任せる）
+		inBk = 0
+		for ik2 = 1 to nBk
+			if bkD[ik2] > 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inBk = 1
+			if bkD[ik2] < 0 and xs >= bkS[ik2] - 0.001 and xe <= bkE[ik2] + 0.001 and \
+					abs(z - bkH[ik2]) < 0.001 then inSg = 1
+		next ik2
+		! 枠組の中間層は布材の手すり・中桟を描かない（交差筋交＋幅木。数量と同じ）
+		frMid = 0
+		if serType = "W" and il < nLv then frMid = 1
+		! 足場の中の階段室: 上がってくる・上がっていく階段のスパンは外側の手すり（上の段）を付けず、中桟だけ
+		! （階段手すり 2段が沿う。利用者の指定 2026-10-24: 階段の1段目の布材だけある。3D・数量と同じセル）
+		stRl = 0
+		if stOut = 0 and railAdv = 0 then
+			kk = il - 1
+			for it7 = 1 to nSt
+				if xs >= stS[it7] - 0.001 and xe <= stS[it7] + stL[it7] + 0.001 then
+					jj = 0
+					if abs(xs - stS[it7]) > 0.001 then jj = 1
+					ja = 0
+					jb = 0
+					if stL[it7] > spans[ip] + 0.001 then
+						ja = 1 - (kk - 2 * int(kk / 2))
+						jb = 1 - ((kk + 1) - 2 * int((kk + 1) / 2))
+					endif
+					if jj = ja then stRl = 1
+					if kk < nLv - 1 and jj = jb then stRl = 1
+				endif
+			next it7
+		endif
+		if stRl = 1 and inSg = 0 then inSg = 3
+		if noAll = 0 then
+			! 布板（作業床）。階段室は段板で上がるので敷かない
+			if noDeck = 0 then rect2 xs, z, xe, z + 0.05
+			! 幅木は床のある升目だけ（階段が上がってくる升目は床が無いので付けない。3D・数量と同じ）
+			! 先行手すり方式では幅木を付けない（落下物防止はメッシュシート等）
+			if railAdv = 0 and toeOn = 1 and (inSg = 0 or inSg = 3) and noDeck = 0 then rect2 xs, z + 0.05, xe, z + 0.05 + 0.157
+			! 幅木を付けないときは下さん（床から300の桟）
+			if railAdv = 0 and toeOn = 0 and shitaSan = 1 and (inSg = 0 or inSg = 3) and noDeck = 0 then line2 xs, z + 0.30, xe, z + 0.30
+			if inSg = 0 and frMid = 0 then line2 xs, z + railTop, xe, z + railTop
+			if inSg >= 1 or frMid = 1 then
+				! ステージの間口・乗り込み口: 躯体側の手すり・中桟だけ。階段室は外側の中桟（と躯体側）
+				if inSg = 3 then line2 xs, z + railMid, xe, z + railMid
+				if railIn = 1 and nRows >= 2 and inBk = 0 then
+					line2 xs, z + railTop, xe, z + railTop
+					line2 xs, z + railMid, xe, z + railMid
+				endif
+			else
+			if railAdv = 1 then
+				! 先行手すりは手すり1本＋X形の斜材2本が一体（手すり・中桟・筋交を兼ねる）
+				line2 xs, z + railTop, xe, z + 0.02
+				line2 xe, z + railTop, xs, z + 0.02
+				! 躯体側の中桟（布材）は先行手すりの奥に見える
+				if railIn = 1 and nRows >= 2 and inBk = 0 then
+					line2 xs, z + railMid, xe, z + railMid
+				endif
+			else
+				line2 xs, z + railMid, xe, z + railMid
+			endif
+			endif
+		endif
+		x = xe
+	next ip
+next il
+! 軒先の手すり（下屋の単管の面。屋根からの墜落防止に軒先から 450・900。3D・数量と同じ）
+for ie = 1 to nEaR
+	line2 0, eaR[ie], lineLen, eaR[ie]
+next ie
+
+! ブレス（交さ2方向）。1箇所に2本入る前提で数量を拾っているので、図も両方向を描く（片方向だけ描くと
+! 部材表の本数と図が食い違う）。くさび・単管はこのスパンに「／」・隣のスパンに「＼」の山形（3D と同じ。
+! 同じスパンの X は先行手すりと紛らわしい）。枠組の交差筋交は X。設置間隔は数量拾いと揃える
+x = 0
+for ip = 1 to nSpan
+	for il = 1 to nLv - 1
+		if ip - 1 - bEvS * int((ip - 1) / bEvS) = 0 and brOn[il] = 1 then
+			! 開口の通路（梁枠より下）に掛かる筋かいは描かない（3D と同じ。利用者の指摘 2026-10-24）
+			bk1 = x
+			bk2 = x + spans[ip]
+			if serType <> "W" then
+				if ip < nSpan then
+					bk3 = x + spans[ip]
+					bk4 = x + spans[ip] + spans[ip + 1]
+				else
+					spb = spans[ip]
+					if ip > 1 then spb = spans[ip - 1]
+					bk3 = x - spb
+					bk4 = x
+				endif
+			else
+				bk3 = x
+				bk4 = x + spans[ip]
+			endif
+			bS1 = 0
+			bS2 = 0
+			for ib9 = 1 to nBm
+				if lv[il] < bmH[ib9] - 0.001 and lv[il] >= bmBt[ib9] - 0.001 then
+					if min(bk2, bmS[ib9] + bmL[ib9]) - max(bk1, bmS[ib9]) > 0.001 then bS1 = 1
+					if min(bk4, bmS[ib9] + bmL[ib9]) - max(bk3, bmS[ib9]) > 0.001 then bS2 = 1
+				endif
+			next ib9
+			if bS1 = 0 then line2 x, lv[il], x + spans[ip], lv[il + 1]
+			if bS2 = 0 then
+			if serType = "W" then
+				line2 x + spans[ip], lv[il], x, lv[il + 1]
+			else
+				if ip < nSpan then
+					line2 x + spans[ip] + spans[ip + 1], lv[il], x + spans[ip], lv[il + 1]
+				else
+					line2 x, lv[il], x - spb, lv[il + 1]
+				endif
+			endif
+			endif
+		endif
+	next il
+	x = x + spans[ip]
+next ip
+
+! 始点の出隅コーナー（外側コーナー支柱と、そこまでの布材・手すり・踏板・幅木）
+if cornerS = 1 then
+	gv = 0
+	if nGl >= 1 then gv = gl[1]
+	line2 -cSW, gv, -cSW, postTop
+	for il = 1 to nLv
+		z = lv[il]
+		line2 -cSW, z, 0, z
+		if il > 1 then
+			line2 -cSW, z + railTop, 0, z + railTop
+			line2 -cSW, z + railMid, 0, z + railMid
+			rect2 -cSW, z, 0, z + 0.05
+			if railAdv = 0 and toeOn = 1 then rect2 -cSW, z + 0.05, 0, z + 0.05 + 0.157
+		endif
+	next il
+endif
+
+pen penStair
+! 階段室（立面では区間の各層に斜めの段板を示す）
+for it2 = 1 to nSt
+	sx = stS[it2]
+	ex = sx + stL[it2]
+	line2 sx, lv[1], sx, postTop
+	line2 ex, lv[1], ex, postTop
+	! 3Dと同じ: 同じ向き（始点→終点）で2層ずつ（奇数層は始点側、偶数層は終点側のスパン）。段の刻みと階段手すりも描く
+	sl = ex - sx
+	for il5 = 1 to nLv - 1
+		rise = lv[il5 + 1] - lv[il5]
+		! 階段室のスパン（1つ目＝始点側、2つ目＝終点側。1スパンの階段室は2つ目なし）
+		stA = sl
+		stB = 0
+		xa = 0
+		for ipx = 1 to nSpan
+			if abs(xa - sx) < 0.001 then
+				stA = spans[ipx]
+				if ipx < nSpan then
+					if xa + spans[ipx] + spans[ipx + 1] <= sx + sl + 0.001 then stB = spans[ipx + 1]
+				endif
+			endif
+			xa = xa + spans[ipx]
+		next ipx
+		! 同じ向き（始点→終点）で2層ずつ: 奇数層は始点側のスパン、偶数層は終点側のスパンに1スパン分の階段。
+		! 2層登ったら階段室を出て外の作業床を回って戻る（階段室の中に踊り場の床は無い）
+		x0 = sx
+		fl = stA
+		if il5 - 2 * int(il5 / 2) = 0 and stB > 0 then
+			x0 = sx + stA
+			fl = stB
+		endif
+		nStep = int(rise / 0.225 + 0.5)
+		if nStep < 1 then nStep = 1
+		td = fl / nStep
+		th = rise / nStep
+		for is2 = 1 to nStep
+			line2 x0 + (is2 - 1) * td, lv[il5] + (is2 - 1) * th, x0 + (is2 - 1) * td, lv[il5] + is2 * th
+			line2 x0 + (is2 - 1) * td, lv[il5] + is2 * th, x0 + is2 * td, lv[il5] + is2 * th
+		next is2
+		! 階段手すり 2段（手すりと中桟、階段と平行。3D と同じ高さ: 床の手すり・中桟と同じ railTop・railMid）。
+		! 手すり用の支柱は立てない（利用者の指定 2026-10-24: 足場の手すりはこのかたち 2段、高さを下げる）
+		for tk = 0 to 1
+			hT = railTop
+			if tk = 1 then hT = railMid
+			line2 x0, lv[il5] + hT, x0 + fl, lv[il5 + 1] + hT
+		next tk
+	next il5
+	set style "annoC"
+	if showDim then text2 (sx + ex) / 2, lv[1] - 0.2, "階段"
+	set style "anno"
+next it2
+
+pen penEquip
+! ブラケット区間（立面では該当層の床を太線にして幅を注記する）
+! 平面と3Dには出ているのに立面だけ描いておらず、区間指定が図から消えていた
+for ik2 = 1 to nBk
+	kx1 = bkS[ik2]
+	kx2 = bkE[ik2]
+	kz = bkH[ik2]
+	line2 kx1, kz - 0.02, kx2, kz - 0.02
+	line2 kx1, kz + 0.07, kx2, kz + 0.07
+	line2 kx1, kz - 0.02, kx1, kz + 0.07
+	line2 kx2, kz - 0.02, kx2, kz + 0.07
+	if showDim then
+		if bkD[ik2] > 0 then
+			kTxt = "BR" + str(bkW[ik2] * 1000, 4, 0) + "内"
+		else
+			kTxt = "BR" + str(bkW[ik2] * 1000, 4, 0) + "張出"
+		endif
+		if bkDW[ik2] > 0 then kTxt = kTxt + " 床" + str(bkDW[ik2] * 1000, 4, 0)
+		set style "annoC"
+		text2 (kx1 + kx2) / 2, kz + 0.12, kTxt
+		set style "anno"
+	endif
+next ik2
+
+! 荷受けステージ（立面では設置高さの区間を太線と文字で）
+for ig = 1 to nSg
+	gs = sgS[ig]
+	ge = gs + sgL[ig]
+	gh = sgH[ig]
+	rect2 gs, gh, ge, gh + 0.05
+	line2 gs, gh, gs, gh + 0.9
+	line2 ge, gh, ge, gh + 0.9
+	line2 gs, gh + 0.9, ge, gh + 0.9
+	set style "annoC"
+	if showDim then text2 (gs + ge) / 2, gh + 1.05, "荷受けステージ 出" + str(sgP[ig] * 1000, 4, 0)
+	set style "anno"
+next ig
+
+! 昇降機（立面では搬器の通る範囲を破線で、マスト（0.30角・到達高さ+1m）と
+! 最下の乗り込み口の高さに置いた搬器（高さ2.2m）を実線で。控えピッチごとに
+! マスト控えの印。3D・詳細図と同じ取合い）
+for ih = 1 to nHo
+	hx = hoP[ih]
+	line_type 3
+	rect2 hx - hoW[ih] / 2, 0, hx + hoW[ih] / 2, hoR[ih]
+	line_type 1
+	for imx = -1 to 1 step 2
+		mxc2 = hx + imx * (hoW[ih] / 2 + 0.20)
+		rect2 mxc2 - 0.15, 0, mxc2 + 0.15, hoR[ih] + 1.0
+	next imx
+	cz2 = 0.20
+	for il6 = 1 to nLa
+		if abs(laP[il6] - hx) < 0.001 then
+			if cz2 = 0.20 or laH[il6] < cz2 then cz2 = laH[il6]
+		endif
+	next il6
+	rect2 hx - hoW[ih] / 2, cz2, hx + hoW[ih] / 2, cz2 + 2.2
+	line2 hx - hoW[ih] / 2, cz2, hx + hoW[ih] / 2, cz2 + 2.2
+	line2 hx - hoW[ih] / 2, cz2 + 2.2, hx + hoW[ih] / 2, cz2
+	tp2 = hoTp[ih]
+	if tp2 < 0.5 then tp2 = 3.6
+	for it2 = 1 to int(hoR[ih] / tp2)
+		rect2 hx - 0.06, it2 * tp2 - 0.03, hx + 0.06, it2 * tp2 + 0.03
+	next it2
+	set style "annoC"
+	if showDim then text2 hx, hoR[ih] + 1.12, "昇降機 到達" + str(hoR[ih] * 1000, 5, 0)
+	set style "anno"
+next ih
+line_type 1
+! 乗り込み口（開閉式手すり）。足場側の開口なので、どの層かを図に出す
+for il2 = 1 to nLa
+	lx = laP[il2]
+	lz = laH[il2]
+	! 乗り込み口の幅はその昇降機の搬器幅
+	lw = HOIST_W
+	for ih2 = 1 to nHo
+		if abs(hoP[ih2] - lx) < 0.001 then lw = hoW[ih2]
+	next ih2
+	rect2 lx - lw / 2, lz, lx + lw / 2, lz + railH
+	if showDim then
+		set style "annoC"
+		text2 lx, lz + railH + 0.10, "乗込口"
+		set style "anno"
+	endif
+next il2
+
+! 梁枠（立面ではトラス）
+for ib = 1 to nBm
+	bs = bmS[ib]
+	be = bs + bmL[ib]
+	! 上弦材は作業床の1段下のコマ、せい 370（3D と同じ。日建 カタログ p011）。斜材は1スパン4区画、束材は 1829 ごと
+	bDr = 0.06
+	if komaPitch > 0.001 then bDr = komaPitch
+	bt = bmH[ib] - bDr
+	bb = bt - 0.37
+	nPn = max(1, int(bmL[ib] / 1.829 + 0.5))
+	nd = 4 * nPn
+	dW = bmL[ib] / nd
+	! 上弦材は通し、下弦材は両端の1区画ずつ短い（両端がすぼまる。カタログ p010 の図）
+	line2 bs, bt, be, bt
+	line2 bs + dW, bb, be - dW, bb
+	for iv = 1 to nPn - 1
+		line2 bs + bmL[ib] * iv / nPn, bb, bs + bmL[ib] * iv / nPn, bt
+	next iv
+	for id = 0 to nd - 1
+		dx1 = bs + dW * id
+		dx2 = dx1 + dW
+		if id - 2 * int(id / 2) = 1 then
+			line2 dx1, bb, dx2, bt
+		else
+			line2 dx1, bt, dx2, bb
+		endif
+	next id
+	! 補強のつなぎ材（梁枠の高さで両隣のスパン、床の高さで開口の上）
+	xq = 0
+	for iq = 1 to nSpan
+		if abs(xq + spans[iq] - bs) < 0.001 or abs(xq - be) < 0.001 then line2 xq, bt, xq + spans[iq], bt
+		if xq >= bs - 0.001 and xq + spans[iq] <= be + 0.001 then line2 xq, bmH[ib], xq + spans[iq], bmH[ib]
+		xq = xq + spans[iq]
+	next iq
+	set style "annoC"
+	if showDim then text2 (bs + be) / 2, bb - 0.20, "梁枠 " + str(bmL[ib] * 1000, 5, 0)
+	set style "anno"
+next ib
+
+! 朝顔（立面では設置高さに太線と注記）
+for ia = 1 to nAsa
+	za = asa[ia]
+	for isg = 1 to nAsg
+		line2 asgA[isg], za, asgB[isg], za
+		line2 asgA[isg], za + 0.02, asgB[isg], za + 0.02
+	next isg
+	if showDim then text2 lineLen + 0.1, za, "朝顔" + str(ia, 1, 0) + "段目 GL+" + str(za * 1000, 5, 0)
+	for ic = 1 to nCut
+		set style "annoC"
+		if showDim then text2 (cutS[ic] + cutE[ic]) / 2, za + 0.12, "朝顔切欠（昇降機）"
+	next ic
+	set style "anno"
+next ia
+
+! 壁つなぎ: 形状を描いても判別できないので記号で示す。立面の記号は◎（中心が取付点）。平面は▽
+! 立面の壁つなぎは注記強調のペン（warnPen）。壁つなぎのペンを選んだら（1 以外）そのペン
+if penTie > 1 then pen penTie else pen warnPen
+! tieList と tieHeightList は同じ長さの対（i番目の位置とi番目の高さが1組）
+for it = 1 to nTiePair
+	circle2 ties[it], tieH[it], 0.12
+	circle2 ties[it], tieH[it], 0.065
+next it
+pen penDim
+
+if not(showDim) then return
+
+! ---- 高さ寸法（左側）: 段の高さ・支柱の高さ・足場の高さの3本（断面図方式の立面と同じ） ----
+! 利用者の指定（2026-10-23）: 立面図・断面図は寸法に、層の高さは不要、段の高さ・支柱の高さ・全体の足場の高さ。
+! 区間の数は寸法線の左（右詰め。桁が増えても寸法線と足場に掛からない）、見出しは天端の上
+chGap = 1.2
+for ch = 1 to 3
+	dx = -0.35 - (ch - 1) * chGap
+	line2 dx, 0, dx, postTop
+	line2 dx - 0.06, 0, dx + 0.06, 0
+	line2 dx - 0.06, postTop, dx + 0.06, postTop
+	if ch = 1 then
+		chTxt = "段の高さ"
+		zA = 0
+		for il = 1 to nLv
+			if lv[il] > 0.001 and lv[il] < postTop - 0.001 then
+				line2 dx - 0.06, lv[il], dx + 0.06, lv[il]
+				dimTxt = str((lv[il] - zA) * 1000, 6, 0)
+				text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, (zA + lv[il]) / 2, dimTxt
+				zA = lv[il]
+			endif
+		next il
+		dimTxt = str((postTop - zA) * 1000, 6, 0)
+		text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, (zA + postTop) / 2, dimTxt
+	endif
+	if ch = 2 then
+		chTxt = "支柱の高さ"
+		if jackOut > 0.001 then
+			line2 dx - 0.06, jackOut, dx + 0.06, jackOut
+			dimTxt = "ジャッキ" + str(jackOut * 1000, 4, 0)
+			text2 dx - stw(dimTxt) * GLOB_SCALE / 2000, -0.12 - txtLine, dimTxt
+		endif
+		zA = jackOut
+		for i = 1 to nPost
+			line2 dx - 0.06, zA + posts[i], dx + 0.06, zA + posts[i]
+			dimTxt = str(posts[i] * 1000, 6, 0)
+			text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, zA + posts[i] / 2, dimTxt
+			zA = zA + posts[i]
+		next i
+	endif
+	if ch = 3 then
+		chTxt = "足場の高さ"
+		dimTxt = str(postTop * 1000, 6, 0)
+		text2 dx - 0.12 - stw(dimTxt) * GLOB_SCALE / 1000, postTop / 2, dimTxt
+	endif
+	text2 dx - stw(chTxt) * GLOB_SCALE / 2000, postTop + 0.15, chTxt
+next ch
+
+! ---- スパン寸法（下側） ----
+dy = -0.45
+x = 0
+for ip = 1 to nSpan
+	set style "annoC"
+	text2 x + spans[ip] / 2, dy - txtLine, str(spans[ip] * 1000, 5, 0)
+	set style "anno"
+	line2 x, dy, x, dy - 0.06
+	x = x + spans[ip]
+next ip
+line2 x, dy, x, dy - 0.06
+line2 0, dy, lineLen, dy
+set style "annoC"
+text2 lineLen / 2, dy - txtLine * 2.2, "L=" + str(lineLen * 1000, 6, 0)
+set style "anno"
+! ジャッキ繰出しは高さ寸法の列に入れると最下段（GL+100等）の寸法と
+! 文字が重なって両方読めなくなる。GL下の空きに別記する
+! 短い面では L= の文字と横に並ぶので、行を分ける
+if nJk >= 2 then
+	jmin = jk[1]
+	jmax = jk[1]
+	for ij = 2 to nJk
+		if jk[ij] < jmin then jmin = jk[ij]
+		if jk[ij] > jmax then jmax = jk[ij]
+	next ij
+	! 脚ごとの値がほぼ同じ（差5mm未満）なら範囲で書かない（「265〜265（高低差あり）」は誤解を招く）
+	if jmax - jmin < 0.005 then
+		text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0)
+	else
+		text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jmin * 1000, 4, 0) + "〜" + str(jmax * 1000, 4, 0) + "（高低差あり・脚ごと）"
+	endif
+else
+	text2 dx - txtH, dy - txtLine * 3.4, "ジャッキ繰出 " + str(jackOut * 1000, 4, 0)
+endif
+
+! ---- 特記（形状では判別できないものは文字で書く。実務の作図法） ----
+! 特記の列。FL参照（+0.35）や朝顔の高さ表示（+0.1・文字幅が2m超）と
+! 同じ帯に置くと、階数や段数によっては行が重なる。文字幅の分だけ右に離す
+tx = lineLen + 2.8
+ny = postTop
+text2 tx, ny, "立面図 " + faceName
+ny = ny - txtLine * 1.4
+if serType = "W" then
+	text2 tx, ny, "本図は建枠を支柱・布材で表現しています（建枠の形状は別途）"
+	ny = ny - txtLine
+	text2 tx, ny, "根がらみ: 建枠脚部（布板と区別がつかないため特記）"
+else
+	text2 tx, ny, "根がらみ: 最下コマ（布板と区別がつかないため特記）"
+endif
+ny = ny - txtLine
+text2 tx, ny, "頭つなぎ: 最上段（同上）"
+ny = ny - txtLine
+! 一側足場は建地1列。本足場の「内側／外側」の注記を出すと、無い建地列の
+! 部材を書くことになる（実機の立面で確認）
+if nRows = 1 then
+	text2 tx, ny, "一側足場: 建地1列・作業床はブラケット受け"
+	ny = ny - txtLine
+	if railAdv = 1 then
+		text2 tx, ny, "外側: ブレース＋先行手すり（手すり＋X斜材一体・幅木なし）"
+	else
+		text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+	endif
+else
+	if railIn = 1 then
+		text2 tx, ny, "内側: 手すり＋中桟（布材）"
+	else
+		text2 tx, ny, "内側: ブレース＋幅木"
+	endif
+	ny = ny - txtLine
+	if railAdv = 1 then
+		text2 tx, ny, "外側: ブレース＋先行手すり（手すり＋X斜材一体・幅木なし）"
+	else
+		text2 tx, ny, "外側: ブレース＋手すり＋中桟＋幅木"
+	endif
+endif
+ny = ny - txtLine
+text2 tx, ny, "作業層 " + str(nLevels, 2, 0) + "層 / 階高 " + str(floorH * 1000, 5, 0)
+ny = ny - txtLine
+text2 tx, ny, "壁つなぎ " + str(nTiePair, 3, 0) + "箇所（平面▽・立面◎）"
+ny = ny - txtLine
+text2 tx, ny, "壁離れ " + str(standoff * 1000, 4, 0)
+return
+
+! ============================================================
+985:	! ---- 平面の文字（中央揃え。寸法の数字・部位名・離れ）。北・西を向く面では上下逆になるので 180° 回して読める向きに ----
+set style "annoC"
+add2 tdx, tdy
+if SYMB_ROTANGLE > 90.001 and SYMB_ROTANGLE < 270.001 then rot2 180 else rot2 0
+text2 0, 0, tdt
+del 2
+set style "anno"
+return
+
+! ============================================================
+986:	! ---- 引出線のラベル: 矢先 (lbAx, lbAy) → 肘 (lbAx ± 0.4, lbY) → 棚。文字は棚の上（lbT1）と下（lbT2）。
+	! 上下逆になる向き（lbF）では棚を逆に出し、文字を 180° 回して読める向きに ----
+lbW = max(stw(lbT1), stw(lbT2)) * GLOB_SCALE / 1000 + 0.15
+line2 lbAx, lbAy, lbAx + lbS * 0.4, lbY
+add2 lbAx + lbS * 0.4, lbY
+if lbF then rot2 180 else rot2 0
+line2 0, 0, lbW, 0
+text2 0.05, txtH * 1.15, lbT1
+if strlen(lbT2) > 0 then text2 0.05, -txtH * 0.25, lbT2
+del 2
+return

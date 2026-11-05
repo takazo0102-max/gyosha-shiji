@@ -1,0 +1,31 @@
+{
+  "project_name": "サンプル単管抱き足場",
+  "outline_mm": [
+    [
+      0,
+      0
+    ],
+    [
+      12000,
+      0
+    ],
+    [
+      12000,
+      8000
+    ],
+    [
+      0,
+      8000
+    ]
+  ],
+  "eaves_height_mm": 6000,
+  "building_height_mm": 6500,
+  "clearance_space_mm": 900,
+  "period_days": 60,
+  "site": {
+    "region": "関東(内陸)",
+    "sheet_type": "メッシュシート"
+  },
+  "scaffold_form": "単管抱き足場",
+  "ladders": 2
+}

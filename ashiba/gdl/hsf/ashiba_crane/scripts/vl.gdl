@@ -1,0 +1,30 @@
+﻿! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
+if travel = 0 then
+	if prio = 0 then
+		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+	else
+		if abs(boomL - bL) > 0.001 then parameters boomL = bL
+	endif
+	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+endif
+values "boomL" range [bMin, bMax]
+values "prio" 0, 1
+values "boomA" range [1, 84]
+! アウトリガ: 引いた脚を性能表の張出の段（張出幅の半分）に吸い付ける。張出は車体の幅の半分から最大の段まで
+mp = GLOB_MODPAR_NAME
+if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") then
+	vq = oFL
+	if mp = "oFR" then vq = oFR
+	if mp = "oRL" then vq = oRL
+	if mp = "oRR" then vq = oRR
+	bq = ss[1] / 2
+	for i = 1 to nSs
+		if abs(ss[i] / 2 - vq) < abs(bq - vq) then bq = ss[i] / 2
+	next i
+	if mp = "oFL" then parameters oFL = bq
+	if mp = "oFR" then parameters oFR = bq
+	if mp = "oRL" then parameters oRL = bq
+	if mp = "oRR" then parameters oRR = bq
+endif
+! outW から4脚へは書き戻さない（Tapir でまとめて入れると GLOB_MODPAR_NAME が outW のまま古い outW で脚を上書きした。2026-11-01）
+values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"

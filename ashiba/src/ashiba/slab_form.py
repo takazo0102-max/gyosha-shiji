@@ -1,0 +1,435 @@
+"""スラブの型枠と支保工: せき板・根太・大引・パイプサポート・水平つなぎ（利用者の指定 2026-10-31: スラブの型枠も進めて しほこうも）.
+
+組み方（在来のスラブ型枠）:
+- せき板は型枠用合板 12mm（900×1800）をスラブの下面に。梁・壁・柱の所は抜く（梁の側板・壁の型枠が受ける）
+- 根太は角パイプ □50×50×2.3 を NEDA_PITCH_MM ごと、大引に直角に（スラブ・梁下の詳細図。利用者 2026-10-31）
+- 大引は杉 90×90 を SV_CANDS（@900）ごと、パイプサポートの列ごとに。パイプサポートの上端は大引に釘止め
+- パイプサポートは大引の下に、大引の向きに su、大引どうしの間 sv の格子。梁・壁・柱の下（とまわり CLEAR_MM）には立てない。
+  下には大引の列ごとに敷き桟木（45×60 を寝かせて通す）を敷き、その上に立てる（利用者の指定 2026-10-31: サポートしたはさんぎいる）
+- 高さ 3.5m を超えるパイプサポートは、高さ 2m 以内ごとに水平つなぎを2方向（安衛則 242条）
+
+計算（formwork.py: せき板・根太・大引の単純梁、たわみ 3mm）:
+- 荷重はコンクリート（鉄筋とも）RC_KN_M3×厚さ＋型枠 FORM_KN＋作業 WORK_KN（安衛則 240条の作業荷重 1.5kN/m²）。たわみは固定荷重だけ
+- パイプサポート1本の軸力＝荷重×su×sv ≦ 許容支持力（ps_allow_kn。メーカーの表: 使用高さと材端条件、水平つなぎの有無。
+  利用者の指定 2026-10-31: パイプサポートの許容荷重はメーカー表に合わせて）
+- 間隔は候補の中から、みな通る組のうち大引の間隔が広い（詳細図の @900）組、次に支柱の本数が少ない組
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+from ashiba.formwork import NEDA_PITCH_MM, PLY_T_MM, check
+
+# スラブ・梁下の詳細図（利用者の指定 2026-10-31）: せき板 合板 12 → 根太 角パイプ □50×50×2.3 @300 → 杉大引 90×90 @900 →
+# パイプサポート（上端を大引に釘止め）
+SLAB_NEDA = "角パイプ50"
+SLAB_OBIKI = "杉90"
+
+RC_KN_M3 = 24.0
+FORM_KN = 0.4
+WORK_KN = 1.5
+PS_MAX_MM = 3500.0                    # これを超えると水平つなぎ（2方向・2m 以内ごと。安衛則 242条）
+# パイプサポートの許容支持力（kN）: 岡部 フラワーサポート／パイプサポート（（一社）仮設工業会認定品）のカタログの表。
+# 連係あり（高さ 2m 以内ごとに水平つなぎを2方向に緊結金具で）は使用高さに関係なく 19.6。連係なしは使用高さ（m）の区分
+# 2以下・2〜2.5・2.5〜3・3〜3.4 ごと。材端条件はここの組み方（上端 杉の大引・下端 敷き桟木）では「上下端 木材」
+PS_SOURCE = "岡部 フラワーサポート／パイプサポート（仮設工業会認定品）の許容支持力の表"
+PS_TIED_KN = 19.6
+PS_FREE_KN = {"wood": ((2000.0, 19.6), (2500.0, 17.6), (3000.0, 13.7), (3400.0, 9.8)),        # 上下端 木材
+              "concrete": ((2000.0, 19.6), (2500.0, 18.6), (3000.0, 16.6), (3400.0, 14.7))}   # 上端 木材・下端 仕上げコンクリート
+PS_FREE_MAX_MM = 3400.0               # 連係なしの表はここまで。超える支柱には水平つなぎを設けて連係ありにする
+# 型式と使用寸法（mm）。同じカタログの仕様の表（パイプサポート）。補助サポート 4S 1200・5S 1500
+PS_MODELS = (("12S", 370.0, 505.0), ("50S", 1535.0, 2570.0), ("60S", 1780.0, 3055.0), ("75S", 2150.0, 3425.0),
+             ("90S", 2650.0, 3915.0))
+PS_AUX = (("4S", 1200.0), ("5S", 1500.0))
+TIE_PITCH_MM = 2000.0
+# 大筋かい（利用者の指定 2026-10-31: 筋かいも足して）: 支保工の上端に設計荷重の 5% の水平荷重（安衛則 240条）を、支柱の列の
+# 鉛直面に入れる単管の筋かいで受ける。筋かい1本の耐力は支柱に留める自在クランプ 3.43kN×cosθ（計画届作成の手引 p155 の
+# 「筋かい単管補強（3,430N／自在クランプ）」）。列の両端の升目に X に入れ、端の列から足りるまで列を足す
+H_LOAD_RATIO = 0.05
+BRACE_CLAMP_KN = 3.43
+BRACE_TOP_DOWN_MM = 150.0             # 筋かいの上端（支柱の天端から下げる）
+NEGARAMI_Z_MM = 200.0                 # 根がらみ（単管を支柱の列ごとに2方向。脚部の滑動を防ぐ）の高さ（床から。手引の例は 200）
+OBIKI_H_MM = 90.0                     # 大引（杉 90×90）のせい
+NEDA_D_MM = 50.0                      # 根太（角パイプ □50×50）のせい
+CLEAR_MM = 150.0                      # 梁・壁・柱のまわりに支柱を立てない幅
+SILL_H_MM = 45.0                      # パイプサポートの下の敷き桟木（45×60 を寝かせる）の高さ（利用者の指定 2026-10-31: サポートしたはさんぎいる）
+SILL_OUT_MM = 150.0                   # 敷き桟木の、列の端の支柱からの出
+SU_CANDS = (1500.0, 1200.0, 1000.0, 900.0, 750.0, 600.0)   # 大引の向きの支柱の間隔
+SV_CANDS = (900.0, 750.0, 600.0)     # 大引どうしの間隔（詳細図は @900）
+EDGE_MM = 150.0                       # スラブの縁・穴からいちばん近い根太・大引まで
+
+
+def ps_allow_kn(height_mm: float, tied: bool = False, lower: str = "wood") -> float:
+    """パイプサポート1本の許容支持力（kN）. 連係あり（水平つなぎ）は 19.6、なしは使用高さの区分の値（3.4m を超えると 0＝使えない）."""
+    if tied:
+        return PS_TIED_KN
+    for h, kn in PS_FREE_KN[lower]:
+        if height_mm <= h + 1e-6:
+            return kn
+    return 0.0
+
+
+def ps_condition(height_mm: float, tied: bool) -> str:
+    """許容支持力の条件の書き方（計算書・明細書）."""
+    if tied:
+        return "連係あり（水平つなぎ 2m 以内ごと・2方向）"
+    lo = 0.0
+    for h, _kn in PS_FREE_KN["wood"]:
+        if height_mm <= h + 1e-6:
+            rng = f"{lo / 1000:g}〜{h / 1000:g}m" if lo else f"{h / 1000:g}m 以下"
+            return f"連係なし・使用高さ {rng}・上下端 木材"
+        lo = h
+    return "連係なし・使用高さ 3.4m 超（表に無い。水平つなぎが要る）"
+
+
+def ps_model(length_mm: float) -> str:
+    """使う長さに合う型式（使用寸法に入るいちばん短い型式）。90S より長いときは補助サポートを継ぐ（2本まで）."""
+    for name, lo, hi in PS_MODELS:
+        if lo <= length_mm <= hi:
+            return name
+    if length_mm < PS_MODELS[0][1]:
+        return "―（短すぎる）"
+    for aux, la in PS_AUX:
+        for name, lo, hi in PS_MODELS:
+            if lo <= length_mm - la <= hi:
+                return f"{name}＋補助サポート {aux}"
+    return "―（長すぎる。枠組・くさびの支保工を）"
+
+
+def loads(thick_mm: float) -> tuple[float, float]:
+    """(設計荷重, 固定荷重) kN/m²."""
+    dead = RC_KN_M3 * thick_mm / 1000.0 + FORM_KN
+    return dead + WORK_KN, dead
+
+
+@dataclass
+class SlabSpacing:
+    su: float
+    sv: float
+    beams: list            # [BeamCheck] せき板・根太・大引
+    post_kn: float
+    ok: bool
+    allow_kn: float = PS_TIED_KN   # パイプサポート1本の許容支持力（メーカーの表）
+
+    def lines(self, q: float) -> list[str]:
+        out = [f"荷重 {q:.2f} kN/m²（コンクリート {RC_KN_M3:.0f}kN/m³・型枠 {FORM_KN}・作業 {WORK_KN}）"]
+        for b in self.beams:
+            out.append(f"{b.part}（{b.member}）スパン {b.span_mm:.0f}: σ {b.sigma:.1f}／{b.fb:.1f} N/mm²・"
+                       f"たわみ {b.deflection_mm:.2f} mm {'可' if b.ok else '不可'}")
+        out.append(f"パイプサポート 1本 {self.post_kn:.1f}／{self.allow_kn:.1f} kN（許容支持力。メーカーの表） "
+                   f"{'可' if self.post_kn <= self.allow_kn + 1e-9 else '不可'}")
+        return out
+
+
+def choose_spacing(thick_mm: float, allow_kn: float = PS_TIED_KN) -> SlabSpacing:
+    """みな通る間隔の組. allow_kn はパイプサポート1本の許容支持力（ps_allow_kn）."""
+    q, qd = loads(thick_mm)
+    best = None
+    for su in SU_CANDS:
+        for sv in SV_CANDS:
+            bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
+            pk = q * su * sv / 1e6
+            ok = all(b.ok for b in bc) and pk <= allow_kn + 1e-9
+            if ok:
+                key = (sv, su * sv)            # 大引は詳細図の @900 を先に、次に支柱の本数が少ない組
+                if best is None or key > best[0]:
+                    best = (key, SlabSpacing(su, sv, bc, pk, True, allow_kn))
+    if best:
+        return best[1]
+    su, sv = SU_CANDS[-1], SV_CANDS[-1]
+    bc = check(q, qd, su, sv, SLAB_NEDA, SLAB_OBIKI, NEDA_PITCH_MM)
+    return SlabSpacing(su, sv, bc, q * su * sv / 1e6, False, allow_kn)
+
+
+# ---- 平面の形 ----
+def _in_poly(p, poly) -> bool:
+    inside = False
+    n = len(poly)
+    for k in range(n):
+        (x1, y1), (x2, y2) = poly[k], poly[(k + 1) % n]
+        if (y1 > p[1]) != (y2 > p[1]) and p[0] < (x2 - x1) * (p[1] - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
+
+
+def _line_intervals(a: float, axis: int, outer: list, holes: list, edge: float) -> list[tuple[float, float]]:
+    """座標 axis（0＝x 一定の線 x=a、1＝y 一定の線 y=a）の線が、外形の中で穴の外にある区間（両端を edge 縮める）."""
+    def cuts(poly):
+        ts = []
+        n = len(poly)
+        for k in range(n):
+            p, q = poly[k], poly[(k + 1) % n]
+            c0, c1 = p[axis], q[axis]
+            if (c0 > a) != (c1 > a):
+                f = (a - c0) / (c1 - c0)
+                ts.append(p[1 - axis] + (q[1 - axis] - p[1 - axis]) * f)
+        ts.sort()
+        return list(zip(ts[0::2], ts[1::2]))
+    segs = cuts(outer)
+    for h in holes:
+        for h0, h1 in cuts(h):
+            nxt = []
+            for s, e in segs:
+                if h1 <= s or h0 >= e:
+                    nxt.append((s, e))
+                    continue
+                if h0 > s:
+                    nxt.append((s, h0))
+                if h1 < e:
+                    nxt.append((h1, e))
+            segs = nxt
+    return [(s + edge, e - edge) for s, e in segs if e - s > 2 * edge + 100.0]
+
+
+def _grid(lo: float, hi: float, pitch: float, edge: float) -> list[float]:
+    span = hi - lo - 2 * edge
+    if span <= 0:
+        return [(lo + hi) / 2.0]
+    n = max(1, math.ceil(span / pitch - 1e-9))
+    return [lo + edge + span * k / n for k in range(n + 1)]
+
+
+def rect(c, u, half_len: float, half_w: float, grow: float = 0.0) -> list:
+    """芯 c・向き u の長方形（左回り）."""
+    n = (-u[1], u[0])
+    L, W = half_len + grow, half_w + grow
+    return [(c[0] - u[0] * L - n[0] * W, c[1] - u[1] * L - n[1] * W), (c[0] + u[0] * L - n[0] * W, c[1] + u[1] * L - n[1] * W),
+            (c[0] + u[0] * L + n[0] * W, c[1] + u[1] * L + n[1] * W), (c[0] - u[0] * L + n[0] * W, c[1] - u[1] * L + n[1] * W)]
+
+
+@dataclass
+class SlabForm:
+    ang: float                 # 大引の向き（度。世界座標）
+    origin: tuple              # 局所座標の原点（世界 mm）
+    outer: list                # 局所座標のスラブの外形
+    holes: list                # 局所座標の穴（梁・壁・柱）
+    thick: float
+    spacing: SlabSpacing
+    post_h: float              # パイプサポートの長さ（敷き桟木の上から大引の下まで）
+    neda: list = field(default_factory=list)    # 根太 [(v0, v1, u)]（v の向きの線分。u 一定）
+    obiki: list = field(default_factory=list)   # 大引 [(u0, u1, v)]（u の向きの線分。v 一定）
+    posts: list = field(default_factory=list)   # パイプサポート [(u, v)]
+    ties: list = field(default_factory=list)    # 水平つなぎの高さ（床から mm）
+    braces: list = field(default_factory=list)  # 大筋かい [(u0, v0, z0, u1, v1, z1)]（z は床から mm）
+    brace_info: dict = field(default_factory=dict)   # 向きごとの {H, cap, need, have, bays, deg}
+
+    @property
+    def q(self) -> float:
+        return loads(self.thick)[0]
+
+    def area_m2(self, step: float = 100.0) -> float:
+        """せき板の面積（外形の中で穴の外。step の格子で数える）."""
+        us, vs = [p[0] for p in self.outer], [p[1] for p in self.outer]
+        n = 0
+        x = min(us) + step / 2.0
+        while x < max(us):
+            y = min(vs) + step / 2.0
+            while y < max(vs):
+                if _in_poly((x, y), self.outer) and not any(_in_poly((x, y), h) for h in self.holes):
+                    n += 1
+                y += step
+            x += step
+        return n * step * step / 1e6
+
+    def sills(self) -> list[tuple[float, float, float]]:
+        """敷き桟木 [(u0, u1, v)]: 同じ大引の列（v）の支柱の下に、端の支柱から SILL_OUT_MM 出して通す. 梁・壁・柱で支柱が飛ぶ所
+        （間が su の 1.2倍を超える）は分ける（梁の下の敷き桟木と交わらない。利用者の指定 2026-10-31: さんぎの向き揃えて）."""
+        rows: dict = {}
+        for u, v in self.posts:
+            rows.setdefault(round(v), []).append(u)
+        out = []
+        for v, us in sorted(rows.items()):
+            us = sorted(us)
+            start = us[0]
+            for a, b in zip(us, us[1:]):
+                if b - a > self.spacing.su * 1.2:
+                    out.append((start - SILL_OUT_MM, a + SILL_OUT_MM, float(v)))
+                    start = b
+            out.append((start - SILL_OUT_MM, us[-1] + SILL_OUT_MM, float(v)))
+        return out
+
+    def lines(self) -> list[str]:
+        out = self.spacing.lines(self.q)
+        out.append(f"パイプサポートの長さ {self.post_h:.0f}（型式 {ps_model(self.post_h)}）・{ps_condition(self.post_h, bool(self.ties))}"
+                   + (f"・水平つなぎ {len(self.ties)}段" if self.ties else ""))
+        for d, bi in self.brace_info.items():
+            out.append(f"大筋かい（{'大引の向き' if d == 'u' else '大引に直角'}）: 水平荷重 {H_LOAD_RATIO * 100:.0f}%×{self.q:.2f}kN/m²×"
+                       f"{bi['area']:.1f}m²＝{bi['H']:.2f}kN ÷ 1本 {BRACE_CLAMP_KN}×cos{bi['deg']:.0f}°＝{bi['cap']:.2f}kN（自在クランプ）"
+                       f" → 要 {bi['need']}本・入れる {bi['have']}本（{bi['bays']}スパンにかけて X） {'可' if bi['have'] >= bi['need'] else '不可'}")
+        return out
+
+    def quantities(self) -> list[tuple[str, int, str]]:
+        from ashiba.wall_form import tube_pieces
+        from collections import Counter
+
+        a = self.area_m2()
+        out = [("型枠用合板 12mm 900×1800（スラブ）", math.ceil(a / 1.62 * 1.05), f"面積 {a:.1f}m²（切り物・ロス 5%）")]
+        tubes = Counter()
+        for v0, v1, _u in self.neda:
+            for p in tube_pieces(v1 - v0):
+                tubes[p] += 1
+        for L, n in sorted(tubes.items(), reverse=True):
+            out.append((f"角パイプ □50×50×2.3 {L / 1000:.1f}m（根太）", n, f"@{NEDA_PITCH_MM:.0f}"))
+        ob = sum(u1 - u0 for u0, u1, _v in self.obiki)
+        out.append(("杉大引 90×90（4m）", math.ceil(ob / 4000.0 * 1.05), f"延べ {ob / 1000:.1f}m・@{self.spacing.sv:.0f}"))
+        out.append(("釘（パイプサポートの上端を大引に）", 2 * len(self.posts), "受け板の穴から2本ずつ"))
+        out.append(("パイプサポート", len(self.posts), f"{ps_model(self.post_h)}・長さ {self.post_h:.0f}・@{self.spacing.su:.0f}×{self.spacing.sv:.0f}"))
+        sill = sum(e - s for s, e, _v in self.sills())
+        out.append(("桟木 45×60（敷き桟木・4m）", math.ceil(sill / 4000.0 * 1.05), f"パイプサポートの下に寝かせて列ごとに通す・延べ {sill / 1000:.1f}m"))
+        n_u = len({round(v) for _u, v in self.posts})
+        n_v = len({round(u) for u, _v in self.posts})
+        if self.posts:
+            out.append(("単管（根がらみ・2方向）", n_u + n_v, f"床から {NEGARAMI_Z_MM:.0f}。延べは格子の長さ"))
+            out.append(("直交クランプ（根がらみ）", 2 * len(self.posts), "支柱と根がらみ"))
+        if self.braces:
+            pieces = Counter()
+            clamps = 0
+            for u0, v0, z0, u1, v1, z1 in self.braces:
+                Ln = math.dist((u0, v0, z0), (u1, v1, z1))
+                pieces[max(1000, math.ceil(Ln / 500.0) * 500)] += 1
+                clamps += 1 + max(1, round(math.hypot(u1 - u0, v1 - v0) / min(self.spacing.su, self.spacing.sv)))
+            for L, n in sorted(pieces.items(), reverse=True):
+                out.append((f"単管 {L / 1000:.1f}m（大筋かい）", n, "支柱の列の鉛直面に X に入れる"))
+            out.append(("自在クランプ（大筋かい）", clamps, "筋かいと支柱（交わる支柱ごと）"))
+        if self.ties:
+            out.append(("単管（水平つなぎ・2方向）", len(self.ties) * (n_u + n_v), f"{len(self.ties)}段。延べは格子の長さ"))
+            out.append(("直交クランプ（水平つなぎ）", 2 * len(self.ties) * len(self.posts), "支柱と水平つなぎ"))
+        return out
+
+
+def obiki_angle(outline_mm: list) -> float:
+    """大引（と敷き桟木）の向き＝スラブの外形のいちばん長い辺の向き（度）."""
+    pts = list(outline_mm)
+    if pts and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    k = max(range(len(pts)), key=lambda i: math.dist(pts[i], pts[(i + 1) % len(pts)]))
+    p, q = pts[k], pts[(k + 1) % len(pts)]
+    return math.degrees(math.atan2(q[1] - p[1], q[0] - p[0]))
+
+
+def plan_slab(outline_mm: list, thick_mm: float, bottom_mm: float, floor_mm: float, holes_mm=(),
+              ang_deg: float | None = None) -> SlabForm:
+    """スラブ1枚の型枠と支保工. outline・holes は世界座標 mm、bottom＝スラブの下端、floor＝支柱の立つ床の高さ."""
+    pts = list(outline_mm)
+    if pts and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    if ang_deg is None:                    # 大引はいちばん長い辺の向き
+        ang_deg = obiki_angle(pts)
+    a = math.radians(ang_deg)
+    u, v = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+    o = pts[0]
+    loc = lambda p: ((p[0] - o[0]) * u[0] + (p[1] - o[1]) * u[1], (p[0] - o[0]) * v[0] + (p[1] - o[1]) * v[1])
+    outer = [loc(p) for p in pts]
+    holes = [[loc(p) for p in h] for h in holes_mm]
+    post_h = bottom_mm - PLY_T_MM - NEDA_D_MM - OBIKI_H_MM - SILL_H_MM - floor_mm
+    # 水平つなぎ: 3.5m を超えると安衛則 242条。メーカーの表の連係なしは 3.4m までなので、それを超えれば設けて連係ありに
+    ties = []
+    if post_h > PS_FREE_MAX_MM:
+        z = TIE_PITCH_MM
+        while z < post_h - 300.0:
+            ties.append(z)
+            z += TIE_PITCH_MM
+    sp = choose_spacing(thick_mm, ps_allow_kn(post_h, bool(ties)))
+    us = [p[0] for p in outer]
+    vs = [p[1] for p in outer]
+    # 根太（v の向き。u ごと NEDA_PITCH_MM）、大引（u の向き。v ごと sv）、支柱（大引の上 su ごと）
+    neda = [(s, e, x) for x in _grid(min(us), max(us), NEDA_PITCH_MM, 50.0)
+            for s, e in _line_intervals(x, 0, outer, holes, 20.0)]
+    obiki, posts = [], []
+    clear = [[(p[0], p[1]) for p in _grow(h, CLEAR_MM)] for h in holes]
+    for y in _grid(min(vs), max(vs), sp.sv, EDGE_MM):
+        for s, e in _line_intervals(y, 1, outer, holes, 50.0):
+            obiki.append((s, e, y))
+            for x in _grid(s, e, sp.su, EDGE_MM - 50.0):
+                if _in_poly((x, y), outer) and not any(_in_poly((x, y), c) for c in clear):
+                    posts.append((x, y))
+    f = SlabForm(ang_deg, o, outer, holes, thick_mm, sp, post_h, neda, obiki, posts, ties)
+    f.braces, f.brace_info = plan_braces(f)
+    return f
+
+
+def plan_braces(f: "SlabForm") -> tuple[list, dict]:
+    """大筋かい: 向きごとに要る本数＝ceil(水平荷重 ÷ 1本の耐力)。支柱の列（大引の向きは v の行、直角は u の列）の両端の升目に
+    X（2本）で入れ、端の行・列から足りるまで足す. 筋かいは根がらみの高さから支柱の天端の少し下まで、45°前後になる升目の数にかける."""
+    if not f.posts:
+        return [], {}
+    area = f.area_m2()
+    H = H_LOAD_RATIO * f.q * area
+    z0 = NEGARAMI_Z_MM
+    z1 = SILL_H_MM + f.post_h - BRACE_TOP_DOWN_MM
+    hgt = max(300.0, z1 - z0)
+    out, info = [], {}
+    for d, pitch in (("u", f.spacing.su), ("v", f.spacing.sv)):
+        a, b = (0, 1) if d == "u" else (1, 0)          # a: 筋かいの向きの座標、b: 行（列）の座標
+        rows: dict = {}
+        for p in f.posts:
+            rows.setdefault(round(p[b], 1), []).append(p[a])
+        keys = sorted(rows)
+        order = []
+        lo, hi = 0, len(keys) - 1                       # 端の行から交互に
+        while lo <= hi:
+            order.append(keys[lo])
+            if hi != lo:
+                order.append(keys[hi])
+            lo, hi = lo + 1, hi - 1
+        bays = max(1, round(hgt / pitch))
+        span = bays * pitch
+        cos = span / math.hypot(span, hgt)
+        cap = BRACE_CLAMP_KN * cos
+        need = max(2, math.ceil(H / cap))
+        have = 0
+        for key in order:
+            if have >= need:
+                break
+            xs = sorted(rows[key])
+            runs, cur = [], [xs[0]]
+            for x in xs[1:]:
+                if x - cur[-1] > pitch * 1.2:
+                    runs.append(cur)
+                    cur = [x]
+                else:
+                    cur.append(x)
+            runs.append(cur)
+            for run in runs:
+                m = min(bays, len(run) - 1)
+                if m < 1:
+                    continue
+                spots = [0] if len(run) - 1 < 2 * m else [0, len(run) - 1 - m]
+                for i in spots:
+                    if have >= need:
+                        break
+                    x0, x1 = run[i], run[i + m]
+                    for za, zb in ((z0, z1), (z1, z0)):
+                        if d == "u":
+                            out.append((x0, key + 60.0, za, x1, key + 60.0, zb))
+                        else:
+                            out.append((key + 60.0, x0, za, key + 60.0, x1, zb))
+                    have += 2
+        info[d] = {"H": H, "area": area, "cap": cap, "need": need, "have": have, "bays": bays,
+                   "deg": math.degrees(math.atan2(hgt, span))}
+    return out, info
+
+
+def _grow(poly: list, d: float) -> list:
+    """凸の多角形を外へ d 広げた形（辺を平行に動かして角を結ぶ）."""
+    n = len(poly)
+    area = sum(poly[k][0] * poly[(k + 1) % n][1] - poly[(k + 1) % n][0] * poly[k][1] for k in range(n))
+    sgn = 1.0 if area > 0 else -1.0
+    lines = []
+    for k in range(n):
+        p, q = poly[k], poly[(k + 1) % n]
+        L = math.dist(p, q) or 1.0
+        nx, ny = (q[1] - p[1]) / L * sgn, -(q[0] - p[0]) / L * sgn     # 外向き
+        lines.append(((p[0] + nx * d, p[1] + ny * d), (q[0] - p[0], q[1] - p[1])))
+    out = []
+    for k in range(n):
+        (p1, d1), (p2, d2) = lines[k - 1], lines[k]
+        den = d1[0] * d2[1] - d1[1] * d2[0]
+        if abs(den) < 1e-9:
+            out.append(p2)
+            continue
+        t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / den
+        out.append((p1[0] + d1[0] * t, p1[1] + d1[1] * t))
+    return out

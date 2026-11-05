@@ -1,0 +1,45 @@
+﻿! 壁の型枠 2D: せき板（両面）、桟木、外端太、フォームタイ、名前
+pE = penEquip
+if pE < 1 then pE = 1
+pen pE
+define style "wfT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+! せき板（面ごとの区間。角で延ばす・縮める、T 字で分ける）
+for i = 1 to int(nPa / 2)
+	rect2 pa[2 * i - 1], -plyT, pa[2 * i], 0
+next i
+for i = 1 to int(nPb / 2)
+	rect2 pb[2 * i - 1], wT, pb[2 * i], wT + plyT
+next i
+! 桟木
+for i = 1 to nS
+	rect2 sx[i] - sgB / 2, -yS, sx[i] + sgB / 2, -plyT
+next i
+for i = 1 to nS2
+	rect2 sx2[i] - sgB / 2, wT + plyT, sx2[i] + sgB / 2, wT + yS
+next i
+! 外端太（単管）
+line_type "DASHED"
+for i = 1 to int(nTa / 2)
+	line2 ta[2 * i - 1], -yT, ta[2 * i], -yT
+next i
+for i = 1 to int(nTb / 2)
+	line2 tb[2 * i - 1], wT + yT, tb[2 * i], wT + yT
+next i
+line_type 1
+! 止め型枠
+if endS then
+	rect2 -plyT, -plyT, 0, wT + plyT
+	line2 -plyT - sgH - r, -yT - tbOut, -plyT - sgH - r, wT + yT + tbOut
+endif
+if endE then
+	rect2 A, -plyT, A + plyT, wT + plyT
+	line2 A + plyT + sgH + r, -yT - tbOut, A + plyT + sgH + r, wT + yT + tbOut
+endif
+! フォームタイ
+for i = 1 to nX
+	line2 tx[i], -yT - 0.06, tx[i], wT + yT + 0.06
+	rect2 tx[i] - 0.03, -yT - 0.03, tx[i] + 0.03, -yT - 0.024
+	rect2 tx[i] - 0.03, wT + yT + 0.024, tx[i] + 0.03, wT + yT + 0.03
+next i
+style "wfT"
+text2 A / 2, -yT - 0.12, cName + "  " + cNote

@@ -1,0 +1,34 @@
+﻿! タワークレーン: マストの本数・ジブの先・フックの位置・壁つなぎの高さ（m・度）
+nSg = max(1, int(msH / max(0.5, msSeg) + 0.5))
+sgL = msH / nSg
+zR = msH
+! ジブの先（起伏ジブは起こした先、水平ジブはジブの先）と今の作業半径（フックの位置）
+if tcType = 2 then
+	jX = pvX + jbL
+	jZ = zR + pvH
+	hX = max(pvX + 2, min(jX - 0.5, trR))
+else
+	jX = pvX + jbL * cos(jbA)
+	jZ = zR + pvH + jbL * sin(jbA)
+	hX = jX
+endif
+hZ = max(0.5, jZ - hkD)
+! 壁つなぎの高さ（mm の文字 → m）
+dim tz[]
+nTz = 0
+rest = tieZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nTz = nTz + 1
+		tz[nTz] = v / 1000
+	endif
+endwhile

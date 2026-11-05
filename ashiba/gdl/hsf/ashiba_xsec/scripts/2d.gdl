@@ -1,0 +1,270 @@
+﻿! ============================================================
+! 足場断面図 2Dシンボル（2Dで書くときの断面の形。マスタースクリプトの説明を参照）
+! ============================================================
+pen 1
+set style "anno"
+
+! 図の基準点（内側建地・外側建地・躯体面の GL、外側建地の天端）
+hotspot2 0, 0
+hotspot2 -rowW, 0
+hotspot2 standoff, 0
+hotspot2 -rowW, postTop
+
+! ---- GL ----
+line2 -rowW - 4.6, 0, standoff + 2.4, 0
+for gx = -rowW - 4.4 to standoff + 2.2 step 0.2
+	line2 gx, 0, gx - 0.08, -0.08
+next gx
+
+! ---- 躯体（面と床。建物の中は 2m で切る） ----
+if bldgH > 0.01 then
+	line2 standoff, 0, standoff, bldgH
+	line2 standoff, bldgH, standoff + 2.0, bldgH
+	for i = 1 to nFl
+		if fls[i] > 0.01 and fls[i] < bldgH - 0.01 then
+			rect2 standoff, fls[i] - 0.15, standoff + 2.0, fls[i]
+		endif
+	next i
+	! 破断線（建物の中の続きは省略）
+	line2 standoff + 2.0, -0.2, standoff + 2.0, bldgH / 2 - 0.15
+	line2 standoff + 2.0, bldgH / 2 - 0.15, standoff + 1.92, bldgH / 2 - 0.05
+	line2 standoff + 1.92, bldgH / 2 - 0.05, standoff + 2.08, bldgH / 2 + 0.05
+	line2 standoff + 2.08, bldgH / 2 + 0.05, standoff + 2.0, bldgH / 2 + 0.15
+	line2 standoff + 2.0, bldgH / 2 + 0.15, standoff + 2.0, bldgH + 0.2
+endif
+
+! ---- 支柱・ジャッキ・根がらみ（内側 x=0、外側 x=-rowW） ----
+for sd = 0 to 1
+	px = -sd * rowW
+	! ジャッキベース（ベース板・ねじ棒・ハンドル）
+	rect2 px - 0.07, 0, px + 0.07, 0.009
+	line2 px - 0.019, 0.009, px - 0.019, jackOut
+	line2 px + 0.019, 0.009, px + 0.019, jackOut
+	if jackOut > 0.08 then rect2 px - 0.04, jackOut - 0.06, px + 0.04, jackOut - 0.035
+	! 支柱（2本線）と継ぎ目
+	rect2 px - r_sic, jackOut, px + r_sic, postTop
+	zj = jackOut
+	for j = 1 to nPost - 1
+		zj = zj + posts[j]
+		line2 px - r_sic - 0.012, zj, px + r_sic + 0.012, zj
+	next j
+	! 根がらみ（面に沿う布材の切り口）
+	if negaH > 0.01 then circle2 px, negaH, r_nuno
+next sd
+
+! ---- 各作業床: 腕木・踏板（切り口）・幅木・手すり・中桟 ----
+for il = 1 to nLvX
+	z = lvs[il]
+	! 腕木（建地列の間、踏板の下）
+	rect2 -rowW, z - 2 * r_nuno, 0, z
+	! 踏板の切り口（矩形に×）
+	x1 = -rowW + 0.05
+	x2 = x1 + deckW1 - 0.01
+	rect2 x1, z, x2, z + 0.04
+	line2 x1, z, x2, z + 0.04
+	line2 x1, z + 0.04, x2, z
+	if deckW2 > 0.01 then
+		x1 = -rowW + 0.05 + deckW1 + 0.01
+		x2 = x1 + deckW2 - 0.01
+		rect2 x1, z, x2, z + 0.04
+		line2 x1, z, x2, z + 0.04
+		line2 x1, z + 0.04, x2, z
+	endif
+	! 幅木（外側の支柱の内に立てる板。先行手すりでは付けない）
+	if toeOn = 1 and railAdv = 0 then rect2 -rowW + r_sic, z + 0.04, -rowW + r_sic + 0.012, z + 0.19
+	! 手すり・中桟（面に沿う布材の切り口＝丸）
+	if z + railH < postTop + 0.01 then
+		circle2 -rowW, z + railH, r_nuno
+		circle2 -rowW, z + midH, r_nuno
+		if railIn = 1 then
+			circle2 0, z + railH, r_nuno
+			circle2 0, z + midH, r_nuno
+		endif
+	endif
+next il
+
+! ---- 壁つなぎ（内側建地から躯体へ。躯体側にアンカー部） ----
+for it = 1 to nTie
+	h = ties[it]
+	rect2 r_sic, h - r_tie, standoff - 0.012, h + r_tie
+	rect2 standoff - 0.012, h - 0.06, standoff, h + 0.06
+next it
+
+! ---- 朝顔（外側建地から外へ張り出す受け材・方杖・板） ----
+for ia = 1 to nAsa
+	h = asas[ia]
+	adx = asaProj
+	adz = asaProj * tan(asaAng)
+	line2 -rowW - r_sic, h, -rowW - adx, h + adz
+	line2 -rowW - r_sic, h + 0.03, -rowW - adx, h + adz + 0.03
+	line2 -rowW - r_sic, h - 1.0, -rowW - adx * 0.55, h + adz * 0.55
+next ia
+
+if not(showDim) then end
+
+! ---- 離れ・幅の寸法（GL の下） ----
+dy = -0.55
+line2 -rowW, dy, standoff, dy
+! 目盛りは外側建地・内側建地・躯体面
+line2 -rowW - 0.05, dy - 0.05, -rowW + 0.05, dy + 0.05
+line2 -0.05, dy - 0.05, 0.05, dy + 0.05
+line2 standoff - 0.05, dy - 0.05, standoff + 0.05, dy + 0.05
+line2 -rowW, -0.12, -rowW, dy - 0.1
+line2 0, -0.12, 0, dy - 0.1
+line2 standoff, -0.12, standoff, dy - 0.1
+set style "annoC"
+text2 -rowW / 2, dy + txtLine * 0.6, str(rowW * 1000, 5, 0)
+text2 standoff / 2, dy - txtLine * 0.7, "離れ" + str(standoff * 1000, 4, 0)
+
+! ---- 高さの寸法（外側に3本: 段の高さ・支柱の高さ・足場の高さ。層の高さの文字は書かない） ----
+for ch = 1 to 3
+	if ch = 1 then
+		xc = dimX1
+		chTxt = "段の高さ"
+	endif
+	if ch = 2 then
+		xc = dimX2
+		chTxt = "支柱の高さ"
+	endif
+	if ch = 3 then
+		xc = dimX3
+		chTxt = "足場の高さ"
+	endif
+	line2 xc, 0, xc, postTop
+	line2 xc - 0.05, -0.05, xc + 0.05, 0.05
+	line2 xc - 0.05, postTop - 0.05, xc + 0.05, postTop + 0.05
+	set style "annoC"
+	text2 xc, postTop + 0.35, chTxt
+	if ch = 1 then
+		! 補助線（外側建地から寸法線まで）と段の間隔
+		zA = 0
+		for il = 1 to nLvX + 1
+			if il <= nLvX then
+				zB = lvs[il]
+			else
+				zB = postTop
+			endif
+			if zB > zA + 0.01 and zB < postTop + 0.001 then
+				line2 xc - 0.05, zB - 0.05, xc + 0.05, zB + 0.05
+				line2 -rowW - r_sic - 0.1, zB, xc - 0.1, zB
+				add2 xc - 0.08, (zA + zB) / 2
+				rot2 90
+				text2 0, 0, str((zB - zA) * 1000, 6, 0)
+				del 2
+				zA = zB
+			endif
+		next il
+	endif
+	if ch = 2 then
+		zA = 0
+		if jackOut > 0.001 then
+			line2 xc - 0.05, jackOut - 0.05, xc + 0.05, jackOut + 0.05
+			text2 xc, -0.35, "ジャッキ" + str(jackOut * 1000, 4, 0)
+			zA = jackOut
+		endif
+		for j = 1 to nPost
+			zB = zA + posts[j]
+			line2 xc - 0.05, zB - 0.05, xc + 0.05, zB + 0.05
+			add2 xc - 0.08, (zA + zB) / 2
+			rot2 90
+			text2 0, 0, str(posts[j] * 1000, 6, 0)
+			del 2
+			zA = zB
+		next j
+	endif
+	if ch = 3 then
+		add2 xc - 0.08, postTop / 2
+		rot2 90
+		text2 0, 0, str(postTop * 1000, 6, 0)
+		del 2
+	endif
+next ch
+
+! ---- 部材の名前（引出線つき。躯体の右に並べる） ----
+dim lbX[]
+dim lbY[]
+dim lbT[]
+nLb = 0
+if nLvX > 0 then
+	zt = lvs[nLvX]
+	zs = lvs[max(1, nLvX - 1)]
+	nLb = nLb + 1
+	lbX[nLb] = -rowW
+	lbY[nLb] = zt + railH
+	lbT[nLb] = "手すり"
+	if railAdv = 1 then lbT[nLb] = "先行手すり"
+	nLb = nLb + 1
+	lbX[nLb] = -rowW
+	lbY[nLb] = zt + midH
+	lbT[nLb] = "中桟"
+	if toeOn = 1 and railAdv = 0 then
+		nLb = nLb + 1
+		lbX[nLb] = -rowW + r_sic + 0.006
+		lbY[nLb] = zt + 0.15
+		lbT[nLb] = "幅木"
+	endif
+	nLb = nLb + 1
+	lbX[nLb] = -rowW + 0.25
+	lbY[nLb] = zt + 0.02
+	lbT[nLb] = "踏板"
+	if serType = "W" then lbT[nLb] = "布板"
+	nLb = nLb + 1
+	lbX[nLb] = -rowW / 2
+	lbY[nLb] = zs - r_nuno
+	lbT[nLb] = "腕木"
+	if serType = "W" then lbT[nLb] = "建枠"
+endif
+nLb = nLb + 1
+lbX[nLb] = r_sic
+lbY[nLb] = (jackOut + postTop) / 2
+lbT[nLb] = "支柱"
+if nTie > 0 then
+	nLb = nLb + 1
+	lbX[nLb] = standoff / 2
+	lbY[nLb] = ties[1]
+	lbT[nLb] = "壁つなぎ"
+endif
+if negaH > 0.01 then
+	nLb = nLb + 1
+	lbX[nLb] = r_nuno
+	lbY[nLb] = negaH
+	lbT[nLb] = "根がらみ"
+endif
+nLb = nLb + 1
+lbX[nLb] = 0.07
+lbY[nLb] = 0.005
+lbT[nLb] = "ジャッキベース"
+! 高さ順に並べ、文字が重ならないよう行送り以上に離す
+for i = 1 to nLb - 1
+	for j = 1 to nLb - i
+		if lbY[j] > lbY[j + 1] then
+			t1 = lbY[j]
+			lbY[j] = lbY[j + 1]
+			lbY[j + 1] = t1
+			t1 = lbX[j]
+			lbX[j] = lbX[j + 1]
+			lbX[j + 1] = t1
+			s1 = lbT[j]
+			lbT[j] = lbT[j + 1]
+			lbT[j + 1] = s1
+		endif
+	next j
+next i
+xl = standoff + 2.5
+yPrev = -1000
+set style "anno"
+for i = 1 to nLb
+	ty = max(lbY[i] + 0.15, yPrev + txtLine)
+	line2 lbX[i], lbY[i], xl - 0.15, ty
+	line2 xl - 0.15, ty, xl - 0.05, ty
+	text2 xl, ty + txtH / 2, lbT[i]
+	yPrev = ty
+next i
+! 朝顔の名前は張り出しの先に
+for ia = 1 to nAsa
+	text2 -rowW - asaProj, asas[ia] + asaProj * tan(asaAng) + 0.15, "朝顔"
+next ia
+
+! ---- 図の名前・GL ----
+text2 standoff + 2.5, -0.05 + txtH, "GL±0"
+text2 dimX3, postTop + 0.35 + txtLine * 2, ttlTxt

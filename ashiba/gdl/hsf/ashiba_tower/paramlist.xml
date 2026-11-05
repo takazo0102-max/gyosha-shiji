@@ -1,0 +1,201 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="tcModel">
+			<Description><![CDATA["機種（選ぶと寸法を書き込む。0＝手入力）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Integer Name="tcType">
+			<Description><![CDATA["形式（1 起伏ジブ・2 水平ジブ）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<String Name="tcName">
+			<Description><![CDATA["機種の名前（平面の注記）"]]></Description>
+			<Value><![CDATA["タワークレーン"]]></Value>
+		</String>
+		<String Name="tcNote">
+			<Description><![CDATA["諸元の注記"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Angle Name="slew">
+			<Description><![CDATA["旋回角（+X から左回り）"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Length Name="msW">
+			<Description><![CDATA["マストの断面（主材の芯々）"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Length Name="msH">
+			<Description><![CDATA["マストの高さ（基礎の上面から旋回輪の下まで）"]]></Description>
+			<Value>40.0</Value>
+		</Length>
+		<Length Name="msSeg">
+			<Description><![CDATA["マスト1本の長さ"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<Length Name="baseW">
+			<Description><![CDATA["基礎の一辺"]]></Description>
+			<Value>7.0</Value>
+		</Length>
+		<Length Name="baseD">
+			<Description><![CDATA["基礎の厚さ（上面から下へ）"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="tailR">
+			<Description><![CDATA["後端旋回半径（カウンタウエイトの後端）"]]></Description>
+			<Value>8.0</Value>
+		</Length>
+		<Length Name="cwW">
+			<Description><![CDATA["カウンタウエイトの幅"]]></Description>
+			<Value>2.5</Value>
+		</Length>
+		<Length Name="cwH">
+			<Description><![CDATA["カウンタウエイトの高さ"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Length Name="cwL">
+			<Description><![CDATA["カウンタウエイトの奥行"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="dkW">
+			<Description><![CDATA["機械台の幅"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<Length Name="dkY">
+			<Description><![CDATA["機械台の中心のずれ（左が +）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="cbL">
+			<Description><![CDATA["運転室の前後"]]></Description>
+			<Value>1.8</Value>
+		</Length>
+		<Length Name="cbW">
+			<Description><![CDATA["運転室の幅"]]></Description>
+			<Value>1.1</Value>
+		</Length>
+		<Length Name="cbZ">
+			<Description><![CDATA["運転室の上面の高さ（旋回体を受ける面から）"]]></Description>
+			<Value>3.2</Value>
+		</Length>
+		<Length Name="cbH">
+			<Description><![CDATA["運転室の高さ"]]></Description>
+			<Value>2.1</Value>
+		</Length>
+		<Length Name="frH">
+			<Description><![CDATA["Aフレーム・塔頭の高さ（旋回輪から）"]]></Description>
+			<Value>9.0</Value>
+		</Length>
+		<Length Name="frX">
+			<Description><![CDATA["Aフレーム頂部（旋回中心から後ろ）"]]></Description>
+			<Value>3.0</Value>
+		</Length>
+		<Length Name="upF">
+			<Description><![CDATA["旋回体の前端（旋回中心から前）"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Length Name="pvX">
+			<Description><![CDATA["ジブの根元（旋回中心から前）"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="pvH">
+			<Description><![CDATA["ジブの根元の高さ（旋回輪から）"]]></Description>
+			<Value>2.5</Value>
+		</Length>
+		<Length Name="jbL">
+			<Description><![CDATA["ジブの長さ"]]></Description>
+			<Value>40.0</Value>
+		</Length>
+		<Angle Name="jbA">
+			<Description><![CDATA["ジブの起伏角（起伏ジブ）"]]></Description>
+			<Value>45.0</Value>
+		</Angle>
+		<Length Name="jbW">
+			<Description><![CDATA["ジブの断面"]]></Description>
+			<Value>1.4</Value>
+		</Length>
+		<Length Name="trR">
+			<Description><![CDATA["トロリの作業半径（水平ジブ）"]]></Description>
+			<Value>25.0</Value>
+		</Length>
+		<Length Name="hkD">
+			<Description><![CDATA["ジブの先（トロリ）からフックまで"]]></Description>
+			<Value>10.0</Value>
+		</Length>
+		<Length Name="maxR">
+			<Description><![CDATA["最大作業半径（平面の円）"]]></Description>
+			<Value>40.0</Value>
+		</Length>
+		<String Name="tieZ">
+			<Description><![CDATA["壁つなぎの高さ（mm・カンマ区切り）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Angle Name="tieA">
+			<Description><![CDATA["壁つなぎの向き（建物の側）"]]></Description>
+			<Value>180.0</Value>
+		</Angle>
+		<Length Name="tieL">
+			<Description><![CDATA["壁つなぎの長さ（マストの面から建物まで）"]]></Description>
+			<Value>2.0</Value>
+		</Length>
+		<Integer Name="avN">
+			<Description><![CDATA["航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penBold">
+			<Description><![CDATA["外形の線（太線。置くときに線のペンと同じ色の太いペン）"]]></Description>
+			<Value>21</Value>
+		</PenColor>
+		<PenColor Name="penThin">
+			<Description><![CDATA["細部の線（細線。同じ色の細いペン）"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+		<PenColor Name="penZone">
+			<Description><![CDATA["範囲の線（作業半径・後端旋回半径・立入禁止・旋回軌跡）"]]></Description>
+			<Value>20</Value>
+		</PenColor>
+		<PenColor Name="penMask">
+			<Description><![CDATA["上に載るものの背景の塗り（下の線を隠す。0＝隠さない）"]]></Description>
+			<Value>19</Value>
+		</PenColor>
+		<Integer Name="drMode">
+			<Description><![CDATA["平面の描き分け（0 縮尺で自動・1 詳細 1/100・2 標準 1/200・3 簡略）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+	</Parameters>
+</ParamSection>

@@ -1,0 +1,87 @@
+﻿! 仮設建物: 型の寸法（site_house.HOUSES）と並べ方
+dim hwT[12], hdT[12], hhT[12], hkT[12]
+hwT[1] = 1.850
+hdT[1] = 1.850
+hhT[1] = 2.603
+hkT[1] = 0
+hwT[2] = 3.650
+hdT[2] = 1.850
+hhT[2] = 2.603
+hkT[2] = 0
+hwT[3] = 4.550
+hdT[3] = 2.300
+hhT[3] = 2.603
+hkT[3] = 0
+hwT[4] = 5.450
+hdT[4] = 2.300
+hhT[4] = 2.603
+hkT[4] = 0
+hwT[5] = 7.250
+hdT[5] = 2.300
+hhT[5] = 2.603
+hkT[5] = 0
+hwT[6] = 0.850
+hdT[6] = 1.550
+hhT[6] = 2.470
+hkT[6] = 1
+hwT[7] = 2.600
+hdT[7] = 2.200
+hhT[7] = 2.650
+hkT[7] = 2
+hwT[8] = 3.740
+hdT[8] = 1.800
+hhT[8] = 2.575
+hkT[8] = 0
+hwT[9] = 4.590
+hdT[9] = 1.900
+hhT[9] = 2.575
+hkT[9] = 0
+hwT[10] = 5.540
+hdT[10] = 2.200
+hhT[10] = 2.575
+hkT[10] = 0
+hwT[11] = 5.700
+hdT[11] = 2.300
+hhT[11] = 2.650
+hkT[11] = 0
+hwT[12] = 5.632
+hdT[12] = 2.285
+hhT[12] = 2.700
+hkT[12] = 0
+dim usN[8]
+usN[1] = "事務所"
+usN[2] = "詰所"
+usN[3] = "休憩所"
+usN[4] = "更衣室"
+usN[5] = "会議室"
+usN[6] = "倉庫"
+usN[7] = "トイレ"
+usN[8] = "シャワー"
+kT = max(1, min(12, hsType))
+uw = hwT[kT]
+ud = hdT[kT]
+uh = hhT[kT]
+isT = hkT[kT] > 0
+nU = max(1, nUnit)
+nT = max(1, min(3, nTier))
+if isT then nT = 1
+lx = uw
+ly = ud * nU
+if isT then
+	lx = uw * nU
+	ly = ud
+endif
+dim tu[3]
+tu[1] = max(1, min(8, use1))
+tu[2] = max(1, min(8, use2))
+tu[3] = max(1, min(8, use3))
+! 2階より上: 手前の外廊下と2階への外階段（製品の長さ stairL を段に分ける。蹴上 0.2 以下）
+upOn = nT >= 2
+nRs = ceil(uh / 0.2 - 0.0001)
+rsH = uh / nRs
+stL = max(1, stairL)
+gStp = stL / max(1, nRs - 1)
+! 外廊下は妻側（X0 の面。ユニットの短い辺が並ぶ）に、ユニットごとの階段踊場部ユニット SC（出 corrW・幅 ud）。階段はその端の先へ
+cL = ly
+stX = -stL
+if stairSd = 1 then stX = cL

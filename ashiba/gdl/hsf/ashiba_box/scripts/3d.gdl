@@ -1,0 +1,72 @@
+﻿! ============================================================
+! 足場の箱 3D（壁の形。利用者の指定 2026-10-30: もっと簡単な壁形状でいい・厚みで種類も変える）: 内側の建地の列から外へ
+! 厚み tk・高さ 最上段＋手すりの壁。色は種類（一側足場・幅610・914・1219）、作業床の段の高さに外周の線
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+resol 8
+! ---- 立つ高さのつまみ（右上の出隅。セットバックの上の階は下の屋根の天端へ上げる） ----
+hotspot lx + tk, ly + tk, 0, 1010, zBase, 1 + 128
+hotspot lx + tk, ly + tk, zBase, 1011, zBase, 2
+hotspot lx + tk, ly + tk, -1, 1012, zBase, 3
+add 0, 0, zBase
+define material "bx_1" 2, 0.95, 0.62, 0.25
+define material "bx_6" 2, 0.45, 0.70, 0.95
+define material "bx_9" 2, 0.45, 0.80, 0.45
+define material "bx_12" 2, 0.70, 0.55, 0.90
+if tk < 0.45 then
+	material "bx_1"
+else
+	if tk < 0.75 then
+		material "bx_6"
+	else
+		if tk < 1.05 then
+			material "bx_9"
+		else
+			material "bx_12"
+		endif
+	endif
+endif
+H = postH
+add -tk, -tk, 0
+block lx + 2 * tk, tk, H
+del 1
+add -tk, ly, 0
+block lx + 2 * tk, tk, H
+del 1
+add -tk, 0, 0
+block tk, ly, H
+del 1
+add lx, 0, 0
+block tk, ly, H
+del 1
+! 作業床の段の高さ（外周の外と内に線）
+for lv = 1 to nL
+	zl = lev1 + (lv - 1) * floorH
+	for o = 0 to 1
+		if o = 0 then
+			r0 = -tk - 0.003
+			r1x = lx + tk + 0.003
+			r1y = ly + tk + 0.003
+		else
+			r0 = 0.003
+			r1x = lx - 0.003
+			r1y = ly - 0.003
+		endif
+		lin_ r0, r0, zl, r1x, r0, zl
+		lin_ r1x, r0, zl, r1x, r1y, zl
+		lin_ r1x, r1y, zl, r0, r1y, zl
+		lin_ r0, r1y, zl, r0, r0, zl
+	next o
+next lv
+! ---- 段数のつまみ（出隅の上。引くと段の間隔に丸めて段数が変わる） ----
+hotspot -tk, -tk, 0, 1000, topEdit, 1 + 128
+hotspot -tk, -tk, topEdit, 1001, topEdit, 2
+hotspot -tk, -tk, -1, 1002, topEdit, 3
+del 1
+end
+if stepH > 0.001 then cutend

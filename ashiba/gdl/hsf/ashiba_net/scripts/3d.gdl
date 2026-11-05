@@ -1,0 +1,60 @@
+﻿! ============================================================
+! 水平ネット 3D: 網（網糸を両方向に格子で）と周囲のロープ φ12。面材（板）にすると
+! 踏板（アンチ）と見分けが付かない（利用者の指摘 2026-10-20）ので、面は張らず網目で見せる。
+! 実物の目合いは 15〜25mm。図では 100mm 目に粗くして軽くする（長い面は本数の上限で目を広げる）
+! ============================================================
+! 工程の模型（scripts/gdl_step.py）: stepH より上はまだ組み上がっていない
+if stepH > 0.001 then
+	rotx 90
+	cutpoly 4, -1000, stepH, 1000, stepH, 1000, 1000, -1000, 1000
+	del 1
+endif
+pen 1
+resol 6
+rotz faceAng
+addz zH
+if lineMode then
+	lin_ 0, 0, 0, netL, 0, 0
+	lin_ netL, 0, 0, netL, netW, 0
+	lin_ netL, netW, 0, 0, netW, 0
+	lin_ 0, netW, 0, 0, 0, 0
+	lin_ 0, 0, 0, netL, netW, 0
+else
+	if matNet > 0 then
+		material matNet
+	else
+		! 表面材の指定が無ければ、養生ネットらしい緑
+		define material "ashiba_net_green" 1, 0.12, 0.52, 0.24
+		material "ashiba_net_green"
+	endif
+	! 周囲のロープ（四辺）
+	for k = 0 to 1
+		add 0, k * netW, 0
+		roty 90
+		cylind netL, 0.006
+		del 2
+		add k * netL, 0, 0
+		rotx -90
+		cylind netW, 0.006
+		del 2
+	next k
+	! 網糸（4mm 角）
+	pm = 0.10
+	if netL / pm > 150 then pm = netL / 150
+	ni = max(2, int(netL / pm + 0.5))
+	for i = 1 to ni - 1
+		add i * netL / ni - 0.002, 0, -0.002
+		block 0.004, netW, 0.004
+		del 1
+	next i
+	nj = max(2, int(netW / pm + 0.5))
+	for j = 1 to nj - 1
+		add 0, j * netW / nj - 0.002, -0.002
+		block netL, 0.004, 0.004
+		del 1
+	next j
+endif
+hotspot 0, 0, 0
+hotspot netL, netW, 0
+del 2
+if stepH > 0.001 then cutend
