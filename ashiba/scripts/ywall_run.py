@@ -10,6 +10,7 @@
   python3 scripts/ywall_run.py --kind tatekomi --model TS1 --depth 2500       # たて込み簡易土留め
   python3 scripts/ywall_run.py --kind smw --model 650 --core-every 2          # SMW φ650・芯材 1本おき
   python3 scripts/ywall_run.py --support wale --depth 5000                  # 腹起し・切梁を描く（auto は深さ 3m を超えたら・none は自立）
+  python3 scripts/ywall_run.py --support grid --depth 7000                  # 縦横の切梁（上下段）と交点の中間杭
   python3 scripts/ywall_run.py --list                            # 種類と型式の一覧
   python3 scripts/ywall_run.py --remove                          # 置いた山留め壁を消す
 
@@ -17,6 +18,8 @@
 閉じた線は中が根切り、開いた線は線の右が根切り（線を引いた向き）。線は 親杭・SMW・鋼管は芯、鋼矢板は壁の中心線、たて込みは
 土留め板の外面。部品はレイヤー「仮設_山留め」に。控えは ashiba_out/山留め壁.json（根切り図が山留めとして読む）、
 数量と検定は ashiba_out/山留め壁.md.
+縦横の切梁（--support grid、auto は広い根切り）は、切梁と中間杭を部品 ashiba_shiho で1本ずつ置く（割付は src/ashiba/shiho.py。
+控えの shiho_guids）。手で引いた線から切梁・腹起しを置くのは scripts/shiho_run.py.
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 PART = "ashiba_ywall"
 RECORD = "山留め壁.json"
 LAYER = "仮設_山留め"
-SUPPORTS = {"自動（深さ 3m を超えたら腹起し・切梁）": "auto", "腹起し・切梁を描く": "wale", "自立（腹起し・切梁なし）": "none"}
+SUPPORTS = {"自動（深さ 3m を超えたら腹起し・切梁。広い根切りは縦横）": "auto", "腹起し・切梁（1方向）": "wale",
+            "縦横の切梁（上下段）＋中間杭": "grid", "自立（腹起し・切梁なし）": "none"}
+SHIHO_PART = "ashiba_shiho"
 
 
 def models_of(kind: str) -> list[str]:
@@ -64,7 +69,8 @@ def wall_from(rec: dict):
                 depth=rec["depth"], stages_mm=rec.get("stages", []), top_up=rec.get("top_up", 0.0), embed=rec.get("embed"),
                 model=rec.get("model", ""), pitch=rec.get("pitch", RT.PILE_PITCH_MM), lag_t=rec.get("lag_t", RT.LAG_T_MM),
                 kakari=rec.get("kakari"), core=rec.get("core", ""), core_every=rec.get("core_every", 1),
-                tube_d=rec.get("tube_d", RT.TUBE_D_MM), tube_t=rec.get("tube_t", RT.TUBE_T_MM), support=rec.get("support", "auto"))
+                tube_d=rec.get("tube_d", RT.TUBE_D_MM), tube_t=rec.get("tube_t", RT.TUBE_T_MM), support=rec.get("support", "auto"),
+                strut_hiuchi=rec.get("strut_hiuchi", True))
     return RT.plan(w)
 
 
@@ -93,8 +99,10 @@ def ask(a, n_lines: int, closed: bool) -> bool:
             {"key": "depth", "label": "根切りの深さ GL から mm（正）", "kind": "number", "value": f"{a.depth:.0f}"},
             {"key": "stages", "label": "1次・2次…根切りの底 GL から mm（カンマ区切り。空＝腹起しがあれば その下端＋1.0m ごと、無ければ1回）",
              "kind": "text", "value": a.stages or ""},
-            {"key": "support", "label": "腹起し・切梁（H-300・壁から 100・ブラケット 2m ピッチ・切梁 5m 以下）", "kind": "choice",
+            {"key": "support", "label": "腹起し・切梁（H-300・壁から 100・ブラケット 2m ピッチ・切梁 5m 以下。縦横は交点に中間杭）", "kind": "choice",
              "options": list(SUPPORTS), "value": next(k for k, v in SUPPORTS.items() if v == (a.support or "auto"))},
+            {"key": "hiuchi", "label": "切梁火打ち（切梁の両端の左右・45°）", "kind": "choice", "options": ["入れる", "入れない"],
+             "value": "入れない" if a.no_strut_hiuchi else "入れる"},
             {"key": "embed", "label": "根入れ mm（空＝種類の既定: 親杭 1500・鋼矢板 3000・軽量 深さの1/2・アルミ 200）", "kind": "number",
              "value": "" if a.embed is None else f"{a.embed:.0f}"},
             {"key": "top_up", "label": "天端 GL から上 mm", "kind": "number", "value": f"{a.top_up:.0f}"},
@@ -127,6 +135,7 @@ def ask(a, n_lines: int, closed: bool) -> bool:
     a.stages = str(v.get("stages") or "")
     a.core_every = 2 if str(v.get("core_every")) == "1本おき" else 1
     a.support = SUPPORTS.get(str(v.get("support")), a.support or "auto")
+    a.no_strut_hiuchi = str(v.get("hiuchi")) == "入れない"
     return True
 
 
@@ -184,17 +193,31 @@ YW_STRUT = "切梁:山留め壁:"          # 切梁上の足場の控え（山�
 
 def struts_for(out_dir: Path, guids=None) -> dict:
     """山留め壁の切梁 → {控えの鍵: 梁の形（excav_run の切梁と同じ ca・cb・u・length・width・depth・top・bottom・ang）}.
-    向かい合う辺の半分ずつを1本にまとめる。guids を渡せばその部品を含む山留めだけ."""
+    向かい合う辺の半分ずつを1本にまとめる。guids を渡せばその部品を含む山留めだけ（縦横の切梁と、手で引いた切梁 scripts/shiho_run.py
+    は、選んだ切梁の部品だけ。山留め壁の辺の部品を選べばその山留めの全部）."""
     from ashiba import retaining as RT
 
+    want = {g.upper() for g in guids} if guids is not None else None
+    out = {}
+    try:
+        man = json.loads((Path(out_dir) / "支保工.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        man = {}
+    if man.get("lines"):
+        from shiho_run import build
+
+        mg = [g.upper() for g in man.get("guids", [])]
+        ms = build(man)
+        pick = [m for m, g in zip(ms, mg) if want is None or g in want]
+        out.update(member_struts(pick, float(man.get("gl", 0.0)), f"{YW_STRUT}手"))
     try:
         rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
-    want = {g.upper() for g in guids} if guids is not None else None
-    out = {}
+        return out
     for v in rec.values():
-        if want is not None and not want & {g.upper() for g in v.get("guids", [])}:
+        whole = want is None or bool(want & {g.upper() for g in v.get("guids", [])})
+        sg = [g.upper() for g in v.get("shiho_guids", [])]
+        if not whole and not (want & set(sg)):
             continue
         try:
             w = wall_from(v)
@@ -203,6 +226,13 @@ def struts_for(out_dir: Path, guids=None) -> dict:
         if not w.wales:
             continue
         H, B, *_ = RT.H_SHAPES[RT.wale_shape(w)[0]]
+        if RT.use_grid(w):
+            from ashiba import shiho as SH
+
+            ms = SH.grid(w)
+            pick = ms if whole else [m for m, g in zip(ms, sg) if g in want]
+            out.update(member_struts(pick, float(v.get("gl", 0.0)), f"{YW_STRUT}{w.name}"))
+            continue
         f = RT.face_offset(w) + RT.WALE_GAP_MM + H
         for e in w.edges:
             ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
@@ -224,6 +254,23 @@ def struts_for(out_dir: Path, guids=None) -> dict:
     return out
 
 
+def member_struts(members, gl: float, prefix: str) -> dict:
+    """支保工の部材（shiho.Member）の切梁 → struts_for と同じ梁の形の辞書."""
+    from ashiba import retaining as RT
+
+    out = {}
+    for m in members:
+        if m.kind != "strut" or m.length <= 0:
+            continue
+        H, B, *_ = RT.H_SHAPES[m.shape]
+        u = ((m.b[0] - m.a[0]) / m.length, (m.b[1] - m.a[1]) / m.length)
+        mid = (round((m.a[0] + m.b[0]) / 2000.0), round((m.a[1] + m.b[1]) / 2000.0), round(m.z))
+        top = gl - m.z + H / 2.0
+        out[f"{prefix}:{mid[0]}:{mid[1]}:{mid[2]}"] = {"ca": tuple(m.a), "cb": tuple(m.b), "u": u, "length": m.length, "width": B,
+                                                       "depth": H, "top": top, "bottom": top - H, "ang": m.angle}
+    return out
+
+
 def sheet_info(out_dir: Path, name: str) -> dict:
     """山留め壁 name の、根切り・山留計画図に書く要点（種類・型式の注記・天端・長さ・根入れ・腹起しの段・根切りの段）."""
     from ashiba import retaining as RT
@@ -240,11 +287,63 @@ def sheet_info(out_dir: Path, name: str) -> dict:
     except (KeyError, ValueError):
         return {}
     shape = RT.wale_shape(w)[0] if w.wales else ""
-    return {"name": w.name, "kind": RT.KIND_LABELS[w.kind], "label": RT.label(w), "top_up": w.top_up, "depth": w.depth,
+    lens = sorted({round(2 * v) for e in w.edges for v in e.strut_len if v > 0})
+    grid = RT.use_grid(w)
+    piles = []
+    from ashiba import shiho as SH
+
+    if grid:
+        ms = SH.grid(w)
+        lens = sorted({round(m.length, -2) for m in ms if m.kind == "strut"})
+        piles = [[round(m.a[0], 1), round(m.a[1], 1)] for m in ms if m.kind == "pile"]
+    lines = {}                                             # 切梁伏図の線（段をまとめて平面の線1本）
+    segs = [(*s["ca"], *s["cb"]) for s in struts_for(out_dir, v.get("guids", [])).values()]
+    segs += [(*m.a, *m.b) for m in SH.members(w) if m.kind == "hiuchi"]
+    if w.wales:
+        fw = RT.face_offset(w) + RT.WALE_GAP_MM + RT.H_SHAPES[shape][0]
+        for e in w.edges:                                  # 隅火打ち（始めの角。部品の中の線と同じ）
+            if e.hiuchi:
+                ux, uy = (e.b[0] - e.a[0]) / e.length, (e.b[1] - e.a[1]) / e.length
+                at = lambda x, d: (e.a[0] + ux * x + uy * d, e.a[1] + uy * x - ux * d)   # noqa: E731
+                segs.append((*at(fw, fw + RT.HIUCHI_LEG_MM), *at(fw + RT.HIUCHI_LEG_MM, fw)))
+    for sg in segs:
+        q = [round(c, 1) for c in sg]
+        lines[tuple(round(c, -1) for c in q)] = q
+    return {"grid": grid, "strut_lens": lens, "piles": len(piles), "pile_len": w.depth + w.embed_mm if piles else 0.0,
+            "plan_struts": list(lines.values()), "plan_piles": piles, "name": w.name, "kind": RT.KIND_LABELS[w.kind], "label": RT.label(w), "top_up": w.top_up, "depth": w.depth,
             "embed": w.embed_mm, "length": w.wall_len, "wales": list(w.wales), "wale": shape,
             "wale_h": RT.H_SHAPES[shape][0] if shape else 0.0, "struts": any(e.strut_x for e in w.edges),
             "strut_len": max((2 * v for e in w.edges for v in e.strut_len), default=0.0),
             "stages": [[s.name, s.bottom] for s in w.stages]}
+
+
+def wall_members(w):
+    from ashiba import shiho as SH
+
+    return SH.members(w)
+
+
+def place_members(c, members, gl: float, li: int, pens: dict) -> list[str]:
+    """支保工の部材を部品 ashiba_shiho で1本ずつ置く（レイヤー li）. 置いた GUID."""
+    import run_from_archicad as R
+    from ashiba import shiho as SH
+    from excav_run import _place
+
+    part = R.versioned_part_name(SHIHO_PART)
+    guids = []
+    for m in members:
+        el = _place(c, part, m.a, gl, m.angle)
+        if el is None:
+            continue
+        c.set_gdl_parameters(el, {**SH.part_params(m), **pens})
+        guids.append(el["elementId"]["guid"])
+    if guids:
+        try:
+            c.tapir("SetDetailsOfElements", {"elementsWithDetails": [
+                {"elementId": {"guid": g}, "details": {"layerIndex": li}} for g in guids]})
+        except Exception:  # noqa: BLE001 — レイヤーに移せなくても置いたものは残す
+            pass
+    return guids
 
 
 def layer_index(c) -> int:
@@ -274,8 +373,9 @@ def main(argv=None) -> int:
     ap.add_argument("--lag-t", dest="lag_t", type=float, default=None, help="横矢板の厚さ mm")
     ap.add_argument("--kakari", type=float, default=None, help="掛かり代 mm（省くと矢板の厚さ）")
     ap.add_argument("--core-every", dest="core_every", type=int, default=None, choices=(1, 2), help="SMW の芯材 1＝全孔・2＝1本おき")
-    ap.add_argument("--support", default=None, choices=("auto", "wale", "none"),
-                    help="腹起し・切梁（auto＝深さ 3m を超えたら・wale＝描く・none＝自立）")
+    ap.add_argument("--support", default=None, choices=("auto", "wale", "grid", "none"),
+                    help="腹起し・切梁（auto＝深さ 3m を超えたら・wale＝1方向・grid＝縦横＋中間杭・none＝自立）")
+    ap.add_argument("--no-strut-hiuchi", dest="no_strut_hiuchi", action="store_true", help="切梁火打ちを入れない")
     ap.add_argument("--tube", default="", help="鋼管矢板の 外径×板厚 mm（例 800x12）")
     ap.add_argument("--gl", type=float, default=None, help="GL の高さ mm（プロジェクトの 0 から）")
     ap.add_argument("--list", action="store_true", help="種類と型式の一覧")
@@ -301,7 +401,7 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = {}
     if a.remove:
-        n = _delete_alive(c, [g for v in rec.values() for g in v.get("guids", [])])
+        n = _delete_alive(c, [g for v in rec.values() for g in v.get("guids", []) + v.get("shiho_guids", [])])
         rec_path.write_text("{}", encoding="utf-8")
         print(f"山留め壁: 部品 {n}個を消しました")
         return 0
@@ -310,7 +410,7 @@ def main(argv=None) -> int:
         print("山留め壁: 山留めの線（ポリライン・線。閉じた線は中が根切り、開いた線は線の右が根切り）を選んでから押してください")
         return 1
     asked = all(getattr(a, k) is None for k in ("kind", "depth", "stages", "embed", "top_up", "pitch", "lag_t", "kakari",
-                                                 "core_every", "gl", "support")) and not a.model
+                                                 "core_every", "gl", "support")) and not a.model and not a.no_strut_hiuchi
     a.kind = a.kind or "oyagui"
     a.depth = 3000.0 if a.depth is None else a.depth
     a.top_up = 0.0 if a.top_up is None else a.top_up
@@ -348,7 +448,7 @@ def main(argv=None) -> int:
     for n, (key, pts, closed) in enumerate(lines, 1):
         old = rec.pop(key, None)
         if old:
-            _delete_alive(c, old.get("guids", []))
+            _delete_alive(c, old.get("guids", []) + old.get("shiho_guids", []))
         name = a.name if (a.name and len(lines) == 1) else (old or {}).get("name")
         if not name:
             while f"山留め{nxt}" in used:
@@ -359,7 +459,7 @@ def main(argv=None) -> int:
         entry = {"name": name, "kind": a.kind, "model": a.model or RT.default_model(a.kind), "pts": [list(p) for p in pp],
                  "closed": closed, "gl": a.gl, "depth": a.depth, "stages": stages, "top_up": a.top_up, "embed": a.embed,
                  "pitch": a.pitch, "lag_t": a.lag_t, "kakari": a.kakari, "core_every": a.core_every, "tube_d": tube_d, "tube_t": tube_t,
-                 "support": a.support}
+                 "support": a.support, "strut_hiuchi": not a.no_strut_hiuchi}
         w = wall_from(entry)
         entry["pts"] = [list(p) for p in w.pts]            # 向きをそろえた点
         guids = []
@@ -377,10 +477,13 @@ def main(argv=None) -> int:
             except Exception:  # noqa: BLE001 — レイヤーに移せなくても置いたものは残す
                 pass
         entry["guids"] = guids
+        entry["shiho_guids"] = place_members(c, wall_members(w), a.gl, li, pens)
         rec[key] = entry
-        placed += len(guids)
+        placed += len(guids) + len(entry["shiho_guids"])
         bad = [f"{x.item} {x.status}" for x in w.checks if x.status in ("NG", "WARN")]
-        print(f"  山留め壁 {name}: {RT.label(w)}・辺 {len(w.edges)}・周長 {w.perimeter / 1000:.1f}m" + (f"・要確認 {'・'.join(bad)}" if bad else ""))
+        ns = len(entry["shiho_guids"])
+        print(f"  山留め壁 {name}: {RT.label(w)}・辺 {len(w.edges)}・周長 {w.perimeter / 1000:.1f}m" + (f"・切梁・火打ち・中間杭 {ns}本" if ns else "")
+              + (f"・要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     walls = []
     for v in rec.values():

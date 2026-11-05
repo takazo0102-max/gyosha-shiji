@@ -1,0 +1,112 @@
+﻿! 山留め支保工: 並びを読む（m）
+dim sgv[]
+nSg = 0
+rest = sgL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSg = nSg + 1
+		sgv[nSg] = v / 1000
+	endif
+endwhile
+dim sgk[]
+nSgT = 0
+rest = sgT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nSgT = nSgT + 1
+		sgk[nSgT] = v / 1
+	endif
+endwhile
+dim xcv[]
+nXc = 0
+rest = xcX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nXc = nXc + 1
+		xcv[nXc] = v / 1000
+	endif
+endwhile
+dim xchv[]
+nXh = 0
+rest = xcH
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nXh = nXh + 1
+		xchv[nXh] = v / 1000
+	endif
+endwhile
+dim brv[]
+nBr = 0
+rest = brX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nBr = nBr + 1
+		brv[nBr] = v / 1000
+	endif
+endwhile
+dim pkv[]
+nPk = 0
+rest = pkZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nPk = nPk + 1
+		pkv[nPk] = v / 1000
+	endif
+endwhile
+if nSgT < nSg then nSg = nSgT
+if nXh < nXc then nXc = nXh
+zc = -shZ

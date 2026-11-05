@@ -57,6 +57,21 @@ class TestNegiriSheets(unittest.TestCase):
         self.assertIn("1次根切りの底 GL-2,150", sec)
         self.assertNotIn("2次根切りの底", sec)                              # 最後の段は床付け
 
+    def test_grid_struts_on_plan(self):
+        """縦横の切梁: 平面の切梁伏図（切梁の線・中間杭）と凡例、断面はどちらの向きも切梁を描く（利用者の指定 2026-11-06）."""
+        yw = {"name": "山留め1", "kind": "親杭横矢板（H鋼横矢板）", "label": "親杭 H-300", "top_up": 0.0, "depth": 5000.0, "embed": 1500.0,
+              "length": 6500.0, "wales": [1000.0], "wale": "H-300", "wale_h": 300.0, "struts": False, "strut_len": 0.0, "grid": True,
+              "strut_lens": [14400.0, 10400.0], "piles": 2, "pile_len": 6500.0,
+              "plan_struts": [[3000.0, 0.0, 3000.0, 8000.0], [0.0, 4000.0, 12000.0, 4000.0]], "plan_piles": [[3350.0, 4350.0]],
+              "stages": [["1次根切り", 2150.0], ["2次根切り", 5000.0]]}
+        n = negiri_of({**FIG, "ywall": yw})
+        pages = page_list(n)
+        self.assertEqual(pages[0][2].count('stroke="#b03020"'), 2)
+        self.assertIn('fill="#000"/>', pages[0][2])
+        plan = " ".join(x.text for x in svg_shapes(pages[0][2]) if x.kind == "text")
+        self.assertIn("腹起し・切梁（縦横・上下段）", plan)
+        self.assertIn("中間杭 H-300 2本 L=6.5m", plan)
+
     def test_cuts_and_profile(self):
         """既定の断面は深い基礎の真ん中を通る横・縦。断面の掘削面は山留めの所で GL から一般の床付け、基礎で深い床付けへ."""
         n = negiri_of(FIG)

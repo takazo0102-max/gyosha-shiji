@@ -163,6 +163,15 @@ def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
                    'stroke="#000" stroke-width="0.7"/>')
         ya = P(max(n.yamadome, key=lambda p: (p[1], -p[0])))
         out.append(_text(ya[0] + 1.5, ya[1] - 1.5, "山留め（内面）", "ts"))
+    # 切梁伏図（「山留め壁」の切梁は破線、中間杭は黒の四角）
+    for ax, ay, bx, by in (n.ywall or {}).get("plan_struts") or []:
+        (x1p, y1p), (x2p, y2p) = P((ax, ay)), P((bx, by))
+        out.append(f'<line x1="{x1p:.2f}" y1="{y1p:.2f}" x2="{x2p:.2f}" y2="{y2p:.2f}" stroke="#b03020" stroke-width="0.35" '
+                   'stroke-dasharray="3 1"/>')
+    for px, py in (n.ywall or {}).get("plan_piles") or []:
+        q = P((px, py))
+        h = max(0.5, 150.0 / sc)
+        out.append(f'<rect x="{q[0] - h:.2f}" y="{q[1] - h:.2f}" width="{2 * h:.2f}" height="{2 * h:.2f}" fill="#000"/>')
     # 床付けの文字（平らな所の重心。さらに深く掘る所の中なら輪の角寄り）
     for L, rs in n.bottom_rings.items():
         for r in rs:
@@ -225,9 +234,13 @@ def plan_page(n: Negiri, cuts: list) -> tuple[str, str, str]:
             side.append(_text(SIDE_X, y, f"{n.ywall.get('name', '')}: {n.ywall.get('label', '')}", "ts"))
             y += 4.0
             if n.ywall.get("wales"):
-                side.append(_text(SIDE_X, y, f"腹起し・切梁 {n.ywall.get('wale', '')} "
+                side.append(_text(SIDE_X, y, f"腹起し・切梁{'（縦横・上下段）' if n.ywall.get('grid') else ''} {n.ywall.get('wale', '')} "
                                   + "・".join(f"GL-{z:,.0f}" for z in n.ywall["wales"]), "ts"))
                 y += 4.0
+                if n.ywall.get("piles"):
+                    side.append(_text(SIDE_X, y, f"中間杭 H-300 {n.ywall['piles']}本 L={float(n.ywall.get('pile_len', 0)) / 1000:.1f}m"
+                                      "（切梁の交点）", "ts"))
+                    y += 4.0
     for L in n.levels:
         side.append(f'<rect x="{SIDE_X}" y="{y - 3:.2f}" width="12" height="3" fill="{_hex(level_color(n, L))}" stroke="#000" '
                     'stroke-width="0.1"/>')
@@ -422,7 +435,8 @@ def _section(n: Negiri, lab: str, a, b, x0: float, y0: float, w: float, h: float
                                'fill="#b03020" stroke="#000" stroke-width="0.1"/>')
                 # 切梁は狭い向きだけ。この断面の腹起しの間が切梁の長さと合うときに線で描く（長い向きの断面には出ない）
                 span = (t1 - t0) - 2 * (100.0 + hw)
-                along = yw.get("struts") and abs(span - float(yw.get("strut_len") or span)) < 1000.0
+                lens = [float(v) for v in (yw.get("strut_lens") or [yw.get("strut_len") or span])]
+                along = (yw.get("struts") or yw.get("grid")) and any(abs(span - v) < 1000.0 for v in lens)
                 if along:
                     out.append(f'<line x1="{X(t0 + 100.0 + hw):.2f}" y1="{Y(zc):.2f}" x2="{X(t1 - 100.0 - hw):.2f}" y2="{Y(zc):.2f}" '
                                'stroke="#b03020" stroke-width="0.35" stroke-dasharray="3 1"/>')

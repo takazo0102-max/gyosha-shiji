@@ -265,6 +265,18 @@
 			<Description><![CDATA["始めの角の隅火打ちの脚（腹起しの前の面から。0＝無し）"]]></Description>
 			<Value>0</Value>
 		</Length>
+		<Integer Name="wlTier">
+			<Description><![CDATA["縦横の切梁: この辺の腹起しの段（0 下段・1 上段＝H 1本分上）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Boolean Name="cnOn">
+			<Description><![CDATA["縦横の切梁: 始めの角に隅部ピース（上下段の腹起しをつなぐ）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="hiStub">
+			<Description><![CDATA["縦横の切梁: 隅火打ちの前の辺の側に受けの短い腹起し（前の辺の腹起しが別の段）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Boolean Name="capOn">
 			<Description><![CDATA["頭つなぎ（溝形鋼）を描く"]]></Description>
 			<Value>0</Value>
