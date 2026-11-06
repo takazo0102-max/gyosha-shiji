@@ -289,7 +289,11 @@ def part_params(p) -> dict:
     px, ph = pivot(t)
     cwW, cwL, cwH = t.cw or (round(min(t.width) * 2 * 0.8, 3), 1.5, 2.0)
     cbL, cbW, cbZ, cbH = t.cab or (1.8, 1.1, 3.2, 2.1)
-    return {"tcModel": model_code(t.key), "tcType": 1, "tcName": f"{p.name} {t.name}" if p.name else t.name,
+    keys = sorted(k for k in t.rated if k >= p.jib - 1e-6)
+    rows = t.rated[keys[0]] if keys else {}
+    rs = [r for r in sorted(rows) if r <= p.jib + 1e-6]
+    return {"rtR": ",".join(f"{r * 1000:.0f}" for r in rs), "rtT": ",".join(str(int(round(rows[r] * 100))) for r in rs),
+            "tcModel": model_code(t.key), "tcClr": 2 if "JCC" in t.model else 1, "tcType": 1, "tcName": f"{p.name} {t.name}" if p.name else t.name,
             "tcNote": f"{t.model}・ジブ {p.jib:g}m", "slew": 0.0,
             "msW": t.mast_w, "msH": p.mast, "msSeg": t.mast_seg, "baseW": t.base_w, "baseD": 1.5,
             "tailR": t.tail_r, "cwW": cwW, "cwH": cwH, "cwL": cwL,

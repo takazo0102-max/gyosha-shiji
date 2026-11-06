@@ -137,6 +137,20 @@ text2 0, 0, tcName
 if strlen(tcNote) > 0 and drLv < 3 then text2 0, -dT, tcNote
 text2 0, -2 * dT, "R" + str(round_int(hX * 1000), 1, 0) + "・マスト " + str(round_int(msH * 1000), 1, 0)
 del 2
+! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける）と定格荷重の注記
+xF = hX * cos(slew)
+yF = hX * sin(slew)
+hotspot2 0, yF, 61, hfX, 1 + 128
+hotspot2 xF, yF, 62, hfX, 2
+hotspot2 -1, yF, 63, hfX, 3
+hotspot2 xF, 0, 64, hfY, 1 + 128
+hotspot2 xF, yF, 65, hfY, 2
+hotspot2 xF, -1, 66, hfY, 3
+add2 xF, yF
+rot2 -SYMB_ROTANGLE
+if capT > 0 then text2 0.6, dT, "定格 " + str(capT, 5, 2) + "t"
+text2 0.6, 0, "R" + str(round_int(hX * 1000), 1, 0)
+del 2
 ! 旋回角のホットスポット
 rH = max(3.0, tailR)
 hotspot2 0, 0, 1, slew, 6

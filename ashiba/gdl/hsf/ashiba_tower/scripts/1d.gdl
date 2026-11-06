@@ -13,6 +13,47 @@ else
 	hX = jX
 endif
 hZ = max(0.5, jZ - hkD)
+if hkLim and hkMax > 0.1 then hZ = min(hZ, hkMax)
+dim qR[]
+nQr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQr = nQr + 1
+		qR[nQr] = v / 1000
+	endif
+endwhile
+dim qT[]
+nQt = 0
+rest = rtT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQt = nQt + 1
+		qT[nQt] = v / 1
+	endif
+endwhile
+capT = 0
+for i = nQr to 1 step -1
+	if qR[i] >= hX - 0.001 and i <= nQt then capT = qT[i] / 100
+next i
 ! 壁つなぎの高さ（mm の文字 → m）
 dim tz[]
 nTz = 0

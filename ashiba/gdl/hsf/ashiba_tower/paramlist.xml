@@ -165,6 +165,50 @@
 			<Description><![CDATA["壁つなぎの長さ（マストの面から建物まで）"]]></Description>
 			<Value>2.0</Value>
 		</Length>
+		<Length Name="hfX">
+			<Description><![CDATA["フックの位置 X（平面のホットスポット）"]]></Description>
+			<Value>30.0</Value>
+		</Length>
+		<Length Name="hfY">
+			<Description><![CDATA["フックの位置 Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<String Name="rtR">
+			<Description><![CDATA["定格荷重の作業半径（mm。据え付けたジブの表）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtT">
+			<Description><![CDATA["定格荷重（10kg 単位）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="loadT">
+			<Description><![CDATA["吊荷 t"]]></Description>
+			<Value>0.0</Value>
+		</RealNum>
+		<Integer Name="tcClr">
+			<Description><![CDATA["色の組（1 黄・2 赤白）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Boolean Name="tcBase">
+			<Description><![CDATA["ベース（クロスベース）を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="clOn">
+			<Description><![CDATA["クライミング枠を描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Boolean Name="msStep">
+			<Description><![CDATA["マストの高さを節の長さに吸い付ける（段階マスト）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="hkLim">
+			<Description><![CDATA["フックを規定の揚程の範囲に制限する（最大揚程）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="hkMax">
+			<Description><![CDATA["最大揚程（地盤からフックの上限）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Integer Name="avN">
 			<Description><![CDATA["航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）"]]></Description>
 			<Value>0</Value>

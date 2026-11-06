@@ -42,6 +42,7 @@ def paramlist() -> str:
         _param("Length", "carL", "全長", 11.53),
         _param("Length", "carW", "全幅", 2.62),
         _param("Length", "carH", "全高", 3.475),
+        _param("Length", "carB", "旋回中心から車体の後端", 4.155),
         _param("Length", "carF", "旋回中心から前端", 5.4),
         _param("Length", "outF", "旋回中心から前のアウトリガ", 3.265),
         _param("Length", "outR", "旋回中心から後ろのアウトリガ", 3.415),
@@ -97,7 +98,37 @@ def paramlist() -> str:
         _param("Angle", "wrDir", "作業半径の扇の向き（平面のホットスポット）", 0.0),
         _param("Angle", "wrSpan", "作業半径の扇の角度の幅（360＝円）", 360.0),
         _param("Boolean", "travel", "走行姿勢（ブームを最短で前に倒し、アウトリガを畳む）", 0),
-        _param("Boolean", "ldOn", "吊り荷を描く", 1),
+        _param("Boolean", "ldOn", "吊り荷を描く（既定は描かない）", 0),
+        _param("Length", "ldW", "揚重物の幅", 1.5),
+        _param("Length", "ldD", "揚重物の奥行き", 1.5),
+        _param("Length", "ldH", "揚重物の高さ", 1.0),
+        _param("Length", "ldS", "吊りしろ（フックの下端から揚重物の上面）", 1.6),
+        _param("Boolean", "wrOn", "作業半径を 3D に描く", 0),
+        _param("Boolean", "wrShow", "作業半径を平面に描く", 1),
+        _param("Boolean", "wrFlip", "作業半径の文字を反転する", 0),
+        _param("Boolean", "bmStep", "ブームの長さを性能表の段に吸い付ける（段階ブーム。長さ優先のとき）", 0),
+        _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
+        _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
+        _param("Integer", "clr", "色の組（1 タダノ 白と青・2 加藤 黄と濃灰・3 灰）", 1),
+        _param("Length", "ftZ", "フートピンの高さ（上部原点から）", 1.71),
+        _param("Length", "jkUp", "作業時にキャリヤが上がる量", 0.28),
+        _param("Integer", "otKind", "アウトリガの形（1 H 型・2 X 型）", 1),
+        _param("Length", "jkR", "ジャッキのロッドの半径", 0.05),
+        _param("Integer", "cwN", "カウンタウエイトの段", 2),
+        _param("Integer", "cyN", "起伏シリンダの本数", 1),
+        _param("Length", "cyLf", "下ピン（フートピンから前）", 1.05),
+        _param("Length", "cyLd", "下ピン（フートピンから下）", 0.85),
+        _param("Length", "cyUa", "上ピン（ブームの軸方向）", 3.365),
+        _param("Length", "cyUb", "上ピン（ブームの軸の下）", 0.725),
+        _param("Length", "cyD", "シリンダのチューブの径", 0.268),
+        _param("Length", "cyR", "シリンダのロッドの径", 0.18),
+        _param("Length", "cyT", "シリンダのチューブの長さ", 2.143),
+        _param("Integer", "bmSec", "ブームの断面（1 ラウンド・2 六角・3 箱）", 1),
+        _param("Boolean", "jbSt", "格納したジブを描く", 1),
+        _param("Integer", "shN", "ブームの先の主シーブの枚数", 4),
+        _param("Integer", "fallN", "ワイヤの掛数", 8),
+        _param("Length", "hkDm", "フックブロックの径", 0.44),
+        _param("Length", "hkHt", "フックの高さ", 1.0),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
         "\t\t\t<Value>1</Value>\n\t\t</PenColor>\n",        *gdl_draft.params(),
@@ -139,7 +170,8 @@ srr = ""
 SCRIPT_1D = ("﻿! 移動式クレーン: 姿勢（作業半径・ブーム）・定格総荷重表・車軸（m）\n" + _parse_all("wrR", "wr", "nWr")
              + _parse_all("rtB", "rb", "nRb") + _parse_all("rtS", "ss", "nSs") + SPREAD_PICK + _parse_all("srr", "rr", "nRr")
              + "".join(_parse_all(f"sc{k}", f"tc{k}", f"nTc{k}") for k in range(1, 13)) + _parse_all("axS", "ax", "nAx")
-             + """carRr = carL - carF
+             + """carRr = carB
+carLn = carF + carB
 plT = 0.022
 plA = 1.524
 plB = 3.048
@@ -317,7 +349,7 @@ line_type ltZ
 circle2 0, 0, tailR
 line_type ltC
 ! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
-nC = nWr + 1
+nC = (nWr + 1) * wrShow
 for i = 1 to nC
 	rC = tipX
 	if i <= nWr then rC = wr[i]
@@ -336,7 +368,7 @@ for i = 1 to nC
 	if i <= nWr then
 		pen penEquip
 		add2 rC * cos(aT), rC * sin(aT)
-		rot2 -SYMB_ROTANGLE
+		rot2 -SYMB_ROTANGLE + 180 * wrFlip
 		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
 		del 2
 		pen pZ
@@ -354,7 +386,7 @@ if rMin > 0.1 and travel = 0 then
 	pen pZ
 endif
 line_type ltS
-if wrSpan < 359.9 then
+if wrSpan < 359.9 and wrShow then
 	line_type ltC
 	rM = tipX
 	for i = 1 to nWr
@@ -550,10 +582,33 @@ SCRIPT_2D = _script_2d()
 
 
 SCRIPT_3D = """﻿! 移動式クレーン 3D（タダノ GR-250N・GR-500N・GR-700N の寸法の目安）
-define material "cr_body" 2, 0.92, 0.93, 0.94
-define material "cr_blue" 2, 0.15, 0.30, 0.60
-define material "cr_boom" 2, 0.95, 0.95, 0.92
-define material "cr_cw" 2, 0.30, 0.31, 0.33
+! ---- 色の組（1 タダノ 白と青・2 加藤 黄と濃灰・3 灰）。同じ名前の define material は 1回だけ ----
+bR = 0.94
+bG = 0.96
+bBl = 0.97
+fR = 0.03
+fG = 0.34
+fBl = 0.66
+if clr = 2 then
+	bR = 0.97
+	bG = 0.78
+	bBl = 0.03
+	fR = 0.20
+	fG = 0.22
+	fBl = 0.22
+endif
+if clr = 3 then
+	bR = 0.70
+	bG = 0.72
+	bBl = 0.74
+	fR = 0.30
+	fG = 0.31
+	fBl = 0.33
+endif
+define material "cr_body" 2, bR, bG, bBl
+define material "cr_blue" 2, fR, fG, fBl
+define material "cr_boom" 2, bR, bG, bBl
+define material "cr_cw" 2, 0.22, 0.23, 0.24
 define material "cr_steel" 2, 0.55, 0.57, 0.60
 define material "cr_plate" 2, 0.35, 0.36, 0.38
 define material "cr_tire" 2, 0.10, 0.10, 0.10
@@ -561,9 +616,22 @@ define material "cr_hook" 2, 0.95, 0.75, 0.10
 define material "cr_load" 2, 0.70, 0.50, 0.30
 define material "cr_glass" 2, 0.30, 0.45, 0.60
 define material "cr_rim" 2, 0.80, 0.80, 0.78
+define material "cr_lamp" 2, 0.95, 0.60, 0.10
+define material "cr_head" 2, 0.92, 0.93, 0.85
+define material "cr_tail" 2, 0.75, 0.10, 0.10
 resol 16
 plH = plT * plN
-! ---- 敷鉄板（アウトリガ1脚に plN 枚。2枚は十字）とフロート・ジャッキ・アウトリガのビーム ----
+! 高さの基準（加藤の DXF の上部原点。作業時はキャリヤが jkUp 上がってタイヤが浮く）
+cUp = jkUp * (travel = 0)
+cTop = pivH - ftZ - jkUp
+uZ = cTop + cUp
+sX = pivB / 2.6
+sZ = ftZ / 1.71
+xT = tailR / sX
+hwU = min(carW / 2 - 0.05, 0.477 * carW)
+yP = bmW / 2 + 0.05
+zB = cTop + cUp - 0.48
+! ---- 敷鉄板（アウトリガ1脚に plN 枚。2枚は十字）とフロート・ジャッキ・アウトリガの外箱と内箱 ----
 for e = -1 to 1 step 2
 	xo = outF
 	if e < 0 then xo = -outR
@@ -572,65 +640,125 @@ for e = -1 to 1 step 2
 		if e > 0 and s < 0 then lg = lFR
 		if e < 0 and s > 0 then lg = lRL
 		if e < 0 and s < 0 then lg = lRR
+		if travel then lg = carW / 2 - 0.05
 		xs = xo - (s < 0) * outSh
 		yo = s * lg
-		yp = s * lg
-		material "cr_steel"
-		add xs - 0.15, min(0, yo), 1.0
-		block 0.3, abs(yo), 0.25
-		del 1
 		if plDraw then
 			material "cr_plate"
-			add xs - plB / 2, yp - plA / 2, 0
+			add xs - plB / 2, yo - plA / 2, 0
 			block plB, plA, plT
 			del 1
 			if plN >= 2 then
-				add xs - plA / 2, yp - plB / 2, plT
+				add xs - plA / 2, yo - plB / 2, plT
 				block plA, plB, plT
 				del 1
 			endif
 		endif
-		material "cr_steel"
+		! 箱（H 型は真横、X 型は車体の芯の近くから斜めに出る）
+		xb = xs
+		if otKind = 2 then xb = xo * 0.62
+		dxO = xs - xb
+		lO = sqr(dxO * dxO + yo * yo)
+		aO = 90 * s
+		if abs(dxO) > 0.0001 then aO = atn(yo / dxO) + 180 * (dxO < 0)
+		lOut = min(lO, (carW / 2) / max(0.2, abs(sin(aO))))
+		add xb, 0, zB
+		rotz aO
+		material "cr_blue"
+		add 0, -0.17, 0
+		block lOut, 0.34, 0.44
+		del 1
+		! 内箱（伸ばした分が見える）と先の縦の箱
+		material "cr_body"
+		if lO > lOut then
+			add lOut - 0.05, -0.12, 0.05
+			block lO - lOut + 0.05, 0.24, 0.32
+			del 1
+		endif
+		del 2
+		material "cr_blue"
+		add xs - 0.19, yo - 0.19, zB - 0.04
+		block 0.38, 0.38, 0.54
+		del 1
+		! ジャッキ（チューブとロッド）とフロート
 		zf = plH
-		if travel then zf = 0.6
+		if travel then zf = zB - 0.5
+		material "cr_steel"
 		if fltA > 0.01 then
 			add xs - fltB / 2, yo - fltA / 2, zf
-			block fltB, fltA, 0.06
+			block fltB, fltA, 0.07
 			del 1
 		else
 			add xs, yo, zf
-			cylind 0.06, fltD / 2
+			cylind 0.07, fltD / 2
 			del 1
 		endif
-		add xs, yo, zf + 0.06
-		cylind 1.0 - zf - 0.06, 0.09
+		add xs, yo, zf + 0.07
+		cone 0.1, jkR * 1.5, jkR, 90, 90
+		del 1
+		add xs, yo, zf + 0.15
+		cylind max(0.05, zB - zf - 0.15), jkR
+		del 1
+		material "cr_blue"
+		zt = max(zf + 0.2, zB - 0.65)
+		add xs, yo, zt
+		cylind zB - zt, jkR * 1.4
 		del 1
 	next s
 next e
-! ---- 車体（シャシ・タイヤ）----
-material "cr_body"
-add -carRr, -carW / 2 + 0.1, 0.75
-block carL, carW - 0.2, 0.75
+! ---- キャリヤ（作業時は jkUp 上がる）----
+add 0, 0, cUp
+material "cr_blue"
+add -carRr, -carW / 2 + 0.12, 0.62
+block carLn, carW - 0.24, cTop - 0.62
+del 1
+! デッキ（上面の板）と前後の傾き
+material "cr_cw"
+add -carRr + 0.05, -carW / 2 + 0.1, cTop - 0.02
+block carLn - 0.1, carW - 0.2, 0.02
 del 1
 material "cr_blue"
-add -carRr, -carW / 2 + 0.1, 0.75
-block carL, 0.02, 0.3
-del 1
-add -carRr, carW / 2 - 0.12, 0.75
-block carL, 0.02, 0.3
-del 1
+! 後ろのエンジン室（旋回体の後端より後ろだけ）と煙突・ガラリ
+xH = -tailR - 0.12
+if xH + carRr > 0.3 then
+	material "cr_body"
+	add -carRr + 0.03, -carW / 2 + 0.16, cTop
+	block xH + carRr - 0.03, carW - 0.32, 0.5
+	del 1
+	material "cr_cw"
+	for i = 0 to 5
+		add -carRr + 0.08 + i * (xH + carRr - 0.1) / 6, carW / 2 - 0.5, cTop + 0.5
+		block (xH + carRr - 0.1) / 9, 0.32, 0.012
+		del 1
+	next i
+	material "cr_steel"
+	add -carRr + 0.25, -carW / 2 + 0.4, cTop + 0.5
+	cylind 0.55, 0.06
+	del 1
+endif
+! 前の縞板のデッキの手すり
+material "cr_cw"
+xFd = max(tailR * 0, cbX1 + 0.35)
+if carF - xFd > 0.4 then
+	add xFd, -carW / 2 + 0.12, cTop
+	block carF - xFd - 0.08, carW - 0.24, 0.18
+	del 1
+endif
 for i = 1 to nAx
 	for s = -1 to 1 step 2
-		! タイヤとホイール（リム）
+		! タイヤ（作業時は地面から上がる）・ホイール・ハブ・ボルト
 		material "cr_tire"
-		add ax[i], s * (carW / 2 - whW / 2 - 0.02), whR + 0.05
+		add ax[i], s * (carW / 2 - whW / 2 - 0.02), whR + 0.05 - jkUp * 0
 		rotx 90
 		addz -whW / 2
 		cylind whW, whR
+		material "cr_blue"
+		addz -0.012
+		cylind whW + 0.024, whR * 0.52
 		material "cr_rim"
-		addz -0.01
-		cylind whW + 0.02, whR * 0.55
-		del 4
+		addz -0.012
+		cylind whW + 0.048, whR * 0.22
+		del 5
 		! フェンダー（タイヤの上）
 		material "cr_body"
 		add ax[i] - whR - 0.1, s * (carW / 2 - 0.02) - (s + 1) * (whW + 0.06) / 2, 2 * whR + 0.08
@@ -638,13 +766,56 @@ for i = 1 to nAx
 		del 1
 	next s
 next i
-! バンパー（前後）
+! バンパー（前後）・ランプ・ミラー
 material "cr_cw"
-add carL - carRr - 0.05, -carW / 2 + 0.15, 0.6
+add carF - 0.1, -carW / 2 + 0.15, 0.6
 block 0.15, carW - 0.3, 0.35
 del 1
 add -carRr - 0.1, -carW / 2 + 0.15, 0.6
 block 0.15, carW - 0.3, 0.35
+del 1
+for s = -1 to 1 step 2
+	material "cr_head"
+	add carF + 0.05, s * (carW / 2 - 0.4) - 0.1, 0.98
+	block 0.01, 0.2, 0.12
+	del 1
+	material "cr_lamp"
+	add carF + 0.05, s * (carW / 2 - 0.65) - 0.05, 0.98
+	block 0.01, 0.1, 0.12
+	del 1
+	material "cr_tail"
+	add -carRr - 0.11, s * (carW / 2 - 0.4) - 0.12, 0.98
+	block 0.01, 0.24, 0.12
+	del 1
+	! 前のミラー（棒の先の丸い鏡）
+	material "cr_cw"
+	x0q = carF - 0.3
+	y0q = s * (carW / 2 - 0.15)
+	z0q = cTop + 0.05
+	x1q = carF - 0.15
+	y1q = s * (carW / 2 + 0.2)
+	z1q = cTop + 0.75
+	rq = 0.015
+	gosub "seg3"
+	add x1q, y1q, z1q
+	roty 90
+	cylind 0.03, 0.12
+	del 2
+next s
+! 前のはしごと横の昇降ステップ
+material "cr_steel"
+for k = 0 to 3
+	add carF + 0.03, -carW / 2 + 0.35, 0.55 + k * (cTop - 0.55) / 4
+	block 0.04, 0.48, 0.025
+	del 1
+next k
+for s = -1 to 1 step 2
+	for k = 0 to 2
+		add -0.45, s * (carW / 2 + 0.02) - 0.14, 0.45 + k * (cTop - 0.5) / 3
+		block 0.9, 0.14, 0.025
+		del 1
+	next k
+next s
 del 1
 ! ブームの先を平面のどの向きにも引く（平面の 1〜3・31〜33 と同じ組）
 if travel = 0 then
@@ -658,112 +829,357 @@ if travel = 0 then
 	hotspot xF, yF, zF, 45, hfY, 2
 	hotspot xF, -1, zF, 46, hfY, 3
 endif
-! ---- 上部旋回体（旋回角 slew で回す）----
+! ---- 上部旋回体（旋回角 slew で回す。Z は上部原点から。外形は加藤 SR-250RfⅡ の DXF を機種の根元の位置で伸ばす）----
 rotz slD
+add 0, 0, uZ
+material "cr_cw"
+cylind 0.1 * sZ, 0.7 * sX
+add -1.48 * sX, -hwU + 0.1, 0.1 * sZ
+block 2.88 * sX, 2 * hwU - 0.2, 0.05 * sZ
+del 1
+mul sX, 1, sZ
+! 運転室の反対の箱と、運転室の下の箱（後ろは斜めに下がる）
+material "cr_body"
+yA = 0.43 * bmW / 0.53
+yB = hwU
+put -1.48, 0.15, -1.68, 0.39, -2.34, 0.6, -2.68, 0.6, -2.68, 1.28, -2.24, 1.28, -1.73, 1.155, -1.73, 0.15
+gosub "sideP"
+yB = -yA
+yA = -hwU
+put -1.48, 0.15, -1.68, 0.39, -2.34, 0.6, -2.68, 0.6, -2.68, 1.28, -2.24, 1.28, -1.68, 1.155, -0.29, 0.825, -0.29, 0.15
+gosub "sideP"
+! フートの側板 2 枚（ブームの根元を受ける。上端はピンの上へ出る）
+material "cr_blue"
+for s = -1 to 1 step 2
+	yA = s * yP - 0.05
+	yB = s * yP + 0.05
+	put -2.77, 1.865, -2.37, 1.865, -0.655, 1.3, -0.255, 1.065, -0.29, 0.15, -1.48, 0.15, -2.455, 1.28, -2.76, 1.64
+	gosub "sideP"
+next s
+del 1
+! カウンタウエイト（後ろの丸い面。半径 tailR）と段の目地
+material "cr_cw"
+aC = asn(min(0.98, hwU / tailR))
+xC = 2.68 * sX
+for k = 0 to 8
+	aq = 180 + aC - k * aC / 4
+	put tailR * cos(aq), tailR * sin(aq)
+next k
+put -xC, -hwU, -xC, hwU
+add 0, 0, 0.6 * sZ
+prism nsp / 2, 0.68 * sZ, get(nsp)
+del 1
 material "cr_steel"
-add 0, 0, 1.5
-cylind 0.2, 1.0
-del 1
-material "cr_body"
-add -tailR + 0.7, -1.1, 1.7
-block tailR - 0.7 + 1.0, 2.2, 0.9
-del 1
-! カウンタウエイト（段付き）とエンジンカバー
-material "cr_cw"
-add -tailR, -1.1, 1.7
-block 0.7, 2.2, 0.75
-del 1
-add -tailR + 0.1, -1.0, 2.45
-block 0.6, 2.0, 0.3
-del 1
-material "cr_body"
-add -tailR + 0.75, 0.15, 2.6
-block 1.3, 0.9, 0.35
-del 1
-material "cr_cw"
-for i = 0 to 4
-	add -tailR + 0.85 + i * 0.22, 0.16, 2.95
-	block 0.12, 0.88, 0.02
+for k = 1 to cwN - 1
+	add -tailR + 0.01, -hwU - 0.005, 0.6 * sZ + k * 0.68 * sZ / cwN
+	block tailR - xC, 2 * hwU + 0.01, 0.012
 	del 1
-next i
-! 運転室（右前。cbX0〜cbX1・ブームの右 cbY0〜cbY1）と窓
-material "cr_body"
-add cbX0, -cbY1, 1.7
-block cbX1 - cbX0, cbY1 - cbY0, 1.65
-del 1
-material "cr_glass"
-add cbX0 + 0.4 * (cbX1 - cbX0), -cbY1 - 0.005, 2.35
-block 0.5 * (cbX1 - cbX0), 0.005, 0.85
-del 1
-add cbX1, -cbY1 + 0.05, 2.2
-block 0.005, cbY1 - cbY0 - 0.1, 1.0
-del 1
-add cbX0 + 0.1, -cbY0, 2.4
-block 0.3 * (cbX1 - cbX0), 0.005, 0.75
-del 1
-! 起伏シリンダ（旋回体からブームの 0.35 の所。太いシリンダと細いロッド）
+next k
+! 吊り金具（目）
 material "cr_steel"
-xe = -pivB + 0.35 * bL * cos(bA)
-ze = pivH + 0.35 * bL * sin(bA)
-x0q = 0.9
-y0q = 0
-z0q = 1.9
-x1q = 0.9 + 0.6 * (xe - 0.9)
-y1q = 0
-z1q = 1.9 + 0.6 * (ze - 1.9)
-rq = 0.13
-gosub "seg3"
-material "cr_rim"
-x0q = x1q
-z0q = z1q
-x1q = xe
-z1q = ze
-rq = 0.07
-gosub "seg3"
-material "cr_steel"
-! ブーム（根元から段ごとに細く）
-add -pivB, 0, pivH
-roty -bA
-nS = max(1, min(8, nBs))
-sL = bL / nS
-for k = 1 to nS
-	bw = bmW - (k - 1) * 0.06
-	ov = 0
-	if k > 1 then ov = 0.05
-	! 箱形の段（角を落とした八角形の断面）
-	material "cr_boom"
-	bh = bw * 1.1
-	cc = bw * 0.12
-	add (k - 1) * sL - ov, 0, 0
-	roty 90
-	prism 8, sL + ov, \
-		-bh / 2, -bw / 2 + cc, -bh / 2 + cc, -bw / 2, bh / 2 - cc, -bw / 2, bh / 2, -bw / 2 + cc, \
-		bh / 2, bw / 2 - cc, bh / 2 - cc, bw / 2, -bh / 2 + cc, bw / 2, -bh / 2, bw / 2 - cc
+for k = -1 to 1 step 2
+	add -2.05 * sX, k * yP, 1.56 * sZ
+	rotx -90
+	cylind 0.03, 0.09
 	del 2
-	! 段の先の継ぎ目の帯
+next k
+! ウインチ（主巻・補巻のドラムとフランジ）
+for k = 0 to 1
+	xD = -pivB - 0.05 + k * 0.72 * sX
+	zD = (1.28 - k * 0.42) * sZ
+	material "cr_cw"
+	add xD, -yP + 0.06, zD
+	rotx -90
+	cylind 2 * yP - 0.12, 0.2 * sZ
+	del 2
+	material "cr_steel"
+	for s = -1 to 1 step 2
+		add xD, s * (yP - 0.08) - 0.02, zD
+		rotx -90
+		cylind 0.04, 0.27 * sZ
+		del 2
+	next s
+next k
+! 後ろの案内シーブ 2 枚と腕
+material "cr_steel"
+xG = -2.91 * sX
+zG = 1.785 * sZ
+for s = -1 to 1 step 2
+	add xG, s * 0.26 - 0.03, zG
+	rotx -90
+	cylind 0.06, 0.165 * sZ
+	del 2
+	x0q = -3.0 * sX
+	y0q = s * 0.26
+	z0q = zG
+	x1q = -2.845 * sX
+	y1q = s * 0.26
+	z1q = 1.28 * sZ
+	rq = 0.03
+	gosub "seg3"
+next s
+! 運転室（側面の多角形。前は下へとがる）
+mul 1, 1, sZ
+material "cr_body"
+yA = -cbY1
+yB = -cbY0
+xb = cbX0
+xf = cbX1
+put xb, 0.15, xb + 0.13, 1.64, xb + 0.2, 1.67, xf - 0.75, 1.67, xf, 0.54, xf - 0.35, 0.15
+gosub "sideP"
+! 窓: 両側のドアの窓、前の大きい窓、後ろの小窓、屋根のひさし
+material "cr_glass"
+for s = 0 to 1
+	yA = -cbY1 - 0.004 + s * (cbY1 - cbY0)
+	yB = yA + 0.008
+	put xb + 0.28, 0.78, xb + 0.28, 1.52, xf - 0.72, 1.52, xf - 0.2, 0.78
+	gosub "sideP"
+next s
+yA = -cbY1 + 0.06
+yB = -cbY0 - 0.06
+put xf - 0.74, 1.62, xf - 0.05, 0.6, xf - 0.02, 0.62, xf - 0.71, 1.65
+gosub "sideP"
+add xb - 0.004, -cbY1 + 0.15, 0.9
+block 0.008, cbY1 - cbY0 - 0.3, 0.55
+del 1
+material "cr_cw"
+add xb + 0.2, -cbY1 - 0.03, 1.67
+block xf - xb - 0.9, cbY1 - cbY0 + 0.06, 0.03
+del 1
+add xb + 0.9 * (xf - xb) * 0.4, -cbY1 - 0.008, 0.78
+block 0.05, 0.012, 0.74
+del 1
+! 運転室の前の足場と手すり（ブームの側）・ミラー・ワイパー
+material "cr_steel"
+add xf - 0.6, -cbY0 + 0.0, 0.4
+block 0.55, cbY0 - 0.04, 0.03
+del 1
+rq = 0.015
+for k = 0 to 1
+	x0q = xf - 0.58 + k * 0.5
+	y0q = -0.1
+	z0q = 0.42
+	x1q = x0q
+	y1q = y0q
+	z1q = 1.25
+	gosub "seg3"
+next k
+x0q = xf - 0.58
+x1q = xf - 0.08
+y0q = -0.1
+y1q = -0.1
+z0q = 1.25
+z1q = 1.25
+gosub "seg3"
+material "cr_cw"
+add xf + 0.1, -cbY1 - 0.1, 1.05
+block 0.03, 0.12, 0.3
+del 1
+del 1
+! 後ろの斜面の階段のステップ
+material "cr_steel"
+for k = 0 to 3
+	add -2.3 * sX + k * 0.17 * sX, hwU - 0.55, (1.27 - k * 0.04) * sZ + 0.012
+	block 0.14 * sX, 0.5, 0.02
+	del 1
+next k
+! フートピンのボスと軸・起伏シリンダの下ピンの軸
+xL = -pivB + cyLf
+zL = ftZ - cyLd
+material "cr_steel"
+add -pivB, -yP - 0.08, ftZ
+rotx -90
+cylind 2 * yP + 0.16, 0.06
+del 2
+for s = -1 to 1 step 2
+	add -pivB, s * (yP + 0.05) - 0.035, ftZ
+	rotx -90
+	cylind 0.07, 0.125
+	del 2
+next s
+add xL, -yP, zL
+rotx -90
+cylind 2 * yP, 0.05
+del 2
+! ---- ブーム（基本ブームは長さ一定、先の段が同じ量ずつ出る。主シーブがブーム長さの先に来るよう軸を少し上へ振る）----
+h1 = bmW * 1.35
+cZ = -0.30 * h1
+sD = 0.82 * h1
+xBt = sqr(max(1, bL * bL - sD * sD))
+bB = bA + atn(sD / xBt)
+nS = max(2, min(8, nBs))
+Lb = bMin * 0.92
+! 起伏シリンダ（下ピンは旋回体、上ピンは基本ブームに固定。ブームを伸ばしても長さは変わらない）
+xU = -pivB + cyUa * cos(bB) + cyUb * sin(bB)
+zU = ftZ + cyUa * sin(bB) - cyUb * cos(bB)
+lC = sqr((xU - xL) ^ 2 + (zU - zL) ^ 2)
+tC = min(cyT, lC - 0.15)
+for k = 1 to cyN
+	yC = 0
+	if cyN = 2 then yC = (2 * k - 3) * 0.38 * bmW
+	x0q = xL
+	y0q = yC
+	z0q = zL
+	x1q = xL + (xU - xL) * tC / lC
+	y1q = yC
+	z1q = zL + (zU - zL) * tC / lC
+	rq = cyD / 2
+	material "cr_blue"
+	gosub "seg3"
+	x0q = x1q
+	z0q = z1q
+	x1q = xU
+	z1q = zU
+	rq = cyR / 2
+	material "cr_rim"
+	gosub "seg3"
+next k
+add -pivB, 0, ftZ
+roty -bB
+! フート（くさび形に絞る）と上面の補強
+material "cr_boom"
+yA = -bmW / 2 + 0.03
+yB = bmW / 2 - 0.03
+put -0.12, 0.1, -0.12, -0.1, 0.28, cZ - h1 / 2, 0.28, cZ + h1 / 2
+gosub "sideP"
+! 上ピンの金具
+material "cr_blue"
+zb = cZ - h1 / 2
+for s = -1 to 1 step 2
+	yC = 0
+	if cyN = 2 then yC = 0.38 * bmW
+	yA = s * (abs(yC) + 0.12) - 0.02
+	yB = yA + 0.04
+	put cyUa - 0.32, zb + 0.02, cyUa + 0.3, zb + 0.02, cyUa + 0.12, -cyUb - 0.1, cyUa - 0.12, -cyUb - 0.1
+	gosub "sideP"
+next s
+add cyUa, -abs(yC) - 0.14, -cyUb
+rotx -90
+cylind 2 * abs(yC) + 0.28, 0.05
+del 2
+! 段
+for k = 1 to nS
+	wS = bmW * (1 - 0.075 * (k - 1))
+	hS = h1 * (1 - 0.085 * (k - 1))
+	eK = Lb + (k - 1) * (xBt - 0.25 - Lb) / (nS - 1)
+	sK = 0.28
+	if k > 1 then sK = Lb + (k - 2) * (xBt - 0.25 - Lb) / (nS - 1) - 0.05
+	lS = eK - sK
+	material "cr_boom"
+	add sK, 0, cZ + 0.0
+	roty 90
+	gosub "sect"
+	del 2
 	if k < nS then
+		! 段の先の帯
 		material "cr_steel"
-		add k * sL - 0.08, -bw / 2 - 0.01, -bh / 2 - 0.01
-		block 0.08, bw + 0.02, bh + 0.02
-		del 1
+		wS = wS + 0.03
+		hS = hS + 0.03
+		lS = 0.07
+		add eK - 0.07, 0, cZ
+		roty 90
+		gosub "sect"
+		del 2
 	endif
 next k
-! ブームの先（ブームヘッドと3枚のシーブ）
-material "cr_steel"
-add bL - 0.3, -0.3, -0.35
-block 0.45, 0.6, 0.7
+! 上面の長さ検出のケーブル
+material "cr_cw"
+add 0.4, bmW * 0.25, cZ + h1 / 2 + 0.01
+block Lb - 0.6, 0.03, 0.02
 del 1
-for i = -1 to 1
-	add bL + 0.1, i * 0.14 - 0.04, 0
+! ケーブルリール（タダノ。基本ブームの左）
+if clr = 1 then
+	material "cr_steel"
+	add pivB * 0 + 0.75 * sX * 2.4, bmW / 2 + 0.01, cZ
 	rotx -90
-	cylind 0.08, 0.32
+	cylind 0.05, 0.4 * sZ
+	material "cr_cw"
+	addz 0.05
+	cylind 0.02, 0.24 * sZ
+	del 3
+endif
+! 格納したジブ（基本ブームの右の下に抱える）
+if jL < 0.01 and jbSt then
+	material "cr_body"
+	lJ = Lb * 0.78
+	yJ = -bmW / 2 - 0.2
+	zJ = cZ - h1 * 0.15
+	rq = 0.03
+	for sy = -1 to 1 step 2
+		for sz = -1 to 1 step 2
+			x0q = 0.9
+			y0q = yJ + sy * 0.1
+			z0q = zJ + sz * 0.17
+			x1q = 0.9 + lJ
+			y1q = y0q
+			z1q = z0q
+			gosub "seg3"
+		next sz
+	next sy
+	rq = 0.014
+	nJ = int(lJ / 0.45)
+	for i = 0 to nJ - 1
+		sg = 1 - 2 * (i mod 2)
+		x0q = 0.9 + i * lJ / nJ
+		x1q = x0q + lJ / nJ
+		for sy = -1 to 1 step 2
+			y0q = yJ + sy * 0.1
+			y1q = y0q
+			z0q = zJ - sg * 0.17
+			z1q = zJ + sg * 0.17
+			gosub "seg3"
+		next sy
+	next i
+endif
+! ブームの先（側板・主シーブ・シングルトップ・上の案内シーブ。形は加藤 SL-500RfⅢ の DXF）
+hC = h1 / 0.89
+wE = bmW * (1 - 0.075 * (nS - 1))
+add xBt, 0, -sD
+material "cr_blue"
+mul hC, 1, hC
+for s = -1 to 1 step 2
+	yA = s * wE / 2 - 0.015
+	yB = s * wE / 2 + 0.015
+	put -0.19, 1.0, -0.19, 0.75, -0.155, 0.7, -0.155, 0.2, -0.2, -0.05, 0, -0.205, 0.21, -0.22, 0.33, 0, 0.22, 0.3, 0.21, 0.7, 0.35, 1.1, 0.38, 1.2, 0, 1.2
+	gosub "sideP"
+next s
+del 1
+material "cr_steel"
+nSh = max(1, min(6, shN))
+for k = 1 to nSh
+	add 0, (k - (nSh + 1) / 2) * 0.07 * hC - 0.0275, 0
+	rotx -90
+	cylind 0.055, 0.186 * hC
 	del 2
-next i
+next k
+add 0.44 * hC, -0.03, -0.185 * hC
+rotx -90
+cylind 0.06, 0.2 * hC
+del 2
+add 0, -0.03, 1.09 * hC
+rotx -90
+cylind 0.06, 0.175 * hC
+del 2
+for s = -1 to 1 step 2
+	x0q = 0.1 * hC
+	y0q = s * wE / 4
+	z0q = 0
+	x1q = 0.44 * hC
+	y1q = s * 0.05
+	z1q = -0.185 * hC
+	rq = 0.025
+	gosub "seg3"
+next s
+del 1
+del 2
 ! ブーム長さのホットスポット（ブームに沿って引く）
+add -pivB, 0, ftZ
+roty -bA
 hotspot 0, 0, 0, 11, boomL, 1 + 128
 hotspot bL, 0, 0, 12, boomL, 2
 hotspot -1, 0, 0, 13, boomL, 3
 del 2
+del 1
 ! ブームの先で起伏角を動かすホットスポット（長さはそのまま）
 hotspot -pivB, 0, pivH, 21, boomA, 6
 hotspot -pivB + 1, 0, pivH, 22, boomA, 4
@@ -814,58 +1230,128 @@ if jL > 0.01 then
 	hotspot -1, 0, 0, 27, jbL, 3
 	del 2
 endif
-! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
+! ワイヤ（掛数の本数）・フックブロック・フック（旋回体の座標でブームの先の真下）
+hkB = hkHt - hkDm / 2
 material "cr_steel"
-for i = -1 to 1 step 2
-	add tipX + i * 0.1, 0, hkD + 0.6
-	cylind tipZ - hkD - 0.6, 0.012
+nW = max(2, min(12, fallN))
+for i = 1 to nW
+	add tipX, (i - (nW + 1) / 2) * 0.05, hkD + hkB
+	cylind tipZ - hkD - hkB, 0.009
 	del 1
 next i
-! フックブロック（側板とシーブ）とフック
+! 側板（丸）とシーブ
 material "cr_hook"
-add tipX - 0.25, -0.18, hkD
-block 0.5, 0.04, 0.6
-del 1
-add tipX - 0.25, 0.14, hkD
-block 0.5, 0.04, 0.6
-del 1
+for s = -1 to 1 step 2
+	add tipX, s * (hkDm * 0.32) - 0.02, hkD + hkB
+	rotx -90
+	cylind 0.04, hkDm / 2
+	del 2
+next s
 material "cr_steel"
-add tipX, -0.14, hkD + 0.42
+add tipX, -hkDm * 0.3, hkD + hkB
 rotx -90
-cylind 0.28, 0.2
+cylind hkDm * 0.6, hkDm * 0.4
 del 2
-add tipX, 0, hkD - 0.2
-cylind 0.2, 0.06
+add tipX, 0, hkD + hkB - hkDm * 0.62
+cylind hkDm * 0.2, hkDm * 0.16
 del 1
+add tipX, 0, hkD + hkHt * 0.42
+cylind hkB - hkDm * 0.62 - hkHt * 0.42 + 0.02, 0.05
+del 1
+! フック（横から見た C の形）
 material "cr_hook"
-add tipX, 0, hkD - 0.55
-cone 0.35, 0.03, 0.08, 90, 90
-del 1
+add tipX, 0, hkD
+mul hkHt, 1, hkHt
+yA = -0.035
+yB = 0.035
+put -0.04, 0.45, 0.04, 0.45, 0.05, 0.32, 0.17, 0.2, 0.19, 0.09, 0.12, 0.01, 0.0, 0.0, -0.13, 0.05, -0.19, 0.14, -0.13, 0.2, -0.1, 0.13, -0.03, 0.08, 0.07, 0.09, 0.1, 0.15, -0.03, 0.26
+gosub "sideP"
+del 2
 ! フックの高さのホットスポット
 hotspot tipX, 0, 0, 14, hkZ, 1 + 128
 hotspot tipX, 0, hkD, 15, hkZ, 2
 hotspot tipX, 0, -1, 16, hkZ, 3
 if ldOn and travel = 0 then
-	zl = max(0.0, hkD - 2.6)
+	! 揚重物（大きさ ldW×ldD×ldH。吊りしろ ldS。SCP の手引 p.5）
+	zl = hkD - ldS - ldH
 	material "cr_load"
-	add tipX - 0.75, -0.75, zl
-	block 1.5, 1.5, 1.0
+	add tipX - ldW / 2, -ldD / 2, zl
+	block ldW, ldD, ldH
 	del 1
 	! 玉掛けワイヤ（吊り荷の四隅からフックへ）
 	material "cr_steel"
 	for c = 0 to 3
-		x0q = tipX - 0.7 + 1.4 * (c mod 2)
-		y0q = -0.7 + 1.4 * int(c / 2)
-		z0q = zl + 1.0
+		x0q = tipX - ldW / 2 + 0.05 + (ldW - 0.1) * (c mod 2)
+		y0q = -ldD / 2 + 0.05 + (ldD - 0.1) * int(c / 2)
+		z0q = zl + ldH
 		x1q = tipX
 		y1q = 0
-		z1q = hkD - 0.35
+		z1q = hkD + 0.05
 		rq = 0.008
 		gosub "seg3"
 	next c
 endif
 del 1
+if wrOn then
+	! 作業半径の円（地盤の高さ）
+	material "cr_tail"
+	rotz slD * 0
+	add 0, 0, 0.05
+	circle tipX
+	del 1
+	del 1
+endif
+if infoOn then
+	! クレーン情報（フックと車体の後ろ。視点の向きへ回す）
+	define style "crI" "Arial", 900 * texZ, 1, 0
+	style "crI"
+	aV = 0
+	dxV = GLOB_EYEPOS_X - SYMB_POS_X
+	dyV = GLOB_EYEPOS_Y - SYMB_POS_Y
+	if abs(dxV) > 0.01 then aV = atn(dyV / dxV) + 180 * (dxV < 0)
+	aV = aV - SYMB_ROTANGLE + 90
+	material "cr_tail"
+	add tipX * cos(slD), tipX * sin(slD), hkD + hkHt + 0.6
+	rotz aV
+	rotx 90
+	if rated > 0 then
+		text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
+	else
+		text 0.02, 0, "Max -"
+	endif
+	del 3
+	add -carRr - 0.5, 0, carH + 0.5
+	rotz aV
+	rotx 90
+	text 0.02, 0, crName
+	add 0, -0.9 * texZ, 0
+	text 0.02, 0, "Boom=" + str(bL, 4, 1) + "m R=" + str(tipX, 4, 1) + "m"
+	del 4
+endif
 end
+
+"sideP":
+	! put 済みの (x, z) の列を Y の yA〜yB に押し出す
+	add 0, yB, 0
+	rotx 90
+	prism nsp / 2, yB - yA, get(nsp)
+	del 2
+return
+
+"sect":
+	! ブームの断面（幅 wS・高さ hS・長さ lS。roty 90 の中で x＝−高さ。1 ラウンド・2 六角・3 箱）
+	if bmSec = 1 then
+		put -0.5 * hS, -0.34 * wS, -0.5 * hS, 0.34 * wS, -0.38 * hS, 0.5 * wS, 0.02 * hS, 0.5 * wS, 0.22 * hS, 0.45 * wS, 0.4 * hS, 0.33 * wS, 0.5 * hS, 0.15 * wS
+		put 0.5 * hS, -0.15 * wS, 0.4 * hS, -0.33 * wS, 0.22 * hS, -0.45 * wS, 0.02 * hS, -0.5 * wS, -0.38 * hS, -0.5 * wS
+	endif
+	if bmSec = 2 then
+		put -0.5 * hS, -0.34 * wS, -0.5 * hS, 0.34 * wS, -0.38 * hS, 0.5 * wS, 0.02 * hS, 0.5 * wS, 0.5 * hS, 0.2 * wS, 0.5 * hS, -0.2 * wS, 0.02 * hS, -0.5 * wS, -0.38 * hS, -0.5 * wS
+	endif
+	if bmSec = 3 then
+		put -0.5 * hS, -0.42 * wS, -0.5 * hS, 0.42 * wS, -0.42 * hS, 0.5 * wS, 0.42 * hS, 0.5 * wS, 0.5 * hS, 0.42 * wS, 0.5 * hS, -0.42 * wS, 0.42 * hS, -0.5 * wS, -0.42 * hS, -0.5 * wS
+	endif
+	prism nsp / 2, lS, get(nsp)
+return
 
 "seg3":
 	! (x0q, y0q, z0q) から (x1q, y1q, z1q) の円柱（半径 rq。向きは問わない）
@@ -911,6 +1397,14 @@ if travel = 0 and (mq = "hfX" or mq = "hfY") then
 		endif
 		parameters hkR = sqr(hfX * hfX + hfY * hfY), slew = aF
 	endif
+endif
+if bmStep and prio = 0 and mq = "boomL" then
+	! 段階ブーム: 性能表のブーム長さのいちばん近い段へ
+	bQ = rb[1]
+	for k = 1 to nRb
+		if abs(rb[k] - boomL) < abs(bQ - boomL) then bQ = rb[k]
+	next k
+	parameters boomL = bQ
 endif
 if travel = 0 and mq <> "hfX" and mq <> "hfY" then
 	if prio = 0 then

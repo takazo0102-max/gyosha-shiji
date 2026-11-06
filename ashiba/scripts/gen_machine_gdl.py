@@ -78,6 +78,13 @@ def paramlist() -> str:
         # クローラクレーン
         _param("Length", "lbL", "ラチスブームの長さ", 30.0),
         _param("Angle", "lbA", "ブームの起伏角", 70.0),
+        _param("Boolean", "lbGnd", "ブームを地面に寝かせる（組立モード）", 0),
+        _param("Boolean", "lbRW", "赤白ブーム", 0),
+        _param("Boolean", "lbFat", "太トラス（トラスを目立たせる）", 0),
+        _param("Boolean", "wrOn", "作業半径を 3D に描く", 0),
+        _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
+        _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
+        _param("Integer", "mcClr", "色の組（0 重機の既定・1 コベルコの青緑）", 0),
         _param("Length", "lbR", "作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）", 11.0),
         _param("Length", "hfX", "フックの位置 X（平面のホットスポットで引くと起伏角と旋回が変わる）", 11.0),
         _param("Length", "hfY", "フックの位置 Y", 0.0),
@@ -344,6 +351,10 @@ next i
 abX = -0.4 + abL * cos(abA)
 abZ = tuH + abL * sin(abA)
 ! クローラクレーンのブームの先・ジブの先・フック・定格総荷重（表の読み方は src/ashiba/machine.py の crane_rating と同じ）
+if mcKind = 2 and lbGnd then
+	lbA = -atn((pvH - 0.3) / lbL)
+	hkD = 0.9
+endif
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
 jbW = min(lbW, 1.0) * 0.7
@@ -1146,7 +1157,12 @@ SCRIPT_3D = """﻿! 重機 3D
 cR = 0.95
 cG = 0.72
 cB = 0.08
-if mcKind >= 2 and mcKind <> 11 then
+if mcClr = 1 then
+	cR = 0.03
+	cG = 0.60
+	cB = 0.66
+endif
+if mcKind >= 2 and mcKind <> 11 and mcClr = 0 then
 	cR = 0.93
 	cG = 0.94
 	cB = 0.95
@@ -1158,6 +1174,9 @@ define material "mc_cw" 2, 0.35, 0.36, 0.38
 define material "mc_tire" 2, 0.10, 0.10, 0.10
 define material "mc_rim" 2, 0.80, 0.80, 0.78
 define material "mc_lamp" 2, 0.95, 0.60, 0.10
+define material "mc_hook" 2, 0.95, 0.75, 0.10
+define material "mc_red" 2, 0.80, 0.12, 0.10
+define material "mc_wht" 2, 0.94, 0.94, 0.94
 define material "mc_head" 2, 0.92, 0.93, 0.85
 define material "mc_tail" 2, 0.75, 0.10, 0.10
 define material "mc_glass" 2, 0.30, 0.45, 0.60
@@ -1247,6 +1266,7 @@ if mcKind = 14 then
 	del 2
 endif
 gosub "hotspots"
+if mcKind = 2 then gosub "crinfo"
 end
 
 "hotspots":
@@ -1450,6 +1470,57 @@ end
 		hotspot 0, 0, piC + piS, 344, piT, 1 + 128
 		hotspot 0, 0, piC + piS + piT, 345, piT, 2
 		hotspot 0, 0, piC + piS - 1, 346, piT, 3
+	endif
+return
+
+"crinfo":
+	if wrOn then
+		material "mc_red"
+		add 0, 0, 0.05
+		circle hkX
+		del 1
+	endif
+	if infoOn then
+		! クレーン情報（フックと車体の後ろ。視点の向きへ回す）
+		define style "mcI" "Arial", 900 * texZ, 1, 0
+		style "mcI"
+		aV = 0
+		dxV = GLOB_EYEPOS_X - SYMB_POS_X
+		dyV = GLOB_EYEPOS_Y - SYMB_POS_Y
+		if abs(dxV) > 0.01 then aV = atn(dyV / dxV) + 180 * (dxV < 0)
+		aV = aV - SYMB_ROTANGLE + 90
+		material "mc_red"
+		add hkX * cos(slew), hkX * sin(slew), tpZ - hkD + hkH + 0.6
+		rotz aV
+		rotx 90
+		if rated > 0 then
+			text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
+		else
+			text 0.02, 0, "Max -"
+		endif
+		del 3
+		add -gnX, 0, gnH + 1.2
+		rotz aV
+		rotx 90
+		text 0.02, 0, mcName
+		add 0, -0.9 * texZ, 0
+		text 0.02, 0, "Boom=" + str(lbL, 4, 1) + "m R=" + str(hkX, 4, 1) + "m"
+		del 4
+	endif
+	return
+
+"lbHalf":
+	! ラチスブームの x（xq）での半幅 hyq・半高 hzq（下部は根元へ、上部は先へ絞る）
+	hyq = lbW / 2
+	hzq = lbD / 2
+	if xq < lLo then
+		hyq = lbW * (0.42 + 0.08 * xq / lLo)
+		hzq = 0.22 + (lbD / 2 - 0.22) * xq / lLo
+	endif
+	if xq > lbL - lUp then
+		tq = (lbL - xq) / lUp
+		hyq = lbW * (0.26 + 0.24 * tq)
+		hzq = 0.3 + (lbD / 2 - 0.3) * tq
 	endif
 return
 
@@ -2011,43 +2082,102 @@ return
 	return
 
 "cargocrane":
-	! 積載形クレーン（原点＝旋回中心）: 台座・コラム（旋回）・伸縮ブーム（nSec 段）・起伏シリンダ・ワイヤとフック
+	! 積載形クレーン（原点＝旋回中心。タダノ ZX の公表: 七角形 3・4 段、複動シリンダ押上式、フック・イン。コラムとブームの断面は【目安】）
 	material "mc_body"
 	add -0.45, -0.55, frZ
 	block 0.9, 1.1, 0.35
 	del 1
-	material "mc_steel"
+	! 台の操作レバー（左右）
+	material "mc_dark"
+	for s = -1 to 1 step 2
+		for k = 0 to 2
+			add -0.42 + k * 0.1, s * 0.6, frZ + 0.1
+			cylind 0.45, 0.012
+			del 1
+		next k
+	next s
+	! コラム（円筒と上の二股）とウインチ
+	material "mc_body"
 	add 0, 0, frZ + 0.35
-	cylind max(0.2, ucH - frZ - 0.35), 0.22
+	cylind max(0.2, ucH - frZ - 0.5), 0.225
 	del 1
-	material "mc_drum"
+	for s = -1 to 1 step 2
+		add -0.3, s * 0.2 - 0.02, ucH - 0.4
+		block 0.55, 0.04, 0.55
+		del 1
+	next s
+	material "mc_steel"
+	add -0.28, -0.17, ucH - 0.32
+	rotx -90
+	cylind 0.34, 0.14
+	del 2
+	add 0, -0.2, ucH
+	rotx -90
+	cylind 0.4, 0.04
+	del 2
+	! ブーム（基本は長さ一定、先の段が同じ量ずつ出る）
 	nUc = max(2, min(5, nSec))
+	lUb = ucLmin * 0.92
+	add 0, 0, ucH
+	roty -abA
 	for i = 1 to nUc
-		f0 = (i - 1) / nUc * 0.92
-		f1 = min(1, i / nUc + 0.06)
-		x0q = f0 * ucL * cos(abA)
-		z0q = ucH + f0 * ucL * sin(abA)
-		x1q = f1 * ucL * cos(abA)
-		z1q = ucH + f1 * ucL * sin(abA)
-		bwq = 0.3 - 0.04 * i
-		bhq = 0.34 - 0.04 * i
-		gosub "bar"
+		wS = 0.3 - 0.04 * (i - 1)
+		hS = 0.35 - 0.04 * (i - 1)
+		eK = lUb + (i - 1) * (ucL - 0.18 - lUb) / (nUc - 1)
+		sK = -0.1
+		if i > 1 then sK = lUb + (i - 2) * (ucL - 0.18 - lUb) / (nUc - 1) - 0.04
+		material "mc_body"
+		add sK, 0, -0.12
+		roty 90
+		put -0.5 * hS, -0.34 * wS, -0.5 * hS, 0.34 * wS, -0.2 * hS, 0.5 * wS, 0.2 * hS, 0.42 * wS, 0.5 * hS, 0, 0.2 * hS, -0.42 * wS, -0.2 * hS, -0.5 * wS
+		prism nsp / 2, eK - sK, get(nsp)
+		del 2
+		if i < nUc then
+			material "mc_steel"
+			add eK - 0.04, -wS / 2 - 0.01, -0.12 - hS / 2 - 0.01
+			block 0.04, wS + 0.02, hS + 0.02
+			del 1
+		endif
 	next i
-	crq = 0.07
-	cx0 = 0.25
+	! ブームの先（シーブ 2 枚）
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		add ucL - 0.2, s * 0.09 - 0.012, -0.25
+		block 0.34, 0.024, 0.3
+		del 1
+	next s
+	for k = 0 to 1
+		add ucL, -0.06 + k * 0.07, -0.05
+		rotx -90
+		cylind 0.05, 0.1
+		del 2
+	next k
+	del 2
+	! 起伏シリンダ（下ピンはコラムの前、上ピンは基本ブームの下に固定）
+	crq = 0.075
+	cx0 = 0.24
 	cy0 = 0
-	cz0 = ucH - 0.5
-	cx1 = 0.35 * ucL * cos(abA) + 0.12 * sin(abA)
+	cz0 = ucH - 0.75
+	cx1 = lUb * 0.42 * cos(abA) + 0.34 * sin(abA)
 	cy1 = 0
-	cz1 = ucH + 0.35 * ucL * sin(abA) - 0.12 * cos(abA)
+	cz1 = ucH + lUb * 0.42 * sin(abA) - 0.34 * cos(abA)
 	gosub "cyl2"
 	material "mc_steel"
-	add ucTx, 0, ucTz - hkD
-	cylind hkD, 0.01
-	del 1
-	material "mc_dark"
-	add ucTx - 0.1, -0.08, ucTz - hkD - 0.3
-	block 0.2, 0.16, 0.3
+	nW = 4
+	for k = 1 to nW
+		add ucTx, (k - 2.5) * 0.02, ucTz - hkD - 0.05
+		cylind hkD, 0.006
+		del 1
+	next k
+	material "mc_hook"
+	add ucTx, 0, ucTz - hkD - 0.32
+	mul 0.6, 1, 0.6
+	add 0, 0.02, 0
+	rotx 90
+	prism 15, 0.04, -0.04, 0.45, 0.04, 0.45, 0.05, 0.32, 0.17, 0.2, 0.19, 0.09, 0.12, 0.01, 0, 0, -0.13, 0.05, -0.19, 0.14, -0.13, 0.2, -0.1, 0.13, -0.03, 0.08, 0.07, 0.09, 0.1, 0.15, -0.03, 0.26
+	del 4
+	add ucTx - 0.1, -0.07, ucTz - hkD - 0.05
+	block 0.2, 0.14, 0.18
 	del 1
 	return
 
@@ -2493,84 +2623,190 @@ return
 
 "lattice":
 	! ラチスブーム（主材4本・斜材は4面）・根元と先・ガントリとペンダント・ワイヤとフック
+	! ブームの根元の耳 2 枚とピン（公表 ブームフートピン）
 	material "mc_steel"
-	add pvX - 0.4, -lbW / 2 - 0.1, upZ
-	block 0.8, lbW + 0.2, pvH - upZ
-	del 1
+	for s = -1 to 1 step 2
+		add pvX - 0.55, s * lbW * 0.42 - 0.03, upZ
+		block 0.9, 0.06, pvH - upZ + 0.16
+		del 1
+	next s
+	add pvX, -lbW * 0.46, pvH
+	rotx -90
+	cylind lbW * 0.92, 0.07
+	del 2
+	! ラチスブーム（下部は根元が絞られ、上部は先が絞られる。主弦材 4 本・斜材は 4 面の W 形。コベルコ 7070G-2 の図）
 	material "mc_body"
 	add pvX, 0, pvH
 	roty -lbA
 	resol 6
-	rcq = 0.035 + 0.02 * lbW
+	lbD = lbW * 1.1
+	lLo = min(lbL * 0.4, 3.55 * lbW)
+	lUp = min(lbL * 0.35, 3.0 * lbW)
+	rcq = lbW * 0.031 * (1 + 0.9 * lbFat)
+	if lbRW then material "mc_red"
+	! 主弦材（節の点を結ぶ）
 	for sy = -1 to 1 step 2
 		for sz = -1 to 1 step 2
-			add 0, sy * lbW / 2, sz * lbW / 2
-			roty 90
-			cylind lbL, rcq
-			del 2
+			for k = 0 to 2
+				xq = 0
+				if k = 1 then xq = lLo
+				if k = 2 then xq = lbL - lUp
+				gosub "lbHalf"
+				x0q = xq
+				y0q = sy * hyq
+				z0q = sz * hzq
+				xq = lLo
+				if k = 1 then xq = lbL - lUp
+				if k = 2 then xq = lbL
+				gosub "lbHalf"
+				x1q = xq
+				y1q = sy * hyq
+				z1q = sz * hzq
+				rq = rcq
+				gosub "seg3"
+			next k
 		next sz
 	next sy
-	nP = max(2, int(lbL / lbW))
+	! 斜材（節 約 1.4m。側面も上下の面も W 形）
+	nP = max(4, int(lbL / (lbW * 0.95)))
 	pP = lbL / nP
+	rq = lbW * 0.02 * (1 + 0.9 * lbFat)
 	for i = 0 to nP - 1
 		sg = 1 - 2 * (i mod 2)
-		rq = rcq * 0.5
-		x0q = i * pP
-		x1q = x0q + pP
-		y0q = -sg * lbW / 2
-		y1q = sg * lbW / 2
-		z0q = lbW / 2
-		z1q = lbW / 2
-		gosub "seg3"
-		z0q = -lbW / 2
-		z1q = -lbW / 2
-		gosub "seg3"
-		y0q = lbW / 2
-		y1q = lbW / 2
-		z0q = -sg * lbW / 2
-		z1q = sg * lbW / 2
-		gosub "seg3"
-		y0q = -lbW / 2
-		y1q = -lbW / 2
-		gosub "seg3"
+		if lbRW then
+			if int(i / 3) mod 2 = 0 then
+				material "mc_red"
+			else
+				material "mc_wht"
+			endif
+		endif
+		xq = i * pP
+		gosub "lbHalf"
+		x0q = xq
+		hA = hyq
+		zA = hzq
+		xq = (i + 1) * pP
+		gosub "lbHalf"
+		x1q = xq
+		hBq = hyq
+		zBq = hzq
+		for sz = -1 to 1 step 2
+			y0q = -sg * hA
+			y1q = sg * hBq
+			z0q = sz * zA
+			z1q = sz * zBq
+			gosub "seg3"
+		next sz
+		for sy = -1 to 1 step 2
+			y0q = sy * hA
+			y1q = sy * hBq
+			z0q = -sg * zA
+			z1q = sg * zBq
+			gosub "seg3"
+		next sy
 	next i
+	! 継ぎ（6.1m ごとの枠と四隅の耳）
 	resol 12
-	material "mc_steel"
-	add lbL - 0.2, -lbW / 2, -lbW / 2
-	block 0.6, lbW, lbW
+	nJn = int((lbL - lLo - lUp) / 6.1)
+	for k = 0 to nJn + 1
+		xq = lLo + k * 6.1
+		if k > nJn then xq = lbL - lUp
+		gosub "lbHalf"
+		xJ = xq
+		hA = hyq
+		zA = hzq
+		rq = rcq * 0.8
+		if lbRW then material "mc_red"
+		for sy = -1 to 1 step 2
+			x0q = xJ
+			x1q = xJ
+			y0q = sy * hA
+			y1q = sy * hA
+			z0q = -zA
+			z1q = zA
+			gosub "seg3"
+		next sy
+		for sz = -1 to 1 step 2
+			x0q = xJ
+			x1q = xJ
+			y0q = -hA
+			y1q = hA
+			z0q = sz * zA
+			z1q = sz * zA
+			gosub "seg3"
+			material "mc_steel"
+			for sy = -1 to 1 step 2
+				add xJ - 0.12, sy * hA - 0.05, sz * zA - 0.05
+				block 0.24, 0.1, 0.1
+				del 1
+			next sy
+			material "mc_body"
+			if lbRW then material "mc_red"
+		next sz
+		y0q = -hA
+		y1q = hA
+		z0q = -zA
+		z1q = zA
+		gosub "seg3"
+	next k
+	! 根元の板の箱
+	material "mc_body"
+	add 0, -lbW * 0.42, -0.22
+	block 1.1, lbW * 0.84, 0.44
 	del 1
-	for k = -1 to 1
-		add lbL + 0.4, k * 0.2 - 0.04, 0
+	! ブームの先（側板・主シーブ・補助シーブの腕）
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		add lbL - 0.5, s * lbW * 0.26 - 0.02, -0.3
+		block 1.05, 0.04, 0.6
+		del 1
+	next s
+	nSh = max(1, min(5, int(lbW * 3)))
+	for k = 1 to nSh
+		add lbL + 0.4, (k - (nSh + 1) / 2) * 0.095 - 0.03, 0
 		rotx -90
-		cylind 0.08, 0.45
+		cylind 0.06, 0.45
 		del 2
 	next k
-	del 2
-	! 巻上ドラム（主巻・起伏）とブームストッパ
-	for qi = 0 to 1
-		xD = pvX - 1.1 - qi * 0.95
-		material "mc_dark"
-		add xD, 0.42, upZ + hB + 0.42
-		rotx 90
-		cylind 0.84, 0.26
+	if jbL < 0.01 then
+		for s = -1 to 1 step 2
+			x0q = lbL
+			y0q = s * lbW * 0.2
+			z0q = 0.25
+			x1q = lbL + 1.2
+			y1q = s * 0.06
+			z1q = 0.55
+			rq = 0.035
+			gosub "seg3"
+		next s
+		add lbL + 1.2, -0.03, 0.55
+		rotx -90
+		cylind 0.06, 0.22
 		del 2
-		material "mc_steel"
-		for sy = -1 to 1 step 2
-			add xD, sy * 0.44 + 0.02, upZ + hB + 0.42
-			rotx 90
-			cylind 0.04, 0.36
-			del 2
-		next sy
-	next qi
-	material "mc_steel"
-	rq = 0.05
+	endif
+	del 2
+	! バックストップ 2 本（ばね入りの管）
+	xq = 3.2
+	gosub "lbHalf"
+	xS = pvX + 3.2 * cos(lbA) - hzq * sin(lbA)
+	zS = pvH + 3.2 * sin(lbA) + hzq * cos(lbA)
 	for sy = -1 to 1 step 2
-		x0q = pvX - 1.3
-		y0q = sy * 0.45
+		x0q = pvX - 0.85
+		y0q = sy * 0.42
 		z0q = upH
-		x1q = pvX + 3 * cos(lbA)
-		y1q = sy * lbW / 2
-		z1q = pvH + 3 * sin(lbA) - 0.1
+		x1q = x0q + (xS - x0q) * 0.62
+		y1q = sy * 0.42
+		z1q = z0q + (zS - z0q) * 0.62
+		rq = 0.07
+		material "mc_steel"
+		gosub "seg3"
+		x0q = x1q
+		z0q = z1q
+		x1q = xS
+		y1q = sy * hyq
+		z1q = zS
+		rq = 0.04
+		material "mc_rim"
 		gosub "seg3"
 	next sy
 	if jbL > 0.01 then
@@ -2631,29 +2867,60 @@ return
 		del 2
 		del 2
 	endif
-	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
+	! ガントリ（太い前の脚 1 本・後ろの柱 2 本・頭のシーブ。7070G-2 の図）と、ブライドル・多本掛け・ペンダント
 	gX = -gnX
-	gZ = gnH
-	material "mc_steel"
+	gZ = gnH - 0.22
+	material "mc_body"
+	x0q = -1.035 * gnX / 3.16
+	y0q = 0
+	z0q = upH - 0.05
+	x1q = gX
+	y1q = 0
+	z1q = gZ
+	rq = 0.15
+	gosub "seg3"
 	for s = -1 to 1 step 2
-		x0q = gX - 0.6
-		y0q = s * 0.8
-		z0q = upZ + 0.9
+		x0q = gX + 0.03
+		y0q = s * 0.55
+		z0q = upH - 0.05
 		x1q = gX
-		y1q = s * 0.5
+		y1q = s * 0.2
 		z1q = gZ
-		rq = 0.08
+		rq = 0.07
 		gosub "seg3"
-		x0q = gX + 1.4
-		y0q = s * 0.8
-		z0q = upZ + 0.9
-		gosub "seg3"
+	next s
+	material "mc_steel"
+	add gX, -0.28, gZ
+	rotx -90
+	cylind 0.56, 0.25
+	del 2
+	dG = sqr((lbX - gX) ^ 2 + (lbZ - gZ) ^ 2)
+	tB = min(0.8, (dG * 0.2 + 1.5) / max(1, dG))
+	xBr = gX + (lbX - gX) * tB
+	zBr = gZ + (lbZ - gZ) * tB
+	aBr = atn((lbZ - gZ) / max(0.01, lbX - gX))
+	add xBr, 0, zBr
+	roty -aBr
+	add -0.3, -0.35, -0.12
+	block 0.6, 0.7, 0.24
+	del 3
+	for k = -2 to 2
 		x0q = gX
-		y0q = s * 0.5
-		z0q = gZ
+		y0q = k * 0.06
+		z0q = gZ + 0.15
+		x1q = xBr
+		y1q = k * 0.1
+		z1q = zBr
+		rq = 0.012
+		gosub "seg3"
+	next k
+	for s = -1 to 1 step 2
+		x0q = xBr
+		y0q = s * 0.3
+		z0q = zBr
 		x1q = lbX
-		y1q = s * lbW / 2 * 0.6
-		z1q = lbZ
+		y1q = s * lbW * 0.2
+		z1q = lbZ + 0.1
 		rq = 0.02
 		gosub "seg3"
 	next s
@@ -2665,14 +2932,27 @@ return
 		del 1
 	next s
 	! フック（仕様書の全高 hkH・幅 hkW・厚み hkT。上の 7 割がブロック、下がフック）
-	material "mc_drum"
-	add hkX - hkW / 2, -hkT / 2, tpZ - hkD
-	block hkW, hkT, hkH * 0.7
-	del 1
+	material "mc_hook"
+	for s = -1 to 1 step 2
+		add hkX, s * hkT * 0.42 - 0.02, tpZ - hkD + hkH * 0.7 - hkW / 2
+		rotx -90
+		cylind 0.04, hkW / 2
+		del 2
+	next s
 	material "mc_steel"
-	add hkX, 0, tpZ - hkD - hkH * 0.3
-	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
+	add hkX, -hkT * 0.4, tpZ - hkD + hkH * 0.7 - hkW / 2
+	rotx -90
+	cylind hkT * 0.8, hkW * 0.42
+	del 2
+	add hkX, 0, tpZ - hkD - hkH * 0.12
+	cylind hkH * 0.32, 0.07
 	del 1
+	material "mc_hook"
+	add hkX, 0.04, tpZ - hkD - hkH * 0.3
+	mul hkH * 0.9, 1, hkH * 0.9
+	rotx 90
+	prism 15, 0.08, -0.04, 0.45, 0.04, 0.45, 0.05, 0.32, 0.17, 0.2, 0.19, 0.09, 0.12, 0.01, 0, 0, -0.13, 0.05, -0.19, 0.14, -0.13, 0.2, -0.1, 0.13, -0.03, 0.08, 0.07, 0.09, 0.1, 0.15, -0.03, 0.26
+	del 3
 	if vbK = 1 then
 		! バイブロ（ハンガー・起振機・チャック）と杭（vbP）
 		zV = tpZ - hkD - hkH * 0.3 - vbH

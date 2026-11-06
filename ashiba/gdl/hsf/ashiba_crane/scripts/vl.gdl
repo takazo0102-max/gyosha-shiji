@@ -12,6 +12,14 @@ if travel = 0 and (mq = "hfX" or mq = "hfY") then
 		parameters hkR = sqr(hfX * hfX + hfY * hfY), slew = aF
 	endif
 endif
+if bmStep and prio = 0 and mq = "boomL" then
+	! 段階ブーム: 性能表のブーム長さのいちばん近い段へ
+	bQ = rb[1]
+	for k = 1 to nRb
+		if abs(rb[k] - boomL) < abs(bQ - boomL) then bQ = rb[k]
+	next k
+	parameters boomL = bQ
+endif
 if travel = 0 and mq <> "hfX" and mq <> "hfY" then
 	if prio = 0 then
 		if GLOB_MODPAR_NAME = "boomA" then

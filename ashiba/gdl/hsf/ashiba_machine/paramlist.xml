@@ -161,6 +161,34 @@
 			<Description><![CDATA["ブームの起伏角"]]></Description>
 			<Value>70.0</Value>
 		</Angle>
+		<Boolean Name="lbGnd">
+			<Description><![CDATA["ブームを地面に寝かせる（組立モード）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="lbRW">
+			<Description><![CDATA["赤白ブーム"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="lbFat">
+			<Description><![CDATA["太トラス（トラスを目立たせる）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="wrOn">
+			<Description><![CDATA["作業半径を 3D に描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="infoOn">
+			<Description><![CDATA["クレーン情報を 3D に描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<RealNum Name="texZ">
+			<Description><![CDATA["クレーン情報の文字の高さ（m）"]]></Description>
+			<Value>0.6</Value>
+		</RealNum>
+		<Integer Name="mcClr">
+			<Description><![CDATA["色の組（0 重機の既定・1 コベルコの青緑）"]]></Description>
+			<Value>0</Value>
+		</Integer>
 		<Length Name="lbR">
 			<Description><![CDATA["作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）"]]></Description>
 			<Value>11.0</Value>

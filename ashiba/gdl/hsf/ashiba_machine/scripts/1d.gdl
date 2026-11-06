@@ -267,6 +267,10 @@ while strlen(rest) > 0 do
 	endif
 endwhile
 ! クローラクレーンのブームの先・ジブの先・フック・定格総荷重（表の読み方は src/ashiba/machine.py の crane_rating と同じ）
+if mcKind = 2 and lbGnd then
+	lbA = -atn((pvH - 0.3) / lbL)
+	hkD = 0.9
+endif
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
 jbW = min(lbW, 1.0) * 0.7

@@ -456,7 +456,8 @@ while strlen(rest) > 0 do
 		ax[nAx] = v / 1000
 	endif
 endwhile
-carRr = carL - carF
+carRr = carB
+carLn = carF + carB
 plT = 0.022
 plA = 1.524
 plB = 3.048
