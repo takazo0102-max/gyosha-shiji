@@ -64,6 +64,10 @@ ui_infield "wiF5", 392, 170, 20, 20
 endif
 ui_outfield "文字色", 12, 206, 60, 18
 ui_infield "wiPen", 76, 204, 60, 20
+ui_outfield "吊りしろ", 186, 206, 60, 18
+ui_infield "slgH", 250, 204, 60, 20
+ui_outfield "吊り点の印と Max", 318, 206, 100, 18
+ui_infield "slgOn", 420, 204, 20, 20
 ui_outfield "0°は車体の前。平面の弧の中央で半径、両端で範囲、線の途中で範囲ごと回せます", 12, 234, 420, 18
 else
 ui_outfield "クローラクレーンのときに使います", 12, 8, 300, 18

@@ -188,7 +188,7 @@ def ask_lift(a, ps, hook_t: float, rig_t: float) -> bool:
                    {"key": "rig", "label": "吊り治具等の重量 t", "kind": "number", "value": f"{rig_t:g}"},
                    *[{"key": f"f{k}", "label": f"重量補正 {n}（倍。直接指定では使わない）", "kind": "number", "value": "1"}
                      for k, n in FACTOR_KEYS],
-                   {"key": "draw", "label": "吊荷作図（部材のコピーをフックの下へ。重すぎは赤）", "kind": "check", "value": "1" if a.draw else "0"}],
+                   {"key": "draw", "label": "吊荷作図（選んだ部材のコピーをフックの下へ。重すぎは赤。一括では作らない）", "kind": "check", "value": "1" if a.draw else "0"}],
         "buttons": [{"id": "go", "label": "判定する"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") != "go":
         return False
@@ -245,6 +245,25 @@ def visible_targets(c) -> list:
         if es:
             out += list(zip(es, c.get_details(es)))
     return out
+
+
+def lift_targets(pool: list, crane_guid: str, copy_guids) -> list:
+    """判定する部材: クレーン・ashiba の仮設・通り芯の記号・吊荷作図のコピーは除く（コピーをまた判定してコピーしない）."""
+    out = []
+    for e, d in pool:
+        name = d.get("details", {}).get("libPart", {}).get("name", "")
+        g = e["elementId"]["guid"]
+        if d.get("type") in TARGET_TYPES and g != crane_guid and g not in copy_guids and not name.startswith("ashiba_") and "通り芯" not in name:
+            out.append((e, d))
+    return out
+
+
+def read_copies(path) -> list:
+    """吊荷作図の控え（GUID の一覧）."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
 
 
 def hook_point(ps: dict, origin: tuple, car: float, kind: str) -> tuple:
@@ -326,16 +345,13 @@ def main(argv=None) -> int:
     ap.add_argument("--contact", type=float, default=CLASH_CONTACT_MM, help="干渉の接触の距離 mm")
     ap.add_argument("--temp", action="store_true", help="干渉で足場などの仮設も見る")
     a = ap.parse_args(argv)
+    sling_given = a.sling != SLING_MM
     a.mode = "direct" if a.weight is not None else "bm" if a.bm else "density"
     a.factors = {}
     c = ArchicadClient()
     copies = R.OUT_DIR / RECORD_COPIES
     if a.erase:
-        try:
-            gs = json.loads(copies.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            gs = []
-        n = erase_copies(c, gs)
+        n = erase_copies(c, read_copies(copies))
         copies.write_text("[]", encoding="utf-8")
         print(f"吊荷削除: {n}個を消しました")
         return 0
@@ -350,6 +366,8 @@ def main(argv=None) -> int:
         print("クレーンを選んでから押してください（置いたクレーンが無ければ先に「クレーン」で置く）")
         return 1
     ps = _params(c, crane)
+    if not sling_given and "slgH" in ps:
+        a.sling = float(ps["slgH"]) * 1000.0                  # 部品の吊りしろ（吊り点の印と同じ所で判定する）
     part_name = cd.get("details", {}).get("libPart", {}).get("name", "")
     kind = "tower" if part_name.startswith("ashiba_tower") else "crawler" if part_name.startswith("ashiba_machine") else "rough"
     is_tower = kind == "tower"
@@ -374,8 +392,10 @@ def main(argv=None) -> int:
         hook_t = a.hook if getattr(a, "hook", None) is not None else hook_t
         rig_t = a.rig if getattr(a, "rig", None) is not None else rig_t
         pool = visible_targets(c) if a.all else list(zip(sel, dets))
-        targets = [(e, d) for e, d in pool if d.get("type") in TARGET_TYPES and e["elementId"]["guid"] != cg
-                   and not d.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_")]
+        targets = lift_targets(pool, cg, set(read_copies(copies)))
+        # 一括では吊荷作図をしない（表示中の全部をフックの下へ複製して部材が増えた。利用者の報告 2026-11-07）
+        skip_draw = a.all and a.draw
+        a.draw = a.draw and not a.all
         if not targets:
             print("揚重判定: クレーンと一緒に、吊る部材（柱・梁・壁・床・屋根・オブジェクト）を選んでください")
             return 1
@@ -439,7 +459,8 @@ def main(argv=None) -> int:
         (R.OUT_DIR / "揚重判定.md").write_text("\n".join(md), encoding="utf-8")
         cnt = {k: sum(1 for r in rows if r[6] == k) for k in ("揚重可能", "重すぎ", "遠すぎ", "高すぎ", "判定不可")}
         print("揚重判定: " + "・".join(f"{k} {v}" for k, v in cnt.items()) + f"（{R.OUT_DIR / '揚重判定.md'}）"
-              + (f"。吊荷のコピー {len(made)}個" if a.draw else ""))
+              + (f"。吊荷のコピー {len(made)}個" if a.draw else "")
+              + ("。一括では吊荷作図をしません（部材を選んで判定すると作ります）" if skip_draw else ""))
         if len(rows) <= 5:
             for nm, _ty, _v, w, rad, _nz, res, x, far in rows:
                 if res == "揚重可能":

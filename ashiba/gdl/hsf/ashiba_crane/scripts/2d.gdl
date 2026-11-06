@@ -249,6 +249,15 @@ if travel = 0 then
 	hotspot2 xF, 0, 31, hfY, 1 + 128
 	hotspot2 xF, yF, 32, hfY, 2
 	hotspot2 xF, -1, 33, hfY, 3
+! 吊り点の印（scripts/gdl_mark.py）
+if slgOn and (1) then
+	pen penEquip
+	line_type 1
+	mkR = texSiz * GLOB_SCALE / 1000 * 0.7
+	circle2 xF, yF, mkR
+	line2 xF - mkR, yF, xF + mkR, yF
+	line2 xF, yF - mkR, xF, yF + mkR
+endif
 endif
 ! 旋回の中心（一点鎖線の十字）
 drawindex 45

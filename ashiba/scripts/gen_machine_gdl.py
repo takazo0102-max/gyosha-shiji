@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from gen_hoist_gdl import _param  # noqa: E402
 from gen_ywall_gdl import _list  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_mark  # noqa: E402
 import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_machine"
@@ -85,6 +86,7 @@ def paramlist() -> str:
         _param("Boolean", "wrOn", "作業半径を 3D に描く", 0),
         _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
         *gdl_radii.params(_param),
+        *gdl_mark.params(_param),
         _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
         _param("Integer", "mcClr", "色の組（0 重機の既定・1 コベルコの青緑）", 0),
         _param("Length", "lbR", "作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）", 11.0),
@@ -1056,7 +1058,7 @@ if mcKind = 2 then
 	hotspot2 xF, 0, 54, hfY, 1 + 128
 	hotspot2 xF, yF, 55, hfY, 2
 	hotspot2 xF, -1, 56, hfY, 3
-	add2 hkX * cos(slew), hkX * sin(slew)
+@MARK2@	add2 hkX * cos(slew), hkX * sin(slew)
 	rot2 -SYMB_ROTANGLE
 	if rated > 0 then
 		text2 0.6, dQ, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
@@ -1145,7 +1147,7 @@ def _script_2d() -> str:
         "@CG13MASK@": D.rect_mask("xg1", "-cgW / 2", "xg2", "cgW / 2", t * 4).rstrip("\n"),
         "@CG14MASK@": D.rect_mask("cgX - cgL / 2", "-cgW / 2", "cgX + cgL / 2", "cgW / 2", t * 4).rstrip("\n"),
     }
-    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "mcT"))
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "mcT")).replace("@MARK2@", gdl_mark.plan("xF", "yF", "penEquip"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -1477,7 +1479,7 @@ end
 return
 
 "crinfo":
-	if wrOn then
+@MARK@	if wrOn then
 		material "mc_red"
 		add 0, 0, 0.05
 		circle hkX
@@ -1496,10 +1498,12 @@ return
 		add hkX * cos(slew), hkX * sin(slew), tpZ - hkD + hkH + 0.6
 		rotz aV
 		rotx 90
-		if rated > 0 then
-			text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
-		else
-			text 0.02, 0, "Max -"
+		if slgOn = 0 then
+			if rated > 0 then
+				text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
+			else
+				text 0.02, 0, "Max -"
+			endif
 		endif
 		del 3
 		add -gnX, 0, gnH + 1.2
@@ -3421,9 +3425,11 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + CRANE_VL + gdl_radii.vl("mcKind = 2") + model_vl(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + CRANE_VL + gdl_radii.vl("mcKind = 2")
+                                               + gdl_mark.vl("(tpZ - hkD)", "parameters hkD = max(0.5, tpZ - mkZ - slgH)", "mcKind = 2") + model_vl(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
-    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    mark = gdl_mark.model("hkX * cos(slew)", "hkX * sin(slew)", "(tpZ - hkD)", "capT", ' + " (" + str(sfRate * 100, 3, 0) + "%)"', "lbGnd = 0")
+    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D.replace("@MARK@", mark), encoding="utf-8")
     (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui("mcKind = 2"), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"

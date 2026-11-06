@@ -75,6 +75,18 @@ endif
 if (1) = 0 then
 	hideparameter "wiNum", "wiPen"
 endif
+! 吊り点の印（scripts/gdl_mark.py）
+hideparameter "mkZ"
+if 1 then
+	if GLOB_MODPAR_NAME = "mkZ" then
+		parameters hkD = max(0.5, jZ - mkZ - slgH)
+	else
+		if abs(mkZ - (hZ - slgH)) > 0.001 then parameters mkZ = hZ - slgH
+	endif
+else
+	hideparameter "slgOn", "slgH"
+endif
+values "slgH" range [0, ]
 ! 機種を選ぶと、src/ashiba/tower.py の寸法を書き込む（gen_tower_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0

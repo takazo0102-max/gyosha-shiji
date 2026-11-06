@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from gen_cfill_gdl import _parse_all  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_mark  # noqa: E402
 import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_crane"
@@ -110,6 +111,7 @@ def paramlist() -> str:
         _param("Boolean", "bmStep", "ブームの長さを性能表の段に吸い付ける（段階ブーム。長さ優先のとき）", 0),
         _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
         *gdl_radii.params(_param),
+        *gdl_mark.params(_param),
         _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
         _param("Integer", "clr", "色の組（1 タダノ 白と青・2 加藤 黄と濃灰・3 灰）", 1),
         _param("Length", "ftZ", "フートピンの高さ（上部原点から）", 1.71),
@@ -471,7 +473,7 @@ if travel = 0 then
 	hotspot2 xF, 0, 31, hfY, 1 + 128
 	hotspot2 xF, yF, 32, hfY, 2
 	hotspot2 xF, -1, 33, hfY, 3
-endif
+@MARK2@endif
 ! 旋回の中心（一点鎖線の十字）
 drawindex 45
 pen pT
@@ -573,7 +575,7 @@ def _script_2d() -> str:
         "@UPMASK@": D.mask([("1.6", "-uw"), ("1.6", "uw")] + D.arc_pts("tailR", "180 - au", "180 + au"), t).rstrip("\n"),
         "@BOOMMASK@": D.rect_mask("-pivB", "-bmW / 2", "tipX + 0.25", "bmW / 2", t).rstrip("\n"),
     }
-    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "crT"))
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "crT")).replace("@MARK2@", gdl_mark.plan("xF", "yF", "penEquip"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -1316,10 +1318,12 @@ if infoOn then
 	add tipX * cos(slD), tipX * sin(slD), hkD + hkHt + 0.6
 	rotz aV
 	rotx 90
-	if rated > 0 then
-		text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
-	else
-		text 0.02, 0, "Max -"
+	if slgOn = 0 then
+		if rated > 0 then
+			text 0.02, 0, "Max " + str(rated * sfRate, 5, 2) + "t (" + str(sfRate * 100, 3, 0) + "%)"
+		else
+			text 0.02, 0, "Max -"
+		endif
 	endif
 	del 3
 	add -carRr - 0.5, 0, carH + 0.5
@@ -1330,7 +1334,7 @@ if infoOn then
 	text 0.02, 0, "Boom=" + str(bL, 4, 1) + "m R=" + str(tipX, 4, 1) + "m"
 	del 4
 endif
-end
+@MARK@end
 
 "sideP":
 	! put 済みの (x, z) の列を Y の yA〜yB に押し出す
@@ -1443,7 +1447,7 @@ if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") 
 	if mp = "oRR" then parameters oRR = bq
 endif
 ! outW から4脚へは書き戻さない（Tapir でまとめて入れると GLOB_MODPAR_NAME が outW のまま古い outW で脚を上書きした。2026-11-01）
-""" + gdl_radii.vl() + gdl_draft.values()
+""" + gdl_radii.vl() + gdl_mark.vl("hkD", "parameters hkZ = mkZ + slgH", "travel = 0") + gdl_draft.values()
 
 
 def main() -> int:
@@ -1452,7 +1456,8 @@ def main() -> int:
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
     (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL, encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
-    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    mark = gdl_mark.model("tipX * cos(slD)", "tipX * sin(slD)", "hkD", "capT", ' + " (" + str(sfRate * 100, 3, 0) + "%)"', "travel = 0")
+    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D.replace("@MARK@", mark), encoding="utf-8")
     (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui(), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"
