@@ -82,6 +82,62 @@ if mcKind = 2 then
 		if abs(hfX - hkX * cos(slew)) + abs(hfY - hkX * sin(slew)) > 0.001 then parameters hfX = hkX * cos(slew), hfY = hkX * sin(slew)
 	endif
 endif
+! 作業半径の表示（scripts/gdl_radii.py）
+values "wiNum" range [0, 5]
+wMp = GLOB_MODPAR_NAME
+values "wiR1" range [0.5, ]
+if wMp = "wiM1" then
+	parameters wiA1 = wiM1 - wiSq[1] / 2, wiB1 = wiM1 + wiSq[1] / 2
+else
+	if abs(wiM1 - wiMq[1]) > 0.001 then parameters wiM1 = wiMq[1]
+endif
+hideparameter "wiM1"
+if nWi < 1 then
+	hideparameter "wiR1", "wiA1", "wiB1", "wiF1"
+endif
+values "wiR2" range [0.5, ]
+if wMp = "wiM2" then
+	parameters wiA2 = wiM2 - wiSq[2] / 2, wiB2 = wiM2 + wiSq[2] / 2
+else
+	if abs(wiM2 - wiMq[2]) > 0.001 then parameters wiM2 = wiMq[2]
+endif
+hideparameter "wiM2"
+if nWi < 2 then
+	hideparameter "wiR2", "wiA2", "wiB2", "wiF2"
+endif
+values "wiR3" range [0.5, ]
+if wMp = "wiM3" then
+	parameters wiA3 = wiM3 - wiSq[3] / 2, wiB3 = wiM3 + wiSq[3] / 2
+else
+	if abs(wiM3 - wiMq[3]) > 0.001 then parameters wiM3 = wiMq[3]
+endif
+hideparameter "wiM3"
+if nWi < 3 then
+	hideparameter "wiR3", "wiA3", "wiB3", "wiF3"
+endif
+values "wiR4" range [0.5, ]
+if wMp = "wiM4" then
+	parameters wiA4 = wiM4 - wiSq[4] / 2, wiB4 = wiM4 + wiSq[4] / 2
+else
+	if abs(wiM4 - wiMq[4]) > 0.001 then parameters wiM4 = wiMq[4]
+endif
+hideparameter "wiM4"
+if nWi < 4 then
+	hideparameter "wiR4", "wiA4", "wiB4", "wiF4"
+endif
+values "wiR5" range [0.5, ]
+if wMp = "wiM5" then
+	parameters wiA5 = wiM5 - wiSq[5] / 2, wiB5 = wiM5 + wiSq[5] / 2
+else
+	if abs(wiM5 - wiMq[5]) > 0.001 then parameters wiM5 = wiMq[5]
+endif
+hideparameter "wiM5"
+if nWi < 5 then
+	hideparameter "wiR5", "wiA5", "wiB5", "wiF5"
+endif
+if (mcKind = 2) = 0 then
+	hideparameter "wiNum", "wiPen"
+endif
 ! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0

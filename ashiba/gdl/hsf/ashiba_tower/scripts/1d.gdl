@@ -54,6 +54,43 @@ capT = 0
 for i = nQr to 1 step -1
 	if qR[i] >= hX - 0.001 and i <= nQt then capT = qT[i] / 100
 next i
+! 作業半径の表示（scripts/gdl_radii.py）
+nWi = max(0, min(5, wiNum)) * (1)
+dim wiRq[5], wiAq[5], wiBq[5], wiSq[5], wiMq[5], wiFq[5], wiTq[5]
+wiRq[1] = wiR1
+wiAq[1] = wiA1
+wiBq[1] = wiB1
+wiFq[1] = wiF1
+wiRq[2] = wiR2
+wiAq[2] = wiA2
+wiBq[2] = wiB2
+wiFq[2] = wiF2
+wiRq[3] = wiR3
+wiAq[3] = wiA3
+wiBq[3] = wiB3
+wiFq[3] = wiF3
+wiRq[4] = wiR4
+wiAq[4] = wiA4
+wiBq[4] = wiB4
+wiFq[4] = wiF4
+wiRq[5] = wiR5
+wiAq[5] = wiA5
+wiBq[5] = wiB5
+wiFq[5] = wiF5
+for wq = 1 to 5
+	wS0 = wiBq[wq] - wiAq[wq] + 720
+	wS0 = wS0 - int(wS0 / 360) * 360
+	if wS0 < 0.01 then wS0 = 360
+	wiSq[wq] = wS0
+	wiMq[wq] = wiAq[wq] + wS0 / 2
+next wq
+for wq = 1 to nWi
+	vq = 0
+	for k = nQr to 1 step -1
+		if qR[k] >= wiRq[wq] - 0.001 and k <= nQt then vq = qT[k] / 100
+	next k
+	wiTq[wq] = vq
+next wq
 ! 壁つなぎの高さ（mm の文字 → m）
 dim tz[]
 nTz = 0

@@ -494,6 +494,15 @@ def lod_params(m: CraneModel) -> dict:
             "hkDm": c["hook"][0], "hkHt": c["hook"][1], "jbSt": True}
 
 
+def radii_values(radii: list, center: float) -> dict:
+    """平面の作業半径の表示（SCP の「クレーン設定」）: 吊荷の半径を小さい順に 5 つまで、ブームの向きの ±10° で（scripts/gdl_radii.py の項目）."""
+    rs = sorted({round(r, 3) for r in radii if r > 0})[:5]
+    out: dict = {"wiNum": len(rs)}
+    for i, r in enumerate(rs, 1):
+        out |= {f"wiR{i}": r, f"wiA{i}": center - 10.0, f"wiB{i}": center + 10.0, f"wiM{i}": center}
+    return out
+
+
 def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO, boom_m: float = 0.0, jib: float = 0.0,
                 jib_off: float = JIB_OFFSET) -> dict:
     """部品 ashiba_crane のパラメータ（m・度）。oSnap は先に False だけを入れてから全部を入れ、置いたあとで True に
@@ -518,7 +527,8 @@ def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: fl
             "loadT": g.load_t if g else 0.0, "hookT": m.hook_t, "rigT": RIGGING_T, "sfRate": ratio,
             **rated_strings(m),
             "plN": p.plates, "plDraw": False, "wrR": ",".join(f"{x.radius:.0f}" for x in p.lifts),
-            "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": False, **lod_params(m)}
+            "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": False, **lod_params(m),
+            **radii_values([x.radius / 1000.0 for x in p.lifts], slew_deg)}
 
 
 def effective_spread(ps: dict) -> float:

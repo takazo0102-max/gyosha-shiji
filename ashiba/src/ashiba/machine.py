@@ -1201,7 +1201,7 @@ def part_params(p: Placed) -> dict:
     return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "mcClr": int("コベルコ" in m.model), "slew": p.slew, **ps}
 
 
-BOOL_PARAMS = frozenset({"lbGnd", "lbRW", "lbFat", "wrOn", "infoOn", "otOn", "ucOn", "cgOn", "tkOn"})   # 部品の Boolean 型（テストで paramlist と照合）
+BOOL_PARAMS = frozenset({"lbGnd", "lbRW", "lbFat", "wrOn", "infoOn", "otOn", "ucOn", "cgOn", "tkOn", *(f"wiF{i}" for i in range(1, 6))})   # 部品の Boolean 型（テストで paramlist と照合）
 
 
 VEHICLE_DEFAULTS = {"cgOn": 0, "cgL": 0.0, "cgW": 0.0, "cgH": 0.0, "cgX": 0.0, "cgT": 0.0, "tkOn": 1, "tkS": 1, "tkW": 0.0}

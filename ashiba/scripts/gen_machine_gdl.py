@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from gen_hoist_gdl import _param  # noqa: E402
 from gen_ywall_gdl import _list  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_machine"
 MAIN_GUID = "5C2E8A71-3D96-4B1F-A7E4-9F6B2D8C1A35"
@@ -83,6 +84,7 @@ def paramlist() -> str:
         _param("Boolean", "lbFat", "太トラス（トラスを目立たせる）", 0),
         _param("Boolean", "wrOn", "作業半径を 3D に描く", 0),
         _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
+        *gdl_radii.params(_param),
         _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
         _param("Integer", "mcClr", "色の組（0 重機の既定・1 コベルコの青緑）", 0),
         _param("Length", "lbR", "作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）", 11.0),
@@ -401,7 +403,7 @@ if mcKind = 2 then
 	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
 endif
 capT = rated * sfRate
-! アースドリルのテレスコブームの先
+@WI@! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)
 ! 解体機のフロント（3段の関節とアームの先）
@@ -427,6 +429,7 @@ nFa = max(1, min(2, nFr))
 zDk = max(0.5, rtH - 0.969)
 """
 
+SCRIPT_1D = SCRIPT_1D.replace("@WI@", gdl_radii.master("mcKind = 2") + gdl_radii.rated_loop('\tiQ = 0\n\tif jbL > 0.01 then\n\t\tfor k = min(nJr, nJt) to 1 step -1\n\t\t\tif jtR[k] >= wiRq[wq] - 0.001 then iQ = k\n\t\tnext k\n\t\tif iQ > 0 then vq = jtT[iQ] / 100\n\telse\n\t\tfor k = nMr to 1 step -1\n\t\t\tif mtR[k] >= wiRq[wq] - 0.001 then iQ = k\n\t\tnext k\n\t\tif iQ > 0 then\n\t\t\tif jB = 1 and iQ <= nC1 then vq = mtC1[iQ] / 100\n\t\t\tif jB = 2 and iQ <= nC2 then vq = mtC2[iQ] / 100\n\t\t\tif jB = 3 and iQ <= nC3 then vq = mtC3[iQ] / 100\n\t\t\tif jB = 4 and iQ <= nC4 then vq = mtC4[iQ] / 100\n\t\t\tif jB = 5 and iQ <= nC5 then vq = mtC5[iQ] / 100\n\t\tendif\n\tendif\n\tif wiRq[wq] < rMin - 0.001 or wiRq[wq] > rMax + 0.001 then vq = 0\n\tvq = vq * sfRate\n'), 1)
 SCRIPT_1D = SCRIPT_1D.replace("! クローラクレーンのブームの先・ジブの先", (
     _list("rtB", "mtB", "nMb") + _list("rtN", "mtN", "nMn") + _list("rtX", "mtX", "nMx") + _list("rtR", "mtR", "nMr")
     + "".join(_list(f"rc{i}", f"mtC{i}", f"nC{i}", "1") for i in range(1, 6))
@@ -1070,7 +1073,7 @@ if mcKind = 2 then
 	endif
 	drawindex 45
 endif
-! 旋回の中心（一点鎖線の十字。簡略は小さく）
+@RADII@! 旋回の中心（一点鎖線の十字。簡略は小さく）
 if isCr or mcKind = 3 or mcKind = 6 then
 	pen pT
 	cq = 0.6 + 0.6 * (drLv = 3)
@@ -1142,7 +1145,7 @@ def _script_2d() -> str:
         "@CG13MASK@": D.rect_mask("xg1", "-cgW / 2", "xg2", "cgW / 2", t * 4).rstrip("\n"),
         "@CG14MASK@": D.rect_mask("cgX - cgL / 2", "-cgW / 2", "cgX + cgL / 2", "cgW / 2", t * 4).rstrip("\n"),
     }
-    out = SCRIPT_2D_T
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "mcT"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -3418,9 +3421,10 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + CRANE_VL + model_vl(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + CRANE_VL + gdl_radii.vl("mcKind = 2") + model_vl(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui("mcKind = 2"), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"
         f"\t<Identification>\n\t\t<MainGUID>{MAIN_GUID}</MainGUID>\n\t\t<IsPlaceable>true</IsPlaceable>\n"
@@ -3430,6 +3434,7 @@ def main() -> int:
         "\t<Script_3D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_2D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_1D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
+        "\t<Script_UI SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_VL SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<ParamSection SectVersion=\"27\" SectionFlags=\"0\" SubIdent=\"0\"/>\n</LibpartData>\n", encoding="utf-8")
     (OUT / "ancestry.xml").write_text(

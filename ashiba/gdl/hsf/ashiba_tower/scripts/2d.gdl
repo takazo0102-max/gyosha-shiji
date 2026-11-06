@@ -151,6 +151,123 @@ rot2 -SYMB_ROTANGLE
 if capT > 0 then text2 0.6, dT, "定格 " + str(capT, 5, 2) + "t"
 text2 0.6, 0, "R" + str(round_int(hX * 1000), 1, 0)
 del 2
+! 作業半径の表示（弧と線と文字。scripts/gdl_radii.py）
+if nWi > 0 then
+	define style "wiS" "ＭＳ Ｐゴシック", texSiz, 8, 0
+	drawindex 50
+	line_type ltS
+endif
+for wq = 1 to nWi
+	wRr = wiRq[wq]
+	wAm = wiMq[wq]
+	pen pT
+	if wiSq[wq] >= 359.9 then
+		circle2 0, 0, wRr
+	else
+		arc2 0, 0, wRr, wiAq[wq], wiAq[wq] + wiSq[wq]
+	endif
+	line2 0, 0, wRr * cos(wAm), wRr * sin(wAm)
+	wVr = wRr
+	wVt = wiTq[wq]
+	wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+	if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+	! 読める向き（図面の上で左へ倒れない）に向け、文字反転でさらに 180°
+	wAt = wAm + SYMB_ROTANGLE + 1080
+	wAt = wAt - int(wAt / 360) * 360
+	wFl = (wAt > 90 and wAt <= 270)
+	if wiFq[wq] then wFl = 1 - wFl
+	pen penEquip
+	if wiPen > 0 then pen wiPen
+	style "wiS"
+	add2 wRr * 0.5 * cos(wAm), wRr * 0.5 * sin(wAm)
+	rot2 wAm + 180 * wFl
+	text2 0, texSiz * GLOB_SCALE / 1000 * 0.3, wTx
+	del 2
+next wq
+if nWi > 0 then
+	style "tcT"
+	pen pT
+endif
+if nWi >= 1 then
+	wRr = wiRq[1]
+	wAm = wiMq[1]
+	hotspot2 0, 0, 900, wiR1, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 901, wiR1, 2
+	hotspot2 -cos(wAm), -sin(wAm), 902, wiR1, 3
+	hotspot2 0, 0, 903, wiA1, 6
+	hotspot2 wRr, 0, 904, wiA1, 4
+	hotspot2 wRr * cos(wiA1), wRr * sin(wiA1), 905, wiA1, 5
+	hotspot2 0, 0, 906, wiB1, 6
+	hotspot2 wRr, 0, 907, wiB1, 4
+	hotspot2 wRr * cos(wiB1), wRr * sin(wiB1), 908, wiB1, 5
+	hotspot2 0, 0, 909, wiM1, 6
+	hotspot2 wRr * 0.75, 0, 910, wiM1, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 911, wiM1, 5
+endif
+if nWi >= 2 then
+	wRr = wiRq[2]
+	wAm = wiMq[2]
+	hotspot2 0, 0, 912, wiR2, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 913, wiR2, 2
+	hotspot2 -cos(wAm), -sin(wAm), 914, wiR2, 3
+	hotspot2 0, 0, 915, wiA2, 6
+	hotspot2 wRr, 0, 916, wiA2, 4
+	hotspot2 wRr * cos(wiA2), wRr * sin(wiA2), 917, wiA2, 5
+	hotspot2 0, 0, 918, wiB2, 6
+	hotspot2 wRr, 0, 919, wiB2, 4
+	hotspot2 wRr * cos(wiB2), wRr * sin(wiB2), 920, wiB2, 5
+	hotspot2 0, 0, 921, wiM2, 6
+	hotspot2 wRr * 0.75, 0, 922, wiM2, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 923, wiM2, 5
+endif
+if nWi >= 3 then
+	wRr = wiRq[3]
+	wAm = wiMq[3]
+	hotspot2 0, 0, 924, wiR3, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 925, wiR3, 2
+	hotspot2 -cos(wAm), -sin(wAm), 926, wiR3, 3
+	hotspot2 0, 0, 927, wiA3, 6
+	hotspot2 wRr, 0, 928, wiA3, 4
+	hotspot2 wRr * cos(wiA3), wRr * sin(wiA3), 929, wiA3, 5
+	hotspot2 0, 0, 930, wiB3, 6
+	hotspot2 wRr, 0, 931, wiB3, 4
+	hotspot2 wRr * cos(wiB3), wRr * sin(wiB3), 932, wiB3, 5
+	hotspot2 0, 0, 933, wiM3, 6
+	hotspot2 wRr * 0.75, 0, 934, wiM3, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 935, wiM3, 5
+endif
+if nWi >= 4 then
+	wRr = wiRq[4]
+	wAm = wiMq[4]
+	hotspot2 0, 0, 936, wiR4, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 937, wiR4, 2
+	hotspot2 -cos(wAm), -sin(wAm), 938, wiR4, 3
+	hotspot2 0, 0, 939, wiA4, 6
+	hotspot2 wRr, 0, 940, wiA4, 4
+	hotspot2 wRr * cos(wiA4), wRr * sin(wiA4), 941, wiA4, 5
+	hotspot2 0, 0, 942, wiB4, 6
+	hotspot2 wRr, 0, 943, wiB4, 4
+	hotspot2 wRr * cos(wiB4), wRr * sin(wiB4), 944, wiB4, 5
+	hotspot2 0, 0, 945, wiM4, 6
+	hotspot2 wRr * 0.75, 0, 946, wiM4, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 947, wiM4, 5
+endif
+if nWi >= 5 then
+	wRr = wiRq[5]
+	wAm = wiMq[5]
+	hotspot2 0, 0, 948, wiR5, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 949, wiR5, 2
+	hotspot2 -cos(wAm), -sin(wAm), 950, wiR5, 3
+	hotspot2 0, 0, 951, wiA5, 6
+	hotspot2 wRr, 0, 952, wiA5, 4
+	hotspot2 wRr * cos(wiA5), wRr * sin(wiA5), 953, wiA5, 5
+	hotspot2 0, 0, 954, wiB5, 6
+	hotspot2 wRr, 0, 955, wiB5, 4
+	hotspot2 wRr * cos(wiB5), wRr * sin(wiB5), 956, wiB5, 5
+	hotspot2 0, 0, 957, wiM5, 6
+	hotspot2 wRr * 0.75, 0, 958, wiM5, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 959, wiM5, 5
+endif
 ! 旋回角のホットスポット
 rH = max(3.0, tailR)
 hotspot2 0, 0, 1, slew, 6
