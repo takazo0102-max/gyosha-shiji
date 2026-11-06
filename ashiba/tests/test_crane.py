@@ -452,6 +452,67 @@ class TestCraneLod(unittest.TestCase):
         self.assertEqual(tower_params(TOWERS["v600"])["tcClr"], 2)                 # JCC は赤白（IHI 技報）
 
 
+class TestBulkLift(unittest.TestCase):
+    """一括揚重判定で吊荷作図にチェックを入れたら部材が増えた（利用者の報告 2026-11-07）."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+
+    @staticmethod
+    def row(guid, kind="Column", name=""):
+        return ({"elementId": {"guid": guid}}, {"type": kind, "details": {"libPart": {"name": name}}})
+
+    def test_copies_and_marks_are_not_members(self):
+        from crane_check import lift_targets
+
+        pool = [self.row("a"), self.row("copy"), self.row("crane", "Object", "ashiba_crane_1"), self.row("s", "Object", "ashiba_plate_1"),
+                self.row("g", "Object", "標準通り芯マーカー"), self.row("o", "Object", "仮置きの箱"), self.row("m", "Mesh")]
+        got = [e["elementId"]["guid"] for e, _d in lift_targets(pool, "crane", {"copy"})]
+        self.assertEqual(got, ["a", "o"])
+
+    def test_bulk_never_draws(self):
+        g = (SRC.parent / "scripts" / "crane_check.py").read_text(encoding="utf-8")
+        self.assertIn("a.draw = a.draw and not a.all", g)
+        self.assertLess(g.index("a.draw = a.draw and not a.all"), g.index("made = copy_loads("))
+
+
+class TestHookMark(unittest.TestCase):
+    """吊り点の丸十字と Max（利用者の指定 2026-11-07）."""
+
+    PARTS = ("ashiba_crane", "ashiba_machine", "ashiba_tower")
+
+    def hsf(self, part, name):
+        return (SRC.parent / "gdl" / "hsf" / part / name).read_text(encoding="utf-8")
+
+    def test_mark_moves_freely_in_3d(self):
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/3d.gdl")
+            for ref, flags in (("hfX", ("1 + 128", "2", "3")), ("hfY", ("1 + 128", "2", "3")), ("mkZ", ("1 + 128", "2", "3"))):
+                for f in flags:
+                    self.assertRegex(g, rf"hotspot .*, {ref}, {re.escape(f)}\n", part)
+            self.assertIn("mkQ = mkH - slgH", g)
+            self.assertIn('"Max "', g)
+            self.assertIn("mkV = capT", g)
+
+    def test_plan_draws_the_mark(self):
+        for part in self.PARTS:
+            self.assertIn("circle2 xF, yF, mkR", self.hsf(part, "scripts/2d.gdl"))
+
+    def test_mark_height_moves_the_hook(self):
+        self.assertIn("parameters hkZ = mkZ + slgH", self.hsf("ashiba_crane", "scripts/vl.gdl"))
+        self.assertIn("parameters hkD = max(0.5, tpZ - mkZ - slgH)", self.hsf("ashiba_machine", "scripts/vl.gdl"))
+        self.assertIn("parameters hkD = max(0.5, jZ - mkZ - slgH)", self.hsf("ashiba_tower", "scripts/vl.gdl"))
+
+    def test_info_text_does_not_repeat_max(self):
+        for part in self.PARTS[:2]:
+            self.assertIn("if slgOn = 0 then", self.hsf(part, "scripts/3d.gdl"))
+
+    def test_check_uses_the_part_sling(self):
+        g = (SRC.parent / "scripts" / "crane_check.py").read_text(encoding="utf-8")
+        self.assertIn('a.sling = float(ps["slgH"]) * 1000.0', g)
+
+
 class TestRadiiDisplay(unittest.TestCase):
     """平面の作業半径の表示（SCP の「クレーン設定」。利用者の指定 2026-11-07「これも機能追加して」）."""
 

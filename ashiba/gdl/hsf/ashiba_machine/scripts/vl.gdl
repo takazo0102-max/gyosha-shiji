@@ -138,6 +138,18 @@ endif
 if (mcKind = 2) = 0 then
 	hideparameter "wiNum", "wiPen"
 endif
+! 吊り点の印（scripts/gdl_mark.py）
+hideparameter "mkZ"
+if mcKind = 2 then
+	if GLOB_MODPAR_NAME = "mkZ" then
+		parameters hkD = max(0.5, tpZ - mkZ - slgH)
+	else
+		if abs(mkZ - ((tpZ - hkD) - slgH)) > 0.001 then parameters mkZ = (tpZ - hkD) - slgH
+	endif
+else
+	hideparameter "slgOn", "slgH"
+endif
+values "slgH" range [0, ]
 ! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0

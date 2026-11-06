@@ -111,4 +111,16 @@ endif
 if (1) = 0 then
 	hideparameter "wiNum", "wiPen"
 endif
+! 吊り点の印（scripts/gdl_mark.py）
+hideparameter "mkZ"
+if travel = 0 then
+	if GLOB_MODPAR_NAME = "mkZ" then
+		parameters hkZ = mkZ + slgH
+	else
+		if abs(mkZ - (hkD - slgH)) > 0.001 then parameters mkZ = hkD - slgH
+	endif
+else
+	hideparameter "slgOn", "slgH"
+endif
+values "slgH" range [0, ]
 values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"

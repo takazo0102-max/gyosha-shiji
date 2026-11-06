@@ -821,6 +821,18 @@
 			<Description><![CDATA["5. 文字反転"]]></Description>
 			<Value>0</Value>
 		</Boolean>
+		<Boolean Name="slgOn">
+			<Description><![CDATA["吊り点の印と Max の表示"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Length Name="slgH">
+			<Description><![CDATA["吊りしろ（フックから吊り点）"]]></Description>
+			<Value>6.0</Value>
+		</Length>
+		<Length Name="mkZ">
+			<Description><![CDATA["吊り点の高さ（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<RealNum Name="texZ">
 			<Description><![CDATA["クレーン情報の文字の高さ（m）"]]></Description>
 			<Value>0.6</Value>

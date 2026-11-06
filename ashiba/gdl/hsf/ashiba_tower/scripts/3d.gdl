@@ -57,6 +57,57 @@ endif
 if avN > 0 then gosub "lights"
 del 2
 gosub "hook"
+! 吊り点の印（丸十字）と Max（scripts/gdl_mark.py）
+if slgOn and (1) then
+	define material "mk_red" 2, 0.90, 0.10, 0.10
+	define style "mkI" "Arial", 900 * texZ, 4, 0
+	mkX = hX * cos(slew)
+	mkY = hX * sin(slew)
+	mkH = hZ
+	mkQ = mkH - slgH
+	mkR = texZ
+	mkV = capT
+	material "mk_red"
+	lin_ mkX, mkY, mkH, mkX, mkY, mkQ
+	aV = 0
+	dxV = GLOB_EYEPOS_X - SYMB_POS_X
+	dyV = GLOB_EYEPOS_Y - SYMB_POS_Y
+	if abs(dxV) > 0.01 then aV = atn(dyV / dxV) + 180 * (dxV < 0)
+	aV = aV - SYMB_ROTANGLE + 90
+	add mkX, mkY, mkQ
+	rotz aV
+	rotx 90
+	for k = 0 to 24
+		put mkR * cos(15 * k), mkR * sin(15 * k), 15 - 16 * (k = 24)
+	next k
+	for k = 0 to 24
+		put mkR * 0.82 * cos(15 * k), mkR * 0.82 * sin(15 * k), 15 - 16 * (k = 24)
+	next k
+	prism_ nsp / 3, 0.03, get(nsp)
+	add -mkR, -mkR * 0.05, 0
+	block mkR * 2, mkR * 0.1, 0.03
+	del 1
+	add -mkR * 0.05, -mkR, 0
+	block mkR * 0.1, mkR * 2, 0.03
+	del 1
+	style "mkI"
+	add mkR * 1.3, 0, 0
+	if mkV > 0 then
+		text 0.02, 0, "Max " + str(mkV, 4 + (mkV >= 10) + (mkV >= 100), 2) + "t"
+	else
+		text 0.02, 0, "Max -"
+	endif
+	del 4
+	hotspot 0, mkY, mkQ, 960, hfX, 1 + 128
+	hotspot mkX, mkY, mkQ, 961, hfX, 2
+	hotspot -1, mkY, mkQ, 962, hfX, 3
+	hotspot mkX, 0, mkQ, 963, hfY, 1 + 128
+	hotspot mkX, mkY, mkQ, 964, hfY, 2
+	hotspot mkX, -1, mkQ, 965, hfY, 3
+	hotspot mkX, mkY, 0, 966, mkZ, 1 + 128
+	hotspot mkX, mkY, mkQ, 967, mkZ, 2
+	hotspot mkX, mkY, -1, 968, mkZ, 3
+endif
 end
 
 "seg3":

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from gen_hoist_gdl import _param  # noqa: E402
 from gen_ywall_gdl import _list  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_mark  # noqa: E402
 import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_tower"
@@ -84,6 +85,8 @@ def paramlist() -> str:
         _param("Boolean", "hkLim", "フックを規定の揚程の範囲に制限する（最大揚程）", 0),
         _param("Length", "hkMax", "最大揚程（地盤からフックの上限）", 0.0),
         *gdl_radii.params(_param),
+        *gdl_mark.params(_param),
+        _param("RealNum", "texZ", "吊り点の文字の高さ（m）", 0.6),
         _param("Integer", "avN", "航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）", 0),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -271,7 +274,7 @@ hotspot2 -1, yF, 63, hfX, 3
 hotspot2 xF, 0, 64, hfY, 1 + 128
 hotspot2 xF, yF, 65, hfY, 2
 hotspot2 xF, -1, 66, hfY, 3
-add2 xF, yF
+@MARK2@add2 xF, yF
 rot2 -SYMB_ROTANGLE
 if capT > 0 then text2 0.6, dT, "定格 " + str(capT, 5, 2) + "t"
 text2 0.6, 0, "R" + str(round_int(hX * 1000), 1, 0)
@@ -294,7 +297,7 @@ def _script_2d() -> str:
         "@CWMASK@": D.rect_mask("-tailR", "dkY - cwW / 2", "-tailR + cwL", "dkY + cwW / 2", t).rstrip("\n"),
         "@DKMASK@": D.rect_mask("-tailR + cwL", "dkY - dkW / 2", "upF", "dkY + dkW / 2", t).rstrip("\n"),
     }
-    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pT", "ltS", "penEquip", "tcT"))
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pT", "ltS", "penEquip", "tcT")).replace("@MARK2@", gdl_mark.plan("xF", "yF", "penEquip"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -362,7 +365,7 @@ endif
 if avN > 0 then gosub "lights"
 del 2
 gosub "hook"
-end
+@MARK@end
 
 "seg3":
 	! (x0q, y0q, z0q) から (x1q, y1q, z1q) の円柱（半径 rq）
@@ -883,9 +886,9 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + gdl_radii.vl() + model_vl() + gdl_draft.values(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + gdl_radii.vl() + gdl_mark.vl("hZ", "parameters hkD = max(0.5, jZ - mkZ - slgH)") + model_vl() + gdl_draft.values(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
-    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D.replace("@MARK@", gdl_mark.model("hX * cos(slew)", "hX * sin(slew)", "hZ", "capT")), encoding="utf-8")
     (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui(), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"

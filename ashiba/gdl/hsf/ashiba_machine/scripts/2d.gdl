@@ -662,6 +662,15 @@ if mcKind = 2 then
 	hotspot2 xF, 0, 54, hfY, 1 + 128
 	hotspot2 xF, yF, 55, hfY, 2
 	hotspot2 xF, -1, 56, hfY, 3
+! 吊り点の印（scripts/gdl_mark.py）
+if slgOn and (1) then
+	pen penEquip
+	line_type 1
+	mkR = texSiz * GLOB_SCALE / 1000 * 0.7
+	circle2 xF, yF, mkR
+	line2 xF - mkR, yF, xF + mkR, yF
+	line2 xF, yF - mkR, xF, yF + mkR
+endif
 	add2 hkX * cos(slew), hkX * sin(slew)
 	rot2 -SYMB_ROTANGLE
 	if rated > 0 then
