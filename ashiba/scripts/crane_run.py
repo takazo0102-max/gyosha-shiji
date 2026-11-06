@@ -2,7 +2,8 @@
 
 利用者の指定（2026-11-01）「クレーン リサーチして追加して」。
 
-  python3 scripts/crane_run.py --load 2.5 --lift-z 15000      # 選んだ線（ポリライン）の始めの点＝旋回中心、ほかの点＝吊り荷
+  python3 scripts/crane_run.py --load 2.5 --lift-z 15000      # 線を選ばなければ平面図で 2回クリック（旋回中心・吊り荷の位置。Esc でやめる）
+                                                             # 選んだ線（ポリライン）があれば始めの点＝旋回中心、ほかの点＝吊り荷
   python3 scripts/crane_run.py --load 2.5,1.0 --lift-z 15000,12000 --model 25t
   python3 scripts/crane_run.py --soil-q 150 --spread 5.0     # 地盤の許容支持力（短期 kN/m²）・アウトリガの張出幅 m
   python3 scripts/crane_run.py --carrier-angle 0             # 車体の向き（度。省くと線の始めの辺の向き）
@@ -60,9 +61,12 @@ def ask(a) -> bool:
     jibs = "・".join(f"{MODELS[k].name.split(' ')[1]} {'・'.join(f'{v:g}' for v in vs)}" for k, vs in JIBS.items())
     res = show_form({
         "title": "クレーン",
-        "intro": "平面のブームの先に定格総荷重と安全率を掛けた荷重、作業の最小半径を描きます。ホットスポットで、ブームの先は起伏角、"
+        "intro": "線を選んでいなければ、置くを押したあと平面図で 1回目に旋回中心、2回目に吊り荷の位置をクリック（車体はその向き）。"
+                 "線を選んでいれば、その線に置きます。平面のブームの先に定格総荷重と安全率を掛けた荷重、作業の最小半径を描きます。ホットスポットで、ブームの先は起伏角、"
                  "平面のフックは作業半径を動かせます。ジブの長さ（m）: " + jibs,
         "fields": [{"key": "model", "label": "機種", "kind": "choice", "options": [auto] + list(names), "value": auto},
+                   {"key": "load", "label": "吊り荷 t（線の点ごとはカンマ区切り）", "kind": "text", "value": a.load or "1"},
+                   {"key": "liftz", "label": "要るフックの高さ mm（地盤から）", "kind": "text", "value": a.lift_z or "10000"},
                    {"key": "boom", "label": "ブーム長さ m（空＝吊り荷から自動）", "kind": "number", "value": ""},
                    {"key": "jib", "label": "ジブ長さ m（空＝なし）", "kind": "number", "value": ""},
                    {"key": "off", "label": "ジブのオフセット角 度", "kind": "number", "value": f"{JIB_OFFSET:g}"},
@@ -72,6 +76,8 @@ def ask(a) -> bool:
         return False
     v = res.get("values") or {}
     a.model = names.get(str(v.get("model")), a.model)
+    a.load = str(v.get("load") or "").strip() or a.load
+    a.lift_z = str(v.get("liftz") or "").strip() or a.lift_z
     for key, attr in (("boom", "boom"), ("jib", "jib"), ("off", "jib_off"), ("ratio", "ratio")):
         try:
             setattr(a, attr, float(str(v.get(key) or "").replace(",", "")))
@@ -107,6 +113,7 @@ def main(argv=None) -> int:
     ap.add_argument("--jib", type=float, default=0.0, help="ジブ長さ m（0＝なし）")
     ap.add_argument("--jib-off", dest="jib_off", type=float, default=5.0, help="ジブのオフセット角")
     ap.add_argument("--ask", action="store_true", help="機種・ブーム・ジブ・安全率を窓で選ぶ")
+    ap.add_argument("--pick", action="store_true", help="線を選んでいてもクリックで置く")
     ap.add_argument("--remove", action="store_true", help="置いたクレーンを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
@@ -121,14 +128,24 @@ def main(argv=None) -> int:
         rec_path.write_text("{}", encoding="utf-8")
         print(f"クレーン: {n}台を消しました")
         return 0
-    lines = [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
-    if not lines:
-        print("クレーン: 線（ポリライン）を選んでから押してください（始めの点＝クレーンの旋回中心、ほかの点＝吊り荷の位置）")
-        return 1
     if a.ask and not ask(a):
         print("クレーン: やめました（何も置いていません）")
         return 0
-    R.ensure_parts(c)
+    lines = [] if a.pick else [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
+    if not lines:
+        from machine_run import front_archicad, pick_line
+
+        if c.tapir("GetCurrentWindowType", {}).get("currentWindowType") != "FloorPlan":
+            print("クレーン: 平面図の窓を前にしてから押してください（線を選んであれば、その線に置きます）")
+            return 1
+        front_archicad(c)
+        print("  平面図で 旋回中心 → 吊り荷の位置 の順にクリック（Esc でやめる）", flush=True)
+        pts = pick_line(c, "Click the crane center", "Click the load position")
+        if pts is None:
+            print("クレーン: やめました（何も置いていません）")
+            return 0
+        lines = [(f"クリック:{pts[0][0]:.0f}:{pts[0][1]:.0f}", pts)]
+    R.ensure_parts(c)                                    # クリックを待たせないよう、部品の確認はあとで
     part = R.versioned_part_name(PART)
     plate_part = R.versioned_part_name(PLATE_PART)
     spec = {**R.SPEC, **R.load_spec_override()}

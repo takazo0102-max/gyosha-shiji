@@ -184,6 +184,63 @@ class TestRunScript(unittest.TestCase):
         self.assertEqual(c, (0.0, 0.0))
         self.assertEqual([(x.radius, x.load_t, x.need_z) for x in ls], [(12000.0, 2.5, 15000.0), (18000.0, 2.5, 12000.0)])
 
+    def test_form_takes_load_and_height(self):
+        import argparse
+        import json
+        import os
+        from unittest import mock
+
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        import crane_run as C
+
+        a = argparse.Namespace(model=None, load=None, lift_z=None, boom=0.0, jib=0.0, jib_off=5.0, ratio=0.9)
+        ans = json.dumps({"button": "place", "values": {"load": "2.8", "liftz": "16000", "ratio": "0.8"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertTrue(C.ask(a))
+        self.assertEqual((a.load, a.lift_z, a.ratio), ("2.8", "16000", 0.8))
+
+
+class TestClickPlacement(unittest.TestCase):
+    """線でなくクリックで置く（利用者の指定 2026-11-06「クレーンも線でなくクリックで配置するようにして」）."""
+
+    def _main(self, window, picked=None, lines=()):
+        from unittest import mock
+
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        import crane_run as C
+
+        class Client:
+            def tapir(self, name, params=None, **kw):
+                return {"currentWindowType": window}
+
+        pick = mock.Mock(return_value=picked)
+        with mock.patch("ashiba.tapir_adapter.ArchicadClient", Client), \
+                mock.patch("ashiba.naming.prune_gone", lambda c, rec: rec), \
+                mock.patch("guide_lines.selected_guides", lambda c: []), \
+                mock.patch("kakoi_run.chains", lambda g: list(lines)), \
+                mock.patch("machine_run.front_archicad"), mock.patch("machine_run.pick_line", pick), \
+                mock.patch("run_from_archicad.ensure_parts", side_effect=SystemExit("置く所まで来た")):
+            return C.main(["--load", "2.5"]), pick
+
+    def test_no_line_asks_for_two_clicks(self):
+        rc, pick = self._main("FloorPlan")
+        self.assertEqual(rc, 0)                          # Esc はやめる
+        self.assertEqual(pick.call_args.args[1:], ("Click the crane center", "Click the load position"))
+        self.assertTrue(all(ord(ch) < 128 for t in pick.call_args.args[1:] for ch in t))    # Tapir の案内は 1バイトのみ
+
+    def test_click_goes_on_to_placing(self):
+        with self.assertRaises(SystemExit):
+            self._main("FloorPlan", [(0.0, 0.0), (12000.0, 0.0)])
+
+    def test_needs_the_floor_plan(self):
+        rc, pick = self._main("3DModel")
+        self.assertEqual(rc, 1)
+        pick.assert_not_called()
+
+    def test_selected_line_is_kept(self):
+        with self.assertRaises(SystemExit):
+            rc, pick = self._main("3DModel", None, [("k", [(0.0, 0.0), (12000.0, 0.0)], False)])
+
 
 class TestParamRoundtrip(unittest.TestCase):
     def test_mismatches(self):
