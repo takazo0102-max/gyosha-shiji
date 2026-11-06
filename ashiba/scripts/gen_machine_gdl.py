@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 from gen_hoist_gdl import _param  # noqa: E402
+from gen_ywall_gdl import _list  # noqa: E402
 import gdl_draft  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_machine"
@@ -77,6 +78,21 @@ def paramlist() -> str:
         # クローラクレーン
         _param("Length", "lbL", "ラチスブームの長さ", 30.0),
         _param("Angle", "lbA", "ブームの起伏角", 70.0),
+        _param("Length", "lbR", "作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）", 11.0),
+        _param("Length", "hfX", "フックの位置 X（平面のホットスポットで引くと起伏角と旋回が変わる）", 11.0),
+        _param("Length", "hfY", "フックの位置 Y", 0.0),
+        _param("Length", "jbL", "ジブの長さ（0＝ジブなし）", 0.0),
+        _param("Angle", "jbO", "ジブのオフセット角", 10.0),
+        _param("RealNum", "sfRate", "安全率（定格総荷重に掛ける。0.9＝90%）", 0.9),
+        _param("String", "rtB", "定格総荷重表のブーム長さ（mm）", ""),
+        _param("String", "rtR", "定格総荷重表の作業半径（mm）", ""),
+        _param("String", "rtN", "ブームごとの最小の作業半径（mm）", ""),
+        _param("String", "rtX", "ブームごとの最大の作業半径（mm）", ""),
+        *[_param("String", f"rc{i}", f"定格総荷重（10kg 単位。{i}番目のブーム）", "") for i in range(1, 6)],
+        _param("String", "jrR", "ジブの定格総荷重表の作業半径（mm。選んだブームとジブの組）", ""),
+        _param("String", "jrT", "ジブの定格総荷重（10kg 単位）", ""),
+        _param("Length", "jrN", "ジブの最小の作業半径", 0.0),
+        _param("Length", "jrX", "ジブの最大の作業半径", 0.0),
         _param("Length", "lbW", "ブームの幅", 1.2),
         _param("Length", "hkD", "ブームの先からフックまで", 6.0),
         _param("Length", "hkH", "フックの全高", 1.47),
@@ -327,9 +343,53 @@ next i
 ! 高所作業車のブームの先
 abX = -0.4 + abL * cos(abA)
 abZ = tuH + abL * sin(abA)
-! クローラクレーンのブームの先
+! クローラクレーンのブームの先・ジブの先・フック・定格総荷重（表の読み方は src/ashiba/machine.py の crane_rating と同じ）
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
+jbW = min(lbW, 1.0) * 0.7
+jbX = lbX
+jbZ = lbZ
+if jbL > 0.01 then
+	jbX = lbX + jbL * cos(lbA - jbO)
+	jbZ = lbZ + jbL * sin(lbA - jbO)
+endif
+hkX = jbX + 0.4
+tpZ = jbZ
+rated = 0
+rMin = 0
+rMax = 0
+if mcKind = 2 then
+	iR = 0
+	if jbL > 0.01 then
+		rMin = jrN
+		rMax = jrX
+		for k = min(nJr, nJt) to 1 step -1
+			if jtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then rated = jtT[iR] / 100
+	else
+		jB = nMb
+		for k = nMb to 1 step -1
+			if mtB[k] >= lbL - 0.001 then jB = k
+		next k
+		if jB > 0 and jB <= nMn and jB <= nMx then
+			rMin = mtN[jB]
+			rMax = mtX[jB]
+		endif
+		for k = nMr to 1 step -1
+			if mtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then
+			if jB = 1 and iR <= nC1 then rated = mtC1[iR] / 100
+			if jB = 2 and iR <= nC2 then rated = mtC2[iR] / 100
+			if jB = 3 and iR <= nC3 then rated = mtC3[iR] / 100
+			if jB = 4 and iR <= nC4 then rated = mtC4[iR] / 100
+			if jB = 5 and iR <= nC5 then rated = mtC5[iR] / 100
+		endif
+	endif
+	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
+endif
+capT = rated * sfRate
 ! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)
@@ -355,6 +415,11 @@ nFa = max(1, min(2, nFr))
 ! 全周回転機のデッキの高さ（本体の高さから手すり 0.969 下）
 zDk = max(0.5, rtH - 0.969)
 """
+
+SCRIPT_1D = SCRIPT_1D.replace("! クローラクレーンのブームの先・ジブの先", (
+    _list("rtB", "mtB", "nMb") + _list("rtN", "mtN", "nMn") + _list("rtX", "mtX", "nMx") + _list("rtR", "mtR", "nMr")
+    + "".join(_list(f"rc{i}", f"mtC{i}", f"nC{i}", "1") for i in range(1, 6))
+    + _list("jrR", "jtR", "nJr") + _list("jrT", "jtT", "nJt", "1")) + "! クローラクレーンのブームの先・ジブの先", 1)
 
 SCRIPT_VL = """﻿! 重機: 種類の一覧
 dim kdV[], kdS[]
@@ -538,7 +603,14 @@ if isCr then
 			pen pO
 		endif
 		circle2 lbX, 0, 0.4
-		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+		if jbL > 0.01 then
+			! ジブ（先へ細くなる）
+			line2 lbX, -jbW / 2, jbX, -jbW / 4
+			line2 lbX, jbW / 2, jbX, jbW / 4
+			line2 jbX, -jbW / 4, jbX, jbW / 4
+			circle2 jbX, 0, 0.25
+		endif
+		if vbK = 1 then rect2 hkX - vbW / 2, -vbT / 2, hkX + vbW / 2, vbT / 2
 	endif
 	if mcKind = 8 then
 		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
@@ -941,7 +1013,7 @@ if isTk and mcKind <> 7 and tkOn and tnR > 0.5 then
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）。一点鎖線
 rW = maxR
-if mcKind = 2 then rW = lbX + 0.4
+if mcKind = 2 then rW = hkX
 isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
 drawindex 45
 if rW > 0.1 and isR then
@@ -949,6 +1021,43 @@ if rW > 0.1 and isR then
 	line_type ltC
 	circle2 0, 0, rW
 	line_type ltS
+endif
+if mcKind = 2 then
+	! 作業の最小半径（二点鎖線）と、ブームの先の定格総荷重・安全率を掛けた荷重
+	if rMin > 0.1 then
+		pen pZ
+		line_type ltZ
+		circle2 0, 0, rMin
+		line_type ltS
+	endif
+	drawindex 50
+	pen penEquip
+	dQ = texSiz * GLOB_SCALE / 1000 * 1.6
+	! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける。前後は起伏角、横は旋回）
+	xF = hkX * cos(slew)
+	yF = hkX * sin(slew)
+	hotspot2 0, yF, 51, hfX, 1 + 128
+	hotspot2 xF, yF, 52, hfX, 2
+	hotspot2 -1, yF, 53, hfX, 3
+	hotspot2 xF, 0, 54, hfY, 1 + 128
+	hotspot2 xF, yF, 55, hfY, 2
+	hotspot2 xF, -1, 56, hfY, 3
+	add2 hkX * cos(slew), hkX * sin(slew)
+	rot2 -SYMB_ROTANGLE
+	if rated > 0 then
+		text2 0.6, dQ, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	else
+		text2 0.6, dQ, "定格 表の外"
+	endif
+	text2 0.6, 0, "R" + str(round_int(hkX * 1000), 1, 0) + "・" + str(round_int(lbA), 1, 0) + "°"
+	del 2
+	if rMin > 0.1 then
+		add2 rMin * cos(slew + 40), rMin * sin(slew + 40)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "最小 R" + str(round_int(rMin * 1000), 1, 0)
+		del 2
+	endif
+	drawindex 45
 endif
 ! 旋回の中心（一点鎖線の十字。簡略は小さく）
 if isCr or mcKind = 3 or mcKind = 6 then
@@ -1048,6 +1157,9 @@ define material "mc_steel" 2, 0.55, 0.56, 0.58
 define material "mc_cw" 2, 0.35, 0.36, 0.38
 define material "mc_tire" 2, 0.10, 0.10, 0.10
 define material "mc_rim" 2, 0.80, 0.80, 0.78
+define material "mc_lamp" 2, 0.95, 0.60, 0.10
+define material "mc_head" 2, 0.92, 0.93, 0.85
+define material "mc_tail" 2, 0.75, 0.10, 0.10
 define material "mc_glass" 2, 0.30, 0.45, 0.60
 define material "mc_rod" 2, 0.85, 0.86, 0.88
 define material "mc_drum" 2, 0.92, 0.40, 0.12
@@ -1162,14 +1274,24 @@ end
 		del 2
 	endif
 	if mcKind = 2 then
+		! ブームの先を平面のどの向きにも引く（平面の 51〜56 と同じ組）
+		xF = hkX * cos(slew)
+		yF = hkX * sin(slew)
+		zF = tpZ + 0.3
+		hotspot 0, yF, zF, 228, hfX, 1 + 128
+		hotspot xF, yF, zF, 229, hfX, 2
+		hotspot -1, yF, zF, 230, hfX, 3
+		hotspot xF, 0, zF, 231, hfY, 1 + 128
+		hotspot xF, yF, zF, 232, hfY, 2
+		hotspot xF, -1, zF, 233, hfY, 3
 		rotz slew
 		hotspot pvX, 0, pvH, 221, lbA, 6
 		hotspot pvX + 1, 0, pvH, 222, lbA, 4
 		hotspot lbX, 0, lbZ, 223, lbA, 5
 		hotspot pvX, -1, pvH, 224, lbA, 7
-		hotspot lbX + 0.4, 0, lbZ, 225, hkD, 1 + 128
-		hotspot lbX + 0.4, 0, lbZ - hkD, 226, hkD, 2
-		hotspot lbX + 0.4, 0, lbZ + 1, 227, hkD, 3
+		hotspot hkX, 0, tpZ, 225, hkD, 1 + 128
+		hotspot hkX, 0, tpZ - hkD, 226, hkD, 2
+		hotspot hkX, 0, tpZ + 1, 227, hkD, 3
 		del 1
 	endif
 	if mcKind = 3 then
@@ -1386,6 +1508,33 @@ return
 			cylind 0.03, rT * 0.72
 			del 2
 		next e
+		! 上転輪（帯の上を支える）
+		material "mc_steel"
+		for q = -1 to 1 step 2
+			add q * trkL * 0.18, yR, trkH - 0.12
+			rotx 90
+			cylind 0.03, 0.07
+			del 2
+		next q
+		! 両端の輪に回るシュー（グローサ）
+		material "mc_dark"
+		for e = -1 to 1 step 2
+			for q = -2 to 2
+				add e * (trkL / 2 - rT) + e * rT * cos(q * 36), yc - shoeW / 2, rT + rT * sin(q * 36)
+				mul e, 1, 1
+				roty -q * 36
+				add 0, 0, -0.025
+				block 0.03, shoeW, 0.05
+				del 4
+			next q
+		next e
+		! 起動輪の歯（後ろの輪）
+		material "mc_steel"
+		for q = 0 to 7
+			add -(trkL / 2 - rT) + rT * 0.72 * cos(q * 45) - 0.03, yR - 0.03, rT + rT * 0.72 * sin(q * 45) - 0.03
+			block 0.06, 0.03, 0.06
+			del 1
+		next q
 	next s
 	material "mc_body"
 	lF = min(1.8, trkL * 0.55)
@@ -1491,6 +1640,68 @@ return
 	material "mc_steel"
 	add upF - cabL - 0.05, yE0, upZ + hB + 0.4
 	block 0.04, yE1 - yE0, 0.03
+	del 1
+	! カウンタウエイトの段の目地（0.45m ごと）
+	if hC > 0.7 then
+		material "mc_dark"
+		for qi = 1 to int(hC / 0.45)
+			for i = 0 to 8
+				aa = 180 + aSc - i * aSc / 4
+				put (tailR + 0.004) * cos(aa), (tailR + 0.004) * sin(aa)
+			next i
+			put xC, w2c + 0.004, xC, -w2c - 0.004
+			add 0, 0, zC0 + qi * 0.45
+			prism nsp / 2, 0.012, get(nsp)
+			del 1
+		next qi
+	endif
+	! 運転室の反対の側の手すり（上面の通路。柱3本と2段のパイプ）
+	yH = -(w2 - 0.06)
+	if cbS < 0 then yH = w2 - 0.06
+	zH = upZ + hB + 0.4
+	material "mc_lamp"
+	rq = 0.018
+	xH0 = xC + 0.15
+	xH1 = upF - 0.2
+	if xH1 - xH0 > 0.6 and tailR >= 2.5 then
+		for qi = 0 to 2
+			add xH0 + qi * (xH1 - xH0) / 2, yH, zH
+			cylind 0.9, rq
+			del 1
+		next qi
+		for qi = 1 to 2
+			x0q = xH0
+			y0q = yH
+			z0q = zH + qi * 0.45
+			x1q = xH1
+			y1q = yH
+			z1q = z0q
+			gosub "seg3"
+		next qi
+	endif
+	! 運転室の横の昇降ステップ（3段）
+	yS = w2 + 0.06
+	if cbS < 0 then yS = -w2 - 0.18
+	material "mc_steel"
+	for qi = 0 to 2
+		add upF - cabL - 0.05, yS, upZ - 0.55 + qi * 0.3
+		block 0.45, 0.12, 0.02
+		del 1
+	next qi
+	! ミラー・回転灯・ワイパー
+	yM = yC0 + cabW + 0.12
+	if cbS < 0 then yM = yC0 - 0.12
+	material "mc_dark"
+	add upF + 0.1, yM - 0.05, upH - 0.55
+	block 0.03, 0.1, 0.28
+	del 1
+	material "mc_lamp"
+	add upF - cabL / 2, yC0 + cabW / 2, upH
+	cylind 0.12, 0.05
+	del 1
+	material "mc_dark"
+	add upF + 0.012, yC0 + cabW / 2 - 0.01, upH - hW * 0.9
+	block 0.006, 0.02, hW * 0.6
 	del 1
 	return
 
@@ -2335,6 +2546,91 @@ return
 		del 2
 	next k
 	del 2
+	! 巻上ドラム（主巻・起伏）とブームストッパ
+	for qi = 0 to 1
+		xD = pvX - 1.1 - qi * 0.95
+		material "mc_dark"
+		add xD, 0.42, upZ + hB + 0.42
+		rotx 90
+		cylind 0.84, 0.26
+		del 2
+		material "mc_steel"
+		for sy = -1 to 1 step 2
+			add xD, sy * 0.44 + 0.02, upZ + hB + 0.42
+			rotx 90
+			cylind 0.04, 0.36
+			del 2
+		next sy
+	next qi
+	material "mc_steel"
+	rq = 0.05
+	for sy = -1 to 1 step 2
+		x0q = pvX - 1.3
+		y0q = sy * 0.45
+		z0q = upH
+		x1q = pvX + 3 * cos(lbA)
+		y1q = sy * lbW / 2
+		z1q = pvH + 3 * sin(lbA) - 0.1
+		gosub "seg3"
+	next sy
+	if jbL > 0.01 then
+		! ジブ（ブームの先から。先へ細くなるラチス）とジブストラット・ガイライン
+		material "mc_body"
+		add lbX, 0, lbZ
+		roty -(lbA - jbO)
+		resol 6
+		rq = 0.03
+		for sy = -1 to 1 step 2
+			for sz = -1 to 1 step 2
+				x0q = 0
+				y0q = sy * jbW / 2
+				z0q = sz * jbW / 2
+				x1q = jbL
+				y1q = sy * jbW / 4
+				z1q = sz * jbW / 4
+				gosub "seg3"
+			next sz
+		next sy
+		nP = max(2, int(jbL / jbW))
+		rq = 0.016
+		for i = 0 to nP - 1
+			sg = 1 - 2 * (i mod 2)
+			wA = jbW * (1 - 0.5 * i / nP) / 2
+			wB = jbW * (1 - 0.5 * (i + 1) / nP) / 2
+			x0q = i * jbL / nP
+			x1q = (i + 1) * jbL / nP
+			for sz = -1 to 1 step 2
+				y0q = -sg * wA
+				y1q = sg * wB
+				z0q = sz * wA
+				z1q = sz * wB
+				gosub "seg3"
+			next sz
+		next i
+		rq = 0.02
+		x0q = 0
+		y0q = 0
+		z0q = jbW / 2
+		x1q = 0.3
+		y1q = 0
+		z1q = jbW / 2 + 1.6
+		gosub "seg3"
+		x0q = 0.3
+		z0q = jbW / 2 + 1.6
+		x1q = jbL
+		z1q = jbW / 4
+		gosub "seg3"
+		resol 12
+		material "mc_steel"
+		add jbL - 0.15, -jbW / 4, -jbW / 4
+		block 0.3, jbW / 2, jbW / 2
+		del 1
+		add jbL + 0.15, -0.04, 0
+		rotx -90
+		cylind 0.08, 0.25
+		del 2
+		del 2
+	endif
 	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
 	gX = -gnX
 	gZ = gnH
@@ -2364,32 +2660,32 @@ return
 	! ワイヤとフック
 	material "mc_steel"
 	for s = -1 to 1 step 2
-		add lbX + 0.4 + s * 0.12, 0, lbZ - hkD + 0.8
+		add hkX + s * 0.12, 0, tpZ - hkD + 0.8
 		cylind hkD - 0.8, 0.015
 		del 1
 	next s
 	! フック（仕様書の全高 hkH・幅 hkW・厚み hkT。上の 7 割がブロック、下がフック）
 	material "mc_drum"
-	add lbX + 0.4 - hkW / 2, -hkT / 2, lbZ - hkD
+	add hkX - hkW / 2, -hkT / 2, tpZ - hkD
 	block hkW, hkT, hkH * 0.7
 	del 1
 	material "mc_steel"
-	add lbX + 0.4, 0, lbZ - hkD - hkH * 0.3
+	add hkX, 0, tpZ - hkD - hkH * 0.3
 	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
 	del 1
 	if vbK = 1 then
 		! バイブロ（ハンガー・起振機・チャック）と杭（vbP）
-		zV = lbZ - hkD - hkH * 0.3 - vbH
+		zV = tpZ - hkD - hkH * 0.3 - vbH
 		material "mc_drum"
-		add lbX + 0.4 - vbW / 2, -vbT / 2, zV + vbH * 0.25
+		add hkX - vbW / 2, -vbT / 2, zV + vbH * 0.25
 		block vbW, vbT, vbH * 0.75
 		del 1
 		material "mc_dark"
-		add lbX + 0.4 - vbW * 0.3, -vbT * 0.4, zV
+		add hkX - vbW * 0.3, -vbT * 0.4, zV
 		block vbW * 0.6, vbT * 0.8, vbH * 0.25
 		del 1
 		material "mc_steel"
-		add lbX + 0.4 - 0.2, -0.006, zV - vbP + 0.1
+		add hkX - 0.2, -0.006, zV - vbP + 0.1
 		block 0.4, 0.012, vbP
 		del 1
 	endif
@@ -2431,6 +2727,33 @@ return
 	for s = -1 to 1 step 2
 		add xF - 0.2, s * (carW / 2 + 0.12) - 0.04, cabH - 0.7
 		block 0.04, 0.08, 0.35
+		del 1
+	next s
+	! ヘッドライト・テールランプ・運転室の昇降ステップ・泥よけ
+	material "mc_head"
+	for s = -1 to 1 step 2
+		add xF + 0.041, s * (carW / 2 - 0.34) - 0.12, cZ0 - 0.2
+		block 0.008, 0.24, 0.13
+		del 1
+	next s
+	material "mc_tail"
+	for s = -1 to 1 step 2
+		add xR + 0.02, s * (carW / 2 - 0.3) - 0.11, frZ - 0.2
+		block 0.012, 0.22, 0.09
+		del 1
+	next s
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		for k = 0 to 1
+			add axF - whR - 0.5, s * (carW / 2 - 0.02) - 0.08 * (s > 0), 0.42 + k * 0.32
+			block 0.42, 0.08, 0.025
+			del 1
+		next k
+	next s
+	material "mc_dark"
+	for s = -1 to 1 step 2
+		add axR2 - whR - 0.12, s * (carW / 2 - 0.03) - (s > 0) * (whW + 0.05), 0.2
+		block 0.012, whW + 0.05, 0.5
 		del 1
 	next s
 	! タイヤ（前は1本・後ろはダブル）
@@ -2747,6 +3070,46 @@ return
 """
 
 
+CRANE_VL = """! クローラクレーン: 平面のフックを引いたら、ブームの長さはそのままで起伏角を解き、横に引いた分は旋回にする（ジブ付きも）
+if mcKind = 2 then
+	mq = GLOB_MODPAR_NAME
+	rF = -1
+	aF = slew
+	if mq = "lbR" then rF = lbR
+	if (mq = "hfX" or mq = "hfY") and abs(hfX) + abs(hfY) > 0.1 then
+		rF = sqr(hfX * hfX + hfY * hfY)
+		if abs(hfX) < 0.0001 then
+			aF = 90 + 180 * (hfY < 0)
+		else
+			aF = atn(hfY / hfX) + 180 * (hfX < 0)
+			if aF < 0 then aF = aF + 360
+		endif
+	endif
+	if rF >= 0 then
+		aL = 0
+		aH = 85
+		for k = 1 to 24
+			aM = (aL + aH) / 2
+			rM = pvX + lbL * cos(aM) + 0.4
+			if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+			if rM > rF then
+				aL = aM
+			else
+				aH = aM
+			endif
+		next k
+		aM = (aL + aH) / 2
+		rM = pvX + lbL * cos(aM) + 0.4
+		if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+		parameters lbA = aM, slew = aF, lbR = rM, hfX = rM * cos(aF), hfY = rM * sin(aF)
+	else
+		if abs(lbR - hkX) > 0.001 then parameters lbR = hkX
+		if abs(hfX - hkX * cos(slew)) + abs(hfY - hkX * sin(slew)) > 0.001 then parameters hfX = hkX * cos(slew), hfY = hkX * sin(slew)
+	endif
+endif
+"""
+
+
 def model_vl() -> str:
     """機種の一覧（mcModel）と、選んだときに寸法・種類・注記を書き込む（GLOB_MODPAR_NAME。1行は 522 バイトまで）."""
     from ashiba.machine import MACHINES, Placed, model_code, part_params
@@ -2762,9 +3125,10 @@ def model_vl() -> str:
         ps = {a: b for a, b in part_params(Placed("", m)).items() if a not in ("mcName", "mcNote", "slew", "mcModel")}
         out.append(f"\tif mcModel = {model_code(k)} then")
         out.append(f'\t\tparameters mcName = "{m.name}", mcNote = "{part_params(Placed("", m))["mcNote"]}"')
-        pairs = [f"{a} = {b:g}" for a, b in ps.items()]
+        pairs = [f"{a} = {b:g}" for a, b in ps.items() if not isinstance(b, str)]
         for i in range(0, len(pairs), 8):
             out.append("\t\tparameters " + ", ".join(pairs[i:i + 8]))
+        out += [f'\t\tparameters {a} = "{b}"' for a, b in ps.items() if isinstance(b, str)]
         out.append("\tendif")
     out.append("endif")
     return "\n".join(out) + "\n"
@@ -2774,7 +3138,7 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + model_vl(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + CRANE_VL + model_vl(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(

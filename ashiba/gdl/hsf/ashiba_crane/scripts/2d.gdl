@@ -135,6 +135,17 @@ for i = 1 to nC
 		pen pZ
 	endif
 next i
+! 作業の最小半径
+if rMin > 0.1 and travel = 0 then
+	line_type ltZ
+	circle2 0, 0, rMin
+	pen penEquip
+	add2 rMin * cos(slD + 40), rMin * sin(slD + 40)
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, "最小 R" + str(round_int(rMin * 1000), 1, 0)
+	del 2
+	pen pZ
+endif
 line_type ltS
 if wrSpan < 359.9 then
 	line_type ltC
@@ -194,20 +205,26 @@ if mk then
 endif
 drawindex 34
 pen pO
-rect2 -pivB, -bmW / 2, tipX, bmW / 2
+rect2 -pivB, -bmW / 2, tbX, bmW / 2
 pen pT
 if drLv < 3 then
 	for k = 2 to nb
 		wk = bmW * (1 - 0.13 * (k - 1)) / 2
 		xk = -pivB + (k - 1) * (bL - 1.2) * cos(bA) / nb
-		rect2 xk, -wk, tipX, wk
+		rect2 xk, -wk, tbX, wk
 	next k
 	line_type ltC
-	line2 -pivB - 0.5, 0, tipX + 0.8, 0
+	line2 -pivB - 0.5, 0, tbX + 0.8, 0
 	line_type ltS
 endif
 pen pO
-rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
+rect2 tbX - 0.35, -bmW / 2, tbX + 0.25, bmW / 2
+if jL > 0.01 then
+	! ジブ（先へ細くなる）
+	line2 tbX, -bmW / 3, tipX, -bmW / 6
+	line2 tbX, bmW / 3, tipX, bmW / 6
+	line2 tipX, -bmW / 6, tipX, bmW / 6
+endif
 pen pT
 circle2 tipX, 0, 0.3
 if drLv = 1 then circle2 tipX, 0, 0.12
@@ -221,11 +238,18 @@ if ldOn and travel = 0 then
 		line2 tipX - 0.75, 0.75, tipX + 0.75, -0.75
 	endif
 endif
-! 作業半径のホットスポット（ブームの向きに引く）
-hotspot2 0, 0, 1, hkR, 1 + 128
-hotspot2 tipX, 0, 2, hkR, 2
-hotspot2 -1, 0, 3, hkR, 3
 del 1
+! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける。前後は作業半径、横は旋回）
+if travel = 0 then
+	xF = tipX * cos(slD)
+	yF = tipX * sin(slD)
+	hotspot2 0, yF, 1, hfX, 1 + 128
+	hotspot2 xF, yF, 2, hfX, 2
+	hotspot2 -1, yF, 3, hfX, 3
+	hotspot2 xF, 0, 31, hfY, 1 + 128
+	hotspot2 xF, yF, 32, hfY, 2
+	hotspot2 xF, -1, 33, hfY, 3
+endif
 ! 旋回の中心（一点鎖線の十字）
 drawindex 45
 pen pT
@@ -244,7 +268,11 @@ if travel = 0 then
 	if okL = 0 then sOk = " 超過"
 	add2 xT, yT
 	rot2 -SYMB_ROTANGLE
-	text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	if jL > 0.01 then
+		text2 0, 0.6 + dT, "ジブ " + str(round_int(jL * 1000), 1, 0) + " 定格は性能表で"
+	else
+		text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	endif
 	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
 	del 2
 endif

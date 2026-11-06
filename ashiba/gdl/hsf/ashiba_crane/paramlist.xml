@@ -169,6 +169,14 @@
 			<Description><![CDATA["旋回角（車体の前から左回り。平面のホットスポット）"]]></Description>
 			<Value>30.0</Value>
 		</Angle>
+		<Length Name="hfX">
+			<Description><![CDATA["フックの位置 X（平面のホットスポットで引くと作業半径と旋回が変わる）"]]></Description>
+			<Value>10.4</Value>
+		</Length>
+		<Length Name="hfY">
+			<Description><![CDATA["フックの位置 Y"]]></Description>
+			<Value>6.0</Value>
+		</Length>
 		<Integer Name="prio">
 			<Description><![CDATA["姿勢の優先（0＝ブーム長さ優先＝起伏角が決まる・1＝起伏角優先＝ブーム長さが決まる）"]]></Description>
 			<Value>0</Value>
@@ -180,6 +188,14 @@
 		<Angle Name="boomA">
 			<Description><![CDATA["ブームの起伏角（角度優先で使う。長さ優先では書き戻す）"]]></Description>
 			<Value>56.0</Value>
+		</Angle>
+		<Length Name="jbL">
+			<Description><![CDATA["ジブの長さ（0＝ジブなし。機種の段: 帳票に）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Angle Name="jbO">
+			<Description><![CDATA["ジブのオフセット角"]]></Description>
+			<Value>5.0</Value>
 		</Angle>
 		<Length Name="bMin">
 			<Description><![CDATA["ブームの最短"]]></Description>

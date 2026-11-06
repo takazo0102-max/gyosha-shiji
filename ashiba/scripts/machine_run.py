@@ -11,6 +11,7 @@
   python3 scripts/machine_run.py --type lb4 --load 6.5,2.9,3.0,20   # 搬入車両に積荷（長さ,幅,高さ m,質量 t。高さ・総重量の判定に）
   python3 scripts/machine_run.py --type tr10 --turn 右     # 平面の旋回軌跡を右へ（--no-track で描かない）
   python3 scripts/machine_run.py --type pump36 --turn-r 9.5   # 最小回転半径 m を入れると軌跡を描く（ポンプ車・高所作業車は公表値が無い）
+  python3 scripts/machine_run.py --type cc50 --boom 30.5 --jib 12.2 --jib-off 30 --angle 70 --safety 0.9   # クローラクレーンのブーム・ジブ・起伏角・安全率
   python3 scripts/machine_run.py --track toggle            # 置いた車両の旋回軌跡と場内通路の掃引を入り切り（on・off も。選んでいれば選んだ重機だけ）
   python3 scripts/machine_run.py --list                   # 機種の一覧（--list-att でアタッチメント）
   python3 scripts/machine_run.py --remove                 # 置いた重機を消す（--kinds 13,14 で搬入車両だけ）
@@ -51,6 +52,11 @@ def main(argv=None) -> int:
     ap.add_argument("--z", type=float, default=None, help="地盤の高さ mm（省くと敷地メッシュ、無ければ 0）")
     ap.add_argument("--att", default=None, help="バックホウ・解体機の先（" + "・".join(ATTACHMENTS) + "・none＝バケット）")
     ap.add_argument("--ask", action="store_true", help="同じ種類の機種を窓で選ぶ")
+    ap.add_argument("--boom", type=float, default=0.0, help="クローラクレーンのブーム長さ m（省くと機種の既定）")
+    ap.add_argument("--jib", type=float, default=0.0, help="ジブ長さ m（0＝なし）")
+    ap.add_argument("--jib-off", dest="jib_off", type=float, default=10.0, help="ジブのオフセット角（10・30）")
+    ap.add_argument("--angle", type=float, default=0.0, help="ブームの起伏角 度（省くと機種の既定）")
+    ap.add_argument("--safety", type=float, default=0.9, help="定格総荷重に掛ける安全率（0.9＝90%）")
     ap.add_argument("--pick", action="store_true", help="線を選んでいてもクリックで置く")
     ap.add_argument("--list", action="store_true", help="機種の一覧を出す")
     ap.add_argument("--list-att", action="store_true", help="解体アタッチメントの一覧を出す")
@@ -105,7 +111,7 @@ def main(argv=None) -> int:
         return switch_tracks(c, rec, rec_path, a.track, R)
     if a.ask:
         mach = choose_model(mach, a)
-        if mach is None:
+        if mach is None or (mach.kind == 2 and not choose_crane(mach, a)):
             print("重機: やめました（何も置いていません）")
             return 0
     lines = [] if a.pick else [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]
@@ -212,6 +218,44 @@ def choose_model(mach, a) -> object:
     return next((m for m in same if label(m) == want), mach)
 
 
+def crane_options(mach) -> dict:
+    """窓の選択肢「ブーム 30.5m」「ブーム 30.5m＋ジブ 12.2m」→ (ブーム, ジブ)."""
+    from ashiba.machine import jib_choices
+
+    out = {f"ブーム {b:g}m": (float(b), 0.0) for b in sorted(mach.rated)}
+    out.update({f"ブーム {b:g}m＋ジブ {j:g}m": (b, j) for b, j in jib_choices(mach)})
+    return out
+
+
+def choose_crane(mach, a) -> bool:
+    """クローラクレーンのブーム・ジブ・起伏角・安全率を窓で選ぶ. やめたら False."""
+    from form_dialog import show_form
+
+    opts = crane_options(mach)
+    boom = float(mach.params["lbL"])
+    now = next((k for k, v in opts.items() if v == (boom, 0.0)), next(iter(opts)))
+    res = show_form({
+        "title": "クレーンのブームとジブ",
+        "intro": f"{mach.name}。定格総荷重は仕様書の表から読み、平面のブームの先に定格と安全率を掛けた荷重、作業の最小半径を描きます。"
+                 "平面のフックのホットスポットを引くと、長さはそのままで起伏角が変わります。",
+        "fields": [{"key": "boom", "label": "ブームとジブ（ジブは表のある組）", "kind": "choice", "options": list(opts), "value": now},
+                   {"key": "off", "label": "ジブのオフセット角", "kind": "choice", "options": ["10", "30"], "value": "10"},
+                   {"key": "angle", "label": "ブームの起伏角 度", "kind": "number", "value": f"{float(mach.params['lbA']):g}"},
+                   {"key": "safety", "label": "安全率（定格総荷重に掛ける。0.9＝90%）", "kind": "number", "value": f"{a.safety:g}"}],
+        "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "place":
+        return False
+    v = res.get("values") or {}
+    a.boom, a.jib = opts.get(str(v.get("boom")), (boom, 0.0))
+    a.jib_off = 30.0 if str(v.get("off")) == "30" else 10.0
+    for key, attr in (("angle", "angle"), ("safety", "safety")):
+        try:
+            setattr(a, attr, float(str(v.get(key)).replace(",", "")))
+        except (TypeError, ValueError):
+            pass
+    return True
+
+
 def switch_tracks(c, rec: dict, rec_path: Path, how: str, R) -> int:
     """置いた車両の旋回軌跡（tkOn）と場内通路の掃引（showSw）を入り切りする. 重機を選んでいれば選んだものだけ."""
     from ashiba.machine import MACHINES
@@ -277,7 +321,14 @@ def pick_line(c) -> list | None:
 
 
 def vehicle_extra(mach, a) -> dict:
-    """車両の旋回軌跡（TRACK_KINDS）と搬入車両（mcKind 13・14）の積荷のパラメータ（ほかの種類は空）."""
+    """車両の旋回軌跡（TRACK_KINDS）と搬入車両（mcKind 13・14）の積荷、クローラクレーンのブーム・ジブ・安全率のパラメータ（ほかの種類は空）."""
+    if mach.kind == 2:
+        out = {"jbL": a.jib, "jbO": a.jib_off, "sfRate": a.safety}
+        if a.boom > 0:
+            out["lbL"] = a.boom
+        if a.angle > 0:
+            out["lbA"] = a.angle
+        return out
     if mach.kind not in TRACK_KINDS:
         return {}
     out = {"tkOn": 0 if a.no_track else 1, "tkS": 1 if a.turn == "左" else -1}

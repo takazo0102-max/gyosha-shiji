@@ -25,6 +25,8 @@ import math
 from dataclasses import dataclass, field, replace
 from typing import Optional
 
+from .crane_jib import JIB_TABLES
+
 SOIL_Q = 100.0              # 地盤の許容支持力（短期）kN/m²（既定は軟らかい粘性土の下限。地盤調査の値を --soil-q で）
 PLATE = ("厚板鋼板 NT22×5×10", 1.524, 3.048)   # 日建リース Vol.10 p394（crane.py と同じ）
 KEEP_OUT = 0.5              # 立入禁止の余裕 m（旋回半径に足す。公的な数値は無く社内の決め。--keep-out で変える）
@@ -141,6 +143,7 @@ ATTACHMENTS = {
 # LHV の本体（幅 B・奥行き F・全高 A m、杭長の目安 m、起振力の上限 kN）。調和工業 LHV カタログ p.5
 VIBRO_DIMS = {"lhv025": (0.986, 0.568, 1.406, 3.5, 59.8), "lhv04": (1.144, 0.723, 1.619, 5.0, 92.2),
               "lhv07": (1.180, 0.757, 1.705, 7.0, 133.4), "lhv09": (1.210, 0.805, 1.850, 7.5, 159.8)}
+
 
 
 @dataclass(frozen=True)
@@ -817,6 +820,78 @@ def rated_at(m: Machine, boom: float, radius: float) -> Optional[float]:
     return cell
 
 
+CRANE_SAFETY = 0.90                # 定格総荷重に掛ける率（計画の率: 吊り荷＋つり具 ≦ 定格総荷重 × これ。ラフテレーンの crane.py と同じ）
+HOOK_OFF_M = 0.4                   # ブーム・ジブの先からフックの芯まで（前の決め）
+
+
+def _limits(rows: dict) -> tuple[float, float]:
+    """欄の並びの使える半径の範囲（最小, 最大）. 「a/b」は b が行より大きければ最小、小さければ最大."""
+    rs = sorted(rows)
+    c0, c1 = rows[rs[0]], rows[rs[-1]]
+    lo = c0[1] if isinstance(c0, tuple) and c0[1] > rs[0] else rs[0]
+    hi = c1[1] if isinstance(c1, tuple) and c1[1] < rs[-1] else rs[-1]
+    return lo, hi
+
+
+def jib_rows(m: Machine, boom: float, jib: float, offset: float) -> dict:
+    """ジブの表の欄（無ければ空）."""
+    return JIB_TABLES.get(m.key, {}).get(int(round(offset)), {}).get((round(boom, 1), round(jib, 1)), {})
+
+
+def jib_choices(m: Machine) -> list[tuple[float, float]]:
+    """表のある (ブーム, ジブ) の組."""
+    return sorted({c for v in JIB_TABLES.get(m.key, {}).values() for c in v})
+
+
+def hook_radius(ps: dict) -> float:
+    """旋回中心からフックまで m."""
+    boom, ang = float(ps["lbL"]), float(ps["lbA"])
+    r = float(ps["pvX"]) + boom * math.cos(math.radians(ang)) + HOOK_OFF_M
+    jib = float(ps.get("jbL", 0) or 0)
+    return r + (jib * math.cos(math.radians(ang - float(ps.get("jbO", 10.0)))) if jib > 0 else 0.0)
+
+
+def crane_rating(m: Machine, ps: dict) -> dict:
+    """今の姿勢の定格総荷重 {定格, 使える荷重（×安全率）, 半径, 最小半径, 最大半径}. 表の外は定格 None."""
+    rad = hook_radius(ps)
+    jib = float(ps.get("jbL", 0) or 0)
+    boom = float(ps["lbL"])
+    rate = float(ps.get("sfRate", CRANE_SAFETY))
+    if jib > 0:
+        rows = jib_rows(m, boom, jib, float(ps.get("jbO", 10.0)))
+    else:
+        bs = sorted(b for b in m.rated if b >= boom - 1e-6)
+        rows = m.rated[bs[0]] if bs else {}
+    if not rows:
+        return {"定格": None, "使える荷重": None, "半径": rad, "最小半径": 0.0, "最大半径": 0.0}
+    lo, hi = _limits(rows)
+    t = None
+    if lo - 1e-6 <= rad <= hi + 1e-6:
+        c = rows[min(r for r in rows if r >= rad - 1e-6)]
+        t = c[0] if isinstance(c, tuple) else c
+    return {"定格": t, "使える荷重": None if t is None else t * rate, "半径": rad, "最小半径": lo, "最大半径": hi}
+
+
+def crane_strings(m: Machine, ps: dict) -> dict:
+    """部品が姿勢から定格を読む表（mm・10kg 単位。文字のパラメータは 255 字まで）. ジブは選んだ組の欄だけ."""
+    booms = sorted(m.rated)[:5]
+    radii = sorted({r for b in booms for r in m.rated[b]})
+    cell = lambda c: int(round((c[0] if isinstance(c, tuple) else c) * 100))       # noqa: E731
+    out = {"rtB": ",".join(f"{b * 1000:.0f}" for b in booms), "rtR": ",".join(f"{r * 1000:.0f}" for r in radii),
+           "rtN": ",".join(f"{_limits(m.rated[b])[0] * 1000:.0f}" for b in booms),
+           "rtX": ",".join(f"{_limits(m.rated[b])[1] * 1000:.0f}" for b in booms)}
+    for i in range(1, 6):
+        col = m.rated[booms[i - 1]] if i <= len(booms) else {}
+        out[f"rc{i}"] = ",".join(str(cell(col[r])) if r in col else "0" for r in radii) if col else ""
+    jib = float(ps.get("jbL", 0) or 0)
+    rows = jib_rows(m, float(ps["lbL"]), jib, float(ps.get("jbO", 10.0))) if jib > 0 else {}
+    rs = sorted(rows)
+    lo, hi = _limits(rows) if rows else (0.0, 0.0)
+    out.update({"jrR": ",".join(f"{r * 1000:.0f}" for r in rs), "jrT": ",".join(str(cell(rows[r])) for r in rs), "jrN": lo, "jrX": hi})
+    assert all(len(v) <= 255 for v in out.values() if isinstance(v, str)), m.name
+    return out
+
+
 def outrigger_pad(load_kn: float, soil: int) -> str:
     """表3（22mm）: 脚荷重 → "S"・"A"・"B"・"-"（荷重は 100kN ごとの欄に切り上げ、1,000kN を超えれば "-"）."""
     i = max(0, math.ceil(load_kn / 100.0 - 1e-9) - 1)
@@ -848,12 +923,15 @@ def check(p: Placed, soil_q: float = SOIL_Q, soil: int = 1, margin: float = KEEP
         p.checks.append(Check(f"ジャッキ{i}の下", {"S": "OK", "A": "要敷鉄板", "B": "要敷鉄板", "-": "要確認"}[k],
                               f"反力 {r:.0f}kN・{sname} → {PAD_TEXT[k]}（表3 はトラッククレーン等の表を準用）"))
     if m.kind == 2:
-        boom, ang = float(ps["lbL"]), float(ps["lbA"])
-        rad = float(ps["pvX"]) + boom * math.cos(math.radians(ang)) + 0.4
-        t = rated_at(m, boom, rad)
+        boom = float(ps["lbL"])
+        jib = float(ps.get("jbL", 0) or 0)
+        cr = crane_rating(m, ps)
+        rad, t, cap = cr["半径"], cr["定格"], cr["使える荷重"]
+        head = f"ブーム {boom:.1f}m" + (f"＋ジブ {jib:.1f}m（オフセット {float(ps.get('jbO', 10.0)):.0f}°）" if jib > 0 else "") + f"・半径 {rad:.1f}m → "
         p.checks.append(Check("定格総荷重", "OK" if t is not None else "要確認",
-                              f"ブーム {boom:.1f}m・半径 {rad:.1f}m → " + (f"{t:g}t（フック・玉掛具込み）" if t is not None
-                                                                         else "表の外（仕様書の定格総荷重表で確認）")))
+                              head + (f"{t:g}t（フック・玉掛具込み）× 安全率 {float(ps.get('sfRate', CRANE_SAFETY)):g} ＝ {cap:.2f}t・"
+                                      f"最小の作業半径 {cr['最小半径']:g}m" if t is not None
+                                      else "表の外（仕様書の定格総荷重表で確認）")))
         if m.lift_t > 20:
             p.checks.append(Check("地盤調査", "注意", "つり上げ荷重 20t を超える移動式クレーンは設置地盤の調査を（NIIS-SD-No.22 p.87〜88。"
                                                       "接地圧は極限支持力の 1/3 を推奨）"))
@@ -1026,6 +1104,9 @@ def part_params(p: Placed) -> dict:
         ps = {**VEHICLE_DEFAULTS, **ps}
     elif m.kind in TRACK_KINDS:
         ps = {"tkOn": 1, "tkS": 1, "tkW": 0.0, "tnR": m.turn_r, "trT": float(ps.get("carW", 2.1)) - 0.4, **ps}
+    if m.kind == 2:
+        ps = {"sfRate": CRANE_SAFETY, "jbL": 0.0, "jbO": 10.0, **ps}
+        ps = {**ps, **crane_strings(m, ps), "lbR": hook_radius(ps)}
     if m.kind in (1, 11):
         ps = {**ps, **att_params(p.attachment)}
         if m.kind == 1 and p.attachment and "bkA" not in p.params:

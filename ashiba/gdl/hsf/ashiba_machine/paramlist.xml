@@ -161,6 +161,82 @@
 			<Description><![CDATA["ブームの起伏角"]]></Description>
 			<Value>70.0</Value>
 		</Angle>
+		<Length Name="lbR">
+			<Description><![CDATA["作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）"]]></Description>
+			<Value>11.0</Value>
+		</Length>
+		<Length Name="hfX">
+			<Description><![CDATA["フックの位置 X（平面のホットスポットで引くと起伏角と旋回が変わる）"]]></Description>
+			<Value>11.0</Value>
+		</Length>
+		<Length Name="hfY">
+			<Description><![CDATA["フックの位置 Y"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="jbL">
+			<Description><![CDATA["ジブの長さ（0＝ジブなし）"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Angle Name="jbO">
+			<Description><![CDATA["ジブのオフセット角"]]></Description>
+			<Value>10.0</Value>
+		</Angle>
+		<RealNum Name="sfRate">
+			<Description><![CDATA["安全率（定格総荷重に掛ける。0.9＝90%）"]]></Description>
+			<Value>0.9</Value>
+		</RealNum>
+		<String Name="rtB">
+			<Description><![CDATA["定格総荷重表のブーム長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtR">
+			<Description><![CDATA["定格総荷重表の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtN">
+			<Description><![CDATA["ブームごとの最小の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rtX">
+			<Description><![CDATA["ブームごとの最大の作業半径（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rc1">
+			<Description><![CDATA["定格総荷重（10kg 単位。1番目のブーム）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rc2">
+			<Description><![CDATA["定格総荷重（10kg 単位。2番目のブーム）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rc3">
+			<Description><![CDATA["定格総荷重（10kg 単位。3番目のブーム）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rc4">
+			<Description><![CDATA["定格総荷重（10kg 単位。4番目のブーム）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="rc5">
+			<Description><![CDATA["定格総荷重（10kg 単位。5番目のブーム）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jrR">
+			<Description><![CDATA["ジブの定格総荷重表の作業半径（mm。選んだブームとジブの組）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="jrT">
+			<Description><![CDATA["ジブの定格総荷重（10kg 単位）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<Length Name="jrN">
+			<Description><![CDATA["ジブの最小の作業半径"]]></Description>
+			<Value>0.0</Value>
+		</Length>
+		<Length Name="jrX">
+			<Description><![CDATA["ジブの最大の作業半径"]]></Description>
+			<Value>0.0</Value>
+		</Length>
 		<Length Name="lbW">
 			<Description><![CDATA["ブームの幅"]]></Description>
 			<Value>1.2</Value>

@@ -46,6 +46,25 @@
 !   bldH      長さ      排土板の高さ                                                                                                                                                                                                     既定 0.45
 !   lbL       長さ      ラチスブームの長さ                                                                                                                                                                                               既定 30.0
 !   lbA       角度      ブームの起伏角                                                                                                                                                                                                   既定 70.0
+!   lbR       長さ      作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）                                                                                                                               既定 11.0
+!   hfX       長さ      フックの位置 X（平面のホットスポットで引くと起伏角と旋回が変わる）                                                                                                                                               既定 11.0
+!   hfY       長さ      フックの位置 Y                                                                                                                                                                                                   既定 0.0
+!   jbL       長さ      ジブの長さ（0＝ジブなし）                                                                                                                                                                                        既定 0.0
+!   jbO       角度      ジブのオフセット角                                                                                                                                                                                               既定 10.0
+!   sfRate    実数      安全率（定格総荷重に掛ける。0.9＝90%）                                                                                                                                                                           既定 0.9
+!   rtB       文字列    定格総荷重表のブーム長さ（mm）                                                                                                                                                                                   既定 ""
+!   rtR       文字列    定格総荷重表の作業半径（mm）                                                                                                                                                                                     既定 ""
+!   rtN       文字列    ブームごとの最小の作業半径（mm）                                                                                                                                                                                 既定 ""
+!   rtX       文字列    ブームごとの最大の作業半径（mm）                                                                                                                                                                                 既定 ""
+!   rc1       文字列    定格総荷重（10kg 単位。1番目のブーム）                                                                                                                                                                           既定 ""
+!   rc2       文字列    定格総荷重（10kg 単位。2番目のブーム）                                                                                                                                                                           既定 ""
+!   rc3       文字列    定格総荷重（10kg 単位。3番目のブーム）                                                                                                                                                                           既定 ""
+!   rc4       文字列    定格総荷重（10kg 単位。4番目のブーム）                                                                                                                                                                           既定 ""
+!   rc5       文字列    定格総荷重（10kg 単位。5番目のブーム）                                                                                                                                                                           既定 ""
+!   jrR       文字列    ジブの定格総荷重表の作業半径（mm。選んだブームとジブの組）                                                                                                                                                       既定 ""
+!   jrT       文字列    ジブの定格総荷重（10kg 単位）                                                                                                                                                                                    既定 ""
+!   jrN       長さ      ジブの最小の作業半径                                                                                                                                                                                             既定 0.0
+!   jrX       長さ      ジブの最大の作業半径                                                                                                                                                                                             既定 0.0
 !   lbW       長さ      ブームの幅                                                                                                                                                                                                       既定 1.2
 !   hkD       長さ      ブームの先からフックまで                                                                                                                                                                                         既定 6.0
 !   hkH       長さ      フックの全高                                                                                                                                                                                                     既定 1.47
@@ -282,9 +301,251 @@ next i
 ! 高所作業車のブームの先
 abX = -0.4 + abL * cos(abA)
 abZ = tuH + abL * sin(abA)
-! クローラクレーンのブームの先
+dim mtB[]
+nMb = 0
+rest = rtB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMb = nMb + 1
+		mtB[nMb] = v / 1000
+	endif
+endwhile
+dim mtN[]
+nMn = 0
+rest = rtN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMn = nMn + 1
+		mtN[nMn] = v / 1000
+	endif
+endwhile
+dim mtX[]
+nMx = 0
+rest = rtX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMx = nMx + 1
+		mtX[nMx] = v / 1000
+	endif
+endwhile
+dim mtR[]
+nMr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMr = nMr + 1
+		mtR[nMr] = v / 1000
+	endif
+endwhile
+dim mtC1[]
+nC1 = 0
+rest = rc1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC1 = nC1 + 1
+		mtC1[nC1] = v / 1
+	endif
+endwhile
+dim mtC2[]
+nC2 = 0
+rest = rc2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC2 = nC2 + 1
+		mtC2[nC2] = v / 1
+	endif
+endwhile
+dim mtC3[]
+nC3 = 0
+rest = rc3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC3 = nC3 + 1
+		mtC3[nC3] = v / 1
+	endif
+endwhile
+dim mtC4[]
+nC4 = 0
+rest = rc4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC4 = nC4 + 1
+		mtC4[nC4] = v / 1
+	endif
+endwhile
+dim mtC5[]
+nC5 = 0
+rest = rc5
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC5 = nC5 + 1
+		mtC5[nC5] = v / 1
+	endif
+endwhile
+dim jtR[]
+nJr = 0
+rest = jrR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nJr = nJr + 1
+		jtR[nJr] = v / 1000
+	endif
+endwhile
+dim jtT[]
+nJt = 0
+rest = jrT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nJt = nJt + 1
+		jtT[nJt] = v / 1
+	endif
+endwhile
+! クローラクレーンのブームの先・ジブの先・フック・定格総荷重（表の読み方は src/ashiba/machine.py の crane_rating と同じ）
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
+jbW = min(lbW, 1.0) * 0.7
+jbX = lbX
+jbZ = lbZ
+if jbL > 0.01 then
+	jbX = lbX + jbL * cos(lbA - jbO)
+	jbZ = lbZ + jbL * sin(lbA - jbO)
+endif
+hkX = jbX + 0.4
+tpZ = jbZ
+rated = 0
+rMin = 0
+rMax = 0
+if mcKind = 2 then
+	iR = 0
+	if jbL > 0.01 then
+		rMin = jrN
+		rMax = jrX
+		for k = min(nJr, nJt) to 1 step -1
+			if jtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then rated = jtT[iR] / 100
+	else
+		jB = nMb
+		for k = nMb to 1 step -1
+			if mtB[k] >= lbL - 0.001 then jB = k
+		next k
+		if jB > 0 and jB <= nMn and jB <= nMx then
+			rMin = mtN[jB]
+			rMax = mtX[jB]
+		endif
+		for k = nMr to 1 step -1
+			if mtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then
+			if jB = 1 and iR <= nC1 then rated = mtC1[iR] / 100
+			if jB = 2 and iR <= nC2 then rated = mtC2[iR] / 100
+			if jB = 3 and iR <= nC3 then rated = mtC3[iR] / 100
+			if jB = 4 and iR <= nC4 then rated = mtC4[iR] / 100
+			if jB = 5 and iR <= nC5 then rated = mtC5[iR] / 100
+		endif
+	endif
+	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
+endif
+capT = rated * sfRate
 ! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)
@@ -501,7 +762,14 @@ if isCr then
 			pen pO
 		endif
 		circle2 lbX, 0, 0.4
-		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+		if jbL > 0.01 then
+			! ジブ（先へ細くなる）
+			line2 lbX, -jbW / 2, jbX, -jbW / 4
+			line2 lbX, jbW / 2, jbX, jbW / 4
+			line2 jbX, -jbW / 4, jbX, jbW / 4
+			circle2 jbX, 0, 0.25
+		endif
+		if vbK = 1 then rect2 hkX - vbW / 2, -vbT / 2, hkX + vbW / 2, vbT / 2
 	endif
 	if mcKind = 8 then
 		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
@@ -941,7 +1209,7 @@ if isTk and mcKind <> 7 and tkOn and tnR > 0.5 then
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）。一点鎖線
 rW = maxR
-if mcKind = 2 then rW = lbX + 0.4
+if mcKind = 2 then rW = hkX
 isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
 drawindex 45
 if rW > 0.1 and isR then
@@ -949,6 +1217,43 @@ if rW > 0.1 and isR then
 	line_type ltC
 	circle2 0, 0, rW
 	line_type ltS
+endif
+if mcKind = 2 then
+	! 作業の最小半径（二点鎖線）と、ブームの先の定格総荷重・安全率を掛けた荷重
+	if rMin > 0.1 then
+		pen pZ
+		line_type ltZ
+		circle2 0, 0, rMin
+		line_type ltS
+	endif
+	drawindex 50
+	pen penEquip
+	dQ = texSiz * GLOB_SCALE / 1000 * 1.6
+	! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける。前後は起伏角、横は旋回）
+	xF = hkX * cos(slew)
+	yF = hkX * sin(slew)
+	hotspot2 0, yF, 51, hfX, 1 + 128
+	hotspot2 xF, yF, 52, hfX, 2
+	hotspot2 -1, yF, 53, hfX, 3
+	hotspot2 xF, 0, 54, hfY, 1 + 128
+	hotspot2 xF, yF, 55, hfY, 2
+	hotspot2 xF, -1, 56, hfY, 3
+	add2 hkX * cos(slew), hkX * sin(slew)
+	rot2 -SYMB_ROTANGLE
+	if rated > 0 then
+		text2 0.6, dQ, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	else
+		text2 0.6, dQ, "定格 表の外"
+	endif
+	text2 0.6, 0, "R" + str(round_int(hkX * 1000), 1, 0) + "・" + str(round_int(lbA), 1, 0) + "°"
+	del 2
+	if rMin > 0.1 then
+		add2 rMin * cos(slew + 40), rMin * sin(slew + 40)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "最小 R" + str(round_int(rMin * 1000), 1, 0)
+		del 2
+	endif
+	drawindex 45
 endif
 ! 旋回の中心（一点鎖線の十字。簡略は小さく）
 if isCr or mcKind = 3 or mcKind = 6 then
@@ -1023,6 +1328,9 @@ define material "mc_steel" 2, 0.55, 0.56, 0.58
 define material "mc_cw" 2, 0.35, 0.36, 0.38
 define material "mc_tire" 2, 0.10, 0.10, 0.10
 define material "mc_rim" 2, 0.80, 0.80, 0.78
+define material "mc_lamp" 2, 0.95, 0.60, 0.10
+define material "mc_head" 2, 0.92, 0.93, 0.85
+define material "mc_tail" 2, 0.75, 0.10, 0.10
 define material "mc_glass" 2, 0.30, 0.45, 0.60
 define material "mc_rod" 2, 0.85, 0.86, 0.88
 define material "mc_drum" 2, 0.92, 0.40, 0.12
@@ -1137,14 +1445,24 @@ end
 		del 2
 	endif
 	if mcKind = 2 then
+		! ブームの先を平面のどの向きにも引く（平面の 51〜56 と同じ組）
+		xF = hkX * cos(slew)
+		yF = hkX * sin(slew)
+		zF = tpZ + 0.3
+		hotspot 0, yF, zF, 228, hfX, 1 + 128
+		hotspot xF, yF, zF, 229, hfX, 2
+		hotspot -1, yF, zF, 230, hfX, 3
+		hotspot xF, 0, zF, 231, hfY, 1 + 128
+		hotspot xF, yF, zF, 232, hfY, 2
+		hotspot xF, -1, zF, 233, hfY, 3
 		rotz slew
 		hotspot pvX, 0, pvH, 221, lbA, 6
 		hotspot pvX + 1, 0, pvH, 222, lbA, 4
 		hotspot lbX, 0, lbZ, 223, lbA, 5
 		hotspot pvX, -1, pvH, 224, lbA, 7
-		hotspot lbX + 0.4, 0, lbZ, 225, hkD, 1 + 128
-		hotspot lbX + 0.4, 0, lbZ - hkD, 226, hkD, 2
-		hotspot lbX + 0.4, 0, lbZ + 1, 227, hkD, 3
+		hotspot hkX, 0, tpZ, 225, hkD, 1 + 128
+		hotspot hkX, 0, tpZ - hkD, 226, hkD, 2
+		hotspot hkX, 0, tpZ + 1, 227, hkD, 3
 		del 1
 	endif
 	if mcKind = 3 then
@@ -1361,6 +1679,33 @@ return
 			cylind 0.03, rT * 0.72
 			del 2
 		next e
+		! 上転輪（帯の上を支える）
+		material "mc_steel"
+		for q = -1 to 1 step 2
+			add q * trkL * 0.18, yR, trkH - 0.12
+			rotx 90
+			cylind 0.03, 0.07
+			del 2
+		next q
+		! 両端の輪に回るシュー（グローサ）
+		material "mc_dark"
+		for e = -1 to 1 step 2
+			for q = -2 to 2
+				add e * (trkL / 2 - rT) + e * rT * cos(q * 36), yc - shoeW / 2, rT + rT * sin(q * 36)
+				mul e, 1, 1
+				roty -q * 36
+				add 0, 0, -0.025
+				block 0.03, shoeW, 0.05
+				del 4
+			next q
+		next e
+		! 起動輪の歯（後ろの輪）
+		material "mc_steel"
+		for q = 0 to 7
+			add -(trkL / 2 - rT) + rT * 0.72 * cos(q * 45) - 0.03, yR - 0.03, rT + rT * 0.72 * sin(q * 45) - 0.03
+			block 0.06, 0.03, 0.06
+			del 1
+		next q
 	next s
 	material "mc_body"
 	lF = min(1.8, trkL * 0.55)
@@ -1466,6 +1811,68 @@ return
 	material "mc_steel"
 	add upF - cabL - 0.05, yE0, upZ + hB + 0.4
 	block 0.04, yE1 - yE0, 0.03
+	del 1
+	! カウンタウエイトの段の目地（0.45m ごと）
+	if hC > 0.7 then
+		material "mc_dark"
+		for qi = 1 to int(hC / 0.45)
+			for i = 0 to 8
+				aa = 180 + aSc - i * aSc / 4
+				put (tailR + 0.004) * cos(aa), (tailR + 0.004) * sin(aa)
+			next i
+			put xC, w2c + 0.004, xC, -w2c - 0.004
+			add 0, 0, zC0 + qi * 0.45
+			prism nsp / 2, 0.012, get(nsp)
+			del 1
+		next qi
+	endif
+	! 運転室の反対の側の手すり（上面の通路。柱3本と2段のパイプ）
+	yH = -(w2 - 0.06)
+	if cbS < 0 then yH = w2 - 0.06
+	zH = upZ + hB + 0.4
+	material "mc_lamp"
+	rq = 0.018
+	xH0 = xC + 0.15
+	xH1 = upF - 0.2
+	if xH1 - xH0 > 0.6 and tailR >= 2.5 then
+		for qi = 0 to 2
+			add xH0 + qi * (xH1 - xH0) / 2, yH, zH
+			cylind 0.9, rq
+			del 1
+		next qi
+		for qi = 1 to 2
+			x0q = xH0
+			y0q = yH
+			z0q = zH + qi * 0.45
+			x1q = xH1
+			y1q = yH
+			z1q = z0q
+			gosub "seg3"
+		next qi
+	endif
+	! 運転室の横の昇降ステップ（3段）
+	yS = w2 + 0.06
+	if cbS < 0 then yS = -w2 - 0.18
+	material "mc_steel"
+	for qi = 0 to 2
+		add upF - cabL - 0.05, yS, upZ - 0.55 + qi * 0.3
+		block 0.45, 0.12, 0.02
+		del 1
+	next qi
+	! ミラー・回転灯・ワイパー
+	yM = yC0 + cabW + 0.12
+	if cbS < 0 then yM = yC0 - 0.12
+	material "mc_dark"
+	add upF + 0.1, yM - 0.05, upH - 0.55
+	block 0.03, 0.1, 0.28
+	del 1
+	material "mc_lamp"
+	add upF - cabL / 2, yC0 + cabW / 2, upH
+	cylind 0.12, 0.05
+	del 1
+	material "mc_dark"
+	add upF + 0.012, yC0 + cabW / 2 - 0.01, upH - hW * 0.9
+	block 0.006, 0.02, hW * 0.6
 	del 1
 	return
 
@@ -2310,6 +2717,91 @@ return
 		del 2
 	next k
 	del 2
+	! 巻上ドラム（主巻・起伏）とブームストッパ
+	for qi = 0 to 1
+		xD = pvX - 1.1 - qi * 0.95
+		material "mc_dark"
+		add xD, 0.42, upZ + hB + 0.42
+		rotx 90
+		cylind 0.84, 0.26
+		del 2
+		material "mc_steel"
+		for sy = -1 to 1 step 2
+			add xD, sy * 0.44 + 0.02, upZ + hB + 0.42
+			rotx 90
+			cylind 0.04, 0.36
+			del 2
+		next sy
+	next qi
+	material "mc_steel"
+	rq = 0.05
+	for sy = -1 to 1 step 2
+		x0q = pvX - 1.3
+		y0q = sy * 0.45
+		z0q = upH
+		x1q = pvX + 3 * cos(lbA)
+		y1q = sy * lbW / 2
+		z1q = pvH + 3 * sin(lbA) - 0.1
+		gosub "seg3"
+	next sy
+	if jbL > 0.01 then
+		! ジブ（ブームの先から。先へ細くなるラチス）とジブストラット・ガイライン
+		material "mc_body"
+		add lbX, 0, lbZ
+		roty -(lbA - jbO)
+		resol 6
+		rq = 0.03
+		for sy = -1 to 1 step 2
+			for sz = -1 to 1 step 2
+				x0q = 0
+				y0q = sy * jbW / 2
+				z0q = sz * jbW / 2
+				x1q = jbL
+				y1q = sy * jbW / 4
+				z1q = sz * jbW / 4
+				gosub "seg3"
+			next sz
+		next sy
+		nP = max(2, int(jbL / jbW))
+		rq = 0.016
+		for i = 0 to nP - 1
+			sg = 1 - 2 * (i mod 2)
+			wA = jbW * (1 - 0.5 * i / nP) / 2
+			wB = jbW * (1 - 0.5 * (i + 1) / nP) / 2
+			x0q = i * jbL / nP
+			x1q = (i + 1) * jbL / nP
+			for sz = -1 to 1 step 2
+				y0q = -sg * wA
+				y1q = sg * wB
+				z0q = sz * wA
+				z1q = sz * wB
+				gosub "seg3"
+			next sz
+		next i
+		rq = 0.02
+		x0q = 0
+		y0q = 0
+		z0q = jbW / 2
+		x1q = 0.3
+		y1q = 0
+		z1q = jbW / 2 + 1.6
+		gosub "seg3"
+		x0q = 0.3
+		z0q = jbW / 2 + 1.6
+		x1q = jbL
+		z1q = jbW / 4
+		gosub "seg3"
+		resol 12
+		material "mc_steel"
+		add jbL - 0.15, -jbW / 4, -jbW / 4
+		block 0.3, jbW / 2, jbW / 2
+		del 1
+		add jbL + 0.15, -0.04, 0
+		rotx -90
+		cylind 0.08, 0.25
+		del 2
+		del 2
+	endif
 	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
 	gX = -gnX
 	gZ = gnH
@@ -2339,32 +2831,32 @@ return
 	! ワイヤとフック
 	material "mc_steel"
 	for s = -1 to 1 step 2
-		add lbX + 0.4 + s * 0.12, 0, lbZ - hkD + 0.8
+		add hkX + s * 0.12, 0, tpZ - hkD + 0.8
 		cylind hkD - 0.8, 0.015
 		del 1
 	next s
 	! フック（仕様書の全高 hkH・幅 hkW・厚み hkT。上の 7 割がブロック、下がフック）
 	material "mc_drum"
-	add lbX + 0.4 - hkW / 2, -hkT / 2, lbZ - hkD
+	add hkX - hkW / 2, -hkT / 2, tpZ - hkD
 	block hkW, hkT, hkH * 0.7
 	del 1
 	material "mc_steel"
-	add lbX + 0.4, 0, lbZ - hkD - hkH * 0.3
+	add hkX, 0, tpZ - hkD - hkH * 0.3
 	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
 	del 1
 	if vbK = 1 then
 		! バイブロ（ハンガー・起振機・チャック）と杭（vbP）
-		zV = lbZ - hkD - hkH * 0.3 - vbH
+		zV = tpZ - hkD - hkH * 0.3 - vbH
 		material "mc_drum"
-		add lbX + 0.4 - vbW / 2, -vbT / 2, zV + vbH * 0.25
+		add hkX - vbW / 2, -vbT / 2, zV + vbH * 0.25
 		block vbW, vbT, vbH * 0.75
 		del 1
 		material "mc_dark"
-		add lbX + 0.4 - vbW * 0.3, -vbT * 0.4, zV
+		add hkX - vbW * 0.3, -vbT * 0.4, zV
 		block vbW * 0.6, vbT * 0.8, vbH * 0.25
 		del 1
 		material "mc_steel"
-		add lbX + 0.4 - 0.2, -0.006, zV - vbP + 0.1
+		add hkX - 0.2, -0.006, zV - vbP + 0.1
 		block 0.4, 0.012, vbP
 		del 1
 	endif
@@ -2406,6 +2898,33 @@ return
 	for s = -1 to 1 step 2
 		add xF - 0.2, s * (carW / 2 + 0.12) - 0.04, cabH - 0.7
 		block 0.04, 0.08, 0.35
+		del 1
+	next s
+	! ヘッドライト・テールランプ・運転室の昇降ステップ・泥よけ
+	material "mc_head"
+	for s = -1 to 1 step 2
+		add xF + 0.041, s * (carW / 2 - 0.34) - 0.12, cZ0 - 0.2
+		block 0.008, 0.24, 0.13
+		del 1
+	next s
+	material "mc_tail"
+	for s = -1 to 1 step 2
+		add xR + 0.02, s * (carW / 2 - 0.3) - 0.11, frZ - 0.2
+		block 0.012, 0.22, 0.09
+		del 1
+	next s
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		for k = 0 to 1
+			add axF - whR - 0.5, s * (carW / 2 - 0.02) - 0.08 * (s > 0), 0.42 + k * 0.32
+			block 0.42, 0.08, 0.025
+			del 1
+		next k
+	next s
+	material "mc_dark"
+	for s = -1 to 1 step 2
+		add axR2 - whR - 0.12, s * (carW / 2 - 0.03) - (s > 0) * (whW + 0.05), 0.2
+		block 0.012, whW + 0.05, 0.5
 		del 1
 	next s
 	! タイヤ（前は1本・後ろはダブル）
@@ -2770,6 +3289,43 @@ values{2} "cbS" 1, "左", -1, "右"
 values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"
 values "nRear" 1, 2
 values "nSec" 3, 4, 5
+! クローラクレーン: 平面のフックを引いたら、ブームの長さはそのままで起伏角を解き、横に引いた分は旋回にする（ジブ付きも）
+if mcKind = 2 then
+	mq = GLOB_MODPAR_NAME
+	rF = -1
+	aF = slew
+	if mq = "lbR" then rF = lbR
+	if (mq = "hfX" or mq = "hfY") and abs(hfX) + abs(hfY) > 0.1 then
+		rF = sqr(hfX * hfX + hfY * hfY)
+		if abs(hfX) < 0.0001 then
+			aF = 90 + 180 * (hfY < 0)
+		else
+			aF = atn(hfY / hfX) + 180 * (hfX < 0)
+			if aF < 0 then aF = aF + 360
+		endif
+	endif
+	if rF >= 0 then
+		aL = 0
+		aH = 85
+		for k = 1 to 24
+			aM = (aL + aH) / 2
+			rM = pvX + lbL * cos(aM) + 0.4
+			if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+			if rM > rF then
+				aL = aM
+			else
+				aH = aM
+			endif
+		next k
+		aM = (aL + aH) / 2
+		rM = pvX + lbL * cos(aM) + 0.4
+		if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+		parameters lbA = aM, slew = aF, lbR = rM, hfX = rM * cos(aF), hfY = rM * sin(aF)
+	else
+		if abs(lbR - hkX) > 0.001 then parameters lbR = hkX
+		if abs(hfX - hkX * cos(slew)) + abs(hfY - hkX * sin(slew)) > 0.001 then parameters hfX = hkX * cos(slew), hfY = hkX * sin(slew)
+	endif
+endif
 ! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0
@@ -2906,38 +3462,98 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	endif
 	if mcModel = 5 then
 		parameters mcName = "クローラクレーン 50t", mcNote = "コベルコ 7050G-2 48t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
-		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
-		parameters lbL = 30.5, lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6, gnX = 3.16, gnH = 6.145, hkH = 1.47
-		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.57, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.985, upW = 2.99, cwW = 3.5, tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2
+		parameters upF = 2.45, pvX = 1.1, pvH = 1.75, lbL = 30.5, lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6
+		parameters gnX = 3.16, gnH = 6.145, hkH = 1.47, hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.9316
+		parameters rtB = "15200,21300,30500,39600,51800"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,10500"
+		parameters rtX = "14400,19700,27600,28000,28000"
+		parameters rc1 = "2420,1600,1180,920,750,720,0,0,0"
+		parameters rc2 = "2410,1580,1160,900,730,610,460,0,0"
+		parameters rc3 = "1980,1570,1140,890,710,590,420,320,250"
+		parameters rc4 = "0,1440,1120,860,680,560,390,290,210"
+		parameters rc5 = "0,0,920,830,650,530,360,250,170"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 6 then
 		parameters mcName = "クローラクレーン 70t", mcNote = "コベルコ 7070G-2 76t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.975, trkW = 4.83, shoeW = 0.8, trkH = 0.99, upW = 2.99, cwW = 3.5
-		parameters tailR = 4.3, upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1, upF = 2.4, pvX = 1.1, pvH = 1.75
-		parameters lbL = 30.5, lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6, gnX = 3.16, gnH = 6.17, hkH = 1.705
-		parameters hkW = 0.6, hkT = 0.535, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.975, trkW = 4.83, shoeW = 0.8
+		parameters trkH = 0.99, upW = 2.99, cwW = 3.5, tailR = 4.3, upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1
+		parameters upF = 2.4, pvX = 1.1, pvH = 1.75, lbL = 30.5, lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6
+		parameters gnX = 3.16, gnH = 6.17, hkH = 1.705, hkW = 0.6, hkT = 0.535, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.9316
+		parameters rtB = "15200,21300,30500,39600,54900"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,11000"
+		parameters rtX = "14500,19800,27700,28000,28000"
+		parameters rc1 = "4490,2930,2160,1690,1380,1320,0,0,0"
+		parameters rc2 = "4470,2910,2130,1670,1360,1130,850,0,0"
+		parameters rc3 = "3500,2890,2110,1640,1330,1100,810,620,500"
+		parameters rc4 = "0,2680,2080,1610,1300,1070,780,590,460"
+		parameters rc5 = "0,0,1400,1400,1230,1010,710,530,400"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 7 then
 		parameters mcName = "クローラクレーン 90t", mcNote = "コベルコ 7090G-2 93t"
-		parameters mcKind = 2, vbK = 0, trkL = 6.315, trkW = 4.9, shoeW = 0.9, trkH = 1.145, upW = 2.99, cwW = 4.2
-		parameters tailR = 4.4, upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2, upF = 2.4, pvX = 1.1, pvH = 2.2
-		parameters lbL = 29.1, lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6, gnX = 3.36, gnH = 6.95, hkH = 1.87
-		parameters hkW = 0.7, hkT = 0.49, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 6.315, trkW = 4.9, shoeW = 0.9
+		parameters trkH = 1.145, upW = 2.99, cwW = 4.2, tailR = 4.4, upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2
+		parameters upF = 2.4, pvX = 1.1, pvH = 2.2, lbL = 29.1, lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6
+		parameters gnX = 3.36, gnH = 6.95, hkH = 1.87, hkW = 0.7, hkT = 0.49, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.4528
+		parameters rtB = "19900,23000,29100,41200,62600"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000,32000"
+		parameters rtN = "6000,6000,6400,8500,12200"
+		parameters rtX = "18500,20000,26400,32000,32000"
+		parameters rc1 = "5500,3630,2660,2080,1690,1420,1180,0,0,0"
+		parameters rc2 = "5490,3620,2650,2070,1690,1410,1050,0,0,0"
+		parameters rc3 = "5020,3610,2630,2050,1660,1390,1030,800,700,0"
+		parameters rc4 = "0,3250,2600,2010,1620,1350,980,750,590,480"
+		parameters rc5 = "0,0,0,1800,1540,1260,890,660,490,380"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 8 then
 		parameters mcName = "クローラクレーン 55t（日立住友）", mcNote = "日立住友 SCX550-3 53.4t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.55, trkW = 4.36, shoeW = 0.76, trkH = 0.98, upW = 3.2, cwW = 3.2
-		parameters tailR = 3.85, upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.2, pvX = 1, pvH = 1.595
-		parameters lbL = 31, lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6, gnX = 3, gnH = 5.33, hkH = 1.67
-		parameters hkW = 0.62, hkT = 0.55, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.55, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.98, upW = 3.2, cwW = 3.2, tailR = 3.85, upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2
+		parameters upF = 2.2, pvX = 1, pvH = 1.595, lbL = 31, lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6
+		parameters gnX = 3, gnH = 5.33, hkH = 1.67, hkW = 0.62, hkT = 0.55, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 12.0026
+		parameters rtB = "13000,19000,31000,40000,52000"
+		parameters rtR = "4000,6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "4000,6000,7300,10000,11300"
+		parameters rtX = "12400,17600,28000,28000,28000"
+		parameters rc1 = "5100,2725,1830,1370,1070,990,0,0,0,0"
+		parameters rc2 = "0,2715,1820,1350,1065,875,735,650,0,0"
+		parameters rc3 = "0,2050,1795,1325,1040,845,705,515,400,315"
+		parameters rc4 = "0,0,0,1300,1010,815,675,490,370,285"
+		parameters rc5 = "0,0,0,900,885,785,645,455,335,245"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 9 then
 		parameters mcName = "クローラクレーン 90t（日立住友）", mcNote = "日立住友 SCX900-3 94t"
-		parameters mcKind = 2, vbK = 0, trkL = 6.295, trkW = 4.99, shoeW = 0.81, trkH = 1.11, upW = 2.99, cwW = 4.15
-		parameters tailR = 4.3, upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.7, pvX = 1.2, pvH = 2.11
-		parameters lbL = 30, lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.45, gnH = 6.545, hkH = 2.12
-		parameters hkW = 0.82, hkT = 0.6, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 6.295, trkW = 4.99, shoeW = 0.81
+		parameters trkH = 1.11, upW = 2.99, cwW = 4.15, tailR = 4.3, upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2
+		parameters upF = 2.7, pvX = 1.2, pvH = 2.11, lbL = 30, lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6
+		parameters gnX = 3.45, gnH = 6.545, hkH = 2.12, hkW = 0.82, hkT = 0.6, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.8606
+		parameters rtB = "12000,18000,30000,39000,60000"
+		parameters rtR = "5000,6000,8000,10000,12000,14000,16000,20000,24000,28000,32000"
+		parameters rtN = "5000,5000,7200,8800,12700"
+		parameters rtX = "11800,17000,27400,32000,32000"
+		parameters rc1 = "7475,5885,3825,2810,2255,0,0,0,0,0,0"
+		parameters rc2 = "7440,5885,3815,2795,2185,1780,1490,1380,0,0,0"
+		parameters rc3 = "0,4425,3785,2755,2145,1735,1445,1060,815,675,0"
+		parameters rc4 = "0,0,3280,2730,2115,1705,1415,1025,780,610,490"
+		parameters rc5 = "0,0,0,0,1645,1600,1330,935,685,515,390"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 10 then
 		parameters mcName = "ポンプ車 26m", mcNote = "極東開発 PY120B-26D 16.95t"
@@ -3237,10 +3853,22 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	endif
 	if mcModel = 50 then
 		parameters mcName = "バイブロ（50t クレーン）", mcNote = "コベルコ 7050G-2 48t"
-		parameters mcKind = 2, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
-		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
-		parameters lbL = 21.3, lbA = 78, lbW = 1.355, cwH = 2.15, hkD = 3, gnX = 3.16, gnH = 6.145, hkH = 1.47
-		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, vbW = 1.337, vbT = 0.722, vbH = 3.479, vbP = 12
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.985, upW = 2.99, cwW = 3.5, tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2
+		parameters upF = 2.45, pvX = 1.1, pvH = 1.75, lbL = 21.3, lbA = 78, lbW = 1.355, cwH = 2.15, hkD = 3
+		parameters gnX = 3.16, gnH = 6.145, hkH = 1.47, hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, vbW = 1.337
+		parameters vbT = 0.722, vbH = 3.479, vbP = 12, jrN = 0, jrX = 0, lbR = 5.92852
+		parameters rtB = "15200,21300,30500,39600,51800"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,10500"
+		parameters rtX = "14400,19700,27600,28000,28000"
+		parameters rc1 = "2420,1600,1180,920,750,720,0,0,0"
+		parameters rc2 = "2410,1580,1160,900,730,610,460,0,0"
+		parameters rc3 = "1980,1570,1140,890,710,590,420,320,250"
+		parameters rc4 = "0,1440,1120,860,680,560,390,290,210"
+		parameters rc5 = "0,0,920,830,650,530,360,250,170"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 endif
 

@@ -1,11 +1,31 @@
 ﻿! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
-if travel = 0 then
+mq = GLOB_MODPAR_NAME
+if travel = 0 and (mq = "hfX" or mq = "hfY") then
+	! 平面のフックを引いた: 前後は作業半径、横は旋回（届かない半径は次の読み直しで最大に戻る）
+	if abs(hfX) + abs(hfY) > 0.1 then
+		if abs(hfX) < 0.0001 then
+			aF = 90 + 180 * (hfY < 0)
+		else
+			aF = atn(hfY / hfX) + 180 * (hfX < 0)
+			if aF < 0 then aF = aF + 360
+		endif
+		parameters hkR = sqr(hfX * hfX + hfY * hfY), slew = aF
+	endif
+endif
+if travel = 0 and mq <> "hfX" and mq <> "hfY" then
 	if prio = 0 then
-		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+		if GLOB_MODPAR_NAME = "boomA" then
+			! ブームの先のホットスポット: 長さはそのままで起伏角を変え、作業半径を合わせる
+			aQ = max(1, min(84, boomA))
+			parameters hkR = -pivB + bL * cos(aQ) + jL * cos(aQ - jbO) * (jL > 0.01)
+		else
+			if abs(boomA - bA) > 0.01 then parameters boomA = bA
+		endif
 	else
 		if abs(boomL - bL) > 0.001 then parameters boomL = bL
 	endif
-	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+	if abs(hkR - tipX) > 0.001 and GLOB_MODPAR_NAME <> "boomA" then parameters hkR = tipX
+	if abs(hfX - tipX * cos(slD)) + abs(hfY - tipX * sin(slD)) > 0.001 then parameters hfX = tipX * cos(slD), hfY = tipX * sin(slD)
 endif
 values "boomL" range [bMin, bMax]
 values "prio" 0, 1

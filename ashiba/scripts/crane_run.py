@@ -6,6 +6,8 @@
   python3 scripts/crane_run.py --load 2.5,1.0 --lift-z 15000,12000 --model 25t
   python3 scripts/crane_run.py --soil-q 150 --spread 5.0     # 地盤の許容支持力（短期 kN/m²）・アウトリガの張出幅 m
   python3 scripts/crane_run.py --carrier-angle 0             # 車体の向き（度。省くと線の始めの辺の向き）
+  python3 scripts/crane_run.py --boom 23.45 --jib 8.2 --jib-off 5   # ブーム長さ・ジブ長さ・オフセット角（ジブの定格は性能表で）
+  python3 scripts/crane_run.py --ask                         # 機種・ブーム・ジブ・安全率を窓で選ぶ（パレットのボタン）
   python3 scripts/crane_run.py --remove                      # 置いたクレーンを消す
 
 線1本に部品 ashiba_crane を1台（src/ashiba/crane.py が機種・ブーム・アウトリガ・敷鉄板・検定）と、アウトリガの下に敷鉄板の部品
@@ -25,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-POSE_KEYS = ("pivB", "hkR", "prio", "boomL", "boomA")    # クレーンの姿勢（2回めに入れ直す）
+POSE_KEYS = ("pivB", "jbL", "jbO", "hkR", "prio", "boomL", "boomA")    # クレーンの姿勢（2回めに入れ直す）
 PART = "ashiba_crane"
 PLATE_PART = "ashiba_plate"
 RECORD = "クレーン.json"
@@ -45,6 +47,37 @@ def lifts_from_points(pts: list, loads: str | None, lift_z: str | None):
     ws = _floats(loads, len(rest), 1.0)
     zs = _floats(lift_z, len(rest), 10000.0)
     return c, [Lift(f"吊り荷{i}", math.dist(c, p), w, z) for i, (p, w, z) in enumerate(zip(rest, ws, zs), 1)]
+
+
+def ask(a) -> bool:
+    """機種・ブーム・ジブ・安全率を窓で選ぶ. やめたら False."""
+    from form_dialog import show_form
+
+    from ashiba.crane import JIB_OFFSET, JIBS, MODELS
+
+    auto = "自動（吊り荷を満たす一番小さい機種）"
+    names = {f"{m.name.split(' ', 1)[1]}": k for k, m in MODELS.items()}
+    jibs = "・".join(f"{MODELS[k].name.split(' ')[1]} {'・'.join(f'{v:g}' for v in vs)}" for k, vs in JIBS.items())
+    res = show_form({
+        "title": "クレーン",
+        "intro": "平面のブームの先に定格総荷重と安全率を掛けた荷重、作業の最小半径を描きます。ホットスポットで、ブームの先は起伏角、"
+                 "平面のフックは作業半径を動かせます。ジブの長さ（m）: " + jibs,
+        "fields": [{"key": "model", "label": "機種", "kind": "choice", "options": [auto] + list(names), "value": auto},
+                   {"key": "boom", "label": "ブーム長さ m（空＝吊り荷から自動）", "kind": "number", "value": ""},
+                   {"key": "jib", "label": "ジブ長さ m（空＝なし）", "kind": "number", "value": ""},
+                   {"key": "off", "label": "ジブのオフセット角 度", "kind": "number", "value": f"{JIB_OFFSET:g}"},
+                   {"key": "ratio", "label": "安全率（定格総荷重に掛ける。0.9＝90%）", "kind": "number", "value": f"{a.ratio:g}"}],
+        "buttons": [{"id": "place", "label": "置く"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "place":
+        return False
+    v = res.get("values") or {}
+    a.model = names.get(str(v.get("model")), a.model)
+    for key, attr in (("boom", "boom"), ("jib", "jib"), ("off", "jib_off"), ("ratio", "ratio")):
+        try:
+            setattr(a, attr, float(str(v.get(key) or "").replace(",", "")))
+        except ValueError:
+            pass
+    return True
 
 
 def main(argv=None) -> int:
@@ -70,6 +103,10 @@ def main(argv=None) -> int:
     ap.add_argument("--soil-q", type=float, default=SOIL_Q, help="地盤の許容支持力（短期）kN/m²")
     ap.add_argument("--ratio", type=float, default=LOAD_RATIO, help="計画の率（定格総荷重に対して。既定 0.9）")
     ap.add_argument("--carrier-angle", type=float, default=None, help="車体の向き（度。省くと線の始めの辺の向き）")
+    ap.add_argument("--boom", type=float, default=0.0, help="ブーム長さ m（省くと吊り荷から）")
+    ap.add_argument("--jib", type=float, default=0.0, help="ジブ長さ m（0＝なし）")
+    ap.add_argument("--jib-off", dest="jib_off", type=float, default=5.0, help="ジブのオフセット角")
+    ap.add_argument("--ask", action="store_true", help="機種・ブーム・ジブ・安全率を窓で選ぶ")
     ap.add_argument("--remove", action="store_true", help="置いたクレーンを消す")
     a = ap.parse_args(argv)
     c = ArchicadClient()
@@ -88,6 +125,9 @@ def main(argv=None) -> int:
     if not lines:
         print("クレーン: 線（ポリライン）を選んでから押してください（始めの点＝クレーンの旋回中心、ほかの点＝吊り荷の位置）")
         return 1
+    if a.ask and not ask(a):
+        print("クレーン: やめました（何も置いていません）")
+        return 0
     R.ensure_parts(c)
     part = R.versioned_part_name(PART)
     plate_part = R.versioned_part_name(PLATE_PART)
@@ -120,7 +160,7 @@ def main(argv=None) -> int:
             continue
         # 脚の吸い付きは先に切る（Tapir は1つずつ入れ、脚の時点では既定の 25t の段に吸い付いて 3.8m が 3.3m になった）
         c.set_gdl_parameters(el, {"oSnap": False})
-        cps = part_params(p, slew, ratio=a.ratio)
+        cps = part_params(p, slew, ratio=a.ratio, boom_m=a.boom, jib=a.jib, jib_off=a.jib_off)
         c.set_gdl_parameters(el, {**cps, **pens})
         # 姿勢はもう一度入れる。1回だと pivB・hkR が入る前の古い値で起伏角と作業半径が書き戻された（2026-11-03 実機:
         # 25t の hkR 8.0 が 6.75・起伏角 49.7° が 55.2° に。2回めで一致）

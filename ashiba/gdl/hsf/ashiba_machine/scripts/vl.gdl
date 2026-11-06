@@ -45,6 +45,43 @@ values{2} "cbS" 1, "左", -1, "右"
 values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"
 values "nRear" 1, 2
 values "nSec" 3, 4, 5
+! クローラクレーン: 平面のフックを引いたら、ブームの長さはそのままで起伏角を解き、横に引いた分は旋回にする（ジブ付きも）
+if mcKind = 2 then
+	mq = GLOB_MODPAR_NAME
+	rF = -1
+	aF = slew
+	if mq = "lbR" then rF = lbR
+	if (mq = "hfX" or mq = "hfY") and abs(hfX) + abs(hfY) > 0.1 then
+		rF = sqr(hfX * hfX + hfY * hfY)
+		if abs(hfX) < 0.0001 then
+			aF = 90 + 180 * (hfY < 0)
+		else
+			aF = atn(hfY / hfX) + 180 * (hfX < 0)
+			if aF < 0 then aF = aF + 360
+		endif
+	endif
+	if rF >= 0 then
+		aL = 0
+		aH = 85
+		for k = 1 to 24
+			aM = (aL + aH) / 2
+			rM = pvX + lbL * cos(aM) + 0.4
+			if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+			if rM > rF then
+				aL = aM
+			else
+				aH = aM
+			endif
+		next k
+		aM = (aL + aH) / 2
+		rM = pvX + lbL * cos(aM) + 0.4
+		if jbL > 0.01 then rM = rM + jbL * cos(aM - jbO)
+		parameters lbA = aM, slew = aF, lbR = rM, hfX = rM * cos(aF), hfY = rM * sin(aF)
+	else
+		if abs(lbR - hkX) > 0.001 then parameters lbR = hkX
+		if abs(hfX - hkX * cos(slew)) + abs(hfY - hkX * sin(slew)) > 0.001 then parameters hfX = hkX * cos(slew), hfY = hkX * sin(slew)
+	endif
+endif
 ! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0
@@ -181,38 +218,98 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	endif
 	if mcModel = 5 then
 		parameters mcName = "クローラクレーン 50t", mcNote = "コベルコ 7050G-2 48t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
-		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
-		parameters lbL = 30.5, lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6, gnX = 3.16, gnH = 6.145, hkH = 1.47
-		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.57, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.985, upW = 2.99, cwW = 3.5, tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2
+		parameters upF = 2.45, pvX = 1.1, pvH = 1.75, lbL = 30.5, lbA = 70, lbW = 1.355, cwH = 2.15, hkD = 6
+		parameters gnX = 3.16, gnH = 6.145, hkH = 1.47, hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.9316
+		parameters rtB = "15200,21300,30500,39600,51800"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,10500"
+		parameters rtX = "14400,19700,27600,28000,28000"
+		parameters rc1 = "2420,1600,1180,920,750,720,0,0,0"
+		parameters rc2 = "2410,1580,1160,900,730,610,460,0,0"
+		parameters rc3 = "1980,1570,1140,890,710,590,420,320,250"
+		parameters rc4 = "0,1440,1120,860,680,560,390,290,210"
+		parameters rc5 = "0,0,920,830,650,530,360,250,170"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 6 then
 		parameters mcName = "クローラクレーン 70t", mcNote = "コベルコ 7070G-2 76t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.975, trkW = 4.83, shoeW = 0.8, trkH = 0.99, upW = 2.99, cwW = 3.5
-		parameters tailR = 4.3, upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1, upF = 2.4, pvX = 1.1, pvH = 1.75
-		parameters lbL = 30.5, lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6, gnX = 3.16, gnH = 6.17, hkH = 1.705
-		parameters hkW = 0.6, hkT = 0.535, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.975, trkW = 4.83, shoeW = 0.8
+		parameters trkH = 0.99, upW = 2.99, cwW = 3.5, tailR = 4.3, upZ = 1.1, upH = 3.31, cabW = 0.94, cabL = 2.1
+		parameters upF = 2.4, pvX = 1.1, pvH = 1.75, lbL = 30.5, lbA = 70, lbW = 1.51, cwH = 1.985, hkD = 6
+		parameters gnX = 3.16, gnH = 6.17, hkH = 1.705, hkW = 0.6, hkT = 0.535, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.9316
+		parameters rtB = "15200,21300,30500,39600,54900"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,11000"
+		parameters rtX = "14500,19800,27700,28000,28000"
+		parameters rc1 = "4490,2930,2160,1690,1380,1320,0,0,0"
+		parameters rc2 = "4470,2910,2130,1670,1360,1130,850,0,0"
+		parameters rc3 = "3500,2890,2110,1640,1330,1100,810,620,500"
+		parameters rc4 = "0,2680,2080,1610,1300,1070,780,590,460"
+		parameters rc5 = "0,0,1400,1400,1230,1010,710,530,400"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 7 then
 		parameters mcName = "クローラクレーン 90t", mcNote = "コベルコ 7090G-2 93t"
-		parameters mcKind = 2, vbK = 0, trkL = 6.315, trkW = 4.9, shoeW = 0.9, trkH = 1.145, upW = 2.99, cwW = 4.2
-		parameters tailR = 4.4, upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2, upF = 2.4, pvX = 1.1, pvH = 2.2
-		parameters lbL = 29.1, lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6, gnX = 3.36, gnH = 6.95, hkH = 1.87
-		parameters hkW = 0.7, hkT = 0.49, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 6.315, trkW = 4.9, shoeW = 0.9
+		parameters trkH = 1.145, upW = 2.99, cwW = 4.2, tailR = 4.4, upZ = 1.275, upH = 3.485, cabW = 0.94, cabL = 2
+		parameters upF = 2.4, pvX = 1.1, pvH = 2.2, lbL = 29.1, lbA = 70, lbW = 1.68, cwH = 2.335, hkD = 6
+		parameters gnX = 3.36, gnH = 6.95, hkH = 1.87, hkW = 0.7, hkT = 0.49, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.4528
+		parameters rtB = "19900,23000,29100,41200,62600"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000,32000"
+		parameters rtN = "6000,6000,6400,8500,12200"
+		parameters rtX = "18500,20000,26400,32000,32000"
+		parameters rc1 = "5500,3630,2660,2080,1690,1420,1180,0,0,0"
+		parameters rc2 = "5490,3620,2650,2070,1690,1410,1050,0,0,0"
+		parameters rc3 = "5020,3610,2630,2050,1660,1390,1030,800,700,0"
+		parameters rc4 = "0,3250,2600,2010,1620,1350,980,750,590,480"
+		parameters rc5 = "0,0,0,1800,1540,1260,890,660,490,380"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 8 then
 		parameters mcName = "クローラクレーン 55t（日立住友）", mcNote = "日立住友 SCX550-3 53.4t"
-		parameters mcKind = 2, vbK = 0, trkL = 5.55, trkW = 4.36, shoeW = 0.76, trkH = 0.98, upW = 3.2, cwW = 3.2
-		parameters tailR = 3.85, upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2, upF = 2.2, pvX = 1, pvH = 1.595
-		parameters lbL = 31, lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6, gnX = 3, gnH = 5.33, hkH = 1.67
-		parameters hkW = 0.62, hkT = 0.55, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 5.55, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.98, upW = 3.2, cwW = 3.2, tailR = 3.85, upZ = 1.11, upH = 3.23, cabW = 0.95, cabL = 2
+		parameters upF = 2.2, pvX = 1, pvH = 1.595, lbL = 31, lbA = 70, lbW = 1.38, cwH = 1.97, hkD = 6
+		parameters gnX = 3, gnH = 5.33, hkH = 1.67, hkW = 0.62, hkT = 0.55, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 12.0026
+		parameters rtB = "13000,19000,31000,40000,52000"
+		parameters rtR = "4000,6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "4000,6000,7300,10000,11300"
+		parameters rtX = "12400,17600,28000,28000,28000"
+		parameters rc1 = "5100,2725,1830,1370,1070,990,0,0,0,0"
+		parameters rc2 = "0,2715,1820,1350,1065,875,735,650,0,0"
+		parameters rc3 = "0,2050,1795,1325,1040,845,705,515,400,315"
+		parameters rc4 = "0,0,0,1300,1010,815,675,490,370,285"
+		parameters rc5 = "0,0,0,900,885,785,645,455,335,245"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 9 then
 		parameters mcName = "クローラクレーン 90t（日立住友）", mcNote = "日立住友 SCX900-3 94t"
-		parameters mcKind = 2, vbK = 0, trkL = 6.295, trkW = 4.99, shoeW = 0.81, trkH = 1.11, upW = 2.99, cwW = 4.15
-		parameters tailR = 4.3, upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2, upF = 2.7, pvX = 1.2, pvH = 2.11
-		parameters lbL = 30, lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6, gnX = 3.45, gnH = 6.545, hkH = 2.12
-		parameters hkW = 0.82, hkT = 0.6, cbS = -1, maxR = 0
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 0, trkL = 6.295, trkW = 4.99, shoeW = 0.81
+		parameters trkH = 1.11, upW = 2.99, cwW = 4.15, tailR = 4.3, upZ = 1.365, upH = 3.4, cabW = 0.95, cabL = 2
+		parameters upF = 2.7, pvX = 1.2, pvH = 2.11, lbL = 30, lbA = 70, lbW = 1.66, cwH = 1.94, hkD = 6
+		parameters gnX = 3.45, gnH = 6.545, hkH = 2.12, hkW = 0.82, hkT = 0.6, cbS = -1, maxR = 0, jrN = 0
+		parameters jrX = 0, lbR = 11.8606
+		parameters rtB = "12000,18000,30000,39000,60000"
+		parameters rtR = "5000,6000,8000,10000,12000,14000,16000,20000,24000,28000,32000"
+		parameters rtN = "5000,5000,7200,8800,12700"
+		parameters rtX = "11800,17000,27400,32000,32000"
+		parameters rc1 = "7475,5885,3825,2810,2255,0,0,0,0,0,0"
+		parameters rc2 = "7440,5885,3815,2795,2185,1780,1490,1380,0,0,0"
+		parameters rc3 = "0,4425,3785,2755,2145,1735,1445,1060,815,675,0"
+		parameters rc4 = "0,0,3280,2730,2115,1705,1415,1025,780,610,490"
+		parameters rc5 = "0,0,0,0,1645,1600,1330,935,685,515,390"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 	if mcModel = 10 then
 		parameters mcName = "ポンプ車 26m", mcNote = "極東開発 PY120B-26D 16.95t"
@@ -512,9 +609,21 @@ if GLOB_MODPAR_NAME = "mcModel" then
 	endif
 	if mcModel = 50 then
 		parameters mcName = "バイブロ（50t クレーン）", mcNote = "コベルコ 7050G-2 48t"
-		parameters mcKind = 2, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76, trkH = 0.985, upW = 2.99, cwW = 3.5
-		parameters tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2, upF = 2.45, pvX = 1.1, pvH = 1.75
-		parameters lbL = 21.3, lbA = 78, lbW = 1.355, cwH = 2.15, hkD = 3, gnX = 3.16, gnH = 6.145, hkH = 1.47
-		parameters hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, vbW = 1.337, vbT = 0.722, vbH = 3.479, vbP = 12
+		parameters mcKind = 2, sfRate = 0.9, jbL = 0, jbO = 10, vbK = 1, trkL = 5.57, trkW = 4.36, shoeW = 0.76
+		parameters trkH = 0.985, upW = 2.99, cwW = 3.5, tailR = 4, upZ = 1.1, upH = 3.3, cabW = 0.94, cabL = 2
+		parameters upF = 2.45, pvX = 1.1, pvH = 1.75, lbL = 21.3, lbA = 78, lbW = 1.355, cwH = 2.15, hkD = 3
+		parameters gnX = 3.16, gnH = 6.145, hkH = 1.47, hkW = 0.59, hkT = 0.435, cbS = -1, maxR = 0, vbW = 1.337
+		parameters vbT = 0.722, vbH = 3.479, vbP = 12, jrN = 0, jrX = 0, lbR = 5.92852
+		parameters rtB = "15200,21300,30500,39600,51800"
+		parameters rtR = "6000,8000,10000,12000,14000,16000,20000,24000,28000"
+		parameters rtN = "6000,6000,6800,8400,10500"
+		parameters rtX = "14400,19700,27600,28000,28000"
+		parameters rc1 = "2420,1600,1180,920,750,720,0,0,0"
+		parameters rc2 = "2410,1580,1160,900,730,610,460,0,0"
+		parameters rc3 = "1980,1570,1140,890,710,590,420,320,250"
+		parameters rc4 = "0,1440,1120,860,680,560,390,290,210"
+		parameters rc5 = "0,0,920,830,650,530,360,250,170"
+		parameters jrR = ""
+		parameters jrT = ""
 	endif
 endif

@@ -8,7 +8,7 @@
 作業半径の円（wrR）・ブームとフック。敷鉄板は plDraw を外すと描かず（配置では別の部品 ashiba_plate を
 アウトリガの下に置く。利用者の指定 2026-11-01: 敷鉄板はホットスポットで広げれるようにして 別オブジェクトにして）。割付と検定は src/ashiba/crane.py、置くのは scripts/crane_run.py。
 smartCON Planner のクレーンを手本に（利用者の指定 2026-11-01: ホットスポットで姿勢・揚重判定・ブームの干渉チェック・半径の扇形・
-走行姿勢）: 平面のホットスポットで作業半径 hkR（ブームの向きに引く）・旋回 slew（角度）・扇の向き wrDir、3D でブーム長さ boomL と
+走行姿勢）: 平面のホットスポットでフックの位置 hfX・hfY（どの向きにも引ける。作業半径 hkR と旋回 slew に書き戻す）・旋回 slew（角度）・扇の向き wrDir、3D でブーム長さ boomL と
 フックの高さ hkZ を引く。長さ優先（prio 0）は起伏角が、角度優先（prio 1）はブーム長さが作業半径から決まり、パラメータスクリプトが
 書き戻す。定格総荷重は Python が入れる表（rtB・rtR・rtT1〜8＝ブーム長さ・作業半径・ブームの列ごとの定格 kg）から今の姿勢で読み（ブームはその長さ以上
 の列・半径はその半径以上の行）、安全率 sfRate を掛けてフックの所に注記（吊荷＋フック＋玉掛けが超えれば「超過」）。作業半径は
@@ -72,9 +72,13 @@ def paramlist() -> str:
         _param("Length", "tipHk", "ブームの先からフックの掛け位置まで（いちばん上げた所。仕様書の最大地上揚程に合わせた値）", 1.3),
         _param("Length", "hkR", "作業半径（旋回中心からフック。平面のホットスポットで引く）", 12.0),
         _param("Angle", "slew", "旋回角（車体の前から左回り。平面のホットスポット）", 30.0),
+        _param("Length", "hfX", "フックの位置 X（平面のホットスポットで引くと作業半径と旋回が変わる）", 10.4),
+        _param("Length", "hfY", "フックの位置 Y", 6.0),
         _param("Integer", "prio", "姿勢の優先（0＝ブーム長さ優先＝起伏角が決まる・1＝起伏角優先＝ブーム長さが決まる）", 0),
         _param("Length", "boomL", "ブーム長さ（3D のホットスポット。長さ優先で使う）", 23.45),
         _param("Angle", "boomA", "ブームの起伏角（角度優先で使う。長さ優先では書き戻す）", 56.0),
+        _param("Length", "jbL", "ジブの長さ（0＝ジブなし。機種の段: 帳票に）", 0.0),
+        _param("Angle", "jbO", "ジブのオフセット角", 5.0),
         _param("Length", "bMin", "ブームの最短", 9.35),
         _param("Length", "bMax", "ブームの最長", 30.5),
         _param("Length", "hkZ", "フックの高さ（地盤から。3D のホットスポット。0＝巻上げ限界）", 0.0),
@@ -144,12 +148,29 @@ bL = max(bMin, min(bMax, boomL))
 hR = max(1.0, hkR)
 slD = slew
 owD = spE
+jL = jbL
+if travel then jL = 0
 if prio = 1 then
 	bA = max(1, min(84, boomA))
-	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
+	if jL < 0.01 then bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
 else
-	cA = min(1, max(0.1045, (hR + pivB) / bL))
-	bA = acs(cA)
+	if jL > 0.01 then
+		! ジブ付きは作業半径から起伏角を解く（ブームとジブの水平の長さの和）
+		aL = 1
+		aH = 84
+		for k = 1 to 24
+			aM = (aL + aH) / 2
+			if -pivB + bL * cos(aM) + jL * cos(aM - jbO) > hR then
+				aL = aM
+			else
+				aH = aM
+			endif
+		next k
+		bA = (aL + aH) / 2
+	else
+		cA = min(1, max(0.1045, (hR + pivB) / bL))
+		bA = acs(cA)
+	endif
 endif
 if travel then
 	! 走行姿勢: ブームを最短で前に倒し、アウトリガを畳む
@@ -158,8 +179,14 @@ if travel then
 	slD = 0
 	owD = carW - 0.1
 endif
-tipX = -pivB + bL * cos(bA)
-tipZ = pivH + bL * sin(bA)
+tbX = -pivB + bL * cos(bA)
+tbZ = pivH + bL * sin(bA)
+tipX = tbX
+tipZ = tbZ
+if jL > 0.01 then
+	tipX = tbX + jL * cos(bA - jbO)
+	tipZ = tbZ + jL * sin(bA - jbO)
+endif
 hkMx = tipZ - tipHk
 hkD = hkMx
 if hkZ > 0.3 and hkZ < hkMx and travel = 0 then hkD = hkZ
@@ -187,6 +214,25 @@ if iR > 0 then
 	if jB = 11 and iR <= nTc11 then rated = tc11[iR] * 10
 	if jB = 12 and iR <= nTc12 then rated = tc12[iR] * 10
 endif
+! 作業の最小半径（このブームの列で定格のある一番小さい半径）。ジブの性能表は持っていないので、ジブ付きは定格を出さない
+rMin = 0
+for k = nRr to 1 step -1
+	vq = 0
+	if jB = 1 and k <= nTc1 then vq = tc1[k]
+	if jB = 2 and k <= nTc2 then vq = tc2[k]
+	if jB = 3 and k <= nTc3 then vq = tc3[k]
+	if jB = 4 and k <= nTc4 then vq = tc4[k]
+	if jB = 5 and k <= nTc5 then vq = tc5[k]
+	if jB = 6 and k <= nTc6 then vq = tc6[k]
+	if jB = 7 and k <= nTc7 then vq = tc7[k]
+	if jB = 8 and k <= nTc8 then vq = tc8[k]
+	if jB = 9 and k <= nTc9 then vq = tc9[k]
+	if jB = 10 and k <= nTc10 then vq = tc10[k]
+	if jB = 11 and k <= nTc11 then vq = tc11[k]
+	if jB = 12 and k <= nTc12 then vq = tc12[k]
+	if vq > 0 then rMin = rr[k]
+next k
+if jL > 0.01 then rated = 0
 capT = rated * sfRate
 needT = loadT + hookT + rigT
 okL = 0
@@ -296,6 +342,17 @@ for i = 1 to nC
 		pen pZ
 	endif
 next i
+! 作業の最小半径
+if rMin > 0.1 and travel = 0 then
+	line_type ltZ
+	circle2 0, 0, rMin
+	pen penEquip
+	add2 rMin * cos(slD + 40), rMin * sin(slD + 40)
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, "最小 R" + str(round_int(rMin * 1000), 1, 0)
+	del 2
+	pen pZ
+endif
 line_type ltS
 if wrSpan < 359.9 then
 	line_type ltC
@@ -336,20 +393,26 @@ if mk then
 endif
 drawindex 34
 pen pO
-rect2 -pivB, -bmW / 2, tipX, bmW / 2
+rect2 -pivB, -bmW / 2, tbX, bmW / 2
 pen pT
 if drLv < 3 then
 	for k = 2 to nb
 		wk = bmW * (1 - 0.13 * (k - 1)) / 2
 		xk = -pivB + (k - 1) * (bL - 1.2) * cos(bA) / nb
-		rect2 xk, -wk, tipX, wk
+		rect2 xk, -wk, tbX, wk
 	next k
 	line_type ltC
-	line2 -pivB - 0.5, 0, tipX + 0.8, 0
+	line2 -pivB - 0.5, 0, tbX + 0.8, 0
 	line_type ltS
 endif
 pen pO
-rect2 tipX - 0.35, -bmW / 2, tipX + 0.25, bmW / 2
+rect2 tbX - 0.35, -bmW / 2, tbX + 0.25, bmW / 2
+if jL > 0.01 then
+	! ジブ（先へ細くなる）
+	line2 tbX, -bmW / 3, tipX, -bmW / 6
+	line2 tbX, bmW / 3, tipX, bmW / 6
+	line2 tipX, -bmW / 6, tipX, bmW / 6
+endif
 pen pT
 circle2 tipX, 0, 0.3
 if drLv = 1 then circle2 tipX, 0, 0.12
@@ -363,11 +426,18 @@ if ldOn and travel = 0 then
 		line2 tipX - 0.75, 0.75, tipX + 0.75, -0.75
 	endif
 endif
-! 作業半径のホットスポット（ブームの向きに引く）
-hotspot2 0, 0, 1, hkR, 1 + 128
-hotspot2 tipX, 0, 2, hkR, 2
-hotspot2 -1, 0, 3, hkR, 3
 del 1
+! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける。前後は作業半径、横は旋回）
+if travel = 0 then
+	xF = tipX * cos(slD)
+	yF = tipX * sin(slD)
+	hotspot2 0, yF, 1, hfX, 1 + 128
+	hotspot2 xF, yF, 2, hfX, 2
+	hotspot2 -1, yF, 3, hfX, 3
+	hotspot2 xF, 0, 31, hfY, 1 + 128
+	hotspot2 xF, yF, 32, hfY, 2
+	hotspot2 xF, -1, 33, hfY, 3
+endif
 ! 旋回の中心（一点鎖線の十字）
 drawindex 45
 pen pT
@@ -386,7 +456,11 @@ if travel = 0 then
 	if okL = 0 then sOk = " 超過"
 	add2 xT, yT
 	rot2 -SYMB_ROTANGLE
-	text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	if jL > 0.01 then
+		text2 0, 0.6 + dT, "ジブ " + str(round_int(jL * 1000), 1, 0) + " 定格は性能表で"
+	else
+		text2 0, 0.6 + dT, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	endif
 	text2 0, 0.6, "吊荷 " + str(needT, 5, 2) + "t" + sOk
 	del 2
 endif
@@ -572,6 +646,18 @@ del 1
 add -carRr - 0.1, -carW / 2 + 0.15, 0.6
 block 0.15, carW - 0.3, 0.35
 del 1
+! ブームの先を平面のどの向きにも引く（平面の 1〜3・31〜33 と同じ組）
+if travel = 0 then
+	xF = tipX * cos(slD)
+	yF = tipX * sin(slD)
+	zF = tipZ + 0.3
+	hotspot 0, yF, zF, 41, hfX, 1 + 128
+	hotspot xF, yF, zF, 42, hfX, 2
+	hotspot -1, yF, zF, 43, hfX, 3
+	hotspot xF, 0, zF, 44, hfY, 1 + 128
+	hotspot xF, yF, zF, 45, hfY, 2
+	hotspot xF, -1, zF, 46, hfY, 3
+endif
 ! ---- 上部旋回体（旋回角 slew で回す）----
 rotz slD
 material "cr_steel"
@@ -678,6 +764,56 @@ hotspot 0, 0, 0, 11, boomL, 1 + 128
 hotspot bL, 0, 0, 12, boomL, 2
 hotspot -1, 0, 0, 13, boomL, 3
 del 2
+! ブームの先で起伏角を動かすホットスポット（長さはそのまま）
+hotspot -pivB, 0, pivH, 21, boomA, 6
+hotspot -pivB + 1, 0, pivH, 22, boomA, 4
+hotspot tbX, 0, tbZ + 0.6, 23, boomA, 5
+hotspot -pivB, -1, pivH, 24, boomA, 7
+if jL > 0.01 then
+	! ジブ（箱の弦材とラチス。先へ細くなる）とジブ長さのホットスポット
+	add tbX, 0, tbZ
+	roty -(bA - jbO)
+	material "cr_boom"
+	wJ = bmW * 0.6
+	rq = 0.03
+	for sy = -1 to 1 step 2
+		for sz = -1 to 1 step 2
+			x0q = 0
+			y0q = sy * wJ / 2
+			z0q = sz * wJ / 2
+			x1q = jL
+			y1q = sy * wJ / 4
+			z1q = sz * wJ / 4
+			gosub "seg3"
+		next sz
+	next sy
+	nJ = max(2, int(jL / max(wJ, 0.5)))
+	rq = 0.015
+	for i = 0 to nJ - 1
+		sg = 1 - 2 * (i mod 2)
+		wa = wJ * (1 - 0.5 * i / nJ) / 2
+		wb = wJ * (1 - 0.5 * (i + 1) / nJ) / 2
+		x0q = i * jL / nJ
+		x1q = (i + 1) * jL / nJ
+		for sz = -1 to 1 step 2
+			y0q = -sg * wa
+			y1q = sg * wb
+			z0q = sz * wa
+			z1q = sz * wb
+			gosub "seg3"
+		next sz
+	next i
+	material "cr_steel"
+	add jL - 0.1, -0.03, 0
+	rotx -90
+	add 0, 0, -0.03
+	cylind 0.06, 0.18
+	del 3
+	hotspot 0, 0, 0, 25, jbL, 1 + 128
+	hotspot jL, 0, 0, 26, jbL, 2
+	hotspot -1, 0, 0, 27, jbL, 3
+	del 2
+endif
 ! ワイヤ・フック・吊り荷（旋回体の座標でブームの先の真下）
 material "cr_steel"
 for i = -1 to 1 step 2
@@ -763,13 +899,33 @@ end
 
 
 SCRIPT_VL = """﻿! 移動式クレーン: ホットスポットで引いた姿勢を書き戻す（長さ優先は起伏角、角度優先はブーム長さ。作業半径は届く所まで）
-if travel = 0 then
+mq = GLOB_MODPAR_NAME
+if travel = 0 and (mq = "hfX" or mq = "hfY") then
+	! 平面のフックを引いた: 前後は作業半径、横は旋回（届かない半径は次の読み直しで最大に戻る）
+	if abs(hfX) + abs(hfY) > 0.1 then
+		if abs(hfX) < 0.0001 then
+			aF = 90 + 180 * (hfY < 0)
+		else
+			aF = atn(hfY / hfX) + 180 * (hfX < 0)
+			if aF < 0 then aF = aF + 360
+		endif
+		parameters hkR = sqr(hfX * hfX + hfY * hfY), slew = aF
+	endif
+endif
+if travel = 0 and mq <> "hfX" and mq <> "hfY" then
 	if prio = 0 then
-		if abs(boomA - bA) > 0.01 then parameters boomA = bA
+		if GLOB_MODPAR_NAME = "boomA" then
+			! ブームの先のホットスポット: 長さはそのままで起伏角を変え、作業半径を合わせる
+			aQ = max(1, min(84, boomA))
+			parameters hkR = -pivB + bL * cos(aQ) + jL * cos(aQ - jbO) * (jL > 0.01)
+		else
+			if abs(boomA - bA) > 0.01 then parameters boomA = bA
+		endif
 	else
 		if abs(boomL - bL) > 0.001 then parameters boomL = bL
 	endif
-	if abs(hkR - tipX) > 0.001 then parameters hkR = tipX
+	if abs(hkR - tipX) > 0.001 and GLOB_MODPAR_NAME <> "boomA" then parameters hkR = tipX
+	if abs(hfX - tipX * cos(slD)) + abs(hfY - tipX * sin(slD)) > 0.001 then parameters hfX = tipX * cos(slD), hfY = tipX * sin(slD)
 endif
 values "boomL" range [bMin, bMax]
 values "prio" 0, 1
