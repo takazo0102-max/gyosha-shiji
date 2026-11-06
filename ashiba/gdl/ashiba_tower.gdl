@@ -47,6 +47,17 @@
 !   tieZ      文字列    壁つなぎの高さ（mm・カンマ区切り）                                       既定 ""
 !   tieA      角度      壁つなぎの向き（建物の側）                                               既定 180.0
 !   tieL      長さ      壁つなぎの長さ（マストの面から建物まで）                                 既定 2.0
+!   hfX       長さ      フックの位置 X（平面のホットスポット）                                   既定 30.0
+!   hfY       長さ      フックの位置 Y                                                           既定 0.0
+!   rtR       文字列    定格荷重の作業半径（mm。据え付けたジブの表）                             既定 ""
+!   rtT       文字列    定格荷重（10kg 単位）                                                    既定 ""
+!   loadT     実数      吊荷 t                                                                   既定 0.0
+!   tcClr     整数      色の組（1 黄・2 赤白）                                                   既定 1
+!   tcBase    ブール    ベース（クロスベース）を描く                                             既定 1
+!   clOn      ブール    クライミング枠を描く                                                     既定 1
+!   msStep    ブール    マストの高さを節の長さに吸い付ける（段階マスト）                         既定 0
+!   hkLim     ブール    フックを規定の揚程の範囲に制限する（最大揚程）                           既定 0
+!   hkMax     長さ      最大揚程（地盤からフックの上限）                                         既定 0.0
 !   avN       整数      航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）  既定 0
 !   texSiz    実数      文字の大きさ（mm）                                                       既定 2.5
 !   penEquip  PenColor  線のペン                                                                 既定 1
@@ -75,6 +86,47 @@ else
 	hX = jX
 endif
 hZ = max(0.5, jZ - hkD)
+if hkLim and hkMax > 0.1 then hZ = min(hZ, hkMax)
+dim qR[]
+nQr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQr = nQr + 1
+		qR[nQr] = v / 1000
+	endif
+endwhile
+dim qT[]
+nQt = 0
+rest = rtT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nQt = nQt + 1
+		qT[nQt] = v / 1
+	endif
+endwhile
+capT = 0
+for i = nQr to 1 step -1
+	if qR[i] >= hX - 0.001 and i <= nQt then capT = qT[i] / 100
+next i
 ! 壁つなぎの高さ（mm の文字 → m）
 dim tz[]
 nTz = 0
@@ -237,6 +289,20 @@ text2 0, 0, tcName
 if strlen(tcNote) > 0 and drLv < 3 then text2 0, -dT, tcNote
 text2 0, -2 * dT, "R" + str(round_int(hX * 1000), 1, 0) + "・マスト " + str(round_int(msH * 1000), 1, 0)
 del 2
+! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける）と定格荷重の注記
+xF = hX * cos(slew)
+yF = hX * sin(slew)
+hotspot2 0, yF, 61, hfX, 1 + 128
+hotspot2 xF, yF, 62, hfX, 2
+hotspot2 -1, yF, 63, hfX, 3
+hotspot2 xF, 0, 64, hfY, 1 + 128
+hotspot2 xF, yF, 65, hfY, 2
+hotspot2 xF, -1, 66, hfY, 3
+add2 xF, yF
+rot2 -SYMB_ROTANGLE
+if capT > 0 then text2 0.6, dT, "定格 " + str(capT, 5, 2) + "t"
+text2 0.6, 0, "R" + str(round_int(hX * 1000), 1, 0)
+del 2
 ! 旋回角のホットスポット
 rH = max(3.0, tailR)
 hotspot2 0, 0, 1, slew, 6
@@ -248,7 +314,23 @@ hotspot2 0, 0
 ! ==== 3Dスクリプト ====
 ! ==========================================================
 ! タワークレーン 3D
-define material "tc_body" 2, 0.95, 0.75, 0.10
+! 色の組（1 黄・2 赤白。航空障害標識の塗り分け。同じ名前の define material は 1回だけ）
+cR = 0.95
+cG = 0.75
+cB = 0.10
+wR = cR
+wG = cG
+wB = cB
+if tcClr = 2 then
+	cR = 0.80
+	cG = 0.12
+	cB = 0.10
+	wR = 0.94
+	wG = 0.94
+	wB = 0.94
+endif
+define material "tc_body" 2, cR, cG, cB
+define material "tc_band" 2, wR, wG, wB
 define material "tc_steel" 2, 0.55, 0.56, 0.58
 define material "tc_dark" 2, 0.20, 0.20, 0.22
 define material "tc_cw" 2, 0.62, 0.63, 0.64
@@ -262,20 +344,23 @@ material "tc_conc"
 add -baseW * 0.55, -baseW * 0.55, -baseD
 block baseW * 1.1, baseW * 1.1, baseD
 del 1
-! ベース（クロスベースの2本の梁）
-material "tc_steel"
-for s = -1 to 1 step 2
-	add 0, 0, 0
-	rotz 45 * s
-	add -baseW * 0.7, -0.25, 0
-	block baseW * 1.4, 0.5, 0.5
-	del 3
-next s
-add -msW / 2 - 0.3, -msW / 2 - 0.3, 0.5
-block msW + 0.6, msW + 0.6, 0.15
-del 1
+if tcBase then
+	! ベース（クロスベースの2本の梁）
+	material "tc_steel"
+	for s = -1 to 1 step 2
+		add 0, 0, 0
+		rotz 45 * s
+		add -baseW * 0.7, -0.25, 0
+		block baseW * 1.4, 0.5, 0.5
+		del 3
+	next s
+	add -msW / 2 - 0.3, -msW / 2 - 0.3, 0.5
+	block msW + 0.6, msW + 0.6, 0.15
+	del 1
+endif
 gosub "mast"
 gosub "ties"
+gosub "climb"
 add 0, 0, zR
 rotz slew
 gosub "slewing"
@@ -319,20 +404,20 @@ end
 	return
 
 "mast":
-	! マスト: 主材4本・各面の水平材と斜材（1本ごと）
+	! マスト: 箱の主材 4 本・節ごとの X の斜材と水平材・継ぎの板・はしごと休憩台
+	wC = msW * 0.13
 	material "tc_body"
-	rcm = 0.04 + 0.025 * msW
 	for sx = -1 to 1 step 2
 		for sy = -1 to 1 step 2
-			add sx * msW / 2, sy * msW / 2, 0
-			cylind msH, rcm
+			add sx * msW / 2 - wC / 2, sy * msW / 2 - wC / 2, 0
+			block wC, wC, msH
 			del 1
 		next sy
 	next sx
-	rq = rcm * 0.55
+	rq = msW * 0.028
 	for k = 0 to nSg - 1
 		za = k * sgL
-		zb = za + sgL
+		zb = min(msH, za + sgL)
 		for f = 1 to 4
 			ca = cos(f * 90)
 			sa = sin(f * 90)
@@ -347,8 +432,74 @@ end
 			gosub "seg3"
 			z1q = zb
 			gosub "seg3"
+			xq = x0q
+			yq = y0q
+			x0q = x1q
+			y0q = y1q
+			x1q = xq
+			y1q = yq
+			z0q = za
+			gosub "seg3"
+			x1q = (x0q + xq) / 2
+			y1q = (y0q + yq) / 2
 		next f
+		! 継ぎの板
+		material "tc_dark"
+		for sx = -1 to 1 step 2
+			for sy = -1 to 1 step 2
+				add sx * msW / 2 - wC * 0.7, sy * msW / 2 - wC * 0.7, za - 0.06
+				block wC * 1.4, wC * 1.4, 0.12
+				del 1
+			next sy
+		next sx
+		! 休憩台
+		material "tc_steel"
+		add -msW * 0.42, -msW * 0.42, za + 0.04
+		block msW * 0.84, msW * 0.84, 0.04
+		del 1
+		material "tc_body"
 	next k
+	! はしご（マストの中）
+	material "tc_steel"
+	rq = 0.02
+	for s = -1 to 1 step 2
+		add msW * 0.3, s * 0.2, 0
+		cylind msH, 0.02
+		del 1
+	next s
+	for k = 0 to int(msH / 0.9)
+		add msW * 0.3 - 0.015, -0.2, k * 0.9
+		block 0.03, 0.4, 0.03
+		del 1
+	next k
+	return
+
+"climb":
+	! クライミング枠（マストを抱く四角の枠。上の 2 段。機種の外形は調査のメモ）
+	if clOn then
+		for k = 1 to 2
+			zK = msH - k * 3.4
+			if zK > 1 then
+				material "tc_dark"
+				hK = msW / 2 + 0.3
+				for s = -1 to 1 step 2
+					add -hK - 0.5, s * hK - 0.2, zK
+					block 2 * hK + 1.0, 0.4, 0.6
+					del 1
+					add s * hK - 0.2, -hK - 0.5, zK
+					block 0.4, 2 * hK + 1.0, 0.6
+					del 1
+				next s
+				! 昇降のシリンダ
+				material "tc_steel"
+				for s = -1 to 1 step 2
+					add s * (msW / 2 + 0.16), 0, zK + 0.6
+					cylind 1.6, 0.09
+					del 1
+				next s
+			endif
+		next k
+	endif
 	return
 
 "ties":
@@ -375,95 +526,228 @@ end
 	return
 
 "slewing":
-	! 旋回体: 旋回輪・機械台・カウンタウエイト・運転室
+	! 旋回体: ポスト・旋回輪・機械台の梁・通路と手すり・機械室のドラム・カウンタウエイト・運転室
 	material "tc_dark"
-	cylind 0.6, msW * 0.6
-	material "tc_body"
-	add -tailR + cwL, dkY - dkW / 2, 0.6
-	block tailR - cwL + upF, dkW, 0.5
+	cylind 0.25, msW * 0.68
+	add 0, 0, 0.25
+	cylind 0.35, msW * 0.6
 	del 1
+	xD0 = -tailR + cwL
+	lD = tailR - cwL + upF
+	material "tc_body"
+	for s = -1 to 1 step 2
+		add xD0, dkY + s * (dkW / 2 - 0.2) - 0.2, 0.6
+		block lD, 0.4, 0.5
+		del 1
+	next s
+	for k = 0 to 4
+		add xD0 + k * (lD - 0.3) / 4, dkY - dkW / 2 + 0.2, 0.68
+		block 0.3, dkW - 0.4, 0.34
+		del 1
+	next k
+	! 通路の板と手すり
+	material "tc_steel"
+	add xD0, dkY - dkW / 2, 1.1
+	block lD, dkW, 0.03
+	del 1
+	rq = 0.02
+	for s = -1 to 1 step 2
+		yH = dkY + s * dkW / 2
+		for k = 0 to 4
+			x0q = xD0 + k * lD / 4
+			y0q = yH
+			z0q = 1.13
+			x1q = x0q
+			y1q = yH
+			z1q = 2.2
+			gosub "seg3"
+		next k
+		for k = 0 to 1
+			x0q = xD0
+			x1q = xD0 + lD
+			y0q = yH
+			y1q = yH
+			z0q = 1.65 + k * 0.55
+			z1q = z0q
+			gosub "seg3"
+		next k
+	next s
+	! 機械室（箱）と巻上・起伏のドラム
+	material "tc_band"
+	add xD0 + 0.2, dkY - dkW * 0.3, 1.13
+	block min(2.4, lD * 0.35), dkW * 0.6, 1.5
+	del 1
+	for k = 0 to 1
+		xW = xD0 + min(2.4, lD * 0.35) + 0.7 + k * 1.1
+		material "tc_dark"
+		add xW, dkY - dkW * 0.28, 1.65
+		rotx -90
+		cylind dkW * 0.56, 0.42
+		del 2
+		material "tc_steel"
+		for s = -1 to 1 step 2
+			add xW, dkY + s * dkW * 0.3 - 0.03, 1.65
+			rotx -90
+			cylind 0.06, 0.55
+			del 2
+		next s
+	next k
+	! カウンタウエイト（塊を並べる）
 	material "tc_cw"
-	add -tailR, dkY - cwW / 2, 0.6
-	block cwL, cwW, cwH
-	del 1
-	material "tc_body"
-	! 運転室（旋回体の前の右。前後 cbL・幅 cbW・上面 cbZ・高さ cbH）
+	nCw = max(2, int(cwW / 0.8))
+	for k = 0 to nCw - 1
+		add -tailR, dkY - cwW / 2 + k * cwW / nCw + 0.01, 0.6
+		block cwL, cwW / nCw - 0.02, cwH
+		del 1
+	next k
+	! 運転室（旋回体の前の右。前面が斜めに傾く。前後 cbL・幅 cbW・上面 cbZ・高さ cbH）
 	yR = dkY - dkW / 2
-	add upF - cbL, yR, cbZ - cbH
-	block cbL, cbW, cbH
-	del 1
+	zC = cbZ - cbH
+	material "tc_band"
+	add 0, yR + cbW, 0
+	rotx 90
+	prism 5, cbW, upF - cbL, zC, upF - 0.35, zC, upF, zC + cbH * 0.45, upF - 0.2, cbZ, upF - cbL, cbZ
+	del 2
 	material "tc_glass"
-	add upF + 0.002, yR + 0.08, cbZ - cbH * 0.6
-	block 0.006, max(0.1, cbW - 0.16), cbH * 0.5
-	del 1
-	add upF - cbL + 0.1, yR - 0.006, cbZ - cbH * 0.55
-	block max(0.1, cbL - 0.2), 0.006, cbH * 0.45
-	del 1
+	add 0, yR + cbW - 0.06, 0
+	rotx 90
+	prism 4, cbW - 0.12, upF - 0.33, zC + 0.03, upF + 0.01, zC + cbH * 0.45, upF - 0.19, cbZ - 0.06, upF - 0.22, cbZ - 0.08
+	del 2
+	add 0, yR + 0.004, 0
+	rotx 90
+	prism 4, 0.008, upF - cbL + 0.12, zC + cbH * 0.35, upF - 0.22, zC + cbH * 0.35, upF - 0.26, cbZ - 0.12, upF - cbL + 0.12, cbZ - 0.12
+	del 2
 	return
 
 "luffjib":
-	! 起伏ジブ: Aフレーム・ラチスジブ（主材4本と4面の斜材）・起伏ロープとペンダント
+	! 起伏ジブ: Aフレーム（2 本の柱・後ろの控え・はしご・頂部のシーブ）・ラチスジブ（根元を絞る）・ペンダントと継ぎ金具
 	material "tc_body"
 	for s = -1 to 1 step 2
-		rq = 0.12
-		x0q = pvX - 0.3
-		y0q = s * dkW / 2
+		rq = 0.14
+		x0q = pvX - 0.6
+		y0q = s * dkW * 0.4
 		z0q = 1.1
 		x1q = -frX
 		y1q = s * 0.4
 		z1q = frH
 		gosub "seg3"
+		rq = 0.09
 		x0q = -tailR + cwL + 0.3
 		gosub "seg3"
 	next s
+	! はしご
+	material "tc_steel"
+	nL = int((frH - 1.2) / 0.5)
+	for k = 1 to nL
+		tL = k / (nL + 1)
+		add pvX - 0.6 + (-frX - pvX + 0.6) * tL, -0.3, 1.1 + (frH - 1.1) * tL
+		block 0.03, 0.6, 0.03
+		del 1
+	next k
+	add -frX, -0.3, frH
+	rotx -90
+	cylind 0.6, 0.35
+	del 2
 	add pvX, 0, pvH
 	roty -jbA
 	resol 6
-	rcj = 0.035 + 0.02 * jbW
+	lRt = min(jbL * 0.35, 8.9)
+	rcj = jbW * 0.045
+	! 主弦材（根元は 2 本の耳へ絞る）
+	material "tc_body"
 	for sy = -1 to 1 step 2
 		for sz = -1 to 1 step 2
-			add 0, sy * jbW / 2, sz * jbW / 2
-			roty 90
-			cylind jbL, rcj
-			del 2
+			x0q = 0
+			y0q = sy * jbW * 0.32
+			z0q = sz * jbW * 0.12
+			x1q = lRt
+			y1q = sy * jbW / 2
+			z1q = sz * jbW / 2
+			rq = rcj
+			gosub "seg3"
+			x0q = lRt
+			y0q = y1q
+			z0q = z1q
+			x1q = jbL
+			gosub "seg3"
 		next sz
 	next sy
-	nP = max(2, int(jbL / jbW))
+	nP = max(4, int(jbL / (jbW * 0.95)))
 	pP = jbL / nP
+	rq = rcj * 0.55
 	for i = 0 to nP - 1
 		sg = 1 - 2 * (i mod 2)
-		rq = rcj * 0.5
+		! 3 節ごとの塗り分け
+		if int(i / 3) mod 2 = 0 then
+			material "tc_body"
+		else
+			material "tc_band"
+		endif
+		hA = jbW / 2
+		zA = jbW / 2
+		xq = i * pP
+		if xq < lRt then
+			hA = jbW * (0.32 + 0.18 * xq / lRt)
+			zA = jbW * (0.12 + 0.38 * xq / lRt)
+		endif
+		hBq = jbW / 2
+		zBq = jbW / 2
+		xq = (i + 1) * pP
+		if xq < lRt then
+			hBq = jbW * (0.32 + 0.18 * xq / lRt)
+			zBq = jbW * (0.12 + 0.38 * xq / lRt)
+		endif
 		x0q = i * pP
 		x1q = x0q + pP
-		y0q = -sg * jbW / 2
-		y1q = sg * jbW / 2
-		z0q = jbW / 2
-		z1q = jbW / 2
+		y0q = -sg * hA
+		y1q = sg * hBq
+		z0q = zA
+		z1q = zBq
 		gosub "seg3"
-		z0q = -jbW / 2
-		z1q = -jbW / 2
+		z0q = -zA
+		z1q = -zBq
 		gosub "seg3"
-		y0q = jbW / 2
-		y1q = jbW / 2
-		z0q = -sg * jbW / 2
-		z1q = sg * jbW / 2
+		y0q = hA
+		y1q = hBq
+		z0q = -sg * zA
+		z1q = sg * zBq
 		gosub "seg3"
-		y0q = -jbW / 2
-		y1q = -jbW / 2
+		y0q = -hA
+		y1q = -hBq
 		gosub "seg3"
 	next i
 	resol 8
+	! ジブの先（側板とシーブ）
 	material "tc_steel"
-	add jbL - 0.2, -jbW / 2, -jbW / 2
-	block 0.6, jbW, jbW
-	del 1
+	for s = -1 to 1 step 2
+		add jbL - 0.3, s * jbW * 0.4 - 0.03, -jbW / 2
+		block 1.0, 0.06, jbW
+		del 1
+	next s
+	add jbL + 0.4, -0.2, 0
+	rotx -90
+	cylind 0.4, 0.45
 	del 2
+	del 2
+	! ペンダント 2 本と継ぎ金具
 	material "tc_steel"
+	xM = -frX + (jX + frX) * 0.45
+	zM = frH + (jZ - zR - frH) * 0.45
+	add xM - 0.3, -0.45, zM - 0.1
+	block 0.6, 0.9, 0.2
+	del 1
 	for s = -1 to 1 step 2
 		rq = 0.025
 		x0q = -frX
-		y0q = s * 0.4
+		y0q = s * 0.2
 		z0q = frH
+		x1q = xM
+		y1q = s * 0.4
+		z1q = zM
+		gosub "seg3"
+		x0q = xM
+		y0q = s * 0.4
+		z0q = zM
 		x1q = jX
 		y1q = s * jbW / 4
 		z1q = jZ - zR
@@ -577,16 +861,30 @@ end
 		cylind max(0.1, zT - hZ - 0.8), 0.015
 		del 1
 	next s
-	material "tc_hook"
 	add hX * cS, hX * sS, hZ
 	rotz slew
-	add -0.35, -0.3, 0
-	block 0.7, 0.6, 0.8
-	del 3
+	material "tc_hook"
+	for s = -1 to 1 step 2
+		add 0, s * 0.2 - 0.02, 0.5
+		rotx -90
+		cylind 0.04, 0.36
+		del 2
+	next s
 	material "tc_steel"
-	add hX * cS, hX * sS, hZ - 0.5
-	cone 0.5, 0.05, 0.12, 90, 90
+	add 0, -0.18, 0.5
+	rotx -90
+	cylind 0.36, 0.3
+	del 2
+	add 0, 0, -0.1
+	cylind 0.25, 0.07
 	del 1
+	material "tc_hook"
+	add 0, 0.04, -0.62
+	mul 1.2, 1, 1.2
+	rotx 90
+	prism 15, 0.08, -0.04, 0.45, 0.04, 0.45, 0.05, 0.32, 0.17, 0.2, 0.19, 0.09, 0.12, 0.01, 0, 0, -0.13, 0.05, -0.19, 0.14, -0.13, 0.2, -0.1, 0.13, -0.03, 0.08, 0.07, 0.09, 0.1, 0.15, -0.03, 0.26
+	del 3
+	del 2
 	return
 
 ! ==========================================================
@@ -594,6 +892,25 @@ end
 ! ==========================================================
 ! タワークレーン: 形式の一覧
 values{2} "tcType" 1, "起伏ジブ", 2, "水平ジブ"
+mq = GLOB_MODPAR_NAME
+if msStep and mq = "msH" then parameters msH = max(1, int(msH / max(0.5, msSeg) + 0.5)) * msSeg
+if (mq = "hfX" or mq = "hfY") and abs(hfX) + abs(hfY) > 0.1 then
+	! 平面のフックを引いた: 横は旋回、前後は起伏ジブの角度かトロリの半径
+	if abs(hfX) < 0.0001 then
+		aF = 90 + 180 * (hfY < 0)
+	else
+		aF = atn(hfY / hfX) + 180 * (hfX < 0)
+		if aF < 0 then aF = aF + 360
+	endif
+	rF = sqr(hfX * hfX + hfY * hfY)
+	if tcType = 2 then
+		parameters slew = aF, trR = rF
+	else
+		parameters slew = aF, jbA = acs(max(-1, min(1, (rF - pvX) / jbL)))
+	endif
+else
+	if abs(hfX - hX * cos(slew)) + abs(hfY - hX * sin(slew)) > 0.001 then parameters hfX = hX * cos(slew), hfY = hX * sin(slew)
+endif
 ! 機種を選ぶと、src/ashiba/tower.py の寸法を書き込む（gen_tower_gdl.py が書き出す）
 dim mdV[], mdS[]
 mdV[1] = 0
@@ -614,45 +931,57 @@ values{2} "tcModel" mdV, mdS
 if GLOB_MODPAR_NAME = "tcModel" then
 	if tcModel = 1 then
 		parameters tcName = "タワークレーン 27.5t", tcNote = "北川鉄工所 JCL730NKD・ジブ 32m"
-		parameters tcType = 1, msW = 1.9, msH = 51.455, msSeg = 6, baseW = 4.6, baseD = 1.5, tailR = 6.6, cwW = 4.32
-		parameters cwH = 2, cwL = 1.5, dkW = 6.8, dkY = -0.7, upF = 2.26, frH = 13.151, frX = 4.1, cbL = 1.2
-		parameters cbW = 1.1, cbZ = 2.72, cbH = 2.3, pvX = -2.49, pvH = 1.02, jbL = 35.72, jbA = 52.61, jbW = 2.3
-		parameters hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+		parameters rtR = "3000,5000,26500,28000,30000,32000"
+		parameters rtT = "2200,2750,2750,2570,2350,2150"
+		parameters tcClr = 1, tcType = 1, msW = 1.9, msH = 51.455, msSeg = 6, baseW = 4.6, baseD = 1.5, tailR = 6.6
+		parameters cwW = 4.32, cwH = 2, cwL = 1.5, dkW = 6.8, dkY = -0.7, upF = 2.26, frH = 13.151, frX = 4.1
+		parameters cbL = 1.2, cbW = 1.1, cbZ = 2.72, cbH = 2.3, pvX = -2.49, pvH = 1.02, jbL = 35.72, jbA = 52.61
+		parameters jbW = 2.3, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 2 then
 		parameters tcName = "タワークレーン 25t", tcNote = "タダノ（旧IHI運搬機械）JCC-V600S・ジブ 32m"
-		parameters tcType = 1, msW = 1.9, msH = 38.954, msSeg = 6, baseW = 4.313, baseD = 1.5, tailR = 8.1, cwW = 3.938
-		parameters cwH = 2, cwL = 1.5, dkW = 6.717, dkY = -0.898, upF = 2.77, frH = 12.15, frX = 5.1, cbL = 1.8
-		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -3.1, pvH = 0.1, jbL = 41.6, jbA = 57.58, jbW = 2.39
-		parameters hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
+		parameters rtR = "0,3500,27000,28000,30000,32000"
+		parameters rtT = "1000,2500,2500,2384,2180,2000"
+		parameters tcClr = 2, tcType = 1, msW = 1.9, msH = 38.954, msSeg = 6, baseW = 4.313, baseD = 1.5, tailR = 8.1
+		parameters cwW = 3.938, cwH = 2, cwL = 1.5, dkW = 6.717, dkY = -0.898, upF = 2.77, frH = 12.15, frX = 5.1
+		parameters cbL = 1.8, cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -3.1, pvH = 0.1, jbL = 41.6, jbA = 57.58
+		parameters jbW = 2.39, hkD = 10, maxR = 32, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 3 then
 		parameters tcName = "タワークレーン 14t", tcNote = "タダノ（旧IHI運搬機械）JCC-TS300S・ジブ 23m"
-		parameters tcType = 1, msW = 1.35, msH = 47.794, msSeg = 7.2, baseW = 4.25, baseD = 1.5, tailR = 6.6, cwW = 3.968
-		parameters cwH = 2, cwL = 1.5, dkW = 5.866, dkY = -0.453, upF = 2.243, frH = 11.5, frX = 3.25, cbL = 1.8
-		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -2.8, pvH = 1.3, jbL = 27.05, jbA = 52.14, jbW = 1.74
-		parameters hkD = 10, maxR = 23, tieA = 180, tieL = 2, avN = 1
+		parameters rtR = "3000,22000,23000"
+		parameters rtT = "1400,1400,1300"
+		parameters tcClr = 2, tcType = 1, msW = 1.35, msH = 47.794, msSeg = 7.2, baseW = 4.25, baseD = 1.5, tailR = 6.6
+		parameters cwW = 3.968, cwH = 2, cwL = 1.5, dkW = 5.866, dkY = -0.453, upF = 2.243, frH = 11.5, frX = 3.25
+		parameters cbL = 1.8, cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -2.8, pvH = 1.3, jbL = 27.05, jbA = 52.14
+		parameters jbW = 1.74, hkD = 10, maxR = 23, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 4 then
 		parameters tcName = "タワークレーン 14t（中型）", tcNote = "北川鉄工所 JCL280GK（4本掛け）・ジブ 24m"
-		parameters tcType = 1, msW = 1.35, msH = 46.755, msSeg = 7.2, baseW = 4.118, baseD = 1.5, tailR = 5, cwW = 4.57
-		parameters cwH = 1.49, cwL = 0.79, dkW = 4.58, dkY = -0.56, upF = 1.7475, frH = 10.16, frX = 4, cbL = 1.81
-		parameters cbW = 1.5, cbZ = 2.06, cbH = 1.56, pvX = 0.3, pvH = 1.706, jbL = 24.536, jbA = 54.92, jbW = 1.3
-		parameters hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+		parameters rtR = "3000,20000,22000,24000"
+		parameters rtT = "1400,1400,1280,1150"
+		parameters tcClr = 1, tcType = 1, msW = 1.35, msH = 46.755, msSeg = 7.2, baseW = 4.118, baseD = 1.5, tailR = 5
+		parameters cwW = 4.57, cwH = 1.49, cwL = 0.79, dkW = 4.58, dkY = -0.56, upF = 1.7475, frH = 10.16, frX = 4
+		parameters cbL = 1.81, cbW = 1.5, cbZ = 2.06, cbH = 1.56, pvX = 0.3, pvH = 1.706, jbL = 24.536, jbA = 54.92
+		parameters jbW = 1.3, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 5 then
 		parameters tcName = "タワークレーン 2.8t", tcNote = "北川鉄工所 JCL080SKA・ジブ 24m"
-		parameters tcType = 1, msW = 1.17, msH = 41.663, msSeg = 7, baseW = 2.2, baseD = 1.5, tailR = 3.8, cwW = 2.4
-		parameters cwH = 2, cwL = 1.5, dkW = 3.5, dkY = -0.25, upF = 1.359, frH = 9.719, frX = 3.1, cbL = 2
-		parameters cbW = 1, cbZ = 2.27, cbH = 2.27, pvX = 0.8, pvH = 1.046, jbL = 24.018, jbA = 55.51, jbW = 1.33
-		parameters hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
+		parameters rtR = "3000,24000"
+		parameters rtT = "280,280"
+		parameters tcClr = 1, tcType = 1, msW = 1.17, msH = 41.663, msSeg = 7, baseW = 2.2, baseD = 1.5, tailR = 3.8
+		parameters cwW = 2.4, cwH = 2, cwL = 1.5, dkW = 3.5, dkY = -0.25, upF = 1.359, frH = 9.719, frX = 3.1
+		parameters cbL = 2, cbW = 1, cbZ = 2.27, cbH = 2.27, pvX = 0.8, pvH = 1.046, jbL = 24.018, jbA = 55.51
+		parameters jbW = 1.33, hkD = 10, maxR = 24, tieA = 180, tieL = 2, avN = 1
 	endif
 	if tcModel = 6 then
 		parameters tcName = "タワークレーン 2.8t（小川）", tcNote = "小川製作所 OTS-90NH・ジブ 20m"
-		parameters tcType = 1, msW = 1.25, msH = 41.04, msSeg = 6, baseW = 4.073, baseD = 1.5, tailR = 3.967, cwW = 3.152
-		parameters cwH = 2, cwL = 1.5, dkW = 4.07, dkY = -0.065, upF = 1.53, frH = 7.5, frX = 2.9, cbL = 1.8
-		parameters cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -2.1, pvH = 0, jbL = 23, jbA = 52.19, jbW = 1.176
-		parameters hkD = 10, maxR = 20, tieA = 180, tieL = 2, avN = 0
+		parameters rtR = "3000,20000"
+		parameters rtT = "280,280"
+		parameters tcClr = 1, tcType = 1, msW = 1.25, msH = 41.04, msSeg = 6, baseW = 4.073, baseD = 1.5, tailR = 3.967
+		parameters cwW = 3.152, cwH = 2, cwL = 1.5, dkW = 4.07, dkY = -0.065, upF = 1.53, frH = 7.5, frX = 2.9
+		parameters cbL = 1.8, cbW = 1.1, cbZ = 3.2, cbH = 2.1, pvX = -2.1, pvH = 0, jbL = 23, jbA = 52.19
+		parameters jbW = 1.176, hkD = 10, maxR = 20, tieA = 180, tieL = 2, avN = 0
 	endif
 endif
 values{2} "drMode" 0, "縮尺で自動", 1, "詳細（1/100）", 2, "標準（1/200）", 3, "簡略"

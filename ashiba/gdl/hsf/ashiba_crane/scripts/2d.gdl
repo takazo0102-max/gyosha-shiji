@@ -110,7 +110,7 @@ line_type ltZ
 circle2 0, 0, tailR
 line_type ltC
 ! 作業半径の扇（吊荷ごとの半径と、今のフックの半径。wrSpan 360 は円）
-nC = nWr + 1
+nC = (nWr + 1) * wrShow
 for i = 1 to nC
 	rC = tipX
 	if i <= nWr then rC = wr[i]
@@ -129,7 +129,7 @@ for i = 1 to nC
 	if i <= nWr then
 		pen penEquip
 		add2 rC * cos(aT), rC * sin(aT)
-		rot2 -SYMB_ROTANGLE
+		rot2 -SYMB_ROTANGLE + 180 * wrFlip
 		text2 0, 0, "R" + str(round_int(rC * 1000), 1, 0)
 		del 2
 		pen pZ
@@ -147,7 +147,7 @@ if rMin > 0.1 and travel = 0 then
 	pen pZ
 endif
 line_type ltS
-if wrSpan < 359.9 then
+if wrSpan < 359.9 and wrShow then
 	line_type ltC
 	rM = tipX
 	for i = 1 to nWr

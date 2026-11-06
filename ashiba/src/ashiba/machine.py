@@ -627,6 +627,7 @@ MACHINES = {
 # バイブロを吊るクレーンは 7050G-2 と同じ定格総荷重表
 MACHINES["cc50v"] = replace(MACHINES["cc50v"], rated=MACHINES["cc50"].rated)
 HOOK_T = 0.5                # フックの質量 t【目安】（仕様書に無い）
+HOOK_TOP_M = 3.0            # ブームの先からフックの上限まで m【目安】（仕様書に無い。巻過防止の位置）
 PILE_T = 1.1                # バイブロで打つ杭の質量 t【目安】（U形Ⅳ型 15m）
 
 
@@ -870,6 +871,85 @@ def crane_rating(m: Machine, ps: dict) -> dict:
         c = rows[min(r for r in rows if r >= rad - 1e-6)]
         t = c[0] if isinstance(c, tuple) else c
     return {"定格": t, "使える荷重": None if t is None else t * rate, "半径": rad, "最小半径": lo, "最大半径": hi}
+
+
+def _crawler_columns(m: Machine, ps: dict) -> list:
+    """判定で見る欄 [(ブーム, ジブ, 欄)]. ジブ付きは置いた組だけ（ジブの付け替えは組立てのやり直し）、なしは全ブーム."""
+    jib = float(ps.get("jbL", 0) or 0)
+    if jib > 0:
+        boom = float(ps["lbL"])
+        return [(boom, jib, jib_rows(m, boom, jib, float(ps.get("jbO", 10.0))))]
+    return [(b, 0.0, m.rated[b]) for b in sorted(m.rated)]
+
+
+def crawler_hook_top(boom: float, jib: float, offset: float, pv_x: float, pv_h: float, radius: float) -> float:
+    """その半径へ出したときのフックの上限の高さ m（地盤から）. 届かなければ −1."""
+    lo, hi = 0.0, 85.0
+    reach = lambda a: pv_x + boom * math.cos(math.radians(a)) + HOOK_OFF_M + (       # noqa: E731
+        jib * math.cos(math.radians(a - offset)) if jib > 0 else 0.0)
+    if radius > reach(lo) + 1e-6 or radius < reach(hi) - 1e-6:
+        return -1.0
+    for _ in range(40):
+        a = (lo + hi) / 2.0
+        if reach(a) > radius:
+            lo = a
+        else:
+            hi = a
+    a = (lo + hi) / 2.0
+    tip = pv_h + boom * math.sin(math.radians(a)) + (jib * math.sin(math.radians(a - offset)) if jib > 0 else 0.0)
+    return tip - HOOK_TOP_M
+
+
+def crawler_judge(m: Machine, ps: dict, radius: float, need_z: float, total_t: float, rate: float) -> dict:
+    """揚重判定（m・t。total_t はフック・玉掛け込み）: {判定, ブーム, ジブ, 定格, フック}. 判定は crane.JUDGE と同じ言葉."""
+    off, pvx, pvh = float(ps.get("jbO", 10.0)), float(ps["pvX"]), float(ps["pvH"])
+    best, reach = None, []
+    for boom, jib, rows in _crawler_columns(m, ps):
+        if not rows:
+            continue
+        lo, hi = _limits(rows)
+        hz = crawler_hook_top(boom, jib, off, pvx, pvh, radius)
+        if not lo - 1e-6 <= radius <= hi + 1e-6 or hz < 0:
+            continue
+        c = rows[min(r for r in rows if r >= radius - 1e-6)]
+        t = c[0] if isinstance(c, tuple) else c
+        reach.append(hz)
+        row = {"ブーム": boom, "ジブ": jib, "定格": t, "フック": hz}
+        if t * rate >= total_t and hz >= need_z:
+            return {"判定": "揚重可能", **row}
+        score = (hz >= need_z, t)
+        if best is None or score > best[0]:
+            best = (score, row)
+    if not reach:
+        return {"判定": "遠すぎ", "ブーム": 0.0, "ジブ": 0.0, "定格": 0.0, "フック": 0.0}
+    return {"判定": "高すぎ" if all(h < need_z for h in reach) else "重すぎ", **best[1]}
+
+
+def crawler_reach(m: Machine, ps: dict, need_z: float, total_t: float, rate: float, step: float = 0.5) -> Optional[float]:
+    """その吊り荷を吊れるいちばん大きい作業半径 m（step 刻み）. どの半径でも無理なら None."""
+    cols = [rows for _b, _j, rows in _crawler_columns(m, ps) if rows]
+    if not cols:
+        return None
+    hi = max(_limits(rows)[1] for rows in cols)
+    r = math.floor(hi / step) * step
+    while r > 0:
+        if crawler_judge(m, ps, r, need_z, total_t, rate)["判定"] == "揚重可能":
+            return r
+        r -= step
+    return None
+
+
+def crawler_axes(ps: dict, origin: tuple, heading_deg: float) -> list:
+    """置いた部品のパラメータ（m・度）→ ブームとジブの中心軸 [(根元, 先), …] の図面の座標 mm（干渉チェック用）."""
+    a = math.radians(heading_deg + float(ps.get("slew", 0.0)))
+    ang, boom, jib = float(ps["lbA"]), float(ps["lbL"]), float(ps.get("jbL", 0) or 0)
+    px, ph = float(ps["pvX"]), float(ps["pvH"])
+    pts = [(px, ph), (px + boom * math.cos(math.radians(ang)), ph + boom * math.sin(math.radians(ang)))]
+    if jib > 0:
+        o = math.radians(ang - float(ps.get("jbO", 10.0)))
+        pts.append((pts[1][0] + jib * math.cos(o), pts[1][1] + jib * math.sin(o)))
+    world = [(origin[0] + r * 1000.0 * math.cos(a), origin[1] + r * 1000.0 * math.sin(a), origin[2] + z * 1000.0) for r, z in pts]
+    return list(zip(world, world[1:]))
 
 
 def crane_strings(m: Machine, ps: dict) -> dict:
@@ -1118,10 +1198,10 @@ def part_params(p: Placed) -> dict:
         lead = vehicle_size(m, ps)["長さ"]                # 曲がる前後の直進の既定は車の長さ【目安】
         ps = {"tkF": lead, "tkE": lead, **ps}
     ps = {k: (bool(v) if k in BOOL_PARAMS else v) for k, v in ps.items()}      # Tapir は Boolean 型に 0・1 を受け付けない
-    return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "slew": p.slew, **ps}
+    return {"mcKind": m.kind, "mcModel": model_code(m.key), "mcName": name, "mcNote": note, "mcClr": int("コベルコ" in m.model), "slew": p.slew, **ps}
 
 
-BOOL_PARAMS = frozenset({"otOn", "ucOn", "cgOn", "tkOn"})   # 部品の Boolean 型（テストで paramlist と照合）
+BOOL_PARAMS = frozenset({"lbGnd", "lbRW", "lbFat", "wrOn", "infoOn", "otOn", "ucOn", "cgOn", "tkOn"})   # 部品の Boolean 型（テストで paramlist と照合）
 
 
 VEHICLE_DEFAULTS = {"cgOn": 0, "cgL": 0.0, "cgW": 0.0, "cgH": 0.0, "cgX": 0.0, "cgT": 0.0, "tkOn": 1, "tkS": 1, "tkW": 0.0}

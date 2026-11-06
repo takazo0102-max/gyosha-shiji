@@ -49,6 +49,10 @@
 			<Description><![CDATA["全高"]]></Description>
 			<Value>3.475</Value>
 		</Length>
+		<Length Name="carB">
+			<Description><![CDATA["旋回中心から車体の後端"]]></Description>
+			<Value>4.155</Value>
+		</Length>
 		<Length Name="carF">
 			<Description><![CDATA["旋回中心から前端"]]></Description>
 			<Value>5.4</Value>
@@ -670,9 +674,129 @@
 			<Value>0</Value>
 		</Boolean>
 		<Boolean Name="ldOn">
-			<Description><![CDATA["吊り荷を描く"]]></Description>
+			<Description><![CDATA["吊り荷を描く（既定は描かない）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="ldW">
+			<Description><![CDATA["揚重物の幅"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="ldD">
+			<Description><![CDATA["揚重物の奥行き"]]></Description>
+			<Value>1.5</Value>
+		</Length>
+		<Length Name="ldH">
+			<Description><![CDATA["揚重物の高さ"]]></Description>
+			<Value>1.0</Value>
+		</Length>
+		<Length Name="ldS">
+			<Description><![CDATA["吊りしろ（フックの下端から揚重物の上面）"]]></Description>
+			<Value>1.6</Value>
+		</Length>
+		<Boolean Name="wrOn">
+			<Description><![CDATA["作業半径を 3D に描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="wrShow">
+			<Description><![CDATA["作業半径を平面に描く"]]></Description>
 			<Value>1</Value>
 		</Boolean>
+		<Boolean Name="wrFlip">
+			<Description><![CDATA["作業半径の文字を反転する"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="bmStep">
+			<Description><![CDATA["ブームの長さを性能表の段に吸い付ける（段階ブーム。長さ優先のとき）"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Boolean Name="infoOn">
+			<Description><![CDATA["クレーン情報を 3D に描く"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<RealNum Name="texZ">
+			<Description><![CDATA["クレーン情報の文字の高さ（m）"]]></Description>
+			<Value>0.6</Value>
+		</RealNum>
+		<Integer Name="clr">
+			<Description><![CDATA["色の組（1 タダノ 白と青・2 加藤 黄と濃灰・3 灰）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="ftZ">
+			<Description><![CDATA["フートピンの高さ（上部原点から）"]]></Description>
+			<Value>1.71</Value>
+		</Length>
+		<Length Name="jkUp">
+			<Description><![CDATA["作業時にキャリヤが上がる量"]]></Description>
+			<Value>0.28</Value>
+		</Length>
+		<Integer Name="otKind">
+			<Description><![CDATA["アウトリガの形（1 H 型・2 X 型）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="jkR">
+			<Description><![CDATA["ジャッキのロッドの半径"]]></Description>
+			<Value>0.05</Value>
+		</Length>
+		<Integer Name="cwN">
+			<Description><![CDATA["カウンタウエイトの段"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Integer Name="cyN">
+			<Description><![CDATA["起伏シリンダの本数"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Length Name="cyLf">
+			<Description><![CDATA["下ピン（フートピンから前）"]]></Description>
+			<Value>1.05</Value>
+		</Length>
+		<Length Name="cyLd">
+			<Description><![CDATA["下ピン（フートピンから下）"]]></Description>
+			<Value>0.85</Value>
+		</Length>
+		<Length Name="cyUa">
+			<Description><![CDATA["上ピン（ブームの軸方向）"]]></Description>
+			<Value>3.365</Value>
+		</Length>
+		<Length Name="cyUb">
+			<Description><![CDATA["上ピン（ブームの軸の下）"]]></Description>
+			<Value>0.725</Value>
+		</Length>
+		<Length Name="cyD">
+			<Description><![CDATA["シリンダのチューブの径"]]></Description>
+			<Value>0.268</Value>
+		</Length>
+		<Length Name="cyR">
+			<Description><![CDATA["シリンダのロッドの径"]]></Description>
+			<Value>0.18</Value>
+		</Length>
+		<Length Name="cyT">
+			<Description><![CDATA["シリンダのチューブの長さ"]]></Description>
+			<Value>2.143</Value>
+		</Length>
+		<Integer Name="bmSec">
+			<Description><![CDATA["ブームの断面（1 ラウンド・2 六角・3 箱）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Boolean Name="jbSt">
+			<Description><![CDATA["格納したジブを描く"]]></Description>
+			<Value>1</Value>
+		</Boolean>
+		<Integer Name="shN">
+			<Description><![CDATA["ブームの先の主シーブの枚数"]]></Description>
+			<Value>4</Value>
+		</Integer>
+		<Integer Name="fallN">
+			<Description><![CDATA["ワイヤの掛数"]]></Description>
+			<Value>8</Value>
+		</Integer>
+		<Length Name="hkDm">
+			<Description><![CDATA["フックブロックの径"]]></Description>
+			<Value>0.44</Value>
+		</Length>
+		<Length Name="hkHt">
+			<Description><![CDATA["フックの高さ"]]></Description>
+			<Value>1.0</Value>
+		</Length>
 		<RealNum Name="texSiz">
 			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
 			<Value>2.5</Value>

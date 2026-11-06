@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import unittest
 
@@ -242,6 +243,214 @@ class TestClickPlacement(unittest.TestCase):
             rc, pick = self._main("3DModel", None, [("k", [(0.0, 0.0), (12000.0, 0.0)], False)])
 
 
+class TestLiftTool(unittest.TestCase):
+    """SCP の手引の揚重判定（利用者の指定 2026-11-06「SCPに入っているクレーンの機能全て入れて揚重検討が楽になるように」）."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+
+    def test_unreadable_weight_is_not_a_pass(self):
+        from crane_check import weigh
+
+        self.assertIsNone(weigh("density", None, None, "Object", None, None, {}))
+        self.assertIsNone(weigh("density", 0.0, None, "Object", None, None, {}))
+        self.assertIsNone(weigh("bm", 1.0, None, "Slab", None, None, {}))
+
+    def test_weight_modes_and_factor(self):
+        from crane_check import weigh
+
+        self.assertAlmostEqual(weigh("density", 2.0, None, "Beam", None, None, {}), 15.7)
+        self.assertAlmostEqual(weigh("density", 2.0, None, "Slab", None, None, {"Slab": 1.1}), 5.28)
+        self.assertAlmostEqual(weigh("density", 2.0, None, "Slab", 3.0, None, {}), 6.0)
+        self.assertEqual(weigh("direct", 2.0, None, "Slab", None, 4.5, {"Slab": 2.0}), 4.5)    # 直接は補正しない
+        self.assertAlmostEqual(weigh("bm", 2.0, 4.8, "Slab", None, None, {"Slab": 0.5}), 2.4)
+
+    def test_density_from_material(self):
+        from crane_check import _density_of
+
+        self.assertEqual(_density_of({"properties": {"thermalConductivity": 1.6, "density": 2400}}), 2400.0)
+        self.assertIsNone(_density_of({"error": {"code": 1}}))
+
+    def test_crawler_judge(self):
+        from ashiba.machine import MACHINES, crawler_judge, crawler_reach
+
+        m = MACHINES["cc50"]
+        ps = dict(m.params)
+        r = crawler_judge(m, ps, 12.0, 10.0, 5.0, 0.9)
+        self.assertEqual((r["判定"], r["ブーム"], r["定格"]), ("揚重可能", 21.3, 9.0))
+        self.assertEqual(crawler_judge(m, ps, 12.0, 10.0, 20.0, 0.9)["判定"], "重すぎ")
+        self.assertEqual(crawler_judge(m, ps, 60.0, 10.0, 1.0, 0.9)["判定"], "遠すぎ")
+        self.assertEqual(crawler_judge(m, ps, 12.0, 200.0, 1.0, 0.9)["判定"], "高すぎ")
+        self.assertEqual(crawler_reach(m, ps, 10.0, 7.0, 0.9), 12.0)      # 14m は 7.5×0.9 で足りず、12m の 9.2×0.9 で足りる
+
+    def test_crawler_with_jib_reads_its_column(self):
+        from ashiba.machine import MACHINES, crawler_judge
+
+        m = MACHINES["cc50"]
+        r = crawler_judge(m, {**m.params, "lbL": 30.5, "jbL": 12.2, "jbO": 10.0}, 16.0, 10.0, 2.0, 0.9)
+        self.assertEqual((r["判定"], r["ブーム"], r["ジブ"]), ("揚重可能", 30.5, 12.2))
+
+    def test_axes_include_the_jib(self):
+        from ashiba.crane import crane_axes
+        from ashiba.machine import MACHINES, crawler_axes
+
+        ps = {"boomL": 20.0, "boomA": 60.0, "pivB": 1.0, "pivH": 2.0, "jbL": 8.0, "jbO": 5.0, "slew": 0.0}
+        self.assertEqual(len(crane_axes({**ps, "jbL": 0.0}, (0, 0, 0), 0.0)), 1)
+        segs = crane_axes(ps, (0, 0, 0), 0.0)
+        self.assertEqual(len(segs), 2)
+        self.assertEqual(segs[0][1], segs[1][0])
+        m = MACHINES["cc50"]
+        self.assertEqual(len(crawler_axes({**m.params, "jbL": 12.2}, (0, 0, 0), 0.0)), 2)
+
+    def test_copy_goes_under_the_hook(self):
+        from crane_check import hook_point
+
+        h = hook_point({"hkR": 10.0, "slew": 90.0, "boomL": 20.0, "boomA": 60.0, "hkZ": 7.0}, (1000.0, 0.0, 500.0), 0.0, "rough")
+        self.assertAlmostEqual(h[0], 1000.0)
+        self.assertAlmostEqual(h[1], 10000.0)
+        self.assertAlmostEqual(h[2], 7500.0)
+
+    def test_erase_finds_columns_not_only_objects(self):
+        from crane_check import erase_copies
+
+        class Client:
+            gone = []
+
+            def tapir(self, name, params):
+                return {"elements": [{"elementId": {"guid": "a"}}] if params["elementType"] == "Column" else []}
+
+            def delete_elements(self, els):
+                self.gone += els
+
+        k = Client()
+        self.assertEqual(erase_copies(k, ["a", "消えた"]), 1)
+        self.assertEqual(k.gone, [{"elementId": {"guid": "a"}}])
+
+    def test_form_fills_the_options(self):
+        import argparse
+        import json
+        import os
+        from unittest import mock
+
+        import crane_check as K
+
+        a = argparse.Namespace(all=False, draw=False, sling=6000.0, mode="density", density=None, weight=None, hook=None, rig=None, factors={})
+        ans = json.dumps({"button": "go", "values": {"scope": "表示中の全部（一括）", "sling": "3000", "mode": "重量直接指定", "weight": "2.5",
+                                                     "hook": "0.3", "rig": "0.1", "fColumn": "1.2", "draw": "1"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertTrue(K.ask_lift(a, {}, 0.25, 0.05))
+        self.assertEqual((a.all, a.sling, a.mode, a.weight, a.hook, a.rig, a.draw), (True, 3000.0, "direct", 2.5, 0.3, 0.1, True))
+        self.assertEqual(a.factors["Column"], 1.2)
+
+
+class TestCraneMove(unittest.TestCase):
+    """車両・フックの移動（SCP の手引 p.5）."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+
+    def test_hook_moves_in_plan_directions(self):
+        from crane_move import move_hook
+
+        r, s = move_hook(10.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0)
+        self.assertAlmostEqual(r, math.hypot(10, 10))
+        self.assertAlmostEqual(s, 45.0)
+        r, s = move_hook(10.0, 0.0, 90.0, 0.0, 10.0, 0.0, 0.0)      # 車体が 90° 向いていれば、図面の +Y は部品の +X
+        self.assertAlmostEqual(r, 20.0)
+        self.assertAlmostEqual(s, 0.0)
+
+    def test_radius_and_slew_steps(self):
+        from crane_move import move_hook
+
+        r, s = move_hook(10.0, 350.0, 0.0, 0.0, 0.0, 1.0, 15.0)
+        self.assertAlmostEqual(r, 11.0)
+        self.assertAlmostEqual(s, 5.0)
+
+    def test_ground_is_the_highest_top_below(self):
+        from crane_move import ground_z
+
+        bs = [((0, 0, 0), (10, 10, 3000)), ((0, 0, 0), (10, 10, 5000)), ((0, 0, 0), (10, 10, 9000)), ((50, 50, 0), (60, 60, 7000)), None]
+        self.assertEqual(ground_z(bs, 5, 5, 6000), 5000)
+        self.assertIsNone(ground_z(bs, 100, 100, 6000))
+
+    def test_group_moves_the_plates_too(self):
+        from crane_move import group_of
+
+        self.assertEqual(group_of({"k": ["a", "b"]}, "a"), ["a", "b"])
+        self.assertEqual(group_of({"k": ["a", "b"]}, "z"), ["z"])
+
+    @unittest.skipUnless(__import__("shutil").which("swiftc"), "swiftc が無い")
+    def test_panel_builds(self):
+        import os
+        import subprocess
+
+        import crane_panel
+
+        r = subprocess.run([str(crane_panel.binary()), "/tmp", "/usr/bin/true"], capture_output=True, text=True,
+                           env={**os.environ, "ASHIBA_PALETTE_SELFTEST": "1"}, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("接地", r.stdout)
+        self.assertEqual(r.stdout.count("↑"), 2)
+
+
+class TestCraneLod(unittest.TestCase):
+    """全部のクレーンを LOD500 に（利用者の指定 2026-11-06「クレーンがすごいことになっている 全てのクレーンのLOD500程度にして」）."""
+
+    def test_every_model_has_the_shape(self):
+        from ashiba.crane import CARRIER_REAR, LOD_MODEL, lod_params
+
+        self.assertEqual(set(MODELS), set(LOD_MODEL))
+        self.assertEqual(set(MODELS), set(CARRIER_REAR))
+        for m in MODELS.values():
+            p = lod_params(m)
+            self.assertGreater(m.piv_h / 1000.0 - p["ftZ"], 0.8, m.key)            # 上部原点は地面の上
+            self.assertLess(p["cyT"], p["cyUa"], m.key)                             # チューブはピン間より短い
+
+    def test_cylinder_pins_do_not_follow_the_boom_length(self):
+        """起伏シリンダの上ピンは基本ブームに固定（ブームを伸ばしても動かない）."""
+        hsf = SRC.parent / "gdl" / "hsf" / "ashiba_crane" / "scripts" / "3d.gdl"
+        g = hsf.read_text(encoding="utf-8")
+        self.assertIn("xU = -pivB + cyUa * cos(bB) + cyUb * sin(bB)", g)
+        self.assertNotIn("0.35 * bL", g)
+
+    def test_carrier_stops_at_the_rear_end(self):
+        """全長はブームの先まで。車体の後端は carB（前は 25t の全長で 7.9m 後ろまで描いていた）."""
+        from ashiba.crane import lod_params
+
+        self.assertEqual(lod_params(MODELS["25t"])["carB"], 4.155)
+        g = (SRC.parent / "gdl" / "hsf" / "ashiba_crane" / "scripts" / "1d.gdl").read_text(encoding="utf-8")
+        self.assertIn("carRr = carB", g)
+
+    def test_colors_follow_the_maker(self):
+        from ashiba.crane import lod_params
+
+        self.assertEqual(lod_params(MODELS["k25t"])["clr"], 2)
+        self.assertEqual(lod_params(MODELS["25t"])["clr"], 1)
+
+    def test_scp_switches_exist(self):
+        crane = (SRC.parent / "gdl" / "hsf" / "ashiba_crane" / "paramlist.xml").read_text(encoding="utf-8")
+        for n in ("bmStep", "infoOn", "wrOn", "wrShow", "wrFlip", "ldW", "ldS", "clr"):
+            self.assertIn(f'Name="{n}"', crane)
+        machine = (SRC.parent / "gdl" / "hsf" / "ashiba_machine" / "paramlist.xml").read_text(encoding="utf-8")
+        for n in ("lbGnd", "lbRW", "lbFat", "infoOn"):
+            self.assertIn(f'Name="{n}"', machine)
+        tower = (SRC.parent / "gdl" / "hsf" / "ashiba_tower" / "paramlist.xml").read_text(encoding="utf-8")
+        for n in ("tcBase", "msStep", "hkLim", "hkMax", "hfX", "rtT", "tcClr"):
+            self.assertIn(f'Name="{n}"', tower)
+
+    def test_tower_part_gets_its_rating(self):
+        from ashiba.tower import TOWERS, Placed, check, part_params as tower_params
+
+        p = Placed("c", TOWERS["jcl730"])
+        check(p)
+        q = tower_params(p)
+        self.assertEqual(len(q["rtR"].split(",")), len(q["rtT"].split(",")))
+        self.assertLessEqual(len(q["rtR"]), 255)
+        self.assertEqual(tower_params(TOWERS["v600"])["tcClr"], 2)                 # JCC は赤白（IHI 技報）
+
+
 class TestParamRoundtrip(unittest.TestCase):
     def test_mismatches(self):
         """実機の値の比べ方: 角度は Tapir がラジアンで返す、文字は 255 字で切れる。吸い付きで脚が変われば食い違い（2026-11-02）."""
@@ -277,6 +486,12 @@ class TestBoomAndJib(unittest.TestCase):
         q = part_params(p, 30.0, boom_m=23.45, jib=8.2, jib_off=5.0)
         self.assertEqual((q["boomL"], q["jbL"], q["jbO"]), (23.45, 8.2, 5.0))
         self.assertEqual(part_params(p, 30.0)["jbL"], 0.0)
+
+    def test_no_hanging_load_by_default(self):
+        """吊り荷は描かない（利用者の指定 2026-11-06「クレーンについている吊りに消して」）. 描くときは部品の ldOn."""
+        from ashiba.crane import Lift, crane_plan, part_params
+
+        self.assertFalse(part_params(crane_plan("c", [Lift("a", 14000.0, 2.5, 10000.0)], "25t"), 30.0)["ldOn"])
 
     def test_every_model_lists_its_jibs(self):
         from ashiba.crane import JIBS, MODELS

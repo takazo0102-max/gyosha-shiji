@@ -352,6 +352,18 @@ def boom_axis(params: dict, origin: tuple, carrier_deg: float) -> tuple[tuple, t
     return p0, p1
 
 
+def crane_axes(params: dict, origin: tuple, carrier_deg: float) -> list:
+    """ブームとジブの中心軸 [(根元, 先), …]（ジブは jbL・jbO。走行姿勢は畳むので無し）."""
+    p0, p1 = boom_axis(params, origin, carrier_deg)
+    jib = float(params.get("jbL", 0) or 0)
+    if jib <= 0 or params.get("travel"):
+        return [(p0, p1)]
+    a = math.radians(carrier_deg + params.get("slew", 0.0))
+    o = math.radians(params.get("boomA", 45.0) - params.get("jbO", JIB_OFFSET))
+    r, z = jib * 1000.0 * math.cos(o), jib * 1000.0 * math.sin(o)
+    return [(p0, p1), (p1, (p1[0] + r * math.cos(a), p1[1] + r * math.sin(a), p1[2] + z))]
+
+
 def crane_plan(name: str, lifts: list[Lift], model: Optional[str] = None, spread: Optional[float] = None,
                soil_q: float = SOIL_Q, ratio: float = LOAD_RATIO) -> CranePlan:
     """吊り荷の並び → 機種・ブーム・アウトリガ・敷鉄板・検定。model を省くと全部を満たす一番小さい機種."""
@@ -454,6 +466,34 @@ def pose_angle(m: CraneModel, boom: float, radius_mm: float, jib: float = 0.0, o
     return (lo + hi) / 2.0
 
 
+# 機種の級ごとの根元と起伏シリンダ（加藤 MR-130・SR-250・SL-500・SL-750 の DXF 1:1。docs/調査_クレーンLOD.md 2-1）。m。
+# foot＝上部原点からフートピン、lo＝下ピン（フートピンから前・下）、up＝上ピン（ブームの軸方向・軸の下）、d＝チューブ・ロッドの径、tube＝チューブの長さ、
+# lift＝作業時にキャリヤが上がる量
+LOD_CLASS = ((16.0, {"foot": 1.315, "lo": (0.80, 0.90), "up": (3.025, 0.725), "d": (0.16, 0.10), "tube": 1.994, "lift": 0.218, "hook": (0.385, 0.77)}),
+             (35.0, {"foot": 1.71, "lo": (1.05, 0.85), "up": (3.365, 0.725), "d": (0.268, 0.18), "tube": 2.143, "lift": 0.28, "hook": (0.44, 1.0)}),
+             (51.0, {"foot": 1.907, "lo": (1.16, 1.10), "up": (3.865, 0.987), "d": (0.34, 0.21), "tube": 2.504, "lift": 0.27, "hook": (0.495, 1.13)}),
+             (999.0, {"foot": 1.927, "lo": (1.165, 1.143), "up": (3.86, 0.985), "d": (0.273, 0.18), "tube": 2.521, "lift": 0.25, "hook": (0.495, 1.13)}))
+# 機種ごとの形（公表: 起伏シリンダの本数・ブームの断面・掛数。タダノ GR-500N の 2 本は φ340 と断面積が同じ径【目安】）
+LOD_MODEL = {"13t": (1, 3, 4, 1), "k13t": (1, 3, 4, 1), "16t": (1, 3, 4, 1), "25t": (1, 1, 8, 1), "k25t": (1, 3, 7, 1), "35t": (1, 1, 8, 1),
+             "k50t": (1, 3, 10, 1), "50t": (2, 2, 12, 2), "60t": (2, 1, 8, 1), "70t": (2, 1, 8, 1), "k75t": (2, 3, 8, 1), "100t": (2, 1, 8, 1)}
+
+
+# 車体の後端 mm（旋回中心から。全長はブームの先まで）。docs/調査_クレーンLOD.md 2-2。16t・35t・60t・100t は最後の車軸＋13t〜70t の後ろの張出【目安】
+CARRIER_REAR = {"13t": 3190.0, "k13t": 3220.0, "16t": 3535.0, "25t": 4155.0, "k25t": 4145.0, "35t": 4070.0, "k50t": 4655.0, "50t": 4905.0,
+                "60t": 5200.0, "70t": 5230.0, "k75t": 5275.0, "100t": 5230.0}
+
+
+def lod_params(m: CraneModel) -> dict:
+    """3D の細部（根元・シリンダ・断面・色）のパラメータ（m）."""
+    c = next(v for t, v in LOD_CLASS if m.capacity_t <= t)
+    n, sec, falls, kind = LOD_MODEL[m.key]
+    d = (0.24, 0.16) if m.key == "50t" else c["d"]
+    return {"carB": CARRIER_REAR[m.key] / 1000.0, "ftZ": c["foot"], "jkUp": c["lift"], "cyLf": c["lo"][0], "cyLd": c["lo"][1], "cyUa": c["up"][0], "cyUb": c["up"][1],
+            "cyD": d[0], "cyR": d[1], "cyT": c["tube"], "cyN": n, "bmSec": sec, "fallN": falls, "shN": min(6, (falls + 1) // 2), "otKind": kind,
+            "clr": 2 if m.maker.startswith("加藤") else 1, "cwN": 3 if m.capacity_t >= 60 else 2, "jkR": 0.04 + m.capacity_t / 1500.0,
+            "hkDm": c["hook"][0], "hkHt": c["hook"][1], "jbSt": True}
+
+
 def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO, boom_m: float = 0.0, jib: float = 0.0,
                 jib_off: float = JIB_OFFSET) -> dict:
     """部品 ashiba_crane のパラメータ（m・度）。oSnap は先に False だけを入れてから全部を入れ、置いたあとで True に
@@ -478,7 +518,7 @@ def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: fl
             "loadT": g.load_t if g else 0.0, "hookT": m.hook_t, "rigT": RIGGING_T, "sfRate": ratio,
             **rated_strings(m),
             "plN": p.plates, "plDraw": False, "wrR": ",".join(f"{x.radius:.0f}" for x in p.lifts),
-            "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": bool(g and g.load_t > 0)}
+            "wrDir": 0.0, "wrSpan": 360.0, "travel": False, "ldOn": False, **lod_params(m)}
 
 
 def effective_spread(ps: dict) -> float:

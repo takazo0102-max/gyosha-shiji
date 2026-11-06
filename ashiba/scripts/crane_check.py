@@ -6,7 +6,12 @@
   python3 scripts/crane_check.py --lift                 # 選んだクレーンと部材（柱・梁・壁・床・オブジェクト）の揚重判定
   python3 scripts/crane_check.py --lift --density 2.4   # 吊荷の重さ＝体積×密度（t/m³。省くと柱・梁 7.85・ほか 2.4）
   python3 scripts/crane_check.py --lift --weight 3.2    # 吊荷の重さを直接（t）
-  python3 scripts/crane_check.py --lift --sling 2000    # 吊りしろ（部材の天端からフックまで mm。既定 2000）
+  python3 scripts/crane_check.py --lift --sling 6000    # 吊りしろ（部材の天端からフックまで mm。既定 6000）
+  python3 scripts/crane_check.py --lift --bm            # 重さ＝ビルディングマテリアルの密度×体積
+  python3 scripts/crane_check.py --lift --all           # 一括揚重判定（表示中の柱・梁・壁・床・屋根・オブジェクト）
+  python3 scripts/crane_check.py --lift --draw          # 吊荷作図（判定した部材のコピーをフックの下へ。重すぎは赤）
+  python3 scripts/crane_check.py --erase                # 吊荷削除（吊荷作図のコピーを消す）
+  python3 scripts/crane_check.py --lift --ask           # 吊りしろ・重さの出し方・フック・治具・補正を窓で（パレットのボタン）
   python3 scripts/crane_check.py --clash                # 選んだクレーンのブームと躯体の干渉（警告 4000・接触 1000）
   python3 scripts/crane_check.py --clear                # 判定の色を消す
 
@@ -30,7 +35,11 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 COLORS = {"揚重可能": [40, 170, 60, 160], "重すぎ": [255, 140, 0, 200], "遠すぎ": [150, 150, 150, 160],
-          "高すぎ": [240, 210, 0, 200], "接触": [220, 30, 30, 220], "警告": [240, 210, 0, 200]}
+          "高すぎ": [170, 80, 200, 200], "判定不可": [240, 210, 0, 200], "接触": [220, 30, 30, 220], "警告": [240, 210, 0, 200],
+          "吊荷の赤": [230, 30, 30, 220]}
+SLING_MM = 6000.0                                # 吊りしろの既定（SCP の手引 p.6 の画面の値）
+RECORD_COPIES = "吊荷のコピー.json"
+FACTOR_KEYS = (("Column", "柱"), ("Beam", "梁"), ("Wall", "壁"), ("Slab", "床"), ("Roof", "屋根"), ("Object", "オブジェクト"))
 TARGET_TYPES = ("Column", "Beam", "Wall", "Slab", "Object", "Roof")
 STEEL_TYPES = ("Column", "Beam")
 
@@ -43,14 +52,14 @@ def _params(c, el) -> dict:
 
 
 def find_crane(c, sel, dets):
-    """選んだ中のクレーン（ashiba_crane）。無ければ控えの1台目."""
+    """選んだ中のクレーン（ラフター ashiba_crane・タワー ashiba_tower・クローラ ashiba_machine の mcKind 2）。無ければ控えの1台目."""
     for e, d in zip(sel, dets):
-        if d.get("type") == "Object" and (d.get("details", {}).get("libPart", {}).get("name", "")).startswith(
-                ("ashiba_crane", "ashiba_tower")):
+        name = d.get("details", {}).get("libPart", {}).get("name", "") if d.get("type") == "Object" else ""
+        if name.startswith(("ashiba_crane", "ashiba_tower")) or (name.startswith("ashiba_machine") and _is_crawler(c, e)):
             return e, d
     import run_from_archicad as R
 
-    for rec_name in ("クレーン.json", "タワークレーン.json"):
+    for rec_name in ("クレーン.json", "タワークレーン.json", "重機.json"):
         try:
             rec = json.loads((R.OUT_DIR / rec_name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -59,10 +68,24 @@ def find_crane(c, sel, dets):
             g = v["guid"] if isinstance(v, dict) else (v if isinstance(v, list) else [v])[0]
             el = {"elementId": {"guid": g}}
             try:
+                if rec_name == "重機.json" and not _is_crawler(c, el):
+                    continue
                 return el, c.get_details([el])[0]
             except Exception:                                      # noqa: BLE001 消えていれば次へ
                 continue
     return None, None
+
+
+def _is_crawler(c, el) -> bool:
+    return int(_params(c, el).get("mcKind", 0) or 0) == 2
+
+
+def crawler_model(ps: dict):
+    """置いたクローラの機種（mcModel。手入力は 50t の表で読む）."""
+    from ashiba.machine import MACHINES, model_code
+
+    code = int(ps.get("mcModel", 0) or 0)
+    return next((m for k, m in MACHINES.items() if model_code(k) == code and m.kind == 2), MACHINES["cc50"])
 
 
 def boxes(c, els) -> list:
@@ -94,25 +117,228 @@ def volumes(c, els) -> list:
     return out
 
 
+def _density_of(node) -> float | None:
+    """GetBuildingMaterialPhysicalProperties の1件から密度を探す（kg/m³）."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k.lower() == "density" and isinstance(v, (int, float)):
+                return float(v)
+            d = _density_of(v)
+            if d is not None:
+                return d
+    return None
+
+
+def bm_weights(c, els) -> list:
+    """ビルディングマテリアルの密度×体積 t（層ごとに足す）. 読めなければ None（判定不可）."""
+    try:
+        qs = c.tapir("GetQuantitiesOfElements", {"elements": els}).get("quantitiesOfElements", [])
+    except Exception:                                              # noqa: BLE001
+        return [None] * len(els)
+    ids, dens = [], {}
+    for q in qs:
+        for x in q.get("composites") or []:
+            g = x["buildingMaterialId"]["attributeId"]["guid"]
+            if g not in ids:
+                ids.append(g)
+    if ids:
+        r = c.tapir("GetBuildingMaterialPhysicalProperties",
+                    {"attributeIds": [{"attributeId": {"guid": g}} for g in ids]}).get("properties", [])
+        dens = {g: _density_of(p) for g, p in zip(ids, r)}
+    out = []
+    for q in qs:
+        parts = [(x["buildingMaterialId"]["attributeId"]["guid"], float(x.get("volume") or 0.0)) for x in q.get("composites") or []]
+        if not parts or any(not dens.get(g) for g, _v in parts):
+            out.append(None)
+        else:
+            out.append(sum(dens[g] * v for g, v in parts) / 1000.0)
+    return out + [None] * (len(els) - len(out))
+
+
+def weigh(mode: str, vol, bm, kind: str, density, weight, factors: dict) -> float | None:
+    """吊荷の重さ t. mode は bm（ビルディングマテリアル）・density（指定の密度×体積）・direct（直接）. 読めなければ None."""
+    if mode == "direct":
+        return weight
+    f = factors.get(kind, 1.0)
+    if mode == "bm":
+        return None if bm is None else bm * f
+    if not vol:
+        return None                                  # 体積が読めないものを 0t で合格にしない
+    return vol * (density if density is not None else (7.85 if kind in STEEL_TYPES else 2.4)) * f
+
+
+def ask_lift(a, ps, hook_t: float, rig_t: float) -> bool:
+    """吊りしろ・重さの出し方・フック・治具・補正を窓で. やめたら False."""
+    from form_dialog import show_form
+
+    modes = {"ビルディングマテリアル密度×体積": "bm", "指定密度×体積": "density", "重量直接指定": "direct"}
+    now = next(k for k, v in modes.items() if v == a.mode)
+    res = show_form({
+        "title": "揚重判定",
+        "intro": "判定は置いたクレーンの機種の性能表で、半径に届くブームから探します（ジブ付きのクローラは置いた組）。"
+                 "定格総荷重 × 安全率 ≧ 吊荷＋フック＋治具 で見ます。",
+        "fields": [{"key": "scope", "label": "判定する部材", "kind": "choice", "options": ["選んだ部材", "表示中の全部（一括）"],
+                    "value": "表示中の全部（一括）" if a.all else "選んだ部材"},
+                   {"key": "sling", "label": "吊りしろ mm（部材の天端からフック）", "kind": "number", "value": f"{a.sling:g}"},
+                   {"key": "mode", "label": "吊荷重量", "kind": "choice", "options": list(modes), "value": now},
+                   {"key": "density", "label": "指定密度 t/m³（空＝柱・梁 7.85、ほか 2.4）", "kind": "number",
+                    "value": "" if a.density is None else f"{a.density:g}"},
+                   {"key": "weight", "label": "重量直接指定 t", "kind": "number", "value": f"{a.weight or 0:g}"},
+                   {"key": "hook", "label": "フック重量 t", "kind": "number", "value": f"{hook_t:g}"},
+                   {"key": "rig", "label": "吊り治具等の重量 t", "kind": "number", "value": f"{rig_t:g}"},
+                   *[{"key": f"f{k}", "label": f"重量補正 {n}（倍。直接指定では使わない）", "kind": "number", "value": "1"}
+                     for k, n in FACTOR_KEYS],
+                   {"key": "draw", "label": "吊荷作図（部材のコピーをフックの下へ。重すぎは赤）", "kind": "check", "value": "1" if a.draw else "0"}],
+        "buttons": [{"id": "go", "label": "判定する"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "go":
+        return False
+    v = res.get("values") or {}
+
+    def num(key, default):
+        try:
+            return float(str(v.get(key)).replace(",", ""))
+        except (TypeError, ValueError):
+            return default
+
+    a.all = str(v.get("scope", "")).startswith("表示中")
+    a.sling = num("sling", a.sling)
+    a.mode = modes.get(str(v.get("mode")), a.mode)
+    a.density = num("density", None)
+    a.weight = num("weight", a.weight)
+    a.hook = num("hook", hook_t)
+    a.rig = num("rig", rig_t)
+    a.factors = {k: num(f"f{k}", 1.0) for k, _n in FACTOR_KEYS}
+    a.draw = str(v.get("draw")) in ("1", "true", "True")
+    return True
+
+
+def ask_clash(a) -> bool:
+    """警告・接触の距離と、仮設も見るかを窓で. やめたら False."""
+    from form_dialog import show_form
+
+    res = show_form({
+        "title": "ブームの干渉",
+        "intro": "ブームとジブの中心軸から部材の外形の箱までの距離で見ます（太い部材は色の付く範囲が指定より大きく見えます）。",
+        "fields": [{"key": "warn", "label": "警告距離 mm（黄）", "kind": "number", "value": f"{a.warn:g}"},
+                   {"key": "contact", "label": "接触距離 mm（赤）", "kind": "number", "value": f"{a.contact:g}"},
+                   {"key": "temp", "label": "足場などの仮設も見る", "kind": "check", "value": "1" if a.temp else "0"}],
+        "buttons": [{"id": "go", "label": "調べる"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "go":
+        return False
+    v = res.get("values") or {}
+    for key in ("warn", "contact"):
+        try:
+            setattr(a, key, float(str(v.get(key)).replace(",", "")))
+        except (TypeError, ValueError):
+            pass
+    a.temp = str(v.get("temp")) in ("1", "true", "True")
+    return True
+
+
+def visible_targets(c) -> list:
+    """一括揚重判定の対象: 表示中の柱・梁・壁・床・屋根・オブジェクト（ashiba の仮設は除く）."""
+    out = []
+    for ty in TARGET_TYPES:
+        es = c.tapir("GetElementsByType", {"elementType": ty}).get("elements", [])
+        if es:
+            es = c.tapir("FilterElements", {"elements": es, "filters": ["IsVisibleByLayer", "IsVisibleIn3D"]}).get("elements", [])
+        if es:
+            out += list(zip(es, c.get_details(es)))
+    return out
+
+
+def hook_point(ps: dict, origin: tuple, car: float, kind: str) -> tuple:
+    """今の姿勢のフックの位置（図面の座標 mm。高さはフックの下端）."""
+    a = math.radians(car + float(ps.get("slew", 0.0)))
+    if kind == "crawler":
+        from ashiba.machine import hook_radius
+
+        r = hook_radius(ps)
+        ang = math.radians(float(ps["lbA"]))
+        tip = float(ps["pvH"]) + float(ps["lbL"]) * math.sin(ang)
+        jib = float(ps.get("jbL", 0) or 0)
+        if jib > 0:
+            tip += jib * math.sin(ang - math.radians(float(ps.get("jbO", 10.0))))
+        z = tip - float(ps.get("hkD", 6.0))
+    elif kind == "tower":
+        r = float(ps.get("jbL", 30.0)) * math.cos(math.radians(float(ps.get("jbA", 45.0)))) + float(ps.get("pvX", 1.0))
+        z = float(ps.get("msH", 40.0))
+    else:
+        r = float(ps.get("hkR", 10.0))
+        bl, ba = float(ps.get("boomL", 10.0)), math.radians(float(ps.get("boomA", 45.0)))
+        z = float(ps.get("hkZ", 0.0) or 0.0) or (float(ps.get("pivH", 2.3)) + bl * math.sin(ba) - float(ps.get("tipHk", 3.0)))
+    return (origin[0] + r * 1000.0 * math.cos(a), origin[1] + r * 1000.0 * math.sin(a), origin[2] + z * 1000.0)
+
+
+def copy_loads(c, rows, hook, sling: float, rec_path) -> list:
+    """吊荷作図: 揚重可能・重すぎの部材をフックの下へ複製し、GUID を控える. 重すぎは赤に."""
+    done = []
+    for e, ty, bb, res in rows:
+        if res not in ("揚重可能", "重すぎ") or bb is None:
+            continue
+        before = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": ty}).get("elements", [])}
+        cx, cy = (bb[0][0] + bb[1][0]) / 2.0, (bb[0][1] + bb[1][1]) / 2.0
+        vec = {"x": (hook[0] - cx) / 1000.0, "y": (hook[1] - cy) / 1000.0, "z": (hook[2] - sling - bb[1][2]) / 1000.0}
+        c.tapir("MoveElements", {"elementsWithMoveVectors": [{**e, "moveVector": vec, "copy": True}]})
+        after = c.tapir("GetElementsByType", {"elementType": ty}).get("elements", [])
+        done += [(x, res) for x in after if x["elementId"]["guid"] not in before]
+    try:
+        old = json.loads(rec_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = []
+    rec_path.write_text(json.dumps(old + [x["elementId"]["guid"] for x, _r in done], ensure_ascii=False, indent=1), encoding="utf-8")
+    return done
+
+
+def erase_copies(c, guids) -> int:
+    """吊荷作図のコピーを消す（控えの GUID だけ。コピーは柱・梁など部材の種類のまま）."""
+    alive = {x["elementId"]["guid"] for ty in TARGET_TYPES for x in c.tapir("GetElementsByType", {"elementType": ty}).get("elements", [])}
+    gone = [{"elementId": {"guid": g}} for g in guids if g in alive]
+    if gone:
+        c.delete_elements(gone)
+    return len(gone)
+
+
 def main(argv=None) -> int:
     import argparse
 
     import run_from_archicad as R
-    from ashiba.crane import (CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, boom_axis, effective_spread, judge, reach_for,
+    from ashiba.crane import (CLASH_CONTACT_MM, CLASH_WARN_MM, MODELS, RIGGING_T, crane_axes, effective_spread, judge, reach_for,
                               seg_box_distance)
+    from ashiba.machine import HOOK_T, crawler_axes, crawler_judge, crawler_reach
     from ashiba.tapir_adapter import ArchicadClient
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--lift", action="store_true", help="揚重判定")
     ap.add_argument("--clash", action="store_true", help="ブームの干渉チェック")
     ap.add_argument("--clear", action="store_true", help="判定の色を消す")
+    ap.add_argument("--erase", action="store_true", help="吊荷削除（吊荷作図のコピーを消す）")
+    ap.add_argument("--ask", action="store_true", help="条件を窓で")
+    ap.add_argument("--all", action="store_true", help="一括揚重判定（表示中の部材）")
+    ap.add_argument("--draw", action="store_true", help="吊荷作図")
+    ap.add_argument("--bm", action="store_true", help="重さ＝ビルディングマテリアルの密度×体積")
     ap.add_argument("--density", type=float, default=None, help="密度 t/m³（省くと柱・梁 7.85、ほか 2.4）")
     ap.add_argument("--weight", type=float, default=None, help="吊荷の重さ t（直接）")
-    ap.add_argument("--sling", type=float, default=2000.0, help="吊りしろ mm（部材の天端からフック）")
+    ap.add_argument("--hook", type=float, default=None, help="フック重量 t（省くと部品の値か機種の値）")
+    ap.add_argument("--rig", type=float, default=None, help="吊り治具等の重量 t（省くと部品の値）")
+    ap.add_argument("--sling", type=float, default=SLING_MM, help="吊りしろ mm（部材の天端からフック）")
     ap.add_argument("--warn", type=float, default=CLASH_WARN_MM, help="干渉の警告の距離 mm")
     ap.add_argument("--contact", type=float, default=CLASH_CONTACT_MM, help="干渉の接触の距離 mm")
+    ap.add_argument("--temp", action="store_true", help="干渉で足場などの仮設も見る")
     a = ap.parse_args(argv)
+    a.mode = "direct" if a.weight is not None else "bm" if a.bm else "density"
+    a.factors = {}
     c = ArchicadClient()
+    copies = R.OUT_DIR / RECORD_COPIES
+    if a.erase:
+        try:
+            gs = json.loads(copies.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            gs = []
+        n = erase_copies(c, gs)
+        copies.write_text("[]", encoding="utf-8")
+        print(f"吊荷削除: {n}個を消しました")
+        return 0
     if a.clear or not (a.lift or a.clash):
         c.tapir("HighlightElements", {"elements": [], "highlightedColors": []})
         print("判定の色を消しました")
@@ -124,8 +350,11 @@ def main(argv=None) -> int:
         print("クレーンを選んでから押してください（置いたクレーンが無ければ先に「クレーン」で置く）")
         return 1
     ps = _params(c, crane)
-    is_tower = cd.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_tower")
+    part_name = cd.get("details", {}).get("libPart", {}).get("name", "")
+    kind = "tower" if part_name.startswith("ashiba_tower") else "crawler" if part_name.startswith("ashiba_machine") else "rough"
+    is_tower = kind == "tower"
     m = next((x for x in MODELS.values() if x.kind == int(ps.get("crType", 1))), MODELS["25t"])
+    cm = crawler_model(ps) if kind == "crawler" else None
     tw = None
     if is_tower:
         from ashiba.tower import jib_axis, judge_lift, tower_from_params
@@ -137,60 +366,93 @@ def main(argv=None) -> int:
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
     cg = crane["elementId"]["guid"]
     if a.lift:
-        targets = [(e, d) for e, d in zip(sel, dets) if d.get("type") in TARGET_TYPES and e["elementId"]["guid"] != cg
+        hook_t = float(ps.get("hookT", m.hook_t if kind == "rough" else HOOK_T if kind == "crawler" else 0.0))
+        rig_t = float(ps.get("rigT", RIGGING_T))
+        if a.ask and not ask_lift(a, ps, hook_t, rig_t):
+            print("揚重判定: やめました")
+            return 0
+        hook_t = a.hook if getattr(a, "hook", None) is not None else hook_t
+        rig_t = a.rig if getattr(a, "rig", None) is not None else rig_t
+        pool = visible_targets(c) if a.all else list(zip(sel, dets))
+        targets = [(e, d) for e, d in pool if d.get("type") in TARGET_TYPES and e["elementId"]["guid"] != cg
                    and not d.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_")]
         if not targets:
-            print("揚重判定: クレーンと一緒に、吊る部材（柱・梁・壁・床・オブジェクト）を選んでください")
+            print("揚重判定: クレーンと一緒に、吊る部材（柱・梁・壁・床・屋根・オブジェクト）を選んでください")
             return 1
         els = [e for e, _d in targets]
         bbs, vols = boxes(c, els), volumes(c, els)
-        rows, hl, cols = [], [], []
+        bms = bm_weights(c, els) if a.mode == "bm" else [None] * len(els)
+        rows, hl, cols, drawn = [], [], [], []
         ratio = float(ps.get("sfRate", 0.9))
-        for (e, d), bb, vol in zip(targets, bbs, vols):
+        for (e, d), bb, vol, bm in zip(targets, bbs, vols, bms):
             if bb is None:
                 continue
             cx, cy = (bb[0][0] + bb[1][0]) / 2.0, (bb[0][1] + bb[1][1]) / 2.0
             radius = math.hypot(cx - origin[0], cy - origin[1])
             need_z = bb[1][2] - origin[2] + a.sling
-            dens = a.density if a.density is not None else (7.85 if d.get("type") in STEEL_TYPES else 2.4)
-            w = a.weight if a.weight is not None else (vol or 0.0) * dens
-            if tw is not None:
+            w = weigh(a.mode, vol, bm, d.get("type"), a.density, a.weight, a.factors)
+            name = d.get("id") or e["elementId"]["guid"][:8]
+            far = None                                   # 吊れる作業半径（重すぎ・遠すぎのとき、どこまで寄せればよいか）
+            if w is None:
+                res, x = "判定不可", type("X", (), {"boom": 0, "rated_t": 0.0})()
+            elif tw is not None:
                 res, cap = judge_lift(tw, float(ps.get("maxR", tw.jibs[0])), float(ps.get("msH", tw.free_h)), radius / 1000.0,
                                       need_z / 1000.0, w)
                 x = type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})()
+            elif cm is not None:
+                total = w + hook_t + rig_t
+                r = crawler_judge(cm, ps, radius / 1000.0, need_z / 1000.0, total, ratio)
+                res = r["判定"]
+                x = type("X", (), {"boom": r["ブーム"], "rated_t": r["定格"]})()
+                if res in ("重すぎ", "遠すぎ"):
+                    far = crawler_reach(cm, ps, need_z / 1000.0, total, ratio)
+                    far = far * 1000.0 if far else None
             else:
-                res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, w, ratio, d.get("id") or d.get("type"))
-            far = None                                   # 吊れる作業半径（重すぎ・遠すぎのとき、どこまで寄せればよいか）
-            if tw is None and res in ("重すぎ", "遠すぎ"):
-                far = reach_for(m, effective_spread(ps) or max(m.spreads), need_z, w, ratio)
-            rows.append((d.get("id") or e["elementId"]["guid"][:8], d.get("type"), vol, w, radius, need_z, res, x, far))
+                adj = w + hook_t + rig_t - m.hook_t - RIGGING_T          # judge は機種のフックと治具を足す
+                res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, adj, ratio, name)
+                if res in ("重すぎ", "遠すぎ"):
+                    far = reach_for(m, effective_spread(ps) or max(m.spreads), need_z, adj, ratio)
+            rows.append((name, d.get("type"), vol, w, radius, need_z, res, x, far))
             hl.append(e)
             cols.append(COLORS[res])
+            drawn.append((e, d.get("type"), bb, res))
+        made = copy_loads(c, drawn, hook_point(ps, origin, car, kind), a.sling, copies) if a.draw else []
+        hl += [e for e, _r in made]
+        cols += [COLORS["吊荷の赤" if r == "重すぎ" else r] for _e, r in made]
         c.tapir("HighlightElements", {"elements": hl, "highlightedColors": cols, "wireframe3D": False})
-        head = (f"タワークレーン: {tw.name}（{tw.model}・ジブ {ps.get('maxR')}m・マスト {ps.get('msH')}m。定格荷重と吊り荷＋玉掛け用具 0.05t を"
-                "比べる（ク則23条）。フックの限りはジブの先の 2m 下【目安】）" if tw is not None else
-                f"クレーン: {m.name}（定格を読む張出 {effective_spread(ps):g}m・安全率 {ratio:g}）")
-        md = ["# 揚重判定", "", f"{head}。吊りしろ {a.sling:.0f}・"
-              + (f"重さ {a.weight}t（直接）" if a.weight is not None else
-                 f"重さ＝体積×密度（{a.density}t/m³）" if a.density is not None else "重さ＝体積×密度（柱・梁 7.85・ほか 2.4t/m³）"),
+        label = (f"タワークレーン: {tw.name}（{tw.model}・ジブ {ps.get('maxR')}m・マスト {ps.get('msH')}m。定格荷重と吊り荷＋玉掛け用具 0.05t を"
+                 "比べる（ク則23条）。フックの限りはジブの先の 2m 下【目安】）" if tw is not None else
+                 f"クレーン: {cm.name}（{cm.model}・安全率 {ratio:g}。フックの上限はブームの先の 3m 下【目安】）" if cm is not None else
+                 f"クレーン: {m.name}（定格を読む張出 {effective_spread(ps):g}m・安全率 {ratio:g}）")
+        how = {"direct": f"重さ {a.weight}t（直接）", "bm": "重さ＝ビルディングマテリアルの密度×体積",
+               "density": f"重さ＝体積×密度（{a.density}t/m³）" if a.density is not None else "重さ＝体積×密度（柱・梁 7.85・ほか 2.4t/m³）"}[a.mode]
+        md = ["# 揚重判定", "", f"{label}。吊りしろ {a.sling:.0f}・{how}・フック {hook_t:g}t・吊り治具 {rig_t:g}t",
               "", "| 部材 | 種類 | 体積 | 重さ | 作業半径 | 要るフックの高さ | 判定 | ブーム・定格 | 吊れる作業半径 |",
               "|---|---|---|---|---|---|---|---|---|"]
         for nm, ty, vol, w, rad, nz, res, x, far in rows:
-            md.append(f"| {nm} | {ty} | {vol or 0:.2f}m³ | {w:.2f}t | {rad / 1000:.1f}m | {nz / 1000:.1f}m | {res} | "
+            md.append(f"| {nm} | {ty} | {vol or 0:.2f}m³ | " + ("-" if w is None else f"{w:.2f}t") + f" | {rad / 1000:.1f}m | {nz / 1000:.1f}m | {res} | "
                       + (f"{x.boom}m・{x.rated_t:.2f}t" if x.boom else "-") + " | "
                       + (f"{far / 1000:.1f}m 以内" if far else "この機種では無理" if res in ("重すぎ", "遠すぎ") and tw is None else "-")
                       + " |")
-        md += ["", "色: 揚重可能＝緑・重すぎ＝橙・遠すぎ＝灰・高すぎ＝黄（「判定の色を消す」で消える）。重さはフック・玉掛け用具を足して"
-               "定格総荷重×安全率と比べる（クレーン等安全規則 69条）"]
+        md += ["", "色: 揚重可能＝緑・重すぎ＝橙・遠すぎ＝灰・高すぎ＝紫・判定不可（体積や密度が読めない）＝黄（「判定の色を消す」で消える）。"
+               "定格総荷重×安全率と 吊荷＋フック＋治具 を比べる（クレーン等安全規則 69条）"]
         (R.OUT_DIR / "揚重判定.md").write_text("\n".join(md), encoding="utf-8")
-        cnt = {k: sum(1 for r in rows if r[6] == k) for k in ("揚重可能", "重すぎ", "遠すぎ", "高すぎ")}
-        print("揚重判定: " + "・".join(f"{k} {v}" for k, v in cnt.items()) + f"（{R.OUT_DIR / '揚重判定.md'}）")
-        for nm, _ty, _v, w, rad, _nz, res, _x, far in rows:
+        cnt = {k: sum(1 for r in rows if r[6] == k) for k in ("揚重可能", "重すぎ", "遠すぎ", "高すぎ", "判定不可")}
+        print("揚重判定: " + "・".join(f"{k} {v}" for k, v in cnt.items()) + f"（{R.OUT_DIR / '揚重判定.md'}）"
+              + (f"。吊荷のコピー {len(made)}個" if a.draw else ""))
+        if len(rows) <= 5:
+            for nm, _ty, _v, w, rad, _nz, res, x, far in rows:
+                if res == "揚重可能":
+                    print(f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は揚重可能（ブーム {x.boom}m・定格 {x.rated_t:.2f}t × {ratio:g}）")
+        for nm, _ty, _v, w, rad, _nz, res, x, far in rows:
             if res in ("重すぎ", "遠すぎ") and tw is None:
                 print(f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
                       + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）"))
     if a.clash:
-        p0, p1 = jib_axis(ps, origin, car) if tw is not None else boom_axis(ps, origin, car)
+        if a.ask and not ask_clash(a):
+            print("ブームの干渉: やめました")
+            return 0
+        segs = [jib_axis(ps, origin, car)] if tw is not None else crawler_axes(ps, origin, car) if cm is not None else crane_axes(ps, origin, car)
         els = []
         for ty in ("Wall", "Column", "Beam", "Slab", "Roof", "Object"):
             for e in c.tapir("GetElementsByType", {"elementType": ty}).get("elements", []):
@@ -198,7 +460,7 @@ def main(argv=None) -> int:
                     els.append((e, ty))
         objs = [e for e, ty in els if ty == "Object"]
         own = set()
-        if objs:
+        if objs and not a.temp:
             for e, d in zip(objs, c.get_details(objs)):
                 if d.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_"):
                     own.add(e["elementId"]["guid"])
@@ -208,12 +470,13 @@ def main(argv=None) -> int:
         for (e, ty), bb in zip(els, bbs):
             if bb is None:
                 continue
-            dist = seg_box_distance(p0, p1, bb[0], bb[1])
+            dist = min(seg_box_distance(p0, p1, bb[0], bb[1]) for p0, p1 in segs)
             if dist <= a.warn:
                 hits.append((e, ty, dist, "接触" if dist <= a.contact else "警告"))
         c.tapir("HighlightElements", {"elements": [h[0] for h in hits], "highlightedColors": [COLORS[h[3]] for h in hits],
                                       "wireframe3D": False})
-        md = ["# ブームの干渉", "", f"クレーン: {tw.model if tw is not None else m.name}。ブーム（ジブ）の中心軸（根元 {tuple(round(v) for v in p0)}・先 "
+        p0, p1 = segs[0][0], segs[-1][1]
+        md = ["# ブームの干渉", "", f"クレーン: {tw.model if tw is not None else cm.name if cm is not None else m.name}。ブーム（ジブ）の中心軸（根元 {tuple(round(v) for v in p0)}・先 "
               f"{tuple(round(v) for v in p1)}）から部材の外形の箱まで。接触 {a.contact:.0f} 以内＝赤・警告 {a.warn:.0f} 以内＝黄", "",
               "| 部材 | 種類 | 距離 | 判定 |", "|---|---|---|---|"]
         md += [f"| {e['elementId']['guid'][:8]} | {ty} | {dist:.0f} | {res} |" for e, ty, dist, res in sorted(hits, key=lambda h: h[2])]
