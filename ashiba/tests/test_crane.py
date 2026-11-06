@@ -199,5 +199,46 @@ class TestParamRoundtrip(unittest.TestCase):
         self.assertEqual(mismatches({"slew": 30.0}, {"slew": 30.0}), [("slew", 30.0, 30.0)])
 
 
+
+class TestBoomAndJib(unittest.TestCase):
+    """ブーム・ジブの設定と起伏角のホットスポット（利用者の指定 2026-11-06）."""
+
+    def test_pose_with_jib_reaches_the_radius(self):
+        import math
+
+        from ashiba.crane import MODELS, pose_angle
+
+        m = MODELS["25t"]
+        a = pose_angle(m, 23.45, 14000.0, 8.2, 5.0)
+        r = -m.piv_b / 1000.0 + 23.45 * math.cos(math.radians(a)) + 8.2 * math.cos(math.radians(a - 5.0))
+        self.assertAlmostEqual(r, 14.0, places=4)
+
+    def test_part_takes_boom_and_jib(self):
+        from ashiba.crane import Lift, crane_plan, part_params
+
+        p = crane_plan("c", [Lift("a", 14000.0, 2.5, 10000.0)], "25t")
+        q = part_params(p, 30.0, boom_m=23.45, jib=8.2, jib_off=5.0)
+        self.assertEqual((q["boomL"], q["jbL"], q["jbO"]), (23.45, 8.2, 5.0))
+        self.assertEqual(part_params(p, 30.0)["jbL"], 0.0)
+
+    def test_every_model_lists_its_jibs(self):
+        from ashiba.crane import JIBS, MODELS
+
+        self.assertEqual(set(JIBS), set(MODELS))
+
+    def test_gdl_has_tip_hotspot_and_min_radius(self):
+        from pathlib import Path
+
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_crane" / "scripts"
+        self.assertIn("23, boomA, 5", (hsf / "3d.gdl").read_text(encoding="utf-8"))
+        self.assertIn('"最小 R"', (hsf / "2d.gdl").read_text(encoding="utf-8"))
+        vl = (hsf / "vl.gdl").read_text(encoding="utf-8")
+        self.assertIn('GLOB_MODPAR_NAME = "boomA"', vl)
+        self.assertIn("parameters hkR = sqr(hfX * hfX + hfY * hfY), slew = aF", vl)
+        d2 = (hsf / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("xF, yF, 2, hfX, 2", d2)
+        self.assertIn("xF, yF, 32, hfY, 2", d2)
+
+
 if __name__ == "__main__":
     unittest.main()

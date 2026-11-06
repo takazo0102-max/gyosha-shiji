@@ -93,6 +93,13 @@ _GUESS_D = ("ブームの幅・運転室は 1/100 の平面図を測った値（
             "最大地上揚程からの逆算（図のいちばん上げた値より大きく安全側）")
 
 
+# ジブの長さ m（タダノ 主要諸元 docs/調査_ラフタークレーン_タダノ.md・加藤 公表 p2 docs/調査_ラフタークレーン_加藤.md）。ジブの定格総荷重表は写していない
+JIBS = {"13t": (3.6, 5.5), "16t": (4.5, 6.9), "25t": (8.2, 13.0), "35t": (8.0, 13.0), "50t": (8.0, 12.7), "60t": (8.5, 13.7),
+        "70t": (8.4, 13.1, 17.7), "100t": (8.4, 13.1, 17.7), "k13t": (3.65, 5.6), "k25t": (8.7, 13.1), "k50t": (9.4, 13.7),
+        "k75t": (9.52, 13.8, 18.0)}
+JIB_OFFSET = 5.0                   # ジブのオフセット角の既定（加藤のパワージブは 5〜60°）
+
+
 def _m(key, kind, name, cap, mass, jack, l, w, h, front, of, orr, tail, fd, pvh, pvb, tip, hook, tables, note="", **kw):
     return CraneModel(key, kind, name, cap, mass, jack, l, w, h, front, of, orr, tail, fd, pvh, pvb, tip, hook, tables, note, **kw)
 
@@ -435,14 +442,27 @@ def rated_strings(m: CraneModel, spread: float = 0.0) -> dict:
     return out
 
 
-def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO) -> dict:
+def pose_angle(m: CraneModel, boom: float, radius_mm: float, jib: float = 0.0, offset: float = JIB_OFFSET) -> float:
+    """作業半径に届く起伏角（度）. ジブ付きは ブームとジブの水平の長さの和で解く."""
+    if jib <= 0:
+        return boom_angle(m, boom, radius_mm)
+    lo, hi = 1.0, 84.0
+    for _ in range(40):
+        mid = (lo + hi) / 2.0
+        r = -m.piv_b / 1000.0 + boom * math.cos(math.radians(mid)) + jib * math.cos(math.radians(mid - offset))
+        lo, hi = (mid, hi) if r > radius_mm / 1000.0 else (lo, mid)
+    return (lo + hi) / 2.0
+
+
+def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: float = LOAD_RATIO, boom_m: float = 0.0, jib: float = 0.0,
+                jib_off: float = JIB_OFFSET) -> dict:
     """部品 ashiba_crane のパラメータ（m・度）。oSnap は先に False だけを入れてから全部を入れ、置いたあとで True に
     する（Tapir は1つずつ入れるので、脚の時点では既定の吸い付きと 25t の段が生きていた。2026-11-02 実機）。slew_deg は車体の向きからのブームの向き。いちばん厳しい吊荷の姿勢（作業半径・
     ブーム長さ）で置き、平面・3D のホットスポットで動かすと部品が性能表から定格総荷重を読み直す."""
     m = p.model
     g = p.governing
     radius = g.radius if g else 6000.0
-    boom = g.boom if g and g.boom else p.boom
+    boom = boom_m or (g.boom if g and g.boom else p.boom)
     return {"crType": m.kind, "crName": m.name.split(" ")[1],
             "carL": m.length / 1000.0, "carW": m.width / 1000.0, "carH": m.height / 1000.0, "carF": m.front / 1000.0,
             "outF": m.out_front / 1000.0, "outR": m.out_rear / 1000.0, "outW": p.spread, "fltD": m.float_d / 1000.0,
@@ -452,7 +472,8 @@ def part_params(p: CranePlan, slew_deg: float, ground_dz: float = 0.0, ratio: fl
             "nBs": m.boom_n, "bmW": m.boom_w / 1000.0,
             "oFL": p.spread / 2, "oFR": p.spread / 2, "oRL": p.spread / 2, "oRR": p.spread / 2, "oSnap": False,
             "tailR": m.tail_r / 1000.0, "pivH": m.piv_h / 1000.0, "pivB": m.piv_b / 1000.0, "tipHk": m.tip_hook / 1000.0,
-            "hkR": radius / 1000.0, "slew": slew_deg, "prio": 0, "boomL": boom, "boomA": boom_angle(m, boom, radius),
+            "jbL": jib, "jbO": jib_off,
+            "hkR": radius / 1000.0, "slew": slew_deg, "prio": 0, "boomL": boom, "boomA": pose_angle(m, boom, radius, jib, jib_off),
             "bMin": min(m.booms), "bMax": max(m.booms), "hkZ": 0.0,
             "loadT": g.load_t if g else 0.0, "hookT": m.hook_t, "rigT": RIGGING_T, "sfRate": ratio,
             **rated_strings(m),

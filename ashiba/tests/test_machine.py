@@ -456,5 +456,94 @@ class TestTracks(unittest.TestCase):
         self.assertEqual(c.set, [("T", {"tkOn": True})])
 
 
+
+class TestCrawlerCrane(unittest.TestCase):
+    """クレーンのブーム・ジブ・定格（利用者の指定 2026-11-06「クレーンはブームのながさとじぶの長さが設定できるようにして ブームの先端の
+    ホットスポットで移動によって角度も変えれるようにして 平面は作業の最小半径とブーム先端に定格そうかじゅうがわかるようにして 安全率も追加して」）."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+    def test_jib_table_cells(self):
+        """コベルコの表の値（7050G-2 PDF p.13・7090G-2 PDF p.11）."""
+        from ashiba.crane_jib import JIB_TABLES
+
+        self.assertEqual(JIB_TABLES["cc50"][10][(30.5, 6.1)][14.0], 6.7)
+        self.assertEqual(JIB_TABLES["cc50"][30][(42.7, 12.2)][20.0], 4.0)
+        self.assertEqual(JIB_TABLES["cc90"][10][(29.1, 9.1)][9.0], (11.0, 9.6))
+        self.assertEqual(JIB_TABLES["cc70"][10][(30.5, 6.1)][22.0], 6.5)
+
+    def test_rating_with_safety(self):
+        from ashiba.machine import crane_rating
+
+        m = MACHINES["cc50"]
+        r = crane_rating(m, {**m.params, "lbA": 70.0, "sfRate": 0.8})
+        self.assertAlmostEqual(r["半径"], 1.1 + 30.5 * math.cos(math.radians(70.0)) + 0.4)
+        self.assertEqual(r["定格"], 8.9)                     # 半径 11.9m は 12m の行
+        self.assertAlmostEqual(r["使える荷重"], 8.9 * 0.8)
+        self.assertEqual(r["最小半径"], 6.8)                 # 表の「19.8/6.8」
+
+    def test_outside_the_table_has_no_rating(self):
+        from ashiba.machine import crane_rating
+
+        m = MACHINES["cc50"]
+        self.assertIsNone(crane_rating(m, {**m.params, "lbA": 82.0})["定格"])       # 最小の作業半径より内
+        self.assertIsNone(crane_rating(m, {**m.params, "lbA": 10.0})["定格"])       # 表より遠い
+
+    def test_jib_rating_and_radius(self):
+        from ashiba.machine import crane_rating, hook_radius
+
+        m = MACHINES["cc50"]
+        ps = {**m.params, "lbL": 30.5, "lbA": 72.0, "jbL": 12.2, "jbO": 10.0}
+        r = hook_radius(ps)
+        self.assertAlmostEqual(r, 1.1 + 30.5 * math.cos(math.radians(72.0)) + 12.2 * math.cos(math.radians(62.0)) + 0.4)
+        self.assertEqual(crane_rating(m, ps)["定格"], 4.7)  # 半径 16.7m は 18m の行
+        p = check(Placed("c", m, params={"lbL": 30.5, "jbL": 12.2, "lbA": 72.0}))
+        self.assertTrue(any("ジブ 12.2m" in x.detail for x in p.checks if x.item == "定格総荷重"))
+
+    def test_part_gets_the_tables(self):
+        p = part_params(check(Placed("c", MACHINES["cc50"], params={"lbL": 30.5, "jbL": 12.2, "lbA": 72.0})))
+        self.assertEqual(p["rtB"], "15200,21300,30500,39600,51800")
+        self.assertEqual(p["sfRate"], 0.9)
+        self.assertTrue(p["jrR"].startswith("12000,"))
+        self.assertAlmostEqual(p["lbR"], 1.1 + 30.5 * math.cos(math.radians(72.0)) + 12.2 * math.cos(math.radians(62.0)) + 0.4)
+        self.assertNotIn("rtB", part_params(check(Placed("b", MACHINES["bh045"]))))
+
+    def test_form_picks_boom_jib_and_safety(self):
+        import argparse
+        import json
+        import os
+        from unittest import mock
+
+        import machine_run as M
+
+        m = MACHINES["cc50"]
+        opts = M.crane_options(m)
+        self.assertEqual(opts["ブーム 30.5m＋ジブ 12.2m"], (30.5, 12.2))
+        self.assertEqual(opts["ブーム 15.2m"], (15.2, 0.0))
+        a = argparse.Namespace(boom=0.0, jib=0.0, jib_off=10.0, angle=0.0, safety=0.9, no_track=False, turn="左", turn_r=0.0, load="")
+        ans = json.dumps({"button": "place", "values": {"boom": "ブーム 30.5m＋ジブ 12.2m", "off": "30", "angle": "65", "safety": "0.8"}})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": ans}):
+            self.assertTrue(M.choose_crane(m, a))
+        self.assertEqual(M.vehicle_extra(m, a), {"jbL": 12.2, "jbO": 30.0, "sfRate": 0.8, "lbL": 30.5, "lbA": 65.0})
+
+    def test_gdl_draws_rating_and_hotspot(self):
+        from pathlib import Path
+
+        hsf = Path(__file__).resolve().parents[1] / "gdl" / "hsf" / "ashiba_machine" / "scripts"
+        d2 = (hsf / "2d.gdl").read_text(encoding="utf-8")
+        self.assertIn("xF, yF, 52, hfX, 2", d2)
+        self.assertIn("xF, yF, 55, hfY, 2", d2)
+        self.assertIn('"定格 " + str(rated, 5, 2)', d2)
+        self.assertIn("circle2 0, 0, rMin", d2)
+        vl = (hsf / "vl.gdl").read_text(encoding="utf-8")
+        self.assertIn('if mq = "lbR" then rF = lbR', vl)
+        self.assertIn("parameters lbA = aM, slew = aF, lbR = rM", vl)
+
+
 if __name__ == "__main__":
     unittest.main()

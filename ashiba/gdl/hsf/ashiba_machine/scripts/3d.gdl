@@ -14,6 +14,9 @@ define material "mc_steel" 2, 0.55, 0.56, 0.58
 define material "mc_cw" 2, 0.35, 0.36, 0.38
 define material "mc_tire" 2, 0.10, 0.10, 0.10
 define material "mc_rim" 2, 0.80, 0.80, 0.78
+define material "mc_lamp" 2, 0.95, 0.60, 0.10
+define material "mc_head" 2, 0.92, 0.93, 0.85
+define material "mc_tail" 2, 0.75, 0.10, 0.10
 define material "mc_glass" 2, 0.30, 0.45, 0.60
 define material "mc_rod" 2, 0.85, 0.86, 0.88
 define material "mc_drum" 2, 0.92, 0.40, 0.12
@@ -128,14 +131,24 @@ end
 		del 2
 	endif
 	if mcKind = 2 then
+		! ブームの先を平面のどの向きにも引く（平面の 51〜56 と同じ組）
+		xF = hkX * cos(slew)
+		yF = hkX * sin(slew)
+		zF = tpZ + 0.3
+		hotspot 0, yF, zF, 228, hfX, 1 + 128
+		hotspot xF, yF, zF, 229, hfX, 2
+		hotspot -1, yF, zF, 230, hfX, 3
+		hotspot xF, 0, zF, 231, hfY, 1 + 128
+		hotspot xF, yF, zF, 232, hfY, 2
+		hotspot xF, -1, zF, 233, hfY, 3
 		rotz slew
 		hotspot pvX, 0, pvH, 221, lbA, 6
 		hotspot pvX + 1, 0, pvH, 222, lbA, 4
 		hotspot lbX, 0, lbZ, 223, lbA, 5
 		hotspot pvX, -1, pvH, 224, lbA, 7
-		hotspot lbX + 0.4, 0, lbZ, 225, hkD, 1 + 128
-		hotspot lbX + 0.4, 0, lbZ - hkD, 226, hkD, 2
-		hotspot lbX + 0.4, 0, lbZ + 1, 227, hkD, 3
+		hotspot hkX, 0, tpZ, 225, hkD, 1 + 128
+		hotspot hkX, 0, tpZ - hkD, 226, hkD, 2
+		hotspot hkX, 0, tpZ + 1, 227, hkD, 3
 		del 1
 	endif
 	if mcKind = 3 then
@@ -352,6 +365,33 @@ return
 			cylind 0.03, rT * 0.72
 			del 2
 		next e
+		! 上転輪（帯の上を支える）
+		material "mc_steel"
+		for q = -1 to 1 step 2
+			add q * trkL * 0.18, yR, trkH - 0.12
+			rotx 90
+			cylind 0.03, 0.07
+			del 2
+		next q
+		! 両端の輪に回るシュー（グローサ）
+		material "mc_dark"
+		for e = -1 to 1 step 2
+			for q = -2 to 2
+				add e * (trkL / 2 - rT) + e * rT * cos(q * 36), yc - shoeW / 2, rT + rT * sin(q * 36)
+				mul e, 1, 1
+				roty -q * 36
+				add 0, 0, -0.025
+				block 0.03, shoeW, 0.05
+				del 4
+			next q
+		next e
+		! 起動輪の歯（後ろの輪）
+		material "mc_steel"
+		for q = 0 to 7
+			add -(trkL / 2 - rT) + rT * 0.72 * cos(q * 45) - 0.03, yR - 0.03, rT + rT * 0.72 * sin(q * 45) - 0.03
+			block 0.06, 0.03, 0.06
+			del 1
+		next q
 	next s
 	material "mc_body"
 	lF = min(1.8, trkL * 0.55)
@@ -457,6 +497,68 @@ return
 	material "mc_steel"
 	add upF - cabL - 0.05, yE0, upZ + hB + 0.4
 	block 0.04, yE1 - yE0, 0.03
+	del 1
+	! カウンタウエイトの段の目地（0.45m ごと）
+	if hC > 0.7 then
+		material "mc_dark"
+		for qi = 1 to int(hC / 0.45)
+			for i = 0 to 8
+				aa = 180 + aSc - i * aSc / 4
+				put (tailR + 0.004) * cos(aa), (tailR + 0.004) * sin(aa)
+			next i
+			put xC, w2c + 0.004, xC, -w2c - 0.004
+			add 0, 0, zC0 + qi * 0.45
+			prism nsp / 2, 0.012, get(nsp)
+			del 1
+		next qi
+	endif
+	! 運転室の反対の側の手すり（上面の通路。柱3本と2段のパイプ）
+	yH = -(w2 - 0.06)
+	if cbS < 0 then yH = w2 - 0.06
+	zH = upZ + hB + 0.4
+	material "mc_lamp"
+	rq = 0.018
+	xH0 = xC + 0.15
+	xH1 = upF - 0.2
+	if xH1 - xH0 > 0.6 and tailR >= 2.5 then
+		for qi = 0 to 2
+			add xH0 + qi * (xH1 - xH0) / 2, yH, zH
+			cylind 0.9, rq
+			del 1
+		next qi
+		for qi = 1 to 2
+			x0q = xH0
+			y0q = yH
+			z0q = zH + qi * 0.45
+			x1q = xH1
+			y1q = yH
+			z1q = z0q
+			gosub "seg3"
+		next qi
+	endif
+	! 運転室の横の昇降ステップ（3段）
+	yS = w2 + 0.06
+	if cbS < 0 then yS = -w2 - 0.18
+	material "mc_steel"
+	for qi = 0 to 2
+		add upF - cabL - 0.05, yS, upZ - 0.55 + qi * 0.3
+		block 0.45, 0.12, 0.02
+		del 1
+	next qi
+	! ミラー・回転灯・ワイパー
+	yM = yC0 + cabW + 0.12
+	if cbS < 0 then yM = yC0 - 0.12
+	material "mc_dark"
+	add upF + 0.1, yM - 0.05, upH - 0.55
+	block 0.03, 0.1, 0.28
+	del 1
+	material "mc_lamp"
+	add upF - cabL / 2, yC0 + cabW / 2, upH
+	cylind 0.12, 0.05
+	del 1
+	material "mc_dark"
+	add upF + 0.012, yC0 + cabW / 2 - 0.01, upH - hW * 0.9
+	block 0.006, 0.02, hW * 0.6
 	del 1
 	return
 
@@ -1301,6 +1403,91 @@ return
 		del 2
 	next k
 	del 2
+	! 巻上ドラム（主巻・起伏）とブームストッパ
+	for qi = 0 to 1
+		xD = pvX - 1.1 - qi * 0.95
+		material "mc_dark"
+		add xD, 0.42, upZ + hB + 0.42
+		rotx 90
+		cylind 0.84, 0.26
+		del 2
+		material "mc_steel"
+		for sy = -1 to 1 step 2
+			add xD, sy * 0.44 + 0.02, upZ + hB + 0.42
+			rotx 90
+			cylind 0.04, 0.36
+			del 2
+		next sy
+	next qi
+	material "mc_steel"
+	rq = 0.05
+	for sy = -1 to 1 step 2
+		x0q = pvX - 1.3
+		y0q = sy * 0.45
+		z0q = upH
+		x1q = pvX + 3 * cos(lbA)
+		y1q = sy * lbW / 2
+		z1q = pvH + 3 * sin(lbA) - 0.1
+		gosub "seg3"
+	next sy
+	if jbL > 0.01 then
+		! ジブ（ブームの先から。先へ細くなるラチス）とジブストラット・ガイライン
+		material "mc_body"
+		add lbX, 0, lbZ
+		roty -(lbA - jbO)
+		resol 6
+		rq = 0.03
+		for sy = -1 to 1 step 2
+			for sz = -1 to 1 step 2
+				x0q = 0
+				y0q = sy * jbW / 2
+				z0q = sz * jbW / 2
+				x1q = jbL
+				y1q = sy * jbW / 4
+				z1q = sz * jbW / 4
+				gosub "seg3"
+			next sz
+		next sy
+		nP = max(2, int(jbL / jbW))
+		rq = 0.016
+		for i = 0 to nP - 1
+			sg = 1 - 2 * (i mod 2)
+			wA = jbW * (1 - 0.5 * i / nP) / 2
+			wB = jbW * (1 - 0.5 * (i + 1) / nP) / 2
+			x0q = i * jbL / nP
+			x1q = (i + 1) * jbL / nP
+			for sz = -1 to 1 step 2
+				y0q = -sg * wA
+				y1q = sg * wB
+				z0q = sz * wA
+				z1q = sz * wB
+				gosub "seg3"
+			next sz
+		next i
+		rq = 0.02
+		x0q = 0
+		y0q = 0
+		z0q = jbW / 2
+		x1q = 0.3
+		y1q = 0
+		z1q = jbW / 2 + 1.6
+		gosub "seg3"
+		x0q = 0.3
+		z0q = jbW / 2 + 1.6
+		x1q = jbL
+		z1q = jbW / 4
+		gosub "seg3"
+		resol 12
+		material "mc_steel"
+		add jbL - 0.15, -jbW / 4, -jbW / 4
+		block 0.3, jbW / 2, jbW / 2
+		del 1
+		add jbL + 0.15, -0.04, 0
+		rotx -90
+		cylind 0.08, 0.25
+		del 2
+		del 2
+	endif
 	! ガントリ（上部の後ろ）とペンダント（ガントリの頭からブームの先）
 	gX = -gnX
 	gZ = gnH
@@ -1330,32 +1517,32 @@ return
 	! ワイヤとフック
 	material "mc_steel"
 	for s = -1 to 1 step 2
-		add lbX + 0.4 + s * 0.12, 0, lbZ - hkD + 0.8
+		add hkX + s * 0.12, 0, tpZ - hkD + 0.8
 		cylind hkD - 0.8, 0.015
 		del 1
 	next s
 	! フック（仕様書の全高 hkH・幅 hkW・厚み hkT。上の 7 割がブロック、下がフック）
 	material "mc_drum"
-	add lbX + 0.4 - hkW / 2, -hkT / 2, lbZ - hkD
+	add hkX - hkW / 2, -hkT / 2, tpZ - hkD
 	block hkW, hkT, hkH * 0.7
 	del 1
 	material "mc_steel"
-	add lbX + 0.4, 0, lbZ - hkD - hkH * 0.3
+	add hkX, 0, tpZ - hkD - hkH * 0.3
 	cone hkH * 0.3, 0.05, hkT * 0.25, 90, 90
 	del 1
 	if vbK = 1 then
 		! バイブロ（ハンガー・起振機・チャック）と杭（vbP）
-		zV = lbZ - hkD - hkH * 0.3 - vbH
+		zV = tpZ - hkD - hkH * 0.3 - vbH
 		material "mc_drum"
-		add lbX + 0.4 - vbW / 2, -vbT / 2, zV + vbH * 0.25
+		add hkX - vbW / 2, -vbT / 2, zV + vbH * 0.25
 		block vbW, vbT, vbH * 0.75
 		del 1
 		material "mc_dark"
-		add lbX + 0.4 - vbW * 0.3, -vbT * 0.4, zV
+		add hkX - vbW * 0.3, -vbT * 0.4, zV
 		block vbW * 0.6, vbT * 0.8, vbH * 0.25
 		del 1
 		material "mc_steel"
-		add lbX + 0.4 - 0.2, -0.006, zV - vbP + 0.1
+		add hkX - 0.2, -0.006, zV - vbP + 0.1
 		block 0.4, 0.012, vbP
 		del 1
 	endif
@@ -1397,6 +1584,33 @@ return
 	for s = -1 to 1 step 2
 		add xF - 0.2, s * (carW / 2 + 0.12) - 0.04, cabH - 0.7
 		block 0.04, 0.08, 0.35
+		del 1
+	next s
+	! ヘッドライト・テールランプ・運転室の昇降ステップ・泥よけ
+	material "mc_head"
+	for s = -1 to 1 step 2
+		add xF + 0.041, s * (carW / 2 - 0.34) - 0.12, cZ0 - 0.2
+		block 0.008, 0.24, 0.13
+		del 1
+	next s
+	material "mc_tail"
+	for s = -1 to 1 step 2
+		add xR + 0.02, s * (carW / 2 - 0.3) - 0.11, frZ - 0.2
+		block 0.012, 0.22, 0.09
+		del 1
+	next s
+	material "mc_steel"
+	for s = -1 to 1 step 2
+		for k = 0 to 1
+			add axF - whR - 0.5, s * (carW / 2 - 0.02) - 0.08 * (s > 0), 0.42 + k * 0.32
+			block 0.42, 0.08, 0.025
+			del 1
+		next k
+	next s
+	material "mc_dark"
+	for s = -1 to 1 step 2
+		add axR2 - whR - 0.12, s * (carW / 2 - 0.03) - (s > 0) * (whW + 0.05), 0.2
+		block 0.012, whW + 0.05, 0.5
 		del 1
 	next s
 	! タイヤ（前は1本・後ろはダブル）

@@ -465,12 +465,29 @@ bL = max(bMin, min(bMax, boomL))
 hR = max(1.0, hkR)
 slD = slew
 owD = spE
+jL = jbL
+if travel then jL = 0
 if prio = 1 then
 	bA = max(1, min(84, boomA))
-	bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
+	if jL < 0.01 then bL = max(bMin, min(bMax, (hR + pivB) / cos(bA)))
 else
-	cA = min(1, max(0.1045, (hR + pivB) / bL))
-	bA = acs(cA)
+	if jL > 0.01 then
+		! ジブ付きは作業半径から起伏角を解く（ブームとジブの水平の長さの和）
+		aL = 1
+		aH = 84
+		for k = 1 to 24
+			aM = (aL + aH) / 2
+			if -pivB + bL * cos(aM) + jL * cos(aM - jbO) > hR then
+				aL = aM
+			else
+				aH = aM
+			endif
+		next k
+		bA = (aL + aH) / 2
+	else
+		cA = min(1, max(0.1045, (hR + pivB) / bL))
+		bA = acs(cA)
+	endif
 endif
 if travel then
 	! 走行姿勢: ブームを最短で前に倒し、アウトリガを畳む
@@ -479,8 +496,14 @@ if travel then
 	slD = 0
 	owD = carW - 0.1
 endif
-tipX = -pivB + bL * cos(bA)
-tipZ = pivH + bL * sin(bA)
+tbX = -pivB + bL * cos(bA)
+tbZ = pivH + bL * sin(bA)
+tipX = tbX
+tipZ = tbZ
+if jL > 0.01 then
+	tipX = tbX + jL * cos(bA - jbO)
+	tipZ = tbZ + jL * sin(bA - jbO)
+endif
 hkMx = tipZ - tipHk
 hkD = hkMx
 if hkZ > 0.3 and hkZ < hkMx and travel = 0 then hkD = hkZ
@@ -508,6 +531,25 @@ if iR > 0 then
 	if jB = 11 and iR <= nTc11 then rated = tc11[iR] * 10
 	if jB = 12 and iR <= nTc12 then rated = tc12[iR] * 10
 endif
+! 作業の最小半径（このブームの列で定格のある一番小さい半径）。ジブの性能表は持っていないので、ジブ付きは定格を出さない
+rMin = 0
+for k = nRr to 1 step -1
+	vq = 0
+	if jB = 1 and k <= nTc1 then vq = tc1[k]
+	if jB = 2 and k <= nTc2 then vq = tc2[k]
+	if jB = 3 and k <= nTc3 then vq = tc3[k]
+	if jB = 4 and k <= nTc4 then vq = tc4[k]
+	if jB = 5 and k <= nTc5 then vq = tc5[k]
+	if jB = 6 and k <= nTc6 then vq = tc6[k]
+	if jB = 7 and k <= nTc7 then vq = tc7[k]
+	if jB = 8 and k <= nTc8 then vq = tc8[k]
+	if jB = 9 and k <= nTc9 then vq = tc9[k]
+	if jB = 10 and k <= nTc10 then vq = tc10[k]
+	if jB = 11 and k <= nTc11 then vq = tc11[k]
+	if jB = 12 and k <= nTc12 then vq = tc12[k]
+	if vq > 0 then rMin = rr[k]
+next k
+if jL > 0.01 then rated = 0
 capT = rated * sfRate
 needT = loadT + hookT + rigT
 okL = 0

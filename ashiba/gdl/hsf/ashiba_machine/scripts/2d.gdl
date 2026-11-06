@@ -186,7 +186,14 @@ if isCr then
 			pen pO
 		endif
 		circle2 lbX, 0, 0.4
-		if vbK = 1 then rect2 lbX + 0.4 - vbW / 2, -vbT / 2, lbX + 0.4 + vbW / 2, vbT / 2
+		if jbL > 0.01 then
+			! ジブ（先へ細くなる）
+			line2 lbX, -jbW / 2, jbX, -jbW / 4
+			line2 lbX, jbW / 2, jbX, jbW / 4
+			line2 jbX, -jbW / 4, jbX, jbW / 4
+			circle2 jbX, 0, 0.25
+		endif
+		if vbK = 1 then rect2 hkX - vbW / 2, -vbT / 2, hkX + vbW / 2, vbT / 2
 	endif
 	if mcKind = 8 then
 		! リーダ・リーダブラケット・オーガ・ステー・ジャッキ
@@ -626,7 +633,7 @@ if isTk and mcKind <> 7 and tkOn and tnR > 0.5 then
 endif
 ! 作業半径（バックホウは最大掘削半径、クレーン・ポンプ車・高所作業車は最大作業半径）。一点鎖線
 rW = maxR
-if mcKind = 2 then rW = lbX + 0.4
+if mcKind = 2 then rW = hkX
 isR = (mcKind <= 3 or mcKind = 6 or mcKind = 11)
 drawindex 45
 if rW > 0.1 and isR then
@@ -634,6 +641,43 @@ if rW > 0.1 and isR then
 	line_type ltC
 	circle2 0, 0, rW
 	line_type ltS
+endif
+if mcKind = 2 then
+	! 作業の最小半径（二点鎖線）と、ブームの先の定格総荷重・安全率を掛けた荷重
+	if rMin > 0.1 then
+		pen pZ
+		line_type ltZ
+		circle2 0, 0, rMin
+		line_type ltS
+	endif
+	drawindex 50
+	pen penEquip
+	dQ = texSiz * GLOB_SCALE / 1000 * 1.6
+	! フックのホットスポット（X と Y の組を同じ点に置いて、どの向きにも引ける。前後は起伏角、横は旋回）
+	xF = hkX * cos(slew)
+	yF = hkX * sin(slew)
+	hotspot2 0, yF, 51, hfX, 1 + 128
+	hotspot2 xF, yF, 52, hfX, 2
+	hotspot2 -1, yF, 53, hfX, 3
+	hotspot2 xF, 0, 54, hfY, 1 + 128
+	hotspot2 xF, yF, 55, hfY, 2
+	hotspot2 xF, -1, 56, hfY, 3
+	add2 hkX * cos(slew), hkX * sin(slew)
+	rot2 -SYMB_ROTANGLE
+	if rated > 0 then
+		text2 0.6, dQ, "定格 " + str(rated, 5, 2) + "t×" + str(sfRate, 4, 2) + "＝" + str(capT, 5, 2) + "t"
+	else
+		text2 0.6, dQ, "定格 表の外"
+	endif
+	text2 0.6, 0, "R" + str(round_int(hkX * 1000), 1, 0) + "・" + str(round_int(lbA), 1, 0) + "°"
+	del 2
+	if rMin > 0.1 then
+		add2 rMin * cos(slew + 40), rMin * sin(slew + 40)
+		rot2 -SYMB_ROTANGLE
+		text2 0, 0, "最小 R" + str(round_int(rMin * 1000), 1, 0)
+		del 2
+	endif
+	drawindex 45
 endif
 ! 旋回の中心（一点鎖線の十字。簡略は小さく）
 if isCr or mcKind = 3 or mcKind = 6 then

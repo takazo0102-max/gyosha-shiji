@@ -68,9 +68,251 @@ next i
 ! 高所作業車のブームの先
 abX = -0.4 + abL * cos(abA)
 abZ = tuH + abL * sin(abA)
-! クローラクレーンのブームの先
+dim mtB[]
+nMb = 0
+rest = rtB
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMb = nMb + 1
+		mtB[nMb] = v / 1000
+	endif
+endwhile
+dim mtN[]
+nMn = 0
+rest = rtN
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMn = nMn + 1
+		mtN[nMn] = v / 1000
+	endif
+endwhile
+dim mtX[]
+nMx = 0
+rest = rtX
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMx = nMx + 1
+		mtX[nMx] = v / 1000
+	endif
+endwhile
+dim mtR[]
+nMr = 0
+rest = rtR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nMr = nMr + 1
+		mtR[nMr] = v / 1000
+	endif
+endwhile
+dim mtC1[]
+nC1 = 0
+rest = rc1
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC1 = nC1 + 1
+		mtC1[nC1] = v / 1
+	endif
+endwhile
+dim mtC2[]
+nC2 = 0
+rest = rc2
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC2 = nC2 + 1
+		mtC2[nC2] = v / 1
+	endif
+endwhile
+dim mtC3[]
+nC3 = 0
+rest = rc3
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC3 = nC3 + 1
+		mtC3[nC3] = v / 1
+	endif
+endwhile
+dim mtC4[]
+nC4 = 0
+rest = rc4
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC4 = nC4 + 1
+		mtC4[nC4] = v / 1
+	endif
+endwhile
+dim mtC5[]
+nC5 = 0
+rest = rc5
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nC5 = nC5 + 1
+		mtC5[nC5] = v / 1
+	endif
+endwhile
+dim jtR[]
+nJr = 0
+rest = jrR
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nJr = nJr + 1
+		jtR[nJr] = v / 1000
+	endif
+endwhile
+dim jtT[]
+nJt = 0
+rest = jrT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nJt = nJt + 1
+		jtT[nJt] = v / 1
+	endif
+endwhile
+! クローラクレーンのブームの先・ジブの先・フック・定格総荷重（表の読み方は src/ashiba/machine.py の crane_rating と同じ）
 lbX = pvX + lbL * cos(lbA)
 lbZ = pvH + lbL * sin(lbA)
+jbW = min(lbW, 1.0) * 0.7
+jbX = lbX
+jbZ = lbZ
+if jbL > 0.01 then
+	jbX = lbX + jbL * cos(lbA - jbO)
+	jbZ = lbZ + jbL * sin(lbA - jbO)
+endif
+hkX = jbX + 0.4
+tpZ = jbZ
+rated = 0
+rMin = 0
+rMax = 0
+if mcKind = 2 then
+	iR = 0
+	if jbL > 0.01 then
+		rMin = jrN
+		rMax = jrX
+		for k = min(nJr, nJt) to 1 step -1
+			if jtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then rated = jtT[iR] / 100
+	else
+		jB = nMb
+		for k = nMb to 1 step -1
+			if mtB[k] >= lbL - 0.001 then jB = k
+		next k
+		if jB > 0 and jB <= nMn and jB <= nMx then
+			rMin = mtN[jB]
+			rMax = mtX[jB]
+		endif
+		for k = nMr to 1 step -1
+			if mtR[k] >= hkX - 0.001 then iR = k
+		next k
+		if iR > 0 then
+			if jB = 1 and iR <= nC1 then rated = mtC1[iR] / 100
+			if jB = 2 and iR <= nC2 then rated = mtC2[iR] / 100
+			if jB = 3 and iR <= nC3 then rated = mtC3[iR] / 100
+			if jB = 4 and iR <= nC4 then rated = mtC4[iR] / 100
+			if jB = 5 and iR <= nC5 then rated = mtC5[iR] / 100
+		endif
+	endif
+	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
+endif
+capT = rated * sfRate
 ! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)
