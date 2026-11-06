@@ -317,6 +317,60 @@ if mcKind = 2 then
 	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
 endif
 capT = rated * sfRate
+! 作業半径の表示（scripts/gdl_radii.py）
+nWi = max(0, min(5, wiNum)) * (mcKind = 2)
+dim wiRq[5], wiAq[5], wiBq[5], wiSq[5], wiMq[5], wiFq[5], wiTq[5]
+wiRq[1] = wiR1
+wiAq[1] = wiA1
+wiBq[1] = wiB1
+wiFq[1] = wiF1
+wiRq[2] = wiR2
+wiAq[2] = wiA2
+wiBq[2] = wiB2
+wiFq[2] = wiF2
+wiRq[3] = wiR3
+wiAq[3] = wiA3
+wiBq[3] = wiB3
+wiFq[3] = wiF3
+wiRq[4] = wiR4
+wiAq[4] = wiA4
+wiBq[4] = wiB4
+wiFq[4] = wiF4
+wiRq[5] = wiR5
+wiAq[5] = wiA5
+wiBq[5] = wiB5
+wiFq[5] = wiF5
+for wq = 1 to 5
+	wS0 = wiBq[wq] - wiAq[wq] + 720
+	wS0 = wS0 - int(wS0 / 360) * 360
+	if wS0 < 0.01 then wS0 = 360
+	wiSq[wq] = wS0
+	wiMq[wq] = wiAq[wq] + wS0 / 2
+next wq
+for wq = 1 to nWi
+	vq = 0
+	iQ = 0
+	if jbL > 0.01 then
+		for k = min(nJr, nJt) to 1 step -1
+			if jtR[k] >= wiRq[wq] - 0.001 then iQ = k
+		next k
+		if iQ > 0 then vq = jtT[iQ] / 100
+	else
+		for k = nMr to 1 step -1
+			if mtR[k] >= wiRq[wq] - 0.001 then iQ = k
+		next k
+		if iQ > 0 then
+			if jB = 1 and iQ <= nC1 then vq = mtC1[iQ] / 100
+			if jB = 2 and iQ <= nC2 then vq = mtC2[iQ] / 100
+			if jB = 3 and iQ <= nC3 then vq = mtC3[iQ] / 100
+			if jB = 4 and iQ <= nC4 then vq = mtC4[iQ] / 100
+			if jB = 5 and iQ <= nC5 then vq = mtC5[iQ] / 100
+		endif
+	endif
+	if wiRq[wq] < rMin - 0.001 or wiRq[wq] > rMax + 0.001 then vq = 0
+	vq = vq * sfRate
+	wiTq[wq] = vq
+next wq
 ! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)

@@ -209,6 +209,114 @@
 			<Description><![CDATA["最大揚程（地盤からフックの上限）"]]></Description>
 			<Value>0.0</Value>
 		</Length>
+		<Integer Name="wiNum">
+			<Description><![CDATA["作業半径の表示数（0〜5）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<PenColor Name="wiPen">
+			<Description><![CDATA["作業半径の文字色（0＝線のペン）"]]></Description>
+			<Value>0</Value>
+		</PenColor>
+		<Length Name="wiR1">
+			<Description><![CDATA["1. 作業半径"]]></Description>
+			<Value>10.0</Value>
+		</Length>
+		<Angle Name="wiA1">
+			<Description><![CDATA["1. 角度範囲の始め（0°＝車体の前）"]]></Description>
+			<Value>-10.0</Value>
+		</Angle>
+		<Angle Name="wiB1">
+			<Description><![CDATA["1. 角度範囲の終わり"]]></Description>
+			<Value>10.0</Value>
+		</Angle>
+		<Angle Name="wiM1">
+			<Description><![CDATA["1. 範囲の中央（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="wiF1">
+			<Description><![CDATA["1. 文字反転"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="wiR2">
+			<Description><![CDATA["2. 作業半径"]]></Description>
+			<Value>15.0</Value>
+		</Length>
+		<Angle Name="wiA2">
+			<Description><![CDATA["2. 角度範囲の始め（0°＝車体の前）"]]></Description>
+			<Value>-10.0</Value>
+		</Angle>
+		<Angle Name="wiB2">
+			<Description><![CDATA["2. 角度範囲の終わり"]]></Description>
+			<Value>10.0</Value>
+		</Angle>
+		<Angle Name="wiM2">
+			<Description><![CDATA["2. 範囲の中央（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="wiF2">
+			<Description><![CDATA["2. 文字反転"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="wiR3">
+			<Description><![CDATA["3. 作業半径"]]></Description>
+			<Value>20.0</Value>
+		</Length>
+		<Angle Name="wiA3">
+			<Description><![CDATA["3. 角度範囲の始め（0°＝車体の前）"]]></Description>
+			<Value>-30.0</Value>
+		</Angle>
+		<Angle Name="wiB3">
+			<Description><![CDATA["3. 角度範囲の終わり"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Angle Name="wiM3">
+			<Description><![CDATA["3. 範囲の中央（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="wiF3">
+			<Description><![CDATA["3. 文字反転"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="wiR4">
+			<Description><![CDATA["4. 作業半径"]]></Description>
+			<Value>25.0</Value>
+		</Length>
+		<Angle Name="wiA4">
+			<Description><![CDATA["4. 角度範囲の始め（0°＝車体の前）"]]></Description>
+			<Value>-30.0</Value>
+		</Angle>
+		<Angle Name="wiB4">
+			<Description><![CDATA["4. 角度範囲の終わり"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Angle Name="wiM4">
+			<Description><![CDATA["4. 範囲の中央（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="wiF4">
+			<Description><![CDATA["4. 文字反転"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="wiR5">
+			<Description><![CDATA["5. 作業半径"]]></Description>
+			<Value>30.0</Value>
+		</Length>
+		<Angle Name="wiA5">
+			<Description><![CDATA["5. 角度範囲の始め（0°＝車体の前）"]]></Description>
+			<Value>-30.0</Value>
+		</Angle>
+		<Angle Name="wiB5">
+			<Description><![CDATA["5. 角度範囲の終わり"]]></Description>
+			<Value>30.0</Value>
+		</Angle>
+		<Angle Name="wiM5">
+			<Description><![CDATA["5. 範囲の中央（ホットスポット）"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="wiF5">
+			<Description><![CDATA["5. 文字反転"]]></Description>
+			<Value>0</Value>
+		</Boolean>
 		<Integer Name="avN">
 			<Description><![CDATA["航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）"]]></Description>
 			<Value>0</Value>

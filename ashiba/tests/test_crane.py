@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import sys
 import unittest
 
@@ -449,6 +450,65 @@ class TestCraneLod(unittest.TestCase):
         self.assertEqual(len(q["rtR"].split(",")), len(q["rtT"].split(",")))
         self.assertLessEqual(len(q["rtR"]), 255)
         self.assertEqual(tower_params(TOWERS["v600"])["tcClr"], 2)                 # JCC は赤白（IHI 技報）
+
+
+class TestRadiiDisplay(unittest.TestCase):
+    """平面の作業半径の表示（SCP の「クレーン設定」。利用者の指定 2026-11-07「これも機能追加して」）."""
+
+    PARTS = ("ashiba_crane", "ashiba_machine", "ashiba_tower")
+
+    def hsf(self, part, name):
+        return (SRC.parent / "gdl" / "hsf" / part / name).read_text(encoding="utf-8")
+
+    def test_all_cranes_have_the_items(self):
+        for part in self.PARTS:
+            pl = self.hsf(part, "paramlist.xml")
+            for n in ("wiNum", "wiPen", *(f"wi{k}{i}" for k in "RABMF" for i in range(1, 6))):
+                self.assertIn(f'Name="{n}"', pl, part)
+
+    def test_each_item_has_radius_range_and_turn_hotspots(self):
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/2d.gdl")
+            for i in range(1, 6):
+                for n, flags in ((f"wiR{i}", (r"1 \+ 128", "2", "3")), (f"wiA{i}", ("6", "4", "5")), (f"wiB{i}", ("6", "4", "5")), (f"wiM{i}", ("6", "4", "5"))):
+                    for f in flags:
+                        self.assertRegex(g, rf"hotspot2 .*, {n}, {f}\n", part)
+            ids = re.findall(r"hotspot2 [^\n]*?, (\d+), (?!hid\b)[a-zA-Z]\w*, ", g)      # hid は番号の変数（前の数は座標）
+            self.assertEqual(len(ids), len(set(ids)), part)
+
+    def test_turning_the_middle_moves_both_ends(self):
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/vl.gdl")
+            self.assertIn("parameters wiA1 = wiM1 - wiSq[1] / 2, wiB1 = wiM1 + wiSq[1] / 2", g)
+            self.assertIn('hideparameter "wiR5", "wiA5", "wiB5", "wiF5"', g)
+
+    def test_rated_load_uses_each_radius(self):
+        self.assertIn("if rr[k] >= wiRq[wq] - 0.001 then iQ = k", self.hsf("ashiba_crane", "scripts/1d.gdl"))
+        self.assertIn("if mtR[k] >= wiRq[wq] - 0.001 then iQ = k", self.hsf("ashiba_machine", "scripts/1d.gdl"))
+        self.assertIn("if qR[k] >= wiRq[wq] - 0.001 and k <= nQt then vq = qT[k] / 100", self.hsf("ashiba_tower", "scripts/1d.gdl"))
+
+    def test_settings_page_follows_the_count(self):
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/ui.gdl")
+            self.assertIn('ui_infield "wiNum"', g)
+            self.assertIn("if nWi >= 5 then", g)
+            self.assertIn('ui_infield "wiPen"', g)
+            self.assertIn("<Script_UI", self.hsf(part, "libpartdata.xml"))
+
+    def test_placing_shows_the_lift_radii_at_the_boom(self):
+        from ashiba.crane import radii_values
+
+        v = radii_values([14.0, 9.0, 14.0], 30.0)
+        self.assertEqual(v["wiNum"], 2)
+        self.assertEqual((v["wiR1"], v["wiR2"]), (9.0, 14.0))
+        self.assertEqual((v["wiA1"], v["wiB1"], v["wiM1"]), (20.0, 40.0, 30.0))
+        self.assertEqual(radii_values([float(r) for r in range(5, 12)], 0.0)["wiNum"], 5)
+
+    def test_angles_go_to_tapir_in_radians(self):
+        from ashiba.tapir_adapter import to_tapir_values
+
+        self.assertAlmostEqual(to_tapir_values({"wiA1": 180.0})["wiA1"], math.pi)
+        self.assertEqual(to_tapir_values({"wiR1": 10.0})["wiR1"], 10.0)
 
 
 class TestParamRoundtrip(unittest.TestCase):

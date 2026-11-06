@@ -51,6 +51,33 @@
 !   lbFat     ブール    太トラス（トラスを目立たせる）                                                                                                                                                                                   既定 0
 !   wrOn      ブール    作業半径を 3D に描く                                                                                                                                                                                             既定 0
 !   infoOn    ブール    クレーン情報を 3D に描く                                                                                                                                                                                         既定 0
+!   wiNum     整数      作業半径の表示数（0〜5）                                                                                                                                                                                         既定 1
+!   wiPen     PenColor  作業半径の文字色（0＝線のペン）                                                                                                                                                                                  既定 0
+!   wiR1      長さ      1. 作業半径                                                                                                                                                                                                      既定 10.0
+!   wiA1      角度      1. 角度範囲の始め（0°＝車体の前）                                                                                                                                                                                既定 -10.0
+!   wiB1      角度      1. 角度範囲の終わり                                                                                                                                                                                              既定 10.0
+!   wiM1      角度      1. 範囲の中央（ホットスポット）                                                                                                                                                                                  既定 0.0
+!   wiF1      ブール    1. 文字反転                                                                                                                                                                                                      既定 0
+!   wiR2      長さ      2. 作業半径                                                                                                                                                                                                      既定 15.0
+!   wiA2      角度      2. 角度範囲の始め（0°＝車体の前）                                                                                                                                                                                既定 -10.0
+!   wiB2      角度      2. 角度範囲の終わり                                                                                                                                                                                              既定 10.0
+!   wiM2      角度      2. 範囲の中央（ホットスポット）                                                                                                                                                                                  既定 0.0
+!   wiF2      ブール    2. 文字反転                                                                                                                                                                                                      既定 0
+!   wiR3      長さ      3. 作業半径                                                                                                                                                                                                      既定 20.0
+!   wiA3      角度      3. 角度範囲の始め（0°＝車体の前）                                                                                                                                                                                既定 -30.0
+!   wiB3      角度      3. 角度範囲の終わり                                                                                                                                                                                              既定 30.0
+!   wiM3      角度      3. 範囲の中央（ホットスポット）                                                                                                                                                                                  既定 0.0
+!   wiF3      ブール    3. 文字反転                                                                                                                                                                                                      既定 0
+!   wiR4      長さ      4. 作業半径                                                                                                                                                                                                      既定 25.0
+!   wiA4      角度      4. 角度範囲の始め（0°＝車体の前）                                                                                                                                                                                既定 -30.0
+!   wiB4      角度      4. 角度範囲の終わり                                                                                                                                                                                              既定 30.0
+!   wiM4      角度      4. 範囲の中央（ホットスポット）                                                                                                                                                                                  既定 0.0
+!   wiF4      ブール    4. 文字反転                                                                                                                                                                                                      既定 0
+!   wiR5      長さ      5. 作業半径                                                                                                                                                                                                      既定 30.0
+!   wiA5      角度      5. 角度範囲の始め（0°＝車体の前）                                                                                                                                                                                既定 -30.0
+!   wiB5      角度      5. 角度範囲の終わり                                                                                                                                                                                              既定 30.0
+!   wiM5      角度      5. 範囲の中央（ホットスポット）                                                                                                                                                                                  既定 0.0
+!   wiF5      ブール    5. 文字反転                                                                                                                                                                                                      既定 0
 !   texZ      実数      クレーン情報の文字の高さ（m）                                                                                                                                                                                    既定 0.6
 !   mcClr     整数      色の組（0 重機の既定・1 コベルコの青緑）                                                                                                                                                                         既定 0
 !   lbR       長さ      作業半径（旋回中心からフック。平面のフックのホットスポットで引くと起伏角が変わる）                                                                                                                               既定 11.0
@@ -557,6 +584,60 @@ if mcKind = 2 then
 	if hkX < rMin - 0.001 or hkX > rMax + 0.001 then rated = 0
 endif
 capT = rated * sfRate
+! 作業半径の表示（scripts/gdl_radii.py）
+nWi = max(0, min(5, wiNum)) * (mcKind = 2)
+dim wiRq[5], wiAq[5], wiBq[5], wiSq[5], wiMq[5], wiFq[5], wiTq[5]
+wiRq[1] = wiR1
+wiAq[1] = wiA1
+wiBq[1] = wiB1
+wiFq[1] = wiF1
+wiRq[2] = wiR2
+wiAq[2] = wiA2
+wiBq[2] = wiB2
+wiFq[2] = wiF2
+wiRq[3] = wiR3
+wiAq[3] = wiA3
+wiBq[3] = wiB3
+wiFq[3] = wiF3
+wiRq[4] = wiR4
+wiAq[4] = wiA4
+wiBq[4] = wiB4
+wiFq[4] = wiF4
+wiRq[5] = wiR5
+wiAq[5] = wiA5
+wiBq[5] = wiB5
+wiFq[5] = wiF5
+for wq = 1 to 5
+	wS0 = wiBq[wq] - wiAq[wq] + 720
+	wS0 = wS0 - int(wS0 / 360) * 360
+	if wS0 < 0.01 then wS0 = 360
+	wiSq[wq] = wS0
+	wiMq[wq] = wiAq[wq] + wS0 / 2
+next wq
+for wq = 1 to nWi
+	vq = 0
+	iQ = 0
+	if jbL > 0.01 then
+		for k = min(nJr, nJt) to 1 step -1
+			if jtR[k] >= wiRq[wq] - 0.001 then iQ = k
+		next k
+		if iQ > 0 then vq = jtT[iQ] / 100
+	else
+		for k = nMr to 1 step -1
+			if mtR[k] >= wiRq[wq] - 0.001 then iQ = k
+		next k
+		if iQ > 0 then
+			if jB = 1 and iQ <= nC1 then vq = mtC1[iQ] / 100
+			if jB = 2 and iQ <= nC2 then vq = mtC2[iQ] / 100
+			if jB = 3 and iQ <= nC3 then vq = mtC3[iQ] / 100
+			if jB = 4 and iQ <= nC4 then vq = mtC4[iQ] / 100
+			if jB = 5 and iQ <= nC5 then vq = mtC5[iQ] / 100
+		endif
+	endif
+	if wiRq[wq] < rMin - 0.001 or wiRq[wq] > rMax + 0.001 then vq = 0
+	vq = vq * sfRate
+	wiTq[wq] = vq
+next wq
 ! アースドリルのテレスコブームの先
 tbX = pvX + tbL * cos(tbA)
 tbZ = pvH + tbL * sin(tbA)
@@ -1265,6 +1346,123 @@ if mcKind = 2 then
 		del 2
 	endif
 	drawindex 45
+endif
+! 作業半径の表示（弧と線と文字。scripts/gdl_radii.py）
+if nWi > 0 then
+	define style "wiS" "ＭＳ Ｐゴシック", texSiz, 8, 0
+	drawindex 50
+	line_type ltS
+endif
+for wq = 1 to nWi
+	wRr = wiRq[wq]
+	wAm = wiMq[wq]
+	pen pZ
+	if wiSq[wq] >= 359.9 then
+		circle2 0, 0, wRr
+	else
+		arc2 0, 0, wRr, wiAq[wq], wiAq[wq] + wiSq[wq]
+	endif
+	line2 0, 0, wRr * cos(wAm), wRr * sin(wAm)
+	wVr = wRr
+	wVt = wiTq[wq]
+	wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+	if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+	! 読める向き（図面の上で左へ倒れない）に向け、文字反転でさらに 180°
+	wAt = wAm + SYMB_ROTANGLE + 1080
+	wAt = wAt - int(wAt / 360) * 360
+	wFl = (wAt > 90 and wAt <= 270)
+	if wiFq[wq] then wFl = 1 - wFl
+	pen penEquip
+	if wiPen > 0 then pen wiPen
+	style "wiS"
+	add2 wRr * 0.5 * cos(wAm), wRr * 0.5 * sin(wAm)
+	rot2 wAm + 180 * wFl
+	text2 0, texSiz * GLOB_SCALE / 1000 * 0.3, wTx
+	del 2
+next wq
+if nWi > 0 then
+	style "mcT"
+	pen pZ
+endif
+if nWi >= 1 then
+	wRr = wiRq[1]
+	wAm = wiMq[1]
+	hotspot2 0, 0, 900, wiR1, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 901, wiR1, 2
+	hotspot2 -cos(wAm), -sin(wAm), 902, wiR1, 3
+	hotspot2 0, 0, 903, wiA1, 6
+	hotspot2 wRr, 0, 904, wiA1, 4
+	hotspot2 wRr * cos(wiA1), wRr * sin(wiA1), 905, wiA1, 5
+	hotspot2 0, 0, 906, wiB1, 6
+	hotspot2 wRr, 0, 907, wiB1, 4
+	hotspot2 wRr * cos(wiB1), wRr * sin(wiB1), 908, wiB1, 5
+	hotspot2 0, 0, 909, wiM1, 6
+	hotspot2 wRr * 0.75, 0, 910, wiM1, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 911, wiM1, 5
+endif
+if nWi >= 2 then
+	wRr = wiRq[2]
+	wAm = wiMq[2]
+	hotspot2 0, 0, 912, wiR2, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 913, wiR2, 2
+	hotspot2 -cos(wAm), -sin(wAm), 914, wiR2, 3
+	hotspot2 0, 0, 915, wiA2, 6
+	hotspot2 wRr, 0, 916, wiA2, 4
+	hotspot2 wRr * cos(wiA2), wRr * sin(wiA2), 917, wiA2, 5
+	hotspot2 0, 0, 918, wiB2, 6
+	hotspot2 wRr, 0, 919, wiB2, 4
+	hotspot2 wRr * cos(wiB2), wRr * sin(wiB2), 920, wiB2, 5
+	hotspot2 0, 0, 921, wiM2, 6
+	hotspot2 wRr * 0.75, 0, 922, wiM2, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 923, wiM2, 5
+endif
+if nWi >= 3 then
+	wRr = wiRq[3]
+	wAm = wiMq[3]
+	hotspot2 0, 0, 924, wiR3, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 925, wiR3, 2
+	hotspot2 -cos(wAm), -sin(wAm), 926, wiR3, 3
+	hotspot2 0, 0, 927, wiA3, 6
+	hotspot2 wRr, 0, 928, wiA3, 4
+	hotspot2 wRr * cos(wiA3), wRr * sin(wiA3), 929, wiA3, 5
+	hotspot2 0, 0, 930, wiB3, 6
+	hotspot2 wRr, 0, 931, wiB3, 4
+	hotspot2 wRr * cos(wiB3), wRr * sin(wiB3), 932, wiB3, 5
+	hotspot2 0, 0, 933, wiM3, 6
+	hotspot2 wRr * 0.75, 0, 934, wiM3, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 935, wiM3, 5
+endif
+if nWi >= 4 then
+	wRr = wiRq[4]
+	wAm = wiMq[4]
+	hotspot2 0, 0, 936, wiR4, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 937, wiR4, 2
+	hotspot2 -cos(wAm), -sin(wAm), 938, wiR4, 3
+	hotspot2 0, 0, 939, wiA4, 6
+	hotspot2 wRr, 0, 940, wiA4, 4
+	hotspot2 wRr * cos(wiA4), wRr * sin(wiA4), 941, wiA4, 5
+	hotspot2 0, 0, 942, wiB4, 6
+	hotspot2 wRr, 0, 943, wiB4, 4
+	hotspot2 wRr * cos(wiB4), wRr * sin(wiB4), 944, wiB4, 5
+	hotspot2 0, 0, 945, wiM4, 6
+	hotspot2 wRr * 0.75, 0, 946, wiM4, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 947, wiM4, 5
+endif
+if nWi >= 5 then
+	wRr = wiRq[5]
+	wAm = wiMq[5]
+	hotspot2 0, 0, 948, wiR5, 1 + 128
+	hotspot2 wRr * cos(wAm), wRr * sin(wAm), 949, wiR5, 2
+	hotspot2 -cos(wAm), -sin(wAm), 950, wiR5, 3
+	hotspot2 0, 0, 951, wiA5, 6
+	hotspot2 wRr, 0, 952, wiA5, 4
+	hotspot2 wRr * cos(wiA5), wRr * sin(wiA5), 953, wiA5, 5
+	hotspot2 0, 0, 954, wiB5, 6
+	hotspot2 wRr, 0, 955, wiB5, 4
+	hotspot2 wRr * cos(wiB5), wRr * sin(wiB5), 956, wiB5, 5
+	hotspot2 0, 0, 957, wiM5, 6
+	hotspot2 wRr * 0.75, 0, 958, wiM5, 4
+	hotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), 959, wiM5, 5
 endif
 ! 旋回の中心（一点鎖線の十字。簡略は小さく）
 if isCr or mcKind = 3 or mcKind = 6 then
@@ -3520,6 +3718,80 @@ return
 	return
 
 ! ==========================================================
+! ==== UIスクリプト ====
+! ==========================================================
+! クレーン設定: 作業半径の表示（scripts/gdl_radii.py）
+ui_dialog "クレーン設定", 444, 266
+if (mcKind = 2) then
+ui_outfield "平面の作業半径の表示", 12, 8, 300, 18
+ui_outfield "表示数", 12, 32, 60, 18
+ui_infield "wiNum", 76, 30, 50, 20
+ui_outfield "半径", 186, 32, 60, 18
+ui_outfield "角度範囲", 250, 32, 120, 18
+ui_outfield "文字反転", 376, 32, 60, 18
+if nWi >= 1 then
+wVr = wiRq[1]
+wVt = wiTq[1]
+wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+ui_outfield "1. " + strsub(wTx, 6, 40), 12, 60, 170, 18
+ui_infield "wiR1", 186, 58, 60, 20
+ui_infield "wiA1", 250, 58, 60, 20
+ui_infield "wiB1", 314, 58, 60, 20
+ui_infield "wiF1", 392, 58, 20, 20
+endif
+if nWi >= 2 then
+wVr = wiRq[2]
+wVt = wiTq[2]
+wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+ui_outfield "2. " + strsub(wTx, 6, 40), 12, 88, 170, 18
+ui_infield "wiR2", 186, 86, 60, 20
+ui_infield "wiA2", 250, 86, 60, 20
+ui_infield "wiB2", 314, 86, 60, 20
+ui_infield "wiF2", 392, 86, 20, 20
+endif
+if nWi >= 3 then
+wVr = wiRq[3]
+wVt = wiTq[3]
+wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+ui_outfield "3. " + strsub(wTx, 6, 40), 12, 116, 170, 18
+ui_infield "wiR3", 186, 114, 60, 20
+ui_infield "wiA3", 250, 114, 60, 20
+ui_infield "wiB3", 314, 114, 60, 20
+ui_infield "wiF3", 392, 114, 20, 20
+endif
+if nWi >= 4 then
+wVr = wiRq[4]
+wVt = wiTq[4]
+wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+ui_outfield "4. " + strsub(wTx, 6, 40), 12, 144, 170, 18
+ui_infield "wiR4", 186, 142, 60, 20
+ui_infield "wiA4", 250, 142, 60, 20
+ui_infield "wiB4", 314, 142, 60, 20
+ui_infield "wiF4", 392, 142, 20, 20
+endif
+if nWi >= 5 then
+wVr = wiRq[5]
+wVt = wiTq[5]
+wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
+if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
+ui_outfield "5. " + strsub(wTx, 6, 40), 12, 172, 170, 18
+ui_infield "wiR5", 186, 170, 60, 20
+ui_infield "wiA5", 250, 170, 60, 20
+ui_infield "wiB5", 314, 170, 60, 20
+ui_infield "wiF5", 392, 170, 20, 20
+endif
+ui_outfield "文字色", 12, 206, 60, 18
+ui_infield "wiPen", 76, 204, 60, 20
+ui_outfield "0°は車体の前。平面の弧の中央で半径、両端で範囲、線の途中で範囲ごと回せます", 12, 234, 420, 18
+else
+ui_outfield "クローラクレーンのときに使います", 12, 8, 300, 18
+endif
+
+! ==========================================================
 ! ==== パラメータスクリプト ====
 ! ==========================================================
 ! 重機: 種類の一覧
@@ -3605,6 +3877,62 @@ if mcKind = 2 then
 		if abs(lbR - hkX) > 0.001 then parameters lbR = hkX
 		if abs(hfX - hkX * cos(slew)) + abs(hfY - hkX * sin(slew)) > 0.001 then parameters hfX = hkX * cos(slew), hfY = hkX * sin(slew)
 	endif
+endif
+! 作業半径の表示（scripts/gdl_radii.py）
+values "wiNum" range [0, 5]
+wMp = GLOB_MODPAR_NAME
+values "wiR1" range [0.5, ]
+if wMp = "wiM1" then
+	parameters wiA1 = wiM1 - wiSq[1] / 2, wiB1 = wiM1 + wiSq[1] / 2
+else
+	if abs(wiM1 - wiMq[1]) > 0.001 then parameters wiM1 = wiMq[1]
+endif
+hideparameter "wiM1"
+if nWi < 1 then
+	hideparameter "wiR1", "wiA1", "wiB1", "wiF1"
+endif
+values "wiR2" range [0.5, ]
+if wMp = "wiM2" then
+	parameters wiA2 = wiM2 - wiSq[2] / 2, wiB2 = wiM2 + wiSq[2] / 2
+else
+	if abs(wiM2 - wiMq[2]) > 0.001 then parameters wiM2 = wiMq[2]
+endif
+hideparameter "wiM2"
+if nWi < 2 then
+	hideparameter "wiR2", "wiA2", "wiB2", "wiF2"
+endif
+values "wiR3" range [0.5, ]
+if wMp = "wiM3" then
+	parameters wiA3 = wiM3 - wiSq[3] / 2, wiB3 = wiM3 + wiSq[3] / 2
+else
+	if abs(wiM3 - wiMq[3]) > 0.001 then parameters wiM3 = wiMq[3]
+endif
+hideparameter "wiM3"
+if nWi < 3 then
+	hideparameter "wiR3", "wiA3", "wiB3", "wiF3"
+endif
+values "wiR4" range [0.5, ]
+if wMp = "wiM4" then
+	parameters wiA4 = wiM4 - wiSq[4] / 2, wiB4 = wiM4 + wiSq[4] / 2
+else
+	if abs(wiM4 - wiMq[4]) > 0.001 then parameters wiM4 = wiMq[4]
+endif
+hideparameter "wiM4"
+if nWi < 4 then
+	hideparameter "wiR4", "wiA4", "wiB4", "wiF4"
+endif
+values "wiR5" range [0.5, ]
+if wMp = "wiM5" then
+	parameters wiA5 = wiM5 - wiSq[5] / 2, wiB5 = wiM5 + wiSq[5] / 2
+else
+	if abs(wiM5 - wiMq[5]) > 0.001 then parameters wiM5 = wiMq[5]
+endif
+hideparameter "wiM5"
+if nWi < 5 then
+	hideparameter "wiR5", "wiA5", "wiB5", "wiF5"
+endif
+if (mcKind = 2) = 0 then
+	hideparameter "wiNum", "wiPen"
 endif
 ! 機種を選ぶと、src/ashiba/machine.py の寸法を書き込む（gen_machine_gdl.py が書き出す）
 dim mdV[], mdS[]

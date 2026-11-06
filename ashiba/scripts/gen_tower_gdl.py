@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from gen_hoist_gdl import _param  # noqa: E402
 from gen_ywall_gdl import _list  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_tower"
 MAIN_GUID = "7A3F1C58-9E24-4D6B-8F12-6C4E9B2A7D31"
@@ -82,6 +83,7 @@ def paramlist() -> str:
         _param("Boolean", "msStep", "マストの高さを節の長さに吸い付ける（段階マスト）", 0),
         _param("Boolean", "hkLim", "フックを規定の揚程の範囲に制限する（最大揚程）", 0),
         _param("Length", "hkMax", "最大揚程（地盤からフックの上限）", 0.0),
+        *gdl_radii.params(_param),
         _param("Integer", "avN", "航空障害灯（0＝無し・1＝塔頂とジブ先端・2 以上＝ジブの途中に avN−1 個）", 0),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
         "\t\t<PenColor Name=\"penEquip\">\n\t\t\t<Description><![CDATA[\"線のペン\"]]></Description>\n"
@@ -117,7 +119,7 @@ if hkLim and hkMax > 0.1 then hZ = min(hZ, hkMax)
 for i = nQr to 1 step -1
 	if qR[i] >= hX - 0.001 and i <= nQt then capT = qT[i] / 100
 next i
-! 壁つなぎの高さ（mm の文字 → m）
+""" + gdl_radii.master() + gdl_radii.rated_loop('\tfor k = nQr to 1 step -1\n\t\tif qR[k] >= wiRq[wq] - 0.001 and k <= nQt then vq = qT[k] / 100\n\tnext k\n') + """! 壁つなぎの高さ（mm の文字 → m）
 dim tz[]
 nTz = 0
 rest = tieZ
@@ -274,7 +276,7 @@ rot2 -SYMB_ROTANGLE
 if capT > 0 then text2 0.6, dT, "定格 " + str(capT, 5, 2) + "t"
 text2 0.6, 0, "R" + str(round_int(hX * 1000), 1, 0)
 del 2
-! 旋回角のホットスポット
+@RADII@! 旋回角のホットスポット
 rH = max(3.0, tailR)
 hotspot2 0, 0, 1, slew, 6
 hotspot2 rH, 0, 2, slew, 4
@@ -292,7 +294,7 @@ def _script_2d() -> str:
         "@CWMASK@": D.rect_mask("-tailR", "dkY - cwW / 2", "-tailR + cwL", "dkY + cwW / 2", t).rstrip("\n"),
         "@DKMASK@": D.rect_mask("-tailR + cwL", "dkY - dkW / 2", "upF", "dkY + dkW / 2", t).rstrip("\n"),
     }
-    out = SCRIPT_2D_T
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pT", "ltS", "penEquip", "tcT"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -881,9 +883,10 @@ def main() -> int:
     (OUT / "scripts").mkdir(parents=True, exist_ok=True)
     (OUT / "paramlist.xml").write_text(paramlist(), encoding="utf-8")
     (OUT / "scripts" / "1d.gdl").write_text(SCRIPT_1D, encoding="utf-8")
-    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + model_vl() + gdl_draft.values(), encoding="utf-8")
+    (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL + gdl_radii.vl() + model_vl() + gdl_draft.values(), encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui(), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"
         f"\t<Identification>\n\t\t<MainGUID>{MAIN_GUID}</MainGUID>\n\t\t<IsPlaceable>true</IsPlaceable>\n"
@@ -893,6 +896,7 @@ def main() -> int:
         "\t<Script_3D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_2D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_1D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
+        "\t<Script_UI SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_VL SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<ParamSection SectVersion=\"27\" SectionFlags=\"0\" SubIdent=\"0\"/>\n</LibpartData>\n", encoding="utf-8")
     (OUT / "ancestry.xml").write_text(

@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from gen_cfill_gdl import _parse_all  # noqa: E402
 from gen_hoist_gdl import _param  # noqa: E402
 import gdl_draft  # noqa: E402
+import gdl_radii  # noqa: E402
 
 OUT = ROOT / "gdl" / "hsf" / "ashiba_crane"
 MAIN_GUID = "3B7D9E15-2C48-4F6A-9D1E-5A2C8B7F4E63"
@@ -108,6 +109,7 @@ def paramlist() -> str:
         _param("Boolean", "wrFlip", "作業半径の文字を反転する", 0),
         _param("Boolean", "bmStep", "ブームの長さを性能表の段に吸い付ける（段階ブーム。長さ優先のとき）", 0),
         _param("Boolean", "infoOn", "クレーン情報を 3D に描く", 0),
+        *gdl_radii.params(_param),
         _param("RealNum", "texZ", "クレーン情報の文字の高さ（m）", 0.6),
         _param("Integer", "clr", "色の組（1 タダノ 白と青・2 加藤 黄と濃灰・3 灰）", 1),
         _param("Length", "ftZ", "フートピンの高さ（上部原点から）", 1.71),
@@ -269,7 +271,7 @@ capT = rated * sfRate
 needT = loadT + hookT + rigT
 okL = 0
 if rated > 0 and needT <= capT then okL = 1
-""")
+""" + gdl_radii.master() + gdl_radii.rated_loop('\tiQ = 0\n\tfor k = nRr to 1 step -1\n\t\tif rr[k] >= wiRq[wq] - 0.001 then iQ = k\n\tnext k\n\tif iQ > 0 then\n\t\tif jB = 1 and iQ <= nTc1 then vq = tc1[iQ] * 10\n\t\tif jB = 2 and iQ <= nTc2 then vq = tc2[iQ] * 10\n\t\tif jB = 3 and iQ <= nTc3 then vq = tc3[iQ] * 10\n\t\tif jB = 4 and iQ <= nTc4 then vq = tc4[iQ] * 10\n\t\tif jB = 5 and iQ <= nTc5 then vq = tc5[iQ] * 10\n\t\tif jB = 6 and iQ <= nTc6 then vq = tc6[iQ] * 10\n\t\tif jB = 7 and iQ <= nTc7 then vq = tc7[iQ] * 10\n\t\tif jB = 8 and iQ <= nTc8 then vq = tc8[iQ] * 10\n\t\tif jB = 9 and iQ <= nTc9 then vq = tc9[iQ] * 10\n\t\tif jB = 10 and iQ <= nTc10 then vq = tc10[iQ] * 10\n\t\tif jB = 11 and iQ <= nTc11 then vq = tc11[iQ] * 10\n\t\tif jB = 12 and iQ <= nTc12 then vq = tc12[iQ] * 10\n\tendif\n\tif jL > 0.01 or wiRq[wq] < rMin - 0.001 then vq = 0\n\tvq = vq * sfRate\n') + """""")
 
 SCRIPT_2D_T = """﻿! 移動式クレーン 2D: 車体・アウトリガ・敷鉄板・後端旋回半径（立入禁止）・作業半径の扇・ブームとフック・定格の注記・ホットスポット
 ! 文字の数は str(数, 1, 0)、小数は長さに余裕を（str(x, 1, 1) は平面図でこの部品の 2D を丸ごと消した。プレビューでは描けていた）
@@ -522,7 +524,7 @@ hotspot2 0, 0, 4, slew, 6
 hotspot2 rH, 0, 5, slew, 4
 hotspot2 rH * cos(slD), rH * sin(slD), 6, slew, 5
 rW = tipX * 1.1
-hotspot2 0, 0, 7, wrDir, 6
+@RADII@hotspot2 0, 0, 7, wrDir, 6
 hotspot2 rW, 0, 8, wrDir, 4
 hotspot2 rW * cos(wrDir), rW * sin(wrDir), 9, wrDir, 5
 ! アウトリガ4脚のホットスポット（ジャッキの所を車体の横へ引く）
@@ -571,7 +573,7 @@ def _script_2d() -> str:
         "@UPMASK@": D.mask([("1.6", "-uw"), ("1.6", "uw")] + D.arc_pts("tailR", "180 - au", "180 + au"), t).rstrip("\n"),
         "@BOOMMASK@": D.rect_mask("-pivB", "-bmW / 2", "tipX + 0.25", "bmW / 2", t).rstrip("\n"),
     }
-    out = SCRIPT_2D_T
+    out = SCRIPT_2D_T.replace("@RADII@", gdl_radii.plan("pZ", "ltS", "penEquip", "crT"))
     for k, v in rep.items():
         assert k in out, k
         out = out.replace(k, v)
@@ -1441,7 +1443,7 @@ if oSnap and nSs > 0 and (mp = "oFL" or mp = "oFR" or mp = "oRL" or mp = "oRR") 
 	if mp = "oRR" then parameters oRR = bq
 endif
 ! outW から4脚へは書き戻さない（Tapir でまとめて入れると GLOB_MODPAR_NAME が outW のまま古い outW で脚を上書きした。2026-11-01）
-""" + gdl_draft.values()
+""" + gdl_radii.vl() + gdl_draft.values()
 
 
 def main() -> int:
@@ -1451,6 +1453,7 @@ def main() -> int:
     (OUT / "scripts" / "vl.gdl").write_text(SCRIPT_VL, encoding="utf-8")
     (OUT / "scripts" / "2d.gdl").write_text(SCRIPT_2D, encoding="utf-8")
     (OUT / "scripts" / "3d.gdl").write_text(SCRIPT_3D, encoding="utf-8")
+    (OUT / "scripts" / "ui.gdl").write_text(gdl_radii.ui(), encoding="utf-8")
     (OUT / "libpartdata.xml").write_text(
         "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LibpartData Owner=\"1196638531\" Signature=\"1196644685\" Version=\"44\">\n"
         f"\t<Identification>\n\t\t<MainGUID>{MAIN_GUID}</MainGUID>\n\t\t<IsPlaceable>true</IsPlaceable>\n"
@@ -1460,6 +1463,7 @@ def main() -> int:
         "\t<Script_3D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_2D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_1D SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
+        "\t<Script_UI SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<Script_VL SectVersion=\"20\" SectionFlags=\"0\" SubIdent=\"0\"/>\n"
         "\t<ParamSection SectVersion=\"27\" SectionFlags=\"0\" SubIdent=\"0\"/>\n</LibpartData>\n", encoding="utf-8")
     (OUT / "ancestry.xml").write_text(

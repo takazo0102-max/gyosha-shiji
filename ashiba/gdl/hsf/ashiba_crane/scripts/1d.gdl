@@ -555,3 +555,57 @@ capT = rated * sfRate
 needT = loadT + hookT + rigT
 okL = 0
 if rated > 0 and needT <= capT then okL = 1
+! 作業半径の表示（scripts/gdl_radii.py）
+nWi = max(0, min(5, wiNum)) * (1)
+dim wiRq[5], wiAq[5], wiBq[5], wiSq[5], wiMq[5], wiFq[5], wiTq[5]
+wiRq[1] = wiR1
+wiAq[1] = wiA1
+wiBq[1] = wiB1
+wiFq[1] = wiF1
+wiRq[2] = wiR2
+wiAq[2] = wiA2
+wiBq[2] = wiB2
+wiFq[2] = wiF2
+wiRq[3] = wiR3
+wiAq[3] = wiA3
+wiBq[3] = wiB3
+wiFq[3] = wiF3
+wiRq[4] = wiR4
+wiAq[4] = wiA4
+wiBq[4] = wiB4
+wiFq[4] = wiF4
+wiRq[5] = wiR5
+wiAq[5] = wiA5
+wiBq[5] = wiB5
+wiFq[5] = wiF5
+for wq = 1 to 5
+	wS0 = wiBq[wq] - wiAq[wq] + 720
+	wS0 = wS0 - int(wS0 / 360) * 360
+	if wS0 < 0.01 then wS0 = 360
+	wiSq[wq] = wS0
+	wiMq[wq] = wiAq[wq] + wS0 / 2
+next wq
+for wq = 1 to nWi
+	vq = 0
+	iQ = 0
+	for k = nRr to 1 step -1
+		if rr[k] >= wiRq[wq] - 0.001 then iQ = k
+	next k
+	if iQ > 0 then
+		if jB = 1 and iQ <= nTc1 then vq = tc1[iQ] * 10
+		if jB = 2 and iQ <= nTc2 then vq = tc2[iQ] * 10
+		if jB = 3 and iQ <= nTc3 then vq = tc3[iQ] * 10
+		if jB = 4 and iQ <= nTc4 then vq = tc4[iQ] * 10
+		if jB = 5 and iQ <= nTc5 then vq = tc5[iQ] * 10
+		if jB = 6 and iQ <= nTc6 then vq = tc6[iQ] * 10
+		if jB = 7 and iQ <= nTc7 then vq = tc7[iQ] * 10
+		if jB = 8 and iQ <= nTc8 then vq = tc8[iQ] * 10
+		if jB = 9 and iQ <= nTc9 then vq = tc9[iQ] * 10
+		if jB = 10 and iQ <= nTc10 then vq = tc10[iQ] * 10
+		if jB = 11 and iQ <= nTc11 then vq = tc11[iQ] * 10
+		if jB = 12 and iQ <= nTc12 then vq = tc12[iQ] * 10
+	endif
+	if jL > 0.01 or wiRq[wq] < rMin - 0.001 then vq = 0
+	vq = vq * sfRate
+	wiTq[wq] = vq
+next wq
