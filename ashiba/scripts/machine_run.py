@@ -300,13 +300,13 @@ def front_archicad(c) -> None:
         pass
 
 
-def pick_line(c) -> list | None:
+def pick_line(c, start: str = "Click the place of the machine", end: str = "Click the front direction") -> list | None:
     """平面図で 2回クリックしてもらう → [置く所, 向きの点]（mm）. Esc なら None. 案内の文字は 1バイトのみ（Tapir の説明）."""
     from ashiba.tapir_adapter import TapirError
 
     saved, c.timeout = c.timeout, PICK_WAIT_S
     try:
-        r = c.tapir("GetLineFromUser", {"startPrompt": "Click the place of the machine", "endPrompt": "Click the front direction",
+        r = c.tapir("GetLineFromUser", {"startPrompt": start, "endPrompt": end,
                                         "showRubberLineFeedback": True}, retries=0)
     except TapirError as e:
         print(f"  クリックを受け取れませんでした（{str(e)[:120]}）")
