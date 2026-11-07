@@ -312,7 +312,12 @@ def soil_material(c) -> dict | None:
             sfs = names("Surface")
             if SOIL_NAME not in sfs:
                 r, g, b = SOIL_RGB
-                c.tapir("CreateSurfaces", {"surfaceDataArray": [{"name": SOIL_NAME, "surfaceColor": {"red": r, "green": g, "blue": b}}],
+                # 反射を入れないと 3D の窓（OpenGL）で真っ黒に描かれる（2026-11-07 利用者「敷地真っ黒やめてよ」）
+                c.tapir("CreateSurfaces", {"surfaceDataArray": [{"name": SOIL_NAME, "materialType": "General",
+                                                                 "surfaceColor": {"red": r, "green": g, "blue": b},
+                                                                 "ambientReflection": 60, "diffuseReflection": 80, "specularReflection": 5,
+                                                                 "transparency": 0, "shine": 5, "emissionAttenuation": 0,
+                                                                 "transparencyAttenuation": 0, "specularColor": {"red": 1, "green": 1, "blue": 1}}],
                                            "overwriteExisting": False})
                 sfs = names("Surface")
             c.tapir("CreateBuildingMaterials", {"buildingMaterialDataArray": [{"name": SOIL_NAME, "cutSurfaceIndex": sfs[SOIL_NAME]["index"]}],

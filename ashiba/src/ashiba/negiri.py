@@ -844,7 +844,9 @@ def mesh_data(n: Negiri) -> list[dict]:
                 rr = _shrink(rr, 20.0)
             used.append((L, rr))
             subs.append({"coordinates": [{"x": x / 1000.0, "y": y / 1000.0, "z": (L - n.gl) / 1000.0} for x, y in rr + rr[:1]]})
-        out.append({"level": n.gl / 1000.0,
+        # 面だけ（側面・底の塊なし）: 既定の「立体＋側面」は掘削面の下に深さ 1m ほどの黒い塊を描き、1m 以上掘っているように見えた
+        # （2026-11-07 利用者「1m以上掘削してるよ」→ 3D で確かめた）
+        out.append({"level": n.gl / 1000.0, "skirtType": "SurfaceOnlyWithoutSkirt",
                     "polygonCoordinates": [{"x": x / 1000.0, "y": y / 1000.0, "z": 0.0} for x, y in top],
                     "sublines": subs})
     return out
