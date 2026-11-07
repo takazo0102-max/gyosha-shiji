@@ -244,5 +244,23 @@ class TestRecord(unittest.TestCase):
             self.assertAlmostEqual(__import__("math").dist(a, b), 8000.0)
 
 
+    def test_wale_walls_for_perimeter_walkway(self):
+        """外周の足場（excav_run --haraokoshi）が、選んだ山留め壁の部品の辺と腹起し 1段目の天端を使う（2026-11-07 ループの試験）.
+        腹起しの無い（自立の）山留めは wale_top が None."""
+        import ywall_run as Y
+
+        with tempfile.TemporaryDirectory() as d:
+            rec = {"深": {"name": "深い", "kind": "oyagui", "pts": [list(p) for p in RECT], "closed": True, "depth": 5000.0,
+                          "guids": ["G1", "G2", "G3", "G4"]},
+                   "浅": {"name": "浅い", "kind": "oyagui", "pts": [list(p) for p in RECT], "closed": True, "depth": 2000.0,
+                          "guids": ["H1", "H2", "H3", "H4"]}}
+            (Path(d) / Y.RECORD).write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
+            got = Y.wale_walls(d, ["g2", "H1"])
+            self.assertEqual(set(got), {"G2", "H1"})
+            self.assertEqual((got["G2"]["wale_top"], got["G2"]["wale_w"], got["G2"]["thick"]), (-850.0, 300.0, 300.0))   # 切梁の天端と同じ
+            self.assertEqual(got["G2"]["name"], "深い-2")
+            self.assertIsNone(got["H1"]["wale_top"])
+            self.assertEqual(Y.wale_walls(d, ["X"]), {})
+
 if __name__ == "__main__":
     unittest.main()

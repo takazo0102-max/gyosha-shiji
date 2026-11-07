@@ -188,6 +188,50 @@ def edges_for(out_dir: Path, guids) -> list[tuple]:
     return out
 
 
+YW_WALE = "腹起し:山留め壁:"          # 外周の足場の控え（山留め足場.json）の鍵の頭（Archicad の壁でなく山留め壁の辺）
+
+
+def wale_walls(out_dir: Path, guids) -> dict:
+    """選んだ山留め壁の部品 → {部品の GUID: 壁の形（excav_run の壁と同じ鍵 ca・cb・n・lo・hi・thick・z0・height と、
+    腹起し 1段目の天端 wale_top・幅 wale_w mm）}. 腹起しの無い（自立の）山留めは wale_top が None.
+    外周の足場（腹起し上）を「山留め壁」の部品からも置く（2026-11-07 ループの試験で、手すり・切梁上の足場は部品を受けるのに
+    外周の足場だけ「山留め（壁）を選んで」と断っていた）."""
+    import math
+
+    from ashiba import retaining as RT
+
+    try:
+        rec = json.loads((Path(out_dir) / RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    want = {g.upper() for g in guids}
+    out = {}
+    for v in rec.values():
+        gs = [g.upper() for g in v.get("guids", [])]
+        if not want & set(gs):
+            continue
+        try:
+            w = wall_from(v)
+        except (KeyError, ValueError):
+            continue
+        t = RT.H_SHAPES[w.model][0] if w.model in RT.H_SHAPES else 300.0
+        shape = RT.wale_shape(w)[0]
+        wh, wb = RT.H_SHAPES[shape][0], RT.H_SHAPES[shape][1]
+        top = float(v.get("gl", 0.0)) + float(v.get("top_up", 0.0))
+        wale_top = float(v.get("gl", 0.0)) - min(w.wales) + wh / 2.0 if w.wales else None
+        for e, g in zip(w.edges, gs):
+            if g not in want:
+                continue
+            a, b = tuple(e.a), tuple(e.b)
+            L = math.dist(a, b)
+            if L < 100.0:
+                continue
+            u = ((b[0] - a[0]) / L, (b[1] - a[1]) / L)
+            out[g] = {"ca": a, "cb": b, "a": a, "b": b, "u": u, "n": (-u[1], u[0]), "lo": -t / 2.0, "hi": t / 2.0, "thick": t,
+                      "z0": top, "height": 0.0, "length": L, "name": e.name, "wale_top": wale_top, "wale_w": wb}
+    return out
+
+
 YW_STRUT = "切梁:山留め壁:"          # 切梁上の足場の控え（山留め足場.json）の鍵の頭（Archicad の梁でなく山留め壁の切梁）
 
 

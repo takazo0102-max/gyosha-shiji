@@ -43,6 +43,23 @@ class TestNegiri(unittest.TestCase):
         m = mesh_data(n)
         self.assertEqual(len(m), 1)
         self.assertGreaterEqual(len(m[0]["sublines"]), 2)                      # 一般の根切り底と基礎の床付け
+        # 床付けの線は外形（GL）の辺に乗らない（乗るとその点が深くなり、側面がのこぎりの帯になる。2026-11-07）
+        from ashiba.negiri import _touches
+        top = [(q["x"] * 1000.0, q["y"] * 1000.0) for q in m[0]["polygonCoordinates"]]
+        for sl in m[0]["sublines"]:
+            self.assertFalse(_touches([(q["x"] * 1000.0, q["y"] * 1000.0) for q in sl["coordinates"]], top))
+
+    def test_slope_in_degrees(self):
+        """法面は角度（度）で入れる（利用者の指定 2026-11-07）: 90°＝垂直、45°＝1:1、63°≒1:0.5. 書き方は度を先に."""
+        from ashiba.negiri import ratio_of_degrees, slope_label
+        self.assertEqual(ratio_of_degrees(90), 0.0)
+        self.assertAlmostEqual(ratio_of_degrees(45), 1.0)
+        self.assertAlmostEqual(ratio_of_degrees(63.43), 0.5, places=3)
+        for bad in (0, -10, 120):
+            with self.assertRaises(ValueError):
+                ratio_of_degrees(bad)
+        self.assertEqual(slope_label(0.5), "63°（1:0.5）")
+        self.assertEqual(slope_label(0.0), "垂直")
 
     def test_auto_slope_by_depth(self):
         """勾配の自動は積算基準（令和5年）の法の係数: 1.5m 未満は垂直、1.5〜5m は 1:0.3。砂は 1:1.5."""

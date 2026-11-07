@@ -96,6 +96,29 @@ class TestPalette(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.assertTrue((root / "scripts" / "spec_preset.py").exists())
 
+    def test_ask_name(self):
+        """登録名は窓で（save は今の登録名が初期値、load は登録済みから。登録が無ければ ""・やめたら None）. 2026-11-07 ループ."""
+        import json
+        import os
+        import sys
+        import tempfile
+        from unittest import mock
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import spec_preset as SP
+
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(SP, "OUT_DIR", Path(t)):
+            go = {"ASHIBA_FORM_ANSWER": json.dumps({"button": "go"})}
+            with mock.patch.dict(os.environ, go):
+                self.assertEqual(SP.ask_name("save", "定番A"), "定番A")       # 書かなければ初期値のまま
+                self.assertEqual(SP.ask_name("load", ""), "")                 # 登録が無い
+            (SP.preset_dir(Path(t))).mkdir(parents=True, exist_ok=True)
+            (SP.preset_dir(Path(t)) / "定番B.json").write_text("{}", encoding="utf-8")
+            with mock.patch.dict(os.environ, go):
+                self.assertEqual(SP.ask_name("load", "無い名前"), "定番B")
+            with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": json.dumps({"button": "cancel"})}):
+                self.assertIsNone(SP.ask_name("save", "定番A"))
+
     def test_labels(self):
         """呼び出しで変わった項目は設定ダイアログの名前で出す（toeBoard でなく「幅木を付ける」）. 部品の全部の項目に名前がある."""
         import sys

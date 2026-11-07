@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -34,14 +33,16 @@ def _choose(faces: list[str]) -> str | None:
     env = os.environ.get("ASHIBA_ASAGAO_MODE")
     if env:
         return env
-    q = lambda t: '"' + t.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    script = ("choose from list {" + ", ".join(q(t) for t in ASAGAO_MODES) + "} with title " + q("朝顔の面")
-              + " with prompt " + q("・".join(faces) + " の朝顔") + " default items {" + q(ASAGAO_MODES[0]) + "}"
-              + " OK button name " + q("決定") + " cancel button name " + q("やめる"))
-    # activate: パレットの窓は前に出ないので、窓を前に出さないと Archicad の後ろに隠れる（「配置できなくなった」2026-11-05）
-    r = subprocess.run(["osascript", "-e", "activate", "-e", script], capture_output=True, text=True)
-    out = (r.stdout or "").strip()
-    return None if r.returncode != 0 or not out or out == "false" else out
+    # 窓はほかのボタンと同じ（form_dialog）。osascript の一覧は試験の答え（ASHIBA_FORM_ANSWER）が効かず、見た目も違った（2026-11-07 ループ）
+    from form_dialog import show_form
+
+    items = list(ASAGAO_MODES)
+    res = show_form({"title": "朝顔の面", "intro": "・".join(faces) + " の朝顔",
+                     "fields": [{"key": "mode", "label": "朝顔の面", "kind": "choice", "options": items, "value": items[0]}],
+                     "buttons": [{"id": "go", "label": "決定"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "go":
+        return None
+    return str((res.get("values") or {}).get("mode") or "") or None
 
 
 def main() -> int:

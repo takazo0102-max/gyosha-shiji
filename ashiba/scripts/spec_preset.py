@@ -4,9 +4,8 @@
 階段の付け方・ネットの層など）に名前を付けて控え、別の建物の足場条件の部品へ呼び出す。
 
 使い方（躯体スラブを選んで。選んでいなければ最後に配置した建物）:
-  1. 足場条件の部品の「登録名」に名前を書く（⌘T、基本のページ）
-  2. 「登録」を押す → ashiba_out/条件の登録/<登録名>.json に控える
-  3. 別の建物の足場条件の部品の「登録名」に同じ名前を書いて「呼び出し」→「配置」
+  1. 「登録」を押し、窓で登録名を入れる（初期値は足場条件の部品の「登録名」）→ ashiba_out/条件の登録/<登録名>.json に控える
+  2. 別の建物で「呼び出し」を押し、窓の一覧から選ぶ →「配置」
 
   python3 scripts/spec_preset.py save|load|list [登録名]
   （登録名を引数で渡すと部品の登録名より優先。load は工事名・軒高・掛ける面・部材編集などの建物ごとの値は変えない）
@@ -53,6 +52,27 @@ def labels() -> dict[str, str]:
             for m in re.finditer(r'Name="([^"]+)">\s*<Description><!\[CDATA\["(.*?)"\]\]>', xml)}
 
 
+def ask_name(mode: str, now: str) -> str | None:
+    """登録名を窓で. save は名前を入れる（今の登録名が初期値）、load は登録済みから選ぶ. やめたら None・登録が無ければ ""."""
+    from form_dialog import show_form
+
+    have = list_presets(OUT_DIR)
+    if mode == "load":
+        if not have:
+            return ""
+        field = {"key": "name", "label": "呼び出す条件", "kind": "choice", "options": have, "value": now if now in have else have[0]}
+        intro = "登録した条件を、この建物の足場条件の部品へ呼び出します（工事名・軒高・掛ける面などの建物ごとの値は変えません）。"
+    else:
+        field = {"key": "name", "label": "登録名", "kind": "text", "value": now}
+        intro = ("この建物の足場条件に名前を付けて控えます。同じ名前があれば上書きします。"
+                 + (f"登録済み: {'・'.join(have)}" if have else ""))
+    res = show_form({"title": "条件の登録" if mode == "save" else "条件の呼び出し", "intro": intro, "fields": [field],
+                     "buttons": [{"id": "go", "label": "登録" if mode == "save" else "呼び出す"}, {"id": "cancel", "label": "やめる"}]})
+    if not res or res.get("button") != "go":
+        return None
+    return str((res.get("values") or {}).get("name") or "").strip()
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     mode = argv[0] if argv else "list"
@@ -68,10 +88,22 @@ def main(argv=None) -> int:
         return 1
     el, params = hit
     name = name_arg or str(params.get("presetName") or "").strip()
+    if not name_arg and mode in ("save", "load"):
+        # 登録名を部品の設定（⌘T）に書かないと使えなかった → 窓で名前を入れる・一覧から選ぶ（2026-11-07 ループの試験）
+        name = ask_name(mode, name)
+        if name is None:
+            print(f"{'条件の登録' if mode == 'save' else '条件の呼び出し'}: やめました")
+            return 0
+        if not name:
+            print("条件の呼び出し: 登録済みの条件がありません。先に「条件の登録」で登録してください" if mode == "load"
+                  else "条件の登録: 登録名を入れてください")
+            return 1
+        if mode == "save" and name != str(params.get("presetName") or "").strip():
+            c.set_gdl_parameters(el, {"presetName": name})          # 部品の登録名にも控える
     try:
         if mode == "save":
             path = save_preset(name, params, OUT_DIR)
-            print(f"条件の登録: 「{name}」を登録しました（{path}）。別の建物の足場条件の登録名に「{name}」と書いて「条件の呼び出し」")
+            print(f"条件の登録: 「{name}」を登録しました（{path}）。別の建物で「条件の呼び出し」を押し、一覧から「{name}」を選ぶ")
             print("登録済みの条件: " + "・".join(list_presets(OUT_DIR)))
             return 0
         if mode == "load":

@@ -460,10 +460,14 @@ class TestBulkLift(unittest.TestCase):
 
         rows = [("C1", "Column", 0.1, 5.0, 20000.0, 3000.0, "重すぎ", None, 9000.0)] * 92 + [("C2", "Column", 0.1, 1.0, 5000.0, 3000.0, "揚重可能", None, None)]
         got = reach_notes(rows)
-        self.assertEqual(len(got), 6)
-        self.assertIn("ほか 87個", got[-1])
+        self.assertEqual(len(got), 1)                                   # 同じ行は 1 行に
+        self.assertIn("（同じもの 92個）", got[0])
         self.assertIn("作業半径 9.0m 以内", got[0])
         self.assertEqual(reach_notes(rows[-1:]), [])
+        many = [(f"C{i}", "Column", 0.1, 1.0, 900000.0, 3000.0, "遠すぎ", None, 3000.0) for i in range(8)]
+        got = reach_notes(many + [("G9", "Beam", 0.1, 30.0, 5000.0, 3000.0, "重すぎ", None, None)])
+        self.assertIn("G9", got[0])                                     # 重すぎが先
+        self.assertEqual(got[-1], "揚重判定: ほか 4個は帳票に")
 
     @classmethod
     def setUpClass(cls):

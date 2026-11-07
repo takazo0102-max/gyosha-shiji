@@ -237,3 +237,19 @@ class TestAsagaoLabelFollowsTheFaces(unittest.TestCase):
         self.assertIsNotNone(moved)
         self.assertNotEqual(south, moved)
         self.assertIsNone(asagao_label({**tall, "asagao": {"faces": "なし"}}))
+
+
+class TestCannedFormDefaults(unittest.TestCase):
+    """試験の答え（ASHIBA_FORM_ANSWER）は、書かなかった欄を窓と同じ既定の値で埋める（2026-11-07 ループの試験で、
+    一括揚重判定の「判定する部材」が空になり選んだ部材の判定に変わっていた）."""
+
+    def test_missing_values_take_the_field_default(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from form_dialog import show_form
+
+        form = {"fields": [{"key": "scope", "value": "表示中の全部（一括）"}, {"key": "sling", "value": "6000"}]}
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": json.dumps({"button": "go", "values": {"sling": "5000"}})}):
+            self.assertEqual(show_form(form)["values"], {"scope": "表示中の全部（一括）", "sling": "5000"})
+        with mock.patch.dict(os.environ, {"ASHIBA_FORM_ANSWER": json.dumps({"button": "cancel"})}):
+            self.assertEqual(show_form(form), {"button": "cancel"})

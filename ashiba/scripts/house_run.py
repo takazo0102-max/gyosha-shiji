@@ -109,6 +109,10 @@ def main(argv=None) -> int:
         print(f"仮設建物: {n}棟を消しました")
         return 0
     if a.recheck or (a.people and not selected_guides(c)):
+        alive = {x["elementId"]["guid"] for x in c.tapir("GetElementsByType", {"elementType": "Object"}).get("elements", [])}
+        if not any(g in alive for g in rec.values()):          # 2026-11-07 ループの試験: 0棟で「要確認 事務所の広さ…」と出ていた
+            print("仮設建物: 置いた仮設建物がありません（先に「仮設建物」で線を選んで置いてください）")
+            return 1
         site_report(c, R, rec, people)
         return 0
     lines = [(k, pts) for k, pts, _closed in chains(selected_guides(c)) if len(pts) >= 2]

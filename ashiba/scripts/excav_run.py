@@ -113,7 +113,18 @@ def place_walkways(c, rec: dict, part: str, pens: dict, z_opt=None, wale_opt: fl
                 beams.append((k, have[k]))
             else:
                 rec.pop(k)                           # 消した・置き直した山留め壁の切梁
-    kk = [k for k in kk if not k.startswith(YW_STRUT)]
+    from ywall_run import YW_WALE, wale_walls
+
+    vw = [k for k in kk if k.startswith(YW_WALE)]
+    if vw:
+        have_w = wale_walls(R.OUT_DIR, [k[len(YW_WALE):] for k in vw])
+        for k in vw:
+            w = have_w.get(k[len(YW_WALE):].upper())
+            if w is None or w["wale_top"] is None:
+                rec.pop(k)                           # 消した・置き直した・腹起しの無い山留め壁の辺
+                continue
+            walls.append({**w, "guid": k})
+    kk = [k for k in kk if not k.startswith((YW_STRUT, YW_WALE))]
     dets = c.get_details([{"elementId": {"guid": k.split(":", 1)[1]}} for k in kk]) if kk else []
     for k, d in zip(kk, dets):
         if k.startswith("切梁:"):
@@ -142,14 +153,14 @@ def place_walkways(c, rec: dict, part: str, pens: dict, z_opt=None, wale_opt: fl
     wale_z = {}
     for k, (lay, (p0, p1, ztop, nm), w) in enumerate(zip(perimeter_layout(segs, thicks, ends), lines, walls), 1):
         near = [b for b in struts if min(_seg_dist(b["ca"], p0, p1), _seg_dist(b["cb"], p0, p1)) < 1500.0] or around
-        z = z_opt if z_opt is not None else (max(b["top"] for b in near) if near else None)
+        z = z_opt if z_opt is not None else w.get("wale_top") if w.get("wale_top") is not None else (max(b["top"] for b in near) if near else None)
         if z is None:
             print(f"  {nm}: 腹起しの高さが分かりません（近くに切梁が無い）。--z で腹起しの天端を指定してください")
             rec[w["guid"]] = ""
             continue
-        wale = wale_opt or (max(b["width"] for b in near) if near else 300.0)
+        wale = wale_opt or w.get("wale_w") or (max(b["width"] for b in near) if near else 300.0)
         wale_z[w["guid"]] = z
-        p = haraokoshi_plan(f"{nm or '山留め'}{k}", lay["length"], wale, depth_mm=ztop - z)
+        p = haraokoshi_plan(nm if w["guid"].startswith(YW_WALE) else f"{nm or '山留め'}{k}", lay["length"], wale, depth_mm=ztop - z)   # 山留め壁の辺は名前（山留め1-2）のまま
         p.rail, p.gaps = lay["rail"], lay["gaps"]
         el = _place(c, part, lay["origin"], z, lay["ang"])
         if el is None:
@@ -208,7 +219,7 @@ def main(argv=None) -> int:
     if a.remove:
         n = _delete_alive(c, list(rec.values()))
         rec_path.write_text("{}", encoding="utf-8")
-        print(f"山留めまわり: 切梁上の足場・山留めの手すり {n}個を消しました")
+        print(f"山留めまわり: 切梁上の足場・外周の足場・山留めの手すり {n}個を消しました")
         return 0
     if not (a.kiribari or a.rail or a.haraokoshi):
         print("山留めまわり: --kiribari（切梁上の足場）・--haraokoshi（外周の腹起し上の足場）・--rail（山留めの手すり）を付けてください")
@@ -283,12 +294,20 @@ def main(argv=None) -> int:
             made += 1
             print(f"  {p.name}: 長さ {L:.0f}・天端 {z:.0f} → 手すり柱 {len(p.xs)}本")
     if a.haraokoshi:
+        from ywall_run import YW_WALE, wale_walls
+
         ws = [e for e, d in zip(sel, det) if d.get("type") == "Wall" and wall_from_details(d) is not None]
-        if not ws:
-            print("外周の足場: 山留め（壁）を選んでから押してください（腹起しの天端は切梁の天端か --z）")
+        yw = wale_walls(R.OUT_DIR, [e["elementId"]["guid"] for e in sel]) if sel else {}
+        if not ws and not yw:
+            print("外周の足場: 山留め（壁）か「山留め壁」の部品を選んでから押してください（腹起しの天端は切梁の天端か、山留め壁の腹起しの段）")
+            return 1
+        if yw and all(v["wale_top"] is None for v in yw.values()) and not ws:
+            print("外周の足場: 選んだ山留め壁に腹起しがありません（自立）。「山留め壁」の腹起し・切梁を「描く」にして置き直してください")
             return 1
         for e in ws:
             rec.setdefault("腹起し:" + e["elementId"]["guid"], "")
+        for g in yw:
+            rec.setdefault(YW_WALE + g, "")
     if a.kiribari or a.haraokoshi:
         # 切梁上の足場と外周の足場は取り合う（角の受け持ち・手すりの切れ目・切梁上の床の止め）ので、控えのものを全部置き直す
         got, n_made = place_walkways(c, rec, part, pens, a.z, a.wale)

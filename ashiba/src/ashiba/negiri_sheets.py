@@ -19,7 +19,7 @@ import html
 import math
 
 from .form_drawings import CSS, MARGIN, PAGE_H, PAGE_W, SCALES, TB_H, _dim, _page, _wrap
-from .negiri import (DUMP_M3, LOOSE, Footprint, Negiri, dumps, inside, layers_of, level_color, slope_angle, solve, surplus)
+from .negiri import (DUMP_M3, LOOSE, Footprint, Negiri, dumps, inside, layers_of, level_color, slope_angle, slope_label, solve, surplus)
 
 ESC = html.escape
 SERIES = "根切り"
@@ -121,7 +121,7 @@ def _side(lines: list[tuple[str, str]], y: float) -> tuple[str, float]:
 
 def cond_lines(n: Negiri) -> list[tuple[str, str]]:
     lf = LOOSE.get(n.soil, 1.2)
-    slope = ("自動（積算基準の法の係数）" if n.slope is None else ("垂直" if n.slope <= 0 else f"1:{n.slope:g}（{slope_angle(n.slope):.0f}°）"))
+    slope = ("自動（積算基準の法の係数）" if n.slope is None else slope_label(n.slope))
     return ([("条件", f"GL＝設計 GL（プロジェクトの高さ {n.gl:,.0f}）。余掘り {n.margin:.0f}（土間 {n.doma_margin:.0f}）、"
                      f"砕石 {n.gravel:.0f}・捨てコン {n.lean:.0f}（土間 {n.doma_gravel:.0f}・{n.doma_lean:.0f}）、法面 {slope}、"
                      f"地山「{n.soil}」" + ("、山留めの内は山留めまで掘る" if n.yamadome else "")),
