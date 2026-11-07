@@ -1,0 +1,33 @@
+﻿! 鉄骨のピース 2D: 断面の外形、ブラケットとガセット、名前
+pen penEquip
+define style "spT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "spT"
+if spK = 1 then
+	rot2 spAng
+	if spT = 3 then
+		circle2 0, 0, spH / 2
+	else
+		rect2 -spH / 2, -spB / 2, spH / 2, spB / 2
+	endif
+	if bpOn then rect2 -spH / 2 - bpO, -spB / 2 - bpO, spH / 2 + bpO, spB / 2 + bpO
+	del 1
+	for i = 1 to nB
+		rot2 qA[i]
+		rect2 qS[i], -qB[i] / 2, qE[i], qB[i] / 2
+		line2 qE[i] - gpW / 2, -gpT / 2, qE[i] + gpW / 2, -gpT / 2
+		line2 qE[i] - gpW / 2, gpT / 2, qE[i] + gpW / 2, gpT / 2
+		line2 qE[i] + gpW / 2, -gpT / 2, qE[i] + gpW / 2, gpT / 2
+		del 1
+	next i
+	add2 -spH / 2, spB / 2 + bpO * bpOn + 0.3
+	rot2 -SYMB_ROTANGLE
+	text2 0, 0, pcName
+	del 2
+else
+	rot2 spAng
+	rect2 0, -spB / 2, spL, spB / 2
+	add2 spL / 2, spB / 2 + 0.05
+	text2 0, 0, pcName
+	del 2
+endif
+hotspot2 0, 0

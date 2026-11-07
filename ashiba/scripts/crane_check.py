@@ -253,7 +253,7 @@ def lift_targets(pool: list, crane_guid: str, copy_guids) -> list:
     for e, d in pool:
         name = d.get("details", {}).get("libPart", {}).get("name", "")
         g = e["elementId"]["guid"]
-        if d.get("type") in TARGET_TYPES and g != crane_guid and g not in copy_guids and not name.startswith("ashiba_") and "通り芯" not in name:
+        if d.get("type") in TARGET_TYPES and g != crane_guid and g not in copy_guids and (name.startswith("ashiba_steel") or not name.startswith("ashiba_")) and "通り芯" not in name:
             out.append((e, d))
     return out
 
@@ -411,6 +411,8 @@ def main(argv=None) -> int:
             radius = math.hypot(cx - origin[0], cy - origin[1])
             need_z = bb[1][2] - origin[2] + a.sling
             w = weigh(a.mode, vol, bm, d.get("type"), a.density, a.weight, a.factors)
+            if a.mode != "direct" and d.get("details", {}).get("libPart", {}).get("name", "").startswith("ashiba_steel"):
+                w = float(_params(c, e).get("pcW", 0.0)) or None             # 鉄骨のピースは部品の重量（断面の無いものは判定不可）
             name = d.get("id") or e["elementId"]["guid"][:8]
             far = None                                   # 吊れる作業半径（重すぎ・遠すぎのとき、どこまで寄せればよいか）
             if w is None:
