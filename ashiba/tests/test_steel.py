@@ -224,6 +224,60 @@ class TestDeckStage(unittest.TestCase):
         self.assertIsNone(lookup(t, 1, 5000.0))
 
 
+class TestLongForm(unittest.TestCase):
+    def test_form_scrolls_and_keeps_the_buttons(self):
+        g = (SRC.parent / "tapir" / "spec_form.swift").read_text(encoding="utf-8")
+        self.assertIn("NSScrollView", g)
+        self.assertIn("root.addSubview(btn)", g)
+
+
+class TestErectionSheet(unittest.TestCase):
+    """建て方検討図（節ごと）."""
+
+    def data(self):
+        from ashiba.deck_stage import DeckOptions, floor_rows, to_records
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from steel_run import drawing_data, judge_pieces
+
+        cols = [Column("C1", x, 0.0, z, z + 3000.0, 500.0, 500.0) for x in (0.0, 6000.0) for z in (0.0, 3000.0, 6000.0, 9000.0)]
+        beams = [Beam("G1", (0.0, 0.0), (6000.0, 0.0), z - 250.0, 200.0, 500.0) for z in (3000.0, 6000.0, 9000.0, 12000.0)]
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        steps = make_steps(p, [], [])
+        rows = floor_rows(steps, 0.0, DeckOptions(), 6000.0)
+        d = drawing_data(p, steps, [("X1", 0.0), ("X2", 6000.0)], [("Y1", 0.0)], [], [], rows, to_records(rows))
+        return d, judge_pieces
+
+    def test_one_page_per_node(self):
+        from ashiba.steel_sheets import build_html, page_list
+
+        d, _j = self.data()
+        pages = page_list(d)
+        self.assertEqual([p[0] for p in pages], ["建て方検討図 1節", "建て方検討図 2節"])
+        self.assertIn("工区のピース数", pages[0][2])
+        self.assertIn("クレーンを選んで作ると", pages[0][2])
+        self.assertEqual(build_html(d, "試験").count('class="page"'), 2)
+
+    def test_crane_and_colors_are_drawn(self):
+        from ashiba.steel_sheets import COLORS, page_list
+
+        d, judge = self.data()
+        d["crane"] = {"name": "25t", "x": 3000.0, "y": -8000.0}
+        judge(d, lambda x, y, top, w, label="": {"res": "重すぎ" if top > 8000 else "揚重可能", "rated": 2.0, "radius": 9000.0})
+        pages = page_list(d)
+        self.assertIn(COLORS["揚重可能"], pages[0][2])
+        self.assertIn(COLORS["重すぎ"], pages[1][2])
+        self.assertNotIn("clip-path", pages[0][2])                                  # レイアウトの変換で枠の形に崩れた
+        self.assertIn("作業半径 9.0m", pages[0][2])
+        self.assertIn("一番重い", pages[0][2])
+
+    def test_lower_node_is_grey(self):
+        from ashiba.steel_sheets import page_list
+
+        d, _j = self.data()
+        self.assertNotIn("#d5d5d5", page_list(d)[0][2])
+        self.assertIn("#d5d5d5", page_list(d)[1][2])
+
+
 class TestSheet(unittest.TestCase):
     def test_lift_check_reads_the_piece(self):
         sys.path.insert(0, str(SRC.parent / "scripts"))

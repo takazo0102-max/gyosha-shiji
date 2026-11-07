@@ -122,18 +122,21 @@ def main(argv=None) -> int:
             else:
                 note = "完成時の床で見た落差です。建て方の時点は「鉄骨建て方」の段階の判定を見てください"
         r = plan_run(Run(f"親綱{n}", p0, p1, top, drop, "ALPA12" if a.post == "alpa" else "NTP", a.flange, drop_max=high, note=note))
-        el = _place(c, part, p0, top, math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0])))
-        if el is None:
-            continue
-        c.set_gdl_parameters(el, {**part_params(r), **pens})
-        rec[key] = el["elementId"]["guid"]
         runs.append(r)
+        if r.spans:                                      # 適用外・実用外の梁には部品を置かない
+            el = _place(c, part, p0, top, math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0])))
+            if el is None:
+                runs.pop()
+                continue
+            c.set_gdl_parameters(el, {**part_params(r), **pens})
+            rec[key] = el["elementId"]["guid"]
         bad = [x.item for x in r.checks if x.status != "OK"]
         print(f"  {r.name}: {r.length / 1000:.1f}m・{len(r.spans)}スパン・落差 {drop / 1000:.1f}m" + (f"・要確認 {'・'.join(bad)}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     md = R.OUT_DIR / "親綱.md"
     md.write_text(report(runs), encoding="utf-8")
-    print(f"親綱: {len(runs)}本の梁に置きました（発注表: {md}）")
+    placed = sum(1 for r in runs if r.spans)
+    print(f"親綱: {placed}本の梁に置きました" + (f"（{len(runs) - placed}本は親綱の式の外で置いていません）" if placed < len(runs) else "") + f"（発注表: {md}）")
     return 0
 
 

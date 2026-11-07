@@ -55,12 +55,31 @@ final class FormWindow: NSObject, NSWindowDelegate {
             introH = ceil(probe.fittingSize.height) + 10
         }
         let H = M + introH + rows + 16 + 32 + M
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
+        // 画面に収まらないときは項目だけスクロールし、ボタンは下に残す（鉄骨建て方の符号が多いと「置く」が画面の外に出た 2026-11-07）
+        let maxH = (NSScreen.main?.visibleFrame.height ?? 900) - 60
+        let fits = H <= maxH
+        let shownH = min(H, maxH)
+        let SB: CGFloat = fits ? 0 : 18
+        let bar: CGFloat = 16 + 32 + M
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W + SB, height: shownH),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = form.title
         window.level = .floating
         window.delegate = self
-        let v = window.contentView!
+        let root = window.contentView!
+        var v = root
+        var scroller: NSScrollView? = nil
+        if !fits {
+            let doc = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H - bar))
+            doc.bounds = NSRect(x: 0, y: bar, width: W, height: H - bar)
+            let sc = NSScrollView(frame: NSRect(x: 0, y: bar, width: W + SB, height: shownH - bar))
+            sc.hasVerticalScroller = true
+            sc.drawsBackground = false
+            sc.documentView = doc
+            root.addSubview(sc)
+            v = doc
+            scroller = sc
+        }
         var y = H - M
         if let intro = form.intro, !intro.isEmpty {
             let l = NSTextField(wrappingLabelWithString: intro)
@@ -129,7 +148,7 @@ final class FormWindow: NSObject, NSWindowDelegate {
             y -= RH
         }
         // ボタン（右から: 最初のボタンが既定＝Return）
-        var bx = W - M
+        var bx = W + SB - M
         for (i, b) in form.buttons.enumerated() {
             let btn = NSButton(title: b.label, target: self, action: #selector(pressed(_:)))
             btn.bezelStyle = .rounded
@@ -140,8 +159,11 @@ final class FormWindow: NSObject, NSWindowDelegate {
             btn.tag = i
             if i == 0 { btn.keyEquivalent = "\r" }
             if b.id == "cancel" { btn.keyEquivalent = "\u{1b}" }
-            v.addSubview(btn)
+            root.addSubview(btn)
             bx -= 8
+        }
+        if let sc = scroller {                                      // 始めは上から見せる
+            v.scroll(NSPoint(x: 0, y: H - sc.contentSize.height))
         }
         window.center()
     }
