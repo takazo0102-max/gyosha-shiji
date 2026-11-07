@@ -43,6 +43,7 @@ class TestNegiri(unittest.TestCase):
         m = mesh_data(n)
         self.assertEqual(len(m), 1)
         self.assertGreaterEqual(len(m[0]["sublines"]), 2)                      # 一般の根切り底と基礎の床付け
+        self.assertEqual(m[0]["skirtType"], "SurfaceOnlyWithoutSkirt")        # 掘削面の下に塊を描かない
         # 床付けの線は外形（GL）の辺に乗らない（乗るとその点が深くなり、側面がのこぎりの帯になる。2026-11-07）
         from ashiba.negiri import _touches
         top = [(q["x"] * 1000.0, q["y"] * 1000.0) for q in m[0]["polygonCoordinates"]]
