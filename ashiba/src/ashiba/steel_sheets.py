@@ -76,15 +76,23 @@ def arc_lines(q: tuple, r: float) -> str:
     return "".join(out)
 
 
+def cranes_at(d: dict, node: int) -> list:
+    """節 node の図に描くクレーン. ステップに登録した分と、登録の無い工区を見た 1 台."""
+    rows = [c for c in d.get("cranes", []) if node in c.get("nodes", [])]
+    one = d.get("crane")
+    if one and all((c["x"], c["y"]) != (one["x"], one["y"]) for c in rows):
+        rows = rows + [one]
+    return rows
+
+
 def plan_svg(d: dict, node: int) -> tuple:
     """節 node の平面 → (SVG, 縮尺)."""
     cols = d["columns"]
     now = [c for c in cols if c["node"] == node]
     beams = [b for b in d["beams"] if b["node"] == node]
-    crane = d.get("crane")
+    cranes = cranes_at(d, node)
     pts = [(c["x"], c["y"]) for c in cols] + [(b["x"], b["y"]) for b in d["beams"]]
-    if crane:
-        pts.append((crane["x"], crane["y"]))
+    pts += [(q["x"], q["y"]) for q in d.get("cranes", []) + ([d["crane"]] if d.get("crane") else [])]   # どの節も同じ縮尺に
     x0, x1 = min(p[0] for p in pts) - 2000.0, max(p[0] for p in pts) + 2000.0
     y0, y1 = min(p[1] for p in pts) - 2000.0, max(p[1] for p in pts) + 2000.0
     bw, bh = AREA[2] - AREA[0] - 16.0, AREA[3] - AREA[1] - 16.0
@@ -132,17 +140,18 @@ def plan_svg(d: dict, node: int) -> tuple:
         out.append(_rect(q[0], q[1], max(2.2, c["w"] / sc), max(2.2, c["d"] / sc), fill))
         out.append(_t(q[0] + 2.0, q[1] - 1.6, "-" if c.get("weight") is None else f"{c['weight']:.2f}t"))
     # クレーンと作業半径
-    if crane:
+    for crane in cranes:
         q = P(crane["x"], crane["y"])
         out.append(_line((q[0] - 3, q[1]), (q[0] + 3, q[1]), 0.3, "#0050b4"))
         out.append(_line(q, (q[0], q[1] - 3), 0.3, "#0050b4"))
         out.append(_line(q, (q[0], q[1] + 3), 0.3, "#0050b4"))
         out.append(_t(q[0] + 3.5, q[1] + 1.0, crane["name"], "t"))
-        far = worst(now + beams, lambda p: p["lift"]["radius"])
-        if far:
-            r = far["lift"]["radius"] / sc
-            out.append(arc_lines(q, r))
-            out.append(_t(q[0] + 3.5, q[1] + 4.5, f"作業半径 {far['lift']['radius'] / 1000:.1f}m（一番遠いピース）", "t"))
+    far = worst(now + beams, lambda p: p["lift"]["radius"]) if cranes else None
+    if far:
+        L = far["lift"]
+        q = P(L.get("cx", cranes[0]["x"]), L.get("cy", cranes[0]["y"]))
+        out.append(arc_lines(q, L["radius"] / sc))
+        out.append(_t(q[0] + 3.5, q[1] + 4.5, f"作業半径 {L['radius'] / 1000:.1f}m（一番遠いピース）", "t"))
     return "".join(out), sc
 
 
@@ -181,11 +190,11 @@ def side_svg(d: dict, node: int) -> str:
     total = sum(p.get("weight") or 0.0 for p in now + beams)
     out.append(_t(SIDE_X + 2, y, f"計 柱 {len(now)}・梁 {len(beams)}・{len(now) + len(beams)}ピース・{total:.2f}t"))
     y += 6.0
-    crane = d.get("crane")
+    crane = cranes_at(d, node)
     out.append(_t(SIDE_X, y, "揚重の判定", "h2"))
     y += 5.0
     if crane:
-        out.append(_t(SIDE_X + 2, y, crane["name"]))
+        out.append(_t(SIDE_X + 2, y, "・".join(q["name"] for q in crane)))
         y += 3.8
         cnt: dict = {}
         for p in now + beams:
