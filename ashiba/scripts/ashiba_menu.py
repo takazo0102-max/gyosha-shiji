@@ -26,11 +26,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ashiba.palette import ACTIONS, menu_items  # noqa: E402
 
-KIND_LABEL = {"slab": "躯体スラブ", "line": "足場", "member": "分解した支柱", "spec": "足場条件の部品", "struct": "壁・柱・梁"}
+KIND_LABEL = {"slab": "躯体スラブ", "line": "足場", "member": "分解した支柱", "spec": "足場条件の部品", "struct": "壁・柱・梁", "machine": "重機・クレーン"}
 
 
 def selection_kinds() -> tuple[set, str]:
-    """選んでいるものの種類（slab・line・member・spec）と、一覧の上に出す説明."""
+    """選んでいるものの種類（slab・line・member・spec・struct・machine）と、一覧の上に出す説明."""
     from ashiba.tapir_adapter import ArchicadClient, TapirError, is_ashiba_part
 
     try:
@@ -49,6 +49,8 @@ def selection_kinds() -> tuple[set, str]:
                 k = "member"
             elif is_ashiba_part(name, ("ashiba_spec",)):
                 k = "spec"
+            elif is_ashiba_part(name, ("ashiba_crane", "ashiba_machine", "ashiba_tower")):
+                k = "machine"                    # 利用者の指定 2026-11-07「重機が選べなかった」: クレーンを選んでも関係しないものと出ていた
             elif typ == "Slab":
                 k = "slab"
             elif typ in ("Wall", "Column", "Beam"):
