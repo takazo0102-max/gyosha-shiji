@@ -275,14 +275,18 @@ def judge_pieces(d: dict, f) -> None:
 
 def set_gear(c, rec: dict, no: int) -> None:
     """仮設材の表示: ステップ no の工区の分だけを描く（0 は全部）. 仮設材は工区を移るときに使い回す（利用者の指定 2026-11-07）.
-    工区を持たない前の版の控えは、ステップ no までを描く."""
+    工区が 1 つなら節ごとに出し分ける（そのステップの分だけ）. 工区を持たない前の版の控えは、ステップ no までを描く."""
     items = rec.get("gear") or []
-    zone = next((s.get("zone") for s in rec.get("steps") or [] if s.get("no") == no), None)
+    steps = rec.get("steps") or []
+    zone = next((s.get("zone") for s in steps if s.get("no") == no), None)
+    single = len({s.get("zone") for s in steps}) == 1
 
     def on(g: dict) -> bool:
         if not no:
             return True
-        return g["zone"] == zone if zone is not None and "zone" in g else g["step"] <= no
+        if zone is None or "zone" not in g:
+            return g["step"] <= no
+        return g["step"] == no if single else g["zone"] == zone
 
     if items:
         c.set_gdl_parameters_many([({"elementId": {"guid": g["guid"]}}, {"sgOn": on(g)}) for g in items])

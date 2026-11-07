@@ -340,6 +340,19 @@ def plate_gap_notes(p: ColumnPiece, col: Section, rows: list, plates: list) -> l
     return out
 
 
+def bracket_root(col: Section | None, ang: float, w: float, d: float, flange_w: float) -> float:
+    """柱の中心からブラケットの根元まで mm. 断面があれば断面の面に合わせる（利用者の指定 2026-11-07）.
+    ang は柱の向きから測った梁の向き（度）. 断面が無ければ Archicad の柱の大きさ w・d. H 形の弱軸はウェブまで（図は未確認の【目安】）、丸はフランジの端が管に届く位置まで."""
+    c, s = abs(math.cos(math.radians(ang))), abs(math.sin(math.radians(ang)))
+    if col is None:
+        return (c * w + s * d) / 2.0
+    if col.kind == "PIPE":
+        return math.sqrt(max(0.0, (col.h / 2.0) ** 2 - (flange_w / 2.0) ** 2))
+    if col.kind == "H":
+        return col.h / 2.0 if c >= s else col.tw / 2.0
+    return (c * col.h + s * col.b) / 2.0
+
+
 def cut_heights(levels: list, z0: float, z1: float, o: Options) -> list:
     """柱の切る高さ（階の高さ＋offset。every 階ごと）. いちばん下の階は切らない。節が MIN_PIECE より短くなる切り目は使わない
     （足場.pln の 9m と 9.7m の階で 0.7m の節ができた）."""
@@ -428,8 +441,8 @@ def plan_pieces(cols: list, beams: list, levels: list, sections: dict, o: Option
                     hit = next((p for p in pieces[key] if p.z0 - 1.0 <= b.zc <= p.z1 + 1.0), None)
                     if hit:
                         c = hit
-                        rad = math.radians(ang + turn - c.ang)
-                        half = (abs(math.cos(rad)) * c.w + abs(math.sin(rad)) * c.d) / 2.0
+                        q = sections.get(b.mark)
+                        half = bracket_root(sections.get(c.marks[0]) if c.marks else None, ang + turn - c.ang, c.w, c.d, q.b if q else b.w)
                         c.brackets.append(Bracket(b.mark, (ang + turn) % 360.0, b.zc, half, length, b.w, b.h))
             x = b.p0[0] + ux * (ta + la)
             y = b.p0[1] + uy * (ta + la)
