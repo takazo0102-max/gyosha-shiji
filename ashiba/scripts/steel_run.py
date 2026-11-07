@@ -116,6 +116,12 @@ def ask(a, marks: list, table: dict) -> bool:
                    {"key": "cranes", "label": "クレーンの台数", "kind": "number", "value": f"{a.cranes}"},
                    {"key": "start", "label": "建方の始まり（2027-04-01 の形）", "kind": "text", "value": a.start},
                    {"key": "sat_off", "label": "土曜を休みにする", "kind": "check", "value": "1" if a.sat_off else "0"},
+                   {"key": "floor_order", "label": "節の中のデッキの階の順", "kind": "choice", "options": ["未定", "上から", "下から", "階ごとに追いかけ"], "value": a.floor_order},
+                   {"key": "lag", "label": "デッキの遅れ（節の数）【目安】", "kind": "number", "value": f"{a.lag}"},
+                   {"key": "work_stage", "label": "作業床に数える段階", "kind": "choice", "options": ["本付け（納め完了）", "仮留め"],
+                    "value": "仮留め" if a.work_stage == 2 else "本付け（納め完了）"},
+                   {"key": "done_node", "label": "納め完了の節（この節まで。0＝なし）", "kind": "number", "value": f"{a.done_node}"},
+                   {"key": "cast_node", "label": "打設済みの節（この節まで。0＝なし）", "kind": "number", "value": f"{a.cast_node}"},
                    *[{"key": f"s_{m}", "label": f"断面 {m}", "kind": "text", "value": table.get(m, "")} for m in marks]],
         "buttons": [{"id": "go", "label": "置く"}, {"id": "table", "label": "表だけ"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") not in ("go", "table"):
@@ -126,6 +132,13 @@ def ask(a, marks: list, table: dict) -> bool:
     a.order = "節" if str(v.get("order", "")).startswith("節") else "工区"
     a.start = str(v.get("start") or a.start).strip()
     a.sat_off = str(v.get("sat_off")) in ("1", "true", "True")
+    a.floor_order = str(v.get("floor_order") or a.floor_order)
+    a.work_stage = 2 if str(v.get("work_stage", "")).startswith("仮留め") else 3
+    for k in ("lag", "done_node", "cast_node"):
+        try:
+            setattr(a, k, max(0, int(float(str(v.get(k))))))
+        except (TypeError, ValueError):
+            pass
     try:
         a.cranes = max(1, int(float(str(v.get("cranes")))))
     except (TypeError, ValueError):
@@ -207,6 +220,7 @@ def main(argv=None) -> int:
 
     import run_from_archicad as R
     from ashiba.pens import gdl_pens, parse_pens
+    from ashiba import deck_stage as D
     from ashiba.schedule import schedule, span, to_xlsx
     from ashiba.schedule_calendar import WorkCalendar
     from ashiba.steel_erection import (Options, beam_params, column_params, make_steps, parse_section, plan_pieces, schedule_tasks, to_markdown,
@@ -233,6 +247,11 @@ def main(argv=None) -> int:
     ap.add_argument("--cranes", type=int, default=1, help="クレーンの台数")
     ap.add_argument("--start", default=_dt.date.today().isoformat(), help="建方の始まり")
     ap.add_argument("--sat-off", dest="sat_off", action="store_true", help="土曜を休みにする")
+    ap.add_argument("--floor-order", dest="floor_order", default="未定", choices=("未定", "上から", "下から", "階ごとに追いかけ"), help="節の中のデッキの階の順")
+    ap.add_argument("--lag", type=int, default=1, help="デッキの遅れ（節の数）")
+    ap.add_argument("--work-stage", dest="work_stage", type=int, default=3, choices=(2, 3), help="作業床に数える段階（2 仮留め・3 本付け）")
+    ap.add_argument("--done-node", dest="done_node", type=int, default=0, help="納め完了の節")
+    ap.add_argument("--cast-node", dest="cast_node", type=int, default=0, help="打設済みの節")
     ap.add_argument("--step", type=int, default=None, help="その番号のステップの姿にする")
     ap.add_argument("--next", action="store_true", help="次のステップ")
     ap.add_argument("--prev", action="store_true", help="前のステップ")
@@ -312,6 +331,11 @@ def main(argv=None) -> int:
     wb = Workbook()
     to_sheet(wb, plan)
     zone_sheet(wb, steps)
+    rows = D.floor_rows(steps, o.base, D.DeckOptions(a.floor_order, a.lag, a.work_stage, a.done_node, a.cast_node),
+                        D.bay_short([p.x for p in plan.columns], [p.y for p in plan.columns]))
+    D.to_sheet(wb, rows)
+    (R.OUT_DIR / "鉄骨デッキ判定.md").write_text(D.to_markdown(rows), encoding="utf-8")
+    (R.OUT_DIR / "鉄骨デッキ判定.json").write_text(json.dumps({"rows": D.to_records(rows), "xs": xs, "ys": ys}, ensure_ascii=False, indent=1), encoding="utf-8")
     xl = R.OUT_DIR / "鉄骨節別重量表.xlsx"
     wb.save(xl)
     (R.OUT_DIR / "鉄骨節別重量表.md").write_text(to_markdown(plan), encoding="utf-8")
@@ -348,6 +372,8 @@ def main(argv=None) -> int:
           + (f"。{'・'.join(heavy)}" if heavy else "") + f"（{xl}）")
     s0, s1 = span(tasks)
     print(f"鉄骨建て方: {len(steps)}ステップ・{sum(t.days for t in tasks)}日（{s0}〜{s1}。{sched}）")
+    cnt = Counter(r.rope for r in rows if r.current)
+    print("鉄骨建て方: 親綱の判定 " + "・".join(f"{k} {v}" for k, v in cnt.items()) + "（鉄骨デッキ判定.md）")
     for w in plan.warnings[:6]:
         print(f"鉄骨建て方: {w}")
     return 0

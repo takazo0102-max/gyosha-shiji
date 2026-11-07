@@ -20,7 +20,9 @@ class TestClassify(unittest.TestCase):
     def test_net_clearance(self):
         """安全ネット指針: H2＝0.85(L＋3A)/4（L＜A）・0.85L（L≧A）."""
         self.assertAlmostEqual(net_clearance(3000.0, 3000.0), 0.85 * 3000.0)
-        self.assertAlmostEqual(net_clearance(4000.0, 2000.0), 0.85 * (2000.0 + 3 * 4000.0) / 4.0)
+        self.assertAlmostEqual(net_clearance(4000.0, 2000.0), 0.85 * 2000.0)                 # A は支持点の間隔 1m（長辺ではない）
+        self.assertAlmostEqual(net_clearance(5000.0, 10000.0), 4250.0)
+        self.assertAlmostEqual(net_clearance(800.0, 2000.0), 0.85 * (800.0 + 3 * 1000.0) / 4.0)
 
 
 class TestGuards(unittest.TestCase):

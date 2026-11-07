@@ -174,6 +174,56 @@ class TestSteps(unittest.TestCase):
         self.assertEqual(visible_at(steps, 0), {"a": False, "b": False, "c": False})
 
 
+class TestDeckStage(unittest.TestCase):
+    """デッキの状態と建て方の時点の判定（reports/デッキプレートの敷設時期.md）."""
+
+    def rows(self, **kw):
+        from ashiba.deck_stage import DeckOptions, floor_rows
+
+        cols = [Column("C1", x, 0.0, z, z + 4000.0, 500.0, 500.0) for x in (0.0, 6000.0) for z in (0.0, 4000.0, 8000.0, 12000.0)]
+        beams = [Beam("G1", (0.0, 0.0), (6000.0, 0.0), z - 250.0, 200.0, 500.0) for z in (4000.0, 8000.0, 12000.0, 16000.0)]
+        p = plan_pieces(cols, beams, [0.0, 4000.0, 8000.0, 12000.0], SECS, Options(every=2))
+        return floor_rows(make_steps(p, [], []), 0.0, DeckOptions(**kw), 6000.0)
+
+    def at(self, rows, step, top):
+        return next(r for r in rows if r.step == step and r.top == top)
+
+    def test_undecided_gives_both_bounds(self):
+        rows = self.rows()
+        r = self.at(rows, 1, 8000.0)                                                # 1 節の上の階: 下の階にデッキがあるか未定
+        self.assertEqual((r.h_low, r.h_high, r.stage), (4000.0, 8000.0, "0か1"))
+        self.assertEqual(r.rope, "適用外")                                           # 下限で親綱
+        self.assertIn("6.75m 超", r.harness)                                        # 上限で器具
+
+    def test_lower_node_counts_after_the_lag(self):
+        r = self.at(self.rows(), 2, 12000.0)                                        # 2 節を建てるとき、1 節の階は仮留め済み
+        self.assertEqual((r.h_low, r.h_high), (4000.0, 4000.0))
+        self.assertEqual(self.at(self.rows(), 2, 8000.0).stage, "2 仮留め済み")
+
+    def test_floor_order(self):
+        self.assertEqual(self.at(self.rows(floor_order="上から"), 1, 8000.0).h_low, 8000.0)
+        self.assertEqual(self.at(self.rows(floor_order="下から"), 1, 8000.0).h_high, 4000.0)
+
+    def test_work_floor_leaves_the_rope_check(self):
+        rows = self.rows(done_node=1)
+        self.assertEqual(self.at(rows, 2, 8000.0).rope, "対象外")
+        self.assertEqual(self.at(self.rows(work_stage=2), 2, 8000.0).rope, "対象外")   # 仮留めで作業床に数える選択
+        self.assertNotEqual(self.at(self.rows(), 2, 8000.0).rope, "対象外")
+
+    def test_net_shows_the_short_side(self):
+        from ashiba.deck_stage import net_note
+
+        self.assertIn("空き 3.70m ＜ 5.10m", net_note(4000.0, 6000.0))
+        self.assertIn("≧", net_note(8000.0, 6000.0))
+
+    def test_lookup_for_the_lifeline_tool(self):
+        from ashiba.deck_stage import lookup, to_records
+
+        t = to_records(self.rows())
+        self.assertEqual(lookup(t, 1, 8000.0), (4000.0, 8000.0))
+        self.assertIsNone(lookup(t, 1, 5000.0))
+
+
 class TestSheet(unittest.TestCase):
     def test_lift_check_reads_the_piece(self):
         sys.path.insert(0, str(SRC.parent / "scripts"))
