@@ -1,0 +1,492 @@
+﻿! ==========================================================
+! 鉄骨建て方の仮設材（NK ステージ・NK ハンガー・タラップ・水平ネット・ライフブロック・吊りピース・エレクションピース・建入れワイヤ） 単一ファイル参照版
+! ----------------------------------------------------------
+! このファイルは gdl/hsf/ashiba_sgear/ から自動生成しています。
+! 直接編集しないでください。HSF側を直してから再生成します:
+!   python3 scripts/build_flat_gdl.py
+!
+! 通しで読む・差分を見るための参照用で、そのままでは動きません
+! （実際に読み込むのは gdl/ashiba_sgear.gsm）。各セクションはArchicadの
+! 対応するスクリプト欄にそのまま貼れます。
+! ----------------------------------------------------------
+! 利用者の指定 2026-11-07。種類 sgK、割付と出典は steel_gear.py、置くのは scripts/steel_run.py --gear。種類ごとにレイヤー「鉄骨仮設_…」。
+! sgOn を切ると描かない（工区・節のステップで、まだ建てていない節の仮設を出さない）。
+! ----------------------------------------------------------
+! パラメータリスト:
+!   sgK       整数      種類（1 NK ステージ・2 NK ハンガー・3 タラップ・4 水平ネット・5 ライフブロック・6 吊りピース・7 エレクションピース・8 建入れワイヤ）  既定 1
+!   sgOn      ブール    描く（ステップで切る）                                                                                                                既定 1
+!   sgA       角度      向き                                                                                                                                  既定 0.0
+!   cW        長さ      柱の幅                                                                                                                                既定 0.4
+!   cD        長さ      柱の奥行き                                                                                                                            既定 0.4
+!   sgW       長さ      幅                                                                                                                                    既定 0.812
+!   sgB       長さ      奥行き                                                                                                                                既定 0.65
+!   sgH       長さ      高さ                                                                                                                                  既定 1.655
+!   sgL       長さ      長さ                                                                                                                                  既定 3.85
+!   sgX       長さ      X の大きさ                                                                                                                            既定 5.0
+!   sgY       長さ      Y の大きさ                                                                                                                            既定 5.0
+!   sgZ       長さ      Z の大きさ                                                                                                                            既定 0.0
+!   sgT       長さ      板厚                                                                                                                                  既定 0.012
+!   sgS       整数      側（1・−1）                                                                                                                           既定 1
+!   sgName    文字列    品番・名前                                                                                                                            既定 ""
+!   texSiz    実数      文字の大きさ（mm）                                                                                                                    既定 2.0
+!   penEquip  PenColor  線のペン                                                                                                                              既定 1
+! ==========================================================
+
+! ==========================================================
+! ==== マスタースクリプト ====
+! ==========================================================
+! 鉄骨建て方の仮設材
+
+! ==========================================================
+! ==== 2Dスクリプト ====
+! ==========================================================
+! 鉄骨建て方の仮設材 2D: 外形
+pen penEquip
+hotspot2 0, 0
+if sgOn = 0 then end
+define style "sgT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "sgT"
+rot2 sgA
+if sgK = 1 then
+	for s = -1 to 1 step 2
+		rect2 -0.93, s * (cD / 2 + 0.02), 0.93, s * (cD / 2 + 0.73)
+	next s
+	rect2 -cW / 2 - 0.51, -cD / 2 - 0.02, -cW / 2, cD / 2 + 0.02
+	rect2 cW / 2, -cD / 2 - 0.02, cW / 2 + 0.51, cD / 2 + 0.02
+endif
+if sgK = 2 then rect2 -sgW / 2, 0, sgW / 2, sgS * sgB
+if sgK = 3 then rect2 -0.1675, 0, 0.1675, sgS * 0.08
+if sgK = 4 then
+	rect2 0, 0, sgX, sgY
+	line2 0, 0, sgX, sgY
+	line2 0, sgY, sgX, 0
+endif
+if sgK = 5 then rect2 -0.112, -0.054, 0.112, 0.054
+if sgK = 6 then
+	rect2 -cW * 0.3 - sgT / 2, -0.065, -cW * 0.3 + sgT / 2, 0.065
+	rect2 cW * 0.3 - sgT / 2, -0.065, cW * 0.3 + sgT / 2, 0.065
+endif
+if sgK = 8 then line2 0, 0, sgX, sgY
+del 1
+
+! ==========================================================
+! ==== 3Dスクリプト ====
+! ==========================================================
+! 鉄骨建て方の仮設材 3D（寸法は src/ashiba/steel_gear.py の出典）
+if sgOn = 0 then end
+define material "sg_alu" 2, 0.78, 0.80, 0.82
+define material "sg_steel" 2, 0.45, 0.47, 0.50
+define material "sg_yel" 2, 0.92, 0.75, 0.10
+define material "sg_red" 2, 0.80, 0.15, 0.12
+define material "sg_net" 2, 0.15, 0.45, 0.80
+resol 10
+rotz sgA
+if sgK = 1 then gosub "stage"
+if sgK = 2 then gosub "hanger"
+if sgK = 3 then gosub "ladder"
+if sgK = 4 then gosub "net"
+if sgK = 5 then gosub "block"
+if sgK = 6 then gosub "lug"
+if sgK = 7 then gosub "ep"
+if sgK = 8 then gosub "wire"
+del 1
+end
+
+"seg3":
+	! (x0q, y0q, z0q) から (x1q, y1q, z1q) の円柱（半径 rq）
+	dxq = x1q - x0q
+	dyq = y1q - y0q
+	dzq = z1q - z0q
+	hq = sqr(dxq ^ 2 + dyq ^ 2)
+	lq = sqr(hq ^ 2 + dzq ^ 2)
+	if lq > 0.001 then
+		az = 0
+		if hq > 0.0001 then
+			if abs(dxq) < 0.0001 then
+				az = 90
+				if dyq < 0 then az = -90
+			else
+				az = atn(dyq / dxq)
+				if dxq < 0 then az = az + 180
+			endif
+		endif
+		el = 90
+		if dzq < 0 then el = -90
+		if hq > 0.0001 then el = atn(dzq / hq)
+		add x0q, y0q, z0q
+		rotz az
+		roty 90 - el
+		cylind lq, rq
+		del 3
+	endif
+return
+
+"rail":
+	! NKSHT 手摺 1 枚（幅 0.55・高さ 0.962・φ35。原点は幅の中央の下、+X に幅）
+	rq = 0.0175
+	for rr = -1 to 1 step 2
+		x0q = rr * 0.275
+		y0q = 0
+		z0q = 0
+		x1q = rr * 0.275
+		y1q = 0
+		z1q = 0.88
+		gosub "seg3"
+		x0q = rr * 0.275
+		z0q = 0.88
+		x1q = rr * 0.195
+		z1q = 0.962
+		gosub "seg3"
+	next rr
+	x0q = -0.195
+	z0q = 0.962
+	x1q = 0.195
+	z1q = 0.962
+	gosub "seg3"
+	x0q = -0.275
+	z0q = 0.5
+	x1q = 0.275
+	z1q = 0.5
+	gosub "seg3"
+return
+
+"stage":
+	! NK ステージ: 柱の ±Y の面に本体 1860×710、±X の面に渡り足場、手摺、チェーン、先付けピース。原点は床の上面の柱芯
+	for s = -1 to 1 step 2
+		y0s = s * (cD / 2 + 0.02)
+		y1s = s * (cD / 2 + 0.73)
+		ym = min(y0s, y1s)
+		material "sg_alu"
+		add -0.93, ym, -0.003
+		block 1.86, 0.71, 0.003
+		del 1
+		for k = 0 to 4
+			add -0.93 + k * 0.45, ym, -0.06
+			block 0.06, 0.71, 0.057
+			del 1
+		next k
+		add -0.93, ym, -0.06
+		block 1.86, 0.04, 0.057
+		del 1
+		add -0.93, ym + 0.67, -0.06
+		block 1.86, 0.04, 0.057
+		del 1
+		! 手摺（外の面に 2 枚、両端に 1 枚ずつ）と幅木
+		for t = -1 to 1 step 2
+			add t * 0.45, y1s, 0
+			gosub "rail"
+			del 1
+			add t * 0.915, (y0s + y1s) / 2, 0
+			rotz 90
+			gosub "rail"
+			del 2
+		next t
+		add -0.93, y1s - 0.01 * s - 0.005, 0
+		block 1.86, 0.01, 0.1
+		del 1
+		! 先付けピース NKSP3+（柱面。床から 0.645）と NKSC チェーン
+		material "sg_steel"
+		add -0.165, s * cD / 2 - 0.0045, 0.645
+		block 0.33, 0.009, 0.05
+		del 1
+		for t = -1 to 1 step 2
+			x0q = t * 0.8
+			y0q = y1s - s * 0.1
+			z0q = 0
+			x1q = t * 0.25
+			y1q = s * (cD / 2)
+			z1q = 0.75
+			rq = 0.004
+			gosub "seg3"
+		next t
+	next s
+	! 渡り足場（柱の ±X の面。幅 510）と渡り手摺
+	material "sg_alu"
+	for t = -1 to 1 step 2
+		xm = min(t * cW / 2, t * (cW / 2 + 0.51))
+		add xm, -cD / 2 - 0.02, -0.04
+		block 0.51, cD + 0.04, 0.04
+		del 1
+		x0q = t * (cW / 2 + 0.5)
+		y0q = -cD / 2
+		z0q = 0.95
+		x1q = t * (cW / 2 + 0.5)
+		y1q = cD / 2
+		z1q = 0.95
+		rq = 0.0175
+		gosub "seg3"
+		for u = -1 to 1 step 2
+			x0q = t * (cW / 2 + 0.5)
+			y0q = u * cD / 2
+			z0q = 0
+			x1q = x0q
+			y1q = y0q
+			z1q = 0.95
+			gosub "seg3"
+		next u
+	next t
+return
+
+"hanger":
+	! NK ハンガー: 梁の上フランジに掛ける。原点はフランジの縁の上、+X＝梁の向き、sgS の側へ奥行き sgB、下へ sgH
+	material "sg_alu"
+	rq = 0.02
+	y0h = sgS * 0.0
+	y1h = sgS * sgB
+	for t = -1 to 1 step 2
+		xh = t * sgW / 2
+		x0q = xh
+		y0q = y0h
+		z0q = 0.2
+		x1q = xh
+		y1q = y0h
+		z1q = -sgH + 0.2
+		gosub "seg3"
+		x0q = xh
+		y0q = y1h
+		z0q = -0.35
+		x1q = xh
+		y1q = y1h
+		z1q = -sgH + 0.2
+		gosub "seg3"
+		! 腕（折畳みの斜材）と横の手すり
+		x0q = xh
+		y0q = y0h
+		z0q = 0.2
+		x1q = xh
+		y1q = y1h
+		z1q = -0.35
+		rq = 0.012
+		gosub "seg3"
+		for k = 0 to 1
+			x0q = xh
+			y0q = y0h
+			z0q = -sgH + 0.7 + k * 0.45
+			x1q = xh
+			y1q = y1h
+			z1q = z0q
+			gosub "seg3"
+		next k
+		rq = 0.02
+		! 掛けるフック
+		material "sg_steel"
+		add xh - 0.04, min(y0h, y0h - sgS * 0.08), 0.0
+		block 0.08, 0.08, 0.2
+		del 1
+		add xh - 0.04, min(y0h, y0h - sgS * 0.08), 0.2
+		block 0.08, 0.08, 0.01
+		del 1
+		material "sg_alu"
+	next t
+	! 外の面の手すり 2 本、床（幅木 100）
+	rq = 0.012
+	for k = 0 to 1
+		x0q = -sgW / 2
+		y0q = y1h
+		z0q = -sgH + 0.7 + k * 0.45
+		x1q = sgW / 2
+		y1q = y1h
+		z1q = z0q
+		gosub "seg3"
+	next k
+	ym = min(y0h, y1h)
+	nS = int(sgB / 0.09)
+	for k = 0 to nS
+		add -sgW / 2, ym + k * 0.09, -sgH + 0.2
+		block sgW, 0.05, 0.02
+		del 1
+	next k
+	material "sg_yel"
+	add -sgW / 2, ym + sgB * (sgS > 0) - 0.005, -sgH + 0.22
+	block sgW, 0.01, 0.1
+	del 1
+return
+
+"ladder":
+	! NKS タラップ: 支柱 □35、幅 335、踏さん 350。原点は下端の幅の中央、sgS の側へ離れる
+	material "sg_alu"
+	yl = sgS * 0.05
+	for t = -1 to 1 step 2
+		add t * 0.15 - 0.0175, yl - 0.0175, 0
+		block 0.035, 0.035, sgL
+		del 1
+	next t
+	nR = int((sgL - 0.2) / 0.35)
+	rq = 0.012
+	for k = 0 to nR
+		x0q = -0.15
+		y0q = yl
+		z0q = 0.1 + k * 0.35
+		x1q = 0.15
+		y1q = yl
+		z1q = z0q
+		gosub "seg3"
+	next k
+	! 柱へのクランプ（4m ごと）
+	material "sg_steel"
+	nC = int(sgL / 3.8) + 1
+	for k = 0 to nC
+		zc = min(sgL - 0.15, 0.15 + k * 3.7)
+		add -0.1675, min(0, sgS * 0.05), zc
+		block 0.335, 0.05, 0.05
+		del 1
+	next k
+return
+
+"net":
+	! 水平ネット: 原点は区画の隅。縁ロープ、網目（描くのは 0.25m ごと）、吊りクランプ 1.5m
+	material "sg_net"
+	rq = 0.006
+	nX = max(1, int(sgX / 0.25))
+	nY = max(1, int(sgY / 0.25))
+	for k = 0 to nX
+		lin_ k * sgX / nX, 0, 0, k * sgX / nX, sgY, 0
+	next k
+	for k = 0 to nY
+		lin_ 0, k * sgY / nY, 0, sgX, k * sgY / nY, 0
+	next k
+	x0q = 0
+	y0q = 0
+	z0q = 0
+	x1q = sgX
+	y1q = 0
+	z1q = 0
+	gosub "seg3"
+	y0q = sgY
+	y1q = sgY
+	gosub "seg3"
+	x0q = 0
+	y0q = 0
+	x1q = 0
+	y1q = sgY
+	gosub "seg3"
+	x0q = sgX
+	x1q = sgX
+	gosub "seg3"
+	material "sg_steel"
+	cX = max(1, int(sgX / 1.5 + 0.99))
+	cY = max(1, int(sgY / 1.5 + 0.99))
+	for k = 0 to cX
+		for t = 0 to 1
+			add k * sgX / cX - 0.02, t * sgY - 0.02, 0
+			block 0.04, 0.04, 0.3
+			del 1
+		next t
+	next k
+	for k = 1 to cY - 1
+		for t = 0 to 1
+			add t * sgX - 0.02, k * sgY / cY - 0.02, 0
+			block 0.04, 0.04, 0.3
+			del 1
+		next t
+	next k
+return
+
+"block":
+	! ライフブロック: 本体 224×284×107・上のフック・下へワイヤ φ4.76。原点は掛ける点
+	material "sg_red"
+	add -0.112, -0.0535, -0.324
+	block 0.224, 0.107, 0.284
+	del 1
+	material "sg_steel"
+	rq = 0.01
+	x0q = 0
+	y0q = 0
+	z0q = 0
+	x1q = 0
+	y1q = 0
+	z1q = -0.04
+	gosub "seg3"
+	rq = 0.0024
+	z0q = -0.324
+	z1q = -sgL
+	gosub "seg3"
+	add -0.02, -0.01, -sgL - 0.09
+	block 0.04, 0.02, 0.09
+	del 1
+return
+
+"lug":
+	! 吊りピース 2 枚: 底 130・高さ 100・孔 φ42・板厚 sgT。原点は柱頭の芯
+	material "sg_yel"
+	for t = -1 to 1 step 2
+		add t * cW * 0.3 - sgT / 2, 0, 0
+		rotz 90
+		rotx 90
+		put -0.065, 0, 15, 0.065, 0, 15, 0.045, 0.1, 15, -0.045, 0.1, 15, -0.065, 0, -1
+		for k = 0 to 12
+			put 0.021 * cos(30 * k), 0.06 + 0.021 * sin(30 * k), 15 - 16 * (k = 12)
+		next k
+		prism_ nsp / 3, sgT, get(nsp)
+		del 3
+	next t
+return
+
+"ep":
+	! エレクションピース: 柱の 4 面に上下の板（幅 sgW・高さ sgH・厚 sgT）、添え板 2 枚とボルト。原点は継手の芯
+	for f = 0 to 3
+		rotz 90 * f
+		half = cD / 2
+		if f = 0 or f = 2 then half = cW / 2
+		material "sg_yel"
+		for t = -1 to 1 step 2
+			add half, -sgT / 2, min(t * 0.004, t * (0.004 + sgH))
+			block 0.1, sgT, sgH
+			del 1
+		next t
+		material "sg_steel"
+		for t = -1 to 1 step 2
+			add half, t * (sgT / 2 + 0.0045) - 0.0045, -0.12
+			block 0.1, 0.009, 0.24
+			del 1
+			for k = -1 to 1 step 2
+				for m = -1 to 1 step 2
+					x0q = half + 0.05
+					y0q = t * (sgT / 2 + 0.009)
+					z0q = m * 0.07 + k * 0.03
+					x1q = x0q
+					y1q = t * (sgT / 2 + 0.022)
+					z1q = z0q
+					rq = 0.012
+					gosub "seg3"
+				next m
+			next k
+		next t
+		del 1
+	next f
+return
+
+"wire":
+	! 建入れワイヤとレバーブロック: 原点は柱頭の取り付け、(sgX, sgY, sgZ) が下の取り付け。ワイヤ φ12、1/3 の所に本体
+	material "sg_steel"
+	rq = 0.006
+	x0q = 0
+	y0q = 0
+	z0q = 0
+	x1q = sgX * 0.365
+	y1q = sgY * 0.365
+	z1q = sgZ * 0.365
+	gosub "seg3"
+	x0q = sgX * 0.365
+	y0q = sgY * 0.365
+	z0q = sgZ * 0.365
+	x1q = sgX
+	y1q = sgY
+	z1q = sgZ
+	gosub "seg3"
+	material "sg_red"
+	add sgX * 0.365 - 0.08, sgY * 0.365 - 0.05, sgZ * 0.365 - 0.08
+	block 0.16, 0.1, 0.16
+	del 1
+	material "sg_steel"
+	add sgX * 0.365, sgY * 0.365 + 0.05, sgZ * 0.365
+	rotx -90
+	cylind 0.03, 0.06
+	del 2
+return
+
+! ==========================================================
+! ==== パラメータスクリプト ====
+! ==========================================================
+! 鉄骨建て方の仮設材: 値の一覧は無い
+
