@@ -515,6 +515,124 @@ class TestTopPlate(unittest.TestCase):
         self.assertAlmostEqual(v["capT"], 0.022)
 
 
+class TestMachines(unittest.TestCase):
+    """重機をステップへ（利用者の指定 2026-11-07「建て方ステップと同時に重機も配置できる？」「その作りで」）."""
+
+    MANY = [{"no": 1, "zone": 1, "name": "1工区 1節"}, {"no": 2, "zone": 1, "name": "1工区 2節"}, {"no": 3, "zone": 2, "name": "2工区 1節"}]
+    ONE = [{"no": 1, "zone": 1, "name": "1工区 1節"}, {"no": 2, "zone": 1, "name": "1工区 2節"}]
+
+    def setUp(self):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        import steel_run
+        self.T = steel_run
+
+    def client(self, sel):
+        class C:
+            calls: list = []
+
+            def get_selected_elements(self):
+                return [{"elementId": {"guid": g}} for g, _n, _l in sel]
+
+            def get_details(self, es):
+                return [{"type": "Object", "layerIndex": l, "details": {"libPart": {"name": n}}} for _g, n, l in sel]
+
+            def tapir(self, cmd, body=None):
+                self.calls.append((cmd, body))
+                return {}
+
+        return C()
+
+    def run_machine(self, rec, sel):
+        import json, tempfile
+        from pathlib import Path as Pt
+        from unittest import mock
+
+        p = Pt(tempfile.mkdtemp()) / "s.json"
+        p.write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
+        c = self.client(sel)
+        with mock.patch.object(self.T, "show_layers"), mock.patch.object(self.T, "layer_map", return_value={"鉄骨重機_1工区": 40, "鉄骨重機_2工区": 41, "鉄骨重機_1工区1節": 42}):
+            r = self.T.machine(c, p)
+        return r, json.loads(p.read_text(encoding="utf-8")), c
+
+    def test_unit_is_the_zone_or_the_node(self):
+        self.assertEqual(self.T.unit_layer(self.MANY, 2), "鉄骨重機_1工区")
+        self.assertEqual(self.T.unit_layer(self.MANY, 3), "鉄骨重機_2工区")
+        self.assertEqual(self.T.unit_layer(self.ONE, 1), "鉄骨重機_1工区1節")
+
+    def test_only_the_current_unit_is_shown(self):
+        rec = {"steps": self.MANY, "machines": [{"guid": "a", "unit": "鉄骨重機_1工区", "layer": 3}, {"guid": "b", "unit": "鉄骨重機_2工区", "layer": 3}]}
+        self.assertEqual(self.T.machine_view(rec, 2), {"鉄骨重機_1工区": False, "鉄骨重機_2工区": True})
+        self.assertEqual(self.T.machine_view(rec, 3), {"鉄骨重機_1工区": True, "鉄骨重機_2工区": False})
+        self.assertEqual(self.T.machine_view(rec, 0), {"鉄骨重機_1工区": False, "鉄骨重機_2工区": False})
+
+    def test_register_keeps_the_first_layer(self):
+        rec = {"steps": self.MANY, "current": 3, "machines": [{"guid": "a", "unit": "鉄骨重機_1工区", "layer": 7}]}
+        r, out, c = self.run_machine(rec, [("a", "ashiba_crane_12345678", 40)])
+        self.assertEqual(r, 0)
+        self.assertEqual(out["machines"], [{"guid": "a", "unit": "鉄骨重機_2工区", "layer": 7}])     # 移しても、もとは 7 のまま
+        self.assertEqual(c.calls[-1][1]["elementsWithDetails"][0]["details"], {"layerIndex": 41})
+
+    def test_register_needs_a_step_and_a_machine(self):
+        self.assertEqual(self.run_machine({"steps": self.MANY, "current": 0}, [("a", "ashiba_crane", 5)])[0], 1)
+        r, out, _c = self.run_machine({"steps": self.MANY, "current": 1}, [("a", "ashiba_steel_12345678", 5)])
+        self.assertEqual(r, 1)                                                       # ピースは重機でない
+        self.assertNotIn("machines", out)
+
+    def test_other_objects_in_the_selection_are_left(self):
+        r, out, c = self.run_machine({"steps": self.MANY, "current": 1}, [("a", "ashiba_machine_1", 5), ("b", "ashiba_plate_1", 5)])
+        self.assertEqual([m["guid"] for m in out["machines"]], ["a"])
+        self.assertEqual(len(c.calls[-1][1]["elementsWithDetails"]), 1)
+
+    def test_back_returns_the_layer_and_never_deletes(self):
+        from unittest import mock
+
+        rec = {"machines": [{"guid": "a", "unit": "u", "layer": 7}, {"guid": "b", "unit": "u", "layer": 8}]}
+        c = self.client([])
+        with mock.patch.object(self.T, "show_layers"):
+            self.assertEqual(self.T.machines_back(c, rec, {"a"}), 1)
+        self.assertEqual(rec["machines"], [{"guid": "b", "unit": "u", "layer": 8}])
+        self.assertEqual([x[0] for x in c.calls], ["SetDetailsOfElements"])
+
+    def test_pieces_are_judged_by_their_zone(self):
+        d = {"columns": [{"x": 0.0, "y": 0.0, "z1": 7000.0, "weight": 1.0, "grid": "X1", "zone": 1, "node": 1},
+                         {"x": 9000.0, "y": 0.0, "z1": 7000.0, "weight": 1.0, "grid": "X2", "zone": 2, "node": 1}], "beams": []}
+        west = lambda *a: {"res": "揚重可能", "radius": 5000.0, "by": "west"}
+        east = lambda *a: {"res": "揚重可能", "radius": 6000.0, "by": "east"}
+        self.T.judge_pieces(d, None, {(1, 1): [west], (2, 1): [east]})
+        self.assertEqual([p["lift"]["by"] for p in d["columns"]], ["west", "east"])
+
+    def test_two_cranes_take_the_one_that_can_lift(self):
+        d = {"columns": [{"x": 0.0, "y": 0.0, "z1": 7000.0, "weight": 1.0, "grid": "X1", "zone": 1, "node": 1}], "beams": []}
+        near = lambda *a: {"res": "重すぎ", "radius": 3000.0}
+        far = lambda *a: {"res": "揚重可能", "radius": 9000.0}
+        self.T.judge_pieces(d, None, {(1, 1): [near, far]})
+        self.assertEqual(d["columns"][0]["lift"]["radius"], 9000.0)
+
+    def test_unit_without_a_crane_falls_back(self):
+        d = {"columns": [{"x": 0.0, "y": 0.0, "z1": 7000.0, "weight": 1.0, "grid": "X1", "zone": 2, "node": 1}], "beams": []}
+        self.T.judge_pieces(d, lambda *a: {"res": "遠すぎ", "radius": 1.0}, {(1, 1): [lambda *a: {"res": "揚重可能"}]})
+        self.assertEqual(d["columns"][0]["lift"]["res"], "遠すぎ")
+
+    def test_sheet_draws_the_crane_of_the_node(self):
+        from ashiba.steel_sheets import cranes_at
+
+        d = {"cranes": [{"name": "A", "x": 0.0, "y": 0.0, "nodes": [1]}, {"name": "B", "x": 9.0, "y": 0.0, "nodes": [2]}]}
+        self.assertEqual([q["name"] for q in cranes_at(d, 1)], ["A"])
+        self.assertEqual([q["name"] for q in cranes_at(d, 2)], ["B"])
+        d["crane"] = {"name": "C", "x": 5.0, "y": 5.0}
+        self.assertEqual([q["name"] for q in cranes_at(d, 1)], ["A", "C"])
+
+    def test_non_crane_machine_is_not_a_lifter(self):
+        import types
+        from unittest import mock
+
+        fake = types.SimpleNamespace(find_crane=lambda c, s, d: ({"elementId": {"guid": "other"}}, {}), lifter=None)
+        d = {"steps": [{"no": 1, "zone": 1, "node": 1}]}
+        rec = {"steps": self.ONE, "machines": [{"guid": "a", "unit": "鉄骨重機_1工区1節", "layer": 3}]}
+        with mock.patch.dict(sys.modules, {"crane_check": fake}):
+            self.assertEqual(self.T.step_lifters(self.client([("a", "ashiba_machine", 3)]), d, rec), ({}, []))
+
+
 class TestBracketRoot(unittest.TestCase):
     """ブラケットの根元は断面の面に合わせる（利用者の指定 2026-11-07）."""
 

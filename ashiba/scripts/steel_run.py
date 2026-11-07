@@ -6,6 +6,8 @@
   python3 scripts/steel_run.py --remove                 # 置いたピースを消す
   python3 scripts/steel_run.py --zones X3 --order 工区  # 工区の境の通りと建てる順（工区: 建て逃げ・節: 積み上げ）
   python3 scripts/steel_run.py --next / --prev / --step 3 / --undo   # 工区・節のステップの姿にする・全部に戻す
+  python3 scripts/steel_run.py --machine                # 選んだ重機を今のステップへ（工区が複数なら工区ごと、1 つなら節ごと）
+  python3 scripts/steel_run.py --machine-off            # 重機の登録を外す（選ばなければ全部）
   python3 scripts/steel_run.py --gear                   # 仮設材（溶接足場・ボルト足場・タラップ・ネットほか）を種類ごとのレイヤーに置く
   python3 scripts/steel_run.py --sheet                  # 建て方検討図（節ごとに A3 の PDF とレイアウト。クレーンを選ぶと揚重の判定が入る）
 
@@ -34,6 +36,8 @@ TABLE = "鉄骨符号表.csv"
 STEPS = "鉄骨ステップ.json"
 DRAWING = "鉄骨建て方_図.json"
 ORIGINAL_LAYER = "鉄骨_元の柱梁"
+MACHINE_LAYER = "鉄骨重機_"
+MACHINE_PARTS = ("ashiba_crane", "ashiba_machine", "ashiba_tower")
 
 
 def read_table(path) -> dict:
@@ -209,13 +213,106 @@ def visible_at(steps: list, no: int) -> dict:
     return {s["layer"]: bool(no) and s["no"] > no for s in steps}
 
 
+def unit_layer(steps: list, no: int) -> str:
+    """ステップ no の重機のレイヤー. 工区が複数なら工区ごと、1 つなら節ごと（仮設材の見せ方と同じ）."""
+    s = next(x for x in steps if x["no"] == no)
+    many = len({x.get("zone") for x in steps}) > 1
+    return MACHINE_LAYER + (s["name"].split()[0] if many else s["name"].replace(" ", ""))
+
+
+def machine_view(rec: dict, no: int) -> dict:
+    """重機のレイヤー {名前: 隠す}. 0 は全部を見せる. 登録していない重機はレイヤーが別なので、どのステップでも見えたまま."""
+    now = unit_layer(rec.get("steps") or [], no) if no else ""
+    return {m["unit"]: bool(no) and m["unit"] != now for m in rec.get("machines") or []}
+
+
+def machine(c, path) -> int:
+    """選んだ重機を今のステップへ登録する: 単位のレイヤーへ移す. もとのレイヤーは控える."""
+    rec = read_json(path, {})
+    steps = rec.get("steps") or []
+    no = int(rec.get("current") or 0)
+    if not steps or not no:
+        print("鉄骨建て方: 先に「鉄骨の次のステップ」で、重機を置くステップへ送ってください")
+        return 1
+    sel = c.get_selected_elements()
+    ds = c.get_details(sel) if sel else []
+    picks = [(e, d) for e, d in zip(sel, ds) if d.get("type") == "Object"
+             and str(((d.get("details") or {}).get("libPart") or {}).get("name", "")).startswith(MACHINE_PARTS)]
+    if not picks:
+        print("鉄骨建て方: 重機を選んで押してください（クレーン・クローラクレーン・タワークレーン・重機）")
+        return 1
+    unit = unit_layer(steps, no)
+    old = {m["guid"]: m for m in rec.get("machines") or []}
+    show_layers(c, {unit: False})
+    idx = layer_map(c)[unit]
+    c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": e["elementId"], "details": {"layerIndex": idx}} for e, _d in picks]})
+    new = [{"guid": e["elementId"]["guid"], "unit": unit, "layer": old[e["elementId"]["guid"]]["layer"] if e["elementId"]["guid"] in old else int(d["layerIndex"])}
+           for e, d in picks]
+    keep = {m["guid"] for m in new}
+    rec["machines"] = [m for m in old.values() if m["guid"] not in keep] + new
+    path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"鉄骨建て方: 重機 {len(new)}台を「{unit[len(MACHINE_LAYER):]}」に登録しました")
+    return 0
+
+
+def machines_back(c, rec: dict, only: set | None = None) -> int:
+    """重機をもとのレイヤーへ戻し、登録を外す. 重機そのものは消さない. 戻した数."""
+    rows = [m for m in rec.get("machines") or [] if only is None or m["guid"] in only]
+    if rows:
+        show_layers(c, {m["unit"]: False for m in rows})
+        c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": {"guid": m["guid"]}, "details": {"layerIndex": m["layer"]}} for m in rows]})
+    rec["machines"] = [m for m in rec.get("machines") or [] if m not in rows]
+    return len(rows)
+
+
+def step_lifters(c, d: dict, rec: dict) -> tuple:
+    """登録したクレーン → ({(工区, 節): [判定の関数]}, [{name, x, y, nodes}]). クレーンでない重機は見ない."""
+    from crane_check import find_crane, lifter
+
+    steps = rec.get("steps") or []
+    fs: dict = {}
+    infos: dict = {}
+    for m in rec.get("machines") or []:
+        el = {"elementId": {"guid": m["guid"]}}
+        try:
+            dt = c.get_details([el])[0]
+        except Exception:                                  # noqa: BLE001 消されていれば飛ばす
+            continue
+        crane, cd = find_crane(c, [el], [dt])
+        if crane is None or crane["elementId"]["guid"] != m["guid"]:   # 見つからないと控えの別のクレーンが返る
+            continue
+        f, info = lifter(c, crane, cd)
+        fs.setdefault(m["unit"], []).append(tagged(f, info))
+        infos.setdefault(m["unit"], []).append(info)
+    by: dict = {}
+    cranes: list = []
+    seen: dict = {}
+    for s in d.get("steps") or []:
+        unit = unit_layer(steps, s["no"]) if any(x["no"] == s["no"] for x in steps) else ""
+        if unit in fs:
+            by[(s["zone"], s["node"])] = fs[unit]
+            for info in infos[unit]:
+                k = (info["x"], info["y"])
+                if k not in seen:
+                    seen[k] = {**info, "nodes": []}
+                    cranes.append(seen[k])
+                if s["node"] not in seen[k]["nodes"]:
+                    seen[k]["nodes"].append(s["node"])
+    return by, cranes
+
+
+def tagged(f, info: dict):
+    """判定の結果にクレーンの位置を足す（図の作業半径の中心）."""
+    return lambda *a: {**f(*a), "cx": info["x"], "cy": info["y"]}
+
+
 def restore(c, path) -> int:
     """元の柱と梁をもとのレイヤーへ戻し、ステップのレイヤーを全部見せる. 戻した数."""
     rec = read_json(path, {})
     steps = rec.get("steps") or []
     orig = rec.get("originals") or {}
     if steps:
-        show_layers(c, visible_at(steps, 0))
+        show_layers(c, {**visible_at(steps, 0), **machine_view(rec, 0)})
     if orig:
         show_layers(c, {ORIGINAL_LAYER: False})
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": {"guid": g}, "details": {"layerIndex": int(i)}} for g, i in orig.items()]})
@@ -240,7 +337,7 @@ def go_step(c, path, no: int) -> int:
         ds = c.get_details([{"elementId": {"guid": g}} for g in rec["members"]])
         rec["originals"] = {g: int(d["layerIndex"]) for g, d in zip(rec["members"], ds) if "layerIndex" in d}
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": {"guid": g}, "details": {"layerIndex": idx}} for g in rec["originals"]]})
-    show_layers(c, {**visible_at(steps, no), ORIGINAL_LAYER: True})
+    show_layers(c, {**visible_at(steps, no), ORIGINAL_LAYER: True, **machine_view(rec, no)})
     set_gear(c, rec, no)
     rec["current"] = no
     path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -262,15 +359,20 @@ def drawing_data(plan, steps, lx, ly, xs, ys, rows, deck_records, zones=()) -> d
             "deck": [{**d, "rope": r.rope} for d, r in zip(deck_records, rows)]}
 
 
-def judge_pieces(d: dict, f) -> None:
-    """節のピースに揚重の判定を入れる."""
+def judge_pieces(d: dict, f, by: dict | None = None) -> None:
+    """節のピースに揚重の判定を入れる. by は {(工区, 節): [判定の関数]}（ステップに登録したクレーン）で、無い工区は f. 2 台なら吊れて近いほう."""
     import math
 
+    def lift(p: dict, *a) -> None:
+        fs = (by or {}).get((p.get("zone"), p["node"])) or ([f] if f else [])
+        if fs:
+            p["lift"] = min((g(*a) for g in fs), key=lambda r: (r.get("res") != "揚重可能", r.get("radius") or 0.0))
+
     for p in d["columns"]:
-        p["lift"] = f(p["x"], p["y"], p["z1"], p["weight"], p["grid"])
+        lift(p, p["x"], p["y"], p["z1"], p["weight"], p["grid"])
     for b in d["beams"]:
         a = math.radians(b["ang"])
-        b["lift"] = f(b["x"] + b["length"] / 2.0 * math.cos(a), b["y"] + b["length"] / 2.0 * math.sin(a), b["z"] + b["h"] / 2.0, b["weight"], b["mark"])
+        lift(b, b["x"] + b["length"] / 2.0 * math.cos(a), b["y"] + b["length"] / 2.0 * math.sin(a), b["z"] + b["h"] / 2.0, b["weight"], b["mark"])
 
 
 def set_gear(c, rec: dict, no: int) -> None:
@@ -366,19 +468,25 @@ def sheet(c, R) -> int:
         from ashiba.elevation_sections import activate_floor_plan
 
         activate_floor_plan(c)
-    sel = c.get_selected_elements()
-    crane, cd = find_crane(c, sel, c.get_details(sel) if sel else [])
+    by, cranes = step_lifters(c, d, read_json(R.OUT_DIR / STEPS, {}))
+    d["cranes"] = cranes
+    crane = f = None
+    if not by or any((s["zone"], s["node"]) not in by for s in d["steps"]):   # 登録が無い工区は、選んだクレーンで見る
+        sel = c.get_selected_elements()
+        crane, cd = find_crane(c, sel, c.get_details(sel) if sel else [])
     if crane is not None:
         f, info = lifter(c, crane, cd)
+        f = tagged(f, info)
         d["crane"] = info
-        judge_pieces(d, f)
+    if f or by:
+        judge_pieces(d, f, by)
     project = str({**R.SPEC, **R.load_spec_override()}.get("project_name") or "")
     html_path = R.OUT_DIR / "建て方検討図.html"
     html_path.write_text(build_html(d, project), encoding="utf-8")
     pdf = R.OUT_DIR / "建て方検討図.pdf"
     ok = to_pdf(html_path, pdf)
     pages = page_list(d)
-    print(f"建て方検討図: {len(pages)}節（{pdf if ok else html_path}）" + ("" if crane is not None else "。クレーンが無いので揚重の判定は入っていません"))
+    print(f"建て方検討図: {len(pages)}節（{pdf if ok else html_path}）" + ("" if crane is not None or by else "。クレーンが無いので揚重の判定は入っていません"))
     try:
         from ashiba.form_layout import place_layouts
 
@@ -435,6 +543,8 @@ def main(argv=None) -> int:
     ap.add_argument("--undo", action="store_true", help="全部を見せて、元の柱と梁を戻す")
     ap.add_argument("--sheet", action="store_true", help="建て方検討図（節ごと）")
     ap.add_argument("--gear", action="store_true", help="仮設材を置く")
+    ap.add_argument("--machine", action="store_true", help="選んだ重機を今のステップへ登録する")
+    ap.add_argument("--machine-off", dest="machine_off", action="store_true", help="重機の登録を外す（選ばなければ全部）")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -448,6 +558,15 @@ def main(argv=None) -> int:
         return sheet(c, R)
     if a.gear:
         return gear(c, R)
+    if a.machine:
+        return machine(c, step_path)
+    if a.machine_off:
+        r0 = read_json(step_path, {})
+        sel = {e["elementId"]["guid"] for e in c.get_selected_elements()}
+        n = machines_back(c, r0, (sel & {m["guid"] for m in r0.get("machines") or []}) or None)
+        step_path.write_text(json.dumps(r0, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"鉄骨建て方: 重機 {n}台の登録を外しました")
+        return 0
     if a.undo:
         print(f"鉄骨建て方: 全部を見せました（元の柱と梁 {restore(c, step_path)}個を戻しました）")
         return 0
@@ -456,6 +575,9 @@ def main(argv=None) -> int:
         return go_step(c, step_path, a.step if a.step is not None else cur + (1 if a.next else -1))
     restore(c, step_path)                                 # 隠したままだと柱を読めず、ピースも消せない
     if a.remove:
+        back = machines_back(c, read_json(step_path, {}))
+        if back:
+            print(f"鉄骨建て方: 重機 {back}台はもとのレイヤーへ戻しました（消していません）")
         n = _delete_alive(c, rec + [g["guid"] for g in read_json(step_path, {}).get("gear") or []])
         rec_path.write_text("[]", encoding="utf-8")
         step_path.write_text("{}", encoding="utf-8")
@@ -556,8 +678,13 @@ def main(argv=None) -> int:
                  for s in steps for p in s.columns + s.beams if id(p) in guid_of]
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
         old_gear = read_json(step_path, {}).get("gear") or []
+        old_machines = read_json(step_path, {}).get("machines") or []
         step_path.write_text(json.dumps({"steps": [{"no": s.no, "zone": s.zone, "name": s.name, "layer": names[s.no], "columns": len(s.columns), "beams": len(s.beams)} for s in steps],
-                                         "members": used, "originals": {}, "current": 0, "gear": old_gear}, ensure_ascii=False, indent=1), encoding="utf-8")
+                                         "members": used, "originals": {}, "current": 0, "gear": old_gear, "machines": old_machines}, ensure_ascii=False, indent=1), encoding="utf-8")
+        now_units = {unit_layer([{"no": s.no, "zone": s.zone, "name": s.name} for s in steps], s.no) for s in steps}
+        lost = sorted({m["unit"][len(MACHINE_LAYER):] for m in old_machines if m["unit"] not in now_units})
+        if lost:
+            plan.warnings.append("工区や節が変わり、重機の登録が合いません: " + "・".join(lost) + "（ステップへ送って登録し直してください）")
     nodes: dict = {}
     for p in plan.columns:
         nodes.setdefault(p.node, []).append(p.weight)
