@@ -2,7 +2,7 @@
 
 ラフター・クローラ・タワーで同じものを使う。フックの下の吊りしろ slgH（既定 6m。SCP の既定）に丸十字を描き、横に「Max 8.21t」（今の半径の定格総荷重×安全率）を書く。
 印は平面のどの向きにも（hfX・hfY）、上下にも（mkZ）ホットスポットで引け、フックが一緒に動く。mkZ＝印の高さで、パラメータスクリプトがフックへ書き戻す。
-3D の印と文字は視点へ向ける（クレーン情報の文字と同じ回し方）。
+3D の丸十字は水平に寝かせ、文字だけ視点へ向ける（クレーン情報の文字と同じ回し方）。
 """
 
 from __future__ import annotations
@@ -37,8 +37,7 @@ if slgOn and ({gate}) then
 	if abs(dxV) > 0.01 then aV = atn(dyV / dxV) + 180 * (dxV < 0)
 	aV = aV - SYMB_ROTANGLE + 90
 	add mkX, mkY, mkQ
-	rotz aV
-	rotx 90
+	! 丸十字は水平に寝かせる（利用者の指定 2026-11-07）。文字だけ視点へ向ける
 	for k = 0 to 24
 		put mkR * cos(15 * k), mkR * sin(15 * k), 15 - 16 * (k = 24)
 	next k
@@ -52,6 +51,8 @@ if slgOn and ({gate}) then
 	add -mkR * 0.05, -mkR, 0
 	block mkR * 0.1, mkR * 2, 0.03
 	del 1
+	rotz aV
+	rotx 90
 	style "mkI"
 	add mkR * 1.3, 0, 0
 	if mkV > 0 then
