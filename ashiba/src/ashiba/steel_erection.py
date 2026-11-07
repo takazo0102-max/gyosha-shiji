@@ -138,6 +138,7 @@ class ColumnPiece:
     brackets: list = field(default_factory=list)
     base_plate: bool = False
     weight: float | None = None
+    zone: int = 1
 
 
 @dataclass
@@ -151,6 +152,30 @@ class BeamPiece:
     w: float
     h: float
     weight: float | None = None
+    zone: int = 1
+    node: int = 1
+
+
+@dataclass
+class Step:
+    """建て方のステップ（工区ごと・節ごと）."""
+    no: int
+    zone: int
+    node: int
+    columns: list
+    beams: list
+
+    @property
+    def name(self) -> str:
+        return f"{self.zone}工区 {self.node}節"
+
+    @property
+    def pieces(self) -> int:
+        return len(self.columns) + len(self.beams)
+
+    @property
+    def weight(self) -> float:
+        return sum(p.weight or 0.0 for p in self.columns + self.beams)
 
 
 @dataclass
@@ -355,6 +380,78 @@ def table_rows(plan: Plan) -> list:
     """重量表の行 [(節, 通り, 符号, 重量 t か None)]. 節・通りの順."""
     rows = sorted(plan.columns, key=lambda p: (p.node, p.grid))
     return [(f"{p.node}節", p.grid, "・".join(p.marks), p.weight) for p in rows]
+
+
+def zone_lines(text: str, pts: list, lines_x=(), lines_y=()) -> tuple:
+    """工区の境の通り（X3,Y2 の形）→ (X の境 mm, Y の境 mm, 読めない名前). 通り芯の記号が無い通りは位置の順の X1・Y1 で読む."""
+    named = grid_names(pts, list(lines_x), list(lines_y))
+    xs: list = []
+    ys: list = []
+    bad: list = []
+    for raw in re.split(r"[,、\s]+", str(text or "").strip()):
+        if not raw:
+            continue
+        hit_x = [p[0] for p, n in named.items() if n.split("-")[0] == raw]
+        hit_y = [p[1] for p, n in named.items() if n.split("-")[-1] == raw]
+        if hit_x:
+            xs.append(hit_x[0])
+        elif hit_y:
+            ys.append(hit_y[0])
+        else:
+            bad.append(raw)
+    return sorted(set(xs)), sorted(set(ys)), bad
+
+
+def zone_of(x: float, y: float, xs: list, ys: list) -> int:
+    """工区の番号（1 から）. 境の通りの上は手前の工区に入れる."""
+    ix = sum(1 for c in xs if x > c + 1.0)
+    iy = sum(1 for c in ys if y > c + 1.0)
+    return ix * (len(ys) + 1) + iy + 1
+
+
+def make_steps(plan: Plan, xs: list, ys: list, order: str = "工区") -> list:
+    """工区ごと・節ごとのステップ. order「工区」は工区を上まで建てて次の工区へ（建て逃げ）、「節」は節を全部の工区で建てて上へ（積み上げ）."""
+    for p in plan.columns:
+        p.zone = zone_of(p.x, p.y, xs, ys)
+    for b in plan.beams:
+        ang = math.radians(b.ang)
+        mx, my = b.x + b.length / 2.0 * math.cos(ang), b.y + b.length / 2.0 * math.sin(ang)
+        b.zone = zone_of(mx, my, xs, ys)
+        near = [p for p in plan.columns if p.z0 - 1.0 <= b.z <= p.z1 + 1.0]
+        if near:
+            b.node = min(near, key=lambda p: math.hypot(p.x - mx, p.y - my)).node
+    keys = sorted({(p.zone, p.node) for p in plan.columns} | {(b.zone, b.node) for b in plan.beams},
+                  key=(lambda k: k) if order != "節" else (lambda k: (k[1], k[0])))
+    return [Step(n, z, d, [p for p in plan.columns if (p.zone, p.node) == (z, d)], [b for b in plan.beams if (b.zone, b.node) == (z, d)])
+            for n, (z, d) in enumerate(keys, 1)]
+
+
+def schedule_tasks(steps: list, per_day: float, cranes: int = 1) -> list:
+    """工程表の作業（ステップを順につなぐ）. per_day はクレーン 1 台の 1 日のピース数."""
+    from .schedule import Dep, Task, days_of
+
+    out = []
+    for s in steps:
+        out.append(Task(f"steel{s.no}", f"{s.name} 建方", "鉄骨建方", days_of(s.pieces, per_day, cranes), float(s.pieces), "ピース",
+                        f"{per_day:g}ピース/日×{cranes}台", [Dep(f"steel{s.no - 1}")] if s.no > 1 else []))
+    return out
+
+
+def zone_sheet(wb, steps: list) -> None:
+    """工区のピース数のシート."""
+    sh = wb.sheet("工区のピース数")
+    sh.add_title("工区のピース数", 7)
+    sh.add_header(["ステップ", "工区", "節", "柱", "梁", "計", "重量 t"])
+    for s in steps:
+        sh.add([s.no, f"{s.zone}工区", f"{s.node}節", len(s.columns), len(s.beams), s.pieces, round(s.weight, 2)])
+    for z in sorted({s.zone for s in steps}):
+        ss = [s for s in steps if s.zone == z]
+        sh.add(["", f"{z}工区 計", "", sum(len(s.columns) for s in ss), sum(len(s.beams) for s in ss), sum(s.pieces for s in ss),
+                round(sum(s.weight for s in ss), 2)])
+    sh.add(["", "合計", "", sum(len(s.columns) for s in steps), sum(len(s.beams) for s in steps), sum(s.pieces for s in steps),
+            round(sum(s.weight for s in steps), 2)])
+    for i, wdt in enumerate((8, 12, 8, 8, 8, 8, 10)):
+        sh.set_width(i, wdt)
 
 
 def to_markdown(plan: Plan, title: str = "鉄骨 節ごとの重量表") -> str:
