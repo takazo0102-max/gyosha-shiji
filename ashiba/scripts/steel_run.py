@@ -274,10 +274,18 @@ def judge_pieces(d: dict, f) -> None:
 
 
 def set_gear(c, rec: dict, no: int) -> None:
-    """仮設材の表示: ステップ no までを描く（0 は全部）."""
+    """仮設材の表示: ステップ no の工区の分だけを描く（0 は全部）. 仮設材は工区を移るときに使い回す（利用者の指定 2026-11-07）.
+    工区を持たない前の版の控えは、ステップ no までを描く."""
     items = rec.get("gear") or []
+    zone = next((s.get("zone") for s in rec.get("steps") or [] if s.get("no") == no), None)
+
+    def on(g: dict) -> bool:
+        if not no:
+            return True
+        return g["zone"] == zone if zone is not None and "zone" in g else g["step"] <= no
+
     if items:
-        c.set_gdl_parameters_many([({"elementId": {"guid": g["guid"]}}, {"sgOn": not no or g["step"] <= no}) for g in items])
+        c.set_gdl_parameters_many([({"elementId": {"guid": g["guid"]}}, {"sgOn": on(g)}) for g in items])
 
 
 def gear_objects(d: dict) -> tuple:
@@ -286,7 +294,7 @@ def gear_objects(d: dict) -> tuple:
 
     cols = [NS(**{"ang": 0.0, **c}) for c in d["columns"]]          # 前の版の控えには向きと梁の幅が無い
     beams = [NS(**{"w": 200.0, **b}) for b in d["beams"]]
-    steps = [NS(no=s["no"], zone=s["zone"], node=s["node"], columns=[c for c in cols if (c.zone, c.node) == (s["zone"], s["node"])],
+    steps = [NS(no=s["no"], zone=s["zone"], zone_name=s.get("zone_name", ""), node=s["node"], columns=[c for c in cols if (c.zone, c.node) == (s["zone"], s["node"])],
                 beams=[b for b in beams if (b.zone, b.node) == (s["zone"], s["node"])]) for s in d["steps"]]
     return NS(columns=cols, beams=beams), steps
 
@@ -295,7 +303,7 @@ def gear(c, R) -> int:
     """仮設材を置く: 種類ごとのレイヤー「鉄骨仮設_…」を作り、節とピースから部品 ashiba_sgear を置く. 前に置いた分は控えで消す."""
     from ashiba.pens import gdl_pens, parse_pens
     from ashiba.steel_erection import parse_section, splice_of
-    from ashiba.steel_gear import plan_gear, quantities, to_sheet as gear_sheet
+    from ashiba.steel_gear import order_rows, plan_gear, to_sheet as gear_sheet
     from ashiba.xlsx_writer import Workbook
     from excav_run import _delete_alive
 
@@ -326,17 +334,17 @@ def gear(c, R) -> int:
     idx = layer_map(c)
     moves = [{"elementId": e["elementId"], "details": {"layerIndex": idx[g.layer]}} for e, g in zip(els, items) if "elementId" in e]
     c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
-    rec["gear"] = [{"guid": e["elementId"]["guid"], "step": g.step} for e, g in zip(els, items) if "elementId" in e]
+    rec["gear"] = [{"guid": e["elementId"]["guid"], "step": g.step, "zone": g.zone} for e, g in zip(els, items) if "elementId" in e]
     step_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     if rec.get("current"):
         set_gear(c, rec, int(rec["current"]))
     wb = Workbook()
-    gear_sheet(wb, items)
+    gear_sheet(wb, items, {s.zone: s.zone_name for s in steps})
     xl = R.OUT_DIR / "鉄骨仮設材.xlsx"
     wb.save(xl)
     print(f"鉄骨の仮設材: {done}個を置きました（{len(layers)}レイヤー。{xl}）")
-    for kind, name, n, _kg in quantities(items):
-        print(f"  {kind}: {name} {n}")
+    for kind, name, _n, need, _kg in order_rows(items)[1]:
+        print(f"  {kind}: {name} 手配 {need}")
     return 0
 
 
@@ -544,7 +552,7 @@ def main(argv=None) -> int:
                  for s in steps for p in s.columns + s.beams if id(p) in guid_of]
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
         old_gear = read_json(step_path, {}).get("gear") or []
-        step_path.write_text(json.dumps({"steps": [{"no": s.no, "name": s.name, "layer": names[s.no], "columns": len(s.columns), "beams": len(s.beams)} for s in steps],
+        step_path.write_text(json.dumps({"steps": [{"no": s.no, "zone": s.zone, "name": s.name, "layer": names[s.no], "columns": len(s.columns), "beams": len(s.beams)} for s in steps],
                                          "members": used, "originals": {}, "current": 0, "gear": old_gear}, ensure_ascii=False, indent=1), encoding="utf-8")
     nodes: dict = {}
     for p in plan.columns:
