@@ -9,7 +9,7 @@ Archicad の柱と梁（符号・位置・高さ）を読み、次のピース�
   ウェブ両面 2 枚とフランジの外 1＋内 2 を上下に。値は SPLICE_400（400N 級の大梁継手の表。structure.jp の転載で原本は未確認）、表に無い断面は【目安】
 - 重量: 符号表の断面（H-500×200×10×16・□-500×500×22・P-318.5×10）の断面積×長さ×7.85t/m³。H 形鋼はフィレット 0.858r² を足す（BH は足さない）。
   ブラケットと添え板一式、1 節目のベースプレートを柱のピースに足す（添え板は工場でブラケット側に付けて運ぶ前提）。断面の無い符号は重量を出さない（外形で計算すると中実の重さになる）。
-  ボルトと通しダイアフラムは数えず、割増 extra に含める。ベースプレートの大きさは窓の値で【目安】.
+  ボルトは数えず、割増 extra に含める。ダイアフラムと柱頭の板は 1 枚ずつ足す。ベースプレートの大きさは窓の値で【目安】.
 """
 
 from __future__ import annotations
@@ -18,7 +18,10 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from .opening_guard import inside
+
 DENSITY = 7.85e-9                                # t/mm³
+PLATE_SIZES = (9.0, 12.0, 16.0, 19.0, 22.0, 25.0, 28.0, 32.0, 36.0, 40.0, 45.0, 50.0)   # 鋼板の板厚の並び mm
 MIN_PIECE = 2000.0                               # 節のいちばん短い長さ mm【目安】
 MAX_PIECE = 12000.0                              # 節の長さの目安 mm（structure-design の解説。車両の制限 12m）
 TRAILER_BED = 9200.0                             # 10t 平車の荷台の長さ mm（丸五運輸の例）
@@ -111,7 +114,16 @@ class Options:
     base: float = 0.0                            # これより下の柱・梁は見ない
     bp_over: float = 100.0                       # ベースプレートのはみ出し【目安】
     bp_t: float = 36.0                           # ベースプレートの厚さ【目安】
-    extra: float = 5.0                           # 重量の割増 %（ボルト・溶接・ダイアフラム）【目安】
+    extra: float = 5.0                           # 重量の割増 %（ボルト・溶接・フィレット）【目安】
+    diaphragm: str = "自動"                      # 自動（角形・丸は通し、H形は水平スチフナ）・内・なし
+
+
+@dataclass(frozen=True)
+class Plate:
+    """柱のダイアフラム（H形は水平スチフナ）1 枚 mm."""
+    z: float                                     # 板の中心（ピースの下端から）
+    t: float
+    kind: int                                    # 1 通し・2 内・3 水平スチフナ
 
 
 @dataclass
@@ -121,6 +133,8 @@ class Bracket:
     z: float                                     # 高さ（絶対）
     start: float                                 # 柱の中心から根元まで
     end: float                                   # 柱の中心から先まで
+    w: float = 200.0                             # 梁の幅（断面が無いときの仮の形に使う）
+    h: float = 400.0                             # 梁のせい
 
 
 @dataclass
@@ -137,6 +151,7 @@ class ColumnPiece:
     d: float
     brackets: list = field(default_factory=list)
     base_plate: bool = False
+    top_plate: bool = False                      # いちばん上の節の柱頭の板
     weight: float | None = None
     zone: int = 1
 
@@ -157,6 +172,15 @@ class BeamPiece:
 
 
 @dataclass
+class Zone:
+    """工区のゾーン（Archicad のゾーン。外形 mm）. 名前に「工区」を含むゾーンだけを使う."""
+    no: int
+    name: str
+    outline: list
+    holes: list = field(default_factory=list)
+
+
+@dataclass
 class Step:
     """建て方のステップ（工区ごと・節ごと）."""
     no: int
@@ -164,10 +188,11 @@ class Step:
     node: int
     columns: list
     beams: list
+    zone_name: str = ""
 
     @property
     def name(self) -> str:
-        return f"{self.zone}工区 {self.node}節"
+        return f"{self.zone_name or str(self.zone) + '工区'} {self.node}節"
 
     @property
     def pieces(self) -> int:
@@ -214,6 +239,105 @@ def splice_of(s: Section | None) -> Splice | None:
         return Splice(*row)
     t = next((x for x in (9, 12, 16, 19, 22, 25, 28) if x >= s.tf * 0.8), 32)
     return Splice(t, 405.0, s.b - 5.0, t, max(45.0, (s.b - s.tw) / 2.0 - 30.0), 9.0, max(50.0, s.h - 2 * s.tf - 40.0), 165.0, False)
+
+
+def size_up(t: float, n: int) -> float:
+    """板厚 t の n サイズ上（並びに無い厚さは、その下の板から数える【目安】。13 の 2 サイズ上は 19）. t より薄くはしない."""
+    k = max((i for i, x in enumerate(PLATE_SIZES) if x <= t), default=0)
+    return next((x for x in PLATE_SIZES[min(k + n, len(PLATE_SIZES) - 1):] if x >= t), PLATE_SIZES[-1])
+
+
+def cap_plate(col: Section, flange: float = 0.0) -> tuple:
+    """柱頭の板の (板厚, 出) mm. 最上部の板に限った公開の基準は見つからないので、通しダイアフラムの値を当てる:
+    板厚は梁フランジの最大厚の 2 サイズ上、出は柱の板厚 28 未満で 25・以上で 30（建築研究所の資料 https://www.kenken.go.jp/japanese/contents/publications/data/143/2 、
+    日建連 鉄骨工事 Q&A A-2-18 https://www.nikkenren.com/kenchiku/sekou/steel_frame_Q&A/A-2-18.pdf）.
+    梁が付かない柱は柱の板厚から 2 サイズ上（【目安】）."""
+    return max(size_up(flange or col.tf, 2), size_up(col.tf, 0)), 30.0 if col.tf >= 28.0 else 25.0
+
+
+def cap_of(p: ColumnPiece, col: Section, rows: list) -> tuple:
+    """柱頭の板の (板厚, 出, 上端の高さ) mm. rows は (Bracket, 梁の Section). 柱頭に梁が付くなら板の中心を上フランジの中心に."""
+    t, e = cap_plate(col, max((q.tf for _b, q in rows), default=0.0))
+    z = p.z1 - p.z0
+    for br, q in rows:
+        if abs(br.z - p.z0 + q.h / 2.0 - (p.z1 - p.z0)) <= 50.0:
+            z = br.z - p.z0 + q.h / 2.0 - q.tf / 2.0 + t / 2.0
+    return t, e, z
+
+
+def plate_kind(col: Section, o: Options) -> int:
+    """板の種類. 既定は角形・丸が通し、H形が水平スチフナ（reports/鉄骨柱のダイアフラムの実務と標準値.md）. 丸の既定は公開の出典が無く【目安】."""
+    if o.diaphragm == "なし":
+        return 0
+    if col.kind == "H":
+        return 3
+    return 2 if o.diaphragm == "内" else 1
+
+
+def plate_t(kind: int, flange: float, col: Section) -> float:
+    """板厚. 通しは梁フランジ最大厚の 2 サイズ上で柱の板厚以上、内は 1 サイズ上（日建連 Q&A A-3-12 の抜粋）、水平スチフナはフランジ厚以上（建研 No.143 の抜粋）."""
+    t = size_up(flange, {1: 2, 2: 1, 3: 0}[kind])
+    return max(t, size_up(col.tf, 0)) if kind == 1 else t
+
+
+def diaphragms(p: ColumnPiece, col: Section, rows: list, o: Options) -> list:
+    """ピースのダイアフラム. 全方向の梁のフランジの高さを並べ、1 枚の板厚に収まるものを 1 枚にする（告示 1464 号: フランジは板厚の内部で溶接）.
+    枚数を定めた規定は無く、この手順は調査からの推論. 柱頭の板と重なる段は足さない."""
+    kind = plate_kind(col, o)
+    if not kind:
+        return []
+    flanges = sorted({(br.z - p.z0 + s * (q.h - q.tf) / 2.0, q.tf) for br, q in rows for s in (1, -1)})
+
+    def plate(g: list) -> tuple:
+        hi, lo = max(z + t / 2.0 for z, t in g), min(z - t / 2.0 for z, t in g)
+        return (hi + lo) / 2.0, max(plate_t(kind, max(t for _z, t in g), col), size_up(hi - lo, 0)), hi - lo
+
+    groups: list = []
+    for f in flanges:
+        if groups:
+            a, b = plate(groups[-1]), plate([f])
+            one = plate(groups[-1] + [f])
+            if one[2] <= plate_t(kind, max(t for _z, t in groups[-1] + [f]), col) or b[0] - b[1] / 2.0 <= a[0] + a[1] / 2.0:
+                groups[-1].append(f)                       # 1 枚に収まる。重なる 2 枚も 1 枚にまとめる【目安】
+                continue
+        groups.append([f])
+    cap = cap_of(p, col, rows) if p.top_plate else None
+    out = []
+    for g in groups:
+        z, t, _span = plate(g)
+        if not cap or abs(z - (cap[2] - cap[0] / 2.0)) > cap[0]:
+            out.append(Plate(z, t, kind))
+    return out
+
+
+def plate_weight(d: Plate, col: Section) -> float:
+    """1 枚の重さ t. 通しは中抜きの無い板なので外形の全面で数える（公共建築数量積算基準の考えからの推論）."""
+    e = cap_plate(col)[1]
+    if d.kind == 3:
+        area = (col.h - 2 * col.tf) * (col.b - col.tw)
+    elif d.kind == 2:
+        area = math.pi * (col.h / 2.0 - col.tf) ** 2 if col.kind == "PIPE" else (col.h - 2 * col.tf) * (col.b - 2 * col.tf)
+    else:
+        area = math.pi * (col.h / 2.0 + e) ** 2 if col.kind == "PIPE" else (col.h + 2 * e) * (col.b + 2 * e)
+    return area * d.t * DENSITY
+
+
+def plate_gap_notes(p: ColumnPiece, col: Section, rows: list, plates: list) -> list:
+    """板と板の内法の注意 → (内法 mm, 文). 150mm 未満は溶接と探傷の可否の検討（建研 No.143 の抜粋）、10t は探傷の目安（日建連 A-4-7 の抜粋）."""
+    if col.kind == "H":
+        return []
+    cap = cap_of(p, col, rows)
+    rows2 = sorted([(d.z, d.t) for d in plates] + ([(cap[2] - cap[0] / 2.0, cap[0])] if p.top_plate else []))
+    out = []
+    for (a, ta), (b, tb) in zip(rows2, rows2[1:]):
+        gap = b - tb / 2.0 - a - ta / 2.0
+        if gap < 100.0:
+            out.append((gap, "内法 100mm 未満: 溶接できない恐れ。ハンチか梁せいの調整を検討"))
+        elif gap < 150.0:
+            out.append((gap, "内法 150mm 未満: 溶接と探傷の可否を検討"))
+        elif gap < max(200.0, 10.0 * col.tf):
+            out.append((gap, "内法が短い: 探傷（10t）と開先の加工を確認【目安】"))
+    return out
 
 
 def cut_heights(levels: list, z0: float, z1: float, o: Options) -> list:
@@ -279,7 +403,8 @@ def plan_pieces(cols: list, beams: list, levels: list, sections: dict, o: Option
             inside = [c for c in st if min(c.z1, b) - max(c.z0, a) > 1.0]
             marks = list(dict.fromkeys(c.mark for c in inside))
             top = inside[0] if inside else st[0]
-            pieces[key].append(ColumnPiece(n, grid[key], key[0], key[1], a, b, marks, top.ang, top.w, top.d, base_plate=n == 1))
+            pieces[key].append(ColumnPiece(n, grid[key], key[0], key[1], a, b, marks, top.ang, top.w, top.d, base_plate=n == 1,
+                                        top_plate=n == len(edges) - 1))
     out_beams: list = []
     for b in beams:
         if b.zc < o.base:
@@ -305,7 +430,7 @@ def plan_pieces(cols: list, beams: list, levels: list, sections: dict, o: Option
                         c = hit
                         rad = math.radians(ang + turn - c.ang)
                         half = (abs(math.cos(rad)) * c.w + abs(math.sin(rad)) * c.d) / 2.0
-                        c.brackets.append(Bracket(b.mark, (ang + turn) % 360.0, b.zc, half, length))
+                        c.brackets.append(Bracket(b.mark, (ang + turn) % 360.0, b.zc, half, length, b.w, b.h))
             x = b.p0[0] + ux * (ta + la)
             y = b.p0[1] + uy * (ta + la)
             out_beams.append(BeamPiece(b.mark, x, y, b.zc, ang, a - la - lb, b.w, b.h))
@@ -318,6 +443,7 @@ def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
     """ピースの重量 t. 断面の無い符号が1つでもあれば None（重量を出さない）."""
     missing: set = set()
     guess: set = set()
+    gaps: dict = {}
     for p in plan.columns:
         total = 0.0
         st = next(s for k, s in stacks.items() if math.hypot(k[0] - p.x, k[1] - p.y) < 50.0)
@@ -335,6 +461,16 @@ def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
         s0 = sections.get(p.marks[0]) if p.marks else None
         if p.base_plate and s0:
             total += (s0.h + 2 * o.bp_over) * (s0.b + 2 * o.bp_over) * o.bp_t * DENSITY
+        if s0:
+            rows = [(br, sections.get(br.mark) or shape_of("beam", br.w, br.h)) for br in p.brackets]
+            if p.top_plate:
+                t, e, _z = cap_of(p, s0, rows)
+                plate = math.pi * (s0.h / 2.0 + e) ** 2 if s0.kind == "PIPE" else (s0.h + 2 * e) * (s0.b + 2 * e)
+                total += plate * t * DENSITY
+            plates = diaphragms(p, s0, rows, o)
+            total += sum(plate_weight(d, s0) for d in plates)
+            for gap, text in plate_gap_notes(p, s0, rows, plates):
+                gaps.setdefault(text, []).append((gap, f"{p.node}節 {p.grid}"))
         for br in p.brackets:
             s = sections.get(br.mark)
             if s is None:
@@ -352,8 +488,11 @@ def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
             missing.add(b.mark)
         else:
             b.weight = s.weight(b.length) * (1 + o.extra / 100.0)
+    for text, rows in gaps.items():
+        low = min(rows)
+        plan.warnings.append(f"ダイアフラムの{text}（{low[1]} {low[0]:.0f}mm ほか 計{len(rows)}か所）")
     if missing:
-        plan.warnings.append("断面が無い符号: " + "・".join(sorted(missing)) + "（符号表に入れると重量が出ます）")
+        plan.warnings.append("断面が無い符号: " + "・".join(sorted(missing)) + "（柱と梁の大きさから仮の形で描きます。符号表に入れると重量が出ます）")
     if guess:
         plan.warnings.append("継手表に無い断面: " + "・".join(sorted(guess)) + "（添え板は【目安】の大きさ）")
     long_n = sorted({p.node for p in plan.columns if p.z1 - p.z0 > MAX_PIECE})
@@ -409,20 +548,57 @@ def zone_of(x: float, y: float, xs: list, ys: list) -> int:
     return ix * (len(ys) + 1) + iy + 1
 
 
-def make_steps(plan: Plan, xs: list, ys: list, order: str = "工区") -> list:
-    """工区ごと・節ごとのステップ. order「工区」は工区を上まで建てて次の工区へ（建て逃げ）、「節」は節を全部の工区で建てて上へ（積み上げ）."""
+def _edge_gap(p, poly: list) -> float:
+    """点から多角形の辺までの距離 mm."""
+    best = math.inf
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        t = max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy or 1.0)))
+        best = min(best, math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy))
+    return best
+
+
+def zone_at(p, zones: list, tol: float = 100.0) -> int:
+    """点の工区の番号. 線の上（tol 以内）は番号の小さいゾーン。どれにも入らなければ最後の番号＋1（工区なし）."""
+    for z in zones:
+        if _edge_gap(p, z.outline) <= tol:
+            return z.no
+        if inside(p, z.outline) and not any(inside(p, h) for h in z.holes):
+            return z.no
+    return len(zones) + 1
+
+
+def label_point(poly: list, holes: list = (), n: int = 24) -> tuple:
+    """ゾーンの名前を置く点（升目のうち辺から一番遠い点）. L字でも形の中に入る."""
+    x0, x1 = min(q[0] for q in poly), max(q[0] for q in poly)
+    y0, y1 = min(q[1] for q in poly), max(q[1] for q in poly)
+    pts = [(x0 + (x1 - x0) * (i + 0.5) / n, y0 + (y1 - y0) * (j + 0.5) / n) for i in range(n) for j in range(n)]
+    pts = [p for p in pts if inside(p, poly) and not any(inside(p, h) for h in holes)]
+    return max(pts, key=lambda p: min([_edge_gap(p, poly)] + [_edge_gap(p, h) for h in holes]), default=poly[0])
+
+
+def make_steps(plan: Plan, xs: list, ys: list, order: str = "工区", zones: list | None = None) -> list:
+    """工区ごと・節ごとのステップ. order「工区」は工区を上まで建てて次の工区へ（建て逃げ）、「節」は節を全部の工区で建てて上へ（積み上げ）.
+    zones（Zone の並び）があれば通りの境より優先する."""
+    place = (lambda x, y: zone_at((x, y), zones)) if zones else (lambda x, y: zone_of(x, y, xs, ys))
     for p in plan.columns:
-        p.zone = zone_of(p.x, p.y, xs, ys)
+        p.zone = place(p.x, p.y)
     for b in plan.beams:
         ang = math.radians(b.ang)
         mx, my = b.x + b.length / 2.0 * math.cos(ang), b.y + b.length / 2.0 * math.sin(ang)
-        b.zone = zone_of(mx, my, xs, ys)
+        b.zone = place(mx, my)
         near = [p for p in plan.columns if p.z0 - 1.0 <= b.z <= p.z1 + 1.0]
         if near:
             b.node = min(near, key=lambda p: math.hypot(p.x - mx, p.y - my)).node
     keys = sorted({(p.zone, p.node) for p in plan.columns} | {(b.zone, b.node) for b in plan.beams},
                   key=(lambda k: k) if order != "節" else (lambda k: (k[1], k[0])))
-    return [Step(n, z, d, [p for p in plan.columns if (p.zone, p.node) == (z, d)], [b for b in plan.beams if (b.zone, b.node) == (z, d)])
+    names = {z.no: z.name for z in zones or []}
+    if zones:
+        names[len(zones) + 1] = "工区なし"
+        lost = sum(1 for p in plan.columns + plan.beams if p.zone == len(zones) + 1)
+        if lost:
+            plan.warnings.append(f"どのゾーンにも入らないピース {lost}個（「工区なし」にしました）")
+    return [Step(n, z, d, [p for p in plan.columns if (p.zone, p.node) == (z, d)], [b for b in plan.beams if (b.zone, b.node) == (z, d)], names.get(z, ""))
             for n, (z, d) in enumerate(keys, 1)]
 
 
@@ -443,10 +619,10 @@ def zone_sheet(wb, steps: list) -> None:
     sh.add_title("工区のピース数", 7)
     sh.add_header(["ステップ", "工区", "節", "柱", "梁", "計", "重量 t"])
     for s in steps:
-        sh.add([s.no, f"{s.zone}工区", f"{s.node}節", len(s.columns), len(s.beams), s.pieces, round(s.weight, 2)])
+        sh.add([s.no, s.zone_name or f"{s.zone}工区", f"{s.node}節", len(s.columns), len(s.beams), s.pieces, round(s.weight, 2)])
     for z in sorted({s.zone for s in steps}):
         ss = [s for s in steps if s.zone == z]
-        sh.add(["", f"{z}工区 計", "", sum(len(s.columns) for s in ss), sum(len(s.beams) for s in ss), sum(s.pieces for s in ss),
+        sh.add(["", f"{ss[0].zone_name or str(z) + '工区'} 計", "", sum(len(s.columns) for s in ss), sum(len(s.beams) for s in ss), sum(s.pieces for s in ss),
                 round(sum(s.weight for s in ss), 2)])
     sh.add(["", "合計", "", sum(len(s.columns) for s in steps), sum(len(s.beams) for s in steps), sum(s.pieces for s in steps),
             round(sum(s.weight for s in steps), 2)])
@@ -460,7 +636,7 @@ def to_markdown(plan: Plan, title: str = "鉄骨 節ごとの重量表") -> str:
         md.append(f"| {n} | {g} | {m} | " + ("断面なし" if w is None else f"{w:.2f}t") + " |")
     if plan.warnings:
         md += ["", "## 注意", "", *[f"- {w}" for w in plan.warnings]]
-    md += ["", "重量＝符号表の断面の断面積×長さ×7.85t/m³ に割増を掛けた値。柱のブラケットと継手の添え板一式、1 節目のベースプレートを含む。ボルトと通しダイアフラムは割増に含む。"]
+    md += ["", "重量＝符号表の断面の断面積×長さ×7.85t/m³ に割増を掛けた値。柱のブラケットと継手の添え板一式、1 節目のベースプレート、ダイアフラム、柱頭の板を含む。ボルトは割増に含む。"]
     return "\n".join(md) + "\n"
 
 
@@ -477,6 +653,14 @@ def to_sheet(wb, plan: Plan, title: str = "鉄骨 節ごとの重量表") -> Non
         sh.set_width(i, wdt)
 
 
+def shape_of(kind: str, w: float, h: float) -> Section:
+    """断面が空のときの形だけの仮の断面（Archicad の大きさから。板厚は【目安】。重量には使わない）."""
+    if kind == "column":
+        t = max(9.0, round(min(w, h) / 25.0))
+        return Section("（仮）", "BOX", w, h, t, t)
+    return Section("（仮）", "H", h, w, max(6.0, round(h / 50.0)), max(9.0, round(h / 30.0)))
+
+
 def _sec(s: Section | None) -> tuple:
     if s is None:
         return 0, 0.0, 0.0, 0.0, 0.0
@@ -485,13 +669,15 @@ def _sec(s: Section | None) -> tuple:
 
 def column_params(p: ColumnPiece, sections: dict, o: Options) -> dict:
     """部品 ashiba_steel のパラメータ（柱のピース）."""
-    s = sections.get(p.marks[0]) if p.marks else None
+    s = (sections.get(p.marks[0]) if p.marks else None) or shape_of("column", p.w, p.d)
     t, h, b, tw, tf = _sec(s)
-    if s is None:
-        h, b = p.w / 1000.0, p.d / 1000.0
-    rows = [(br, sections.get(br.mark)) for br in p.brackets]
+    rows = [(br, sections.get(br.mark) or shape_of("beam", br.w, br.h)) for br in p.brackets]
+    cap_t, cap_o, cap_z = cap_of(p, s, rows)
+    plates = diaphragms(p, s, rows, o)
     return {"spK": 1, "spT": t, "spH": h, "spB": b, "spW": tw, "spF": tf, "spL": (p.z1 - p.z0) / 1000.0, "spAng": p.ang,
             "bpOn": p.base_plate, "bpO": o.bp_over / 1000.0, "bpT": o.bp_t / 1000.0,
+            "capOn": p.top_plate, "capO": cap_o / 1000.0, "capT": cap_t / 1000.0, "capZ": cap_z / 1000.0,
+            "dpK": plate_kind(s, o), "dpO": cap_o / 1000.0, "dpZ": ",".join(f"{d.z:.1f}" for d in plates), "dpT": ",".join(f"{d.t:.0f}" for d in plates),
             "brA": ",".join(f"{br.ang:.1f}" for br, _s in rows), "brZ": ",".join(f"{br.z - p.z0:.0f}" for br, _s in rows),
             "brS": ",".join(f"{br.start:.0f}" for br, _s in rows), "brE": ",".join(f"{br.end:.0f}" for br, _s in rows),
             "brT": ",".join(str(_sec(q)[0]) for _b, q in rows),
@@ -505,9 +691,7 @@ def column_params(p: ColumnPiece, sections: dict, o: Options) -> dict:
 
 def beam_params(p: BeamPiece, sections: dict) -> dict:
     """部品 ashiba_steel のパラメータ（梁のピース）."""
-    s = sections.get(p.mark)
+    s = sections.get(p.mark) or shape_of("beam", p.w, p.h)
     t, h, b, tw, tf = _sec(s)
-    if s is None:
-        h, b = p.h / 1000.0, p.w / 1000.0
     return {"spK": 2, "spT": t, "spH": h, "spB": b, "spW": tw, "spF": tf, "spL": p.length / 1000.0, "spAng": p.ang,
-            "bpOn": False, "pcW": p.weight or 0.0, "pcName": p.mark + ("" if p.weight is None else f" {p.weight:.2f}t")}
+            "bpOn": False, "capOn": False, "dpK": 0, "pcW": p.weight or 0.0, "pcName": p.mark + ("" if p.weight is None else f" {p.weight:.2f}t")}

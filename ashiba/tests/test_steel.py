@@ -8,8 +8,8 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.steel_erection import (Beam, Column, Options, column_params, cut_heights, grid_names, make_steps, parse_section, piece_width, plan_pieces,
-                                   schedule_tasks, splice_of, table_rows, zone_lines, zone_of)
+from ashiba.steel_erection import (Beam, Bracket, Column, ColumnPiece, Options, Zone, beam_params, cap_plate, column_params, diaphragms, plate_gap_notes, plate_weight, cut_heights, grid_names, make_steps, parse_section, piece_width,
+                                   label_point, plan_pieces, schedule_tasks, shape_of, splice_of, table_rows, zone_at, zone_lines, zone_of)
 
 
 def frame(mark="C1"):
@@ -55,7 +55,7 @@ class TestPieces(unittest.TestCase):
 
     def test_weight_has_bracket_splice_and_base_plate(self):
         cols, beams = frame()
-        o = Options(every=1, extra=0.0)
+        o = Options(every=1, extra=0.0, diaphragm="なし")
         p = plan_pieces(cols, beams, LEVELS, SECS, o)
         c = next(c for c in p.columns if c.node == 1 and c.x == 0.0)
         col = SECS["C1"].weight(4000.0)
@@ -353,6 +353,215 @@ class TestGear(unittest.TestCase):
         from ashiba.tapir_adapter import to_tapir_values
 
         self.assertAlmostEqual(to_tapir_values({"sgA": 90.0})["sgA"], math.pi / 2)
+
+
+class TestBlankSection(unittest.TestCase):
+    """断面が空でも箱にしない（利用者の報告 2026-11-07「ガセットプレートがでないHこうになってない」）."""
+
+    def test_shape_without_a_section(self):
+        cols, beams = frame()
+        p = plan_pieces(cols, beams, LEVELS, {}, Options(every=1))
+        c = next(c for c in p.columns if c.brackets)
+        q = column_params(c, {}, Options())
+        self.assertEqual(q["spT"], 2)                                                # 角形
+        self.assertEqual(q["brT"].split(",")[0], "1")                               # ブラケットは H
+        self.assertGreater(float(q["spwH"].split(",")[0]), 0)                       # 添え板が出る
+        self.assertEqual(beam_params(p.beams[0], {})["spT"], 1)
+
+    def test_blank_section_gives_no_weight(self):
+        cols, beams = frame()
+        p = plan_pieces(cols, beams, LEVELS, {}, Options())
+        self.assertTrue(all(c.weight is None for c in p.columns))
+        self.assertIn("仮の形", p.warnings[-1])
+
+    def test_guess_keeps_the_size(self):
+        s = shape_of("beam", 300.0, 500.0)
+        self.assertEqual((s.kind, s.h, s.b), ("H", 500.0, 300.0))
+        self.assertEqual(shape_of("column", 500.0, 500.0).kind, "BOX")
+
+
+class TestTopPlate(unittest.TestCase):
+    """最上節の柱頭の板（利用者の指摘 2026-11-07「最上部にもプレートいるのでは？」）."""
+
+    def top(self, plan):
+        return max(plan.columns, key=lambda c: (c.node, bool(c.brackets)))
+
+    def test_only_the_top_node_has_it(self):
+        cols, beams = frame()
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        last = max(c.node for c in p.columns)
+        self.assertGreater(last, 1)
+        self.assertTrue(all(c.top_plate == (c.node == last) for c in p.columns))
+        self.assertTrue(column_params(self.top(p), SECS, Options())["capOn"])
+        self.assertFalse(column_params(min(p.columns, key=lambda c: c.node), SECS, Options())["capOn"])
+
+    def test_two_sizes_above_the_flange(self):
+        c = parse_section("□-400×400×19")
+        self.assertEqual(cap_plate(c, 16.0), (22.0, 25.0))
+        self.assertEqual(cap_plate(c, 17.0), (22.0, 25.0))                           # 間の厚さは下の板から数える
+        self.assertEqual(cap_plate(c, 13.0), (19.0, 25.0))
+        self.assertEqual(cap_plate(parse_section("□-600×600×36"), 16.0), (36.0, 30.0))   # 柱の板厚より薄くしない
+        self.assertEqual(cap_plate(parse_section("□-600×600×28"), 28.0), (36.0, 30.0))
+        self.assertEqual(cap_plate(c), (25.0, 25.0))                                 # 梁なしは柱の板厚から
+
+    def test_plate_adds_weight(self):
+        p = plan_pieces([Column("C1", 0.0, 0.0, 0.0, 3000.0, 500.0, 500.0)], [], LEVELS, SECS, Options(extra=0))
+        c = p.columns[0]
+        self.assertTrue(c.base_plate and c.top_plate)
+        s = SECS["C1"]
+        want = s.weight(3000.0) + (700.0 ** 2 * 36.0 + 550.0 ** 2 * 28.0) * 7.85e-9   # 梁なし: 22 の 2 サイズ上は 28
+        self.assertAlmostEqual(c.weight, want)
+
+    def test_plate_centers_on_the_top_flange(self):
+        s = parse_section("□-400×400×19")
+        q = parse_section("H-500×200×10×16")
+        c = ColumnPiece(2, "X1-Y1", 0.0, 0.0, 7000.0, 12000.0, ["C1"], 0.0, 400.0, 400.0,
+                        [Bracket("G1", 0.0, 11750.0, 200.0, 1000.0, 200.0, 500.0)], top_plate=True)
+        v = column_params(c, {"C1": s, "G1": q}, Options())
+        self.assertAlmostEqual(v["capZ"], 5.0 - 0.008 + 0.011)                       # 上端 5.000 からフランジの中心へ下げ、板厚の半分を足す
+        self.assertAlmostEqual(v["capT"], 0.022)
+
+
+class TestDiaphragm(unittest.TestCase):
+    """ダイアフラム（利用者の指定 2026-11-07「ダイアフラムもリサーチして追加できるようにしてちょ」）."""
+
+    BOX = parse_section("□-400×400×19")
+    G5 = parse_section("H-500×200×10×16")
+
+    def piece(self, *beams, top=False):
+        br = [Bracket(f"G{i}", 90.0 * i, z, 200.0, 1000.0, 200.0, 500.0) for i, (z, _q) in enumerate(beams)]
+        return ColumnPiece(1, "X1-Y1", 0.0, 0.0, 0.0, 5000.0, ["C1"], 0.0, 400.0, 400.0, br, top_plate=top), [(b, q) for b, (_z, q) in zip(br, beams)]
+
+    def test_two_through_plates_at_the_flanges(self):
+        p, rows = self.piece((3000.0, self.G5))
+        d = diaphragms(p, self.BOX, rows, Options())
+        self.assertEqual([(x.z, x.t, x.kind) for x in d], [(2758.0, 22.0, 1), (3242.0, 22.0, 1)])
+
+    def test_same_level_beams_share_one_plate(self):
+        p, rows = self.piece((3000.0, self.G5), (3000.0, self.G5))
+        self.assertEqual(len(diaphragms(p, self.BOX, rows, Options())), 2)
+
+    def test_top_aligned_deeper_beam_makes_three(self):
+        q = parse_section("H-600×200×11×17")
+        p, rows = self.piece((3000.0, self.G5), (2950.0, q))
+        d = diaphragms(p, self.BOX, rows, Options())
+        self.assertEqual(len(d), 3)                                                  # 上は 1 枚、下は 2 枚
+        notes = plate_gap_notes(p, self.BOX, rows, d)
+        self.assertIn("100mm 未満", notes[0][1])
+
+    def test_gap_of_150_to_200_is_a_soft_note(self):
+        q = parse_section("H-700×200×13×24")
+        p, rows = self.piece((3000.0, self.G5), (2900.0, q))
+        notes = plate_gap_notes(p, self.BOX, rows, diaphragms(p, self.BOX, rows, Options()))
+        self.assertEqual(len(notes), 1)
+        self.assertIn("150mm 未満" if notes[0][0] < 150.0 else "内法が短い", notes[0][1])
+
+    def test_overlapping_plates_become_one(self):
+        q = parse_section("H-588×300×12×20")
+        r = parse_section("H-600×200×11×17")
+        p, rows = self.piece((3000.0, q), (2994.0, r))                               # 天端を揃えた H-588 と H-600
+        d = diaphragms(p, self.BOX, rows, Options())
+        self.assertEqual(len(d), 2)
+        self.assertGreaterEqual(d[0].t, 28.0)                                        # 下は 32mm 近い帯を 1 枚で受ける
+        self.assertEqual(plate_gap_notes(p, self.BOX, rows, d), [])
+
+    def test_stiffener_is_never_thinner_than_the_flange(self):
+        col = parse_section("H-400×400×13×21")
+        p, rows = self.piece((3000.0, parse_section("H-500×200×10×13")))
+        self.assertEqual(diaphragms(p, col, rows, Options())[0].t, 16.0)
+
+    def test_h_column_gets_stiffeners(self):
+        col = parse_section("H-400×400×13×21")
+        p, rows = self.piece((3000.0, self.G5))
+        d = diaphragms(p, col, rows, Options())
+        self.assertEqual({(x.t, x.kind) for x in d}, {(16.0, 3)})                    # 梁フランジ厚以上
+        self.assertAlmostEqual(plate_weight(d[0], col), (400 - 42) * (400 - 13) * 16 * 7.85e-9)
+        self.assertEqual(plate_gap_notes(p, col, rows, d), [])
+
+    def test_inner_and_none(self):
+        p, rows = self.piece((3000.0, self.G5))
+        d = diaphragms(p, self.BOX, rows, Options(diaphragm="内"))
+        self.assertEqual({(x.t, x.kind) for x in d}, {(19.0, 2)})                    # 1 サイズ上
+        self.assertEqual(diaphragms(p, self.BOX, rows, Options(diaphragm="なし")), [])
+        v = column_params(p, {"C1": self.BOX, "G0": self.G5}, Options(diaphragm="なし"))
+        self.assertEqual((v["dpK"], v["dpZ"]), (0, ""))
+
+    def test_pipe_is_through_and_round(self):
+        col = parse_section("P-318.5×10")
+        p, rows = self.piece((3000.0, self.G5))
+        d = diaphragms(p, col, rows, Options())
+        self.assertEqual(d[0].kind, 1)
+        self.assertAlmostEqual(plate_weight(d[0], col), 3.14159265 * (159.25 + 25) ** 2 * 22 * 7.85e-9, 5)
+
+    def test_top_plate_is_not_doubled(self):
+        p, rows = self.piece((4750.0, self.G5), top=True)
+        d = diaphragms(p, self.BOX, rows, Options())
+        self.assertEqual([x.z for x in d], [4508.0])                                 # 下のフランジだけ
+
+    def test_params_and_weight(self):
+        cols = [Column("C1", 0.0, 0.0, 0.0, 6000.0, 400.0, 400.0)]
+        beams = [Beam("G1", (0.0, 0.0), (6000.0, 0.0), 3000.0, 200.0, 500.0)]
+        secs = {"C1": self.BOX, "G1": self.G5}
+        a = plan_pieces(cols, beams, LEVELS, secs, Options()).columns[0]
+        b = plan_pieces(cols, beams, LEVELS, secs, Options(diaphragm="なし")).columns[0]
+        self.assertEqual(column_params(a, secs, Options())["dpT"], "22,22")
+        self.assertAlmostEqual(a.weight - b.weight, 2 * 450.0 ** 2 * 22.0 * 7.85e-9 * 1.05)
+
+
+class TestZones(unittest.TestCase):
+    """ゾーンで工区を分ける（利用者の指定 2026-11-07「ゾーンで工区区切るのはどう？」）."""
+
+    L = [(0.0, 0.0), (20000.0, 0.0), (20000.0, 10000.0), (10000.0, 10000.0), (10000.0, 20000.0), (0.0, 20000.0)]
+
+    def test_inside_l_shape(self):
+        z = [Zone(1, "1工区", self.L)]
+        self.assertEqual(zone_at((5000.0, 15000.0), z), 1)
+        self.assertEqual(zone_at((15000.0, 15000.0), z), 2)                          # 欠けた所は工区なし
+
+    def test_label_stays_inside_an_l_shape(self):
+        p = label_point(self.L)
+        self.assertEqual(zone_at(p, [Zone(1, "1工区", self.L)], 0.0), 1)
+        self.assertNotEqual(p, (10000.0, 10000.0))                                   # 入隅に乗らない
+
+    def test_on_the_line_goes_to_the_smaller_number(self):
+        a = Zone(1, "1工区", [(0.0, 0.0), (6000.0, 0.0), (6000.0, 9000.0), (0.0, 9000.0)])
+        b = Zone(2, "2工区", [(6000.0, 0.0), (12000.0, 0.0), (12000.0, 9000.0), (6000.0, 9000.0)])
+        self.assertEqual(zone_at((6000.0, 4500.0), [a, b]), 1)
+        self.assertEqual(zone_at((9000.0, 4500.0), [a, b]), 2)
+
+    def test_steps_follow_the_zones(self):
+        cols, beams = frame()
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        a = Zone(1, "A工区", [(-1000.0, -1000.0), (3000.0, -1000.0), (3000.0, 1000.0), (-1000.0, 1000.0)])
+        b = Zone(2, "B工区", [(3000.0, -1000.0), (7000.0, -1000.0), (7000.0, 1000.0), (3000.0, 1000.0)])
+        steps = make_steps(p, [], [], "工区", [a, b])
+        self.assertEqual(steps[0].name, "A工区 1節")
+        self.assertEqual({s.zone_name for s in steps}, {"A工区", "B工区"})
+
+    def test_piece_outside_is_warned(self):
+        cols, beams = frame()
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        a = Zone(1, "A工区", [(-1000.0, -1000.0), (1000.0, -1000.0), (1000.0, 1000.0), (-1000.0, 1000.0)])
+        steps = make_steps(p, [], [], "工区", [a])
+        self.assertIn("工区なし", {s.zone_name for s in steps})
+        self.assertTrue(any("入らないピース" in w for w in p.warnings))
+
+    def test_only_zones_named_koku_are_used(self):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from steel_run import zones_of
+
+        class C:
+            def tapir(self, cmd, body):
+                return {"elements": [1, 2]}
+
+            def get_details(self, es):
+                ring = [{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 1, "y": 1}, {"x": 0, "y": 0}]
+                return [{"details": {"name": "事務室", "numberStr": "1", "polygonOutline": ring}},
+                        {"details": {"name": "2工区", "numberStr": "10", "polygonOutline": ring}},
+                        {"details": {"name": "西工区", "numberStr": "9", "polygonOutline": ring}}]
+
+        z = zones_of(C())
+        self.assertEqual([(x.no, x.name, len(x.outline)) for x in z], [(1, "西工区", 3), (2, "2工区", 3)])   # 番号の順（10 は 9 の後）
 
 
 class TestSheet(unittest.TestCase):

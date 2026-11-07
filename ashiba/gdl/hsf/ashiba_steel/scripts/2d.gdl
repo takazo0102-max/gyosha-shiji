@@ -10,6 +10,20 @@ if spK = 1 then
 		rect2 -spH / 2, -spB / 2, spH / 2, spB / 2
 	endif
 	if bpOn then rect2 -spH / 2 - bpO, -spB / 2 - bpO, spH / 2 + bpO, spB / 2 + bpO
+	if capOn then
+		if spT = 3 then
+			circle2 0, 0, spH / 2 + capO
+		else
+			rect2 -spH / 2 - capO, -spB / 2 - capO, spH / 2 + capO, spB / 2 + capO
+		endif
+	endif
+	if dpK = 1 and nD > 0 then
+		if spT = 3 then
+			circle2 0, 0, spH / 2 + dpO
+		else
+			rect2 -spH / 2 - dpO, -spB / 2 - dpO, spH / 2 + dpO, spB / 2 + dpO
+		endif
+	endif
 	del 1
 	for i = 1 to nB
 		rot2 qA[i]

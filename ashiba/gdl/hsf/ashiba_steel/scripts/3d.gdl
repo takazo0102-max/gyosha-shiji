@@ -18,6 +18,59 @@ if spK = 1 then
 		del 1
 		material "sp_steel"
 	endif
+	if capOn then
+		! 柱頭の板: 管はこの板の下で止める
+		material "sp_plate"
+		if spT = 3 then
+			addz capZ - capT
+			cylind capT, spH / 2 + capO
+			del 1
+		else
+			add -spH / 2 - capO, -spB / 2 - capO, capZ - capT
+			block spH + 2 * capO, spB + 2 * capO, capT
+			del 1
+		endif
+		material "sp_steel"
+		rL = capZ - capT
+	endif
+	material "sp_plate"
+	for j = 1 to nD
+		zb = dZ[j] - dT[j] / 2
+		if dpK = 1 then
+			! 通しダイアフラム: 柱の外へ dpO 出す
+			if spT = 3 then
+				addz zb
+				cylind dT[j], spH / 2 + dpO
+				del 1
+			else
+				add -spH / 2 - dpO, -spB / 2 - dpO, zb
+				block spH + 2 * dpO, spB + 2 * dpO, dT[j]
+				del 1
+			endif
+		endif
+		if dpK = 2 then
+			! 内ダイアフラム: 柱の内側いっぱい
+			if spT = 3 then
+				addz zb
+				cylind dT[j], spH / 2 - spF
+				del 1
+			else
+				add -spH / 2 + spF, -spB / 2 + spF, zb
+				block spH - 2 * spF, spB - 2 * spF, dT[j]
+				del 1
+			endif
+		endif
+		if dpK = 3 then
+			! 水平スチフナ: H 形の柱のウェブの両側、フランジからフランジへ
+			add -spH / 2 + spF, spW / 2, zb
+			block spH - 2 * spF, spB / 2 - spW / 2, dT[j]
+			del 1
+			add -spH / 2 + spF, -spB / 2, zb
+			block spH - 2 * spF, spB / 2 - spW / 2, dT[j]
+			del 1
+		endif
+	next j
+	material "sp_steel"
 	roty -90
 	gosub "run"
 	del 2

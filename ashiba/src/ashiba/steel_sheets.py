@@ -10,6 +10,7 @@ import html
 import math
 
 from .form_drawings import CSS, MARGIN, PAGE_H, PAGE_W, SCALES, TB_H, _page
+from .steel_erection import label_point
 
 ESC = html.escape
 SERIES = "建て方"
@@ -104,6 +105,13 @@ def plan_svg(d: dict, node: int) -> tuple:
         out.append(_line(P(x + 1.0, y0), P(x + 1.0, y1), 0.45, "#c0392b", "5 1.5"))
     for y in d.get("ys", []):
         out.append(_line(P(x0, y + 1.0), P(x1, y + 1.0), 0.45, "#c0392b", "5 1.5"))
+    # 工区のゾーン
+    for z in d.get("zones", []):
+        for ring in [z["outline"]] + z.get("holes", []):
+            ring = [P(*q) for q in ring]
+            for a, b in zip(ring, ring[1:] + ring[:1]):
+                out.append(_line(a, b, 0.45, "#c0392b", "5 1.5"))
+        out.append(_t(*P(*label_point(z["outline"], z.get("holes", []))), z["name"], "h2", "middle"))
     # 下の節（灰）
     for c in cols:
         if c["node"] < node:
@@ -168,7 +176,7 @@ def side_svg(d: dict, node: int) -> str:
     out.append(_t(SIDE_X + 2, y, "順　工区　柱　梁　計　重量"))
     y += 3.8
     for s in steps:
-        out.append(_t(SIDE_X + 2, y, f"{s['no']}　{s['zone']}工区　{s['columns']}　{s['beams']}　{s['columns'] + s['beams']}　{s['weight']:.2f}t"))
+        out.append(_t(SIDE_X + 2, y, f"{s['no']}　{s.get('zone_name') or str(s['zone']) + '工区'}　{s['columns']}　{s['beams']}　{s['columns'] + s['beams']}　{s['weight']:.2f}t"))
         y += 3.8
     total = sum(p.get("weight") or 0.0 for p in now + beams)
     out.append(_t(SIDE_X + 2, y, f"計 柱 {len(now)}・梁 {len(beams)}・{len(now) + len(beams)}ピース・{total:.2f}t"))
