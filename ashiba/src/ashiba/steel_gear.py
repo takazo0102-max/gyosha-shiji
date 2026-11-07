@@ -35,6 +35,7 @@ class Gear:
     name: str
     kg: float = 0.0
     params: dict = field(default_factory=dict)
+    zone: int = 1
 
     @property
     def layer(self) -> str:
@@ -130,10 +131,13 @@ def plan_gear(plan, steps: list, sections: dict, splice_of) -> list:
     for top, node in floors:
         for x0, x1 in zip(xs, xs[1:]):
             for y0, y1 in zip(ys, ys[1:]):
-                zone = next((s.zone for s in steps if s.node == node and any(abs(q.x - x0) < 1 for q in s.columns)), 1)
+                zone = next((s.zone for s in steps if s.node == node and any(abs(q.x - x0) < 1 and abs(q.y - y0) < 1 for q in s.columns)), 1)
                 st = step_of.get((zone, node), steps[0].no if steps else 1)
                 lx, ly = (x1 - x0) / 1000.0, (y1 - y0) / 1000.0
                 gears.append(Gear(4, st, float(x0), float(y0), top - NET_DOWN * 1000.0, f"水平ネット {lx:.1f}×{ly:.1f}m", 0.0, {"sgX": lx, "sgY": ly}))
+    zone_of = {s.no: s.zone for s in steps}
+    for g in gears:
+        g.zone = zone_of.get(g.step, 1)
     return gears
 
 
@@ -147,12 +151,30 @@ def quantities(gears: list) -> list:
     return [(KINDS[k[0]], k[1], n, round(w, 1)) for k, (n, w) in sorted(tot.items())]
 
 
-def to_sheet(wb, gears: list) -> None:
+def order_rows(gears: list) -> tuple:
+    """使い回す前提の数量（利用者の指定 2026-11-07「仮設材は使い回すので工区毎でいいよ」）.
+    → (工区の番号の並び, [(種類, 品名, {工区: 数}, 手配数, 手配の重量 kg)]). 手配数は工区の中の最大."""
+    zones = sorted({g.zone for g in gears})
+    tot: dict = {}
+    for g in gears:
+        row = tot.setdefault((g.kind, g.name), {"n": {}, "kg": g.kg})
+        row["n"][g.zone] = row["n"].get(g.zone, 0) + 1
+    rows = []
+    for (kind, name), r in sorted(tot.items()):
+        need = max(r["n"].values())
+        rows.append((KINDS[kind], name, r["n"], need, round(need * r["kg"], 1)))
+    return zones, rows
+
+
+def to_sheet(wb, gears: list, names: dict | None = None) -> None:
+    zones, rows = order_rows(gears)
+    heads = [(names or {}).get(z) or f"{z}工区" for z in zones]
     sh = wb.sheet("仮設材の数量")
-    sh.add_title("鉄骨建て方の仮設材", 4)
-    sh.add_header(["種類", "品名", "数", "重量 kg"])
-    for r in quantities(gears):
-        sh.add(list(r))
+    sh.add_title("鉄骨建て方の仮設材（工区で使い回す）", 4 + len(zones))
+    sh.add_header(["種類", "品名", *heads, "手配数", "手配の重量 kg"])
+    for kind, name, n, need, kg in rows:
+        sh.add([kind, name, *[n.get(z, 0) for z in zones], need, kg])
+    sh.add(["手配数は工区の中の最大（工区を移るときに使い回す）。節の間の使い回しは数えていない。"])
     sh.add(["本数の決めに公的な基準は無い。溶接足場は節の継手ごと、ハンガーは継手の両側、タラップは柱ごと、ブロックは工区・節に 1 つ、ワイヤは柱に 2 本【目安】"])
-    for i, wdt in enumerate((16, 34, 8, 10)):
+    for i, wdt in enumerate((16, 34, *[10] * len(zones), 8, 12)):
         sh.set_width(i, wdt)

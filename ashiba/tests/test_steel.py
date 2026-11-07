@@ -339,6 +339,81 @@ class TestGear(unittest.TestCase):
         self.assertEqual(len(nets), 4)
         self.assertEqual(nets[0].params, {"sgX": 6.0, "sgY": 6.0})
 
+    def split(self):
+        from ashiba.steel_gear import plan_gear
+
+        cols = [Column("C1", x, y, z, z + 3000.0, 500.0, 500.0) for x in (0.0, 6000.0, 12000.0) for y in (0.0, 6000.0) for z in (0.0, 3000.0, 6000.0, 9000.0)]
+        beams = [Beam("G1", (a, y), (a + 6000.0, y), z - 250.0, 200.0, 500.0) for a in (0.0, 6000.0) for y in (0.0, 6000.0) for z in (3000.0, 6000.0, 9000.0)]
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        z = [Zone(1, "西工区", [(-1000.0, -1000.0), (3000.0, -1000.0), (3000.0, 7000.0), (-1000.0, 7000.0)]),
+             Zone(2, "東工区", [(3000.0, -1000.0), (13000.0, -1000.0), (13000.0, 7000.0), (3000.0, 7000.0)])]
+        steps = make_steps(p, [], [], "工区", z)
+        return plan_gear(p, steps, SECS, splice_of), steps
+
+    def test_gear_knows_its_zone(self):
+        g, steps = self.split()
+        by = {s.no: s.zone for s in steps}
+        self.assertEqual({x.zone for x in g}, {1, 2})
+        self.assertTrue(all(x.zone == by[x.step] for x in g))
+
+    def test_order_is_the_largest_zone(self):
+        from ashiba.steel_gear import order_rows
+
+        g, _s = self.split()
+        zones, rows = order_rows(g)
+        self.assertEqual(zones, [1, 2])
+        for _k, _name, n, need, _kg in rows:
+            self.assertEqual(need, max(n.values()))
+        self.assertLess(sum(r[3] for r in rows), len(g))                             # 延べ数より少ない
+
+    def test_sheet_names_the_zones(self):
+        from ashiba.steel_gear import to_sheet
+
+        class Sh:
+            rows: list = []
+
+            def add_title(self, *a): pass
+            def add_header(self, r): Sh.rows.append(r)
+            def add(self, r): Sh.rows.append(r)
+            def set_width(self, *a): pass
+
+        class Wb:
+            def sheet(self, name): return Sh()
+
+        g, _s = self.split()
+        to_sheet(Wb(), g, {1: "西工区", 2: "東工区"})
+        self.assertEqual(Sh.rows[0], ["種類", "品名", "西工区", "東工区", "手配数", "手配の重量 kg"])
+
+    def test_step_shows_only_its_zone(self):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from steel_run import set_gear
+
+        class C:
+            def set_gdl_parameters_many(self, pairs):
+                self.on = [p[1]["sgOn"] for p in pairs]
+
+        rec = {"steps": [{"no": 1, "zone": 1}, {"no": 2, "zone": 1}, {"no": 3, "zone": 2}],
+               "gear": [{"guid": "a", "step": 1, "zone": 1}, {"guid": "b", "step": 2, "zone": 1}, {"guid": "c", "step": 3, "zone": 2}]}
+        c = C()
+        set_gear(c, rec, 1)
+        self.assertEqual(c.on, [True, True, False])                                  # 工区の分は最初から全部
+        set_gear(c, rec, 3)
+        self.assertEqual(c.on, [False, False, True])                                 # 次の工区へ移した
+        set_gear(c, rec, 0)
+        self.assertEqual(c.on, [True, True, True])
+
+    def test_old_record_keeps_the_step_rule(self):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from steel_run import set_gear
+
+        class C:
+            def set_gdl_parameters_many(self, pairs):
+                self.on = [p[1]["sgOn"] for p in pairs]
+
+        c = C()
+        set_gear(c, {"gear": [{"guid": "a", "step": 1}, {"guid": "b", "step": 2}]}, 1)
+        self.assertEqual(c.on, [True, False])
+
     def test_steps_gate_the_gear(self):
         g, steps = self.gears()
         self.assertEqual({x.step for x in g}, {s.no for s in steps})
