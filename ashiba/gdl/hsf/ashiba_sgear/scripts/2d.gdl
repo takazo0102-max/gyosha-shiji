@@ -1,0 +1,28 @@
+﻿! 鉄骨建て方の仮設材 2D: 外形
+pen penEquip
+hotspot2 0, 0
+if sgOn = 0 then end
+define style "sgT" "ＭＳ Ｐゴシック", texSiz, 1, 0
+style "sgT"
+rot2 sgA
+if sgK = 1 then
+	for s = -1 to 1 step 2
+		rect2 -0.93, s * (cD / 2 + 0.02), 0.93, s * (cD / 2 + 0.73)
+	next s
+	rect2 -cW / 2 - 0.51, -cD / 2 - 0.02, -cW / 2, cD / 2 + 0.02
+	rect2 cW / 2, -cD / 2 - 0.02, cW / 2 + 0.51, cD / 2 + 0.02
+endif
+if sgK = 2 then rect2 -sgW / 2, 0, sgW / 2, sgS * sgB
+if sgK = 3 then rect2 -0.1675, 0, 0.1675, sgS * 0.08
+if sgK = 4 then
+	rect2 0, 0, sgX, sgY
+	line2 0, 0, sgX, sgY
+	line2 0, sgY, sgX, 0
+endif
+if sgK = 5 then rect2 -0.112, -0.054, 0.112, 0.054
+if sgK = 6 then
+	rect2 -cW * 0.3 - sgT / 2, -0.065, -cW * 0.3 + sgT / 2, 0.065
+	rect2 cW * 0.3 - sgT / 2, -0.065, cW * 0.3 + sgT / 2, 0.065
+endif
+if sgK = 8 then line2 0, 0, sgX, sgY
+del 1

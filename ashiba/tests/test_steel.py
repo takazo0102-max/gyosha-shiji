@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import unittest
 
@@ -276,6 +277,82 @@ class TestErectionSheet(unittest.TestCase):
         d, _j = self.data()
         self.assertNotIn("#d5d5d5", page_list(d)[0][2])
         self.assertIn("#d5d5d5", page_list(d)[1][2])
+
+
+class TestNoColumns(unittest.TestCase):
+    def test_no_column_above_the_base_stops_with_a_message(self):
+        """基礎の柱だけが見えていると min() で止まった（実機 2026-11-07）."""
+        self.assertEqual(plan_pieces([Column("C1", 0.0, 0.0, -3000.0, 0.0, 500.0, 500.0)], [], LEVELS, SECS, Options()).columns, [])
+        g = (SRC.parent / "scripts" / "steel_run.py").read_text(encoding="utf-8")
+        self.assertLess(g.index("if not plan.columns:"), g.index("zone_lines(a.zones"))
+
+
+class TestGear(unittest.TestCase):
+    """鉄骨建て方の仮設材（利用者の指定 2026-11-07）."""
+
+    def gears(self):
+        from ashiba.steel_gear import plan_gear
+
+        cols = [Column("C1", x, y, z, z + 3000.0, 500.0, 500.0) for x in (0.0, 6000.0) for y in (0.0, 6000.0) for z in (0.0, 3000.0, 6000.0, 9000.0)]
+        beams = [Beam("G1", (0.0, y), (6000.0, y), z - 250.0, 200.0, 500.0) for y in (0.0, 6000.0) for z in (3000.0, 6000.0, 9000.0, 12000.0)]
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        steps = make_steps(p, [], [])
+        return plan_gear(p, steps, SECS, splice_of), steps
+
+    def test_every_kind_has_its_layer(self):
+        from ashiba.steel_gear import KINDS
+
+        g, _s = self.gears()
+        self.assertEqual({x.kind for x in g}, set(KINDS))
+        self.assertEqual({x.layer for x in g if x.kind == 1}, {"鉄骨仮設_溶接足場"})
+
+    def test_stage_only_at_the_joints(self):
+        g, _s = self.gears()
+        st = [x for x in g if x.kind == 1]
+        self.assertEqual(len(st), 4)                                                 # 2 節なので継手は 1 段・柱 4 本
+        self.assertEqual({x.z for x in st}, {7000.0 - 750.0})
+        self.assertEqual(len([x for x in g if x.kind == 7]), 4)
+
+    def test_lug_on_every_piece(self):
+        g, _s = self.gears()
+        self.assertEqual(len([x for x in g if x.kind == 6]), 8)
+
+    def test_hanger_both_sides_of_each_joint(self):
+        from ashiba.steel_gear import hanger_of
+
+        self.assertEqual(hanger_of(405.0)[1], "NKH0714")
+        self.assertEqual(hanger_of(700.0)[1], "NKH1014")
+        g, _s = self.gears()
+        hs = [x for x in g if x.kind == 2]
+        self.assertEqual(len(hs), 2 * 2 * 8)                                         # 梁 8 本 × 端 2 × 両側 2
+        self.assertEqual({x.params["sgS"] for x in hs}, {-1, 1})
+
+    def test_ladders_reach_the_piece(self):
+        from ashiba.steel_gear import ladders_for
+
+        self.assertEqual([x[1] for x in ladders_for(6.7)], ["NKSTR40", "NKSTR20", "NKSTR10T"])
+        self.assertEqual([x[1] for x in ladders_for(3.8)], ["NKSTR40"])
+
+    def test_net_for_each_bay_and_floor(self):
+        g, _s = self.gears()
+        nets = [x for x in g if x.kind == 4]
+        self.assertEqual(len(nets), 4)
+        self.assertEqual(nets[0].params, {"sgX": 6.0, "sgY": 6.0})
+
+    def test_steps_gate_the_gear(self):
+        g, steps = self.gears()
+        self.assertEqual({x.step for x in g}, {s.no for s in steps})
+
+    def test_part_draws_every_kind(self):
+        t = (SRC.parent / "gdl" / "hsf" / "ashiba_sgear" / "scripts" / "3d.gdl").read_text(encoding="utf-8")
+        for n in ("stage", "hanger", "ladder", "net", "block", "lug", "ep", "wire"):
+            self.assertIn(f'"{n}":', t)
+        self.assertIn("if sgOn = 0 then end", t)
+
+    def test_angle_goes_to_tapir_in_radians(self):
+        from ashiba.tapir_adapter import to_tapir_values
+
+        self.assertAlmostEqual(to_tapir_values({"sgA": 90.0})["sgA"], math.pi / 2)
 
 
 class TestSheet(unittest.TestCase):

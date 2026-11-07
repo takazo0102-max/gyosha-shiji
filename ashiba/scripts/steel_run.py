@@ -6,6 +6,7 @@
   python3 scripts/steel_run.py --remove                 # 置いたピースを消す
   python3 scripts/steel_run.py --zones X3 --order 工区  # 工区の境の通りと建てる順（工区: 建て逃げ・節: 積み上げ）
   python3 scripts/steel_run.py --next / --prev / --step 3 / --undo   # 工区・節のステップの姿にする・全部に戻す
+  python3 scripts/steel_run.py --gear                   # 仮設材（溶接足場・ボルト足場・タラップ・ネットほか）を種類ごとのレイヤーに置く
   python3 scripts/steel_run.py --sheet                  # 建て方検討図（節ごとに A3 の PDF とレイアウト。クレーンを選ぶと揚重の判定が入る）
 
 柱と梁を選んで押す（選んでいなければ表示中の全部）。元の柱と梁は触らず、部品 ashiba_steel のピースを重ねて置く。
@@ -189,6 +190,7 @@ def restore(c, path) -> int:
     if orig:
         show_layers(c, {ORIGINAL_LAYER: False})
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": {"guid": g}, "details": {"layerIndex": int(i)}} for g, i in orig.items()]})
+    set_gear(c, rec, 0)
     rec["originals"] = {}
     rec["current"] = 0
     path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -210,6 +212,7 @@ def go_step(c, path, no: int) -> int:
         rec["originals"] = {g: int(d["layerIndex"]) for g, d in zip(rec["members"], ds) if "layerIndex" in d}
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": [{"elementId": {"guid": g}, "details": {"layerIndex": idx}} for g in rec["originals"]]})
     show_layers(c, {**visible_at(steps, no), ORIGINAL_LAYER: True})
+    set_gear(c, rec, no)
     rec["current"] = no
     path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
     s = steps[no - 1]
@@ -220,8 +223,8 @@ def go_step(c, path, no: int) -> int:
 def drawing_data(plan, steps, lx, ly, xs, ys, rows, deck_records) -> dict:
     """建て方検討図の控え（mm）."""
     return {"columns": [{"node": p.node, "zone": p.zone, "grid": p.grid, "marks": p.marks, "x": p.x, "y": p.y, "z0": p.z0, "z1": p.z1, "w": p.w, "d": p.d,
-                         "weight": p.weight} for p in plan.columns],
-            "beams": [{"mark": b.mark, "x": b.x, "y": b.y, "z": b.z, "h": b.h, "ang": b.ang, "length": b.length, "node": b.node, "zone": b.zone,
+                         "ang": p.ang, "weight": p.weight} for p in plan.columns],
+            "beams": [{"mark": b.mark, "x": b.x, "y": b.y, "z": b.z, "h": b.h, "w": b.w, "ang": b.ang, "length": b.length, "node": b.node, "zone": b.zone,
                        "weight": b.weight} for b in plan.beams],
             "steps": [{"no": s.no, "zone": s.zone, "node": s.node, "columns": len(s.columns), "beams": len(s.beams), "weight": s.weight} for s in steps],
             "lines_x": [list(x) for x in lx], "lines_y": [list(x) for x in ly], "xs": xs, "ys": ys,
@@ -237,6 +240,73 @@ def judge_pieces(d: dict, f) -> None:
     for b in d["beams"]:
         a = math.radians(b["ang"])
         b["lift"] = f(b["x"] + b["length"] / 2.0 * math.cos(a), b["y"] + b["length"] / 2.0 * math.sin(a), b["z"] + b["h"] / 2.0, b["weight"], b["mark"])
+
+
+def set_gear(c, rec: dict, no: int) -> None:
+    """仮設材の表示: ステップ no までを描く（0 は全部）."""
+    items = rec.get("gear") or []
+    if items:
+        c.set_gdl_parameters_many([({"elementId": {"guid": g["guid"]}}, {"sgOn": not no or g["step"] <= no}) for g in items])
+
+
+def gear_objects(d: dict) -> tuple:
+    """控え → steel_gear が読む形（Plan と Step の代わり）."""
+    from types import SimpleNamespace as NS
+
+    cols = [NS(**{"ang": 0.0, **c}) for c in d["columns"]]          # 前の版の控えには向きと梁の幅が無い
+    beams = [NS(**{"w": 200.0, **b}) for b in d["beams"]]
+    steps = [NS(no=s["no"], zone=s["zone"], node=s["node"], columns=[c for c in cols if (c.zone, c.node) == (s["zone"], s["node"])],
+                beams=[b for b in beams if (b.zone, b.node) == (s["zone"], s["node"])]) for s in d["steps"]]
+    return NS(columns=cols, beams=beams), steps
+
+
+def gear(c, R) -> int:
+    """仮設材を置く: 種類ごとのレイヤー「鉄骨仮設_…」を作り、節とピースから部品 ashiba_sgear を置く. 前に置いた分は控えで消す."""
+    from ashiba.pens import gdl_pens, parse_pens
+    from ashiba.steel_erection import parse_section, splice_of
+    from ashiba.steel_gear import plan_gear, quantities, to_sheet as gear_sheet
+    from ashiba.xlsx_writer import Workbook
+    from excav_run import _delete_alive
+
+    d = read_json(R.OUT_DIR / DRAWING, {})
+    if not d.get("columns"):
+        print("鉄骨の仮設材: 先に「鉄骨建て方」で表か置くまで進めてください")
+        return 1
+    secs = {k: s for k, v in read_table(R.OUT_DIR / TABLE).items() if (s := parse_section(v))}
+    plan, steps = gear_objects(d)
+    items = plan_gear(plan, steps, secs, splice_of)
+    step_path = R.OUT_DIR / STEPS
+    rec = read_json(step_path, {})
+    old = [g["guid"] for g in rec.get("gear") or []]
+    if old:
+        _delete_alive(c, old)
+    R.ensure_parts(c)
+    part = R.versioned_part_name("ashiba_sgear")
+    spec = {**R.SPEC, **R.load_spec_override()}
+    pens = gdl_pens(parse_pens(spec.get("pens")), "ashiba_sgear")
+    data = [{"libraryPartName": part, "coordinates": {"x": g.x / 1000.0, "y": g.y / 1000.0, "z": g.z / 1000.0}} for g in items]
+    els = []
+    for i in range(0, len(data), 100):
+        els += c.tapir("CreateObjects", {"objectsData": data[i:i + 100]}).get("elements", [])
+    pairs = [(e, {"sgK": g.kind, "sgOn": True, "sgName": g.name, **g.params, **pens}) for e, g in zip(els, items) if "elementId" in e]
+    done = c.set_gdl_parameters_many(pairs)
+    layers = sorted({g.layer for g in items})
+    show_layers(c, {n: False for n in layers})
+    idx = layer_map(c)
+    moves = [{"elementId": e["elementId"], "details": {"layerIndex": idx[g.layer]}} for e, g in zip(els, items) if "elementId" in e]
+    c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
+    rec["gear"] = [{"guid": e["elementId"]["guid"], "step": g.step} for e, g in zip(els, items) if "elementId" in e]
+    step_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    if rec.get("current"):
+        set_gear(c, rec, int(rec["current"]))
+    wb = Workbook()
+    gear_sheet(wb, items)
+    xl = R.OUT_DIR / "鉄骨仮設材.xlsx"
+    wb.save(xl)
+    print(f"鉄骨の仮設材: {done}個を置きました（{len(layers)}レイヤー。{xl}）")
+    for kind, name, n, _kg in quantities(items):
+        print(f"  {kind}: {name} {n}")
+    return 0
 
 
 def sheet(c, R) -> int:
@@ -320,6 +390,7 @@ def main(argv=None) -> int:
     ap.add_argument("--prev", action="store_true", help="前のステップ")
     ap.add_argument("--undo", action="store_true", help="全部を見せて、元の柱と梁を戻す")
     ap.add_argument("--sheet", action="store_true", help="建て方検討図（節ごと）")
+    ap.add_argument("--gear", action="store_true", help="仮設材を置く")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -331,6 +402,8 @@ def main(argv=None) -> int:
     step_path = R.OUT_DIR / STEPS
     if a.sheet:
         return sheet(c, R)
+    if a.gear:
+        return gear(c, R)
     if a.undo:
         print(f"鉄骨建て方: 全部を見せました（元の柱と梁 {restore(c, step_path)}個を戻しました）")
         return 0
@@ -339,7 +412,7 @@ def main(argv=None) -> int:
         return go_step(c, step_path, a.step if a.step is not None else cur + (1 if a.next else -1))
     restore(c, step_path)                                 # 隠したままだと柱を読めず、ピースも消せない
     if a.remove:
-        n = _delete_alive(c, rec)
+        n = _delete_alive(c, rec + [g["guid"] for g in read_json(step_path, {}).get("gear") or []])
         rec_path.write_text("[]", encoding="utf-8")
         step_path.write_text("{}", encoding="utf-8")
         print(f"鉄骨建て方: {n}個を消しました")
@@ -377,6 +450,9 @@ def main(argv=None) -> int:
     levels = [float(s["level"]) * 1000.0 for s in c.tapir("GetStories", {}).get("stories", [])]
     lx, ly = grid_lines(c)
     plan = plan_pieces(colz, beamz, levels, secs, o, lx, ly)
+    if not plan.columns:
+        print(f"鉄骨建て方: 下端 {a.base:g}m より上に柱がありません（柱が隠れていないか、下端の高さを確かめてください）")
+        return 1
     if bad:
         plan.warnings.append("読めない断面: " + "・".join(bad))
     xs, ys, unknown = zone_lines(a.zones, sorted({(p.x, p.y) for p in plan.columns}), lx, ly)
@@ -429,8 +505,9 @@ def main(argv=None) -> int:
         moves = [{"elementId": {"guid": guid_of[id(p)]}, "details": {"layerIndex": idx[names[s.no]]}}
                  for s in steps for p in s.columns + s.beams if id(p) in guid_of]
         c.tapir("SetDetailsOfElements", {"elementsWithDetails": moves})
+        old_gear = read_json(step_path, {}).get("gear") or []
         step_path.write_text(json.dumps({"steps": [{"no": s.no, "name": s.name, "layer": names[s.no], "columns": len(s.columns), "beams": len(s.beams)} for s in steps],
-                                         "members": used, "originals": {}, "current": 0}, ensure_ascii=False, indent=1), encoding="utf-8")
+                                         "members": used, "originals": {}, "current": 0, "gear": old_gear}, ensure_ascii=False, indent=1), encoding="utf-8")
     nodes: dict = {}
     for p in plan.columns:
         nodes.setdefault(p.node, []).append(p.weight)

@@ -57,6 +57,7 @@ PART_PENS = {
     "ashiba_ywall": ("equip",),
     "ashiba_shiho": ("equip",),
     "ashiba_steel": ("equip",),
+    "ashiba_sgear": ("equip",),
 }
 
 
