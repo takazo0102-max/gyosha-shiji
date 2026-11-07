@@ -101,13 +101,14 @@ if slgOn and (1) then
 	del 4
 	hotspot 0, mkY, mkQ, 960, hfX, 1 + 128
 	hotspot mkX, mkY, mkQ, 961, hfX, 2
-	hotspot -1, mkY, mkQ, 962, hfX, 3
+	hotspot -1, mkY, mkQ, 962, hfX, 3 + 128
 	hotspot mkX, 0, mkQ, 963, hfY, 1 + 128
 	hotspot mkX, mkY, mkQ, 964, hfY, 2
-	hotspot mkX, -1, mkQ, 965, hfY, 3
-	hotspot mkX, mkY, 0, 966, mkZ, 1 + 128
-	hotspot mkX, mkY, mkQ, 967, mkZ, 2
-	hotspot mkX, mkY, -1, 968, mkZ, 3
+	hotspot mkX, -1, mkQ, 965, hfY, 3 + 128
+	! 上下は丸十字の少し上の点で（同じ点に重ねると X・Y と一緒に編集になり、高さが書き戻された。実機 2026-11-07）
+	hotspot mkX, mkY, mkR * 1.5, 966, mkZ, 1 + 128
+	hotspot mkX, mkY, mkQ + mkR * 1.5, 967, mkZ, 2
+	hotspot mkX, mkY, mkR * 1.5 - 1, 968, mkZ, 3 + 128
 endif
 end
 

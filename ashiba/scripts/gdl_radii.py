@@ -79,12 +79,12 @@ def plan(line_pen: str, solid: str, text_pen: str, back_style: str) -> str:
         rows += [f"if nWi >= {i} then", f"\twRr = wiRq[{i}]", f"\twAm = wiMq[{i}]",
                  f"\thotspot2 0, 0, {b}, wiR{i}, 1 + 128",
                  f"\thotspot2 wRr * cos(wAm), wRr * sin(wAm), {b + 1}, wiR{i}, 2",
-                 f"\thotspot2 -cos(wAm), -sin(wAm), {b + 2}, wiR{i}, 3",
-                 f"\thotspot2 0, 0, {b + 3}, wiA{i}, 6", f"\thotspot2 wRr, 0, {b + 4}, wiA{i}, 4",
+                 f"\thotspot2 -cos(wAm), -sin(wAm), {b + 2}, wiR{i}, 3 + 128",
+                 f"\thotspot2 0, 0, {b + 3}, wiA{i}, 6", f"\thotspot2 wRr, 0, {b + 4}, wiA{i}, 4 + 128",
                  f"\thotspot2 wRr * cos(wiA{i}), wRr * sin(wiA{i}), {b + 5}, wiA{i}, 5",
-                 f"\thotspot2 0, 0, {b + 6}, wiB{i}, 6", f"\thotspot2 wRr, 0, {b + 7}, wiB{i}, 4",
+                 f"\thotspot2 0, 0, {b + 6}, wiB{i}, 6", f"\thotspot2 wRr, 0, {b + 7}, wiB{i}, 4 + 128",
                  f"\thotspot2 wRr * cos(wiB{i}), wRr * sin(wiB{i}), {b + 8}, wiB{i}, 5",
-                 f"\thotspot2 0, 0, {b + 9}, wiM{i}, 6", f"\thotspot2 wRr * 0.75, 0, {b + 10}, wiM{i}, 4",
+                 f"\thotspot2 0, 0, {b + 9}, wiM{i}, 6", f"\thotspot2 wRr * 0.75, 0, {b + 10}, wiM{i}, 4 + 128",
                  f"\thotspot2 wRr * 0.75 * cos(wAm), wRr * 0.75 * sin(wAm), {b + 11}, wiM{i}, 5", "endif"]
     return "\n".join(rows) + "\n"
 

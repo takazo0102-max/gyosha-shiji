@@ -1,7 +1,7 @@
 """クレーンの吊り点の印（利用者の指定 2026-11-07「フックから吊りしろのところに丸十字のマークつけてホットスポットで動かせるようにして自由に あと吊りに総荷重でわかるようにして」）.
 
 ラフター・クローラ・タワーで同じものを使う。フックの下の吊りしろ slgH（既定 6m。SCP の既定）に丸十字を描き、横に「Max 8.21t」（今の半径の定格総荷重×安全率）を書く。
-印は平面のどの向きにも（hfX・hfY）、上下にも（mkZ）ホットスポットで引け、フックが一緒に動く。mkZ＝印の高さで、パラメータスクリプトがフックへ書き戻す。
+印は平面のどの向きにも（hfX・hfY。丸十字の点）、上下にも（mkZ。丸十字の少し上の点）ホットスポットで引け、フックが一緒に動く。mkZ＝印の高さで、パラメータスクリプトがフックへ書き戻す。
 3D の丸十字は水平に寝かせ、文字だけ視点へ向ける（クレーン情報の文字と同じ回し方）。
 """
 
@@ -63,13 +63,14 @@ if slgOn and ({gate}) then
 	del 4
 	hotspot 0, mkY, mkQ, {h}, hfX, 1 + 128
 	hotspot mkX, mkY, mkQ, {h + 1}, hfX, 2
-	hotspot -1, mkY, mkQ, {h + 2}, hfX, 3
+	hotspot -1, mkY, mkQ, {h + 2}, hfX, 3 + 128
 	hotspot mkX, 0, mkQ, {h + 3}, hfY, 1 + 128
 	hotspot mkX, mkY, mkQ, {h + 4}, hfY, 2
-	hotspot mkX, -1, mkQ, {h + 5}, hfY, 3
-	hotspot mkX, mkY, 0, {h + 6}, mkZ, 1 + 128
-	hotspot mkX, mkY, mkQ, {h + 7}, mkZ, 2
-	hotspot mkX, mkY, -1, {h + 8}, mkZ, 3
+	hotspot mkX, -1, mkQ, {h + 5}, hfY, 3 + 128
+	! 上下は丸十字の少し上の点で（同じ点に重ねると X・Y と一緒に編集になり、高さが書き戻された。実機 2026-11-07）
+	hotspot mkX, mkY, mkR * 1.5, {h + 6}, mkZ, 1 + 128
+	hotspot mkX, mkY, mkQ + mkR * 1.5, {h + 7}, mkZ, 2
+	hotspot mkX, mkY, mkR * 1.5 - 1, {h + 8}, mkZ, 3 + 128
 endif
 """
 
