@@ -39,6 +39,11 @@ class TestDropZones(unittest.TestCase):
         r = plan_run(Run("親綱", (0, 0), (7200, 0), 8000.0, 8000.0, note="完成時"))
         self.assertEqual({c.item: c.status for c in r.checks}["落差"], "注意")
 
+    def test_run_script_skips_beams_without_spans(self):
+        g = (SRC.parent / "scripts" / "lifeline_run.py").read_text(encoding="utf-8")
+        self.assertIn("if r.spans:", g)
+        self.assertIn("親綱の式の外で置いていません", g)
+
     def test_low_post_does_not_force_type_2(self):
         r = plan_run(Run("親綱", (0, 0), (7200, 0), 8000.0, 8000.0))
         self.assertIn("第一種も可", {c.item: c.message for c in r.checks}["親綱の高さ"])

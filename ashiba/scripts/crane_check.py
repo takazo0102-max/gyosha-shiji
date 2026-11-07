@@ -247,6 +247,65 @@ def visible_targets(c) -> list:
     return out
 
 
+def judge_one(m, cm, tw, ps: dict, radius: float, need_z: float, w, hook_t: float, rig_t: float, ratio: float, name: str) -> tuple:
+    """1 つの吊荷の判定 → (判定, 結果（boom・rated_t）, 吊れる作業半径 mm か None). tw はタワー、cm はクローラ、どちらも None ならラフター m."""
+    from ashiba.crane import RIGGING_T, effective_spread, judge, reach_for
+    from ashiba.machine import crawler_judge, crawler_reach
+
+    far = None
+    if w is None:
+        return "判定不可", type("X", (), {"boom": 0, "rated_t": 0.0})(), far
+    if tw is not None:
+        from ashiba.tower import judge_lift
+
+        res, cap = judge_lift(tw, float(ps.get("maxR", tw.jibs[0])), float(ps.get("msH", tw.free_h)), radius / 1000.0, need_z / 1000.0, w)
+        return res, type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})(), far
+    if cm is not None:
+        total = w + hook_t + rig_t
+        r = crawler_judge(cm, ps, radius / 1000.0, need_z / 1000.0, total, ratio)
+        res = r["判定"]
+        if res in ("重すぎ", "遠すぎ"):
+            far = crawler_reach(cm, ps, need_z / 1000.0, total, ratio)
+            far = far * 1000.0 if far else None
+        return res, type("X", (), {"boom": r["ブーム"], "rated_t": r["定格"]})(), far
+    adj = w + hook_t + rig_t - m.hook_t - RIGGING_T          # judge は機種のフックと治具を足す
+    res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, adj, ratio, name)
+    if res in ("重すぎ", "遠すぎ"):
+        far = reach_for(m, effective_spread(ps) or max(m.spreads), need_z, adj, ratio)
+    return res, x, far
+
+
+def lifter(c, crane, cd, sling: float | None = None):
+    """置いたクレーンの判定の関数 f(x, y, 上端 z, 重さ t, 名前) → {res, rated, radius} と、名前・位置 {name, x, y}（mm）."""
+    from ashiba.crane import MODELS, RIGGING_T
+    from ashiba.machine import HOOK_T
+
+    ps = _params(c, crane)
+    part = cd.get("details", {}).get("libPart", {}).get("name", "")
+    kind = "tower" if part.startswith("ashiba_tower") else "crawler" if part.startswith("ashiba_machine") else "rough"
+    m = next((x for x in MODELS.values() if x.kind == int(ps.get("crType", 1))), MODELS["25t"])
+    cm = crawler_model(ps) if kind == "crawler" else None
+    tw = None
+    if kind == "tower":
+        from ashiba.tower import tower_from_params
+
+        tw = tower_from_params(ps)
+    o = cd["details"]["origin"]
+    ox, oy, oz = o["x"] * 1000.0, o["y"] * 1000.0, o.get("z", 0.0) * 1000.0
+    hook_t = float(ps.get("hookT", m.hook_t if kind == "rough" else HOOK_T if kind == "crawler" else 0.0))
+    rig_t = float(ps.get("rigT", RIGGING_T))
+    ratio = float(ps.get("sfRate", 0.9))
+    sl = sling if sling is not None else float(ps.get("slgH", SLING_MM / 1000.0)) * 1000.0
+    name = tw.name if tw is not None else cm.name if cm is not None else m.name
+
+    def f(x: float, y: float, top: float, w, label: str = "") -> dict:
+        radius = math.hypot(x - ox, y - oy)
+        res, r, _far = judge_one(m, cm, tw, ps, radius, top - oz + sl, w, hook_t, rig_t, ratio, label)
+        return {"res": res, "rated": float(getattr(r, "rated_t", 0.0) or 0.0), "radius": radius}
+
+    return f, {"name": name, "x": ox, "y": oy}
+
+
 def lift_targets(pool: list, crane_guid: str, copy_guids) -> list:
     """判定する部材: クレーン・ashiba の仮設・通り芯の記号・吊荷作図のコピーは除く（コピーをまた判定してコピーしない）."""
     out = []
@@ -426,25 +485,7 @@ def main(argv=None) -> int:
                 w = float(_params(c, e).get("pcW", 0.0)) or None             # 鉄骨のピースは部品の重量（断面の無いものは判定不可）
             name = d.get("id") or e["elementId"]["guid"][:8]
             far = None                                   # 吊れる作業半径（重すぎ・遠すぎのとき、どこまで寄せればよいか）
-            if w is None:
-                res, x = "判定不可", type("X", (), {"boom": 0, "rated_t": 0.0})()
-            elif tw is not None:
-                res, cap = judge_lift(tw, float(ps.get("maxR", tw.jibs[0])), float(ps.get("msH", tw.free_h)), radius / 1000.0,
-                                      need_z / 1000.0, w)
-                x = type("X", (), {"boom": float(ps.get("maxR", 0)), "rated_t": cap or 0.0})()
-            elif cm is not None:
-                total = w + hook_t + rig_t
-                r = crawler_judge(cm, ps, radius / 1000.0, need_z / 1000.0, total, ratio)
-                res = r["判定"]
-                x = type("X", (), {"boom": r["ブーム"], "rated_t": r["定格"]})()
-                if res in ("重すぎ", "遠すぎ"):
-                    far = crawler_reach(cm, ps, need_z / 1000.0, total, ratio)
-                    far = far * 1000.0 if far else None
-            else:
-                adj = w + hook_t + rig_t - m.hook_t - RIGGING_T          # judge は機種のフックと治具を足す
-                res, x = judge(m, effective_spread(ps) or max(m.spreads), radius, need_z, adj, ratio, name)
-                if res in ("重すぎ", "遠すぎ"):
-                    far = reach_for(m, effective_spread(ps) or max(m.spreads), need_z, adj, ratio)
+            res, x, far = judge_one(m, cm, tw, ps, radius, need_z, w, hook_t, rig_t, ratio, name)
             rows.append((name, d.get("type"), vol, w, radius, need_z, res, x, far))
             hl.append(e)
             cols.append(COLORS[res])

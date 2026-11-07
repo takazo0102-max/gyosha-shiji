@@ -6,6 +6,7 @@
   python3 scripts/steel_run.py --remove                 # 置いたピースを消す
   python3 scripts/steel_run.py --zones X3 --order 工区  # 工区の境の通りと建てる順（工区: 建て逃げ・節: 積み上げ）
   python3 scripts/steel_run.py --next / --prev / --step 3 / --undo   # 工区・節のステップの姿にする・全部に戻す
+  python3 scripts/steel_run.py --sheet                  # 建て方検討図（節ごとに A3 の PDF とレイアウト。クレーンを選ぶと揚重の判定が入る）
 
 柱と梁を選んで押す（選んでいなければ表示中の全部）。元の柱と梁は触らず、部品 ashiba_steel のピースを重ねて置く。
 重量表と工区のピース数は ashiba_out/鉄骨節別重量表.xlsx、工程表は ashiba_out/鉄骨建方工程表.xlsx、符号の断面は ashiba_out/鉄骨符号表.csv に残し、次からの既定にする.
@@ -30,6 +31,7 @@ PART = "ashiba_steel"
 RECORD = "鉄骨建て方.json"
 TABLE = "鉄骨符号表.csv"
 STEPS = "鉄骨ステップ.json"
+DRAWING = "鉄骨建て方_図.json"
 ORIGINAL_LAYER = "鉄骨_元の柱梁"
 
 
@@ -215,6 +217,67 @@ def go_step(c, path, no: int) -> int:
     return 0
 
 
+def drawing_data(plan, steps, lx, ly, xs, ys, rows, deck_records) -> dict:
+    """建て方検討図の控え（mm）."""
+    return {"columns": [{"node": p.node, "zone": p.zone, "grid": p.grid, "marks": p.marks, "x": p.x, "y": p.y, "z0": p.z0, "z1": p.z1, "w": p.w, "d": p.d,
+                         "weight": p.weight} for p in plan.columns],
+            "beams": [{"mark": b.mark, "x": b.x, "y": b.y, "z": b.z, "h": b.h, "ang": b.ang, "length": b.length, "node": b.node, "zone": b.zone,
+                       "weight": b.weight} for b in plan.beams],
+            "steps": [{"no": s.no, "zone": s.zone, "node": s.node, "columns": len(s.columns), "beams": len(s.beams), "weight": s.weight} for s in steps],
+            "lines_x": [list(x) for x in lx], "lines_y": [list(x) for x in ly], "xs": xs, "ys": ys,
+            "deck": [{**d, "rope": r.rope} for d, r in zip(deck_records, rows)]}
+
+
+def judge_pieces(d: dict, f) -> None:
+    """節のピースに揚重の判定を入れる."""
+    import math
+
+    for p in d["columns"]:
+        p["lift"] = f(p["x"], p["y"], p["z1"], p["weight"], p["grid"])
+    for b in d["beams"]:
+        a = math.radians(b["ang"])
+        b["lift"] = f(b["x"] + b["length"] / 2.0 * math.cos(a), b["y"] + b["length"] / 2.0 * math.sin(a), b["z"] + b["h"] / 2.0, b["weight"], b["mark"])
+
+
+def sheet(c, R) -> int:
+    """建て方検討図: 控え 鉄骨建て方_図.json から節ごとの A3 の PDF とレイアウト「建て方 n」."""
+    from ashiba.form_drawings import to_pdf
+    from ashiba.steel_sheets import SERIES, SUBSET, build_html, page_list
+    from crane_check import find_crane, lifter
+
+    d = read_json(R.OUT_DIR / DRAWING, {})
+    if not d.get("columns"):
+        print("建て方検討図: 先に「鉄骨建て方」で表か置くまで進めてください")
+        return 1
+    if c.current_window_type() not in ("FloorPlan", "3DModel"):   # レイアウトが前面だと選択が読めず、図もそこに描かれる
+        from ashiba.elevation_sections import activate_floor_plan
+
+        activate_floor_plan(c)
+    sel = c.get_selected_elements()
+    crane, cd = find_crane(c, sel, c.get_details(sel) if sel else [])
+    if crane is not None:
+        f, info = lifter(c, crane, cd)
+        d["crane"] = info
+        judge_pieces(d, f)
+    project = str({**R.SPEC, **R.load_spec_override()}.get("project_name") or "")
+    html_path = R.OUT_DIR / "建て方検討図.html"
+    html_path.write_text(build_html(d, project), encoding="utf-8")
+    pdf = R.OUT_DIR / "建て方検討図.pdf"
+    ok = to_pdf(html_path, pdf)
+    pages = page_list(d)
+    print(f"建て方検討図: {len(pages)}節（{pdf if ok else html_path}）" + ("" if crane is not None else "。クレーンが無いので揚重の判定は入っていません"))
+    try:
+        from ashiba.form_layout import place_layouts
+
+        res = place_layouts(c, pages, SERIES, SUBSET)
+        print(f"  レイアウト: {len(res.layouts)}枚（サブセット「{SUBSET}」）")
+        for x in res.notes:
+            print(f"  注意: {x}")
+    except Exception as ex:  # noqa: BLE001 Archicad が無くても PDF は残す
+        print(f"  レイアウト: 置けませんでした（{ex}）")
+    return 0
+
+
 def main(argv=None) -> int:
     import argparse
 
@@ -256,6 +319,7 @@ def main(argv=None) -> int:
     ap.add_argument("--next", action="store_true", help="次のステップ")
     ap.add_argument("--prev", action="store_true", help="前のステップ")
     ap.add_argument("--undo", action="store_true", help="全部を見せて、元の柱と梁を戻す")
+    ap.add_argument("--sheet", action="store_true", help="建て方検討図（節ごと）")
     a = ap.parse_args(argv)
     c = ArchicadClient()
     R.OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -265,6 +329,8 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         rec = []
     step_path = R.OUT_DIR / STEPS
+    if a.sheet:
+        return sheet(c, R)
     if a.undo:
         print(f"鉄骨建て方: 全部を見せました（元の柱と梁 {restore(c, step_path)}個を戻しました）")
         return 0
@@ -336,6 +402,7 @@ def main(argv=None) -> int:
     D.to_sheet(wb, rows)
     (R.OUT_DIR / "鉄骨デッキ判定.md").write_text(D.to_markdown(rows), encoding="utf-8")
     (R.OUT_DIR / "鉄骨デッキ判定.json").write_text(json.dumps({"rows": D.to_records(rows), "xs": xs, "ys": ys}, ensure_ascii=False, indent=1), encoding="utf-8")
+    (R.OUT_DIR / DRAWING).write_text(json.dumps(drawing_data(plan, steps, lx, ly, xs, ys, rows, D.to_records(rows)), ensure_ascii=False, indent=1), encoding="utf-8")
     xl = R.OUT_DIR / "鉄骨節別重量表.xlsx"
     wb.save(xl)
     (R.OUT_DIR / "鉄骨節別重量表.md").write_text(to_markdown(plan), encoding="utf-8")
