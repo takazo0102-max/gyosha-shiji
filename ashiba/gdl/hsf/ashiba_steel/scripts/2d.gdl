@@ -1,4 +1,4 @@
-﻿! 鉄骨のピース 2D: 断面の外形、ブラケットとガセット、名前
+﻿! 鉄骨のピース 2D: 断面の外形、ブラケットと継手の添え板、名前
 pen penEquip
 define style "spT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "spT"
@@ -14,9 +14,7 @@ if spK = 1 then
 	for i = 1 to nB
 		rot2 qA[i]
 		rect2 qS[i], -qB[i] / 2, qE[i], qB[i] / 2
-		line2 qE[i] - gpW / 2, -gpT / 2, qE[i] + gpW / 2, -gpT / 2
-		line2 qE[i] - gpW / 2, gpT / 2, qE[i] + gpW / 2, gpT / 2
-		line2 qE[i] + gpW / 2, -gpT / 2, qE[i] + gpW / 2, gpT / 2
+		if uL[i] > 0 then rect2 qE[i] - uL[i] / 2, -uW[i] / 2, qE[i] + uL[i] / 2, uW[i] / 2
 		del 1
 	next i
 	add2 -spH / 2, spB / 2 + bpO * bpOn + 0.3

@@ -4,10 +4,12 @@
 
 Archicad の柱と梁（符号・位置・高さ）を読み、次のピースに分ける。
 - 柱: 同じ位置の柱を1本に通して、階の高さ＋offset で切る（every 階ごと）。これが節
-- 梁: 柱の中心から bracket の所で切る。端の側は柱と一体（ブラケット）、ガセットプレートも一体。真ん中は梁のピース
-- 重量: 符号表の断面（H-500×200×10×16・□-500×500×22・P-318.5×10）の板の断面積×長さ×7.85t/m³。
-  ブラケットとガセット、1 節目のベースプレートを柱のピースに足す。断面の無い符号は重量を出さない（外形で計算すると中実の重さになる）
-断面積は板の面積でフィレットを含まない。ベースプレートとガセットの大きさは窓の値で、既定は【目安】.
+- 梁: 柱の中心から bracket の所で切る。端の側は柱と一体（ブラケット形式。利用者の確認 2026-11-07「短い梁の形」）。真ん中は梁のピース
+- 継手: 利用者の言う「ガセット」はブラケット先端の梁継手の添え板（SPL）に当たる（reports/ガセットプレートの実務と標準値.md）。
+  ウェブ両面 2 枚とフランジの外 1＋内 2 を上下に。値は SPLICE_400（400N 級の大梁継手の表。structure.jp の転載で原本は未確認）、表に無い断面は【目安】
+- 重量: 符号表の断面（H-500×200×10×16・□-500×500×22・P-318.5×10）の断面積×長さ×7.85t/m³。H 形鋼はフィレット 0.858r² を足す（BH は足さない）。
+  ブラケットと添え板一式、1 節目のベースプレートを柱のピースに足す（添え板は工場でブラケット側に付けて運ぶ前提）。断面の無い符号は重量を出さない（外形で計算すると中実の重さになる）。
+  ボルトと通しダイアフラムは数えず、割増 extra に含める。ベースプレートの大きさは窓の値で【目安】.
 """
 
 from __future__ import annotations
@@ -18,6 +20,17 @@ from dataclasses import dataclass, field
 
 DENSITY = 7.85e-9                                # t/mm³
 MIN_PIECE = 2000.0                               # 節のいちばん短い長さ mm【目安】
+MAX_PIECE = 12000.0                              # 節の長さの目安 mm（structure-design の解説。車両の制限 12m）
+TRAILER_BED = 9200.0                             # 10t 平車の荷台の長さ mm（丸五運輸の例）
+MAX_WIDTH = 2400.0                               # 荷台の幅 mm（同じ例の 2,300〜2,400）
+
+# 400N 級の大梁継手（H, B, tw, tf）: (外添板 厚, 長さ, 幅, 内添板 厚, 幅, ウェブ添板 厚, 高さ, 幅)
+# https://www.structure.jp/databook/data127.htm の表（並びは厚×長さ×幅と推定。原本 SCSS-H97 は未確認）
+SPLICE_400 = {(250, 125, 6, 9): (9, 285, 120, 9, 45, 6, 170, 165), (300, 150, 6.5, 9): (9, 285, 145, 9, 55, 6, 200, 165),
+              (350, 175, 7, 11): (9, 285, 170, 9, 65, 9, 200, 165), (400, 200, 8, 13): (9, 405, 195, 12, 70, 9, 260, 165),
+              (450, 200, 9, 14): (12, 405, 195, 12, 70, 9, 320, 165), (500, 200, 10, 16): (12, 405, 195, 16, 70, 9, 350, 165),
+              (600, 200, 11, 17): (16, 405, 195, 16, 70, 9, 440, 165), (588, 300, 12, 20): (16, 435, 295, 16, 105, 9, 440, 165),
+              (700, 300, 13, 24): (19, 525, 295, 19, 105, 9, 530, 165)}
 
 
 @dataclass(frozen=True)
@@ -31,9 +44,13 @@ class Section:
 
     @property
     def area(self) -> float:
-        """断面積 mm²（板の面積。フィレットは含まない）."""
+        """断面積 mm²（H 形鋼はフィレットを含む。日本製鉄の式 2B·t2＋(H−2t2)·t1＋0.858r²）."""
         if self.kind == "H":
-            return 2 * self.b * self.tf + (self.h - 2 * self.tf) * self.tw
+            plate = 2 * self.b * self.tf + (self.h - 2 * self.tf) * self.tw
+            if self.text.strip().upper().startswith("BH"):
+                return plate                     # 溶接組立はフィレットなし
+            r = 8.0 if self.b <= 100 else 22.0 if self.b >= 400 else 13.0
+            return plate + 0.858 * r * r
         if self.kind == "BOX":
             return 2 * self.tf * (self.h + self.b - 2 * self.tf)
         return math.pi * self.tf * (self.h - self.tf)
@@ -88,15 +105,13 @@ class Beam:
 
 @dataclass
 class Options:
-    every: int = 1                               # 節は何階ごと
+    every: int = 2                               # 節は何階ごと（実務は 2〜3 階で 1 節。利用者の指定 2026-11-07）
     offset: float = 1000.0                       # 階の高さからの切る高さ
     bracket: float = 1000.0                      # 柱の中心からの距離
     base: float = 0.0                            # これより下の柱・梁は見ない
     bp_over: float = 100.0                       # ベースプレートのはみ出し【目安】
     bp_t: float = 36.0                           # ベースプレートの厚さ【目安】
-    gp_w: float = 300.0                          # ガセットプレートの幅【目安】
-    gp_t: float = 12.0                           # ガセットプレートの厚さ【目安】
-    extra: float = 5.0                           # 重量の割増 %（ボルト・溶接・フィレット）【目安】
+    extra: float = 5.0                           # 重量の割増 %（ボルト・溶接・ダイアフラム）【目安】
 
 
 @dataclass
@@ -143,6 +158,37 @@ class Plan:
     columns: list
     beams: list
     warnings: list
+
+
+@dataclass(frozen=True)
+class Splice:
+    """梁継手の添え板一式 mm. listed が偽なら表に無い断面の【目安】."""
+    out_t: float
+    length: float
+    out_w: float
+    in_t: float
+    in_w: float
+    web_t: float
+    web_h: float
+    web_w: float
+    listed: bool = True
+
+    @property
+    def weight(self) -> float:
+        """一式の重さ t（ウェブ両面 2 枚・フランジ外 2 枚・内 4 枚）."""
+        return (2 * self.web_t * self.web_h * self.web_w + 2 * self.out_t * self.length * self.out_w
+                + 4 * self.in_t * self.length * self.in_w) * DENSITY
+
+
+def splice_of(s: Section | None) -> Splice | None:
+    """H 形の梁の添え板一式. 継手表に無い断面は【目安】（幅 165、高さはフランジの内側から 20 ずつ控える、厚さは tf の 0.8 倍以上の段）."""
+    if s is None or s.kind != "H":
+        return None
+    row = SPLICE_400.get((s.h, s.b, s.tw, s.tf))
+    if row:
+        return Splice(*row)
+    t = next((x for x in (9, 12, 16, 19, 22, 25, 28) if x >= s.tf * 0.8), 32)
+    return Splice(t, 405.0, s.b - 5.0, t, max(45.0, (s.b - s.tw) / 2.0 - 30.0), 9.0, max(50.0, s.h - 2 * s.tf - 40.0), 165.0, False)
 
 
 def cut_heights(levels: list, z0: float, z1: float, o: Options) -> list:
@@ -246,6 +292,7 @@ def plan_pieces(cols: list, beams: list, levels: list, sections: dict, o: Option
 def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
     """ピースの重量 t. 断面の無い符号が1つでもあれば None（重量を出さない）."""
     missing: set = set()
+    guess: set = set()
     for p in plan.columns:
         total = 0.0
         st = next(s for k, s in stacks.items() if math.hypot(k[0] - p.x, k[1] - p.y) < 50.0)
@@ -269,7 +316,10 @@ def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
                 missing.add(br.mark)
                 ok = False
             else:
-                total += s.weight(br.end - br.start) + gusset_height(s) * o.gp_w * o.gp_t * DENSITY
+                sp = splice_of(s)
+                total += s.weight(br.end - br.start) + (sp.weight if sp else 0.0)
+                if sp and not sp.listed:
+                    guess.add(br.mark)
         p.weight = total * (1 + o.extra / 100.0) if ok else None
     for b in plan.beams:
         s = sections.get(b.mark)
@@ -279,11 +329,26 @@ def weigh(plan: Plan, stacks: dict, sections: dict, o: Options) -> None:
             b.weight = s.weight(b.length) * (1 + o.extra / 100.0)
     if missing:
         plan.warnings.append("断面が無い符号: " + "・".join(sorted(missing)) + "（符号表に入れると重量が出ます）")
+    if guess:
+        plan.warnings.append("継手表に無い断面: " + "・".join(sorted(guess)) + "（添え板は【目安】の大きさ）")
+    long_n = sorted({p.node for p in plan.columns if p.z1 - p.z0 > MAX_PIECE})
+    if long_n:
+        plan.warnings.append("節の長さが 12m を超えます: " + "・".join(f"{n}節" for n in long_n))
+    bed_n = sorted({p.node for p in plan.columns if TRAILER_BED < p.z1 - p.z0 <= MAX_PIECE})
+    if bed_n:
+        plan.warnings.append("節の長さが 10t 平車の荷台 9.2m を超えます（トレーラーの手配）: " + "・".join(f"{n}節" for n in bed_n))
+    wide = sorted({f"{p.node}節 {p.grid}" for p in plan.columns if piece_width(p) > MAX_WIDTH})
+    if wide:
+        plan.warnings.append("ブラケットの全幅が 2.4m を超えます（荷台の幅）: " + "・".join(wide[:6]) + ("ほか" if len(wide) > 6 else ""))
 
 
-def gusset_height(s: Section) -> float:
-    """ガセットプレートの高さ mm（フランジの内側から 20 ずつ控える【目安】）."""
-    return max(50.0, s.h - 2 * s.tf - 40.0)
+def piece_width(p: ColumnPiece) -> float:
+    """向かい合うブラケットの先から先まで mm（片側だけなら柱の半分を足す）."""
+    worst = 0.0
+    for b in p.brackets:
+        opp = max((c.end for c in p.brackets if abs((c.ang - b.ang) % 360.0 - 180.0) < 1.0), default=max(p.w, p.d) / 2.0)
+        worst = max(worst, b.end + opp)
+    return worst
 
 
 def table_rows(plan: Plan) -> list:
@@ -298,7 +363,7 @@ def to_markdown(plan: Plan, title: str = "鉄骨 節ごとの重量表") -> str:
         md.append(f"| {n} | {g} | {m} | " + ("断面なし" if w is None else f"{w:.2f}t") + " |")
     if plan.warnings:
         md += ["", "## 注意", "", *[f"- {w}" for w in plan.warnings]]
-    md += ["", "重量＝符号表の断面の板の面積×長さ×7.85t/m³（フィレットは含まない）に割増を掛けた値。柱のブラケットとガセットプレート、1 節目のベースプレートを含む。"]
+    md += ["", "重量＝符号表の断面の断面積×長さ×7.85t/m³ に割増を掛けた値。柱のブラケットと継手の添え板一式、1 節目のベースプレートを含む。ボルトと通しダイアフラムは割増に含む。"]
     return "\n".join(md) + "\n"
 
 
@@ -329,12 +394,15 @@ def column_params(p: ColumnPiece, sections: dict, o: Options) -> dict:
         h, b = p.w / 1000.0, p.d / 1000.0
     rows = [(br, sections.get(br.mark)) for br in p.brackets]
     return {"spK": 1, "spT": t, "spH": h, "spB": b, "spW": tw, "spF": tf, "spL": (p.z1 - p.z0) / 1000.0, "spAng": p.ang,
-            "bpOn": p.base_plate, "bpO": o.bp_over / 1000.0, "bpT": o.bp_t / 1000.0, "gpW": o.gp_w / 1000.0, "gpT": o.gp_t / 1000.0,
+            "bpOn": p.base_plate, "bpO": o.bp_over / 1000.0, "bpT": o.bp_t / 1000.0,
             "brA": ",".join(f"{br.ang:.1f}" for br, _s in rows), "brZ": ",".join(f"{br.z - p.z0:.0f}" for br, _s in rows),
             "brS": ",".join(f"{br.start:.0f}" for br, _s in rows), "brE": ",".join(f"{br.end:.0f}" for br, _s in rows),
             "brT": ",".join(str(_sec(q)[0]) for _b, q in rows),
             "brH": ",".join(f"{(q.h if q else 300):.0f}" for _b, q in rows), "brB": ",".join(f"{(q.b if q else 150):.0f}" for _b, q in rows),
-            "brW": ",".join(f"{(q.tw if q else 9):.0f}" for _b, q in rows), "brF": ",".join(f"{(q.tf if q else 12):.0f}" for _b, q in rows),
+            "brW": ",".join(f"{(q.tw if q else 9):.1f}" for _b, q in rows), "brF": ",".join(f"{(q.tf if q else 12):.1f}" for _b, q in rows),
+            **{k: ",".join(f"{getattr(sp, a) if sp else 0:.0f}" for sp in (splice_of(q) for _b, q in rows))
+               for k, a in (("spoT", "out_t"), ("spoL", "length"), ("spoW", "out_w"), ("spiT", "in_t"), ("spiW", "in_w"),
+                            ("spwT", "web_t"), ("spwH", "web_h"), ("spwW", "web_w"))},
             "pcW": p.weight or 0.0, "pcName": f"{p.node}節 {p.grid} {'・'.join(p.marks)}" + ("" if p.weight is None else f" {p.weight:.2f}t")}
 
 

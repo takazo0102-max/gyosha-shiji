@@ -1,4 +1,4 @@
-﻿! 鉄骨のピース 3D: 柱の節にブラケット・ガセット・ベースプレートが一体。梁は真ん中のピース
+﻿! 鉄骨のピース 3D: 柱の節にブラケット・継手の添え板・ベースプレートが一体。梁は真ん中のピース
 define material "sp_steel" 2, 0.62, 0.30, 0.16
 define material "sp_plate" 2, 0.30, 0.55, 0.75
 resol 16
@@ -33,11 +33,23 @@ if spK = 1 then
 		rL = qE[i] - qS[i]
 		material "sp_steel"
 		gosub "run"
-		material "sp_plate"
-		gH = max(0.05, sH - 2 * sF - 0.04)
-		add rL - gpW / 2, -gpT / 2, -gH / 2
-		block gpW, gpT, gH
-		del 1
+		if uL[i] > 0 then
+			! 継手の添え板（ウェブ両面、フランジの外と内。ブラケットの先をまたぐ）
+			material "sp_plate"
+			for s = -1 to 1 step 2
+				add rL - wW[i] / 2, s * (sW + wT[i]) / 2 - wT[i] / 2, -wH[i] / 2
+				block wW[i], wT[i], wH[i]
+				del 1
+				add rL - uL[i] / 2, -uW[i] / 2, s * (sH + uT[i]) / 2 - uT[i] / 2
+				block uL[i], uW[i], uT[i]
+				del 1
+				for y = -1 to 1 step 2
+					add rL - uL[i] / 2, y * (sW / 2 + 0.005 + vW[i] / 2) - vW[i] / 2, s * (sH / 2 - sF - vT[i] / 2) - vT[i] / 2
+					block uL[i], vW[i], vT[i]
+					del 1
+				next y
+			next s
+		endif
 		del 3
 	next i
 else

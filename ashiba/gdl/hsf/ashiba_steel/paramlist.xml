@@ -73,14 +73,6 @@
 			<Description><![CDATA["ベースプレートの厚さ"]]></Description>
 			<Value>0.036</Value>
 		</Length>
-		<Length Name="gpW">
-			<Description><![CDATA["ガセットプレートの幅"]]></Description>
-			<Value>0.3</Value>
-		</Length>
-		<Length Name="gpT">
-			<Description><![CDATA["ガセットプレートの厚さ"]]></Description>
-			<Value>0.012</Value>
-		</Length>
 		<String Name="brA">
 			<Description><![CDATA["ブラケットの向き（度。カンマ区切り）"]]></Description>
 			<Value><![CDATA[""]]></Value>
@@ -115,6 +107,38 @@
 		</String>
 		<String Name="brF">
 			<Description><![CDATA["ブラケットのフランジ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spoT">
+			<Description><![CDATA["フランジ外添板の厚さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spoL">
+			<Description><![CDATA["フランジ添板の長さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spoW">
+			<Description><![CDATA["フランジ外添板の幅（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spiT">
+			<Description><![CDATA["フランジ内添板の厚さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spiW">
+			<Description><![CDATA["フランジ内添板の幅（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spwT">
+			<Description><![CDATA["ウェブ添板の厚さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spwH">
+			<Description><![CDATA["ウェブ添板の高さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="spwW">
+			<Description><![CDATA["ウェブ添板の幅（mm）"]]></Description>
 			<Value><![CDATA[""]]></Value>
 		</String>
 		<RealNum Name="pcW">

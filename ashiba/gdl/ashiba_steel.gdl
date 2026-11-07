@@ -1,5 +1,5 @@
 ﻿! ==========================================================
-! 鉄骨の建て方のピース（柱の節にブラケット・ガセット・ベースプレートが一体、または梁の真ん中） 単一ファイル参照版
+! 鉄骨の建て方のピース（柱の節にブラケット・継手の添え板・ベースプレートが一体、または梁の真ん中） 単一ファイル参照版
 ! ----------------------------------------------------------
 ! このファイルは gdl/hsf/ashiba_steel/ から自動生成しています。
 ! 直接編集しないでください。HSF側を直してから再生成します:
@@ -24,8 +24,6 @@
 !   bpOn      ブール    ベースプレート                            既定 0
 !   bpO       長さ      ベースプレートのはみ出し                  既定 0.1
 !   bpT       長さ      ベースプレートの厚さ                      既定 0.036
-!   gpW       長さ      ガセットプレートの幅                      既定 0.3
-!   gpT       長さ      ガセットプレートの厚さ                    既定 0.012
 !   brA       文字列    ブラケットの向き（度。カンマ区切り）      既定 ""
 !   brZ       文字列    ブラケットの高さ（mm。ピースの下端から）  既定 ""
 !   brS       文字列    柱の中心から根元（mm）                    既定 ""
@@ -35,6 +33,14 @@
 !   brB       文字列    ブラケットの幅（mm）                      既定 ""
 !   brW       文字列    ブラケットのウェブ（mm）                  既定 ""
 !   brF       文字列    ブラケットのフランジ（mm）                既定 ""
+!   spoT      文字列    フランジ外添板の厚さ（mm）                既定 ""
+!   spoL      文字列    フランジ添板の長さ（mm）                  既定 ""
+!   spoW      文字列    フランジ外添板の幅（mm）                  既定 ""
+!   spiT      文字列    フランジ内添板の厚さ（mm）                既定 ""
+!   spiW      文字列    フランジ内添板の幅（mm）                  既定 ""
+!   spwT      文字列    ウェブ添板の厚さ（mm）                    既定 ""
+!   spwH      文字列    ウェブ添板の高さ（mm）                    既定 ""
+!   spwW      文字列    ウェブ添板の幅（mm）                      既定 ""
 !   pcW       実数      ピースの重量（t）                         既定 0.0
 !   pcName    文字列    ピースの名前（注記）                      既定 ""
 !   texSiz    実数      文字の大きさ（mm）                        既定 2.5
@@ -207,12 +213,157 @@ while strlen(rest) > 0 do
 		qF[nF] = v / 1000
 	endif
 endwhile
+dim uT[]
+n1 = 0
+rest = spoT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n1 = n1 + 1
+		uT[n1] = v / 1000
+	endif
+endwhile
+dim uL[]
+n2 = 0
+rest = spoL
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n2 = n2 + 1
+		uL[n2] = v / 1000
+	endif
+endwhile
+dim uW[]
+n3 = 0
+rest = spoW
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n3 = n3 + 1
+		uW[n3] = v / 1000
+	endif
+endwhile
+dim vT[]
+n4 = 0
+rest = spiT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n4 = n4 + 1
+		vT[n4] = v / 1000
+	endif
+endwhile
+dim vW[]
+n5 = 0
+rest = spiW
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n5 = n5 + 1
+		vW[n5] = v / 1000
+	endif
+endwhile
+dim wT[]
+n6 = 0
+rest = spwT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n6 = n6 + 1
+		wT[n6] = v / 1000
+	endif
+endwhile
+dim wH[]
+n7 = 0
+rest = spwH
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n7 = n7 + 1
+		wH[n7] = v / 1000
+	endif
+endwhile
+dim wW[]
+n8 = 0
+rest = spwW
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		n8 = n8 + 1
+		wW[n8] = v / 1000
+	endif
+endwhile
 nB = min(nB, min(nZ, min(nS, min(nE, min(nT, min(nH, min(nW, min(nX, nF))))))))
+nB = min(nB, min(n1, min(n2, min(n3, min(n4, min(n5, min(n6, min(n7, n8))))))))
 
 ! ==========================================================
 ! ==== 2Dスクリプト ====
 ! ==========================================================
-! 鉄骨のピース 2D: 断面の外形、ブラケットとガセット、名前
+! 鉄骨のピース 2D: 断面の外形、ブラケットと継手の添え板、名前
 pen penEquip
 define style "spT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "spT"
@@ -228,9 +379,7 @@ if spK = 1 then
 	for i = 1 to nB
 		rot2 qA[i]
 		rect2 qS[i], -qB[i] / 2, qE[i], qB[i] / 2
-		line2 qE[i] - gpW / 2, -gpT / 2, qE[i] + gpW / 2, -gpT / 2
-		line2 qE[i] - gpW / 2, gpT / 2, qE[i] + gpW / 2, gpT / 2
-		line2 qE[i] + gpW / 2, -gpT / 2, qE[i] + gpW / 2, gpT / 2
+		if uL[i] > 0 then rect2 qE[i] - uL[i] / 2, -uW[i] / 2, qE[i] + uL[i] / 2, uW[i] / 2
 		del 1
 	next i
 	add2 -spH / 2, spB / 2 + bpO * bpOn + 0.3
@@ -249,7 +398,7 @@ hotspot2 0, 0
 ! ==========================================================
 ! ==== 3Dスクリプト ====
 ! ==========================================================
-! 鉄骨のピース 3D: 柱の節にブラケット・ガセット・ベースプレートが一体。梁は真ん中のピース
+! 鉄骨のピース 3D: 柱の節にブラケット・継手の添え板・ベースプレートが一体。梁は真ん中のピース
 define material "sp_steel" 2, 0.62, 0.30, 0.16
 define material "sp_plate" 2, 0.30, 0.55, 0.75
 resol 16
@@ -284,11 +433,23 @@ if spK = 1 then
 		rL = qE[i] - qS[i]
 		material "sp_steel"
 		gosub "run"
-		material "sp_plate"
-		gH = max(0.05, sH - 2 * sF - 0.04)
-		add rL - gpW / 2, -gpT / 2, -gH / 2
-		block gpW, gpT, gH
-		del 1
+		if uL[i] > 0 then
+			! 継手の添え板（ウェブ両面、フランジの外と内。ブラケットの先をまたぐ）
+			material "sp_plate"
+			for s = -1 to 1 step 2
+				add rL - wW[i] / 2, s * (sW + wT[i]) / 2 - wT[i] / 2, -wH[i] / 2
+				block wW[i], wT[i], wH[i]
+				del 1
+				add rL - uL[i] / 2, -uW[i] / 2, s * (sH + uT[i]) / 2 - uT[i] / 2
+				block uL[i], uW[i], uT[i]
+				del 1
+				for y = -1 to 1 step 2
+					add rL - uL[i] / 2, y * (sW / 2 + 0.005 + vW[i] / 2) - vW[i] / 2, s * (sH / 2 - sF - vT[i] / 2) - vT[i] / 2
+					block uL[i], vW[i], vT[i]
+					del 1
+				next y
+			next s
+		endif
 		del 3
 	next i
 else
