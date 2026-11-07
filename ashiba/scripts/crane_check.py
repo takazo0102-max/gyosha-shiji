@@ -258,6 +258,17 @@ def lift_targets(pool: list, crane_guid: str, copy_guids) -> list:
     return out
 
 
+def reach_notes(rows: list, limit: int = 5) -> list:
+    """重すぎ・遠すぎの部材の案内（一括で 92 行出たので limit 行まで。残りは帳票に）."""
+    bad = [r for r in rows if r[6] in ("重すぎ", "遠すぎ")]
+    out = [f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
+           + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）")
+           for nm, _ty, _v, w, rad, _nz, res, _x, far in bad[:limit]]
+    if len(bad) > limit:
+        out.append(f"揚重判定: ほか {len(bad) - limit}個は帳票に")
+    return out
+
+
 def read_copies(path) -> list:
     """吊荷作図の控え（GUID の一覧）."""
     try:
@@ -467,10 +478,9 @@ def main(argv=None) -> int:
             for nm, _ty, _v, w, rad, _nz, res, x, far in rows:
                 if res == "揚重可能":
                     print(f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は揚重可能（ブーム {x.boom}m・定格 {x.rated_t:.2f}t × {ratio:g}）")
-        for nm, _ty, _v, w, rad, _nz, res, x, far in rows:
-            if res in ("重すぎ", "遠すぎ") and tw is None:
-                print(f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
-                      + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）"))
+        if tw is None:
+            for line in reach_notes(rows):
+                print(line)
     if a.clash:
         if a.ask and not ask_clash(a):
             print("ブームの干渉: やめました")

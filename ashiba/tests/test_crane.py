@@ -455,6 +455,16 @@ class TestCraneLod(unittest.TestCase):
 class TestBulkLift(unittest.TestCase):
     """一括揚重判定で吊荷作図にチェックを入れたら部材が増えた（利用者の報告 2026-11-07）."""
 
+    def test_notes_are_limited(self):
+        from crane_check import reach_notes
+
+        rows = [("C1", "Column", 0.1, 5.0, 20000.0, 3000.0, "重すぎ", None, 9000.0)] * 92 + [("C2", "Column", 0.1, 1.0, 5000.0, 3000.0, "揚重可能", None, None)]
+        got = reach_notes(rows)
+        self.assertEqual(len(got), 6)
+        self.assertIn("ほか 87個", got[-1])
+        self.assertIn("作業半径 9.0m 以内", got[0])
+        self.assertEqual(reach_notes(rows[-1:]), [])
+
     @classmethod
     def setUpClass(cls):
         sys.path.insert(0, str(SRC.parent / "scripts"))
@@ -494,6 +504,13 @@ class TestHookMark(unittest.TestCase):
             self.assertIn("mkQ = mkH - slgH", g)
             self.assertIn('"Max "', g)
             self.assertIn("mkV = capT", g)
+
+    def test_mark_lies_flat_and_only_the_text_faces_the_view(self):
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/3d.gdl")
+            a = g.index("add mkX, mkY, mkQ")
+            self.assertLess(g.index("prism_ nsp / 3", a), g.index("rotx 90", a))
+            self.assertLess(g.index("rotx 90", a), g.index('style "mkI"', a))
 
     def test_plan_draws_the_mark(self):
         for part in self.PARTS:

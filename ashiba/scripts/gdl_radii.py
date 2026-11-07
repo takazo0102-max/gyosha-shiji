@@ -107,16 +107,16 @@ def ui(gate: str = "1") -> str:
     """設定の窓のページ（SCP の「クレーン設定」にならう。表示数の分だけ行を出す）."""
     rows = ["﻿! クレーン設定: 作業半径の表示（scripts/gdl_radii.py）", 'ui_dialog "クレーン設定", 444, 266', f"if ({gate}) then",
             'ui_outfield "平面の作業半径の表示", 12, 8, 300, 18', 'ui_outfield "表示数", 12, 32, 60, 18',
-            'ui_infield "wiNum", 76, 30, 50, 20', 'ui_outfield "半径", 186, 32, 60, 18',
-            'ui_outfield "角度範囲", 250, 32, 120, 18', 'ui_outfield "文字反転", 376, 32, 60, 18']
+            'ui_infield "wiNum", 76, 30, 50, 20', 'ui_outfield "半径", 176, 32, 60, 18',
+            'ui_outfield "角度範囲", 258, 32, 120, 18', 'ui_outfield "文字反転", 384, 32, 60, 18']
     for i in range(1, MAX_ITEMS + 1):
         y = 30 + i * 28
-        rows += [f"if nWi >= {i} then", LABEL.format(i=i).rstrip("\n"), f'ui_outfield "{i}. " + strsub(wTx, 6, 40), 12, {y + 2}, 170, 18',
-                 f'ui_infield "wiR{i}", 186, {y}, 60, 20', f'ui_infield "wiA{i}", 250, {y}, 60, 20',
-                 f'ui_infield "wiB{i}", 314, {y}, 60, 20', f'ui_infield "wiF{i}", 392, {y}, 20, 20', "endif"]
+        rows += [f"if nWi >= {i} then", LABEL.format(i=i).rstrip("\n"), f'ui_outfield "{i}. " + strsub(wTx, 6, 40), 12, {y + 2}, 160, 18',
+                 f'ui_infield "wiR{i}", 176, {y}, 78, 20', f'ui_infield "wiA{i}", 258, {y}, 60, 20',
+                 f'ui_infield "wiB{i}", 322, {y}, 60, 20', f'ui_infield "wiF{i}", 400, {y}, 20, 20', "endif"]
     rows += ['ui_outfield "文字色", 12, 206, 60, 18', 'ui_infield "wiPen", 76, 204, 60, 20',
-             'ui_outfield "吊りしろ", 186, 206, 60, 18', 'ui_infield "slgH", 250, 204, 60, 20',
-             'ui_outfield "吊り点の印と Max", 318, 206, 100, 18', 'ui_infield "slgOn", 420, 204, 20, 20',
+             'ui_outfield "吊りしろ", 150, 206, 56, 18', 'ui_infield "slgH", 208, 204, 78, 20',
+             'ui_outfield "吊り点の印と Max", 300, 206, 110, 18', 'ui_infield "slgOn", 414, 204, 20, 20',
              'ui_outfield "0°は車体の前。平面の弧の中央で半径、両端で範囲、線の途中で範囲ごと回せます", 12, 234, 420, 18',
              "else", 'ui_outfield "クローラクレーンのときに使います", 12, 8, 300, 18', "endif"]
     return "\n".join(rows) + "\n"

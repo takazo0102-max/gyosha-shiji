@@ -4,70 +4,70 @@ if (1) then
 ui_outfield "平面の作業半径の表示", 12, 8, 300, 18
 ui_outfield "表示数", 12, 32, 60, 18
 ui_infield "wiNum", 76, 30, 50, 20
-ui_outfield "半径", 186, 32, 60, 18
-ui_outfield "角度範囲", 250, 32, 120, 18
-ui_outfield "文字反転", 376, 32, 60, 18
+ui_outfield "半径", 176, 32, 60, 18
+ui_outfield "角度範囲", 258, 32, 120, 18
+ui_outfield "文字反転", 384, 32, 60, 18
 if nWi >= 1 then
 wVr = wiRq[1]
 wVt = wiTq[1]
 wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
 if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
-ui_outfield "1. " + strsub(wTx, 6, 40), 12, 60, 170, 18
-ui_infield "wiR1", 186, 58, 60, 20
-ui_infield "wiA1", 250, 58, 60, 20
-ui_infield "wiB1", 314, 58, 60, 20
-ui_infield "wiF1", 392, 58, 20, 20
+ui_outfield "1. " + strsub(wTx, 6, 40), 12, 60, 160, 18
+ui_infield "wiR1", 176, 58, 78, 20
+ui_infield "wiA1", 258, 58, 60, 20
+ui_infield "wiB1", 322, 58, 60, 20
+ui_infield "wiF1", 400, 58, 20, 20
 endif
 if nWi >= 2 then
 wVr = wiRq[2]
 wVt = wiTq[2]
 wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
 if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
-ui_outfield "2. " + strsub(wTx, 6, 40), 12, 88, 170, 18
-ui_infield "wiR2", 186, 86, 60, 20
-ui_infield "wiA2", 250, 86, 60, 20
-ui_infield "wiB2", 314, 86, 60, 20
-ui_infield "wiF2", 392, 86, 20, 20
+ui_outfield "2. " + strsub(wTx, 6, 40), 12, 88, 160, 18
+ui_infield "wiR2", 176, 86, 78, 20
+ui_infield "wiA2", 258, 86, 60, 20
+ui_infield "wiB2", 322, 86, 60, 20
+ui_infield "wiF2", 400, 86, 20, 20
 endif
 if nWi >= 3 then
 wVr = wiRq[3]
 wVt = wiTq[3]
 wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
 if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
-ui_outfield "3. " + strsub(wTx, 6, 40), 12, 116, 170, 18
-ui_infield "wiR3", 186, 114, 60, 20
-ui_infield "wiA3", 250, 114, 60, 20
-ui_infield "wiB3", 314, 114, 60, 20
-ui_infield "wiF3", 392, 114, 20, 20
+ui_outfield "3. " + strsub(wTx, 6, 40), 12, 116, 160, 18
+ui_infield "wiR3", 176, 114, 78, 20
+ui_infield "wiA3", 258, 114, 60, 20
+ui_infield "wiB3", 322, 114, 60, 20
+ui_infield "wiF3", 400, 114, 20, 20
 endif
 if nWi >= 4 then
 wVr = wiRq[4]
 wVt = wiTq[4]
 wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
 if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
-ui_outfield "4. " + strsub(wTx, 6, 40), 12, 144, 170, 18
-ui_infield "wiR4", 186, 142, 60, 20
-ui_infield "wiA4", 250, 142, 60, 20
-ui_infield "wiB4", 314, 142, 60, 20
-ui_infield "wiF4", 392, 142, 20, 20
+ui_outfield "4. " + strsub(wTx, 6, 40), 12, 144, 160, 18
+ui_infield "wiR4", 176, 142, 78, 20
+ui_infield "wiA4", 258, 142, 60, 20
+ui_infield "wiB4", 322, 142, 60, 20
+ui_infield "wiF4", 400, 142, 20, 20
 endif
 if nWi >= 5 then
 wVr = wiRq[5]
 wVt = wiTq[5]
 wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × 定格なし"
 if wVt > 0 then wTx = "作業半径 " + str(wVr, 3 + (wVr >= 10) + (wVr >= 100), 1) + "m × " + str(wVt, 4 + (wVt >= 10) + (wVt >= 100), 2) + "ton"
-ui_outfield "5. " + strsub(wTx, 6, 40), 12, 172, 170, 18
-ui_infield "wiR5", 186, 170, 60, 20
-ui_infield "wiA5", 250, 170, 60, 20
-ui_infield "wiB5", 314, 170, 60, 20
-ui_infield "wiF5", 392, 170, 20, 20
+ui_outfield "5. " + strsub(wTx, 6, 40), 12, 172, 160, 18
+ui_infield "wiR5", 176, 170, 78, 20
+ui_infield "wiA5", 258, 170, 60, 20
+ui_infield "wiB5", 322, 170, 60, 20
+ui_infield "wiF5", 400, 170, 20, 20
 endif
 ui_outfield "文字色", 12, 206, 60, 18
 ui_infield "wiPen", 76, 204, 60, 20
-ui_outfield "吊りしろ", 186, 206, 60, 18
-ui_infield "slgH", 250, 204, 60, 20
-ui_outfield "吊り点の印と Max", 318, 206, 100, 18
-ui_infield "slgOn", 420, 204, 20, 20
+ui_outfield "吊りしろ", 150, 206, 56, 18
+ui_infield "slgH", 208, 204, 78, 20
+ui_outfield "吊り点の印と Max", 300, 206, 110, 18
+ui_infield "slgOn", 414, 204, 20, 20
 ui_outfield "0°は車体の前。平面の弧の中央で半径、両端で範囲、線の途中で範囲ごと回せます", 12, 234, 420, 18
 else
 ui_outfield "クローラクレーンのときに使います", 12, 8, 300, 18
