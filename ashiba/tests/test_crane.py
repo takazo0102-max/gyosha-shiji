@@ -498,7 +498,7 @@ class TestHookMark(unittest.TestCase):
     def test_mark_moves_freely_in_3d(self):
         for part in self.PARTS:
             g = self.hsf(part, "scripts/3d.gdl")
-            for ref, flags in (("hfX", ("1 + 128", "2", "3")), ("hfY", ("1 + 128", "2", "3")), ("mkZ", ("1 + 128", "2", "3"))):
+            for ref, flags in (("hfX", ("1 + 128", "2", "3 + 128")), ("hfY", ("1 + 128", "2", "3 + 128")), ("mkZ", ("1 + 128", "2", "3 + 128"))):
                 for f in flags:
                     self.assertRegex(g, rf"hotspot .*, {ref}, {re.escape(f)}\n", part)
             self.assertIn("mkQ = mkH - slgH", g)
@@ -511,6 +511,13 @@ class TestHookMark(unittest.TestCase):
             a = g.index("add mkX, mkY, mkQ")
             self.assertLess(g.index("prism_ nsp / 3", a), g.index("rotx 90", a))
             self.assertLess(g.index("rotx 90", a), g.index('style "mkI"', a))
+
+    def test_height_hotspot_is_apart_from_the_plan_hotspots(self):
+        """同じ点に重ねると X・Y と一緒の編集になって高さが書き戻された（実機 2026-11-07）."""
+        for part in self.PARTS:
+            g = self.hsf(part, "scripts/3d.gdl")
+            self.assertIn("hotspot mkX, mkY, mkQ + mkR * 1.5,", g)
+            self.assertNotRegex(g, r"hotspot mkX, mkY, mkQ, \d+, mkZ")
 
     def test_plan_draws_the_mark(self):
         for part in self.PARTS:
@@ -548,7 +555,8 @@ class TestRadiiDisplay(unittest.TestCase):
         for part in self.PARTS:
             g = self.hsf(part, "scripts/2d.gdl")
             for i in range(1, 6):
-                for n, flags in ((f"wiR{i}", (r"1 \+ 128", "2", "3")), (f"wiA{i}", ("6", "4", "5")), (f"wiB{i}", ("6", "4", "5")), (f"wiM{i}", ("6", "4", "5"))):
+                for n, flags in ((f"wiR{i}", (r"1 \+ 128", "2", r"3 \+ 128")), (f"wiA{i}", ("6", r"4 \+ 128", "5")), (f"wiB{i}", ("6", r"4 \+ 128", "5")),
+                                (f"wiM{i}", ("6", r"4 \+ 128", "5"))):
                     for f in flags:
                         self.assertRegex(g, rf"hotspot2 .*, {n}, {f}\n", part)
             ids = re.findall(r"hotspot2 [^\n]*?, (\d+), (?!hid\b)[a-zA-Z]\w*, ", g)      # hid は番号の変数（前の数は座標）
