@@ -108,5 +108,6 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except TapirError as e:
-        print(f"エラー: {e}", file=sys.stderr)
+        print("撤去: 足場を撤去する建物の躯体スラブを選んでから押してください" if "選択されていません" in str(e) else f"撤去: {e}",
+              file=sys.stderr)
         sys.exit(2)

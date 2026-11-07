@@ -21,6 +21,14 @@ def main() -> int:
     import run_from_archicad as R
     from form_dialog import show_form
 
+    import os
+
+    from ashiba.tapir_adapter import ArchicadClient, TapirError
+
+    if not os.environ.get("ASHIBA_SLAB") and not ArchicadClient().get_selected_elements():
+        # 窓に入れてから「選ばれていません」で止まっていた（2026-11-07 ループの試験。Traceback も出ていた）
+        print("地足場: 躯体スラブ（建物の外形）を選んでから押してください")
+        return 1
     res = show_form({"title": "地足場", "intro": "躯体スラブを選んでから押してください。地上に低く組む足場（基礎・1階まわりの"
                      "作業用）を置きます。昇降は階段室です。",
                      "fields": [{"key": "levels", "label": "層数", "kind": "choice", "options": list(LEVELS),
@@ -41,7 +49,11 @@ def main() -> int:
     if beam > 0:
         g["beam_top_mm"] = beam
     print(f"地足場: {n}層で置きます")
-    R.main(spec_override={**R.load_spec_override(), "ground_scaffold": g})
+    try:
+        R.main(spec_override={**R.load_spec_override(), "ground_scaffold": g})
+    except TapirError as e:
+        print(f"地足場: {e}")
+        return 1
     return 0
 
 

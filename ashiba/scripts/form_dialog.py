@@ -38,7 +38,11 @@ def show_form(form: dict) -> Optional[dict]:
     """窓を出して待つ → {"button": id, "values": {...}}。閉じた・作れなければ None（呼び側は窓なしで続けるか止める）."""
     canned = os.environ.get("ASHIBA_FORM_ANSWER")
     if canned:
-        return json.loads(canned)
+        res = json.loads(canned)
+        if isinstance(res, dict) and res.get("button") not in (None, "cancel"):   # 窓と同じく、書かなかった欄は既定の値
+            res["values"] = {**{f["key"]: f.get("value") for f in form.get("fields") or [] if "key" in f},
+                             **(res.get("values") or {})}
+        return res
     exe = binary()
     with tempfile.TemporaryDirectory() as td:
         fin, fout = Path(td) / "form.json", Path(td) / "result.json"

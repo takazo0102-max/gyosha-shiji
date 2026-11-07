@@ -123,6 +123,10 @@ def main() -> int:
         level = int(str(vals.get("level") or "").strip())
     except ValueError:
         level = 0
+    if res["button"] in ("add", "remove") and not keys:
+        # 線を選ばずに押して「付ける」を選ぶと、条件だけ書いて置き直しで止まっていた（2026-11-07 ループの試験）
+        print("幅の変更: 付ける・外すは、足場の面に沿って線を引いて選んでから押してください（何も変えていません）")
+        return 1
     if res["button"] == "add" and level < 2:
         print(f"幅の変更: 幅を変える床の段「{vals.get('level')}」は 2 以上の数字にしてください（何も変えていません）")
         return 1
@@ -136,8 +140,17 @@ def main() -> int:
     print("幅の変更: " + (f"{new['label']}（{new['level']}段目の床から）: {'、'.join(new['faces'])}" if new else "幅を変える範囲はありません")
           + f"（{R.SPEC_OVERRIDE.name} の width_change）")
     print("---- 置き直します")
+    if plan is None:                                     # 線を選ばずに「全部外す」: いちばん新しい配置の控えの建物で置き直す
+        found = sorted(R.OUT_DIR.rglob("*_plan.json"), key=lambda q: -q.stat().st_mtime)
+        plan = json.loads(found[0].read_text(encoding="utf-8")) if found else None
     outline = (plan or {}).get("outline_mm")
-    R.main(outline_mm=outline) if outline else R.main()
+    from ashiba.tapir_adapter import TapirError
+
+    try:
+        R.main(outline_mm=outline) if outline else R.main()
+    except TapirError as e:
+        print(f"幅の変更: 置き直せませんでした（{e}）。条件は控えたので、躯体スラブを選んで「配置」で置き直してください")
+        return 1
     if guides:
         delete_guides(c, guides)
         print("幅の変更: 目印の線を消しました")

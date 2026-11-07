@@ -15,7 +15,7 @@ ashiba_out/根切り_<名前>.md。
 掘る（躯体の掘削と山留めの間の中途半端な所も一般の根切り底まで）。山留めの外は掘らない。
 
   python3 scripts/negiri_run.py                                  # 窓で選ぶ
-  python3 scripts/negiri_run.py --slope 0.5 --depth -2000        # 窓なし: 法面 1:0.5・掘削底 GL−2000（全部その深さ）
+  python3 scripts/negiri_run.py --slope-deg 60 --depth -2000     # 窓なし: 法面 60°・掘削底 GL−2000（全部その深さ。--slope 0.5 は勾配 1:0.5）
   python3 scripts/negiri_run.py --slope 0 --general -1500        # 垂直（山留め）・山留めの内の一般の根切り底 GL−1500
   python3 scripts/negiri_run.py --margin 600 --gravel 100 --lean 50 --soil 砂 --gl 0 --name 根切り1
   python3 scripts/negiri_run.py --doma-margin 100 --doma-gravel 100 --doma-lean 0 --doma-thin 200 --color 白黒
@@ -42,13 +42,15 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 LAYER = "仮設_根切り"
+SOIL_NAME = "仮設_根切りの土"   # 掘削のメッシュの材料（既定のメッシュは芝の表面になる。2026-11-07 利用者「土にも色つけれる？」）
+SOIL_RGB = (0.56, 0.43, 0.29)   # 土の茶色【目安】
+SNAP_YWALL_MM = 600.0       # 選んだ山留めの線がこれ以内なら「山留め壁」の内側の面を使う（鋼矢板・親杭の厚さ＋描いたずれ）
 YWALL_USED: list = []      # 根切り図が山留めに使った「山留め壁」（名前, 根切りの深さ mm）
 RECORD = "根切り.json"
 SOURCE = "根切り_元.json"    # 名前 → 選んだ躯体の GUID と条件（「根切り図を更新」で躯体の変更を埋戻し・掘削に映す）
 BACKS = ("描く", "描かない")
 PITS = ("自動で1か所", "置かない")       # 釜場（レイヤー名に「釜場」の閉じた線を選べばその形）
 COLORS = ("カラー", "白黒", "なし")
-SLOPE_LABELS = {"自動（積算基準: 1.5m 未満は垂直・5m 未満 1:0.3・以上 1:0.6）": None, "垂直（山留め）": 0.0, "1:0.3": 0.3, "1:0.5": 0.5, "1:0.8": 0.8, "1:1.0": 1.0, "1:1.5": 1.5}
 
 
 def _rect(c, u, w, d):
@@ -194,7 +196,7 @@ def layer_index(c) -> int:
 def drawing(n, li: int, fill=None, back: bool = False) -> tuple[list, list, list]:
     """根切り図の平面の塗り・線・文字（Tapir の hatchesData・polylinesData・textsData。m）。fill は (塗りの GUID, 色→ペン, 白黒)
     で、床付けの高さごとに塗り分けて凡例を付ける（浅い順に塗り、深い所を上に重ねる）。back で埋戻しの範囲の線と量も."""
-    from ashiba.negiri import _centroid, contour_lines, level_color, slope_angle
+    from ashiba.negiri import _centroid, contour_lines, level_color, slope_angle, slope_label
 
     P = lambda p: {"x": round(p[0] / 1000.0, 6), "y": round(p[1] / 1000.0, 6)}
     lines, texts = [], []
@@ -229,7 +231,7 @@ def drawing(n, li: int, fill=None, back: bool = False) -> tuple[list, list, list
         a, b = r[0], r[1]
         mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
         used = sorted({s for _h, s in n.slopes}) if n.slope is None else [n.slope]
-        lab = "・".join("垂直" if s <= 0 else f"1:{s:g}（{slope_angle(s):.0f}°）" for s in used)
+        lab = "・".join(slope_label(s) for s in used)
         lab = ("垂直（山留め）" if n.yamadome and used == [0.0] else "法面 " + lab) + ("（自動）" if n.slope is None else "")
         texts.append(txt((mid[0], mid[1] - 600.0), lab))
         ys = [p[1] for p in r]
@@ -301,6 +303,27 @@ def fill_style(c, color: str):
     return fid, (lambda rgb: nearest_pen(table, rgb)), color == "白黒"
 
 
+def soil_material(c) -> dict | None:
+    """掘削のメッシュの材料（ビルディングマテリアル「仮設_根切りの土」。無ければ同じ名前の表面と一緒に作る）→ {"guid"}. 作れなければ None."""
+    try:
+        names = lambda t: {a["name"]: a for a in c.tapir("GetAttributesByType", {"attributeType": t}).get("attributes", [])}
+        bms = names("BuildingMaterial")
+        if SOIL_NAME not in bms:
+            sfs = names("Surface")
+            if SOIL_NAME not in sfs:
+                r, g, b = SOIL_RGB
+                c.tapir("CreateSurfaces", {"surfaceDataArray": [{"name": SOIL_NAME, "surfaceColor": {"red": r, "green": g, "blue": b}}],
+                                           "overwriteExisting": False})
+                sfs = names("Surface")
+            c.tapir("CreateBuildingMaterials", {"buildingMaterialDataArray": [{"name": SOIL_NAME, "cutSurfaceIndex": sfs[SOIL_NAME]["index"]}],
+                                                "overwriteExisting": False})
+            bms = names("BuildingMaterial")
+        return {"guid": bms[SOIL_NAME]["attributeId"]["guid"]}
+    except Exception as ex:  # noqa: BLE001 材料が作れなくても根切り図は作る（既定の材料のまま）
+        print(f"  注意: 土の材料を用意できませんでした（{ex}）。メッシュは既定の材料のままです")
+        return None
+
+
 def main(argv=None) -> int:
     import argparse
 
@@ -312,6 +335,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--name", default=None, help="名前（同じ名前は置き直す）")
     ap.add_argument("--slope", default=None, help="法面の勾配 1:n の n（0＝垂直・auto＝積算基準の法の係数）")
+    ap.add_argument("--slope-deg", dest="slope_deg", type=float, default=None, help="法面の角度 度（90＝垂直。--slope より優先）")
     ap.add_argument("--depth", type=float, default=None, help="掘削底を全部この深さに（GL からの mm。例 -2000）")
     ap.add_argument("--general", type=float, default=None, help="山留めの内の一般の根切り底（GL からの mm）")
     ap.add_argument("--margin", type=float, default=None, help=f"余掘り mm（既定 {MARGIN_MM:.0f}）")
@@ -462,7 +486,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
     """選んだ躯体（sel）から根切り図を作る（置き直す）."""
     from form_dialog import show_form
 
-    from ashiba.negiri import (DOMA_GRAVEL_MM, DOMA_LEAN_MM, DOMA_MARGIN_MM, GRAVEL_MM, LEAN_MM, MARGIN_MM, SOILS, Negiri,
+    from ashiba.negiri import (DOMA_GRAVEL_MM, DOMA_LEAN_MM, DOMA_MARGIN_MM, GRAVEL_MM, LEAN_MM, MARGIN_MM, SOILS, Negiri, ratio_of_degrees,
                                mesh_data, report, solve)
 
     dets = c.get_details(sel) if sel else []
@@ -471,6 +495,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         print("根切り図: 掘る躯体（基礎・地中梁・耐圧盤などの床・梁・柱・壁）を選んでから押してください。山留めは名前に「山留」が"
               "付くレイヤーの壁か、閉じた線を一緒に選ぶ")
         return 1
+    picked_line = bool(polys)                            # 閉じた線を選んだ（山留め壁の自動の読みではない）
     if not polys and not walls:
         # 選んでいなくても、躯体を囲む「山留め壁」（scripts/ywall_run.py）があれば山留めとして使う
         from ywall_run import recorded_polygons
@@ -482,7 +507,7 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
             polys = [hit[0][1]]
             YWALL_USED[:] = [(hit[0][0], hit[0][2])]
             print(f"  山留め: 「山留め壁」の {hit[0][0]} の内側の面まで掘ります")
-    opts = (a.slope, a.depth, a.general, a.margin, a.gravel, a.lean, a.doma_margin, a.doma_gravel, a.doma_lean, a.doma_thin,
+    opts = (a.slope, a.slope_deg, a.depth, a.general, a.margin, a.gravel, a.lean, a.doma_margin, a.doma_gravel, a.doma_lean, a.doma_thin,
             a.soil, a.color, a.backfill, a.road_width, a.kamaba, a.name)
     if all(v is None for v in opts):
         ndoma = sum(1 for f in zones if f.kind == "土間")
@@ -491,8 +516,8 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
                          + "。掘削底を空にすると、躯体の下端から砕石と捨てコンの厚さを引いた深さ（躯体ごと）で掘ります。",
                          "fields": [{"key": "name", "label": "名前", "kind": "text", "value": "根切り1"},
                                     {"key": "depth", "label": "掘削底 GL から mm（空＝躯体ごと。例 -2000）", "kind": "number", "value": ""},
-                                    {"key": "slope", "label": "法面の勾配", "kind": "choice", "options": list(SLOPE_LABELS),
-                                     "value": "垂直（山留め）" if (walls or polys) else next(iter(SLOPE_LABELS))},
+                                    {"key": "slope_deg", "label": "法面の角度 度（90＝垂直・山留め。空＝自動: 積算基準の法の係数）",
+                                     "kind": "number", "value": "90" if (walls or polys) else ""},
                                     {"key": "margin", "label": "余掘り mm（積算基準 500）", "kind": "number", "value": f"{MARGIN_MM:.0f}"},
                                     {"key": "gravel", "label": "砕石の厚さ mm（標仕 60）", "kind": "number", "value": f"{GRAVEL_MM:.0f}"},
                                     {"key": "lean", "label": "捨てコンの厚さ mm（標仕 50）", "kind": "number", "value": f"{LEAN_MM:.0f}"},
@@ -519,7 +544,12 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         v = res.get("values") or {}
         num = lambda k: float(str(v[k]).replace(",", "")) if str(v.get(k) or "").strip() else None
         a.name, a.depth, a.general = str(v.get("name") or "根切り1"), num("depth"), num("general")
-        a.slope = SLOPE_LABELS.get(str(v.get("slope")))
+        deg = num("slope_deg")
+        try:
+            a.slope = None if deg is None else ratio_of_degrees(deg)
+        except ValueError as ex:
+            print(f"根切り図: {ex}（何も作っていません）")
+            return 1
         a.margin, a.gravel, a.lean = num("margin"), num("gravel"), num("lean")
         a.doma_margin, a.doma_gravel, a.doma_lean = num("doma_margin"), num("doma_gravel"), num("doma_lean")
         a.soil, a.color = str(v.get("soil") or "その他"), str(v.get("color") or COLORS[0])
@@ -527,11 +557,28 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         a.kamaba = str(v.get("kamaba") or PITS[0])
         rw = num("road_width")
         a.road_width = None if rw is None else rw * 1000.0
+    elif a.slope_deg is not None:
+        a.slope = ratio_of_degrees(a.slope_deg)
     elif a.slope is not None:
         a.slope = None if str(a.slope).lower() == "auto" else float(a.slope)
     name = a.name or "根切り1"
     center = (sum(p[0] for f in zones for p in f.pts) / sum(len(f.pts) for f in zones),
               sum(p[1] for f in zones for p in f.pts) / sum(len(f.pts) for f in zones))
+    if picked_line and not walls:
+        # 選んだ閉じた線が「山留め壁」とほぼ同じ所なら、山留め壁の内側の面で掘る（2026-11-07 利用者の画像: 手で引いた線が鋼矢板から
+        # 0.1〜0.3m ずれ、掘削が矢板の外へはみ出していた）
+        from ywall_run import recorded_polygons
+
+        from ashiba.negiri import _seg_dist
+
+        edge = lambda p, q: min(_seg_dist(p, q[i], q[(i + 1) % len(q)]) for i in range(len(q)))   # 辺までの距離（中でも）
+        hit = recorded_polygons(R.OUT_DIR, point=center)
+        if hit:
+            off = max(max(edge(p, hit[0][1]) for p in polys[0]), max(edge(p, polys[0]) for p in hit[0][1]))
+            if off <= SNAP_YWALL_MM:
+                polys = [hit[0][1]]
+                YWALL_USED[:] = [(hit[0][0], hit[0][2])]
+                print(f"  山留め: 選んだ線は「山留め壁」の {hit[0][0]} から {off:.0f}mm ずれているので、山留め壁の内側の面まで掘ります")
     yam = polys[0] if polys else yamadome_polygon(walls, center)
     if walls and not yam:
         print("根切り図: 山留めの壁から内側の面の多角形を作れませんでした（壁が3枚以上で囲む形に）。山留め無しで掘ります")
@@ -559,9 +606,10 @@ def build(c, R, a, sel, rec, rec_path, src, src_path) -> int:
         _delete_alive_any(c, rec.pop(name))
     li = layer_index(c)
     made = []
+    soil = soil_material(c)
     for m in mesh_data(n):
         try:
-            r = c.tapir("CreateMeshes", {"meshesData": [m]})
+            r = c.tapir("CreateMeshes", {"meshesData": [{**m, "buildingMaterialId": soil} if soil else m]})
             ms = [e for e in r.get("elements", []) if "elementId" in e]
             made += [e["elementId"]["guid"] for e in ms]
             # メッシュは作るときのレイヤーの指定が効かないので、作ってからレイヤーを移す

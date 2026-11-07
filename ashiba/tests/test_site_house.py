@@ -73,3 +73,29 @@ class TestHouses(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRecheckNothingPlaced(unittest.TestCase):
+    """置いた建物が無いのに「仮設建物の検定」を押すと、0棟の判定でなく置き方を案内する（2026-11-07 ループの試験）."""
+
+    def test_refuses_with_a_hint(self):
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import house_run
+        import run_from_archicad as R
+
+        class C:
+            def tapir(self, cmd, body=None):
+                return {"elements": []}
+
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(R, "OUT_DIR", Path(t)), \
+                mock.patch("ashiba.tapir_adapter.ArchicadClient", C), contextlib.redirect_stdout(out):
+            code = house_run.main(["--recheck"])
+        self.assertEqual(code, 1)
+        self.assertIn("置いた仮設建物がありません", out.getvalue())

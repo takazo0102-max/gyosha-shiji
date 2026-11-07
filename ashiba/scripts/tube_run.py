@@ -197,7 +197,7 @@ def main(argv=None) -> int:
                     rec[f"{key}#{k}:{lv:.0f}"] = te["elementId"]["guid"]
         joins.append(j)
         bad = [x.item for x in j.checks if x.status != "OK"]
-        print(f"  {j.name}: 支柱の間 {j.span / 1000:.2f}m・単管 {j.tube / 1000:.1f}M×{len(j.rows)}本"
+        print(f"  {j.name}: 支柱の間 {j.span / 1000:.2f}m・" + (f"単管 {j.tube / 1000:.1f}M×{len(j.rows)}本" if j.tube else "単管が届かない")
               + (f"・壁つなぎ {len(j.ties)}か所×{len(levels)}段" if a.tie else "")
               + (f"・要確認 {'・'.join(dict.fromkeys(bad))}" if bad else ""))
     rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -321,13 +321,21 @@ def lift_targets(pool: list, crane_guid: str, copy_guids) -> list:
 
 
 def reach_notes(rows: list, limit: int = 5) -> list:
-    """重すぎ・遠すぎの部材の案内（一括で 92 行出たので limit 行まで。残りは帳票に）."""
-    bad = [r for r in rows if r[6] in ("重すぎ", "遠すぎ")]
-    out = [f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
-           + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）")
-           for nm, _ty, _v, w, rad, _nz, res, _x, far in bad[:limit]]
-    if len(bad) > limit:
-        out.append(f"揚重判定: ほか {len(bad) - limit}個は帳票に")
+    """重すぎ・遠すぎの部材の案内（一括で 92 行出たので limit 行まで。残りは帳票に）.
+
+    重すぎを先に出し、同じ名前・重さ・半径・案内の行は 1 行にまとめて数を添える（2026-11-07 ループの試験で、一括の
+    5 行が同じ「C1 … 遠すぎ」で埋まり、重すぎ 2 個が見えなかった）."""
+    bad = sorted((r for r in rows if r[6] in ("重すぎ", "遠すぎ")), key=lambda r: r[6] != "重すぎ")
+    groups: dict = {}
+    for nm, _ty, _v, w, rad, _nz, res, _x, far in bad:
+        line = (f"揚重判定: {nm} {w:.2f}t・作業半径 {rad / 1000:.1f}m は{res}。"
+                + (f"作業半径 {far / 1000:.1f}m 以内に寄せれば吊れます" if far else "この機種ではどの半径でも吊れません（大きい機種に）"))
+        groups[line] = groups.get(line, 0) + 1
+    items = list(groups.items())
+    out = [line + (f"（同じもの {n}個）" if n > 1 else "") for line, n in items[:limit]]
+    rest = sum(n for _line, n in items[limit:])
+    if rest:
+        out.append(f"揚重判定: ほか {rest}個は帳票に")
     return out
 
 

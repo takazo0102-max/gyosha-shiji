@@ -238,6 +238,9 @@ def main(argv=None) -> int:
         by = {}
         for v in els.values():
             by[v["group"]] = by.get(v["group"], 0) + 1
+        if not by:                                           # 「工程の模型:  をレイヤーに分けました」と空で出ていた（2026-11-07 ループ）
+            print("工程の模型: 分ける仮設がありません（先に足場・仮囲い・構台などを置いてから押してください）")
+            return 1
         print("工程の模型: " + "・".join(f"{k.replace('仮設工程_', '')} {n}" for k, n in by.items()) + " をレイヤーに分けました"
               + (f"（注意: {len(bad)}個はレイヤーを変えられませんでした。固定・隠したレイヤーにないか確かめてください）" if bad else ""))
         return 0

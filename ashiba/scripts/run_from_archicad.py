@@ -1111,5 +1111,5 @@ if __name__ == "__main__":
         main()
     except (InputError, ValidationError, MasterDataError, SeriesLockError,
             CapacityError, TapirError) as e:
-        print(f"[ashiba] {type(e).__name__}: {e}")
+        print(f"配置: {e}" if isinstance(e, TapirError) else f"[ashiba] {type(e).__name__}: {e}")   # Tapir の言葉は出さない（2026-11-07 ループ）
         raise SystemExit(2)

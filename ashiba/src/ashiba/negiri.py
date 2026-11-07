@@ -673,6 +673,18 @@ def slope_angle(n_ratio: float) -> float:
     return 90.0 if n_ratio <= 0 else math.degrees(math.atan(1.0 / n_ratio))
 
 
+def ratio_of_degrees(deg: float) -> float:
+    """法面の角度（度。90＝垂直）→ 勾配 1:n の n. 利用者の指定 2026-11-07「法面は角度は度にして」."""
+    if not 0.0 < deg <= 90.0:
+        raise ValueError(f"法面の角度 {deg:g}° は 0 より大きく 90 以下にしてください")
+    return 0.0 if deg >= 90.0 - 1e-9 else 1.0 / math.tan(math.radians(deg))
+
+
+def slope_label(n_ratio: float) -> str:
+    """勾配の書き方: 度を先に、勾配 1:n を添える（「63°（1:0.5）」・「垂直」）."""
+    return "垂直" if n_ratio <= 0 else f"{slope_angle(n_ratio):.0f}°（1:{n_ratio:.2g}）"
+
+
 def checks(n: Negiri, general) -> list[Check]:
     c = []
     deep = max([n.gl - v for v in n.levels] + [0.0])
@@ -702,7 +714,7 @@ def checks(n: Negiri, general) -> list[Check]:
     if worst:
         ang, lim, h, s = worst
         c.append(Check("法面のこう配", "OK" if ang <= lim + 1e-6 else "NG",
-                       f"{'垂直' if s <= 0 else f'1:{s:g}'}（{ang:.0f}°）・掘削面の高さ {h:,.0f}・地山「{n.soil}」の上限 {lim:.0f}°"
+                       f"{'垂直' if s <= 0 else f'{ang:.0f}°（1:{s:.2g}）'}・掘削面の高さ {h:,.0f}・地山「{n.soil}」の上限 {lim:.0f}°"
                        "（安衛則356条・357条。機械掘削も同じ値を目安に）" + ("。勾配は自動（積算基準の法の係数）" if n.slope is None else "")))
     if n.strips:
         c.append(Check("細い地山", "OK", f"根切りの間に残る幅 {STRIP_MM:,.0f} 以下の地山も掘る（隣の浅い方の床付けまで）"))
@@ -773,7 +785,7 @@ def report(n: Negiri) -> str:
            f"- GL: {n.gl:,.0f}（プロジェクトの高さ）・余掘り {n.margin:.0f}（土間 {n.doma_margin:.0f}）・砕石 {n.gravel:.0f}・"
            f"捨てコン {n.lean:.0f}（土間 {n.doma_gravel:.0f}・{n.doma_lean:.0f}）・法面 "
            + ("自動（積算基準の法の係数）" if n.slope is None else
-              ("垂直" if n.slope <= 0 else f"1:{n.slope:g}（{slope_angle(n.slope):.0f}°）")) + f"・地山「{n.soil}」"
+              slope_label(n.slope)) + f"・地山「{n.soil}」"
            + ("・山留めあり" if n.yamadome else ""),
            f"- 掘削の面積（法肩の内）: {n.area:,.1f} m²・掘削土量（地山）: {n.volume:,.1f} m³（升目 {n.step:.0f}mm で計算）・"
            f"ほぐした土量の目安 {n.volume * LOOSE.get(n.soil, 1.2):,.1f} m³（土量変化率 L {LOOSE.get(n.soil, 1.2):g}。運搬の台数の見当）",
@@ -824,8 +836,12 @@ def mesh_data(n: Negiri) -> list[dict]:
             if any(_same(r, q) and abs(h - L) < 1.0 for h, q in used):
                 continue                                       # 同じ高さの同じ線
             rr = r
-            if any(_same(r, q) for _h, q in used):
-                rr = _shrink(r, 20.0)
+            # 前の線（外形・浅い床付け）に点が乗ると、Archicad はその点に深い方の高さを付けて外形が下がり、側面がのこぎりの帯に
+            # なっていた（2026-11-07 利用者の画像: 山留めの所で垂直に掘ると床付けの線が外形に重なる）。乗らなくなるまで内へ寄せる
+            for _ in range(4):
+                if not any(_touches(rr, q) for _h, q in used):
+                    break
+                rr = _shrink(rr, 20.0)
             used.append((L, rr))
             subs.append({"coordinates": [{"x": x / 1000.0, "y": y / 1000.0, "z": (L - n.gl) / 1000.0} for x, y in rr + rr[:1]]})
         out.append({"level": n.gl / 1000.0,
@@ -840,6 +856,11 @@ def _centroid(r):
 
 def _same(a, b, tol: float = 1.0) -> bool:
     return len(a) == len(b) and all(min(math.dist(p, q) for q in b) <= tol for p in a)
+
+
+def _touches(r, q, tol: float = 2.0) -> bool:
+    """線 r の点が線 q の辺の上（tol mm 以内）にあるか."""
+    return any(min(_seg_dist(p, q[i], q[(i + 1) % len(q)]) for i in range(len(q))) <= tol for p in r)
 
 
 def _shrink(r, d: float):

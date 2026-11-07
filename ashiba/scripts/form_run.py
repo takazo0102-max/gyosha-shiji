@@ -224,6 +224,15 @@ def main(argv=None) -> int:
         sysrec = {}
     sysrec.setdefault("slabs", {})
     if a.shoring or a.pipe:
+        # 支保工の切替はスラブだけを置き直す（2026-11-07 ループの試験: 何も選ばずに「支保工を戻す」を押すと、モデルの全部の壁・柱・梁に
+        # 型枠を置いていた。鉄骨の柱にも置いて高さが負になり、ZeroDivisionError で止まることもあった）
+        walls, cols, beams = [], [], []
+        picked = {e["elementId"]["guid"] for e in c.get_selected_elements()}
+        if a.pipe and not picked & {e["elementId"]["guid"] for e, _d in slabs_sel}:
+            slabs_sel = [(e, d) for e, d in slabs_sel if e["elementId"]["guid"] in sysrec["slabs"]]   # 選ばなければ支保工足場にしたスラブ
+            if not slabs_sel:
+                print("支保工を戻す: 支保工足場にしたスラブがありません（パイプサポートのままです）")
+                return 1
         if not slabs_sel:
             print("支保工足場: スラブがありません（スラブを選ぶか、モデルに置いてから押してください）")
             return 1
@@ -349,6 +358,11 @@ def main(argv=None) -> int:
                    for sx in (-0.99, 0.99) for sy in (-0.99, 0.99)] + [col["c"]]
         top = cap_top(col["z0"] + col["height"], corners, r_)
         if top < col["z0"] + col["height"] - 1.0:
+            if top - col["z0"] < 1.0:
+                # 柱の下端より低い梁・スラブの下端で切ると高さが 0 か負になり、数量の割り算で止まっていた（2026-11-07 ループの試験）
+                print(f"  {d.get('id') or ''}: 柱の下端（{col['z0']:.0f}）の上に梁・スラブがかぶさり、柱の型枠の要る高さがありません（飛ばしました）")
+                skipped += 1
+                continue
             print(f"  {d.get('id') or ''}: 柱の型枠は梁・スラブの下端 {top:.0f} まで（上は梁・スラブの型枠で）")
             col = {**col, "height": top - col["z0"]}
         f = plan_column(col["width"], col["depth"], col["height"], wall_hits(col, list(allw.values())))
@@ -563,6 +577,11 @@ def main(argv=None) -> int:
     print(f"型枠: 壁 {sum(1 for e, _d in walls if e['elementId']['guid'] in rec)}枚・柱 "
           f"{sum(1 for e, _d in cols if e['elementId']['guid'] in rec)}本・梁 {sum(1 for e, _d in beams if e['elementId']['guid'] in rec)}本・"
           f"スラブ {sum(1 for e, _d in slabs_sel if e['elementId']['guid'] in rec)}枚に置きました")
+    if a.shoring or a.pipe:
+        n_sl = len(slabs_sel)
+        n_st = sum(len(sysrec["slabs"].get(e["elementId"]["guid"], {}).get("stages", [])) for e, _d in slabs_sel)
+        print(f"支保工足場: スラブ {n_sl}枚の支保工を支保工足場にしました（部品 {n_st}個）" if a.shoring
+              else f"支保工を戻す: スラブ {n_sl}枚の支保工をパイプサポートに戻しました")
     if rows:
         out = R.OUT_DIR / "型枠_材料.csv"
         with open(out, "w", encoding="utf-8-sig", newline="") as fh:
