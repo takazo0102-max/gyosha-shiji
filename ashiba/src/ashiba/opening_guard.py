@@ -107,9 +107,9 @@ def posts_on(length: float) -> int:
     return max(1, math.ceil(length / POST_MM - 1e-6))
 
 
-def net_clearance(w: float, d: float) -> float:
-    """水平ネット（10cm 網目・単体）の下に要る空き H2 mm（安全ネット指針）。L＝短辺、A＝長辺（支持点の間隔の代わり）."""
-    L, A = min(w, d), max(w, d)
+def net_clearance(w: float, d: float, support: float = NET_SUP_MM) -> float:
+    """水平ネット（10cm 網目・単体）の下に要る空き H2 mm（安全ネット指針）。L＝短辺、A＝支持点の間隔."""
+    L, A = min(w, d), support
     return 0.85 * (L + 3.0 * A) / 4.0 if L < A else 0.85 * L
 
 
@@ -172,7 +172,7 @@ def plan_guard(g: Guard) -> Guard:
                                          f"中桟 {MID_H:.0f}・幅木 {TOE_H:.0f}（杉足場板）、柱 {POST_MM:.0f} 以内（"
                                          + ("固定ベース PKB＋単管 1.0M をアンカー" if g.post == "PKB" else "スタンション NREG で床の縁をくわえる")
                                          + "）。"
-                                         "S造のデッキ敷き込み中は親綱支柱＋親綱（スパン 10m 以下・1スパン1人）"))
+                                         "S造のデッキ敷き込み中は親綱支柱＋親綱（スパン 10m 以下かつ 40(H−4)/11・1スパン1人）"))
     _quantity(g)
     return g
 

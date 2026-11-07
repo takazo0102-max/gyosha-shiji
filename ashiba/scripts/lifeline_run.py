@@ -32,6 +32,8 @@ def main(argv=None) -> int:
 
     import run_from_archicad as R
     from ashiba.beams import beam_from_details
+    from ashiba.deck_stage import lookup
+    from ashiba.steel_erection import zone_of
     from ashiba.lifeline import Run, part_params, plan_run, report
     from ashiba.opening_guard import drop_below
     from ashiba.pens import gdl_pens, parse_pens
@@ -103,12 +105,23 @@ def main(argv=None) -> int:
 
     pens.update(draft_pens_for(c, pens.get("penEquip", 1)))      # 外形は太線・細部は細線（scripts/gdl_draft.py）
     runs = []
+    try:
+        stage = json.loads((R.OUT_DIR / "鉄骨デッキ判定.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stage = {}
     for n, (key, p0, p1, top) in enumerate(targets, 1):
         if key in rec:
             _delete_alive(c, [rec.pop(key)])
         mid = ((p0[0] + p1[0]) / 2.0, (p0[1] + p1[1]) / 2.0)
         drop = a.drop if a.drop is not None else drop_below(mid, top, slabs, ground(*mid) if ground else 0.0)
-        r = plan_run(Run(f"親綱{n}", p0, p1, top, drop, "ALPA12" if a.post == "alpa" else "NTP", a.flange))
+        high, note = 0.0, ""
+        if a.drop is None:
+            hit = lookup(stage.get("rows", []), zone_of(mid[0], mid[1], stage.get("xs", []), stage.get("ys", [])), top)
+            if hit:
+                drop, high = hit                     # 鉄骨建て方の段階の H（下限で親綱、上限で器具）
+            else:
+                note = "完成時の床で見た落差です。建て方の時点は「鉄骨建て方」の段階の判定を見てください"
+        r = plan_run(Run(f"親綱{n}", p0, p1, top, drop, "ALPA12" if a.post == "alpa" else "NTP", a.flange, drop_max=high, note=note))
         el = _place(c, part, p0, top, math.degrees(math.atan2(p1[1] - p0[1], p1[0] - p0[0])))
         if el is None:
             continue
