@@ -307,3 +307,40 @@ while strlen(rest) > 0 do
 endwhile
 nB = min(nB, min(nZ, min(nS, min(nE, min(nT, min(nH, min(nW, min(nX, nF))))))))
 nB = min(nB, min(n1, min(n2, min(n3, min(n4, min(n5, min(n6, min(n7, n8))))))))
+dim dZ[]
+nD = 0
+rest = dpZ
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nD = nD + 1
+		dZ[nD] = v / 1000
+	endif
+endwhile
+dim dT[]
+nDT = 0
+rest = dpT
+while strlen(rest) > 0 do
+	pc = strstr(rest, ",")
+	if pc > 0 then
+		item = strsub(rest, 1, pc - 1)
+		rest = strsub(rest, pc + 1, strlen(rest) - pc)
+	else
+		item = rest
+		rest = ""
+	endif
+	k = split(item, "%n", v)
+	if k > 0 then
+		nDT = nDT + 1
+		dT[nDT] = v / 1000
+	endif
+endwhile
+nD = min(nD, nDT)

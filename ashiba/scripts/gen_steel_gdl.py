@@ -36,6 +36,14 @@ def paramlist() -> str:
         _param("Boolean", "bpOn", "ベースプレート", 0),
         _param("Length", "bpO", "ベースプレートのはみ出し", 0.1),
         _param("Length", "bpT", "ベースプレートの厚さ", 0.036),
+        _param("Boolean", "capOn", "柱頭の板", 0),
+        _param("Length", "capO", "柱頭の板の出", 0.025),
+        _param("Length", "capT", "柱頭の板の厚さ", 0.022),
+        _param("Length", "capZ", "柱頭の板の上端（ピースの下端から）", 4.0),
+        _param("Integer", "dpK", "ダイアフラム（0 なし・1 通し・2 内・3 水平スチフナ）", 0),
+        _param("Length", "dpO", "ダイアフラムの出", 0.025),
+        _param("String", "dpZ", "ダイアフラムの中心の高さ（mm。ピースの下端から）", ""),
+        _param("String", "dpT", "ダイアフラムの厚さ（mm）", ""),
         _param("String", "brA", "ブラケットの向き（度。カンマ区切り）", ""),
         _param("String", "brZ", "ブラケットの高さ（mm。ピースの下端から）", ""),
         _param("String", "brS", "柱の中心から根元（mm）", ""),
@@ -73,7 +81,8 @@ SCRIPT_1D = ("﻿! 鉄骨のピース: ブラケットの並び（m・度）\n" 
              + _list("brW", "qW", "nX") + _list("brF", "qF", "nF") + _list("spoT", "uT", "n1") + _list("spoL", "uL", "n2") + _list("spoW", "uW", "n3")
              + _list("spiT", "vT", "n4") + _list("spiW", "vW", "n5") + _list("spwT", "wT", "n6") + _list("spwH", "wH", "n7") + _list("spwW", "wW", "n8")
              + "nB = min(nB, min(nZ, min(nS, min(nE, min(nT, min(nH, min(nW, min(nX, nF))))))))\n"
-             + "nB = min(nB, min(n1, min(n2, min(n3, min(n4, min(n5, min(n6, min(n7, n8))))))))\n")
+             + "nB = min(nB, min(n1, min(n2, min(n3, min(n4, min(n5, min(n6, min(n7, n8))))))))\n"
+             + _list("dpZ", "dZ", "nD") + _list("dpT", "dT", "nDT") + "nD = min(nD, nDT)\n")
 
 SCRIPT_2D = """﻿! 鉄骨のピース 2D: 断面の外形、ブラケットと継手の添え板、名前
 pen penEquip
@@ -87,6 +96,20 @@ if spK = 1 then
 		rect2 -spH / 2, -spB / 2, spH / 2, spB / 2
 	endif
 	if bpOn then rect2 -spH / 2 - bpO, -spB / 2 - bpO, spH / 2 + bpO, spB / 2 + bpO
+	if capOn then
+		if spT = 3 then
+			circle2 0, 0, spH / 2 + capO
+		else
+			rect2 -spH / 2 - capO, -spB / 2 - capO, spH / 2 + capO, spB / 2 + capO
+		endif
+	endif
+	if dpK = 1 and nD > 0 then
+		if spT = 3 then
+			circle2 0, 0, spH / 2 + dpO
+		else
+			rect2 -spH / 2 - dpO, -spB / 2 - dpO, spH / 2 + dpO, spB / 2 + dpO
+		endif
+	endif
 	del 1
 	for i = 1 to nB
 		rot2 qA[i]
@@ -128,6 +151,59 @@ if spK = 1 then
 		del 1
 		material "sp_steel"
 	endif
+	if capOn then
+		! 柱頭の板: 管はこの板の下で止める
+		material "sp_plate"
+		if spT = 3 then
+			addz capZ - capT
+			cylind capT, spH / 2 + capO
+			del 1
+		else
+			add -spH / 2 - capO, -spB / 2 - capO, capZ - capT
+			block spH + 2 * capO, spB + 2 * capO, capT
+			del 1
+		endif
+		material "sp_steel"
+		rL = capZ - capT
+	endif
+	material "sp_plate"
+	for j = 1 to nD
+		zb = dZ[j] - dT[j] / 2
+		if dpK = 1 then
+			! 通しダイアフラム: 柱の外へ dpO 出す
+			if spT = 3 then
+				addz zb
+				cylind dT[j], spH / 2 + dpO
+				del 1
+			else
+				add -spH / 2 - dpO, -spB / 2 - dpO, zb
+				block spH + 2 * dpO, spB + 2 * dpO, dT[j]
+				del 1
+			endif
+		endif
+		if dpK = 2 then
+			! 内ダイアフラム: 柱の内側いっぱい
+			if spT = 3 then
+				addz zb
+				cylind dT[j], spH / 2 - spF
+				del 1
+			else
+				add -spH / 2 + spF, -spB / 2 + spF, zb
+				block spH - 2 * spF, spB - 2 * spF, dT[j]
+				del 1
+			endif
+		endif
+		if dpK = 3 then
+			! 水平スチフナ: H 形の柱のウェブの両側、フランジからフランジへ
+			add -spH / 2 + spF, spW / 2, zb
+			block spH - 2 * spF, spB / 2 - spW / 2, dT[j]
+			del 1
+			add -spH / 2 + spF, -spB / 2, zb
+			block spH - 2 * spF, spB / 2 - spW / 2, dT[j]
+			del 1
+		endif
+	next j
+	material "sp_steel"
 	roty -90
 	gosub "run"
 	del 2

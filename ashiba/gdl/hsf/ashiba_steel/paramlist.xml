@@ -73,6 +73,38 @@
 			<Description><![CDATA["ベースプレートの厚さ"]]></Description>
 			<Value>0.036</Value>
 		</Length>
+		<Boolean Name="capOn">
+			<Description><![CDATA["柱頭の板"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="capO">
+			<Description><![CDATA["柱頭の板の出"]]></Description>
+			<Value>0.025</Value>
+		</Length>
+		<Length Name="capT">
+			<Description><![CDATA["柱頭の板の厚さ"]]></Description>
+			<Value>0.022</Value>
+		</Length>
+		<Length Name="capZ">
+			<Description><![CDATA["柱頭の板の上端（ピースの下端から）"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<Integer Name="dpK">
+			<Description><![CDATA["ダイアフラム（0 なし・1 通し・2 内・3 水平スチフナ）"]]></Description>
+			<Value>0</Value>
+		</Integer>
+		<Length Name="dpO">
+			<Description><![CDATA["ダイアフラムの出"]]></Description>
+			<Value>0.025</Value>
+		</Length>
+		<String Name="dpZ">
+			<Description><![CDATA["ダイアフラムの中心の高さ（mm。ピースの下端から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="dpT">
+			<Description><![CDATA["ダイアフラムの厚さ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
 		<String Name="brA">
 			<Description><![CDATA["ブラケットの向き（度。カンマ区切り）"]]></Description>
 			<Value><![CDATA[""]]></Value>

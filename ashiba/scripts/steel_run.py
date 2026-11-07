@@ -97,13 +97,40 @@ def grid_lines(c) -> tuple:
     return xs, ys
 
 
+PLATE_CHOICES = {"自動": "柱の形で（角形・丸は通し、H形は水平スチフナ）", "内": "内ダイアフラム", "なし": "なし"}
+
+
+def zones_of(c) -> list:
+    """名前に「工区」を含むゾーン → Zone の並び（番号の順）. 部屋のゾーンは使わない."""
+    from ashiba.steel_erection import Zone
+
+    es = c.tapir("GetElementsByType", {"elementType": "Zone"}).get("elements", [])
+    rows = []
+    for d in c.get_details(es) if es else []:
+        q = d.get("details") or {}
+        if "工区" not in str(q.get("name", "")):
+            continue
+        pts = [(p["x"] * 1000.0, p["y"] * 1000.0) for p in q.get("polygonOutline") or []]
+        if len(pts) > 1 and pts[0] == pts[-1]:
+            pts = pts[:-1]
+        holes = [[(p["x"] * 1000.0, p["y"] * 1000.0) for p in (h.get("polygonOutline") if isinstance(h, dict) else h) or []] for h in q.get("holes") or []]
+        rows.append((str(q.get("numberStr", "")), str(q.get("name")), pts, holes))
+
+    def key(r):
+        digits = "".join(ch for ch in r[0] if ch.isdigit())
+        return (int(digits) if digits else 10 ** 6, r[0], r[1])
+
+    return [Zone(i, n, pts, holes) for i, (_num, n, pts, holes) in enumerate(sorted(rows, key=key), 1)]
+
+
 def ask(a, marks: list, table: dict) -> bool:
     """窓: 切り方とプレート、符号の断面. やめたら False."""
     from form_dialog import show_form
 
     res = show_form({
         "title": "鉄骨建て方",
-        "intro": "柱は階の高さ＋指定の高さで節に切り、梁は柱の中心から指定の距離で切って端（ブラケット）と継手の添え板を柱と一体にします。断面の無い符号は重量を出しません。"
+        "intro": "柱は階の高さ＋指定の高さで節に切り、梁は柱の中心から指定の距離で切って端（ブラケット）と継手の添え板を柱と一体にします。断面が空の符号は仮の形で描き、重量は出しません。"
+                 "名前に「工区」を含むゾーンがあれば、ゾーンで工区を分けます（番号の順に建てる）。"
                  "断面は H-500×200×10×16・□-500×500×22・P-318.5×10 の形で。",
         "fields": [{"key": "every", "label": "節は何階ごと", "kind": "number", "value": f"{a.every}"},
                    {"key": "offset", "label": "節の高さ mm（階の高さから）", "kind": "number", "value": f"{a.offset:g}"},
@@ -111,7 +138,8 @@ def ask(a, marks: list, table: dict) -> bool:
                    {"key": "base", "label": "下端の高さ m（これより下は見ない）", "kind": "number", "value": f"{a.base:g}"},
                    {"key": "bp_over", "label": "ベースプレートのはみ出し mm【目安】", "kind": "number", "value": f"{a.bp_over:g}"},
                    {"key": "bp_t", "label": "ベースプレートの厚さ mm【目安】", "kind": "number", "value": f"{a.bp_t:g}"},
-                   {"key": "extra", "label": "重量の割増 %（ボルト・溶接・ダイアフラム）【目安】", "kind": "number", "value": f"{a.extra:g}"},
+                   {"key": "diaphragm", "label": "ダイアフラム", "kind": "choice", "options": list(PLATE_CHOICES), "value": PLATE_CHOICES.get(a.diaphragm, "")},
+                   {"key": "extra", "label": "重量の割増 %（ボルト・溶接）【目安】", "kind": "number", "value": f"{a.extra:g}"},
                    {"key": "zones", "label": "工区の境の通り（X3,Y2 の形。空＝1工区）", "kind": "text", "value": a.zones},
                    {"key": "order", "label": "建てる順", "kind": "choice", "options": ["工区ごとに上まで（建て逃げ）", "節ごとに全工区（積み上げ）"],
                     "value": "節ごとに全工区（積み上げ）" if a.order == "節" else "工区ごとに上まで（建て逃げ）"},
@@ -132,6 +160,7 @@ def ask(a, marks: list, table: dict) -> bool:
     a.table = res.get("button") == "table"
     v = res.get("values") or {}
     a.zones = str(v.get("zones") or "").strip()
+    a.diaphragm = next((k for k, x in PLATE_CHOICES.items() if x == v.get("diaphragm")), a.diaphragm)
     a.order = "節" if str(v.get("order", "")).startswith("節") else "工区"
     a.start = str(v.get("start") or a.start).strip()
     a.sat_off = str(v.get("sat_off")) in ("1", "true", "True")
@@ -220,13 +249,15 @@ def go_step(c, path, no: int) -> int:
     return 0
 
 
-def drawing_data(plan, steps, lx, ly, xs, ys, rows, deck_records) -> dict:
+def drawing_data(plan, steps, lx, ly, xs, ys, rows, deck_records, zones=()) -> dict:
     """建て方検討図の控え（mm）."""
     return {"columns": [{"node": p.node, "zone": p.zone, "grid": p.grid, "marks": p.marks, "x": p.x, "y": p.y, "z0": p.z0, "z1": p.z1, "w": p.w, "d": p.d,
                          "ang": p.ang, "weight": p.weight} for p in plan.columns],
             "beams": [{"mark": b.mark, "x": b.x, "y": b.y, "z": b.z, "h": b.h, "w": b.w, "ang": b.ang, "length": b.length, "node": b.node, "zone": b.zone,
                        "weight": b.weight} for b in plan.beams],
-            "steps": [{"no": s.no, "zone": s.zone, "node": s.node, "columns": len(s.columns), "beams": len(s.beams), "weight": s.weight} for s in steps],
+            "steps": [{"no": s.no, "zone": s.zone, "zone_name": s.zone_name or f"{s.zone}工区", "node": s.node, "columns": len(s.columns), "beams": len(s.beams),
+                       "weight": s.weight} for s in steps],
+            "zones": [{"name": z.name, "outline": [list(p) for p in z.outline], "holes": [[list(p) for p in h] for h in z.holes]} for z in zones],
             "lines_x": [list(x) for x in lx], "lines_y": [list(x) for x in ly], "xs": xs, "ys": ys,
             "deck": [{**d, "rope": r.rope} for d, r in zip(deck_records, rows)]}
 
@@ -375,6 +406,7 @@ def main(argv=None) -> int:
     ap.add_argument("--table", action="store_true", help="置かずに表だけ")
     ap.add_argument("--remove", action="store_true", help="置いたピースを消す")
     ap.add_argument("--zones", default="", help="工区の境の通り（X3,Y2 の形）")
+    ap.add_argument("--diaphragm", default="自動", choices=("自動", "内", "なし"), help="自動: 角形・丸は通し、H形は水平スチフナ")
     ap.add_argument("--order", default="工区", choices=("工区", "節"), help="工区: 工区ごとに上まで・節: 節ごとに全工区")
     ap.add_argument("--per-day", dest="per_day", type=float, default=30.0, help="1 日のピース数（クレーン 1 台）【目安・出典なし】")
     ap.add_argument("--cranes", type=int, default=1, help="クレーンの台数")
@@ -445,7 +477,7 @@ def main(argv=None) -> int:
     write_table(table_path, {k: v for k, v in table.items() if v})
     secs = {k: s for k, v in table.items() if (s := parse_section(v))}
     bad = [f"{k}（{v}）" for k, v in table.items() if v and k not in secs]
-    o = Options(a.every, a.offset, a.bracket, a.base * 1000.0, a.bp_over, a.bp_t, a.extra)
+    o = Options(a.every, a.offset, a.bracket, a.base * 1000.0, a.bp_over, a.bp_t, a.extra, a.diaphragm)
     used = [g for (g, _d), x in zip(cols, colz) if x.z1 > o.base + 1.0] + [g for (g, _d), x in zip(beams, beamz) if x.zc >= o.base]
     levels = [float(s["level"]) * 1000.0 for s in c.tapir("GetStories", {}).get("stories", [])]
     lx, ly = grid_lines(c)
@@ -458,7 +490,13 @@ def main(argv=None) -> int:
     xs, ys, unknown = zone_lines(a.zones, sorted({(p.x, p.y) for p in plan.columns}), lx, ly)
     if unknown:
         plan.warnings.append("読めない通り: " + "・".join(unknown))
-    steps = make_steps(plan, xs, ys, a.order)
+    zones = zones_of(c)
+    if zones:
+        print("鉄骨建て方: 工区はゾーンで分けます（" + "・".join(z.name for z in zones) + "）")
+        if xs or ys:
+            plan.warnings.append("工区の境の通りは使いません（ゾーンを優先しました）")
+        xs, ys = [], []
+    steps = make_steps(plan, xs, ys, a.order, zones)
     tasks = schedule_tasks(steps, a.per_day, a.cranes)
     try:
         start = _dt.date.fromisoformat(a.start)
@@ -478,7 +516,7 @@ def main(argv=None) -> int:
     D.to_sheet(wb, rows)
     (R.OUT_DIR / "鉄骨デッキ判定.md").write_text(D.to_markdown(rows), encoding="utf-8")
     (R.OUT_DIR / "鉄骨デッキ判定.json").write_text(json.dumps({"rows": D.to_records(rows), "xs": xs, "ys": ys}, ensure_ascii=False, indent=1), encoding="utf-8")
-    (R.OUT_DIR / DRAWING).write_text(json.dumps(drawing_data(plan, steps, lx, ly, xs, ys, rows, D.to_records(rows)), ensure_ascii=False, indent=1), encoding="utf-8")
+    (R.OUT_DIR / DRAWING).write_text(json.dumps(drawing_data(plan, steps, lx, ly, xs, ys, rows, D.to_records(rows), zones), ensure_ascii=False, indent=1), encoding="utf-8")
     xl = R.OUT_DIR / "鉄骨節別重量表.xlsx"
     wb.save(xl)
     (R.OUT_DIR / "鉄骨節別重量表.md").write_text(to_markdown(plan), encoding="utf-8")
@@ -499,7 +537,7 @@ def main(argv=None) -> int:
         rec_path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
         placed = c.set_gdl_parameters_many(pairs)
         guid_of = {id(p): e["elementId"]["guid"] for e, (_c, _q, p) in zip(els, items) if "elementId" in e}
-        names = {s.no: f"鉄骨_{s.no:02d}_{s.zone}工区{s.node}節" for s in steps}
+        names = {s.no: f"鉄骨_{s.no:02d}_" + s.name.replace(" ", "") for s in steps}
         show_layers(c, {n: False for n in names.values()})
         idx = layer_map(c)
         moves = [{"elementId": {"guid": guid_of[id(p)]}, "details": {"layerIndex": idx[names[s.no]]}}
