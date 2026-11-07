@@ -93,7 +93,7 @@ def ask(a, marks: list, table: dict) -> bool:
 
     res = show_form({
         "title": "鉄骨建て方",
-        "intro": "柱は階の高さ＋指定の高さで節に切り、梁は柱の中心から指定の距離で切って端を柱と一体にします。断面の無い符号は重量を出しません。"
+        "intro": "柱は階の高さ＋指定の高さで節に切り、梁は柱の中心から指定の距離で切って端（ブラケット）と継手の添え板を柱と一体にします。断面の無い符号は重量を出しません。"
                  "断面は H-500×200×10×16・□-500×500×22・P-318.5×10 の形で。",
         "fields": [{"key": "every", "label": "節は何階ごと", "kind": "number", "value": f"{a.every}"},
                    {"key": "offset", "label": "節の高さ mm（階の高さから）", "kind": "number", "value": f"{a.offset:g}"},
@@ -101,16 +101,14 @@ def ask(a, marks: list, table: dict) -> bool:
                    {"key": "base", "label": "下端の高さ m（これより下は見ない）", "kind": "number", "value": f"{a.base:g}"},
                    {"key": "bp_over", "label": "ベースプレートのはみ出し mm【目安】", "kind": "number", "value": f"{a.bp_over:g}"},
                    {"key": "bp_t", "label": "ベースプレートの厚さ mm【目安】", "kind": "number", "value": f"{a.bp_t:g}"},
-                   {"key": "gp_w", "label": "ガセットプレートの幅 mm【目安】", "kind": "number", "value": f"{a.gp_w:g}"},
-                   {"key": "gp_t", "label": "ガセットプレートの厚さ mm【目安】", "kind": "number", "value": f"{a.gp_t:g}"},
-                   {"key": "extra", "label": "重量の割増 %（ボルト・溶接・フィレット）【目安】", "kind": "number", "value": f"{a.extra:g}"},
+                   {"key": "extra", "label": "重量の割増 %（ボルト・溶接・ダイアフラム）【目安】", "kind": "number", "value": f"{a.extra:g}"},
                    *[{"key": f"s_{m}", "label": f"断面 {m}", "kind": "text", "value": table.get(m, "")} for m in marks]],
         "buttons": [{"id": "go", "label": "置く"}, {"id": "table", "label": "表だけ"}, {"id": "cancel", "label": "やめる"}]})
     if not res or res.get("button") not in ("go", "table"):
         return False
     a.table = res.get("button") == "table"
     v = res.get("values") or {}
-    for k in ("offset", "bracket", "base", "bp_over", "bp_t", "gp_w", "gp_t", "extra"):
+    for k in ("offset", "bracket", "base", "bp_over", "bp_t", "extra"):
         try:
             setattr(a, k, float(str(v.get(k)).replace(",", "")))
         except (TypeError, ValueError):
@@ -137,14 +135,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ask", action="store_true", help="窓で決める")
     ap.add_argument("--sec", default="", help="符号の断面（C1=□-500×500×22,G1=H-… の形）")
-    ap.add_argument("--every", type=int, default=1, help="節は何階ごと")
+    ap.add_argument("--every", type=int, default=2, help="節は何階ごと（既定 2）")
     ap.add_argument("--offset", type=float, default=1000.0, help="節の高さ mm（階の高さから）")
     ap.add_argument("--bracket", type=float, default=1000.0, help="梁を切る距離 mm（柱の中心から）")
     ap.add_argument("--base", type=float, default=0.0, help="下端の高さ m")
     ap.add_argument("--bp-over", dest="bp_over", type=float, default=100.0)
     ap.add_argument("--bp-t", dest="bp_t", type=float, default=36.0)
-    ap.add_argument("--gp-w", dest="gp_w", type=float, default=300.0)
-    ap.add_argument("--gp-t", dest="gp_t", type=float, default=12.0)
     ap.add_argument("--extra", type=float, default=5.0, help="重量の割増 %")
     ap.add_argument("--table", action="store_true", help="置かずに表だけ")
     ap.add_argument("--remove", action="store_true", help="置いたピースを消す")
@@ -189,7 +185,7 @@ def main(argv=None) -> int:
     write_table(table_path, {k: v for k, v in table.items() if v})
     secs = {k: s for k, v in table.items() if (s := parse_section(v))}
     bad = [f"{k}（{v}）" for k, v in table.items() if v and k not in secs]
-    o = Options(a.every, a.offset, a.bracket, a.base * 1000.0, a.bp_over, a.bp_t, a.gp_w, a.gp_t, a.extra)
+    o = Options(a.every, a.offset, a.bracket, a.base * 1000.0, a.bp_over, a.bp_t, a.extra)
     levels = [float(s["level"]) * 1000.0 for s in c.tapir("GetStories", {}).get("stories", [])]
     lx, ly = grid_lines(c)
     plan = plan_pieces(colz, beamz, levels, secs, o, lx, ly)

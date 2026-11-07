@@ -7,7 +7,8 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.steel_erection import Beam, Column, Options, column_params, cut_heights, grid_names, parse_section, plan_pieces, table_rows
+from ashiba.steel_erection import (Beam, Column, Options, column_params, cut_heights, grid_names, parse_section, piece_width, plan_pieces, splice_of,
+                                   table_rows)
 
 
 def frame(mark="C1"):
@@ -22,7 +23,9 @@ LEVELS = [0.0, 3000.0, 6000.0, 9000.0]
 
 class TestSection(unittest.TestCase):
     def test_area(self):
-        self.assertAlmostEqual(parse_section("H-500×200×10×16").area, 2 * 200 * 16 + 468 * 10)
+        self.assertAlmostEqual(parse_section("H-500×200×10×16").area, 2 * 200 * 16 + 468 * 10 + 0.858 * 13 ** 2)
+        self.assertAlmostEqual(parse_section("H-400×200×8×13").area / 100, 83.37, 1)             # 日本製鉄のカタログの値
+        self.assertAlmostEqual(parse_section("BH-500×200×10×16").area, 2 * 200 * 16 + 468 * 10)  # 溶接組立はフィレットなし
         self.assertAlmostEqual(parse_section("□-500×500×22").area, 2 * 22 * 956)
         self.assertEqual(parse_section("□-400×19").b, 400)
         self.assertEqual(parse_section("BH-600x250x12x25").kind, "H")
@@ -35,30 +38,30 @@ class TestSection(unittest.TestCase):
 
 class TestPieces(unittest.TestCase):
     def test_cut_at_floor_plus_1m(self):
-        self.assertEqual(cut_heights(LEVELS, 0.0, 12000.0, Options()), [4000.0, 7000.0, 10000.0])
-        self.assertEqual(cut_heights(LEVELS, 0.0, 12000.0, Options(every=2)), [7000.0])
-        self.assertEqual(cut_heights(LEVELS, 0.0, 10300.0, Options()), [4000.0, 7000.0])         # 上端のすぐ下は切らない
-        self.assertEqual(cut_heights([0.0, 3000.0, 6000.0, 9000.0, 9700.0], 0.0, 12000.0, Options()), [4000.0, 7000.0, 10000.0])   # 短い階では切らない
+        self.assertEqual(cut_heights(LEVELS, 0.0, 12000.0, Options()), [7000.0])                 # 既定は 2 階で 1 節
+        self.assertEqual(cut_heights(LEVELS, 0.0, 12000.0, Options(every=1)), [4000.0, 7000.0, 10000.0])
+        self.assertEqual(cut_heights(LEVELS, 0.0, 10300.0, Options(every=1)), [4000.0, 7000.0])  # 上端のすぐ下は切らない
+        self.assertEqual(cut_heights([0.0, 3000.0, 6000.0, 9000.0, 9700.0], 0.0, 12000.0, Options(every=1)), [4000.0, 7000.0, 10000.0])   # 短い階では切らない
 
     def test_beam_is_cut_from_the_column_center(self):
         cols, beams = frame()
-        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options(every=1))
         self.assertEqual(len(p.columns), 8)
         self.assertEqual({b.length for b in p.beams}, {4000.0})
         self.assertEqual(p.beams[0].x, 1000.0)
         br = next(c for c in p.columns if c.node == 1 and c.x == 0.0).brackets
         self.assertEqual([(b.ang, b.start, b.end) for b in br], [(0.0, 250.0, 1000.0)])        # 3m の梁は 4m の切り目より下の 1 節に
 
-    def test_weight_has_bracket_gusset_and_base_plate(self):
+    def test_weight_has_bracket_splice_and_base_plate(self):
         cols, beams = frame()
-        o = Options(extra=0.0)
+        o = Options(every=1, extra=0.0)
         p = plan_pieces(cols, beams, LEVELS, SECS, o)
         c = next(c for c in p.columns if c.node == 1 and c.x == 0.0)
         col = SECS["C1"].weight(4000.0)
         br = SECS["G1"].weight(750.0)
-        gp = (500 - 32 - 40) * 300 * 12 * 7.85e-9
+        sp = splice_of(SECS["G1"]).weight
         bp = 700 * 700 * 36 * 7.85e-9
-        self.assertAlmostEqual(c.weight, col + br + gp + bp)
+        self.assertAlmostEqual(c.weight, col + br + sp + bp)
 
     def test_missing_section_gives_no_weight(self):
         cols, beams = frame()
@@ -68,7 +71,7 @@ class TestPieces(unittest.TestCase):
 
     def test_table_has_the_four_columns(self):
         cols, beams = frame()
-        rows = table_rows(plan_pieces(cols, beams, LEVELS, SECS, Options(), [("A", 0.0), ("B", 6000.0)], [("1", 0.0)]))
+        rows = table_rows(plan_pieces(cols, beams, LEVELS, SECS, Options(every=1), [("A", 0.0), ("B", 6000.0)], [("1", 0.0)]))
         self.assertEqual(rows[0][:3], ("1節", "A-1", "C1"))
         self.assertEqual(rows[-1][:3], ("4節", "B-1", "C1"))
 
@@ -77,12 +80,44 @@ class TestPieces(unittest.TestCase):
 
     def test_part_gets_the_brackets(self):
         cols, beams = frame()
-        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options(every=1))
         c = next(c for c in p.columns if c.node == 1 and c.x == 6000.0)
         q = column_params(c, SECS, Options())
         self.assertEqual(q["brA"], "180.0")
         self.assertEqual(q["brZ"], "2750")
         self.assertTrue(q["bpOn"])
+        self.assertEqual((q["spwT"], q["spwH"], q["spwW"], q["spoL"]), ("9", "350", "165", "405"))
+
+
+class TestSplice(unittest.TestCase):
+    """継手の添え板一式（reports/ガセットプレートの実務と標準値.md）."""
+
+    def test_table_value_and_weight(self):
+        sp = splice_of(parse_section("H-400×200×8×13"))
+        self.assertTrue(sp.listed)
+        self.assertEqual((sp.web_t, sp.web_h, sp.web_w), (9, 260, 165))
+        self.assertAlmostEqual(sp.weight * 1000, 27.9, 1)                                         # 1 か所 27.9kg
+
+    def test_unlisted_section_is_marked(self):
+        cols, _b = frame()
+        beams = [Beam("G9", (0.0, 0.0), (6000.0, 0.0), 2750.0, 200.0, 500.0)]
+        sec = {**SECS, "G9": parse_section("H-488×300×11×18")}
+        self.assertFalse(splice_of(sec["G9"]).listed)
+        p = plan_pieces(cols, beams, LEVELS, sec, Options())
+        self.assertTrue(any("継手表に無い" in w for w in p.warnings))
+
+    def test_box_beam_has_no_splice(self):
+        self.assertIsNone(splice_of(parse_section("□-300×12")))
+
+
+class TestWarnings(unittest.TestCase):
+    def test_long_node_and_wide_bracket(self):
+        cols = [Column("C1", 0.0, 0.0, 0.0, 20000.0, 500.0, 500.0)]
+        beams = [Beam("G1", (-6000.0, 0.0), (6000.0, 0.0), 2750.0, 200.0, 500.0)]
+        p = plan_pieces(cols, beams, [0.0, 3000.0, 15000.0], SECS, Options(bracket=1300.0))
+        self.assertTrue(any("12m を超え" in w for w in p.warnings))
+        self.assertTrue(any("全幅" in w for w in p.warnings))
+        self.assertEqual(piece_width(p.columns[0]), 2600.0)
 
 
 class TestSheet(unittest.TestCase):

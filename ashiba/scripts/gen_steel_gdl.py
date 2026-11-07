@@ -1,4 +1,4 @@
-"""部品 ashiba_steel（鉄骨の建て方のピース。柱の節にブラケット・ガセット・ベースプレートが一体、または梁の真ん中）の HSF を書き出す.
+"""部品 ashiba_steel（鉄骨の建て方のピース。柱の節にブラケット・継手の添え板・ベースプレートが一体、または梁の真ん中）の HSF を書き出す.
 
 利用者の指定（2026-11-07）。割り方と重量は src/ashiba/steel_erection.py、置くのは scripts/steel_run.py。
 原点: 柱のピースはピースの下端の芯、梁のピースは梁の始めの中心。spK 1 柱・2 梁、断面 spT 0 外形・1 H・2 角形・3 丸（中実で描く。重量は pcW）。
@@ -36,8 +36,6 @@ def paramlist() -> str:
         _param("Boolean", "bpOn", "ベースプレート", 0),
         _param("Length", "bpO", "ベースプレートのはみ出し", 0.1),
         _param("Length", "bpT", "ベースプレートの厚さ", 0.036),
-        _param("Length", "gpW", "ガセットプレートの幅", 0.3),
-        _param("Length", "gpT", "ガセットプレートの厚さ", 0.012),
         _param("String", "brA", "ブラケットの向き（度。カンマ区切り）", ""),
         _param("String", "brZ", "ブラケットの高さ（mm。ピースの下端から）", ""),
         _param("String", "brS", "柱の中心から根元（mm）", ""),
@@ -47,6 +45,14 @@ def paramlist() -> str:
         _param("String", "brB", "ブラケットの幅（mm）", ""),
         _param("String", "brW", "ブラケットのウェブ（mm）", ""),
         _param("String", "brF", "ブラケットのフランジ（mm）", ""),
+        _param("String", "spoT", "フランジ外添板の厚さ（mm）", ""),
+        _param("String", "spoL", "フランジ添板の長さ（mm）", ""),
+        _param("String", "spoW", "フランジ外添板の幅（mm）", ""),
+        _param("String", "spiT", "フランジ内添板の厚さ（mm）", ""),
+        _param("String", "spiW", "フランジ内添板の幅（mm）", ""),
+        _param("String", "spwT", "ウェブ添板の厚さ（mm）", ""),
+        _param("String", "spwH", "ウェブ添板の高さ（mm）", ""),
+        _param("String", "spwW", "ウェブ添板の幅（mm）", ""),
         _param("RealNum", "pcW", "ピースの重量（t）", 0.0),
         _param("String", "pcName", "ピースの名前（注記）", ""),
         _param("RealNum", "texSiz", "文字の大きさ（mm）", 2.5),
@@ -64,9 +70,12 @@ def paramlist() -> str:
 
 SCRIPT_1D = ("﻿! 鉄骨のピース: ブラケットの並び（m・度）\n" + _list("brA", "qA", "nB", "1") + _list("brZ", "qZ", "nZ") + _list("brS", "qS", "nS")
              + _list("brE", "qE", "nE") + _list("brT", "qT", "nT", "1") + _list("brH", "qH", "nH") + _list("brB", "qB", "nW")
-             + _list("brW", "qW", "nX") + _list("brF", "qF", "nF") + "nB = min(nB, min(nZ, min(nS, min(nE, min(nT, min(nH, min(nW, min(nX, nF))))))))\n")
+             + _list("brW", "qW", "nX") + _list("brF", "qF", "nF") + _list("spoT", "uT", "n1") + _list("spoL", "uL", "n2") + _list("spoW", "uW", "n3")
+             + _list("spiT", "vT", "n4") + _list("spiW", "vW", "n5") + _list("spwT", "wT", "n6") + _list("spwH", "wH", "n7") + _list("spwW", "wW", "n8")
+             + "nB = min(nB, min(nZ, min(nS, min(nE, min(nT, min(nH, min(nW, min(nX, nF))))))))\n"
+             + "nB = min(nB, min(n1, min(n2, min(n3, min(n4, min(n5, min(n6, min(n7, n8))))))))\n")
 
-SCRIPT_2D = """﻿! 鉄骨のピース 2D: 断面の外形、ブラケットとガセット、名前
+SCRIPT_2D = """﻿! 鉄骨のピース 2D: 断面の外形、ブラケットと継手の添え板、名前
 pen penEquip
 define style "spT" "ＭＳ Ｐゴシック", texSiz, 1, 0
 style "spT"
@@ -82,9 +91,7 @@ if spK = 1 then
 	for i = 1 to nB
 		rot2 qA[i]
 		rect2 qS[i], -qB[i] / 2, qE[i], qB[i] / 2
-		line2 qE[i] - gpW / 2, -gpT / 2, qE[i] + gpW / 2, -gpT / 2
-		line2 qE[i] - gpW / 2, gpT / 2, qE[i] + gpW / 2, gpT / 2
-		line2 qE[i] + gpW / 2, -gpT / 2, qE[i] + gpW / 2, gpT / 2
+		if uL[i] > 0 then rect2 qE[i] - uL[i] / 2, -uW[i] / 2, qE[i] + uL[i] / 2, uW[i] / 2
 		del 1
 	next i
 	add2 -spH / 2, spB / 2 + bpO * bpOn + 0.3
@@ -101,7 +108,7 @@ endif
 hotspot2 0, 0
 """
 
-SCRIPT_3D = """﻿! 鉄骨のピース 3D: 柱の節にブラケット・ガセット・ベースプレートが一体。梁は真ん中のピース
+SCRIPT_3D = """﻿! 鉄骨のピース 3D: 柱の節にブラケット・継手の添え板・ベースプレートが一体。梁は真ん中のピース
 define material "sp_steel" 2, 0.62, 0.30, 0.16
 define material "sp_plate" 2, 0.30, 0.55, 0.75
 resol 16
@@ -136,11 +143,23 @@ if spK = 1 then
 		rL = qE[i] - qS[i]
 		material "sp_steel"
 		gosub "run"
-		material "sp_plate"
-		gH = max(0.05, sH - 2 * sF - 0.04)
-		add rL - gpW / 2, -gpT / 2, -gH / 2
-		block gpW, gpT, gH
-		del 1
+		if uL[i] > 0 then
+			! 継手の添え板（ウェブ両面、フランジの外と内。ブラケットの先をまたぐ）
+			material "sp_plate"
+			for s = -1 to 1 step 2
+				add rL - wW[i] / 2, s * (sW + wT[i]) / 2 - wT[i] / 2, -wH[i] / 2
+				block wW[i], wT[i], wH[i]
+				del 1
+				add rL - uL[i] / 2, -uW[i] / 2, s * (sH + uT[i]) / 2 - uT[i] / 2
+				block uL[i], uW[i], uT[i]
+				del 1
+				for y = -1 to 1 step 2
+					add rL - uL[i] / 2, y * (sW / 2 + 0.005 + vW[i] / 2) - vW[i] / 2, s * (sH / 2 - sF - vT[i] / 2) - vT[i] / 2
+					block uL[i], vW[i], vT[i]
+					del 1
+				next y
+			next s
+		endif
 		del 3
 	next i
 else
