@@ -1,0 +1,87 @@
+﻿! 鉄骨のピース 3D: 柱の節にブラケット・ガセット・ベースプレートが一体。梁は真ん中のピース
+define material "sp_steel" 2, 0.62, 0.30, 0.16
+define material "sp_plate" 2, 0.30, 0.55, 0.75
+resol 16
+sT = spT
+sH = spH
+sB = spB
+sW = spW
+sF = spF
+rL = spL
+material "sp_steel"
+if spK = 1 then
+	rotz spAng
+	if bpOn then
+		material "sp_plate"
+		add -spH / 2 - bpO, -spB / 2 - bpO, -bpT
+		block spH + 2 * bpO, spB + 2 * bpO, bpT
+		del 1
+		material "sp_steel"
+	endif
+	roty -90
+	gosub "run"
+	del 2
+	for i = 1 to nB
+		add 0, 0, qZ[i]
+		rotz qA[i]
+		add qS[i], 0, 0
+		sT = qT[i]
+		sH = qH[i]
+		sB = qB[i]
+		sW = qW[i]
+		sF = qF[i]
+		rL = qE[i] - qS[i]
+		material "sp_steel"
+		gosub "run"
+		material "sp_plate"
+		gH = max(0.05, sH - 2 * sF - 0.04)
+		add rL - gpW / 2, -gpT / 2, -gH / 2
+		block gpW, gpT, gH
+		del 1
+		del 3
+	next i
+else
+	rotz spAng
+	gosub "run"
+	del 1
+endif
+end
+
+"run":
+	! 断面 sT を +X へ長さ rL 押し出す（z＝せい、y＝幅）
+	if sT = 1 then
+		add 0, -sB / 2, sH / 2 - sF
+		block rL, sB, sF
+		del 1
+		add 0, -sB / 2, -sH / 2
+		block rL, sB, sF
+		del 1
+		add 0, -sW / 2, -sH / 2 + sF
+		block rL, sW, sH - 2 * sF
+		del 1
+	endif
+	if sT = 2 then
+		add 0, -sB / 2, sH / 2 - sF
+		block rL, sB, sF
+		del 1
+		add 0, -sB / 2, -sH / 2
+		block rL, sB, sF
+		del 1
+		add 0, -sB / 2, -sH / 2 + sF
+		block rL, sW, sH - 2 * sF
+		del 1
+		add 0, sB / 2 - sW, -sH / 2 + sF
+		block rL, sW, sH - 2 * sF
+		del 1
+	endif
+	if sT = 3 then
+		roty 90
+		cylind rL, sH / 2
+		del 1
+	endif
+	if sT = 0 then
+		add 0, -sB / 2, -sH / 2
+		block rL, sB, sH
+		del 1
+	endif
+return

@@ -42,7 +42,7 @@ from .model import ScaffoldModel
 # くさび1点の部材が斜めに）。こちらは度で持ち、送る口でラジアンに直す。読み戻しは angle_values で度に戻す
 ANGLE_PARAMS = frozenset({"abA", "amA", "atO", "bedA", "bkA", "bmA", "boomA", "dA1", "dA2", "dA3", "drA", "faceAng", "jbA", "jbO", "lbA",
                           "pA1", "pA2", "pA3", "pA4", "pA5", "slew", "tbA", "tieA", "tkA", "trA", "wrDir", "wrSpan",
-                          *(f"wi{k}{i}" for k in "ABM" for i in range(1, 6))})
+                          "spAng", *(f"wi{k}{i}" for k in "ABM" for i in range(1, 6))})
 
 
 def to_tapir_values(params: dict[str, Any]) -> dict[str, Any]:
@@ -64,7 +64,7 @@ class TapirError(Exception):
     pass
 
 
-def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_kbrk", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai", "ashiba_route", "ashiba_house", "ashiba_opening", "ashiba_fence", "ashiba_lifeline", "ashiba_tube", "ashiba_machine", "ashiba_tower", "ashiba_ywall", "ashiba_shiho")) -> bool:
+def is_ashiba_part(name: str, bases: tuple = ("ashiba_line", "ashiba_detail", "ashiba_mvo", "ashiba_spec", "ashiba_tie", "ashiba_net", "ashiba_netbk", "ashiba_sheet", "ashiba_member", "ashiba_xsec", "ashiba_cstep", "ashiba_bridge", "ashiba_stage", "ashiba_kbrk", "ashiba_hoist", "ashiba_walkway", "ashiba_box", "ashiba_side", "ashiba_cfill", "ashiba_wform", "ashiba_cform", "ashiba_bform", "ashiba_sform", "ashiba_yamadome", "ashiba_kakoi", "ashiba_crane", "ashiba_plate", "ashiba_kodai", "ashiba_route", "ashiba_house", "ashiba_opening", "ashiba_fence", "ashiba_lifeline", "ashiba_tube", "ashiba_machine", "ashiba_tower", "ashiba_ywall", "ashiba_shiho", "ashiba_steel")) -> bool:
     """部品名がこのツールの部品（基本名、または基本名_版のハッシュ付き）か.
 
     埋め込みライブラリの部品は Tapir から上書きも削除もできない（同じ名前で

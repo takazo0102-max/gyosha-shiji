@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ParamSection>
+	<ParamSectHeader>
+		<AutoHotspots>false</AutoHotspots>
+		<StatBits>
+			<STBit_UIDefault/>
+		</StatBits>
+		<WDLeftFrame>0</WDLeftFrame>
+		<WDRightFrame>0</WDRightFrame>
+		<WDTopFrame>0</WDTopFrame>
+		<WDBotFrame>0</WDBotFrame>
+		<LayFlags>65535</LayFlags>
+		<WDMirrorThickness>0</WDMirrorThickness>
+		<WDWallInset>0</WDWallInset>
+	</ParamSectHeader>
+	<Parameters SectVersion="27" SectionFlags="0" SubIdent="0">
+		<Length Name="A">
+			<Description><![CDATA["Dimension 1"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="B">
+			<Description><![CDATA["Dimension 2"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Length Name="ZZYZX">
+			<Description><![CDATA["Height"]]></Description>
+			<Fix/>
+			<Value>1</Value>
+		</Length>
+		<Integer Name="spK">
+			<Description><![CDATA["ピース（1 柱・2 梁）"]]></Description>
+			<Value>1</Value>
+		</Integer>
+		<Integer Name="spT">
+			<Description><![CDATA["断面（0 外形・1 H・2 角形・3 丸）"]]></Description>
+			<Value>2</Value>
+		</Integer>
+		<Length Name="spH">
+			<Description><![CDATA["せい"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="spB">
+			<Description><![CDATA["幅"]]></Description>
+			<Value>0.5</Value>
+		</Length>
+		<Length Name="spW">
+			<Description><![CDATA["ウェブの厚さ"]]></Description>
+			<Value>0.022</Value>
+		</Length>
+		<Length Name="spF">
+			<Description><![CDATA["フランジの厚さ"]]></Description>
+			<Value>0.022</Value>
+		</Length>
+		<Length Name="spL">
+			<Description><![CDATA["長さ"]]></Description>
+			<Value>4.0</Value>
+		</Length>
+		<Angle Name="spAng">
+			<Description><![CDATA["向き"]]></Description>
+			<Value>0.0</Value>
+		</Angle>
+		<Boolean Name="bpOn">
+			<Description><![CDATA["ベースプレート"]]></Description>
+			<Value>0</Value>
+		</Boolean>
+		<Length Name="bpO">
+			<Description><![CDATA["ベースプレートのはみ出し"]]></Description>
+			<Value>0.1</Value>
+		</Length>
+		<Length Name="bpT">
+			<Description><![CDATA["ベースプレートの厚さ"]]></Description>
+			<Value>0.036</Value>
+		</Length>
+		<Length Name="gpW">
+			<Description><![CDATA["ガセットプレートの幅"]]></Description>
+			<Value>0.3</Value>
+		</Length>
+		<Length Name="gpT">
+			<Description><![CDATA["ガセットプレートの厚さ"]]></Description>
+			<Value>0.012</Value>
+		</Length>
+		<String Name="brA">
+			<Description><![CDATA["ブラケットの向き（度。カンマ区切り）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brZ">
+			<Description><![CDATA["ブラケットの高さ（mm。ピースの下端から）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brS">
+			<Description><![CDATA["柱の中心から根元（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brE">
+			<Description><![CDATA["柱の中心から先（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brT">
+			<Description><![CDATA["ブラケットの断面の種類"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brH">
+			<Description><![CDATA["ブラケットのせい（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brB">
+			<Description><![CDATA["ブラケットの幅（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brW">
+			<Description><![CDATA["ブラケットのウェブ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<String Name="brF">
+			<Description><![CDATA["ブラケットのフランジ（mm）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="pcW">
+			<Description><![CDATA["ピースの重量（t）"]]></Description>
+			<Value>0.0</Value>
+		</RealNum>
+		<String Name="pcName">
+			<Description><![CDATA["ピースの名前（注記）"]]></Description>
+			<Value><![CDATA[""]]></Value>
+		</String>
+		<RealNum Name="texSiz">
+			<Description><![CDATA["文字の大きさ（mm）"]]></Description>
+			<Value>2.5</Value>
+		</RealNum>
+		<PenColor Name="penEquip">
+			<Description><![CDATA["線のペン"]]></Description>
+			<Value>1</Value>
+		</PenColor>
+	</Parameters>
+</ParamSection>

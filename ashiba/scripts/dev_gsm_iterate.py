@@ -153,6 +153,10 @@ PART_PROFILES = {
     },
     # 親綱と親綱支柱（利用者の指定 2026-11-01: 親綱と親綱支柱も追加して）
     # 別の足場を単管でつなぐ（2026-11-02 の開発ループ）
+    "ashiba_steel": {
+        "images": ("3D", "2D"),
+        "params": {"spL": 4.0, "pcName": "1節"},
+    },
     "ashiba_tube": {
         "images": ("3D", "2D"),
         "params": {"tbL": 3.0, "tbLen": 3.5},
