@@ -68,9 +68,12 @@ def find_crane(c, sel, dets):
             g = v["guid"] if isinstance(v, dict) else (v if isinstance(v, list) else [v])[0]
             el = {"elementId": {"guid": g}}
             try:
+                d = c.get_details([el])[0]
+                if "details" not in d:                             # 消えた要素は止まらずに error を返す
+                    continue
                 if rec_name == "重機.json" and not _is_crawler(c, el):
                     continue
-                return el, c.get_details([el])[0]
+                return el, d
             except Exception:                                      # noqa: BLE001 消えていれば次へ
                 continue
     return None, None

@@ -278,6 +278,8 @@ def step_lifters(c, d: dict, rec: dict) -> tuple:
             dt = c.get_details([el])[0]
         except Exception:                                  # noqa: BLE001 消されていれば飛ばす
             continue
+        if "details" not in dt:                            # 消えた要素は error が返る
+            continue
         crane, cd = find_crane(c, [el], [dt])
         if crane is None or crane["elementId"]["guid"] != m["guid"]:   # 見つからないと控えの別のクレーンが返る
             continue

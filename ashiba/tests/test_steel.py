@@ -633,6 +633,43 @@ class TestMachines(unittest.TestCase):
             self.assertEqual(self.T.step_lifters(self.client([("a", "ashiba_machine", 3)]), d, rec), ({}, []))
 
 
+    def test_deleted_registered_crane_is_skipped(self):
+        class C:
+            def get_details(self, es):
+                return [{"error": {"code": -2130313115, "message": "Failed to get the details of element"}}]
+
+        d = {"steps": [{"no": 1, "zone": 1, "node": 1}]}
+        rec = {"steps": self.ONE, "machines": [{"guid": "gone", "unit": "鉄骨重機_1工区1節", "layer": 3}]}
+        self.assertEqual(self.T.step_lifters(C(), d, rec), ({}, []))
+
+
+class TestFindCraneRecord(unittest.TestCase):
+    """控えのクレーンが消えていれば次へ（2026-11-07 実機の建て方検討図で KeyError: 'details'）."""
+
+    def test_skips_deleted_record(self):
+        import json
+        import tempfile
+        from pathlib import Path as P
+        from unittest import mock
+
+        sys.path.insert(0, str(P(__file__).resolve().parents[1] / "scripts"))
+        import crane_check
+        import run_from_archicad as R
+
+        class C:
+            def get_details(self, es):
+                g = es[0]["elementId"]["guid"]
+                if g == "gone":
+                    return [{"error": {"code": -2130313115, "message": "Failed"}}]
+                return [{"type": "Object", "details": {"libPart": {"name": "ashiba_crane_x"}, "origin": {"x": 0, "y": 0}}}]
+
+        with tempfile.TemporaryDirectory() as t:
+            (P(t) / "クレーン.json").write_text(json.dumps({"a": ["gone", "p1"], "b": ["alive", "p2"]}), encoding="utf-8")
+            with mock.patch.object(R, "OUT_DIR", P(t)):
+                el, d = crane_check.find_crane(C(), [], [])
+        self.assertEqual(el["elementId"]["guid"], "alive")
+        self.assertIn("details", d)
+
 class TestBracketRoot(unittest.TestCase):
     """ブラケットの根元は断面の面に合わせる（利用者の指定 2026-11-07）."""
 
