@@ -8,7 +8,7 @@ import unittest
 
 from _path import SRC  # noqa: F401
 
-from ashiba.steel_erection import (Beam, Bracket, Column, ColumnPiece, Options, Zone, beam_params, cap_plate, column_params, diaphragms, plate_gap_notes, plate_weight, cut_heights, grid_names, make_steps, parse_section, piece_width,
+from ashiba.steel_erection import (Beam, Bracket, Column, ColumnPiece, Options, Zone, beam_params, bracket_root, cap_plate, column_params, diaphragms, plate_gap_notes, plate_weight, cut_heights, grid_names, make_steps, parse_section, piece_width,
                                    label_point, plan_pieces, schedule_tasks, shape_of, splice_of, table_rows, zone_at, zone_lines, zone_of)
 
 
@@ -402,6 +402,24 @@ class TestGear(unittest.TestCase):
         set_gear(c, rec, 0)
         self.assertEqual(c.on, [True, True, True])
 
+    def test_one_zone_shows_only_its_step(self):
+        sys.path.insert(0, str(SRC.parent / "scripts"))
+        from steel_run import set_gear
+
+        class C:
+            def set_gdl_parameters_many(self, pairs):
+                self.on = [p[1]["sgOn"] for p in pairs]
+
+        rec = {"steps": [{"no": 1, "zone": 1}, {"no": 2, "zone": 1}],
+               "gear": [{"guid": "a", "step": 1, "zone": 1}, {"guid": "b", "step": 2, "zone": 1}]}
+        c = C()
+        set_gear(c, rec, 1)
+        self.assertEqual(c.on, [True, False])
+        set_gear(c, rec, 2)
+        self.assertEqual(c.on, [False, True])                                        # 上の節へ移した
+        set_gear(c, rec, 0)
+        self.assertEqual(c.on, [True, True])
+
     def test_old_record_keeps_the_step_rule(self):
         sys.path.insert(0, str(SRC.parent / "scripts"))
         from steel_run import set_gear
@@ -495,6 +513,35 @@ class TestTopPlate(unittest.TestCase):
         v = column_params(c, {"C1": s, "G1": q}, Options())
         self.assertAlmostEqual(v["capZ"], 5.0 - 0.008 + 0.011)                       # 上端 5.000 からフランジの中心へ下げ、板厚の半分を足す
         self.assertAlmostEqual(v["capT"], 0.022)
+
+
+class TestBracketRoot(unittest.TestCase):
+    """ブラケットの根元は断面の面に合わせる（利用者の指定 2026-11-07）."""
+
+    def test_box_uses_the_section_not_the_model(self):
+        cols = [Column("C1", 0.0, 0.0, 0.0, 6000.0, 1500.0, 1500.0), Column("C1", 6000.0, 0.0, 0.0, 6000.0, 1500.0, 1500.0)]
+        beams = [Beam("G1", (0.0, 0.0), (6000.0, 0.0), 2750.0, 200.0, 500.0)]
+        p = plan_pieces(cols, beams, LEVELS, SECS, Options())
+        self.assertEqual({round(b.start, 6) for c in p.columns for b in c.brackets}, {250.0})  # 1500 角でも □-500 の面
+
+    def test_no_section_stays_with_the_model(self):
+        self.assertEqual(bracket_root(None, 0.0, 800.0, 600.0, 200.0), 400.0)
+        self.assertEqual(bracket_root(None, 90.0, 800.0, 600.0, 200.0), 300.0)
+
+    def test_h_column_strong_and_weak_axis(self):
+        h = parse_section("H-400×300×13×21")
+        self.assertEqual(bracket_root(h, 0.0, 0.0, 0.0, 200.0), 200.0)               # フランジの面
+        self.assertEqual(bracket_root(h, 180.0, 0.0, 0.0, 200.0), 200.0)
+        self.assertEqual(bracket_root(h, 90.0, 0.0, 0.0, 200.0), 6.5)                # ウェブの面
+
+    def test_pipe_reaches_the_tube(self):
+        q = bracket_root(parse_section("P-406.4×12"), 0.0, 0.0, 0.0, 200.0)
+        self.assertAlmostEqual(q, (203.2 ** 2 - 100.0 ** 2) ** 0.5)
+
+    def test_rectangular_box_follows_the_angle(self):
+        s = parse_section("□-600×400×22")
+        self.assertEqual(bracket_root(s, 0.0, 0.0, 0.0, 200.0), 300.0)
+        self.assertAlmostEqual(bracket_root(s, 90.0, 0.0, 0.0, 200.0), 200.0)
 
 
 class TestDiaphragm(unittest.TestCase):
